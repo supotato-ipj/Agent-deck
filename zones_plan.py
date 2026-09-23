@@ -29,6 +29,7 @@ class Placement:
     zone: str  # app | doc | recycle | untouched
     slot: int | None
     pos: tuple[int, int] | None
+    source: str | None = None  # 应用区栏位来源：pinned | recommended
 
 
 def classify(item):
@@ -95,25 +96,40 @@ def _dedupe(names):
     return seen
 
 
-def plan_layout(items, pinned=()):
-    """算出编排计划。pinned 为手钉显示名的有序清单，优先占据最靠前的栏位。
+def _app_order_key(pinned_order, pinned_set, scores):
+    """手钉按清单顺序最前；其余按分数降序，同分按当前 index 定序（可重复）。"""
 
+    def key(item):
+        if item.name in pinned_set:
+            return (0, pinned_order.index(item.name), 0.0, item.index)
+        return (1, 0, -scores.get(item.name, 0.0), item.index)
+
+    return key
+
+
+def plan_layout(items, pinned=(), scores=None):
+    """算出编排计划。pinned 为手钉显示名有序清单；scores 为 {显示名: 使用频次分数}。
+
+    应用区栏位：手钉按清单顺序占最前的栏位，剩余栏位由推荐按分数降序填补；
+    没有分数的快捷方式分数记 0，仍参与填补，不被丢弃；手钉永不被推荐顶替。
     内部以 index 为键：用户桌面与公共桌面可能出现同名项，以 name 为键会互相覆盖。
     """
+    scores = scores or {}
     present = {i.name for i in items}
     pinned_order = [n for n in _dedupe(pinned) if n in present]
-    app_items = sorted((i for i in items if classify(i) == "app"), key=lambda i: i.index)
-    ordered = sorted(
-        app_items,
-        key=lambda i: (pinned_order.index(i.name) if i.name in pinned_order else len(pinned_order) + i.index,),
+    pinned_set = set(pinned_order)
+    app_items = sorted(
+        (i for i in items if classify(i) == "app"),
+        key=_app_order_key(pinned_order, pinned_set, scores),
     )
 
     placements = {}
     slot = 0
-    for item in ordered:
+    for item in app_items:
         if slot < geo.APP_SLOTS:
             col, row = slot % geo.APP_COLS, slot // geo.APP_COLS
-            placements[item.index] = Placement(item.name, "app", slot, geo.app_slot(col, row))
+            source = "pinned" if item.name in pinned_set else "recommended"
+            placements[item.index] = Placement(item.name, "app", slot, geo.app_slot(col, row), source)
             slot += 1
         else:
             # 栏位已满：归类仍为 app 但不落位，由后续票决定如何呈现

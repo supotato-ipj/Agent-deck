@@ -10,6 +10,7 @@ from pathlib import Path
 
 import desktop_icons as di
 import desktop_layout as dl
+import usage_score
 import zones_plan as zp
 
 PINNED_FILE = Path(__file__).resolve().parent / "pinned.json"
@@ -54,12 +55,13 @@ def verify_positions(current, plan):
 
 
 def plan_report(items, plan):
-    lines = [di.pad("name", 34) + di.pad("zone", 9) + "current      -> target"]
+    lines = [di.pad("name", 34) + di.pad("zone", 9) + di.pad("source", 12) + "current      -> target"]
     for item, placement in zip(items, plan):
         target = f"({placement.pos[0]:>4},{placement.pos[1]:>4})" if placement.pos else "   -"
         lines.append(
             di.pad(item.name, 34)
             + di.pad(placement.zone, 9)
+            + di.pad(placement.source or "-", 12)
             + f"({item.x:>4},{item.y:>4}) -> {target}"
         )
     return "\n".join(lines)
@@ -74,7 +76,7 @@ def main(argv):
     except di.DesktopViewUnavailable as exc:
         print(f"zones-orchestrate: {exc}", file=sys.stderr)
         return 2
-    plan = zp.plan_layout(items, load_pinned())
+    plan = zp.plan_layout(items, load_pinned(), usage_score.ranking(items))
 
     if not do_apply:
         print(f"dry-run: {len(items)} 项，其中 {len(moves_from_plan(items, plan))} 项将移动；加 --apply 才落位")

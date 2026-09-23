@@ -14,6 +14,7 @@ class Placement_Stub:
         self.zone = zone
         self.pos = pos
         self.slot = None
+        self.source = None
 
 
 class MovesFromPlanTest(unittest.TestCase):
@@ -67,6 +68,18 @@ class PlanReportTest(unittest.TestCase):
     def test_unplaced_shows_dash(self):
         out = zo.plan_report([item("overflow.docx", 0, 13, 2)], [Placement_Stub("overflow.docx", "doc", None)])
         self.assertIn("-", out.splitlines()[1])
+
+    def test_report_distinguishes_pinned_from_recommended(self):
+        items = [item("Kimi", 0, 13, 100, kind="shortcut"), item("WeChat", 1, 163, 100, kind="shortcut")]
+        plan = [
+            Placement_Stub("Kimi", "app", (13, 100)),
+            Placement_Stub("WeChat", "app", (163, 100)),
+        ]
+        plan[0].source = "pinned"
+        plan[1].source = "recommended"
+        out = zo.plan_report(items, plan)
+        self.assertIn("pinned", out)
+        self.assertIn("recommended", out)
 
 
 if __name__ == "__main__":
