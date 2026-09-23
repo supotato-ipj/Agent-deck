@@ -10,3 +10,4 @@ class Rec:
     mtime: float | None = 0.0
     x: int = 0
     y: int = 0
+    target: str | None = None
