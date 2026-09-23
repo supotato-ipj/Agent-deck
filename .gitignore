@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+
+# 上游壁纸编辑器的自动历史，非本项目产物
+backup/original/.history/
+
+# 一次性验证产物
+.scratch/*.png
+.scratch/*.js

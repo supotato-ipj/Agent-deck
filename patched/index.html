@@ -1,0 +1,2415 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TERMINAL 02</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Vin Mono Pro";
+        src: url("fonts/VinMonoPro-Light.otf") format("opentype");
+        font-weight: 300;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Decima Mono";
+        src: url("fonts/DecimaMonoCyr.ttf") format("trueType");
+        font-weight: 300;
+        font-style: normal;
+      }
+
+      :root {
+        --body-vertical-margin: 10rem;
+        --body-horizontal-margin: 9rem;
+        --background-color: 000 000 000;
+        --font-color: 225 225 225;
+        --box-color: 225 225 225; /* cyan: #00fffb */
+        --box-thumbnail-color: 255 255 255;
+        --current-box-color: var(--box-color);
+        --font-size-primary: 0.85rem;
+        --font-size-secondary: 0.55rem;
+        --line-height: 0.9rem;
+        --opacity-high: 75%; /* for bar */
+        --opacity-mid: 50%; /* for name */
+        --opacity-low: 25%; /* for box */
+
+        --box-vertical: -0.25rem;
+        --box-horizontal: -0.5rem;
+
+        --span-box: -0.2rem;
+        --padding-horizontal: 1.8rem;
+
+        --font-family-primary: "Vin Mono Pro", Courier, monospace;
+        --font-family-secondary: "Decima Mono", Courier, monospace;
+        --font-family-tertiary: Courier, monospace;
+        --p-padding: 0.15rem 0 0 0;
+        --box-shadow-y-offset: -0.075rem;
+        --vignette-opacity: 0;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-family-primary);
+        font-size: var(--font-size-primary);
+        font-weight: 300;
+        background-color: rgb(var(--background-color));
+        color: rgb(var(--font-color));
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+      }
+      #fullScreenImage {
+        object-fit: cover;
+        background-size: cover;
+        background-position: center center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -4;
+      }
+      #fullScreenVideo {
+        object-fit: cover;
+        background-size: cover;
+        background-position: center center;
+        background-color: #000;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -3;
+        display: none;
+      }
+      #vignette {
+        position: absolute;
+        display: none;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(0, 0, 0, 0) 50%,
+          rgba(0, 0, 0, var(--vignette-opacity)) 100%
+        );
+        z-index: -2;
+      }
+      .container {
+        will-change: filter;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        padding: var(--body-vertical-margin) var(--body-horizontal-margin);
+        height: calc(100vh - (var(--body-vertical-margin) * 2));
+        z-index: 1;
+      }
+      p {
+        margin: 0;
+        padding: var(--p-padding);
+      }
+      span {
+        position: relative;
+      }
+      .name {
+        color: color-mix(in srgb, rgb(var(--font-color)) var(--opacity-mid), transparent);
+      }
+
+      /* top */
+      .top {
+        width: 100%;
+        margin-bottom: 3.5rem;
+        display: flex;
+        flex-direction: column;
+      }
+      h1 {
+        font-size: var(--font-size-primary);
+        margin: 0 0 1rem 0;
+        font-weight: 300;
+      }
+      .top p {
+        font-size: var(--font-size-secondary);
+        margin: 0;
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+        width: 100%;
+      }
+      .left,
+      .right {
+        will-change: transform;
+        width: 50%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .left {
+        align-items: flex-start;
+        padding-left: var(--padding-horizontal);
+        transform-origin: left;
+      }
+      .right {
+        align-items: flex-end;
+        text-align: right;
+        padding-right: var(--padding-horizontal);
+        transform-origin: right;
+      }
+      .bottom {
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      #performance,
+      #info {
+        margin: 3.5rem 0;
+      }
+      .flicker-in,
+      #date-time,
+      #performance,
+      #media,
+      #world-clock,
+      #info {
+        opacity: 0;
+      }
+
+      .item {
+        line-height: var(--line-height);
+        width: 100%;
+      }
+
+      /* box and bar */
+      .box {
+        width: fit-content;
+        position: relative;
+      }
+      .right .box {
+        margin-left: auto;
+      }
+      .box::before {
+        content: "";
+        position: absolute;
+        top: var(--box-vertical);
+        width: calc(100% + var(--box-horizontal) * -2);
+        height: calc(100% + var(--box-vertical) * -2);
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--opacity-low), transparent);
+        z-index: -1;
+      }
+      .left .box::before {
+        left: var(--box-horizontal);
+      }
+      .right .box::before {
+        right: var(--box-horizontal);
+      }
+      .bar-container {
+        position: absolute;
+        top: var(--box-vertical);
+        width: 0.2rem;
+        height: calc(100% + var(--box-vertical) * -2);
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--opacity-low), transparent);
+        display: flex;
+        align-items: flex-end;
+      }
+      .left .bar-container {
+        left: calc(var(--padding-horizontal) * -1);
+      }
+      .right .bar-container {
+        right: calc(var(--padding-horizontal) * -1);
+      }
+      #bar-0,
+      #bar-1,
+      #bar-2 {
+        width: 100%;
+        height: 0%;
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--opacity-high), transparent);
+      }
+
+      /* media-info */
+      #media .name {
+        width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #title {
+        width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      #artist-duration {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+      }
+      #artist {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        flex-grow: 1;
+      }
+      #duration {
+        text-align: right;
+        margin-left: 1rem;
+      }
+      .media-box {
+        width: 100%;
+        position: relative;
+      }
+      .media-box::before {
+        content: "";
+        position: absolute;
+        left: var(--box-horizontal);
+        width: calc(100% + var(--box-horizontal) * -2);
+        height: 100%;
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--opacity-low), transparent);
+        z-index: -1;
+      }
+      .media-bar {
+        position: absolute;
+        width: 0.2rem;
+        height: 100%;
+        left: calc(var(--padding-horizontal) * -1);
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--opacity-low), transparent);
+        display: flex;
+        align-items: flex-end;
+      }
+      #duration {
+        opacity: var(--opacity-mid);
+      }
+
+      /* span box */
+      .data-indicator {
+        --indicator-box: var(--opacity-low);
+
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--indicator-box), transparent);
+        box-shadow: 0 var(--box-shadow-y-offset) 0 0.15rem
+          color-mix(in srgb, rgb(var(--current-box-color)) var(--indicator-box), transparent);
+      }
+
+      .data-indicator-outline::after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        --indicator-box: var(--opacity-low);
+        outline: 0.15rem solid color-mix(in srgb, rgb(var(--current-box-color)) var(--indicator-box), transparent);
+        outline-offset: 0.075rem;
+        transform: translateY(var(--box-shadow-y-offset));
+      }
+
+      .error.data-indicator {
+        background: color-mix(in srgb, rgb(var(--current-box-color)) var(--indicator-box), transparent);
+        box-shadow: none;
+      }
+
+      #log .log-artist,
+      #log .log-error {
+        max-width: 10rem;
+        display: inline-block;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
+      }
+
+      /* spacer */
+      #media-top p:empty::before,
+      #title:empty::before,
+      #artist:empty::before,
+      #duration:empty::before,
+      .top h1:empty::before,
+      .top p:empty::before,
+      #log p:empty::before {
+        content: "\00A0";
+      }
+
+      .spacer {
+        display: inline-block;
+        width: calc(var(--n) * 1ch);
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <img id="fullScreenImage" class="background-media" />
+    <video id="fullScreenVideo" class="background-media"></video>
+    <div id="vignette"></div>
+
+    <div class="container">
+      <div class="main">
+        <div class="left">
+          <div class="top">
+            <h1>SYSTEM OVERVIEW</h1>
+            <p>
+              WALLPAPER LOADING<span class="spacer" style="--n: 6"></span><span class="flicker-in">> > ></span
+              ><span class="spacer" style="--n: 6"></span><span class="flicker-in">TERMINAL WALLPAPER 02</span
+              ><span class="spacer" style="--n: 2"></span><span class="flicker-in">|</span
+              ><span class="spacer" style="--n: 2"></span><span class="flicker-in">sheet4.vn</span>
+            </p>
+          </div>
+
+          <div class="bottom">
+            <!-- date & time -->
+            <div class="item" id="date-time">
+              <div class="box">
+                <div class="bar-container"><div id="bar-0"></div></div>
+                <p id="time-0"></p>
+                <p id="date-0"></p>
+              </div>
+              <p><br /></p>
+              <p id="progress"></p>
+              <p id="sun"></p>
+            </div>
+
+            <!-- media info -->
+            <div class="item" id="media">
+              <div id="media-top">
+                <p class="name" data-title="5"></p>
+                <p class="name" data-title="4"></p>
+                <p class="name" data-title="3"></p>
+                <p class="name" data-title="2"></p>
+                <p class="name" data-title="1"></p>
+                <div class="media-box" onclick="reRegisterMediaListener()">
+                  <div class="media-bar"></div>
+                  <p id="title"></p>
+                </div>
+                <p id="artist-duration"><span id="artist"></span><span id="duration"></span></p>
+                <p><br /></p>
+              </div>
+              <p id="visualizer"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="top">
+            <h1></h1>
+            <p></p>
+          </div>
+
+          <div class="bottom">
+            <!-- world clock -->
+            <div class="item" id="world-clock">
+              <div class="box">
+                <div class="bar-container"><div id="bar-1"></div></div>
+                <p id="time-1"></p>
+                <p id="date-1"></p>
+              </div>
+              <p><br /></p>
+              <div class="box">
+                <div class="bar-container"><div id="bar-2"></div></div>
+                <p id="time-2"></p>
+                <p id="date-2"></p>
+              </div>
+            </div>
+
+            <!-- additional info -->
+            <div class="item" id="info">
+              <div id="weather-info">
+                <p><span id="cond"></span><span class="spacer" style="--n: 3"></span><span class="name">COND</span></p>
+                <p><br /></p>
+                <p><span id="temp"></span><span class="spacer" style="--n: 3"></span><span class="name">TEMP</span></p>
+                <p><br /></p>
+                <p>
+                  <span id="prec" class="data-indicator"></span><span class="spacer" style="--n: 3"></span
+                  ><span class="name">PREC</span>
+                </p>
+                <p><br /></p>
+                <p>
+                  <span id="wind" class="data-indicator"></span><span class="spacer" style="--n: 3"></span
+                  ><span class="name">WIND</span>
+                </p>
+                <p><br /></p>
+                <p><br /></p>
+                <p><br /></p>
+              </div>
+            </div>
+
+            <!-- performance monitor -->
+            <div class="item" id="performance"></div>
+
+            <!-- log -->
+            <div class="item" id="log">
+              <p data-line="9"></p>
+              <p data-line="8"></p>
+              <p data-line="7"></p>
+              <p data-line="6"></p>
+              <p data-line="5"></p>
+              <p data-line="4"></p>
+              <p data-line="3"></p>
+              <p data-line="2"></p>
+              <p data-line="1"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVG FILTERS -->
+    <svg width="100%" height="100%" style="position: absolute; left: 0; top: 0">
+      <defs>
+        <!-- bloom -->
+        <filter id="bloom">
+          <!-- stdDeviation: blur (x y), k2: brightness -->
+          <feGaussianBlur id="bloomBlur" stdDeviation="35 15" />
+          <feComposite id="bloomComposite" in2="SourceGraphic" operator="arithmetic" k2="1" k3="1" />
+        </filter>
+
+        <!-- chromatic aberration -->
+        <filter id="chromatic-glow" x="-50%" y="-50%" width="200%" height="200%" filterUnits="objectBoundingBox">
+          <!-- LUMA (pseudo white for CA) -->
+          <feColorMatrix
+            in="SourceGraphic"
+            type="matrix"
+            values="
+              0.333 0.333 0.333 0 0
+              0.333 0.333 0.333 0 0
+              0.333 0.333 0.333 0 0
+              0     0     0     1 0"
+            result="luma"
+          />
+
+          <!-- RED GLOW -->
+          <!-- 1st val: Original Extraction Amount, 2nd: Alpha -->
+          <feColorMatrix
+            id="caRedAlphaMatrix"
+            in="luma"
+            type="matrix"
+            values="
+              0.8 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0.4 0"
+            result="red"
+          />
+          <!-- stdDeviation: blur (x y) -->
+          <feGaussianBlur id="caRedBlur" in="red" stdDeviation="2.5" result="redBlur" />
+          <feOffset id="redShift" in="redBlur" dx="-3" dy="0" result="redShift" />
+
+          <!-- BLUE GLOW -->
+          <feColorMatrix
+            id="caBlueAlphaMatrix"
+            in="luma"
+            type="matrix"
+            values="
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0.8 0 0
+              0 0 0 0.4 0"
+            result="blue"
+          />
+          <feGaussianBlur id="caBlueBlur" in="blue" stdDeviation="2.5" result="blueBlur" />
+          <feOffset id="blueShift" in="blueBlur" dx="3" dy="0" result="blueShift" />
+
+          <!-- COMPOSE -->
+          <feMerge>
+            <feMergeNode in="redShift" />
+            <feMergeNode in="blueShift" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        <!-- screen: overlay -->
+        <filter
+          id="screen-low"
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+          filterUnits="objectBoundingBox"
+          primitiveUnits="userSpaceOnUse"
+        >
+          <feImage
+            id="pixelImageLow"
+            href="img/pixel.png"
+            x="0"
+            y="0"
+            width="2.5"
+            height="2.5"
+            preserveAspectRatio="none"
+            result="tile"
+          />
+          <feTile in="tile" result="pixelMaskRaw" />
+
+          <feGaussianBlur id="maskBlurLow" in="pixelMaskRaw" stdDeviation="0" result="blurredMask" />
+
+          <feComponentTransfer in="pixelMaskRaw" result="pixelMask">
+            <feFuncA id="alphaSlope" type="linear" slope="1.0" />
+          </feComponentTransfer>
+
+          <feComposite in="SourceGraphic" in2="pixelMask" operator="in" result="solidPixels" />
+
+          <feComponentTransfer in="SourceGraphic" result="faintBackground">
+            <feFuncA type="linear" slope="1" />
+          </feComponentTransfer>
+
+          <feComposite in="solidPixels" in2="faintBackground" operator="over" />
+        </filter>
+
+        <!-- screen: cutout -->
+        <filter
+          id="screen-high"
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+          filterUnits="objectBoundingBox"
+          primitiveUnits="userSpaceOnUse"
+        >
+          <feImage
+            id="pixelImageHigh"
+            href="img/pixel2.png"
+            x="0"
+            y="0"
+            width="2.5"
+            height="2.5"
+            preserveAspectRatio="none"
+            result="tile"
+          />
+          <feTile in="tile" result="pixelMaskRaw" />
+
+          <feGaussianBlur id="maskBlurHigh" in="pixelMaskRaw" stdDeviation="0" result="blurredMask" />
+
+          <feComponentTransfer in="pixelMaskRaw" result="adjustedMask">
+            <feFuncA id="alphaTable" type="table" tableValues="1 0" />
+          </feComponentTransfer>
+
+          <feComposite in="SourceGraphic" in2="adjustedMask" operator="out" />
+        </filter>
+
+        <!-- noise -->
+        <filter id="block-noise" x="0" y="0" width="100%" height="100%">
+          <feTurbulence
+            id="noiseTurbulence"
+            type="fractalNoise"
+            baseFrequency="0.8"
+            numOctaves="1"
+            seed="1"
+            result="giantNoise"
+          />
+
+          <feImage
+            id="noiseImage"
+            width="2.5"
+            height="2.5"
+            result="pixelMap"
+            xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAIAAAACDbGyAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAWSURBVAgdY1ywgOEDAwKxgJhIgFQ+AP/vCNK2s+8LAAAAAElFTkSuQmCC"
+          />
+          <feTile in="pixelMap" result="tiledMap" />
+
+          <feDisplacementMap
+            id="noiseDisplacement"
+            in="giantNoise"
+            in2="tiledMap"
+            xChannelSelector="R"
+            yChannelSelector="G"
+            scale="9.375"
+            result="steppedNoise"
+          />
+
+          <feColorMatrix
+            id="noiseAlphaMatrix"
+            in="steppedNoise"
+            type="matrix"
+            values="
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0.7 0"
+            result="pureBlackWhiteNoise"
+          />
+
+          <feComposite in="pureBlackWhiteNoise" in2="SourceGraphic" operator="atop" />
+        </filter>
+      </defs>
+    </svg>
+
+    <!-- <script src="performance.layout.js"></script> -->
+    <script>
+      // check if function is first called
+      let performanceLogShown = false;
+      let timeLogShown = false;
+      let sunLogShown = false;
+      let lastLoggedSunStatus = null;
+
+      // time date
+      let dateFormat = "0"; // 0: MM/DDYY, 1: YY/MM/DD, 2: DD/MM/YY
+      let ampm = false;
+      let swMode = "hidden"; // "hidden", "running", "paused"
+      let swStartTime = 0;
+      let swAccumulatedTime = 0;
+      let clickTimeout = null;
+      // progress bar
+      const barLabels = ["min", "hour", "day", "week", "month", "year"];
+      let barMode0 = "min"; // min/day/week/month/year
+      let barMode1 = "day"; // tz1
+      let barMode2 = "day"; // tz2
+      // world clock
+      let tz1 = "Europe/London";
+      let tz2 = "America/New_York";
+      let prevTz1 = null;
+      let prevTz2 = null;
+      let prevErrorTz1 = false;
+      let prevErrorTz2 = false;
+      let city1 = "LON";
+      let city2 = "NYC";
+
+      // perfromance monitor
+      let monitors = true;
+      let port = 5000;
+      let layoutFileName = "performance.layout.js";
+
+      // media info
+      let cachedArtist = "";
+      let cachedDuration = "";
+      let isPlaying = false;
+      let lastTitle = "";
+      let currentMax = 0;
+      let runningMax = 0;
+
+      // weather sun
+      let latitude = 35.6764;
+      let longitude = 139.65;
+      let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      // prettier-ignore
+      let apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,temperature_2m,weather_code&current=temperature_2m,precipitation,wind_speed_10m,weather_code,relative_humidity_2m&timezone=${encodeURIComponent(timezone)}&forecast_days=1`;
+      const weatherDescriptions = {
+        0: "Clear",
+        1: "Mainly Clear",
+        2: "Partly Cloudy",
+        3: "Cloudy",
+        45: "Foggy",
+        48: "Rime Fog",
+        51: "Light Drizzle",
+        53: "Drizzle",
+        55: "Heavy Drizzle",
+        56: "Light Freezing Drizzle",
+        57: "Freezing Drizzle",
+        61: "Light Rain",
+        63: "Rain",
+        65: "Heavy Rain",
+        66: "Light Freezing Rain",
+        67: "Freezing Rain",
+        71: "Slight Snow",
+        73: "Snow",
+        75: "Heavy Snow",
+        77: "Snow Grains",
+        80: "Light Showers",
+        81: "Showers",
+        82: "Heavy Showers",
+        85: "Light Snow Showers",
+        86: "Snow Showers",
+        95: "Thunderstorm",
+        96: "Light Thunderstorm With Hail",
+        99: "Thunderstorm With Hail",
+      };
+      let useFahrenheit = false;
+      let TEMP_ALERT_MAX = 30;
+      let TEMP_ALERT_MIN = 5;
+      let PREC_ALERT = 40;
+      let WIND_ALERT = 10;
+
+      // logs
+      const ERROR_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+      let errorBuffer = [];
+      let lastScanHadErrors = false;
+
+      // DOMs
+      const root = document.documentElement;
+      const visualizer = document.getElementById("visualizer");
+      const titleEl = document.getElementById("title");
+      const artistEl = document.getElementById("artist");
+      const durationEl = document.getElementById("duration");
+      const mediaBarEl = document.querySelector(".media-bar");
+      const containerEl = document.querySelector(".container");
+      const imgEl = document.getElementById("fullScreenImage");
+      const vidEl = document.getElementById("fullScreenVideo");
+      const leftEl = document.querySelector(".left");
+      const rightEl = document.querySelector(".right");
+      const mediaTop = document.getElementById("media-top");
+      const queueEls = document.querySelectorAll("#media-top p.name");
+      const logContainer = document.getElementById("log");
+      const performanceEl = document.getElementById("performance");
+      const vignetteEl = document.getElementById("vignette");
+      // time date
+      const timeEl = document.getElementById("time-0");
+      const timeBox = document.querySelector("#date-time .box");
+      const dateEl = document.getElementById("date-0");
+      const progressEl = document.getElementById("progress");
+      const bar0 = document.getElementById("bar-0");
+      const bar1 = document.getElementById("bar-1");
+      const bar2 = document.getElementById("bar-2");
+      // world clock
+      const tempSpan = document.createElement("span");
+      const elTime1 = document.getElementById("time-1");
+      const elTime2 = document.getElementById("time-2");
+      const elDate1 = document.getElementById("date-1");
+      const elDate2 = document.getElementById("date-2");
+      // filter DOMs
+      const bloomComposite = document.getElementById("bloomComposite");
+      const bloomBlur = document.getElementById("bloomBlur");
+      const caRedAlphaMatrix = document.getElementById("caRedAlphaMatrix");
+      const caBlueAlphaMatrix = document.getElementById("caBlueAlphaMatrix");
+      const caRedBlur = document.getElementById("caRedBlur");
+      const caBlueBlur = document.getElementById("caBlueBlur");
+      const redShift = document.getElementById("redShift");
+      const blueShift = document.getElementById("blueShift");
+      const screenAlphaSlope = document.getElementById("alphaSlope");
+      const screenAlphaTable = document.getElementById("alphaTable");
+      const noiseImage = document.getElementById("noiseImage");
+      const pixelImageLow = document.getElementById("pixelImageLow");
+      const pixelImageHigh = document.getElementById("pixelImageHigh");
+      const pixelDisplacement = document.getElementById("noiseDisplacement");
+      const pixelTurbulence = document.getElementById("noiseTurbulence");
+      const noiseAlphaMatrix = document.getElementById("noiseAlphaMatrix");
+      let blockNoiseSeed = 0;
+      const blockNoiseUpdateInterval = 150;
+      // weather sun
+      const sunEl = document.getElementById("sun");
+      const weatherEl = document.getElementById("weather-info");
+      const tempEl = document.getElementById("temp");
+      const condEl = document.getElementById("cond");
+      const windEl = document.getElementById("wind");
+      const precEl = document.getElementById("prec");
+
+      // user settings
+      let hasLogged = false;
+      let isPropertiesApplied = false;
+      let bloom = true;
+      let chroma = true;
+      let filterList = new Array(4).fill(null);
+
+      // responsive box color
+      let isResponsive = false;
+      let hasThumbnailColor = false;
+      let lastThumbnailColor = null;
+      let thumbnailAnimId = null;
+      let currentThumbColor = [255, 255, 255];
+
+      // ====== INIT LOG ======
+      addLog("INIT");
+
+      // ====== user properties ======
+      window.wallpaperPropertyListener = {
+        setPaused: function (isPaused) {
+          if (isPaused) {
+          } else {
+            // if (isPlaying) reRegisterMediaListener(false);
+          }
+        },
+
+        applyUserProperties: function (properties) {
+          let weatherRelatedPropsChanged = false;
+          let boxColorRelatedPropsChanged = false;
+
+          // background
+          if (properties.background) {
+            if (properties.background.value === "0") {
+              imgEl.style.display = "block";
+              vidEl.pause();
+              vidEl.style.display = "none";
+            } else if (properties.background.value === "1") {
+              imgEl.style.display = "none";
+              vidEl.loop = true;
+              vidEl.autoplay = true;
+              vidEl.play();
+              vidEl.muted = true;
+              vidEl.style.display = "block";
+            } else if (properties.background.value === "2") {
+              imgEl.style.display = "none";
+              vidEl.pause();
+              vidEl.style.display = "none";
+            }
+          }
+          if (properties.customimage) {
+            imgEl.src = properties.customimage.value ? `file:///` + properties.customimage.value : `img/background.jpg`;
+          }
+          if (properties.customvideo) {
+            vidEl.src = properties.customvideo.value ? `file:///` + properties.customvideo.value : "";
+          }
+          if (properties.backgroundcolor) {
+            let color = properties.backgroundcolor.value.split(" ");
+            color = color.map(function (c) {
+              return Math.ceil(c * 255);
+            });
+            root.style.setProperty("--background-color", color);
+          }
+
+          // general settings
+          // time and date
+          if (properties._12hformat) {
+            ampm = properties._12hformat.value;
+          }
+          if (properties.dateformat) {
+            dateFormat = properties.dateformat.value;
+          }
+          if (properties.barmode0) {
+            barMode0 = barLabels[properties.barmode0.value];
+          }
+          // font
+          if (properties.fontfamily) {
+            if (properties.fontfamily.value === "0") {
+              document.body.style.fontFamily = `var(--font-family-primary)`;
+              root.style.setProperty("--p-padding", "0.15rem 0 0 0");
+              root.style.setProperty("--box-shadow-y-offset", "-0.075rem");
+            } else if (properties.fontfamily.value === "1") {
+              document.body.style.fontFamily = `var(--font-family-secondary)`;
+              root.style.setProperty("--p-padding", "0.075rem 0 0.075rem 0");
+              root.style.setProperty("--box-shadow-y-offset", "0");
+            } else if (properties.fontfamily.value === "2") {
+              document.body.style.fontFamily = `var(--font-family-tertiary)`;
+              root.style.setProperty("--p-padding", "0.15rem 0 0 0");
+              root.style.setProperty("--box-shadow-y-offset", "-0.075rem");
+            }
+          }
+          if (properties.fontsize) {
+            root.style.setProperty("--font-size-primary", `${0.85 * properties.fontsize.value}rem`);
+            root.style.setProperty("--font-size-secondary", `${0.55 * properties.fontsize.value}rem`);
+            root.style.setProperty("--line-height", `${0.9 * properties.fontsize.value}rem`);
+          }
+          // margin size
+          if (properties.marginsize) {
+            root.style.setProperty("--body-vertical-margin", `${properties.marginsize.value + 1}rem`);
+            root.style.setProperty("--body-horizontal-margin", `${properties.marginsize.value}rem`);
+          }
+          // opacity
+          if (properties.opacity) {
+            containerEl.style.opacity = properties.opacity.value;
+          }
+          if (properties.nameopacity) {
+            root.style.setProperty("--opacity-mid", `${Math.ceil(properties.nameopacity.value * 100)}%`);
+          }
+          if (properties.boxopacity) {
+            root.style.setProperty("--opacity-low", `${Math.ceil(properties.boxopacity.value * 100)}%`);
+          }
+          // color
+          if (properties.textcolor) {
+            let color = properties.textcolor.value.split(" ");
+            color = color.map(function (c) {
+              return Math.ceil(c * 255);
+            });
+            root.style.setProperty("--font-color", `${color[0]} ${color[1]} ${color[2]}`);
+          }
+          if (properties.boxcolor) {
+            const color = properties.boxcolor.value
+              .split(" ")
+              .map((c) => Math.ceil(c * 255))
+              .join(" ");
+            root.style.setProperty("--box-color", color);
+            boxColorRelatedPropsChanged = true;
+          }
+          if (properties.boxcolorselect) {
+            isResponsive = properties.boxcolorselect.value;
+            boxColorRelatedPropsChanged = true;
+          }
+          // perspective (HUD mode)
+          if (properties.perspective) {
+            hudEnabled = !!properties.perspective.value;
+            applyHudTransform();
+          }
+          // media queue
+          if (properties.mediaqueue) {
+            queueEls.forEach((el) => {
+              el.style.display = properties.mediaqueue.value ? "block" : "none";
+            });
+          }
+          // vignette
+          if (properties.vignette) {
+            if (properties.vignette.value > 0) {
+              vignetteEl.style.display = "block";
+              root.style.setProperty("--vignette-opacity", properties.vignette.value);
+            } else {
+              vignetteEl.style.display = "";
+              console.log("display none");
+            }
+          }
+
+          // filters
+          // bloom
+          if (properties.bloom) {
+            filterList[3] = properties.bloom.value ? "url(#bloom)" : null;
+          }
+          if (properties.bloombrightness) {
+            bloomComposite.setAttribute("k2", properties.bloombrightness.value);
+          }
+          if (properties.bloomblurradius) {
+            const x = properties.bloomblurradius.value;
+            const y = (x * 3) / 7;
+            bloomBlur.setAttribute("stdDeviation", `${x} ${y}`);
+          }
+          // ca
+          if (properties.ca) {
+            filterList[2] = properties.ca.value ? "url(#chromatic-glow)" : null;
+          }
+          if (properties.caopacity) {
+            const opacity = properties.caopacity.value;
+            caRedAlphaMatrix.setAttribute(
+              "values",
+              `
+              0.8 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 ${opacity} 0
+            `,
+            );
+            caBlueAlphaMatrix.setAttribute(
+              "values",
+              `
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0.8 0 0
+              0 0 0 ${opacity} 0
+            `,
+            );
+          }
+          if (properties.cablurradius) {
+            caRedBlur.setAttribute("stdDeviation", properties.cablurradius.value);
+            caBlueBlur.setAttribute("stdDeviation", properties.cablurradius.value);
+          }
+          if (properties.caoffset) {
+            redShift.setAttribute("dx", properties.caoffset.value * -1);
+            blueShift.setAttribute("dx", properties.caoffset.value);
+          }
+          // screen
+          if (properties.screeneffect) {
+            if (properties.screeneffect.value === "0") {
+              filterList[0] = "url(#screen-high)";
+            } else if (properties.screeneffect.value === "1") {
+              filterList[0] = "url(#screen-low)";
+            } else {
+              filterList[0] = null;
+            }
+          }
+          if (properties.alpha) {
+            screenAlphaSlope.setAttribute("slope", properties.alpha.value);
+            screenAlphaTable.setAttribute("tableValues", `${properties.alpha.value} 0`);
+          }
+          if (properties.pixelsize) {
+            const size = properties.pixelsize.value;
+
+            const BASE_SIZE = 2.5;
+            const BASE_FREQ = 0.8;
+            const BASE_SCALE = 9.375;
+
+            if (noiseImage) {
+              noiseImage.setAttribute("width", size);
+              noiseImage.setAttribute("height", size);
+            }
+            pixelImageLow.setAttribute("width", size);
+            pixelImageLow.setAttribute("height", size);
+            pixelImageHigh.setAttribute("width", size);
+            pixelImageHigh.setAttribute("height", size);
+
+            const scale = BASE_SCALE * (size / BASE_SIZE);
+            if (pixelDisplacement) {
+              pixelDisplacement.setAttribute("scale", scale);
+            }
+
+            const baseFrequency = BASE_FREQ * (BASE_SIZE / size);
+            if (pixelTurbulence) {
+              pixelTurbulence.setAttribute("baseFrequency", baseFrequency);
+            }
+          }
+          // noise
+          if (properties.noise) {
+            filterList[1] = properties.noise.value ? "url(#block-noise)" : null;
+          }
+          if (properties.noiseopacity) {
+            const opacity = properties.noiseopacity.value;
+            const values = `
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 ${opacity} 0
+            `;
+            noiseAlphaMatrix.setAttribute("values", values);
+          }
+
+          // weather, suncalc
+          if (properties.latitude) {
+            latitude = parseFloat(properties.latitude.value);
+            weatherRelatedPropsChanged = true;
+          }
+          if (properties.longitude) {
+            longitude = parseFloat(properties.longitude.value);
+            weatherRelatedPropsChanged = true;
+          }
+          if (properties.usefahrenheit) {
+            useFahrenheit = properties.usefahrenheit.value;
+            weatherRelatedPropsChanged = true;
+          }
+          // weather alerts
+          if (properties.tempalertmin) {
+            TEMP_ALERT_MIN = parseFloat(properties.tempalertmin.value);
+            weatherRelatedPropsChanged = true;
+          }
+          if (properties.tempalertmax) {
+            TEMP_ALERT_MAX = parseFloat(properties.tempalertmax.value);
+            weatherRelatedPropsChanged = true;
+          }
+          if (properties.precalert) {
+            PREC_ALERT = parseFloat(properties.precalert.value);
+            weatherRelatedPropsChanged = true;
+          }
+          if (properties.windalert) {
+            WIND_ALERT = parseFloat(properties.windalert.value);
+            weatherRelatedPropsChanged = true;
+          }
+
+          // performance monitor
+          if (properties.monitors) {
+            monitors = properties.monitors.value;
+          }
+          if (properties.port) {
+            port = properties.port.value;
+          }
+
+          // world clock\
+          // tz1
+          if (properties.timezone1) {
+            tz1 = properties.timezone1.value;
+          }
+          if (properties.cityname) {
+            city1 = properties.cityname.value.slice(0, 3).padStart(3, "\u00A0");
+          }
+          if (properties.barmode1) {
+            barMode1 = barLabels[properties.barmode1.value];
+          }
+          // tz2
+          if (properties.timezone2) {
+            tz2 = properties.timezone2.value;
+          }
+          if (properties.cityname2) {
+            city2 = properties.cityname2.value.slice(0, 3).padStart(3, "\u00A0");
+          }
+          if (properties.barmode2) {
+            barMode2 = barLabels[properties.barmode2.value];
+          }
+
+          // excute after all properties load
+          // weather lat/long update
+          if (weatherRelatedPropsChanged) {
+            // prettier-ignore
+            apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation_probability,temperature_2m,weather_code&current=temperature_2m,precipitation,wind_speed_10m,weather_code,relative_humidity_2m&timezone=${encodeURIComponent(timezone)}&forecast_days=1`;
+            updateWeatherIndicators();
+          }
+          // box color update
+          if (boxColorRelatedPropsChanged) updateColorReference();
+          // media queue width update
+          mediaTop.style.width = `${timeEl.clientWidth}px`;
+          // apply filter to css
+          containerEl.style.filter = filterList.filter((item) => item).join(" ") || "none";
+
+          isPropertiesApplied = true;
+        },
+      };
+
+      // ====== animate block noise ======
+      setInterval(() => {
+        blockNoiseSeed = (blockNoiseSeed + 1) % 101; // 0-100をループ
+        const noiseTurbulence = document.getElementById("noiseTurbulence");
+        if (noiseTurbulence) {
+          noiseTurbulence.setAttribute("seed", blockNoiseSeed);
+        }
+      }, blockNoiseUpdateInterval);
+
+      // ====== LOG ======
+      function addLog(message, isHtml = false) {
+        if (!logContainer) return;
+
+        const now = new Date();
+        const timestamp = now.toLocaleTimeString("en-US", { hour12: false });
+
+        for (let i = 9; i > 1; i--) {
+          const prevLine = logContainer.querySelector(`p[data-line="${i - 1}"]`);
+          const currLine = logContainer.querySelector(`p[data-line="${i}"]`);
+          if (prevLine && currLine) {
+            currLine.innerHTML = prevLine.innerHTML.trim() === "" ? "\u00A0" : prevLine.innerHTML;
+          }
+        }
+
+        const line1 = logContainer.querySelector(`p[data-line="1"]`);
+        if (line1) {
+          if (message.trim() === "") {
+            line1.innerHTML = "\u00A0";
+          } else {
+            const isError = message.trim().startsWith("ERROR");
+            let content;
+
+            if (isHtml) {
+              content = message;
+            } else {
+              const div = document.createElement("div");
+              div.textContent = message;
+              content = div.innerHTML;
+            }
+
+            const wrappedMessage = isError
+              ? `<span class="error data-indicator" style="--indicator-box: var(--opacity-low);">${content}</span>`
+              : content;
+
+            line1.innerHTML = `${wrappedMessage} <span class="name">${timestamp}</span>`;
+          }
+        }
+      }
+
+      // console / runtime error hooks
+      (() => {
+        const origError = console.error;
+        const origWarn = console.warn;
+        const getMsg = (args) => args.map((arg) => String(arg)).join(" ");
+
+        console.error = (...args) => {
+          errorBuffer.push({ time: Date.now(), type: "error", msg: getMsg(args) });
+          origError.apply(console, args);
+        };
+
+        console.warn = (...args) => {
+          errorBuffer.push({ time: Date.now(), type: "warn", msg: getMsg(args) });
+          origWarn.apply(console, args);
+        };
+
+        window.onerror = (message) => {
+          errorBuffer.push({ time: Date.now(), type: "exception", msg: String(message) });
+        };
+
+        window.addEventListener("unhandledrejection", (event) => {
+          errorBuffer.push({ time: Date.now(), type: "promise", msg: String(event.reason) });
+        });
+      })();
+
+      // periodic scan
+      function scanConsoleErrors() {
+        const now = Date.now();
+
+        errorBuffer = errorBuffer.filter((e) => e.time >= now - ERROR_WINDOW_MS);
+
+        const count = errorBuffer.length;
+        const hasErrors = count > 0;
+
+        if (!hasErrors && lastScanHadErrors) {
+          addLog("SYS scan: RECOVERED (no errors in last 10m)");
+        } else if (hasErrors) {
+          // get recent error messages
+          const lastMsg = errorBuffer[errorBuffer.length - 1].msg;
+          const errorSuffix = ` <span class="name">(<span class="log-error">${lastMsg}</span>)</span>`;
+
+          addLog(`ERROR SYS scan: ${count} console issue${count > 1 ? "s" : ""} detected${errorSuffix}`, true);
+        } else {
+          addLog("SYS scan: OK (no errors in last 10m)");
+        }
+
+        lastScanHadErrors = hasErrors;
+      }
+      setInterval(scanConsoleErrors, ERROR_WINDOW_MS);
+
+      // ====== UTILS ======
+      function pad(n, m = 2) {
+        const isNegative = n < 0;
+        const absString = Math.abs(n).toString();
+        const paddedString = absString.padStart(m - (isNegative ? 1 : 0), "0");
+        return isNegative ? `-${paddedString}` : paddedString;
+      }
+
+      // set css indicator
+      function set(el, val) {
+        if (el) {
+          let cssValue;
+
+          if (typeof val === "number") {
+            cssValue = val + "%";
+          } else if (typeof val === "string" && val.startsWith("--")) {
+            cssValue = `var(${val})`;
+          } else if (!val) {
+            cssValue = 0;
+          } else {
+            cssValue = val;
+          }
+
+          el.style.setProperty("--indicator-box", cssValue);
+        }
+      }
+
+      function formatTime(date) {
+        let h = date.getHours();
+        let suffix = "";
+        if (ampm) {
+          suffix = h >= 12 ? "PM" : "AM";
+          h = h % 12;
+          if (h === 0) h = 12;
+        }
+        const hh = pad(h);
+        const mm = pad(date.getMinutes());
+        const ss = pad(date.getSeconds());
+        return { hh, mm, ss, suffix };
+      }
+
+      function formatHourMin(date) {
+        let h = date.getHours();
+        let suffix = "";
+        if (ampm) {
+          suffix = h >= 12 ? "PM" : "AM";
+          h = h % 12;
+          if (h === 0) h = 12;
+        }
+        return { hh: pad(h), mm: pad(date.getMinutes()), suffix };
+      }
+
+      function spaces(n) {
+        return "\u00A0".repeat(n);
+      }
+
+      function getShortWeekday(date) {
+        const weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        return weekdays[date.getDay()];
+      }
+
+      function getDateInTZ(id, tz) {
+        let key = null;
+        if (id === "date-1" || id === "time-1") key = "tz1";
+        if (id === "date-2" || id === "time-2") key = "tz2";
+
+        const isTz1 = key === "tz1";
+        const isTz2 = key === "tz2";
+        const prevTz = isTz1 ? prevTz1 : prevTz2;
+        const prevError = isTz1 ? prevErrorTz1 : prevErrorTz2;
+
+        try {
+          const localeStr = new Date().toLocaleString("en-US", { timeZone: tz });
+
+          // success: different time zone / recover from error
+          if (tz !== prevTz || (tz === prevTz && prevError)) {
+            addLog(`INFO Time World: Valid timezone "${tz}"`);
+
+            if (isTz1) {
+              prevTz1 = tz;
+              prevErrorTz1 = false;
+            } else {
+              prevTz2 = tz;
+              prevErrorTz2 = false;
+            }
+          }
+
+          return new Date(localeStr);
+        } catch {
+          // error: if previous state was not an error
+          if (!prevError) {
+            addLog(`ERROR Time World: Invalid timezone "${tz}"  <span class="name">(using local time)</span>`, true);
+
+            if (isTz1) {
+              prevErrorTz1 = true;
+            } else {
+              prevErrorTz2 = true;
+            }
+          }
+          return new Date();
+        }
+      }
+
+      // ====== time ======
+      function updateTime() {
+        if (!timeEl) return;
+        const now = new Date();
+        const { hh, mm, ss, suffix } = formatTime(now);
+
+        let text = `<span class="name">TIME</span>${spaces(3)}${hh}${spaces(2)}${mm}${spaces(2)}${ss}`;
+        if (ampm) {
+          text += `${spaces(2)}<span class="name">${suffix}</span>`;
+        }
+
+        // stopwatch
+        const swText = getStopwatchText();
+
+        if (swText) {
+          tempSpan.innerHTML = (text + swText).replace(/\u00A0/g, " ");
+          const len = tempSpan.innerText.length;
+          const extra = 44 - len;
+
+          text += spaces(Math.max(0, extra)) + swText;
+        } else {
+          tempSpan.innerHTML = text.replace(/\u00A0/g, " ");
+          const len = tempSpan.innerText.length;
+          const extra = 44 - len;
+          if (extra > 0) text += spaces(extra);
+        }
+
+        timeEl.innerHTML = text;
+
+        if (!timeLogShown) {
+          if (isNaN(now.getTime())) {
+            addLog("ERROR Time: Invalid Date detected");
+          } else {
+            addLog(`INFO Time: Valid Date <span class="name">(${timezone} ${now.getTime()})</span>`, true);
+          }
+          timeLogShown = true;
+        }
+      }
+
+      // ====== stopwatch ======
+      function getStopwatchText() {
+        if (swMode === "hidden") return "";
+
+        let elapsed = swAccumulatedTime;
+        if (swMode === "running") {
+          elapsed += Date.now() - swStartTime;
+        }
+
+        const totalSec = Math.floor(elapsed / 1000);
+        const hh = pad(Math.floor(totalSec / 3600));
+        const mm = pad(Math.floor((totalSec % 3600) / 60));
+        const ss = pad(totalSec % 60);
+
+        return `${hh}${spaces(2)}${mm}${spaces(2)}${ss}`;
+      }
+
+      timeBox.addEventListener("click", () => {
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+          clickTimeout = null;
+          // double click: reset
+          swMode = "hidden";
+          swAccumulatedTime = 0;
+          updateTime();
+          return;
+        }
+
+        clickTimeout = setTimeout(() => {
+          // single click: start, pause, resume
+          if (swMode === "hidden" || swMode === "paused") {
+            swStartTime = Date.now();
+            swMode = "running";
+          } else if (swMode === "running") {
+            swAccumulatedTime += Date.now() - swStartTime;
+            swMode = "paused";
+          }
+          clickTimeout = null;
+          updateTime();
+        }, 250);
+      });
+
+      // ====== world time ======
+      function updateTimeWorld(el, tz, city) {
+        if (!el) return;
+        const now = getDateInTZ(el.id, tz);
+        const { hh, mm, ss, suffix } = formatTime(now);
+
+        // hh + 2space + mm + 2space + ss + 3space + city(.name) + 1space
+        let text = `${hh}${spaces(2)}${mm}${spaces(2)}${ss}${spaces(3)}<span class="name">${city}</span>${spaces(1)}`;
+
+        if (ampm) {
+          text =
+            `<span class="name">${suffix}</span>${spaces(2)}` +
+            `${hh}${spaces(2)}${mm}${spaces(2)}${ss}` +
+            `${spaces(3)}<span class="name">${city}</span>${spaces(1)}`;
+        }
+
+        // 4 characters
+        tempSpan.innerHTML = text.replace(/\u00A0/g, " ");
+        const len = tempSpan.innerText.length;
+        const extra = 44 - len;
+        if (extra > 0) text = spaces(extra) + text;
+
+        el.innerHTML = text;
+      }
+
+      // ====== date ======
+      function updateDate() {
+        if (!dateEl) return;
+        const now = new Date();
+
+        const mm = pad(now.getMonth() + 1);
+        const dd = pad(now.getDate());
+        const yy = pad(now.getFullYear() % 100);
+        const w = getShortWeekday(now) + ".";
+
+        const text =
+          dateFormat === "0"
+            ? `${w}${spaces(3)}${mm}${spaces(2)}${dd}${spaces(2)}${yy}`
+            : dateFormat === "1"
+              ? `${w}${spaces(3)}${yy}${spaces(2)}${mm}${spaces(2)}${dd}`
+              : `${w}${spaces(3)}${dd}${spaces(2)}${mm}${spaces(2)}${yy}`;
+        dateEl.textContent = text;
+      }
+
+      // ====== world date ======
+      function updateDateWorld(el, tz) {
+        if (!el) return;
+        const now = getDateInTZ(el.id, tz);
+
+        const mm = pad(now.getMonth() + 1);
+        const dd = pad(now.getDate());
+        const yy = pad(now.getFullYear() % 100);
+        const w = getShortWeekday(now);
+
+        let text =
+          dateFormat === "0"
+            ? `${mm}${spaces(2)}${dd}${spaces(2)}${yy}${spaces(3)}${w}.`
+            : dateFormat === "1"
+              ? `${yy}${spaces(2)}${mm}${spaces(2)}${dd}${spaces(3)}${w}.`
+              : `${dd}${spaces(2)}${mm}${spaces(2)}${yy}${spaces(3)}${w}.`;
+
+        el.textContent = text;
+      }
+
+      // ====== day progress ======
+      function updateProgress() {
+        if (!progressEl) return;
+        const now = new Date();
+
+        // verify SunCalc and lat/long
+        let sunCalcAvailable = typeof SunCalc !== "undefined" && SunCalc.getTimes instanceof Function;
+        let latLngValid =
+          typeof latitude === "number" && typeof longitude === "number" && !isNaN(latitude) && !isNaN(longitude);
+
+        let times = null;
+        let currentSunStatus; // save status
+
+        // check status
+        if (!sunCalcAvailable) {
+          currentSunStatus = "NO_CALC";
+        } else if (!latLngValid) {
+          currentSunStatus = "NO_LATLNG";
+        } else {
+          // calculate only if SunCalc is available and lat/long are valid
+          try {
+            times = SunCalc.getTimes(new Date(), latitude, longitude);
+
+            if (isNaN(times.sunrise.getTime()) || isNaN(times.sunset.getTime())) {
+              currentSunStatus = "INVALID_TIMES";
+            } else {
+              currentSunStatus = "OK";
+            }
+          } catch (e) {
+            currentSunStatus = "ERROR";
+          }
+        }
+
+        // log when the status is changed
+        if (currentSunStatus !== lastLoggedSunStatus) {
+          switch (currentSunStatus) {
+            case "NO_CALC":
+              addLog("ERROR SUN: SunCalc not available");
+              break;
+            case "NO_LATLNG":
+              addLog("ERROR SUN: Invalid latitude or longitude");
+              break;
+            case "INVALID_TIMES":
+              addLog("ERROR SUN: SunCalc returned invalid sunrise/sunset times");
+              break;
+            case "OK":
+              addLog(
+                `INFO SUN: SunCalc and lat/long OK <span class="name">(lat=${latitude} long=${longitude})</span>`,
+                true,
+              );
+              break;
+            case "ERROR":
+              addLog("ERROR SUN: Unexpected SunCalc error occurred");
+              break;
+          }
+          lastLoggedSunStatus = currentSunStatus;
+        }
+
+        const totalBars = 37;
+        const seconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+        const percent = Math.floor((seconds / 86400) * 100);
+        const filled = Math.floor((seconds / 86400) * totalBars);
+
+        let barArr = [];
+        for (let i = 0; i < totalBars; i++) {
+          barArr.push(i < filled ? "0" : "·");
+        }
+
+        let barHTML = "";
+        if (!sunCalcAvailable || !latLngValid) {
+          // add .name to day progress bar if invalid lat/long
+          barHTML = `<span class="name">${barArr.join("")}</span>`;
+        } else {
+          const times = SunCalc.getTimes(now, latitude, longitude);
+
+          function posFromDate(t) {
+            return Math.floor(((t.getHours() * 3600 + t.getMinutes() * 60 + t.getSeconds()) / 86400) * totalBars);
+          }
+
+          const risePos = posFromDate(times.sunrise);
+          const setPos = posFromDate(times.sunset);
+
+          function isSunlit(pos) {
+            if (risePos < setPos) {
+              return pos >= risePos && pos < setPos;
+            } else {
+              return (pos >= risePos && pos < totalBars) || (pos >= 0 && pos < setPos);
+            }
+          }
+
+          let currentClass = null;
+
+          for (let i = 0; i < totalBars; i++) {
+            const night = !isSunlit(i);
+
+            if (night !== currentClass) {
+              if (currentClass !== null) barHTML += "</span>";
+              if (night) barHTML += `<span class="name">`;
+              else barHTML += `<span>`;
+              currentClass = night;
+            }
+
+            barHTML += barArr[i];
+          }
+          if (currentClass !== null) barHTML += "</span>";
+        }
+
+        const text = `${pad(percent, 3)}%${spaces(3)}${barHTML}`;
+        progressEl.innerHTML = text;
+      }
+
+      // ====== sun ======
+      function updateSun() {
+        if (!sunEl) return;
+
+        const sunCalcAvailable = typeof SunCalc !== "undefined" && typeof SunCalc.getTimes === "function";
+        const latLngValid =
+          typeof latitude === "number" && typeof longitude === "number" && !isNaN(latitude) && !isNaN(longitude);
+
+        if (!sunCalcAvailable || !latLngValid) {
+          sunEl.textContent = "";
+          return;
+        }
+
+        const times = SunCalc.getTimes(new Date(), latitude, longitude);
+        const riseT = formatHourMin(times.sunrise);
+        const setT = formatHourMin(times.sunset);
+
+        if (isNaN(times.sunrise.getTime()) || isNaN(times.sunset.getTime())) {
+          sunEl.textContent = "";
+          return;
+        }
+
+        const riseTime = `${riseT.hh.replace(/^0/, "")}:${riseT.mm}${ampm ? riseT.suffix : ""}`;
+        const setTime = `${setT.hh.replace(/^0/, "")}:${setT.mm}${ampm ? setT.suffix : ""}`;
+
+        function posFromDate(t) {
+          return Math.floor(((t.getHours() * 3600 + t.getMinutes() * 60 + t.getSeconds()) / 86400) * 37);
+        }
+
+        const risePos = posFromDate(times.sunrise);
+        const setPos = posFromDate(times.sunset);
+
+        let arr = Array(37).fill(" ");
+
+        arr[risePos] = "↑";
+        arr[setPos] = "↓";
+
+        // check if place-able
+        function canPlace(basePos, start, str) {
+          const end = start + str.length - 1;
+          if (start < 0 || end >= 37) return false;
+
+          // text cannot be existed within the area
+          for (let i = 0; i < str.length; i++) {
+            if (arr[start + i] !== " ") return false;
+          }
+
+          // space required on left
+          if (start - 1 >= 0 && start - 1 !== basePos) {
+            if (arr[start - 1] !== " ") return false;
+          }
+
+          // space required on right
+          if (end + 1 < 37 && end + 1 !== basePos) {
+            if (arr[end + 1] !== " ") return false;
+          }
+
+          return true;
+        }
+
+        // time (right > left > hide)
+        function placeTime(basePos, timeStr) {
+          const strRight = " " + timeStr;
+          const strLeft = timeStr + " ";
+
+          // right side first
+          const startRight = basePos + 1;
+          if (canPlace(basePos, startRight, strRight)) {
+            for (let i = 0; i < strRight.length; i++) arr[startRight + i] = strRight[i];
+            return;
+          }
+
+          // then left
+          const startLeft = basePos - strLeft.length;
+          if (canPlace(basePos, startLeft, strLeft)) {
+            for (let i = 0; i < strLeft.length; i++) arr[startLeft + i] = strLeft[i];
+            return;
+          }
+
+          // hide if both are unavailable
+        }
+
+        placeTime(risePos, riseTime);
+        placeTime(setPos, setTime);
+
+        const result = "SUN" + spaces(4) + arr.join("").replace(/ /g, "\u00A0");
+        sunEl.textContent = result;
+      }
+
+      // ====== progress bars ======
+      function updateBars() {
+        const now = new Date();
+        const nowTz1 = new Date(now.toLocaleString("en-US", { timeZone: tz1 }));
+        const nowTz2 = new Date(now.toLocaleString("en-US", { timeZone: tz2 }));
+
+        // Percentage calculation functions
+        function getPercentMin(date) {
+          return (date.getSeconds() / 60) * 100;
+        }
+
+        function getPercentHour(date) {
+          const seconds = date.getMinutes() * 60 + date.getSeconds();
+          return (seconds / 3600) * 100;
+        }
+
+        function getPercentDay(date) {
+          const seconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+          return (seconds / 86400) * 100;
+        }
+
+        function getPercentWeek(date) {
+          const dayOfWeek = date.getDay();
+          const secondsToday = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+          const totalSeconds = dayOfWeek * 86400 + secondsToday;
+          return (totalSeconds / (7 * 86400)) * 100;
+        }
+
+        function getPercentMonth(date) {
+          const year = date.getFullYear();
+          const month = date.getMonth();
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+          const dayOfMonth = date.getDate();
+          const secondsToday = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+
+          const totalSeconds = (dayOfMonth - 1) * 86400 + secondsToday;
+          return (totalSeconds / (daysInMonth * 86400)) * 100;
+        }
+
+        function getPercentYear(date) {
+          // leap year support
+          const year = date.getFullYear();
+          const start = new Date(year, 0, 1);
+          const end = new Date(year + 1, 0, 1);
+          const yearSeconds = (end - start) / 1000;
+
+          const elapsedSeconds = (date - start) / 1000;
+          return (elapsedSeconds / yearSeconds) * 100;
+        }
+
+        // get the percentage according to the mode
+        function getPercent(mode, date) {
+          switch (mode) {
+            case "min":
+              return getPercentMin(date);
+            case "hour":
+              return getPercentHour(date);
+            case "day":
+              return getPercentDay(date);
+            case "week":
+              return getPercentWeek(date);
+            case "month":
+              return getPercentMonth(date);
+            case "year":
+              return getPercentYear(date);
+            default:
+              return 0;
+          }
+        }
+
+        bar0.style.height = getPercent(barMode0, now).toFixed(2) + "%";
+        bar1.style.height = getPercent(barMode1, nowTz1).toFixed(2) + "%";
+        bar2.style.height = getPercent(barMode2, nowTz2).toFixed(2) + "%";
+      }
+
+      // ====== weather info ======
+      async function updateWeatherIndicators() {
+        if (!longitude && !latitude) {
+          weatherEl.style.display = "none";
+          return;
+        }
+
+        weatherEl.style.display = "block";
+
+        let latLngValid =
+          typeof latitude === "number" && typeof longitude === "number" && !isNaN(latitude) && !isNaN(longitude);
+
+        if (!latLngValid) {
+          console.warn("Latitude/Longitude not set for weather API.");
+          addLog("ERROR Weather: Invalid latitude or longitude");
+          return;
+        }
+
+        const cacheKey = "weatherCache";
+        const cacheRaw = localStorage.getItem(cacheKey);
+        const cache = cacheRaw ? JSON.parse(cacheRaw) : null;
+
+        const url = apiUrl;
+
+        let useCache = false;
+        if (cache) {
+          const diff = Date.now() - cache.timestamp;
+          // use cache if within 10 minutes and same URL (lat/long)
+          if (diff < 10 * 60 * 1000 && cache.url === url) {
+            useCache = true;
+          }
+        }
+
+        let data = null;
+
+        if (!useCache) {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("API error");
+            data = await res.json();
+            addLog("INFO Weather: Data refreshed");
+
+            localStorage.setItem(
+              cacheKey,
+              JSON.stringify({
+                timestamp: Date.now(),
+                url: url,
+                data: data,
+              }),
+            );
+          } catch (e) {
+            addLog("ERROR Weather: API fetch failed");
+            if (cache) {
+              data = cache.data;
+              console.log("cache used.");
+              addLog("INFO Weather: Cache used");
+            } else {
+              console.error("No cache available.");
+              addLog("ERROR Weather: No cache available");
+              return;
+            }
+          }
+        } else {
+          data = cache.data;
+          console.log("cache used.");
+          addLog("INFO Weather: Cache used");
+        }
+
+        const nowDate = new Date();
+        const hour = nowDate.getHours();
+        const current = data.current;
+        const hourly = data.hourly;
+
+        const condition = weatherDescriptions[current.weather_code];
+        const rawTemp = current.temperature_2m;
+        const temperature = useFahrenheit ? Math.round((rawTemp * 9) / 5 + 32) : Math.round(rawTemp);
+
+        const precip = hourly.precipitation_probability[hour]; // %
+        const windSpeed = current.wind_speed_10m; // m/s
+
+        condEl.textContent = condition;
+
+        tempEl.textContent = `${pad(temperature, 3)}°`;
+        tempEl.classList.remove("data-indicator", "data-indicator-outline");
+
+        if (temperature >= TEMP_ALERT_MAX) {
+          tempEl.classList.add("data-indicator");
+          set(tempEl, "--opacity-low");
+        } else if (temperature <= TEMP_ALERT_MIN) {
+          tempEl.classList.add("data-indicator-outline");
+          set(tempEl, "--opacity-low");
+        } else {
+          set(tempEl, null);
+        }
+
+        precEl.textContent = `${pad(precip, 3)}%`;
+        set(precEl, precip >= PREC_ALERT ? "--opacity-low" : null);
+
+        windEl.textContent = windSpeed + " m/s";
+        set(windEl, windSpeed >= WIND_ALERT ? "--opacity-low" : null);
+      }
+
+      // ====== HUD perspective (头显视角) ======
+      const HUD_WRAP_DEG = 1.2;
+      const HUD_TILT_DEG = 0.45;
+
+      let hudEnabled = false;
+
+      const leftBottomEl = document.querySelector(".left .bottom");
+      const rightBottomEl = document.querySelector(".right .bottom");
+      if (leftBottomEl) leftBottomEl.style.transformOrigin = "center bottom";
+      if (rightBottomEl) rightBottomEl.style.transformOrigin = "center bottom";
+
+      function applyHudTransform() {
+        if (!hudEnabled) {
+          leftEl.style.transform = "none";
+          rightEl.style.transform = "none";
+          if (leftBottomEl) leftBottomEl.style.transform = "none";
+          if (rightBottomEl) rightBottomEl.style.transform = "none";
+          return;
+        }
+        leftEl.style.transform = `perspective(10rem) rotateY(${HUD_WRAP_DEG}deg)`;
+        rightEl.style.transform = `perspective(10rem) rotateY(${-HUD_WRAP_DEG}deg)`;
+        if (leftBottomEl) leftBottomEl.style.transform = `rotateX(${HUD_TILT_DEG}deg)`;
+        if (rightBottomEl) rightBottomEl.style.transform = `rotateX(${HUD_TILT_DEG}deg)`;
+      }
+
+      // ====== performance monitor ======
+      async function loadLayoutScript() {
+        const oldScript = document.getElementById("layout-script");
+        if (oldScript) oldScript.remove();
+
+        const script = document.createElement("script");
+        script.id = "layout-script";
+
+        // check if performance.layout.user.js exists
+        try {
+          const customCheck = await fetch("performance.layout.user.js", { method: "HEAD" });
+          if (customCheck.ok) {
+            layoutFileName = "performance.layout.user.js";
+            addLog(
+              `INFO Performance: Custom layout loaded <span class="name">(performance.layout.user.js)</span>`,
+              true,
+            );
+          } else {
+            layoutFileName = "performance.layout.js";
+          }
+        } catch (e) {
+          layoutFileName = "performance.layout.js";
+        }
+
+        // load
+        script.src = `${layoutFileName}?t=${Date.now()}`;
+        script.onerror = () => {
+          if (layoutFileName !== "performance.layout.js") {
+            layoutFileName = "performance.layout.js";
+            const fallback = document.createElement("script");
+            fallback.id = "layout-script";
+            fallback.src = layoutFileName;
+            document.head.appendChild(fallback);
+          }
+        };
+        document.head.appendChild(script);
+      }
+      loadLayoutScript();
+
+      async function updatePerformanceMonitor() {
+        if (!performanceEl) return;
+        if (!monitors || typeof buildPerformanceHTML !== "function") {
+          performanceEl.innerHTML = "";
+          return;
+        }
+
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}/performance`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+
+          if (!performanceLogShown) {
+            const hwinfoInfo = data.hwinfo ? ` hwinfo=${data.hwinfo.length}` : "";
+            const psutilInfo = data.psutil ? ` psutil=${Object.keys(data.psutil).length}` : "";
+
+            addLog(
+              `INFO Performance: Metrics received <span class="name">(port=${port}${hwinfoInfo}${psutilInfo})</span>`,
+              true,
+            );
+            performanceLogShown = true;
+          }
+
+          // map hwinfo with labels
+          const hwinfoMap = Object.create(null);
+          for (const item of data.hwinfo ?? []) {
+            hwinfoMap[item.label] = item;
+          }
+
+          const psutil = data.psutil ?? {};
+
+          // utils
+          const num = (v) => (v == null ? null : parseFloat(v));
+
+          function wrap(text, value, alert, useNameClass) {
+            let cls = useNameClass ? ["name"] : [];
+
+            if (alert && value != null) {
+              if (alert.max != null && value >= alert.max) {
+                cls.push("data-indicator");
+              } else if (alert.min != null && value <= alert.min) {
+                cls.push("data-indicator-outline");
+              }
+            }
+
+            return `<span${cls.length ? ` class="${cls.join(" ")}"` : ""}>${text}</span>`;
+          }
+
+          // metrics
+          function metric({
+            sources, // [{ source, key, pick? }, ...]
+            alert = null, // { min?: number, max?: number }
+            name = false, // class="name"
+            format = null, // compact | fixed | capacity-percent | capacity-text | net
+          }) {
+            let raw, value, text;
+
+            // get
+            let resolved = false;
+
+            for (const s of sources) {
+              if (s.source === "hwinfo") {
+                const r = hwinfoMap?.[s.key];
+                if (!r) continue;
+
+                const pick = s.pick ?? "auto";
+
+                switch (pick) {
+                  case "valueraw":
+                    text = r.valueraw;
+                    break;
+                  case "value":
+                    text = r.value;
+                    break;
+                  case "sensor":
+                    text = r.sensor;
+                    break;
+                  case "label":
+                    text = r.label;
+                    break;
+                  default: // auto
+                    text = r.value ?? r.valueraw;
+                }
+
+                raw = r;
+                value = num(r.valueraw);
+                resolved = true;
+                break;
+              }
+
+              if (s.source === "psutil") {
+                const r = psutil?.[s.key];
+                if (r == null) continue;
+
+                raw = r;
+                value = num(r);
+                text = s.unit ? `${r}${s.unit}` : r;
+                resolved = true;
+                break;
+              }
+            }
+
+            if (!resolved) return "";
+
+            // conversion
+            switch (format) {
+              // 11.11 W → 11.1W
+              case "compact":
+              // 11.11 W → 011W
+              case "fixed": {
+                const s = String(text).trim();
+                const m = s.match(/^([\d.]+)\s*(.*)$/);
+
+                if (!m) {
+                  text = s.replace(/\s+/g, "");
+                } else {
+                  const [_, valStr, unitStr] = m;
+                  const unit = unitStr.replace(/\s+/g, "");
+
+                  if (format === "compact") {
+                    const v = Math.round(parseFloat(valStr) * 10) / 10;
+                    text = `${Number.isInteger(v) ? v : v.toFixed(1)}${unit}`;
+                  } else {
+                    const v = Math.floor(parseFloat(valStr));
+                    text = `${pad(v, 3)}${unit}`;
+                  }
+                }
+                break;
+              }
+
+              case "capacity-percent": {
+                const [u, t] = raw.split("/").map((v) => num(v));
+                v = (u / t) * 100;
+                text = `${pad(Math.round(v), 3)}%`;
+                break;
+              }
+
+              case "capacity-text": {
+                let [u, t] = raw.split("/").map((v) => num(v));
+
+                const used = u >= 1000 ? `${Math.floor((u / 1000) * 10) / 10}TB` : `${Math.floor(u)}GB`;
+                const total = t >= 1000 ? `${Math.floor((t / 1000) * 10) / 10}TB` : `${Math.floor(t)}GB`;
+
+                text = `${used} / ${total}`;
+                break;
+              }
+
+              case "net": {
+                const n = value ?? num(raw);
+                text = n >= 1000 ? `${(n / 1000).toFixed(1)} MB/s` : `${n.toFixed(1)} KB/s`;
+                break;
+              }
+            }
+
+            return wrap(text, value, alert, name);
+          }
+
+          // HTML
+          const html = buildPerformanceHTML({
+            metric,
+            spaces,
+            qoder: data.qoder,
+          });
+
+          performanceEl.innerHTML = html;
+        } catch (error) {
+          if (!(error.message && error.message.includes("500"))) {
+            addLog(`ERROR Performance: ${error.message}`);
+            performanceLogShown = false;
+          }
+          console.error("Error fetching performance data:", error);
+        }
+      }
+
+      // ====== media listeners ======
+      // visualizer
+      function wallpaperAudioListener(audioArray) {
+        const arr = audioArray.slice(0, 64);
+        // RMS
+        const rms = Math.sqrt(arr.reduce((sum, v) => sum + v * v, 0) / arr.length);
+        // Normalization
+        currentMax = Math.max(...arr);
+        runningMax = Math.max(runningMax * 0.98, currentMax);
+        const norm = runningMax > 0 ? 1 / runningMax : 1;
+        // Scale to 0-1
+        const scaled = rms * norm;
+        const clamped = Math.min(1, Math.max(0, scaled));
+        // percentage
+        const percent = Math.round(clamped * 100);
+        const percentStr = isPlaying ? `${pad(percent, 3)}%` : `<span class="name">${pad(percent, 3)}%</span>`;
+        // visualizer
+        const totalBars = 37;
+        const filled = Math.round(clamped * totalBars);
+        let bar = "";
+        for (let i = 0; i < totalBars; i++) {
+          bar += i < filled ? "0" : `<span class="name">·</span>`;
+        }
+
+        visualizer.innerHTML = percentStr + spaces(3) + bar;
+      }
+
+      // title, artist
+      function wallpaperMediaPropertiesListener(event) {
+        // title
+        let title = event.title || "";
+        titleEl.textContent = title || "";
+
+        const newTitle = title || "";
+
+        // artist
+        let artist = event.artist || "";
+        if (artist.endsWith(" - Topic")) artist = artist.slice(0, -8);
+        artistEl.textContent = artist;
+
+        if (isPlaying && title && newTitle !== lastTitle && artist !== "") {
+          for (let i = 5; i >= 2; i--) {
+            const current = document.querySelector(`[data-title="${i}"]`);
+            const previous = document.querySelector(`[data-title="${i - 1}"]`);
+            current.textContent = previous.textContent;
+          }
+          document.querySelector('[data-title="1"]').textContent = lastTitle || "";
+
+          lastTitle = newTitle;
+
+          addLog(
+            `INFO Media: Session updated <span class="name">(<span class="log-artist">${artist}</span>)</span>`,
+            true,
+          );
+        }
+      }
+
+      // duration
+      function wallpaperMediaTimelineListener(event) {
+        if (!event.duration) {
+          durationEl.textContent = "";
+          return;
+        }
+
+        let seconds = event.duration;
+        let hours = Math.floor(seconds / 3600);
+        let minutes = Math.floor((seconds % 3600) / 60);
+        let sec = seconds % 60;
+        let formattedDuration = "";
+
+        if (hours > 0) {
+          formattedDuration = `${pad(hours)}:${pad(minutes)}:${pad(sec)}`;
+        } else {
+          formattedDuration = `${pad(minutes)}:${pad(sec)}`;
+        }
+        durationEl.textContent = formattedDuration;
+      }
+
+      // playback state
+      function wallpaperMediaPlaybackListener(event) {
+        // 0: stopped, 1: playing, 2: paused
+        if (event.state === 1) {
+          isPlaying = true;
+          mediaBarEl.style.background =
+            "color-mix(in srgb, rgb(var(--current-box-color)) var(--opacity-high), transparent)";
+          titleEl.style.color = "";
+          artistEl.style.color = "";
+        } else {
+          isPlaying = false;
+          mediaBarEl.style.background = "";
+          titleEl.style.color = "color-mix(in srgb, rgb(var(--font-color)) var(--opacity-mid), transparent)";
+          artistEl.style.color = "color-mix(in srgb, rgb(var(--font-color)) var(--opacity-mid), transparent)";
+        }
+      }
+
+      // thumbnail responsive box color handling
+      function wallpaperMediaThumbnailListener(event) {
+        if (
+          event.thumbnail.startsWith(
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAACXBIWXMAAAsTAAALEwEAmpwYAAAgAElEQVR4nO2",
+          ) ||
+          event.thumbnail === "data:image/png;base64," ||
+          !event.thumbnail
+        ) {
+          hasThumbnailColor = false;
+        } else if (event.primaryColor && /^#([0-9A-F]{6})$/i.test(event.primaryColor)) {
+          const hex = event.primaryColor.slice(1);
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+
+          // RGB to HSB
+          const rgbToHsb = (r, g, b) => {
+            const rr = r / 255,
+              gg = g / 255,
+              bb = b / 255;
+            const max = Math.max(rr, gg, bb);
+            const min = Math.min(rr, gg, bb);
+            const delta = max - min;
+
+            let h = 0;
+            if (delta !== 0) {
+              if (max === rr) {
+                h = ((gg - bb) / delta) % 6;
+              } else if (max === gg) {
+                h = (bb - rr) / delta + 2;
+              } else {
+                h = (rr - gg) / delta + 4;
+              }
+              h *= 60;
+              if (h < 0) h += 360;
+            }
+
+            const s = max === 0 ? 0 : delta / max;
+            const v = max;
+
+            return [h, s, v];
+          };
+
+          // HSB to RGB
+          const hsbToRgb = (h, s, v) => {
+            const c = v * s;
+            const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+            const m = v - c;
+
+            let [r1, g1, b1] = [0, 0, 0];
+            if (h < 60) [r1, g1, b1] = [c, x, 0];
+            else if (h < 120) [r1, g1, b1] = [x, c, 0];
+            else if (h < 180) [r1, g1, b1] = [0, c, x];
+            else if (h < 240) [r1, g1, b1] = [0, x, c];
+            else if (h < 300) [r1, g1, b1] = [x, 0, c];
+            else [r1, g1, b1] = [c, 0, x];
+
+            return [Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)];
+          };
+
+          const [h, s, v] = rgbToHsb(r, g, b);
+          const rgb = hsbToRgb(h, s, 1);
+
+          animateThumbnailColor(rgb);
+          hasThumbnailColor = true;
+        } else {
+          hasThumbnailColor = false;
+        }
+        updateColorReference();
+      }
+
+      function animateThumbnailColor(targetRgb, duration = 500) {
+        if (!isResponsive) {
+          // no animation when responsive is off
+          if (thumbnailAnimId) cancelAnimationFrame(thumbnailAnimId);
+          root.style.setProperty("--box-thumbnail-color", `${targetRgb[0]} ${targetRgb[1]} ${targetRgb[2]}`);
+          currentThumbColor = [...targetRgb];
+          return;
+        }
+
+        const start = performance.now();
+        const from = [...currentThumbColor];
+
+        if (thumbnailAnimId) cancelAnimationFrame(thumbnailAnimId);
+
+        const step = (now) => {
+          const t = Math.min((now - start) / duration, 1);
+          const eased = t * t * (3 - 2 * t); // smoothstep
+
+          const rgb = from.map((c, i) => Math.round(c + (targetRgb[i] - c) * eased));
+
+          root.style.setProperty("--box-thumbnail-color", `${rgb[0]} ${rgb[1]} ${rgb[2]}`);
+          currentThumbColor = rgb;
+
+          if (t < 1) {
+            thumbnailAnimId = requestAnimationFrame(step);
+          }
+        };
+
+        thumbnailAnimId = requestAnimationFrame(step);
+      }
+
+      function updateColorReference() {
+        if (isResponsive && hasThumbnailColor) {
+          root.style.setProperty("--current-box-color", "var(--box-thumbnail-color)");
+        } else {
+          root.style.setProperty("--current-box-color", "var(--box-color)");
+        }
+      }
+
+      // reload media listeners
+      function reRegisterMediaListener(showLog = true) {
+        document.querySelectorAll("[data-title]").forEach((el) => {
+          el.textContent = "";
+        });
+        lastTitle = "";
+        window.wallpaperRegisterMediaPropertiesListener(wallpaperMediaPropertiesListener);
+        window.wallpaperRegisterMediaTimelineListener(wallpaperMediaTimelineListener);
+        window.wallpaperRegisterMediaPlaybackListener(wallpaperMediaPlaybackListener);
+        window.wallpaperRegisterMediaThumbnailListener(wallpaperMediaThumbnailListener);
+        if (showLog) addLog("INFO Media: Re-registered media listeners");
+      }
+
+      window.wallpaperRegisterAudioListener(wallpaperAudioListener);
+      window.wallpaperRegisterMediaPropertiesListener(wallpaperMediaPropertiesListener);
+      window.wallpaperRegisterMediaTimelineListener(wallpaperMediaTimelineListener);
+      window.wallpaperRegisterMediaPlaybackListener(wallpaperMediaPlaybackListener);
+      window.wallpaperRegisterMediaThumbnailListener(wallpaperMediaThumbnailListener);
+
+      // ====== flicker animation on load ======
+      function flickerIn(element, duration = 200, triggerRatio = 0.5, onTrigger) {
+        return new Promise((resolve) => {
+          const flickerCounts = [5, 7, 9];
+          const count = flickerCounts[Math.floor(Math.random() * flickerCounts.length)];
+
+          const times = [];
+          for (let i = 0; i < count - 1; i++) {
+            times.push(Math.random() * duration);
+          }
+          times.push(duration);
+          times.sort((a, b) => a - b);
+
+          let visible = false;
+          let triggered = false;
+          const triggerTime = duration * triggerRatio;
+
+          times.forEach((time, index) => {
+            setTimeout(() => {
+              if (!triggered && time >= triggerTime) {
+                triggered = true;
+                onTrigger?.();
+              }
+
+              visible = !visible;
+              element.style.opacity = visible ? "1" : "0";
+
+              if (index === times.length - 1) {
+                element.style.opacity = "1";
+                resolve();
+              }
+            }, time);
+          });
+        });
+      }
+
+      function startupSequence(triggerRatio = 0.5) {
+        const selectors = ["#date-time", "#performance", "#media", "#world-clock", "#info"];
+
+        let index = 0;
+        let completed = 0;
+        const total = selectors.length;
+
+        function startNext() {
+          if (index >= selectors.length) return;
+
+          const el = document.querySelector(selectors[index]);
+          index++;
+
+          if (!el) {
+            startNext();
+            return;
+          }
+
+          flickerIn(el, 500, triggerRatio, startNext).then(onComplete);
+        }
+
+        function onComplete() {
+          completed++;
+          if (completed === total) {
+            addLog("WALLPAPER LOADED");
+            hasLogged = true;
+          }
+        }
+
+        const firstGroup = document.querySelectorAll(".flicker-in");
+
+        if (firstGroup.length) {
+          index = 0;
+
+          firstGroup.forEach((el) => {
+            flickerIn(el, 500, triggerRatio, startNext).then(onComplete);
+          });
+        } else {
+          startNext();
+        }
+      }
+
+      // ====== excute functions periodically ======
+      function tick() {
+        updateTime();
+        updateDate();
+        if (isPropertiesApplied) {
+          updateProgress();
+          updateTimeWorld(elTime1, tz1, city1);
+          updateTimeWorld(elTime2, tz2, city2);
+          updateDateWorld(elDate1, tz1);
+          updateDateWorld(elDate2, tz2);
+          updateSun();
+          updateBars();
+          updatePerformanceMonitor();
+          if (!hasLogged) {
+            startupSequence();
+            hasLogged = true;
+          }
+        }
+      }
+      setInterval(tick, 1000);
+      tick();
+
+      function period() {
+        updateWeatherIndicators();
+      }
+      setInterval(period, 600000);
+    </script>
+  </body>
+</html>

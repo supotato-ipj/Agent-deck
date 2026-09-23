@@ -1,0 +1,827 @@
+{
+	"approved" : true,
+	"contentrating" : "Everyone",
+	"description" : "This is a sequel to [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3088099655]Terminal Wallpaper[/url].\n\n[b]Main Features[/b]\n[list]\n[*] Clock and date display\n[*] Minute / hour / day / week / month / year progress indicators\n[*] Sunrise and sunset times based on latitude and longitude\n[*] [url=https://github.com/sheetau/PerformanceMonitor/releases/latest]Performance Monitor[/url] with fully customizable layout (via performance.layout.js in project folder)\n[*] Currently playing music information\n[*] Two configurable world clocks\n[*] Weather information based on latitude and longitude\n[*] Monitor and cursor information display\n[*] System log display\n[*] Full customization support: fonts, font size, margins, opacity, colors, filters, and more\n[*] Hidden stopwatch mode by clicking the time box (double-click to exit)\n[*] Supports any screen resolution and aspect ratio\n[/list]\n\nFor information or inquiries about the performance monitor, please visit:\n[url=https://github.com/sheetau/PerformanceMonitor]https://github.com/sheetau/PerformanceMonitor[/url]\n\nTry disabling filters if the wallpaper is affecting your PC's performance.\n\nmade with HTML, CSS, Javascript.\n\nwallpaper creator: sheet4.vn\ntags: customizable, world clock, clock, date, time, day, progress, audio responsive, music player, interactive, visualizer, album cover, duration, web, animation, 4k, 21:9, performance monitor, weather, performance, task manager, sunset, sunrise, sun, volume",
+	"file" : "index.html",
+	"general" : 
+	{
+		"properties" : 
+		{
+			"_12hformat" : 
+			{
+				"index" : 7,
+				"order" : 107,
+				"text" : "12h format",
+				"type" : "bool",
+				"value" : false
+			},
+			"alertdescription" : 
+			{
+				"index" : 44,
+				"order" : 144,
+				"text" : "<small><font color=\"#808080\">┕ Adds visual markers when the value is outside the range.</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"alerts" : 
+			{
+				"index" : 43,
+				"order" : 143,
+				"text" : "Alerts",
+				"type" : "text",
+				"value" : false
+			},
+			"alpha" : 
+			{
+				"condition" : "screeneffect.value !== \"2\"",
+				"fraction" : true,
+				"index" : 33,
+				"max" : 1,
+				"min" : 0,
+				"order" : 133,
+				"precision" : 3,
+				"step" : 0.01,
+				"text" : "ㅤ- opacity",
+				"type" : "slider",
+				"value" : 1
+			},
+			"background" : 
+			{
+				"index" : 2,
+				"options" : 
+				[
+					{
+						"label" : "image",
+						"value" : "0"
+					},
+					{
+						"label" : "video",
+						"value" : "1"
+					},
+					{
+						"label" : "solid color",
+						"value" : "2"
+					}
+				],
+				"order" : 102,
+				"text" : "background",
+				"type" : "combo",
+				"value" : "0"
+			},
+			"backgroundcolor" : 
+			{
+				"condition" : "background.value === \"2\"",
+				"index" : 5,
+				"order" : 105,
+				"text" : "ㅤ- color",
+				"type" : "color",
+				"value" : "0 0 0"
+			},
+			"bardescription" : 
+			{
+				"index" : 10,
+				"order" : 110,
+				"text" : "<small><font color=\"#808080\">┕ Displays on the vertical bar where the current time falls within the specified period.</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"barmode0" : 
+			{
+				"index" : 9,
+				"options" : 
+				[
+					{
+						"label" : "minute",
+						"value" : "0"
+					},
+					{
+						"label" : "hour",
+						"value" : "1"
+					},
+					{
+						"label" : "day",
+						"value" : "2"
+					},
+					{
+						"label" : "week",
+						"value" : "3"
+					},
+					{
+						"label" : "month",
+						"value" : "4"
+					},
+					{
+						"label" : "year",
+						"value" : "5"
+					}
+				],
+				"order" : 109,
+				"text" : "bar mode",
+				"type" : "combo",
+				"value" : "0"
+			},
+			"barmode1" : 
+			{
+				"index" : 63,
+				"options" : 
+				[
+					{
+						"label" : "minute",
+						"value" : "0"
+					},
+					{
+						"label" : "hour",
+						"value" : "1"
+					},
+					{
+						"label" : "day",
+						"value" : "2"
+					},
+					{
+						"label" : "week",
+						"value" : "3"
+					},
+					{
+						"label" : "month",
+						"value" : "4"
+					},
+					{
+						"label" : "year",
+						"value" : "5"
+					}
+				],
+				"order" : 163,
+				"text" : "ㅤ- bar mode",
+				"type" : "combo",
+				"value" : "2"
+			},
+			"barmode2" : 
+			{
+				"index" : 66,
+				"options" : 
+				[
+					{
+						"label" : "minute",
+						"value" : "0"
+					},
+					{
+						"label" : "hour",
+						"value" : "1"
+					},
+					{
+						"label" : "day",
+						"value" : "2"
+					},
+					{
+						"label" : "week",
+						"value" : "3"
+					},
+					{
+						"label" : "month",
+						"value" : "4"
+					},
+					{
+						"label" : "year",
+						"value" : "5"
+					}
+				],
+				"order" : 166,
+				"text" : "ㅤ- bar mode",
+				"type" : "combo",
+				"value" : "2"
+			},
+			"bloom" : 
+			{
+				"index" : 25,
+				"order" : 125,
+				"text" : "bloom",
+				"type" : "bool",
+				"value" : true
+			},
+			"bloomblurradius" : 
+			{
+				"condition" : "bloom.value == true",
+				"fraction" : false,
+				"index" : 27,
+				"max" : 100,
+				"min" : 0,
+				"order" : 127,
+				"text" : "ㅤ- blur radius &nbsp;<font color=\"#808080\">35</font>",
+				"type" : "slider",
+				"value" : 35
+			},
+			"bloombrightness" : 
+			{
+				"condition" : "bloom.value == true",
+				"fraction" : true,
+				"index" : 26,
+				"max" : 3,
+				"min" : 0,
+				"order" : 126,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "ㅤ- brightness",
+				"type" : "slider",
+				"value" : 1
+			},
+			"boxcolor" : 
+			{
+				"condition" : "",
+				"index" : 18,
+				"order" : 118,
+				"text" : "box color",
+				"type" : "color",
+				"value" : "1 1 1"
+			},
+			"boxcolorselect" : 
+			{
+				"index" : 19,
+				"order" : 119,
+				"text" : "ㅤ- media thumbnail color responsive",
+				"type" : "bool",
+				"value" : false
+			},
+			"boxopacity" : 
+			{
+				"fraction" : true,
+				"index" : 16,
+				"max" : 1,
+				"min" : 0,
+				"order" : 116,
+				"precision" : 3,
+				"step" : 0.01,
+				"text" : "box opacity",
+				"type" : "slider",
+				"value" : 0.25
+			},
+			"break" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 55,
+				"order" : 155,
+				"text" : "<br><br>",
+				"type" : "text",
+				"value" : false
+			},
+			"ca" : 
+			{
+				"index" : 28,
+				"order" : 128,
+				"text" : "chromatic aberration",
+				"type" : "bool",
+				"value" : true
+			},
+			"cablurradius" : 
+			{
+				"condition" : "ca.value == true",
+				"fraction" : true,
+				"index" : 30,
+				"max" : 5,
+				"min" : 0,
+				"order" : 130,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "ㅤ- blur radius &nbsp;<font color=\"#808080\">2.5</font>",
+				"type" : "slider",
+				"value" : 2.5
+			},
+			"caoffset" : 
+			{
+				"condition" : "ca.value == true",
+				"fraction" : true,
+				"index" : 31,
+				"max" : 5,
+				"min" : 0,
+				"order" : 131,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "ㅤ- offset &nbsp;<font color=\"#808080\">3</font>",
+				"type" : "slider",
+				"value" : 3
+			},
+			"caopacity" : 
+			{
+				"condition" : "ca.value == true",
+				"fraction" : true,
+				"index" : 29,
+				"max" : 1,
+				"min" : 0,
+				"order" : 129,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "ㅤ- opacity &nbsp;<font color=\"#808080\">.4</font>",
+				"type" : "slider",
+				"value" : 0.4
+			},
+			"caution" : 
+			{
+				"index" : 0,
+				"order" : 100,
+				"text" : "<small><font color=\"#808080\">To prevent wallpaper from failing to load properly, set “Display asleep” in Wallpaper Engine's performance settings to “Pause“ or “Keep running”.</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"cityname" : 
+			{
+				"index" : 62,
+				"order" : 162,
+				"text" : "ㅤ- city name",
+				"type" : "textinput",
+				"value" : "LON"
+			},
+			"cityname2" : 
+			{
+				"index" : 65,
+				"order" : 165,
+				"text" : "ㅤ- city name",
+				"type" : "textinput",
+				"value" : "NYC"
+			},
+			"customimage" : 
+			{
+				"condition" : "background.value === \"0\"",
+				"index" : 3,
+				"order" : 103,
+				"text" : "ㅤ- image",
+				"type" : "file",
+				"value" : ""
+			},
+			"customvideo" : 
+			{
+				"condition" : "background.value === \"1\"",
+				"fileType" : "video",
+				"index" : 4,
+				"order" : 104,
+				"text" : "ㅤ- video<br><small><font color=\"#808080\">.webm .ogg .ogv",
+				"type" : "file",
+				"value" : ""
+			},
+			"dateformat" : 
+			{
+				"index" : 8,
+				"options" : 
+				[
+					{
+						"label" : "MM/DD/YY",
+						"value" : "0"
+					},
+					{
+						"label" : "YY/MM/DD",
+						"value" : "1"
+					},
+					{
+						"label" : "DD/MM/YY",
+						"value" : "2"
+					}
+				],
+				"order" : 108,
+				"text" : "date format",
+				"type" : "combo",
+				"value" : "0"
+			},
+			"donotchange" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 57,
+				"order" : 157,
+				"text" : "<small><font color=\"#808080\">┕ Do not change this value unless you have changed the port number in the app.</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"fontfamily" : 
+			{
+				"index" : 11,
+				"options" : 
+				[
+					{
+						"label" : "Vin Mono Pro",
+						"value" : "0"
+					},
+					{
+						"label" : "Decima Mono",
+						"value" : "1"
+					},
+					{
+						"label" : "Courier",
+						"value" : "2"
+					}
+				],
+				"order" : 111,
+				"text" : "font family",
+				"type" : "combo",
+				"value" : "1"
+			},
+			"fontsize" : 
+			{
+				"fraction" : true,
+				"index" : 12,
+				"max" : 2,
+				"min" : 0,
+				"order" : 112,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "font size",
+				"type" : "slider",
+				"value" : 1
+			},
+			"h4filtersh4" : 
+			{
+				"index" : 24,
+				"order" : 124,
+				"text" : "<h4>Filters</h4><small><font color=\"#808080\">If the wallpaper is affecting your PC's performance, it is recommended to turn these off.</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"h4sunandweatherh4" : 
+			{
+				"index" : 38,
+				"order" : 138,
+				"text" : "<h4>Sun and Weather</h4>",
+				"type" : "text",
+				"value" : false
+			},
+			"h4worldclockh4" : 
+			{
+				"index" : 59,
+				"order" : 159,
+				"text" : "<h4>World Clock</h4>",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size10" : 
+			{
+				"index" : 6,
+				"order" : 106,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size101" : 
+			{
+				"index" : 23,
+				"order" : 123,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size102" : 
+			{
+				"index" : 37,
+				"order" : 137,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size103" : 
+			{
+				"index" : 49,
+				"order" : 149,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size104" : 
+			{
+				"index" : 58,
+				"order" : 158,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size105" : 
+			{
+				"index" : 67,
+				"order" : 167,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"hrwidth280size106" : 
+			{
+				"index" : 1,
+				"order" : 101,
+				"text" : "<hr width=\"280\" size=\"10\">",
+				"type" : "text",
+				"value" : false
+			},
+			"joinmydiscord" : 
+			{
+				"index" : 70,
+				"order" : 170,
+				"text" : "Join my discord",
+				"type" : "textinput",
+				"value" : "https://discord.gg/2dXs5HwXuW"
+			},
+			"latitude" : 
+			{
+				"index" : 40,
+				"order" : 140,
+				"text" : "latitude",
+				"type" : "textinput",
+				"value" : "35.6764"
+			},
+			"longitude" : 
+			{
+				"index" : 41,
+				"order" : 141,
+				"text" : "longitude",
+				"type" : "textinput",
+				"value" : "139.65"
+			},
+			"marginsize" : 
+			{
+				"fraction" : true,
+				"index" : 13,
+				"max" : 9,
+				"min" : 0,
+				"order" : 113,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "margin size &nbsp;<font color=\"#808080\">9</font>",
+				"type" : "slider",
+				"value" : 9
+			},
+			"mediaqueue" : 
+			{
+				"index" : 21,
+				"order" : 121,
+				"text" : "media history",
+				"type" : "bool",
+				"value" : true
+			},
+			"monitors" : 
+			{
+				"index" : 50,
+				"order" : 150,
+				"text" : "<h4>Performance Monitor</h4>",
+				"type" : "bool",
+				"value" : true
+			},
+			"nameopacity" : 
+			{
+				"fraction" : true,
+				"index" : 15,
+				"max" : 1,
+				"min" : 0,
+				"order" : 115,
+				"precision" : 3,
+				"step" : 0.01,
+				"text" : "name opacity",
+				"type" : "slider",
+				"value" : 0.5
+			},
+			"noise" : 
+			{
+				"index" : 35,
+				"order" : 135,
+				"text" : "noise",
+				"type" : "bool",
+				"value" : true
+			},
+			"noiseopacity" : 
+			{
+				"condition" : "noise.value == true",
+				"fraction" : true,
+				"index" : 36,
+				"max" : 1,
+				"min" : 0,
+				"order" : 136,
+				"precision" : 3,
+				"step" : 0.01,
+				"text" : "ㅤ- opacity &nbsp;<font color=\"#808080\">.5</font>",
+				"type" : "slider",
+				"value" : 0.5
+			},
+			"opacity" : 
+			{
+				"fraction" : true,
+				"index" : 14,
+				"max" : 1,
+				"min" : 0,
+				"order" : 114,
+				"precision" : 3,
+				"step" : 0.01,
+				"text" : "opacity",
+				"type" : "slider",
+				"value" : 1
+			},
+			"perfdescription" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 51,
+				"order" : 151,
+				"text" : "To enable the Performance Monitor, download and run the latest <b>PerformanceMonitor.exe</b> from GitHub:",
+				"type" : "text",
+				"value" : false
+			},
+			"perfdescription2" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 53,
+				"order" : 153,
+				"text" : "<small><font color=\"#808080\">By default, it supports data collection via psutil (and GPUtil), and can also read HWiNFO sensors with “Report value in gadgets” enabled (make sure \"Enable reporting to Gadget\" is also enabled).<br><br> To display HWiNFO sensors in the wallpaper, edit <b>performance.layout.js</b> in this project folder (right-click the wallpaper → Open in Explorer) and set the keys to the sensor label names you want to display. This file also lets you customize the performance monitor layout. After editing, save the file and reload the wallpaper to apply the changes. To avoid the file being overwritten by wallpaper updates, it is recommended to rename it to <b>performance.layout.user.js</b> (or duplicate and rename the file). <br><br>For more about PerformanceMonitor.exe, please refer to the README:</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"perflink" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 52,
+				"order" : 152,
+				"text" : "",
+				"type" : "textinput",
+				"value" : "https://github.com/sheetau/PerformanceMonitor/releases/latest"
+			},
+			"perspective" : 
+			{
+				"index" : 20,
+				"order" : 120,
+				"text" : "perspective",
+				"type" : "bool",
+				"value" : false
+			},
+			"pfpcropperbrsmallfontcolor808080createdbymefontsmall" : 
+			{
+				"index" : 69,
+				"order" : 169,
+				"text" : "pfp cropper<br><small><font color=\"#808080\">created by me</font></small>",
+				"type" : "textinput",
+				"value" : "https://sheetau.github.io/pfpcropper/"
+			},
+			"pixelsize" : 
+			{
+				"condition" : "screeneffect.value !== \"2\"",
+				"fraction" : true,
+				"index" : 34,
+				"max" : 15,
+				"min" : 1,
+				"order" : 134,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "ㅤ- resolution &nbsp;<font color=\"#808080\">2.5</font>",
+				"type" : "slider",
+				"value" : 2.5
+			},
+			"port" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 56,
+				"order" : 156,
+				"text" : "<font color=\"#808080\">port</font>",
+				"type" : "textinput",
+				"value" : "5000"
+			},
+			"precalert" : 
+			{
+				"index" : 47,
+				"order" : 147,
+				"text" : "ㅤ- prec<font color=\"#808080\"> &nbsp;max</font>",
+				"type" : "textinput",
+				"value" : "40"
+			},
+			"readmeurl" : 
+			{
+				"condition" : "monitors.value == true",
+				"index" : 54,
+				"order" : 154,
+				"text" : "",
+				"type" : "textinput",
+				"value" : "https://github.com/sheetau/PerformanceMonitor/blob/main/README.md"
+			},
+			"schemecolor" : 
+			{
+				"order" : 0,
+				"text" : "ui_browse_properties_scheme_color",
+				"type" : "color",
+				"value" : "0 0 0"
+			},
+			"screeneffect" : 
+			{
+				"index" : 32,
+				"options" : 
+				[
+					{
+						"label" : "cutout",
+						"value" : "0"
+					},
+					{
+						"label" : "overlay",
+						"value" : "1"
+					},
+					{
+						"label" : "none",
+						"value" : "2"
+					}
+				],
+				"order" : 132,
+				"text" : "screen effect",
+				"type" : "combo",
+				"value" : "1"
+			},
+			"tempalertmax" : 
+			{
+				"index" : 46,
+				"order" : 146,
+				"text" : "ㅤ- temp<font color=\"#808080\"> &nbsp;max</font>",
+				"type" : "textinput",
+				"value" : "30"
+			},
+			"tempalertmin" : 
+			{
+				"index" : 45,
+				"order" : 145,
+				"text" : "ㅤ- temp<font color=\"#808080\"> &nbsp;min</font>",
+				"type" : "textinput",
+				"value" : "5"
+			},
+			"textcolor" : 
+			{
+				"index" : 17,
+				"order" : 117,
+				"text" : "text color",
+				"type" : "color",
+				"value" : "1 1 1"
+			},
+			"texteditoricreated" : 
+			{
+				"index" : 68,
+				"order" : 168,
+				"text" : "Text editor<br><small><font color=\"#808080\">created by me</font></small>",
+				"type" : "textinput",
+				"value" : "sheetau.github.io/monapad/"
+			},
+			"timezone1" : 
+			{
+				"index" : 61,
+				"order" : 161,
+				"text" : "time zone 1",
+				"type" : "textinput",
+				"value" : "Europe/London"
+			},
+			"timezone2" : 
+			{
+				"index" : 64,
+				"order" : 164,
+				"text" : "time zone 2",
+				"type" : "textinput",
+				"value" : "America/New_York"
+			},
+			"usefahrenheit" : 
+			{
+				"index" : 42,
+				"order" : 142,
+				"text" : "use fahrenheit",
+				"type" : "bool",
+				"value" : false
+			},
+			"vignette" : 
+			{
+				"fraction" : true,
+				"index" : 22,
+				"max" : 1,
+				"min" : 0,
+				"order" : 122,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "vignette",
+				"type" : "slider",
+				"value" : 0
+			},
+			"weatherdescription" : 
+			{
+				"index" : 39,
+				"order" : 139,
+				"text" : "<small><font color=\"#808080\">Using suncalc and Open-Meteo, calculate sunrise and sunset times and retrieve weather data based on latitude and longitude.</font></small>",
+				"type" : "text",
+				"value" : false
+			},
+			"windalert" : 
+			{
+				"index" : 48,
+				"order" : 148,
+				"text" : "ㅤ- wind<font color=\"#808080\"> &nbsp;max</font>",
+				"type" : "textinput",
+				"value" : "15"
+			},
+			"worldclockdescription" : 
+			{
+				"index" : 60,
+				"order" : 160,
+				"text" : "<small>Enter the time zone using a tz database time zone ID. You can find valid IDs on pages such as <i>wikipedia.org/wiki/List_of_tz_database_time_zones.</i></small>",
+				"type" : "text",
+				"value" : false
+			}
+		},
+		"supportsaudioprocessing" : true
+	},
+	"preview" : "preview.gif",
+	"ratingsex" : "none",
+	"ratingviolence" : "none",
+	"tags" : [ "Technology" ],
+	"title" : "TERMINAL 02",
+	"type" : "web",
+	"version" : 10,
+	"visibility" : "public",
+	"workshopid" : "3639973107",
+	"workshopurl" : "steam://url/CommunityFilePage/3639973107"
+}
