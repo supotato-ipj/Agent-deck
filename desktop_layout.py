@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import desktop_icons as di
+import zones_lock
 
 FACTORY_NAME = "factory.json"
 RUN_PREFIX = "run-"
@@ -100,7 +101,7 @@ def restore_moves(current, snapshot_items):
     ambiguous = sorted(n for n in wanted if counts.get(n, 0) > 1)
     skipped = set(ambiguous)
     moves = [
-        (have[n].index, n, wanted[n]["x"], wanted[n]["y"])
+        (n, wanted[n]["x"], wanted[n]["y"])
         for n in wanted
         if n in have and n not in skipped
     ]
@@ -112,7 +113,7 @@ def restore_moves(current, snapshot_items):
 def apply_moves(moves):
     """把落位动作写进桌面图标视图。调用前必须已完成 ensure_factory。"""
     with di.IconView() as view:
-        view.write_moves(moves)
+        view.write_named_moves(moves)
 
 
 def restore(which, directory=None):
@@ -120,9 +121,10 @@ def restore(which, directory=None):
     with di.IconView() as view:
         current = view.bare_items()
     snapshot = load_snapshot(which, directory)
-    ensure_factory(current, directory)
-    moves, missing, extra, ambiguous = restore_moves(current, snapshot["items"])
-    apply_moves(moves)
+    with zones_lock.ArrangeLock():
+        ensure_factory(current, directory)
+        moves, missing, extra, ambiguous = restore_moves(current, snapshot["items"])
+        apply_moves(moves)
     return len(moves), missing, extra, ambiguous
 
 

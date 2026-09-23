@@ -1,0 +1,114 @@
+import unittest
+
+import zones_watcher as zw
+from tests.records import Rec, doc, shortcut
+
+
+class Plan_Stub:
+    def __init__(self, name, zone, pos):
+        self.name = name
+        self.zone = zone
+        self.pos = pos
+        self.slot = None
+        self.source = None
+
+
+class ChangedTest(unittest.TestCase):
+    def test_added_name_is_a_change(self):
+        self.assertTrue(zw.changed({"a"}, {"a", "b"}))
+
+    def test_removed_name_is_a_change(self):
+        self.assertTrue(zw.changed({"a", "b"}, {"a"}))
+
+    def test_content_only_is_not_a_change(self):
+        self.assertFalse(zw.changed({"a", "b"}, {"b", "a"}))
+
+
+class SettleTest(unittest.TestCase):
+    def test_storm_collapses_to_one_final_set(self):
+        sequence = iter([{"a"}, {"a", "b"}, {"a", "b", "c"}, {"a", "b", "c"}])
+        calls = {"n": 0}
+
+        def scan():
+            calls["n"] += 1
+            return next(sequence)
+
+        final = zw.settle(scan, interval=0, max_rounds=5)
+        self.assertEqual(final, {"a", "b", "c"})
+
+    def test_settle_gives_up_after_max_rounds(self):
+        growing = [{"a", str(i)} for i in range(100)]
+        sequence = iter(growing)
+
+        def scan():
+            return next(sequence)
+
+        final = zw.settle(scan, interval=0, max_rounds=3)
+        self.assertEqual(len(final), 2)
+
+
+class IncrementalMovesTest(unittest.TestCase):
+    def moves_for(self, items, plans, prev):
+        return zw.incremental_moves(items, plans, prev)
+
+    def test_new_doc_is_placed(self):
+        items = [doc("new.docx", 0)]
+        plans = [Plan_Stub("new.docx", "doc", (13, 394))]
+        moves = self.moves_for(items, plans, set())
+        self.assertEqual(moves, [("new.docx", 13, 394)])
+
+    def test_existing_doc_off_plan_is_cascaded(self):
+        items = [doc("old.docx", 0, x=999, y=999)]
+        plans = [Plan_Stub("old.docx", "doc", (13, 394))]
+        moves = self.moves_for(items, plans, {"old.docx"})
+        self.assertEqual(moves, [("old.docx", 13, 394)])
+
+    def test_existing_app_off_plan_is_left_alone(self):
+        items = [shortcut("Kimi", 0)]
+        items[0] = Rec(name="Kimi", kind="shortcut", index=0, x=999, y=999)
+        plans = [Plan_Stub("Kimi", "app", (13, 100))]
+        moves = self.moves_for(items, plans, {"Kimi"})
+        self.assertEqual(moves, [])
+
+    def test_new_app_off_plan_is_placed(self):
+        items = [Rec(name="Kimi", kind="shortcut", index=0, x=999, y=999)]
+        plans = [Plan_Stub("Kimi", "app", (13, 100))]
+        moves = self.moves_for(items, plans, set())
+        self.assertEqual(moves, [("Kimi", 13, 100)])
+
+    def test_recycle_is_never_moved_by_watcher(self):
+        items = [Rec(name="Recycle Bin", kind="special", index=0, x=999, y=999)]
+        plans = [Plan_Stub("Recycle Bin", "recycle", (13, 1276))]
+        self.assertEqual(self.moves_for(items, plans, set()), [])
+
+    def test_items_already_on_plan_are_skipped(self):
+        items = [doc("a.docx", 0, x=13, y=394)]
+        plans = [Plan_Stub("a.docx", "doc", (13, 394))]
+        self.assertEqual(self.moves_for(items, plans, {"a.docx"}), [])
+
+    def test_unplaced_entries_produce_no_moves(self):
+        items = [doc("a.docx", 0, x=999, y=999)]
+        plans = [Plan_Stub("a.docx", "doc", None)]
+        self.assertEqual(self.moves_for(items, plans, set()), [])
+
+
+class ArrangeLockTest(unittest.TestCase):
+    def test_second_holder_is_refused(self):
+        import zones_lock
+
+        with zones_lock.ArrangeLock(wait_seconds=0):
+            with self.assertRaises(zones_lock.ArrangeBusy):
+                with zones_lock.ArrangeLock(wait_seconds=0):
+                    pass
+
+    def test_lock_is_released(self):
+        import zones_lock
+
+        with zones_lock.ArrangeLock(wait_seconds=0):
+            pass
+        with zones_lock.ArrangeLock(wait_seconds=0):
+            pass
+
+
+if __name__ == "__main__":
+    unittest.main()

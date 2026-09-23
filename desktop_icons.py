@@ -255,12 +255,22 @@ class IconView:
             raise DesktopViewUnavailable(f"LVM_SETITEMPOSITION 失败 index={index}")
 
     def write_moves(self, moves):
-        """落位 [(index, 显示名, x, y)]；任一项失败即抛 WriteAborted，后续不再写。"""
-        for done, (index, name, x, y) in enumerate(moves):
+        """落位 [(index, x, y)]；任一项失败即抛 WriteAborted，后续不再写。"""
+        for done, (index, _name, x, y) in enumerate(moves):
             try:
                 self.set_position(index, x, y)
             except DesktopViewUnavailable as exc:
-                raise WriteAborted(done, name, exc) from exc
+                raise WriteAborted(done, moves[done][0], exc) from exc
+
+    def write_named_moves(self, moves):
+        """落位 [(显示名, x, y)]：index 在写入会话内现查。
+
+        ListView 的 index 序会因新增/删除文件而重排，拿着旧 index 写会落到
+        别的图标上；名字到 index 的映射必须与写入同处一个会话。
+        """
+        index = {self.text(i): i for i in range(self.count())}
+        resolved = [(index[name], name, x, y) for name, x, y in moves if name in index]
+        self.write_moves(resolved)
 
     def text(self, index):
         item = _LVITEMW()

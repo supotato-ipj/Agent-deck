@@ -17,5 +17,5 @@ def shortcut(name, index=0, target=None):
     return Rec(name=name, kind="shortcut", index=index, target=target)
 
 
-def doc(name, index=0, mtime=0.0):
-    return Rec(name=name, kind="file", index=index, mtime=mtime)
+def doc(name, index=0, mtime=0.0, x=0, y=0):
+    return Rec(name=name, kind="file", index=index, mtime=mtime, x=x, y=y)

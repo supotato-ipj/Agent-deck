@@ -26,7 +26,7 @@ class MovesFromPlanTest(unittest.TestCase):
             Placement_Stub("c.docx", "doc", None),        # 不落位
         ]
         moves = zo.moves_from_plan(items, plan)
-        self.assertEqual(moves, [(1, "b.docx", 13, 688)])
+        self.assertEqual(moves, [("b.docx", 13, 688)])
 
     def test_empty_plan_no_moves(self):
         self.assertEqual(zo.moves_from_plan([], []), [])

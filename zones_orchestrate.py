@@ -10,6 +10,7 @@ from pathlib import Path
 
 import desktop_icons as di
 import desktop_layout as dl
+import zones_lock
 import usage_score
 import zones_plan as zp
 
@@ -30,7 +31,7 @@ def moves_from_plan(items, plan):
             continue
         if (item.x, item.y) == placement.pos:
             continue
-        moves.append((item.index, item.name, placement.pos[0], placement.pos[1]))
+        moves.append((item.name, placement.pos[0], placement.pos[1]))
     return moves
 
 
@@ -83,12 +84,18 @@ def main(argv):
         print(plan_report(items, plan))
         return 0
 
-    dl.ensure_factory(items)
-    dl.take_snapshot(items, "run")
     moves = moves_from_plan(items, plan)
     try:
-        with di.IconView() as view:
-            view.write_moves(moves)
+        lock = zones_lock.ArrangeLock()
+    except zones_lock.ArrangeBusy as exc:
+        print(f"zones-orchestrate: {exc}，稍后重试", file=sys.stderr)
+        return 2
+    try:
+        with lock:
+            dl.ensure_factory(items)
+            dl.take_snapshot(items, "run")
+            with di.IconView() as view:
+                view.write_named_moves(moves)
     except di.DesktopViewUnavailable as exc:
         print(f"zones-orchestrate: 打开图标视图失败，未写入：{exc}", file=sys.stderr)
         return 2

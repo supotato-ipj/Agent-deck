@@ -15,6 +15,8 @@ from pathlib import Path
 import psutil
 
 import usage_log
+import usage_score
+import zones_watcher
 
 HOST, PORT = "127.0.0.1", 5000
 GPU_CACHE_TTL = 3.0
@@ -335,6 +337,14 @@ def _usage_collector():
     usage_log.run_loop(collector)
 
 
+def _zone_watcher():
+    """桌面目录看门狗：新增/删除触发增量编排（见 zones_watcher 的漂移纠正语义）。"""
+    try:
+        zones_watcher.run_watch_loop()
+    except Exception as exc:
+        print(f"zones-watcher: 线程退出：{exc}", flush=True)
+
+
 def main():
     # Windows 的 SO_REUSEADDR 允许双进程同绑一端口，故用 connect 探测做单实例守卫
     with socket.socket() as probe:
@@ -345,6 +355,7 @@ def main():
             pass
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_usage_collector, daemon=True).start()
+    threading.Thread(target=_zone_watcher, daemon=True).start()
     try:
         server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError:

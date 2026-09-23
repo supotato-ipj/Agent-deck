@@ -22,14 +22,14 @@ class RestoreMovesTest(unittest.TestCase):
 
     def test_moves_only_present_items(self):
         moves, missing, extra, ambiguous = dl.restore_moves(self.current, self.snapshot)
-        self.assertEqual(sorted(m[1] for m in moves), ["a.docx", "b"])
+        self.assertEqual(sorted(m[0] for m in moves), ["a.docx", "b"])
         self.assertEqual(missing, ["gone.lnk"])
         self.assertEqual(extra, ["new.txt"])
         self.assertEqual(ambiguous, [])
 
     def test_move_carries_index_and_target_coords(self):
         moves, _, _, _ = dl.restore_moves(self.current, self.snapshot)
-        self.assertIn((0, "a.docx", 13, 500), moves)
+        self.assertIn(("a.docx", 13, 500), moves)
 
     def test_duplicate_current_names_are_reported_not_moved(self):
         current = [item("same", 13, 2), item("same", 163, 2)]
