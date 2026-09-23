@@ -26,3 +26,5 @@
 - 2026-09-23: 由 to-tickets 创建。当前实机只有 8 个快捷方式、12 个栏位，因此"栏位钉满"这条路径只能靠合成用例验证。
 - 2026-09-23: 实施完成。`plan_layout` 新增第三参 `scores`；排序键 `(组, 手钉序/0, -分数, index)`——手钉组恒在最前，推荐组按分数降序、同分按 index（即 03 的稳定次序）；`Placement` 新增 `source` 字段（pinned/recommended），dry-run 报告加 source 列；`zones_orchestrate` 直接喂 `usage_score.ranking(items)`。新增 `tests/test_zones_plan_recommend.py`。全套 121 测试绿。
 - 2026-09-23: 实机验证：dry-run 首行前四格 = 排名四项（Qoder CN 5.92 / Kimi 0.86 / WeChat 0.86 / QQ音乐 0.41），未上榜快捷方式按原序续填；`--apply` 后桌面截图确认顺序生效、文档区与回收站不受影响、DECK 顶栏与右栏无遮挡。pinned.json 仍为空数组，故当前全部栏位 source=recommended。
+- 2026-09-24: code-review 后修：① 排序从"混合四元组键"改为**两段拼接**（手钉段按清单序 + 推荐段按分数降序），去掉填充值与无名分组号；② 栏位已满的溢出项**保留 source 身份**（dry-run 仍认得出手钉，只是目标为 `-`）；③ `shortcut()` 工厂收进 `tests/records.py`，消掉第四份克隆；④ 补"多个未计分项保持相对 index 次序"与"溢出钉项保留身份"两个测试。全套 123 测试绿。
+- 2026-09-24: **接受的残余风险**（Spec 轴提出，非违规）：同分的最终 tie-break 是 SysListView 枚举 index；若 explorer 枚举顺序在桌面内容不变时跨进程漂移，同分图标会换位。枚举序是 explorer 自己存储的顺序，实机观察稳定，故接受；若日后观察到无意义换位，把 tie-break 换成显示名即可（会改变 03 的"按现序"语义，需同步改票）。

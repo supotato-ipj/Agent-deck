@@ -96,17 +96,6 @@ def _dedupe(names):
     return seen
 
 
-def _app_order_key(pinned_order, pinned_set, scores):
-    """手钉按清单顺序最前；其余按分数降序，同分按当前 index 定序（可重复）。"""
-
-    def key(item):
-        if item.name in pinned_set:
-            return (0, pinned_order.index(item.name), 0.0, item.index)
-        return (1, 0, -scores.get(item.name, 0.0), item.index)
-
-    return key
-
-
 def plan_layout(items, pinned=(), scores=None):
     """算出编排计划。pinned 为手钉显示名有序清单；scores 为 {显示名: 使用频次分数}。
 
@@ -118,22 +107,27 @@ def plan_layout(items, pinned=(), scores=None):
     present = {i.name for i in items}
     pinned_order = [n for n in _dedupe(pinned) if n in present]
     pinned_set = set(pinned_order)
-    app_items = sorted(
-        (i for i in items if classify(i) == "app"),
-        key=_app_order_key(pinned_order, pinned_set, scores),
+    app_items = [i for i in items if classify(i) == "app"]
+    # 两段拼接而非混合排序键：手钉段按清单顺序，推荐段按分数降序、同分按当前 index
+    ordered = sorted(
+        (i for i in app_items if i.name in pinned_set),
+        key=lambda i: pinned_order.index(i.name),
+    ) + sorted(
+        (i for i in app_items if i.name not in pinned_set),
+        key=lambda i: (-scores.get(i.name, 0.0), i.index),
     )
 
     placements = {}
     slot = 0
-    for item in app_items:
+    for item in ordered:
+        source = "pinned" if item.name in pinned_set else "recommended"
         if slot < geo.APP_SLOTS:
             col, row = slot % geo.APP_COLS, slot // geo.APP_COLS
-            source = "pinned" if item.name in pinned_set else "recommended"
             placements[item.index] = Placement(item.name, "app", slot, geo.app_slot(col, row), source)
             slot += 1
         else:
-            # 栏位已满：归类仍为 app 但不落位，由后续票决定如何呈现
-            placements[item.index] = Placement(item.name, "app", None, None)
+            # 栏位已满：归类仍为 app 但不落位；source 保留身份，dry-run 仍认得出手钉
+            placements[item.index] = Placement(item.name, "app", None, None, source)
 
     placements.update(_doc_placements([i for i in items if classify(i) == "doc"]))
 

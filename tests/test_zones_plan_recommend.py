@@ -2,11 +2,7 @@ import unittest
 
 import zones_geometry as geo
 import zones_plan as zp
-from tests.records import Rec
-
-
-def shortcut(name, index):
-    return Rec(name=name, kind="shortcut", index=index)
+from tests.records import shortcut
 
 
 class RecommendFillTest(unittest.TestCase):
@@ -61,6 +57,19 @@ class RecommendFillTest(unittest.TestCase):
         self.assertEqual(plan["scored"].slot, 0)
         self.assertEqual(plan["ghost"].slot, 1)
         self.assertEqual(plan["ghost"].source, "recommended")
+
+    def test_multiple_unscored_keep_relative_index_order(self):
+        items = [shortcut("z", 0), shortcut("a", 1), shortcut("m", 2)]
+        plan = self.plan_of(items, [], {})
+        self.assertEqual([plan["z"].slot, plan["a"].slot, plan["m"].slot], [0, 1, 2])
+
+    def test_overflowed_pinned_item_keeps_its_identity(self):
+        pinned = [f"s{i}" for i in range(geo.APP_SLOTS + 1)]
+        items = [shortcut(n, i) for i, n in enumerate(pinned)]
+        plan = self.plan_of(items, pinned, {})
+        last = plan[pinned[-1]]
+        self.assertIsNone(last.pos)
+        self.assertEqual(last.source, "pinned")
 
     def test_no_scores_argument_behaves_like_zero_three(self):
         items = [shortcut("a", 0), shortcut("b", 1)]

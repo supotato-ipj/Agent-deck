@@ -2,11 +2,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 import usage_score as us
-from tests.records import Rec
-
-
-def shortcut(name, target, index=0):
-    return Rec(name=name, kind="shortcut", index=index, target=target)
+from tests.records import Rec, shortcut
 
 
 NOW = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
@@ -68,7 +64,7 @@ class UserAssistParseTest(unittest.TestCase):
 
 class FuseIconsTest(unittest.TestCase):
     def setUp(self):
-        self.items = [shortcut("Kimi", r"C:\P\Kimi.exe")]
+        self.items = [shortcut("Kimi", target=r"C:\P\Kimi.exe")]
 
     def test_empty_log_still_ranks_from_prior(self):
         prior = {r"c:\p\kimi.exe": us.PriorEntry(100, NOW - timedelta(days=7))}
@@ -103,12 +99,12 @@ class FuseIconsTest(unittest.TestCase):
 
 class MapToIconsTest(unittest.TestCase):
     def test_target_match_is_case_insensitive(self):
-        items = [shortcut("Kimi", r"C:\P\Kimi.exe")]
+        items = [shortcut("Kimi", target=r"C:\P\Kimi.exe")]
         ranking = us.map_to_icons({r"c:\p\kimi.exe": 3.0}, items)
         self.assertEqual(ranking, {"Kimi": 3.0})
 
     def test_unmapped_exes_are_dropped_from_ranking(self):
-        items = [shortcut("Kimi", r"C:\P\Kimi.exe")]
+        items = [shortcut("Kimi", target=r"C:\P\Kimi.exe")]
         ranking = us.map_to_icons({r"c:\p\kimi.exe": 3.0, "noise.exe": 9.0}, items)
         self.assertEqual(set(ranking), {"Kimi"})
 
@@ -117,7 +113,7 @@ class MapToIconsTest(unittest.TestCase):
         self.assertEqual(us.map_to_icons({"x.exe": 5.0}, items), {})
 
     def test_userassist_lnk_entries_map_by_stem(self):
-        items = [shortcut("Kimi", r"C:\P\Kimi.exe")]
+        items = [shortcut("Kimi", target=r"C:\P\Kimi.exe")]
         ranking = us.map_to_icons({r"C:\x\TaskBar\Kimi.lnk": 2.0}, items)
         self.assertEqual(ranking, {"Kimi": 2.0})
 
