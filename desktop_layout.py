@@ -94,14 +94,16 @@ def restore_moves(current, snapshot_items):
       ambiguous = 当前桌面上同名的项多于一个；快照按显示名存储，无法判定
                   该还原哪一个，故跳过并上报，绝不静默丢弃或猜一个
     """
-    counts = {}
-    for i in current:
-        counts[i.name] = counts.get(i.name, 0) + 1
+    counts = di.name_counts(current)
     have = {i.name: i for i in current}
     wanted = {e["name"]: e for e in snapshot_items}
     ambiguous = sorted(n for n in wanted if counts.get(n, 0) > 1)
     skipped = set(ambiguous)
-    moves = [(n, wanted[n]["x"], wanted[n]["y"]) for n in wanted if n in have and n not in skipped]
+    moves = [
+        (have[n].index, n, wanted[n]["x"], wanted[n]["y"])
+        for n in wanted
+        if n in have and n not in skipped
+    ]
     missing = [n for n in wanted if n not in have]
     extra = [n for n in have if n not in wanted]
     return moves, missing, extra, ambiguous
@@ -110,9 +112,7 @@ def restore_moves(current, snapshot_items):
 def apply_moves(moves):
     """把落位动作写进桌面图标视图。调用前必须已完成 ensure_factory。"""
     with di.IconView() as view:
-        index = {view.text(i): i for i in range(view.count())}
-        for name, x, y in moves:
-            view.set_position(index[name], x, y)
+        view.write_moves(moves)
 
 
 def restore(which, directory=None):
@@ -157,6 +157,9 @@ def main(argv):
             return 0
     except di.DesktopViewUnavailable as exc:
         print(f"desktop-layout: {exc}", file=sys.stderr)
+        return 2
+    except di.WriteAborted as exc:
+        print(f"desktop-layout: 还原中止：已完成 {exc.done} 项，失败于 {exc.name}：{exc}", file=sys.stderr)
         return 2
     except FileNotFoundError as exc:
         print(f"desktop-layout: {exc}", file=sys.stderr)

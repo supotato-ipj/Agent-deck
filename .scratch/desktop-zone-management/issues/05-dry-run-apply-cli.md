@@ -29,3 +29,4 @@
   1. 回收站原坐标 `(13,1294)` 不在 98 晶格上，被 explorer 吸附到 `(13,1276)` → `RECYCLE_POS` 改为 1276，并新增晶格同余测试。
   2. 实机截图发现应用区首行 `(13,2)` 压住 DECK 顶栏的品牌字（顶栏 4.6rem≈74px 横跨整屏）→ `APP_ORIGIN` 下移到 `(13,100)`、`LABEL_Y` 改 330。DECK 为定稿形态不可动，只能让图标让位。spec 的几何常量已同步更新。
 - 2026-09-23: 实机验收链：dry-run 打印 14 项计划 → `--apply` 落位且读回全匹配 → 桌面截图确认分区观感（应用区两行在上、文档区单列在左中、回收站左下、DECK 右栏与顶栏无遮挡）→ `restore factory` 读回与出厂快照零偏差 → 再次 apply 保持分区态。`/performance` 200、`/deck` 200 无回归。
+- 2026-09-23: code-review 后修（两轴同指）：`set_position` 原先不检查 `SendMessageW` 返回值，导致"落位中途失败即中止"是死路径——现在失败抛 `DesktopViewUnavailable`，`IconView.write_moves` 统一为唯一写路径并在中途失败时抛 `WriteAborted(done, name)`，调用方据此上报"中止于第 k/N 项（名字）"；读回验证的同名项不再静默跳过，进 `ambiguous` 名单并打印（与 02 的契约一致）；apply 后的读回也包了视图不可用的保护；`load_pinned` 的无用 path 参数内联；`apply` 局部变量改名 `do_apply`；同名计数抽成 `desktop_icons.name_counts` 供 layout/orchestrate 共用；move 统一为 `(index, 显示名, x, y)` 四元组。全套 80 测试绿。

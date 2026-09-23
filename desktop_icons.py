@@ -53,6 +53,15 @@ class DesktopViewUnavailable(Exception):
     """桌面图标视图不可用（explorer 未就绪、结构变更、权限不足等）。"""
 
 
+class WriteAborted(Exception):
+    """落位中途失败：携带已完成数与失败项显示名，供调用方明确上报而非静默。"""
+
+    def __init__(self, done, name, cause):
+        super().__init__(cause)
+        self.done = done
+        self.name = name
+
+
 class _GUID(ctypes.Structure):
     _fields_ = [
         ("Data1", wintypes.ULONG),
@@ -242,7 +251,16 @@ class IconView:
     def set_position(self, index, x, y):
         """落位单个图标。坐标须为非负且小于 65536（LPARAM 打包为两个 16 位字）。"""
         lParam = ((y & 0xFFFF) << 16) | (x & 0xFFFF)
-        user32.SendMessageW(self.listview, LVM_SETITEMPOSITION, index, lParam)
+        if not user32.SendMessageW(self.listview, LVM_SETITEMPOSITION, index, lParam):
+            raise DesktopViewUnavailable(f"LVM_SETITEMPOSITION 失败 index={index}")
+
+    def write_moves(self, moves):
+        """落位 [(index, 显示名, x, y)]；任一项失败即抛 WriteAborted，后续不再写。"""
+        for done, (index, name, x, y) in enumerate(moves):
+            try:
+                self.set_position(index, x, y)
+            except DesktopViewUnavailable as exc:
+                raise WriteAborted(done, name, exc) from exc
 
     def text(self, index):
         item = _LVITEMW()
@@ -379,6 +397,14 @@ def list_items():
                 )
             )
     return items
+
+
+def name_counts(items):
+    """显示名 -> 出现次数。同名项（用户桌面与公共桌面）无法按名唯一定位。"""
+    counts = {}
+    for i in items:
+        counts[i.name] = counts.get(i.name, 0) + 1
+    return counts
 
 
 def display_width(text):

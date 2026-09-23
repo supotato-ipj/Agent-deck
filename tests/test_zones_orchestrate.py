@@ -25,7 +25,7 @@ class MovesFromPlanTest(unittest.TestCase):
             Placement_Stub("c.docx", "doc", None),        # 不落位
         ]
         moves = zo.moves_from_plan(items, plan)
-        self.assertEqual(moves, [(1, "b.docx", (13, 688))])
+        self.assertEqual(moves, [(1, "b.docx", 13, 688)])
 
     def test_empty_plan_no_moves(self):
         self.assertEqual(zo.moves_from_plan([], []), [])
@@ -34,21 +34,26 @@ class MovesFromPlanTest(unittest.TestCase):
 class VerifyPositionsTest(unittest.TestCase):
     def test_reports_mismatch(self):
         plan = [Placement_Stub("a.docx", "doc", (13, 394))]
-        self.assertEqual(zo.verify_positions([item("a.docx", 0, 13, 394)], plan), [])
+        self.assertEqual(zo.verify_positions([item("a.docx", 0, 13, 394)], plan), ([], []))
         off = item("a.docx", 0, 999, 999)
-        self.assertEqual(zo.verify_positions([off], plan), [("a.docx", (13, 394), (999, 999))])
+        self.assertEqual(
+            zo.verify_positions([off], plan),
+            ([("a.docx", (13, 394), (999, 999))], []),
+        )
 
     def test_unplaced_entries_are_not_verified(self):
         plan = [Placement_Stub("a.docx", "doc", None)]
-        self.assertEqual(zo.verify_positions([item("a.docx", 0, 13, 2)], plan), [])
+        self.assertEqual(zo.verify_positions([item("a.docx", 0, 13, 2)], plan), ([], []))
 
-    def test_duplicate_names_are_skipped_not_guessed(self):
+    def test_duplicate_names_are_reported_not_guessed(self):
         plan = [
             Placement_Stub("same", "doc", (13, 492)),
             Placement_Stub("same", "doc", (163, 492)),
         ]
         current = [item("same", 0, 13, 394), item("same", 1, 163, 394)]
-        self.assertEqual(zo.verify_positions(current, plan), [])
+        mismatches, ambiguous = zo.verify_positions(current, plan)
+        self.assertEqual(mismatches, [])
+        self.assertEqual(ambiguous, ["same"])
 
 
 class PlanReportTest(unittest.TestCase):

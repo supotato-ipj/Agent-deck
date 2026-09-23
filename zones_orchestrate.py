@@ -15,40 +15,42 @@ import zones_plan as zp
 PINNED_FILE = Path(__file__).resolve().parent / "pinned.json"
 
 
-def load_pinned(path=None):
-    path = Path(path) if path else PINNED_FILE
-    if not path.exists():
+def load_pinned():
+    if not PINNED_FILE.exists():
         return []
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(PINNED_FILE.read_text(encoding="utf-8"))
 
 
 def moves_from_plan(items, plan):
-    """从计划算出真正需要写的落位动作：(index, 显示名, 目标坐标)。"""
+    """从计划算出真正需要写的落位动作：(index, 显示名, x, y)。"""
     moves = []
     for item, placement in zip(items, plan):
         if placement.pos is None:
             continue
         if (item.x, item.y) == placement.pos:
             continue
-        moves.append((item.index, item.name, placement.pos))
+        moves.append((item.index, item.name, placement.pos[0], placement.pos[1]))
     return moves
 
 
 def verify_positions(current, plan):
-    """读回比对：返回 [(显示名, 计划坐标, 实际坐标)]。同名多项跳过，不猜。"""
-    counts = {}
-    for i in current:
-        counts[i.name] = counts.get(i.name, 0) + 1
+    """读回比对：返回 (mismatches, ambiguous)。
+
+    mismatches = [(显示名, 计划坐标, 实际坐标)]；同名多项进 ambiguous，跳过且不猜。
+    """
+    counts = di.name_counts(current)
     actual = {i.name: (i.x, i.y) for i in current}
     mismatches = []
+    ambiguous = []
     for placement in plan:
         if placement.pos is None:
             continue
         if counts.get(placement.name, 0) != 1:
+            ambiguous.append(placement.name)
             continue
         if actual.get(placement.name) != placement.pos:
             mismatches.append((placement.name, placement.pos, actual.get(placement.name)))
-    return mismatches
+    return mismatches, sorted(set(ambiguous))
 
 
 def plan_report(items, plan):
@@ -66,7 +68,7 @@ def plan_report(items, plan):
 def main(argv):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-    apply = "--apply" in argv
+    do_apply = "--apply" in argv
     try:
         items = di.list_items()
     except di.DesktopViewUnavailable as exc:
@@ -74,7 +76,7 @@ def main(argv):
         return 2
     plan = zp.plan_layout(items, load_pinned())
 
-    if not apply:
+    if not do_apply:
         print(f"dry-run: {len(items)} 项，其中 {len(moves_from_plan(items, plan))} 项将移动；加 --apply 才落位")
         print(plan_report(items, plan))
         return 0
@@ -84,15 +86,26 @@ def main(argv):
     moves = moves_from_plan(items, plan)
     try:
         with di.IconView() as view:
-            for index, _name, (x, y) in moves:
-                view.set_position(index, x, y)
+            view.write_moves(moves)
     except di.DesktopViewUnavailable as exc:
-        print(f"zones-orchestrate: 落位中止于第 {len(moves)} 项之前：{exc}", file=sys.stderr)
+        print(f"zones-orchestrate: 打开图标视图失败，未写入：{exc}", file=sys.stderr)
+        return 2
+    except di.WriteAborted as exc:
+        print(
+            f"zones-orchestrate: 落位中止于第 {exc.done + 1}/{len(moves)} 项（{exc.name}）：{exc}",
+            file=sys.stderr,
+        )
         print("zones-orchestrate: 用 desktop_layout.py restore 回退", file=sys.stderr)
         return 2
-    current = di.list_items()
-    mismatches = verify_positions(current, plan)
+    try:
+        current = di.list_items()
+    except di.DesktopViewUnavailable as exc:
+        print(f"zones-orchestrate: 已落位但读回失败，请手动核对：{exc}", file=sys.stderr)
+        return 2
+    mismatches, ambiguous = verify_positions(current, plan)
     print(f"applied: {len(moves)} 项已落位")
+    for name in ambiguous:
+        print(f"  ambiguous (same-named icons, not verified): {name}")
     if mismatches:
         for name, planned, actual in mismatches:
             print(f"  mismatch: {name} planned={planned} actual={actual}")
