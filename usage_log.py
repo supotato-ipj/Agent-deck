@@ -7,14 +7,22 @@
 两类事件各写各的按天 JSONL 文件（start- / focus- 前缀），每条记录只有
 ts 与 exe 两个字段；07 票的"真启动次数"读 start 文件。90 天滚动清理。
 """
+import ctypes
 import json
 import os
 import sys
+import time
 from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import psutil
+
 RETENTION_DAYS = 90
+PRUNE_INTERVAL = 3600
+
+KIND_START = "start"
+KIND_FOCUS = "focus"
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
@@ -25,8 +33,11 @@ def log_dir():
 
 
 def detect_starts(previous, current):
-    """进程集合差分：从无到有的可执行路径即一次真启动。"""
-    return sorted(current - previous)
+    """按 pid 差分识别真启动：新出现的 pid 所属可执行路径各计一次。
+
+    用 pid 而非路径集合，才能数到"同一路径的第二个实例"与"退出后重启"。
+    """
+    return sorted({current[pid] for pid in current.keys() - previous.keys()})
 
 
 def detect_focus(last, current):
@@ -51,7 +62,7 @@ def append(directory, kind, exe, ts):
 
 
 def prune(directory, days=RETENTION_DAYS, now=None):
-    """删除超过保留期的按天文件。"""
+    """删除超过保留期的按天文件；当天文件永不被删。"""
     now = now or datetime.now(timezone.utc)
     cutoff = now - timedelta(days=days)
     for path in Path(directory).glob("*-*.jsonl"):
@@ -68,8 +79,6 @@ def prune(directory, days=RETENTION_DAYS, now=None):
 
 def foreground_exe():
     """前台窗口所属进程的可执行路径。刻意不读取窗口标题。"""
-    import ctypes
-
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     hwnd = user32.GetForegroundWindow()
@@ -91,60 +100,69 @@ def foreground_exe():
         kernel32.CloseHandle(handle)
 
 
-def running_exes():
-    import psutil
-
-    exes = set()
+def running_pid_exes():
+    """pid -> 可执行路径。只取 exe，不取任何其他进程信息。"""
+    out = {}
     for proc in psutil.process_iter(["exe"]):
         exe = proc.info.get("exe")
         if exe:
-            exes.add(exe)
-    return exes
+            out[proc.pid] = exe
+    return out
 
 
 class Collector:
-    """一次 collect() = 一轮前台轮询 + 进程差分，返回并落盘本轮事件。"""
+    """一次 collect() = 一轮前台轮询 + pid 差分，返回并落盘本轮事件。"""
 
     def __init__(self, directory=None):
         self.directory = Path(directory) if directory else log_dir()
         self.previous = None
         self.last_focus = None
 
+    def prune(self, now=None):
+        prune(self.directory, now=now)
+
     def collect(self, now=None):
         now = now or datetime.now(timezone.utc)
         events = []
-        current = running_exes()
+        current = running_pid_exes()
         if self.previous is not None:
-            for exe in detect_starts(self.previous, current):
-                events.append(("start", exe))
+            events.extend((KIND_START, exe) for exe in detect_starts(self.previous, current))
         self.previous = current
-        focus = foreground_exe()
-        switched = detect_focus(self.last_focus, focus)
+        switched = detect_focus(self.last_focus, foreground_exe())
         if switched:
-            events.append(("focus", switched))
+            events.append((KIND_FOCUS, switched))
             self.last_focus = switched
         for kind, exe in events:
             append(self.directory, kind, exe, now)
         return events
 
 
+def run_loop(collector, interval=2.0):
+    """采集主循环：独立于数据服务的 1Hz 采样，失败只报诊死不拖垮服务。"""
+    collector.prune()
+    last_prune = time.monotonic()
+    failures = 0
+    while True:
+        try:
+            collector.collect()
+            failures = 0
+        except Exception as exc:
+            failures += 1
+            if failures == 1 or failures % 300 == 0:
+                print(f"usage-log: 采集失败（第 {failures} 次）：{exc}", flush=True)
+        if time.monotonic() - last_prune > PRUNE_INTERVAL:
+            collector.prune()
+            last_prune = time.monotonic()
+        time.sleep(interval)
+
+
 def main(argv):
     sys.stdout.reconfigure(encoding="utf-8")
     interval = float(argv[0]) if argv else 2.0
     collector = Collector()
-    prune(collector.directory)
     print(f"usage-log: 采集到 {collector.directory}，每 {interval}s 一轮；Ctrl-C 退出")
-    import time
-
-    last_prune = time.monotonic()
     try:
-        while True:
-            for kind, exe in collector.collect():
-                print(f"  {kind}: {exe}")
-            if time.monotonic() - last_prune > 3600:
-                prune(collector.directory)
-                last_prune = time.monotonic()
-            time.sleep(interval)
+        run_loop(collector, interval)
     except KeyboardInterrupt:
         return 0
 

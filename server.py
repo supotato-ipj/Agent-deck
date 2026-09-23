@@ -14,6 +14,8 @@ from pathlib import Path
 
 import psutil
 
+import usage_log
+
 HOST, PORT = "127.0.0.1", 5000
 GPU_CACHE_TTL = 3.0
 QODER_CACHE_TTL = 2.0
@@ -324,21 +326,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _usage_collector():
-    """使用日志采集：独立线程、2s 一轮，不占用 1Hz 采样循环。"""
-    import usage_log
-
-    collector = usage_log.Collector()
-    usage_log.prune(collector.directory)
-    last_prune = time.monotonic()
-    while True:
-        try:
-            collector.collect()
-        except Exception:
-            pass  # 采集是旁路能力，任何异常都不得影响数据服务
-        if time.monotonic() - last_prune > 3600:
-            usage_log.prune(collector.directory)
-            last_prune = time.monotonic()
-        time.sleep(2)
+    """使用日志采集：独立线程、2s 一轮，不占用 1Hz 采样循环（见 spec 使用日志节）。"""
+    try:
+        collector = usage_log.Collector()
+    except Exception as exc:
+        print(f"usage-log: 初始化失败，采集停用：{exc}", flush=True)
+        return
+    usage_log.run_loop(collector)
 
 
 def main():

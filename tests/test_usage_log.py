@@ -8,14 +8,20 @@ import usage_log as ul
 
 
 class DetectStartsTest(unittest.TestCase):
-    def test_new_exe_is_a_start(self):
-        self.assertEqual(ul.detect_starts({"a.exe"}, {"a.exe", "b.exe"}), ["b.exe"])
+    def test_new_pid_is_a_start(self):
+        self.assertEqual(ul.detect_starts({1: "a.exe"}, {1: "a.exe", 2: "b.exe"}), ["b.exe"])
+
+    def test_restart_with_new_pid_is_a_start(self):
+        self.assertEqual(ul.detect_starts({1: "a.exe"}, {2: "a.exe"}), ["a.exe"])
+
+    def test_second_concurrent_instance_is_a_start(self):
+        self.assertEqual(ul.detect_starts({1: "a.exe"}, {1: "a.exe", 2: "a.exe"}), ["a.exe"])
 
     def test_exit_is_not_a_start(self):
-        self.assertEqual(ul.detect_starts({"a.exe", "b.exe"}, {"a.exe"}), [])
+        self.assertEqual(ul.detect_starts({1: "a.exe", 2: "b.exe"}, {1: "a.exe"}), [])
 
     def test_empty_to_empty(self):
-        self.assertEqual(ul.detect_starts(set(), set()), [])
+        self.assertEqual(ul.detect_starts({}, {}), [])
 
 
 class DetectFocusTest(unittest.TestCase):
@@ -67,12 +73,43 @@ class AppendAndPruneTest(unittest.TestCase):
         ul.append(blocker / "sub", "start", "a.exe", datetime.now(timezone.utc))
 
 
+class CollectorFilesTest(unittest.TestCase):
+    """隐私断言要盯 Collector 真正产出的文件，而不只是 append 的单条记录。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+        self._real_exes = ul.running_pid_exes
+        self._real_fg = ul.foreground_exe
+        ul.running_pid_exes = lambda: {1: r"C:\p\a.exe", 2: r"C:\p\b.exe"}
+        ul.foreground_exe = lambda: r"C:\p\a.exe"
+        self.addCleanup(setattr, ul, "running_pid_exes", self._real_exes)
+        self.addCleanup(setattr, ul, "foreground_exe", self._real_fg)
+
+    def test_collector_files_contain_only_ts_and_exe(self):
+        ts = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
+        collector = ul.Collector(self.dir)
+        collector.collect(now=ts)                      # 首轮只建基线
+        ul.running_pid_exes = lambda: {1: r"C:\p\a.exe", 2: r"C:\p\b.exe", 3: r"C:\p\c.exe"}
+        ul.foreground_exe = lambda: r"C:\p\c.exe"
+        collector.collect(now=ts)
+        records = []
+        for path in self.dir.glob("*.jsonl"):
+            records += [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(records)
+        for record in records:
+            self.assertEqual(set(record), {"ts", "exe"})
+
+
 class PrivacyGuardTest(unittest.TestCase):
-    def test_module_never_reads_window_titles(self):
-        source = Path(ul.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("GetWindowText", source)
-        self.assertNotIn("window_title", source)
-        self.assertNotIn("WindowTitle", source)
+    def test_no_module_in_the_repo_reads_window_titles(self):
+        repo = Path(ul.__file__).resolve().parent
+        for path in repo.glob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            self.assertNotIn("GetWindowText", source, path.name)
+            self.assertNotIn("window_title", source, path.name)
+            self.assertNotIn("WindowTitle", source, path.name)
 
 
 if __name__ == "__main__":
