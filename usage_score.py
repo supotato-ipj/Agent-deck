@@ -2,12 +2,14 @@
 
 打分是纯函数，"当前时间"一律由参数传入，便于断言衰减数学。
 自建日志（06）提供逐次启动事件；系统现成的 UserAssist 记录只提供
-"总次数 + 最后执行时间"，故折算为 count × decay(age(last)) 的先验项，
-并按 1/(1+日志次数) 的权重随日志积累逐步退位——日志为空的第一天排名
-仍非空，日志充足后先验被压过。
+"总次数 + 最后执行时间"，故折算为 count × decay(age(last)) 的先验项。
 
-本模块只产出"可执行路径 -> 分数"；把分数挂到桌面图标上是 map_to_icons
-的职责，映射不上的进程在这里不被丢弃（日志仍保留），只在排名中消失。
+融合在**桌面图标**层面做，而不是可执行路径层面：日志与先验各自先映射到
+图标，再按 1/(1+该图标的日志启动次数) 让先验退位。这样先验键与日志键的
+大小写/8.3 形式差异不会把同一应用裂成两条，任务栏 .lnk 先验也不会因为
+日志只记 .exe 而永远不退位。日志为空的第一天排名仍非空（权重为 1）。
+
+本模块不读窗口标题、不碰系统预取目录（见 ADR-0002 与 tests 中的常驻守卫）。
 """
 import codecs
 import json
@@ -21,32 +23,58 @@ import usage_log as ul
 HALF_LIFE_DAYS = 14.0
 
 USERASSIST_KEY = r"Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist"
+# UserAssist 值布局（实机确认）：dword0 是常量 145 的会话/版本字段，不是次数；
+# 运行次数在 COUNT_OFFSET，FILETIME 在 FILETIME_OFFSET。勿把次数"修正"到 0:4。
+COUNT_OFFSET = 4
+FILETIME_OFFSET = 60
+FILETIME_MIN_LEN = 68
 FILETIME_EPOCH_OFFSET = 116444736000000000
+
+
+class PriorEntry:
+    __slots__ = ("count", "last")
+
+    def __init__(self, count, last):
+        self.count = count
+        self.last = last
 
 
 def decay(age_days):
     return 0.5 ** (age_days / HALF_LIFE_DAYS)
 
 
+def _age_days(now, then):
+    return (now - then).total_seconds() / 86400.0
+
+
 def score_starts(events, now):
-    """[(ts, exe)] -> {exe: 衰减加权和}。纯函数。"""
+    """[(ts, exe)] -> {exe(小写): 衰减加权和}。纯函数。"""
     scores = {}
     for ts, exe in events:
-        age = (now - ts).total_seconds() / 86400.0
-        scores[exe] = scores.get(exe, 0.0) + decay(age)
+        key = exe.lower()
+        scores[key] = scores.get(key, 0.0) + decay(_age_days(now, ts))
     return scores
 
 
-def parse_userassist(rotated_name, data):
-    """解析一条 UserAssist 值：ROT13 值名 + 72 字节二进制。
+def count_starts(events):
+    """[(ts, exe)] -> {exe(小写): 启动次数}。纯函数。"""
+    counts = {}
+    for _ts, exe in events:
+        key = exe.lower()
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
-    返回 (可执行路径, 次数, 最后执行时间)；长度不足返回 None。
+
+def parse_userassist(rotated_name, data):
+    """解析一条 UserAssist 值：ROT13 值名 + 二进制值（完整 72 字节，至少 68 可用）。
+
+    返回 (路径, PriorEntry)；不可用返回 None。
     """
-    if not isinstance(data, (bytes, bytearray)) or len(data) < 68:
+    if not isinstance(data, (bytes, bytearray)) or len(data) < FILETIME_MIN_LEN:
         return None
     name = codecs.decode(rotated_name, "rot_13")
-    count = int.from_bytes(data[4:8], "little")
-    filetime = int.from_bytes(data[60:68], "little")
+    count = int.from_bytes(data[COUNT_OFFSET:COUNT_OFFSET + 4], "little")
+    filetime = int.from_bytes(data[FILETIME_OFFSET:FILETIME_OFFSET + 8], "little")
     if filetime == 0:
         return None  # 没有最后执行时间就无法衰减，先验无从谈起
     epoch_seconds = (filetime - FILETIME_EPOCH_OFFSET) / 1e7
@@ -54,14 +82,14 @@ def parse_userassist(rotated_name, data):
         last = datetime.fromtimestamp(epoch_seconds, tz=timezone.utc)
     except (OSError, OverflowError, ValueError):
         return None
-    return name, count, last
+    return name, PriorEntry(count, last)
 
 
 def read_userassist_prior():
-    """读系统现成启动记录，折算为 {路径: (次数, 最后执行时间)}。
+    """读系统现成启动记录为 {路径(小写): PriorEntry}。
 
-    子键 GUID 随系统版本变化，动态枚举而非硬编码。只收 .exe 与 .lnk 结尾的
-    条目：前者经 .lnk 目标映射，后者经 stem 与桌面显示名映射。
+    子键 GUID 随系统版本变化，动态枚举而非硬编码；计数条目在 <GUID>\\Count
+    下一层。只收 .exe 与 .lnk 结尾的条目。
     """
     prior = {}
     try:
@@ -75,7 +103,6 @@ def read_userassist_prior():
             except OSError:
                 break
             try:
-                # 计数条目在 <GUID>\Count 下一层，GUID 层只有 Version
                 key = winreg.OpenKey(root, sub_name + "\\Count")
             except OSError:
                 continue
@@ -88,18 +115,18 @@ def read_userassist_prior():
                     parsed = parse_userassist(name, data)
                     if not parsed:
                         continue
-                    path, count, last = parsed
+                    path, entry = parsed
                     low = path.lower()
                     if not (low.endswith(".exe") or low.endswith(".lnk")):
                         continue
-                    better = prior.get(path)
-                    if better is None or count > better[0]:
-                        prior[path] = (count, last)
+                    existing = prior.get(low)
+                    if existing is None or entry.count > existing.count:
+                        prior[low] = entry
     return prior
 
 
 def read_start_events(directory=None, now=None):
-    """读取 06 的 start 日志为 [(ts, exe)]；未来时间戳忽略。"""
+    """读取 06 的 start 日志为 [(ts, exe)]；坏行跳过，未来时间戳忽略。"""
     directory = Path(directory) if directory else ul.log_dir()
     now = now or datetime.now(timezone.utc)
     events = []
@@ -107,41 +134,22 @@ def read_start_events(directory=None, now=None):
         for line in path.read_text(encoding="utf-8").splitlines():
             try:
                 record = json.loads(line)
-            except ValueError:
+                ts = datetime.fromisoformat(record["ts"])
+                exe = record["exe"]
+            except (ValueError, KeyError, TypeError):
                 continue
-            ts = datetime.fromisoformat(record["ts"])
             if ts <= now:
-                events.append((ts, record["exe"]))
+                events.append((ts, exe))
     return events
 
 
-def fuse(prior, events, now):
-    """先验与自建日志融合为 {exe: 分数}。纯函数。
+def map_to_icons(scores, items, resolve=None):
+    """把路径分数挂到桌面快捷方式：{显示名: 分数}。
 
-    先验项权重 1/(1+该 exe 的日志启动次数)：日志为空时权重为 1（排名来自
-    先验），日志积累后权重趋于 0（先验退位）。
-    """
-    counts = {}
-    log_scores = score_starts(events, now)
-    for _ts, exe in events:
-        counts[exe] = counts.get(exe, 0) + 1
-    fused = {}
-    for exe in set(counts) | set(log_scores) | set(prior):
-        n = counts.get(exe, 0)
-        prior_count, prior_last = prior.get(exe, (0, None))
-        prior_term = prior_count * decay((now - prior_last).total_seconds() / 86400.0) if prior_last else 0.0
-        score = log_scores.get(exe, 0.0) + prior_term / (1 + n)
-        if score > 0:
-            fused[exe] = score
-    return fused
-
-
-def map_to_icons(scores, items):
-    """把路径分数挂到桌面快捷方式上：{显示名: 分数}。
-
-    两条映射路：.exe 经 .lnk 目标反查；.lnk（UserAssist 的任务栏/开始菜单
-    条目）经 stem 与桌面显示名对齐。映射不上的路径不出现在排名里（日志本身
-    不受影响）。
+    .exe 经 .lnk 目标反查；.lnk 先验条目若能在磁盘上解析出目标，则目标必须
+    与桌面快捷方式的目标一致才认（防止任务栏同名快捷方式指到别的 exe），
+    解析不出（shell 别名路径）才退而按 stem 与显示名对齐。映射不上的路径
+    不出现在结果里（日志本身不受影响）。
     """
     by_target = {}
     by_stem = {}
@@ -150,30 +158,58 @@ def map_to_icons(scores, items):
             if item.target:
                 by_target.setdefault(item.target.lower(), item.name)
             by_stem.setdefault(item.name.lower(), item.name)
-    ranking = {}
+    out = {}
     for path, score in scores.items():
         low = path.lower()
+        name = None
         if low.endswith(".exe"):
             name = by_target.get(low)
         elif low.endswith(".lnk"):
-            name = by_stem.get(Path(path).stem.lower())
-        else:
-            name = None
+            target = resolve(low) if resolve else None
+            if target:
+                name = by_target.get(target.lower())
+            elif not (resolve and Path(low).exists()):
+                name = by_stem.get(Path(low).stem.lower())
         if name:
-            ranking[name] = ranking.get(name, 0.0) + score
-    return ranking
+            out[name] = out.get(name, 0.0) + score
+    return out
+
+
+def fuse_icons(prior, events, now, items, resolve=None):
+    """先验与自建日志在图标层面融合为 {显示名: 分数}。纯函数（resolve 除外）。
+
+    先验权重 1/(1+该图标的日志启动次数)：日志为空时权重为 1（排名来自先验），
+    日志积累后权重趋于 0（先验退位）。
+    """
+    counts = count_starts(events)
+    log_icon = map_to_icons(score_starts(events, now), items, resolve)
+    log_icon_n = map_to_icons(counts, items, resolve)
+    prior_scores = {
+        path: entry.count * decay(_age_days(now, entry.last)) for path, entry in prior.items()
+    }
+    prior_icon = map_to_icons(prior_scores, items, resolve)
+    fused = dict(log_icon)
+    for name, prior_score in prior_icon.items():
+        n = log_icon_n.get(name, 0)
+        fused[name] = fused.get(name, 0.0) + prior_score / (1 + n)
+    return {name: score for name, score in fused.items() if score > 0}
 
 
 def ranking(items, directory=None, now=None):
     """端到端：桌面项清单 -> {显示名: 使用频次分数}。"""
+    import desktop_icons as di
+
     now = now or datetime.now(timezone.utc)
-    prior = read_userassist_prior()
-    events = read_start_events(directory, now)
-    return map_to_icons(fuse(prior, events, now), items)
+    return fuse_icons(
+        read_userassist_prior(),
+        read_start_events(directory, now),
+        now,
+        items,
+        resolve=di.resolve_link_target,
+    )
 
 
 def main(argv):
-
     import desktop_icons as di
 
     sys.stdout.reconfigure(encoding="utf-8")

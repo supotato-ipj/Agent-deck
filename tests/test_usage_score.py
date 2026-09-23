@@ -43,8 +43,9 @@ class ScoreStartsTest(unittest.TestCase):
 class UserAssistParseTest(unittest.TestCase):
     def blob(self, count, filetime):
         data = bytearray(72)
-        data[4:8] = count.to_bytes(4, "little")
-        data[60:68] = filetime.to_bytes(8, "little")
+        data[0:4] = (145).to_bytes(4, "little")  # 会话/版本常量字段，非次数
+        data[us.COUNT_OFFSET:us.COUNT_OFFSET + 4] = count.to_bytes(4, "little")
+        data[us.FILETIME_OFFSET:us.FILETIME_OFFSET + 8] = filetime.to_bytes(8, "little")
         return bytes(data)
 
     def test_rot13_name_and_count_and_filetime(self):
@@ -53,33 +54,51 @@ class UserAssistParseTest(unittest.TestCase):
         plain = r"C:\Program Files\app\app.exe"
         rotated = codecs.encode(plain, "rot_13")
         ft = 133000000000000000  # 任意合法 FILETIME
-        name, count, last = us.parse_userassist(rotated, self.blob(145, ft))
+        name, entry = us.parse_userassist(rotated, self.blob(145, ft))
         self.assertEqual(name, plain)
-        self.assertEqual(count, 145)
-        self.assertIsInstance(last, datetime)
+        self.assertEqual(entry.count, 145)
+        self.assertIsInstance(entry.last, datetime)
 
     def test_short_blob_is_rejected(self):
         self.assertIsNone(us.parse_userassist("abc", b"\x00" * 10))
 
+    def test_zero_filetime_is_rejected(self):
+        self.assertIsNone(us.parse_userassist("abc", self.blob(3, 0)))
 
-class FuseTest(unittest.TestCase):
+
+class FuseIconsTest(unittest.TestCase):
+    def setUp(self):
+        self.items = [shortcut("Kimi", r"C:\P\Kimi.exe")]
+
     def test_empty_log_still_ranks_from_prior(self):
-        prior = {"a.exe": (100, NOW - timedelta(days=7))}
-        fused = us.fuse(prior, [], NOW)
-        self.assertIn("a.exe", fused)
-        self.assertGreater(fused["a.exe"], 0)
+        prior = {r"c:\p\kimi.exe": us.PriorEntry(100, NOW - timedelta(days=7))}
+        fused = us.fuse_icons(prior, [], NOW, self.items)
+        self.assertIn("Kimi", fused)
+        self.assertGreater(fused["Kimi"], 0)
 
     def test_abundant_log_suppresses_prior(self):
-        prior = {"a.exe": (1000, NOW)}
-        events = [(NOW, "a.exe")] * 99
-        raw_prior = 1000.0
-        fused = us.fuse(prior, events, NOW)
-        self.assertLess(fused["a.exe"] - 99.0, raw_prior * 0.01 + 1e-9)
+        prior = {r"c:\p\kimi.exe": us.PriorEntry(1000, NOW)}
+        events = [(NOW, r"C:\P\Kimi.exe")] * 99
+        fused = us.fuse_icons(prior, events, NOW, self.items)
+        self.assertLess(fused["Kimi"] - 99.0, 1000.0 * 0.01 + 1e-9)
 
-    def test_unmapped_exes_still_scored_here(self):
-        # 映射过滤是 map_to_icons 的职责，fuse 不做丢弃
-        fused = us.fuse({}, [(NOW, "noise.exe")], NOW)
-        self.assertIn("noise.exe", fused)
+    def test_lnk_prior_recedes_once_the_icon_appears_in_log(self):
+        # 任务栏 .lnk 先验：日志只记 .exe，退位必须发生在图标层面而非路径层面
+        prior = {r"{guid}\taskbar\kimi.lnk": us.PriorEntry(50, NOW)}
+        events = [(NOW, r"C:\P\Kimi.exe")] * 9
+        fused = us.fuse_icons(prior, events, NOW, self.items)
+        self.assertLess(fused["Kimi"] - 9.0, 50.0 * 0.1 + 1e-9)
+
+    def test_case_mismatch_does_not_split_one_app(self):
+        prior = {r"C:\P\KIMI.EXE": us.PriorEntry(10, NOW)}
+        events = [(NOW, r"c:\p\kimi.exe")] * 5
+        fused = us.fuse_icons(prior, events, NOW, self.items)
+        self.assertEqual(len(fused), 1)
+        self.assertLess(fused["Kimi"] - 5.0, 10.0 * 0.2 + 1e-9)
+
+    def test_unmapped_exes_never_reach_ranking(self):
+        fused = us.fuse_icons({}, [(NOW, "noise.exe")], NOW, self.items)
+        self.assertEqual(fused, {})
 
 
 class MapToIconsTest(unittest.TestCase):

@@ -307,13 +307,16 @@ def _vtable(iface):
 
 
 def resolve_link_target(path):
-    """解析 .lnk 的目标路径；失败返回 None。纯 ctypes COM，不依赖 pywin32。"""
+    """解析 .lnk 的目标路径；失败或路径不存在返回 None。纯 ctypes COM，不依赖 pywin32。"""
     ole32.CoInitializeEx(None, 0x2)
     link = ctypes.c_void_p()
-    hr = ole32.CoCreateInstance(
-        ctypes.byref(_guid(CLSID_ShellLink)), None, CLSCTX_INPROC_SERVER,
-        ctypes.byref(_guid(IID_IShellLinkW)), ctypes.byref(link),
-    )
+    try:
+        hr = ole32.CoCreateInstance(
+            ctypes.byref(_guid(CLSID_ShellLink)), None, CLSCTX_INPROC_SERVER,
+            ctypes.byref(_guid(IID_IShellLinkW)), ctypes.byref(link),
+        )
+    except OSError:
+        return None
     if hr < 0 or not link:
         return None
     release = None
@@ -340,6 +343,8 @@ def resolve_link_target(path):
             if get_path(link, buf, TEXT_CHARS, None, 0) < 0:
                 return None
             return buf.value or None
+        except OSError:
+            return None  # shell 别名路径（如 {guid}\TaskBar\x.lnk）在磁盘上不存在
         finally:
             prelease(persist)
     finally:

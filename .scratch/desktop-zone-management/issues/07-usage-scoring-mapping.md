@@ -32,3 +32,4 @@
 - 2026-09-23: **UserAssist 二进制布局实机确认**：dword0 是常量 145（会话/版本字段，不是次数），**运行次数在 offset 4:8**，focus 相关在其后；FILETIME 在 60:68。解析器读 4:8 正确，勿"修正"到 0:4。
 - 2026-09-23: 先验映射两条路：`.exe` 经 .lnk 目标反查；`.lnk`（任务栏/开始菜单条目）经 stem 与桌面显示名对齐。实机排名非空：Qoder CN 5.92 / Kimi 0.86 / WeChat 0.86 / QQ音乐 0.41；更新器、安装器等映射不上的路径被排名丢弃但日志保留。
 - 2026-09-23: 06 的前置提醒在本票落实：`map_to_icons` 即"先映射后计分"的过滤点，短命工具进程（head/grep/rg/pip）因映射不上而天然不进排名。
+- 2026-09-23: code-review 后修（Spec 轴三条全中）：① **融合从 exe 字符串层面下沉到桌面图标层面**（`fuse_icons`）——原先键不规范化会把同一应用裂成两条、先验永不退位，任务栏 .lnk 先验也因日志只记 .exe 而永远 n=0；现在先验权重按"该图标的日志启动次数"退位；② **.lnk 先验映射加目标校验**：磁盘上可解析的任务栏 .lnk 必须目标一致才认，解析不出（shell 别名）才按 stem 对齐，防同名快捷方式指到别的 exe；③ `read_start_events` 坏行（缺字段/坏时间戳）跳过而非崩溃。Standards 轴同批修：注册表偏移常量化（`COUNT_OFFSET`/`FILETIME_OFFSET`，注释钉死"dword0 是常量 145 会话字段、勿修正到 0:4"）、`(count,last)` 改 `PriorEntry`、`_age_days` 抽出、`resolve_link_target` 对不存在路径返回 None 而非抛错、glossary 补"冷启动先验"。全套 113 测试绿；实机排名不变（Qoder CN 5.92 / Kimi 0.86 / WeChat 0.86 / QQ音乐 0.41）。
