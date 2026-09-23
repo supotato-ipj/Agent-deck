@@ -6,7 +6,7 @@
 
 **Blocked by:** 01
 
-**Status:** claimed
+**Status:** ready-for-agent
 
 - [x] 快照文件记录全部图标项的显示名与坐标，中文名正确
 - [x] 出厂态快照在首次写入前生成，重复运行不覆盖它
@@ -25,3 +25,4 @@
 - 2026-09-23: **新发现的硬约束——网格吸附**：`LVM_SETITEMPOSITION` 的目标坐标会被 explorer 吸附到晶格，晶格 ≡ `(13, 2) mod (COL_STEP, ROW_STEP)`。实测写 `(1200,1200)` 实际落 `(1213,1178)`。几何常量恰与该晶格同余，故计划坐标本身不受影响；**但 05 的 apply 之后必须读回校验**，若用户桌面晶格与常量不同余，计划会整体偏移。
 - 2026-09-23: 运行前快照文件名加入微秒——秒级标签曾导致同一秒内两次快照互相覆盖（由测试抓到并修复）。
 - 2026-09-23: 实机往返验证：index 0 图标 `(13,198)` → 写 `(1200,1200)` → 读回 `(1213,1178)`（吸附）→ `restore last` → 读回 `(13,198)`；counts=(14, [], [])。factory.json 在其后再次执行 snapshot 命令时 LastWriteTime 不变。
+- 2026-09-23: code-review（Spec 轴 #4）指出同名项仍会破坏还原：`restore_moves`/`apply_moves` 以 name 为键，两个同名图标中有一个永不被还原。已修：`restore_moves` 返回四元组，新增 `ambiguous` 名单——当前桌面同名多于一个的项跳过落位并显式上报，绝不静默丢弃或猜一个；CLI 打印 `ambiguous=N` 及名单。补测试 `test_duplicate_current_names_are_reported_not_moved`。同批还修了 Standards 轴指出的模块 docstring 自相矛盾（desktop_icons 自称只读却含写原语）、过期的 LVM_GETITEMSPACING 步长出处（删除该消息与 `IconView.spacing`，报告头改打 observed steps）、以及重复的读项构造（新增 `IconView.bare_items`）。

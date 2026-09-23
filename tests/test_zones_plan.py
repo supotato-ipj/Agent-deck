@@ -90,6 +90,16 @@ class AppSlotTest(unittest.TestCase):
         self.assertEqual(len(placed), geo.APP_SLOTS)
         self.assertEqual(len(unplaced), 2)
 
+    def test_pinned_list_longer_than_slots_does_not_overflow_slots(self):
+        pinned = [f"s{i}" for i in range(geo.APP_SLOTS + 3)]
+        items = [item(n, "shortcut", i) for i, n in enumerate(pinned)]
+        plan = {p.name: p for p in zp.plan_layout(items, pinned)}
+        placed = [p for p in plan.values() if p.pos is not None]
+        self.assertEqual(len(placed), geo.APP_SLOTS)
+        self.assertEqual(plan["s0"].slot, 0)
+        self.assertEqual(plan[f"s{geo.APP_SLOTS - 1}"].slot, geo.APP_SLOTS - 1)
+        self.assertIsNone(plan[f"s{geo.APP_SLOTS}"].pos)
+
     def test_every_app_position_stays_left_of_avoid_line(self):
         items = [item(f"s{i}", "shortcut", i) for i in range(geo.APP_SLOTS)]
         for p in zp.plan_layout(items, []):

@@ -10,7 +10,7 @@
 
 **Blocked by:** 01
 
-**Status:** claimed
+**Status:** ready-for-agent
 
 - [x] 编排核心是纯函数，测试中不需要 mock 任何系统接口
 - [x] 快捷方式归应用区、文件与文件夹归文档区、隐藏系统项被排除、回收站单列
@@ -30,3 +30,4 @@
 - 2026-09-23: 自审修掉一个真实边界：用户桌面与公共桌面可能出现**同名项**，原实现以 name 为键会互相覆盖、使两项拿到同一坐标；改为以 index 为键并补测试。
 - 2026-09-23: 回收站识别用显示名集合 `{"Recycle Bin", "回收站"}`（本机 UI 语言为英文，实测显示 "Recycle Bin"）。其余 `special` 项（UWP 应用等）归应用区。若未来系统语言变化导致名称不匹配，回收站会被当 UWP 排进应用区——05 的实机验收需覆盖。
 - 2026-09-23: 实机核对：以真实 14 项 + 手钉 `['WeChat','Obsidian']` 跑计划，手钉占 slot 0/1，其余快捷方式按现序填 2–7，文档全部 `zone=doc, pos=None`（待 04），回收站 `(13,1294)`，无坐标越避让线。
+- 2026-09-23: code-review 后补：票面要求的"手钉数超过栏位数"边界测试原先缺失，已补 `test_pinned_list_longer_than_slots_does_not_overflow_slots`。文档词汇按 CONTEXT.md 修正："重排"→"编排"（ADR-0001、spec、09 票）。`zones_plan` 的英文标识符 `pinned` 保留——glossary 的 _Avoid: pin_ 针对的是中文文档用语，代码标识符无干净替代，docstring 已用"手钉"释义。

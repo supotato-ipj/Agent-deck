@@ -87,17 +87,24 @@ def load_snapshot(which, directory=None):
 def restore_moves(current, snapshot_items):
     """纯函数：算出还原所需的落位动作。
 
-    返回 (moves, missing, extra)：
-      moves  = [(显示名, 目标x, 目标y)]，仅当前桌面上确实存在的项
-      missing = 快照里有、当前桌面已不存在的显示名
-      extra   = 当前桌面有、快照里没有的显示名（还原时保持不动）
+    返回 (moves, missing, extra, ambiguous)：
+      moves     = [(显示名, 目标x, 目标y)]，仅当前桌面上唯一存在的项
+      missing   = 快照里有、当前桌面已不存在的显示名
+      extra     = 当前桌面有、快照里没有的显示名（还原时保持不动）
+      ambiguous = 当前桌面上同名的项多于一个；快照按显示名存储，无法判定
+                  该还原哪一个，故跳过并上报，绝不静默丢弃或猜一个
     """
+    counts = {}
+    for i in current:
+        counts[i.name] = counts.get(i.name, 0) + 1
     have = {i.name: i for i in current}
     wanted = {e["name"]: e for e in snapshot_items}
-    moves = [(n, wanted[n]["x"], wanted[n]["y"]) for n in wanted if n in have]
+    ambiguous = sorted(n for n in wanted if counts.get(n, 0) > 1)
+    skipped = set(ambiguous)
+    moves = [(n, wanted[n]["x"], wanted[n]["y"]) for n in wanted if n in have and n not in skipped]
     missing = [n for n in wanted if n not in have]
     extra = [n for n in have if n not in wanted]
-    return moves, missing, extra
+    return moves, missing, extra, ambiguous
 
 
 def apply_moves(moves):
@@ -109,17 +116,14 @@ def apply_moves(moves):
 
 
 def restore(which, directory=None):
-    """还原到指定快照。返回 (moved, missing, extra) 计数三元组。"""
+    """还原到指定快照。返回 (moved, missing, extra, ambiguous) 计数/名单四元组。"""
     with di.IconView() as view:
-        current = [
-            di.DesktopItem(i, view.text(i), *view.position(i), "unknown", None, None, False)
-            for i in range(view.count())
-        ]
+        current = view.bare_items()
     snapshot = load_snapshot(which, directory)
     ensure_factory(current, directory)
-    moves, missing, extra = restore_moves(current, snapshot["items"])
+    moves, missing, extra, ambiguous = restore_moves(current, snapshot["items"])
     apply_moves(moves)
-    return len(moves), missing, extra
+    return len(moves), missing, extra, ambiguous
 
 
 def main(argv):
@@ -136,10 +140,7 @@ def main(argv):
             return 0
         if command == "snapshot":
             with di.IconView() as view:
-                items = [
-                    di.DesktopItem(i, view.text(i), *view.position(i), "unknown", None, None, False)
-                    for i in range(view.count())
-                ]
+                items = view.bare_items()
             factory = ensure_factory(items)
             path = take_snapshot(items, "run")
             print(f"factory: {factory}")
@@ -147,10 +148,12 @@ def main(argv):
             return 0
         if command == "restore":
             which = argv[1] if len(argv) > 1 else "last"
-            moved, missing, extra = restore(which)
-            print(f"moved={moved} missing={len(missing)} untouched_extra={len(extra)}")
+            moved, missing, extra, ambiguous = restore(which)
+            print(f"moved={moved} missing={len(missing)} untouched_extra={len(extra)} ambiguous={len(ambiguous)}")
             for name in missing:
                 print(f"  missing: {name}")
+            for name in ambiguous:
+                print(f"  ambiguous (same-named icons, skipped): {name}")
             return 0
     except di.DesktopViewUnavailable as exc:
         print(f"desktop-layout: {exc}", file=sys.stderr)

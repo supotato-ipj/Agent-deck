@@ -1,8 +1,9 @@
-"""桌面图标视图的只读适配层。
+"""桌面图标视图的适配层。
 
 通过 explorer 的桌面图标 ListView 读取图标清单（显示名、坐标），再与
 用户桌面 / 公共桌面的文件系统条目按显示名对齐，补出类型、路径、快捷方式
-目标与隐藏属性。本模块只读：不写入坐标、不移动或删除任何文件。
+目标与隐藏属性。写通道只有一个原语 IconView.set_position，供
+desktop_layout 的还原与落位使用；本模块不移动、重命名或删除任何文件。
 
 跨进程读取需要在 explorer 进程内分配内存缓冲；ctypes 必须为 64 位句柄
 显式声明 restype/argtypes，否则访问违例。
@@ -19,7 +20,6 @@ LVM_FIRST = 0x1000
 LVM_GETITEMCOUNT = LVM_FIRST + 4
 LVM_GETITEMPOSITION = LVM_FIRST + 16
 LVM_SETITEMPOSITION = LVM_FIRST + 15
-LVM_GETITEMSPACING = LVM_FIRST + 51
 LVM_GETITEMTEXTW = LVM_FIRST + 115
 
 PROCESS_VM_OPERATION = 0x0008
@@ -225,10 +225,12 @@ class IconView:
     def count(self):
         return user32.SendMessageW(self.listview, LVM_GETITEMCOUNT, 0, 0)
 
-    def spacing(self):
-        """图标格步长 (列步长, 行步长)，含图标与标签。"""
-        r = user32.SendMessageW(self.listview, LVM_GETITEMSPACING, 1, 0)
-        return (r & 0xFFFF, (r >> 16) & 0xFFFF)
+    def bare_items(self):
+        """当前图标清单的最小记录（kind 留 unknown），供快照与还原使用。"""
+        return [
+            DesktopItem(i, self.text(i), *self.position(i), "unknown", None, None, False)
+            for i in range(self.count())
+        ]
 
     def position(self, index):
         user32.SendMessageW(self.listview, LVM_GETITEMPOSITION, index, self._buf + self._off_point)
@@ -379,8 +381,8 @@ def pad(text, width):
     return text + " " * max(0, width - display_width(text))
 
 
-def report(items, spacing):
-    lines = [f"desktop icons: {len(items)}  spacing(col,row)={spacing[0]},{spacing[1]}"]
+def report(items, steps):
+    lines = [f"desktop icons: {len(items)}  steps(col,row)={steps[0]},{steps[1]} (observed, design constants in zones_geometry)"]
     for item in items:
         target = f"  -> {item.target}" if item.target else ""
         lines.append(
@@ -393,17 +395,16 @@ def main(argv):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     try:
-        with IconView() as view:
-            spacing = view.spacing()
         items = list_items()
     except DesktopViewUnavailable as exc:
         print(f"desktop-icons: {exc}", file=sys.stderr)
         return 2
-    print(report(items, spacing))
-    if "--check-geometry" in argv:
-        import zones_geometry as geo
+    import zones_geometry as geo
 
-        col, row = geo.observed_steps([(i.x, i.y) for i in items])
+    steps = geo.observed_steps([(i.x, i.y) for i in items])
+    print(report(items, steps))
+    if "--check-geometry" in argv:
+        col, row = steps
         problems = []
         if row is not None and row != geo.ROW_STEP:
             problems.append(f"行步长实测 {row} != 常量 {geo.ROW_STEP}")

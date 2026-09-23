@@ -2,8 +2,9 @@
 
 屏幕 2560x1440、显示缩放 100%（AppliedDPI=96），CSS px = 物理 px；
 任务栏占底部 48px，可用高度到 y=1392。
-列步长与行步长由 LVM_GETITEMSPACING 实测（见 desktop_icons.spacing），
-本模块中的值是 2026-09-23 在本机测得后固化的默认值。
+行步长 98 与列步长 150 由实际图标坐标反推（zones_geometry.observed_steps
+可在实机复核）。注意 LVM_GETITEMSPACING 的返回值与实际布局不符，不可用；
+且步长随最长标签宽度变化，因此这两个值是设计选择而非系统保证。
 """
 
 SCREEN_W = 2560

@@ -6,7 +6,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** ready-for-agent
 
 - [x] 测试目录与运行方式建立，`unittest` 可一条命令跑起来，零新增第三方依赖
 - [x] 只读命令列出全部桌面项，项数与实机一致（当前基线 14 项）

@@ -21,19 +21,29 @@ class RestoreMovesTest(unittest.TestCase):
         ]
 
     def test_moves_only_present_items(self):
-        moves, missing, extra = dl.restore_moves(self.current, self.snapshot)
+        moves, missing, extra, ambiguous = dl.restore_moves(self.current, self.snapshot)
         self.assertEqual(sorted(m[0] for m in moves), ["a.docx", "b"])
         self.assertEqual(missing, ["gone.lnk"])
         self.assertEqual(extra, ["new.txt"])
+        self.assertEqual(ambiguous, [])
 
     def test_move_carries_target_coords(self):
-        moves, _, _ = dl.restore_moves(self.current, self.snapshot)
+        moves, _, _, _ = dl.restore_moves(self.current, self.snapshot)
         self.assertIn(("a.docx", 13, 500), moves)
 
+    def test_duplicate_current_names_are_reported_not_moved(self):
+        current = [item("same", 13, 2), item("same", 163, 2)]
+        snapshot = [{"name": "same", "x": 13, "y": 500}]
+        moves, missing, extra, ambiguous = dl.restore_moves(current, snapshot)
+        self.assertEqual(moves, [])
+        self.assertEqual(ambiguous, ["same"])
+        self.assertEqual(extra, [])
+
     def test_empty_snapshot_moves_nothing(self):
-        moves, missing, extra = dl.restore_moves(self.current, [])
+        moves, missing, extra, ambiguous = dl.restore_moves(self.current, [])
         self.assertEqual(moves, [])
         self.assertEqual(missing, [])
+        self.assertEqual(ambiguous, [])
         self.assertEqual(len(extra), 3)
 
 
