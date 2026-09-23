@@ -323,6 +323,24 @@ class Handler(BaseHTTPRequestHandler):
         print(f"[{time.strftime('%H:%M:%S')}] {self.address_string()} {fmt % args}", flush=True)
 
 
+def _usage_collector():
+    """使用日志采集：独立线程、2s 一轮，不占用 1Hz 采样循环。"""
+    import usage_log
+
+    collector = usage_log.Collector()
+    usage_log.prune(collector.directory)
+    last_prune = time.monotonic()
+    while True:
+        try:
+            collector.collect()
+        except Exception:
+            pass  # 采集是旁路能力，任何异常都不得影响数据服务
+        if time.monotonic() - last_prune > 3600:
+            usage_log.prune(collector.directory)
+            last_prune = time.monotonic()
+        time.sleep(2)
+
+
 def main():
     # Windows 的 SO_REUSEADDR 允许双进程同绑一端口，故用 connect 探测做单实例守卫
     with socket.socket() as probe:
@@ -332,6 +350,7 @@ def main():
         except OSError:
             pass
     threading.Thread(target=_cpu_sampler, daemon=True).start()
+    threading.Thread(target=_usage_collector, daemon=True).start()
     try:
         server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError:
