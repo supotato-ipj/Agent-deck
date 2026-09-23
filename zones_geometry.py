@@ -19,17 +19,18 @@ COL_STEP = 150
 # 右栏避让线：屏宽减去 QODER DECK 右栏 36rem(=576px)。任何图标格不得越过。
 AVOID_X = SCREEN_W - 576
 
-# 首行必须让开 DECK 顶栏（4.6rem ≈ 74px，横跨整屏）；100 是满足该约束的最顶晶格行。
-# 2026-09-23 实机截图发现起点 y=2 时图标压住品牌字，故下移一行。
-APP_ORIGIN = (13, 100)
+# 首行必须让开 DECK 顶栏：#deck 有 2.2rem 上边距，顶栏 4.6rem + 1px 底线，
+# 横线实际在 y≈109；y=100 的晶格行会压线（2026-09-24 实机截图确认），
+# 故取再下一行 198。
+APP_ORIGIN = (13, 198)
 APP_COLS = 6
 APP_ROWS = 2
 APP_SLOTS = APP_COLS * APP_ROWS
 
 # 标签独占应用区与文档区之间那个无图标的空行
-LABEL_Y = 330
+LABEL_Y = 420
 
-DOC_ORIGIN = (13, 394)
+DOC_ORIGIN = (13, 492)
 DOC_MAX_ROWS = 8
 
 # 必须落在晶格上（y ≡ APP_ORIGIN[1] mod ROW_STEP），否则会被 explorer 吸附走；

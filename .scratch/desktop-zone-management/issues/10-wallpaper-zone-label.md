@@ -25,3 +25,4 @@
 - 2026-09-24: 实施完成。改动在 **DECK 源文件**（`D:\Steam\steamapps\common\wallpaper_engine\projects\myprojects\qoder-deck\index.html`，不在 git 仓库内）：新增 `#zonelabel` 静态 div + CSS（`position: fixed; left: 13px; top: 330px; font-size: 11px; color: rgba(255,255,255,0.28); pointer-events: none`），文案 `▲ APP 6×2 栏位 · 手钉优先　／　▼ DOC 按类型分列 · 新在上`。本提交只含 tracker 变更。
 - 2026-09-24: 实机验收：openWallpaper 强制重载后截图——标签落在应用区第二行底（~296）与文档区首行（394）之间的空行内，未被任何图标或文件名遮挡；右栏会话/硬件与顶栏渲染无变化；无边框、无底色、无交互元素；标签不依赖数据服务（纯静态 markup）。
 - 2026-09-24: 已知取舍：标签用物理 px 定位，若日后系统缩放不是 100%，标签会与图标晶格错位（图标晶格是物理像素、CSS 会随缩放缩放）。标签是装饰性提示，错位不影响功能；真要在多缩放下对齐需把几何常量换成 rem 换算，留待需要时再做。
+- 2026-09-24: 用户实机指出应用区首行压顶栏底线：#deck 的 2.2rem 上边距使顶栏底线落在 y≈109，而 y=100 的晶格行图标格为 100..198。几何整体下移一个晶格行：APP_ORIGIN=(13,198)、LABEL_Y=420、DOC_ORIGIN=(13,492)；标签 CSS top 同步改 420px。重载后截图确认顶栏线与首行图标之间约 90px 净空。
