@@ -76,6 +76,13 @@ class IncrementalMovesTest(unittest.TestCase):
         moves = self.moves_for(items, plans, set())
         self.assertEqual(moves, [("Kimi", 13, 100)])
 
+    def test_same_round_add_and_remove_suspends_app_placement(self):
+        # 重命名在 fs 差分里表现为"一增一删"；新名字不该被当全新项拖进栏位
+        items = [Rec(name="Kimi2", kind="shortcut", index=0, x=999, y=999)]
+        plans = [Plan_Stub("Kimi2", "app", (13, 100))]
+        moves = zw.incremental_moves(items, plans, {"Kimi"}, removed_names={"Kimi"})
+        self.assertEqual(moves, [])
+
     def test_recycle_is_never_moved_by_watcher(self):
         items = [Rec(name="Recycle Bin", kind="special", index=0, x=999, y=999)]
         plans = [Plan_Stub("Recycle Bin", "recycle", (13, 1276))]

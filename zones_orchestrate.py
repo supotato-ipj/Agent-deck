@@ -84,18 +84,20 @@ def main(argv):
         print(plan_report(items, plan))
         return 0
 
-    moves = moves_from_plan(items, plan)
     try:
-        lock = zones_lock.ArrangeLock()
-    except zones_lock.ArrangeBusy as exc:
-        print(f"zones-orchestrate: {exc}，稍后重试", file=sys.stderr)
-        return 2
-    try:
-        with lock:
+        with zones_lock.ArrangeLock():
+            # 读、计划、快照、写全在锁内：否则看门狗可能在读与写之间完成一轮
+            # 编排，运行前快照会记下一个桌面上从未存在过的状态
+            items = di.list_items()
+            plan = zp.plan_layout(items, load_pinned(), usage_score.ranking(items))
+            moves = moves_from_plan(items, plan)
             dl.ensure_factory(items)
             dl.take_snapshot(items, "run")
             with di.IconView() as view:
                 view.write_named_moves(moves)
+    except zones_lock.ArrangeBusy as exc:
+        print(f"zones-orchestrate: {exc}，稍后重试", file=sys.stderr)
+        return 2
     except di.DesktopViewUnavailable as exc:
         print(f"zones-orchestrate: 打开图标视图失败，未写入：{exc}", file=sys.stderr)
         return 2

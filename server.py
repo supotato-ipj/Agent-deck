@@ -342,7 +342,7 @@ def _zone_watcher():
     try:
         zones_watcher.run_watch_loop()
     except Exception as exc:
-        print(f"zones-watcher: 线程退出：{exc}", flush=True)
+        zones_watcher.log.exception("看门狗线程退出：%s", exc)
 
 
 def main():

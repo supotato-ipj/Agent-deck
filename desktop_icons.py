@@ -255,12 +255,12 @@ class IconView:
             raise DesktopViewUnavailable(f"LVM_SETITEMPOSITION 失败 index={index}")
 
     def write_moves(self, moves):
-        """落位 [(index, x, y)]；任一项失败即抛 WriteAborted，后续不再写。"""
+        """落位 [(index, 显示名, x, y)]；任一项失败即抛 WriteAborted，后续不再写。"""
         for done, (index, _name, x, y) in enumerate(moves):
             try:
                 self.set_position(index, x, y)
             except DesktopViewUnavailable as exc:
-                raise WriteAborted(done, moves[done][0], exc) from exc
+                raise WriteAborted(done, moves[done][1], exc) from exc
 
     def write_named_moves(self, moves):
         """落位 [(显示名, x, y)]：index 在写入会话内现查。
