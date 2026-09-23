@@ -10,6 +10,7 @@ class Rec:
     name: str
     kind: str
     index: int
+    mtime: float = 0.0
 
 
 def item(name, kind, index=0):
@@ -129,10 +130,10 @@ class DocAndUntouchedTest(unittest.TestCase):
         self.assertEqual(plan["微信"].slot, 0)
         self.assertEqual(plan["微信"].pos, geo.app_slot(0, 0))
 
-    def test_doc_items_are_classified_but_unplaced_in_this_ticket(self):
+    def test_doc_items_are_placed_in_doc_zone(self):
         plan = {p.name: p for p in zp.plan_layout([item("a.docx", "file", 0)], [])}
         self.assertEqual(plan["a.docx"].zone, "doc")
-        self.assertIsNone(plan["a.docx"].pos)
+        self.assertEqual(plan["a.docx"].pos, geo.doc_cell(0, 0))
 
     def test_untouched_items_are_unplaced(self):
         plan = {p.name: p for p in zp.plan_layout([item("desktop.ini", "system", 0)], [])}

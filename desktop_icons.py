@@ -134,6 +134,7 @@ class DesktopItem:
     path: str | None
     target: str | None
     hidden: bool
+    mtime: float | None = None  # 文档区组内排序用；快照路径（bare_items）无此值
 
 
 def known_folder(csidl):
@@ -355,6 +356,9 @@ def list_items():
             entry = fs.get(name)
             kind = _kind(name, entry)
             target = None
+            mtime = None
+            if entry:
+                mtime = Path(entry["path"]).stat().st_mtime
             if kind == "shortcut" and entry:
                 target = resolve_link_target(entry["path"])
             items.append(
@@ -367,6 +371,7 @@ def list_items():
                     path=entry["path"] if entry else None,
                     target=target,
                     hidden=bool(entry and entry["hidden"]),
+                    mtime=mtime,
                 )
             )
     return items

@@ -6,6 +6,7 @@
 本票只给出 doc 分类、pos 留空。
 """
 from dataclasses import dataclass
+from pathlib import Path
 
 import zones_geometry as geo
 
@@ -13,6 +14,12 @@ import zones_geometry as geo
 RECYCLE_NAMES = {"Recycle Bin", "回收站"}
 APP_KINDS = {"shortcut", "url", "special"}
 DOC_KINDS = {"file", "folder"}
+
+# 文档组固定组序：位置可预测是"分区"能靠肌肉记忆使用的前提
+GROUP_ORDER = ("folders", "office", "pdf", "image", "archive", "other")
+OFFICE_EXTS = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp", ".rtf", ".csv"}
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".tif", ".tiff"}
+ARCHIVE_EXTS = {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"}
 
 
 @dataclass(frozen=True)
@@ -33,6 +40,45 @@ def classify(item):
     if item.kind in APP_KINDS:
         return "app"
     return "untouched"
+
+
+def doc_group(item):
+    if item.kind == "folder":
+        return "folders"
+    ext = Path(item.name).suffix.lower()
+    if ext in OFFICE_EXTS:
+        return "office"
+    if ext == ".pdf":
+        return "pdf"
+    if ext in IMAGE_EXTS:
+        return "image"
+    if ext in ARCHIVE_EXTS:
+        return "archive"
+    return "other"
+
+
+def _doc_placements(doc_items):
+    """文档区落位：固定组序、每组一列、组间空一列、组内新在上、满 8 行折右侧相邻列。"""
+    groups = {g: [] for g in GROUP_ORDER}
+    for item in doc_items:
+        groups[doc_group(item)].append(item)
+    for members in groups.values():
+        members.sort(key=lambda i: (-(i.mtime if i.mtime is not None else 0.0), i.name))
+
+    placements = {}
+    col = 0
+    for group in GROUP_ORDER:
+        members = groups[group]
+        if not members:
+            continue
+        for offset, item in enumerate(members):
+            c = col + offset // geo.DOC_MAX_ROWS
+            r = offset % geo.DOC_MAX_ROWS
+            pos = geo.doc_cell(c, r)
+            # 越过避让线就不再落位：宁可留空也不压右栏
+            placements[item.index] = Placement(item.name, "doc", None, pos if pos[0] < geo.AVOID_X else None)
+        col += -(-len(members) // geo.DOC_MAX_ROWS) + 1
+    return placements
 
 
 def _dedupe(names):
@@ -66,6 +112,8 @@ def plan_layout(items, pinned=()):
         else:
             # 栏位已满：归类仍为 app 但不落位，由后续票决定如何呈现
             placements[item.index] = Placement(item.name, "app", None, None)
+
+    placements.update(_doc_placements([i for i in items if classify(i) == "doc"]))
 
     for item in items:
         if item.index in placements:
