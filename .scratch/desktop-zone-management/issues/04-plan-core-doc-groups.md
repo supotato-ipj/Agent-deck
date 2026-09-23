@@ -29,3 +29,4 @@
 - 2026-09-23: 组内排序键为 `(-mtime, name)`：mtime 缺失（None）按 0 处理，同 mtime 按名字定序，保证计划可重复。
 - 2026-09-23: 越避让线的文档列**不落位**（pos=None）而非换行或压缩——宁可留空也不压右栏；该路径由合成用例 `test_doc_columns_stay_left_of_avoid_line_or_go_unplaced` 覆盖。
 - 2026-09-23: 03 的旧断言"文档在本票不落位"已随本票失效，改为断言落在 `doc_cell(0,0)`。
+- 2026-09-23: code-review 后修：模块 docstring 过期且误用 glossary avoid 词"分类"（改"归类"）；折列算术抽出 `_columns_used` 并注释"+1 为组间空列"；测试共用记录类型抽到 `tests/records.py`；`list_items` 的 `stat()` 加 OSError 退路（mtime=None）。补/修三个测试：空组不占列（断言 pdf 恰在第 2 列）、None-mtime 视为最旧、**避让线溢出路径**（原用例只塌成 2 组、x 最大 1213，属空转；改为单组 120 项使第 14 列 x=2113 真越线，断言 112 落位 / 8 不落位）。全套 72 测试绿。

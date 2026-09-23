@@ -1,9 +1,10 @@
-"""编排核心第一版：归类 + 应用区栏位（纯函数）。
+"""编排核心：归类、应用区栏位与文档区落位（纯函数）。
 
-不碰 Win32、文件系统、注册表。输入是任何带 name/kind/index 属性的桌面项
-记录（实机为 desktop_icons.DesktopItem），输出是每项的 Placement：
-归到哪一区、占第几个栏位、目标坐标。文档区的具体落位由 04 补齐，
-本票只给出 doc 分类、pos 留空。
+不碰 Win32、文件系统、注册表。输入是任何带 name/kind/index/mtime 属性的
+桌面项记录（实机为 desktop_icons.DesktopItem），输出是每项的 Placement：
+归到哪一区、占第几个栏位（仅应用区）、目标坐标。
+文档区按文档组排布：固定组序、每组一列、组间空一列、组内新在上、
+满 8 行折本组右侧相邻列。
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,6 +58,11 @@ def doc_group(item):
     return "other"
 
 
+def _columns_used(count):
+    """一个文档组占几列：满 DOC_MAX_ROWS 行折一列。"""
+    return -(-count // geo.DOC_MAX_ROWS)
+
+
 def _doc_placements(doc_items):
     """文档区落位：固定组序、每组一列、组间空一列、组内新在上、满 8 行折右侧相邻列。"""
     groups = {g: [] for g in GROUP_ORDER}
@@ -77,7 +83,7 @@ def _doc_placements(doc_items):
             pos = geo.doc_cell(c, r)
             # 越过避让线就不再落位：宁可留空也不压右栏
             placements[item.index] = Placement(item.name, "doc", None, pos if pos[0] < geo.AVOID_X else None)
-        col += -(-len(members) // geo.DOC_MAX_ROWS) + 1
+        col += _columns_used(len(members)) + 1  # +1 为组间空列
     return placements
 
 

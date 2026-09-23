@@ -1,16 +1,8 @@
 import unittest
-from dataclasses import dataclass
 
 import zones_geometry as geo
 import zones_plan as zp
-
-
-@dataclass(frozen=True)
-class Rec:
-    name: str
-    kind: str
-    index: int
-    mtime: float = 0.0
+from tests.records import Rec
 
 
 def item(name, kind, index=0):

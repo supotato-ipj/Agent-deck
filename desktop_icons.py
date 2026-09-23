@@ -358,7 +358,11 @@ def list_items():
             target = None
             mtime = None
             if entry:
-                mtime = Path(entry["path"]).stat().st_mtime
+                # 枚举与 stat 之间文件可能消失（含云占位符），退路为 mtime=None
+                try:
+                    mtime = Path(entry["path"]).stat().st_mtime
+                except OSError:
+                    mtime = None
             if kind == "shortcut" and entry:
                 target = resolve_link_target(entry["path"])
             items.append(
