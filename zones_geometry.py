@@ -19,17 +19,22 @@ COL_STEP = 150
 # 右栏避让线：屏宽减去 QODER DECK 右栏 36rem(=576px)。任何图标格不得越过。
 AVOID_X = SCREEN_W - 576
 
-APP_ORIGIN = (13, 2)
+# 首行必须让开 DECK 顶栏（4.6rem ≈ 74px，横跨整屏）；100 是满足该约束的最顶晶格行。
+# 2026-09-23 实机截图发现起点 y=2 时图标压住品牌字，故下移一行。
+APP_ORIGIN = (13, 100)
 APP_COLS = 6
 APP_ROWS = 2
 APP_SLOTS = APP_COLS * APP_ROWS
 
-LABEL_Y = 280
+# 标签独占应用区与文档区之间那个无图标的空行
+LABEL_Y = 330
 
 DOC_ORIGIN = (13, 394)
 DOC_MAX_ROWS = 8
 
-RECYCLE_POS = (13, 1294)
+# 必须落在晶格上（y ≡ APP_ORIGIN[1] mod ROW_STEP），否则会被 explorer 吸附走；
+# 1276 是满足格底 ≤ WORK_H 的最底晶格行
+RECYCLE_POS = (13, 1276)
 
 
 def observed_steps(coords):

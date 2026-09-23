@@ -38,6 +38,12 @@ class LayoutBoundsTest(unittest.TestCase):
     def test_recycle_bin_sits_on_bottom_edge(self):
         self.assertLessEqual(geo.RECYCLE_POS[1] + geo.ROW_STEP, geo.WORK_H)
 
+    def test_icon_origins_are_lattice_congruent(self):
+        # explorer 会把落位吸附到晶格；常量不同余就会被悄悄挪走（实测踩过）
+        for origin in (geo.APP_ORIGIN, geo.DOC_ORIGIN, geo.RECYCLE_POS):
+            self.assertEqual((origin[0] - geo.APP_ORIGIN[0]) % geo.COL_STEP, 0, origin)
+            self.assertEqual((origin[1] - geo.APP_ORIGIN[1]) % geo.ROW_STEP, 0, origin)
+
     def test_label_row_is_between_zones(self):
         app_bottom = geo.APP_ORIGIN[1] + geo.APP_ROWS * geo.ROW_STEP
         self.assertGreater(geo.LABEL_Y, app_bottom)

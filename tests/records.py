@@ -8,3 +8,5 @@ class Rec:
     kind: str
     index: int
     mtime: float | None = 0.0
+    x: int = 0
+    y: int = 0
