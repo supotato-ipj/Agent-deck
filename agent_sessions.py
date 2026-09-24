@@ -228,8 +228,49 @@ def _scan_zcode(root, now):
     return sessions
 
 
+def _scan_kimicode(root, now):
+    sessions = []
+    sessions_dir = root / "sessions"
+    if not sessions_dir.is_dir():
+        return sessions
+    for ws in sessions_dir.iterdir():
+        if not ws.is_dir():
+            continue
+        for sd in ws.iterdir():
+            if not sd.is_dir():
+                continue
+            state_file = sd / "state.json"
+            wire_file = sd / "agents" / "main" / "wire.jsonl"
+            try:
+                state = json.loads(state_file.read_text(encoding="utf-8"))
+                mtimes = [state_file.stat().st_mtime]
+                if wire_file.exists():
+                    mtimes.append(wire_file.stat().st_mtime)
+            except Exception:
+                continue
+            age = now - max(mtimes)
+            if age > ACTIVE_WINDOW:
+                continue
+            work_dir = state.get("workDir")
+            running = age <= RUNNING_WINDOW
+            sessions.append(
+                {
+                    "tool": "kimicode",
+                    "id": sd.name,
+                    "project": Path(work_dir).name if work_dir else "",
+                    "running": running,
+                    "age": round(age),
+                    "tasks_done": None,
+                    "tasks_total": None,
+                    "state": "RUN" if running else "DONE",
+                }
+            )
+    return sessions
+
+
 SCANNERS = {
     "qoder": _scan_qoder_sessions,
     "hermes": _scan_hermes,
     "zcode": _scan_zcode,
+    "kimicode": _scan_kimicode,
 }

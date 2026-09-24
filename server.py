@@ -31,6 +31,7 @@ SESSION_ROOTS = {
     "qoder": QODER_ROOT,
     "hermes": Path.home() / "AppData" / "Local" / "hermes",
     "zcode": Path.home() / ".zcode",
+    "kimicode": Path.home() / ".kimi-code",
 }
 
 _gpu_cache = {"ts": 0.0, "data": {}}
