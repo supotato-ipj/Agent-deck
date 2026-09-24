@@ -16,7 +16,7 @@ ROW_STEP = 98
 # （图标视图三列坐标 13/163/313 的间隔），足以容纳当前最长标签。
 COL_STEP = 150
 
-# 右栏避让线：屏宽减去 QODER DECK 右栏 36rem(=576px)。任何图标格不得越过。
+# 右栏避让线：屏宽减去 AGENT DECK 右栏 36rem(=576px)。任何图标格不得越过。
 AVOID_X = SCREEN_W - 576
 
 # 首行必须让开 DECK 顶栏：#deck 有 2.2rem 上边距，顶栏 4.6rem + 1px 底线，
