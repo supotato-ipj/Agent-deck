@@ -102,12 +102,16 @@ class SeamTest(unittest.TestCase):
     # ---- 时间窗边界 ----
 
     def test_running_window_boundary(self):
-        self.fx.add_session("s1", 90, [_rec("assistant", "text")])
-        self.assertEqual(self.collect()[0]["state"], "RUN")
+        jf = self.fx.add_session("s1", 90, [_rec("assistant", "text")])
+        now = jf.stat().st_mtime + ag.RUNNING_WINDOW
+        (s,) = ag.collect_sessions({"qoder": self.fx.root}, now)
+        self.assertEqual(s["state"], "RUN")
 
     def test_active_window_boundary_included(self):
-        self.fx.add_session("s1", 600, [_rec("assistant", "text")])
-        self.assertEqual(len(self.collect()), 1)
+        jf = self.fx.add_session("s1", 600, [_rec("assistant", "text")])
+        now = jf.stat().st_mtime + ag.ACTIVE_WINDOW
+        sessions = ag.collect_sessions({"qoder": self.fx.root}, now)
+        self.assertEqual(len(sessions), 1)
 
     def test_beyond_active_window_excluded(self):
         self.fx.add_session("s1", 601, [_rec("assistant", "text")])

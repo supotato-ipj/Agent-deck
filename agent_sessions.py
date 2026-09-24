@@ -1,19 +1,17 @@
 """五工具会话采集（AGENT DECK 会话列表的数据来源）。
 
-唯一接缝 collect_sessions(roots, now)：roots 为 {工具名: 数据根路径}，now 为墙钟秒。
+会话列表的唯一接缝 collect_sessions(roots, now)：roots 为 {工具名: 数据根路径}，now 为墙钟秒。
+/performance 的 Qoder 状态块不经此接缝，但复用 task_stats/project_name 两个助手。
 每工具一个严格只读的扫描器；任一工具扫描失败静默跳过、只记日志（ADR 0003）。
 """
 import json
-import time
 from pathlib import Path
 
 RUNNING_WINDOW = 90.0
 ACTIVE_WINDOW = 600.0
 
 
-def collect_sessions(roots, now=None):
-    if now is None:
-        now = time.time()
+def collect_sessions(roots, now):
     sessions = []
     for tool, root in roots.items():
         scanner = SCANNERS.get(tool)
@@ -113,7 +111,7 @@ def project_name(jsonl_path):
     return jsonl_path.parent.name
 
 
-def _scan_qoder(root, now):
+def _scan_qoder_sessions(root, now):
     sessions = []
     projects_dir = root / "projects"
     if not projects_dir.is_dir():
@@ -147,5 +145,5 @@ def _scan_qoder(root, now):
 
 
 SCANNERS = {
-    "qoder": _scan_qoder,
+    "qoder": _scan_qoder_sessions,
 }

@@ -11,3 +11,7 @@
 - [ ] Steam 项目文件夹路径不变，WE 重载壁纸正常、开机自启不受影响
 - [ ] TERMINAL 02 相关文案零波及（其 Qoder 状态块语义保留）
 - [ ] 壁纸重载后目测：WE 编辑器与画面标题均显示 AGENT DECK
+
+## Comments
+
+- 2026-09-25 备注：CONTEXT.md 的改名部分（标题/首段改 AGENT DECK、新增"会话列表""工具标签"词条）已在 spec 发布提交 a0dc278 完成，本票只需核对不重复做；剩余范围是前端文案、WE project.json title 与服务端代码内文案。
