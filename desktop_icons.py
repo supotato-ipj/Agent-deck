@@ -10,6 +10,7 @@ desktop_layout 的还原与落位使用；本模块不移动、重命名或删�
 """
 import ctypes
 import sys
+import time
 import unicodedata
 import uuid
 from ctypes import wintypes
@@ -267,10 +268,19 @@ class IconView:
 
         ListView 的 index 序会因新增/删除文件而重排，拿着旧 index 写会落到
         别的图标上；名字到 index 的映射必须与写入同处一个会话。
+        explorer 应用位置是异步且带动画的，批量写入时末几项可能被吞：
+        写后读回、把没落上的补写，最多三轮收敛。
         """
         index = {self.text(i): i for i in range(self.count())}
         resolved = [(index[name], name, x, y) for name, x, y in moves if name in index]
         self.write_moves(resolved)
+        for _ in range(3):
+            time.sleep(1.5)
+            actual = {self.text(i): self.position(i) for i in range(self.count())}
+            missed = [(n, x, y) for _i, n, x, y in resolved if actual.get(n) != (x, y)]
+            if not missed:
+                return
+            self.write_moves([(index[n], n, x, y) for n, x, y in missed if n in index])
 
     def text(self, index):
         item = _LVITEMW()

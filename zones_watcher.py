@@ -100,10 +100,13 @@ def arrange_once(previous_names):
     try:
         with zones_lock.ArrangeLock(wait_seconds=0):
             # 文件系统事件先于 explorer 的 ListView 刷新；视图没跟上就规划，
-            # 会把"已删除"仍算在内、计划等于现状而什么都不做。等视图追平。
-            for _ in range(SETTLE_MAX_ROUNDS):
+            # 会把"已删除"仍算在内、计划等于现状而什么都不做。等视图追平；
+            # 新增图标进视图的延迟实测可达十秒级，等不满就标记未追平。
+            caught_up = False
+            for _ in range(15):
                 items = di.list_items()
                 if {i.name for i in items} == current:
+                    caught_up = True
                     break
                 time.sleep(SETTLE_INTERVAL)
             plan = zp.plan_layout(items, zo.load_pinned(), usage_score.ranking(items))
@@ -125,8 +128,8 @@ def arrange_once(previous_names):
                         view.write_named_moves(missed)
                     log.info("self-heal: 补写 %d 项", len(missed))
     except zones_lock.ArrangeBusy:
-        return current, 0  # 手动编排正在进行，本轮跳过
-    return current, len(moves)
+        return current, 0, True  # 手动编排正在进行，本轮跳过
+    return current, len(moves), caught_up
 
 
 def run_watch_loop(interval=2.0):
@@ -138,9 +141,15 @@ def run_watch_loop(interval=2.0):
             if not changed(previous, current):
                 continue
             current = settle(scan_names)
-            previous, moved = arrange_once(previous)
+            previous, moved, caught_up = arrange_once(previous)
             if moved:
                 log.info("增量编排落位 %d 项", moved)
+            if not caught_up:
+                # 视图没追平：本轮计划可能漏了新图标，立刻再排一轮
+                log.info("视图未追平，追加一轮编排")
+                previous, moved, _ = arrange_once(previous)
+                if moved:
+                    log.info("增量编排落位 %d 项", moved)
         except di.DesktopViewUnavailable as exc:
             log.warning("本次编排跳过（图标视图不可用）：%s", exc)
             previous = scan_names()

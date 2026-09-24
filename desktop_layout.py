@@ -121,7 +121,7 @@ def restore(which, directory=None):
     with di.IconView() as view:
         current = view.bare_items()
     snapshot = load_snapshot(which, directory)
-    with zones_lock.ArrangeLock():
+    with zones_lock.ArrangeLock(wait_seconds=20):
         ensure_factory(current, directory)
         moves, missing, extra, ambiguous = restore_moves(current, snapshot["items"])
         apply_moves(moves)

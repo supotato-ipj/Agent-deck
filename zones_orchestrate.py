@@ -85,7 +85,7 @@ def main(argv):
         return 0
 
     try:
-        with zones_lock.ArrangeLock():
+        with zones_lock.ArrangeLock(wait_seconds=20):
             # 读、计划、快照、写全在锁内：否则看门狗可能在读与写之间完成一轮
             # 编排，运行前快照会记下一个桌面上从未存在过的状态
             items = di.list_items()
