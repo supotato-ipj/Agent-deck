@@ -132,22 +132,38 @@ def _scan_qoder_sessions(root, now):
             done, total, _current = task_stats(jf.stem, root)
             role, kind = _session_last(jf)
             sessions.append(
-                {
-                    "tool": "qoder",
-                    "id": jf.stem,
-                    "project": project_name(jf),
-                    "running": age <= RUNNING_WINDOW,
-                    "age": round(age),
-                    "tasks_done": done,
-                    "tasks_total": total,
-                    "state": _session_state(age, role, kind),
-                }
+                _session(
+                    "qoder",
+                    jf.stem,
+                    project_name(jf),
+                    age,
+                    _session_state(age, role, kind),
+                    tasks=(done, total),
+                )
             )
     return sessions
 
 
 def _open_ro(db_path):
-    return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    # busy timeout 调短：库被写方独占时快速失败走静默跳过，不拖住 /deck 轮询
+    return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=0.5)
+
+
+def _dir_name(path_str):
+    return Path(path_str).name if path_str else ""
+
+
+def _session(tool, sid, project, age, state, running=None, tasks=None):
+    return {
+        "tool": tool,
+        "id": sid,
+        "project": project,
+        "running": (age <= RUNNING_WINDOW) if running is None else running,
+        "age": round(age),
+        "tasks_done": None if tasks is None else tasks[0],
+        "tasks_total": None if tasks is None else tasks[1],
+        "state": state,
+    }
 
 
 def _hermes_leases(root):
@@ -165,11 +181,11 @@ def _scan_hermes(root, now):
     con = _open_ro(root / "state.db")
     try:
         rows = con.execute(
-            "SELECT id, cwd, last_activity_at, started_at, ended_at, archived FROM sessions"
+            "SELECT id, cwd, last_activity_at, started_at, end_reason, archived FROM sessions"
         ).fetchall()
     finally:
         con.close()
-    for sid, cwd, last_act, started, ended, archived in rows:
+    for sid, cwd, last_act, started, end_reason, archived in rows:
         if archived:
             continue
         act = last_act if last_act is not None else started
@@ -178,19 +194,9 @@ def _scan_hermes(root, now):
         age = now - act
         if age > ACTIVE_WINDOW:
             continue
-        running = sid in leases or (ended is None and age <= RUNNING_WINDOW)
-        sessions.append(
-            {
-                "tool": "hermes",
-                "id": sid,
-                "project": Path(cwd).name if cwd else "",
-                "running": running,
-                "age": round(age),
-                "tasks_done": None,
-                "tasks_total": None,
-                "state": "RUN" if running else ("IDLE" if ended is None else "DONE"),
-            }
-        )
+        running = sid in leases or (end_reason is None and age <= RUNNING_WINDOW)
+        state = "RUN" if running else ("IDLE" if end_reason is None else "DONE")
+        sessions.append(_session("hermes", sid, _dir_name(cwd), age, state, running=running))
     return sessions
 
 
@@ -213,18 +219,16 @@ def _scan_zcode(root, now):
         age = now - upd / 1000.0
         if age > ACTIVE_WINDOW:
             continue
-        done, total = counts.get(sid, (0, 0))
+        running = age <= RUNNING_WINDOW
         sessions.append(
-            {
-                "tool": "zcode",
-                "id": sid,
-                "project": Path(directory).name if directory else "",
-                "running": age <= RUNNING_WINDOW,
-                "age": round(age),
-                "tasks_done": done,
-                "tasks_total": total,
-                "state": "RUN" if age <= RUNNING_WINDOW else "DONE",
-            }
+            _session(
+                "zcode",
+                sid,
+                _dir_name(directory),
+                age,
+                "RUN" if running else "DONE",
+                tasks=counts.get(sid, (0, 0)),
+            )
         )
     return sessions
 
@@ -252,24 +256,17 @@ def _scan_kimicode(root, now):
             age = now - max(mtimes)
             if age > ACTIVE_WINDOW:
                 continue
-            work_dir = state.get("workDir")
             running = age <= RUNNING_WINDOW
             sessions.append(
-                {
-                    "tool": "kimicode",
-                    "id": sd.name,
-                    "project": Path(work_dir).name if work_dir else "",
-                    "running": running,
-                    "age": round(age),
-                    "tasks_done": None,
-                    "tasks_total": None,
-                    "state": "RUN" if running else "DONE",
-                }
+                _session(
+                    "kimicode",
+                    sd.name,
+                    _dir_name(state.get("workDir")),
+                    age,
+                    "RUN" if running else "DONE",
+                )
             )
     return sessions
-
-
-_KIMIWORK_CONV_PREFIX = "agent:main:main:conversation:"
 
 
 def _scan_kimiwork(root, now):
@@ -286,18 +283,8 @@ def _scan_kimiwork(root, now):
         if age > ACTIVE_WINDOW:
             continue
         running = age <= RUNNING_WINDOW
-        sessions.append(
-            {
-                "tool": "kimiwork",
-                "id": key.rsplit(":", 1)[-1],
-                "project": "",
-                "running": running,
-                "age": round(age),
-                "tasks_done": None,
-                "tasks_total": None,
-                "state": "RUN" if running else ("DONE" if status == "completed" else "IDLE"),
-            }
-        )
+        state = "RUN" if running else ("DONE" if status == "completed" else "IDLE")
+        sessions.append(_session("kimiwork", key.rsplit(":", 1)[-1], "", age, state))
     return sessions
 
 

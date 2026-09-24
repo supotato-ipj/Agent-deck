@@ -104,6 +104,10 @@ class ZcodeScannerTest(unittest.TestCase):
         empty.mkdir()
         self.assertEqual(ag.collect_sessions({"zcode": empty}, self.now), [])
 
+    def test_corrupt_db_skips_tool(self):
+        (self.fx.root / "cli" / "db" / "db.sqlite").write_bytes(b"not a sqlite file at all")
+        self.assertEqual(ag.collect_sessions({"zcode": self.fx.root}, self.now), [])
+
     def test_sorted_with_other_tools(self):
         self.fx.add("sess_old", 300_000)
         self.fx.add("sess_new", 10_000)

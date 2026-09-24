@@ -18,3 +18,4 @@
 
 - 2026-09-25 实施完成。8 条接缝单测全绿；真实 db.sqlite 只读冒烟：3 条活跃会话入列，最新一条 RUN 且 todo 6/6，project 取 directory 目录名。
 - 旧会话（>90s）统一落 DONE（zcode 无尾记录信号）；WE 内实机目测留待票 07。
+- 2026-09-25 评审补充：WAL 模式下只读连接不被写方事务阻塞（实测 EXCLUSIVE+BEGIN IMMEDIATE 期间 ro 读仍成功），"锁库"在 WAL 下天然无感；坏库路径以 corrupt-db 用例覆盖，抛错→跳过机制另有票 01 通用用例。只读连接 busy timeout 调至 0.5s 防极端情况拖住轮询。
