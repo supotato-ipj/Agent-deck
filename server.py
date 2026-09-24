@@ -14,6 +14,7 @@ from pathlib import Path
 
 import psutil
 
+import agent_sessions
 import usage_log
 import usage_score
 import zones_watcher
@@ -24,8 +25,9 @@ QODER_CACHE_TTL = 2.0
 DECK_CACHE_TTL = 1.0
 HISTORY_LEN = 300
 QODER_ROOT = Path.home() / ".qoder-cn"
-RUNNING_WINDOW = 90.0
-ACTIVE_WINDOW = 600.0
+RUNNING_WINDOW = agent_sessions.RUNNING_WINDOW
+ACTIVE_WINDOW = agent_sessions.ACTIVE_WINDOW
+SESSION_ROOTS = {"qoder": QODER_ROOT}
 
 _gpu_cache = {"ts": 0.0, "data": {}}
 _qoder_cache = {"ts": 0.0, "data": None}
@@ -120,108 +122,12 @@ def qoder_state():
     return data
 
 
-def _task_stats(session_id):
-    done = total = 0
-    current = None
-    tasks_dir = QODER_ROOT / "tasks" / session_id
-    if tasks_dir.is_dir():
-        for tf in tasks_dir.glob("*.json"):
-            try:
-                task = json.loads(tf.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            total += 1
-            status = task.get("status")
-            if status == "completed":
-                done += 1
-            elif status == "in_progress" and current is None:
-                current = task.get("subject")
-    return done, total, current
-
-
-def _session_last(jsonl_path):
-    """返回会话最近一条 assistant/user 记录的 (role, kind)。
-
-    kind: tool = 最后动作是工具调用；text = 文本回复；user = 人工输入。
-    """
-    try:
-        with open(jsonl_path, "rb") as fh:
-            fh.seek(0, 2)
-            size = fh.tell()
-            fh.seek(max(0, size - 131072))
-            tail = fh.read().decode("utf-8", errors="ignore")
-    except OSError:
-        return None, None
-    for line in reversed(tail.splitlines()):
-        if '"type"' not in line:
-            continue
-        try:
-            rec = json.loads(line)
-        except Exception:
-            continue
-        role = rec.get("type")
-        if role not in ("assistant", "user"):
-            continue
-        if role == "user":
-            return role, "user"
-        content = (rec.get("message") or {}).get("content")
-        if isinstance(content, list) and content:
-            last = content[-1] if isinstance(content[-1], dict) else {}
-            return role, "tool" if last.get("type") == "tool_use" else "text"
-        return role, "text"
-    return None, None
-
-
-def _session_state(age, role, kind):
-    if age <= RUNNING_WINDOW:
-        return "RUN"
-    if kind == "tool":
-        return "CONFIRM"
-    if role == "assistant":
-        return "DONE"
-    return "IDLE"
-
-
-def _scan_sessions():
-    wall = time.time()
-    sessions = []
-    projects_dir = QODER_ROOT / "projects"
-    if not projects_dir.is_dir():
-        return sessions
-    for proj in projects_dir.iterdir():
-        if not proj.is_dir():
-            continue
-        for jf in proj.glob("*.jsonl"):
-            try:
-                mtime = jf.stat().st_mtime
-            except OSError:
-                continue
-            age = wall - mtime
-            if age > ACTIVE_WINDOW:
-                continue
-            done, total, current = _task_stats(jf.stem)
-            role, kind = _session_last(jf)
-            sessions.append(
-                {
-                    "id": jf.stem,
-                    "project": _project_name(jf),
-                    "running": age <= RUNNING_WINDOW,
-                    "age": round(age),
-                    "tasks_done": done,
-                    "tasks_total": total,
-                    "state": _session_state(age, role, kind),
-                }
-            )
-    sessions.sort(key=lambda s: s["age"])
-    return sessions
-
-
 def deck_state():
     now = time.monotonic()
     if _deck_cache["data"] is not None and now - _deck_cache["ts"] < DECK_CACHE_TTL:
         return _deck_cache["data"]
     try:
-        sessions = _scan_sessions()
+        sessions = agent_sessions.collect_sessions(SESSION_ROOTS, time.time())
     except Exception:
         sessions = []
     data = {
@@ -256,9 +162,9 @@ def _scan_qoder():
     if not sessions:
         return result
     latest = sessions[0]
-    done, total, current = _task_stats(latest["id"])
+    done, total, current = agent_sessions.task_stats(latest["id"], QODER_ROOT)
     session = {
-        "project": _project_name(latest["path"]),
+        "project": agent_sessions.project_name(latest["path"]),
         "running": latest["age"] <= RUNNING_WINDOW,
         "tasks_done": done,
         "tasks_total": total,
@@ -266,30 +172,6 @@ def _scan_qoder():
     }
     result["session"] = session
     return result
-
-
-def _project_name(jsonl_path):
-    try:
-        with open(jsonl_path, "rb") as fh:
-            fh.seek(0, 2)
-            size = fh.tell()
-            fh.seek(max(0, size - 65536))
-            tail = fh.read().decode("utf-8", errors="ignore")
-        cwd = None
-        for line in reversed(tail.splitlines()):
-            if '"cwd"' not in line:
-                continue
-            try:
-                cwd = json.loads(line).get("cwd")
-            except Exception:
-                continue
-            if cwd:
-                break
-        if cwd:
-            return Path(cwd).name
-    except OSError:
-        pass
-    return jsonl_path.parent.name
 
 
 def build_payload():
