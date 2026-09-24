@@ -1,19 +1,27 @@
-# QODER DECK 桌面作战面板
+# AGENT DECK 桌面作战面板
 
-把 Wallpaper Engine 壁纸改造为个人作战面板：右栏实时显示 Qoder 会话与任务状态并以头显 HUD 的透视观感呈现信息模块；桌面图标按分区编排，使常用应用与文档各归其位。
+把 Wallpaper Engine 壁纸改造为个人作战面板：右栏实时显示多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态并以头显 HUD 的透视观感呈现信息模块；桌面图标按分区编排，使常用应用与文档各归其位。
 
 ## Language
 
 **数据服务**:
-常驻本地的 HTTP 服务，向壁纸页面供给硬件指标与 Qoder 状态的 JSON 契约。
+常驻本地的 HTTP 服务，向壁纸页面供给硬件指标与各 AI 工具会话状态的 JSON 契约。
 _Avoid_: 后端、server、监控进程
 
 **Qoder 状态块**:
-右栏中下部显示最近活跃 Qoder 会话的运行状态、项目、任务进度与当前任务的模块。
+TERMINAL 02 右栏中下部显示最近活跃 Qoder 会话的运行状态、项目、任务进度与当前任务的模块。
 _Avoid_: agent 面板、任务窗口
 
+**会话列表**:
+AGENT DECK 右栏将各工具的活跃会话按最近活跃混排展示的模块。
+_Avoid_: agent 列表、任务列表
+
+**工具标签**:
+会话行首标识来源工具的两字母记号（QD、KC、KW、ZC、HM）。
+_Avoid_: 图标、badge
+
 **会话活跃**:
-一个 Qoder 会话记录文件在时间窗内有写入的性质；90 秒内为 RUNNING，10 分钟内计入活跃池。
+任一工具的会话记录在时间窗内有更新的性质；90 秒内为 RUNNING，10 分钟内计入活跃池。
 _Avoid_: 在线、开着
 
 **HUD 模式**:
