@@ -35,7 +35,10 @@ def _configure_logging():
     try:
         root.mkdir(parents=True, exist_ok=True)
         log.setLevel(logging.INFO)
-        log.addHandler(logging.FileHandler(root / "watcher.log", encoding="utf-8"))
+        file_handler = logging.FileHandler(root / "watcher.log", encoding="utf-8")
+        # 带时间戳：fs 计数抖动排查需要把事件与电池/手动操作按时间对齐
+        file_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        log.addHandler(file_handler)
     except OSError:
         pass  # 日志目录建不成就只走 stdout，绝不能拖死数据服务
     log.addHandler(logging.StreamHandler(sys.stdout))
