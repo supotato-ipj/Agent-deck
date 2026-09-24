@@ -30,6 +30,7 @@ ACTIVE_WINDOW = agent_sessions.ACTIVE_WINDOW
 SESSION_ROOTS = {
     "qoder": QODER_ROOT,
     "hermes": Path.home() / "AppData" / "Local" / "hermes",
+    "zcode": Path.home() / ".zcode",
 }
 
 _gpu_cache = {"ts": 0.0, "data": {}}

@@ -193,7 +193,43 @@ def _scan_hermes(root, now):
     return sessions
 
 
+def _scan_zcode(root, now):
+    con = _open_ro(root / "cli" / "db" / "db.sqlite")
+    try:
+        rows = con.execute(
+            "SELECT id, directory, time_updated, time_archived FROM session"
+        ).fetchall()
+        todo_rows = con.execute(
+            "SELECT session_id, SUM(status = 'completed'), COUNT(*) FROM todo GROUP BY session_id"
+        ).fetchall()
+    finally:
+        con.close()
+    counts = {sid: (done, total) for sid, done, total in todo_rows}
+    sessions = []
+    for sid, directory, upd, archived in rows:
+        if archived or upd is None:
+            continue
+        age = now - upd / 1000.0
+        if age > ACTIVE_WINDOW:
+            continue
+        done, total = counts.get(sid, (0, 0))
+        sessions.append(
+            {
+                "tool": "zcode",
+                "id": sid,
+                "project": Path(directory).name if directory else "",
+                "running": age <= RUNNING_WINDOW,
+                "age": round(age),
+                "tasks_done": done,
+                "tasks_total": total,
+                "state": "RUN" if age <= RUNNING_WINDOW else "DONE",
+            }
+        )
+    return sessions
+
+
 SCANNERS = {
     "qoder": _scan_qoder_sessions,
     "hermes": _scan_hermes,
+    "zcode": _scan_zcode,
 }
