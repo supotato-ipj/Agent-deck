@@ -5,6 +5,7 @@
 每工具一个严格只读的扫描器；任一工具扫描失败静默跳过、只记日志（ADR 0003）。
 """
 import json
+import sqlite3
 from pathlib import Path
 
 RUNNING_WINDOW = 90.0
@@ -144,6 +145,55 @@ def _scan_qoder_sessions(root, now):
     return sessions
 
 
+def _open_ro(db_path):
+    return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+
+def _hermes_leases(root):
+    """活跃租约里的会话 id 集合；租约文件坏了只当没有，不连累整工具。"""
+    try:
+        data = json.loads((root / "runtime" / "active_sessions.json").read_text(encoding="utf-8"))
+    except Exception:
+        return set()
+    return {e.get("session_id") for e in data.get("entries", []) if e.get("session_id")}
+
+
+def _scan_hermes(root, now):
+    leases = _hermes_leases(root)
+    sessions = []
+    con = _open_ro(root / "state.db")
+    try:
+        rows = con.execute(
+            "SELECT id, cwd, last_activity_at, started_at, ended_at, archived FROM sessions"
+        ).fetchall()
+    finally:
+        con.close()
+    for sid, cwd, last_act, started, ended, archived in rows:
+        if archived:
+            continue
+        act = last_act if last_act is not None else started
+        if act is None:
+            continue
+        age = now - act
+        if age > ACTIVE_WINDOW:
+            continue
+        running = sid in leases or (ended is None and age <= RUNNING_WINDOW)
+        sessions.append(
+            {
+                "tool": "hermes",
+                "id": sid,
+                "project": Path(cwd).name if cwd else "",
+                "running": running,
+                "age": round(age),
+                "tasks_done": None,
+                "tasks_total": None,
+                "state": "RUN" if running else ("IDLE" if ended is None else "DONE"),
+            }
+        )
+    return sessions
+
+
 SCANNERS = {
     "qoder": _scan_qoder_sessions,
+    "hermes": _scan_hermes,
 }

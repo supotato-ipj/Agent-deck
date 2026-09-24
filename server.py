@@ -27,7 +27,10 @@ HISTORY_LEN = 300
 QODER_ROOT = Path.home() / ".qoder-cn"
 RUNNING_WINDOW = agent_sessions.RUNNING_WINDOW
 ACTIVE_WINDOW = agent_sessions.ACTIVE_WINDOW
-SESSION_ROOTS = {"qoder": QODER_ROOT}
+SESSION_ROOTS = {
+    "qoder": QODER_ROOT,
+    "hermes": Path.home() / "AppData" / "Local" / "hermes",
+}
 
 _gpu_cache = {"ts": 0.0, "data": {}}
 _qoder_cache = {"ts": 0.0, "data": None}
