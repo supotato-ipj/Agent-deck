@@ -6,6 +6,7 @@
 """
 import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 RUNNING_WINDOW = 90.0
@@ -268,9 +269,42 @@ def _scan_kimicode(root, now):
     return sessions
 
 
+_KIMIWORK_CONV_PREFIX = "agent:main:main:conversation:"
+
+
+def _scan_kimiwork(root, now):
+    """降级扫描：只有状态与更新时间，没有标题/项目（正文锁在上游私有存储）。"""
+    statuses = json.loads((root / "conversation-statuses.json").read_text(encoding="utf-8"))
+    usage = json.loads((root / "conversation-context-usage.json").read_text(encoding="utf-8"))
+    sessions = []
+    for key, status in statuses.items():
+        entry = usage.get(key)
+        updated = (entry or {}).get("updatedAt")
+        if not updated:
+            continue
+        age = now - datetime.fromisoformat(updated.replace("Z", "+00:00")).timestamp()
+        if age > ACTIVE_WINDOW:
+            continue
+        running = age <= RUNNING_WINDOW
+        sessions.append(
+            {
+                "tool": "kimiwork",
+                "id": key.rsplit(":", 1)[-1],
+                "project": "",
+                "running": running,
+                "age": round(age),
+                "tasks_done": None,
+                "tasks_total": None,
+                "state": "RUN" if running else ("DONE" if status == "completed" else "IDLE"),
+            }
+        )
+    return sessions
+
+
 SCANNERS = {
     "qoder": _scan_qoder_sessions,
     "hermes": _scan_hermes,
     "zcode": _scan_zcode,
     "kimicode": _scan_kimicode,
+    "kimiwork": _scan_kimiwork,
 }

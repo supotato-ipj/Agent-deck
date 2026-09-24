@@ -4,11 +4,17 @@
 
 **Blocked by:** 01 接缝抽取
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 经 `collect_sessions` 产出 `tool:"kimiwork"` 会话：状态映射 completed→DONE、未知值→IDLE、映射文件更新时间≤90s→RUN
-- [ ] age 来自上下文用量文件的每会话 updatedAt；无 updatedAt 的会话不入列
-- [ ] project/title 为空值语义，前端降级渲染为工具名 + 状态
-- [ ] 任一文件缺失/损坏静默跳过，仅服务端日志
-- [ ] 前端标签映射加入 KW；降级行渲染不破坏列表布局
-- [ ] fixture 单测（临时目录）：状态映射、未知值容错、缺 updatedAt 排除、坏 JSON 跳过
+- [x] 经 `collect_sessions` 产出 `tool:"kimiwork"` 会话：状态映射 completed→DONE、未知值→IDLE、映射文件更新时间≤90s→RUN
+- [x] age 来自上下文用量文件的每会话 updatedAt；无 updatedAt 的会话不入列
+- [x] project/title 为空值语义，前端降级渲染为工具名 + 状态
+- [x] 任一文件缺失/损坏静默跳过，仅服务端日志
+- [x] 前端标签映射加入 KW；降级行渲染不破坏列表布局
+- [x] fixture 单测（临时目录）：状态映射、未知值容错、缺 updatedAt 排除、坏 JSON 跳过
+
+## Comments
+
+- 2026-09-25 实施完成。8 条接缝单测全绿；真实数据平移冒烟：9 月近期会话映射 DONE、project 空串、前端以 KW 标签 + 状态降级显示。
+- RUN 判定用每会话 updatedAt≤90s（比票面"映射文件 mtime"更精确，避免一条新会话把全部旧会话顶成 RUN）。
+- WE 内实机目测留待票 07。

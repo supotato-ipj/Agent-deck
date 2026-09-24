@@ -32,6 +32,7 @@ SESSION_ROOTS = {
     "hermes": Path.home() / "AppData" / "Local" / "hermes",
     "zcode": Path.home() / ".zcode",
     "kimicode": Path.home() / ".kimi-code",
+    "kimiwork": Path.home() / "AppData" / "Roaming" / "kimi-desktop" / "kimi-agent",
 }
 
 _gpu_cache = {"ts": 0.0, "data": {}}
