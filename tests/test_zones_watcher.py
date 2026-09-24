@@ -1,3 +1,4 @@
+import pathlib
 import unittest
 
 import zones_watcher as zw
@@ -83,6 +84,16 @@ class IncrementalMovesTest(unittest.TestCase):
         moves = zw.incremental_moves(items, plans, {"Kimi"}, removed_names={"Kimi"})
         self.assertEqual(moves, [])
 
+    def test_app_icon_covering_label_band_is_moved(self):
+        # 标签空行被用户拖来的图标压住时，可读性优先于"不碰用户摆位"
+        import zones_geometry as geo
+
+        band_y = geo.DOC_ORIGIN[1] - geo.ROW_STEP
+        items = [Rec(name="Kimi", kind="shortcut", index=0, x=13, y=band_y)]
+        plans = [Plan_Stub("Kimi", "app", (13, geo.APP_ORIGIN[1]))]
+        moves = zw.incremental_moves(items, plans, {"Kimi"})
+        self.assertEqual(moves, [("Kimi", 13, geo.APP_ORIGIN[1])])
+
     def test_recycle_is_never_moved_by_watcher(self):
         items = [Rec(name="Recycle Bin", kind="special", index=0, x=999, y=999)]
         plans = [Plan_Stub("Recycle Bin", "recycle", (13, 1276))]
@@ -100,6 +111,19 @@ class IncrementalMovesTest(unittest.TestCase):
 
 
 class ArrangeLockTest(unittest.TestCase):
+    """锁测试必须用临时目录：生产锁路径会被真实看门狗合法持有。"""
+
+    def setUp(self):
+        import tempfile
+
+        import zones_lock
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self._real = zones_lock.lock_path
+        zones_lock.lock_path = lambda: pathlib.Path(self.tmp.name) / "arrange.lock"
+        self.addCleanup(setattr, zones_lock, "lock_path", self._real)
+
     def test_second_holder_is_refused(self):
         import zones_lock
 
@@ -107,6 +131,15 @@ class ArrangeLockTest(unittest.TestCase):
             with self.assertRaises(zones_lock.ArrangeBusy):
                 with zones_lock.ArrangeLock(wait_seconds=0):
                     pass
+
+    def test_stale_lock_from_dead_pid_is_broken(self):
+        import zones_lock
+
+        lock = zones_lock.ArrangeLock(wait_seconds=0)
+        lock.path.mkdir()
+        lock.holder.write_text("999999999 0", encoding="utf-8")  # 不存在的 pid +  epoch 时间戳
+        with zones_lock.ArrangeLock(wait_seconds=0):
+            pass  # 陈旧锁应被打破而不是报忙
 
     def test_lock_is_released(self):
         import zones_lock

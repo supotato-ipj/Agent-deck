@@ -37,6 +37,9 @@ PAGE_READWRITE = 0x04
 
 TEXT_CHARS = 260
 
+CONVERGE_ROUNDS = 3
+CONVERGE_DELAY = 1.5
+
 FOLDERID_DESKTOP = uuid.UUID("B4BFCC3A-DB2C-424C-B029-7FE99A87C641")
 CSIDL_DESKTOP = 0x0000
 CSIDL_COMMON_DESKTOP = 0x0019
@@ -264,23 +267,25 @@ class IconView:
                 raise WriteAborted(done, moves[done][1], exc) from exc
 
     def write_named_moves(self, moves):
-        """落位 [(显示名, x, y)]：index 在写入会话内现查。
+        """落位 [(显示名, x, y)]。
 
-        ListView 的 index 序会因新增/删除文件而重排，拿着旧 index 写会落到
-        别的图标上；名字到 index 的映射必须与写入同处一个会话。
         explorer 应用位置是异步且带动画的，批量写入时末几项可能被吞：
-        写后读回、把没落上的补写，最多三轮收敛。
+        写后读回、把没落上的补写，最多 CONVERGE_ROUNDS 轮收敛。
+        每轮都重新解析名字到 index 的映射——视图可能在轮与轮之间刷新重排，
+        拿旧映射补写会落到别的图标上。
         """
-        index = {self.text(i): i for i in range(self.count())}
-        resolved = [(index[name], name, x, y) for name, x, y in moves if name in index]
-        self.write_moves(resolved)
-        for _ in range(3):
-            time.sleep(1.5)
-            actual = {self.text(i): self.position(i) for i in range(self.count())}
-            missed = [(n, x, y) for _i, n, x, y in resolved if actual.get(n) != (x, y)]
-            if not missed:
+        pending = list(moves)
+        for _ in range(CONVERGE_ROUNDS):
+            index = {self.text(i): i for i in range(self.count())}
+            resolved = [(index[name], name, x, y) for name, x, y in pending if name in index]
+            if not resolved:
                 return
-            self.write_moves([(index[n], n, x, y) for n, x, y in missed if n in index])
+            self.write_moves(resolved)
+            time.sleep(CONVERGE_DELAY)
+            actual = {self.text(i): self.position(i) for i in range(self.count())}
+            pending = [(n, x, y) for _i, n, x, y in resolved if actual.get(n) != (x, y)]
+            if not pending:
+                return
 
     def text(self, index):
         item = _LVITEMW()

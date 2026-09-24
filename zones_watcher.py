@@ -23,6 +23,7 @@ import zones_plan as zp
 
 SETTLE_INTERVAL = 1.0
 SETTLE_MAX_ROUNDS = 5
+VIEW_CATCHUP_ROUNDS = 15  # 新增图标进 ListView 的延迟实测可达十秒级
 
 log = logging.getLogger("zones-watcher")
 
@@ -84,7 +85,10 @@ def incremental_moves(items, plan, previous_names, removed_names=()):
         if (item.x, item.y) == placement.pos:
             continue
         if placement.zone == "app" and item.name in previous_names:
-            continue  # 应用区只动新出现的项
+            # 应用区只动新出现的项；但压在分区标签空行上的图标例外——
+            # 标签可读性优先于"不碰用户摆位"（spec story 22）
+            if not _in_label_band(item):
+                continue
         if placement.zone == "app" and removed_names and item.name not in previous_names:
             continue  # 同轮既有消失又有新增，可能是重命名；不动，留给下次全量编排
         if placement.zone == "recycle":
@@ -93,8 +97,20 @@ def incremental_moves(items, plan, previous_names, removed_names=()):
     return moves
 
 
+def _in_label_band(item):
+    """图标是否压在分区标签独占的那一行空行里。"""
+    import zones_geometry as geo
+
+    top = geo.DOC_ORIGIN[1] - geo.ROW_STEP
+    return top <= item.y < geo.DOC_ORIGIN[1] and item.x < geo.AVOID_X
+
+
 def arrange_once(previous_names):
-    """一次增量编排：算计划、挑动作、快照、落位、读回。返回 (当前名集合, 落位数)。"""
+    """一次增量编排：算计划、挑动作、快照、落位。
+
+    返回 (当前名集合, 落位数, 视图是否追平)。落位后的读回收敛由
+    desktop_icons.write_named_moves 负责，这里不再重复自愈。
+    """
     current = scan_names()
     removed = previous_names - current
     try:
@@ -103,7 +119,7 @@ def arrange_once(previous_names):
             # 会把"已删除"仍算在内、计划等于现状而什么都不做。等视图追平；
             # 新增图标进视图的延迟实测可达十秒级，等不满就标记未追平。
             caught_up = False
-            for _ in range(15):
+            for _ in range(VIEW_CATCHUP_ROUNDS):
                 items = di.list_items()
                 if {i.name for i in items} == current:
                     caught_up = True
@@ -117,18 +133,10 @@ def arrange_once(previous_names):
                 dl.take_snapshot(items, "run")
                 with di.IconView() as view:
                     view.write_named_moves(moves)
-                time.sleep(1.0)  # explorer 应用新位置有延迟，立刻读回会误报不一致
-                after = {i.name: (i.x, i.y) for i in di.list_items()}
-                # 自愈只补写"本轮写过却没落上"的项；拿完整计划比对会把用户
-                # 拖过的应用图标和回收站当 mismatch 拖回去，违反漂移纠正语义
-                missed = [(n, x, y) for n, x, y in moves if after.get(n) != (x, y)]
-                if missed:
-                    time.sleep(2.0)
-                    with di.IconView() as view:
-                        view.write_named_moves(missed)
-                    log.info("self-heal: 补写 %d 项", len(missed))
+                log.info("增量编排落位 %d 项", len(moves))
     except zones_lock.ArrangeBusy:
-        return current, 0, True  # 手动编排正在进行，本轮跳过
+        log.info("编排锁被占用（手动编排进行中），本轮跳过")
+        return current, 0, True
     return current, len(moves), caught_up
 
 
@@ -142,14 +150,10 @@ def run_watch_loop(interval=2.0):
                 continue
             current = settle(scan_names)
             previous, moved, caught_up = arrange_once(previous)
-            if moved:
-                log.info("增量编排落位 %d 项", moved)
             if not caught_up:
                 # 视图没追平：本轮计划可能漏了新图标，立刻再排一轮
                 log.info("视图未追平，追加一轮编排")
                 previous, moved, _ = arrange_once(previous)
-                if moved:
-                    log.info("增量编排落位 %d 项", moved)
         except di.DesktopViewUnavailable as exc:
             log.warning("本次编排跳过（图标视图不可用）：%s", exc)
             previous = scan_names()

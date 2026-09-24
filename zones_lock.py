@@ -1,10 +1,13 @@
 """编排互斥锁：手动 apply / 还原 / 看门狗增量编排不得并发写图标。
 
-用目录的原子 mkdir 做跨进程锁（Windows 上 mkdir 已存在即失败）。目录内再写
-一个 holder 标记（pid + 时间戳）用于陈旧检测：持锁进程被杀（实机踩过：
-Stop-Process 撞在看门狗编排上）会留下孤儿锁，把看门狗和命令行永久堵死。
-拿不到锁的一方：看门狗跳过本轮，命令行等待数秒后明确报错退出——宁可这次
-不排，也不能两个写者交错落位。
+用目录的原子 mkdir 做跨进程锁（Windows 上 mkdir 已存在即失败）。holder 标记
+（pid + 时间戳）放在锁目录**外面**的独立文件里：mkdir 成功后立刻写 holder，
+等待方看到"有锁无 holder"时先宽限再判定，避免把刚 mkdir 还没写 holder 的活锁
+当成半死锁打破。
+
+陈旧检测用于进程被杀在持锁中的孤儿锁（实机踩过：Stop-Process 撞在看门狗编排
+上）。STALE_SECONDS 必须大于一次编排的最坏时长（视图追平 15 轮 + 写 + 收敛
+3 轮 ≈ 数十秒），否则会破掉活锁、造成锁明令禁止的双写交错。
 """
 import os
 import time
@@ -12,7 +15,8 @@ from pathlib import Path
 
 import psutil
 
-STALE_SECONDS = 60.0
+STALE_SECONDS = 300.0
+HOLDER_GRACE = 0.5
 
 
 class ArrangeBusy(Exception):
@@ -24,21 +28,32 @@ def lock_path():
     return root / "qoder-deck" / "arrange.lock"
 
 
+def holder_path():
+    return lock_path().with_name("arrange.holder")
+
+
 class ArrangeLock:
     def __init__(self, wait_seconds=5.0, poll=0.25):
         self.path = lock_path()
-        self.holder = self.path / "holder"
+        self.holder = holder_path()
         self.wait_seconds = wait_seconds
         self.poll = poll
 
     def _stale(self):
         try:
             pid, stamp = self.holder.read_text(encoding="utf-8").split()
+            age = time.time() - float(stamp)
         except (OSError, ValueError):
-            return True  # 没有 holder 标记 = 半死锁
-        if time.time() - float(stamp) > STALE_SECONDS:
+            time.sleep(HOLDER_GRACE)  # 可能正处在 mkdir 与写 holder 之间
+            if not self.holder.exists():
+                return True  # 宽限后仍无 holder = 半死锁
+            return False
+        if age > STALE_SECONDS:
             return True
-        return not psutil.pid_exists(int(pid))
+        try:
+            return not psutil.pid_exists(int(pid))
+        except ValueError:
+            return True
 
     def _break_stale(self):
         try:
@@ -56,14 +71,15 @@ class ArrangeLock:
         while True:
             try:
                 os.mkdir(self.path)
-                self.holder.write_text(f"{os.getpid()} {time.time()}", encoding="utf-8")
-                return self
+                break
             except FileExistsError:
                 if self._stale() and self._break_stale():
                     continue
                 if time.monotonic() >= deadline:
                     raise ArrangeBusy(f"编排锁被占用：{self.path}")
                 time.sleep(self.poll)
+        self.holder.write_text(f"{os.getpid()} {time.time()}", encoding="utf-8")
+        return self
 
     def __exit__(self, *exc):
         try:

@@ -24,6 +24,16 @@ import zones_orchestrate as zo  # noqa: E402
 FAILURES = []
 
 
+def run_apply():
+    return subprocess.run([sys.executable, str(ROOT / "zones_orchestrate.py"), "--apply"],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(ROOT))
+
+
+def last_line(result):
+    lines = (result.stdout or "").strip().splitlines()
+    return lines[-1] if lines else ""
+
+
 def check(name, ok, detail=""):
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" — {detail}" if detail else ""))
     if not ok:
@@ -45,6 +55,8 @@ def wait_for(predicate, timeout=12.0, step=1.5):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     # 1 出厂态快照存在且从未被覆盖（创建时间 == 修改时间）
     factory = dl.data_dir() / dl.FACTORY_NAME
     if factory.exists():
@@ -55,9 +67,8 @@ def main():
         check("出厂态快照存在且未被覆盖", False, "文件不存在")
 
     # 0 自归一化：验收假设桌面处于当前几何的计划态
-    norm = subprocess.run([sys.executable, str(ROOT / "zones_orchestrate.py"), "--apply"],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(ROOT))
-    check("开头自归一化 apply 退出码 0", norm.returncode == 0, norm.stdout.strip().splitlines()[-1] if norm.stdout else "")
+    norm = run_apply()
+    check("开头自归一化 apply 退出码 0", norm.returncode == 0, last_line(norm))
     time.sleep(3)
 
     # 2 dry-run 只读且退出码 0
@@ -69,7 +80,10 @@ def main():
     pos = positions()
     over = [n for n, (x, _y) in pos.items() if x >= geo.AVOID_X]
     check("无图标越过避让线", not over, str(over))
-    check("回收站在左下角", pos.get("Recycle Bin") == geo.RECYCLE_POS, str(pos.get("Recycle Bin")))
+    import zones_plan as zp
+
+    recycle = next((n for n in pos if n in zp.RECYCLE_NAMES), None)
+    check("回收站在左下角", recycle is not None and pos[recycle] == geo.RECYCLE_POS, str(pos.get(recycle)))
     app_rows = {y for _n, (x, y) in pos.items() if x < 900 and y < geo.LABEL_Y}
     check("应用区只占两个晶格行", app_rows <= {geo.APP_ORIGIN[1], geo.APP_ORIGIN[1] + geo.ROW_STEP},
           str(sorted(app_rows)))
@@ -92,18 +106,18 @@ def main():
         check(f"{endpoint} 契约可用", ok)
 
     # 6 还原链：出厂态 -> 最近一次运行前态
-    def settle_to(snapshot_items):
+    def settled_to(snapshot_items):
         def ok():
             after = positions()
             return not [e for e in snapshot_items if after.get(e["name"]) != (e["x"], e["y"])]
-        return not wait_for(ok)
+        return wait_for(ok)
 
     snapshot = dl.load_snapshot("factory")
     dl.restore("factory")
-    check("restore factory 与出厂快照零偏差", not settle_to(snapshot["items"]))
+    check("restore factory 与出厂快照零偏差", settled_to(snapshot["items"]))
     last = dl.load_snapshot("last")
     dl.restore("last")
-    check("restore last 与运行前快照零偏差", not settle_to(last["items"]))
+    check("restore last 与运行前快照零偏差", settled_to(last["items"]))
 
     # 7 看门狗增量：新建文档自动归位、删除后收紧
     probe = di.desktop_dirs()[0] / "zz-accept.docx"
@@ -118,12 +132,21 @@ def main():
 
     check("删除后文档区收紧无空洞", wait_for(tightened, timeout=30))
 
-    # 8 收尾：把桌面带回当前几何的计划态（restore 会停在旧快照的几何）
-    apply = subprocess.run([sys.executable, str(ROOT / "zones_orchestrate.py"), "--apply"],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(ROOT))
-    check("收尾 apply 退出码 0", apply.returncode == 0, apply.stdout.strip().splitlines()[-1] if apply.stdout else "")
+    # 8 用户拖走的应用图标不被看门狗拖回（漂移纠正语义）
+    app_name = next(n for n, (x, y) in positions().items()
+                    if y in (geo.APP_ORIGIN[1], geo.APP_ORIGIN[1] + geo.ROW_STEP) and x < 900)
+    with di.IconView() as view:
+        idx = {view.text(i): i for i in range(view.count())}
+        view.set_position(idx[app_name], 1500, 800)
+    dragged = wait_for(lambda: positions().get(app_name) is not None)
+    time.sleep(6)
+    check("手动拖走的应用图标不被拖回", positions().get(app_name, (0, 0))[0] >= 1500, str(positions().get(app_name)))
 
-    # 9 单测套件
+    # 9 收尾：把桌面带回当前几何的计划态（restore 会停在旧快照的几何）
+    apply = run_apply()
+    check("收尾 apply 退出码 0", apply.returncode == 0, last_line(apply))
+
+    # 10 单测套件
     suite = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(ROOT))
     check("单元测试全绿", suite.returncode == 0, suite.stderr.strip().splitlines()[-1] if suite.stderr else "")

@@ -48,7 +48,8 @@ D:\test-folder\wallpaperengine-research\pinned.json
 
 ```
 python zones_orchestrate.py            # dry-run：只打印计划
-python zones_orchestrate.py --apply    # 落位（与看门狗互斥锁串行）
+python zones_orchestrate.py --apply    # 落位（与看门狗互斥锁串行；注意：这是一次全量重置，
+                                           # 会把你手动摆过的应用区图标也归位；看门狗不会）
 python desktop_layout.py restore factory   # 回到出厂态
 python desktop_layout.py restore last      # 回到最近一次运行前态
 python desktop_layout.py list              # 看有哪些快照
