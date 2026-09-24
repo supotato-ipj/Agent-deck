@@ -46,6 +46,25 @@ class VerifyPositionsTest(unittest.TestCase):
         plan = [Placement_Stub("a.docx", "doc", None)]
         self.assertEqual(zo.verify_positions([item("a.docx", 0, 13, 2)], plan), ([], []))
 
+    def test_reports_pairwise_swap(self):
+        # 两个应用图标互换栏位：双方都仍占合法晶格位，几何检查（行/列集合、
+        # 避让线）抓不到，但按名→坐标的全计划复验必须两项都报——重启前 6 图标
+        # 两两互换即属此类回归。
+        plan = [
+            Placement_Stub("Kimi", "app", (13, 198)),
+            Placement_Stub("WeChat", "app", (163, 198)),
+        ]
+        swapped = [
+            item("Kimi", 0, 163, 198, kind="shortcut"),   # 落到了 WeChat 的栏位
+            item("WeChat", 1, 13, 198, kind="shortcut"),  # 落到了 Kimi 的栏位
+        ]
+        mismatches, ambiguous = zo.verify_positions(swapped, plan)
+        self.assertEqual(ambiguous, [])
+        self.assertEqual(
+            mismatches,
+            [("Kimi", (13, 198), (163, 198)), ("WeChat", (163, 198), (13, 198))],
+        )
+
     def test_duplicate_names_are_reported_not_guessed(self):
         plan = [
             Placement_Stub("same", "doc", (13, 492)),

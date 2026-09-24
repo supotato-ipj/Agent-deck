@@ -18,8 +18,10 @@ sys.path.insert(0, str(ROOT))
 import desktop_icons as di  # noqa: E402
 import desktop_layout as dl  # noqa: E402
 import usage_log as ul  # noqa: E402
+import usage_score  # noqa: E402
 import zones_geometry as geo  # noqa: E402
 import zones_orchestrate as zo  # noqa: E402
+import zones_plan as zp  # noqa: E402
 
 FAILURES = []
 
@@ -80,7 +82,6 @@ def main():
     pos = positions()
     over = [n for n, (x, _y) in pos.items() if x >= geo.AVOID_X]
     check("无图标越过避让线", not over, str(over))
-    import zones_plan as zp
 
     recycle = next((n for n in pos if n in zp.RECYCLE_NAMES), None)
     check("回收站在左下角", recycle is not None and pos[recycle] == geo.RECYCLE_POS, str(pos.get(recycle)))
@@ -145,6 +146,23 @@ def main():
     # 9 收尾：把桌面带回当前几何的计划态（restore 会停在旧快照的几何）
     apply = run_apply()
     check("收尾 apply 退出码 0", apply.returncode == 0, last_line(apply))
+
+    # 9b 收尾全计划复验：独立兜底，专抓成对错位（permutation）类回归。
+    # 几何检查（避让线 / 行列集合 / 回收站落点）抓不到两个图标在应用区内互换
+    # 栏位——互换后双方仍各占合法晶格位、行/列集合不变。重启前 6 图标两两互换
+    # 即属此类，旧电池放行。这里读实时坐标、算一份新鲜计划、逐项按名比对。
+    def full_plan_mismatches():
+        try:
+            live = di.list_items()
+        except di.DesktopViewUnavailable:
+            return ["<view unavailable>"]
+        plan = zp.plan_layout(live, zo.load_pinned(), usage_score.ranking(live))
+        mismatches, _ambiguous = zo.verify_positions(live, plan)
+        return [f"{n} planned={p} actual={a}" for n, p, a in mismatches]
+
+    wait_for(lambda: not full_plan_mismatches(), timeout=15)  # 等 apply 动画收敛
+    final = full_plan_mismatches()
+    check("收尾全计划复验零偏差", not final, str(final[:4]))
 
     # 10 单测套件
     suite = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."],
