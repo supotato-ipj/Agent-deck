@@ -6,6 +6,7 @@
 
 import unittest
 
+import listary_engine as engine
 from search_panel import PanelStateMachine
 
 
@@ -57,6 +58,28 @@ if __name__ == "__main__":
     unittest.main()
 
 
+def build_app():
+    """共享测试桩：withdrawn Tk + 复刻 run() 的构件（不进 mainloop）。"""
+    import tkinter as tk
+    import tkinter.font as tkfont
+    from search_panel import SearchPanelApp
+    app = SearchPanelApp()
+    app.root = tk.Tk()
+    app.root.withdraw()
+    app.font = tkfont.Font(family="Courier", size=-17)
+    app.head = tk.Label(app.root)
+    app.box = tk.Frame(app.root, height=30)
+    app.box.pack_propagate(False)
+    app.hint = tk.Label(app.box)
+    app.hint.pack(fill="both", expand=True)   # 复刻 run()：待机态 hint 在栈内
+    app.entry = tk.Entry(app.box)
+    app.placeholder = tk.Label(app.box)
+    app.sep = tk.Frame(app.root)
+    app.results_host = tk.Frame(app.root)
+    app._base_h = 64
+    return app
+
+
 class TestPanelRenderLogic(unittest.TestCase):
     """窗口渲染逻辑（withdrawn Tk，无屏幕依赖）：待机提示/活动占位/文本三态。"""
 
@@ -65,23 +88,7 @@ class TestPanelRenderLogic(unittest.TestCase):
         return w.winfo_manager() != ""
 
     def _app(self):
-        import tkinter as tk
-        app = __import__("search_panel").SearchPanelApp()
-        # 复刻 run() 的构件搭建（不进 mainloop、不显示）
-        app.root = tk.Tk()
-        app.root.withdraw()
-        import tkinter.font as tkfont
-        app.font = tkfont.Font(family="Courier", size=-17)
-        from tkinter import ttk  # noqa: F401
-        app.head = tk.Label(app.root)
-        app.box = tk.Frame(app.root, height=30)
-        app.box.pack_propagate(False)
-        app.hint = tk.Label(app.box)
-        app.hint.pack(fill="both", expand=True)
-        app.entry = tk.Entry(app.box)
-        app.placeholder = tk.Label(app.box)
-        app.sep = tk.Frame(app.root)
-        return app
+        return build_app()
 
     def test_idle_shows_hint_only(self):
         app = self._app()
@@ -122,4 +129,48 @@ class TestPanelRenderLogic(unittest.TestCase):
         self.assertTrue(self._stacked(app.hint))
         self.assertFalse(self._stacked(app.entry))
         self.assertFalse(self._stacked(app.placeholder))
+        app.root.destroy()
+
+
+class TestRenderResults(unittest.TestCase):
+    """结果区渲染：行数、TOTAL 页脚、空结果与离线徽标。"""
+
+    def _app(self):
+        return build_app()
+
+    def test_rows_and_footer(self):
+        app = self._app()
+        items = [engine.ResultItem(path=f"C:\dir\f{i}.txt", name=f"f{i}.txt", type="file")
+                 for i in range(3)]
+        app._render_results(engine.SearchResults(ok=True, total=9, items=items))
+        app.root.update_idletasks()
+        kids = app.results_host.winfo_children()
+        self.assertEqual(len(kids), 4)  # 3 行 + TOTAL
+        footer = kids[-1]
+        self.assertIn("TOTAL 9", footer.cget("text"))
+
+    def test_more_than_limit_capped(self):
+        app = self._app()
+        items = [engine.ResultItem(path=f"C:\f{i}.txt", name=f"f{i}.txt", type="file")
+                 for i in range(20)]
+        app._render_results(engine.SearchResults(ok=True, total=20, items=items))
+        app.root.update_idletasks()
+        self.assertEqual(len(app.results_host.winfo_children()), engine.DEFAULT_LIMIT + 1)
+
+    def test_empty_results_message(self):
+        app = self._app()
+        app._render_results(engine.SearchResults(ok=True, total=0, items=[]))
+        app.root.update_idletasks()
+        self.assertIn("NO RESULTS", app.results_host.winfo_children()[0].cget("text"))
+
+    def test_offline_badge_and_clear_on_deactivate(self):
+        from search_panel import PanelStateMachine
+        app = self._app()
+        app.machine.on_event("click")
+        app._render_offline()
+        app.root.update_idletasks()
+        self.assertIn("ENGINE OFFLINE", app.results_host.winfo_children()[0].cget("text"))
+        app._deactivate("esc")
+        app.root.update_idletasks()
+        self.assertEqual(app.results_host.winfo_children(), [])
         app.root.destroy()

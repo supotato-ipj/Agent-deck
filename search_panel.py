@@ -1,10 +1,14 @@
-"""搜索面板：数据服务自有的常驻无边框窗口（ADR-0003，ticket 01）。
+"""搜索面板：数据服务自有的常驻无边框窗口（ADR-0003，ticket 01/02）。
 
 待机态伪装成 DECK 右窄栏顶部的静态视觉（黑底、Decima Mono Cyr、
 #2c2c2c 分隔线），与壁纸黑底无缝融合；点击转活动态，原生输入框可打字
-（中文输入法可用）；ESC/失焦退回待机态并清空查询词。引擎接入（Listary
-HTTP API）在 ticket 02，本模块不涉及；活动态空输入时显示 AWAITING
-ENGINE 占位。
+（中文输入法可用）；ESC/失焦退回待机态并清空查询词。
+
+引擎链路（ticket 02）：输入经防抖（listary_engine.Debouncer，约 200ms）
+后由工作线程调用 Listary 本地 HTTP API，结果经队列回传 Tk 线程自绘为
+约 8 行（名称 + 截断父路径 + 总数）；引擎不可达显示 ENGINE OFFLINE 并
+自动重试，限流静默退避。查询词不写入任何日志与追踪文件（ADR-0002 精神，
+QD_PANEL_TRACE 只记事件与长度，不记内容）。
 
 窗口绘制 SEARCH 面板头与输入行两层视觉，壁纸侧只为它让出固定高度的
 空位（几何常量见 PANEL，/deck 以 panel 字段暴露给壁纸）。
@@ -12,9 +16,15 @@ ENGINE 占位。
 
 import ctypes
 import os
+import queue
 import threading
 import time
 import traceback
+
+import tkinter as tk
+from tkinter import font as tkfont
+
+import listary_engine as engine
 
 # ---- 几何（物理像素，2560×1440 @100% 缩放；与 DECK 布局常量对应）----
 # x 对齐 DECK #right 内容区左缘：2560 − 2.6rem(41.6) − 36rem(576)
@@ -34,7 +44,12 @@ DIM = "#616161"     # 待机提示 / 占位（≈ #d6d6d6 @45% 压在黑底上�
 LINE = "#2c2c2c"    # 分隔线
 HEAD_TEXT = "SEARCH"
 HINT_TEXT = "CLICK TO SEARCH_"
-PLACEHOLDER_TEXT = "AWAITING ENGINE (02)_"  # 活动态空输入占位：引擎在 ticket 02 接入
+PLACEHOLDER_TEXT = "TYPE TO SEARCH FILES_"
+NO_RESULTS_TEXT = "NO RESULTS"
+OFFLINE_TEXT = "ENGINE OFFLINE"
+NAME_CHARS = 26   # 结果行名称截断（保留头部）
+PATH_CHARS = 22   # 结果行父路径截断（保留尾部，辨识段在结尾）
+ROW_H = 22        # 结果行高（与输入行 30 区分：列表更紧凑）
 
 
 class PanelStateMachine:
@@ -76,19 +91,22 @@ class SearchPanelApp:
 
     def __init__(self):
         self.machine = PanelStateMachine()
+        self._debouncer = engine.Debouncer()
+        self._results_q = queue.Queue()
+        self._search_gen = 0        # 单飞行代际：新查询作废旧响应
+        self._rate_attempt = 0      # 限流退避次数（成功清零）
 
     def _trace(self, tag):
-        # QD_PANEL_TRACE=<路径> 时追加事件流水（验收电池/排障用）
+        # QD_PANEL_TRACE=<路径> 时追加事件流水（验收电池/排障用）。
+        # 只记事件与查询长度，绝不记查询内容（ADR-0002 精神）。
         path = os.environ.get("QD_PANEL_TRACE")
         if path:
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(f"{time.time():.3f} {tag} state={self.machine.state} "
-                         f"query={self.machine.query!r} hwnd={getattr(self, 'root', None) and self.root.winfo_id()}\n")
+                         f"qlen={len(self.machine.query)} "
+                         f"hwnd={getattr(self, 'root', None) and self.root.winfo_id()}\n")
 
     def run(self):
-        import tkinter as tk
-        from tkinter import font as tkfont
-
         self._load_deck_font()
         root = tk.Tk()
         root.overrideredirect(True)  # 无边框：视觉即壁纸的一部分
@@ -107,7 +125,11 @@ class SearchPanelApp:
         self.hint = tk.Label(self.box, text=HINT_TEXT, fg=DIM, bg=BG,
                              font=self.font, anchor="w")
         self.hint.pack(fill="both", expand=True)
-        self.entry = tk.Entry(self.box, fg=FG, bg=BG, font=self.font,
+        self.var = tk.StringVar(root)
+        # 文本变化走 StringVar 追踪（而非 KeyRelease）：中文输入法合成提交
+        # 对 var 生效但不一定逐键触发 KeyRelease
+        self.var.trace_add("write", lambda *_: self._on_text_changed())
+        self.entry = tk.Entry(self.box, textvariable=self.var, fg=FG, bg=BG, font=self.font,
                               insertbackground=FG, relief="flat",
                               selectbackground=LINE, selectforeground=WHITE,
                               highlightthickness=0, takefocus=True)
@@ -115,6 +137,10 @@ class SearchPanelApp:
                                     font=self.font, anchor="w")
         self.sep = tk.Frame(root, bg=LINE, height=1)
         self.sep.pack(fill="x", pady=(2, 0))
+        # 结果区：渲染在分隔线下方，窗口随内容向下展开（活动态临时盖住
+        # 壁纸会话列表，ESC 即收起——搜索面板的既有交互惯例）
+        self.results_host = tk.Frame(root, bg=BG)
+        self.results_host.pack(fill="x")
 
         # 事件：点击（任意部位，含分隔线与占位）激活；Esc/失焦退待机
         for w in (root, self.head, self.box, self.hint, self.sep, self.placeholder):
@@ -122,10 +148,11 @@ class SearchPanelApp:
         self.entry.bind("<Button-1>", lambda e: self._activate(), add="+")
         self.entry.bind("<Escape>", lambda e: self._deactivate("esc"))
         self.entry.bind("<FocusOut>", lambda e: self._deactivate("blur"))
-        self.entry.bind("<KeyRelease>", self._on_key, add="+")
 
         root.update_idletasks()
         _measured["h"] = max(PANEL["h"], root.winfo_reqheight())
+        self._base_h = _measured["h"]
+        root.after(50, self._tick)  # 防抖到期检查 + 结果队列回传（Tk 线程内）
 
         crash_after = os.environ.get("QD_PANEL_CRASH")
         if crash_after:
@@ -161,14 +188,139 @@ class SearchPanelApp:
 
     def _deactivate(self, event):
         self._trace(event)
+        self._search_gen += 1      # 作废在途响应
+        self._debouncer.reset()
+        self._rate_attempt = 0
         self.machine.on_event(event)  # 转移本身已清空查询词
-        self.entry.delete(0, "end")
+        self.entry.delete(0, "end")   # 触发 var 追踪，但状态已 IDLE 不再喂防抖
+        self._clear_results()
+        self._apply_height()
         self._render_idle()
 
-    def _on_key(self, *_):
-        self.machine.set_query(self.entry.get())
-        self._trace("key")
+    def _on_text_changed(self):
+        text = self.var.get()
+        self.machine.set_query(text)
         self._render_active()  # 空输入显示占位、有输入显示文本
+        if self.machine.state == PanelStateMachine.ACTIVE:
+            self._debouncer.feed(text, time.monotonic())
+            if not text:
+                self._clear_results()
+                self._apply_height()
+
+    # ---- 引擎链路（防抖到期 → 工作线程请求 → 队列回传 → 渲染）----
+
+    def _tick(self):
+        try:
+            due = self._debouncer.due(time.monotonic())
+            if due:
+                self._start_search(due)
+            self._drain_results()
+        finally:
+            self.root.after(50, self._tick)
+
+    def _start_search(self, query):
+        self._trace(f"search len={len(query)}")
+        self._search_gen += 1
+        gen = self._search_gen
+
+        def work():
+            try:
+                payload = engine.http_search(query)
+                self._results_q.put((gen, query, payload, None))
+            except Exception as exc:  # 连接失败/超时：交给错误分类
+                self._results_q.put((gen, query, None, exc))
+
+        threading.Thread(target=work, name="search-panel-query", daemon=True).start()
+
+    def _schedule_rate_backoff(self):
+        # 限流静默退避：保持现有展示，按退避曲线重试当前词
+        self._rate_attempt += 1
+        delay = engine.backoff_delay(self._rate_attempt)
+        self.root.after(int(delay * 1000), self._retry_now)
+
+    def _schedule_offline_retry(self):
+        self.root.after(int(engine.OFFLINE_RETRY_S * 1000), self._retry_now)
+
+    def _retry_now(self):
+        # 重试入口：仍活动且有词才重发（feed_due 绕过防抖但保留同词去重）
+        if self.machine.state != PanelStateMachine.ACTIVE:
+            return
+        self._trace("retry")
+        self._debouncer.feed_due(self.var.get())
+
+    def _drain_results(self):
+        latest = None
+        while True:
+            try:
+                item = self._results_q.get_nowait()
+            except queue.Empty:
+                break
+            latest = item  # 同批多次响应只保留最后一个
+        if not latest:
+            return
+        gen, query, payload, exc = latest
+        if gen != self._search_gen:
+            return  # 过期响应（用户已继续输入或已退待机）
+        if exc is not None:
+            kind = engine.classify_failure(exc)      # 连接失败 → offline
+        else:
+            kind = engine.classify_failure(payload)  # ok → None；错误载荷 → 分类
+        if kind is None:
+            self._rate_attempt = 0
+            model = engine.parse_response(payload)
+            self._trace(f"results total={model.total} n={len(model.items)}")
+            self._render_results(model)
+        elif kind == "rate_limited":
+            # 仅限流走静默退避重试（spec：TOO_MANY_REQUESTS 静默退避）
+            self._trace(kind)
+            self._schedule_rate_backoff()
+        elif kind == "error":
+            # 引擎在线但响应异常：不冒充离线也不自动重试，等下次输入
+            self._trace(kind)
+        else:  # offline：引擎不可达/未就绪
+            self._trace("offline")
+            self._render_offline()
+            self._schedule_offline_retry()
+
+    # ---- 结果渲染 ----
+
+    def _render_results(self, model):
+        host = self.results_host
+        self._clear_results()
+        if not model.items:
+            tk.Label(host, text=NO_RESULTS_TEXT, fg=DIM, bg=BG,
+                     font=self.font, anchor="w").pack(fill="x", pady=(6, 0))
+        else:
+            for item in model.items[: engine.DEFAULT_LIMIT]:
+                row = tk.Frame(host, bg=BG, height=ROW_H)
+                row.pack_propagate(False)
+                row.pack(fill="x")
+                name, parent = engine.display_parts(item.path)
+                tk.Label(row, text=engine.elide_right(name, NAME_CHARS),
+                         fg=WHITE, bg=BG, font=self.font,
+                         anchor="w").pack(side="left")
+                tk.Label(row, text=engine.elide_left(parent, PATH_CHARS),
+                         fg=DIM, bg=BG, font=self.font, anchor="e"
+                         ).pack(side="right")
+        tk.Label(host, text=f"TOTAL {model.total}", fg=DIM, bg=BG,
+                 font=self.font, anchor="w").pack(fill="x", pady=(4, 0))
+        self._apply_height()
+
+    def _render_offline(self):
+        self._clear_results()
+        badge = tk.Label(self.results_host, text=OFFLINE_TEXT, fg=BG, bg=FG,
+                         font=self.font, anchor="w", padx=6)
+        badge.pack(fill="x", pady=(6, 0))
+        self._apply_height()
+
+    def _clear_results(self):
+        for child in self.results_host.winfo_children():
+            child.destroy()
+
+    def _apply_height(self):
+        self.results_host.update_idletasks()
+        h = self._base_h + self.results_host.winfo_reqheight()
+        self.root.geometry(f"{PANEL['w']}x{h}+{PANEL['x']}+{PANEL['y']}")
 
     def _render_active(self):
         # 用几何管理器归属判断（winfo_manager），不依赖窗口是否已映射：
