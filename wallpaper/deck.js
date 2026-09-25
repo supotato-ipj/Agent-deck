@@ -25,7 +25,8 @@ let focusedKey = null;
 const streams = new Map();   // key -> [{role, text}, ...] 客户端累积，上限 STREAM_CAP
 let lastDeck = null;
 
-/* ---- 字号缩放：全部尺寸用 rem，root font-size 一动全页等比放大 ---- */
+/* ---- 字号缩放：全部尺寸用 rem，根字号 = 屏宽 1% × scale（style.css 的 calc），
+      这里只负责把 WE 属性滑杆的值写进 --font-scale 变量 ---- */
 
 const FONT_SCALE_DEFAULT = 1.3;
 const FONT_SCALE_MIN = 0.8;
@@ -34,7 +35,7 @@ const FONT_SCALE_MAX = 1.8;
 function applyFontScale(value) {
   const v = Number(value);
   const scale = isNaN(v) ? FONT_SCALE_DEFAULT : Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, v));
-  document.documentElement.style.fontSize = scale * 100 + "%";
+  document.documentElement.style.setProperty("--font-scale", String(scale));
 }
 
 applyFontScale(FONT_SCALE_DEFAULT);
