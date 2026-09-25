@@ -1,6 +1,7 @@
-"""看门狗：Wallpaper Engine 运行中且 5000 端口空闲时，自动拉起壁纸数据服务。
+"""看门狗：5000 端口空闲时自动拉起数据服务。
 
 以 pythonw.exe 无窗口运行；放入启动文件夹实现登录后常驻。
+服务崩溃退出后，下一轮轮询（15 秒）自动重新拉起。
 """
 import socket
 import subprocess
@@ -8,20 +9,10 @@ import sys
 import time
 from pathlib import Path
 
-import psutil
-
 HERE = Path(__file__).resolve().parent
 SERVER = HERE.parent / "server.py"
 HOST, PORT = "127.0.0.1", 5000
 CHECK_INTERVAL = 15
-WE_PROCESSES = {"wallpaper64.exe", "wallpaper32.exe"}
-
-
-def we_running():
-    for proc in psutil.process_iter(["name"]):
-        if (proc.info["name"] or "").lower() in WE_PROCESSES:
-            return True
-    return False
 
 
 def port_free():
@@ -45,7 +36,7 @@ def spawn_server():
 def main():
     while True:
         try:
-            if we_running() and port_free():
+            if port_free():
                 spawn_server()
         except Exception:
             pass
