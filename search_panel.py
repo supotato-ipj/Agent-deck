@@ -345,8 +345,8 @@ class SearchPanelApp:
     # ---- 结果渲染 ----
 
     def _render_results(self, model):
+        self._clear_results()  # 先清再取 host：清理会重建 results_host
         host = self.results_host
-        self._clear_results()
         if not model.items:
             tk.Label(host, text=NO_RESULTS_TEXT, fg=DIM, bg=BG,
                      font=self.font, anchor="w").pack(fill="x", pady=(6, 0))
@@ -392,8 +392,13 @@ class SearchPanelApp:
         self._apply_height()
 
     def _clear_results(self):
-        for child in self.results_host.winfo_children():
-            child.destroy()
+        # 销毁重建而非只销毁子控件：Tk 的 winfo_reqheight 在子控件销毁后
+        # 不回缩（保留最大已布局值），_apply_height 会把展开高度原样重设，
+        # 面板从此永远不收起（黑底叠黑壁纸视觉不可见，验收电池抓出）。
+        # 新建空 Frame 的 reqheight 为 1，收起高度回到基线。
+        self.results_host.destroy()
+        self.results_host = tk.Frame(self.root, bg=BG)
+        self.results_host.pack(fill="x")
         self._items = []
         self._rows = []
         self._sel.set_count(0)

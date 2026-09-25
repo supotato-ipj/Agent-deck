@@ -183,9 +183,10 @@ SHELL_CLASSES = {"Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Progman", "WorkerW"
 def minimize_desktop(skip_hwnd):
     """逐窗最小化桌面（跳过面板与 shell 桌面/任务栏），返回被最小化的句柄。
 
-    不用 Shell 的 MinimizeAll/UndoMinimizeAll：那个循环会连无框面板一起卷进
-    最小化-还原，还原时 Tk overrideredirect 窗口的几何会被重置（实测
-    536×64+1982+134 漂成 268×60@(991,67)，面板直接报废，需杀服务自愈）。"""
+    不用 Shell 的 MinimizeAll/UndoMinimizeAll：全局卷走/还原用户全部窗口
+    过于粗暴，且还原栈不受控；逐窗 SC_MINIMIZE/SC_RESTORE 精确可逆。
+    （早前怀疑它会重置无框面板几何，后证伪——那是一次 DPI 虚拟化下的
+    量测误读：非 DPI 感知进程读 GetWindowRect 得到的是逻辑坐标。）"""
     targets = [h for h, c, _t, _r in visible_windows()
                if h != skip_hwnd and c not in SHELL_CLASSES]
     for h in targets:
@@ -338,14 +339,23 @@ def run_chain(run, evidence):
               f"h={panel_height(hwnd)} base={base_h}")
         shot(evidence, "27-idle-after-esc" + suffix, rect)
 
-        # 失焦退待机：前台交还桌面（等效「点击桌面别处」），面板应自行收起
+        # 失焦退待机：还原一个被最小化的窗口并物理点击（激活即把键盘焦点
+        # 从面板夺走——等效「点击桌面别处」；后台进程直接 SetForegroundWindow
+        # 会被前台锁拒绝），面板应自行收起，随后把该窗重新最小化
         if not activate_and_type():
             return
-        shell_hwnd = user32.GetShellWindow()
-        blurred = bool(shell_hwnd) and bool(user32.SetForegroundWindow(shell_hwnd))
-        idle2 = blurred and wait_for(
-            lambda: panel_height(hwnd) <= base_h + GEOM_TOLERANCE, UI_TIMEOUT_S)
-        check(run, "失焦退回待机态（窗口收回）", idle2,
+        blurred = False
+        if minimized:
+            user32.PostMessageW(minimized[0], WM_SYSCOMMAND, SC_RESTORE, 0)
+            time.sleep(1.5)
+            rect_other = _rect_of(minimized[0])
+            if rect_other:
+                click((rect_other[0] + rect_other[2] // 2), (rect_other[1] + rect_other[3] // 2))
+            blurred = wait_for(
+                lambda: panel_height(hwnd) <= base_h + GEOM_TOLERANCE, UI_TIMEOUT_S)
+            user32.PostMessageW(minimized[0], WM_SYSCOMMAND, SC_MINIMIZE, 0)
+            time.sleep(1.0)
+        check(run, "失焦退回待机态（窗口收回）", blurred,
               f"h={panel_height(hwnd)} base={base_h}")
         shot(evidence, "28-idle-after-blur" + suffix, rect)
 

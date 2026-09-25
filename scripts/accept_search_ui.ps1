@@ -10,6 +10,10 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+# Physical-pixel screen coords under DPI scaling (e.g. 200%): without this,
+# CopyFromScreen captures the virtualized (logical) desktop instead.
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();' -Name U32 -Namespace W
+[W.U32]::SetProcessDPIAware() | Out-Null
 
 switch ($Action) {
   'sendkeys' {
