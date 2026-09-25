@@ -9,6 +9,8 @@
 import json
 import os
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,9 +26,22 @@ def data_dir():
     return root / "qoder-deck" / "layout"
 
 
+_tag_lock = threading.Lock()
+_last_mono = -1
+
+
 def _now_tag():
-    # 微秒入名：同一秒内多次快照不得互相覆盖
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    # 微秒入名：同一秒内多次快照不得互相覆盖。Windows 系统时钟粒度可粗至
+    # ~15ms，纯墙上时钟连续取戳会撞名，故在锁下拼一段进程内单调纳秒值，
+    # 保证同进程内文件名严格递增（文件名序即时间序）。
+    global _last_mono
+    with _tag_lock:
+        mono = time.perf_counter_ns()
+        if mono <= _last_mono:
+            mono = _last_mono + 1
+        _last_mono = mono
+        wall = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+        return f"{wall}{mono:020d}Z"
 
 
 def _read(path):
