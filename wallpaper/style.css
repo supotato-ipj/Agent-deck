@@ -106,7 +106,9 @@ body.hud-off .hud-bottom { transform: none; }
   grid-area: left;
   display: flex;
   flex-direction: column;
-  padding: 1rem 0 1rem var(--pad-x);
+  /* 左缘让出桌面图标列（文档区第一列 ~200px），避免 HUD 与图标重叠；
+     图标带宽度随 rem 等比 */
+  padding: 1rem 0 1rem calc(var(--pad-x) + 8rem);
   will-change: transform;
 }
 
@@ -278,12 +280,13 @@ body.hud-off .hud-bottom { transform: none; }
 
 .gauges-row {
   display: flex;
-  gap: 3.5rem;
+  gap: 2rem;
   font-family: var(--font-secondary);
-  font-size: 0.85rem;            /* 仪表是主信息，从次级字号提上来 */
+  font-size: 0.78rem;
   line-height: 1.2;
   letter-spacing: 0.12em;
   padding-bottom: 1rem;
+  white-space: nowrap;
 }
 
 .gauge { display: flex; align-items: baseline; gap: 0.6rem; }

@@ -15,6 +15,7 @@ QD_PANEL_TRACE 只记事件与长度，不记内容）。
 """
 
 import ctypes
+import json
 import os
 import queue
 import subprocess
@@ -61,6 +62,35 @@ def _init_dpi_and_geometry():
 
 _REM, PANEL = _init_dpi_and_geometry()
 _measured = {"h": None}  # 窗口实测高度（面板线程写入，panel_rect 读取；GIL 下原子）
+
+# ---- 壁纸归属：面板只为经典版（myprojects/qoder-deck）显示，HUD 版自动隐藏 ----
+_WE_ROOTS = (r"D:\SteamLibrary", r"D:\Games", r"C:\Program Files (x86)\Steam")
+
+
+def current_wallpaper_path():
+    """WE config.json 里 Monitor0 的当前壁纸文件路径；读不到返回空串。
+
+    config 结构：/<用户名>/general/wallpaperconfig/selectedwallpapers/Monitor0/file，
+    用户名键不固定，扫描取第一个含 wallpaperconfig 的顶层键。
+    """
+    for root in _WE_ROOTS:
+        try:
+            cfg = json.loads((Path(root) / "steamapps" / "common" / "wallpaper_engine" /
+                              "config.json").read_text(encoding="utf-8", errors="ignore"))
+        except Exception:
+            continue
+        for val in cfg.values():
+            if not isinstance(val, dict):
+                continue
+            sel = (val.get("general", {}).get("wallpaperconfig") or {}).get("selectedwallpapers") or {}
+            return str((sel.get("Monitor0") or {}).get("file", ""))
+    return ""
+
+
+def wallpaper_is_classic():
+    """当前壁纸是否经典版（myprojects/qoder-deck）；读不到视为否（隐藏）。"""
+    p = current_wallpaper_path().replace("\\", "/").lower()
+    return "myprojects" in p and "qoder-deck" in p
 
 # ---- 视觉（与 DECK index.html 同源）----
 def _find_font():
@@ -272,6 +302,16 @@ class SearchPanelApp:
             if due:
                 self._start_search(due)
             self._drain_results()
+            self._wallpaper_ticks = getattr(self, "_wallpaper_ticks", 0) + 1
+            if self._wallpaper_ticks % 100 == 0:   # 50ms × 100 = 5s 一查
+                classic = wallpaper_is_classic()
+                if classic != getattr(self, "_shown_for_classic", True):
+                    self._shown_for_classic = classic
+                    if classic:
+                        self.root.deiconify()
+                    else:
+                        self.root.withdraw()
+                    self._trace(f"wallpaper classic={classic}")
         finally:
             self.root.after(50, self._tick)
 

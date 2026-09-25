@@ -6,8 +6,8 @@
 const API = "http://127.0.0.1:5000/deck";
 const POLL_MS = 1000;
 const STREAM_CAP = 8;
-const TOOL_LABELS = { qoder: "QD", kimicode: "KC", kimiwork: "KW", zcode: "ZC", hermes: "HM" };
-const TOOL_NAMES = { qoder: "QODER", kimicode: "KIMI CODE", kimiwork: "KIMI WORK", zcode: "ZCODE", hermes: "HERMES" };
+const TOOL_LABELS = { qoder: "QD", kimicode: "KC", kimiwork: "KW", zcode: "ZC", hermes: "HM", codex: "CX", dsh: "DH" };
+const TOOL_NAMES = { qoder: "QODER", kimicode: "KIMI CODE", kimiwork: "KIMI WORK", zcode: "ZCODE", hermes: "HERMES", codex: "CODEX", dsh: "DSH" };
 
 const els = {
   clock: document.getElementById("clock"),
