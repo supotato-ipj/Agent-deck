@@ -1,4 +1,4 @@
-param([string]$Out = "D:\test-folder\wallpaperengine-research\.scratch\desktop.png")
+param([string]$Out = (Join-Path $PSScriptRoot "..\.scratch\desktop.png"))
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $shell = New-Object -ComObject Shell.Application
 $shell.MinimizeAll()
