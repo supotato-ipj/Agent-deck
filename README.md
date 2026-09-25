@@ -79,6 +79,9 @@ python scripts/accept_zones.py         # 实机验收电池（观感与重启两
 
 ### 不工作时的排查顺序
 
+0. 桌面壁纸纯黑无 HUD → 多为 WE 加载 web 壁纸的偶发竞态（本页代码无 WE 专属 API）：
+   先重下发一次加载命令（见上节 openWallpaper），仍黑则 `taskkill /F /IM wallpaper64.exe /T`
+   后重新执行 openWallpaper；连续出现时重启 WE（Steam 里验证一次完整性更稳）。
 1. `python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:5000/deck').status)"`
    不通 → 服务没跑：看门狗随登录自启，注销重登或手动 `python server.py`；
    也可重跑 `powershell -File scripts/create_startup_shortcut.ps1` 重建快捷方式后重启。
