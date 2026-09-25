@@ -1,4 +1,4 @@
-"""六工具会话采集（AGENT DECK 会话列表的数据来源）。
+"""七工具会话采集（AGENT DECK 会话列表的数据来源）。
 
 会话列表的唯一接缝 collect_sessions(roots, now)：roots 为 {工具名: 数据根路径}，now 为墙钟秒。
 /performance 的 Qoder 状态块不经此接缝，但复用 task_stats/project_name 两个助手。
@@ -399,6 +399,105 @@ def _scan_codex(root, now):
     return sessions
 
 
+def _scan_dsh(root, now):
+    """DSH（deepseek harness）扫描：sessions/<workspace-slug>/session-<uuid>/session.v3.jsonl.zstd。
+
+    zstd 依赖缺失时整工具静默空（与坏源跳过同一原则）；delegationDepth>0 为
+    委派子会话不入列（对齐 zcode subagent 先例）。会话记录无 token 计量字段。
+    """
+    try:
+        import zstandard
+    except ImportError:
+        return []
+    sessions_dir = root / "sessions"
+    if not sessions_dir.is_dir():
+        return []
+    dctx = zstandard.ZstdDecompressor()
+    out = []
+    for zf in sessions_dir.glob("*/*/session.v3.jsonl.zstd"):
+        try:
+            mtime = zf.stat().st_mtime
+        except OSError:
+            continue
+        age = now - mtime
+        if age > ACTIVE_WINDOW:
+            continue
+        try:
+            with open(zf, "rb") as fh:
+                text = dctx.stream_reader(fh).read().decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+        lines = text.splitlines()
+        if not lines:
+            continue
+        meta = None
+        try:
+            first = json.loads(lines[0])
+            if first.get("type") == "session":
+                meta = first
+        except Exception:
+            meta = None
+        if meta and meta.get("delegationDepth"):
+            continue
+        sid = (meta or {}).get("id") or zf.parent.name
+        cwd_name = _dir_name((meta or {}).get("cwd"))
+        slug_name = zf.parent.parent.name.strip("-").rsplit("-", 1)[-1] or zf.parent.parent.name
+        project = cwd_name or slug_name
+
+        role = kind = None
+        preview = preview_role = None
+        tool_tail = False
+        for line in reversed(lines):
+            if ("assistant/message" not in line and "user/message" not in line
+                    and '"tool/call"' not in line):
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            rtype = rec.get("type")
+            if rtype == "tool/call":
+                # 倒扫先遇 tool/call 说明它是最新动作；更早的 message 只供预览
+                if not tool_tail:
+                    tool_tail = True
+                continue
+            if rtype not in ("assistant/message", "user/message"):
+                continue
+            data = rec.get("data") or {}
+            blocks = (data.get("message") or data).get("content")
+            texts = [
+                (b.get("text") or "").strip()
+                for b in (blocks if isinstance(blocks, list) else [])
+                if isinstance(b, dict) and b.get("type") == "text"
+            ]
+            if role is None:
+                if rtype == "user/message":
+                    role, kind = "user", "user"
+                else:
+                    role, kind = "assistant", "text"
+            if texts and preview is None:
+                preview, preview_role = texts[-1], "user" if rtype == "user/message" else "assistant"
+            break
+        if tool_tail:
+            role, kind = "assistant", "tool"
+        if role is None:
+            role, kind = "assistant", "text"
+        if preview and len(preview) > PREVIEW_MAX:
+            preview = preview[:PREVIEW_MAX] + "…"
+        out.append(
+            _session(
+                "dsh",
+                sid,
+                project,
+                age,
+                _session_state(age, role, kind),
+                preview=preview,
+                preview_role=preview_role,
+            )
+        )
+    return out
+
+
 def _scan_hermes(root, now):
     leases = _hermes_leases(root)
     sessions = []
@@ -538,4 +637,5 @@ SCANNERS = {
     "kimicode": _scan_kimicode,
     "kimiwork": _scan_kimiwork,
     "codex": _scan_codex,
+    "dsh": _scan_dsh,
 }

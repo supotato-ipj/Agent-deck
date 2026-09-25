@@ -10,7 +10,7 @@
 ## 目录
 
 - `server.py` — 本地数据服务（127.0.0.1:5000，`QD_PORT` 可换端口并行第二实例）：`/performance`（硬件指标 + qoder 摘要）、`/deck`（多工具会话 + 历史曲线 + 搜索面板矩形）、`/usage`（各 agent 今日 token 聚合 + 额度，60s 缓存）
-- `agent_sessions.py` — 六工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work / codex
+- `agent_sessions.py` — 七工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work / codex / dsh
 - `quota.py` — 额度只读采集：codex 本地快照、DSH 官方 /user/balance、可配置订阅端点（`%LOCALAPPDATA%\qoder-deck\quota.json`）
 - `usage.py` — /usage 聚合（zcode 按模型分桶、codex/kimicode/hermes 日窗）
 - `deck/` — 经典版壁纸源码；`scripts/deploy_deck.py` — 部署到 WE myprojects（字体不入库，缺失时自动从工坊取回）
@@ -54,7 +54,7 @@ python server.py
 
 ## 多工具会话展示（/deck 的 sessions）
 
-会话列表混排六个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW/CX）。每项含 title（zcode/hermes/kimicode 有真实标题）、preview/preview_role（qoder 全支持、kimicode 宽容解析，无消息存储的工具为空）、tasks 任务清单（qoder/zcode）、current_task（qoder）与 tokens（codex 会话累计）。数据源全部只读：
+会话列表混排七个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW/CX/DH）。每项含 title（zcode/hermes/kimicode 有真实标题）、preview/preview_role（qoder/dsh/kimicode 可提取，无消息存储的工具为空）、tasks 任务清单（qoder/zcode）、current_task（qoder）与 tokens（codex 会话累计）。数据源全部只读：
 
 | 工具 | 数据源 | 备注 |
 |---|---|---|
@@ -64,6 +64,7 @@ python server.py
 | kimi code | `~/.kimi-code/sessions/**/state.json` + `wire.jsonl` mtime | 旧会话落 DONE |
 | kimi work | `%APPDATA%\kimi-desktop\kimi-agent\conversation-statuses.json` + `conversation-context-usage.json` | **降级：无标题/项目**（正文锁在上游私有存储），行内只有标签+状态 |
 | codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `thread_source=user` 才入列；含会话累计 token |
+| dsh | `~/.dsh/sessions/<slug>/session-<uuid>/session.v3.jsonl.zstd` | delegationDepth>0 子会话不入列；preview 可提取；无 token 计量 |
 
 任一工具数据源缺失/损坏时静默跳过（仅服务端 stdout 日志），其余工具照常；SQLite 一律只读 URI 打开。
 
