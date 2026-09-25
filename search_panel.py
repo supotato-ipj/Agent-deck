@@ -90,9 +90,14 @@ HINT_TEXT = "CLICK TO SEARCH_"
 PLACEHOLDER_TEXT = "TYPE TO SEARCH FILES_"
 NO_RESULTS_TEXT = "NO RESULTS"
 OFFLINE_TEXT = "ENGINE OFFLINE"
-NAME_CHARS = 26   # 结果行名称截断（保留头部）
-PATH_CHARS = 22   # 结果行父路径截断（保留尾部，辨识段在结尾）
-ROW_H = 22        # 结果行高（与输入行 30 区分：列表更紧凑）
+NAME_CHARS = round(26 * FONT_SCALE)   # 结果行名称截断（保留头部），随窗口等比
+PATH_CHARS = round(22 * FONT_SCALE)   # 结果行父路径截断（保留尾部，辨识段在结尾）
+ROW_H = round(22 * FONT_SCALE)        # 结果行高（与输入行区分：列表更紧凑）
+INPUT_ROW_H = round(30 * FONT_SCALE)  # 输入行高
+BOX_PAD_Y = round(13 * FONT_SCALE)    # 输入行上边距
+SMALL_PAD = round(6 * FONT_SCALE)     # 无结果/离线行边距
+TOTAL_PAD = round(4 * FONT_SCALE)     # TOTAL 行边距
+SEP_PAD = round(2 * FONT_SCALE)       # 分隔线边距
 CTRL_MASK = 0x0004  # Tk event.state 的 Control 位（X11/Win32 一致）
 
 
@@ -166,9 +171,9 @@ class SearchPanelApp:
         self.head = tk.Label(root, text=HEAD_TEXT, fg=WHITE, bg=BG,
                              font=self.font, anchor="w")
         self.head.pack(fill="x")
-        self.box = tk.Frame(root, bg=BG, height=30)
+        self.box = tk.Frame(root, bg=BG, height=INPUT_ROW_H)
         self.box.pack_propagate(False)
-        self.box.pack(fill="x", pady=(13, 0))
+        self.box.pack(fill="x", pady=(BOX_PAD_Y, 0))
         self.hint = tk.Label(self.box, text=HINT_TEXT, fg=DIM, bg=BG,
                              font=self.font, anchor="w")
         self.hint.pack(fill="both", expand=True)
@@ -183,7 +188,7 @@ class SearchPanelApp:
         self.placeholder = tk.Label(self.box, text=PLACEHOLDER_TEXT, fg=DIM, bg=BG,
                                     font=self.font, anchor="w")
         self.sep = tk.Frame(root, bg=LINE, height=1)
-        self.sep.pack(fill="x", pady=(2, 0))
+        self.sep.pack(fill="x", pady=(SEP_PAD, 0))
         # 结果区：渲染在分隔线下方，窗口随内容向下展开（活动态临时盖住
         # 壁纸会话列表，ESC 即收起——搜索面板的既有交互惯例）
         self.results_host = tk.Frame(root, bg=BG)
@@ -391,7 +396,7 @@ class SearchPanelApp:
         self._clear_results()
         if not model.items:
             tk.Label(host, text=NO_RESULTS_TEXT, fg=DIM, bg=BG,
-                     font=self.font, anchor="w").pack(fill="x", pady=(6, 0))
+                     font=self.font, anchor="w").pack(fill="x", pady=(SMALL_PAD, 0))
         else:
             shown = model.items[: engine.DEFAULT_LIMIT]
             self._items = shown
@@ -412,7 +417,7 @@ class SearchPanelApp:
             self._sel.set_count(len(shown))  # 结果刷新：选中重置回首项
             self._apply_selection()
         tk.Label(host, text=f"TOTAL {model.total}", fg=DIM, bg=BG,
-                 font=self.font, anchor="w").pack(fill="x", pady=(4, 0))
+                 font=self.font, anchor="w").pack(fill="x", pady=(TOTAL_PAD, 0))
         self._apply_height()
 
     def _on_row_click(self, idx):
@@ -429,8 +434,8 @@ class SearchPanelApp:
     def _render_offline(self):
         self._clear_results()
         badge = tk.Label(self.results_host, text=OFFLINE_TEXT, fg=BG, bg=FG,
-                         font=self.font, anchor="w", padx=6)
-        badge.pack(fill="x", pady=(6, 0))
+                         font=self.font, anchor="w", padx=round(6 * FONT_SCALE))
+        badge.pack(fill="x", pady=(SMALL_PAD, 0))
         self._apply_height()
 
     def _clear_results(self):
