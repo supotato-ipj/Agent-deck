@@ -10,6 +10,16 @@
 				"type": "bool",
 				"text": "HUD 透视",
 				"value": true
+			},
+			"fontsize": {
+				"type": "slider",
+				"text": "整体字号 (font scale)",
+				"fraction": true,
+				"min": 0.8,
+				"max": 2.0,
+				"step": 0.05,
+				"precision": 2,
+				"value": 1.4
 			}
 		}
 	}

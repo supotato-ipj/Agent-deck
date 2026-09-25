@@ -33,6 +33,11 @@ import listary_engine as engine
 # （2560 − 2.6rem − 36rem + 1px 左边框 + 2.4rem 内边距 = 1982），
 # y = 2.2rem + 顶栏 4.6rem + 行距 1.6rem = 8.4rem = 134。
 # 屏宽实测推导，任何分辨率下都与 DECK 右栏保持对齐。
+# FONT_SCALE 与 DECK 壁纸的 --font-scale（WE 属性 fontsize，默认 1.4）同值才对齐；
+# 改 WE 滑杆时用 QD_FONT_SCALE 环境变量同步面板，服务默认 1.4。
+FONT_SCALE = float(os.environ.get("QD_FONT_SCALE", "1.4"))
+
+
 def _init_dpi_and_geometry():
     import ctypes
 
@@ -44,7 +49,7 @@ def _init_dpi_and_geometry():
         except Exception:
             pass
     width = ctypes.windll.user32.GetSystemMetrics(0)     # SM_CXSCREEN
-    rem = width / 160.0
+    rem = width / 160.0 * FONT_SCALE
     panel = {
         "x": round(width - 36.2 * rem + 1),
         "y": round(8.4 * rem),

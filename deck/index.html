@@ -13,8 +13,10 @@
   font-family: "VT323";
   src: url("fonts/VT323-Regular.ttf");
 }
-/* 1rem = 16px @2560×1440，随宽度缩放（面板几何按 2560×1440 @100% 设计） */
-html { font-size: calc(100vw / 160); }
+/* 1rem = 16px @2560×1440，随宽度缩放（面板几何按 2560×1440 @100% 设计）。
+   --font-scale：整体字号系数（WE 属性 fontsize 滑杆，默认 1.4）——高分屏上
+   2560 基准偏小，搜索面板的几何/字号在 search_panel.py 里用同一系数推导。 */
+html { font-size: calc(100vw / 160 * var(--font-scale, 1.4)); }
 html, body {
   margin: 0;
   width: 100%;
@@ -187,6 +189,12 @@ body {
 // ---- 壁纸属性：HUD 透视开关（默认开，rotateY 1.2deg 同 TERMINAL 02 量级）----
 window.wallpaperPropertyListener = {
   applyUserProperties: function (p) {
+    if (p.fontsize) {
+      var v = Number(p.fontsize.value);
+      if (!isNaN(v)) {
+        document.documentElement.style.setProperty("--font-scale", String(v));
+      }
+    }
     if (p.perspective) {
       document.getElementById("right").classList.toggle("perspective", !!p.perspective.value);
       document.getElementById("gauges").style.transform =
