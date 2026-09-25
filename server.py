@@ -1,7 +1,8 @@
-"""TERMINAL 02 壁纸数据服务。
+"""AGENT DECK 数据服务。
 
 GET /performance -> {"psutil": {...}, "qoder": {...}}
-壁纸每秒轮询一次。仅监听 127.0.0.1。
+GET /deck       -> {"sessions": [...], "history": {...}, "gauges": {...}, "ts": ...}
+界面每秒轮询一次。仅监听 127.0.0.1。
 """
 import json
 import socket

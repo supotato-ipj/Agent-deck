@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓库用于 Wallpaper Engine「TERMINAL 02」壁纸改造：显示 Qoder 任务状态。
+本仓库是 AGENT DECK（desktop-deck）：本地数据服务 + 桌面图标编排的独立项目，不依赖 Wallpaper Engine。
 
 ## Agent skills
 

@@ -1,6 +1,6 @@
 # AGENT DECK 桌面作战面板
 
-把 Wallpaper Engine 壁纸改造为个人作战面板：右栏实时显示多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态并以头显 HUD 的透视观感呈现信息模块；桌面图标按分区编排，使常用应用与文档各归其位。
+个人作战面板：本地数据服务实时采集多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态，由界面层呈现为头显 HUD 观感的信息模块；桌面图标按分区编排，使常用应用与文档各归其位。历史上曾以 Wallpaper Engine 壁纸形态呈现，现已是独立项目，界面形态待重建。
 
 ## Language
 
