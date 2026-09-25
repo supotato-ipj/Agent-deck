@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BACKUP = ROOT / "backup" / "original"
-TARGET = Path(r"D:\Steam\steamapps\workshop\content\431960\3639973107")
+TARGET = Path(r"D:\SteamLibrary\steamapps\workshop\content\431960\3639973107")
 
 
 def main() -> int:

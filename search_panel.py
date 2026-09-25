@@ -35,7 +35,7 @@ PANEL = {"x": 1982, "y": 134, "w": 536, "h": 64}
 _measured = {"h": None}  # 窗口实测高度（面板线程写入，panel_rect 读取；GIL 下原子）
 
 # ---- 视觉（与 DECK index.html 同源）----
-FONT_PATH = r"D:\Steam\steamapps\common\wallpaper_engine\projects\myprojects\qoder-deck\fonts\DecimaMonoCyr.ttf"
+FONT_PATH = r"D:\SteamLibrary\steamapps\workshop\content\431960\3639973107\fonts\DecimaMonoCyr.ttf"
 FONT_FAMILY = "Decima Mono Cyr"  # TTF 实际族名（CSS 里的 "Decima Mono" 只是别名）
 FONT_SIZE_PX = 17  # ≈ DECK body 1.05rem
 BG = "#000000"
