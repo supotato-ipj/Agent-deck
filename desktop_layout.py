@@ -29,6 +29,21 @@ def _now_tag():
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
 
+def _next_run_path(directory):
+    """运行前快照的落盘路径；同名时追加序号后缀。
+
+    Windows 的 datetime.now() 钟粒度约 15ms，_now_tag 并不真正微秒唯一；
+    冲突时用 _002 起的零宽序号，'_'(0x5F) 排在 '.'(0x2E) 之后，按名排序仍是时间序。
+    """
+    stem = f"{RUN_PREFIX}{_now_tag()}"
+    path = directory / f"{stem}.json"
+    seq = 2
+    while path.exists():
+        path = directory / f"{stem}_{seq:03d}.json"
+        seq += 1
+    return path
+
+
 def _read(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -41,8 +56,7 @@ def _write(path, payload):
 def take_snapshot(items, kind, directory=None):
     """把当前图标坐标落盘。kind 为 'factory' 或 'run'。返回写入路径。"""
     directory = Path(directory) if directory else data_dir()
-    name = FACTORY_NAME if kind == "factory" else f"{RUN_PREFIX}{_now_tag()}.json"
-    path = directory / name
+    path = directory / FACTORY_NAME if kind == "factory" else _next_run_path(directory)
     payload = {
         "kind": kind,
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),

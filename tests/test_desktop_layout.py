@@ -72,6 +72,19 @@ class SnapshotFilesTest(unittest.TestCase):
         self.assertEqual(len(runs), 2)
         self.assertEqual(dl.load_snapshot("last", self.dir)["items"][0]["x"], 2)
 
+    def test_same_tick_run_snapshots_do_not_overwrite(self):
+        # Windows 时钟粒度约 15ms：同一时间戳内两次快照必须落成两个文件且 last 为后者
+        real_now_tag = dl._now_tag
+        dl._now_tag = lambda: "20260925T000000000000Z"
+        try:
+            dl.take_snapshot([item("a", 1, 1)], "run", self.dir)
+            dl.take_snapshot([item("a", 2, 2)], "run", self.dir)
+        finally:
+            dl._now_tag = real_now_tag
+        runs = dl.run_snapshots(self.dir)
+        self.assertEqual(len(runs), 2)
+        self.assertEqual(dl.load_snapshot("last", self.dir)["items"][0]["x"], 2)
+
     def test_missing_snapshot_raises(self):
         with self.assertRaises(FileNotFoundError):
             dl.load_snapshot("factory", self.dir)
