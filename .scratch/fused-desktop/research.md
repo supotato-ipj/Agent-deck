@@ -1,8 +1,10 @@
 # 研究文档：融合桌面与本机 Copilot（下一代方向）
 
-Status: research / 供决策
+Status: research / 已决议——实施以同目录 spec.md 为准
 Date: 2026-09-25
 Branch: feat/fullscreen-hud
+
+> **决议（2026-09-25 用户拍板）**：DSH 额度=API key 认证端点；用量主口径=额度（5h 窗）；版式=经典骨架+按需展开；散文档=轻档老化折叠；codex=P1 全量接入；滴答清单=官方 Open API；Copilot 入口=搜索面板加 tab。七项已固化为 `.scratch/fused-desktop/spec.md` 的 Decisions 节，票据 issues/01–12 已建，本research 文档保留为论证与证据存档。
 
 ## 0. 一句话愿景
 
