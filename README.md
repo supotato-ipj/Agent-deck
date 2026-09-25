@@ -27,7 +27,7 @@ cmd /c mklink /J "<WE目录>\projects\myprojects\desktop-deck" "D:\GIThub\deskto
 "<WE目录>\wallpaper64.exe" -control openWallpaper -file "<WE目录>\projects\myprojects\desktop-deck\project.json"
 ```
 
-壁纸属性里只有一个开关：`perspective`（HUD 座舱环抱/仪表俯倾，默认开）。
+壁纸属性里两个开关：`perspective`（HUD 座舱环抱/仪表俯倾，默认开）、`fontsize`（整体字号 0.8–1.8，默认 1.3）。
 
 ## 手动启动数据服务（无看门狗时）
 
