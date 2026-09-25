@@ -9,8 +9,10 @@
 
 ## 目录
 
-- `server.py` — 本地数据服务（127.0.0.1:5000，`QD_PORT` 可换端口并行第二实例）：`/performance`（硬件指标 + qoder 摘要）、`/deck`（多工具会话 + 历史曲线 + 搜索面板矩形）
-- `agent_sessions.py` — 五工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work
+- `server.py` — 本地数据服务（127.0.0.1:5000，`QD_PORT` 可换端口并行第二实例）：`/performance`（硬件指标 + qoder 摘要）、`/deck`（多工具会话 + 历史曲线 + 搜索面板矩形）、`/usage`（各 agent 今日 token 聚合 + 额度，60s 缓存）
+- `agent_sessions.py` — 六工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work / codex
+- `quota.py` — 额度只读采集：codex 本地快照、DSH 官方 /user/balance、可配置订阅端点（`%LOCALAPPDATA%\qoder-deck\quota.json`）
+- `usage.py` — /usage 聚合（zcode 按模型分桶、codex/kimicode/hermes 日窗）
 - `deck/` — 经典版壁纸源码；`scripts/deploy_deck.py` — 部署到 WE myprojects（字体不入库，缺失时自动从工坊取回）
 - `wallpaper/` — 全屏 HUD 版壁纸源码（web 类型，WE 以 junction 指向此处加载，改动即时生效）
 - `search_panel.py` / `listary_engine.py` — Listary 搜索面板（常驻无边框窗口：待机伪装成壁纸右栏、点击激活检索、引擎离线降级；ADR-0003）

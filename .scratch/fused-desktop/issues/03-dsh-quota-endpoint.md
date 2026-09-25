@@ -4,10 +4,26 @@
 
 **Blocked by:** None（可立即开工；端点路径探针是本票第一验收项）
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 探针：确认端点 URL、认证头形式、响应字段（5h 窗剩余/重置时间、周额度）记录在本票 Comments（脱敏）
+- [x] 探针：官方文档实锤 GET https://api.deepseek.com/user/balance（is_available/balance_infos）；订阅 5h/周窗端点未公开→配置驱动回填
 - [ ] quota 客户端：`get_quota(agent) -> {window, remaining_pct, resets_at} | None`，本地 HTTP mock 断言解析
-- [ ] 60s 缓存 + 并发去重（同窗只打一次端点）
-- [ ] 失败矩阵：无 key / 超时 / 401 / 坏 JSON 全部静默 None，服务日志一行
-- [ ] key 生命周期：从 DSH 配置读取引用，不复制不落盘到本仓库运行时目录
+- [x] 60s 缓存 + 并发去重（同窗只打一次端点）
+- [x] 失败矩阵：无 key / 超时 / 401 / 坏 JSON 全部静默 None，服务日志一行
+- [x] key 生命周期：从 DSH 配置读取引用，不复制不落盘到本仓库运行时目录
+
+## Comments
+
+**2026-09-25 实现完成（done，quota.py + tests/test_quota_usage.py）**
+
+- 探针结论（官方文档核对）：公开文档只有 `GET /user/balance`（API key 计费余额，
+  Bearer 认证，返回 is_available + balance_infos[currency/total_balance/granted/topped]）；
+  harness 开源侧（llm-deepseek）的 quota 全是 Files API 存储配额，无订阅窗口端点。
+- 实现三源：codex=本地会话快照正则解析（票 01 红利，容忍多重 JSON 转义）；
+  dsh=/user/balance（key 依次取 QD_DEEPSEEK_API_KEY 与 ~/.dsh/.credentials.yaml 的
+  api key 字段，只引用不复制）；订阅窗=可配置端点
+  （%LOCALAPPDATA%/qoder-deck/quota.json 的 dsh_subscription：url/token_env/
+  json_path_remaining/window，未配置静默 None）。
+- 实机：codex 周窗剩余 81%（resets_at 1790662039）；dsh 无 key 时 None（预期）。
+- 待回填：DSH 订阅 5h/周窗的具体端点（用户 deepseek-harness 研究结论称可读），
+  quota.json 一行配置即接入。

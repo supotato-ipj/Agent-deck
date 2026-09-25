@@ -18,6 +18,7 @@ import psutil
 
 import agent_sessions
 import search_panel
+import usage
 import usage_log
 import usage_score
 import zones_watcher
@@ -28,6 +29,7 @@ PORT = int(os.environ.get("QD_PORT", "5000"))
 GPU_CACHE_TTL = 3.0
 QODER_CACHE_TTL = 2.0
 DECK_CACHE_TTL = 1.0
+USAGE_CACHE_TTL = 60.0
 HISTORY_LEN = 300
 QODER_ROOT = Path.home() / ".qoder-cn"
 RUNNING_WINDOW = agent_sessions.RUNNING_WINDOW
@@ -44,6 +46,7 @@ SESSION_ROOTS = {
 _gpu_cache = {"ts": 0.0, "data": {}}
 _qoder_cache = {"ts": 0.0, "data": None}
 _deck_cache = {"ts": 0.0, "data": None}
+_usage_cache = {"ts": 0.0, "data": None}
 _net_prev = None
 _cpu = {"percent": 0.0}
 _history = {
@@ -153,6 +156,20 @@ def deck_state():
     return data
 
 
+def usage_state():
+    """GET /usage：各 agent 今日 token + 额度（fused-desktop 票 04）。60s 缓存。"""
+    now = time.monotonic()
+    if _usage_cache["data"] is not None and now - _usage_cache["ts"] < USAGE_CACHE_TTL:
+        return _usage_cache["data"]
+    try:
+        data = usage.usage_state(SESSION_ROOTS)
+    except Exception:
+        data = {"per_agent": {}, "quota": {}, "day_start": None}
+    data = dict(data, ts=time.time())
+    _usage_cache.update(ts=now, data=data)
+    return data
+
+
 def _scan_qoder():
     wall = time.time()
     projects_dir = QODER_ROOT / "projects"
@@ -206,6 +223,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = build_payload()
         elif path == "/deck":
             payload = deck_state()
+        elif path == "/usage":
+            payload = usage_state()
         else:
             self.send_error(404)
             return
