@@ -162,6 +162,37 @@ def elide_right(s, max_chars):
     return s[: max_chars - 1] + "…"
 
 
+# ---------- 纯逻辑：键→动作与选中（ticket 03）----------
+
+def decide_action(key, ctrl=False):
+    """面板按键 → 动作：prev / next / open / reveal；其余键 None。"""
+    if key == "up":
+        return "prev"
+    if key == "down":
+        return "next"
+    if key == "return":
+        return "reveal" if ctrl else "open"
+    return None
+
+
+class SelectionModel:
+    """结果选中项：首尾 clamp 不环绕；结果刷新后重置回首项；空列表无选中。"""
+
+    def __init__(self):
+        self.count = 0
+        self.index = -1
+
+    def set_count(self, n):
+        self.count = n
+        self.index = 0 if n else -1
+
+    def move(self, delta):
+        if self.count == 0:
+            return -1
+        self.index = max(0, min(self.count - 1, self.index + delta))
+        return self.index
+
+
 # ---------- I/O：Listary 本地 HTTP API（工作线程调用） ----------
 
 def http_search(query, limit=DEFAULT_LIMIT, offset=0):

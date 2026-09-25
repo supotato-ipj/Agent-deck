@@ -170,3 +170,47 @@ class TestReviewFollowups(unittest.TestCase):
         self.assertEqual(d.due(1.0), "abc")     # 已发过，重复 feed_due 仍去重
         d.feed_due("")
         self.assertIsNone(d.due(2.0))
+
+
+class TestDecideAction(unittest.TestCase):
+    """键 → 动作映射（ticket 03 纯逻辑）。"""
+
+    def test_arrows(self):
+        self.assertEqual(eng.decide_action("up"), "prev")
+        self.assertEqual(eng.decide_action("down"), "next")
+
+    def test_return_variants(self):
+        self.assertEqual(eng.decide_action("return", ctrl=False), "open")
+        self.assertEqual(eng.decide_action("return", ctrl=True), "reveal")
+
+    def test_other_keys_are_none(self):
+        self.assertIsNone(eng.decide_action("a"))
+        self.assertIsNone(eng.decide_action("escape"))
+        self.assertIsNone(eng.decide_action(""))
+
+
+class TestSelectionModel(unittest.TestCase):
+    def test_reset_to_first_on_new_results(self):
+        s = eng.SelectionModel()
+        s.set_count(5)
+        s.move(3)
+        s.set_count(4)          # 结果刷新：重置回首项
+        self.assertEqual(s.index, 0)
+
+    def test_empty_results_no_selection(self):
+        s = eng.SelectionModel()
+        s.set_count(0)
+        self.assertEqual(s.index, -1)
+        self.assertEqual(s.move(1), -1)
+
+    def test_clamp_at_both_ends(self):
+        s = eng.SelectionModel()
+        s.set_count(3)
+        self.assertEqual(s.move(-1), 0)   # 首项向上：停在首项（不环绕）
+        self.assertEqual(s.move(1), 1)
+        self.assertEqual(s.move(1), 2)
+        self.assertEqual(s.move(1), 2)    # 尾项向下：停在尾项
+
+    def test_negative_one_when_uninitialized(self):
+        s = eng.SelectionModel()
+        self.assertEqual(s.index, -1)

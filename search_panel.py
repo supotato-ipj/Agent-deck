@@ -17,6 +17,7 @@ QD_PANEL_TRACE 只记事件与长度，不记内容）。
 import ctypes
 import os
 import queue
+import subprocess
 import threading
 import time
 import traceback
@@ -50,6 +51,7 @@ OFFLINE_TEXT = "ENGINE OFFLINE"
 NAME_CHARS = 26   # 结果行名称截断（保留头部）
 PATH_CHARS = 22   # 结果行父路径截断（保留尾部，辨识段在结尾）
 ROW_H = 22        # 结果行高（与输入行 30 区分：列表更紧凑）
+CTRL_MASK = 0x0004  # Tk event.state 的 Control 位（X11/Win32 一致）
 
 
 class PanelStateMachine:
@@ -95,6 +97,9 @@ class SearchPanelApp:
         self._results_q = queue.Queue()
         self._search_gen = 0        # 单飞行代际：新查询作废旧响应
         self._rate_attempt = 0      # 限流退避次数（成功清零）
+        self._sel = engine.SelectionModel()  # 选中项（结果刷新重置回首项）
+        self._items = []            # 当前渲染的结果（动作按索引取路径）
+        self._rows = []             # 行控件 [(frame, name_label, path_label)]
 
     def _trace(self, tag):
         # QD_PANEL_TRACE=<路径> 时追加事件流水（验收电池/排障用）。
@@ -148,6 +153,11 @@ class SearchPanelApp:
         self.entry.bind("<Button-1>", lambda e: self._activate(), add="+")
         self.entry.bind("<Escape>", lambda e: self._deactivate("esc"))
         self.entry.bind("<FocusOut>", lambda e: self._deactivate("blur"))
+        # 结果操作集（ticket 03）：键→动作的判一出口在 engine.decide_action，
+        # 这里只翻译 Tk 键名；"break" 吞掉 ↑↓ 移动光标的默认行为
+        self.entry.bind("<Up>", lambda e: self._on_key("up", e))
+        self.entry.bind("<Down>", lambda e: self._on_key("down", e))
+        self.entry.bind("<Return>", lambda e: self._on_key("return", e))
 
         root.update_idletasks()
         _measured["h"] = max(PANEL["h"], root.winfo_reqheight())
@@ -282,6 +292,56 @@ class SearchPanelApp:
             self._render_offline()
             self._schedule_offline_retry()
 
+    # ---- 结果操作集（ticket 03）----
+
+    def _on_key(self, key, event):
+        action = engine.decide_action(key, ctrl=bool(event.state & CTRL_MASK))
+        if action:
+            self._on_action(action)
+            return "break"
+        return None
+
+    def _on_action(self, action):
+        if action in ("prev", "next"):
+            self._move_selection(-1 if action == "prev" else 1)
+            return
+        idx = self._sel.index
+        if idx < 0 or idx >= len(self._items):
+            return
+        self._act(self._items[idx].path, reveal=(action == "reveal"))
+
+    def _move_selection(self, delta):
+        # 列表恒 ≤8 行且窗口随行数展开，选中项天然可见，无需滚动
+        self._sel.move(delta)
+        self._apply_selection()
+
+    def _act(self, path, reveal):
+        # 动作由数据服务进程直接执行（ADR-0003：能力在数据服务内）。
+        # startfile 走 ShellExecute；explorer 亦按仓库先例带 CREATE_NO_WINDOW，
+        # 双保险保证不闪控制台
+        self._trace("reveal" if reveal else "open")
+        try:
+            if reveal:
+                subprocess.Popen(["explorer", "/select,", path],
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            else:
+                os.startfile(path)  # noqa: S606 — 面板本义就是打开用户选中的路径
+        except Exception:
+            traceback.print_exc()
+        # 动作完成即收起：走 ESC 同款待机转移（打开的窗口随即接管焦点）
+        self._deactivate("esc")
+
+    def _apply_selection(self):
+        for i, (row, name_lbl, path_lbl) in enumerate(self._rows):
+            if i == self._sel.index:  # 反白选中（同壁纸 st-CONFIRM/OFFLINE 语言）
+                row.configure(bg=FG)
+                name_lbl.configure(bg=FG, fg=BG)
+                path_lbl.configure(bg=FG, fg=BG)
+            else:
+                row.configure(bg=BG)
+                name_lbl.configure(bg=BG, fg=WHITE)
+                path_lbl.configure(bg=BG, fg=DIM)
+
     # ---- 结果渲染 ----
 
     def _render_results(self, model):
@@ -291,20 +351,38 @@ class SearchPanelApp:
             tk.Label(host, text=NO_RESULTS_TEXT, fg=DIM, bg=BG,
                      font=self.font, anchor="w").pack(fill="x", pady=(6, 0))
         else:
-            for item in model.items[: engine.DEFAULT_LIMIT]:
+            shown = model.items[: engine.DEFAULT_LIMIT]
+            self._items = shown
+            for i, item in enumerate(shown):
                 row = tk.Frame(host, bg=BG, height=ROW_H)
                 row.pack_propagate(False)
                 row.pack(fill="x")
                 name, parent = engine.display_parts(item.path)
-                tk.Label(row, text=engine.elide_right(name, NAME_CHARS),
-                         fg=WHITE, bg=BG, font=self.font,
-                         anchor="w").pack(side="left")
-                tk.Label(row, text=engine.elide_left(parent, PATH_CHARS),
-                         fg=DIM, bg=BG, font=self.font, anchor="e"
-                         ).pack(side="right")
+                name_lbl = tk.Label(row, text=engine.elide_right(name, NAME_CHARS),
+                                    fg=WHITE, bg=BG, font=self.font, anchor="w")
+                name_lbl.pack(side="left")
+                path_lbl = tk.Label(row, text=engine.elide_left(parent, PATH_CHARS),
+                                    fg=DIM, bg=BG, font=self.font, anchor="e")
+                path_lbl.pack(side="right")
+                self._rows.append((row, name_lbl, path_lbl))
+                for w in (row, name_lbl, path_lbl):
+                    w.bind("<Button-1>", self._row_click_handler(i), add="+")
+            self._sel.set_count(len(shown))  # 结果刷新：选中重置回首项
+            self._apply_selection()
         tk.Label(host, text=f"TOTAL {model.total}", fg=DIM, bg=BG,
                  font=self.font, anchor="w").pack(fill="x", pady=(4, 0))
         self._apply_height()
+
+    def _on_row_click(self, idx):
+        if 0 <= idx < len(self._items):
+            self._act(self._items[idx].path, reveal=False)
+
+    def _row_click_handler(self, idx):
+        # 返回 "break" 阻止点击行时再触发窗口级激活绑定
+        def handler(_event):
+            self._on_row_click(idx)
+            return "break"
+        return handler
 
     def _render_offline(self):
         self._clear_results()
@@ -316,6 +394,9 @@ class SearchPanelApp:
     def _clear_results(self):
         for child in self.results_host.winfo_children():
             child.destroy()
+        self._items = []
+        self._rows = []
+        self._sel.set_count(0)
 
     def _apply_height(self):
         self.results_host.update_idletasks()

@@ -7,6 +7,7 @@
 import unittest
 
 import listary_engine as engine
+import search_panel as sp
 from search_panel import PanelStateMachine
 
 
@@ -140,7 +141,7 @@ class TestRenderResults(unittest.TestCase):
 
     def test_rows_and_footer(self):
         app = self._app()
-        items = [engine.ResultItem(path=f"C:\dir\f{i}.txt", name=f"f{i}.txt", type="file")
+        items = [engine.ResultItem(path=f"C:/dir/f{i}.txt", name=f"f{i}.txt", type="file")
                  for i in range(3)]
         app._render_results(engine.SearchResults(ok=True, total=9, items=items))
         app.root.update_idletasks()
@@ -151,7 +152,7 @@ class TestRenderResults(unittest.TestCase):
 
     def test_more_than_limit_capped(self):
         app = self._app()
-        items = [engine.ResultItem(path=f"C:\f{i}.txt", name=f"f{i}.txt", type="file")
+        items = [engine.ResultItem(path=f"C:/f{i}.txt", name=f"f{i}.txt", type="file")
                  for i in range(20)]
         app._render_results(engine.SearchResults(ok=True, total=20, items=items))
         app.root.update_idletasks()
@@ -173,4 +174,66 @@ class TestRenderResults(unittest.TestCase):
         app._deactivate("esc")
         app.root.update_idletasks()
         self.assertEqual(app.results_host.winfo_children(), [])
+        app.root.destroy()
+
+
+class TestSelectionRender(unittest.TestCase):
+    """选中高亮：结果渲染后首项反白；↑↓ 移动后新旧行样式互换。"""
+
+    def _render3(self):
+        app = build_app()
+        items = [engine.ResultItem(path="C:/d/f" + str(i) + ".txt",
+                                   name="f" + str(i) + ".txt", type="file")
+                 for i in range(3)]
+        app._render_results(engine.SearchResults(ok=True, total=3, items=items))
+        app.root.update_idletasks()
+        return app
+
+    def test_first_row_selected_after_render(self):
+        app = self._render3()
+        self.assertEqual(app._sel.index, 0)
+        row0, name0, path0 = app._rows[0]
+        self.assertEqual(row0.cget("bg"), sp.FG)
+        self.assertEqual(name0.cget("fg"), sp.BG)
+        row1, _, _ = app._rows[1]
+        self.assertEqual(row1.cget("bg"), sp.BG)
+        app.root.destroy()
+
+    def test_move_selection_swaps_style(self):
+        app = self._render3()
+        app._move_selection(1)
+        row0, _, _ = app._rows[0]
+        row1, name1, _ = app._rows[1]
+        self.assertEqual(app._sel.index, 1)
+        self.assertEqual(row0.cget("bg"), "#000000")
+        self.assertEqual(row1.cget("bg"), sp.FG)
+        self.assertEqual(name1.cget("fg"), sp.BG)
+        app.root.destroy()
+
+    def test_clear_results_resets_selection(self):
+        app = self._render3()
+        app._move_selection(2)
+        app._clear_results()
+        self.assertEqual(app._sel.index, -1)
+        self.assertEqual(app._rows, [])
+        app.root.destroy()
+
+
+class TestRowClickBinding(unittest.TestCase):
+    """单击结果行应触发 _act（等同 Enter）：索引→路径传递与 reveal 语义。"""
+
+    def test_row_click_calls_act_open(self):
+        app = build_app()
+        items = [engine.ResultItem(path="C:/d/a.txt", name="a.txt", type="file"),
+                 engine.ResultItem(path="C:/d/b.txt", name="b.txt", type="file")]
+        app._render_results(engine.SearchResults(ok=True, total=2, items=items))
+        app.root.update_idletasks()
+        calls = []
+        app._act = lambda path, reveal=False: calls.append((path, reveal))
+        app._on_row_click(1)
+        self.assertEqual(calls, [("C:/d/b.txt", False)])
+        app._on_row_click(0)
+        self.assertEqual(calls[-1], ("C:/d/a.txt", False))
+        app._on_row_click(9)   # 越界点击：安全忽略
+        self.assertEqual(len(calls), 2)
         app.root.destroy()
