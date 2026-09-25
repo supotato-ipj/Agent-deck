@@ -1,16 +1,33 @@
 # desktop-deck（AGENT DECK）
 
-本地常驻的 AI 工作台数据服务与桌面图标编排：右栏实时显示多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态（由界面层消费），桌面图标按分区编排，使常用应用与文档各归其位。不依赖 Wallpaper Engine，开机登录后自动运行。
+本地常驻的 AI 工作台数据服务与桌面作战面板：壁纸层实时显示多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态（HUD 观感、随 Wallpaper Engine 常驻桌面），桌面图标按分区编排，使常用应用与文档各归其位。核心（数据服务/分区编排）不依赖 WE，仅界面用 WE 做渲染器。
 
 ## 目录
 
 - `server.py` — 本地数据服务（127.0.0.1:5000）：`/performance`（硬件指标 + qoder 摘要）、`/deck`（多工具会话 + 历史曲线）
 - `agent_sessions.py` — 五工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work
+- `wallpaper/` — AGENT DECK 壁纸源码（web 类型，WE 以 junction 指向此处加载，改动即时生效）
 - `scripts/server_watchdog.pyw` — 看门狗：端口空闲即拉起服务，服务崩溃后 15 秒内自动复活（启动文件夹快捷方式 `desktop-deck-server-watchdog.lnk`）
 - `scripts/create_startup_shortcut.ps1` — 重建上述快捷方式（路径动态解析，换目录/换 Python 后重跑即可）
 - `scripts/capture_desktop.ps1` / `capture_wallpaper.ps1` — 桌面截图（后者先最小化所有窗口）
 - `.scratch/<feature>/` — 各功能的 spec 与票据
 - `CONTEXT.md` — 领域词汇表
+
+## 壁纸部署（WE 加载本仓库的 wallpaper/）
+
+以 junction 把 WE 的自有项目目录指到仓库（管理员权限不需要；换机器重跑一次即可）：
+
+```
+cmd /c mklink /J "<WE目录>\projects\myprojects\desktop-deck" "D:\GIThub\desktop-deck\wallpaper"
+```
+
+加载 / 切换：
+
+```
+"<WE目录>\wallpaper64.exe" -control openWallpaper -file "<WE目录>\projects\myprojects\desktop-deck\project.json"
+```
+
+壁纸属性里只有一个开关：`perspective`（HUD 座舱环抱/仪表俯倾，默认开）。
 
 ## 手动启动数据服务（无看门狗时）
 
@@ -20,7 +37,7 @@ python server.py
 
 ## 多工具会话展示（/deck 的 sessions）
 
-会话列表混排五个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW）。数据源全部只读：
+会话列表混排五个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW）。每项含 title（zcode/hermes/kimicode 有真实标题）、preview/preview_role（qoder 全支持、kimicode 宽容解析，无消息存储的工具为空）、tasks 任务清单（qoder/zcode）与 current_task（qoder）。数据源全部只读：
 
 | 工具 | 数据源 | 备注 |
 |---|---|---|
