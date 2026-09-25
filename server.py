@@ -5,6 +5,7 @@ GET /deck       -> {"sessions": [...], "history": {...}, "gauges": {...}, "ts": 
 界面每秒轮询一次。仅监听 127.0.0.1。
 """
 import json
+import os
 import socket
 import subprocess
 import threading
@@ -16,11 +17,14 @@ from pathlib import Path
 import psutil
 
 import agent_sessions
+import search_panel
 import usage_log
 import usage_score
 import zones_watcher
 
-HOST, PORT = "127.0.0.1", 5000
+HOST = "127.0.0.1"
+# 开发/验收时可换端口并行跑第二实例（watchdog 不设此变量，恒为 5000）
+PORT = int(os.environ.get("QD_PORT", "5000"))
 GPU_CACHE_TTL = 3.0
 QODER_CACHE_TTL = 2.0
 DECK_CACHE_TTL = 1.0
@@ -141,6 +145,7 @@ def deck_state():
         "sessions": sessions,
         "history": {k: list(v) for k, v in _history.items()},
         "gauges": build_payload()["psutil"],
+        "panel": search_panel.panel_rect(),
         "ts": time.time(),
     }
     _deck_cache.update(ts=now, data=data)
@@ -245,6 +250,9 @@ def main():
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_usage_collector, daemon=True).start()
     threading.Thread(target=_zone_watcher, daemon=True).start()
+    # 搜索面板窗口线程（ADR-0003）：能力在数据服务内；窗口崩溃被线程内
+    # 兜住，不影响 /deck 轮询（验收：QD_PANEL_CRASH 注入崩溃后 /deck 仍 200）
+    search_panel.start_thread()
     try:
         server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError:

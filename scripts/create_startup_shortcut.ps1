@@ -1,12 +1,17 @@
 # 在登录启动文件夹创建看门狗快捷方式（登录后自动拉起数据服务）。
-# 路径全部动态解析：仓库定位到本脚本所在 scripts/ 的上级，pythonw 取当前 Python 旁边那份。
+# 路径全部动态解析：仓库定位到本脚本所在 scripts/ 的上级；
+# pythonw 优先取仓库 .venv（配 requirements.txt），没有则用系统 PATH 里的。
 $ErrorActionPreference = 'Stop'
 
 $startup = [Environment]::GetFolderPath('Startup')
+$repo = Split-Path -Parent $PSScriptRoot
 $here = $PSScriptRoot
 $watchdog = Join-Path $here 'server_watchdog.pyw'
 
-$pythonw = (Get-Command pythonw.exe -ErrorAction SilentlyContinue).Source
+$pythonw = Join-Path $repo '.venv\Scripts\pythonw.exe'
+if (-not (Test-Path $pythonw)) {
+    $pythonw = (Get-Command pythonw.exe -ErrorAction SilentlyContinue).Source
+}
 if (-not $pythonw) {
     $pythonExe = (Get-Command python.exe -ErrorAction Stop).Source
     $pythonw = Join-Path (Split-Path $pythonExe -Parent) 'pythonw.exe'

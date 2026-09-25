@@ -7,7 +7,8 @@ public class DpiHelper {
 }
 "@
 [DpiHelper]::SetProcessDPIAware() | Out-Null
-# 同 capture_desktop.ps1：必须声明 DPI 感知，否则高分屏只能截到左上角裁切。
+# 必须声明 DPI 感知：否则高缩放屏（如 2880x1800@200%）上 CopyFromScreen
+# 只会抓到左上角的 1:1 物理裁切，右/下内容全部缺失。
 $shell = New-Object -ComObject Shell.Application
 $shell.MinimizeAll()
 Start-Sleep -Seconds 6

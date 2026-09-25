@@ -10,3 +10,9 @@ __pycache__/
 
 # 浏览器自动化临时产物
 .video_agent/
+
+.venv/
+
+# 字体二进制一律留本地不入库（Decima Mono 为商业字体）
+deck/fonts/
+wallpaper/fonts/

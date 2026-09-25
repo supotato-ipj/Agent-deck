@@ -1,33 +1,48 @@
 # desktop-deck（AGENT DECK）
 
-本地常驻的 AI 工作台数据服务与桌面作战面板：壁纸层实时显示多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态（HUD 观感、随 Wallpaper Engine 常驻桌面），桌面图标按分区编排，使常用应用与文档各归其位。核心（数据服务/分区编排）不依赖 WE，仅界面用 WE 做渲染器。
+本地常驻的 AI 工作台数据服务与桌面作战面板：壁纸层实时显示多个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态，桌面图标按分区编排。核心（数据服务/分区编排/搜索面板）不依赖 Wallpaper Engine，仅壁纸界面用 WE 做渲染器。
+
+仓库内有两套可对比的壁纸界面：
+
+- **`deck/`（经典版，右栏式）**：右栏固定侧边栏（搜索入口位 + 会话混排 + 硬件行），左侧整片留给桌面图标，紧凑克制。
+- **`wallpaper/`（全屏 HUD 版）**：整屏信息面板（会话列表 + 聚焦详情 + 任务清单 + 消息预览流 + 曲线仪表），字号随分辨率等比缩放，信息密度高。
 
 ## 目录
 
-- `server.py` — 本地数据服务（127.0.0.1:5000）：`/performance`（硬件指标 + qoder 摘要）、`/deck`（多工具会话 + 历史曲线）
+- `server.py` — 本地数据服务（127.0.0.1:5000，`QD_PORT` 可换端口并行第二实例）：`/performance`（硬件指标 + qoder 摘要）、`/deck`（多工具会话 + 历史曲线 + 搜索面板矩形）
 - `agent_sessions.py` — 五工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work
-- `wallpaper/` — AGENT DECK 壁纸源码（web 类型，WE 以 junction 指向此处加载，改动即时生效）
+- `deck/` — 经典版壁纸源码；`scripts/deploy_deck.py` — 部署到 WE myprojects（字体不入库，缺失时自动从工坊取回）
+- `wallpaper/` — 全屏 HUD 版壁纸源码（web 类型，WE 以 junction 指向此处加载，改动即时生效）
+- `search_panel.py` / `listary_engine.py` — Listary 搜索面板（常驻无边框窗口：待机伪装成壁纸右栏、点击激活检索、引擎离线降级；ADR-0003）
 - `scripts/server_watchdog.pyw` — 看门狗：端口空闲即拉起服务，服务崩溃后 15 秒内自动复活（启动文件夹快捷方式 `desktop-deck-server-watchdog.lnk`）
-- `scripts/create_startup_shortcut.ps1` — 重建上述快捷方式（路径动态解析，换目录/换 Python 后重跑即可）
-- `scripts/capture_desktop.ps1` / `capture_wallpaper.ps1` — 桌面截图（后者先最小化所有窗口）
+- `scripts/create_startup_shortcut.ps1` — 重建上述快捷方式（优先仓库 .venv 的 pythonw，回退系统 Python）
+- `scripts/capture_desktop.ps1` / `capture_wallpaper.ps1` — 桌面截图（已声明 DPI 感知，高分屏完整截取；后者先最小化所有窗口）
+- `requirements.txt` — 唯一第三方依赖 psutil
 - `.scratch/<feature>/` — 各功能的 spec 与票据
 - `CONTEXT.md` — 领域词汇表
 
-## 壁纸部署（WE 加载本仓库的 wallpaper/）
+## 壁纸部署（两套都在 WE 的 myprojects）
 
-以 junction 把 WE 的自有项目目录指到仓库（管理员权限不需要；换机器重跑一次即可）：
-
-```
-cmd /c mklink /J "<WE目录>\projects\myprojects\desktop-deck" "D:\GIThub\desktop-deck\wallpaper"
-```
-
-加载 / 切换：
+**经典版 `deck/`**（部署脚本下发，字体本地自取）：
 
 ```
-"<WE目录>\wallpaper64.exe" -control openWallpaper -file "<WE目录>\projects\myprojects\desktop-deck\project.json"
+python scripts/deploy_deck.py
 ```
 
-壁纸属性里两个开关：`perspective`（HUD 座舱环抱/仪表俯倾，默认开）、`fontsize`（整体字号 0.8–1.8，默认 1.3）。
+**全屏 HUD 版 `wallpaper/`**（junction 直指仓库，改源码即时生效；管理员权限不需要）：
+
+```
+cmd /c mklink /J "<WE目录>\projects\myprojects\desktop-deck" "<仓库>\wallpaper"
+```
+
+**加载 / 切换**（`<WE目录>` 按机器实际 Steam 库路径，如 `D:\Games\steamapps\common\wallpaper_engine`）：
+
+```
+"<WE目录>\wallpaper64.exe" -control openWallpaper -file "<WE目录>\projects\myprojects\qoder-deck\project.json"     # 经典版
+"<WE目录>\wallpaper64.exe" -control openWallpaper -file "<WE目录>\projects\myprojects\desktop-deck\project.json"   # 全屏 HUD 版
+```
+
+壁纸属性：经典版 `perspective`（HUD 透视）；全屏版 `perspective` + `fontsize`（整体字号 0.8–1.8，默认 1.3）。
 
 ## 手动启动数据服务（无看门狗时）
 
@@ -49,17 +64,17 @@ python server.py
 
 任一工具数据源缺失/损坏时静默跳过（仅服务端 stdout 日志），其余工具照常；SQLite 一律只读 URI 打开。
 
+## 搜索面板（Listary）
+
+数据服务自有的常驻无边框窗口（ADR-0003）：待机时伪装成壁纸右栏的静态视觉、不可输入，点击或聚焦转入活动态，经 Listary 本地 HTTP API 检索并自绘结果列表，ESC 或失焦退回；引擎不可达时呈现 ENGINE OFFLINE。窗口崩溃被线程兜住，不影响 /deck 轮询。
+
 ## 桌面分区管理
 
 数据服务内的看门狗线程监控两个桌面目录，新增/删除文件时增量编排图标：
 应用区（6×2 栏位，手钉优先、推荐按使用频次填空位）、文档区（按类型分列、新在上）、
 回收站固定左下。只移动图标坐标，**从不移动/重命名/删除磁盘文件**。
 
-手钉清单（显示名有序数组，改完下次编排生效）：
-
-```
-pinned.json（仓库根目录）
-```
+手钉清单（显示名有序数组，改完下次编排生效）：仓库根目录 `pinned.json`。
 
 常用命令（均在仓库根目录跑）：
 
@@ -79,9 +94,8 @@ python scripts/accept_zones.py         # 实机验收电池（观感与重启两
 
 ### 不工作时的排查顺序
 
-0. 桌面壁纸纯黑无 HUD → 多为 WE 加载 web 壁纸的偶发竞态（本页代码无 WE 专属 API）：
-   先重下发一次加载命令（见上节 openWallpaper），仍黑则 `taskkill /F /IM wallpaper64.exe /T`
-   后重新执行 openWallpaper；连续出现时重启 WE（Steam 里验证一次完整性更稳）。
+0. 桌面壁纸纯黑无 HUD → 多为 WE 加载 web 壁纸的偶发竞态（页面代码无 WE 专属 API）：
+   重下发一次 openWallpaper 命令，仍黑则 `taskkill /F /IM wallpaper64.exe /T` 后重新执行。
 1. `python -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:5000/deck').status)"`
    不通 → 服务没跑：看门狗随登录自启，注销重登或手动 `python server.py`；
    也可重跑 `powershell -File scripts/create_startup_shortcut.ps1` 重建快捷方式后重启。
@@ -97,5 +111,5 @@ python scripts/accept_zones.py         # 实机验收电池（观感与重启两
 - 依赖 explorer 未文档化的桌面图标控件结构；Windows 更新可能使其失效，
   失效时用 `restore factory` 回退并停用编排。
 - explorer 的视图刷新与位置应用有秒级且波动的延迟，所有读回断言都轮询等待。
-- 系统缩放非 100% 时界面分区标签会与图标晶格错位（装饰性，不影响功能）。
+- 系统缩放非 100% 时壁纸分区标签会与图标晶格错位（装饰性，不影响功能）。
 - 同轮"一增一删"视为疑似重命名，应用区该轮不动，留给下次全量编排。
