@@ -263,8 +263,18 @@ function renderGauges(gauges, offline) {
     label.textContent = def.label;
     const val = document.createElement("span");
     val.className = "bar";
-    val.textContent = def.fmt(v) + (def.bar && v != null ? " " + bar(def.bar(gauges)) : "");
+    val.textContent = def.fmt(v);
     span.append(label, val);
+    if (def.bar && v != null) {
+      const pct = Math.max(0, Math.min(100, def.bar(gauges)));
+      const bar = document.createElement("span");
+      bar.className = "gauge-bar";
+      const fill = document.createElement("span");
+      fill.className = "gauge-fill";
+      fill.style.width = pct + "%";
+      bar.appendChild(fill);
+      span.appendChild(bar);
+    }
     els.gaugesRow.appendChild(span);
   }
 }

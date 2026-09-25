@@ -294,4 +294,18 @@ body.hud-off .hud-bottom { transform: none; }
 .gauge .unit { font-size: 0.6rem; opacity: var(--opacity-low); }
 .gauge.na .bar { opacity: var(--opacity-low); }
 
+/* CSS 细线条仪表条：替代 [#-----] ASCII 字符条（大字号下像乱码） */
+.gauge-bar {
+  display: inline-block;
+  width: 7rem;
+  height: 0.28rem;
+  background: rgb(225 225 225 / 15%);
+  align-self: center;
+}
+.gauge-fill {
+  display: block;
+  height: 100%;
+  background: rgb(225 225 225 / 80%);
+}
+
 #curves { width: 100%; height: 6rem; display: block; }
