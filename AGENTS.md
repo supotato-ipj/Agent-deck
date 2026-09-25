@@ -5,11 +5,8 @@
 ## Worktree 布局（平行开发）
 
 - **主检出**：`D:\local_works\agent-deck`，常驻 `master`；数据服务、看门狗与自启链路以主检出为准，master 随时保持可推送。
-- **feature 开发用 worktree**：`git worktree add "D:/local_works/agent-deck-wt/<slug>" -b feat/<slug>`，分支名统一 `feat/<slug>`。
-- 每个 worktree 首次使用自建虚拟环境：`uv venv --python 3.12 && uv pip install -r requirements.txt`。
-- 并行跑数据服务用 `QD_PORT` 区分端口（如 5001/5002），5000 留给主检出的看门狗实例。
-- 票据（`.scratch/`）随分支走：worktree 只看得到自己分支的票据版本，合并进 master 后才汇合。
-- 开发完 merge 回 master 推送，再 `git worktree remove <路径>` 清理。
+- **feature worktree**：`D:\local_works\agent-deck-wt\<slug>`（分支 `feat/<slug>`）；并行跑数据服务用 `QD_PORT` 分端口，5000 留给主检出。
+- 开工/收尾的完整流程（建树、环境自举、测试自检、合并清理）见 `agent-deck-worktree` skill。
 
 ## Agent skills
 
