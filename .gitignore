@@ -8,3 +8,6 @@ backup/original/.history/
 .scratch/*.png
 .scratch/*.js
 .venv/
+
+# 字体二进制一律留本地不入库（Decima Mono 为商业字体）
+deck/fonts/

@@ -15,16 +15,17 @@ Wallpaper Engine 桌面状态屏改造工作目录：TERMINAL 02 定制（Qoder 
 
 ## 壁纸切换命令
 
-AGENT DECK（自建，myprojects）：
+AGENT DECK（自建，myprojects；源码在本仓库 `deck/`，改动后用部署脚本下发，字体不入库、缺失时脚本自动从工坊取回）：
 
 ```
-"D:\Steam\steamapps\common\wallpaper_engine\wallpaper64.exe" -control openWallpaper -file "D:\Steam\steamapps\common\wallpaper_engine\projects\myprojects\qoder-deck\project.json"
+python scripts/deploy_deck.py
+"D:\SteamLibrary\steamapps\common\wallpaper_engine\wallpaper64.exe" -control openWallpaper -file "D:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\qoder-deck\project.json"
 ```
 
 TERMINAL 02（创意工坊定制版）：
 
 ```
-"D:\Steam\steamapps\common\wallpaper_engine\wallpaper64.exe" -control openWallpaper -file "D:\Steam\steamapps\workshop\content\431960\3639973107\project.json"
+"D:\SteamLibrary\steamapps\common\wallpaper_engine\wallpaper64.exe" -control openWallpaper -file "D:\SteamLibrary\steamapps\workshop\content\431960\3639973107\project.json"
 ```
 
 ## 手动启动数据服务（无看门狗时）
