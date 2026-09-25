@@ -25,6 +25,20 @@ let focusedKey = null;
 const streams = new Map();   // key -> [{role, text}, ...] 客户端累积，上限 STREAM_CAP
 let lastDeck = null;
 
+/* ---- 字号缩放：全部尺寸用 rem，root font-size 一动全页等比放大 ---- */
+
+const FONT_SCALE_DEFAULT = 1.3;
+const FONT_SCALE_MIN = 0.8;
+const FONT_SCALE_MAX = 1.8;
+
+function applyFontScale(value) {
+  const v = Number(value);
+  const scale = isNaN(v) ? FONT_SCALE_DEFAULT : Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, v));
+  document.documentElement.style.fontSize = scale * 100 + "%";
+}
+
+applyFontScale(FONT_SCALE_DEFAULT);
+
 /* ---- 小工具 ---- */
 
 const pad3 = (n) => String(n).padStart(3, "0");
@@ -316,6 +330,9 @@ window.wallpaperPropertyListener = {
     if (properties.perspective) {
       hudOn = !!properties.perspective.value;
       document.body.classList.toggle("hud-off", !hudOn);
+    }
+    if (properties.fontsize) {
+      applyFontScale(properties.fontsize.value);
     }
   },
 };
