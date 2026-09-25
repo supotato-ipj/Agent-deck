@@ -9,6 +9,7 @@ keep-alive，因此每次请求新建连接、用完即关。契约见
 import http.client
 import json
 import os
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import PureWindowsPath
 
@@ -21,6 +22,15 @@ BASE_HOST = "127.0.0.1"
 BASE_PORT = 38431
 SEARCH_PATH = "/api/v1/search"
 HTTP_TIMEOUT_S = 3.0
+
+# Everything 1.5a + http_server 插件（voidtools/http_server）：GET JSON 搜索。
+# 端口默认 80，QD_EVERYTHING_PORT 可改；引擎选择 QD_SEARCH_ENGINE 显式指定，
+# 未指定时自动探测（Everything 可达优先，否则 Listary）——两台机器零配置各用各的。
+EVERYTHING_PORT_ENV = "QD_EVERYTHING_PORT"
+EVERYTHING_DEFAULT_PORT = 80
+EVERYTHING_TIMEOUT_S = 2.0
+
+_engine_choice = None
 
 ERR_RATE_LIMITED = "TOO_MANY_REQUESTS"
 ERR_UNAVAILABLE = "SEARCH_UNAVAILABLE"
@@ -196,11 +206,18 @@ class SelectionModel:
 # ---------- I/O：Listary 本地 HTTP API（工作线程调用） ----------
 
 def http_search(query, limit=DEFAULT_LIMIT, offset=0):
-    """每次调用新建连接（API 无 keep-alive），返回 ok 载荷 dict。
+    """引擎接缝：按选择分发到 Listary 或 Everything，返回统一 ok 载荷。
 
     连接失败/超时抛 OSError；服务端错误载荷原样返回（由 classify_failure
     分类）。验收可用 QD_LISTARY_PORT 指向假端口复现引擎离线。
     """
+    if _choose_engine() == "everything":
+        return everything_http_search(query, limit, offset)
+    return listary_http_search(query, limit, offset)
+
+
+def listary_http_search(query, limit=DEFAULT_LIMIT, offset=0):
+    """每次调用新建连接（API 无 keep-alive），返回 ok 载荷 dict。"""
     port = int(os.environ.get("QD_LISTARY_PORT", str(BASE_PORT)))
     body = json.dumps(build_request(query, limit, offset))
     conn = http.client.HTTPConnection(BASE_HOST, port, timeout=HTTP_TIMEOUT_S)
@@ -215,3 +232,70 @@ def http_search(query, limit=DEFAULT_LIMIT, offset=0):
     if not isinstance(payload, dict):
         raise ValueError(f"unexpected payload type: {type(payload)!r}")
     return payload
+
+
+# ---------- 引擎选择：显式 env > 自动探测（Everything 可达优先） ----------
+
+def _everything_reachable():
+    port = int(os.environ.get(EVERYTHING_PORT_ENV, str(EVERYTHING_DEFAULT_PORT)))
+    try:
+        conn = http.client.HTTPConnection(BASE_HOST, port, timeout=EVERYTHING_TIMEOUT_S)
+        try:
+            conn.request("GET", "/?json=1&count=1&search=test")
+            resp = conn.getresponse()
+            resp.read()
+            return resp.status == 200
+        finally:
+            conn.close()
+    except OSError:
+        return False
+
+
+def _choose_engine():
+    global _engine_choice
+    env = os.environ.get("QD_SEARCH_ENGINE")
+    if env:
+        return env
+    if _engine_choice is None:
+        _engine_choice = "everything" if _everything_reachable() else "listary"
+    return _engine_choice
+
+
+# ---------- Everything：GET JSON → 统一 ok 载荷 ----------
+
+def everything_http_search(query, limit=DEFAULT_LIMIT, offset=0):
+    port = int(os.environ.get(EVERYTHING_PORT_ENV, str(EVERYTHING_DEFAULT_PORT)))
+    params = urllib.parse.urlencode({
+        "search": query, "json": 1, "count": limit, "offset": offset,
+        "path_column": 1, "size_column": 1,
+    })
+    conn = http.client.HTTPConnection(BASE_HOST, port, timeout=EVERYTHING_TIMEOUT_S)
+    try:
+        conn.request("GET", f"/?{params}")
+        resp = conn.getresponse()
+        raw = resp.read()
+    finally:
+        conn.close()
+    return normalize_everything(json.loads(raw.decode("utf-8", errors="replace")))
+
+
+def normalize_everything(payload):
+    """Everything JSON → Listary 形 ok 载荷（parse_response 无改动可用）。"""
+    if not isinstance(payload, dict):
+        raise ValueError(f"unexpected payload type: {type(payload)!r}")
+    results = []
+    for row in payload.get("results") or []:
+        if not isinstance(row, dict):
+            continue
+        path = str(row.get("path", ""))
+        name = str(row.get("name", ""))
+        full = f"{path}\\{name}" if path and name else path or name
+        rtype = str(row.get("type", "file"))
+        results.append({
+            "path": full,
+            "name": name,
+            "type": "folder" if rtype == "folder" else "file",
+            "size_bytes": int(str(row.get("size") or 0) or 0),
+        })
+    return {"ok": True, "data": {"total": int(payload.get("totalResults") or 0),
+                                 "results": results}}
