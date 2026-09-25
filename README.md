@@ -1,10 +1,11 @@
 # wallpaperengine-research
 
-Wallpaper Engine 桌面状态屏改造工作目录：TERMINAL 02 定制（Qoder 状态块 + HUD 静态透视）与自建壁纸 QODER DECK。
+Wallpaper Engine 桌面状态屏改造工作目录：TERMINAL 02 定制（Qoder 状态块 + HUD 静态透视）与自建壁纸 AGENT DECK（原 QODER DECK）。
 
 ## 目录
 
-- `server.py` — 本地数据服务（127.0.0.1:5000）：`/performance`（TERMINAL 02 用）、`/deck`（QODER DECK 用）
+- `server.py` — 本地数据服务（127.0.0.1:5000）：`/performance`（TERMINAL 02 用）、`/deck`（AGENT DECK 用）
+- `agent_sessions.py` — 五工具会话采集（唯一接缝 `collect_sessions`）：qoder / hermes / zcode / kimi code / kimi work
 - `scripts/server_watchdog.pyw` — 看门狗：WE 运行且端口空闲时自动拉起服务（启动文件夹快捷方式 `qoder-deck-server-watchdog.lnk`）
 - `scripts/create_startup_shortcut.ps1` — 重建上述快捷方式
 - `scripts/apply_patch.py` / `restore_original.py` — TERMINAL 02 补丁重放 / 恢复原始（patched/ 与 backup/original/）
@@ -31,6 +32,20 @@ TERMINAL 02（创意工坊定制版）：
 ```
 python D:\test-folder\wallpaperengine-research\server.py
 ```
+
+## 多工具会话展示（AGENT DECK 右栏）
+
+会话列表混排五个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW）。数据源全部只读：
+
+| 工具 | 数据源 | 备注 |
+|---|---|---|
+| qoder | `~/.qoder-cn/projects/**/*.jsonl` + `tasks/` | 四态含 CONFIRM |
+| hermes | `%LOCALAPPDATA%\hermes\state.db` + `runtime\active_sessions.json` | 租约交叉判 RUN |
+| zcode | `~/.zcode/cli/db/db.sqlite`（session+todo） | subagent 会话不入列 |
+| kimi code | `~/.kimi-code/sessions/**/state.json` + `wire.jsonl` mtime | 旧会话落 DONE |
+| kimi work | `%APPDATA%\kimi-desktop\kimi-agent\conversation-statuses.json` + `conversation-context-usage.json` | **降级：无标题/项目**（正文锁在上游私有存储），行内只有标签+状态 |
+
+任一工具数据源缺失/损坏时静默跳过（仅服务端 stdout 日志），其余工具照常；SQLite 一律只读 URI 打开。
 
 ## 桌面分区管理
 

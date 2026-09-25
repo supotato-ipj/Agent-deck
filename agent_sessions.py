@@ -214,7 +214,7 @@ def _scan_zcode(root, now):
     counts = {sid: (done, total) for sid, done, total in todo_rows}
     sessions = []
     for sid, directory, upd, archived in rows:
-        if archived or upd is None:
+        if archived or upd is None or sid.startswith("sess_subagent_"):
             continue
         age = now - upd / 1000.0
         if age > ACTIVE_WINDOW:

@@ -99,6 +99,12 @@ class ZcodeScannerTest(unittest.TestCase):
         self.fx.add("sess_1", 601_000)
         self.assertEqual(self.fx.collect(), [])
 
+    def test_subagent_sessions_excluded(self):
+        self.fx.add("sess_subagent_agent_1", 30_000)
+        self.fx.add("sess_main", 40_000)
+        sessions = self.fx.collect()
+        self.assertEqual([s["id"] for s in sessions], ["sess_main"])
+
     def test_missing_db_skips_tool(self):
         empty = Path(self._tmp.name) / "nope"
         empty.mkdir()
