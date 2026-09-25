@@ -12,6 +12,10 @@
 
 - 删除远端分支（`git push origin --delete <branch>` 等）前，必须先取得用户明确确认；未经确认，严禁删除 gh 仓库里非用户本人检出的分支。本地 `git branch -d` 不受限。
 
+## 项目探查
+
+- 探查项目架构或定位代码时，先用 codebase-memory-mcp（cbm）查代码图谱、用 `openwiki/` 证据索引建立全貌，再按需精读相关源码深入细节。
+
 ## Agent skills
 
 ### Issue tracker
