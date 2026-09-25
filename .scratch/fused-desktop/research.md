@@ -163,6 +163,20 @@ DeepSeek 开源 agent harness（`dsh` CLI / `npx @deepseek-ai/dsh web` 起 3080 
 
 ## 11. 本文档的证据清单
 
+（证据清单见下）
+
+## 12. 备选路线：脱离 WE 自托管壁纸层（WorkerW 过继，2026-09-25 补记）
+
+**现状**：WE 仅作渲染器（贴桌面图标层后常驻）；核心链（服务/编排/采集/搜索面板）已完全独立。
+**自做难度评估**：核心是 WorkerW 过继（向 Progman 发 0x052C 生成宿主，SetParent 进驻壁纸与图标层
+之间），约 50-80 行 ctypes——Rainmeter/Lively 验证过的成熟套路。真难点在渲染器选择：Tk 丢 web
+栈不划算；**正路是 pywebview（WebView2）**，wallpaper/ 的 web 源码原样复用。工程量：原型 1 天、
+日用级 2-3 天（Explorer 重启自愈、DPI 已有方案、点击交互 v1 可不做——经典版纯展示+交互走搜索
+面板；多显示器暂缓）。
+**触发条件**（满足其一再启动票据）：WE 兼容性修不动 / 想去 Steam 依赖 / 需要 WE 给不了的
+HUD 直接点击交互。届时按 P5 级别开票：pywebview 窗口过继 WorkerW + 重挂监视线程，web 源码零
+改动。
+
 - zcode db schema：实机 `PRAGMA table_info`（model_usage/turn_usage/session_target 全列）
 - codex jsonl：`~/.codex/sessions/2026/09/06/rollout-*.jsonl` 实样含 `total_token_usage`
 - kimi-code wire.jsonl：实样含 `token_counting.turn_recorded`/`tokens`
