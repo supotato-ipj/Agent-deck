@@ -200,6 +200,10 @@ def _scan_hermes(root, now):
     return sessions
 
 
+# zcode 的子代理会话噪音过大，验收时（票 07）决定不入列
+ZCODE_SUBAGENT_PREFIX = "sess_subagent_"
+
+
 def _scan_zcode(root, now):
     con = _open_ro(root / "cli" / "db" / "db.sqlite")
     try:
@@ -214,7 +218,7 @@ def _scan_zcode(root, now):
     counts = {sid: (done, total) for sid, done, total in todo_rows}
     sessions = []
     for sid, directory, upd, archived in rows:
-        if archived or upd is None or sid.startswith("sess_subagent_"):
+        if archived or upd is None or sid.startswith(ZCODE_SUBAGENT_PREFIX):
             continue
         age = now - upd / 1000.0
         if age > ACTIVE_WINDOW:

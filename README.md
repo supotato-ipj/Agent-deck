@@ -15,7 +15,7 @@ Wallpaper Engine 桌面状态屏改造工作目录：TERMINAL 02 定制（Qoder 
 
 ## 壁纸切换命令
 
-QODER DECK（自建，myprojects）：
+AGENT DECK（自建，myprojects）：
 
 ```
 "D:\Steam\steamapps\common\wallpaper_engine\wallpaper64.exe" -control openWallpaper -file "D:\Steam\steamapps\common\wallpaper_engine\projects\myprojects\qoder-deck\project.json"
@@ -39,7 +39,7 @@ python D:\test-folder\wallpaperengine-research\server.py
 
 | 工具 | 数据源 | 备注 |
 |---|---|---|
-| qoder | `~/.qoder-cn/projects/**/*.jsonl` + `tasks/` | 四态含 CONFIRM |
+| qoder | `~/.qoder-cn/projects/*/*.jsonl` + `tasks/` | 四态含 CONFIRM |
 | hermes | `%LOCALAPPDATA%\hermes\state.db` + `runtime\active_sessions.json` | 租约交叉判 RUN |
 | zcode | `~/.zcode/cli/db/db.sqlite`（session+todo） | subagent 会话不入列 |
 | kimi code | `~/.kimi-code/sessions/**/state.json` + `wire.jsonl` mtime | 旧会话落 DONE |

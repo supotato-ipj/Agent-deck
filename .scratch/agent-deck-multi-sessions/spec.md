@@ -62,6 +62,8 @@ Status: ready-for-agent
 
 ## Further Notes
 
+- 2026-09-25 验收时补充决策（票 07）：zcode 的子代理会话（id 前缀 `sess_subagent_`）不入列——真实数据中 subagent 行占比过高构成列表噪音；实现为扫描器内前缀过滤（常量 ZCODE_SUBAGENT_PREFIX）。
+
 - 事实依据（2026-09-24/25 实测）：kimi work 状态 map 现存 7 条全为 completed；hermes end_reason 观察值 {NULL, cli_close, startup_orphan_reap, ws_orphan_reap}；zcode todo status ∈ {pending, in_progress, completed}；四工具数据源均在本机验证存在且可读。
 - 决策过程见本次 grilling 共识（Q1-Q12 全锁定）：1A 只改 DECK、2A kimi work 降级、3A 统一四态、4A 混排+标签、5A 任务进度 QD+ZC、6B/7A 改名 AGENT DECK、8A 仅文案层改名、9A 统一 10 分钟窗、10B 裸两字母标签、11A 静默跳过、12A 无上限。
 - 若实际使用中某工具因写入节奏稀疏频繁"闪现即消失"，再单独放宽其窗口（Q9 预留的演进路径）。
