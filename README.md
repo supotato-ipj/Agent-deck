@@ -30,7 +30,7 @@ TERMINAL 02（创意工坊定制版）：
 ## 手动启动数据服务（无看门狗时）
 
 ```
-python D:\test-folder\wallpaperengine-research\server.py
+python D:\local_works\agent-deck\server.py
 ```
 
 ## 多工具会话展示（AGENT DECK 右栏）
@@ -56,7 +56,7 @@ python D:\test-folder\wallpaperengine-research\server.py
 手钉清单（显示名有序数组，改完下次编排生效）：
 
 ```
-D:\test-folder\wallpaperengine-research\pinned.json
+D:\local_works\agent-deck\pinned.json
 ```
 
 常用命令（均在仓库根目录跑）：
