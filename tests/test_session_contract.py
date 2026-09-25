@@ -268,7 +268,7 @@ class ShapeTest(unittest.TestCase):
     KEYS = {
         "tool", "id", "project", "title", "running", "age",
         "tasks_done", "tasks_total", "current_task", "tasks",
-        "preview", "preview_role", "state",
+        "preview", "preview_role", "tokens", "state",
     }
 
     def test_qoder_session_has_full_shape(self):

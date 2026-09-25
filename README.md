@@ -52,7 +52,7 @@ python server.py
 
 ## 多工具会话展示（/deck 的 sessions）
 
-会话列表混排五个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW）。每项含 title（zcode/hermes/kimicode 有真实标题）、preview/preview_role（qoder 全支持、kimicode 宽容解析，无消息存储的工具为空）、tasks 任务清单（qoder/zcode）与 current_task（qoder）。数据源全部只读：
+会话列表混排六个工具的活跃会话（10 分钟活跃窗、90 秒内判 RUN、行首两字母标签 QD/HM/ZC/KC/KW/CX）。每项含 title（zcode/hermes/kimicode 有真实标题）、preview/preview_role（qoder 全支持、kimicode 宽容解析，无消息存储的工具为空）、tasks 任务清单（qoder/zcode）、current_task（qoder）与 tokens（codex 会话累计）。数据源全部只读：
 
 | 工具 | 数据源 | 备注 |
 |---|---|---|
@@ -61,6 +61,7 @@ python server.py
 | zcode | `~/.zcode/cli/db/db.sqlite`（session+todo） | subagent 会话不入列 |
 | kimi code | `~/.kimi-code/sessions/**/state.json` + `wire.jsonl` mtime | 旧会话落 DONE |
 | kimi work | `%APPDATA%\kimi-desktop\kimi-agent\conversation-statuses.json` + `conversation-context-usage.json` | **降级：无标题/项目**（正文锁在上游私有存储），行内只有标签+状态 |
+| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `thread_source=user` 才入列；含会话累计 token |
 
 任一工具数据源缺失/损坏时静默跳过（仅服务端 stdout 日志），其余工具照常；SQLite 一律只读 URI 打开。
 

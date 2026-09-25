@@ -1,10 +1,11 @@
-"""五工具会话采集（AGENT DECK 会话列表的数据来源）。
+"""六工具会话采集（AGENT DECK 会话列表的数据来源）。
 
 会话列表的唯一接缝 collect_sessions(roots, now)：roots 为 {工具名: 数据根路径}，now 为墙钟秒。
 /performance 的 Qoder 状态块不经此接缝，但复用 task_stats/project_name 两个助手。
 每工具一个严格只读的扫描器；任一工具扫描失败静默跳过、只记日志（ADR 0003）。
 """
 import json
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +57,15 @@ def _read_tail(path, nbytes=131072):
             size = fh.tell()
             fh.seek(max(0, size - nbytes))
             return fh.read().decode("utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def _read_head(path, nbytes=8192):
+    """读文件头部前 nbytes 字节（codex session_meta 在首行）；读不到返回空串。"""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(nbytes).decode("utf-8", errors="ignore")
     except OSError:
         return ""
 
@@ -249,6 +259,7 @@ def _session(
     tasks_list=None,
     preview=None,
     preview_role=None,
+    tokens=None,
 ):
     return {
         "tool": tool,
@@ -263,6 +274,7 @@ def _session(
         "tasks": tasks_list,
         "preview": preview,
         "preview_role": preview_role,
+        "tokens": tokens,
         "state": state,
     }
 
@@ -274,6 +286,117 @@ def _hermes_leases(root):
     except Exception:
         return set()
     return {e.get("session_id") for e in data.get("entries", []) if e.get("session_id")}
+
+
+# codex 会话记录里 thread_source 标注来源；guardian_review 等内部会话不入列
+CODEX_SOURCES = (None, "user")
+CODEX_TOOL_TYPES = ("function_call", "custom_tool_call")
+
+# session_meta 首行可能被 base_instructions 撑到远超读取窗口，
+# 故只按正则提取行首负载里的三个字段（均在 base_instructions 之前），
+# 不做整行 JSON 解析。
+_CODEX_SID_RE = re.compile(r'"session_id":\s*"([0-9a-f-]{36})"')
+_CODEX_CWD_RE = re.compile(r'"cwd":\s*"((?:[^"\\]|\\.)*)"')
+_CODEX_SOURCE_RE = re.compile(r'"thread_source":\s*"([a-z_]*)"')
+
+
+def _codex_meta(head):
+    """首行 session_meta 的 (session_id, cwd, thread_source)，解析失败退空。"""
+    first = head.split("\n", 1)[0]
+    sid_m = _CODEX_SID_RE.search(first)
+    cwd_m = _CODEX_CWD_RE.search(first)
+    src_m = _CODEX_SOURCE_RE.search(first)
+    cwd = None
+    if cwd_m:
+        try:
+            cwd = json.loads('"' + cwd_m.group(1) + '"')
+        except Exception:
+            cwd = None
+    return {
+        "session_id": sid_m.group(1) if sid_m else None,
+        "cwd": cwd,
+        "thread_source": src_m.group(1) if src_m else None,
+    }
+
+
+def _codex_last_role_kind(tail):
+    """codex 尾扫：response_item 里最近一条 message/function_call 定 (role, kind)。
+
+    message+user → 人工输入；message+assistant → 文本回复；
+    function_call/custom_tool_call → 最后动作是工具调用。developer 等其余跳过。
+    """
+    for line in reversed(tail.splitlines()):
+        if '"response_item"' not in line:
+            continue
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        payload = rec.get("payload") or {}
+        ptype = payload.get("type")
+        if ptype == "message":
+            role = payload.get("role")
+            if role == "user":
+                return "user", "user"
+            if role == "assistant":
+                return "assistant", "text"
+        elif ptype in CODEX_TOOL_TYPES:
+            return "assistant", "tool"
+    return None, None
+
+
+def _codex_tokens(tail):
+    """最后一个 token_count 事件的 total_token_usage（会话累计），无则 None。"""
+    for line in reversed(tail.splitlines()):
+        if '"total_token_usage"' not in line:
+            continue
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        info = (rec.get("payload") or {}).get("info") or {}
+        usage = info.get("total_token_usage")
+        if isinstance(usage, dict) and usage.get("total_tokens") is not None:
+            return {
+                "input": usage.get("input_tokens"),
+                "cached_input": usage.get("cached_input_tokens"),
+                "output": usage.get("output_tokens"),
+                "reasoning": usage.get("reasoning_output_tokens"),
+                "total": usage.get("total_tokens"),
+            }
+    return None
+
+
+def _scan_codex(root, now):
+    sessions = []
+    sessions_dir = root / "sessions"
+    if not sessions_dir.is_dir():
+        return sessions
+    for jf in sessions_dir.glob("*/*/*/rollout-*.jsonl"):
+        try:
+            mtime = jf.stat().st_mtime
+        except OSError:
+            continue
+        age = now - mtime
+        if age > ACTIVE_WINDOW:
+            continue
+        meta = _codex_meta(_read_head(jf))
+        if (meta or {}).get("thread_source") not in CODEX_SOURCES:
+            continue
+        sid = (meta or {}).get("session_id") or jf.stem[-36:]
+        tail = _read_tail(jf)
+        role, kind = _codex_last_role_kind(tail)
+        sessions.append(
+            _session(
+                "codex",
+                sid,
+                _dir_name((meta or {}).get("cwd")),
+                age,
+                _session_state(age, role, kind),
+                tokens=_codex_tokens(tail),
+            )
+        )
+    return sessions
 
 
 def _scan_hermes(root, now):
@@ -414,4 +537,5 @@ SCANNERS = {
     "zcode": _scan_zcode,
     "kimicode": _scan_kimicode,
     "kimiwork": _scan_kimiwork,
+    "codex": _scan_codex,
 }

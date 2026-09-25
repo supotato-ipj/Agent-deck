@@ -38,6 +38,7 @@ SESSION_ROOTS = {
     "zcode": Path.home() / ".zcode",
     "kimicode": Path.home() / ".kimi-code",
     "kimiwork": Path.home() / "AppData" / "Roaming" / "kimi-desktop" / "kimi-agent",
+    "codex": Path.home() / ".codex",
 }
 
 _gpu_cache = {"ts": 0.0, "data": {}}
