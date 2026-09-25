@@ -7,3 +7,6 @@ __pycache__/
 
 # ZCode 工作区数据，非项目产物
 .zcode/
+
+# 浏览器自动化临时产物
+.video_agent/
