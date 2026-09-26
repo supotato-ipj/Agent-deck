@@ -43,6 +43,8 @@ module.exports = async function probeC() {
   const overlap = { x: 900, y: 900 };  // phys：面板∩记事本
   const nOnly = { x: 1360, y: 760 };   // phys：仅记事本
   const wfp = pt => w32.windowFromPointRoot(pt);
+  const pinBottom = () => w32.SetWindowPos(hwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
+    w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
 
   // 激活记事本（真实用户操作：点击其独占区）→ 自然应在面板之上
   w32.clickPhys(nOnly.x, nOnly.y, 'left');
@@ -52,8 +54,7 @@ module.exports = async function probeC() {
     : rep.fail(`重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，非记事本`);
 
   // 底部钉扎
-  const ok = w32.SetWindowPos(hwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
-    w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+  const ok = pinBottom();
   await H.sleep(300);
   ok || rep.fail('SetWindowPos(HWND_BOTTOM) 返回失败');
   wfp(overlap) === nhwnd
@@ -75,8 +76,7 @@ module.exports = async function probeC() {
   if (overlapAfterClick === hwnd) {
     rep.note('结论：点击激活会把底部钉扎的面板顶起 —— 生产实现须在交互结束后重新钉扎（或用 WS_EX_NOACTIVATE）');
     // 重新钉扎验证可恢复
-    w32.SetWindowPos(hwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
-      w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+    pinBottom();
     await H.sleep(300);
     wfp(overlap) === nhwnd
       ? rep.pass('重新钉扎后面板回到普通窗之下（可恢复）')
@@ -95,8 +95,7 @@ module.exports = async function probeC() {
   const overlapSF = wfp(overlap);
   rep.note(`SetForegroundWindow(面板)后：前台匹配=${fgSF === hwnd}，重叠点=0x${overlapSF.toString(16)}(${w32.className(overlapSF)})`);
   if (overlapSF === hwnd) {
-    w32.SetWindowPos(hwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
-      w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+    pinBottom();
     await H.sleep(200);
   }
 
@@ -104,8 +103,7 @@ module.exports = async function probeC() {
   w32.SetWindowPos(nhwnd, w32.HWND_TOPMOST, 0, 0, 0, 0,
     w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE);
   await H.sleep(300);
-  w32.SetWindowPos(hwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
-    w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+  pinBottom();
   await H.sleep(300);
   wfp(overlap) === nhwnd
     ? rep.pass('置顶窗（TOPMOST）盖住底部钉扎的面板（z 序分带符合预期）')

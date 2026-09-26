@@ -65,21 +65,43 @@ module.exports = async function probeA() {
     ? rep.pass(`卡片区白色文字像素 ${wp.hit}/${wp.n}（文字实色清晰）`)
     : rep.fail(`卡片区白色文字像素不足 ${wp.hit}/${wp.n}`);
 
-  // 5) 关参照窗，实拍面板叠真壁纸（开局已清场，此时面板背后就是壁纸+桌面图标）
+  // 5) 降级路径实测（ADR-0004 备胎）：窗口级整体 alpha。
+  //    同背景（棋盘参照仍在）先后截 opacity=1 / setOpacity(0.45) / 直调
+  //    SetLayeredWindowAttributes(LWA_ALPHA, 115)，差分为零即该手段无视觉效果。
+  //    注意：GDI CopyFromScreen 抓不到部分 alpha 分层窗时差分也会为零，
+  //    故以「opaque 参照窗在同法截图中可见」锚定抓屏通路本身有效。
+  const alphaProbe = async (label, apply, revert) => {
+    apply();
+    await H.sleep(700);
+    const s = H.capture(rect, `a-alpha-${label}`);
+    const d = H.zoneDiff(shot, s, transparentZone);
+    const cardNow = H.whitePixels(s, card);
+    rep.log(`alpha[${label}] 透明区差分 mean=${d.mean.toFixed(2)} max=${d.max}；卡区白字 ${cardNow.hit}/${cardNow.n}`);
+    revert();
+    await H.sleep(400);
+    return d.mean;
+  };
+  const meanOpacity = await alphaProbe(
+    'setopacity-045',
+    () => panel.setOpacity(0.45),
+    () => panel.setOpacity(1));
+  const exAfter = (w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE) >>> 0).toString(16);
+  rep.note(`setOpacity 后 EXSTYLE=0x${exAfter}（WS_EX_LAYERED=${!!(parseInt(exAfter, 16) & w32.WS_EX_LAYERED)}）`);
+  const meanLwa = await alphaProbe(
+    'lwa-alpha-115',
+    () => w32.SetLayeredWindowAttributes(hwnd, 0, 115, w32.LWA_ALPHA),
+    () => w32.SetLayeredWindowAttributes(hwnd, 0, 255, w32.LWA_ALPHA));
+  if (meanOpacity > 1) rep.pass(`setOpacity(0.45) 在透明窗口上有视觉效果（差分 mean=${meanOpacity.toFixed(2)}），降级路径可用`);
+  else rep.fail('setOpacity(0.45) 与 opacity=1 截图无差——透明窗口上该降级手段无视觉效果（或抓屏盲区），02 勿依赖');
+  if (meanLwa > 1) rep.pass(`直调 SetLayeredWindowAttributes(LWA_ALPHA) 有视觉效果（差分 mean=${meanLwa.toFixed(2)}），可作为降级实现`);
+  else rep.note('SetLayeredWindowAttributes 直调亦无差分——降级需换实现（如非透明窗+CSS 半透明）');
+
+  // 6) 关参照窗，实拍面板叠真壁纸（开局已清场，此时面板背后就是壁纸+桌面图标）
   backdrop.destroy();
   await H.sleep(800);
   const onWall = H.capture(rect, 'a-on-wallpaper');
   const dWall = H.zoneDiff(bareWallpaper, onWall, transparentZone);
   rep.note(`透明区 vs 壁纸基线 mean=${dWall.mean.toFixed(2)} max=${dWall.max} >40占比=${dWall.over40Pct.toFixed(1)}%（仅记录）`);
-
-  // 6) 降级路径实测：窗口级整体 alpha（ADR-0004 已接受的 no-go 备胎）
-  panel.setOpacity(0.45);
-  await H.sleep(600);
-  const alphaShot = H.capture(rect, 'a-alpha-fallback-045');
-  const wpA = H.whitePixels(alphaShot, card);
-  rep.note(`窗口级 alpha=0.45：白字像素 ${wpA.hit}/${wpA.n} (${wpA.pct.toFixed(1)}%) vs 全透明合成 ${wp.pct.toFixed(1)}%（白字变虚的量化证据）`);
-  panel.setOpacity(1);
-  await H.sleep(200);
   panel.destroy();
 
   return rep.verdict(transparencyOk ? 'GO' : 'NO-GO');

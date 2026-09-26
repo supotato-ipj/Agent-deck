@@ -8,10 +8,6 @@ module.exports = async function diagZ() {
   const w32 = H.win32;
   const f = H.screenInfo().factor;
 
-  const GA_ROOT = 2, GA_ROOTOWNER = 3;
-  const GetAncestor = w32.user32?.GetAncestor;
-  void GetAncestor;
-
   const tops = w32.topLevelWindows();
   rep.note(`可见顶层窗口数: ${tops.length}（自顶向下）`);
   tops.slice(0, 12).forEach((h, i) => {

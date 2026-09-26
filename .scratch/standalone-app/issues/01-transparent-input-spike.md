@@ -22,11 +22,12 @@
 
 - 透明窗口（transparent+frameless）叠在不透明棋盘参照窗之上，透明区棋盘双色命中率 **100%**（70864 样本）；卡片区实色绘制、白色文字像素 1121/54000 实色清晰。证据：`a-transparent-on-checker.png`。
 - 关参照窗实拍面板叠真壁纸：桌面图标透过透明区清晰可见，文字实色。证据：`a-on-wallpaper.png`、`a-wallpaper-baseline.png`。
-- 降级路径（ADR-0004 备胎）实测：`setOpacity(0.45)` 后白字像素从 2.1% 跌到 0.4%，白字明显变虚（`a-alpha-fallback-045.png`）。GO 成立，降级路径仅作记录不需要。
+- 降级路径（ADR-0004 备胎）实测——**重要更正（评审发现）**：最初一轮的「白字 2.1%→0.4%」结论作废，那轮截图经 MD5 比对与裸壁纸基线逐字节相同（GDI CopyFromScreen 未把半透明窗截进去）。重做的严格版本：同背景（棋盘参照）下先后测 `setOpacity(0.45)` 与直调 `SetLayeredWindowAttributes(LWA_ALPHA, 115)`，两者 EXSTYLE 均已置上 WS_EX_LAYERED（0x280000），但截屏差分均为 **零**（`a-alpha-setopacity-045.png`、`a-alpha-lwa-alpha-115.png`）。两种解释无法用本探针区分：窗口级 alpha 在透明合成路径上无视觉效果，或 GDI 抓屏对部分 alpha 分层窗存在盲区。**结论：GO 成立不依赖降级；若未来真需降级，勿依赖窗口级 alpha，改用「非透明窗口 + 渲染层 CSS 半透明」并另行实测。**
 
-**② 鼠标穿透 + 热区恢复：11/11 PASS**（`b_clickthrough.log.txt`）
+**② 鼠标穿透 + 事件转发：12/12 PASS**（`b_clickthrough.log.txt`）
 
 - 穿透态 EXSTYLE 实测含 WS_EX_TRANSPARENT|WS_EX_LAYERED；真实 SendInput 点击穿过面板落到下层窗口（哨兵收 click 并获前台）、落到系统桌面（前台翻转为 Progman）、右键同样穿透。
+- **事件转发（forward:true）单列断言**：穿透态下光标扫过面板，渲染层持续收到 mousemove——热区悬停检测的两条通路（主进程 GetCursorPos 轮询、渲染层转发事件）都实证可用。
 - 热区机制按 spec 设计验证：渲染层声明热区矩形、主进程 GetCursorPos 25ms 轮询命中切换 `setIgnoreMouseEvents(true,{forward:true})/false`——进入热区 WS_EX_TRANSPARENT 移除、点击由面板接收（client 坐标精确）、面板可获前台；离开热区穿透恢复、后续点击不再被拦。
 - 证据：`b-pass-through.png`、`b-hotzone-click.png`。
 
@@ -44,7 +45,7 @@
 
 **02 实施要点（据此定案）**
 
-1. 透明路径定案：`transparent:true + frame:false`，不走 alpha 降级。
+1. 透明路径定案：`transparent:true + frame:false`，不走 alpha 降级（降级路径本身已证不可靠，见①更正块；真需降级时用非透明窗+CSS 半透明另测）。
 2. 穿透：默认 `setIgnoreMouseEvents(true,{forward:true})`；主进程持有渲染层声明的热区矩形，GetCursorPos 轮询（25ms 量级）命中切换；切换即改 EXSTYLE，事件通路已验证。
 3. 钉扎：koffi FFI 直调 SetWindowPos(HWND_BOTTOM)，flag 用 `SWP_NOMOVE|NOSIZE|NOACTIVATE|NOOWNERZORDER`；触发时机=启动后+每次热区交互结束+Win+D 恢复后。
 4. 聚焦：`win.focus()`（或纯 SetForegroundWindow，它不顶起 z 序可省一次重钉）+ 渲染层 JS focus 输入框；两者都已在底部 z 验证。

@@ -34,6 +34,7 @@ const GWL_EXSTYLE = -20;
 const WS_EX_TRANSPARENT = 0x00000020, WS_EX_LAYERED = 0x00080000,
   WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOPMOST = 0x00000008;
 const GCS_COMPSTR = 0x0008, GCS_RESULTSTR = 0x0800;
+const LWA_ALPHA = 0x00000002;
 
 const GetSystemMetrics = user32.func('int __stdcall GetSystemMetrics(int nIndex)');
 const GetCursorPos = user32.func('bool __stdcall GetCursorPos(_Out_ POINT *pt)');
@@ -46,6 +47,7 @@ const SetForegroundWindow = user32.func('bool __stdcall SetForegroundWindow(uint
 const BringWindowToTop = user32.func('bool __stdcall BringWindowToTop(uintptr_t hWnd)');
 const GetWindowRect = user32.func('bool __stdcall GetWindowRect(uintptr_t hWnd, _Out_ RECT *r)');
 const SetWindowPos = user32.func('bool __stdcall SetWindowPos(uintptr_t hWnd, uintptr_t hWndInsertAfter, int x, int y, int cx, int cy, uint32 uFlags)');
+const SetLayeredWindowAttributes = user32.func('bool __stdcall SetLayeredWindowAttributes(uintptr_t hWnd, uint32 crKey, uint8 bAlpha, uint32 dwFlags)');
 const GetWindowLongW = user32.func('long __stdcall GetWindowLongW(uintptr_t hWnd, int nIndex)');
 const SetWindowLongW = user32.func('long __stdcall SetWindowLongW(uintptr_t hWnd, int nIndex, long dwNewLong)');
 const GetClassNameW = user32.func('int __stdcall GetClassNameW(uintptr_t hWnd, uint16 *buf, int nMax)');
@@ -92,12 +94,6 @@ function className(hwnd) {
   let s = '';
   for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
   return s;
-}
-
-function pidOf(hwnd) {
-  const buf = Buffer.alloc(4);
-  GetWindowThreadProcessId(hwnd, buf);
-  return { pid: buf.readUInt32LE(0), tid: 0 };
 }
 
 function threadIdOf(hwnd) {
@@ -183,7 +179,7 @@ function clickPhys(x, y, button = 'left') {
   send([mouseInput(0, 0, up)]);
 }
 
-function tapKeys(vks, gapMs = 60) {
+function tapKeys(vks) {
   for (const vk of vks) {
     send([keyInput(vk, KEYDOWN)]);
     send([keyInput(vk, KEYUP)]);
@@ -243,11 +239,12 @@ module.exports = {
   SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
   HWND_BOTTOM, HWND_TOP, HWND_TOPMOST, HWND_NOTOPMOST, GWL_EXSTYLE,
   WS_EX_TRANSPARENT, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOPMOST,
-  GCS_COMPSTR, GCS_RESULTSTR, KEYDOWN, KEYUP, KEYUNICODE,
+  GCS_COMPSTR, GCS_RESULTSTR, KEYDOWN, KEYUP, KEYUNICODE, LWA_ALPHA,
   GetSystemMetrics, cursor, moveMousePhys, clickPhys, tapKeys, send, mouseInput, keyInput,
-  rectOf, className, pidOf, threadIdOf, topLevelWindows, findWindowByPid,
-  imeStatus, imeSetOpen, imeString, virtualScreen, WindowFromPoint, windowFromPointRoot,
+  rectOf, className, threadIdOf, topLevelWindows, findWindowByPid,
+  imeStatus, imeSetOpen, imeString, virtualScreen, windowFromPointRoot,
   GetForegroundWindow, SetForegroundWindow, BringWindowToTop, SetWindowPos,
+  SetLayeredWindowAttributes,
   GetWindowLongW, WindowFromPoint, IsWindow, PostMessageW, AttachThreadInput,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,

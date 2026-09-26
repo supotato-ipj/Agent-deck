@@ -143,6 +143,7 @@ async function clearDesktop(points = []) {
     return DESKTOP_CLASSES.includes(cls);
   };
   minimizedForRestore = [];
+  onCleanup(restoreDesktop); // 先注册还原，循环中途崩溃也能恢复用户窗口
   for (let attempt = 0; attempt < 3; attempt++) {
     for (const h of w32.topLevelWindows()) {
       if (CLEAR_DESKTOP_SKIP.has(w32.className(h))) continue;
@@ -154,7 +155,6 @@ async function clearDesktop(points = []) {
     await sleep(700);
     if (points.every(isDesktopAt)) break;
   }
-  onCleanup(restoreDesktop);
 }
 
 function restoreDesktop() {
@@ -202,5 +202,5 @@ async function launchOrdinaryApp(report, { x, y, w, h }) {
 module.exports = {
   sleep, screenInfo, createWindow, hwndOf, capture, zoneDiff, whitePixels,
   onCleanup, cleanupAll, waitForEvent, clearDesktop, launchOrdinaryApp,
-  ROOT, win32,
+  DESKTOP_CLASSES, ROOT, win32,
 };

@@ -1,20 +1,24 @@
-# probe01 b_clickthrough — 2026-09-26T15:07:04.242Z
-[15:07:04.243] NOTE  screen: phys 3120x2080 @ factor 2
-[15:07:05.886] NOTE  panel hwnd=0x16121a, sentinel hwnd=0x90b24
-[15:07:05.886] NOTE  热区声明: rel(40,40) 300x180
-[15:07:06.504] 穿透态 EXSTYLE=0x280020 WS_EX_TRANSPARENT=true WS_EX_LAYERED=true
-[15:07:06.505] PASS  穿透态窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED
-[15:07:06.983] PASS  穿透态点击落到面板下层的哨兵窗（面板未拦截）
-[15:07:06.983] PASS  点击穿透后哨兵窗获得前台
-[15:07:10.025] PASS  穿透态点击直达桌面（前台翻转为 Progman）
-[15:07:10.025] PASS  桌面直落点无任何面板/哨兵拦截事件
-[15:07:10.800] PASS  右键穿透：面板透明区放行，哨兵收到 contextmenu
-[15:07:11.037] NOTE  热区进入 → setIgnoreMouseEvents(false)
-[15:07:11.459] PASS  光标进入热区后 WS_EX_TRANSPARENT 已移除（面板恢复接收）
-[15:07:11.925] PASS  热区内点击由面板接收（mousedown@190,130 / click@190,130）
-[15:07:11.926] PASS  热区点击后面板获得前台（可激活）
-[15:07:14.393] NOTE  热区离开 → setIgnoreMouseEvents(true, forward)
-[15:07:14.855] PASS  离开热区后恢复 WS_EX_TRANSPARENT（穿透回归）
-[15:07:15.324] PASS  恢复穿透后热区外点击不再被面板接收
-[15:07:15.325] NOTE  收尾前台=0x10170(Progman)
-[15:07:15.325] ===== b_clickthrough VERDICT: PASS (pass=11 fail=0) =====
+# probe01 b_clickthrough — 2026-09-26T15:36:41.821Z
+[15:36:41.822] NOTE  screen: phys 3120x2080 @ factor 2
+[15:36:43.303] NOTE  panel hwnd=0x610e2, sentinel hwnd=0x190d8a
+[15:36:43.303] NOTE  热区声明: rel(40,40) 300x180
+[15:36:43.910] 穿透态 EXSTYLE=0x280020 WS_EX_TRANSPARENT=true WS_EX_LAYERED=true
+[15:36:43.911] PASS  穿透态窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED
+[15:36:43.942] NOTE  热区进入 → setIgnoreMouseEvents(false)
+[15:36:44.330] PASS  forward:true 事件转发通路：穿透态渲染层收到 mousemove（计数 0→1）
+[15:36:44.346] NOTE  热区离开 → setIgnoreMouseEvents(true, forward)
+[15:36:44.845] NOTE  forward 扫描后穿透态已恢复
+[15:36:45.311] PASS  穿透态点击落到面板下层的哨兵窗（面板未拦截）
+[15:36:45.312] PASS  点击穿透后哨兵窗获得前台
+[15:36:46.557] PASS  穿透态点击直达桌面（前台翻转为 Progman）
+[15:36:46.558] PASS  桌面直落点无任何面板/哨兵拦截事件
+[15:36:47.341] PASS  右键穿透：面板透明区放行，哨兵收到 contextmenu
+[15:36:47.575] NOTE  热区进入 → setIgnoreMouseEvents(false)
+[15:36:48.011] PASS  光标进入热区后 WS_EX_TRANSPARENT 已移除（面板恢复接收）
+[15:36:48.479] PASS  热区内点击由面板接收（mousedown@190,130 / click@190,130）
+[15:36:48.480] PASS  热区点击后面板获得前台（可激活）
+[15:36:50.914] NOTE  热区离开 → setIgnoreMouseEvents(true, forward)
+[15:36:51.377] PASS  离开热区后恢复 WS_EX_TRANSPARENT（穿透回归）
+[15:36:51.846] PASS  恢复穿透后热区外点击不再被面板接收
+[15:36:51.847] NOTE  收尾前台=0x10170(Progman)
+[15:36:51.847] ===== b_clickthrough VERDICT: PASS (pass=12 fail=0) =====

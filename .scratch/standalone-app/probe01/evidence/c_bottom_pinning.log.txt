@@ -1,18 +1,18 @@
-# probe01 c_bottom_pinning — 2026-09-26T15:15:48.029Z
-[15:15:48.030] NOTE  screen: phys 3120x2080 @ factor 2
-[15:15:49.349] NOTE  panel hwnd=0xb0f00 rect(phys)=148,480 1064x859
-[15:15:49.767] PASS  未钉扎时 WindowFromPoint(仅面板点)=面板（面板盖过壁纸/桌面层）
-[15:15:50.405] NOTE  普通应用窗: notepad hwnd=0xb0b4c @(500,700) 900x550
-[15:15:50.406] NOTE  class=Notepad
-[15:15:50.825] PASS  激活后记事本在面板之上（自然 z 序）
-[15:15:51.135] PASS  钉扎后记事本仍盖住面板（重叠点=记事本）
-[15:15:51.136] PASS  钉扎后面板仍在壁纸之上（仅面板点=面板）
-[15:15:51.137] NOTE  钉扎后 EXSTYLE=0x200100（TOPMOST 位=false）
-[15:15:52.676] NOTE  点击面板后：前台=0xb0f00(Chrome_WidgetWin_1)，重叠点命中=0xb0f00(Chrome_WidgetWin_1)
-[15:15:52.677] NOTE  结论：点击激活会把底部钉扎的面板顶起 —— 生产实现须在交互结束后重新钉扎（或用 WS_EX_NOACTIVATE）
-[15:15:52.991] PASS  重新钉扎后面板回到普通窗之下（可恢复）
-[15:15:53.301] NOTE  SetForegroundWindow(面板)后：前台匹配=true，重叠点=0xb0b4c(Notepad)
-[15:15:53.924] PASS  置顶窗（TOPMOST）盖住底部钉扎的面板（z 序分带符合预期）
-[15:15:53.925] NOTE  记事本确认处于 TOPMOST 带
-[15:15:55.294] NOTE  记事本已关闭
-[15:15:55.295] ===== c_bottom_pinning VERDICT: DONE (pass=6 fail=0) =====
+# probe01 c_bottom_pinning — 2026-09-26T15:37:08.011Z
+[15:37:08.012] NOTE  screen: phys 3120x2080 @ factor 2
+[15:37:09.367] NOTE  panel hwnd=0xf0f4c rect(phys)=148,480 1064x859
+[15:37:09.774] PASS  未钉扎时 WindowFromPoint(仅面板点)=面板（面板盖过壁纸/桌面层）
+[15:37:10.711] NOTE  普通应用窗: notepad hwnd=0x1a0d8a @(500,700) 900x550
+[15:37:10.712] NOTE  class=Notepad
+[15:37:11.133] PASS  激活后记事本在面板之上（自然 z 序）
+[15:37:11.444] PASS  钉扎后记事本仍盖住面板（重叠点=记事本）
+[15:37:11.444] PASS  钉扎后面板仍在壁纸之上（仅面板点=面板）
+[15:37:11.445] NOTE  钉扎后 EXSTYLE=0x200100（TOPMOST 位=false）
+[15:37:13.692] NOTE  点击面板后：前台=0xf0f4c(Chrome_WidgetWin_1)，重叠点命中=0xf0f4c(Chrome_WidgetWin_1)
+[15:37:13.693] NOTE  结论：点击激活会把底部钉扎的面板顶起 —— 生产实现须在交互结束后重新钉扎（或用 WS_EX_NOACTIVATE）
+[15:37:14.006] PASS  重新钉扎后面板回到普通窗之下（可恢复）
+[15:37:14.315] NOTE  SetForegroundWindow(面板)后：前台匹配=true，重叠点=0x1a0d8a(Notepad)
+[15:37:14.941] PASS  置顶窗（TOPMOST）盖住底部钉扎的面板（z 序分带符合预期）
+[15:37:14.941] NOTE  记事本确认处于 TOPMOST 带
+[15:37:16.288] NOTE  记事本已关闭
+[15:37:16.288] ===== c_bottom_pinning VERDICT: DONE (pass=6 fail=0) =====

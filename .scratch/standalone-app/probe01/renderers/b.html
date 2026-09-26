@@ -14,4 +14,9 @@
       ipcRenderer.send('b:dom', { type: ev, x: e.clientX, y: e.clientY, button: e.button });
     });
   }
+  // 穿透态 forward 转发验证用：只上报计数，避免刷爆事件数组
+  let moves = 0;
+  window.addEventListener('mousemove', () => {
+    if (++moves % 25 === 1) ipcRenderer.send('b:dom', { type: 'mousemove-forward', count: moves });
+  });
 </script>

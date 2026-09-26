@@ -7,15 +7,13 @@
 const { Report } = require('../lib/report');
 const H = require('../lib/harness');
 
-const DESKTOP_CLASSES = ['WorkerW', 'Progman', 'SHELLDLL_DefView', 'SysListView32'];
-
 module.exports = async function probeB() {
   const rep = new Report('b_clickthrough');
   const w32 = H.win32;
   const si = H.screenInfo();
   const f = si.factor;
   rep.note(`screen: phys ${si.phys.w}x${si.phys.h} @ factor ${si.factor}`);
-  H.clearDesktop([{ x: 560 * f, y: 300 * f }, { x: 260 * f, y: 560 * f }]); // 用户窗口全部最小化，保证探针点位之下就是桌面/壁纸
+  await H.clearDesktop([{ x: 560 * f, y: 300 * f }, { x: 260 * f, y: 560 * f }]); // 用户窗口全部最小化，保证探针点位之下就是桌面/壁纸
   await H.sleep(300);
 
   // 布局（DIP）：面板 (80,240,520,420)，热区 rel(40,40,300,180)；
@@ -77,6 +75,22 @@ module.exports = async function probeB() {
     ? rep.pass('穿透态窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED')
     : rep.fail('穿透态窗口样式缺少预期位');
 
+  // 0) forward 事件转发：穿透态下光标扫过面板，渲染层应持续收到 mousemove
+  const mv0 = panelEvents.filter(e => e.type === 'mousemove-forward').length;
+  for (let i = 0; i <= 10; i++) w32.moveMousePhys((200 + i * 20) * f, 350 * f);
+  await H.sleep(400);
+  const mv1 = panelEvents.filter(e => e.type === 'mousemove-forward').length;
+  mv1 > mv0
+    ? rep.pass(`forward:true 事件转发通路：穿透态渲染层收到 mousemove（计数 ${mv0}→${mv1}）`)
+    : rep.fail('穿透态渲染层未收到转发 mousemove（forward 通路未生效）');
+  // 扫描终点可能落在热区/面板上：停回面板外，等轮询把穿透恢复到位再继续
+  w32.moveMousePhys(40, si.phys.h - 40);
+  await H.sleep(500);
+  const exSettled = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+  (exSettled & w32.WS_EX_TRANSPARENT)
+    ? rep.note('forward 扫描后穿透态已恢复')
+    : rep.fail('forward 扫描后穿透态未恢复（热区轮询异常）');
+
   const panelHits = () => panelEvents.filter(e => ['mousedown', 'click', 'contextmenu'].includes(e.type)).length;
   const sentinelHits = () => sentinelEvents.filter(e => ['mousedown', 'click', 'contextmenu'].includes(e.type)).length;
 
@@ -100,7 +114,7 @@ module.exports = async function probeB() {
   await H.sleep(450);
   const fg2 = w32.GetForegroundWindow();
   const cls2 = w32.className(fg2);
-  DESKTOP_CLASSES.includes(cls2)
+  H.DESKTOP_CLASSES.includes(cls2)
     ? rep.pass(`穿透态点击直达桌面（前台翻转为 ${cls2}）`)
     : rep.fail(`点击未直达桌面：前台=0x${fg2.toString(16)}(${cls2})`);
   (panelHits() === p0 && sentinelHits() === s0)
