@@ -4,10 +4,50 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] 四项机制各有真机探针证据（脚本输出/截图）存证于本工单评论
-- [ ] 透明合成给出 go/no-go；no-go 时降级路径（窗口级 alpha）已实测并记录观感结论
-- [ ] 底部钉扎在普通应用窗口、置顶窗口场景下验证 z 序表现
-- [ ] 键盘聚焦探针验证中文输入法输入可达
-- [ ] 结论与实施建议回写本工单评论，02 的实现要点据此定案
+- [x] 四项机制各有真机探针证据（脚本输出/截图）存证于本工单评论
+- [x] 透明合成给出 go/no-go；no-go 时降级路径（窗口级 alpha）已实测并记录观感结论
+- [x] 底部钉扎在普通应用窗口、置顶窗口场景下验证 z 序表现
+- [x] 键盘聚焦探针验证中文输入法输入可达
+- [x] 结论与实施建议回写本工单评论，02 的实现要点据此定案
+
+## Comments
+
+**2026-09-26 探针跑绿（四机制全过，透明合成 GO）**
+
+探针工程：`.scratch/standalone-app/probe01/`（Electron 44.4.3 + koffi 2.9，koffi 为 NAPI 模块、无需 rebuild 直接在 Electron 主进程加载）。四探针各自独立进程可复跑：`cd .scratch/standalone-app/probe01 && node_modules/electron/dist/electron.exe . a|b|c|d`。探针开局逐窗最小化用户窗口（COM MinimizeAll 对 Edge 全屏窗不可靠，改为 ShowWindow 逐窗 + 点位校验重试），结束逐窗还原。
+
+**① 透明合成：GO**（`a_transparency.log.txt`）
+
+- 透明窗口（transparent+frameless）叠在不透明棋盘参照窗之上，透明区棋盘双色命中率 **100%**（70864 样本）；卡片区实色绘制、白色文字像素 1121/54000 实色清晰。证据：`a-transparent-on-checker.png`。
+- 关参照窗实拍面板叠真壁纸：桌面图标透过透明区清晰可见，文字实色。证据：`a-on-wallpaper.png`、`a-wallpaper-baseline.png`。
+- 降级路径（ADR-0004 备胎）实测：`setOpacity(0.45)` 后白字像素从 2.1% 跌到 0.4%，白字明显变虚（`a-alpha-fallback-045.png`）。GO 成立，降级路径仅作记录不需要。
+
+**② 鼠标穿透 + 热区恢复：11/11 PASS**（`b_clickthrough.log.txt`）
+
+- 穿透态 EXSTYLE 实测含 WS_EX_TRANSPARENT|WS_EX_LAYERED；真实 SendInput 点击穿过面板落到下层窗口（哨兵收 click 并获前台）、落到系统桌面（前台翻转为 Progman）、右键同样穿透。
+- 热区机制按 spec 设计验证：渲染层声明热区矩形、主进程 GetCursorPos 25ms 轮询命中切换 `setIgnoreMouseEvents(true,{forward:true})/false`——进入热区 WS_EX_TRANSPARENT 移除、点击由面板接收（client 坐标精确）、面板可获前台；离开热区穿透恢复、后续点击不再被拦。
+- 证据：`b-pass-through.png`、`b-hotzone-click.png`。
+
+**③ 底部钉扎：6/6 PASS**（`c_bottom_pinning.log.txt`）
+
+- koffi 直调 `SetWindowPos(HWND_BOTTOM, SWP_NOMOVE|NOSIZE|NOACTIVATE|NOOWNERZORDER)` 生效：记事本（Win11 打包版）盖住钉扎后的面板，面板仍在壁纸/桌面层之上（WindowFromPoint 三点探针：重叠点=记事本、仅面板点=面板）。置顶（TOPMOST）记事本同样盖住面板——z 序分带符合预期。证据：`c-pinned-bottom.png`、`c-topmost-over-panel.png`。
+- **关键行为差异（02 设计输入）**：鼠标点击钉扎面板会把它顶起到普通窗之上；纯 `SetForegroundWindow` 前台化**不**顶起 z 序。→ 生产须「每次热区交互结束后重钉」，或优先用程序化前台避免顶起。
+
+**④ 低 z 序键盘聚焦 + 中文输入法：6/6 PASS**（`d_focus_ime.log.txt`）
+
+- 底部钉扎 + 记事本在其上时，`win.focus()` 可强制前台；focus 会顺带顶起 z 序，**focus 后立即重钉**（SWP_NOACTIVATE）即达「前台=面板、z 序=底部」共存——前台与 z 序独立实证。
+- 输入框经渲染层 JS 聚焦，ASCII 键入 "deck01" 直达（注意：先经 ImmSetOpenStatus 关 IME，否则数字被候选选词吃掉——探针首轮 "DECK01"→"deck0" 的根因）。
+- 中文输入法（langid 0x804 微软拼音）：键入 nihao 触发 composition 事件、IME 候选窗悬于面板输入框上方、空格上屏汉字「你…」。盲发拼音的候选次序因输入法个性化而异（本次上屏「你哈尔」），机制（composition→候选→上屏）实证无损。证据：`d-ime-composition.png`（候选窗+合成串内联下划线现场）、`d-ime-committed.png`、`d-typed-ascii.png`。
+- 附测 WS_EX_NOACTIVATE（点击热区不夺前台不顶起）在 Electron 上未稳定生效，02 按「交互后重钉」设计，NOACTIVATE 不采用。
+
+**02 实施要点（据此定案）**
+
+1. 透明路径定案：`transparent:true + frame:false`，不走 alpha 降级。
+2. 穿透：默认 `setIgnoreMouseEvents(true,{forward:true})`；主进程持有渲染层声明的热区矩形，GetCursorPos 轮询（25ms 量级）命中切换；切换即改 EXSTYLE，事件通路已验证。
+3. 钉扎：koffi FFI 直调 SetWindowPos(HWND_BOTTOM)，flag 用 `SWP_NOMOVE|NOSIZE|NOACTIVATE|NOOWNERZORDER`；触发时机=启动后+每次热区交互结束+Win+D 恢复后。
+4. 聚焦：`win.focus()`（或纯 SetForegroundWindow，它不顶起 z 序可省一次重钉）+ 渲染层 JS focus 输入框；两者都已在底部 z 验证。
+5. 验收电池可直接复用本探针库：koffi 绑定（`lib/win32.js`）、WindowFromPoint 必须经 `GetAncestor(GA_ROOT)` 映射到顶层根窗口再断言（Chromium/记事本都有子窗，直比必假阴）、SendInput 用虚拟屏归一化坐标免 DPI 换算、Win11 记事本的窗口不属于启动进程（按「新出现的 Notepad 类窗口」匹配）、Electron frameless 窗 GetWindowRect 含约 12 物理像素隐形边框。
+
+**残留物**：无（探针自清理；清场的用户窗口已逐窗还原）。display 环境备注：3120×2080 @200%，所有探针坐标已按 scaleFactor 换算。
