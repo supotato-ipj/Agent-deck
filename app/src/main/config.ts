@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { WeatherLocation } from '../shared/contract'
+import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
 export interface PanelGeometry {
@@ -16,6 +16,7 @@ export type WeatherConfig = WeatherLocation
 export interface AppConfig {
   panel: PanelGeometry
   weather: WeatherConfig
+  desktop: DesktopLayout
 }
 
 export interface RectLike {
@@ -69,6 +70,11 @@ export function defaultWeather(): WeatherConfig {
   return { latitude: 39.9042, longitude: 116.4074 }
 }
 
+/** 默认桌面承载几何：renderer/index.html 工单05 的生产值固化（DIP） */
+export function defaultDesktopLayout(): DesktopLayout {
+  return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8, dockMaxWidth: 1240 }
+}
+
 function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[]): WeatherConfig {
   const out = { ...fallback }
   if (raw === undefined) return out
@@ -82,6 +88,47 @@ function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[])
     if (v === undefined) continue
     if (typeof v === 'number' && Number.isFinite(v)) out[key] = v
     else warnings.push(`config.weather.${key} 不是有限数字，已回退默认值 ${fallback[key]}`)
+  }
+  return out
+}
+
+function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[]): DesktopLayout {
+  const out = { docZone: { ...fallback.docZone }, docMaxRows: fallback.docMaxRows, dockMaxWidth: fallback.dockMaxWidth }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.desktop 不是对象，已整体回退默认桌面几何')
+    return out
+  }
+  const desktop = raw as Record<string, unknown>
+  const zone = desktop.docZone
+  if (zone !== undefined) {
+    if (typeof zone !== 'object' || zone === null) {
+      warnings.push('config.desktop.docZone 不是对象，已回退默认文档区几何')
+    } else {
+      const z = zone as Record<string, unknown>
+      for (const key of ['left', 'top'] as const) {
+        const v = z[key]
+        if (v === undefined) continue
+        if (isFiniteNumber(v)) out.docZone[key] = v
+        else warnings.push(`config.desktop.docZone.${key} 不是有限数字，已回退默认值 ${fallback.docZone[key]}`)
+      }
+      for (const key of ['maxWidth'] as const) {
+        const v = z[key]
+        if (v === undefined) continue
+        if (isFiniteNumber(v) && v > 0) out.docZone[key] = v
+        else warnings.push(`config.desktop.docZone.${key} 必须为正数，已回退默认值 ${fallback.docZone[key]}`)
+      }
+    }
+  }
+  const rows = desktop.docMaxRows
+  if (rows !== undefined) {
+    if (Number.isInteger(rows) && (rows as number) >= 1 && (rows as number) <= 32) out.docMaxRows = rows as number
+    else warnings.push(`config.desktop.docMaxRows 须为 1..32 整数，已回退默认值 ${fallback.docMaxRows}`)
+  }
+  const dockW = desktop.dockMaxWidth
+  if (dockW !== undefined) {
+    if (isFiniteNumber(dockW) && dockW > 0) out.dockMaxWidth = dockW
+    else warnings.push(`config.desktop.dockMaxWidth 必须为正数，已回退默认值 ${fallback.dockMaxWidth}`)
   }
   return out
 }
@@ -116,7 +163,11 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
   }
   const root = raw as Record<string, unknown>
   return {
-    config: { panel: mergePanel(root.panel, fallback.panel, warnings), weather: mergeWeather(root.weather, fallback.weather, warnings) },
+    config: {
+      panel: mergePanel(root.panel, fallback.panel, warnings),
+      weather: mergeWeather(root.weather, fallback.weather, warnings),
+      desktop: mergeDesktop(root.desktop, fallback.desktop, warnings),
+    },
     warnings,
     created: false,
   }

@@ -1,7 +1,7 @@
 // 桌面承载扫描核心（工单05，纯逻辑）：用户桌面 + 公共桌面 → 合并去重 → 桌面项池。
 // 不碰文件系统与 Win32——目录条目由适配层（adapter.ts）读入，本模块只做集合运算与归类。
 import path from 'node:path'
-import type { DesktopItem, DesktopItemKind, DesktopZone } from '../../shared/contract'
+import type { DesktopItem, DesktopItemKind, DesktopPlan, DesktopZone } from '../../shared/contract'
 
 /** 目录条目（适配层读入：readdir + 文件属性 + mtime） */
 export interface DesktopDirEntry {
@@ -60,6 +60,7 @@ function toItem(root: string, entry: DesktopDirEntry): DesktopItem {
     zone: zoneOf(kind),
     path: filePath,
     iconKey: iconKeyOf(filePath, entry.mtimeMs),
+    mtimeMs: entry.mtimeMs,
   }
 }
 
@@ -88,13 +89,29 @@ export function collectDesktopItems(
   )
 }
 
-/** 指纹（FNV-1a 32 位）：条目集合与 mtime（经 iconKey）任一变化即翻转 */
-export function desktopFingerprint(items: DesktopItem[]): string {
+/** FNV-1a 32 位（指纹基底：条目集合/计划内容任一变化即翻转） */
+function fnv1a(s: string): string {
   let h = 0x811c9dc5
-  const s = items.map((i) => `${i.name}\t${i.kind}\t${i.zone}\t${i.path}\t${i.iconKey}`).join('\n')
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i)
     h = Math.imul(h, 0x01000193) >>> 0
   }
   return h.toString(16).padStart(8, '0')
+}
+
+/** 指纹（FNV-1a 32 位）：条目集合与 mtime（经 iconKey）任一变化即翻转 */
+export function desktopFingerprint(items: DesktopItem[]): string {
+  return fnv1a(items.map((i) => `${i.name}\t${i.kind}\t${i.zone}\t${i.path}\t${i.iconKey}`).join('\n'))
+}
+
+/**
+ * 编排指纹：计划内容（dock 序与来源、文档组与列位）变化即翻转——与条目指纹拼接
+ * 成完整 desktop 指纹，渲染层据此 diff（摆位/推荐序变化也触发重渲染，条目不变则图标缓存不动）。
+ */
+export function planFingerprint(plan: DesktopPlan): string {
+  const s =
+    plan.dock.map((d) => `${d.name}\t${d.source}`).join('\n') +
+    '||' +
+    plan.docs.map((d) => `${d.name}\t${d.group}\t${d.col}\t${d.row}`).join('\n')
+  return fnv1a(s)
 }

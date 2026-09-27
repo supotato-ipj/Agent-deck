@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, PanelSnapshot, WeatherLocation } from '../../shared/contract'
-import { defaultWeather } from '../config'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, WeatherLocation } from '../../shared/contract'
+import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { ClockService } from './clock'
 import type { SessionsService } from './sessions'
 import type { HardwareService } from './hardware'
@@ -23,10 +23,12 @@ export class BridgeService extends Service {
   static inject = ['clock', 'sessions', 'hardware', 'desktop']
 
   private readonly weather: WeatherLocation
+  private readonly layout: DesktopLayout
 
-  constructor(ctx: Context, options: { weather?: WeatherLocation } = {}) {
+  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout } = {}) {
     super(ctx, 'bridge')
     this.weather = options.weather ?? defaultWeather()
+    this.layout = options.layout ?? defaultDesktopLayout()
   }
 
   private get clock(): ClockService {
@@ -41,6 +43,7 @@ export class BridgeService extends Service {
       hardware: this.ctx.hardware.state(),
       weather: this.weather,
       desktop: this.ctx.desktop.state(),
+      layout: this.layout,
     }
   }
 
@@ -56,6 +59,12 @@ export class BridgeService extends Service {
         const { path } = payload as { path: string }
         return await this.ctx.desktop.launch(path) as BridgeMethods[M]['response']
       }
+      case 'desktop/move': {
+        const { name, zone, beforeName } = payload as { name: string; zone: DesktopZone; beforeName: string | null }
+        return this.ctx.desktop.move(name, zone, beforeName) as BridgeMethods[M]['response']
+      }
+      case 'desktop/reset-layout':
+        return this.ctx.desktop.resetLayout() as BridgeMethods[M]['response']
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

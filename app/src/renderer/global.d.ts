@@ -12,6 +12,7 @@ declare global {
   type SessionInfo = import('../shared/contract').SessionInfo
   type DesktopItem = import('../shared/contract').DesktopItem
   type DesktopState = import('../shared/contract').DesktopState
+  type DesktopPlan = import('../shared/contract').DesktopPlan
   type HotzoneRect = import('../shared/contract').HotzoneRect
 
   interface Window {

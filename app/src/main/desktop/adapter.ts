@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { DesktopDirEntry, DesktopRoots } from './scan'
+import { watchDesktopRoots } from './watch'
 
 const FILE_ATTRIBUTE_HIDDEN = 0x2
 const FILE_ATTRIBUTE_SYSTEM = 0x4
@@ -75,4 +76,44 @@ export function electronIconExtractor(filePath: string): Promise<string | null> 
 export function shellOpen(filePath: string): Promise<string> {
   const { shell } = require('electron')
   return shell.openPath(filePath)
+}
+
+/** lnk 目标解析真源：shell.readShortcutLink（同步）；非 lnk/解析失败返回 null */
+export function electronShortcutTarget(lnkPath: string): string | null {
+  try {
+    const { shell } = require('electron')
+    return shell.readShortcutLink(lnkPath).target ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 路径存在性真源（频次映射的 lnk stem 回退守卫用；盘上却解不出目标的 lnk 不回退） */
+export function fsFileExists(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile()
+  } catch {
+    return false
+  }
+}
+
+/** 摆位存储真源：读（缺失返回 null）；写为原子替换（tmp + rename），坏写不碰原文件 */
+export function readStoreText(file: string): string | null {
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+export function writeStoreText(file: string, text: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  fs.writeFileSync(tmp, text, 'utf8')
+  fs.renameSync(tmp, file)
+}
+
+/** 桌面目录监听真源：fs.watch 化的看门狗（纯逻辑与 settle 语义在 watch.ts） */
+export function defaultWatchDesktopRoots(roots: DesktopRoots, onChange: () => void): () => void {
+  return watchDesktopRoots(roots, onChange)
 }

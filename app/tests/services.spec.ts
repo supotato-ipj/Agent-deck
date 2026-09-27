@@ -18,6 +18,31 @@ let tmp = ''
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-svc-'))
 })
+
+/** 离线内核夹具（工单06 起 usage/desktop 服务进内核）：假源隔离，不触本机真数据 */
+function usageOpts() {
+  return {
+    dir: path.join(tmp, 'usage'),
+    deps: {
+      runningPidExes: () => new Map<number, string>(),
+      foregroundExe: () => null,
+      readPrior: async () => new Map(),
+    },
+  }
+}
+
+function desktopOpts() {
+  let storeText: string | null = null
+  return {
+    roots: { user: path.join(tmp, 'empty-user'), common: path.join(tmp, 'empty-common') },
+    deps: {
+      readStoreText: () => storeText,
+      writeStoreText: (_f: string, text: string) => {
+        storeText = text
+      },
+    },
+  }
+}
 afterAll(() => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
@@ -147,9 +172,11 @@ describe('内核快照契约（工单04 扩展）', () => {
     const ctx = createKernel({
       tickIntervalMs: 0,
       hardwareIntervalMs: 0,
+      usageIntervalMs: 0,
       sessionRoots: { qoder: path.join(tmp, 'definitely-missing') },
       weather: { latitude: 1.5, longitude: 2.5 },
-      desktop: { roots: { user: path.join(tmp, 'empty-user'), common: path.join(tmp, 'empty-common') } },
+      desktop: desktopOpts(),
+      usage: usageOpts(),
     })
     await ctx.start()
     try {
@@ -177,9 +204,11 @@ describe('内核快照契约（工单04 扩展）', () => {
     const ctx = createKernel({
       tickIntervalMs: 0,
       hardwareIntervalMs: 0,
+      usageIntervalMs: 0,
       sessionRoots: { qoder: root },
       hardwareSources: fakeHardware(),
-      desktop: { roots: { user: path.join(tmp, 'empty-user'), common: path.join(tmp, 'empty-common') } },
+      desktop: desktopOpts(),
+      usage: usageOpts(),
     })
     await ctx.start()
     try {

@@ -1,7 +1,7 @@
 import { app, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { defaultPanelGeometry, defaultWeather, loadConfig } from './config'
+import { defaultDesktopLayout, defaultPanelGeometry, defaultWeather, loadConfig } from './config'
 import { createKernel } from './kernel'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
@@ -19,13 +19,25 @@ const RESTORE_MODE = process.argv.includes('--icon-restore')
 
 async function bootPanel(): Promise<void> {
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
-  const fallback = { panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds), weather: defaultWeather() }
+  const fallback = {
+    panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds),
+    weather: defaultWeather(),
+    desktop: defaultDesktopLayout(),
+  }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
   if (created) console.log('[deck] config.json 不存在，已按当前屏幕几何写出默认值')
   log?.append({ type: 'boot', pid: process.pid })
 
-  const kernel = createKernel({ weather: config.weather })
+  const kernel = createKernel({
+    weather: config.weather,
+    layout: config.desktop,
+    desktop: {
+      storeFile: path.join(app.getPath('userData'), 'layout.json'),
+      docMaxRows: config.desktop.docMaxRows,
+    },
+    usage: { dir: path.join(app.getPath('userData'), 'usage') },
+  })
   await kernel.start()
 
   const win = createPanelWindow({ geometry: config.panel })

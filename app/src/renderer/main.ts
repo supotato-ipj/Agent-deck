@@ -264,17 +264,25 @@ async function fetchWeather(): Promise<void> {
   }
 }
 
-// ---- 桌面承载（工单05）：dock 应用区 + 文档区自绘真实桌面项 ----
+// ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位）：dock 应用区 + 文档区分组列 ----
 // 条目池随 1Hz 快照下发，按指纹 diff——集合未变不重建 DOM；图标经 desktop/icon
 // 懒取（dataURL 本地缓存，键含 mtime，lnk 指向变更自然换图标）。
+// 工单06 起 dock 按 plan.dock 序铺条（手钉→摆位→推荐），文档区按 plan.docs 的
+// 组序/组内序铺分组列；拖拽摆位经 desktop/move 落内核并持久化。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
-const docGrid = el('doc-grid')
+const docGroups = el('doc-groups')
+const resetBtn = el('reset-layout')
+const GROUP_ORDER = ['folders', 'office', 'pdf', 'image', 'archive', 'other'] as const
+const GROUP_LABELS: Record<string, string> = {
+  folders: 'FOLDERS', office: 'OFFICE', pdf: 'PDF', image: 'IMAGE', archive: 'ARCHIVE', other: 'OTHER',
+}
 const localIcons = new Map<string, string>()
 let desktopFingerprintSeen = ''
 let desktopRenderCount = 0
 let selectedName: string | null = null
+let layoutApplied = ''
 
 function itemGlyph(item: DesktopItem): string {
   return item.kind === 'folder' ? 'DIR' : item.kind === 'url' ? 'URL' : 'DOC'
@@ -317,13 +325,15 @@ function buildItem(item: DesktopItem): HTMLElement {
   label.className = 'label'
   label.textContent = item.display
   d.append(img, label)
-  // 单击选中（启动前确认目标）；双击启动（肌肉记忆原样保留）
+  // 单击选中（启动前确认目标）；双击启动（肌肉记忆原样保留）；拖拽摆位（工单06）
   d.addEventListener('click', () => {
+    if (dragState.suppressed) return // 拖拽结束的那一下点击不算选中
     selectedName = item.name
     markSelection()
     notify('desktop-selected', { name: item.name })
   })
   d.addEventListener('dblclick', () => {
+    if (dragState.suppressed) return
     notify('desktop-launch-clicked', { name: item.name, path: item.path })
     void window.deck.bridge.invoke('desktop/launch', { path: item.path }).then(
       (r) => notify(r.ok ? 'desktop-launched' : 'desktop-launch-rejected', {
@@ -332,29 +342,223 @@ function buildItem(item: DesktopItem): HTMLElement {
       (err: unknown) => notify('desktop-launch-failed', { name: item.name, message: String(err) }),
     )
   })
+  wireDrag(d, item)
   return d
 }
 
-function renderDesktop(state: DesktopState): void {
+// ---- 拖拽摆位（工单06）：指针事件自实现（非 HTML5 DnD——合成输入驱不动 OLE 拖拽，
+// 且自绘世界要的是「排在谁前面」语义）。拖拽期间声明全窗热区：跨分区拖动会路过
+// 非热区空档，若不临时全窗接收，中途面板转穿透、pointer 流即断（拖拽死在中途）。
+
+interface DragState {
+  name: string | null
+  fromZone: string | null
+  startX: number
+  startY: number
+  active: boolean
+  suppressed: boolean
+  ghost: HTMLElement | null
+  target: { zone: 'app' | 'doc'; beforeName: string | null } | null
+}
+
+const dragState: DragState = {
+  name: null, fromZone: null, startX: 0, startY: 0, active: false, suppressed: false, ghost: null, target: null,
+}
+
+const DRAG_THRESHOLD_PX = 6
+
+function zoneOfContainer(node: Node | null): 'app' | 'doc' | null {
+  for (let n = node; n; n = (n as HTMLElement).parentElement) {
+    const id = (n as HTMLElement).id
+    if (id === 'dock-zone') return 'app'
+    if (id === 'doc-groups' || id === 'doc-zone') return 'doc'
+  }
+  return null
+}
+
+function itemUnder(excludeName: string | null): string | null {
+  const hit = document.elementFromPoint(lastPointer.x, lastPointer.y)
+  const item = hit && (hit as HTMLElement).closest ? (hit as HTMLElement).closest<HTMLElement>('.ditem') : null
+  if (!item || !item.dataset.name) return null
+  if (excludeName && item.dataset.name === excludeName) return null
+  return item.dataset.name
+}
+
+const lastPointer = { x: 0, y: 0 }
+
+function markDropTarget(): void {
+  for (const d of document.querySelectorAll<HTMLElement>('.ditem.drop-before')) d.classList.remove('drop-before')
+  if (!dragState.target || dragState.target.beforeName === null) return
+  const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(dragState.target.beforeName)}"]`)
+  if (node) node.classList.add('drop-before')
+}
+
+function wireDrag(d: HTMLElement, item: DesktopItem): void {
+  d.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return
+    dragState.name = item.name
+    dragState.fromZone = item.zone
+    dragState.startX = e.clientX
+    dragState.startY = e.clientY
+    dragState.active = false
+    dragState.suppressed = false
+    try { d.setPointerCapture(e.pointerId) } catch { /* 旧环境退化：窗口内拖拽仍可用 */ }
+  })
+  d.addEventListener('pointermove', (e) => {
+    if (dragState.name !== item.name) return
+    lastPointer.x = e.clientX
+    lastPointer.y = e.clientY
+    if (!dragState.active) {
+      if (Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) < DRAG_THRESHOLD_PX) return
+      dragState.active = true
+      dragState.suppressed = true
+      beginGhost(item)
+      // 全窗热区：拖拽途中经过非热区空档也不转穿透
+      window.deck.host.setHotZones([{ id: 'drag', x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }])
+    }
+    if (dragState.ghost) {
+      dragState.ghost.style.left = `${e.clientX - 24}px`
+      dragState.ghost.style.top = `${e.clientY - 24}px`
+    }
+    const zone = zoneOfContainer(document.elementFromPoint(e.clientX, e.clientY))
+    if (zone === null) {
+      dragState.target = null
+    } else {
+      dragState.target = { zone, beforeName: itemUnder(item.name) }
+    }
+    markDropTarget()
+  })
+  const finish = () => {
+    if (dragState.name !== item.name) return
+    const { active, target, fromZone } = dragState
+    const name = dragState.name
+    endDrag()
+    if (!active || !target) return
+    if (target.zone === fromZone && target.beforeName === nextSiblingName(name)) return // 位置未变，不落盘
+    notify('desktop-move-clicked', { name, zone: target.zone, beforeName: target.beforeName })
+    void window.deck.bridge.invoke('desktop/move', { name, zone: target.zone, beforeName: target.beforeName }).then(
+      (r) => notify(r.ok ? 'desktop-moved' : 'desktop-move-rejected', {
+        name, zone: target.zone, beforeName: target.beforeName, ok: r.ok, error: r.error ?? null,
+      }),
+      (err: unknown) => notify('desktop-move-failed', { name, message: String(err) }),
+    )
+  }
+  d.addEventListener('pointerup', finish)
+  d.addEventListener('pointercancel', () => {
+    if (dragState.name === item.name) endDrag()
+  })
+}
+
+function nextSiblingName(name: string): string | null {
+  const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(name)}"]`)
+  let n = node ? node.nextElementSibling : null
+  while (n && !(n as HTMLElement).classList.contains('ditem')) n = n.nextElementSibling
+  return n ? (n as HTMLElement).dataset.name ?? null : null
+}
+
+function beginGhost(item: DesktopItem): void {
+  const source = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
+  if (source) source.classList.add('dragging')
+  const ghost = document.createElement('div')
+  ghost.id = 'drag-ghost'
+  const img = source ? source.querySelector('img') : null
+  if (img) {
+    const g = document.createElement('img')
+    g.src = img.src
+    g.style.width = '40px'
+    g.style.height = '40px'
+    ghost.appendChild(g)
+  }
+  const label = document.createElement('div')
+  label.className = 'label'
+  label.textContent = item.display
+  ghost.appendChild(label)
+  document.body.appendChild(ghost)
+  dragState.ghost = ghost
+}
+
+function endDrag(): void {
+  if (dragState.ghost) {
+    dragState.ghost.remove()
+    dragState.ghost = null
+  }
+  for (const d of document.querySelectorAll<HTMLElement>('.ditem.dragging')) d.classList.remove('dragging')
+  for (const d of document.querySelectorAll<HTMLElement>('.ditem.drop-before')) d.classList.remove('drop-before')
+  dragState.name = null
+  dragState.fromZone = null
+  dragState.active = false
+  dragState.target = null
+  declareHotZones()
+  // suppressed 在下一拍放开：pointerup 后浏览器还会补发一次 click（拖拽尾-click 不算选中）
+  setTimeout(() => { dragState.suppressed = false }, 0)
+}
+
+// ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
+
+function applyLayout(layout: PanelSnapshot['layout']): void {
+  const key = JSON.stringify(layout)
+  if (key === layoutApplied) return
+  layoutApplied = key
+  docZone.style.left = `${layout.docZone.left}px`
+  docZone.style.top = `${layout.docZone.top}px`
+  docZone.style.maxWidth = `${layout.docZone.maxWidth}px`
+  dockZone.style.maxWidth = `${layout.dockMaxWidth}px`
+  for (const grid of document.querySelectorAll<HTMLElement>('.doc-group .ggrid')) {
+    grid.style.gridTemplateRows = `repeat(${layout.docMaxRows}, auto)`
+  }
+}
+
+function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): void {
+  applyLayout(layout)
   if (state.fingerprint === desktopFingerprintSeen) return
   desktopFingerprintSeen = state.fingerprint
-  const apps = state.items.filter((i) => i.zone === 'app')
-  const docs = state.items.filter((i) => i.zone === 'doc')
+  const byName = new Map(state.items.map((i) => [i.name, i]))
+  // dock：按编排序铺条；池内 app 条目若不在计划（理论不可达）兜底追加，承载一个不漏
   dockZone.textContent = ''
-  for (const item of apps) dockZone.appendChild(buildItem(item))
-  docGrid.textContent = ''
-  for (const item of docs) docGrid.appendChild(buildItem(item))
+  const dockNames: string[] = []
+  for (const entry of state.plan.dock) {
+    const item = byName.get(entry.name)
+    if (!item) continue
+    dockZone.appendChild(buildItem(item))
+    dockNames.push(entry.name)
+  }
+  for (const item of state.items.filter((i) => i.zone === 'app' && !dockNames.includes(i.name))) {
+    dockZone.appendChild(buildItem(item))
+    dockNames.push(item.name)
+  }
+  // 文档区：按组序铺分组列（组内序即 plan.docs 的 rank 序）
+  docGroups.textContent = ''
+  for (const group of GROUP_ORDER) {
+    const entries = state.plan.docs.filter((d) => d.group === group)
+    if (!entries.length) continue
+    const block = document.createElement('div')
+    block.className = 'doc-group'
+    const glabel = document.createElement('div')
+    glabel.className = 'glabel'
+    glabel.textContent = GROUP_LABELS[group]
+    const grid = document.createElement('div')
+    grid.className = 'ggrid'
+    grid.style.gridTemplateRows = `repeat(${layout.docMaxRows}, auto)`
+    for (const entry of entries) {
+      const item = byName.get(entry.name)
+      if (item) grid.appendChild(buildItem(item))
+    }
+    block.append(glabel, grid)
+    docGroups.appendChild(block)
+  }
   if (selectedName && !state.items.some((i) => i.name === selectedName)) selectedName = null
   markSelection()
   declareHotZones()
   desktopRenderCount += 1
-  // 存证：条目集合 + 各条目矩形（电池按名定位探针 lnk 的双击落点）
+  // 存证：条目集合 + 编排序 + 各条目矩形（电池按名定位探针落点/拖放源坐标）
   notify('desktop-rendered', {
     n: desktopRenderCount,
     fingerprint: state.fingerprint,
-    apps: apps.length,
-    docs: docs.length,
+    apps: dockNames.length,
+    docs: state.plan.docs.length,
     names: state.items.map((i) => i.name),
+    dock: state.plan.dock,
+    docEntries: state.plan.docs,
     rects: state.items.map((item) => {
       const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
       if (!node) return { name: item.name, zone: item.zone, rect: null }
@@ -364,6 +568,16 @@ function renderDesktop(state: DesktopState): void {
   })
 }
 
+// ---- 恢复出厂布局（工单06）：一键清除摆位，回归类 + 频次推荐的出厂编排 ----
+
+resetBtn.addEventListener('click', () => {
+  notify('desktop-reset-clicked', {})
+  void window.deck.bridge.invoke('desktop/reset-layout', null).then(
+    (r) => notify('desktop-layout-reset', { ok: r.ok, cleared: r.cleared }),
+    (err: unknown) => notify('desktop-reset-failed', { message: String(err) }),
+  )
+})
+
 // ---- 总渲染（快照到达即刷新全部卡片） ----
 
 function render(snap: PanelSnapshot): void {
@@ -371,7 +585,7 @@ function render(snap: PanelSnapshot): void {
   renderSessions(snap.sessions)
   renderQoder(snap.qoder)
   renderHardware(snap.hardware)
-  renderDesktop(snap.desktop)
+  renderDesktop(snap.desktop, snap.layout)
   const month = new Date(snap.clock.epochMs).getMonth()
   if (month !== calendarMonth) {
     calendarMonth = month
@@ -419,6 +633,8 @@ function declareHotZones(): void {
   if (dock) rects.push(dock)
   const doc = zoneItemRect(docZone, 'doc-zone')
   if (doc) rects.push(doc)
+  const rb = resetBtn.getBoundingClientRect()
+  if (rb.width > 0) rects.push({ id: 'reset-layout', x: rb.left, y: rb.top, w: rb.width, h: rb.height })
   window.deck.host.setHotZones(rects)
 }
 let clickCount = 0

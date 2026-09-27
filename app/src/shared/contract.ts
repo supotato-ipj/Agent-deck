@@ -86,20 +86,61 @@ export interface DesktopItem {
   /** 显示名：.lnk/.url 剥扩展（explorer 对这两类永远隐藏扩展），其余保留原名 */
   display: string
   kind: DesktopItemKind
+  /** 承载分区：归类（应用入口入应用区）经用户拖拽可覆盖（跨区拖拽即换区） */
   zone: DesktopZone
   /** 绝对路径；双击启动与图标提取都以它为准 */
   path: string
   /** 图标缓存键：path|mtimeMs——lnk 指向变更（mtime 变）即换图标 */
   iconKey: string
+  /** 修改时间（ms；文档区「组内新在上」的排序依据） */
+  mtimeMs: number
 }
 
-/** 桌面承载状态：条目池 + 指纹（渲染层按指纹 diff，1Hz 快照不重建 DOM） */
+/** 应用区栏位来源（工单06 编排）：手钉 / 用户拖拽摆位 / 使用频次推荐 */
+export type DesktopDockSource = 'pinned' | 'placed' | 'recommended'
+
+/** dock 有序条目（手钉在前、显式摆位其后、推荐按频次填补） */
+export interface DesktopDockEntry {
+  name: string
+  source: DesktopDockSource
+}
+
+/** 文档组（按扩展名聚合；组序固定） */
+export type DesktopDocGroup = 'folders' | 'office' | 'pdf' | 'image' | 'archive' | 'other'
+
+/** 文档条目落位：组名 + 组内序 + 文档区全局列号（满行折列、组间空列由列号表达） */
+export interface DesktopDocEntry {
+  name: string
+  group: DesktopDocGroup
+  rank: number
+  col: number
+  row: number
+}
+
+/** 编排计划（工单06）：渲染层按 dock 序铺条、按 docs 的组序/组内序铺列 */
+export interface DesktopPlan {
+  dock: DesktopDockEntry[]
+  docs: DesktopDocEntry[]
+}
+
+/** 桌面承载状态：条目池 + 编排计划 + 指纹（渲染层按指纹 diff，1Hz 快照不重建 DOM） */
 export interface DesktopState {
   fingerprint: string
   items: DesktopItem[]
+  plan: DesktopPlan
 }
 
-/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池 */
+/** 桌面承载几何（工单06，config.json 下发；渲染层应用到分区容器） */
+export interface DesktopLayout {
+  /** 文档区原点与最大宽度（DIP；DOCS 标签随原点放置） */
+  docZone: { left: number; top: number; maxWidth: number }
+  /** 文档组满几行折右列 */
+  docMaxRows: number
+  /** dock 条最大宽度（DIP；超出折行） */
+  dockMaxWidth: number
+}
+
+/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何 */
 export interface PanelSnapshot {
   clock: ClockState
   sessions: SessionInfo[]
@@ -107,6 +148,7 @@ export interface PanelSnapshot {
   hardware: HardwareState
   weather: WeatherLocation
   desktop: DesktopState
+  layout: DesktopLayout
 }
 
 /** 内核桥接方法表：method → [请求体, 响应体] */
@@ -116,6 +158,13 @@ export interface BridgeMethods {
   'desktop/icon': { request: { key: string }; response: { dataUrl: string | null } }
   /** 双击启动桌面项；path 必须在当前扫描池内（拒绝任意路径执行） */
   'desktop/launch': { request: { path: string }; response: { ok: boolean; error?: string } }
+  /** 拖拽摆位：name 入目标分区、排在 beforeName 之前（null = 末尾）；落盘并即时重编排 */
+  'desktop/move': {
+    request: { name: string; zone: DesktopZone; beforeName: string | null }
+    response: { ok: boolean; error?: string }
+  }
+  /** 恢复出厂布局：清除全部显式摆位（手钉保留），回到归类 + 频次推荐的出厂编排 */
+  'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

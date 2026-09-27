@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultPanelGeometry, defaultWeather, loadConfig } from '../src/main/config'
+import { defaultDesktopLayout, defaultPanelGeometry, defaultWeather, loadConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -72,5 +72,51 @@ describe('config 模型', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.weather).toEqual(defaultWeather())
     expect(r.warnings.some((w) => w.includes('config.weather'))).toBe(true)
+  })
+})
+
+describe('config 模型（工单06 桌面承载几何）', () => {
+  it('defaultDesktopLayout 给文档区几何与折行数（renderer 生产值固化）', () => {
+    expect(defaultDesktopLayout()).toEqual({
+      docZone: { left: 408, top: 48, maxWidth: 640 },
+      docMaxRows: 8,
+      dockMaxWidth: 1240,
+    })
+  })
+
+  it('desktop 段缺失回退默认（老 config.json 兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: FALLBACK.panel }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.desktop).toEqual(defaultDesktopLayout())
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('desktop 合法值整体生效', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({
+      desktop: { docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6, dockMaxWidth: 1000 },
+    }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.desktop).toEqual({ docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6, dockMaxWidth: 1000 })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('desktop 非法字段回退默认并告警（docMaxRows 越界/宽度非正/坐标非数）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({
+      desktop: { docZone: { left: 'x', maxWidth: -3 }, docMaxRows: 0, dockMaxWidth: 'wide' },
+    }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.desktop).toEqual(defaultDesktopLayout())
+    expect(r.warnings.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('desktop 整体非对象回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ desktop: [] }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.desktop).toEqual(defaultDesktopLayout())
+    expect(r.warnings.some((w) => w.includes('config.desktop'))).toBe(true)
   })
 })

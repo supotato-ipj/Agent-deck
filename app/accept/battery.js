@@ -2,6 +2,7 @@
 // 工单03 验收电池：02 全部行为（透明合成 / 默认穿透 / 热区接收与重钉 / 底部钉扎 / config 几何）
 // + 工单03 宿主常驻三件套：单实例守卫（P7）、托盘图标与菜单退出（P8/P10）、Win+D 防抖自动恢复（P9）。
 // + 工单04 数据卡片（P2.5）：四类卡片经桥接契约实时刷新 + 历史曲线滚动 + 截图存证。
+// + 工单06 编排与推荐（P5.5）：手钉前段 / 新建自动归类 / 拖拽摆位持久化 / 恢复出厂布局。
 // 运行：npm run accept（= electron . --accept，控制器与面板同仓库，面板为子进程）。
 // 复用工单01 探针的调用形态（探针A/B/C 全绿）：SendInput 虚拟屏归一化坐标、
 // WindowFromPoint 经 GetAncestor(GA_ROOT)、GDI 抓屏走 DPI 感知 PowerShell。
@@ -353,6 +354,20 @@ async function waitPanelWindow(timeoutMs, sinceMs = 0) {
   return null;
 }
 
+// 等某类事件安静 quietMs（工单06）：渲染层按指纹 diff，事件只在变化时发——
+// 安静即稳定。06 起使用分数异步就位会让 dock 首拍（名序）在 ~1s 后重排为频次序，
+// 拿首拍矩形去点击会点在换位后的别的条目上（首轮电池实证）。
+async function waitStable(type, quietMs = 2000, timeoutMs = 12000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const evts = readEvents().filter((e) => e.type === type);
+    const last = evts.length ? evts[evts.length - 1] : null;
+    if (last && Date.now() - last.t >= quietMs) return last;
+    await sleep(250);
+  }
+  return null;
+}
+
 async function main() {
   const rep = new Report('03-battery');
   const w32 = win32;
@@ -377,6 +392,17 @@ async function main() {
   let panelPid = null;
   let notepad = null;
   let stderrTail = '';
+
+  // —— 工单06 编排验收预置：备份并种子摆位存储（手钉一个真实桌面 lnk，占 dock 前段可断言）。
+  // 电池不得改变用户真实摆位：清场时还原/删除。userData 与面板同 app 名（同仓库 electron .）。
+  const userDataDir = app.getPath('userData');
+  const layoutFile = path.join(userDataDir, 'layout.json');
+  const layoutBackup = fs.existsSync(layoutFile) ? fs.readFileSync(layoutFile, 'utf8') : null;
+  const seedScan = psDesktopScan();
+  const pinnedSeed = (seedScan.items.find((i) => i.dir === seedScan.user && /\.lnk$/i.test(i.name)) || {}).name || null;
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.writeFileSync(layoutFile, JSON.stringify({ version: 1, pinned: pinnedSeed ? [pinnedSeed] : [], dock: [], docs: [] }, null, 1) + '\n');
+  rep.note(`摆位存储已种子：pinned=[${pinnedSeed ?? '用户桌面无 lnk（手钉断言将降级失败）'}]`);
 
   const launchPanel = () => spawn(process.execPath, ['.'], {
     cwd: APP_ROOT,
@@ -663,8 +689,10 @@ async function main() {
       capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-hidden');
       rep.note('面板承载实拍：05-icons-hidden.png（原生图标隐藏 + dock 应用区/文档区自绘）');
 
-      // 单击选中态（dock 首个条目）
-      const appRect = rendered && (rendered.rects || []).find((r) => r.zone === 'app' && r.rect);
+      // 单击选中态（dock 首个条目）。矩形必须取安静后的最新一拍：06 起分数异步
+      // 就位会让 dock 在 boot 后 ~1s 重排，首拍矩形会指向换位后的别的条目。
+      const stableSel = await waitStable('desktop-rendered', 1500, 8000);
+      const appRect = stableSel && (stableSel.rects || []).find((r) => r.zone === 'app' && r.rect);
       if (!appRect) {
         rep.fail('desktop-rendered 未带 app 条目矩形（选中态不可测）');
       } else {
@@ -762,12 +790,167 @@ async function main() {
       await sleep(1200);
     }
 
+    // —— P5.5 工单06 编排与推荐：手钉前段 / 新建自动归类入区 / 拖拽摆位持久化 / 恢复出厂 ——
+    {
+      const rendered0 = await waitEvent('desktop-rendered', null, 8000);
+
+      // a. 手钉条目稳定占据 dock 前段，其余为推荐位（推荐序本身的数学在离线测试盯）
+      if (rendered0 && Array.isArray(rendered0.dock) && rendered0.dock.length > 1) {
+        const first = rendered0.dock[0];
+        const restSources = [...new Set(rendered0.dock.slice(1).map((d) => d.source))];
+        first.name === pinnedSeed && first.source === 'pinned' && !restSources.includes('pinned')
+          ? rep.pass(`手钉条目稳定占据 dock 前段：${first.name}（source=pinned，其余 ${rendered0.dock.length - 1} 项为 ${restSources.join('/')}，不被推荐顶替）`)
+          : rep.fail(`dock 前段非手钉：${JSON.stringify(first)}（种子 pinned=${pinnedSeed}，其余来源 ${restSources.join('/')}）`);
+        capture({ left: rect.left, top: rect.bottom - Math.round(DOCK_STRIP_DIP * f), right: rect.right, bottom: rect.bottom }, '06-dock-pinned');
+      } else {
+        rep.fail(`desktop-rendered 未带 dock 编排序（工单06 编排未上线）：${JSON.stringify(rendered0 && rendered0.dock)}`);
+      }
+
+      // b. 新建桌面文件自动归类入区（文档组聚合），删除后同步消失
+      const probeDocx = `DECK06-PROBE-${Date.now()}.docx`;
+      const probePdf = `DECK06-PROBE-${Date.now() + 1}.pdf`;
+      const docPaths = [path.join(seedScan.user, probeDocx), path.join(seedScan.user, probePdf)];
+      try {
+        fs.writeFileSync(docPaths[0], 'probe');
+        fs.writeFileSync(docPaths[1], 'probe');
+        const grouped = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probeDocx) && (e.names || []).includes(probePdf), 8000);
+        if (grouped) {
+          const g1 = (grouped.docEntries || []).find((d) => d.name === probeDocx);
+          const g2 = (grouped.docEntries || []).find((d) => d.name === probePdf);
+          g1 && g1.group === 'office' && g2 && g2.group === 'pdf'
+            ? rep.pass(`新建桌面文件自动归类入区：${probeDocx}→office 组、${probePdf}→pdf 组（文档区按扩展名聚合）`)
+            : rep.fail(`文档组归类不符：docx=${JSON.stringify(g1)} pdf=${JSON.stringify(g2)}`);
+          capture({ left: rect.left + Math.round(400 * f), top: rect.top, right: rect.left + Math.round(1060 * f), bottom: rect.top + Math.round(780 * f) }, '06-doc-groups');
+        } else {
+          rep.fail('新建探针文档未入池（desktop-rendered 未见）');
+        }
+      } finally {
+        for (const p of docPaths) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
+      }
+      const goneDocs = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(probeDocx) && !(e.names || []).includes(probePdf), 6000);
+      goneDocs
+        ? rep.pass('删除探针文档后条目同步消失（面板与磁盘一致）')
+        : rep.fail('删除探针文档后条目未消失');
+
+      // c. 拖拽摆位：真鼠标（SendInput 按下-移动-抬起）驱动渲染层指针拖拽 → desktop/move 落盘。
+      // 源/参照矩形取安静后的最新一拍（拖拽中途编排序再变会错位）。
+      const dockEvt = await waitStable('desktop-rendered', 1500, 8000);
+      const dockOrder = ((dockEvt && dockEvt.dock) || []).map((d) => d.name);
+      const rectByName = (name) => {
+        const r = (dockEvt.rects || []).find((x) => x.name === name);
+        return r && r.rect;
+      };
+      if (dockOrder.length < 3) {
+        rep.fail(`dock 条目不足 3，拖拽探针不可排（现有 ${dockOrder.length}）`);
+      } else {
+        const dragged = dockOrder[dockOrder.length - 1]; // 拖末位条目
+        const anchor = dockOrder[1];                     // 落到第 2 位条目之前（第 1 位是手钉）
+        const rd = rectByName(dragged);
+        const ra = rectByName(anchor);
+        if (!rd || !ra) {
+          rep.fail('拖拽源/参照条目无矩形（渲染层 rects 缺失）');
+        } else {
+          const from = { x: rect.left + Math.round((rd.x + rd.w / 2) * f), y: rect.top + Math.round((rd.y + rd.h / 2) * f) };
+          const to = { x: rect.left + Math.round((ra.x + ra.w / 2) * f), y: rect.top + Math.round((ra.y + ra.h / 2) * f) };
+          w32.moveMousePhys(from.x, from.y);
+          await sleep(400); // 热区轮询 25ms，留足解除穿透
+          w32.send([w32.mouseInput(0, 0, w32.LEFTDOWN)]);
+          const steps = 12; // 渲染层拖拽阈值 6px，步进远超阈值；每步 24ms 保持事件流
+          for (let s = 1; s <= steps; s++) {
+            await sleep(24);
+            w32.moveMousePhys(from.x + Math.round(((to.x - from.x) * s) / steps), from.y + Math.round(((to.y - from.y) * s) / steps));
+          }
+          await sleep(140); // 落点稳定后再抬键（elementFromPoint 取参照条目）
+          w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
+          w32.moveMousePhys(safePt.x, safePt.y);
+          const moved = await waitEvent('desktop-moved', (e) => e.name === dragged && e.ok, 6000);
+          moved
+            ? rep.pass(`拖拽摆位：${dragged} 拖至 ${anchor} 之前（desktop/move ok=true，摆位落盘）`)
+            : rep.fail(`拖拽摆位未达成（desktop-moved=${JSON.stringify(moved)}）`);
+          const tReordered = Date.now();
+          const reordered = await waitEvent('desktop-rendered', (e) => {
+            const ord = ((e.dock) || []).map((d) => d.name);
+            return e.t >= tReordered - 2500 && ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor);
+          }, 6000);
+          reordered
+            ? rep.pass('摆位即时重编排：拖拽条目越过参照（渲染序更新）')
+            : rep.fail('拖拽后编排序未更新');
+          capture({ left: rect.left, top: rect.bottom - Math.round(DOCK_STRIP_DIP * f), right: rect.right, bottom: rect.bottom }, '06-drag-moved');
+
+          // 重启面板：摆位持久化（layout.json）
+          await stopPanel();
+          const rt0 = Date.now();
+          child = launchPanel();
+          const hwnd4 = await waitPanelWindow(20000, rt0);
+          if (!hwnd4) throw new Error(`P5.5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
+          hwnd = hwnd4;
+          panelPid = w32.threadIdOf(hwnd4).pid;
+          const rectN = w32.rectOf(hwnd4);
+          const persisted = await waitEvent('desktop-rendered', (e) => {
+            const ord = ((e.dock) || []).map((d) => d.name);
+            return e.t >= rt0 && ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor);
+          }, 8000);
+          persisted
+            ? rep.pass(`重启面板后位置保持：${dragged} 仍在 ${anchor} 之前（layout.json 持久化）`)
+            : rep.fail('重启后摆位未保持（layout.json 未生效）');
+          capture({ left: rectN.left, top: rectN.bottom - Math.round(DOCK_STRIP_DIP * f), right: rectN.right, bottom: rectN.bottom }, '06-drag-persisted');
+
+          // d. 恢复出厂布局：右下角 RESET LAYOUT 一键回到出厂编排（清摆位、留手钉）
+          const zonesEvt = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'reset-layout'), 8000);
+          const rz = zonesEvt && (zonesEvt.rects || []).find((r) => r.id === 'reset-layout');
+          if (!rz) {
+            rep.fail('重置按钮未进热区（恢复出厂不可点）');
+          } else {
+            const cc = { x: rectN.left + Math.round((rz.x + rz.w / 2) * f), y: rectN.top + Math.round((rz.y + rz.h / 2) * f) };
+            const clickReset = async () => {
+              w32.moveMousePhys(cc.x, cc.y);
+              await sleep(350);
+              // 命中取证：面板应为 WindowFromPoint 结果（热区已解除穿透）；非面板=通知横幅/用户窗遮挡，ESC 收层重试
+              const hit = w32.windowFromPointRoot(cc);
+              if (hit !== hwnd) {
+                const coverCls = w32.className(hit);
+                w32.tapKeys([VK_ESCAPE]);
+                await sleep(500);
+                w32.moveMousePhys(cc.x, cc.y);
+                await sleep(350);
+                rep.note(`点击前遮挡探测：命中 ${coverCls} pid=${w32.threadIdOf(hit).pid}（已 ESC 收层重试）`);
+              }
+              w32.clickPhys(cc.x, cc.y, 'left');
+            };
+            await clickReset();
+            let reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 3000);
+            if (!reset) {
+              // 复位点补射一轮（真机瞬时遮挡/事件迟滞兜底；隔离探针下机制本身全绿）
+              rep.note('首次复位点击无响应，1s 后补射一轮');
+              await sleep(1000);
+              await clickReset();
+              reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 5000);
+            }
+            w32.moveMousePhys(safePt.x, safePt.y);
+            const tReset = Date.now() - 15000; // 覆盖两次点击的窗口
+            const factoryEvt = await waitEvent('desktop-rendered', (e) => {
+              const dock = e.dock || [];
+              return e.t >= tReset && dock.length > 1 && dock.every((d) => d.source !== 'placed');
+            }, 6000);
+            const pinnedKept = factoryEvt && factoryEvt.dock[0] && factoryEvt.dock[0].source === 'pinned';
+            reset && factoryEvt
+              ? rep.pass(`恢复出厂布局一键生效：清除 ${reset.cleared} 处摆位，非手钉全部回推荐位${pinnedKept ? '（手钉保留在前段）' : '（注意：手钉未保留）'}`)
+              : rep.fail(`恢复出厂未达成（reset=${JSON.stringify(reset)}，factoryEvt=${JSON.stringify(factoryEvt && factoryEvt.dock)}）`);
+            capture({ left: rectN.left, top: rectN.bottom - Math.round(DOCK_STRIP_DIP * f), right: rectN.right, bottom: rectN.bottom }, '06-factory-reset');
+          }
+        }
+      }
+    }
+
     // —— P6 config 几何生效：改 config 重启面板 ——
     const configPath = path.join(APP_ROOT, 'config.json');
     const configBackup = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : null;
     try {
       await stopPanel();
       fs.writeFileSync(configPath, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 } }, null, 2) + '\n');
+      // P1-P5.5 的存证先留档再重置（waitEvent 要等新 boot）；此前直接 unlink 把
+      // P5.5 期事件抹掉，复位探针排障无据可查（三轮实测痛点）
+      try { fs.copyFileSync(EVENTS_FILE, path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl')); } catch { /* 尽力留档 */ }
       try { fs.unlinkSync(EVENTS_FILE); } catch { /* 重置存证，waitEvent 才能等到新 boot */ }
       child = launchPanel();
       const hwnd2 = await waitPanelWindow(20000);
@@ -1001,6 +1184,12 @@ async function main() {
         rep.note(`图标状态清场核验：visible=${w32.desktopIconsVisible()}（电池前=${iconsVisibleBase}）`);
       }
     } catch (e) { rep.note(`图标清场核验异常: ${e && e.message || e}`); }
+    // 工单06 清场：还原摆位存储到电池前状态（种子只服务断言，不得改变用户真实摆位）
+    try {
+      if (layoutBackup === null) fs.unlinkSync(layoutFile);
+      else fs.writeFileSync(layoutFile, layoutBackup);
+      rep.note(`摆位存储清场：${layoutBackup === null ? '已删除（电池前不存在）' : '已还原备份'}`);
+    } catch (e) { rep.note(`摆位存储清场异常: ${e && e.message || e}`); }
     restoreDesktop();
     try { w32.SetCursorPos(savedCursor.x, savedCursor.y); } catch { /* 尽力 */ }
   }
