@@ -1,0 +1,5 @@
+{"t":1790480262544,"type":"boot","pid":7324}
+{"t":1790480262633,"type":"hotzones","rects":[{"id":"clock-card","x":48,"y":48,"w":320,"h":176}]}
+{"t":1790480262633,"type":"clock-rendered","n":1,"epochMs":1790480262626}
+{"t":1790480262636,"type":"hotzones","rects":[{"id":"clock-card","x":48,"y":48,"w":320,"h":176}]}
+{"t":1790480262688,"type":"pin","reason":"startup"}

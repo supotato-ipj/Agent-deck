@@ -1,0 +1,60 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { defaultPanelGeometry, loadConfig } from '../src/main/config'
+
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 } }
+
+function tmpFile(): string {
+  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
+}
+
+describe('config 模型', () => {
+  it('defaultPanelGeometry 取显示器全屏', () => {
+    expect(defaultPanelGeometry({ x: 0, y: 0, width: 3120, height: 2080 }))
+      .toEqual({ x: 0, y: 0, width: 3120, height: 2080 })
+  })
+
+  it('文件缺失时写出默认几何并返回 created', () => {
+    const file = tmpFile()
+    const r = loadConfig(file, FALLBACK)
+    expect(r.created).toBe(true)
+    expect(r.config).toEqual(FALLBACK)
+    expect(r.warnings).toHaveLength(0)
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(FALLBACK)
+  })
+
+  it('合法文件整体生效', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 100, y: 50, width: 800, height: 600 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.created).toBe(false)
+    expect(r.config.panel).toEqual({ x: 100, y: 50, width: 800, height: 600 })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('部分字段缺失与默认合并', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 20 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.panel).toEqual({ x: 20, y: 0, width: 1560, height: 1040 })
+  })
+
+  it('非法字段回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 'left', width: -5 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.panel).toEqual({ x: 0, y: 0, width: 1560, height: 1040 })
+    expect(r.warnings.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('非 JSON 文件整体回退且不覆写用户文件', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, '{ 坏掉的')
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config).toEqual(FALLBACK)
+    expect(r.warnings.length).toBeGreaterThan(0)
+    expect(fs.readFileSync(file, 'utf8')).toBe('{ 坏掉的')
+  })
+})
