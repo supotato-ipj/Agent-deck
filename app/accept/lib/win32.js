@@ -58,6 +58,8 @@ const ShowWindow = user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nC
 const GetTopWindow = user32.func('uintptr_t __stdcall GetTopWindow(uintptr_t hWnd)');
 const GetWindow = user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uint32 uCmd)');
 const PostMessageW = user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)');
+const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)');
+const IsIconic = user32.func('bool __stdcall IsIconic(uintptr_t hWnd)');
 const AttachThreadInput = user32.func('bool __stdcall AttachThreadInput(uint32 idAttach, uint32 idAttachTo, bool fAttach)');
 const GetKeyboardLayout = user32.func('uintptr_t __stdcall GetKeyboardLayout(uint32 idThread)');
 const GetCurrentThreadId = kernel32.func('uint32 __stdcall GetCurrentThreadId()');
@@ -246,6 +248,7 @@ module.exports = {
   GetForegroundWindow, SetForegroundWindow, BringWindowToTop, SetWindowPos,
   SetLayeredWindowAttributes,
   GetWindowLongW, WindowFromPoint, IsWindow, PostMessageW, AttachThreadInput,
+  FindWindowExW, IsIconic,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,
 };

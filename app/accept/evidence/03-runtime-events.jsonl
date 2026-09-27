@@ -1,0 +1,15 @@
+{"t":1790498067195,"type":"boot","pid":20928}
+{"t":1790498067318,"type":"hotzones","rects":[{"id":"clock-card","x":48,"y":48,"w":320,"h":176}]}
+{"t":1790498067318,"type":"clock-rendered","n":1,"epochMs":1790498067310}
+{"t":1790498067321,"type":"hotzones","rects":[{"id":"clock-card","x":48,"y":48,"w":320,"h":176}]}
+{"t":1790498067380,"type":"pin","reason":"startup"}
+{"t":1790498067616,"type":"pin","reason":"show-second-instance"}
+{"t":1790498067616,"type":"panel-shown","reason":"second-instance"}
+{"t":1790498067616,"type":"single-instance-refused","pid":7496}
+{"t":1790498068202,"type":"clock-rendered","n":2,"epochMs":1790498068201}
+{"t":1790498069216,"type":"clock-rendered","n":3,"epochMs":1790498069216}
+{"t":1790498074444,"type":"wind-minimized","why":"minimized"}
+{"t":1790498075947,"type":"wind-restored","why":"minimized","afterMs":1503}
+{"t":1790498075951,"type":"pin","reason":"show-wind-restore"}
+{"t":1790498075951,"type":"panel-shown","reason":"wind-restore"}
+{"t":1790498084895,"type":"quit"}

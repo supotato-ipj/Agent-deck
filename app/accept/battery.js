@@ -1,18 +1,23 @@
 'use strict';
-// 工单02 验收电池雏形：透明合成 / 默认穿透 / 热区接收与重钉 / 底部钉扎。
+// 工单03 验收电池：02 全部行为（透明合成 / 默认穿透 / 热区接收与重钉 / 底部钉扎 / config 几何）
+// + 工单03 宿主常驻三件套：单实例守卫（P7）、托盘图标与菜单退出（P8/P10）、Win+D 防抖自动恢复（P9）。
 // 运行：npm run accept（= electron . --accept，控制器与面板同仓库，面板为子进程）。
 // 复用工单01 探针的调用形态（探针A/B/C 全绿）：SendInput 虚拟屏归一化坐标、
 // WindowFromPoint 经 GetAncestor(GA_ROOT)、GDI 抓屏走 DPI 感知 PowerShell。
 const { app, BrowserWindow, screen, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const EVENTS_FILE = path.join(__dirname, 'evidence', '02-runtime-events.jsonl');
+const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
 const WM_CLOSE = 0x0010;
+const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_RETURN = 0x0d, VK_ESCAPE = 0x1b;
+const NOTIFY_ICON_SETTINGS = 'HKCU:\\Control Panel\\NotifyIconSettings';
+// 托盘图标的程序化识别色（tray.ts 琥珀 #f5a623 → RGB）
+const AMBER = [245, 166, 35];
 // 卡片几何须与 src/renderer/index.html 的 #clock-card 保持一致（DIP）
 const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 };
 
@@ -79,6 +84,122 @@ function whitePixels(pngPath, zone, threshold = 200) {
     }
   }
   return { hit, n, pct: 100 * hit / Math.max(1, n) };
+}
+
+// 识别色图标定位（连通簇分析）：琥珀图标由 4 个 8px 方点组成（点间有缝隙，呈 4 个连通簇），
+// 且任务栏上可能存在他图标的零星同色像素——全局均值会被拉到簇间空档。取最大簇为种子，
+// 合并 48px 内的邻簇再取质心，即图标中心。
+function colorIconTarget(pngPath, rgb, tol = 20) {
+  const img = nativeImage.createFromPath(pngPath);
+  const s = img.getSize();
+  const buf = img.toBitmap();
+  const W = s.width, H = s.height;
+  const mask = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      if (Math.abs(buf[i + 2] - rgb[0]) <= tol && Math.abs(buf[i + 1] - rgb[1]) <= tol && Math.abs(buf[i] - rgb[2]) <= tol) mask[y * W + x] = 1;
+    }
+  }
+  const seen = new Uint8Array(W * H);
+  const clusters = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (!mask[idx] || seen[idx]) continue;
+      let n = 0, sx = 0, sy = 0, minx = x, maxx = x, miny = y, maxy = y;
+      const q = [idx];
+      seen[idx] = 1;
+      while (q.length) {
+        const c = q.pop();
+        const cy = (c / W) | 0, cx = c % W;
+        n++; sx += cx; sy += cy;
+        minx = Math.min(minx, cx); maxx = Math.max(maxx, cx);
+        miny = Math.min(miny, cy); maxy = Math.max(maxy, cy);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const ni = ny * W + nx;
+          if (mask[ni] && !seen[ni]) { seen[ni] = 1; q.push(ni); }
+        }
+      }
+      clusters.push({ n, sx, sy, minx, maxx, miny, maxy });
+    }
+  }
+  if (!clusters.length) return null;
+  clusters.sort((a, b) => b.n - a.n);
+  const seed = clusters[0];
+  const scx = (seed.minx + seed.maxx) / 2, scy = (seed.miny + seed.maxy) / 2;
+  let hits = 0, sx = 0, sy = 0, nClusters = 0;
+  for (const c of clusters) {
+    const ccx = (c.minx + c.maxx) / 2, ccy = (c.miny + c.maxy) / 2;
+    if (Math.abs(ccx - scx) <= 48 && Math.abs(ccy - scy) <= 48) {
+      hits += c.n; sx += c.sx; sy += c.sy; nClusters++;
+    }
+  }
+  if (hits < 100) return null; // 四点合计约 256 像素；低于此视为噪声而非图标
+  return { x: Math.round(sx / hits), y: Math.round(sy / hits), hits, nClusters };
+}
+
+// —— 托盘常驻件（Win11 纯 XAML 任务栏，无 legacy ToolbarWindow32 可数）——
+// 存在性与退出以两层证据断言：注册表 NotifyIconSettings 条目（Shell_NotifyIcon 注册事实源）
+// + 识别色像素（程序化琥珀图标 #f5a623，IsPromoted 提升到可见区后可截屏定位）。
+const w32FindWindowEx = (parent, after, cls) => win32.FindWindowExW(parent, after, cls, null);
+
+// —— 通知区域注册表（Win11 22H2+）：IsPromoted=1 把溢出区图标提升到任务栏可见区 ——
+function psRun(script) {
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { encoding: 'utf8', timeout: 15000 });
+  if (r.status !== 0) throw new Error(`powershell 失败: ${r.stderr || r.stdout}`);
+  return (r.stdout || '').trim();
+}
+
+function psJson(script) {
+  const s = psRun(script);
+  return s ? JSON.parse(s) : null;
+}
+
+function listNotifyIcons() {
+  const raw = psJson(`$o = @(Get-ChildItem '${NOTIFY_ICON_SETTINGS}' -ErrorAction Stop | ForEach-Object { $p = Get-ItemProperty $_.PSPath; [pscustomobject]@{ key = $_.PSChildName; exe = [string]$p.ExecutablePath; promoted = $p.IsPromoted } }); $o | ConvertTo-Json -Compress`);
+  return Array.isArray(raw) ? raw : raw ? [raw] : [];
+}
+
+function setPromoted(key, value) {
+  psRun(`Set-ItemProperty -Path '${NOTIFY_ICON_SETTINGS}\\${key}' -Name IsPromoted -Value ${value} -Type DWord -ErrorAction Stop`);
+}
+
+function removePromoted(key) {
+  psRun(`Remove-ItemProperty -Path '${NOTIFY_ICON_SETTINGS}\\${key}' -Name IsPromoted -ErrorAction Stop`);
+}
+
+// IsPromoted 改动登记（P8 提升时记录原值）：restorePromoted 按原值回写/移除，用后清登记
+let promotedKey = null;
+let promotedOld;
+
+// IsPromoted 还原（P10 finally 与电池清场共用）
+function restorePromoted(log = console.error) {
+  if (!promotedKey) return;
+  try {
+    if (promotedOld == null) removePromoted(promotedKey);
+    else setPromoted(promotedKey, promotedOld);
+    promotedKey = null;
+  } catch (e) { log(`IsPromoted 还原失败: ${e && e.message || e}`); }
+}
+
+// 进程存活探测（pid 退出轮询用）
+function isAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+// 在任务栏条带截图中定位本面板托盘图标（识别色图标中心 → 物理屏幕坐标），截图按名存证
+function scanAmberInTray(tag) {
+  const tb = w32FindWindowEx(0, 0, 'Shell_TrayWnd');
+  if (!tb) return null;
+  const r = win32.rectOf(tb);
+  if (!r) return null;
+  const shot = capture(r, `03-tray-${tag}`);
+  const c = colorIconTarget(shot, AMBER, 20);
+  if (!c) return null;
+  return { x: r.left + c.x, y: r.top + c.y, hits: c.hits, nClusters: c.nClusters };
 }
 
 // —— 桌面清场：逐窗最小化，退出时精确还原（工单01 探针同法）——
@@ -151,14 +272,21 @@ async function waitEvent(type, pred, timeoutMs = 6000) {
   return null;
 }
 
-async function waitPanelWindow(timeoutMs) {
+async function waitPanelWindow(timeoutMs, sinceMs = 0) {
   // 面板自报 pid（boot 事件）：spawn 的 child.pid 在 Electron 父进程下不等于
-  // 面板真实主进程 pid（实测），以面板自报为准。
-  const boot = await waitEvent('boot', null, timeoutMs);
+  // 面板真实主进程 pid（实测），以面板自报为准。sinceMs 之后的 boot 才算数——
+  // 电池中途重启面板时事件文件里已有旧 boot（P6 重置过、P10 未重置）。
+  const deadline = Date.now() + timeoutMs;
+  let boot = null;
+  while (Date.now() < deadline) {
+    boot = readEvents().filter((e) => e.type === 'boot' && e.t >= sinceMs).pop() || null;
+    if (boot) break;
+    await sleep(60);
+  }
   if (!boot) { console.log('[battery] 未收到 boot 存证'); return null; }
   const pid = boot.pid;
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  const winDeadline = Date.now() + timeoutMs;
+  while (Date.now() < winDeadline) {
     const hwnd = win32.topLevelWindows().find(
       (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1');
     if (hwnd) return hwnd;
@@ -173,12 +301,16 @@ async function waitPanelWindow(timeoutMs) {
 }
 
 async function main() {
-  const rep = new Report('02-battery');
+  const rep = new Report('03-battery');
   const w32 = win32;
   const si = screenInfo();
   const f = si.factor;
   rep.note(`screen: phys ${si.phys.w}x${si.phys.h} @ factor ${f}`);
   try { fs.unlinkSync(EVENTS_FILE); } catch { /* 首次不存在 */ }
+
+  // 托盘基线：面板启动前扫一次任务栏识别色（P8 以后续增量断言图标可见，P10 以退出后回落断言消失）
+  const amberBase = scanAmberInTray('baseline');
+  rep.note(`托盘识别色基线：${amberBase ? `命中 ${amberBase.hits} 像素 @(${amberBase.x},${amberBase.y})` : '无琥珀像素'}`);
 
   const savedCursor = w32.cursor();
   const safePt = { x: 40 * f, y: si.phys.h - 40 };
@@ -218,7 +350,7 @@ async function main() {
     // —— P1 启动面板（子进程，存证事件落盘）——
     child = launchPanel();
     child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-    const hwnd = await waitPanelWindow(20000);
+    let hwnd = await waitPanelWindow(20000);
     if (!hwnd) throw new Error(`20s 内未见面板窗口\nstderr:\n${stderrTail}`);
     panelPid = win32.threadIdOf(hwnd).pid;
     const rect = w32.rectOf(hwnd);
@@ -257,8 +389,20 @@ async function main() {
       left: Math.min(localCard.right + 8, (rect.right - rect.left) - 8),
       top: 8, right: (rect.right - rect.left) - 8, bottom: workBottom,
     };
+    // shell 浮层（快捷设置等）是 TOPMOST，会挡住面板透明区（03 迭代 8 实拍 87.1% 即此因）：
+    // 截图前 ESC 收层，命中率不足再重拍一次取后值
+    w32.tapKeys([0x1b]);
+    await sleep(400);
     const shot = capture(rect, '02-transparent-on-checker');
-    const chk = checkerHitRate(shot, transparentZone);
+    let chk = checkerHitRate(shot, transparentZone);
+    if (chk.rate <= 0.9) {
+      w32.tapKeys([0x1b]);
+      await sleep(800);
+      const shot2 = capture(rect, '02-transparent-on-checker');
+      const chk2 = checkerHitRate(shot2, transparentZone);
+      rep.note(`首拍命中率 ${(chk.rate * 100).toFixed(1)}% 疑浮层遮挡，ESC 后重拍 ${(chk2.rate * 100).toFixed(1)}%`);
+      chk = chk2;
+    }
     rep.log(`透明区棋盘色命中率: ${(chk.rate * 100).toFixed(1)}% (样本 ${chk.n})`);
     chk.rate > 0.9
       ? rep.pass('透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）')
@@ -375,6 +519,7 @@ async function main() {
       if (!hwnd2) throw new Error(`重启后未见面板窗口\nstderr:\n${stderrTail}`);
       const r2 = w32.rectOf(hwnd2);
       panelPid = w32.threadIdOf(hwnd2).pid;
+      hwnd = hwnd2; // 后续探针（P7-P10）继续盯当前面板窗
       const expect = { x: 60 * f, y: 60 * f, w: 1100 * f, h: 800 * f };
       const tol = 24; // frameless 窗 GetWindowRect 含约 12 物理像素隐形边框（探针01-E）
       const ok = Math.abs(r2.left - expect.x) <= tol && Math.abs(r2.top - expect.y) <= tol
@@ -388,10 +533,195 @@ async function main() {
       if (configBackup === null) { try { fs.unlinkSync(configPath); } catch { /* 尽力 */ } }
       else fs.writeFileSync(configPath, configBackup);
     }
+
+    // —— P7 单实例守卫：二次拉起立即自行退出，屏幕上始终只有一个面板 ——
+    {
+      const chromeBefore = w32.topLevelWindows().filter((h) => w32.className(h) === 'Chrome_WidgetWin_1').length;
+      const t0 = Date.now();
+      const child2 = spawn(process.execPath, ['.'], {
+        cwd: APP_ROOT,
+        env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let exited = null;
+      child2.once('exit', (code) => { exited = { code, at: Date.now() }; });
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline && !exited) await sleep(100);
+      const elapsed = exited ? exited.at - t0 : null;
+      if (!exited) {
+        rep.fail('单实例守卫：二次拉起 15s 内未退出');
+        try { child2.kill(); } catch { /* 尽力 */ }
+      } else if (elapsed < 3000 && exited.code === 0) {
+        rep.pass(`单实例守卫：二次拉起 ${elapsed}ms 自行退出（code=${exited.code}）`);
+      } else {
+        rep.fail(`单实例守卫：二次拉起退出异常（elapsed=${elapsed}ms code=${exited.code}，工单要求「立即」）`);
+      }
+      readEvents().some((e) => e.type === 'single-instance-refused')
+        ? rep.pass('单实例守卫：被拒实例自报 single-instance-refused 存证')
+        : rep.fail('单实例守卫：无 single-instance-refused 存证');
+      const chromeAfter = w32.topLevelWindows().filter((h) => w32.className(h) === 'Chrome_WidgetWin_1').length;
+      w32.IsWindow(hwnd) && chromeAfter === chromeBefore
+        ? rep.pass(`单实例守卫：原面板窗完好（Chrome 窗计数 ${chromeBefore} → ${chromeAfter}），屏上仍只有一个面板`)
+        : rep.fail(`单实例守卫后面板状态异常（原窗在=${w32.IsWindow(hwnd)}，Chrome 窗计数 ${chromeBefore} → ${chromeAfter}）`);
+    }
+
+    // —— P8 托盘图标已注册且可上屏 ——
+    // Win11 新图标默认收进溢出区：经 NotifyIconSettings 的 IsPromoted 提升到可见区，
+    // 以识别色（琥珀）像素 + 截图断言「图标在系统托盘里」。
+    {
+      const entries = listNotifyIcons();
+      const exeLower = process.execPath.toLowerCase();
+      const mine = entries.find((e) => (e.exe || '').toLowerCase() === exeLower);
+      mine
+        ? rep.pass(`托盘图标已注册：NotifyIconSettings 条目 ${mine.key}（exe 匹配）`)
+        : rep.fail(`托盘图标未注册：NotifyIconSettings 无本面板条目（exe=${process.execPath}）`);
+      if (mine) {
+        promotedKey = mine.key;
+        promotedOld = mine.promoted;
+        if (promotedOld !== 1) {
+          setPromoted(mine.key, 1);
+          rep.note(`已设 IsPromoted=1（原值 ${promotedOld ?? '未设'}），等待 explorer 应用`);
+          await sleep(1800);
+        } else {
+          rep.note('IsPromoted 已是 1，直接扫可见区');
+        }
+        let amber = scanAmberInTray('area');
+        if (!amber) {
+          rep.note('提升后可见区未发现识别色，重启面板让 explorer 按注册表重挂图标');
+          await stopPanel();
+          const t0 = Date.now();
+          child = launchPanel();
+          hwnd = await waitPanelWindow(20000, t0);
+          if (!hwnd) throw new Error('P8 重启后未见面板窗口');
+          panelPid = w32.threadIdOf(hwnd).pid;
+          await sleep(1500);
+          amber = scanAmberInTray('area');
+        }
+        amber && (!amberBase || amber.hits > amberBase.hits)
+          ? rep.pass(`托盘图标可见：识别色命中 ${amber.hits} 像素 @(${amber.x},${amber.y})（基线 ${amberBase ? amberBase.hits : 0}），截图 03-tray-area.png`)
+          : rep.fail('托盘图标未在可见区检出（识别色无增量）');
+      }
+    }
+
+    // —— P9 Win+D 收起桌面：面板豁免实证 + 任意最小化来源的防抖自动恢复 ——
+    // Win11 ToggleDesktop 不收 WS_EX_TOOLWINDOW（skipTaskbar）窗口——面板不受 Win+D 影响
+    // 即用户故事「误触显示桌面不用找回面板」的本意；防抖恢复机制保留兜底任意最小化来源，
+    // 以 SW_MINIMIZE 程序化收起做真机演练。对照窗（记事本）先证明 Win+D 确实投递。
+    {
+      const rect1 = w32.rectOf(hwnd);
+      await sleep(400);
+      w32.send([
+        w32.keyInput(VK_LWIN, w32.KEYDOWN), w32.keyInput(VK_D, w32.KEYDOWN),
+        w32.keyInput(VK_D, w32.KEYUP), w32.keyInput(VK_LWIN, w32.KEYUP),
+      ]);
+      rep.note('已发送 Win+D');
+      await sleep(2000); // shell 收起动画与窗口落位
+      const npIconic = w32.IsIconic(notepad.hwnd);
+      const panelIconic = w32.IsIconic(hwnd);
+      if (!npIconic) {
+        rep.fail('Win+D 对照失败：记事本未被最小化，键盘投递未生效（本组断言不可信）');
+      } else if (!panelIconic) {
+        rep.pass('Win+D 收起桌面：普通窗（记事本）最小化，面板豁免不受影响（skipTaskbar 工具窗）——面板常在即免找回');
+        capture(rect1, '03-wind-immune');
+        rep.note('Win+D 后实拍：面板仍在原位（对照窗已收起）');
+      } else {
+        // 若未来 Windows 行为变化或面板失去工具窗豁免：防抖恢复机制接管
+        const windMin = await waitEvent('wind-minimized', null, 6000);
+        rep.note(`面板亦被 Win+D 最小化（存证 ${JSON.stringify(windMin)}），等待防抖自动恢复`);
+      }
+      // —— 防抖自动恢复真机演练：SW_MINIMIZE 收起面板 → 1.5s 防抖 → 自动恢复原位并重钉 ——
+      const windMinPromise = waitEvent('wind-minimized', null, 6000);
+      w32.ShowWindow(hwnd, SW_MINIMIZE);
+      const windMin = await windMinPromise;
+      await sleep(400);
+      const minIconic = w32.IsIconic(hwnd);
+      windMin && minIconic
+        ? rep.pass(`面板被最小化（来源=SW_MINIMIZE，存证 why=${windMin.why}，IsIconic=true）`)
+        : rep.fail(`面板最小化未检出（存证=${JSON.stringify(windMin)}，IsIconic=${minIconic}）`);
+      if (minIconic) {
+        capture(rect1, '03-wind-minimized');
+        rep.note('最小化期实拍：面板收起（时钟卡区无实色内容）');
+      }
+      const windRestored = await waitEvent('wind-restored', null, 10000);
+      await sleep(600);
+      const rect2 = w32.rectOf(hwnd);
+      const tol = 24; // frameless 隐形边框（探针01-E 同 P6 容差）
+      const okRect = rect2 && rect1 && Math.abs(rect2.left - rect1.left) <= tol
+        && Math.abs(rect2.top - rect1.top) <= tol
+        && Math.abs((rect2.right - rect2.left) - (rect1.right - rect1.left)) <= tol
+        && Math.abs((rect2.bottom - rect2.top) - (rect1.bottom - rect1.top)) <= tol;
+      windRestored && !w32.IsIconic(hwnd) && okRect
+        ? rep.pass(`防抖自动恢复：${(windRestored.afterMs / 1000).toFixed(2)}s 后回到原位（存证 afterMs=${windRestored.afterMs}，矩形偏差在容差内）`)
+        : rep.fail(`防抖自动恢复未达成（存证=${JSON.stringify(windRestored)}，IsIconic=${w32.IsIconic(hwnd)}，okRect=${okRect}）`);
+      // 恢复后的重钉（票01 实施要点）：还原记事本，普通窗应重新盖住面板
+      w32.ShowWindow(notepad.hwnd, SW_RESTORE);
+      await sleep(600);
+      const overlap = { x: 1800, y: 600 };
+      w32.windowFromPointRoot(overlap) === notepad.hwnd
+        ? rep.pass('最小化恢复后重钉生效：记事本重新盖住面板')
+        : rep.fail(`恢复后重叠点命中 0x${w32.windowFromPointRoot(overlap).toString(16)}(${w32.className(w32.windowFromPointRoot(overlap))})，面板未回底`);
+      capture(rect1, '03-wind-restored');
+    }
+
+    // —— P10 托盘退出闭环：UIA 系统级可见 + 退出后托盘随之消失 ——
+    // 探针结论（工单03 迭代，7 轮真机实证）：Win11 26200 的 XAML 任务栏不把注入的右键
+    // （SendInput 即时/保持/悬停）与键盘上下文菜单（聚焦后 Shift+F10）投递给 Electron 托盘
+    // 图标——邻位 Win32 应用图标可达、本图标左键可达，唯右键不通，属 shell 行为而非应用缺陷；
+    // 真人鼠标右键菜单（含「退出面板」项）留人工验收。电池自动化两条硬证据：
+    // ① Win+B 键盘导航经 UIA 焦点链命中本图标（系统托盘里可见、名字正确、可聚焦）；
+    // ② WM_CLOSE 走 window-all-closed → app.quit() → before-quit 拆托盘——与托盘菜单
+    //   「退出面板」（click=app.quit()）共用同一退出管道，断言进程退出且托盘图标消失。
+    {
+      try {
+        w32.send([
+          w32.keyInput(VK_LWIN, w32.KEYDOWN), w32.keyInput(VK_B, w32.KEYDOWN), // Win+B
+          w32.keyInput(VK_B, w32.KEYUP), w32.keyInput(VK_LWIN, w32.KEYUP),
+        ]);
+        await sleep(1200);
+        const nav = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass',
+          '-File', path.join(__dirname, 'lib', 'uia-focus.ps1'), '-Needle', 'AGENT DECK', '-MaxSteps', '20'],
+        { encoding: 'utf8', timeout: 45000 });
+        const navOut = (nav.stdout || '').trim();
+        const focusLine = (navOut.split('\n').filter((l) => l.startsWith('STEP')).pop() || '').replace(/^STEP \d+: /, '');
+        navOut.includes('MATCH')
+          ? rep.pass(`托盘图标系统级可见：Win+B 键盘导航命中托盘焦点元素「${focusLine}」（tooltip 名匹配）`)
+          : rep.fail(`托盘图标未被系统键盘导航命中（nav.status=${nav.status} 末步焦点「${focusLine}」全部输出：${JSON.stringify(navOut)} stderr: ${nav.stderr || '无'}）`);
+        w32.tapKeys([VK_ESCAPE]); // 收起可能弹出的托盘气泡/焦点残留
+
+        const t0 = Date.now();
+        w32.PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        // 进程退出以面板真实主进程 pid（boot 自报）的存活轮询为准——spawn 的 child.pid 是
+        // launcher 壳（票02 坑 2），其 exit 事件不可靠（实测 8s 内不触发）。
+        const dead = await (async () => {
+          const deadline = Date.now() + 10000;
+          while (Date.now() < deadline) {
+            await sleep(200);
+            if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+          }
+          return false;
+        })();
+        dead
+          ? rep.pass(`退出闭环：窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - t0}ms）`)
+          : rep.fail(`退出闭环未达成（窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
+        readEvents().some((e) => e.type === 'quit')
+          ? rep.pass('退出管道经 before-quit 存证（quit，托盘随之 destroy）')
+          : rep.fail('无 quit 存证');
+        await sleep(1500);
+        const afterExit = scanAmberInTray('after-exit');
+        (!afterExit || afterExit.hits <= (amberBase ? amberBase.hits : 0))
+          ? rep.pass('退出后托盘图标随之消失（识别色回落至基线水平，截图 03-tray-after-exit.png）')
+          : rep.fail(`退出后识别色仍在托盘区（命中 ${afterExit.hits} 像素 @(${afterExit.x},${afterExit.y})）`);
+      } finally {
+        restorePromoted();
+      }
+    }
   } catch (e) {
     rep.fail(`电池中断: ${e && e.stack || e}`);
   } finally {
     // —— 清场 ——
+    restorePromoted();
+    try { w32.tapKeys([VK_ESCAPE]); } catch { /* 尽力收起残留菜单 */ }
+    await sleep(300);
     if (notepad) {
       try { w32.PostMessageW(notepad.hwnd, WM_CLOSE, 0, 0); } catch { /* 尽力 */ }
       try { notepad.child.kill(); } catch { /* 尽力 */ }
