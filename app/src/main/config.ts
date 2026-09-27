@@ -20,11 +20,18 @@ export interface AppConfig {
   desktop: DesktopLayout
   /** 搜索（工单07）：Listary 本地 API 端口（host 恒 127.0.0.1 不进配置——只发往本机） */
   search: SearchConfig
+  /** 外观（工单08）：模块底色透明度全局滑杆值 */
+  appearance: AppearanceConfig
 }
 
 /** Listary 本地 API 端口（验收可指假端口复现引擎离线） */
 export interface SearchConfig {
   port: number
+}
+
+/** 卡片底色透明度（工单08 全局滑杆）：0..1，rgba alpha 语义；0 = 全透（文字仍实色） */
+export interface AppearanceConfig {
+  cardOpacity: number
 }
 
 export interface RectLike {
@@ -86,6 +93,11 @@ export function defaultDesktopLayout(): DesktopLayout {
 /** 默认搜索端口：Listary 7 本地 HTTP API 的生产值（BASE_PORT 单一来源） */
 export function defaultSearchConfig(): SearchConfig {
   return { port: BASE_PORT }
+}
+
+/** 默认外观：信息卡底色 rgba(0,0,0,0.55) 的 alpha（renderer 生产值固化） */
+export function defaultAppearance(): AppearanceConfig {
+  return { cardOpacity: 0.55 }
 }
 
 function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[]): WeatherConfig {
@@ -161,9 +173,29 @@ function mergeSearch(raw: unknown, fallback: SearchConfig, warnings: string[]): 
   return out
 }
 
-function writeConfig(file: string, config: AppConfig): void {
+function mergeAppearance(raw: unknown, fallback: AppearanceConfig, warnings: string[]): AppearanceConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.appearance 不是对象，已整体回退默认透明度')
+    return out
+  }
+  const appearance = raw as Record<string, unknown>
+  const opacity = appearance.cardOpacity
+  if (opacity === undefined) return out
+  if (isFiniteNumber(opacity) && (opacity as number) >= 0 && (opacity as number) <= 1) out.cardOpacity = opacity
+  else warnings.push(`config.appearance.cardOpacity 须为 0..1 数字，已回退默认值 ${fallback.cardOpacity}`)
+  return out
+}
+
+/** 整份回写 config.json（首运行落盘与工单08 设置滑杆的持久化通道）。
+ * tmp+rename 原子写（writeStoreText 先例）：config 收口屏幕几何/端口/透明度，
+ * 坏写不碰原文件——半截 JSON 会让下次启动整体回退默认。 */
+export function saveConfig(file: string, config: AppConfig): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n')
+  const tmp = `${file}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n', 'utf8')
+  fs.renameSync(tmp, file)
 }
 
 /**
@@ -172,7 +204,7 @@ function writeConfig(file: string, config: AppConfig): void {
  */
 export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult {
   if (!fs.existsSync(file)) {
-    writeConfig(file, fallback)
+    saveConfig(file, fallback)
     return { config: fallback, warnings: [], created: true }
   }
   const warnings: string[] = []
@@ -196,6 +228,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       weather: mergeWeather(root.weather, fallback.weather, warnings),
       desktop: mergeDesktop(root.desktop, fallback.desktop, warnings),
       search: mergeSearch(root.search, fallback.search, warnings),
+      appearance: mergeAppearance(root.appearance, fallback.appearance, warnings),
     },
     warnings,
     created: false,

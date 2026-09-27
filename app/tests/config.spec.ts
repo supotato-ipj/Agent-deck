@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultWeather, loadConfig } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -164,5 +164,60 @@ describe('config 模型（工单07 搜索）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.search).toEqual({ port: 38431 })
     expect(r.warnings.some((w) => w.includes('config.search'))).toBe(true)
+  })
+})
+
+describe('config 模型（工单08 设置浮层透明度）', () => {
+  it('defaultAppearance 给模块底色透明度生产值 0.55（现 rgba(0,0,0,0.55) 固化）', () => {
+    expect(defaultAppearance()).toEqual({ cardOpacity: 0.55 })
+  })
+
+  it('appearance 段缺失回退默认（老 config.json 兼容，不告警）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: FALLBACK.panel }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.appearance).toEqual({ cardOpacity: 0.55 })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('appearance.cardOpacity 合法值（含 0 与 1 边界）整体生效', () => {
+    const file = tmpFile()
+    for (const cardOpacity of [0, 1, 0.25, 0.85]) {
+      fs.writeFileSync(file, JSON.stringify({ appearance: { cardOpacity } }))
+      const r = loadConfig(file, FALLBACK)
+      expect(r.config.appearance).toEqual({ cardOpacity })
+      expect(r.warnings).toHaveLength(0)
+    }
+  })
+
+  it('appearance.cardOpacity 非法（越界/非数）回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ appearance: { cardOpacity: 1.5 } }))
+    let r = loadConfig(file, FALLBACK)
+    expect(r.config.appearance).toEqual({ cardOpacity: 0.55 })
+    expect(r.warnings.some((w) => w.includes('config.appearance.cardOpacity'))).toBe(true)
+
+    fs.writeFileSync(file, JSON.stringify({ appearance: { cardOpacity: 'dark' } }))
+    r = loadConfig(file, FALLBACK)
+    expect(r.config.appearance).toEqual({ cardOpacity: 0.55 })
+
+    fs.writeFileSync(file, JSON.stringify({ appearance: { cardOpacity: -0.1 } }))
+    r = loadConfig(file, FALLBACK)
+    expect(r.config.appearance).toEqual({ cardOpacity: 0.55 })
+  })
+
+  it('appearance 整体非对象回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ appearance: 'opaque' }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.appearance).toEqual({ cardOpacity: 0.55 })
+    expect(r.warnings.some((w) => w.includes('config.appearance'))).toBe(true)
+  })
+
+  it('saveConfig 整份回写（设置滑杆的持久化通道），读回一致', () => {
+    const file = tmpFile()
+    const config = { ...FALLBACK, appearance: { cardOpacity: 0.3 } }
+    saveConfig(file, config)
+    expect(loadConfig(file, FALLBACK).config).toEqual(config)
   })
 })

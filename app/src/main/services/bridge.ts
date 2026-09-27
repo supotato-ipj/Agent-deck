@@ -1,12 +1,13 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { ClockService } from './clock'
 import type { SessionsService } from './sessions'
 import type { HardwareService } from './hardware'
 import type { DesktopService } from './desktop'
 import type { SearchService } from './search'
+import type { SettingsService } from './settings'
 
 /** 桥接层错误（未知方法等契约违规） */
 export class BridgeError extends Error {
@@ -21,7 +22,7 @@ export class BridgeError extends Error {
  * 后续工单只扩展 BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search']
+  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search', 'settings']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -45,6 +46,7 @@ export class BridgeService extends Service {
       weather: this.weather,
       desktop: this.ctx.desktop.state(),
       layout: this.layout,
+      settings: this.ctx.settings.state(),
     }
   }
 
@@ -77,6 +79,10 @@ export class BridgeService extends Service {
       case 'search/action': {
         const { path, reveal } = payload as { path: string; reveal: boolean }
         return await this.ctx.search.action(String(path), Boolean(reveal)) as BridgeMethods[M]['response']
+      }
+      case 'settings/set-card-opacity': {
+        const { opacity } = payload as { opacity: number }
+        return this.ctx.settings.setCardOpacity(opacity) as BridgeMethods[M]['response']
       }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)

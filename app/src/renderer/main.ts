@@ -273,7 +273,6 @@ async function fetchWeather(): Promise<void> {
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
 const docGroups = el('doc-groups')
-const resetBtn = el('reset-layout')
 const GROUP_ORDER = ['folders', 'office', 'pdf', 'image', 'archive', 'other'] as const
 const GROUP_LABELS: Record<string, string> = {
   folders: 'FOLDERS', office: 'OFFICE', pdf: 'PDF', image: 'IMAGE', archive: 'ARCHIVE', other: 'OTHER',
@@ -568,15 +567,110 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
   })
 }
 
-// ---- 恢复出厂布局（工单06）：一键清除摆位，回归类 + 频次推荐的出厂编排 ----
+// ---- 设置浮层（工单08）：卡片底色透明度全局滑杆 + 恢复出厂布局入口 ----
+// 滑杆 input 即时改 CSS 变量 --card-alpha（.card 与 #dock-zone 的底色，文字全部
+// 实色不动）；持久化经内核契约 settings/set-card-opacity（内核整份回写 config.json），
+// 回推经 settings/changed 与快照 reconcile（applyCardAlpha 幂等）。
+// 浮层开关：点击 settings-btn 切换；ESC 关闭；失焦关闭 = focusout 且焦点未落回浮层
+// 内（面板穿透之下「点外部」根本到不了渲染层，与 07 失焦退待机同一语义边界）。
+// 恢复出厂布局动作本体属 06，这里接入口（存证 notify 名沿用 06 电池契约）。
 
-resetBtn.addEventListener('click', () => {
+const settingsBtn = el('settings-btn')
+const settingsCard = el('settings-card')
+const opacitySlider = el('opacity-slider') as HTMLInputElement
+const opacityValue = el('opacity-value')
+const settingsReset = el('settings-reset')
+let settingsOpen = false
+let appliedOpacity: number | null = null
+
+/** 应用透明度：CSS 变量 + 滑杆/数值 reconcile + 变化存证（boot/滑杆/回推三路共用，幂等） */
+function applyCardAlpha(alpha: number): void {
+  const clamped = Math.min(1, Math.max(0, alpha))
+  document.documentElement.style.setProperty('--card-alpha', clamped.toFixed(3))
+  const value = Math.round(clamped * 100)
+  opacityValue.textContent = `${pad3(value)}%`
+  // 滑杆正被拖拽（持焦点）时不回写位置——用户是唯一来源；其余路径照常 reconcile
+  if (document.activeElement !== opacitySlider) opacitySlider.value = String(value)
+  if (appliedOpacity !== clamped) {
+    appliedOpacity = clamped
+    notify('settings-opacity-applied', { value })
+  }
+}
+
+function renderSettings(s: SettingsState): void {
+  applyCardAlpha(s.cardOpacity)
+}
+
+type SettingsCloseReason = 'esc' | 'blur' | 'toggle'
+
+function openSettings(): void {
+  if (settingsOpen) return
+  settingsOpen = true
+  settingsCard.style.display = 'block'
+  settingsCard.focus()
+  // 滑杆矩形随开层存证（电池按它定位拖拽落点，desktop-rendered rects 同法）
+  const sr = opacitySlider.getBoundingClientRect()
+  notify('settings-opened', {
+    slider: { x: sr.left, y: sr.top, w: sr.width, h: sr.height },
+    value: appliedOpacity == null ? null : Math.round(appliedOpacity * 100),
+  })
+  declareHotZones()
+}
+
+function closeSettings(reason: SettingsCloseReason): void {
+  if (!settingsOpen) return
+  settingsOpen = false
+  settingsCard.style.display = 'none'
+  notify('settings-closed', { reason })
+  declareHotZones()
+}
+
+settingsBtn.addEventListener('mousedown', (e) => {
+  // 点击按钮不转移焦点：浮层开着时点按钮只走 click 开关，不触发 focusout 误关
+  e.preventDefault()
+})
+settingsBtn.addEventListener('click', () => {
+  if (settingsOpen) closeSettings('toggle')
+  else openSettings()
+})
+
+settingsCard.addEventListener('mousedown', (e) => {
+  // 滑杆要收焦点（拖拽中渲染层不抢滑杆位）；其余区域保焦点，点击不触发失焦关层
+  if (e.target !== opacitySlider) e.preventDefault()
+})
+
+settingsCard.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeSettings('esc')
+  }
+})
+
+settingsCard.addEventListener('focusout', (e) => {
+  const to = e.relatedTarget as Node | null
+  if (to && settingsCard.contains(to)) return // 焦点仍在浮层内（如滑杆）
+  closeSettings('blur')
+})
+
+opacitySlider.addEventListener('input', () => {
+  const value = Math.round(Number(opacitySlider.value))
+  applyCardAlpha(value / 100) // 滑杆持焦点，applyCardAlpha 不会回写滑杆位
+  notify('settings-opacity-input', { value })
+  void window.deck.bridge.invoke('settings/set-card-opacity', { opacity: value / 100 }).then(
+    (s) => notify('settings-opacity-set', { value: Math.round(s.cardOpacity * 100) }),
+    (err: unknown) => notify('settings-opacity-failed', { message: String(err) }),
+  )
+})
+
+settingsReset.addEventListener('click', () => {
   notify('desktop-reset-clicked', {})
   void window.deck.bridge.invoke('desktop/reset-layout', null).then(
     (r) => notify('desktop-layout-reset', { ok: r.ok, cleared: r.cleared }),
     (err: unknown) => notify('desktop-reset-failed', { message: String(err) }),
   )
 })
+
+window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
 
 // ---- 搜索面板（工单07，CONTEXT.md「搜索面板」三态）----
 // 待机（SEARCH 头 + CLICK TO SEARCH_ 提示）/ 活动（原生输入框 + 实时结果）/ 引擎离线
@@ -801,6 +895,7 @@ function render(snap: PanelSnapshot): void {
   renderQoder(snap.qoder)
   renderHardware(snap.hardware)
   renderDesktop(snap.desktop, snap.layout)
+  renderSettings(snap.settings)
   const month = new Date(snap.clock.epochMs).getMonth()
   if (month !== calendarMonth) {
     calendarMonth = month
@@ -848,9 +943,13 @@ function declareHotZones(): void {
   if (dock) rects.push(dock)
   const doc = zoneItemRect(docZone, 'doc-zone')
   if (doc) rects.push(doc)
-  const rb = resetBtn.getBoundingClientRect()
-  if (rb.width > 0) rects.push({ id: 'reset-layout', x: rb.left, y: rb.top, w: rb.width, h: rb.height })
-  window.deck.host.setHotZones(rects)
+  const sb = settingsBtn.getBoundingClientRect()
+  if (sb.width > 0) rects.push({ id: 'settings-btn', x: sb.left, y: sb.top, w: sb.width, h: sb.height })
+  // 浮层内的复位按钮自带矩形热区（电池按 id 定位点击，旧独立按钮同法）；随浮层显隐
+  const sr = settingsReset.getBoundingClientRect()
+  if (sr.width > 0) rects.push({ id: 'settings-reset', x: sr.left, y: sr.top, w: sr.width, h: sr.height })
+  // 关闭中的设置浮层矩形为 0（display:none），与一切零尺寸矩形一起不进热区（不留死区）
+  window.deck.host.setHotZones(rects.filter((r) => r.w > 0 && r.h > 0))
 }
 let clickCount = 0
 

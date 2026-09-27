@@ -140,7 +140,12 @@ export interface DesktopLayout {
   dockMaxWidth: number
 }
 
-/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何 */
+/** 设置状态（工单08）：卡片底色透明度全局滑杆值（0..1，rgba alpha 语义；config.appearance.cardOpacity 平移） */
+export interface SettingsState {
+  cardOpacity: number
+}
+
+/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何；08 设置 */
 export interface PanelSnapshot {
   clock: ClockState
   sessions: SessionInfo[]
@@ -149,6 +154,7 @@ export interface PanelSnapshot {
   weather: WeatherLocation
   desktop: DesktopState
   layout: DesktopLayout
+  settings: SettingsState
 }
 
 /** 搜索结果行（工单07，Listary 本地 API data.results 行的字段集，snake_case 平移为驼峰） */
@@ -189,6 +195,8 @@ export interface BridgeMethods {
     request: { path: string; reveal: boolean }
     response: { ok: boolean; error?: string }
   }
+  /** 设置滑杆（工单08）：写卡片底色透明度（clamp 0..1）、整份回写 config.json；回推 settings/changed */
+  'settings/set-card-opacity': { request: { opacity: number }; response: SettingsState }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -198,6 +206,8 @@ export interface BridgeEvents {
   'search/state': { state: SearchUiState }
   /** 引擎成功响应（空结果 items=[]）；选中语义与展示归渲染层 */
   'search/results': { total: number; items: SearchResultItem[] }
+  /** 设置变化（工单08 滑杆即时回推；快照每秒也携带同一状态） */
+  'settings/changed': SettingsState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

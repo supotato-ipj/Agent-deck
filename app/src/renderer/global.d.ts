@@ -16,6 +16,7 @@ declare global {
   type HotzoneRect = import('../shared/contract').HotzoneRect
   type SearchResultItem = import('../shared/contract').SearchResultItem
   type SearchUiState = import('../shared/contract').SearchUiState
+  type SettingsState = import('../shared/contract').SettingsState
 
   interface Window {
     deck: {

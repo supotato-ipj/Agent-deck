@@ -11,6 +11,7 @@ import { DesktopService } from './services/desktop'
 import { HardwareService } from './services/hardware'
 import { SearchService } from './services/search'
 import { SessionsService } from './services/sessions'
+import { SettingsService, type SettingsServiceOptions } from './services/settings'
 import { UsageService } from './services/usage'
 import type { WeatherLocation } from '../shared/contract'
 
@@ -35,6 +36,8 @@ export interface KernelOptions {
   search?: SearchServiceOptions
   /** 搜索引擎链路泵间隔（ms）；0 = 不装定时器（离线测试手动驱动 tick） */
   searchIntervalMs?: number
+  /** 设置（工单08）：config 文件路径与可变引用（离线测试注入 tmp 桩；缺省只内存态） */
+  settings?: SettingsServiceOptions
   /** 桌面承载几何（工单06，config.json 下发；随快照给渲染层） */
   layout?: DesktopLayout
 }
@@ -63,6 +66,7 @@ export function createKernel(options: KernelOptions = {}): Context {
   })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   ctx.plugin(SearchService, options.search)
+  ctx.plugin(SettingsService, options.settings)
   const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
   if (tickMs > 0) {
     const timer = setInterval(() => ctx.bridge?.tick(), tickMs)

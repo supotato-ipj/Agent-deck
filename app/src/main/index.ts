@@ -1,7 +1,7 @@
 import { app, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultWeather, loadConfig } from './config'
+import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultWeather, loadConfig } from './config'
 import { createKernel } from './kernel'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
@@ -24,6 +24,7 @@ async function bootPanel(): Promise<void> {
     weather: defaultWeather(),
     desktop: defaultDesktopLayout(),
     search: defaultSearchConfig(),
+    appearance: defaultAppearance(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
@@ -39,6 +40,7 @@ async function bootPanel(): Promise<void> {
     },
     usage: { dir: path.join(app.getPath('userData'), 'usage') },
     search: { port: config.search.port },
+    settings: { file: CONFIG_FILE, config },
   })
   await kernel.start()
 

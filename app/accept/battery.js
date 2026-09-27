@@ -511,6 +511,34 @@ async function main() {
     rep.note(`panel hwnd=0x${hwnd.toString(16)} rect(phys)=${rect.left},${rect.top} ${rect.right - rect.left}x${rect.bottom - rect.top}`);
     await sleep(1200);
 
+    // —— 电池共用探针件（06 复位 / 08 设置浮层共用；hwnd 随重启段更新，闭包取现值）——
+    const CONFIG_FILE_B = path.join(APP_ROOT, 'config.json');
+    const pctOf = (v) => Math.round(v * 100);
+    const latestZoneOf = (id) => {
+      const evts = readEvents().filter((e) => e.type === 'hotzones' && (e.rects || []).some((r) => r.id === id));
+      const last = evts[evts.length - 1];
+      return last ? (last.rects || []).find((r) => r.id === id) || null : null;
+    };
+    const lastEvent = (type, pred, sinceMs = 0) => {
+      const hits = readEvents().filter((e) => e.type === type && e.t >= sinceMs && (!pred || pred(e)));
+      return hits.length ? hits[hits.length - 1] : null;
+    };
+    const ptOfZoneAt = (winRect, z) => ({ x: winRect.left + Math.round((z.x + z.w / 2) * f), y: winRect.top + Math.round((z.y + z.h / 2) * f) });
+    const occludedClickAt = async (pt, label) => {
+      w32.moveMousePhys(pt.x, pt.y);
+      await sleep(350);
+      // 命中取证：面板应为 WindowFromPoint 结果（热区已解除穿透）；非面板=通知横幅/用户窗遮挡
+      const hit = w32.windowFromPointRoot(pt);
+      if (hit !== hwnd) rep.note(`${label} 点击前遮挡探测：命中 ${w32.className(hit)} pid=${w32.threadIdOf(hit).pid}（继续点击，事件门判定）`);
+      w32.clickPhys(pt.x, pt.y, 'left');
+    };
+    const backupConfigB = () => (fs.existsSync(CONFIG_FILE_B) ? fs.readFileSync(CONFIG_FILE_B, 'utf8') : null);
+    const restoreConfigB = (backup) => {
+      if (backup === null) { try { fs.unlinkSync(CONFIG_FILE_B); } catch { /* 尽力 */ } }
+      else { try { fs.writeFileSync(CONFIG_FILE_B, backup); } catch { /* 尽力 */ } }
+    };
+    const fullShot = (name) => capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, name);
+
     // —— P2 透明合成：棋盘参照窗压到面板之下（免受动态壁纸干扰）——
     const checker = new BrowserWindow({
       x: Math.round(rect.left / f) - 8, y: Math.round(rect.top / f) - 8,
@@ -967,48 +995,49 @@ async function main() {
             : rep.fail('重启后摆位未保持（layout.json 未生效）');
           capture({ left: rectN.left, top: rectN.bottom - Math.round(DOCK_STRIP_DIP * f), right: rectN.right, bottom: rectN.bottom }, '06-drag-persisted');
 
-          // d. 恢复出厂布局：右下角 RESET LAYOUT 一键回到出厂编排（清摆位、留手钉）
-          const zonesEvt = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'reset-layout'), 8000);
-          const rz = zonesEvt && (zonesEvt.rects || []).find((r) => r.id === 'reset-layout');
-          if (!rz) {
-            rep.fail('重置按钮未进热区（恢复出厂不可点）');
+          // d. 恢复出厂布局：设置浮层（工单08 迁入）内的 RESET LAYOUT 一键回出厂编排（清摆位、留手钉）。
+          // 每轮从干净态起：先 ESC（浮层开着则收层；被系统浮层遮挡也顺带清场），再点入口开层、点复位。
+          const ptOfZone = (z) => ptOfZoneAt(rectN, z);
+          const resetViaOverlay = async () => {
+            const tRound = Date.now();
+            w32.tapKeys([VK_ESCAPE]);
+            await sleep(500);
+            const bz = latestZoneOf('settings-btn');
+            if (!bz) return { reset: null, why: 'settings-btn 未进热区' };
+            await occludedClickAt(ptOfZone(bz), '设置入口');
+            const opened = await waitEvent('settings-opened', (e) => e.t >= tRound, 3000);
+            if (!opened) return { reset: null, why: 'settings-opened 未到（浮层未开）' };
+            await sleep(350); // 浮层热区声明落地
+            const rz2 = latestZoneOf('settings-reset');
+            if (!rz2) return { reset: null, why: 'settings-reset 未进热区' };
+            await occludedClickAt(ptOfZone(rz2), '浮层复位');
+            const reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 3000);
+            return { reset, why: reset ? '' : 'desktop-layout-reset 未到' };
+          };
+          let reset = await resetViaOverlay();
+          if (!reset.reset) {
+            rep.note(`首次复位未达成（${reset.why}），重试一轮`);
+            reset = await resetViaOverlay();
+          }
+          w32.moveMousePhys(safePt.x, safePt.y);
+          if (!reset.reset) {
+            rep.fail(`恢复出厂未达成（${reset.why}）`);
           } else {
-            const cc = { x: rectN.left + Math.round((rz.x + rz.w / 2) * f), y: rectN.top + Math.round((rz.y + rz.h / 2) * f) };
-            const clickReset = async () => {
-              w32.moveMousePhys(cc.x, cc.y);
-              await sleep(350);
-              // 命中取证：面板应为 WindowFromPoint 结果（热区已解除穿透）；非面板=通知横幅/用户窗遮挡，ESC 收层重试
-              const hit = w32.windowFromPointRoot(cc);
-              if (hit !== hwnd) {
-                const coverCls = w32.className(hit);
-                w32.tapKeys([VK_ESCAPE]);
-                await sleep(500);
-                w32.moveMousePhys(cc.x, cc.y);
-                await sleep(350);
-                rep.note(`点击前遮挡探测：命中 ${coverCls} pid=${w32.threadIdOf(hit).pid}（已 ESC 收层重试）`);
-              }
-              w32.clickPhys(cc.x, cc.y, 'left');
-            };
-            await clickReset();
-            let reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 3000);
-            if (!reset) {
-              // 复位点补射一轮（真机瞬时遮挡/事件迟滞兜底；隔离探针下机制本身全绿）
-              rep.note('首次复位点击无响应，1s 后补射一轮');
-              await sleep(1000);
-              await clickReset();
-              reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 5000);
-            }
-            w32.moveMousePhys(safePt.x, safePt.y);
-            const tReset = Date.now() - 15000; // 覆盖两次点击的窗口
+            const tReset = Date.now() - 15000; // 覆盖重试轮的窗口
             const factoryEvt = await waitEvent('desktop-rendered', (e) => {
               const dock = e.dock || [];
               return e.t >= tReset && dock.length > 1 && dock.every((d) => d.source !== 'placed');
             }, 6000);
             const pinnedKept = factoryEvt && factoryEvt.dock[0] && factoryEvt.dock[0].source === 'pinned';
-            reset && factoryEvt
-              ? rep.pass(`恢复出厂布局一键生效：清除 ${reset.cleared} 处摆位，非手钉全部回推荐位${pinnedKept ? '（手钉保留在前段）' : '（注意：手钉未保留）'}`)
-              : rep.fail(`恢复出厂未达成（reset=${JSON.stringify(reset)}，factoryEvt=${JSON.stringify(factoryEvt && factoryEvt.dock)}）`);
+            factoryEvt
+              ? rep.pass(`设置浮层恢复出厂一键生效：清除 ${reset.reset.cleared} 处摆位，非手钉全部回推荐位${pinnedKept ? '（手钉保留在前段）' : '（注意：手钉未保留）'}`)
+              : rep.fail(`恢复出厂未达成（reset=${JSON.stringify(reset.reset)}，factoryEvt=${JSON.stringify(factoryEvt && factoryEvt.dock)}）`);
             capture({ left: rectN.left, top: rectN.bottom - Math.round(DOCK_STRIP_DIP * f), right: rectN.right, bottom: rectN.bottom }, '06-factory-reset');
+            // 收层退场：ESC 关浮层（08 段对 esc/blur 有专门断言，这里只求干净退场）
+            const tClose = Date.now();
+            w32.tapKeys([VK_ESCAPE]);
+            const closed = await waitEvent('settings-closed', (e) => e.t >= tClose && e.reason === 'esc', 2500);
+            closed || rep.note('复位后 ESC 收层存证未到（不阻塞；08 段有专门断言）');
           }
         }
       }
@@ -1268,12 +1297,162 @@ async function main() {
       }
     })();
 
+    // —— P8S 工单08 设置浮层与透明度：入口开层（浮层=热区）→ 滑杆拖拽即时反映 +
+    // config 持久化 → ESC / 失焦关闭 → 重启保持。全程事件门判定 + 截图存证；
+    // config 整段备份还原，不给 P6 及用户留残留。——
+    await (async () => {
+      const configBackup08 = backupConfigB();
+      // 缺 appearance 段 = loadConfig 合并默认（与内核同语义），读盘断言按 0.55 兜底
+      const defaultAppearanceB = 0.55;
+      const readCardOpacity = () => {
+        try { return JSON.parse(fs.readFileSync(CONFIG_FILE_B, 'utf8')).appearance?.cardOpacity ?? defaultAppearanceB; } catch { return null; }
+      };
+      let rect08 = w32.rectOf(hwnd);
+      const openOverlay = async () => {
+        const t0 = Date.now();
+        const bz = latestZoneOf('settings-btn');
+        if (!bz) return null;
+        await occludedClickAt(ptOfZoneAt(rect08, bz), '设置入口');
+        const opened = await waitEvent('settings-opened', (e) => e.t >= t0, 3000);
+        if (opened) await sleep(350); // 浮层热区声明落地
+        return opened;
+      };
+      const closeOverlayEsc = async () => {
+        const t0 = Date.now();
+        w32.tapKeys([VK_ESCAPE]);
+        return await waitEvent('settings-closed', (e) => e.t >= t0 && e.reason === 'esc', 3000);
+      };
+      const dragSliderTo = async (slider, frac) => {
+        // 从滑杆中心按到目标分位（thumb 几何忽略——断言走事件终值，不猜落点）
+        const y = rect08.top + Math.round((slider.y + slider.h / 2) * f);
+        const x0 = rect08.left + Math.round((slider.x + slider.w / 2) * f);
+        const fracX = slider.x + Math.max(2, Math.min(slider.w - 2, slider.w * frac));
+        const x1 = rect08.left + Math.round(fracX * f);
+        w32.moveMousePhys(x0, y);
+        await sleep(300);
+        w32.send([w32.mouseInput(0, 0, w32.LEFTDOWN)]);
+        const steps = 12;
+        for (let s = 1; s <= steps; s++) {
+          await sleep(24);
+          w32.moveMousePhys(Math.round(x0 + ((x1 - x0) * s) / steps), y);
+        }
+        await sleep(160);
+        w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
+        await sleep(500); // 尾随 input 事件与内核回程落地，断言取「终值一致」而非中途值
+      };
+      /** 拖拽终值三链一致：滑杆终值 = 内核响应 = applied 存证，且 config 落盘同值 */
+      const dragConsistent = (tDrag, gate) => {
+        const input = lastEvent('settings-opacity-input', null, tDrag);
+        const set = lastEvent('settings-opacity-set', null, tDrag);
+        const applied = lastEvent('settings-opacity-applied', null, tDrag);
+        const cfg = readCardOpacity();
+        const ok = input && set && applied && cfg != null
+          && input.value === set.value && applied.value === input.value
+          && Math.abs(set.value - pctOf(cfg)) <= 1
+          && (!gate || gate(input.value));
+        return { ok, input, set, applied, cfg };
+      };
+
+      try {
+        // a. 入口开层 + 浮层自身是热区；开层存证带滑杆矩形与当前值
+        const opened0 = await openOverlay();
+        const overlayZone = latestZoneOf('settings-card');
+        opened0 && overlayZone
+          ? rep.pass(`设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 ${Math.round(overlayZone.w)}x${Math.round(overlayZone.h)}（可交互）`)
+          : rep.fail(`设置浮层开启失败（opened=${JSON.stringify(opened0)}，热区=${JSON.stringify(overlayZone)}）`);
+        fullShot('08-settings-open');
+
+        // b. 初值同源：开层上报的滑杆值 = config 当前值（快照 settings 下发）
+        const cfg0 = readCardOpacity();
+        const val0 = opened0 && opened0.value;
+        val0 != null && cfg0 != null && Math.abs(val0 - pctOf(cfg0)) <= 1
+          ? rep.pass(`初值同源：开层滑杆值 ${val0}% = config.appearance.cardOpacity ${cfg0}`)
+          : rep.fail(`开层初值与 config 不一致（slider=${val0}，config=${cfg0}）`);
+
+        // c. 拖到低位：input 即时反映（applied 存证）+ set-card-opacity 落盘
+        const slider0 = opened0 && opened0.slider;
+        if (!slider0) {
+          rep.fail('开层存证未带滑杆矩形（拖拽探针无法定位）');
+        } else {
+          const tDrag = Date.now();
+          await dragSliderTo(slider0, 0.08);
+          const low = dragConsistent(tDrag, (v) => v <= 30);
+          low.ok
+            ? rep.pass(`滑杆拖至低位 ${low.input.value}%：底色即时反映（applied 同值）且 config 同步落盘 ${low.cfg}`)
+            : rep.fail(`低位拖拽断言未过（input=${JSON.stringify(low.input)}，set=${JSON.stringify(low.set)}，applied=${JSON.stringify(low.applied)}，config=${low.cfg}）`);
+          fullShot('08-opacity-low');
+
+          // d. 拖回高位 + ESC 收层
+          const tDrag2 = Date.now();
+          await dragSliderTo(slider0, 0.92);
+          const high = dragConsistent(tDrag2, (v) => v >= 70);
+          high.ok
+            ? rep.pass(`滑杆拖回高位 ${high.input.value}%：config 同步落盘 ${high.cfg}（滑杆调节即时反映于各信息卡底色）`)
+            : rep.fail(`高位拖拽断言未过（input=${JSON.stringify(high.input)}，set=${JSON.stringify(high.set)}，applied=${JSON.stringify(high.applied)}，config=${high.cfg}）`);
+          fullShot('08-opacity-high');
+
+          const escEvt = await closeOverlayEsc();
+          escEvt
+            ? rep.pass('ESC 关闭设置浮层（settings-closed reason=esc 存证）')
+            : rep.fail('ESC 未关闭设置浮层（settings-closed reason=esc 未到）');
+          w32.moveMousePhys(safePt.x, safePt.y);
+
+          // e. 失焦关闭：重开浮层后点时钟卡（焦点离开浮层 → blur 收层）
+          const opened1 = await openOverlay();
+          const clockZone = latestZoneOf('clock-card');
+          if (opened1 && clockZone) {
+            const tBlur = Date.now();
+            await occludedClickAt(ptOfZoneAt(rect08, clockZone), '时钟卡');
+            const blurEvt = await waitEvent('settings-closed', (e) => e.t >= tBlur && e.reason === 'blur', 3000);
+            blurEvt
+              ? rep.pass('失焦关闭：焦点移出浮层（点时钟卡）即收层（reason=blur 存证）')
+              : rep.fail('失焦未关闭设置浮层（settings-closed reason=blur 未到）');
+          } else {
+            rep.fail(`失焦探针前置失败（opened=${JSON.stringify(opened1)}，clockZone=${JSON.stringify(clockZone)}）`);
+          }
+
+          // f. 重启保持：拖到已知高位 → ESC 收层 → 重启面板 → config 值回灌渲染层
+          const opened2 = await openOverlay();
+          if (opened2 && opened2.slider) {
+            const tDrag3 = Date.now();
+            await dragSliderTo(opened2.slider, 0.85);
+            const persist = dragConsistent(tDrag3, (v) => v >= 70);
+            await closeOverlayEsc();
+            if (persist.ok) {
+              await stopPanel();
+              const tRelaunch = Date.now();
+              child = launchPanel();
+              const hwnd8 = await waitPanelWindow(20000, tRelaunch);
+              if (!hwnd8) {
+                rep.fail('重启保持探针：面板重启后窗口未出现');
+              } else {
+                hwnd = hwnd8;
+                panelPid = win32.threadIdOf(hwnd8).pid;
+                rect08 = w32.rectOf(hwnd8);
+                const appliedPersist = await waitEvent('settings-opacity-applied', (e) => e.t >= tRelaunch && Math.abs(e.value - pctOf(persist.cfg)) <= 1, 8000);
+                appliedPersist
+                  ? rep.pass(`重启保持：config ${persist.cfg} 回灌渲染层（boot applied ${appliedPersist.value}%，滑杆与底色同值）`)
+                  : rep.fail(`重启后渲染层未回灌 config 值（期望 ~${pctOf(persist.cfg)}%，applied 未到）`);
+                fullShot('08-opacity-persisted');
+              }
+            } else {
+              rep.fail(`重启保持前置失败（input=${JSON.stringify(persist.input)}，set=${JSON.stringify(persist.set)}，config=${persist.cfg}）`);
+            }
+          } else {
+            rep.fail('重启保持前置失败：浮层未重开或无滑杆矩形');
+          }
+        }
+      } finally {
+        w32.moveMousePhys(safePt.x, safePt.y);
+        restoreConfigB(configBackup08);
+      }
+    })();
+
     // —— P6 config 几何生效：改 config 重启面板 ——
-    const configPath = path.join(APP_ROOT, 'config.json');
-    const configBackup = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : null;
+    const configBackup = backupConfigB();
     try {
       await stopPanel();
-      fs.writeFileSync(configPath, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 } }, null, 2) + '\n');
+      fs.writeFileSync(CONFIG_FILE_B, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 } }, null, 2) + '\n');
       // P1-P5.5 的存证先留档再重置（waitEvent 要等新 boot）；此前直接 unlink 把
       // P5.5 期事件抹掉，复位探针排障无据可查（三轮实测痛点）
       try { fs.copyFileSync(EVENTS_FILE, path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl')); } catch { /* 尽力留档 */ }
@@ -1294,8 +1473,7 @@ async function main() {
         ? rep.pass('config.json 改动几何后重启面板即反映')
         : rep.fail('config 几何未生效（窗口矩形偏离期望超出容差）');
     } finally {
-      if (configBackup === null) { try { fs.unlinkSync(configPath); } catch { /* 尽力 */ } }
-      else fs.writeFileSync(configPath, configBackup);
+      restoreConfigB(configBackup);
     }
 
     // —— P7 单实例守卫：二次拉起立即自行退出，屏幕上始终只有一个面板 ——

@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
+import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultWeather } from '../src/main/config'
+import type { AppConfig } from '../src/main/config'
 import type { PanelSnapshot } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
 
@@ -44,7 +46,19 @@ function usageOpts(dir: string) {
 
 /** 全离线内核选项基座：usage 一并假源化；搜索泵定时器不装（07 契约测试手动驱动） */
 function kernelOpts(dir: string, over: Record<string, unknown> = {}) {
-  return { tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchPumpMs: 0, desktop: desktopOpts(dir), usage: usageOpts(dir), ...over }
+  return { tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchIntervalMs: 0, desktop: desktopOpts(dir), usage: usageOpts(dir), ...over }
+}
+
+/** 设置桩（工单08）：config 落 tmp 文件，断言持久化不触真 config.json */
+function settingsOpts(dir: string): { settings: { file: string; config: AppConfig } } {
+  const config: AppConfig = {
+    panel: { x: 0, y: 0, width: 100, height: 100 },
+    weather: defaultWeather(),
+    desktop: defaultDesktopLayout(),
+    search: defaultSearchConfig(),
+    appearance: defaultAppearance(),
+  }
+  return { settings: { file: path.join(dir, 'config.json'), config } }
 }
 
 describe('内核桥接契约', () => {
@@ -301,6 +315,64 @@ describe('内核桥接契约（工单07 搜索扩展）', () => {
       ctx.search!.tick()
       await flush()
       expect(states).toEqual(['active', 'offline'])
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单08 设置浮层扩展）', () => {
+  it('panel/snapshot 携带 settings（初值 = config.appearance.cardOpacity）', async () => {
+    const dir = tmpDir()
+    const so = settingsOpts(dir)
+    so.settings.config.appearance.cardOpacity = 0.3
+    const ctx = createKernel(kernelOpts(dir, so))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.3 })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('settings/set-card-opacity：clamp 生效、settings/changed 即时回推、快照与磁盘同步', async () => {
+    const dir = tmpDir()
+    const so = settingsOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, so))
+    await ctx.start()
+    try {
+      const changed: Array<{ cardOpacity: number }> = []
+      ctx.bridge.subscribe('settings/changed', (s) => changed.push(s))
+
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 0.25 }))
+        .resolves.toEqual({ cardOpacity: 0.25 })
+      // clamp 到边界
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 1.7 }))
+        .resolves.toEqual({ cardOpacity: 1 })
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: -3 }))
+        .resolves.toEqual({ cardOpacity: 0 })
+
+      expect(changed).toEqual([{ cardOpacity: 0.25 }, { cardOpacity: 1 }, { cardOpacity: 0 }])
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0 })
+      // 持久化：config.json 整份回写（重启保持的数据源）
+      const onDisk = JSON.parse(fs.readFileSync(so.settings.file, 'utf8'))
+      expect(onDisk.appearance).toEqual({ cardOpacity: 0 })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('settings/set-card-opacity：非有限数字拒绝（契约违规不 clamp 吞掉）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, settingsOpts(dir)))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 'dark' as never }))
+        .rejects.toThrow(/cardOpacity/)
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.55 })
     } finally {
       await ctx.stop()
     }

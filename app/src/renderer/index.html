@@ -16,12 +16,15 @@
     user-select: none;
     cursor: default;
   }
+  /* 卡片底色透明度（工单08 全局滑杆）：只有底色 alpha 走变量，文字颜色全部
+   * 实色字面量——「底色随时可调、文字始终实色清晰」是结构性保证。 */
+  :root { --card-alpha: 0.55; }
   /* 卡片底盘（Personal OS 卡片网格；固定尺寸保证热区矩形稳定） */
   .card {
     position: fixed;
     box-sizing: border-box;
     padding: 18px 20px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, var(--card-alpha));
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
   }
@@ -287,7 +290,7 @@
     align-items: flex-end;
     justify-content: center;
     padding: 10px 14px 8px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, var(--card-alpha));
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
   }
@@ -307,10 +310,10 @@
   }
   #drag-ghost .label { margin-top: 6px; max-width: 92px; font-size: 11px; color: #d6d6d6; text-align: center; }
 
-  /* 恢复出厂布局入口（工单06）：右下角极小文字按钮（设置浮层属 08，这里只给一键动作）。
-   * bottom: 64 让开任务栏带与 dock 折行区（面板窗口贴工作区，但电池实测右下角
-   * 是通知横幅/系统浮层的高发遮挡位，抬高留出余量；电池侧另有遮挡探测重试）。 */
-  #reset-layout {
+  /* 设置入口（工单08）：右下角极小文字按钮，位置沿用 06 恢复按钮的经验值——
+   * bottom: 64 让开任务栏带与 dock 折行区（电池实测右下角是通知横幅/系统浮层的
+   * 高发遮挡位，抬高留出余量）。入口按钮是控制件而非信息卡，底色不随滑杆。 */
+  #settings-btn {
     position: fixed;
     right: 48px;
     bottom: 64px;
@@ -324,7 +327,57 @@
     border-radius: 8px;
     cursor: pointer;
   }
-  #reset-layout:hover { color: #d6d6d6; }
+  #settings-btn:hover { color: #d6d6d6; }
+
+  /* 设置浮层（工单08）：卡片式浮层压在右下角控件带之上；class="card" 使底色
+   * 随全局透明度滑杆、矩形自动进热区。透明度行 = 标签 + 滑杆 + 数值；
+   * 恢复出厂布局动作本体属 06，这里接入口。 */
+  #settings-card {
+    right: 48px;
+    bottom: 106px;
+    width: 300px;
+    height: auto;
+    z-index: 6;
+    display: none;
+    cursor: default;
+  }
+  #settings-card h2 { margin-bottom: 12px; }
+  #settings-opacity-row {
+    display: flex;
+    align-items: center;
+    column-gap: 10px;
+  }
+  #settings-opacity-row .set-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #9aa0a6;
+  }
+  #opacity-slider {
+    flex: 1;
+    min-width: 0;
+    height: 18px;
+    accent-color: #d6d6d6;
+    cursor: pointer;
+  }
+  #opacity-value {
+    font-size: 11px;
+    color: #fff;
+    min-width: 4ch;
+    text-align: right;
+  }
+  #settings-reset {
+    margin-top: 14px;
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #settings-reset:hover { color: #d6d6d6; }
 </style>
 </head>
 <body>
@@ -387,7 +440,18 @@
 
 <div class="zone" id="doc-zone"><div class="zlabel">DOCS</div><div id="doc-groups"></div></div>
 <div class="zone" id="dock-zone"></div>
-<div id="reset-layout" role="button">&#8634; RESET LAYOUT</div>
+
+<div class="card" id="settings-card" tabindex="-1">
+  <h2>SETTINGS</h2>
+  <div id="settings-opacity-row">
+    <span class="set-label">CARD OPACITY</span>
+    <input id="opacity-slider" type="range" min="0" max="100" step="1" aria-label="卡片底色透明度">
+    <span id="opacity-value">055%</span>
+  </div>
+  <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
+</div>
+
+<div id="settings-btn" role="button">&#9881; SETTINGS</div>
 
 <script src="./main.js"></script>
 </body>
