@@ -123,6 +123,82 @@
   .spark { display: grid; grid-template-columns: 4.5ch 1fr; column-gap: 10px; align-items: center; height: 30px; }
   .spark label { font-size: 10px; color: #6b7075; }
   .spark canvas { width: 100%; height: 24px; }
+
+  /* ---- 工单05 桌面承载：底部 dock 应用区 + 左中文档区（自绘桌面项） ---- */
+  .zone { position: fixed; z-index: 1; }
+  .ditem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 2px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .ditem .icon { width: 40px; height: 40px; }
+  .ditem .glyph {
+    width: 40px; height: 40px;
+    line-height: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: #d6d6d6;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+  }
+  .ditem .label {
+    margin-top: 6px;
+    max-width: 72px;
+    font-size: 11px;
+    color: #d6d6d6;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ditem:hover { background: rgba(255, 255, 255, 0.10); }
+  .ditem.sel { background: rgba(255, 255, 255, 0.18); outline: 1px solid rgba(255, 255, 255, 0.5); }
+
+  /* dock：底部居中横条（Personal OS 北极星）；max-width 让开两侧卡片列 */
+  #dock-zone {
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 1240px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 10px 14px 8px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+  }
+  #dock-zone .ditem { width: 76px; }
+
+  /* 文档区：左列卡片与画面中部之间的条带。条目自上而下、满 8 行折右列（Python
+   * zones 先例 DOC_MAX_ROWS 的预演；06 编排接管完整文档组布局）。max-width 兜底
+   * 裁剪（溢出条目仍在扫描池中，编排落地前不承诺全数可见）。 */
+  #doc-zone {
+    left: 408px;
+    top: 48px;
+    max-width: 640px;
+  }
+  #doc-zone .zlabel {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: #6b7075;
+    margin: 2px 0 6px;
+  }
+  #doc-grid {
+    overflow: hidden;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(8, auto);
+    grid-auto-columns: 100px;
+    column-gap: 4px;
+    align-content: start;
+  }
+  #doc-grid .ditem { width: 100px; }
+  #doc-grid .ditem .label { max-width: 92px; }
 </style>
 </head>
 <body>
@@ -171,6 +247,9 @@
     <div class="spark"><label>UP</label><canvas id="spark-up"></canvas></div>
   </div>
 </div>
+
+<div class="zone" id="doc-zone"><div class="zlabel">DOCS</div><div id="doc-grid"></div></div>
+<div class="zone" id="dock-zone"></div>
 
 <script src="./main.js"></script>
 </body>

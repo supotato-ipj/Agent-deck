@@ -2,6 +2,7 @@ import type { BridgeService } from './services/bridge'
 import type { ClockService } from './services/clock'
 import type { SessionsService } from './services/sessions'
 import type { HardwareService } from './services/hardware'
+import type { DesktopService } from './services/desktop'
 import type { PanelSnapshot } from '../shared/contract'
 
 declare module 'cordis' {
@@ -12,6 +13,7 @@ declare module 'cordis' {
     clock: ClockService
     sessions: SessionsService
     hardware: HardwareService
+    desktop: DesktopService
     bridge: BridgeService
   }
 }

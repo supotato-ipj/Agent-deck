@@ -60,6 +60,34 @@ const GetWindow = user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uin
 const PostMessageW = user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)');
 const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)');
 const IsIconic = user32.func('bool __stdcall IsIconic(uintptr_t hWnd)');
+// 工单05 桌面承载：DefView/SysListView32 探针（探测逻辑与 src/main/icon-carry.ts 互链不互引——
+// 电池不得 import 生产代码）。WM_COMMAND=0x0111 与 0x7402 为 explorer「查看→显示桌面图标」命令。
+const SendMessageTimeoutW = user32.func('bool __stdcall SendMessageTimeoutW(uintptr_t, uint32, uintptr_t, intptr_t, uint32, uint32, void *)');
+
+function findDefView() {
+  const progman = FindWindowExW(0, 0, 'Progman', null);
+  if (progman) {
+    const view = FindWindowExW(progman, 0, 'SHELLDLL_DefView', null);
+    if (view) return view;
+  }
+  let h = GetTopWindow(0);
+  let guard = 0;
+  while (h && guard++ < 2048) {
+    if (className(h) === 'WorkerW') {
+      const view = FindWindowExW(h, 0, 'SHELLDLL_DefView', null);
+      if (view) return view;
+    }
+    h = GetWindow(h, 2 /* GW_HWNDNEXT */);
+  }
+  return 0;
+}
+
+// 原生桌面图标当前是否显示（SysListView32 事实，非注册表偏好）
+function desktopIconsVisible() {
+  const view = findDefView();
+  const lv = view ? FindWindowExW(view, 0, 'SysListView32', null) : 0;
+  return Boolean(lv && IsWindowVisible(lv));
+}
 const AttachThreadInput = user32.func('bool __stdcall AttachThreadInput(uint32 idAttach, uint32 idAttachTo, bool fAttach)');
 const GetKeyboardLayout = user32.func('uintptr_t __stdcall GetKeyboardLayout(uint32 idThread)');
 const GetCurrentThreadId = kernel32.func('uint32 __stdcall GetCurrentThreadId()');
@@ -248,7 +276,7 @@ module.exports = {
   GetForegroundWindow, SetForegroundWindow, BringWindowToTop, SetWindowPos,
   SetLayeredWindowAttributes,
   GetWindowLongW, WindowFromPoint, IsWindow, PostMessageW, AttachThreadInput,
-  FindWindowExW, IsIconic,
+  FindWindowExW, IsIconic, findDefView, desktopIconsVisible, SendMessageTimeoutW,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,
 };

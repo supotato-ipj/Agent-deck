@@ -149,9 +149,13 @@ describe('内核快照契约（工单04 扩展）', () => {
       hardwareIntervalMs: 0,
       sessionRoots: { qoder: path.join(tmp, 'definitely-missing') },
       weather: { latitude: 1.5, longitude: 2.5 },
+      desktop: { roots: { user: path.join(tmp, 'empty-user'), common: path.join(tmp, 'empty-common') } },
     })
     await ctx.start()
     try {
+      fs.mkdirSync(path.join(tmp, 'empty-user'), { recursive: true })
+      fs.mkdirSync(path.join(tmp, 'empty-common'), { recursive: true })
+      ctx.desktop.refresh()
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
       expect(snap.clock.epochMs).toBeGreaterThan(0)
       expect(snap.sessions).toEqual([])
@@ -159,6 +163,7 @@ describe('内核快照契约（工单04 扩展）', () => {
       expect(snap.hardware.gauges.cpu).toBe(0)
       expect(snap.hardware.history.cpu).toEqual([])
       expect(snap.weather).toEqual({ latitude: 1.5, longitude: 2.5 })
+      expect(snap.desktop.items).toEqual([])
     } finally {
       await ctx.stop()
     }
@@ -174,6 +179,7 @@ describe('内核快照契约（工单04 扩展）', () => {
       hardwareIntervalMs: 0,
       sessionRoots: { qoder: root },
       hardwareSources: fakeHardware(),
+      desktop: { roots: { user: path.join(tmp, 'empty-user'), common: path.join(tmp, 'empty-common') } },
     })
     await ctx.start()
     try {

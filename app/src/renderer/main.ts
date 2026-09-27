@@ -264,6 +264,106 @@ async function fetchWeather(): Promise<void> {
   }
 }
 
+// ---- 桌面承载（工单05）：dock 应用区 + 文档区自绘真实桌面项 ----
+// 条目池随 1Hz 快照下发，按指纹 diff——集合未变不重建 DOM；图标经 desktop/icon
+// 懒取（dataURL 本地缓存，键含 mtime，lnk 指向变更自然换图标）。
+
+const dockZone = el('dock-zone')
+const docZone = el('doc-zone')
+const docGrid = el('doc-grid')
+const localIcons = new Map<string, string>()
+let desktopFingerprintSeen = ''
+let desktopRenderCount = 0
+let selectedName: string | null = null
+
+function itemGlyph(item: DesktopItem): string {
+  return item.kind === 'folder' ? 'DIR' : item.kind === 'url' ? 'URL' : 'DOC'
+}
+
+function markSelection(): void {
+  for (const d of document.querySelectorAll<HTMLElement>('.ditem')) {
+    d.classList.toggle('sel', d.dataset.name === selectedName)
+  }
+}
+
+function fetchItemIcon(img: HTMLImageElement, item: DesktopItem): void {
+  void window.deck.bridge.invoke('desktop/icon', { key: item.iconKey }).then((r) => {
+    const dataUrl = r && r.dataUrl
+    if (!dataUrl) {
+      // 提取失败/未就绪：落位字形占位（不重试——内核侧已有按尝试上限的退避）
+      const glyph = document.createElement('div')
+      glyph.className = 'glyph'
+      glyph.textContent = itemGlyph(item)
+      img.replaceWith(glyph)
+      return
+    }
+    localIcons.set(item.iconKey, dataUrl)
+    img.src = dataUrl
+  }, () => { /* 图标是观感项，失败不阻塞承载 */ })
+}
+
+function buildItem(item: DesktopItem): HTMLElement {
+  const d = document.createElement('div')
+  d.className = 'ditem'
+  d.dataset.name = item.name
+  const img = document.createElement('img')
+  img.className = 'icon'
+  img.alt = ''
+  img.draggable = false
+  const cached = localIcons.get(item.iconKey)
+  if (cached) img.src = cached
+  else fetchItemIcon(img, item)
+  const label = document.createElement('div')
+  label.className = 'label'
+  label.textContent = item.display
+  d.append(img, label)
+  // 单击选中（启动前确认目标）；双击启动（肌肉记忆原样保留）
+  d.addEventListener('click', () => {
+    selectedName = item.name
+    markSelection()
+    notify('desktop-selected', { name: item.name })
+  })
+  d.addEventListener('dblclick', () => {
+    notify('desktop-launch-clicked', { name: item.name, path: item.path })
+    void window.deck.bridge.invoke('desktop/launch', { path: item.path }).then(
+      (r) => notify(r.ok ? 'desktop-launched' : 'desktop-launch-rejected', {
+        name: item.name, ok: r.ok, error: r.error ?? null,
+      }),
+      (err: unknown) => notify('desktop-launch-failed', { name: item.name, message: String(err) }),
+    )
+  })
+  return d
+}
+
+function renderDesktop(state: DesktopState): void {
+  if (state.fingerprint === desktopFingerprintSeen) return
+  desktopFingerprintSeen = state.fingerprint
+  const apps = state.items.filter((i) => i.zone === 'app')
+  const docs = state.items.filter((i) => i.zone === 'doc')
+  dockZone.textContent = ''
+  for (const item of apps) dockZone.appendChild(buildItem(item))
+  docGrid.textContent = ''
+  for (const item of docs) docGrid.appendChild(buildItem(item))
+  if (selectedName && !state.items.some((i) => i.name === selectedName)) selectedName = null
+  markSelection()
+  declareHotZones()
+  desktopRenderCount += 1
+  // 存证：条目集合 + 各条目矩形（电池按名定位探针 lnk 的双击落点）
+  notify('desktop-rendered', {
+    n: desktopRenderCount,
+    fingerprint: state.fingerprint,
+    apps: apps.length,
+    docs: docs.length,
+    names: state.items.map((i) => i.name),
+    rects: state.items.map((item) => {
+      const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
+      if (!node) return { name: item.name, zone: item.zone, rect: null }
+      const r = node.getBoundingClientRect()
+      return { name: item.name, zone: item.zone, rect: { x: r.left, y: r.top, w: r.width, h: r.height } }
+    }),
+  })
+}
+
 // ---- 总渲染（快照到达即刷新全部卡片） ----
 
 function render(snap: PanelSnapshot): void {
@@ -271,6 +371,7 @@ function render(snap: PanelSnapshot): void {
   renderSessions(snap.sessions)
   renderQoder(snap.qoder)
   renderHardware(snap.hardware)
+  renderDesktop(snap.desktop)
   const month = new Date(snap.clock.epochMs).getMonth()
   if (month !== calendarMonth) {
     calendarMonth = month
@@ -283,16 +384,43 @@ function render(snap: PanelSnapshot): void {
   if (moved) void fetchWeather()
 }
 
-// ---- 热区声明（全部卡片） ----
+// ---- 热区声明（全部卡片 + 桌面承载区） ----
+// 桌面分区按「条目包围盒 + 10px 边距」声明：空分区不占热区（不产生点击死区），
+// dock 条的内边距随包围盒带进（光标在条边停留仍可交互）。
+
+function zoneItemRect(zone: HTMLElement, id: string): HotzoneRect | null {
+  const items = zone.querySelectorAll<HTMLElement>('.ditem')
+  if (!items.length) return null
+  const box = zone.getBoundingClientRect() // 容器即可见边界（overflow: hidden 裁掉溢出条目）
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const it of items) {
+    const r = it.getBoundingClientRect()
+    minX = Math.min(minX, r.left)
+    minY = Math.min(minY, r.top)
+    maxX = Math.max(maxX, r.right)
+    maxY = Math.max(maxY, r.bottom)
+  }
+  // 包围盒与可见容器求交：被裁剪的溢出条目不占热区（不留点击死区），条内边距随包围盒带进
+  const pad = 10
+  const x = Math.max(minX - pad, box.left)
+  const y = Math.max(minY - pad, box.top)
+  const right = Math.min(maxX + pad, box.right)
+  const bottom = Math.min(maxY + pad, box.bottom)
+  if (right <= x || bottom <= y) return null
+  return { id, x, y, w: right - x, h: bottom - y }
+}
 
 function declareHotZones(): void {
-  const rects = Array.from(document.querySelectorAll<HTMLElement>('.card')).map((card) => {
+  const rects: HotzoneRect[] = Array.from(document.querySelectorAll<HTMLElement>('.card')).map((card) => {
     const r = card.getBoundingClientRect()
     return { id: card.id, x: r.left, y: r.top, w: r.width, h: r.height }
   })
+  const dock = zoneItemRect(dockZone, 'dock-zone')
+  if (dock) rects.push(dock)
+  const doc = zoneItemRect(docZone, 'doc-zone')
+  if (doc) rects.push(doc)
   window.deck.host.setHotZones(rects)
 }
-
 let clickCount = 0
 
 el('clock-card').addEventListener('click', () => {

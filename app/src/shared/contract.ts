@@ -73,18 +73,49 @@ export interface WeatherLocation {
   longitude: number
 }
 
-/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标 */
+/** 桌面项种类（工单05）：快捷方式/网址文件归应用区，文件与文件夹归文档区 */
+export type DesktopItemKind = 'shortcut' | 'url' | 'file' | 'folder'
+
+/** 桌面项分区：应用区（底部 dock）/ 文档区 */
+export type DesktopZone = 'app' | 'doc'
+
+/** 桌面项（CONTEXT.md 词汇：被面板承载并渲染的桌面文件或快捷方式） */
+export interface DesktopItem {
+  /** 文件名（含扩展名，合并去重键） */
+  name: string
+  /** 显示名：.lnk/.url 剥扩展（explorer 对这两类永远隐藏扩展），其余保留原名 */
+  display: string
+  kind: DesktopItemKind
+  zone: DesktopZone
+  /** 绝对路径；双击启动与图标提取都以它为准 */
+  path: string
+  /** 图标缓存键：path|mtimeMs——lnk 指向变更（mtime 变）即换图标 */
+  iconKey: string
+}
+
+/** 桌面承载状态：条目池 + 指纹（渲染层按指纹 diff，1Hz 快照不重建 DOM） */
+export interface DesktopState {
+  fingerprint: string
+  items: DesktopItem[]
+}
+
+/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池 */
 export interface PanelSnapshot {
   clock: ClockState
   sessions: SessionInfo[]
   qoder: QoderStatus
   hardware: HardwareState
   weather: WeatherLocation
+  desktop: DesktopState
 }
 
 /** 内核桥接方法表：method → [请求体, 响应体] */
 export interface BridgeMethods {
   'panel/snapshot': { request: null; response: PanelSnapshot }
+  /** 桌面项图标提取（dataURL 渲染层本地缓存；null = 提取失败/未知键） */
+  'desktop/icon': { request: { key: string }; response: { dataUrl: string | null } }
+  /** 双击启动桌面项；path 必须在当前扫描池内（拒绝任意路径执行） */
+  'desktop/launch': { request: { path: string }; response: { ok: boolean; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

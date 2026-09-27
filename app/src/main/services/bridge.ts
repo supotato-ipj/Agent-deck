@@ -5,6 +5,7 @@ import { defaultWeather } from '../config'
 import type { ClockService } from './clock'
 import type { SessionsService } from './sessions'
 import type { HardwareService } from './hardware'
+import type { DesktopService } from './desktop'
 
 /** 桥接层错误（未知方法等契约违规） */
 export class BridgeError extends Error {
@@ -19,7 +20,7 @@ export class BridgeError extends Error {
  * 后续工单只扩展 BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'sessions', 'hardware']
+  static inject = ['clock', 'sessions', 'hardware', 'desktop']
 
   private readonly weather: WeatherLocation
 
@@ -39,6 +40,7 @@ export class BridgeService extends Service {
       qoder: this.ctx.sessions.qoderState(),
       hardware: this.ctx.hardware.state(),
       weather: this.weather,
+      desktop: this.ctx.desktop.state(),
     }
   }
 
@@ -46,6 +48,14 @@ export class BridgeService extends Service {
     switch (method) {
       case 'panel/snapshot':
         return this.snapshot() as BridgeMethods[M]['response']
+      case 'desktop/icon': {
+        const { key } = payload as { key: string }
+        return { dataUrl: await this.ctx.desktop.icon(key) } as BridgeMethods[M]['response']
+      }
+      case 'desktop/launch': {
+        const { path } = payload as { path: string }
+        return await this.ctx.desktop.launch(path) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }
@@ -58,6 +68,7 @@ export class BridgeService extends Service {
   /** 推送当前快照（生产由主进程定时驱动；契约测试手动驱动） */
   tick(): void {
     this.ctx.sessions.refresh()
+    this.ctx.desktop.refresh()
     this.ctx.emit('panel/changed', this.snapshot())
   }
 }

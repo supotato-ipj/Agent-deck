@@ -22,7 +22,12 @@ const AMBER = [245, 166, 35];
 // 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP）
 const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 }
 const LEFT_CARDS_DIP = { x: 48, y: 48, w: 320, h: 686 }   // 时钟+天气+日历（至 734）
-const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 790 } // 会话+Qoder+硬件，底缘至 838;
+const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 790 } // 会话+Qoder+硬件，底缘至 838
+// 工单05 桌面承载分区几何（与 renderer/index.html #doc-zone / #dock-zone 一致）：
+// 文档区 x408 起、max-width 640（满 8 行折右列的列流布局，透明带取样按最宽取 1056）；
+// dock 条锚面板底部（bottom:16 + 条高约 94），其上缘随面板高度计算，不设常量。
+const DOC_ZONE_RIGHT_DIP = 1056
+const DOCK_STRIP_DIP = 110 // 底距 16 + 条高约 94，取样避让余量
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -151,7 +156,15 @@ const w32FindWindowEx = (parent, after, cls) => win32.FindWindowExW(parent, afte
 
 // —— 通知区域注册表（Win11 22H2+）：IsPromoted=1 把溢出区图标提升到任务栏可见区 ——
 function psRun(script) {
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { encoding: 'utf8', timeout: 15000 });
+  return psSpawn(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+}
+
+function psRunFile(args) {
+  return psSpawn(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ...args]);
+}
+
+function psSpawn(args) {
+  const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 15000 });
   if (r.status !== 0) throw new Error(`powershell 失败: ${r.stderr || r.stdout}`);
   return (r.stdout || '').trim();
 }
@@ -186,6 +199,43 @@ function restorePromoted(log = console.error) {
     else setPromoted(promotedKey, promotedOld);
     promotedKey = null;
   } catch (e) { log(`IsPromoted 还原失败: ${e && e.message || e}`); }
+}
+
+// —— 工单05 桌面承载：电池侧磁盘扫描（与面板扫描对照；用户桌面优先遮蔽同名公共项）——
+// 输出编码锁 UTF-8（中文文件名经 PS 默认控制台码页会变 GBK 乱码，首轮电池实测）。
+function psDesktopScan() {
+  return psJson([
+    '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8',
+    '$u=[Environment]::GetFolderPath("Desktop")',
+    '$c=[Environment]::GetFolderPath("CommonDesktopDirectory")',
+    '$items=@()',
+    'foreach($d in @($u,$c)){',
+    '  Get-ChildItem -LiteralPath $d -Force -ErrorAction SilentlyContinue | Where-Object {',
+    '    -not ($_.Attributes -band [IO.FileAttributes]::Hidden) -and -not ($_.Attributes -band [IO.FileAttributes]::System)',
+    '  } | ForEach-Object { $items += [pscustomobject]@{ dir=$d; name=$_.Name } }',
+    '}',
+    '[pscustomobject]@{ user=$u; common=$c; items=$items } | ConvertTo-Json -Compress',
+  ].join('\n'));
+}
+
+// 造验收探针 lnk（ASCII-only 临时 ps1 走 -File：内联 -Command 传 COM 调用在本机
+// 实测挂起/静默失败——03 踩坑 1「ps1 一律 ASCII」同源，引号路径不再过 shell 转义层）。
+function createProbeLnk(lnkPath, markerPath) {
+  const script = [
+    '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($args[0])',
+    "$s.TargetPath = 'powershell.exe'",
+    "$s.Arguments = '-NoProfile -WindowStyle Hidden -Command Set-Content -LiteralPath ' + $args[1] + ' -Value ok'",
+    '$s.Save()',
+    "Write-Output ('exists=' + (Test-Path -LiteralPath $args[0]))",
+  ].join('\n');
+  const scriptFile = path.join(__dirname, 'evidence', '05-create-probe-lnk.ps1');
+  fs.writeFileSync(scriptFile, script, 'utf8');
+  try {
+    // -File 模式下未声明 param() 的脚本一切参数按位置进 $args
+    return psRunFile([scriptFile, lnkPath, markerPath]);
+  } finally {
+    try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+  }
 }
 
 // 进程存活探测（pid 退出轮询用）
@@ -314,6 +364,9 @@ async function main() {
   // 托盘基线：面板启动前扫一次任务栏识别色（P8 以后续增量断言图标可见，P10 以退出后回落断言消失）
   const amberBase = scanAmberInTray('baseline');
   rep.note(`托盘识别色基线：${amberBase ? `命中 ${amberBase.hits} 像素 @(${amberBase.x},${amberBase.y})` : '无琥珀像素'}`);
+  // 原生图标显隐基线（工单05）：电池不得改变用户电池前的偏好状态
+  const iconsVisibleBase = w32.desktopIconsVisible();
+  rep.note(`原生桌面图标基线：visible=${iconsVisibleBase}`);
 
   const savedCursor = w32.cursor();
   const safePt = { x: 40 * f, y: si.phys.h - 40 };
@@ -400,12 +453,14 @@ async function main() {
     };
     const panelW = rect.right - rect.left;
     const workBottom = Math.round((si.workArea.y + si.workArea.height) * f) - 8 - rect.top;
-    // 透明区取样带须避开两侧卡片列（04 起左列至 x368、右列自 w-468 起，否则卡片底色拉低命中率）
+    // 透明区取样带须避开两侧卡片列（04 起左列至 x368、右列自 w-468 起）与桌面承载分区
+    // （05 起文档区至 x616、dock 条自 y≈882——否则卡片/条目底色拉低命中率）
     const leftColRight = Math.round((LEFT_CARDS_DIP.x + LEFT_CARDS_DIP.w) * f) + Math.round(8 * f)
     const rightColLeft = panelW - Math.round((RIGHT_CARDS_DIP.right + RIGHT_CARDS_DIP.w) * f) - Math.round(8 * f)
     const transparentZone = {
-      left: Math.min(leftColRight, panelW - 8),
-      top: 8, right: Math.max(rightColLeft, leftColRight + Math.round(200 * f)), bottom: workBottom,
+      left: Math.max(Math.round(DOC_ZONE_RIGHT_DIP * f) + Math.round(8 * f), leftColRight),
+      top: 8, right: Math.max(rightColLeft, leftColRight + Math.round(200 * f)),
+      bottom: Math.min(workBottom, Math.round(((rect.bottom - rect.top) / f - DOCK_STRIP_DIP) * f)),
     };
     // shell 浮层（快捷设置等）是 TOPMOST，会挡住面板透明区（03 迭代 8 实拍 87.1% 即此因）：
     // 截图前 ESC 收层，命中率不足再重拍一次取后值
@@ -495,7 +550,8 @@ async function main() {
     (ex & w32.WS_EX_TRANSPARENT) && (ex & w32.WS_EX_LAYERED)
       ? rep.pass('默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED')
       : rep.fail('默认穿透：窗口样式缺少预期位');
-    const emptyPt = { x: 560 * f, y: 300 * f }; // 面板内、卡片与记事本之外（探针01 实证桌面落点）
+    // 空落点选文档区右侧、右列卡片左侧的空带（05 起文档区占 x408..616，原 560 落其内）
+    const emptyPt = { x: 700 * f, y: 300 * f };
     w32.clickPhys(emptyPt.x, emptyPt.y, 'left');
     await sleep(500);
     const fg = w32.GetForegroundWindow();
@@ -579,6 +635,132 @@ async function main() {
       ? rep.pass(`底部钉扎 z 序：面板(${zPanel}) 在记事本(${zNp}) 之下（自顶向下枚举序）`)
       : rep.fail(`z 序异常：面板=${zPanel} 记事本=${zNp}`);
     capture({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }, '02-pinned-bottom');
+
+    // —— P5 工单05 桌面承载：条目一致性 / 图标隐藏 / 单击选中 / lnk 双击启动 / 杀进程还原 ——
+    {
+      const rendered = await waitEvent('desktop-rendered', null, 8000);
+      const scan = psDesktopScan();
+      const userNames = scan.items.filter((i) => i.dir === scan.user).map((i) => i.name);
+      const commonNames = scan.items.filter((i) => i.dir === scan.common).map((i) => i.name);
+      const userSet = new Set(userNames);
+      const expected = [...userSet, ...commonNames.filter((n) => !userSet.has(n))];
+      if (!rendered) {
+        rep.fail('桌面承载：未收到 desktop-rendered 存证');
+      } else {
+        const panelSet = new Set(rendered.names || []);
+        const missing = expected.filter((n) => !panelSet.has(n));
+        const extra = (rendered.names || []).filter((n) => !userSet.has(n) && !commonNames.includes(n));
+        missing.length === 0 && extra.length === 0
+          ? rep.pass(`条目集合与磁盘扫描一致：${expected.length} 项（用户桌面 ${userNames.length} + 公共桌面独有 ${expected.length - userNames.length}，电池对照）`)
+          : rep.fail(`条目集合不一致：缺 ${JSON.stringify(missing)} 多 ${JSON.stringify(extra)}`);
+        rep.note(`公共桌面 ${commonNames.length} 项（同名被用户桌面遮蔽 ${commonNames.length - (expected.length - userNames.length)} 项）`);
+      }
+
+      const hiddenNow = !w32.desktopIconsVisible();
+      hiddenNow
+        ? rep.pass('原生桌面图标已隐藏（SysListView32 不可见）——桌面无「两套图标」')
+        : rep.fail('原生桌面图标未隐藏（SysListView32 仍可见）');
+      capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-hidden');
+      rep.note('面板承载实拍：05-icons-hidden.png（原生图标隐藏 + dock 应用区/文档区自绘）');
+
+      // 单击选中态（dock 首个条目）
+      const appRect = rendered && (rendered.rects || []).find((r) => r.zone === 'app' && r.rect);
+      if (!appRect) {
+        rep.fail('desktop-rendered 未带 app 条目矩形（选中态不可测）');
+      } else {
+        const cx = rect.left + Math.round((appRect.rect.x + appRect.rect.w / 2) * f);
+        const cy = rect.top + Math.round((appRect.rect.y + appRect.rect.h / 2) * f);
+        w32.moveMousePhys(cx, cy);
+        await sleep(350); // 热区轮询 25ms，留足解除穿透
+        w32.clickPhys(cx, cy, 'left');
+        const sel = await waitEvent('desktop-selected', (e) => e.name === appRect.name, 4000);
+        sel
+          ? rep.pass(`单击选中态：dock 条目「${appRect.name}」选中并上报存证`)
+          : rep.fail('单击未见 desktop-selected 存证');
+        capture({
+          left: rect.left + Math.round((appRect.rect.x - 70) * f), top: rect.top + Math.round((appRect.rect.y - 40) * f),
+          right: rect.left + Math.round((appRect.rect.x + appRect.rect.w + 70) * f), bottom: rect.top + Math.round((appRect.rect.y + appRect.rect.h + 50) * f),
+        }, '05-dock-selected');
+        w32.moveMousePhys(safePt.x, safePt.y);
+        await sleep(300);
+      }
+
+      // 双击验收探针 lnk：造唯一名 → 入池 → 双击启动 → 标记文件实证 → 清理 → 同步消失
+      const probeName = `DECK-PROBE-${Date.now()}.lnk`;
+      const lnkPath = path.join(scan.user, probeName);
+      const markerPath = path.join(__dirname, 'evidence', `05-marker-${Date.now()}.txt`);
+      try {
+        createProbeLnk(lnkPath, markerPath);
+        const shown = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probeName), 8000);
+        const probeRect = shown && (shown.rects || []).find((r) => r.name === probeName && r.rect);
+        shown
+          ? rep.pass(`新建探针 lnk 入池：${probeName}（1Hz 重扫描自动出现）`)
+          : rep.fail('新建探针 lnk 未入池（desktop-rendered 未见）');
+        if (probeRect) {
+          const cx = rect.left + Math.round((probeRect.rect.x + probeRect.rect.w / 2) * f);
+          const cy = rect.top + Math.round((probeRect.rect.y + probeRect.rect.h / 2) * f);
+          w32.moveMousePhys(cx, cy);
+          await sleep(350);
+          w32.clickPhys(cx, cy, 'left');
+          await sleep(90); // 第二击须落在 GetDoubleClickTime（默认 500ms）内
+          w32.clickPhys(cx, cy, 'left');
+          w32.moveMousePhys(safePt.x, safePt.y);
+          const launched = await waitEvent('desktop-launched', (e) => e.name === probeName, 6000);
+          launched && launched.ok
+            ? rep.pass('双击启动：探针 lnk 经桥接 desktop/launch 启动（ok=true）')
+            : rep.fail(`双击启动存证异常：${JSON.stringify(launched)}`);
+          let markerOk = false;
+          const markerDeadline = Date.now() + 10000;
+          while (Date.now() < markerDeadline && !markerOk) {
+            try { markerOk = fs.readFileSync(markerPath, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
+            if (!markerOk) await sleep(250);
+          }
+          markerOk
+            ? rep.pass('双击验收探针 lnk 启动成功（目标进程写标记文件实证）')
+            : rep.fail('探针 lnk 目标 10s 内未写标记文件（启动未实证）');
+        } else {
+          rep.fail('探针 lnk 条目无矩形（无法双击）');
+        }
+      } finally {
+        try { fs.unlinkSync(lnkPath); } catch { /* 尽力清理 */ }
+      }
+      const gone = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(probeName), 6000);
+      gone
+        ? rep.pass('清理探针 lnk 后条目同步消失（面板与磁盘一致）')
+        : rep.fail('清理探针 lnk 后条目未消失');
+      try { fs.unlinkSync(markerPath); } catch { /* 尽力清理 */ }
+
+      // 杀面板进程（taskkill /F）：外层守卫自动还原原生图标
+      spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+      let restoredVis = false;
+      const restoreDeadline = Date.now() + 6000;
+      while (Date.now() < restoreDeadline && !restoredVis) {
+        restoredVis = w32.desktopIconsVisible();
+        if (!restoredVis) await sleep(200);
+      }
+      const carryRestored = await waitEvent('icons-restored', null, 2000);
+      let supervisorDead = false;
+      const superDeadline = Date.now() + 4000;
+      while (Date.now() < superDeadline && !supervisorDead) {
+        supervisorDead = !isAlive(child.pid);
+        if (!supervisorDead) await sleep(200);
+      }
+      restoredVis && carryRestored
+        ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，守卫还原后退出=${supervisorDead}）`)
+        : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
+      capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-restored');
+      rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
+
+      // 后续探针继续：重新拉起面板（完整守卫链——此刻图标可见，守卫将再次隐藏）。
+      // sinceMs 必传：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）
+      const relaunchT0 = Date.now();
+      child = launchPanel();
+      const hwnd3 = await waitPanelWindow(20000, relaunchT0);
+      if (!hwnd3) throw new Error(`P5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
+      hwnd = hwnd3;
+      panelPid = w32.threadIdOf(hwnd3).pid;
+      await sleep(1200);
+    }
 
     // —— P6 config 几何生效：改 config 重启面板 ——
     const configPath = path.join(APP_ROOT, 'config.json');
@@ -805,6 +987,20 @@ async function main() {
       await sleep(400);
     }
     await stopPanel();
+    // 工单05 清场核验：面板被 /F 清杀时守卫无还原路径（还原依赖存活），图标若仍隐藏则走
+    // --icon-restore 自救通道回到电池前状态（电池不得改变用户原生偏好）
+    try {
+      const hiddenNow = !w32.desktopIconsVisible();
+      if (iconsVisibleBase && hiddenNow) {
+        const r = spawnSync(process.execPath, ['.', '--icon-restore'], { cwd: APP_ROOT, encoding: 'utf8', timeout: 20000 });
+        await sleep(1500);
+        w32.desktopIconsVisible()
+          ? rep.note('清场兜底：--icon-restore 已还原图标（守卫被 /F 清杀时的自救通道）')
+          : rep.note(`清场兜底未生效（status=${r.status} ${r.stderr || ''}），图标可能仍隐藏`);
+      } else {
+        rep.note(`图标状态清场核验：visible=${w32.desktopIconsVisible()}（电池前=${iconsVisibleBase}）`);
+      }
+    } catch (e) { rep.note(`图标清场核验异常: ${e && e.message || e}`); }
     restoreDesktop();
     try { w32.SetCursorPos(savedCursor.x, savedCursor.y); } catch { /* 尽力 */ }
   }

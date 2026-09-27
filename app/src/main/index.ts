@@ -1,4 +1,5 @@
 import { app, screen } from 'electron'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { defaultPanelGeometry, defaultWeather, loadConfig } from './config'
 import { createKernel } from './kernel'
@@ -8,10 +9,13 @@ import { createTray } from './tray'
 import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
 import { pinToBottom } from './win32'
+import { forceShowIcons, IconCarry } from './icon-carry'
 
 const CONFIG_FILE = path.join(app.getAppPath(), 'config.json')
 const RENDERER_HTML = path.join(__dirname, '../renderer/index.html')
 const ACCEPT_MODE = process.argv.includes('--accept')
+const PANEL_MODE = process.argv.includes('--panel')
+const RESTORE_MODE = process.argv.includes('--icon-restore')
 
 async function bootPanel(): Promise<void> {
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
@@ -75,9 +79,48 @@ async function bootPanel(): Promise<void> {
   app.on('second-instance', () => showPanel('second-instance'))
 }
 
-if (!ACCEPT_MODE && !app.requestSingleInstanceLock()) {
-  // 单实例守卫（工单03）：二次拉起立即自行退出，不出现双面板。
-  // 验收电池模式不参与锁竞争（控制器与面板同仓库，面板是 spawn 出的第二个实例）。
+if (RESTORE_MODE) {
+  // 一次性恢复入口（--icon-restore）：确保原生图标可见。电池清场兜底与用户自救通道；
+  // 不抢单实例锁（面板可能在跑，恢复与其互不影响）。
+  const log = fileEventLog(process.env.DECK_EVENT_LOG)
+  log?.append({ type: 'carry-boot', pid: process.pid, mode: 'restore' })
+  forceShowIcons(log)
+  app.exit(0)
+} else if (!ACCEPT_MODE && !PANEL_MODE) {
+  // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
+  // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
+  // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
+  // 在场（工单验收项）。锁在 spawn 前显式让位：app 拆卸不瞬时，残留锁会把刚拉起的面板
+  // 当成二次实例拒掉（真机烟雾实测）；空窗期内双拉起仍至多一个面板（锁二选一）。
+  if (!app.requestSingleInstanceLock()) {
+    fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
+    app.quit()
+  } else {
+    app.disableHardwareAcceleration() // 守卫不开窗口，压掉 GPU 进程
+    app.releaseSingleInstanceLock()
+    const log = fileEventLog(process.env.DECK_EVENT_LOG)
+    const carry = new IconCarry(log)
+    log?.append({ type: 'carry-boot', pid: process.pid, mode: 'carry' })
+    carry.begin()
+    app.on('before-quit', () => carry.restore('outer-quit'))
+    const child = spawn(process.execPath, [app.getAppPath(), '--panel'], {
+      cwd: app.getAppPath(),
+      env: process.env,
+      stdio: 'inherit',
+    })
+    child.on('error', (err) => {
+      console.error('[deck] 面板拉起失败:', err)
+      carry.restore('panel-spawn-failed')
+      app.exit(1)
+    })
+    child.on('exit', (code) => {
+      carry.restore('panel-exit')
+      log?.append({ type: 'carry-exit', code: code ?? 0 })
+      app.exit(code ?? 0)
+    })
+  }
+} else if (!ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+  // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
 } else {
