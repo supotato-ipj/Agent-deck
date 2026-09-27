@@ -4,10 +4,12 @@ import type { SessionRoots } from './scanners'
 import type { HardwareSources } from './services/hardware'
 import type { DesktopServiceOptions } from './services/desktop'
 import type { UsageServiceOptions } from './services/usage'
+import type { SearchServiceOptions } from './services/search'
 import { BridgeService } from './services/bridge'
 import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
 import { HardwareService } from './services/hardware'
+import { SearchService } from './services/search'
 import { SessionsService } from './services/sessions'
 import { UsageService } from './services/usage'
 import type { WeatherLocation } from '../shared/contract'
@@ -29,6 +31,10 @@ export interface KernelOptions {
   desktop?: DesktopServiceOptions
   /** 使用日志（工单06）：目录与依赖（离线测试注入假源；缺省主进程真源） */
   usage?: UsageServiceOptions
+  /** 搜索（工单07）：端口与依赖（离线测试注入假源；缺省主进程真源） */
+  search?: SearchServiceOptions
+  /** 搜索引擎链路泵间隔（ms）；0 = 不装定时器（离线测试手动驱动 tick） */
+  searchIntervalMs?: number
   /** 桌面承载几何（工单06，config.json 下发；随快照给渲染层） */
   layout?: DesktopLayout
 }
@@ -36,6 +42,7 @@ export interface KernelOptions {
 export const DEFAULT_TICK_MS = 1000
 export const DEFAULT_HARDWARE_MS = 1000
 export const DEFAULT_USAGE_MS = 2000
+export const DEFAULT_SEARCH_INTERVAL_MS = 50
 export const USAGE_PRUNE_MS = 3600_000
 
 /** 组装 cordis 内核：插件生命周期 + 依赖注入（ADR-0004 圈定的子集）。 */
@@ -55,6 +62,7 @@ export function createKernel(options: KernelOptions = {}): Context {
     },
   })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
+  ctx.plugin(SearchService, options.search)
   const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
   if (tickMs > 0) {
     const timer = setInterval(() => ctx.bridge?.tick(), tickMs)
@@ -72,6 +80,12 @@ export function createKernel(options: KernelOptions = {}): Context {
     // 滚动清理每小时一轮（Python run_loop 先例）：常驻面板的 90 天保留期不能只靠重启收敛
     const pruneTimer = setInterval(() => ctx.usage?.prune(), USAGE_PRUNE_MS)
     ctx.on('dispose', () => clearInterval(pruneTimer))
+  }
+  const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
+  if (searchIntervalMs > 0) {
+    // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）
+    const timer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
+    ctx.on('dispose', () => clearInterval(timer))
   }
   return ctx
 }

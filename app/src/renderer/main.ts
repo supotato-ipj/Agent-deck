@@ -578,6 +578,221 @@ resetBtn.addEventListener('click', () => {
   )
 })
 
+// ---- 搜索面板（工单07，CONTEXT.md「搜索面板」三态）----
+// 待机（SEARCH 头 + CLICK TO SEARCH_ 提示）/ 活动（原生输入框 + 实时结果）/ 引擎离线
+// （ENGINE OFFLINE 徽标）。引擎链路全在内核：这里只喂词（search/query，每次 input 事件
+// 一发，内核防抖 ~200ms 后直连 Listary），结果/离线经事件回推；↑/↓ 选择、Enter 打开、
+// Ctrl+Enter 定位经 search/action 由内核执行。01 探针结论落地：点击激活后渲染层 JS 聚焦
+// 输入框（中文输入法可输入，composition 事件照常喂词 = 拼音实时检索）。
+// 隐私边界：本文件与全部存证 notify 一律不含查询词内容（只带 qlen 长度，旧 QD_PANEL_TRACE 惯例）。
+
+const searchCard = el('search-card')
+const searchHint = el('search-hint')
+const searchInput = el('search-input') as HTMLInputElement
+const searchPlaceholder = el('search-placeholder')
+const searchResultsBox = el('search-results')
+const SEARCH_LIMIT = 8
+const SEARCH_NAME_CHARS = 26
+const SEARCH_PATH_CHARS = 24
+let searchActive = false
+let searchItems: SearchResultItem[] = []
+let searchSel = -1
+let searchDeactivating = false // 程序化失焦护栏：deactivate 主动 blur 不再触发失焦转移
+
+/** 完整路径 → (名称, 父目录) 两段展示（listary_engine.display_parts 平移，含盘根反斜杠语义） */
+function displayParts(path: string): { name: string; parent: string } {
+  const cut = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'))
+  if (cut < 0) return { name: path, parent: '' }
+  let parent = path.slice(0, cut)
+  if (parent.endsWith(':')) parent += '\\' // 盘根：C:\ 而非 C:（PureWindowsPath 语义）
+  return { name: path.slice(cut + 1), parent }
+}
+/** 超长时保留尾部（路径的辨识段在结尾） */
+function elideLeft(s: string, max: number): string {
+  return s.length <= max ? s : '…' + s.slice(-(max - 1))
+}
+/** 超长时保留头部（文件名的辨识段在开头） */
+function elideRight(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + '…'
+}
+
+/** 面板按键 → 动作（listary_engine.decide_action 平移；其余键不接） */
+function searchDecideAction(key: string, ctrl: boolean): 'prev' | 'next' | 'open' | 'reveal' | null {
+  if (key === 'ArrowUp') return 'prev'
+  if (key === 'ArrowDown') return 'next'
+  if (key === 'Enter') return ctrl ? 'reveal' : 'open'
+  return null
+}
+
+function applySearchSelection(): void {
+  const rows = searchResultsBox.querySelectorAll<HTMLElement>('.qrow')
+  rows.forEach((row, i) => row.classList.toggle('sel', i === searchSel))
+}
+
+/** 选中项移动：首尾 clamp 不环绕（SelectionModel 语义）；结果刷新重置回首项 */
+function searchMove(delta: number): void {
+  if (!searchItems.length) return
+  searchSel = Math.max(0, Math.min(searchItems.length - 1, searchSel + delta))
+  applySearchSelection()
+  notify('search-selection-moved', { index: searchSel })
+}
+
+function clearSearchResultsDom(): void {
+  searchResultsBox.textContent = ''
+  searchResultsBox.style.display = 'none'
+  searchItems = []
+  searchSel = -1
+}
+
+function renderSearchRows(total: number, items: SearchResultItem[]): void {
+  searchItems = items.slice(0, SEARCH_LIMIT)
+  searchSel = searchItems.length ? 0 : -1
+  searchResultsBox.textContent = ''
+  if (!searchItems.length) {
+    const empty = document.createElement('div')
+    empty.id = 'search-empty'
+    empty.textContent = 'NO RESULTS'
+    searchResultsBox.appendChild(empty)
+  } else {
+    searchItems.forEach((item, idx) => {
+      const row = document.createElement('div')
+      row.className = 'qrow'
+      const parts = displayParts(item.path)
+      const name = document.createElement('span')
+      name.className = 'qname'
+      name.textContent = elideRight(parts.name, SEARCH_NAME_CHARS)
+      const dir = document.createElement('span')
+      dir.className = 'qpath'
+      dir.textContent = elideLeft(parts.parent, SEARCH_PATH_CHARS)
+      row.append(name, dir)
+      // mousedown preventDefault：行点击不夺输入框焦点（失焦即收层，点击会落空）
+      row.addEventListener('mousedown', (e) => e.preventDefault())
+      row.addEventListener('click', () => { void searchAct(idx, false) })
+      searchResultsBox.appendChild(row)
+    })
+  }
+  const foot = document.createElement('div')
+  foot.id = 'search-total'
+  foot.textContent = `TOTAL ${total}`
+  searchResultsBox.appendChild(foot)
+  searchResultsBox.style.display = 'block'
+  applySearchSelection()
+  declareHotZones()
+}
+
+function renderSearchOffline(): void {
+  searchResultsBox.textContent = ''
+  const badge = document.createElement('div')
+  badge.id = 'search-offline'
+  badge.textContent = 'ENGINE OFFLINE'
+  searchResultsBox.appendChild(badge)
+  searchResultsBox.style.display = 'block'
+  searchItems = []
+  searchSel = -1
+  declareHotZones()
+}
+
+async function searchAct(idx: number, reveal: boolean): Promise<void> {
+  const item = searchItems[idx]
+  if (!item) return
+  notify('search-action', { index: idx, reveal, qlen: searchInput.value.length })
+  try {
+    const r = await window.deck.bridge.invoke('search/action', { path: item.path, reveal })
+    notify(r.ok ? (reveal ? 'search-revealed' : 'search-opened') : 'search-action-rejected', {
+      index: idx, reveal, ok: r.ok, error: r.error ?? null,
+    })
+  } catch (err) {
+    notify('search-action-failed', { index: idx, reveal, message: String(err) })
+  }
+  searchDeactivate('action') // 动作完成即收起（旧 _act → _deactivate('esc') 惯例）
+}
+
+function searchActivate(): void {
+  if (searchActive) {
+    searchInput.focus() // 活动态重复点击 = 摆放光标，不重置查询
+    return
+  }
+  searchActive = true
+  searchHint.style.display = 'none'
+  searchInput.style.display = 'block'
+  searchPlaceholder.style.display = searchInput.value ? 'none' : 'block'
+  void window.deck.bridge.invoke('search/activate', null).then((r) => {
+    if (r.state === 'offline' && searchActive) renderSearchOffline()
+  }, () => { /* 内核未就绪：下次交互再试 */ })
+  searchInput.focus()
+  notify('search-activated', {})
+  declareHotZones()
+}
+
+
+/** 退待机触发源（存证 reason 字段的契约：电池按 reason 断言） */
+type SearchDeactivateReason = 'esc' | 'blur' | 'action'
+
+function searchDeactivate(reason: SearchDeactivateReason): void {
+  if (!searchActive) return
+  searchDeactivating = true
+  searchActive = false
+  void window.deck.bridge.invoke('search/deactivate', null).catch(() => {})
+  searchInput.value = ''
+  searchInput.style.display = 'none'
+  searchPlaceholder.style.display = 'none'
+  searchHint.style.display = 'block'
+  clearSearchResultsDom()
+  searchInput.blur()
+  setTimeout(() => { searchDeactivating = false }, 0)
+  notify('search-deactivated', { reason })
+  declareHotZones()
+}
+
+// 卡片任意位置点击激活；mousedown preventDefault 保输入框焦点（点击卡片他处不触发失焦转移）
+searchCard.addEventListener('mousedown', (e) => {
+  if (e.target !== searchInput) e.preventDefault()
+})
+searchCard.addEventListener('click', () => searchActivate())
+
+searchInput.addEventListener('input', () => {
+  if (!searchActive) return
+  const text = searchInput.value
+  searchPlaceholder.style.display = text ? 'none' : 'block'
+  if (!text) clearSearchResultsDom() // 空查询即收结果（旧 _on_text_changed 惯例）
+  void window.deck.bridge.invoke('search/query', { query: text }).catch(() => {})
+})
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    searchDeactivate('esc')
+    return
+  }
+  const action = searchDecideAction(e.key, e.ctrlKey)
+  if (!action) return
+  e.preventDefault() // ↑↓ 不移动光标（旧 Tk "break" 惯例）
+  if (action === 'prev') searchMove(-1)
+  else if (action === 'next') searchMove(1)
+  else void searchAct(searchSel, action === 'reveal')
+})
+
+searchInput.addEventListener('blur', () => {
+  if (searchDeactivating) return
+  searchDeactivate('blur')
+})
+
+window.deck.bridge.on('search/results', (r) => {
+  if (!searchActive) return // 迟到响应（已退待机）：丢弃
+  renderSearchRows(r.total, r.items)
+  notify('search-results-rendered', {
+    qlen: searchInput.value.length, total: r.total, count: Math.min(SEARCH_LIMIT, r.items.length),
+  })
+})
+
+window.deck.bridge.on('search/state', (s) => {
+  if (s.state === 'offline' && searchActive) {
+    renderSearchOffline()
+    notify('search-offline-shown', {})
+  }
+  // 'active' 恢复由随后到达的 search/results 重绘（离线徽标被结果行替换）；'idle' 由本地转移处理
+})
+
 // ---- 总渲染（快照到达即刷新全部卡片） ----
 
 function render(snap: PanelSnapshot): void {

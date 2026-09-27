@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
 import type { PanelSnapshot } from '../src/shared/contract'
+import { flush, harness } from './search/harness'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
 
@@ -41,10 +42,11 @@ function usageOpts(dir: string) {
   }
 }
 
-/** 全离线内核选项基座：usage 一并假源化 */
+/** 全离线内核选项基座：usage 一并假源化；搜索泵定时器不装（07 契约测试手动驱动） */
 function kernelOpts(dir: string, over: Record<string, unknown> = {}) {
-  return { tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, desktop: desktopOpts(dir), usage: usageOpts(dir), ...over }
+  return { tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchPumpMs: 0, desktop: desktopOpts(dir), usage: usageOpts(dir), ...over }
 }
+
 describe('内核桥接契约', () => {
   it('panel/snapshot 返回时钟快照', async () => {
     const ctx = createKernel(kernelOpts(tmpDir()))
@@ -222,5 +224,128 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
+  })
+})
+
+describe('内核桥接契约（工单07 搜索扩展）', () => {
+  it('search/activate → query 防抖到期直连假引擎 → search/state 与 search/results 事件回推', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    const ctx = createKernel(kernelOpts(dir, { search: { deps: h.deps } }))
+    await ctx.start()
+    try {
+      const states: string[] = []
+      const results: Array<{ total: number; items: Array<{ path: string }> }> = []
+      ctx.bridge.subscribe('search/state', (p) => states.push(p.state))
+      ctx.bridge.subscribe('search/results', (p) => results.push(p))
+
+      await expect(ctx.bridge.invoke('search/activate', null)).resolves.toEqual({ state: 'active' })
+      expect(states).toEqual(['active'])
+      // 待机态之外喂词不成立（未激活时 accepted=false）
+      await ctx.bridge.invoke('search/deactivate', null)
+      await expect(ctx.bridge.invoke('search/query', { query: 'x' })).resolves.toEqual({ accepted: false })
+      await ctx.bridge.invoke('search/activate', null)
+
+      await expect(ctx.bridge.invoke('search/query', { query: 'probe' })).resolves.toEqual({ accepted: true })
+      h.advance(100)
+      ctx.search!.tick()
+      await flush()
+      expect(h.calls).toHaveLength(0) // 防抖窗口内
+      h.advance(100)
+      ctx.search!.tick()
+      await flush()
+      expect(h.calls).toEqual([{ query: 'probe', limit: 8, offset: 0 }])
+      expect(results).toHaveLength(1)
+      expect(results[0].items[0].path).toBe('C:\\probe.txt')
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('search/action：Enter 打开 / Ctrl+Enter 定位；path 护栏 = 最近一次结果集', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    const ctx = createKernel(kernelOpts(dir, { search: { deps: h.deps } }))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('search/activate', null)
+      await ctx.bridge.invoke('search/query', { query: 'probe' })
+      h.advance(250)
+      ctx.search!.tick()
+      await flush()
+      await expect(ctx.bridge.invoke('search/action', { path: 'C:\\probe.txt', reveal: false })).resolves.toEqual({ ok: true })
+      expect(h.opened).toEqual(['C:\\probe.txt'])
+      await expect(ctx.bridge.invoke('search/action', { path: 'C:\\probe.txt', reveal: true })).resolves.toEqual({ ok: true })
+      expect(h.revealed).toEqual(['C:\\probe.txt'])
+      // 结果集外的路径拒绝执行（任意路径执行防线，desktop/launch 同款护栏）
+      await expect(ctx.bridge.invoke('search/action', { path: 'C:\\Windows\\System32\\cmd.exe', reveal: false }))
+        .resolves.toMatchObject({ ok: false })
+      expect(h.opened).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('连接失败经桥接回推引擎离线态（ENGINE OFFLINE 数据源）', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    h.goOffline()
+    const ctx = createKernel(kernelOpts(dir, { search: { deps: h.deps } }))
+    await ctx.start()
+    try {
+      const states: string[] = []
+      ctx.bridge.subscribe('search/state', (p) => states.push(p.state))
+      await ctx.bridge.invoke('search/activate', null)
+      await ctx.bridge.invoke('search/query', { query: 'probe' })
+      h.advance(250)
+      ctx.search!.tick()
+      await flush()
+      expect(states).toEqual(['active', 'offline'])
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('隐私守卫（工单07：查询词只发往本机 Listary API、不入使用日志）', () => {
+  it('行为级：完整搜索流跑过后，使用日志目录里没有任何文件、查询词不落盘', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    const ctx = createKernel(kernelOpts(dir, {
+      usage: usageOpts(dir),
+      search: { deps: h.deps },
+    }))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('search/activate', null)
+      await ctx.bridge.invoke('search/query', { query: 'SECRET-QUERY-WORDS' })
+      h.advance(250)
+      ctx.search!.tick()
+      await flush()
+      ctx.usage!.collect() // 使用日志采集轮照常跑（真服务写盘）
+      const usageDir = path.join(dir, 'usage')
+      const files = fs.existsSync(usageDir) ? fs.readdirSync(usageDir) : []
+      for (const f of files) {
+        expect(fs.readFileSync(path.join(usageDir, f), 'utf8')).not.toContain('SECRET-QUERY-WORDS')
+      }
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('源码级：搜索链路不引用使用日志、不直接写盘；查询目标收口本机回环', () => {
+    const files = [
+      'src/main/search/engine.ts',
+      'src/main/search/client.ts',
+      'src/main/services/search.ts',
+    ]
+    for (const rel of files) {
+      const src = fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8')
+      expect(src, `${rel} 不得引用使用日志`).not.toMatch(/usage\/log|appendEvent|UsageService/)
+      expect(src, `${rel} 不得直接写盘`).not.toMatch(/writeFileSync|appendFileSync/)
+      expect(src, `${rel} 不得出现硬编码 http(s) URL`).not.toMatch(/https?:\/\//)
+    }
+    const client = fs.readFileSync(path.resolve(__dirname, '../src/main/search/client.ts'), 'utf8')
+    expect(client).toContain('BASE_HOST') // 目标主机只从 engine 常量取（127.0.0.1）
   })
 })

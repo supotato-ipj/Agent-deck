@@ -151,6 +151,19 @@ export interface PanelSnapshot {
   layout: DesktopLayout
 }
 
+/** 搜索结果行（工单07，Listary 本地 API data.results 行的字段集，snake_case 平移为驼峰） */
+export interface SearchResultItem {
+  path: string
+  name: string
+  type: string
+  sizeBytes: number
+  modifiedAt: string
+  score: number
+}
+
+/** 搜索面板派生态（CONTEXT.md 三态词汇）：待机 / 活动 / 引擎离线（活动态的降级显示） */
+export type SearchUiState = 'idle' | 'active' | 'offline'
+
 /** 内核桥接方法表：method → [请求体, 响应体] */
 export interface BridgeMethods {
   'panel/snapshot': { request: null; response: PanelSnapshot }
@@ -165,11 +178,26 @@ export interface BridgeMethods {
   }
   /** 恢复出厂布局：清除全部显式摆位（手钉保留），回到归类 + 频次推荐的出厂编排 */
   'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
+  /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */
+  'search/activate': { request: null; response: { state: SearchUiState } }
+  /** 输入喂给引擎链路（内核防抖 ~200ms 后直连 Listary；结果/离线经事件回推） */
+  'search/query': { request: { query: string }; response: { accepted: boolean } }
+  /** ESC/失焦退回待机：清查询词、作废在途响应、清退避计时 */
+  'search/deactivate': { request: null; response: { state: SearchUiState } }
+  /** Enter 打开 / Ctrl+Enter 资源管理器定位；path 必须在最近一次结果集内 */
+  'search/action': {
+    request: { path: string; reveal: boolean }
+    response: { ok: boolean; error?: string }
+  }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
 export interface BridgeEvents {
   'panel/changed': PanelSnapshot
+  /** 派生态变化（待机/活动/引擎离线）；限流退避静默不推 */
+  'search/state': { state: SearchUiState }
+  /** 引擎成功响应（空结果 items=[]）；选中语义与展示归渲染层 */
+  'search/results': { total: number; items: SearchResultItem[] }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

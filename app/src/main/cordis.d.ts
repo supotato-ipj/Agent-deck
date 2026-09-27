@@ -4,11 +4,15 @@ import type { SessionsService } from './services/sessions'
 import type { HardwareService } from './services/hardware'
 import type { DesktopService } from './services/desktop'
 import type { UsageService } from './services/usage'
-import type { PanelSnapshot } from '../shared/contract'
+import type { SearchService } from './services/search'
+import type { PanelSnapshot, SearchUiState, SearchResultItem } from '../shared/contract'
 
 declare module 'cordis' {
   interface Events {
     'panel/changed': (snapshot: PanelSnapshot) => void
+    /** 工单07 搜索：派生态变化（待机/活动/引擎离线）与引擎成功响应 */
+    'search/state': (payload: { state: SearchUiState }) => void
+    'search/results': (payload: { total: number; items: SearchResultItem[] }) => void
   }
   interface Context {
     clock: ClockService
@@ -18,5 +22,7 @@ declare module 'cordis' {
     bridge: BridgeService
     /** 工单06 使用日志（内核可不装：desktop 的推荐位按无分数退化） */
     usage?: UsageService
+    /** 工单07 搜索（内核总装必装；离线测试注入假源） */
+    search: SearchService
   }
 }

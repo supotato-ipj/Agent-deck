@@ -6,6 +6,7 @@ import type { ClockService } from './clock'
 import type { SessionsService } from './sessions'
 import type { HardwareService } from './hardware'
 import type { DesktopService } from './desktop'
+import type { SearchService } from './search'
 
 /** 桥接层错误（未知方法等契约违规） */
 export class BridgeError extends Error {
@@ -20,7 +21,7 @@ export class BridgeError extends Error {
  * 后续工单只扩展 BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'sessions', 'hardware', 'desktop']
+  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -65,13 +66,26 @@ export class BridgeService extends Service {
       }
       case 'desktop/reset-layout':
         return this.ctx.desktop.resetLayout() as BridgeMethods[M]['response']
+      case 'search/activate':
+        return { state: this.ctx.search.activate() } as BridgeMethods[M]['response']
+      case 'search/query': {
+        const { query } = payload as { query: string }
+        return { accepted: this.ctx.search.setQuery(String(query ?? '')) } as BridgeMethods[M]['response']
+      }
+      case 'search/deactivate':
+        return { state: this.ctx.search.deactivate() } as BridgeMethods[M]['response']
+      case 'search/action': {
+        const { path, reveal } = payload as { path: string; reveal: boolean }
+        return await this.ctx.search.action(String(path), Boolean(reveal)) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }
   }
 
   subscribe<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void {
-    return this.ctx.on(event, listener)
+    // K 为联合时 cordis 的逐事件监听签名无法解析（要求交集参数），此处按调用方契约收窄
+    return this.ctx.on(event, listener as never) as unknown as () => void
   }
 
   /** 推送当前快照（生产由主进程定时驱动；契约测试手动驱动） */

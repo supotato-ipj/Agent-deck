@@ -16,7 +16,6 @@ from pathlib import Path
 import psutil
 
 import agent_sessions
-import search_panel
 import usage_log
 import usage_score
 import zones_watcher
@@ -144,7 +143,6 @@ def deck_state():
         "sessions": sessions,
         "history": {k: list(v) for k, v in _history.items()},
         "gauges": build_payload()["psutil"],
-        "panel": search_panel.panel_rect(),
         "ts": time.time(),
     }
     _deck_cache.update(ts=now, data=data)
@@ -249,9 +247,6 @@ def main():
     threading.Thread(target=_cpu_sampler, daemon=True).start()
     threading.Thread(target=_usage_collector, daemon=True).start()
     threading.Thread(target=_zone_watcher, daemon=True).start()
-    # 搜索面板窗口线程（ADR-0003）：能力在数据服务内；窗口崩溃被线程内
-    # 兜住，不影响 /deck 轮询（验收：QD_PANEL_CRASH 注入崩溃后 /deck 仍 200）
-    search_panel.start_thread()
     try:
         server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError:

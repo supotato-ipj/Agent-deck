@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
+import { BASE_PORT } from './search/engine'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
 export interface PanelGeometry {
@@ -17,6 +18,13 @@ export interface AppConfig {
   panel: PanelGeometry
   weather: WeatherConfig
   desktop: DesktopLayout
+  /** 搜索（工单07）：Listary 本地 API 端口（host 恒 127.0.0.1 不进配置——只发往本机） */
+  search: SearchConfig
+}
+
+/** Listary 本地 API 端口（验收可指假端口复现引擎离线） */
+export interface SearchConfig {
+  port: number
 }
 
 export interface RectLike {
@@ -73,6 +81,11 @@ export function defaultWeather(): WeatherConfig {
 /** 默认桌面承载几何：renderer/index.html 工单05 的生产值固化（DIP） */
 export function defaultDesktopLayout(): DesktopLayout {
   return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8, dockMaxWidth: 1240 }
+}
+
+/** 默认搜索端口：Listary 7 本地 HTTP API 的生产值（BASE_PORT 单一来源） */
+export function defaultSearchConfig(): SearchConfig {
+  return { port: BASE_PORT }
 }
 
 function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[]): WeatherConfig {
@@ -133,6 +146,21 @@ function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[])
   return out
 }
 
+function mergeSearch(raw: unknown, fallback: SearchConfig, warnings: string[]): SearchConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.search 不是对象，已整体回退默认端口')
+    return out
+  }
+  const search = raw as Record<string, unknown>
+  const port = search.port
+  if (port === undefined) return out
+  if (Number.isInteger(port) && (port as number) >= 1 && (port as number) <= 65535) out.port = port as number
+  else warnings.push(`config.search.port 须为 1..65535 整数，已回退默认值 ${fallback.port}`)
+  return out
+}
+
 function writeConfig(file: string, config: AppConfig): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n')
@@ -167,6 +195,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       panel: mergePanel(root.panel, fallback.panel, warnings),
       weather: mergeWeather(root.weather, fallback.weather, warnings),
       desktop: mergeDesktop(root.desktop, fallback.desktop, warnings),
+      search: mergeSearch(root.search, fallback.search, warnings),
     },
     warnings,
     created: false,

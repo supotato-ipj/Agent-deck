@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>AGENT DECK</title>
 <style>
-/* 视觉常量与 search_panel.py 同源：FG #d6d6d6 / DIM #616161 / LINE #2c2c2c / BG #000 */
+/* 视觉常量自成一系：FG #d6d6d6 / DIM #616161 / LINE #2c2c2c / BG #000（搜索浮层已并入独立面板，工单07） */
 @font-face {
   font-family: "Decima Mono";
   src: url("fonts/DecimaMonoCyr.ttf");
@@ -65,7 +65,8 @@ body {
   color: #616161;
 }
 
-/* ---- 右窄栏：宽 36rem，分隔线贴栏左缘；顶部留搜索面板槽位，硬件块钉底 ---- */
+/* ---- 右窄栏：宽 36rem，分隔线贴栏左缘，硬件块钉底（搜索浮层 2026-09-27 起由
+ * AGENT DECK 独立面板承载，壁纸不再留 Tk 搜索窗槽位——工单07 垫高对齐耦合移除） ---- */
 #right {
   position: fixed;
   right: 2.6rem;
@@ -81,11 +82,6 @@ body {
 }
 #right.perspective {
   transform: perspective(1200px) rotateY(1.2deg);
-}
-#searchspacer {
-  /* 高度随 /deck 的 panel.h 自适应（Tk 面板窗画 SEARCH 头与输入行，壁纸只留槽位） */
-  flex: none;
-  width: 100%;
 }
 #sessionshead {
   flex: none;
@@ -168,7 +164,6 @@ body {
 </div>
 
 <div id="right" class="perspective">
-  <div id="searchspacer"></div>
   <div id="sessionshead">SESSIONS</div>
   <div id="rows"></div>
   <div id="standby">NO ACTIVE SESSIONS</div>
@@ -258,9 +253,6 @@ function renderGauges(g, online) {
 
 function setOffline(on) {
   document.getElementById("offline").classList.toggle("on", on);
-  if (on) {
-    document.getElementById("searchspacer").style.height = "64px"; // 离线兜底槽位
-  }
 }
 
 async function poll() {
@@ -269,9 +261,6 @@ async function poll() {
     if (!r.ok) throw new Error(r.status);
     var d = await r.json();
     setOffline(false);
-    if (d.panel && d.panel.h) {
-      document.getElementById("searchspacer").style.height = d.panel.h + "px";
-    }
     renderSessions(d.sessions || []);
     renderGauges(d.gauges, true);
   } catch (e) {

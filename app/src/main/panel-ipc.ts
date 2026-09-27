@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { BridgeMethod, HotzoneRect } from '../shared/contract'
+import type { BridgeEventName, BridgeMethod, HotzoneRect } from '../shared/contract'
 import type { BridgeService } from './services/bridge'
 import type { HotzoneTracker } from './hotzone'
 
@@ -23,9 +23,11 @@ export function fileEventLog(file: string | undefined): EventLog | null {
 }
 
 /**
- * 内核桥接通道：渲染层 invoke → 内核；内核 panel/changed 推送 → 渲染层。
+ * 内核桥接通道：渲染层 invoke → 内核；内核事件推送 → 渲染层。
  * 传输层用 ok/error 信封（IPC 对 Error 序列化不保真），preload 侧解包还原为 reject。
  */
+const FORWARDED_EVENTS: BridgeEventName[] = ['panel/changed', 'search/state', 'search/results']
+
 export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService): void {
   ipcMain.handle('deck:bridge-invoke', (_event, req: { method: string; payload?: unknown }) => {
     const { method, payload } = req ?? {}
@@ -37,10 +39,12 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService): void {
       }),
     )
   })
-  const off = bridge.subscribe('panel/changed', (snapshot) => {
-    if (!win.isDestroyed()) win.webContents.send('deck:bridge-event', 'panel/changed', snapshot)
-  })
-  win.once('closed', off)
+  const offs = FORWARDED_EVENTS.map((name) =>
+    bridge.subscribe(name, (payload) => {
+      if (!win.isDestroyed()) win.webContents.send('deck:bridge-event', name, payload)
+    }),
+  )
+  win.once('closed', () => offs.forEach((off) => off()))
 }
 
 /** 窗口宿主通道（非内核契约）：热区声明与点击存证。 */

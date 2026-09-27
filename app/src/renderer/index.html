@@ -84,8 +84,91 @@
   }
   #cal-title { margin-bottom: 10px; font-size: 13px; color: #d6d6d6; }
 
-  /* ---- 右列：会话列表 / Qoder 状态 / 硬件 ---- */
-  #sessions-card { right: 48px; top: 48px; width: 420px; height: 348px; }
+  /* ---- 右列：搜索面板（07）→ 会话列表 / Qoder 状态 / 硬件 ---- */
+  /* 搜索面板（工单07，CONTEXT.md「搜索面板」）：右窄栏待机位——待机态 SEARCH 头 +
+   * CLICK TO SEARCH_ 提示融入卡片视觉；点击转活动态（原生输入框，中文输入法可输入），
+   * 结果区向下展开临时盖住会话卡（旧 Tk 面板「活动态盖壁纸内容」惯例的平移）；
+   * ESC/失焦退回待机。卡片高度随内容自动展开（热区矩形随之重声明）。 */
+  #search-card {
+    right: 48px;
+    top: 48px;
+    width: 420px;
+    height: auto;
+    z-index: 5;
+    cursor: pointer;
+  }
+  #search-card h2 { margin-bottom: 10px; }
+  #search-row { position: relative; height: 30px; }
+  #search-hint {
+    font-size: 13px;
+    line-height: 30px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+  }
+  #search-input {
+    display: none;
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: #d6d6d6;
+    caret-color: #fff;
+  }
+  #search-placeholder {
+    position: absolute;
+    inset: 0;
+    display: none; /* 只在活动态空输入时显示（待机态显示 hint，两者叠置会重影） */
+    font-size: 13px;
+    line-height: 30px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+    pointer-events: none;
+  }
+  #search-sep { height: 1px; background: rgba(255, 255, 255, 0.16); margin-top: 8px; }
+  #search-results { display: none; }
+  .qrow {
+    display: flex;
+    justify-content: space-between;
+    column-gap: 12px;
+    height: 24px;
+    font-size: 12px;
+    line-height: 24px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .qrow .qname { color: #fff; overflow: hidden; }
+  .qrow .qpath { color: #6b7075; }
+  .qrow.sel { background: #d6d6d6; }
+  .qrow.sel .qname, .qrow.sel .qpath { color: #000; }
+  #search-total {
+    margin-top: 4px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+  }
+  #search-empty {
+    margin-top: 8px;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+  }
+  /* ENGINE OFFLINE 徽标（旧 Tk 反白样式平移） */
+  #search-offline {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 8px;
+    font-size: 12px;
+    background: #d6d6d6;
+    color: #000;
+  }
+
+  #sessions-card { right: 48px; top: 152px; width: 420px; height: 348px; }
   #sessions-head-count { float: right; letter-spacing: 0.2em; }
   #session-rows { overflow: hidden; }
   .srow {
@@ -103,7 +186,7 @@
   .srow .tasks { text-align: right; }
   #sessions-standby { font-size: 13px; letter-spacing: 0.2em; color: #6b7075; }
 
-  #qoder-card { right: 48px; top: 412px; width: 420px; height: 158px; }
+  #qoder-card { right: 48px; top: 516px; width: 420px; height: 158px; }
   #qoder-body { font-size: 13px; line-height: 1.8; color: #d6d6d6; }
   #qoder-task {
     margin-top: 6px;
@@ -116,7 +199,7 @@
   #qoder-progress { margin-top: 8px; height: 4px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; }
   #qoder-progress-fill { height: 100%; width: 0%; background: #f5a623; border-radius: 2px; }
 
-  #hardware-card { right: 48px; top: 586px; width: 420px; height: 252px; }
+  #hardware-card { right: 48px; top: 690px; width: 420px; height: 252px; }
   #hw-lines { font-size: 13px; line-height: 1.7; color: #d6d6d6; }
   #hw-lines .v { color: #fff; }
   #hw-sparks { margin-top: 10px; }
@@ -262,6 +345,17 @@
   <h2>CALENDAR</h2>
   <div id="cal-title">---- --</div>
   <div id="cal-grid"></div>
+</div>
+
+<div class="card" id="search-card">
+  <h2>SEARCH</h2>
+  <div id="search-row">
+    <div id="search-hint">CLICK TO SEARCH_</div>
+    <input id="search-input" type="text" autocomplete="off" spellcheck="false">
+    <div id="search-placeholder">TYPE TO SEARCH FILES_</div>
+  </div>
+  <div id="search-sep"></div>
+  <div id="search-results"></div>
 </div>
 
 <div class="card" id="sessions-card">

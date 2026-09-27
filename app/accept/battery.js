@@ -9,6 +9,9 @@
 const { app, BrowserWindow, screen, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const http = require('http');
+const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
@@ -16,14 +19,18 @@ const { Report } = require('./lib/report');
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
 const WM_CLOSE = 0x0010;
-const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_RETURN = 0x0d, VK_ESCAPE = 0x1b;
+const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_UP = 0x26, VK_RETURN = 0x0d, VK_ESCAPE = 0x1b;
+const VK_CONTROL = 0x11, VK_V = 0x56;
 const NOTIFY_ICON_SETTINGS = 'HKCU:\\Control Panel\\NotifyIconSettings';
 // 托盘图标的程序化识别色（tray.ts 琥珀 #f5a623 → RGB）
 const AMBER = [245, 166, 35];
 // 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP）
 const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 }
 const LEFT_CARDS_DIP = { x: 48, y: 48, w: 320, h: 686 }   // 时钟+天气+日历（至 734）
-const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 790 } // 会话+Qoder+硬件，底缘至 838
+// 右列自 07 起顶部是搜索面板（SEARCH 卡 ~89 高 + 会话 + Qoder + 硬件，底缘至 942）
+const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 894 }
+// 搜索卡几何（与 src/renderer/index.html #search-card 一致；results 展开随事件重取）
+const SEARCH_CARD_DIP = { right: 48, y: 48, w: 420, h: 89 }
 // 工单05 桌面承载分区几何（与 renderer/index.html #doc-zone / #dock-zone 一致）：
 // 文档区 x408 起、max-width 640（满 8 行折右列的列流布局，透明带取样按最宽取 1056）；
 // dock 条锚面板底部（bottom:16 + 条高约 94），其上缘随面板高度计算，不设常量。
@@ -368,6 +375,70 @@ async function waitStable(type, quietMs = 2000, timeoutMs = 12000) {
   return null;
 }
 
+// —— 工单07 搜索并入：accept_search 电池（scripts/ 版已随 Tk 窗退役）的探针件 ——
+
+// 窗口标题（win32.js 未导出；与 className 同款 koffi 缓冲形态）
+const user32Title = win32.koffi.load('user32.dll');
+const GetWindowTextW = user32Title.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+function windowTitle(hwnd) {
+  const buf = Buffer.alloc(1024);
+  const n = GetWindowTextW(hwnd, buf, 512);
+  if (n <= 0) return '';
+  let s = '';
+  for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
+  return s;
+}
+
+// 直连真实 Listary 引擎（旧电池 engine_has_probe_first 平移）：探针文件入索引且排首位。
+// 路径比对用 realpath + basename：os.tmpdir() 可能返回 8.3 短名（ANW~1），Listary 报长名。
+function engineProbeFirst(word, probePath, token) {
+  let realPath = probePath;
+  try { realPath = fs.realpathSync(probePath); } catch { /* 文件在，短名比对兜底 */ }
+  return new Promise((resolve) => {
+    const body = JSON.stringify({ query: word, limit: 8, offset: 0 });
+    const req = http.request({
+      host: '127.0.0.1', port: 38431, path: '/api/v1/search', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      timeout: 3000, agent: false,
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        try {
+          const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const rows = payload && payload.data && payload.data.results;
+          resolve(Array.isArray(rows) && rows.length > 0
+            && path.basename(String(rows[0].path || '')).toLowerCase() === word.toLowerCase()
+            && String(rows[0].path || '').toLowerCase().includes(String(token).toLowerCase()));
+        } catch { resolve(false); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+    req.end(body);
+  });
+}
+
+// 找一个必死的本机端口（ENGINE OFFLINE 注入用）：listen(0) 占位后立即释放
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const p = srv.address().port;
+      srv.close(() => resolve(p));
+    });
+  });
+}
+
+function clipboardGet() {
+  try { return psRun('Get-Clipboard -Raw -ErrorAction SilentlyContinue'); } catch { return ''; }
+}
+
+function clipboardSet(text) {
+  try { psRun(`Set-Clipboard -Value '${String(text).replace(/'/g, "''")}'`); } catch { /* 尽力 */ }
+}
+
 async function main() {
   const rep = new Report('03-battery');
   const w32 = win32;
@@ -392,6 +463,7 @@ async function main() {
   let panelPid = null;
   let notepad = null;
   let stderrTail = '';
+  let searchProbeDir = null; // P7S 探针目录（记事本标签占着句柄，末尾关窗后再删）
 
   // —— 工单06 编排验收预置：备份并种子摆位存储（手钉一个真实桌面 lnk，占 dock 前段可断言）。
   // 电池不得改变用户真实摆位：清场时还原/删除。userData 与面板同 app 名（同仓库 electron .）。
@@ -942,6 +1014,260 @@ async function main() {
       }
     }
 
+    // —— P7S 工单07 搜索并入：accept_search 电池适配（scripts/accept_search.py 随 Tk 窗退役）——
+    // 链路：探针文件直连引擎取证 → 热区点击激活（前台门校验）→ 剪贴板粘贴探针词
+    // （绕开输入法合成，旧电池同法；IME 机制本体由探针01-D 在同窗体实证）→ 实时结果 →
+    // ↑/↓ 选择 → Enter 打开 → Ctrl+Enter 定位 → ESC/失焦退待机 → 假端口复现 ENGINE OFFLINE。
+    await (async () => {
+      // 记事本（P4 起 1000,200 1400x900）盖住搜索卡左半——挪开，段末挪回（P9 重钉断言仍按原位）
+      const npRect0 = w32.rectOf(notepad.hwnd);
+      w32.SetWindowPos(notepad.hwnd, 0, 60, 200, 0, 0,
+        w32.SWP_NOSIZE | w32.SWP_NOZORDER | w32.SWP_NOACTIVATE);
+      const restoreNotepadPos = () => {
+        if (!npRect0) return;
+        try {
+          w32.SetWindowPos(notepad.hwnd, 0, npRect0.left, npRect0.top, 0, 0,
+            w32.SWP_NOSIZE | w32.SWP_NOZORDER | w32.SWP_NOACTIVATE);
+        } catch { /* 尽力 */ }
+      };
+
+      const token = `zzdeck07-${Date.now()}`;
+      const probeDir = path.join(os.tmpdir(), token);
+      const probeFile = path.join(probeDir, `${token}.txt`);
+      const word = `${token}.txt`; // 搜完整文件名：唯一且必排首位（目录不匹配 .txt，旧电池同法）
+      const savedClip = clipboardGet();
+      const configPathS = path.join(APP_ROOT, 'config.json');
+      const configBackupS = fs.existsSync(configPathS) ? fs.readFileSync(configPathS, 'utf8') : null;
+      let currentRect = w32.rectOf(hwnd);
+      let searchZone = null;
+
+      const latestSearchZone = () => {
+        const evts = readEvents().filter((e) => e.type === 'hotzones' && (e.rects || []).some((r) => r.id === 'search-card'));
+        const last = evts[evts.length - 1];
+        return last ? (last.rects || []).find((r) => r.id === 'search-card') || null : null;
+      };
+      const zoneShot = (z, base, name, extraBottom = 40) => {
+        capture({
+          left: base.left + Math.round((z.x - 24) * f),
+          top: base.top + Math.round((z.y - 24) * f),
+          right: base.left + Math.round((z.x + z.w + 24) * f),
+          bottom: base.top + Math.round((z.y + z.h + extraBottom) * f),
+        }, name);
+      };
+      const foregroundIsPanel = () => {
+        const fg = w32.GetForegroundWindow();
+        return !!fg && w32.threadIdOf(fg).pid === panelPid;
+      };
+      // 激活 = 点击热区（search-activated 存证）+ 前台门校验（键只发进面板进程，旧电池 panel_sendkeys 同款）
+      const activate = async () => {
+        const z = latestSearchZone();
+        if (!z) return false;
+        const cx = currentRect.left + Math.round((z.x + z.w / 2) * f);
+        const cy = currentRect.top + Math.round((z.y + z.h / 2) * f);
+        for (let i = 0; i < 3; i++) {
+          w32.moveMousePhys(cx, cy);
+          await sleep(350);
+          const t0 = Date.now();
+          w32.clickPhys(cx, cy, 'left');
+          const act = await waitEvent('search-activated', (e) => e.t >= t0, 2500);
+          if (act && foregroundIsPanel()) return true;
+        }
+        return false;
+      };
+      // 粘贴任意词进输入框（探针词/常用词共用；绕开输入法合成，旧电池同法）
+      const paste = async (text) => {
+        clipboardSet(text);
+        await sleep(250);
+        w32.send([
+          w32.keyInput(VK_CONTROL, w32.KEYDOWN), w32.keyInput(VK_V, w32.KEYDOWN),
+          w32.keyInput(VK_V, w32.KEYUP), w32.keyInput(VK_CONTROL, w32.KEYUP),
+        ]);
+      };
+      const pasteAwaitResults = async () => {
+        const t0 = Date.now();
+        await paste(word);
+        return await waitEvent('search-results-rendered', (e) => e.t >= t0 && (e.count ?? 0) >= 1, 20000);
+      };
+      const waitWindow = async (pred, timeoutMs = 15000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const hit = win32.topLevelWindows().find(pred);
+          if (hit) return hit;
+          await sleep(300);
+        }
+        return null;
+      };
+
+      try {
+        // —— 探针文件 + 引擎索引等待（直连真实引擎，90s 上限）——
+        fs.mkdirSync(probeDir, { recursive: true });
+        fs.writeFileSync(probeFile, 'agent-deck search acceptance probe\n', 'utf8');
+        let indexed = false;
+        const idxDeadline = Date.now() + 90000;
+        while (Date.now() < idxDeadline && !indexed) {
+          indexed = await engineProbeFirst(word, probeFile, token);
+          if (!indexed) await sleep(1500);
+        }
+        indexed
+          ? rep.pass('真实 Listary 引擎在线且探针文件入索引排首位（直连取证——与内核同款回环链路）')
+          : rep.fail('Listary 引擎离线或索引 90s 未就绪（搜索链路探针不可信，确认 Listary 在运行后重跑）');
+        if (!indexed) return;
+
+        await waitStable('desktop-rendered', 1200, 8000);
+        currentRect = w32.rectOf(hwnd);
+        searchZone = latestSearchZone();
+        if (!searchZone) {
+          rep.fail('搜索卡热区未声明（渲染层 search-card 缺席）');
+          return;
+        }
+        zoneShot(searchZone, currentRect, '07-search-idle', 24);
+        rep.note('待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）');
+
+        // —— 点击激活 → 粘贴 → 实时结果 ——
+        const okAct = await activate();
+        okAct
+          ? rep.pass('热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论落地）')
+          : rep.fail('搜索面板未激活或键盘焦点未落入面板进程（前台门校验 3 次失败）');
+        if (!okAct) return;
+        const resEvt = await pasteAwaitResults();
+        resEvt
+          ? rep.pass(`键入探针词后防抖-引擎-渲染管线打通（结果 ${resEvt.count} 行 TOTAL ${resEvt.total}，qlen=${resEvt.qlen}——存证只带长度不带查询词）`)
+          : rep.fail('探针词粘贴后 20s 未出结果（search-results-rendered 未见）');
+        if (!resEvt) return;
+        searchZone = latestSearchZone() || searchZone; // 活动态卡片随结果展开
+        zoneShot(searchZone, currentRect, '07-search-results');
+
+        // —— Enter 打开探针文件（探针词仍在输入框、选中在首行）——
+        let tSel = Date.now();
+        w32.tapKeys([VK_RETURN]);
+        const opened = await waitWindow((h) => windowTitle(h).includes(token));
+        opened
+          ? rep.pass('Enter 打开验收探针文件（首行确为探针——渲染正确性行为级实证）')
+          : rep.fail('Enter 未打开探针文件窗口');
+        // 不关这个窗口：Win11 记事本有标签页——探针文件是作为 P4 记事本窗口的新标签
+        // 打开的，关掉它 = 杀掉 P4 的对照窗（P9 Win+D 断言依赖它活着，首轮实测踩中）。
+        // 探针标签随电池末尾 P4 窗口的 WM_CLOSE 一并消亡。
+
+        // —— Ctrl+Enter 资源管理器定位 ——
+        const okAct2 = await activate();
+        if (!okAct2) {
+          rep.fail('重新激活失败（reveal 链不可测）');
+          return;
+        }
+        const resEvt2 = await pasteAwaitResults();
+        if (!resEvt2) {
+          rep.fail('reveal 链粘贴后未出结果');
+          return;
+        }
+        searchZone = latestSearchZone() || searchZone;
+        zoneShot(searchZone, currentRect, '07-search-reveal'); // 动作前的活动态存证（动作完成即收层）
+        tSel = Date.now();
+        w32.send([
+          w32.keyInput(VK_CONTROL, w32.KEYDOWN), w32.keyInput(VK_RETURN, w32.KEYDOWN),
+          w32.keyInput(VK_RETURN, w32.KEYUP), w32.keyInput(VK_CONTROL, w32.KEYUP),
+        ]);
+        const revealed = await waitWindow((h) => win32.className(h) === 'CabinetWClass' && windowTitle(h).includes(token));
+        revealed
+          ? rep.pass('Ctrl+Enter 资源管理器定位（CabinetWClass 窗口弹出且标题含探针目录）')
+          : rep.fail('Ctrl+Enter 未弹出资源管理器定位窗口');
+        if (revealed) {
+          w32.PostMessageW(revealed, WM_CLOSE, 0, 0);
+          await sleep(800);
+        }
+
+        // —— ↑/↓ 选择 + ESC 退回待机态 ——
+        // 探针词唯一 → 只 1 行，选择移动需多行：换常用词（readme，索引内海量）出满 8 行。
+        // 选择后原地 ESC 收层（选择链留下的活动态正好作 ESC 探针——面板退待机，
+        // 供后续失焦链从待机态重新激活；活动态下点击卡片中心会落到结果行上误开文件）。
+        const okActSel = await activate();
+        if (!okActSel) {
+          rep.fail('选择链重新激活失败');
+          return;
+        }
+        await paste('readme');
+        const multiRow = await waitEvent('search-results-rendered', (e) => (e.count ?? 0) >= 3, 20000);
+        if (!multiRow) {
+          rep.fail('常用词未出多行结果（↑/↓ 选择不可测）');
+          return;
+        }
+        tSel = Date.now();
+        w32.tapKeys([VK_DOWN]);
+        await sleep(180);
+        w32.tapKeys([VK_DOWN]);
+        const selEvt = await waitEvent('search-selection-moved', (e) => e.t >= tSel && e.index === 2, 4000);
+        selEvt
+          ? rep.pass('↑/↓ 选择：两击 DOWN 选中第 3 行（index=2 存证）')
+          : rep.fail('↓ 选择未生效（search-selection-moved index=2 未见）');
+        tSel = Date.now();
+        w32.tapKeys([VK_ESCAPE]);
+        const escEvt = await waitEvent('search-deactivated', (e) => e.t >= tSel && e.reason === 'esc', 5000);
+        escEvt
+          ? rep.pass('ESC 退回待机态（search-deactivated reason=esc：输入清空、结果收起）')
+          : rep.fail('ESC 未退回待机态');
+
+        // —— 失焦退回待机态（点击桌面空档：穿透处点击 → 前台翻转 → 输入框 blur）——
+        const okAct4 = await activate();
+        if (!okAct4) {
+          rep.fail('失焦链重新激活失败');
+          return;
+        }
+        await pasteAwaitResults();
+        tSel = Date.now();
+        w32.moveMousePhys(safePt.x, safePt.y);
+        await sleep(400); // 热区轮询 25ms，留足恢复穿透
+        w32.clickPhys(safePt.x, safePt.y, 'left');
+        const blurEvt = await waitEvent('search-deactivated', (e) => e.t >= tSel && e.reason === 'blur', 6000);
+        blurEvt
+          ? rep.pass('失焦退回待机态（点击桌面后前台翻转，输入框 blur → 收层）')
+          : rep.fail('失焦未退回待机态');
+
+        // —— ENGINE OFFLINE（假端口注入：config.search.port 指必死端口 → 重启面板）——
+        await stopPanel();
+        fs.writeFileSync(configPathS, JSON.stringify({ search: { port: await freePort() } }, null, 2) + '\n');
+        const tOff = Date.now();
+        child = launchPanel();
+        const hwndOff = await waitPanelWindow(20000, tOff);
+        if (!hwndOff) throw new Error('离线探针重启后面板窗口未出现');
+        hwnd = hwndOff;
+        panelPid = win32.threadIdOf(hwndOff).pid;
+        currentRect = w32.rectOf(hwndOff);
+        await sleep(1500);
+        const okAct5 = await activate();
+        if (!okAct5) {
+          rep.fail('离线探针激活失败');
+        } else {
+          tSel = Date.now();
+          await paste(word);
+          const offEvt = await waitEvent('search-offline-shown', (e) => e.t >= tSel, 20000);
+          offEvt
+            ? rep.pass('引擎不可达显示 ENGINE OFFLINE（假端口连接失败 → offline 态 → 徽标；内核 3s 静默重试在场）')
+            : rep.fail('假端口注入后未出现 ENGINE OFFLINE（search-offline-shown 未见）');
+          zoneShot(latestSearchZone() || searchZone, currentRect, '07-search-offline');
+        }
+      } finally {
+        restoreNotepadPos();
+        clipboardSet(savedClip);
+        // 不按 token 关窗：Enter 打开的探针文件是 P4 记事本窗口的新标签（Win11 标签页
+        // 复用），按标题关窗会连 P4 对照窗一起杀（P9 依赖它存活）。目录删除挪到电池
+        // 末尾（主 finally）——关掉记事本释放句柄后再删。
+        searchProbeDir = probeDir;
+        await sleep(600);
+        // 面板拉回正常态（离线探针停在假端口配置）：还原 config + 重启
+        if (configBackupS === null) { try { fs.unlinkSync(configPathS); } catch { /* 尽力 */ } }
+        else { try { fs.writeFileSync(configPathS, configBackupS); } catch { /* 尽力 */ } }
+        await stopPanel();
+        const tRelaunch = Date.now();
+        child = launchPanel();
+        const hwndR = await waitPanelWindow(20000, tRelaunch);
+        if (hwndR) {
+          hwnd = hwndR;
+          panelPid = win32.threadIdOf(hwndR).pid;
+        } else {
+          rep.fail('搜索段收尾重启后面板窗口未出现');
+        }
+      }
+    })();
+
     // —— P6 config 几何生效：改 config 重启面板 ——
     const configPath = path.join(APP_ROOT, 'config.json');
     const configBackup = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : null;
@@ -1168,6 +1494,17 @@ async function main() {
       try { w32.PostMessageW(notepad.hwnd, WM_CLOSE, 0, 0); } catch { /* 尽力 */ }
       try { notepad.child.kill(); } catch { /* 尽力 */ }
       await sleep(400);
+    }
+    // P7S 探针目录：记事本（探针标签所在窗）已关、句柄释放，现在删得掉
+    if (searchProbeDir) {
+      for (let i = 0; i < 3; i++) {
+        try { fs.rmSync(searchProbeDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+        if (!fs.existsSync(searchProbeDir)) break;
+        await sleep(1000);
+      }
+      fs.existsSync(searchProbeDir)
+        ? rep.note(`探针目录未能删除（句柄仍被占用）: ${searchProbeDir}`)
+        : rep.note('搜索探针目录已清理');
     }
     await stopPanel();
     // 工单05 清场核验：面板被 /F 清杀时守卫无还原路径（还原依赖存活），图标若仍隐藏则走

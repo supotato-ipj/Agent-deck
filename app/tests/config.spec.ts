@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultDesktopLayout, defaultPanelGeometry, defaultWeather, loadConfig } from '../src/main/config'
+import { defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultWeather, loadConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -118,5 +118,51 @@ describe('config 模型（工单06 桌面承载几何）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.desktop).toEqual(defaultDesktopLayout())
     expect(r.warnings.some((w) => w.includes('config.desktop'))).toBe(true)
+  })
+})
+
+describe('config 模型（工单07 搜索）', () => {
+  it('defaultSearchConfig 用 Listary 生产端口', () => {
+    expect(defaultSearchConfig()).toEqual({ port: 38431 })
+  })
+
+  it('search 段缺失回退默认（老 config.json 兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: FALLBACK.panel }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('search.port 合法值生效（验收指假端口复现引擎离线）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: { port: 39999 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 39999 })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('search.port 非法（越界/非整数/非数）回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: { port: 0 } }))
+    let r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.warnings.some((w) => w.includes('config.search.port'))).toBe(true)
+
+    fs.writeFileSync(file, JSON.stringify({ search: { port: 1.5 } }))
+    r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431 })
+
+    fs.writeFileSync(file, JSON.stringify({ search: { port: 'abc' } }))
+    r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431 })
+  })
+
+  it('search 整体非对象回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: 42 }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.warnings.some((w) => w.includes('config.search'))).toBe(true)
   })
 })
