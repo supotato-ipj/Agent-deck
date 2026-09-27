@@ -12,3 +12,9 @@
 - [ ] README/docs 与词汇表、ADR 一致
 - [ ] 使用日志历史去向明确（迁移保留或声明重新积累）
 - [ ] 全量验收电池最终轮全绿并截图存证于工单评论
+
+## Comments
+
+**2026-09-27 旧栈运行态提前清理（bug 修复，非本工单验收）**
+
+用户报告桌面偶现 WE 版残留 Listary 搜索框组件，定位为旧检出 `D:\test-folder\wallpaperengine-research` 的自启链：Startup 快捷方式 `qoder-deck-server-watchdog.lnk` → `server_watchdog.pyw`（PID 18604）→ `server.py`（PID 30612，内嵌 Tk 搜索面板窗）。已删 Startup 快捷方式并结束两进程（hermes 工具进程无关未动）；核查无计划任务/HKLM/看门狗自重建等其他复活途径。**本工单的「旧自启项移除」在运行态层面已提前完成**，代码退役（删脚本、冻结壁纸资产、Startup 改指新应用、真重启复验）仍按本工单计划执行。
