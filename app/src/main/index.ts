@@ -1,6 +1,6 @@
 import { app, screen } from 'electron'
 import path from 'node:path'
-import { defaultPanelGeometry, loadConfig } from './config'
+import { defaultPanelGeometry, defaultWeather, loadConfig } from './config'
 import { createKernel } from './kernel'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
@@ -15,13 +15,13 @@ const ACCEPT_MODE = process.argv.includes('--accept')
 
 async function bootPanel(): Promise<void> {
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
-  const fallback = { panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds) }
+  const fallback = { panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds), weather: defaultWeather() }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
   if (created) console.log('[deck] config.json 不存在，已按当前屏幕几何写出默认值')
   log?.append({ type: 'boot', pid: process.pid })
 
-  const kernel = createKernel()
+  const kernel = createKernel({ weather: config.weather })
   await kernel.start()
 
   const win = createPanelWindow({ geometry: config.panel })

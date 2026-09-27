@@ -16,18 +16,32 @@
     user-select: none;
     cursor: default;
   }
-  /* 时钟卡：02 的第一个桌面组件；固定尺寸保证热区矩形稳定 */
-  #clock-card {
+  /* 卡片底盘（Personal OS 卡片网格；固定尺寸保证热区矩形稳定） */
+  .card {
     position: fixed;
+    box-sizing: border-box;
+    padding: 18px 20px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    color: #9aa0a6;
+  }
+  .card .dim { color: #9aa0a6; }
+  .card .bright { color: #fff; }
+
+  /* ---- 左列：时钟 / 天气 / 日历 ---- */
+  #clock-card {
     left: 48px;
     top: 48px;
     width: 320px;
     height: 176px;
-    box-sizing: border-box;
     padding: 26px 28px;
-    background: rgba(0, 0, 0, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 16px;
     cursor: pointer;
   }
   #clock-time {
@@ -42,13 +56,122 @@
     letter-spacing: 0.3em;
     color: #9aa0a6;
   }
+  #weather-card { left: 48px; top: 248px; width: 320px; height: 170px; }
+  #weather-temp {
+    font-size: 40px;
+    line-height: 1.1;
+    color: #fff;
+  }
+  #weather-desc { margin-top: 4px; font-size: 13px; color: #d6d6d6; }
+  #weather-detail { margin-top: 12px; font-size: 12px; color: #9aa0a6; }
+  #calendar-card { left: 48px; top: 442px; width: 320px; height: 292px; }
+  #cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    row-gap: 6px;
+    font-size: 13px;
+    text-align: center;
+    color: #6b7075;
+  }
+  #cal-grid .head { color: #9aa0a6; font-size: 11px; }
+  #cal-grid .day { color: #d6d6d6; }
+  #cal-grid .day.other { color: #4a4f54; }
+  #cal-grid .day.today {
+    color: #fff;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+  }
+  #cal-title { margin-bottom: 10px; font-size: 13px; color: #d6d6d6; }
+
+  /* ---- 右列：会话列表 / Qoder 状态 / 硬件 ---- */
+  #sessions-card { right: 48px; top: 48px; width: 420px; height: 348px; }
+  #sessions-head-count { float: right; letter-spacing: 0.2em; }
+  #session-rows { overflow: hidden; }
+  .srow {
+    display: grid;
+    grid-template-columns: 3ch 7ch 1fr 9ch;
+    column-gap: 1.2ch;
+    align-items: baseline;
+    height: 26px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .srow .tag, .srow .state, .srow .tasks { color: #9aa0a6; }
+  .srow .state.run, .srow .state.confirm { color: #fff; font-weight: 700; }
+  .srow .name { color: #d6d6d6; overflow: hidden; text-overflow: ellipsis; }
+  .srow .tasks { text-align: right; }
+  #sessions-standby { font-size: 13px; letter-spacing: 0.2em; color: #6b7075; }
+
+  #qoder-card { right: 48px; top: 412px; width: 420px; height: 158px; }
+  #qoder-body { font-size: 13px; line-height: 1.8; color: #d6d6d6; }
+  #qoder-task {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #9aa0a6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #qoder-progress { margin-top: 8px; height: 4px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; }
+  #qoder-progress-fill { height: 100%; width: 0%; background: #f5a623; border-radius: 2px; }
+
+  #hardware-card { right: 48px; top: 586px; width: 420px; height: 252px; }
+  #hw-lines { font-size: 13px; line-height: 1.7; color: #d6d6d6; }
+  #hw-lines .v { color: #fff; }
+  #hw-sparks { margin-top: 10px; }
+  .spark { display: grid; grid-template-columns: 4.5ch 1fr; column-gap: 10px; align-items: center; height: 30px; }
+  .spark label { font-size: 10px; color: #6b7075; }
+  .spark canvas { width: 100%; height: 24px; }
 </style>
 </head>
 <body>
-  <div id="clock-card">
-    <div id="clock-time">--:--:--</div>
-    <div id="clock-date">---- -- --</div>
+
+<div class="card" id="clock-card">
+  <div id="clock-time">--:--:--</div>
+  <div id="clock-date">---- -- --</div>
+</div>
+
+<div class="card" id="weather-card">
+  <h2>WEATHER</h2>
+  <div id="weather-temp">--&deg;</div>
+  <div id="weather-desc">FETCHING</div>
+  <div id="weather-detail">WIND -- M/S &middot; RH --% &middot; PREC -- MM</div>
+</div>
+
+<div class="card" id="calendar-card">
+  <h2>CALENDAR</h2>
+  <div id="cal-title">---- --</div>
+  <div id="cal-grid"></div>
+</div>
+
+<div class="card" id="sessions-card">
+  <h2>SESSIONS <span id="sessions-head-count">000</span></h2>
+  <div id="session-rows"></div>
+  <div id="sessions-standby">NO ACTIVE SESSIONS</div>
+</div>
+
+<div class="card" id="qoder-card">
+  <h2>QODER STATUS</h2>
+  <div id="qoder-body">PROJECT ---- &middot; ACTIVE 0</div>
+  <div id="qoder-task">NO CURRENT TASK</div>
+  <div id="qoder-progress"><div id="qoder-progress-fill"></div></div>
+</div>
+
+<div class="card" id="hardware-card">
+  <h2>HARDWARE</h2>
+  <div id="hw-lines">
+    <div id="hw-line1">CPU ---% &middot; GPU ---% ---&deg;C &middot; VRAM ---%</div>
+    <div id="hw-line2">RAM ---% -- GB/-- GB &middot; DL ----KB/s &middot; UP ----KB/s</div>
   </div>
-  <script src="./main.js"></script>
+  <div id="hw-sparks">
+    <div class="spark"><label>CPU</label><canvas id="spark-cpu"></canvas></div>
+    <div class="spark"><label>GPU</label><canvas id="spark-gpu"></canvas></div>
+    <div class="spark"><label>DL</label><canvas id="spark-dl"></canvas></div>
+    <div class="spark"><label>UP</label><canvas id="spark-up"></canvas></div>
+  </div>
+</div>
+
+<script src="./main.js"></script>
 </body>
 </html>

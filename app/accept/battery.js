@@ -1,6 +1,7 @@
 'use strict';
 // 工单03 验收电池：02 全部行为（透明合成 / 默认穿透 / 热区接收与重钉 / 底部钉扎 / config 几何）
 // + 工单03 宿主常驻三件套：单实例守卫（P7）、托盘图标与菜单退出（P8/P10）、Win+D 防抖自动恢复（P9）。
+// + 工单04 数据卡片（P2.5）：四类卡片经桥接契约实时刷新 + 历史曲线滚动 + 截图存证。
 // 运行：npm run accept（= electron . --accept，控制器与面板同仓库，面板为子进程）。
 // 复用工单01 探针的调用形态（探针A/B/C 全绿）：SendInput 虚拟屏归一化坐标、
 // WindowFromPoint 经 GetAncestor(GA_ROOT)、GDI 抓屏走 DPI 感知 PowerShell。
@@ -18,8 +19,10 @@ const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_RETURN = 0x0d
 const NOTIFY_ICON_SETTINGS = 'HKCU:\\Control Panel\\NotifyIconSettings';
 // 托盘图标的程序化识别色（tray.ts 琥珀 #f5a623 → RGB）
 const AMBER = [245, 166, 35];
-// 卡片几何须与 src/renderer/index.html 的 #clock-card 保持一致（DIP）
-const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 };
+// 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP）
+const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 }
+const LEFT_CARDS_DIP = { x: 48, y: 48, w: 320, h: 686 }   // 时钟+天气+日历（至 734）
+const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 790 } // 会话+Qoder+硬件，底缘至 838;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -43,12 +46,13 @@ function capture(rect, name) {
     '-Out', out, '-X', String(rect.left), '-Y', String(rect.top),
     '-W', String(rect.right - rect.left), '-H', String(rect.bottom - rect.top),
   ], { encoding: 'utf8', timeout: 20000 });
-  if (r.status !== 0 || !fs.existsSync(out)) throw new Error(`capture 失败: ${r.stdout} ${r.stderr}`);
+  if (r.status !== 0 || !fs.existsSync(out)) throw new Error(`capture 失败: status=${r.status} signal=${r.signal} err=${r.error ? r.error.message : '无'} stdout=${r.stdout} stderr=${r.stderr}`);
   return out;
 }
 
-// 棋盘两色 #2040c0/#c04020 命中率（工单01 探针A 同法）
-function checkerHitRate(pngPath, zone) {
+// 遮挡感知命中率（工单04）：只统计 WindowFromPoint 命中参照窗的采样点——
+// 电池运行中被用户恢复的普通窗只遮屏不遮断言（面板透明机制与遮挡正交）。
+function checkerHitRateAtPoints(pngPath, points) {
   const img = nativeImage.createFromPath(pngPath);
   const s = img.getSize();
   const buf = img.toBitmap();
@@ -56,14 +60,13 @@ function checkerHitRate(pngPath, zone) {
   let hit = 0, n = 0;
   const tol = 30;
   const colors = [[192, 64, 32], [32, 64, 192]];
-  for (let y = Math.max(0, zone.top); y < Math.min(s.height, zone.bottom); y += 2) {
-    for (let x = Math.max(0, zone.left); x < Math.min(W, zone.right); x += 2) {
-      const i = (y * W + x) * 4;
-      const r = buf[i + 2], g = buf[i + 1], b = buf[i];
-      n++;
-      for (const [cr, cg, cb] of colors) {
-        if (Math.abs(r - cr) <= tol && Math.abs(g - cg) <= tol && Math.abs(b - cb) <= tol) { hit++; break; }
-      }
+  for (const { x, y } of points) {
+    if (x < 0 || y < 0 || x >= s.width || y >= s.height) continue;
+    const i = (Math.round(y) * W + Math.round(x)) * 4;
+    const r = buf[i + 2], g = buf[i + 1], b = buf[i];
+    n++;
+    for (const [cr, cg, cb] of colors) {
+      if (Math.abs(r - cr) <= tol && Math.abs(g - cg) <= tol && Math.abs(b - cb) <= tol) { hit++; break; }
     }
   }
   return { rate: hit / Math.max(1, n), n };
@@ -137,7 +140,7 @@ function colorIconTarget(pngPath, rgb, tol = 20) {
       hits += c.n; sx += c.sx; sy += c.sy; nClusters++;
     }
   }
-  if (hits < 100) return null; // 四点合计约 256 像素；低于此视为噪声而非图标
+  if (hits < 40) return null; // 四点合计在 1.0 缩放约 64 像素（1.25 缩放 256）；40 为噪声下限，增量断言另有基线把门
   return { x: Math.round(sx / hits), y: Math.round(sy / hits), hits, nClusters };
 }
 
@@ -378,35 +381,60 @@ async function main() {
     })();
     w32.SetWindowPos(checkerHwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
       w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+    // 清场后又被用户恢复的普通窗会盖住取样带（工单04 实拍：运行中被恢复的视频窗）
+    // ——截图前对非本电池/非面板的普通窗再做一轮最小化，不碰参照窗与桌面层
+    for (const h of w32.topLevelWindows()) {
+      if (CLEAR_DESKTOP_SKIP.has(w32.className(h))) continue;
+      const pid = w32.threadIdOf(h).pid;
+      if (pid === process.pid || pid === panelPid) continue;
+      const ex = w32.GetWindowLongW(h, w32.GWL_EXSTYLE);
+      if (ex & w32.WS_EX_TOPMOST || w32.IsIconic(h)) continue;
+      w32.ShowWindow(h, SW_MINIMIZE);
+      minimizedForRestore.push(h);
+    }
     await sleep(1000);
 
     const localCard = {
       left: CARD_DIP.x * f, top: CARD_DIP.y * f,
       right: (CARD_DIP.x + CARD_DIP.w) * f, bottom: (CARD_DIP.y + CARD_DIP.h) * f,
     };
+    const panelW = rect.right - rect.left;
     const workBottom = Math.round((si.workArea.y + si.workArea.height) * f) - 8 - rect.top;
+    // 透明区取样带须避开两侧卡片列（04 起左列至 x368、右列自 w-468 起，否则卡片底色拉低命中率）
+    const leftColRight = Math.round((LEFT_CARDS_DIP.x + LEFT_CARDS_DIP.w) * f) + Math.round(8 * f)
+    const rightColLeft = panelW - Math.round((RIGHT_CARDS_DIP.right + RIGHT_CARDS_DIP.w) * f) - Math.round(8 * f)
     const transparentZone = {
-      left: Math.min(localCard.right + 8, (rect.right - rect.left) - 8),
-      top: 8, right: (rect.right - rect.left) - 8, bottom: workBottom,
+      left: Math.min(leftColRight, panelW - 8),
+      top: 8, right: Math.max(rightColLeft, leftColRight + Math.round(200 * f)), bottom: workBottom,
     };
     // shell 浮层（快捷设置等）是 TOPMOST，会挡住面板透明区（03 迭代 8 实拍 87.1% 即此因）：
     // 截图前 ESC 收层，命中率不足再重拍一次取后值
     w32.tapKeys([0x1b]);
     await sleep(400);
+    // 采样点先经 WindowFromPoint 过滤：只取面板之下确为参照窗的点（遮挡感知，工单04）
+    const probePoints = [];
+    for (let y = transparentZone.top + 8; y < transparentZone.bottom - 8; y += 16) {
+      for (let x = transparentZone.left + 8; x < transparentZone.right - 8; x += 16) {
+        if (w32.windowFromPointRoot({ x: rect.left + x, y: rect.top + y }) === checkerHwnd) probePoints.push({ x, y });
+      }
+    }
+    rep.note(`透明区采样点 ${probePoints.length} 个命中参照窗（其余被用户窗遮挡的点不计）`);
     const shot = capture(rect, '02-transparent-on-checker');
-    let chk = checkerHitRate(shot, transparentZone);
-    if (chk.rate <= 0.9) {
+    let chk = checkerHitRateAtPoints(shot, probePoints);
+    if (chk.rate <= 0.9 && probePoints.length >= 500) {
       w32.tapKeys([0x1b]);
       await sleep(800);
       const shot2 = capture(rect, '02-transparent-on-checker');
-      const chk2 = checkerHitRate(shot2, transparentZone);
+      const chk2 = checkerHitRateAtPoints(shot2, probePoints);
       rep.note(`首拍命中率 ${(chk.rate * 100).toFixed(1)}% 疑浮层遮挡，ESC 后重拍 ${(chk2.rate * 100).toFixed(1)}%`);
       chk = chk2;
     }
     rep.log(`透明区棋盘色命中率: ${(chk.rate * 100).toFixed(1)}% (样本 ${chk.n})`);
-    chk.rate > 0.9
+    probePoints.length >= 500 && chk.rate > 0.9
       ? rep.pass('透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）')
-      : rep.fail(`透明区未透出参照窗（命中率 ${(chk.rate * 100).toFixed(1)}%）`);
+      : rep.fail(probePoints.length < 500
+        ? `参照窗几乎被用户窗全遮（有效采样点仅 ${probePoints.length}），透明断言不可判`
+        : `透明区未透出参照窗（命中率 ${(chk.rate * 100).toFixed(1)}%）`);
     const wp = whitePixels(shot, localCard);
     wp.hit > 30
       ? rep.pass(`时钟卡白色文字像素 ${wp.hit}/${wp.n}（文字实色清晰）`)
@@ -415,6 +443,51 @@ async function main() {
     await sleep(600);
     capture(rect, '02-on-wallpaper');
     rep.note('实拍面板叠真壁纸（观感存证；动态壁纸逐帧不同，不做像素断言）');
+
+    // —— P2.5 工单04 数据卡片：四类卡片经桥接契约上线并实时刷新 ——
+    {
+      const sessionsEvt = await waitEvent('sessions-rendered', null, 8000);
+      sessionsEvt
+        ? rep.pass(`会话列表卡：渲染层收到内核会话数据（count=${sessionsEvt.count}，真机活跃池）`)
+        : rep.fail('会话列表卡：未收到 sessions-rendered 存证');
+      const qoderEvt = await waitEvent('qoder-rendered', null, 8000);
+      qoderEvt
+        ? rep.pass(`Qoder 状态卡：渲染层收到状态数据（active=${qoderEvt.active}）`)
+        : rep.fail('Qoder 状态卡：未收到 qoder-rendered 存证');
+      const hw2 = await waitEvent('hardware-rendered', (e) => e.n >= 2, 8000);
+      hw2
+        ? rep.pass(`硬件指标卡：面板 1Hz 刷新持续走数（第 ${hw2.n} 次渲染）`)
+        : rep.fail('硬件指标卡：未见第二次渲染（实时刷新未证实）');
+      const historyLive = await waitEvent('history-live', null, 10000);
+      historyLive
+        ? rep.pass(`历史曲线滚动窗口上线（cpu 历史已积累 ${historyLive.len} 点，300 点上限契约）`)
+        : rep.fail('历史曲线未见积累（无 history-live 存证）');
+      const weatherOk = await waitEvent('weather-rendered', null, 15000);
+      if (weatherOk) {
+        rep.pass(`天气卡：Open-Meteo 取数成功（weather_code=${weatherOk.code} temp=${weatherOk.temp}）`);
+      } else {
+        const weatherErr = readEvents().find((e) => e.type === 'weather-error');
+        weatherErr
+          ? rep.note(`天气卡取数失败（网络相关，不作硬断言）：${weatherErr.message}`)
+          : rep.fail('天气卡：既无 weather-rendered 也无 weather-error（卡片逻辑未运行）');
+      }
+      const leftZone = {
+        left: rect.left + Math.round((LEFT_CARDS_DIP.x - 8) * f),
+        top: rect.top + Math.round((LEFT_CARDS_DIP.y - 8) * f),
+        right: rect.left + Math.round((LEFT_CARDS_DIP.x + LEFT_CARDS_DIP.w + 8) * f),
+        bottom: rect.top + Math.round((LEFT_CARDS_DIP.y + LEFT_CARDS_DIP.h + 8) * f),
+      };
+      const rightZone = {
+        left: rect.right - Math.round((RIGHT_CARDS_DIP.right + RIGHT_CARDS_DIP.w + 8) * f),
+        top: rect.top + Math.round((RIGHT_CARDS_DIP.y - 8) * f),
+        right: rect.right - Math.round((RIGHT_CARDS_DIP.right - 8) * f),
+        bottom: rect.top + Math.round((RIGHT_CARDS_DIP.y + RIGHT_CARDS_DIP.h + 8) * f),
+      };
+      capture(leftZone, '04-cards-left');
+      capture(rightZone, '04-cards-right');
+      rep.note('四类卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（会话/Qoder/硬件曲线）');
+    }
+
 
     // —— P3 默认穿透：左键/右键直达桌面 ——
     const ex = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
@@ -594,8 +667,12 @@ async function main() {
           hwnd = await waitPanelWindow(20000, t0);
           if (!hwnd) throw new Error('P8 重启后未见面板窗口');
           panelPid = w32.threadIdOf(hwnd).pid;
-          await sleep(1500);
-          amber = scanAmberInTray('area');
+          // 显示模式切换后 explorer 重挂托盘图标可能迟滞（工单04 实测）：8s 内轮询重扫
+          const scanDeadline = Date.now() + 8000;
+          while (!amber && Date.now() < scanDeadline) {
+            await sleep(1000);
+            amber = scanAmberInTray('area');
+          }
         }
         amber && (!amberBase || amber.hits > amberBase.hits)
           ? rep.pass(`托盘图标可见：识别色命中 ${amber.hits} 像素 @(${amber.x},${amber.y})（基线 ${amberBase ? amberBase.hits : 0}），截图 03-tray-area.png`)

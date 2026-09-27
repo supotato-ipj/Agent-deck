@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { WeatherLocation } from '../shared/contract'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
 export interface PanelGeometry {
@@ -9,8 +10,12 @@ export interface PanelGeometry {
   height: number
 }
 
+/** 天气卡取数坐标（Open-Meteo）：渲染层纯前端直连，坐标随快照下发；类型即契约面的 WeatherLocation */
+export type WeatherConfig = WeatherLocation
+
 export interface AppConfig {
   panel: PanelGeometry
+  weather: WeatherConfig
 }
 
 export interface RectLike {
@@ -59,6 +64,28 @@ function mergePanel(raw: unknown, fallback: PanelGeometry, warnings: string[]): 
   return out
 }
 
+/** 默认天气坐标：北京（先例 patched 壁纸内固定坐标的平移；用户可在 config.json 改） */
+export function defaultWeather(): WeatherConfig {
+  return { latitude: 39.9042, longitude: 116.4074 }
+}
+
+function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[]): WeatherConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null) {
+    warnings.push('config.weather 不是对象，已整体回退默认坐标')
+    return out
+  }
+  const weather = raw as Record<string, unknown>
+  for (const key of ['latitude', 'longitude'] as const) {
+    const v = weather[key]
+    if (v === undefined) continue
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v
+    else warnings.push(`config.weather.${key} 不是有限数字，已回退默认值 ${fallback[key]}`)
+  }
+  return out
+}
+
 function writeConfig(file: string, config: AppConfig): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n')
@@ -89,7 +116,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
   }
   const root = raw as Record<string, unknown>
   return {
-    config: { panel: mergePanel(root.panel, fallback.panel, warnings) },
+    config: { panel: mergePanel(root.panel, fallback.panel, warnings), weather: mergeWeather(root.weather, fallback.weather, warnings) },
     warnings,
     created: false,
   }

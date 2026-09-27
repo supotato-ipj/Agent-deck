@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultPanelGeometry, loadConfig } from '../src/main/config'
+import { defaultPanelGeometry, defaultWeather, loadConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 } }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -56,5 +56,21 @@ describe('config 模型', () => {
     expect(r.config).toEqual(FALLBACK)
     expect(r.warnings.length).toBeGreaterThan(0)
     expect(fs.readFileSync(file, 'utf8')).toBe('{ 坏掉的')
+  })
+
+  it('weather 坐标缺失回退默认、非法回退并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: FALLBACK.panel, weather: { latitude: 31.2, longitude: 'east' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.weather).toEqual({ latitude: 31.2, longitude: defaultWeather().longitude })
+    expect(r.warnings.some((w) => w.includes('config.weather.longitude'))).toBe(true)
+  })
+
+  it('weather 整体非对象回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: FALLBACK.panel, weather: 42 }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.weather).toEqual(defaultWeather())
+    expect(r.warnings.some((w) => w.includes('config.weather'))).toBe(true)
   })
 })

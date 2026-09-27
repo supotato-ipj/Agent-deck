@@ -9,6 +9,7 @@ import type {
 declare global {
   // 渲染层是经典脚本（无模块语法），经全局别名引用契约类型
   type PanelSnapshot = import('../shared/contract').PanelSnapshot
+  type SessionInfo = import('../shared/contract').SessionInfo
 
   interface Window {
     deck: {

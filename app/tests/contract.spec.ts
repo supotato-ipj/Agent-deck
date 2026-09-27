@@ -5,7 +5,7 @@ import type { PanelSnapshot } from '../src/shared/contract'
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
 describe('内核桥接契约', () => {
   it('panel/snapshot 返回时钟快照', async () => {
-    const ctx = createKernel({ tickIntervalMs: 0 })
+    const ctx = createKernel({ tickIntervalMs: 0, hardwareIntervalMs: 0 })
     await ctx.start()
     try {
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
@@ -18,7 +18,7 @@ describe('内核桥接契约', () => {
   })
 
   it('panel/changed 订阅推送快照，退订后停止', async () => {
-    const ctx = createKernel({ tickIntervalMs: 0 })
+    const ctx = createKernel({ tickIntervalMs: 0, hardwareIntervalMs: 0 })
     await ctx.start()
     try {
       const received: PanelSnapshot[] = []
@@ -36,7 +36,7 @@ describe('内核桥接契约', () => {
   })
 
   it('未知方法拒绝', async () => {
-    const ctx = createKernel({ tickIntervalMs: 0 })
+    const ctx = createKernel({ tickIntervalMs: 0, hardwareIntervalMs: 0 })
     await ctx.start()
     try {
       await expect(ctx.bridge.invoke('nope' as never, null as never)).rejects.toThrow(/未知桥接方法/)
