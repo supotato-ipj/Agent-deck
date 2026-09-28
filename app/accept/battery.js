@@ -1448,6 +1448,162 @@ async function main() {
       }
     })();
 
+    // —— P9 工单09 会话块直达：点击会话块 → 工具窗口置前；工具未运行则启动。
+    // 两条约束决定探针设计：
+    // ① 真实五工具的启动/聚焦会扰动用户自己的应用 → 以 notepad 作受控探针进程，
+    //    把 config.tools.qoder 指向 notepad.exe（进程名 notepad），内核只会对 notepad 动作；
+    // ② 本机可能一个活跃会话都没有（会话卡空 → 无行可点）→ 在 .qoder-cn 数据根种一条
+    //    专属探针会话（唯一标记 DECK-PROBE-09），按 project 精确定位那一行，绝不点到用户自己的行。
+    // 探针会话与 config 整段备份还原，不给用户留残留（08 同法）。
+    // 已知副作用（与电池整体契约同域）：Win11 记事本是单实例进程，探针要拿到「新出现的
+    // Notepad 窗口」作差集判据，故本段起止会关闭全机 Notepad 窗口（用户已开的标签页
+    // 由记事本自身会话恢复）。若需完全无副作用，把 PROBE_EXE 换成专用探针 exe 即可。——
+    await (async () => {
+      const configBackup09 = backupConfigB();
+      const probeExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
+      const PROBE_TAG = 'DECK-PROBE-09';
+      const qoderRoot = path.join(os.homedir(), '.qoder-cn');
+      const probeProjDir = path.join(qoderRoot, 'projects', PROBE_TAG);
+      const probeJsonl = path.join(probeProjDir, 'probe-session.jsonl');
+      const notepadWins = () => w32.topLevelWindows().filter((h) => w32.className(h) === 'Notepad');
+      const closeNotepad = async () => {
+        for (const h of notepadWins()) { try { w32.PostMessageW(h, WM_CLOSE, 0, 0); } catch { /* 尽力 */ } }
+        await sleep(600);
+      };
+      /** 种一条活跃探针会话（mtime = now，落 10 分钟活跃池；最后一条 tool_use → CONFIRM 态醒目） */
+      const seedProbeSession = () => {
+        fs.mkdirSync(probeProjDir, { recursive: true });
+        const rec = { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash' }] } };
+        fs.writeFileSync(probeJsonl, JSON.stringify(rec) + '\n', 'utf8');
+        const t = new Date();
+        fs.utimesSync(probeJsonl, t, t);
+      };
+      /** 点探针那一行并等结果（只认 project === PROBE_TAG 的行，点不到即返回 null） */
+      const clickProbeRow = async (t0) => {
+        const sess = lastEvent('sessions-rendered', (e) => e.rows && e.rows.length, 0);
+        const row = ((sess && sess.rows) || []).find((r) => r.project === PROBE_TAG && r.rect);
+        if (!row) return null;
+        await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), row.rect), `会话块(${PROBE_TAG})`);
+        return await waitEvent('session-focus-result', (e) => e.t >= t0, 6000);
+      };
+      /** 以指定 tools 映射重启面板，等首拍含探针行的会话列表就绪 */
+      const relaunchWith = async (toolsPatch) => {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(CONFIG_FILE_B, 'utf8')); } catch { cfg = {}; }
+        cfg.tools = { ...(cfg.tools || {}), ...toolsPatch };
+        await stopPanel();
+        fs.writeFileSync(CONFIG_FILE_B, JSON.stringify(cfg, null, 2) + '\n');
+        const t = Date.now();
+        child = launchPanel();
+        const h = await waitPanelWindow(20000, t);
+        if (h) { hwnd = h; panelPid = win32.threadIdOf(h).pid; }
+        const ready = await waitEvent('sessions-rendered',
+          (e) => e.t >= t && e.rows && e.rows.some((r) => r.project === PROBE_TAG), 15000);
+        return { hwnd: h, ready };
+      };
+      try {
+        await closeNotepad();
+        if (!fs.existsSync(probeExe)) {
+          rep.fail(`会话块直达探针前置失败：未找到探针进程 ${probeExe}`);
+          return;
+        }
+        // b0. 工具→exe 映射的启动目标存在性（只读核对，不启动任何真实工具）：
+        //     映射写错时点会话块会「每次重跑启动器」，属本票唯一无法用探针覆盖的风险。
+        //     只核 config.json 里显式存在的条目（默认值在代码里，电池不 import 生产代码，
+        //     缺 tools 段时如实说明而不假装核过）。
+        const expand09 = (s) => String(s).replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g,
+          (w, n) => process.env[n] ?? w);
+        let cfgReal = {};
+        try { cfgReal = JSON.parse(fs.readFileSync(CONFIG_FILE_B, 'utf8')); } catch { cfgReal = {}; }
+        const toolsReal = (cfgReal.tools && typeof cfgReal.tools === 'object') ? cfgReal.tools : {};
+        const toolNames = Object.keys(toolsReal);
+        if (!toolNames.length) {
+          rep.note('工具映射核对：config.json 无显式 tools 段（面板走代码内五工具默认值，电池不 import 生产代码故不核）');
+        } else {
+          const missingTools = toolNames
+            .filter((k) => !toolsReal[k] || typeof toolsReal[k].launch !== 'string'
+              || !expand09(toolsReal[k].launch).trim() || !fs.existsSync(expand09(toolsReal[k].launch)));
+          missingTools.length === 0
+            ? rep.pass(`工具→exe 映射核对：config 显式的 ${toolNames.length} 个工具启动目标在本机均存在（只读核对，未启动真实工具）`)
+            : rep.fail(`工具映射启动目标缺失：${missingTools.join(', ')}（点击会话块会退化为「每次重跑启动器」）`);
+        }
+        seedProbeSession();
+        rep.note(`会话块直达探针：受控探针进程 ${path.basename(probeExe)} + 探针会话 ${PROBE_TAG}（工具槽位 qoder 指向探针）`);
+
+        // b. 启动路径：探针无窗口 → 点探针行应拉起 notepad
+        const r1 = await relaunchWith({ qoder: { launch: probeExe, processes: ['notepad'] } });
+        if (!r1.hwnd) { rep.fail('会话块直达探针：面板重启后窗口未出现'); return; }
+        if (!r1.ready) { rep.fail('会话块直达探针：探针会话行未出现在会话卡（种会话未被扫描）'); return; }
+        const beforeLaunch = new Set(notepadWins());
+        const tLaunch = Date.now();
+        const resLaunch = await clickProbeRow(tLaunch);
+        let probeWin = null;
+        const deadlineLaunch = Date.now() + 8000;
+        while (Date.now() < deadlineLaunch && !probeWin) {
+          await sleep(250);
+          probeWin = notepadWins().find((hw) => !beforeLaunch.has(hw)) || null;
+        }
+        resLaunch && resLaunch.action === 'launched' && probeWin
+          ? rep.pass(`会话块直达·启动路径：工具未运行 → 点击会话块拉起其 exe（action=launched，探针窗口 0x${probeWin.toString(16)} 出现）`)
+          : rep.fail(`启动路径未过（result=${JSON.stringify(resLaunch)}，探针窗口=${probeWin ? '0x' + probeWin.toString(16) : '未出现'}）`);
+        fullShot('09-session-focus-launched');
+
+        // c. 聚焦路径：探针窗口已在 → 挪到屏幕左侧（会话卡在右上信息列，挪开才点得到落点），
+        //    SW_MINIMIZE 收起它（前台随之离开探针），点探针行应把它还原并带到前台。
+        //    注：Win11 记事本是单实例进程，另开「盖窗」会与探针同 pid（无法证明前台翻转），
+        //    故用「最小化 → 前台」作翻转判据，顺带覆盖内核的 SW_RESTORE 分支。
+        if (probeWin) {
+          const leftRect = { x: Math.round(si.phys.w * 0.06), y: Math.round(si.phys.h * 0.30), w: 620, h: 420 };
+          w32.SetWindowPos(probeWin, w32.HWND_TOP, leftRect.x, leftRect.y, leftRect.w, leftRect.h,
+            w32.SWP_NOACTIVATE);
+          await sleep(300);
+          w32.ShowWindow(probeWin, SW_MINIMIZE);
+          await sleep(600);
+          const probePid = w32.threadIdOf(probeWin).pid;
+          const fgBefore = w32.GetForegroundWindow();
+          const beforePid = fgBefore ? w32.threadIdOf(fgBefore).pid : 0;
+          const tFocus = Date.now();
+          const resFocus = await clickProbeRow(tFocus);
+          await sleep(700);
+          const fgAfter = w32.GetForegroundWindow();
+          const afterPid = fgAfter ? w32.threadIdOf(fgAfter).pid : 0;
+          const stillIconic = w32.IsIconic(probeWin);
+          resFocus && resFocus.action === 'focused' && resFocus.hwnd === probeWin
+            && afterPid === probePid && !stillIconic
+            ? rep.pass(`会话块直达·聚焦路径：工具在跑 → 点击会话块把其窗口还原并带到前台（探针 pid ${probePid}，点击前前台 pid=${beforePid}，点击后=${afterPid}，IsIconic=${stillIconic}）`)
+            : rep.fail(`聚焦路径未过（result=${JSON.stringify(resFocus)}，hwnd 期望=${probeWin}，点击前前台 pid=${beforePid}，点击后=${afterPid}，探针 pid=${probePid}，仍最小化=${stillIconic}）`);
+          fullShot('09-session-focus-focused');
+        } else {
+          rep.fail('聚焦路径前置失败：启动路径未拉起探针窗口');
+        }
+
+        // d. 静默降级：清空 qoder 映射 → 点击既不能聚焦也不能启动，
+        //    断言返回 degraded，且面板仍可交互（点时钟卡仍能收到 click 存证 = 没崩）。
+        await closeNotepad();
+        const r2 = await relaunchWith({ qoder: { launch: '', processes: [] } });
+        if (!r2.hwnd) { rep.fail('降级探针：面板重启后窗口未出现'); return; }
+        if (!r2.ready) { rep.fail('降级探针：探针会话行未出现'); return; }
+        const tDeg = Date.now();
+        const resDeg = await clickProbeRow(tDeg);
+        // 面板存活探针：降级点击后再点时钟卡，仍能收到 click 存证即面板未崩
+        const clockZone = latestZoneOf('clock-card');
+        let alive = null;
+        if (clockZone) {
+          const tAlive = Date.now();
+          await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), clockZone), '时钟卡');
+          alive = await waitEvent('clock-card-clicked', (e) => e.t >= tAlive, 4000);
+        }
+        resDeg && resDeg.action === 'degraded' && !resDeg.ok && alive
+          ? rep.pass(`会话块直达·静默降级：失效目标返回 degraded（reason=${resDeg.error}）且面板未崩（降级后仍可交互：时钟卡点击存证到达）`)
+          : rep.fail(`降级探针未过（result=${JSON.stringify(resDeg)}，面板存活=${Boolean(alive)}）`);
+      } finally {
+        w32.moveMousePhys(safePt.x, safePt.y);
+        await closeNotepad();
+        try { fs.rmSync(probeProjDir, { recursive: true, force: true }); } catch { /* 尽力清探针会话 */ }
+        restoreConfigB(configBackup09);
+      }
+    })();
+
     // —— P6 config 几何生效：改 config 重启面板 ——
     const configBackup = backupConfigB();
     try {

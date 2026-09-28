@@ -22,7 +22,24 @@ export interface AppConfig {
   search: SearchConfig
   /** 外观（工单08）：模块底色透明度全局滑杆值 */
   appearance: AppearanceConfig
+  /** 工具→exe 映射（工单09）：会话块直达的进程发现与启动依据；换机/改安装位置只调此段 */
+  tools: ToolsConfig
 }
+
+/**
+ * 单工具的可执行入口（config.json tools.<tool> 段）。
+ * 渲染层只发工具名、绝不发明路径（任意路径执行防线同 desktop/launch）：
+ * 启动目标与进程名都收口于此，配置缺失即静默降级。
+ */
+export interface ToolTarget {
+  /** 启动目标 exe 绝对路径（支持 `%VAR%` 环境变量展开）；空串 = 不可启动，仅可聚焦已运行实例 */
+  launch: string
+  /** 进程镜像名（小写 basename、不含 .exe）：窗口发现按它匹配运行中的工具实例。
+   *  启动器与实际进程不同名时两者都列（如 Qoder 的 Launcher 与 Qoder CN）。 */
+  processes: string[]
+}
+
+export type ToolsConfig = Record<string, ToolTarget>
 
 /** Listary 本地 API 端口（验收可指假端口复现引擎离线） */
 export interface SearchConfig {
@@ -98,6 +115,79 @@ export function defaultSearchConfig(): SearchConfig {
 /** 默认外观：信息卡底色 rgba(0,0,0,0.55) 的 alpha（renderer 生产值固化） */
 export function defaultAppearance(): AppearanceConfig {
   return { cardOpacity: 0.55 }
+}
+
+/**
+ * 默认工具映射（工单09）：本机五工具的当前生产值。
+ * 用 `%VAR%` 占位本机强相关段（LOCALAPPDATA / ProgramFiles / USERPROFILE），
+ * 换机或改安装位置只改 config.json 的 tools 段，不是代码返工（spec「配置」决策）。
+ * 装在 D 盘等非常规位置的工具（kimi code）按当前生产值直写，用户可自行改。
+ *
+ * processes 收录启动器与实际进程两种镜像名：Electron 应用常有
+ * 「启动器进程 + 若干渲染/GPU 子进程」并存，只认主 exe 名会漏。
+ */
+export function defaultTools(): ToolsConfig {
+  return {
+    qoder: {
+      launch: '%LOCALAPPDATA%\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe',
+      processes: ['qoder cn launcher', 'qoder cn'],
+    },
+    kimicode: {
+      launch: 'D:\\programs\\Kimi Code\\Kimi Code.exe',
+      processes: ['kimi code'],
+    },
+    kimiwork: {
+      launch: '%LOCALAPPDATA%\\Programs\\kimi-desktop\\Kimi.exe',
+      processes: ['kimi'],
+    },
+    zcode: {
+      launch: '%ProgramFiles%\\ZCode\\ZCode.exe',
+      processes: ['zcode'],
+    },
+    hermes: {
+      launch: '%LOCALAPPDATA%\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe',
+      processes: ['hermes'],
+    },
+  }
+}
+
+function mergeTools(raw: unknown, fallback: ToolsConfig, warnings: string[]): ToolsConfig {
+  const out: ToolsConfig = {}
+  for (const [tool, def] of Object.entries(fallback)) out[tool] = { launch: def.launch, processes: [...def.processes] }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.tools 不是对象，已整体回退默认工具映射')
+    return out
+  }
+  for (const [tool, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      warnings.push(`config.tools.${tool} 不是对象，已回退该工具默认映射`)
+      continue
+    }
+    const target = value as Record<string, unknown>
+    const base = out[tool] ?? { launch: '', processes: [] as string[] }
+    const launch = target.launch
+    if (launch !== undefined) {
+      if (typeof launch === 'string') {
+        base.launch = launch
+      } else {
+        warnings.push(`config.tools.${tool}.launch 不是字符串，已保留默认值`)
+      }
+    }
+    const processes = target.processes
+    if (processes !== undefined) {
+      if (Array.isArray(processes) && processes.every((p) => typeof p === 'string')) {
+        // 归一为 basename 小写去 .exe 并去重（与 focus/plan 的匹配口径同源：用户写 'ZCode.EXE' 也认）
+        base.processes = [...new Set((processes as string[])
+          .map((p) => p.replace(/^.*[\\/]/, '').toLowerCase().replace(/\.exe$/, ''))
+          .filter((p) => p !== ''))]
+      } else {
+        warnings.push(`config.tools.${tool}.processes 不是字符串数组，已保留默认值`)
+      }
+    }
+    out[tool] = base
+  }
+  return out
 }
 
 function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[]): WeatherConfig {
@@ -229,6 +319,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       desktop: mergeDesktop(root.desktop, fallback.desktop, warnings),
       search: mergeSearch(root.search, fallback.search, warnings),
       appearance: mergeAppearance(root.appearance, fallback.appearance, warnings),
+      tools: mergeTools(root.tools, fallback.tools, warnings),
     },
     warnings,
     created: false,

@@ -60,12 +60,26 @@ function renderClock(epochMs: number): void {
   if (clockRendered <= 3) notify('clock-rendered', { n: clockRendered, epochMs })
 }
 
-// ---- 会话列表卡（最近活跃混排 + 两字母工具标签） ----
+// ---- 会话列表卡（最近活跃混排 + 两字母工具标签 + 工单09 会话块直达）----
+// 点击会话块 → session/focus → 对应工具窗口置前，未运行则启动（内核决策，渲染层只发工具名）。
+// 失败一律静默：面板不崩、不弹窗（会话块是轻交互，失败不该打断桌面）。
 
 const sessionRows = el('session-rows')
 const sessionStandby = el('sessions-standby')
 const sessionCount = el('sessions-head-count')
 let sessionsRendered = 0
+
+function focusSessionBlock(tool: string, id: string): void {
+  notify('session-focus-clicked', { tool, id })
+  void window.deck.bridge.invoke('session/focus', { tool }).then(
+    (r) => notify('session-focus-result', {
+      tool, id, ok: Boolean(r && r.ok), action: String((r && r.action) || 'degraded'),
+      error: (r && r.error) ? String(r.error) : null,
+      hwnd: r && typeof r.hwnd === 'number' ? r.hwnd : null,
+    }),
+    (err: unknown) => notify('session-focus-failed', { tool, id, message: String(err) }),
+  )
+}
 
 function renderSessions(sessions: SessionInfo[]): void {
   sessionRows.textContent = ''
@@ -82,10 +96,26 @@ function renderSessions(sessions: SessionInfo[]): void {
       `<span class="state ${esc(state.toLowerCase())}">${esc(state)}</span>` +
       `<span class="name">${esc(String(s.project || ''))}</span>` +
       `<span class="tasks">${esc(tasks)}</span>`
+    row.title = '点击直达该工具窗口'
+    row.dataset.tool = s.tool
+    row.addEventListener('click', () => focusSessionBlock(s.tool, s.id))
     sessionRows.appendChild(row)
   }
   sessionsRendered += 1
-  if (sessionsRendered <= 3) notify('sessions-rendered', { n: sessionsRendered, count: sessions.length })
+  if (sessionsRendered <= 3) {
+    // 存证：前 3 拍带各行矩形（电池按 tool/project 定位点击落点，desktop-rendered rects 同法）
+    const rows = Array.from(sessionRows.children).map((child) => {
+      const node = child as HTMLElement
+      const r = node.getBoundingClientRect()
+      const name = node.querySelector('.name')
+      return {
+        tool: node.dataset.tool || '',
+        project: name ? String(name.textContent || '') : '',
+        rect: { x: r.left, y: r.top, w: r.width, h: r.height },
+      }
+    })
+    notify('sessions-rendered', { n: sessionsRendered, count: sessions.length, rows })
+  }
 }
 
 // ---- Qoder 状态卡 ----

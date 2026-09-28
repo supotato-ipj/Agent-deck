@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -219,5 +219,58 @@ describe('config 模型（工单08 设置浮层透明度）', () => {
     const config = { ...FALLBACK, appearance: { cardOpacity: 0.3 } }
     saveConfig(file, config)
     expect(loadConfig(file, FALLBACK).config).toEqual(config)
+  })
+})
+
+describe('config.tools 工具→exe 映射（工单09）', () => {
+  it('缺 tools 段时合并五工具默认值（老 config.json 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.warnings).toHaveLength(0)
+    expect(Object.keys(r.config.tools).sort()).toEqual(['hermes', 'kimicode', 'kimiwork', 'qoder', 'zcode'])
+    expect(r.config.tools.zcode.processes).toEqual(['zcode'])
+  })
+
+  it('启动目标可改：换机/改安装位置只调 json 键', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ tools: { zcode: { launch: 'E:\\apps\\ZCode.exe', processes: ['zcode'] } } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.tools.zcode.launch).toBe('E:\\apps\\ZCode.exe')
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('processes 归一为小写（匹配口径与决策层同源）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ tools: { zcode: { processes: ['ZCode.EXE', 'Zcode'] } } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.tools.zcode.processes).toEqual(['zcode'])
+    // 只给 processes 时 launch 保留默认
+    expect(r.config.tools.zcode.launch).toBe(defaultTools().zcode.launch)
+  })
+
+  it('可新增自定义工具条目', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ tools: { mytool: { launch: 'D:\\my.exe', processes: ['mytool'] } } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.tools.mytool).toEqual({ launch: 'D:\\my.exe', processes: ['mytool'] })
+  })
+
+  it('非法字段回退默认并告警（不静默吞掉用户笔误）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ tools: { zcode: { launch: 42, processes: 'zcode' } } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.tools.zcode.launch).toBe(defaultTools().zcode.launch)
+    expect(r.config.tools.zcode.processes).toEqual(['zcode'])
+    expect(r.warnings.some((w) => w.includes('config.tools.zcode.launch'))).toBe(true)
+    expect(r.warnings.some((w) => w.includes('config.tools.zcode.processes'))).toBe(true)
+  })
+
+  it('tools 整体非对象回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ tools: ['zcode'] }))
+    const r = loadConfig(file, FALLBACK)
+    expect(Object.keys(r.config.tools).sort()).toEqual(['hermes', 'kimicode', 'kimiwork', 'qoder', 'zcode'])
+    expect(r.warnings.some((w) => w.includes('config.tools'))).toBe(true)
   })
 })

@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { Context } from 'cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultWeather } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import { SettingsService } from '../src/main/services/settings'
 import type { SettingsState } from '../src/shared/contract'
@@ -23,6 +23,7 @@ function configWith(cardOpacity: number): AppConfig {
     desktop: defaultDesktopLayout(),
     search: defaultSearchConfig(),
     appearance: { cardOpacity },
+    tools: defaultTools(),
   }
 }
 

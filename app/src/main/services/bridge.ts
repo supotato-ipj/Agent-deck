@@ -22,7 +22,7 @@ export class BridgeError extends Error {
  * 后续工单只扩展 BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search', 'settings']
+  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search', 'settings', 'focus']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -83,6 +83,10 @@ export class BridgeService extends Service {
       case 'settings/set-card-opacity': {
         const { opacity } = payload as { opacity: number }
         return this.ctx.settings.setCardOpacity(opacity) as BridgeMethods[M]['response']
+      }
+      case 'session/focus': {
+        const { tool } = payload as { tool: string }
+        return await this.ctx.focus.focusTool(String(tool ?? '')) as BridgeMethods[M]['response']
       }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)

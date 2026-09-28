@@ -1,13 +1,16 @@
 import { Context } from 'cordis'
 import type { DesktopLayout } from '../shared/contract'
 import type { SessionRoots } from './scanners'
+import type { ToolsConfig } from './config'
 import type { HardwareSources } from './services/hardware'
 import type { DesktopServiceOptions } from './services/desktop'
 import type { UsageServiceOptions } from './services/usage'
 import type { SearchServiceOptions } from './services/search'
+import type { FocusServiceOptions } from './services/focus'
 import { BridgeService } from './services/bridge'
 import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
+import { FocusService } from './services/focus'
 import { HardwareService } from './services/hardware'
 import { SearchService } from './services/search'
 import { SessionsService } from './services/sessions'
@@ -40,6 +43,8 @@ export interface KernelOptions {
   settings?: SettingsServiceOptions
   /** 桌面承载几何（工单06，config.json 下发；随快照给渲染层） */
   layout?: DesktopLayout
+  /** 会话块直达（工单09）：工具→exe 映射与依赖（离线测试注入假源；缺省主进程真源） */
+  focus?: FocusServiceOptions
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -67,6 +72,7 @@ export function createKernel(options: KernelOptions = {}): Context {
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
+  ctx.plugin(FocusService, options.focus)
   const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
   if (tickMs > 0) {
     const timer = setInterval(() => ctx.bridge?.tick(), tickMs)

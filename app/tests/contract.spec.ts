@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
-import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultWeather } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import type { PanelSnapshot } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
@@ -57,6 +57,7 @@ function settingsOpts(dir: string): { settings: { file: string; config: AppConfi
     desktop: defaultDesktopLayout(),
     search: defaultSearchConfig(),
     appearance: defaultAppearance(),
+    tools: defaultTools(),
   }
   return { settings: { file: path.join(dir, 'config.json'), config } }
 }
@@ -379,6 +380,63 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
   })
 })
 
+describe('内核桥接契约（工单09 会话块直达扩展）', () => {
+  it('session/focus：工具在跑则聚焦既有窗口（不经启动）', async () => {
+    const dir = tmpDir()
+    const focused: number[] = []
+    const launched: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      focus: {
+        tools: { zcode: { launch: 'C:\\ZCode.exe', processes: ['zcode'] } },
+        deps: {
+          listWindows: () => [{ hwnd: 0x3000, pid: 88, exe: 'ZCode.exe', visible: true, minimized: false }],
+          focusWindow: (h: number) => { focused.push(h); return true },
+          launch: async (e: string) => { launched.push(e); return '' },
+          env: {},
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('session/focus', { tool: 'zcode' }))
+        .resolves.toEqual({ ok: true, action: 'focused', hwnd: 0x3000 })
+      expect(focused).toEqual([0x3000])
+      expect(launched).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('session/focus：工具未运行则启动；未知工具静默降级不抛', async () => {
+    const dir = tmpDir()
+    const launched: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      focus: {
+        tools: { zcode: { launch: 'C:\\ZCode.exe', processes: ['zcode'] } },
+        deps: {
+          listWindows: () => [],
+          focusWindow: () => true,
+          launch: async (e: string) => { launched.push(e); return '' },
+          env: {},
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('session/focus', { tool: 'zcode' })).resolves.toEqual({ ok: true, action: 'launched' })
+      expect(launched).toEqual(['C:\\ZCode.exe'])
+      // 未知工具：响应降级而非 reject——渲染层不需 try/catch 也不会崩面板
+      await expect(ctx.bridge.invoke('session/focus', { tool: 'ghost' }))
+        .resolves.toMatchObject({ ok: false, action: 'degraded' })
+      expect(launched).toHaveLength(1)
+      // 降级后面板照常：快照仍可取
+      await expect(ctx.bridge.invoke('panel/snapshot', null)).resolves.toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
 describe('隐私守卫（工单07：查询词只发往本机 Listary API、不入使用日志）', () => {
   it('行为级：完整搜索流跑过后，使用日志目录里没有任何文件、查询词不落盘', async () => {
     const dir = tmpDir()
@@ -419,5 +477,13 @@ describe('隐私守卫（工单07：查询词只发往本机 Listary API、不�
     }
     const client = fs.readFileSync(path.resolve(__dirname, '../src/main/search/client.ts'), 'utf8')
     expect(client).toContain('BASE_HOST') // 目标主机只从 engine 常量取（127.0.0.1）
+  })
+
+  it('源码级：会话块直达只认 exe 进程名，不读窗口标题（ADR-0002 边界）', () => {
+    for (const rel of ['src/main/focus/plan.ts', 'src/main/focus/adapter.ts', 'src/main/services/focus.ts']) {
+      const src = fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8')
+      expect(src, `${rel} 不得读取窗口标题`).not.toMatch(/GetWindowText|SendMessageW|GetWindowTextW/)
+      expect(src, `${rel} 窗口候选不得带标题字段`).not.toMatch(/^\s*title\s*[?:]/m)
+    }
   })
 })

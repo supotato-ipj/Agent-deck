@@ -6,6 +6,7 @@ import type { DesktopService } from './services/desktop'
 import type { UsageService } from './services/usage'
 import type { SearchService } from './services/search'
 import type { SettingsService } from './services/settings'
+import type { FocusService } from './services/focus'
 import type { PanelSnapshot, SearchUiState, SearchResultItem, SettingsState } from '../shared/contract'
 
 declare module 'cordis' {
@@ -29,5 +30,7 @@ declare module 'cordis' {
     search: SearchService
     /** 工单08 设置（内核总装必装；离线测试注入 tmp 桩） */
     settings: SettingsService
+    /** 工单09 会话块直达（内核总装必装；离线测试注入假窗口源） */
+    focus: FocusService
   }
 }

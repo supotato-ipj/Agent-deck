@@ -145,6 +145,9 @@ export interface SettingsState {
   cardOpacity: number
 }
 
+/** 会话块直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
+export type FocusAction = 'focused' | 'launched' | 'degraded'
+
 /** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何；08 设置 */
 export interface PanelSnapshot {
   clock: ClockState
@@ -197,6 +200,14 @@ export interface BridgeMethods {
   }
   /** 设置滑杆（工单08）：写卡片底色透明度（clamp 0..1）、整份回写 config.json；回推 settings/changed */
   'settings/set-card-opacity': { request: { opacity: number }; response: SettingsState }
+  /**
+   * 会话块直达（工单09）：点击会话块 → 对应工具窗口置前，工具未运行则启动。
+   * 渲染层只发工具名（启动目标只从 config.tools 取，映射缺失即静默降级）。
+   */
+  'session/focus': {
+    request: { tool: string }
+    response: { ok: boolean; action: FocusAction; error?: string; hwnd?: number }
+  }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
