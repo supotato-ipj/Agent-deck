@@ -73,11 +73,16 @@ const mounted = new Map<string, Mounted>()
  */
 const generations = new Map<string, number>()
 /**
- * 装载失败记账：键为 `id@entry`（含代号）。
- * 失败不在每拍重试——坏插件若每拍重试，会把存证日志和主进程刷成噪声（真机踩过：
- * 一个 404 的卡片 2 秒内刷了 88 条 plugin-load-failed）。改好资产换代即换 URL，失败记账自解。
+ * 装载失败记账：id → 该 id 最近一次失败的入口与时刻。
+ * - 不每拍重试：坏插件每拍重试会把存证日志刷成噪声（真机踩过：一个 404 的卡片 2 秒刷了
+ *   88 条 plugin-load-failed）；
+ * - 但必须留自愈口子：内置卡片的入口 URL 恒定不变，若被无限期拉黑，一次偶发失败
+ *   （协议握手的瞬时抖动、构建时文件被占）会让它**永远**不再出现。故冷却后给一次机会。
  */
-const failed = new Set<string>()
+const failed = new Map<string, { entry: string; at: number }>()
+
+/** 失败后的重试冷却（ms）：冷却期内不重试，冷却过后给一次自愈机会 */
+const FAIL_RETRY_MS = 30_000
 
 /** 按能力裁剪：capability 名即快照段名，认得的段取给，未声明的段不出内核 */
 function viewFor(info: PluginInfo, snap: PanelSnapshot): PluginView {
@@ -102,10 +107,10 @@ function hostOf(info: PluginInfo, container: HTMLElement, view: PluginView, deps
 /** 坏插件静默降级：不弹窗、不打断面板，只留存证（与面板其余失败路径同纪律） */
 function unmountOne(id: string): void {
   const entry = mounted.get(id)
-  // 卸载即给该 id 换代（并清失败记账）：在途 import 回来时令牌已旧，不得复活组件
+  // 卸载即给该 id 换代（并清失败记账）：在途 import 回来时令牌已旧，不得复活组件；
+  // 重装时也给一次干净机会
   generations.set(id, (generations.get(id) ?? 0) + 1)
-  // 重装（或重新装载同一代资产）时给一次干净机会
-  for (const k of [...failed]) if (k.startsWith(`${id}@`)) failed.delete(k)
+  failed.delete(id)
   if (!entry) return
   mounted.delete(id)
   try {
@@ -117,8 +122,9 @@ function unmountOne(id: string): void {
 }
 
 async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRuntimeDeps): Promise<void> {
-  const key = `${info.id}@${info.entry}`
-  if (failed.has(key)) return // 同一代资产已失败：不每拍重试
+  // 冷却期内不重试；冷却过后（或换了新代资产）给一次自愈机会
+  const mark = failed.get(info.id)
+  if (mark && mark.entry === info.entry && Date.now() - mark.at < FAIL_RETRY_MS) return
   const gen = generations.get(info.id) ?? 0
   let api: PluginApi
   try {
@@ -126,7 +132,7 @@ async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRunti
     api = mod.default ?? mod
     if (typeof api?.mount !== 'function') throw new Error('模块未导出 mount（default 导出契约对象）')
   } catch (err) {
-    failed.add(key)
+    failed.set(info.id, { entry: info.entry, at: Date.now() })
     deps.notify('plugin-load-failed', { id: info.id, message: String(err) })
     return
   }
@@ -145,11 +151,12 @@ async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRunti
   try {
     api.mount(host)
   } catch (err) {
-    failed.add(key)
+    failed.set(info.id, { entry: info.entry, at: Date.now() })
     deps.notify('plugin-mount-failed', { id: info.id, message: String(err) })
     container.remove()
     return
   }
+  failed.delete(info.id) // 装上了，失败记账即刻作废
   mounted.set(info.id, { api, container, view, viewKey, entryUrl: info.entry })
   deps.notify('plugin-mounted', { id: info.id, name: info.name, capabilities: info.capabilities })
   deps.onDomChanged()

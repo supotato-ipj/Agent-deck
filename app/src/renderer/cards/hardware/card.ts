@@ -8,7 +8,7 @@ let sparks: Record<string, HTMLCanvasElement>
 let rendered = 0
 let historyLiveNotified = false
 
-/** 速率位：定长仪表不跳动（面板自留，协议寻址外的工具一律经 host.util 交交） */
+/** 速率位：本卡片专有的呈现约定（定长仪表不跳动），故留在卡片内而非 host.util */
 function kbps(x: number | undefined): string {
   return x == null ? '----' : x.toFixed(2).padStart(6, '0') + 'KB/s'
 }

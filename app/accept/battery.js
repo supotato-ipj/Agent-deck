@@ -1895,17 +1895,33 @@ async function main() {
       const dest = path.join(pluginsDir, 'hello');
       const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
       try {
-        if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
-
-        // 0. 内置五卡自举：五个信息块必须**经插件契约**装载（不是面板自己画的）
+        // 0. 内置五卡自举：五个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        //    事件按面板代次取（lastBootMs 之后）：事件文件跨重启不清，上一任面板的
+        //    plugin-mounted 留着会让本段假通过。
+        const since = lastBootMs();
         const builtinIds = ['clock', 'weather', 'sessions', 'qoder', 'hardware'];
-        const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id));
-        builtinMounted.length === builtinIds.length
-          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张信息卡均经插件契约装载渲染（卡片几何与观感沿用面板既有样式表，电池前段截图对照）`)
-          : rep.fail(`桌面组件·内置五卡自举未过：仅 ${builtinMounted.join('/') || '无'} 经插件契约装载`
-            + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/')}）`);
+        const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id, since));
+        // 观感一致性的机器可查部分：五张卡都进了热区声明（都在场、都在点击穿透模型里），
+        // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
+        // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
+        const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
+          .filter((r) => builtinIds.includes(`${r.id}`.replace('-card', '')))
+          .map((r) => [r.id, r]));
+        const zonesOk = builtinIds.every((id) => cardZones.has(`${id}-card`));
+        const geomOk = cardZones.get('clock-card')
+          && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
+          && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
+        builtinMounted.length === builtinIds.length && zonesOk && geomOk
+          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张信息卡均经插件契约装载渲染，`
+            + `且五张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
+            + `像素级观感按惯例人工核验 04-cards-*.png）`)
+          : rep.fail(`桌面组件·内置五卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
+            + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/') || '无'}）；`
+            + `热区声明 ${zonesOk ? '齐' : `缺 ${builtinIds.filter((i) => !cardZones.has(`${i}-card`)).join('/') || '无'}`}；`
+            + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);
 
-        if (lastEvent('plugin-mounted', (e) => e.id === 'hello')) {
+        if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
+        if (lastEvent('plugin-mounted', (e) => e.id === 'hello', since)) {
           rep.fail('桌面组件探针前置失败：样例插件在电池启动前已在装（干净起点不成立）');
           return;
         }
