@@ -1,6 +1,7 @@
-/** 会话块直达的纯决策逻辑（工单09 辅缝）：不碰 FFI、不碰 Electron、不依赖真实工具在跑。 */
+/** 会话行直达的纯决策逻辑（工单09 辅缝）：不碰 FFI、不碰 Electron、不依赖真实工具在跑。 */
 import { describe, expect, it } from 'vitest'
-import { expandEnvVars, normalizeProcessName, planFocus } from '../../src/main/focus/plan'
+import { expandEnvVars, planFocus } from '../../src/main/focus/plan'
+import { normalizeProcessName } from '../../src/main/config'
 import type { WindowCandidate } from '../../src/main/focus/plan'
 import type { ToolTarget } from '../../src/main/config'
 
@@ -10,7 +11,7 @@ function win(over: Partial<WindowCandidate> = {}): WindowCandidate {
 
 const ZCODE: ToolTarget = { launch: 'C:\\Program Files\\ZCode\\ZCode.exe', processes: ['zcode'] }
 
-describe('会话块直达决策', () => {
+describe('会话行直达决策', () => {
   it('工具在跑且有可见窗口 → 聚焦该窗口（不新开）', () => {
     const plan = planFocus(ZCODE, [win({ hwnd: 0xABCD, pid: 99 })])
     expect(plan).toEqual({ action: 'focus', hwnd: 0xABCD, pid: 99 })
@@ -83,7 +84,7 @@ describe('会话块直达决策', () => {
   })
 
   it('渲染层发来的路径型工具名无从生效：查表未命中即降级，绝不执行该路径', () => {
-    // 会话块点击只发工具名；即便载荷是绝对路径，config.tools 里没有同名条目就不会被启动
+    // 会话行点击只发工具名；即便载荷是绝对路径，config.tools 里没有同名条目就不会被启动
     const tools = { zcode: ZCODE } as Record<string, unknown>
     const evil = 'C:\\Windows\\System32\\cmd.exe'
     expect(planFocus(tools[evil], []).action).toBe('degrade')

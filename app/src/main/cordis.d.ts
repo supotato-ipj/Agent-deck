@@ -30,7 +30,7 @@ declare module 'cordis' {
     search: SearchService
     /** 工单08 设置（内核总装必装；离线测试注入 tmp 桩） */
     settings: SettingsService
-    /** 工单09 会话块直达（内核总装必装；离线测试注入假窗口源） */
+    /** 工单09 会话行直达（内核总装必装；离线测试注入假窗口源） */
     focus: FocusService
   }
 }

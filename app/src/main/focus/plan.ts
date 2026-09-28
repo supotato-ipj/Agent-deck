@@ -1,9 +1,10 @@
 /**
- * 会话块直达的决策内核（工单09）：给定工具映射与当前窗口快照，决定「聚焦既有窗口」
+ * 会话行直达的决策内核（工单09）：给定工具映射与当前窗口快照，决定「聚焦既有窗口」
  * 还是「启动工具」还是「静默降级」。纯逻辑——不碰 FFI、不碰 Electron，
  * 辅缝离线可测（spec 辅缝：进程发现与启动策略不依赖真机与真实工具做回归）。
  */
 import type { ToolTarget } from '../config'
+import { normalizeProcessName } from '../config'
 
 /** 候选顶层窗口（适配层产出；刻意不含标题——ADR-0002 隐私边界，匹配只需 exe） */
 export interface WindowCandidate {
@@ -20,12 +21,6 @@ export type FocusPlan =
   | { action: 'focus'; hwnd: number; pid: number }
   | { action: 'launch'; exe: string }
   | { action: 'degrade'; reason: string }
-
-/** 进程镜像名归一：basename → 小写 → 去 .exe 后缀（与 config.tools.processes 同一口径） */
-export function normalizeProcessName(raw: string): string {
-  const base = raw.replace(/^.*[\\/]/, '')
-  return base.toLowerCase().replace(/\.exe$/i, '')
-}
 
 /** 候选排序权重：可见未最小化 > 可见（已最小化，聚焦时顺带还原） > 不可见（跳过） */
 function rank(w: WindowCandidate): number {

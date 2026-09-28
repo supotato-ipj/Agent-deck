@@ -16,7 +16,7 @@ export interface FocusResult {
   hwnd?: number
 }
 
-/** 会话块直达依赖束：主进程真源 / 测试假源共用一个服务状态机（desktop/search 同法） */
+/** 会话行直达依赖束：主进程真源 / 测试假源共用一个服务状态机（desktop/search 同法） */
 export interface FocusDeps {
   /** 顶层窗口快照（真源 = adapter.nativeWindowCandidates） */
   listWindows(): WindowCandidate[]
@@ -35,12 +35,12 @@ export interface FocusServiceOptions {
 }
 
 /**
- * 会话块直达服务（工单09）：点击会话卡里的会话块 → 对应工具的窗口被带到前台，
+ * 会话行直达服务（工单09）：点击会话卡里的会话行 → 对应工具的窗口被带到前台，
  * 工具未运行则启动它。决策收口内核（focus/plan.ts 纯逻辑），渲染层只发工具名。
  *
  * 边界：
  * - 渲染层永不发路径。启动目标只从 config.tools 取，映射缺失即降级（任意路径执行防线）。
- * - 一切失败静默降级（ok=false + action=degraded），面板不崩、不弹窗——会话块是
+ * - 一切失败静默降级（ok=false + action=degraded），面板不崩、不弹窗——会话行是
  *   「看一眼就顺手点」的轻交互，失败不该打断桌面。
  */
 export class FocusService extends Service {
@@ -58,7 +58,7 @@ export class FocusService extends Service {
     }
   }
 
-  /** 点击会话块：tool 为会话所属工具名（qoder/kimicode/kimiwork/zcode/hermes） */
+  /** 点击会话行：tool 为会话所属工具名（qoder/kimicode/kimiwork/zcode/hermes） */
   async focusTool(tool: string): Promise<FocusResult> {
     // 只认自有条目：工具名恰为 toString/constructor 时，直接查表会命中 Object.prototype
     // 的成员（函数），形状校验虽能兜住，但语义上它们本就不是配置条目（见 plan.asToolTarget）

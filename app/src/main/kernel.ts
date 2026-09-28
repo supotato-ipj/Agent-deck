@@ -43,7 +43,7 @@ export interface KernelOptions {
   settings?: SettingsServiceOptions
   /** 桌面承载几何（工单06，config.json 下发；随快照给渲染层） */
   layout?: DesktopLayout
-  /** 会话块直达（工单09）：工具→exe 映射与依赖（离线测试注入假源；缺省主进程真源） */
+  /** 会话行直达（工单09）：工具→exe 映射与依赖（离线测试注入假源；缺省主进程真源） */
   focus?: FocusServiceOptions
 }
 

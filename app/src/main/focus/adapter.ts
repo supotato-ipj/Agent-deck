@@ -1,10 +1,9 @@
-// 会话块直达的真源（工单09）：顶层窗口枚举 + 置前 + 启动。
+// 会话行直达的真源（工单09）：顶层窗口枚举 + 置前 + 启动。
 // koffi 延迟绑定（desktop/adapter.ts / usage/native.ts 先例）：契约测试注入假源时
 // 不触碰 FFI。窗口枚举走 GetTopWindow/GetWindow 链而非 EnumWindows 回调
 // （accept/lib/win32.js 实证形态，避免 FFI 回调生命周期问题）。
 // 隐私：只取窗口所属进程的可执行路径，不读窗口标题（ADR-0002 边界同 usage/native）。
 import type { WindowCandidate } from './plan'
-import { normalizeProcessName } from './plan'
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const GW_HWNDNEXT = 2
@@ -124,6 +123,3 @@ export function shellLaunch(exe: string): Promise<string> {
   const { shell } = require('electron')
   return shell.openPath(exe)
 }
-
-/** 进程名归一的真源出口（测试与电池按同一口径比对窗口归属） */
-export { normalizeProcessName }

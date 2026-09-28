@@ -63,6 +63,34 @@ const IsIconic = user32.func('bool __stdcall IsIconic(uintptr_t hWnd)');
 // 工单05 桌面承载：DefView/SysListView32 探针（探测逻辑与 src/main/icon-carry.ts 互链不互引——
 // 电池不得 import 生产代码）。WM_COMMAND=0x0111 与 0x7402 为 explorer「查看→显示桌面图标」命令。
 const SendMessageTimeoutW = user32.func('bool __stdcall SendMessageTimeoutW(uintptr_t, uint32, uintptr_t, intptr_t, uint32, uint32, void *)');
+// 工单09 会话行直达探针：pid → 可执行路径。探针窗按「归属 exe 名」识别，
+// 不用类名猜，从而不误伤用户自己开着的同类应用（电池不 import 生产代码，此处自绑）。
+const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+const OpenProcess = kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)');
+const QueryFullProcessImageNameW = kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)');
+const CloseHandle = kernel32.func('bool __stdcall CloseHandle(void *h)');
+
+/** pid 所属进程的完整 exe 路径；取不到返回空串（窗口已退出/权限不足） */
+function exeOfPid(pid) {
+  if (!pid) return '';
+  const handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+  if (!handle) return '';
+  try {
+    const name = Buffer.alloc(1024); // 512 wchar
+    const size = Buffer.alloc(4);
+    size.writeUInt32LE(510, 0);
+    if (!QueryFullProcessImageNameW(handle, 0, name, size)) return '';
+    return name.toString('utf16le', 0, size.readUInt32LE(0) * 2);
+  } finally {
+    CloseHandle(handle);
+  }
+}
+
+/** 顶层窗口归属的 exe basename（小写、不含 .exe）；探针按它识别，避免类名猜测 */
+function exeNameOfWindow(hwnd) {
+  const p = exeOfPid(threadIdOf(hwnd).pid).replace(/^.*[\\/]/, '');
+  return p.toLowerCase().replace(/\.exe$/, '');
+}
 
 function findDefView() {
   const progman = FindWindowExW(0, 0, 'Progman', null);
@@ -277,6 +305,7 @@ module.exports = {
   SetLayeredWindowAttributes,
   GetWindowLongW, WindowFromPoint, IsWindow, PostMessageW, AttachThreadInput,
   FindWindowExW, IsIconic, findDefView, desktopIconsVisible, SendMessageTimeoutW,
+  exeOfPid, exeNameOfWindow,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,
 };

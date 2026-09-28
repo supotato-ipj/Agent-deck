@@ -1,4 +1,4 @@
-/** 会话块直达服务（工单09）：假窗口源驱动状态机——不触 FFI、不启动真实工具。 */
+/** 会话行直达服务（工单09）：假窗口源驱动状态机——不触 FFI、不启动真实工具。 */
 import { describe, expect, it } from 'vitest'
 import { Context } from 'cordis'
 import { FocusService } from '../../src/main/services/focus'
@@ -40,7 +40,7 @@ async function harness(windows: WindowCandidate[], opts: { focusOk?: boolean; la
 
 const ZCODE_WIN: WindowCandidate = { hwnd: 0x2000, pid: 77, exe: 'ZCode.exe', visible: true, minimized: false }
 
-describe('会话块直达服务', () => {
+describe('会话行直达服务', () => {
   it('工具在跑 → 聚焦既有窗口，不启动', async () => {
     const h = await harness([ZCODE_WIN])
     try {

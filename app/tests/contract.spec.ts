@@ -380,7 +380,7 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
   })
 })
 
-describe('内核桥接契约（工单09 会话块直达扩展）', () => {
+describe('内核桥接契约（工单09 会话行直达扩展）', () => {
   it('session/focus：工具在跑则聚焦既有窗口（不经启动）', async () => {
     const dir = tmpDir()
     const focused: number[] = []
@@ -479,10 +479,12 @@ describe('隐私守卫（工单07：查询词只发往本机 Listary API、不�
     expect(client).toContain('BASE_HOST') // 目标主机只从 engine 常量取（127.0.0.1）
   })
 
-  it('源码级：会话块直达只认 exe 进程名，不读窗口标题（ADR-0002 边界）', () => {
+  it('源码级：会话行直达只认 exe 进程名，不读窗口标题（ADR-0002 边界）', () => {
+    // 全量守卫在 tests/usage/log.spec.ts（覆盖 src/main 全部 .ts）；此处只补该守卫没覆盖的两条：
+    // ① 另一条读标题的 API SendMessageW ② 窗口候选结构不得带 title 字段
     for (const rel of ['src/main/focus/plan.ts', 'src/main/focus/adapter.ts', 'src/main/services/focus.ts']) {
       const src = fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8')
-      expect(src, `${rel} 不得读取窗口标题`).not.toMatch(/GetWindowText|SendMessageW|GetWindowTextW/)
+      expect(src, `${rel} 不得经 SendMessageW 读窗口标题`).not.toMatch(/SendMessageW/)
       expect(src, `${rel} 窗口候选不得带标题字段`).not.toMatch(/^\s*title\s*[?:]/m)
     }
   })

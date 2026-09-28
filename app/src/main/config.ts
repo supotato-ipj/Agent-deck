@@ -22,7 +22,7 @@ export interface AppConfig {
   search: SearchConfig
   /** 外观（工单08）：模块底色透明度全局滑杆值 */
   appearance: AppearanceConfig
-  /** 工具→exe 映射（工单09）：会话块直达的进程发现与启动依据；换机/改安装位置只调此段 */
+  /** 工具→exe 映射（工单09）：会话行直达的进程发现与启动依据；换机/改安装位置只调此段 */
   tools: ToolsConfig
 }
 
@@ -40,6 +40,15 @@ export interface ToolTarget {
 }
 
 export type ToolsConfig = Record<string, ToolTarget>
+
+/**
+ * 进程镜像名归一的**唯一实现**：`basename → 小写 → 去 .exe`。
+ * 既是 config.tools.processes 的入库口径，也是 focus/plan 的匹配口径——两份实现必然漂移，
+ * 故只此一处（focus/plan 从此处 import，不复刻）。
+ */
+export function normalizeProcessName(raw: string): string {
+  return raw.replace(/^.*[\\/]/, '').toLowerCase().replace(/\.exe$/, '')
+}
 
 /** Listary 本地 API 端口（验收可指假端口复现引擎离线） */
 export interface SearchConfig {
@@ -177,10 +186,8 @@ function mergeTools(raw: unknown, fallback: ToolsConfig, warnings: string[]): To
     const processes = target.processes
     if (processes !== undefined) {
       if (Array.isArray(processes) && processes.every((p) => typeof p === 'string')) {
-        // 归一为 basename 小写去 .exe 并去重（与 focus/plan 的匹配口径同源：用户写 'ZCode.EXE' 也认）
-        base.processes = [...new Set((processes as string[])
-          .map((p) => p.replace(/^.*[\\/]/, '').toLowerCase().replace(/\.exe$/, ''))
-          .filter((p) => p !== ''))]
+        // 归一复用唯一实现（与 focus/plan 的匹配口径同源：用户写 'ZCode.EXE' 也认）
+        base.processes = [...new Set((processes as string[]).map(normalizeProcessName).filter((p) => p !== ''))]
       } else {
         warnings.push(`config.tools.${tool}.processes 不是字符串数组，已保留默认值`)
       }
