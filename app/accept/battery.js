@@ -514,10 +514,17 @@ async function main() {
     // —— 电池共用探针件（06 复位 / 08 设置浮层共用；hwnd 随重启段更新，闭包取现值）——
     const CONFIG_FILE_B = path.join(APP_ROOT, 'config.json');
     const pctOf = (v) => Math.round(v * 100);
-    const latestZoneOf = (id) => {
-      const evts = readEvents().filter((e) => e.type === 'hotzones' && (e.rects || []).some((r) => r.id === id));
+    // 热区矩形按**面板代次**取：面板重启后旧矩形不再作数（几何虽同，上一任面板的热区
+    // 属于上一任现场）。sinceMs 缺省 0 = 全部历史，与旧行为同。
+    const latestZoneOf = (id, sinceMs = 0) => {
+      const evts = readEvents().filter((e) => e.type === 'hotzones' && e.t >= sinceMs && (e.rects || []).some((r) => r.id === id));
       const last = evts[evts.length - 1];
       return last ? (last.rects || []).find((r) => r.id === id) || null : null;
+    };
+    /** 最近一次面板启动时刻（boot 存证自报 pid 的那次）——重启后面板代次的下界 */
+    const lastBootMs = () => {
+      const hits = readEvents().filter((e) => e.type === 'boot');
+      return hits.length ? hits[hits.length - 1].t : 0;
     };
     const lastEvent = (type, pred, sinceMs = 0) => {
       const hits = readEvents().filter((e) => e.type === type && e.t >= sinceMs && (!pred || pred(e)));
@@ -697,7 +704,9 @@ async function main() {
     await sleep(300);
 
     // —— P4 热区接收 + 交互后重钉 ——
-    const zones = await waitEvent('hotzones');
+    // 工单10 起卡片由插件异步挂载：首拍热区快照里还没有它们，必须等**声明了 clock-card 的那一拍**，
+    // 否则会把「插件尚未挂上」误判成「渲染层没声明热区」（真机踩过，10b 回归）。
+    const zones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'clock-card'));
     const cardZone = zones && (zones.rects || []).find((r) => r.id === 'clock-card');
     cardZone
       ? rep.pass(`热区声明：渲染层上报 clock-card rel(${cardZone.x},${cardZone.y}) ${cardZone.w}x${cardZone.h}`)
@@ -1851,8 +1860,14 @@ async function main() {
         if (!r2.ready) { rep.fail('降级探针：探针会话行未出现'); return; }
         const tDeg = Date.now();
         const resDeg = await clickProbeRow(tDeg, '降级');
-        // 面板存活探针：降级点击后再点时钟卡，仍能收到 click 存证即面板未崩
-        const clockZone = latestZoneOf('clock-card');
+        // 面板存活探针：降级点击后再点时钟卡，仍能收到 click 存证即面板未崩。
+        // 热区矩形只认**本次重启**的现场：卡片由插件异步挂载，重启后还没挂上时宁可等，
+        // 也不能拿上一任面板的旧矩形去点（那会点在没有热区的空处 → 落到桌面 → 误判面板已死）。
+        let clockZone = null;
+        for (let i = 0; i < 20 && !clockZone; i++) {
+          await sleep(300);
+          clockZone = latestZoneOf('clock-card', lastBootMs());
+        }
         let alive = null;
         if (clockZone) {
           const tAlive = Date.now();
@@ -1881,6 +1896,15 @@ async function main() {
       const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
       try {
         if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
+
+        // 0. 内置五卡自举：五个信息块必须**经插件契约**装载（不是面板自己画的）
+        const builtinIds = ['clock', 'weather', 'sessions', 'qoder', 'hardware'];
+        const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id));
+        builtinMounted.length === builtinIds.length
+          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张信息卡均经插件契约装载渲染（卡片几何与观感沿用面板既有样式表，电池前段截图对照）`)
+          : rep.fail(`桌面组件·内置五卡自举未过：仅 ${builtinMounted.join('/') || '无'} 经插件契约装载`
+            + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/')}）`);
+
         if (lastEvent('plugin-mounted', (e) => e.id === 'hello')) {
           rep.fail('桌面组件探针前置失败：样例插件在电池启动前已在装（干净起点不成立）');
           return;
@@ -1919,6 +1943,44 @@ async function main() {
             + `（capabilities=${JSON.stringify(mounted.capabilities)}，卡片热区 ${Math.round(zone.w)}x${Math.round(zone.h)}，boot 存证 ${boots0}→${boots1} 未增）`)
           : rep.fail(`桌面组件探针无效：插件装载期间面板重启过（boot 存证 ${boots0}→${boots1}），本段断言不成立`);
         fullShot('10-plugin-hello');
+
+        // ② 运行时重载：改插件自己的 card.js → 代号递增 → 渲染层重挂（不重启面板）
+        const tReload = Date.now();
+        const cardFile = path.join(dest, 'card.js');
+        fs.writeFileSync(cardFile,
+          fs.readFileSync(cardFile, 'utf8').replace('EXTERNAL PLUGIN OK', 'EXTERNAL PLUGIN RELOADED'), 'utf8');
+        const reloaded = await waitEvent('plugin-mounted', (e) => e.id === 'hello' && e.t >= tReload, 15000);
+        reloaded
+          ? rep.pass('桌面组件·运行时重载：改插件自身资产后即时重载生效（未重启面板，入口代号变化即换 URL 绕开 ESM 模块缓存）')
+          : rep.fail('桌面组件·重载未过：改 card.js 后 15s 内未再次收到 plugin-mounted');
+
+        // ③ 卸载：移除插件目录 → 卡片从热区消失（点击不再有反应，场面上真的走了）
+        const tUnload = Date.now();
+        fs.rmSync(dest, { recursive: true, force: true });
+        let gone = false;
+        for (let i = 0; i < 25 && !gone; i++) {
+          await sleep(300);
+          const last = readEvents().filter((e) => e.type === 'hotzones' && e.t >= tUnload).pop();
+          gone = Boolean(last && !(last.rects || []).some((r) => r.id === 'hello-card'));
+        }
+        gone
+          ? rep.pass('桌面组件·卸载：移除插件目录后其卡片从面板消失（热区不再声明，无残留死区）')
+          : rep.fail('桌面组件·卸载未过：移除插件目录后 8s 内卡片仍在热区里');
+
+        // ④ 重装恢复：放回同一个目录 → 卡片回来（安装位语义：放入即被识别）
+        const tReinstall = Date.now();
+        fs.mkdirSync(dest, { recursive: true });
+        for (const name of ['plugin.json', 'card.js']) {
+          fs.copyFileSync(path.join(sampleSrc, name), path.join(dest, name));
+        }
+        const back = await waitEvent('plugin-mounted', (e) => e.id === 'hello' && e.t >= tReinstall, 15000);
+        let backZone = null;
+        for (let i = 0; i < 20 && !backZone; i++) { await sleep(300); backZone = latestZoneOf('hello-card'); }
+        const boots2 = bootCount();
+        back && backZone && boots2 === boots0
+          ? rep.pass('桌面组件·重装恢复：把插件目录放回即恢复装载与渲染（boot 存证全程未增 = 四步都没重启面板）')
+          : rep.fail(`桌面组件·重装未过（plugin-mounted=${Boolean(back)}，卡片热区=${Boolean(backZone)}，boot ${boots0}→${boots2}）`);
+        fullShot('10-plugin-reinstalled');
       } finally {
         // 不给用户留残留：插件目录里的东西电池放进去的，电池自己收走
         try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* 尽力 */ }

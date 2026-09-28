@@ -1,4 +1,4 @@
-﻿import { app, screen } from 'electron'
+import { app, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
@@ -16,6 +16,11 @@ import { userDataPath } from './paths'
 const CONFIG_FILE = path.join(app.getAppPath(), 'config.json')
 /** 渲染层资产根（dist/renderer）：经 deck-plugin:// 协议交付，工单10 起与插件资产同源 */
 const RENDERER_ROOT = path.join(__dirname, '../renderer')
+/**
+ * 内置桌面组件根（工单10）：五个内置信息卡即第一批桌面组件，与用户插件同一套契约。
+ * 排在前 = 同 id 先到先得（用户插件顶不掉内置组件；想改内置就另起 id 或改本仓库）。
+ */
+const BUILTIN_CARDS_ROOT = path.join(RENDERER_ROOT, 'cards')
 const ACCEPT_MODE = process.argv.includes('--accept')
 const PANEL_MODE = process.argv.includes('--panel')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
@@ -50,8 +55,8 @@ async function bootPanel(): Promise<void> {
     search: { port: config.search.port },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
-    // 桌面组件（工单10）：插件目录即安装位（缺省 userData/plugins；config.plugins.dir 可改）
-    plugins: { roots: [config.plugins.dir || userDataPath('plugins')] },
+    // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
+    plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
   })
   await kernel.start()
 

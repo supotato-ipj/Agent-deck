@@ -5,9 +5,24 @@
 // 插件拿到的永远是裁剪过的快照（manifest 的 capabilities 声明多少就给多少，少给而非不给），
 // 且插件文件永不由渲染层触碰——资产经协议下发、数据经既有桥接契约，两条通道都不新增。
 import type { BridgeMethod, BridgeMethods, PanelSnapshot, PluginInfo } from '../shared/contract'
+import { esc, pad, pad3, pct } from './format.js'
 
 /** 插件拿到的裁剪视图：按 capabilities 取快照的若干段，其余键根本不存在 */
 export type PluginView = Partial<PanelSnapshot>
+
+/**
+ * 宿主交给插件的通用呈现工具。
+ * 插件资产经协议投递（URL 主机名即插件 id），插件目录**之外**的文件在协议寻址里不存在，
+ * 相对导入一出目录就 404。故共用工具经宿主转交——插件保持单文件、零相对导入。
+ */
+export interface PluginUtil {
+  pad(n: number, w?: number): string
+  pad3(n: number): string
+  pct(x: number | null | undefined): string
+  esc(s: string): string
+}
+
+const UTIL: PluginUtil = { pad, pad3, pct, esc }
 
 /** 插件宿主上下文：容器 + 视图 + 与面板同一条存证/桥接通道 */
 export interface PluginHost {
@@ -15,6 +30,8 @@ export interface PluginHost {
   el: HTMLElement
   /** 按 capabilities 裁剪后的快照视图 */
   view: PluginView
+  /** 通用呈现工具（见 PluginUtil 注释：为什么不是插件自己 import） */
+  util: PluginUtil
   /** 存证上报（与面板同一通道，电池同法断言） */
   notify(type: string, payload?: Record<string, unknown>): void
   /** 内核桥接契约调用（渲染层不另开通道） */
@@ -49,8 +66,18 @@ export interface PluginRuntimeDeps {
 }
 
 const mounted = new Map<string, Mounted>()
-/** 在途 import 的代号：期间插件被卸载/换代号时，令牌作废、迟到的模块不复活组件 */
-let seq = 0
+/**
+ * 在途装载的代号，**按插件计**：卸载（或换代重挂）即给该 id 换代。
+ * 用全局单计数会让并发的多个插件互相作废——真机踩过：五卡同时 import，只有先落地的那个
+ * 侥幸装上，其余四张被后发的计数顶掉，退化成「一张一张每秒补一张」（首屏缺卡 4 秒）。
+ */
+const generations = new Map<string, number>()
+/**
+ * 装载失败记账：键为 `id@entry`（含代号）。
+ * 失败不在每拍重试——坏插件若每拍重试，会把存证日志和主进程刷成噪声（真机踩过：
+ * 一个 404 的卡片 2 秒内刷了 88 条 plugin-load-failed）。改好资产换代即换 URL，失败记账自解。
+ */
+const failed = new Set<string>()
 
 /** 按能力裁剪：capability 名即快照段名，认得的段取给，未声明的段不出内核 */
 function viewFor(info: PluginInfo, snap: PanelSnapshot): PluginView {
@@ -66,6 +93,7 @@ function hostOf(info: PluginInfo, container: HTMLElement, view: PluginView, deps
   return {
     el: container,
     view,
+    util: UTIL,
     notify: deps.notify,
     invoke: (method, payload) => deps.invoke(method, payload),
   }
@@ -74,6 +102,10 @@ function hostOf(info: PluginInfo, container: HTMLElement, view: PluginView, deps
 /** 坏插件静默降级：不弹窗、不打断面板，只留存证（与面板其余失败路径同纪律） */
 function unmountOne(id: string): void {
   const entry = mounted.get(id)
+  // 卸载即给该 id 换代（并清失败记账）：在途 import 回来时令牌已旧，不得复活组件
+  generations.set(id, (generations.get(id) ?? 0) + 1)
+  // 重装（或重新装载同一代资产）时给一次干净机会
+  for (const k of [...failed]) if (k.startsWith(`${id}@`)) failed.delete(k)
   if (!entry) return
   mounted.delete(id)
   try {
@@ -85,18 +117,21 @@ function unmountOne(id: string): void {
 }
 
 async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRuntimeDeps): Promise<void> {
-  const token = ++seq
+  const key = `${info.id}@${info.entry}`
+  if (failed.has(key)) return // 同一代资产已失败：不每拍重试
+  const gen = generations.get(info.id) ?? 0
   let api: PluginApi
   try {
     const mod = await import(info.entry) as { default?: PluginApi } & PluginApi
     api = mod.default ?? mod
     if (typeof api?.mount !== 'function') throw new Error('模块未导出 mount（default 导出契约对象）')
   } catch (err) {
+    failed.add(key)
     deps.notify('plugin-load-failed', { id: info.id, message: String(err) })
     return
   }
-  // import 期间面板可能又变了：令牌不符即丢弃这次装载（否则会复活已卸载的组件）
-  if (token !== seq) return
+  // import 期间该插件可能已被卸载或换代：令牌已旧即丢弃这次装载（否则会复活已卸载的组件）
+  if (gen !== (generations.get(info.id) ?? 0)) return
 
   const container = document.createElement('div')
   container.className = 'deck-plugin'
@@ -110,6 +145,7 @@ async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRunti
   try {
     api.mount(host)
   } catch (err) {
+    failed.add(key)
     deps.notify('plugin-mount-failed', { id: info.id, message: String(err) })
     container.remove()
     return
