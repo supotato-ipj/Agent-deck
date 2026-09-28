@@ -1869,6 +1869,62 @@ async function main() {
         restoreConfigB(configBackup09);
       }
     })();
+    // —— P11 工单10 桌面组件（插件体系自举）：外部样例插件「放入即被识别」——
+    // 位置纪律（沿用 09 踩坑 8）：本段是电池的**最后一段**（P9 之后、清场之前）。本段要在
+    // 电池运行中改 userData 下的插件目录，排在中间会扰动前面探针的时序。
+    // 唯一判据的形状：**全程不重启面板**——只往插件目录里放一个目录，面板自己认出来。
+    // 「没重启」由 boot 存证条数不变来证，不靠自述。
+    await (async () => {
+      const pluginsDir = path.join(userDataDir, 'plugins');
+      const sampleSrc = path.join(APP_ROOT, 'samples', 'hello-plugin');
+      const dest = path.join(pluginsDir, 'hello');
+      const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
+      try {
+        if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
+        if (lastEvent('plugin-mounted', (e) => e.id === 'hello')) {
+          rep.fail('桌面组件探针前置失败：样例插件在电池启动前已在装（干净起点不成立）');
+          return;
+        }
+        const boots0 = bootCount();
+        const t0 = Date.now();
+        fs.mkdirSync(dest, { recursive: true });
+        for (const name of ['plugin.json', 'card.js']) {
+          fs.copyFileSync(path.join(sampleSrc, name), path.join(dest, name));
+        }
+        rep.note(`桌面组件探针：样例插件已放入 ${dest}（本段不重启面板，boot 存证基线 ${boots0} 条）`);
+
+        // ① 主进程认到插件并把前端入口投递给渲染层（plugins/changed → plugin-mounted）
+        const mounted = await waitEvent('plugin-mounted', (e) => e.id === 'hello' && e.t >= t0, 15000);
+        // ② 插件模块自身跑起来（deck-plugin:// 动态 import 成功 → mount 被调）
+        const ran = await waitEvent('hello-mounted', (e) => e.t >= t0, 8000);
+        // ③ 卡片进入热区：插件组件与面板卡片同一套点击穿透模型，不是画上去的死图
+        let zone = null;
+        for (let i = 0; i < 20 && !zone; i++) { await sleep(300); zone = latestZoneOf('hello-card'); }
+        const boots1 = bootCount();
+        if (!mounted) {
+          rep.fail('桌面组件探针未过：插件放入后 15s 内未收到 plugin-mounted（主进程未认到或未投递）');
+          return;
+        }
+        if (!ran) {
+          rep.fail(`桌面组件探针未过：主进程已投递入口，但插件模块未跑起来（无 hello-mounted；`
+            + `看面板 stderr 的 CSP/协议错误；capabilities=${JSON.stringify(mounted.capabilities)}）`);
+          return;
+        }
+        if (!zone) {
+          rep.fail('桌面组件探针未过：插件卡片未进入热区（点了没反应 = 面板在非热区是穿透的）');
+          return;
+        }
+        boots1 === boots0
+          ? rep.pass(`桌面组件·放入即识别：外部样例插件放入插件目录后**无需重启面板**即被装载并渲染`
+            + `（capabilities=${JSON.stringify(mounted.capabilities)}，卡片热区 ${Math.round(zone.w)}x${Math.round(zone.h)}，boot 存证 ${boots0}→${boots1} 未增）`)
+          : rep.fail(`桌面组件探针无效：插件装载期间面板重启过（boot 存证 ${boots0}→${boots1}），本段断言不成立`);
+        fullShot('10-plugin-hello');
+      } finally {
+        // 不给用户留残留：插件目录里的东西电池放进去的，电池自己收走
+        try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* 尽力 */ }
+        rep.note(`桌面组件探针清场：已移除 ${dest}`);
+      }
+    })();
   } catch (e) {
     rep.fail(`电池中断: ${e && e.stack || e}`);
   } finally {

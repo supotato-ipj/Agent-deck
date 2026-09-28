@@ -22,7 +22,7 @@ export class BridgeError extends Error {
  * 后续工单只扩展 BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search', 'settings', 'focus']
+  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search', 'settings', 'focus', 'plugins']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -47,6 +47,7 @@ export class BridgeService extends Service {
       desktop: this.ctx.desktop.state(),
       layout: this.layout,
       settings: this.ctx.settings.state(),
+      plugins: this.ctx.plugins.info(),
     }
   }
 

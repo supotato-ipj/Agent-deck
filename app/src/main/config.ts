@@ -24,6 +24,18 @@ export interface AppConfig {
   appearance: AppearanceConfig
   /** 工具→exe 映射（工单09）：会话行直达的进程发现与启动依据；换机/改安装位置只调此段 */
   tools: ToolsConfig
+  /** 插件目录（工单10）：桌面组件的安装位；空串 = 缺省 userData/plugins */
+  plugins: PluginsConfig
+}
+
+/**
+ * 插件目录（config.json plugins 段）：桌面组件的安装位。
+ * 缺省空串——真正的落点由主进程解析为 `userData/plugins`（userData 依赖 Electron，
+ * config.ts 是纯模块不得引它，故缺省值在此只表达「用默认」）。
+ */
+export interface PluginsConfig {
+  /** 插件根目录绝对路径；空串 = userData/plugins */
+  dir: string
 }
 
 /**
@@ -124,6 +136,25 @@ export function defaultSearchConfig(): SearchConfig {
 /** 默认外观：信息卡底色 rgba(0,0,0,0.55) 的 alpha（renderer 生产值固化） */
 export function defaultAppearance(): AppearanceConfig {
   return { cardOpacity: 0.55 }
+}
+
+/** 默认插件目录：空串 = 由主进程解析为 userData/plugins（见 PluginsConfig 注释） */
+export function defaultPlugins(): PluginsConfig {
+  return { dir: '' }
+}
+
+function mergePlugins(raw: unknown, fallback: PluginsConfig, warnings: string[]): PluginsConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.plugins 不是对象，已整体回退默认插件目录')
+    return out
+  }
+  const dir = (raw as Record<string, unknown>).dir
+  if (dir === undefined) return out
+  if (typeof dir === 'string') out.dir = dir.trim()
+  else warnings.push('config.plugins.dir 不是字符串，已回退默认插件目录')
+  return out
 }
 
 /**
@@ -327,6 +358,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       search: mergeSearch(root.search, fallback.search, warnings),
       appearance: mergeAppearance(root.appearance, fallback.appearance, warnings),
       tools: mergeTools(root.tools, fallback.tools, warnings),
+      plugins: mergePlugins(root.plugins, fallback.plugins, warnings),
     },
     warnings,
     created: false,

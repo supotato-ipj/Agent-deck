@@ -14,7 +14,7 @@ Status: ready-for-agent
 
 ## Solution
 
-一个独立常驻应用「AGENT DECK 独立面板」：Electron 窗口宿主 + cordis 插件内核 + Vite 前端，TypeScript 全栈。面板浮于任意壁纸之上，背景透明，默认鼠标穿透、光标进入交互热区时临时接收点击；隐藏原生桌面图标，自扫描桌面文件夹并自绘承载桌面项（应用区以底部 dock 呈现，文档区按扩展名聚合）；信息以 Personal OS 风格的卡片网格呈现（时钟/天气/日历、五工具会话列表、Qoder 状态块、硬件指标），搜索框内嵌面板（Listary 本地 API 驱动），设置浮层内嵌面板。内置信息块本身就是第一批可热插拔的桌面组件，插件机制经真实组件自举验证。Python 数据服务、看门狗、Tk 搜索窗、WE 部署脚本全部退役。
+一个独立常驻应用「AGENT DECK 独立面板」：Electron 窗口宿主 + cordis 插件内核 + 原生 ESM 前端（tsc 直出、无打包器，工单10 路线 (b) 拍板），TypeScript 全栈。面板浮于任意壁纸之上，背景透明，默认鼠标穿透、光标进入交互热区时临时接收点击；隐藏原生桌面图标，自扫描桌面文件夹并自绘承载桌面项（应用区以底部 dock 呈现，文档区按扩展名聚合）；信息以 Personal OS 风格的卡片网格呈现（时钟/天气/日历、五工具会话列表、Qoder 状态块、硬件指标），搜索框内嵌面板（Listary 本地 API 驱动），设置浮层内嵌面板。内置信息块本身就是第一批可热插拔的桌面组件，插件机制经真实组件自举验证。Python 数据服务、看门狗、Tk 搜索窗、WE 部署脚本全部退役。
 
 ## User Stories
 
@@ -87,7 +87,7 @@ Status: ready-for-agent
 
 ## Implementation Decisions
 
-- **底座（ADR-0004）**：Electron 作窗口宿主（透明无边框窗口、托盘、鼠标穿透 + 事件转发），cordis 3.x 作主进程插件内核（插件生命周期、依赖注入、热插拔），Vite 构建前端；TypeScript 全栈。cordis 锁 3.x 稳定线（4.0 尚在 beta、官方声明 API 未稳定），只圈定使用插件生命周期与依赖注入子集。
+- **底座（ADR-0004）**：Electron 作窗口宿主（透明无边框窗口、托盘、鼠标穿透 + 事件转发），cordis 3.x 作主进程插件内核（插件生命周期、依赖注入、热插拔），前端 tsc 直出原生 ESM（无打包器——工单10 路线 (b) 拍板；相对导入带 `.js` 后缀，无需 `rewriteRelativeImportExtensions`）；TypeScript 全栈。cordis 锁 3.x 稳定线（4.0 尚在 beta、官方声明 API 未稳定），只圈定使用插件生命周期与依赖注入子集。
 - **层叠模型**：背景层（用户自选壁纸，系统或 WE 挂载均可）< 独立面板（普通原生窗口）< 普通应用窗口。面板默认鼠标穿透，光标进入交互热区时临时解除；底部钉扎（HWND_BOTTOM）Electron 无原生档位，经 FFI/SetWindowPos 实现。Explorer 与任务栏不动，只接管桌面图标的承载职责。
 - **交互热区**：热区由渲染层声明（信息卡、dock、搜索框、设置入口），主进程做光标命中跟踪并切换穿透状态；热区之外的一切点击直达桌面。
 - **透明背景**：依赖 WebView2/Chromium 透明合成，实施前先做 spike 探针；失败即降级为窗口级整体 alpha（文字随之变虚）——ADR-0004 已接受的降级路径，不阻塞其他工作。
@@ -97,7 +97,7 @@ Status: ready-for-agent
 - **内核契约（唯一新缝）**：内核对渲染层只暴露一个桥接 API，收口全部能力——面板快照（会话/硬件/桌面项/历史曲线）拉取与变更订阅、搜索查询与动作、桌面项启动与摆位、配置读写。服务之间用 cordis 生命周期与事件协作，不另开通信通道。
 - **搜索**：Listary 7 本地 HTTP API（仅监听 127.0.0.1、无 CORS、无 keep-alive）由内核调用，渲染层永不直连；待机/活动/引擎离线三态平移；输入防抖约 200ms、限流静默退避；Enter 打开、Ctrl+Enter 定位由内核执行；查询词不写入使用日志。搜索框为面板内 HTML 浮层，Tk 窗退役。
 - **配置**：config.json 收口屏幕几何（面板坐标、分区原点、dock 尺寸、分区标签位）、透明度、自启项等，以当前生产值为默认；代码中不再出现 Steam/WE 绝对路径。
-- **插件体系（骨架）**：桌面组件 = cordis 插件——manifest 声明能力与前端入口，前端资产经应用自定义协议提供给渲染层动态加载；插件目录即安装位（放入即被识别）。时钟、天气、会话列表、Qoder 状态块、硬件指标五个内置信息块改为第一批桌面组件，验证机制自举。
+- **插件体系（骨架）**：桌面组件 = cordis 插件——manifest 声明能力与前端入口，前端资产经应用自定义协议（`deck-plugin://`，工单10 定名）提供给渲染层动态加载；插件目录即安装位，缺省 `userData/plugins`（`config.plugins.dir` 可改），放入即被识别。manifest 的 `capabilities` 逐段对应快照段名，渲染层按声明裁剪视图后交给插件（少给而非不给）。时钟、天气、会话列表、Qoder 状态块、硬件指标五个内置信息块改为第一批桌面组件，验证机制自举。
 - **自启与守护**：Startup 快捷方式改指新应用；单实例守卫；Win+D 最小化的防抖自动恢复；原看门狗的 WE 门控逻辑退役（服务不再依赖 WE 存在）。
 - **退役清单**：Python 数据服务与其自启链、server_watchdog、Tk 搜索面板窗口、zones Win32 挪真图标链路、deploy/apply/restore 三个 WE 部署脚本；deck 与 patched 壁纸资产连同 backup 冻结归档不再维护。迁移期（Q20A 拍板）不再向 Python 侧添加任何新功能。
 - **字体**：Latin 等宽与 CJK 字体从可商用免费候选中选定（对比页见本 feature 目录 font-compare，含 Share Tech Mono / JetBrains Mono / IBM Plex Mono 与 MiSans / HarmonyOS Sans / 阿里巴巴普惠体 / 阿里妈妈数黑体 / Noto Sans SC），字体文件本地化进资产目录、随应用分发；VT323（OFL）保留。

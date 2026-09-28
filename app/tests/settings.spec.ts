@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 设置服务测试（工单08）：透明度 clamp/校验、config 整份回写持久化、
  * settings/changed 事件推送（只变才推）。文件 I/O 走 tmp 目录假源。
  */
@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { Context } from 'cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import { SettingsService } from '../src/main/services/settings'
 import type { SettingsState } from '../src/shared/contract'
@@ -24,6 +24,7 @@ function configWith(cardOpacity: number): AppConfig {
     search: defaultSearchConfig(),
     appearance: { cardOpacity },
     tools: defaultTools(),
+    plugins: defaultPlugins(),
   }
 }
 

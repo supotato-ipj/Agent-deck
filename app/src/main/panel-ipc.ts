@@ -26,7 +26,13 @@ export function fileEventLog(file: string | undefined): EventLog | null {
  * 内核桥接通道：渲染层 invoke → 内核；内核事件推送 → 渲染层。
  * 传输层用 ok/error 信封（IPC 对 Error 序列化不保真），preload 侧解包还原为 reject。
  */
-const FORWARDED_EVENTS: BridgeEventName[] = ['panel/changed', 'search/state', 'search/results', 'settings/changed']
+const FORWARDED_EVENTS: BridgeEventName[] = [
+  'panel/changed',
+  'search/state',
+  'search/results',
+  'settings/changed',
+  'plugins/changed',
+]
 
 export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService): void {
   ipcMain.handle('deck:bridge-invoke', (_event, req: { method: string; payload?: unknown }) => {

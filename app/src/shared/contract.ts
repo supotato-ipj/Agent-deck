@@ -148,7 +148,60 @@ export interface SettingsState {
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
 export type FocusAction = 'focused' | 'launched' | 'degraded'
 
-/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何；08 设置 */
+/**
+ * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
+ * 取值与 PanelSnapshot 的段名一一对应——「少给而非不给」（同桌面项池校验思路）：
+ * 渲染层按声明裁剪快照后交给插件，未声明的段根本不出内核。
+ */
+export type PluginCapability = 'clock' | 'sessions' | 'qoder' | 'hardware' | 'weather' | 'desktop' | 'layout' | 'settings'
+
+/** 全部能力（渲染层裁剪口径的唯一实现处；新增快照段时同步登记） */
+export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
+  'clock', 'sessions', 'qoder', 'hardware', 'weather', 'desktop', 'layout', 'settings',
+] as const
+
+/** 插件 manifest（插件目录下 plugin.json）：声明式契约，spec 用户故事 37 */
+export interface PluginManifest {
+  /**
+   * 插件标识：协议主机名（`deck-plugin://<id>/…`），故限小写字母数字与 `-`/`.`/`_`。
+   * 同 id 跨扫描根先到先得（内置根在前 = 内置组件不被同名用户插件顶替）。
+   */
+  id: string
+  /** 面板可读名（设置/调试用，不参与寻址） */
+  name: string
+  /** 版本串（manifest 必填；不参与寻址，变更即触发重载） */
+  version: string
+  /** 渲染层入口：相对插件目录的 .js 路径（如 `./card.js`）；拒绝绝对路径与 `..` */
+  entry: string
+  /** 可读快照段；未知能力串静默丢弃（少给而非不给），不使 manifest 失效 */
+  capabilities: PluginCapability[]
+  /** 挂载锚点：渲染层按 id 找容器元素；缺省 = 追加到 body 末尾 */
+  mount?: string
+  /** 挂载顺序（小者在前；缺省 = 扫描序 + id 序稳定化） */
+  order?: number
+}
+
+/** 插件装载态：ok = 已识别、资产已校验并投递给渲染层；error = 坏 manifest/资产缺失，带原因 */
+export type PluginStatus = 'ok' | 'error'
+
+/** 快照可见的插件条目（entry 已解析为可直接 import 的协议 URL） */
+export interface PluginInfo {
+  id: string
+  name: string
+  version: string
+  /** `deck-plugin://<id>/<entry>?v=<revision>`——revision 变化即绕开 ESM 模块缓存做真重载 */
+  entry: string
+  capabilities: PluginCapability[]
+  mount?: string
+  order: number
+  status: PluginStatus
+  /** 失败原因（status=error 时给出，面板只做静默降级不弹窗） */
+  error: string | null
+  /** 资产代号：manifest 或入口文件变更即递增 */
+  revision: number
+}
+
+/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何；08 设置；10 桌面组件 */
 export interface PanelSnapshot {
   clock: ClockState
   sessions: SessionInfo[]
@@ -158,6 +211,8 @@ export interface PanelSnapshot {
   desktop: DesktopState
   layout: DesktopLayout
   settings: SettingsState
+  /** 工单10 桌面组件：按挂载顺序排列；坏插件以 status=error 在列（面板据此静默降级） */
+  plugins: PluginInfo[]
 }
 
 /** 搜索结果行（工单07，Listary 本地 API data.results 行的字段集，snake_case 平移为驼峰） */
@@ -219,6 +274,11 @@ export interface BridgeEvents {
   'search/results': { total: number; items: SearchResultItem[] }
   /** 设置变化（工单08 滑杆即时回推；快照每秒也携带同一状态） */
   'settings/changed': SettingsState
+  /**
+   * 工单10 桌面组件清单变化（放入/移除/资产变更触发重载）。
+   * 独立于 1Hz 的 panel/changed：热插拔要即时可见，不必等下一拍快照。
+   */
+  'plugins/changed': PluginInfo[]
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

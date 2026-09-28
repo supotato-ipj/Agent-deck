@@ -1,7 +1,9 @@
-// 面板渲染层（经典脚本，无模块语法——刻意的边界，见 02 注记）。
+// 面板渲染层（原生 ESM 模块，工单10 起：插件资产同源经 deck-plugin:// 协议动态 import）。
 // 数据一律经桥接契约自内核而来（初始 snapshot + panel/changed 订阅）；
 // 天气卡是唯一例外：纯前端直连 Open-Meteo（沿用 patched 壁纸先例），坐标经快照下发。
 // 渲染层向宿主声明交互热区（各卡片矩形）；字体就绪后再声明一次，免字体换挡挪动矩形。
+import { syncPlugins } from './plugins.js'
+import type { PluginRuntimeDeps } from './plugins.js'
 
 const TOOL_TAGS: Record<string, string> = { qoder: 'QD', kimicode: 'KC', kimiwork: 'KW', zcode: 'ZC', hermes: 'HM' }
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -917,15 +919,27 @@ window.deck.bridge.on('search/state', (s) => {
   // 'active' 恢复由随后到达的 search/results 重绘（离线徽标被结果行替换）；'idle' 由本地转移处理
 })
 
-// ---- 总渲染（快照到达即刷新全部卡片） ----
+// ---- 总渲染（快照到达即刷新全部卡片 + 桌面组件） ----
+
+/** 插件运行时的宿主依赖：存证与桥接沿用面板同一条通道，DOM 变了重声明热区 */
+const pluginDeps: PluginRuntimeDeps = {
+  notify,
+  invoke: (method, payload) => window.deck.bridge.invoke(method, payload),
+  onDomChanged: declareHotZones,
+}
+
+/** 最近一拍快照：插件清单变化时复用（渲染层只保留这一份，不另建缓存） */
+let lastSnapshot: PanelSnapshot | null = null
 
 function render(snap: PanelSnapshot): void {
+  lastSnapshot = snap
   renderClock(snap.clock.epochMs)
   renderSessions(snap.sessions)
   renderQoder(snap.qoder)
   renderHardware(snap.hardware)
   renderDesktop(snap.desktop, snap.layout)
   renderSettings(snap.settings)
+  syncPlugins(snap.plugins, snap, pluginDeps)
   const month = new Date(snap.clock.epochMs).getMonth()
   if (month !== calendarMonth) {
     calendarMonth = month
@@ -989,6 +1003,15 @@ el('clock-card').addEventListener('click', () => {
 })
 
 setInterval(() => { void fetchWeather() }, WEATHER_REFRESH_MS)
+
+// 插件清单变化即时对齐（放入/移除/改资产即生效，不等 1Hz 快照）：
+// 复用最近一拍快照——插件只关心自己能力内的段，无需为此多问内核一次。
+window.deck.bridge.on('plugins/changed', (list) => {
+  notify('plugins-changed', { ids: list.map((p) => p.id), status: list.map((p) => `${p.id}:${p.status}`) })
+  if (!lastSnapshot) return // 快照还没到（启动瞬间）：下一拍 render 自会带上 plugins 段
+  syncPlugins(list, { ...lastSnapshot, plugins: list }, pluginDeps)
+  declareHotZones()
+})
 
 void window.deck.bridge.invoke('panel/snapshot', null).then(render, (err: unknown) => {
   notify('snapshot-error', { message: String(err) })

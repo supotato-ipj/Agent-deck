@@ -455,6 +455,8 @@
 
 <div id="settings-btn" role="button">&#9881; SETTINGS</div>
 
-<script src="./main.js"></script>
+<!-- 渲染层入口（工单10 起为原生 ESM）：页面本身经 deck-plugin:// 协议加载，
+     插件资产同源同协议，动态 import 即加载通道（02 注记 4 的 supersede）。 -->
+<script type="module" src="./main.js"></script>
 </body>
 </html>

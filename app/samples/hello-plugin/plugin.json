@@ -1,0 +1,8 @@
+{
+  "id": "hello",
+  "name": "HELLO 样例插件",
+  "version": "1.0.0",
+  "entry": "./card.js",
+  "capabilities": ["clock"],
+  "order": 900
+}

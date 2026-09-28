@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
-import { defaultAppearance, defaultDesktopLayout, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
-import type { PanelSnapshot } from '../src/shared/contract'
+import type { PanelSnapshot, PluginInfo } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
@@ -58,6 +58,7 @@ function settingsOpts(dir: string): { settings: { file: string; config: AppConfi
     search: defaultSearchConfig(),
     appearance: defaultAppearance(),
     tools: defaultTools(),
+    plugins: defaultPlugins(),
   }
   return { settings: { file: path.join(dir, 'config.json'), config } }
 }
@@ -434,6 +435,100 @@ describe('内核桥接契约（工单09 会话行直达扩展）', () => {
     } finally {
       await ctx.stop()
     }
+  })
+})
+
+describe('内核桥接契约（工单10 桌面组件扩展）', () => {
+  /** 落一个插件目录：manifest + 入口资产 */
+  function writePlugin(root: string, manifest: Record<string, unknown>): string {
+    const dir = path.join(root, String(manifest.id))
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'plugin.json'), JSON.stringify(manifest), 'utf8')
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {}', 'utf8')
+    return dir
+  }
+
+  const manifest = (over: Record<string, unknown> = {}) => ({
+    id: 'sample', name: '样例插件', version: '1.0.0', entry: './card.js', capabilities: ['clock'], ...over,
+  })
+
+  it('未配置插件根时快照带空 plugins 段（契约在场，不必装插件才成立）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('放入插件 → 快照带可 import 的 entry；移除 → 段内消失（无需重启面板）', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      writePlugin(root, manifest())
+      ctx.plugins!.rescan()
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins).toHaveLength(1)
+      expect(snap.plugins[0]).toMatchObject({ id: 'sample', status: 'ok', capabilities: ['clock'], error: null })
+      expect(snap.plugins[0].entry).toContain('deck-plugin://sample/card.js?v=')
+
+      fs.rmSync(path.join(root, 'sample'), { recursive: true, force: true })
+      ctx.plugins!.rescan()
+      expect((await ctx.bridge.invoke('panel/snapshot', null)).plugins).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('plugins/changed 独立于 1Hz 快照即时推送（热插拔不等下一拍）', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      const received: PluginInfo[][] = []
+      const off = ctx.bridge.subscribe('plugins/changed', (list) => received.push(list))
+      writePlugin(root, manifest())
+      ctx.plugins!.rescan()
+      expect(received).toHaveLength(1)
+      expect(received[0].map((p) => p.id)).toEqual(['sample'])
+      off()
+      writePlugin(root, manifest({ id: 'second' }))
+      ctx.plugins!.rescan()
+      expect(received).toHaveLength(1) // 退订后不再收
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('坏插件以 error 态在列而非静默消失（面板据此静默降级）', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const broken = path.join(root, 'broken')
+    fs.mkdirSync(broken, { recursive: true })
+    fs.writeFileSync(path.join(broken, 'plugin.json'), '{ not json', 'utf8')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins).toHaveLength(1)
+      expect(snap.plugins[0]).toMatchObject({ id: 'broken', status: 'error', entry: '' })
+      expect(snap.plugins[0].error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('源码级守卫：渲染层不碰 fs（插件资产只经协议下发，读盘只在主进程）', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../src/renderer/plugins.ts'), 'utf8')
+    expect(src).not.toMatch(/require\(|node:fs/)
+    const preload = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8')
+    expect(preload).not.toMatch(/node:fs|readFileSync/) // 渲染层唯一的特权面只做 IPC 转发
   })
 })
 

@@ -1,7 +1,7 @@
-import { app, screen } from 'electron'
+﻿import { app, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
 import { createKernel } from './kernel'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
@@ -10,12 +10,18 @@ import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
+import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
+import { userDataPath } from './paths'
 
 const CONFIG_FILE = path.join(app.getAppPath(), 'config.json')
-const RENDERER_HTML = path.join(__dirname, '../renderer/index.html')
+/** 渲染层资产根（dist/renderer）：经 deck-plugin:// 协议交付，工单10 起与插件资产同源 */
+const RENDERER_ROOT = path.join(__dirname, '../renderer')
 const ACCEPT_MODE = process.argv.includes('--accept')
 const PANEL_MODE = process.argv.includes('--panel')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
+
+// 特权协议必须在 app ready 之前注册（Electron 硬要求）：面板页面与插件资产都走它。
+registerPluginScheme()
 
 async function bootPanel(): Promise<void> {
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
@@ -26,6 +32,7 @@ async function bootPanel(): Promise<void> {
     search: defaultSearchConfig(),
     appearance: defaultAppearance(),
     tools: defaultTools(),
+    plugins: defaultPlugins(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
@@ -43,8 +50,12 @@ async function bootPanel(): Promise<void> {
     search: { port: config.search.port },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
+    // 桌面组件（工单10）：插件目录即安装位（缺省 userData/plugins；config.plugins.dir 可改）
+    plugins: { roots: [config.plugins.dir || userDataPath('plugins')] },
   })
   await kernel.start()
+
+  installPluginProtocol({ appRoot: RENDERER_ROOT, host: kernel.plugins })
 
   const win = createPanelWindow({ geometry: config.panel })
   wireBridgeIpc(win, kernel.bridge)
@@ -92,7 +103,8 @@ async function bootPanel(): Promise<void> {
     win.on('closed', () => restorer.dispose())
   })
   win.on('closed', () => tracker.dispose())
-  void win.loadFile(RENDERER_HTML)
+  // 面板页面经 deck-plugin:// 加载（工单10）：与插件资产同源，ESM 与动态 import 才成立
+  void win.loadURL(panelUrl())
   app.on('window-all-closed', () => app.quit())
   app.on('second-instance', () => showPanel('second-instance'))
 }

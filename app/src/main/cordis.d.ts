@@ -7,7 +7,8 @@ import type { UsageService } from './services/usage'
 import type { SearchService } from './services/search'
 import type { SettingsService } from './services/settings'
 import type { FocusService } from './services/focus'
-import type { PanelSnapshot, SearchUiState, SearchResultItem, SettingsState } from '../shared/contract'
+import type { PluginHostService } from './plugins/service'
+import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState } from '../shared/contract'
 
 declare module 'cordis' {
   interface Events {
@@ -17,6 +18,8 @@ declare module 'cordis' {
     'search/results': (payload: { total: number; items: SearchResultItem[] }) => void
     /** 工单08 设置：透明度滑杆即时回推 */
     'settings/changed': (payload: SettingsState) => void
+    /** 工单10 桌面组件：插件清单变化（放入/移除/资产变更即推） */
+    'plugins/changed': (payload: PluginInfo[]) => void
   }
   interface Context {
     clock: ClockService
@@ -32,5 +35,7 @@ declare module 'cordis' {
     settings: SettingsService
     /** 工单09 会话行直达（内核总装必装；离线测试注入假窗口源） */
     focus: FocusService
+    /** 工单10 桌面组件宿主（内核总装必装；roots 为空时不做任何扫描） */
+    plugins: PluginHostService
   }
 }

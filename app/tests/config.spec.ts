@@ -1,10 +1,10 @@
-import fs from 'node:fs'
+﻿import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultSearchConfig, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
+import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -219,6 +219,40 @@ describe('config 模型（工单08 设置浮层透明度）', () => {
     const config = { ...FALLBACK, appearance: { cardOpacity: 0.3 } }
     saveConfig(file, config)
     expect(loadConfig(file, FALLBACK).config).toEqual(config)
+  })
+})
+
+describe('config.plugins 插件目录（工单10 桌面组件安装位）', () => {
+  it('缺 plugins 段时用缺省（空串 = 主进程解析为 userData/plugins，老 config.json 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins).toEqual({ dir: '' })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('可改安装位：plugins.dir 生效（插件目录即安装位，换位置只调配置）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { dir: 'D:\\deck-plugins' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.dir).toBe('D:\\deck-plugins')
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('plugins.dir 非字符串回退默认并告警（不静默吞笔误）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { dir: 42 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.dir).toBe('')
+    expect(r.warnings.join()).toMatch(/plugins\.dir/)
+  })
+
+  it('plugins 段整体非对象回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: 'D:\\deck-plugins' }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.dir).toBe('')
+    expect(r.warnings.join()).toMatch(/config\.plugins/)
   })
 })
 

@@ -39,3 +39,33 @@
 - 插件目录默认 `userData/plugins`（+config 可改），executor 定稿后随 spec 修订段写明；「放入即被识别」用 fs.watch 或重扫均可，以 10a 探针实测为准。
 - 评审按 code-review skill 正规双轴（两个并行子代理、固定点 = 提交前 HEAD），不得自创轴切法（09 票流程教训）。
 - 本票提交节奏：10a、10b 各一个提交，票面一张不动（01 票两提交一票先例）；10a 前若有他票在途改动（如 contract.ts 之外的散件）先确认归属再动。
+
+**2026-09-28 10a 落地（机制拍：插件机制可用，五卡渲染逻辑与观感一行未动）**
+
+**先说一件事**：开工时票面记的「工作区已有 10a 契约雏形（contract.ts 未提交）」在本 worktree 里**不存在**（git 干净、contract.ts 无插件字样），故本拍按决策记录从零建契约，未推倒任何东西。
+
+**契约**（`shared/contract.ts`）：`PluginManifest`/`PluginCapability`/`PluginInfo`/`PluginStatus` + 快照段 `plugins` + 事件 `plugins/changed`（热插拔不等 1Hz 快照）。能力名与快照段名**一一对应**（`PLUGIN_CAPABILITIES` 是唯一登记处），渲染层按声明裁剪视图——「少给而非不给」。
+
+**主进程**（`src/main/plugins/`，纯逻辑与 Electron 接线分文件：assets/manifest/watch 可离线测，service 是 cordis Service，protocol 只做接线）：
+- `manifest.ts`：id 即协议主机名，限小写字符集；entry 必为插件目录内 `.js/.mjs`（绝对路径/盘符/反斜杠/穿越一律拒）；未知能力串静默丢弃（认不得的能力不给），必填项缺失才整体失效。
+- `assets.ts`：`deck-plugin://<host>/<path>` → 文件 + MIME 的纯解析。穿越/未知主机/目录/白名单外一律 null（→404）；`.js` 必 `text/javascript`，否则 ESM 被 Chromium 拒。
+- `service.ts`：扫多根 → manifest → 实例（`ready`/`dispose` 生命周期，ctx 注入）→ `fs.watch`（含插件目录**递归**，改自己的 card.js 也要触发）→ 重扫 → 推事件。资产指纹 = manifest 原文 + 入口 mtime/size，变了即换代：revision 递增、entry URL 带 `?v=`，渲染层据此绕开 ESM 模块缓存。
+- `protocol.ts`：`registerSchemesAsPrivileged`（standard+secure+supportFetchAPI+cors，**app ready 前**）+ `protocol.handle`。读盘只在这里，渲染层 `contextIsolation + sandbox` 一字未动。
+
+**渲染层**：`index.html` 的 `<script type="module">`，页面改经 `deck-plugin://app/index.html` 载入（与插件资产同源）；新增 `renderer/plugins.ts` 运行时——`syncPlugins` 幂等对齐（新增装载/消失卸载/换代重挂/其余只推视图），在途 import 用令牌防「迟到的模块复活已卸载组件」。
+
+**三处执行期偏离决策记录（均按预决策清单默认执行，无新增提问）**：
+1. **插件目录**：缺省 `userData/plugins`，并按「+config 可改」新增 `config.plugins.dir`（空串=缺省，纯模块不引 Electron，真实落点由主进程解析）。目录由宿主**建出来**——首运行还没有这个目录是常态，不建就永远等不到首次放入的那个事件。
+2. **`unload(id)` 不作对外 API**：AC 的卸载动作是「移除插件目录」（文件级）由重扫驱动。保留一个只在进程内生效、下一次重扫又被装回来的 `unload` 是半吊子语义，不如不做。
+3. **原型键 id 不靠字符集挡**：字符集只挡大小写混写（`toString` 被拒）；`constructor` 这类放行，查表全程 `Map`（09 踩坑 1 的纪律），用例证「原型键 id 可寻址、`dirOf('toString')` 为 undefined」。协议主机名逐字匹配（WHATWG 只对特殊协议归一大小写，自定义协议主机名原样保留）——不做猜测映射。
+
+**测试**：318 → **403 全绿（28 文件）**，typecheck 干净。新增 `tests/plugins/`（manifest 28 / assets 30 / service 18，真 `fs.watch` 集成含「放入即识别/移除即消失」）+ 契约缝 5 条（快照带 plugins、放入/移除、事件独立推送、坏插件 error 态、**源码级守卫：渲染层不碰 fs**）+ config.plugins 4 条。
+
+**真机实证（冒烟脚本，不入库）**：起面板后把 `app/samples/hello-plugin` 复制进插件目录，**全程不重启面板**（boot 存证 1→1）：
+- 放入 → `plugin-mounted` + `hello-mounted`（插件模块真的跑起来了）+ 卡片进热区 `hello-card {48,760,320x120}`
+- 改 card.js → 再次 `plugin-mounted`（换代重载）
+- 删目录 → 热区里 `hello-card` 消失 + `plugins-changed`
+- 放回 → 恢复装载
+收尾已清理冒烟残留，`HideIcons` 键已消失（= 原生图标可见，还原链路无残留）。
+
+**未跑**：P11 电池探针已按「排最后」（09 踩坑 8）写进 `battery.js`，随 10b 的整轮电池一起跑——本拍只承诺真机冒烟，整轮电池与截图存证属 10b 的验收面。票面 AC 一律未勾。

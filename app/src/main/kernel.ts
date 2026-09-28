@@ -16,6 +16,7 @@ import { SearchService } from './services/search'
 import { SessionsService } from './services/sessions'
 import { SettingsService, type SettingsServiceOptions } from './services/settings'
 import { UsageService } from './services/usage'
+import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import type { WeatherLocation } from '../shared/contract'
 
 export interface KernelOptions {
@@ -45,6 +46,8 @@ export interface KernelOptions {
   layout?: DesktopLayout
   /** 会话行直达（工单09）：工具→exe 映射与依赖（离线测试注入假源；缺省主进程真源） */
   focus?: FocusServiceOptions
+  /** 桌面组件宿主（工单10）：插件根目录等（缺省 roots=[]：不装任何插件、不建目录） */
+  plugins?: PluginHostOptions
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -73,6 +76,8 @@ export function createKernel(options: KernelOptions = {}): Context {
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
   ctx.plugin(FocusService, options.focus)
+  // 桌面组件宿主（工单10）：缺省 roots=[]——离线测试不装任何插件，也不会被顺带建出目录
+  ctx.plugin(PluginHostService, { roots: [], ...options.plugins })
   const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
   if (tickMs > 0) {
     const timer = setInterval(() => ctx.bridge?.tick(), tickMs)

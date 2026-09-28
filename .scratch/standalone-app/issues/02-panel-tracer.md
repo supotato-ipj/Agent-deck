@@ -53,6 +53,7 @@ config.json 为运行时用户可编辑文件，已 gitignore 不入库：首运
 2. **Electron 下 spawn 的 child.pid ≠ 面板真实主进程 pid**（plain node 下相等）：面板以 boot 存证自报 pid，电池据此找窗/清杀；电池重启面板前须重置存证文件，否则 waitEvent 会命中上一轮的 boot。
 3. **电池模式必须压掉「窗口全关默认退出」**：Electron 无 window-all-closed 处理器时关窗即退，电池参照窗销毁会中断电池——accept 模式注册空处理器；面板模式的退出处理器只在 bootPanel 内注册。
 4. **渲染层是经典脚本**：tsc 以 module:es2022 出 `dist/renderer/main.js`（类型经 global.d.ts 全局别名，文件零 import/export）；一旦引入运行时模块语法即 SyntaxError。Vite 随票 04 引入后此边界自然消解。
+   - **supersede（工单10，2026-09-28）**：上句的「经典脚本」边界与「Vite 随票 04 引入」预期均已作废——Vite 从未落地（04-08 零痛感），渲染层在工单10 走路线 (b) 改为**原生 ESM**（`index.html` 的 `<script type="module">` + 经 `deck-plugin://` 特权协议加载），模块边界由此自然消解：相对导入带 `.js` 后缀即被 tsc 原样输出，插件资产与服务端同协议同源。原文保留作为当时决策的存证。
 5. cordis Service 在 `ctx.start()` 之后才挂 `ctx.<name>`（首轮冒烟 `kernel.bridge` undefined 即此因）；`ctx.stop()` 拆卸。
 6. 评审收编的其余项：`fileEventLog` 目录推导改用 `path.dirname`；report 头不再带「02-battery」前缀重复；`pinToBottom`/`RectLike` 等命名与形状保留现状（「钉扎」是 spec 词汇表对 z 序的正式用词，与「手钉」不同概念；rect 三形状在票 05/06 编排落地时再归一）。
 
