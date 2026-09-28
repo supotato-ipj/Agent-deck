@@ -121,6 +121,25 @@ if (RESTORE_MODE) {
     log?.append({ type: 'carry-boot', pid: process.pid, mode: 'carry' })
     carry.begin()
     app.on('before-quit', () => carry.restore('outer-quit'))
+    // 控制台信号缝隙（2026-09-28，09 票人工核验时踩到）：Ctrl+C / Ctrl+Break / 关终端窗由
+    // conhost 同发守卫与面板，Electron 主进程在 Windows 下 process.on('SIGINT'|'SIGBREAK')
+    // 不触发（真机实证：CTRL_BREAK 经 GenerateConsoleCtrlEvent 送达后整树死亡、Node 信号
+    // 处理器未运行、图标留隐藏态）——守卫进程内的任何还原钩子都会被同杀。
+    // 解法：还原守护（icon-restore-watch.cjs）以 detached + stdio:ignore 出生——无控制台
+    // 可收信号，且逃出 Chromium job kill-on-close（05 踩坑 2 的反向利用）；守护钉守卫
+    // 进程对象等死亡，死后若原生图标仍隐藏则翻回。仅在「本次确实由我隐藏」后拉起：
+    // 用户偏好隐藏/隐藏失败时无还原义务，也就无守护。正常退出路径守卫先还原、守护
+    // 见到图标可见即静默自退，零感知。
+    if (carry.didHide()) {
+      const watcher = spawn(process.execPath, [path.join(__dirname, 'icon-restore-watch.cjs'), String(process.pid)], {
+        detached: true,
+        stdio: 'ignore',
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      })
+      watcher.on('error', (err) => log?.append({ type: 'restore-watch-spawn-failed', message: err.message }))
+      watcher.unref()
+      log?.append({ type: 'restore-watch-spawned', pid: watcher.pid })
+    }
     const child = spawn(process.execPath, [app.getAppPath(), '--panel'], {
       cwd: app.getAppPath(),
       env: process.env,

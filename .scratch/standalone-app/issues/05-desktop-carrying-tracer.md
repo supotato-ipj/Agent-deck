@@ -57,3 +57,7 @@
 **移交 06 的注意**：① 文档组（按扩展名聚合列）与分区几何/dock 尺寸/标签位进 config 属 06「归类/编排/Python 先例移植」（zones_plan.py 的 doc_group/_doc_placements）；② 05 的 1Hz 重扫描事实上已交付「新建自动入池、删除同步消失」（电池已断言），06 的「监听增删」只剩 fs.watch 化与归类入区；③ 06 拖拽摆位落地时 renderer 的 desktop-rendered 条目矩形（电池已用其定位探针）可复用为拖放源坐标。
 
 **残留物**：无（电池清场：探针 lnk/标记文件/临时 ps1 删除、托盘 IsPromoted 还原、图标状态回电池前 visible=true、无残留 electron 进程、光标归位）。
+
+---
+
+**2026-09-28 缝隙已修（同日两轮真机实证）**：首修尝试守卫内 `process.on('SIGINT'|'SIGBREAK'|'SIGHUP')`——真机证伪：CTRL_BREAK 经 GenerateConsoleCtrlEvent 送达后整树死亡、Node 信号处理器未运行、图标留隐藏态（Electron 主进程在 Windows 下不走 Node 信号路径，守卫进程内任何还原钩子都被同杀）。终修：**还原守护** `icon-restore-watch.cjs`（ELECTRON_RUN_AS_NODE 形态的 electron 二进制，免独立 node 依赖）由守卫在 `carry.didHide()`（本次确实由我隐藏）后以 detached + stdio:ignore 拉起——无控制台可收任何信号、逃出 job kill-on-close（踩坑 2 的反向利用）；`WaitForSingleObject` 钉守卫**进程对象**（防 pid 复用），守卫死后按**视图事实**翻回（icon-carry 新导出 `restoreIfHidden`：图标可见则绝不动）；还原后自退。真机证据：① 死路径——CTRL_BREAK 后整树灭，图标自动还原 visible=false→true，守护随后自退（electron 进程 10→0）；② 回归——taskkill 面板 → 守卫照常还原（事件日志 `icons-restored reason=panel-exit`）→ 守护静默自退，零双翻转。离线 318/318、typecheck 干净。测试侧注：GenerateConsoleCtrlEvent(CTRL_C_EVENT) 对 npm spawn 树疑似不达（进程组 Ctrl+C 禁用，未深究），CTRL_BREAK 必达——以 BREAK 复现用户 Ctrl+C 的死态（守护无控制台，对所有控制台信号免疫，机制层面覆盖用户场景）。

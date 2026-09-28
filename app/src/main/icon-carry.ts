@@ -114,6 +114,24 @@ export class IconCarry {
       viewVisibleAfter: iconsVisible(),
     })
   }
+
+  /** 本次是否真的执行了隐藏（还原守护 icon-restore-watch 的拉起依据；用户本就偏好隐藏/隐藏失败时为 false） */
+  didHide(): boolean {
+    return this.hid
+  }
+}
+
+/** 视图事实兜底还原（icon-restore-watch 守护专用）：仅当此刻确为隐藏态才翻回；幂等。
+ * 与 IconCarry.restore 的差别：不依赖「本次由我隐藏」标记——守卫已死，守护无从查标记，
+ * 死路径兜底以视图事实为唯一判据（可见则绝不动，防把别人显出来的藏回去）。 */
+export function restoreIfHidden(log: EventLog | null, reason: string): void {
+  const ok = iconsVisible() ? true : toggleIcons()
+  log?.append({
+    type: ok ? 'icons-restored' : 'icons-restore-failed',
+    reason,
+    prefHiddenAfter: prefHidden(),
+    viewVisibleAfter: iconsVisible(),
+  })
 }
 
 /** 一次性确保图标可见（--icon-restore：电池清场兜底与用户自救通道） */
