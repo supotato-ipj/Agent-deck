@@ -1,6 +1,6 @@
 # AGENT DECK 独立面板
 
-常驻桌面的作战面板：以卡片网格与底部 dock 呈现五个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话与任务状态、硬件指标，并**自绘承载桌面项**。
+常驻桌面的作战面板：以卡片网格与底部 dock 呈现五个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话列表与硬件指标，并**自绘承载桌面项**。
 
 一个独立 Electron 常驻窗口浮于桌面壁纸之上，背景透明、默认鼠标穿透，仅在交互热区内接收点击。隐藏原生桌面图标并接管其承载职责，壁纸退为背景层——系统壁纸或 Wallpaper Engine 挂载的壁纸均可。
 
