@@ -1521,13 +1521,16 @@ async function main() {
       try {
         // a. 入口开层 + 浮层自身是热区；开层存证带滑杆矩形与当前值。
         //    工单02：开层同时走键盘模式（ESC 关层、滑杆键盘路径都要键盘焦点在手）。
+        //    过滤起点取墙钟（P7S 同法）：渲染层先发 keyboard-mode-on 再报 settings-opened，
+        //    以 opened0.t 为起点会把 on 事件筛在门外（首轮实测踩中）。
+        const tOpen0 = Date.now();
         const opened0 = await openOverlay();
         const overlayZone = latestZoneOf('settings-card');
         opened0 && overlayZone
           ? rep.pass(`设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 ${Math.round(overlayZone.w)}x${Math.round(overlayZone.h)}（可交互）`)
           : rep.fail(`设置浮层开启失败（opened=${JSON.stringify(opened0)}，热区=${JSON.stringify(overlayZone)}）`);
         if (opened0) {
-          const kbOn08 = await waitEvent('keyboard-mode-on', (e) => e.t >= opened0.t, 3000);
+          const kbOn08 = await waitEvent('keyboard-mode-on', (e) => e.t >= tOpen0, 3000);
           const fg08 = w32.GetForegroundWindow();
           const fgIsPanel08 = !!fg08 && w32.threadIdOf(fg08).pid === panelPid;
           kbOn08 && fgIsPanel08
@@ -1565,13 +1568,15 @@ async function main() {
             : rep.fail(`高位拖拽断言未过（input=${JSON.stringify(high.input)}，set=${JSON.stringify(high.set)}，applied=${JSON.stringify(high.applied)}，config=${high.cfg}）`);
           fullShot('08-opacity-high');
 
+          const tEsc0 = Date.now();
           const escEvt = await closeOverlayEsc();
           escEvt
             ? rep.pass('ESC 关闭设置浮层（settings-closed reason=esc 存证）')
             : rep.fail('ESC 未关闭设置浮层（settings-closed reason=esc 未到）');
           // 工单02 关层恢复：keyboard-mode-off 存证 + 面板恢复不可聚焦样式
+          // （off 事件先于 settings-closed 落盘，过滤起点取按 ESC 前的墙钟）
           if (escEvt) {
-            const kbOff08 = await waitEvent('keyboard-mode-off', (e) => e.t >= escEvt.t, 3000);
+            const kbOff08 = await waitEvent('keyboard-mode-off', (e) => e.t >= tEsc0, 3000);
             const ex08 = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
             kbOff08 && (ex08 & w32.WS_EX_NOACTIVATE)
               ? rep.pass(`关层恢复不可聚焦：keyboard-mode-off 存证，WS_EX_NOACTIVATE 回归（EXSTYLE=0x${(ex08 >>> 0).toString(16)}）`)
