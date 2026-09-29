@@ -246,6 +246,25 @@ function createProbeLnk(lnkPath, markerPath) {
   }
 }
 
+// 造指向指定 exe 的验收 lnk（工单01 图标区分度探针夹具）。与 createProbeLnk 同法：
+// ASCII-only 临时 ps1 走 -File（内联 -Command 传 COM 调用在本机实测挂起/静默失败）。
+// 不声明图标定位——默认图标留空，决策链走「未声明回落目标可执行文件」分支。
+function createShortcutLnk(lnkPath, targetPath) {
+  const script = [
+    '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($args[0])',
+    '$s.TargetPath = $args[1]',
+    '$s.Save()',
+    "Write-Output ('exists=' + (Test-Path -LiteralPath $args[0]))",
+  ].join('\n');
+  const scriptFile = path.join(__dirname, 'evidence', '01-create-shortcut-lnk.ps1');
+  fs.writeFileSync(scriptFile, script, 'utf8');
+  try {
+    return psRunFile([scriptFile, lnkPath, targetPath]);
+  } finally {
+    try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+  }
+}
+
 // 进程存活探测（pid 退出轮询用）
 function isAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -884,6 +903,78 @@ async function main() {
         ? rep.pass('清理探针 lnk 后条目同步消失（面板与磁盘一致）')
         : rep.fail('清理探针 lnk 后条目未消失');
       try { fs.unlinkSync(markerPath); } catch { /* 尽力清理 */ }
+
+      // —— P5-ICON 工单01 快捷方式真实图标：不同快捷方式的图标 dataUrl 互不相等（spec 防回归线）——
+      // 根因（.scratch/icon-probe 实证）：本机 Electron getFileIcon 对一切 .lnk 返回字节级相同的
+      // 通用图标，对目标本体直取正常。修法在适配层提取链：lnk 先解析图标源再对本体提取。
+      // 夹具法不依赖用户桌面内容：现场造两条指向不同真 exe（notepad/charmap）的 lnk，
+      // 等面板扫描指纹翻转（desktop-rendered 只在变化时发，带入夹具名即翻转）后，
+      // 经控制器内桥接取 desktop/icon 断言互不相等；结束删夹具，等条目同步消失。
+      {
+        const tIcon = Date.now();
+        const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+        const fixtureDefs = [
+          { name: `DECK-ICON-${tIcon}-NOTEPAD.lnk`, target: path.join(sysRoot, 'notepad.exe') },
+          { name: `DECK-ICON-${tIcon}-CHARMAP.lnk`, target: path.join(sysRoot, 'System32', 'charmap.exe') },
+        ].filter((fx) => fs.existsSync(fx.target));
+        const fixturePaths = fixtureDefs.map((fx) => path.join(scan.user, fx.name));
+        try {
+          if (fixtureDefs.length < 2) {
+            rep.fail(`图标区分度探针前置失败：目标 exe 缺失（${fixtureDefs.map((fx) => fx.target).join(', ')}）`);
+          } else {
+            for (const fx of fixtureDefs) createShortcutLnk(path.join(scan.user, fx.name), fx.target);
+            const joined = await waitEvent('desktop-rendered',
+              (e) => e.t >= tIcon && fixtureDefs.every((fx) => (e.names || []).includes(fx.name)), 10000);
+            joined
+              ? rep.note(`图标夹具入池，面板扫描指纹已翻转：${fixtureDefs.map((fx) => fx.name).join(' / ')}`)
+              : rep.fail('图标夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）');
+            if (joined) {
+              // 控制器内桥接：进程内内核（kernel.ts 契约缝先例）+ 真源桌面装配——
+              // 提取链与面板同一份代码（dist 构建产物，npm run accept 先 build）。
+              // 定时器全关；usage/store 假源隔离，不触真实 usage 目录与摆位存储。
+              const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-icon-probe-'));
+              const { createKernel } = require(path.join(APP_ROOT, 'dist', 'main', 'kernel.js'));
+              const ctx = createKernel({
+                tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchIntervalMs: 0,
+                desktop: { storeFile: path.join(probeDir, 'layout.json') },
+                usage: {
+                  dir: path.join(probeDir, 'usage'),
+                  deps: { runningPidExes: () => new Map(), foregroundExe: () => null, readPrior: async () => new Map() },
+                },
+              });
+              await ctx.start();
+              try {
+                const snap = await ctx.bridge.invoke('panel/snapshot', null);
+                const byName = new Map((snap.desktop.items || []).map((i) => [i.name, i]));
+                const urls = [];
+                for (const fx of fixtureDefs) {
+                  const item = byName.get(fx.name);
+                  if (!item) { rep.fail(`控制器内核扫描未见夹具 ${fx.name}（桌面根与面板不一致）`); urls.push(null); continue; }
+                  const res = await ctx.bridge.invoke('desktop/icon', { key: item.iconKey });
+                  urls.push(res && res.dataUrl);
+                }
+                const okPair = urls.every((u) => typeof u === 'string' && u.startsWith('data:image/') && u.length > 0);
+                okPair && urls[0] !== urls[1]
+                  ? rep.pass(`快捷方式真实图标：两条夹具经桥接 desktop/icon 取得的 dataUrl 互不相等`
+                    + `（notepad ${urls[0].length}B / charmap ${urls[1].length}B——lnk 绕行提取链生效，通用图标回归即二者同串）`)
+                  : rep.fail(`图标区分度未过：dataUrl=${JSON.stringify(urls.map((u) => (u ? `${u.slice(0, 24)}…(${u.length}B)` : null)))}`);
+              } finally {
+                await ctx.stop();
+                try { fs.rmSync(probeDir, { recursive: true, force: true }); } catch { /* 尽力清理 */ }
+              }
+            }
+          }
+        } finally {
+          for (const p of fixturePaths) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
+          // 清场存证按时间下限取：历史 desktop-rendered 天然不含夹具名，须只认夹具创建之后的拍
+          const tClean = Date.now();
+          const goneFixtures = await waitEvent('desktop-rendered',
+            (e) => e.t >= tClean && fixtureDefs.every((fx) => !(e.names || []).includes(fx.name)), 6000);
+          goneFixtures
+            ? rep.pass('图标夹具清理后条目同步消失（面板与磁盘一致）')
+            : rep.note('图标夹具清理存证未到（不阻塞；夹具已尽力删除）');
+        }
+      }
 
       // 杀面板进程（taskkill /F）：外层守卫自动还原原生图标
       spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });

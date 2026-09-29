@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { DesktopDirEntry, DesktopRoots } from './scan'
+import { shortcutIconSource } from './icons'
 import { watchDesktopRoots } from './watch'
 
 const FILE_ATTRIBUTE_HIDDEN = 0x2
@@ -60,11 +61,22 @@ export function defaultDesktopRoots(): DesktopRoots {
   }
 }
 
-/** 图标提取真源：Electron app.getFileIcon（SHGetFileInfo 封装，lnk 自动解析目标图标）。
- * 失败以 rejection 上抛——IconCache 按尝试上限退避。 */
+/** 图标提取真源：Electron app.getFileIcon（SHGetFileInfo 封装）。
+ * 失败以 rejection 上抛——IconCache 按尝试上限退避。
+ * .lnk 绕行（工单01；上游 electron#15809/#18292：本机 getFileIcon 对一切 lnk 返回
+ * 字节级相同的通用图标，对目标本体直取正常）：先经 shell.readShortcutLink 解析图标源，
+ * 按决策（图标定位优先、回落目标可执行文件）对本体提取；解析失败或源不可用回落
+ * 对 lnk 本体提取（即现状通用图标，死链的既定观感）。决策纯函数在 icons.ts。 */
 export function electronIconExtractor(filePath: string): Promise<string | null> {
-  const { app } = require('electron')
-  return app.getFileIcon(filePath, { size: 'large' }).then(
+  const { app, shell } = require('electron')
+  let source = filePath
+  if (path.extname(filePath).toLowerCase() === '.lnk') {
+    try {
+      const details = shell.readShortcutLink(filePath)
+      source = shortcutIconSource(details.icon, details.target, fsFileExists) ?? filePath
+    } catch { /* lnk 解析失败：回落对本体提取 */ }
+  }
+  return app.getFileIcon(source, { size: 'large' }).then(
     (img: { isEmpty(): boolean; toDataURL(): string }) => (img.isEmpty() ? null : img.toDataURL()),
     (err: unknown) => {
       throw err instanceof Error ? err : new Error(String(err))
