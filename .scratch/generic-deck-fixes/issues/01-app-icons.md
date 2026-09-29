@@ -1,6 +1,6 @@
 # 工单01: 应用区快捷方式真实图标
 
-Status: ready-for-agent
+Status: claimed
 
 Spec: `.scratch/generic-deck-fixes/spec.md`（本工单对应 Implementation Decisions「快捷方式图标提取链」与 User Stories 1-4、19 的图标防回归线）。
 
