@@ -138,7 +138,7 @@ describe('HardwareService 采样状态机', () => {
 })
 
 describe('SessionsService', () => {
-  it('refresh 采集会话与 Qoder 状态；缺根静默为空', async () => {
+  it('refresh 采集会话行（QD 行与行内任务进度保留，工单03）；缺根静默为空', async () => {
     const ctx = new Context()
     const root = path.join(tmp, `q-${Date.now()}`)
     const fx = new QoderFx(root)
@@ -152,15 +152,8 @@ describe('SessionsService', () => {
       svc.refresh(fx.now)
       expect(svc.current()).toHaveLength(1)
       expect(svc.current()[0].project).toBe('alpha')
-      const q = svc.qoderState()
-      expect(q.active_sessions).toBe(1)
-      expect(q.session).toMatchObject({
-        project: 'alpha',
-        running: true,
-        tasks_done: 1,
-        tasks_total: 2,
-        current_task: '正在跑的活',
-      })
+      // 状态卡虽退役，会话行的行内任务进度仍是五工具通用能力（会话卡 QD 行渲染依据）
+      expect(svc.current()[0]).toMatchObject({ tool: 'qoder', tasks_done: 1, tasks_total: 2 })
     } finally {
       await ctx.stop()
     }
@@ -168,7 +161,7 @@ describe('SessionsService', () => {
 })
 
 describe('内核快照契约（工单04 扩展）', () => {
-  it('panel/snapshot 含会话/Qoder 状态/硬件与历史曲线/天气坐标', async () => {
+  it('panel/snapshot 含会话/硬件与历史曲线/天气坐标；qoder 段随工单03 退役不在场', async () => {
     const ctx = createKernel({
       tickIntervalMs: 0,
       hardwareIntervalMs: 0,
@@ -186,7 +179,7 @@ describe('内核快照契约（工单04 扩展）', () => {
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
       expect(snap.clock.epochMs).toBeGreaterThan(0)
       expect(snap.sessions).toEqual([])
-      expect(snap.qoder).toEqual({ active_sessions: 0, session: null })
+      expect('qoder' in snap).toBe(false)
       expect(snap.hardware.gauges.cpu).toBe(0)
       expect(snap.hardware.history.cpu).toEqual([])
       expect(snap.weather).toEqual({ latitude: 1.5, longitude: 2.5 })

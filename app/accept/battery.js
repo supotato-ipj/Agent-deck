@@ -27,7 +27,7 @@ const AMBER = [245, 166, 35];
 // 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP）
 const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 }
 const LEFT_CARDS_DIP = { x: 48, y: 48, w: 320, h: 686 }   // 时钟+天气+日历（至 734）
-// 右列自 07 起顶部是搜索面板（SEARCH 卡 ~89 高 + 会话 + Qoder + 硬件，底缘至 942）
+// 右列自 07 起顶部是搜索面板（SEARCH 卡 ~89 高 + 会话（工单03 起加高吞掉 Qoder 状态块槽）+ 硬件，底缘至 942）
 const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 894 }
 // 搜索卡几何（与 src/renderer/index.html #search-card 一致；results 展开随事件重取）
 const SEARCH_CARD_DIP = { right: 48, y: 48, w: 420, h: 89 }
@@ -660,10 +660,6 @@ async function main() {
       sessionsEvt
         ? rep.pass(`会话列表卡：渲染层收到内核会话数据（count=${sessionsEvt.count}，真机活跃池）`)
         : rep.fail('会话列表卡：未收到 sessions-rendered 存证');
-      const qoderEvt = await waitEvent('qoder-rendered', null, 8000);
-      qoderEvt
-        ? rep.pass(`Qoder 状态卡：渲染层收到状态数据（active=${qoderEvt.active}）`)
-        : rep.fail('Qoder 状态卡：未收到 qoder-rendered 存证');
       const hw2 = await waitEvent('hardware-rendered', (e) => e.n >= 2, 8000);
       hw2
         ? rep.pass(`硬件指标卡：面板 1Hz 刷新持续走数（第 ${hw2.n} 次渲染）`)
@@ -695,7 +691,7 @@ async function main() {
       };
       capture(leftZone, '04-cards-left');
       capture(rightZone, '04-cards-right');
-      rep.note('四类卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（会话/Qoder/硬件曲线）');
+      rep.note('卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（会话/硬件曲线）');
     }
 
 
@@ -1919,13 +1915,13 @@ async function main() {
       const dest = path.join(pluginsDir, 'hello');
       const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
       try {
-        // 0. 内置五卡自举：五个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        // 0. 内置四卡自举：四个桌面组件必须**经插件契约**装载（不是面板自己画的）。
         //    事件按面板代次取（lastBootMs 之后）：事件文件跨重启不清，上一任面板的
         //    plugin-mounted 留着会让本段假通过。
         const since = lastBootMs();
-        const builtinIds = ['clock', 'weather', 'sessions', 'qoder', 'hardware'];
+        const builtinIds = ['clock', 'weather', 'sessions', 'hardware'];
         const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id, since));
-        // 观感一致性的机器可查部分：五张卡都进了热区声明（都在场、都在点击穿透模型里），
+        // 观感一致性的机器可查部分：四张卡都进了热区声明（都在场、都在点击穿透模型里），
         // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
         // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
         const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
@@ -1936,13 +1932,26 @@ async function main() {
           && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
           && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
         builtinMounted.length === builtinIds.length && zonesOk && geomOk
-          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张信息卡均经插件契约装载渲染，`
-            + `且五张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
+          ? rep.pass(`桌面组件·内置四卡自举：${builtinIds.join('/')} 四张信息卡均经插件契约装载渲染，`
+            + `且四张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
             + `像素级观感按惯例人工核验 04-cards-*.png）`)
-          : rep.fail(`桌面组件·内置五卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
+          : rep.fail(`桌面组件·内置四卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
             + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/') || '无'}）；`
             + `热区声明 ${zonesOk ? '齐' : `缺 ${builtinIds.filter((i) => !cardZones.has(`${i}-card`)).join('/') || '无'}`}；`
             + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);
+
+        // 0.5 Qoder 状态块退役（工单03）：热区声明按 id 找 qoder-card 应缺席，
+        //     会话卡加高补位——top 152 不动、高 348→522（吞 16px 间隙 + 158px 状态块槽，
+        //     底缘 674 与硬件卡 top 690 之间仍隔 16px），硬件卡位置零改动。
+        const zoneRects = (readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [];
+        const qoderGone = !zoneRects.some((r) => r.id === 'qoder-card');
+        const sz = zoneRects.find((r) => r.id === 'sessions-card');
+        const fillOk = Boolean(sz) && sz.y === 152 && sz.h === 522;
+        qoderGone && fillOk
+          ? rep.pass(`Qoder 状态块退役：qoder-card 不在任何热区声明里，会话卡加高补位到位`
+            + `（top ${sz.y}、高 ${sz.h}，覆盖原状态块槽位 152..674）`)
+          : rep.fail(`Qoder 状态块退役探针未过：qoder-card ${qoderGone ? '已缺席' : '仍在热区声明'}，`
+            + `sessions-card 矩形 ${JSON.stringify(sz || null)}（期望 top 152 / 高 522）`);
 
         if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
         if (lastEvent('plugin-mounted', (e) => e.id === 'hello', since)) {

@@ -1,11 +1,12 @@
 /**
  * Qoder 扫描器（.qoder-cn 数据根）+ 会话列表共用的 jsonl 尾部解析。
- * 会话列表卡与 Qoder 状态卡共用本模块（对应 Python agent_sessions 与 server._scan_qoder 的复用关系）。
+ * 只服务会话列表的 qoder 会话行（QD 标签、运行状态、行内任务进度——五工具通用能力）；
+ * 曾共用的 Qoder 状态卡已随工单03 退役（qoderStatus 与 QoderStatus 一并移除）。
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { ACTIVE_WINDOW, RUNNING_WINDOW, makeSession } from './types'
-import type { QoderStatus, SessionInfo } from './types'
+import type { SessionInfo } from './types'
 
 /** 读文件末尾至多 maxBytes 字节，按行返回（去尾部残行由调用方的逐行解析天然兜底） */
 function readTail(file: string, maxBytes: number): string {
@@ -120,7 +121,7 @@ export interface QoderRow {
   age: number
 }
 
-/** 活跃池内的 qoder jsonl 行（会话列表与状态卡共用） */
+/** 活跃池内的 qoder jsonl 行（scanQoder 的行源） */
 export function qoderJsonlRows(root: string, now: number): QoderRow[] {
   const rows: QoderRow[] = []
   const projectsDir = path.join(root, 'projects')
@@ -166,22 +167,4 @@ export function scanQoder(root: string, now: number): SessionInfo[] {
     }))
   }
   return sessions
-}
-
-/** Qoder 状态卡数据（Python server.qoder_state 的无缓存形态）：最近活跃会话的进度快照 */
-export function qoderStatus(root: string, now: number): QoderStatus {
-  const rows = [...qoderJsonlRows(root, now)].sort((a, b) => b.mtime - a.mtime)
-  if (rows.length === 0) return { active_sessions: 0, session: null }
-  const latest = rows[0]
-  const { done, total, current } = taskStats(latest.id, root)
-  return {
-    active_sessions: rows.length,
-    session: {
-      project: projectName(latest.file),
-      running: latest.age <= RUNNING_WINDOW,
-      tasks_done: done,
-      tasks_total: total,
-      current_task: current,
-    },
-  }
 }

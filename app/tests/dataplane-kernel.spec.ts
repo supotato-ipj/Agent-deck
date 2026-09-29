@@ -43,7 +43,7 @@ function desktopOpts(dir: string) {
 }
 
 describe('数据面内核（采集子进程的服务装配）', () => {
-  it('采样轮出口给完整快照段：时钟/会话/Qoder/硬件/桌面（图标面缺席不影响扫描编排）', async () => {
+  it('采样轮出口给完整快照段：时钟/会话/硬件/桌面（图标面缺席不影响扫描编排；qoder 段随工单03 退役）', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
     const root = path.join(dir, 'qoder')
@@ -78,7 +78,7 @@ describe('数据面内核（采集子进程的服务装配）', () => {
       const snap = snapshots[snapshots.length - 1]
       expect(snap.clock.epochMs).toBeGreaterThan(0)
       expect(snap.sessions.map((s) => s.project)).toEqual(['alpha'])
-      expect(snap.qoder).toMatchObject({ active_sessions: 1, session: { project: 'alpha', running: true, tasks_done: 1, tasks_total: 2 } })
+      expect('qoder' in snap).toBe(false)
       expect(snap.hardware.gauges.gpu_usage).toBe(42)
       expect(snap.desktop.items.map((i) => i.name)).toEqual(['Probe.lnk'])
       expect(snap.desktop.plan.dock.map((d) => d.name)).toEqual(['Probe.lnk'])

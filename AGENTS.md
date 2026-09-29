@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓库产出 **AGENT DECK 独立面板**：常驻桌面的 Electron 应用，以卡片网格与底部 dock 呈现五工具会话、Qoder 任务进度与硬件指标，并自绘承载桌面项。架构决策见 `docs/adr/0004-electron-cordis-standalone-panel.md`，领域词汇见 `CONTEXT.md`。Python 数据服务、看门狗与 WE 壁纸链已于 2026-09-29 退役（工单11），壁纸资产只读封存于 `archive/`。
+本仓库产出 **AGENT DECK 独立面板**：常驻桌面的 Electron 应用，以卡片网格与底部 dock 呈现五工具会话与硬件指标，并自绘承载桌面项。架构决策见 `docs/adr/0004-electron-cordis-standalone-panel.md`，领域词汇见 `CONTEXT.md`。Python 数据服务、看门狗与 WE 壁纸链已于 2026-09-29 退役（工单11），壁纸资产只读封存于 `archive/`。
 
 ## Worktree 布局（平行开发）
 

@@ -143,10 +143,6 @@ export class DataplaneService extends Service implements PanelDataPort {
     return this.latest?.sessions ?? []
   }
 
-  qoder() {
-    return this.latest?.qoder ?? { active_sessions: 0, session: null }
-  }
-
   hardware(): HardwareState {
     return this.latest?.hardware ?? {
       gauges: { cpu: 0, memory: 0, memory_gb: '-- GB/-- GB' },

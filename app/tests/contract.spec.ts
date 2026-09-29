@@ -5,6 +5,7 @@ import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
 import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
+import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
 import type { PanelSnapshot, PluginInfo } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
 
@@ -530,6 +531,38 @@ describe('内核桥接契约（工单10 桌面组件扩展）', () => {
     expect(src).not.toMatch(/require\(|node:fs/)
     const preload = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8')
     expect(preload).not.toMatch(/node:fs|readFileSync/) // 渲染层唯一的特权面只做 IPC 转发
+  })
+})
+
+describe('内核桥接契约（工单03 Qoder 状态块退役）', () => {
+  /** 落一个插件目录：manifest + 入口资产（工单10 同款最小形态） */
+  function writePlugin(root: string, manifest: Record<string, unknown>): void {
+    const dir = path.join(root, String(manifest.id))
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'plugin.json'), JSON.stringify(manifest), 'utf8')
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {}', 'utf8')
+  }
+
+  it('插件能力表无 qoder：快照段移除后能力声明不撒谎', () => {
+    expect(PLUGIN_CAPABILITIES).not.toContain('qoder')
+  })
+
+  it('旧 manifest 声明的 qoder 能力按未知能力串静默丢弃，manifest 仍有效', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      writePlugin(root, {
+        id: 'legacy-qoder', name: '旧状态卡', version: '1.0.0', entry: './card.js',
+        capabilities: ['qoder', 'clock'],
+      })
+      ctx.plugins!.rescan()
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins[0]).toMatchObject({ id: 'legacy-qoder', status: 'ok', capabilities: ['clock'] })
+    } finally {
+      await ctx.stop()
+    }
   })
 })
 

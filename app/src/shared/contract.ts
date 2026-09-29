@@ -28,20 +28,6 @@ export interface SessionInfo {
   state: SessionState
 }
 
-/** Qoder 状态卡：最近活跃会话的进度快照（Python server.qoder_state 的字段集） */
-export interface QoderSessionState {
-  project: string
-  running: boolean
-  tasks_done: number
-  tasks_total: number
-  current_task: string | null
-}
-
-export interface QoderStatus {
-  active_sessions: number
-  session: QoderSessionState | null
-}
-
 /** 硬件仪表（旧 /deck gauges 字段集）：GPU/网络字段在源不可用时缺位 */
 export interface HardwareGauges {
   cpu: number
@@ -152,12 +138,13 @@ export type FocusAction = 'focused' | 'launched' | 'degraded'
  * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
  * 取值与 PanelSnapshot 的段名一一对应——「少给而非不给」（同桌面项池校验思路）：
  * 渲染层按声明裁剪快照后交给插件，未声明的段根本不出内核。
+ * 工单03 起 qoder 段随状态块退役移除（能力表收窄，旧声明按未知能力串静默丢弃）。
  */
-export type PluginCapability = 'clock' | 'sessions' | 'qoder' | 'hardware' | 'weather' | 'desktop' | 'layout' | 'settings'
+export type PluginCapability = 'clock' | 'sessions' | 'hardware' | 'weather' | 'desktop' | 'layout' | 'settings'
 
 /** 全部能力（渲染层裁剪口径的唯一实现处；新增快照段时同步登记） */
 export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
-  'clock', 'sessions', 'qoder', 'hardware', 'weather', 'desktop', 'layout', 'settings',
+  'clock', 'sessions', 'hardware', 'weather', 'desktop', 'layout', 'settings',
 ] as const
 
 /** 插件 manifest（插件目录下 plugin.json）：声明式契约，spec 用户故事 37 */
@@ -201,11 +188,10 @@ export interface PluginInfo {
   revision: number
 }
 
-/** 面板快照：02 时钟；04 扩展会话/Qoder 状态/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何；08 设置；10 桌面组件 */
+/** 面板快照：02 时钟；04 扩展会话/硬件与历史曲线/天气坐标；05 桌面项池；06 编排与几何；08 设置；10 桌面组件。qoder 段随工单03 状态块退役移除 */
 export interface PanelSnapshot {
   clock: ClockState
   sessions: SessionInfo[]
-  qoder: QoderStatus
   hardware: HardwareState
   weather: WeatherLocation
   desktop: DesktopState

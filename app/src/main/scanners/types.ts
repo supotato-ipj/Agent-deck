@@ -4,9 +4,9 @@
  * 本目录是纯逻辑：文件系统与 SQLite 直读，不走任何 API/IPC，可离线测试。
  */
 import path from 'node:path'
-import type { SessionInfo, QoderStatus } from '../../shared/contract'
+import type { SessionInfo } from '../../shared/contract'
 
-export type { SessionInfo, QoderStatus }
+export type { SessionInfo }
 
 export const RUNNING_WINDOW = 90.0
 export const ACTIVE_WINDOW = 600.0

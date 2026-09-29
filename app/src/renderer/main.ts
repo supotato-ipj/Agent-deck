@@ -689,7 +689,7 @@ function render(snap: PanelSnapshot): void {
   lastSnapshot = snap
   renderDesktop(snap.desktop, snap.layout)
   renderSettings(snap.settings)
-  // 桌面组件（工单10）：时钟/天气/会话/Qoder/硬件五卡各由插件自己渲染，
+  // 桌面组件（工单10）：时钟/天气/会话/硬件四卡各由插件自己渲染（Qoder 状态卡随工单03 退役），
   // 宿主只负责把清单与裁剪后的视图喂过去；日历仍在宿主页面内。
   syncPlugins(snap.plugins, snap, pluginDeps)
   const month = new Date(snap.clock.epochMs).getMonth()
