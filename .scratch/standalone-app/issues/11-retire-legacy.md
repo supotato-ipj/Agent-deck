@@ -61,6 +61,32 @@
    （P6 复位与 P8 开层全灭）。新增 `withControlWindowClear` 收放电池自己那一扇窗后修复。
    **最终全绿需在安静桌面下复跑**（电池跑时别开着 Chromium 窗口）。
 
+**2026-09-29 收尾归位（merge ad914a0，已 push origin master）**
+
+按 `agent-deck-worktree` skill 收尾：worktree 全绿后合入主检出并推送，工单随合并进 master。
+主检出自举：npm install + 构建 + 首次启动生成 `app/config.json`（按本机 1920x1080 几何）。
+
+**自启项已装到生产位置**：`config.json` 填 `autostart.appDir = D:\local_works\agent-deck\app`
+后启动面板，Startup 里的 `AGENT DECK.lnk` 指向
+`D:\local_works\agent-deck\app\node_modules\electron\dist\electron.exe "<app 目录>"`——
+**指向主检出而非 worktree**（worktree 一收尾即删，自启项不得指它）。
+
+**一个真实事故，正好验证了评审收编的那条规则**：09:47 首轮电池跑的是**修复前**的代码，
+worktree 面板按「缺失即新建」把 `AGENT DECK.lnk` 写成了指向 worktree（该文件创建时间
+2026-09-29 09:47:11 可查）。评审收编后的「只有生产位置才有权接管 / 不追改活链」正确地
+拒绝了自动改指——因为 worktree 还在、目标仍活。改指须显式：删掉该 lnk 再启动生产面板重建。
+这正是 README 排查节写的流程，也说明「不追改活链」不等于「永不修正」。
+
+**主检出遗留**：`.venv/`（0.7 MB，旧 Python 栈的孤儿虚拟环境，源文件已删）；
+`D:\local_works\agent-deck-wt\listary-acceptance\`（更早 feature 的空目录，git 已不认）。
+两者均未动，留待用户处置。
+
+**worktree 目录空壳**：`git worktree remove` 已解除注册并清空内容，但目录本身因是当前
+agent 会话的工作目录而被占用、无法删除；会话结束后可自行删掉空目录。
+
+**远端分支**：`feat/standalone-app` 仍留在 origin（停在合并前的 a347a06），按仓库纪律
+删远端分支须用户明确确认，本次未删。
+
 **2026-09-27 旧栈运行态提前清理（bug 修复，非本工单验收）**
 
 用户报告桌面偶现 WE 版残留 Listary 搜索框组件，定位为旧检出 `D:\test-folder\wallpaperengine-research` 的自启链：Startup 快捷方式 `qoder-deck-server-watchdog.lnk` → `server_watchdog.pyw`（PID 18604）→ `server.py`（PID 30612，内嵌 Tk 搜索面板窗）。已删 Startup 快捷方式并结束两进程（hermes 工具进程无关未动）；核查无计划任务/HKLM/看门狗自重建等其他复活途径。**本工单的「旧自启项移除」在运行态层面已提前完成**，代码退役（删脚本、冻结壁纸资产、Startup 改指新应用、真重启复验）仍按本工单计划执行。
