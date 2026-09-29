@@ -1,6 +1,6 @@
 # 工单01: 应用区快捷方式真实图标
 
-Status: claimed
+Status: resolved
 
 Spec: `.scratch/generic-deck-fixes/spec.md`（本工单对应 Implementation Decisions「快捷方式图标提取链」与 User Stories 1-4、19 的图标防回归线）。
 
@@ -30,7 +30,57 @@ Spec: `.scratch/generic-deck-fixes/spec.md`（本工单对应 Implementation Dec
 
 ## 验收
 
-- [ ] typecheck + vitest 全绿
-- [ ] 纯函数缝单测就位
-- [ ] 电池图标区分度探针就位（真机全量电池由合并后在 PR 分支统一跑，本工单跑通 build 即可）
-- [ ] 图标缓存键/预热门/`.url` 行为零改动
+- [x] typecheck + vitest 全绿
+- [x] 纯函数缝单测就位
+- [x] 电池图标区分度探针就位（真机全量电池由合并后在 PR 分支统一跑，本工单跑通 build 即可）
+- [x] 图标缓存键/预热门/`.url` 行为零改动
+
+## Answer
+
+### 改动清单
+
+| 文件 | 改动 |
+| --- | --- |
+| `app/src/main/desktop/icons.ts` | 新增纯函数 `shortcutIconSource`（图标源决策，工单01 决策唯一住处） |
+| `app/src/main/desktop/adapter.ts` | `electronIconExtractor` 对 `.lnk`（大小写不敏感）先经 `shell.readShortcutLink` 解析，按决策对本体 `getFileIcon(source, { size: 'large' })`；解析失败或源不可用回落 lnk 本体（现状通用图标）。`electronShortcutTarget` 原样保留（DesktopService 频次映射仍在用），`DesktopDeps.extractIcon` 注入缝形状、缓存键（path\|mtimeMs）、预热门、`.url` 项全部零改动 |
+| `app/tests/desktop/icons.spec.ts` | 新增 `shortcutIconSource` 5 例单测（纯函数缝，spec Testing Decisions 3 唯一新增） |
+| `app/accept/battery.js` | P5 桌面承载段内新增「图标区分度探针」+ `createShortcutLnk` 夹具 helper（与 `createProbeLnk` 同法） |
+| `.scratch/icon-probe/verify-fix.js` + `verify-fix-result.json` | 修法离线真机实证探针与结果归档 |
+
+提交：`57a02c0`（fix）、`dbe574f`（test 电池探针）、`4dae7fd`（docs 探针归档）。
+
+### 纯函数签名与决策矩阵
+
+```ts
+shortcutIconSource(
+  iconLocation: string | null | undefined,   // lnk 声明的图标定位路径（ShortcutDetails.icon）
+  target: string | null | undefined,         // 解析出的目标可执行文件（ShortcutDetails.target）
+  exists: (p: string) => boolean,            // 注入的存在性判定（生产 fs.statSync.isFile）
+): string | null                             // null = 回落对 lnk 本体提取（现状通用图标）
+```
+
+| iconLocation | target | 输出 |
+| --- | --- | --- |
+| 声明且存在 | 任意 | 图标定位路径（优先） |
+| 未声明（''/null）或不存在 | 存在 | 目标可执行文件 |
+| 不可用 | 不存在/未声明 | `null`（死链回落通用图标） |
+
+### 验证输出摘要
+
+- `npm run typecheck`：exit 0。
+- `npm test`：`Test Files 32 passed (32)`、`Tests 456 passed (456)`（含新增 5 例；`tests/desktop/icons.spec.ts` 11 例全绿）。
+- `npm run build`：exit 0（未跑 `npm run accept` / `npm run dev`，按工单纪律）。
+- 离线真机实证（`.scratch/icon-probe/verify-fix.js`，构建产物 adapter 直驱，四断言全过）：
+  notepad 夹具 `aabef7f6ab` ≠ charmap 夹具 `e84ef0f284`（不同快捷方式 dataUrl 互不相等——修法核心）；
+  notepad 目标 + charmap 图标定位的夹具 = charmap 夹具（图标定位优先成立）；死链夹具非空通用图标且 ≠ notepad 夹具（回落成立）。
+
+### 电池夹具方案
+
+P5 段内落点（双击探针清场后、杀面板还原前——面板存活且 desktop-rendered 在流，为自然落点）：
+现场造两条唯一名 `DECK-ICON-<ts>-NOTEPAD/CHARMAP.lnk` 指向真 notepad/charmap（目标 exe 缺失则如实降级弃断言），
+`waitEvent('desktop-rendered', e.t >= tIcon && 两条夹具名齐)` 等扫描指纹翻转（该事件只在变化时发）；
+随后**控制器内桥接**——进程内内核（`kernel.ts` 契约缝先例，require 构建产物 `dist/main/kernel.js`），
+定时器全关、usage/store 假源隔离（不触真实 usage 目录与摆位存储），桌面根走真源缺省（与面板同根），
+`bridge.invoke('desktop/icon', { key })` 逐键取 dataUrl，断言二者非空且互不相等。结束删夹具并等
+条目同步消失（清场存证按 `e.t >= tClean` 时间下限取，防历史 desktop-rendered 假过）。既有各段
+前置/后置基线未动，夹具名带时间戳不与真实条目撞名。
