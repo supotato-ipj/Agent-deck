@@ -154,6 +154,9 @@ describe('自启：动作决策（工单11）', () => {
   })
 })
 
+/** 真 COM 集成的单测限时：常态 ~3s，并行工作进程的负载尖峰会撞 5s 默认值（全量实测） */
+const COM_TIMEOUT = 15_000
+
 describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Startup 目录）', () => {
   /** 造一个假 Startup 目录（含旧链快捷方式），返回目录与旧链路径 */
   function startupWithLegacy(): { startup: string; legacy: string } {
@@ -174,7 +177,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     })
     expect(out.legacyRemoved).toEqual(LEGACY_STARTUP_LINK_NAMES)
     expect(fs.existsSync(legacy)).toBe(false)
-  })
+  }, COM_TIMEOUT)
 
   it('开发运行（appDir 未声明）照样清旧链，但不新建自启项', () => {
     const { startup } = startupWithLegacy()
@@ -182,7 +185,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     expect(out.legacyRemoved).toEqual(LEGACY_STARTUP_LINK_NAMES)
     expect(out.action).toBe('skip')
     expect(fs.existsSync(path.join(startup, AUTOSTART_LINK_NAME))).toBe(false)
-  })
+  }, COM_TIMEOUT)
 
   it('生产运行且缺失自启项 → 建好并读回一致', () => {
     const startup = tmpDir()
@@ -190,7 +193,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     expect(out.action).toBe('create')
     expect(out.applied).toBe(true)
     expect(readShortcut(out.link)).toMatchObject({ target: DESIRED.target, args: DESIRED.args })
-  })
+  }, COM_TIMEOUT)
 
   it('重复执行幂等：第二次不重写', () => {
     const startup = tmpDir()
@@ -199,7 +202,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     const second = applyAutostart(opts)
     expect(second.action).toBe('keep')
     expect(second.reason).toBe('existing-matches')
-  })
+  }, COM_TIMEOUT)
 
   it('自启关闭 → 删掉已有自启项', () => {
     const startup = tmpDir()
@@ -208,7 +211,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     expect(off.action).toBe('remove')
     expect(off.applied).toBe(true)
     expect(fs.existsSync(path.join(startup, AUTOSTART_LINK_NAME))).toBe(false)
-  })
+  }, COM_TIMEOUT)
 
   it('开发运行不会劫持已存在的生产自启项（活链原地不动）', () => {
     const startup = tmpDir()
@@ -224,7 +227,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     })
     expect(out.action).toBe('keep')
     expect(readShortcut(out.link)).toMatchObject({ args: '"C:\\repo\\app"' })
-  })
+  }, COM_TIMEOUT)
 
   it('开发运行遇到指向别处的死链也不接管（不把机器指向开发路径）', () => {
     const startup = tmpDir()
@@ -238,7 +241,7 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     })
     expect(out.action).toBe('skip')
     expect(readShortcut(out.link)).toMatchObject({ target: 'C:\\gone\\electron.exe' })
-  })
+  }, COM_TIMEOUT)
 })
 
 describe.skipIf(!isWindows)('自启：.lnk 读写适配缝（真 COM，tmp 目录）', () => {

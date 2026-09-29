@@ -11,10 +11,11 @@ import type { ScoreItem } from '../usage/score'
 import { defaultDesktopRoots, defaultListDir, electronIconExtractor, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists } from '../desktop/adapter'
 import { userDataPath } from '../paths'
 
-/** 桌面承载依赖束：主进程真源 / 测试假源共用一个服务状态机（hardware sources 同法） */
+/** 桌面承载依赖束：主进程真源 / 测试假源 / 数据面装配共用一个服务状态机（hardware sources 同法） */
 export interface DesktopDeps {
   listDir(dir: string): DesktopDirEntry[]
-  extractIcon(filePath: string): Promise<string | null>
+  /** 图标提取（null = 不装图标面：数据面子进程装配——图标由面板主进程按快照条目预热） */
+  extractIcon: ((filePath: string) => Promise<string | null>) | null
   open(filePath: string): Promise<string>
   /** 桌面目录监听（fs.watch 化；返回停听函数） */
   watch(roots: DesktopRoots, onChange: () => void): () => void
@@ -52,7 +53,7 @@ export interface DesktopServiceOptions {
 export class DesktopService extends Service {
   private readonly roots: DesktopRoots
   private readonly deps: DesktopDeps
-  private readonly icons: IconCache
+  private readonly icons: IconCache | null
   private readonly storeFile: string
   private readonly docMaxRows: number
   private store: LayoutStore
@@ -67,9 +68,13 @@ export class DesktopService extends Service {
     this.roots = options.roots ?? defaultDesktopRoots()
     this.docMaxRows = options.docMaxRows ?? 8
     this.storeFile = options.storeFile ?? userDataPath('layout.json')
+    // 图标面可选：数据面子进程没有 Electron app.getFileIcon，extractIcon 注入 null——
+    // 扫描/编排照常，图标预热由主进程按快照条目自行做（工单：采集移出主进程）。
+    const extractIcon: DesktopDeps['extractIcon'] =
+      options.deps?.extractIcon === undefined ? electronIconExtractor : options.deps.extractIcon
     this.deps = {
       listDir: options.deps?.listDir ?? defaultListDir,
-      extractIcon: options.deps?.extractIcon ?? electronIconExtractor,
+      extractIcon,
       open: options.deps?.open ?? shellOpen,
       watch: options.deps?.watch ?? defaultWatchDesktopRoots,
       readShortcutTarget: options.deps?.readShortcutTarget ?? electronShortcutTarget,
@@ -78,7 +83,7 @@ export class DesktopService extends Service {
       writeStoreText: options.deps?.writeStoreText ?? writeStoreText,
       iconScores: options.deps?.iconScores ?? (() => new Map()),
     }
-    this.icons = new IconCache(this.deps.extractIcon)
+    this.icons = extractIcon === null ? null : new IconCache(extractIcon)
     this.store = loadStore(this.deps.readStoreText(this.storeFile))
     const stopWatch = this.deps.watch(this.roots, () => this.refresh())
     ctx.on('dispose', stopWatch)
@@ -94,8 +99,10 @@ export class DesktopService extends Service {
       this.items = applyZoneOverrides(scanned, this.store)
       this.plan = this.computePlan()
       this.fingerprint = desktopFingerprint(this.items) + '-' + planFingerprint(this.plan)
-      for (const item of this.items) {
-        if (this.icons.needsWork(item.iconKey)) void this.icons.fetch(item.iconKey, item.path)
+      if (this.icons) {
+        for (const item of this.items) {
+          if (this.icons.needsWork(item.iconKey)) void this.icons.fetch(item.iconKey, item.path)
+        }
       }
     } catch (err) {
       console.warn(`deck-desktop: 本轮扫描失败，沿用上一轮条目：${err instanceof Error ? err.message : err}`)
@@ -133,8 +140,10 @@ export class DesktopService extends Service {
     return { fingerprint: this.fingerprint, items: this.items, plan: this.plan }
   }
 
-  /** 图标（经内核契约 desktop/icon）：缓存命中即回，未知键按缓存键反解路径提取 */
+  /** 图标（经内核契约 desktop/icon）：缓存命中即回，未知键按缓存键反解路径提取。
+   * 数据面装配（无图标面）不会被问到——桥接的 desktop/icon 走主进程宿主；保守给 null。 */
   async icon(key: string): Promise<string | null> {
+    if (!this.icons) return null
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 

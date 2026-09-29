@@ -2,10 +2,6 @@ import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
-import type { ClockService } from './clock'
-import type { SessionsService } from './sessions'
-import type { HardwareService } from './hardware'
-import type { DesktopService } from './desktop'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
 
@@ -19,10 +15,12 @@ export class BridgeError extends Error {
 
 /**
  * 内核对渲染层的唯一桥接（spec「内核契约」缝）：invoke 请求/响应 + 事件订阅推送。
- * 后续工单只扩展 BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
+ * 数据段（时钟/会话/Qoder/硬件/桌面）与桌面承载动作经 panelData 端口取——
+ * 进程内内核直连采集服务，生产装配转发数据面子进程。后续工单只扩展
+ * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'sessions', 'hardware', 'desktop', 'search', 'settings', 'focus', 'plugins']
+  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -31,20 +29,19 @@ export class BridgeService extends Service {
     super(ctx, 'bridge')
     this.weather = options.weather ?? defaultWeather()
     this.layout = options.layout ?? defaultDesktopLayout()
-  }
-
-  private get clock(): ClockService {
-    return this.ctx.clock
+    // 数据面快照到达即推送（生产装配：utilityProcess 每拍一发；进程内装配无此事件，
+    // 契约测试经 tick 手动驱动）
+    ctx.on('dataplane/snapshot', () => this.push())
   }
 
   snapshot(): PanelSnapshot {
     return {
-      clock: this.clock.now(),
-      sessions: this.ctx.sessions.current(),
-      qoder: this.ctx.sessions.qoderState(),
-      hardware: this.ctx.hardware.state(),
+      clock: this.ctx.panelData.clock(),
+      sessions: this.ctx.panelData.sessions(),
+      qoder: this.ctx.panelData.qoder(),
+      hardware: this.ctx.panelData.hardware(),
       weather: this.weather,
-      desktop: this.ctx.desktop.state(),
+      desktop: this.ctx.panelData.desktop(),
       layout: this.layout,
       settings: this.ctx.settings.state(),
       plugins: this.ctx.plugins.info(),
@@ -57,18 +54,18 @@ export class BridgeService extends Service {
         return this.snapshot() as BridgeMethods[M]['response']
       case 'desktop/icon': {
         const { key } = payload as { key: string }
-        return { dataUrl: await this.ctx.desktop.icon(key) } as BridgeMethods[M]['response']
+        return { dataUrl: await this.ctx.panelData.icon(key) } as BridgeMethods[M]['response']
       }
       case 'desktop/launch': {
         const { path } = payload as { path: string }
-        return await this.ctx.desktop.launch(path) as BridgeMethods[M]['response']
+        return await this.ctx.panelData.launch(path) as BridgeMethods[M]['response']
       }
       case 'desktop/move': {
         const { name, zone, beforeName } = payload as { name: string; zone: DesktopZone; beforeName: string | null }
-        return this.ctx.desktop.move(name, zone, beforeName) as BridgeMethods[M]['response']
+        return await this.ctx.panelData.move(name, zone, beforeName) as BridgeMethods[M]['response']
       }
       case 'desktop/reset-layout':
-        return this.ctx.desktop.resetLayout() as BridgeMethods[M]['response']
+        return await this.ctx.panelData.resetLayout() as BridgeMethods[M]['response']
       case 'search/activate':
         return { state: this.ctx.search.activate() } as BridgeMethods[M]['response']
       case 'search/query': {
@@ -99,10 +96,14 @@ export class BridgeService extends Service {
     return this.ctx.on(event, listener as never) as unknown as () => void
   }
 
-  /** 推送当前快照（生产由主进程定时驱动；契约测试手动驱动） */
+  /** 推送当前快照（生产由数据面快照到达驱动；契约测试手动驱动 tick） */
   tick(): void {
-    this.ctx.sessions.refresh()
-    this.ctx.desktop.refresh()
+    this.ctx.panelData.refresh()
+    this.push()
+  }
+
+  /** 推送当前快照（数据面宿主收到子进程快照后调用；与 tick 共用同一事件） */
+  push(): void {
     this.ctx.emit('panel/changed', this.snapshot())
   }
 }

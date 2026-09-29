@@ -1,0 +1,88 @@
+// 数据面协议（鼠标卡顿修复：周期采集整体移出主进程）：面板主进程与数据面
+// utilityProcess 子进程之间的全部消息形态，以及子进程侧的 lnk 目标解析代理。
+// 协议两侧共用本文件；消息经 utilityProcess postMessage 结构化克隆传递。
+import type { DesktopRoots } from './desktop/scan'
+import type { ClockState, DesktopState, HardwareState, QoderStatus, SessionInfo } from '../shared/contract'
+
+/** 数据面子进程的快照段：面板主进程合并 weather/layout/settings/plugins 后成完整 PanelSnapshot */
+export interface DataplaneSnapshot {
+  clock: ClockState
+  sessions: SessionInfo[]
+  qoder: QoderStatus
+  hardware: HardwareState
+  desktop: DesktopState
+}
+
+/** 子进程启动参数——Electron API 在子进程一概不可用，路径全部由主进程解析后传入 */
+export interface DataplaneInit {
+  /** 桌面扫描根（app.getPath('desktop') 与公共桌面——OneDrive 重定向只有主进程能解析） */
+  roots: DesktopRoots
+  /** 摆位存储文件（userData/layout.json 的绝对路径） */
+  storeFile: string
+  /** 文档组满几行折列（config.desktop.docMaxRows） */
+  docMaxRows: number
+  /** 使用日志目录（userData/usage 的绝对路径） */
+  usageDir: string
+}
+
+/** 数据面受理的桥接方法（桌面承载的写路径；读路径走每拍快照） */
+export type DataplaneMethod = 'desktop/move' | 'desktop/reset-layout'
+
+/** 主进程 ⇄ 数据面子进程消息 */
+export type DataplaneMessage =
+  | { type: 'init'; init: DataplaneInit }
+  | { type: 'ready'; snapshot: DataplaneSnapshot }
+  | { type: 'snapshot'; data: DataplaneSnapshot }
+  | { type: 'resolve-shortcuts'; paths: string[] }
+  | { type: 'shortcuts'; targets: Record<string, string | null> }
+  | { type: 'req'; id: number; method: DataplaneMethod; payload: unknown }
+  | { type: 'res'; id: number; ok: boolean; result?: unknown; error?: string }
+
+/** utilityProcess 子进程侧的 parentPort 形状（@types/node 无此成员，局部声明） */
+export interface ParentPort {
+  on(event: 'message', listener: (e: { data: DataplaneMessage }) => void): void
+  postMessage(message: DataplaneMessage): void
+}
+
+/**
+ * lnk 目标解析代理（子进程侧）：readShortcutLink 是 Electron 主进程 API，数据面用不了——
+ * 解析请求凑批发往主进程，回复经 deliver 入缓存。未解析路径本轮返回 null（频次融合按
+ * 无目标降级，下一拍重算自然收敛——与冷启动先验晚到的既有语义同款）；null 结果同样
+ * 入缓存不重问。同拍凑批 + 在途去重，不让解析请求随 1Hz 重算翻倍。
+ */
+export class ProxyShortcutResolver {
+  private readonly cache = new Map<string, string | null>()
+  private readonly inflight = new Set<string>()
+  private pending: string[] = []
+  private flushScheduled = false
+
+  constructor(private readonly ask: (paths: string[]) => void) {}
+
+  /** 同步查询：命中缓存即回；未命中记入待问（凑批异步发出），本轮按 null 降级 */
+  resolve(lnkPath: string): string | null {
+    if (this.cache.has(lnkPath)) return this.cache.get(lnkPath) ?? null
+    if (!this.inflight.has(lnkPath)) {
+      this.inflight.add(lnkPath)
+      this.pending.push(lnkPath)
+    }
+    if (!this.flushScheduled) {
+      this.flushScheduled = true
+      setImmediate(() => {
+        this.flushScheduled = false
+        if (this.pending.length === 0) return
+        const paths = this.pending
+        this.pending = []
+        this.ask(paths)
+      })
+    }
+    return null
+  }
+
+  /** 主进程回复入缓存（null = 解析不出，同样入缓存不重问） */
+  deliver(targets: Record<string, string | null>): void {
+    for (const [path, target] of Object.entries(targets)) {
+      this.cache.set(path, target)
+      this.inflight.delete(path)
+    }
+  }
+}

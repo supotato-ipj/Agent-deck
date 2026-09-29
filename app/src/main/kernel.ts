@@ -7,11 +7,13 @@ import type { DesktopServiceOptions } from './services/desktop'
 import type { UsageServiceOptions } from './services/usage'
 import type { SearchServiceOptions } from './services/search'
 import type { FocusServiceOptions } from './services/focus'
+import type { DataplaneSnapshot } from './dataplane-protocol'
 import { BridgeService } from './services/bridge'
 import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
 import { FocusService } from './services/focus'
 import { HardwareService } from './services/hardware'
+import { LocalPanelDataService } from './services/panel-data'
 import { SearchService } from './services/search'
 import { SessionsService } from './services/sessions'
 import { SettingsService, type SettingsServiceOptions } from './services/settings'
@@ -72,6 +74,8 @@ export function createKernel(options: KernelOptions = {}): Context {
         ?? ((items, resolve, exists) => ctx.usage?.iconScores(items, resolve, exists) ?? new Map()),
     },
   })
+  // 桥接层的数据面端口（进程内装配：直连上方采集服务）——必须先于桥接层注册
+  ctx.plugin(LocalPanelDataService)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
@@ -103,4 +107,71 @@ export function createKernel(options: KernelOptions = {}): Context {
     ctx.on('dispose', () => clearInterval(timer))
   }
   return ctx
+}
+
+export interface DataplaneKernelOptions {
+  sessionRoots?: SessionRoots
+  hardwareSources?: HardwareSources
+  usage?: UsageServiceOptions
+  desktop?: DesktopServiceOptions
+  tickIntervalMs?: number
+  hardwareIntervalMs?: number
+  usageIntervalMs?: number
+  /** 每拍快照出口（子进程入口接 parentPort；离线测试接数组断言） */
+  onSnapshot?: (snapshot: DataplaneSnapshot) => void
+}
+
+/**
+ * 数据面内核装配（鼠标卡顿修复）：四个采集服务（会话/硬件/使用日志/桌面承载）
+ * 加各自的采样定时器，跑在 utilityProcess 子进程里（src/main/dataplane.ts 为入口）。
+ * 与 createKernel 共用同一批服务类与依赖束缝——真源注入同法，离线测试可全假源化。
+ */
+export function createDataplaneKernel(options: DataplaneKernelOptions = {}): Context {
+  const ctx = new Context()
+  ctx.plugin(SessionsService, { roots: options.sessionRoots })
+  ctx.plugin(HardwareService, { sources: options.hardwareSources })
+  ctx.plugin(UsageService, options.usage)
+  ctx.plugin(DesktopService, {
+    ...options.desktop,
+    deps: {
+      ...options.desktop?.deps,
+      // 使用频次经 usage 服务拉取（未装/未就绪按无分数——推荐段退稳定名序）
+      iconScores: options.desktop?.deps?.iconScores
+        ?? ((items, resolve, exists) => ctx.usage?.iconScores(items, resolve, exists) ?? new Map()),
+    },
+  })
+  const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
+  if (tickMs > 0) {
+    const timer = setInterval(() => {
+      ctx.sessions.refresh()
+      ctx.desktop.refresh()
+      options.onSnapshot?.(dataplaneSnapshot(ctx))
+    }, tickMs)
+    ctx.on('dispose', () => clearInterval(timer))
+  }
+  const hwMs = options.hardwareIntervalMs ?? DEFAULT_HARDWARE_MS
+  if (hwMs > 0) {
+    const timer = setInterval(() => ctx.hardware?.sample(), hwMs)
+    ctx.on('dispose', () => clearInterval(timer))
+  }
+  const usageMs = options.usageIntervalMs ?? DEFAULT_USAGE_MS
+  if (usageMs > 0) {
+    const timer = setInterval(() => ctx.usage?.collect(), usageMs)
+    ctx.on('dispose', () => clearInterval(timer))
+    const pruneTimer = setInterval(() => ctx.usage?.prune(), USAGE_PRUNE_MS)
+    ctx.on('dispose', () => clearInterval(pruneTimer))
+  }
+  return ctx
+}
+
+/** 数据面快照（时钟就地构造——kernel.ts 不 import electron，可被离线测试加载） */
+function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
+  const d = new Date()
+  return {
+    clock: { iso: d.toISOString(), epochMs: d.getTime() },
+    sessions: ctx.sessions.current(),
+    qoder: ctx.sessions.qoderState(),
+    hardware: ctx.hardware.state(),
+    desktop: ctx.desktop.state(),
+  }
 }

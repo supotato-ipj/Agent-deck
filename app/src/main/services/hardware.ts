@@ -24,8 +24,10 @@ export interface HardwareSources {
 }
 
 export function systemHardwareSources(gpuRunner?: GpuRunner): HardwareSources {
-  // koffi/nvidia-smi 真源延迟 require：契约测试注入假源时不加载原生件
-  const gpu = new GpuQuery(3000, gpuRunner)
+  // koffi/nvidia-smi 真源延迟 require：契约测试注入假源时不加载原生件。
+  // GPU TTL 5s（自 Python 时代的 3s 拉长）：展示性指标无需秒级新鲜度，
+  // spawn 节奏减半（每分钟 12 次），消解周期性驱动查询对 GPU/DWM 的微抖动。
+  const gpu = new GpuQuery(5000, gpuRunner)
   return {
     cpuTimes: () => aggregateCpuTimes(os.cpus()),
     memory: () => ({ total: os.totalmem(), free: os.freemem() }),
