@@ -1,6 +1,6 @@
 # 工单03: Qoder 状态块退役
 
-Status: ready-for-agent
+Status: claimed
 
 Spec: `.scratch/generic-deck-fixes/spec.md`（Implementation Decisions「Qoder 状态块退役」「词汇与导言」；User Stories 14-18、20）。决策共识：彻底移除（卡片+快照段+插件能力），**弃**只撤卡片；会话列表卡加高补位，**弃**硬件卡上移、**弃**留空。
 
