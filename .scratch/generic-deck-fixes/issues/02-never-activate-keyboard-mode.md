@@ -1,6 +1,6 @@
 # 工单02: 交互永不顶起 + 键盘模式
 
-Status: ready-for-agent
+Status: claimed
 
 Spec: `.scratch/generic-deck-fixes/spec.md`（Implementation Decisions「永不激活」「键盘模式」「实施闸门」；User Stories 5-13、19 的 z 序与键盘防回归线）。
 
