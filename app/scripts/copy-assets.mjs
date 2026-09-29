@@ -23,3 +23,6 @@ const mainDest = path.join(root, 'dist', 'main')
 mkdirSync(mainDest, { recursive: true })
 copyFileSync(path.join(root, 'src', 'main', 'icon-restore-watch.cjs'), path.join(mainDest, 'icon-restore-watch.cjs'))
 console.log('[copy-assets] dist/main/icon-restore-watch.cjs')
+// 自启快捷方式的 COM 助手（工单11）：不经 tsc，随构建复制到 dist/main 与 autostart.js 同目录。
+copyFileSync(path.join(root, 'src', 'main', 'autostart.ps1'), path.join(mainDest, 'autostart.ps1'))
+console.log('[copy-assets] dist/main/autostart.ps1')

@@ -1,11 +1,11 @@
 # AGENTS.md
 
-本仓库用于 Wallpaper Engine「TERMINAL 02」壁纸改造：显示 Qoder 任务状态。
+本仓库产出 **AGENT DECK 独立面板**：常驻桌面的 Electron 应用，以卡片网格与底部 dock 呈现五工具会话、Qoder 任务进度与硬件指标，并自绘承载桌面项。架构决策见 `docs/adr/0004-electron-cordis-standalone-panel.md`，领域词汇见 `CONTEXT.md`。Python 数据服务、看门狗与 WE 壁纸链已于 2026-09-29 退役（工单11），壁纸资产只读封存于 `archive/`。
 
 ## Worktree 布局（平行开发）
 
-- **主检出**：`D:\local_works\agent-deck`，常驻 `master`；数据服务、看门狗与自启链路以主检出为准，master 随时保持可推送。
-- **feature worktree**：`D:\local_works\agent-deck-wt\<slug>`（分支 `feat/<slug>`）；并行跑数据服务用 `QD_PORT` 分端口，5000 留给主检出。
+- **主检出**：`D:\local_works\agent-deck`，常驻 `master`，随时保持可推送。**开机自启指向主检出的 `app/`**——worktree 会被清理，自启项不指向它。
+- **feature worktree**：`D:\local_works\agent-deck-wt\<slug>`（分支 `feat/<slug>`）。面板是**单实例**（二次拉起自动退出），并行 worktree 不要各拉一个常驻面板；真机验收用 `npm run accept`（验收模式绕开单实例锁，可与在跑的面板共存）。
 - 开工/收尾的完整流程（建树、环境自举、测试自检、合并清理）见 `agent-deck-worktree` skill。
 
 ## 远端分支纪律

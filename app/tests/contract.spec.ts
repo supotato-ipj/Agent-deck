@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
-import { defaultAppearance, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import type { PanelSnapshot, PluginInfo } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
@@ -59,6 +59,7 @@ function settingsOpts(dir: string): { settings: { file: string; config: AppConfi
     appearance: defaultAppearance(),
     tools: defaultTools(),
     plugins: defaultPlugins(),
+    autostart: defaultAutostart(),
   }
   return { settings: { file: path.join(dir, 'config.json'), config } }
 }

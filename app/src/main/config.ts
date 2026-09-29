@@ -26,6 +26,25 @@ export interface AppConfig {
   tools: ToolsConfig
   /** 插件目录（工单10）：桌面组件的安装位；空串 = 缺省 userData/plugins */
   plugins: PluginsConfig
+  /** 自启（工单11）：面板的开机自启项 */
+  autostart: AutostartConfig
+}
+
+/**
+ * 自启项开关（config.json autostart 段）：false 时面板每次启动都把 Startup 里的
+ * 快捷方式删掉，开机即不再自拉。默认开启——桌面常驻是本应用的第一诉求。
+ * 开关只管面板自己的自启项，不碰用户的其他启动项。
+ */
+export interface AutostartConfig {
+  enabled: boolean
+  /**
+   * 本机「生产安装位置」= app 目录的绝对路径。
+   *
+   * 只有当本次运行正是这个目录时，面板才有权**新建**开机自启项或接管一条死链。
+   * 留空（默认）= 本次运行无权接管：开发 worktree 里跑面板不会把机器的开机自启
+   * 指向自己（worktree 收尾即删，自启项随之指向空气）。
+   */
+  appDir: string
 }
 
 /**
@@ -141,6 +160,32 @@ export function defaultAppearance(): AppearanceConfig {
 /** 默认插件目录：空串 = 由主进程解析为 userData/plugins（见 PluginsConfig 注释） */
 export function defaultPlugins(): PluginsConfig {
   return { dir: '' }
+}
+
+/** 默认自启：开启（桌面常驻是第一诉求）；appDir 留空 = 未声明生产位置，面板不接管新建 */
+export function defaultAutostart(): AutostartConfig {
+  return { enabled: true, appDir: '' }
+}
+
+function mergeAutostart(raw: unknown, fallback: AutostartConfig, warnings: string[]): AutostartConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.autostart 不是对象，已整体回退默认自启开关')
+    return out
+  }
+  const section = raw as Record<string, unknown>
+  const enabled = section.enabled
+  if (enabled !== undefined) {
+    if (typeof enabled === 'boolean') out.enabled = enabled
+    else warnings.push('config.autostart.enabled 不是布尔值，已回退默认值 true')
+  }
+  const appDir = section.appDir
+  if (appDir !== undefined) {
+    if (typeof appDir === 'string') out.appDir = appDir.trim()
+    else warnings.push('config.autostart.appDir 不是字符串，已回退默认（不接管自启项）')
+  }
+  return out
 }
 
 function mergePlugins(raw: unknown, fallback: PluginsConfig, warnings: string[]): PluginsConfig {
@@ -359,6 +404,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       appearance: mergeAppearance(root.appearance, fallback.appearance, warnings),
       tools: mergeTools(root.tools, fallback.tools, warnings),
       plugins: mergePlugins(root.plugins, fallback.plugins, warnings),
+      autostart: mergeAutostart(root.autostart, fallback.autostart, warnings),
     },
     warnings,
     created: false,

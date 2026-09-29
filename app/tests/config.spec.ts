@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins(), autostart: defaultAutostart() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -306,5 +306,63 @@ describe('config.tools 工具→exe 映射（工单09）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(Object.keys(r.config.tools).sort()).toEqual(['hermes', 'kimicode', 'kimiwork', 'qoder', 'zcode'])
     expect(r.warnings.some((w) => w.includes('config.tools'))).toBe(true)
+  })
+})
+
+describe('config.autostart 自启开关（工单11）', () => {
+  it('缺 autostart 段时默认开启（老 config.json 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.enabled).toBe(true)
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('enabled=false 关自启（面板启动即删 Startup 快捷方式）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ autostart: { enabled: false } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.enabled).toBe(false)
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('非布尔值回退默认并告警（不静默吞掉用户笔误）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ autostart: { enabled: 'yes' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.enabled).toBe(true)
+    expect(r.warnings.some((w) => w.includes('config.autostart.enabled'))).toBe(true)
+  })
+
+  it('缺 appDir 段时为空串=未声明生产位置（开发运行不得接管自启项）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.appDir).toBe('')
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('appDir 可声明生产安装位置（换机/改位置只调这一项）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ autostart: { appDir: '  D:\\local_works\\agent-deck\\app  ' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.appDir).toBe('D:\\local_works\\agent-deck\\app')
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('appDir 非字符串回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ autostart: { appDir: 42 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.appDir).toBe('')
+    expect(r.warnings.some((w) => w.includes('config.autostart.appDir'))).toBe(true)
+  })
+
+  it('autostart 整体非对象回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ autostart: [true] }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.autostart.enabled).toBe(true)
+    expect(r.warnings.some((w) => w.includes('config.autostart'))).toBe(true)
   })
 })

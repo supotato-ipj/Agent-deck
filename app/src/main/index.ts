@@ -1,8 +1,10 @@
 import { app, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { defaultAppearance, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
 import { createKernel } from './kernel'
+import { applyAutostart, desiredShortcut } from './autostart'
+import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
 import { createTray } from './tray'
@@ -38,11 +40,46 @@ async function bootPanel(): Promise<void> {
     appearance: defaultAppearance(),
     tools: defaultTools(),
     plugins: defaultPlugins(),
+    autostart: defaultAutostart(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
   if (created) console.log('[deck] config.json 不存在，已按当前屏幕几何写出默认值')
   log?.append({ type: 'boot', pid: process.pid })
+
+  // 自启项（工单11）：Startup 快捷方式由面板自举，且每次启动顺手清掉旧看门狗链的自启项。
+  // 只有 config.autostart.appDir 声明的生产安装位置才有权新建/接管（开发 worktree 不劫持）。
+  // 失败不拦启动——自启项写不进去不该挡住桌面。
+  try {
+    applyAutostart({
+      enabled: config.autostart.enabled,
+      appDir: config.autostart.appDir,
+      runningAppDir: app.getAppPath(),
+      desired: desiredShortcut(process.execPath, app.getAppPath()),
+      log: (event) => log?.append(event),
+    })
+  } catch (err) {
+    console.warn('[deck] 自启项处理失败:', err)
+    log?.append({ type: 'autostart-failed', message: (err as Error).message })
+  }
+
+  const usageDir = path.join(app.getPath('userData'), 'usage')
+
+  // 历史使用日志迁移（工单11）：Python 数据服务时代的使用日志先搬进 userData，
+  // 搬完再启动采集，否则当天两份记录会被合并到同一个按天文件里、顺序错乱。
+  // 幂等，重启安全；失败只降级为「从零开始积累」，不拦启动。
+  try {
+    migrateUsageLog({
+      legacyDir: legacyUsageDir(),
+      targetDir: usageDir,
+      markerFile: path.join(usageDir, '.legacy-migrated.json'),
+      nowMs: Date.now(),
+      log: (event) => log?.append(event),
+    })
+  } catch (err) {
+    console.warn('[deck] 使用日志迁移失败:', err)
+    log?.append({ type: 'usage-migrate-failed', message: (err as Error).message })
+  }
 
   const kernel = createKernel({
     weather: config.weather,
@@ -51,7 +88,7 @@ async function bootPanel(): Promise<void> {
       storeFile: path.join(app.getPath('userData'), 'layout.json'),
       docMaxRows: config.desktop.docMaxRows,
     },
-    usage: { dir: path.join(app.getPath('userData'), 'usage') },
+    usage: { dir: usageDir },
     search: { port: config.search.port },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },

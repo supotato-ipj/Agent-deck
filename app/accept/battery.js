@@ -546,6 +546,28 @@ async function main() {
     };
     const fullShot = (name) => capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, name);
 
+    // 电池自己的对照记事本铺在 phys(1000,200) 1400x900，而设置入口（settings-btn
+    // DIP 944..1052、面板右下）折算后正落在同一片区域 → 落点被记事本吃掉、点击根本
+    // 到不了面板，设置浮层永远开不起来（工单11 真机实证：P6 复位与 P8 开层两组断言
+    // 连报未开层，遮挡探测命中 Notepad）。P9 会话行段已有同款处置，但那里是把记事本
+    // 直接关掉——本段之后 P9 的 Win+D 演练还要靠它活着，故改为「收起→探针→还原」，
+    // 与 P7S 搜索段的挪位还原同一取向。只动 notepad 变量记录的这一扇，不按类名遍历全机。
+    //
+    // 与模块级 clearDesktop/restoreDesktop 形状相似但**故意不合并**：后者是开局那次
+    // 全桌面扫描（带「直到采样点命中桌面」的重试语义），且其还原清单由电池末尾的
+    // finally 一次性消费；这里要的是可反复调用的、只针对电池自己那一扇窗的收放。
+    const withControlWindowClear = async (fn) => {
+      if (!notepad) return fn();
+      w32.ShowWindow(notepad.hwnd, SW_MINIMIZE);
+      await sleep(500);
+      try {
+        return await fn();
+      } finally {
+        try { w32.ShowWindow(notepad.hwnd, SW_RESTORE); } catch { /* 尽力 */ }
+        await sleep(500);
+      }
+    };
+
     // —— P2 透明合成：棋盘参照窗压到面板之下（免受动态壁纸干扰）——
     const checker = new BrowserWindow({
       x: Math.round(rect.left / f) - 8, y: Math.round(rect.top / f) - 8,
@@ -1023,10 +1045,10 @@ async function main() {
             const reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 3000);
             return { reset, why: reset ? '' : 'desktop-layout-reset 未到' };
           };
-          let reset = await resetViaOverlay();
+          let reset = await withControlWindowClear(resetViaOverlay);
           if (!reset.reset) {
             rep.note(`首次复位未达成（${reset.why}），重试一轮`);
-            reset = await resetViaOverlay();
+            reset = await withControlWindowClear(resetViaOverlay);
           }
           w32.moveMousePhys(safePt.x, safePt.y);
           if (!reset.reset) {
@@ -1309,7 +1331,9 @@ async function main() {
     // —— P8S 工单08 设置浮层与透明度：入口开层（浮层=热区）→ 滑杆拖拽即时反映 +
     // config 持久化 → ESC / 失焦关闭 → 重启保持。全程事件门判定 + 截图存证；
     // config 整段备份还原，不给 P6 及用户留残留。——
-    await (async () => {
+    // 整段裹一层 withControlWindowClear：本段落点（设置入口、浮层滑杆、时钟卡）全在面板
+    // 右下，电池自己的对照记事本正压在那里——不挪开则开层与拖拽两头都到不了面板。
+    await withControlWindowClear(async () => {
       const configBackup08 = backupConfigB();
       // 缺 appearance 段 = loadConfig 合并默认（与内核同语义），读盘断言按 0.55 兜底
       const defaultAppearanceB = 0.55;
@@ -1455,7 +1479,7 @@ async function main() {
         w32.moveMousePhys(safePt.x, safePt.y);
         restoreConfigB(configBackup08);
       }
-    })();
+    });
 
 
     // —— P6 config 几何生效：改 config 重启面板 ——
