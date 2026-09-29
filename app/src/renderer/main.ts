@@ -392,6 +392,8 @@ type SettingsCloseReason = 'esc' | 'blur' | 'toggle'
 function openSettings(): void {
   if (settingsOpen) return
   settingsOpen = true
+  // 键盘模式开（工单02）：浮层要接 ESC/滑杆拖拽后的键盘路径，临时取得键盘焦点
+  window.deck.host.setKeyboardMode(true)
   settingsCard.style.display = 'block'
   settingsCard.focus()
   // 滑杆矩形随开层存证（电池按它定位拖拽落点，desktop-rendered rects 同法）
@@ -406,6 +408,9 @@ function openSettings(): void {
 function closeSettings(reason: SettingsCloseReason): void {
   if (!settingsOpen) return
   settingsOpen = false
+  // 键盘模式关（工单02）：恢复不可聚焦+钉底；焦点悬空不还原（spec 拍板）。
+  // 失焦引发的 focusout 再入被 settingsOpen 早退拦住。
+  window.deck.host.setKeyboardMode(false)
   settingsCard.style.display = 'none'
   notify('settings-closed', { reason })
   declareHotZones()
@@ -593,6 +598,8 @@ function searchActivate(): void {
     return
   }
   searchActive = true
+  // 键盘模式开（工单02）：面板永不激活，这里临时取得键盘焦点再聚焦输入框
+  window.deck.host.setKeyboardMode(true)
   searchHint.style.display = 'none'
   searchInput.style.display = 'block'
   searchPlaceholder.style.display = searchInput.value ? 'none' : 'block'
@@ -612,6 +619,9 @@ function searchDeactivate(reason: SearchDeactivateReason): void {
   if (!searchActive) return
   searchDeactivating = true
   searchActive = false
+  // 键盘模式关（工单02）：恢复不可聚焦+钉底。窗口随之失活会再触发一次 input blur，
+  // 由 searchDeactivating 护栏与下方 searchActive 早退双保险拦住，不会打架。
+  window.deck.host.setKeyboardMode(false)
   void window.deck.bridge.invoke('search/deactivate', null).catch(() => {})
   searchInput.value = ''
   searchInput.style.display = 'none'
@@ -689,7 +699,7 @@ function render(snap: PanelSnapshot): void {
   lastSnapshot = snap
   renderDesktop(snap.desktop, snap.layout)
   renderSettings(snap.settings)
-  // 桌面组件（工单10）：时钟/天气/会话/Qoder/硬件五卡各由插件自己渲染，
+  // 桌面组件（工单10）：时钟/天气/会话/硬件四卡各由插件自己渲染（Qoder 状态卡随工单03 退役），
   // 宿主只负责把清单与裁剪后的视图喂过去；日历仍在宿主页面内。
   syncPlugins(snap.plugins, snap, pluginDeps)
   const month = new Date(snap.clock.epochMs).getMonth()

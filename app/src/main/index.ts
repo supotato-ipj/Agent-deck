@@ -162,6 +162,11 @@ async function bootPanel(): Promise<void> {
     win.on('closed', () => restorer.dispose())
   })
   win.on('closed', () => tracker.dispose())
+  // 兜底重钉（工单02）：面板永不激活，但键盘模式/系统交互理论上仍可能送来 focus 事件——
+  // 探针实证前台/激活态下 HWND_BOTTOM 重钉依然生效，focus 即钉回，z 序永不破例。
+  win.on('focus', () => {
+    if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'focus-fallback' })
+  })
   // 面板页面经 deck-plugin:// 加载（工单10）：与插件资产同源，ESM 与动态 import 才成立
   void win.loadURL(panelUrl())
   app.on('window-all-closed', () => app.quit())

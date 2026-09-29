@@ -2,13 +2,12 @@
 // utilityProcess 子进程之间的全部消息形态，以及子进程侧的 lnk 目标解析代理。
 // 协议两侧共用本文件；消息经 utilityProcess postMessage 结构化克隆传递。
 import type { DesktopRoots } from './desktop/scan'
-import type { ClockState, DesktopState, HardwareState, QoderStatus, SessionInfo } from '../shared/contract'
+import type { ClockState, DesktopState, HardwareState, SessionInfo } from '../shared/contract'
 
-/** 数据面子进程的快照段：面板主进程合并 weather/layout/settings/plugins 后成完整 PanelSnapshot */
+/** 数据面子进程的快照段：面板主进程合并 weather/layout/settings/plugins 后成完整 PanelSnapshot（qoder 段随工单03 退役移除） */
 export interface DataplaneSnapshot {
   clock: ClockState
   sessions: SessionInfo[]
-  qoder: QoderStatus
   hardware: HardwareState
   desktop: DesktopState
 }

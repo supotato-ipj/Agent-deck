@@ -27,7 +27,7 @@ const AMBER = [245, 166, 35];
 // 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP）
 const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 }
 const LEFT_CARDS_DIP = { x: 48, y: 48, w: 320, h: 686 }   // 时钟+天气+日历（至 734）
-// 右列自 07 起顶部是搜索面板（SEARCH 卡 ~89 高 + 会话 + Qoder + 硬件，底缘至 942）
+// 右列自 07 起顶部是搜索面板（SEARCH 卡 ~89 高 + 会话（工单03 起加高吞掉 Qoder 状态块槽）+ 硬件，底缘至 942）
 const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 894 }
 // 搜索卡几何（与 src/renderer/index.html #search-card 一致；results 展开随事件重取）
 const SEARCH_CARD_DIP = { right: 48, y: 48, w: 420, h: 89 }
@@ -241,6 +241,25 @@ function createProbeLnk(lnkPath, markerPath) {
   try {
     // -File 模式下未声明 param() 的脚本一切参数按位置进 $args
     return psRunFile([scriptFile, lnkPath, markerPath]);
+  } finally {
+    try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+  }
+}
+
+// 造指向指定 exe 的验收 lnk（工单01 图标区分度探针夹具）。与 createProbeLnk 同法：
+// ASCII-only 临时 ps1 走 -File（内联 -Command 传 COM 调用在本机实测挂起/静默失败）。
+// 不声明图标定位——默认图标留空，决策链走「未声明回落目标可执行文件」分支。
+function createShortcutLnk(lnkPath, targetPath) {
+  const script = [
+    '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($args[0])',
+    '$s.TargetPath = $args[1]',
+    '$s.Save()',
+    "Write-Output ('exists=' + (Test-Path -LiteralPath $args[0]))",
+  ].join('\n');
+  const scriptFile = path.join(__dirname, 'evidence', '01-create-shortcut-lnk.ps1');
+  fs.writeFileSync(scriptFile, script, 'utf8');
+  try {
+    return psRunFile([scriptFile, lnkPath, targetPath]);
   } finally {
     try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
   }
@@ -660,10 +679,6 @@ async function main() {
       sessionsEvt
         ? rep.pass(`会话列表卡：渲染层收到内核会话数据（count=${sessionsEvt.count}，真机活跃池）`)
         : rep.fail('会话列表卡：未收到 sessions-rendered 存证');
-      const qoderEvt = await waitEvent('qoder-rendered', null, 8000);
-      qoderEvt
-        ? rep.pass(`Qoder 状态卡：渲染层收到状态数据（active=${qoderEvt.active}）`)
-        : rep.fail('Qoder 状态卡：未收到 qoder-rendered 存证');
       const hw2 = await waitEvent('hardware-rendered', (e) => e.n >= 2, 8000);
       hw2
         ? rep.pass(`硬件指标卡：面板 1Hz 刷新持续走数（第 ${hw2.n} 次渲染）`)
@@ -695,7 +710,7 @@ async function main() {
       };
       capture(leftZone, '04-cards-left');
       capture(rightZone, '04-cards-right');
-      rep.note('四类卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（会话/Qoder/硬件曲线）');
+      rep.note('卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（会话/硬件曲线）');
     }
 
 
@@ -760,6 +775,19 @@ async function main() {
       : rep.fail('进入热区后面板仍处于穿透样式');
 
     w32.clickPhys(cardCenter.x, cardCenter.y, 'left');
+    // 工单02 永不顶起：回归线前移到点击瞬间——点击后面板必须仍在记事本之下、前台未变、
+    // 窗口带不可激活扩展样式（现状是「点击即顶起、离开热区才重钉」，改后点击瞬间就不顶起）。
+    const exAfterClick = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+    const fgAfterClick = w32.GetForegroundWindow();
+    wfp(overlap) === notepad.hwnd
+      ? rep.pass('永不顶起：热区点击瞬间面板仍在记事本之下（回归线自「离开重钉后」前移到点击瞬间）')
+      : rep.fail(`点击瞬间重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，面板被点击顶起`);
+    fgAfterClick === notepad.hwnd
+      ? rep.pass('永不顶起：点击未抢走工作窗口前台（键盘焦点留在记事本，可继续盲打）')
+      : rep.fail(`点击后前台变为 0x${fgAfterClick.toString(16)}(${w32.className(fgAfterClick)})，点击抢了前台`);
+    exAfterClick & w32.WS_EX_NOACTIVATE
+      ? rep.pass(`永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x${(exAfterClick >>> 0).toString(16)}，点击不激活的机制保证）`)
+      : rep.fail(`面板无 WS_EX_NOACTIVATE 样式（EXSTYLE=0x${(exAfterClick >>> 0).toString(16)}）`);
     const clickEvt = await waitEvent('clock-card-clicked', (e) => e.count >= 1);
     clickEvt
       ? rep.pass(`热区点击由时钟卡接收（count=${clickEvt.count}）`)
@@ -784,8 +812,8 @@ async function main() {
       : rep.fail('离开热区后面板未恢复穿透样式');
     await sleep(600);
     wfp(overlap) === notepad.hwnd
-      ? rep.pass('热区交互后重钉生效：面板回到普通窗之下（记事本仍盖住面板）')
-      : rep.fail(`热区交互后重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，面板未回底`);
+      ? rep.pass('热区交互全程面板未顶起：记事本始终盖住面板（离开重钉路径保留，在永不顶起语义下是冗余保险）')
+      : rep.fail(`热区交互后重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，面板不在记事本之下`);
     const z = w32.topLevelWindows();
     const zPanel = z.indexOf(hwnd), zNp = z.indexOf(notepad.hwnd);
     zPanel > zNp
@@ -888,6 +916,78 @@ async function main() {
         ? rep.pass('清理探针 lnk 后条目同步消失（面板与磁盘一致）')
         : rep.fail('清理探针 lnk 后条目未消失');
       try { fs.unlinkSync(markerPath); } catch { /* 尽力清理 */ }
+
+      // —— P5-ICON 工单01 快捷方式真实图标：不同快捷方式的图标 dataUrl 互不相等（spec 防回归线）——
+      // 根因（.scratch/icon-probe 实证）：本机 Electron getFileIcon 对一切 .lnk 返回字节级相同的
+      // 通用图标，对目标本体直取正常。修法在适配层提取链：lnk 先解析图标源再对本体提取。
+      // 夹具法不依赖用户桌面内容：现场造两条指向不同真 exe（notepad/charmap）的 lnk，
+      // 等面板扫描指纹翻转（desktop-rendered 只在变化时发，带入夹具名即翻转）后，
+      // 经控制器内桥接取 desktop/icon 断言互不相等；结束删夹具，等条目同步消失。
+      {
+        const tIcon = Date.now();
+        const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+        const fixtureDefs = [
+          { name: `DECK-ICON-${tIcon}-NOTEPAD.lnk`, target: path.join(sysRoot, 'notepad.exe') },
+          { name: `DECK-ICON-${tIcon}-CHARMAP.lnk`, target: path.join(sysRoot, 'System32', 'charmap.exe') },
+        ].filter((fx) => fs.existsSync(fx.target));
+        const fixturePaths = fixtureDefs.map((fx) => path.join(scan.user, fx.name));
+        try {
+          if (fixtureDefs.length < 2) {
+            rep.fail(`图标区分度探针前置失败：目标 exe 缺失（${fixtureDefs.map((fx) => fx.target).join(', ')}）`);
+          } else {
+            for (const fx of fixtureDefs) createShortcutLnk(path.join(scan.user, fx.name), fx.target);
+            const joined = await waitEvent('desktop-rendered',
+              (e) => e.t >= tIcon && fixtureDefs.every((fx) => (e.names || []).includes(fx.name)), 10000);
+            joined
+              ? rep.note(`图标夹具入池，面板扫描指纹已翻转：${fixtureDefs.map((fx) => fx.name).join(' / ')}`)
+              : rep.fail('图标夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）');
+            if (joined) {
+              // 控制器内桥接：进程内内核（kernel.ts 契约缝先例）+ 真源桌面装配——
+              // 提取链与面板同一份代码（dist 构建产物，npm run accept 先 build）。
+              // 定时器全关；usage/store 假源隔离，不触真实 usage 目录与摆位存储。
+              const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-icon-probe-'));
+              const { createKernel } = require(path.join(APP_ROOT, 'dist', 'main', 'kernel.js'));
+              const ctx = createKernel({
+                tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchIntervalMs: 0,
+                desktop: { storeFile: path.join(probeDir, 'layout.json') },
+                usage: {
+                  dir: path.join(probeDir, 'usage'),
+                  deps: { runningPidExes: () => new Map(), foregroundExe: () => null, readPrior: async () => new Map() },
+                },
+              });
+              await ctx.start();
+              try {
+                const snap = await ctx.bridge.invoke('panel/snapshot', null);
+                const byName = new Map((snap.desktop.items || []).map((i) => [i.name, i]));
+                const urls = [];
+                for (const fx of fixtureDefs) {
+                  const item = byName.get(fx.name);
+                  if (!item) { rep.fail(`控制器内核扫描未见夹具 ${fx.name}（桌面根与面板不一致）`); urls.push(null); continue; }
+                  const res = await ctx.bridge.invoke('desktop/icon', { key: item.iconKey });
+                  urls.push(res && res.dataUrl);
+                }
+                const okPair = urls.every((u) => typeof u === 'string' && u.startsWith('data:image/') && u.length > 0);
+                okPair && urls[0] !== urls[1]
+                  ? rep.pass(`快捷方式真实图标：两条夹具经桥接 desktop/icon 取得的 dataUrl 互不相等`
+                    + `（notepad ${urls[0].length}B / charmap ${urls[1].length}B——lnk 绕行提取链生效，通用图标回归即二者同串）`)
+                  : rep.fail(`图标区分度未过：dataUrl=${JSON.stringify(urls.map((u) => (u ? `${u.slice(0, 24)}…(${u.length}B)` : null)))}`);
+              } finally {
+                await ctx.stop();
+                try { fs.rmSync(probeDir, { recursive: true, force: true }); } catch { /* 尽力清理 */ }
+              }
+            }
+          }
+        } finally {
+          for (const p of fixturePaths) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
+          // 清场存证按时间下限取：历史 desktop-rendered 天然不含夹具名，须只认夹具创建之后的拍
+          const tClean = Date.now();
+          const goneFixtures = await waitEvent('desktop-rendered',
+            (e) => e.t >= tClean && fixtureDefs.every((fx) => !(e.names || []).includes(fx.name)), 6000);
+          goneFixtures
+            ? rep.pass('图标夹具清理后条目同步消失（面板与磁盘一致）')
+            : rep.note('图标夹具清理存证未到（不阻塞；夹具已尽力删除）');
+        }
+      }
 
       // 杀面板进程（taskkill /F）：外层守卫自动还原原生图标
       spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
@@ -1118,7 +1218,25 @@ async function main() {
         const fg = w32.GetForegroundWindow();
         return !!fg && w32.threadIdOf(fg).pid === panelPid;
       };
-      // 激活 = 点击热区（search-activated 存证）+ 前台门校验（键只发进面板进程，旧电池 panel_sendkeys 同款）
+      // 工单02：面板 z 序取证——面板必须压在全部普通窗之下（键盘模式也钉底）。
+      // 判据方向：自顶向下枚举里面板**之下**不得再出现普通窗（其下只允许桌面层/任务栏，
+      // 见 CLEAR_DESKTOP_SKIP；置顶层带另论——普通窗顶不起钉底面板，普通窗在其上属自然 z 序）。
+      const panelBelowAllNormal = () => {
+        const wins = win32.topLevelWindows();
+        const zi = wins.indexOf(hwnd);
+        if (zi < 0) return { ok: false, detail: '面板窗不在可见 z 序里' };
+        const below = [];
+        for (let i = zi + 1; i < wins.length; i++) {
+          const h = wins[i];
+          if (w32.GetWindowLongW(h, w32.GWL_EXSTYLE) & w32.WS_EX_TOPMOST) continue;
+          if (CLEAR_DESKTOP_SKIP.has(w32.className(h))) continue;
+          below.push(`${w32.className(h)}@pid${w32.threadIdOf(h).pid}`);
+        }
+        return { ok: below.length === 0, detail: below.length ? `其下有普通窗 ${below.join(', ')}` : '其下仅桌面层' };
+      };
+      // 激活 = 点击热区（search-activated 存证）+ 前台门校验（键只发进面板进程，旧电池 panel_sendkeys 同款）。
+      // 工单02 起「激活」的实现在面板侧 = 键盘模式临时聚焦：点击本身不再激活窗口（永不激活），
+      // 前台=面板改由 keyboard-mode-on 的 setFocusable(true)+focus() 达成——断言意图不变（键盘落在面板进程）。
       const activate = async () => {
         const z = latestSearchZone();
         if (!z) return false;
@@ -1183,15 +1301,22 @@ async function main() {
         zoneShot(searchZone, currentRect, '07-search-idle', 24);
         rep.note('待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）');
 
-        // —— 点击激活 → 粘贴 → 实时结果 ——
+        // —— 点击激活 → 键盘模式取证 → 粘贴 → 实时结果 ——
+        const tAct0 = Date.now();
         const okAct = await activate();
         okAct
-          ? rep.pass('热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论落地）')
+          ? rep.pass('热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论在永不激活语义下经键盘模式落地）')
           : rep.fail('搜索面板未激活或键盘焦点未落入面板进程（前台门校验 3 次失败）');
         if (!okAct) return;
+        // 工单02 键盘模式：mode-on 存证 + 前台=面板 + 键盘模式期间面板仍在全部普通窗之下
+        const kbOn = await waitEvent('keyboard-mode-on', (e) => e.t >= tAct0, 3000);
+        const belowOn = panelBelowAllNormal();
+        kbOn && belowOn.ok
+          ? rep.pass(`键盘模式开启：keyboard-mode-on 存证；键盘焦点在手（前台=面板）且面板仍在全部普通窗之下（${belowOn.detail}）——键盘模式也钉底`)
+          : rep.fail(`键盘模式断言未过（kbOn=${JSON.stringify(kbOn)}，z 序=${belowOn.detail}）`);
         const resEvt = await pasteAwaitResults();
         resEvt
-          ? rep.pass(`键入探针词后防抖-引擎-渲染管线打通（结果 ${resEvt.count} 行 TOTAL ${resEvt.total}，qlen=${resEvt.qlen}——存证只带长度不带查询词）`)
+          ? rep.pass(`键入探针词后防抖-引擎-渲染管线打通（结果 ${resEvt.count} 行 TOTAL ${resEvt.total}，qlen=${resEvt.qlen}——存证只带长度不带查询词；Ctrl+V 键程直达输入框 = 键盘模式焦点到手）`)
           : rep.fail('探针词粘贴后 20s 未出结果（search-results-rendered 未见）');
         if (!resEvt) return;
         searchZone = latestSearchZone() || searchZone; // 活动态卡片随结果展开
@@ -1264,6 +1389,13 @@ async function main() {
         escEvt
           ? rep.pass('ESC 退回待机态（search-deactivated reason=esc：输入清空、结果收起）')
           : rep.fail('ESC 未退回待机态');
+        // 工单02 键盘模式退出：mode-off 存证 + 恢复不可聚焦样式 + 面板仍钉底
+        const kbOff = await waitEvent('keyboard-mode-off', (e) => e.t >= tSel, 3000);
+        const belowOff = panelBelowAllNormal();
+        const exOff = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+        kbOff && belowOff.ok && (exOff & w32.WS_EX_NOACTIVATE)
+          ? rep.pass(`键盘模式退出：keyboard-mode-off 存证，面板恢复不可聚焦（WS_EX_NOACTIVATE 回归）且仍钉底（${belowOff.detail}）`)
+          : rep.fail(`键盘模式退出断言未过（kbOff=${JSON.stringify(kbOff)}，z 序=${belowOff.detail}，EXSTYLE=0x${(exOff >>> 0).toString(16)}）`);
 
         // —— 失焦退回待机态（点击桌面空档：穿透处点击 → 前台翻转 → 输入框 blur）——
         const okAct4 = await activate();
@@ -1387,12 +1519,24 @@ async function main() {
       };
 
       try {
-        // a. 入口开层 + 浮层自身是热区；开层存证带滑杆矩形与当前值
+        // a. 入口开层 + 浮层自身是热区；开层存证带滑杆矩形与当前值。
+        //    工单02：开层同时走键盘模式（ESC 关层、滑杆键盘路径都要键盘焦点在手）。
+        //    过滤起点取墙钟（P7S 同法）：渲染层先发 keyboard-mode-on 再报 settings-opened，
+        //    以 opened0.t 为起点会把 on 事件筛在门外（首轮实测踩中）。
+        const tOpen0 = Date.now();
         const opened0 = await openOverlay();
         const overlayZone = latestZoneOf('settings-card');
         opened0 && overlayZone
           ? rep.pass(`设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 ${Math.round(overlayZone.w)}x${Math.round(overlayZone.h)}（可交互）`)
           : rep.fail(`设置浮层开启失败（opened=${JSON.stringify(opened0)}，热区=${JSON.stringify(overlayZone)}）`);
+        if (opened0) {
+          const kbOn08 = await waitEvent('keyboard-mode-on', (e) => e.t >= tOpen0, 3000);
+          const fg08 = w32.GetForegroundWindow();
+          const fgIsPanel08 = !!fg08 && w32.threadIdOf(fg08).pid === panelPid;
+          kbOn08 && fgIsPanel08
+            ? rep.pass('设置浮层键盘模式：开层即 keyboard-mode-on 存证，键盘焦点到手（前台=面板）——ESC 可关层')
+            : rep.fail(`设置浮层键盘模式未到手（kbOn=${JSON.stringify(kbOn08)}，前台 pid=${fg08 ? w32.threadIdOf(fg08).pid : 'null'}）`);
+        }
         fullShot('08-settings-open');
 
         // b. 初值同源：开层上报的滑杆值 = config 当前值（快照 settings 下发）
@@ -1424,10 +1568,20 @@ async function main() {
             : rep.fail(`高位拖拽断言未过（input=${JSON.stringify(high.input)}，set=${JSON.stringify(high.set)}，applied=${JSON.stringify(high.applied)}，config=${high.cfg}）`);
           fullShot('08-opacity-high');
 
+          const tEsc0 = Date.now();
           const escEvt = await closeOverlayEsc();
           escEvt
             ? rep.pass('ESC 关闭设置浮层（settings-closed reason=esc 存证）')
             : rep.fail('ESC 未关闭设置浮层（settings-closed reason=esc 未到）');
+          // 工单02 关层恢复：keyboard-mode-off 存证 + 面板恢复不可聚焦样式
+          // （off 事件先于 settings-closed 落盘，过滤起点取按 ESC 前的墙钟）
+          if (escEvt) {
+            const kbOff08 = await waitEvent('keyboard-mode-off', (e) => e.t >= tEsc0, 3000);
+            const ex08 = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+            kbOff08 && (ex08 & w32.WS_EX_NOACTIVATE)
+              ? rep.pass(`关层恢复不可聚焦：keyboard-mode-off 存证，WS_EX_NOACTIVATE 回归（EXSTYLE=0x${(ex08 >>> 0).toString(16)}）`)
+              : rep.fail(`关层后未恢复不可聚焦（kbOff=${JSON.stringify(kbOff08)}，EXSTYLE=0x${(ex08 >>> 0).toString(16)}）`);
+          }
           w32.moveMousePhys(safePt.x, safePt.y);
 
           // e. 失焦关闭：重开浮层后点时钟卡（焦点离开浮层 → blur 收层）
@@ -1919,13 +2073,13 @@ async function main() {
       const dest = path.join(pluginsDir, 'hello');
       const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
       try {
-        // 0. 内置五卡自举：五个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        // 0. 内置四卡自举：四个桌面组件必须**经插件契约**装载（不是面板自己画的）。
         //    事件按面板代次取（lastBootMs 之后）：事件文件跨重启不清，上一任面板的
         //    plugin-mounted 留着会让本段假通过。
         const since = lastBootMs();
-        const builtinIds = ['clock', 'weather', 'sessions', 'qoder', 'hardware'];
+        const builtinIds = ['clock', 'weather', 'sessions', 'hardware'];
         const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id, since));
-        // 观感一致性的机器可查部分：五张卡都进了热区声明（都在场、都在点击穿透模型里），
+        // 观感一致性的机器可查部分：四张卡都进了热区声明（都在场、都在点击穿透模型里），
         // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
         // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
         const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
@@ -1936,13 +2090,26 @@ async function main() {
           && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
           && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
         builtinMounted.length === builtinIds.length && zonesOk && geomOk
-          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张信息卡均经插件契约装载渲染，`
-            + `且五张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
+          ? rep.pass(`桌面组件·内置四卡自举：${builtinIds.join('/')} 四张信息卡均经插件契约装载渲染，`
+            + `且四张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
             + `像素级观感按惯例人工核验 04-cards-*.png）`)
-          : rep.fail(`桌面组件·内置五卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
+          : rep.fail(`桌面组件·内置四卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
             + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/') || '无'}）；`
             + `热区声明 ${zonesOk ? '齐' : `缺 ${builtinIds.filter((i) => !cardZones.has(`${i}-card`)).join('/') || '无'}`}；`
             + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);
+
+        // 0.5 Qoder 状态块退役（工单03）：热区声明按 id 找 qoder-card 应缺席，
+        //     会话卡加高补位——top 152 不动、高 348→522（吞 16px 间隙 + 158px 状态块槽，
+        //     底缘 674 与硬件卡 top 690 之间仍隔 16px），硬件卡位置零改动。
+        const zoneRects = (readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [];
+        const qoderGone = !zoneRects.some((r) => r.id === 'qoder-card');
+        const sz = zoneRects.find((r) => r.id === 'sessions-card');
+        const fillOk = Boolean(sz) && sz.y === 152 && sz.h === 522;
+        qoderGone && fillOk
+          ? rep.pass(`Qoder 状态块退役：qoder-card 不在任何热区声明里，会话卡加高补位到位`
+            + `（top ${sz.y}、高 ${sz.h}，覆盖原状态块槽位 152..674）`)
+          : rep.fail(`Qoder 状态块退役探针未过：qoder-card ${qoderGone ? '已缺席' : '仍在热区声明'}，`
+            + `sessions-card 矩形 ${JSON.stringify(sz || null)}（期望 top 152 / 高 522）`);
 
         if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
         if (lastEvent('plugin-mounted', (e) => e.id === 'hello', since)) {

@@ -11,13 +11,13 @@ import { scanKimiCode } from './kimicode'
 import { scanKimiWork } from './kimiwork'
 import type { Scanner, SessionInfo, SessionRoots } from './types'
 
-export { scanQoder, qoderStatus, taskStats, projectName, sessionLast, sessionState } from './qoder'
+export { scanQoder, taskStats, projectName, sessionLast, sessionState } from './qoder'
 export { scanHermes } from './hermes'
 export { scanZcode, ZCODE_SUBAGENT_PREFIX } from './zcode'
 export { scanKimiCode } from './kimicode'
 export { scanKimiWork } from './kimiwork'
 export { ACTIVE_WINDOW, RUNNING_WINDOW, dirName } from './types'
-export type { Scanner, SessionInfo, SessionRoots, QoderStatus } from './types'
+export type { Scanner, SessionInfo, SessionRoots } from './types'
 
 export const SCANNERS: Record<string, Scanner> = {
   qoder: scanQoder,

@@ -9,6 +9,9 @@ export interface PanelWindowOptions {
 /**
  * 独立面板窗口：透明无边框、默认鼠标穿透（热区跟踪器随后接管）。
  * 透明合成 GO 的结论与窗口参数来自工单01 探针（transparent+frameless，不走 alpha 降级）。
+ * 永不激活（工单02）：创建即不可聚焦（Windows 下等价 WS_EX_NOACTIVATE）——点击不激活、
+ * 不顶起、不抢键盘焦点；需要键盘的场景（搜索输入、设置浮层）经宿主面「键盘模式」
+ * 临时 setFocusable(true)+focus()（闸门探针 probe-focus-gate 6/6 实证稳定到手）。
  */
 export function createPanelWindow(options: PanelWindowOptions): BrowserWindow {
   const win = new BrowserWindow({
@@ -21,6 +24,7 @@ export function createPanelWindow(options: PanelWindowOptions): BrowserWindow {
     transparent: true,
     resizable: false,
     movable: false,
+    focusable: false,
     hasShadow: false,
     skipTaskbar: true,
     backgroundColor: '#00000000',
