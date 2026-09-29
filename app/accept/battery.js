@@ -760,6 +760,19 @@ async function main() {
       : rep.fail('进入热区后面板仍处于穿透样式');
 
     w32.clickPhys(cardCenter.x, cardCenter.y, 'left');
+    // 工单02 永不顶起：回归线前移到点击瞬间——点击后面板必须仍在记事本之下、前台未变、
+    // 窗口带不可激活扩展样式（现状是「点击即顶起、离开热区才重钉」，改后点击瞬间就不顶起）。
+    const exAfterClick = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+    const fgAfterClick = w32.GetForegroundWindow();
+    wfp(overlap) === notepad.hwnd
+      ? rep.pass('永不顶起：热区点击瞬间面板仍在记事本之下（回归线自「离开重钉后」前移到点击瞬间）')
+      : rep.fail(`点击瞬间重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，面板被点击顶起`);
+    fgAfterClick === notepad.hwnd
+      ? rep.pass('永不顶起：点击未抢走工作窗口前台（键盘焦点留在记事本，可继续盲打）')
+      : rep.fail(`点击后前台变为 0x${fgAfterClick.toString(16)}(${w32.className(fgAfterClick)})，点击抢了前台`);
+    exAfterClick & w32.WS_EX_NOACTIVATE
+      ? rep.pass(`永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x${(exAfterClick >>> 0).toString(16)}，点击不激活的机制保证）`)
+      : rep.fail(`面板无 WS_EX_NOACTIVATE 样式（EXSTYLE=0x${(exAfterClick >>> 0).toString(16)}）`);
     const clickEvt = await waitEvent('clock-card-clicked', (e) => e.count >= 1);
     clickEvt
       ? rep.pass(`热区点击由时钟卡接收（count=${clickEvt.count}）`)
@@ -784,8 +797,8 @@ async function main() {
       : rep.fail('离开热区后面板未恢复穿透样式');
     await sleep(600);
     wfp(overlap) === notepad.hwnd
-      ? rep.pass('热区交互后重钉生效：面板回到普通窗之下（记事本仍盖住面板）')
-      : rep.fail(`热区交互后重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，面板未回底`);
+      ? rep.pass('热区交互全程面板未顶起：记事本始终盖住面板（离开重钉路径保留，在永不顶起语义下是冗余保险）')
+      : rep.fail(`热区交互后重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，面板不在记事本之下`);
     const z = w32.topLevelWindows();
     const zPanel = z.indexOf(hwnd), zNp = z.indexOf(notepad.hwnd);
     zPanel > zNp
@@ -1118,7 +1131,25 @@ async function main() {
         const fg = w32.GetForegroundWindow();
         return !!fg && w32.threadIdOf(fg).pid === panelPid;
       };
-      // 激活 = 点击热区（search-activated 存证）+ 前台门校验（键只发进面板进程，旧电池 panel_sendkeys 同款）
+      // 工单02：面板 z 序取证——面板必须压在全部普通窗之下（键盘模式也钉底）。
+      // 判据方向：自顶向下枚举里面板**之下**不得再出现普通窗（其下只允许桌面层/任务栏，
+      // 见 CLEAR_DESKTOP_SKIP；置顶层带另论——普通窗顶不起钉底面板，普通窗在其上属自然 z 序）。
+      const panelBelowAllNormal = () => {
+        const wins = win32.topLevelWindows();
+        const zi = wins.indexOf(hwnd);
+        if (zi < 0) return { ok: false, detail: '面板窗不在可见 z 序里' };
+        const below = [];
+        for (let i = zi + 1; i < wins.length; i++) {
+          const h = wins[i];
+          if (w32.GetWindowLongW(h, w32.GWL_EXSTYLE) & w32.WS_EX_TOPMOST) continue;
+          if (CLEAR_DESKTOP_SKIP.has(w32.className(h))) continue;
+          below.push(`${w32.className(h)}@pid${w32.threadIdOf(h).pid}`);
+        }
+        return { ok: below.length === 0, detail: below.length ? `其下有普通窗 ${below.join(', ')}` : '其下仅桌面层' };
+      };
+      // 激活 = 点击热区（search-activated 存证）+ 前台门校验（键只发进面板进程，旧电池 panel_sendkeys 同款）。
+      // 工单02 起「激活」的实现在面板侧 = 键盘模式临时聚焦：点击本身不再激活窗口（永不激活），
+      // 前台=面板改由 keyboard-mode-on 的 setFocusable(true)+focus() 达成——断言意图不变（键盘落在面板进程）。
       const activate = async () => {
         const z = latestSearchZone();
         if (!z) return false;
@@ -1183,15 +1214,22 @@ async function main() {
         zoneShot(searchZone, currentRect, '07-search-idle', 24);
         rep.note('待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）');
 
-        // —— 点击激活 → 粘贴 → 实时结果 ——
+        // —— 点击激活 → 键盘模式取证 → 粘贴 → 实时结果 ——
+        const tAct0 = Date.now();
         const okAct = await activate();
         okAct
-          ? rep.pass('热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论落地）')
+          ? rep.pass('热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论在永不激活语义下经键盘模式落地）')
           : rep.fail('搜索面板未激活或键盘焦点未落入面板进程（前台门校验 3 次失败）');
         if (!okAct) return;
+        // 工单02 键盘模式：mode-on 存证 + 前台=面板 + 键盘模式期间面板仍在全部普通窗之下
+        const kbOn = await waitEvent('keyboard-mode-on', (e) => e.t >= tAct0, 3000);
+        const belowOn = panelBelowAllNormal();
+        kbOn && belowOn.ok
+          ? rep.pass(`键盘模式开启：keyboard-mode-on 存证；键盘焦点在手（前台=面板）且面板仍在全部普通窗之下（${belowOn.detail}）——键盘模式也钉底`)
+          : rep.fail(`键盘模式断言未过（kbOn=${JSON.stringify(kbOn)}，z 序=${belowOn.detail}）`);
         const resEvt = await pasteAwaitResults();
         resEvt
-          ? rep.pass(`键入探针词后防抖-引擎-渲染管线打通（结果 ${resEvt.count} 行 TOTAL ${resEvt.total}，qlen=${resEvt.qlen}——存证只带长度不带查询词）`)
+          ? rep.pass(`键入探针词后防抖-引擎-渲染管线打通（结果 ${resEvt.count} 行 TOTAL ${resEvt.total}，qlen=${resEvt.qlen}——存证只带长度不带查询词；Ctrl+V 键程直达输入框 = 键盘模式焦点到手）`)
           : rep.fail('探针词粘贴后 20s 未出结果（search-results-rendered 未见）');
         if (!resEvt) return;
         searchZone = latestSearchZone() || searchZone; // 活动态卡片随结果展开
@@ -1264,6 +1302,13 @@ async function main() {
         escEvt
           ? rep.pass('ESC 退回待机态（search-deactivated reason=esc：输入清空、结果收起）')
           : rep.fail('ESC 未退回待机态');
+        // 工单02 键盘模式退出：mode-off 存证 + 恢复不可聚焦样式 + 面板仍钉底
+        const kbOff = await waitEvent('keyboard-mode-off', (e) => e.t >= tSel, 3000);
+        const belowOff = panelBelowAllNormal();
+        const exOff = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+        kbOff && belowOff.ok && (exOff & w32.WS_EX_NOACTIVATE)
+          ? rep.pass(`键盘模式退出：keyboard-mode-off 存证，面板恢复不可聚焦（WS_EX_NOACTIVATE 回归）且仍钉底（${belowOff.detail}）`)
+          : rep.fail(`键盘模式退出断言未过（kbOff=${JSON.stringify(kbOff)}，z 序=${belowOff.detail}，EXSTYLE=0x${(exOff >>> 0).toString(16)}）`);
 
         // —— 失焦退回待机态（点击桌面空档：穿透处点击 → 前台翻转 → 输入框 blur）——
         const okAct4 = await activate();
@@ -1387,12 +1432,21 @@ async function main() {
       };
 
       try {
-        // a. 入口开层 + 浮层自身是热区；开层存证带滑杆矩形与当前值
+        // a. 入口开层 + 浮层自身是热区；开层存证带滑杆矩形与当前值。
+        //    工单02：开层同时走键盘模式（ESC 关层、滑杆键盘路径都要键盘焦点在手）。
         const opened0 = await openOverlay();
         const overlayZone = latestZoneOf('settings-card');
         opened0 && overlayZone
           ? rep.pass(`设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 ${Math.round(overlayZone.w)}x${Math.round(overlayZone.h)}（可交互）`)
           : rep.fail(`设置浮层开启失败（opened=${JSON.stringify(opened0)}，热区=${JSON.stringify(overlayZone)}）`);
+        if (opened0) {
+          const kbOn08 = await waitEvent('keyboard-mode-on', (e) => e.t >= opened0.t, 3000);
+          const fg08 = w32.GetForegroundWindow();
+          const fgIsPanel08 = !!fg08 && w32.threadIdOf(fg08).pid === panelPid;
+          kbOn08 && fgIsPanel08
+            ? rep.pass('设置浮层键盘模式：开层即 keyboard-mode-on 存证，键盘焦点到手（前台=面板）——ESC 可关层')
+            : rep.fail(`设置浮层键盘模式未到手（kbOn=${JSON.stringify(kbOn08)}，前台 pid=${fg08 ? w32.threadIdOf(fg08).pid : 'null'}）`);
+        }
         fullShot('08-settings-open');
 
         // b. 初值同源：开层上报的滑杆值 = config 当前值（快照 settings 下发）
@@ -1428,6 +1482,14 @@ async function main() {
           escEvt
             ? rep.pass('ESC 关闭设置浮层（settings-closed reason=esc 存证）')
             : rep.fail('ESC 未关闭设置浮层（settings-closed reason=esc 未到）');
+          // 工单02 关层恢复：keyboard-mode-off 存证 + 面板恢复不可聚焦样式
+          if (escEvt) {
+            const kbOff08 = await waitEvent('keyboard-mode-off', (e) => e.t >= escEvt.t, 3000);
+            const ex08 = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
+            kbOff08 && (ex08 & w32.WS_EX_NOACTIVATE)
+              ? rep.pass(`关层恢复不可聚焦：keyboard-mode-off 存证，WS_EX_NOACTIVATE 回归（EXSTYLE=0x${(ex08 >>> 0).toString(16)}）`)
+              : rep.fail(`关层后未恢复不可聚焦（kbOff=${JSON.stringify(kbOff08)}，EXSTYLE=0x${(ex08 >>> 0).toString(16)}）`);
+          }
           w32.moveMousePhys(safePt.x, safePt.y);
 
           // e. 失焦关闭：重开浮层后点时钟卡（焦点离开浮层 → blur 收层）
