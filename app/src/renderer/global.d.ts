@@ -32,6 +32,8 @@ declare global {
       }
       host: {
         setHotZones(rects: HotzoneRect[]): void
+        /** 键盘模式开关（工单02）：开 = 面板临时可聚焦+聚焦+钉底；关 = 恢复不可聚焦+钉底 */
+        setKeyboardMode(on: boolean): void
         notify(type: string, payload?: Record<string, unknown>): void
       }
     }
