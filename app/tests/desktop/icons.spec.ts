@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { IconCache } from '../../src/main/desktop/icons'
+import { IconCache, shortcutIconSource } from '../../src/main/desktop/icons'
 
 /** 图标提取缓存（工单05 验收：提取纯逻辑 vitest 覆盖） */
 describe('IconCache', () => {
@@ -63,5 +63,38 @@ describe('IconCache', () => {
     expect(await cache.fetch('k1', 'C:\\a.lnk')).toBe('icon:C:\\a.lnk')
     expect(await cache.fetch('k2|9', 'C:\\b.txt')).toBe('icon:C:\\b.txt')
     expect(extract).toHaveBeenCalledTimes(2)
+  })
+})
+
+/** 快捷方式图标源决策（工单01）：图标定位优先 / 目标回落 / 死链 null，exists 判定注入可离线测 */
+describe('shortcutIconSource', () => {
+  // 注入式存在性判定：路径含 MISSING 即不存在（离线无需真文件系统）
+  const exists = (p: string) => !p.includes('MISSING')
+  const ICON = 'C:\\apps\\app.ico'
+  const EXE = 'C:\\apps\\app.exe'
+
+  it('声明的图标定位存在 → 优先对图标定位本体提取', () => {
+    expect(shortcutIconSource(ICON, EXE, exists)).toBe(ICON)
+  })
+
+  it('未声明图标定位（空串/null/undefined）→ 回落目标可执行文件', () => {
+    expect(shortcutIconSource('', EXE, exists)).toBe(EXE)
+    expect(shortcutIconSource(null, EXE, exists)).toBe(EXE)
+    expect(shortcutIconSource(undefined, EXE, exists)).toBe(EXE)
+  })
+
+  it('声明了但文件不存在 → 回落目标可执行文件', () => {
+    expect(shortcutIconSource('C:\\MISSING\\icon.ico', EXE, exists)).toBe(EXE)
+  })
+
+  it('双缺失（定位与目标都不可用）→ null（调用方回落对 lnk 本体提取）', () => {
+    expect(shortcutIconSource('C:\\MISSING\\icon.ico', 'C:\\MISSING\\app.exe', exists)).toBeNull()
+    expect(shortcutIconSource('', null, exists)).toBeNull()
+  })
+
+  it('目标也缺失/未声明 → null；exists 判定只认注入的结论', () => {
+    expect(shortcutIconSource('', 'C:\\MISSING\\app.exe', exists)).toBeNull()
+    // 目录（exists=false）不算可用源：决策不猜路径形态，只认判定
+    expect(shortcutIconSource(ICON, EXE, () => false)).toBeNull()
   })
 })

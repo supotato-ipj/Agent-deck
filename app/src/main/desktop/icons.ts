@@ -4,6 +4,24 @@ export interface IconExtractor {
   (filePath: string): Promise<string | null>
 }
 
+/**
+ * 快捷方式图标源决策（工单01，纯逻辑）：决定一条 .lnk 应对哪个本体提取图标。
+ * 输入 lnk 解析结果（iconLocation = 声明的图标定位路径 ShortcutDetails.icon，
+ * target = 解析出的目标可执行文件）与注入的存在性判定（生产 fs.statSync），
+ * 输出应提取的本体路径；null = 两者皆不可用，调用方回落对 lnk 本体提取
+ * （即修法前的通用图标，死链的既定观感）。决策规则：
+ * 优先声明的图标定位路径；未声明或文件不存在回落目标可执行文件；双缺失 → null。
+ */
+export function shortcutIconSource(
+  iconLocation: string | null | undefined,
+  target: string | null | undefined,
+  exists: (p: string) => boolean,
+): string | null {
+  if (iconLocation && exists(iconLocation)) return iconLocation
+  if (target && exists(target)) return target
+  return null
+}
+
 export class IconCache {
   private readonly cache = new Map<string, string | null>()
   private readonly inflight = new Map<string, Promise<string | null>>()
