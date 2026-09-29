@@ -2,7 +2,7 @@ import { app, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
-import { createKernel } from './kernel'
+import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
@@ -12,6 +12,7 @@ import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
+import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { userDataPath } from './paths'
 
@@ -81,21 +82,31 @@ async function bootPanel(): Promise<void> {
     log?.append({ type: 'usage-migrate-failed', message: (err as Error).message })
   }
 
-  const kernel = createKernel({
+  const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
-    desktop: {
-      storeFile: path.join(app.getPath('userData'), 'layout.json'),
-      docMaxRows: config.desktop.docMaxRows,
-    },
-    usage: { dir: usageDir },
     search: { port: config.search.port },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
     // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
     plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
+    // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
+    // Electron API 不可用于子进程——桌面根/摆位存储/日志目录等路径全部在此解析后下发。
+    dataplane: {
+      workerModule: path.join(__dirname, 'dataplane.js'),
+      init: {
+        roots: defaultDesktopRoots(),
+        storeFile: path.join(app.getPath('userData'), 'layout.json'),
+        docMaxRows: config.desktop.docMaxRows,
+        usageDir,
+      },
+      log: (event) => log?.append(event),
+    },
   })
   await kernel.start()
+  // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
+  // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
+  await kernel.panelData.whenReady
 
   installPluginProtocol({ appRoot: RENDERER_ROOT, host: kernel.plugins })
 
@@ -110,9 +121,15 @@ async function bootPanel(): Promise<void> {
     log?.append({ type: 'panel-shown', reason })
   }
 
+  // 热区离开的重钉节流：光标在热区边界抖动时，离开确认（hotzone 去抖）+ 500ms 节流
+  // 双保险，不把边界抖动放大成 z 序重排风暴（SetWindowPos(HWND_BOTTOM) 触发全系统重排）。
+  let lastLeavePinMs = 0
   const tracker = new HotzoneTracker(win, {
     onLeave: () => {
       // 探针01-C：热区交互（点击）会顶起 z 序，离开即重钉回底部
+      const now = Date.now()
+      if (now - lastLeavePinMs < 500) return
+      lastLeavePinMs = now
       if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'hotzone-leave' })
     },
     onTransition: (hot) => log?.append({ type: hot ? 'hotzone-enter' : 'hotzone-leave' }),

@@ -31,6 +31,10 @@ export function createPanelWindow(options: PanelWindowOptions): BrowserWindow {
       sandbox: true,
     },
   })
-  win.setIgnoreMouseEvents(true, { forward: true })
+  // 默认穿透不带 forward 转发：Electron 在 Windows 上实现 forward 要在主进程装
+  // 全局低级鼠标钩子（WH_MOUSE_LL），系统每个鼠标事件都串行等它——主线程任一阻塞
+  // 都会拖慢全系统光标（实测采集阻塞每秒 ~300ms，见 .scratch/mouse-lag/ 基线存证）。
+  // 热区判定由主进程光标轮询完成，悬停高亮由热区解除穿透后的真实事件驱动。
+  win.setIgnoreMouseEvents(true)
   return win
 }

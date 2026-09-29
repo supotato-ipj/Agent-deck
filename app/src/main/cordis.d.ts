@@ -8,11 +8,17 @@ import type { SearchService } from './services/search'
 import type { SettingsService } from './services/settings'
 import type { FocusService } from './services/focus'
 import type { PluginHostService } from './plugins/service'
+import type { PanelDataPort } from './services/panel-data'
 import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState } from '../shared/contract'
 
 declare module 'cordis' {
   interface Events {
     'panel/changed': (snapshot: PanelSnapshot) => void
+    /**
+     * 数据面快照到达（鼠标卡顿修复工单）：生产装配由 DataplaneService 每拍发出，
+     * 桥接层订阅后推送 panel/changed。进程内装配不发出（tick 手动驱动同效果）。
+     */
+    'dataplane/snapshot': () => void
     /** 工单07 搜索：派生态变化（待机/活动/引擎离线）与引擎成功响应 */
     'search/state': (payload: { state: SearchUiState }) => void
     'search/results': (payload: { total: number; items: SearchResultItem[] }) => void
@@ -27,6 +33,11 @@ declare module 'cordis' {
     hardware: HardwareService
     desktop: DesktopService
     bridge: BridgeService
+    /**
+     * 桥接层的数据面端口：进程内装配（内核测试）为 LocalPanelDataService 直连采集服务；
+     * 生产装配为 DataplaneService（utilityProcess 子进程宿主，鼠标卡顿修复工单起）。
+     */
+    panelData: PanelDataPort
     /** 工单06 使用日志（内核可不装：desktop 的推荐位按无分数退化） */
     usage?: UsageService
     /** 工单07 搜索（内核总装必装；离线测试注入假源） */

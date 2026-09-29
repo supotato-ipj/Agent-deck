@@ -25,8 +25,9 @@ npm run dev          # 构建并启动（默认入口：外层守卫 → 隐藏�
 ```
 app/
   src/
-    main/        Electron 主进程：cordis 内核、面板窗口、Win32 层（穿透/钉扎/图标承载）、
-                 会话扫描器、搜索、桌面承载、使用日志、桌面组件宿主
+    main/        Electron 主进程：cordis 内核、面板窗口、Win32 层（穿透/钉扎）、搜索、
+                 桌面组件宿主；四个采集服务（会话/硬件/使用日志/桌面承载）跑在
+                 utilityProcess 数据面子进程（dataplane.ts 入口，见 ADR-0005）
     preload/     上下文桥
     renderer/    面板前端（原生 ESM）；cards/ 为五个内置桌面组件
     shared/      内核↔渲染层契约（contract.ts）
@@ -112,6 +113,7 @@ Python 数据服务时代的使用日志在 `%LOCALAPPDATA%\qoder-deck\usage\`�
 | [0003 多工具统一会话模型](docs/adr/0003-multi-tool-unified-session-model.md) | 有效 |
 | [0003 搜索面板为数据服务窗口](docs/adr/0003-search-panel-service-window.md) | 已被 0004 取代 |
 | [0004 Electron + cordis 独立面板](docs/adr/0004-electron-cordis-standalone-panel.md) | 有效 |
+| [0005 主进程不持有输入钩子；采集移入数据面子进程](docs/adr/0005-no-input-hooks-dataplane-utility-process.md) | 有效 |
 
 领域词汇以 [CONTEXT.md](CONTEXT.md) 为准（含「已退役词汇」一节）。
 
@@ -120,5 +122,5 @@ Python 数据服务时代的使用日志在 `%LOCALAPPDATA%\qoder-deck\usage\`�
 1. **面板没起来** → 看托盘图标；面板默认不夺焦，可能已在壁纸之上被其他窗口盖住。托盘点击唤回。
 2. **桌面图标没还原**（面板被强杀） → `npx electron . --icon-restore`，或直接重启面板（守卫退出时自会还原，另有还原守护兜底控制台信号同杀的场景）。
 3. **搜索显示 ENGINE OFFLINE** → Listary 未运行或端口不对（`config.search.port`）。查询词只发往本机 Listary API，不进使用日志。
-4. **卡片数据不对** → 会话扫描只读文件系统/SQLite，任一工具数据源损坏会静默跳过该工具，其余照常。
+4. **卡片数据不对** → 会话扫描只读文件系统/SQLite，任一工具数据源损坏会静默跳过该工具，其余照常。采集整体跑在数据面子进程（ADR-0005）：子进程崩溃按退避自动重启（存证日志记 `dataplane-exit`，重启后一拍内补齐），控制台 `deck-*` 告警经 stdio 直通自子进程。
 5. **自启项不对** → 删掉 Startup 里的 `AGENT DECK.lnk` 再启动一次面板即重建；指向别处且目标仍在时不追改（见上）。
