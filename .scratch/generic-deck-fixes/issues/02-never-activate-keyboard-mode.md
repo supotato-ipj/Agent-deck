@@ -1,6 +1,6 @@
 # 工单02: 交互永不顶起 + 键盘模式
 
-Status: claimed
+Status: resolved
 
 Spec: `.scratch/generic-deck-fixes/spec.md`（Implementation Decisions「永不激活」「键盘模式」「实施闸门」；User Stories 5-13、19 的 z 序与键盘防回归线）。
 
@@ -35,7 +35,52 @@ Spec: `.scratch/generic-deck-fixes/spec.md`（Implementation Decisions「永不�
 
 ## 验收
 
-- [ ] 闸门探针证据落盘（.scratch/generic-deck-fixes/），结论明确「通过/被拒」
-- [ ] typecheck + vitest 全绿
-- [ ] 电池三探针就位（真机全量由合并后在 PR 分支统一跑）
-- [ ] 既有钉底路径零删减
+- [x] 闸门探针证据落盘（.scratch/generic-deck-fixes/），结论明确「通过/被拒」
+- [x] typecheck + vitest 全绿
+- [x] 电池三探针就位（真机全量由合并后在 PR 分支统一跑）
+- [x] 既有钉底路径零删减
+
+## Answer
+
+**闸门结论：通过。** 探针 `.scratch/generic-deck-fixes/probe-focus-gate.js`（证据 `probe-focus-gate-result.json`），
+6 轮全中：SendInput 点击 focusable:false 窗不夺前台 6/6；`setFocusable(true)+focus()` 后 GetForegroundWindow
+命中面板 6/6；SendInput 字符真落输入框（DOM 取证，值累进 a→abcdef）6/6；前台/激活态下立即 HWND_BOTTOM
+重钉——仍持前台且落在普通窗之下 6/6（「键盘模式也钉底」可行性再次实证）。第 0 轮首跑曾出现一次
+「点击不激活」误报，定位为探针前置伪影（ref 首轮未拿到前台，断言前提不成立）而非面板被激活，
+修严取证（ref 前台轮询 + fgAfterClick 身份记录）后 6/6 干净通过。Windows 前台锁未构成稳定拒绝，
+保底方案无需启用。
+
+**改动清单**
+
+- `app/src/main/panel-window.ts`：`createPanelWindow` 加 `focusable: false`（WS_EX_NOACTIVATE）。
+- `app/src/main/panel-ipc.ts`：`wireHostIpc` 新通道 `deck:host-keyboard-mode`（宿主面，不进 contract.ts）——
+  开 = `setFocusable(true)` + `focus()` + 立即 `pinToBottom`；关 = `setFocusable(false)` + `pinToBottom`；
+  EventLog 存证 `keyboard-mode-on` / `keyboard-mode-off`；退出不自动还原焦点。
+- `app/src/main/index.ts`：`win.on('focus')` 兜底重钉（pin reason=`focus-fallback`）；既有钉底路径
+  （启动首显、showPanel 托盘/second-instance/Win+D、热区离开重钉）零删减。
+- `app/src/preload/index.ts` + `app/src/renderer/global.d.ts`：`host.setKeyboardMode(on)` 暴露与类型。
+- `app/src/renderer/main.ts`：接线恰好四处——`searchActivate()`→开、`searchDeactivate()`→关、
+  `openSettings()`→开、`closeSettings()`→关；关模式的失焦再入由既有 `searchDeactivating` 护栏与
+  `searchActive`/`settingsOpen` 早退双保险拦住。
+- `app/accept/battery.js` 三探针：① P2 段回归线前移到点击瞬间——点击后立即断言面板仍在记事本之下 +
+  前台未变 + WS_EX_NOACTIVATE 在场，「点击→离开→重钉」段改写为永不顶起语义；② P7S 段 keyboard-mode-on
+  存证 + 前台=面板 + `panelBelowAllNormal`（自顶向下取证面板之下无普通窗）+ Ctrl+V 键程直达输入框，
+  ESC 后 keyboard-mode-off + NOACTIVATE 回归 + 仍钉底，`activate` 前台门断言意图不变最小改写；
+  ③ P8S 段开层即 mode-on + 前台=面板，ESC 关层后 mode-off + 恢复不可聚焦。
+- 闸门探针（独立提交）：`.scratch/generic-deck-fixes/probe-focus-gate.js` + `probe-focus-gate-page.html`
+  + `probe-focus-gate-result.json`。
+
+**验证输出摘要**
+
+- `npm run typecheck`：通过（无输出即无错）。
+- `npm test`：Test Files 32 passed (32)，Tests 451 passed (451)，33.68s。
+- `npm run build`：通过（vite build + copy-assets 全量产物就位）。
+- 真机：闸门探针 6/6（见上）。完整 `npm run accept` 按计划合并后在 PR 分支统一跑；
+  生产面板在跑（单实例锁），本次未做烟囱起停、未触碰 D:\local_works\agent-deck。
+
+**提交列表**（分支 `feat/gdf-02-never-activate`）
+
+- `85cfa31` chore(generic-deck-fixes): 工单02 认领（ready-for-agent → claimed）
+- `6737644` test(generic-deck-fixes): 工单02 实施闸门探针——不可激活窗口程序化聚焦 6/6 稳定拿到键盘（闸门通过）
+- `145a0f8` feat(app): 工单02 交互永不顶起+键盘模式——面板创建即不可激活，键盘场景经宿主面临时聚焦
+- `4b94e13` test(app): 工单02 验收电池三探针——永不顶起前移到点击瞬间/键盘模式钉底拿键盘/设置浮层开关层
