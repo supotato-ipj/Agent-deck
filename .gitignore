@@ -2,7 +2,7 @@ __pycache__/
 *.pyc
 
 # 上游壁纸编辑器的自动历史，非本项目产物
-backup/original/.history/
+archive/wallpaper-assets/backup/original/.history/
 
 # 一次性验证产物
 .scratch/*.png
@@ -10,4 +10,13 @@ backup/original/.history/
 .venv/
 
 # 字体二进制一律留本地不入库（Decima Mono 为商业字体）
-deck/fonts/
+archive/wallpaper-assets/deck/fonts/
+
+# 字体对比页的字体二进制经 npm 源复取，不入库（见 .scratch/standalone-app/font-compare/compare.html 头注）
+.scratch/standalone-app/font-compare/fonts/
+
+# 独立面板 app（工单02 起）
+app/node_modules/
+app/dist/
+# config.json 为运行时用户可编辑文件，首运行按当前屏幕几何自动生成
+app/config.json

@@ -1,0 +1,8 @@
+{
+  "id": "hardware",
+  "name": "HARDWARE",
+  "version": "1.0.0",
+  "entry": "./card.js",
+  "capabilities": ["hardware"],
+  "order": 50
+}
