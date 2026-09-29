@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { ClockState, DesktopState, DesktopZone, HardwareState, QoderStatus, SessionInfo } from '../../shared/contract'
+import type { ClockState, DesktopState, DesktopZone, HardwareState, SessionInfo } from '../../shared/contract'
 
 /**
  * 桥接层的数据面端口：panel/snapshot 的数据段与桌面承载动作的统一出口。
@@ -10,7 +10,6 @@ import type { ClockState, DesktopState, DesktopZone, HardwareState, QoderStatus,
 export interface PanelDataPort {
   clock(): ClockState
   sessions(): SessionInfo[]
-  qoder(): QoderStatus
   hardware(): HardwareState
   desktop(): DesktopState
   /** 一个采样轮：本地装配驱动采集服务刷新；数据面装配为空操作（子进程自驱动） */
@@ -39,10 +38,6 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   sessions(): SessionInfo[] {
     return this.ctx.sessions.current()
-  }
-
-  qoder(): QoderStatus {
-    return this.ctx.sessions.qoderState()
   }
 
   hardware(): HardwareState {

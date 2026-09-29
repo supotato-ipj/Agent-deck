@@ -1,8 +1,0 @@
-{
-  "id": "qoder",
-  "name": "QODER STATUS",
-  "version": "1.0.0",
-  "entry": "./card.js",
-  "capabilities": ["qoder"],
-  "order": 40
-}

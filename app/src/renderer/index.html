@@ -87,7 +87,7 @@
   }
   #cal-title { margin-bottom: 10px; font-size: 13px; color: #d6d6d6; }
 
-  /* ---- 右列：搜索面板（07）→ 会话列表 / Qoder 状态 / 硬件 ---- */
+  /* ---- 右列：搜索面板（07）→ 会话列表 / 硬件（Qoder 状态块随工单03 退役，会话卡加高补位） ---- */
   /* 搜索面板（工单07，CONTEXT.md「搜索面板」）：右窄栏待机位——待机态 SEARCH 头 +
    * CLICK TO SEARCH_ 提示融入卡片视觉；点击转活动态（原生输入框，中文输入法可输入），
    * 结果区向下展开临时盖住会话卡（旧 Tk 面板「活动态盖壁纸内容」惯例的平移）；
@@ -171,7 +171,10 @@
     color: #000;
   }
 
-  #sessions-card { right: 48px; top: 152px; width: 420px; height: 348px; }
+  /* 工单03 起 Qoder 状态块退役：会话卡吞掉原状态块槽位（top 152 不动，
+   * 高 348 → 522 = 原 348 + 16px 间隙 + 158px 状态块槽），可见会话行约翻倍；
+   * 硬件卡位置零改动（top 690 不动，与 152 + 522 + 16 = 690 对齐）。 */
+  #sessions-card { right: 48px; top: 152px; width: 420px; height: 522px; }
   #sessions-head-count { float: right; letter-spacing: 0.2em; }
   #session-rows { overflow: hidden; }
   .srow {
@@ -190,19 +193,6 @@
   .srow .name { color: #d6d6d6; overflow: hidden; text-overflow: ellipsis; }
   .srow .tasks { text-align: right; }
   #sessions-standby { font-size: 13px; letter-spacing: 0.2em; color: #6b7075; }
-
-  #qoder-card { right: 48px; top: 516px; width: 420px; height: 158px; }
-  #qoder-body { font-size: 13px; line-height: 1.8; color: #d6d6d6; }
-  #qoder-task {
-    margin-top: 6px;
-    font-size: 12px;
-    color: #9aa0a6;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #qoder-progress { margin-top: 8px; height: 4px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; }
-  #qoder-progress-fill { height: 100%; width: 0%; background: #f5a623; border-radius: 2px; }
 
   #hardware-card { right: 48px; top: 690px; width: 420px; height: 252px; }
   #hw-lines { font-size: 13px; line-height: 1.7; color: #d6d6d6; }
@@ -384,7 +374,7 @@
 </head>
 <body>
 
-<!-- 时钟/天气/会话列表/Qoder 状态/硬件五卡自工单10 起是内置桌面组件：
+<!-- 时钟/天气/会话列表/硬件四卡自工单10 起是内置桌面组件（Qoder 状态卡随工单03 退役）：
      卡片元素由各插件在 mount 时自建（id 与样式表一一对应，观感不变），
      此处只留搜索、桌面承载区、设置浮层与日历（仍在宿主页面内）。 -->
 

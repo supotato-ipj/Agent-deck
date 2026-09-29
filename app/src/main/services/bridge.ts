@@ -15,7 +15,7 @@ export class BridgeError extends Error {
 
 /**
  * 内核对渲染层的唯一桥接（spec「内核契约」缝）：invoke 请求/响应 + 事件订阅推送。
- * 数据段（时钟/会话/Qoder/硬件/桌面）与桌面承载动作经 panelData 端口取——
+ * 数据段（时钟/会话/硬件/桌面）与桌面承载动作经 panelData 端口取——
  * 进程内内核直连采集服务，生产装配转发数据面子进程。后续工单只扩展
  * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
@@ -38,7 +38,6 @@ export class BridgeService extends Service {
     return {
       clock: this.ctx.panelData.clock(),
       sessions: this.ctx.panelData.sessions(),
-      qoder: this.ctx.panelData.qoder(),
       hardware: this.ctx.panelData.hardware(),
       weather: this.weather,
       desktop: this.ctx.panelData.desktop(),

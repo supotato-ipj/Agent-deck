@@ -170,7 +170,6 @@ function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
   return {
     clock: { iso: d.toISOString(), epochMs: d.getTime() },
     sessions: ctx.sessions.current(),
-    qoder: ctx.sessions.qoderState(),
     hardware: ctx.hardware.state(),
     desktop: ctx.desktop.state(),
   }

@@ -21,7 +21,6 @@ function snapshotOf(c: Context): DataplaneSnapshot {
   return {
     clock: { iso: d.toISOString(), epochMs: d.getTime() },
     sessions: c.sessions.current(),
-    qoder: c.sessions.qoderState(),
     hardware: c.hardware.state(),
     desktop: c.desktop.state(),
   }
