@@ -58,8 +58,9 @@ export class DesktopCoverWatcher {
     private readonly win: BrowserWindow,
     private readonly log?: EventLog,
   ) {
-    this.w32 = require('./win32')
-    this.w32.setPinGate(() => this.elevated)
+    const w = require('./win32') as Win32
+    this.w32 = w
+    w.setPinGate(() => this.elevated)
     this.timer = setInterval(() => this.tick(), POLL_MS)
     if (typeof this.timer.unref === 'function') this.timer.unref()
   }
