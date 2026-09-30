@@ -26,6 +26,11 @@ export function createPanelWindow(options: PanelWindowOptions): BrowserWindow {
     movable: false,
     focusable: false,
     hasShadow: false,
+    // skipTaskbar 在 Electron 44（Windows）经 ITaskbarList::DeleteTab 摘除任务栏按钮，
+    // 并不设置 WS_EX_TOOLWINDOW 位（实测 exstyle 可证，工单07）。效果：ToggleDesktop
+    // 不把面板当任务栏窗最小化；但 show desktop 态 shell 会把桌面宿主 Progman 抬到
+    // 面板之上、壁纸连带盖住面板——由桌面遮罩守望（desktop-cover.ts）处置，勿单独
+    // 依赖本项获得「显示桌面免疫」。
     skipTaskbar: true,
     backgroundColor: '#00000000',
     webPreferences: {

@@ -8,6 +8,7 @@ import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
 import { createTray } from './tray'
+import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
 import { pinToBottom } from './win32'
@@ -145,10 +146,12 @@ async function bootPanel(): Promise<void> {
   win.once('ready-to-show', () => {
     win.showInactive()
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'startup' })
-    // Win+D 防抖恢复：首显后开始盯收起态。spec 只要求最小化恢复（Win11 实测 ToggleDesktop
-    // 对 skipTaskbar 工具窗豁免，面板根本不会因 Win+D 最小化——防抖机制兜底任意最小化来源，
-    // 电池以 SW_MINIMIZE 演练）；不盯 !isVisible：隐藏是启动前的正常态，且未来「隐藏面板」
-    // 功能不应被恢复器顶回（评审收编）。
+    // Win+D 防抖恢复：首显后开始盯收起态。 ToggleDesktop 不把面板最小化（skipTaskbar 下
+    // shell 不视其为任务栏窗；注意 Electron 44 的 skipTaskbar 并不设置 WS_EX_TOOLWINDOW
+    // 位——「工具窗豁免」的旧说法不成立，见工单07），防抖机制兜底任意最小化来源，
+    // 电池以 SW_MINIMIZE 演练；不盯 !isVisible：隐藏是启动前的正常态，且未来「隐藏面板」
+    // 功能不应被恢复器顶回（评审收编）。show desktop 态的「壁纸盖住面板」由桌面遮罩
+    // 守望（下方）处置，电池以像素级断言与 cover 事件把关。
     const restorer = new WinDRestorer(
       () => (win.isMinimized() ? 'minimized' : null),
       {
@@ -160,6 +163,12 @@ async function bootPanel(): Promise<void> {
       },
     )
     win.on('closed', () => restorer.dispose())
+    // 桌面遮罩守望（工单07）：show desktop 态 shell 把 Progman 抬到面板之上，壁纸连带
+    // 盖住面板（窗口态全程正常，肉眼即「deck 被显示桌面清空」）。守望器在 Progman 压顶
+    // 时把面板临时提入 TOPMOST 带、Progman 回底即撤回重钉；TOPMOST 期间底部钉扎一律
+    // 闸断（win32.setPinGate），防止热区离开/focus 兜底把面板亲手塞回壁纸之下。
+    const cover = new DesktopCoverWatcher(win, log ?? undefined)
+    win.on('closed', () => cover.dispose())
   })
   win.on('closed', () => tracker.dispose())
   // 兜底重钉（工单02）：面板永不激活，但键盘模式/系统交互理论上仍可能送来 focus 事件——
