@@ -338,6 +338,30 @@ function restoreDesktop() {
   minimizedForRestore = [];
 }
 
+// —— 遮挡感知交互前置（工单11）：交互落点必须真被本面板接收——电池一跑数分钟，
+// 用户窗口随时抬回 dock 区上空，SendInput 整段被覆盖窗偷走，探针以「无存证」假死
+// （真机实证：单击过、9 秒后双击挂；像素级取证落点命中的是覆盖窗而非面板，几何
+// 与时序无罪）。命中桌面层（Progman/WorkerW 等）= show desktop 态残留或面板不在
+// 屏，最小化覆盖窗无意义，直接带诊断失败；普通覆盖窗按 clearDesktop 同法最小化
+// 并记入还原清单，重试至命中。
+async function ensurePanelHit(pt, hwnd) {
+  for (let i = 0; i < 4; i++) {
+    win32.moveMousePhys(pt.x, pt.y);
+    await sleep(400); // 热区轮询 25ms，留足解除穿透
+    const root = Number(win32.windowFromPointRoot(pt));
+    if (root === Number(hwnd)) return { ok: true };
+    const cls = win32.className(root);
+    if (CLEAR_DESKTOP_SKIP.has(cls)) {
+      return { ok: false, why: `落点命中桌面层 ${cls}（show desktop 态残留或面板未在屏）` };
+    }
+    if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
+    win32.ShowWindow(root, SW_MINIMIZE);
+    await sleep(700);
+  }
+  const cls = win32.className(Number(win32.windowFromPointRoot(pt)));
+  return { ok: false, why: `清场重试后仍被 ${cls} 遮挡` };
+}
+
 // 启动真实普通应用窗（Win11 打包版记事本的窗口不属于启动进程，按新出现窗口匹配）
 async function launchNotepad(rep, rect) {
   const before = new Set(win32.topLevelWindows().filter((h) => win32.className(h) === 'Notepad'));
@@ -878,13 +902,16 @@ async function main() {
       } else {
         const cx = rect.left + Math.round((appRect.rect.x + appRect.rect.w / 2) * f);
         const cy = rect.top + Math.round((appRect.rect.y + appRect.rect.h / 2) * f);
-        w32.moveMousePhys(cx, cy);
-        await sleep(350); // 热区轮询 25ms，留足解除穿透
-        w32.clickPhys(cx, cy, 'left');
-        const sel = await waitEvent('desktop-selected', (e) => e.name === appRect.name, 4000);
-        sel
-          ? rep.pass(`单击选中态：dock 条目「${appRect.name}」选中并上报存证`)
-          : rep.fail('单击未见 desktop-selected 存证');
+        const hitSel = await ensurePanelHit({ x: cx, y: cy }, hwnd);
+        if (!hitSel.ok) {
+          rep.fail(`单击选中前置失败：${hitSel.why}`);
+        } else {
+          w32.clickPhys(cx, cy, 'left');
+          const sel = await waitEvent('desktop-selected', (e) => e.name === appRect.name, 4000);
+          sel
+            ? rep.pass(`单击选中态：dock 条目「${appRect.name}」选中并上报存证`)
+            : rep.fail('单击未见 desktop-selected 存证');
+        }
         capture({
           left: rect.left + Math.round((appRect.rect.x - 70) * f), top: rect.top + Math.round((appRect.rect.y - 40) * f),
           right: rect.left + Math.round((appRect.rect.x + appRect.rect.w + 70) * f), bottom: rect.top + Math.round((appRect.rect.y + appRect.rect.h + 50) * f),
@@ -893,39 +920,46 @@ async function main() {
         await sleep(300);
       }
 
-      // 双击验收探针 lnk：造唯一名 → 入池 → 双击启动 → 标记文件实证 → 清理 → 同步消失
+      // 双击验收探针 lnk：造唯一名 → 入池 → 静置矩形 → 遮挡校验 → 双击启动 → 标记实证 → 清理。
+      // 工单11 两处修：矩形改取 waitStable 静置拍（首拍后 dock 分数异步重排会换位，
+      // 首拍矩形点在换位后的空档上）；交互前 ensurePanelHit（真机实证：用户窗口抬起
+      // 盖住 dock 区时 SendInput 整段被偷走，探针以「无存证」假死）。
       const probeName = `DECK-PROBE-${Date.now()}.lnk`;
       const lnkPath = path.join(scan.user, probeName);
       const markerPath = path.join(__dirname, 'evidence', `05-marker-${Date.now()}.txt`);
       try {
         createProbeLnk(lnkPath, markerPath);
         const shown = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probeName), 8000);
-        const probeRect = shown && (shown.rects || []).find((r) => r.name === probeName && r.rect);
         shown
           ? rep.pass(`新建探针 lnk 入池：${probeName}（1Hz 重扫描自动出现）`)
           : rep.fail('新建探针 lnk 未入池（desktop-rendered 未见）');
+        const settledProbe = await waitStable('desktop-rendered', 1500, 8000);
+        const probeRect = settledProbe && (settledProbe.rects || []).find((r) => r.name === probeName && r.rect);
         if (probeRect) {
           const cx = rect.left + Math.round((probeRect.rect.x + probeRect.rect.w / 2) * f);
           const cy = rect.top + Math.round((probeRect.rect.y + probeRect.rect.h / 2) * f);
-          w32.moveMousePhys(cx, cy);
-          await sleep(350);
-          w32.clickPhys(cx, cy, 'left');
-          await sleep(90); // 第二击须落在 GetDoubleClickTime（默认 500ms）内
-          w32.clickPhys(cx, cy, 'left');
-          w32.moveMousePhys(safePt.x, safePt.y);
-          const launched = await waitEvent('desktop-launched', (e) => e.name === probeName, 6000);
-          launched && launched.ok
-            ? rep.pass('双击启动：探针 lnk 经桥接 desktop/launch 启动（ok=true）')
-            : rep.fail(`双击启动存证异常：${JSON.stringify(launched)}`);
-          let markerOk = false;
-          const markerDeadline = Date.now() + 10000;
-          while (Date.now() < markerDeadline && !markerOk) {
-            try { markerOk = fs.readFileSync(markerPath, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
-            if (!markerOk) await sleep(250);
+          const hitDbl = await ensurePanelHit({ x: cx, y: cy }, hwnd);
+          if (!hitDbl.ok) {
+            rep.fail(`双击启动前置失败：${hitDbl.why}`);
+          } else {
+            w32.clickPhys(cx, cy, 'left');
+            await sleep(90); // 第二击须落在 GetDoubleClickTime（默认 500ms）内
+            w32.clickPhys(cx, cy, 'left');
+            w32.moveMousePhys(safePt.x, safePt.y);
+            const launched = await waitEvent('desktop-launched', (e) => e.name === probeName, 6000);
+            launched && launched.ok
+              ? rep.pass('双击启动：探针 lnk 经桥接 desktop/launch 启动（ok=true）')
+              : rep.fail(`双击启动存证异常：${JSON.stringify(launched)}`);
+            let markerOk = false;
+            const markerDeadline = Date.now() + 10000;
+            while (Date.now() < markerDeadline && !markerOk) {
+              try { markerOk = fs.readFileSync(markerPath, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
+              if (!markerOk) await sleep(250);
+            }
+            markerOk
+              ? rep.pass('双击验收探针 lnk 启动成功（目标进程写标记文件实证）')
+              : rep.fail('探针 lnk 目标 10s 内未写标记文件（启动未实证）');
           }
-          markerOk
-            ? rep.pass('双击验收探针 lnk 启动成功（目标进程写标记文件实证）')
-            : rep.fail('探针 lnk 目标 10s 内未写标记文件（启动未实证）');
         } else {
           rep.fail('探针 lnk 条目无矩形（无法双击）');
         }
@@ -1194,32 +1228,48 @@ async function main() {
         } else {
           const from = { x: rect.left + Math.round((rd.x + rd.w / 2) * f), y: rect.top + Math.round((rd.y + rd.h / 2) * f) };
           const to = { x: rect.left + Math.round((ra.x + ra.w / 2) * f), y: rect.top + Math.round((ra.y + ra.h / 2) * f) };
-          w32.moveMousePhys(from.x, from.y);
-          await sleep(400); // 热区轮询 25ms，留足解除穿透
-          w32.send([w32.mouseInput(0, 0, w32.LEFTDOWN)]);
-          const steps = 12; // 渲染层拖拽阈值 6px，步进远超阈值；每步 24ms 保持事件流
-          for (let s = 1; s <= steps; s++) {
-            await sleep(24);
-            w32.moveMousePhys(from.x + Math.round(((to.x - from.x) * s) / steps), from.y + Math.round(((to.y - from.y) * s) / steps));
+          const hitDrag = await ensurePanelHit(from, hwnd);
+          hitDrag.ok
+            ? rep.note('拖拽源落点校验通过（面板在收输入）')
+            : rep.fail(`拖拽摆位前置失败：${hitDrag.why}（排序/持久化连锁断言跳过）`);
+          if (hitDrag.ok) {
+            w32.send([w32.mouseInput(0, 0, w32.LEFTDOWN)]);
+            const steps = 12; // 渲染层拖拽阈值 6px，步进远超阈值；每步 24ms 保持事件流
+            for (let s = 1; s <= steps; s++) {
+              await sleep(24);
+              w32.moveMousePhys(from.x + Math.round(((to.x - from.x) * s) / steps), from.y + Math.round(((to.y - from.y) * s) / steps));
+            }
+            await sleep(140); // 落点稳定后再抬键（elementFromPoint 取参照条目）
+            const hitDrop = await ensurePanelHit(to, hwnd);
+            hitDrop.ok
+              ? rep.note('拖拽落点校验通过（输入流全程在面板）')
+              : rep.fail(`拖拽落点中途被遮：${hitDrop.why}`);
+            w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
           }
-          await sleep(140); // 落点稳定后再抬键（elementFromPoint 取参照条目）
-          w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
           w32.moveMousePhys(safePt.x, safePt.y);
-          const moved = await waitEvent('desktop-moved', (e) => e.name === dragged && e.ok, 6000);
-          moved
-            ? rep.pass(`拖拽摆位：${dragged} 拖至 ${anchor} 之前（desktop/move ok=true，摆位落盘）`)
-            : rep.fail(`拖拽摆位未达成（desktop-moved=${JSON.stringify(moved)}）`);
+          const moved = hitDrag.ok && await waitEvent('desktop-moved', (e) => e.name === dragged && e.ok, 6000);
+          if (hitDrag.ok) {
+            moved
+              ? rep.pass(`拖拽摆位：${dragged} 拖至 ${anchor} 之前（desktop/move ok=true，摆位落盘）`)
+              : rep.fail(`拖拽摆位未达成（desktop-moved=${JSON.stringify(moved)}）`);
+          }
           const tReordered = Date.now();
-          const reordered = await waitEvent('desktop-rendered', (e) => {
+          const reordered = hitDrag.ok && await waitEvent('desktop-rendered', (e) => {
             const ord = ((e.dock) || []).map((d) => d.name);
             return e.t >= tReordered - 2500 && ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor);
           }, 6000);
-          reordered
-            ? rep.pass('摆位即时重编排：拖拽条目越过参照（渲染序更新）')
-            : rep.fail('拖拽后编排序未更新');
+          if (!hitDrag.ok) {
+            rep.note('拖拽未执行（前置遮挡失败），排序/持久化连锁断言跳过');
+          } else {
+            reordered
+              ? rep.pass('摆位即时重编排：拖拽条目越过参照（渲染序更新）')
+              : rep.fail('拖拽后编排序未更新');
+          }
           capture({ left: rect.left, top: rect.bottom - Math.round(DOCK_STRIP_DIP * f), right: rect.right, bottom: rect.bottom }, '06-drag-moved');
 
-          // 重启面板：摆位持久化（layout.json）
+          // 重启面板：摆位持久化（layout.json）。拖拽未执行时跳过（重启只为验证持久化）。
+          let rectN = w32.rectOf(hwnd); // 前置失败时即当前面板矩形（复位段仍可跑）
+          if (hitDrag.ok) {
           await stopPanel();
           const rt0 = Date.now();
           child = launchPanel();
@@ -1227,7 +1277,7 @@ async function main() {
           if (!hwnd4) throw new Error(`P5.5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
           hwnd = hwnd4;
           panelPid = w32.threadIdOf(hwnd4).pid;
-          const rectN = w32.rectOf(hwnd4);
+          rectN = w32.rectOf(hwnd4);
           const persisted = await waitEvent('desktop-rendered', (e) => {
             const ord = ((e.dock) || []).map((d) => d.name);
             return e.t >= rt0 && ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor);
@@ -1236,6 +1286,9 @@ async function main() {
             ? rep.pass(`重启面板后位置保持：${dragged} 仍在 ${anchor} 之前（layout.json 持久化）`)
             : rep.fail('重启后摆位未保持（layout.json 未生效）');
           capture({ left: rectN.left, top: rectN.bottom - Math.round(DOCK_STRIP_DIP * f), right: rectN.right, bottom: rectN.bottom }, '06-drag-persisted');
+          } else {
+            rep.note('重启面板持久化断言随拖拽前置失败一并跳过');
+          }
 
           // d. 恢复出厂布局：设置浮层（工单08 迁入）内的 RESET LAYOUT 一键回出厂编排（清摆位、留手钉）。
           // 每轮从干净态起：先 ESC（浮层开着则收层；被系统浮层遮挡也顺带清场），再点入口开层、点复位。
@@ -1930,6 +1983,15 @@ async function main() {
         ? rep.pass('最小化恢复后重钉生效：记事本重新盖住面板')
         : rep.fail(`恢复后重叠点命中 0x${w32.windowFromPointRoot(overlap).toString(16)}(${w32.className(w32.windowFromPointRoot(overlap))})，面板未回底`);
       capture(rect1, '03-wind-restored');
+      // 工单11：show desktop 态残留会把桌面宿主 Progman 抬在面板之上，盖住后续段的
+      // 交互探针（真机实证：会话行直达落点命中 Progman 被迫重试）——段末发送还原
+      // toggle，把桌面态拨回常态再交棒。
+      w32.send([
+        w32.keyInput(VK_LWIN, w32.KEYDOWN), w32.keyInput(VK_D, w32.KEYDOWN),
+        w32.keyInput(VK_D, w32.KEYUP), w32.keyInput(VK_LWIN, w32.KEYUP),
+      ]);
+      await sleep(1500);
+      rep.note('已发送 Win+D 还原桌面态（清 show desktop 残留，防遮挡后续段探针）');
     }
 
     // —— P10 托盘退出闭环：UIA 系统级可见 + 退出后托盘随之消失 ——
