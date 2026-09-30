@@ -989,6 +989,96 @@ async function main() {
         }
       }
 
+      // —— P5-ICON2 工单06 巨型 exe 图标兜底 + 文件夹目标：提取链不得退化为通用图标 ——
+      // 根因（探针实证）：getFileIcon（SHGetFileInfo 路径）对 ~235MB 级 exe 确定性返回通用
+      // 应用图标（三只 exe 字节级同串、新路径副本仍复现）；.lnk 目标为文件夹时 isFile 判定
+      // 误杀。修法：文件本体先走 SHDefExtractIconW 直取（icon-ffi.ts），目录回落 getFileIcon。
+      // 断言法（沿工单01 区分度思路）：巨型 exe 夹具图标互不相等且 ≠ 文档基线（退化为通用
+      // 即同串）；目录夹具图标 ≠ 文档基线（误杀回归即同串）。巨型 exe 不在本机时如实降级。
+      {
+        const t2 = Date.now();
+        const dirFx = path.join(scan.user, `DECK-ICON2-${t2}-DIR.dirfx`);
+        const txtFx = path.join(scan.user, `DECK-ICON2-${t2}-TXT.txt`);
+        const giantDefs = [
+          ['KIMI', 'C:\\Users\\HUAWEI\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe'],
+          ['DSH', 'D:\\programs\\dsh\\DeepSeek Harness.exe'],
+          ['MMX', 'D:\\programs\\MMXcode\\MiniMax Code\\MiniMax Code.exe'],
+        ].map(([tag, p]) => ({ name: `DECK-ICON2-${t2}-${tag}.lnk`, target: p })).filter((fx) => fs.existsSync(fx.target));
+        const dirLnkName = `DECK-ICON2-${t2}-DIRLNK.lnk`;
+        const allNames = [dirLnkName, path.basename(txtFx), ...giantDefs.map((fx) => fx.name)];
+        try {
+          fs.mkdirSync(dirFx, { recursive: true });
+          fs.writeFileSync(txtFx, 'deck icon probe');
+          createShortcutLnk(path.join(scan.user, dirLnkName), dirFx);
+          for (const fx of giantDefs) createShortcutLnk(path.join(scan.user, fx.name), fx.target);
+          const joined = await waitEvent('desktop-rendered',
+            (e) => e.t >= t2 && allNames.every((n) => (e.names || []).includes(n)), 10000);
+          joined
+            ? rep.note(`工单06 夹具入池：目录 lnk / txt 基线 / 巨型 exe×${giantDefs.length}`)
+            : rep.fail('工单06 夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）');
+          if (joined) {
+            const probeDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-icon6-probe-'));
+            const { createKernel } = require(path.join(APP_ROOT, 'dist', 'main', 'kernel.js'));
+            const ctx2 = createKernel({
+              tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchIntervalMs: 0,
+              desktop: { storeFile: path.join(probeDir2, 'layout.json') },
+              usage: {
+                dir: path.join(probeDir2, 'usage'),
+                deps: { runningPidExes: () => new Map(), foregroundExe: () => null, readPrior: async () => new Map() },
+              },
+            });
+            await ctx2.start();
+            try {
+              const snap2 = await ctx2.bridge.invoke('panel/snapshot', null);
+              const byName2 = new Map((snap2.desktop.items || []).map((i) => [i.name, i]));
+              const grab = async (name) => {
+                const item = byName2.get(name);
+                if (!item) return null;
+                const res = await ctx2.bridge.invoke('desktop/icon', { key: item.iconKey });
+                return res && res.dataUrl;
+              };
+              const txtUrl = await grab(path.basename(txtFx));
+              const dirUrl = await grab(dirLnkName);
+              const giantUrls = [];
+              for (const fx of giantDefs) giantUrls.push({ tag: fx.name, url: await grab(fx.name) });
+              // 文档基线必须先到手（它是一切「≠ 通用」断言的锚）
+              txtUrl
+                ? rep.pass(`文档基线夹具取得图标（${txtUrl.length}B）`)
+                : rep.fail('txt 基线夹具未取得图标（扫描或提取链异常）');
+              // 目录目标：真目录图标 ≠ 文档基线（isFile 误杀回归 = 二者同串）
+              dirUrl && txtUrl && dirUrl !== txtUrl
+                ? rep.pass(`目录目标 lnk 显示目录图标（${dirUrl.length}B ≠ 文档基线——文件夹目标不再被 isFile 误杀）`)
+                : rep.fail(`目录目标退化为文档基线或未取得：dir=${dirUrl ? dirUrl.length + 'B' : 'null'} txt=${txtUrl ? txtUrl.length + 'B' : 'null'}`);
+              // 巨型 exe：互不相等且 ≠ 文档基线（SHGetFileInfo 退化回归 = 同串）
+              if (giantDefs.length >= 2) {
+                const urls = giantUrls.map((g) => g.url);
+                const allGot = urls.every((u) => typeof u === 'string' && u.startsWith('data:image/'));
+                const distinct = allGot && txtUrl && new Set([...urls, txtUrl]).size === urls.length + 1;
+                distinct
+                  ? rep.pass(`巨型 exe 图标兜底：${giantUrls.map((g) => `${g.tag} ${g.url.length}B`).join(' / ')}——互不相等且 ≠ 文档基线（getFileIcon 通用图标回归即同串）`)
+                  : rep.fail(`巨型 exe 图标退化：${JSON.stringify(giantUrls.map((g) => ({ tag: g.tag, len: g.url ? g.url.length : null })))}`);
+              } else {
+                rep.note(`巨型 exe 不在本机（${giantDefs.length}/3 在场），兜底断言按缺席降级`);
+              }
+            } finally {
+              await ctx2.stop();
+              try { fs.rmSync(probeDir2, { recursive: true, force: true }); } catch { /* 尽力清理 */ }
+            }
+          }
+        } finally {
+          const tClean2 = Date.now();
+          for (const p of [dirLnkName, path.basename(txtFx), ...giantDefs.map((fx) => fx.name)]) {
+            try { fs.unlinkSync(path.join(scan.user, p)); } catch { /* 尽力清理 */ }
+          }
+          try { fs.rmSync(dirFx, { recursive: true, force: true }); } catch { /* 尽力清理 */ }
+          const gone2 = await waitEvent('desktop-rendered',
+            (e) => e.t >= tClean2 && allNames.every((n) => !(e.names || []).includes(n)), 6000);
+          gone2
+            ? rep.pass('工单06 夹具清理后条目同步消失')
+            : rep.note('工单06 夹具清理存证未到（不阻塞；夹具已尽力删除）');
+        }
+      }
+
       // 杀面板进程（taskkill /F）：外层守卫自动还原原生图标
       spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
       let restoredVis = false;

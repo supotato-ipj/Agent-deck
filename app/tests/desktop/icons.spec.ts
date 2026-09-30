@@ -66,35 +66,43 @@ describe('IconCache', () => {
   })
 })
 
-/** 快捷方式图标源决策（工单01）：图标定位优先 / 目标回落 / 死链 null，exists 判定注入可离线测 */
+/** 快捷方式图标源决策（工单01；工单06 演进为携带图标索引、目录可作目标）：
+ * 图标定位优先 / 目标回落 / 死链 null，exists 判定注入可离线测 */
 describe('shortcutIconSource', () => {
   // 注入式存在性判定：路径含 MISSING 即不存在（离线无需真文件系统）
   const exists = (p: string) => !p.includes('MISSING')
   const ICON = 'C:\\apps\\app.ico'
   const EXE = 'C:\\apps\\app.exe'
 
-  it('声明的图标定位存在 → 优先对图标定位本体提取', () => {
-    expect(shortcutIconSource(ICON, EXE, exists)).toBe(ICON)
+  it('声明的图标定位存在 → 优先对图标定位本体提取，并随其索引', () => {
+    expect(shortcutIconSource(ICON, EXE, exists, 7)).toEqual({ source: ICON, iconIndex: 7 })
   })
 
-  it('未声明图标定位（空串/null/undefined）→ 回落目标可执行文件', () => {
-    expect(shortcutIconSource('', EXE, exists)).toBe(EXE)
-    expect(shortcutIconSource(null, EXE, exists)).toBe(EXE)
-    expect(shortcutIconSource(undefined, EXE, exists)).toBe(EXE)
+  it('未声明图标定位（空串/null/undefined）→ 回落目标，索引归 0', () => {
+    expect(shortcutIconSource('', EXE, exists, 7)).toEqual({ source: EXE, iconIndex: 0 })
+    expect(shortcutIconSource(null, EXE, exists, 7)).toEqual({ source: EXE, iconIndex: 0 })
+    expect(shortcutIconSource(undefined, EXE, exists)).toEqual({ source: EXE, iconIndex: 0 })
   })
 
-  it('声明了但文件不存在 → 回落目标可执行文件', () => {
-    expect(shortcutIconSource('C:\\MISSING\\icon.ico', EXE, exists)).toBe(EXE)
+  it('声明了但文件不存在 → 回落目标（0 号图标）', () => {
+    expect(shortcutIconSource('C:\\MISSING\\icon.ico', EXE, exists, 3)).toEqual({ source: EXE, iconIndex: 0 })
   })
 
   it('双缺失（定位与目标都不可用）→ null（调用方回落对 lnk 本体提取）', () => {
-    expect(shortcutIconSource('C:\\MISSING\\icon.ico', 'C:\\MISSING\\app.exe', exists)).toBeNull()
+    expect(shortcutIconSource('C:\\MISSING\\icon.ico', 'C:\\MISSING\\app.exe', exists, 3)).toBeNull()
     expect(shortcutIconSource('', null, exists)).toBeNull()
   })
 
   it('目标也缺失/未声明 → null；exists 判定只认注入的结论', () => {
     expect(shortcutIconSource('', 'C:\\MISSING\\app.exe', exists)).toBeNull()
     // 目录（exists=false）不算可用源：决策不猜路径形态，只认判定
-    expect(shortcutIconSource(ICON, EXE, () => false)).toBeNull()
+    expect(shortcutIconSource(ICON, EXE, () => false, 3)).toBeNull()
+  })
+
+  it('目录目标被存在性判真即可用（工单06：.lnk 可指向文件夹，目录图标交 getFileIcon）', () => {
+    const DIR = 'D:\\work\\02专项工作'
+    expect(shortcutIconSource('', DIR, exists, 0)).toEqual({ source: DIR, iconIndex: 0 })
+    // 图标定位缺失而目标为目录：同样成立，索引归 0
+    expect(shortcutIconSource(null, DIR, exists, 5)).toEqual({ source: DIR, iconIndex: 0 })
   })
 })
