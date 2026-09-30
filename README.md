@@ -2,11 +2,11 @@
 
 常驻桌面的作战面板：以卡片网格与底部 dock 呈现五个 AI 工具（Qoder、kimi work、kimi code、zcode、hermes）的会话列表与硬件指标，并**自绘承载桌面项**。
 
-一个独立 Electron 常驻窗口浮于桌面壁纸之上，背景透明、默认鼠标穿透，仅在交互热区内接收点击。隐藏原生桌面图标并接管其承载职责，壁纸退为背景层——系统壁纸或 Wallpaper Engine 挂载的壁纸均可。
+一个独立 Electron 常驻窗口浮于桌面壁纸之上，背景透明、默认鼠标穿透，仅在交互热区内接收点击。隐藏原生桌面图标并接管其承载职责，壁纸退为背景层。
 
 底座决策见 [ADR-0004](docs/adr/0004-electron-cordis-standalone-panel.md)：Electron 窗口宿主 + cordis 插件内核 + 原生 ESM 前端（tsc 直出，无打包器），TypeScript 全栈。
 
-> **Wallpaper Engine 时代已结束。** Python 数据服务、看门狗、Tk 搜索窗、zones Win32 挪真图标链路与三个 WE 部署脚本均已退役（工单11）。壁纸资产冻结归档于 [`archive/wallpaper-assets/`](archive/README.md)，只读封存不再维护。本仓库不再向 Python 侧添加任何功能。
+> Python 数据服务、看门狗、Tk 搜索窗与 zones Win32 挪真图标链路均已退役（工单11），本仓库不再向 Python 侧添加任何功能。
 
 ## 快速开始
 
