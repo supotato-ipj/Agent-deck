@@ -121,7 +121,7 @@ describe('设置服务（工单08）', () => {
       ctx.settings!.setCardOpacity(0.2)
       const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'))
       expect(onDisk.appearance).toEqual({ cardOpacity: 0.2 })
-      expect(onDisk.search).toEqual({ port: 39999 })
+      expect(onDisk.search).toEqual({ port: 39999, engine: 'listary', everythingPort: 80 })
       expect(onDisk.panel).toEqual({ x: 20, y: 30, width: 800, height: 600 })
       expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(config)
     } finally {

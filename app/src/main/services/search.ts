@@ -6,18 +6,20 @@ import {
   BASE_PORT,
   DEFAULT_LIMIT,
   Debouncer,
+  EVERYTHING_DEFAULT_PORT,
   OFFLINE_RETRY_MS,
   backoffDelay,
   classifyFailure,
   parseResponse,
+  type SearchEngineChoice,
   type SearchResults,
 } from '../search/engine'
-import { listarySearch } from '../search/client'
+import { createEngineSearch } from '../search/selector'
 import { shellOpen } from '../desktop/adapter'
 
 /** 搜索承载依赖束：主进程真源 / 测试假源共用一个服务状态机（desktop/hardware 同法） */
 export interface SearchDeps {
-  /** Listary 查询 I/O（真源 = client.listarySearch；测试假源注入） */
+  /** 搜索引擎查询 I/O（真源 = selector.createEngineSearch 装配；测试假源注入） */
   search(query: string, limit: number, offset: number): Promise<unknown>
   /** Enter 打开（'' = 成功；desktop/launch 同源语义） */
   open(path: string): Promise<string>
@@ -41,6 +43,10 @@ function defaultReveal(path: string): void {
 export interface SearchServiceOptions {
   /** Listary 本地 API 端口（config.json search.port 下发；默认 38431） */
   port?: number
+  /** 搜索引擎（config.json search.engine 下发；工单13 显式锁定，auto 过渡期回落 listary） */
+  engine?: SearchEngineChoice
+  /** Everything http_server 插件端口（config.json search.everythingPort 下发；默认 80） */
+  everythingPort?: number
   /** 单页结果数（旧引擎 DEFAULT_LIMIT 先例） */
   limit?: number
   deps?: Partial<SearchDeps>
@@ -48,11 +54,12 @@ export interface SearchServiceOptions {
 
 /**
  * 搜索服务（工单07）：待机/活动机器态 + 引擎链路策略全部收口在内核——
- * 渲染层喂词（search/query），这里防抖 ~200ms 后直连 Listary 本地 HTTP API
- * （渲染层永不直连），结果经 search/results 事件回推；连接失败推引擎离线态并
- * 每 3s 静默重试，限流按退避曲线静默重发，引擎在线但行为异常不冒充离线也不重试。
+ * 渲染层喂词（search/query），这里防抖 ~200ms 后直连本地搜索引擎
+ * （Listary/Everything 经选择器装配，渲染层永不直连），结果经 search/results
+ * 事件回推；连接失败推引擎离线态并每 3s 静默重试，限流按退避曲线静默重发，
+ * 引擎在线但行为异常不冒充离线也不重试。
  * Enter/Ctrl+Enter 动作由内核执行，path 护栏 = 最近一次结果集成员。
- * 查询词只发往本机 Listary API，不落任何盘（ADR-0002 精神；隐私守卫测试盯源码与行为）。
+ * 查询词只发往本机搜索引擎 API，不落任何盘（ADR-0002 精神；隐私守卫测试盯源码与行为）。
  */
 export class SearchService extends Service {
   private readonly port: number
@@ -75,9 +82,14 @@ export class SearchService extends Service {
     super(ctx, 'search')
     this.port = options.port ?? BASE_PORT
     this.limit = options.limit ?? DEFAULT_LIMIT
-    const port = this.port
+    // 默认查询真源 = 引擎选择器装配（工单13）；服务状态机保持引擎无感
+    const engineSearch = createEngineSearch({
+      engine: options.engine ?? 'listary',
+      listaryPort: this.port,
+      everythingPort: options.everythingPort ?? EVERYTHING_DEFAULT_PORT,
+    })
     this.deps = {
-      search: options.deps?.search ?? ((query, limit, offset) => listarySearch({ port }, query, limit, offset)),
+      search: options.deps?.search ?? engineSearch,
       open: options.deps?.open ?? shellOpen,
       reveal: options.deps?.reveal ?? defaultReveal,
       now: options.deps?.now ?? (() => performance.now()),
