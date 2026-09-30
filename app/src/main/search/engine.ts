@@ -24,10 +24,13 @@ export const HTTP_TIMEOUT_MS = 3000
  */
 export const EVERYTHING_DEFAULT_PORT = 80
 export const EVERYTHING_TIMEOUT_MS = 2000
+/** 可达性探针（工单14，Python _everything_reachable 同形）：HTTP 200 = 可达 */
+export const EVERYTHING_PROBE_PATH = '/?json=1&count=1&search=test'
 
 /** 搜索引擎选择（config.json search.engine）：显式锁定 everything/listary；
- * auto = 一次可达性探测（探测语义在后续工单接入，过渡期回落 listary） */
+ * auto（缺省）= 首次查询前一次可达性探测，可达优先 Everything、否则 Listary */
 export type SearchEngineChoice = 'auto' | 'everything' | 'listary'
+export const DEFAULT_ENGINE: SearchEngineChoice = 'auto'
 
 export const ERR_RATE_LIMITED = 'TOO_MANY_REQUESTS'
 export const ERR_UNAVAILABLE = 'SEARCH_UNAVAILABLE'

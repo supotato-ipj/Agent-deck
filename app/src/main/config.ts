@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
-import { BASE_PORT, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
+import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
 export interface PanelGeometry {
@@ -85,8 +85,8 @@ export function normalizeProcessName(raw: string): string {
 export interface SearchConfig {
   port: number
   /**
-   * 搜索引擎（工单13）：'everything' / 'listary' 显式锁定；'auto' = 一次可达性
-   * 探测（探测语义在后续工单接入，过渡期告警回落 listary）。
+   * 搜索引擎：'everything' / 'listary' 显式锁定；'auto'（默认）= 首次查询前
+   * 一次可达性探测，可达优先 Everything、否则 Listary（工单14）。
    */
   engine: SearchEngineChoice
   /** Everything http_server 插件端口（voidtools 插件生产值 80） */
@@ -154,9 +154,9 @@ export function defaultDesktopLayout(): DesktopLayout {
   return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8, dockMaxWidth: 1240 }
 }
 
-/** 默认搜索配置：Listary 生产端口 + 过渡期缺省引擎 listary（探测在 #14 接入后改 auto） */
+/** 默认搜索配置：Listary 生产端口 + 缺省引擎 auto（零配置各用各的，工单14） */
 export function defaultSearchConfig(): SearchConfig {
-  return { port: BASE_PORT, engine: 'listary', everythingPort: EVERYTHING_DEFAULT_PORT }
+  return { port: BASE_PORT, engine: DEFAULT_ENGINE, everythingPort: EVERYTHING_DEFAULT_PORT }
 }
 
 /** 默认外观：信息卡底色 rgba(0,0,0,0.55) 的 alpha（renderer 生产值固化） */
@@ -359,8 +359,8 @@ function mergeSearch(raw: unknown, fallback: SearchConfig, warnings: string[]): 
   }
   const engine = search.engine
   if (engine !== undefined) {
-    if (engine === 'everything' || engine === 'listary') out.engine = engine
-    else if (engine === 'auto') warnings.push('config.search.engine=auto 需引擎探测（后续工单接入），已回落 listary')
+    // 合法值表与 SearchEngineChoice 联合类型同源核对（新引擎值漏加会在此暴露）
+    if (engine === 'auto' || engine === 'everything' || engine === 'listary') out.engine = engine
     else warnings.push(`config.search.engine 须为 everything|listary|auto，已回退默认值 ${fallback.engine}`)
   }
   const everythingPort = search.everythingPort

@@ -8,6 +8,7 @@
 import http from 'node:http'
 import {
   BASE_HOST,
+  EVERYTHING_PROBE_PATH,
   EVERYTHING_TIMEOUT_MS,
   HTTP_TIMEOUT_MS,
   ListaryNetworkError,
@@ -31,6 +32,7 @@ export interface EverythingEndpoint {
 /**
  * 回环 JSON 请求（两引擎共用的传输骨架）：新建连接、超时/连接异常统一映射
  * ListaryNetworkError；载荷交给 handle 解析（解析异常 → 普通异常，不冒充离线）。
+ * handle 第二参 = HTTP 状态码（探针判可达用；查询载荷解析不依赖它）。
  */
 function loopbackRequest(
   endpoint: { port: number; timeoutMs?: number },
@@ -38,7 +40,7 @@ function loopbackRequest(
   path: string,
   method: 'GET' | 'POST',
   body: string | null,
-  handle: (raw: string) => unknown,
+  handle: (raw: string, status: number | undefined) => unknown,
 ): Promise<unknown> {
   const timeoutMs = endpoint.timeoutMs ?? fallbackTimeoutMs
   return new Promise((resolve, reject) => {
@@ -61,7 +63,7 @@ function loopbackRequest(
       res.on('data', (c: Buffer) => chunks.push(c))
       res.on('end', () => {
         try {
-          resolve(handle(Buffer.concat(chunks).toString('utf8')))
+          resolve(handle(Buffer.concat(chunks).toString('utf8'), res.statusCode))
         } catch (err) {
           reject(err instanceof Error ? err : new Error(String(err)))
         }
@@ -101,4 +103,24 @@ export function everythingSearch(endpoint: EverythingEndpoint, query: string, li
     null,
     (raw) => everythingNormalize(JSON.parse(raw)),
   )
+}
+
+/**
+ * Everything 可达性探针（工单14，Python _everything_reachable 平移）：
+ * GET /?json=1&count=1&search=test，HTTP 200 = 可达。连接失败/超时/非 200
+ * 一律 false——探测失败不是查询失败，本函数永不抛（引擎选择据此回落 Listary）。
+ */
+export async function everythingProbe(endpoint: EverythingEndpoint): Promise<boolean> {
+  try {
+    return (await loopbackRequest(
+      endpoint,
+      EVERYTHING_TIMEOUT_MS,
+      EVERYTHING_PROBE_PATH,
+      'GET',
+      null,
+      (_raw, status) => status === 200,
+    )) === true
+  } catch {
+    return false
+  }
 }
