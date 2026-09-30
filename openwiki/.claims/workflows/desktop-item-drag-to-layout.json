@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d9895cedfbcaa625ed02a35df878e8d20ae01e28f8f120d95c72bbd1ab40eac8",
+  "claims": [
+    {
+      "id": "claim_04bfda94ba27402b9e9ad6524ab83215",
+      "statement": "Layout placement in the renderer is hand-rolled pointer-event handling on each item element coordinated by one module-level dragState with a 6 px activation threshold, not HTML5 drag-and-drop, because synthesized mouse input cannot drive an OLE drag and the self-drawn desktop needs \"ordered before the anchor name\" semantics rather than a drop payload.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L134-L153",
+          "version": "repo-lines-v1:sha256:c67aeea2c6eb3f70afa1ff6f79b32ded98a25501e02ef98b77d982f716fa102f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1MmE3NWVjMDUwOGYxNjQxOGZlOTYwOTY2NWUzYmVhNTBmYjE3MmY5MzA1YmQ5ZWY2NDNmYTM5MzFkZWJiODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjZTQ1ZWI5NWQ4Njk1YmMzNWVlNmFmMDM3NjFkZGY2N2RiYWU0M2E1ZDA0ZTc0ZjRhMmFjOGJiZWYyMjY0ZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyMDE3MzI3NDZjYTk3N2JkNjAxYzJjY2QxMjU3NTgzMDJkMTRmMmIxMDE3YjViNjdjOWFjZTc0YzFjZmQxNjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3YzdiMTBjMGNiZjczZDk5ODZmYjY1YTI2YzQ3MWM1MmJhZDdhNzkzZWIxZjE4YTVjMDMwZTUxNDdlNGUyMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L181-L203",
+          "version": "repo-lines-v1:sha256:ec1b90ae86af85877bc5d0f9a5d5b7067d183023a58e20fd7f6d30d0288d138e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDZhMWI4OGIzYmI3MjVkOTNkNTgyNjQwYzMxYjAyNDQzODQ3NTVmNzZkNDNiOTQ1YjhlODM4MzRiMDUxOTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5Yzc1NmE4OWIxZDE3M2NjYWRjZGY0NmNkZTJkY2E1NTk0MTVmOGU1NWVjZWE2OWM5NjkyMzE3MjNmZmY0Y2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzMjAyY2EyYzQ2MzAxY2UwMjlhNGRlZTllNTdjNjJjNzUzZTI5YTU1NTFlMzQwMjQ4NDU4MDQ4Y2Q4MDUyY2MifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L98-L108",
+          "version": "repo-lines-v1:sha256:fb87b2733b40838621a8a9be337167faaa9a01a6ff9889bb0fc0cd5ad1136abd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmY2RiOGYzYzM3NGYyM2RlNmIxY2M3YjVkNmIxZGMxZGY4MDUzM2FmMDEyNzU2ZjVlY2Y3MjIxMTBlOGRjMDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlNTFmOWZjMzg0NTQyNTM1MDkyZDVmNDY1NTNmZjhmMjEwYWYxMzUzYjFmZGJhNzc1Y2Y1MmY2NGY3OWYxZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFjZTM0M2U0Njg5M2VlMDUxNWYyNmYxNjQ1MWMwZmRjYWJmODM0OGU2YzU2NDcxMzIxNjBiZjk0MDRlNGM5ZDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzNWViZTBiNzI2NzgzNjg0MGU1M2FkYzdkYmE2YWI5MmE5NzYyMThkOWI1M2E2MmNkMWMyMjA0ZTIyZmY0ZWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_44253c93d5ae40c3be9669403ed6c560",
+      "statement": "While a drag is active the renderer replaces the whole hotzone list with a single full-window rectangle and endDrag restores the ordinary list; this is required because the panel window is created click-through and a drag crossing an undeclared gap between hotzones would stop receiving pointer events and die mid-gesture.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L41-L69",
+          "version": "repo-lines-v1:sha256:7f8fd470d512b2ae8f3eb9bb99b27b163dd6ed290f5bd27b631826f7acb8e1cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwNWQxM2U1MDRiNTcwNGZiZmE3NzQ2MDgzZGZlODhiZTExZGFiOTgzZThlMzVjODNjYTFiOTZkZGNlNDEzNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwNzgzOTllZmE2OThhNjFlMGU2M2QxOTMzNGRjMjgyNWE5MmNiYTRiM2U4MzA4ZmMxNzRiZDM1MGQzN2NiMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L38-L43",
+          "version": "repo-lines-v1:sha256:23341ce742fae087be65d34a1d1196d3d25ed8e32b82c226a391179b96f72066:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjQxY2NiYWRlMWRlNDBlNGE0NjNiMDlkZmJjYWZiZTk5YmY0MDM2NjA4Mjk2MDZjMjQ5YTgzNGQ1OTRkMWRkZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGM5NTY3ZTdmZDcyMzZkYzE2OTNkNzViMTc2ZGUyN2IzZjQ5OTVjYWVkMWFhOTMzN2Q3MTlmNjIwMjA5YWQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGY3YWI3Y2FiYzZiYzA5YTgyYjE4YzBjZmI3Y2MwZTAwYThkY2I4Yjc0MTkwM2JkOWRjYjQ2MTFlMDBmMzNhOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L196-L203",
+          "version": "repo-lines-v1:sha256:fc96154f192bcc3ff8bab518ef6f70b9213e965054836b024d40bc44006e572d:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjU3MmEzOTJjYzI2ODQwMjI2NzRlMWM1NmI4ZjVmOWJhNDAzNzZiMDhkNjczMWM3NDhmNTFlMDE5NTIwZTMwNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDJkOTkyYmUxMjU3YWI2NDJjZTc4MmU4MjAxNjI3OGMzNzA0YTAzN2I4Yzk5NjAwODVjYmM1YjRlNjc5MGZjMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODMyMDJjYTJjNDYzMDFjZTAyOWE0ZGVlOWU1N2M2MmM3NTNlMjlhNTU1MWUzNDAyNDg0NTgwNDhjZDgwNTJjYyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L265-L279",
+          "version": "repo-lines-v1:sha256:9ba173c512d769f42dcc64c5d1f6fe6c639408d478f89f847a5e178d60bf993b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhN2I2NmFmMjI3ZWZhZDI4MDY3OTMzMzdmNjMyYjJlYjY3NGJhNDQ1ZWVkOGNmMmNhZmU5NGEwOGZiZTJlN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkNGNkYTIyZmI3ZDkwZTc3YTYzYWY3MmIxNWNiODU1NjYzNTY4MTkwMGQ3YzU5ZDRhYTA4YjgwZDJjYWVjNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllMGYxYzI0YzI4ZWE1Y2JlYTM4MzA5OWRmMTUxYWQxZDk4YWQ4MjljYjhhYjMxOTRiNGZlZDUwZmViZDM2NjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a5875fd5ffd34b9daf0dbd6c69ddd8fd",
+      "statement": "A drop target is resolved purely from the DOM: zoneOfContainer walks the ancestor chain to classify the pointer as app inside #dock-zone or doc inside #doc-zone/#doc-groups and otherwise returns null, itemUnder takes the closest .ditem from document.elementFromPoint while excluding the dragged item, a null zone clears the target so the release is a no-op, and no item under the pointer yields beforeName null which the store reads as append to the end of the target list.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L155-L179",
+          "version": "repo-lines-v1:sha256:79e5e2f5257c3b1e7f6b73777ef0b8af31706967e5b870915f6cc2a0ef2c3f69:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlOTJhNDY5M2U1NWQ3YTc2YjcwMWUyOTJjZmQzNTVlZTlmNzE5YTRhNWJkMmU1MjQ1N2RiYjRmYzUzYTkyNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiM2NhMWU5MmNiZjMwNjE2ZDBiNTcyMmEzODVkYTkxZTlkYjIzN2ZjYTMzZGMwZGE3ZTI5YmRjMjc0Zjc0NGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiMTM4YjljMjYzN2E0YjdiM2ZkYzUzNWVmOTY2OTY3ZDE1YWUzYjMxNTlkMzVmOGFhOGZiM2E1MmIzMWI1NjkifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L204-L214",
+          "version": "repo-lines-v1:sha256:a5cb66307f4e177738983cb89a7d1ace74749f6a0119bf01a54c1752499b91ec:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlODkzM2RjMDhlMDczYjdiOTNmNTNkNTgyZDM5YjE4ODBmZGZlOWZjNDllYWJiYTY5MDc3MGViNDIxYmI2YTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4ZWU4MjFlYWE2NGJjNmE1ZTE1ZDU2YTEyYzUxMjYxMzBmNWRmY2JiNWE5MDczNmI0ZGVjMzc2ZjEyZTY5YzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxMGRjYzdlNThlODBkYTdiN2FlMTYyNmI1YTk5ZjMzZjExOTM0MGU3NTBjNDA1NWJkM2FlMjBkMDk4ZDJkYjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllYjE0M2QzZDA4ZTMwMWE2NGM4NGFmZjMzMzBlMDcyNTliNzkzZTVkOGIxZmMzNzFhMWJkODljYTk5NjU4MmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cebf364c93de4319babc27c9ef856f50",
+      "statement": "Before invoking desktop/move the renderer compares the resolved target with nextSiblingName of the dragged item and skips the write entirely when the drop lands in the same zone at the current position, so a wobbling or click-like gesture never promotes an item into the persisted placement list.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L216-L230",
+          "version": "repo-lines-v1:sha256:7d72a3d941d7771363b487baa03a73fc9a45b3bcd761a47882b11fd03b98b6f3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3YjJlNjQwNmQwMGUxOTJiNDg5ZjIzYTQ3NGJkYzI5NGMxYmIzYjZhYWIwODdhNTg4MDZhNWJmZWFjNzM5ODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4ZmQ4Y2YzN2RiZjEyMjEwNDI2NDAwNDM4NTkwMTk1Zjc4MTg1M2I2ZGViOTZlNGEzM2Q3ZDY0ODIxMmE1MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc0NDViM2Y3YzVlYTA5M2YwOGRjNzU0OTFkZmNmNmFmMjBlNWY0MGJlMTQ0N2ZiNjY5MzQ3MWQzMDgwM2I4ZmUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L237-L242",
+          "version": "repo-lines-v1:sha256:e4bfabfa41f2525925f8b425100feb0947b850d9f72d7570d1b029576c47b1a4:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDgyNDcyOWI0ZTI4YzBkMzRkYzk2YWM4ODQ2NjRhMTRmMjRjMTA3NjQxNjAxMjE1MWYzY2FjMjg3NDI0ZGM2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2EzMDdhYjMxNGY1ZTA1MmViMWQzNzhjOTUyZWZhNTVlMWEwMjNhNDg0YTY4NmY5YjMxZjhhZmU2NzM2OWMzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWJjY2MwNzJhZDc0NmY4NGM0ZGM4MjFhODQ5ZjA4MDA3MWMwZTQxOTMwOWE1MWU5MjlmZWM5ZDcwM2E5NmY2NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ef02b9e16e9442ecb03ecbd2724877f5",
+      "statement": "The renderer performs no optimistic reorder: it records desktop-move-clicked followed by desktop-moved, desktop-move-rejected or desktop-move-failed, and the new order becomes visible only on a later snapshot whose fingerprint differs, so a kernel refusal leaves the DOM unchanged and is traceable only through the evidence log.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L216-L230",
+          "version": "repo-lines-v1:sha256:7d72a3d941d7771363b487baa03a73fc9a45b3bcd761a47882b11fd03b98b6f3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3YjJlNjQwNmQwMGUxOTJiNDg5ZjIzYTQ3NGJkYzI5NGMxYmIzYjZhYWIwODdhNTg4MDZhNWJmZWFjNzM5ODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4ZmQ4Y2YzN2RiZjEyMjEwNDI2NDAwNDM4NTkwMTk1Zjc4MTg1M2I2ZGViOTZlNGEzM2Q3ZDY0ODIxMmE1MzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc0NDViM2Y3YzVlYTA5M2YwOGRjNzU0OTFkZmNmNmFmMjBlNWY0MGJlMTQ0N2ZiNjY5MzQ3MWQzMDgwM2I4ZmUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L296-L300",
+          "version": "repo-lines-v1:sha256:a390a373d11f2a6f7453f35a32b7ca0e05c2e3a0b42eb72b912e7a522d22813c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdmNTFhY2Y0MzM0ZGY2ZDgwYWYxYmEzNTNhN2U2OTFmZTMyMDNlZDIwZmU3M2Y2Y2EwOTIwOTA5MmQ4OTIxMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzg1NjgwNWRkZmI0NDJkZDE1NjRiODk2N2YwY2U0YTgzMDZjM2U2ODA2NDkxYmQ1Mzg2YmE1M2ZhNmNmOTdhZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjI3N2ZlNzliM2I4Mzc5Mzk2MWFhYjUwYmFkZWQyYzQ2ODRiNzgyNzkzZDM1NTE3ZWVmNmVhY2FlYmZhMGZlOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7d2fa3d6bdb04f0b92c944a3fc8a7763",
+      "statement": "DesktopService.move refuses a drop with one of five distinct messages and writes nothing on refusal: the moved name must be in the current pool (桌面项不在当前扫描池内), an app-zone target for a name in the pinned list is refused (手钉条目的应用区栏位由手钉清单决定（layout.json 的 pinned 列表）), the anchor must be in the pool (参照条目不在当前扫描池内), the anchor must belong to the target zone (参照条目不在目标分区), and the anchor must not be the moved item itself (不能以自身为参照).",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L159-L178",
+          "version": "repo-lines-v1:sha256:97279c0e8d1bd7b6a41a926dbbbdd5b7606dad07f48bcf44e776db7f98a8fc22:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3Y2M5MzljYjFmODU1YzhhNTAxM2FmYjQ4ZWExOWY5OTE4OTNjZmQ4YWE1NTY2NTkxMTYzMDg4ZjVmY2MxOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxOGI4Zjc3OWUwZDQ3ZmZhNmM0MDFhZjA3NzRhYjI5MWYwZDA3MTBiNjBiMmQyZjM3NTcwNTdhMDYwYTNiNmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyNTFiYzk0NWQ3ZGQ4MjY0MDU3OGM1ZTRlYmRmMjlhZGNlZGEzOTY5NjY4NGMzNzlkYTA0NjdhNGE5YzA4NzMifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L235-L246",
+          "version": "repo-lines-v1:sha256:de91463b0aea1ea07fa5b8cff079ba0780c05c06145cad9abdf5852403c3f10a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyYmQ4Y2ZiNDhhMzRkODI2MDBhNzczNjVkNDVkNTc5MGM4Y2Y4YTQyYmYxZjk2ZjMzN2Y5OGI2NTllNjJjODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3OTZkMjM3OGM3Zjg4ODlhNmVhMDRhYTQ1Y2RjNWU5NGUzMTk2MjE0NmZkNDI5YTAzYWRiOWM2YTA4NGI3ZmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c71de350caba45ab8ee0056222a95068",
+      "statement": "An accepted move applies moveItem, which filters the name out of both dock and docs and inserts it before the anchor in the target list or appends it when the anchor is null or absent, copies pinned through untouched, persists through the atomic temp-file-plus-rename adapter, and re-runs the scan-to-plan refresh synchronously before returning.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L112-L126",
+          "version": "repo-lines-v1:sha256:9c56726a32dd3b53a6c105c84e71605bee84592cc46d6bb180a4d995620e1baa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ODdmNGRmZWVhNTNiMzQ1OGEwNjJmNDg4OGU2Y2E2N2U1MzQ5NGQxNjkwMTQyN2VjNjRhMzZmYmQwMTI5YmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlOGQ3ZGEzMjBkMTU3ODkxZTQ3MzE3YWY2M2Y3MjU5OWE4MmJkZDk0OTg4YjhmOGZjZWFhNDhhNWZmN2JlN2QifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L48-L71",
+          "version": "repo-lines-v1:sha256:56dd84771a7365f582bb1fe16538a7743a80dd04fe90eb472eaa229b9e7a9cc6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2YjA1MjcwYzMzY2M0YTFjOWQ1MTY2MTZlZDE1ZmIwYWQ0OGUxMWM3Y2M1YzYxMTVjMjdlZGZhZWQ5MDg3YWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmOTQzYjgyNmRkN2I0Zjk3NDUyYzI0YTVmYWIxZTRmNjkxNDBjMzRkZjYyZDZjMjM2ZjcwYmI4MzUzZDZmNTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L174-L177",
+          "version": "repo-lines-v1:sha256:3c9cec8d9854e28364506a52e59591d7d039550289c65af090dd4f8d5da7c30f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjc5YTBhNTkyOGE1Y2JhMTU2ZmYyNDQzNmRhNGE4ZTY1OGU4NjNiMDBiOTNmMjg1ZmVlOGM3Yzk1Y2NmMDdmZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGM1NzM1M2FhMTM3YTk1MjM1ZWMzYTA2NGUxZmU1ZTA5Yzc1YzQ3NTBmMDU0ZGU0MjMxMzViMzcyZTIwZWM1NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWNiMDMxNDhlNzM2NmZlNzc0NmJhY2EyNTA5YjFhNmEyMjg1YjYxMzYxN2YxZjUyN2I1OTZkZTRjOGY5MGExMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDg4NzEwM2ZlNDA2ZmZlNDcwM2IyOGViM2QyMTJmYTczNzE5NzQxYjdiZWFhYWZhODE2ZDNiNzg5MDM2MmFmMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_473089db0a6746cd87032daed5623063",
+      "statement": "A drag records only the dragged name, never the anchor, so an in-zone reorder promotes just that item into the placed segment while the anchor keeps its recommended source; the service test asserts the written store holds dock: ['c.lnk'] after c.lnk is dropped before a.lnk.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L53-L71",
+          "version": "repo-lines-v1:sha256:ed91b233ad3b2a6574821417179cf5badc6bc49acf72b70998150db1ee6423dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU1OWNhMmExMGU2YzhmNjZiMmU3YjI3YWJiYjI5ZjA1NmJhMjhlZDU2OTI2NjdlZTJmODBjOWExMGYzZmQ3NDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlODU3NjhhMzRjYTFmN2UzYjFlNDhjZTIzNDQ5NmYzNzQyOWQ4ZDYwYWQ5MTk4Y2U3MmY5MWMzYzg0ZTk4NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmOTQzYjgyNmRkN2I0Zjk3NDUyYzI0YTVmYWIxZTRmNjkxNDBjMzRkZjYyZDZjMjM2ZjcwYmI4MzUzZDZmNTkifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L194-L219",
+          "version": "repo-lines-v1:sha256:d7fdc7747eba38a1e8e2fa01e2d92971e8e769c005e4b7c0a10c93803b4a98e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMjIyZjZlZjlhOTk5NDU4Y2M4Njg3ZmM5NTM0ODc1ZDIxOGZjYmRjMDdkYzY5NmNiMjY3NDA3ODcwNzBjZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5ZmNlNTM1OTVhMDUwYjk0MjI4MjEyYWU1MWM5YTNkMjU0ZjQ2MjY1ZGE0ZjZkYTExZGE3NzdkZmM3MjQzMmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f6146f2a14854bb9bc8f4e59f77fa19e",
+      "statement": "A persist failure does not fail the move: the store write is caught and warned about with the deck-desktop: 摆位落盘失败 prefix, the call still returns ok, and the in-memory arrangement produced by the same call stays live for the session, so only durability is lost.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L194-L200",
+          "version": "repo-lines-v1:sha256:181f543a56b65176f08cb7870d013d1db117fba4e227498f8f30f6fa5c172e2d:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODBjNzhmZTEzNDdmZjIzZGE3MjRkNDM1YTE3MjMyN2E1YzVmY2RkYmQ3OGM5YzAyZWNjZWJmZGVhOTU2MDU2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWQ3OTg5ZTJhMWIyOWE2NzM4ZDUxNjI4NDgwMzI4N2RhY2FkYWMzOWYwNTQxNTBjZjNhOTA3ZTgyNjc4NzAwNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGFmYjAwYjZhMzNiYTUxYzEwYzNjZTBmZDZkMjA1YTdjZWI4NzcxNGE5YzQxYjQwMjI4YzRmZDk3YjY1NmViYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b39678c2afed48319be3bfd9b6dda849",
+      "statement": "The visible reorder does not travel in the desktop/move response: DesktopState is carried inside PanelSnapshot on the panel/changed push, which the in-process assembly emits from its 1 Hz bridge tick and the production assembly emits from each snapshot the utilityProcess child sends, so the redraw lags the drop by up to about one second while the store write is already durable.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L85-L89",
+          "version": "repo-lines-v1:sha256:5c507e3a4fcd93dbabb2f7036c390237e1af59be6efd77c4c33a311af2f9926d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYzMjZiZTdjZDkxYjQyN2JjZDE3ZDViYTYxMWQ4ZWI1YTdjZmM5ODRiNmVkMjJjMDJjOTNmOTc2MmNlNmZmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGJhZTI5Nzc5MmVjMGU5MzE2MWI3Mjc0NGU1NzcxMmQ3YTgwYmQ3NTViYzg0ZGU0NmJiZGYyOWE3ODliMjJiNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTc1MDZmOGFjMDI2ZmVhZGQ0M2JlZjVlZjFkZjQwMmZkNGM4YmJjYWNiNWExY2M0NDk0MWZjOWU2NDc1MmVlOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L98-L107",
+          "version": "repo-lines-v1:sha256:67b94e18967862adcafab746ee2c00d4f3ee3db3dae6be3ec82cf3548cbf1f63:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkNzNmMDhlYWQ2MmUyOGQzYzJiMzE5MmQ3ZmUyYjBiMWZlODdhMWE0YTVkY2U3NTc5ODdhYjlkNTVlZDlmNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1NGMwZWU2OTc3NGNiNjEzZjExNTQ0NzFlNWVlMGRjYjJkOGU1ZjEzY2QxODJlOTI4ZmM4N2FjYWNlMzYyNjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L90-L100",
+          "version": "repo-lines-v1:sha256:b412b348997258f8e017ddb76b349fc31d9eab2f3ea9ca073df57f82d5565f4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NGQ2MTg5YjRlMzk1NDdkYjIzMWM0MWFjZmU0MGU1ZGI4NGI4NmU0M2RlM2U0NmRjNGVkMWM0ZWQyNmExYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3Y2Y1NzAyZDZmMzkzMzExZGY2YjUxMzcxZGI1NjJiMjE0Yzk5ZGM1ZTg2ODQ2OWU1YWYxY2JmNmMyODk2MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4NTY1ZjQ5YTA5ZjM0YmVkYWVlMGMwMDY1N2FlOTNjNTY4NjljZDAxOWM4NzdhNmY4NTU4MzU0MzVlNzFkYTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyMmQyZDlhYWZjMGExN2VmZGE1ZjkxN2E4MmU1ZTc3NWMzZTE2ZTI2ZWRlZDAxNmU5ZDg4ZTlhYzRhNDJiMDkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L174-L177",
+          "version": "repo-lines-v1:sha256:3c9cec8d9854e28364506a52e59591d7d039550289c65af090dd4f8d5da7c30f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjc5YTBhNTkyOGE1Y2JhMTU2ZmYyNDQzNmRhNGE4ZTY1OGU4NjNiMDBiOTNmMjg1ZmVlOGM3Yzk1Y2NmMDdmZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGM1NzM1M2FhMTM3YTk1MjM1ZWMzYTA2NGUxZmU1ZTA5Yzc1YzQ3NTBmMDU0ZGU0MjMxMzViMzcyZTIwZWM1NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWNiMDMxNDhlNzM2NmZlNzc0NmJhY2EyNTA5YjFhNmEyMjg1YjYxMzYxN2YxZjUyN2I1OTZkZTRjOGY5MGExMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDg4NzEwM2ZlNDA2ZmZlNDcwM2IyOGViM2QyMTJmYTczNzE5NzQxYjdiZWFhYWZhODE2ZDNiNzg5MDM2MmFmMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e3b4f02c5ddb4c34a22d5cc830b943b0",
+      "statement": "The concatenated desktop fingerprint splits the redraw cost of a drag: an in-zone reorder flips only the plan half because item names, kinds and iconKey values are unchanged so no icon is re-extracted, while a cross-zone drop also flips the item half because zone is one of the hashed item fields.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L102-L117",
+          "version": "repo-lines-v1:sha256:5524e0bc5ca77befe0899cca04c8c6a2c07d4df5565bf9f36b31cf601f9ba518:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjNWY1NjQwMmZhNTQ5Y2FmNzg1ODEzYjUyYWQzNjI0OGI3MDBhNzNlMTU4ZDE1NTk3ZjJmMDQ5NTQ4OTYwOTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlZWViYWM3YjIzMjhmZmVmMTU1MzI2NDBhZWQxZTFjMTczMTAxMTMxZWU1ODdlOTI3Njg4M2FmM2Y0YTcxZWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L96-L110",
+          "version": "repo-lines-v1:sha256:b173862d070b03b3d9866c3a224af8afe05170896228b813848920f6109c1fa6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyY2FjNDQ2MDIwMzRjMjkwYzBiZGI5NTI0YzFmYmFjZGYwNmYxYjhkY2VmYTcxMDFmOGY5ZTU5YmE5NGQxMWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4OWI1Yzg0ODk5NmRiMjkzOTA1ZjFkNDZhMmNmYzIwMWE4MDcwZmUxOGNjZDU1MTUyZDhmNTc3ZWQxODk3Y2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2ZWUwNDFhNDMwOTRkNGNlMDZkOWY1ZTE5MTQ2ZjM1MzVmZjQ4NDI0OThiNzg2NzEzN2RlNjMyYWRhYjFkZTgifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L318-L328",
+          "version": "repo-lines-v1:sha256:2b9533089590795573e0a15ee630884b92bd63e61dda16be1dce5ae9aaf78eba:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5OTg0ZWQ3YWJiYmY1ZDdmMDBlN2UwN2Y0MDAyNmEyYWU3ODU5ZDAyNDI4ZTM1ODE3Y2NhZjk2Nzk4OWYzN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8cd53add6742415eb8965a8e7a7911b5",
+      "statement": "A cross-zone drop is a reclassification rather than an entry in a second layout: dock and docs are mutually exclusive because moveItem removes the name from both lists, the service rewrites each item's zone from the store lists before planning so dock forces app and docs forces doc, planDesktop only filters by the resulting zone, and dock wins when a hand-edited store lists one name in both lists.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L59-L65",
+          "version": "repo-lines-v1:sha256:a4a2dcb2fd0caa9159e3e874618e2a2bb5a1d2fa82e33f62b60f175067cca133:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmI4ODM5ZmFkODcwYTViNmNmMjk4ODQzYWEyMjM4ZTE2NTQyYmY3MDRhZWQwMzRhNzY1MjdkZmRmNGVmMTk4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjVhN2ZkYWUxNzU4ZjE2MDZiNDBhMWExMWVlNGUyODIwZjA3Y2UwYTgwNjcxY2YzYzRlMmI0MjJjMjM0YTUzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjFiNjMyODg4NjNhOTdlOGNhNmVkN2IwNzRjNjc3NGE5ZTFjZTBhNjVmZjQ3MGJiYjlmNWI2OTMxYzJhZDI4NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L126-L137",
+          "version": "repo-lines-v1:sha256:c02a8d47c7c37fdbaa7c8d00d538a340523b42cb4c8bf8000a7aa3eac627c792:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5YzJiODlmMGQzNTU4OGE3OTg1MDQ1Mjc0NzZiYzk0ZjY0ZTJiYzFlNzgyMTllN2ExOTY1NjM5NmUyZjk3NmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVjNzg2MTdiZWVjYzJjZDJjZTliOWRmM2YxYmFjNzA4YzI5NzAyYTA3OTU4MTU3NGEwZGE5MWJkZTNhZWNiNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L203-L210",
+          "version": "repo-lines-v1:sha256:9ca3f301a6d798a12fdb24dbf9e44280931c88b962672666a4d9e985ba14dbe3:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFkNTRhMmE1MzNlNDUwMGZmZTY5NmM4NzdmOGY1N2Y2YTg2OTA4Njg4ZmVmMWUwMWI0ODA3NzA2MGUxZjdkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L221-L233",
+          "version": "repo-lines-v1:sha256:9bfb30c400d8d3f9e1411749abbf5a1777df7bc15495c3a954a4139e14b9caf5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjNDE0Yzk1MTczMDVjYzY4OGRmM2E1MzIxZTgzNmI4YzEyYTRjMmNkYzBkMjIyMTZjOTE3MmZkNjQzZTY4ZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxNDViNWY5NmM3NzZkOGNlZThiMzNlYzk1YmNmZmExNmRjOGY2NWE2MTU2OThlY2EzM2UzYzk5YjdkZTI1YjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_868b3e8b247346359b907fb745cf9761",
+      "statement": "A pinned item cannot be dropped in the app zone but may be dragged out of it: while its name sits in the docs list the zone override wins, the item renders in the document zone, and the pin has no visible effect until a factory reset clears the override.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L73-L76",
+          "version": "repo-lines-v1:sha256:eaab28d7dd3cab66f19e5a9d9ada123e47a6218068d253f49ac7e2cd2878b554:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDVmMTRjMjYxYTA5MzJjMzU3ZTllYzM4OTZhNWM4OGE3NDIxOGI0MDJiOTliZDJhZmQwZDUyNTJkYTc5M2VkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGEwZjdhOTk0ZTc3MzUwNGY3NzQwYTYxYjcyYWJhNWU2MjA5NzVkZWNhMmUyNGJjNDQxNGVkMjMzMzQyNmE3YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L165-L167",
+          "version": "repo-lines-v1:sha256:e4f28247199e76122fabf3e9fe2524c2925abf5fb94ea1f41cce83fcb46e6316:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjNiYjU1MGYxNDgxOGU0M2QzNTU3NGI1MjI5NjhkMGZkOGI3MTI3ODZiNDY0OTcwNWRiNDMzYjNjYWUyOTlmNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWNhNTM0ODk3NGMzMTlhNmM3MjdlNmM4NDBmZWRkZGU0NjdiZWU2ZDIxZmUzMmRiOWU5OTM1NWVlNDUyNDc5NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTRlYjA1MDFmODYwY2QzNDZmMzJiNjZhYmQ1OWQ5ZjMyZjIwMzA2NDQ0ODY0MTViMzQzNjM1MzRhNTkwZjgzMyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L203-L210",
+          "version": "repo-lines-v1:sha256:9ca3f301a6d798a12fdb24dbf9e44280931c88b962672666a4d9e985ba14dbe3:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFkNTRhMmE1MzNlNDUwMGZmZTY5NmM4NzdmOGY1N2Y2YTg2OTA4Njg4ZmVmMWUwMWI0ODA3NzA2MGUxZjdkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f9ea9242625a42059629021ed8c4a12d",
+      "statement": "Because planDock concatenates the pinned, placed and recommended segments and consults the stored order only within the placed segment, a drop can never place an item inside or ahead of the pinned segment, and dropping before a recommended item promotes the dragged item above the entire recommended block since a recommended name is not in the dock list and the anchor lookup therefore misses and appends.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1066-L1108",
+          "version": "repo-lines-v1:sha256:a71587bfaa636a8b946fb22b3a22eb097014579f16b585f4115bbd0f65cd59e4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5MTQ0ZmZmZDdiZTA0M2MzYWUzNjAyNzMyNjg4ZjJmNmNkZDEzODg3MGJmYzM4ZTQ0OTZjZjc5OTZiM2FmMDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzOTM2NzQ4NDA5NzEzMjY3Nzk2NWY1MmYzYWQ0YmIxYzU3ZjU1MTE5NGFiZTRhZDRmMGNjNDUwYTllOGFhNDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0NWE5MzNmYjkyOTQ4ZDNmNWY2MTliNzNiODhjNWNmYzg4NzhiZWQzMjQxNjAwNDI4NjMxYjZhZDU5NzhlYzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFiNDdmZjM0ZjM1NWM0YzE3NGQ3ZTJkZmVlODIyY2ZiZWRhODUyZDg1N2RlOGJmZjdlNDkxZmJlNjg3NzY5YWYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L66-L70",
+          "version": "repo-lines-v1:sha256:0a4fb24169b03a861b51e49cb32f2a1452b86ba0223680ff05a4cf5f3265425c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmI3MWYzODAxNThiMWVhMTMxNzA3MzM3ZjMwMmU1Nzc3MzBjZjViYjkzMGQyN2M5YmZkMjg5YmE1YWVjMmI2NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGU4NDdiMWVhNDUwMTUwODkzODMyOTU4YzFjZTRmZmViOWNjYmY0YTk5ZDcyNmZiZmUwZDBkMzQwMTkyNjI3OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjdjNTM5ZjJkN2M0NzI0OTg4NWY3ZDFlY2MzODU1YzU4YTdlMGQzM2VhYjkwNzdjNDU1Njg4Y2ViMWY3ZTNiNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYThjZjdkNWFlMTcyYmEwODhkMWE3NWM1YTRmZmE0M2ViOTM1ZGY2Mjk5NTdmNWYxMGFhMTg4NDJlMGFmNzYwYyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L92-L120",
+          "version": "repo-lines-v1:sha256:ffd77fa148b56154a135286a2e405ddd333e0aa158f463e30a4d8878c8ceac06:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhYWEwMjM0YmQxYjlmM2I2ZjI1MmJlNTcxMzY5OGJiYzY2MzgyOGM2OWJkNGYwZjlkZDhmNjU4ZDhhNzYyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MjAzMmM5NTExM2EwYjAzZWEwZjI3MGViNDlhZmYyYWE4ZTk2NzlmNWE4N2NlNzU2YTllMGFjYTk2MzMzMzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4YzM0YTg3NjhhNTZlZTg1NTY2ZDRmNGI4MjNmZTFlYWI1YzI0NDA1YTc2NTQ3MDhhOGIwY2I5NmZkNjhiOGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ee1d2465eced43a798c580f27bc0cd2b",
+      "statement": "In the document zone an explicit placement is resolved only against the members of the item's own extension group, so a dragged document lands at the head of its group instead of at the pointer's position and a drop between items of another group reorders nothing visible.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L25-L34",
+          "version": "repo-lines-v1:sha256:cf4ee368b6926ed382c8aa970f2f192d1db80273047f559321c8a46c92c4aca0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyOWM4N2NiZTFiYjM0ZWJiYmI0YmI3NzU0ODUzOWQ2NzU1NWQzOTkwMjFjZTE3YTUxZDM2NDlhOWJjYjkxYmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4MjdiMTRkZTEwMjQzNmY4MDk1MmIzMWJiM2EwZmQ0ZTE3NDNlZDVkMDJlZDIzMTQ3MGNjMmQ4N2M0MjBlZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0OTBjOGYzNDc0OWU0NzhmNzhjZjUzZmIwZDhiNjBmMGFjMzJkOWY2ZThiYWU1YTMzNzZhMmYwZGUxMGVjZmYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L58-L84",
+          "version": "repo-lines-v1:sha256:4555498db4e24d5a84f574df596dc244936b0d00885ae03d011d16bc5dec9176:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkZDBlOTg2MmM0MzAyZTIzZWVlMDY3ZTAwNjU1ZDA4ZGFiMWU2MmQyZDUwOGVlMGViOTg4NDAyNzM1MTYwYmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3MGFjNjE2YWMwMDI4YjAxMGJiZjU4Y2RkZGUzMjEwZDk4ODA2NWJiM2YwMTRkNzE4YzQxMGVkNTNhYWM4ZWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJjNzEyYzhmNzJiNjQzYjAwMmFjNDFlMmNhMzcwMmJiZWFjZmIyNjZhMDRjNTJmMTBmZTlkYjFmNzg3MGFlZjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ab40e8d1c0704c5d8fce7776b656547d",
+      "statement": "The settings overlay's RESET LAYOUT entry invokes desktop/reset-layout, which returns cleared = dock.length + docs.length, empties the dock and docs lists while keeping pinned because a pin is user intent rather than layout, persists and re-plans in the same call, and is idempotent on the factory state; the acceptance battery asserts that no dock entry is still source placed and that the first entry is still source pinned.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1157-L1166",
+          "version": "repo-lines-v1:sha256:6ed323261b3d426528eedc0047dbca8621c7dba28968dea125a404a270c267e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk2NmM0YTIyZTRlMjk4ZTNlMzIzMDJlNWU1MmM1MjcwY2I4OGViZmZmOGY2NjcxYTIyYTA5ZjI1ZDIwMzYzNDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MmFiODBkZWQ2ODM2OGRkNjc5MDY4NTRhMDYzNzliYzllZDM1Mjc1MzQ5NGUxZDI2Mzc0MDFmMjRhYzIzZmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwZTkxNmQwZjNmMDZjYWQ0ZmMxOTc0ODgzNTBlMWNhOThkN2ZiMTk2OTcwYjc2OTgyNWE4ZDFjNWFhM2RlMjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3NDlhYWU4NjMxMTI0NTMxOTA1YzUyOGZjNDYzYzYxYjEwNTJmNTZmMTYwZDc5NzYwNDk3ODU2MDRmNTFlODYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L73-L76",
+          "version": "repo-lines-v1:sha256:eaab28d7dd3cab66f19e5a9d9ada123e47a6218068d253f49ac7e2cd2878b554:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDVmMTRjMjYxYTA5MzJjMzU3ZTllYzM4OTZhNWM4OGE3NDIxOGI0MDJiOTliZDJhZmQwZDUyNTJkYTc5M2VkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGEwZjdhOTk0ZTc3MzUwNGY3NzQwYTYxYjcyYWJhNWU2MjA5NzVkZWNhMmUyNGJjNDQxNGVkMjMzMzQyNmE3YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L180-L187",
+          "version": "repo-lines-v1:sha256:d8a0a3ed304c50590300ceb1991c4924cd945bcceca5f2b32c0fad481530cae2:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTNhYTc0NmZkYmYzYWRlNGFkYzE4MWM5OWZkZGE3OGFkNzZmYjBmN2ZjZDhiZjIwMzNjZmU2NDBmZmNkNGEwNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWJhMTQwMDkwMTk0ZTM4NzMwMjI0ZWZmNTk2NmFhOTRjNjc2OTEzZmI4NjBhYWRlNzYxMjQ4MTlhMThkMTFhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTBjM2RlMmI2NTk5ZjVkYzVhZDdjNTVhNjczZWM5YTA5MDQ4OGJjYjQ0MzUxY2EyMjM1NTc5N2Q5NGQ2ZDRlNSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L456-L462",
+          "version": "repo-lines-v1:sha256:63d279f9fd6107c5c82d0c9c541c1756b642d194bcaa949b14b3fe2b16f009aa:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTJiMDM3Zjg3NmExMWE4MTk2ZjNhZmVlNTg1ODM1ODI1ZDY2MDUwNDVmNjY5YjBlYjBlOTI3N2YzZGMzNDA4MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzlkMDU5ZTY3Y2ZhM2QyNzVlNjA1ZGFlMzg5MjYxZTY5YzM5NmViNDM2ODZiYjk4NGI1Y2VlNDAyNWVkMjNjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGVkYTI1YTQ4YjEwZTkyNmM1NTE5NmUyMjVkNDAwYThhZjJkMGQwNmZmNDcyN2JlZjNlNjFkMTIwYWQ5ODczZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3f92cb230a0d47c9846b7214c61ecd92",
+      "statement": "There is no user interface for creating a pin in this revision: the settings overlay offers only the card-opacity slider and the reset entry, nothing in the renderer writes the pinned list, and the pinned refusal message names layout.json as the file to edit.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L159-L167",
+          "version": "repo-lines-v1:sha256:cee6958cd90f80a9fb88379fd49345a1d2ce7ee37471e76c3877d87e74f6e95a:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTdjYzkzOWNiMWY4NTVjOGE1MDEzYWZiNDhlYTE5Zjk5MTg5M2NmZDhhYTU1NjY1OTExNjMwODhmNWZjYzE4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjE4YjhmNzc5ZTBkNDdmZmE2YzQwMWFmMDc3NGFiMjkxZjBkMDcxMGI2MGIyZDJmMzc1NzA1N2EwNjBhM2I2ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTRlYjA1MDFmODYwY2QzNDZmMzJiNjZhYmQ1OWQ5ZjMyZjIwMzA2NDQ0ODY0MTViMzQzNjM1MzRhNTkwZjgzMyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L401-L409",
+          "version": "repo-lines-v1:sha256:6efc20049287de4618aa3830131aa3f64ffb2836303adc8a71f5fe271a0348b0:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDExNGVhYWQxYTgwM2MzMjY0Y2ViMjNhYTQ1MWNhMzgyOTIzN2I5M2FiMmJjMTRhNWNmMzNjMWQzMzdlZjgzNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDE2ZjQzZDhjNzRlYmExNjAxYmYwZWZjZjk1MTc2MDQ4NGJiYjMxZDhmMjAwNjk1YzMyYTJlNzY3YTliYzEyYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzc3NmQ1M2VkY2M1YTljZTAwNDQwNjIxNjg4YzY0NDRhZDgyZmUyNDg2YzNlMTMzYThmZTY3MTY5YmYxNjE5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzM2Y2UzMGQyNTEyOTU5NGViNDc4M2NlM2E0NGIzYjc2YTg3ODI5OTBjOTQwY2I1MTE2NTk3MDFhOWMyNjYwYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_23342f970cf94310b5c1d85c39010818",
+      "statement": "The placement store is a JSON document at an Electron userData path resolved in the main process and shipped to the data-plane child in the init message; loadStore is total so a missing file, malformed JSON, non-object root or wrong-typed field degrades to the factory state, and stale names are preserved verbatim and filtered only when the plan is built so a deleted-and-restored file returns to its recorded position.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L19-L46",
+          "version": "repo-lines-v1:sha256:92a3ae578bdd47da696726ce133174130b5e9388d7ac76ba2aab8a5721f17d7d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyOGIyMTdiZGQwNTdiNDc3YmU1ZTdlMzhjYjRlM2E5MTU5NDA2YzI0NWRkYjUzNzU0YzRhODMxZmFmOGUyNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzZjJmMDYzMjkzZmNhMGJhMjU1MzViODU0ODk5MGFjNGVhZTcwMzA4MmU0MzM1YzI3OTVmYjk2MzAxNWRiMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZDcyM2YwNWFjYzllMWM2OGQ3ZTMxMjhlNjRmMDg2OWIzZDZjZWFmOGI3MThhOTNmYTg5ZjJkOWJlNzY4ZTgifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L48-L53",
+          "version": "repo-lines-v1:sha256:a059fdb2b874371b83f210c4576b8fd0a15ebd9f2e3193b72f1bbbc72854d369:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTU5Y2EyYTEwZTZjOGY2NmIyZTdiMjdhYmJiMjlmMDU2YmEyOGVkNTY5MjY2N2VlMmY4MGM5YTEwZjNmZDc0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTZiMDUyNzBjMzNjYzRhMWM5ZDUxNjYxNmVkMTVmYjBhZDQ4ZTExYzdjYzVjNjExNWMyN2VkZmFlZDkwODdhZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTMxYWQ0NTI0ZDg5YjBhYWE1M2FiYTU5MDNhNjMzZTczYmRkMWRiODAxNDVkNWFkNDc2NjdjNTllMWYyNzVlMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L98-L107",
+          "version": "repo-lines-v1:sha256:1a9fdee4c7a4ae9b75641f00c73d1ac0e60461cefa090cd73cb99a30eaf6dfd4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0YTYwNjVhNTlkNjQ3MDNlZDRkYzlhM2Q3YzY0ZjEyM2U0YTI3ODhkN2JkM2FhYzA2ZmI3ODdkYTVkYTdkYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliMDQ5NmJiZmJlMDhjMjQyZjQwZjJiNjkwZTFiYzYzZTk1M2MzZTVjY2RiNWJiMjhlNTYzNDg2YWIyMjBhOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYmI2YWYxNmY2YTdlNWQ1ZTk2ZWI1YjIzZmQ5MTEyMDU0MGVjZDhjZTE2MTI0NTZjYzFmYTY5NWExZDA1MTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L95-L104",
+          "version": "repo-lines-v1:sha256:d3bc344d8a17bd7e15221646cc1205219dd526297ab85d6b745f1fbe5f2a514d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlZGMwMmUyMmQxNTQwZjEzNmE3MmJmMDBmMjNmY2IyNTRlMjY2MDNlYzRlMjk5MzM1ODIzNzUyMDM1YzA0ZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4NzRmMDU1MmU4NmYzNzJjZjI3MzRlOTgxYTM0ZWUzZGQ1ZTgyNTc3ZTc3NmQ3NWJkN2Q0M2E5MzRlNjQ3Y2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFiMDk5MzU5ODBlOTE3NmM3YWE4NzA1YzNiMGU1ZDJmODU4NTcyYTgwM2ZmNWE5ZWQ4YWJkZDU0MzQ5NmJjNWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NmNjZmNhY2JmOTQ1Njc2NWM0MjE3NDhjYTdkYmY4YmRiM2Q0OGZhYjJlMWE3ZmVmZTJhMjZmYmU2YjdjNjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_529eb020243f416b81775d260d5ed128",
+      "statement": "The drag is durable before it is visible: the offline test rebuilds DesktopService over the same store text and observes the same dock order with source placed, and the acceptance battery restarts the real panel and waits for a desktop-rendered record whose dock order still shows the dragged item before its anchor, which is the mechanism behind the requirement that a position survives a panel restart.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1111-L1127",
+          "version": "repo-lines-v1:sha256:f809619716c714d57d7d5131a6625aae8a7e795a92f21d122537c5a5b973849d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1M2I5MDMzMjU0NDg3YjNiMGUzNWFkYmY4NzUyY2E2MWY4OTdhZjZkNWVmMWNlNDkzNjMwODI5MTQ1ZmQ2NDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlY2IzYWNkOGEwZTIyZmNlODkxYjMzYTU0MzRkZjdkOGI0NDY1OGI2YWI3ZGIyNzBmZWJiNDZjN2NkYTc5OGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNhZmE3OTMxNDMzNmQyMzgyYTE5NThmYjY4ZTE2NDEzNjZiNjAxNmRlYTI2ZWFiODA4ZTJiM2NjYzZiYzc0ZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4ZmQ2YjE5MTkyYTA2NjE3N2EzMjc5ZDU1ZmU2YzUyNDQxMTViMmIyMDNlYTNiZGFlZTMxZDdmM2Y5N2ZiNzcifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L207-L219",
+          "version": "repo-lines-v1:sha256:010953f99f273a5ae69ea2285e38e611bbc90589b2449a8db47ec28594b42768:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5Yzg5MzE3MDg3ZGQ5MTNkY2I4MzE3OTUxZGRiZWJmYjIyMWZkMzg4ODc1OWQ2MzA3ZDg2NTg3MjBmOTA5ODIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwYjQ4Y2RlMzVhN2RmMDkyOWI0MWVjNzFhMWFkY2FmMjUzNDFhZjZjNTFmMzVkOTgzNDU4OGYxZTkzOGIzYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5ZmNlNTM1OTVhMDUwYjk0MjI4MjEyYWU1MWM5YTNkMjU0ZjQ2MjY1ZGE0ZjZkYTExZGE3NzdkZmM3MjQzMmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bd470526d74b4c4eb338b61537d78825",
+      "statement": "Transport failure and business refusal are distinct channels for a drag in the production assembly: desktop/move is an RPC into the utilityProcess child, a missing child rejects with 数据面子进程不在场 and a child exit rejects every pending request with 数据面子进程退出，请求失败 before the 1 s to 30 s backoff respawn, whereas a validation refusal resolves as {ok: false, error} and nothing is written in either case.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L65-L88",
+          "version": "repo-lines-v1:sha256:615372dc1b3b7c4b85acb6c0e1035a7e9f71d8b5e2a2a9b4fe1e392a38c0a234:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0NDFhMDIzYjIyNTVmNjMzZDQyY2IyYWEzOTEyYTcwZDY3NjkzMWQxNDcxZTk2YWJhYTliYzg4NWQzZjExZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjYWZhOWUwNTAzMDM5ZWY2NDkxMzhiYjMwMWI4MDZiNDJiZTc5MmQyMTk3YTEzYTIxNGM4MGQyNDYzOTM4YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhZDViOTc5OGM4NzZhZDhiYzc2ZGQ4ZTY2YTU1OWE2NmMzZDkyNGExZDI3NjA1MDgzZDI0NjRiZWNiNmQ0MGMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L124-L134",
+          "version": "repo-lines-v1:sha256:764aa11698c74aafe07602f26ef1ee0ca84f732d7c4186a40dc407d35b4e3fdf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE4YzljODNjOWFjZTE2OTIwMmE4MDJkOTZlOTQ0ZDljYWVmOWJkMTVhM2ZkZDUyYzgxMGUyZjcwNzkzNDc1NDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlMDU0OTgxNDBlZjZkNjdjOWYxZWY0YTBiYzI0NGExYjQxMzUxZTg2MTE2ZjRiM2NmNDViZTM2MzI3MGYwMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhiNTZiZWFjMWY2ZWM4NzQ5ZWJiNzI1OWY5MDM0ZjYxOGUyOTRmMTQzYTQwZWIwNDkzNTlhMTU3NWJhMjk0YzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L161-L182",
+          "version": "repo-lines-v1:sha256:2a1c6a9246b95b5ba2ff456abd3857c6fe757e27c5504a4641a3a5463e75fb9f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwZTBjZGRkOGE3NWZmYjY5ZjgyZGJmNGFkZWMzMzUxYjcwY2E3MGVlZTkyYTE2MmI5MzUzOGMyNDMzYzU4OGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0NGNlZDgxYTJjZWI3MjRlMzZjZDA3ZmZjZGIyODJiYTM2NTgxYWRjZTliMjQxMzRlOGJhYmE3ZWY0MmNkYmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L78-L88",
+          "version": "repo-lines-v1:sha256:caaf73eb3f7d2bf91dc106c99a678c613ed6750e309dc2de03f3174ca8baf9cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZmE0MDg3OThmMmY5YTQxYzQ1OGZjMGMwZjk0YzE0YWQ2YmZkMzFhMWU3OGRiNzUyY2M1NDRhYjM0MDc5NjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhOTBhOWZhOTczZDlhZGM2YTllYzNiMmI2YjU3NzUxYzU5ZjNiZTAwN2M1ZTVkYTdmY2QyZmZiOWNlMWI2YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4ODJiMGE0MTIwODI4YThiNTc3MzAyYjg1ODFkOWY4NThhN2Q2ZDVlYzYyZjQ3NTFiMWNhOTQzNTk1NjQ1ZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a927d13c1c264678bd7b0ac378cc54d2",
+      "statement": "The flow is covered on both sides of the seam: the offline suite pins the store mutations, the move validation table with zero writes on refusal, in-zone placement plus immediate replanning and persistence, cross-zone reclassification, factory reset and the fingerprint flip, and drives the same path through bridge.invoke for desktop/move and desktop/reset-layout, while the real gesture is verified only by npm run accept with SendInput mouse motion whose coordinates come from the desktop-rendered item rectangles.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1066-L1108",
+          "version": "repo-lines-v1:sha256:a71587bfaa636a8b946fb22b3a22eb097014579f16b585f4115bbd0f65cd59e4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5MTQ0ZmZmZDdiZTA0M2MzYWUzNjAyNzMyNjg4ZjJmNmNkZDEzODg3MGJmYzM4ZTQ0OTZjZjc5OTZiM2FmMDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzOTM2NzQ4NDA5NzEzMjY3Nzk2NWY1MmYzYWQ0YmIxYzU3ZjU1MTE5NGFiZTRhZDRmMGNjNDUwYTllOGFhNDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0NWE5MzNmYjkyOTQ4ZDNmNWY2MTliNzNiODhjNWNmYzg4NzhiZWQzMjQxNjAwNDI4NjMxYjZhZDU5NzhlYzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFiNDdmZjM0ZjM1NWM0YzE3NGQ3ZTJkZmVlODIyY2ZiZWRhODUyZDg1N2RlOGJmZjdlNDkxZmJlNjg3NzY5YWYifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L189-L245",
+          "version": "repo-lines-v1:sha256:10ea9a13ea639cfcca5467b5a316141a0b0d57aa174d3b960e8d2a706d8fe319:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmNGQ4ODFkNmI5ODk0ZWY3NDY1YTg1MTVlNmM4NTg5N2YyN2JmZWJlZDQ1NDUwNTc2NWY1NzI1NDVhNmMzODIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhYjBhMjg3ZThmZDMwMTRhZmY3MmE0YzRiMmEyOWExOGY4Njk2ZjNiMWU4MGFiMTkxYzIzOTM2MjNhZTEwY2UifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/layout-store.spec.ts#L25-L60",
+          "version": "repo-lines-v1:sha256:16901f820d63b958b0458ee1aa843dccd6d81037aaee19d07f93d7accc80191e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmODZlNTA3ZWYxNTRkNWNlOWZjMTM3NGUzNDNjOTNmOTk0NzE1ZTUzNzEyYTM5OTI5MmYzYmIzOTc3MTI2MTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5ZjM0Zjg1ZjAwNzdkZDEzMDc4ZmJkYTVjNmQ5YTNmNGEyNDIyMWYyNWU1OGVhNDEzMWM0YjBlZWMxY2NlNDcifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L194-L246",
+          "version": "repo-lines-v1:sha256:cdd85a62d373f43392bbc4f62de2357017ffb8728392a6a6c1c85d827d693892:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMjIyZjZlZjlhOTk5NDU4Y2M4Njg3ZmM5NTM0ODc1ZDIxOGZjYmRjMDdkYzY5NmNiMjY3NDA3ODcwNzBjZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3OTZkMjM3OGM3Zjg4ODlhNmVhMDRhYTQ1Y2RjNWU5NGUzMTk2MjE0NmZkNDI5YTAzYWRiOWM2YTA4NGI3ZmIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

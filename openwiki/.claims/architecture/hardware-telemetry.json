@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:45433bbb9df9747c4f8122421641afbd3edd2eba939d7e9124f16599a658f20a",
+  "claims": [
+    {
+      "id": "claim_cec8b509d23e4611b835ad69541a4209",
+      "statement": "`HardwareService` is the single owner of the hardware card's state: a mandatory-then-optional `gauges` object plus four `HistoryRing` arrays sized by `HISTORY_LEN = 300`, produced by one `sample()` step and published through `state()` as `{ gauges, history }`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L136-L138",
+          "version": "repo-lines-v1:sha256:94b1bab33bd7fb19cb65c77f5eb323f3c6bed32ad95c932ec38b5d32f74d2e30:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjBkNGZjOTcwNjIzY2M5MzkwMDhhNDQ1OTI3ZDQ5NWVmYzgxYzdhNWQ4N2U5M2NjYjA2ZGQyZjYyNWZlMzg2MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg1MDhiNmNiMDU4OWFiYTc1MDMyMDJkZTJjOGY4N2VkOWIxOWNkNTg2NTNmZDAxYTNlNjc1ZTNhYjdiNTk2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L44-L60",
+          "version": "repo-lines-v1:sha256:467cdaab6b21913ef75cc4a46db31f6e46e0dd117cb4a7e7d5a5e738419b047b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1MTY5M2Y3YzA5NDJlMWMxZDlhY2Y3N2RkZTRmMjkxMWQwYTM5MTFiMmQzYmI5Yjc3ZmRiZGZmNDQxZjBjNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjZWE3MjNhZWE4ZTczNjBmOGJmZTVjMDRiOTZhOTQwNTEwYTY3MDc5ZTQxNzhlNWM2ZmY3NDE3ZTVlOWI2NzcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L68-L99",
+          "version": "repo-lines-v1:sha256:ee5027689f1af2735b3a0dcaf23e6a3f12a4157c30bb9682ad89a7cb28d7e463:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2NTc0NjIzOWMxNTU4YzkwNDAxMTk4ZjUwZGRhZGY4ZTYwNzc5NWRiMjc1MjUwMTc5N2UxOWVmNDIzMDJiYjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmYTQxYTMyMzEwMDczMjA4ZTA3Zjg1MjUzNzhlMzgwYmU1ZTM4M2JiYzNjN2FhNTJiNzQ3ZTNjOGUyNDcxMjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3ODU1NTc4NTBjZTc5NWZjZjllMWFkOGY4MDg3NzU1NDE0Zjg5ODE0MmI2M2JlYWI2YWZlYjYwY2FjY2Y1ODUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5437ae126ead4c4397acf2441fdad904",
+      "statement": "The sampler depends only on the injectable five-function `HardwareSources` bundle (`cpuTimes`/`memory`/`net`/`gpu`/`monotonic`): production wiring `systemHardwareSources()` supplies os.cpus/os.totalmem/os.freemem, the koffi interface counters, one shared `GpuQuery` and `performance.now()/1000`, while offline tests inject a fake bundle into the same state machine.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L17-L38",
+          "version": "repo-lines-v1:sha256:f89362a532366363bbc258345aeb75ab265409b74aeb90872e11ae32d2e4bb62:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzMWVhNjg4NTEwZGY1N2ZkNDIwOWU1MWFmOWQ3N2Q3YTczYzZhYThjZDNiMWEwNzk3ZjMxNmU1NzMwNjQ1MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjM2VmZmM3YWQxYzA3ODgwMTBmMDZjMmJlYzE4NzQ5MjZhODE4MzgyM2UxNGEwMWE0MjRlMzJkYjg1NDViN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjMzFkYzQ5MDVmMzU5MmNkOTE4MjVlMjUxNTE3YjRmODg3Y2RjNGM5MjM4OTM5MTQ1MDZkN2U0MTNmZGVjMzcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L62-L65",
+          "version": "repo-lines-v1:sha256:d784c71face4be7b8aeaa068212c7d2744bf2524407dbdc35902a7ed345b9a2a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIwNjg1ZjA4NmJmYTJhNjZlNDFkNzJjNWJiZDZiZWRkZmVjYmFjNjYyOThhMTJiOGRjMTA3Nzg3MTI2NTQwMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2ZiNjU2NTM2MjQ1NzQwMGU3MjQ3MGVkYmZlNjlhM2UyNWE4NDAwMzY3ZTYyMTliOTQ3MWZmZjBjZjQ4MDljZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTY1MDY2MzE1MWIyZTMwNGNiYjdhMzRiZTdkODczNTRiMTEyOTlkZWFjNzgzMzNjNmE3MjZkMGQwYzA3ODlmMSJ9"
+        },
+        {
+          "resource": "repo://app/tests/services.spec.ts#L50-L73",
+          "version": "repo-lines-v1:sha256:6e7ece4b8da06e8e97431b7b2200f679ec0509a262ebdb4ea1f2ac9ab1515234:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ1ODA3MjNjODBmNmVkMmViODIwZTY3NzAwYmFmZDY3ZjFhMTM2MzAxMjU0YmRhMTVjMjMyNmIwZGE1ZWFkMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwMWQyZmRlYjc4ZjQ1NTk0ZWNlNTg3YTM4Y2E3MzZmNWM2M2RmYzE2NGQ1YWEzZTViNDEyNWFiZTJlN2Y0Y2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwOGE0Yzc1MzE3NGViNmVlYTNkMDhiYTE3OTVlNzlkNWNlOTkyN2ZjZDRkYTZiZTkyMjI5ODM5MjVkODhjMDYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3d3278dad4f24506be41f0274a3cc375",
+      "statement": "Per-source isolation: every probe runs inside its own try/catch (GPU through the `readGpu()` helper), so a source that throws only blanks its own fields and never aborts the sampling round — the acceptance criterion that one broken data source leaves the other sampling intact.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/standalone-app/issues/04-data-cards.md#L13-L13",
+          "version": "repo-lines-v1:sha256:c73a6c287027f194cecdb93456235157ddc8002d23761929a93864450551b3f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzczYTZjMjg3MDI3ZjE5NGNlY2RiOTM0NTYyMzUxNTdkZGM4MDAyZDIzNzYxOTI5YTkzODY0NDUwNTUxYjNmNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzczYTZjMjg3MDI3ZjE5NGNlY2RiOTM0NTYyMzUxNTdkZGM4MDAyZDIzNzYxOTI5YTkzODY0NDUwNTUxYjNmNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjQzN2Y3ZjI3YTY1M2I2OTg5ZmMyMGY3M2EwNTFmNjE4YTljNzFhODFlZjg4MjAzMjM5ZWU0ZDdhZDIwMzY2OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjkwYmZmYzY3MWEwZThhODczMzNjNThiODRjNGY1ZmY2MzM3MDY2M2E5NDkyMzRkY2ZiNDZjNmJmM2Y3NWU2YSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L68-L108",
+          "version": "repo-lines-v1:sha256:f6339c903e3a106ccc4f66fe014d7211b04d6bae8e7d8e5bc57a4c49e44426bf:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2NTc0NjIzOWMxNTU4YzkwNDAxMTk4ZjUwZGRhZGY4ZTYwNzc5NWRiMjc1MjUwMTc5N2UxOWVmNDIzMDJiYjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmYTQxYTMyMzEwMDczMjA4ZTA3Zjg1MjUzNzhlMzgwYmU1ZTM4M2JiYzNjN2FhNTJiNzQ3ZTNjOGUyNDcxMjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyNTlhYmUxMjExNmI5MzgyOTY2N2RlOGRlMzA1ZjdlMDhmYWExZjk3ODYzNTEwY2I3YzEzNDBmYTEzZGIxZjIifQ"
+        },
+        {
+          "resource": "repo://app/tests/services.spec.ts#L108-L137",
+          "version": "repo-lines-v1:sha256:a20407cbfd5a5cd5e532ac3ebbef38718420f0a8780a5b1bb965c5edc1f0532b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwNGQwM2ExNzVkYjY2ZjQzMjgwYWIzZGIyYTNlNmI1ZmJhY2JiMmQzMjA4OGRlZjE1OTYyN2YwN2JjNmU1YTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4N2U0NGI5NTlkNjcxNGJkZDkwMjA4ZDQ4ZDMzMWU1N2Y0MmYzODQ3MzBkOWJmZDYyNzQyOWU2MzI1ZTJlZDQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2c7c5aa914d34b57bcb6a8e8f00e1ca1",
+      "statement": "A failed network read clears both `prevNet` and `rates`, so the failed round's counters are never reused as a delta baseline and the following round also reports no rate (absent gauges, `null` history points) rather than a partly-fabricated spike.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L81-L98",
+          "version": "repo-lines-v1:sha256:c0134ed1c886e15292a6d861d5b87856f60ada403fd5b5613b714f19eb5aabf0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MmI0MTRkNzJiMjI3NTg3NDZlYjQ1MDM2NTQ4OGIzMTFhOGEyNDY5Y2E4NWM0ODhkOWIxNzVlNDcwODM0MDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkYTJlMzU2MTk2OGNkMzM5MDBmNGRlOGVlMTJjNWYwMTI4OWQ5OWJmOWJkNjRhZmIxYmUwYjQyY2MzMDBiZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmN2NiNmMwYmUwYjkxYjAzYzBiZjVjY2E4YmIzOWFkMjcyYzc3NGJhMTM1NTI5NTU1YWU3NDRiMWU5MGQ4ODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiNDc3ODE5ZDQ3YzNiYjMxYzQ5MTlkODU2ZjAxZmVlYTBmMzU5MmViOWY3MmU1OTIzOWNkNjRiMjEwZWNhMWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_428b1b90694f4e7fb9b5074e35a36056",
+      "statement": "CPU occupancy aggregates every core's `user+nice+sys+idle+irq` into a total with idle summed separately and differences consecutive snapshots, returning `0.0` when there is no previous sample or the total delta is non-positive, and clamping the result to 0..100.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/rates.ts#L12-L29",
+          "version": "repo-lines-v1:sha256:46c81b9d1d9985b55bca9c5ca020011b33b9a12acb60ed574f1c21c7bf7d9f98:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjMWIyZGY5ZjY2YTZhOTcyYWViNTM5Zjc5MzFkOWNjZjkyODY3ZDQwN2JjMjc0MDc0NDczZDA1ZjEyMjViMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwODUzNTAwNGZhYWQxZjI2ODRlMzQwZjY3YTcwYmIwNGMyNTI3NzVhZDkyNGYzYTRhMDIwM2NkOGNhYzZkOTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMyZjg2MGZiYjIzNzA4NzNkOGFhOTY3Zjg5ZDFiMGUyYWI2Mjk5MDBmYTFhNGZjNmRmOGQ4NmQ0YzE3M2ZmZTIifQ"
+        },
+        {
+          "resource": "repo://app/tests/hardware.spec.ts#L31-L50",
+          "version": "repo-lines-v1:sha256:1fa103b6088f0c668426d03ace8ec1eb94ebf62b1bef86c404a16310dafeed75:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMWUwM2IwMGM1NjRkZmRkNmQ2NThhNTJmNDdhYTIzYTQxOWNiZjlmYjljODIzODY1YjViYzJmMWM2ZDExMTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlNDc3N2I1ZWViYmUzYmJjMDRlYTg5Mjk1MzY2NmI1NTdiMjAwMWRmOGY1ODlmNjRlZTg1OTk5NGUyNDFiNzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5413520964674437b780360104551ec6",
+      "statement": "The network byte counters come from a koffi FFI call into `iphlpapi.dll`'s `GetIfTable`, parsed as a flat `MIB_IFROW` table with pinned, machine-cross-validated offsets (860-byte rows from offset 4, `dwIndex` @512, in-octets @552, out-octets @576, one retry on `ERROR_INSUFFICIENT_BUFFER` 111) and keyed by interface index; any non-zero return code throws.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/net-counters.ts#L1-L39",
+          "version": "repo-lines-v1:sha256:a978c369f7d92fbcade3c552cff1fa11e167796d3130aa79c704fbfb22e981d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0ZmRlMjY3YjUxMGM2NmEzODhlZjQyN2ZjMDJjZGM2OGQyNGFkMTFmZjllNjZiZjQ2MWQ3NWNjYzE5MmU5OTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_42979710facc4af0a1113b50acf7829c",
+      "statement": "`netRates` turns counter snapshots into KB/s by summing per-interface 32-bit deltas (wrap taken modulo 2^32, deltas above 2^31 treated as a counter reset and zeroed) while skipping interfaces absent from the previous snapshot, dividing by monotonic seconds and 1024, clamping non-negative and rounding to one decimal; it returns `null` when there is no baseline or `dt` is non-positive.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/rates.ts#L31-L68",
+          "version": "repo-lines-v1:sha256:fc1814680179a9a4579887d302a6e6a03c1e8ec165403304249d33c0869e4d37:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1MTFiN2M0M2QwZGRiMDAwM2VkMWY0ZDJjY2IzZTU4Mzc5MDZlMTM0ZGZjZDNmM2M0NzA2NTQ2ZGIxNGQ5ZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZhZjBiZGUwZjkxOTVlNzRlYWYzYzY4ODg5N2FmOTUxMDYxODA5MjAzODg4MjU5YmMzZmFkMzhjZGViZmQ0M2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/hardware.spec.ts#L52-L88",
+          "version": "repo-lines-v1:sha256:ace12af8ac37d998604299626478c7fcea250ca5852f8e794c7b95458cf17ec6:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiNDA1ZTY1YzA0ZTU1MjA4M2Y0MTU1YTIxZjUzMmZlNTNmMDU4MzNmZjdmM2RlZTMxOTM2MDFjMTU4ODVjY2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBjYzU0N2Y2YTRjZjcxZTI2YjY3MGQyYWMzN2M2YWEyYzYyNGM2NWY5ZGVhMWIwNjNhMzJmNTI1MmExZjk1YjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b09f582aaa284e7f83b1306430580364",
+      "statement": "The GPU readout is an `nvidia-smi` query for utilization/temperature/used/total memory with `--format=csv,noheader,nounits`, run through `execFile` with a 5000 ms timeout and a hidden window; `parseNvidiaSmi` requires four finite numbers on the first line and returns `vram_usage = round1(used/total*100)`, `null` when the reported total is zero, and throws on empty or unparseable output so the caller degrades the source.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/nvidia.ts#L15-L43",
+          "version": "repo-lines-v1:sha256:67b1637b4730885f98abdf84fc4a24db45ed86e2e046de93f68074c60f9be690:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwMTY1MDJkNTU0YTMyN2Y2MmIwMTk4ZTk1NTJmYzUwYWE2YzIwOTI5NjlhOTEyYTUyMWYzODcyOGY2YWVhZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3YzMxY2ZiZjcwYmUzNTQ0ZTMyMTVlMjRhNTY5MzVjMjliODc2NTU2NzJmNWIxYzE4ZTVlNTMyY2Y0ZGFkZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3ZTc1MzZkNTU3NWJmYTNiNDgwYmJmMDFlMDE5YjBmZGJiZDQ5MzcyOTY4YjBjZjE4NjdhMWYxMDQ1ZGE0YTEifQ"
+        },
+        {
+          "resource": "repo://app/tests/hardware.spec.ts#L90-L107",
+          "version": "repo-lines-v1:sha256:f57700731042b58e758a62dd05545aa743e80783b945546e4a07e77db5307f6f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjZDhmMDQ0OTliOWZmMTQzNTI3ZTFiZTRlYTYxZGY5ODc5Y2E5ZTQ3NDk5ZGEyZWU1NWJjYjI3NmExYWZlZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0Y2JjMTY4NDBhYWY1NjIyMDZiODY1NWIwMGU2ZTVjNjQ0N2E1MDM4YjgwOGQwMDExMTQ2MzJjNzQ5OGRkZTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e2facb73ccf94549b4078cea4d6e06e9",
+      "statement": "`GpuQuery` caches one readout for a TTL, guards against overlapping spawns with an `inFlight` flag, and stamps the timestamp even on spawn or parse failure, so the cached empty readout occupies the whole TTL and a missing `nvidia-smi` costs one subprocess per TTL rather than one per sample.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/nvidia.ts#L46-L73",
+          "version": "repo-lines-v1:sha256:366a1956c73f612c4b956aa7c964866c514fc5666b56e64496a9ba912e79b6ba:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjZGUyYmRiYWJkODNkMGQxYzA3NWUxMDA4NmJiZDI5M2E0YjkyN2U3MzVjNWNiMjQwYTdjNzNhMWFlNGZiOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRlODZmN2JhMTExYzQyNTJlOGVhODc1YzRmODM5ZTZkZGNkNTc3MmIwYjk5NjkzMzhmNTk2NjA3OWMwY2YzMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/hardware.spec.ts#L109-L132",
+          "version": "repo-lines-v1:sha256:ea96da101d62c474af3659013c0734ff37664c3595fc77a3e9bea183ea510532:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkZmQyNmJiYjc5M2UxNzZlYTMyMmM5MzhkZjc4OTA5YzU5NGFlODdhY2JiNjNmNGM1MmE0NmRjN2UxNjk5ZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_612758f69d7b4426a2eb358c6029611a",
+      "statement": "Production wires the GPU TTL to 5000 ms (the class default is 3000 ms); ADR-0005 records this as a deliberate lengthening from the Python-era 3 s that halves the spawn cadence to roughly twelve per minute and reduces periodic GPU/DWM jitter for a display-only metric.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/nvidia.ts#L51-L56",
+          "version": "repo-lines-v1:sha256:3794c9c473a4123246eb074fc8cebc9ab4f2105ecad8cd20da743ff349ed86d1:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDA1NGMyYmYzYzU1OTkzYjZiNjRkZmRjZTZhMTdmZjNkNjYxNDU0MTIzN2UwY2RiODg0MDk0MmNlZmQ2MDVlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmMwMWIxZTkwOWYyNTk3MjRlYWY1YzhkOGU3YjVmOGFkMmU1NjcwNWE3ZjJhYzM5ZDA5ZWQxOWRiNzZkN2Y5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTFkYzNiZjMxNDY2NjFjYTc5MjhlZmViY2FlYmJkNDI0ZDQ4OGQ5MTBjZDhhNjc2Y2IxNjc2M2VmZDIyZmQ4ZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L26-L30",
+          "version": "repo-lines-v1:sha256:70c66897591ba51d342b694d7c27127e3b62de78ef5909a9a7320a8a9bdba269:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzRjMzFhZDNhNmU1YzEwZmI3ZWU0NmE2NjRjMWYwN2MyMWJiY2U5YzkxNWU4YmJhNDJhN2M0MmJlZjg3NjY4NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjc0YjYwZTE1MzFjYzA5NGNlNWZlN2E5MDU0M2I4MGNiNjcyNmQ0ZDlmZWJhMzRjNTE4MTMzNjk3NjM3OWRjMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2EyYjI5ZjgxMzM4MmJmMWZiMmZhZjcyYTQ2NDY4N2Q5ODBjNzMxMzVhNGY1OGRlMTBjYTI4NDg0OWQ5YzJhNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjc5NjIwOGZiZGQzNDMyNDUzNjYxYTI1ZDlhOGQ4NjNkZjg3MzYzMTZhNDU4YjkxNTllNmQ4N2IzNTY4YWVhOCJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0005-no-input-hooks-dataplane-utility-process.md#L7-L7",
+          "version": "repo-lines-v1:sha256:3dbc48f8edad82644774012f5e47fea3e5acc68a123f999bfb509e04fd838f7a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2RiYzQ4ZjhlZGFkODI2NDQ3NzQwMTJmNWU0N2ZlYTNlNWFjYzY4YTEyM2Y5OTliZmI1MDllMDRmZDgzOGY3YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2RiYzQ4ZjhlZGFkODI2NDQ3NzQwMTJmNWU0N2ZlYTNlNWFjYzY4YTEyM2Y5OTliZmI1MDllMDRmZDgzOGY3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTA3ZmNiMTUyYWUyZmQ1MGQ0ZTkxNjcxODc5Y2YwZjQ2YjNhMTI4NzAwOWRiYTU4NDM4ODFmZGNkMWJhMDdmMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_486e22f2f1ef4e8497af2b7e3ff506ba",
+      "statement": "Because the GPU refresh is asynchronous and the first `read()` returns the initial empty value, the GPU gauges and their history point can be missing for the first sampling rounds after a start — an accepted trade-off in exchange for never blocking the sampler on the subprocess.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/standalone-app/issues/04-data-cards.md#L45-L45",
+          "version": "repo-lines-v1:sha256:edc9841df27825551e97bfc98a33a4a672902c9fb29c676d2f758abd15d8f1c0:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRjOTg0MWRmMjc4MjU1NTFlOTdiZmM5OGEzM2E0YTY3MjkwMmM5ZmIyOWM2NzZkMmY3NThhYmQxNWQ4ZjFjMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRjOTg0MWRmMjc4MjU1NTFlOTdiZmM5OGEzM2E0YTY3MjkwMmM5ZmIyOWM2NzZkMmY3NThhYmQxNWQ4ZjFjMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzcyMTJhZDNmYjRiMTFmMWIyYmJiNzBjNzdkM2Q2MjI1ZTYxZTc0YzU0ZTFkYTEyNzJkNmEzZTdkYjdlZjI3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWFhNDk0NDA5MTIwYTU5ODllNzkyYmI2ZWFmMWM5YzA3ZTQ3OGY1MDAwMDFkZDNhMjk1NzNiNDJkM2M0NmFmMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/hardware/nvidia.ts#L57-L73",
+          "version": "repo-lines-v1:sha256:affe31eedd8b0585e78656458897dee866a5f206bbcdd77111787d294d92a27c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MGRlZjUzNmQ4YzFlYjNhODRlMDdjNmNiODA2MzJhOTZjOGE1OWIzMDg0NDdkZDhhMzMyNzY5NmMwNjIzODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyODVkMDczZmM4NDc4NDViMmU3NzJkOWMxYWViNzBkNDM4ZDBhMWY1ZDBjNTIxMTFiNzQyNmEwMDJhN2M5OGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L94-L98",
+          "version": "repo-lines-v1:sha256:032291f5548704c1ff226c95c965f884d9c31baf78b1c405473b0c7b200a2c58:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2NlMmMzOTExZGZmODQyMDlhMTFmMjkyNDgwZjY2NTc5NzJkN2Q0Yjk0YWZkMGU4NzNhYTkzODU3ZTE0MTg0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRhMmUzNTYxOTY4Y2QzMzkwMGY0ZGU4ZWUxMmM1ZjAxMjg5ZDk5YmY5YmQ2NGFmYjFiZTBiNDJjYzMwMGJlMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2E5M2MwNzBlNjQ0ODUwZGQwMTkzZGVkMWE4NzFkMmY1OWFlN2IwNDEzOWQ5NDhjMDRjYjk3ZTNkYzNmNTY4ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGI0Nzc4MTlkNDdjM2JiMzFjNDkxOWQ4NTZmMDFmZWVhMGYzNTkyZWI5ZjcyZTU5MjM5Y2Q2NGIyMTBlY2ExZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a05ce524736849879b94fc24a1a0d16d",
+      "statement": "Real sources are required lazily so offline tests never load native artifacts: `net()` requires `../hardware/net-counters` inside its closure because that module calls `koffi.load('iphlpapi.dll')` at module scope, and the nvidia-smi subprocess is spawned only when the TTL expires; `desktop/adapter.ts` cites this pattern as the precedent for other real-world edges.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L1-L4",
+          "version": "repo-lines-v1:sha256:65e1edac31ec3b727b5682bce6e3c158911ef617204b3ab039df0d1b06497b03:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzdhZDc1M2VlZTEzN2U3NjkwZTVjNTc1NDAwZDJmZmM5ZjQ2OTlkOWFiMzlkYjliMmQyODAwODI4NmRhOGIzZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2EyNDg1OGJjNzQyMzM5NDBjMTE0MzAxMTUyZTIwNjE0ZDkyNmY4NGY3OGU1ZDRiZWE0ZDI3MTYwYTYxYmEzYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjYzZDIwZDE4NWJiMDU0MzQ0M2M3Y2M5MjNmYTkwMzUxOTFjMWFiYjU0MTBkNWUwZjU2MDc2OWYwNDk4Y2Q3YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/hardware/net-counters.ts#L7-L17",
+          "version": "repo-lines-v1:sha256:4eeac30780c8111cd41055aed9d598826e02feb5fb280df1c349bef972e28d3c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2YTdkYWM5Zjg1NDM3MTM1NzA3OTNhMTNmODk1NjQzNTMzZjgyNjBjOWU3M2RmYTcwYzdiNmUxN2UyYWY2ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlYTdjZWY1MmFkNWNhZTcyMjJmMzg1ZjUyYzkxZmJlMDIxZGZiZjA5OTVmNDYxOGQ5YmNmMWUxMTJlNDU0OWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzMzBmZDk4ODViMGRmMzkxMGUwYmJjMTFjOGY4NDQ2NmIyOWRlYjhjZThhZDA3M2Y1YzEyYWY1Mjg4MGY2NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzZjI1NzM3OTZmZDBhM2E4YTEyNjBhNTFiNGRhNDE0MjlmOGE1OGEyMjMyNDlkOWM4MTJlYTMyZWZlOGRlMTYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L26-L38",
+          "version": "repo-lines-v1:sha256:3b6bd49e96d140df42cca141aeef90600540fa14534c2a4566dbc7516ae3ba27:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM0YzMxYWQzYTZlNWMxMGZiN2VlNDZhNjY0YzFmMDdjMjFiYmNlOWM5MTVlOGJiYTQyYTdjNDJiZWY4NzY2ODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdhMmIyOWY4MTMzODJiZjFmYjJmYWY3MmE0NjQ2ODdkOTgwYzczMTM1YTRmNThkZTEwY2EyODQ4NDlkOWMyYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjMzFkYzQ5MDVmMzU5MmNkOTE4MjVlMjUxNTE3YjRmODg3Y2RjNGM5MjM4OTM5MTQ1MDZkN2U0MTNmZGVjMzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_72ea9be9bed54358885273024a094857",
+      "statement": "`HistoryRing` drops the oldest element at capacity, rounds every incoming number to one decimal while passing `null` through untouched, and hands out a copy from `toArray()`; the service pushes exactly one point into each of the four rings per sample in the fixed order cpu, dl, up, gpu, so index i refers to the same sampling round in all four arrays and their lengths never diverge.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/history.ts#L1-L16",
+          "version": "repo-lines-v1:sha256:fe13d15e22cdba4b04f561d79ce17f3f90eedc30250302a18bada78ee7e3c0f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzNzQ2NDhiOTUyODk0NGI0NWEyMzE4ZjE1NjlhMDlmMDczMGI2Njk4MDYyNGNmYWIwOWNkNzg5ZWYwODVmMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBiNzg4NDk2ZDY4MTVkZDJmMDU1Y2U0YjMxMTllYzY2Y2M1YjcwM2RjMGM2YmVmMTVmMmE4ZjQ1OWVkMjc2ODYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L55-L60",
+          "version": "repo-lines-v1:sha256:3a0e6678501b1d453dc2885869a15736738ea2bc378c30472b880c81e9f4b5dd:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThiZGJiOTc0ZGQ0YTgwYWFlMjE4YjllMmE5ZGVkOWVlODlhNmVmMDc5NzMzOGY0MWNiMzlkMzllYmNmMjQxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2NmNWY1MmZmZGU5N2Q3M2YxNjNlODczMTEwN2Y1NGUzNTUxNDA0NzUyZTY2MTJlMGYzODdiZmYwMTM0MTJmMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWNlYTcyM2FlYThlNzM2MGY4YmZlNWMwNGI5NmE5NDA1MTBhNjcwNzllNDE3OGU1YzZmZjc0MTdlNWU5YjY3NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L94-L99",
+          "version": "repo-lines-v1:sha256:712f11f448ffd436adeb823f45bf50c9cd7c6d6e6c320f83ee08fec6b3010fb2:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2NlMmMzOTExZGZmODQyMDlhMTFmMjkyNDgwZjY2NTc5NzJkN2Q0Yjk0YWZkMGU4NzNhYTkzODU3ZTE0MTg0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2E5M2MwNzBlNjQ0ODUwZGQwMTkzZGVkMWE4NzFkMmY1OWFlN2IwNDEzOWQ5NDhjMDRjYjk3ZTNkYzNmNTY4ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDc4NTU1Nzg1MGNlNzk1ZmNmOWUxYWQ4ZjgwODc3NTU0MTRmODk4MTQyYjYzYmVhYjZhZmViNjBjYWNjZjU4NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_423fdd0044204c5b9f6d1a6036f5560c",
+      "statement": "300 history points at 1 Hz is a five-minute visible window, and the card's sparklines are relative shapes: each series is normalised by the maximum of its visible non-null points rather than by a fixed scale.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L15-L15",
+          "version": "repo-lines-v1:sha256:b11b9e50ea1ba507e94fbbd627ff9cc77f179272b33195cc99e819746aee3c4c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjExYjllNTBlYTFiYTUwN2U5NGZiYmQ2MjdmZjljYzc3ZjE3OTI3MmIzMzE5NWNjOTllODE5NzQ2YWVlM2M0YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjExYjllNTBlYTFiYTUwN2U5NGZiYmQ2MjdmZjljYzc3ZjE3OTI3MmIzMzE5NWNjOTllODE5NzQ2YWVlM2M0YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODgxMTI0ODBmODg5NTAyMDQ4YTEwOWJjNmIwN2M5ZjRkOTRlYjUwMDJiYjEyODZiODljODhjMzM4YmMyNTY4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWY0Mzk2YTk3NzkzYzhjYTNhYTc3NmQ3ZDRmODcxOWUxOWIyZjM3YjNiMzE4ZjQ1YzhiZTE2NTBhMzZiYmEzMCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/hardware/card.ts#L16-L52",
+          "version": "repo-lines-v1:sha256:6433320096b95d5392b78e5b2ce3102dc10a7474c4b4d4d969c72b37f053b9f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljYjhmYWU2YmVmODMwYmZjZjMzNDRmOTg3MTY1MTQ0YzRiNjk0ZmE5ZTFkZDAzNzdjODA0MGNjZTFiNzA0NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM5NWEwN2M3YWZmY2NiYjVmZDE2YzJkZjFhMTg4MWQxN2M0YjAwYjA1ZmEyMDNlOTBhM2E4Njg3MjEyMzBmZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxOGUwOWE4NzNiY2Y0MDJmYWZlZDZjY2NiMGVhMzZjMGMxNzBhODA4MmI5NWQ3MzQ3NTZiMGU1YjYzNGE5ZGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fea87ec3f1334f368cb6c0c2a41a222f",
+      "statement": "Contract field rules: `cpu` and `memory`/`memory_gb` are mandatory gauges (a failed probe degrades to `0` and the `-- GB/-- GB` placeholder), optional `gpu_usage`/`gpu_temp`/`download_speed`/`upload_speed` keys are omitted when their probe has no reading, `vram_usage` is the only gauge allowed to be an explicit `null` (zero VRAM total), and history `dl`/`up`/`gpu` use `null` elements while `cpu` is typed `number[]`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hardware/nvidia.ts#L30-L34",
+          "version": "repo-lines-v1:sha256:aae7f3b56cd6fb34e1e04cc724cfcfc703a8d71afc47db7842356cf0bf1e7855:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGUzNDNiNDMzMmQ4MjFjYmZmOWIzZjE2MDEyZjJkY2Y2MzIxOWYwZGFlY2Y3M2NiOTI1ODBlMTQyZjU4MjkyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjIwMzA3YzRjNDgyZTg1NDM3ZDU0Y2VmM2ZkMmRmZTAzOGYzMzA0YzYyOWE5MWM0OTE2YjQ5ZmRiZWZjNWQ1MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzQ0NDdmYTMxZmQzNGFiY2MyYzM0ODFhZGEyNGE4M2ZkOWU1ZGNhZmI4ZGQ3ZDQ2OTRhYTE0MWEzZTYwYTk0NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L110-L134",
+          "version": "repo-lines-v1:sha256:c918693c3476d001b3f17736920afeeeb002d894e452b57b7b65f49cf2a3f436:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4ZGM3YmEwY2Q0NDQ1MWYyOGVjMDg3MzBiNGFkNGM3OTQxMzhkYTM5NjNjYzJmYmIyYjY3NjNjN2IxMDViZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3MDFiN2U5NjNmZGU4ODgzNThiYWM3YjJhMGU2ZWM5N2RkMDcyY2MzMDZjNDYzMjlkZWI4MTJhNDc1MDcyZWIifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L31-L49",
+          "version": "repo-lines-v1:sha256:b69f244ff8d2de33f901f420cd315a7eaaafc397d4a28a61d999b46f2a32a60f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4NDYwMWNkYmIwNTlhZjNhYTYyYTIyOGE3ZTI5MzVlYzUzNDUwODMxNTJkN2I4ZjEzNDUxZjE3NjM0ZmMyZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4Njc1OWZlYTNmMzNkZmEyOGNiOGU2YjRlNzZlZTJiMzAwYjJhOWQwMzExN2MzOTBiNDg0ZTFlZWYyODhhNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjMzRiMDVmMzViNzY5MjBmNmY3MDU2MWRiYWQwNmQ0MDZiNGIyMDdmNzg1YzAzNmU4OGU5YzI4YmUyZmFmZmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1bd75cbf230a415a93724d6d945e3fc9",
+      "statement": "Consumers treat the three value states differently: `pct()` and `kbps()` render `null` and absent alike as placeholder glyphs rather than `0`, the sparkline breaks its polyline at `null` points instead of plotting zero, and the renderer's plugin update key is `JSON.stringify(viewFor(...))`, which drops absent keys but keeps an explicit `null`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/cards/hardware/card.ts#L12-L14",
+          "version": "repo-lines-v1:sha256:36bd9d725893dddfa69d003ed28a4881859cab56ccdc9a94be5c23e495c67307:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1NmY5MGI0MDE4ZWUxODA2MDExYzE5MzljNjcwNjM2M2NkY2IyMWEwOWFjNmU4YzBjMjVmZGQ4ZTNiZjNkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFkYWI1NjY4NTg4OGI5OWI4ODExMjFhYWNlMmQ1YzQ5Y2M2MTUyM2VlZjhiMjU4NmZiZmY3YmY4MGZhYjQzMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTQ4Mjg0Y2U5MzliOTQ1M2FhNGE1MDkwNDNmZmI0MjczYTc2ZDA1YWM5MWEwY2M4YWU4ZDQ1MDE2Njk5NTVlZCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/hardware/card.ts#L36-L51",
+          "version": "repo-lines-v1:sha256:047326461dfe30673fa529db37c98bce733cd0110a02102249b0f7a72a2eb99f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzBjNTIyNGM2OWY5NjRkOTRjYTIzNTZhODM3MmE2YjM5ZWQzMmU0YzlhY2Q1YjE3MGY4NzgyMWRhYThmNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwMDA4NzFjOWNiNmU5Y2MzZjMxZWRkNDA5ZjNjNzIzNGY3NWQ3ODhkMzE2MTQzM2JiNzFlODlmOTYyYjgwMDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwMDdjZjBiNDJmZTdmZjg4MTE2NDFjZDYxYzRhZWFlNDAzODRjZjZmMTQ0OTZhZTBkOWM5MWJkNDIzMjgyY2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjOTdlODFlOTc3MjRjYzU4ODAxZjBiODg4NWYyMmZhYzQ1NGEzZTY4OGRmZGZmYTZiY2QxZTE5OWJjYTFhNzkifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/format.ts#L17-L20",
+          "version": "repo-lines-v1:sha256:cb235c82e08e7183c3407357736938d02ef04c9e6cc30d2df5a3789e1ea72811:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI2YzZkOGJlZDk4ODZjNzhjNzdjMmQ3M2U5NDBhOGQ5NDEwMDM4MTAzNWE4MjY5YjEwOWI5ZGQwYTAxMGU1MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2Y3ZGRiMzU1MWZhMjlhMzEyYzk4NjUzNjE4Zjk1ODYxMDJkNjVlOTg4YzJiNTA1M2FkZWQ1YmUzZjUwODU3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmIzYWNiYWFiMDM5MTMxMzBmYzdhMTQzNDQ3YjgyN2FkOTI5YjhhMDYwMjI2MGMyMGYwMmE3OWE5MDU5ZjFlYiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L169-L195",
+          "version": "repo-lines-v1:sha256:aace0ac7cba2444947e03d6abf3b5ecece18fda278bc1c60778b2d99c139d00c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1MzliOTg0YzQwMjJmNGNiYzk2M2Q0NWQxNTU4OGI0MjI2N2QxNTE2OTE5YmFjM2IxZThjZDE2OTdiNWMzZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZDhiY2JiYWFjMGI0ZWQwZDk2YWEzOTBkODc0Y2Q1MzdiOTIyMmQxYmU2N2FkMzU4ZjFjZWM1MDA2OTdmNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4OTRkMzc5MGRkMzdlOTliZGNmMjczNmI1OGNjMDk1MmE2ZmRjOTllNTUwZTViNWM0ZGY2NGYwNjA5NjgzOWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c4d04b332f0f4d69b81cf6432c6ba023",
+      "statement": "Sampling is driven by a kernel-owned timer rather than the bridge tick: `DEFAULT_HARDWARE_MS = 1000` installs `setInterval(() => ctx.hardware?.sample(), hwMs)` in both the in-process and data-plane assemblies, and `hardwareIntervalMs: 0` disables it so offline tests drive `sample()` by hand.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L152-L156",
+          "version": "repo-lines-v1:sha256:15fccccd5d2a5bbce504f65274aee72fd1ee467a32bcf0345ee74bcb364fbe61:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWQ4ZTRiZTYxMDE0YTdkMGMxZDk4NDgzZGFjMDYzOGU5MDkzNDMxOTAyN2U2NjhiMjgxNjMxOWE3NjcxZmFhMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzY0Njg3NWZmY2EyYmUwNTdjNWIzNzIxOGM3ODIyODM2ZGVkNGM0NjE0YjY0Yjk5YzRkNjVlNmFjZDk0MmExMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODZhM2ZhZGM0NTA4ZmRjOWZlYWMyMDgxNTkyNjRiYzRhYjlhNmE5MDY2NTdiMjkyNTFkYTBiODZjYmUwODE3ZCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L56-L56",
+          "version": "repo-lines-v1:sha256:e930743206de02c86c595f9b9d30827003ada07e27acda10a287506fc4333666:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTkzMDc0MzIwNmRlMDJjODZjNTk1ZjliOWQzMDgyNzAwM2FkYTA3ZTI3YWNkYTEwYTI4NzUwNmZjNDMzMzY2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTkzMDc0MzIwNmRlMDJjODZjNTk1ZjliOWQzMDgyNzAwM2FkYTA3ZTI3YWNkYTEwYTI4NzUwNmZjNDMzMzY2NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWZlODdmZGFiMTY5OGM3NjJkZjExY2Q4ZTY1NzFjMjIyNTI2YTkxZDkyZDc2ZTUxNTJmZTEzYzQ3MGZmMDdlMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODJlZjczYmE1ZjZiMjA3ODVjMTY5YjkxNDZiNGE1ZTMxMDE4NjU2MmUzNWNhYTk5ZjljZTMxMmU3NThjZjZmMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L90-L94",
+          "version": "repo-lines-v1:sha256:15fccccd5d2a5bbce504f65274aee72fd1ee467a32bcf0345ee74bcb364fbe61:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWQ4ZTRiZTYxMDE0YTdkMGMxZDk4NDgzZGFjMDYzOGU5MDkzNDMxOTAyN2U2NjhiMjgxNjMxOWE3NjcxZmFhMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGQ3ZGEyZDc3OThlNTcxMjBkY2NkN2QxMjM5ZWM0MmE2MjVmNmNlZmM1YTcwMjAzMTIwM2Q2NTBmYTM1ZTYzNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODZhM2ZhZGM0NTA4ZmRjOWZlYWMyMDgxNTkyNjRiYzRhYjlhNmE5MDY2NTdiMjkyNTFkYTBiODZjYmUwODE3ZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_28e73f30ab154b37b72dd32e09953da4",
+      "statement": "In production only the utilityProcess child registers `HardwareService`; the panel main process keeps no sampling state and answers hardware reads from the cached snapshot, returning zeroed gauges with four empty histories before the first snapshot arrives.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane-protocol.ts#L8-L13",
+          "version": "repo-lines-v1:sha256:e2ca391fc999618a8ae84b373ad7b1c424134086a6684e6076fe609ec2be5bd0:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGM1OWY5ZmVkOTc1YjJhZDg4OTdjNTY2ZGIxNDZjNTgwN2MyNzM5NjRlMTdkN2NiMjJjMWIwOGI4ZTM2YjU1ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWI1ZDAwMDc3OWI4NzZiMGE1MzNhMzU0NmY1MDkxYWVmYjBiZWRmODIyZjk5ZDkzZjllMzhiYmVkZWQ3ZjM1NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzRkOTcyYmZjZTk0ZTQxYTdhN2M3ZmEzOWNiOGRjY2U0Y2UzYmNmYjM2NDA4NzI1YzFiYWJmZGRmZWZhN2IxYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-kernel.ts#L34-L44",
+          "version": "repo-lines-v1:sha256:53394148bc244d09bcf0a11ad5b3ae322c2ebc8a375ded67985e08974ac772c6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3NTI4ZjE2N2QxMGVjZmI2NWUzOTQzNThiYzA3MTBhYzMxYTU2NjUzZjJlNDkyZGQzMWQ0MDU2ODJlOGRmZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkZjZiODQ3M2ViYjI1M2IzYzU4YTg0OTk4MWIwYTRkNTE4YWNhZWQzYTI4MjBlN2ZlMDY4MzhmYmMxOGQ1MzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1OWRiNTdiOThlY2FjNTk0NTE5OWZjYWRmZDZjZjgxMTc5Y2NlMzk1NjlmYmFmYmNmYjdmNDNmNmU4YmE2YWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjOWRhMzdjZDYzYWZiZjFhOWZkNjQzZTQ0YTZmMTVlYjVkNGI5NDg2MzkzMzRjNWRiZDBkYTg3NjA0MzVhZWUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L146-L151",
+          "version": "repo-lines-v1:sha256:baa77626457fc5912402ce447e005b8e8015125a8c36a9be3108b147718ba094:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDNkNjhhMWFiOWRhYzk2ZDlkNzAwY2EyMDA0NTNmY2FkYmM4YWZjNzU3NTk5ZWRlZjBmMGM1ZTMwZjI1Y2NmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWRjYmU1NmE1MmU1Y2NlYzc3YmYwOWU0OTZhNGU4M2QzMDgzMjA5NTI4ZDlkNGRlZjkxZTRkY2RmMjA2MTVlOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTBjYzAzYjIwZTljYjQzYTcxYzI2MzRlYTE3ZDczOTcxM2NmZTdmOWQ0OGZmYjhjYzhhMGY4ZjI3ZTJjNDljOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5fa2e73046554664867908c6594dc338",
+      "statement": "Hardware history restarts empty after a data-plane restart: `prevCpu`, `prevNet` and the four rings are process-local instance state with no file persistence anywhere in the hardware modules, a restarted child begins with a baseline round (CPU `0.0`, no network rate, GPU missing until the first nvidia-smi callback), and ADR-0005 accepts the discontinuity as a display-only degradation.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L31-L33",
+          "version": "repo-lines-v1:sha256:1534f10b851d7bac1d7a85101720914084bc46f94e7f414790dde06ea28d7431:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY5ZjE3NGI4NmFhYTQzYjkwZDYxZDU1NjhhZmU2OTBhYzczNWRmNzIzMTIyMWY2YTAwNzc0MTVhNmZlNzhiNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ZkNjAxMmQ3MzcxNzBlMDdlMTMzYzQ2NTE5ZGM5YjEyMWMyZTAzZGZhZGM0ODJmNTYzOGU1MGVlOWM1MWUzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTg1NzZmYzMyOTUyN2E2M2RlZGFmNzY3NTZlMGQ2N2NhNTlkOGMzZGU5MjAwMWI5NmYwNjZhY2UwMjQ1ZjUyNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGViYmRiMjJmNjM5MzI1MmI1MjM3N2VlOGRhYzcwMDgxMjUzYWY0MmM5MzViMWJmYjMyYzI0ZmYyNzY1MGQxZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L48-L65",
+          "version": "repo-lines-v1:sha256:ae9269220abb18eb6531acc50fca630f7e188b018782fcd0fc2bc81b73f09f21:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyMDhjN2JmMDM5MTk5ZGVlYjg3ZmEyMDc5OGU5NzcwYTc3OWFiOWVkNmNmOThjZDAxY2Q3ODBhNmQzYmJkZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczYjhiNjBmNDViYjAxMzZmYzFiOTJmZTNlMjVhYTg5ZDM3MTlmODIxZDFmYmNjN2RkNDdjZGNiMGYzYjIyMDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2NTA2NjMxNTFiMmUzMDRjYmI3YTM0YmU3ZDg3MzU0YjExMjk5ZGVhYzc4MzMzYzZhNzI2ZDBkMGMwNzg5ZjEifQ"
+        },
+        {
+          "resource": "repo://docs/adr/0005-no-input-hooks-dataplane-utility-process.md#L21-L21",
+          "version": "repo-lines-v1:sha256:e353589f0377370c0c49082915b2c16ac227bbc94a7bad02bda19790032a2445:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTM1MzU4OWYwMzc3MzcwYzBjNDkwODI5MTViMmMxNmFjMjI3YmJjOTRhN2JhZDAyYmRhMTk3OTAwMzJhMjQ0NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTM1MzU4OWYwMzc3MzcwYzBjNDkwODI5MTViMmMxNmFjMjI3YmJjOTRhN2JhZDAyYmRhMTk3OTAwMzJhMjQ0NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmQ0NzY3OWIwMDZkNmY4ODJhZjUwM2QyYTgzNDViNzRkODE1MjVhNWJlNjk0NTU2MTQ0NDY5MTQ1NDFlYTE2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzM0MDQ1NWRiNGNhNjcwNDZiYjIzNGEzMTE0MzA3MGE2Y2JiOTQ5MjkyNDZjOWZlNzY0Yjg4Yzk5MmIwMTYzZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c61e416c4ca346fea8ccf94c77b67d45",
+      "statement": "Test coverage splits by layer: `tests/hardware.spec.ts` pins ring capacity/rounding/null, CPU differencing, network wrap/reset/multi-interface/dt=0, nvidia-smi parsing and the TTL cache; `tests/services.spec.ts` pins the sampling state machine (CPU percentage, the fixed-width memory string, KB/s, growing rings) plus per-source isolation; `tests/dataplane-kernel.spec.ts` proves sampled gauges cross the child snapshot boundary.",
+      "evidence": [
+        {
+          "resource": "repo://app/tests/dataplane-kernel.spec.ts#L45-L88",
+          "version": "repo-lines-v1:sha256:add74e73468f4f641b2abad591b9ecd87c4d708ecb628f3efe32f00d22ddb3c5:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiYWVlYzBhZjBkODhhZDIyNDJjYzgwODczODVlYjI0OGY2ODRkNjQwMjc2MzE2MGU1NGRmZDY2NzVmNzNhYzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1OWQ3MTkxZjQ0MWIxNTEyOTMxYjA5MzA5M2VhODMzMjY0MTM0ODU4YzVhNTEzYWZlNGUwMzY3MjVkMDVjZDkifQ"
+        },
+        {
+          "resource": "repo://app/tests/hardware.spec.ts#L7-L132",
+          "version": "repo-lines-v1:sha256:34e56b8f993f1b19c1c88442d7cd3774263bdfcc399b9dc28370a5329787c8f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlYjlhY2Y5ZjU2M2IwMzI5OTM3ZGNlNWMwNjI3NzFmMzdjOTQ4ZjE4MGE5ZjUzM2VmZjc2ZDdiNDVkYTRhMzUzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxMGE4ZjYwZmUzYzUwYjBjZjUzNDcyMjExM2ZlOTBkNzM0MTQzODdjZTkyZTU5NzhjODJjYmQ4MDFjYzA1MDBkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJkMjU3ZDFkNmEzZTMwODcyNjk2YWQzODhlM2JjZjEwYjYxM2Q2Zjg5YjZmODE1MWIxNjY0OGRjMzZkMmJkNjU2IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://app/tests/services.spec.ts#L75-L137",
+          "version": "repo-lines-v1:sha256:97d669a8a3fb5025acd541e07fee4ba488e2293755b286aacaf356aaba8f7b22:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxNjgxYWNkYjYzNGU1YWE2NDc2OWQ1OWUwOWJiMzQ5MTU3ZjFjNmEyM2I5NTZiNDFkZmU2YTM0YzIxM2VkYjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4N2U0NGI5NTlkNjcxNGJkZDkwMjA4ZDQ4ZDMzMWU1N2Y0MmYzODQ3MzBkOWJmZDYyNzQyOWU2MzI1ZTJlZDQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_62f5a970f43c4b52adc8222cc3fe887c",
+      "statement": "On a real machine the acceptance battery asserts hardware liveness through renderer evidence events: at least two `hardware-rendered` events prove the 1 Hz refresh, and a one-shot `history-live` event is emitted once the CPU ring holds five points.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L676-L690",
+          "version": "repo-lines-v1:sha256:49ac4fb4886b436d65f875721867310a18df0a738e940b00735ead3da6278cde:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlYWMyM2NiZDgwNjYwZjRjZDQwNmRjMmE4NTkwNWYwNmQ1ZmMyNTlmNTk5YTYyMzZiOGI0MzA0ZjllOGM0ZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2NmU0OTY5YzMxMzg5MDFhYzUxYmMxNTgyNTk1ZDEzY2ZjMjQ0OTY5NTVmOGM0ZGU5NjgzMGFhNzA2NGU4ODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNiNjQ5NzIzOGYwMmY0MjFhNTMwYTRhNDhmMzlkNjc4NmY1MjQwNmEyYzk2ZWVhNTgzNjFhMjc4MTE3MTVmM2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkNmVhMjVhOWU1ZTdkMGEzZGY3MjFiY2ViMDkyMzk2ODE3M2YwMDIxNDczZjQwOTg0ZDA2NWQ4YzVlMzg1ZjgifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/hardware/card.ts#L72-L76",
+          "version": "repo-lines-v1:sha256:93956e850b877b7da1199724c5a3743107646cbc12148e31333b379d06265055:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDA1NGI1YWFkNzk5NzlmZmU4YmQ1NmRmMWZmNmExZjA5ODQzMjM5Y2Q5MmYxYTFkZDcyZjZmMWFkYjk3ZDlhYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTFkNDE4NTAxYjFiNmFmMGIxMmI2Njc1MzJmNjdlZTBiNWEyYzcyNzNhNTVmNmZhYTAxNmQ3MDVkMmVmYzAxZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDMyNjZiOGVjYTk1NzkyYTVhMTI5NjQxZDMyMzkzZmVlZDc0NzFiNDAxMGJiZDIxM2QxYzI1YTgxNzc1YjI1NyJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

@@ -1,0 +1,432 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:4e1e345bfd47f41dcd1b9fcaccc710d7415fd1b0aa87fb545c6a59763d4187a9",
+  "claims": [
+    {
+      "id": "claim_cd980052d9204ea78166c53454edc18b",
+      "statement": "The planning seam is plan.ts: a pure module that imports only `node:path` and the shared contract types and exports GROUP_ORDER, docGroupOf, planDock and planDesktop, which together answer the whole \"what goes where in what order\" question; the plan it returns is semantic rather than geometric — an ordered dock entry carrying a source, and a document entry carrying a group plus its order inside that group — so the retired Python planner's screen pixel coordinates, measured icon lattice and placement refusal have no counterpart here.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L1-L14",
+          "version": "repo-lines-v1:sha256:ecbe92b0a37ef502f4eb7e59df118a04099a73a099a235a8fde130241e2c5e6c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1MzA5OWYwNDMxZDRjMDMzYzAyYThhNGEyMjA3Y2ZlMzY4NDA3YjJlMzhjMjYyY2FlNDAzYWI4ODBkNDU1MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjZGY1NTJlNWIwNzU0OGQzM2VhYjBlODU3NWQ4NTQyNTQ5NmU5MDgwNWMzODM5MzJjYzIxNmFmNDlkZTI2ZGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1YTBjNGYyNmE0ZWM3Y2Y4MmViMTU1MWE0YmE0NmQ2ZGY4ZWVjODRhOGM2OGU5YTM4OWEwMWE1YzQ4ZGU5ZjQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L126-L137",
+          "version": "repo-lines-v1:sha256:c02a8d47c7c37fdbaa7c8d00d538a340523b42cb4c8bf8000a7aa3eac627c792:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5YzJiODlmMGQzNTU4OGE3OTg1MDQ1Mjc0NzZiYzk0ZjY0ZTJiYzFlNzgyMTllN2ExOTY1NjM5NmUyZjk3NmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVjNzg2MTdiZWVjYzJjZDJjZTliOWRmM2YxYmFjNzA4YzI5NzAyYTA3OTU4MTU3NGEwZGE5MWJkZTNhZWNiNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L97-L110",
+          "version": "repo-lines-v1:sha256:e2d1213d4a4a81abf264a7ecdf364f54b21b3edbf307f964f467024fe7250951:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4Zjk3YjViZmJmMmNlNmQyOTM0ZTAwNmJkN2RkYzE3MTY2MGFlNGFjYTAxNDBkOTE0MWQyZjU2OTYwOWE4ZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2NjczNzU2ZDcwMzExOGFmN2YxYjk5MWMyNGVhMTFhNmU5ZDRhNmIxNTcyMDYwZTE4MmM0NmRhNTE0MTJmMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg1M2U0N2RhN2VlOTQ4OTQ1MzZiZGEzYmZkZTNlMmRkYjgwMDhlMzAzZjgwMzU4Y2EzZjFiYzViMzEyMDAzODYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e381001ad3cf4682954c5908191aced4",
+      "statement": "collectDesktopItems builds the item pool from the two desktop roots as a map keyed by file name: hidden/system entries and empty names are dropped, a same-named public-desktop entry is ignored so the user copy (with its path and iconKey) shadows the public default, and the result is sorted by (zone, name, path) so that the enumeration order of the directories does not affect the pool.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L7-L18",
+          "version": "repo-lines-v1:sha256:f6642ddd96b522bdc3b7c4afaed51356c91b29f9960d927975c4d129a6d07a24:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiZmRmYzNjODM3YzljNGVmNTdkMjU3MzE0ZmEyNTM4NzY5YjQ5YWFmN2QwNjQ1NDNkNzA2ZTU3ZmM2MzFlYTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhYjllZWFlZWI0Mzg0Y2IxMmFlZjdkOGNkOGVjYmU4N2ZlOTM1ODZjM2QzZGU5NzhlNDIxZGQxYmI5ODY1NTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwZTk1MWFlMDEyZGNiMzY3OTlhYWFiYjRjZjA4MzNiN2E0YWE1YTVkNGY2Yzg4NzAyOGU5ZjZlNThjYzRjZjkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L72-L90",
+          "version": "repo-lines-v1:sha256:6691a88755a88babd67dbb7af27e15d3f7b31bae14c5e80cd1db6ec13c2a5a7f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZmMwMGQzNGIwNTgzNjhlNTlmM2JhZDM3NjVmY2E4NjcxMmEzZmQ3NGRjOGFlNzVkZDQ1Nzg3ZDZiMzY2MTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdiMmVkY2MxYTk2YTc5OTM2YTVmNTI5MzRjYWI3YzU3MjhiYTlmNmFlN2JhMGM2NDI3MmJjNmJmM2E4NzUzMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMwYWFiMDRjNTE2NmI3OWNhNzk2YWI0Yjk3ZTJiNDgzOTQ1NmQ1NGM1NTYzOWRkMDE3YzRhYzZjM2Y5YjI1OTcifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/scan.spec.ts#L12-L41",
+          "version": "repo-lines-v1:sha256:ee240ddfc52cd6d48788233d78e24cb429377b790a3f4feab62a48ed8f6f4a2c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmZDM4NzA5NGVmOTU2NjE5NTM2MDA1M2UyMmM3NjQ2Yjk5NTNiZWI4Y2E5NTJjNjY0NTA2NWY5YzM2YzE2ODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdkMTRmNTkwOTFiZTEwNTAwNGJhNTZlMzRlZTg0NzhkOTlmNTY3ODIyOTE1Mjk3Y2NjZGY5MDY3ZTA1MjEwNjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlN2Y3NTJhNjk5ZWI1ZGMyOTZiYzkwYjUxNDhhYzA2YWY5Y2ZmMmE0ODhmMmU3ZTM1OTAzNWIyMTUzMzE1NGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_932d654a42b64605b269fc2f1febbb37",
+      "statement": "Each pool item's kind and display name are derived by fixed rules: a directory is `folder`, a `.lnk` is `shortcut`, a `.url` is `url` (both suffix tests case-insensitive) and anything else is `file`; `display` strips a trailing `.lnk`/`.url` and leaves every other name untouched, because Explorer hides exactly those two extensions regardless of the hide-known-extensions setting; and `zone` is the baseline `app` for shortcut/url, `doc` for file/folder.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L30-L36",
+          "version": "repo-lines-v1:sha256:f6a2b43dc58027ef0d7238721162e9918f94cdff78f0c171618e71f985976d25:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MzYTdiNmRiYTE4NGRlYjkzZmIzOTE4MTA3NmYwZmI1NmEyZDhlMzgzNTIxYWQzN2MzZmJjODFiYmZhZWU5MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDdhNmI2OTVkMzEyYWMzZTgwZDZmZWM1NjQ2MzcwM2M3ZjhhN2U5YjI5YWVmYjk0MmIyYzZjNTRmYzJhYjY1OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2VkOTA5ZGM2MDNlMGQzMjZiOGZiNzdjZWE5NDcyNTNlOGJiZTQ2MDMxMTczZDdiZGY2MGRjYzM3Y2U4YzRmZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L38-L51",
+          "version": "repo-lines-v1:sha256:0b8e0194559d8114b5c072664e674125d9ebbd882b6b748264220c8546e55f3a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhYTEzNGVjZWFkNmQ5YzIyOGU5OGMzYWVkZGFlZjMxNjU4YTVlM2I5NDUxYmQyMDI4NzQxODZjNjgwODAwMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhZTE3ODY2NDE2MjViODFlNWUxMTExMWJjMTI4MzZkNGY4ZGFhN2RiZGZjNGU3MWM0ODA2MmJiNWE1ZjNkNTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZhNTZmOTMzYTJhNTQxMGU0NTExMTdjOTdlNzMwYWViNTVmYTRjODViY2RhYTAyY2IxODEwOWZmZDlkNDk0NjAifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/scan.spec.ts#L43-L66",
+          "version": "repo-lines-v1:sha256:c769be908d7087f1ad00193711bc9a709fdf65a2a2670a437a516dbd6e7c1479:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1ZTFiYzdiMjFjZmJhMjA4MDMyMzZlNWIxNDc2YWFhOWZlYWYzMjc2NDdmNGZmOWJjYzg0ZjlkYzZiM2ViMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyOWY2N2ZlYjRmMDA4ODhlOTNiYTU0NzA4NjIwZGIzZWNlMWNkOWEzMjQ5OGQ4ZWNlYzRiOTAwMTE0OTk0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5NzEwNDMwNDBlOTQ5NGJhYjQ0YzViYTVmM2E4OWNjYzc0Yjg3Y2ZjZTc0MzI1YThjMmU3OWFkMTJhNzI2YzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e4694a07912b4eb89e5b09ca48eec76c",
+      "statement": "`iconKey` is `` `${filePath}|${mtimeMs}` `` and `pathOfIconKey` reverses it by splitting at the last `|` (safe because `|` is a reserved Windows filename character), which is what makes the icon cache age-aware on one side and able to serve a key minted by an earlier scan on the other.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L20-L28",
+          "version": "repo-lines-v1:sha256:fdce4dec5a3a4391d7dda72d2612b1919a1a12bbc3075604dc15ac786a5392d1:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ZhZmE2NmNkM2Q5NGI4OWU0Zjg5Y2MxMWM2ODJjNWMxMzA2OGMxYTljMDZlNDQ2YjVkZGM1MTMzMTNlNjdmMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTkyYWM4YjhhOWUyNzRlNmIxYTM2N2FkMzBiYjk2YmVkZmYwZDg5MDI1MmVmNmJkNGY4ZmM4MjQ0ZGM0ZWNhZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGM2NjFkNDE0NzA2MTU1NGNmNGMyYzY1ODQyMzVkYTI1Nzg3NmM4ODNiY2EwMTM2MzAwMjc4YTA3MjZlY2NlNyJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/scan.spec.ts#L68-L71",
+          "version": "repo-lines-v1:sha256:9164bee53d5e2981268ee0f0489d5d5eb3f228c23c0f5a5b18e366b787b60675:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzlmODk5NWM2NGFiNGRhNzMxNTY4YzczNGU2YzVjNjFkNjBkYjBkNTdlZTVjZDA0OGZiZWJhNTMwMjQwNGVjZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWRiNDdlOGZiNjhhZDkyNDIxMGViYjU3YjI5ZjA5MGVlNjNkYTRhZTAzYWI4NTY4NzA2Zjk5ZjE2Y2YxODZhYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDE3MmE1OTljMTRjNjU1Y2Y3ZDFjYTBjNDRkNGYzZTFkZWUwMjM3NWQxY2UzNGZkODE3OGM2ZTdjNjc4MjRkMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bc6f02310ae44cde8fd0b5d76913f830",
+      "statement": "Classification at pool level is only a baseline: before planning, the service rewrites `zone` for every name listed in the layout store (dock names become `app`, docs names become `doc`), so the user's drag outranks the rule and `planDesktop` merely filters items by the resulting `zone` — the planner decides order within a zone, never zone membership.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L122-L137",
+          "version": "repo-lines-v1:sha256:b5d8e2c2fc8358f6ffc16dd4f6af9d49931e08edc492c17a29cc0dea796e7ab4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1ZDJmOTNiNzQ1Y2MwMWU4OGRiZGQ5NzEwYjljYTI4OTdmNDZiMzEyMGJjZTNjMTQ3NGMwMWE0MjM1ODAyN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L203-L210",
+          "version": "repo-lines-v1:sha256:9ca3f301a6d798a12fdb24dbf9e44280931c88b962672666a4d9e985ba14dbe3:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFkNTRhMmE1MzNlNDUwMGZmZTY5NmM4NzdmOGY1N2Y2YTg2OTA4Njg4ZmVmMWUwMWI0ODA3NzA2MGUxZjdkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L193-L201",
+          "version": "repo-lines-v1:sha256:73f1b475bc0d7868618c4ea34af56ccaad8de852a744311d72f9feb5fa2ca22b:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU2ZjdiZjgwYTEyOWI4OTlmMWZjNjhmNjZlMDBmMGFkZjkzYzJjNDMzZTNhNGE4Nzc5MTA4Yzc1M2RkZGQ2NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTllMjAyYzViMGRjYjgzNDRkYzU5MWQ5MDM1MDIyMDZmZDkxN2Y0ZmY3YjcyYjkzNjU1NGU1NzNiNTkzOGI4MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJkZWM0ZmUyOTY0NzE5NTcyNDE3ZGY5ZDA3YjBmYTFmZGJkOWMxYmUxZmY1MzcwNmEwYzdhNmYzZmZkM2NkZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_59ed647cecf849b19d9ee0de93060b47",
+      "statement": "DesktopPlan is declared once in the shared contract as `{dock: DesktopDockEntry[], docs: DesktopDocEntry[]}` with `DesktopDockSource = 'pinned' | 'placed' | 'recommended'` and `DesktopDocEntry = {name, group, rank, col, row}`; the dock array *is* the slot order (there is no separate slot or position field), so the renderer walks `dock` in order and filters `docs` per group in `rank` order.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L126-L137",
+          "version": "repo-lines-v1:sha256:c02a8d47c7c37fdbaa7c8d00d538a340523b42cb4c8bf8000a7aa3eac627c792:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5YzJiODlmMGQzNTU4OGE3OTg1MDQ1Mjc0NzZiYzk0ZjY0ZTJiYzFlNzgyMTllN2ExOTY1NjM5NmUyZjk3NmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVjNzg2MTdiZWVjYzJjZDJjZTliOWRmM2YxYmFjNzA4YzI5NzAyYTA3OTU4MTU3NGEwZGE5MWJkZTNhZWNiNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L296-L333",
+          "version": "repo-lines-v1:sha256:81eb8e3f2010fb8a943aa80015a5ffa59de5862a5f1095d223eedd03393c512f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3ZjUxYWNmNDMzNGRmNmQ4MGFmMWJhMzUzYTdlNjkxZmUzMjAzZWQyMGZlNzNmNmNhMDkyMDkwOTJkODkyMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxNGUzYWQ4MDY0ZDE5YWMzY2Q5OWUzN2FkNTQ2ZTc1M2RkY2RkYjEyNWZiYTcxYjIyNzhjMzJhZjAxYzU2OTkifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L85-L110",
+          "version": "repo-lines-v1:sha256:8b18fdf1138a91c15532757b6b0d14b80b35a04301df5ce63e2bd67e3f12a7fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMDk0ZTJiODgzZmY5MzBiZTYxMWIzZmNmOTlmYmZkNDc3YzBlNjg0MWExMTE0ZGM1Njg2NmRjM2VlZmFmNWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzOWFlYTJkYjkxM2ZlNTdkYTUyMzliNzljZGJhOTE5ODI5MGZhNWVlY2JjZjczYjk0MGMxMTU0ODg2NTcyOTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg1M2U0N2RhN2VlOTQ4OTQ1MzZiZGEzYmZkZTNlMmRkYjgwMDhlMzAzZjgwMzU4Y2EzZjFiYzViMzEyMDAzODYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_62aa0d61e96d42ed8af0094037ec54bf",
+      "statement": "The plan is derived state and is never persisted; what is persisted is only its input (the layout store's ordered name lists), and the two key spaces are deliberately different — the store, the plan entries and the drag path address items by file `name`, which is unique in the pool, while usage scores are keyed by the non-unique `display` name.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L1-L15",
+          "version": "repo-lines-v1:sha256:4c42ab67404b42bdc50eadd22fa489a83a93a75cad94ad6b95c6543cab729d4d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1NDkwZDgxODNhMTliNWMxMjY1NGJkNjQzMzBmMjBkNTY0OWNhOTRkMTIxNDE5NmUzMTliMDEyY2U5YWQ5OWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzZjJmMDYzMjkzZmNhMGJhMjU1MzViODU0ODk5MGFjNGVhZTcwMzA4MmU0MzM1YzI3OTVmYjk2MzAxNWRiMjMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L98-L114",
+          "version": "repo-lines-v1:sha256:777e2b21044afd59f285aced87274df895bdcb17379e17ae577ae42fc451e2a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0YTYwNjVhNTlkNjQ3MDNlZDRkYzlhM2Q3YzY0ZjEyM2U0YTI3ODhkN2JkM2FhYzA2ZmI3ODdkYTVkYTdkYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliMDQ5NmJiZmJlMDhjMjQyZjQwZjJiNjkwZTFiYzYzZTk1M2MzZTVjY2RiNWJiMjhlNTYzNDg2YWIyMjBhOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNiNzk2OWRlMTI3YzNhYTAyNzc0OGY5YjgzNTc5MDM1MTZmNmJjMTZkOTNhYjE0NzRlOTUyZGQ5MTgwNDlmN2IifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L112-L124",
+          "version": "repo-lines-v1:sha256:4f803d838fdfabf9200c4e3c2285866533b6f409bd28e5d28df1352cb722fe42:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5ZGFjYzBjYWE1NjYxZDNmNTYwYThmM2E3YTIxYzg2MDJmMGYxZWZiYWMwZDFlMWIxMDYzNTA0ZDc1YmE2NGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2MDk2MTUwZjI3MDEzZDFlZmE5ZDhmNmQ0ZDU2MjE4NzM4YjY0NmI1YjQzOTEwM2MzNTJkZGY0NTQ2NzVlNDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_405fb5373e354b1cbc1def22a8b5036b",
+      "statement": "Dock order is the concatenation of three segments and not one composite sort: the pinned segment (names present in the app-zone item set, first pin mention winning, in pin-list order), then the placed segment (present names not already pinned, de-duplicated, in store order), then every remaining app-zone item sorted by descending `scores.get(display)` with `name.localeCompare` as the tiebreak, where a missing score is 0 and therefore never excludes a candidate.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L92-L120",
+          "version": "repo-lines-v1:sha256:ffd77fa148b56154a135286a2e405ddd333e0aa158f463e30a4d8878c8ceac06:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhYWEwMjM0YmQxYjlmM2I2ZjI1MmJlNTcxMzY5OGJiYzY2MzgyOGM2OWJkNGYwZjlkZDhmNjU4ZDhhNzYyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MjAzMmM5NTExM2EwYjAzZWEwZjI3MGViNDlhZmYyYWE4ZTk2NzlmNWE4N2NlNzU2YTllMGFjYTk2MzMzMzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4YzM0YTg3NjhhNTZlZTg1NTY2ZDRmNGI4MjNmZTFlYWI1YzI0NDA1YTc2NTQ3MDhhOGIwY2I5NmZkNjhiOGMifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L138-L167",
+          "version": "repo-lines-v1:sha256:5ca3661e9be6df1c9807073c48c7a90f77ac7a27c9ae451ac3840e6d83b7fd70:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkOTBjODg5YWUwNzIxNzZmODUxYmI5ZDQ4NmY5MzRmN2M4M2Y1MjYzZDM4MjQyNDUxM2VkMzI2OTY5OWU3NmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1OGY2MzFlOTBiNGI0MjlmNDg0MGEzYmJiMWM1ZjVlOTA1MGUzZDA2OWFhNDc2ZWEzYmYxOTQyZWUwYjYxMWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3NjE4OTI4NzE3MWU2MmM5MDgwYThiNGI5MjE1YjliMGJhNzVmOWJjMzA1OGNkZWY5MjNiNzljZDIwM2Y0OGQifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L169-L178",
+          "version": "repo-lines-v1:sha256:5f0271362912b0b8079bfc3e4dafe787f9029e0b1803b9a3ddcedd19ed70f9b7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3Mzg1M2JkNDY4YjViMDViZmFhYzllZTQyOGI1MzhlMTE0OTM4NDE5MTM3N2VlYjIwNWJjNmVlOGViYTYwYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2ZTdkYzNjZGNjNWJiMTkxODcxYzhjY2JkMDI2N2NlM2MyNGJmNGU2NDhiY2MzN2U4NmM5ZDg4ZGQ2YTMzMjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmYTE1ZTlmMjcxOGUyMmViODI3YWQwOGUyY2YwOGQxYjg0N2IyODczMDM5ZTMzYjI4NTY1MzMxOTFmMzhkMTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1a42a68d4eb646d5ac8b6ebac2e54250",
+      "statement": "Because the dock segments are concatenated rather than merged, \"a recommendation never displaces a pin\" is structural: a pinned item scoring 0.1 outranks an unpinned item scoring 99, a pinned name absent from the pool reserves nothing, a duplicated pin entry reserves one position, a pinned item re-ordered by drag keeps `source: 'pinned'` because `moveItem` never touches the pinned list, and a pin naming a document can never pull it into the dock since `planDock` only sees app-zone items.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L98-L118",
+          "version": "repo-lines-v1:sha256:d892f839a3c92c1b85f5a344439964bf3b4e422490e71fe12d8620deaed23521:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0YTYwNjVhNTlkNjQ3MDNlZDRkYzlhM2Q3YzY0ZjEyM2U0YTI3ODhkN2JkM2FhYzA2ZmI3ODdkYTVkYTdkYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4MDdhYWY5OTQ4YzQ5NjU1ODg3MTRkY2Y5MTdmZDVmMzEwYmVjYWZmZjhkMjYyNjczOTg5OGFkMjM5MjMzOTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliMDQ5NmJiZmJlMDhjMjQyZjQwZjJiNjkwZTFiYzYzZTk1M2MzZTVjY2RiNWJiMjhlNTYzNDg2YWIyMjBhOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg1ZDJmOTNiNzQ1Y2MwMWU4OGRiZGQ5NzEwYjljYTI4OTdmNDZiMzEyMGJjZTNjMTQ3NGMwMWE0MjM1ODAyN2IifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L138-L144",
+          "version": "repo-lines-v1:sha256:37d76e3be8c8bc31e8e07231dd5c052bd5bff5e80bb064e6304a77fce2069518:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2Q5MGM4ODlhZTA3MjE3NmY4NTFiYjlkNDg2ZjkzNGY3YzgzZjUyNjNkMzgyNDI0NTEzZWQzMjY5Njk5ZTc2ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTU4ZjYzMWU5MGI0YjQyOWY0ODQwYTNiYmIxYzVmNWU5MDUwZTNkMDY5YWE0NzZlYTNiZjE5NDJlZTBiNjExZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGQxNGUzNDE4NjFmOWY1MzgyNWM5OGRlYjM2Njc5YTRmMjQ0YTBjMmI0ZDc5ZGViNTYxYTgyNjE5ZjE4NTllNCJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L180-L190",
+          "version": "repo-lines-v1:sha256:2c9e10e339f2a16a3768e742e461179f2e19d86bd689ddccd8c3df23f20cea31:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkY2VjOWZjYWZmNjBmOGM3OTQ2OGE5ODgxYjNjZmIzNTcyYzMxYzk4M2FjMDY1MzU4NmIwYjljODFkMzVjMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyNDQ5MTJlNzFjYjMzOWE0ZDBiZDI2YWM2YjI1NTY2NzAyZmM2ZGJlMThmNjAxZTNjMDJhMzhiODY5YzI3M2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1NmQxNWUwNTQxOTI1ZjZiNjlhMjg2M2MyYmY4Yjg3NjlhM2EzYzBmMTAyNDUzZWU2NzIyMmQzNGQyNzczYmEifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L176-L192",
+          "version": "repo-lines-v1:sha256:44e5ffd85f77a40039eef8a0c69635e29927f5ae955229a7ada641cb9b4908d0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyN2ZiYjQyZGI4YTA4YmRlYjUzZmI4NzUyOGZhYzMyNDg1YWUzMWM2Nzg3MTEzYmU2YjVjN2FkNDA2MTdhZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExNGUxYTE2NDM3OWUxYTk3NGEyODM5NTIxZmUxMDhhMDEzZTY2NGI4ZTg5ZGE0ZGJjMTExNzMwZTA5OGMzNGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5f9f5a58b84f4c2690cff6cb3434f9d5",
+      "statement": "The dock has no capacity limit: planDock emits one entry per app-zone item with no slot count, and a long dock is absorbed visually by the renderer's `flex-wrap` strip bounded by `layout.dockMaxWidth` instead of being truncated; the renderer's extra pass that appends app-zone items missing from `plan.dock` is only a belt-and-braces fallback and is unreachable while planDock stays exhaustive.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L115-L119",
+          "version": "repo-lines-v1:sha256:233c47cd85054c3c0d858ff4fa7ca6c2ed599772eaf0caab365a4ad3423f5194:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWZmYmU2MTFlZTYwZmI4MGJhM2ViZGEyNzc4MTVlNjM1YTgxZjc5YjdhZDQ4Nzc4MmUwNzk1NTM4NDQ0Njg5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjcwZTgzM2YzZDJjZmIyZjY2NWE1OGI1NTVkNGM5MjU1MjAzMDY0OGI5NjdmYjc2NjdjMjk4NTYyNDkzYjk5ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzE3MzQ3Mjk5ZmE4OTQyODU3NTg2M2RlNzNhYmI5ZjE0OTZmZmMzMzJiNjUzNzM5ZDYwZWRhMmZkY2MxY2FlNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODYzNjNiOTM4OWQ0YzY5NDU1NTZiN2MwZTRjZjE2OWM3ZmFiMWVkZTk5M2VmYmUxNmUyM2JkYzllMTFjY2E4NiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L86-L91",
+          "version": "repo-lines-v1:sha256:c5cc111325583e9de8480451c9d2063fc9ec8d5f379b0e9c06dc3bfb44960f3b:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzgxNTVmNWIwMDVhM2IxYTEyMzc3MDUyOGVmMTI2MmY3ODI2ZmJjZTUyNTEzNjYxYzZhM2Q0ZDdjYmRkMTI0NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTM1MDUyNDJhYWFiMzVjZjdhOGI4OTY3OTk0NDY1YzIxM2QwYzkzZDA2ODZhMjkyODdjMmZiOWJkMTVlYTBkMyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L274-L290",
+          "version": "repo-lines-v1:sha256:a2987c4b75fa8e81a1078512a17708a9bba390cfc88e033ba2b2470b12b96819:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExM2IyYjgwMzNmNjhmNDI4Y2UxNmM2NWU1MmNiOGQwNzM0YTlhMzI3MTUzOWM3NjgxZjgxOGNjZGRmMWQyZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1ZjE0NWM4ZTM3ZmVlZDQ5ZjIwYmNlNzlmOTRkNTcxMTU0NTg3MmI3NDE0N2QwMzA2MjZhZGQ5Yjg5YWEzYzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyNDJiNTBiYzM2NDlkZjQxM2U0NDBmMGMwMjMzMmU5YTdjOWJlM2NlNTRiYTRkZDE1OGQwNDVjNmMwOWIyNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1ZTBkMzVlYWM1NDliMmI2OGM0Y2E0YmRhOWMyMmUzZmMzMzNkZTUwNjRhMTM5MmNhYTIxOThkMmQxYzRkYWMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L300-L313",
+          "version": "repo-lines-v1:sha256:6a5ba64fc78686465ce1983cbff61da0927921b3709f61a9b09c490a2f4224e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4NTY4MDVkZGZiNDQyZGQxNTY0Yjg5NjdmMGNlNGE4MzA2YzNlNjgwNjQ5MWJkNTM4NmJhNTNmYTZjZjk3YWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1MTNlNTExYzExMDdjOTUzMzAwNjI5YjFkNjBhZjM0MWQ4YjcwN2UxMjAzNDIzYjdiOTBhYjY3YmM2YWIwNGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmM2EyMzE0ZTBkMmU5ZDY5NWRkMmY1YjYxY2EyZmRiNDI3Nzk2ZTZmZmQ5MDQ4MjM0YjA3ZmZlMmRhNjk4YmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3dba4e8b181e4b9cb2cc3f1f181bac78",
+      "statement": "docGroupOf is a total mapping into six group names — `folder` kind to `folders` (tested first, so a directory is never typed by its name), otherwise the lowercased `path.extname(name)` against the office, pdf, image and archive extension sets, with every other suffix (including none) falling to `other` — and groups are emitted in the constant GROUP_ORDER ('folders', 'office', 'pdf', 'image', 'archive', 'other') regardless of group size, so a type always occupies the same relative column.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L19-L34",
+          "version": "repo-lines-v1:sha256:6f76d86bb8f5531f5a82e0e0b6c929720ae6fc76af5d8e44287dae9151740116:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5Y2Q3NWM3NzNlOWY4YWZlMDkxMDU0NWU0ODIxMTgzNTBhN2I3ZGMxZjQ5OGQyMzBmYmFmZTBjNjg0NWU2ZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBlOTg1ODkyZmNkYzZjMTZjZTlhYmM2ODVjZDE4NGFhY2NjOGM3MTk2NTI0MmZmOGQ2MDFhYjY4MTcxMjQwMjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0OTBjOGYzNDc0OWU0NzhmNzhjZjUzZmIwZDhiNjBmMGFjMzJkOWY2ZThiYWU1YTMzNzZhMmYwZGUxMGVjZmYifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L36-L49",
+          "version": "repo-lines-v1:sha256:1c5d853e77dc3b752f80b2abf7a85b8659475212acc7f49d5e238839495a2bb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhM2NiYWRlNDIwYmQ2OWU4N2RhYzc2ZGNmZDViMzcyMTU0YWQyNjc2ZWYxYzg3NjJkMDE1ZDQ2ZjkyZWNiZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyMjJhNjU3NjkwNmI1NDcyYmI2NjNiOWQ3ZWJmOGZjM2E4NTliMzM1YTAwZTRhZDkxZTRkNzg4ZDMwZjkzMGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYmY2ODk1OGFiYjlhZjk4YTE0MjVhMDExN2ZiNzFiNTUzMTYwZGFjZThjODk5Y2UxMjdiZTliOGM3MGRjYmUifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L62-L71",
+          "version": "repo-lines-v1:sha256:fe33f0dfd3b9c2eba5ce558ccc157095bf8f01fd1e533c836bdfc3ceea33190f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyYjBhYThkYzY0NWNlODNmYzczYTI0ZmU4ZDlkYmI0ZmFkZDQ4NTdhNGM0MDdjZTFhZDc1ZGZkZTI1YWUyMTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcxMTliNDU0YTk1YTAyMTFhNzI4ZTdmNGIxMDZlMTU2NmVlZmFhZmEyMGU3MzRlOTBmNGRjYTdlMTVmODE4ZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3N2YzYmFkM2EzZDFmZGJjOTFmOTE0MTBhMzYyYTFmNDg0ZGQ0YzE3MDE3ZDUyZmMwZWFkZGRhNDc3MTdmMWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0e6da85eb828443ab2d1a6e5baed1154",
+      "statement": "Inside a document group, explicitly placed members come first in their store `docs` order (filtered to that group's members) and everything else follows sorted by mtime descending with `name.localeCompare` as the tiebreak, so an explicitly placed item keeps a position its mtime would not give it and equal timestamps still produce a deterministic order; `mtimeMs` (epoch ms, declared in the contract as the recency key) is the only recency input.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L63-L79",
+          "version": "repo-lines-v1:sha256:0eb3384fed0a6d98d3cdf02d27b353a8424c453e65fdb36242576ecd437f1f1b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0M2Q4MjMwNzI2MzFiMDg1NTliNjIxMDExOWUzMjVlMzA1YzU4MDA5Y2NhNzI4MDAwNTMzOTU3MzA0Y2IxOGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNTc4ZTAwYTY5YzQzZDkwZTZjOWRmNzM5N2ZhM2QxYjY5N2E3ZWViZWQ4MDgxOThiODI1NTk2NGFmZTkwNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkMGE2NDA2Mjg5YTkwM2Q2ZWE4MTAzNzkyN2FmOGI1OTAzZjg3ODNhMTgyMzYzYjZkYTc5YjUyMWQ4MzljYWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5OThiZjJmZjFhOTM0MzI4Y2QwNmIzZmJkNWQ3NjA0OWFjYjZhMTM3ZTZmZjYwN2U5YzM2NzU5NTUzYTdmNzIifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L80-L82",
+          "version": "repo-lines-v1:sha256:d6693b702d5c0adb8ccaee3a8334acff35c7c49c21007cd10b955d5d8ee4bc4b:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDBjMzJhZTRjYTA2NDJmYjIxN2EzODk0YWRmNTFmZTY3NzBiZWJiZjk4Y2JkYjdmNmUzNzA1OTQ5MWI1ODhhYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDkwYmY4OTc5N2Y1NzkyZTU0OTEzMGM2ZThiZjU0NTk1NWVhOGUzOTZhOTUyMzNlMjNiYzI4Y2YyNGU2M2RiMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWFlNzU1ZTUxNzFiMTBjMGM4MWNlOGUxNTE3ZWEwYTA1OTdhNzUxNWJiYzJkNmQ0Y2QzZTkwMDY1MDhiZTNiNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODhkMWZkYjA5NDFhMWRhNDUyZjQ4ZWYzZTg4MjJkMDk3MWRkNWU5ODFjMzY3Y2FmNDYzZGZjYjUxNTQ5ZjhhNSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L119-L132",
+          "version": "repo-lines-v1:sha256:f16294e4cba516f86d4d58ecc212eab10d6b464d80782f838aeb74c27a6ca826:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3YTk0ZTE0MTZkZjAyMTIwYzQyNjdmYTJkOTk5YjFlNGFiYTczODI2MjZkNmY2MTE2OGZlZjllZTBmMTkzMTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmMDkyMWE0YmNmNDYwYTNlMWQ0NGNjOGYzZGJjNGI0Nzg0ZWQ0NTFjYjQ0YjE1MmNjYTgwYjhjYzRiMmJiOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1NjU3NTNiZGM4NGZmMmU1MWZkNzIwZGMwNzgzMWY5ZGIwNGQyYzNlZDYxNjgwZThhOGU4YTc2NDM4ZWRhYmMifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L79-L86",
+          "version": "repo-lines-v1:sha256:a4874f927e33184edf565c7984c2469621012c4cd20efc64fe3bebcdd5cacabf:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWI0MWFhMmUxMzJlODEwZjZkYTQ4MmFkZWRjMzhhMmE2Yjk5NjkxZjUyZWY1NjczZTU4NDM5MTM0N2RlM2Y4ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ2NjQwNjkxYWQxM2Y3MDEzNjM0ODY1YmEzYzA1MTM5NTk3NTNlNDkzMDJhY2U1OTQwOWE1MGVjYTFmMzMxMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYThhOWVkOTk3MGQ5OGZkYTExNDBkOThiYTMxMTE0YTMzMWM2NTExZWVkNWNiOGU2ODBlZWY3MTg0ZjAyYzYwOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e7dea9cb1ee5445c82835d38fc4dffe8",
+      "statement": "Document columns are produced by walking GROUP_ORDER with one global cursor: an empty group is skipped and consumes no column, a non-empty group starts at the cursor and occupies `ceil(count / docMaxRows)` columns, item *k* lands at `col = cursor + floor(k / docMaxRows)` and `row = k % docMaxRows`, and the cursor then advances by that width plus exactly one spacer column — so groups never interleave, the ninth item folds into the column to the right of the first eight, and a later group is pushed right by every column an earlier group used.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L50-L52",
+          "version": "repo-lines-v1:sha256:babf5ec54b96f77332db86070f9f11ea771ed6cde528f438c59a82d687e3f1f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTMzMWY2MjI3MmNhZTY3NGM4MDc2MDBkNjkzN2NiMDY3OGE0YzQ1YjM5NGZiYmM5MzUxOTdjMGMwOWZkZjFmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTI1NWU2MWFiN2RjNzZiMjIwYjhiY2FmNWFkYzdjY2UyZjRiOTRmOTQyMjg1ZWNkYjJhNThlNWUyYmNiOGRkMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODI4YjQ0YjM4MjcwYWNlOGQzNmY3ZjQ2NzA5YWJkOGRhNmYwYWU2ZWMzYThjZmRhMzU1NDFmZjY3YWQ1NzI4YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L66-L82",
+          "version": "repo-lines-v1:sha256:c48865cb79e0fe8e8dbd928085a31751a7aaff3c744fffa0c5924acb3c2db5c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkNzQ5MzRmZDY3NzM5M2Y5ZDJhNTkzZDI0Nzk4ZGM5Y2Q4MjRmZmY2NGZlMmMzMDIyMjI3Y2M5YzM5NTBhY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNmOWM0NTYzMTBkYzlkYjk3N2QyMWY2MWRmZmU1YmViZGIwYWIzMTgxM2U5NzE1OThkNjM1YmJlNTU1YWQ5NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM4MTU1ZjViMDA1YTNiMWExMjM3NzA1MjhlZjEyNjJmNzgyNmZiY2U1MjUxMzY2MWM2YTNkNGQ3Y2JkZDEyNDYifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L73-L103",
+          "version": "repo-lines-v1:sha256:a697c685709e5a1e3b251d81061fa9d47cfe8eeb95b58718779f9e1ecb9e2001:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4ZmU4YmFkZDU0MDFhMjMzNDQ4YTk2MTdiYzFkZGQxZjBhMDczZTRlZmUyY2UxMDQ4Njk4ODFkZDI3YTEyODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJjNTQ5Mzc3YjI3MmIzMjE4ZTgyNWFmOGE0ODc1MmI5OTM1Y2U3NjE2NGZiM2U3ODIxNWNjOTE4NTdiODg3MDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyOTVlNTM4YWFjZTczODY0ZDUyY2I0MTc1OTA4OWYxYTU2YjZjNDAxMDViOWUxNzEyNWNjNzI1YzAzZjkyMTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_692991809d204adba3b1ce2560a1219a",
+      "statement": "docMaxRows is the plan's only numeric option and has two synchronized copies that the renderer's visual columns depend on: the service passes `config.desktop.docMaxRows` (default 8, validated as an integer 1..32, else fallback with a warning) into planDesktop, and the same `config.desktop` object is shipped as `layout` for the renderer, whose per-group CSS grid (`grid-auto-flow: column` with `grid-template-rows: repeat(docMaxRows, auto)`) reproduces the same fold from the same value — a change to only one copy would desync the plan's `col`/`row` from what is drawn.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L145-L148",
+          "version": "repo-lines-v1:sha256:a1d007dfe8aed8843b0192d3388c623d7a17d137d0d47a7c43e220847b3c6691:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTdkODQzMTMwODFlOWMxYTM2MDI5ZTQxMjZmNGRhZmEwNjU5NWExNjk2MDE0ZWFhYTk1NzQ1NzE0OWI5ZGEwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDE1YzUzMjNkMWQ3Y2ExOWUyNzc4NjE3NmZmYTMzMzcwYTJhNzFiNGU0M2M3OWU0MmE3NjY2NjY4ZjhlZjI3NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDRlZDM2OTZjMDA1M2E1ZDY0ZTk0ZWQ4MTk1MGE2YjI4YWRkZGJjNzk5NjQ3MGM2NzgwOGE4M2ViMDQ0YTMxMSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L321-L325",
+          "version": "repo-lines-v1:sha256:19c82b2be8f76321cffba43feb1ef6af1b6f4de773408f117161177f9d4b0ba4:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDE1YTdkMDYxOTE3Zjg5Yzg1MjhkY2ZiNGM5OWY0MTBlOWUyM2RhZWM2MDI5MWUxYTViNGI0MzhiMGE1MDM5MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGFjOTQ2MzcyZTk1YWY4YzYzYzY2MTVhNjE2ZjJhNWFmZDc3YzkzN2Q5OTY2MDZiYTNlMTdkMjg2YmUzZjQ5NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmZiYjA0NWRkOTI1OTg1MjZkOTc1N2IzOTM0YjY3ODUxMjY1N2Q1M2E2OWIwNmZjYzA5ZGFlNTkyNDcxODI0OSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L45-L52",
+          "version": "repo-lines-v1:sha256:0c5eca71f882b4e2971a1904303af4443ed1b6a142b08c52781dfd700a779403:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjBkZDBlODg1ZjYyM2Q3OWI0MThhY2E3MGQ5NGMwY2VhZWIwMzZkNWVhY2ZhZTEyNmQyY2IwNzlhMTNjZDEzNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODkxNjBkY2E1NzM5OTczMzI3ODk3MmYzOGRjZjQ5YWM3YmY4MTI2ZDdhYzg0ZjkyMDA5YzY2MDk4MzI0MmEyOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODI4YjQ0YjM4MjcwYWNlOGQzNmY3ZjQ2NzA5YWJkOGRhNmYwYWU2ZWMzYThjZmRhMzU1NDFmZjY3YWQ1NzI4YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L85-L104",
+          "version": "repo-lines-v1:sha256:3f624a1c9427a5df43557062874c2f2e5ffb5776e47195dae5051d98ab335ea6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhODE4NmRjNTBiZTBmNTBjOGU3OWQzMzFhMjk3Nzg5NzI5OGY1NzJhM2NjNzM0Y2E4ZjYxZmE0NGVmODI2MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4NzRmMDU1MmU4NmYzNzJjZjI3MzRlOTgxYTM0ZWUzZGQ1ZTgyNTc3ZTc3NmQ3NWJkN2Q0M2E5MzRlNjQ3Y2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhZTY5YzZkN2M2ZDYwY2U2MmZkN2Q5MjMxNDQzZTU3YWU4M2FmZGJlNmYwNjdjNjU4OWRkN2E5NjRhMmYyNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NmNjZmNhY2JmOTQ1Njc2NWM0MjE3NDhjYTdkYmY4YmRiM2Q0OGZhYjJlMWE3ZmVmZTJhMjZmYmU2YjdjNjMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L42-L43",
+          "version": "repo-lines-v1:sha256:1371be9fd99e0cc3418a1f9d170d2e8cccc5be5bb8f4165dd91acf9c7af4a00c:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzgyMTEyOWUxYWIxYjdlNjY1MmZmYTFkY2E4OWM1OWE5ODcwZDAyYWNiY2RiODg4N2M3M2VjMTY5N2ZkMGZiMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzVlOWJmZWQyNTQ2Mjg2ZGNjOTdhNmFkYWNmNmRlMzlkYzFlMGY3YjVhZTg0Njg4ZTQ4YzkyZTY4MzY0MDk3NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzQ1YmFkNmQwOTEwN2MxZjc1M2ViMmJiYmQzZDI2ZTgwNWY3MjYwY2ViODlkZmY2OGEwNzljMzlkYjhmYzAxMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODYzNjNiOTM4OWQ0YzY5NDU1NTZiN2MwZTRjZjE2OWM3ZmFiMWVkZTk5M2VmYmUxNmUyM2JkYzllMTFjY2E4NiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L66-L70",
+          "version": "repo-lines-v1:sha256:1383419ada6777e1bab0a8fa74be64de19c3eb49d98fc399956dfd5633294217:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzg1YjJmNGNlYmY4MjUzZDYyMDAzMTNlNTNkMjY5NmIyYzcwY2M5OTYyZTE2NGI1MWNmOWM4N2FlNWM4ZjY0NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI0ODU3OGEyMmEyOWE2ZmM1MWI3NTA4NzAxYzc2NjE0YzlmMTU1ZjM1ZDA1Nzg3OWE5M2YwZDkwM2E4OWE2ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDk5YjZlMmEzYzA5NjM0OWQwMGVjZDUzNTAzYmQwYTAxYTZhYmEyMzdiNDY1NWU0NTE1Y2Q5NGFkMDU1MWQ3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzBlNWQ2ZWVhMjk3OGRiY2IxMjlkMzNiYzM0NjQ4NzBhMTI5ZDMyMzY4MjM0MzMxZjlmNzNiZTI4OGIzMTU1MiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L263-L270",
+          "version": "repo-lines-v1:sha256:d09570b580d310c73f5b1ac5352aef6828101f860dfc6ff8de4a4599b13a9f70:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTQ3NDc0ZWEyZTU5MjQ2ZTY3MTg0OGIzMzA3YmYyNGY0NWUzZjVhZDc3ZDFjMWVkZDgyNmMxNTJkNDk1ODU4NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDVhOGJmYTY0OWYwOGIxNWUyZDNkYmVkNGU0ODY3OWUwODY3YTQ0ZDY2YmZlMzAxM2E2MzMxZDEyNzMzYWNmYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTI0MmI1MGJjMzY0OWRmNDEzZTQ0MGYwYzAyMzMyZTlhN2M5YmUzY2U1NGJhNGRkMTU4ZDA0NWM2YzA5YjI0NiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L283-L293",
+          "version": "repo-lines-v1:sha256:44880486d41ac60f7406d9c1a8e48af664a3ed4ed18187cc4d781ff76bde50de:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkYThiZDFmOTBhNGE3MzkwNmJhZWFlZjY2ZDJlYmNiNmRiZWRiOGQ4ZTI4MjI5YmNjYjYzMjM1NjUwMGFkODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMGYxYzI0YzI4ZWE1Y2JlYTM4MzA5OWRmMTUxYWQxZDk4YWQ4MjljYjhhYjMxOTRiNGZlZDUwZmViZDM2NjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzMjlkYWRhZGYwYzJlNWEzZDBiY2QxMjIyZWZlNzNmNDM4MzY3YjlkYmJmMmZiZTIxZmQwZDNlOTA5ODY4ZTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_861556cad40846b48fc6ae46c6b7ab0e",
+      "statement": "An overfull document zone is neither refused nor truncated by the planner: an entry is emitted for every document item and the clipping is purely presentational (the config-driven `docZone.maxWidth` on `#doc-zone` plus `overflow: hidden` on `#doc-groups`), which the CSS comment states as a visible cap rather than a carrying cap — replacing the retired model's rule of emitting a crossing item unplaced.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L66-L83",
+          "version": "repo-lines-v1:sha256:2b039b361cb6277e4475823adf9c414d0eea603a4900e7aec926b0461502f499:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkNzQ5MzRmZDY3NzM5M2Y5ZDJhNTkzZDI0Nzk4ZGM5Y2Q4MjRmZmY2NGZlMmMzMDIyMjI3Y2M5YzM5NTBhY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0ZmRlMjY3YjUxMGM2NmEzODhlZjQyN2ZjMDJjZGM2OGQyNGFkMTFmZjllNjZiZjQ2MWQ3NWNjYzE5MmU5OTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNmOWM0NTYzMTBkYzlkYjk3N2QyMWY2MWRmZmU1YmViZGIwYWIzMTgxM2U5NzE1OThkNjM1YmJlNTU1YWQ5NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg2MzYzYjkzODlkNGM2OTQ1NTU2YjdjMGU0Y2YxNjljN2ZhYjFlZGU5OTNlZmJlMTZlMjNiZGM5ZTExY2NhODYifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L238-L254",
+          "version": "repo-lines-v1:sha256:b2eabea4644691b8558c2f830fbc0adb5fc81345a70bb8f7062e4f5e3b21ab7b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhODY4YTI0M2MzZjY0ZDk0ZDg0ZTNjMTc0NjBiNTI5ZTY4MjhhNTcwZjZjNWQyYzNlYTFiMDZhNGNkOTdiMzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkZGNhZDY2OWZmM2FkN2FjNTg0Y2Y0NzA4NmM0MGQxMTE5YmU0OWFiM2ExMjVlNTVmZDE5ZmNhZTA2MDMxMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyYTA1ZWE4ZjA3NjJkY2RkODYyYzI4NDU5ZDE3NjQ1OWE0OThiZDkyNDVkZDVlMGNjNmZjNjA4ZDVmYmFkMTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxNjg5ZTFjYTZlNzM2YWMwNDc5MGU3ZTZkODBiNTJhYWYxYWEzMTM5MGQ3OTNjZDk3ZDRhNmFjZGZlZmZmMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L283-L294",
+          "version": "repo-lines-v1:sha256:2f6b32983d79f648878d381c08e4250e2ac2d1af8ce74d34408332b5cd7dbd69:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkYThiZDFmOTBhNGE3MzkwNmJhZWFlZjY2ZDJlYmNiNmRiZWRiOGQ4ZTI4MjI5YmNjYjYzMjM1NjUwMGFkODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMGYxYzI0YzI4ZWE1Y2JlYTM4MzA5OWRmMTUxYWQxZDk4YWQ4MjljYjhhYjMxOTRiNGZlZDUwZmViZDM2NjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4MzNiN2U2NDhkMTVhZjJmNTk2NTFhMWZhNjBhMTM4Zjk1MGU0MzRjMGQyNDgyZjFkZGM5OTMwMTMyNzZjNGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_26bb7891f924444abef5587ca2a0419e",
+      "statement": "The layout store is `{version: 1, pinned: string[], dock: string[], docs: string[]}` with FACTORY_STORE all-empty; loadStore is total (missing file, malformed JSON, non-object root and wrong-typed fields all degrade to the factory state, field by field), stale names stay in the lists verbatim and are filtered only when the plan is built, and serialization is `JSON.stringify(store, null, 1)` plus a trailing newline, so a persisted store round-trips losslessly.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L7-L46",
+          "version": "repo-lines-v1:sha256:a3193f9121c21e68ccd95a648dc83849d79fc4c71c8e774567d98b07db3e5b4e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlZDM5MTY5YzA2YzViODBiZGY3NTAyN2UyMGFhNDAyNDM5ZmM4NGI3MWU2Mzg3ZjUzMDVlNTAwZjhjM2Y5MTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3YTY3Mzg0YWM5OWE2ZTcxMzUxNzUzYzQ1NWYzNWZkZGUyYzM5Y2JkMmMwZDA5ZmZhZGJlY2YzODY0NmJmZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZDcyM2YwNWFjYzllMWM2OGQ3ZTMxMjhlNjRmMDg2OWIzZDZjZWFmOGI3MThhOTNmYTg5ZjJkOWJlNzY4ZTgifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/layout-store.spec.ts#L7-L23",
+          "version": "repo-lines-v1:sha256:f886624c5c6bfe2cf1360dd3f32980b10c802e2353d5fde66c411fdfdff66f2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmNTE5MDY0YTU5MjlkMGFjNTRiOWIwMzVmYjJhOTdhMzgwZTdhNTdlZWNlYjY0ZThjYzdmMWFhYWUyNWZjZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZDk5YmYwM2RiMDA4ZWQxYTVmZjlhYWJjYTMxZTFmMmI0Mjc5MGUzMWNjMDhlN2Y2Yzk1YzAwYTFhM2FlOGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczOGI2MTQ3ZDdkYzkxZGRjOWY5M2Y2MzcwMmI1MzcyNzg5OGM3YzM2NzgwZjg3MzU3ZTcwNzA2Y2I4YmI1NDEifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L129-L132",
+          "version": "repo-lines-v1:sha256:cfe24ce1078afae305e829cb8e4f7cee452ab945f76d52350f810a8906fabcc9:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTljMjZkOGZlMTM5MDI2NjkyNTNlMTc5OTY0ZTYxOTUxNTg4MTczMmNkMzA0NDZjMmFiYTMyYmNjYzVhMzI2MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTkzNGY5ZDUxYmFjY2YzYTZmNjk0ZjZjOGVhMjhmMjZmN2NiZWJmYjY3YTMxYzRjMGE4NGZhNDg2MTZkOWM5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTU2NTc1M2JkYzg0ZmYyZTUxZmQ3MjBkYzA3ODMxZjlkYjA0ZDJjM2VkNjE2ODBlOGE4ZThhNzY0MzhlZGFiYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6cc3069ce2684ae2921f2f6eea6662dd",
+      "statement": "moveItem reduces a drop to an order edit: it removes the name from both placement lists, inserts it before the anchor name (appending when the anchor is null or not in the target list), and copies `pinned` through untouched, so a pin is an identity rather than a position; resetFactory clears `dock` and `docs` while keeping `pinned` and is idempotent on the factory state.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L48-L76",
+          "version": "repo-lines-v1:sha256:ac6eba2adef8a64d70fc434c4285efe8fd03801fa31df3e711f4c31b8b0611cb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2YjA1MjcwYzMzY2M0YTFjOWQ1MTY2MTZlZDE1ZmIwYWQ0OGUxMWM3Y2M1YzYxMTVjMjdlZGZhZWQ5MDg3YWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/layout-store.spec.ts#L28-L69",
+          "version": "repo-lines-v1:sha256:8f1abf1d9579ac414fb62a8c2738a4236b218c9b76685121d19660b43a416740:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkODE2ZGZlMTBlOGZhYWFlZWVkNmYxYmM5ZmZkZDhmZjhlYjJmMzZiMDI4NjFiZDhkYzU1NjlhZTBhZTEyZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY1MTY3ZjZhZWY0MWFmY2JhMTE2MDQxYTNjOTBiZDM4NDI1NTY1NmYyNGY5ZDI1YTgyOGViOThmOTY0NzEwODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fc063bd4ba7042d8b5f0f621fdf41b38",
+      "statement": "The two placement lists differ in one edge case: planDock de-duplicates its inputs, but planDocs resolves each `docs` list entry by name lookup, so a duplicate name in a hand-edited store would be emitted twice (a duplicate `plan.docs` entry, and two DOM nodes); moveItem filters before inserting, so normal drags cannot create one.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L63-L70",
+          "version": "repo-lines-v1:sha256:5d6f373d69afea09fa97f604b284b06150b77ba1341abe99023afe414b16ff25:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTU4ODNiMmViYzA3MjI0ODQwNjdkNjM0YjMxMmRjMDAxZDU4MGM4ZDc1MjVhNmIzMGQwZGIwZjE2MTQ1NmNjMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGU4NDdiMWVhNDUwMTUwODkzODMyOTU4YzFjZTRmZmViOWNjYmY0YTk5ZDcyNmZiZmUwZDBkMzQwMTkyNjI3OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDdiMGMyZjI4YjViMTA0M2IxOTczYzU5OWM1Y2M5ZjBkNTAyN2IzMTc5MjZmOWFhZmQyOGM1Y2NhZGMwYmIwMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYThjZjdkNWFlMTcyYmEwODhkMWE3NWM1YTRmZmE0M2ViOTM1ZGY2Mjk5NTdmNWYxMGFhMTg4NDJlMGFmNzYwYyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L70-L79",
+          "version": "repo-lines-v1:sha256:d4c6d73e22134845930d77830c28e57c8563e49379dc5744764c389cbf8858c3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwMDBhY2QyN2ZkYzRiY2E2NjQ4OGJiNTVlY2NiNWE1NWY3MzZkYjM3NzJhODA1NTQ2NDJkYzNiZjZmN2I4ZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNTc4ZTAwYTY5YzQzZDkwZTZjOWRmNzM5N2ZhM2QxYjY5N2E3ZWViZWQ4MDgxOThiODI1NTk2NGFmZTkwNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmODg2ZjZmZjMyNTYyZTlmZGY0NzIzZmJkNDcyMjdjYjQ4OGUxMDUzMGU4Mzg4Yjk3YzNmNDZjY2RiODI1YTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5OThiZjJmZjFhOTM0MzI4Y2QwNmIzZmJkNWQ3NjA0OWFjYjZhMTM3ZTZmZjYwN2U5YzM2NzU5NTUzYTdmNzIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L98-L107",
+          "version": "repo-lines-v1:sha256:1a9fdee4c7a4ae9b75641f00c73d1ac0e60461cefa090cd73cb99a30eaf6dfd4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0YTYwNjVhNTlkNjQ3MDNlZDRkYzlhM2Q3YzY0ZjEyM2U0YTI3ODhkN2JkM2FhYzA2ZmI3ODdkYTVkYTdkYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliMDQ5NmJiZmJlMDhjMjQyZjQwZjJiNjkwZTFiYzYzZTk1M2MzZTVjY2RiNWJiMjhlNTYzNDg2YWIyMjBhOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYmI2YWYxNmY2YTdlNWQ1ZTk2ZWI1YjIzZmQ5MTEyMDU0MGVjZDhjZTE2MTI0NTZjYzFmYTY5NWExZDA1MTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3941c6db40b04277a669bbda51a98764",
+      "statement": "Two 8-character hex FNV-1a-32 fingerprints in scan.ts drive renderer diffing: desktopFingerprint hashes `name`/`kind`/`zone`/`path`/`iconKey` per item (so add, remove, rename, kind or zone change, or an mtime change inside iconKey flips it), planFingerprint hashes dock `name`+`source` then `||` then docs `name`/`group`/`col`/`row` (rank is omitted because col/row already encode it); the service joins them with '-' into DesktopState.fingerprint and the renderer returns early from renderDesktop while it is unchanged, so an order-only change flips the plan half while the item half and the icon cache keys stay put.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L92-L117",
+          "version": "repo-lines-v1:sha256:388f846ac1c798878bc63e52c7dfb608e0b286b5bd38649f562a6cdb8e8b6e88:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1MjA2YTA4ODk4NmEwMWFiOTBiNjgyYTI5ZDIyNzRjODYzMGMwNDY1ZGEzMDc1ZWQwN2FkY2RiOGVjMDRmZDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4ZGZmYTFmNTkyYWZlM2NkNDg0MWQwNzg5MTBhODIyNjc4YThiNDRjZThlYTc3ZjE5NjY2ODVmYzc2MWZkNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L101-L101",
+          "version": "repo-lines-v1:sha256:12a5e5907eb6dc00a9b6460f084241210c17fc12dc05ca03e37e39fdc22abff9:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTJhNWU1OTA3ZWI2ZGMwMGE5YjY0NjBmMDg0MjQxMjEwYzE3ZmMxMmRjMDVjYTAzZTM3ZTM5ZmRjMjJhYmZmOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTJhNWU1OTA3ZWI2ZGMwMGE5YjY0NjBmMDg0MjQxMjEwYzE3ZmMxMmRjMDVjYTAzZTM3ZTM5ZmRjMjJhYmZmOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODljMDFjN2MxMGU3OTg0M2JiMTc1ODk0MDUzZTNhOGU0ZmRiNjg5NDdkMGRmMDlmZWI1ZjI4ZTJlYjIzY2QxOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGY3Y2I2MjU4NmE0OGJiYWYzM2U0MThhNmQxMTYzNjZhMjNjNDZiYjJhMzE2ZDZjZTM1MjY0ZGRmZGQ4MGYxNCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L296-L299",
+          "version": "repo-lines-v1:sha256:8951ffd18ff4b593e24884300998803a64fd97b2c9f00e2a2cd67ebbd3ef2cbf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdmNTFhY2Y0MzM0ZGY2ZDgwYWYxYmEzNTNhN2U2OTFmZTMyMDNlZDIwZmU3M2Y2Y2EwOTIwOTA5MmQ4OTIxMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmE4NjI4N2I5MzljMDBhNDM2OGE1YzI3NDc5NWNkY2ViMTZkMTMwMTljYTc3MTllMGNlMWEzZmI4ZWRlNGM3OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjYyYTg4NWNlZjBkMjVlNjllNTU0MzlkZDg1YzMzOWQ3OTcxZjIxMTcxZmMxM2I3ODk1NDI5MWQ2OTRmOGZkZSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/scan.spec.ts#L74-L95",
+          "version": "repo-lines-v1:sha256:5f05ead8d8826bde5841cf28173b73175ca1a5c0dae7898ba2bbcfe49897677d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2YzUyMWU1MjY4Yjc4NGZiZDgzYTliZWQ2ZmQ3OWMwZDI0YmZiZDIyZWQ4YjNhYWQzMjgxMzI3MDYyOWFmMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L318-L328",
+          "version": "repo-lines-v1:sha256:2b9533089590795573e0a15ee630884b92bd63e61dda16be1dce5ae9aaf78eba:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5OTg0ZWQ3YWJiYmY1ZDdmMDBlN2UwN2Y0MDAyNmEyYWU3ODU5ZDAyNDI4ZTM1ODE3Y2NhZjk2Nzk4OWYzN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_543c2db0abfb4df696f917a52e418c07",
+      "statement": "The plan core's offline tests are partitioned by concern and all use synthetic records: plan.spec.ts covers docGroupOf, the document column arithmetic (one column per group, spacer, fixed order against group size, empty groups consuming no column, the fold and configurable docMaxRows, explicit placement first) and the dock segments; scan.spec.ts covers pool merge/dedupe/hidden filtering, display-name rules, iconKey round-tripping and fingerprint flips; layout-store.spec.ts covers factory/corruption/round-trip and the move semantics; service.spec.ts covers the end-to-end round including persistence across a rebuilt service and the fingerprint flip on an arrangement-only change.",
+      "evidence": [
+        {
+          "resource": "repo://app/tests/desktop/layout-store.spec.ts#L1-L5",
+          "version": "repo-lines-v1:sha256:05a7d944200d448611c44fb8c815d9a5115bcee0e67c07ffd420122b17ec4d42:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQzZWUwMGQ5ODdkZjVmMjcwMmYyMDJkNjIzODI5YjBiYzMzN2RmMDgxZmZmMzk5YzM0MzQ0MTZhY2Q3NzI5YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDYwNDcwMWViZWRhZTk2YjQ0MTNjZjk4MzU2NWRkZWRhMDIwMTdjZDNlODRlZWRmMmRhOWFkMDVkZWU0NzA5YSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/plan.spec.ts#L9-L34",
+          "version": "repo-lines-v1:sha256:5619c6ffe830bfa24c5491fe2f61777f1d6525c03c8f7b659face571a266d4e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ODE5ZDI4MGVhNTY3OTUyMTJkYjU4ZWQxZDNmNzM0MTMxMDlhNTg3NjBhMDI4MzkyYWYzYmE5NTlhYTRjYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxMTc4MTU3ZTQ4YzNkZWUxNzBjODE0NDUyYzE1NWI1MWVlN2M5NDE2Zjg5MDhhODI2Zjg2OWZhYTRmODhiZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyMjRkNWExNjA0YTZmZGVmMzFlYzlmMzY1ZDBlMmE3ODlkN2RmMzAwYTU3Y2Q2NTUxOGU4ZTA4ODYyZDhhNDMifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/scan.spec.ts#L1-L11",
+          "version": "repo-lines-v1:sha256:f3316292dab082e432a1f41700239815f01ff6b9ac2009e87950c08f8b7961c3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExZTEyOGY4NzgxOTdjNmMyYjZlZjAzYjEzYmEyMzRmYzk4NTEyNmU2YjFjYjhlMDkzNGUyNmEyMzVmNjM5ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1MWIwZGU5M2NjZWMwMmQ4NjEwYzZhOTU5MDZiZjYwZWJkYjgxMjBmMGJiODA4YjYxZjkwNjJhMGIzMmEyYmMifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L155-L219",
+          "version": "repo-lines-v1:sha256:220a9d0af4a4a2c5010eb9be4c70ab19936591b0761c04273520a34e1e794062:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkYmEyMzcwMDFhOTlkYWQyNmZkYzRlYjYzMzFkY2ZlY2I4MjgxOTQyZmNiMjM0MWFlMzEwMmNmOGNhNWNkYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5ZmNlNTM1OTVhMDUwYjk0MjI4MjEyYWU1MWM5YTNkMjU0ZjQ2MjY1ZGE0ZjZkYTExZGE3NzdkZmM3MjQzMmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fcd0a051713b43c593697a20d1fbf946",
+      "statement": "Extension boundaries follow the data model — a new document group needs a `DesktopDocGroup` member, a `GROUP_ORDER` slot and a suffix set, a new file type is a membership change in one of the three extension sets, and a new kind needs a `DesktopItemKind` member plus the `isAppEntry` routing branch and adapter recognition — while the fixed group order, the pre-plan zone override (classification outside the planner), the name-keyed store (a display-keyed one would merge `a.lnk` with `a.url`) and the single-sourced `docMaxRows` are seams a change must not move.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L19-L23",
+          "version": "repo-lines-v1:sha256:caae12fd1e389454ccb47ed139ed0e2ac054c33d5dd18f5e661868ca10c9cdf2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTljZDc1Yzc3M2U5ZjhhZmUwOTEwNTQ1ZTQ4MjExODM1MGE3YjdkYzFmNDk4ZDIzMGZiYWZlMGM2ODQ1ZTZlMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmM4NWNhYTY0ZjhiODVhNTdlYzI4NGFkNDE0OThkNTU1NTQ4MTZjOTA2ZWYyMzhjZmRkMjkwN2ViYTg1NzBhYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGU5ODU4OTJmY2RjNmMxNmNlOWFiYzY4NWNkMTg0YWFjY2M4YzcxOTY1MjQyZmY4ZDYwMWFiNjgxNzEyNDAyOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDgxZTMyZWExOThjMTY5NzM0YzQ2ZTVhMGRiMTE3OTg1MjI3Y2Q4NTFiZTRiMTM4ZDJlNmY5MGNiYzg5OGZlNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L38-L46",
+          "version": "repo-lines-v1:sha256:9982b6de1ec6037e766d46c9156f84d09e23bc6cf69f01ea4101ae7a16410906:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmFhMTM0ZWNlYWQ2ZDljMjI4ZTk4YzNhZWRkYWVmMzE2NThhNWUzYjk0NTFiZDIwMjg3NDE4NmM2ODA4MDAwZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGFlMTc4NjY0MTYyNWI4MWU1ZTExMTExYmMxMjgzNmQ0ZjhkYWE3ZGJkZmM0ZTcxYzQ4MDYyYmI1YTVmM2Q1OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjAwZDc5NWQ2NDc0M2M1OTg0ZDAyM2ZjMGI3ZmIyMTNmMGM1NDViMGNiOTIzOWYyZmY3YzIyNTg0ZmE2MjlkOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L203-L210",
+          "version": "repo-lines-v1:sha256:9ca3f301a6d798a12fdb24dbf9e44280931c88b962672666a4d9e985ba14dbe3:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFkNTRhMmE1MzNlNDUwMGZmZTY5NmM4NzdmOGY1N2Y2YTg2OTA4Njg4ZmVmMWUwMWI0ODA3NzA2MGUxZjdkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L62-L63",
+          "version": "repo-lines-v1:sha256:5aa3995dd27c7b23d6d308370290ea055f34db184f5e9920463171d33ef9ce2e:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODVlOWY1MzEyODE2OTI0OGM5MGM5ZTgyOWVhZTFjOWJlYWQ4MjJhNmUwYzJmOWU1ZDljOTNlMDg4Njc2ZjRlNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmQxOGUzMDc2MTJkYTZmYWM0NzYzMTBmOTQ4NDdhNzIyNTc2YTFiYWRlN2FhOTUwYTA4ODgwNmQ2NjhiYmEzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjQ1YTM0NDAzMmU1ZWJmYmJhMTM0YzIwOGRkMGU1MjI1NzZmMWM4NjZhMzgxOTMzZTZkZDI0ZTM1NzU3ZDNhNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2Y3ZTQ4OTY0NGIzNTQ2NjczYTZjNDMyYzU1MmMxOTJiZDM0MGZiNDczZjQ3ODc3ODRhZWMxMmMxNjkwM2I2YiJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L94-L95",
+          "version": "repo-lines-v1:sha256:1152be0dbd271006c693a650c19c98d16e06c3d7a0ca5c82e7bc8d8947450c6b:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGI0ZGJlZWYwYWUzYTZkMWQ1OWRlMjE4ZDI2ODZmOWZiNTVhZDcwZGVmYzE4ZWUyZWMwZjUzZjZjYTE1NDVjNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTQ0NTQ5MDg2OWQ3NjdkOTFmZDQ0NTVjZWFjMGY5Y2NkNjI5NWExYjllNzY0YmY5YTdmNTNiYTA1YzBiMzQ4NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmRmZDEwYzczZDEzZWFhYzI1MDY5YjFjZTg4NGQxOGVlNTVkMTk1ZmExYjQ1MGNmYzdhOWQyYTlmNTk2Zjg3NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE4MWQ5ZTQ5MzBkYjFiYjQwOWExMzI5ODcxMGY1MjhkM2M2NGMwNzliODE5NzBhM2U2YzM5ZmFlY2MwYjg0YyJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

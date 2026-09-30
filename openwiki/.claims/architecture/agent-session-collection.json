@@ -1,0 +1,538 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:dc6c7495886f5caed0d2ff43c38cdc03c702f7ad0b0eea1be6c036391503689b",
+  "claims": [
+    {
+      "id": "claim_d0329675a14b435c99e523d783443afe",
+      "statement": "`collectSessions(roots, now)` in `app/src/main/scanners/index.ts` is the module's single public entry point: it takes a caller-supplied `{tool name: data root}` mapping plus an injected wall-clock time in seconds (production passes `defaultSessionRoots()`, tests pass temporary fixture roots and a fixed `now`), and it returns the merged list of `SessionInfo` records sorted by age ascending.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L41-L54",
+          "version": "repo-lines-v1:sha256:fd8a3e4ea093e07212a7b52ed3e3a5be0f387e1963e3b12a6df67f2b2d537f12:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliYWFkNzZmMzg2MjQ1NDc4NzRmYmJmYmYwMjgzMzQxOTBlNDYxNDIzOTNhNmRhNWM0ODllNzQ1Njg5MDQyMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/sessions.ts#L16-L29",
+          "version": "repo-lines-v1:sha256:860f5e8c4e2130254eee793ed385f36d4de120d506caa8ba28ca26594e53b43f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1YmI0Yjk4MWJlMGM4MDQ2MGI1ZjI4ZmRhZDk1ODVkMGQ1MGNmMWYxYTQzYTc0NTVkNjdiZmZhZDhiNzM5MGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjViYTAzMTU4NmMwNjg4MjFkNmVjN2MyOGZhMzBiOTg3OGI4ZGE0YTVhMWZkODBlY2E2NGZkYTgxMWNhNzgxNjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhkNjMzZDEwZmEwNjhhN2E2OTNhZmUwNzQyNjhhMjBjMTEzNDE0NzE0ZGQxZGE1NjJkMjNjMzc4MzAzZTQ0ZjEifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L20-L28",
+          "version": "repo-lines-v1:sha256:39196c73c4d8e472c4aba8d5c1aff43559fd1bc7d11f75f151a1e20130b3e370:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjU2MDk3NWY3YTA2ZDlmNGMxMWNmMDEzNzI3MmVjN2FiNjYwMzdmMzliZWRhODFlNDAxOTg4NDA2ZjFjNGRmYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDQ1ZTdkOTc1OGM5M2JiOTBhMmZiOTM2ZDc4YzY1NzE3YmQ4YjM0MWM2M2VhOGJmMzBjZjQ5YTg1N2FiY2E5NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODhhZjNkNjk3MDg0MWExMmU0YzY1N2FiZDlhMDAyODNmYTM4NjNjMzE2YmJmYjFjYzU0M2Q1ZWE1NWY2NDA3YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1cd7aedd3c60472ea33403bed174839b",
+      "statement": "Per-tool dispatch is one lookup in the module-level `SCANNERS: Record<string, Scanner>` (`qoder`/`hermes`/`zcode`/`kimicode`/`kimiwork`); a root whose key is absent is skipped with no log line at all, registering a new tool means adding an entry there plus its default root in `defaultSessionRoots()`, and the record stays mutable enough that the seam test registers a deliberately throwing scanner in it.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L22-L28",
+          "version": "repo-lines-v1:sha256:42641a6cf64f6506dbc221e5fcf1adb0abd644d8da6eb9b4457e7a457adf26f9:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGE1ZDU5ZTczOWJjMDUzYjMyN2M2MmY4MTVkZDllY2FmZDU5ZGY4NDMxNDEyMTBlMzQxYzdjMDJjMGYyNjFiYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODNhYzJlZjQwMmY2MGE3YjA2NmMxYzU5ZDc4ZTg2MjBjZTM3NmQ3NDEyNzNiODJkODVlZjBlNDRjNzFkYTkwOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2RlZTkzZTU1N2I1MjM1NTE4NGJjYjkzZmQwNmU0YjRkZGRlNTRjYmEyMTdhNzZjYTI3Y2JjYTY0N2JmZjRkYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L30-L39",
+          "version": "repo-lines-v1:sha256:4ec4bda85057698b1b4d7606d9e228304c25702629001e92e189f0f9526ade70:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdiY2QwNDM1NjAyM2Y2YTM4NzA3ZjBjNDAzZDhkNDI5YTNiNGRmNjA0NWY3ZTdmNTliNGU4YTBkYTI3MTQyZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmN2Y1MGM1NDRlNWQ1NTY3OTcyM2RjZjA0Y2VmODdkNjViZjc2OTIzMGRiMWJjMGQ2NWQ0NWY3ODVmMTc4ZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0OTE5YzBkMjYzMmVkMTZkYTMzOTlmZmUyYmVkYjk0NGU1MGI0MzllYjNkMGIxNGMyYzMxOGQ1MzM3YWUxNzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L41-L51",
+          "version": "repo-lines-v1:sha256:55535f2c1f9b43823db63c5489b8bf57f896184c934a0abae28d2d2c6250b1a0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliYWFkNzZmMzg2MjQ1NDc4NzRmYmJmYmYwMjgzMzQxOTBlNDYxNDIzOTNhNmRhNWM0ODllNzQ1Njg5MDQyMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY5MDYzMmJiNDA3N2RiZTk1MTA0NjE1N2RlMWJmOTZlODZlZjkyMzYzZjdjMDFkODY5Mjc3MmM4OTcwZWM4Y2MifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L133-L147",
+          "version": "repo-lines-v1:sha256:27bdf2c74e2ee90ef402471c242146c40520876fbb3ece1a8004ca1a5f25092f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0YjkyMzEzMjAzMmRhZGZhZGU1MjM5YTM1NzZiZWM0YzI5NGUyODdjNjQwOTRlZDAzZmU0ZGUzZWQyMTYwNTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFkNjFjZjkwMzZiYzk2ZjZkODRmZTM0YjQ4YTJjMzE4ZmI2OTU5YTY4NjU5OGI2MGU0ODc1ODZjYzJkYWUyOWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzNGZiMjM3NDY5MDc5ZDIzN2QzNmE4M2I2Njc4MjM4ZjE1OWU3NjgxN2QwZDUyYzVjOWRlMjIyYzRjNGVlYWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_10eb830f1b184d41832aef78760594dc",
+      "statement": "Every scanner invocation is wrapped in its own `try`/`catch`: a failing scanner emits one `console.warn` line naming the tool and the error (`agent-sessions: <tool> 扫描失败，跳过：…`) and contributes no sessions, while the other tools in the same call still scan.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L43-L51",
+          "version": "repo-lines-v1:sha256:a46de5c37354260a944bfa43313042561c263ddd24dcb48ac683b82f2b00982d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWE1ZjY4YmQ3ODFiYTdhMjdhM2Y4MjU1M2RmN2RmZTA0M2I4MTEyZmIwMjhlY2VjYTI3Mjg4YThkMDE3OWNhNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ5MTljMGQyNjMyZWQxNmRhMzM5OWZmZTJiZWRiOTQ0ZTUwYjQzOWViM2QwYjE0YzJjMzE4ZDUzMzdhZTE3MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjkwNjMyYmI0MDc3ZGJlOTUxMDQ2MTU3ZGUxYmY5NmU4NmVmOTIzNjNmN2MwMWQ4NjkyNzcyYzg5NzBlYzhjYyJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L133-L147",
+          "version": "repo-lines-v1:sha256:27bdf2c74e2ee90ef402471c242146c40520876fbb3ece1a8004ca1a5f25092f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0YjkyMzEzMjAzMmRhZGZhZGU1MjM5YTM1NzZiZWM0YzI5NGUyODdjNjQwOTRlZDAzZmU0ZGUzZWQyMTYwNTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFkNjFjZjkwMzZiYzk2ZjZkODRmZTM0YjQ4YTJjMzE4ZmI2OTU5YTY4NjU5OGI2MGU0ODc1ODZjYzJkYWUyOWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzNGZiMjM3NDY5MDc5ZDIzN2QzNmE4M2I2Njc4MjM4ZjE1OWU3NjgxN2QwZDUyYzVjOWRlMjIyYzRjNGVlYWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f7d3d378a7be4019997bc17123bb93ee",
+      "statement": "`makeSession(tool, sid, project, age, state, options)` in `app/src/main/scanners/types.ts` fixes the normalized record shape to exactly `tool`/`id`/`project`/`running`/`age`/`tasks_done`/`tasks_total`/`state` (the shared `SessionInfo` contract): it rounds `age` to seconds, defaults `running` to `age <= RUNNING_WINDOW` unless the scanner overrides it, and maps absent task data to `null` — distinct from a real `0/0` count, with `tasks_done` itself able to be `null` beside a positive total when zcode's `SUM` group is all NULL.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/types.ts#L23-L42",
+          "version": "repo-lines-v1:sha256:854cfe5298874147582fdaccad9b4d0133236a97361bde6e96e4b97d3692f5dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2NTA4NmEwYmMzMTExZDY4NmVkZWU2NDVkOGQ4N2Y1MDNkZDczY2U4ZWJlMjBhY2JlZWM1MWJiOGQ5MjQyMWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllOTgyNDkzYzgxZDZmYWM0Y2M5OWY0Y2NmYTM0Yjk3YWNlNjdkZDUyMzQ2YWFhMGIxZjBhZjI5YTkyOTkxNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L35-L42",
+          "version": "repo-lines-v1:sha256:3447f0149d45fff2dce93a0e81da7e0724a0bd297e502468f479b6d9760db103:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzU2NjFjNjgwY2Y2MDM1MjZmYWMzNDZjMThjMGJjMWRmZjMxZjMxMGM3Njg5ZjcyYWMzNGI4OTE2NjVkMTAwZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDI2MWU3M2U3YTk1NmNlZjliOTA1NWY2ZmJkMjEwMjc1ZTI1OWJkMTZmY2ZmOGM3NDU2ZjRlYmQxYmY3NmY5ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDdmZWU2YmQzZTMyNzEwYTRiYzYzNzBhZmJhZDAzZDFhZmJkZDM5ZGM0NjExYWNlODU3MWM5ZGMzMDBjMzkxYyJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L15-L29",
+          "version": "repo-lines-v1:sha256:a6229d2436ab5755c8b90f141d8cbf16513ac2f4b5524c6ea625e3cdd71c71c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0ZDg5NTBjNjYzODA0YzFlNGIyZmYwZDI3YzNhNzk5ZTlhMzBiZjg1NDA5ZmM1MjlhY2NjMmQzNWZkZGI4YWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIwYzBmYmUzODk3MjBlYmVmZGJlMGY2NTY2ODg3NjlmZWVmZDY5ZTZlNWNhZWRiNGQ0ZTc5N2M1NzY0YWY2ZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyYmZlODUxYTU4ODA3NjQyNDljMTY5MTk0OGU5OWE2Y2Q3ZmEzYTQ5N2E3MDRjMjNmOTc0NzI5N2NhNmI5YTcifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/hermes.spec.ts#L91-L98",
+          "version": "repo-lines-v1:sha256:242af08feb229e876204b4c602dca8bae5453b7764a0093c611596138f959671:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzNiZDE1NzRiMTNmNTU2NDI4MThkZTk1ZDg4YTBmN2ZjNGI2NWI5ODgyMDUwZTcyMTc4M2Y1ZWYxN2IwM2RmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTM4MGE1OGU5YTRkZDc3ZThhNTA0YTEwODc0ZDdlZWYyNWM1MzNjZGE4YzU2Yzk4ZWJhNzQ4NmFhMzFmMjgwMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTc1MTk2ZWM0OWU2YzNlMDcxM2NmYzBiMmNhNmY2Yzc5N2Y0MjVlNDQzODU0YThlZWY2Mzg3MjIxMzIxYTJlMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cfff67b41b79421b9296ca0e97e42ba7",
+      "statement": "Session identity is `tool` + `id`, chosen as the front-end DOM diff key because ids from different tools can collide and would otherwise overwrite each other's row.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/agent-deck-multi-sessions/spec.md#L35-L35",
+          "version": "repo-lines-v1:sha256:ef0e8511250a26dab778005a77c5d72441cd87b40967a674c7450f452e52d3d4:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWYwZTg1MTEyNTBhMjZkYWI3NzgwMDVhNzdjNWQ3MjQ0MWNkODdiNDA5NjdhNjc0Yzc0NTBmNDUyZTUyZDNkNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWYwZTg1MTEyNTBhMjZkYWI3NzgwMDVhNzdjNWQ3MjQ0MWNkODdiNDA5NjdhNjc0Yzc0NTBmNDUyZTUyZDNkNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjg0YjNkNGFmZDMyNzMxODkwMDQ3YjcwOTdhYmRhYmViZDFlYmRlODA3MGEzZjA3YWUzYjg1Y2M2ZDFhNzhhMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGQxZDNlOWUzYTUwOWJiOWVjNGJhMTI4NWMzYjIyZTA0MmZkODA1NTc0NTk0MzdiOWU4ZTA0NjYzYWJmMWVhMCJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-multi-tool-unified-session-model.md#L17-L17",
+          "version": "repo-lines-v1:sha256:d89885346f00dc77c85339a418c385b7bab140010ad1f21938aba49c1ff6db2f:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDg5ODg1MzQ2ZjAwZGM3N2M4NTMzOWE0MThjMzg1YjdiYWIxNDAwMTBhZDFmMjE5MzhhYmE0OWMxZmY2ZGIyZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDg5ODg1MzQ2ZjAwZGM3N2M4NTMzOWE0MThjMzg1YjdiYWIxNDAwMTBhZDFmMjE5MzhhYmE0OWMxZmY2ZGIyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiYmZjNTkwYTFjMDJhZjE0NDI2NGNmMzg5MWZjNGJmMTM4OTQ3Nzc2ODAzYjMwMTQ2NWJhMzBlNjc3ODM4YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_23a6110ef87f4551a86f4f1513f2c09a",
+      "statement": "Two constants in `app/src/main/scanners/types.ts`, re-exported from `scanners/index.ts`, are the single definition behind every window decision: `RUNNING_WINDOW = 90.0` (age at or below it counts as running) and `ACTIVE_WINDOW = 600.0` (anything strictly older leaves the list, while the boundary itself is still listed). Window and state decisions run on the unrounded age, and the seam tests derive their boundary instants from the fixture file's mtime plus these constants.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L19-L19",
+          "version": "repo-lines-v1:sha256:987ae8480745fbc8aee77da86fb3bd8b0b291624ea2914a7a3314b164f8c8d76:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg3YWU4NDgwNzQ1ZmJjOGFlZTc3ZGE4NmZiM2JkOGIwYjI5MTYyNGVhMjkxNGE3YTMzMTRiMTY0ZjhjOGQ3NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg3YWU4NDgwNzQ1ZmJjOGFlZTc3ZGE4NmZiM2JkOGIwYjI5MTYyNGVhMjkxNGE3YTMzMTRiMTY0ZjhjOGQ3NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGQ3NjNjZWVjYzVlOGU3ODA0MWQ2NTFmMzIzZjM1ZjNkOGM2MDVhNmM1ZTcwYjQ3NDEyMzQ4OGFjMzcyMTQ5NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2FjZTZkYjZiMzY2MjVkYmQ2ZTk4ZjA3ZmRhN2RiYjYxMmY0NzkwODBhYTQ3M2ZkN2VhYTYzNmJiNzI2ODFlYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/types.ts#L11-L12",
+          "version": "repo-lines-v1:sha256:3de0d9f221bf9eea3d603f15bcaa5ad33631f7def89b8f435a5429fb082498e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDU1ZWQ2ODkxMjg1NDhlYjVmMzI4YWVjZjEyMjk0OWE3MDIxYWQ1ZGE3MmFiN2QxZjcwYzA2ZTc5YTU5MDY2OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmMyZTc1OGM2YTVmNjU5NWMzMzNlODE3MGFiOGQ2ZWEzOGNlZWVjODM5MTBhMDNmMGQ3NmYxMTg1NzZhNzEwMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWYxMGUzM2NkMDBhNjc0MDIxM2EwMDJiMTA5ZjNlODQyYzg2MGQ5MTcyNzRkYWRmOTE5MTZiNzY2N2IzOGJlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWQ5NzU4N2U3MzVkOTQyNTcyNDZmYTAwYzNjZTE4NjA4OTY4ZmZlZmRmZDZkMTNhYjRjMzMzNmYwODIyOTA5MSJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L76-L93",
+          "version": "repo-lines-v1:sha256:59d222ccd207ddeec65ae995cbbf0d6c6fb3dfe2cda32ae7307a153dc4cd6038:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkNThkNmI1NzIxYWUwYWYwMzI2ZWUwMzY5MzY5Y2NmOGUwMjQ5NDA3NzkwMjQzZGVmY2M3ZThkY2JlZjRiZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiNmQ2MWU0ZmY2YmVjN2U0YTY2MjZkNGFkNTE0MmVlN2NlNmQyNTM4NjhmMDNkZGEyNTA1ODRjN2I3YTE2YzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhOTA0NWExYmVlOGRkMjU4NzEyZjUyM2ExNjRkNGFhZmRlYzQyODViYmQ2NGJlNjIyZGIxY2RhZjA0ZjY0MjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_061c16273fcf4a318cba902a9fce534a",
+      "statement": "The shared four-state vocabulary is RUN/CONFIRM/DONE/IDLE, but only the qoder scanner derives all four via `sessionState(age, role, kind)`: RUN wins inside the running window, otherwise an assistant tail ending in `tool_use` yields CONFIRM, an assistant text tail yields DONE and anything else yields IDLE, so non-qoder rows can never show CONFIRM — the accepted distortion recorded in ADR-0003.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L160-L169",
+          "version": "repo-lines-v1:sha256:d36e41927349c788bc4c656d5abec6c8ceb4803eea0ec8566fa9265720849db3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhYjg5YzQ3ZTI4YzEzYjg3NzdjMzA2ZmQwZTk1OTc0NDM3YjRhMTg1ODM5ZTVlNjdlZjE0NTg0ZmY4OGQ2MTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDU5NGQ0YzhmMTAzMmU1ZjVkZGQyMjc1OTc5ZjhkZjg2YWVmYjUyOWM2NzRlNjk0NzdkZTU2NDUyMTg4MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1MWQxZWM5ZDY2OTFkMGE4OWY1MDNkODUxNDFmNTkwNjc2M2M0NTFmZDQyNzRjYTk1N2Q1NDhmMWU1NzVkYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L58-L63",
+          "version": "repo-lines-v1:sha256:0349ac587ab8d3967a21e074d4e91ce2d4fa881bf69c5487dc8de5980170699e:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTdiYWRkMjljOWZiMzUyYTlhZDhjOGI0ZGViMTI1NDAzMDI5ZmU1MGQ0MjQ4NGY3MmI1MTY0ZjAzNTYyMjIzMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGUyZDZiYWRlMDNjMjk2MmQ1NDE2MjJkMTlkYWExNjFlZTc3MzUwMmI4MmM4MTk5NzNlNDJlOGEwMmZhYzA0YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjFkZTA0MDcwZTQzZGUyZDMxZmE3NmJkMDdhODA3OGFlMzdkOTJmMzBmOTI5MzNkZThlYzA1NGExOTU5YzQ4OSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-multi-tool-unified-session-model.md#L14-L14",
+          "version": "repo-lines-v1:sha256:4e8d429421dc6e4b5d3d04ad7ae9f4395ac98a3af10842c2d1260119e8f5ca49:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGU4ZDQyOTQyMWRjNmU0YjVkM2QwNGFkN2FlOWY0Mzk1YWM5OGEzYWYxMDg0MmMyZDEyNjAxMTllOGY1Y2E0OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGU4ZDQyOTQyMWRjNmU0YjVkM2QwNGFkN2FlOWY0Mzk1YWM5OGEzYWYxMDg0MmMyZDEyNjAxMTllOGY1Y2E0OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDBhNWU2NzM0YTEyOWQ2OTczNThjZTg0NDhhYjJhNTU4NGUxOGVjOWQ4NTRkYTI2YjFmMGU5YWVkODRlYTE2ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3853e2e1a22c45eab0906d44b10cc12f",
+      "statement": "Evaluation of the qoder state split relies on `sessionLast`, which reads at most the last 128 KB of the session jsonl through `readTail`, walks the lines downwards and classifies the newest `assistant`/`user` record (kind `user` for a user record, `tool` when the assistant content list ends in a `tool_use` block, otherwise `text`); lines that fail to parse are skipped, and a file with no recognizable record or an unreadable file yields no role/kind, which degrades to IDLE outside the running window while the session is still listed from its mtime.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L11-L56",
+          "version": "repo-lines-v1:sha256:ff1e473e28d6f19d813fe3fb84306eb79d8daabc6600020191448ec2c01046f1:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlZWY5ODViNWUxY2MxNjBlYTA2ZmNhMjI0NWMzNjQ0ODEzMGYyZjE0MjI2MTE5ZDY3ZGNkN2QxZTQwYjM5ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3NTk5NzA2YjUyYTAwZDQ4NGRmYThkZGYxNmI4MTkzZTc5NTNkZmEyNDMyYjA4M2U1YTdkZGMzOGM3NzAxYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjYmZlNWM0YTY2ZmJjNGNjNzkzYzRjMDgzNzkyZjAwZjhjMTkzMDMyZDgwZWQwYTk0OGJlMjAyYzJiMzE2YzAifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L149-L159",
+          "version": "repo-lines-v1:sha256:649dabb038a7267bbc2aa0c226b8ef7f746e750b098d11116ea35c23cd492d66:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4OTMyM2U3NTA0MDUwOTlkYjc3NDQ3MjgwNmEzNDY5ODBiOTYyYWRhNjgzNzkxNjlhMDMxMDc1ZjA2YTBlMzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L52-L72",
+          "version": "repo-lines-v1:sha256:6420e9f0a0d999e27ce3e8b784183ee3b78e915b371c75f35de10fcf48b06996:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzMDZiN2JjNjNjYWRkYzI1NWVkODUwYzE3OWE3YTM0MDBiZWY0YTA0NTIxNWRkODA3MjdhZTI4NWY5ZmIwN2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUxYzk3MzY2ODJlM2FhZDVkMjgzNjQwYjBmNjRjMGE5MzJlM2Q2MTNmMDM5MjE3YjM2MTk4ZGVlMTVjN2JkZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiNmQ2MWU0ZmY2YmVjN2U0YTY2MjZkNGFkNTE0MmVlN2NlNmQyNTM4NjhmMDNkZGEyNTA1ODRjN2I3YTE2YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_de1ba5fa47e54183bf52a4a972a54d0a",
+      "statement": "The qoder scanner's row source `qoderJsonlRows` enumerates `projects/*/*.jsonl` with the file stem as the session id, uses the jsonl mtime for age and drops anything past `ACTIVE_WINDOW`, and `scanQoder` then enriches each row with task counts from `tasks/<session id>/` and a project name.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L124-L170",
+          "version": "repo-lines-v1:sha256:9e320bf208d0eef39c5ab632c877b5b11157e669d005c06b376d02aeabcf8197:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYjIwNjE0YjhjNWE4ZmRjM2JmOGQ0YjZkY2E1OWU2NzBmOTA2N2M0ODk5ZTU5NzRiM2ExNWI5ODZkODljYWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2MDVlYjYwNWI3N2E5ODk0Y2I3M2EwNmIwNmIyMzFjYTc1MGQ4ZWExYTk3MTc3ZDViY2MxYWYwNjhjNGE0YTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L33-L48",
+          "version": "repo-lines-v1:sha256:ee416264963eaa18fd1ef3cb796994120f3202654ddc17eef9f087df3f5192d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMDA5MjYwYzA4M2JiM2I1OGQwNjhiZGQwMWI5YjU3MTc4YjQyYWI2YmI1ZjdlNWE2Mzc3ZTFmZWQ2ZmNhODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkOGJiYTliYTBjMmUxMTdmNGU2NmUxY2FhOTRhZTgxZmViMWI3YTA5MzljNjU5NWZhMzM2NTlmYzBiMTY1NzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxYzk3MzY2ODJlM2FhZDVkMjgzNjQwYjBmNjRjMGE5MzJlM2Q2MTNmMDM5MjE3YjM2MTk4ZGVlMTVjN2JkZTMifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L97-L110",
+          "version": "repo-lines-v1:sha256:32adf916060e57a75292855d8fc15f7855813ab211cfdd9ac74b4e39e9375aa7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxZjExOTNkM2NiZThjZjljYmIyZGJjNTExY2NjODY5NjUxODAwNTM3ZTYyYzBjNDM2ODNlNzljOTQzNDczOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhOTA0NWExYmVlOGRkMjU4NzEyZjUyM2ExNjRkNGFhZmRlYzQyODViYmQ2NGJlNjIyZGIxY2RhZjA0ZjY0MjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0NDU4YzYyN2NhMjU2NDIzYmM5ODIzYzYyMTQ1ZGM2YWE4YzllMDljMGE0NWZmMTgwNzU5Y2E4OWFjNGIzODMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_906aeac4754f400aa0d839b7df2228c8",
+      "statement": "Archived sessions are excluded inside the scanners before the seam sees them: hermes skips rows whose `archived` column is truthy and zcode skips rows with a non-null `time_archived`, so reaped or archived work never reappears inside the active window.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/hermes.ts#L44-L46",
+          "version": "repo-lines-v1:sha256:9a26f357c1236666585233c7f8c469f47d3bbe15b2ceb317c910a811a5f19817:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWQ3NmVkNTA3MzdlMmNkOTAyMDUzMzYzN2NjYWM1MDJhNjM4NDFjMGY1OTY4N2FiNThlZGMyOWNlZTc1N2Q2NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDM0MDc2MzgwYjdlOGI3NzE3MjJlODI5ZDRmMGNkOGIyZDI3ODk0OTg2Y2M0NmMxNGYxZGY4YjhjNmY4MDAxOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDI2MWU3M2U3YTk1NmNlZjliOTA1NWY2ZmJkMjEwMjc1ZTI1OWJkMTZmY2ZmOGM3NDU2ZjRlYmQxYmY3NmY5ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjc5YzE1MmU3Y2E0ZWZmZTg2NzgzMjVjNzdhYTBmYzQwNjZiNmNlNjA1NTQ5YTY2OTdjODhmYzg0YjVhZGQyYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L44-L47",
+          "version": "repo-lines-v1:sha256:20eaa278ce986aa3859eb9ad33e300986cbfe981758678f5bf422d125e56c014:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmYyYjZjZGE4YWYwNGY3M2Y5OGQ2ODFkZDk2OTlhOGQwMGRlYjY4YzA2ZjZjNzg0OWIxYThlNWI3NGU0MDk1ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODJmOTMwZDFlYTc1ZGRkNTQwZjdlMDc2NTczOGY0ZTBjYjM2NWEwMmQ2NzIzMjcyZWYzNzA3OTM0ZDgwNWE4OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmZhMWJkNGRhMjE0YjYyNzRkMzc2ZTU0NzkxYWQ1ZGIxNGJhODA4MzZjYWM2NGVhNWNjMTZkNDczOWQ2Y2M0YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWJhZDFlMzMwNzZjNzFiOWQxMDczZWFjODhhNGM0Zjk2OTdiYWNjOTU3MDc1ODljODFlMDVkNzdjYWJmMTMwMiJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/hermes.spec.ts#L77-L82",
+          "version": "repo-lines-v1:sha256:a998033bdd4189b8c5b87744a8022d7ab618ea9434ee5b9b9bd608997dfeccae:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWI5ZjRkM2FjNmFiNzY5ODUzZDhkYjg2OWNiOWIwYzRiMjAxOTdkYjZlYjc5MDFjZDcxMjFkNzYyNTZiZjEzOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTM4MGE1OGU5YTRkZDc3ZThhNTA0YTEwODc0ZDdlZWYyNWM1MzNjZGE4YzU2Yzk4ZWJhNzQ4NmFhMzFmMjgwMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWE2MmY0NGZkMGIxNDFiMjQ3YTAzNWE1YTJlM2EzYjdiNDU2NzI5Y2Q5ZWNhMWU3ZDUzODMxY2IwN2VjNzA1MyJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/zcode.spec.ts#L74-L79",
+          "version": "repo-lines-v1:sha256:4b390a69610496aeb48c1d5c764dcb44ada8981c04919b59746347c2372b4f0d:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWI5ZjRkM2FjNmFiNzY5ODUzZDhkYjg2OWNiOWIwYzRiMjAxOTdkYjZlYjc5MDFjZDcxMjFkNzYyNTZiZjEzOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTM4MGE1OGU5YTRkZDc3ZThhNTA0YTEwODc0ZDdlZWYyNWM1MzNjZGE4YzU2Yzk4ZWJhNzQ4NmFhMzFmMjgwMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWE2MmY0NGZkMGIxNDFiMjQ3YTAzNWE1YTJlM2EzYjdiNDU2NzI5Y2Q5ZWNhMWU3ZDUzODMxY2IwN2VjNzA1MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9dbd453a3e5547b4a25f08946ddad10c",
+      "statement": "hermes is the strongest signal source: RUN is true when the session id appears in the active-lease file `runtime/active_sessions.json` (which keeps an old unended session running across write gaps) or when `end_reason` is null and activity is within 90 s; an ended session is DONE even when recent, and an unended quiet session is IDLE. Age comes from `last_activity_at` falling back to `started_at`, and rows where both are null are dropped.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/hermes.ts#L33-L58",
+          "version": "repo-lines-v1:sha256:7c1ba5c62bb449627f890ab45557711c9568ec2cb3d53185e805bc826caabe17:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkM2ViMTE4MGEyMTkwMDE1ZWQxNjgyMGZkNjMzZWY5YTlmODg0YWJkMmYwMDYxNjNlOWEyYjE4ZjhkMTE0YjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwNWZhMTFlNGVlNTNkZGZkM2VkNTY3ZGM4OTk0ZjkyMjlkZTY5ZDRlMWQ0YjAyODk1ZjVjMmZlMTYwNzQzZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/hermes.spec.ts#L35-L75",
+          "version": "repo-lines-v1:sha256:ed32d1f0f2ead234279cda2ec6590d7c97af06df24b009e8b01dd67df57d11d8:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNGE2YzY0NWZhZTNkOTE0YmU4MGFiNmI2ZDhmYjhiYjg1MTQxNTNjZjE4ZTA5NzUzMGE5ZDljN2QxYzQ0ZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAxZWY4M2VkOTNjZWY1MmI5ZjNlMTNmOGQ0YjU2MzMyNTkzODYwNzExY2E4MWZmZTU2MWU5ZDBhNDBlYTc2NGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlN2QzMGY4YzYzZGUwNGJmNmZhY2Y5OWFkMmQyNjQ1OGQyNjgzZWQ3ZmIxNDRmZGIxNDZjYTE0NjkzYTkzYjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_99acaf87075041fab116919d4ae58d2e",
+      "statement": "hermes tolerates a corrupt lease file: `hermesLeases` catches any read or parse failure of `runtime/active_sessions.json` and returns an empty lease set — silently, with no log line — so the tool still returns its sessions, just without lease-based RUN promotion.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/hermes.ts#L8-L22",
+          "version": "repo-lines-v1:sha256:04d6a9eb795651644d1ac92648b9efaa4f53fb498654230bec99b56ad2af901f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2MWNjNzdkZDZkZGEyZjEwNWJmYjI2YTFkOGY4MGJmMWRjM2ViMzIxYzI0NTExYmEzYjI1ZWVlZjZmYjllODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyZGRhNWIzYWMzZmYzYmI2MmViOTdiODdiNjdkZWM1ZmRhOGRjNGNjNDYxNGRlNTc5OTU0ZTAwYjQxYTI3YWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlNDdlZmJjYTAwZTI2ZmMwZGQyNzRlMzBkMmM5M2Q1ZGNiNWI5MzQzNzJlYTNmM2VmMTU0NGM2MWI3MGRiMDQifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/hermes.spec.ts#L107-L116",
+          "version": "repo-lines-v1:sha256:76339a2f23eda2d105740c7336de034eef7e2c78d4bd606b5a341040638ed739:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwOTcxMmQ1Njk4MGQyMjAyZmRkYzFkMzAxZmM4ZTRmM2IyMDAxZTBlOGZkNWRiMDllNTJmNWYxN2UyNDQzODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjYzllNjViZDliMDE5MzRkNTIzNDllYTdiZjM5NmJlZGY4M2ZhNDhiMjA0ZmM1MjkzYjk5YWZmNjllMTk0NmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_026d98d3972741d28b6b64014a79c22e",
+      "statement": "zcode judges liveness from the explicit millisecond timestamp `time_updated`, converted as `now - time_updated / 1000`, with no further heuristic than the shared window, and derives per-session progress from the `todo` table with one grouped query (`SUM(status = 'completed')` and `COUNT(*)` by `session_id`), defaulting to `(0, 0)` for a session with no todos and to a null done count when the `SUM` group is all NULL.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L22-L56",
+          "version": "repo-lines-v1:sha256:0d676f33b39175c4bd9eec950806523743e070b4c42678b1ef81c4a3f71f84ba:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmOTNiMzQ0ZmI0YjlkY2VjYzc2ZGU2ZjcwYzU0MjY4Njk1NWI2ZDdlZjcwNmIyOGY3NDYzMDFiMjA5ZDdmOWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDU5NGQ0YzhmMTAzMmU1ZjVkZGQyMjc1OTc5ZjhkZjg2YWVmYjUyOWM2NzRlNjk0NzdkZTU2NDUyMTg4MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzY2E4YWE5Y2EyMTU3NjBmOWU3ZjJjNjY2NjIwZGZiNzRkMWZlODNlMWUwNmNjMjcxZTkwMTg2ODk0ZjExYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/zcode.spec.ts#L35-L72",
+          "version": "repo-lines-v1:sha256:6ca3d23f131d40ed7a81077cb3aa6f1645873a71ece1ecdd417d713387f3da4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5ZWE1NGYwMDQzZDFiZWIxYzA2N2I4ZGJjNzRjNzMxNjVlNmFkMWU4ZWUwNzhhYTFjM2ZmOGQyYmVmYmQ1OTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2YmUzMmI0MDNiZTE4YTlkMjBiZjNhZmE0YTE1NmMxN2U1NWUwMDIwMDAyMDFlZWQxMzYyMWExMzA0MmJiNWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlN2QzMGY4YzYzZGUwNGJmNmZhY2Y5OWFkMmQyNjQ1OGQyNjgzZWQ3ZmIxNDRmZGIxNDZjYTE0NjkzYTkzYjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3cd2129f8ead443999536fefc8a7facb",
+      "statement": "zcode subagent sessions are filtered out inside the scanner by the `sess_subagent_` id prefix (`ZCODE_SUBAGENT_PREFIX`) because they dominated real data as list noise, so they never reach the seam.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/agent-deck-multi-sessions/spec.md#L65-L65",
+          "version": "repo-lines-v1:sha256:55b337aa7df2097e5b2e134e39eea5289f73026a688bb9c442dc074e03dac95f:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTViMzM3YWE3ZGYyMDk3ZTViMmUxMzRlMzllZWE1Mjg5ZjczMDI2YTY4OGJiOWM0NDJkYzA3NGUwM2RhYzk1ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTViMzM3YWE3ZGYyMDk3ZTViMmUxMzRlMzllZWE1Mjg5ZjczMDI2YTY4OGJiOWM0NDJkYzA3NGUwM2RhYzk1ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzA5ZmJiMjhjNTJjMjYxYWQ2ODI0MTE0MjJlMzc1MTMwNDg2NTE2NDI3OTRlOGE1MTM4N2QzYjJjZTVlOGIzNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzIxOTNmMGIzZDZhNWQyZjM1MzNjZmViZmEwZjUyZGVjNzQwYzc3YTFhOTc3ODIwNzliOWU0NGM0ZGJiNjJjZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L44-L47",
+          "version": "repo-lines-v1:sha256:20eaa278ce986aa3859eb9ad33e300986cbfe981758678f5bf422d125e56c014:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmYyYjZjZGE4YWYwNGY3M2Y5OGQ2ODFkZDk2OTlhOGQwMGRlYjY4YzA2ZjZjNzg0OWIxYThlNWI3NGU0MDk1ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODJmOTMwZDFlYTc1ZGRkNTQwZjdlMDc2NTczOGY0ZTBjYjM2NWEwMmQ2NzIzMjcyZWYzNzA3OTM0ZDgwNWE4OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmZhMWJkNGRhMjE0YjYyNzRkMzc2ZTU0NzkxYWQ1ZGIxNGJhODA4MzZjYWM2NGVhNWNjMTZkNDczOWQ2Y2M0YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWJhZDFlMzMwNzZjNzFiOWQxMDczZWFjODhhNGM0Zjk2OTdiYWNjOTU3MDc1ODljODFlMDVkNzdjYWJmMTMwMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L7-L7",
+          "version": "repo-lines-v1:sha256:48dc6682e74d9a6bb54c3a50c6c1fd2e766159f80fcd12f4f10ad74e39301f1b:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDhkYzY2ODJlNzRkOWE2YmI1NGMzYTUwYzZjMWZkMmU3NjYxNTlmODBmY2QxMmY0ZjEwYWQ3NGUzOTMwMWYxYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDhkYzY2ODJlNzRkOWE2YmI1NGMzYTUwYzZjMWZkMmU3NjYxNTlmODBmY2QxMmY0ZjEwYWQ3NGUzOTMwMWYxYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDJkZGE1YjNhYzNmZjNiYjYyZWI5N2I4N2I2N2RlYzVmZGE4ZGM0Y2M0NjE0ZGU1Nzk5NTRlMDBiNDFhMjdhZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmI3NDI3NDAyOWIxODk2ZDhiYWEyYjhhMTEyYjhhNTU0Mjc0ODAwMmMyMGQ5ZjBiNjJkYmMzM2Y0MTliNTY0ZSJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/zcode.spec.ts#L88-L95",
+          "version": "repo-lines-v1:sha256:b3822d4641082954b6d86417a4f7bfc29d15cecf705eb02e7819687891fac128:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzI3ZWU4MjEwMDJhYTc4OTQzOGJjYzZmMzAwNjJkNjE2YzZhZmRiYzRjODAzZTFjMjBmM2YxZTcyMGFhM2U4YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTM4MGE1OGU5YTRkZDc3ZThhNTA0YTEwODc0ZDdlZWYyNWM1MzNjZGE4YzU2Yzk4ZWJhNzQ4NmFhMzFmMjgwMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTc1MTk2ZWM0OWU2YzNlMDcxM2NmYzBiMmNhNmY2Yzc5N2Y0MjVlNDQzODU0YThlZWY2Mzg3MjIxMzIxYTJlMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_06419528fb7a44d7844aaa9759704342",
+      "statement": "kimi code derives age from the newer of `state.json` and `agents/main/wire.jsonl` mtimes (so an actively written wire log keeps a session RUN even when the state file is stale), emits only RUN/DONE, and degrades per session: a `state.json` that cannot be read or parsed skips that session while the tool's other sessions are still returned.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/kimicode.ts#L25-L47",
+          "version": "repo-lines-v1:sha256:5fd7e0bf859a988fb89e279a3fde562047847003d1a50ec7f551f5c77800ec76:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkNTNkN2EyOWY0ZDJmOThiNmRmNjFkNzYwYjhiODJiNDE4NWFkY2Y3ZjYzZjg4M2VhYzI0ZGRhNzcxMzQwNDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU1NzE4ZWQyMDQzMTdjNDMzMmY1ZTgzYTNjODc3Zjg1N2Q1Mjk1OTczYzliZTBkOTY5ZjY3MmU1OGU3MDQwMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIzNTJlYjFhOWQ4YzQ1MWJjNzI1MjFiYTY2MmIzZWM5NDg0Mjc3ODc0NGNjZTQ4NWY1ZGQ1OTdjZGI5MjBmY2UifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/kimicode.spec.ts#L42-L64",
+          "version": "repo-lines-v1:sha256:7c24a442d94254e4acf4d033b776f40d80466d6fc4716d092f5d646422d42c53:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NzJhNWU1ZTBhMTUyYzM1Yzk1ZTQ2MTMzNjMwZjg3MzE0NjMwZjQ3M2I5Y2NmNjExYjFlZWY5YzEzMTQ4ZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwYzZkMTg5NWJjNzg2OTE3M2YxMDJmMWZkYmI4ZjQ1MDU1ZTJiZmRjMTg2YTBhNjA0YmQxOGU1MjE4MDBmNjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0NTM5ZGE3MzM5MmQzOTkzMzdhMGM0ZDhlMjE3NGNjMzM2ZDE2MGI3NmVjMTkzY2Q4YTVhODJlMjBkMDQ3NGEifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/kimicode.spec.ts#L66-L76",
+          "version": "repo-lines-v1:sha256:1941b8ef3eb6672e4f2534da31cb4ede14f171781b79eac1accdc146753e2513:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3YjQ5ZmMzMTFkMDZiNDkwMjU2ZTAyNzA5YWU4OWI2ZGQ1YjcxYzVmNjZjNDYwNjRjNjVlNThkZGI2YmRkZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhZDU0OGNmNGI0Y2M4YmZlYzBkM2Y2ODlkZDk1YTcxMzA5MDBkYTc0ZTM3MTUxODQ3MWNkZmQzNWU2ZmVkYWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFhNjJmNDRmZDBiMTQxYjI0N2EwMzVhNWEyZTNhM2I3YjQ1NjcyOWNkOWVjYTFlN2Q1MzgzMWNiMDdlYzcwNTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_eadc31507c284755b2f962a588b3606c",
+      "statement": "kimi work is a deliberately degraded scanner: it joins `conversation-statuses.json` with `conversation-context-usage.json`, requires both a status entry and a non-empty `updatedAt` for a conversation to appear, takes age from that per-conversation timestamp rather than any file mtime, maps `status === 'completed'` to DONE and unknown values to IDLE, uses the last colon-separated segment of the map key as the id, and leaves `project` empty with null tasks because the conversation bodies and titles live in upstream private storage.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/agent-deck-multi-sessions/issues/05-kimiwork-scanner.md#L18-L19",
+          "version": "repo-lines-v1:sha256:989467e87e9148d2dad249be8042c126f1c93b970df9d4f4d72845ecb59b9d01:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2QxNDQ5ZGY0ZmRmYWNiMGJjZWMyZjI5M2ZhYmEwYmJiMTA0YzBlYjgzZmQ2MWNkMmJjZDIzYTY1Y2QwM2RiNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODhkOTAyMDMzNTcxZjE3NDEzZWFjYjY1N2Y3N2U3NjFjMmE1ZWQ5OTM2NzU3YjMzYWUzNTk0Mjc3NGI4YjRlMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjkwYmZmYzY3MWEwZThhODczMzNjNThiODRjNGY1ZmY2MzM3MDY2M2E5NDkyMzRkY2ZiNDZjNmJmM2Y3NWU2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjc2YmVlNjhlNGRhNjlkNDVjNGMyMDI4NDBjNzc0NjcwMGM5MzQwNzJmOGQzNGU2MTUxZTY4MmYwNmJjZDgwOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/kimiwork.ts#L17-L35",
+          "version": "repo-lines-v1:sha256:2a8f64017f006c2d5c67d6ded4250800594b586b7dff59459360429132f22fde:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0MmJiMDU1MTA2ZWI1OWVjY2QxMDY4NzQ1NzI1MjQzODBlMTE1M2UwMTgxMTMzZGQwZGFmYzJkODFlOTY3NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDU5NGQ0YzhmMTAzMmU1ZjVkZGQyMjc1OTc5ZjhkZjg2YWVmYjUyOWM2NzRlNjk0NzdkZTU2NDUyMTg4MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVjYWRiMDUzYzc4ZjQwM2IyZjRkM2EzMGVlMWVjZDczMzY4YWViOGI2MzVkYTRjMmM3YTg1MDAzYWQxZGExOTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/kimiwork.spec.ts#L31-L73",
+          "version": "repo-lines-v1:sha256:087a93f27bdc870c307dcf15f65a0d9f3c9725fbe7a3be08cc36065c8606679f:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjZjg4OTE4ZTY1ZDY4NTFhZDFkOTY4MzllMTZiODI5MzQ3NDhkNGM2MDFiMTlmZGY4NWE4MGJiNzIyNGFjY2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiZDI4NGRjMWZhNzRkOTFiMjFmOGY0ZDhmYTg3ZDAzNDk0YzViNTYzMzQ5NTAyZWU1YjBmZGQyOTUwNWFkNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmODA2MjMzYjUxNTUyNTg5MWI4MzFlNDc0NWExMzM1ZDhkOWQ1ZjNmODBhY2Q1MWE1NDQ0OTBjM2E2ODI4OTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_87a374369ef14c5eaf84629b1d41b02f",
+      "statement": "Degradation granularity differs by scanner and by failure kind: kimi work parses both JSON maps before any filtering, so a broken file raises out of the scanner and skips the whole tool, whereas kimi code skips only the affected session for an unreadable or unparseable `state.json`; a thrown type violation — a kimi code `state.json` that parses into a non-object, hermes activity or zcode `time_updated` that are not numbers, kimi work's invalid ISO `updatedAt` — escapes the row loop and skips the whole tool.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/kimicode.ts#L32-L42",
+          "version": "repo-lines-v1:sha256:e64a29489673dfa5cb45f0bcec424b52febb09972f7205ef6bfe1c289ab1d851:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1YTEzYzYyM2ZhOTJhMjAwNWExYTk1NjM5NTEyMjk4M2YxZTJiYmZlZGQ4YzkwYjQ4OGZmNTdlYjQwYmRhZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMTIzNmYyYWVhMWNlNDJmYTJiMGNjYjI3ODMyYzc4ZjVkOGMxYzE5MjM4YTI0MDkyMjEwNjYzZDUzOWVkNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0NWUzMTRjMTkyNWQ3NDA4NjAwNmU2NjMxNGE0NmVjODEyNDJiMDRjYTEzMWZhMTA1MGEwNmRmMTkxOGQ0YzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1ZGUzNjA0NmFiODFmYTc3OTlkYzAzYTViMWUyMmYzZmJmYmNkM2NkNjEwMzY2NDdkMjkxN2YyYWZhOWNjZmUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/kimiwork.ts#L17-L23",
+          "version": "repo-lines-v1:sha256:8aafa226468a56c2cd70b5fc4102ab10e3ab153ed8f71fbee1ded7483bff0ca8:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQyYmIwNTUxMDZlYjU5ZWNjZDEwNjg3NDU3MjUyNDM4MGUxMTUzZTAxODExMzNkZDBkYWZjMmQ4MWU5Njc3MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA4NDA4NzQ1OWIzODYwZGYwYThjMTIyMDliM2ZjZDA4OWY4MzY2NWUyN2ZlYTY4MTdjZDZiOWY1MDkxOGU5NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWNhZGIwNTNjNzhmNDAzYjJmNGQzYTMwZWUxZWNkNzMzNjhhZWI4YjYzNWRhNGMyYzdhODUwMDNhZDFkYTE5NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWYyMWVhNDZiY2RlNTRmYTgzNTc3ZmU1NDIzMDQ5ODhkM2QwODFjZDNlZWI1MzAwYmFhYjBmMzIxNzYxODFkNyJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/kimicode.spec.ts#L66-L76",
+          "version": "repo-lines-v1:sha256:1941b8ef3eb6672e4f2534da31cb4ede14f171781b79eac1accdc146753e2513:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3YjQ5ZmMzMTFkMDZiNDkwMjU2ZTAyNzA5YWU4OWI2ZGQ1YjcxYzVmNjZjNDYwNjRjNjVlNThkZGI2YmRkZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhZDU0OGNmNGI0Y2M4YmZlYzBkM2Y2ODlkZDk1YTcxMzA5MDBkYTc0ZTM3MTUxODQ3MWNkZmQzNWU2ZmVkYWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFhNjJmNDRmZDBiMTQxYjI0N2EwMzVhNWEyZTNhM2I3YjQ1NjcyOWNkOWVjYTFlN2Q1MzgzMWNiMDdlYzcwNTMifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/kimiwork.spec.ts#L82-L88",
+          "version": "repo-lines-v1:sha256:c770479f777a52b588aa4c3590df8cc666a91fa073c87179d96818c199c96077:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzAwMDNlYzljMTkzMGJhZDc1MWEwZmUyZTFlZjM1MzNhZjQzZjBmZTcyM2NhOTM5OWVhMTc0MjdhMmQwZmI1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTIwZDI3ZmE1ZWJiNzczNTU5NDU0M2E5M2YxNjdmYmFlYThiMTM1ZjM3NjRjOTUzZDYwZmY3OWExOGI1OTBiMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_2c663c80d16c46b7aa4d7c1dd8caf79f",
+      "statement": "SQLite-backed scanners open their databases through the shared `openReadOnly` helper, which uses `new DatabaseSync(dbPath, { readOnly: true })` — the `node:sqlite` equivalent of the Python `file:…?mode=ro` URI named by ADR-0003 — plus `PRAGMA busy_timeout = 500` (closing the handle and throwing if that pragma fails); the short busy timeout makes a database held exclusively by its own writer fail fast into the silent-skip path instead of stalling the 1 Hz sampling round, and missing or corrupt database files therefore skip just that tool.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/hermes.ts#L35-L35",
+          "version": "repo-lines-v1:sha256:b19c99ed61a4e90196d497163f5cdba7af9d2b91ffebf45285c302caeefd1335:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjE5Yzk5ZWQ2MWE0ZTkwMTk2ZDQ5NzE2M2Y1Y2RiYTdhZjlkMmI5MWZmZWJmNDUyODVjMzAyY2FlZWZkMTMzNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjE5Yzk5ZWQ2MWE0ZTkwMTk2ZDQ5NzE2M2Y1Y2RiYTdhZjlkMmI5MWZmZWJmNDUyODVjMzAyY2FlZWZkMTMzNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTYxNmFkNjgwMTFlZGM5ZmVhZTE5MTE1ZTJjOTQzNmZiMzdhNjc1ODMxOWY5MjlkMTEwODI1MDIxOTVhZDFhMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDcwMjRhOTg2OWI5ZWRkZDQ0YTJiOGYyZjNhMTI1MTE4MWYxNTgzZjUwNmU1YWIxYmI1MjU5NzQyNzA0N2EwMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/sqlite.ts#L8-L16",
+          "version": "repo-lines-v1:sha256:5211ef53c9ad7d1da9309f6daf0e7bc836143bded1cabdd982a44fe1a1e43446:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRjZTgzYjViNjZmY2ZhZDQ2N2QwMmIzZmU3NDhhNTIzY2MyNzUwYzgyODdiOTNiZmFmOGUyNDhhMTdlNGMwZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDMyMjZjODM1ZTQwODk0NjgxZjRjY2QzMWRhMjMyMTc2NTIyNWMyYWFhMDA0MGVmMTY5MzAyNDkzMTQ4OWUyYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDczZmNhZDg3YjE4MGRmMzE4MzgxM2U5YjFlMTdiMTE3ZjhiZjE4ZTUxYzUyNmFmM2U4YTM5MmRkNGYxNDJjZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L23-L23",
+          "version": "repo-lines-v1:sha256:16eb82d59f79b0a0227394b1ba5bc0395c796dad9deea10bd4590cd2af7e55aa:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZlYjgyZDU5Zjc5YjBhMDIyNzM5NGIxYmE1YmMwMzk1Yzc5NmRhZDlkZWVhMTBiZDQ1OTBjZDJhZjdlNTVhYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZlYjgyZDU5Zjc5YjBhMDIyNzM5NGIxYmE1YmMwMzk1Yzc5NmRhZDlkZWVhMTBiZDQ1OTBjZDJhZjdlNTVhYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjQxYWJlZDE1OTkwNGE1ODg2NzgxMmIzNzNiMGI4YzRmNDQ5ZGIwOTNmYjQzYzE3MzdhNWI0MmU1NzI2ZWI1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYThmNTI0YzA2N2NiZDY3OWFmYTgwMjRjODM3ODkzY2JjYzY5OTNjMzkwOTljODZlZmI4MDE3NjE2NzhlZmNkMSJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/hermes.spec.ts#L100-L105",
+          "version": "repo-lines-v1:sha256:d818235dd56b6e2727c4cfa3d26c55dd2cd05b8ac655ed08daedd09fe53dbb9f:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmU0MDJmMTg2ODcwYzVlMzQwMGM5ODUzMGU4YWU4Y2MxOWM3ZDFlODI5YzQ1ZjcyNzdlOWViNzc5NGQ2MmY2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTM4MGE1OGU5YTRkZDc3ZThhNTA0YTEwODc0ZDdlZWYyNWM1MzNjZGE4YzU2Yzk4ZWJhNzQ4NmFhMzFmMjgwMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVhZTVhMGY5NWZjMWI5NTAzNjU1YTFiZGRmM2MxOGQ1MzNlYWM4MTljNGI4MTMwYTlmOWY1N2M5ZTFjMzE2ZCJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/zcode.spec.ts#L97-L109",
+          "version": "repo-lines-v1:sha256:fc84212b40e8999632c9d57756fb12dd92223a4e8a514ffdc725f3dbaba47dda:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNDAyZjE4Njg3MGM1ZTM0MDBjOTg1MzBlOGFlOGNjMTljN2QxZTgyOWM0NWY3Mjc3ZTllYjc3OTRkNjJmNjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzODBhNThlOWE0ZGQ3N2U4YTUwNGExMDg3NGQ3ZWVmMjVjNTMzY2RhOGM1NmM5OGViYTc0ODZhYTMxZjI4MDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2NTI3YjcxNjFlNWViZWEwYjM0MTU4NmE3NTI0ZGEzYjdmZTg5NmQzMzhmYjUyNTRhMGVkZTEyNDc5ZDcwMmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_84e3193e4d6943a38ae339e95af3802c",
+      "statement": "Project display names come from two helpers with different fallbacks: `projectName` scans the last 64 KB of a qoder jsonl for a `cwd` (taking its win32 last path segment) and falls back to the jsonl's parent directory name, while `dirName` takes the win32 last segment of a stored path and returns an empty string when the value is not a non-empty string (e.g. a kimi code session without `workDir`); hermes and zcode route their stored directory through `dirName` as well.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/hermes.ts#L55-L55",
+          "version": "repo-lines-v1:sha256:e5af879b23172a49658857ab520152afa9dcd3ba0edbbde2f0094ccddc43e0fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTVhZjg3OWIyMzE3MmE0OTY1ODg1N2FiNTIwMTUyYWZhOWRjZDNiYTBlZGJiZGUyZjAwOTRjY2RkYzQzZTBmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTVhZjg3OWIyMzE3MmE0OTY1ODg1N2FiNTIwMTUyYWZhOWRjZDNiYTBlZGJiZGUyZjAwOTRjY2RkYzQzZTBmYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjNmMzYxZTkzNmFlOWY4OGI3OWNjODc5MjA0YzllZmEwYzlhY2RlMTE5ZTcxZjdlYTFkNzA0Y2ZjMDdkZDEzOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjM1MmViMWE5ZDhjNDUxYmM3MjUyMWJhNjYyYjNlYzk0ODQyNzc4NzQ0Y2NlNDg1ZjVkZDU5N2NkYjkyMGZjZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L66-L86",
+          "version": "repo-lines-v1:sha256:78c451d0fc68cd99ccd5fccda3b36b38753992ff9482f9c55321a47a35f31213:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhYzQ0ZDhjOGFlOGNjNGNlMzlmMDBlNDlkZjFkNzE0NTJhZTIzNDJhN2Q5NWRiM2JjMmFkMDgxMmFkN2JhZjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmNDVkM2RiZDljODExZDg2OTFmZGNhZGUwMDY5MmExNWM4YWU0YWIwZDMzYTE4NzQ1ZDdmMWY0NzY0MmRmMDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNhNDRkZTczYzg3Nzk0Y2Y5YzcxYmMzNjI2YmU0OTQ5YjhhZjIyYmQ5NGQ5MDdkMzgwZjQ4OTQ3NGVjYzgxYjQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/types.ts#L19-L21",
+          "version": "repo-lines-v1:sha256:fd991616633776c7fc3913d6416d7cbddc845c34596313659c856701ef089fd3:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWU5MjEyY2Q1NjNhNTQzZmQ3MWM2MGExZTBkODVkNjg5ZjZmYTJkMWNmNTZlZWU5ODU0NTY5NGJmZjkyZmVkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjc4MzI5ZTJmZTc4N2FmYWQyZjA1MTJmOWI2NmJhNGQxODgwYzlhMTA1MTAwOWJlZGU3ZWQ0MDFhZDA0YjM2YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTI4ZDRjNjI3YWU3NGRkMGMwOGEwNjJlYzAwMjhiMDg5MWNiZTJhOWE1ZDIyMWNiNjBjNzg1MzRjYjVjY2I0OSJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L44-L48",
+          "version": "repo-lines-v1:sha256:d2b556f503240f6c8e2e6022d918cf2e872c79ae8278610290a54d73597e77df:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjExYjNmNGJjMzc0MGJjZTgwOGRiNTY0Nzc3M2NjZThkYWQyMTU5N2MxMjU0ZGViYzBiYjQ2MTQzMjAzODU0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjQ5ZjZhZWQzZGE1MWRjZjc5ZmJlYzNkMGJlNmJjZGU4ZTUyMGE5MWQ3MTJiZmJkMGMwZjEyNDY1NzgyNjZiOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTFjOTczNjY4MmUzYWFkNWQyODM2NDBiMGY2NGMwYTkzMmUzZDYxM2YwMzkyMTdiMzYxOThkZWUxNWM3YmRlMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_556df825345a43dabebb3bf7033886f1",
+      "statement": "The ADR records that the tools' liveness signals are not equally trustworthy and accepts a tiered accuracy: hermes is most accurate (lease file plus explicit end reason), zcode is next (explicit timestamps plus an archived flag), and kimi code is coarsest (pure file mtime); the agreed remedy for a tool that flickers because of sparse writes is to widen that tool's own window rather than change the unified model.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0003-multi-tool-unified-session-model.md#L15-L15",
+          "version": "repo-lines-v1:sha256:5baacf7d18a75f206285aa7a07c248f7e3a4058e42d3378f6b9765a5d610d818:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJhYWNmN2QxOGE3NWYyMDYyODVhYTdhMDdjMjQ4ZjdlM2E0MDU4ZTQyZDMzNzhmNmI5NzY1YTVkNjEwZDgxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJhYWNmN2QxOGE3NWYyMDYyODVhYTdhMDdjMjQ4ZjdlM2E0MDU4ZTQyZDMzNzhmNmI5NzY1YTVkNjEwZDgxOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGY4NTUyZTU4ZTJkZmU5YTY1YTlkZDI5MWUyZTg0NzQ5MzYxMjA1ZTYxNzZiMzU2ZDA1NzI1OWIzZmY5YzFhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDlmMmEwZjczMGE2YWQ1MGJkMDFiZmIzN2FmMDVjNGU0NmM5NDZiNzc1MDQzMzAzZTk0YzFkNDBjNzRjNDgwNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4a31460c6c464bb49d7158ad5cfa0dc7",
+      "statement": "The test strategy treats `collectSessions` as the only automated seam: each scanner has its own vitest module under `app/tests/scanners/` that builds disposable fixture roots (temporary directories, minimal SQLite schemas and status/usage JSON through the shared `fixtures.ts` builders) plus a fixed `now`, asserting only external behavior such as state mapping, window boundaries, exclusions, ordering and task counts, and never touching real user directories or scanner internals.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/agent-deck-multi-sessions/spec.md#L49-L51",
+          "version": "repo-lines-v1:sha256:3eb3a0fd08a23fa5de337b27f18282e975495950318fd2d95e7629d388e622cb:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGQyMTllY2Q0YWMyMWQxNDRjN2UxYzk5ZDFhM2UwYzI5MmIzYzlhM2FkMDQ2MzU1YzQ5OWIyYTRmY2NiNmNkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzg4YzYxMTY2OTY4Mzk1MThmODNjMGNkZWFjZDc5MDhkYWJmZjFmMWZjM2U5YWJjZTQyMWVjZTk2ODU5NjQ4ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjM3YzczNTVhNDk4ZDJlMDZkNDgyZmFkZjRmN2ZkN2E2MDEzN2I3YzFlNjU0NmIxOWNiNTE1NmI4NGExOGQxOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODMwNTk5ZDU4NTlkMjFmNjA2YjJjMTg3MjRjNDJlNzZmZTY4YTM1MjhjNmRjNmUxMWUwMTYzNGI0M2NlYzZhOSJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/collect.spec.ts#L1-L28",
+          "version": "repo-lines-v1:sha256:6b59539d6ecc63cd7561a168b2181d3e8aa3ce026ea30af3dc85b247f3016312:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkNDEwMzEwNmRjYjQ0ZGUxZDQ0NGRiM2Y2NzUwZjBlMTM2ZjU2MjlkNTJiZjdhYmI2ZWRiMTJlZGRlZTg3ZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4YWYzZDY5NzA4NDFhMTJlNGM2NTdhYmQ5YTAwMjgzZmEzODYzYzMxNmJiZmIxY2M1NDNkNWVhNTVmNjQwN2MifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/fixtures.ts#L1-L9",
+          "version": "repo-lines-v1:sha256:3e4fd368073b11e6eb1ce83d1e90e54bbe2bbac77c7a7a76bef6d1fae6ddd0c5:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTI1NTM1YTE5YjYzNzc2MzdlZTEwYmRhMGZiNmFmZGZhOWQ3NmFkNzVhMzUxNjY0ZmZhMTdhY2IxZTkxY2E1NSJ9"
+        },
+        {
+          "resource": "repo://app/tests/scanners/hermes.spec.ts#L1-L32",
+          "version": "repo-lines-v1:sha256:c3650664940d055e93b862f2e250bce1f44275d26bbf3096b9a1b10f478678dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5NmViZTg2MGUwNWVjN2I0YjRiMzhmMWM3YWViYjFlMjNlZDJlNjk5YjVhYjI5ZmU2MGUyMDc1YjE1YWI3NDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczZmEwMDFmZGY4OTRlMTJjNWU5YTJkZGUwNTdkZWQ4Nzk1ZTQ4NTMwMzEzYWI4ZTNhNjA5ZWM0YThiMTYwMGMifQ"
+        },
+        {
+          "resource": "repo://app/tests/scanners/zcode.spec.ts#L1-L32",
+          "version": "repo-lines-v1:sha256:b7c1fd6d89d8f028b60c1a4e7595f43c88ebd710e6b11103608d32c8210f3207:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwNTQzOTMzOGMwYzk1NTY0NzAxZjFiZDk5MjljYWMyM2YxYTNkMjk4MjMzZDkwOTFlMjU5MjAyZWNlODI4NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0ZGFjN2FjMzE2NjdhY2RhY2U0MzlmYmY3MzhhZmMyY2YwZTQwMTQxMWYzYWY4NWMwYjk5ZmViNjQxNTAxOTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_126ee7341a0744469301e95746ba6f21",
+      "statement": "`SessionsService` is the seam's only caller: it resolves its data roots once at construction (`options.roots ?? defaultSessionRoots()`) and exposes `refresh(now)` for one sampling round plus `current()` for the last result; when an entire round fails unexpectedly it logs `deck-sessions: 本轮扫描意外失败，给空表：…` and stores an empty list instead of keeping the previous one, so no stale rows survive a failed round.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/sessions.ts#L12-L33",
+          "version": "repo-lines-v1:sha256:72a1aa2666741fd126d6642d443c9c852ea2da22df4fac8fd7a6baf401b19569:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjYmM0ZTJiMTA2NjQ3NTY4OTMxNTM5NDRmOTkwNDM0MDJkYTQ1OTQwZWExMjJmMjdiNmMwNzE3MTI4ZjA2ZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwZDkwNjQyYmFkODk4NzI5YWU5ZTM5N2Q3NWNmMzVlZmI2OTYyOGUxODI2ODcyMWU1ZWY0ZmYxMDEzZDczYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/services.spec.ts#L140-L161",
+          "version": "repo-lines-v1:sha256:1172a1fd7139640a99ef77117a2bdd2994281256b352b2431c40dc1604513c5e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMTgwN2VhYWM3MDFmNWEyMjhiZjg1Y2VjMjk0Yjc4MmE0MTcwOGYyMmIxYTI5ODg5NTQ4OTFmMzgyNWU2ODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3OGM0YjM4NWU0MTczZDBkM2Y3NjdlZTA1NTZlMGMzOWZhODZiMGRhOTYxMzAwM2MwMTRiOTZjOWE0ZDgxODkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_23a84686d3f844ed869d5e080f1667ae",
+      "statement": "`defaultSessionRoots(home = os.homedir())` is the single place the five production data roots are spelled out (`~/.qoder-cn`, `~/AppData/Local/hermes`, `~/.zcode`, `~/.kimi-code`, `~/AppData/Roaming/kimi-desktop/kimi-agent`); they are not configurable through `config.json`, and callers override them only through the kernel `sessionRoots` option or the service `roots` option.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L30-L32",
+          "version": "repo-lines-v1:sha256:d0b1b5c15ff7f8bbe85237c3b3de8e03e901eee9015dcf95b89a1745b5146b90:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2Y2YjZjZGVhMDE3YTI1N2E0NGZlOGQwMWVlYWMwNWM3OTE2MDQ5ODFjN2NkNzFmNmI5YjBkYjNjZDZkMDgzNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmYxMjEwMDBjYmQ1ZDQ5OWE2MzIxOWUzNDJhM2ZkN2QwNzA3YjBjNDIzYzIyZmUwMmM5MGEzMGQwOTY4ODg2NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWFhYjIwNjVjMzUzNzM2NDUwMzIyMGE0YzE1YmJhZDJmMTZjZDk5MjJiNjZmM2UxZGI0NWZkNzc0NGVjMTBjNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDNhYWQ1MjhkOTdlMDg5ODMwMTg3MGM3YmM3YzI3NjM5NmU0YjkxMGFkYzE5NjUyODEzNjczMWE1OTAxNDJmNiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L30-L39",
+          "version": "repo-lines-v1:sha256:4ec4bda85057698b1b4d7606d9e228304c25702629001e92e189f0f9526ade70:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdiY2QwNDM1NjAyM2Y2YTM4NzA3ZjBjNDAzZDhkNDI5YTNiNGRmNjA0NWY3ZTdmNTliNGU4YTBkYTI3MTQyZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmN2Y1MGM1NDRlNWQ1NTY3OTcyM2RjZjA0Y2VmODdkNjViZjc2OTIzMGRiMWJjMGQ2NWQ0NWY3ODVmMTc4ZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0OTE5YzBkMjYzMmVkMTZkYTMzOTlmZmUyYmVkYjk0NGU1MGI0MzllYjNkMGIxNGMyYzMxOGQ1MzM3YWUxNzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/sessions.ts#L16-L19",
+          "version": "repo-lines-v1:sha256:19e96db6d6ab7e55952335805557b64a2bf2b638bc1ffafdef1293ed4dbf9525:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzViYjRiOTgxYmUwYzgwNDYwYjVmMjhmZGFkOTU4NWQwZDUwY2YxZjFhNDNhNzQ1NWQ2N2JmZmFkOGI3MzkwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWJhMDMxNTg2YzA2ODgyMWQ2ZWM3YzI4ZmEzMGI5ODc4YjhkYTRhNWExZmQ4MGVjYTY0ZmRhODExY2E3ODE2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWZlNGViNWFmYTE0MGQ3ZWUwNTNjNmMzZTU5ZDViMTYzZWQwYjdlZWM5ZGE4M2U2MDU5MDQ5ZmQ4ZWVhZTVmMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f5e435cadf4d4672a5b20ecea67a3f03",
+      "statement": "The collection round runs once per second outside the module: the in-process kernel timer calls `bridge.tick()`, which refreshes the panel data port (`sessions.refresh()` plus `desktop.refresh()`) and pushes `panel/changed`, while the production data-plane kernel calls `sessions.refresh()` on its own 1 Hz timer inside the utility process and posts the resulting snapshot to the panel process for the renderer.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L19-L27",
+          "version": "repo-lines-v1:sha256:31150b2b015ec8167c87fa2ee88061c20b53492379bba5c6a134cae7073cdc51:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDlhNmVlY2UwZTJiNjU0ZmFjYmY5ZWZkMTMxYTcxNjc1ZDlhMmQ3ZjAwY2YxYTczMzYwODI3MGQzNDg3NWY3NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjMyMzI4YjlkYmViMWE0MWUwMDIyOGYzNDBjMGZkNGE2YjM3NzUyMDc4Yzc0OTI2MTEwMzhkMDQ1YzUxZDk0OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjk4YjkyYzI5ZTc4ZjgzYzAyY2M2ODRmNGVmMDRmZWM5MWRlMmQ1MTUwZmE0NTg4MzEwMmU2YTk0NzU5OTVmZCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L143-L151",
+          "version": "repo-lines-v1:sha256:b56465da1ad33e406da1e1382246793405267d1b8be4f5317369fd0326c3e731:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYzMjZiZTdjZDkxYjQyN2JjZDE3ZDViYTYxMWQ4ZWI1YTdjZmM5ODRiNmVkMjJjMDJjOTNmOTc2MmNlNmZmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2MwNWNiM2YxZTkxNTExYzM2OTJhMmI5NzllNjlhY2M4YWJjYzE2NDBhMjA5NWFkZTczNDdjNGU1MDIwNDVhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTc1MDZmOGFjMDI2ZmVhZGQ0M2JlZjVlZjFkZjQwMmZkNGM4YmJjYWNiNWExY2M0NDk0MWZjOWU2NDc1MmVlOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L85-L89",
+          "version": "repo-lines-v1:sha256:5c507e3a4fcd93dbabb2f7036c390237e1af59be6efd77c4c33a311af2f9926d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYzMjZiZTdjZDkxYjQyN2JjZDE3ZDViYTYxMWQ4ZWI1YTdjZmM5ODRiNmVkMjJjMDJjOTNmOTc2MmNlNmZmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGJhZTI5Nzc5MmVjMGU5MzE2MWI3Mjc0NGU1NzcxMmQ3YTgwYmQ3NTViYzg0ZGU0NmJiZGYyOWE3ODliMjJiNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTc1MDZmOGFjMDI2ZmVhZGQ0M2JlZjVlZjFkZjQwMmZkNGM4YmJjYWNiNWExY2M0NDk0MWZjOWU2NDc1MmVlOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L51-L54",
+          "version": "repo-lines-v1:sha256:fba244587db3304c80eaebd4d11dd5f2ba2220cdec742e4a73fd813f9a871791:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTJjYWM0NDYwMjAzNGMyOTBjMGJkYjk1MjRjMWZiYWNkZjA2ZjFiOGRjZWZhNzEwMWY4ZjllNTliYTk0ZDExYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFkMTI5OWRhM2JhYjJiZWM2NDdiZTFlMDExNmI3ZjVmOGIwNTc1NjUxYzBlN2RkZTY3ZTZmOGNjMDM5NTdjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDdmMGRlM2NjMjVkM2I1ZGVkOWIzNjgwNTljNzhlMzFmNmE5OGY0ZTgzOTI4YmYyZTc5YjQ5ZjM5MTI1OGNiNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_adcd5ce2f5c5465a83b039bd20d4efa3",
+      "statement": "The sessions card consumes the records directly: `tool` becomes a two-letter tag (QD/KC/KW/ZC/HM, unknown tools `??`) and is also the routing key sent to `session/focus` on click, `state` becomes a lowercase CSS class, `project` becomes the row name, and `tasks_done`/`tasks_total` render as `NNN/NNN` only when both are non-null; the header shows the full session count while at most nine rows are drawn, and an empty list shows the standby text.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L84-L87",
+          "version": "repo-lines-v1:sha256:00626eebafcb832ec8f6826e8c70e5d0de01c9adefc4e05b7326ce22296a8863:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDk0ZjI2NTM4MGZiMTc4NTdlM2Q3MjNlNjFlNmUyZTBiMjEyZjZiZjQ4ZjE2ZmM2NmUyZTEwNjM3YzY3OWU0YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUxMjM2ZjJhZWExY2U0MmZhMmIwY2NiMjc4MzJjNzhmNWQ4YzFjMTkyMzhhMjQwOTIyMTA2NjNkNTM5ZWQ2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGRlZDEwNDhkOTNhZjUzYmRjZmEyM2UxNzJlZWRkNmY4ZWM5YzI2ZTEzZWVhNTdmMTBlOTdjNGM4MzI4YTc0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGUxNjIwZmQ5MGE4MTBiZmIzMGFjZTZiNzFmMjFhMGVmODhmNzBkNDExYTcyNmZkY2VmNDk0Y2JjYzI3YzAyNCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L26-L47",
+          "version": "repo-lines-v1:sha256:5da8350ad42a1c78cfd026c19881494fb924764182acb5d210e77827aa65b9a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNTM2ZTNjMzY4OGZlMzBiMWVlYWJiZDExOGU0ZWM2MzBjMjU5MmQ2NGJhYThjMjhkMjcyMzcyOWQ5ZDllYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4ZGZmYTFmNTkyYWZlM2NkNDg0MWQwNzg5MTBhODIyNjc4YThiNDRjZThlYTc3ZjE5NjY2ODVmYzc2MWZkNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1MzlmMGJmNDU5ZWNjMGZlYWE0YmQwOGZjY2U5NGE0MDhhNzAzMzYyOTQ5OTM5NTY5ZTBmNGRmYzdlY2VkMjQifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L7-L7",
+          "version": "repo-lines-v1:sha256:440f08afc5d287c1f0b474b34837391b5e559b5b85062d449c504e76838d3294:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDQwZjA4YWZjNWQyODdjMWYwYjQ3NGIzNDgzNzM5MWI1ZTU1OWI1Yjg1MDYyZDQ0OWM1MDRlNzY4MzhkMzI5NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDQwZjA4YWZjNWQyODdjMWYwYjQ3NGIzNDgzNzM5MWI1ZTU1OWI1Yjg1MDYyZDQ0OWM1MDRlNzY4MzhkMzI5NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2I1OTZiMGRmOWU0YTE1N2U4NjE1NmU0MzRmOTJmOWI1ZWZhMDYwMDEzYTNmMTUxODYzMTY0MTY1NTZiMTE0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWJiZTA4MDdjOTcwY2Q2ZmNmY2JiMTFiZDQ3YjAyZGYxNzc2Yzc5NzYxOGM0M2I5OTBhNDFiOWMxNjhlZmQ0NCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_38b02b601c104345bbfe54bb3bb28842",
+      "statement": "No scanner has a write path into a tool's store, and the SQLite scanners select metadata only — hermes never selects `title`/`ended_at` and zcode never selects `title` or the todo `content` — while JSON stores are read with `readFileSync` or an `openSync`/`readSync` tail read.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/hermes.ts#L38-L40",
+          "version": "repo-lines-v1:sha256:1d6608d4e74d000387412a3be812fc9bb63be535e5bc74fe9b02f719d6d2a539:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmVhZGZkYjgyN2UwYjE5ZjYxYTY5ODdkNTMxYTExNTRmMTMwMzhiNGUyNzRhNDg4MDNmMzZhYzdiMWJjM2ExMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWM2YzRlZThhNzQzMzk2ODdiMjk5M2Y2NTM2NzdlNjM3ZmFiMGZlMDIzYmI1YmIyYjRlNzdlYTY0MDUzYTU0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzg1MGMyMzIyMTExYzE3MmMwYmFhZDFkYmUzYWUxODI5ZDZlMWU2ZDUzMGYwMDI0NjVhYmVkODE3NzdkODU4MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDI2MWU3M2U3YTk1NmNlZjliOTA1NWY2ZmJkMjEwMjc1ZTI1OWJkMTZmY2ZmOGM3NDU2ZjRlYmQxYmY3NmY5ZCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L11-L23",
+          "version": "repo-lines-v1:sha256:4c540d6c6e9b497af8f1240d88a3a340e498d74e2ae3f17626bd143a09952057:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlZWY5ODViNWUxY2MxNjBlYTA2ZmNhMjI0NWMzNjQ0ODEzMGYyZjE0MjI2MTE5ZDY3ZGNkN2QxZTQwYjM5ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3NTk5NzA2YjUyYTAwZDQ4NGRmYThkZGYxNmI4MTkzZTc5NTNkZmEyNDMyYjA4M2U1YTdkZGMzOGM3NzAxYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjNThmN2ZkMDE1M2MxNjFkMDY2NmRkMTg3MTMwODJhZjViZmE4MDE3OGQyNWM1NWU1MmNjODczZTUwZjU0ZjUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/sqlite.ts#L1-L16",
+          "version": "repo-lines-v1:sha256:ad7b6c4b7ffefca6018a81fe48392933d5c48db00de716586a2ca94ab6081b7b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzMjI2YzgzNWU0MDg5NDY4MWY0Y2NkMzFkYTIzMjE3NjUyMjVjMmFhYTAwNDBlZjE2OTMwMjQ5MzE0ODllMmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/zcode.ts#L27-L31",
+          "version": "repo-lines-v1:sha256:688b6f83337c7bcc5962305f88328df1a67f1a04af71f46537f09be0f444d22a:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2IzZWJmZGQ2MjFhMzAzNGUwYmRlNDY1YTVmNWEzODdmMzI2NjA5MGRlNzE0YjhhYzY3ZDc0NjI4MTRlMjU2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjhjODEwYTUwYWJlNjIwYWQwNjYzNGU5MGU3MzIxZjliMDBmZWIwMmI2ODFjYzZmNTVhMDQ2MGQ0MGMwZjIyOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYThmNTI0YzA2N2NiZDY3OWFmYTgwMjRjODM3ODkzY2JjYzY5OTNjMzkwOTljODZlZmI4MDE3NjE2NzhlZmNkMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDI2MWU3M2U3YTk1NmNlZjliOTA1NWY2ZmJkMjEwMjc1ZTI1OWJkMTZmY2ZmOGM3NDU2ZjRlYmQxYmY3NmY5ZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_81f6d7e95d3e4ce588cb13645516de26",
+      "statement": "The Qoder status block was retired in ticket 03: the `qoderStatus` helper, the `QoderStatus` type, the `qoder` panel-snapshot section and the `qoder` plugin capability were removed, while the Qoder session row (QD tag, inline `tasks_done`/`tasks_total` progress, click-through) and the shared `taskStats`/`projectName`/`sessionLast`/`sessionState`/`qoderJsonlRows` helpers were kept — which leaves `taskStats(...).current` computed but without any consumer.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/generic-deck-fixes/issues/03-qoder-status-retire.md#L5-L30",
+          "version": "repo-lines-v1:sha256:0efb41e922f3e3c40a9cd1691b9192e806a6aa84c2a2bf51ec7d74e28ea65a1c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyYzY5OTBlN2U2YzM0YTk1YjFhZTRhN2RmZjFlYWUyZjM0MTU1Nzk1ZDUxZDFlZTc4MzUzNmE5YWEwNGJiMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUwZjg1ZDExNDA1NmU3MmZlNDIwY2RhYmU5ZGE2OWUyMDNlNzcxNzAzMDAxYTRlYTk0YmVkMWE3MmExZTgyOWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkMTIwNjczZTRjNzNhYjhlY2FlY2RjMzYzMTc2ZDg0Njk1ODU5MGJiNDU1ZThjYzI4Mjk5YjNmZWM1MDgyMDgifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L1-L5",
+          "version": "repo-lines-v1:sha256:0d191888ec35dee39b8c49218650f140f5396a9214c90a7df1e843245abcdc87:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTc3ODZiNzBiNmI3NTg4MzFkN2JhOWUyZGYxNjBmMDUxOTIzZGNhMTdjNWY2NTQ0OWUxNzAwN2NkZTJhM2I0OSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/sessions.ts#L6-L11",
+          "version": "repo-lines-v1:sha256:1b1d5906b1d3a3c1b900bac7abc2eea94304a88bafc1cb9a4994530c8e5485b4:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWNiYWEwYTNhZTg4M2E3NzQ5MDk3OGYyYjA2MjMyZjM2NzQwMmUzOGNjMjgxMWU5MWQyOTA5ZGZlZWZjNTFkMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGI4ZDJkODZlZTA4NTUyMzJmOWEwMDUzZGM2ZmU1MTUxNzU1ZmVkZDg1YjUwOTI4ZTg4N2Y5NGE3NDJmMDAyMCJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L137-L148",
+          "version": "repo-lines-v1:sha256:9e88126d3998c81340d50e6fdd082f5f602d97fcc825f6fa615ccc4aef5169d0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwN2ExZWIwZThhYjkyMWI3MDVjOTYxYjJkYTkxNzMzNGE4OWI2NWNkM2E0ZWViNzg0ODYzMzljMzdhNTA0NWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxNGM4ODIzNDBiMDRjYjM2MzhmNDZkNjlmN2Y5NTNhOThlMDE5ZDY5NDU0MGM5ODZlMzFhMGFhMWU4NzRiNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyMTc4NTI2OTk1MDI5ZWE0Y2VmZWRkMWJlZDIyZmZkNmU2YjE2YWYzY2QwMTBjNTkyNGE5ODFjN2MxMDE5MWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d84dfec6f4fb4cbfb0ec30d0cabf27fd",
+      "statement": "`taskStats(sessionId, root)` is qoder-specific: it counts the parseable `tasks/<session id>/*.json` files as total, counts `status === 'completed'` as done, and returns the first `in_progress` subject as `current`; it is reachable only from `scanQoder` and the module re-export, and `scanQoder` uses just the `done`/`total` pair for the session row's inline progress.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L14-L14",
+          "version": "repo-lines-v1:sha256:15a4cbf77805d480595fe564a40b491ee6cc0672d43d1cfc7ae20810c1476de9:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTVhNGNiZjc3ODA1ZDQ4MDU5NWZlNTY0YTQwYjQ5MWVlNmNjMDY3MmQ0M2QxY2ZjN2FlMjA4MTBjMTQ3NmRlOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTVhNGNiZjc3ODA1ZDQ4MDU5NWZlNTY0YTQwYjQ5MWVlNmNjMDY3MmQ0M2QxY2ZjN2FlMjA4MTBjMTQ3NmRlOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjY4YTk3MmJlNWRhODhhNDAzYWUxNDAxNWE0N2UyODZlODYzY2I5NjViMGYwODZlNTM0NDFkMzgzMjg0NjdjOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjQ3ZjVlOWRmMDQxNTM4MTM4NWEwYTVkOWY3OTljNDhiNGU1NWVkZjQ4YzZlMjI1OTExMDk3NGEzNGViOGZjNyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L160-L169",
+          "version": "repo-lines-v1:sha256:d36e41927349c788bc4c656d5abec6c8ceb4803eea0ec8566fa9265720849db3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhYjg5YzQ3ZTI4YzEzYjg3NzdjMzA2ZmQwZTk1OTc0NDM3YjRhMTg1ODM5ZTVlNjdlZjE0NTg0ZmY4OGQ2MTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDU5NGQ0YzhmMTAzMmU1ZjVkZGQyMjc1OTc5ZjhkZjg2YWVmYjUyOWM2NzRlNjk0NzdkZTU2NDUyMTg4MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1MWQxZWM5ZDY2OTFkMGE4OWY1MDNkODUxNDFmNTkwNjc2M2M0NTFmZDQyNzRjYTk1N2Q1NDhmMWU1NzVkYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/qoder.ts#L88-L115",
+          "version": "repo-lines-v1:sha256:3b4d83382022cc34d515dadb18c53b9fda698b80e777161bb29c19db85aed3de:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyZWM5YTYzZjUzMWZkMmM1NjYxNTQyNDM4NzNjNWQwZGYwZjIyMGI3NmJiYzc3NWY4NzkwODg0MDg3MzcyNjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2OGRmZTk5OTllMGU1NzhjZjU3MTk2MjRjNDUzNzE4N2M0ODk1ZGE3NzE4MzVlODE1MGNlOGQ4NzRmMGZmYmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxMmY1MDExNDk1NTVlZGU2NWU2ZTkxZTVkNGQ0MWFjNmQ5ZjgxZmI2MTA1YTNiYWM0ZTJmMjVkM2YxNDI3OGMifQ"
+        },
+        {
+          "resource": "repo://app/tests/services.spec.ts#L140-L161",
+          "version": "repo-lines-v1:sha256:1172a1fd7139640a99ef77117a2bdd2994281256b352b2431c40dc1604513c5e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMTgwN2VhYWM3MDFmNWEyMjhiZjg1Y2VjMjk0Yjc4MmE0MTcwOGYyMmIxYTI5ODg5NTQ4OTFmMzgyNWU2ODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3OGM0YjM4NWU0MTczZDBkM2Y3NjdlZTA1NTZlMGMzOWZhODZiMGRhOTYxMzAwM2MwMTRiOTZjOWE0ZDgxODkifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

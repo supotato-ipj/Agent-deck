@@ -1,0 +1,396 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:180bd41b083f4f87eba71adf680ad9f2f04643b7bc9cc41248497fe1e3e703e0",
+  "claims": [
+    {
+      "id": "claim_1438f688fef140acab70432c2414a41b",
+      "statement": "The panel kernel is assembled by exactly three functions that each return an unstarted cordis `Context`: `createKernel` (in-process assembly, no production caller, used by the offline kernel contract seam), `createDataplaneKernel` (four collection services for the utilityProcess child), and `createPanelKernel` (production main-process window/host assembly).",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L129-L165",
+          "version": "repo-lines-v1:sha256:51301a5b044a689036396d829014a9db656b2f1249e6bcd95669f47c660e150d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNWZlMDg5M2YzNzQzMWQ0OTg4ZWJlYTUxMTU4MTNiNGFjMTEzYWYzZGI2OTZhZGViM2ZmMzM2OTYxZGM4OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0YTM3ZDQ0YWU1MWMzMGIwMjliYzNhZTdlYjdkYTUxMzA4YWIxYmE1ODIwNzI1YzY5ZjMzODdkMjQ5NjYzOTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkN2RlZmYxYTRkMmQ3OWNkZmIyYTYwNjA2ODBhNjM1Yjk2MTA3Y2E5OTQ0NzVmNGQ0NTJmNzE1YTlmMjdlMTQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L62-L110",
+          "version": "repo-lines-v1:sha256:8803b137fb029b299c3943b6e06c611e3c5ea7e92dd842b66d0bc869d330b560:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhYmMyNmRlYzJhMDY2YThlMWI0N2NiMjRlNWNkZGY3NTg2Yjg2NzllODU1YTg2YzEyYmQ3Y2Y5MDcwMGJlZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiODQzMzYzMGQzOTgxM2EzNjc1ZDhlMmM4ZDYyODQxODhmMjBhMmI4ZTA1MDU2NDQzYWEzYmRhZGU4NzA0YWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFhNWIyN2JlY2UyN2FlNjVjYzM4NzIxODcwOWZmZDg1ZmFiYTQzMjlkMDE3NWQ5MGMxNmQ3OWMzMThlNDJlOWQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-kernel.ts#L34-L52",
+          "version": "repo-lines-v1:sha256:d506eb7be2a7ee9e2505d3becf26c4552a36e44957f1c91d8913540dc2d34128:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3NTI4ZjE2N2QxMGVjZmI2NWUzOTQzNThiYzA3MTBhYzMxYTU2NjUzZjJlNDkyZGQzMWQ0MDU2ODJlOGRmZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1OWRiNTdiOThlY2FjNTk0NTE5OWZjYWRmZDZjZjgxMTc5Y2NlMzk1NjlmYmFmYmNmYjdmNDNmNmU4YmE2YWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_652f9bca1e2c4432a14f2966a0921b24",
+      "statement": "A kernel's services are only reachable after the caller awaits `ctx.start()`: production boot calls `await kernel.start()`, then `await kernel.panelData.whenReady`, then wires bridge IPC with `kernel.bridge`, and every kernel-level test brackets its body with `await ctx.start()` / `await ctx.stop()`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L106-L114",
+          "version": "repo-lines-v1:sha256:43ab7142e636abe653b50a6e2ab9396a15a7d266abcdec3bd9f04b3f62f0b89a:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTk4MGI0NjVmOGExNjFlOGMwNDNhMDNjNDIyOGZkYmY2MTI1MDVlYmFjZGNkNDBlNDExN2I3N2E5MGFiYzU5ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZjZTM3MDFkMDdmNTk5MDZiMDk5MmU1ZjA5M2VlZTVjZDYwMDNlMThhZjFjNTlmYjAwODgzM2FkNmRiMTQyNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjBiYTQxNTQ5NjdmYmM1MjIwMDcxZjcwNTQxOWMzYWIzZGIzYWNlMGNjZWE0OGEwNWY5ZGM0NDI1NDY2YWY3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGFiZGQwNmVkNGQ4MmU2ZTNlM2JmOGNiZGMyYzA3YTJlOTdhZTYxYjMwYTEzYTg1NTVmMThiM2QwNjhlNDQ0YyJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L70-L78",
+          "version": "repo-lines-v1:sha256:ca0f9fc89555d8592084045fc3ea1f2a6c053f9e55cddc9f1d3a77ca88abc3ea:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWYyZDI4NGQ2YThhYWI4YWFjMDE3OTkzZmEyNjY5MWE4ODNmN2MwM2IyMWFjNDQwNWM4NTY1YjNiYjUzYzhiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjg5YzZkMTc0YjAwYzY4ODg1ZWY1MGRjNDUxMGM2NjQwODEyOWU1NmFkOWYzZGZhM2VkYzZmNjg5NTY0MzNjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2YwYzc4ZjE0Nzc1MzYzODNiMTljM2Q0NDA4ZTljOGFhYWI5OTUwZDcxNmU3MzdhNTY1ODdmY2IwOGZjODEzYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b94e469d9bf47f5aeb63ef094603ca3",
+      "statement": "`app/src/main/kernel.ts` must not import electron so that pure-Node vitest can load it; the Electron-only production assembly therefore lives in `panel-kernel.ts`, because the production port implementation `services/dataplane.ts` imports `utilityProcess` from electron at module scope, while all other Electron/native access is behind lazy `require()` calls with non-Electron fallbacks.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L55-L96",
+          "version": "repo-lines-v1:sha256:2234d597e40303245aa4ed64df4f6d859c2bae8f94ee9325c8ec46319fdebbec:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2YmZmYTllMzZjOGE4YzAyZjFmNDZmOTFlZWZlMzA1ODIyMTk5ODc4Y2JlMzkxNmQ0MzM1MzQ5YjI2N2VlNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1MzFiNzRlMWYwMDdhNWNkZmNiMTNlYjA4NzM0MzUwMzE3MDc3ZmZkMDc0NjU3OWY5YjNiNjk1M2QxZDY1MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI5NmQ3NThkZjQ3YmU4ZjEyMWFlMDY0MWU1OGU3MmI1ZmM0MDk1Njc2ZWE3NjBiNmEzYTFiZmYwMzg1MWM4ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyODljMWRkNmVjM2YyNDIxOGQyYzFlMWNhOGZhMWFjZDE2MTQyN2YyMTRhNmQ3YzZkMzQ4NjkzZWJjZWRiNWQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L167-L176",
+          "version": "repo-lines-v1:sha256:57e4af85a984520e02449dfb44474e9b22ea31a4b103f5b50f9623a58de61b49:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyOTdhYWZkNTQxZGY2NDEwZDdhZTJkMTQzNGFjMTQwOGMzYjVjMTI4YWJkNTBhNTNlODcyMGE1NGQyNTZkNmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmODU0Zjk4ZWVlZTk4Nzk2ZjNkMWI3ZWVmY2NkYTFlNTQyMWU0YTEwYjQxNTNjNGVkODllZTJhYjcxMTk0NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-kernel.ts#L1-L3",
+          "version": "repo-lines-v1:sha256:3def99d50045be8e2ecb96af002ad9387140e14d851c6ec3dab8590d312de56e:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFjMjE3YTkxMGM5ZDdmOWM1Y2I5ZTJkMzEzZGJhOTU5NjIxZTVhY2Y4MDQ4ZWY5YjQ1OGUyNTUyMTgzOWViMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmJkOTNhOThjZjJkMWY0NDg1ZTI2N2VmN2I0MThmMGEzODFjZGQ0OTk5OGY4ZGI1YmI5MmI3ZDhmM2ZmMDNiMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2IyZjFlZWVmMDAxOGYxMDU2ODBkMDE0MjFiYTQyNDQxN2FkZmE0YmJlNTc1OGMxYzZlYWIxMTE5ZDAzMmQyNiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/paths.ts#L7-L14",
+          "version": "repo-lines-v1:sha256:10d70f1ea2eef19756751cf327f2018c56daff9c9a23c9393d3e2bd2e58a2550:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODYyNTQxMTlmYjAzNmFkNmQxOTRiZTE1MDIzZDRlOGZjYjY0ZTZiODlkNGRhMDkzNzVkYzE1NzQwYWJjMzZkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWU0ZDNhNGU2ZWRjZTNkZWM2NTNhODY0NWEzMzMyMWViZjRjM2MwMzgzMzY3ZTAwNDFlYWIyM2VkNTFjMTE4NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L1-L1",
+          "version": "repo-lines-v1:sha256:a3d47e0d624a4be69f7cbb13acae271a88ea79288129ab374f75f9df2dc99ac9:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTNkNDdlMGQ2MjRhNGJlNjlmN2NiYjEzYWNhZTI3MWE4OGVhNzkyODgxMjlhYjM3NGY3NWY5ZGYyZGM5OWFjOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTNkNDdlMGQ2MjRhNGJlNjlmN2NiYjEzYWNhZTI3MWE4OGVhNzkyODgxMjlhYjM3NGY3NWY5ZGYyZGM5OWFjOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2MzMTgzYjBiOWY3YTJlZGRhMWFmYzZkMWQzZWM4MGYzNzJiZjgwNGFiMmQzNTk2ZDU5ZWU4NTBhNjcxMzYxMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e28f5ae6361f44bf8907fe798cfda399",
+      "statement": "The data-plane child process has no Electron APIs available, so all Electron-resolved paths and roots are resolved in the main process and shipped to the child as a `DataplaneInit` bundle (desktop `roots`, `storeFile`, `docMaxRows`, `usageDir`).",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane-protocol.ts#L15-L25",
+          "version": "repo-lines-v1:sha256:f89e532e0962b6fe566a82beea60a7835d6f5b37268f9ee7b8167cbe23b06e31:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxN2I5NTY1NDYxZWMzYzYxMjU5ZTcyY2UxNTZjMDAzMmUyY2NjOWEyMTkxYTkyNDJlMGI3NDkxYzYzMWRiZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZmOWUxMGY1MGFhYjM4NGIyY2EzYzU1OGJmOWYzZmFiMTMwMzQ3NWE5MWYyOTdhYTIwMTZjMDE3MjA4ZGE3OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjOGRhNjhjYjM3NDE1ZGRhMzI3MDRiZTFmMmM1MjAwMWQ0ZmIyZjVjNWNiZWJmYzhmNjJkZDFiZjI4MzRiMmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L1-L4",
+          "version": "repo-lines-v1:sha256:e5cc3da2ef68b1208b32642cae8a27ca855b23b90169f7c85280be75157fcfea:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzRmZTliMzljZTA0OGE4MzQwNDZiNzdjMzYyNjdjOTE0YTAxNTAyMzk1NzE3NGUwM2E1MzVmZmFlMzg0NGU1YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjE5ZDZjYzIzNGY2ZGZiYWIxNmQ0OGYwNmYzOTMzZTMzNjIyYzQyMGU0NmZjNTJhMjI1MmE1OGI3YjE4YjFmNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTBkZTIyYmY1YWMyM2VkMTIxMzExMWU4NWM1ZmRmNTUwYTZjNzM2NTZiMzA0NTVmY2ZkYmYyNjJjNjg1NDY3ZCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L95-L104",
+          "version": "repo-lines-v1:sha256:d3bc344d8a17bd7e15221646cc1205219dd526297ab85d6b745f1fbe5f2a514d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlZGMwMmUyMmQxNTQwZjEzNmE3MmJmMDBmMjNmY2IyNTRlMjY2MDNlYzRlMjk5MzM1ODIzNzUyMDM1YzA0ZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4NzRmMDU1MmU4NmYzNzJjZjI3MzRlOTgxYTM0ZWUzZGQ1ZTgyNTc3ZTc3NmQ3NWJkN2Q0M2E5MzRlNjQ3Y2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFiMDk5MzU5ODBlOTE3NmM3YWE4NzA1YzNiMGU1ZDJmODU4NTcyYTgwM2ZmNWE5ZWQ4YWJkZDU0MzQ5NmJjNWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NmNjZmNhY2JmOTQ1Njc2NWM0MjE3NDhjYTdkYmY4YmRiM2Q0OGZhYjJlMWE3ZmVmZTJhMjZmYmU2YjdjNjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2f29d9a4502241808339d40e395a6a76",
+      "statement": "In both main-process assemblies the `panelData` port implementation is registered immediately before `BridgeService` (the source comments call this a prerequisite of the bridge registration), and `PluginHostService` is always registered with a spread-in default of `roots: []` so an offline kernel installs no plugins and creates no plugin directory.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L77-L84",
+          "version": "repo-lines-v1:sha256:8c576e0234f1211f12dc6bb3e9d2522a6cc4416aa200e82774d5045c1787d65e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjMwZGYyNjNmNTNkNDg4MGY0ZjE4ZWQxMDQzMTg3NDU4ZmZlY2ZmN2ZlYzIxYTViM2M3NjJhZDJiMjU4ZTA5NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTdiOTRkNGYyZjAwMGIxOWQ5NWNkY2UzZDBkZjE4NDc5MTYzYzAxOGZmNDU3MmI2NTVkMGU1ZjE4YzczMTBiOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2MwNWNiM2YxZTkxNTExYzM2OTJhMmI5NzllNjlhY2M4YWJjYzE2NDBhMjA5NWFkZTczNDdjNGU1MDIwNDVhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2U5ZGYwOTcwNTQzOTEwMDE1OGNjZTBlNzkxZTA4YjRiMGFiN2ZkNzkxNDFkNzM1MDExMjgxMDcyYThhN2YwZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-kernel.ts#L40-L44",
+          "version": "repo-lines-v1:sha256:1175d44579afaa0473cf1e35fb7bccc2ee925dd845f6bcca792901bf51367204:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzA0MDhiNzM1ZTQ1N2U0YTI3OTdhNTBlOTMzMGZlNmIzNjI3MDVkYTg5NjE4NmY5N2YxNzZkYzFkNTBhMTI0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmRmNmI4NDczZWJiMjUzYjNjNThhODQ5OTgxYjBhNGQ1MThhY2FlZDNhMjgyMGU3ZmUwNjgzOGZiYzE4ZDUzNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWEwNGRmNzNjNjlkOWY3MjA0OTMwM2ZmZTc1ZWIxMGYxYTJlMjQ2NjljNDUxZGVhOWI0YWQyMmVkMDc3NzNkNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGM5ZGEzN2NkNjNhZmJmMWE5ZmQ2NDNlNDRhNmYxNWViNWQ0Yjk0ODYzOTMzNGM1ZGJkMGRhODc2MDQzNWFlZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L99-L111",
+          "version": "repo-lines-v1:sha256:abcd109f73ba12007ab8f787444d90197b559dbcf847b7c707c1426453205043:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMzExYjQ3YjFhZTIyZGFiYTNhMWUyNjY1YjUyZTA4ZWE3YzNiYjczNDllY2I3ZjcyYjNmNDNlNDRjZDgyNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5ZGY5NmRmYzVmNGI0NDY3YmI1M2I5ODQ4MDY2ZDI5YzM3NDM0ZDFjYWQ2MjQ1NGJhMDE2M2FmOTEzN2FjZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmNmE2MWI3MTIxOTEwN2NkMzhkZTQzMDEwM2RiMTYxYmYyYWM5YjRhNDA5ODYwYWU2ZGYxYWFmMThkNDJhMWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d40100ad0acf482a98768cd9c9ea1c68",
+      "statement": "Only two services declare a cordis `static inject` list — `BridgeService` (clock, panelData, search, settings, focus, plugins) and `LocalPanelDataService` (clock, sessions, hardware, desktop) — while every other service receives its dependencies as constructor option bundles (`HardwareSources`, `DesktopDeps`, `UsageDeps`, `SearchDeps`, `FocusDeps`) whose real implementations are defaults and whose members are individually overridable; that bundle mechanism is what lets one assembly function swap in fake sources.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L23-L23",
+          "version": "repo-lines-v1:sha256:62e4815dc5474a7e5cabcb7ce7f30e8dcc62d52888dca8353b6a9f642faa5ac2:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjJlNDgxNWRjNTQ3NGE3ZTVjYWJjYjdjZTdmMzBlOGRjYzYyZDUyODg4ZGNhODM1M2I2YTlmNjQyZmFhNWFjMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjJlNDgxNWRjNTQ3NGE3ZTVjYWJjYjdjZTdmMzBlOGRjYzYyZDUyODg4ZGNhODM1M2I2YTlmNjQyZmFhNWFjMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTU2NTdhY2QxOGM0N2FhYTY3MjkzM2Y0YjQ4MmMwMDAyMWRlZDkyOWEzNDVlMGFiNDY2ZTE0MzhiODA5Njc1YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2EzMDNlZDljNDc3YjM1MDVjNGIzZjRkZmJkMDJhMzQ2Y2IxNDhkMDQyMDA1NDViMDBkYTI3NzgzM2UwMzUwNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L15-L44",
+          "version": "repo-lines-v1:sha256:9527398a48a9d6aaba81a5828bc8cf95e2f14e7c3c3070de1c566adb41788679:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzMzkyMTdjYmI0N2NmY2E5N2I5YTIzNzA0ZTA4MjRkMWZjZDlmODExNGI4NTEyN2VmMTg0YWVlN2VhZjM1M2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmZDY4OTY2NDJjMjI5ZDIyMTFmYTI5MjIzZTc0OTEwZTBmZmM1Mjc5ZDQ0MzBiZDU1ZDUwNDEzNzFjOWI1NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkxZDUyODgzMzc0ZWE0MTBlMzUwZTBjNmIyZTAzODk0ZjUzYzZmOWJjOGMwMWNmM2U1YzBlYjJkZjZhZTQ5MDYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L73-L85",
+          "version": "repo-lines-v1:sha256:6a164eb4075dc2f31eb70749eee9b3f6b9a958a13ea6f8241c6cbe76bf5dd752:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5MjBjZWQzYzcyMzk5MTU1Yjk5NjkxODk1YzE0YmVlZjJhMDllYzE3ZDg1ODU0NTI5ODZmYzVkOWY2YjAyYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYjQ3OGZmYTk4MmZlMTljNGY5MTUyMDA4MTg3NzZmYjhkMmMyMWQ2YzVlNmIwYjY5OTJlMzJmMWYyMTZmNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3YTMyYzAwMDNmMTZkOTMxZTRjMTYwOTc3MGYyYjQ3YzdmNDVmNDhiZWEyOGIwNjA5YjcxODViNTY4YjkxY2QifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/hardware.ts#L17-L24",
+          "version": "repo-lines-v1:sha256:743228b5e1d5d8cfc15e4bbc0f19c22dc268ddc885abaa585ca1df8b11cf2d7b:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzMxZWE2ODg1MTBkZjU3ZmQ0MjA5ZTUxYWY5ZDc3ZDdhNzNjNmFhOGNkM2IxYTA3OTdmMzE2ZTU3MzA2NDUzNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmMzZWZmYzdhZDFjMDc4ODAxMGYwNmMyYmVjMTg3NDkyNmE4MTgzODIzZTE0YTAxYTQyNGUzMmRiODU0NWI3YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTc5YTZmMjZkMDUxYWU4NDEyZDBmMmEyMjU4NDE3MTEwMDJmMTAwYmZhNTU2NDQ1Zjc4ZThjYTE4MmJjOGFmYyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L26-L33",
+          "version": "repo-lines-v1:sha256:e76db3892b17a978ca6d99c117ac888927b1f52d122b828f6459c923c39455bc:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWIzMGJmMWQwNTBlM2NhZjkxYjUzYzJlMzdkNzY4NzAzMDMyOTJhZWVhYzEwYzk1ZTAxMDg3NjcyNDA5MDc0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTJmMWEwYTVmMTFkNGU2NzcyMjQzMzhlM2E2NWM2ZTRjOWQ4ZjZkMjI1NjBiYjg3Yjk2ZDlmNzYyMjIwNGMxOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzM1YWU5NTE4MDg5ODU0NGViZTQyZTY4ZWE2MmIyZGU3M2EzZDRlYThmZDhhZThjZDU2NzljZjg0MTE4MDgwYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/usage.ts#L9-L21",
+          "version": "repo-lines-v1:sha256:db48304134f30a0a5de4ff28beb9b87d14f1a3f63fd9fe39693800b8f452baaf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxMmUzN2ZiMTM1MDEwODBlODFiYjQ5MmExMTZlZWVjMzM4ZDU2ZjE0MDkzMWM0MmRhYTQxMjU5ZmRmMWY4ODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3N2NkZGEwMzQ0OWZkMzFiNzJjMDBkZjk1Njc1MmRjM2RjMzQyMGUxM2UzOTUwMzZjOTBjNDBkM2EzYTEzMDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdiMGJhN2Y4NmMzY2EzODhhMjE5NzczZTcwODEyOWMyMjFjYWYyYTA4NjgyY2I3M2Y4ZDg1MGY2ZDZkNjNmMmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_398fae46cff54f4f899bae86b0c6d669",
+      "statement": "The usage-to-desktop recommendation edge is created by the assembly function as a closure over `ctx.usage?.iconScores(...)` that returns an empty map when the service is absent, so a kernel without the usage service degrades to the stable name order instead of failing; `ctx.usage` is typed optional for this reason.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L36-L51",
+          "version": "repo-lines-v1:sha256:28f09d5cda7e309c0d5792d855a770a8a7addb981db9515df398df5660de4d16:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhMmQ4ZjQ5ZTBkNDZkMGIxOGE1MjliNTY4Zjk4M2ViMWQxNjA3YmY3YzY4ZmEwM2EwNDM3YTA3NGM4MTA5ZjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4MzBiYzIwZWEyMzU1MmJkMGM1OTI5ZGU5MmVlNWMxOTIyZmJlN2Y0NDU3MTA3YzI1MjNjMzA4ZDEwZTM4OGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L134-L142",
+          "version": "repo-lines-v1:sha256:e3b0d0f16269390548fb32560cc2b282ccc8649ad67d9e168cf29ad15733834d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjM0MjQ4YjBmNDZjNWY5Yjc5YjliZWQwMzEzZDY1MGYxMWZlNGY4NDM2YWZkYWYzZDZiNDVmZTA4ZmUwZTc5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2M2Y2YyNjIzM2EwNmM4ZmM5MjVmNTJlYmUyYWNlZmMxMTAwMmM2MGEwOWY3MzM2NjJkM2VjYjNhNWFiZDc1ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTRiZjkyZTE4M2IxODJhZDg2NmEwMDdkN2MzYmRlNWQyMzU2MTgxMzYyOWM3MjIxZDcyOGIyODI4ZjI0MjU5ZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L68-L76",
+          "version": "repo-lines-v1:sha256:e3b0d0f16269390548fb32560cc2b282ccc8649ad67d9e168cf29ad15733834d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjM0MjQ4YjBmNDZjNWY5Yjc5YjliZWQwMzEzZDY1MGYxMWZlNGY4NDM2YWZkYWYzZDZiNDVmZTA4ZmUwZTc5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2M2Y2YyNjIzM2EwNmM4ZmM5MjVmNTJlYmUyYWNlZmMxMTAwMmM2MGEwOWY3MzM2NjJkM2VjYjNhNWFiZDc1ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGZkMjg1Mjg0NDU3NWVhNzRiOWY4ODMzYWIyYzhkYjEzZmFkMTBhZTdkYjMzZTY5ZjhjODNmOGRkYWM3NDMwMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_389963cb536140efa41948e90a443495",
+      "statement": "`DataplaneService` signals snapshot arrival with the internal `dataplane/snapshot` event instead of calling the bridge directly, because `BridgeService` injects `panelData` and therefore does not exist yet while the port implementation is being constructed; a direct `ctx.bridge` access from that service trips cordis's unregistered-property warning.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L14-L29",
+          "version": "repo-lines-v1:sha256:7f7a910a043acdec655e978ccbba7c829a163f77d86fad6f527dcea29086b09b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MjQ3NjEwODMyMDFhOTg1YzI1NzQzYTU0Yzg4Y2U1NzQwOWQzNGY2YmQ5OTcwMmRjOWQ4ZWJmOTA0NjUxYmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljM2I4OTM1YzZiZWNiMjZhNTg5YzlmMmQ5MDM2NDU4ODRlOTQ5OTM1NjNhZTU1NzRiMGJiMzEwMzFmNDE5YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3M2YyNjQxM2M5OTQxYTA1NGZmZDNkMjY4MGIyNTU5YWFjZjBiOTlmZWQyNGFmYzNjY2M4ZjBkZTZlNzYyZjEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L28-L35",
+          "version": "repo-lines-v1:sha256:9127e96644d3e9c7eae3ce626ab8b69e65d50633d1835b44ff09e9d89f8241dc:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2M5MzFhNjAzZTQ0NzQ5ODllNWNhMDg5MmNkZjhiZWU4NTkzN2Y4ZDU2MmJiZDMxZmFmNDdjNDNkYjMyZTAwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjdmMjlkY2U2MGNmMjRlZjhkN2NiMjZmNzViZjI5MGNlOWEzMmEzZDJkNzY1MDFmNjY5ZGNhOTQ3MGVlMDYzOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiYjQ4OGM0MjAzNDdmODJmODYzNTgyNjgwNTE4MmIyMmQ4ZTkwMDY1ODgxN2ZjZGE1YzVlMzMxODA3YmJkMSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L90-L100",
+          "version": "repo-lines-v1:sha256:b412b348997258f8e017ddb76b349fc31d9eab2f3ea9ca073df57f82d5565f4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NGQ2MTg5YjRlMzk1NDdkYjIzMWM0MWFjZmU0MGU1ZGI4NGI4NmU0M2RlM2U0NmRjNGVkMWM0ZWQyNmExYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3Y2Y1NzAyZDZmMzkzMzExZGY2YjUxMzcxZGI1NjJiMjE0Yzk5ZGM1ZTg2ODQ2OWU1YWYxY2JmNmMyODk2MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4NTY1ZjQ5YTA5ZjM0YmVkYWVlMGMwMDY1N2FlOTNjNTY4NjljZDAxOWM4NzdhNmY4NTU4MzU0MzVlNzFkYTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyMmQyZDlhYWZjMGExN2VmZGE1ZjkxN2E4MmU1ZTc3NWMzZTE2ZTI2ZWRlZDAxNmU5ZDg4ZTlhYzRhNDJiMDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b1e1d1921d3a4c10a994611ca5042858",
+      "statement": "The kernel owns this exact set of interval timers and defaults: panel push tick `DEFAULT_TICK_MS` = 1000 ms (createKernel, calling `bridge.tick()`), data-plane sample round `DEFAULT_TICK_MS` = 1000 ms (createDataplaneKernel, calling `sessions.refresh()` + `desktop.refresh()` + the `onSnapshot` sink), hardware sample `DEFAULT_HARDWARE_MS` = 1000 ms, usage collect `DEFAULT_USAGE_MS` = 2000 ms, usage prune `USAGE_PRUNE_MS` = 3_600_000 ms, and search pump `DEFAULT_SEARCH_INTERVAL_MS` = 50 ms.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L143-L163",
+          "version": "repo-lines-v1:sha256:7b805d580cc317b34b9692f46bd3ee98b5be0c5849ae973032da902da80b6710:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MzI2YmU3Y2Q5MWI0MjdiY2QxN2Q1YmE2MTFkOGViNWE3Y2ZjOTg0YjZlZDIyYzAyYzkzZjk3NjJjZTZmZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNjMDVjYjNmMWU5MTUxMWMzNjkyYTJiOTc5ZTY5YWNjOGFiY2MxNjQwYTIwOTVhZGU3MzQ3YzRlNTAyMDQ1YWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmODU0Zjk4ZWVlZTk4Nzk2ZjNkMWI3ZWVmY2NkYTFlNTQyMWU0YTEwYjQxNTNjNGVkODllZTJhYjcxMTk0NDcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L55-L59",
+          "version": "repo-lines-v1:sha256:d319773e5421f737d6b540c9653dc1bed8821e9ac59e5be33683bf341d1b51d8:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1YjAwODM5ZTU4MDYyNDYzN2UzMjIxNjQzN2Q3Mjg0Y2Q5Nzk5MTJlNTk5YjRlNTMxZjljNjUxMWY0NWQ0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2Q5YWU5ZDM2Y2E5OGFmNDM0MzA4YTE2NDcwODFlNzdjYmIxODFlYTJlMjU3ZWMwYTRjZDc3MWU3YTA5YjFiNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTI4YmMwNjIxNGY5NTFiYTZkOWM4ZjAxZjViMGFhOTlkZWI3ZGY4ZDUwZGM2NmRlYzk5Nzc1NmVkY2ExMWM5NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjliMTgxODU3ZTU4Y2Q2MzM3NDBmMTc4ZDg0NmUzZmM0ZjYyYWM1NjY2ZDQ3ZmNjNDIwYzA4ZjgwNTZmNDdhNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L85-L108",
+          "version": "repo-lines-v1:sha256:bccec15d8241ee02269e28f72726e52394cc6eeb46653a5ffecd8863969839c3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MzI2YmU3Y2Q5MWI0MjdiY2QxN2Q1YmE2MTFkOGViNWE3Y2ZjOTg0YjZlZDIyYzAyYzkzZjk3NjJjZTZmZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYWUyOTc3OTJlYzBlOTMxNjFiNzI3NDRlNTc3MTJkN2E4MGJkNzU1YmM4NGRlNDZiYmRmMjlhNzg5YjIyYjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmODU0Zjk4ZWVlZTk4Nzk2ZjNkMWI3ZWVmY2NkYTFlNTQyMWU0YTEwYjQxNTNjNGVkODllZTJhYjcxMTk0NDcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-kernel.ts#L45-L50",
+          "version": "repo-lines-v1:sha256:64652c420f257de65ff40f12d5160c10b521579dfe5e07d6f462f6437738c2e3:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTMxYmVmZDk4M2MzOTAxZDE5M2FlZmI0ZjcxMWJlMGMzYTc1OGZjODBmMjczMWRhMmI2YjU3MmEzOTU4N2Y4YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGY3ZWM1Nzg3MDQ0NzY1ZTJmZThiMDUwNWMwYmZlNDE3ODg2ZTE4YjhiZWYxNjk4YTEwYmRiN2M2ZTViYzE0NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTlkNTEwYzUzNDVjYjQ3OTBkODFiOWQ4ZjMyZjdmZDc4ODA2OTQ4ZDRiMDFkNjBhN2YzZjdlM2VmNTc3ZTU4ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_428fc236401f4e36af03b07ec794512e",
+      "statement": "Every kernel interval is guarded by a greater-than-zero check, so passing 0 installs no timer and lets a test drive the same work by hand; because the hourly prune timer is created inside the same branch as the usage collector, `usageIntervalMs: 0` disables both usage timers.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L85-L102",
+          "version": "repo-lines-v1:sha256:42b8b28688cd9068d72da918311dd492fbc0c531ccffd1af778bfbf90fafe0b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MzI2YmU3Y2Q5MWI0MjdiY2QxN2Q1YmE2MTFkOGViNWE3Y2ZjOTg0YjZlZDIyYzAyYzkzZjk3NjJjZTZmZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYWUyOTc3OTJlYzBlOTMxNjFiNzI3NDRlNTc3MTJkN2E4MGJkNzU1YmM4NGRlNDZiYmRmMjlhNzg5YjIyYjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjOWRhMzdjZDYzYWZiZjFhOWZkNjQzZTQ0YTZmMTVlYjVkNGI5NDg2MzkzMzRjNWRiZDBkYTg3NjA0MzVhZWUifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L48-L51",
+          "version": "repo-lines-v1:sha256:ec9228b8303c67a4384637953fd1934398761982c9db2bcc0f1d736a844cfa09:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQxNDE1YWJkZTUzOTE1ODI3NTY0M2I1YzliYjQwNDUwOTU3NTlhOGIwZGYyNmMxODIxMmQ4MWMwNGVjYzMxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWZkNTUyZTY5YWQ5ZjQ0Y2FlYzNlYWZjNDliN2VlNjhjNGRkODhkM2JiMDc1NDViNzhmM2MyNjY3M2U2NTRiYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9231730fd6784a5bb76796b7b08b525d",
+      "statement": "The production assembly installs no snapshot timer at all — `createPanelKernel` has exactly one interval, the 50 ms search pump — because in production the child's 1 s tick drives reflection into the panel by arriving as the `dataplane/snapshot` event; this is why `tickIntervalMs` exists in `KernelOptions`/`DataplaneKernelOptions` but not in `PanelKernelOptions`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-kernel.ts#L15-L50",
+          "version": "repo-lines-v1:sha256:6c2dad2f0e680a280c82e42bbcd660429fd5f0d269495f8f7f2b2ebbd99a28a7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwMzg3OWI1MTc3NGFhZTVmNTA0ZTY4ODY5YWEwOTg3Mzg4Njg5OGFlNjM1NWI4OWQxYjJmMTk4OWUwMTgwNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyYzQ3NTg4ZjY3MTdkYmRmNzE5MDc1ZGUzMDZmMTAxMjBmNTBhZjMxOTQ3ZDI2MzY1YTIxNTYyOWQyOTA3MjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5ZDUxMGM1MzQ1Y2I0NzkwZDgxYjlkOGYzMmY3ZmQ3ODgwNjk0OGQ0YjAxZDYwYTdmM2Y3ZTNlZjU3N2U1OGUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L32-L35",
+          "version": "repo-lines-v1:sha256:199d673f0643520bbee6e42b76eb9c1e2ec405cc34848b7da8b9cf9c9cb29159:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjEyZjUzYmYyYTMyYzVmMmUyMDMzNjFiOTc0MWY5ZTczYTMxYjNiM2Q5ZGRlNTFkMjVlNTBlNGQxNDM3MTBhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWIwYjhjODlhZTEzMTQ1ZGE5NGFlODRmMTg0MDE4MDE5ZDZkYTliMWM3NzAzODYzOTEyY2I1MzNhMWIxNzExYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiYjQ4OGM0MjAzNDdmODJmODYzNTgyNjgwNTE4MmIyMmQ4ZTkwMDY1ODgxN2ZjZGE1YzVlMzMxODA3YmJkMSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L90-L100",
+          "version": "repo-lines-v1:sha256:b412b348997258f8e017ddb76b349fc31d9eab2f3ea9ca073df57f82d5565f4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NGQ2MTg5YjRlMzk1NDdkYjIzMWM0MWFjZmU0MGU1ZGI4NGI4NmU0M2RlM2U0NmRjNGVkMWM0ZWQyNmExYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3Y2Y1NzAyZDZmMzkzMzExZGY2YjUxMzcxZGI1NjJiMjE0Yzk5ZGM1ZTg2ODQ2OWU1YWYxY2JmNmMyODk2MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4NTY1ZjQ5YTA5ZjM0YmVkYWVlMGMwMDY1N2FlOTNjNTY4NjljZDAxOWM4NzdhNmY4NTU4MzU0MzVlNzFkYTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyMmQyZDlhYWZjMGExN2VmZGE1ZjkxN2E4MmU1ZTc3NWMzZTE2ZTI2ZWRlZDAxNmU5ZDg4ZTlhYzRhNDJiMDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_221cb3a592844cf790fb162e8e0f4cf2",
+      "statement": "Kernel timer callbacks reach services through optional chaining, so a timer that fires after construction but before `ctx.start()` mounts the services is a no-op rather than a crash, and the genuinely optional `usage` service simply drops out of the tick.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L41-L43",
+          "version": "repo-lines-v1:sha256:96e7fd8939693e7a676aeb1e34f67ed3a7d07a44b431f9c8e1bf902c96f61210:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWRjNTgyZDI3NzAzMTdjNzNjMDA0NjEwODhkOGU2MGQ0NTZiZDFlNzQxNDVjZDAzMDFmYWUxMzBkZTAyMjg4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk1OWZjYThlODQ0OTEzODk2YTUzMjlkM2Q5MDRjMWVhZGNlYjdjZDQ5MTY4M2VkNmQwMTI4ZGQ1YWZkMjQ1OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTZjNTc0NWY0MGExZDZmMjIxZTljZDFjYWY5NDU2OWZhN2VhMDgwYmEwZTU2NWMzYTcyZTY1MTU3ZjI1YTU4NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJmMWI3MjZmZTA1NDUwYjdlOGYxOGUyYWE4ZjJkZmMxYTc5NjA0MzE5NWMxMDYwMGIyZmMwYjMyY2I4OGNiZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L85-L108",
+          "version": "repo-lines-v1:sha256:bccec15d8241ee02269e28f72726e52394cc6eeb46653a5ffecd8863969839c3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MzI2YmU3Y2Q5MWI0MjdiY2QxN2Q1YmE2MTFkOGViNWE3Y2ZjOTg0YjZlZDIyYzAyYzkzZjk3NjJjZTZmZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYWUyOTc3OTJlYzBlOTMxNjFiNzI3NDRlNTc3MTJkN2E4MGJkNzU1YmM4NGRlNDZiYmRmMjlhNzg5YjIyYjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmODU0Zjk4ZWVlZTk4Nzk2ZjNkMWI3ZWVmY2NkYTFlNTQyMWU0YTEwYjQxNTNjNGVkODllZTJhYjcxMTk0NDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2f66b1d1cb0442df947b6a7c01c3da4d",
+      "statement": "Each kernel timer is cleared by a dispose handler registered next to it, and `ctx.stop()` additionally tears down service-owned resources: the desktop root watcher, the plugin directory watcher plus every installed plugin instance (disposed once), in-flight search generations, and the data-plane child together with its pending restart timer.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L86-L108",
+          "version": "repo-lines-v1:sha256:e3dbab43390a8693b6b9faa3fcb6aa14d573040875c48319d994dcbe7ff14dae:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkZDBlZmM0NTJiMTdhYzIxNDlhZDQzMTQ1Y2U4MmRhNWYyZmJiOGJkNWQyZTRjODc2MjY0ZDRjMThiZTUzN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM5MWI3MjliNzU0ZjQ0N2IwMzc5OTAwYTIxMTI4OTM1N2E2OTgwZjkxOWY1MGZmMDQ0NjE1Zjg1MGU3YWZkOTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmODU0Zjk4ZWVlZTk4Nzk2ZjNkMWI3ZWVmY2NkYTFlNTQyMWU0YTEwYjQxNTNjNGVkODllZTJhYjcxMTk0NDcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L107-L111",
+          "version": "repo-lines-v1:sha256:3b8b255d4f894d87fa5b0dca426690dc009e6728251409d55658d508424e26c5:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGRhYzIwNmFhNGRmM2E3MWE1NzgxZmEzMDIxMDFlM2M5ZmY5NWJlNGI5YWE2N2JmN2YxMmZhYTJmMmQ1ZTMwOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmZhYTVjN2VmYjEyMTExNmVlODE3OThjMjYwOGM0OGQ5MTNjZjgzNjNkZDM1NWEwOTA4NTk1ZDhmYjI3MDQyZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGY2YTYxYjcxMjE5MTA3Y2QzOGRlNDMwMTAzZGIxNjFiZjJhYzliNGE0MDk4NjBhZTZkZjFhYWYxOGQ0MmExZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L263-L267",
+          "version": "repo-lines-v1:sha256:12daa113151fb8d2c27a899c77e290be7e69e9803ae953d6940298cd0e08ac8c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjZiZmEyNjhjMTlkY2ZhNDhmY2RmZmM5YTQ5MDFkOWI1NTRjZWY4Y2MyNWI1ZWM5MjJlMmZjYWJlYjZiNmQ1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg1MDhiNmNiMDU4OWFiYTc1MDMyMDJkZTJjOGY4N2VkOWIxOWNkNTg2NTNmZDAxYTNlNjc1ZTNhYjdiNTk2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTMyNTliYmUwNGRkOWEzZGU5NTE5YzdjZThmMTYxMjcwYTQ3MmFmODhlMTUwY2U3ZGIzN2RhODg3NTExZTE1ZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L117-L122",
+          "version": "repo-lines-v1:sha256:1c4c815f2e54443c5d99b5f4acd36eb99b1ba5a65044211e1f45dc48df7360b2:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmY5ODIyNGIwZTQ1MjUxYTMyNTliYzYwOTZiNzc5ZDgwYTNiZmJjYjk3ZGJmYTc4NzRiOTYxMDFjNDIxOTU1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg1MDhiNmNiMDU4OWFiYTc1MDMyMDJkZTJjOGY4N2VkOWIxOWNkNTg2NTNmZDAxYTNlNjc1ZTNhYjdiNTk2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVlYTRlNmU3Mjc2NTBmMmU4MDE2Y2U4MTY3YTJmYmVlZjY4ODI0MmIwZGJiNmE5ZDE3NDI2NGYxYTViNmQzMyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L55-L64",
+          "version": "repo-lines-v1:sha256:bc2600ae3d94f805186055313d6621159afe94f21cca0b40a30a015af53826f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4MzhiMzBmMmY2MmVmMmNlNDYxNmZkOWE0N2ExN2I5YWMwYjY0ZjRjOWQyMjMyYmJiZmU4MGY4MDQxZDZhODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmODM3OTNiMWE4ODM0ZmVkNjliZDRjNzkxYzYzMDk5M2MxZTU2NGViMDNmYTllZTdmMDc5MmZhNGM1YjgyNDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4OWM4YWM4ZDliZmQzNzExZDdmYTU5ZjM0ZTJkNTJiMDVkMGI4YjkxMDdhYjU1NTFkODY2MzIzYjI1ZTdlNmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1MGI4MDU4OGJjNWIwZjA4YjA4NTRkZWQ5Y2Q2M2RjNmU0ZDkxY2ZlNWJkOTlmOWRmODdhZDNmY2ViMTdmYzkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L86-L92",
+          "version": "repo-lines-v1:sha256:1d8eb7b0cee773f2c205ea51a1f884d1303f5a65b52a752fa3d79f91849c966f:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODQzMjUyNWZiYzZiNDJlMmZlN2I5MTQ0YzgzYjcxMWJmMDVlMDczZWE2MTFhZTVmNmJmNjJjMjBhM2I4ZDIwYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjMzOGYwZTQyM2Q5MGYxMDkxYmZhYTkxZTZiMWVkYTY2MzVhYjFiM2E0ZDg5ZDNmMzg2ZDZmMDBkODQ4MThkOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2IyZGYyZTZhNTY3MzJiMzI4MmFjMDlhNWIyMDk1YzJhMGJjZWQwNWFjMzc2NDdjNWUwMGNlZDJkMThiZjU2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjg5YjVjODQ4OTk2ZGIyOTM5MDVmMWQ0NmEyY2ZjMjAxYTgwNzBmZTE4Y2NkNTUxNTJkOGY1NzdlZDE4OTdjZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L85-L87",
+          "version": "repo-lines-v1:sha256:f066d24b187530c8c523766b03332e16d410a5332acfe565e75732e7585571a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjAxZTU4Zjg5NjQ1MDZjYTBmYTg4MDYxZDcwY2U2MjI1NDAzMzc3NGQyNDE0NDUyN2Q5ZmViYjU5MTRhMzFiOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODhiNTdhNWY3OTYxODhiNTI3NTQ1MWE4Y2RjZmU2MWZlYWNkYjcyNjIxOTFkMzM5ZmZkNmZlN2QyYTRlZjA1OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTY3ZjBhNGRhOTk2MGEzNjc0YjMyM2NkMWFmNDhmNWEwZWIzYmEzNGJmODRjYzIyMzllM2Y5ZDEyZDA4MTExZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f8a585b5b5aa40ee8bef692cc18940dd",
+      "statement": "`PanelDataPort` has ten members and both implementations register under the same cordis service name `panelData`, with `ctx.panelData` typed as the port interface; `BridgeService` reads the clock/sessions/hardware/desktop snapshot sections and dispatches the desktop icon/launch/move/reset-layout actions only through that port, so it is independent of whether collection runs in-process or in a child process.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L36-L40",
+          "version": "repo-lines-v1:sha256:b3c895f0a526d4802488b606dfa0d70f8d5d1d42b27896288a6efa5f82491aff:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmEyZDhmNDllMGQ0NmQwYjE4YTUyOWI1NjhmOTgzZWIxZDE2MDdiZjdjNjhmYTAzYTA0MzdhMDc0YzgxMDlmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGYzZTVkMjY1MDJhYjk3ZDNmNzkwNjdiNWI0NDUzMTk1YTEwNmQ1NDQ4NjlhMjMxNTdiODgyNGUzNzUwMzM4NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjgzMGJjMjBlYTIzNTUyYmQwYzU5MjlkZTkyZWU1YzE5MjJmYmU3ZjQ0NTcxMDdjMjUyM2MzMDhkMTBlMzg4YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTZlN2ZkODkzOTY5M2U3YTY3NmFlYjFlMzRmNjdlZDNhN2QwN2E0NGI0MzFmOWM4ZTFiZjkwMmM5NmY2MTIxMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L37-L67",
+          "version": "repo-lines-v1:sha256:4f815319c042e3825d3108730dfce1d823c1b0607991e63b4b9ad9ef4bac7471:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjMjI2ODQ0MWZkMDU2ZGQwNzQxMTc3MDUyNTE4YWI3MDY5ZWFlMWY4MDZlODU3Zjg0YmU3YTc2MzljNTcwMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhMGNjZDdkMjZjOTYyMTJhNzkxYTk0ODE3MGFjMTE3ZDNhZTUzNzY0N2Q4N2FlODE1Yjg1MDNhMzc2N2VkMzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0ZGJhMjVmNjY4MTgyNzRjMTJiYzcyYzIyZDFmZWM1YmEyZjg4ZjgxZmE4MWU3ZDVjYmE0ZWIzNmMwMzdmYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0Njc0ZjE2NGMzNjIyMGMzZWRmM2ZjMThhMWU0ZWY4YTE2OGMwMjFiZDFlMWJjM2Q3YWRlYzg3MWVmNWU1YmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L35-L50",
+          "version": "repo-lines-v1:sha256:7ca6338d02fa1b5d4c658f6fce330228266af6292568337258f42062a53c21f0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkMGE5ZWVhYjQ2MTcxODdjYzFmMGM2OTk3YjI0ODAxMTBmZjVjYzExYTFlMTAwYjY5NTgwOTNmNGViNDBiMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0ZTc4YzBhNzM4NzFlMDI3N2E2YWRkMTcyOTg0OGRjMjgwNWFkYzM3M2M1N2IwNDQ0ZjU0MGM3NTEyYmJhOTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkYzExZmY3NzYyYmNkN2Q1MjY5YjJhMzg3NzIzNGE3NTA4YzI4MmI4MGYxOWYwZGMwM2I1NTZlODEwN2Q4ZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlN2UyNDU0ODdlYjYzN2JkMTEwNjNhNWI5YmM2NjY4MTNmMTQ4Y2M2YzQ3ZjE0ZDI0NTI0N2Q3ODdlMjQ4NWEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L10-L33",
+          "version": "repo-lines-v1:sha256:621d9763d74244f85ceda3c66e74e74a5d25e3d0223e27e9ddb0ddc70235e7ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhYjc1MDQ2ZDVjZTE0ZjNlYTZiYjdiNjExZTc5ZGFmYjA2M2QxNWJhYTU5NTUxZTc4NjE4NzBhOTRjYmU3YjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzNDVjMjliMmNlODdjNzkwZDkxMGQyNTJlY2FlZDk0NGFkZmFkYTM4YWZlOWUyNWFjZWE4NmIzNWRkNmIzOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczNWFlOTUxODA4OTg1NDRlYmU0MmU2OGVhNjJiMmRlNzNhM2Q0ZWE4ZmQ4YWU4Y2Q1Njc5Y2Y4NDExODA4MGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bdeed116dd3b484591235c1cbd1b3295",
+      "statement": "The in-process port resolves `whenReady` immediately and its `refresh()` drives sessions and desktop rescans, whereas the production port resolves `whenReady` on the child's first ready/snapshot message or after the 15 s `DEFAULT_READY_TIMEOUT_MS` timeout (which logs `dataplane-ready-timeout` and lets the panel start with an empty data plane) and its `refresh()` is deliberately a no-op.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L12-L12",
+          "version": "repo-lines-v1:sha256:827a00140f399eaf58040ffab231661348f7a230879afac2662c9838b10ea1b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODI3YTAwMTQwZjM5OWVhZjU4MDQwZmZhYjIzMTY2MTM0OGY3YTIzMDg3OWFmYWMyNjYyYzk4MzhiMTBlYTFiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODI3YTAwMTQwZjM5OWVhZjU4MDQwZmZhYjIzMTY2MTM0OGY3YTIzMDg3OWFmYWMyNjYyYzk4MzhiMTBlYTFiNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmEyYzdkOTBkYWY3ZTUzY2ZmZDRiODMwNTdiNGY5NWZlMmFmZWY5YzVhZTkxNTcwZDI5NTEyYmM2MWYxMTc5MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjA3YTliZTQxY2Y3ODQyZmM3ZmU1ZWExYmM0Y2VjN2MxMWUwYTYwM2RjMjhlMzFkOWE3MjcxMTNmYjM1OTEyMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L157-L159",
+          "version": "repo-lines-v1:sha256:549baf6afff7f2f4055d57d0890e3b6fc7b6368641615c976c2fd112d3303a0b:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTJjYWM0NDYwMjAzNGMyOTBjMGJkYjk1MjRjMWZiYWNkZjA2ZjFiOGRjZWZhNzEwMWY4ZjllNTliYTk0ZDExYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmQ2MTc4NTUxM2M1ZDM4MGQxNzQwNGQyNjg1NDAzOTY5ZmI2OTY3YzJkOTA1ZjFiNmI3NjdiMjcxNTZmZDg2YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGI4N2E3YWRjYjE3NWVmMDQ1OTFiZDI3MzY4NDI1ZmFlODIyODExYzdhZWE1NDk1Y2VkM2FjMDljMTIyNTViZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L56-L64",
+          "version": "repo-lines-v1:sha256:93fa3ddfe9e0a401d28e739fc860febbaf1d60a964a603e99b4d09af576e3c0f:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmY2ODNmNTU5NjkzNjAzMGI5MjJlNTg4NDZiZjc3ZGVjYWE2NjRkMjhmNDQ4MDE2YzZiZjY0YjMzMzBlNGRmNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmY4Mzc5M2IxYTg4MzRmZWQ2OWJkNGM3OTFjNjMwOTkzYzFlNTY0ZWIwM2ZhOWVlN2YwNzkyZmE0YzViODI0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2YWJkOWM2ZTgwZDQ1NGFmNDhlNDQ0ODEwMWIyZjRkM2I1Y2EzMmVjMzY2OGUwNjVjMzEwYjMzY2RjNzRlZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTUwYjgwNTg4YmM1YjBmMDhiMDg1NGRlZDljZDYzZGM2ZTRkOTFjZmU1YmQ5OWY5ZGY4N2FkM2ZjZWIxN2ZjOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L29-L54",
+          "version": "repo-lines-v1:sha256:5886e7c977169ddc2390fc940ae1436ee44ae5d0f04fa541d287ae8521286b86:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmOTg2OTU4YzAzNTdiNGFjMmFhYmYwZmExOTJhYmY1MTExN2ZiOWM3ZmYyZDA1MzNjNzIxNGM5YzhjMjU3NmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZiMTk2N2UwOTZlYmIzNzQ5MzExZjRhMWExMzM5M2Q2YjE2ODk3YmU1MTUzM2IwMDdiOTNjYTg3YmU2MzhjZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3ZjBkZTNjYzI1ZDNiNWRlZDliMzY4MDU5Yzc4ZTMxZjZhOThmNGU4MzkyOGJmMmU3OWI0OWYzOTEyNThjYjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f721f4e4bfe4ace909f72a207d32390",
+      "statement": "In the production port, Electron-only capabilities stay in the main process: `icon()` uses a main-process `IconCache`, `launch()` is validated against the main process's own copy of the latest snapshot item pool before `shellOpen`, and only the two layout writes (`move`, `resetLayout`) are RPC to the child using a sequence number plus a pending-request map that is rejected when the child exits.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L124-L134",
+          "version": "repo-lines-v1:sha256:764aa11698c74aafe07602f26ef1ee0ca84f732d7c4186a40dc407d35b4e3fdf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE4YzljODNjOWFjZTE2OTIwMmE4MDJkOTZlOTQ0ZDljYWVmOWJkMTVhM2ZkZDUyYzgxMGUyZjcwNzkzNDc1NDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlMDU0OTgxNDBlZjZkNjdjOWYxZWY0YTBiYzI0NGExYjQxMzUxZTg2MTE2ZjRiM2NmNDViZTM2MzI3MGYwMTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhiNTZiZWFjMWY2ZWM4NzQ5ZWJiNzI1OWY5MDM0ZjYxOGUyOTRmMTQzYTQwZWIwNDkzNTlhMTU3NWJhMjk0YzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L161-L181",
+          "version": "repo-lines-v1:sha256:7da4448eb5c51e3f0486ac43ce9dcb3a79fa8712c66ec712ce8b5f099d049cc1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwZTBjZGRkOGE3NWZmYjY5ZjgyZGJmNGFkZWMzMzUxYjcwY2E3MGVlZTkyYTE2MmI5MzUzOGMyNDMzYzU4OGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0NGNlZDgxYTJjZWI3MjRlMzZjZDA3ZmZjZGIyODJiYTM2NTgxYWRjZTliMjQxMzRlOGJhYmE3ZWY0MmNkYmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d585514b0ca643b593f1dd2363329bed",
+      "statement": "Data-plane child death is a degraded mode rather than a crash: pending RPCs are rejected, a restart is scheduled with `min(30_000, 1000 * 2 ** attempt)` backoff, the attempt counter resets when a message arrives, and on-disk state (layout placement, usage log) converges after restart while the hardware history ring restarts empty.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L78-L95",
+          "version": "repo-lines-v1:sha256:8d6e1cf34203f2167182c9adc248e2958a97603316dbc9fbd870dcdcdf3b17d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZmE0MDg3OThmMmY5YTQxYzQ1OGZjMGMwZjk0YzE0YWQ2YmZkMzFhMWU3OGRiNzUyY2M1NDRhYjM0MDc5NjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkNDNkNzFmNGJmMWY5NTAzOGIyMTY1NGM0MjhmZjUzMmUwYjhjZjlhZmY3NjUzYzk2NmQ0NDU4YTA1NDMwMjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhOTBhOWZhOTczZDlhZGM2YTllYzNiMmI2YjU3NzUxYzU5ZjNiZTAwN2M1ZTVkYTdmY2QyZmZiOWNlMWI2YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1OWI1Y2MwOTI4ZDgxNDllMDkzMjdmZDJmYTNlYTM0NDU4OGEzMjMzOTc0MzM0YzI0ZTQ1ZjkxNzZiZGFlNzIifQ"
+        },
+        {
+          "resource": "repo://docs/adr/0005-no-input-hooks-dataplane-utility-process.md#L21-L23",
+          "version": "repo-lines-v1:sha256:1e3a2727a4a534e54e5d698b70aa5b52162b821f5b0ca5d7cad9a2cd28133747:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTM1MzU4OWYwMzc3MzcwYzBjNDkwODI5MTViMmMxNmFjMjI3YmJjOTRhN2JhZDAyYmRhMTk3OTAwMzJhMjQ0NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzc0YjkxMDQyNTIwODc2OTcwMjMzOTFmOGIyMDc1MjQxNDA1NmY3NDZlYTNiMjZmNGRkYzAxZDU2YTIzMThlMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmQ0NzY3OWIwMDZkNmY4ODJhZjUwM2QyYTgzNDViNzRkODE1MjVhNWJlNjk0NTU2MTQ0NDY5MTQ1NDFlYTE2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODliY2IyZmVhNzgzMmY0NWI2ZjhkOWE3ZjJmYTkyODMyYjE4OTJhOTUyNDYyZGExNDk3MTcxY2Q1MWY5YzExMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7056c74882f14141950f8a1412c28376",
+      "statement": "Kernel-level test coverage is split three ways: `tests/contract.spec.ts` creates the in-process kernel with all four interval options set to 0 and drives `ctx.bridge.tick()`/`ctx.search.tick()` by hand while asserting invoke responses and pushed events; `tests/services.spec.ts` runs snapshot-contract cases on the same zero-timer assembly plus bare-Context service tests; and `tests/dataplane-kernel.spec.ts` runs `createDataplaneKernel` in-process with real 10 ms timers and asserts the snapshot sections seen by the `onSnapshot` sink plus the desktop write path, with the child entry covered by the acceptance battery instead.",
+      "evidence": [
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L48-L51",
+          "version": "repo-lines-v1:sha256:ec9228b8303c67a4384637953fd1934398761982c9db2bcc0f1d736a844cfa09:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQxNDE1YWJkZTUzOTE1ODI3NTY0M2I1YzliYjQwNDUwOTU3NTlhOGIwZGYyNmMxODIxMmQ4MWMwNGVjYzMxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWZkNTUyZTY5YWQ5ZjQ0Y2FlYzNlYWZjNDliN2VlNjhjNGRkODhkM2JiMDc1NDViNzhmM2MyNjY3M2U2NTRiYSJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L82-L98",
+          "version": "repo-lines-v1:sha256:47a1dce49a7010b15c142fa7a40eec8284f520dc2b572a4e6574e05d199797dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4YWU3YzQ0MTQxNTFkZmIyMTFjOTNlMTk0ZGY5NDFlNTE5YjQ2NWQwOWEyOGRmMzc1NWE1MTU0MTZkZDg5NTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3ZThmNjhlNjNhN2FlNjA4ODU3Mjk0ZTI0ZTgyYzJlZmVkMGNiNWJjNTU1NjdmMGJiMDYyZmJlMTMwNTlkMmMifQ"
+        },
+        {
+          "resource": "repo://app/tests/dataplane-kernel.spec.ts#L1-L5",
+          "version": "repo-lines-v1:sha256:b2608a4055c48e9995efcb66ebf11371bc1156949f4e0537f74b6185b26065d9:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmI4OGQwNGFlNDNhMTc4NTJkNmJiNDZmNDIwN2U0ZmQzZmI1NjFiMjkyN2Y0NmQ1YmIzNGMzOGE4Njg2MTg5MiJ9"
+        },
+        {
+          "resource": "repo://app/tests/dataplane-kernel.spec.ts#L45-L122",
+          "version": "repo-lines-v1:sha256:b3298f5912fecd603daed90bbe6ece3a1dc611491115eb7423935c622296cc38:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiYWVlYzBhZjBkODhhZDIyNDJjYzgwODczODVlYjI0OGY2ODRkNjQwMjc2MzE2MGU1NGRmZDY2NzVmNzNhYzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        },
+        {
+          "resource": "repo://app/tests/services.spec.ts#L163-L221",
+          "version": "repo-lines-v1:sha256:696be063814309395eea38b9dc1e6a89fc013a9fdfd963595cc398abd0e5ed63:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhNzM3ZjQ2NmQ2OTc1MTI0MDk2NmJkNjMxZTcxNGEwYzQ0OTE2NWVhNGQ0NzUwNGMxZGY4NDk4MmVmM2I2MDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_35e21464e7574161ad0f63688fc0f8e4",
+      "statement": "Timers that are not kernel-owned belong to their own layers and must not be attributed to the assembly functions: the window host's 25 ms hotzone cursor poll, the Win+D restorer's 250 ms poll with a 1500 ms debounce, the plugin watcher's 300 ms event-storm settle debounce (created only when roots are non-empty and watching is on), and `DataplaneService`'s one-shot 15 s readiness timeout and 1 s-to-30 s restart backoff timeouts.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L4-L4",
+          "version": "repo-lines-v1:sha256:d035375f82bc37ba1912ea417a8a718adce9cdd7408f6c80f94ba889add1c2cb:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDAzNTM3NWY4MmJjMzdiYTE5MTJlYTQxN2E4YTcxOGFkY2U5Y2RkNzQwOGY2YzgwZjk0YmE4ODlhZGQxYzJjYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDAzNTM3NWY4MmJjMzdiYTE5MTJlYTQxN2E4YTcxOGFkY2U5Y2RkNzQwOGY2YzgwZjk0YmE4ODlhZGQxYzJjYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWQ0NzkzNTVjY2I5Y2RlMzQ2ZTA1ZTdjZjQzN2E5YzNjNGRiYmVhOWRkNjk3NWQ0NDM3YWJlZjlhMjYyNmMxYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjgwZDhjNjU4ZGMyZWE3MTQ5YTliODg1YmY2MzFmOWZhZjAwY2ZjNmQ0NzY4NjUzYzQ3ZWQ1YTQ2YzMxN2JjOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/watch.ts#L17-L30",
+          "version": "repo-lines-v1:sha256:23df91066f766b7c25d03e46a03e3a79d8225508ba5106b393dc26814eb2041a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwOGMwMDc3ZGI0YjY2NWM3ZmIyYjU1YjU5NjM1YjUxZjc2OTZiOGE5NzAxNjJjMDcwODlkZDlmNjM0ZmRlMWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2YzIzOThmMGJkODE3OGVkNjBkY2M3MjU5NjE3OTdmZDNkZjY0OWJmNWExNWY1NjJjNDY2MGIzMGVlNThkMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NGU0Y2Y2MGFiZGExMGI1NjEzYzZkMjliMGZkMmMxOGY4NzVkMmJjOTRjNTJmNzZjM2QxMTYxMTdhNzY4MWMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L12-L12",
+          "version": "repo-lines-v1:sha256:827a00140f399eaf58040ffab231661348f7a230879afac2662c9838b10ea1b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODI3YTAwMTQwZjM5OWVhZjU4MDQwZmZhYjIzMTY2MTM0OGY3YTIzMDg3OWFmYWMyNjYyYzk4MzhiMTBlYTFiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODI3YTAwMTQwZjM5OWVhZjU4MDQwZmZhYjIzMTY2MTM0OGY3YTIzMDg3OWFmYWMyNjYyYzk4MzhiMTBlYTFiNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmEyYzdkOTBkYWY3ZTUzY2ZmZDRiODMwNTdiNGY5NWZlMmFmZWY5YzVhZTkxNTcwZDI5NTEyYmM2MWYxMTc5MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjA3YTliZTQxY2Y3ODQyZmM3ZmU1ZWExYmM0Y2VjN2MxMWUwYTYwM2RjMjhlMzFkOWE3MjcxMTNmYjM1OTEyMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L85-L87",
+          "version": "repo-lines-v1:sha256:893a549e679515091da6274eb9505b0ef62b6fe993af6a321c93b1f378758303:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzYyMDk5MWE3NzU2YzEyY2Q4ZjQ0ZDZkMDJkMGZkNDc1Y2FmYWJhNjE3ZDg3ZWEwZGNjZWE2NjhiYjNjZDljMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmI3YjEyNGFmY2EyNTdlYjI4NWVlY2VlNDk2OTBlNmM2MjEzODkxMTYyYjRmMmNjM2E4NjRmZWRlMWNhNzljYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmQ4YzQ0OTIzZTAyZDhiNDVkMjVkNjI4N2UxYWVmMzRkNzgxNTM1NzJjNTEwNDkzNGMzYWUzZTUwN2YwZDVkOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDE0ODY1MjFhOTQwOGU4NGJmMmNhYmUyNTE1ZTkxZTY4YmM5YTIzODFjODA1NTdhMTYxOTRlMGNlNjJlYTA3YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/wind-restore.ts#L8-L9",
+          "version": "repo-lines-v1:sha256:c5fe174ac9593904784485f95ac9e11c53241693f89bef374b61fdf9e379a961:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmNmYWIxMmZiZTQ5NWI0NGRjNTkwMzhlYmJjYzM1OWUxMzA3YWUxY2NhMzE3YjI1NTc2NGUxOTIzMzA2NjM2MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ2NjU5MTY2MWRiYmM2NTU3Nzg5MmQ5ODE2ZDg1MmM0Y2U2YjE0YmNhODA1ZmYwMmY4MjFhNzgxNzU0ZmU5MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNkMDkyNDk0OTBiNDlmNmZjYzk4NDQ1M2RlZDBkZmE2YjhiMjM3YjI3NmE3ZTNiYzE1OTRlMWM5MDI1YmE1OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2U3MDNkYTYxMmM5YzgwMGMyYjkzNDlhYzA2ZWMwMDk4YWU5YTU4Y2U5ZjUwYjFmZWZhZDQyMmExYjhiNjhiMSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

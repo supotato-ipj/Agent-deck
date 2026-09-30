@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:50cc77369f7667bb6eea9b29579132d8ae84fccda7be7534b6dc81e386e5222b",
+  "claims": [
+    {
+      "id": "claim_ca1298f17935442b91ed648b82a3ced7",
+      "statement": "The foreground probe in the usage collector resolves only the owning process's image path (GetForegroundWindow -> GetWindowThreadProcessId -> OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION) -> QueryFullProcessImageNameW) and never calls GetWindowText, so window title text is never obtained at collection time rather than obtained and filtered out.",
+      "evidence": [
+        {
+          "resource": "repo://usage_log.py#L1-L9",
+          "version": "repo-lines-v1:sha256:1dc2bfcae92ddb5c06f7b5bc38374f37a1731db0a7059f9c78d3927992627a4d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTJjNjNmYTJlZmJkYTA2M2UxMzQxZWM1NGY0YTEwYWMyZjE3OTFiNDMxMDlhYTEzMjA2N2FiYzQzZjYwYTMwNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDc1ZDQ1ODllOTFjYzhjYjk3NDg4OWRhYjAxZGUxNWRiMTU3NGNhMTBlZWM3MjkwYTEwOWJmNTg4Yzk0ZTAxYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDZmOGVhNzM1NTlmYTA5ZmMwMTEyYmVmY2E2MzFmYWRiYWE0ZDcxZGI1MmI5YWMwZGU1Y2UxZTAxMjQ3ZGU5OCJ9"
+        },
+        {
+          "resource": "repo://usage_log.py#L80-L100",
+          "version": "repo-lines-v1:sha256:0c06cec1a3241b9094291a34653e1c921fa3388df3f2c2990b33f4b33d2711f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3YzlmZjNkZDhhNTBkNzQzMmZhZTFmMjBkMzMwY2U5NDM1NzM0ZWNkMTk4ODhmYzZiZDc0ZDFlN2NjMzFlN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2YzY1YzEyMjcyOWQ5YjVhMTdkODUyZjJmZTIyMDQ2MmFhYzE0NTUzMzM0ZTI3MGQ2YjUxZTIxNzA5ZTAyY2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2NDkxZDEwNDg3NTg1Mjg1ZWVmYzU1NzU3YmE4YzE3YjExMDhiNTdkZGFlMGE4ZTE0ODdjYTAxNWQxNWFjNTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4OGVhNGY0NjhlMTMzMDhiMDFmOWIzYjc4NGFkNjM4NmJiMDJkOGIyYzI5MDNmNjU5YjY1NzJlOWM5YWNhZWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f6005f49f2343b4be87478e3132e806",
+      "statement": "A standing unit test (PrivacyGuardTest) walks every top-level *.py module in the repository root and fails if any contains the strings GetWindowText, window_title or WindowTitle; the scan is non-recursive, so modules under scripts/ or tests/ are not covered by it.",
+      "evidence": [
+        {
+          "resource": "repo://tests/test_usage_log.py#L105-L112",
+          "version": "repo-lines-v1:sha256:37c277c8a59e2060ff8425432e3c81728500e8f20fd3eaa26da259ab4624f72b:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGVhYzkzYTM3M2FjNzliODI5YjMzYzllOTdlN2I2YmZmNDg5NTZkOGYwMTQzNjg0NjQ2YTUwYmU3OGNmMTMyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzM2MTQwZDFiMDE5OGM5NmE4OWMwNjFmNWRmYjkyM2Y5ZDJkZmNiY2ViMjBkY2FjNjNhMDI0NTg4NjZhMmFjNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2Q4NjA5YmQ5MTZkYTFjZTUzYjE5OTM1NDFiODc0MTZiZWY1Mjk1ZjI0MzI5NWJkYTVhOThiYTE0YjQyYzA3NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTlmN2Y3YWExNjMwNTY3YzFiNWU2NjQ0ZTIxY2JlYzgzYTQzOTMzZGM1YjBkYTBkOTBjZDUzYmE0OGU5MTBkMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_162e5cc8fef44520b1c0b86010b4bfbe",
+      "statement": "ADR-0002 records two rejected alternatives to keeping titles out of the usage log - storing titles locally only (a plaintext log file is itself the boundary) and storing sanitized titles (sanitization rules cannot enumerate the shapes of case numbers and party names, and titles contribute nothing to judging which application is used most) - because the user's daily work is legal case research where titles carry case numbers, party names and project names; neither alternative may be re-proposed.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0002-no-window-titles-in-usage-log.md#L3-L3",
+          "version": "repo-lines-v1:sha256:68fd2d516a89d81eef9d61f1ad660aa256915ed86b4afe84d9f56edc0386d67a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjhmZDJkNTE2YTg5ZDgxZWVmOWQ2MWYxYWQ2NjBhYTI1NjkxNWVkODZiNGFmZTg0ZDlmNTZlZGMwMzg2ZDY3YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjhmZDJkNTE2YTg5ZDgxZWVmOWQ2MWYxYWQ2NjBhYTI1NjkxNWVkODZiNGFmZTg0ZDlmNTZlZGMwMzg2ZDY3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTk1YTM1OWZiMWE4MTM2NTQ0NzA2ZDcxYWE1NDkyYjIyNGI2NzE4MTMwNmVkMmY5NDdiOTk2M2NkOTljMmY0OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0002-no-window-titles-in-usage-log.md#L5-L8",
+          "version": "repo-lines-v1:sha256:0e4d983d9173ac23c815d80801b2a823f2261853f44223634bf8e80ac39d751c:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTZhMWM1NzUyYmZhZmQ1MWNkOWRmYzlkOTJkNjU4MWJkMDAyMjg4NWQxNTAyMDRiYjE3YjNjY2Q2ZDBiMjRjNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzExNmY0NTc3YTVmODFjNmE2YTIzNDc1OTFkZWMxZTU0YTliNjUxMmY5OGZlMGVmZGJlMzY5N2E0ZDYzOTBjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjgxMmM5Njc2MjU4NWFiZmVkMzE1YmU2YzhjOTQ2YTk1YWRlNmVlNjgxNDM3YzU1NmQ0Mjk2YjliNTJiYTExYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5744b934d7834d4ba674656380e94219",
+      "statement": "Because window titles are unavailable, usage frequency is defined as real start count under time decay rather than foreground dwell time, the document zone may only be ordered by file modification time, and a process whose path cannot be mapped to a desktop icon is still logged but never ranked.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0002-no-window-titles-in-usage-log.md#L10-L14",
+          "version": "repo-lines-v1:sha256:365545ea5ba83018f73e246081a379c5ca3639e0cc1f85345a8c03c41361443e:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU5MzRkYjRkZDI3NjhhZmM4OWNhZGZiNDgyNTU1ZDA4MTZjZTNiZTlhYTY2MGJlMDY4MTBiOGViNjZiN2UwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGYwNmE5ZDJkMjdkODk3NzlmYThkZTY5NmUxM2FjMjRiNDRkYzUyYjFhOTRhYTIyMWQzMzgyMjgwMTQ3ZjE4YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNhNjJhOTdiOWE0Mjc1MzJlODc0NDc5MThlMjFkYjk2NDZmMGNlM2IzNWY5Y2JiMzNlZTI5MzRiYWE2NDg2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_10cd2309331b413688390e573e8dbd40",
+      "statement": "Every usage log record contains exactly the two fields ts and exe, and that shape is asserted three times: on a record produced by append, on the files a real Collector writes (with process and foreground sources monkeypatched), and by the real-machine acceptance battery over the live log directory.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/accept_zones.py#L92-L98",
+          "version": "repo-lines-v1:sha256:17fb0aef6bf5819085cdb32c3c465101b4679e02744945fd3ec9859eb1314317:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjIwMzE3OTJkMzQ5ZGJlNTNlMTc2YWY1ZjdkNTE3MmZlOTk2ZDZmMzUyMmEyZGNlMzMzNjM2MTdjNzcyZGFhOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWNmMTRhNjAyYjMxZGJlM2RkMzI3ZWVmNmQwMjRlM2Q4YmJhNjE5MGNjMjFkZTcwZjcxZTIxYTA0OTNhOTQwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTFhYTBjMjQ1ZmU5NjYyMGY4NzkwYTI1N2I1NjI1Y2QxNDNhYjk1OTgxODk1M2FhZThmYmYyZGZiM2Y4YmRlMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTMzM2M1MDI0MDkxMTdhMDY5OTQ2ODhlNWI1ZmEzODJhMTM4NzRiNmUyMDQ5YTJiOGE1YzUzZjM0NjcxZWExNyJ9"
+        },
+        {
+          "resource": "repo://tests/test_usage_log.py#L44-L50",
+          "version": "repo-lines-v1:sha256:5c56060233af7aba471478adfb4eb958e1a6e25314eab53f87c10504114db1d0:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2EwYzRkNjVhYjViNzM2YWFhYTkwNjlkOTY0NjM2MjQ5ODkxMjdjZjk4MjdmNTU3ZmY1Y2YyYzA1ZjMxYjE2MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjk4MzVlN2ViNDllYjhjMGFlMWI3ZTJiYjk4MmUyNWQ4ZDc2MGVjMzBmYzJlMGZkZDA2Yjg0ZTQwM2Y5MTkzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTVkNjY2MjFkODZmYmZhNzNlZTY4ZDg5NTQzMmZlZjA0MDVmMzU1YTMxZDJhMDAwYjFhYzIwNGQ0MTJjY2M2MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjBmNjU5NWZmMGQ1MjcxOTM1MzY5OGYyMmFlMjUwMzg1MDY5ZGExMzJiMzFiM2VjZmMwY2ZkYTJjMGUwMDYyMiJ9"
+        },
+        {
+          "resource": "repo://tests/test_usage_log.py#L90-L102",
+          "version": "repo-lines-v1:sha256:ea9b542528a259b6a854f7f4769c5ea95f58be17834124939f787046ec85303f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkYWVmMTZlYTU3OTBhZjZlYmY2NjFmMDE1YWZmNDJjZDdlYzBlNTg1ZDNkNzE3MzFjMWZiODljZjQ1NDUxN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllOGI5N2MxOGNkMmNkMTQyNmRkY2I5OTY4OGY0MTI4Nzg5ZWRjY2IwY2VmYTE2ZTg1MzBjNTQwY2MwOTBmZDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1NDljNWYwZmEyNjJiNzhjYTM2Yjk3ZTExYTkxNDFjZTk2NjUxNjRmMWNkMzQ2MDMxMjI2ODNlYzYzNTQzMDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliMzY3NWE2ZWEyMTUzZDgwNWFmMGQwNDE4ZGM1MDcwZWFjNTg5ZWMwNmE3YmI3YWQxOWNjNGQwMTlkZmU0ODIifQ"
+        },
+        {
+          "resource": "repo://usage_log.py#L54-L61",
+          "version": "repo-lines-v1:sha256:3ba31a081d8c18626b4ba3a669f32d40f7f1e1e1d4dae026771734f90a8d69ce:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDU4ZGFmYzRjZjBhMDlhNDJjMTJlOTM4OGNlYjg0OWJkOTE3ZDE0MTIxZDkxNDg5OGVmZTBiMmJiMTExZjE1ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmU4ZDc2ZTY2YmI3OGFmYjNhMTY1NmU3ZmFmMTQ1NTZhYzkzZGRiYTE4ZDc3NWM0M2ZiYjg3MTM5MWU5MmJiNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWEyZmYwYWM3YzNkZjNiMGRmNGUyYzZkM2MwMzNjNmQ5MmE0MTA0ZTZiNGQ0NjMwNGRmZGM4MGFkZjdjZjAxNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWQ0M2I2OTZkMWU1ZDE1NTk5NjQ0NmMyMzY2N2M0ODFkZmQ1MzFjNjk5NGUzYTk2NGU0YmMyOWI4MjVmOWFjOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5e88665ad5024200ada1c699d8cc876c",
+      "statement": "Usage log collection is bounded in time: prune deletes day files older than RETENTION_DAYS = 90 on a PRUNE_INTERVAL = 3600 second schedule, skips names whose date tail does not parse, and can never delete the current day's file.",
+      "evidence": [
+        {
+          "resource": "repo://usage_log.py#L21-L22",
+          "version": "repo-lines-v1:sha256:bc2da643904fb75913357cd425f456215f37618bcbec8bbee0817e976766f078:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTIzNjE4NzVkMDkxYTBhNTExOTg3ODQzNzI2MmNjMzEzOTg2ZDQ4YWYzOTZlZDFhNGY4YTk3ODNhNmZlMTg1YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNmZmQ4ZThlYTdkZjMxNDZmMjcxMDQ5MGI3NjBkMjI5YzFkNzJkNDMzOTBhMGI5MWQ5ZWZlZDBmZjExMWUwYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjM3ODI5NTY2ZDcyMTE3NjM2N2E3OGRjM2MxY2ZmMGQ4ODc3YTI3ODAzN2FhY2Q4N2EwMTk5YzVlYTRiYzdlNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTk1Y2EyYWRkYjg5M2QwMGJhNTc4MjY5ZTg2YTYzMGJiNjg4NmE5MDgzYzk5OWZjNzYyMTVmYWUxNzFhNjQxOSJ9"
+        },
+        {
+          "resource": "repo://usage_log.py#L64-L77",
+          "version": "repo-lines-v1:sha256:33718777a375321ba1017c6390ea7149c96148ad90fcd5c05380153cc27f57ab:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1YjVjNWEwMjJjZTFhZmNiMzRlNjM3YzY4ZTA1NDBkNDQ0ZGYzOWU3NTg0NmE0OTUwZDQ5ZjAzOTQ2ODJmNjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZDkyZGY0YTFhZDUzYzliODM3ZDM2NWZiOTdkZTQ5MjQ0MDg4MTU3ZjQ1ODMxYTkyMWExZWE1MzZkMTliMDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1OGQ4MGFlZGRiNjI3ZGUzZTE4MzNjM2UxMGU4NjVkY2ZkNTllZjQ1MmMzYmY2YTEwZGRkYzY1NThlZWVjZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmOGZmNzhkMTUzOWM1NWMwNmRlNDI2NmNkMWVmMTNlMWE4MTIxZGM0N2VmOTY1NDRhZWIwYjE3YjFhZjU0NmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_46202cfb43724697833db8ba56fec4bb",
+      "statement": "The search panel's QD_PANEL_TRACE diagnostic channel writes only the timestamp, event tag, panel state, qlen=<query length> and window handle - never query text - and the result-action trace records only the action name (open/reveal) rather than the path acted on, while the panel writes nothing to the self-built usage log.",
+      "evidence": [
+        {
+          "resource": "repo://search_panel.py#L1-L15",
+          "version": "repo-lines-v1:sha256:009a16f895cd7c042d87cde92bf377fb5017553407c66cb00ebce6d0359bf907:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMjc5OTAxODIyODQxYTZmZjQxMzg2MWVmNGRlZjA0NGQwZWU2OTg0MzNiNmZkNTNlMzE3M2ZlZTMwYTZkNmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3NWQ0NTg5ZTkxY2M4Y2I5NzQ4ODlkYWIwMWRlMTVkYjE1NzRjYTEwZWVjNzI5MGExMDliZjU4OGM5NGUwMWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUzOWIyMGQ0MDU5MDVjZGUwNDJjZTk4MThlMGM4NDYxNTExOGMxYTI4MTNhNjM4ZjlmNGY4OTM3MmNmMmU5MTYifQ"
+        },
+        {
+          "resource": "repo://search_panel.py#L104-L112",
+          "version": "repo-lines-v1:sha256:e8f3ee8365385a7bb710354388c2c586cfb9d9fa2ab8b9254e5baaa34e641f80:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg0ZDM5YjZhZjlmZWIyMDk1MDNhNzhiNWE2NzQyYzg3OWYxNzVlMjlmMjdkOTVmY2QzZTMyOTJmM2Q2YTZhMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2NkNTg0YmIyZWJjOGU3MmQ4ZDBmYTFmYmQwMWVjZWE1MzQ5MjkxNmI2OGEwZGFjNWI2M2I4MTg3NzM2NzUwYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDczY2Q2YTcwZDVjMjkzYmRkNDZiNjc2YWY3Zjg2OTg2NTk3NDkyYzAzZGVhNWQ1YzU5ZWRkNmU2YzlhYTVhZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzkxYzU0NzU4YTQ0YzI1MzVhYjhjMDUwY2EwMWQwYzI2MzkwZGVkYTk0NTRjZWMyYzI4ODU2NDQ4N2ZlOTUzYyJ9"
+        },
+        {
+          "resource": "repo://search_panel.py#L318-L332",
+          "version": "repo-lines-v1:sha256:44e284308a397aee8628f1b796dc47e35b4bcb8922825f1417f2287da29f743f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMzgzZDVkMTRjM2YxNWE0ZWFmMzNiOWZkNTlkYTc5ZjRlYzc5OTU3NWViODAyZjU5YjA0Mjc1YjM1YzE4NzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NWY4NzFhNjY2ZTIzYTc0MjJkYWQxNzAyMzNmZjdlYzMwYzA0OTA5MDA1MzUyNTU5ZmQwMTQyMjE5NDA3MGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY5MjU1ZjIwZDIyNzE1ZTg5OThkNzMxOTIwZjMwMTllYmE0YTA1NDAzOGFmYjY3YTVmNjRlYmMyN2FkMzJmZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYzc5NjU0OTUzYjNmNTE4ZWU0MDkyZmQyY2U0YjkyOTU1YTgwM2IxZjllNTM4ZmE1ZDBmZDMzMWU4ZDgxMWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4570ab3aac6747cca3e2456814141456",
+      "statement": "The search panel's query-privacy boundary is verified during the feature's acceptance run by grepping the usage log and the trace file for the probe query word and requiring zero hits, rather than by a standing unit test in the repository.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/issues/02-listary-engine-results.md#L39-L39",
+          "version": "repo-lines-v1:sha256:0b41fe2c333d96bf61a9914cc185b88c84a070c42345553ce6ee09c7be09b0cf:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGI0MWZlMmMzMzNkOTZiZjYxYTk5MTRjYzE4NWI4OGM4NGEwNzBjNDIzNDU1NTNjZTZlZTA5YzdiZTA5YjBjZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGI0MWZlMmMzMzNkOTZiZjYxYTk5MTRjYzE4NWI4OGM4NGEwNzBjNDIzNDU1NTNjZTZlZTA5YzdiZTA5YjBjZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDI0ZDkxNDUzZmE4YWE1MGYyNTNkYjc3YmZjMjk1MmQzOWUyMmQwZDkyYTY1YTMxNzI1MmI4Y2I1NGQ2ZDUwNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjFlOWU1Mjc1N2Q3YmQ3ZTJhMGQzNGM4NGEwNjYwYTMwMjk4NjAwOGRhMTBkOGIxNGVkYzczNTc4MTlmZjU5YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f8a581e91be94081b69d754e507ff7ae",
+      "statement": "Query words leave the data service only as a POST to Listary's HTTP API on the loopback interface (BASE_HOST 127.0.0.1, BASE_PORT 38431, POST /api/v1/search, one connection per request), so no query travels beyond the machine.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L33-L33",
+          "version": "repo-lines-v1:sha256:f05ece2ffa9b9e3e499a8c2ad64b507c346afb954ee721987f453e358c0b1fda:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA1ZWNlMmZmYTliOWUzZTQ5OWE4YzJhZDY0YjUwN2MzNDZhZmI5NTRlZTcyMTk4N2Y0NTNlMzU4YzBiMWZkYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA1ZWNlMmZmYTliOWUzZTQ5OWE4YzJhZDY0YjUwN2MzNDZhZmI5NTRlZTcyMTk4N2Y0NTNlMzU4YzBiMWZkYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWFhNWYyZjE3MjU4NWM4ZGRhY2MxNmRlZmVmNWM1Zjg4Y2Q4OWYxYWZlNTI5YzdkOGZlNTQwZTM3ZjNiM2Q2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDlmYWYxNzUzM2JhYzY3MmY2ZjFjZjMxNWE2NTkwM2IxNjFmM2NlNTM3MzQyM2Q4MzUwMmQzODJhY2YxMmZjMiJ9"
+        },
+        {
+          "resource": "repo://listary_engine.py#L198-L217",
+          "version": "repo-lines-v1:sha256:a469f7943d1f00d00f342a3632fc99e76903d82964b50b851c206a8e04285e3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3MzY3ZGEwNjc4YzUxNGM5OTg0YmIyOWYzZmY0YTY4MGFmOTUxOGZhNDNiZTA3MmExMDMxNzlkMjEwMGZhNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjNGFkYzc4ZjQ2MDdjZjY3M2VlYTFlZDhlNGY5NTJlMTAwNzE4MzlmYjE4ZDkxNmRiODczOTI5ZTAyY2ZkMTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0ZTM4NGQwMTZmNjEyNzk5ODZkOTc5YmQ5NWQ2NDBkZmE4NjI5Y2I0MDYwNWNlMjRiMmM3NTk5NWM3MDJhODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://listary_engine.py#L20-L23",
+          "version": "repo-lines-v1:sha256:35ed27f9e8cbb0f2e7b710f28f1647ebc0d7f5ec064920b32ee65fc3b500dd55:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzVjZjQzOWM2NTBlZDViMDQ3Y2U0Y2FhMWVjOWMwNzM4OTViYzE4OWNiNDY2YTM2ZjgzNGMwNmY5MTgwMGEzMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjlkNjdjMTQyNDlkZjYxZDZiZGZjYWM0N2UzZjNiYzY0MjgwM2U1MTRjODAyYTZhYzBhODFlOTEyYWI4M2JjMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUzMmIzZGEwZjdjMGFjZGE3YmVhYjQ1NjBlMWUwYmQ1OGUwZDYyNmIxZDNkODNjN2U0ZjJmMWU0Mjg0YzVhMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWZhYTRmMzZmOGNkMzg1NTdhOGJlOGQyMjZiYmE2YmZhYTI5NTM4YWU1OTFiMjQ2Mjg2MGMwN2Q4MTY1MWIzYiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_71e707fd16ae4993971325b408cc7dc4",
+      "statement": "Listary continuing to record queries in its own SearchHistory is an accepted exception: this project neither suppresses nor scrubs it, and the enforced boundary is only that query text does not enter this project's own logs.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L55-L55",
+          "version": "repo-lines-v1:sha256:ef68121859d9a28e17145e60791aad5e7eeb01bcd1b5156611936dd49d6a5a3a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2ODEyMTg1OWQ5YTI4ZTE3MTQ1ZTYwNzkxYWFkNWU3ZWViMDFiY2QxYjUxNTY2MTE5MzZkZDQ5ZDZhNWEzYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2ODEyMTg1OWQ5YTI4ZTE3MTQ1ZTYwNzkxYWFkNWU3ZWViMDFiY2QxYjUxNTY2MTE5MzZkZDQ5ZDZhNWEzYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDBiOTc2YmNiOTdhMTE5ZjE4ZjRhYjA5OThkNjU1NTliZGE5YTIwN2RiYjAxOWYzMjYwYzFmYzMzY2Q5MjgwNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjA1NDgwODJkNmQ0ZWJkZDBlZjc2NDMyYWNhNzlmZjVkYTg0N2VlZTEyZTg1OGNhZTJkMmVhZjAzOTM2Y2I5NiJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-search-panel-service-window.md#L17-L18",
+          "version": "repo-lines-v1:sha256:f3b5a8c78087368628762ab57718278c292b68ae1a4ed569021ed1063f21c323:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTU3MjQ4NzgyNzgzN2MwYWQwZTk2MWJmOWNmN2Y5MjQ5OWQxZWNhNjc2ZDJkZWFjMzdhNTZiMmFlNWFiNDdmYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQzZDllMmIzYjAyODQwNTk1OGQxYTVkNTUxOTJmNDA0YjZmODdiYTdhZmVkYWU5MTk0N2ZmNTk0M2EwNDczYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTAwZDI4OGVjM2M5ODQ2ZDM3ZTgyNTllYzdjZTFhNDgyMTZiZjU3NDFhMzZjNDVkNmE4ZDU2ZWZlMGI1YTRmOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDc2MDAzNWQxZTNhYTIyZjM4YmVjMDhiMTM2OTYwZDcyNGI1NjJhNTE2YmE0NzA2NWM0OWEyNzlkMGE2NWQwMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d53eb7f2820e4d509c815a284b8b11db",
+      "statement": "Access to the upstream AI-tool SQLite stores is read-only by construction: _open_ro connects with the URI file:{db_path}?mode=ro and uri=True plus a deliberately short timeout=0.5, and collect_sessions wraps each scanner so that a failed tool only prints one line and is skipped instead of degrading the HTTP contract.",
+      "evidence": [
+        {
+          "resource": "repo://agent_sessions.py#L147-L149",
+          "version": "repo-lines-v1:sha256:95ea7c80cbe957df5d8973772fbb3be2856adcad8806c469599cf197e34849aa:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzU1MzFkNmEzM2E2NmRmMjIyNjQ3ZGE1N2FkMjY3NTFmNjE2OWVhYzk3NzdkN2FlNzgzYTJlMWVhNmZlOWE5OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzllMDExMjYwZjBkYWUwMjVhYjU4OGE2YzBhZGI3YTg5Yzg0OTFmZWFmMzljMWM4NTEwOTQyNmJlODU5YWMzZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjVkM2RiMzQyNzVhMTAxYmY0ODM3Nzg5MjdhNGJlNmJlYzkyM2MyNDAzMzQxZWZlYmMxZGQ0YjY4NzRlMGVhOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmRhM2VmYmI2OGNkYTc1ZDVhN2JjZWI4ODJhYzFjNmQ1Zjg2MDE2ZWY2YTM1YjI1YTQ5YTg3NzlmMWVjZmZiZSJ9"
+        },
+        {
+          "resource": "repo://agent_sessions.py#L16-L27",
+          "version": "repo-lines-v1:sha256:225cb13305e61e3d5fafacf4134634dc5de7cdce9ccaf08ae409011da0a7fd62:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlOWNjNmRjMTVhNzhiZjc5ZDBhMTRhM2ZhOWM4ZjJjYTA3NzViYTQxMTA3NDBjNDI3ZTg0NTE2YjFiZjIyMWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjZTM5ZjRlMGU1ZmVmZWE2ZDlhMTU5YjkzNDU1NzljZmM4MzM3YzMzOWUwNzBjYmNjZDM4MjZiZjczMGQyNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA0NTg1NDRiNWI0ZTNkOGU3NDMwZDgyNjM4ZGQ1OTE4ZmUzZmQ3MjkwNGZlMTQxMzM2NDQwYzA5ZTE4ZGZhOGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczOGZjOGQxNTFhOGYzMGUyMmUyMTIyYjFjMjg3MWM0NzAyYWFmZjQ3YjgyYjdhYTNkY2RhZTljNzEwYTBhZjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7325ae56bd2449c4af0b993897c00492",
+      "statement": "The session scanners never read title-bearing columns: the hermes sessions query selects id, cwd, last_activity_at, started_at, end_reason and archived but not title, the zcode query selects id, directory, time_updated and time_archived but not title, and kimi work rows are title-less by design because the conversation body is locked in an upstream private store.",
+      "evidence": [
+        {
+          "resource": "repo://agent_sessions.py#L181-L186",
+          "version": "repo-lines-v1:sha256:ed999f25076aa908fe54b05b3af864cf2dfe9c74bddfaff6b2cc328c7da9b26d:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRiY2QwOGZkODBlZjZlZTdhOWJmYTExNjM2NDVlYjg1ZjVhZDhiYmI3MTBkNWYwMzRhNzA1MDYxYTFjNDJjZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg4Mzg3MzkxYjlmNTJkOWNlY2Q1ZmQ4ZjNjOGU2NDM1Yjk3NWIxMGEzYzQ3NWY3ZjY0OWVjNzYzMWE4NDIwNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTNiM2NhZDdhMzE1MWMwMTYwYjE5MDIxOGYyZDdiMDJjOGYwYmViMWI2YTM1ODJjM2U2ZmYzY2Q0MjFhM2EyNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWE5OTQ2OGUyYjg0NzczNzAxMzg5MmU2ODAwNjc5ZWI1OWU5MWM2NjUxYzM2MDk5N2Q4YWNmZDg4ODIwZWRlZiJ9"
+        },
+        {
+          "resource": "repo://agent_sessions.py#L207-L218",
+          "version": "repo-lines-v1:sha256:89aa5798aebd41c9b06536933ec72b04fe3135fd31ea0623c31937a80426e563:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwYTE1YjNiN2NiMTdjMWZiOTNiNGNmNTczOTgxYzI0NTRkOWY3MDQwYjU3NTg2ZDE4YTFmMDJmMWY0ZjQ2MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkMGEwNDliYzlmN2Y0YTY5OWFmNjE1Y2IyNmEwNDE4Y2ExZGZkNmU5OWJmNmU2MDA5OTYwOGI2NjdlNTkyNjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNmNjUxNjI4NWI3MGZiZmVkZjRlYmVjZjIzZTRhYTUyZTBiMjExYTIyNmE3MGJhYjA2YTgyYmE1Zjk1YTI2MTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4MWZiMWExMzE2YTYwYTQ0MWEwMzA5ZTFlN2I4NGVmMDg0YTliMmYyYTJiZjIyN2I4NjIzNzQ4ZTY5ZDQ3OTIifQ"
+        },
+        {
+          "resource": "repo://agent_sessions.py#L276-L292",
+          "version": "repo-lines-v1:sha256:f89bc560b648c7395a479b0f9c9eaaa9d0c70b40fd7f4a3450a8542c8ef966e7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2NTMzNjIxMzdiNTA3MTQxZDcxYThjMDhkNTYwYjY5NGU2NWYzNmZhMjQzMzY4M2QxMTQ2ZTBjMGQ3ZmZhNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjZTM5ZjRlMGU1ZmVmZWE2ZDlhMTU5YjkzNDU1NzljZmM4MzM3YzMzOWUwNzBjYmNjZDM4MjZiZjczMGQyNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1ZDNkYjM0Mjc1YTEwMWJmNDgzNzc4OTI3YTRiZTZiZWM5MjNjMjQwMzM0MWVmZWJjMWRkNGI2ODc0ZTBlYTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5ODZiMWVjMjBmNTU4NDQ4ZDQzZjc0MDFiN2EyYmY0NGIxMDZlYjk4NjAyZmY3NjkzZDRkZThjYmU0NDEwMzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_861f226113c444aa9526fa7ef81ffd38",
+      "statement": "The data service defines only do_GET, serves two read-only routes from a hard-coded loopback host with no authentication and a wildcard Access-Control-Allow-Origin header, and ADR-0001 records that this posture is acceptable precisely because arranging icons through Win32 messages removes the need for any write endpoint; adding a mutating route would contradict that ADR and requires a new one.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0001-win32-icon-manipulation.md#L11-L14",
+          "version": "repo-lines-v1:sha256:6f4ecd1720e2ab27e48fb279ac732590a8422e9e2d4b59246d182764be8a1caf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU5MzRkYjRkZDI3NjhhZmM4OWNhZGZiNDgyNTU1ZDA4MTZjZTNiZTlhYTY2MGJlMDY4MTBiOGViNjZiN2UwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDdhMjc1YmJiODM3NGI3ZmY3NzZjMjFiZDllZWViZGM2NmJiNzllNTM0YzhlY2IyNzRlYzdjZTliOWM5MzMxNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmZiMWVkMDY5OGE3MWI0OTg1NTBjMzExZGI4YTI2ZTcyZjBmZmMxNWU1YmUzZTI5OWQ2M2E2ZWIzOWZiM2Y4OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2U2MmE0ZWQ3ZmI0NTAxMTc1ODA1NzM5YzJiMDJhYTJmYzQ0OGE5NDk4ZTE0ZWUyYmI4NWEyOTZmNjJhMTA2OSJ9"
+        },
+        {
+          "resource": "repo://server.py#L200-L217",
+          "version": "repo-lines-v1:sha256:835a4df28f24867ecbb110ade7d7e83736c208f710c8597158e0e5425f38f4a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwMjQ0ZWRiMDVkNDkxN2Y5MmZmMmQ1ODUxYjkyOWU1MTZlNTJiYmQ1YWRkNGFlOTk4MmM5YTEyZWRhN2Y2YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU1OWU2ZmIxYmUyNWM4ZTZjNjY1NmQ1MWZkYWE5NDI0YWQzNmE4ODFkOTRlODAxOWI2M2U4M2UyZGU2MTdmNjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNkYWRhNDlhMTc1YjVlNjRiOWNlZGJlMmNhMzAzNWUyYjBmMmI2ODc1NGQ5NTkxZGQwZWE1ODc1MjcyZDdhM2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmOTE3ZThmZmM0N2UxODdmMzQ4YWQ3NTZiZjljNTMxMmEwYmY4YTFjYTNlYWMwNjhkY2FjMWJlMGFjYzkxNGEifQ"
+        },
+        {
+          "resource": "repo://server.py#L24-L26",
+          "version": "repo-lines-v1:sha256:06d35e1cbedc0b99c60a671dba565dfc0881a5358c00434165f0f541361404ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTBhMGNmYTk4NmMzMjNhZjZhYTkwMTVkOGQwNjgzYjBjYzIxN2Q4ZTJkYjcyZjQ5ZGM5MWRmYWRiZTE1NjBjOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjE1MTU5OGNlYjQ1Zjc0ZDBjOGJmZWRiZGQ2MjAwNDBmNzlmNWY2ZTcwMThkYjFkODBhM2U2NTk4NTFiN2NiYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDYxYjc0NWZhMzdiY2I3MzE1ZWI5MTczMjg2YzUwZTA5Nzk4NmNhMTZkNzdmNWZhYjYxMjk5MmY0M2RhZjg2MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDcwNDgzNWM5ODg4YjliOWVmMDlhYTY2MGE2ODNjMTIyMWFjZTAxNGNhZTMwNzBiYmFiNjBmYTQ5OTYzYzdmYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_371f9177e8914ee19fb71bbb4c67eec5",
+      "statement": "Every capability that would otherwise need a mutating HTTP route is instead hosted in-process by the data service: main() starts the CPU sampler, usage collector and desktop-directory watcher threads and calls search_panel.start_thread(), and the search path deliberately introduces no write endpoint.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0003-search-panel-service-window.md#L17-L17",
+          "version": "repo-lines-v1:sha256:1572487827837c0ad0e961bf9cf7f92499d1eca676d2deac37a56b2ae5ab47fc:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTU3MjQ4NzgyNzgzN2MwYWQwZTk2MWJmOWNmN2Y5MjQ5OWQxZWNhNjc2ZDJkZWFjMzdhNTZiMmFlNWFiNDdmYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTU3MjQ4NzgyNzgzN2MwYWQwZTk2MWJmOWNmN2Y5MjQ5OWQxZWNhNjc2ZDJkZWFjMzdhNTZiMmFlNWFiNDdmYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTAwZDI4OGVjM2M5ODQ2ZDM3ZTgyNTllYzdjZTFhNDgyMTZiZjU3NDFhMzZjNDVkNmE4ZDU2ZWZlMGI1YTRmOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzNlNjg1NDQ5NDJiNzA4OWQ2NzcwNTQ5Y2Q2MWFjNmYyMjgxNWEzYWIwNTdmYmNhNDdjNTJkZWY0ODdjMDZkZSJ9"
+        },
+        {
+          "resource": "repo://server.py#L249-L254",
+          "version": "repo-lines-v1:sha256:d5f0404809771c40a554a4e32d6e90eb36f7d1ec6a2cec44575f571d53c5ae8f:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiMDEwMGNjMGM2ZWM0NmE1MWE4MDk2OTI5ZDA2MjQwYmZmMDVhODk2NGRlZGUzYzE5NjJkZjU1OTNlZDc2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjViOTVjNzFkOGNjMTI2YzE5MjkyMzQxZmZlMGVmODdiYjhiNDg0NWFlNTJiNmQ3OTg0NjRhMzU1ZTNlM2E0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODI4YTRlMTM3MzhlNGM0MjE1N2RiNGJkMDAwODE1ZWFlMTlhNjExMDk1ZGViOTMyNzNmZjMzODFkNjY5ZGNhMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTFmOWZkOTkwMmI0NmQ0NjIyNTk5OWMyNjkxMWVkZTMxYTJmOGM3YWRlYmRjMmRmODdhZmYzNGQ2ZTUwYmNjMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_678a8fdf85174146ba5305264a5575a9",
+      "statement": "Machine-written state is kept out of the code tree: layout snapshots, the usage log, watcher.log and the arrangement lock all resolve under %LOCALAPPDATA%\\qoder-deck\\ (via data_dir(), log_dir() and lock_path() with an AppData\\Local fallback), while the user-edited pin list pinned.json is the one configuration file that lives in the repository root and process-level toggles are environment variables only.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L74-L76",
+          "version": "repo-lines-v1:sha256:0ad5e034d963931e35a6e4dbdefeb877df82f6375dd534588f9580ec3cd4937d:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjgxZGI1YTM2OGZiNzkwMTc0YTU5Y2NkMzE0MGU3OTE1MjE2YjQ3YzllYjVkMTE2ZDdiMWRkMTY0YjJhMDY1ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzRiZjEzODFkNjE2OWQ1NDA2YzQxOTc5YmJhZDZiMjQzNmEyYzdiYjk0YTg0Y2IzODEyODkzNzcxODgxY2I3NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWEwNzJkZGQ3Y2EzZTVmZWE1ZDljMzIyY2ZjNDNjNjM4NThiODI5ZTg0ZTlhOGM4OTQ5Zjg5MGIzOGQ2NTM4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjZlZjkzMmI5YzY5OGYwMTg4ZWNjZTFlODcyMjA1OGM3YjBiNjY3MjBhYzAwODYwMmE0MzYyNTM2NmJmOWQ4ZCJ9"
+        },
+        {
+          "resource": "repo://desktop_layout.py#L24-L26",
+          "version": "repo-lines-v1:sha256:55f959c7eea9501dd1951928ff4d778a7baee3a56e4f8a0053b4d59095bf100c:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmViMjI3NTczOWIxOGYxMjFmNmI1NjNmNDA2ODZkNjRkN2YwZTc3YjcxNzcxZjVmNjhmZWEzYTliMDc2NGQzZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmJlODNiZGU1ZjUyZjNjNzZhNGFiMDgzZWVhMDBjNGFjNjkxZjIyNjZmNTU4MWZhMWU2OTRkNzYxZGI3NWRkNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ4NGVmNjU5NGVkMDljYWI2MTY5YzcyMjU1ZTNjNzc5ZmU0NDExMzFlMjZkMDAyM2QxYTM3Mzg0OTI2MzE2NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDdhZDc1OGY5NmRiNTc0NGYxNWU1NjNkODUxMGE0YzBhYjM3NjdiNWNiOWJiMjA3NjZlMGEyNzNiYWFlZWI4NSJ9"
+        },
+        {
+          "resource": "repo://usage_log.py#L30-L32",
+          "version": "repo-lines-v1:sha256:b256345ee7c8a5cf0518cf56281ab298dc4bcbba6c505bd6725144357ac531fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGY1NjhiNWZiYTk2MzlmMmE2MWE4NGI2NWYzYTMwZGJhODBhYjAxZjU2ZTQ5Y2M3NDA0ZWJlMmMzYjg0NGM2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGE5ODYxNGQ2OGNhZmFlMzcxMTc5MDA5MzE0NzBiZmI4Nzc4ZDQyMTNjYTg1OWFlNDU1ZGMyYjQyMzZiZGQxNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODg3Y2RhYWI0OTc4YzhmYzc5NTg0N2IzN2JkM2IzYWY3ZDViYTUzYTIyNTI3NmNjYWQ2NTA2OTMwMWY1MGNmYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdiOGEzM2YyODg5MDg0YTk3NmIzYTUwMGJiYmM5YmFiNDE1ODVjN2RhNjQ1NjhlZjc2ZjRhMzNiMThmZDk5MiJ9"
+        },
+        {
+          "resource": "repo://zones_lock.py#L26-L32",
+          "version": "repo-lines-v1:sha256:13af50ea6298f46aae9a936d5d7f43a67334416cb21328461fe937035aa75015:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZjNGY3MGJhNjc4MDQ4NWU1NWY2MDQ5YjYzNDQ3Njc5YzUyMDZjY2ExY2JlYWQ2NWYxMGY5NDY1MTJjNWVjMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmM4ZDJjZDZiYWE5NjUxNTkzMGM3NTkzYzk0ZDdhM2M4ZmZiZTBjOTk3MDI0YWQ2YTliN2ZhNjFmNGFhOTMwNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmE1MmZjZjUwMjg5YTZhM2MwOWY3NGE0Mzk3MzdiNGM3OTFhZDNiZDY1ZTNlOTQ2NTY0MzYxMjYzN2VjNjE1ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDVlZTBiNDMyZjY5NmFjNGE1MTJhMGVjMWEyYmQ0NTk1ZmRjN2U4MDAzZmMyNzYxMjA2MDc1Y2QwNzZmZDhjMCJ9"
+        },
+        {
+          "resource": "repo://zones_orchestrate.py#L17-L23",
+          "version": "repo-lines-v1:sha256:35d50c7dde8dd08c79d5d22be5f2245892470e28c32ec504a31dc6be6637c7b8:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWRkZTYwNDFiZjgwNDAxNjU2YTY1ZTQyMGY0YzgxNWViMTU5ZDdmMGFhMDdiNzBhMDIwYzdlNTc1MWFkMzY5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzRkMjkyY2YzYzFhODRkYWY0OGQwNDZjN2NjYTcxNzg3MjUyOTRkY2Q5MWNmNGZlY2U5ZDYwNWI0NjJhNTVjMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDAwNWE2NTcxNTZkZjg2ZjE3N2JjNzVhZTNkZTA0ZDQyMzA2ZTgxYzA4MDNkOTM0NTRlYWM5ZWUwODhjMGEyNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmE2MmNlYjQ0NGUxZjgxZmM5ZTJlNGQ5YjljZDc5YTg4NjEyMDQ0M2FhODdhNWE1N2M1NmQ4ZDE4ZDllYTcyMiJ9"
+        },
+        {
+          "resource": "repo://zones_watcher.py#L31-L44",
+          "version": "repo-lines-v1:sha256:5f8ae0a66a1532be7e44e6b7c5d0a2a68bf1517efa5669b4790c250a9bbea7c2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmNDMyMzljZjZiYzc5NWE2MWFjYjY3NTZkOTM1MmVmZTU1ZGU3YjJhOGY0MDUyNGFhNDA1MTUwNTZmOWRlYTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjODg1Mjk0MTY1NmJmNjNiMmI5YzhiZmYzYTJmZTk5ZjVkOTdhZjAwYzQzN2ZiMzYwYzFjNzY1ZjU3NDI5NDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjZDNmNjk3NGUxYjk5MjNhODQ0ZGE3NGVjMzMwMmQxZTUxNjI1MDJiYTgxZjg4MzNjNDdkNDgwMDllYWZlYjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3ZjY5ZmI4MGY1YmY4NDdhMzM3ZjkxODdiMGI0NDQwODlhZWY1MThjMTkzZDgwNzFlMjcyNDZiODZkZDljNzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bd31a78fb7d846e08a5faefe7efc7b89",
+      "statement": "Icon coordinates are the only thing this project writes to the desktop - snapshots and restores read and write (x, y) pairs keyed by display name and never move, rename or delete a disk file - while archiving documents into a subfolder was explicitly rejected because it would break hard-coded absolute paths, cloud synchronisation and user muscle memory, and would be irreversible.",
+      "evidence": [
+        {
+          "resource": "repo://desktop_layout.py#L1-L7",
+          "version": "repo-lines-v1:sha256:4f7ca1cad8d4e79b9eb99fb68a06140374e1d419c83d033795980281b5a11fc6:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODU4NDQ2MzE2N2JmZDU1ZTExZmI4Y2QzNGJjZjE2OWU3MTNhZTY2M2Y3M2U1N2M2M2I4OTJiY2I3ZmQzM2I0MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTE4NzY3OTc3NmNjMDIyYjkzNDNlMDFlZTVmYTA3ZTM5NDk5M2UyZGUyNDU0OTI5NjgwYmI2ODkzNTE1NWNjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJlOTczMzM5Y2I2ZTkyN2ExYTFmZDg2ZWYyZGM4N2FkNDI2YTI1NTFjY2MxZWMwNzU5OWE3YTM0MTBkMzQwNyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0001-win32-icon-manipulation.md#L9-L9",
+          "version": "repo-lines-v1:sha256:a869f948ded31b918e383fba036f5d02142fe4b4032a6ed05a60284c5aa788bd:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg2OWY5NDhkZWQzMWI5MThlMzgzZmJhMDM2ZjVkMDIxNDJmZTRiNDAzMmE2ZWQwNWE2MDI4NGM1YWE3ODhiZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg2OWY5NDhkZWQzMWI5MThlMzgzZmJhMDM2ZjVkMDIxNDJmZTRiNDAzMmE2ZWQwNWE2MDI4NGM1YWE3ODhiZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjJmZjZkNDBlMzUwNTMxYThjNjcxYmYxYjAyODE5NDhmZTYwNTllZjdhYmJhYjZiNjQ0YWYwYTUzNWFiYTkyOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_75f982104a1a41e59d7d22aa22a27bd4",
+      "statement": "The factory layout snapshot is write-once: ensure_factory writes factory.json only when it does not already exist, making the pre-arrangement desktop recoverable, and the acceptance battery re-checks the invariant by requiring the file's mtime and ctime to be equal.",
+      "evidence": [
+        {
+          "resource": "repo://desktop_layout.py#L70-L76",
+          "version": "repo-lines-v1:sha256:4024c57731990210a01b0cfee01461e38713ac8e50b1c3feaaeb6c67a5d92da1:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGUwNTE0ODJjZDcyNmQzZmRjYjFhYmM3OGM0ZDYzMTYzNTk0ZGY1YzQ2Y2Q4MjI2YzIwMjJlODgwMmI0NWMyMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGQ3YmE1MTZlNTM2YmRjZmNmMTdjNmQwZDJlMjExMTFiNTY5YmJlNGYxNzllZTAxZjllZTY1ZjUyZTNiNWU1MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmM5M2VkYTBlYTdmNmQ1M2JkYmM3MmM2MGI1MWJiNjZmMTJmNGZjZDEzMGZjYTAxYjRjNmJhNDY3ZGIyNjEzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjVjOGY1ZWM2Zjc5YmQ3YTUwYzJlOTlkMTI2NGI1YWMyYjRkN2RhMzA5ZTA3MjFhYWJmMjRiZGU4MmVmNjMxMSJ9"
+        },
+        {
+          "resource": "repo://scripts/accept_zones.py#L62-L69",
+          "version": "repo-lines-v1:sha256:9981a8bef0851016e3e76b07dc78c870de05404188a0afeb4a6204041b33f688:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzJiZWVlMWYwYTdjNzk3N2FmYjI4YTFmYmU4OWZjYWFiZjFjNjk1YzIzMzc4NGM4M2E0ZjkwNjNjZjFmOTcyNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGIwNmVkNTY4MWY2NDM2NDc2ZWU4YzljOGZjMTY4MjUyMjQyZTBmZDEyZWJmY2NmZDllZDkwMjRjMTQ1Y2NiYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDFhZDdlMDM4N2Y3Mzc3OWUxMjA5Yzk0YjkwNjdiMGQzNDg0NmFkZDQ1MzAzYTNmYzliYTZjY2FlYzA5MDY4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjJlNDU2NTgzNmYwNDM4YzU2OTdhZDgwOWNlOWY2ZTQ5YTQ1ZjZkODkyYjdmODZjYzFhNzg4N2RkNWI1ZWNkMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_40fa8e58ff664fd28c50bd8877682d77",
+      "statement": "Arrangement reaches the public desktop as well as the user's own: desktop_dirs() returns both CSIDL_DESKTOP and CSIDL_COMMON_DESKTOP, and positions are stored by display name without recording which folder an item came from, so arranging .lnk files under C:\\Users\\Public\\Desktop takes effect for every user of the machine - an accepted consequence recorded in ADR-0001.",
+      "evidence": [
+        {
+          "resource": "repo://desktop_icons.py#L161-L162",
+          "version": "repo-lines-v1:sha256:8061121b82ea440759956c1929f9631737e4aeeb666bb499b6c46df53e0e38bb:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzgwMjIzNWNmZTdhYzlkYmU5MzcxOGYwYjFiOWIyOTZhNTc0ZWJiNmNlZDQzMWFkZTM3MzQ1YWUyYzJhYjViZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGE2ZmVjY2ZjOTk3MzBlMWFlY2NkOGQzYTdhY2UxMDM0Y2NkNTBhMGRlOTkxMGFlODZlMDgzMzRjZTJlOWJjYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDNmMTQ5NDhhNWIwYmRhNTcwYTVjZTNmNDg5NDBmNmZkZjNiM2I5YjU2ZDE1MzRjZDZkYTJmNjg1ZDcxZTJhZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTQ5NjAzYjhkZjNjMWYzN2RlZjY1YjE5ZjVlYzBmOGIxY2JlNTc1Zjg4NjU4ZjUwN2YwY2RmMDY2ZTdmODUzYiJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0001-win32-icon-manipulation.md#L15-L15",
+          "version": "repo-lines-v1:sha256:3d7c63e1270150f591597f0c458b5afecf74a4d9323762cce0404aa1c2ab33e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Q3YzYzZTEyNzAxNTBmNTkxNTk3ZjBjNDU4YjVhZmVjZjc0YTRkOTMyMzc2MmNjZTA0MDRhYTFjMmFiMzNlOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Q3YzYzZTEyNzAxNTBmNTkxNTk3ZjBjNDU4YjVhZmVjZjc0YTRkOTMyMzc2MmNjZTA0MDRhYTFjMmFiMzNlOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGE1YmQ4OTMyN2M2YjIxNGQyZDg4ZmVmMjljOTU2OGNiZjhmZDc4NmNjY2YwZDA5NmZjZDQ5MTQwNjMwZjg4YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDdlZTdkZjEyOTQxNWUyMWU2ZjFiYzRiNWY0ZGM2Yzg3N2Y5OGRmMWU2MGQyNDYxYzg0MDQ3ZGViMGMzMWY2OCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}
