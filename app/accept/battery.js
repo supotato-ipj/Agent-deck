@@ -63,6 +63,27 @@ function capture(rect, name) {
   return out;
 }
 
+// 两张同尺寸实拍的逐像素均值差（0-255；-1 = 尺寸不一致/读取失败）。步进采样全通道，
+// 供「面板内容在场 vs 仅壁纸」的粗粒度判定（工单07）。
+function meanAbsDiff(pngA, pngB) {
+  try {
+    const a = nativeImage.createFromPath(pngA);
+    const b = nativeImage.createFromPath(pngB);
+    const sa = a.getSize(), sb = b.getSize();
+    if (sa.width !== sb.width || sa.height !== sb.height || sa.width === 0) return -1;
+    const ba = a.toBitmap(), bb = b.toBitmap();
+    let sum = 0, n = 0;
+    const step = 8 * 4; // 每 8 像素采样一次（BGRA）
+    for (let i = 0; i + 3 < ba.length && i + 3 < bb.length; i += step) {
+      sum += Math.abs(ba[i] - bb[i]) + Math.abs(ba[i + 1] - bb[i + 1]) + Math.abs(ba[i + 2] - bb[i + 2]);
+      n += 3;
+    }
+    return n ? sum / n : -1;
+  } catch {
+    return -1;
+  }
+}
+
 // 遮挡感知命中率（工单04）：只统计 WindowFromPoint 命中参照窗的采样点——
 // 电池运行中被用户恢复的普通窗只遮屏不遮断言（面板透明机制与遮挡正交）。
 function checkerHitRateAtPoints(pngPath, points) {
@@ -1827,13 +1848,21 @@ async function main() {
       }
     }
 
-    // —— P9 Win+D 收起桌面：面板豁免实证 + 任意最小化来源的防抖自动恢复 ——
-    // Win11 ToggleDesktop 不收 WS_EX_TOOLWINDOW（skipTaskbar）窗口——面板不受 Win+D 影响
-    // 即用户故事「误触显示桌面不用找回面板」的本意；防抖恢复机制保留兜底任意最小化来源，
-    // 以 SW_MINIMIZE 程序化收起做真机演练。对照窗（记事本）先证明 Win+D 确实投递。
+    // —— P9 Win+D 收起桌面：遮罩守望实证（事件+像素）+ 任意最小化来源的防抖自动恢复 ——
+    // show desktop（ToggleDesktop/Win+D/任务栏右下角按钮）不最小化面板窗口（skipTaskbar
+    // 下 shell 不视其为任务栏窗；注意 Electron 44 的 skipTaskbar 并不设置 WS_EX_TOOLWINDOW
+    // 位——「工具窗豁免」旧说法不成立，见工单07）。
+    // 工单07 根因与修法：show desktop 态 shell 把桌面宿主 Progman 抬到面板之上，壁纸连带
+    // 盖住面板（窗口态全程正常——既有断言只查窗口状态因此漏检，真机 SendInput 复现 +
+    // 逐帧截屏 + z 序枚举实证）。桌面遮罩守望（desktop-cover.ts）在 Progman 压顶时把面板
+    // 临时提入 TOPMOST 带、Progman 回底即撤回重钉。本组断言三线并查：
+    // ① cover-engaged 事件（守望器在 Win+D 后 1s 内进场）；
+    // ② 像素级：Win+D 实拍 vs 最小化实拍在面板内容上显著不同（退化即二者同为壁纸、趋零）；
+    // ③ 防抖恢复演练（SW_MINIMIZE）不受守望干扰。
     {
       const rect1 = w32.rectOf(hwnd);
       await sleep(400);
+      const tWind = Date.now();
       w32.send([
         w32.keyInput(VK_LWIN, w32.KEYDOWN), w32.keyInput(VK_D, w32.KEYDOWN),
         w32.keyInput(VK_D, w32.KEYUP), w32.keyInput(VK_LWIN, w32.KEYUP),
@@ -1845,9 +1874,14 @@ async function main() {
       if (!npIconic) {
         rep.fail('Win+D 对照失败：记事本未被最小化，键盘投递未生效（本组断言不可信）');
       } else if (!panelIconic) {
-        rep.pass('Win+D 收起桌面：普通窗（记事本）最小化，面板豁免不受影响（skipTaskbar 工具窗）——面板常在即免找回');
+        rep.pass('Win+D 收起桌面：普通窗（记事本）最小化，面板窗口未被收起（窗口态级豁免）');
         capture(rect1, '03-wind-immune');
-        rep.note('Win+D 后实拍：面板仍在原位（对照窗已收起）');
+        rep.note('Win+D 后实拍：面板仍在原位（对照窗已收起）；内容级断言见最小化实拍之后的比对');
+        // ① 守望器进场存证（工单07）：遮罩守望在 Progman 压顶后 1s 内 engage
+        const coverEngaged = await waitEvent('cover-engaged', (e) => e.t >= tWind, 4000);
+        coverEngaged
+          ? rep.pass('桌面遮罩守望进场：cover-engaged 已存证（Progman 压顶 → 面板临时 TOPMOST）')
+          : rep.fail('桌面遮罩守望未进场（4s 内无 cover-engaged，Progman 压顶期面板处于壁纸之下）');
       } else {
         // 若未来 Windows 行为变化或面板失去工具窗豁免：防抖恢复机制接管
         const windMin = await waitEvent('wind-minimized', null, 6000);
@@ -1863,8 +1897,19 @@ async function main() {
         ? rep.pass(`面板被最小化（来源=SW_MINIMIZE，存证 why=${windMin.why}，IsIconic=true）`)
         : rep.fail(`面板最小化未检出（存证=${JSON.stringify(windMin)}，IsIconic=${minIconic}）`);
       if (minIconic) {
-        capture(rect1, '03-wind-minimized');
+        const immunePng = path.join(__dirname, 'evidence', '03-wind-immune.png');
+        const minimizedPng = capture(rect1, '03-wind-minimized');
         rep.note('最小化期实拍：面板收起（时钟卡区无实色内容）');
+        // 工单07 像素级断言：Win+D 实拍 vs 最小化实拍——面板内容在场则显著不同，
+        // 内容被合成层清空（真机复现的退化形态）则二者同为壁纸、均值差趋零。
+        if (!fs.existsSync(immunePng)) {
+          rep.note('immune 实拍缺席（面板同被 Win+D 收起的分支），像素断言本轮不适用');
+        } else {
+          const meanDiff = meanAbsDiff(immunePng, minimizedPng);
+          meanDiff >= 8
+            ? rep.pass(`Win+D 后面板内容像素级在场：与最小化（仅壁纸）实拍均值差 ${meanDiff.toFixed(1)}/255（≥8；合成层停帧退化即趋零）`)
+            : rep.fail(`Win+D 后面板内容不可见（像素级）：与最小化实拍均值差仅 ${meanDiff.toFixed(1)}/255（<8，屏幕只剩壁纸——工单07 退化形态）`);
+        }
       }
       const windRestored = await waitEvent('wind-restored', null, 10000);
       await sleep(600);

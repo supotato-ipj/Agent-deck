@@ -22,6 +22,11 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - name: Install dependencies
         run: npm ci
+      # electron ≥38 的包不再带 postinstall，二进制按需下载：测试图里第一个
+      # require('electron') 会同步拉 ~120MB，把 5s 的用例拖死（工单07 CI 四连实证，
+      # service.spec / contract.spec 先后中招）。装依赖后显式装二进制。
+      - name: Install Electron binary
+        run: npx install-electron
       - name: Typecheck
         run: npm run typecheck
       - name: Test
