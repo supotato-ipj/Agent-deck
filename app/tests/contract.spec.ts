@@ -65,6 +65,7 @@ function settingsOpts(dir: string): { settings: { file: string; config: AppConfi
   return { settings: { file: path.join(dir, 'config.json'), config } }
 }
 
+// 完整起内核的用例在 CI 冷 runner 上初始化远慢于开发机（本地 <400ms，GH runner 曾超 5s），统一放宽到 30s
 describe('内核桥接契约', () => {
   it('panel/snapshot 返回时钟快照', async () => {
     const ctx = createKernel(kernelOpts(tmpDir()))
@@ -77,7 +78,7 @@ describe('内核桥接契约', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('panel/changed 订阅推送快照，退订后停止', async () => {
     const ctx = createKernel(kernelOpts(tmpDir()))
@@ -95,7 +96,7 @@ describe('内核桥接契约', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('未知方法拒绝', async () => {
     const ctx = createKernel(kernelOpts(tmpDir()))
@@ -105,7 +106,7 @@ describe('内核桥接契约', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单05 桌面承载扩展）', () => {
