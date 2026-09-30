@@ -2,11 +2,12 @@
 
 本仓库产出 **AGENT DECK 独立面板**：常驻桌面的 Electron 应用，以卡片网格与底部 dock 呈现五工具会话与硬件指标，并自绘承载桌面项。架构决策见 `docs/adr/0004-electron-cordis-standalone-panel.md`，领域词汇见 `CONTEXT.md`。Python 数据服务、看门狗与 WE 壁纸链已于 2026-09-29 退役（工单11），壁纸资产只读封存于 `archive/`。
 
-## Worktree 布局（平行开发）
+## 分支与 Worktree 布局（平行开发）
 
-- **主检出**：`D:\local_works\agent-deck`，常驻 `master`，随时保持可推送。**开机自启指向主检出的 `app/`**——worktree 会被清理，自启项不指向它。
-- **feature worktree**：`D:\local_works\agent-deck-wt\<slug>`（分支 `feat/<slug>`）。面板是**单实例**（二次拉起自动退出），并行 worktree 不要各拉一个常驻面板；真机验收用 `npm run accept`（验收模式绕开单实例锁，可与在跑的面板共存）。
-- 开工/收尾的完整流程（建树、环境自举、测试自检、合并清理）见 `agent-deck-worktree` skill。
+- **master**：GitHub 上的集成分支，受 ruleset 保护——改动一律走 `feat/<slug>` / `fix/<slug>` 分支 + PR（CI 绿才可合并），不直接推送。
+- **主检出**：`D:\local_works\agent-deck`，常驻本地 `release` 分支（验收通过后快进到 origin/master）。**开机自启指向主检出的 `app/`**——worktree 会被清理，自启项不指向它。
+- **worktree**：`D:\local_works\agent-deck-wt\<slug>`。面板是**单实例**（二次拉起自动退出），并行 worktree 不要各拉一个常驻面板；真机验收用 `npm run accept`（验收模式绕开单实例锁，可与在跑的面板共存）。
+- 开工/收尾的完整流程（建树、自检、PR、验收快进、清理）见 `agent-deck-worktree` skill。
 
 ## 远端分支纪律
 
@@ -20,7 +21,7 @@
 
 ### Issue tracker
 
-Issues 以本地 markdown 文件形式存放在 `.scratch/<feature>/`。See `docs/agents/issue-tracker.md`.
+Issues 在 GitHub Issues，经 `gh` CLI 操作；认领 = assign（`gh issue edit <n> --add-assignee @me`）。`.scratch/` 只是 2026-09-30 前的只读归档。See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
