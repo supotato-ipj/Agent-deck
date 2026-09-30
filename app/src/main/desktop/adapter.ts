@@ -7,6 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { DesktopDirEntry, DesktopRoots } from './scan'
 import { shortcutIconSource } from './icons'
+import { extractIconDataUrl } from './icon-ffi'
 import { watchDesktopRoots } from './watch'
 
 const FILE_ATTRIBUTE_HIDDEN = 0x2
@@ -61,20 +62,53 @@ export function defaultDesktopRoots(): DesktopRoots {
   }
 }
 
-/** 图标提取真源：Electron app.getFileIcon（SHGetFileInfo 封装）。
+/** 条目存在性真源（工单06）：文件与目录都算存在——图标源决策用的就是它，
+ * .lnk 目标可以是文件夹（目录图标由 getFileIcon 承担）。频次映射的 lnk stem
+ * 回退守卫仍用 fsFileExists（只认文件），两者语义不同勿混用。 */
+export function fsEntryExists(entryPath: string): boolean {
+  try {
+    fs.statSync(entryPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function fsIsDirectory(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/** 图标提取真源：文件本体 FFI 直取优先（工单06），目录与回落走 Electron app.getFileIcon。
  * 失败以 rejection 上抛——IconCache 按尝试上限退避。
- * .lnk 绕行（工单01；上游 electron#15809/#18292：本机 getFileIcon 对一切 lnk 返回
- * 字节级相同的通用图标，对目标本体直取正常）：先经 shell.readShortcutLink 解析图标源，
- * 按决策（图标定位优先、回落目标可执行文件）对本体提取；解析失败或源不可用回落
- * 对 lnk 本体提取（即现状通用图标，死链的既定观感）。决策纯函数在 icons.ts。 */
+ * .lnk 绕行（工单01；上游 electron#15809/#18292：getFileIcon 对一切 lnk 返回字节级相同
+ * 的通用图标）：先经 shell.readShortcutLink 解析图标源，按决策（图标定位优先随其索引、
+ * 回落目标 0 号；存在性认目录）对本体提取；解析失败或源不可用回落对 lnk 本体提取
+ * （即死链的既定观感）。
+ * 巨型 exe 兜底（工单06）：getFileIcon（SHGetFileInfo 路径）对 ~235MB 级 exe 确定性
+ * 返回通用应用图标（新路径副本仍复现，非图标缓存），故文件本体先走 SHDefExtractIconW
+ * 直取图标资源（icon-ffi.ts），失败或目录形态再走 getFileIcon——目录图标、非 PE 文件、
+ * 文档类不受影响。决策纯函数在 icons.ts。 */
 export function electronIconExtractor(filePath: string): Promise<string | null> {
   const { app, shell } = require('electron')
   let source = filePath
+  let iconIndex = 0
   if (path.extname(filePath).toLowerCase() === '.lnk') {
     try {
       const details = shell.readShortcutLink(filePath)
-      source = shortcutIconSource(details.icon, details.target, fsFileExists) ?? filePath
+      const picked = shortcutIconSource(details.icon, details.target, fsEntryExists, details.iconIndex ?? 0)
+      if (picked) {
+        source = picked.source
+        iconIndex = picked.iconIndex
+      }
     } catch { /* lnk 解析失败：回落对本体提取 */ }
+  }
+  if (!fsIsDirectory(source)) {
+    const direct = extractIconDataUrl(source, iconIndex, 48)
+    if (direct) return Promise.resolve(direct)
   }
   return app.getFileIcon(source, { size: 'large' }).then(
     (img: { isEmpty(): boolean; toDataURL(): string }) => (img.isEmpty() ? null : img.toDataURL()),
