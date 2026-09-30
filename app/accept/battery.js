@@ -63,6 +63,29 @@ function capture(rect, name) {
   return out;
 }
 
+// 进程内快速截屏（desktopCapturer，~200ms）：与时序敏感的断言配对使用。
+// 工单16 验证轮实证：Win+D 像素断言的「最小化实拍」走 PowerShell 子进程（~1s），
+// 与 1500ms 防抖自动恢复赛跑——PS 慢一拍就把还原后的 deck 拍进去，两图同为
+// 「deck 在场」→ 均值差趋零 → 假失败。此 helper 无子进程延迟，只供该对实拍。
+async function captureFast(rect, name) {
+  const { desktopCapturer } = require('electron');
+  const phys = screenInfo().phys;
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: phys.w, height: phys.h },
+  });
+  const full = sources[0] && sources[0].thumbnail;
+  if (!full || full.isEmpty()) throw new Error('captureFast 失败：desktopCapturer 无可用屏源');
+  const crop = full.crop({
+    x: Math.max(0, rect.left), y: Math.max(0, rect.top),
+    width: Math.min(rect.right - rect.left, phys.w - rect.left),
+    height: Math.min(rect.bottom - rect.top, phys.h - rect.top),
+  });
+  const out = path.join(__dirname, 'evidence', name + '.png');
+  fs.writeFileSync(out, crop.toPNG());
+  return out;
+}
+
 // 两张同尺寸实拍的逐像素均值差（0-255；-1 = 尺寸不一致/读取失败）。步进采样全通道，
 // 供「面板内容在场 vs 仅壁纸」的粗粒度判定（工单07）。
 function meanAbsDiff(pngA, pngB) {
@@ -1928,7 +1951,7 @@ async function main() {
         rep.fail('Win+D 对照失败：记事本未被最小化，键盘投递未生效（本组断言不可信）');
       } else if (!panelIconic) {
         rep.pass('Win+D 收起桌面：普通窗（记事本）最小化，面板窗口未被收起（窗口态级豁免）');
-        capture(rect1, '03-wind-immune');
+        await captureFast(rect1, '03-wind-immune');
         rep.note('Win+D 后实拍：面板仍在原位（对照窗已收起）；内容级断言见最小化实拍之后的比对');
         // ① 守望器进场存证（工单07）：遮罩守望在 Progman 压顶后 1s 内 engage
         const coverEngaged = await waitEvent('cover-engaged', (e) => e.t >= tWind, 4000);
@@ -1951,7 +1974,7 @@ async function main() {
         : rep.fail(`面板最小化未检出（存证=${JSON.stringify(windMin)}，IsIconic=${minIconic}）`);
       if (minIconic) {
         const immunePng = path.join(__dirname, 'evidence', '03-wind-immune.png');
-        const minimizedPng = capture(rect1, '03-wind-minimized');
+        const minimizedPng = await captureFast(rect1, '03-wind-minimized');
         rep.note('最小化期实拍：面板收起（时钟卡区无实色内容）');
         // 工单07 像素级断言：Win+D 实拍 vs 最小化实拍——面板内容在场则显著不同，
         // 内容被合成层清空（真机复现的退化形态）则二者同为壁纸、均值差趋零。
@@ -2089,30 +2112,47 @@ async function main() {
         const t = new Date();
         fs.utimesSync(probeJsonl, t, t);
       };
-      /** 点探针那一行并等结果。失败须能自证原因（裸 null 无法区分「没找到行」与「点了没反应」） */
+      /** 点探针那一行并等结果。失败须能自证原因（裸 null 无法区分「没找到行」与「点了没反应」）。
+       * 工单16：行矩形自「最新事件」到点击落地之间，会话列表会按活跃度重排——操作者自己的
+       * 会话就活在被扫描的项目里（电池本身即跑在其中一场会话中），矩形抓完即过期，点中的
+       * 是别人的行（真机实证：session-focus-result tool=zcode，聚焦了操作者的 ZCode 主窗
+       * 而非探针 charmap，探针行选行匹配本身无罪）。故以结果自证：探针行挂在 qoder 工具
+       * 槽位，session-focus-result.tool === 'qoder' 才是探针行的回音；其余（点中他人行的
+       * 异槽回音）视为重排竞态，取新矩形重试。 */
       const clickProbeRow = async (t0, why) => {
-        const sess = lastEvent('sessions-rendered', (e) => e.rows && e.rows.length, 0);
-        const row = ((sess && sess.rows) || []).find((r) => r.project === PROBE_TAG && r.rect);
-        if (!row) {
-          rep.note(`${why} 诊断：未找到探针行（sessions-rendered 最新 count=${sess ? sess.count : 'null'}，rows=${sess ? (sess.rows || []).length : 0}）`);
-          return null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const sess = lastEvent('sessions-rendered', (e) => e.rows && e.rows.length, 0);
+          const row = ((sess && sess.rows) || []).find((r) => r.project === PROBE_TAG && r.rect);
+          if (!row) {
+            rep.note(`${why} 诊断：未找到探针行（sessions-rendered 最新 count=${sess ? sess.count : 'null'}，rows=${sess ? (sess.rows || []).length : 0}）`);
+            return null;
+          }
+          const pr = w32.rectOf(hwnd);
+          if (!pr) {
+            rep.note(`${why} 诊断：面板窗 0x${hwnd.toString(16)} rect 取不到`);
+            return null;
+          }
+          const pt = ptOfZoneAt(pr, row.rect);
+          // 落点取证：面板矩形 / 行矩形 / 物理落点 / 落点处 WindowFromPoint 命中。
+          // 注意「命中面板 hwnd」并不等于「点击被面板接收」——面板在非热区是穿透的，
+          // 真正判据是渲染层有没有回 session-focus-clicked。
+          const hit = w32.windowFromPointRoot(pt);
+          rep.note(`${why} 诊断：panel 0x${hwnd.toString(16)} rect(${pr.left},${pr.top} ${pr.right - pr.left}x${pr.bottom - pr.top})`
+            + ` rowRect(${Math.round(row.rect.x)},${Math.round(row.rect.y)} ${Math.round(row.rect.w)}x${Math.round(row.rect.h)})`
+            + ` pt(${pt.x},${pt.y}) 落点命中 ${hit ? '0x' + hit.toString(16) : 'null'}`
+            + `${hit && hit !== hwnd ? `(${w32.className(hit)} pid=${w32.threadIdOf(hit).pid}，非面板→被遮挡)` : ''}`);
+          const tAttempt = Date.now();
+          await occludedClickAt(pt, `会话行(${PROBE_TAG})`);
+          const res = await waitEvent('session-focus-result',
+            (e) => e.t >= Math.max(t0, tAttempt) && e.tool === 'qoder', 6000);
+          if (res) return res;
+          // 没等到探针行回音：大概率点中了重排后的他人行（异槽回音）——如实记录并重试
+          const foreign = lastEvent('session-focus-result', (e) => e.t >= tAttempt, 0);
+          rep.note(`${why} 第 ${attempt}/3 次点击未收到探针行回音`
+            + `（${foreign ? `点中异槽行 tool=${foreign.tool}${foreign.id ? ' id=' + foreign.id : ''}` : '无任何回音'}）`
+            + `——会话列表活跃重排竞态，取新矩形重试`);
         }
-        const pr = w32.rectOf(hwnd);
-        if (!pr) {
-          rep.note(`${why} 诊断：面板窗 0x${hwnd.toString(16)} rect 取不到`);
-          return null;
-        }
-        const pt = ptOfZoneAt(pr, row.rect);
-        // 落点取证：面板矩形 / 行矩形 / 物理落点 / 落点处 WindowFromPoint 命中。
-        // 注意「命中面板 hwnd」并不等于「点击被面板接收」——面板在非热区是穿透的，
-        // 真正判据是渲染层有没有回 session-focus-clicked。
-        const hit = w32.windowFromPointRoot(pt);
-        rep.note(`${why} 诊断：panel 0x${hwnd.toString(16)} rect(${pr.left},${pr.top} ${pr.right - pr.left}x${pr.bottom - pr.top})`
-          + ` rowRect(${Math.round(row.rect.x)},${Math.round(row.rect.y)} ${Math.round(row.rect.w)}x${Math.round(row.rect.h)})`
-          + ` pt(${pt.x},${pt.y}) 落点命中 ${hit ? '0x' + hit.toString(16) : 'null'}`
-          + `${hit && hit !== hwnd ? `(${w32.className(hit)} pid=${w32.threadIdOf(hit).pid}，非面板→被遮挡)` : ''}`);
-        await occludedClickAt(pt, `会话行(${PROBE_TAG})`);
-        return await waitEvent('session-focus-result', (e) => e.t >= t0, 6000);
+        return null;
       };
       /**
        * 以指定 tools 映射重启面板，等首拍含探针行的会话列表就绪。
