@@ -7,11 +7,13 @@
 //
 // 修法：守望 Progman 与面板的 z 序关系——Progman 压到面板之上时把面板临时提入
 // TOPMOST 带（show desktop 态普通窗已全部最小化，不违反「面板在普通窗之下」的
-// ADR-0004 语义）；Progman 回底（show desktop 结束）即撤出 TOPMOST 并重钉底部。
-// 判定纯函数 coverDecision 可离线测；z 序读取走 win32.ts 的 koffi 绑定。
+// ADR-0004 语义）；Progman 回底（show desktop 结束）即撤出并重钉底部。
+// 判定纯函数 coverDecision 可离线测；z 序读取走 win32.ts 的 koffi 绑定——真源
+// 延迟加载（沿 desktop/adapter 先例）：判定纯函数的离线测试不触碰 koffi。
 import type { BrowserWindow } from 'electron'
-import { findTopWindowByClass, hasVisibleBelow, hwndOf, isTopmost, pinToBottom, setTopmost, setPinGate, zPrecedes } from './win32'
 import type { EventLog } from './panel-ipc'
+
+type Win32 = typeof import('./win32')
 
 /** 一次判定的输入快照（全部由调用方侦察所得，纯函数只管裁决） */
 export interface CoverSnapshot {
@@ -49,12 +51,15 @@ export class DesktopCoverWatcher {
   private timer: ReturnType<typeof setInterval> | null = null
   private disposed = false
   private elevated = false
+  /** win32 真源延迟加载：离线单测（coverDecision 矩阵）不触碰 koffi */
+  private w32: Win32 | null = null
 
   constructor(
     private readonly win: BrowserWindow,
     private readonly log?: EventLog,
   ) {
-    setPinGate(() => this.elevated)
+    this.w32 = require('./win32')
+    this.w32.setPinGate(() => this.elevated)
     this.timer = setInterval(() => this.tick(), POLL_MS)
     if (typeof this.timer.unref === 'function') this.timer.unref()
   }
@@ -66,24 +71,26 @@ export class DesktopCoverWatcher {
 
   private tick(): void {
     if (this.disposed || this.win.isDestroyed()) return
-    const hwnd = hwndOf(this.win)
-    const progman = findTopWindowByClass('Progman')
+    const w = this.w32
+    if (!w) return
+    const hwnd = w.hwndOf(this.win)
+    const progman = w.findTopWindowByClass('Progman')
     const snap: CoverSnapshot = {
       panelVisible: this.win.isVisible(),
       panelMinimized: this.win.isMinimized(),
-      panelTopmost: isTopmost(hwnd),
+      panelTopmost: w.isTopmost(hwnd),
       progmanFound: progman !== null,
-      progmanAbovePanel: progman !== null && zPrecedes(progman, hwnd),
-      progmanBottomMost: progman !== null && !hasVisibleBelow(progman),
+      progmanAbovePanel: progman !== null && w.zPrecedes(progman, hwnd),
+      progmanBottomMost: progman !== null && !w.hasVisibleBelow(progman),
     }
     const action = coverDecision(snap)
     if (action === 'engage') {
       this.elevated = true
-      if (setTopmost(hwnd, true)) this.log?.append({ type: 'cover-engaged' })
+      if (w.setTopmost(hwnd, true)) this.log?.append({ type: 'cover-engaged' })
     } else if (action === 'release') {
       this.elevated = false
-      const off = setTopmost(hwnd, false)
-      const pinned = pinToBottom(this.win)
+      const off = w.setTopmost(hwnd, false)
+      const pinned = w.pinToBottom(this.win)
       if (off || pinned) this.log?.append({ type: 'cover-released', pinned })
     }
   }
@@ -94,6 +101,6 @@ export class DesktopCoverWatcher {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
     this.elevated = false
-    setPinGate(null)
+    this.w32?.setPinGate(null)
   }
 }
