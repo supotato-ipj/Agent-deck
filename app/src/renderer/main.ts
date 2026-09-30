@@ -5,6 +5,8 @@
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
 import { pad, pad3 } from './format.js'
+import { EMPTY_SELECTION, launchListOf, nextSelection } from './selection.js'
+import type { SelectionEvent, SelectionModel } from './selection.js'
 
 const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
@@ -50,11 +52,13 @@ function renderCalendar(epochMs: number): void {
 
 let calendarMonth = -1
 
-// ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位）：dock 应用区 + 文档区分组列 ----
+// ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：dock 应用区 + 文档区分组列 ----
 // 条目池随 1Hz 快照下发，按指纹 diff——集合未变不重建 DOM；图标经 desktop/icon
 // 懒取（dataURL 本地缓存，键含 mtime，lnk 指向变更自然换图标）。
 // 工单06 起 dock 按 plan.dock 序铺条（手钉→摆位→推荐），文档区按 plan.docs 的
 // 组序/组内序铺分组列；拖拽摆位经 desktop/move 落内核并持久化。
+// 工单20 起选区是名字集合（跨分区、瞬态、按名存续）：迁移全部走 selection.ts
+// 纯状态机，本文件只消费其输出——快照重建后按名恢复，消失条目自动剔除。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -66,7 +70,9 @@ const GROUP_LABELS: Record<string, string> = {
 const localIcons = new Map<string, string>()
 let desktopFingerprintSeen = ''
 let desktopRenderCount = 0
-let selectedName: string | null = null
+let selection: SelectionModel = EMPTY_SELECTION
+/** 最近一拍条目名 → 条目（双击全开按名取 path；快照未变时同样有效） */
+let itemByName = new Map<string, DesktopItem>()
 let layoutApplied = ''
 
 function itemGlyph(item: DesktopItem): string {
@@ -74,8 +80,49 @@ function itemGlyph(item: DesktopItem): string {
 }
 
 function markSelection(): void {
+  const sel = new Set(selection.names)
   for (const d of document.querySelectorAll<HTMLElement>('.ditem')) {
-    d.classList.toggle('sel', d.dataset.name === selectedName)
+    d.classList.toggle('sel', sel.has(d.dataset.name ?? ''))
+  }
+}
+
+/** 选区事件入口：状态机迁移 → DOM 标记 → 生灭存证（desktop-* 族；#19 存证约定） */
+function applySelection(event: SelectionEvent): void {
+  const prev = selection.names
+  selection = nextSelection(selection, event)
+  markSelection()
+  if (event.type === 'click') {
+    notify('desktop-selected', { name: event.name, names: [...selection.names] })
+  } else if (event.type === 'ctrl-click') {
+    notify('desktop-selection-toggled', {
+      name: event.name,
+      names: [...selection.names],
+      selected: selection.names.includes(event.name),
+    })
+  } else if (event.type === 'blank-click') {
+    if (prev.length) notify('desktop-selection-cleared', { had: [...prev] })
+  } else if (event.type === 'reconcile') {
+    const removed = prev.filter((n) => !selection.names.includes(n))
+    if (removed.length) notify('desktop-selection-pruned', { removed, names: [...selection.names] })
+  }
+}
+
+/** 双击启动名单逐项经 desktop/launch（走既有启动校验），结果逐项存证 */
+function launchNames(names: readonly string[]): void {
+  for (const name of names) {
+    const target = itemByName.get(name)
+    if (!target) {
+      // 渲染层快照落后于内核池：按同名拒绝存证（与内核「不在当前扫描池内」同语义）
+      notify('desktop-launch-rejected', { name, ok: false, error: '桌面项不在当前扫描池内' })
+      continue
+    }
+    notify('desktop-launch-clicked', { name: target.name, path: target.path })
+    void window.deck.bridge.invoke('desktop/launch', { path: target.path }).then(
+      (r) => notify(r.ok ? 'desktop-launched' : 'desktop-launch-rejected', {
+        name: target.name, ok: r.ok, error: r.error ?? null,
+      }),
+      (err: unknown) => notify('desktop-launch-failed', { name: target.name, message: String(err) }),
+    )
   }
 }
 
@@ -110,22 +157,22 @@ function buildItem(item: DesktopItem): HTMLElement {
   label.className = 'label'
   label.textContent = item.display
   d.append(img, label)
-  // 单击选中（启动前确认目标）；双击启动（肌肉记忆原样保留）；拖拽摆位（工单06）
-  d.addEventListener('click', () => {
+  // 单击选中（启动前确认目标；Ctrl+单击切换）；双击全开（集内任一条=整集，肌肉记忆
+  // 原样保留）；拖拽摆位（工单06）。双击序列的第二击（e.detail≥2）不做选区迁移——
+  // 整集语义由 dblclick 分支经状态机裁决（selection.ts 注记的时间无关实现）。
+  d.addEventListener('click', (e) => {
     if (dragState.suppressed) return // 拖拽结束的那一下点击不算选中
-    selectedName = item.name
-    markSelection()
-    notify('desktop-selected', { name: item.name })
+    if (e.detail > 1) return
+    applySelection(e.ctrlKey
+      ? { type: 'ctrl-click', name: item.name }
+      : { type: 'click', name: item.name })
   })
   d.addEventListener('dblclick', () => {
     if (dragState.suppressed) return
-    notify('desktop-launch-clicked', { name: item.name, path: item.path })
-    void window.deck.bridge.invoke('desktop/launch', { path: item.path }).then(
-      (r) => notify(r.ok ? 'desktop-launched' : 'desktop-launch-rejected', {
-        name: item.name, ok: r.ok, error: r.error ?? null,
-      }),
-      (err: unknown) => notify('desktop-launch-failed', { name: item.name, message: String(err) }),
-    )
+    const launch = launchListOf(selection, item.name)
+    selection = nextSelection(selection, { type: 'dblclick', name: item.name })
+    notify('desktop-launch-set-clicked', { names: [...launch] })
+    launchNames(launch)
   })
   wireDrag(d, item)
   return d
@@ -278,6 +325,18 @@ function endDrag(): void {
   setTimeout(() => { dragState.suppressed = false }, 0)
 }
 
+// ---- 分区空白清空选区（工单20）：条目之外的分区容器面单击即清空（CONTEXT.md「选区」）。
+// 条目自身的点击会冒泡上来，按 closest 滤掉（各走各的语义）；分区热区只覆盖条目
+// 包围盒+边距，热区之外的空白本来就不进面板（透传真桌面，不到这里）。
+
+for (const zone of [dockZone, docZone]) {
+  zone.addEventListener('click', (e) => {
+    if (dragState.suppressed) return
+    if ((e.target as HTMLElement).closest('.ditem')) return
+    applySelection({ type: 'blank-click' })
+  })
+}
+
 // ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
 
 function applyLayout(layout: PanelSnapshot['layout']): void {
@@ -295,9 +354,10 @@ function applyLayout(layout: PanelSnapshot['layout']): void {
 
 function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): void {
   applyLayout(layout)
+  itemByName = new Map(state.items.map((i) => [i.name, i]))
   if (state.fingerprint === desktopFingerprintSeen) return
   desktopFingerprintSeen = state.fingerprint
-  const byName = new Map(state.items.map((i) => [i.name, i]))
+  const byName = itemByName
   // dock：按编排序铺条；池内 app 条目若不在计划（理论不可达）兜底追加，承载一个不漏
   dockZone.textContent = ''
   const dockNames: string[] = []
@@ -331,17 +391,18 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
     block.append(glabel, grid)
     docGroups.appendChild(block)
   }
-  if (selectedName && !state.items.some((i) => i.name === selectedName)) selectedName = null
-  markSelection()
+  // 快照重建后按名恢复选区、消失条目剔除（工单20：选区是渲染层瞬态，1Hz 重建不丢）
+  applySelection({ type: 'reconcile', liveNames: state.items.map((i) => i.name) })
   declareHotZones()
   desktopRenderCount += 1
-  // 存证：条目集合 + 编排序 + 各条目矩形（电池按名定位探针落点/拖放源坐标）
+  // 存证：条目集合 + 编排序 + 各条目矩形（电池按名定位探针落点/拖放源坐标）+ 当前选区
   notify('desktop-rendered', {
     n: desktopRenderCount,
     fingerprint: state.fingerprint,
     apps: dockNames.length,
     docs: state.plan.docs.length,
     names: state.items.map((i) => i.name),
+    sel: [...selection.names],
     dock: state.plan.dock,
     docEntries: state.plan.docs,
     rects: state.items.map((item) => {
