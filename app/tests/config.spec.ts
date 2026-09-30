@@ -122,15 +122,15 @@ describe('config 模型（工单06 桌面承载几何）', () => {
 })
 
 describe('config 模型（工单07 搜索）', () => {
-  it('defaultSearchConfig 用 Listary 生产端口', () => {
-    expect(defaultSearchConfig()).toEqual({ port: 38431 })
+  it('defaultSearchConfig 用 Listary 生产端口；过渡期缺省引擎 listary、Everything 端口 80', () => {
+    expect(defaultSearchConfig()).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
   })
 
   it('search 段缺失回退默认（老 config.json 兼容）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: FALLBACK.panel }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -138,7 +138,7 @@ describe('config 模型（工单07 搜索）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ search: { port: 39999 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.search).toEqual({ port: 39999 })
+    expect(r.config.search).toEqual({ port: 39999, engine: 'listary', everythingPort: 80 })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -146,24 +146,67 @@ describe('config 模型（工单07 搜索）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ search: { port: 0 } }))
     let r = loadConfig(file, FALLBACK)
-    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
     expect(r.warnings.some((w) => w.includes('config.search.port'))).toBe(true)
 
     fs.writeFileSync(file, JSON.stringify({ search: { port: 1.5 } }))
     r = loadConfig(file, FALLBACK)
-    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
 
     fs.writeFileSync(file, JSON.stringify({ search: { port: 'abc' } }))
     r = loadConfig(file, FALLBACK)
-    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
   })
 
   it('search 整体非对象回退默认', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ search: 42 }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.search).toEqual({ port: 38431 })
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
     expect(r.warnings.some((w) => w.includes('config.search'))).toBe(true)
+  })
+})
+
+describe('config 模型（工单13 搜索引擎选择）', () => {
+  it('engine=everything/listary 显式锁定生效；缺 port 时引擎键独立生效（不互相吞）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: { engine: 'everything', everythingPort: 8080 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431, engine: 'everything', everythingPort: 8080 })
+    expect(r.warnings).toHaveLength(0)
+
+    fs.writeFileSync(file, JSON.stringify({ search: { engine: 'listary' } }))
+    const r2 = loadConfig(file, FALLBACK)
+    expect(r2.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
+    expect(r2.warnings).toHaveLength(0)
+  })
+
+  it('engine=auto 过渡期告警回落 listary（探测在 #14 接入）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: { engine: 'auto' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
+    expect(r.warnings.some((w) => w.includes('config.search.engine'))).toBe(true)
+  })
+
+  it('engine 非法值告警回退默认', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: { engine: 'google' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.search).toEqual({ port: 38431, engine: 'listary', everythingPort: 80 })
+    expect(r.warnings.some((w) => w.includes('config.search.engine'))).toBe(true)
+  })
+
+  it('everythingPort 非法（越界/非整数）回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ search: { everythingPort: 0 } }))
+    let r = loadConfig(file, FALLBACK)
+    expect(r.config.search.everythingPort).toBe(80)
+    expect(r.warnings.some((w) => w.includes('config.search.everythingPort'))).toBe(true)
+
+    fs.writeFileSync(file, JSON.stringify({ search: { everythingPort: 1.5 } }))
+    r = loadConfig(file, FALLBACK)
+    expect(r.config.search.everythingPort).toBe(80)
   })
 })
 

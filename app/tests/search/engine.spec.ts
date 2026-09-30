@@ -8,12 +8,15 @@ import {
   BASE_HOST,
   BASE_PORT,
   DEFAULT_LIMIT,
+  EVERYTHING_DEFAULT_PORT,
+  EVERYTHING_TIMEOUT_MS,
   Debouncer,
   ListaryNetworkError,
   SEARCH_PATH,
   backoffDelay,
   buildRequest,
   classifyFailure,
+  everythingNormalize,
   parseResponse,
 } from '../../src/main/search/engine'
 
@@ -166,6 +169,87 @@ describe('classifyFailure（错误分类）', () => {
   it('引擎在线但吐非法载荷归 error（不能冒充离线）', () => {
     expect(classifyFailure(new SyntaxError('bad json'))).toBe('error')
     expect(classifyFailure({})).toBe('error')
+  })
+})
+
+describe('everythingNormalize（Everything JSON → Listary ok 载荷，工单13 移植）', () => {
+  it('行字段归一：path\\name 拼全路径、folder/file、size、totalResults → total', () => {
+    const payload = everythingNormalize({
+      totalResults: 42,
+      results: [
+        { path: 'D:\\Work', name: 'invoice.pdf', type: 'file', size: 1234 },
+        { path: 'D:\\Docs', name: 'notes', type: 'folder', size: 0 },
+      ],
+    })
+    expect(payload).toEqual({
+      ok: true,
+      data: {
+        total: 42,
+        results: [
+          { path: 'D:\\Work\\invoice.pdf', name: 'invoice.pdf', type: 'file', size_bytes: 1234 },
+          { path: 'D:\\Docs\\notes', name: 'notes', type: 'folder', size_bytes: 0 },
+        ],
+      },
+    })
+  })
+
+  it('归一化产物直接喂 parseResponse / classifyFailure（面板零改动的关键）', () => {
+    const payload = everythingNormalize({
+      totalResults: 1,
+      results: [{ path: 'C:\\a', name: 'a.txt', type: 'file', size: 1 }],
+    })
+    expect(classifyFailure(payload)).toBeNull()
+    const parsed = parseResponse(payload)
+    expect(parsed.total).toBe(1)
+    expect(parsed.items[0]).toEqual({
+      path: 'C:\\a\\a.txt', name: 'a.txt', type: 'file', sizeBytes: 1, modifiedAt: '', score: 0,
+    })
+  })
+
+  it('size 字符串数字容错转整数；非数字与缺失归 0（Python 先例同形）', () => {
+    const payload = everythingNormalize({
+      totalResults: 3,
+      results: [
+        { path: 'C:\\x', name: 'a', size: '5678' },
+        { path: 'C:\\x', name: 'b', size: 'not-a-number' },
+        { path: 'C:\\x', name: 'c' },
+      ],
+    })
+    const sizes = (payload as { data: { results: Array<{ size_bytes: number }> } }).data.results.map((r) => r.size_bytes)
+    expect(sizes).toEqual([5678, 0, 0])
+  })
+
+  it('path 与 name 单边缺失：用另一边兜底（Python 先例 path or name）', () => {
+    const payload = everythingNormalize({
+      totalResults: 2,
+      results: [
+        { path: 'C:\\only-path', name: '', type: 'file' },
+        { path: '', name: 'only-name.ext', type: 'file' },
+      ],
+    })
+    const paths = (payload as { data: { results: Array<{ path: string }> } }).data.results.map((r) => r.path)
+    expect(paths).toEqual(['C:\\only-path', 'only-name.ext'])
+  })
+
+  it('type 非 folder 一律 file；results 缺失/坏行跳过', () => {
+    const payload = everythingNormalize({
+      totalResults: 3,
+      results: ['junk', { path: 'C:\\a', name: 'a.txt', type: 'doc' }, null, { type: 'file', size: 1 }],
+    })
+    const data = (payload as { data: { total: number; results: Array<{ type: string }> } }).data
+    expect(data.total).toBe(3)
+    expect(data.results).toEqual([{ path: 'C:\\a\\a.txt', name: 'a.txt', type: 'file', size_bytes: 0 }])
+  })
+
+  it('非对象载荷抛 TypeError（error，不冒充离线）', () => {
+    expect(() => everythingNormalize('not a dict')).toThrow(TypeError)
+    expect(() => everythingNormalize(null)).toThrow(TypeError)
+  })
+
+  it('端点常量：Everything 默认端口 80、生产超时档 2s（http_server 插件先例）', () => {
+    expect(EVERYTHING_DEFAULT_PORT).toBe(80)
+    expect(EVERYTHING_TIMEOUT_MS).toBe(2000)
+    expect(BASE_HOST).toBe('127.0.0.1')
   })
 })
 

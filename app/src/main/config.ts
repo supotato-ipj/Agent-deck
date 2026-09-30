@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
-import { BASE_PORT } from './search/engine'
+import { BASE_PORT, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
 export interface PanelGeometry {
@@ -81,9 +81,16 @@ export function normalizeProcessName(raw: string): string {
   return raw.replace(/^.*[\\/]/, '').toLowerCase().replace(/\.exe$/, '')
 }
 
-/** Listary 本地 API 端口（验收可指假端口复现引擎离线） */
+/** 本地搜索引擎配置（host 恒 127.0.0.1 不进配置——只发往本机） */
 export interface SearchConfig {
   port: number
+  /**
+   * 搜索引擎（工单13）：'everything' / 'listary' 显式锁定；'auto' = 一次可达性
+   * 探测（探测语义在后续工单接入，过渡期告警回落 listary）。
+   */
+  engine: SearchEngineChoice
+  /** Everything http_server 插件端口（voidtools 插件生产值 80） */
+  everythingPort: number
 }
 
 /** 卡片底色透明度（工单08 全局滑杆）：0..1，rgba alpha 语义；0 = 全透（文字仍实色） */
@@ -147,9 +154,9 @@ export function defaultDesktopLayout(): DesktopLayout {
   return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8, dockMaxWidth: 1240 }
 }
 
-/** 默认搜索端口：Listary 7 本地 HTTP API 的生产值（BASE_PORT 单一来源） */
+/** 默认搜索配置：Listary 生产端口 + 过渡期缺省引擎 listary（探测在 #14 接入后改 auto） */
 export function defaultSearchConfig(): SearchConfig {
-  return { port: BASE_PORT }
+  return { port: BASE_PORT, engine: 'listary', everythingPort: EVERYTHING_DEFAULT_PORT }
 }
 
 /** 默认外观：信息卡底色 rgba(0,0,0,0.55) 的 alpha（renderer 生产值固化） */
@@ -331,18 +338,36 @@ function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[])
   return out
 }
 
+/** 1..65535 整数端口校验（mergeSearch 三处同形：合法生效，非法告警回退） */
+function validPort(v: unknown): v is number {
+  return Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 65535
+}
+
 function mergeSearch(raw: unknown, fallback: SearchConfig, warnings: string[]): SearchConfig {
   const out = { ...fallback }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    warnings.push('config.search 不是对象，已整体回退默认端口')
+    warnings.push('config.search 不是对象，已整体回退默认搜索配置')
     return out
   }
   const search = raw as Record<string, unknown>
+  // 各键独立校验（port 缺失不影响 engine/everythingPort 生效）
   const port = search.port
-  if (port === undefined) return out
-  if (Number.isInteger(port) && (port as number) >= 1 && (port as number) <= 65535) out.port = port as number
-  else warnings.push(`config.search.port 须为 1..65535 整数，已回退默认值 ${fallback.port}`)
+  if (port !== undefined) {
+    if (validPort(port)) out.port = port
+    else warnings.push(`config.search.port 须为 1..65535 整数，已回退默认值 ${fallback.port}`)
+  }
+  const engine = search.engine
+  if (engine !== undefined) {
+    if (engine === 'everything' || engine === 'listary') out.engine = engine
+    else if (engine === 'auto') warnings.push('config.search.engine=auto 需引擎探测（后续工单接入），已回落 listary')
+    else warnings.push(`config.search.engine 须为 everything|listary|auto，已回退默认值 ${fallback.engine}`)
+  }
+  const everythingPort = search.everythingPort
+  if (everythingPort !== undefined) {
+    if (validPort(everythingPort)) out.everythingPort = everythingPort
+    else warnings.push(`config.search.everythingPort 须为 1..65535 整数，已回退默认值 ${fallback.everythingPort}`)
+  }
   return out
 }
 

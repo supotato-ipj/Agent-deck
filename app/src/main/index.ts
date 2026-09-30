@@ -86,7 +86,7 @@ async function bootPanel(): Promise<void> {
   const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
-    search: { port: config.search.port },
+    search: { port: config.search.port, engine: config.search.engine, everythingPort: config.search.everythingPort },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
     // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
