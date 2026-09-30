@@ -4,6 +4,7 @@ import type { Context } from 'cordis'
 import type { SearchUiState } from '../../shared/contract'
 import {
   BASE_PORT,
+  DEFAULT_ENGINE,
   DEFAULT_LIMIT,
   Debouncer,
   EVERYTHING_DEFAULT_PORT,
@@ -43,7 +44,7 @@ function defaultReveal(path: string): void {
 export interface SearchServiceOptions {
   /** Listary 本地 API 端口（config.json search.port 下发；默认 38431） */
   port?: number
-  /** 搜索引擎（config.json search.engine 下发；工单13 显式锁定，auto 过渡期回落 listary） */
+  /** 搜索引擎（config.json search.engine 下发；缺省 auto = 一次探测，工单14） */
   engine?: SearchEngineChoice
   /** Everything http_server 插件端口（config.json search.everythingPort 下发；默认 80） */
   everythingPort?: number
@@ -84,7 +85,7 @@ export class SearchService extends Service {
     this.limit = options.limit ?? DEFAULT_LIMIT
     // 默认查询真源 = 引擎选择器装配（工单13）；服务状态机保持引擎无感
     const engineSearch = createEngineSearch({
-      engine: options.engine ?? 'listary',
+      engine: options.engine ?? DEFAULT_ENGINE,
       listaryPort: this.port,
       everythingPort: options.everythingPort ?? EVERYTHING_DEFAULT_PORT,
     })

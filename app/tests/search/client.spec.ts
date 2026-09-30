@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { ListaryNetworkError, classifyFailure, parseResponse } from '../../src/main/search/engine'
-import { everythingSearch, listarySearch } from '../../src/main/search/client'
+import { everythingProbe, everythingSearch, listarySearch } from '../../src/main/search/client'
 
 const SEEN: Array<{ query: unknown; limit: unknown; offset: unknown }> = []
 /** Everything 假 API 收包（GET 查询串 → 参数表）：查询词只进查询串、只发回环的实证位 */
@@ -204,5 +204,32 @@ describe('everythingSearch（真传输层 × 假 Everything API，工单13）', 
     const err = await everythingSearch({ port, timeoutMs: TIMEOUT }, 'x', 8, 0).catch((e: unknown) => e)
     expect(err).not.toBeInstanceOf(ListaryNetworkError)
     expect(classifyFailure(err)).toBe('error')
+  })
+})
+
+describe('everythingProbe（GET 可达性探针 × 假 Everything API，工单14）', () => {
+  it('HTTP 200 → 可达；探针形状 GET /?json=1&count=1&search=test（Python 先例同形）', async () => {
+    behaveGet = (_req, _query, res) => {
+      res.end(JSON.stringify({ totalResults: 0, results: [] }))
+    }
+    await expect(everythingProbe({ port, timeoutMs: TIMEOUT })).resolves.toBe(true)
+    expect(GET_SEEN).toEqual([{ json: '1', count: '1', search: 'test' }])
+  })
+
+  it('非 200 状态 → 不可达（false）', async () => {
+    behaveGet = (_req, _query, res) => {
+      res.statusCode = 500
+      res.end('boom')
+    }
+    await expect(everythingProbe({ port, timeoutMs: TIMEOUT })).resolves.toBe(false)
+  })
+
+  it('连接拒绝 → false（探测失败不是查询失败，永不抛）', async () => {
+    await expect(everythingProbe({ port: 1, timeoutMs: TIMEOUT })).resolves.toBe(false)
+  })
+
+  it('响应超时 → false', async () => {
+    behaveGet = () => { /* 永不应答 */ }
+    await expect(everythingProbe({ port, timeoutMs: 120 })).resolves.toBe(false)
   })
 })
