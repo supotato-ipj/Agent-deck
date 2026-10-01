@@ -60,6 +60,9 @@ let calendarMonth = -1
 // 工单20 起选区是名字集合（跨分区、瞬态、按名存续）：迁移全部走 selection.ts
 // 纯状态机，本文件只消费其输出——快照重建后按名恢复，消失条目自动剔除。
 // 工单21 起分区空白可框选（band=替换 / ctrl+band=并集，起笔阈值与拖拽共用）。
+// 工单22 起批量拖拽：起笔于选中集内且集合多条 = 整组按选区插入序迁移，ghost 带
+// 「N 项」徽标（N = 实际拖动条数，不含手钉——渲染层按 plan.dock 的 pinned 段预测，
+// 内核回报的 skipped 是权威口径，经 desktop-moved-batch 存证如实上报）。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -74,6 +77,8 @@ let desktopRenderCount = 0
 let selection: SelectionModel = EMPTY_SELECTION
 /** 最近一拍条目名 → 条目（双击全开按名取 path；快照未变时同样有效） */
 let itemByName = new Map<string, DesktopItem>()
+/** 手钉名集（plan.dock 的 pinned 段；批量拖拽的「N 项」徽标据此预测 skipped） */
+let pinnedNames = new Set<string>()
 let layoutApplied = ''
 
 function itemGlyph(item: DesktopItem): string {
@@ -181,13 +186,17 @@ function buildItem(item: DesktopItem): HTMLElement {
   return d
 }
 
-// ---- 拖拽摆位（工单06）：指针事件自实现（非 HTML5 DnD——合成输入驱不动 OLE 拖拽，
-// 且自绘世界要的是「排在谁前面」语义）。拖拽期间声明全窗热区：跨分区拖动会路过
-// 非热区空档，若不临时全窗接收，中途面板转穿透、pointer 流即断（拖拽死在中途）。
+// ---- 拖拽摆位（工单06；工单22 批量）：指针事件自实现（非 HTML5 DnD——合成输入驱不动
+// OLE 拖拽，且自绘世界要的是「排在谁前面」语义）。拖拽期间声明全窗热区：跨分区拖动会
+// 路过非热区空档，若不临时全窗接收，中途面板转穿透、pointer 流即断（拖拽死在中途）。
+// 批量（工单22）：起笔于选中集内且集合多条 = 整组按选区插入序迁移（desktop/move-batch，
+// 手钉组员由内核跳过并回报 skipped）；起笔于集合外 = 单选拖拽（desktop/move，现状不变）。
 
 interface DragState {
   name: string | null
   fromZone: string | null
+  /** 批量拖拽组（选区插入序）；单选拖拽为 null。含手钉组员——可动性由内核裁决 */
+  group: string[] | null
   startX: number
   startY: number
   active: boolean
@@ -197,7 +206,7 @@ interface DragState {
 }
 
 const dragState: DragState = {
-  name: null, fromZone: null, startX: 0, startY: 0, active: false, suppressed: false, ghost: null, target: null,
+  name: null, fromZone: null, group: null, startX: 0, startY: 0, active: false, suppressed: false, ghost: null, target: null,
 }
 
 const DRAG_THRESHOLD_PX = 6
@@ -211,11 +220,12 @@ function zoneOfContainer(node: Node | null): 'app' | 'doc' | null {
   return null
 }
 
-function itemUnder(excludeName: string | null): string | null {
+function itemUnder(exclude: readonly string[]): string | null {
+  const ex = new Set(exclude)
   const hit = document.elementFromPoint(lastPointer.x, lastPointer.y)
   const item = hit && (hit as HTMLElement).closest ? (hit as HTMLElement).closest<HTMLElement>('.ditem') : null
   if (!item || !item.dataset.name) return null
-  if (excludeName && item.dataset.name === excludeName) return null
+  if (ex.has(item.dataset.name)) return null
   return item.dataset.name
 }
 
@@ -233,6 +243,11 @@ function wireDrag(d: HTMLElement, item: DesktopItem): void {
     if (e.button !== 0) return
     dragState.name = item.name
     dragState.fromZone = item.zone
+    // 批量拖拽判定（工单22）：起笔于选中集内且集合多条 = 整组拖。起笔于集合外仍是
+    // 单选拖拽——此刻的旧选区原样保留（收束语义归尾随 click），不在此抢先改选区。
+    dragState.group = selection.names.length >= 2 && selection.names.includes(item.name)
+      ? [...selection.names]
+      : null
     dragState.startX = e.clientX
     dragState.startY = e.clientY
     dragState.active = false
@@ -259,16 +274,29 @@ function wireDrag(d: HTMLElement, item: DesktopItem): void {
     if (zone === null) {
       dragState.target = null
     } else {
-      dragState.target = { zone, beforeName: itemUnder(item.name) }
+      // 落点参照不取被拖组员（批量整组都走，以组外条目为锚；单选即自身）
+      dragState.target = { zone, beforeName: itemUnder(dragState.group ?? [item.name]) }
     }
     markDropTarget()
   })
   const finish = () => {
     if (dragState.name !== item.name) return
-    const { active, target, fromZone } = dragState
+    const { active, target, fromZone, group } = dragState
     const name = dragState.name
     endDrag()
     if (!active || !target) return
+    if (group) {
+      if (batchDropUnchanged(group, target.zone, target.beforeName)) return // 整组原地：不落盘
+      notify('desktop-move-batch-clicked', { names: [...group], zone: target.zone, beforeName: target.beforeName })
+      void window.deck.bridge.invoke('desktop/move-batch', { names: [...group], zone: target.zone, beforeName: target.beforeName }).then(
+        (r) => notify(r.ok ? 'desktop-moved-batch' : 'desktop-move-batch-rejected', {
+          names: [...group], zone: target.zone, beforeName: target.beforeName,
+          moved: r.moved, skipped: r.skipped, ok: r.ok, error: r.error ?? null,
+        }),
+        (err: unknown) => notify('desktop-move-batch-failed', { names: [...group], message: String(err) }),
+      )
+      return
+    }
     if (target.zone === fromZone && target.beforeName === nextSiblingName(name)) return // 位置未变，不落盘
     notify('desktop-move-clicked', { name, zone: target.zone, beforeName: target.beforeName })
     void window.deck.bridge.invoke('desktop/move', { name, zone: target.zone, beforeName: target.beforeName }).then(
@@ -284,6 +312,17 @@ function wireDrag(d: HTMLElement, item: DesktopItem): void {
   })
 }
 
+/** 批量同位守卫（单选「位置未变，不落盘」的整组版）：组员已全部在目标分区、且按
+ * 选区插入序紧贴参照之前（参照 null = 紧贴末尾）——整组原地，不落盘不发存证。 */
+function batchDropUnchanged(group: readonly string[], zone: 'app' | 'doc', beforeName: string | null): boolean {
+  const container = zone === 'app' ? dockZone : docGroups
+  const order = [...container.querySelectorAll<HTMLElement>('.ditem')].map((d) => d.dataset.name ?? '')
+  if (!group.every((n) => order.includes(n))) return false // 有组员在另一分区：跨区必变
+  const at = beforeName === null ? order.length : order.indexOf(beforeName)
+  if (at < group.length) return false // 参照之前装不下整组
+  return order.slice(at - group.length, at).join('\u0000') === group.join('\u0000')
+}
+
 function nextSiblingName(name: string): string | null {
   const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(name)}"]`)
   let n = node ? node.nextElementSibling : null
@@ -292,8 +331,15 @@ function nextSiblingName(name: string): string | null {
 }
 
 function beginGhost(item: DesktopItem): void {
+  const group = dragState.group ?? [item.name]
+  // 只把「实际会动的」条目变半透明：批量组里的手钉组员原地不动（内核会跳过），
+  // 不参与拖拽观感。N 项徽标 = 实际拖动条数（不含 skipped）——渲染层按 pinned 名集
+  // 预测，权威 skipped 口径由内核回报、desktop-moved-batch 存证上报。
+  const movers = group.filter((n) => !pinnedNames.has(n))
+  for (const n of movers) {
+    document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(n)}"]`)?.classList.add('dragging')
+  }
   const source = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
-  if (source) source.classList.add('dragging')
   const ghost = document.createElement('div')
   ghost.id = 'drag-ghost'
   const img = source ? source.querySelector('img') : null
@@ -308,6 +354,13 @@ function beginGhost(item: DesktopItem): void {
   label.className = 'label'
   label.textContent = item.display
   ghost.appendChild(label)
+  if (dragState.group) {
+    const badge = document.createElement('div')
+    badge.className = 'badge'
+    badge.textContent = `${movers.length} 项`
+    ghost.appendChild(badge)
+    notify('desktop-batch-drag-started', { names: [...dragState.group], count: movers.length })
+  }
   document.body.appendChild(ghost)
   dragState.ghost = ghost
 }
@@ -321,6 +374,7 @@ function endDrag(): void {
   for (const d of document.querySelectorAll<HTMLElement>('.ditem.drop-before')) d.classList.remove('drop-before')
   dragState.name = null
   dragState.fromZone = null
+  dragState.group = null
   dragState.active = false
   dragState.target = null
   declareHotZones()
@@ -496,6 +550,7 @@ function applyLayout(layout: PanelSnapshot['layout']): void {
 function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): void {
   applyLayout(layout)
   itemByName = new Map(state.items.map((i) => [i.name, i]))
+  pinnedNames = new Set(state.plan.dock.filter((e) => e.source === 'pinned').map((e) => e.name))
   if (state.fingerprint === desktopFingerprintSeen) return
   desktopFingerprintSeen = state.fingerprint
   const byName = itemByName

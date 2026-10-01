@@ -177,6 +177,43 @@ export class DesktopService extends Service {
     return { ok: true }
   }
 
+  /** 批量拖拽摆位（工单22）：names 按选区插入序整组迁移到落点，落点分区即目标分区。
+   * 手钉条目不可动——批量语境下一律跳过并如实回报 skipped（批量是「整理一批」，
+   * 手钉的稳定栏位是前提；挪手钉是单条明确意图，走单选拖拽的跨区通道），池外名字
+   * （选择与落点之间的外部删除竞态）同样跳过。参照校验整批一道：落点本身无效时
+   * 一个都不摆。通过校验的条目逐项落摆位存储——同锚点依序插回天然保持组内相对序
+   * （每组依次插到参照之前）——最后落盘并即时重编排一次。 */
+  moveBatch(
+    names: readonly string[],
+    zone: DesktopZone,
+    beforeName: string | null,
+  ): { ok: boolean; moved: string[]; skipped: string[]; error?: string } {
+    if (!names.length) return { ok: false, moved: [], skipped: [], error: '批量摆位名单为空' }
+    if (beforeName !== null) {
+      const anchor = this.items.find((i) => i.name === beforeName)
+      if (!anchor) return { ok: false, moved: [], skipped: [], error: '参照条目不在当前扫描池内' }
+      if (anchor.zone !== zone) return { ok: false, moved: [], skipped: [], error: '参照条目不在目标分区' }
+      if (names.includes(beforeName)) return { ok: false, moved: [], skipped: [], error: '参照条目在被拖组内' }
+    }
+    const pool = new Set(this.items.map((i) => i.name))
+    const moved: string[] = []
+    const skipped: string[] = []
+    for (const name of names) {
+      if (moved.includes(name)) continue // 名单重复：选区是集合，防御性去重
+      if (!pool.has(name) || this.store.pinned.includes(name)) {
+        skipped.push(name)
+        continue
+      }
+      this.store = moveItem(this.store, name, zone, beforeName)
+      moved.push(name)
+    }
+    if (moved.length) {
+      this.persist()
+      this.refresh()
+    }
+    return { ok: true, moved, skipped }
+  }
+
   /** 恢复出厂布局：清除全部显式摆位（手钉保留），即时重编排。返回清除的摆位数。 */
   resetLayout(): { ok: boolean; cleared: number } {
     const cleared = this.store.dock.length + this.store.docs.length

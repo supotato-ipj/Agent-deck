@@ -70,6 +70,9 @@ if (parentPort) {
           if (msg.method === 'desktop/move') {
             const { name, zone, beforeName } = msg.payload as { name: string; zone: DesktopZone; beforeName: string | null }
             result = ctx.desktop.move(name, zone, beforeName)
+          } else if (msg.method === 'desktop/move-batch') {
+            const { names, zone, beforeName } = msg.payload as { names: string[]; zone: DesktopZone; beforeName: string | null }
+            result = ctx.desktop.moveBatch(names, zone, beforeName)
           } else if (msg.method === 'desktop/reset-layout') {
             result = ctx.desktop.resetLayout()
           } else {

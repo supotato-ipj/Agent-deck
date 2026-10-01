@@ -25,7 +25,7 @@ export interface DataplaneInit {
 }
 
 /** 数据面受理的桥接方法（桌面承载的写路径；读路径走每拍快照） */
-export type DataplaneMethod = 'desktop/move' | 'desktop/reset-layout'
+export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/reset-layout'
 
 /** 主进程 ⇄ 数据面子进程消息 */
 export type DataplaneMessage =
