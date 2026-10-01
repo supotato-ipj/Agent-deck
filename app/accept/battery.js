@@ -1882,9 +1882,11 @@ async function main() {
         if (!threeB) return;
         const tDrag22 = Date.now();
         const dragOk = await dragBatch(ptOfB(rP), ptOfB(rDoc), async () => {
-          capture({ left: rectB.left, top: rectB.top, right: rectB.right, bottom: rectB.bottom }, '22-batch-ghost').catch((err) => {
+          try { // capture 是 spawnSync 同步实拍：失败仅丢一张截图，不拖累语义断言
+            capture({ left: rectB.left, top: rectB.top, right: rectB.right, bottom: rectB.bottom }, '22-batch-ghost');
+          } catch (err) {
             rep.note(`批量 ghost 实拍失败（不阻塞语义断言）：${err && err.message}`);
-          });
+          }
         });
         if (!dragOk) return;
         const started22 = await waitEvent('desktop-batch-drag-started', (e) => e.t >= tDrag22 && sameNames22(e.names, [lnkA22, lnkB22, pinnedSeed]) && e.count === 2, 4000);

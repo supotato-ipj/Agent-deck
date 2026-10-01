@@ -166,9 +166,8 @@ export class DesktopService extends Service {
       return { ok: false, error: '手钉条目的应用区栏位由手钉清单决定（layout.json 的 pinned 列表）' }
     }
     if (beforeName !== null) {
-      const anchor = this.items.find((i) => i.name === beforeName)
-      if (!anchor) return { ok: false, error: '参照条目不在当前扫描池内' }
-      if (anchor.zone !== zone) return { ok: false, error: '参照条目不在目标分区' }
+      const error = this.anchorError(beforeName, zone)
+      if (error) return { ok: false, error }
       if (beforeName === name) return { ok: false, error: '不能以自身为参照' }
     }
     this.store = moveItem(this.store, name, zone, beforeName)
@@ -190,9 +189,8 @@ export class DesktopService extends Service {
   ): { ok: boolean; moved: string[]; skipped: string[]; error?: string } {
     if (!names.length) return { ok: false, moved: [], skipped: [], error: '批量摆位名单为空' }
     if (beforeName !== null) {
-      const anchor = this.items.find((i) => i.name === beforeName)
-      if (!anchor) return { ok: false, moved: [], skipped: [], error: '参照条目不在当前扫描池内' }
-      if (anchor.zone !== zone) return { ok: false, moved: [], skipped: [], error: '参照条目不在目标分区' }
+      const error = this.anchorError(beforeName, zone)
+      if (error) return { ok: false, moved: [], skipped: [], error }
       if (names.includes(beforeName)) return { ok: false, moved: [], skipped: [], error: '参照条目在被拖组内' }
     }
     const pool = new Set(this.items.map((i) => i.name))
@@ -212,6 +210,14 @@ export class DesktopService extends Service {
       this.refresh()
     }
     return { ok: true, moved, skipped }
+  }
+
+  /** 参照校验共通段（move 与 moveBatch）：参照须在池内且在目标分区，返回首个错误或 null */
+  private anchorError(beforeName: string, zone: DesktopZone): string | null {
+    const anchor = this.items.find((i) => i.name === beforeName)
+    if (!anchor) return '参照条目不在当前扫描池内'
+    if (anchor.zone !== zone) return '参照条目不在目标分区'
+    return null
   }
 
   /** 恢复出厂布局：清除全部显式摆位（手钉保留），即时重编排。返回清除的摆位数。 */
