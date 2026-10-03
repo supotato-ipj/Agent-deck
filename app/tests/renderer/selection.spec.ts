@@ -239,6 +239,39 @@ describe('ctrl-band 框选并集（工单21）', () => {
   })
 })
 
+describe('select-all 全选（工单23 菜单）', () => {
+  it('空集上全选 → 名单即选区（live 序）', () => {
+    const m = nextSelection(EMPTY_SELECTION, { type: 'select-all', names: ['A', 'B', 'C'] })
+    expect(m.names).toEqual(['A', 'B', 'C'])
+    expect(m.swallowed).toBeNull()
+  })
+  it('全选替换现选区（旧选区不保序混入）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'X' },
+      { type: 'ctrl-click', name: 'Y' },
+      { type: 'select-all', names: ['A', 'B'] },
+    )
+    expect(m.names).toEqual(['A', 'B'])
+  })
+  it('全选作废吞集（此后双击不再整集启动）', () => {
+    const m0 = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'click', name: 'B' },
+    )
+    const m = nextSelection(m0, { type: 'select-all', names: ['A', 'B', 'C'] })
+    expect(m.swallowed).toBeNull()
+    expect(launchListOf(m, 'B')).toEqual(['B'])
+  })
+  it('全选后再 reconcile 按名存续（消失条目剔除）', () => {
+    const m = seq(
+      { type: 'select-all', names: ['A', 'B', 'C'] },
+      { type: 'reconcile', liveNames: ['A', 'C'] },
+    )
+    expect(m.names).toEqual(['A', 'C'])
+  })
+})
+
 describe('组合场景（真桌面双击序列）', () => {
   it('双击序列：click(d1) 收束 → 第二击不入迁移 → dblclick 整集', () => {
     const m = seq(

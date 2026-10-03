@@ -63,6 +63,9 @@ let calendarMonth = -1
 // 工单22 起批量拖拽：起笔于选中集内且集合多条 = 整组按选区插入序迁移，ghost 带
 // 「N 项」徽标（N = 实际拖动条数，不含手钉——渲染层按 plan.dock 的 pinned 段预测，
 // 内核回报的 skipped 是权威口径，经 desktop-moved-batch 存证如实上报）。
+// 工单23 起分区空白右键弹上下文菜单：shell 是 cordis 插件（cards/context-menu，
+// 随清单热插拔），触发与收起裁决在面板——右键分区空白（热区内、非条目上）把内置
+// 两项交给 shell；开层期间热区换全窗，任何菜单外按下即收起并吞掉那一击。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -112,6 +115,8 @@ function applySelection(event: SelectionEvent): void {
   } else if (event.type === 'reconcile') {
     const removed = prev.filter((n) => !selection.names.includes(n))
     if (removed.length) notify('desktop-selection-pruned', { removed, names: [...selection.names] })
+  } else if (event.type === 'select-all') {
+    notify('desktop-selection-all', { names: [...selection.names] })
   }
 }
 
@@ -530,6 +535,63 @@ for (const zone of [dockZone, docZone]) {
     if ((e.target as HTMLElement).closest('.ditem')) return
     applySelection({ type: 'blank-click' })
   })
+  // 右键分区空白（工单23）：热区内的分区面本来就只在这里可达（热区外穿透传真桌面），
+  // 到达即「热区内」。条目右键本票不弹（后续工单接管）；手势进行中不弹（native 惯例）。
+  zone.addEventListener('contextmenu', (e) => {
+    if (dragState.active || marqueeState.active) return
+    if ((e.target as HTMLElement).closest('.ditem')) return
+    e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
+    window.deckCtxMenu?.open(e.clientX, e.clientY, ctxMenuItems())
+  })
+}
+
+// ---- 上下文菜单（工单23，CONTEXT.md 词条）：shell 是 cordis 插件（cards/context-menu，
+// 卸载即摘 window.deckCtxMenu，这里的触发与收起全部 ?. 空转 = 热插拔自动生效）。
+// 触发在上面的分区监听里；收起裁决在面板：开层期间的任何菜单外按下（含热区外全窗
+// 范围——全窗热区承接）在捕获段拦下，尾随 click/contextmenu 由 suppressed 捕获段
+// 恰吞一笔——菜单外一击只收菜单：不产生选区副作用，右键也不立刻复弹。
+// suppressed 是消费制而非定时制（工单23 复审修正）：置位于 pointerdown，复位只发生在
+// 「吞掉首笔尾随事件」或「下一笔按下」——尾随事件是 down/up 之后的独立输入任务，
+// setTimeout(0) 会抢在它前面复位（拖拽/框选的 suppressed 置位于 pointerup，无此问题）。
+// 条目集是 contributor 注册位（open(x,y,items)）：本票两项内置，注册机制后续工单接入。
+
+const menuState = { suppressed: false }
+
+function menuOpen(): boolean {
+  return window.deckCtxMenu?.isOpen() === true
+}
+
+/** 内置两项：全选走选区状态机（select-all），恢复出厂布局复用 06 契约（与设置浮层入口同链路） */
+function ctxMenuItems(): DeckCtxMenuItem[] {
+  return [
+    {
+      id: 'select-all',
+      label: 'SELECT ALL',
+      run: () => applySelection({ type: 'select-all', names: [...itemByName.keys()] }),
+    },
+    { id: 'reset-layout', label: 'RESET LAYOUT', run: () => resetLayout('ctx-menu') },
+  ]
+}
+
+window.addEventListener('pointerdown', (e) => {
+  if (!menuOpen()) {
+    menuState.suppressed = false // 新一笔按下先清上一笔的吞没态（其尾随事件可能没来）
+    return
+  }
+  if ((e.target as HTMLElement).closest('#ctx-menu')) return // 菜单内按下：行自己处理
+  e.stopPropagation() // 分区框选/条目拖拽的起笔监听不再看到这次按下
+  e.preventDefault()
+  window.deckCtxMenu?.close()
+  menuState.suppressed = true
+}, { capture: true })
+
+for (const type of ['click', 'contextmenu'] as const) {
+  window.addEventListener(type, (e) => {
+    if (!menuState.suppressed) return
+    e.stopPropagation()
+    e.preventDefault()
+    menuState.suppressed = false // 恰吞一笔：收起那一击的尾随事件到此为止
+  }, { capture: true })
 }
 
 // ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
@@ -710,13 +772,16 @@ opacitySlider.addEventListener('input', () => {
   )
 })
 
-settingsReset.addEventListener('click', () => {
-  notify('desktop-reset-clicked', {})
+/** 恢复出厂布局（06 契约复用）：设置浮层入口与上下文菜单（工单23）共用同一链路与存证名 */
+function resetLayout(from: 'settings' | 'ctx-menu'): void {
+  notify('desktop-reset-clicked', { from })
   void window.deck.bridge.invoke('desktop/reset-layout', null).then(
     (r) => notify('desktop-layout-reset', { ok: r.ok, cleared: r.cleared }),
     (err: unknown) => notify('desktop-reset-failed', { message: String(err) }),
   )
-})
+}
+
+settingsReset.addEventListener('click', () => resetLayout('settings'))
 
 window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
 
@@ -993,12 +1058,14 @@ function zoneItemRect(zone: HTMLElement, id: string): HotzoneRect | null {
 }
 
 function declareHotZones(): void {
-  // 手势进行中（拖拽摆位/框选）保持全窗热区：1Hz 快照重建会走到这里重声明常规热区，
-  // 若中途覆写回小矩形，指针恰在分区包围盒外时面板转穿透、指针流即断（矩形残留屏上）。
-  if (dragState.active || marqueeState.active) {
+  // 手势进行中（拖拽摆位/框选）或菜单开层（工单23）保持全窗热区：1Hz 快照重建会走到
+  // 这里重声明常规热区，若中途覆写回小矩形，指针恰在分区包围盒外时面板转穿透、指针流
+  // 即断（矩形残留屏上/菜单外一击收不到）。菜单开层由 shell 的 isOpen 判定（热插拔：
+  // 插件卸载即 undefined，自动恢复常规热区）。
+  if (dragState.active || marqueeState.active || menuOpen()) {
+    const id = menuOpen() ? 'menu' : dragState.active ? 'drag' : 'marquee'
     window.deck.host.setHotZones([{
-      id: dragState.active ? 'drag' : 'marquee',
-      x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
+      id, x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
     }])
     return
   }
