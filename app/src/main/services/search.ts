@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import type { SearchUiState } from '../../shared/contract'
@@ -16,7 +15,7 @@ import {
   type SearchResults,
 } from '../search/engine'
 import { createEngineSearch } from '../search/selector'
-import { shellOpen } from '../desktop/adapter'
+import { explorerReveal, shellOpen } from '../desktop/adapter'
 
 /** 搜索承载依赖束：主进程真源 / 测试假源共用一个服务状态机（desktop/hardware 同法） */
 export interface SearchDeps {
@@ -24,21 +23,10 @@ export interface SearchDeps {
   search(query: string, limit: number, offset: number): Promise<unknown>
   /** Enter 打开（'' = 成功；desktop/launch 同源语义） */
   open(path: string): Promise<string>
-  /** Ctrl+Enter 资源管理器定位（fire-and-forget；explorer 自带窗口生命周期） */
+  /** Ctrl+Enter 资源管理器定位（fire-and-forget；explorer 自带窗口生命周期；真源 = adapter.explorerReveal，工单24 起与桌面项 reveal 共用一份） */
   reveal(path: string): void
   /** 单调时钟（防抖/退避判定；测试注入合成时间） */
   now(): number
-}
-
-/** Ctrl+Enter 资源管理器定位真源（Python 先例同形：explorer /select,<path>）。
- * 不带 windowsHide——它经 STARTUPINFO 传 SW_HIDE，会把 explorer 的文件夹窗口一起藏掉
- * （电池实测：reveal ok=true 但 CabinetWClass 永不出现）；GUI 应用无控制台可闪。 */
-function defaultReveal(path: string): void {
-  try {
-    spawn('explorer', ['/select,', path], { stdio: 'ignore' })
-  } catch {
-    // 定位失败静默：explorer 缺席属环境异常，不打断面板
-  }
 }
 
 export interface SearchServiceOptions {
@@ -92,7 +80,7 @@ export class SearchService extends Service {
     this.deps = {
       search: options.deps?.search ?? engineSearch,
       open: options.deps?.open ?? shellOpen,
-      reveal: options.deps?.reveal ?? defaultReveal,
+      reveal: options.deps?.reveal ?? explorerReveal,
       now: options.deps?.now ?? (() => performance.now()),
     }
     ctx.on('dispose', () => {

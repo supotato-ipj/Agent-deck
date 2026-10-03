@@ -18,6 +18,10 @@ export interface PanelDataPort {
   readonly whenReady: Promise<void>
   icon(key: string): Promise<string | null>
   launch(path: string): Promise<{ ok: boolean; error?: string }>
+  /** 资源管理器定位并选中（工单24 reveal；同步校验 + fire-and-forget 执行） */
+  reveal(path: string): Promise<{ ok: boolean; error?: string }>
+  /** 复制完整路径进文本剪贴板（工单24） */
+  copyPath(path: string): Promise<{ ok: boolean; error?: string }>
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
   resetLayout(): Promise<{ ok: boolean; cleared: number }>
@@ -60,6 +64,14 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   launch(path: string): Promise<{ ok: boolean; error?: string }> {
     return this.ctx.desktop.launch(path)
+  }
+
+  reveal(path: string): Promise<{ ok: boolean; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.reveal(path))
+  }
+
+  copyPath(path: string): Promise<{ ok: boolean; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.copyPath(path))
   }
 
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {

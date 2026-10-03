@@ -1928,7 +1928,8 @@ async function main() {
 
     // —— P5.9 工单23 上下文菜单：分区空白右键弹自绘菜单（shell 为 cordis 插件随清单
     // 热插拔）、开层全窗热区承接与菜单外一击收起（含热区外、无选区副作用）、全选
-    // （选区状态机 select-all）/恢复出厂布局（06 契约）两动作、条目右键不弹。
+    // （选区状态机 select-all）/恢复出厂布局（06 契约）两动作。条目右键的单项菜单
+    // 归 P5.10（工单24）——原「条目右键不弹」断言随单项菜单落地退役。
     // 开合/激活转移矩阵在离线测试（tests/renderer/menu-shell.spec.ts），
     // 这里留真机端到端代表用例（#19 三缝约定）。
     await (async () => {
@@ -1984,22 +1985,8 @@ async function main() {
           ? rep.pass('菜单以 cordis 插件装载：plugin-mounted（id=context-menu，随插件清单）在档')
           : rep.fail('菜单插件未装载：plugin-mounted（id=context-menu）自启动起未见');
 
-        // b. 条目右键不弹（后续工单接管）：右键 dock 条目 → 无 desktop-menu-opened
-        {
-          const ptItem = ptOfM(appR.rect);
-          const hitItem = await ensurePanelHit(ptItem, hwnd);
-          if (!hitItem.ok) {
-            rep.fail(`条目右键用例前置失败：${hitItem.why}`);
-          } else {
-            const tNoMenu = Date.now();
-            w32.clickPhys(ptItem.x, ptItem.y, 'right');
-            const ghost = await waitEvent('desktop-menu-opened', (e) => e.t >= tNoMenu, 1500);
-            !ghost
-              ? rep.pass('右键条目不弹菜单：desktop-menu-opened 未出现（本票只接管分区空白）')
-              : rep.fail(`条目右键误弹菜单：${JSON.stringify(ghost)}`);
-            safeShot('23-menu-item-rightclick', { left: rectM.left, top: rectM.top, right: rectM.right, bottom: rectM.bottom });
-          }
-        }
+        // b. 条目右键不弹（后续工单接管）：随工单24 单项菜单落地退役——条目右键
+        //    现弹三动作单项菜单，用例移步 P5.10（右键条目原语与断言在那里）。
 
         // c. 右键分区空白弹菜单：开层存证（x/y=右键落点 + 两内置项 + 行矩形）+ 热区换全窗
         const sess = await openMenuAt('菜单打开');
@@ -2212,6 +2199,236 @@ async function main() {
         }
       } finally {
         try { fs.unlinkSync(probe23Path); } catch { /* 尽力清理 */ }
+      }
+      w32.moveMousePhys(safePt.x, safePt.y);
+    })();
+
+    // —— P5.10 工单24 单项菜单：右键单个桌面项弹三动作菜单（打开/打开所在位置/复制路径）。
+    // 弹/切裁决（非选中条目先切单选、选中集内条目不弹）在离线测试（tests/renderer/
+    // selection.spec.ts itemMenuPlan）；reveal/copy-path 的扫描池护栏在离线内核测试
+    // （desktop service spec + 契约 spec）。这里留真机端到端代表用例（#19 三缝约定）：
+    // 右键切换选区后开层三行、打开=双击同款启动（探针标记文件实证）、定位弹资源管理器窗、
+    // 复制路径剪贴板实读、单选态右键不重复发选区存证、选中集内条目右键不弹。
+    await (async () => {
+      const rect24 = w32.rectOf(hwnd);
+      const savedClip24 = clipboardGet();
+      const sameNames24 = (a, b) => (a || []).join() === b.join();
+      let probe24Name = null;
+      let probe24Path = null;
+      let doc24Path = null;
+      let marker24Path = null;
+      try {
+        // 夹具：dock 探针 lnk（「打开」有行为级实证——目标进程写标记文件，双击启动用例同法）
+        // + 文档区探针 docx（保「池内 ≥2 条」，多选用例不依赖用户桌面内容）
+        const t24 = Date.now();
+        probe24Name = `DECK24-LNK-${t24}.lnk`;
+        probe24Path = path.join(seedScan.user, probe24Name);
+        doc24Path = path.join(seedScan.user, `DECK24-DOC-${t24}.docx`);
+        marker24Path = path.join(os.tmpdir(), `deck24-marker-${t24}.txt`);
+        createProbeLnk(probe24Path, marker24Path);
+        fs.writeFileSync(doc24Path, 'probe');
+        const joined24 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probe24Name), 8000);
+        joined24 || rep.fail(`单项菜单探针未入池（${probe24Name}）`);
+        const settled24 = await waitStable('desktop-rendered', 1500, 8000);
+        const probeRect = settled24 && (settled24.rects || []).find((r) => r.name === probe24Name && r.rect);
+        if (!probeRect) {
+          rep.fail(`单项菜单用例几何前置缺失：探针 ${probe24Name} 无矩形`);
+          return;
+        }
+        const ptProbe = {
+          x: rect24.left + Math.round((probeRect.rect.x + probeRect.rect.w / 2) * f),
+          y: rect24.top + Math.round((probeRect.rect.y + probeRect.rect.h / 2) * f),
+        };
+        // dock 空白点（P5.9 20c 同法）：dock 顶排条目上沿之上 6px——分区热区边距内的非条目面
+        const appR24 = settled24 && (settled24.rects || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
+        const pt24Blank = appR24
+          ? { x: rect24.left + Math.round((appR24.rect.x + appR24.rect.w / 2) * f), y: rect24.top + Math.round((appR24.rect.y - 6) * f) }
+          : null;
+        // 右键条目原语：返回 { t0, opened }（opened 含 x/y 与行矩形），未弹返回 null
+        const openItemMenuAt = async (label) => {
+          const hit = await ensurePanelHit(ptProbe, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(ptProbe.x, ptProbe.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        // 菜单行点击原语（按 id 定位行矩形；返回点击时刻，行缺失返回 null）
+        const clickRow24 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          const pt = {
+            x: rect24.left + Math.round((row.x + row.w / 2) * f),
+            y: rect24.top + Math.round((row.y + row.h / 2) * f),
+          };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+        const outPt24 = {
+          x: rect24.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f),
+          y: rect24.top + Math.round(600 * f),
+        };
+
+        // a. 右键非选中条目：desktop-selected（选区先切为该条）→ 三动作菜单开层
+        const sessA = await openItemMenuAt('单项菜单-右键条目');
+        if (!sessA) {
+          rep.fail('条目右键未弹单项菜单（desktop-menu-opened 未见）');
+          return;
+        }
+        const selA = await waitEvent('desktop-selected', (e) => e.t >= sessA.t0 && e.name === probe24Name, 4000);
+        selA && sameNames24(selA.names, [probe24Name]) && selA.t <= sessA.opened.t
+          ? rep.pass('右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单')
+          : rep.fail(`右键切换选区存证异常：${JSON.stringify(selA)}`);
+        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path']) && (sessA.opened.rows || []).length === 3
+          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，三行矩形随开层存证`)
+          : rep.fail(`单项菜单开层条目集异常：${JSON.stringify({ items: sessA.opened.items, rows: sessA.opened.rows })}`);
+        safeShot('24-item-menu-open', { left: rect24.left, top: rect24.top, right: rect24.right, bottom: rect24.bottom });
+
+        // b. 打开动作 = 双击同款启动：desktop/launch 同链路存证 + 探针标记文件行为级实证
+        {
+          const tB = clickRow24(sessA.opened.rows, 'open');
+          if (!tB) {
+            rep.fail('打开用例开层存证缺 open 行矩形');
+          } else {
+            const closedB = await waitEvent('desktop-menu-closed', (e) => e.t >= tB && e.reason === 'action', 4000);
+            const clickedB = await waitEvent('desktop-launch-clicked', (e) => e.t >= tB && e.name === probe24Name && e.via === 'ctx-menu', 4000);
+            const launchedB = await waitEvent('desktop-launched', (e) => e.t >= tB && e.name === probe24Name && e.ok, 6000);
+            let markerOk = false;
+            const markerDeadline = Date.now() + 10000;
+            while (Date.now() < markerDeadline && !markerOk) {
+              try { markerOk = fs.readFileSync(marker24Path, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
+              if (!markerOk) await sleep(250);
+            }
+            closedB && clickedB && launchedB && markerOk
+              ? rep.pass('打开动作（菜单行 → desktop/launch）：via=ctx-menu 存证 + 菜单随动作收起 + 探针目标进程写标记文件（双击同款启动）')
+              : rep.fail(`打开动作存证异常：closed=${JSON.stringify(closedB)} clicked=${JSON.stringify(clickedB)} launched=${JSON.stringify(launchedB)} marker=${markerOk}`);
+            safeShot('24-item-open-launched');
+            // 打开动作入使用频次后 dock 可能重排：重取探针矩形再进 c/d/e（右键点错条目 = 假败）
+            const settledB = await waitStable('desktop-rendered', 1500, 8000);
+            const probeRectB = settledB && (settledB.rects || []).find((r) => r.name === probe24Name && r.rect);
+            if (probeRectB) {
+              ptProbe.x = rect24.left + Math.round((probeRectB.rect.x + probeRectB.rect.w / 2) * f);
+              ptProbe.y = rect24.top + Math.round((probeRectB.rect.y + probeRectB.rect.h / 2) * f);
+            }
+          }
+        }
+
+        // c. 打开所在位置（此刻探针已是单选态——顺带证单选右键）：desktop/reveal 存证 +
+        //    资源管理器窗弹出（新 CabinetWClass）；单选态右键不重复发 desktop-selected
+        {
+          const sessC = await openItemMenuAt('单项菜单-打开所在位置');
+          if (!sessC) {
+            rep.fail('打开所在位置用例开层失败（desktop-menu-opened 未见）');
+          } else {
+            const dupSel = readEvents().some((e) => e.type === 'desktop-selected' && e.t >= sessC.t0 && e.t <= sessC.opened.t);
+            !dupSel
+              ? rep.pass('单选态右键：选区已是该条，不重复发 desktop-selected（直接弹菜单）')
+              : rep.fail('单选态右键重复发 desktop-selected（选区被无谓重置）');
+            const explorerBefore = new Set(win32.topLevelWindows().filter((h) => win32.className(h) === 'CabinetWClass'));
+            const tC = clickRow24(sessC.opened.rows, 'reveal');
+            if (!tC) {
+              rep.fail('打开所在位置用例开层存证缺 reveal 行矩形');
+            } else {
+              const clickedC = await waitEvent('desktop-reveal-clicked', (e) => e.t >= tC && e.name === probe24Name, 4000);
+              const revealedC = await waitEvent('desktop-revealed', (e) => e.t >= tC && e.ok === true, 6000);
+              let revealWin = null;
+              const revealDeadline = Date.now() + 10000;
+              while (Date.now() < revealDeadline && !revealWin) {
+                await sleep(250);
+                revealWin = win32.topLevelWindows().find((h) => win32.className(h) === 'CabinetWClass' && !explorerBefore.has(h)) || null;
+              }
+              clickedC && revealedC && revealWin
+                ? rep.pass('打开所在位置动作（desktop/reveal）：ok=true 存证 + 资源管理器窗弹出（新 CabinetWClass）')
+                : rep.fail(`打开所在位置存证异常：clicked=${JSON.stringify(clickedC)} revealed=${JSON.stringify(revealedC)} explorer=${revealWin ? '新窗' : '未弹出'}`);
+              safeShot('24-item-reveal-explorer');
+              if (revealWin) {
+                w32.PostMessageW(revealWin, WM_CLOSE, 0, 0);
+                await sleep(800);
+              }
+            }
+          }
+        }
+
+        // d. 复制路径：desktop/copy-path 存证 + 剪贴板实读 = 完整路径（粘贴可用）
+        {
+          const sessD = await openItemMenuAt('单项菜单-复制路径');
+          if (!sessD) {
+            rep.fail('复制路径用例开层失败（desktop-menu-opened 未见）');
+          } else {
+            const tD = clickRow24(sessD.opened.rows, 'copy-path');
+            if (!tD) {
+              rep.fail('复制路径用例开层存证缺 copy-path 行矩形');
+            } else {
+              const clickedD = await waitEvent('desktop-path-copy-clicked', (e) => e.t >= tD && e.name === probe24Name, 4000);
+              const copiedD = await waitEvent('desktop-path-copied', (e) => e.t >= tD && e.ok === true, 4000);
+              let clip = '';
+              const clipDeadline = Date.now() + 8000;
+              while (Date.now() < clipDeadline) {
+                clip = clipboardGet() || '';
+                if (clip.trim() === probe24Path) break;
+                await sleep(300);
+              }
+              clickedD && copiedD && clip.trim() === probe24Path
+                ? rep.pass('复制路径动作（desktop/copy-path）：ok=true 存证 + 剪贴板实读 = 完整路径（粘贴可用）')
+                : rep.fail(`复制路径存证异常：clicked=${JSON.stringify(clickedD)} copied=${JSON.stringify(copiedD)} 剪贴板=${JSON.stringify(clip.trim())}`);
+              safeShot('24-item-copy-path');
+            }
+          }
+        }
+
+        // e. 选中集内条目右键不弹（多选菜单工单接管）：空白菜单 SELECT ALL（池内 ≥2 条，
+        //    docx 探针保底）→ 右键探针（选中集内）→ 无开层、无选区副作用 → 空白单击清场
+        {
+          const hitB = pt24Blank && await ensurePanelHit(pt24Blank, hwnd);
+          if (!hitB || !hitB.ok) {
+            rep.fail(`选中集右键用例前置失败：${!pt24Blank ? '空白点无锚（app 区矩形缺失）' : hitB.why}`);
+          } else {
+            const tE0 = Date.now();
+            w32.clickPhys(pt24Blank.x, pt24Blank.y, 'right');
+            const sessE = await waitEvent('desktop-menu-opened', (e) => e.t >= tE0, 4000);
+            if (!sessE) {
+              rep.fail('选中集右键用例：空白菜单未弹出（前置断链）');
+            } else {
+              const rowE = (sessE.rows || []).find((r) => r.id === 'select-all');
+              const tE1 = rowE
+                ? (w32.clickPhys(rect24.left + Math.round((rowE.x + rowE.w / 2) * f), rect24.top + Math.round((rowE.y + rowE.h / 2) * f), 'left'), Date.now())
+                : null;
+              const allE = tE1 && await waitEvent('desktop-selection-all', (e) => e.t >= tE1 && (e.names || []).length >= 2, 4000);
+              if (!allE) {
+                rep.fail('选中集右键用例：select-all 未达成（名单 <2 条或行矩形缺失）');
+              } else {
+                const hitProbe = await ensurePanelHit(ptProbe, hwnd);
+                if (!hitProbe.ok) {
+                  rep.fail(`选中集右键用例条目前置失败：${hitProbe.why}`);
+                } else {
+                  const tE2 = Date.now();
+                  w32.clickPhys(ptProbe.x, ptProbe.y, 'right');
+                  const ghostE = await waitEvent('desktop-menu-opened', (e) => e.t >= tE2, 1500);
+                  const sideEffect = readEvents().find((e) => e.t >= tE2
+                    && (e.type === 'desktop-selected' || e.type === 'desktop-selection-cleared' || e.type === 'desktop-selection-toggled'));
+                  !ghostE && !sideEffect
+                    ? rep.pass('选中集内条目右键不弹：desktop-menu-opened 未出现且无选区副作用（多选菜单工单接管）')
+                    : rep.fail(`选中集内条目右键异常弹出/副作用：menu=${JSON.stringify(ghostE)} side=${JSON.stringify(sideEffect)}`);
+                  // 清场：空白单击清掉全选（下段与电池余段回到无选区现场）
+                  const hitClear24 = await ensurePanelHit(pt24Blank, hwnd);
+                  if (hitClear24.ok) w32.clickPhys(pt24Blank.x, pt24Blank.y, 'left');
+                  await sleep(400);
+                }
+              }
+            }
+          }
+        }
+      } finally {
+        for (const p of [probe24Path, doc24Path, marker24Path]) {
+          try { if (p) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
+        }
+        clipboardSet(savedClip24); // 电池不得改变用户剪贴板内容（07 搜索段同法）
+      }
+      if (probe24Name) {
+        const gone24 = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(probe24Name), 6000);
+        gone24
+          ? rep.pass('清理单项菜单探针后条目同步消失（面板与磁盘一致）')
+          : rep.fail('单项菜单探针清理后未消失');
       }
       w32.moveMousePhys(safePt.x, safePt.y);
     })();

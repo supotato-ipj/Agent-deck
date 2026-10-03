@@ -187,6 +187,40 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/reveal + desktop/copy-path（工单24）：池内路径经桥接执行，池外拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
+    const revealed: string[] = []
+    const copied: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          reveal: (p: string) => { revealed.push(p) },
+          copyText: (t: string) => { copied.push(t) },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const target = snap.desktop.items[0].path
+      await expect(ctx.bridge.invoke('desktop/reveal', { path: target })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('desktop/copy-path', { path: target })).resolves.toEqual({ ok: true })
+      expect(revealed).toEqual([target])
+      expect(copied).toEqual([target])
+      const outsideReveal = await ctx.bridge.invoke('desktop/reveal', { path: 'C:\\Windows\\System32\\cmd.exe' })
+      expect(outsideReveal.ok).toBe(false)
+      const outsideCopy = await ctx.bridge.invoke('desktop/copy-path', { path: 'C:\\Windows\\System32\\cmd.exe' })
+      expect(outsideCopy.ok).toBe(false)
+      expect(revealed).toHaveLength(1)
+      expect(copied).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/move：摆位经桥接落位、跨区换区；非法参照拒绝', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
