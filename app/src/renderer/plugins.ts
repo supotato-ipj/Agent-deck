@@ -36,6 +36,8 @@ export interface PluginHost {
   notify(type: string, payload?: Record<string, unknown>): void
   /** 内核桥接契约调用（渲染层不另开通道） */
   invoke<M extends BridgeMethod>(method: M, payload: BridgeMethods[M]['request']): Promise<BridgeMethods[M]['response']>
+  /** 插件自行改了 DOM（浮层/菜单开合等）后调：宿主重声明热区（工单23 起） */
+  onDomChanged(): void
 }
 
 /** 插件模块契约：默认导出一个对象即被识别（生命周期钩子，缺省项可省） */
@@ -101,6 +103,7 @@ function hostOf(info: PluginInfo, container: HTMLElement, view: PluginView, deps
     util: UTIL,
     notify: deps.notify,
     invoke: (method, payload) => deps.invoke(method, payload),
+    onDomChanged: deps.onDomChanged,
   }
 }
 

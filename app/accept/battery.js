@@ -632,6 +632,13 @@ async function main() {
       else { try { fs.writeFileSync(CONFIG_FILE_B, backup); } catch { /* 尽力 */ } }
     };
     const fullShot = (name) => capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, name);
+    // 实拍尽力而为（capture 是同步实拍，PS 停摆等环境抖动会 ETIMEDOUT）：降级为 NOTE，
+    // 不让观感存证失败拖垮语义断言（工单23 起 21/22/23 段实拍统一走这里）。
+    const safeShot = (name, rect) => {
+      try { (rect ? capture(rect, name) : fullShot(name)); } catch (err) {
+        rep.note(`${name} 实拍失败（不阻塞语义断言）：${err && err.message}`);
+      }
+    };
 
     // 电池自己的对照记事本铺在 phys(1000,200) 1400x900，而设置入口（settings-btn
     // DIP 944..1052、面板右下）折算后正落在同一片区域 → 落点被记事本吃掉、点击根本
@@ -1701,12 +1708,12 @@ async function main() {
                 fin2
                   ? rep.pass(`松手 Ctrl 框选=并集：[${selBefore.join(', ')}] ∪ 命中 [${expected2.join(', ')}] → [${expectedUnion.join(', ')}]（按名去重）`)
                   : rep.fail(`并集语义存证异常：${JSON.stringify(fin2)}`);
-                capture({
+                safeShot('21-marquee-ctrl-union', {
                   left: Math.max(0, rectS.left + Math.round((zoneBox.l - 24) * f)),
                   top: Math.max(0, rectS.top + Math.round((zoneBox.t - 24) * f)),
                   right: rectS.left + Math.round((Math.min(zoneBox.r, (mR.x + mR.w) + 24)) * f),
                   bottom: rectS.top + Math.round((zoneBox.b + 24) * f),
-                }, '21-marquee-ctrl-union');
+                });
                 // 渲染态交叉校验：touch 探针 mtime 翻指纹 → desktop-rendered.sel 应携带并集
                 const fut21 = new Date(Date.now() + 5000);
                 fs.utimesSync(probePaths[2], fut21, fut21);
@@ -1912,11 +1919,301 @@ async function main() {
         relaid
           ? rep.pass(`跨区整组换区：落点分区=doc，[A, B] 按插入序落位；手钉「${pinnedSeed}」仍占 dock 前段（source=pinned）`)
           : rep.fail('批量落位后编排未达预期（相对序/换区/手钉原地有一不符）');
-        capture({ left: rectB.left, top: rectB.top, right: rectB.right, bottom: rectB.bottom }, '22-batch-moved');
+        safeShot('22-batch-moved', { left: rectB.left, top: rectB.top, right: rectB.right, bottom: rectB.bottom });
       } finally {
         for (const p of paths22) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
         for (const m of markers22) { try { fs.unlinkSync(m); } catch { /* 尽力清理 */ } }
       }
+    })();
+
+    // —— P5.9 工单23 上下文菜单：分区空白右键弹自绘菜单（shell 为 cordis 插件随清单
+    // 热插拔）、开层全窗热区承接与菜单外一击收起（含热区外、无选区副作用）、全选
+    // （选区状态机 select-all）/恢复出厂布局（06 契约）两动作、条目右键不弹。
+    // 开合/激活转移矩阵在离线测试（tests/renderer/menu-shell.spec.ts），
+    // 这里留真机端到端代表用例（#19 三缝约定）。
+    await (async () => {
+      const rectM = w32.rectOf(hwnd); // P5.8 未重启面板，取现役矩形
+      const ptOfM = (r) => ({ x: rectM.left + Math.round((r.x + r.w / 2) * f), y: rectM.top + Math.round((r.y + r.h / 2) * f) });
+      const sameNamesM = (a, b) => (a || []).join() === b.join();
+      // 右键空白点（20c 同法）：dock 顶排条目上沿之上 6px——分区热区边距内的非条目面
+      let blankDip = null;
+      let ptBlank = null;
+      // 右键菜单打开原语：返回 { t0, opened }（opened 含 x/y 与行矩形），未弹返回 null
+      const openMenuAt = async (label) => {
+        const hit = await ensurePanelHit(ptBlank, hwnd);
+        if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+        const t0 = Date.now();
+        w32.clickPhys(ptBlank.x, ptBlank.y, 'right');
+        const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+        return opened ? { t0, opened } : null;
+      };
+      // 收起原语：点 pt（物理坐标）。两处用法：
+      // - 面板内、分区热区之外的空档（文档区与右列卡片之间）：常规态这一击根本进不了
+      //   面板（穿透传真桌面），开层后能进渲染层本身就证明全窗热区承接；
+      // - 分区空白（ptBlank）：尾随 click 会撞上分区的空白清空监听——吞没机制的正宗考题。
+      // 注意不能用 safePt——它在任务栏上（面板只盖工作区），点击永远到不了渲染层
+      // （首轮实测：收场断言恒败，菜单悬到下一段才被下一击顺手收掉）。
+      const dismissAt = async (pt, button) => {
+        const hit = await ensurePanelHit(pt, hwnd);
+        if (!hit.ok) return null;
+        const t0 = Date.now();
+        w32.clickPhys(pt.x, pt.y, button || 'left');
+        return waitEvent('desktop-menu-closed', (e) => e.t >= t0 && e.reason === 'outside', 4000);
+      };
+      const outPtM = { x: rectM.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rectM.top + Math.round(600 * f) };
+
+      // a. 夹具：文档区探针 docx 保证「全选=池内全部」的名单断言不依赖用户桌面内容
+      const t23 = Date.now();
+      const probe23 = `DECK23-DOC-${t23}.docx`;
+      const probe23Path = path.join(seedScan.user, probe23);
+      try {
+        fs.writeFileSync(probe23Path, 'probe');
+        const joined23 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probe23), 8000);
+        joined23 || rep.fail(`菜单文档探针未入池（${probe23}）`);
+        const settledM = await waitStable('desktop-rendered', 1500, 8000);
+        const appR = settledM && (settledM.rects || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
+        const poolNames = (settledM && settledM.names) || [];
+        if (!appR || !poolNames.length) {
+          rep.fail(`菜单用例几何前置缺失：app=${JSON.stringify(appR && appR.rect)} pool=${poolNames.length}`);
+          return;
+        }
+        blankDip = { x: appR.rect.x + appR.rect.w / 2, y: appR.rect.y - 6 };
+        ptBlank = { x: rectM.left + Math.round(blankDip.x * f), y: rectM.top + Math.round(blankDip.y * f) };
+        // shell 以 cordis 插件装载的前置证据：随快照插件清单装载（plugin-mounted 在档）
+        lastEvent('plugin-mounted', (e) => e.id === 'context-menu')
+          ? rep.pass('菜单以 cordis 插件装载：plugin-mounted（id=context-menu，随插件清单）在档')
+          : rep.fail('菜单插件未装载：plugin-mounted（id=context-menu）自启动起未见');
+
+        // b. 条目右键不弹（后续工单接管）：右键 dock 条目 → 无 desktop-menu-opened
+        {
+          const ptItem = ptOfM(appR.rect);
+          const hitItem = await ensurePanelHit(ptItem, hwnd);
+          if (!hitItem.ok) {
+            rep.fail(`条目右键用例前置失败：${hitItem.why}`);
+          } else {
+            const tNoMenu = Date.now();
+            w32.clickPhys(ptItem.x, ptItem.y, 'right');
+            const ghost = await waitEvent('desktop-menu-opened', (e) => e.t >= tNoMenu, 1500);
+            !ghost
+              ? rep.pass('右键条目不弹菜单：desktop-menu-opened 未出现（本票只接管分区空白）')
+              : rep.fail(`条目右键误弹菜单：${JSON.stringify(ghost)}`);
+            safeShot('23-menu-item-rightclick', { left: rectM.left, top: rectM.top, right: rectM.right, bottom: rectM.bottom });
+          }
+        }
+
+        // c. 右键分区空白弹菜单：开层存证（x/y=右键落点 + 两内置项 + 行矩形）+ 热区换全窗
+        const sess = await openMenuAt('菜单打开');
+        if (!sess) {
+          rep.fail('分区空白右键未弹菜单（desktop-menu-opened 未见）');
+        } else {
+          const { t0, opened } = sess;
+          sameNamesM(opened.items, ['select-all', 'reset-layout']) && (opened.rows || []).length === 2
+            ? rep.pass(`空白右键弹菜单：条目集=[${(opened.items || []).join(', ')}]，行矩形随开层存证`)
+            : rep.fail(`开层存证条目集异常：${JSON.stringify({ items: opened.items, rows: opened.rows })}`);
+          typeof opened.x === 'number' && Math.abs(opened.x - blankDip.x) < 2 && Math.abs(opened.y - blankDip.y) < 2
+            ? rep.pass(`菜单在光标处弹出：开层原点 (${Math.round(opened.x)}, ${Math.round(opened.y)}) = 右键落点`)
+            : rep.fail(`开层原点异常：(${opened.x}, ${opened.y}) ≠ 落点 (${blankDip.x}, ${blankDip.y})`);
+          const lastZones = readEvents().filter((e) => e.type === 'hotzones' && e.t >= t0).pop();
+          const menuRects = (lastZones && lastZones.rects) || [];
+          const menuZone = menuRects.find((r) => r.id === 'menu');
+          const panelW = (rectM.right - rectM.left) / f;
+          const panelH = (rectM.bottom - rectM.top) / f;
+          menuRects.length === 1 && menuZone && menuZone.w >= panelW * 0.95 && menuZone.h >= panelH * 0.95
+            ? rep.pass(`开层期间热区换全窗：hotzones=[menu ${Math.round(menuZone.w)}x${Math.round(menuZone.h)}]（面板 ${Math.round(panelW)}x${Math.round(panelH)}）`)
+            : rep.fail(`开层热区异常：${JSON.stringify(menuRects)}`);
+          safeShot('23-menu-open');
+          // 收场再进下一段：菜单开着时全窗热区承接任何一击（外按收起+吞没），d 的
+          // 预置单击必须落在菜单已收的正常现场（首轮实测：忘收场则预置单击被吞）。
+          const closedC = await dismissAt(outPtM);
+          closedC || rep.fail('菜单打开用例收场失败（outside 一击未收起）');
+        }
+
+        // d. 菜单外一击即收且无副作用，三式各证一题（预置单选全程挂着当哨兵）：
+        //   ① 空档收起（分区热区外的面板内空档）——收得到这一击 = 全窗热区承接「含热区外」，
+        //      随后热区恢复原状；
+        //   ② 分区空白左键收起——尾随 click 撞分区空白清空监听，吞没机制的正宗考题：
+        //      收起但无 desktop-selection-cleared（复审修正后的消费制吞没）；
+        //   ③ 分区空白右键收起——尾随 contextmenu 不复弹菜单（无第二个 desktop-menu-opened）。
+        {
+          const tSelM = Date.now();
+          const ptItem = ptOfM(appR.rect);
+          const hitPre = await ensurePanelHit(ptItem, hwnd);
+          if (!hitPre.ok) {
+            rep.fail(`菜单外一击用例前置失败：${hitPre.why}`);
+          } else {
+            w32.clickPhys(ptItem.x, ptItem.y, 'left');
+            const selPre = await waitEvent('desktop-selected', (e) => e.t >= tSelM && e.name === appR.name, 4000);
+            selPre || rep.fail('菜单外一击用例前置（预置单选）未达成');
+
+            // ① 空档收起 + 热区恢复
+            const sessD1 = selPre && await openMenuAt('菜单-空档收起');
+            if (!sessD1) {
+              rep.fail('菜单外一击用例开层失败（desktop-menu-opened 未见）');
+            } else {
+              const tD1 = Date.now();
+              const closedD1 = await dismissAt(outPtM);
+              closedD1
+                ? rep.pass('菜单外一击即收（reason=outside；点位在分区热区外的面板空档，收得到即全窗承接）')
+                : rep.fail('菜单外一击未收起（desktop-menu-closed outside 未见）');
+              const after = readEvents().filter((e) => e.type === 'hotzones' && e.t >= tD1).pop();
+              const rectsAfter = (after && after.rects) || [];
+              !rectsAfter.some((r) => r.id === 'menu') && rectsAfter.some((r) => r.id === 'dock-zone' || r.id === 'doc-zone')
+                ? rep.pass(`收起后热区恢复原状：[${rectsAfter.map((r) => r.id).join(', ')}]，menu 全窗矩形退场`)
+                : rep.fail(`收起后热区异常：${JSON.stringify(rectsAfter.map((r) => r.id))}`);
+
+              // ② 分区空白左键收起：尾随 click 不许泄漏成空白清空
+              const sessD2 = await openMenuAt('菜单-空白左键收起');
+              if (!sessD2) {
+                rep.fail('分区左键收起用例开层失败（desktop-menu-opened 未见）');
+              } else {
+                const tD2 = Date.now();
+                const closedD2 = await dismissAt(ptBlank);
+                closedD2 || rep.fail('分区空白左键未收起（desktop-menu-closed outside 未见）');
+                const leaked = await waitEvent('desktop-selection-cleared', (e) => e.t >= tD2, 1500);
+                !leaked
+                  ? rep.pass('分区空白左键收起：尾随 click 被吞没，预置单选原样（无 desktop-selection-cleared）')
+                  : rep.fail(`外击泄漏成空白清空：${JSON.stringify(leaked)}`);
+
+                // ③ 分区空白右键收起：尾随 contextmenu 不复弹
+                const sessD3 = await openMenuAt('菜单-空白右键收起');
+                if (!sessD3) {
+                  rep.fail('分区右键收起用例开层失败（desktop-menu-opened 未见）');
+                } else {
+                  const tD3 = Date.now();
+                  const closedD3 = await dismissAt(ptBlank, 'right');
+                  closedD3 || rep.fail('分区空白右键未收起（desktop-menu-closed outside 未见）');
+                  const reopened = await waitEvent('desktop-menu-opened', (e) => e.t >= tD3, 1500);
+                  !reopened
+                    ? rep.pass('分区空白右键收起：尾随 contextmenu 被吞没，菜单不立刻复弹')
+                    : rep.fail('右键收起复弹菜单（contextmenu 未被吞没）');
+                }
+              }
+            }
+          }
+        }
+
+        // e. 全选动作：空白单击清掉 d 的预置单选 → 开菜单点 SELECT ALL 行 →
+        //    desktop-selection-all 名单 = 池内全部；指纹翻转重建后 sel 仍为全选名单
+        {
+          await dismissAt(outPtM); // 上一段若有残留开层先收掉（此击才不会真落进分区）
+          const hitClear = await ensurePanelHit(ptBlank, hwnd);
+          if (hitClear.ok) w32.clickPhys(ptBlank.x, ptBlank.y, 'left');
+          await sleep(400); // 空白清空（既有语义），不强制断言——d 段已证吞没
+          const sessE = await openMenuAt('菜单-全选');
+          if (!sessE) {
+            rep.fail('全选用例开层失败（desktop-menu-opened 未见）');
+          } else {
+            const rowE = (sessE.opened.rows || []).find((r) => r.id === 'select-all');
+            if (!rowE) {
+              rep.fail(`全选用例开层存证缺行矩形：${JSON.stringify(sessE.opened.rows || null)}`);
+            } else {
+              const rowPt = { x: rectM.left + Math.round((rowE.x + rowE.w / 2) * f), y: rectM.top + Math.round((rowE.y + rowE.h / 2) * f) };
+              const hitRow = await ensurePanelHit(rowPt, hwnd);
+              if (!hitRow.ok) {
+                rep.fail(`全选行点击前置失败：${hitRow.why}`);
+              } else {
+                const tE = Date.now();
+                w32.clickPhys(rowPt.x, rowPt.y, 'left');
+                const all = await waitEvent('desktop-selection-all', (e) => e.t >= tE, 4000);
+                all && sameNamesM(all.names, poolNames)
+                  ? rep.pass(`全选动作（选区状态机 select-all）：desktop-selection-all ${poolNames.length} 条 = 池内全部条目`)
+                  : rep.fail(`全选存证异常：${JSON.stringify(all && all.names)}（期望池内全部 ${poolNames.length} 条）`);
+                const closedE = await waitEvent('desktop-menu-closed', (e) => e.t >= tE && e.reason === 'action', 4000);
+                closedE
+                  ? rep.pass('菜单动作执行后即收（reason=action）')
+                  : rep.fail('全选动作后菜单未收起');
+                const fut23 = new Date(Date.now() + 5000);
+                fs.utimesSync(probe23Path, fut23, fut23);
+                const rebuilt = await waitEvent('desktop-rendered', (e) => e.t >= tE && sameNamesM(e.sel, poolNames), 8000);
+                rebuilt
+                  ? rep.pass('全选入渲染态：指纹翻转重建后 desktop-rendered.sel=全选名单（快照重建不丢）')
+                  : rep.fail('重建后 desktop-rendered.sel 与全选名单不符');
+                safeShot('23-menu-select-all');
+              }
+            }
+          }
+        }
+
+        // f. 恢复出厂布局动作：清掉全选 → 开菜单点 RESET LAYOUT 行 → 06 契约同链路存证
+        {
+          await dismissAt(outPtM); // e 若中途失败有残留开层，先收掉
+          const hitClear2 = await ensurePanelHit(ptBlank, hwnd);
+          if (hitClear2.ok) w32.clickPhys(ptBlank.x, ptBlank.y, 'left');
+          await sleep(400);
+          const sessF = await openMenuAt('菜单-恢复出厂');
+          if (!sessF) {
+            rep.fail('恢复出厂用例开层失败（desktop-menu-opened 未见）');
+          } else {
+            const rowF = (sessF.opened.rows || []).find((r) => r.id === 'reset-layout');
+            if (!rowF) {
+              rep.fail(`恢复出厂用例开层存证缺行矩形：${JSON.stringify(sessF.opened.rows || null)}`);
+            } else {
+              const rowPt = { x: rectM.left + Math.round((rowF.x + rowF.w / 2) * f), y: rectM.top + Math.round((rowF.y + rowF.h / 2) * f) };
+              const hitRow = await ensurePanelHit(rowPt, hwnd);
+              if (!hitRow.ok) {
+                rep.fail(`恢复出厂行点击前置失败：${hitRow.why}`);
+              } else {
+                const tF = Date.now();
+                w32.clickPhys(rowPt.x, rowPt.y, 'left');
+                const clickedF = await waitEvent('desktop-reset-clicked', (e) => e.t >= tF && e.from === 'ctx-menu', 4000);
+                const resetF = await waitEvent('desktop-layout-reset', (e) => e.t >= tF && e.ok === true, 6000);
+                const closedF = await waitEvent('desktop-menu-closed', (e) => e.t >= tF && e.reason === 'action', 4000);
+                clickedF && resetF && closedF
+                  ? rep.pass(`恢复出厂布局动作（06 契约复用）：desktop-reset-clicked(from=ctx-menu) → desktop-layout-reset ok=true cleared=${resetF.cleared}，菜单随动作收起`)
+                  : rep.fail(`恢复出厂存证异常：clicked=${JSON.stringify(clickedF)} reset=${JSON.stringify(resetF)} closed=${JSON.stringify(closedF)}`);
+                safeShot('23-menu-reset-layout');
+              }
+            }
+          }
+        }
+
+        // g. 随插件清单热插拔：移除插件目录即卸载（右键空转、无存证），放回即恢复。
+        //    与工单10 样例插件同法，但对象是内置根里的菜单本体——「cordis 插件形态」的实证。
+        {
+          const MENU_DIR = path.join(APP_ROOT, 'dist', 'renderer', 'cards', 'context-menu');
+          const MENU_BAK = path.join(APP_ROOT, 'dist', 'renderer', `context-menu-deck23-bak-${t23}`);
+          try {
+            if (!fs.existsSync(MENU_DIR)) {
+              rep.fail('热插拔用例前置失败：内置菜单插件目录缺失');
+              return;
+            }
+            fs.renameSync(MENU_DIR, MENU_BAK);
+            const goneList = await waitEvent('plugins-changed', (e) => !(e.ids || []).includes('context-menu'), 15000);
+            goneList || rep.fail('热插拔卸载未生效：plugins-changed 未摘除 context-menu');
+            const openedGone = await openMenuAt('热插拔-卸载后右键');
+            !openedGone
+              ? rep.pass('插件卸载即失效：移除插件目录后右键分区空白不再弹菜单（面板触发 ?. 空转）')
+              : rep.fail('热插拔卸载未生效：目录已移除仍弹出菜单');
+            fs.renameSync(MENU_BAK, MENU_DIR);
+            const backList = await waitEvent('plugins-changed', (e) => (e.ids || []).includes('context-menu'), 15000);
+            const backMounted = await waitEvent('plugin-mounted', (e) => e.id === 'context-menu' && e.t >= (goneList ? goneList.t : t23), 15000);
+            if (!backList || !backMounted) {
+              rep.fail(`热插拔重装未生效：plugins-changed=${Boolean(backList)} plugin-mounted=${Boolean(backMounted)}`);
+              return;
+            }
+            const backOpen = await openMenuAt('热插拔-重装后右键');
+            backOpen
+              ? rep.pass('插件重装即恢复：目录放回后右键再弹菜单（随清单热插拔全链路，未重启面板）')
+              : rep.fail('热插拔重装未生效：菜单未恢复');
+            const closedG = backOpen && await dismissAt(outPtM);
+            (backOpen && closedG) || rep.note('热插拔收场：菜单未关干净（后续段不受影响——下一击自会收起）');
+          } finally {
+            if (!fs.existsSync(MENU_DIR) && fs.existsSync(MENU_BAK)) {
+              try {
+                fs.renameSync(MENU_BAK, MENU_DIR);
+                rep.note('热插拔清场：菜单插件目录已还原');
+              } catch (e) {
+                rep.note(`热插拔清场失败: ${e && e.message}`);
+              }
+            } else if (fs.existsSync(MENU_BAK)) {
+              try { fs.rmSync(MENU_BAK, { recursive: true, force: true }); } catch { /* 尽力 */ }
+            }
+          }
+        }
+      } finally {
+        try { fs.unlinkSync(probe23Path); } catch { /* 尽力清理 */ }
+      }
+      w32.moveMousePhys(safePt.x, safePt.y);
     })();
 
     // —— P7S 工单07 搜索并入：accept_search 电池适配（scripts/accept_search.py 随 Tk 窗退役）——

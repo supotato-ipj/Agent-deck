@@ -17,6 +17,8 @@ declare global {
   type SearchResultItem = import('../shared/contract').SearchResultItem
   type SearchUiState = import('../shared/contract').SearchUiState
   type SettingsState = import('../shared/contract').SettingsState
+  /** 上下文菜单条目（工单23 contributor 形状：数组即注册位，注册机制后续工单接入） */
+  type DeckCtxMenuItem = { id: string; label: string; run(): void }
 
   interface Window {
     deck: {
@@ -36,6 +38,17 @@ declare global {
         setKeyboardMode(on: boolean): void
         notify(type: string, payload?: Record<string, unknown>): void
       }
+    }
+    /**
+     * 上下文菜单 shell（工单23，context-menu 插件发布）：随插件清单热插拔，卸载即摘除。
+     * 挂在 deck 之外——window.deck 经 contextBridge 暴露、渲染层侧不可扩展（首轮电池实测）。
+     */
+    deckCtxMenu?: {
+      open(x: number, y: number, items: readonly DeckCtxMenuItem[]): void
+      /** 菜单外按下收起（面板裁决后转发） */
+      close(): void
+      /** 开层判定（全窗热区换挡读它；插件未装时 undefined） */
+      isOpen(): boolean
     }
   }
 }
