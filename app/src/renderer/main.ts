@@ -69,6 +69,9 @@ let calendarMonth = -1
 // 工单24 起条目右键弹单项菜单（打开/打开所在位置/复制路径）：弹/切裁决经
 // selection.itemMenuPlan，动作走 desktop/launch（via=ctx-menu）/desktop/reveal/
 // desktop/copy-path 三个契约，收起与吞没共用 23 的面板裁决。
+// 工单25 起单项菜单第 4 行按目标条目手钉态条件显隐：手钉见【取消手钉】
+// （desktop/unpin）、非手钉见【钉到应用区】（desktop/pin）——改摆位存储的手钉
+// 清单并即时重编排，文档类条目取消后按归类+显式摆位裁决回文档区。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -618,12 +621,17 @@ for (const type of ['click', 'contextmenu'] as const) {
 // 主进程剪贴板写，面板永不激活（focusable:false），渲染层 navigator.clipboard 因文档
 // 无焦点不可用。路径校验（扫描池护栏）在内核，与 launch 同款。
 
-/** 单项三动作条目集（contributor 注册位形状，同工单23 分区空白内置两项） */
+/** 单项动作条目集（contributor 注册位形状，同工单23 分区空白内置两项）：三动作之外，
+ * 第 4 行按目标条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见
+ * 【钉到应用区】；手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames） */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
     { id: 'reveal', label: 'OPEN LOCATION', run: () => revealItem(item) },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPath(item) },
+    pinnedNames.has(item.name)
+      ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
+      : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
   ]
 }
 
@@ -646,6 +654,28 @@ function copyItemPath(item: DesktopItem): void {
       name: item.name, ok: r.ok, error: r.error ?? null,
     }),
     (err: unknown) => notify('desktop-path-copy-failed', { name: item.name, message: String(err) }),
+  )
+}
+
+/** 钉到应用区（工单25）：desktop/pin 结果存证（rejected/failed 分名，电池按名断言） */
+function pinItemToDock(item: DesktopItem): void {
+  notify('desktop-pin-clicked', { name: item.name, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/pin', { name: item.name }).then(
+    (r) => notify(r.ok ? 'desktop-pinned' : 'desktop-pin-rejected', {
+      name: item.name, ok: r.ok, error: r.error ?? null,
+    }),
+    (err: unknown) => notify('desktop-pin-failed', { name: item.name, message: String(err) }),
+  )
+}
+
+/** 取消手钉（工单25）：desktop/unpin 结果存证（同上分名） */
+function unpinItemToStore(item: DesktopItem): void {
+  notify('desktop-unpin-clicked', { name: item.name, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/unpin', { name: item.name }).then(
+    (r) => notify(r.ok ? 'desktop-unpinned' : 'desktop-unpin-rejected', {
+      name: item.name, ok: r.ok, error: r.error ?? null,
+    }),
+    (err: unknown) => notify('desktop-unpin-failed', { name: item.name, message: String(err) }),
   )
 }
 

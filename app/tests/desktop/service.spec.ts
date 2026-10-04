@@ -356,6 +356,186 @@ describe('DesktopService（工单06 编排与摆位）', () => {
   })
 })
 
+describe('DesktopService（工单25 手钉管理）', () => {
+  it('pin：文档类条目进手钉清单前段，dock 前段占位（source=pinned）、不被推荐顶替，落盘手钉清单', async () => {
+    const w = fakeWorld(
+      [entry('hot.lnk'), entry('warm.lnk'), entry('note.docx', { mtimeMs: 100 })],
+      [],
+      { scores: () => new Map([['hot', 9], ['warm', 5]]) },
+    )
+    await w.ctx.start()
+    try {
+      const r = w.svc.pin('note.docx')
+      expect(r).toEqual({ ok: true })
+      const s = w.svc.state()
+      // 栏位语义不变：手钉段在最前，推荐按分数填补其后；文档类条目随钉入 dock（承载分区覆盖 app）
+      expect(s.plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['note.docx', 'pinned'],
+        ['hot.lnk', 'recommended'],
+        ['warm.lnk', 'recommended'],
+      ])
+      expect(s.plan.docs.map((d) => d.name)).toEqual([]) // 手钉条目不与文档区重复承载
+      expect(s.items.find((i) => i.name === 'note.docx')?.zone).toBe('app')
+      // 只改手钉清单（显式摆位名单不动），落盘一次
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, pinned: ['note.docx'], dock: [], docs: [] })
+      expect(w.written).toHaveLength(1)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('unpin：条目回归归类与显式摆位裁决——无摆位按归类（文档类回文档区），有摆位按名单序', async () => {
+    const w = fakeWorld(
+      [entry('pin.lnk'), entry('hot.lnk'), entry('note.docx', { mtimeMs: 100 }), entry('old.docx', { mtimeMs: 50 })],
+      [],
+      {
+        store: JSON.stringify({ version: 1, pinned: ['pin.lnk', 'note.docx'], dock: [], docs: ['old.docx'] }),
+        scores: () => new Map([['hot', 9]]),
+      },
+    )
+    await w.ctx.start()
+    try {
+      // 前置：手钉的文档类条目在 dock 前段；docs 显式摆位条目（old.docx）在手钉期间照常承载
+      expect(w.svc.state().plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['pin.lnk', 'pinned'],
+        ['note.docx', 'pinned'],
+        ['hot.lnk', 'recommended'],
+      ])
+      const r = w.svc.unpin('note.docx')
+      expect(r).toEqual({ ok: true })
+      const s = w.svc.state()
+      // 文档类回文档区（归类），与既有 docs 摆位条目同区按组聚合新在上
+      expect(s.plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['pin.lnk', 'pinned'],
+        ['hot.lnk', 'recommended'],
+      ])
+      expect(s.plan.docs.map((d) => d.name)).toEqual(['old.docx', 'note.docx']) // 显式摆位段在组首，未摆位按新在上
+      expect(s.items.find((i) => i.name === 'note.docx')?.zone).toBe('doc')
+      expect(JSON.parse(w.storeText!)).toMatchObject({ pinned: ['pin.lnk'], docs: ['old.docx'] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('unpin：应用区条目按显式摆位名单归位（placed 段原序），无摆位回推荐段', async () => {
+    const w = fakeWorld(
+      [entry('pin.lnk'), entry('cold.lnk'), entry('hot.lnk')],
+      [],
+      {
+        store: JSON.stringify({ version: 1, pinned: ['pin.lnk', 'cold.lnk'], dock: ['cold.lnk'], docs: [] }),
+        scores: () => new Map([['hot', 9]]),
+      },
+    )
+    await w.ctx.start()
+    try {
+      // 手钉期间 dock 名单里的 cold.lnk 不重复出现（手钉段优先）
+      expect(w.svc.state().plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['pin.lnk', 'pinned'],
+        ['cold.lnk', 'pinned'],
+        ['hot.lnk', 'recommended'],
+      ])
+      expect(w.svc.unpin('cold.lnk')).toEqual({ ok: true })
+      // dock 名单未动：取消手钉即回显式摆位段原序
+      expect(w.svc.state().plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['pin.lnk', 'pinned'],
+        ['cold.lnk', 'placed'],
+        ['hot.lnk', 'recommended'],
+      ])
+      expect(JSON.parse(w.storeText!)).toMatchObject({ pinned: ['pin.lnk'], dock: ['cold.lnk'] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('pin 已手钉条目 = 移到清单最前（不重复）；unpin 非手钉条目 = 幂等空转', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk'), entry('b.lnk')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: ['b.lnk'], dock: [], docs: [] }) },
+    )
+    await w.ctx.start()
+    try {
+      expect(w.svc.pin('b.lnk')).toEqual({ ok: true })
+      expect(w.svc.storeForTest().pinned).toEqual(['b.lnk']) // 已在最前，无变化
+      expect(w.svc.pin('a.lnk')).toEqual({ ok: true })
+      expect(w.svc.storeForTest().pinned).toEqual(['a.lnk', 'b.lnk'])
+      const writtenBefore = w.written.length
+      expect(w.svc.unpin('a.lnk')).toEqual({ ok: true }) // 非手钉（已取消）幂等
+      expect(w.svc.storeForTest().pinned).toEqual(['b.lnk'])
+      expect(w.written.length).toBeGreaterThan(writtenBefore) // 幂等路径仍落盘（内容相同）
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('pin/unpin：池外名字拒绝（move 同款护栏），不落盘', async () => {
+    const w = fakeWorld([entry('a.lnk')], [], {
+      store: JSON.stringify({ version: 1, pinned: ['a.lnk'], dock: [], docs: [] }),
+    })
+    await w.ctx.start()
+    try {
+      expect(w.svc.pin('ghost.lnk')).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(w.svc.unpin('ghost.lnk')).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(w.written).toHaveLength(0)
+      expect(w.svc.storeForTest().pinned).toEqual(['a.lnk'])
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('pin/unpin 即时重编排（指纹翻转，渲染层 diff 依据）', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.lnk')])
+    await w.ctx.start()
+    try {
+      const before = w.svc.state().fingerprint
+      w.svc.pin('b.lnk')
+      const pinned = w.svc.state().fingerprint
+      expect(pinned).not.toBe(before)
+      w.svc.unpin('b.lnk')
+      expect(w.svc.state().fingerprint).not.toBe(pinned)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('手钉条目跨区拖出 = 连同取消手钉（拖出即离 dock，不滞留手钉身份）', async () => {
+    const w = fakeWorld(
+      [entry('pin.lnk'), entry('note.docx')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: ['pin.lnk'], dock: [], docs: [] }) },
+    )
+    await w.ctx.start()
+    try {
+      const r = w.svc.move('pin.lnk', 'doc', 'note.docx')
+      expect(r).toEqual({ ok: true })
+      const s = w.svc.state()
+      expect(s.plan.dock.map((d) => d.name)).toEqual([]) // 离开 dock
+      expect(s.plan.docs.map((d) => d.name)).toEqual(['note.docx', 'pin.lnk']) // 组序固定：office 组在前，lnk 归 other 组
+      expect(s.items.find((i) => i.name === 'pin.lnk')?.zone).toBe('doc')
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, pinned: [], dock: [], docs: ['pin.lnk'] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('手钉条目应用区内拖拽仍拒绝（栏位由手钉清单决定），批量跳过语义不变', async () => {
+    const w = fakeWorld(
+      [entry('pin.lnk'), entry('hot.lnk')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: ['pin.lnk'], dock: [], docs: [] }) },
+    )
+    await w.ctx.start()
+    try {
+      expect(w.svc.move('pin.lnk', 'app', 'hot.lnk').ok).toBe(false)
+      expect(w.svc.moveBatch(['pin.lnk'], 'app', 'hot.lnk')).toMatchObject({ ok: true, moved: [], skipped: ['pin.lnk'] })
+      expect(w.written).toHaveLength(0)
+      expect(w.svc.storeForTest()).toMatchObject({ pinned: ['pin.lnk'], dock: [] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+})
+
 describe('DesktopService（工单22 批量拖拽摆位）', () => {
   it('moveBatch：整组按选区插入序迁移到落点（区内），落盘一次', async () => {
     const w = fakeWorld([entry('a.lnk'), entry('b.lnk'), entry('c.lnk'), entry('d.lnk')])

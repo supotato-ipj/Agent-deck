@@ -2,7 +2,7 @@
  * 摆位存储纯逻辑测试（工单06）：出厂态、损坏自愈、拖拽摆位动作、恢复出厂。
  */
 import { describe, expect, it } from 'vitest'
-import { FACTORY_STORE, loadStore, moveItem, resetFactory, serializeStore } from '../../src/main/desktop/layout-store'
+import { FACTORY_STORE, loadStore, moveItem, pinItem, resetFactory, serializeStore, unpinItem } from '../../src/main/desktop/layout-store'
 
 describe('loadStore / serializeStore', () => {
   it('缺失（null）与损坏 JSON 均回出厂态', () => {
@@ -56,6 +56,40 @@ describe('moveItem（拖拽摆位动作）', () => {
   it('摆位名单允许陈旧名字（文件回来时位置还在）', () => {
     const s = moveItem(base, 'ghost.docx', 'doc', 'm.pdf')
     expect(s.docs).toEqual(['n.txt', 'ghost.docx', 'm.pdf'])
+  })
+})
+
+describe('pinItem / unpinItem（工单25 手钉管理动作）', () => {
+  const base = { version: 1 as const, pinned: ['Kimi'], dock: ['a.lnk', 'b.lnk'], docs: ['n.txt'] }
+
+  it('钉到应用区：进手钉清单前段，显式摆位名单不动', () => {
+    const s = pinItem(base, 'pin.lnk')
+    expect(s.pinned).toEqual(['pin.lnk', 'Kimi'])
+    expect(s.dock).toEqual(['a.lnk', 'b.lnk'])
+    expect(s.docs).toEqual(['n.txt'])
+  })
+
+  it('已在清单的条目再钉 = 移到最前（不重复）', () => {
+    const s = pinItem(base, 'Kimi')
+    expect(s.pinned).toEqual(['Kimi'])
+    expect(s.dock).toEqual(['a.lnk', 'b.lnk'])
+  })
+
+  it('取消手钉：从清单移除，其余序保持；显式摆位名单不动', () => {
+    const s = unpinItem({ ...base, pinned: ['Kimi', 'x.lnk', 'y.lnk'] }, 'x.lnk')
+    expect(s.pinned).toEqual(['Kimi', 'y.lnk'])
+    expect(s.dock).toEqual(['a.lnk', 'b.lnk'])
+    expect(s.docs).toEqual(['n.txt'])
+  })
+
+  it('取消不在清单的条目 = 原样返回（幂等空转）', () => {
+    const s = unpinItem(base, 'ghost.lnk')
+    expect(s).toEqual(base)
+  })
+
+  it('空清单钉入/取消 roundtrip 回出厂', () => {
+    const s = unpinItem(pinItem(FACTORY_STORE, 'a.lnk'), 'a.lnk')
+    expect(s).toEqual(FACTORY_STORE)
   })
 })
 

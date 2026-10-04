@@ -4,7 +4,7 @@ import type { DesktopItem, DesktopPlan, DesktopState, DesktopZone } from '../../
 import { collectDesktopItems, desktopFingerprint, pathOfIconKey, planFingerprint } from '../desktop/scan'
 import type { DesktopDirEntry, DesktopRoots } from '../desktop/scan'
 import { planDesktop } from '../desktop/plan'
-import { loadStore, moveItem, resetFactory, serializeStore, type LayoutStore } from '../desktop/layout-store'
+import { loadStore, moveItem, pinItem, resetFactory, serializeStore, unpinItem, type LayoutStore } from '../desktop/layout-store'
 import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
 import type { ScoreItem } from '../usage/score'
@@ -159,6 +159,11 @@ export class DesktopService extends Service {
     return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
   }
 
+  /** 扫描池护栏按名版（pin/unpin，工单25；move/moveBatch 的名字校验同语） */
+  private poolNameError(name: string): string | null {
+    return this.items.some((i) => i.name === name) ? null : '桌面项不在当前扫描池内'
+  }
+
   /** 双击启动：path 必须在当前扫描池内（拒绝任意路径执行），open 语义 '' 即成功 */
   async launch(filePath: string): Promise<{ ok: boolean; error?: string }> {
     const guard = this.poolGuardError(filePath)
@@ -187,8 +192,9 @@ export class DesktopService extends Service {
   }
 
   /** 拖拽摆位：name 必须在池内；beforeName 须为目标分区当前条目（null = 末尾）。落盘并即时重编排。
-   * 手钉条目在应用区内不可拖（栏位由手钉清单决定，拖了也会弹回——显式拒绝而非无声失效；
-   * 跨区拖出手钉仍允许，那是「把它挪去文档区」的明确意图）。 */
+   * 手钉条目在应用区内不可拖（栏位由手钉清单决定，拖了也会弹回——显式拒绝而非无声失效）；
+   * 跨区拖出仍允许且连同取消手钉（工单25）：「把它挪去文档区」是明确意图，拖出即离 dock、
+   * 不再滞留手钉身份——否则手钉覆盖会让拖拽无声失效（显式拒绝而非无声失效的同一原则）。 */
   move(name: string, zone: DesktopZone, beforeName: string | null): { ok: boolean; error?: string } {
     const item = this.items.find((i) => i.name === name)
     if (!item) return { ok: false, error: '桌面项不在当前扫描池内' }
@@ -200,6 +206,7 @@ export class DesktopService extends Service {
       if (error) return { ok: false, error }
       if (beforeName === name) return { ok: false, error: '不能以自身为参照' }
     }
+    if (this.store.pinned.includes(name)) this.store = unpinItem(this.store, name) // 仅跨区（app 目标已被拒）
     this.store = moveItem(this.store, name, zone, beforeName)
     this.persist()
     this.refresh()
@@ -259,6 +266,30 @@ export class DesktopService extends Service {
     return { ok: true, cleared }
   }
 
+  /** 钉到应用区（工单25）：name 进手钉清单前段（已在清单则移到最前），占据 dock 前段栏位
+   * 不被推荐顶替。name 必须在池内（move 同款护栏）；显式摆位名单不动——取消手钉时按其
+   * 裁决归位。落盘并即时重编排。 */
+  pin(name: string): { ok: boolean; error?: string } {
+    const guard = this.poolNameError(name)
+    if (guard) return { ok: false, error: guard }
+    this.store = pinItem(this.store, name)
+    this.persist()
+    this.refresh()
+    return { ok: true }
+  }
+
+  /** 取消手钉（工单25）：name 从手钉清单移除，条目回归归类与显式摆位裁决（文档类回文档区）。
+   * name 必须在池内；手钉清单本就不含时幂等空转（菜单条件显隐下不可达，防御性放行）。
+   * 落盘并即时重编排。 */
+  unpin(name: string): { ok: boolean; error?: string } {
+    const guard = this.poolNameError(name)
+    if (guard) return { ok: false, error: guard }
+    this.store = unpinItem(this.store, name)
+    this.persist()
+    this.refresh()
+    return { ok: true }
+  }
+
   /** 测试观察缝：当前存储内容 */
   storeForTest(): LayoutStore {
     return { version: 1, pinned: [...this.store.pinned], dock: [...this.store.dock], docs: [...this.store.docs] }
@@ -273,11 +304,18 @@ export class DesktopService extends Service {
   }
 }
 
-/** 显式摆位覆盖归类分区：dock 名单里的条目入应用区、docs 名单里的入文档区（跨区拖拽即换区） */
+/** 显式摆位与手钉覆盖归类分区（工单25 起手钉也是承载分区身份）：手钉或 dock 名单里的
+ * 条目入应用区（手钉优先于 docs 名单——钉到应用区对文档区摆位条目同样生效，其摆位在
+ * 手钉期间遮蔽、取消后恢复）、docs 名单里的入文档区（跨区拖拽即换区）。 */
 function applyZoneOverrides(items: DesktopItem[], store: LayoutStore): DesktopItem[] {
+  const pinned = new Set(store.pinned)
   const dock = new Set(store.dock)
   const docs = new Set(store.docs)
   return items.map((i) =>
-    dock.has(i.name) ? { ...i, zone: 'app' as const } : docs.has(i.name) ? { ...i, zone: 'doc' as const } : i,
+    pinned.has(i.name) || dock.has(i.name)
+      ? { ...i, zone: 'app' as const }
+      : docs.has(i.name)
+        ? { ...i, zone: 'doc' as const }
+        : i,
   )
 }

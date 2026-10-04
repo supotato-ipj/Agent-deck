@@ -24,6 +24,10 @@ export interface PanelDataPort {
   copyPath(path: string): Promise<{ ok: boolean; error?: string }>
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
+  /** 钉到应用区（工单25）：进手钉清单前段并即时重编排 */
+  pin(name: string): Promise<{ ok: boolean; error?: string }>
+  /** 取消手钉（工单25）：从手钉清单移除并即时重编排 */
+  unpin(name: string): Promise<{ ok: boolean; error?: string }>
   resetLayout(): Promise<{ ok: boolean; cleared: number }>
 }
 
@@ -80,6 +84,14 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
     return Promise.resolve(this.ctx.desktop.moveBatch(names, zone, beforeName))
+  }
+
+  pin(name: string): Promise<{ ok: boolean; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.pin(name))
+  }
+
+  unpin(name: string): Promise<{ ok: boolean; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.unpin(name))
   }
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {

@@ -74,3 +74,18 @@ export function moveItem(
 export function resetFactory(store: LayoutStore): LayoutStore {
   return { version: 1, pinned: [...store.pinned], dock: [], docs: [] }
 }
+
+/**
+ * 钉到应用区（工单25）：name 进手钉清单前段——已在清单则移到最前（不重复）。
+ * 显式摆位名单不动：手钉期间其条目被 dock 前段身份遮蔽（planDock 手钉段优先），
+ * 取消手钉时按原名单裁决归位——「钉」不销毁「摆」，两份用户意图各自存续。
+ */
+export function pinItem(store: LayoutStore, name: string): LayoutStore {
+  return { version: 1, pinned: [name, ...store.pinned.filter((n) => n !== name)], dock: [...store.dock], docs: [...store.docs] }
+}
+
+/** 取消手钉（工单25）：name 从手钉清单移除，条目回归归类与显式摆位裁决；
+ * 不在清单即原样返回（幂等空转，菜单条件显隐下不可达的防御性下限）。 */
+export function unpinItem(store: LayoutStore, name: string): LayoutStore {
+  return { version: 1, pinned: store.pinned.filter((n) => n !== name), dock: [...store.dock], docs: [...store.docs] }
+}

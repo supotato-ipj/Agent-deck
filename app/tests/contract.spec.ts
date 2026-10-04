@@ -289,6 +289,49 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/pin + desktop/unpin（工单25）：手钉清单变更即时重编排，池外名字拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'hot.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'n.docx'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 钉到应用区：文档类条目进 dock 前段（pinned），占栏位不被推荐顶替
+      const pinned = await ctx.bridge.invoke('desktop/pin', { name: 'n.docx' })
+      expect(pinned).toEqual({ ok: true })
+      let snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['n.docx', 'pinned'],
+        ['A.lnk', 'recommended'],
+        ['hot.lnk', 'recommended'],
+      ])
+      expect(snap.desktop.plan.docs).toEqual([])
+      expect(snap.desktop.items.find((i) => i.name === 'n.docx')?.zone).toBe('app')
+      // 取消手钉：回归归类（文档类回文档区）
+      const unpinned = await ctx.bridge.invoke('desktop/unpin', { name: 'n.docx' })
+      expect(unpinned).toEqual({ ok: true })
+      snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.dock.map((d) => d.source)).toEqual(['recommended', 'recommended'])
+      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['n.docx'])
+      expect(snap.desktop.items.find((i) => i.name === 'n.docx')?.zone).toBe('doc')
+      // 池外名字拒绝（move 同款护栏）
+      await expect(ctx.bridge.invoke('desktop/pin', { name: 'ghost.lnk' }))
+        .resolves.toMatchObject({ ok: false, error: '桌面项不在当前扫描池内' })
+      await expect(ctx.bridge.invoke('desktop/unpin', { name: 'ghost.lnk' }))
+        .resolves.toMatchObject({ ok: false, error: '桌面项不在当前扫描池内' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/reset-layout：清摆位回出厂编排', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
