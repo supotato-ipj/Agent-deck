@@ -7,6 +7,7 @@ import type { DesktopZone } from '../shared/contract'
 import { createDataplaneKernel } from './kernel'
 import {
   ProxyShortcutResolver,
+  ProxyTrash,
   type DataplaneMessage,
   type DataplaneSnapshot,
   type ParentPort,
@@ -30,6 +31,9 @@ if (parentPort) {
   const resolver = new ProxyShortcutResolver((paths) => {
     parentPort.postMessage({ type: 'resolve-shortcuts', paths })
   })
+  const trashProxy = new ProxyTrash((id, paths) => {
+    parentPort.postMessage({ type: 'trash-req', id, paths })
+  })
 
   parentPort.on('message', (e) => {
     const msg: DataplaneMessage = e.data
@@ -49,6 +53,9 @@ if (parentPort) {
               throw new Error('desktop/launch 由面板主进程执行')
             },
             readShortcutTarget: (lnk) => resolver.resolve(lnk),
+            // 回收站删除同理（工单27）：shell.trashItem 是主进程 API——删除裁决与摆位
+            // 清除都在本进程（存储归属地），那一只手经代理伸回主进程。
+            trash: (filePath) => trashProxy.trash(filePath),
           },
         },
         onSnapshot: (snapshot) => parentPort.postMessage({ type: 'snapshot', data: snapshot }),
@@ -60,6 +67,10 @@ if (parentPort) {
     }
     if (msg.type === 'shortcuts') {
       resolver.deliver(msg.targets)
+      return
+    }
+    if (msg.type === 'trash-res') {
+      trashProxy.deliver(msg.id, msg.errors)
       return
     }
     if (msg.type === 'req') {
@@ -81,6 +92,9 @@ if (parentPort) {
             result = ctx.desktop.unpin(name)
           } else if (msg.method === 'desktop/reset-layout') {
             result = ctx.desktop.resetLayout()
+          } else if (msg.method === 'desktop/trash') {
+            const { paths } = msg.payload as { paths: string[] }
+            result = await ctx.desktop.trash(paths)
           } else {
             throw new Error(`未知数据面方法: ${String(msg.method)}`)
           }

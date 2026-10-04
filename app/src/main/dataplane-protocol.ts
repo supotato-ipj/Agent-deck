@@ -24,8 +24,8 @@ export interface DataplaneInit {
   usageDir: string
 }
 
-/** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理；读路径走每拍快照） */
-export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout'
+/** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除；读路径走每拍快照） */
+export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash'
 
 /** 主进程 ⇄ 数据面子进程消息 */
 export type DataplaneMessage =
@@ -34,6 +34,9 @@ export type DataplaneMessage =
   | { type: 'snapshot'; data: DataplaneSnapshot }
   | { type: 'resolve-shortcuts'; paths: string[] }
   | { type: 'shortcuts'; targets: Record<string, string | null> }
+  /** 回收站删除代理（工单27）：子进程请求主进程执行 shell.trashItem，id 关联回执 */
+  | { type: 'trash-req'; id: number; paths: string[] }
+  | { type: 'trash-res'; id: number; errors: Record<string, string> }
   | { type: 'req'; id: number; method: DataplaneMethod; payload: unknown }
   | { type: 'res'; id: number; ok: boolean; result?: unknown; error?: string }
 
@@ -83,5 +86,36 @@ export class ProxyShortcutResolver {
       this.cache.set(path, target)
       this.inflight.delete(path)
     }
+  }
+}
+
+/**
+ * 回收站删除代理（子进程侧，工单27）：shell.trashItem 是 Electron 主进程 API，数据面
+ * 用不了——删除请求按 id 发主进程执行，回复经 deliver 驱动 Promise（值 = 错误串，
+ * '' = 成功，open 同语）。与 ProxyShortcutResolver 的差别在回执驱动 Promise 而非缓存：
+ * 删除是低频写路径，不凑批也不允许「按 null 降级」——回执未到就挂起（子进程退出随
+ * 进程消亡，主进程侧无半途丢失形态）。
+ */
+export class ProxyTrash {
+  private readonly pending = new Map<number, (errors: Record<string, string>) => void>()
+  private seq = 0
+
+  constructor(private readonly ask: (id: number, paths: string[]) => void) {}
+
+  /** 单文件删除请求（逐发不凑批）；resolve 值 = 错误串（'' = 成功） */
+  trash(filePath: string): Promise<string> {
+    return new Promise((resolve) => {
+      const id = ++this.seq
+      this.pending.set(id, (errors) => resolve(errors[filePath] ?? '回收站删除无回执'))
+      this.ask(id, [filePath])
+    })
+  }
+
+  /** 主进程回执驱动 Promise（未知 id = 迟到噪声，丢弃） */
+  deliver(id: number, errors: Record<string, string>): void {
+    const waiter = this.pending.get(id)
+    if (!waiter) return
+    this.pending.delete(id)
+    waiter(errors)
   }
 }

@@ -4,7 +4,7 @@ import type { Context } from 'cordis'
 import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
-import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, explorerReveal, shellOpen } from '../desktop/adapter'
+import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
 
@@ -28,8 +28,10 @@ export interface DataplaneServiceOptions {
  *
  * 本服务只做四件事：转发每拍快照（触发桥接推送）、预热图标（app.getFileIcon
  * 是主进程 API，按快照条目增量提取）、代理解析 lnk 目标（readShortcutLink 同理）、
- * 转发桌面承载写请求（move/reset；launch/reveal/copy-path/copy-paths 在主进程校验快照条目池后执行
- * ——shell.openPath 与 clipboard 是主进程 API，reveal 校验段认主进程快照池）。
+ * 转发桌面承载写请求（move/reset/pin/unpin/trash；launch/reveal/copy-path/copy-paths 在
+ * 主进程校验快照条目池后执行——shell.openPath 与 clipboard 是主进程 API，reveal 校验段
+ * 认主进程快照池；trash 的回收站源 shell.trashItem 同为主进程 API，但删除裁决与摆位
+ * 清除在子进程（存储归属地），故走反向代理：子进程 trash-req → 本进程执行 → trash-res）。
  * 子进程崩溃按退避自动重启：摆位与使用日志都在盘上，重启即收敛，硬件历史环
  * 归零重来（展示性曲线，可接受的降级）。
  */
@@ -106,6 +108,14 @@ export class DataplaneService extends Service implements PanelDataPort {
         targets[p] = this.shortcuts.get(p) ?? null
       }
       this.child?.postMessage({ type: 'shortcuts', targets })
+    } else if (msg.type === 'trash-req') {
+      // 回收站删除代理回执（工单27）：删除裁决（池护栏、摆位清除）在子进程，本进程只出
+      // shell.trashItem 这一只手（launch 主进程执行同位）；逐项执行，错误串按路径回执。
+      void (async () => {
+        const errors: Record<string, string> = {}
+        for (const p of msg.paths) errors[p] = await electronTrashItem(p)
+        this.child?.postMessage({ type: 'trash-res', id: msg.id, errors })
+      })()
     } else if (msg.type === 'res') {
       const waiter = this.pending.get(msg.id)
       if (!waiter) return
@@ -205,6 +215,12 @@ export class DataplaneService extends Service implements PanelDataPort {
     }
     electronClipboardWrite(paths.join('\n'))
     return Promise.resolve({ ok: true })
+  }
+
+  /** 删除进回收站（工单27）：RPC 转发数据面子进程——池护栏与摆位清除在子进程（存储
+   * 归属地，护栏认扫描权威池而非主进程快照），回收站源经 trash-req/trash-res 反向代理。 */
+  trash(paths: readonly string[]): Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }> {
+    return this.call('desktop/trash', { paths }) as Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }>
   }
 
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {

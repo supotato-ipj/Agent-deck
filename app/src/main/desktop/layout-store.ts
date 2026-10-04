@@ -89,3 +89,19 @@ export function pinItem(store: LayoutStore, name: string): LayoutStore {
 export function unpinItem(store: LayoutStore, name: string): LayoutStore {
   return { version: 1, pinned: store.pinned.filter((n) => n !== name), dock: [...store.dock], docs: [...store.docs] }
 }
+
+/**
+ * 删除同拍的摆位清除（工单27）：名字从三份名单（手钉 + 两分区显式摆位）一并移除——
+ * 文件已进回收站，名单留着会让日后的同名文件莫名归位（与「名单允许陈旧名字」的
+ * 前提相反：那是给还存在的文件留位，删除是文件确定没了）。其余名字与序保持；
+ * 名单里没有的名字原样跳过（幂等空转）。
+ */
+export function forgetItems(store: LayoutStore, names: readonly string[]): LayoutStore {
+  const gone = new Set(names)
+  return {
+    version: 1,
+    pinned: store.pinned.filter((n) => !gone.has(n)),
+    dock: store.dock.filter((n) => !gone.has(n)),
+    docs: store.docs.filter((n) => !gone.has(n)),
+  }
+}

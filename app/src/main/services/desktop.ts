@@ -4,11 +4,11 @@ import type { DesktopItem, DesktopPlan, DesktopState, DesktopZone } from '../../
 import { collectDesktopItems, desktopFingerprint, pathOfIconKey, planFingerprint } from '../desktop/scan'
 import type { DesktopDirEntry, DesktopRoots } from '../desktop/scan'
 import { planDesktop } from '../desktop/plan'
-import { loadStore, moveItem, pinItem, resetFactory, serializeStore, unpinItem, type LayoutStore } from '../desktop/layout-store'
+import { forgetItems, loadStore, moveItem, pinItem, resetFactory, serializeStore, unpinItem, type LayoutStore } from '../desktop/layout-store'
 import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
 import type { ScoreItem } from '../usage/score'
-import { defaultDesktopRoots, defaultListDir, electronIconExtractor, electronClipboardWrite, explorerReveal, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists } from '../desktop/adapter'
+import { defaultDesktopRoots, defaultListDir, electronIconExtractor, electronClipboardWrite, electronTrashItem, explorerReveal, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists } from '../desktop/adapter'
 import { userDataPath } from '../paths'
 
 /** 桌面承载依赖束：主进程真源 / 测试假源 / 数据面装配共用一个服务状态机（hardware sources 同法） */
@@ -21,6 +21,8 @@ export interface DesktopDeps {
   reveal(filePath: string): void
   /** 文本剪贴板写（工单24 复制路径；主进程 clipboard.writeText——面板永不激活，渲染层剪贴板 API 不可用） */
   copyText(text: string): void
+  /** 回收站删除（工单27；生产 shell.trashItem——误删可找回）。'' 即成功，否则错误串（open 同语） */
+  trash(filePath: string): Promise<string>
   /** 桌面目录监听（fs.watch 化；返回停听函数） */
   watch(roots: DesktopRoots, onChange: () => void): () => void
   /** lnk 目标解析（频次映射用；解析不出返回 null） */
@@ -82,6 +84,7 @@ export class DesktopService extends Service {
       open: options.deps?.open ?? shellOpen,
       reveal: options.deps?.reveal ?? explorerReveal,
       copyText: options.deps?.copyText ?? electronClipboardWrite,
+      trash: options.deps?.trash ?? electronTrashItem,
       watch: options.deps?.watch ?? defaultWatchDesktopRoots,
       readShortcutTarget: options.deps?.readShortcutTarget ?? electronShortcutTarget,
       fileExists: options.deps?.fileExists ?? fsFileExists,
@@ -153,8 +156,8 @@ export class DesktopService extends Service {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
-  /** 扫描池护栏共通段（launch/reveal/copyPath/copyPaths，工单24 起共用、工单26 增至四份）：
-   * 路径不在当前池内即拒绝——拒绝任意路径执行/定位/落剪贴板的同一道防线，错误语也同源。 */
+  /** 扫描池护栏共通段（launch/reveal/copyPath/copyPaths/trash，工单24 起共用、工单27 增至五份）：
+   * 路径不在当前池内即拒绝——拒绝任意路径执行/定位/落剪贴板/删除的同一道防线，错误语也同源。 */
   private poolGuardError(filePath: string): string | null {
     return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
   }
@@ -202,6 +205,41 @@ export class DesktopService extends Service {
     }
     this.deps.copyText(filePaths.join('\n'))
     return { ok: true }
+  }
+
+  /** 删除进回收站（工单27，单项菜单【删除】与多选菜单【删除全部】共用一道契约）：
+   * paths 全部在池内才执行（copyPaths 同款护栏，不删半份名单）；逐项经依赖束回收站源
+   * （生产 shell.trashItem，误删可找回），失败如实回报不做提权——任一失败 ok=false 且
+   * error 带明细（菜单层据此提示）。成功条目同拍清除摆位存储三名单（防同名复活莫名
+   * 归位）并落盘 + 即时重编排一次；全部失败不动存储。 */
+  async trash(filePaths: readonly string[]): Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }> {
+    if (!filePaths.length) return { ok: false, trashed: [], failed: [], error: '删除名单为空' }
+    for (const filePath of filePaths) {
+      const guard = this.poolGuardError(filePath)
+      if (guard) return { ok: false, trashed: [], failed: [], error: guard }
+    }
+    const nameOf = new Map(this.items.map((i) => [i.path, i.name]))
+    const trashed: string[] = []
+    const failed: string[] = []
+    const details: string[] = []
+    for (const filePath of filePaths) {
+      const name = nameOf.get(filePath)!
+      const error = await this.deps.trash(filePath)
+      if (error) {
+        failed.push(name)
+        details.push(`${name}：${error}`)
+      } else {
+        trashed.push(name)
+      }
+    }
+    if (trashed.length) {
+      this.store = forgetItems(this.store, trashed)
+      this.persist()
+      this.refresh()
+    }
+    return failed.length
+      ? { ok: false, trashed, failed, error: details.join('；') }
+      : { ok: true, trashed, failed: [] }
   }
 
   /** 拖拽摆位：name 必须在池内；beforeName 须为目标分区当前条目（null = 末尾）。落盘并即时重编排。

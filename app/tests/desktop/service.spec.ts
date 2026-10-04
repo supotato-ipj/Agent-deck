@@ -1,6 +1,6 @@
 /**
- * 桌面承载服务测试（工单05 扫描/失败沿用/图标/launch + 工单06 编排/摆位/监听/频次）。
- * 依赖束全假源，纯离线。
+ * 桌面承载服务测试（工单05 扫描/失败沿用/图标/launch + 工单06 编排/摆位/监听/频次 +
+ * 工单27 删除与摆位清除）。依赖束全假源，纯离线。
  */
 import { Context } from 'cordis'
 import { describe, expect, it, vi } from 'vitest'
@@ -23,6 +23,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
   const open = vi.fn(async () => '')
   const reveal = vi.fn()
   const copyText = vi.fn()
+  const trash = vi.fn(async (_p: string) => '')
   const watchCalls: Array<() => void> = []
   const watch = vi.fn((_roots: { user: string; common: string }, onChange: () => void) => {
     watchCalls.push(onChange)
@@ -45,6 +46,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
       open,
       reveal,
       copyText,
+      trash,
       watch,
       readShortcutTarget: (p: string) => (opts.targets ?? {})[p] ?? null,
       readStoreText: () => storeText,
@@ -62,6 +64,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     open,
     reveal,
     copyText,
+    trash,
     watchCalls,
     written,
     get storeText() {
@@ -200,6 +203,94 @@ describe('DesktopService（工单05 扫描与启动）', () => {
       expect(w.svc.copyPaths([pathA, 'C:\\Windows\\System32\\cmd.exe'])).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
       expect(w.svc.copyPaths([])).toEqual({ ok: false, error: '复制路径名单为空' })
       expect(w.copyText).not.toHaveBeenCalled()
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+})
+
+describe('DesktopService（工单27 删除与删除全部）', () => {
+  const seededStore = JSON.stringify({ version: 1, pinned: ['p.lnk'], dock: ['a.lnk'], docs: ['n.docx'] })
+
+  it('trash：池内整份逐项送回收站（依赖束），摆位三名单同拍清除并落盘 + 即时重编排', async () => {
+    const w = fakeWorld(
+      [entry('p.lnk'), entry('a.lnk'), entry('n.docx', { mtimeMs: 100 })],
+      [],
+      { store: seededStore },
+    )
+    await w.ctx.start()
+    try {
+      const pathOf = (name: string) => w.svc.state().items.find((i) => i.name === name)!.path
+      // 摆位先行：删除前三份名单都在场
+      expect(w.svc.storeForTest()).toMatchObject({ pinned: ['p.lnk'], dock: ['a.lnk'], docs: ['n.docx'] })
+      const r = await w.svc.trash([pathOf('a.lnk'), pathOf('p.lnk'), pathOf('n.docx')])
+      expect(r).toEqual({ ok: true, trashed: ['a.lnk', 'p.lnk', 'n.docx'], failed: [] })
+      expect(w.trash).toHaveBeenCalledTimes(3)
+      expect(w.trash).toHaveBeenNthCalledWith(1, pathOf('a.lnk'))
+      // 三名单同拍清空（防同名复活莫名归位），落盘一次
+      expect(w.svc.storeForTest()).toEqual({ version: 1, pinned: [], dock: [], docs: [] })
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, pinned: [], dock: [], docs: [] })
+      expect(w.written).toHaveLength(1)
+      // 即时重编排：显式摆位段消失（fake listDir 文件仍在场，编排退归类/推荐段）
+      expect(w.svc.state().plan.dock.every((d) => d.source !== 'placed' && d.source !== 'pinned')).toBe(true)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('trash：部分失败如实回报（ok=false + failed + error 明细），失败条目摆位保留', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk'), entry('n.docx', { mtimeMs: 100 })],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: [], dock: ['a.lnk'], docs: ['n.docx'] }) },
+    )
+    await w.ctx.start()
+    try {
+      const pathOf = (name: string) => w.svc.state().items.find((i) => i.name === name)!.path
+      w.trash.mockImplementation(async (p: string) => (p === pathOf('n.docx') ? '拒绝访问。' : ''))
+      const r = await w.svc.trash([pathOf('a.lnk'), pathOf('n.docx')])
+      expect(r).toEqual({ ok: false, trashed: ['a.lnk'], failed: ['n.docx'], error: 'n.docx：拒绝访问。' })
+      // 成功者摆位清除、失败者保留（文件还在盘上，位不能丢）
+      expect(w.svc.storeForTest()).toEqual({ version: 1, pinned: [], dock: [], docs: ['n.docx'] })
+      expect(w.written).toHaveLength(1)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('trash：全部失败不动存储不落盘（ok=false，trashed 空）', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk')],
+      [],
+      { store: seededStore },
+    )
+    await w.ctx.start()
+    try {
+      const pathA = w.svc.state().items.find((i) => i.name === 'a.lnk')!.path
+      w.trash.mockResolvedValue('另一个程序正在使用此文件，进程无法访问。')
+      const r = await w.svc.trash([pathA])
+      expect(r).toEqual({
+        ok: false, trashed: [], failed: ['a.lnk'],
+        error: 'a.lnk：另一个程序正在使用此文件，进程无法访问。',
+      })
+      expect(w.svc.storeForTest()).toMatchObject({ pinned: ['p.lnk'], dock: ['a.lnk'], docs: ['n.docx'] })
+      expect(w.written).toHaveLength(0)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('trash 护栏：任一池外整份拒绝（不调依赖不删半份）；空名单拒绝', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    await w.ctx.start()
+    try {
+      const pathA = w.svc.state().items.find((i) => i.name === 'a.lnk')!.path
+      expect(await w.svc.trash([pathA, 'C:\\Windows\\System32\\cmd.exe'])).toEqual({
+        ok: false, trashed: [], failed: [], error: '桌面项不在当前扫描池内',
+      })
+      expect(await w.svc.trash([])).toEqual({ ok: false, trashed: [], failed: [], error: '删除名单为空' })
+      expect(w.trash).not.toHaveBeenCalled()
+      expect(w.written).toHaveLength(0)
     } finally {
       await w.ctx.stop()
     }

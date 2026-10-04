@@ -147,6 +147,18 @@ export function electronClipboardWrite(text: string): void {
   }
 }
 
+/** 回收站删除真源（工单27）：shell.trashItem——删除=送回收站（误删可找回，真桌面同款）。
+ * '' 即成功，否则错误串（shellOpen 同语）。主进程 API：数据面子进程经协议代理调用
+ * （ProxyShortcutResolver 同法），本函数只在主进程侧执行。 */
+export function electronTrashItem(filePath: string): Promise<string> {
+  return require('electron')
+    .shell.trashItem(filePath)
+    .then(
+      () => '',
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    )
+}
+
 /** lnk 目标解析真源：shell.readShortcutLink（同步）；非 lnk/解析失败返回 null */
 export function electronShortcutTarget(lnkPath: string): string | null {
   try {

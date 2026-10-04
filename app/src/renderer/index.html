@@ -412,6 +412,70 @@
     cursor: pointer;
   }
   #settings-reset:hover { color: #d6d6d6; }
+
+  /* 删除确认层（工单27）：多选【删除全部】先弹的自绘轻量确认——列出条数、确认/取消
+   * 两钮。卡片同世界观（class="card" 底色随全局透明度）；开层期间热区换全窗（同菜单），
+   * 点外部 = 取消、Esc = 取消（键盘模式临时开启，同设置浮层先例）。 */
+  #trash-confirm {
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    width: 300px;
+    height: auto;
+    z-index: 90;
+    display: none;
+    cursor: default;
+  }
+  #trash-confirm h2 { margin-bottom: 12px; }
+  #trash-confirm-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #d6d6d6;
+    white-space: pre-line;
+    max-height: 180px;
+    overflow: auto;
+  }
+  #trash-confirm-actions {
+    margin-top: 14px;
+    display: flex;
+    column-gap: 10px;
+  }
+  #trash-confirm-actions button {
+    flex: 1;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #trash-confirm-actions button:hover { color: #d6d6d6; }
+  #trash-confirm-ok { color: #fff; }
+
+  /* 删除失败提示（工单27 AC「菜单层有可见提示」）：权限/占用失败如实上浮的瞬态条，
+   * 纯展示不接交互（无热区，点击穿透），数秒自隐。 */
+  #trash-notice {
+    position: fixed;
+    bottom: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 101;
+    max-width: 640px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: #d6d6d6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    display: none;
+  }
 </style>
 </head>
 <body>
@@ -449,6 +513,17 @@
   </div>
   <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
 </div>
+
+<div class="card" id="trash-confirm" tabindex="-1">
+  <h2>DELETE</h2>
+  <div id="trash-confirm-text">DELETE 0 ITEMS?</div>
+  <div id="trash-confirm-actions">
+    <button id="trash-confirm-ok" role="button">DELETE</button>
+    <button id="trash-confirm-cancel" role="button">CANCEL</button>
+  </div>
+</div>
+
+<div id="trash-notice"></div>
 
 <div id="settings-btn" role="button">&#9881; SETTINGS</div>
 

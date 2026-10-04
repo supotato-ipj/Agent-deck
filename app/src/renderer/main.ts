@@ -73,8 +73,11 @@ let calendarMonth = -1
 // （desktop/unpin）、非手钉见【钉到应用区】（desktop/pin）——改摆位存储的手钉
 // 清单并即时重编排，文档类条目取消后按归类+显式摆位裁决回文档区。
 // 工单26 起右键命中选中集内条目（选区多于一条）弹多选菜单：条目集收敛为
-// 【打开全部 / 复制路径（多行 \n）】（desktop/launch 逐项 + desktop/copy-paths 整份），
-// 动作作用于整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
+// 【打开全部 / 复制路径（多行 \n）/ 删除全部】（工单27 补入删除全部），动作作用于
+// 整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
+// 工单27 起条目删除进回收站（desktop/trash）：单项【删除】直接执行，多选【删除全部】
+// 先弹自绘轻量确认（列出条数、确认/取消，点外部/Esc=取消）；删除成功条目由内核同拍
+// 清除摆位（防同名复活莫名归位）；权限/占用失败 ok=false 存证 + 瞬态提示条（#trash-notice）。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -630,7 +633,8 @@ for (const type of ['click', 'contextmenu'] as const) {
 
 /** 单项动作条目集（contributor 注册位形状，同工单23 分区空白内置两项）：三动作之外，
  * 第 4 行按目标条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见
- * 【钉到应用区】；手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames） */
+ * 【钉到应用区】；手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
+ * 第 5 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
@@ -639,6 +643,7 @@ function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
     pinnedNames.has(item.name)
       ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
       : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
+    { id: 'delete', label: 'DELETE', run: () => trashItems([item.name]) },
   ]
 }
 
@@ -687,17 +692,18 @@ function unpinItemToStore(item: DesktopItem): void {
 }
 
 // ---- 多选菜单（工单26）：右键命中选中集内条目（选区多于一条）时弹，动作作用于
-// 整个选区（选区不动、无 desktop-selected 副作用），条目集收敛为两动作——复制/剪切/
-// 删除全部等二期条目随后续工单补入同一骨架。名单以开层当拍选区为准（插入序 =
-// 逐项启动顺序）；收起与吞没共用工单23 的面板裁决。
+// 整个选区（选区不动、无 desktop-selected 副作用）；工单27 起条目集收敛为三动作
+// （打开全部 / 复制路径 / 删除全部）。名单以开层当拍选区为准（插入序 = 逐项启动顺序）；
+// 收起与吞没共用工单23 的面板裁决。
 
 /** 多选动作条目集（contributor 注册位形状，同工单23/24）：打开全部 = 双击全开同款
  * 整集逐项经 desktop/launch（launchNames，via 标 ctx-menu，逐项存证）；复制路径 =
- * desktop/copy-paths 整集多行。 */
+ * desktop/copy-paths 整集多行；删除全部 = 先弹自绘确认再整集 desktop/trash（工单27）。 */
 function multiItemMenuItems(names: readonly string[]): DeckCtxMenuItem[] {
   return [
     { id: 'open-all', label: 'OPEN ALL', run: () => launchNames(names, 'ctx-menu') },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPaths(names) },
+    { id: 'delete-all', label: 'DELETE ALL', run: () => openTrashConfirm(names) },
   ]
 }
 
@@ -719,6 +725,126 @@ function copyItemPaths(names: readonly string[]): void {
     }),
     (err: unknown) => notify('desktop-paths-copy-failed', { names: [...names], message: String(err) }),
   )
+}
+
+// ---- 删除与删除全部（工单27，CONTEXT.md「上下文菜单」二期条目）：desktop/trash 一道
+// 契约两处入口——单项【删除】直接执行（真桌面单删同语义，回收站兜底误删），多选
+// 【删除全部】先弹自绘轻量确认（列出条数，确认/取消）。内核侧：整份池护栏、逐项送
+// 回收站、成功条目同拍清除摆位；权限/占用失败 ok=false 存证（desktop-trash-rejected）
+// 并在菜单层上浮瞬态提示条。存证族 desktop-trash-*：confirm-opened/closed（确认层
+// 开合，按钮矩形随开层存证——电池按它定位点击）、clicked/trashed/rejected/failed。
+
+/** 删除执行（单项/确认后共用）：名单路径经 itemByName 解析（copyItemPaths 同款）——
+ * 渲染层快照落后于内核池时整份拒绝。结果分名存证（同 pin 惯例），失败上浮提示条。 */
+function trashItems(names: readonly string[]): void {
+  const resolved = names.map((name) => itemByName.get(name)?.path)
+  if (resolved.some((p) => !p)) {
+    notify('desktop-trash-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
+    showTrashNotice('桌面项不在当前扫描池内')
+    return
+  }
+  const paths = resolved as string[]
+  notify('desktop-trash-clicked', { names: [...names], count: names.length, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/trash', { paths }).then(
+    (r) => {
+      notify(r.ok ? 'desktop-trashed' : 'desktop-trash-rejected', {
+        names: [...names], ok: r.ok, trashed: r.trashed, failed: r.failed, error: r.error ?? null,
+      })
+      if (!r.ok) showTrashNotice(r.error ?? '删除失败')
+    },
+    (err: unknown) => {
+      notify('desktop-trash-failed', { names: [...names], message: String(err) })
+      showTrashNotice(String(err))
+    },
+  )
+}
+
+// ---- 删除确认层（工单27）：自绘轻量确认（settings-card 浮层先例）——开层临时取得
+// 键盘焦点（Esc=取消），确认/取消两钮，点外部=取消（捕获段拦下并恰吞一笔，菜单外
+// 一击即收的同款语义）。开层期间热区换全窗（declareHotZones 读 trashConfirmOpen），
+// 1Hz 快照重声明不会中途覆写。按钮矩形随开层存证（电池定位点击，settings-opened
+// 的滑杆矩形同法）。
+
+const trashConfirmCard = el('trash-confirm')
+const trashConfirmText = el('trash-confirm-text')
+const trashConfirmOk = el('trash-confirm-ok')
+const trashConfirmCancel = el('trash-confirm-cancel')
+/** 开层名单（null = 关闭态）；名单以菜单开层当拍选区为准，确认即对该名单整份 trash */
+let trashConfirmNames: readonly string[] | null = null
+
+function trashConfirmOpen(): boolean {
+  return trashConfirmNames !== null
+}
+
+function rectOfBox(r: DOMRect): { x: number; y: number; w: number; h: number } {
+  return { x: r.left, y: r.top, w: r.width, h: r.height }
+}
+
+type TrashConfirmCloseReason = 'confirm' | 'cancel' | 'outside' | 'esc' | 'blur'
+
+function openTrashConfirm(names: readonly string[]): void {
+  if (trashConfirmOpen()) return
+  trashConfirmNames = [...names]
+  trashConfirmText.textContent = names.length === 1
+    ? `DELETE 1 ITEM?\n${names[0]}`
+    : `DELETE ${names.length} ITEMS?\n${names.join('\n')}`
+  trashConfirmCard.style.display = 'block'
+  window.deck.host.setKeyboardMode(true)
+  trashConfirmCard.focus()
+  notify('desktop-trash-confirm-opened', {
+    names: [...names], count: names.length,
+    confirm: rectOfBox(trashConfirmOk.getBoundingClientRect()),
+    cancel: rectOfBox(trashConfirmCancel.getBoundingClientRect()),
+  })
+  declareHotZones()
+}
+
+function closeTrashConfirm(reason: TrashConfirmCloseReason): void {
+  const names = trashConfirmNames
+  if (!names) return
+  trashConfirmNames = null
+  trashConfirmCard.style.display = 'none'
+  window.deck.host.setKeyboardMode(false)
+  notify('desktop-trash-confirm-closed', { reason, count: names.length })
+  declareHotZones()
+  if (reason === 'confirm') trashItems(names)
+}
+
+trashConfirmOk.addEventListener('click', () => closeTrashConfirm('confirm'))
+trashConfirmCancel.addEventListener('click', () => closeTrashConfirm('cancel'))
+trashConfirmCard.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeTrashConfirm('esc')
+  }
+})
+trashConfirmCard.addEventListener('focusout', (e) => {
+  const to = e.relatedTarget as Node | null
+  if (to && trashConfirmCard.contains(to)) return // 焦点仍在确认层内（两钮之间转移）
+  closeTrashConfirm('blur')
+})
+window.addEventListener('pointerdown', (e) => {
+  if (!trashConfirmOpen()) return
+  if ((e.target as HTMLElement).closest('#trash-confirm')) return // 层内按下：钮自己处理
+  e.stopPropagation() // 点外部 = 取消，那一击不落任何面板语义（框选/条目起笔不再看到）
+  e.preventDefault()
+  closeTrashConfirm('outside')
+}, { capture: true })
+
+// ---- 删除失败提示（工单27 AC「菜单层有可见提示」）：权限/占用失败如实上浮的瞬态条，
+// 数秒自隐；纯展示不接交互（无热区，指针穿透到下层）。
+
+const trashNotice = el('trash-notice')
+let trashNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+function showTrashNotice(message: string): void {
+  trashNotice.textContent = message
+  trashNotice.style.display = 'block'
+  if (trashNoticeTimer !== null) clearTimeout(trashNoticeTimer)
+  trashNoticeTimer = setTimeout(() => {
+    trashNotice.style.display = 'none'
+    trashNoticeTimer = null
+  }, 6000)
 }
 
 // ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
@@ -1185,12 +1311,13 @@ function zoneItemRect(zone: HTMLElement, id: string): HotzoneRect | null {
 }
 
 function declareHotZones(): void {
-  // 手势进行中（拖拽摆位/框选）或菜单开层（工单23）保持全窗热区：1Hz 快照重建会走到
-  // 这里重声明常规热区，若中途覆写回小矩形，指针恰在分区包围盒外时面板转穿透、指针流
-  // 即断（矩形残留屏上/菜单外一击收不到）。菜单开层由 shell 的 isOpen 判定（热插拔：
-  // 插件卸载即 undefined，自动恢复常规热区）。
-  if (dragState.active || marqueeState.active || menuOpen()) {
-    const id = menuOpen() ? 'menu' : dragState.active ? 'drag' : 'marquee'
+  // 手势进行中（拖拽摆位/框选）、菜单开层（工单23）或删除确认开层（工单27）保持全窗
+  // 热区：1Hz 快照重建会走到这里重声明常规热区，若中途覆写回小矩形，指针恰在分区包围
+  // 盒外时面板转穿透、指针流即断（矩形残留屏上/菜单外一击收不到）。菜单开层由 shell 的
+  // isOpen 判定（热插拔：插件卸载即 undefined，自动恢复常规热区）。
+  if (dragState.active || marqueeState.active || menuOpen() || trashConfirmOpen()) {
+    const id = trashConfirmOpen() ? 'trash-confirm'
+      : menuOpen() ? 'menu' : dragState.active ? 'drag' : 'marquee'
     window.deck.host.setHotZones([{
       id, x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
     }])

@@ -239,6 +239,18 @@ export interface BridgeMethods {
    * 整份拒绝（剪贴板不写半份名单）。主进程执行：同 copy-path（面板永不激活）。
    */
   'desktop/copy-paths': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
+  /**
+   * 删除进回收站（工单27，单项菜单【删除】与多选菜单【删除全部】共用一道契约）：
+   * paths 全部在当前扫描池内才执行（launch/copy-paths 同款护栏，不删半份名单）；逐项
+   * 送回收站（shell.trashItem，误删可找回），失败条目如实回报不做提权——任一失败
+   * ok=false 且 error 带明细（菜单层据此提示）。成功条目同拍清除摆位存储三名单（防
+   * 同名复活莫名归位）并即时重编排。执行在数据面子进程（摆位存储归属地），回收站源
+   * 经主进程代理（shell.trashItem 是主进程 API，lnk 目标解析同法）。
+   */
+  'desktop/trash': {
+    request: { paths: string[] }
+    response: { ok: boolean; trashed: string[]; failed: string[]; error?: string }
+  }
   /** 拖拽摆位：name 入目标分区、排在 beforeName 之前（null = 末尾）；落盘并即时重编排 */
   'desktop/move': {
     request: { name: string; zone: DesktopZone; beforeName: string | null }

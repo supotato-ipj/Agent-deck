@@ -251,6 +251,49 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/trash（工单27）：池内整份送回收站并同拍清除摆位；池外整份拒绝；失败条目如实回报', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const trashedFiles: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          trash: async (p: string) => {
+            if (p.endsWith('B.docx')) return '拒绝访问。'
+            trashedFiles.push(p)
+            return ''
+          },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 先造显式摆位（A.lnk 入 dock placed 段），删除后须同拍清除
+      await ctx.bridge.invoke('desktop/move', { name: 'A.lnk', zone: 'app', beforeName: null })
+      const snap0 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap0.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([['A.lnk', 'placed']])
+      const pathOf = (name: string) => (snap0.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      // 部分失败：A 成功、B 权限拒绝——ok=false + failed + error 明细（菜单层提示依据）
+      const r = await ctx.bridge.invoke('desktop/trash', { paths: [pathOf('A.lnk'), pathOf('B.docx')] })
+      expect(r).toEqual({ ok: false, trashed: ['A.lnk'], failed: ['B.docx'], error: 'B.docx：拒绝访问。' })
+      expect(trashedFiles).toEqual([pathOf('A.lnk')])
+      // A 的显式摆位同拍清除：条目还在池（假源不真删盘面），但编排退回推荐段
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.dock).toEqual([{ name: 'A.lnk', source: 'recommended' }])
+      // 池外整份拒绝（copy-paths 同款护栏）：不删半份
+      const outside = await ctx.bridge.invoke('desktop/trash', { paths: [pathOf('B.docx'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, trashed: [], failed: [], error: '桌面项不在当前扫描池内' })
+      expect(trashedFiles).toHaveLength(1)
+      await expect(ctx.bridge.invoke('desktop/trash', { paths: [] })).resolves
+        .toEqual({ ok: false, trashed: [], failed: [], error: '删除名单为空' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/move：摆位经桥接落位、跨区换区；非法参照拒绝', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
