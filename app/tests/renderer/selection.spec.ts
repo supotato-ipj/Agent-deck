@@ -151,6 +151,94 @@ describe('dblclick 双击全开', () => {
   })
 })
 
+describe('band 框选替换（工单21）', () => {
+  it('空集上框选 → 命中名单即选区（命中序 = 渲染层 DOM 序）', () => {
+    const m = nextSelection(EMPTY_SELECTION, { type: 'band', names: ['B', 'A'] })
+    expect(m.names).toEqual(['B', 'A'])
+    expect(m.swallowed).toBeNull()
+  })
+  it('框选替换现选区（跨笔重选）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'band', names: ['C', 'D'] },
+    )
+    expect(m.names).toEqual(['C', 'D'])
+  })
+  it('框选作废吞集（此后双击不再整集启动）', () => {
+    const m0 = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'click', name: 'B' },
+    )
+    const m = nextSelection(m0, { type: 'band', names: ['C'] })
+    expect(m.swallowed).toBeNull()
+    expect(launchListOf(m, 'B')).toEqual(['B'])
+  })
+  it('命中空名单 → 清空（框到纯空白处）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'band', names: [] },
+    )
+    expect(m.names).toEqual([])
+  })
+  it('替换后再 reconcile 仍按名存续', () => {
+    const m = seq(
+      { type: 'band', names: ['A', 'B'] },
+      { type: 'reconcile', liveNames: ['B', 'X'] },
+    )
+    expect(m.names).toEqual(['B'])
+  })
+})
+
+describe('ctrl-band 框选并集（工单21）', () => {
+  it('与现选区求并集：旧选区保序在前、新命中依序追加', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-band', names: ['C', 'D'] },
+    )
+    expect(m.names).toEqual(['B', 'A', 'C', 'D'])
+  })
+  it('命中已选条目不重复（按名去重）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'ctrl-band', names: ['B', 'C', 'A'] },
+    )
+    expect(m.names).toEqual(['A', 'B', 'C'])
+  })
+  it('命中空名单 → 选区原样保留（Ctrl 框到纯空白处不清空）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'ctrl-band', names: [] },
+    )
+    expect(m.names).toEqual(['A', 'B'])
+  })
+  it('空集上 ctrl-band = 命中名单', () => {
+    const m = nextSelection(EMPTY_SELECTION, { type: 'ctrl-band', names: ['A', 'B'] })
+    expect(m.names).toEqual(['A', 'B'])
+  })
+  it('并集作废吞集', () => {
+    const m0 = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'click', name: 'B' },
+    )
+    const m = nextSelection(m0, { type: 'ctrl-band', names: ['C'] })
+    expect(m.swallowed).toBeNull()
+  })
+  it('跨笔累积：band 重选后再 ctrl-band 追加（真桌面分几笔圈选）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'X' },
+      { type: 'band', names: ['C', 'D'] },
+      { type: 'ctrl-band', names: ['D', 'E'] },
+    )
+    expect(m.names).toEqual(['C', 'D', 'E'])
+  })
+})
+
 describe('组合场景（真桌面双击序列）', () => {
   it('双击序列：click(d1) 收束 → 第二击不入迁移 → dblclick 整集', () => {
     const m = seq(

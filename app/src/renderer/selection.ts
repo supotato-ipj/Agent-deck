@@ -2,8 +2,8 @@
 // 是后续框选（#21）、菜单、键盘工单的公共地基。选区按 CONTEXT.md 词条「选区」：
 // 跨分区（只存名字，分区无关）、按名存续、随交互清空、瞬态不落盘。
 //
-// 语义矩阵（#19 spec 定稿子集）：click=单选重置、ctrl+click=切换、blank-click=清空、
-// reconcile=按名恢复/消失剔除；band=替换、ctrl+band=并集随 #21 接线时入矩阵，不预留。
+// 语义矩阵（#19 spec 定稿）：click=单选重置、ctrl+click=切换、blank-click=清空、
+// reconcile=按名恢复/消失剔除；band=替换、ctrl+band=并集（#21 框选接线）。
 //
 // 双击全开（真桌面语义）：双击选中集内任一条 = 整集启动。浏览器先于 dblclick 补发两次
 // click，第一次就会把选区收束为单条——故收束时把被吞的旧选区记进 swallowed 作判据；
@@ -25,6 +25,10 @@ export type SelectionEvent =
   | { type: 'ctrl-click'; name: string }
   /** 单击分区空白：清空选区 */
   | { type: 'blank-click' }
+  /** 框选松手：命中名单替换现选区（工单21；names 为矩形相交条目，DOM 序） */
+  | { type: 'band'; names: readonly string[] }
+  /** Ctrl+框选松手：命中名单与现选区求并集（旧选区保序在前，新命中依序追加去重） */
+  | { type: 'ctrl-band'; names: readonly string[] }
   /** 双击条目：消费 swallowed（启动名单经 launchListOf 先行查询） */
   | { type: 'dblclick'; name: string }
   /** 快照重建：按名恢复、消失条目剔除（选区按名存续的落点） */
@@ -48,6 +52,14 @@ export function nextSelection(model: SelectionModel, event: SelectionEvent): Sel
     }
     case 'blank-click':
       return { names: [], swallowed: null }
+    case 'band':
+      // 命中即选区：框到纯空白 = 清空（真桌面同款）
+      return { names: [...event.names], swallowed: null }
+    case 'ctrl-band': {
+      // 并集只追加新命中：已选条目按名去重，插入序（= 逐项启动顺序）不打乱
+      const fresh = event.names.filter((n) => !model.names.includes(n))
+      return { names: [...model.names, ...fresh], swallowed: null }
+    }
     case 'dblclick':
       return { names: model.names, swallowed: null }
     case 'reconcile': {

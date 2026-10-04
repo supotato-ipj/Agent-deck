@@ -59,6 +59,7 @@ let calendarMonth = -1
 // 组序/组内序铺分组列；拖拽摆位经 desktop/move 落内核并持久化。
 // 工单20 起选区是名字集合（跨分区、瞬态、按名存续）：迁移全部走 selection.ts
 // 纯状态机，本文件只消费其输出——快照重建后按名恢复，消失条目自动剔除。
+// 工单21 起分区空白可框选（band=替换 / ctrl+band=并集，起笔阈值与拖拽共用）。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -86,7 +87,9 @@ function markSelection(): void {
   }
 }
 
-/** 选区事件入口：状态机迁移 → DOM 标记 → 生灭存证（desktop-* 族；#19 存证约定） */
+/** 选区事件入口：状态机迁移 → DOM 标记 → 生灭存证（desktop-* 族；#19 存证约定）。
+ * band/ctrl-band 不在此发事件——框选的生灭与结果存证归框选生命周期事件
+ * （desktop-marquee-started/updated/finished/cancelled，含矩形与最终名单）。 */
 function applySelection(event: SelectionEvent): void {
   const prev = selection.names
   selection = nextSelection(selection, event)
@@ -161,7 +164,7 @@ function buildItem(item: DesktopItem): HTMLElement {
   // 原样保留）；拖拽摆位（工单06）。双击序列的第二击（e.detail≥2）不做选区迁移——
   // 整集语义由 dblclick 分支经状态机裁决（selection.ts 注记的时间无关实现）。
   d.addEventListener('click', (e) => {
-    if (dragState.suppressed) return // 拖拽结束的那一下点击不算选中
+    if (dragState.suppressed || marqueeState.suppressed) return // 拖拽/框选结束的那一下点击不算选中
     if (e.detail > 1) return
     applySelection(e.ctrlKey
       ? { type: 'ctrl-click', name: item.name }
@@ -325,13 +328,151 @@ function endDrag(): void {
   setTimeout(() => { dragState.suppressed = false }, 0)
 }
 
-// ---- 分区空白清空选区（工单20）：条目之外的分区容器面单击即清空（CONTEXT.md「选区」）。
-// 条目自身的点击会冒泡上来，按 closest 滤掉（各走各的语义）；分区热区只覆盖条目
-// 包围盒+边距，热区之外的空白本来就不进面板（透传真桌面，不到这里）。
+// ---- 框选（工单21，CONTEXT.md「框选」）：从分区热区内的空白起笔拖出半透明矩形，
+// 凡与矩形相交的桌面项即时高亮；松手普通=替换选区、Ctrl=并集（迁移入 selection.ts
+// 状态机，本文件只消费输出）。与拖拽摆位共用起笔阈值：阈值内松手就是普通空白单击
+// （清空语义走既有 click 冒泡，suppressed 不置位）；越过阈值后声明全窗热区续接指针流
+// （拖拽同法）——指针流出分区包围盒框选不中断。热区外空白桌面不经过面板（穿透照旧）。
+
+interface MarqueeState {
+  zone: HTMLElement | null
+  pointerId: number | null
+  startX: number
+  startY: number
+  /** 起笔瞬间的 Ctrl 态：「按住 Ctrl 框选」——预演与提交同源，不随途中/松手修饰键漂移 */
+  ctrl: boolean
+  active: boolean
+  suppressed: boolean
+  rect: HTMLElement | null
+  hits: readonly string[]
+  rectNow: { x: number; y: number; w: number; h: number } | null
+}
+
+const marqueeState: MarqueeState = {
+  zone: null, pointerId: null, startX: 0, startY: 0, ctrl: false, active: false, suppressed: false,
+  rect: null, hits: [], rectNow: null,
+}
+
+/** 框选命中：与「起笔 → 现位」矩形相交的桌面项名（DOM 序 = 并集插入序） */
+function marqueeHits(x: number, y: number): string[] {
+  const left = Math.min(marqueeState.startX, x)
+  const top = Math.min(marqueeState.startY, y)
+  const right = Math.max(marqueeState.startX, x)
+  const bottom = Math.max(marqueeState.startY, y)
+  const names: string[] = []
+  for (const d of document.querySelectorAll<HTMLElement>('.ditem')) {
+    const r = d.getBoundingClientRect()
+    if (r.left < right && r.right > left && r.top < bottom && r.bottom > top) {
+      const name = d.dataset.name ?? ''
+      if (name) names.push(name)
+    }
+  }
+  return names
+}
+
+/** 框选高亮预演：普通=命中集（替换预览）、Ctrl=现选区∪命中（并集预览，与状态机
+ * ctrl-band 同式——语义唯一出处仍是状态机，这里只是提交前的显示层同构覆写），
+ * 松手后 markSelection 按状态机输出重刷。 */
+function markMarqueePreview(hits: readonly string[], ctrl: boolean): void {
+  const set = new Set(ctrl ? [...selection.names, ...hits] : hits)
+  for (const d of document.querySelectorAll<HTMLElement>('.ditem')) {
+    d.classList.toggle('sel', set.has(d.dataset.name ?? ''))
+  }
+}
+
+function updateMarquee(x: number, y: number, ctrl: boolean): void {
+  const box = {
+    x: Math.min(marqueeState.startX, x),
+    y: Math.min(marqueeState.startY, y),
+    w: Math.abs(x - marqueeState.startX),
+    h: Math.abs(y - marqueeState.startY),
+  }
+  marqueeState.rectNow = box
+  if (marqueeState.rect) {
+    marqueeState.rect.style.left = `${box.x}px`
+    marqueeState.rect.style.top = `${box.y}px`
+    marqueeState.rect.style.width = `${box.w}px`
+    marqueeState.rect.style.height = `${box.h}px`
+  }
+  const hits = marqueeHits(x, y)
+  const changed = hits.join('\u0000') !== marqueeState.hits.join('\u0000')
+  marqueeState.hits = hits
+  markMarqueePreview(hits, ctrl)
+  // 存证只随命中集变化发（矩形本身每拍都重绘；命中不变时事件无信息量）
+  if (changed) notify('desktop-marquee-updated', { rect: box, hits: [...hits] })
+}
+
+function resetMarquee(): void {
+  if (marqueeState.rect) {
+    marqueeState.rect.remove()
+    marqueeState.rect = null
+  }
+  marqueeState.zone = null
+  marqueeState.pointerId = null
+  marqueeState.active = false
+  marqueeState.hits = []
+  marqueeState.rectNow = null
+  markSelection()
+  declareHotZones()
+  // suppressed 在下一拍放开：pointerup 后浏览器还会补发一次 click（框选尾-click 不算空白清空）
+  setTimeout(() => { marqueeState.suppressed = false }, 0)
+}
+
+// ---- 分区空白清空选区（工单20）+ 框选起笔（工单21）：条目之外的分区容器面单击即清空
+// （CONTEXT.md「选区」）；同一起笔面按住拖动即框选。条目自身的点击会冒泡上来，按
+// closest 滤掉（各走各的语义）；分区热区只覆盖条目包围盒+边距，热区之外的空白本来
+// 就不进面板（透传真桌面，不到这里）。
 
 for (const zone of [dockZone, docZone]) {
+  zone.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('.ditem')) return // 起笔于条目：点选/拖拽摆位路径，不进框选
+    // 上一笔框选若因指针流中断而残留（up/cancel 未达，矩形/吞点击态悬空），起笔时静默收尸
+    if (marqueeState.active || marqueeState.rect) resetMarquee()
+    marqueeState.zone = zone
+    marqueeState.pointerId = e.pointerId
+    marqueeState.startX = e.clientX
+    marqueeState.startY = e.clientY
+    marqueeState.ctrl = e.ctrlKey
+    marqueeState.active = false
+    try { zone.setPointerCapture(e.pointerId) } catch { /* 旧环境退化：窗口内框选仍可用 */ }
+  })
+  zone.addEventListener('pointermove', (e) => {
+    if (marqueeState.pointerId !== e.pointerId || marqueeState.zone !== zone) return
+    if (!marqueeState.active) {
+      if (Math.hypot(e.clientX - marqueeState.startX, e.clientY - marqueeState.startY) < DRAG_THRESHOLD_PX) return
+      marqueeState.active = true
+      marqueeState.suppressed = true
+      const rect = document.createElement('div')
+      rect.id = 'marquee-rect'
+      document.body.appendChild(rect)
+      marqueeState.rect = rect
+      // 全窗热区：框选途中流出分区包围盒也不转穿透（拖拽同法）
+      window.deck.host.setHotZones([{ id: 'marquee', x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }])
+      notify('desktop-marquee-started', { from: { x: marqueeState.startX, y: marqueeState.startY } })
+    }
+    updateMarquee(e.clientX, e.clientY, marqueeState.ctrl)
+  })
+  zone.addEventListener('pointerup', (e) => {
+    if (marqueeState.pointerId !== e.pointerId) return
+    if (!marqueeState.active) {
+      resetMarquee() // 阈值内松手：尾随 click 走空白清空语义（普通点击）
+      return
+    }
+    const ctrl = marqueeState.ctrl
+    const hits = [...marqueeState.hits]
+    const rectNow = marqueeState.rectNow
+    applySelection(ctrl ? { type: 'ctrl-band', names: hits } : { type: 'band', names: hits })
+    notify('desktop-marquee-finished', { rect: rectNow, ctrl, hits, names: [...selection.names] })
+    resetMarquee()
+  })
+  zone.addEventListener('pointercancel', (e) => {
+    if (marqueeState.pointerId !== e.pointerId) return
+    if (marqueeState.active) notify('desktop-marquee-cancelled', {}) // 生灭存证的 abort 半边
+    resetMarquee() // 取消即作废：不提交命中，选区保持框选前原样
+  })
   zone.addEventListener('click', (e) => {
-    if (dragState.suppressed) return
+    if (dragState.suppressed || marqueeState.suppressed) return
     if ((e.target as HTMLElement).closest('.ditem')) return
     applySelection({ type: 'blank-click' })
   })
@@ -797,6 +938,15 @@ function zoneItemRect(zone: HTMLElement, id: string): HotzoneRect | null {
 }
 
 function declareHotZones(): void {
+  // 手势进行中（拖拽摆位/框选）保持全窗热区：1Hz 快照重建会走到这里重声明常规热区，
+  // 若中途覆写回小矩形，指针恰在分区包围盒外时面板转穿透、指针流即断（矩形残留屏上）。
+  if (dragState.active || marqueeState.active) {
+    window.deck.host.setHotZones([{
+      id: dragState.active ? 'drag' : 'marquee',
+      x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
+    }])
+    return
+  }
   const rects: HotzoneRect[] = Array.from(document.querySelectorAll<HTMLElement>('.card')).map((card) => {
     const r = card.getBoundingClientRect()
     return { id: card.id, x: r.left, y: r.top, w: r.width, h: r.height }
