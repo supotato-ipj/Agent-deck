@@ -232,6 +232,13 @@ export interface BridgeMethods {
    * 面板永不激活（focusable:false），渲染层 navigator.clipboard 因文档无焦点不可用。
    */
   'desktop/copy-path': { request: { path: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 复制多条桌面项完整路径进文本剪贴板（工单26 多选菜单「复制路径」）：每行一个完整
+   * 路径、以 \n 分隔（贴给终端/对话逐行可用），行序 = 名单序（选区插入序）。paths 全部
+   * 在当前扫描池内才执行（copy-path 同护栏——剪贴板内容只出自桌面项池），任一池外即
+   * 整份拒绝（剪贴板不写半份名单）。主进程执行：同 copy-path（面板永不激活）。
+   */
+  'desktop/copy-paths': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
   /** 拖拽摆位：name 入目标分区、排在 beforeName 之前（null = 末尾）；落盘并即时重编排 */
   'desktop/move': {
     request: { name: string; zone: DesktopZone; beforeName: string | null }

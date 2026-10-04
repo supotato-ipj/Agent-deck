@@ -28,7 +28,7 @@ export interface DataplaneServiceOptions {
  *
  * 本服务只做四件事：转发每拍快照（触发桥接推送）、预热图标（app.getFileIcon
  * 是主进程 API，按快照条目增量提取）、代理解析 lnk 目标（readShortcutLink 同理）、
- * 转发桌面承载写请求（move/reset；launch/reveal/copy-path 在主进程校验快照条目池后执行
+ * 转发桌面承载写请求（move/reset；launch/reveal/copy-path/copy-paths 在主进程校验快照条目池后执行
  * ——shell.openPath 与 clipboard 是主进程 API，reveal 校验段认主进程快照池）。
  * 子进程崩溃按退避自动重启：摆位与使用日志都在盘上，重启即收敛，硬件历史环
  * 归零重来（展示性曲线，可接受的降级）。
@@ -163,7 +163,7 @@ export class DataplaneService extends Service implements PanelDataPort {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
-  /** 扫描池护栏共通段（launch/reveal/copy-path）：主进程手里的最新快照条目池——渲染层
+  /** 扫描池护栏共通段（launch/reveal/copy-path/copy-paths）：主进程手里的最新快照条目池——渲染层
    * 可见的条目即本池成员（同一份数据），拒绝任意路径执行的防线不变。 */
   private poolGuardError(path: string): string | null {
     return this.desktop().items.some((i) => i.path === path) ? null : '桌面项不在当前扫描池内'
@@ -192,6 +192,18 @@ export class DataplaneService extends Service implements PanelDataPort {
     const guard = this.poolGuardError(path)
     if (guard) return Promise.resolve({ ok: false, error: guard })
     electronClipboardWrite(path)
+    return Promise.resolve({ ok: true })
+  }
+
+  /** 复制多条完整路径进文本剪贴板（工单26 多选菜单）：多行 \n 分隔（行序 = 名单序），
+   * copyPath 同款主进程校验——任一池外即整份拒绝（剪贴板不写半份名单）。 */
+  copyPaths(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    if (!paths.length) return Promise.resolve({ ok: false, error: '复制路径名单为空' })
+    for (const path of paths) {
+      const guard = this.poolGuardError(path)
+      if (guard) return Promise.resolve({ ok: false, error: guard })
+    }
+    electronClipboardWrite(paths.join('\n'))
     return Promise.resolve({ ok: true })
   }
 

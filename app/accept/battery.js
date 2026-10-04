@@ -2205,11 +2205,12 @@ async function main() {
 
     // —— P5.10 工单24 单项菜单：右键单个桌面项弹动作菜单（打开/打开所在位置/复制路径，
     // 工单25 起附手钉管理第 4 行——非手钉条目为 pin，见 P5.11 条件显隐用例）。
-    // 弹/切裁决（非选中条目先切单选、选中集内条目不弹）在离线测试（tests/renderer/
+    // 弹/切裁决（非选中条目先切单选、选中集内条目走多选菜单）在离线测试（tests/renderer/
     // selection.spec.ts itemMenuPlan）；reveal/copy-path 的扫描池护栏在离线内核测试
     // （desktop service spec + 契约 spec）。这里留真机端到端代表用例（#19 三缝约定）：
     // 右键切换选区后开层、打开=双击同款启动（探针标记文件实证）、定位弹资源管理器窗、
-    // 复制路径剪贴板实读、单选态右键不重复发选区存证、选中集内条目右键不弹。
+    // 复制路径剪贴板实读、单选态右键不重复发选区存证。（原「选中集内条目右键不弹」
+    // 随工单26 多选菜单落地退役——现弹两行动作菜单，端到端用例移步 P5.12。）
     await (async () => {
       const rect24 = w32.rectOf(hwnd);
       const savedClip24 = clipboardGet();
@@ -2220,7 +2221,7 @@ async function main() {
       let marker24Path = null;
       try {
         // 夹具：dock 探针 lnk（「打开」有行为级实证——目标进程写标记文件，双击启动用例同法）
-        // + 文档区探针 docx（保「池内 ≥2 条」，多选用例不依赖用户桌面内容）
+        // + 文档区探针 docx（保「池内不止一条」，用例不依赖用户桌面内容）
         const t24 = Date.now();
         probe24Name = `DECK24-LNK-${t24}.lnk`;
         probe24Path = path.join(seedScan.user, probe24Name);
@@ -2240,11 +2241,6 @@ async function main() {
           x: rect24.left + Math.round((probeRect.rect.x + probeRect.rect.w / 2) * f),
           y: rect24.top + Math.round((probeRect.rect.y + probeRect.rect.h / 2) * f),
         };
-        // dock 空白点（P5.9 20c 同法）：dock 顶排条目上沿之上 6px——分区热区边距内的非条目面
-        const appR24 = settled24 && (settled24.rects || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
-        const pt24Blank = appR24
-          ? { x: rect24.left + Math.round((appR24.rect.x + appR24.rect.w / 2) * f), y: rect24.top + Math.round((appR24.rect.y - 6) * f) }
-          : null;
         // 右键条目原语：返回 { t0, opened }（opened 含 x/y 与行矩形），未弹返回 null
         const openItemMenuAt = async (label) => {
           const hit = await ensurePanelHit(ptProbe, hwnd);
@@ -2377,48 +2373,8 @@ async function main() {
           }
         }
 
-        // e. 选中集内条目右键不弹（多选菜单工单接管）：空白菜单 SELECT ALL（池内 ≥2 条，
-        //    docx 探针保底）→ 右键探针（选中集内）→ 无开层、无选区副作用 → 空白单击清场
-        {
-          const hitB = pt24Blank && await ensurePanelHit(pt24Blank, hwnd);
-          if (!hitB || !hitB.ok) {
-            rep.fail(`选中集右键用例前置失败：${!pt24Blank ? '空白点无锚（app 区矩形缺失）' : hitB.why}`);
-          } else {
-            const tE0 = Date.now();
-            w32.clickPhys(pt24Blank.x, pt24Blank.y, 'right');
-            const sessE = await waitEvent('desktop-menu-opened', (e) => e.t >= tE0, 4000);
-            if (!sessE) {
-              rep.fail('选中集右键用例：空白菜单未弹出（前置断链）');
-            } else {
-              const rowE = (sessE.rows || []).find((r) => r.id === 'select-all');
-              const tE1 = rowE
-                ? (w32.clickPhys(rect24.left + Math.round((rowE.x + rowE.w / 2) * f), rect24.top + Math.round((rowE.y + rowE.h / 2) * f), 'left'), Date.now())
-                : null;
-              const allE = tE1 && await waitEvent('desktop-selection-all', (e) => e.t >= tE1 && (e.names || []).length >= 2, 4000);
-              if (!allE) {
-                rep.fail('选中集右键用例：select-all 未达成（名单 <2 条或行矩形缺失）');
-              } else {
-                const hitProbe = await ensurePanelHit(ptProbe, hwnd);
-                if (!hitProbe.ok) {
-                  rep.fail(`选中集右键用例条目前置失败：${hitProbe.why}`);
-                } else {
-                  const tE2 = Date.now();
-                  w32.clickPhys(ptProbe.x, ptProbe.y, 'right');
-                  const ghostE = await waitEvent('desktop-menu-opened', (e) => e.t >= tE2, 1500);
-                  const sideEffect = readEvents().find((e) => e.t >= tE2
-                    && (e.type === 'desktop-selected' || e.type === 'desktop-selection-cleared' || e.type === 'desktop-selection-toggled'));
-                  !ghostE && !sideEffect
-                    ? rep.pass('选中集内条目右键不弹：desktop-menu-opened 未出现且无选区副作用（多选菜单工单接管）')
-                    : rep.fail(`选中集内条目右键异常弹出/副作用：menu=${JSON.stringify(ghostE)} side=${JSON.stringify(sideEffect)}`);
-                  // 清场：空白单击清掉全选（下段与电池余段回到无选区现场）
-                  const hitClear24 = await ensurePanelHit(pt24Blank, hwnd);
-                  if (hitClear24.ok) w32.clickPhys(pt24Blank.x, pt24Blank.y, 'left');
-                  await sleep(400);
-                }
-              }
-            }
-          }
-        }
+        // e.（原「选中集内条目右键不弹」占位用例随工单26 退役：现弹多选菜单，
+        //    端到端断言移步 P5.12——条目集收敛、选区不动、打开全部与多行复制路径）
       } finally {
         for (const p of [probe24Path, doc24Path, marker24Path]) {
           try { if (p) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
@@ -2569,6 +2525,206 @@ async function main() {
       if (doc25Path) {
         const gone25 = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(path.basename(doc25Path)), 6000);
         gone25 || rep.fail('手钉管理文档探针清理后未消失');
+      }
+      w32.moveMousePhys(safePt.x, safePt.y);
+    })();
+
+    // —— P5.12 工单26 多选菜单与右键选区语义：选区多于一条且右键命中选中集内条目时，
+    // 菜单作用于整个选区、条目集收敛为【打开全部 / 复制路径（多行）】；右键非选中条目
+    // 仍走单项菜单（先切单选）。弹/切裁决矩阵在离线测试（selection.spec.ts itemMenuPlan），
+    // 多行拼接与整份拒绝护栏在离线内核测试（desktop service spec + 契约 spec）。这里留
+    // 真机端到端代表用例（#19 三缝约定）：Ctrl 点选两条 → 右键集内条目弹两行动作菜单
+    // （无选区副作用）→ 打开全部逐项启动（存证按选区插入序 + 探针标记双落盘）→ 多选
+    // 复制路径剪贴板实读两行（\n 分隔、行序同选区）→ 右键集外条目仍单项菜单（#24 回归）。
+    await (async () => {
+      const rect26 = w32.rectOf(hwnd);
+      const savedClip26 = clipboardGet();
+      const sameNames26 = (a, b) => (a || []).join() === b.join();
+      let probeA26Path = null;
+      let probeB26Path = null;
+      let doc26Path = null;
+      let markerA26Path = null;
+      let markerB26Path = null;
+      try {
+        // 夹具：两条探针 lnk（打开全部的行为级实证——目标进程各写标记文件，P5.6 双击全开同法）
+        // + 文档区探针 docx（选区外第三条，集外右键回归用例）
+        const t26 = Date.now();
+        const lnkA26 = `DECK26-LNK-${t26}-A.lnk`;
+        const lnkB26 = `DECK26-LNK-${t26}-B.lnk`;
+        const doc26Name = `DECK26-DOC-${t26}.docx`;
+        probeA26Path = path.join(seedScan.user, lnkA26);
+        probeB26Path = path.join(seedScan.user, lnkB26);
+        doc26Path = path.join(seedScan.user, doc26Name);
+        markerA26Path = path.join(os.tmpdir(), `deck26-marker-${t26}-A.txt`);
+        markerB26Path = path.join(os.tmpdir(), `deck26-marker-${t26}-B.txt`);
+        createProbeLnk(probeA26Path, markerA26Path);
+        createProbeLnk(probeB26Path, markerB26Path);
+        fs.writeFileSync(doc26Path, 'probe');
+        const joined26 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(lnkA26)
+          && (e.names || []).includes(lnkB26) && (e.names || []).includes(doc26Name), 8000);
+        joined26 || rep.fail(`多选菜单探针未入池（${lnkA26}/${lnkB26}/${doc26Name}）`);
+        const settled26 = await waitStable('desktop-rendered', 1500, 8000);
+        const rA26 = settled26 && (settled26.rects || []).find((r) => r.name === lnkA26 && r.rect);
+        const rB26 = settled26 && (settled26.rects || []).find((r) => r.name === lnkB26 && r.rect);
+        const rDoc26 = settled26 && (settled26.rects || []).find((r) => r.name === doc26Name && r.rect);
+        if (!rA26 || !rB26 || !rDoc26) {
+          rep.fail(`多选菜单用例几何前置缺失：A=${JSON.stringify(rA26 && rA26.rect)} B=${JSON.stringify(rB26 && rB26.rect)} doc=${JSON.stringify(rDoc26 && rDoc26.rect)}`);
+          return;
+        }
+        const ptOf26 = (r) => ({ x: rect26.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect26.top + Math.round((r.rect.y + r.rect.h / 2) * f) });
+        let ptA26 = ptOf26(rA26); // 打开全部入使用频次后 dock 可能重排：b 段末重取
+        const ctrlClick26 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return false; }
+          w32.send([w32.keyInput(VK_CONTROL, w32.KEYDOWN)]);
+          await sleep(60);
+          w32.clickPhys(pt.x, pt.y, 'left');
+          await sleep(60);
+          w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
+          return true;
+        };
+        // 右键/行点击原语（P5.10/11 同款）
+        const rightClick26 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(pt.x, pt.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        const clickRow26 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          const pt = { x: rect26.left + Math.round((row.x + row.w / 2) * f), y: rect26.top + Math.round((row.y + row.h / 2) * f) };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+
+        // 前置：点选 A + Ctrl 补选 B → 选中集 [A, B]（插入序 = 逐项启动顺序）
+        const hitA26 = await ensurePanelHit(ptA26, hwnd);
+        if (!hitA26.ok) { rep.fail(`多选菜单选区前置失败：${hitA26.why}`); return; }
+        const tSel26 = Date.now();
+        w32.clickPhys(ptA26.x, ptA26.y, 'left');
+        const selA26 = await waitEvent('desktop-selected', (e) => e.t >= tSel26 && e.name === lnkA26 && sameNames26(e.names, [lnkA26]), 4000);
+        const okCtrl26 = selA26 && await ctrlClick26(ptOf26(rB26), '多选菜单-Ctrl 补选');
+        const two26 = okCtrl26 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSel26 && e.selected === true && sameNames26(e.names, [lnkA26, lnkB26]), 4000);
+        if (!two26) {
+          rep.fail('多选菜单用例前置（选中集两条）未达成');
+          return;
+        }
+
+        // a. 右键选中集内条目：弹多选菜单（条目集收敛为 open-all/copy-path 两行），
+        //    选区不动（desktop-selected/toggled/cleared 无一副作用）
+        const sessA26 = await rightClick26(ptA26, '多选菜单-集内右键');
+        if (!sessA26) {
+          rep.fail('选中集内条目右键未弹多选菜单（desktop-menu-opened 未见）');
+          return;
+        }
+        sameNames26(sessA26.opened.items, ['open-all', 'copy-path']) && (sessA26.opened.rows || []).length === 2
+          ? rep.pass(`右键选中集内条目弹多选菜单：条目集=[${(sessA26.opened.items || []).join(', ')}] 两行矩形随开层存证（菜单作用于整集）`)
+          : rep.fail(`多选菜单条目集异常：${JSON.stringify({ items: sessA26.opened.items, rows: sessA26.opened.rows })}`);
+        const sideEffect26 = readEvents().find((e) => e.t >= sessA26.t0 && e.t <= sessA26.opened.t
+          && (e.type === 'desktop-selected' || e.type === 'desktop-selection-toggled' || e.type === 'desktop-selection-cleared'));
+        !sideEffect26
+          ? rep.pass('多选菜单开层无选区副作用：desktop-selected/toggled/cleared 均未见（选区保持两条）')
+          : rep.fail(`多选菜单开层选区被改动：${JSON.stringify(sideEffect26)}`);
+        safeShot('26-multi-menu-open', { left: rect26.left, top: rect26.top, right: rect26.right, bottom: rect26.bottom });
+
+        // b. 打开全部 = 整集逐项启动：desktop-launch-clicked 按选区插入序 [A, B]（via=ctx-menu）
+        //    + desktop-launched 双 ok + 探针标记双落盘（行为级）
+        {
+          const tB26 = clickRow26(sessA26.opened.rows, 'open-all');
+          if (!tB26) {
+            rep.fail('打开全部用例开层存证缺 open-all 行矩形');
+          } else {
+            const closedB26 = await waitEvent('desktop-menu-closed', (e) => e.t >= tB26 && e.reason === 'action', 4000);
+            const clickedB26 = await waitEvent('desktop-launch-clicked', (e) => e.t >= tB26 && e.name === lnkB26 && e.via === 'ctx-menu', 6000);
+            const clickedOrder26 = readEvents().filter((e) => e.type === 'desktop-launch-clicked' && e.t >= tB26 && e.via === 'ctx-menu').map((e) => e.name);
+            const launchedA26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === lnkA26 && e.ok, 6000);
+            const launchedB26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === lnkB26 && e.ok, 6000);
+            let markerOk26 = { A: false, B: false };
+            const markerDeadline26 = Date.now() + 10000;
+            while (Date.now() < markerDeadline26 && !(markerOk26.A && markerOk26.B)) {
+              for (const [k, mp] of [['A', markerA26Path], ['B', markerB26Path]]) {
+                if (markerOk26[k]) continue;
+                try { markerOk26[k] = fs.readFileSync(mp, 'utf8').trim() === 'ok'; } catch { markerOk26[k] = false; }
+              }
+              if (!(markerOk26.A && markerOk26.B)) await sleep(250);
+            }
+            closedB26 && clickedB26 && sameNames26(clickedOrder26, [lnkA26, lnkB26]) && launchedA26 && launchedB26 && markerOk26.A && markerOk26.B
+              ? rep.pass(`打开全部动作（菜单行 → desktop/launch 逐项）：clicked 按选区插入序 [${clickedOrder26.join(', ')}]（via=ctx-menu）+ launched 双 ok + 探针标记双落盘`)
+              : rep.fail(`打开全部存证异常：closed=${JSON.stringify(closedB26)} clicked=${JSON.stringify(clickedOrder26)} launchedA=${JSON.stringify(launchedA26)} launchedB=${JSON.stringify(launchedB26)} markers=${JSON.stringify(markerOk26)}`);
+            safeShot('26-open-all-launched');
+            // dock 可能因频次变化重排：重取探针矩形再进 c（右键点错条目 = 假败）
+            const settledB26 = await waitStable('desktop-rendered', 1500, 8000);
+            const rA26b = settledB26 && (settledB26.rects || []).find((r) => r.name === lnkA26 && r.rect);
+            if (rA26b) ptA26 = ptOf26(rA26b);
+          }
+        }
+
+        // c. 多选复制路径：再右键集内条目（选区仍 [A, B]——b 段菜单动作不动选区）→
+        //    copy-path 行 → desktop-paths-copy-clicked/copied 存证 + 剪贴板实读两行
+        {
+          const sessC26 = await rightClick26(ptA26, '多选菜单-复制路径');
+          if (!sessC26) {
+            rep.fail('多选复制路径用例开层失败（desktop-menu-opened 未见）');
+          } else {
+            sameNames26(sessC26.opened.items, ['open-all', 'copy-path']) || rep.fail(`复制路径用例开层条目集异常（选区应仍两条）：${JSON.stringify(sessC26.opened.items)}`);
+            const tC26 = clickRow26(sessC26.opened.rows, 'copy-path');
+            if (!tC26) {
+              rep.fail('多选复制路径用例开层存证缺 copy-path 行矩形');
+            } else {
+              const clickedC26 = await waitEvent('desktop-paths-copy-clicked', (e) => e.t >= tC26 && sameNames26(e.names, [lnkA26, lnkB26]) && e.via === 'ctx-menu', 4000);
+              const copiedC26 = await waitEvent('desktop-paths-copied', (e) => e.t >= tC26 && e.ok === true && sameNames26(e.names, [lnkA26, lnkB26]), 6000);
+              const expectClip26 = `${probeA26Path}\n${probeB26Path}`;
+              let clip26 = '';
+              const clipDeadline26 = Date.now() + 8000;
+              while (Date.now() < clipDeadline26) {
+                clip26 = clipboardGet() || '';
+                if (clip26.replace(/\r\n/g, '\n').trim() === expectClip26) break;
+                await sleep(300);
+              }
+              clickedC26 && copiedC26 && clip26.replace(/\r\n/g, '\n').trim() === expectClip26
+                ? rep.pass('多选复制路径动作（desktop/copy-paths）：ok=true 存证 + 剪贴板实读两行 = [A 路径, B 路径]（\\n 分隔，行序同选区插入序）')
+                : rep.fail(`多选复制路径存证异常：clicked=${JSON.stringify(clickedC26)} copied=${JSON.stringify(copiedC26)} 剪贴板=${JSON.stringify(clip26)}`);
+              safeShot('26-multi-copy-paths');
+            }
+          }
+        }
+
+        // d. 右键集外条目仍走单项菜单（#24 回归）：右键 docx（非选中）→ 先切单选
+        //    （desktop-selected 先于开层）→ 条目集 = 单项四动作；随后收菜单、Ctrl 点回
+        //    清掉选区（电池余段回到无选区现场）
+        {
+          const sessD26 = await rightClick26(ptOf26(rDoc26), '多选菜单-集外右键');
+          if (!sessD26) {
+            rep.fail('右键集外条目未弹单项菜单（desktop-menu-opened 未见）');
+          } else {
+            const selD26 = await waitEvent('desktop-selected', (e) => e.t >= sessD26.t0 && e.name === doc26Name && sameNames26(e.names, [doc26Name]), 4000);
+            selD26 && selD26.t <= sessD26.opened.t
+              ? rep.pass('右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）')
+              : rep.fail(`集外右键切单选存证异常：${JSON.stringify(selD26)}`);
+            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'pin'])
+              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选两动作）`)
+              : rep.fail(`集外右键条目集异常：${JSON.stringify(sessD26.opened.items)}`);
+            const outPt26 = { x: rect26.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rect26.top + Math.round(600 * f) };
+            w32.clickPhys(outPt26.x, outPt26.y, 'left'); // 开层全窗热区承接：收菜单且吞没（无选区副作用）
+            await sleep(400);
+            await ctrlClick26(ptOf26(rDoc26), '多选菜单-清场'); // 切换出选：选区归空
+          }
+        }
+      } finally {
+        for (const p of [probeA26Path, probeB26Path, doc26Path, markerA26Path, markerB26Path]) {
+          try { if (p) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
+        }
+        clipboardSet(savedClip26); // 电池不得改变用户剪贴板内容（07 搜索段同法）
+      }
+      if (probeA26Path && probeB26Path && doc26Path) {
+        const gone26 = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(path.basename(probeA26Path))
+          && !(e.names || []).includes(path.basename(probeB26Path)) && !(e.names || []).includes(path.basename(doc26Path)), 6000);
+        gone26
+          ? rep.pass('清理多选菜单探针后条目同步消失（面板与磁盘一致）')
+          : rep.fail('多选菜单探针清理后未消失');
       }
       w32.moveMousePhys(safePt.x, safePt.y);
     })();

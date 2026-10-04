@@ -6,7 +6,7 @@ import { createKernel } from '../src/main/kernel'
 import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
-import type { PanelSnapshot, PluginInfo } from '../src/shared/contract'
+import type { DesktopItem, PanelSnapshot, PluginInfo } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
@@ -216,6 +216,36 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
       expect(outsideCopy.ok).toBe(false)
       expect(revealed).toHaveLength(1)
       expect(copied).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/copy-paths（工单26 多选菜单）：池内整份执行（多行 \\n），任一池外整份拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const copied: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          copyText: (t: string) => { copied.push(t) },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const pathOf = (name: string) => (snap.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      await expect(ctx.bridge.invoke('desktop/copy-paths', { paths: [pathOf('A.lnk'), pathOf('B.docx')] })).resolves.toEqual({ ok: true })
+      expect(copied).toEqual([`${pathOf('A.lnk')}\n${pathOf('B.docx')}`])
+      const outside = await ctx.bridge.invoke('desktop/copy-paths', { paths: [pathOf('A.lnk'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(copied).toHaveLength(1) // 整份拒绝：剪贴板不写半份名单
+      await expect(ctx.bridge.invoke('desktop/copy-paths', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '复制路径名单为空' })
     } finally {
       await ctx.stop()
     }

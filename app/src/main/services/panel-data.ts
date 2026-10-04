@@ -22,6 +22,8 @@ export interface PanelDataPort {
   reveal(path: string): Promise<{ ok: boolean; error?: string }>
   /** 复制完整路径进文本剪贴板（工单24） */
   copyPath(path: string): Promise<{ ok: boolean; error?: string }>
+  /** 复制多条完整路径进文本剪贴板，多行 \n 分隔（工单26 多选菜单） */
+  copyPaths(paths: readonly string[]): Promise<{ ok: boolean; error?: string }>
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
   /** 钉到应用区（工单25）：进手钉清单前段并即时重编排 */
@@ -76,6 +78,10 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   copyPath(path: string): Promise<{ ok: boolean; error?: string }> {
     return Promise.resolve(this.ctx.desktop.copyPath(path))
+  }
+
+  copyPaths(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.copyPaths(paths))
   }
 
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {
