@@ -1795,6 +1795,130 @@ async function main() {
       }
     })();
 
+    // —— P5.8 工单22 批量拖拽摆位：整组按选区插入序迁移、跨区以落点分区为准、
+    // 手钉组员跳过且 skipped 名单经存证上报、ghost「N 项」徽标（N=实际拖动条数，
+    // 不含 skipped）。内核 skipped/参照校验/落盘语义在离线测试（tests/desktop/
+    // service.spec.ts + tests/contract.spec.ts），这里留真机端到端代表用例（#19 三缝约定）。
+    await (async () => {
+      const rectB = w32.rectOf(hwnd);
+      const ptOfB = (r) => ({ x: rectB.left + Math.round((r.x + r.w / 2) * f), y: rectB.top + Math.round((r.y + r.h / 2) * f) });
+      const sameNames22 = (a, b) => (a || []).join() === b.join();
+      const ctrlClick22 = async (pt, label) => {
+        const hit = await ensurePanelHit(pt, hwnd);
+        if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return false; }
+        w32.send([w32.keyInput(VK_CONTROL, w32.KEYDOWN)]);
+        await sleep(60);
+        w32.clickPhys(pt.x, pt.y, 'left');
+        await sleep(60);
+        w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
+        return true;
+      };
+      // 步进拖拽（06/21 同法）：按住起笔条目 → 步进到落点 →（可选驻留回调：ghost 实拍）→ 抬键
+      const dragBatch = async (from, to, onHold) => {
+        const hit = await ensurePanelHit(from, hwnd);
+        if (!hit.ok) { rep.fail(`批量拖拽前置失败：${hit.why}`); return false; }
+        w32.send([w32.mouseInput(0, 0, w32.LEFTDOWN)]);
+        const steps = 16;
+        for (let s = 1; s <= steps; s++) {
+          await sleep(22);
+          w32.moveMousePhys(from.x + Math.round(((to.x - from.x) * s) / steps), from.y + Math.round(((to.y - from.y) * s) / steps));
+        }
+        await sleep(140); // 落点稳定后再驻留/抬键（elementFromPoint 取参照条目）
+        if (onHold) await onHold();
+        w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
+        w32.moveMousePhys(safePt.x, safePt.y);
+        return true;
+      };
+
+      // a. 夹具：两条 dock 探针 lnk（应用区）+ 一条 docx 探针（文档区落点锚）；
+      //    手钉种子 pinnedSeed 仍在 dock 前段（P5.5 恢复出厂保留手钉）。
+      const t22 = Date.now();
+      const lnkA22 = `DECK22-LNK-${t22}-A.lnk`;
+      const lnkB22 = `DECK22-LNK-${t22}-B.lnk`;
+      const doc22 = `DECK22-DOC-${t22}.docx`;
+      const paths22 = [lnkA22, lnkB22, doc22].map((n) => path.join(seedScan.user, n));
+      const markers22 = [1, 2].map((i) => path.join(__dirname, 'evidence', `22-marker-${t22}-${i}.txt`));
+      try {
+        createProbeLnk(paths22[0], markers22[0]);
+        createProbeLnk(paths22[1], markers22[1]);
+        fs.writeFileSync(paths22[2], 'probe');
+        const joined22 = await waitEvent('desktop-rendered', (e) => [lnkA22, lnkB22, doc22].every((n) => (e.names || []).includes(n)), 8000);
+        joined22 || rep.fail(`批量拖拽探针未入池（lnk/doc=${[lnkA22, lnkB22, doc22].join(', ')}）`);
+        if (!pinnedSeed) {
+          rep.fail('批量拖拽用例缺手钉种子（用户桌面无 lnk，P5.5 种子段已注记降级）');
+          return;
+        }
+
+        const settled22 = await waitStable('desktop-rendered', 1500, 8000);
+        const rect22 = (name) => {
+          const r = ((settled22 && settled22.rects) || []).find((x) => x.name === name && x.rect);
+          return r ? r.rect : null;
+        };
+        const rA = rect22(lnkA22);
+        const rB = rect22(lnkB22);
+        const rP = rect22(pinnedSeed);
+        const rDoc = rect22(doc22);
+        if (!rA || !rB || !rP || !rDoc) {
+          rep.fail(`批量拖拽用例矩形缺失：A=${!!rA} B=${!!rB} pinned=${!!rP} doc锚=${!!rDoc}`);
+          return;
+        }
+
+        // b. 组选区：单击 A → Ctrl 补选 B → Ctrl 补选手钉（插入序 [A, B, pinnedSeed]）
+        const tSet22 = Date.now();
+        const hitA = await ensurePanelHit(ptOfB(rA), hwnd);
+        if (!hitA.ok) { rep.fail(`批量拖拽点选前置失败：${hitA.why}`); return; }
+        w32.clickPhys(ptOfB(rA).x, ptOfB(rA).y, 'left');
+        const selA = await waitEvent('desktop-selected', (e) => e.t >= tSet22 && e.name === lnkA22, 4000);
+        selA || rep.fail('批量拖拽前置：单击选中 A 未见 desktop-selected');
+        const okB = selA && await ctrlClick22(ptOfB(rB), '批量-Ctrl 补选 B');
+        const twoB = okB && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSet22 && sameNames22(e.names, [lnkA22, lnkB22]), 4000);
+        twoB || rep.fail('批量拖拽前置：Ctrl 补选 B 未达成');
+        const okP = twoB && await ctrlClick22(ptOfB(rP), '批量-Ctrl 补选手钉');
+        const threeB = okP && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSet22 && (e.names || []).length === 3, 4000);
+        threeB || rep.fail('批量拖拽前置：Ctrl 补选手钉未达成（选区非 3 条）');
+
+        // c. 抓起手钉条目整组拖入文档区（落点=docx 探针之前）：ghost 徽标应报 2 项
+        //    （N=3 减手钉 1），落位应跳过手钉、其余按插入序迁移，手钉原地不动。
+        if (!threeB) return;
+        const tDrag22 = Date.now();
+        const dragOk = await dragBatch(ptOfB(rP), ptOfB(rDoc), async () => {
+          try { // capture 是 spawnSync 同步实拍：失败仅丢一张截图，不拖累语义断言
+            capture({ left: rectB.left, top: rectB.top, right: rectB.right, bottom: rectB.bottom }, '22-batch-ghost');
+          } catch (err) {
+            rep.note(`批量 ghost 实拍失败（不阻塞语义断言）：${err && err.message}`);
+          }
+        });
+        if (!dragOk) return;
+        const started22 = await waitEvent('desktop-batch-drag-started', (e) => e.t >= tDrag22 && sameNames22(e.names, [lnkA22, lnkB22, pinnedSeed]) && e.count === 2, 4000);
+        started22
+          ? rep.pass(`ghost「N 项」徽标：desktop-batch-drag-started count=${started22.count}（N=3 减手钉 1，不含 skipped）`)
+          : rep.fail('ghost 徽标存证异常：desktop-batch-drag-started 未见或 count≠2');
+        const clicked22 = await waitEvent('desktop-move-batch-clicked', (e) => e.t >= tDrag22 && e.zone === 'doc' && sameNames22(e.names, [lnkA22, lnkB22, pinnedSeed]), 4000);
+        clicked22 || rep.fail('批量落位意图存证异常：desktop-move-batch-clicked 未见（zone=doc 整组名单）');
+        const done22 = await waitEvent('desktop-moved-batch', (e) => e.t >= tDrag22 && e.ok === true && sameNames22(e.moved, [lnkA22, lnkB22]) && sameNames22(e.skipped, [pinnedSeed]), 6000);
+        done22
+          ? rep.pass(`整组落位 + 手钉 skipped 如实上报：moved=[${lnkA22}, ${lnkB22}]，skipped=[${pinnedSeed}]（desktop-moved-batch ok=true）`)
+          : rep.fail(`批量落位/skipped 存证异常：${JSON.stringify(done22)}`);
+        const relaid = await waitEvent('desktop-rendered', (e) => {
+          const de = (e.docEntries || []).map((d) => d.name);
+          const zoneOf = {};
+          for (const r of e.rects || []) zoneOf[r.name] = r.zone;
+          const dock0 = (e.dock || [])[0] || {};
+          return e.t >= tDrag22 && de.includes(lnkA22) && de.includes(lnkB22)
+            && de.indexOf(lnkA22) < de.indexOf(lnkB22) // 组内相对序 = 选区插入序
+            && zoneOf[lnkA22] === 'doc' && zoneOf[lnkB22] === 'doc' // 跨区整组换区，落点分区为准
+            && dock0.name === pinnedSeed && dock0.source === 'pinned'; // 手钉原地不动
+        }, 6000);
+        relaid
+          ? rep.pass(`跨区整组换区：落点分区=doc，[A, B] 按插入序落位；手钉「${pinnedSeed}」仍占 dock 前段（source=pinned）`)
+          : rep.fail('批量落位后编排未达预期（相对序/换区/手钉原地有一不符）');
+        capture({ left: rectB.left, top: rectB.top, right: rectB.right, bottom: rectB.bottom }, '22-batch-moved');
+      } finally {
+        for (const p of paths22) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
+        for (const m of markers22) { try { fs.unlinkSync(m); } catch { /* 尽力清理 */ } }
+      }
+    })();
+
     // —— P7S 工单07 搜索并入：accept_search 电池适配（scripts/accept_search.py 随 Tk 窗退役）——
     // 链路：探针文件直连引擎取证 → 热区点击激活（前台门校验）→ 剪贴板粘贴探针词
     // （绕开输入法合成，旧电池同法；IME 机制本体由探针01-D 在同窗体实证）→ 实时结果 →

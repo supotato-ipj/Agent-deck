@@ -176,6 +176,10 @@ export class DataplaneService extends Service implements PanelDataPort {
     return this.call('desktop/move', { name, zone, beforeName }) as Promise<{ ok: boolean; error?: string }>
   }
 
+  moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
+    return this.call('desktop/move-batch', { names, zone, beforeName }) as Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
+  }
+
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {
     return this.call('desktop/reset-layout', null) as Promise<{ ok: boolean; cleared: number }>
   }

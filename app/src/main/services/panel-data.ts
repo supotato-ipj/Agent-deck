@@ -19,6 +19,7 @@ export interface PanelDataPort {
   icon(key: string): Promise<string | null>
   launch(path: string): Promise<{ ok: boolean; error?: string }>
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
+  moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
   resetLayout(): Promise<{ ok: boolean; cleared: number }>
 }
 
@@ -63,6 +64,10 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {
     return Promise.resolve(this.ctx.desktop.move(name, zone, beforeName))
+  }
+
+  moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.moveBatch(names, zone, beforeName))
   }
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {

@@ -327,3 +327,136 @@ describe('DesktopService（工单06 编排与摆位）', () => {
     }
   })
 })
+
+describe('DesktopService（工单22 批量拖拽摆位）', () => {
+  it('moveBatch：整组按选区插入序迁移到落点（区内），落盘一次', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.lnk'), entry('c.lnk'), entry('d.lnk')])
+    await w.ctx.start()
+    try {
+      const r = w.svc.moveBatch(['d.lnk', 'b.lnk'], 'app', 'a.lnk')
+      expect(r).toEqual({ ok: true, moved: ['d.lnk', 'b.lnk'], skipped: [] })
+      expect(w.svc.state().plan.dock.map((d) => d.name)).toEqual(['d.lnk', 'b.lnk', 'a.lnk', 'c.lnk'])
+      expect(w.written).toHaveLength(1)
+      expect(JSON.parse(w.storeText!)).toMatchObject({ pinned: [], dock: ['d.lnk', 'b.lnk'], docs: [] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('moveBatch 跨区：落点分区即整组目标分区（应用组拖入文档区）', async () => {
+    const w = fakeWorld([
+      entry('a.lnk'), entry('b.lnk'),
+      entry('n1.docx', { mtimeMs: 100 }), entry('n2.docx', { mtimeMs: 200 }),
+    ])
+    await w.ctx.start()
+    try {
+      const r = w.svc.moveBatch(['a.lnk', 'b.lnk'], 'doc', null)
+      expect(r).toEqual({ ok: true, moved: ['a.lnk', 'b.lnk'], skipped: [] })
+      const s = w.svc.state()
+      expect(s.items.find((i) => i.name === 'a.lnk')?.zone).toBe('doc')
+      expect(s.items.find((i) => i.name === 'b.lnk')?.zone).toBe('doc')
+      // lnk 归 other 组、docx 归 office 组（组序固定：office 在前）；组内显式摆位排首段、相对序保持
+      expect(s.plan.docs.map((d) => [d.name, d.group])).toEqual([
+        ['n2.docx', 'office'], ['n1.docx', 'office'], ['a.lnk', 'other'], ['b.lnk', 'other'],
+      ])
+      expect(s.plan.dock).toEqual([])
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('moveBatch 含手钉：手钉跳过、其余落位；skipped 如实回报，pinned 清单不动', async () => {
+    const w = fakeWorld(
+      [entry('pin.lnk'), entry('hot.lnk'), entry('cold.lnk')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: ['pin.lnk'], dock: [], docs: [] }) },
+    )
+    await w.ctx.start()
+    try {
+      const r = w.svc.moveBatch(['cold.lnk', 'pin.lnk'], 'app', 'hot.lnk')
+      expect(r).toEqual({ ok: true, moved: ['cold.lnk'], skipped: ['pin.lnk'] })
+      const s = w.svc.state()
+      expect(s.plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['pin.lnk', 'pinned'],
+        ['cold.lnk', 'placed'],
+        ['hot.lnk', 'recommended'],
+      ])
+      expect(JSON.parse(w.storeText!)).toMatchObject({ pinned: ['pin.lnk'], dock: ['cold.lnk'] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('moveBatch：手钉拖去文档区同样跳过（批量永不变更手钉栏位，挪手钉走单选跨区通道）', async () => {
+    const w = fakeWorld(
+      [entry('pin.lnk'), entry('note.docx')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: ['pin.lnk'], dock: [], docs: [] }) },
+    )
+    await w.ctx.start()
+    try {
+      const r = w.svc.moveBatch(['pin.lnk'], 'doc', 'note.docx')
+      expect(r).toEqual({ ok: true, moved: [], skipped: ['pin.lnk'] })
+      expect(w.written).toHaveLength(0) // 全跳过 = 无变化不落盘
+      expect(w.svc.state().items.find((i) => i.name === 'pin.lnk')?.zone).toBe('app')
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('moveBatch：池外名字跳过、重复名字防御，其余照常', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.lnk')])
+    await w.ctx.start()
+    try {
+      const r = w.svc.moveBatch(['ghost.lnk', 'a.lnk', 'a.lnk'], 'app', null)
+      expect(r).toEqual({ ok: true, moved: ['a.lnk'], skipped: ['ghost.lnk'] })
+      expect(w.svc.state().plan.dock.map((d) => d.name)).toEqual(['a.lnk', 'b.lnk'])
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('moveBatch 参照校验整批拒绝：池外参照/他区参照/被拖组内参照/空名单，一个都不摆', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.lnk'), entry('note.docx')])
+    await w.ctx.start()
+    try {
+      expect(w.svc.moveBatch(['a.lnk'], 'app', 'ghost.lnk')).toEqual({
+        ok: false, moved: [], skipped: [], error: '参照条目不在当前扫描池内',
+      })
+      expect(w.svc.moveBatch(['a.lnk'], 'app', 'note.docx')).toEqual({
+        ok: false, moved: [], skipped: [], error: '参照条目不在目标分区',
+      })
+      expect(w.svc.moveBatch(['a.lnk', 'b.lnk'], 'app', 'b.lnk')).toEqual({
+        ok: false, moved: [], skipped: [], error: '参照条目在被拖组内',
+      })
+      expect(w.svc.moveBatch([], 'app', null)).toEqual({
+        ok: false, moved: [], skipped: [], error: '批量摆位名单为空',
+      })
+      expect(w.written).toHaveLength(0)
+      expect(w.svc.state().plan.dock.map((d) => d.name)).toEqual(['a.lnk', 'b.lnk'])
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('moveBatch 落盘重启后整组位置保持', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.lnk'), entry('c.lnk')])
+    await w.ctx.start()
+    try {
+      w.svc.moveBatch(['c.lnk', 'a.lnk'], 'app', null)
+    } finally {
+      await w.ctx.stop()
+    }
+    const w2 = fakeWorld([entry('a.lnk'), entry('b.lnk'), entry('c.lnk')], [], { store: w.storeText })
+    await w2.ctx.start()
+    try {
+      expect(w2.svc.state().plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['c.lnk', 'placed'],
+        ['a.lnk', 'placed'],
+        ['b.lnk', 'recommended'],
+      ])
+    } finally {
+      await w2.ctx.stop()
+    }
+  })
+})

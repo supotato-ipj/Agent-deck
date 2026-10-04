@@ -289,7 +289,7 @@
   #dock-zone .ditem { width: 76px; }
   #dock-zone .ditem.drop-before { box-shadow: -2px 0 0 0 rgba(255, 255, 255, 0.7); }
 
-  /* 拖拽跟随幽灵（工单06 摆位）：源条目半透明，幽灵贴光标 */
+  /* 拖拽跟随幽灵（工单06 摆位；工单22 批量加「N 项」徽标）：源条目半透明，幽灵贴光标 */
   .ditem.dragging { opacity: 0.35; }
   #drag-ghost {
     position: fixed;
@@ -301,6 +301,17 @@
     background: rgba(0, 0, 0, 0.6);
   }
   #drag-ghost .label { margin-top: 6px; max-width: 92px; font-size: 11px; color: #d6d6d6; text-align: center; }
+  /* 批量拖拽徽标：反白小胶囊压在条目名下，一眼可数（N = 实际拖动条数） */
+  #drag-ghost .badge {
+    margin: 4px auto 0;
+    display: table;
+    padding: 1px 7px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: #0e1114;
+    background: rgba(255, 255, 255, 0.88);
+    border-radius: 7px;
+  }
 
   /* 框选矩形（工单21）：半透明填充 + 细边，不接指针事件（命中判定走几何相交） */
   #marquee-rect {

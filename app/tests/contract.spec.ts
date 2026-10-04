@@ -221,6 +221,40 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/move-batch：整组按序落位、手钉跳过回报、无效参照整批拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'C.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'n.docx'), 'stub')
+    const pinned = JSON.stringify({ version: 1, pinned: ['C.lnk'], dock: [], docs: [] })
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readStoreText: () => pinned,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 选区插入序 [B.lnk, A.lnk] 整组迁到文档区末尾；C.lnk 手钉跳过
+      const moved = await ctx.bridge.invoke('desktop/move-batch', { names: ['B.lnk', 'A.lnk', 'C.lnk'], zone: 'doc', beforeName: null })
+      expect(moved).toEqual({ ok: true, moved: ['B.lnk', 'A.lnk'], skipped: ['C.lnk'] })
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.items.find((i) => i.name === 'B.lnk')?.zone).toBe('doc')
+      expect(snap.desktop.items.find((i) => i.name === 'C.lnk')?.zone).toBe('app')
+      expect(snap.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([['C.lnk', 'pinned']])
+      // 无效参照（参照条目在被拖组内——批量特有的整批校验；他区/池外参照同拒）：整批拒绝
+      const bad = await ctx.bridge.invoke('desktop/move-batch', { names: ['A.lnk', 'C.lnk'], zone: 'app', beforeName: 'C.lnk' })
+      expect(bad.ok).toBe(false)
+      expect(bad.error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/reset-layout：清摆位回出厂编排', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')

@@ -226,6 +226,16 @@ export interface BridgeMethods {
     request: { name: string; zone: DesktopZone; beforeName: string | null }
     response: { ok: boolean; error?: string }
   }
+  /**
+   * 批量拖拽摆位（工单22）：names 按选区插入序整组迁移到落点（排在 beforeName 之前，
+   * null = 末尾），落点分区即整组目标分区（跨区整组换区）。手钉条目不可动（批量语境
+   * 永不变更手钉栏位）与池外名字（选择与落点之间的外部删除竞态）跳过并如实回报
+   * skipped；参照校验整批一道，无效即整批拒绝。逐项落摆位存储后落盘并即时重编排。
+   */
+  'desktop/move-batch': {
+    request: { names: string[]; zone: DesktopZone; beforeName: string | null }
+    response: { ok: boolean; moved: string[]; skipped: string[]; error?: string }
+  }
   /** 恢复出厂布局：清除全部显式摆位（手钉保留），回到归类 + 频次推荐的出厂编排 */
   'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
   /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */
