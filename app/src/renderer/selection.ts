@@ -81,3 +81,11 @@ export function nextSelection(model: SelectionModel, event: SelectionEvent): Sel
 export function launchListOf(model: SelectionModel, name: string): readonly string[] {
   return model.swallowed && model.swallowed.includes(name) ? model.swallowed : [name]
 }
+
+/** 右键条目的单项菜单裁决（工单24，CONTEXT.md「上下文菜单」）：桌面项菜单只对
+ * 「该条即全部选区（直接弹）」与「非选中条目（面板先发 click 事件把选区切为该条，
+ * 再弹）」两种形态弹出；选中集内条目（选区多于一条）归多选菜单工单，本票不弹。 */
+export function itemMenuPlan(model: SelectionModel, name: string): { switchTo: string | null; pop: boolean } {
+  if (!model.names.includes(name)) return { switchTo: name, pop: true }
+  return model.names.length > 1 ? { switchTo: null, pop: false } : { switchTo: null, pop: true }
+}

@@ -221,6 +221,17 @@ export interface BridgeMethods {
   'desktop/icon': { request: { key: string }; response: { dataUrl: string | null } }
   /** 双击启动桌面项；path 必须在当前扫描池内（拒绝任意路径执行） */
   'desktop/launch': { request: { path: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 资源管理器定位并选中桌面项（工单24 单项菜单「打开所在位置」）：机制沿用搜索 reveal
+   * 同款（explorer /select,，fire-and-forget）；path 必须在当前扫描池内（launch 同款护栏）。
+   */
+  'desktop/reveal': { request: { path: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 复制桌面项完整路径进文本剪贴板（工单24 单项菜单「复制路径」）。path 必须在当前
+   * 扫描池内——剪贴板内容也只出自桌面项池（与 launch/reveal 同护栏）。主进程执行：
+   * 面板永不激活（focusable:false），渲染层 navigator.clipboard 因文档无焦点不可用。
+   */
+  'desktop/copy-path': { request: { path: string }; response: { ok: boolean; error?: string } }
   /** 拖拽摆位：name 入目标分区、排在 beforeName 之前（null = 末尾）；落盘并即时重编排 */
   'desktop/move': {
     request: { name: string; zone: DesktopZone; beforeName: string | null }
