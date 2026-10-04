@@ -3,7 +3,8 @@
 // 跨分区（只存名字，分区无关）、按名存续、随交互清空、瞬态不落盘。
 //
 // 语义矩阵（#19 spec 定稿）：click=单选重置、ctrl+click=切换、blank-click=清空、
-// reconcile=按名恢复/消失剔除；band=替换、ctrl+band=并集（#21 框选接线）。
+// reconcile=按名恢复/消失剔除；band=替换、ctrl+band=并集（#21 框选接线）；
+// select-all=全选（#23 上下文菜单，名单整体替换）。
 //
 // 双击全开（真桌面语义）：双击选中集内任一条 = 整集启动。浏览器先于 dblclick 补发两次
 // click，第一次就会把选区收束为单条——故收束时把被吞的旧选区记进 swallowed 作判据；
@@ -29,6 +30,8 @@ export type SelectionEvent =
   | { type: 'band'; names: readonly string[] }
   /** Ctrl+框选松手：命中名单与现选区求并集（旧选区保序在前，新命中依序追加去重） */
   | { type: 'ctrl-band'; names: readonly string[] }
+  /** 全选（工单23 上下文菜单）：名单整体替换现选区（names = 当前池内全部条目） */
+  | { type: 'select-all'; names: readonly string[] }
   /** 双击条目：消费 swallowed（启动名单经 launchListOf 先行查询） */
   | { type: 'dblclick'; name: string }
   /** 快照重建：按名恢复、消失条目剔除（选区按名存续的落点） */
@@ -60,6 +63,9 @@ export function nextSelection(model: SelectionModel, event: SelectionEvent): Sel
       const fresh = event.names.filter((n) => !model.names.includes(n))
       return { names: [...model.names, ...fresh], swallowed: null }
     }
+    case 'select-all':
+      // 全选即整体替换：显式增删，吞集随旧选区一并作废
+      return { names: [...event.names], swallowed: null }
     case 'dblclick':
       return { names: model.names, swallowed: null }
     case 'reconcile': {

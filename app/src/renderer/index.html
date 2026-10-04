@@ -322,6 +322,28 @@
     border: 1px solid rgba(255, 255, 255, 0.55);
   }
 
+  /* 上下文菜单（工单23）：shell 由 context-menu 插件承载（#ctx-menu 为约定 id），
+   * 视觉同一世界观——近实色深底细边、文字实色、无阴影、8px 圆角（同 #settings-reset）。
+   * 行悬停反白灰底；开层期间面板热区换全窗（见 main.ts declareHotZones）。 */
+  #ctx-menu {
+    position: fixed;
+    z-index: 100;
+    min-width: 170px;
+    padding: 4px 0;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+  }
+  #ctx-menu .ctx-item {
+    padding: 7px 16px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: #d6d6d6;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  #ctx-menu .ctx-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
   /* 设置入口（工单08）：右下角极小文字按钮，位置沿用 06 恢复按钮的经验值——
    * bottom: 64 让开任务栏带与 dock 折行区（电池实测右下角是通知横幅/系统浮层的
    * 高发遮挡位，抬高留出余量）。入口按钮是控制件而非信息卡，底色不随滑杆。 */
