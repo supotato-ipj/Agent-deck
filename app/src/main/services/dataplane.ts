@@ -4,7 +4,7 @@ import type { Context } from 'cordis'
 import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
-import { electronIconExtractor, electronShortcutTarget, shellOpen } from '../desktop/adapter'
+import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, explorerReveal, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
 
@@ -28,7 +28,8 @@ export interface DataplaneServiceOptions {
  *
  * 本服务只做四件事：转发每拍快照（触发桥接推送）、预热图标（app.getFileIcon
  * 是主进程 API，按快照条目增量提取）、代理解析 lnk 目标（readShortcutLink 同理）、
- * 转发桌面承载写请求（move/reset，launch 在主进程校验快照条目池后执行）。
+ * 转发桌面承载写请求（move/reset；launch/reveal/copy-path 在主进程校验快照条目池后执行
+ * ——shell.openPath 与 clipboard 是主进程 API，reveal 校验段认主进程快照池）。
  * 子进程崩溃按退避自动重启：摆位与使用日志都在盘上，重启即收敛，硬件历史环
  * 归零重来（展示性曲线，可接受的降级）。
  */
@@ -162,14 +163,36 @@ export class DataplaneService extends Service implements PanelDataPort {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
+  /** 扫描池护栏共通段（launch/reveal/copy-path）：主进程手里的最新快照条目池——渲染层
+   * 可见的条目即本池成员（同一份数据），拒绝任意路径执行的防线不变。 */
+  private poolGuardError(path: string): string | null {
+    return this.desktop().items.some((i) => i.path === path) ? null : '桌面项不在当前扫描池内'
+  }
+
   async launch(path: string): Promise<{ ok: boolean; error?: string }> {
-    // 校验用主进程手里的最新快照条目池——渲染层可见的条目即本池成员（同一份数据），
-    // 拒绝任意路径执行的防线不变；open（shell.openPath）是主进程 API。
-    if (!this.desktop().items.some((i) => i.path === path)) {
-      return { ok: false, error: '桌面项不在当前扫描池内' }
-    }
+    const guard = this.poolGuardError(path)
+    if (guard) return { ok: false, error: guard }
+    // open（shell.openPath）是主进程 API。
     const error = await shellOpen(path)
     return error ? { ok: false, error } : { ok: true }
+  }
+
+  /** 资源管理器定位并选中（工单24 reveal）：launch 同款主进程校验 + 执行
+   * （explorer /select, 是纯 Node spawn，但校验段认的是主进程快照池，与 launch 同位）。 */
+  reveal(path: string): Promise<{ ok: boolean; error?: string }> {
+    const guard = this.poolGuardError(path)
+    if (guard) return Promise.resolve({ ok: false, error: guard })
+    explorerReveal(path)
+    return Promise.resolve({ ok: true })
+  }
+
+  /** 复制完整路径进文本剪贴板（工单24）：launch 同款主进程校验；剪贴板是主进程 API
+   * （面板永不激活，渲染层 navigator.clipboard 因文档无焦点不可用）。 */
+  copyPath(path: string): Promise<{ ok: boolean; error?: string }> {
+    const guard = this.poolGuardError(path)
+    if (guard) return Promise.resolve({ ok: false, error: guard })
+    electronClipboardWrite(path)
+    return Promise.resolve({ ok: true })
   }
 
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {

@@ -2,6 +2,7 @@
 // 真源一律延迟加载（沿用 hardware systemHardwareSources 先例）：契约测试注入假源时
 // 不触碰 koffi/Electron。Electron 在纯 Node 下 require 返回路径字符串而非 API，
 // 相应调用会 TypeError——均被调用方 try/catch 或注入源替代，不会走到。
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -122,6 +123,28 @@ export function electronIconExtractor(filePath: string): Promise<string | null> 
 export function shellOpen(filePath: string): Promise<string> {
   const { shell } = require('electron')
   return shell.openPath(filePath)
+}
+
+/** 资源管理器定位真源（工单24，搜索 reveal 同款机制）：explorer /select,<path>。
+ * 不带 windowsHide——它经 STARTUPINFO 传 SW_HIDE，会把 explorer 的文件夹窗口一起藏掉
+ * （电池实测：reveal ok=true 但 CabinetWClass 永不出现）；GUI 应用无控制台可闪。
+ * fire-and-forget：定位失败静默（explorer 缺席属环境异常，不打断面板）。 */
+export function explorerReveal(path: string): void {
+  try {
+    spawn('explorer', ['/select,', path], { stdio: 'ignore' })
+  } catch {
+    // 静默：同上
+  }
+}
+
+/** 文本剪贴板写真源（工单24 复制路径）：主进程 clipboard.writeText——面板永不激活
+ * （focusable:false），渲染层 navigator.clipboard 会因文档无焦点拒绝，主进程无此要求。 */
+export function electronClipboardWrite(text: string): void {
+  try {
+    require('electron').clipboard.writeText(text)
+  } catch {
+    // 剪贴板缺席属环境异常，静默（离线纯 Node 下的 require 只拿到路径串）
+  }
 }
 
 /** lnk 目标解析真源：shell.readShortcutLink（同步）；非 lnk/解析失败返回 null */

@@ -8,7 +8,7 @@ import { loadStore, moveItem, resetFactory, serializeStore, type LayoutStore } f
 import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
 import type { ScoreItem } from '../usage/score'
-import { defaultDesktopRoots, defaultListDir, electronIconExtractor, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists } from '../desktop/adapter'
+import { defaultDesktopRoots, defaultListDir, electronIconExtractor, electronClipboardWrite, explorerReveal, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists } from '../desktop/adapter'
 import { userDataPath } from '../paths'
 
 /** 桌面承载依赖束：主进程真源 / 测试假源 / 数据面装配共用一个服务状态机（hardware sources 同法） */
@@ -17,6 +17,10 @@ export interface DesktopDeps {
   /** 图标提取（null = 不装图标面：数据面子进程装配——图标由面板主进程按快照条目预热） */
   extractIcon: ((filePath: string) => Promise<string | null>) | null
   open(filePath: string): Promise<string>
+  /** 资源管理器定位并选中（工单24 reveal；fire-and-forget，explorer 自带窗口生命周期） */
+  reveal(filePath: string): void
+  /** 文本剪贴板写（工单24 复制路径；主进程 clipboard.writeText——面板永不激活，渲染层剪贴板 API 不可用） */
+  copyText(text: string): void
   /** 桌面目录监听（fs.watch 化；返回停听函数） */
   watch(roots: DesktopRoots, onChange: () => void): () => void
   /** lnk 目标解析（频次映射用；解析不出返回 null） */
@@ -76,6 +80,8 @@ export class DesktopService extends Service {
       listDir: options.deps?.listDir ?? defaultListDir,
       extractIcon,
       open: options.deps?.open ?? shellOpen,
+      reveal: options.deps?.reveal ?? explorerReveal,
+      copyText: options.deps?.copyText ?? electronClipboardWrite,
       watch: options.deps?.watch ?? defaultWatchDesktopRoots,
       readShortcutTarget: options.deps?.readShortcutTarget ?? electronShortcutTarget,
       fileExists: options.deps?.fileExists ?? fsFileExists,
@@ -147,13 +153,37 @@ export class DesktopService extends Service {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
+  /** 扫描池护栏共通段（launch/reveal/copyPath，工单24 起三份共用）：路径不在当前池内
+   * 即拒绝——拒绝任意路径执行/定位/落剪贴板的同一道防线，错误语也同源。 */
+  private poolGuardError(filePath: string): string | null {
+    return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
+  }
+
   /** 双击启动：path 必须在当前扫描池内（拒绝任意路径执行），open 语义 '' 即成功 */
   async launch(filePath: string): Promise<{ ok: boolean; error?: string }> {
-    if (!this.items.some((i) => i.path === filePath)) {
-      return { ok: false, error: '桌面项不在当前扫描池内' }
-    }
+    const guard = this.poolGuardError(filePath)
+    if (guard) return { ok: false, error: guard }
     const error = await this.deps.open(filePath)
     return error ? { ok: false, error } : { ok: true }
+  }
+
+  /** 右键「打开所在位置」（工单24）：资源管理器定位并选中该文件（explorer /select,，
+   * 搜索 reveal 同款机制）。path 必须在当前扫描池内（launch 同款护栏）；定位本身
+   * fire-and-forget——explorer 自带窗口生命周期，失败静默不打断面板。 */
+  reveal(filePath: string): { ok: boolean; error?: string } {
+    const guard = this.poolGuardError(filePath)
+    if (guard) return { ok: false, error: guard }
+    this.deps.reveal(filePath)
+    return { ok: true }
+  }
+
+  /** 右键「复制路径」（工单24）：完整路径进文本剪贴板。path 必须在当前扫描池内——
+   * 剪贴板内容也只出自桌面项池（与 launch/reveal 同护栏）。 */
+  copyPath(filePath: string): { ok: boolean; error?: string } {
+    const guard = this.poolGuardError(filePath)
+    if (guard) return { ok: false, error: guard }
+    this.deps.copyText(filePath)
+    return { ok: true }
   }
 
   /** 拖拽摆位：name 必须在池内；beforeName 须为目标分区当前条目（null = 末尾）。落盘并即时重编排。

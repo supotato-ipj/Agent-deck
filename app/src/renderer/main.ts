@@ -5,7 +5,7 @@
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
 import { pad, pad3 } from './format.js'
-import { EMPTY_SELECTION, launchListOf, nextSelection } from './selection.js'
+import { EMPTY_SELECTION, itemMenuPlan, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
 
 const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
@@ -66,6 +66,9 @@ let calendarMonth = -1
 // 工单23 起分区空白右键弹上下文菜单：shell 是 cordis 插件（cards/context-menu，
 // 随清单热插拔），触发与收起裁决在面板——右键分区空白（热区内、非条目上）把内置
 // 两项交给 shell；开层期间热区换全窗，任何菜单外按下即收起并吞掉那一击。
+// 工单24 起条目右键弹单项菜单（打开/打开所在位置/复制路径）：弹/切裁决经
+// selection.itemMenuPlan，动作走 desktop/launch（via=ctx-menu）/desktop/reveal/
+// desktop/copy-path 三个契约，收起与吞没共用 23 的面板裁决。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -120,8 +123,9 @@ function applySelection(event: SelectionEvent): void {
   }
 }
 
-/** 双击启动名单逐项经 desktop/launch（走既有启动校验），结果逐项存证 */
-function launchNames(names: readonly string[]): void {
+/** 双击启动名单逐项经 desktop/launch（走既有启动校验），结果逐项存证；via 记来源
+ * （双击 / 工单24 单项菜单「打开」——同一启动链路，存证可分） */
+function launchNames(names: readonly string[], via: 'dblclick' | 'ctx-menu' = 'dblclick'): void {
   for (const name of names) {
     const target = itemByName.get(name)
     if (!target) {
@@ -129,7 +133,7 @@ function launchNames(names: readonly string[]): void {
       notify('desktop-launch-rejected', { name, ok: false, error: '桌面项不在当前扫描池内' })
       continue
     }
-    notify('desktop-launch-clicked', { name: target.name, path: target.path })
+    notify('desktop-launch-clicked', { name: target.name, path: target.path, via })
     void window.deck.bridge.invoke('desktop/launch', { path: target.path }).then(
       (r) => notify(r.ok ? 'desktop-launched' : 'desktop-launch-rejected', {
         name: target.name, ok: r.ok, error: r.error ?? null,
@@ -186,6 +190,17 @@ function buildItem(item: DesktopItem): HTMLElement {
     selection = nextSelection(selection, { type: 'dblclick', name: item.name })
     notify('desktop-launch-set-clicked', { names: [...launch] })
     launchNames(launch)
+  })
+  // 右键单项菜单（工单24）：弹/切裁决在状态机（selection.itemMenuPlan）——选中集内
+  // 条目不弹（多选菜单工单接管），非选中条目先发 click 把选区切为该条（desktop-selected
+  // 存证随之自然产生）再弹。手势进行中不弹（native 惯例，分区空白菜单同法）。
+  d.addEventListener('contextmenu', (e) => {
+    if (dragState.active || marqueeState.active) return
+    e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
+    const plan = itemMenuPlan(selection, item.name)
+    if (!plan.pop) return
+    if (plan.switchTo) applySelection({ type: 'click', name: plan.switchTo })
+    window.deckCtxMenu?.open(e.clientX, e.clientY, itemMenuItems(item))
   })
   wireDrag(d, item)
   return d
@@ -536,7 +551,8 @@ for (const zone of [dockZone, docZone]) {
     applySelection({ type: 'blank-click' })
   })
   // 右键分区空白（工单23）：热区内的分区面本来就只在这里可达（热区外穿透传真桌面），
-  // 到达即「热区内」。条目右键本票不弹（后续工单接管）；手势进行中不弹（native 惯例）。
+  // 到达即「热区内」。条目右键归条目自己的 contextmenu 监听（工单24 单项菜单），此处
+  // closest 滤掉不重复弹；手势进行中不弹（native 惯例）。
   zone.addEventListener('contextmenu', (e) => {
     if (dragState.active || marqueeState.active) return
     if ((e.target as HTMLElement).closest('.ditem')) return
@@ -592,6 +608,45 @@ for (const type of ['click', 'contextmenu'] as const) {
     e.preventDefault()
     menuState.suppressed = false // 恰吞一笔：收起那一击的尾随事件到此为止
   }, { capture: true })
+}
+
+// ---- 单项菜单（工单24，CONTEXT.md「上下文菜单」）：右键单个桌面项的三动作条目集，
+// 触发在 buildItem 的条目 contextmenu 监听里（弹/切裁决 = selection.itemMenuPlan）；
+// 收起与吞没共用工单23 的面板裁决（开层全窗热区、菜单外一击即收）。三个动作都走
+// 内核契约：打开=双击同款 desktop/launch（via 标 ctx-menu）；打开所在位置=desktop/reveal
+// （explorer /select, 内核执行，搜索 reveal 同机制）；复制路径=desktop/copy-path——
+// 主进程剪贴板写，面板永不激活（focusable:false），渲染层 navigator.clipboard 因文档
+// 无焦点不可用。路径校验（扫描池护栏）在内核，与 launch 同款。
+
+/** 单项三动作条目集（contributor 注册位形状，同工单23 分区空白内置两项） */
+function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
+  return [
+    { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
+    { id: 'reveal', label: 'OPEN LOCATION', run: () => revealItem(item) },
+    { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPath(item) },
+  ]
+}
+
+/** 打开所在位置：desktop/reveal 结果存证（rejected/failed 分名，电池按名断言） */
+function revealItem(item: DesktopItem): void {
+  notify('desktop-reveal-clicked', { name: item.name, path: item.path, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/reveal', { path: item.path }).then(
+    (r) => notify(r.ok ? 'desktop-revealed' : 'desktop-reveal-rejected', {
+      name: item.name, ok: r.ok, error: r.error ?? null,
+    }),
+    (err: unknown) => notify('desktop-reveal-failed', { name: item.name, message: String(err) }),
+  )
+}
+
+/** 复制路径：desktop/copy-path 结果存证（同上分名） */
+function copyItemPath(item: DesktopItem): void {
+  notify('desktop-path-copy-clicked', { name: item.name, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/copy-path', { path: item.path }).then(
+    (r) => notify(r.ok ? 'desktop-path-copied' : 'desktop-path-copy-rejected', {
+      name: item.name, ok: r.ok, error: r.error ?? null,
+    }),
+    (err: unknown) => notify('desktop-path-copy-failed', { name: item.name, message: String(err) }),
+  )
 }
 
 // ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----

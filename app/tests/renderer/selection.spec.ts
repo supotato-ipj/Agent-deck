@@ -4,7 +4,7 @@
  * 分区根本不进输入。
  */
 import { describe, expect, it } from 'vitest'
-import { EMPTY_SELECTION, launchListOf, nextSelection } from '../../src/renderer/selection'
+import { EMPTY_SELECTION, itemMenuPlan, launchListOf, nextSelection } from '../../src/renderer/selection'
 import type { SelectionModel } from '../../src/renderer/selection'
 
 function seq(...events: Parameters<typeof nextSelection>[1][]): SelectionModel {
@@ -269,6 +269,35 @@ describe('select-all 全选（工单23 菜单）', () => {
       { type: 'reconcile', liveNames: ['A', 'C'] },
     )
     expect(m.names).toEqual(['A', 'C'])
+  })
+})
+
+describe('itemMenuPlan 右键单项菜单裁决（工单24）', () => {
+  it('该条即全部选区（单选态）→ 直接弹，选区不动', () => {
+    const m = nextSelection(EMPTY_SELECTION, { type: 'click', name: 'A' })
+    expect(itemMenuPlan(m, 'A')).toEqual({ switchTo: null, pop: true })
+  })
+  it('空选区右键条目 → 先切该条再弹', () => {
+    expect(itemMenuPlan(EMPTY_SELECTION, 'A')).toEqual({ switchTo: 'A', pop: true })
+  })
+  it('选区在别条（单选）右键集外条 → 先切该条再弹', () => {
+    const m = nextSelection(EMPTY_SELECTION, { type: 'click', name: 'X' })
+    expect(itemMenuPlan(m, 'A')).toEqual({ switchTo: 'A', pop: true })
+  })
+  it('选中集内条目 → 不弹（多选菜单工单接管）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+    )
+    expect(itemMenuPlan(m, 'A')).toEqual({ switchTo: null, pop: false })
+  })
+  it('选中集右键集外条 → 仍先切该条再弹（切换语义归 click 事件）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+    )
+    expect(itemMenuPlan(m, 'C')).toEqual({ switchTo: 'C', pop: true })
+    expect(nextSelection(m, { type: 'click', name: 'C' }).names).toEqual(['C'])
   })
 })
 

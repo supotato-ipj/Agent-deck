@@ -21,6 +21,8 @@ interface WorldOptions {
 function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts: WorldOptions = {}) {
   const extract = vi.fn(async (p: string) => `icon:${p}`)
   const open = vi.fn(async () => '')
+  const reveal = vi.fn()
+  const copyText = vi.fn()
   const watchCalls: Array<() => void> = []
   const watch = vi.fn((_roots: { user: string; common: string }, onChange: () => void) => {
     watchCalls.push(onChange)
@@ -41,6 +43,8 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
       },
       extractIcon: extract,
       open,
+      reveal,
+      copyText,
       watch,
       readShortcutTarget: (p: string) => (opts.targets ?? {})[p] ?? null,
       readStoreText: () => storeText,
@@ -56,6 +60,8 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     svc,
     extract,
     open,
+    reveal,
+    copyText,
     watchCalls,
     written,
     get storeText() {
@@ -146,6 +152,28 @@ describe('DesktopService（工单05 扫描与启动）', () => {
       // 快照轮之间 mtime 变过：渲染层拿到的键可能不在当前预热队列
       const staleKey = `C:\\u\\a.lnk|999`
       expect(await w.svc.icon(staleKey)).toBe('icon:C:\\u\\a.lnk')
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('reveal/copyPath（工单24）：池内路径放行（定位/剪贴板各走各的依赖），池外拒绝', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    await w.ctx.start()
+    try {
+      expect(w.svc.reveal('C:\\u\\a.lnk')).toEqual({ ok: true })
+      expect(w.reveal).toHaveBeenCalledTimes(1)
+      expect(w.reveal).toHaveBeenCalledWith('C:\\u\\a.lnk')
+      expect(w.svc.copyPath('C:\\u\\a.lnk')).toEqual({ ok: true })
+      expect(w.copyText).toHaveBeenCalledTimes(1)
+      expect(w.copyText).toHaveBeenCalledWith('C:\\u\\a.lnk')
+
+      const outsideReveal = w.svc.reveal('C:\\Windows\\System32\\cmd.exe')
+      expect(outsideReveal).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      const outsideCopy = w.svc.copyPath('C:\\Windows\\System32\\cmd.exe')
+      expect(outsideCopy).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(w.reveal).toHaveBeenCalledTimes(1)
+      expect(w.copyText).toHaveBeenCalledTimes(1)
     } finally {
       await w.ctx.stop()
     }
