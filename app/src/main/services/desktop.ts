@@ -159,6 +159,11 @@ export class DesktopService extends Service {
     return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
   }
 
+  /** 扫描池护栏按名版（pin/unpin，工单25；move/moveBatch 的名字校验同语） */
+  private poolNameError(name: string): string | null {
+    return this.items.some((i) => i.name === name) ? null : '桌面项不在当前扫描池内'
+  }
+
   /** 双击启动：path 必须在当前扫描池内（拒绝任意路径执行），open 语义 '' 即成功 */
   async launch(filePath: string): Promise<{ ok: boolean; error?: string }> {
     const guard = this.poolGuardError(filePath)
@@ -265,7 +270,8 @@ export class DesktopService extends Service {
    * 不被推荐顶替。name 必须在池内（move 同款护栏）；显式摆位名单不动——取消手钉时按其
    * 裁决归位。落盘并即时重编排。 */
   pin(name: string): { ok: boolean; error?: string } {
-    if (!this.items.some((i) => i.name === name)) return { ok: false, error: '桌面项不在当前扫描池内' }
+    const guard = this.poolNameError(name)
+    if (guard) return { ok: false, error: guard }
     this.store = pinItem(this.store, name)
     this.persist()
     this.refresh()
@@ -276,7 +282,8 @@ export class DesktopService extends Service {
    * name 必须在池内；手钉清单本就不含时幂等空转（菜单条件显隐下不可达，防御性放行）。
    * 落盘并即时重编排。 */
   unpin(name: string): { ok: boolean; error?: string } {
-    if (!this.items.some((i) => i.name === name)) return { ok: false, error: '桌面项不在当前扫描池内' }
+    const guard = this.poolNameError(name)
+    if (guard) return { ok: false, error: guard }
     this.store = unpinItem(this.store, name)
     this.persist()
     this.refresh()

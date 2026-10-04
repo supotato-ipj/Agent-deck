@@ -75,10 +75,10 @@ if (parentPort) {
             result = ctx.desktop.moveBatch(names, zone, beforeName)
           } else if (msg.method === 'desktop/pin') {
             const { name } = msg.payload as { name: string }
-            result = ctx.desktop.pin(String(name))
+            result = ctx.desktop.pin(name)
           } else if (msg.method === 'desktop/unpin') {
             const { name } = msg.payload as { name: string }
-            result = ctx.desktop.unpin(String(name))
+            result = ctx.desktop.unpin(name)
           } else if (msg.method === 'desktop/reset-layout') {
             result = ctx.desktop.resetLayout()
           } else {
