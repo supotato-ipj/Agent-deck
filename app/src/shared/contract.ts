@@ -247,6 +247,17 @@ export interface BridgeMethods {
     request: { names: string[]; zone: DesktopZone; beforeName: string | null }
     response: { ok: boolean; moved: string[]; skipped: string[]; error?: string }
   }
+  /**
+   * 钉到应用区（工单25 手钉管理）：name 进手钉清单前段（已在清单则移到最前），占据
+   * dock 前段栏位、不被推荐顶替；显式摆位名单不动（取消手钉时按其裁决归位）。
+   * name 必须在当前扫描池内（move 同款护栏）；落盘并即时重编排。
+   */
+  'desktop/pin': { request: { name: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 取消手钉（工单25）：name 从手钉清单移除，条目回归归类与显式摆位裁决（文档类条目
+   * 回文档区）；清单本就不含时幂等空转。name 必须在当前扫描池内；落盘并即时重编排。
+   */
+  'desktop/unpin': { request: { name: string }; response: { ok: boolean; error?: string } }
   /** 恢复出厂布局：清除全部显式摆位（手钉保留），回到归类 + 频次推荐的出厂编排 */
   'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
   /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */

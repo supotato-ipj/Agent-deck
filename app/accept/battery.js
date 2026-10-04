@@ -2203,11 +2203,12 @@ async function main() {
       w32.moveMousePhys(safePt.x, safePt.y);
     })();
 
-    // —— P5.10 工单24 单项菜单：右键单个桌面项弹三动作菜单（打开/打开所在位置/复制路径）。
+    // —— P5.10 工单24 单项菜单：右键单个桌面项弹动作菜单（打开/打开所在位置/复制路径，
+    // 工单25 起附手钉管理第 4 行——非手钉条目为 pin，见 P5.11 条件显隐用例）。
     // 弹/切裁决（非选中条目先切单选、选中集内条目不弹）在离线测试（tests/renderer/
     // selection.spec.ts itemMenuPlan）；reveal/copy-path 的扫描池护栏在离线内核测试
     // （desktop service spec + 契约 spec）。这里留真机端到端代表用例（#19 三缝约定）：
-    // 右键切换选区后开层三行、打开=双击同款启动（探针标记文件实证）、定位弹资源管理器窗、
+    // 右键切换选区后开层、打开=双击同款启动（探针标记文件实证）、定位弹资源管理器窗、
     // 复制路径剪贴板实读、单选态右键不重复发选区存证、选中集内条目右键不弹。
     await (async () => {
       const rect24 = w32.rectOf(hwnd);
@@ -2279,8 +2280,8 @@ async function main() {
         selA && sameNames24(selA.names, [probe24Name]) && selA.t <= sessA.opened.t
           ? rep.pass('右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单')
           : rep.fail(`右键切换选区存证异常：${JSON.stringify(selA)}`);
-        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path']) && (sessA.opened.rows || []).length === 3
-          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，三行矩形随开层存证`)
+        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'pin']) && (sessA.opened.rows || []).length === 4
+          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，四行矩形随开层存证（第 4 行=钉到应用区，探针非手钉）`)
           : rep.fail(`单项菜单开层条目集异常：${JSON.stringify({ items: sessA.opened.items, rows: sessA.opened.rows })}`);
         safeShot('24-item-menu-open', { left: rect24.left, top: rect24.top, right: rect24.right, bottom: rect24.bottom });
 
@@ -2429,6 +2430,145 @@ async function main() {
         gone24
           ? rep.pass('清理单项菜单探针后条目同步消失（面板与磁盘一致）')
           : rep.fail('单项菜单探针清理后未消失');
+      }
+      w32.moveMousePhys(safePt.x, safePt.y);
+    })();
+
+    // —— P5.11 工单25 手钉管理菜单：单项菜单第 4 行按目标条目手钉态条件显隐——手钉条目
+    // 见【取消手钉】（desktop/unpin）、非手钉条目见【钉到应用区】（desktop/pin）。
+    // 契约与栏位语义在离线内核测试（desktop service spec + 契约 spec）；这里留真机
+    // 端到端代表用例（#19 三缝约定）：手钉条目菜单只见 UNPIN、取消后离 dock 前段；
+    // 同条目（非手钉）只见 PIN、钉回 dock 前段；文档类条目钉入 dock 前段且不与文档区
+    // 重复承载、取消后按归类回文档区；全程 layout.json 落盘对账（手钉种子 pinnedSeed
+    // 用毕钉回，P0 种下的现场不带走）。
+    await (async () => {
+      const rect25 = w32.rectOf(hwnd);
+      let doc25Path = null;
+      // 右键/行点击原语（P5.10 同款；按条目名取当拍矩形）
+      const rightClick25 = async (name, label) => {
+        const st = await waitStable('desktop-rendered', 1200, 8000);
+        const r = st && (st.rects || []).find((x) => x.name === name && x.rect);
+        if (!r) { rep.fail(`${label}前置失败：${name} 无矩形`); return null; }
+        const pt = { x: rect25.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect25.top + Math.round((r.rect.y + r.rect.h / 2) * f) };
+        const hit = await ensurePanelHit(pt, hwnd);
+        if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+        const t0 = Date.now();
+        w32.clickPhys(pt.x, pt.y, 'right');
+        const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+        return opened ? { t0, opened } : null;
+      };
+      const clickRow25 = (rows, id) => {
+        const row = (rows || []).find((r) => r.id === id);
+        if (!row) return null;
+        const pt = { x: rect25.left + Math.round((row.x + row.w / 2) * f), y: rect25.top + Math.round((row.y + row.h / 2) * f) };
+        w32.clickPhys(pt.x, pt.y, 'left');
+        return Date.now();
+      };
+      // layout.json 的 pinned 名单（带重试：落盘在内核 persist，与快照同拍到达）
+      const pinnedOnDisk25 = async () => {
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline) {
+          try { return JSON.parse(fs.readFileSync(layoutFile, 'utf8')).pinned || []; } catch { /* 重试 */ }
+          await sleep(300);
+        }
+        return null;
+      };
+      try {
+        // 夹具：文档区探针 docx（文档类钉入/取消往返实证；P5.10 夹具已清理，自建）
+        const t25 = Date.now();
+        doc25Path = path.join(seedScan.user, `DECK25-DOC-${t25}.docx`);
+        fs.writeFileSync(doc25Path, 'probe');
+        const doc25Name = path.basename(doc25Path);
+        const joined25 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(doc25Name), 8000);
+        joined25 || rep.fail(`手钉管理探针未入池（${doc25Name}）`);
+        if (!pinnedSeed) {
+          rep.fail('手钉管理用例缺手钉种子（用户桌面无 lnk，P0 种子失败）');
+        } else {
+          // a. 手钉条目（种子）右键：条目集含 unpin 不含 pin（条件显隐·手钉侧）
+          const sessA25 = await rightClick25(pinnedSeed, '手钉管理-手钉右键');
+          if (!sessA25) {
+            rep.fail('手钉条目右键未弹单项菜单（desktop-menu-opened 未见）');
+          } else {
+            const itemsA25 = sessA25.opened.items || [];
+            itemsA25.includes('unpin') && !itemsA25.includes('pin')
+              ? rep.pass(`手钉条目菜单条件显隐：[${itemsA25.join(', ')}]（手钉只见取消手钉）`)
+              : rep.fail(`手钉条目菜单条目集异常：${JSON.stringify(itemsA25)}`);
+            // b. 点击 UNPIN：desktop/unpin 存证 + 条目离 dock 前段 + layout.json 对账
+            const tU = clickRow25(sessA25.opened.rows, 'unpin');
+            if (!tU) {
+              rep.fail('取消手钉用例开层存证缺 unpin 行矩形');
+            } else {
+              const clickedU = await waitEvent('desktop-unpin-clicked', (e) => e.t >= tU && e.name === pinnedSeed, 4000);
+              const unpinnedU = await waitEvent('desktop-unpinned', (e) => e.t >= tU && e.name === pinnedSeed && e.ok === true, 6000);
+              const leftPin = await waitEvent('desktop-rendered', (e) => e.t >= tU && !(e.dock || []).some((d) => d.name === pinnedSeed && d.source === 'pinned'), 8000);
+              const diskU = await pinnedOnDisk25();
+              clickedU && unpinnedU && leftPin && Array.isArray(diskU) && !diskU.includes(pinnedSeed)
+                ? rep.pass(`取消手钉动作（desktop/unpin）：ok=true 存证 + ${pinnedSeed} 离 dock 前段 + layout.json pinned=${JSON.stringify(diskU)}`)
+                : rep.fail(`取消手钉存证异常：clicked=${JSON.stringify(clickedU)} unpinned=${JSON.stringify(unpinnedU)} leftPin=${!!leftPin} disk=${JSON.stringify(diskU)}`);
+              safeShot('25-unpin-left-dock');
+
+              // c. 同一条目（此刻非手钉）右键：条目集含 pin 不含 unpin（条件显隐·非手钉侧）→ 钉回
+              const sessC25 = await rightClick25(pinnedSeed, '手钉管理-非手钉右键');
+              if (!sessC25) {
+                rep.fail('非手钉条目右键未弹单项菜单（desktop-menu-opened 未见）');
+              } else {
+                const itemsC25 = sessC25.opened.items || [];
+                itemsC25.includes('pin') && !itemsC25.includes('unpin')
+                  ? rep.pass(`非手钉条目菜单条件显隐：[${itemsC25.join(', ')}]（非手钉只见钉到应用区）`)
+                  : rep.fail(`非手钉条目菜单条目集异常：${JSON.stringify(itemsC25)}`);
+                const tP = clickRow25(sessC25.opened.rows, 'pin');
+                if (!tP) {
+                  rep.fail('钉回用例开层存证缺 pin 行矩形');
+                } else {
+                  const clickedP = await waitEvent('desktop-pin-clicked', (e) => e.t >= tP && e.name === pinnedSeed, 4000);
+                  const pinnedP = await waitEvent('desktop-pinned', (e) => e.t >= tP && e.name === pinnedSeed && e.ok === true, 6000);
+                  const inPin = await waitEvent('desktop-rendered', (e) => e.t >= tP && (e.dock || []).some((d) => d.name === pinnedSeed && d.source === 'pinned'), 8000);
+                  const diskP = await pinnedOnDisk25();
+                  clickedP && pinnedP && inPin && Array.isArray(diskP) && diskP.includes(pinnedSeed)
+                    ? rep.pass(`钉到应用区动作（desktop/pin）：ok=true 存证 + ${pinnedSeed} 回 dock 前段（source=pinned）+ layout.json 对账（现场还原）`)
+                    : rep.fail(`钉回存证异常：clicked=${JSON.stringify(clickedP)} pinned=${JSON.stringify(pinnedP)} inPin=${!!inPin} disk=${JSON.stringify(diskP)}`);
+                  safeShot('25-pin-back-dock');
+                }
+              }
+            }
+          }
+
+          // d. 文档类往返：docx 探针钉入 → dock 前段（pinned）且 docs 无它；取消 → 按归类回文档区
+          const sessD25 = await rightClick25(doc25Name, '手钉管理-文档右键');
+          if (!sessD25) {
+            rep.fail('文档探针右键未弹单项菜单（desktop-menu-opened 未见）');
+          } else {
+            const tD = clickRow25(sessD25.opened.rows, 'pin');
+            const pinnedD = tD && await waitEvent('desktop-pinned', (e) => e.t >= tD && e.name === doc25Name && e.ok === true, 6000);
+            const dockedD = tD && await waitEvent('desktop-rendered', (e) => e.t >= tD
+              && (e.dock || []).some((d) => d.name === doc25Name && d.source === 'pinned')
+              && !(e.docEntries || []).some((d) => d.name === doc25Name), 8000);
+            pinnedD && dockedD
+              ? rep.pass(`文档类条目钉到应用区：${doc25Name} 入 dock 前段（source=pinned）且不与文档区重复承载`)
+              : rep.fail(`文档类钉入异常：pinned=${JSON.stringify(pinnedD)} docked=${!!dockedD}`);
+            safeShot('25-doc-pinned');
+            const sessE25 = await rightClick25(doc25Name, '手钉管理-文档取消');
+            if (!sessE25) {
+              rep.fail('已钉文档条目右键未弹单项菜单（desktop-menu-opened 未见）');
+            } else {
+              const tE = clickRow25(sessE25.opened.rows, 'unpin');
+              const unpinnedE = tE && await waitEvent('desktop-unpinned', (e) => e.t >= tE && e.name === doc25Name && e.ok === true, 6000);
+              const backDocs = tE && await waitEvent('desktop-rendered', (e) => e.t >= tE
+                && !(e.dock || []).some((d) => d.name === doc25Name)
+                && (e.docEntries || []).some((d) => d.name === doc25Name), 8000);
+              unpinnedE && backDocs
+                ? rep.pass(`文档类条目取消手钉：${doc25Name} 按归类回文档区（dock 无它、docs 组在列）`)
+                : rep.fail(`文档类取消异常：unpinned=${JSON.stringify(unpinnedE)} backDocs=${!!backDocs}`);
+              safeShot('25-doc-back-docs');
+            }
+          }
+        }
+      } finally {
+        try { if (doc25Path) fs.unlinkSync(doc25Path); } catch { /* 尽力清理 */ }
+      }
+      if (doc25Path) {
+        const gone25 = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(path.basename(doc25Path)), 6000);
+        gone25 || rep.fail('手钉管理文档探针清理后未消失');
       }
       w32.moveMousePhys(safePt.x, safePt.y);
     })();
