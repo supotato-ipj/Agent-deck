@@ -6,8 +6,11 @@ declare module 'koffi' {
     load(name: string): KoffiLib
     struct(name: string, def: Record<string, string>): unknown
     union(name: string, def: Record<string, string>): unknown
-    decode(value: Buffer | bigint | number, type: string): any
+    proto(...args: unknown[]): unknown
+    register(fn: (...args: any[]) => any, proto: unknown): unknown
+    decode(value: Buffer | bigint | number, type: unknown): any
     sizeof(type: unknown): number
+    array(type: string, len: number): unknown
   }
   export default koffi
 }

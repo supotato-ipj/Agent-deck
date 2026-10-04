@@ -10,6 +10,7 @@
     "test": "vitest run",
     "dev": "npm run build && electron .",
     "accept": "npm run build && electron . --accept",
+    "accept:tray": "npm run build && electron . --accept-tray",
     "dev:panel": "npm run build && electron . --panel"
   },
   "dependencies": {
