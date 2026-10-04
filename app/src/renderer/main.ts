@@ -72,6 +72,9 @@ let calendarMonth = -1
 // 工单25 起单项菜单第 4 行按目标条目手钉态条件显隐：手钉见【取消手钉】
 // （desktop/unpin）、非手钉见【钉到应用区】（desktop/pin）——改摆位存储的手钉
 // 清单并即时重编排，文档类条目取消后按归类+显式摆位裁决回文档区。
+// 工单26 起右键命中选中集内条目（选区多于一条）弹多选菜单：条目集收敛为
+// 【打开全部 / 复制路径（多行 \n）】（desktop/launch 逐项 + desktop/copy-paths 整份），
+// 动作作用于整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -194,14 +197,18 @@ function buildItem(item: DesktopItem): HTMLElement {
     notify('desktop-launch-set-clicked', { names: [...launch] })
     launchNames(launch)
   })
-  // 右键单项菜单（工单24）：弹/切裁决在状态机（selection.itemMenuPlan）——选中集内
-  // 条目不弹（多选菜单工单接管），非选中条目先发 click 把选区切为该条（desktop-selected
-  // 存证随之自然产生）再弹。手势进行中不弹（native 惯例，分区空白菜单同法）。
+  // 条目上下文菜单（工单24 单项 / 工单26 多选）：弹/切裁决在状态机（selection.itemMenuPlan）
+  // ——选中集内条目（选区多于一条）弹多选菜单，动作作用于整集、选区不动；非选中条目
+  // 先发 click 把选区切为该条（desktop-selected 存证随之自然产生）再弹单项菜单。
+  // 手势进行中不弹（native 惯例，分区空白菜单同法）。
   d.addEventListener('contextmenu', (e) => {
     if (dragState.active || marqueeState.active) return
     e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
     const plan = itemMenuPlan(selection, item.name)
-    if (!plan.pop) return
+    if (plan.kind === 'multi') {
+      window.deckCtxMenu?.open(e.clientX, e.clientY, multiItemMenuItems(selection.names))
+      return
+    }
     if (plan.switchTo) applySelection({ type: 'click', name: plan.switchTo })
     window.deckCtxMenu?.open(e.clientX, e.clientY, itemMenuItems(item))
   })
@@ -676,6 +683,41 @@ function unpinItemToStore(item: DesktopItem): void {
       name: item.name, ok: r.ok, error: r.error ?? null,
     }),
     (err: unknown) => notify('desktop-unpin-failed', { name: item.name, message: String(err) }),
+  )
+}
+
+// ---- 多选菜单（工单26）：右键命中选中集内条目（选区多于一条）时弹，动作作用于
+// 整个选区（选区不动、无 desktop-selected 副作用），条目集收敛为两动作——复制/剪切/
+// 删除全部等二期条目随后续工单补入同一骨架。名单以开层当拍选区为准（插入序 =
+// 逐项启动顺序）；收起与吞没共用工单23 的面板裁决。
+
+/** 多选动作条目集（contributor 注册位形状，同工单23/24）：打开全部 = 双击全开同款
+ * 整集逐项经 desktop/launch（launchNames，via 标 ctx-menu，逐项存证）；复制路径 =
+ * desktop/copy-paths 整集多行。 */
+function multiItemMenuItems(names: readonly string[]): DeckCtxMenuItem[] {
+  return [
+    { id: 'open-all', label: 'OPEN ALL', run: () => launchNames(names, 'ctx-menu') },
+    { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPaths(names) },
+  ]
+}
+
+/** 复制路径（多行，工单26）：desktop/copy-paths 结果存证（desktop-paths-* 族，分名同
+ * 单项 desktop-path-* 惯例）。名单路径经 itemByName 解析（launchNames 同款）——渲染层
+ * 快照落后于内核池时整份拒绝（与内核「不在当前扫描池内」同语义，剪贴板不写半份名单）；
+ * 多行拼接与逐条池内校验在内核（copyPaths）。 */
+function copyItemPaths(names: readonly string[]): void {
+  const resolved = names.map((name) => itemByName.get(name)?.path)
+  if (resolved.some((p) => !p)) {
+    notify('desktop-paths-copy-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
+    return
+  }
+  const paths = resolved as string[]
+  notify('desktop-paths-copy-clicked', { names: [...names], via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/copy-paths', { paths }).then(
+    (r) => notify(r.ok ? 'desktop-paths-copied' : 'desktop-paths-copy-rejected', {
+      names: [...names], ok: r.ok, error: r.error ?? null,
+    }),
+    (err: unknown) => notify('desktop-paths-copy-failed', { names: [...names], message: String(err) }),
   )
 }
 

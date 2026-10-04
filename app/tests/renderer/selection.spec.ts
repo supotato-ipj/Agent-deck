@@ -272,31 +272,32 @@ describe('select-all 全选（工单23 菜单）', () => {
   })
 })
 
-describe('itemMenuPlan 右键单项菜单裁决（工单24）', () => {
-  it('该条即全部选区（单选态）→ 直接弹，选区不动', () => {
+describe('itemMenuPlan 条目上下文菜单裁决（工单24 单项 / 工单26 多选）', () => {
+  it('该条即全部选区（单选态）→ 弹单项菜单，选区不动', () => {
     const m = nextSelection(EMPTY_SELECTION, { type: 'click', name: 'A' })
-    expect(itemMenuPlan(m, 'A')).toEqual({ switchTo: null, pop: true })
+    expect(itemMenuPlan(m, 'A')).toEqual({ kind: 'single', switchTo: null })
   })
-  it('空选区右键条目 → 先切该条再弹', () => {
-    expect(itemMenuPlan(EMPTY_SELECTION, 'A')).toEqual({ switchTo: 'A', pop: true })
+  it('空选区右键条目 → 单项菜单，先切该条', () => {
+    expect(itemMenuPlan(EMPTY_SELECTION, 'A')).toEqual({ kind: 'single', switchTo: 'A' })
   })
-  it('选区在别条（单选）右键集外条 → 先切该条再弹', () => {
+  it('选区在别条（单选）右键集外条 → 单项菜单，先切该条', () => {
     const m = nextSelection(EMPTY_SELECTION, { type: 'click', name: 'X' })
-    expect(itemMenuPlan(m, 'A')).toEqual({ switchTo: 'A', pop: true })
+    expect(itemMenuPlan(m, 'A')).toEqual({ kind: 'single', switchTo: 'A' })
   })
-  it('选中集内条目 → 不弹（多选菜单工单接管）', () => {
+  it('选中集内条目（选区多于一条）→ 弹多选菜单，动作作用于整集（无选区副作用）', () => {
     const m = seq(
       { type: 'ctrl-click', name: 'A' },
       { type: 'ctrl-click', name: 'B' },
     )
-    expect(itemMenuPlan(m, 'A')).toEqual({ switchTo: null, pop: false })
+    expect(itemMenuPlan(m, 'A')).toEqual({ kind: 'multi' })
+    expect(itemMenuPlan(m, 'B')).toEqual({ kind: 'multi' })
   })
-  it('选中集右键集外条 → 仍先切该条再弹（切换语义归 click 事件）', () => {
+  it('选中集右键集外条 → 仍单项菜单先切该条（切换语义归 click 事件）', () => {
     const m = seq(
       { type: 'ctrl-click', name: 'A' },
       { type: 'ctrl-click', name: 'B' },
     )
-    expect(itemMenuPlan(m, 'C')).toEqual({ switchTo: 'C', pop: true })
+    expect(itemMenuPlan(m, 'C')).toEqual({ kind: 'single', switchTo: 'C' })
     expect(nextSelection(m, { type: 'click', name: 'C' }).names).toEqual(['C'])
   })
 })

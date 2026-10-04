@@ -67,6 +67,10 @@ export class BridgeService extends Service {
         const { path } = payload as { path: string }
         return await this.ctx.panelData.copyPath(String(path)) as BridgeMethods[M]['response']
       }
+      case 'desktop/copy-paths': {
+        const { paths } = payload as { paths: string[] }
+        return await this.ctx.panelData.copyPaths((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
+      }
       case 'desktop/move': {
         const { name, zone, beforeName } = payload as { name: string; zone: DesktopZone; beforeName: string | null }
         return await this.ctx.panelData.move(name, zone, beforeName) as BridgeMethods[M]['response']

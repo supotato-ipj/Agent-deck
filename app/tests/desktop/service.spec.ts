@@ -178,6 +178,32 @@ describe('DesktopService（工单05 扫描与启动）', () => {
       await w.ctx.stop()
     }
   })
+
+  it('copyPaths（工单26 多选复制路径）：多行 \\n 拼接进剪贴板，行序 = 名单序（选区插入序）', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.docx')])
+    await w.ctx.start()
+    try {
+      const pathOf = (name: string) => w.svc.state().items.find((i) => i.name === name)!.path
+      expect(w.svc.copyPaths([pathOf('b.docx'), pathOf('a.lnk')])).toEqual({ ok: true })
+      expect(w.copyText).toHaveBeenCalledTimes(1)
+      expect(w.copyText).toHaveBeenCalledWith('C:\\u\\b.docx\nC:\\u\\a.lnk')
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('copyPaths 护栏（工单26）：任一池外整份拒绝（不写半份名单）；空名单拒绝', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.docx')])
+    await w.ctx.start()
+    try {
+      const pathA = w.svc.state().items.find((i) => i.name === 'a.lnk')!.path
+      expect(w.svc.copyPaths([pathA, 'C:\\Windows\\System32\\cmd.exe'])).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(w.svc.copyPaths([])).toEqual({ ok: false, error: '复制路径名单为空' })
+      expect(w.copyText).not.toHaveBeenCalled()
+    } finally {
+      await w.ctx.stop()
+    }
+  })
 })
 
 describe('DesktopService（工单06 编排与摆位）', () => {

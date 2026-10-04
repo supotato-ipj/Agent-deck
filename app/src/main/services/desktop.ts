@@ -153,8 +153,8 @@ export class DesktopService extends Service {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
-  /** 扫描池护栏共通段（launch/reveal/copyPath，工单24 起三份共用）：路径不在当前池内
-   * 即拒绝——拒绝任意路径执行/定位/落剪贴板的同一道防线，错误语也同源。 */
+  /** 扫描池护栏共通段（launch/reveal/copyPath/copyPaths，工单24 起共用、工单26 增至四份）：
+   * 路径不在当前池内即拒绝——拒绝任意路径执行/定位/落剪贴板的同一道防线，错误语也同源。 */
   private poolGuardError(filePath: string): string | null {
     return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
   }
@@ -188,6 +188,19 @@ export class DesktopService extends Service {
     const guard = this.poolGuardError(filePath)
     if (guard) return { ok: false, error: guard }
     this.deps.copyText(filePath)
+    return { ok: true }
+  }
+
+  /** 右键多选「复制路径」（工单26）：整集完整路径多行进文本剪贴板，每行一个完整路径、
+   * 以 \n 分隔（贴给终端/对话逐行可用），行序 = 名单序（选区插入序）。逐条校验池内，
+   * 任一池外即整份拒绝（copyPath 同语；剪贴板不写半份名单）。 */
+  copyPaths(filePaths: readonly string[]): { ok: boolean; error?: string } {
+    if (!filePaths.length) return { ok: false, error: '复制路径名单为空' }
+    for (const filePath of filePaths) {
+      const guard = this.poolGuardError(filePath)
+      if (guard) return { ok: false, error: guard }
+    }
+    this.deps.copyText(filePaths.join('\n'))
     return { ok: true }
   }
 

@@ -82,10 +82,14 @@ export function launchListOf(model: SelectionModel, name: string): readonly stri
   return model.swallowed && model.swallowed.includes(name) ? model.swallowed : [name]
 }
 
-/** 右键条目的单项菜单裁决（工单24，CONTEXT.md「上下文菜单」）：桌面项菜单只对
- * 「该条即全部选区（直接弹）」与「非选中条目（面板先发 click 事件把选区切为该条，
- * 再弹）」两种形态弹出；选中集内条目（选区多于一条）归多选菜单工单，本票不弹。 */
-export function itemMenuPlan(model: SelectionModel, name: string): { switchTo: string | null; pop: boolean } {
-  if (!model.names.includes(name)) return { switchTo: name, pop: true }
-  return model.names.length > 1 ? { switchTo: null, pop: false } : { switchTo: null, pop: true }
+/** 条目上下文菜单裁决（工单24 单项 / 工单26 多选，CONTEXT.md「上下文菜单」）：右键命中
+ * 非选中条目先切单选（switchTo = 该条）再弹单项菜单；该条即全部选区直接弹单项菜单；
+ * 选中集内条目（选区多于一条）弹多选菜单，动作作用于整个选区（无选区副作用）。 */
+export type ItemMenuPlan =
+  | { kind: 'single'; switchTo: string | null }
+  | { kind: 'multi' }
+
+export function itemMenuPlan(model: SelectionModel, name: string): ItemMenuPlan {
+  if (!model.names.includes(name)) return { kind: 'single', switchTo: name }
+  return model.names.length > 1 ? { kind: 'multi' } : { kind: 'single', switchTo: null }
 }
