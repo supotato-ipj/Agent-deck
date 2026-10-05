@@ -272,11 +272,14 @@ function psDesktopScan() {
 
 // 造验收探针 lnk（ASCII-only 临时 ps1 走 -File：内联 -Command 传 COM 调用在本机
 // 实测挂起/静默失败——03 踩坑 1「ps1 一律 ASCII」同源，引号路径不再过 shell 转义层）。
+// 目标走 cmd（毫秒级启动直写标记）：powershell 冷启动本机空闲实测 6s 起、电池负载下
+// 曾 4/4 超过 10s 预算（工单27 轮次实测），WindowStyle=7（最小化）免控制台闪窗进截屏。
 function createProbeLnk(lnkPath, markerPath) {
   const script = [
     '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($args[0])',
-    "$s.TargetPath = 'powershell.exe'",
-    "$s.Arguments = '-NoProfile -WindowStyle Hidden -Command Set-Content -LiteralPath ' + $args[1] + ' -Value ok'",
+    "$s.TargetPath = 'cmd.exe'",
+    "$s.Arguments = '/c echo ok>\"' + $args[1] + '\"'",
+    '$s.WindowStyle = 7',
     '$s.Save()',
     "Write-Output ('exists=' + (Test-Path -LiteralPath $args[0]))",
   ].join('\n');
@@ -981,7 +984,7 @@ async function main() {
               ? rep.pass('双击启动：探针 lnk 经桥接 desktop/launch 启动（ok=true）')
               : rep.fail(`双击启动存证异常：${JSON.stringify(launched)}`);
             let markerOk = false;
-            const markerDeadline = Date.now() + 10000;
+            const markerDeadline = Date.now() + 20000;
             while (Date.now() < markerDeadline && !markerOk) {
               try { markerOk = fs.readFileSync(markerPath, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
               if (!markerOk) await sleep(250);
@@ -1179,9 +1182,16 @@ async function main() {
         supervisorDead = !isAlive(child.pid);
         if (!supervisorDead) await sleep(200);
       }
+      // 基线感知：用户自身偏好隐藏（基线 visible=false 且 HideIcons=1）时，守卫按设计
+      // 全程不动（icon-carry 评审收编：绝不顶掉用户偏好）——此时断言不动作语义：
+      // icons-restored 存证在场 + prefHiddenAfter 未被顶掉（视图保持隐藏 = 正确行为）。
+      // 基线可见时才断言实际恢复（图标翻回）。
+      const userPrefHidden = !iconsVisibleBase && carryRestored && carryRestored.prefHiddenAfter === true;
       restoredVis && carryRestored
         ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，守卫还原后退出=${supervisorDead}）`)
-        : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
+        : userPrefHidden && carryRestored
+          ? rep.pass(`杀进程还原（用户偏好隐藏基线）：守卫按设计不动用户偏好——icons-restored 存证在（reason=${carryRestored.reason}），HideIcons 偏好未被顶掉，视图保持隐藏`)
+          : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
       capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-restored');
       rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
 
@@ -1535,7 +1545,7 @@ async function main() {
                     ? rep.pass('整集逐项启动：两条 desktop-launched ok=true（desktop/launch 逐项存证）')
                     : rep.fail(`整集启动存证异常：A=${JSON.stringify(launchA)} B=${JSON.stringify(launchB)}`);
                   let markerOk = { A: false, B: false };
-                  const markerDeadline = Date.now() + 10000;
+                  const markerDeadline = Date.now() + 20000;
                   while (Date.now() < markerDeadline && !(markerOk.A && markerOk.B)) {
                     for (const [k, mp] of [['A', markerA], ['B', markerB]]) {
                       if (markerOk[k]) continue;
@@ -2291,7 +2301,7 @@ async function main() {
             const clickedB = await waitEvent('desktop-launch-clicked', (e) => e.t >= tB && e.name === probe24Name && e.via === 'ctx-menu', 4000);
             const launchedB = await waitEvent('desktop-launched', (e) => e.t >= tB && e.name === probe24Name && e.ok, 6000);
             let markerOk = false;
-            const markerDeadline = Date.now() + 10000;
+            const markerDeadline = Date.now() + 20000;
             while (Date.now() < markerDeadline && !markerOk) {
               try { markerOk = fs.readFileSync(marker24Path, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
               if (!markerOk) await sleep(250);
@@ -2643,7 +2653,7 @@ async function main() {
             const launchedA26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === lnkA26 && e.ok, 6000);
             const launchedB26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === lnkB26 && e.ok, 6000);
             let markerOk26 = { A: false, B: false };
-            const markerDeadline26 = Date.now() + 10000;
+            const markerDeadline26 = Date.now() + 20000;
             while (Date.now() < markerDeadline26 && !(markerOk26.A && markerOk26.B)) {
               for (const [k, mp] of [['A', markerA26Path], ['B', markerB26Path]]) {
                 if (markerOk26[k]) continue;
@@ -2677,13 +2687,25 @@ async function main() {
               const clickedC26 = await waitEvent('desktop-paths-copy-clicked', (e) => e.t >= tC26 && sameNames26(e.names, [lnkA26, lnkB26]) && e.via === 'ctx-menu', 4000);
               const copiedC26 = await waitEvent('desktop-paths-copied', (e) => e.t >= tC26 && e.ok === true && sameNames26(e.names, [lnkA26, lnkB26]), 6000);
               const expectClip26 = `${probeA26Path}\n${probeB26Path}`;
+              // 剪贴板实读：单进程内轮询（电池负载下每轮重开 powershell 冷启 1.5-3s，
+              // 8s 窗口实际只能读到 ~3 次，工单27 轮次实测三连败；27 回收站实查同法）
+              const clipScript26 = path.join(__dirname, 'evidence', '26-clipboard-wait.ps1');
+              fs.writeFileSync(clipScript26, [
+                '$deadline = (Get-Date).AddSeconds(20)',
+                "$text = ''",
+                'while ((Get-Date) -lt $deadline) {',
+                '  $text = [string](Get-Clipboard -Raw)',
+                '  $norm = $text.Replace("`r`n", "`n").Trim()',
+                '  if ($norm -eq ($args[0] + "`n" + $args[1])) { break }',
+                '  Start-Sleep -Milliseconds 400',
+                '}',
+                'Write-Output $text',
+              ].join('\n'), 'utf8');
               let clip26 = '';
-              const clipDeadline26 = Date.now() + 8000;
-              while (Date.now() < clipDeadline26) {
-                clip26 = clipboardGet() || '';
-                if (clip26.replace(/\r\n/g, '\n').trim() === expectClip26) break;
-                await sleep(300);
-              }
+              try {
+                clip26 = psRunFile([clipScript26, probeA26Path, probeB26Path], 30000);
+              } catch { /* 尽力：空串走下方比对判败，不阻断 */ }
+              try { fs.unlinkSync(clipScript26); } catch { /* 尽力清理 */ }
               clickedC26 && copiedC26 && clip26.replace(/\r\n/g, '\n').trim() === expectClip26
                 ? rep.pass('多选复制路径动作（desktop/copy-paths）：ok=true 存证 + 剪贴板实读两行 = [A 路径, B 路径]（\\n 分隔，行序同选区插入序）')
                 : rep.fail(`多选复制路径存证异常：clicked=${JSON.stringify(clickedC26)} copied=${JSON.stringify(copiedC26)} 剪贴板=${JSON.stringify(clip26)}`);
@@ -3623,9 +3645,16 @@ async function main() {
       windRestored && !w32.IsIconic(hwnd) && okRect
         ? rep.pass(`防抖自动恢复：${(windRestored.afterMs / 1000).toFixed(2)}s 后回到原位（存证 afterMs=${windRestored.afterMs}，矩形偏差在容差内）`)
         : rep.fail(`防抖自动恢复未达成（存证=${JSON.stringify(windRestored)}，IsIconic=${w32.IsIconic(hwnd)}，okRect=${okRect}）`);
-      // 恢复后的重钉（票01 实施要点）：还原记事本，普通窗应重新盖住面板
+      // 恢复后的重钉（票01 实施要点）：还原记事本，普通窗应重新盖住面板。
+      // SW_RESTORE 后记事本按自己记住的几何回位（Win11 记事本实测会漂出 P4 摆位，
+      // 重叠点落空命中 Progman——工单27 轮次起慢性失败），先强制复位到 P4 摆位再断言。
       w32.ShowWindow(notepad.hwnd, SW_RESTORE);
       await sleep(600);
+      if (win32.IsWindow(notepad.hwnd)) {
+        w32.SetWindowPos(notepad.hwnd, 0, 1000, 200, 1400, 900,
+          w32.SWP_NOZORDER | w32.SWP_NOACTIVATE);
+        await sleep(400);
+      }
       const overlap = { x: 1800, y: 600 };
       w32.windowFromPointRoot(overlap) === notepad.hwnd
         ? rep.pass('最小化恢复后重钉生效：记事本重新盖住面板')
