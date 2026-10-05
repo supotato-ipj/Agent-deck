@@ -858,21 +858,23 @@ function showNotice(message: string): void {
 // 重名冲突校验与摆位同拍迁移全在内核），结果分名存证（started/renamed/rejected/failed/
 // cancelled，电池按名断言）；失败上浮瞬态提示条（工单27 同款）并还原原名——盘面没改
 // 成功，摆位与文件名都还是旧的。与现名全同的提交 = 幂等空转（内核同语义），不发契约。
-// 1Hz 快照若在编辑中触发重建（别的文件动了指纹），编辑器按取消收场——重建会摘掉
-// 输入框，与其留下悬空的关闭态不如显式还原（真桌面保留编辑内容的语义不在本票范围）。
+// 1Hz 快照重建（后台使用分数重排等指纹噪声，与编辑无关）会整块摘掉输入框：编辑器
+// **原地重锚**而非取消——旧输入框的原文带走，条目还在池里就在新 DOM 上重开（打字
+// 进行中则光标接在已输入尾巴上续传）；条目真没了（外部删除竞态）才按取消收场。
+// 首轮真机电池实证：取消式守卫让后台重排杀掉编辑（started 后 229ms 被 rebuild 收场），
+// 真桌面语义是编辑存活于后台刷新，重锚是正解。
 
 interface RenameEditorState {
   active: boolean
   /** 收场护栏：endRenameEditor 的 DOM 摘除会触发 focusout，防再入误判为失焦确认 */
   closing: boolean
-  name: string
   item: DesktopItem | null
   input: HTMLInputElement | null
   label: HTMLElement | null
 }
 
 const renameEditor: RenameEditorState = {
-  active: false, closing: false, name: '', item: null, input: null, label: null,
+  active: false, closing: false, item: null, input: null, label: null,
 }
 
 /** 预选主名段（真桌面同款）：file/folder 的显示名有扩展时选最后一个点之前，
@@ -883,23 +885,19 @@ function selectRenameStem(item: DesktopItem, input: HTMLInputElement): void {
   input.setSelectionRange(0, end)
 }
 
-function beginRename(item: DesktopItem): void {
-  if (renameEditor.active) return // 已在编辑：忽略再次触发（菜单开层期间不可达，防御性空转）
-  const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
-  const label = node?.querySelector<HTMLElement>('.label')
-  if (!node || !label) return // 条目刚被快照重建摘掉：无从原地编辑（防御性空转）
+/** 输入框工厂（开编辑与重锚共用）：预填、键盘路径、失焦确认都在这里接线 */
+function createRenameInput(): HTMLInputElement {
   const input = document.createElement('input')
   input.className = 'rename-input'
   input.type = 'text'
   input.maxLength = 255
   input.spellcheck = false
   input.setAttribute('autocomplete', 'off')
-  input.value = item.display
   input.addEventListener('keydown', (e) => {
     if (!renameEditor.active) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      commitRename('enter')
+      commitRename()
     } else if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation() // Esc 只归编辑器：取消编辑，不再外溢成别的收层语义
@@ -908,12 +906,21 @@ function beginRename(item: DesktopItem): void {
   })
   input.addEventListener('focusout', () => {
     if (!renameEditor.active || renameEditor.closing) return
-    commitRename('blur')
+    commitRename()
   })
+  return input
+}
+
+function beginRename(item: DesktopItem): void {
+  if (renameEditor.active) return // 已在编辑：忽略再次触发（菜单开层期间不可达，防御性空转）
+  const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
+  const label = node?.querySelector<HTMLElement>('.label')
+  if (!node || !label) return // 条目刚被快照重建摘掉：无从原地编辑（防御性空转）
+  const input = createRenameInput()
+  input.value = item.display
   label.replaceWith(input)
   renameEditor.active = true
   renameEditor.closing = false
-  renameEditor.name = item.name
   renameEditor.item = item
   renameEditor.input = input
   renameEditor.label = label
@@ -925,6 +932,40 @@ function beginRename(item: DesktopItem): void {
     name: item.name, display: item.display,
     input: { x: r.left, y: r.top, w: r.width, h: r.height },
   })
+}
+
+/** 快照重建前的静默摘除：状态清零（输入框随重建销毁，无 focusout 可言），键盘模式
+ * 保持开、不发存证——条目还在池里就由 renderDesktop 在新 DOM 上重锚（reanchorRename）。 */
+function detachRenameEditor(): { item: DesktopItem; value: string } | null {
+  if (!renameEditor.active || !renameEditor.item) return null
+  const carry = { item: renameEditor.item, value: renameEditor.input?.value ?? '' }
+  renameEditor.active = false
+  renameEditor.closing = false
+  renameEditor.input = null
+  renameEditor.label = null
+  renameEditor.item = null
+  return carry
+}
+
+/** 重锚（快照重建后）：同一编辑会话在新 DOM 上续开——原文带走；原文还是显示名则
+ * 重选主名段（打字未开始），已改动则光标接尾（打字进行中的续传语义）。不发存证：
+ * started 属于会话首开，重锚只是同一会话换了张皮。 */
+function reanchorRename(item: DesktopItem, value: string): boolean {
+  const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
+  const label = node?.querySelector<HTMLElement>('.label')
+  if (!node || !label) return false
+  const input = createRenameInput()
+  input.value = value
+  label.replaceWith(input)
+  renameEditor.active = true
+  renameEditor.closing = false
+  renameEditor.item = item
+  renameEditor.input = input
+  renameEditor.label = label
+  input.focus()
+  if (value === item.display) selectRenameStem(item, input)
+  else input.setSelectionRange(value.length, value.length)
+  return true
 }
 
 /** 收场：摘输入框、原位放回标签（textContent 由调用方定夺——成功可乐观上新名）、
@@ -955,7 +996,7 @@ function optimisticDisplay(item: DesktopItem, fileName: string): string {
   return fileName
 }
 
-function commitRename(via: 'enter' | 'blur'): void {
+function commitRename(): void {
   const item = renameEditor.item
   if (!item) return
   const { typed, label } = endRenameEditor(item.display)
@@ -985,6 +1026,7 @@ function cancelRename(reason: 'esc' | 'rebuild'): void {
   notify('desktop-rename-cancelled', { name: item.name, reason })
 }
 
+
 // ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
 
 function applyLayout(layout: PanelSnapshot['layout']): void {
@@ -1006,9 +1048,17 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
   pinnedNames = new Set(state.plan.dock.filter((e) => e.source === 'pinned').map((e) => e.name))
   if (state.fingerprint === desktopFingerprintSeen) return
   desktopFingerprintSeen = state.fingerprint
-  // 编辑中的重命名输入框会被这次重建整块摘掉（输入框在条目 DOM 里）：按取消收场，
-  // 不留悬空的开编辑态（工单28；fingerprint 未变的快照在上方早退，不影响编辑器）。
-  if (renameEditor.active) cancelRename('rebuild')
+  // 编辑中的重命名输入框会被这次重建整块摘掉（输入框在条目 DOM 里）：静默 detach、
+  // 重建后在同名词目的新节点上重锚（编辑存活于后台刷新——后台使用分数重排等指纹
+  // 噪声与编辑无关）；条目不在新池（外部删除竞态）才按取消收场。fingerprint 未变的
+  // 快照在上方早退，不经过这里（工单28；首轮真机电池实证取消式守卫会杀掉编辑）。
+  const carried = detachRenameEditor()
+  let renameCarry: { item: DesktopItem; value: string } | null = carried
+  if (carried && !state.items.some((i) => i.name === carried.item.name)) {
+    notify('desktop-rename-cancelled', { name: carried.item.name, reason: 'rebuild' })
+    window.deck.host.setKeyboardMode(false)
+    renameCarry = null
+  }
   const byName = itemByName
   // dock：按编排序铺条；池内 app 条目若不在计划（理论不可达）兜底追加，承载一个不漏
   dockZone.textContent = ''
@@ -1043,6 +1093,8 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
     block.append(glabel, grid)
     docGroups.appendChild(block)
   }
+  // 重锚：新 DOM 就位后把编辑会话接回同名词目（原文续传，见工单28 注记）
+  if (renameCarry) reanchorRename(renameCarry.item, renameCarry.value)
   // 快照重建后按名恢复选区、消失条目剔除（工单20：选区是渲染层瞬态，1Hz 重建不丢）
   applySelection({ type: 'reconcile', liveNames: state.items.map((i) => i.name) })
   declareHotZones()

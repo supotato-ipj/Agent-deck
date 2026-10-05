@@ -1,11 +1,7 @@
 // 文件名语义（工单28 重命名，纯逻辑）：输入框原文 → 盘面目标文件名的推导，与
 // Win32 文件名合法性校验。不碰文件系统——冲突校验（目标是否已存在）在服务层走依赖束。
 import type { DesktopItemKind } from '../../shared/contract'
-
-/** 应用入口判定（快捷方式/网址）：与 scan.ts 的领域谓词同语义——display 藏扩展的正是这两类 */
-function isAppEntry(kind: DesktopItemKind): boolean {
-  return kind === 'shortcut' || kind === 'url'
-}
+import { isAppEntry } from './scan'
 
 /**
  * 标签原文 → 目标文件名：两端去空白后，快捷方式/网址文件未带原扩展时自动补回

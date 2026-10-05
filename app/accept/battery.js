@@ -2286,8 +2286,8 @@ async function main() {
         selA && sameNames24(selA.names, [probe24Name]) && selA.t <= sessA.opened.t
           ? rep.pass('右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单')
           : rep.fail(`右键切换选区存证异常：${JSON.stringify(selA)}`);
-        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'delete']) && (sessA.opened.rows || []).length === 5
-          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，五行矩形随开层存证（第 4 行=钉到应用区，探针非手钉；第 5 行=删除，工单27）`)
+        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'rename', 'delete']) && (sessA.opened.rows || []).length === 6
+          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，六行矩形随开层存证（第 4 行=钉到应用区，探针非手钉；第 5 行=重命名，工单28；第 6 行=删除，工单27）`)
           : rep.fail(`单项菜单开层条目集异常：${JSON.stringify({ items: sessA.opened.items, rows: sessA.opened.rows })}`);
         safeShot('24-item-menu-open', { left: rect24.left, top: rect24.top, right: rect24.right, bottom: rect24.bottom });
 
@@ -2726,8 +2726,8 @@ async function main() {
             selD26 && selD26.t <= sessD26.opened.t
               ? rep.pass('右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）')
               : rep.fail(`集外右键切单选存证异常：${JSON.stringify(selD26)}`);
-            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'delete'])
-              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选三动作；第 5 行=删除，工单27）`)
+            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'rename', 'delete'])
+              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选三动作；第 5 行=重命名，工单28；第 6 行=删除，工单27）`)
               : rep.fail(`集外右键条目集异常：${JSON.stringify(sessD26.opened.items)}`);
             const outPt26 = { x: rect26.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rect26.top + Math.round(600 * f) };
             w32.clickPhys(outPt26.x, outPt26.y, 'left'); // 开层全窗热区承接：收菜单且吞没（无选区副作用）
