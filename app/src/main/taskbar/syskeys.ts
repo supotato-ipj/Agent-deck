@@ -53,12 +53,19 @@ function bind(): Bound {
   return bound
 }
 
-/** 按键合成真源：一次 SendInput 提交完整序列。返回 false = 系统拒收（UIPI/注入锁）。 */
+/** 按键合成真源：一次 SendInput 提交完整序列。返回 false = 系统拒收（UIPI/注入锁）。
+ * 未知动作同样返回 false——上游 SYSTEM_ACTIONS 已校验，真源再设一道防，不把
+ * 未识别值默认成 Win+Tab。 */
 export function sendSystemAction(action: TaskbarSystemAction): boolean {
   const b = bind()
-  const seq = action === 'start-menu'
-    ? [b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(VK_LWIN, KEYUP)]
-    : [b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(VK_TAB, KEYDOWN), b.keyInput(VK_TAB, KEYUP), b.keyInput(VK_LWIN, KEYUP)]
+  let seq: unknown[]
+  if (action === 'start-menu') {
+    seq = [b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(VK_LWIN, KEYUP)]
+  } else if (action === 'task-view') {
+    seq = [b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(VK_TAB, KEYDOWN), b.keyInput(VK_TAB, KEYUP), b.keyInput(VK_LWIN, KEYUP)]
+  } else {
+    return false
+  }
   const sent = b.sendInput(seq.length, seq, b.sizeofInput) as number
   return sent === seq.length
 }

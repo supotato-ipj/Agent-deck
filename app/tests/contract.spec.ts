@@ -864,4 +864,15 @@ describe('内核桥接契约（工单49 任务栏）', () => {
       await ctx.stop()
     }
   }, 30_000)
+
+  it('插件卸载（内核停）：补发 enabled:false 终态帧，效果层经「禁用即销窗」收窗', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    const changed: Array<{ enabled: boolean }> = []
+    ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+    await ctx.stop()
+    expect(changed).toEqual([{ enabled: false }])
+  }, 30_000)
 })

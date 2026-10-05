@@ -240,7 +240,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   })
   // 面板页面经 deck-plugin:// 加载（工单10）：与插件资产同源，ESM 与动态 import 才成立
   void win.loadURL(panelUrl())
-  app.on('window-all-closed', () => app.quit())
+  // 主窗关闭即退出（工单49：任务栏条带是同进程第二个常驻窗，window-all-closed 要等
+  // 它先关才成立——WM_CLOSE 只落主窗时条件永不达成、进程残留（主电池 P10 实证）。
+  // 条带窗的拆卸走上方 before-quit 的 taskbarCtl.dispose()。
+  win.on('closed', () => app.quit())
   app.on('second-instance', () => showPanel('second-instance'))
 }
 

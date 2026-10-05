@@ -5,6 +5,9 @@ import type { TaskbarState } from '../shared/contract'
 
 const pill = document.getElementById('pill') as HTMLElement
 
+/** 最近一次渲染的状态：几何重排（resize）时按它重声明热区 */
+let current: TaskbarState | null = null
+
 /** pill 与按钮矩形（CSS px 相对客户区）：热区声明与验收存证共用同一份测量 */
 function measure() {
   const pr = pill.getBoundingClientRect()
@@ -25,6 +28,7 @@ function declareHotZones(enabled: boolean): void {
 }
 
 function render(state: TaskbarState): void {
+  current = state
   const { buttons } = taskbarViewModel(state)
   pill.textContent = ''
   for (const b of buttons) {
@@ -48,6 +52,11 @@ async function boot(): Promise<void> {
   const m = measure()
   window.deck.host.notify('taskbar-ready', { enabled: state.enabled, pill: m.pill, buttons: m.buttons })
   window.deck.bridge.on('taskbar/changed', (next) => render(next))
+  // 几何重排重声明热区：主进程在 display-metrics-changed 时 setBounds 重排条带
+  // （换分辨率/换主屏），pill 居中坐标随客户区宽度变化，旧热区矩形会落空
+  window.addEventListener('resize', () => {
+    if (current) declareHotZones(current.enabled)
+  })
 }
 
 void boot()

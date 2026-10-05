@@ -74,4 +74,11 @@ export class TaskbarService extends Service {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   }
+
+  /** 插件卸载路径（cordis 生命周期）：运行期卸载后不会再有 taskbar/changed——
+   * 以 enabled:false 终态补发一帧，效果层（窗口控制器）经既有「禁用即销窗」
+   * 路径销窗，窗口不残留（工单49 code-review 补缺）。 */
+  protected stop(): void {
+    this.ctx.emit('taskbar/changed', { enabled: false })
+  }
 }
