@@ -383,6 +383,7 @@
 
   /* 设置浮层（工单08）：卡片式浮层压在右下角控件带之上；class="card" 使底色
    * 随全局透明度滑杆、矩形自动进热区。透明度行 = 标签 + 滑杆 + 数值；
+   * 任务栏逃生开关行（工单50）= 标签 + 勾选框 + 状态；
    * 恢复出厂布局动作本体属 06，这里接入口。 */
   #settings-card {
     right: 48px;
@@ -394,12 +395,13 @@
     cursor: default;
   }
   #settings-card h2 { margin-bottom: 12px; }
-  #settings-opacity-row {
+  .set-row {
     display: flex;
     align-items: center;
     column-gap: 10px;
   }
-  #settings-opacity-row .set-label {
+  #settings-taskbar-row { margin-top: 10px; }
+  .set-row .set-label {
     font-size: 10px;
     letter-spacing: 0.2em;
     color: #9aa0a6;
@@ -415,6 +417,19 @@
     font-size: 11px;
     color: #fff;
     min-width: 4ch;
+    text-align: right;
+  }
+  #taskbar-toggle {
+    flex: 1;
+    min-width: 0;
+    height: 14px;
+    accent-color: #d6d6d6;
+    cursor: pointer;
+  }
+  #taskbar-toggle-state {
+    font-size: 11px;
+    color: #fff;
+    min-width: 3ch;
     text-align: right;
   }
   #settings-reset {
@@ -524,10 +539,15 @@
 
 <div class="card" id="settings-card" tabindex="-1">
   <h2>SETTINGS</h2>
-  <div id="settings-opacity-row">
+  <div id="settings-opacity-row" class="set-row">
     <span class="set-label">CARD OPACITY</span>
     <input id="opacity-slider" type="range" min="0" max="100" step="1" aria-label="卡片底色透明度">
     <span id="opacity-value">055%</span>
+  </div>
+  <div id="settings-taskbar-row" class="set-row">
+    <span class="set-label">TASKBAR</span>
+    <input id="taskbar-toggle" type="checkbox" aria-label="自绘任务栏接管（关闭即还原原生任务栏）">
+    <span id="taskbar-toggle-state">ON</span>
   </div>
   <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
 </div>

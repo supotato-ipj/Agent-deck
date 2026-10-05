@@ -1,0 +1,16 @@
+# accept 48-tray-spike — 2026-10-05T14:24:08.845Z
+[14:24:08.854] NOTE  已临时置 taskbar.enabled=false（托盘 spike 需现役真托盘在场，清场还原）
+[14:24:09.852] PASS  互斥侦察：现役 Shell_TrayWnd 属主是 explorer（0x10204）——无第三方托盘托管冲突
+[14:24:12.617] PASS  托盘宿主上线：竞争窗口 hwnd=0x450450，接管前真托盘=0x10204
+[14:24:12.620] PASS  投递竞争：FindWindow(Shell_TrayWnd) 命中我方竞争窗口（置顶重申生效）
+[14:24:12.758] PASS  泵延迟无感知：探针 NIM_ADD 返回 true，同步耗时 62ms（<500ms，调用方无挂起）
+[14:24:13.625] PASS  投递改道实证：探针 NIM_ADD 到达我方宿主（key=4590458:3552856065 tooltip="DECK-SPIKE-PROBE"）而非系统托盘
+[14:24:13.831] PASS  探针 NIM_DELETE 同样快速送达（128ms）
+[14:24:13.836] PASS  真实图标流量：面板自身托盘图标（key=1772660:3）带像素到达（32x32），tooltip 同键更新
+[14:24:13.840] NOTE  TaskbarCreated 收编存量：其余 add 事件 18 条 / 图标 18 个："滴答清单"、"PowerToys v0.96.1"、"联想电脑管家"、"OneDrive - Personal\r\nBacked up and synced"、"Listary"、"Safely Remove Hardware and Eject Media"、""、"DECK-SPIKE-PROBE"
+[14:24:15.418] PASS  验收页像素正确：spike 页内琥珀像素 120 个（真图标渲染，非占位图；实拍 48-spike-page.png）
+[14:24:15.431] PASS  第三方图标像素正确："滴答清单" 主色 rgb(71,114,250) 页面命中 918 像素（真值来自宿主提取的图标本体）
+[14:24:17.798] PASS  投递改道旁证：真托盘条带琥珀像素 8 个（<40 噪声阈值，面板图标未落入系统托盘）
+[14:24:17.802] PASS  字节语料固化：48 条负载落盘（NIM_ADD 20 条，hex 长度与 cbData 钩稽一致）
+[14:24:22.332] PASS  交还真托盘：面板退出后 explorer 托盘在场（0x10204），TaskbarCreated 已广播
+[14:24:22.336] ===== 48-tray-spike VERDICT: PASS (pass=12 fail=0) =====

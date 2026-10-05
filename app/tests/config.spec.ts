@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
 
-const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins(), autostart: defaultAutostart() }
+const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins(), autostart: defaultAutostart(), taskbar: defaultTaskbar() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
@@ -407,5 +407,39 @@ describe('config.autostart 自启开关（工单11）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.autostart.enabled).toBe(true)
     expect(r.warnings.some((w) => w.includes('config.autostart'))).toBe(true)
+  })
+})
+
+describe('config.taskbar 任务栏开关（工单49）', () => {
+  it('缺 taskbar 段时默认启用（老 config.json 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar).toEqual({ enabled: true })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('enabled=false 生效（禁用即不建任务栏窗口）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.enabled).toBe(false)
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('非布尔值回退默认并告警（不静默吞掉用户笔误）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: 'off' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.enabled).toBe(true)
+    expect(r.warnings.some((w) => w.includes('config.taskbar.enabled'))).toBe(true)
+  })
+
+  it('taskbar 整体非对象回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: 'yes' }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.enabled).toBe(true)
+    expect(r.warnings.some((w) => w.includes('config.taskbar'))).toBe(true)
   })
 })

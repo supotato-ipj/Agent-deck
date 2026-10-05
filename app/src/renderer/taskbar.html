@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DECK-TASKBAR</title>
+<style>
+  /* 任务栏条带（工单49）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    user-select: none;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透） */
+  #pill {
+    display: flex;
+    align-items: center;
+    column-gap: 4px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+  .tb-btn {
+    padding: 5px 14px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: #d6d6d6;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+</style>
+</head>
+<body>
+<div id="pill" role="toolbar" aria-label="任务栏中组"></div>
+<script type="module" src="./taskbar.js"></script>
+</body>
+</html>

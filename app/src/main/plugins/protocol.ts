@@ -33,6 +33,11 @@ export function panelUrl(): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/index.html`
 }
 
+/** 任务栏页面 URL（工单49：与面板页同根同源） */
+export function taskbarUrl(): string {
+  return `${PLUGIN_SCHEME}://${APP_HOST}/taskbar.html`
+}
+
 /**
  * 装协议处理器：应用渲染层根目录 + 当前在装插件的目录，随插件增删实时变化。
  * 读盘只在这里发生——渲染层永远拿不到文件系统句柄（contextIsolation + sandbox 不变）。

@@ -3,8 +3,10 @@
 // 窗口/热区/桥接/插件宿主（鼠标卡顿修复：采集阻塞不再波及输入管线）。
 // 本进程无 Electron API：lnk 目标解析与图标提取留主进程，经协议消息供给。
 import type { Context } from 'cordis'
+import { appendFileSync } from 'node:fs'
 import type { DesktopZone } from '../shared/contract'
 import { createDataplaneKernel } from './kernel'
+import { TrayHost } from './trayhost/host'
 import {
   ProxyShortcutResolver,
   ProxyTrash,
@@ -16,6 +18,7 @@ import {
 const parentPort: ParentPort | undefined = (process as unknown as { parentPort?: ParentPort }).parentPort
 
 let ctx: Context | null = null
+let trayHost: TrayHost | null = null
 
 function snapshotOf(c: Context): DataplaneSnapshot {
   const d = new Date()
@@ -63,6 +66,23 @@ if (parentPort) {
       void ctx.start().then(() => {
         parentPort.postMessage({ type: 'ready', snapshot: snapshotOf(ctx!) })
       })
+      // 托盘宿主（工单48 spike）：init.traySpike 在场才起。竞争窗口/泵/TaskbarCreated
+      // 全在子进程；事件经 parentPort 回主进程，原始字节语料落 JSONL（测试夹具来源）。
+      if (msg.init.traySpike && !trayHost) {
+        try {
+          const corpusFile = msg.init.traySpike.corpusFile
+          trayHost = new TrayHost({
+            onEvent: (event) => parentPort.postMessage({ type: 'tray-event', event }),
+            corpus: (entry) => {
+              try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
+            },
+            log: (event) => parentPort.postMessage({ type: 'tray-host', event }),
+          })
+          trayHost.start()
+        } catch (err) {
+          parentPort.postMessage({ type: 'tray-host', event: { type: 'tray-host-failed', message: (err as Error).message } })
+        }
+      }
       return
     }
     if (msg.type === 'shortcuts') {

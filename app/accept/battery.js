@@ -439,7 +439,9 @@ async function waitPanelWindow(timeoutMs, sinceMs = 0) {
   const winDeadline = Date.now() + timeoutMs;
   while (Date.now() < winDeadline) {
     const hwnd = win32.topLevelWindows().find(
-      (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1');
+      // 工单49 起面板进程有了第二个 Chrome 窗（DECK-TASKBAR 条带）：按标题甄别面板本体
+      (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1'
+        && windowTitle(h) === 'AGENT DECK');
     if (hwnd) return hwnd;
     await sleep(200);
   }
@@ -543,6 +545,22 @@ async function main() {
   // 原生图标显隐基线（工单05）：电池不得改变用户电池前的偏好状态
   const iconsVisibleBase = w32.desktopIconsVisible();
   rep.note(`原生桌面图标基线：visible=${iconsVisibleBase}`);
+  // 原生任务栏显隐基线（工单50）：清场核验用——电池不得改变用户电池前状态
+  // （判据共用 accept/lib/win32.js 导出，四电池单点维护）
+  const nativeTaskbarBase = w32.nativeTaskbarVisible();
+  rep.note(`原生任务栏基线：visible=${nativeTaskbarBase}`);
+
+  // 工单50：本电池多段断言依赖原生任务栏在场（P8/P10 托盘识别色扫描 Shell_TrayWnd
+  // 矩形；clearDesktop 同区点击），而任务栏插件默认开启会隐藏原生任务栏——主电池
+  // 全程以 taskbar.enabled=false 运行（任务栏显隐有 49/50 专电池），清场还原原文。
+  const CONFIG_FILE_MAIN = path.join(APP_ROOT, 'config.json');
+  const configBackupMain = fs.existsSync(CONFIG_FILE_MAIN) ? fs.readFileSync(CONFIG_FILE_MAIN, 'utf8') : null;
+  {
+    const cfg = configBackupMain ? JSON.parse(configBackupMain) : {};
+    cfg.taskbar = { ...(cfg.taskbar ?? {}), enabled: false };
+    fs.writeFileSync(CONFIG_FILE_MAIN, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+    rep.note('已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）');
+  }
 
   const savedCursor = w32.cursor();
   const safePt = { x: 40 * f, y: si.phys.h - 40 };
@@ -3458,7 +3476,9 @@ async function main() {
 
         // —— ENGINE OFFLINE（假端口注入：config.search.port 指必死端口 → 重启面板）——
         await stopPanel();
-        fs.writeFileSync(configPathS, JSON.stringify({ search: { port: await freePort() } }, null, 2) + '\n');
+        // 工单50：最小覆写同样带 taskbar.enabled=false——缺段回落默认开启会藏掉原生
+        // 任务栏，而探针面板随后被 /F 清杀（无还原路径），P8 托盘扫描将对着隐藏态空扫
+        fs.writeFileSync(configPathS, JSON.stringify({ search: { port: await freePort() }, taskbar: { enabled: false } }, null, 2) + '\n');
         const tOff = Date.now();
         child = launchPanel();
         const hwndOff = await waitPanelWindow(20000, tOff);
@@ -3683,7 +3703,9 @@ async function main() {
     const configBackup = backupConfigB();
     try {
       await stopPanel();
-      fs.writeFileSync(CONFIG_FILE_B, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 } }, null, 2) + '\n');
+      // 工单50：几何探针也要带上 taskbar.enabled=false——最小覆写会丢 taskbar 段回落
+      // 默认开启，条带隐藏原生任务栏后 P8 托盘识别色扫描（Shell_TrayWnd 矩形）全灭
+      fs.writeFileSync(CONFIG_FILE_B, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 }, taskbar: { enabled: false } }, null, 2) + '\n');
       // P1-P5.5 的存证先留档再重置（waitEvent 要等新 boot）；此前直接 unlink 把
       // P5.5 期事件抹掉，复位探针排障无据可查（三轮实测痛点）
       try { fs.copyFileSync(EVENTS_FILE, path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl')); } catch { /* 尽力留档 */ }
@@ -3709,7 +3731,11 @@ async function main() {
 
     // —— P7 单实例守卫：二次拉起立即自行退出，屏幕上始终只有一个面板 ——
     {
-      const chromeBefore = w32.topLevelWindows().filter((h) => w32.className(h) === 'Chrome_WidgetWin_1').length;
+      // 计数只数面板 pid 的 Chrome 窗（工单49 起同进程还有 DECK-TASKBAR 条带窗；
+      // 系统级计数会被无关 Electron/Chrome 窗与条带建窗时序扰动——49 实测 3→4 假阳性）
+      const chromeOfPanel = () => w32.topLevelWindows().filter(
+        (h) => w32.className(h) === 'Chrome_WidgetWin_1' && w32.threadIdOf(h).pid === panelPid).length;
+      const chromeBefore = chromeOfPanel();
       const t0 = Date.now();
       const child2 = spawn(process.execPath, ['.'], {
         cwd: APP_ROOT,
@@ -3732,7 +3758,7 @@ async function main() {
       readEvents().some((e) => e.type === 'single-instance-refused')
         ? rep.pass('单实例守卫：被拒实例自报 single-instance-refused 存证')
         : rep.fail('单实例守卫：无 single-instance-refused 存证');
-      const chromeAfter = w32.topLevelWindows().filter((h) => w32.className(h) === 'Chrome_WidgetWin_1').length;
+      const chromeAfter = chromeOfPanel();
       w32.IsWindow(hwnd) && chromeAfter === chromeBefore
         ? rep.pass(`单实例守卫：原面板窗完好（Chrome 窗计数 ${chromeBefore} → ${chromeAfter}），屏上仍只有一个面板`)
         : rep.fail(`单实例守卫后面板状态异常（原窗在=${w32.IsWindow(hwnd)}，Chrome 窗计数 ${chromeBefore} → ${chromeAfter}）`);
@@ -4332,6 +4358,22 @@ async function main() {
         rep.note(`图标状态清场核验：visible=${w32.desktopIconsVisible()}（电池前=${iconsVisibleBase}）`);
       }
     } catch (e) { rep.note(`图标清场核验异常: ${e && e.message || e}`); }
+    // 工单50 清场核验：原生任务栏若留隐藏态（异常中断等），走 --icon-restore 自救通道
+    // （工单50 起该通道同还原原生任务栏）——电池不得给用户留无系统入口的桌面
+    try {
+      if (!w32.nativeTaskbarVisible()) {
+        spawnSync(process.execPath, ['.', '--icon-restore'], { cwd: APP_ROOT, encoding: 'utf8', timeout: 20000 });
+        await sleep(1200);
+        w32.ensureNativeTaskbarVisible(); // 自救通道异常的最后一道兜底
+      }
+      rep.note(`原生任务栏清场核验：visible=${w32.nativeTaskbarVisible()}（电池前=${nativeTaskbarBase}）`);
+    } catch (e) { rep.note(`原生任务栏清场核验异常: ${e && e.message || e}`); }
+    // 工单50 清场：还原 config.json（含开电池时临时置入的 taskbar.enabled=false）
+    try {
+      if (configBackupMain === null) { try { fs.unlinkSync(CONFIG_FILE_MAIN); } catch { /* 尽力 */ } }
+      else { fs.writeFileSync(CONFIG_FILE_MAIN, configBackupMain); }
+      rep.note('config.json 已还原电池前原文');
+    } catch (e) { rep.note(`config 清场异常: ${e && e.message || e}`); }
     // 工单06 清场：还原摆位存储到电池前状态（种子只服务断言，不得改变用户真实摆位）
     try {
       if (layoutBackup === null) fs.unlinkSync(layoutFile);

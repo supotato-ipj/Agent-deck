@@ -3,6 +3,7 @@
 // 协议两侧共用本文件；消息经 utilityProcess postMessage 结构化克隆传递。
 import type { DesktopRoots } from './desktop/scan'
 import type { ClockState, DesktopState, HardwareState, SessionInfo } from '../shared/contract'
+import type { TrayWireEvent } from './trayhost/protocol'
 
 /** 数据面子进程的快照段：面板主进程合并 weather/layout/settings/plugins 后成完整 PanelSnapshot（qoder 段随工单03 退役移除） */
 export interface DataplaneSnapshot {
@@ -22,6 +23,8 @@ export interface DataplaneInit {
   docMaxRows: number
   /** 使用日志目录（userData/usage 的绝对路径） */
   usageDir: string
+  /** 托盘 spike（工单48）：在场即起托盘宿主；corpusFile 收真实字节语料（JSONL） */
+  traySpike?: { corpusFile: string }
 }
 
 /** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除、工单28 起含重命名；读路径走每拍快照） */
@@ -39,6 +42,8 @@ export type DataplaneMessage =
   | { type: 'trash-res'; id: number; errors: Record<string, string> }
   | { type: 'req'; id: number; method: DataplaneMethod; payload: unknown }
   | { type: 'res'; id: number; ok: boolean; result?: unknown; error?: string }
+  | { type: 'tray-event'; event: TrayWireEvent }
+  | { type: 'tray-host'; event: Record<string, unknown> }
 
 /** utilityProcess 子进程侧的 parentPort 形状（@types/node 无此成员，局部声明） */
 export interface ParentPort {

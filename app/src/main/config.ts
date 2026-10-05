@@ -28,6 +28,13 @@ export interface AppConfig {
   plugins: PluginsConfig
   /** 自启（工单11）：面板的开机自启项 */
   autostart: AutostartConfig
+  /** 任务栏插件（工单49）：独立置顶窗口的开关；禁用即还原为不加载窗口 */
+  taskbar: TaskbarConfig
+}
+
+/** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失 */
+export interface TaskbarConfig {
+  enabled: boolean
 }
 
 /**
@@ -172,6 +179,27 @@ export function defaultPlugins(): PluginsConfig {
 /** 默认自启：开启（桌面常驻是第一诉求）；appDir 留空 = 未声明生产位置，面板不接管新建 */
 export function defaultAutostart(): AutostartConfig {
   return { enabled: true, appDir: '' }
+}
+
+/** 默认任务栏：启用（接管形态即默认体验——开启即隐藏原生任务栏，逃生开关与
+ * guard + watchdog 三路径还原（工单50）在场，默认开让行为可见且可逆） */
+export function defaultTaskbar(): TaskbarConfig {
+  return { enabled: true }
+}
+
+function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[]): TaskbarConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.taskbar 不是对象，已整体回退默认任务栏开关')
+    return out
+  }
+  const enabled = (raw as Record<string, unknown>).enabled
+  if (enabled !== undefined) {
+    if (typeof enabled === 'boolean') out.enabled = enabled
+    else warnings.push(`config.taskbar.enabled 不是布尔值，已回退默认值 ${fallback.enabled}`)
+  }
+  return out
 }
 
 function mergeAutostart(raw: unknown, fallback: AutostartConfig, warnings: string[]): AutostartConfig {
@@ -430,6 +458,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       tools: mergeTools(root.tools, fallback.tools, warnings),
       plugins: mergePlugins(root.plugins, fallback.plugins, warnings),
       autostart: mergeAutostart(root.autostart, fallback.autostart, warnings),
+      taskbar: mergeTaskbar(root.taskbar, fallback.taskbar, warnings),
     },
     warnings,
     created: false,
