@@ -5,8 +5,11 @@
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
 import { pad, pad3 } from './format.js'
-import { EMPTY_SELECTION, itemMenuPlan, launchListOf, nextSelection } from './selection.js'
+import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
+import { GATE_INITIAL, escapePlan, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
+import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState, KeyRoutingContext } from './keyboard-gate.js'
+import { pasteableWithinTimeout } from './pasteable-query.js'
 
 const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
@@ -73,8 +76,8 @@ let calendarMonth = -1
 // （desktop/unpin）、非手钉见【钉到应用区】（desktop/pin）——改摆位存储的手钉
 // 清单并即时重编排，文档类条目取消后按归类+显式摆位裁决回文档区。
 // 工单26 起右键命中选中集内条目（选区多于一条）弹多选菜单：条目集收敛为
-// 【打开全部 / 复制路径（多行 \n）/ 删除全部】（工单27 补入删除全部），动作作用于
-// 整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
+// 【打开全部 / 复制路径（多行 \n）/ 删除全部】（工单27 补入删除全部、工单29 补入
+// 复制/剪切文件级写向），动作作用于整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
 // 工单27 起条目删除进回收站（desktop/trash）：单项【删除】直接执行，多选【删除全部】
 // 先弹自绘轻量确认（列出条数、确认/取消，点外部/Esc=取消）；删除成功条目由内核同拍
 // 清除摆位（防同名复活莫名归位）；权限/占用失败 ok=false 存证 + 瞬态提示条（#trash-notice）。
@@ -109,6 +112,23 @@ function markSelection(): void {
   }
 }
 
+// ---- 键盘模式归一仲裁（工单31，ADR-0006 收官）：键盘模式是多方共用的单通道（工单02
+// 起搜索/设置浮层、删除确认层、重命名编辑 9 处调用点；工单31 增选区生灭）。归一仲裁
+// 把开态合成一处——键盘模式 = 选区非空 OR 任一浮层开（keyboard-gate.ts 纯逻辑）。
+// 全部开关意图都进同一归约器，变化沿才出通道：浮层关而选区仍非空 → 保持 on 不互相踩；
+// 选区清空而浮层仍开 → 键盘归浮层。panel-ipc 侧 keyboard-mode-on/off 存证与选区生灭
+// 严格同相（电池 P5.17 硬断言）。
+
+let keyboardGate: KeyboardGateState = GATE_INITIAL
+
+/** 门控单点：事件进归约器，沿出通道。选区生灭以 applySelection 为唯一出口（band 框选
+ * 不发选区存证也过这里），浮层开合九处调用点全部改走此封装。 */
+function dispatchKeyboardGate(event: KeyboardGateEvent): void {
+  const { state, edge } = nextKeyboardGate(keyboardGate, event)
+  keyboardGate = state
+  if (edge !== null) window.deck.host.setKeyboardMode(edge === 'on')
+}
+
 /** 选区事件入口：状态机迁移 → DOM 标记 → 生灭存证（desktop-* 族；#19 存证约定）。
  * band/ctrl-band 不在此发事件——框选的生灭与结果存证归框选生命周期事件
  * （desktop-marquee-started/updated/finished/cancelled，含矩形与最终名单）。 */
@@ -132,11 +152,15 @@ function applySelection(event: SelectionEvent): void {
   } else if (event.type === 'select-all') {
     notify('desktop-selection-all', { names: [...selection.names] })
   }
+  // 生灭出口唯一：选区空否（含 band 框选、dblclick 吞集消费——不发选区存证但同样过
+  // 此口）喂入仲裁，keyboard-mode-on/off 与生灭同相由构造保证（本函数是全部选区迁移
+  // 的必经之路）
+  dispatchKeyboardGate({ type: 'selection', nonEmpty: selection.names.length > 0 })
 }
 
 /** 双击启动名单逐项经 desktop/launch（走既有启动校验），结果逐项存证；via 记来源
- * （双击 / 工单24 单项菜单「打开」——同一启动链路，存证可分） */
-function launchNames(names: readonly string[], via: 'dblclick' | 'ctx-menu' = 'dblclick'): void {
+ * （双击 / 工单24 单项菜单「打开」——同一启动链路，存证可分；工单31 增 keyboard=Enter） */
+function launchNames(names: readonly string[], via: 'dblclick' | 'ctx-menu' | 'keyboard' = 'dblclick'): void {
   for (const name of names) {
     const target = itemByName.get(name)
     if (!target) {
@@ -197,8 +221,8 @@ function buildItem(item: DesktopItem): HTMLElement {
   })
   d.addEventListener('dblclick', () => {
     if (dragState.suppressed) return
-    const launch = launchListOf(selection, item.name)
-    selection = nextSelection(selection, { type: 'dblclick', name: item.name })
+    const launch = launchListOf(selection, item.name) // 整集名单先取：dblclick 事件会消费吞集
+    applySelection({ type: 'dblclick', name: item.name }) // 名单不变、吞集一次性消费；生灭喂入走 applySelection 单出口（评审结构项收敛第二喂点）
     notify('desktop-launch-set-clicked', { names: [...launch] })
     launchNames(launch)
   })
@@ -567,12 +591,13 @@ for (const zone of [dockZone, docZone]) {
   })
   // 右键分区空白（工单23）：热区内的分区面本来就只在这里可达（热区外穿透传真桌面），
   // 到达即「热区内」。条目右键归条目自己的 contextmenu 监听（工单24 单项菜单），此处
-  // closest 滤掉不重复弹；手势进行中不弹（native 惯例）。
+  // closest 滤掉不重复弹；手势进行中不弹（native 惯例）。开层走 openZoneMenu（工单30
+  // 起异步：先查可贴态再弹）。
   zone.addEventListener('contextmenu', (e) => {
     if (dragState.active || marqueeState.active) return
     if ((e.target as HTMLElement).closest('.ditem')) return
     e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
-    window.deckCtxMenu?.open(e.clientX, e.clientY, ctxMenuItems())
+    void openZoneMenu(e.clientX, e.clientY)
   })
 }
 
@@ -584,7 +609,7 @@ for (const zone of [dockZone, docZone]) {
 // suppressed 是消费制而非定时制（工单23 复审修正）：置位于 pointerdown，复位只发生在
 // 「吞掉首笔尾随事件」或「下一笔按下」——尾随事件是 down/up 之后的独立输入任务，
 // setTimeout(0) 会抢在它前面复位（拖拽/框选的 suppressed 置位于 pointerup，无此问题）。
-// 条目集是 contributor 注册位（open(x,y,items)）：本票两项内置，注册机制后续工单接入。
+// 条目集是 contributor 注册位（open(x,y,items)）：本票三项内置，注册机制后续工单接入。
 
 const menuState = { suppressed: false }
 
@@ -592,9 +617,24 @@ function menuOpen(): boolean {
   return window.deckCtxMenu?.isOpen() === true
 }
 
-/** 内置两项：全选走选区状态机（select-all），恢复出厂布局复用 06 契约（与设置浮层入口同链路） */
-function ctxMenuItems(): DeckCtxMenuItem[] {
+/** 分区空白菜单开层（工单30 起异步）：【粘贴】行按剪贴板实况置灰——先查
+ * desktop/clipboard-state 再 open。开层本来就是 effect 调用，异步可接受；查询走有界
+ * 等待（pasteableWithinTimeout，工单30 真机 (c) 挂起形态）——超时/拒绝都按查败置灰，
+ * 菜单永远开得出来，绝无界 await 挡开层。右键到弹出之间的极小窗口内若另有右键，
+ * 后发者照常重弹（open 幂等换位，既有语义）。 */
+async function openZoneMenu(x: number, y: number): Promise<void> {
+  let pasteable = false
+  try {
+    pasteable = await pasteableWithinTimeout(window.deck.bridge.invoke('desktop/clipboard-state', null))
+  } catch { /* invoke 同步缺席等形态：置灰 */ }
+  window.deckCtxMenu?.open(x, y, ctxMenuItems(pasteable))
+}
+
+/** 内置三项（工单30 起）：【粘贴】读剪贴板落用户桌面（desktop/paste，置灰态由归约器
+ * 挡）；全选走选区状态机（select-all）；恢复出厂布局复用 06 契约（与设置浮层入口同链路） */
+function ctxMenuItems(pasteable: boolean): DeckCtxMenuItem[] {
   return [
+    { id: 'paste', label: 'PASTE', disabled: !pasteable, run: () => pasteFromClipboard() },
     {
       id: 'select-all',
       label: 'SELECT ALL',
@@ -625,24 +665,27 @@ for (const type of ['click', 'contextmenu'] as const) {
   }, { capture: true })
 }
 
-// ---- 单项菜单（工单24，GLOSSARY.md「上下文菜单」）：右键单个桌面项的三动作条目集，
+// ---- 单项菜单（工单24，GLOSSARY.md「上下文菜单」）：右键单个桌面项的动作条目集，
 // 触发在 buildItem 的条目 contextmenu 监听里（弹/切裁决 = selection.itemMenuPlan）；
-// 收起与吞没共用工单23 的面板裁决（开层全窗热区、菜单外一击即收）。三个动作都走
+// 收起与吞没共用工单23 的面板裁决（开层全窗热区、菜单外一击即收）。动作都走
 // 内核契约：打开=双击同款 desktop/launch（via 标 ctx-menu）；打开所在位置=desktop/reveal
 // （explorer /select, 内核执行，搜索 reveal 同机制）；复制路径=desktop/copy-path——
 // 主进程剪贴板写，面板永不激活（focusable:false），渲染层 navigator.clipboard 因文档
 // 无焦点不可用。路径校验（扫描池护栏）在内核，与 launch 同款。
 
 /** 单项动作条目集（contributor 注册位形状，同工单23 分区空白内置两项）：三动作之外，
- * 第 4 行按目标条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见
- * 【钉到应用区】；手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
- * 第 5 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）。
- * 第 6 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
+ * 第 4/5 行【复制】【剪切】（工单29，文件级剪贴板写向，COPY PATH 之后）、第 6 行按目标
+ * 条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见【钉到应用区】；
+ * 手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
+ * 第 7 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）。
+ * 第 8 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
     { id: 'reveal', label: 'OPEN LOCATION', run: () => revealItem(item) },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPath(item) },
+    { id: 'copy', label: 'COPY', run: () => clipboardFilesAction([item.name], 'copy') },
+    { id: 'cut', label: 'CUT', run: () => clipboardFilesAction([item.name], 'cut') },
     pinnedNames.has(item.name)
       ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
       : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
@@ -702,11 +745,14 @@ function unpinItemToStore(item: DesktopItem): void {
 
 /** 多选动作条目集（contributor 注册位形状，同工单23/24）：打开全部 = 双击全开同款
  * 整集逐项经 desktop/launch（launchNames，via 标 ctx-menu，逐项存证）；复制路径 =
- * desktop/copy-paths 整集多行；删除全部 = 先弹自绘确认再整集 desktop/trash（工单27）。 */
+ * desktop/copy-paths 整集多行；复制/剪切 = desktop/clipboard-copy/cut 整集进系统文件
+ * 剪贴板（工单29）；删除全部 = 先弹自绘确认再整集 desktop/trash（工单27）。 */
 function multiItemMenuItems(names: readonly string[]): DeckCtxMenuItem[] {
   return [
     { id: 'open-all', label: 'OPEN ALL', run: () => launchNames(names, 'ctx-menu') },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPaths(names) },
+    { id: 'copy', label: 'COPY', run: () => clipboardFilesAction(names, 'copy') },
+    { id: 'cut', label: 'CUT', run: () => clipboardFilesAction(names, 'cut') },
     { id: 'delete-all', label: 'DELETE ALL', run: () => openTrashConfirm(names) },
   ]
 }
@@ -731,6 +777,84 @@ function copyItemPaths(names: readonly string[]): void {
   )
 }
 
+// ---- 复制与剪切（工单29，GLOSSARY.md「上下文菜单」二期条目）：单项【复制】【剪切】与
+// 多选菜单共用一道执行（评审结构项收敛——两闭包除存证族名与契约方法外逐行同形，合一为
+// clipboardFilesAction，effect 定族），desktop/clipboard-copy / desktop/clipboard-cut
+// 一道契约两处入口。内核侧：整份池护栏、CF_HDROP + Preferred DropEffect 单事务写入
+// （copy=1 / move=2）；写剪贴板不动摆位不删文件（剪切后条目仍在原地，真桌面同款）。
+// 存证族 desktop-copy-* / desktop-cut-*（clicked/copied|cut/rejected/failed 三分名，
+// trash/pin 惯例），电池按名断言。trashItems 是第三处同构，但存证载荷多 trashed/failed
+// 两字段且确认层路径共用，强行参合得不偿失——留守（评审结构项记因）。
+
+/** 复制/剪切的族表（effect → 契约方法 + 存证三分名 + 失败提示词）：单一出处防两族漂移 */
+const CLIPBOARD_FILE_FAMILIES = {
+  copy: {
+    method: 'desktop/clipboard-copy',
+    clicked: 'desktop-copy-clicked', ok: 'desktop-copied',
+    rejected: 'desktop-copy-rejected', failed: 'desktop-copy-failed',
+    failNotice: '复制失败',
+  },
+  cut: {
+    method: 'desktop/clipboard-cut',
+    clicked: 'desktop-cut-clicked', ok: 'desktop-cut',
+    rejected: 'desktop-cut-rejected', failed: 'desktop-cut-failed',
+    failNotice: '剪切失败',
+  },
+} as const
+
+/** 复制/剪切执行（文件级，工单29）：名单路径经 itemByName 解析（copyItemPaths 同款）——
+ * 渲染层快照落后于内核池时整份拒绝。结果分名存证，失败上浮提示条。via 记来源
+ * （工单31 增 keyboard=Ctrl+C/X，存证族名不另立）。 */
+function clipboardFilesAction(names: readonly string[], effect: 'copy' | 'cut', via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
+  const fam = CLIPBOARD_FILE_FAMILIES[effect]
+  const resolved = names.map((name) => itemByName.get(name)?.path)
+  if (resolved.some((p) => !p)) {
+    notify(fam.rejected, { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
+    showNotice('桌面项不在当前扫描池内')
+    return
+  }
+  const paths = resolved as string[]
+  notify(fam.clicked, { names: [...names], count: names.length, via })
+  void window.deck.bridge.invoke(fam.method, { paths }).then(
+    (r) => {
+      notify(r.ok ? fam.ok : fam.rejected, {
+        names: [...names], ok: r.ok, error: r.error ?? null,
+      })
+      if (!r.ok) showNotice(r.error ?? fam.failNotice)
+    },
+    (err: unknown) => notify(fam.failed, { names: [...names], message: String(err) }),
+  )
+}
+
+// ---- 粘贴（工单30，GLOSSARY.md「上下文菜单」二期条目）：分区空白菜单【粘贴】把系统
+// 剪贴板文件落进用户桌面根（desktop/paste 契约：剪切语义移动、否则复制，同名「 - 副本」
+// 递增不弹框，剪贴板读与落盘裁决都在内核）。置灰态在开层前经 desktop/clipboard-state
+// 查询（openZoneMenu），点置灰行由 shell 归约器挡下。存证族 desktop-paste-*：
+// clicked/pasted/rejected/failed（trash 三分名惯例），失败上浮提示条。无池护栏——
+// 剪贴板来源是桌面之外的任意位置，菜单层不做名单解析（paste 契约无参）。
+
+/** 粘贴执行：结果分名存证（pin/trash 同款），失败上浮提示条。via 记来源（工单31 增
+ * keyboard=Ctrl+V）；剪贴板无文件时 desktop/paste ok=false 存证 rejected——与菜单置灰
+ * 同语义。失败观感按 via 分流（评审 c2，pasteFailureNotice 纯函数）：菜单路保持提示条，
+ * 键路静默只存证（注释与票面「键触发静默不弹层」自此名实相符）。 */
+function pasteFromClipboard(via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
+  notify('desktop-paste-clicked', { via })
+  void window.deck.bridge.invoke('desktop/paste', null).then(
+    (r) => {
+      notify(r.ok ? 'desktop-pasted' : 'desktop-paste-rejected', {
+        ok: r.ok, pasted: r.pasted, failed: r.failed, error: r.error ?? null,
+      })
+      const notice = r.ok ? null : pasteFailureNotice(via, r.error ?? '粘贴失败')
+      if (notice) showNotice(notice)
+    },
+    (err: unknown) => {
+      notify('desktop-paste-failed', { message: String(err) })
+      const notice = pasteFailureNotice(via, String(err))
+      if (notice) showNotice(notice)
+    },
+  )
+}
+
 // ---- 删除与删除全部（工单27，GLOSSARY.md「上下文菜单」二期条目）：desktop/trash 一道
 // 契约两处入口——单项【删除】直接执行（真桌面单删同语义，回收站兜底误删），多选
 // 【删除全部】先弹自绘轻量确认（列出条数，确认/取消）。内核侧：整份池护栏、逐项送
@@ -739,8 +863,9 @@ function copyItemPaths(names: readonly string[]): void {
 // 开合，按钮矩形随开层存证——电池按它定位点击）、clicked/trashed/rejected/failed。
 
 /** 删除执行（单项/确认后共用）：名单路径经 itemByName 解析（copyItemPaths 同款）——
- * 渲染层快照落后于内核池时整份拒绝。结果分名存证（同 pin 惯例），失败上浮提示条。 */
-function trashItems(names: readonly string[]): void {
+ * 渲染层快照落后于内核池时整份拒绝。结果分名存证（同 pin 惯例），失败上浮提示条。
+ * via 记来源（工单31 增 keyboard=Del；确认层的确认点击仍记 ctx-menu——点击确属菜单层）。 */
+function trashItems(names: readonly string[], via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
   const resolved = names.map((name) => itemByName.get(name)?.path)
   if (resolved.some((p) => !p)) {
     notify('desktop-trash-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
@@ -748,7 +873,7 @@ function trashItems(names: readonly string[]): void {
     return
   }
   const paths = resolved as string[]
-  notify('desktop-trash-clicked', { names: [...names], count: names.length, via: 'ctx-menu' })
+  notify('desktop-trash-clicked', { names: [...names], count: names.length, via })
   void window.deck.bridge.invoke('desktop/trash', { paths }).then(
     (r) => {
       notify(r.ok ? 'desktop-trashed' : 'desktop-trash-rejected', {
@@ -793,7 +918,7 @@ function openTrashConfirm(names: readonly string[]): void {
     ? `DELETE 1 ITEM?\n${names[0]}`
     : `DELETE ${names.length} ITEMS?\n${names.join('\n')}`
   trashConfirmCard.style.display = 'block'
-  window.deck.host.setKeyboardMode(true)
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'trash-confirm' }) // 浮层接管键盘（仲裁单点，工单31）
   trashConfirmCard.focus()
   notify('desktop-trash-confirm-opened', {
     names: [...names], count: names.length,
@@ -808,7 +933,7 @@ function closeTrashConfirm(reason: TrashConfirmCloseReason): void {
   if (!names) return
   trashConfirmNames = null
   trashConfirmCard.style.display = 'none'
-  window.deck.host.setKeyboardMode(false)
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'trash-confirm' }) // 选区仍非空则仲裁保持 on（工单31）
   notify('desktop-trash-confirm-closed', { reason, count: names.length })
   declareHotZones()
   if (reason === 'confirm') trashItems(names)
@@ -924,7 +1049,7 @@ function beginRename(item: DesktopItem): void {
   renameEditor.item = item
   renameEditor.input = input
   renameEditor.label = label
-  window.deck.host.setKeyboardMode(true) // 键盘模式开（工单02）：输入框要接键盘
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'rename' }) // 键盘模式开（仲裁单点，工单31）：输入框要接键盘
   input.focus()
   selectRenameStem(item, input)
   const r = input.getBoundingClientRect()
@@ -976,7 +1101,7 @@ function endRenameEditor(nextLabelText: string): { typed: string; label: HTMLEle
   const typed = input ? input.value : ''
   if (label) label.textContent = nextLabelText
   input?.replaceWith(label!)
-  window.deck.host.setKeyboardMode(false) // 键盘模式关（工单02）：恢复不可聚焦+钉底
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'rename' }) // 键盘模式关（仲裁单点，工单31）：选区仍非空则保持 on
   renameEditor.active = false
   renameEditor.closing = false
   renameEditor.input = null
@@ -1056,7 +1181,7 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
   let renameCarry: { item: DesktopItem; value: string } | null = carried
   if (carried && !state.items.some((i) => i.name === carried.item.name)) {
     notify('desktop-rename-cancelled', { name: carried.item.name, reason: 'rebuild' })
-    window.deck.host.setKeyboardMode(false)
+    dispatchKeyboardGate({ type: 'overlay-closed', name: 'rename' }) // 编辑会话随条目消失收场（仲裁单点，工单31）
     renameCarry = null
   }
   const byName = itemByName
@@ -1166,8 +1291,8 @@ type SettingsCloseReason = 'esc' | 'blur' | 'toggle'
 function openSettings(): void {
   if (settingsOpen) return
   settingsOpen = true
-  // 键盘模式开（工单02）：浮层要接 ESC/滑杆拖拽后的键盘路径，临时取得键盘焦点
-  window.deck.host.setKeyboardMode(true)
+  // 键盘模式开（仲裁单点，工单31）：浮层要接 ESC/滑杆拖拽后的键盘路径，临时取得键盘焦点
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'settings' })
   settingsCard.style.display = 'block'
   settingsCard.focus()
   // 逃生开关与内核态对齐（工单50）：每次开层拉一手真值，不等回推
@@ -1189,9 +1314,9 @@ function openSettings(): void {
 function closeSettings(reason: SettingsCloseReason): void {
   if (!settingsOpen) return
   settingsOpen = false
-  // 键盘模式关（工单02）：恢复不可聚焦+钉底；焦点悬空不还原（spec 拍板）。
-  // 失焦引发的 focusout 再入被 settingsOpen 早退拦住。
-  window.deck.host.setKeyboardMode(false)
+  // 键盘模式关（仲裁单点，工单31）：恢复不可聚焦+钉底；焦点悬空不还原（spec 拍板）。
+  // 失焦引发的 focusout 再入被 settingsOpen 早退拦住。选区仍非空则仲裁保持 on。
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'settings' })
   settingsCard.style.display = 'none'
   notify('settings-closed', { reason })
   declareHotZones()
@@ -1400,8 +1525,8 @@ function searchActivate(): void {
     return
   }
   searchActive = true
-  // 键盘模式开（工单02）：面板永不激活，这里临时取得键盘焦点再聚焦输入框
-  window.deck.host.setKeyboardMode(true)
+  // 键盘模式开（仲裁单点，工单31）：面板永不激活，这里临时取得键盘焦点再聚焦输入框
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'search' })
   searchHint.style.display = 'none'
   searchInput.style.display = 'block'
   searchPlaceholder.style.display = searchInput.value ? 'none' : 'block'
@@ -1421,9 +1546,9 @@ function searchDeactivate(reason: SearchDeactivateReason): void {
   if (!searchActive) return
   searchDeactivating = true
   searchActive = false
-  // 键盘模式关（工单02）：恢复不可聚焦+钉底。窗口随之失活会再触发一次 input blur，
-  // 由 searchDeactivating 护栏与下方 searchActive 早退双保险拦住，不会打架。
-  window.deck.host.setKeyboardMode(false)
+  // 键盘模式关（仲裁单点，工单31）：恢复不可聚焦+钉底。窗口随之失活会再触发一次 input blur，
+  // 由 searchDeactivating 护栏与下方 searchActive 早退双保险拦住，不会打架。选区仍非空则仲裁保持 on。
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'search' })
   void window.deck.bridge.invoke('search/deactivate', null).catch(() => {})
   searchInput.value = ''
   searchInput.style.display = 'none'
@@ -1484,6 +1609,60 @@ window.deck.bridge.on('search/state', (s) => {
   }
   // 'active' 恢复由随后到达的 search/results 重绘（离线徽标被结果行替换）；'idle' 由本地转移处理
 })
+
+// ---- 键盘全局编排（工单31，ADR-0006 收官）：window keydown 捕获段优先级编排——
+// 浮层（既有自处理保持不动：浮层开着时本段对一切按键不拦不抢先，事件落到浮层聚焦
+// 元素自己的 keydown 监听）> 菜单（esc 收起：菜单开着 Esc 只关菜单不清选区）>
+// 选区清空。六键路由（Del/Enter/Ctrl+A/Ctrl+C/X/V）只在选区非空且无浮层、无菜单
+// 开层期间接管（条件裁决在 keyboard-gate.ts 纯逻辑），动作复用既有动作闭包——存证
+// 族名不另立，via 标 keyboard 供电池分源。捕获段接管时 preventDefault +
+// stopPropagation 恰吃一笔不双吃；放行（返回 null / 双否）时本段零动作。
+
+/** 六键动作执行（选区非空期间）：Del=既有删除语义（单项直删、多选弹确认层——工单27）、
+ * Enter=打开选中（当前选区整份：多选按插入序逐项、单选单条；不复活吞集——评审 c1，
+ * 整集启动语义是双击路径专属，dblclick 仍走 launchListOf）、Ctrl+A=select-all 事件进
+ * 选区状态机、Ctrl+C/X=文件级复制/剪切（工单29）、Ctrl+V=粘贴（工单30：剪贴板无文件时
+ * desktop/paste ok=false 存证 rejected，与菜单置灰同语义；键路静默不弹提示条——评审 c2）。 */
+function runKeyboardAction(action: KeyboardActionType): void {
+  const names = [...selection.names]
+  if (!names.length) return
+  if (action === 'delete') {
+    if (names.length === 1) trashItems(names, 'keyboard')
+    else openTrashConfirm(names)
+  } else if (action === 'open') {
+    launchNames(keyboardOpenTargets(selection), 'keyboard')
+  } else if (action === 'select-all') {
+    applySelection({ type: 'select-all', names: [...itemByName.keys()] })
+  } else if (action === 'copy') {
+    clipboardFilesAction(names, 'copy', 'keyboard')
+  } else if (action === 'cut') {
+    clipboardFilesAction(names, 'cut', 'keyboard')
+  } else if (action === 'paste') {
+    pasteFromClipboard('keyboard')
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  const ctx: KeyRoutingContext = {
+    overlayOpen: keyboardGate.overlays.length > 0,
+    menuOpen: menuOpen(),
+    selectionNonEmpty: selection.names.length > 0,
+  }
+  if (e.key === 'Escape') {
+    const plan = escapePlan(ctx)
+    if (!plan.closeMenu && !plan.clearSelection) return // 浮层自处理/无事可做：不拦，既有监听接手
+    e.preventDefault()
+    e.stopPropagation() // Esc 定序恰吃一笔：菜单开着只关菜单（选区不动），清空选区也不外溢
+    if (plan.closeMenu) window.deckCtxMenu?.escDismiss()
+    else applySelection({ type: 'blank-click' }) // 清空语义唯一出处仍是选区状态机（连带仲裁还原键盘模式）
+    return
+  }
+  const action = routeSelectionKey(e.key, e.ctrlKey, ctx)
+  if (!action) return
+  e.preventDefault()
+  e.stopPropagation()
+  runKeyboardAction(action)
+}, { capture: true })
 
 // ---- 总渲染（快照到达即刷新全部卡片 + 桌面组件） ----
 

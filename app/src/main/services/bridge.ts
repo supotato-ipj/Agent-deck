@@ -71,6 +71,14 @@ export class BridgeService extends Service {
         const { paths } = payload as { paths: string[] }
         return await this.ctx.panelData.copyPaths((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
       }
+      case 'desktop/clipboard-copy': {
+        const { paths } = payload as { paths: string[] }
+        return await this.ctx.panelData.clipboardCopy((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
+      }
+      case 'desktop/clipboard-cut': {
+        const { paths } = payload as { paths: string[] }
+        return await this.ctx.panelData.clipboardCut((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
+      }
       case 'desktop/trash': {
         const { paths } = payload as { paths: string[] }
         return await this.ctx.panelData.trash((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
@@ -79,6 +87,10 @@ export class BridgeService extends Service {
         const { name, to } = payload as { name: string; to: string }
         return await this.ctx.panelData.rename(String(name), String(to ?? '')) as BridgeMethods[M]['response']
       }
+      case 'desktop/paste':
+        return await this.ctx.panelData.paste() as BridgeMethods[M]['response']
+      case 'desktop/clipboard-state':
+        return await this.ctx.panelData.clipboardState() as BridgeMethods[M]['response']
       case 'desktop/move': {
         const { name, zone, beforeName } = payload as { name: string; zone: DesktopZone; beforeName: string | null }
         return await this.ctx.panelData.move(name, zone, beforeName) as BridgeMethods[M]['response']

@@ -1,5 +1,6 @@
 // 文件名语义（工单28 重命名，纯逻辑）：输入框原文 → 盘面目标文件名的推导，与
 // Win32 文件名合法性校验。不碰文件系统——冲突校验（目标是否已存在）在服务层走依赖束。
+// 工单30 起兼营粘贴重名冲突的副本名递增（同为纯逻辑，盘面实况由调用方注入）。
 import type { DesktopItemKind } from '../../shared/contract'
 import { isAppEntry } from './scan'
 
@@ -42,4 +43,43 @@ export function fileNameError(name: string): string | null {
   const stem = name.includes('.') ? name.slice(0, name.indexOf('.')) : name
   if (RESERVED_STEMS.has(stem.toUpperCase())) return '文件名是系统保留名'
   return null
+}
+
+/** 副本名后缀（工单30，explorer 同款不弹框）：「 - 副本」起步、「 - 副本 N」递增 */
+const DUPLICATE_SUFFIX = ' - 副本'
+/** 基名已带的副本后缀（剥掉续号用）：「xxx - 副本」或「xxx - 副本 N」收尾形态 */
+const DUPLICATE_TAIL = /^(.*) - 副本(?: (\d+))?$/
+
+/**
+ * 粘贴重名冲突的副本名（工单30，真桌面同款不弹框）：原名未被占用原样返回；被占用则
+ * 「基名 - 副本<ext>」起步、「基名 - 副本 N<ext>」递增取第一个空位。基名自带
+ * 「 - 副本」/「 - 副本 N」后缀时剥掉续号（再贴一份 ≠ 叠罗汉，多份粘贴不互相覆盖）。
+ * 扩展名主意只对文件打（目录名带点不拆——explorer 对文件夹只在名尾加后缀；点开头的
+ * 名字 .gitignore 不算扩展）。taken 是盘面实况谓词（服务层注入 entryExists）——先贴出
+ * 的名字立即可见，同拍多份递增不撞名；本函数不碰文件系统。
+ */
+export function duplicateName(
+  entry: { name: string; isDirectory: boolean },
+  taken: (candidate: string) => boolean,
+): string {
+  if (!taken(entry.name)) return entry.name
+  let stem = entry.name
+  let ext = ''
+  if (!entry.isDirectory) {
+    const dot = entry.name.lastIndexOf('.')
+    if (dot > 0) {
+      stem = entry.name.slice(0, dot)
+      ext = entry.name.slice(dot)
+    }
+  }
+  let n = 1
+  const carried = DUPLICATE_TAIL.exec(stem)
+  if (carried) {
+    stem = carried[1]
+    n = carried[2] ? Number(carried[2]) + 1 : 2
+  }
+  for (;; n += 1) {
+    const candidate = `${stem}${DUPLICATE_SUFFIX}${n > 1 ? ` ${n}` : ''}${ext}`
+    if (!taken(candidate)) return candidate
+  }
 }

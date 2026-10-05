@@ -215,4 +215,46 @@ describe('数据面内核（采集子进程的服务装配）', () => {
       await ctx.stop()
     }
   })
+
+  it('粘贴写路径在数据面内核内可用（工单30）：剪贴板假源注入（生产经主进程 clipboard-read 代理），copy 落盘并随下一拍快照收敛', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(staging, { recursive: true })
+    fs.writeFileSync(path.join(staging, 'P.txt'), 'paste-me')
+
+    const snapshots: DataplaneSnapshot[] = []
+    const ctx = createDataplaneKernel({
+      hardwareSources: fakeHardware(),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => new Map<number, string>(),
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+      desktop: {
+        ...desktopOpts(dir),
+        deps: {
+          ...desktopOpts(dir).deps,
+          // 剪贴板假源（生产侧该源经 clipboard-read-req/res 反向代理伸回主进程）
+          readClipboardFiles: async () => ({ paths: [path.join(staging, 'P.txt')], effect: 'copy' as const }),
+        },
+      },
+      tickIntervalMs: 10,
+      hardwareIntervalMs: 0,
+      usageIntervalMs: 0,
+      onSnapshot: (s) => snapshots.push(s),
+    })
+    await ctx.start()
+    try {
+      expect(await ctx.desktop.clipboardState()).toEqual({ pasteable: true })
+      expect(await ctx.desktop.paste()).toEqual({ ok: true, pasted: ['P.txt'], failed: [] })
+      expect(fs.existsSync(path.join(dir, 'user', 'P.txt'))).toBe(true)
+      await new Promise((r) => setTimeout(r, 60))
+      expect(snapshots[snapshots.length - 1].desktop.items.map((i) => i.name)).toEqual(['P.txt'])
+    } finally {
+      await ctx.stop()
+    }
+  })
 })

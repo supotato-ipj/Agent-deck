@@ -4,7 +4,7 @@
  * 分区根本不进输入。
  */
 import { describe, expect, it } from 'vitest'
-import { EMPTY_SELECTION, itemMenuPlan, launchListOf, nextSelection } from '../../src/renderer/selection'
+import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from '../../src/renderer/selection'
 import type { SelectionModel } from '../../src/renderer/selection'
 
 function seq(...events: Parameters<typeof nextSelection>[1][]): SelectionModel {
@@ -269,6 +269,35 @@ describe('select-all 全选（工单23 菜单）', () => {
       { type: 'reconcile', liveNames: ['A', 'C'] },
     )
     expect(m.names).toEqual(['A', 'C'])
+  })
+})
+
+describe('keyboardOpenTargets 键盘 Enter 启动名单（评审 c1：只开当前选区，不复活吞集）', () => {
+  it('多选 → 单击收束 → Enter 只开当前一条（吞集在场也不复活）', () => {
+    const m = seq(
+      { type: 'ctrl-click', name: 'A' },
+      { type: 'ctrl-click', name: 'B' },
+      { type: 'ctrl-click', name: 'C' },
+      { type: 'click', name: 'B' },
+    )
+    expect(m.names).toEqual(['B'])
+    expect(m.swallowed).toEqual(['A', 'B', 'C'])
+    // 对照（双击路径专属语义，故意分叉）：launchListOf 按吞集整集复活
+    expect(launchListOf(m, 'B')).toEqual(['A', 'B', 'C'])
+    // 键盘 Enter = 当前选区（story「Enter 打开选中」）：整集启动语义不跨界
+    expect(keyboardOpenTargets(m)).toEqual(['B'])
+  })
+  it('多选整集 Enter：按当前选区插入序逐项（不查吞集）', () => {
+    const m = seq({ type: 'band', names: ['B', 'A'] })
+    expect(keyboardOpenTargets(m)).toEqual(['B', 'A'])
+  })
+  it('单选无吞集：与双击同名单', () => {
+    const m = seq({ type: 'click', name: 'B' })
+    expect(keyboardOpenTargets(m)).toEqual(['B'])
+    expect(launchListOf(m, 'B')).toEqual(['B'])
+  })
+  it('空集（路由放行后防线）：空名单', () => {
+    expect(keyboardOpenTargets(EMPTY_SELECTION)).toEqual([])
   })
 })
 

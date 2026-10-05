@@ -248,6 +248,23 @@ export interface BridgeMethods {
    */
   'desktop/copy-paths': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
   /**
+   * 选中桌面项写入系统文件剪贴板（工单29 单项菜单【复制】与多选菜单共用一道契约，
+   * 多选整集进剪贴板）：整份绝对路径有序列表（序 = 名单序 = 选区插入序）+ copy 语义
+   * （Preferred DropEffect = DROPEFFECT_COPY，粘贴为副本）。paths 全部在当前扫描池内
+   * 才执行（copy-paths 同款整份护栏——剪贴板不写半份名单），空名单拒绝。写入格式
+   * CF_HDROP + Preferred DropEffect（资源管理器及任意应用可直接粘贴），执行在
+   * DesktopService 宿主进程（koffi 直调 user32 纯 native，数据面子进程可用，
+   * 无 trash 那样的主进程代理）。
+   */
+  'desktop/clipboard-copy': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
+  /**
+   * 选中桌面项以剪切语义写入系统文件剪贴板（工单29 单项菜单【剪切】与多选菜单共用）：
+   * 与 clipboard-copy 同一道护栏与写入格式，effect = move（Preferred DropEffect =
+   * DROPEFFECT_MOVE，粘贴为搬移）。写剪贴板不动摆位不删文件——剪切后条目仍在原地
+   * （真桌面同款），摆位清除发生在粘贴移走或 trash 时。
+   */
+  'desktop/clipboard-cut': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
+  /**
    * 删除进回收站（工单27，单项菜单【删除】与多选菜单【删除全部】共用一道契约）：
    * paths 全部在当前扫描池内才执行（launch/copy-paths 同款护栏，不删半份名单）；逐项
    * 送回收站（shell.trashItem，误删可找回），失败条目如实回报不做提权——任一失败
@@ -272,6 +289,25 @@ export interface BridgeMethods {
    * 摆位存储归属地；trash 的主进程代理在此不需要）。
    */
   'desktop/rename': { request: { name: string; to: string }; response: { ok: boolean; to?: string; error?: string } }
+  /**
+   * 粘贴（工单30 分区空白菜单【粘贴】）：读系统剪贴板文件清单（CF_HDROP + Preferred
+   * DropEffect 语义）逐项落用户桌面根——剪切语义逐项移动（rename 落败回退复制+删源，
+   * 跨卷）、否则递归复制（文件夹同款）；目标名冲突自动「x - 副本」「x - 副本 2」递增取
+   * 空位（真桌面同款不弹框）。无池护栏——源路径不在扫描池是常态（剪贴板来自桌面之外
+   * 的任意位置）。部分失败语义照 trash：失败条目如实回报、成功条目保留。响应 pasted =
+   * 落盘最终名（含副本后缀）、failed = 源基名。执行在数据面子进程（落点落盘裁决地），
+   * 剪贴板读经主进程代理（clipboard 是主进程 API，trash 同法）。
+   */
+  'desktop/paste': {
+    request: null
+    response: { ok: boolean; pasted: string[]; failed: string[]; error?: string }
+  }
+  /**
+   * 可粘贴态查询（工单30，只读）：剪贴板含文件即可贴（CF_HDROP 在场即真）。分区空白
+   * 右键开层前查询，【粘贴】行按结果置灰；查询失败按不可贴（宁可置灰不误可用）。
+   * 与 desktop/paste 同一道剪贴板读依赖束（主进程代理）。
+   */
+  'desktop/clipboard-state': { request: null; response: { pasteable: boolean } }
   /** 拖拽摆位：name 入目标分区、排在 beforeName 之前（null = 末尾）；落盘并即时重编排 */
   'desktop/move': {
     request: { name: string; zone: DesktopZone; beforeName: string | null }

@@ -17,8 +17,9 @@ declare global {
   type SearchResultItem = import('../shared/contract').SearchResultItem
   type SearchUiState = import('../shared/contract').SearchUiState
   type SettingsState = import('../shared/contract').SettingsState
-  /** 上下文菜单条目（工单23 contributor 形状：数组即注册位，注册机制后续工单接入） */
-  type DeckCtxMenuItem = { id: string; label: string; run(): void }
+  /** 上下文菜单条目（工单23 contributor 形状：数组即注册位，注册机制后续工单接入）。
+   * disabled = 置灰行（工单30【粘贴】）：呈现弱化 + activate 挡下（menu.ts 归约器）。 */
+  type DeckCtxMenuItem = { id: string; label: string; disabled?: boolean; run(): void }
 
   interface Window {
     deck: {
@@ -47,6 +48,8 @@ declare global {
       open(x: number, y: number, items: readonly DeckCtxMenuItem[]): void
       /** 菜单外按下收起（面板裁决后转发） */
       close(): void
+      /** Esc 收起（工单31 全局定序：面板 keydown 捕获段转发，存证 reason=esc） */
+      escDismiss(): void
       /** 开层判定（全窗热区换挡读它；插件未装时 undefined） */
       isOpen(): boolean
     }

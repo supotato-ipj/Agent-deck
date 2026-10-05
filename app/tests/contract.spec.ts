@@ -295,6 +295,51 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/clipboard-copy + desktop/clipboard-cut（工单29）：池内整份写入（多文件有序 + effect），任一池外整份拒绝；空名单拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const writes: Array<{ paths: string[]; effect: string }> = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          writeClipboardFiles: async (paths: readonly string[], effect: 'copy' | 'move') => {
+            writes.push({ paths: [...paths], effect })
+            return ''
+          },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const pathOf = (name: string) => (snap.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      // 复制：多文件整份、有序（序 = 名单序 = 选区插入序）
+      await expect(ctx.bridge.invoke('desktop/clipboard-copy', { paths: [pathOf('B.docx'), pathOf('A.lnk')] }))
+        .resolves.toEqual({ ok: true })
+      expect(writes).toEqual([{ paths: [pathOf('B.docx'), pathOf('A.lnk')], effect: 'copy' }])
+      // 剪切：effect=move（粘贴为搬移）
+      await expect(ctx.bridge.invoke('desktop/clipboard-cut', { paths: [pathOf('A.lnk')] }))
+        .resolves.toEqual({ ok: true })
+      expect(writes).toHaveLength(2)
+      expect(writes[1]).toEqual({ paths: [pathOf('A.lnk')], effect: 'move' })
+      // 池外整份拒绝（copy-paths/trash 同款护栏）：剪贴板不写半份名单
+      const outside = await ctx.bridge.invoke('desktop/clipboard-copy', { paths: [pathOf('B.docx'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(writes).toHaveLength(2)
+      // 空名单拒绝（信封错误）
+      await expect(ctx.bridge.invoke('desktop/clipboard-copy', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '复制名单为空' })
+      await expect(ctx.bridge.invoke('desktop/clipboard-cut', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '剪切名单为空' })
+      expect(writes).toHaveLength(2)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/rename（工单28）：池内改名真落盘、摆位同拍迁移；冲突与非法名拒绝；池外拒绝', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
@@ -961,4 +1006,99 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     await ctx.stop()
     expect(changed).toEqual([{ enabled: false }])
   }, 30_000)
+})
+
+describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
+  it('desktop/clipboard-state 只读可贴态 + desktop/paste 无文件整份拒绝（菜单置灰依据）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => null,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('desktop/clipboard-state', null)).resolves.toEqual({ pasteable: false })
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: false, pasted: [], failed: [], error: '剪贴板没有可粘贴的文件' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/paste（copy）：递归复制落用户桌面根；同名「 - 副本」递增多份不互相覆盖', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(path.join(staging, 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(staging, 'DECK30.txt'), 'v1')
+    fs.writeFileSync(path.join(staging, 'docs', 'inner.txt'), 'inner')
+    fs.writeFileSync(path.join(dir, 'user', 'DECK30.txt'), 'original') // 冲突靶子
+    const clip = {
+      paths: [path.join(staging, 'DECK30.txt'), path.join(staging, 'docs')],
+      effect: 'copy' as const,
+    }
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => clip,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('desktop/clipboard-state', null)).resolves.toEqual({ pasteable: true })
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: true, pasted: ['DECK30 - 副本.txt', 'docs'], failed: [] })
+      // 冲突不覆盖：原名与副本各有内容
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30.txt'), 'utf8')).toBe('original')
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30 - 副本.txt'), 'utf8')).toBe('v1')
+      expect(fs.existsSync(path.join(dir, 'user', 'docs', 'inner.txt'))).toBe(true) // 文件夹递归复制
+      // 再贴一份：续号「 - 副本 2」不互相覆盖（文件夹同款）
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: true, pasted: ['DECK30 - 副本 2.txt', 'docs - 副本'], failed: [] })
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30 - 副本 2.txt'), 'utf8')).toBe('v1')
+      expect(fs.existsSync(path.join(dir, 'user', 'docs - 副本', 'inner.txt'))).toBe(true)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/paste（move）：rename 落盘源离位；部分失败信封（成功保留 + failed 明细）', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(staging, { recursive: true })
+    const srcA = path.join(staging, 'A.txt')
+    fs.writeFileSync(srcA, 'move-me')
+    const clip = {
+      paths: [srcA, path.join(staging, 'GHOST.txt')], // GHOST 不在盘上：真 fs 落败 → 部分失败
+      effect: 'move' as const,
+    }
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => clip,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const r = await ctx.bridge.invoke('desktop/paste', null)
+      expect(r.ok).toBe(false)
+      expect(r.pasted).toEqual(['A.txt'])
+      expect(r.failed).toEqual(['GHOST.txt'])
+      expect(r.error).toContain('GHOST.txt')
+      expect(fs.existsSync(srcA)).toBe(false) // move 语义：源离位
+      expect(fs.readFileSync(path.join(dir, 'user', 'A.txt'), 'utf8')).toBe('move-me')
+    } finally {
+      await ctx.stop()
+    }
+  })
 })
