@@ -120,4 +120,99 @@ describe('数据面内核（采集子进程的服务装配）', () => {
       await ctx.stop()
     }
   })
+
+  it('删除写路径在数据面内核内可用（工单27）：trash 清摆位并随下一拍快照收敛，同名复活不归位', async () => {
+    const dir = tmpDir()
+    const bPath = path.join(dir, 'user', 'B.lnk')
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(bPath, 'stub')
+
+    const snapshots: DataplaneSnapshot[] = []
+    const opts = desktopOpts(dir)
+    const ctx = createDataplaneKernel({
+      hardwareSources: fakeHardware(),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => new Map<number, string>(),
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+      desktop: {
+        ...opts,
+        deps: {
+          ...opts.deps,
+          // 回收站假源：真删盘面文件（模拟 shell.trashItem 的盘面效果；生产侧该源经主进程代理）
+          trash: async (p: string) => {
+            fs.unlinkSync(p)
+            return ''
+          },
+        },
+      },
+      tickIntervalMs: 10,
+      hardwareIntervalMs: 0,
+      usageIntervalMs: 0,
+      onSnapshot: (s) => snapshots.push(s),
+    })
+    await ctx.start()
+    try {
+      expect(ctx.desktop.move('B.lnk', 'app', 'A.lnk')).toEqual({ ok: true })
+      await new Promise((r) => setTimeout(r, 60))
+      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
+        .toEqual([['B.lnk', 'placed'], ['A.lnk', 'recommended']])
+      const r = await ctx.desktop.trash([bPath])
+      expect(r).toEqual({ ok: true, trashed: ['B.lnk'], failed: [] })
+      await new Promise((r) => setTimeout(r, 60))
+      expect(snapshots[snapshots.length - 1].desktop.items.map((i) => i.name)).toEqual(['A.lnk'])
+      // 同名复活不归位（摆位清除的防复活语义）：重建同名文件，编排退推荐段而非 placed 段
+      fs.writeFileSync(bPath, 'stub')
+      await new Promise((r) => setTimeout(r, 60))
+      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
+        .toEqual([['A.lnk', 'recommended'], ['B.lnk', 'recommended']])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('重命名写路径在数据面内核内可用（工单28）：rename 真落盘、摆位同拍迁移并随下一拍快照收敛（位置不丢）', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.lnk'), 'stub')
+
+    const snapshots: DataplaneSnapshot[] = []
+    const ctx = createDataplaneKernel({
+      hardwareSources: fakeHardware(),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => new Map<number, string>(),
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+      desktop: desktopOpts(dir), // rename/entryExists 走默认真源（fs.promises.rename / statSync）
+      tickIntervalMs: 10,
+      hardwareIntervalMs: 0,
+      usageIntervalMs: 0,
+      onSnapshot: (s) => snapshots.push(s),
+    })
+    await ctx.start()
+    try {
+      expect(ctx.desktop.move('B.lnk', 'app', 'A.lnk')).toEqual({ ok: true })
+      await new Promise((r) => setTimeout(r, 60))
+      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
+        .toEqual([['B.lnk', 'placed'], ['A.lnk', 'recommended']])
+      // 显示名输入（不带 .lnk）→ 内核补回原扩展；盘面真改名
+      expect(await ctx.desktop.rename('B.lnk', 'Renamed')).toEqual({ ok: true, to: 'Renamed.lnk' })
+      expect(fs.existsSync(path.join(dir, 'user', 'B.lnk'))).toBe(false)
+      expect(fs.existsSync(path.join(dir, 'user', 'Renamed.lnk'))).toBe(true)
+      await new Promise((r) => setTimeout(r, 60))
+      // 摆位同拍迁移：placed 段身份随新名延续（面板发起的改名不丢位置）
+      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
+        .toEqual([['Renamed.lnk', 'placed'], ['A.lnk', 'recommended']])
+    } finally {
+      await ctx.stop()
+    }
+  })
 })

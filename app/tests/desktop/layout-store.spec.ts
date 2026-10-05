@@ -1,8 +1,10 @@
 /**
- * 摆位存储纯逻辑测试（工单06）：出厂态、损坏自愈、拖拽摆位动作、恢复出厂。
+ * 摆位存储纯逻辑测试（工单06）：出厂态、损坏自愈、拖拽摆位动作、恢复出厂；
+ * 工单27 起含删除同拍的摆位清除（forgetItems）、工单28 起含重命名同拍的摆位迁移
+ * （renameItemInStore）。
  */
 import { describe, expect, it } from 'vitest'
-import { FACTORY_STORE, loadStore, moveItem, pinItem, resetFactory, serializeStore, unpinItem } from '../../src/main/desktop/layout-store'
+import { FACTORY_STORE, forgetItems, loadStore, moveItem, pinItem, renameItemInStore, resetFactory, serializeStore, unpinItem } from '../../src/main/desktop/layout-store'
 
 describe('loadStore / serializeStore', () => {
   it('缺失（null）与损坏 JSON 均回出厂态', () => {
@@ -90,6 +92,45 @@ describe('pinItem / unpinItem（工单25 手钉管理动作）', () => {
   it('空清单钉入/取消 roundtrip 回出厂', () => {
     const s = unpinItem(pinItem(FACTORY_STORE, 'a.lnk'), 'a.lnk')
     expect(s).toEqual(FACTORY_STORE)
+  })
+})
+
+describe('renameItemInStore（工单28 重命名同拍的摆位迁移）', () => {
+  const base = { version: 1 as const, pinned: ['Kimi', 'p.lnk'], dock: ['a.lnk', 'p.lnk'], docs: ['n.txt', 'm.pdf'] }
+
+  it('名字在三份名单里的身影原位换成新名，序与其余名字不动', () => {
+    const s = renameItemInStore(base, 'p.lnk', 'renamed.lnk')
+    expect(s.pinned).toEqual(['Kimi', 'renamed.lnk']) // 手钉身份随改名带走（位置不丢）
+    expect(s.dock).toEqual(['a.lnk', 'renamed.lnk'])
+    expect(s.docs).toEqual(['n.txt', 'm.pdf'])
+  })
+
+  it('文档区名单里的条目同样原位迁移', () => {
+    const s = renameItemInStore(base, 'm.pdf', 'report.pdf')
+    expect(s.docs).toEqual(['n.txt', 'report.pdf'])
+    expect(s.pinned).toEqual(['Kimi', 'p.lnk'])
+    expect(s.dock).toEqual(['a.lnk', 'p.lnk'])
+  })
+
+  it('不在任何名单的名字 = 原样返回（无摆位条目改名不产生摆位）', () => {
+    expect(renameItemInStore(base, 'ghost.lnk', 'new.lnk')).toEqual(base)
+  })
+})
+
+describe('forgetItems（工单27 删除同拍的摆位清除）', () => {
+  const base = { version: 1 as const, pinned: ['Kimi', 'gone.lnk'], dock: ['a.lnk', 'gone.lnk'], docs: ['gone.docx', 'n.txt'] }
+
+  it('名字从三份名单（手钉 + 两分区显式摆位）一并移除，其余序保持', () => {
+    const s = forgetItems(base, ['gone.lnk', 'gone.docx'])
+    expect(s).toEqual({ version: 1, pinned: ['Kimi'], dock: ['a.lnk'], docs: ['n.txt'] })
+  })
+
+  it('不在名单的名字 = 原样返回（幂等空转）', () => {
+    expect(forgetItems(base, ['ghost.lnk'])).toEqual(base)
+  })
+
+  it('空名单 = 原样返回', () => {
+    expect(forgetItems(base, [])).toEqual(base)
   })
 })
 

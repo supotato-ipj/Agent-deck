@@ -207,16 +207,16 @@ function colorIconTarget(pngPath, rgb, tol = 20) {
 const w32FindWindowEx = (parent, after, cls) => win32.FindWindowExW(parent, after, cls, null);
 
 // —— 通知区域注册表（Win11 22H2+）：IsPromoted=1 把溢出区图标提升到任务栏可见区 ——
-function psRun(script) {
-  return psSpawn(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+function psRun(script, timeoutMs) {
+  return psSpawn(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], timeoutMs);
 }
 
-function psRunFile(args) {
-  return psSpawn(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ...args]);
+function psRunFile(args, timeoutMs) {
+  return psSpawn(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ...args], timeoutMs);
 }
 
-function psSpawn(args) {
-  const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 15000 });
+function psSpawn(args, timeoutMs = 15000) {
+  const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: timeoutMs });
   if (r.status !== 0) throw new Error(`powershell 失败: ${r.stderr || r.stdout}`);
   return (r.stdout || '').trim();
 }
@@ -272,11 +272,14 @@ function psDesktopScan() {
 
 // 造验收探针 lnk（ASCII-only 临时 ps1 走 -File：内联 -Command 传 COM 调用在本机
 // 实测挂起/静默失败——03 踩坑 1「ps1 一律 ASCII」同源，引号路径不再过 shell 转义层）。
+// 目标走 cmd（毫秒级启动直写标记）：powershell 冷启动本机空闲实测 6s 起、电池负载下
+// 曾 4/4 超过 10s 预算（工单27 轮次实测），WindowStyle=7（最小化）免控制台闪窗进截屏。
 function createProbeLnk(lnkPath, markerPath) {
   const script = [
     '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($args[0])',
-    "$s.TargetPath = 'powershell.exe'",
-    "$s.Arguments = '-NoProfile -WindowStyle Hidden -Command Set-Content -LiteralPath ' + $args[1] + ' -Value ok'",
+    "$s.TargetPath = 'cmd.exe'",
+    "$s.Arguments = '/c echo ok>\"' + $args[1] + '\"'",
+    '$s.WindowStyle = 7',
     '$s.Save()',
     "Write-Output ('exists=' + (Test-Path -LiteralPath $args[0]))",
   ].join('\n');
@@ -999,7 +1002,7 @@ async function main() {
               ? rep.pass('双击启动：探针 lnk 经桥接 desktop/launch 启动（ok=true）')
               : rep.fail(`双击启动存证异常：${JSON.stringify(launched)}`);
             let markerOk = false;
-            const markerDeadline = Date.now() + 10000;
+            const markerDeadline = Date.now() + 20000;
             while (Date.now() < markerDeadline && !markerOk) {
               try { markerOk = fs.readFileSync(markerPath, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
               if (!markerOk) await sleep(250);
@@ -1197,9 +1200,16 @@ async function main() {
         supervisorDead = !isAlive(child.pid);
         if (!supervisorDead) await sleep(200);
       }
+      // 基线感知：用户自身偏好隐藏（基线 visible=false 且 HideIcons=1）时，守卫按设计
+      // 全程不动（icon-carry 评审收编：绝不顶掉用户偏好）——此时断言不动作语义：
+      // icons-restored 存证在场 + prefHiddenAfter 未被顶掉（视图保持隐藏 = 正确行为）。
+      // 基线可见时才断言实际恢复（图标翻回）。
+      const userPrefHidden = !iconsVisibleBase && carryRestored && carryRestored.prefHiddenAfter === true;
       restoredVis && carryRestored
         ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，守卫还原后退出=${supervisorDead}）`)
-        : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
+        : userPrefHidden && carryRestored
+          ? rep.pass(`杀进程还原（用户偏好隐藏基线）：守卫按设计不动用户偏好——icons-restored 存证在（reason=${carryRestored.reason}），HideIcons 偏好未被顶掉，视图保持隐藏`)
+          : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
       capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-restored');
       rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
 
@@ -1553,7 +1563,7 @@ async function main() {
                     ? rep.pass('整集逐项启动：两条 desktop-launched ok=true（desktop/launch 逐项存证）')
                     : rep.fail(`整集启动存证异常：A=${JSON.stringify(launchA)} B=${JSON.stringify(launchB)}`);
                   let markerOk = { A: false, B: false };
-                  const markerDeadline = Date.now() + 10000;
+                  const markerDeadline = Date.now() + 20000;
                   while (Date.now() < markerDeadline && !(markerOk.A && markerOk.B)) {
                     for (const [k, mp] of [['A', markerA], ['B', markerB]]) {
                       if (markerOk[k]) continue;
@@ -2294,8 +2304,8 @@ async function main() {
         selA && sameNames24(selA.names, [probe24Name]) && selA.t <= sessA.opened.t
           ? rep.pass('右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单')
           : rep.fail(`右键切换选区存证异常：${JSON.stringify(selA)}`);
-        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'pin']) && (sessA.opened.rows || []).length === 4
-          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，四行矩形随开层存证（第 4 行=钉到应用区，探针非手钉）`)
+        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'rename', 'delete']) && (sessA.opened.rows || []).length === 6
+          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，六行矩形随开层存证（第 4 行=钉到应用区，探针非手钉；第 5 行=重命名，工单28；第 6 行=删除，工单27）`)
           : rep.fail(`单项菜单开层条目集异常：${JSON.stringify({ items: sessA.opened.items, rows: sessA.opened.rows })}`);
         safeShot('24-item-menu-open', { left: rect24.left, top: rect24.top, right: rect24.right, bottom: rect24.bottom });
 
@@ -2309,7 +2319,7 @@ async function main() {
             const clickedB = await waitEvent('desktop-launch-clicked', (e) => e.t >= tB && e.name === probe24Name && e.via === 'ctx-menu', 4000);
             const launchedB = await waitEvent('desktop-launched', (e) => e.t >= tB && e.name === probe24Name && e.ok, 6000);
             let markerOk = false;
-            const markerDeadline = Date.now() + 10000;
+            const markerDeadline = Date.now() + 20000;
             while (Date.now() < markerDeadline && !markerOk) {
               try { markerOk = fs.readFileSync(marker24Path, 'utf8').trim() === 'ok'; } catch { markerOk = false; }
               if (!markerOk) await sleep(250);
@@ -2638,8 +2648,8 @@ async function main() {
           rep.fail('选中集内条目右键未弹多选菜单（desktop-menu-opened 未见）');
           return;
         }
-        sameNames26(sessA26.opened.items, ['open-all', 'copy-path']) && (sessA26.opened.rows || []).length === 2
-          ? rep.pass(`右键选中集内条目弹多选菜单：条目集=[${(sessA26.opened.items || []).join(', ')}] 两行矩形随开层存证（菜单作用于整集）`)
+        sameNames26(sessA26.opened.items, ['open-all', 'copy-path', 'delete-all']) && (sessA26.opened.rows || []).length === 3
+          ? rep.pass(`右键选中集内条目弹多选菜单：条目集=[${(sessA26.opened.items || []).join(', ')}] 三行矩形随开层存证（菜单作用于整集；删除全部=工单27）`)
           : rep.fail(`多选菜单条目集异常：${JSON.stringify({ items: sessA26.opened.items, rows: sessA26.opened.rows })}`);
         const sideEffect26 = readEvents().find((e) => e.t >= sessA26.t0 && e.t <= sessA26.opened.t
           && (e.type === 'desktop-selected' || e.type === 'desktop-selection-toggled' || e.type === 'desktop-selection-cleared'));
@@ -2661,7 +2671,7 @@ async function main() {
             const launchedA26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === lnkA26 && e.ok, 6000);
             const launchedB26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === lnkB26 && e.ok, 6000);
             let markerOk26 = { A: false, B: false };
-            const markerDeadline26 = Date.now() + 10000;
+            const markerDeadline26 = Date.now() + 20000;
             while (Date.now() < markerDeadline26 && !(markerOk26.A && markerOk26.B)) {
               for (const [k, mp] of [['A', markerA26Path], ['B', markerB26Path]]) {
                 if (markerOk26[k]) continue;
@@ -2687,7 +2697,7 @@ async function main() {
           if (!sessC26) {
             rep.fail('多选复制路径用例开层失败（desktop-menu-opened 未见）');
           } else {
-            sameNames26(sessC26.opened.items, ['open-all', 'copy-path']) || rep.fail(`复制路径用例开层条目集异常（选区应仍两条）：${JSON.stringify(sessC26.opened.items)}`);
+            sameNames26(sessC26.opened.items, ['open-all', 'copy-path', 'delete-all']) || rep.fail(`复制路径用例开层条目集异常（选区应仍两条）：${JSON.stringify(sessC26.opened.items)}`);
             const tC26 = clickRow26(sessC26.opened.rows, 'copy-path');
             if (!tC26) {
               rep.fail('多选复制路径用例开层存证缺 copy-path 行矩形');
@@ -2695,13 +2705,25 @@ async function main() {
               const clickedC26 = await waitEvent('desktop-paths-copy-clicked', (e) => e.t >= tC26 && sameNames26(e.names, [lnkA26, lnkB26]) && e.via === 'ctx-menu', 4000);
               const copiedC26 = await waitEvent('desktop-paths-copied', (e) => e.t >= tC26 && e.ok === true && sameNames26(e.names, [lnkA26, lnkB26]), 6000);
               const expectClip26 = `${probeA26Path}\n${probeB26Path}`;
+              // 剪贴板实读：单进程内轮询（电池负载下每轮重开 powershell 冷启 1.5-3s，
+              // 8s 窗口实际只能读到 ~3 次，工单27 轮次实测三连败；27 回收站实查同法）
+              const clipScript26 = path.join(__dirname, 'evidence', '26-clipboard-wait.ps1');
+              fs.writeFileSync(clipScript26, [
+                '$deadline = (Get-Date).AddSeconds(20)',
+                "$text = ''",
+                'while ((Get-Date) -lt $deadline) {',
+                '  $text = [string](Get-Clipboard -Raw)',
+                '  $norm = $text.Replace("`r`n", "`n").Trim()',
+                '  if ($norm -eq ($args[0] + "`n" + $args[1])) { break }',
+                '  Start-Sleep -Milliseconds 400',
+                '}',
+                'Write-Output $text',
+              ].join('\n'), 'utf8');
               let clip26 = '';
-              const clipDeadline26 = Date.now() + 8000;
-              while (Date.now() < clipDeadline26) {
-                clip26 = clipboardGet() || '';
-                if (clip26.replace(/\r\n/g, '\n').trim() === expectClip26) break;
-                await sleep(300);
-              }
+              try {
+                clip26 = psRunFile([clipScript26, probeA26Path, probeB26Path], 30000);
+              } catch { /* 尽力：空串走下方比对判败，不阻断 */ }
+              try { fs.unlinkSync(clipScript26); } catch { /* 尽力清理 */ }
               clickedC26 && copiedC26 && clip26.replace(/\r\n/g, '\n').trim() === expectClip26
                 ? rep.pass('多选复制路径动作（desktop/copy-paths）：ok=true 存证 + 剪贴板实读两行 = [A 路径, B 路径]（\\n 分隔，行序同选区插入序）')
                 : rep.fail(`多选复制路径存证异常：clicked=${JSON.stringify(clickedC26)} copied=${JSON.stringify(copiedC26)} 剪贴板=${JSON.stringify(clip26)}`);
@@ -2722,8 +2744,8 @@ async function main() {
             selD26 && selD26.t <= sessD26.opened.t
               ? rep.pass('右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）')
               : rep.fail(`集外右键切单选存证异常：${JSON.stringify(selD26)}`);
-            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'pin'])
-              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选两动作）`)
+            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'rename', 'delete'])
+              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选三动作；第 5 行=重命名，工单28；第 6 行=删除，工单27）`)
               : rep.fail(`集外右键条目集异常：${JSON.stringify(sessD26.opened.items)}`);
             const outPt26 = { x: rect26.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rect26.top + Math.round(600 * f) };
             w32.clickPhys(outPt26.x, outPt26.y, 'left'); // 开层全窗热区承接：收菜单且吞没（无选区副作用）
@@ -2745,6 +2767,472 @@ async function main() {
           : rep.fail('多选菜单探针清理后未消失');
       }
       w32.moveMousePhys(safePt.x, safePt.y);
+    })();
+
+    // —— P5.13 工单27 删除与删除全部：删除=送回收站（desktop/trash 契约，回收站源经
+    // 主进程代理）。单项菜单【删除】直接执行（真桌面同语义，回收站兜底误删），多选菜单
+    // 【删除全部】先弹自绘轻量确认（列出条数，确认/取消）。内核侧整份池护栏、部分失败
+    // 如实回报、摆位同拍清除在离线测试（layout-store / desktop service / contract spec）
+    // 穷举；这里留真机端到端代表用例（#19 三缝约定）：
+    // a. 单删：探针先经菜单钉入手钉清单（摆位对账靶子）→ 右键 DELETE → 无确认层直进
+    //    回收站（回收站实查可找回）+ layout.json pinned 同拍清除（防同名复活）
+    // b. 多删取消：选中两条 → DELETE ALL → 确认层开（desktop-trash-confirm-opened，
+    //    按钮矩形随层存证）→ CANCEL → 条目原样、无 desktop-trash-clicked
+    // c. 多删确认：再弹 → DELETE → desktop-trashed ok=true 整批名单 + 文件离盘 +
+    //    条目消失 + layout.json 对账
+    await (async () => {
+      const rect27 = w32.rectOf(hwnd);
+      const sameNames27 = (a, b) => (a || []).join() === b.join();
+      let single27Path = null;
+      let probeB27Path = null;
+      let probeC27Path = null;
+      try {
+        // 夹具：单删探针 txt（钉入+删除+回收站实查）+ 多删探针 docx 两条
+        const t27 = Date.now();
+        const single27Name = `DECK27-SINGLE-${t27}.txt`;
+        const docB27 = `DECK27-MULTI-${t27}-B.docx`;
+        const docC27 = `DECK27-MULTI-${t27}-C.docx`;
+        single27Path = path.join(seedScan.user, single27Name);
+        probeB27Path = path.join(seedScan.user, docB27);
+        probeC27Path = path.join(seedScan.user, docC27);
+        fs.writeFileSync(single27Path, 'probe');
+        fs.writeFileSync(probeB27Path, 'probe');
+        fs.writeFileSync(probeC27Path, 'probe');
+        const joined27 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(single27Name)
+          && (e.names || []).includes(docB27) && (e.names || []).includes(docC27), 8000);
+        joined27 || rep.fail(`删除用例探针未入池（${single27Name}/${docB27}/${docC27}）`);
+        const settled27 = await waitStable('desktop-rendered', 1500, 8000);
+        const rects27 = settled27 && (settled27.rects || []);
+        const rA27 = rects27.find((r) => r.name === single27Name && r.rect);
+        const rB27 = rects27.find((r) => r.name === docB27 && r.rect);
+        const rC27 = rects27.find((r) => r.name === docC27 && r.rect);
+        if (!rA27 || !rB27 || !rC27) {
+          rep.fail(`删除用例几何前置缺失：A=${JSON.stringify(rA27 && rA27.rect)} B=${JSON.stringify(rB27 && rB27.rect)} C=${JSON.stringify(rC27 && rC27.rect)}`);
+          return;
+        }
+        const ptOf27 = (r) => ({ x: rect27.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect27.top + Math.round((r.rect.y + r.rect.h / 2) * f) });
+        // 右键/行点击/确认层钮点击原语（P5.10/11/12 同款；钮矩形来自开层存证）
+        const rightClick27 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(pt.x, pt.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        const clickRow27 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          const pt = { x: rect27.left + Math.round((row.x + row.w / 2) * f), y: rect27.top + Math.round((row.y + row.h / 2) * f) };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+        const clickBtn27 = (box) => {
+          const pt = { x: rect27.left + Math.round((box.x + box.w / 2) * f), y: rect27.top + Math.round((box.y + box.h / 2) * f) };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+        const ctrlClick27 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return false; }
+          w32.send([w32.keyInput(VK_CONTROL, w32.KEYDOWN)]);
+          await sleep(60);
+          w32.clickPhys(pt.x, pt.y, 'left');
+          await sleep(60);
+          w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
+          return true;
+        };
+        // layout.json 对账（带重试：落盘在内核 persist，与快照同拍到达；P5.11 同法）
+        const layoutOnDisk27 = async (retryMs = 4000) => {
+          const deadline = Date.now() + retryMs;
+          let store = null;
+          while (Date.now() < deadline) {
+            try { store = JSON.parse(fs.readFileSync(layoutFile, 'utf8')); } catch { /* 重试 */ }
+            if (store) return store;
+            await sleep(200);
+          }
+          return store;
+        };
+        const goneFromDisk27 = async (p, timeoutMs = 8000) => {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            if (!fs.existsSync(p)) return true;
+            await sleep(250);
+          }
+          return false;
+        };
+        // 回收站实查（AC「真机可在回收站找回」）：Shell.Application Namespace(0xA) 逐项
+        // 原名（ASCII-only 临时 ps1 走 -File，createProbeLnk 同法）。重试在 PS 进程**内部**
+        // 轮询（电池负载下每轮重开 powershell + COM 初始化 + 全量枚举可到 10s+，第三轮
+        // 实测进程外 15s 预算也会假败）；枚举彻底不可用降级为 note，查到缺席才判败。
+        const recycleHas27 = async (likePattern) => {
+          const scriptFile = path.join(__dirname, 'evidence', '27-recycle-scan.ps1');
+          fs.writeFileSync(scriptFile, [
+            '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8',
+            '$deadline = (Get-Date).AddSeconds(25)',
+            '$found = $false',
+            'while ((Get-Date) -lt $deadline -and -not $found) {',
+            '  $bin = (New-Object -ComObject Shell.Application).Namespace(0xA)',
+            '  foreach ($it in $bin.Items()) {',
+            '    if ($bin.GetDetailsOf($it, 0) -like $args[0]) { $found = $true; break }',
+            '  }',
+            '  if (-not $found) { Start-Sleep -Milliseconds 800 }',
+            '}',
+            '[pscustomobject]@{ found = $found } | ConvertTo-Json -Compress',
+          ].join('\n'), 'utf8');
+          try {
+            const res = JSON.parse(psRunFile([scriptFile, likePattern], 35000));
+            return res && res.found === true;
+          } catch {
+            return null; // 枚举不可用（超时/COM 抖动）：降级为 note，不判败
+          } finally {
+            try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+          }
+        };
+
+        // a. 单删：先经菜单钉入手钉清单（给「摆位同拍清除」造靶子）→ DELETE 直进回收站
+        {
+          const sessPin = await rightClick27(ptOf27(rA27), '单删-钉入前置');
+          if (!sessPin) {
+            rep.fail('单删用例前置右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tPin = clickRow27(sessPin.opened.rows, 'pin');
+          const pinnedEvt = tPin && await waitEvent('desktop-pinned', (e) => e.t >= tPin && e.name === single27Name && e.ok === true, 6000);
+          const pinDisk = pinnedEvt ? await layoutOnDisk27() : null;
+          pinnedEvt && pinDisk && Array.isArray(pinDisk.pinned) && pinDisk.pinned.includes(single27Name)
+            ? rep.pass(`单删前置：${single27Name} 经菜单钉入手钉清单（layout.json pinned 对账在列）`)
+            : rep.fail(`单删前置钉入异常：pinned=${JSON.stringify(pinnedEvt)} disk=${JSON.stringify(pinDisk && pinDisk.pinned)}`);
+          // 钉入 dock 后重排：重取探针矩形再右键（点错条目 = 假败）
+          const settledA = await waitStable('desktop-rendered', 1500, 8000);
+          const rA27b = settledA && (settledA.rects || []).find((r) => r.name === single27Name && r.rect);
+          if (!rA27b) {
+            rep.fail('单删用例钉入后探针矩形缺失');
+            return;
+          }
+          const sessDel = await rightClick27(ptOf27(rA27b), '单删-右键');
+          if (!sessDel) {
+            rep.fail('单删右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          (sessDel.opened.items || []).includes('delete')
+            ? rep.pass(`单项菜单含【删除】行（条目集=[${(sessDel.opened.items || []).join(', ')}]）`)
+            : rep.fail(`单项菜单缺 delete 行：${JSON.stringify(sessDel.opened.items)}`);
+          const tDel = clickRow27(sessDel.opened.rows, 'delete');
+          if (!tDel) {
+            rep.fail('单删用例开层存证缺 delete 行矩形');
+            return;
+          }
+          const clickedA = await waitEvent('desktop-trash-clicked', (e) => e.t >= tDel && sameNames27(e.names, [single27Name]) && e.via === 'ctx-menu', 4000);
+          const trashedA = await waitEvent('desktop-trashed', (e) => e.t >= tDel && e.ok === true && sameNames27(e.trashed, [single27Name]), 8000);
+          // 单删直进：确认层不开（desktop-trash-confirm-opened 在动作后 1.2s 内不得出现）
+          await sleep(1200);
+          const confirmA = readEvents().some((e) => e.type === 'desktop-trash-confirm-opened' && e.t >= tDel);
+          const goneDiskA = trashedA ? await goneFromDisk27(single27Path) : false;
+          const prunedA = trashedA && await waitEvent('desktop-rendered', (e) => e.t >= tDel && !(e.names || []).includes(single27Name), 8000);
+          const diskA = trashedA ? await layoutOnDisk27() : null;
+          const pinGone = diskA && Array.isArray(diskA.pinned) ? !diskA.pinned.includes(single27Name) : false;
+          const inBin = trashedA ? await recycleHas27(`DECK27-SINGLE-${t27}*`) : null;
+          clickedA && trashedA && !confirmA && goneDiskA && prunedA && pinGone
+            ? rep.pass(`单删直进回收站：无确认层、desktop-trashed ok=true、文件离盘、条目消失、layout.json pinned 摆位同拍清除${inBin === true ? ' + 回收站实查可找回' : inBin === false ? '（注意：回收站实查未命中）' : '（回收站枚举不可用，降级跳过）'}`)
+            : rep.fail(`单删存证异常：clicked=${JSON.stringify(clickedA)} trashed=${JSON.stringify(trashedA)} confirm=${confirmA} goneDisk=${goneDiskA} pruned=${!!prunedA} pinGone=${pinGone}`);
+          if (trashedA && inBin === false) {
+            rep.fail(`回收站实查未命中 ${single27Name}（送回收站语义存疑，人工核验 shell:RecycleBin）`);
+          }
+          safeShot('27-single-deleted');
+        }
+
+        // b. 多删取消：点选 B + Ctrl 补选 C → 右键 B（集内）→ delete-all → 确认层 → CANCEL
+        const okSelB = await ensurePanelHit(ptOf27(rB27), hwnd);
+        if (!okSelB.ok) { rep.fail(`多删选区前置失败：${okSelB.why}`); return; }
+        const tSel27 = Date.now();
+        w32.clickPhys(ptOf27(rB27).x, ptOf27(rB27).y, 'left');
+        const selB27 = await waitEvent('desktop-selected', (e) => e.t >= tSel27 && e.name === docB27, 4000);
+        const okCtrl27 = selB27 && await ctrlClick27(ptOf27(rC27), '多删-Ctrl 补选');
+        const two27 = okCtrl27 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSel27 && e.selected === true && sameNames27(e.names, [docB27, docC27]), 4000);
+        if (!two27) {
+          rep.fail('多删用例前置（选中集两条）未达成');
+          return;
+        }
+        {
+          const sessC = await rightClick27(ptOf27(rB27), '多删-集内右键');
+          if (!sessC) {
+            rep.fail('多删集内右键未弹多选菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tAll = clickRow27(sessC.opened.rows, 'delete-all');
+          if (!tAll) {
+            rep.fail('多删用例开层存证缺 delete-all 行矩形');
+            return;
+          }
+          const confirmOpen = await waitEvent('desktop-trash-confirm-opened', (e) => e.t >= tAll && e.count === 2 && sameNames27(e.names, [docB27, docC27]) && e.confirm && e.cancel, 4000);
+          if (!confirmOpen) {
+            rep.fail('多删确认层未开（desktop-trash-confirm-opened 未见或载荷缺按钮矩形）');
+            return;
+          }
+          rep.pass(`多选【删除全部】先弹自绘确认：desktop-trash-confirm-opened count=2，确认/取消钮矩形随层存证（确认 ${confirmOpen.confirm.w}x${confirmOpen.confirm.h} / 取消 ${confirmOpen.cancel.w}x${confirmOpen.cancel.h}）`);
+          safeShot('27-multi-confirm-open');
+          const tCancel = clickBtn27(confirmOpen.cancel);
+          const closedCancel = await waitEvent('desktop-trash-confirm-closed', (e) => e.t >= tCancel && e.reason === 'cancel', 4000);
+          await sleep(1200);
+          const noTrashClicked = !readEvents().some((e) => e.type === 'desktop-trash-clicked' && e.t >= tAll);
+          const stillOnDisk = fs.existsSync(probeB27Path) && fs.existsSync(probeC27Path);
+          // 池内原样：desktop-rendered 只在指纹变化时发——取消后无变化即无新事件，
+          // 故断言「最近一条 rendered 仍含两条目」（若真被删，删除后的池会翻转最后的 rendered）
+          const lastRendered27 = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+          const stillInPool = !!lastRendered27 && (lastRendered27.names || []).includes(docB27) && (lastRendered27.names || []).includes(docC27);
+          closedCancel && noTrashClicked && stillOnDisk && stillInPool
+            ? rep.pass('确认层取消不动：confirm-closed reason=cancel、无 desktop-trash-clicked、两条探针在盘且池内原样（最后一条 rendered 仍含两者）')
+            : rep.fail(`确认层取消异常：closed=${JSON.stringify(closedCancel)} clicked=${noTrashClicked} disk=${stillOnDisk} pool=${stillInPool}`);
+          safeShot('27-multi-confirm-cancelled');
+        }
+
+        // c. 多删确认：选区不动，再右键 B → delete-all → 确认层 → DELETE → 整批进回收站
+        {
+          const sessD = await rightClick27(ptOf27(rB27), '多删-确认右键');
+          if (!sessD) {
+            rep.fail('多删确认段右键未弹多选菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tAll2 = clickRow27(sessD.opened.rows, 'delete-all');
+          const confirmOpen2 = tAll2 && await waitEvent('desktop-trash-confirm-opened', (e) => e.t >= tAll2 && e.count === 2, 4000);
+          if (!confirmOpen2) {
+            rep.fail('多删确认段确认层未开');
+            return;
+          }
+          const tOk = clickBtn27(confirmOpen2.confirm);
+          const closedOk = await waitEvent('desktop-trash-confirm-closed', (e) => e.t >= tOk && e.reason === 'confirm', 4000);
+          const clickedAll = await waitEvent('desktop-trash-clicked', (e) => e.t >= tOk && sameNames27(e.names, [docB27, docC27]) && e.count === 2 && e.via === 'ctx-menu', 4000);
+          const trashedAll = await waitEvent('desktop-trashed', (e) => e.t >= tOk && e.ok === true && sameNames27(e.trashed, [docB27, docC27]) && sameNames27(e.failed, []), 8000);
+          const goneB = trashedAll ? await goneFromDisk27(probeB27Path) : false;
+          const goneC = trashedAll ? await goneFromDisk27(probeC27Path) : false;
+          const prunedAll = trashedAll && await waitEvent('desktop-rendered', (e) => e.t >= tOk && !(e.names || []).includes(docB27) && !(e.names || []).includes(docC27), 8000);
+          const diskAll = trashedAll ? await layoutOnDisk27() : null;
+          const cleanLists = diskAll
+            ? [diskAll.pinned, diskAll.dock, diskAll.docs].every((l) => Array.isArray(l) && !l.includes(docB27) && !l.includes(docC27))
+            : false;
+          const inBinAll = trashedAll ? await recycleHas27(`DECK27-MULTI-${t27}*`) : null;
+          closedOk && clickedAll && trashedAll && goneB && goneC && prunedAll && cleanLists
+            ? rep.pass(`确认整批进回收站：desktop-trashed ok=true trashed=[B, C]、文件离盘、条目消失、layout.json 三名单对账干净${inBinAll === true ? ' + 回收站实查可找回' : inBinAll === false ? '（注意：回收站实查未命中）' : '（回收站枚举不可用，降级跳过）'}`)
+            : rep.fail(`多删确认存证异常：closed=${JSON.stringify(closedOk)} clicked=${JSON.stringify(clickedAll)} trashed=${JSON.stringify(trashedAll)} goneB=${goneB} goneC=${goneC} pruned=${!!prunedAll} lists=${cleanLists}`);
+          safeShot('27-multi-deleted');
+        }
+      } finally {
+        for (const p of [single27Path, probeB27Path, probeC27Path]) {
+          try { if (p) fs.unlinkSync(p); } catch { /* 尽力清理（已删条目本就不在盘上） */ }
+        }
+      }
+      rep.note('删除用例残留：已删探针在回收站可找回（AC 语义本体），如需清净请手动清空回收站');
+      w32.moveMousePhys(safePt.x, safePt.y);
+    })();
+
+    // —— P5.14 工单28 原地重命名：单项菜单【重命名】→ 标签原地变输入框（预填显示名、
+    // 预选主名段）→ 真键盘确认（SendInput UNICODE 直注替换选区 + Enter）。内核侧池护栏、
+    // 文件名合法性、重名冲突校验与摆位同拍迁移在离线测试（filename / layout-store /
+    // desktop service fakeWorld / contract / dataplane spec）穷举；这里留真机端到端
+    // 代表用例（#19 三缝约定）：
+    // a. 改名 + 摆位迁移：探针先经菜单钉入手钉清单（迁移靶子）→ RENAME →
+    //    desktop-rename-started（输入框矩形随开编辑存证）→ 直注新主名 + Enter →
+    //    desktop-renamed ok=true、文件真离盘改名、条目按新名回 placed 段、
+    //    layout.json pinned 同拍迁移（面板发起的重命名不丢摆位——AC 本体）
+    // b. Esc 取消：再进 RENAME → 直接 Esc → desktop-rename-cancelled reason=esc、
+    //    keyboard-mode-off 成对、盘面与池内原样
+    // c. 重名冲突：RENAME 输既有名字 + Enter → desktop-rename-rejected ok=false、
+    //    两个盘面文件都原样（原名还原的盘面事实）
+    await (async () => {
+      const rect28 = w32.rectOf(hwnd);
+      let probeA28 = null;
+      let probeB28 = null;
+      let probeC28 = null;
+      try {
+        const t28 = Date.now();
+        const nameA28 = `DECK28A-${t28}.txt`; // 改名靶子（先钉入手钉清单）
+        const nameB28 = `DECK28B-${t28}.txt`; // 改名后的新名
+        const nameC28 = `DECK28C-${t28}.txt`; // 预置冲突占位（重名拒绝靶子）
+        probeA28 = path.join(seedScan.user, nameA28);
+        probeB28 = path.join(seedScan.user, nameB28);
+        probeC28 = path.join(seedScan.user, nameC28);
+        fs.writeFileSync(probeA28, 'probe');
+        fs.writeFileSync(probeC28, 'probe');
+        const joined28 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(nameA28)
+          && (e.names || []).includes(nameC28), 8000);
+        joined28 || rep.fail(`重命名用例探针未入池（${nameA28}/${nameC28}）`);
+        const settled28 = await waitStable('desktop-rendered', 1500, 8000);
+        const rects28 = settled28 && (settled28.rects || []);
+        if (!rects28.find((r) => r.name === nameA28 && r.rect)) {
+          rep.fail(`重命名用例几何前置缺失：A=${JSON.stringify(rects28.find((r) => r.name === nameA28))}`);
+          return;
+        }
+        const ptOf28 = (r) => ({ x: rect28.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect28.top + Math.round((r.rect.y + r.rect.h / 2) * f) });
+        const rightClick28 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(pt.x, pt.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        const clickRow28 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          const pt = { x: rect28.left + Math.round((row.x + row.w / 2) * f), y: rect28.top + Math.round((row.y + row.h / 2) * f) };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+        // 重命名输入框走真键盘：直注字符前等键盘焦点真的到手（keyboard-mode-on 的
+        // setFocusable+focus 落定；前台不是面板时键会漏进别的窗——P7S 前台门同款语义）
+        const waitForeground28 = async (timeoutMs = 5000) => {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            const fg = w32.GetForegroundWindow();
+            if (fg && w32.threadIdOf(fg).pid === w32.threadIdOf(hwnd).pid) return true;
+            await sleep(150);
+          }
+          return false;
+        };
+        // layout.json pinned 对账（带重试：落盘在内核 persist，与快照同拍到达；P5.13 同法）
+        const pinnedSwapped28 = async (oldName, newName, timeoutMs = 5000) => {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            try {
+              const store = JSON.parse(fs.readFileSync(layoutFile, 'utf8'));
+              if (Array.isArray(store.pinned) && store.pinned.includes(newName)) {
+                return { swapped: !store.pinned.includes(oldName), pinned: store.pinned };
+              }
+            } catch { /* 重试 */ }
+            await sleep(200);
+          }
+          return { swapped: false, pinned: null };
+        };
+
+        // a. 前置钉入（给「摆位同拍迁移」造靶子）→ RENAME → 直注新主名 + Enter
+        {
+          const sessPin = await rightClick28(ptOf28(rects28.find((r) => r.name === nameA28)), '改名-钉入前置');
+          if (!sessPin) {
+            rep.fail('重命名用例前置右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tPin = clickRow28(sessPin.opened.rows, 'pin');
+          const pinnedEvt = tPin && await waitEvent('desktop-pinned', (e) => e.t >= tPin && e.name === nameA28 && e.ok === true, 6000);
+          pinnedEvt || rep.fail(`改名前置钉入异常：desktop-pinned 未见（tPin=${tPin}）`);
+          // 钉入 dock 后重排：重取探针矩形再右键（点错条目 = 假败）
+          const settledA = await waitStable('desktop-rendered', 1500, 8000);
+          const rA = settledA && (settledA.rects || []).find((r) => r.name === nameA28 && r.rect);
+          if (!rA) {
+            rep.fail('重命名用例钉入后探针矩形缺失');
+            return;
+          }
+          const sessRen = await rightClick28(ptOf28(rA), '改名-右键');
+          if (!sessRen) {
+            rep.fail('改名右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          (sessRen.opened.items || []).includes('rename')
+            ? rep.pass(`单项菜单含【重命名】行（条目集=[${(sessRen.opened.items || []).join(', ')}]，工单28 第六行）`)
+            : rep.fail(`单项菜单缺 rename 行：${JSON.stringify(sessRen.opened.items)}`);
+          const tRen = clickRow28(sessRen.opened.rows, 'rename');
+          const started = tRen && await waitEvent('desktop-rename-started', (e) => e.t >= tRen && e.name === nameA28 && e.input && e.input.w > 0, 4000);
+          const kbOn = started && await waitEvent('keyboard-mode-on', (e) => e.t >= tRen, 3000);
+          const fgOk = started && await waitForeground28();
+          started && kbOn && fgOk
+            ? rep.pass(`标签原地变输入框：desktop-rename-started（输入框 ${started.input.w}x${started.input.h} 随开编辑存证）、keyboard-mode-on 成对、键盘焦点到手`)
+            : rep.fail(`重命名编辑器开层异常：started=${JSON.stringify(started)} kbOn=${!!kbOn} fg=${fgOk}`);
+          safeShot('28-rename-editor');
+          // 预选主名段：直注即整段替换（扩展名 .txt 留在输入框里），Enter 确认
+          if (!started || !fgOk) return;
+          await sleep(300); // 焦点落定缓冲
+          w32.sendUnicode(`DECK28B-${t28}`);
+          await sleep(150);
+          w32.tapKeys([VK_RETURN]);
+          const renamed = await waitEvent('desktop-renamed', (e) => e.t >= tRen && e.ok === true && e.to === nameB28, 8000);
+          const renamedOld = await waitEvent('desktop-rendered', (e) => e.t >= tRen && (e.names || []).includes(nameB28) && !(e.names || []).includes(nameA28), 8000);
+          const goneA = renamed ? await (async () => {
+            const deadline = Date.now() + 8000;
+            while (Date.now() < deadline) {
+              if (!fs.existsSync(probeA28) && fs.existsSync(probeB28)) return true;
+              await sleep(250);
+            }
+            return false;
+          })() : false;
+          const diskPin = renamed ? await pinnedSwapped28(nameA28, nameB28) : { swapped: false, pinned: null };
+          renamed && renamedOld && goneA && diskPin.swapped
+            ? rep.pass(`Enter 确认改名落盘：desktop-renamed ok=true to=${nameB28}、文件真改名、条目按新名入池、layout.json pinned 同拍迁移${diskPin.pinned ? `（pinned=[${diskPin.pinned.join(', ')}]）` : ''}`)
+            : rep.fail(`改名存证异常：renamed=${JSON.stringify(renamed)} rendered=${!!renamedOld} goneDisk=${goneA} pinnedSwap=${JSON.stringify(diskPin)}`);
+          safeShot('28-rename-migrated');
+        }
+
+        // b. Esc 取消：再进 RENAME 直接 Esc——原名原样、keyboard-mode-off 成对
+        {
+          const settledB = await waitStable('desktop-rendered', 1500, 8000);
+          const rB = settledB && (settledB.rects || []).find((r) => r.name === nameB28 && r.rect);
+          if (!rB) {
+            rep.fail('取消用例探针矩形缺失（改名后新名未承载？）');
+            return;
+          }
+          const sessEsc = await rightClick28(ptOf28(rB), '取消-右键');
+          if (!sessEsc) {
+            rep.fail('取消右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tEscRow = clickRow28(sessEsc.opened.rows, 'rename');
+          const started2 = tEscRow && await waitEvent('desktop-rename-started', (e) => e.t >= tEscRow && e.name === nameB28, 4000);
+          if (!started2 || !(await waitForeground28())) {
+            rep.fail(`取消用例编辑器未就绪：started=${JSON.stringify(started2)}`);
+            return;
+          }
+          await sleep(300); // 焦点落定缓冲
+          const tEsc = Date.now();
+          w32.tapKeys([VK_ESCAPE]);
+          const cancelled = await waitEvent('desktop-rename-cancelled', (e) => e.t >= tEsc && e.reason === 'esc' && e.name === nameB28, 4000);
+          const kbOff = await waitEvent('keyboard-mode-off', (e) => e.t >= tEsc, 3000);
+          const stillB = fs.existsSync(probeB28) && !fs.existsSync(probeA28);
+          cancelled && kbOff && stillB
+            ? rep.pass(`Esc 取消还原：desktop-rename-cancelled reason=esc、keyboard-mode-off 成对、盘面原名原样`)
+            : rep.fail(`取消存证异常：cancelled=${JSON.stringify(cancelled)} kbOff=${!!kbOff} stillB=${stillB}`);
+          safeShot('28-rename-cancelled');
+        }
+
+        // c. 重名冲突：输既有名字 + Enter——ok=false 存证，两个盘面文件都原样
+        {
+          const settledC = await waitStable('desktop-rendered', 1500, 8000);
+          const rC = settledC && (settledC.rects || []).find((r) => r.name === nameB28 && r.rect);
+          if (!rC) {
+            rep.fail('冲突用例探针矩形缺失');
+            return;
+          }
+          const sessC = await rightClick28(ptOf28(rC), '冲突-右键');
+          if (!sessC) {
+            rep.fail('冲突右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tConf = clickRow28(sessC.opened.rows, 'rename');
+          const started3 = tConf && await waitEvent('desktop-rename-started', (e) => e.t >= tConf && e.name === nameB28, 4000);
+          if (!started3 || !(await waitForeground28())) {
+            rep.fail(`冲突用例编辑器未就绪：started=${JSON.stringify(started3)}`);
+            return;
+          }
+          await sleep(300); // 焦点落定缓冲
+          w32.sendUnicode(`DECK28C-${t28}`);
+          await sleep(150);
+          const tEnter = Date.now();
+          w32.tapKeys([VK_RETURN]);
+          const rejected = await waitEvent('desktop-rename-rejected', (e) => e.t >= tEnter && e.ok === false && e.to === nameC28, 8000);
+          await sleep(1500); // 留足「若误放行则池内换名」的时间窗，再核对盘面与池
+          const intact = fs.existsSync(probeB28) && fs.existsSync(probeC28);
+          // 拒绝路径不动指纹（无重建无新 rendered）：最新一拍 rendered 仍载原名即池内未动
+          const lastRendered = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+          const stillInPool = !!lastRendered && (lastRendered.names || []).includes(nameB28);
+          rejected && intact && stillInPool
+            ? rep.pass(`重名冲突如实拒绝：desktop-rename-rejected ok=false（原名还原），盘面两文件原样、池内条目未动`)
+            : rep.fail(`冲突存证异常：rejected=${JSON.stringify(rejected)} intact=${intact} stillInPool=${stillInPool}`);
+          safeShot('28-rename-conflict');
+        }
+      } finally {
+        for (const p of [probeA28, probeB28, probeC28]) {
+          try { if (p && fs.existsSync(p)) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
+        }
+        w32.moveMousePhys(safePt.x, safePt.y);
+      }
     })();
 
     // —— P7S 工单07 搜索并入：accept_search 电池适配（scripts/accept_search.py 随 Tk 窗退役）——
@@ -3392,9 +3880,16 @@ async function main() {
       windRestored && !w32.IsIconic(hwnd) && okRect
         ? rep.pass(`防抖自动恢复：${(windRestored.afterMs / 1000).toFixed(2)}s 后回到原位（存证 afterMs=${windRestored.afterMs}，矩形偏差在容差内）`)
         : rep.fail(`防抖自动恢复未达成（存证=${JSON.stringify(windRestored)}，IsIconic=${w32.IsIconic(hwnd)}，okRect=${okRect}）`);
-      // 恢复后的重钉（票01 实施要点）：还原记事本，普通窗应重新盖住面板
+      // 恢复后的重钉（票01 实施要点）：还原记事本，普通窗应重新盖住面板。
+      // SW_RESTORE 后记事本按自己记住的几何回位（Win11 记事本实测会漂出 P4 摆位，
+      // 重叠点落空命中 Progman——工单27 轮次起慢性失败），先强制复位到 P4 摆位再断言。
       w32.ShowWindow(notepad.hwnd, SW_RESTORE);
       await sleep(600);
+      if (win32.IsWindow(notepad.hwnd)) {
+        w32.SetWindowPos(notepad.hwnd, 0, 1000, 200, 1400, 900,
+          w32.SWP_NOZORDER | w32.SWP_NOACTIVATE);
+        await sleep(400);
+      }
       const overlap = { x: 1800, y: 600 };
       w32.windowFromPointRoot(overlap) === notepad.hwnd
         ? rep.pass('最小化恢复后重钉生效：记事本重新盖住面板')

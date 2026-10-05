@@ -63,9 +63,10 @@ export function defaultDesktopRoots(): DesktopRoots {
   }
 }
 
-/** 条目存在性真源（工单06）：文件与目录都算存在——图标源决策用的就是它，
- * .lnk 目标可以是文件夹（目录图标由 getFileIcon 承担）。频次映射的 lnk stem
- * 回退守卫仍用 fsFileExists（只认文件），两者语义不同勿混用。 */
+/** 条目存在性真源（工单06 图标源决策；工单28 起兼作重命名的重名冲突校验——文件与
+ * 目录都算存在：.lnk 目标可以是文件夹（目录图标由 getFileIcon 承担），改名落到既有
+ * 名字（含目录）会被 fs.rename 静默覆写，须显式挡下。频次映射的 lnk stem 回退守卫
+ * 仍用 fsFileExists（只认文件），两者语义不同勿混用。 */
 export function fsEntryExists(entryPath: string): boolean {
   try {
     fs.statSync(entryPath)
@@ -147,6 +148,18 @@ export function electronClipboardWrite(text: string): void {
   }
 }
 
+/** 回收站删除真源（工单27）：shell.trashItem——删除=送回收站（误删可找回，真桌面同款）。
+ * '' 即成功，否则错误串（shellOpen 同语）。主进程 API：数据面子进程经协议代理调用
+ * （ProxyShortcutResolver 同法），本函数只在主进程侧执行。 */
+export function electronTrashItem(filePath: string): Promise<string> {
+  return require('electron')
+    .shell.trashItem(filePath)
+    .then(
+      () => '',
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    )
+}
+
 /** lnk 目标解析真源：shell.readShortcutLink（同步）；非 lnk/解析失败返回 null */
 export function electronShortcutTarget(lnkPath: string): string | null {
   try {
@@ -155,6 +168,15 @@ export function electronShortcutTarget(lnkPath: string): string | null {
   } catch {
     return null
   }
+}
+
+/** 重命名真源（工单28）：fs.promises.rename——纯 Node API，数据面子进程可直接执行
+ * （shell.trashItem 那样的主进程代理在此不需要）。'' 即成功，否则错误串（open 同语）。 */
+export function fsRename(oldPath: string, newPath: string): Promise<string> {
+  return fs.promises.rename(oldPath, newPath).then(
+    () => '',
+    (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  )
 }
 
 /** 路径存在性真源（频次映射的 lnk stem 回退守卫用；盘上却解不出目标的 lnk 不回退） */
