@@ -116,6 +116,20 @@ function desktopIconsVisible() {
   const lv = view ? FindWindowExW(view, 0, 'SysListView32', null) : 0;
   return Boolean(lv && IsWindowVisible(lv));
 }
+
+// 原生主任务栏句柄/可见性/兜底还原（工单50：四个电池共用同一视图事实判据，
+// 与 src/main/taskbar/native.ts 同纪律——SW_SHOW 兜底只在确为隐藏态时翻回）
+function nativeTrayHwnd() {
+  return Number(FindWindowExW(0, 0, 'Shell_TrayWnd', null));
+}
+function nativeTaskbarVisible() {
+  const h = nativeTrayHwnd();
+  return Boolean(h && IsWindowVisible(h));
+}
+function ensureNativeTaskbarVisible() {
+  const h = nativeTrayHwnd();
+  if (h && !IsWindowVisible(h)) ShowWindow(h, 5 /* SW_SHOW */);
+}
 const AttachThreadInput = user32.func('bool __stdcall AttachThreadInput(uint32 idAttach, uint32 idAttachTo, bool fAttach)');
 const GetKeyboardLayout = user32.func('uintptr_t __stdcall GetKeyboardLayout(uint32 idThread)');
 const GetCurrentThreadId = kernel32.func('uint32 __stdcall GetCurrentThreadId()');
@@ -303,8 +317,9 @@ module.exports = {
   imeStatus, imeSetOpen, imeString, virtualScreen, windowFromPointRoot,
   GetForegroundWindow, SetForegroundWindow, BringWindowToTop, SetWindowPos,
   SetLayeredWindowAttributes,
-  GetWindowLongW, WindowFromPoint, IsWindow, PostMessageW, AttachThreadInput,
+  GetWindowLongW, WindowFromPoint, IsWindow, IsWindowVisible, PostMessageW, AttachThreadInput,
   FindWindowExW, IsIconic, findDefView, desktopIconsVisible, SendMessageTimeoutW,
+  nativeTrayHwnd, nativeTaskbarVisible, ensureNativeTaskbarVisible,
   exeOfPid, exeNameOfWindow,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,

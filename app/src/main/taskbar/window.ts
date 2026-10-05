@@ -1,7 +1,9 @@
-// 任务栏窗口（工单49，ADR-0007）：体系内第一个置顶窗口——独立、无边框、透明、
-// 主屏底部通栏条带（暂坐原生任务栏上沿，见 TASKBAR_BOTTOM_CLEARANCE），渲染层在
-// 其中央画 pill。本文件是 Electron 效果层（离线测试不加载）：窗口建/销由
-// TaskbarService 的状态与 taskbar/changed 事件驱动（禁用即窗口消失）。
+// 任务栏窗口（工单49/50，ADR-0007）：体系内第一个置顶窗口——独立、无边框、透明、
+// 主屏底部通栏条带（落屏底；隐藏原生任务栏失败的降级档才让出净空，见
+// TASKBAR_BOTTOM_CLEARANCE），渲染层在其中央画 pill。本文件是 Electron 效果层
+// （离线测试不加载）：窗口建/销由 TaskbarService 的状态与 taskbar/changed 事件
+// 驱动（禁用即窗口消失）。工单50 起控制器同时持有原生任务栏显隐：建窗先隐藏
+// 原生任务栏、销窗还原（只还原自己藏的那次）；死路径兜底在守卫与还原守护。
 import { BrowserWindow, screen } from 'electron'
 import path from 'node:path'
 import type { Context } from 'cordis'
@@ -11,26 +13,29 @@ import type { EventLog } from '../panel-ipc'
 import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import { taskbarUrl } from '../plugins/protocol'
 import { setTopmost, hwndOf } from '../win32'
+import { hideNativeTaskbar, nativeTaskbarVisible, showNativeTaskbar } from './native'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
 export const TASKBAR_TITLE = 'DECK-TASKBAR'
 /** 条带高度（DIP，工单37 默认档位；几何手改口属后续票） */
 export const TASKBAR_HEIGHT = 48
 /**
- * 条带底边距屏底的净空（DIP）：暂让出原生任务栏的高度，坐到它的上沿。
- * 49 真机实证（zprobe 阶梯）：Shell_TrayWnd 位于普通 TOPMOST 之上的窗口层级，
- * 且 explorer 主动重申防守——同矩形重叠时我方 SetWindowPos/BringWindowToTop/
- * AttachThreadInput 全阶梯收不回命中，竞态无解。不重叠则竞争从根上消失；
- * 「隐藏原生任务栏」（ADR-0007 主线，后续票）落地后此净空归零、条带落回屏底。
+ * 条带底边距屏底的降级净空（DIP，工单50 起仅降级档）：原生任务栏仍可见时让出它的
+ * 高度、坐到上沿。49 真机实证（zprobe 阶梯）：Shell_TrayWnd 位于普通 TOPMOST 之上的
+ * 窗口层级，且 explorer 主动重申防守——同矩形重叠全阶梯无解，不重叠则竞争从根上消失。
+ * 常态路径下工单50 已先隐藏原生任务栏（下方 clearance 按视图事实取 0），条带落回屏底；
+ * 本净空只在隐藏失败（句柄缺位等）降级时生效。
  */
 export const TASKBAR_BOTTOM_CLEARANCE = 48
 
-/** 主屏底部通栏几何（v1 仅主屏，ADR-0007 Out of Scope） */
+/** 主屏底部通栏几何（v1 仅主屏，ADR-0007 Out of Scope）。净空按视图事实：
+ * 原生任务栏已隐藏（常态）落屏底，仍可见（隐藏失败降级）让出其上沿。 */
 function stripBounds(): { x: number; y: number; width: number; height: number } {
   const d = screen.getPrimaryDisplay().bounds
+  const clearance = nativeTaskbarVisible() ? TASKBAR_BOTTOM_CLEARANCE : 0
   return {
     x: d.x,
-    y: d.y + d.height - TASKBAR_HEIGHT - TASKBAR_BOTTOM_CLEARANCE,
+    y: d.y + d.height - TASKBAR_HEIGHT - clearance,
     width: d.width,
     height: TASKBAR_HEIGHT,
   }
@@ -81,8 +86,17 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const { ctx, log } = options
   let win: BrowserWindow | null = null
   let tracker: HotzoneTracker | null = null
+  // 原生任务栏显隐账（工单50）：只还原「本次由我隐藏」的那次；隐藏失败/本已隐藏
+  // 则无还原义务（死路径兜底由守卫与还原守护以视图事实补足）。
+  let hidNative = false
 
   const destroy = (reason: string) => {
+    // 还原先于窗口判空：hidNative 账独立于 win 存续（窗被外部先销/建窗半途抛错
+    // 都不能把「我藏的原生任务栏」赖成孤儿账——code-review 工单50 收口）
+    if (hidNative) {
+      hidNative = false
+      showNativeTaskbar(log, reason)
+    }
     if (!win) return
     tracker?.dispose()
     tracker = null
@@ -94,12 +108,24 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
 
   const create = () => {
     if (win) return
-    win = createTaskbarWindow()
+    // 先隐原生再建窗（工单50）：stripBounds 按视图事实取净空——隐藏成功落屏底，
+    // 失败（句柄缺位等）降级让出原生任务栏上沿，49 实证的同矩形 z 序竞争不进场。
+    hidNative = hideNativeTaskbar(log)
+    try {
+      win = createTaskbarWindow()
+    } catch (err) {
+      // 建窗失败即还账：hidNative 不带出 create（destroy 的还原前提不变式：hidNative ⇒ win 在场）
+      if (hidNative) {
+        hidNative = false
+        showNativeTaskbar(log, 'create-failed')
+      }
+      throw err
+    }
     const w = win
-    // 置顶维持（ADR-0007 已知风险）：条带已让出原生任务栏净空（TASKBAR_BOTTOM_CLEARANCE），
-    // 不再与 Shell_TrayWnd 同矩形竞争——49 实证那条赛道无解（其层级高于普通 TOPMOST 且
-    // explorer 主动防守）。keepalive 500ms + 热区离开重申只守一般性置顶争夺（其他
-    // always-on-top 窗口、shell 事件扰动）。
+    // 置顶维持（ADR-0007 已知风险）：49 起条带不再与可见的 Shell_TrayWnd 同矩形竞争
+    // （那条赛道无解——其层级高于普通 TOPMOST 且 explorer 主动防守）；工单50 隐藏原生
+    // 任务栏后竞争面进一步收窄。keepalive 500ms + 热区离开重申只守一般性置顶争夺
+    // （其他 always-on-top 窗口、shell 事件扰动）。
     const assertTop = () => {
       if (!w.isDestroyed()) setTopmost(hwndOf(w), true)
     }

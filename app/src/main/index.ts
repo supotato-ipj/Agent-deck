@@ -14,6 +14,7 @@ import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
+import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/native'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { userDataPath } from './paths'
@@ -30,6 +31,8 @@ const BUILTIN_CARDS_ROOT = path.join(RENDERER_ROOT, 'cards')
 const ACCEPT_MODE = process.argv.includes('--accept')
 const ACCEPT_TRAY_MODE = process.argv.includes('--accept-tray')
 const ACCEPT_TASKBAR_MODE = process.argv.includes('--accept-taskbar')
+/** 任务栏显隐验收（工单50）：控制器身份跑 accept/taskbar-carry.js */
+const ACCEPT_TASKBAR_CARRY_MODE = process.argv.includes('--accept-taskbar-carry')
 const PANEL_MODE = process.argv.includes('--panel')
 /** 验收专用面板子进程（工单49）：完整面板但绕开单实例锁，与常驻面板共存 */
 const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
@@ -248,13 +251,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
 }
 
 if (RESTORE_MODE) {
-  // 一次性恢复入口（--icon-restore）：确保原生图标可见。电池清场兜底与用户自救通道；
-  // 不抢单实例锁（面板可能在跑，恢复与其互不影响）。
+  // 一次性恢复入口（--icon-restore）：确保原生图标与原生任务栏可见。电池清场兜底
+  // 与用户自救通道（工单50 起任务栏同通道）；不抢单实例锁（面板可能在跑，恢复与其互不影响）。
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
   log?.append({ type: 'carry-boot', pid: process.pid, mode: 'restore' })
   forceShowIcons(log)
+  forceShowNativeTaskbar(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !PANEL_ACCEPT_MODE) {
+} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -270,26 +274,32 @@ if (RESTORE_MODE) {
     const carry = new IconCarry(log)
     log?.append({ type: 'carry-boot', pid: process.pid, mode: 'carry' })
     carry.begin()
-    app.on('before-quit', () => carry.restore('outer-quit'))
+    // 还原双兜底（工单50）：图标走 IconCarry（「本次由我隐藏」标记 + 视图事实），
+    // 原生任务栏走视图事实兜底（隐藏动作在面板侧任务栏窗控制器，守卫查不到它的
+    // 内存标记——隐藏态才翻回，可见绝不动）。两路幂等，多出口共用。
+    const restoreCarry = (reason: string) => {
+      carry.restore(reason)
+      restoreNativeTaskbarIfHidden(log, reason)
+    }
+    app.on('before-quit', () => restoreCarry('outer-quit'))
     // 控制台信号缝隙（2026-09-28，09 票人工核验时踩到）：Ctrl+C / Ctrl+Break / 关终端窗由
     // conhost 同发守卫与面板，Electron 主进程在 Windows 下 process.on('SIGINT'|'SIGBREAK')
     // 不触发（真机实证：CTRL_BREAK 经 GenerateConsoleCtrlEvent 送达后整树死亡、Node 信号
     // 处理器未运行、图标留隐藏态）——守卫进程内的任何还原钩子都会被同杀。
     // 解法：还原守护（icon-restore-watch.cjs）以 detached + stdio:ignore 出生——无控制台
     // 可收信号，且逃出 Chromium job kill-on-close（05 踩坑 2 的反向利用）；守护钉守卫
-    // 进程对象等死亡，死后若原生图标仍隐藏则翻回。仅在「本次确实由我隐藏」后拉起：
-    // 用户偏好隐藏/隐藏失败时无还原义务，也就无守护。正常退出路径守卫先还原、守护
-    // 见到图标可见即静默自退，零感知。
-    if (carry.didHide()) {
-      const watcher = spawn(process.execPath, [path.join(__dirname, 'icon-restore-watch.cjs'), String(process.pid)], {
-        detached: true,
-        stdio: 'ignore',
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      })
-      watcher.on('error', (err) => log?.append({ type: 'restore-watch-spawn-failed', message: err.message }))
-      watcher.unref()
-      log?.append({ type: 'restore-watch-spawned', pid: watcher.pid })
-    }
+    // 进程对象等死亡，死后把仍隐藏的桌面图标/原生任务栏（视图事实）翻回。
+    // 工单50 起守护常驻拉起（不再以 carry.didHide() 为条件）：原生任务栏的隐藏发生在
+    // 面板侧、且可由设置开关在运行期随时打开——守卫在拉起时点无法预知还原义务；
+    // 守护零义务时（守卫正常退出、一切可见）见到可见即静默自退，零感知。
+    const watcher = spawn(process.execPath, [path.join(__dirname, 'icon-restore-watch.cjs'), String(process.pid)], {
+      detached: true,
+      stdio: 'ignore',
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    })
+    watcher.on('error', (err) => log?.append({ type: 'restore-watch-spawn-failed', message: err.message }))
+    watcher.unref()
+    log?.append({ type: 'restore-watch-spawned', pid: watcher.pid })
     const child = spawn(process.execPath, [app.getAppPath(), '--panel'], {
       cwd: app.getAppPath(),
       env: process.env,
@@ -297,16 +307,16 @@ if (RESTORE_MODE) {
     })
     child.on('error', (err) => {
       console.error('[deck] 面板拉起失败:', err)
-      carry.restore('panel-spawn-failed')
+      restoreCarry('panel-spawn-failed')
       app.exit(1)
     })
     child.on('exit', (code) => {
-      carry.restore('panel-exit')
+      restoreCarry('panel-exit')
       log?.append({ type: 'carry-exit', code: code ?? 0 })
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
@@ -334,6 +344,13 @@ if (RESTORE_MODE) {
       // 任务栏验收（工单49）：控制器身份跑 accept/taskbar.js，面板以 --panel-accept 子进程拉起。
       app.on('window-all-closed', () => {})
       require(path.join(app.getAppPath(), 'accept', 'taskbar.js'))()
+      return
+    }
+    if (ACCEPT_TASKBAR_CARRY_MODE) {
+      // 任务栏显隐验收（工单50）：控制器身份跑 accept/taskbar-carry.js，全程真机链路
+      // （守卫链默认入口 + --panel-accept 混合，见电池文件头）。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'taskbar-carry.js'))()
       return
     }
     bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {

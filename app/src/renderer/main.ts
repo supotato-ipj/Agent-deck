@@ -812,6 +812,8 @@ const settingsCard = el('settings-card')
 const opacitySlider = el('opacity-slider') as HTMLInputElement
 const opacityValue = el('opacity-value')
 const settingsReset = el('settings-reset')
+const taskbarToggle = el('taskbar-toggle') as HTMLInputElement
+const taskbarToggleState = el('taskbar-toggle-state')
 let settingsOpen = false
 let appliedOpacity: number | null = null
 
@@ -833,6 +835,13 @@ function renderSettings(s: SettingsState): void {
   applyCardAlpha(s.cardOpacity)
 }
 
+/** 任务栏逃生开关（工单50）：勾选态 reconcile——开层拉取、切换回执、taskbar/changed
+ * 回推三路共用，幂等。开关关 = 还原原生任务栏的自救通道（内核落盘 config 并销条带窗）。 */
+function applyTaskbarEnabled(enabled: boolean): void {
+  taskbarToggle.checked = enabled
+  taskbarToggleState.textContent = enabled ? 'ON' : 'OFF'
+}
+
 type SettingsCloseReason = 'esc' | 'blur' | 'toggle'
 
 function openSettings(): void {
@@ -842,10 +851,17 @@ function openSettings(): void {
   window.deck.host.setKeyboardMode(true)
   settingsCard.style.display = 'block'
   settingsCard.focus()
-  // 滑杆矩形随开层存证（电池按它定位拖拽落点，desktop-rendered rects 同法）
+  // 逃生开关与内核态对齐（工单50）：每次开层拉一手真值，不等回推
+  void window.deck.bridge.invoke('taskbar/get-state', null).then(
+    (s) => applyTaskbarEnabled(s.enabled),
+    () => { /* 拉取失败保持现状，回推会补齐 */ },
+  )
+  // 滑杆/开关矩形随开层存证（电池按它们定位拖拽/点击落点，desktop-rendered rects 同法）
   const sr = opacitySlider.getBoundingClientRect()
+  const tr = taskbarToggle.getBoundingClientRect()
   notify('settings-opened', {
     slider: { x: sr.left, y: sr.top, w: sr.width, h: sr.height },
+    taskbarToggle: { x: tr.left, y: tr.top, w: tr.width, h: tr.height },
     value: appliedOpacity == null ? null : Math.round(appliedOpacity * 100),
   })
   declareHotZones()
@@ -872,8 +888,8 @@ settingsBtn.addEventListener('click', () => {
 })
 
 settingsCard.addEventListener('mousedown', (e) => {
-  // 滑杆要收焦点（拖拽中渲染层不抢滑杆位）；其余区域保焦点，点击不触发失焦关层
-  if (e.target !== opacitySlider) e.preventDefault()
+  // 滑杆/逃生开关要收焦点（拖拽/键盘切换中渲染层不抢位）；其余区域保焦点，点击不触发失焦关层
+  if (e.target !== opacitySlider && e.target !== taskbarToggle) e.preventDefault()
 })
 
 settingsCard.addEventListener('keydown', (e) => {
@@ -899,6 +915,22 @@ opacitySlider.addEventListener('input', () => {
   )
 })
 
+// 逃生开关切换（工单50）：先存证意图，再经内核落盘生效；失败回滚勾选态（内核未变）。
+taskbarToggle.addEventListener('change', () => {
+  const enabled = taskbarToggle.checked
+  notify('settings-taskbar-toggle', { enabled })
+  void window.deck.bridge.invoke('taskbar/set-enabled', { enabled }).then(
+    (s) => {
+      applyTaskbarEnabled(s.enabled)
+      notify('settings-taskbar-set', { enabled: s.enabled })
+    },
+    (err: unknown) => {
+      applyTaskbarEnabled(!enabled)
+      notify('settings-taskbar-failed', { message: String(err) })
+    },
+  )
+})
+
 /** 恢复出厂布局（06 契约复用）：设置浮层入口与上下文菜单（工单23）共用同一链路与存证名 */
 function resetLayout(from: 'settings' | 'ctx-menu'): void {
   notify('desktop-reset-clicked', { from })
@@ -911,6 +943,8 @@ function resetLayout(from: 'settings' | 'ctx-menu'): void {
 settingsReset.addEventListener('click', () => resetLayout('settings'))
 
 window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
+// 逃生开关状态回推（工单50）：他端切换（如条带侧动作、插件卸载终态帧）即时对齐勾选态
+window.deck.bridge.on('taskbar/changed', (s) => applyTaskbarEnabled(s.enabled))
 
 // ---- 搜索面板（工单07，CONTEXT.md「搜索面板」三态）----
 // 待机（SEARCH 头 + CLICK TO SEARCH_ 提示）/ 活动（原生输入框 + 实时结果）/ 引擎离线

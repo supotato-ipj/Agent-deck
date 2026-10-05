@@ -181,7 +181,8 @@ export function defaultAutostart(): AutostartConfig {
   return { enabled: true, appDir: '' }
 }
 
-/** 默认任务栏：启用（工单49 tracer bullet——原生任务栏隐藏属后续票，pill 只是叠加，默认开让行为可见） */
+/** 默认任务栏：启用（接管形态即默认体验——开启即隐藏原生任务栏，逃生开关与
+ * guard + watchdog 三路径还原（工单50）在场，默认开让行为可见且可逆） */
 export function defaultTaskbar(): TaskbarConfig {
   return { enabled: true }
 }

@@ -1,15 +1,16 @@
-# accept 49-taskbar — 2026-10-05T09:45:13.625Z
-[09:45:14.215] NOTE  面板 pid=23116
-[09:45:16.584] PASS  P1 任务栏窗口在场：置顶 + 底部通栏（2560x48，底边坐原生任务栏上沿）
-[09:45:16.588] PASS  P2 面板本体在场、非置顶、钉底存证在流
-[09:45:16.848] NOTE  置顶收敛=true
-[09:45:17.673] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
-[09:45:17.753] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
-[09:45:18.080] NOTE  开始菜单收起=true
-[09:45:19.870] NOTE  P5 点击前: fg={"hwnd":67598,"cls":"DuiHostWnd","exe":"baidunetdisk"} tasks点收敛=true
-[09:45:19.950] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / ForegroundStaging）
-[09:45:21.437] PASS  P6 运行时禁用：任务栏窗口即销毁、config 落盘、面板本体不受影响
-[09:45:21.731] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
-[09:45:26.372] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
-[09:45:30.933] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
-[09:45:31.419] ===== 49-taskbar VERDICT: PASS (pass=9 fail=0) =====
+# accept 49-taskbar — 2026-10-05T14:23:38.743Z
+[14:23:39.375] NOTE  面板 pid=26136
+[14:23:42.133] PASS  P1 任务栏窗口在场：置顶 + 底部通栏落屏底（2560x48），原生任务栏已隐藏
+[14:23:42.283] PASS  P2 面板本体在场、非置顶、钉底存证在流
+[14:23:42.548] NOTE  置顶收敛=true
+[14:23:43.358] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
+[14:23:43.454] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
+[14:23:43.779] NOTE  开始菜单收起=true
+[14:23:45.560] NOTE  P5 点击前: fg={"hwnd":67630,"cls":"DuiHostWnd","exe":"baidunetdisk"} tasks点收敛=true
+[14:23:45.655] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / ForegroundStaging）
+[14:23:47.162] PASS  P6 运行时禁用：任务栏窗口即销毁、原生任务栏还原、config 落盘、面板本体不受影响
+[14:23:47.599] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
+[14:23:52.511] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
+[14:23:57.670] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
+[14:23:58.304] NOTE  清场核验：原生任务栏可见
+[14:23:58.307] ===== 49-taskbar VERDICT: PASS (pass=9 fail=0) =====

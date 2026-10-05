@@ -1,12 +1,14 @@
 'use strict';
 // 工单49 任务栏验收（tracer bullet）：控制器以 --accept-taskbar 身份运行，
 // 拉起 --panel-accept 面板子进程（绕开单实例锁，与常驻面板共存），逐项验收：
-//   P1 任务栏窗口在场：置顶（WS_EX_TOPMOST）+ 主屏底部通栏几何（坐原生任务栏上沿）
+//   P1 任务栏窗口在场：置顶（WS_EX_TOPMOST）+ 主屏底部通栏几何（工单50 起隐藏
+//      原生任务栏后落屏底；49 的让位净空仅剩隐藏失败的降级档）
 //   P2 面板本体钉底不受影响（面板窗在场、非置顶、pin 存证在流）
 //   P3 pill 缝隙点击穿透、pill 热区命中（WindowFromPoint 双向往返）
 //   P4 开始按钮弹出原生开始菜单（前台窗归 StartMenuExperienceHost）
 //   P5 TaskView 按钮弹出原生任务视图（前台 CoreWindow 归 explorer）
-//   P6 运行时禁用（CDP 驱动 taskbar/set-enabled）→ 窗口即销毁、config 落盘、面板不受影响
+//   P6 运行时禁用（CDP 驱动 taskbar/set-enabled）→ 窗口即销毁、原生任务栏还原、
+//      config 落盘、面板不受影响
 //   P7 运行时重新启用 → 窗口恢复（仍置顶）
 //   P8 启动态禁用（config 门禁）→ 窗口不建，面板照常
 //   P9 启动态恢复启用 → 窗口回来
@@ -25,12 +27,15 @@ const CDP_PORT = 9223;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT
-const TASKBAR_BOTTOM_CLEARANCE_DIP = 48; // window.ts TASKBAR_BOTTOM_CLEARANCE（暂让原生任务栏）
 const VK_ESC = 0x1b;
 
 const koffi = win32.koffi;
 const user32 = koffi.load('user32.dll');
 const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+
+// 原生任务栏视图事实/兜底还原（工单50：本电池的面板会真实隐藏原生任务栏；
+// 判据共用 accept/lib/win32.js 导出，四电池单点维护）
+const { nativeTaskbarVisible, ensureNativeTaskbarVisible } = win32;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -237,8 +242,8 @@ async function main() {
     if (!tbHwnd) throw new Error('P1 任务栏窗口未出现');
 
     // P1 置顶 + 底部通栏几何（rectOf 回 {left,top,right,bottom} 物理像素，宽高换算后归一 DIP）。
-    // 底边判据 = 屏底 - 原生任务栏净空（window.ts TASKBAR_BOTTOM_CLEARANCE：49 实证
-    // Shell_TrayWnd 层级压制无解，条带暂坐上沿；「隐藏原生任务栏」票落地后归零）。
+    // 底边判据 = 屏底（工单50：建窗先隐藏原生任务栏，净空归零条带落底；49 的让位净空
+    // 只剩隐藏失败的降级档）。同时断言原生任务栏确已隐藏（隐藏失败则降级几何会在此暴露）。
     const dip = screen.getPrimaryDisplay().bounds;
     const rect = win32.rectOf(tbHwnd);
     const wPhys = rect.right - rect.left;
@@ -248,13 +253,14 @@ async function main() {
     const heightDip = hPhys / scale;
     const bottomDip = rect.bottom / scale; // 主屏原点恒 (0,0)（v1 仅主屏），物理底边/缩放即 DIP 底边
     const topmost = isTopmost(tbHwnd);
+    const nativeHidden = !nativeTaskbarVisible();
     const geomOk = Math.abs(widthDip - dip.width) <= 2
       && Math.abs(heightDip - TASKBAR_HEIGHT_DIP) <= 2
-      && Math.abs(bottomDip - (dip.height - TASKBAR_BOTTOM_CLEARANCE_DIP)) <= 2;
-    if (topmost && geomOk) {
-      rep.pass(`P1 任务栏窗口在场：置顶 + 底部通栏（${Math.round(widthDip)}x${Math.round(heightDip)}，底边坐原生任务栏上沿）`);
+      && Math.abs(bottomDip - dip.height) <= 2;
+    if (topmost && geomOk && nativeHidden) {
+      rep.pass(`P1 任务栏窗口在场：置顶 + 底部通栏落屏底（${Math.round(widthDip)}x${Math.round(heightDip)}），原生任务栏已隐藏`);
     } else {
-      rep.fail(`P1 置顶=${topmost} 几何=${JSON.stringify({ rect, dip, widthDip, heightDip, bottomDip })}`);
+      rep.fail(`P1 置顶=${topmost} 原生已隐=${nativeHidden} 几何=${JSON.stringify({ rect, dip, widthDip, heightDip, bottomDip })}`);
     }
 
     // P2 面板本体钉底不受影响
@@ -379,10 +385,11 @@ async function main() {
     }
     const diskOff = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
     const panelAlive = !!findWindow(panelPid, PANEL_TITLE);
-    if (r6 && r6.enabled === false && tbAfterDisable && diskOff.taskbar && diskOff.taskbar.enabled === false && panelAlive) {
-      rep.pass('P6 运行时禁用：任务栏窗口即销毁、config 落盘、面板本体不受影响');
+    const nativeBackP6 = nativeTaskbarVisible(); // 工单50：禁用即还原原生任务栏（逃生方向）
+    if (r6 && r6.enabled === false && tbAfterDisable && diskOff.taskbar && diskOff.taskbar.enabled === false && panelAlive && nativeBackP6) {
+      rep.pass('P6 运行时禁用：任务栏窗口即销毁、原生任务栏还原、config 落盘、面板本体不受影响');
     } else {
-      rep.fail(`P6 响应=${JSON.stringify(r6)} 窗已销=${!!tbAfterDisable} 落盘=${JSON.stringify(diskOff.taskbar)} 面板在=${panelAlive}`);
+      rep.fail(`P6 响应=${JSON.stringify(r6)} 窗已销=${!!tbAfterDisable} 原生还原=${nativeBackP6} 落盘=${JSON.stringify(diskOff.taskbar)} 面板在=${panelAlive}`);
     }
 
     // P7 运行时重新启用 → 窗口恢复（仍置顶）
@@ -434,6 +441,12 @@ async function main() {
   } finally {
     killTree(child, panelPid);
     if (originalConfig !== null) fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8');
+    // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生
+    // 任务栏可能留隐藏态——电池不得给用户留无系统入口的桌面
+    ensureNativeTaskbarVisible();
+    nativeTaskbarVisible()
+      ? rep.note('清场核验：原生任务栏可见')
+      : rep.note('清场核验：原生任务栏仍隐藏（兜底已尝试，需人工核查）');
   }
 
   finish();

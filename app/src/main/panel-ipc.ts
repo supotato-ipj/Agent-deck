@@ -33,6 +33,9 @@ const FORWARDED_EVENTS: BridgeEventName[] = [
   'search/results',
   'settings/changed',
   'plugins/changed',
+  // 工单50：设置浮层逃生开关（任务栏接管 toggle）的状态回推——面板页 reconcile 用；
+  // 任务栏条带窗经 wireBridgeIpc 的显式事件清单单独订阅，不受影响。
+  'taskbar/changed',
 ]
 
 // ipcMain.handle 是全局单例（二次注册即抛）——面板窗 + 任务栏窗（工单49）共用同一桥，

@@ -28,3 +28,7 @@ Status: accepted
 ## 补记（工单49 tracer bullet 真机实证，2026-10-05）
 
 「Z 序竞争需定时维持置顶」一条的实测结论比预期更硬：Shell_TrayWnd 位于普通 WS_EX_TOPMOST **之上**的窗口层级，且 explorer 会主动重申防守。49 验收期的收复阶梯探针实证：我方窗口 `topmost=true`、非穿透状态下命中仍归 Shell_TrayWnd；SetWindowPos(TOPMOST) 刷新、BringWindowToTop、AttachThreadInput 后顶起、乃至把 tray 压到 HWND_BOTTOM（400ms 内被 explorer 重申还原）全阶梯无效。竞态表现为「谁先占住谁赢，输了收不回」，验收三轮间随机翻转。**结论：与可见的原生任务栏同矩形重叠没有文档化稳定解**（RetroBar/Zebar/ExplorerPatcher 均走隐藏原生任务栏路线，与此互证）。因此 49 的条带几何暂为「主屏底部通栏、底边坐原生任务栏上沿」（净空 = 原生任务栏高，`TASKBAR_BOTTOM_CLEARANCE`）；原生任务栏隐藏（本 ADR 主线，后续票）落地后净空归零、条带落回屏底。
+
+## 补记（工单50 原生任务栏隐藏/还原落地，2026-10-05）
+
+「原生任务栏隐藏（本 ADR 主线，后续票）落地后净空归零、条带落回屏底」已兑现：隐藏手段为 `ShowWindow(Shell_TrayWnd, SW_HIDE/SW_SHOW)` 纯视图态切换，不写注册表——用户既有任务栏偏好（自动隐藏等 StuckRects 设置）全程原样（50 验收以 StuckRects3 Settings 字节级前后比对把关）。职责划分：隐藏/随开关还原由面板侧任务栏窗控制器持有（条带窗生 = 原生隐、灭 = 原生现，单点生效）；守卫与还原守护只做死路径兜底，以视图事实为唯一判据（隐藏态才翻回）——还原是安全方向，宁可把别人藏起来的任务栏显出来，绝不给用户留无系统入口的桌面。逃生开关落在设置浮层（TASKBAR toggle），经既有 `taskbar/set-enabled` 桥契约即时生效。`TASKBAR_BOTTOM_CLEARANCE` 从常态几何退为隐藏失败的降级档。还原守护（icon-restore-watch）随之改为常驻拉起（原生任务栏的隐藏可由设置在运行期随时打开，守卫在拉起时点无法预知还原义务）。
