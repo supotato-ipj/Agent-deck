@@ -9,6 +9,7 @@ import { SettingsService, type SettingsServiceOptions } from './services/setting
 import { FocusService, type FocusServiceOptions } from './services/focus'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
+import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { DEFAULT_SEARCH_INTERVAL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
@@ -29,6 +30,8 @@ export interface PanelKernelOptions {
   plugins?: PluginHostOptions
   /** 数据面宿主（采集子进程） */
   dataplane: DataplaneServiceOptions
+  /** 任务栏（工单49）：config 文件路径与可变引用（持久化通道，settings 同款） */
+  taskbar?: TaskbarServiceOptions
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -41,6 +44,8 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(PluginHostService, { roots: [], ...options.plugins })
   // 数据面端口（生产装配：utilityProcess 子进程宿主）——必须先于桥接层注册
   ctx.plugin(DataplaneService, options.dataplane)
+  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
+  ctx.plugin(TaskbarService, options.taskbar)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {

@@ -1,12 +1,13 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
 import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
+import { startTaskbarController } from './taskbar/window'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
@@ -28,7 +29,10 @@ const RENDERER_ROOT = path.join(__dirname, '../renderer')
 const BUILTIN_CARDS_ROOT = path.join(RENDERER_ROOT, 'cards')
 const ACCEPT_MODE = process.argv.includes('--accept')
 const ACCEPT_TRAY_MODE = process.argv.includes('--accept-tray')
+const ACCEPT_TASKBAR_MODE = process.argv.includes('--accept-taskbar')
 const PANEL_MODE = process.argv.includes('--panel')
+/** 验收专用面板子进程（工单49）：完整面板但绕开单实例锁，与常驻面板共存 */
+const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
 const TRAY_SPIKE_MODE = process.argv.includes('--tray-spike')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
 
@@ -49,6 +53,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     tools: defaultTools(),
     plugins: defaultPlugins(),
     autostart: defaultAutostart(),
+    taskbar: defaultTaskbar(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
@@ -136,6 +141,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     search: { port: config.search.port, engine: config.search.engine, everythingPort: config.search.everythingPort },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
+    // 任务栏（工单49）：开关随 config 下发，set-enabled 经此整份回写
+    taskbar: { enabled: config.taskbar.enabled, file: CONFIG_FILE, config },
     // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
     plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
@@ -164,6 +171,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
 
   const win = createPanelWindow({ geometry: config.panel })
   wireBridgeIpc(win, kernel.bridge)
+
+  // 任务栏插件窗口（工单49）：跟随内核 taskbar 状态建/销；禁用即窗口消失，面板本体不受影响
+  const taskbarCtl = startTaskbarController({ ctx: kernel, log })
+  app.on('before-quit', () => taskbarCtl.dispose())
 
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
   // 托盘点击、second-instance、Win+D 防抖恢复共用；恢复后的重钉是票01 实施要点。
@@ -240,7 +251,7 @@ if (RESTORE_MODE) {
   log?.append({ type: 'carry-boot', pid: process.pid, mode: 'restore' })
   forceShowIcons(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE) {
+} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -292,11 +303,16 @@ if (RESTORE_MODE) {
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !app.requestSingleInstanceLock()) {
+} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
 } else {
+  // 验收子进程（--panel-accept）：电池要求时开 CDP 端口——运行时的桥动作（如任务栏
+  // 开关 taskbar/set-enabled）由电池经 CDP 在真实渲染层驱动，覆盖「插件热切换」真机链路。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_CDP_PORT) {
+    app.commandLine.appendSwitch('remote-debugging-port', process.env.DECK_CDP_PORT)
+  }
   void app.whenReady().then(() => {
     if (ACCEPT_MODE) {
       // 验收电池：同一 Electron 应用上下文内以控制器身份运行（复用 nativeImage 截屏比对）。
@@ -309,6 +325,12 @@ if (RESTORE_MODE) {
       // 托盘 spike 验收（工单48）：控制器身份跑 accept/tray-spike.js，面板以 --tray-spike 子进程拉起。
       app.on('window-all-closed', () => {})
       require(path.join(app.getAppPath(), 'accept', 'tray-spike.js'))()
+      return
+    }
+    if (ACCEPT_TASKBAR_MODE) {
+      // 任务栏验收（工单49）：控制器身份跑 accept/taskbar.js，面板以 --panel-accept 子进程拉起。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'taskbar.js'))()
       return
     }
     bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {

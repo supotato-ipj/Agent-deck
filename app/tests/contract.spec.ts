@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
-import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather } from '../src/main/config'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
-import type { DesktopItem, PanelSnapshot, PluginInfo } from '../src/shared/contract'
+import type { DesktopItem, PanelSnapshot, PluginInfo, TaskbarSystemAction } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
@@ -61,6 +61,7 @@ function settingsOpts(dir: string): { settings: { file: string; config: AppConfi
     tools: defaultTools(),
     plugins: defaultPlugins(),
     autostart: defaultAutostart(),
+    taskbar: defaultTaskbar(),
   }
   return { settings: { file: path.join(dir, 'config.json'), config } }
 }
@@ -759,4 +760,108 @@ describe('隐私守卫（工单07：查询词只发往本机 Listary API、不�
       expect(src, `${rel} 窗口候选不得带标题字段`).not.toMatch(/^\s*title\s*[?:]/m)
     }
   })
+})
+
+describe('内核桥接契约（工单49 任务栏）', () => {
+  /** 任务栏桩：config 落 tmp 文件（断言持久化不触真 config.json）+ 假按键源 */
+  function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: { sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true } },
+          ...over,
+        },
+      },
+    }
+  }
+
+  it('taskbar/get-state：初值随 config taskbar 段（缺省启用；enabled:false 即禁用）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true })
+    } finally {
+      await ctx.stop()
+    }
+    const dir2 = tmpDir()
+    const t2 = taskbarOpts(dir2, { enabled: false })
+    const ctx2 = createKernel(kernelOpts(dir2, t2.opts))
+    await ctx2.start()
+    try {
+      await expect(ctx2.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: false })
+    } finally {
+      await ctx2.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-enabled：切换即时回推 taskbar/changed、整份回写 config.json；同值幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: Array<{ enabled: boolean }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })).resolves.toEqual({ enabled: false })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: false })
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })).resolves.toEqual({ enabled: true })
+      // 幂等：同值不重复推事件
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
+      expect(changed).toEqual([{ enabled: false }, { enabled: true }])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-enabled：非布尔值拒绝（契约违规不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: 'off' as never }))
+        .rejects.toThrow(/taskbar\.enabled/)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/system-action：开始菜单/任务视图经桥到达按键合成源；未知动作抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'start-menu' })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'task-view' })).resolves.toEqual({ ok: true })
+      expect(t.sent).toEqual(['start-menu', 'task-view'])
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'ghost' as never }))
+        .rejects.toThrow(/未知任务栏系统动作/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/system-action：合成被系统拒收回报 ok:false（不 reject——点击语义不需 try/catch）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir, { deps: { sendSystemKeys: () => false } })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'start-menu' })).resolves.toEqual({ ok: false })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
 })

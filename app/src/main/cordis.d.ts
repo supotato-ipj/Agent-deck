@@ -9,7 +9,8 @@ import type { SettingsService } from './services/settings'
 import type { FocusService } from './services/focus'
 import type { PluginHostService } from './plugins/service'
 import type { PanelDataPort } from './services/panel-data'
-import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState } from '../shared/contract'
+import type { TaskbarService } from './services/taskbar'
+import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarState } from '../shared/contract'
 
 declare module 'cordis' {
   interface Events {
@@ -26,6 +27,8 @@ declare module 'cordis' {
     'settings/changed': (payload: SettingsState) => void
     /** 工单10 桌面组件：插件清单变化（放入/移除/资产变更即推） */
     'plugins/changed': (payload: PluginInfo[]) => void
+    /** 工单49 任务栏：开关变化即时回推（窗口控制器据此建窗/销窗） */
+    'taskbar/changed': (payload: TaskbarState) => void
   }
   interface Context {
     clock: ClockService
@@ -48,5 +51,7 @@ declare module 'cordis' {
     focus: FocusService
     /** 工单10 桌面组件宿主（内核总装必装；roots 为空时不做任何扫描） */
     plugins: PluginHostService
+    /** 工单49 任务栏（内核总装必装；离线测试注入假按键源） */
+    taskbar: TaskbarService
   }
 }

@@ -17,6 +17,7 @@ import { LocalPanelDataService } from './services/panel-data'
 import { SearchService } from './services/search'
 import { SessionsService } from './services/sessions'
 import { SettingsService, type SettingsServiceOptions } from './services/settings'
+import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import type { WeatherLocation } from '../shared/contract'
@@ -50,6 +51,8 @@ export interface KernelOptions {
   focus?: FocusServiceOptions
   /** 桌面组件宿主（工单10）：插件根目录等（缺省 roots=[]：不装任何插件、不建目录） */
   plugins?: PluginHostOptions
+  /** 任务栏（工单49）：开关与依赖（离线测试注入假按键源；缺省默认启用 + 真源延迟绑定） */
+  taskbar?: TaskbarServiceOptions
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -76,6 +79,8 @@ export function createKernel(options: KernelOptions = {}): Context {
   })
   // 桥接层的数据面端口（进程内装配：直连上方采集服务）——必须先于桥接层注册
   ctx.plugin(LocalPanelDataService)
+  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
+  ctx.plugin(TaskbarService, options.taskbar)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)

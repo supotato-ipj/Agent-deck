@@ -1,0 +1,15 @@
+# accept 49-taskbar — 2026-10-05T09:06:19.365Z
+[09:06:19.952] NOTE  面板 pid=5136
+[09:06:22.462] PASS  P1 任务栏窗口在场：置顶 + 底部通栏（2560x48，底边坐原生任务栏上沿）
+[09:06:22.601] PASS  P2 面板本体在场、非置顶、钉底存证在流
+[09:06:22.864] NOTE  置顶收敛=true
+[09:06:23.674] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
+[09:06:23.770] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
+[09:06:24.096] NOTE  开始菜单收起=true
+[09:06:25.874] NOTE  P5 点击前: fg={"hwnd":461452,"cls":"Chrome_WidgetWin_1","exe":"kimi code"} tasks点收敛=true
+[09:06:25.956] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / ForegroundStaging）
+[09:06:27.446] PASS  P6 运行时禁用：任务栏窗口即销毁、config 落盘、面板本体不受影响
+[09:06:27.742] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
+[09:06:32.445] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
+[09:06:37.022] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
+[09:06:37.574] ===== 49-taskbar VERDICT: PASS (pass=9 fail=0) =====
