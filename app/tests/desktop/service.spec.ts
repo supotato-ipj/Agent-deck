@@ -1,6 +1,6 @@
 /**
  * 桌面承载服务测试（工单05 扫描/失败沿用/图标/launch + 工单06 编排/摆位/监听/频次 +
- * 工单27 删除与摆位清除）。依赖束全假源，纯离线。
+ * 工单27 删除与摆位清除 + 工单28 重命名与摆位迁移）。依赖束全假源，纯离线。
  */
 import { Context } from 'cordis'
 import { describe, expect, it, vi } from 'vitest'
@@ -24,6 +24,16 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
   const reveal = vi.fn()
   const copyText = vi.fn()
   const trash = vi.fn(async (_p: string) => '')
+  const rename = vi.fn(async (oldPath: string, newPath: string) => {
+    // 假源真改名（工单27 trash 假源真删盘面的同法；生产侧为 fs.promises.rename）：
+    // 改名后下一轮扫描才能扫到新名——摆位迁移 + 即时重编排的断言依赖盘面同步
+    const dir = oldPath.startsWith('C:\\u\\') ? userEntries : commonEntries
+    const from = oldPath.slice(oldPath.lastIndexOf('\\') + 1)
+    const to = newPath.slice(newPath.lastIndexOf('\\') + 1)
+    const at = dir.findIndex((e) => e.name === from)
+    if (at >= 0) dir[at] = { ...dir[at], name: to }
+    return ''
+  })
   const watchCalls: Array<() => void> = []
   const watch = vi.fn((_roots: { user: string; common: string }, onChange: () => void) => {
     watchCalls.push(onChange)
@@ -47,6 +57,13 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
       reveal,
       copyText,
       trash,
+      rename,
+      // 条目存在性假源：认当前假盘面（同名大小写不敏感——NTFS 语义）
+      entryExists: (p: string) => {
+        const dir = p.startsWith('C:\\u\\') ? userEntries : commonEntries
+        const base = p.slice(p.lastIndexOf('\\') + 1).toLowerCase()
+        return dir.some((e) => e.name.toLowerCase() === base)
+      },
       watch,
       readShortcutTarget: (p: string) => (opts.targets ?? {})[p] ?? null,
       readStoreText: () => storeText,
@@ -65,6 +82,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     reveal,
     copyText,
     trash,
+    rename,
     watchCalls,
     written,
     get storeText() {
@@ -293,6 +311,141 @@ describe('DesktopService（工单27 删除与删除全部）', () => {
       expect(w.written).toHaveLength(0)
     } finally {
       await w.ctx.stop()
+    }
+  })
+})
+
+describe('DesktopService（工单28 原地重命名）', () => {
+  const seededStore = JSON.stringify({ version: 1, pinned: [], dock: ['a.lnk'], docs: ['n.docx'] })
+
+  it('rename：file 改名落依赖（旧路径→新路径）、摆位同拍迁移三名单之一并落盘 + 即时重编排', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk'), entry('b.lnk'), entry('n.docx', { mtimeMs: 100 })],
+      [],
+      { store: seededStore },
+    )
+    await w.ctx.start()
+    try {
+      const r = await w.svc.rename('n.docx', 'report.docx')
+      expect(r).toEqual({ ok: true, to: 'report.docx' })
+      expect(w.rename).toHaveBeenCalledTimes(1)
+      expect(w.rename).toHaveBeenCalledWith('C:\\u\\n.docx', 'C:\\u\\report.docx')
+      // 摆位同拍迁移：docs 名单里的 n.docx 原位换成 report.docx，dock 名单不动
+      expect(w.svc.storeForTest()).toEqual({ version: 1, pinned: [], dock: ['a.lnk'], docs: ['report.docx'] })
+      expect(w.written).toHaveLength(1)
+      // 即时重编排：假盘面已同步改名，新名以显式摆位身份回位（位置不丢）
+      expect(w.svc.state().plan.docs.some((d) => d.name === 'report.docx')).toBe(true)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('rename：快捷方式未带扩展自动补回（输入即显示名），手钉清单同拍迁移', async () => {
+    const w = fakeWorld(
+      [entry('Kimi Code.lnk')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: ['Kimi Code.lnk'], dock: [], docs: [] }) },
+    )
+    await w.ctx.start()
+    try {
+      expect(await w.svc.rename('Kimi Code.lnk', 'Kimi')).toEqual({ ok: true, to: 'Kimi.lnk' })
+      expect(w.rename).toHaveBeenCalledWith('C:\\u\\Kimi Code.lnk', 'C:\\u\\Kimi.lnk')
+      expect(w.svc.storeForTest().pinned).toEqual(['Kimi.lnk']) // 手钉身份不因改名丢失
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('rename：与现名全同 = 幂等空转（ok 不落盘不发依赖）；仅大小写有别放行且豁免冲突校验', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('Note.TXT', { mtimeMs: 100 })], [], { store: seededStore })
+    await w.ctx.start()
+    try {
+      const writtenBefore = w.written.length
+      expect(await w.svc.rename('a.lnk', 'a.lnk')).toEqual({ ok: true, to: 'a.lnk' })
+      expect(w.rename).not.toHaveBeenCalled()
+      expect(w.written).toHaveLength(writtenBefore)
+      // 大小写改名：entryExists 对自身会命中（NTFS 大小写不敏感），必须豁免而非误判冲突
+      expect(await w.svc.rename('Note.TXT', 'note.txt')).toEqual({ ok: true, to: 'note.txt' })
+      expect(w.rename).toHaveBeenCalledWith('C:\\u\\Note.TXT', 'C:\\u\\note.txt')
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('rename：重名冲突拒绝（目标已存在）——不改名不动存储不落盘', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk'), entry('b.lnk'), entry('n.docx', { mtimeMs: 100 })],
+      [],
+      { store: seededStore },
+    )
+    await w.ctx.start()
+    try {
+      expect(await w.svc.rename('n.docx', 'b.lnk')).toEqual({ ok: false, error: '目标名已存在：b.lnk' })
+      expect(w.rename).not.toHaveBeenCalled()
+      expect(w.written).toHaveLength(0)
+      expect(w.svc.storeForTest()).toEqual({ version: 1, pinned: [], dock: ['a.lnk'], docs: ['n.docx'] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('rename：非法文件名拒绝（禁字符/空串/保留名），显示名空转补扩展后的校验同样成立', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('n.docx', { mtimeMs: 100 })], [], { store: seededStore })
+    await w.ctx.start()
+    try {
+      expect((await w.svc.rename('n.docx', 'bad|name')).ok).toBe(false)
+      expect((await w.svc.rename('n.docx', '   ')).ok).toBe(false)
+      expect((await w.svc.rename('n.docx', 'CON')).ok).toBe(false)
+      expect((await w.svc.rename('a.lnk', 'a?.lnk')).ok).toBe(false) // 补扩展前后都在校验口径内
+      expect(w.rename).not.toHaveBeenCalled()
+      expect(w.written).toHaveLength(0)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('rename：池外名字拒绝（pin 同款按名护栏）；依赖失败如实回报且不动存储', async () => {
+    const w = fakeWorld([entry('n.docx', { mtimeMs: 100 })], [], { store: seededStore })
+    await w.ctx.start()
+    try {
+      expect(await w.svc.rename('ghost.lnk', 'x.lnk')).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(w.rename).not.toHaveBeenCalled()
+      w.rename.mockResolvedValueOnce('另一个程序正在使用此文件，进程无法访问。')
+      expect(await w.svc.rename('n.docx', 'report.docx')).toEqual({
+        ok: false, error: '另一个程序正在使用此文件，进程无法访问。',
+      })
+      expect(w.written).toHaveLength(0)
+      expect(w.svc.storeForTest().docs).toEqual(['n.docx'])
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('rename 落盘重启后新名位置保持（摆位迁移的持久化核对）', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk'), entry('b.lnk'), entry('n.docx', { mtimeMs: 100 })],
+      [],
+      { store: seededStore },
+    )
+    await w.ctx.start()
+    try {
+      await w.svc.rename('a.lnk', 'renamed.lnk')
+    } finally {
+      await w.ctx.stop()
+    }
+    const w2 = fakeWorld(
+      [entry('renamed.lnk'), entry('b.lnk'), entry('n.docx', { mtimeMs: 100 })],
+      [],
+      { store: w.storeText },
+    )
+    await w2.ctx.start()
+    try {
+      expect(w2.svc.state().plan.dock.map((d) => [d.name, d.source])).toEqual([
+        ['renamed.lnk', 'placed'],
+        ['b.lnk', 'recommended'],
+      ])
+    } finally {
+      await w2.ctx.stop()
     }
   })
 })

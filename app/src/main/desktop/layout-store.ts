@@ -91,6 +91,20 @@ export function unpinItem(store: LayoutStore, name: string): LayoutStore {
 }
 
 /**
+ * 重命名同拍的摆位迁移（工单28）：from 在三份名单（手钉 + 两分区显式摆位）里的身影
+ * 原位换成 to——按名字键控的存储，文件改名不改名单就等于丢摆位（外部重命名的既定
+ * 行为），面板发起的改名必须同拍把位置带走。序与其余名字不动；名单里没有的名字
+ * 原样返回（幂等空转，无摆位条目改名不产生摆位）。
+ */
+export function renameItemInStore(store: LayoutStore, from: string, to: string): LayoutStore {
+  if (!store.pinned.includes(from) && !store.dock.includes(from) && !store.docs.includes(from)) {
+    return store
+  }
+  const swap = (names: string[]): string[] => names.map((n) => (n === from ? to : n))
+  return { version: 1, pinned: swap(store.pinned), dock: swap(store.dock), docs: swap(store.docs) }
+}
+
+/**
  * 删除同拍的摆位清除（工单27）：名字从三份名单（手钉 + 两分区显式摆位）一并移除——
  * 文件已进回收站，名单留着会让日后的同名文件莫名归位（与「名单允许陈旧名字」的
  * 前提相反：那是给还存在的文件留位，删除是文件确定没了）。其余名字与序保持；

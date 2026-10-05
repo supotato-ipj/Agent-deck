@@ -3008,6 +3008,215 @@ async function main() {
       w32.moveMousePhys(safePt.x, safePt.y);
     })();
 
+    // —— P5.14 工单28 原地重命名：单项菜单【重命名】→ 标签原地变输入框（预填显示名、
+    // 预选主名段）→ 真键盘确认（SendInput UNICODE 直注替换选区 + Enter）。内核侧池护栏、
+    // 文件名合法性、重名冲突校验与摆位同拍迁移在离线测试（filename / layout-store /
+    // desktop service fakeWorld / contract / dataplane spec）穷举；这里留真机端到端
+    // 代表用例（#19 三缝约定）：
+    // a. 改名 + 摆位迁移：探针先经菜单钉入手钉清单（迁移靶子）→ RENAME →
+    //    desktop-rename-started（输入框矩形随开编辑存证）→ 直注新主名 + Enter →
+    //    desktop-renamed ok=true、文件真离盘改名、条目按新名回 placed 段、
+    //    layout.json pinned 同拍迁移（面板发起的重命名不丢摆位——AC 本体）
+    // b. Esc 取消：再进 RENAME → 直接 Esc → desktop-rename-cancelled reason=esc、
+    //    keyboard-mode-off 成对、盘面与池内原样
+    // c. 重名冲突：RENAME 输既有名字 + Enter → desktop-rename-rejected ok=false、
+    //    两个盘面文件都原样（原名还原的盘面事实）
+    await (async () => {
+      const rect28 = w32.rectOf(hwnd);
+      let probeA28 = null;
+      let probeB28 = null;
+      let probeC28 = null;
+      try {
+        const t28 = Date.now();
+        const nameA28 = `DECK28A-${t28}.txt`; // 改名靶子（先钉入手钉清单）
+        const nameB28 = `DECK28B-${t28}.txt`; // 改名后的新名
+        const nameC28 = `DECK28C-${t28}.txt`; // 预置冲突占位（重名拒绝靶子）
+        probeA28 = path.join(seedScan.user, nameA28);
+        probeB28 = path.join(seedScan.user, nameB28);
+        probeC28 = path.join(seedScan.user, nameC28);
+        fs.writeFileSync(probeA28, 'probe');
+        fs.writeFileSync(probeC28, 'probe');
+        const joined28 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(nameA28)
+          && (e.names || []).includes(nameC28), 8000);
+        joined28 || rep.fail(`重命名用例探针未入池（${nameA28}/${nameC28}）`);
+        const settled28 = await waitStable('desktop-rendered', 1500, 8000);
+        const rects28 = settled28 && (settled28.rects || []);
+        if (!rects28.find((r) => r.name === nameA28 && r.rect)) {
+          rep.fail(`重命名用例几何前置缺失：A=${JSON.stringify(rects28.find((r) => r.name === nameA28))}`);
+          return;
+        }
+        const ptOf28 = (r) => ({ x: rect28.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect28.top + Math.round((r.rect.y + r.rect.h / 2) * f) });
+        const rightClick28 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(pt.x, pt.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        const clickRow28 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          const pt = { x: rect28.left + Math.round((row.x + row.w / 2) * f), y: rect28.top + Math.round((row.y + row.h / 2) * f) };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+        // 重命名输入框走真键盘：直注字符前等键盘焦点真的到手（keyboard-mode-on 的
+        // setFocusable+focus 落定；前台不是面板时键会漏进别的窗——P7S 前台门同款语义）
+        const waitForeground28 = async (timeoutMs = 5000) => {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            const fg = w32.GetForegroundWindow();
+            if (fg && w32.threadIdOf(fg).pid === w32.threadIdOf(hwnd).pid) return true;
+            await sleep(150);
+          }
+          return false;
+        };
+        // layout.json pinned 对账（带重试：落盘在内核 persist，与快照同拍到达；P5.13 同法）
+        const pinnedSwapped28 = async (oldName, newName, timeoutMs = 5000) => {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            try {
+              const store = JSON.parse(fs.readFileSync(layoutFile, 'utf8'));
+              if (Array.isArray(store.pinned) && store.pinned.includes(newName)) {
+                return { swapped: !store.pinned.includes(oldName), pinned: store.pinned };
+              }
+            } catch { /* 重试 */ }
+            await sleep(200);
+          }
+          return { swapped: false, pinned: null };
+        };
+
+        // a. 前置钉入（给「摆位同拍迁移」造靶子）→ RENAME → 直注新主名 + Enter
+        {
+          const sessPin = await rightClick28(ptOf28(rects28.find((r) => r.name === nameA28)), '改名-钉入前置');
+          if (!sessPin) {
+            rep.fail('重命名用例前置右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tPin = clickRow28(sessPin.opened.rows, 'pin');
+          const pinnedEvt = tPin && await waitEvent('desktop-pinned', (e) => e.t >= tPin && e.name === nameA28 && e.ok === true, 6000);
+          pinnedEvt || rep.fail(`改名前置钉入异常：desktop-pinned 未见（tPin=${tPin}）`);
+          // 钉入 dock 后重排：重取探针矩形再右键（点错条目 = 假败）
+          const settledA = await waitStable('desktop-rendered', 1500, 8000);
+          const rA = settledA && (settledA.rects || []).find((r) => r.name === nameA28 && r.rect);
+          if (!rA) {
+            rep.fail('重命名用例钉入后探针矩形缺失');
+            return;
+          }
+          const sessRen = await rightClick28(ptOf28(rA), '改名-右键');
+          if (!sessRen) {
+            rep.fail('改名右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          (sessRen.opened.items || []).includes('rename')
+            ? rep.pass(`单项菜单含【重命名】行（条目集=[${(sessRen.opened.items || []).join(', ')}]，工单28 第六行）`)
+            : rep.fail(`单项菜单缺 rename 行：${JSON.stringify(sessRen.opened.items)}`);
+          const tRen = clickRow28(sessRen.opened.rows, 'rename');
+          const started = tRen && await waitEvent('desktop-rename-started', (e) => e.t >= tRen && e.name === nameA28 && e.input && e.input.w > 0, 4000);
+          const kbOn = started && await waitEvent('keyboard-mode-on', (e) => e.t >= tRen, 3000);
+          const fgOk = started && await waitForeground28();
+          started && kbOn && fgOk
+            ? rep.pass(`标签原地变输入框：desktop-rename-started（输入框 ${started.input.w}x${started.input.h} 随开编辑存证）、keyboard-mode-on 成对、键盘焦点到手`)
+            : rep.fail(`重命名编辑器开层异常：started=${JSON.stringify(started)} kbOn=${!!kbOn} fg=${fgOk}`);
+          safeShot('28-rename-editor');
+          // 预选主名段：直注即整段替换（扩展名 .txt 留在输入框里），Enter 确认
+          if (!started || !fgOk) return;
+          await sleep(300); // 焦点落定缓冲
+          w32.sendUnicode(`DECK28B-${t28}`);
+          await sleep(150);
+          w32.tapKeys([VK_RETURN]);
+          const renamed = await waitEvent('desktop-renamed', (e) => e.t >= tRen && e.ok === true && e.to === nameB28, 8000);
+          const renamedOld = await waitEvent('desktop-rendered', (e) => e.t >= tRen && (e.names || []).includes(nameB28) && !(e.names || []).includes(nameA28), 8000);
+          const goneA = renamed ? await (async () => {
+            const deadline = Date.now() + 8000;
+            while (Date.now() < deadline) {
+              if (!fs.existsSync(probeA28) && fs.existsSync(probeB28)) return true;
+              await sleep(250);
+            }
+            return false;
+          })() : false;
+          const diskPin = renamed ? await pinnedSwapped28(nameA28, nameB28) : { swapped: false, pinned: null };
+          renamed && renamedOld && goneA && diskPin.swapped
+            ? rep.pass(`Enter 确认改名落盘：desktop-renamed ok=true to=${nameB28}、文件真改名、条目按新名入池、layout.json pinned 同拍迁移${diskPin.pinned ? `（pinned=[${diskPin.pinned.join(', ')}]）` : ''}`)
+            : rep.fail(`改名存证异常：renamed=${JSON.stringify(renamed)} rendered=${!!renamedOld} goneDisk=${goneA} pinnedSwap=${JSON.stringify(diskPin)}`);
+          safeShot('28-rename-migrated');
+        }
+
+        // b. Esc 取消：再进 RENAME 直接 Esc——原名原样、keyboard-mode-off 成对
+        {
+          const settledB = await waitStable('desktop-rendered', 1500, 8000);
+          const rB = settledB && (settledB.rects || []).find((r) => r.name === nameB28 && r.rect);
+          if (!rB) {
+            rep.fail('取消用例探针矩形缺失（改名后新名未承载？）');
+            return;
+          }
+          const sessEsc = await rightClick28(ptOf28(rB), '取消-右键');
+          if (!sessEsc) {
+            rep.fail('取消右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tEscRow = clickRow28(sessEsc.opened.rows, 'rename');
+          const started2 = tEscRow && await waitEvent('desktop-rename-started', (e) => e.t >= tEscRow && e.name === nameB28, 4000);
+          if (!started2 || !(await waitForeground28())) {
+            rep.fail(`取消用例编辑器未就绪：started=${JSON.stringify(started2)}`);
+            return;
+          }
+          await sleep(300); // 焦点落定缓冲
+          const tEsc = Date.now();
+          w32.tapKeys([VK_ESCAPE]);
+          const cancelled = await waitEvent('desktop-rename-cancelled', (e) => e.t >= tEsc && e.reason === 'esc' && e.name === nameB28, 4000);
+          const kbOff = await waitEvent('keyboard-mode-off', (e) => e.t >= tEsc, 3000);
+          const stillB = fs.existsSync(probeB28) && !fs.existsSync(probeA28);
+          cancelled && kbOff && stillB
+            ? rep.pass(`Esc 取消还原：desktop-rename-cancelled reason=esc、keyboard-mode-off 成对、盘面原名原样`)
+            : rep.fail(`取消存证异常：cancelled=${JSON.stringify(cancelled)} kbOff=${!!kbOff} stillB=${stillB}`);
+          safeShot('28-rename-cancelled');
+        }
+
+        // c. 重名冲突：输既有名字 + Enter——ok=false 存证，两个盘面文件都原样
+        {
+          const settledC = await waitStable('desktop-rendered', 1500, 8000);
+          const rC = settledC && (settledC.rects || []).find((r) => r.name === nameB28 && r.rect);
+          if (!rC) {
+            rep.fail('冲突用例探针矩形缺失');
+            return;
+          }
+          const sessC = await rightClick28(ptOf28(rC), '冲突-右键');
+          if (!sessC) {
+            rep.fail('冲突右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          const tConf = clickRow28(sessC.opened.rows, 'rename');
+          const started3 = tConf && await waitEvent('desktop-rename-started', (e) => e.t >= tConf && e.name === nameB28, 4000);
+          if (!started3 || !(await waitForeground28())) {
+            rep.fail(`冲突用例编辑器未就绪：started=${JSON.stringify(started3)}`);
+            return;
+          }
+          await sleep(300); // 焦点落定缓冲
+          w32.sendUnicode(`DECK28C-${t28}`);
+          await sleep(150);
+          const tEnter = Date.now();
+          w32.tapKeys([VK_RETURN]);
+          const rejected = await waitEvent('desktop-rename-rejected', (e) => e.t >= tEnter && e.ok === false && e.to === nameC28, 8000);
+          await sleep(1500); // 留足「若误放行则池内换名」的时间窗，再核对盘面与池
+          const intact = fs.existsSync(probeB28) && fs.existsSync(probeC28);
+          // 拒绝路径不动指纹（无重建无新 rendered）：最新一拍 rendered 仍载原名即池内未动
+          const lastRendered = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+          const stillInPool = !!lastRendered && (lastRendered.names || []).includes(nameB28);
+          rejected && intact && stillInPool
+            ? rep.pass(`重名冲突如实拒绝：desktop-rename-rejected ok=false（原名还原），盘面两文件原样、池内条目未动`)
+            : rep.fail(`冲突存证异常：rejected=${JSON.stringify(rejected)} intact=${intact} stillInPool=${stillInPool}`);
+          safeShot('28-rename-conflict');
+        }
+      } finally {
+        for (const p of [probeA28, probeB28, probeC28]) {
+          try { if (p && fs.existsSync(p)) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
+        }
+        w32.moveMousePhys(safePt.x, safePt.y);
+      }
+    })();
+
     // —— P7S 工单07 搜索并入：accept_search 电池适配（scripts/accept_search.py 随 Tk 窗退役）——
     // 链路：探针文件直连引擎取证 → 热区点击激活（前台门校验）→ 剪贴板粘贴探针词
     // （绕开输入法合成，旧电池同法；IME 机制本体由探针01-D 在同窗体实证）→ 实时结果 →

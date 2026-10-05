@@ -78,6 +78,8 @@ let calendarMonth = -1
 // 工单27 起条目删除进回收站（desktop/trash）：单项【删除】直接执行，多选【删除全部】
 // 先弹自绘轻量确认（列出条数、确认/取消，点外部/Esc=取消）；删除成功条目由内核同拍
 // 清除摆位（防同名复活莫名归位）；权限/占用失败 ok=false 存证 + 瞬态提示条（#trash-notice）。
+// 工单28 起单项菜单加【重命名】：标签原地变输入框（Enter/失焦确认、Esc 取消），
+// desktop/rename 契约在内核做校验与摆位同拍迁移；失败 ok=false 存证 + 提示条 + 原名还原。
 
 const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
@@ -634,7 +636,8 @@ for (const type of ['click', 'contextmenu'] as const) {
 /** 单项动作条目集（contributor 注册位形状，同工单23 分区空白内置两项）：三动作之外，
  * 第 4 行按目标条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见
  * 【钉到应用区】；手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
- * 第 5 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
+ * 第 5 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）。
+ * 第 6 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
@@ -643,6 +646,7 @@ function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
     pinnedNames.has(item.name)
       ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
       : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
+    { id: 'rename', label: 'RENAME', run: () => beginRename(item) },
     { id: 'delete', label: 'DELETE', run: () => trashItems([item.name]) },
   ]
 }
@@ -740,7 +744,7 @@ function trashItems(names: readonly string[]): void {
   const resolved = names.map((name) => itemByName.get(name)?.path)
   if (resolved.some((p) => !p)) {
     notify('desktop-trash-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
-    showTrashNotice('桌面项不在当前扫描池内')
+    showNotice('桌面项不在当前扫描池内')
     return
   }
   const paths = resolved as string[]
@@ -750,11 +754,11 @@ function trashItems(names: readonly string[]): void {
       notify(r.ok ? 'desktop-trashed' : 'desktop-trash-rejected', {
         names: [...names], ok: r.ok, trashed: r.trashed, failed: r.failed, error: r.error ?? null,
       })
-      if (!r.ok) showTrashNotice(r.error ?? '删除失败')
+      if (!r.ok) showNotice(r.error ?? '删除失败')
     },
     (err: unknown) => {
       notify('desktop-trash-failed', { names: [...names], message: String(err) })
-      showTrashNotice(String(err))
+      showNotice(String(err))
     },
   )
 }
@@ -831,13 +835,13 @@ window.addEventListener('pointerdown', (e) => {
   closeTrashConfirm('outside')
 }, { capture: true })
 
-// ---- 删除失败提示（工单27 AC「菜单层有可见提示」）：权限/占用失败如实上浮的瞬态条，
-// 数秒自隐；纯展示不接交互（无热区，指针穿透到下层）。
+// ---- 动作失败提示（工单27 AC「菜单层有可见提示」；工单28 重命名失败复用同一条）：
+// 权限/占用/重名等失败如实上浮的瞬态条，数秒自隐；纯展示不接交互（无热区，指针穿透到下层）。
 
 const trashNotice = el('trash-notice')
 let trashNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
-function showTrashNotice(message: string): void {
+function showNotice(message: string): void {
   trashNotice.textContent = message
   trashNotice.style.display = 'block'
   if (trashNoticeTimer !== null) clearTimeout(trashNoticeTimer)
@@ -845,6 +849,140 @@ function showTrashNotice(message: string): void {
     trashNotice.style.display = 'none'
     trashNoticeTimer = null
   }, 6000)
+}
+
+// ---- 原地重命名（工单28，CONTEXT.md「上下文菜单」二期条目）：单项菜单【重命名】→
+// 条目标签原地变输入框（预填显示名、预选主名段——真桌面肌肉记忆），Enter/失焦确认、
+// Esc 取消。编辑期间临时取得键盘焦点（trash 确认层同款 keyboard-mode 通道，面板永不
+// 激活的前提下输入框才收得到键）；确认走 desktop/rename 契约（池护栏、文件名合法性、
+// 重名冲突校验与摆位同拍迁移全在内核），结果分名存证（started/renamed/rejected/failed/
+// cancelled，电池按名断言）；失败上浮瞬态提示条（工单27 同款）并还原原名——盘面没改
+// 成功，摆位与文件名都还是旧的。与现名全同的提交 = 幂等空转（内核同语义），不发契约。
+// 1Hz 快照若在编辑中触发重建（别的文件动了指纹），编辑器按取消收场——重建会摘掉
+// 输入框，与其留下悬空的关闭态不如显式还原（真桌面保留编辑内容的语义不在本票范围）。
+
+interface RenameEditorState {
+  active: boolean
+  /** 收场护栏：endRenameEditor 的 DOM 摘除会触发 focusout，防再入误判为失焦确认 */
+  closing: boolean
+  name: string
+  item: DesktopItem | null
+  input: HTMLInputElement | null
+  label: HTMLElement | null
+}
+
+const renameEditor: RenameEditorState = {
+  active: false, closing: false, name: '', item: null, input: null, label: null,
+}
+
+/** 预选主名段（真桌面同款）：file/folder 的显示名有扩展时选最后一个点之前，
+ * .lnk/.url 的显示名本就无扩展、无点选全部。 */
+function selectRenameStem(item: DesktopItem, input: HTMLInputElement): void {
+  const dot = item.display.lastIndexOf('.')
+  const end = (item.kind === 'file' || item.kind === 'folder') && dot > 0 ? dot : item.display.length
+  input.setSelectionRange(0, end)
+}
+
+function beginRename(item: DesktopItem): void {
+  if (renameEditor.active) return // 已在编辑：忽略再次触发（菜单开层期间不可达，防御性空转）
+  const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
+  const label = node?.querySelector<HTMLElement>('.label')
+  if (!node || !label) return // 条目刚被快照重建摘掉：无从原地编辑（防御性空转）
+  const input = document.createElement('input')
+  input.className = 'rename-input'
+  input.type = 'text'
+  input.maxLength = 255
+  input.spellcheck = false
+  input.setAttribute('autocomplete', 'off')
+  input.value = item.display
+  input.addEventListener('keydown', (e) => {
+    if (!renameEditor.active) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitRename('enter')
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation() // Esc 只归编辑器：取消编辑，不再外溢成别的收层语义
+      cancelRename('esc')
+    }
+  })
+  input.addEventListener('focusout', () => {
+    if (!renameEditor.active || renameEditor.closing) return
+    commitRename('blur')
+  })
+  label.replaceWith(input)
+  renameEditor.active = true
+  renameEditor.closing = false
+  renameEditor.name = item.name
+  renameEditor.item = item
+  renameEditor.input = input
+  renameEditor.label = label
+  window.deck.host.setKeyboardMode(true) // 键盘模式开（工单02）：输入框要接键盘
+  input.focus()
+  selectRenameStem(item, input)
+  const r = input.getBoundingClientRect()
+  notify('desktop-rename-started', {
+    name: item.name, display: item.display,
+    input: { x: r.left, y: r.top, w: r.width, h: r.height },
+  })
+}
+
+/** 收场：摘输入框、原位放回标签（textContent 由调用方定夺——成功可乐观上新名）、
+ * 键盘模式关。返回输入原文与标签节点（成功后的乐观上名要认节点，快照重建会换血）。 */
+function endRenameEditor(nextLabelText: string): { typed: string; label: HTMLElement | null } {
+  const { input, label } = renameEditor
+  renameEditor.closing = true
+  const typed = input ? input.value : ''
+  if (label) label.textContent = nextLabelText
+  input?.replaceWith(label!)
+  window.deck.host.setKeyboardMode(false) // 键盘模式关（工单02）：恢复不可聚焦+钉底
+  renameEditor.active = false
+  renameEditor.closing = false
+  renameEditor.input = null
+  renameEditor.label = null
+  renameEditor.item = null
+  return { typed, label }
+}
+
+/** 显示名口径的乐观上名：快捷方式/网址剥掉原扩展（与内核 display 推导同规），
+ * 其余即文件名。只补「提交成功 → 下一拍快照重建」之间的观感间隙，权威口径仍是快照。 */
+function optimisticDisplay(item: DesktopItem, fileName: string): string {
+  if (item.kind === 'shortcut' || item.kind === 'url') {
+    const dot = item.name.lastIndexOf('.')
+    const ext = dot >= 0 ? item.name.slice(dot).toLowerCase() : ''
+    if (ext && fileName.toLowerCase().endsWith(ext)) return fileName.slice(0, -ext.length)
+  }
+  return fileName
+}
+
+function commitRename(via: 'enter' | 'blur'): void {
+  const item = renameEditor.item
+  if (!item) return
+  const { typed, label } = endRenameEditor(item.display)
+  const to = typed.trim()
+  if (to === item.display || to === item.name) return // 与现名全同：幂等空转（内核同语义）
+  void window.deck.bridge.invoke('desktop/rename', { name: item.name, to }).then(
+    (r) => {
+      if (r.ok) {
+        notify('desktop-renamed', { name: item.name, to: r.to ?? to, ok: true })
+        if (label?.isConnected) label.textContent = optimisticDisplay(item, r.to ?? to)
+      } else {
+        notify('desktop-rename-rejected', { name: item.name, to, ok: false, error: r.error ?? null })
+        showNotice(r.error ?? '重命名失败')
+      }
+    },
+    (err: unknown) => {
+      notify('desktop-rename-failed', { name: item.name, to, message: String(err) })
+      showNotice(String(err))
+    },
+  )
+}
+
+function cancelRename(reason: 'esc' | 'rebuild'): void {
+  const item = renameEditor.item
+  if (!item) return
+  endRenameEditor(item.display)
+  notify('desktop-rename-cancelled', { name: item.name, reason })
 }
 
 // ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
@@ -868,6 +1006,9 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
   pinnedNames = new Set(state.plan.dock.filter((e) => e.source === 'pinned').map((e) => e.name))
   if (state.fingerprint === desktopFingerprintSeen) return
   desktopFingerprintSeen = state.fingerprint
+  // 编辑中的重命名输入框会被这次重建整块摘掉（输入框在条目 DOM 里）：按取消收场，
+  // 不留悬空的开编辑态（工单28；fingerprint 未变的快照在上方早退，不影响编辑器）。
+  if (renameEditor.active) cancelRename('rebuild')
   const byName = itemByName
   // dock：按编排序铺条；池内 app 条目若不在计划（理论不可达）兜底追加，承载一个不漏
   dockZone.textContent = ''

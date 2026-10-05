@@ -223,6 +223,13 @@ export class DataplaneService extends Service implements PanelDataPort {
     return this.call('desktop/trash', { paths }) as Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }>
   }
 
+  /** 原地重命名（工单28）：RPC 转发数据面子进程——池护栏、重名冲突校验与摆位迁移都在
+   * 子进程（存储归属地）；fs.promises.rename 是纯 Node API，子进程直接执行，无 trash 那样
+   * 的主进程反向代理。 */
+  rename(name: string, to: string): Promise<{ ok: boolean; to?: string; error?: string }> {
+    return this.call('desktop/rename', { name, to }) as Promise<{ ok: boolean; to?: string; error?: string }>
+  }
+
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {
     return this.call('desktop/move', { name, zone, beforeName }) as Promise<{ ok: boolean; error?: string }>
   }

@@ -24,8 +24,8 @@ export interface DataplaneInit {
   usageDir: string
 }
 
-/** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除；读路径走每拍快照） */
-export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash'
+/** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除、工单28 起含重命名；读路径走每拍快照） */
+export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash' | 'desktop/rename'
 
 /** 主进程 ⇄ 数据面子进程消息 */
 export type DataplaneMessage =

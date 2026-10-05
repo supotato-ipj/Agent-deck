@@ -294,6 +294,49 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/rename（工单28）：池内改名真落盘、摆位同拍迁移；冲突与非法名拒绝；池外拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 先造显式摆位（B.docx 入 docs placed 段），改名后须原位迁移（位置不丢）
+      await ctx.bridge.invoke('desktop/move', { name: 'B.docx', zone: 'doc', beforeName: null })
+      // 快捷方式显示名输入（不带 .lnk）→ 内核补回原扩展
+      const r = await ctx.bridge.invoke('desktop/rename', { name: 'A.lnk', to: 'Renamed' })
+      expect(r).toEqual({ ok: true, to: 'Renamed.lnk' })
+      expect(fs.existsSync(path.join(dir, 'user', 'A.lnk'))).toBe(false)
+      expect(fs.existsSync(path.join(dir, 'user', 'Renamed.lnk'))).toBe(true)
+      const snap1 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect((snap1.desktop.items as DesktopItem[]).map((i) => i.name).sort()).toEqual(['B.docx', 'Renamed.lnk'])
+      // B.docx 改名：docs 摆位名单同拍带走新名（下一拍快照按显式摆位承载）
+      const r2 = await ctx.bridge.invoke('desktop/rename', { name: 'B.docx', to: 'Report.docx' })
+      expect(r2).toEqual({ ok: true, to: 'Report.docx' })
+      const snap2 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap2.desktop.plan.docs.map((d) => [d.name, d.group])).toEqual([['Report.docx', 'office']])
+      // 重名冲突：目标已存在 → ok=false，盘面与摆位原样
+      const conflict = await ctx.bridge.invoke('desktop/rename', { name: 'Report.docx', to: 'Renamed.lnk' })
+      expect(conflict.ok).toBe(false)
+      expect(fs.existsSync(path.join(dir, 'user', 'Report.docx'))).toBe(true)
+      // 非法文件名：ok=false（fs 不被触碰）
+      const invalid = await ctx.bridge.invoke('desktop/rename', { name: 'Report.docx', to: 'bad|name' })
+      expect(invalid.ok).toBe(false)
+      // 池外名字：pin 同款按名护栏（含已改走的旧名）
+      const outside = await ctx.bridge.invoke('desktop/rename', { name: 'B.docx', to: 'X.docx' })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/move：摆位经桥接落位、跨区换区；非法参照拒绝', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')

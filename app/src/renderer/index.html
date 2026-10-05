@@ -235,6 +235,24 @@
   .ditem:hover { background: rgba(255, 255, 255, 0.10); }
   .ditem.sel { background: rgba(255, 255, 255, 0.18); outline: 1px solid rgba(255, 255, 255, 0.5); }
 
+  /* 原地重命名输入框（工单28）：标签原位变身——同字号同宽（继承各分区的条目宽），
+   * 深底细边（同世界观）；编辑期间键盘模式临时开启（trash 确认层同款通道）。 */
+  .ditem .rename-input {
+    margin-top: 6px;
+    max-width: 72px;
+    width: 72px;
+    font: inherit;
+    font-size: 11px;
+    color: #eaeaea;
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+    padding: 0 2px;
+    text-align: center;
+    outline: none;
+  }
+  .doc-group .ditem .rename-input { max-width: 92px; width: 92px; }
+
   /* 文档区（工单06 编排接管）：左列卡片与画面中部之间的条带。条目按文档组聚合——
    * 每组一个带极小标签的列流块（组内自上而下、满 docMaxRows 折本组右侧相邻列，
    * Python zones 先例的组语义平移），组间留空隙。几何（原点/最大宽度/折行数）随

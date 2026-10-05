@@ -251,6 +251,19 @@ export interface BridgeMethods {
     request: { paths: string[] }
     response: { ok: boolean; trashed: string[]; failed: string[]; error?: string }
   }
+  /**
+   * 原地重命名（工单28 单项菜单【重命名】）：name 必须在当前扫描池内（pin 同款按名
+   * 护栏），to 为标签输入框里的原文——目标文件名由内核从条目推导（快捷方式/网址文件
+   * explorer 永远藏扩展，未带原扩展时自动补回；其余逐字）。校验在内核：非法文件名
+   * （Win32 禁字符/保留设备名/收尾点空格/空串）与重名冲突（同名同目录已存在，含
+   * fs.rename 静默覆写防线的显式拒绝）都 ok=false（菜单层提示、原名还原）；与现名
+   * 仅大小写有别的改名放行（NTFS 大小写不敏感，冲突校验对自身豁免）；与现名全同 =
+   * 幂等空转（不落盘不发依赖）。成功同拍迁移摆位存储三名单（按名键控，位置不丢）
+   * 并落盘 + 即时重编排；响应 to = 盘面最终文件名。外部（资源管理器发起）的重命名
+   * 丢摆位——既有名字键控行为，本契约不覆盖。执行在数据面子进程（fs 是纯 Node API，
+   * 摆位存储归属地；trash 的主进程代理在此不需要）。
+   */
+  'desktop/rename': { request: { name: string; to: string }; response: { ok: boolean; to?: string; error?: string } }
   /** 拖拽摆位：name 入目标分区、排在 beforeName 之前（null = 末尾）；落盘并即时重编排 */
   'desktop/move': {
     request: { name: string; zone: DesktopZone; beforeName: string | null }
