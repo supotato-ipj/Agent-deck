@@ -37,7 +37,7 @@ app/
   scripts/       构建期资产复制
 docs/adr/        架构决策记录
 archive/         只读封存资产（壁纸）
-CONTEXT.md       领域词汇表
+GLOSSARY.md      领域词汇表
 ```
 
 ## 常用命令
@@ -115,7 +115,7 @@ Python 数据服务时代的使用日志在 `%LOCALAPPDATA%\qoder-deck\usage\`�
 | [0004 Electron + cordis 独立面板](docs/adr/0004-electron-cordis-standalone-panel.md) | 有效 |
 | [0005 主进程不持有输入钩子；采集移入数据面子进程](docs/adr/0005-no-input-hooks-dataplane-utility-process.md) | 有效 |
 
-领域词汇以 [CONTEXT.md](CONTEXT.md) 为准（含「已退役词汇」一节）。
+领域词汇以 [GLOSSARY.md](GLOSSARY.md) 为准（含「已退役词汇」一节）。
 
 ## 排查
 

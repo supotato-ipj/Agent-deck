@@ -1,5 +1,5 @@
 // 选区状态机（工单20，纯逻辑）：名字集合 + 事件迁移，不含 DOM——渲染层只消费其输出，
-// 是后续框选（#21）、菜单、键盘工单的公共地基。选区按 CONTEXT.md 词条「选区」：
+// 是后续框选（#21）、菜单、键盘工单的公共地基。选区按 GLOSSARY.md 词条「选区」：
 // 跨分区（只存名字，分区无关）、按名存续、随交互清空、瞬态不落盘。
 //
 // 语义矩阵（#19 spec 定稿）：click=单选重置、ctrl+click=切换、blank-click=清空、
@@ -82,7 +82,7 @@ export function launchListOf(model: SelectionModel, name: string): readonly stri
   return model.swallowed && model.swallowed.includes(name) ? model.swallowed : [name]
 }
 
-/** 条目上下文菜单裁决（工单24 单项 / 工单26 多选，CONTEXT.md「上下文菜单」）：右键命中
+/** 条目上下文菜单裁决（工单24 单项 / 工单26 多选，GLOSSARY.md「上下文菜单」）：右键命中
  * 非选中条目先切单选（switchTo = 该条）再弹单项菜单；该条即全部选区直接弹单项菜单；
  * 选中集内条目（选区多于一条）弹多选菜单，动作作用于整个选区（无选区副作用）。 */
 export type ItemMenuPlan =
