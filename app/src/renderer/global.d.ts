@@ -48,6 +48,8 @@ declare global {
       open(x: number, y: number, items: readonly DeckCtxMenuItem[]): void
       /** 菜单外按下收起（面板裁决后转发） */
       close(): void
+      /** Esc 收起（工单31 全局定序：面板 keydown 捕获段转发，存证 reason=esc） */
+      escDismiss(): void
       /** 开层判定（全窗热区换挡读它；插件未装时 undefined） */
       isOpen(): boolean
     }

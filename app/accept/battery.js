@@ -20,7 +20,7 @@ const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
 const WM_CLOSE = 0x0010;
 const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_UP = 0x26, VK_RETURN = 0x0d, VK_ESCAPE = 0x1b;
-const VK_CONTROL = 0x11, VK_V = 0x56;
+const VK_CONTROL = 0x11, VK_V = 0x56, VK_A = 0x41, VK_C = 0x43, VK_X = 0x58, VK_DELETE = 0x2e;
 const NOTIFY_ICON_SETTINGS = 'HKCU:\\Control Panel\\NotifyIconSettings';
 // 托盘图标的程序化识别色（tray.ts 琥珀 #f5a623 → RGB）
 const AMBER = [245, 166, 35];
@@ -3135,11 +3135,14 @@ async function main() {
             : rep.fail(`单项菜单缺 rename 行：${JSON.stringify(sessRen.opened.items)}`);
           const tRen = clickRow28(sessRen.opened.rows, 'rename');
           const started = tRen && await waitEvent('desktop-rename-started', (e) => e.t >= tRen && e.name === nameA28 && e.input && e.input.w > 0, 4000);
-          const kbOn = started && await waitEvent('keyboard-mode-on', (e) => e.t >= tRen, 3000);
+          // 工单31 起键盘模式归一仲裁：on 沿属选区生（右键切换单选那拍已取得，P5.17 硬断言①），
+          // 编辑器开层共用同态不重发——这里断言 started 时刻键盘模式在 on 态 + 键盘焦点到手
+          const lastKb28 = (readEvents().filter((e) => e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off').pop() || {}).type || null;
+          const kbOn = started && lastKb28 === 'keyboard-mode-on';
           const fgOk = started && await waitForeground28();
           started && kbOn && fgOk
-            ? rep.pass(`标签原地变输入框：desktop-rename-started（输入框 ${started.input.w}x${started.input.h} 随开编辑存证）、keyboard-mode-on 成对、键盘焦点到手`)
-            : rep.fail(`重命名编辑器开层异常：started=${JSON.stringify(started)} kbOn=${!!kbOn} fg=${fgOk}`);
+            ? rep.pass(`标签原地变输入框：desktop-rename-started（输入框 ${started.input.w}x${started.input.h} 随开编辑存证）、keyboard-mode on 在手（选区生沿取得，编辑器共用单通道同态）、键盘焦点到手`)
+            : rep.fail(`重命名编辑器开层异常：started=${JSON.stringify(started)} kbOn=${!!kbOn}(last=${lastKb28}) fg=${fgOk}`);
           safeShot('28-rename-editor');
           // 预选主名段：直注即整段替换（扩展名 .txt 留在输入框里），Enter 确认
           if (!started || !fgOk) return;
@@ -3187,12 +3190,34 @@ async function main() {
           const tEsc = Date.now();
           w32.tapKeys([VK_ESCAPE]);
           const cancelled = await waitEvent('desktop-rename-cancelled', (e) => e.t >= tEsc && e.reason === 'esc' && e.name === nameB28, 4000);
-          const kbOff = await waitEvent('keyboard-mode-off', (e) => e.t >= tEsc, 3000);
+          // 工单31 起键盘模式归一仲裁：Esc 只取消编辑会话，选区（右键切换那拍所生）仍非空
+          // → keyboard-mode 保持 on 不还原（浮层关而选区非空不互相踩，P5.17 硬断言⑨同款）；
+          // 不可聚焦还原的出口 = 选区清空（段末空白点击补断言）。
+          await sleep(400);
+          const leakOffB = readEvents().some((e) => e.type === 'keyboard-mode-off' && e.t >= tEsc);
           const stillB = fs.existsSync(probeB28) && !fs.existsSync(probeA28);
-          cancelled && kbOff && stillB
-            ? rep.pass(`Esc 取消还原：desktop-rename-cancelled reason=esc、keyboard-mode-off 成对、盘面原名原样`)
-            : rep.fail(`取消存证异常：cancelled=${JSON.stringify(cancelled)} kbOff=${!!kbOff} stillB=${stillB}`);
+          cancelled && leakOffB === false && stillB
+            ? rep.pass(`Esc 取消编辑：desktop-rename-cancelled reason=esc、keyboard-mode 保持 on（选区仍非空，仲裁不互相踩）、盘面原名原样`)
+            : rep.fail(`取消存证异常：cancelled=${JSON.stringify(cancelled)} offLeak=${leakOffB} stillB=${stillB}`);
           safeShot('28-rename-cancelled');
+          // 选区清空 → keyboard-mode-off 同相还原（门控出口：面板恢复不可聚焦）
+          const tClr28 = Date.now();
+          const settledClr = await waitStable('desktop-rendered', 1500, 8000);
+          const appClr = settledClr && (settledClr.rects || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
+          if (appClr) {
+            const ptClr = { x: rect28.left + Math.round((appClr.rect.x + appClr.rect.w / 2) * f), y: rect28.top + Math.round((appClr.rect.y - 6) * f) };
+            const hitClr = await ensurePanelHit(ptClr, hwnd);
+            if (hitClr.ok) {
+              w32.clickPhys(ptClr.x, ptClr.y, 'left');
+              const cleared28 = await waitEvent('desktop-selection-cleared', (e) => e.t >= tClr28, 4000);
+              const kbOff28 = cleared28 && await waitEvent('keyboard-mode-off', (e) => e.t >= tClr28, 3000);
+              cleared28 && kbOff28
+                ? rep.pass('取消编辑后清空选区：desktop-selection-cleared → keyboard-mode-off 同相还原（ADR-0006 出口：选区灭即还原不可聚焦）')
+                : rep.fail(`取消后清场断言未过：cleared=${JSON.stringify(cleared28)} kbOff=${!!kbOff28}`);
+            } else {
+              rep.note('取消后清场点击被遮挡（环境因素），off 同相断言由 P5.17 承接');
+            }
+          }
         }
 
         // c. 重名冲突：输既有名字 + Enter——ok=false 存证，两个盘面文件都原样
@@ -3592,6 +3617,496 @@ async function main() {
         } catch { /* 尽力清理 */ }
         if (staging30) { try { fs.rmSync(staging30, { recursive: true, force: true }); } catch { /* 尽力 */ } }
         try { psRun("Set-Clipboard -Value 'deck30-cleared' -ErrorAction Stop"); } catch { /* 尽力 */ }
+        w32.moveMousePhys(safePt.x, safePt.y);
+      }
+    })();
+
+    // —— P5.17 工单31 键盘门控全套（ADR-0006 收官）：选区生灭与 keyboard-mode-on/off
+    // 严格同相（硬断言组，nextKeyboardMode31 按「since 起首个 keyboard-mode 事件即指望
+    // 方向」判相邻性）+ 六键各一条（Del 单删/多选确认层、Enter、Ctrl+A、Ctrl+C、Ctrl+X、
+    // Ctrl+V）+ Esc 两层定序（菜单 > 选区：菜单开着 Esc 只关菜单不清选区）+ 浮层优先
+    // （搜索激活期间选区快捷键不接管、搜索输入不受影响、Esc 归浮层且关层不踩选区）。
+    // 仲裁/路由/Esc 定序纯逻辑在离线测试（keyboard-gate.spec、menu-shell.spec）穷举；
+    // 选区构造用 P5.6 点选 / P5.7 框选同款探针手法。夹具与落物段内 finally 兜底。
+    await (async () => {
+      const rect31 = w32.rectOf(hwnd);
+      const sameNames31 = (a, b) => (a || []).join() === b.join();
+      const t31 = Date.now();
+      const nameCopy31 = `DECK31-COPY-${t31}.txt`;
+      const nameDel31 = `DECK31-DEL-${t31}.txt`;
+      const nameDelB31 = `DECK31-DEL-${t31}-B.txt`;
+      const nameDelC31 = `DECK31-DEL-${t31}-C.txt`;
+      const nameLnk31 = `DECK31-LNK-${t31}.lnk`;
+      const namePaste31 = `DECK31-PASTE-${t31}.txt`;
+      const probeCopy31 = path.join(seedScan.user, nameCopy31);
+      const probeDel31 = path.join(seedScan.user, nameDel31);
+      const probeDelB31 = path.join(seedScan.user, nameDelB31);
+      const probeDelC31 = path.join(seedScan.user, nameDelC31);
+      const probeLnk31 = path.join(seedScan.user, nameLnk31);
+      const marker31 = path.join(__dirname, 'evidence', `31-marker-${t31}.txt`);
+      const staging31 = path.join(os.tmpdir(), `deck31-clip-${t31}`);
+      const userDesktop31 = seedScan.user;
+      const savedClip31 = clipboardGet();
+      // 同相硬断言原语：since 起首个 keyboard-mode 事件必须是指望方向（相邻性——
+      // 其间夹进另一方向即失败）；超时未见任何 keyboard-mode 事件也算失败。
+      const nextKeyboardMode31 = async (since, want, timeoutMs = 4000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const hits = readEvents().filter((e) => (e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off') && e.t >= since);
+          if (hits.length) {
+            const first = hits[0];
+            return { ok: first.type === want, first, between: hits.slice(1, 3).map((h) => h.type) };
+          }
+          await sleep(60);
+        }
+        return { ok: false, first: null, between: [] };
+      };
+      // 反向硬断言：since 起不得出现某类事件（快捷键泄漏 / 通道重发检测）
+      const leaked31 = (type, since) => readEvents().some((e) => e.type === type && e.t >= since);
+      const latestRect31 = (name) => {
+        const last = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+        return last ? (((last.rects || []).find((r) => r.name === name && r.rect) || {}).rect || null) : null;
+      };
+      // 矩形读取统一先等渲染安静（P5.6 纪律：用法分重排在首拍 ~1s 后，读早了会点错条目）
+      const settledRect31 = async (name) => {
+        await waitStable('desktop-rendered', 1200, 8000);
+        return latestRect31(name);
+      };
+      const latestSearchZone31 = () => {
+        const evts = readEvents().filter((e) => e.type === 'hotzones' && (e.rects || []).some((r) => r.id === 'search-card'));
+        const last = evts[evts.length - 1];
+        return last ? (last.rects || []).find((r) => r.id === 'search-card') || null : null;
+      };
+      const ptOf31 = (r) => ({ x: rect31.left + Math.round((r.x + r.w / 2) * f), y: rect31.top + Math.round((r.y + r.h / 2) * f) });
+      const clickItem31 = async (rect, label) => {
+        const hit = await ensurePanelHit(ptOf31(rect), hwnd);
+        if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return false; }
+        w32.clickPhys(ptOf31(rect).x, ptOf31(rect).y, 'left');
+        return true;
+      };
+      // 选区清场：dock 顶排上沿之上 6px 分区空白（P5.6 同法，热区内非条目面）
+      const blankClear31 = async (label) => {
+        const settled = await waitStable('desktop-rendered', 1200, 8000);
+        const appR = settled && (settled.rects || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
+        if (!appR) { rep.fail(`${label}清场取矩形失败`); return false; }
+        const pt = { x: rect31.left + Math.round((appR.rect.x + appR.rect.w / 2) * f), y: rect31.top + Math.round((appR.rect.y - 6) * f) };
+        const hit = await ensurePanelHit(pt, hwnd);
+        if (!hit.ok) { rep.fail(`${label}清场前置失败：${hit.why}`); return false; }
+        w32.clickPhys(pt.x, pt.y, 'left');
+        return true;
+      };
+      // 键盘路径：发键前等键盘焦点真的到手（keyboard-mode-on 的 setFocusable+focus 落定，
+      // P5.14 前台门同款语义——前台不是面板时键会漏进别的窗）
+      const waitFg31 = async (timeoutMs = 6000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const fg = w32.GetForegroundWindow();
+          if (fg && w32.threadIdOf(fg).pid === w32.threadIdOf(hwnd).pid) return true;
+          await sleep(150);
+        }
+        return false;
+      };
+      const tapKey31 = (vk) => {
+        w32.send([w32.keyInput(vk, w32.KEYDOWN)]);
+        w32.send([w32.keyInput(vk, w32.KEYUP)]);
+      };
+      const ctrlKey31 = async (vk) => {
+        w32.send([w32.keyInput(VK_CONTROL, w32.KEYDOWN)]);
+        await sleep(80);
+        w32.send([w32.keyInput(vk, w32.KEYDOWN)]);
+        w32.send([w32.keyInput(vk, w32.KEYUP)]);
+        await sleep(80);
+        w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
+      };
+      // 剪贴板播种（PS 通道，P5.16 同法：不稳重试一次）与文件实读（P5.15 同法收窄）
+      const seedClipboard31 = async (paths) => {
+        for (let i = 0; i < 2; i++) {
+          try {
+            const list = paths.map((p) => `'${String(p).replace(/'/g, "''")}'`).join(',');
+            psRun(`Set-Clipboard -Path ${list} -ErrorAction Stop`);
+            await sleep(400);
+            const check = psRun("if (@(Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue).Count -ge " + paths.length + ") { 'ok' } else { 'no' }");
+            if (check === 'ok') return true;
+          } catch { /* PS 抖动：重试一次 */ }
+          await sleep(600);
+        }
+        return false;
+      };
+      const fileDropList31 = async (minCount, timeoutMs = 12000) => {
+        const scriptFile = path.join(__dirname, 'evidence', '31-filedroplist-wait.ps1');
+        fs.writeFileSync(scriptFile, [
+          '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8',
+          'Add-Type -AssemblyName System.Windows.Forms',
+          '$deadline = (Get-Date).AddSeconds(11)',
+          '$names = @()',
+          '$eff = -1',
+          'while ((Get-Date) -lt $deadline) {',
+          '  $fl = Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue',
+          '  if ($fl -and $fl.Count -ge $args[0]) {',
+          '    $names = @($fl | ForEach-Object { $_.FullName })',
+          '    $d = [System.Windows.Forms.Clipboard]::GetDataObject()',
+          '    if ($d -and $d.GetDataPresent(\'Preferred DropEffect\')) {',
+          '      $ms = $d.GetData(\'Preferred DropEffect\')',
+          '      $b = New-Object byte[] 4',
+          '      [void]$ms.Read($b, 0, 4)',
+          '      $eff = [BitConverter]::ToUInt32($b, 0)',
+          '    }',
+          '    break',
+          '  }',
+          '  Start-Sleep -Milliseconds 400',
+          '}',
+          '[pscustomobject]@{ names = $names; effect = $eff } | ConvertTo-Json -Compress',
+        ].join('\n'), 'utf8');
+        const attempt = () => {
+          try {
+            const res = JSON.parse(psRunFile([scriptFile, String(minCount)], 35000));
+            return res && Array.isArray(res.names) && res.names.length >= minCount
+              ? { names: res.names, effect: res.effect }
+              : null;
+          } catch { return null; }
+        };
+        try {
+          const first = await attempt();
+          if (first) return first;
+          await sleep(600);
+          return await attempt();
+        } finally {
+          try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+        }
+      };
+
+      try {
+        // 夹具：四条真桌面探针文件 + 一条探针 lnk（Enter 用，标记实证）+ 粘贴暂存目录
+        fs.writeFileSync(probeCopy31, 'probe');
+        fs.writeFileSync(probeDel31, 'probe');
+        fs.writeFileSync(probeDelB31, 'probe');
+        fs.writeFileSync(probeDelC31, 'probe');
+        const lnk31 = createProbeLnk(probeLnk31, marker31);
+        fs.mkdirSync(staging31, { recursive: true });
+        const staged31 = path.join(staging31, namePaste31);
+        fs.writeFileSync(staged31, 'paste-v1');
+        const joined31 = await waitEvent('desktop-rendered', (e) => e.t >= t31
+          && [nameCopy31, nameDel31, nameDelB31, nameDelC31, nameLnk31].every((n) => (e.names || []).includes(n)), 12000);
+        joined31 || rep.fail(`键盘门控用例探针未入池（lnk 产出=${lnk31}）`);
+        // 段前清场：上游段若遗留选区（异常路径）先归零（空选区上是无操作）
+        await blankClear31('P5.17 段前');
+        await sleep(400);
+
+        // a. 生灭同相（硬断言①②）：点选生 → 首个 keyboard-mode 事件即 on；
+        //    Esc 清空灭 → 首个即 off
+        {
+          const rA = await settledRect31(nameCopy31);
+          const tA = Date.now();
+          const okA = rA && await clickItem31(rA, '同相-点选');
+          const selA = okA && await waitEvent('desktop-selected', (e) => e.t >= tA && e.name === nameCopy31, 4000);
+          const onA = selA && await nextKeyboardMode31(tA, 'keyboard-mode-on');
+          selA && onA.ok
+            ? rep.pass(`选区生与 keyboard-mode-on 同相（硬断言①）：desktop-selected 后首个键盘模式事件即 on（+${onA.first.t - tA}ms）`)
+            : rep.fail(`生相同相断言未过：sel=${JSON.stringify(selA)} next=${JSON.stringify(onA)}`);
+          const fgA = onA.ok && await waitFg31();
+          if (onA.ok && !fgA) rep.fail('生相同相用例键盘焦点未到手（Esc 清空断言跳过）');
+          if (onA.ok && fgA) {
+            const tEsc = Date.now();
+            tapKey31(VK_ESCAPE);
+            const clrA = await waitEvent('desktop-selection-cleared', (e) => e.t >= tEsc && (e.had || []).length === 1, 4000);
+            const offA = clrA && await nextKeyboardMode31(tEsc, 'keyboard-mode-off');
+            clrA && offA.ok
+              ? rep.pass('选区灭与 keyboard-mode-off 同相（硬断言②）：Esc 清空后首个键盘模式事件即 off')
+              : rep.fail(`灭相同相断言未过：cleared=${JSON.stringify(clrA)} next=${JSON.stringify(offA)}`);
+            safeShot('31-gate-phase');
+          }
+        }
+
+        // b. Ctrl+A 全选：select-all 事件进状态机，名单=池内全部
+        {
+          const rB = await settledRect31(nameCopy31);
+          const tB = Date.now();
+          const okB = rB && await clickItem31(rB, '全选-点选');
+          const selB = okB && await waitEvent('desktop-selected', (e) => e.t >= tB && e.name === nameCopy31, 4000);
+          const fgB = selB && await waitFg31();
+          if (!fgB) {
+            rep.fail('Ctrl+A 用例键盘焦点未到手');
+          } else {
+            await ctrlKey31(VK_A);
+            const pool = (readEvents().filter((e) => e.type === 'desktop-rendered').pop() || {}).names || [];
+            const allB = await waitEvent('desktop-selection-all', (e) => e.t >= tB && sameNames31(e.names, pool), 4000);
+            allB
+              ? rep.pass(`Ctrl+A 全选（select-all 进状态机）：desktop-selection-all 名单=池内全部 ${pool.length} 条`)
+              : rep.fail(`Ctrl+A 全选存证异常：${JSON.stringify(allB)}（池 ${pool.length} 条）`);
+            await blankClear31('全选清场');
+          }
+        }
+
+        // c. Enter 打开选中：探针 lnk 标记实证（desktop-launch-clicked via=keyboard）
+        {
+          const rC = await settledRect31(nameLnk31);
+          const tC = Date.now();
+          const okC = rC && await clickItem31(rC, 'Enter-点选');
+          const selC = okC && await waitEvent('desktop-selected', (e) => e.t >= tC && e.name === nameLnk31, 4000);
+          const fgC = selC && await waitFg31();
+          if (!fgC) {
+            rep.fail('Enter 用例键盘焦点未到手');
+          } else {
+            tapKey31(VK_RETURN);
+            const clickedC = await waitEvent('desktop-launch-clicked', (e) => e.t >= tC && e.name === nameLnk31 && e.via === 'keyboard', 4000);
+            const launchedC = clickedC && await waitEvent('desktop-launched', (e) => e.t >= tC && e.name === nameLnk31 && e.ok === true, 6000);
+            let markerOk31 = false;
+            const mDeadline = Date.now() + 20000;
+            while (Date.now() < mDeadline && !markerOk31) {
+              try { markerOk31 = fs.readFileSync(marker31, 'utf8').trim() === 'ok'; } catch { markerOk31 = false; }
+              if (!markerOk31) await sleep(250);
+            }
+            clickedC && launchedC && markerOk31
+              ? rep.pass('Enter 打开选中（desktop/launch）：desktop-launch-clicked via=keyboard + desktop-launched ok=true + 探针标记落盘')
+              : rep.fail(`Enter 存证异常：clicked=${JSON.stringify(clickedC)} launched=${JSON.stringify(launchedC)} marker=${markerOk31}`);
+            await blankClear31('Enter 清场');
+          }
+        }
+
+        // d. Del 单项直删（多选才弹确认层，真桌面同语义）+ 删尽灭相同相（硬断言③）
+        {
+          const rD = await settledRect31(nameDel31);
+          const tD = Date.now();
+          const okD = rD && await clickItem31(rD, 'Del-点选');
+          const selD = okD && await waitEvent('desktop-selected', (e) => e.t >= tD && e.name === nameDel31, 4000);
+          const fgD = selD && await waitFg31();
+          if (!fgD) {
+            rep.fail('Del 单删用例键盘焦点未到手');
+          } else {
+            tapKey31(VK_DELETE);
+            const clickedD = await waitEvent('desktop-trash-clicked', (e) => e.t >= tD && sameNames31(e.names, [nameDel31]) && e.via === 'keyboard', 4000);
+            const trashedD = clickedD && await waitEvent('desktop-trashed', (e) => e.t >= tD && e.ok === true && sameNames31(e.names, [nameDel31]), 8000);
+            const goneD = trashedD ? await (async () => {
+              const dl = Date.now() + 8000;
+              while (Date.now() < dl) { if (!fs.existsSync(probeDel31)) return true; await sleep(250); }
+              return false;
+            })() : false;
+            clickedD && trashedD && goneD
+              ? rep.pass('Del 删除选中（单项直删不弹确认）：desktop-trash-clicked via=keyboard + desktop-trashed ok=true + 文件离盘')
+              : rep.fail(`Del 存证异常：clicked=${JSON.stringify(clickedD)} trashed=${JSON.stringify(trashedD)} gone=${goneD}`);
+            const prunedD = trashedD && await waitEvent('desktop-selection-pruned', (e) => e.t >= tD && (e.removed || []).join() === nameDel31, 8000);
+            const offD = prunedD && await nextKeyboardMode31(prunedD.t, 'keyboard-mode-off');
+            prunedD && offD.ok
+              ? rep.pass('删尽灭相同相（硬断言③）：desktop-selection-pruned 后紧跟 keyboard-mode-off（面板还原不可聚焦）')
+              : rep.fail(`删尽灭相同相未过：pruned=${JSON.stringify(prunedD)} next=${JSON.stringify(offD)}`);
+          }
+        }
+
+        // d2. Del 多选弹确认层（desktop-trash-confirm-opened → 点确认 → 整份删除）+
+        //     同向抑制（硬断言④）：选区生只发一次 on、确认层开不重发
+        {
+          const rB = await settledRect31(nameDelB31);
+          const rC2 = await settledRect31(nameDelC31);
+          const tM = Date.now();
+          const okM1 = rB && await clickItem31(rB, 'Del 多选-点选');
+          const selM = okM1 && await waitEvent('desktop-selected', (e) => e.t >= tM && e.name === nameDelB31, 4000);
+          const okM2 = selM && rC2 && await (async () => {
+            const hit = await ensurePanelHit(ptOf31(rC2), hwnd);
+            if (!hit.ok) return false;
+            w32.send([w32.keyInput(VK_CONTROL, w32.KEYDOWN)]);
+            await sleep(60);
+            w32.clickPhys(ptOf31(rC2).x, ptOf31(rC2).y, 'left');
+            await sleep(60);
+            w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
+            return true;
+          })();
+          const twoM = okM2 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tM && e.selected === true && sameNames31(e.names, [nameDelB31, nameDelC31]), 4000);
+          const fgM = twoM && await waitFg31();
+          if (!fgM) {
+            rep.fail('Del 多选用例前置（选中集两条+焦点）未达成');
+          } else {
+            tapKey31(VK_DELETE);
+            const confirmM = await waitEvent('desktop-trash-confirm-opened', (e) => e.t >= tM && e.count === 2, 4000);
+            if (!confirmM) {
+              rep.fail('Del 多选未弹删除确认层（desktop-trash-confirm-opened 未见）');
+            } else {
+              const onCountM = readEvents().filter((e) => e.type === 'keyboard-mode-on' && e.t >= tM && e.t <= confirmM.t).length;
+              onCountM === 1
+                ? rep.pass('同向抑制（硬断言④）：[点选, confirm-opened] 内 keyboard-mode-on 计数=1——选区生只发一次，确认层开（浮层接管）不重发')
+                : rep.fail(`同向抑制断言未过：[tM, confirm-opened] 内 keyboard-mode-on 计数=${onCountM}（期望 1）`);
+              const ptOk = { x: rect31.left + Math.round((confirmM.confirm.x + confirmM.confirm.w / 2) * f), y: rect31.top + Math.round((confirmM.confirm.y + confirmM.confirm.h / 2) * f) };
+              w32.clickPhys(ptOk.x, ptOk.y, 'left');
+              const trashedM = await waitEvent('desktop-trashed', (e) => e.t >= confirmM.t && e.ok === true && sameNames31(e.names, [nameDelB31, nameDelC31]), 8000);
+              const goneM = trashedM ? await (async () => {
+                const dl = Date.now() + 8000;
+                while (Date.now() < dl) { if (!fs.existsSync(probeDelB31) && !fs.existsSync(probeDelC31)) return true; await sleep(250); }
+                return false;
+              })() : false;
+              const offM = trashedM && await nextKeyboardMode31(confirmM.t, 'keyboard-mode-off', 15000);
+              trashedM && goneM && offM.ok
+                ? rep.pass('Del 多选弹确认层→确认整份删除：desktop-trashed ok=true 两条、文件离盘、keyboard-mode-off 同相还原')
+                : rep.fail(`Del 多选存证异常：trashed=${JSON.stringify(trashedM)} gone=${goneM} next=${JSON.stringify(offM)}`);
+            }
+          }
+        }
+
+        // e. Ctrl+C / Ctrl+X：文件级复制/剪切（desktop/clipboard-copy/cut，via=keyboard）
+        {
+          const rE = await settledRect31(nameCopy31);
+          const tE = Date.now();
+          const okE = rE && await clickItem31(rE, 'Ctrl+C-点选');
+          const selE = okE && await waitEvent('desktop-selected', (e) => e.t >= tE && e.name === nameCopy31, 4000);
+          const fgE = selE && await waitFg31();
+          if (!fgE) {
+            rep.fail('复制/剪切用例键盘焦点未到手');
+          } else {
+            await ctrlKey31(VK_C);
+            const clickedE = await waitEvent('desktop-copy-clicked', (e) => e.t >= tE && sameNames31(e.names, [nameCopy31]) && e.via === 'keyboard', 4000);
+            const copiedE = clickedE && await waitEvent('desktop-copied', (e) => e.t >= tE && e.ok === true && sameNames31(e.names, [nameCopy31]), 8000);
+            const clipE = (clickedE && copiedE) ? await fileDropList31(1) : null;
+            const effOkE = !!clipE && clipE.effect === 1;
+            clickedE && copiedE && clipE && sameNames31(clipE.names, [probeCopy31]) && effOkE
+              ? rep.pass('Ctrl+C 复制选中（desktop/clipboard-copy）：via=keyboard + ok=true + FileDropList 实读 effect=1（资源管理器粘贴得副本）')
+              : rep.fail(`Ctrl+C 存证异常：clicked=${JSON.stringify(clickedE)} copied=${JSON.stringify(copiedE)} 剪贴板=${JSON.stringify(clipE)}（names 空 = PS 通道空读环境败）`);
+            const tX = Date.now();
+            await ctrlKey31(VK_X);
+            const clickedX = await waitEvent('desktop-cut-clicked', (e) => e.t >= tX && sameNames31(e.names, [nameCopy31]) && e.via === 'keyboard', 4000);
+            const cutX = clickedX && await waitEvent('desktop-cut', (e) => e.t >= tX && e.ok === true && sameNames31(e.names, [nameCopy31]), 8000);
+            const clipX = (clickedX && cutX) ? await fileDropList31(1) : null;
+            const effOkX = !!clipX && clipX.effect === 2;
+            const diskX = fs.existsSync(probeCopy31); // 剪切语义：写剪贴板不动盘面
+            clickedX && cutX && clipX && sameNames31(clipX.names, [probeCopy31]) && effOkX && diskX
+              ? rep.pass('Ctrl+X 剪切选中（desktop/clipboard-cut）：via=keyboard + ok=true + effect=2（粘贴为搬移）+ 文件仍在盘上')
+              : rep.fail(`Ctrl+X 存证异常：clicked=${JSON.stringify(clickedX)} cut=${JSON.stringify(cutX)} 剪贴板=${JSON.stringify(clipX)} disk=${diskX}`);
+            await blankClear31('复制剪切清场');
+          }
+        }
+
+        // f. Ctrl+V 粘贴：剪贴板文件落桌面根（desktop/paste；剪贴板无文件时与菜单置灰
+        //    同语义——desktop/paste ok=false 存证 rejected，键触发静默不弹层）
+        {
+          const seededF = await seedClipboard31([staged31]);
+          if (!seededF) {
+            rep.fail('Ctrl+V 用例剪贴板播种失败（Set-Clipboard -Path 两次尝试均未通过 FileDropList 回读核验——PS 通道环境因素，非面板行为断言失败）');
+          } else {
+            const rF = await settledRect31(nameCopy31);
+            const tF = Date.now();
+            const okF = rF && await clickItem31(rF, 'Ctrl+V-点选');
+            const selF = okF && await waitEvent('desktop-selected', (e) => e.t >= tF && e.name === nameCopy31, 4000);
+            const fgF = selF && await waitFg31();
+            if (!fgF) {
+              rep.fail('Ctrl+V 用例键盘焦点未到手');
+            } else {
+              await ctrlKey31(VK_V);
+              const clickedF = await waitEvent('desktop-paste-clicked', (e) => e.t >= tF && e.via === 'keyboard', 4000);
+              const pastedF = clickedF && await waitEvent('desktop-pasted', (e) => e.t >= tF && e.ok === true && sameNames31(e.pasted, [namePaste31]), 8000);
+              const landedF = pastedF ? fs.existsSync(path.join(userDesktop31, namePaste31)) : false;
+              const inPoolF = pastedF && await waitEvent('desktop-rendered', (e) => e.t >= tF && (e.names || []).includes(namePaste31), 8000);
+              clickedF && pastedF && landedF && inPoolF
+                ? rep.pass(`Ctrl+V 粘贴（desktop/paste）：via=keyboard + desktop-pasted ok=true pasted=[${namePaste31}]，文件落桌面根且入池`)
+                : rep.fail(`Ctrl+V 存证异常：clicked=${JSON.stringify(clickedF)} pasted=${JSON.stringify(pastedF)} disk=${landedF} pool=${!!inPoolF}`);
+              await blankClear31('粘贴清场');
+            }
+          }
+        }
+
+        // g. Esc 两层定序（硬断言⑤⑥）：菜单开着 Esc 只关菜单（reason=esc，选区不清、
+        //    键盘模式不还原）；菜单已关再 Esc → 清空选区并同相还原 off
+        {
+          const rG = await settledRect31(nameCopy31);
+          const tG = Date.now();
+          const okG = rG && await clickItem31(rG, 'Esc 定序-点选');
+          const selG = okG && await waitEvent('desktop-selected', (e) => e.t >= tG && e.name === nameCopy31, 4000);
+          if (!selG) {
+            rep.fail('Esc 定序用例点选失败');
+          } else {
+            const hitG = await ensurePanelHit(ptOf31(rG), hwnd);
+            if (!hitG.ok) {
+              rep.fail(`Esc 定序右键前置失败：${hitG.why}`);
+            } else {
+              w32.clickPhys(ptOf31(rG).x, ptOf31(rG).y, 'right');
+              const menuG = await waitEvent('desktop-menu-opened', (e) => e.t >= tG, 4000);
+              if (!menuG) {
+                rep.fail('Esc 定序用例右键未弹单项菜单（desktop-menu-opened 未见）');
+              } else {
+                const tEsc1 = Date.now();
+                tapKey31(VK_ESCAPE);
+                const closed1 = await waitEvent('desktop-menu-closed', (e) => e.t >= tEsc1 && e.reason === 'esc', 4000);
+                const leakClr1 = closed1 ? leaked31('desktop-selection-cleared', tEsc1) : null;
+                const leakOff1 = closed1 ? readEvents().some((e) => e.type === 'keyboard-mode-off' && e.t >= tEsc1) : null;
+                closed1 && leakClr1 === false && leakOff1 === false
+                  ? rep.pass('Esc 第一层（硬断言⑤）：菜单开着只关菜单（desktop-menu-closed reason=esc），选区不清、keyboard-mode 不还原（无 cleared / 无 off 泄漏）')
+                  : rep.fail(`Esc 第一层断言未过：closed=${JSON.stringify(closed1)} clearedLeak=${leakClr1} offLeak=${leakOff1}`);
+                const tEsc2 = Date.now();
+                tapKey31(VK_ESCAPE);
+                const clr2 = await waitEvent('desktop-selection-cleared', (e) => e.t >= tEsc2, 4000);
+                const off2 = clr2 && await nextKeyboardMode31(tEsc2, 'keyboard-mode-off');
+                clr2 && off2.ok
+                  ? rep.pass('Esc 第二层（硬断言⑥）：菜单已关 Esc 清空选区（desktop-selection-cleared）并同相还原 keyboard-mode-off')
+                  : rep.fail(`Esc 第二层断言未过：cleared=${JSON.stringify(clr2)} next=${JSON.stringify(off2)}`);
+                safeShot('31-esc-ordering');
+              }
+            }
+          }
+        }
+
+        // h. 浮层优先（硬断言⑦⑧⑨）：选区在手激活搜索——浮层开不重发 on；Ctrl+A /
+        //    Ctrl+V 不泄漏到桌面路由、搜索输入不受影响；Esc 归浮层（关层不清选区、
+        //    键盘模式保持 on——浮层关而选区非空不互相踩）；最后空白清场灭相同相
+        {
+          const rH = await settledRect31(nameCopy31);
+          const tH = Date.now();
+          const okH = rH && await clickItem31(rH, '浮层优先-点选');
+          const selH = okH && await waitEvent('desktop-selected', (e) => e.t >= tH && e.name === nameCopy31, 4000);
+          const zoneH = selH ? latestSearchZone31() : null;
+          if (!selH || !zoneH) {
+            rep.fail(`浮层优先用例前置失败：sel=${!!selH} searchZone=${!!zoneH}`);
+          } else {
+            const ptH = { x: rect31.left + Math.round((zoneH.x + zoneH.w / 2) * f), y: rect31.top + Math.round((zoneH.y + zoneH.h / 2) * f) };
+            const hitH = await ensurePanelHit(ptH, hwnd);
+            if (!hitH.ok) {
+              rep.fail(`浮层优先搜索激活前置失败：${hitH.why}`);
+            } else {
+              w32.clickPhys(ptH.x, ptH.y, 'left');
+              const actH = await waitEvent('search-activated', (e) => e.t >= tH, 4000);
+              const onCountH = actH ? readEvents().filter((e) => e.type === 'keyboard-mode-on' && e.t >= selH.t && e.t <= actH.t).length : -1;
+              actH && onCountH === 1
+                ? rep.pass('浮层开不重发 keyboard-mode-on（硬断言⑦）：search-activated 且 [selected, activated] 内 on 计数=1（选区生唯一一次）')
+                : rep.fail(`浮层重发断言未过：act=${JSON.stringify(actH)} onCount=${onCountH}（期望 1）`);
+              if (actH && onCountH === 1) {
+                await ctrlKey31(VK_A);
+                await ctrlKey31(VK_V);
+                await sleep(600);
+                const leakA = leaked31('desktop-selection-all', tH) || leaked31('desktop-selection-cleared', tH);
+                const leakV = leaked31('desktop-paste-clicked', tH) || leaked31('desktop-pasted', tH);
+                const searchAlive = !leaked31('search-deactivated', tH);
+                !leakA && !leakV && searchAlive
+                  ? rep.pass('浮层优先（硬断言⑧）：搜索激活期间 Ctrl+A / Ctrl+V 不接管（无 selection-all / paste-* 泄漏），搜索输入不受影响、层未收')
+                  : rep.fail(`浮层优先断言未过：leakA=${leakA} leakV=${leakV} searchAlive=${searchAlive}`);
+                const tEscH = Date.now();
+                tapKey31(VK_ESCAPE);
+                const deactH = await waitEvent('search-deactivated', (e) => e.t >= tEscH && e.reason === 'esc', 4000);
+                const leakClrH = deactH ? leaked31('desktop-selection-cleared', tEscH) : null;
+                const leakOffH = deactH ? readEvents().some((e) => e.type === 'keyboard-mode-off' && e.t >= tEscH) : null;
+                deactH && leakClrH === false && leakOffH === false
+                  ? rep.pass('Esc 归浮层（硬断言⑨）：search-deactivated reason=esc，选区保持、keyboard-mode 保持 on（浮层关而选区非空不互相踩）')
+                  : rep.fail(`Esc 浮层定序断言未过：deact=${JSON.stringify(deactH)} clearedLeak=${leakClrH} offLeak=${leakOffH}`);
+                const tEndH = Date.now();
+                const blanked = await blankClear31('浮层优先清场');
+                const clrH = blanked && await waitEvent('desktop-selection-cleared', (e) => e.t >= tEndH, 4000);
+                const offH = clrH && await nextKeyboardMode31(tEndH, 'keyboard-mode-off');
+                clrH && offH.ok
+                  ? rep.pass('浮层关后清选区：灭相同相（硬断言）keyboard-mode-off——门控收官归零')
+                  : rep.fail(`收官灭相未过：cleared=${JSON.stringify(clrH)} next=${JSON.stringify(offH)}`);
+                safeShot('31-overlay-priority');
+              }
+            }
+          }
+        }
+      } finally {
+        for (const p of [probeCopy31, probeDel31, probeDelB31, probeDelC31, probeLnk31]) {
+          try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
+        }
+        try { fs.unlinkSync(marker31); } catch { /* 尽力清理 */ }
+        try {
+          for (const n of fs.readdirSync(userDesktop31)) {
+            if (n.startsWith(`DECK31-PASTE-${t31}`)) {
+              try { fs.unlinkSync(path.join(userDesktop31, n)); } catch { /* 尽力清理 */ }
+            }
+          }
+        } catch { /* 尽力清理 */ }
+        if (staging31) { try { fs.rmSync(staging31, { recursive: true, force: true }); } catch { /* 尽力 */ } }
+        clipboardSet(savedClip31); // 电池不得改变用户剪贴板内容（P5.15 同法）
         w32.moveMousePhys(safePt.x, safePt.y);
       }
     })();

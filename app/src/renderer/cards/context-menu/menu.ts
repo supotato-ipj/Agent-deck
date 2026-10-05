@@ -44,6 +44,9 @@ export type MenuShellEvent =
   | { type: 'activate'; id: string }
   /** 菜单外按下（面板裁决后转发） */
   | { type: 'dismiss' }
+  /** Esc 收起（工单31 全局定序：面板 keydown 捕获段转发——菜单开时 Esc 只关菜单，
+   * 不清选区；存证 reason=esc 与外击 outside 可分） */
+  | { type: 'esc' }
   /** 插件卸载：静默收场，不走存证（通道随插件消亡） */
   | { type: 'unmount' }
 
@@ -108,6 +111,14 @@ export function nextMenuShell(state: MenuShellState, event: MenuShellEvent): Men
       return {
         state: CLOSED_MENU,
         effects: [{ notify: { type: 'desktop-menu-closed', payload: { reason: 'outside' } }, dom: 'hide', hotzones: true }],
+      }
+    }
+    case 'esc': {
+      // 与 dismiss 同转移、存证 reason 可分（esc/outside）；闭态是噪声（成对纪律）
+      if (!state.open) return { state, effects: [] }
+      return {
+        state: CLOSED_MENU,
+        effects: [{ notify: { type: 'desktop-menu-closed', payload: { reason: 'esc' } }, dom: 'hide', hotzones: true }],
       }
     }
     case 'unmount': {
@@ -194,6 +205,10 @@ export default {
       },
       close(): void {
         dispatch({ type: 'dismiss' })
+      },
+      // Esc 收起的转发缝（工单31）：面板全局 Esc 定序在 keydown 捕获段裁决后调这里
+      escDismiss(): void {
+        dispatch({ type: 'esc' })
       },
       isOpen(): boolean {
         return shell.open
