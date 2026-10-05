@@ -20,3 +20,10 @@ app/node_modules/
 app/dist/
 # config.json 为运行时用户可编辑文件，首运行按当前屏幕几何自动生成
 app/config.json
+
+# 已完结工单的本地只读归档（icon-probe 证据、旧 spec/issues），不入库
+.scratch-archive/
+
+# coding agent 的项目本地目录；其中 agent-deck-worktree skill 的权威副本已入库到
+# docs/agents/worktree-workflow.md，本地副本只是给 agent 加载用的拷贝
+.zcode/
