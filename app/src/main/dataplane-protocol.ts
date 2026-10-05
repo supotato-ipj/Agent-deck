@@ -132,10 +132,14 @@ export class ProxyTrash {
 }
 
 /**
- * 剪贴板读取代理（子进程侧，工单30）：clipboard.readBuffer 是 Electron 主进程 API，
- * 数据面用不了——读取请求按 id 发主进程执行，回复经 deliver 驱动 Promise。与
- * ProxyTrash 同形（低频按需读，不凑批、不缓存——剪贴板内容随外界变化，缓存即陈旧），
- * null 回执合法（剪贴板无文件）。
+ * 剪贴板读取代理（子进程侧，工单30）：读取请求按 id 发主进程执行，回复经 deliver
+ * 驱动 Promise。与 ProxyTrash 同形（低频按需读，不凑批、不缓存——剪贴板内容随外界
+ * 变化，缓存即陈旧），null 回执合法（剪贴板无文件）。
+ * 等待的退出条件（工单30 真机复核）：主进程回执段读真源（koffiClipboardFilesRead）
+ * 自带全量 try/catch，异常折 null 回执——两进程都活着则必有回执；进程消亡时本
+ * Promise 随子进程消失，主进程侧 call() 由 onExit 统一拒绝（渲染层收到错误按查败
+ * 置灰），与 ProxyTrash「主进程侧无半途丢失形态」同一结论。渲染层 openZoneMenu
+ * 另有查询超时档兜底（pasteable-query.ts），任何挂起形态都不挡开层。
  */
 export class ProxyClipboardRead {
   private readonly pending = new Map<number, (files: ClipboardFiles | null) => void>()

@@ -9,6 +9,7 @@ import { EMPTY_SELECTION, itemMenuPlan, launchListOf, nextSelection } from './se
 import type { SelectionEvent, SelectionModel } from './selection.js'
 import { GATE_INITIAL, escapePlan, nextKeyboardGate, routeSelectionKey } from './keyboard-gate.js'
 import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState } from './keyboard-gate.js'
+import { pasteableWithinTimeout } from './pasteable-query.js'
 
 const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
@@ -617,15 +618,15 @@ function menuOpen(): boolean {
 }
 
 /** 分区空白菜单开层（工单30 起异步）：【粘贴】行按剪贴板实况置灰——先查
- * desktop/clipboard-state 再 open。开层本来就是 effect 调用，异步可接受；查询失败按
- * 不可贴（宁可置灰不误可用）。右键到弹出之间的极小窗口内若另有右键，后发者照常
- * 重弹（open 幂等换位，既有语义）。 */
+ * desktop/clipboard-state 再 open。开层本来就是 effect 调用，异步可接受；查询走有界
+ * 等待（pasteableWithinTimeout，工单30 真机 (c) 挂起形态）——超时/拒绝都按查败置灰，
+ * 菜单永远开得出来，绝无界 await 挡开层。右键到弹出之间的极小窗口内若另有右键，
+ * 后发者照常重弹（open 幂等换位，既有语义）。 */
 async function openZoneMenu(x: number, y: number): Promise<void> {
   let pasteable = false
   try {
-    const r = await window.deck.bridge.invoke('desktop/clipboard-state', null)
-    pasteable = r.pasteable
-  } catch { /* 查询失败：置灰 */ }
+    pasteable = await pasteableWithinTimeout(window.deck.bridge.invoke('desktop/clipboard-state', null))
+  } catch { /* invoke 同步缺席等形态：置灰 */ }
   window.deckCtxMenu?.open(x, y, ctxMenuItems(pasteable))
 }
 

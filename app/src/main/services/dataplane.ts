@@ -5,7 +5,7 @@ import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../..
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
 import type { TrayWireEvent } from '../trayhost/protocol'
-import { electronClipboardReadFiles, electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, shellOpen } from '../desktop/adapter'
+import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, koffiClipboardFilesRead, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
 
@@ -121,9 +121,13 @@ export class DataplaneService extends Service implements PanelDataPort {
       })()
     } else if (msg.type === 'clipboard-read-req') {
       // 剪贴板读取代理回执（工单30）：粘贴与可贴态查询的裁决在子进程（落点/扫描归属地），
-      // 本进程只出 clipboard.readBuffer 这一只手；null = 剪贴板无文件（合法回执）。
-      const files = electronClipboardReadFiles()
-      this.child?.postMessage({ type: 'clipboard-read-res', id: msg.id, files })
+      // 本进程只出 koffi 读真源这一只手（真机修复版：Electron readBuffer 已随 44 移除，
+      // koffi 直调 user32 对齐写向；读取可能因剪贴板被占小退避重试，故异步收尾）；
+      // 读真源自带全量 try/catch，异常折 null——本段必有回执，子进程侧不会空等。
+      void (async () => {
+        const files = await koffiClipboardFilesRead()
+        this.child?.postMessage({ type: 'clipboard-read-res', id: msg.id, files })
+      })()
     } else if (msg.type === 'tray-event') {
       this.options.onTrayEvent?.(msg.event)
     } else if (msg.type === 'tray-host') {
@@ -255,7 +259,7 @@ export class DataplaneService extends Service implements PanelDataPort {
 
   /** 粘贴剪贴板文件（工单30）：RPC 转发数据面子进程——落盘裁决与「 - 副本」递增在
    * 子进程（落点 roots.user 的扫描归属地）；剪贴板读经 clipboard-read-req/res 反向代理
-   * （clipboard 是主进程 API，trash 同法）。 */
+   * （读真源在本进程执行，trash 同法）。 */
   paste(): Promise<{ ok: boolean; pasted: string[]; failed: string[]; error?: string }> {
     return this.call('desktop/paste', null) as Promise<{ ok: boolean; pasted: string[]; failed: string[]; error?: string }>
   }

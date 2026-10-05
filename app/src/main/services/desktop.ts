@@ -11,7 +11,7 @@ import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
 import { koffiClipboardFilesWrite, type ClipboardEffect } from '../desktop/clipboard-files'
 import type { ScoreItem } from '../usage/score'
-import { defaultDesktopRoots, defaultListDir, electronClipboardReadFiles, electronClipboardWrite, electronIconExtractor, electronTrashItem, explorerReveal, fsCopyEntry, fsEntryExists, fsRemoveEntry, fsRename, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists, type ClipboardFiles } from '../desktop/adapter'
+import { defaultDesktopRoots, defaultListDir, electronClipboardWrite, electronIconExtractor, electronTrashItem, explorerReveal, fsCopyEntry, fsEntryExists, fsRemoveEntry, fsRename, koffiClipboardFilesRead, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists, type ClipboardFiles } from '../desktop/adapter'
 import { duplicateName } from '../desktop/filename'
 import { userDataPath } from '../paths'
 
@@ -113,7 +113,7 @@ export class DesktopService extends Service {
       watch: options.deps?.watch ?? defaultWatchDesktopRoots,
       readShortcutTarget: options.deps?.readShortcutTarget ?? electronShortcutTarget,
       fileExists: options.deps?.fileExists ?? fsFileExists,
-      readClipboardFiles: options.deps?.readClipboardFiles ?? (async () => electronClipboardReadFiles()),
+      readClipboardFiles: options.deps?.readClipboardFiles ?? koffiClipboardFilesRead,
       fsCopyEntry: options.deps?.fsCopyEntry ?? fsCopyEntry,
       fsMoveEntry: options.deps?.fsMoveEntry ?? fsRename,
       fsRemoveEntry: options.deps?.fsRemoveEntry ?? fsRemoveEntry,
@@ -325,8 +325,8 @@ export class DesktopService extends Service {
     return { ok: true, to: target }
   }
 
-  /** 粘贴（工单30 分区空白菜单【粘贴】）：读剪贴板文件清单（readClipboardFiles——主进程
-   * clipboard 真源，数据面经协议代理）逐项落用户桌面根（roots.user）。剪切语义
+  /** 粘贴（工单30 分区空白菜单【粘贴】）：读剪贴板文件清单（readClipboardFiles——koffi
+   * 真源（真机修复版，写向同款 native 路线），数据面经协议代理）逐项落用户桌面根（roots.user）。剪切语义
    * （Preferred DropEffect=move）逐项 rename、落败（跨卷 EXDEV 等）回退复制+删源，否则
    * 递归复制（文件夹同款）。目标名冲突不弹框：explorer 同款「x - 副本」「x - 副本 2」
    * 递增取空位（duplicateName 纯函数 + entryExists 盘面实况，先贴出的名字立即算占用）。
