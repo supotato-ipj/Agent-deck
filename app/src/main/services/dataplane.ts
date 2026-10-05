@@ -5,7 +5,7 @@ import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../..
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
 import type { TrayWireEvent } from '../trayhost/protocol'
-import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, shellOpen } from '../desktop/adapter'
+import { electronClipboardReadFiles, electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
 
@@ -119,6 +119,11 @@ export class DataplaneService extends Service implements PanelDataPort {
         for (const p of msg.paths) errors[p] = await electronTrashItem(p)
         this.child?.postMessage({ type: 'trash-res', id: msg.id, errors })
       })()
+    } else if (msg.type === 'clipboard-read-req') {
+      // 剪贴板读取代理回执（工单30）：粘贴与可贴态查询的裁决在子进程（落点/扫描归属地），
+      // 本进程只出 clipboard.readBuffer 这一只手；null = 剪贴板无文件（合法回执）。
+      const files = electronClipboardReadFiles()
+      this.child?.postMessage({ type: 'clipboard-read-res', id: msg.id, files })
     } else if (msg.type === 'tray-event') {
       this.options.onTrayEvent?.(msg.event)
     } else if (msg.type === 'tray-host') {
@@ -235,6 +240,18 @@ export class DataplaneService extends Service implements PanelDataPort {
    * 的主进程反向代理。 */
   rename(name: string, to: string): Promise<{ ok: boolean; to?: string; error?: string }> {
     return this.call('desktop/rename', { name, to }) as Promise<{ ok: boolean; to?: string; error?: string }>
+  }
+
+  /** 粘贴剪贴板文件（工单30）：RPC 转发数据面子进程——落盘裁决与「 - 副本」递增在
+   * 子进程（落点 roots.user 的扫描归属地）；剪贴板读经 clipboard-read-req/res 反向代理
+   * （clipboard 是主进程 API，trash 同法）。 */
+  paste(): Promise<{ ok: boolean; pasted: string[]; failed: string[]; error?: string }> {
+    return this.call('desktop/paste', null) as Promise<{ ok: boolean; pasted: string[]; failed: string[]; error?: string }>
+  }
+
+  /** 可粘贴态查询（工单30 菜单置灰）：paste 同一道代理读，只读无副作用。 */
+  clipboardState(): Promise<{ pasteable: boolean }> {
+    return this.call('desktop/clipboard-state', null) as Promise<{ pasteable: boolean }>
   }
 
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }> {

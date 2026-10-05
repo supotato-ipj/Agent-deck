@@ -1,6 +1,7 @@
-/** 数据面协议纯逻辑测试：lnk 目标解析代理（凑批/在途去重/缓存语义）。 */
+/** 数据面协议纯逻辑测试：lnk 目标解析代理（凑批/在途去重/缓存语义）+ 剪贴板读取代理
+ * （工单30：回执驱动 Promise，trash 同法）。 */
 import { describe, expect, it } from 'vitest'
-import { ProxyShortcutResolver } from '../src/main/dataplane-protocol'
+import { ProxyClipboardRead, ProxyShortcutResolver } from '../src/main/dataplane-protocol'
 
 /** setImmediate 凑批落定后再断言（setTimeout(0) 排在同时钟轮的 immediate 之后） */
 function flushBatching(): Promise<void> {
@@ -49,5 +50,28 @@ describe('ProxyShortcutResolver（子进程侧 lnk 目标解析代理）', () =>
     expect(r.resolve('C:\\a.lnk')).toBeNull() // 已入缓存（null 也不再问）
     await flushBatching()
     expect(asked).toHaveLength(2)
+  })
+})
+
+describe('ProxyClipboardRead（子进程侧剪贴板读取代理，工单30）', () => {
+  it('read 按 id 发问，回执驱动 Promise：null（无文件）与文件清单都能回', async () => {
+    const asked: number[] = []
+    const p = new ProxyClipboardRead((id) => asked.push(id))
+    const first = p.read()
+    const second = p.read()
+    expect(asked).toEqual([1, 2])
+    p.deliver(1, null)
+    p.deliver(2, { paths: ['C:\a.txt'], effect: 'copy' })
+    await expect(first).resolves.toBeNull()
+    await expect(second).resolves.toEqual({ paths: ['C:\a.txt'], effect: 'copy' })
+  })
+
+  it('未知 id 回执是迟到噪声：丢弃不影响在途请求', async () => {
+    const asked: number[] = []
+    const p = new ProxyClipboardRead((id) => asked.push(id))
+    const first = p.read()
+    p.deliver(99, null)
+    p.deliver(1, null)
+    await expect(first).resolves.toBeNull()
   })
 })

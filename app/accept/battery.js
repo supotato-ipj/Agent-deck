@@ -1955,9 +1955,10 @@ async function main() {
     })();
 
     // —— P5.9 工单23 上下文菜单：分区空白右键弹自绘菜单（shell 为 cordis 插件随清单
-    // 热插拔）、开层全窗热区承接与菜单外一击收起（含热区外、无选区副作用）、全选
-    // （选区状态机 select-all）/恢复出厂布局（06 契约）两动作。条目右键的单项菜单
-    // 归 P5.10（工单24）——原「条目右键不弹」断言随单项菜单落地退役。
+    // 热插拔）、开层全窗热区承接与菜单外一击收起（含热区外、无选区副作用）、工单30 起
+    // 【粘贴】行在列（置灰语义归 P5.16）、全选（选区状态机 select-all）/恢复出厂布局
+    // （06 契约）两动作。条目右键的单项菜单归 P5.10（工单24）——原「条目右键不弹」
+    // 断言随单项菜单落地退役。
     // 开合/激活转移矩阵在离线测试（tests/renderer/menu-shell.spec.ts），
     // 这里留真机端到端代表用例（#19 三缝约定）。
     await (async () => {
@@ -2022,7 +2023,7 @@ async function main() {
           rep.fail('分区空白右键未弹菜单（desktop-menu-opened 未见）');
         } else {
           const { t0, opened } = sess;
-          sameNamesM(opened.items, ['select-all', 'reset-layout']) && (opened.rows || []).length === 2
+          sameNamesM(opened.items, ['paste', 'select-all', 'reset-layout']) && (opened.rows || []).length === 3
             ? rep.pass(`空白右键弹菜单：条目集=[${(opened.items || []).join(', ')}]，行矩形随开层存证`)
             : rep.fail(`开层存证条目集异常：${JSON.stringify({ items: opened.items, rows: opened.rows })}`);
           typeof opened.x === 'number' && Math.abs(opened.x - blankDip.x) < 2 && Math.abs(opened.y - blankDip.y) < 2
@@ -3231,6 +3232,156 @@ async function main() {
         for (const p of [probeA28, probeB28, probeC28]) {
           try { if (p && fs.existsSync(p)) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
         }
+        w32.moveMousePhys(safePt.x, safePt.y);
+      }
+    })();
+
+    // —— P5.16 工单30 粘贴：分区空白菜单【粘贴】把剪贴板文件落进用户桌面根（desktop/paste
+    // 契约：剪贴板读经主进程 clipboard-read 代理，落盘裁决在数据面子进程；同名「 - 副本」
+    // 递增不弹框）。离线侧（contract / desktop service fakeWorld / filename / menu-shell）
+    // 穷举；这里留真机端到端代表用例（#19 三缝约定）：
+    // a. 置灰态：剪贴板清成文本 → 右键空白 → PASTE 行在列（行矩形随开层存证）→ 点行无
+    //    反应（归约器挡下：无 desktop-paste-clicked、菜单不收）→ 外击收场
+    // b. 可用态：Set-Clipboard -Path 播种真文件 → 点 PASTE → desktop-pasted ok=true →
+    //    文件落桌面根 → watch 后条目入池
+    // c. 同名「 - 副本」：剪贴板原样再贴一份 → pasted 名带「 - 副本」、桌面两份共存不覆盖
+    // 夹具与落物段内 finally 兜底；PS 通道（Set-Clipboard）不稳当日可能假败——播种失败
+    // 重试一次，仍败在断言信息如实标注环境因素（历史上有一例「剪贴板空读」环境败）。
+    await (async () => {
+      const rect30 = w32.rectOf(hwnd);
+      const sameNames30 = (a, b) => (a || []).join() === b.join();
+      const t30 = Date.now();
+      const baseA = `DECK30-PASTE-${t30}.txt`;
+      const copyA = `DECK30-PASTE-${t30} - 副本.txt`;
+      const userDesktop = seedScan.user;
+      let staging30 = null;
+      try {
+        // 几何前置：app 顶排条目上沿之上 6px 的分区空白点（P5.9 同法）
+        const settled30 = await waitStable('desktop-rendered', 1500, 8000);
+        const appR30 = settled30 && (settled30.rects || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
+        if (!appR30) {
+          rep.fail('粘贴用例几何前置缺失：app 顶排矩形未取到');
+          return;
+        }
+        const ptBlank30 = {
+          x: rect30.left + Math.round((appR30.rect.x + appR30.rect.w / 2) * f),
+          y: rect30.top + Math.round((appR30.rect.y - 6) * f),
+        };
+        const openMenu30 = async (label) => {
+          const hit = await ensurePanelHit(ptBlank30, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(ptBlank30.x, ptBlank30.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        const clickRow30 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          w32.clickPhys(rect30.left + Math.round((row.x + row.w / 2) * f), rect30.top + Math.round((row.y + row.h / 2) * f), 'left');
+          return Date.now();
+        };
+        // 收起原语：面板内分区热区之外的空档一击（P5.9 空档收起同法——开层菜单盖着
+        // ptBlank30 本身，点那里会落回菜单行；空档在热区外，常规态这一击进不了面板，
+        // 开层后收得到 = 全窗热区承接；尾随 click 由吞没机制恰吞）
+        const outPt30 = { x: rect30.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rect30.top + Math.round(600 * f) };
+        const dismissBlank30 = async (since) => {
+          const hit = await ensurePanelHit(outPt30, hwnd);
+          if (!hit.ok) return false;
+          w32.clickPhys(outPt30.x, outPt30.y, 'left');
+          return !!(await waitEvent('desktop-menu-closed', (e) => e.t >= since && e.reason === 'outside', 4000));
+        };
+        // 剪贴板播种（PS 通道）：Set-Clipboard -Path → FileDropList 回读核验；不稳重试一次
+        const seedClipboardFiles = async (paths) => {
+          for (let i = 0; i < 2; i++) {
+            try {
+              const list = paths.map((p) => `'${String(p).replace(/'/g, "''")}'`).join(',');
+              psRun(`Set-Clipboard -Path ${list} -ErrorAction Stop`);
+              await sleep(400);
+              const check = psRun("if (@(Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue).Count -ge " + paths.length + ") { 'ok' } else { 'no' }");
+              if (check === 'ok') return true;
+            } catch { /* PS 抖动：重试一次 */ }
+            await sleep(600);
+          }
+          return false;
+        };
+        const clearClipboardText = () => {
+          try { psRun("Set-Clipboard -Value 'deck30-cleared' -ErrorAction Stop"); return true; } catch { return false; }
+        };
+
+        // a. 置灰态：剪贴板清成文本 → PASTE 行在列但点了没反应
+        if (!clearClipboardText()) rep.note('置灰用例清剪贴板未走通（PS 通道异常）——若环境剪贴板残留文件态，置灰断言将如实失败');
+        const sessA = await openMenu30('粘贴-置灰开层');
+        if (!sessA) {
+          rep.fail('置灰用例开层失败（desktop-menu-opened 未见）');
+          return;
+        }
+        const rowA = (sessA.opened.rows || []).find((r) => r.id === 'paste');
+        (sessA.opened.items || []).includes('paste') && rowA
+          ? rep.pass(`空白菜单含【粘贴】行（条目集=[${(sessA.opened.items || []).join(', ')}]，行矩形 ${Math.round(rowA.w)}x${Math.round(rowA.h)} 随开层存证）`)
+          : rep.fail(`空白菜单缺 paste 行：${JSON.stringify(sessA.opened.items)}`);
+        const tGray = rowA ? clickRow30(sessA.opened.rows, 'paste') : null;
+        await sleep(1200);
+        const grayLeaked = tGray && readEvents().some((e) => e.type === 'desktop-paste-clicked' && e.t >= tGray);
+        const grayStill = tGray ? await dismissBlank30(tGray) : false;
+        tGray && !grayLeaked && grayStill
+          ? rep.pass('置灰态：【粘贴】行点击无反应（无 desktop-paste-clicked）、菜单保持开着由外击收起——剪贴板无文件时置灰（shell 归约器挡下）')
+          : rep.fail(`置灰态断言未过：行矩形=${!!rowA} 点击泄漏=${!!grayLeaked} 收起=${grayStill}`);
+
+        // b. 可用态：播种真文件 → 点 PASTE → 落桌面根 → 入池
+        const staging = path.join(os.tmpdir(), `deck30-clip-${t30}`);
+        fs.mkdirSync(staging, { recursive: true });
+        staging30 = staging;
+        const srcA = path.join(staging, baseA);
+        fs.writeFileSync(srcA, 'paste-v1');
+        const seeded = await seedClipboardFiles([srcA]);
+        if (!seeded) {
+          rep.fail('粘贴用例剪贴板播种失败（Set-Clipboard -Path 两次尝试均未通过 FileDropList 回读核验——PS 通道环境因素，非面板行为断言失败）');
+          return;
+        }
+        const sessB = await openMenu30('粘贴-可用开层');
+        if (!sessB) {
+          rep.fail('可用用例开层失败（desktop-menu-opened 未见）');
+          return;
+        }
+        const tPaste = clickRow30(sessB.opened.rows, 'paste');
+        if (!tPaste) {
+          rep.fail('可用用例开层存证缺 paste 行矩形');
+          return;
+        }
+        const clickedB = await waitEvent('desktop-paste-clicked', (e) => e.t >= tPaste && e.via === 'ctx-menu', 4000);
+        const pastedB = await waitEvent('desktop-pasted', (e) => e.t >= tPaste && e.ok === true && sameNames30(e.pasted, [baseA]), 8000);
+        const landedDiskB = pastedB ? fs.existsSync(path.join(userDesktop, baseA)) : false;
+        const landedPoolB = pastedB && await waitEvent('desktop-rendered', (e) => e.t >= tPaste && (e.names || []).includes(baseA), 8000);
+        clickedB && pastedB && landedDiskB && landedPoolB
+          ? rep.pass(`可用态：desktop-pasted ok=true pasted=[${baseA}]，文件落桌面根且 watch 后条目入池（desktop-rendered 在档）`)
+          : rep.fail(`可用态存证异常：clicked=${JSON.stringify(clickedB)} pasted=${JSON.stringify(pastedB)} disk=${landedDiskB} pool=${!!landedPoolB}`);
+        safeShot('30-paste-landed');
+
+        // c. 同名「 - 副本」：剪贴板原样（copy 语义不清剪贴板）再贴一份 → 递增名落盘
+        const sessC = await openMenu30('粘贴-副本开层');
+        if (!sessC) {
+          rep.fail('副本用例开层失败（desktop-menu-opened 未见）');
+          return;
+        }
+        const tPaste2 = clickRow30(sessC.opened.rows, 'paste');
+        const pastedC = tPaste2 && await waitEvent('desktop-pasted', (e) => e.t >= tPaste2 && e.ok === true && sameNames30(e.pasted, [copyA]), 8000);
+        const bothOnDisk = pastedC && fs.existsSync(path.join(userDesktop, baseA)) && fs.existsSync(path.join(userDesktop, copyA));
+        pastedC && bothOnDisk
+          ? rep.pass(`同名冲突自动「 - 副本」递增：再贴落为 [${copyA}]，桌面两份共存不覆盖（真桌面同款不弹框）`)
+          : rep.fail(`副本用例存证异常：pasted=${JSON.stringify(pastedC)} both=${bothOnDisk}`);
+        safeShot('30-paste-copy-suffix');
+      } finally {
+        // 落物清理兜底：桌面落物按前缀清 + 暂存目录整删 + 剪贴板还原为文本（不给后续段留文件态剪贴板）
+        try {
+          for (const n of fs.readdirSync(userDesktop)) {
+            if (n.startsWith(`DECK30-PASTE-${t30}`)) {
+              try { fs.unlinkSync(path.join(userDesktop, n)); } catch { /* 尽力清理 */ }
+            }
+          }
+        } catch { /* 尽力清理 */ }
+        if (staging30) { try { fs.rmSync(staging30, { recursive: true, force: true }); } catch { /* 尽力 */ } }
+        try { psRun("Set-Clipboard -Value 'deck30-cleared' -ErrorAction Stop"); } catch { /* 尽力 */ }
         w32.moveMousePhys(safePt.x, safePt.y);
       }
     })();

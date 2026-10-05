@@ -962,3 +962,98 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     expect(changed).toEqual([{ enabled: false }])
   }, 30_000)
 })
+
+describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
+  it('desktop/clipboard-state 只读可贴态 + desktop/paste 无文件整份拒绝（菜单置灰依据）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => null,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('desktop/clipboard-state', null)).resolves.toEqual({ pasteable: false })
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: false, pasted: [], failed: [], error: '剪贴板没有可粘贴的文件' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/paste（copy）：递归复制落用户桌面根；同名「 - 副本」递增多份不互相覆盖', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(path.join(staging, 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(staging, 'DECK30.txt'), 'v1')
+    fs.writeFileSync(path.join(staging, 'docs', 'inner.txt'), 'inner')
+    fs.writeFileSync(path.join(dir, 'user', 'DECK30.txt'), 'original') // 冲突靶子
+    const clip = {
+      paths: [path.join(staging, 'DECK30.txt'), path.join(staging, 'docs')],
+      effect: 'copy' as const,
+    }
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => clip,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('desktop/clipboard-state', null)).resolves.toEqual({ pasteable: true })
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: true, pasted: ['DECK30 - 副本.txt', 'docs'], failed: [] })
+      // 冲突不覆盖：原名与副本各有内容
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30.txt'), 'utf8')).toBe('original')
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30 - 副本.txt'), 'utf8')).toBe('v1')
+      expect(fs.existsSync(path.join(dir, 'user', 'docs', 'inner.txt'))).toBe(true) // 文件夹递归复制
+      // 再贴一份：续号「 - 副本 2」不互相覆盖（文件夹同款）
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: true, pasted: ['DECK30 - 副本 2.txt', 'docs - 副本'], failed: [] })
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30 - 副本 2.txt'), 'utf8')).toBe('v1')
+      expect(fs.existsSync(path.join(dir, 'user', 'docs - 副本', 'inner.txt'))).toBe(true)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/paste（move）：rename 落盘源离位；部分失败信封（成功保留 + failed 明细）', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(staging, { recursive: true })
+    const srcA = path.join(staging, 'A.txt')
+    fs.writeFileSync(srcA, 'move-me')
+    const clip = {
+      paths: [srcA, path.join(staging, 'GHOST.txt')], // GHOST 不在盘上：真 fs 落败 → 部分失败
+      effect: 'move' as const,
+    }
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => clip,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const r = await ctx.bridge.invoke('desktop/paste', null)
+      expect(r.ok).toBe(false)
+      expect(r.pasted).toEqual(['A.txt'])
+      expect(r.failed).toEqual(['GHOST.txt'])
+      expect(r.error).toContain('GHOST.txt')
+      expect(fs.existsSync(srcA)).toBe(false) // move 语义：源离位
+      expect(fs.readFileSync(path.join(dir, 'user', 'A.txt'), 'utf8')).toBe('move-me')
+    } finally {
+      await ctx.stop()
+    }
+  })
+})

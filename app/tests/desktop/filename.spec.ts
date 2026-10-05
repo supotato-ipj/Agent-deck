@@ -1,9 +1,10 @@
 /**
- * 文件名语义纯逻辑测试（工单28 重命名）：标签原文 → 盘面目标文件名的推导
- * （快捷方式/网址补回原扩展）与 Win32 合法性校验（禁字符/保留名/收尾点空格/空串）。
+ * 文件名语义纯逻辑测试（工单28 重命名 + 工单30 粘贴副本名）：标签原文 → 盘面目标
+ * 文件名的推导（快捷方式/网址补回原扩展）、Win32 合法性校验（禁字符/保留名/收尾点
+ * 空格/空串）与粘贴重名冲突的「 - 副本」递增（explorer 同款不弹框）。
  */
 import { describe, expect, it } from 'vitest'
-import { fileNameError, renameTarget } from '../../src/main/desktop/filename'
+import { duplicateName, fileNameError, renameTarget } from '../../src/main/desktop/filename'
 
 describe('renameTarget（标签原文 → 目标文件名）', () => {
   const lnk = { name: 'Kimi Code.lnk', kind: 'shortcut' as const }
@@ -74,5 +75,50 @@ describe('fileNameError（Win32 文件名合法性）', () => {
     expect(fileNameError('COM1')).toBe('文件名是系统保留名')
     expect(fileNameError('com9.zip')).toBe('文件名是系统保留名')
     expect(fileNameError('LPT4')).toBe('文件名是系统保留名')
+  })
+})
+
+describe('duplicateName（工单30 粘贴重名冲突的副本名）', () => {
+  const taken = (...names: string[]) => (candidate: string) => names.includes(candidate)
+
+  it('无冲突原名原样返回（粘贴常态：桌面没有同名）', () => {
+    expect(duplicateName({ name: 'a.txt', isDirectory: false }, taken())).toBe('a.txt')
+    expect(duplicateName({ name: '工作目录', isDirectory: true }, taken())).toBe('工作目录')
+  })
+
+  it('冲突 → 「基名 - 副本.扩展」起步，「 - 副本 N」递增取第一个空位（真桌面同款不弹框）', () => {
+    expect(duplicateName({ name: 'a.txt', isDirectory: false }, taken('a.txt'))).toBe('a - 副本.txt')
+    expect(duplicateName({ name: 'a.txt', isDirectory: false }, taken('a.txt', 'a - 副本.txt'))).toBe('a - 副本 2.txt')
+    expect(duplicateName({ name: 'a.txt', isDirectory: false }, taken('a.txt', 'a - 副本.txt', 'a - 副本 2.txt')))
+      .toBe('a - 副本 3.txt')
+  })
+
+  it('扩展名主意只打到最后一段点前；点开头名（.gitignore）视为无扩展', () => {
+    expect(duplicateName({ name: 'my.report.v2.docx', isDirectory: false }, taken('my.report.v2.docx')))
+      .toBe('my.report.v2 - 副本.docx')
+    expect(duplicateName({ name: 'LICENSE', isDirectory: false }, taken('LICENSE'))).toBe('LICENSE - 副本')
+    expect(duplicateName({ name: '.gitignore', isDirectory: false }, taken('.gitignore'))).toBe('.gitignore - 副本')
+  })
+
+  it('目录不打扩展名主意（后缀缀在名尾）：v1.2 → v1.2 - 副本', () => {
+    expect(duplicateName({ name: 'v1.2', isDirectory: true }, taken('v1.2'))).toBe('v1.2 - 副本')
+    expect(duplicateName({ name: 'v1.2', isDirectory: true }, taken('v1.2', 'v1.2 - 副本'))).toBe('v1.2 - 副本 2')
+  })
+
+  it('基名自带「 - 副本」/「 - 副本 N」后缀：剥掉续号（再贴一份 ≠ 叠罗汉）', () => {
+    expect(duplicateName({ name: 'a - 副本.txt', isDirectory: false }, taken('a - 副本.txt'))).toBe('a - 副本 2.txt')
+    expect(duplicateName({ name: 'a - 副本 2.txt', isDirectory: false }, taken('a - 副本 2.txt'))).toBe('a - 副本 3.txt')
+    expect(duplicateName({ name: 'a - 副本 5.docx', isDirectory: false }, taken('a - 副本 5.docx'))).toBe('a - 副本 6.docx')
+  })
+
+  it('同拍多份粘贴不互相覆盖：taken 由调用方按盘面实况注入（先贴出的名字立即算占用）', () => {
+    const occupied = new Set(['a.txt'])
+    const grow = (c: string) => occupied.has(c)
+    const first = duplicateName({ name: 'a.txt', isDirectory: false }, grow)
+    occupied.add(first)
+    const second = duplicateName({ name: 'a.txt', isDirectory: false }, grow)
+    occupied.add(second)
+    const third = duplicateName({ name: 'a.txt', isDirectory: false }, grow)
+    expect([first, second, third]).toEqual(['a - 副本.txt', 'a - 副本 2.txt', 'a - 副本 3.txt'])
   })
 })

@@ -361,6 +361,10 @@
     cursor: pointer;
   }
   #ctx-menu .ctx-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  /* 置灰行（工单30【粘贴】按剪贴板实况）：弱化不反白、指针不变手（点了没反应归归约器挡，
+   * 这里只是观感） */
+  #ctx-menu .ctx-item-disabled { color: #62686d; }
+  #ctx-menu .ctx-item-disabled:hover { background: transparent; color: #62686d; cursor: default; }
 
   /* 设置入口（工单08）：右下角极小文字按钮，位置沿用 06 恢复按钮的经验值——
    * bottom: 64 让开任务栏带与 dock 折行区（电池实测右下角是通知横幅/系统浮层的

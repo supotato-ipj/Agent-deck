@@ -8,6 +8,7 @@ import type { DesktopZone } from '../shared/contract'
 import { createDataplaneKernel } from './kernel'
 import { TrayHost } from './trayhost/host'
 import {
+  ProxyClipboardRead,
   ProxyShortcutResolver,
   ProxyTrash,
   type DataplaneMessage,
@@ -37,6 +38,9 @@ if (parentPort) {
   const trashProxy = new ProxyTrash((id, paths) => {
     parentPort.postMessage({ type: 'trash-req', id, paths })
   })
+  const clipboardProxy = new ProxyClipboardRead((id) => {
+    parentPort.postMessage({ type: 'clipboard-read-req', id })
+  })
 
   parentPort.on('message', (e) => {
     const msg: DataplaneMessage = e.data
@@ -59,6 +63,9 @@ if (parentPort) {
             // 回收站删除同理（工单27）：shell.trashItem 是主进程 API——删除裁决与摆位
             // 清除都在本进程（存储归属地），那一只手经代理伸回主进程。
             trash: (filePath) => trashProxy.trash(filePath),
+            // 剪贴板读同理（工单30）：clipboard 是主进程 API——粘贴落盘与可贴态查询
+            // 都在本进程（落点裁决地），读的那只手经代理伸回主进程。
+            readClipboardFiles: () => clipboardProxy.read(),
           },
         },
         onSnapshot: (snapshot) => parentPort.postMessage({ type: 'snapshot', data: snapshot }),
@@ -93,6 +100,10 @@ if (parentPort) {
       trashProxy.deliver(msg.id, msg.errors)
       return
     }
+    if (msg.type === 'clipboard-read-res') {
+      clipboardProxy.deliver(msg.id, msg.files)
+      return
+    }
     if (msg.type === 'req') {
       void (async () => {
         try {
@@ -118,6 +129,10 @@ if (parentPort) {
           } else if (msg.method === 'desktop/rename') {
             const { name, to } = msg.payload as { name: string; to: string }
             result = await ctx.desktop.rename(name, to)
+          } else if (msg.method === 'desktop/paste') {
+            result = await ctx.desktop.paste()
+          } else if (msg.method === 'desktop/clipboard-state') {
+            result = await ctx.desktop.clipboardState()
           } else {
             throw new Error(`未知数据面方法: ${String(msg.method)}`)
           }

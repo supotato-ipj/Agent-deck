@@ -1,6 +1,7 @@
 /**
  * 桌面承载服务测试（工单05 扫描/失败沿用/图标/launch + 工单06 编排/摆位/监听/频次 +
- * 工单27 删除与摆位清除 + 工单28 重命名与摆位迁移）。依赖束全假源，纯离线。
+ * 工单27 删除与摆位清除 + 工单28 重命名与摆位迁移 + 工单30 粘贴与剪贴板态）。
+ * 依赖束全假源，纯离线。
  */
 import { Context } from 'cordis'
 import { describe, expect, it, vi } from 'vitest'
@@ -39,8 +40,46 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     watchCalls.push(onChange)
     return () => {}
   })
+  // —— 工单30 粘贴：剪贴板假源 + 内存盘面三桶（用户桌面 C:\u / 公共 C:\c / 剪贴板源 C:\s），
+  // fs 落盘假源真改桶面（trash 假源真删盘面同法）——先贴出的名字立即可见，「 - 副本」
+  // 递增断言才立得住；错误注入经 vi 的 Once/Implementation 由用例自定。
   let userEntries = user
   let commonEntries = common
+  let srcEntries: DesktopDirEntry[] = []
+  let clipboard: { paths: string[]; effect: 'copy' | 'move' } | null = null
+  const bucketOf = (dir: string) =>
+    dir === 'C:\\u' ? userEntries : dir === 'C:\\c' ? commonEntries : dir === 'C:\\s' ? srcEntries : []
+  const baseOf = (p: string) => p.slice(p.lastIndexOf('\\') + 1)
+  const dirOf = (p: string) => p.slice(0, p.lastIndexOf('\\'))
+  const fsCopy = vi.fn(async (src: string, dst: string): Promise<string> => {
+    const from = bucketOf(dirOf(src))
+    const found = from.find((e) => e.name === baseOf(src))
+    if (!found) return '系统找不到指定的文件。'
+    const bucket = bucketOf(dirOf(dst))
+    const name = baseOf(dst)
+    if (bucket.some((e) => e.name.toLowerCase() === name.toLowerCase())) return '目标已存在。'
+    bucket.push({ ...found, name })
+    return ''
+  })
+  const fsMove = vi.fn(async (src: string, dst: string): Promise<string> => {
+    const from = bucketOf(dirOf(src))
+    const at = from.findIndex((e) => e.name === baseOf(src))
+    if (at < 0) return '系统找不到指定的文件。'
+    const bucket = bucketOf(dirOf(dst))
+    const name = baseOf(dst)
+    if (bucket.some((e) => e.name.toLowerCase() === name.toLowerCase())) return '目标已存在。'
+    const [moved] = from.splice(at, 1)
+    bucket.push({ ...moved, name })
+    return ''
+  })
+  const fsRemove = vi.fn(async (src: string): Promise<string> => {
+    const from = bucketOf(dirOf(src))
+    const at = from.findIndex((e) => e.name === baseOf(src))
+    if (at < 0) return '系统找不到指定的文件。'
+    from.splice(at, 1)
+    return ''
+  })
+  const readClipboard = vi.fn(async () => clipboard)
   let failScan = false
   let storeText: string | null = opts.store ?? null
   const written: string[] = []
@@ -50,7 +89,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     deps: {
       listDir: (dir: string) => {
         if (failScan) throw new Error('dir gone')
-        return dir === 'C:\\u' ? userEntries : commonEntries
+        return dir === 'C:\\u' ? userEntries : dir === 'C:\\c' ? commonEntries : dir === 'C:\\s' ? srcEntries : []
       },
       extractIcon: extract,
       open,
@@ -72,6 +111,10 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
         written.push(text)
       },
       iconScores: opts.scores ?? (() => new Map()),
+      readClipboardFiles: readClipboard,
+      fsCopyEntry: fsCopy,
+      fsMoveEntry: fsMove,
+      fsRemoveEntry: fsRemove,
     },
   })
   return {
@@ -83,14 +126,26 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     copyText,
     trash,
     rename,
+    fsCopy,
+    fsMove,
+    fsRemove,
+    readClipboard,
     watchCalls,
     written,
     get storeText() {
       return storeText
     },
+    userNames: () => userEntries.map((e) => e.name),
+    srcNames: () => srcEntries.map((e) => e.name),
     setEntries(v: { user?: DesktopDirEntry[]; common?: DesktopDirEntry[] }) {
       if (v.user) userEntries = v.user
       if (v.common) commonEntries = v.common
+    },
+    setSrc(v: DesktopDirEntry[]) {
+      srcEntries = v
+    },
+    setClipboard(v: { paths: string[]; effect: 'copy' | 'move' } | null) {
+      clipboard = v
     },
     failNextScans() { failScan = true },
     healScans() { failScan = false },
@@ -935,6 +990,147 @@ describe('DesktopService（工单22 批量拖拽摆位）', () => {
       ])
     } finally {
       await w2.ctx.stop()
+    }
+  })
+})
+
+describe('DesktopService（工单30 粘贴与剪贴板态）', () => {
+  it('clipboardState：剪贴板有文件即可贴；无文件/读取失败按不可贴（查询失败不让菜单误可用）', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    await w.ctx.start()
+    try {
+      expect(await w.svc.clipboardState()).toEqual({ pasteable: false })
+      w.setClipboard({ paths: ['C:\\s\\a.txt'], effect: 'copy' })
+      expect(await w.svc.clipboardState()).toEqual({ pasteable: true })
+      w.readClipboard.mockRejectedValueOnce(new Error('剪贴板被占用'))
+      expect(await w.svc.clipboardState()).toEqual({ pasteable: false })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('paste（copy）：逐项落用户桌面根（含文件夹递归）；不动摆位存储（watch→refresh 自然接管）', async () => {
+    const w = fakeWorld(
+      [entry('a.lnk')],
+      [],
+      { store: JSON.stringify({ version: 1, pinned: [], dock: ['a.lnk'], docs: [] }) },
+    )
+    w.setSrc([entry('b.txt'), entry('docs', { isDirectory: true })])
+    w.setClipboard({ paths: ['C:\\s\\b.txt', 'C:\\s\\docs'], effect: 'copy' })
+    await w.ctx.start()
+    try {
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['b.txt', 'docs'], failed: [] })
+      expect(w.fsCopy).toHaveBeenCalledTimes(2)
+      expect(w.fsCopy).toHaveBeenNthCalledWith(1, 'C:\\s\\b.txt', 'C:\\u\\b.txt')
+      expect(w.fsCopy).toHaveBeenNthCalledWith(2, 'C:\\s\\docs', 'C:\\u\\docs')
+      expect(w.fsMove).not.toHaveBeenCalled()
+      expect(w.userNames()).toEqual(['a.lnk', 'b.txt', 'docs']) // 假源真落盘面
+      expect(w.written).toHaveLength(0) // 无摆位动作不落盘
+      expect(w.svc.storeForTest().dock).toEqual(['a.lnk'])
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('paste（move）：rename 落盘源离位；跨卷（rename 失败）回退复制+删源', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    w.setSrc([entry('m.txt')])
+    w.setClipboard({ paths: ['C:\\s\\m.txt'], effect: 'move' })
+    await w.ctx.start()
+    try {
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['m.txt'], failed: [] })
+      expect(w.fsMove).toHaveBeenCalledTimes(1)
+      expect(w.fsMove).toHaveBeenCalledWith('C:\\s\\m.txt', 'C:\\u\\m.txt')
+      expect(w.fsCopy).not.toHaveBeenCalled()
+      expect(w.userNames()).toContain('m.txt')
+      expect(w.srcNames()).not.toContain('m.txt') // 源离位
+
+      // 跨卷回退：rename 落败（EXDEV 之类）→ 复制 + 删源
+      w.setSrc([entry('x.txt')])
+      w.setClipboard({ paths: ['C:\\s\\x.txt'], effect: 'move' })
+      w.fsMove.mockResolvedValueOnce('跨卷移动失败')
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['x.txt'], failed: [] })
+      expect(w.fsCopy).toHaveBeenCalledTimes(1)
+      expect(w.fsCopy).toHaveBeenCalledWith('C:\\s\\x.txt', 'C:\\u\\x.txt')
+      expect(w.fsRemove).toHaveBeenCalledTimes(1)
+      expect(w.fsRemove).toHaveBeenCalledWith('C:\\s\\x.txt')
+      expect(w.srcNames()).not.toContain('x.txt')
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('paste（move 回退）删源失败如实回报：复制已成功但源未清 = failed 条目（部分失败语义）', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    w.setSrc([entry('x.txt')])
+    w.setClipboard({ paths: ['C:\\s\\x.txt'], effect: 'move' })
+    await w.ctx.start()
+    try {
+      w.fsMove.mockResolvedValueOnce('跨卷移动失败')
+      w.fsRemove.mockResolvedValueOnce('拒绝访问。')
+      expect(await w.svc.paste()).toEqual({ ok: false, pasted: [], failed: ['x.txt'], error: 'x.txt：拒绝访问。' })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('paste：同名冲突「 - 副本」递增（同拍多份不互相覆盖、扩展名缀位、基名已带 - 副本续号）', async () => {
+    const w = fakeWorld([entry('a.txt'), entry('a - 副本.txt'), entry('report.docx'), entry('LICENSE')])
+    w.setSrc([entry('a.txt'), entry('report.docx'), entry('LICENSE')])
+    w.setClipboard({ paths: ['C:\\s\\a.txt'], effect: 'copy' })
+    await w.ctx.start()
+    try {
+      // 桌面已有 a.txt 与 a - 副本.txt：落到 a - 副本 2.txt，连贴三份各占一位不覆盖
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['a - 副本 2.txt'], failed: [] })
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['a - 副本 3.txt'], failed: [] })
+      expect(w.userNames().filter((n) => n.startsWith('a'))).toEqual([
+        'a.txt', 'a - 副本.txt', 'a - 副本 2.txt', 'a - 副本 3.txt',
+      ])
+      // 扩展名缀位：docx 的后缀在扩展前；无扩展名文件缀在名尾
+      w.setClipboard({ paths: ['C:\\s\\report.docx', 'C:\\s\\LICENSE'], effect: 'copy' })
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['report - 副本.docx', 'LICENSE - 副本'], failed: [] })
+      // 基名已带 - 副本：剥掉续号而非叠加（a - 副本 3.txt 再进剪贴板 → a - 副本 4.txt）
+      w.setClipboard({ paths: ['C:\\s\\a - 副本 3.txt'], effect: 'copy' })
+      w.setSrc([entry('a - 副本 3.txt')])
+      expect(await w.svc.paste()).toEqual({ ok: true, pasted: ['a - 副本 4.txt'], failed: [] })
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('paste：部分失败信封（成功条目保留 + failed 明细）；无池护栏（源在池外是常态照常落盘）', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    // ghost.txt 不在假盘面（源消失竞态）：默认 fsCopy 假源报「找不到」
+    w.setSrc([entry('good.txt')])
+    w.setClipboard({ paths: ['C:\\s\\good.txt', 'C:\\s\\ghost.txt'], effect: 'copy' })
+    await w.ctx.start()
+    try {
+      const r = await w.svc.paste()
+      expect(r.ok).toBe(false)
+      expect(r.pasted).toEqual(['good.txt']) // 成功条目保留
+      expect(r.failed).toEqual(['ghost.txt'])
+      expect(r.error).toContain('ghost.txt')
+      expect(w.userNames()).toContain('good.txt')
+      expect(w.written).toHaveLength(0)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('paste：空剪贴板/空名单整份拒绝（不调 fs 依赖）；剪贴板读取失败按 rejected 回报', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    await w.ctx.start()
+    try {
+      expect(await w.svc.paste()).toEqual({ ok: false, pasted: [], failed: [], error: '剪贴板没有可粘贴的文件' })
+      w.setClipboard({ paths: [], effect: 'copy' })
+      expect(await w.svc.paste()).toEqual({ ok: false, pasted: [], failed: [], error: '剪贴板没有可粘贴的文件' })
+      expect(w.fsCopy).not.toHaveBeenCalled()
+      expect(w.fsMove).not.toHaveBeenCalled()
+      w.readClipboard.mockRejectedValueOnce(new Error('数据面子进程不在场'))
+      expect(await w.svc.paste()).toEqual({ ok: false, pasted: [], failed: [], error: '数据面子进程不在场' })
+      expect(w.fsCopy).not.toHaveBeenCalled()
+    } finally {
+      await w.ctx.stop()
     }
   })
 })

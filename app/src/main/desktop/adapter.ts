@@ -160,6 +160,142 @@ export function electronTrashItem(filePath: string): Promise<string> {
     )
 }
 
+/** 剪贴板文件读取结果（工单30 粘贴）：CF_HDROP 路径清单 + Preferred DropEffect 语义。
+ * null = 剪贴板没有文件（空/纯文本），调用方按「不可粘贴」处理。 */
+export interface ClipboardFiles {
+  paths: string[]
+  effect: 'copy' | 'move'
+}
+
+/** DROPEFFECT_MOVE：Preferred DropEffect DWORD 的剪切语义值（1=copy 2=move） */
+const DROPEFFECT_MOVE = 2
+const CF_HDROP = 15
+
+/** DROPFILES 缓冲解析（CF_HDROP）：头 20 字节（pFiles 偏移/pt/fNC/fWide），其后是双 NUL
+ * 结尾的路径串序列（fWide=1 走 UTF-16，现代剪贴板源恒如此；ANSI 分支尽力而为）。 */
+function parseHDropBuffer(buf: Buffer): string[] {
+  if (buf.length < 24) return []
+  const offset = buf.readUInt32LE(0)
+  if (offset <= 0 || offset >= buf.length) return []
+  const body = buf.subarray(offset)
+  const wide = buf.readUInt32LE(20) === 1
+  const paths: string[] = []
+  if (wide) {
+    let pos = 0
+    for (;;) {
+      let end = pos
+      while (end + 1 < body.length && !(body[end] === 0 && body[end + 1] === 0)) end += 2
+      if (end + 1 >= body.length) break // 缓冲截断：防御
+      if (end === pos) break // 空串 = 列表终止符（双 NUL）
+      paths.push(body.subarray(pos, end).toString('utf16le'))
+      pos = end + 2
+    }
+  } else {
+    let pos = 0
+    for (;;) {
+      let end = pos
+      while (end < body.length && body[end] !== 0) end += 1
+      if (end >= body.length) break
+      if (end === pos) break
+      paths.push(body.subarray(pos, end).toString('utf8')) // ANSI 兜底（GBK 名会乱码，现代源不走此路）
+      pos = end + 1
+    }
+  }
+  return paths
+}
+
+function dropEffectOf(buf: Buffer | null | undefined): 'copy' | 'move' {
+  return buf && buf.length >= 4 && buf.readUInt32LE(0) === DROPEFFECT_MOVE ? 'move' : 'copy'
+}
+
+/** FFI 剪贴板读（koffi 惰性绑定同 icon-ffi 先例）：user32 开合剪贴板 + kernel32
+ * GlobalLock 取字节。CF_HDROP(15) 与 Preferred DropEffect（RegisterClipboardFormat）
+ * 两格式一次开合取齐；任一步失败由调用方兜底为 null。 */
+function ffiClipboardReadFiles(): ClipboardFiles | null {
+  const koffi = require('koffi')
+  const user32 = koffi.load('user32.dll')
+  const kernel32 = koffi.load('kernel32.dll')
+  const isAvailable = user32.func('bool __stdcall IsClipboardFormatAvailable(uint32_t format)')
+  const openClipboard = user32.func('bool __stdcall OpenClipboard(uintptr_t hWndNewOwner)')
+  const closeClipboard = user32.func('bool __stdcall CloseClipboard()')
+  const getClipboardData = user32.func('uintptr_t __stdcall GetClipboardData(uint32_t uFormat)')
+  const registerFormat = user32.func('uint32_t __stdcall RegisterClipboardFormatW(const char16_t *lpszFormat)')
+  const globalLock = kernel32.func('void *__stdcall GlobalLock(uintptr_t hMem)')
+  const globalUnlock = kernel32.func('bool __stdcall GlobalUnlock(uintptr_t hMem)')
+  const globalSize = kernel32.func('size_t __stdcall GlobalSize(uintptr_t hMem)')
+  if (!isAvailable(CF_HDROP)) return null
+  if (!openClipboard(0)) return null // 剪贴板被他人占用：按不可贴处理（用户重试自然恢复）
+  try {
+    const readBytes = (format: number): Buffer | null => {
+      const h = getClipboardData(format)
+      if (!h) return null
+      const size = Number(globalSize(h))
+      const ptr = size > 0 ? globalLock(h) : null
+      if (!ptr) return null
+      try {
+        return Buffer.from(koffi.decode(ptr, 'uint8_t', size))
+      } finally {
+        globalUnlock(h)
+      }
+    }
+    const drop = readBytes(CF_HDROP)
+    if (!drop) return null
+    const paths = parseHDropBuffer(drop)
+    if (!paths.length) return null
+    const effect = registerFormat('Preferred DropEffect')
+    return { paths, effect: dropEffectOf(effect > 0 ? readBytes(effect) : undefined) }
+  } finally {
+    closeClipboard()
+  }
+}
+
+/** 剪贴板文件读真源（工单30 粘贴；主进程 clipboard API——数据面子进程经协议代理调用）：
+ * Electron readBuffer('CF_HDROP') 路线优先（标准格式名经 RegisterClipboardFormat 可达），
+ * 空清单/异常退 koffi 直调 user32。非 Electron 环境（离线测试）不触真剪贴板，返回 null。 */
+export function electronClipboardReadFiles(): ClipboardFiles | null {
+  let clipboard: { readBuffer(format: string): Buffer } | undefined
+  try {
+    clipboard = (require('electron') as { clipboard?: { readBuffer(format: string): Buffer } }).clipboard
+  } catch {
+    return null
+  }
+  if (!clipboard?.readBuffer) return null
+  try {
+    const drop = clipboard.readBuffer('CF_HDROP')
+    const paths = drop.length > 20 ? parseHDropBuffer(drop) : []
+    if (paths.length) {
+      let effectBuf: Buffer | undefined
+      try {
+        effectBuf = clipboard.readBuffer('Preferred DropEffect')
+      } catch { /* 无该格式：按复制 */ }
+      return { paths, effect: dropEffectOf(effectBuf) }
+    }
+  } catch { /* readBuffer 拒绝非注册名等形态：退 FFI */ }
+  try {
+    return ffiClipboardReadFiles()
+  } catch {
+    return null // koffi/剪贴板缺席属环境异常：按不可贴处理
+  }
+}
+
+/** 递归复制真源（工单30 粘贴 copy 语义；文件与目录同款，fs.cp 递归）。'' 即成功，否则
+ * 错误串（open 同语）。force=false + errorOnExist 兜底防覆写——目标名由服务层
+ * duplicateName 求空位，此处绝不允许静默覆盖（AC「多份不互相覆盖」的最后一道闸）。 */
+export function fsCopyEntry(srcPath: string, dstPath: string): Promise<string> {
+  return fs.promises.cp(srcPath, dstPath, { recursive: true, force: false, errorOnExist: true }).then(
+    () => '',
+    (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  )
+}
+
+/** 删除条目真源（工单30 move 跨卷回退的删源半步；文件与目录树同款，fs.rm）。'' 即成功。 */
+export function fsRemoveEntry(srcPath: string): Promise<string> {
+  return fs.promises.rm(srcPath, { recursive: true }).then(
+    () => '',
+    (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  )
+}
+
 /** lnk 目标解析真源：shell.readShortcutLink（同步）；非 lnk/解析失败返回 null */
 export function electronShortcutTarget(lnkPath: string): string | null {
   try {

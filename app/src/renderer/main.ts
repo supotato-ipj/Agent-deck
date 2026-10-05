@@ -567,12 +567,13 @@ for (const zone of [dockZone, docZone]) {
   })
   // 右键分区空白（工单23）：热区内的分区面本来就只在这里可达（热区外穿透传真桌面），
   // 到达即「热区内」。条目右键归条目自己的 contextmenu 监听（工单24 单项菜单），此处
-  // closest 滤掉不重复弹；手势进行中不弹（native 惯例）。
+  // closest 滤掉不重复弹；手势进行中不弹（native 惯例）。开层走 openZoneMenu（工单30
+  // 起异步：先查可贴态再弹）。
   zone.addEventListener('contextmenu', (e) => {
     if (dragState.active || marqueeState.active) return
     if ((e.target as HTMLElement).closest('.ditem')) return
     e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
-    window.deckCtxMenu?.open(e.clientX, e.clientY, ctxMenuItems())
+    void openZoneMenu(e.clientX, e.clientY)
   })
 }
 
@@ -584,7 +585,7 @@ for (const zone of [dockZone, docZone]) {
 // suppressed 是消费制而非定时制（工单23 复审修正）：置位于 pointerdown，复位只发生在
 // 「吞掉首笔尾随事件」或「下一笔按下」——尾随事件是 down/up 之后的独立输入任务，
 // setTimeout(0) 会抢在它前面复位（拖拽/框选的 suppressed 置位于 pointerup，无此问题）。
-// 条目集是 contributor 注册位（open(x,y,items)）：本票两项内置，注册机制后续工单接入。
+// 条目集是 contributor 注册位（open(x,y,items)）：本票三项内置，注册机制后续工单接入。
 
 const menuState = { suppressed: false }
 
@@ -592,9 +593,24 @@ function menuOpen(): boolean {
   return window.deckCtxMenu?.isOpen() === true
 }
 
-/** 内置两项：全选走选区状态机（select-all），恢复出厂布局复用 06 契约（与设置浮层入口同链路） */
-function ctxMenuItems(): DeckCtxMenuItem[] {
+/** 分区空白菜单开层（工单30 起异步）：【粘贴】行按剪贴板实况置灰——先查
+ * desktop/clipboard-state 再 open。开层本来就是 effect 调用，异步可接受；查询失败按
+ * 不可贴（宁可置灰不误可用）。右键到弹出之间的极小窗口内若另有右键，后发者照常
+ * 重弹（open 幂等换位，既有语义）。 */
+async function openZoneMenu(x: number, y: number): Promise<void> {
+  let pasteable = false
+  try {
+    const r = await window.deck.bridge.invoke('desktop/clipboard-state', null)
+    pasteable = r.pasteable
+  } catch { /* 查询失败：置灰 */ }
+  window.deckCtxMenu?.open(x, y, ctxMenuItems(pasteable))
+}
+
+/** 内置三项（工单30 起）：【粘贴】读剪贴板落用户桌面（desktop/paste，置灰态由归约器
+ * 挡）；全选走选区状态机（select-all）；恢复出厂布局复用 06 契约（与设置浮层入口同链路） */
+function ctxMenuItems(pasteable: boolean): DeckCtxMenuItem[] {
   return [
+    { id: 'paste', label: 'PASTE', disabled: !pasteable, run: () => pasteFromClipboard() },
     {
       id: 'select-all',
       label: 'SELECT ALL',
@@ -728,6 +744,30 @@ function copyItemPaths(names: readonly string[]): void {
       names: [...names], ok: r.ok, error: r.error ?? null,
     }),
     (err: unknown) => notify('desktop-paths-copy-failed', { names: [...names], message: String(err) }),
+  )
+}
+
+// ---- 粘贴（工单30，GLOSSARY.md「上下文菜单」二期条目）：分区空白菜单【粘贴】把系统
+// 剪贴板文件落进用户桌面根（desktop/paste 契约：剪切语义移动、否则复制，同名「 - 副本」
+// 递增不弹框，剪贴板读与落盘裁决都在内核）。置灰态在开层前经 desktop/clipboard-state
+// 查询（openZoneMenu），点置灰行由 shell 归约器挡下。存证族 desktop-paste-*：
+// clicked/pasted/rejected/failed（trash 三分名惯例），失败上浮提示条。无池护栏——
+// 剪贴板来源是桌面之外的任意位置，菜单层不做名单解析（paste 契约无参）。
+
+/** 粘贴执行：结果分名存证（pin/trash 同款），失败上浮提示条 */
+function pasteFromClipboard(): void {
+  notify('desktop-paste-clicked', { via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/paste', null).then(
+    (r) => {
+      notify(r.ok ? 'desktop-pasted' : 'desktop-paste-rejected', {
+        ok: r.ok, pasted: r.pasted, failed: r.failed, error: r.error ?? null,
+      })
+      if (!r.ok) showNotice(r.error ?? '粘贴失败')
+    },
+    (err: unknown) => {
+      notify('desktop-paste-failed', { message: String(err) })
+      showNotice(String(err))
+    },
   )
 }
 

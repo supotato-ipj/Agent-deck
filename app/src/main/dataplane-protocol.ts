@@ -2,6 +2,7 @@
 // utilityProcess 子进程之间的全部消息形态，以及子进程侧的 lnk 目标解析代理。
 // 协议两侧共用本文件；消息经 utilityProcess postMessage 结构化克隆传递。
 import type { DesktopRoots } from './desktop/scan'
+import type { ClipboardFiles } from './desktop/adapter'
 import type { ClockState, DesktopState, HardwareState, SessionInfo } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
@@ -27,8 +28,9 @@ export interface DataplaneInit {
   traySpike?: { corpusFile: string }
 }
 
-/** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除、工单28 起含重命名；读路径走每拍快照） */
-export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash' | 'desktop/rename'
+/** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除、
+ * 工单28 起含重命名、工单30 起含粘贴与可贴态查询；读路径走每拍快照） */
+export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash' | 'desktop/rename' | 'desktop/paste' | 'desktop/clipboard-state'
 
 /** 主进程 ⇄ 数据面子进程消息 */
 export type DataplaneMessage =
@@ -40,6 +42,10 @@ export type DataplaneMessage =
   /** 回收站删除代理（工单27）：子进程请求主进程执行 shell.trashItem，id 关联回执 */
   | { type: 'trash-req'; id: number; paths: string[] }
   | { type: 'trash-res'; id: number; errors: Record<string, string> }
+  /** 剪贴板读取代理（工单30）：子进程请求主进程读 clipboard（CF_HDROP + DropEffect），
+   * id 关联回执；null = 剪贴板无文件 */
+  | { type: 'clipboard-read-req'; id: number }
+  | { type: 'clipboard-read-res'; id: number; files: ClipboardFiles | null }
   | { type: 'req'; id: number; method: DataplaneMethod; payload: unknown }
   | { type: 'res'; id: number; ok: boolean; result?: unknown; error?: string }
   | { type: 'tray-event'; event: TrayWireEvent }
@@ -122,5 +128,35 @@ export class ProxyTrash {
     if (!waiter) return
     this.pending.delete(id)
     waiter(errors)
+  }
+}
+
+/**
+ * 剪贴板读取代理（子进程侧，工单30）：clipboard.readBuffer 是 Electron 主进程 API，
+ * 数据面用不了——读取请求按 id 发主进程执行，回复经 deliver 驱动 Promise。与
+ * ProxyTrash 同形（低频按需读，不凑批、不缓存——剪贴板内容随外界变化，缓存即陈旧），
+ * null 回执合法（剪贴板无文件）。
+ */
+export class ProxyClipboardRead {
+  private readonly pending = new Map<number, (files: ClipboardFiles | null) => void>()
+  private seq = 0
+
+  constructor(private readonly ask: (id: number) => void) {}
+
+  /** 一次读取请求；resolve 值 = 文件清单或 null（剪贴板无文件） */
+  read(): Promise<ClipboardFiles | null> {
+    return new Promise((resolve) => {
+      const id = ++this.seq
+      this.pending.set(id, resolve)
+      this.ask(id)
+    })
+  }
+
+  /** 主进程回执驱动 Promise（未知 id = 迟到噪声，丢弃） */
+  deliver(id: number, files: ClipboardFiles | null): void {
+    const waiter = this.pending.get(id)
+    if (!waiter) return
+    this.pending.delete(id)
+    waiter(files)
   }
 }

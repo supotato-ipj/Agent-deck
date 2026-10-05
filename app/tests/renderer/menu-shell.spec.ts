@@ -100,6 +100,32 @@ describe('unmount 插件卸载（热插拔静默收场）', () => {
   })
 })
 
+describe('disabled 置灰行（工单30 缝）', () => {
+  const GRAY_ROWS = [{ id: 'paste', label: 'PASTE', disabled: true }, { id: 'select-all', label: 'SELECT ALL' }]
+
+  it('open 携带 disabled 行：状态按行原样保留（呈现层据此挂 ctx-item-disabled）', () => {
+    const { state, effects } = nextMenuShell(CLOSED_MENU, { type: 'open', x: 1, y: 2, rows: GRAY_ROWS })
+    expect(state.open).toBe(true)
+    expect(state.rows).toEqual(GRAY_ROWS)
+    expect(effects[0].notify?.payload).toEqual({ x: 1, y: 2, items: ['paste', 'select-all'] })
+  })
+
+  it('activate 置灰行 = 挡下：不转交动作、不收起、无存证（真菜单同款：点了没反应）', () => {
+    const opened = feed(CLOSED_MENU, { type: 'open', x: 0, y: 0, rows: GRAY_ROWS })
+    const { state, effects } = nextMenuShell(opened, { type: 'activate', id: 'paste' })
+    expect(state.open).toBe(true)
+    expect(effects).toEqual([])
+  })
+
+  it('同层可用行照常激活（置灰不殃及邻居）', () => {
+    const opened = feed(CLOSED_MENU, { type: 'open', x: 0, y: 0, rows: GRAY_ROWS })
+    const { state, effects } = nextMenuShell(opened, { type: 'activate', id: 'select-all' })
+    expect(state).toEqual(CLOSED_MENU)
+    expect(effects[0].run).toBe('select-all')
+    expect(effects[1].notify?.payload).toEqual({ reason: 'action' })
+  })
+})
+
 describe('clampMenuOrigin 视口钳制', () => {
   it('视口内原样返回', () => {
     expect(clampMenuOrigin(100, 80, 170, 90, 1920, 1080)).toEqual({ x: 100, y: 80 })

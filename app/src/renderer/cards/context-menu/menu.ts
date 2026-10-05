@@ -14,10 +14,13 @@ import type { PluginApi, PluginHost } from '../../plugins.js'
 
 // ---- 纯逻辑段（无 DOM，离线测试直接 import）----
 
-/** 菜单行（状态只存数据；动作回调由插件旁路持有，不进状态） */
+/** 菜单行（状态只存数据；动作回调由插件旁路持有，不进状态）。disabled = 置灰行
+ * （工单30【粘贴】按剪贴板实况）：activate 挡下（点了没反应，真菜单同款），DOM 挂
+ * ctx-item-disabled（呈现层弱化 + hover 不反白）。 */
 export interface MenuRow {
   id: string
   label: string
+  disabled?: boolean
 }
 
 /** 面板注入的菜单条目：run 即动作本体（面板侧闭包，读当拍实况） */
@@ -88,7 +91,10 @@ export function nextMenuShell(state: MenuShellState, event: MenuShellEvent): Men
       }
     }
     case 'activate': {
-      if (!state.open || !state.rows.some((r) => r.id === event.id)) return { state, effects: [] }
+      // 未知 id 与置灰行同为无效激活：无转移无存证（点置灰行「没反应」且菜单保持开着，
+      // 真菜单同款——不收起也不发 desktop-menu-closed，用户可改点别的行）。
+      const row = state.rows.find((r) => r.id === event.id)
+      if (!state.open || !row || row.disabled) return { state, effects: [] }
       return {
         state: CLOSED_MENU,
         effects: [
@@ -130,7 +136,9 @@ function apply(result: MenuShellResult): void {
       rowsEl.textContent = ''
       for (const row of shell.rows) {
         const item = document.createElement('div')
-        item.className = 'ctx-item'
+        // 置灰行挂独立 class（index.html 样式弱化 + hover 不反白）；click 监听照挂——
+        // 挡的裁决只在归约器一处（activate 对 disabled 行空转），DOM 不做第二道闸。
+        item.className = row.disabled ? 'ctx-item ctx-item-disabled' : 'ctx-item'
         item.dataset.id = row.id
         item.textContent = row.label
         item.addEventListener('click', () => dispatch({ type: 'activate', id: row.id }))
@@ -181,7 +189,8 @@ export default {
     window.deckCtxMenu = {
       open(x: number, y: number, items: readonly MenuItem[]): void {
         actions = new Map(items.map((i) => [i.id, i.run]))
-        dispatch({ type: 'open', x, y, rows: items.map(({ id, label }) => ({ id, label })) })
+        // 置灰行随行清单进状态（MenuRow.disabled），activate 挡下由归约器负责
+        dispatch({ type: 'open', x, y, rows: items.map(({ id, label, disabled }) => ({ id, label, disabled })) })
       },
       close(): void {
         dispatch({ type: 'dismiss' })
