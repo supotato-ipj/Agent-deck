@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -20,7 +20,7 @@ export class BridgeError extends Error {
  * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins']
+  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -108,6 +108,16 @@ export class BridgeService extends Service {
       case 'session/focus': {
         const { tool } = payload as { tool: string }
         return await this.ctx.focus.focusTool(String(tool ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/get-state':
+        return this.ctx.taskbar.state() as BridgeMethods[M]['response']
+      case 'taskbar/set-enabled': {
+        const { enabled } = payload as { enabled: boolean }
+        return this.ctx.taskbar.setEnabled(enabled) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/system-action': {
+        const { action } = payload as { action: TaskbarSystemAction }
+        return this.ctx.taskbar.systemAction(action) as BridgeMethods[M]['response']
       }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)

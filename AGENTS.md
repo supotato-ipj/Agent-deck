@@ -6,8 +6,20 @@
 
 - **master**：GitHub 上的集成分支，受 ruleset 保护——改动一律走 `feat/<slug>` / `fix/<slug>` 分支 + PR（CI 绿才可合并），不直接推送。
 - **主检出**：`D:\local_works\agent-deck`，常驻本地 `release` 分支（验收通过后快进到 origin/master）。**开机自启指向主检出的 `app/`**——worktree 会被清理，自启项不指向它。
-- **worktree**：`D:\local_works\agent-deck-wt\<slug>`。面板是**单实例**（二次拉起自动退出），并行 worktree 不要各拉一个常驻面板；真机验收用 `npm run accept`（验收模式绕开单实例锁，可与在跑的面板共存）。
+- **worktree**：`D:\local_works\agent-deck-wt\<slug>`。面板是**单实例**（二次拉起自动退出），并行 worktree 不要各拉一个常驻面板；真机验收用 `npm run accept`（控制器进程绕开单实例锁，但全量电池拉起的真面板子进程仍抢锁——一律走下节调度协议）。
 - 开工/收尾的完整流程（建树、自检、PR、验收快进、清理）见 `agent-deck-worktree` skill。
+
+## 真机验收调度协议（accept-guard）
+
+本机两个并行检出共享同一**验收槽**：同一时刻只允许一个真机 GUI 验收在跑（桌面注入、单实例锁、共用 userData、托盘/前景窗断言互相踩踏）。任何验收入口（`npm run accept` / `accept:tray` / `accept:taskbar` 等 electron `--accept*` 模式）一律经 guard 托管，禁止裸跑：
+
+    node D:\test-folder\.accept-guard\guard.mjs hold --as <zcode|kimicode> --purpose accept-sprint -- npm run accept
+
+- hold 全自动完成整个生命周期：排队 → 拿槽 → 清理各检出面板进程 → 系统通知 → 驻留心跳 → 验收命令退出自动释放。
+- 抢槽前先 `guard.mjs status` 看对方相位；要出验收证据的一轮用 `--purpose accept-sprint`（排队优先），空挡自测用默认 `selftest`。
+- 发起前可声明相位让对方可见：`guard.mjs phase <dev|selftest|accept-sprint|human> --note "..."`。
+- 排队最长等 30 分钟，超时以退出码 3 结束——转做不占主机的活，或请用户裁决（用户应急解锁：`guard.mjs release --force`）。
+- guard 自带行为电池：`guard.mjs selftest`（沙箱跑，不碰真实租约与真实面板）。协议全文与词汇表见 guard 目录 README.md。
 
 ## 远端分支纪律
 

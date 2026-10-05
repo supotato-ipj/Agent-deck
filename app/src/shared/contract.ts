@@ -134,6 +134,14 @@ export interface SettingsState {
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
 export type FocusAction = 'focused' | 'launched' | 'degraded'
 
+/** 任务栏系统动作（工单49，CONTEXT.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
+export type TaskbarSystemAction = 'start-menu' | 'task-view'
+
+/** 任务栏状态（工单49 tracer bullet）：enabled=false 时主进程销毁任务栏窗口 */
+export interface TaskbarState {
+  enabled: boolean
+}
+
 /**
  * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
  * 取值与 PanelSnapshot 的段名一一对应——「少给而非不给」（同桌面项池校验思路）：
@@ -288,6 +296,12 @@ export interface BridgeMethods {
     request: { tool: string }
     response: { ok: boolean; action: FocusAction; error?: string; hwnd?: number }
   }
+  /** 任务栏（工单49）：窗口启停状态读取（config.json taskbar 段为持久化口径） */
+  'taskbar/get-state': { request: null; response: TaskbarState }
+  /** 任务栏开关：禁用即销毁任务栏窗口、启用即恢复；整份回写 config.json；回推 taskbar/changed */
+  'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
+  /** 任务栏系统动作（开始菜单/任务视图）：主进程按键合成触发原生系统 UI */
+  'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -304,6 +318,8 @@ export interface BridgeEvents {
    * 独立于 1Hz 的 panel/changed：热插拔要即时可见，不必等下一拍快照。
    */
   'plugins/changed': PluginInfo[]
+  /** 工单49 任务栏：开关变化即时回推（任务栏窗口据此渲染/渲染层不等重启） */
+  'taskbar/changed': TaskbarState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

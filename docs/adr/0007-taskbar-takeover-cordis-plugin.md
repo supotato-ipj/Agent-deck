@@ -24,3 +24,7 @@ Status: accepted
 - 托盘宿主**永不提权运行**（UIPI 会静默丢弃中等完整性级应用的消息与回放）；与 RetroBar/Seelen/Zebar 等同类托盘托管互斥，检测到第二个置顶 `Shell_TrayWnd` 时告警。
 - 音量/网络/电源系统图标在 Win11 上非 `Shell_NotifyIcon` 可达（explorer 内部 XAML）：音量格自绘（点击合成 Win+A 弹原生快速设置），网络由硬件摘要覆盖，电源格 v1 不做。
 - 已知残余风险：协议未文档化（但 Win95→Win11 25H2 未变，且是承重墙——改它即砸所有 `Shell_NotifyIcon` 调用方）；Z 序竞争需定时维持置顶；少数应用不响应 `TaskbarCreated` 重注册，需重启该应用才入栏。
+
+## 补记（工单49 tracer bullet 真机实证，2026-10-05）
+
+「Z 序竞争需定时维持置顶」一条的实测结论比预期更硬：Shell_TrayWnd 位于普通 WS_EX_TOPMOST **之上**的窗口层级，且 explorer 会主动重申防守。49 验收期的收复阶梯探针实证：我方窗口 `topmost=true`、非穿透状态下命中仍归 Shell_TrayWnd；SetWindowPos(TOPMOST) 刷新、BringWindowToTop、AttachThreadInput 后顶起、乃至把 tray 压到 HWND_BOTTOM（400ms 内被 explorer 重申还原）全阶梯无效。竞态表现为「谁先占住谁赢，输了收不回」，验收三轮间随机翻转。**结论：与可见的原生任务栏同矩形重叠没有文档化稳定解**（RetroBar/Zebar/ExplorerPatcher 均走隐藏原生任务栏路线，与此互证）。因此 49 的条带几何暂为「主屏底部通栏、底边坐原生任务栏上沿」（净空 = 原生任务栏高，`TASKBAR_BOTTOM_CLEARANCE`）；原生任务栏隐藏（本 ADR 主线，后续票）落地后净空归零、条带落回屏底。

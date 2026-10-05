@@ -436,7 +436,9 @@ async function waitPanelWindow(timeoutMs, sinceMs = 0) {
   const winDeadline = Date.now() + timeoutMs;
   while (Date.now() < winDeadline) {
     const hwnd = win32.topLevelWindows().find(
-      (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1');
+      // 工单49 起面板进程有了第二个 Chrome 窗（DECK-TASKBAR 条带）：按标题甄别面板本体
+      (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1'
+        && windowTitle(h) === 'AGENT DECK');
     if (hwnd) return hwnd;
     await sleep(200);
   }
@@ -3221,7 +3223,11 @@ async function main() {
 
     // —— P7 单实例守卫：二次拉起立即自行退出，屏幕上始终只有一个面板 ——
     {
-      const chromeBefore = w32.topLevelWindows().filter((h) => w32.className(h) === 'Chrome_WidgetWin_1').length;
+      // 计数只数面板 pid 的 Chrome 窗（工单49 起同进程还有 DECK-TASKBAR 条带窗；
+      // 系统级计数会被无关 Electron/Chrome 窗与条带建窗时序扰动——49 实测 3→4 假阳性）
+      const chromeOfPanel = () => w32.topLevelWindows().filter(
+        (h) => w32.className(h) === 'Chrome_WidgetWin_1' && w32.threadIdOf(h).pid === panelPid).length;
+      const chromeBefore = chromeOfPanel();
       const t0 = Date.now();
       const child2 = spawn(process.execPath, ['.'], {
         cwd: APP_ROOT,
@@ -3244,7 +3250,7 @@ async function main() {
       readEvents().some((e) => e.type === 'single-instance-refused')
         ? rep.pass('单实例守卫：被拒实例自报 single-instance-refused 存证')
         : rep.fail('单实例守卫：无 single-instance-refused 存证');
-      const chromeAfter = w32.topLevelWindows().filter((h) => w32.className(h) === 'Chrome_WidgetWin_1').length;
+      const chromeAfter = chromeOfPanel();
       w32.IsWindow(hwnd) && chromeAfter === chromeBefore
         ? rep.pass(`单实例守卫：原面板窗完好（Chrome 窗计数 ${chromeBefore} → ${chromeAfter}），屏上仍只有一个面板`)
         : rep.fail(`单实例守卫后面板状态异常（原窗在=${w32.IsWindow(hwnd)}，Chrome 窗计数 ${chromeBefore} → ${chromeAfter}）`);
