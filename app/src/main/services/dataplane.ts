@@ -4,6 +4,7 @@ import type { Context } from 'cordis'
 import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
+import type { TrayWireEvent } from '../trayhost/protocol'
 import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, explorerReveal, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
@@ -19,6 +20,8 @@ export interface DataplaneServiceOptions {
   log?: (event: Record<string, unknown>) => void
   /** 首拍等待上限（默认 15s） */
   readyTimeoutMs?: number
+  /** 托盘 spike（工单48）：子进程托盘宿主的规范化事件出口（spike 窗渲染用） */
+  onTrayEvent?: (event: TrayWireEvent) => void
 }
 
 /**
@@ -106,6 +109,10 @@ export class DataplaneService extends Service implements PanelDataPort {
         targets[p] = this.shortcuts.get(p) ?? null
       }
       this.child?.postMessage({ type: 'shortcuts', targets })
+    } else if (msg.type === 'tray-event') {
+      this.options.onTrayEvent?.(msg.event)
+    } else if (msg.type === 'tray-host') {
+      this.options.log?.(msg.event)
     } else if (msg.type === 'res') {
       const waiter = this.pending.get(msg.id)
       if (!waiter) return

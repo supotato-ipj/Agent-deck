@@ -1,4 +1,4 @@
-import { app, screen } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTools, defaultWeather, loadConfig } from './config'
@@ -16,6 +16,7 @@ import { forceShowIcons, IconCarry } from './icon-carry'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { userDataPath } from './paths'
+import type { TrayWireEvent } from './trayhost/protocol'
 
 const CONFIG_FILE = path.join(app.getAppPath(), 'config.json')
 /** 渲染层资产根（dist/renderer）：经 deck-plugin:// 协议交付，工单10 起与插件资产同源 */
@@ -26,13 +27,18 @@ const RENDERER_ROOT = path.join(__dirname, '../renderer')
  */
 const BUILTIN_CARDS_ROOT = path.join(RENDERER_ROOT, 'cards')
 const ACCEPT_MODE = process.argv.includes('--accept')
+const ACCEPT_TRAY_MODE = process.argv.includes('--accept-tray')
 const PANEL_MODE = process.argv.includes('--panel')
+const TRAY_SPIKE_MODE = process.argv.includes('--tray-spike')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
 
 // 特权协议必须在 app ready 之前注册（Electron 硬要求）：面板页面与插件资产都走它。
 registerPluginScheme()
 
-async function bootPanel(): Promise<void> {
+/** 托盘 spike（工单48）：最小验收页标题（控制器按标题寻窗截图） */
+export const TRAY_SPIKE_TITLE = 'TRAY-SPIKE-ACCEPT'
+
+async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
   const fallback = {
     panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds),
@@ -83,6 +89,47 @@ async function bootPanel(): Promise<void> {
     log?.append({ type: 'usage-migrate-failed', message: (err as Error).message })
   }
 
+  // 托盘 spike（工单48）：最小验收页 + 托盘宿主开关（竞争窗口跑在数据面子进程）。
+  // 页面未就绪前事件先入暂存，did-finish-load 后补发，不丢首波 NIM_ADD。
+  let spikeWin: BrowserWindow | null = null
+  let spikeReady = false
+  const spikePending: TrayWireEvent[] = []
+  // 图标主色真值（量化众数桶）：验收控制器拿它到页面截图里找同色像素簇，
+  // 构成「第三方图标像素正确」的自动断言——页面渲染色必须与宿主提取色一致。
+  const dominantColor = (icon: { bgraBase64: string }): [number, number, number] | null => {
+    const bgra = Buffer.from(icon.bgraBase64, 'base64')
+    const buckets = new Map<number, { r: number; g: number; b: number; n: number }>()
+    for (let i = 0; i + 3 < bgra.length; i += 4) {
+      if (bgra[i + 3] < 128) continue
+      const key = ((bgra[i + 2] >> 5) << 6) | ((bgra[i + 1] >> 5) << 3) | (bgra[i] >> 5)
+      const e = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 }
+      e.r += bgra[i + 2]; e.g += bgra[i + 1]; e.b += bgra[i]; e.n++
+      buckets.set(key, e)
+    }
+    let best: { r: number; g: number; b: number; n: number } | null = null
+    for (const e of buckets.values()) if (!best || e.n > best.n) best = e
+    if (!best || best.n < 24) return null
+    return [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)]
+  }
+  const onTrayEvent = (event: TrayWireEvent) => {
+    const dom = event.icon ? dominantColor(event.icon) : null
+    log?.append({ type: 'tray-event', kind: event.kind, key: event.key, hwnd: event.hwnd, tooltip: event.tooltip, hasIcon: !!event.icon, w: event.icon?.width ?? 0, h: event.icon?.height ?? 0, ...(dom ? { dom } : {}) })
+    if (spikeWin && !spikeWin.isDestroyed() && spikeReady) spikeWin.webContents.send('tray:event', event)
+    else spikePending.push(event)
+  }
+  if (options.traySpike) {
+    spikeWin = new BrowserWindow({
+      width: 560, height: 920, title: TRAY_SPIKE_TITLE, autoHideMenuBar: true,
+      webPreferences: { preload: path.join(app.getAppPath(), 'accept', 'lib', 'tray-spike-preload.js') },
+    })
+    spikeWin.webContents.on('did-finish-load', () => {
+      spikeReady = true
+      for (const e of spikePending) spikeWin?.webContents.send('tray:event', e)
+      spikePending.length = 0
+    })
+    void spikeWin.loadFile(path.join(app.getAppPath(), 'accept', 'lib', 'tray-spike.html'))
+  }
+
   const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
@@ -100,8 +147,12 @@ async function bootPanel(): Promise<void> {
         storeFile: path.join(app.getPath('userData'), 'layout.json'),
         docMaxRows: config.desktop.docMaxRows,
         usageDir,
+        ...(options.traySpike
+          ? { traySpike: { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') } }
+          : {}),
       },
       log: (event) => log?.append(event),
+      onTrayEvent: options.traySpike ? onTrayEvent : undefined,
     },
   })
   await kernel.start()
@@ -189,7 +240,7 @@ if (RESTORE_MODE) {
   log?.append({ type: 'carry-boot', pid: process.pid, mode: 'restore' })
   forceShowIcons(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE) {
+} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -241,7 +292,7 @@ if (RESTORE_MODE) {
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
@@ -254,7 +305,13 @@ if (RESTORE_MODE) {
       require(path.join(app.getAppPath(), 'accept', 'battery.js'))()
       return
     }
-    bootPanel().catch((err) => {
+    if (ACCEPT_TRAY_MODE) {
+      // 托盘 spike 验收（工单48）：控制器身份跑 accept/tray-spike.js，面板以 --tray-spike 子进程拉起。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'tray-spike.js'))()
+      return
+    }
+    bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {
       console.error('[deck] 面板启动失败:', err)
       app.quit()
     })
