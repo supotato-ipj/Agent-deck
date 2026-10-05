@@ -295,6 +295,51 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }
   })
 
+  it('desktop/clipboard-copy + desktop/clipboard-cut（工单29）：池内整份写入（多文件有序 + effect），任一池外整份拒绝；空名单拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const writes: Array<{ paths: string[]; effect: string }> = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          writeClipboardFiles: async (paths: readonly string[], effect: 'copy' | 'move') => {
+            writes.push({ paths: [...paths], effect })
+            return ''
+          },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const pathOf = (name: string) => (snap.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      // 复制：多文件整份、有序（序 = 名单序 = 选区插入序）
+      await expect(ctx.bridge.invoke('desktop/clipboard-copy', { paths: [pathOf('B.docx'), pathOf('A.lnk')] }))
+        .resolves.toEqual({ ok: true })
+      expect(writes).toEqual([{ paths: [pathOf('B.docx'), pathOf('A.lnk')], effect: 'copy' }])
+      // 剪切：effect=move（粘贴为搬移）
+      await expect(ctx.bridge.invoke('desktop/clipboard-cut', { paths: [pathOf('A.lnk')] }))
+        .resolves.toEqual({ ok: true })
+      expect(writes).toHaveLength(2)
+      expect(writes[1]).toEqual({ paths: [pathOf('A.lnk')], effect: 'move' })
+      // 池外整份拒绝（copy-paths/trash 同款护栏）：剪贴板不写半份名单
+      const outside = await ctx.bridge.invoke('desktop/clipboard-copy', { paths: [pathOf('B.docx'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(writes).toHaveLength(2)
+      // 空名单拒绝（信封错误）
+      await expect(ctx.bridge.invoke('desktop/clipboard-copy', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '复制名单为空' })
+      await expect(ctx.bridge.invoke('desktop/clipboard-cut', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '剪切名单为空' })
+      expect(writes).toHaveLength(2)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('desktop/rename（工单28）：池内改名真落盘、摆位同拍迁移；冲突与非法名拒绝；池外拒绝', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')

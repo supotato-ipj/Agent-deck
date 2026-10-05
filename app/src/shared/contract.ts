@@ -248,6 +248,23 @@ export interface BridgeMethods {
    */
   'desktop/copy-paths': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
   /**
+   * 选中桌面项写入系统文件剪贴板（工单29 单项菜单【复制】与多选菜单共用一道契约，
+   * 多选整集进剪贴板）：整份绝对路径有序列表（序 = 名单序 = 选区插入序）+ copy 语义
+   * （Preferred DropEffect = DROPEFFECT_COPY，粘贴为副本）。paths 全部在当前扫描池内
+   * 才执行（copy-paths 同款整份护栏——剪贴板不写半份名单），空名单拒绝。写入格式
+   * CF_HDROP + Preferred DropEffect（资源管理器及任意应用可直接粘贴），执行在
+   * DesktopService 宿主进程（koffi 直调 user32 纯 native，数据面子进程可用，
+   * 无 trash 那样的主进程代理）。
+   */
+  'desktop/clipboard-copy': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
+  /**
+   * 选中桌面项以剪切语义写入系统文件剪贴板（工单29 单项菜单【剪切】与多选菜单共用）：
+   * 与 clipboard-copy 同一道护栏与写入格式，effect = move（Preferred DropEffect =
+   * DROPEFFECT_MOVE，粘贴为搬移）。写剪贴板不动摆位不删文件——剪切后条目仍在原地
+   * （真桌面同款），摆位清除发生在粘贴移走或 trash 时。
+   */
+  'desktop/clipboard-cut': { request: { paths: string[] }; response: { ok: boolean; error?: string } }
+  /**
    * 删除进回收站（工单27，单项菜单【删除】与多选菜单【删除全部】共用一道契约）：
    * paths 全部在当前扫描池内才执行（launch/copy-paths 同款护栏，不删半份名单）；逐项
    * 送回收站（shell.trashItem，误删可找回），失败条目如实回报不做提权——任一失败

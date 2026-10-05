@@ -24,6 +24,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
   const reveal = vi.fn()
   const copyText = vi.fn()
   const trash = vi.fn(async (_p: string) => '')
+  const writeClipboardFiles = vi.fn(async (_paths: readonly string[], _effect: 'copy' | 'move') => '')
   const rename = vi.fn(async (oldPath: string, newPath: string) => {
     // 假源真改名（工单27 trash 假源真删盘面的同法；生产侧为 fs.promises.rename）：
     // 改名后下一轮扫描才能扫到新名——摆位迁移 + 即时重编排的断言依赖盘面同步
@@ -57,6 +58,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
       reveal,
       copyText,
       trash,
+      writeClipboardFiles,
       rename,
       // 条目存在性假源：认当前假盘面（同名大小写不敏感——NTFS 语义）
       entryExists: (p: string) => {
@@ -82,6 +84,7 @@ function fakeWorld(user: DesktopDirEntry[], common: DesktopDirEntry[] = [], opts
     reveal,
     copyText,
     trash,
+    writeClipboardFiles,
     rename,
     watchCalls,
     written,
@@ -308,6 +311,57 @@ describe('DesktopService（工单27 删除与删除全部）', () => {
       })
       expect(await w.svc.trash([])).toEqual({ ok: false, trashed: [], failed: [], error: '删除名单为空' })
       expect(w.trash).not.toHaveBeenCalled()
+      expect(w.written).toHaveLength(0)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+})
+
+describe('DesktopService（工单29 文件剪贴板写向）', () => {
+  it('clipboardCopy/clipboardCut：整份绝对路径有序列表 + effect 进依赖束；写剪贴板不动存储不落盘', async () => {
+    const w = fakeWorld([entry('a.lnk'), entry('b.docx')])
+    await w.ctx.start()
+    try {
+      const pathOf = (name: string) => w.svc.state().items.find((i) => i.name === name)!.path
+      expect(await w.svc.clipboardCopy([pathOf('b.docx'), pathOf('a.lnk')])).toEqual({ ok: true })
+      expect(w.writeClipboardFiles).toHaveBeenCalledTimes(1)
+      expect(w.writeClipboardFiles).toHaveBeenCalledWith([pathOf('b.docx'), pathOf('a.lnk')], 'copy')
+      expect(await w.svc.clipboardCut([pathOf('a.lnk')])).toEqual({ ok: true })
+      expect(w.writeClipboardFiles).toHaveBeenLastCalledWith([pathOf('a.lnk')], 'move')
+      // 写剪贴板不动摆位（剪切后文件仍在原地——摆位清除发生在粘贴移走或 trash 时）
+      expect(w.written).toHaveLength(0)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('clipboardCopy 失败：rejected 信封透传错误串，不动存储不落盘', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    await w.ctx.start()
+    try {
+      const pathA = w.svc.state().items.find((i) => i.name === 'a.lnk')!.path
+      w.writeClipboardFiles.mockResolvedValue('剪贴板打开失败（可能被其他程序占用）')
+      expect(await w.svc.clipboardCopy([pathA])).toEqual({
+        ok: false, error: '剪贴板打开失败（可能被其他程序占用）',
+      })
+      expect(w.written).toHaveLength(0)
+    } finally {
+      await w.ctx.stop()
+    }
+  })
+
+  it('clipboard 护栏：任一池外整份拒绝（不调依赖不写半份）；空名单拒绝', async () => {
+    const w = fakeWorld([entry('a.lnk')])
+    await w.ctx.start()
+    try {
+      const pathA = w.svc.state().items.find((i) => i.name === 'a.lnk')!.path
+      expect(await w.svc.clipboardCopy([pathA, 'C:\\Windows\\System32\\cmd.exe'])).toEqual({
+        ok: false, error: '桌面项不在当前扫描池内',
+      })
+      expect(await w.svc.clipboardCut([])).toEqual({ ok: false, error: '剪切名单为空' })
+      expect(await w.svc.clipboardCopy([])).toEqual({ ok: false, error: '复制名单为空' })
+      expect(w.writeClipboardFiles).not.toHaveBeenCalled()
       expect(w.written).toHaveLength(0)
     } finally {
       await w.ctx.stop()

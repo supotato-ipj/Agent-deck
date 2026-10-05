@@ -118,6 +118,12 @@ if (parentPort) {
           } else if (msg.method === 'desktop/rename') {
             const { name, to } = msg.payload as { name: string; to: string }
             result = await ctx.desktop.rename(name, to)
+          } else if (msg.method === 'desktop/clipboard-copy') {
+            const { paths } = msg.payload as { paths: string[] }
+            result = await ctx.desktop.clipboardCopy(paths)
+          } else if (msg.method === 'desktop/clipboard-cut') {
+            const { paths } = msg.payload as { paths: string[] }
+            result = await ctx.desktop.clipboardCut(paths)
           } else {
             throw new Error(`未知数据面方法: ${String(msg.method)}`)
           }

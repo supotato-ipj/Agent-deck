@@ -9,6 +9,7 @@ import { forgetItems, loadStore, moveItem, pinItem, renameItemInStore, resetFact
 import { fileNameError, renameTarget } from '../desktop/filename'
 import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
+import { koffiClipboardFilesWrite, type ClipboardEffect } from '../desktop/clipboard-files'
 import type { ScoreItem } from '../usage/score'
 import { defaultDesktopRoots, defaultListDir, electronIconExtractor, electronClipboardWrite, electronTrashItem, explorerReveal, fsEntryExists, fsRename, readStoreText, shellOpen, writeStoreText, defaultWatchDesktopRoots, electronShortcutTarget, fsFileExists } from '../desktop/adapter'
 import { userDataPath } from '../paths'
@@ -25,6 +26,9 @@ export interface DesktopDeps {
   copyText(text: string): void
   /** 回收站删除（工单27；生产 shell.trashItem——误删可找回）。'' 即成功，否则错误串（open 同语） */
   trash(filePath: string): Promise<string>
+  /** 系统文件剪贴板写（工单29 复制/剪切；生产 koffi 直调 user32——CF_HDROP + Preferred
+   * DropEffect，纯 native 在数据面子进程同样可用，无需主进程代理）。'' 即成功，否则错误串（open 同语） */
+  writeClipboardFiles(paths: readonly string[], effect: ClipboardEffect): Promise<string>
   /** 重命名（工单28；生产 fs.promises.rename，纯 Node API——数据面直接执行，无主进程代理）。'' 即成功，否则错误串（open 同语） */
   rename(oldPath: string, newPath: string): Promise<string>
   /** 条目存在性（工单28 重命名的重名冲突校验；文件与目录都算——fs.rename 落既有名会静默覆写，须显式挡下） */
@@ -91,6 +95,7 @@ export class DesktopService extends Service {
       reveal: options.deps?.reveal ?? explorerReveal,
       copyText: options.deps?.copyText ?? electronClipboardWrite,
       trash: options.deps?.trash ?? electronTrashItem,
+      writeClipboardFiles: options.deps?.writeClipboardFiles ?? koffiClipboardFilesWrite,
       rename: options.deps?.rename ?? fsRename,
       entryExists: options.deps?.entryExists ?? fsEntryExists,
       watch: options.deps?.watch ?? defaultWatchDesktopRoots,
@@ -164,8 +169,9 @@ export class DesktopService extends Service {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
-  /** 扫描池护栏共通段（launch/reveal/copyPath/copyPaths/trash，工单24 起共用、工单27 增至五份）：
-   * 路径不在当前池内即拒绝——拒绝任意路径执行/定位/落剪贴板/删除的同一道防线，错误语也同源。 */
+  /** 扫描池护栏共通段（launch/reveal/copyPath/copyPaths/trash + clipboardCopy/clipboardCut，
+   * 工单24 起共用、工单29 增至七处）：路径不在当前池内即拒绝——拒绝任意路径执行/定位/
+   * 落剪贴板/删除的同一道防线，错误语也同源。 */
   private poolGuardError(filePath: string): string | null {
     return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
   }
@@ -248,6 +254,32 @@ export class DesktopService extends Service {
     return failed.length
       ? { ok: false, trashed, failed, error: details.join('；') }
       : { ok: true, trashed, failed: [] }
+  }
+
+  /** 写系统文件剪贴板（工单29 单项/多选菜单【复制】【剪切】共用一道实现，两种 effect）：
+   * paths 全部在池内才执行（copyPaths 同款整份护栏，剪贴板不写半份名单），空名单拒绝。
+   * 整份绝对路径有序列表（序 = 名单序 = 选区插入序）+ effect（copy/move）交依赖束——
+   * CF_HDROP + Preferred DropEffect 单事务写入。剪切不成都不动摆位：写剪贴板只声明
+   * 意图，文件仍在原地（真桌面同款），摆位清除发生在粘贴移走或 trash 时。 */
+  async clipboardCopy(filePaths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.writeClipboardTo(filePaths, 'copy')
+  }
+
+  async clipboardCut(filePaths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.writeClipboardTo(filePaths, 'move')
+  }
+
+  private async writeClipboardTo(
+    filePaths: readonly string[],
+    effect: ClipboardEffect,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!filePaths.length) return { ok: false, error: effect === 'copy' ? '复制名单为空' : '剪切名单为空' }
+    for (const filePath of filePaths) {
+      const guard = this.poolGuardError(filePath)
+      if (guard) return { ok: false, error: guard }
+    }
+    const error = await this.deps.writeClipboardFiles(filePaths, effect)
+    return error ? { ok: false, error } : { ok: true }
   }
 
   /** 原地重命名（工单28 单项菜单【重命名】）：name 按名校验在池内（pin 同款护栏），

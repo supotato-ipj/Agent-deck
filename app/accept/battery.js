@@ -2232,7 +2232,8 @@ async function main() {
     })();
 
     // —— P5.10 工单24 单项菜单：右键单个桌面项弹动作菜单（打开/打开所在位置/复制路径，
-    // 工单25 起附手钉管理第 4 行——非手钉条目为 pin，见 P5.11 条件显隐用例）。
+    // 工单29 起附【复制】【剪切】文件级写向第 4/5 行、工单25 起附手钉管理、工单28 重命名、
+    // 工单27 删除）。
     // 弹/切裁决（非选中条目先切单选、选中集内条目走多选菜单）在离线测试（tests/renderer/
     // selection.spec.ts itemMenuPlan）；reveal/copy-path 的扫描池护栏在离线内核测试
     // （desktop service spec + 契约 spec）。这里留真机端到端代表用例（#19 三缝约定）：
@@ -2304,8 +2305,8 @@ async function main() {
         selA && sameNames24(selA.names, [probe24Name]) && selA.t <= sessA.opened.t
           ? rep.pass('右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单')
           : rep.fail(`右键切换选区存证异常：${JSON.stringify(selA)}`);
-        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'rename', 'delete']) && (sessA.opened.rows || []).length === 6
-          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，六行矩形随开层存证（第 4 行=钉到应用区，探针非手钉；第 5 行=重命名，工单28；第 6 行=删除，工单27）`)
+        sameNames24(sessA.opened.items, ['open', 'reveal', 'copy-path', 'copy', 'cut', 'pin', 'rename', 'delete']) && (sessA.opened.rows || []).length === 8
+          ? rep.pass(`单项菜单条目集=[${(sessA.opened.items || []).join(', ')}]，八行矩形随开层存证（第 4/5 行=复制/剪切文件级写向，工单29；第 6 行=钉到应用区，探针非手钉；第 7 行=重命名，工单28；第 8 行=删除，工单27）`)
           : rep.fail(`单项菜单开层条目集异常：${JSON.stringify({ items: sessA.opened.items, rows: sessA.opened.rows })}`);
         safeShot('24-item-menu-open', { left: rect24.left, top: rect24.top, right: rect24.right, bottom: rect24.bottom });
 
@@ -2558,12 +2559,13 @@ async function main() {
     })();
 
     // —— P5.12 工单26 多选菜单与右键选区语义：选区多于一条且右键命中选中集内条目时，
-    // 菜单作用于整个选区、条目集收敛为【打开全部 / 复制路径（多行）】；右键非选中条目
-    // 仍走单项菜单（先切单选）。弹/切裁决矩阵在离线测试（selection.spec.ts itemMenuPlan），
-    // 多行拼接与整份拒绝护栏在离线内核测试（desktop service spec + 契约 spec）。这里留
-    // 真机端到端代表用例（#19 三缝约定）：Ctrl 点选两条 → 右键集内条目弹两行动作菜单
-    // （无选区副作用）→ 打开全部逐项启动（存证按选区插入序 + 探针标记双落盘）→ 多选
-    // 复制路径剪贴板实读两行（\n 分隔、行序同选区）→ 右键集外条目仍单项菜单（#24 回归）。
+    // 菜单作用于整个选区、条目集收敛为【打开全部 / 复制路径（多行）/ 复制 / 剪切（工单29）/
+    // 删除全部（工单27）】；右键非选中条目仍走单项菜单（先切单选）。弹/切裁决矩阵在离线测试
+    // （selection.spec.ts itemMenuPlan），多行拼接与整份拒绝护栏在离线内核测试（desktop
+    // service spec + 契约 spec）。这里留真机端到端代表用例（#19 三缝约定）：Ctrl 点选两条 →
+    // 右键集内条目弹动作菜单（无选区副作用）→ 打开全部逐项启动（存证按选区插入序 + 探针
+    // 标记双落盘）→ 多选复制路径剪贴板实读两行（\n 分隔、行序同选区）→ 右键集外条目仍
+    // 单项菜单（#24 回归）。
     await (async () => {
       const rect26 = w32.rectOf(hwnd);
       const savedClip26 = clipboardGet();
@@ -2648,8 +2650,8 @@ async function main() {
           rep.fail('选中集内条目右键未弹多选菜单（desktop-menu-opened 未见）');
           return;
         }
-        sameNames26(sessA26.opened.items, ['open-all', 'copy-path', 'delete-all']) && (sessA26.opened.rows || []).length === 3
-          ? rep.pass(`右键选中集内条目弹多选菜单：条目集=[${(sessA26.opened.items || []).join(', ')}] 三行矩形随开层存证（菜单作用于整集；删除全部=工单27）`)
+        sameNames26(sessA26.opened.items, ['open-all', 'copy-path', 'copy', 'cut', 'delete-all']) && (sessA26.opened.rows || []).length === 5
+          ? rep.pass(`右键选中集内条目弹多选菜单：条目集=[${(sessA26.opened.items || []).join(', ')}] 五行矩形随开层存证（菜单作用于整集；复制/剪切=工单29，删除全部=工单27）`)
           : rep.fail(`多选菜单条目集异常：${JSON.stringify({ items: sessA26.opened.items, rows: sessA26.opened.rows })}`);
         const sideEffect26 = readEvents().find((e) => e.t >= sessA26.t0 && e.t <= sessA26.opened.t
           && (e.type === 'desktop-selected' || e.type === 'desktop-selection-toggled' || e.type === 'desktop-selection-cleared'));
@@ -2697,7 +2699,7 @@ async function main() {
           if (!sessC26) {
             rep.fail('多选复制路径用例开层失败（desktop-menu-opened 未见）');
           } else {
-            sameNames26(sessC26.opened.items, ['open-all', 'copy-path', 'delete-all']) || rep.fail(`复制路径用例开层条目集异常（选区应仍两条）：${JSON.stringify(sessC26.opened.items)}`);
+            sameNames26(sessC26.opened.items, ['open-all', 'copy-path', 'copy', 'cut', 'delete-all']) || rep.fail(`复制路径用例开层条目集异常（选区应仍两条）：${JSON.stringify(sessC26.opened.items)}`);
             const tC26 = clickRow26(sessC26.opened.rows, 'copy-path');
             if (!tC26) {
               rep.fail('多选复制路径用例开层存证缺 copy-path 行矩形');
@@ -2744,8 +2746,8 @@ async function main() {
             selD26 && selD26.t <= sessD26.opened.t
               ? rep.pass('右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）')
               : rep.fail(`集外右键切单选存证异常：${JSON.stringify(selD26)}`);
-            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'pin', 'rename', 'delete'])
-              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选三动作；第 5 行=重命名，工单28；第 6 行=删除，工单27）`)
+            sameNames26(sessD26.opened.items, ['open', 'reveal', 'copy-path', 'copy', 'cut', 'pin', 'rename', 'delete'])
+              ? rep.pass(`集外右键单项菜单条目集=[${(sessD26.opened.items || []).join(', ')}]（未收敛为多选动作；第 4/5 行=复制/剪切，工单29；第 7 行=重命名，工单28；第 8 行=删除，工单27）`)
               : rep.fail(`集外右键条目集异常：${JSON.stringify(sessD26.opened.items)}`);
             const outPt26 = { x: rect26.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rect26.top + Math.round(600 * f) };
             w32.clickPhys(outPt26.x, outPt26.y, 'left'); // 开层全窗热区承接：收菜单且吞没（无选区副作用）
@@ -3128,7 +3130,7 @@ async function main() {
             return;
           }
           (sessRen.opened.items || []).includes('rename')
-            ? rep.pass(`单项菜单含【重命名】行（条目集=[${(sessRen.opened.items || []).join(', ')}]，工单28 第六行）`)
+            ? rep.pass(`单项菜单含【重命名】行（条目集=[${(sessRen.opened.items || []).join(', ')}]，工单28 第七行）`)
             : rep.fail(`单项菜单缺 rename 行：${JSON.stringify(sessRen.opened.items)}`);
           const tRen = clickRow28(sessRen.opened.rows, 'rename');
           const started = tRen && await waitEvent('desktop-rename-started', (e) => e.t >= tRen && e.name === nameA28 && e.input && e.input.w > 0, 4000);
@@ -3233,6 +3235,214 @@ async function main() {
         }
         w32.moveMousePhys(safePt.x, safePt.y);
       }
+    })();
+
+    // —— P5.15 工单29 复制与剪切（系统文件剪贴板写向）：单项菜单【复制】【剪切】与多选
+    // 菜单整集写向（desktop/clipboard-copy / desktop/clipboard-cut 一道契约两处入口）。
+    // 写入格式 CF_HDROP + Preferred DropEffect（copy=1 / move=2）的单事务字节布局在离线
+    // 测试直测（clipboard-files spec；真机探针差分实证 DragQueryFile 与 Get-Clipboard
+    // -Format FileDropList 双读通过）；池护栏 / 空名单 / 失败信封在契约与 fakeWorld spec
+    // 穷举。这里留真机端到端代表用例（#19 三缝约定）：
+    // a. 单项复制：右键 → COPY → desktop-copy-clicked/-copied 存证 + 剪贴板实读
+    //    FileDropList 含该文件 + Preferred DropEffect=1（资源管理器粘贴得副本）
+    // b. 单项剪切：CUT → desktop-cut-clicked/-cut 存证 + FileDropList 含该文件 +
+    //    DropEffect=2（粘贴为搬移）；写剪贴板不动盘面（文件仍在原地，真桌面同款）
+    // c. 多选复制：Ctrl 补选两条 → COPY → clicked 名单序整集 + FileDropList 两条按序俱全
+    // （PS 通道当日可能不稳——文件表读空重试一轮，仍空则如实标注环境因素，不静默放行）
+    await (async () => {
+      const rect29 = w32.rectOf(hwnd);
+      const savedClip29 = clipboardGet();
+      const sameNames29 = (a, b) => (a || []).join() === b.join();
+      let probeS29Path = null;
+      let multiA29Path = null;
+      let multiB29Path = null;
+      try {
+        // 夹具：三条真桌面探针文件（复制/剪切只读盘面，探针全程留在盘上，finally 清理）
+        const t29 = Date.now();
+        const single29Name = `DECK29-SINGLE-${t29}.txt`;
+        const multiA29 = `DECK29-MULTI-${t29}-A.txt`;
+        const multiB29 = `DECK29-MULTI-${t29}-B.txt`;
+        probeS29Path = path.join(seedScan.user, single29Name);
+        multiA29Path = path.join(seedScan.user, multiA29);
+        multiB29Path = path.join(seedScan.user, multiB29);
+        fs.writeFileSync(probeS29Path, 'probe');
+        fs.writeFileSync(multiA29Path, 'probe');
+        fs.writeFileSync(multiB29Path, 'probe');
+        const joined29 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(single29Name)
+          && (e.names || []).includes(multiA29) && (e.names || []).includes(multiB29), 8000);
+        joined29 || rep.fail(`复制剪切用例探针未入池（${single29Name}/${multiA29}/${multiB29}）`);
+        const settled29 = await waitStable('desktop-rendered', 1500, 8000);
+        const rects29 = settled29 && (settled29.rects || []);
+        const rS29 = rects29.find((r) => r.name === single29Name && r.rect);
+        const rA29 = rects29.find((r) => r.name === multiA29 && r.rect);
+        const rB29 = rects29.find((r) => r.name === multiB29 && r.rect);
+        if (!rS29 || !rA29 || !rB29) {
+          rep.fail(`复制剪切用例几何前置缺失：S=${JSON.stringify(rS29 && rS29.rect)} A=${JSON.stringify(rA29 && rA29.rect)} B=${JSON.stringify(rB29 && rB29.rect)}`);
+          return;
+        }
+        const ptOf29 = (r) => ({ x: rect29.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect29.top + Math.round((r.rect.y + r.rect.h / 2) * f) });
+        // 右键/行点击/Ctrl 补选原语（P5.13 同款；钮矩形来自开层存证）
+        const rightClick29 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const t0 = Date.now();
+          w32.clickPhys(pt.x, pt.y, 'right');
+          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          return opened ? { t0, opened } : null;
+        };
+        const clickRow29 = (rows, id) => {
+          const row = (rows || []).find((r) => r.id === id);
+          if (!row) return null;
+          const pt = { x: rect29.left + Math.round((row.x + row.w / 2) * f), y: rect29.top + Math.round((row.y + row.h / 2) * f) };
+          w32.clickPhys(pt.x, pt.y, 'left');
+          return Date.now();
+        };
+        const ctrlClick29 = async (pt, label) => {
+          const hit = await ensurePanelHit(pt, hwnd);
+          if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return false; }
+          w32.send([w32.keyInput(VK_CONTROL, w32.KEYDOWN)]);
+          await sleep(60);
+          w32.clickPhys(pt.x, pt.y, 'left');
+          await sleep(60);
+          w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
+          return true;
+        };
+        // 文件剪贴板实读（PS 通道，P5.12 单进程内轮询同法）：FileDropList 全路径名单 +
+        // Preferred DropEffect 4 字节 DWORD。读空重试一轮（历史「剪贴板空读」环境败同法），
+        // 仍空如实返回 null，由调用方在失败信息里标注环境因素。
+        const fileDropList29 = async (minCount, timeoutMs = 12000) => {
+          const scriptFile = path.join(__dirname, 'evidence', '29-filedroplist-wait.ps1');
+          fs.writeFileSync(scriptFile, [
+            '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8',
+            'Add-Type -AssemblyName System.Windows.Forms',
+            '$deadline = (Get-Date).AddSeconds(11)',
+            '$names = @()',
+            '$eff = -1',
+            'while ((Get-Date) -lt $deadline) {',
+            '  $fl = Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue',
+            '  if ($fl -and $fl.Count -ge $args[0]) {',
+            '    $names = @($fl | ForEach-Object { $_.FullName })',
+            '    $d = [System.Windows.Forms.Clipboard]::GetDataObject()',
+            '    if ($d -and $d.GetDataPresent(\'Preferred DropEffect\')) {',
+            '      $ms = $d.GetData(\'Preferred DropEffect\')',
+            '      $b = New-Object byte[] 4',
+            '      [void]$ms.Read($b, 0, 4)',
+            '      $eff = [BitConverter]::ToUInt32($b, 0)',
+            '    }',
+            '    break',
+            '  }',
+            '  Start-Sleep -Milliseconds 400',
+            '}',
+            '[pscustomobject]@{ names = $names; effect = $eff } | ConvertTo-Json -Compress',
+          ].join('\n'), 'utf8');
+          const attempt = () => {
+            try {
+              const res = JSON.parse(psRunFile([scriptFile, String(minCount)], 35000));
+              return res && Array.isArray(res.names) && res.names.length >= minCount
+                ? { names: res.names, effect: res.effect }
+                : null;
+            } catch { return null; } // PS 冷启/超时：按空读处理
+          };
+          try {
+            const first = await attempt();
+            if (first) return first;
+            await sleep(600);
+            return await attempt(); // 重试一轮
+          } finally {
+            try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+          }
+        };
+
+        // a. 单项复制：desktop-copy-clicked/-copied 存证 + FileDropList 实读 + effect=1
+        {
+          const sessA29 = await rightClick29(ptOf29(rS29), '单项复制-右键');
+          if (!sessA29) {
+            rep.fail('单项复制右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          (sessA29.opened.items || []).includes('copy') || rep.fail(`单项菜单缺 copy 行：${JSON.stringify(sessA29.opened.items)}`);
+          const tCopy = clickRow29(sessA29.opened.rows, 'copy');
+          if (!tCopy) {
+            rep.fail('单项复制用例开层存证缺 copy 行矩形');
+            return;
+          }
+          const clickedA = await waitEvent('desktop-copy-clicked', (e) => e.t >= tCopy && sameNames29(e.names, [single29Name]) && e.via === 'ctx-menu', 4000);
+          const copiedA = await waitEvent('desktop-copied', (e) => e.t >= tCopy && e.ok === true && sameNames29(e.names, [single29Name]), 8000);
+          const clipA = (clickedA && copiedA) ? await fileDropList29(1) : null;
+          const effOkA = !!clipA && clipA.effect === 1;
+          const diskOkA = fs.existsSync(probeS29Path); // 复制不动盘面
+          clickedA && copiedA && clipA && sameNames29(clipA.names, [probeS29Path]) && effOkA && diskOkA
+            ? rep.pass('单项复制动作（desktop/clipboard-copy）：ok=true 存证 + 剪贴板实读 FileDropList=[探针全路径] + Preferred DropEffect=1（资源管理器粘贴得副本）')
+            : rep.fail(`单项复制存证异常：clicked=${JSON.stringify(clickedA)} copied=${JSON.stringify(copiedA)} 剪贴板=${JSON.stringify(clipA)} effect=${clipA ? clipA.effect : '-'}（names 空 = PS 通道空读环境败，重试后仍未命中）disk=${diskOkA}`);
+          safeShot('29-single-copied');
+        }
+
+        // b. 单项剪切：desktop-cut-clicked/-cut 存证 + FileDropList + effect=2；文件仍在盘上
+        {
+          const sessB29 = await rightClick29(ptOf29(rS29), '单项剪切-右键');
+          if (!sessB29) {
+            rep.fail('单项剪切右键未弹单项菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          (sessB29.opened.items || []).includes('cut') || rep.fail(`单项菜单缺 cut 行：${JSON.stringify(sessB29.opened.items)}`);
+          const tCut = clickRow29(sessB29.opened.rows, 'cut');
+          if (!tCut) {
+            rep.fail('单项剪切用例开层存证缺 cut 行矩形');
+            return;
+          }
+          const clickedB = await waitEvent('desktop-cut-clicked', (e) => e.t >= tCut && sameNames29(e.names, [single29Name]) && e.via === 'ctx-menu', 4000);
+          const cutB = await waitEvent('desktop-cut', (e) => e.t >= tCut && e.ok === true && sameNames29(e.names, [single29Name]), 8000);
+          const clipB = (clickedB && cutB) ? await fileDropList29(1) : null;
+          const effOkB = !!clipB && clipB.effect === 2;
+          const diskOkB = fs.existsSync(probeS29Path); // 剪切语义：写剪贴板不动盘面
+          clickedB && cutB && clipB && sameNames29(clipB.names, [probeS29Path]) && effOkB && diskOkB
+            ? rep.pass('单项剪切动作（desktop/clipboard-cut）：ok=true 存证 + 剪贴板实读 FileDropList=[探针全路径] + Preferred DropEffect=2（粘贴为搬移）+ 文件仍在盘上')
+            : rep.fail(`单项剪切存证异常：clicked=${JSON.stringify(clickedB)} cut=${JSON.stringify(cutB)} 剪贴板=${JSON.stringify(clipB)} effect=${clipB ? clipB.effect : '-'}（effect≠2 = 搬移语义存疑）disk=${diskOkB}`);
+          safeShot('29-single-cut');
+        }
+
+        // c. 多选复制：Ctrl 补选两条 → 右键集内 → COPY → 整集进剪贴板（名单序）
+        {
+          const okSelA29 = await ensurePanelHit(ptOf29(rA29), hwnd);
+          if (!okSelA29.ok) { rep.fail(`多选复制选区前置失败：${okSelA29.why}`); return; }
+          const tSel29 = Date.now();
+          w32.clickPhys(ptOf29(rA29).x, ptOf29(rA29).y, 'left');
+          const selA29 = await waitEvent('desktop-selected', (e) => e.t >= tSel29 && e.name === multiA29, 4000);
+          const okCtrl29 = selA29 && await ctrlClick29(ptOf29(rB29), '多选复制-Ctrl 补选');
+          const two29 = okCtrl29 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSel29 && e.selected === true && sameNames29(e.names, [multiA29, multiB29]), 4000);
+          if (!two29) {
+            rep.fail('多选复制用例前置（选中集两条）未达成');
+            return;
+          }
+          const sessC29 = await rightClick29(ptOf29(rA29), '多选复制-集内右键');
+          if (!sessC29) {
+            rep.fail('多选复制集内右键未弹多选菜单（desktop-menu-opened 未见）');
+            return;
+          }
+          (sessC29.opened.items || []).includes('copy') || rep.fail(`多选菜单缺 copy 行：${JSON.stringify(sessC29.opened.items)}`);
+          const tCopyAll = clickRow29(sessC29.opened.rows, 'copy');
+          if (!tCopyAll) {
+            rep.fail('多选复制用例开层存证缺 copy 行矩形');
+            return;
+          }
+          const clickedC = await waitEvent('desktop-copy-clicked', (e) => e.t >= tCopyAll && sameNames29(e.names, [multiA29, multiB29]) && e.count === 2 && e.via === 'ctx-menu', 4000);
+          const copiedC = await waitEvent('desktop-copied', (e) => e.t >= tCopyAll && e.ok === true && sameNames29(e.names, [multiA29, multiB29]), 8000);
+          const clipC = (clickedC && copiedC) ? await fileDropList29(2) : null;
+          const diskOkC = fs.existsSync(multiA29Path) && fs.existsSync(multiB29Path);
+          clickedC && copiedC && clipC && sameNames29(clipC.names, [multiA29Path, multiB29Path]) && diskOkC
+            ? rep.pass('多选复制整集动作：clicked/copied 按选区插入序 [A, B] + 剪贴板实读 FileDropList 两条按序俱全（AC「多选整集进剪贴板」）')
+            : rep.fail(`多选复制存证异常：clicked=${JSON.stringify(clickedC)} copied=${JSON.stringify(copiedC)} 剪贴板=${JSON.stringify(clipC)}（两条不齐 = 整集写向或 PS 空读，见 effect 字段佐证）disk=${diskOkC}`);
+          safeShot('29-multi-copied');
+          // 清场：Ctrl 点回 A 切换出选（电池余段回到无选区现场）
+          await ctrlClick29(ptOf29(rA29), '多选复制-清场');
+        }
+      } finally {
+        for (const p of [probeS29Path, multiA29Path, multiB29Path]) {
+          try { if (p && fs.existsSync(p)) fs.unlinkSync(p); } catch { /* 尽力清理 */ }
+        }
+        clipboardSet(savedClip29); // 电池不得改变用户剪贴板内容（07 搜索段同法）
+      }
+      w32.moveMousePhys(safePt.x, safePt.y);
     })();
 
     // —— P7S 工单07 搜索并入：accept_search 电池适配（scripts/accept_search.py 随 Tk 窗退役）——

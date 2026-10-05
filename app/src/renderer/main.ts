@@ -73,8 +73,8 @@ let calendarMonth = -1
 // （desktop/unpin）、非手钉见【钉到应用区】（desktop/pin）——改摆位存储的手钉
 // 清单并即时重编排，文档类条目取消后按归类+显式摆位裁决回文档区。
 // 工单26 起右键命中选中集内条目（选区多于一条）弹多选菜单：条目集收敛为
-// 【打开全部 / 复制路径（多行 \n）/ 删除全部】（工单27 补入删除全部），动作作用于
-// 整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
+// 【打开全部 / 复制路径（多行 \n）/ 删除全部】（工单27 补入删除全部、工单29 补入
+// 复制/剪切文件级写向），动作作用于整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
 // 工单27 起条目删除进回收站（desktop/trash）：单项【删除】直接执行，多选【删除全部】
 // 先弹自绘轻量确认（列出条数、确认/取消，点外部/Esc=取消）；删除成功条目由内核同拍
 // 清除摆位（防同名复活莫名归位）；权限/占用失败 ok=false 存证 + 瞬态提示条（#trash-notice）。
@@ -625,24 +625,27 @@ for (const type of ['click', 'contextmenu'] as const) {
   }, { capture: true })
 }
 
-// ---- 单项菜单（工单24，GLOSSARY.md「上下文菜单」）：右键单个桌面项的三动作条目集，
+// ---- 单项菜单（工单24，GLOSSARY.md「上下文菜单」）：右键单个桌面项的动作条目集，
 // 触发在 buildItem 的条目 contextmenu 监听里（弹/切裁决 = selection.itemMenuPlan）；
-// 收起与吞没共用工单23 的面板裁决（开层全窗热区、菜单外一击即收）。三个动作都走
+// 收起与吞没共用工单23 的面板裁决（开层全窗热区、菜单外一击即收）。动作都走
 // 内核契约：打开=双击同款 desktop/launch（via 标 ctx-menu）；打开所在位置=desktop/reveal
 // （explorer /select, 内核执行，搜索 reveal 同机制）；复制路径=desktop/copy-path——
 // 主进程剪贴板写，面板永不激活（focusable:false），渲染层 navigator.clipboard 因文档
 // 无焦点不可用。路径校验（扫描池护栏）在内核，与 launch 同款。
 
 /** 单项动作条目集（contributor 注册位形状，同工单23 分区空白内置两项）：三动作之外，
- * 第 4 行按目标条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见
- * 【钉到应用区】；手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
- * 第 5 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）。
- * 第 6 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
+ * 第 4/5 行【复制】【剪切】（工单29，文件级剪贴板写向，COPY PATH 之后）、第 6 行按目标
+ * 条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见【钉到应用区】；
+ * 手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
+ * 第 7 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）。
+ * 第 8 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
     { id: 'reveal', label: 'OPEN LOCATION', run: () => revealItem(item) },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPath(item) },
+    { id: 'copy', label: 'COPY', run: () => copyItemFiles([item.name]) },
+    { id: 'cut', label: 'CUT', run: () => cutItemFiles([item.name]) },
     pinnedNames.has(item.name)
       ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
       : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
@@ -702,11 +705,14 @@ function unpinItemToStore(item: DesktopItem): void {
 
 /** 多选动作条目集（contributor 注册位形状，同工单23/24）：打开全部 = 双击全开同款
  * 整集逐项经 desktop/launch（launchNames，via 标 ctx-menu，逐项存证）；复制路径 =
- * desktop/copy-paths 整集多行；删除全部 = 先弹自绘确认再整集 desktop/trash（工单27）。 */
+ * desktop/copy-paths 整集多行；复制/剪切 = desktop/clipboard-copy/cut 整集进系统文件
+ * 剪贴板（工单29）；删除全部 = 先弹自绘确认再整集 desktop/trash（工单27）。 */
 function multiItemMenuItems(names: readonly string[]): DeckCtxMenuItem[] {
   return [
     { id: 'open-all', label: 'OPEN ALL', run: () => launchNames(names, 'ctx-menu') },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPaths(names) },
+    { id: 'copy', label: 'COPY', run: () => copyItemFiles(names) },
+    { id: 'cut', label: 'CUT', run: () => cutItemFiles(names) },
     { id: 'delete-all', label: 'DELETE ALL', run: () => openTrashConfirm(names) },
   ]
 }
@@ -728,6 +734,56 @@ function copyItemPaths(names: readonly string[]): void {
       names: [...names], ok: r.ok, error: r.error ?? null,
     }),
     (err: unknown) => notify('desktop-paths-copy-failed', { names: [...names], message: String(err) }),
+  )
+}
+
+// ---- 复制与剪切（工单29，GLOSSARY.md「上下文菜单」二期条目）：单项【复制】【剪切】与
+// 多选菜单共用两个闭包（单项传单元素名单），desktop/clipboard-copy / desktop/clipboard-cut
+// 一道契约两处入口。内核侧：整份池护栏、CF_HDROP + Preferred DropEffect 单事务写入
+// （copy=1 / move=2）；写剪贴板不动摆位不删文件（剪切后条目仍在原地，真桌面同款）。
+// 存证族 desktop-copy-* / desktop-cut-*（clicked/copied|cut/rejected/failed 三分名，
+// trash/pin 惯例），电池按名断言。
+
+/** 复制（文件级，工单29）：名单路径经 itemByName 解析（copyItemPaths 同款）——渲染层
+ * 快照落后于内核池时整份拒绝。结果分名存证，失败上浮提示条。 */
+function copyItemFiles(names: readonly string[]): void {
+  const resolved = names.map((name) => itemByName.get(name)?.path)
+  if (resolved.some((p) => !p)) {
+    notify('desktop-copy-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
+    showNotice('桌面项不在当前扫描池内')
+    return
+  }
+  const paths = resolved as string[]
+  notify('desktop-copy-clicked', { names: [...names], count: names.length, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/clipboard-copy', { paths }).then(
+    (r) => {
+      notify(r.ok ? 'desktop-copied' : 'desktop-copy-rejected', {
+        names: [...names], ok: r.ok, error: r.error ?? null,
+      })
+      if (!r.ok) showNotice(r.error ?? '复制失败')
+    },
+    (err: unknown) => notify('desktop-copy-failed', { names: [...names], message: String(err) }),
+  )
+}
+
+/** 剪切（工单29）：与复制同一道实现、effect=move（粘贴为搬移）。分名 desktop-cut-*。 */
+function cutItemFiles(names: readonly string[]): void {
+  const resolved = names.map((name) => itemByName.get(name)?.path)
+  if (resolved.some((p) => !p)) {
+    notify('desktop-cut-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
+    showNotice('桌面项不在当前扫描池内')
+    return
+  }
+  const paths = resolved as string[]
+  notify('desktop-cut-clicked', { names: [...names], count: names.length, via: 'ctx-menu' })
+  void window.deck.bridge.invoke('desktop/clipboard-cut', { paths }).then(
+    (r) => {
+      notify(r.ok ? 'desktop-cut' : 'desktop-cut-rejected', {
+        names: [...names], ok: r.ok, error: r.error ?? null,
+      })
+      if (!r.ok) showNotice(r.error ?? '剪切失败')
+    },
+    (err: unknown) => notify('desktop-cut-failed', { names: [...names], message: String(err) }),
   )
 }
 
