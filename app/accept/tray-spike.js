@@ -16,6 +16,7 @@ const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 
 const APP_ROOT = path.resolve(__dirname, '..');
+const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '48-runtime-events.jsonl');
 const CORPUS_FILE = path.join(__dirname, 'evidence', '48-tray-corpus.jsonl');
 const AMBER = [245, 166, 35]; // 面板托盘图标识别色（tray.ts #f5a623）
@@ -23,6 +24,11 @@ const SPIKE_TITLE = 'TRAY-SPIKE-ACCEPT';
 const PROBE_UID = 0xd3c44801;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 原生任务栏兜底还原（工单50：spike 面板若建条带会隐藏原生任务栏；本电池以
+// taskbar.enabled=false 运行，清场仍做视图事实核验，不给用户留隐藏态；
+// 判据共用 accept/lib/win32.js 导出，四电池单点维护）
+const { ensureNativeTaskbarVisible } = win32;
 
 function capture(rect, name) {
   const out = path.join(__dirname, 'evidence', name + '.png');
@@ -153,6 +159,17 @@ async function main() {
   const rep = new Report('48-tray-spike');
   try { fs.unlinkSync(EVENTS_FILE); } catch { /* 首次不存在 */ }
   try { fs.unlinkSync(CORPUS_FILE); } catch { /* 首次不存在 */ }
+
+  // 工单50：任务栏插件默认开启会建条带并隐藏原生任务栏——本电池的 P1 投递竞争 /
+  // P4 改道证据都要对着「可见的现役真托盘」取证，全程以 taskbar.enabled=false 运行
+  // （显隐链路归 49/50 专电池），清场还原原文。
+  const configBackup = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+  {
+    const cfg = configBackup ? JSON.parse(configBackup) : {};
+    cfg.taskbar = { ...(cfg.taskbar ?? {}), enabled: false };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+    rep.note('已临时置 taskbar.enabled=false（托盘 spike 需现役真托盘在场，清场还原）');
+  }
 
   // 互斥侦察基线：真托盘属主应为 explorer（RetroBar/Seelen/Zebar 在场则本验收不可判）
   const trayBase = realTrayHwnd();
@@ -315,6 +332,13 @@ async function main() {
     rep.fail(`验收异常中断：${err && err.message}`);
     await cleanup();
   }
+
+  // 工单50 清场：还原 config + 原生任务栏视图事实核验（电池不得留隐藏态）
+  try {
+    if (configBackup === null) { try { fs.unlinkSync(CONFIG_FILE); } catch { /* 尽力 */ } }
+    else { fs.writeFileSync(CONFIG_FILE, configBackup); }
+  } catch { /* 尽力 */ }
+  ensureNativeTaskbarVisible();
 
   const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
   app.exit(v.fails === 0 ? 0 : 1);

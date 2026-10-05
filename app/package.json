@@ -12,6 +12,7 @@
     "accept": "npm run build && electron . --accept",
     "accept:tray": "npm run build && electron . --accept-tray",
     "accept:taskbar": "npm run build && electron . --accept-taskbar",
+    "accept:taskbar-carry": "npm run build && electron . --accept-taskbar-carry",
     "dev:panel": "npm run build && electron . --panel"
   },
   "dependencies": {
