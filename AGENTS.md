@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓库产出 **AGENT DECK 独立面板**：常驻桌面的 Electron 应用，以卡片网格与底部 dock 呈现五工具会话与硬件指标，并自绘承载桌面项。架构决策见 `docs/adr/0004-electron-cordis-standalone-panel.md`，领域词汇见 `CONTEXT.md`。Python 数据服务、看门狗与 WE 壁纸链已于 2026-09-29 退役（工单11），壁纸资产只读封存于 `archive/`。
+本仓库产出 **AGENT DECK 独立面板**：常驻桌面的 Electron 应用，以卡片网格与底部 dock 呈现五工具会话与硬件指标，并自绘承载桌面项。架构决策见 `docs/adr/0004-electron-cordis-standalone-panel.md`，领域词汇见 `GLOSSARY.md`。Python 数据服务、看门狗与 WE 壁纸链已于 2026-09-29 退役（工单11），壁纸资产只读封存于 `archive/`。
 
 ## 分支与 Worktree 布局（平行开发）
 
@@ -41,7 +41,7 @@ Issues 在 GitHub Issues，经 `gh` CLI 操作；认领 = assign（`gh issue edi
 
 ### Domain docs
 
-单上下文布局：根目录 `CONTEXT.md` + `docs/adr/`（按需惰性创建）。See `docs/agents/domain.md`.
+单上下文布局：根目录 `GLOSSARY.md` + `docs/adr/`（按需惰性创建）。See `docs/agents/domain.md`.
 
 <!-- OPENWIKI:START -->
 

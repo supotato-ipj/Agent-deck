@@ -417,7 +417,7 @@ function endDrag(): void {
   setTimeout(() => { dragState.suppressed = false }, 0)
 }
 
-// ---- 框选（工单21，CONTEXT.md「框选」）：从分区热区内的空白起笔拖出半透明矩形，
+// ---- 框选（工单21，GLOSSARY.md「框选」）：从分区热区内的空白起笔拖出半透明矩形，
 // 凡与矩形相交的桌面项即时高亮；松手普通=替换选区、Ctrl=并集（迁移入 selection.ts
 // 状态机，本文件只消费输出）。与拖拽摆位共用起笔阈值：阈值内松手就是普通空白单击
 // （清空语义走既有 click 冒泡，suppressed 不置位）；越过阈值后声明全窗热区续接指针流
@@ -508,7 +508,7 @@ function resetMarquee(): void {
 }
 
 // ---- 分区空白清空选区（工单20）+ 框选起笔（工单21）：条目之外的分区容器面单击即清空
-// （CONTEXT.md「选区」）；同一起笔面按住拖动即框选。条目自身的点击会冒泡上来，按
+// （GLOSSARY.md「选区」）；同一起笔面按住拖动即框选。条目自身的点击会冒泡上来，按
 // closest 滤掉（各走各的语义）；分区热区只覆盖条目包围盒+边距，热区之外的空白本来
 // 就不进面板（透传真桌面，不到这里）。
 
@@ -576,7 +576,7 @@ for (const zone of [dockZone, docZone]) {
   })
 }
 
-// ---- 上下文菜单（工单23，CONTEXT.md 词条）：shell 是 cordis 插件（cards/context-menu，
+// ---- 上下文菜单（工单23，GLOSSARY.md 词条）：shell 是 cordis 插件（cards/context-menu，
 // 卸载即摘 window.deckCtxMenu，这里的触发与收起全部 ?. 空转 = 热插拔自动生效）。
 // 触发在上面的分区监听里；收起裁决在面板：开层期间的任何菜单外按下（含热区外全窗
 // 范围——全窗热区承接）在捕获段拦下，尾随 click/contextmenu 由 suppressed 捕获段
@@ -625,7 +625,7 @@ for (const type of ['click', 'contextmenu'] as const) {
   }, { capture: true })
 }
 
-// ---- 单项菜单（工单24，CONTEXT.md「上下文菜单」）：右键单个桌面项的三动作条目集，
+// ---- 单项菜单（工单24，GLOSSARY.md「上下文菜单」）：右键单个桌面项的三动作条目集，
 // 触发在 buildItem 的条目 contextmenu 监听里（弹/切裁决 = selection.itemMenuPlan）；
 // 收起与吞没共用工单23 的面板裁决（开层全窗热区、菜单外一击即收）。三个动作都走
 // 内核契约：打开=双击同款 desktop/launch（via 标 ctx-menu）；打开所在位置=desktop/reveal
@@ -731,7 +731,7 @@ function copyItemPaths(names: readonly string[]): void {
   )
 }
 
-// ---- 删除与删除全部（工单27，CONTEXT.md「上下文菜单」二期条目）：desktop/trash 一道
+// ---- 删除与删除全部（工单27，GLOSSARY.md「上下文菜单」二期条目）：desktop/trash 一道
 // 契约两处入口——单项【删除】直接执行（真桌面单删同语义，回收站兜底误删），多选
 // 【删除全部】先弹自绘轻量确认（列出条数，确认/取消）。内核侧：整份池护栏、逐项送
 // 回收站、成功条目同拍清除摆位；权限/占用失败 ok=false 存证（desktop-trash-rejected）
@@ -851,7 +851,7 @@ function showNotice(message: string): void {
   }, 6000)
 }
 
-// ---- 原地重命名（工单28，CONTEXT.md「上下文菜单」二期条目）：单项菜单【重命名】→
+// ---- 原地重命名（工单28，GLOSSARY.md「上下文菜单」二期条目）：单项菜单【重命名】→
 // 条目标签原地变输入框（预填显示名、预选主名段——真桌面肌肉记忆），Enter/失焦确认、
 // Esc 取消。编辑期间临时取得键盘焦点（trash 确认层同款 keyboard-mode 通道，面板永不
 // 激活的前提下输入框才收得到键）；确认走 desktop/rename 契约（池护栏、文件名合法性、
@@ -1265,7 +1265,7 @@ window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
 // 逃生开关状态回推（工单50）：他端切换（如条带侧动作、插件卸载终态帧）即时对齐勾选态
 window.deck.bridge.on('taskbar/changed', (s) => applyTaskbarEnabled(s.enabled))
 
-// ---- 搜索面板（工单07，CONTEXT.md「搜索面板」三态）----
+// ---- 搜索面板（工单07，GLOSSARY.md「搜索面板」三态）----
 // 待机（SEARCH 头 + CLICK TO SEARCH_ 提示）/ 活动（原生输入框 + 实时结果）/ 引擎离线
 // （ENGINE OFFLINE 徽标）。引擎链路全在内核：这里只喂词（search/query，每次 input 事件
 // 一发，内核防抖 ~200ms 后直连 Listary），结果/离线经事件回推；↑/↓ 选择、Enter 打开、

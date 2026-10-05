@@ -65,7 +65,7 @@ export type DesktopItemKind = 'shortcut' | 'url' | 'file' | 'folder'
 /** 桌面项分区：应用区（底部 dock）/ 文档区 */
 export type DesktopZone = 'app' | 'doc'
 
-/** 桌面项（CONTEXT.md 词汇：被面板承载并渲染的桌面文件或快捷方式） */
+/** 桌面项（GLOSSARY.md 词汇：被面板承载并渲染的桌面文件或快捷方式） */
 export interface DesktopItem {
   /** 文件名（含扩展名，合并去重键） */
   name: string
@@ -134,7 +134,7 @@ export interface SettingsState {
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
 export type FocusAction = 'focused' | 'launched' | 'degraded'
 
-/** 任务栏系统动作（工单49，CONTEXT.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
+/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
 export type TaskbarSystemAction = 'start-menu' | 'task-view'
 
 /** 任务栏状态（工单49 tracer bullet）：enabled=false 时主进程销毁任务栏窗口 */
@@ -219,7 +219,7 @@ export interface SearchResultItem {
   score: number
 }
 
-/** 搜索面板派生态（CONTEXT.md 三态词汇）：待机 / 活动 / 引擎离线（活动态的降级显示） */
+/** 搜索面板派生态（GLOSSARY.md 三态词汇）：待机 / 活动 / 引擎离线（活动态的降级显示） */
 export type SearchUiState = 'idle' | 'active' | 'offline'
 
 /** 内核桥接方法表：method → [请求体, 响应体] */
