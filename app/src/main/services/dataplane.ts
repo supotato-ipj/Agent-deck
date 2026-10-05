@@ -229,6 +229,17 @@ export class DataplaneService extends Service implements PanelDataPort {
     return Promise.resolve({ ok: true })
   }
 
+  /** 写系统文件剪贴板（工单29 复制/剪切）：RPC 转发数据面子进程——池护栏在子进程
+   * （扫描权威池，trash/rename 同位）；写入本身是 koffi 直调 user32 的纯 native 调用，
+   * 数据面子进程可执行（fileAttributes 同法），无需 trash 的主进程反向代理。 */
+  clipboardCopy(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.call('desktop/clipboard-copy', { paths }) as Promise<{ ok: boolean; error?: string }>
+  }
+
+  clipboardCut(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.call('desktop/clipboard-cut', { paths }) as Promise<{ ok: boolean; error?: string }>
+  }
+
   /** 删除进回收站（工单27）：RPC 转发数据面子进程——池护栏与摆位清除在子进程（存储
    * 归属地，护栏认扫描权威池而非主进程快照），回收站源经 trash-req/trash-res 反向代理。 */
   trash(paths: readonly string[]): Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }> {

@@ -71,6 +71,14 @@ export class BridgeService extends Service {
         const { paths } = payload as { paths: string[] }
         return await this.ctx.panelData.copyPaths((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
       }
+      case 'desktop/clipboard-copy': {
+        const { paths } = payload as { paths: string[] }
+        return await this.ctx.panelData.clipboardCopy((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
+      }
+      case 'desktop/clipboard-cut': {
+        const { paths } = payload as { paths: string[] }
+        return await this.ctx.panelData.clipboardCut((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']
+      }
       case 'desktop/trash': {
         const { paths } = payload as { paths: string[] }
         return await this.ctx.panelData.trash((Array.isArray(paths) ? paths : []).map(String)) as BridgeMethods[M]['response']

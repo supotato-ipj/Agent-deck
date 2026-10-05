@@ -29,8 +29,8 @@ export interface DataplaneInit {
 }
 
 /** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除、
- * 工单28 起含重命名、工单30 起含粘贴与可贴态查询；读路径走每拍快照） */
-export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash' | 'desktop/rename' | 'desktop/paste' | 'desktop/clipboard-state'
+ * 工单28 起含重命名、工单29 起含文件剪贴板写、工单30 起含粘贴与可贴态查询；读路径走每拍快照） */
+export type DataplaneMethod = 'desktop/move' | 'desktop/move-batch' | 'desktop/pin' | 'desktop/unpin' | 'desktop/reset-layout' | 'desktop/trash' | 'desktop/rename' | 'desktop/clipboard-copy' | 'desktop/clipboard-cut' | 'desktop/paste' | 'desktop/clipboard-state'
 
 /** 主进程 ⇄ 数据面子进程消息 */
 export type DataplaneMessage =

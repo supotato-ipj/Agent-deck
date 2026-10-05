@@ -24,6 +24,10 @@ export interface PanelDataPort {
   copyPath(path: string): Promise<{ ok: boolean; error?: string }>
   /** 复制多条完整路径进文本剪贴板，多行 \n 分隔（工单26 多选菜单） */
   copyPaths(paths: readonly string[]): Promise<{ ok: boolean; error?: string }>
+  /** 选中项写入系统文件剪贴板，copy 语义（工单29；CF_HDROP + Preferred DropEffect） */
+  clipboardCopy(paths: readonly string[]): Promise<{ ok: boolean; error?: string }>
+  /** 选中项以剪切语义写入系统文件剪贴板（工单29；effect=move，粘贴为搬移） */
+  clipboardCut(paths: readonly string[]): Promise<{ ok: boolean; error?: string }>
   /** 删除进回收站，成功条目同拍清除摆位（工单27） */
   trash(paths: readonly string[]): Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }>
   /** 原地重命名，成功同拍迁移摆位（工单28） */
@@ -90,6 +94,14 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   copyPaths(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
     return Promise.resolve(this.ctx.desktop.copyPaths(paths))
+  }
+
+  clipboardCopy(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.ctx.desktop.clipboardCopy(paths)
+  }
+
+  clipboardCut(paths: readonly string[]): Promise<{ ok: boolean; error?: string }> {
+    return this.ctx.desktop.clipboardCut(paths)
   }
 
   trash(paths: readonly string[]): Promise<{ ok: boolean; trashed: string[]; failed: string[]; error?: string }> {
