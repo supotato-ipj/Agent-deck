@@ -9,6 +9,8 @@ import path from 'node:path'
 import type { DesktopDirEntry, DesktopRoots } from './scan'
 import { shortcutIconSource } from './icons'
 import { extractIconDataUrl } from './icon-ffi'
+import { CF_HDROP, DROPEFFECT_MOVE, clipboardFfi, retryClipboardBusy } from './clipboard-files'
+import type { ClipboardEffect } from './clipboard-files'
 import { watchDesktopRoots } from './watch'
 
 const FILE_ATTRIBUTE_HIDDEN = 0x2
@@ -161,99 +163,58 @@ export function electronTrashItem(filePath: string): Promise<string> {
 }
 
 /** 剪贴板文件读取结果（工单30 粘贴）：CF_HDROP 路径清单 + Preferred DropEffect 语义。
- * null = 剪贴板没有文件（空/纯文本），调用方按「不可粘贴」处理。 */
+ * null = 剪贴板没有文件（空/纯文本），调用方按「不可粘贴」处理。effect 复用写向已导出的
+ * ClipboardEffect（评审结构项：不再自拼内联联合）。 */
 export interface ClipboardFiles {
   paths: string[]
-  effect: 'copy' | 'move'
+  effect: ClipboardEffect
 }
 
-/** DROPEFFECT_MOVE：Preferred DropEffect DWORD 的剪切语义值（1=copy 2=move） */
-const DROPEFFECT_MOVE = 2
-const CF_HDROP = 15
-
-/** DROPFILES 缓冲解析（CF_HDROP，工单30 真机修复后导出离线锁定）：头 20 字节
- * （pFiles 偏移/pt/fNC/fWide——fWide 落 16 偏移，clipboard-files.spec 真机差分实证），
- * 其后是双 NUL 结尾的路径串序列（fWide=1 走 UTF-16，现代剪贴板源恒如此；ANSI 分支
- * 尽力而为）。坏形态（短缓冲/坏偏移/截断）归空名单，不炸不出假名单。 */
-export function parseHDropBuffer(buf: Buffer): string[] {
-  if (buf.length < 24) return []
-  const offset = buf.readUInt32LE(0)
-  if (offset <= 0 || offset >= buf.length) return []
-  const body = buf.subarray(offset)
-  // fWide 是 Win32 BOOL：非零即真（PS Set-Clipboard -Path 真机实锤写 0xFFFFFFFF，
-  // 按 ===1 判会把宽表误走 ANSI 分支，解析成逐字符假名单）
-  const wide = buf.readUInt32LE(16) !== 0
+/** 双 NUL 结尾路径表的定界扫描（宽/ANSI 共用骨架，评审结构项：两分支仅步长与解码不同）：
+ * wide=2 字节步进 UTF-16（现代剪贴板源恒如此）、否则 1 字节 ANSI 兜底（GBK 名会乱码，
+ * 旧源才走此路）。空串 = 列表终止符；缓冲截断归已得名单（防御，坏形态不出假名单）。 */
+function scanHDropPathList(body: Buffer, wide: boolean): string[] {
+  const step = wide ? 2 : 1
+  const terminatedAt = (at: number): boolean => (wide ? body[at] === 0 && body[at + 1] === 0 : body[at] === 0)
   const paths: string[] = []
-  if (wide) {
-    let pos = 0
-    for (;;) {
-      let end = pos
-      while (end + 1 < body.length && !(body[end] === 0 && body[end + 1] === 0)) end += 2
-      if (end + 1 >= body.length) break // 缓冲截断：防御
-      if (end === pos) break // 空串 = 列表终止符（双 NUL）
-      paths.push(body.subarray(pos, end).toString('utf16le'))
-      pos = end + 2
-    }
-  } else {
-    let pos = 0
-    for (;;) {
-      let end = pos
-      while (end < body.length && body[end] !== 0) end += 1
-      if (end >= body.length) break
-      if (end === pos) break
-      paths.push(body.subarray(pos, end).toString('utf8')) // ANSI 兜底（GBK 名会乱码，现代源不走此路）
-      pos = end + 1
-    }
+  let pos = 0
+  for (;;) {
+    let end = pos
+    while (end + step <= body.length && !terminatedAt(end)) end += step
+    if (end + step > body.length) break // 缓冲截断：防御
+    if (end === pos) break // 空串 = 列表终止符（双 NUL）
+    paths.push(body.subarray(pos, end).toString(wide ? 'utf16le' : 'utf8'))
+    pos = end + step
   }
   return paths
 }
 
+/** DROPFILES 缓冲解析（CF_HDROP，工单30 真机修复后导出离线锁定）：头 20 字节
+ * （pFiles 偏移/pt/fNC/fWide——fWide 落 16 偏移，clipboard-files.spec 真机差分实证），
+ * 其后是双 NUL 结尾的路径串序列。坏形态（短缓冲/坏偏移/截断）归空名单，不炸不出假名单。 */
+export function parseHDropBuffer(buf: Buffer): string[] {
+  if (buf.length < 24) return []
+  const offset = buf.readUInt32LE(0)
+  if (offset <= 0 || offset >= buf.length) return []
+  // fWide 是 Win32 BOOL：非零即真（PS Set-Clipboard -Path 真机实锤写 0xFFFFFFFF，
+  // 按 ===1 判会把宽表误走 ANSI 分支，解析成逐字符假名单）
+  const wide = buf.readUInt32LE(16) !== 0
+  return scanHDropPathList(buf.subarray(offset), wide)
+}
+
 /** Preferred DropEffect 语义归约：move=2 判 move，其余（copy=1/缺格式/短缓冲）归 copy */
-export function dropEffectOf(buf: Buffer | null | undefined): 'copy' | 'move' {
+export function dropEffectOf(buf: Buffer | null | undefined): ClipboardEffect {
   return buf && buf.length >= 4 && buf.readUInt32LE(0) === DROPEFFECT_MOVE ? 'move' : 'copy'
 }
 
-/** 单次读取尝试（koffi 惰性绑定同 icon-ffi/A 写向先例，绑定进程内缓存一份）：
- * user32 开合剪贴板 + kernel32 GlobalLock 取字节。CF_HDROP(15) 与 Preferred
+/** 单次读取尝试（koffi 惰性绑定用 clipboard-files 的读写共用单一出处，进程内缓存一份）：
+ * user32 开合剪贴板 + kernel32 GlobalLock 取字节。CF_HDROP 与 Preferred
  * DropEffect（RegisterClipboardFormat）两格式一次开合取齐。busy = 剪贴板被他人占用
  * （OpenClipboard 落败，值得小退避重试）；empty = 剪贴板无文件（重试无意义）。 */
 type ReadAttempt = { kind: 'files'; files: ClipboardFiles } | { kind: 'busy' } | { kind: 'empty' }
 
-interface ClipboardReadFfi {
-  isAvailable(format: number): boolean
-  open(hWndNewOwner: number): boolean
-  close(): void
-  get(format: number): number
-  registerFormat(name: string): number
-  /** GlobalLock 返回的指针是 koffi 不透明指针对象（非数值），只回传给 unlock/decode */
-  lock(h: number): unknown
-  unlock(h: number): boolean
-  sizeOf(h: number): number
-  decodeBytes(ptr: unknown, size: number): Buffer
-}
-
-let readFfi: ClipboardReadFfi | null = null
-
-function bindReadFfi(): ClipboardReadFfi {
-  const koffi = require('koffi')
-  const user32 = koffi.load('user32.dll')
-  const kernel32 = koffi.load('kernel32.dll')
-  return {
-    isAvailable: user32.func('bool __stdcall IsClipboardFormatAvailable(uint32_t format)'),
-    open: user32.func('bool __stdcall OpenClipboard(uintptr_t hWndNewOwner)'),
-    close: user32.func('bool __stdcall CloseClipboard()'),
-    get: user32.func('uintptr_t __stdcall GetClipboardData(uint32_t uFormat)'),
-    registerFormat: user32.func('uint32_t __stdcall RegisterClipboardFormatW(const char16_t *lpszFormat)'),
-    lock: kernel32.func('void *__stdcall GlobalLock(uintptr_t hMem)'),
-    unlock: kernel32.func('bool __stdcall GlobalUnlock(uintptr_t hMem)'),
-    sizeOf: kernel32.func('size_t __stdcall GlobalSize(uintptr_t hMem)'),
-    decodeBytes: (ptr, size) => Buffer.from(koffi.decode(ptr, 'uint8_t', size)),
-  }
-}
-
 function koffiClipboardFilesReadOnce(): ReadAttempt {
-  readFfi ??= bindReadFfi()
-  const ffi = readFfi
+  const ffi = clipboardFfi()
   if (!ffi.isAvailable(CF_HDROP)) return { kind: 'empty' }
   if (!ffi.open(0)) return { kind: 'busy' } // 剪贴板被他人占用（读剪贴板类工具常驻轮询）
   try {
@@ -286,22 +247,18 @@ function koffiClipboardFilesReadOnce(): ReadAttempt {
  * readBuffer（按名读原始格式）与 writeBuffer 同批移除，旧「readBuffer 优先、FFI 兜底」
  * 的环境守卫（!clipboard?.readBuffer 即返回 null）在真实主进程恒短路——剪贴板有文件
  * 也 0ms 返 null，即电池 P5.16-a/Ctrl+V 的快败根因。
- * 剪贴板被占（busy）时小退避重试——与写向同一哲学（读剪贴板类工具常驻轮询，电池的
+ * 剪贴板被占（busy）时按读写共用骨架小退避重试（读剪贴板类工具常驻轮询，电池的
  * PS 核验段正属此类）；真无文件立即返回。null = 剪贴板没有文件/环境缺席（koffi 装载
- * 失败等异常折入 null，调用方按「不可贴」处理），调用方永远拿到结果不挂起。 */
+ * 失败等异常折入不可贴，调用方永远拿到结果不挂起）。 */
 export async function koffiClipboardFilesRead(): Promise<ClipboardFiles | null> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let result: ReadAttempt
+  const result = await retryClipboardBusy(async (): Promise<ReadAttempt> => {
     try {
-      result = koffiClipboardFilesReadOnce()
+      return koffiClipboardFilesReadOnce()
     } catch {
-      return null // koffi/剪贴板缺席属环境异常：按不可贴处理
+      return { kind: 'empty' } // koffi/剪贴板缺席属环境异常：按不可贴处理
     }
-    if (result.kind === 'files') return result.files
-    if (result.kind === 'empty') return null
-    await new Promise((resolve) => setTimeout(resolve, 30)) // 被占：小退避再试（写向同款）
-  }
-  return null
+  }, (r) => r.kind === 'busy')
+  return result.kind === 'files' ? result.files : null
 }
 
 /** 递归复制真源（工单30 粘贴 copy 语义；文件与目录同款，fs.cp 递归）。'' 即成功，否则

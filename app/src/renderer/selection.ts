@@ -82,6 +82,13 @@ export function launchListOf(model: SelectionModel, name: string): readonly stri
   return model.swallowed && model.swallowed.includes(name) ? model.swallowed : [name]
 }
 
+/** 键盘 Enter（工单31 六键）的启动名单：当前选区整份（多选整集、单选单条），不复活吞集
+ * （评审 c1：story「Enter 打开选中」= 当前选区——吞集是双击路径专属判据，单击收束后
+ * Enter 只开手里这一条；与 launchListOf 的整集语义故意分叉，对照用例锁定在 selection.spec）。 */
+export function keyboardOpenTargets(model: SelectionModel): readonly string[] {
+  return [...model.names]
+}
+
 /** 条目上下文菜单裁决（工单24 单项 / 工单26 多选，GLOSSARY.md「上下文菜单」）：右键命中
  * 非选中条目先切单选（switchTo = 该条）再弹单项菜单；该条即全部选区直接弹单项菜单；
  * 选中集内条目（选区多于一条）弹多选菜单，动作作用于整个选区（无选区副作用）。 */

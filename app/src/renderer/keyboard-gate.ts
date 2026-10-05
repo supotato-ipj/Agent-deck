@@ -74,12 +74,21 @@ export function nextKeyboardGate(state: KeyboardGateState, event: KeyboardGateEv
 // 元素上，编排不拦不抢先）；菜单开 → 只关菜单不清选区；否则选区非空 → 清空选区
 // （并经仲裁还原键盘模式）。都否 → 双否（不拦键，放行给默认行为）。
 
+/** 键盘路由上下文（评审结构项：Esc 定序与六键路由共用的裁决输入，main.ts keydown
+ * 捕获段单点装配）：overlayOpen = 任一浮层开（浮层优先，按键归浮层聚焦元素）；
+ * menuOpen = 菜单开层；selectionNonEmpty = 选区非空。 */
+export interface KeyRoutingContext {
+  overlayOpen: boolean
+  menuOpen: boolean
+  selectionNonEmpty: boolean
+}
+
 export interface EscapePlan {
   closeMenu: boolean
   clearSelection: boolean
 }
 
-export function escapePlan(ctx: { overlayOpen: boolean; menuOpen: boolean; selectionNonEmpty: boolean }): EscapePlan {
+export function escapePlan(ctx: KeyRoutingContext): EscapePlan {
   if (ctx.overlayOpen) return { closeMenu: false, clearSelection: false }
   if (ctx.menuOpen) return { closeMenu: true, clearSelection: false }
   if (ctx.selectionNonEmpty) return { closeMenu: false, clearSelection: true }
@@ -93,10 +102,17 @@ export function escapePlan(ctx: { overlayOpen: boolean; menuOpen: boolean; selec
 
 export type KeyboardActionType = 'delete' | 'open' | 'select-all' | 'copy' | 'cut' | 'paste'
 
+/** 键盘 Ctrl+V 的失败观感（评审 c2 定音）：键路只存证不上浮提示条——与票面及
+ * pasteFromClipboard 注释一致（提示条是菜单层的观感语义，键盘路径静默，失败
+ * 真相在 desktop-paste-rejected/failed 存证里）；菜单路保持提示条。null = 静默。 */
+export function pasteFailureNotice(via: 'ctx-menu' | 'keyboard', error: string): string | null {
+  return via === 'ctx-menu' ? error : null
+}
+
 export function routeSelectionKey(
   key: string,
   ctrl: boolean,
-  ctx: { selectionNonEmpty: boolean; overlayOpen: boolean; menuOpen: boolean },
+  ctx: KeyRoutingContext,
 ): KeyboardActionType | null {
   if (!ctx.selectionNonEmpty || ctx.overlayOpen || ctx.menuOpen) return null
   if (!ctrl) {

@@ -13,6 +13,7 @@ import {
   desiredKeyboardMode,
   escapePlan,
   nextKeyboardGate,
+  pasteFailureNotice,
   routeSelectionKey,
 } from '../../src/renderer/keyboard-gate'
 import type { KeyboardGateEvent, KeyboardGateState, KeyboardModeEdge } from '../../src/renderer/keyboard-gate'
@@ -164,6 +165,17 @@ describe('escapePlan Esc 全局定序（ADR-0006：浮层 > 菜单 > 选区）',
       closeMenu: false,
       clearSelection: false,
     })
+  })
+})
+
+describe('pasteFailureNotice 键盘粘贴失败观感（评审 c2：键路静默只存证）', () => {
+  it('菜单路保持提示条（error 原样上浮）', () => {
+    expect(pasteFailureNotice('ctx-menu', '剪贴板没有文件')).toBe('剪贴板没有文件')
+    expect(pasteFailureNotice('ctx-menu', '读取剪贴板失败')).toBe('读取剪贴板失败')
+  })
+  it('键路静默（null = 不弹提示条，仅 rejected/failed 存证）', () => {
+    expect(pasteFailureNotice('keyboard', '剪贴板没有文件')).toBeNull()
+    expect(pasteFailureNotice('keyboard', '读取剪贴板失败')).toBeNull()
   })
 })
 

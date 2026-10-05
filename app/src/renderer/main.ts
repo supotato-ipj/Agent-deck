@@ -5,10 +5,10 @@
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
 import { pad, pad3 } from './format.js'
-import { EMPTY_SELECTION, itemMenuPlan, launchListOf, nextSelection } from './selection.js'
+import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
-import { GATE_INITIAL, escapePlan, nextKeyboardGate, routeSelectionKey } from './keyboard-gate.js'
-import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState } from './keyboard-gate.js'
+import { GATE_INITIAL, escapePlan, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
+import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState, KeyRoutingContext } from './keyboard-gate.js'
 import { pasteableWithinTimeout } from './pasteable-query.js'
 
 const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
@@ -152,8 +152,9 @@ function applySelection(event: SelectionEvent): void {
   } else if (event.type === 'select-all') {
     notify('desktop-selection-all', { names: [...selection.names] })
   }
-  // 生灭出口唯一：选区空否（含 band 框选——不发选区存证但同样过此口）喂入仲裁，
-  // keyboard-mode-on/off 与生灭同相由构造保证（本函数是全部选区迁移的必经之路）
+  // 生灭出口唯一：选区空否（含 band 框选、dblclick 吞集消费——不发选区存证但同样过
+  // 此口）喂入仲裁，keyboard-mode-on/off 与生灭同相由构造保证（本函数是全部选区迁移
+  // 的必经之路）
   dispatchKeyboardGate({ type: 'selection', nonEmpty: selection.names.length > 0 })
 }
 
@@ -220,9 +221,8 @@ function buildItem(item: DesktopItem): HTMLElement {
   })
   d.addEventListener('dblclick', () => {
     if (dragState.suppressed) return
-    const launch = launchListOf(selection, item.name)
-    selection = nextSelection(selection, { type: 'dblclick', name: item.name })
-    dispatchKeyboardGate({ type: 'selection', nonEmpty: selection.names.length > 0 }) // 不变量保险：names 不变必无沿
+    const launch = launchListOf(selection, item.name) // 整集名单先取：dblclick 事件会消费吞集
+    applySelection({ type: 'dblclick', name: item.name }) // 名单不变、吞集一次性消费；生灭喂入走 applySelection 单出口（评审结构项收敛第二喂点）
     notify('desktop-launch-set-clicked', { names: [...launch] })
     launchNames(launch)
   })
@@ -684,8 +684,8 @@ function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
     { id: 'reveal', label: 'OPEN LOCATION', run: () => revealItem(item) },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPath(item) },
-    { id: 'copy', label: 'COPY', run: () => copyItemFiles([item.name]) },
-    { id: 'cut', label: 'CUT', run: () => cutItemFiles([item.name]) },
+    { id: 'copy', label: 'COPY', run: () => clipboardFilesAction([item.name], 'copy') },
+    { id: 'cut', label: 'CUT', run: () => clipboardFilesAction([item.name], 'cut') },
     pinnedNames.has(item.name)
       ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
       : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
@@ -751,8 +751,8 @@ function multiItemMenuItems(names: readonly string[]): DeckCtxMenuItem[] {
   return [
     { id: 'open-all', label: 'OPEN ALL', run: () => launchNames(names, 'ctx-menu') },
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPaths(names) },
-    { id: 'copy', label: 'COPY', run: () => copyItemFiles(names) },
-    { id: 'cut', label: 'CUT', run: () => cutItemFiles(names) },
+    { id: 'copy', label: 'COPY', run: () => clipboardFilesAction(names, 'copy') },
+    { id: 'cut', label: 'CUT', run: () => clipboardFilesAction(names, 'cut') },
     { id: 'delete-all', label: 'DELETE ALL', run: () => openTrashConfirm(names) },
   ]
 }
@@ -778,54 +778,51 @@ function copyItemPaths(names: readonly string[]): void {
 }
 
 // ---- 复制与剪切（工单29，GLOSSARY.md「上下文菜单」二期条目）：单项【复制】【剪切】与
-// 多选菜单共用两个闭包（单项传单元素名单），desktop/clipboard-copy / desktop/clipboard-cut
+// 多选菜单共用一道执行（评审结构项收敛——两闭包除存证族名与契约方法外逐行同形，合一为
+// clipboardFilesAction，effect 定族），desktop/clipboard-copy / desktop/clipboard-cut
 // 一道契约两处入口。内核侧：整份池护栏、CF_HDROP + Preferred DropEffect 单事务写入
 // （copy=1 / move=2）；写剪贴板不动摆位不删文件（剪切后条目仍在原地，真桌面同款）。
 // 存证族 desktop-copy-* / desktop-cut-*（clicked/copied|cut/rejected/failed 三分名，
-// trash/pin 惯例），电池按名断言。
+// trash/pin 惯例），电池按名断言。trashItems 是第三处同构，但存证载荷多 trashed/failed
+// 两字段且确认层路径共用，强行参合得不偿失——留守（评审结构项记因）。
 
-/** 复制（文件级，工单29）：名单路径经 itemByName 解析（copyItemPaths 同款）——渲染层
- * 快照落后于内核池时整份拒绝。结果分名存证，失败上浮提示条。via 记来源（工单31 增
- * keyboard=Ctrl+C，存证族名不另立）。 */
-function copyItemFiles(names: readonly string[], via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
+/** 复制/剪切的族表（effect → 契约方法 + 存证三分名 + 失败提示词）：单一出处防两族漂移 */
+const CLIPBOARD_FILE_FAMILIES = {
+  copy: {
+    method: 'desktop/clipboard-copy',
+    clicked: 'desktop-copy-clicked', ok: 'desktop-copied',
+    rejected: 'desktop-copy-rejected', failed: 'desktop-copy-failed',
+    failNotice: '复制失败',
+  },
+  cut: {
+    method: 'desktop/clipboard-cut',
+    clicked: 'desktop-cut-clicked', ok: 'desktop-cut',
+    rejected: 'desktop-cut-rejected', failed: 'desktop-cut-failed',
+    failNotice: '剪切失败',
+  },
+} as const
+
+/** 复制/剪切执行（文件级，工单29）：名单路径经 itemByName 解析（copyItemPaths 同款）——
+ * 渲染层快照落后于内核池时整份拒绝。结果分名存证，失败上浮提示条。via 记来源
+ * （工单31 增 keyboard=Ctrl+C/X，存证族名不另立）。 */
+function clipboardFilesAction(names: readonly string[], effect: 'copy' | 'cut', via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
+  const fam = CLIPBOARD_FILE_FAMILIES[effect]
   const resolved = names.map((name) => itemByName.get(name)?.path)
   if (resolved.some((p) => !p)) {
-    notify('desktop-copy-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
+    notify(fam.rejected, { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
     showNotice('桌面项不在当前扫描池内')
     return
   }
   const paths = resolved as string[]
-  notify('desktop-copy-clicked', { names: [...names], count: names.length, via })
-  void window.deck.bridge.invoke('desktop/clipboard-copy', { paths }).then(
+  notify(fam.clicked, { names: [...names], count: names.length, via })
+  void window.deck.bridge.invoke(fam.method, { paths }).then(
     (r) => {
-      notify(r.ok ? 'desktop-copied' : 'desktop-copy-rejected', {
+      notify(r.ok ? fam.ok : fam.rejected, {
         names: [...names], ok: r.ok, error: r.error ?? null,
       })
-      if (!r.ok) showNotice(r.error ?? '复制失败')
+      if (!r.ok) showNotice(r.error ?? fam.failNotice)
     },
-    (err: unknown) => notify('desktop-copy-failed', { names: [...names], message: String(err) }),
-  )
-}
-
-/** 剪切（工单29）：与复制同一道实现、effect=move（粘贴为搬移）。分名 desktop-cut-*。
- * via 记来源（工单31 增 keyboard=Ctrl+X）。 */
-function cutItemFiles(names: readonly string[], via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
-  const resolved = names.map((name) => itemByName.get(name)?.path)
-  if (resolved.some((p) => !p)) {
-    notify('desktop-cut-rejected', { names: [...names], ok: false, error: '桌面项不在当前扫描池内' })
-    showNotice('桌面项不在当前扫描池内')
-    return
-  }
-  const paths = resolved as string[]
-  notify('desktop-cut-clicked', { names: [...names], count: names.length, via })
-  void window.deck.bridge.invoke('desktop/clipboard-cut', { paths }).then(
-    (r) => {
-      notify(r.ok ? 'desktop-cut' : 'desktop-cut-rejected', {
-        names: [...names], ok: r.ok, error: r.error ?? null,
-      })
-      if (!r.ok) showNotice(r.error ?? '剪切失败')
-    },
-    (err: unknown) => notify('desktop-cut-failed', { names: [...names], message: String(err) }),
+    (err: unknown) => notify(fam.failed, { names: [...names], message: String(err) }),
   )
 }
 
@@ -838,7 +835,8 @@ function cutItemFiles(names: readonly string[], via: 'ctx-menu' | 'keyboard' = '
 
 /** 粘贴执行：结果分名存证（pin/trash 同款），失败上浮提示条。via 记来源（工单31 增
  * keyboard=Ctrl+V）；剪贴板无文件时 desktop/paste ok=false 存证 rejected——与菜单置灰
- * 同语义（键触发静默不弹层，只有 rejected 存证）。 */
+ * 同语义。失败观感按 via 分流（评审 c2，pasteFailureNotice 纯函数）：菜单路保持提示条，
+ * 键路静默只存证（注释与票面「键触发静默不弹层」自此名实相符）。 */
 function pasteFromClipboard(via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
   notify('desktop-paste-clicked', { via })
   void window.deck.bridge.invoke('desktop/paste', null).then(
@@ -846,11 +844,13 @@ function pasteFromClipboard(via: 'ctx-menu' | 'keyboard' = 'ctx-menu'): void {
       notify(r.ok ? 'desktop-pasted' : 'desktop-paste-rejected', {
         ok: r.ok, pasted: r.pasted, failed: r.failed, error: r.error ?? null,
       })
-      if (!r.ok) showNotice(r.error ?? '粘贴失败')
+      const notice = r.ok ? null : pasteFailureNotice(via, r.error ?? '粘贴失败')
+      if (notice) showNotice(notice)
     },
     (err: unknown) => {
       notify('desktop-paste-failed', { message: String(err) })
-      showNotice(String(err))
+      const notice = pasteFailureNotice(via, String(err))
+      if (notice) showNotice(notice)
     },
   )
 }
@@ -1619,9 +1619,10 @@ window.deck.bridge.on('search/state', (s) => {
 // stopPropagation 恰吃一笔不双吃；放行（返回 null / 双否）时本段零动作。
 
 /** 六键动作执行（选区非空期间）：Del=既有删除语义（单项直删、多选弹确认层——工单27）、
- * Enter=打开选中（单选与双击同源 launchListOf 吞集整开、多选整集按插入序逐项启动）、
- * Ctrl+A=select-all 事件进选区状态机、Ctrl+C/X=文件级复制/剪切（工单29）、Ctrl+V=粘贴
- * （工单30：剪贴板无文件时 desktop/paste ok=false 存证 rejected，与菜单置灰同语义）。 */
+ * Enter=打开选中（当前选区整份：多选按插入序逐项、单选单条；不复活吞集——评审 c1，
+ * 整集启动语义是双击路径专属，dblclick 仍走 launchListOf）、Ctrl+A=select-all 事件进
+ * 选区状态机、Ctrl+C/X=文件级复制/剪切（工单29）、Ctrl+V=粘贴（工单30：剪贴板无文件时
+ * desktop/paste ok=false 存证 rejected，与菜单置灰同语义；键路静默不弹提示条——评审 c2）。 */
 function runKeyboardAction(action: KeyboardActionType): void {
   const names = [...selection.names]
   if (!names.length) return
@@ -1629,21 +1630,20 @@ function runKeyboardAction(action: KeyboardActionType): void {
     if (names.length === 1) trashItems(names, 'keyboard')
     else openTrashConfirm(names)
   } else if (action === 'open') {
-    const targets = names.length > 1 ? names : [...launchListOf(selection, names[0])]
-    launchNames(targets, 'keyboard')
+    launchNames(keyboardOpenTargets(selection), 'keyboard')
   } else if (action === 'select-all') {
     applySelection({ type: 'select-all', names: [...itemByName.keys()] })
   } else if (action === 'copy') {
-    copyItemFiles(names, 'keyboard')
+    clipboardFilesAction(names, 'copy', 'keyboard')
   } else if (action === 'cut') {
-    cutItemFiles(names, 'keyboard')
+    clipboardFilesAction(names, 'cut', 'keyboard')
   } else if (action === 'paste') {
     pasteFromClipboard('keyboard')
   }
 }
 
 window.addEventListener('keydown', (e) => {
-  const ctx = {
+  const ctx: KeyRoutingContext = {
     overlayOpen: keyboardGate.overlays.length > 0,
     menuOpen: menuOpen(),
     selectionNonEmpty: selection.names.length > 0,
