@@ -32,3 +32,24 @@ export function planTaskbarRecommendations(
     path: item.path,
   }))
 }
+
+/**
+ * 推荐位显式序套用（工单57）：用户在中组拖出的有序名单压过分数序——序内条目按名单
+ * 次前排（陈旧名 = 当前推荐位不在场，跳过；解除手钉回池时旧位次随之复活），序外条目
+ * 保持编排原序（分数序）随后。平移 planDock「显式摆位段先于推荐填补」的三段式语义。
+ */
+export function applyRecommendationOrder(
+  recs: readonly TaskbarRecommendation[],
+  order: readonly string[],
+): TaskbarRecommendation[] {
+  if (order.length === 0) return [...recs]
+  const rank = new Map(order.map((name, i) => [name, i]))
+  return [...recs].sort((a, b) => {
+    const ra = rank.get(a.name)
+    const rb = rank.get(b.name)
+    if (ra === undefined && rb === undefined) return 0 // 序外：保持编排原序（稳定排序）
+    if (ra === undefined) return 1
+    if (rb === undefined) return -1
+    return ra - rb
+  })
+}

@@ -4,9 +4,9 @@
 // 溢出浮层开合。左组（工单52）显示 + 工单58 基本点击分发（启动/置前经 taskbar/activate-app，
 // 栏内与溢出浮层共用同一挂点）；右键菜单/中键/最小化切换等全交互属工单53，在同一
 // data-exe 身份挂点上扩展。窗口标题 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel } from './taskbar-view.js'
+import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel } from './taskbar-view.js'
 import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
-import type { TaskbarState, TaskbarWindowRef } from '../shared/contract'
+import type { TaskbarDragGroup, TaskbarState, TaskbarWindowRef } from '../shared/contract'
 
 const pill = document.getElementById('pill') as HTMLElement
 const pillLeft = document.getElementById('pill-left') as HTMLElement
@@ -29,6 +29,8 @@ let overflowOpen = false
 let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
 /** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
 let windowList: { exe: string; windows: TaskbarWindowRef[] } | null = null
+/** 拖拽源（工单57）：dragstart 记录，落位判定全在渲染层，落位裁决在内核 */
+let dragSource: { group: TaskbarDragGroup; id: string } | null = null
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
 
@@ -135,6 +137,63 @@ async function onAppClick(e: TaskbarLeftViewEntry, inOverflow: boolean): Promise
   if (current) render(current)
 }
 
+/** 拖拽接线（工单57）：拖到某个条目上 = 落该条目之前（亮条指示）；拖到组内空白 =
+ * 落可编辑段末尾（before=null）。跨组同款：中→左升手钉、左→中解除手钉回推荐池。
+ * 落点裁决与落盘在内核（taskbar/drag-drop），渲染层只负责源记录与落点反馈。 */
+function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): void {
+  el.draggable = true
+  el.addEventListener('dragstart', (ev) => {
+    dragSource = { group, id }
+    el.classList.add('dragging')
+    window.deck.host.notify('taskbar-drag-start', { group, id })
+    if (ev.dataTransfer) {
+      ev.dataTransfer.effectAllowed = 'move'
+      ev.dataTransfer.setData('text/plain', id)
+    }
+  })
+  el.addEventListener('dragend', () => {
+    dragSource = null
+    el.classList.remove('dragging')
+    document.querySelectorAll('.tb-drop-before').forEach((n) => n.classList.remove('tb-drop-before'))
+  })
+  el.addEventListener('dragover', (ev) => {
+    ev.preventDefault()
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
+    el.classList.add('tb-drop-before')
+  })
+  el.addEventListener('dragleave', () => el.classList.remove('tb-drop-before'))
+  el.addEventListener('drop', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    el.classList.remove('tb-drop-before')
+    if (!dragSource) return
+    void onDrop(dragSource, group, id)
+  })
+}
+
+/** 落位一次拖拽：同组换位与跨组语义同一道分发，落点 before 恒为条目身份 */
+async function onDrop(src: { group: TaskbarDragGroup; id: string }, to: TaskbarDragGroup, before: string | null): Promise<void> {
+  window.deck.host.notify('taskbar-drag-drop', { from: src.group, to, id: src.id, before })
+  const r = await dispatchTaskbarDragDrop(window.deck.bridge, { from: src.group, to, id: src.id, before })
+  window.deck.host.notify('taskbar-drag-result', { ok: r.ok, ...(r.error ? { error: r.error } : {}) })
+  dragSource = null
+}
+
+/** 组容器落尾（拖到组内空白处）：before = null = 可编辑段末尾 */
+function makeGroupDropTarget(container: HTMLElement, group: TaskbarDragGroup): void {
+  container.addEventListener('dragover', (ev) => {
+    if (!dragSource) return
+    ev.preventDefault()
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
+  })
+  container.addEventListener('drop', (ev) => {
+    if (!dragSource) return
+    ev.preventDefault()
+    if ((ev.target as HTMLElement).closest('.tb-app, .tb-rec, .tb-drop-before')) return // 条目自身已接
+    void onDrop(dragSource, group, null)
+  })
+}
+
 /** 左组图标元素（栏内与溢出浮层同一构建路径——同 .tb-app 形态、同 data-exe 挂点、
  * 同点击分发；工单53 的全交互在同一挂点上扩展后两边自然一致）。inOverflow = 点在浮层
  * 里：分发后收层（Win11 溢出浮层同款——点完即收）。 */
@@ -148,6 +207,7 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
   img.alt = e.label
   el.appendChild(img)
   applyIcon(img, e.iconKey)
+  if (e.pinned) makeDraggable(el, 'left', e.exe) // 仅手钉可拖（内核只接受手钉段内换位）
   el.addEventListener('click', () => { void onAppClick(e, inOverflow) })
   el.addEventListener('auxclick', (ev) => {
     if (ev.button !== 1) return
@@ -230,6 +290,7 @@ function render(state: TaskbarState): void {
     el.className = 'tb-rec'
     el.dataset.name = rec.name
     el.textContent = rec.display
+    makeDraggable(el, 'mid', rec.name)
     pill.appendChild(el)
   }
   if (menuOpen) {
@@ -297,6 +358,8 @@ function render(state: TaskbarState): void {
 }
 
 function boot(): void {
+  makeGroupDropTarget(pillLeft, 'left') // 拖到左组空白 = 落手钉段末尾
+  makeGroupDropTarget(pill, 'mid') // 拖到中组空白 = 落推荐位末尾
   // 右键 = 系统按钮显隐菜单（工单54 自绘最小菜单；应用图标右键菜单是 #53 的领域，不依赖它）
   pill.addEventListener('contextmenu', (e) => {
     e.preventDefault()

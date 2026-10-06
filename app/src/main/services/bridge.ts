@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -144,6 +144,10 @@ export class BridgeService extends Service {
       case 'taskbar/set-button-hidden': {
         const { id, hidden } = payload as { id: TaskbarButtonId; hidden: boolean }
         return this.ctx.taskbar.setButtonHidden(id, hidden) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/drag-drop': {
+        const drop = payload as TaskbarDragDrop
+        return this.ctx.taskbar.dragDrop(drop) as BridgeMethods[M]['response']
       }
       case 'taskbar/app-click': {
         const { exe } = payload as { exe: string }

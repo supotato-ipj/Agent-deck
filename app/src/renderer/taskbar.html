@@ -46,6 +46,9 @@
   }
   .tb-app:hover { background: rgba(255, 255, 255, 0.10); }
   .tb-app img { width: 22px; height: 22px; }
+  /* 拖拽（工单57）：可拖源半透明，落点左侧亮条——落点反馈用形状不用颜色堆叠 */
+  .tb-app.dragging, .tb-rec.dragging { opacity: 0.4; }
+  .tb-drop-before { box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.85); }
   /* 运行态叠加（工单52：已手钉应用运行时不新增图标，只在原图标下叠指示条） */
   .tb-app.running::after {
     content: "";

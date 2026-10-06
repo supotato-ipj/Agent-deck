@@ -1,7 +1,7 @@
 // 任务栏 pill 纯逻辑（工单49/52/54/58）：视图模型是状态 → 视图的纯函数（左组形态映射、
 // 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../shared/contract'
 import { planLeftOverflow } from '../main/taskbar/left-plan'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
@@ -194,6 +194,22 @@ export async function dispatchAppMenuAction(
     default:
       return null
   }
+}
+
+/**
+ * 栏上拖拽落位分发（工单57）：描述子（from/to 组别、条目身份、落点身份）经桥 invoke，
+ * 落位裁决与落盘在内核；响应原样上抛（ok:false 也返回——拖拽落位不需 try/catch）。
+ * 畸形描述子在渲染层就被挡下（不发 invoke）：组别/身份缺失是噪声，不是契约违规。
+ */
+export async function dispatchTaskbarDragDrop(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  drop: TaskbarDragDrop,
+): Promise<{ ok: boolean; error?: string }> {
+  const groups: readonly string[] = ['left', 'mid']
+  if (!drop || !drop.id || !groups.includes(drop.from) || !groups.includes(drop.to)) {
+    return { ok: false, error: '拖拽描述子畸形' }
+  }
+  return bridge.invoke('taskbar/drag-drop', drop)
 }
 
 /** 左组溢出拆分（工单58）：裁决本体是 left-plan 的 planLeftOverflow（编排纯函数），
