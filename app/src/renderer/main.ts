@@ -1256,6 +1256,7 @@ const settingsCard = el('settings-card')
 const opacitySlider = el('opacity-slider') as HTMLInputElement
 const opacityValue = el('opacity-value')
 const settingsReset = el('settings-reset')
+const settingsExit = el('settings-exit')
 const taskbarToggle = el('taskbar-toggle') as HTMLInputElement
 const taskbarToggleState = el('taskbar-toggle-state')
 let settingsOpen = false
@@ -1385,6 +1386,21 @@ function resetLayout(from: 'settings' | 'ctx-menu'): void {
 }
 
 settingsReset.addEventListener('click', () => resetLayout('settings'))
+
+// 退出面板（工单83）：设置浮层底部按钮——托盘被系统折叠/任务栏特性未完成时的本体退出
+// 入口。经 app/quit 走主进程 app.quit()，与托盘菜单「退出面板」同一 before-quit 优雅
+// 退出收敛（窗口销毁、托盘 destroy、桌面图标/原生任务栏还原）。先存证后 invoke（退出
+// 竞态下 clicked 必已在档）；invoke 失败（quit 未装配等异常态）面板还活着，提示条如实上报。
+function exitPanel(): void {
+  notify('settings-exit-clicked', {})
+  // ok 即退出中，进程随后消亡、无回执处理；catch 只接异常态（quit 未装配等）——面板
+  // 还活着，提示条如实上报
+  window.deck.bridge.invoke('app/quit', null).catch(
+    (err: unknown) => showNotice(`退出失败：${String(err)}`),
+  )
+}
+
+settingsExit.addEventListener('click', () => exitPanel())
 
 window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
 // 逃生开关状态回推（工单50）：他端切换（如条带侧动作、插件卸载终态帧）即时对齐勾选态
@@ -1742,6 +1758,9 @@ function declareHotZones(): void {
   // 浮层内的复位按钮自带矩形热区（电池按 id 定位点击，旧独立按钮同法）；随浮层显隐
   const sr = settingsReset.getBoundingClientRect()
   if (sr.width > 0) rects.push({ id: 'settings-reset', x: sr.left, y: sr.top, w: sr.width, h: sr.height })
+  // 退出面板按钮（工单83）同法：矩形随浮层显隐进热区（电池按 id 定位点击）
+  const se = settingsExit.getBoundingClientRect()
+  if (se.width > 0) rects.push({ id: 'settings-exit', x: se.left, y: se.top, w: se.width, h: se.height })
   // 关闭中的设置浮层矩形为 0（display:none），与一切零尺寸矩形一起不进热区（不留死区）
   window.deck.host.setHotZones(rects.filter((r) => r.w > 0 && r.h > 0))
 }

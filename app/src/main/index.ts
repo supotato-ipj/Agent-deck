@@ -141,6 +141,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
+    // 退出面板（工单83）：设置浮层按钮经 app/quit 到这里——与托盘菜单同一 app.quit 收敛
+    quit: () => app.quit(),
     search: { port: config.search.port, engine: config.search.engine, everythingPort: config.search.everythingPort },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },

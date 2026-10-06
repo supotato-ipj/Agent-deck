@@ -53,6 +53,8 @@ export interface KernelOptions {
   plugins?: PluginHostOptions
   /** 任务栏（工单49）：开关与依赖（离线测试注入假按键源；缺省默认启用 + 真源延迟绑定） */
   taskbar?: TaskbarServiceOptions
+  /** 退出面板（工单83）：app.quit 注入（离线测试注假源；缺省未装配——invoke 如实拒绝） */
+  quit?: () => void
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -81,7 +83,7 @@ export function createKernel(options: KernelOptions = {}): Context {
   ctx.plugin(LocalPanelDataService)
   // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
   ctx.plugin(TaskbarService, options.taskbar)
-  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
+  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
   ctx.plugin(FocusService, options.focus)
