@@ -114,17 +114,35 @@ describe('appendEvent / readStartEvents / pruneOldDays', () => {
 })
 
 describe('隐私守卫（ADR-0002：不读窗口标题）', () => {
-  it('src/main 全部源码不出现 GetWindowText / window_title', () => {
+  // ADR-0007 书面口子（工单52）：窗口标题仅任务栏链路内存即时读取（tooltip/多窗口
+  // 列表），永不持久化。口子只开在 taskbar/windows.ts 一个文件；其余 src/main 边界不变。
+  const TITLE_READ_ALLOWLIST = new Set(['src/main/taskbar/windows.ts'])
+  it('src/main 全部源码不出现 GetWindowText / window_title（任务栏窗口枚举模块为 ADR-0007 唯一例外）', () => {
     const walk = (dir: string): string[] =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((de) => {
         const p = path.join(dir, de.name)
         return de.isDirectory() ? walk(p) : p.endsWith('.ts') ? [p] : []
       })
-    for (const file of walk(path.resolve(__dirname, '../../src/main'))) {
+    const root = path.resolve(__dirname, '../../src/main')
+    for (const file of walk(root)) {
+      const rel = path.relative(path.resolve(__dirname, '../..'), file).split(path.sep).join('/')
       const source = fs.readFileSync(file, 'utf8')
+      if (TITLE_READ_ALLOWLIST.has(rel)) continue
       expect(source, file).not.toContain('GetWindowText')
       expect(source, file).not.toContain('window_title')
     }
+  })
+
+  it('任务栏标题口子永不持久化：窗口枚举模块不写盘，栏编排/栏布局模块不读标题', () => {
+    const win = fs.readFileSync(path.resolve(__dirname, '../../src/main/taskbar/windows.ts'), 'utf8')
+    expect(win).not.toMatch(/writeFileSync|appendFileSync|appendFile|createWriteStream/)
+    for (const rel of ['src/main/taskbar/left-plan.ts', 'src/main/taskbar/layout-store.ts']) {
+      const src = fs.readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')
+      expect(src, `${rel} 不得读窗口标题`).not.toContain('GetWindowText')
+    }
+    // 栏布局存储形态无标题字段（落盘面的结构性保证；行为级断言在 contract.spec 工单52 块）
+    const store = fs.readFileSync(path.resolve(__dirname, '../../src/main/taskbar/layout-store.ts'), 'utf8')
+    expect(store).not.toMatch(/title/)
   })
 })
 

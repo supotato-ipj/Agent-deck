@@ -10,7 +10,7 @@ import { FocusService, type FocusServiceOptions } from './services/focus'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
-import { DEFAULT_SEARCH_INTERVAL_MS } from './kernel'
+import { DEFAULT_SEARCH_INTERVAL_MS, DEFAULT_TASKBAR_POLL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
 export interface PanelKernelOptions {
@@ -32,6 +32,8 @@ export interface PanelKernelOptions {
   dataplane: DataplaneServiceOptions
   /** 任务栏（工单49）：config 文件路径与可变引用（持久化通道，settings 同款） */
   taskbar?: TaskbarServiceOptions
+  /** 任务栏左组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
+  taskbarPollMs?: number
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -51,6 +53,12 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）
     const timer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
+    ctx.on('dispose', () => clearInterval(timer))
+  }
+  const taskbarPollMs = options.taskbarPollMs ?? DEFAULT_TASKBAR_POLL_MS
+  if (taskbarPollMs > 0) {
+    // 左组编排轮（工单52）：应用启动/退出 1–2 秒内反映到左组（窗口枚举 → 纯函数编排 → 变化即推）
+    const timer = setInterval(() => ctx.taskbar?.refresh(), taskbarPollMs)
     ctx.on('dispose', () => clearInterval(timer))
   }
   return ctx
