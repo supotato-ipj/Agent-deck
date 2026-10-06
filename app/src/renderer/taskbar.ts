@@ -574,8 +574,21 @@ function boot(): void {
     if (current) render(current)
   })
   void (async () => {
-    const state = await window.deck.bridge.invoke('taskbar/get-state', null)
-    render(state)
+    // 启动期失败不留痕的病（真机实证：条带静默不执行时电池只报「存证缺失」）——
+    // 失败即落存证，验收与排障都能看见「是没跑还是跑崩了」
+    let state: TaskbarState
+    try {
+      state = await window.deck.bridge.invoke('taskbar/get-state', null)
+    } catch (err) {
+      window.deck.host.notify('taskbar-boot-error', { stage: 'get-state', message: String(err) })
+      return
+    }
+    try {
+      render(state)
+    } catch (err) {
+      window.deck.host.notify('taskbar-boot-error', { stage: 'render', message: String(err), stack: (err as Error)?.stack ?? '' })
+      return
+    }
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, pill: m.pill, buttons: m.buttons, recommendations: m.recommendations,

@@ -182,7 +182,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady
 
-  installPluginProtocol({ appRoot: RENDERER_ROOT, host: kernel.plugins })
+  installPluginProtocol({ appRoot: RENDERER_ROOT, sharedRoot: path.join(__dirname, '../shared'), host: kernel.plugins, log: (e) => log?.append(e) })
 
   const win = createPanelWindow({ geometry: config.panel })
   wireBridgeIpc(win, kernel.bridge)

@@ -78,7 +78,7 @@ function stripPhysRect(): AppBarRect {
  * 穿透到下方窗口/壁纸，pill 内热区正常接收）。focusable:false 与面板同款：
  * 点击 pill 按钮不夺焦，按键合成送达系统时前台语义不被自家窗口搅乱。
  */
-function createTaskbarWindow(): BrowserWindow {
+function createTaskbarWindow(log: EventLog | null): BrowserWindow {
   const win = new BrowserWindow({
     ...stripBounds(),
     title: TASKBAR_TITLE,
@@ -102,6 +102,17 @@ function createTaskbarWindow(): BrowserWindow {
   // 默认穿透（面板同款纪律）：不带 forward——Electron 的 forward 实现要装全局低级
   // 鼠标钩子，主线程任一阻塞拖慢全系统光标（.scratch/mouse-lag/ 基线存证）。
   win.setIgnoreMouseEvents(true)
+  // 渲染层自诊断（真机实证的教训：条带渲染层静默不执行时，电池只会报「存证缺失」，
+  // 主进程侧一切正常，无从分辨是没跑还是跑崩了——把渲染层错误与加载失败落进事件流）
+  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level >= 2) log?.append({ type: 'taskbar-renderer-console', level, message, line, sourceId })
+  })
+  win.webContents.on('did-fail-load', (_event, code, description, url) => {
+    log?.append({ type: 'taskbar-load-failed', code, description, url })
+  })
+  win.webContents.on('preload-error', (_event, preloadPath, error) => {
+    log?.append({ type: 'taskbar-preload-error', preloadPath, message: error.message })
+  })
   return win
 }
 
@@ -180,7 +191,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // 失败（句柄缺位等）降级让出原生任务栏上沿，49 实证的同矩形 z 序竞争不进场。
     hidNative = hideNativeTaskbar(log)
     try {
-      win = createTaskbarWindow()
+      win = createTaskbarWindow(log)
     } catch (err) {
       // 建窗失败即还账：hidNative 不带出 create（destroy 的还原前提不变式：hidNative ⇒ win 在场）
       if (hidNative) {
