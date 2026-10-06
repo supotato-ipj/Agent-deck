@@ -20,6 +20,7 @@ import { SettingsService, type SettingsServiceOptions } from './services/setting
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
+import { planTaskbarRecommendations } from './taskbar/plan'
 import type { WeatherLocation } from '../shared/contract'
 
 export interface KernelOptions {
@@ -53,6 +54,8 @@ export interface KernelOptions {
   plugins?: PluginHostOptions
   /** 任务栏（工单49）：开关与依赖（离线测试注入假按键源；缺省默认启用 + 真源延迟绑定） */
   taskbar?: TaskbarServiceOptions
+  /** 任务栏左组编排轮询间隔（ms，工单52）；缺省 0 = 不装定时器（离线测试手动驱动 refresh） */
+  taskbarPollMs?: number
   /** 退出面板（工单83）：app.quit 注入（离线测试注假源；缺省未装配——invoke 如实拒绝） */
   quit?: () => void
 }
@@ -61,6 +64,8 @@ export const DEFAULT_TICK_MS = 1000
 export const DEFAULT_HARDWARE_MS = 1000
 export const DEFAULT_USAGE_MS = 2000
 export const DEFAULT_SEARCH_INTERVAL_MS = 50
+/** 任务栏左组轮询（工单52）：1Hz——应用启动/退出 1–2 秒内反映到左组 */
+export const DEFAULT_TASKBAR_POLL_MS = 1000
 export const USAGE_PRUNE_MS = 3600_000
 
 /** 组装 cordis 内核：插件生命周期 + 依赖注入（ADR-0004 圈定的子集）。 */
@@ -81,8 +86,16 @@ export function createKernel(options: KernelOptions = {}): Context {
   })
   // 桥接层的数据面端口（进程内装配：直连上方采集服务）——必须先于桥接层注册
   ctx.plugin(LocalPanelDataService)
-  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
-  ctx.plugin(TaskbarService, options.taskbar)
+  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。
+  // 中组推荐位（工单54）缺省接 panelData 的频次链路产物（桌面编排 + usage 融合分）。
+  ctx.plugin(TaskbarService, {
+    ...options.taskbar,
+    deps: {
+      ...options.taskbar?.deps,
+      recommendations: options.taskbar?.deps?.recommendations
+        ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
+    },
+  })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
@@ -111,6 +124,12 @@ export function createKernel(options: KernelOptions = {}): Context {
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）
     const timer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
+    ctx.on('dispose', () => clearInterval(timer))
+  }
+  const taskbarPollMs = options.taskbarPollMs ?? 0
+  if (taskbarPollMs > 0) {
+    // 左组编排轮（工单52）：窗口枚举 → planLeftGroup → 变化即推 taskbar/changed
+    const timer = setInterval(() => ctx.taskbar?.refresh(), taskbarPollMs)
     ctx.on('dispose', () => clearInterval(timer))
   }
   return ctx
@@ -174,10 +193,13 @@ export function createDataplaneKernel(options: DataplaneKernelOptions = {}): Con
 /** 数据面快照（时钟就地构造——kernel.ts 不 import electron，可被离线测试加载） */
 function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
   const d = new Date()
+  const desktop = ctx.desktop.state()
   return {
     clock: { iso: d.toISOString(), epochMs: d.getTime() },
     sessions: ctx.sessions.current(),
     hardware: ctx.hardware.state(),
-    desktop: ctx.desktop.state(),
+    desktop,
+    // 中组推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源
+    recommendations: planTaskbarRecommendations(desktop.items, ctx.desktop.usageScores()),
   }
 }

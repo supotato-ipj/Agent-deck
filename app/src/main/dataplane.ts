@@ -6,6 +6,7 @@ import type { Context } from 'cordis'
 import { appendFileSync } from 'node:fs'
 import type { DesktopZone } from '../shared/contract'
 import { createDataplaneKernel } from './kernel'
+import { planTaskbarRecommendations } from './taskbar/plan'
 import { TrayHost } from './trayhost/host'
 import {
   ProxyClipboardRead,
@@ -23,11 +24,14 @@ let trayHost: TrayHost | null = null
 
 function snapshotOf(c: Context): DataplaneSnapshot {
   const d = new Date()
+  const desktop = c.desktop.state()
   return {
     clock: { iso: d.toISOString(), epochMs: d.getTime() },
     sessions: c.sessions.current(),
     hardware: c.hardware.state(),
-    desktop: c.desktop.state(),
+    desktop,
+    // 中组推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推
+    recommendations: planTaskbarRecommendations(desktop.items, c.desktop.usageScores()),
   }
 }
 
@@ -75,16 +79,18 @@ if (parentPort) {
       void ctx.start().then(() => {
         parentPort.postMessage({ type: 'ready', snapshot: snapshotOf(ctx!) })
       })
-      // 托盘宿主（工单48 spike）：init.traySpike 在场才起。竞争窗口/泵/TaskbarCreated
-      // 全在子进程；事件经 parentPort 回主进程，原始字节语料落 JSONL（测试夹具来源）。
-      if (msg.init.traySpike && !trayHost) {
+      // 托盘宿主（工单48 起常驻、工单56 入栏）：竞争窗口/泵/TaskbarCreated 全在子进程，
+      // 事件经 parentPort 回主进程；验收模式下额外落原始字节语料（测试夹具来源）。
+      if (msg.init.tray && !trayHost) {
         try {
-          const corpusFile = msg.init.traySpike.corpusFile
+          const corpusFile = msg.init.tray.corpusFile
           trayHost = new TrayHost({
             onEvent: (event) => parentPort.postMessage({ type: 'tray-event', event }),
-            corpus: (entry) => {
-              try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
-            },
+            corpus: corpusFile
+              ? (entry) => {
+                  try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
+                }
+              : undefined,
             log: (event) => parentPort.postMessage({ type: 'tray-host', event }),
           })
           trayHost.start()
@@ -92,6 +98,12 @@ if (parentPort) {
           parentPort.postMessage({ type: 'tray-host', event: { type: 'tray-host-failed', message: (err as Error).message } })
         }
       }
+      return
+    }
+    if (msg.type === 'tray-replay') {
+      // 托盘点击回放（工单56）：宿主不在场（未起或已停）如实回执，渲染层按失败呈现
+      const r = trayHost?.replay(msg.key, msg.button) ?? { ok: false, error: '托盘宿主不在场' }
+      parentPort.postMessage({ type: 'tray-host', event: { type: 'tray-replay-result', key: msg.key, ...r } })
       return
     }
     if (msg.type === 'shortcuts') {
@@ -117,12 +129,6 @@ if (parentPort) {
           } else if (msg.method === 'desktop/move-batch') {
             const { names, zone, beforeName } = msg.payload as { names: string[]; zone: DesktopZone; beforeName: string | null }
             result = ctx.desktop.moveBatch(names, zone, beforeName)
-          } else if (msg.method === 'desktop/pin') {
-            const { name } = msg.payload as { name: string }
-            result = ctx.desktop.pin(name)
-          } else if (msg.method === 'desktop/unpin') {
-            const { name } = msg.payload as { name: string }
-            result = ctx.desktop.unpin(name)
           } else if (msg.method === 'desktop/reset-layout') {
             result = ctx.desktop.resetLayout()
           } else if (msg.method === 'desktop/trash') {

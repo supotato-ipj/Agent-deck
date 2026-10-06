@@ -1,5 +1,6 @@
-// 任务栏系统动作（工单49）：按键合成触发原生系统 UI——开始菜单 = Win 单击，
-// 任务视图 = Win+Tab。一律不自绘系统浮层（ADR-0007「系统动作」决策）。
+// 任务栏系统动作（工单49/55）：按键合成触发原生系统 UI——开始菜单 = Win 单击，
+// 任务视图 = Win+Tab，通知中心 = Win+N（时钟格），快速设置 = Win+A（音量格），
+// 显示桌面 = Win+D（屏幕最右端细条）。一律不自绘系统浮层（ADR-0007「系统动作」决策）。
 // koffi 延迟绑定（focus/adapter.ts 先例）：模块加载不触 FFI，契约测试注入假源后
 // 本模块从不被 require。INPUT 结构体形态与 accept/lib/win32.js 的实证定义同形
 // （x64 sizeof(INPUT)=40）；结构体名带 TASKBAR_ 前缀避免与电池进程内的定义撞名。
@@ -10,6 +11,9 @@ const KEYDOWN = 0x0000
 const KEYUP = 0x0002
 const VK_LWIN = 0x5b
 const VK_TAB = 0x09
+const VK_A = 0x41
+const VK_D = 0x44
+const VK_N = 0x4e
 
 interface KoffiFunc {
   (...args: unknown[]): unknown
@@ -58,11 +62,20 @@ function bind(): Bound {
  * 未识别值默认成 Win+Tab。 */
 export function sendSystemAction(action: TaskbarSystemAction): boolean {
   const b = bind()
+  const chord = (vk: number) => [
+    b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(vk, KEYDOWN), b.keyInput(vk, KEYUP), b.keyInput(VK_LWIN, KEYUP),
+  ]
   let seq: unknown[]
   if (action === 'start-menu') {
     seq = [b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(VK_LWIN, KEYUP)]
   } else if (action === 'task-view') {
-    seq = [b.keyInput(VK_LWIN, KEYDOWN), b.keyInput(VK_TAB, KEYDOWN), b.keyInput(VK_TAB, KEYUP), b.keyInput(VK_LWIN, KEYUP)]
+    seq = chord(VK_TAB)
+  } else if (action === 'notification-center') {
+    seq = chord(VK_N)
+  } else if (action === 'quick-settings') {
+    seq = chord(VK_A)
+  } else if (action === 'toggle-desktop') {
+    seq = chord(VK_D)
   } else {
     return false
   }

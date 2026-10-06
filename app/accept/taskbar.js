@@ -77,6 +77,24 @@ async function waitEvent(type, pred, timeoutMs = 8000) {
   return null;
 }
 
+/** 最新一帧几何存证（渲染层在 pill/按钮/推荐位/左组矩形变化时补发 taskbar-geometry） */
+function latestGeometry(fallback) {
+  const evs = readEvents().filter((e) => e.type === 'taskbar-geometry');
+  return evs.length ? evs[evs.length - 1] : fallback;
+}
+
+/** 等几何安静窗口再取点击坐标：推荐位随 1Hz 数据面快照后到位会推中组 pill 移位，
+ * 按 boot 存证的初始矩形点击会落空/点错按钮（54 并入后实测）。窗口取 1.3s > 数据面拍。 */
+async function waitGeometrySettled(fallback, timeoutMs = 9000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const a = latestGeometry(fallback);
+    await sleep(1300);
+    const b = latestGeometry(fallback);
+    if (a.t === b.t || Date.now() >= deadline) return b;
+  }
+}
+
 async function waitWindow(pid, title, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -275,16 +293,24 @@ async function main() {
     // pill 与按钮矩形（渲染层 ready 存证，CSS px 相对客户区）
     const ready = await waitEvent('taskbar-ready', (e) => e.pill && e.buttons, 10000);
     if (!ready) throw new Error('taskbar-ready 存证缺失（无法取 pill 点击坐标）');
+    // 几何稳定帧：推荐位后到位会推 pill 移位，点击坐标一律取 settle 后的最新几何
+    const geom = await waitGeometrySettled(ready);
+    rep.note(`几何帧: boot pill.w=${Math.round(ready.pill.w)} → settled pill.w=${Math.round(geom.pill.w)}`);
     const toPhys = (cssX, cssY) => ({
       x: Math.round(rect.left + cssX * scale),
       y: Math.round(rect.top + cssY * scale),
     });
     const btnOf = (id) => {
-      const b = ready.buttons.find((x) => x.id === id);
+      const b = geom.buttons.find((x) => x.id === id);
       return toPhys(b.x + b.w / 2, b.y + b.h / 2);
     };
-    const gapPt = toPhys(40, TASKBAR_HEIGHT_DIP / 2); // 条带左端缝隙（远离中组 pill）
-    const pillCenter = toPhys(ready.pill.x + ready.pill.w / 2, ready.pill.y + ready.pill.h / 2);
+    // 缝隙探针（工单52 适配）：左组有条目时取「左组 pill 右缘与中组 pill 左缘的中点」
+    // （固定在 x=40 会落进左组 pill 热区）；左组空（pill-left 不渲染）回退条带左端 40
+    const gapCssX = geom.apps && geom.apps.length > 0
+      ? (geom.leftPill.x + geom.leftPill.w + geom.pill.x) / 2
+      : 40;
+    const gapPt = toPhys(gapCssX, TASKBAR_HEIGHT_DIP / 2); // 条带缝隙（两组 pill 之间/左端）
+    const pillCenter = toPhys(geom.pill.x + geom.pill.w / 2, geom.pill.y + geom.pill.h / 2);
 
     // z 序收敛（ADR-0007 已知风险）：原生任务栏同在 TOPMOST 带，建窗瞬间可能压在我们之上；
     // keepalive 定时重申会赢下稳态——电池等收敛再断言，不赌建窗瞬时序（49 实测两态都出现过）。

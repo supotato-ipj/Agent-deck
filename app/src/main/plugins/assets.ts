@@ -15,10 +15,12 @@ export const PLUGIN_SCHEME = 'deck-plugin'
 /** 宿主渲染层的主机名（插件目录用插件 id 作主机名） */
 export const APP_HOST = 'app'
 
-/** 一条资产根：协议主机名 → 磁盘目录 */
+/** 一条资产根：协议主机名 → 磁盘目录（可选挂载前缀） */
 export interface AssetRoot {
   host: string
   dir: string
+  /** 该根在主机下的挂载路径（如 `/shared`）；省略即挂在主机根下 */
+  prefix?: string
 }
 
 /** 投递白名单：只有这些类型才经协议外发（.js 必须是 text/javascript，否则 ESM 被拒） */
@@ -46,7 +48,8 @@ export interface ResolvedAsset {
 
 /**
  * 把协议 URL 解析成磁盘文件。任一环节不成立即 null（→ 404）：
- * 协议不符、主机未登记、路径逃出根目录、NUL/反斜杠、目标是目录、文件不存在、类型不在白名单。
+ * 协议不符、主机未登记、路径逃出根目录、NUL/反斜杠、目标是目录、所有根下都没有、类型不在白名单。
+ * 同一主机名可挂多根，按 roots 顺序逐根尝试（渲染层根优先，共享模块根在后）。
  * 查表用 Map（09 踩坑 1 的纪律：外部字符串查表一律防原型链）。
  */
 export function resolveAssetUrl(rawUrl: string, roots: AssetRoot[]): ResolvedAsset | null {
@@ -58,9 +61,13 @@ export function resolveAssetUrl(rawUrl: string, roots: AssetRoot[]): ResolvedAss
   }
   if (url.protocol !== `${PLUGIN_SCHEME}:`) return null
 
-  // URL 规范已把主机名归一为小写；id 的合法字符集本身即小写，无歧义
-  const dir = roots.find((r) => r.host === url.hostname)?.dir
-  if (!dir) return null
+  // URL 规范已把主机名归一为小写；id 的合法字符集本身即小写，无歧义。
+  // 同一主机名可挂多根（渲染层根 + dist/shared：跨进程共享模块经协议同源取，
+  // 本根没有就换下一根——首个命中即止，根序即优先级）
+  const dirs = roots
+    .filter((r) => r.host === url.hostname)
+    .map((r) => ({ dir: path.resolve(r.dir), mount: mountOf(r.prefix) }))
+  if (dirs.length === 0) return null
 
   let pathname: string
   try {
@@ -70,20 +77,31 @@ export function resolveAssetUrl(rawUrl: string, roots: AssetRoot[]): ResolvedAss
   }
   if (pathname.includes('\0') || pathname.includes('\\')) return null
 
-  const root = path.resolve(dir)
-  const file = path.resolve(root, '.' + (pathname.startsWith('/') ? pathname : `/${pathname}`))
-  // 穿越防线：`..` 已被 normalize 吃掉，此处判的是「解出来仍在根内」
-  if (file !== root && !file.startsWith(root + path.sep)) return null
+  for (const { dir: root, mount } of dirs) {
+    if (mount && pathname !== mount && !pathname.startsWith(`${mount}/`)) continue
+    const rel = mount ? pathname.slice(mount.length) : pathname
+    const file = path.resolve(root, '.' + (rel.startsWith('/') ? rel : `/${rel}`))
+    // 穿越防线：`..` 已被 normalize 吃掉，此处判的是「解出来仍在根内」
+    if (file !== root && !file.startsWith(root + path.sep)) continue
 
-  let stat: fs.Stats
-  try {
-    stat = fs.statSync(file)
-  } catch {
-    return null
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(file)
+    } catch {
+      continue // 该根下无此文件（多根寻址的常态）→ 试下一根
+    }
+    if (!stat.isFile()) continue
+
+    const mime = mimeOf(file)
+    if (!mime) return null // 类型不在白名单：换根无益（同一路径名同扩展）
+    return { file, mime }
   }
-  if (!stat.isFile()) return null
+  return null
+}
 
-  const mime = mimeOf(file)
-  if (!mime) return null
-  return { file, mime }
+/** 归一挂载前缀：`shared` / `/shared/` → `/shared`；空与 `/` → 无前缀（挂主机根） */
+function mountOf(prefix: string | undefined): string {
+  if (!prefix) return ''
+  const p = prefix.startsWith('/') ? prefix : `/${prefix}`
+  return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p
 }

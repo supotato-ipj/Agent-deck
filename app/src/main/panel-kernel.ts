@@ -10,7 +10,7 @@ import { FocusService, type FocusServiceOptions } from './services/focus'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
-import { DEFAULT_SEARCH_INTERVAL_MS } from './kernel'
+import { DEFAULT_SEARCH_INTERVAL_MS, DEFAULT_TASKBAR_POLL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
 export interface PanelKernelOptions {
@@ -32,6 +32,8 @@ export interface PanelKernelOptions {
   dataplane: DataplaneServiceOptions
   /** 任务栏（工单49）：config 文件路径与可变引用（持久化通道，settings 同款） */
   taskbar?: TaskbarServiceOptions
+  /** 任务栏左组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
+  taskbarPollMs?: number
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
   quit?: () => void
 }
@@ -46,13 +48,32 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(PluginHostService, { roots: [], ...options.plugins })
   // 数据面端口（生产装配：utilityProcess 子进程宿主）——必须先于桥接层注册
   ctx.plugin(DataplaneService, options.dataplane)
-  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
-  ctx.plugin(TaskbarService, options.taskbar)
+  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。
+  // 中组推荐位（工单54）缺省接 panelData——数据面快照随拍携带的频次链路产物。
+  ctx.plugin(TaskbarService, {
+    ...options.taskbar,
+    deps: {
+      ...options.taskbar?.deps,
+      recommendations: options.taskbar?.deps?.recommendations
+        ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
+      // 托盘点击回放（工单56）：真源在数据面托盘宿主（Win32 同处），主进程只转发请求。
+      // 离线内核无 panelData 时按「送不出去」回报（契约测试注假源）。
+      replayTrayClick: options.taskbar?.deps?.replayTrayClick
+        ?? ((key, button) => (ctx.panelData as { replayTrayClick?: (k: string, b: 'left' | 'right') => boolean } | undefined)
+          ?.replayTrayClick?.(key, button) ?? false),
+    },
+  })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）
     const timer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
+    ctx.on('dispose', () => clearInterval(timer))
+  }
+  const taskbarPollMs = options.taskbarPollMs ?? DEFAULT_TASKBAR_POLL_MS
+  if (taskbarPollMs > 0) {
+    // 左组编排轮（工单52）：应用启动/退出 1–2 秒内反映到左组（窗口枚举 → 纯函数编排 → 变化即推）
+    const timer = setInterval(() => ctx.taskbar?.refresh(), taskbarPollMs)
     ctx.on('dispose', () => clearInterval(timer))
   }
   return ctx

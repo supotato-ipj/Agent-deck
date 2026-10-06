@@ -33,6 +33,10 @@ const ACCEPT_TRAY_MODE = process.argv.includes('--accept-tray')
 const ACCEPT_TASKBAR_MODE = process.argv.includes('--accept-taskbar')
 /** 任务栏显隐验收（工单50）：控制器身份跑 accept/taskbar-carry.js */
 const ACCEPT_TASKBAR_CARRY_MODE = process.argv.includes('--accept-taskbar-carry')
+/** 任务栏右组验收（工单55）：控制器身份跑 accept/taskbar-right-group.js */
+const ACCEPT_TASKBAR_RIGHT_GROUP_MODE = process.argv.includes('--accept-taskbar-right-group')
+/** 任务栏 AppBar 占位 + 全屏让位验收（工单51）：控制器身份跑 accept/taskbar-appbar.js */
+const ACCEPT_TASKBAR_APPBAR_MODE = process.argv.includes('--accept-taskbar-appbar')
 const PANEL_MODE = process.argv.includes('--panel')
 /** 验收专用面板子进程（工单49）：完整面板但绕开单实例锁，与常驻面板共存 */
 const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
@@ -97,7 +101,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     log?.append({ type: 'usage-migrate-failed', message: (err as Error).message })
   }
 
-  // 托盘 spike（工单48）：最小验收页 + 托盘宿主开关（竞争窗口跑在数据面子进程）。
+  // 托盘 spike（工单48）：最小验收页（托盘宿主本身工单56 起常驻，不再由本开关起停）。
   // 页面未就绪前事件先入暂存，did-finish-load 后补发，不丢首波 NIM_ADD。
   let spikeWin: BrowserWindow | null = null
   let spikeReady = false
@@ -146,8 +150,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     search: { port: config.search.port, engine: config.search.engine, everythingPort: config.search.everythingPort },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
-    // 任务栏（工单49）：开关随 config 下发，set-enabled 经此整份回写
-    taskbar: { enabled: config.taskbar.enabled, file: CONFIG_FILE, config },
+    // 任务栏（工单49/54/55）：开关、按钮显隐与硬件摘要勾选随 config 下发，
+    // set-enabled/set-button-hidden/set-metrics 经此整份回写
+    taskbar: {
+      enabled: config.taskbar.enabled,
+      hiddenButtons: config.taskbar.hiddenButtons,
+      metrics: config.taskbar.metrics,
+      file: CONFIG_FILE,
+      config,
+    },
     // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
     plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
@@ -159,9 +170,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         storeFile: path.join(app.getPath('userData'), 'layout.json'),
         docMaxRows: config.desktop.docMaxRows,
         usageDir,
-        ...(options.traySpike
-          ? { traySpike: { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') } }
-          : {}),
+        // 托盘宿主常驻（工单56 入栏）：子进程竞争同名窗口收编系统托盘；验收模式额外收语料
+        tray: options.traySpike
+          ? { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') }
+          : {},
       },
       log: (event) => log?.append(event),
       onTrayEvent: options.traySpike ? onTrayEvent : undefined,
@@ -172,7 +184,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady
 
-  installPluginProtocol({ appRoot: RENDERER_ROOT, host: kernel.plugins })
+  installPluginProtocol({ appRoot: RENDERER_ROOT, sharedRoot: path.join(__dirname, '../shared'), host: kernel.plugins, log: (e) => log?.append(e) })
 
   const win = createPanelWindow({ geometry: config.panel })
   wireBridgeIpc(win, kernel.bridge)
@@ -260,7 +272,7 @@ if (RESTORE_MODE) {
   forceShowIcons(log)
   forceShowNativeTaskbar(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !PANEL_ACCEPT_MODE) {
+} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -318,7 +330,7 @@ if (RESTORE_MODE) {
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
@@ -328,6 +340,12 @@ if (RESTORE_MODE) {
   if (PANEL_ACCEPT_MODE && process.env.DECK_CDP_PORT) {
     app.commandLine.appendSwitch('remote-debugging-port', process.env.DECK_CDP_PORT)
   }
+  // 遮挡不得降频（工单59 真机首跑实证，见 panel-window.ts 的 backgroundThrottling）：
+  // 面板与条带是常驻桌面件，被普通窗盖住是常态而非「看不见」——Chromium 默认把被遮挡
+  // 的渲染层后台化（停帧、掐表），面板当场失能：热区不解穿透（点击漏到桌面）、新快照
+  // 不上屏（新建文件不出现）。这两项在 ready 之前必须挂上。
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
   void app.whenReady().then(() => {
     // 工单86 验收提示条：控制器身份的四块电池统一挂条——琥珀药丸驻留屏幕上中部安全带，
     // 提示用户暂勿键鼠操作；随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、
@@ -359,6 +377,20 @@ if (RESTORE_MODE) {
       // （守卫链默认入口 + --panel-accept 混合，见电池文件头）。
       app.on('window-all-closed', () => {})
       require(path.join(app.getAppPath(), 'accept', 'taskbar-carry.js'))()
+      return
+    }
+    if (ACCEPT_TASKBAR_RIGHT_GROUP_MODE) {
+      // 任务栏右组验收（工单55）：控制器身份跑 accept/taskbar-right-group.js，面板以
+      // --panel-accept 子进程拉起。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'taskbar-right-group.js'))()
+      return
+    }
+    if (ACCEPT_TASKBAR_APPBAR_MODE) {
+      // 任务栏 AppBar 占位 + 全屏让位验收（工单51）：控制器身份跑 accept/taskbar-appbar.js，
+      // 面板以 --panel-accept 子进程拉起；最大化/全屏参照窗由控制器自开（见电池文件头）。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'taskbar-appbar.js'))()
       return
     }
     bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {

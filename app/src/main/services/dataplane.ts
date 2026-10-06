@@ -1,10 +1,10 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../../shared/contract'
+import type { ClockState, DesktopState, DesktopZone, HardwareState, TaskbarRecommendation } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
-import type { TrayWireEvent } from '../trayhost/protocol'
+import type { TrayClickButton, TrayWireEvent } from '../trayhost/protocol'
 import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, koffiClipboardFilesRead, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
@@ -20,7 +20,7 @@ export interface DataplaneServiceOptions {
   log?: (event: Record<string, unknown>) => void
   /** 首拍等待上限（默认 15s） */
   readyTimeoutMs?: number
-  /** 托盘 spike（工单48）：子进程托盘宿主的规范化事件出口（spike 窗渲染用） */
+  /** 托盘 spike 验收旁听（工单48）：子进程托盘宿主的规范化事件出口（spike 窗渲染用） */
   onTrayEvent?: (event: TrayWireEvent) => void
 }
 
@@ -31,7 +31,7 @@ export interface DataplaneServiceOptions {
  *
  * 本服务只做四件事：转发每拍快照（触发桥接推送）、预热图标（app.getFileIcon
  * 是主进程 API，按快照条目增量提取）、代理解析 lnk 目标（readShortcutLink 同理）、
- * 转发桌面承载写请求（move/reset/pin/unpin/trash；launch/reveal/copy-path/copy-paths 在
+ * 转发桌面承载写请求（move/reset/trash；launch/reveal/copy-path/copy-paths 在
  * 主进程校验快照条目池后执行——shell.openPath 与 clipboard 是主进程 API，reveal 校验段
  * 认主进程快照池；trash 的回收站源 shell.trashItem 同为主进程 API，但删除裁决与摆位
  * 清除在子进程（存储归属地），故走反向代理：子进程 trash-req → 本进程执行 → trash-res）。
@@ -129,6 +129,9 @@ export class DataplaneService extends Service implements PanelDataPort {
         this.child?.postMessage({ type: 'clipboard-read-res', id: msg.id, files })
       })()
     } else if (msg.type === 'tray-event') {
+      // 托盘事件（工单56 入栏）：任务栏服务经 cordis 事件订阅（与 dataplane/snapshot 同款
+      // 解耦，避免直取 ctx.taskbar 构成循环依赖）；onTrayEvent 供验收 spike 页旁听。
+      this.ctx.emit('dataplane/tray-event', msg.event)
       this.options.onTrayEvent?.(msg.event)
     } else if (msg.type === 'tray-host') {
       this.options.log?.(msg.event)
@@ -139,6 +142,14 @@ export class DataplaneService extends Service implements PanelDataPort {
       if (msg.ok) waiter.resolve(msg.result)
       else waiter.reject(new Error(msg.error ?? '数据面请求失败'))
     }
+  }
+
+  /** 托盘点击回放（工单56）：回放本体在子进程托盘宿主（Win32 真源同处），本进程只转发
+   * 请求；投递结果经 tray-host 事件流回存证，不占桥接往返（点击语义不需等回执） */
+  replayTrayClick(key: string, button: TrayClickButton): boolean {
+    if (!this.child) return false
+    this.child.postMessage({ type: 'tray-replay', key, button })
+    return true
   }
 
   private shutdown(): void {
@@ -178,7 +189,12 @@ export class DataplaneService extends Service implements PanelDataPort {
   }
 
   desktop(): DesktopState {
-    return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { dock: [], docs: [] } }
+    return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { docs: [] } }
+  }
+
+  /** 任务栏中组推荐位（工单54）：子进程随快照算好携带（分数跨进程不过桥——名单即产物） */
+  taskbarRecommendations(): TaskbarRecommendation[] {
+    return this.latest?.recommendations ?? []
   }
 
   refresh(): void {
@@ -275,14 +291,6 @@ export class DataplaneService extends Service implements PanelDataPort {
 
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
     return this.call('desktop/move-batch', { names, zone, beforeName }) as Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
-  }
-
-  pin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return this.call('desktop/pin', { name }) as Promise<{ ok: boolean; error?: string }>
-  }
-
-  unpin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return this.call('desktop/unpin', { name }) as Promise<{ ok: boolean; error?: string }>
   }
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {

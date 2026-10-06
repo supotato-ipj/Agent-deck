@@ -38,6 +38,11 @@ export function createPanelWindow(options: PanelWindowOptions): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // 面板被普通应用窗盖住时不得降频：Chromium 的遮挡后台化会把「被盖住」判成
+      // 「看不见」，渲染层随即停摆——热区不再解除穿透（点击穿透到桌面）、数据面
+      // 新快照不再上屏（桌面新建文件不出现）。真机实证：记事本盖住面板数秒后
+      // 面板即失能，主机核开关见 index.ts 的 disable-backgrounding-occluded-windows。
+      backgroundThrottling: false,
     },
   })
   // 默认穿透不带 forward 转发：Electron 在 Windows 上实现 forward 要在主进程装

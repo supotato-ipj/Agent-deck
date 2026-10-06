@@ -57,26 +57,25 @@ function renderCalendar(epochMs: number): void {
 
 let calendarMonth = -1
 
-// ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：dock 应用区 + 文档区分组列 ----
+// ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：文档区分组列 ----
+// 工单59：dock 应用区退役——应用入口并入任务栏（左组手钉/运行中 + 中组推荐位），
+// 桌面只承载文档区。应用条目仍在条目池里（zone=app），供任务栏取元数据，不再上屏。
 // 条目池随 1Hz 快照下发，按指纹 diff——集合未变不重建 DOM；图标经 desktop/icon
 // 懒取（dataURL 本地缓存，键含 mtime，lnk 指向变更自然换图标）。
-// 工单06 起 dock 按 plan.dock 序铺条（手钉→摆位→推荐），文档区按 plan.docs 的
+// 工单06 起文档区按 plan.docs 的
 // 组序/组内序铺分组列；拖拽摆位经 desktop/move 落内核并持久化。
 // 工单20 起选区是名字集合（跨分区、瞬态、按名存续）：迁移全部走 selection.ts
 // 纯状态机，本文件只消费其输出——快照重建后按名恢复，消失条目自动剔除。
 // 工单21 起分区空白可框选（band=替换 / ctrl+band=并集，起笔阈值与拖拽共用）。
 // 工单22 起批量拖拽：起笔于选中集内且集合多条 = 整组按选区插入序迁移，ghost 带
-// 「N 项」徽标（N = 实际拖动条数，不含手钉——渲染层按 plan.dock 的 pinned 段预测，
-// 内核回报的 skipped 是权威口径，经 desktop-moved-batch 存证如实上报）。
+// 「N 项」徽标（N = 实际拖动条数，不含内核跳过的组员——内核回报的 skipped 是权威口径，
+// 经 desktop-moved-batch 存证如实上报）。
 // 工单23 起分区空白右键弹上下文菜单：shell 是 cordis 插件（cards/context-menu，
 // 随清单热插拔），触发与收起裁决在面板——右键分区空白（热区内、非条目上）把内置
 // 两项交给 shell；开层期间热区换全窗，任何菜单外按下即收起并吞掉那一击。
 // 工单24 起条目右键弹单项菜单（打开/打开所在位置/复制路径）：弹/切裁决经
 // selection.itemMenuPlan，动作走 desktop/launch（via=ctx-menu）/desktop/reveal/
 // desktop/copy-path 三个契约，收起与吞没共用 23 的面板裁决。
-// 工单25 起单项菜单第 4 行按目标条目手钉态条件显隐：手钉见【取消手钉】
-// （desktop/unpin）、非手钉见【钉到应用区】（desktop/pin）——改摆位存储的手钉
-// 清单并即时重编排，文档类条目取消后按归类+显式摆位裁决回文档区。
 // 工单26 起右键命中选中集内条目（选区多于一条）弹多选菜单：条目集收敛为
 // 【打开全部 / 复制路径（多行 \n）/ 删除全部】（工单27 补入删除全部、工单29 补入
 // 复制/剪切文件级写向），动作作用于整个选区且选区不动；右键非选中条目仍走单项菜单（先切单选）。
@@ -86,7 +85,6 @@ let calendarMonth = -1
 // 工单28 起单项菜单加【重命名】：标签原地变输入框（Enter/失焦确认、Esc 取消），
 // desktop/rename 契约在内核做校验与摆位同拍迁移；失败 ok=false 存证 + 提示条 + 原名还原。
 
-const dockZone = el('dock-zone')
 const docZone = el('doc-zone')
 const docGroups = el('doc-groups')
 const GROUP_ORDER = ['folders', 'office', 'pdf', 'image', 'archive', 'other'] as const
@@ -99,8 +97,6 @@ let desktopRenderCount = 0
 let selection: SelectionModel = EMPTY_SELECTION
 /** 最近一拍条目名 → 条目（双击全开按名取 path；快照未变时同样有效） */
 let itemByName = new Map<string, DesktopItem>()
-/** 手钉名集（plan.dock 的 pinned 段；批量拖拽的「N 项」徽标据此预测 skipped） */
-let pinnedNames = new Set<string>()
 let layoutApplied = ''
 
 function itemGlyph(item: DesktopItem): string {
@@ -274,9 +270,7 @@ const DRAG_THRESHOLD_PX = 6
 
 function zoneOfContainer(node: Node | null): 'app' | 'doc' | null {
   for (let n = node; n; n = (n as HTMLElement).parentElement) {
-    const id = (n as HTMLElement).id
-    if (id === 'dock-zone') return 'app'
-    if (id === 'doc-groups' || id === 'doc-zone') return 'doc'
+    if ((n as HTMLElement).id === 'doc-groups' || (n as HTMLElement).id === 'doc-zone') return 'doc'
   }
   return null
 }
@@ -376,7 +370,8 @@ function wireDrag(d: HTMLElement, item: DesktopItem): void {
 /** 批量同位守卫（单选「位置未变，不落盘」的整组版）：组员已全部在目标分区、且按
  * 选区插入序紧贴参照之前（参照 null = 紧贴末尾）——整组原地，不落盘不发存证。 */
 function batchDropUnchanged(group: readonly string[], zone: 'app' | 'doc', beforeName: string | null): boolean {
-  const container = zone === 'app' ? dockZone : docGroups
+  if (zone !== 'doc') return false // 应用区不再由桌面承载：无处可摆，一律判为有变化
+  const container = docGroups
   const order = [...container.querySelectorAll<HTMLElement>('.ditem')].map((d) => d.dataset.name ?? '')
   if (!group.every((n) => order.includes(n))) return false // 有组员在另一分区：跨区必变
   const at = beforeName === null ? order.length : order.indexOf(beforeName)
@@ -393,10 +388,10 @@ function nextSiblingName(name: string): string | null {
 
 function beginGhost(item: DesktopItem): void {
   const group = dragState.group ?? [item.name]
-  // 只把「实际会动的」条目变半透明：批量组里的手钉组员原地不动（内核会跳过），
-  // 不参与拖拽观感。N 项徽标 = 实际拖动条数（不含 skipped）——渲染层按 pinned 名集
-  // 预测，权威 skipped 口径由内核回报、desktop-moved-batch 存证上报。
-  const movers = group.filter((n) => !pinnedNames.has(n))
+  // 只把「实际会动的」条目变半透明：不参与拖拽观感的组员（不在文档区）不参与变暗。
+  // N 项徽标 = 实际拖动条数（不含 skipped）——权威 skipped 口径由内核回报，
+  // desktop-moved-batch 存证上报。
+  const movers = group.filter((n) => itemByName.get(n)?.zone === 'doc')
   for (const n of movers) {
     document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(n)}"]`)?.classList.add('dragging')
   }
@@ -406,6 +401,7 @@ function beginGhost(item: DesktopItem): void {
   const img = source ? source.querySelector('img') : null
   if (img) {
     const g = document.createElement('img')
+    g.draggable = false // 幽灵随光标走：可拖 img 会在指针下把拖拽劫持成浏览器原生拖拽
     g.src = img.src
     g.style.width = '40px'
     g.style.height = '40px'
@@ -545,7 +541,7 @@ function resetMarquee(): void {
 
 /** 分区命中：几何上落在某分区热区（容器外扩带）内 */
 function zoneAtPoint(x: number, y: number): boolean {
-  for (const zone of [dockZone, docZone]) {
+  for (const zone of [docZone]) {
     if (zoneHotzoneContains(zoneHotzoneRectOf(zone), x, y)) return true
   }
   return false
@@ -702,11 +698,10 @@ for (const type of ['click', 'contextmenu'] as const) {
 // 无焦点不可用。路径校验（扫描池护栏）在内核，与 launch 同款。
 
 /** 单项动作条目集（contributor 注册位形状，同工单23 分区空白内置两项）：三动作之外，
- * 第 4/5 行【复制】【剪切】（工单29，文件级剪贴板写向，COPY PATH 之后）、第 6 行按目标
- * 条目手钉态条件显隐（工单25）——手钉只见【取消手钉】、非手钉只见【钉到应用区】；
- * 手钉态读最近一拍 plan.dock 的 pinned 段（pinnedNames）。
- * 第 7 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）。
- * 第 8 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。 */
+ * 第 4/5 行【复制】【剪切】（工单29，文件级剪贴板写向，COPY PATH 之后）、
+ * 第 6 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）、
+ * 第 7 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。
+ * 工单59：钉到应用区/取消手钉两行随 dock 一并退役——手钉改由任务栏左组承担。 */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },
@@ -714,9 +709,6 @@ function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
     { id: 'copy-path', label: 'COPY PATH', run: () => copyItemPath(item) },
     { id: 'copy', label: 'COPY', run: () => clipboardFilesAction([item.name], 'copy') },
     { id: 'cut', label: 'CUT', run: () => clipboardFilesAction([item.name], 'cut') },
-    pinnedNames.has(item.name)
-      ? { id: 'unpin', label: 'UNPIN', run: () => unpinItemToStore(item) }
-      : { id: 'pin', label: 'PIN TO DOCK', run: () => pinItemToDock(item) },
     { id: 'rename', label: 'RENAME', run: () => beginRename(item) },
     { id: 'delete', label: 'DELETE', run: () => trashItems([item.name]) },
   ]
@@ -741,28 +733,6 @@ function copyItemPath(item: DesktopItem): void {
       name: item.name, ok: r.ok, error: r.error ?? null,
     }),
     (err: unknown) => notify('desktop-path-copy-failed', { name: item.name, message: String(err) }),
-  )
-}
-
-/** 钉到应用区（工单25）：desktop/pin 结果存证（rejected/failed 分名，电池按名断言） */
-function pinItemToDock(item: DesktopItem): void {
-  notify('desktop-pin-clicked', { name: item.name, via: 'ctx-menu' })
-  void window.deck.bridge.invoke('desktop/pin', { name: item.name }).then(
-    (r) => notify(r.ok ? 'desktop-pinned' : 'desktop-pin-rejected', {
-      name: item.name, ok: r.ok, error: r.error ?? null,
-    }),
-    (err: unknown) => notify('desktop-pin-failed', { name: item.name, message: String(err) }),
-  )
-}
-
-/** 取消手钉（工单25）：desktop/unpin 结果存证（同上分名） */
-function unpinItemToStore(item: DesktopItem): void {
-  notify('desktop-unpin-clicked', { name: item.name, via: 'ctx-menu' })
-  void window.deck.bridge.invoke('desktop/unpin', { name: item.name }).then(
-    (r) => notify(r.ok ? 'desktop-unpinned' : 'desktop-unpin-rejected', {
-      name: item.name, ok: r.ok, error: r.error ?? null,
-    }),
-    (err: unknown) => notify('desktop-unpin-failed', { name: item.name, message: String(err) }),
   )
 }
 
@@ -988,6 +958,13 @@ window.addEventListener('pointerdown', (e) => {
   closeTrashConfirm('outside')
 }, { capture: true })
 
+// 面板的拖拽语义全是自绘手势（摆位、框选各自监听 pointer 流）。浏览器原生 HTML5
+// 拖拽在本面板没有合法用途，且代价是整个面板停摆：一旦 DoDragDrop 会话起不来收不掉，
+// 满屏 Ghost 幽灵窗跟着光标走、渲染主线程进模态循环，此后点击进得去但事件不发、
+// 快照不上屏（真机实证：工单59 验收首跑 30 余段连锁判死）。面板常驻不重启，冻住就是
+// 永久失去交互——故在源头掐掉。任务栏是另一扇窗、另一份文档，其换位拖拽不受影响。
+document.addEventListener('dragstart', (e) => e.preventDefault())
+
 // ---- 动作失败提示（工单27 AC「菜单层有可见提示」；工单28 重命名失败复用同一条）：
 // 权限/占用/重名等失败如实上浮的瞬态条，数秒自隐；纯展示不接交互（无热区，指针穿透到下层）。
 
@@ -1180,7 +1157,7 @@ function cancelRename(reason: 'esc' | 'rebuild'): void {
 }
 
 
-// ---- 编排应用：dock 序 / 文档分组列 / 几何（config 下发） ----
+// ---- 编排应用：文档分组列 / 几何（config 下发） ----
 
 function applyLayout(layout: PanelSnapshot['layout']): void {
   const key = JSON.stringify(layout)
@@ -1189,7 +1166,6 @@ function applyLayout(layout: PanelSnapshot['layout']): void {
   docZone.style.left = `${layout.docZone.left}px`
   docZone.style.top = `${layout.docZone.top}px`
   docZone.style.maxWidth = `${layout.docZone.maxWidth}px`
-  dockZone.style.maxWidth = `${layout.dockMaxWidth}px`
   for (const grid of document.querySelectorAll<HTMLElement>('.doc-group .ggrid')) {
     grid.style.gridTemplateRows = `repeat(${layout.docMaxRows}, auto)`
   }
@@ -1198,7 +1174,6 @@ function applyLayout(layout: PanelSnapshot['layout']): void {
 function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): void {
   applyLayout(layout)
   itemByName = new Map(state.items.map((i) => [i.name, i]))
-  pinnedNames = new Set(state.plan.dock.filter((e) => e.source === 'pinned').map((e) => e.name))
   if (state.fingerprint === desktopFingerprintSeen) return
   desktopFingerprintSeen = state.fingerprint
   // 编辑中的重命名输入框会被这次重建整块摘掉（输入框在条目 DOM 里）：静默 detach、
@@ -1213,19 +1188,6 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
     renameCarry = null
   }
   const byName = itemByName
-  // dock：按编排序铺条；池内 app 条目若不在计划（理论不可达）兜底追加，承载一个不漏
-  dockZone.textContent = ''
-  const dockNames: string[] = []
-  for (const entry of state.plan.dock) {
-    const item = byName.get(entry.name)
-    if (!item) continue
-    dockZone.appendChild(buildItem(item))
-    dockNames.push(entry.name)
-  }
-  for (const item of state.items.filter((i) => i.zone === 'app' && !dockNames.includes(i.name))) {
-    dockZone.appendChild(buildItem(item))
-    dockNames.push(item.name)
-  }
   // 文档区：按组序铺分组列（组内序即 plan.docs 的 rank 序）
   docGroups.textContent = ''
   for (const group of GROUP_ORDER) {
@@ -1256,11 +1218,10 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
   notify('desktop-rendered', {
     n: desktopRenderCount,
     fingerprint: state.fingerprint,
-    apps: dockNames.length,
+    apps: state.items.filter((i) => i.zone === 'app').length,
     docs: state.plan.docs.length,
     names: state.items.map((i) => i.name),
     sel: [...selection.names],
-    dock: state.plan.dock,
     docEntries: state.plan.docs,
     rects: state.items.map((item) => {
       const node = document.querySelector<HTMLElement>(`.ditem[data-name="${CSS.escape(item.name)}"]`)
@@ -1272,7 +1233,7 @@ function renderDesktop(state: DesktopState, layout: PanelSnapshot['layout']): vo
 }
 
 // ---- 设置浮层（工单08）：卡片底色透明度全局滑杆 + 恢复出厂布局入口 ----
-// 滑杆 input 即时改 CSS 变量 --card-alpha（.card 与 #dock-zone 的底色，文字全部
+// 滑杆 input 即时改 CSS 变量 --card-alpha（.card 的底色，文字全部
 // 实色不动）；持久化经内核契约 settings/set-card-opacity（内核整份回写 config.json），
 // 回推经 settings/changed 与快照 reconcile（applyCardAlpha 幂等）。
 // 浮层开关：点击 settings-btn 切换；ESC 关闭；失焦关闭 = focusout 且焦点未落回浮层
@@ -1736,8 +1697,8 @@ function render(snap: PanelSnapshot): void {
 
 // ---- 热区声明（全部卡片 + 桌面承载区） ----
 // 桌面分区按「容器可见矩形外扩 ZONE_HOTZONE_PAD_PX、裁到窗内」声明（工单89，几何
-// 唯一出处 zone-hotzone.ts）：空分区不占热区（不产生点击死区，穿透照旧）；dock 条的
-// 内边距随容器带进（光标在条边停留仍可交互）。同一几何也门控 body 级分区语义路由
+// 唯一出处 zone-hotzone.ts）：空分区不占热区（不产生点击死区，穿透照旧）；容器带进
+// 内边距（光标在容器边停留仍可交互）。同一几何也门控 body 级分区语义路由
 // （zoneAtPoint）——声明与路由必须同源，环带点击才有语义。
 
 function zoneHotzoneRectOf(zone: HTMLElement): ZoneBox | null {
@@ -1766,9 +1727,7 @@ function declareHotZones(): void {
     const r = card.getBoundingClientRect()
     return { id: card.id, x: r.left, y: r.top, w: r.width, h: r.height }
   })
-  const dock = zoneHotzoneRectOf(dockZone)
-  if (dock) rects.push({ id: 'dock-zone', ...dock })
-  const doc = zoneHotzoneRectOf(docZone)
+const doc = zoneHotzoneRectOf(docZone)
   if (doc) rects.push({ id: 'doc-zone', ...doc })
   const sb = settingsBtn.getBoundingClientRect()
   if (sb.width > 0) rects.push({ id: 'settings-btn', x: sb.left, y: sb.top, w: sb.width, h: sb.height })

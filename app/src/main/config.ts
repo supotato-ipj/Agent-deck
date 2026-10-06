@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopLayout, WeatherLocation } from '../shared/contract'
+import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, WeatherLocation } from '../shared/contract'
+import { TASKBAR_METRIC_KEYS } from '../shared/contract'
 import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
@@ -32,9 +33,13 @@ export interface AppConfig {
   taskbar: TaskbarConfig
 }
 
-/** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失 */
+/** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失。
+ * hiddenButtons（工单54）：中组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
+ * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。 */
 export interface TaskbarConfig {
   enabled: boolean
+  hiddenButtons: TaskbarButtonId[]
+  metrics: TaskbarMetric[]
 }
 
 /**
@@ -158,7 +163,7 @@ export function defaultWeather(): WeatherConfig {
 
 /** 默认桌面承载几何：renderer/index.html 工单05 的生产值固化（DIP） */
 export function defaultDesktopLayout(): DesktopLayout {
-  return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8, dockMaxWidth: 1240 }
+  return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8 }
 }
 
 /** 默认搜索配置：Listary 生产端口 + 缺省引擎 auto（零配置各用各的，工单14） */
@@ -182,22 +187,56 @@ export function defaultAutostart(): AutostartConfig {
 }
 
 /** 默认任务栏：启用（接管形态即默认体验——开启即隐藏原生任务栏，逃生开关与
- * guard + watchdog 三路径还原（工单50）在场，默认开让行为可见且可逆） */
+ * guard + watchdog 三路径还原（工单50）在场，默认开让行为可见且可逆）；
+ * 系统按钮默认全显示（隐藏是用户经右键菜单的主动收窄，工单54）；
+ * 硬件摘要五项默认全选（工单55） */
 export function defaultTaskbar(): TaskbarConfig {
-  return { enabled: true }
+  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS] }
 }
 
+/** 中组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
+const TASKBAR_BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
+
 function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[]): TaskbarConfig {
-  const out = { ...fallback }
+  const out: TaskbarConfig = { ...fallback, hiddenButtons: [...fallback.hiddenButtons], metrics: [...fallback.metrics] }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     warnings.push('config.taskbar 不是对象，已整体回退默认任务栏开关')
     return out
   }
-  const enabled = (raw as Record<string, unknown>).enabled
+  const section = raw as Record<string, unknown>
+  const enabled = section.enabled
   if (enabled !== undefined) {
     if (typeof enabled === 'boolean') out.enabled = enabled
     else warnings.push(`config.taskbar.enabled 不是布尔值，已回退默认值 ${fallback.enabled}`)
+  }
+  const metrics = section.metrics
+  if (metrics !== undefined) {
+    if (!Array.isArray(metrics)) {
+      warnings.push('config.taskbar.metrics 不是数组，已回退默认五项全选')
+    } else {
+      const known = metrics.filter((m): m is TaskbarMetric => (TASKBAR_METRIC_KEYS as readonly string[]).includes(m as string))
+      if (known.length !== metrics.length) warnings.push('config.taskbar.metrics 含未知指标，已丢弃未知项')
+      out.metrics = [...new Set(known)]
+    }
+  }
+  const hiddenButtons = section.hiddenButtons
+  if (hiddenButtons !== undefined) {
+    if (!Array.isArray(hiddenButtons)) {
+      warnings.push('config.taskbar.hiddenButtons 不是数组，已回退默认（全显示）')
+    } else {
+      const known: TaskbarButtonId[] = []
+      let dropped = false
+      for (const id of hiddenButtons) {
+        if (TASKBAR_BUTTON_IDS.includes(id as TaskbarButtonId)) {
+          if (!known.includes(id as TaskbarButtonId)) known.push(id as TaskbarButtonId)
+        } else {
+          dropped = true
+        }
+      }
+      if (dropped) warnings.push('config.taskbar.hiddenButtons 含未知按钮 id，已丢弃（合法条目保留）')
+      out.hiddenButtons = known
+    }
   }
   return out
 }
@@ -326,7 +365,7 @@ function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[])
 }
 
 function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[]): DesktopLayout {
-  const out = { docZone: { ...fallback.docZone }, docMaxRows: fallback.docMaxRows, dockMaxWidth: fallback.dockMaxWidth }
+  const out = { docZone: { ...fallback.docZone }, docMaxRows: fallback.docMaxRows }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     warnings.push('config.desktop 不是对象，已整体回退默认桌面几何')
@@ -357,11 +396,6 @@ function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[])
   if (rows !== undefined) {
     if (Number.isInteger(rows) && (rows as number) >= 1 && (rows as number) <= 32) out.docMaxRows = rows as number
     else warnings.push(`config.desktop.docMaxRows 须为 1..32 整数，已回退默认值 ${fallback.docMaxRows}`)
-  }
-  const dockW = desktop.dockMaxWidth
-  if (dockW !== undefined) {
-    if (isFiniteNumber(dockW) && dockW > 0) out.dockMaxWidth = dockW
-    else warnings.push(`config.desktop.dockMaxWidth 必须为正数，已回退默认值 ${fallback.dockMaxWidth}`)
   }
   return out
 }

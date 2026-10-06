@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { packTrayClick } from '../src/main/trayhost/protocol'
 import {
   NIM_ADD,
   NIM_DELETE,
@@ -170,5 +171,44 @@ describe('真实字节语料夹具（fixtures/trayhost/real-corpus.json，真机
     expect(n!.guid ?? null).toBe(e.guid)
     // 事件化不丢身份键（宿主侧增删图标依赖它）
     expect(toTrayEvent(n!).key).toBeTruthy()
+  })
+})
+
+/** 托盘点击回放打包（工单56，接缝③）：两代负载语义的纯函数合成，无 Win32。 */
+describe('packTrayClick', () => {
+  const V4 = { uid: 0x1234, callbackMessage: 0x0400, version: 4 }
+
+  it('v4：wParam = MAKELPARAM(x,y)，lParam = uid | (x << 16)', () => {
+    const pack = packTrayClick(V4, 'left', { x: 100, y: 200 })
+    expect(pack.message).toBe(0x0400)
+    expect(pack.wparam).toBe((200 << 16) | 100)
+    expect(pack.lparam).toBe((100 << 16) | 0x1234)
+  })
+
+  it('v4：左右键同载荷（应用按自身语义分派，不靠消息号）', () => {
+    expect(packTrayClick(V4, 'left', { x: 5, y: 6 })).toEqual(packTrayClick(V4, 'right', { x: 5, y: 6 }))
+  })
+
+  it('v4：光标坐标取低 16 位（负坐标/超屏不串位）', () => {
+    const pack = packTrayClick(V4, 'left', { x: -1, y: 0 })
+    expect(pack.wparam & 0xffff).toBe(0xffff)
+    expect((pack.lparam >>> 16) & 0xffff).toBe(0xffff)
+  })
+
+  it('v4：uid 取低 16 位', () => {
+    const pack = packTrayClick({ ...V4, uid: 0xdeadbeef }, 'left', { x: 1, y: 2 })
+    expect(pack.lparam & 0xffff).toBe(0xbeef)
+  })
+
+  it('旧版：wParam = WM_LBUTTONUP/WM_RBUTTONUP，lParam = uid', () => {
+    const legacy = { uid: 7, callbackMessage: 0x0401, version: 0 }
+    expect(packTrayClick(legacy, 'left', { x: 9, y: 9 })).toEqual({
+      message: 0x0401, wparam: 0x0203, lparam: 7,
+    })
+    expect(packTrayClick(legacy, 'right', { x: 9, y: 9 }).wparam).toBe(0x0205)
+  })
+
+  it('未协商版本（0）按旧版语义', () => {
+    expect(packTrayClick({ uid: 1, callbackMessage: 0x400, version: 0 }, 'left', { x: 0, y: 0 }).wparam).toBe(0x0203)
   })
 })

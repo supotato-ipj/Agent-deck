@@ -1,6 +1,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { ClockState, DesktopState, DesktopZone, HardwareState, SessionInfo } from '../../shared/contract'
+import type { ClockState, DesktopState, DesktopZone, HardwareState, SessionInfo, TaskbarRecommendation } from '../../shared/contract'
+import { planTaskbarRecommendations } from '../taskbar/plan'
 
 /**
  * 桥接层的数据面端口：panel/snapshot 的数据段与桌面承载动作的统一出口。
@@ -12,6 +13,8 @@ export interface PanelDataPort {
   sessions(): SessionInfo[]
   hardware(): HardwareState
   desktop(): DesktopState
+  /** 任务栏中组推荐位（工单54）：使用频次链路产物，本地装配现算、数据面装配随快照携带 */
+  taskbarRecommendations(): TaskbarRecommendation[]
   /** 一个采样轮：本地装配驱动采集服务刷新；数据面装配为空操作（子进程自驱动） */
   refresh(): void
   /** 首拍就绪（本地装配立即就绪；数据面等子进程第一份快照，超时降级放行） */
@@ -38,10 +41,6 @@ export interface PanelDataPort {
   clipboardState(): Promise<{ pasteable: boolean }>
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
-  /** 钉到应用区（工单25）：进手钉清单前段并即时重编排 */
-  pin(name: string): Promise<{ ok: boolean; error?: string }>
-  /** 取消手钉（工单25）：从手钉清单移除并即时重编排 */
-  unpin(name: string): Promise<{ ok: boolean; error?: string }>
   resetLayout(): Promise<{ ok: boolean; cleared: number }>
 }
 
@@ -69,6 +68,12 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   desktop(): DesktopState {
     return this.ctx.desktop.state()
+  }
+
+  /** 任务栏中组推荐位（工单54）：应用区条目 ∩ 正分条目（fuseScores 链路的同源产物） */
+  taskbarRecommendations(): TaskbarRecommendation[] {
+    const d = this.ctx.desktop.state()
+    return planTaskbarRecommendations(d.items, this.ctx.desktop.usageScores())
   }
 
   refresh(): void {
@@ -126,14 +131,6 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
     return Promise.resolve(this.ctx.desktop.moveBatch(names, zone, beforeName))
-  }
-
-  pin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return Promise.resolve(this.ctx.desktop.pin(name))
-  }
-
-  unpin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return Promise.resolve(this.ctx.desktop.unpin(name))
   }
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {

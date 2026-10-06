@@ -80,7 +80,6 @@ describe('config 模型（工单06 桌面承载几何）', () => {
     expect(defaultDesktopLayout()).toEqual({
       docZone: { left: 408, top: 48, maxWidth: 640 },
       docMaxRows: 8,
-      dockMaxWidth: 1240,
     })
   })
 
@@ -95,21 +94,21 @@ describe('config 模型（工单06 桌面承载几何）', () => {
   it('desktop 合法值整体生效', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({
-      desktop: { docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6, dockMaxWidth: 1000 },
+      desktop: { docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6 },
     }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.desktop).toEqual({ docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6, dockMaxWidth: 1000 })
+    expect(r.config.desktop).toEqual({ docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6 })
     expect(r.warnings).toHaveLength(0)
   })
 
   it('desktop 非法字段回退默认并告警（docMaxRows 越界/宽度非正/坐标非数）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({
-      desktop: { docZone: { left: 'x', maxWidth: -3 }, docMaxRows: 0, dockMaxWidth: 'wide' },
+      desktop: { docZone: { left: 'x', maxWidth: -3 }, docMaxRows: 0 },
     }))
     const r = loadConfig(file, FALLBACK)
     expect(r.config.desktop).toEqual(defaultDesktopLayout())
-    expect(r.warnings.length).toBeGreaterThanOrEqual(4)
+    expect(r.warnings.length).toBeGreaterThanOrEqual(3)
   })
 
   it('desktop 整体非对象回退默认', () => {
@@ -415,7 +414,7 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -441,5 +440,63 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.taskbar.enabled).toBe(true)
     expect(r.warnings.some((w) => w.includes('config.taskbar'))).toBe(true)
+  })
+
+  it('metrics 勾选子集生效（工单55）；缺省五项全选', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { metrics: ['ram', 'cpu'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.metrics).toEqual(['ram', 'cpu'])
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('metrics 混入未知指标：丢未知项并告警，合法项保留', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { metrics: ['cpu', 'ghost'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.metrics).toEqual(['cpu'])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.metrics'))).toBe(true)
+  })
+
+  it('metrics 非数组回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { metrics: 'cpu' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.metrics).toEqual(['cpu', 'gpu', 'ram', 'net-down', 'net-up'])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.metrics'))).toBe(true)
+  })
+})
+
+describe('config.taskbar 系统按钮显隐（工单54）', () => {
+  it('hiddenButtons 合法名单生效（重启保持的持久化口径）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('缺 hiddenButtons 键时为空名单（工单49 老 config.json 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('未知按钮 id 丢弃并告警，合法条目保留；重复条目去重', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'ghost', 'start'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.hiddenButtons).toEqual(['start'])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.hiddenButtons'))).toBe(true)
+  })
+
+  it('hiddenButtons 非数组回退空名单并告警（不静默吞笔误）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: 'start' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.hiddenButtons).toEqual([])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.hiddenButtons'))).toBe(true)
   })
 })

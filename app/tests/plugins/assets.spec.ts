@@ -95,6 +95,58 @@ describe('插件资产寻址（deck-plugin:// 解析）', () => {
   })
 })
 
+describe('同主机多根寻址（渲染层根 + 共享模块根）', () => {
+  function sharedRoots(): { list: AssetRoot[]; rendererDir: string; sharedDir: string } {
+    const rendererDir = tmpDir()
+    const sharedDir = tmpDir()
+    fs.writeFileSync(path.join(rendererDir, 'taskbar-view.js'), 'export {}')
+    fs.writeFileSync(path.join(sharedDir, 'overflow.js'), 'export {}')
+    return {
+      list: [
+        { host: APP_HOST, dir: rendererDir },
+        { host: APP_HOST, dir: sharedDir, prefix: '/shared' },
+      ],
+      rendererDir,
+      sharedDir,
+    }
+  }
+
+  it('本根没有就换下一根（渲染层 ../shared/x.js 的 URL 落在主机根下）', () => {
+    const { list, sharedDir } = sharedRoots()
+    expect(resolveAssetUrl(`${PLUGIN_SCHEME}://${APP_HOST}/shared/overflow.js`, list)).toEqual({
+      file: path.join(sharedDir, 'overflow.js'),
+      mime: 'text/javascript',
+    })
+  })
+
+  it('根序即优先级：两根都命中时取先注册的那根', () => {
+    const { list, rendererDir } = sharedRoots()
+    fs.mkdirSync(path.join(rendererDir, 'shared'), { recursive: true })
+    fs.writeFileSync(path.join(rendererDir, 'shared', 'overflow.js'), 'export {}')
+    expect(resolveAssetUrl(`${PLUGIN_SCHEME}://${APP_HOST}/shared/overflow.js`, list)?.file)
+      .toBe(path.join(rendererDir, 'shared', 'overflow.js'))
+  })
+
+  it('前缀不匹配的路径不落到挂载根', () => {
+    const { list, sharedDir } = sharedRoots()
+    fs.writeFileSync(path.join(sharedDir, 'card.js'), 'export {}')
+    expect(resolveAssetUrl(`${PLUGIN_SCHEME}://${APP_HOST}/card.js`, list)).toBeNull()
+  })
+
+  it('前缀挂载下的穿越仍被拒', () => {
+    const { list } = sharedRoots()
+    expect(resolveAssetUrl(`${PLUGIN_SCHEME}://${APP_HOST}/shared/../secret.txt`, list)).toBeNull()
+    expect(resolveAssetUrl(`${PLUGIN_SCHEME}://${APP_HOST}/shared/%2e%2e/secret.txt`, list)).toBeNull()
+  })
+
+  it('省略 prefix 等价于挂在主机根下', () => {
+    const rendererDir = tmpDir()
+    fs.writeFileSync(path.join(rendererDir, 'contract.js'), 'export {}')
+    expect(resolveAssetUrl(`${PLUGIN_SCHEME}://${APP_HOST}/contract.js`, [{ host: APP_HOST, dir: rendererDir }]))
+      .toEqual({ file: path.join(rendererDir, 'contract.js'), mime: 'text/javascript' })
+  })
+})
+
 describe('MIME 判定（ESM 必须是 text/javascript）', () => {
   it.each([
     ['a.js', 'text/javascript'],

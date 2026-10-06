@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -102,14 +102,6 @@ export class BridgeService extends Service {
         const { names, zone, beforeName } = payload as { names: string[]; zone: DesktopZone; beforeName: string | null }
         return await this.ctx.panelData.moveBatch(names, zone, beforeName) as BridgeMethods[M]['response']
       }
-      case 'desktop/pin': {
-        const { name } = payload as { name: string }
-        return await this.ctx.panelData.pin(String(name)) as BridgeMethods[M]['response']
-      }
-      case 'desktop/unpin': {
-        const { name } = payload as { name: string }
-        return await this.ctx.panelData.unpin(String(name)) as BridgeMethods[M]['response']
-      }
       case 'desktop/reset-layout':
         return await this.ctx.panelData.resetLayout() as BridgeMethods[M]['response']
       case 'search/activate':
@@ -133,6 +125,8 @@ export class BridgeService extends Service {
         return await this.ctx.focus.focusTool(String(tool ?? '')) as BridgeMethods[M]['response']
       }
       case 'taskbar/get-state':
+        // 推荐位即时刷新（工单54）：渲染层 boot/重连拉态即最新名单（1Hz 快照驱动之外的对齐点）
+        this.ctx.taskbar.refreshRecommendations()
         return this.ctx.taskbar.state() as BridgeMethods[M]['response']
       case 'taskbar/set-enabled': {
         const { enabled } = payload as { enabled: boolean }
@@ -141,6 +135,54 @@ export class BridgeService extends Service {
       case 'taskbar/system-action': {
         const { action } = payload as { action: TaskbarSystemAction }
         return this.ctx.taskbar.systemAction(action) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/set-button-hidden': {
+        const { id, hidden } = payload as { id: TaskbarButtonId; hidden: boolean }
+        return this.ctx.taskbar.setButtonHidden(id, hidden) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/drag-drop': {
+        const drop = payload as TaskbarDragDrop
+        return this.ctx.taskbar.dragDrop(drop) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/app-click': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.appClick(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/activate-window': {
+        const { hwnd } = payload as { hwnd: number }
+        return this.ctx.taskbar.activateWindowByHwnd(Number(hwnd)) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/app-new-instance': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.appNewInstance(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/set-app-pinned': {
+        const { exe, pinned } = payload as { exe: string; pinned: boolean }
+        return this.ctx.taskbar.setAppPinned(String(exe ?? ''), pinned) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/close-window': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.closeWindowFor(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/reveal-app': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.revealApp(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/activate-app': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.activateApp(exe) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/set-metrics': {
+        const { metrics } = payload as { metrics: TaskbarMetric[] }
+        return this.ctx.taskbar.setMetrics(metrics) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/tray-click': {
+        const { key, button } = payload as { key: string; button: TaskbarTrayButton }
+        return this.ctx.taskbar.trayClick(String(key ?? ''), button) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/tray-icon': {
+        const { key } = payload as { key: string }
+        return { icon: this.ctx.taskbar.trayIconOf(String(key ?? '')) } as BridgeMethods[M]['response']
       }
       case 'app/quit':
         this.quitApp()
@@ -164,5 +206,7 @@ export class BridgeService extends Service {
   /** 推送当前快照（数据面宿主收到子进程快照后调用；与 tick 共用同一事件） */
   push(): void {
     this.ctx.emit('panel/changed', this.snapshot())
+    // 工单55 任务栏右组 1Hz 数据帧：与 panel/changed 同源同拍，只裁时钟 + 硬件仪表两段
+    this.ctx.emit('taskbar/status', { clock: this.ctx.panelData.clock(), hardware: this.ctx.panelData.hardware().gauges })
   }
 }

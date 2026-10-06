@@ -62,7 +62,7 @@ export interface WeatherLocation {
 /** 桌面项种类（工单05）：快捷方式/网址文件归应用区，文件与文件夹归文档区 */
 export type DesktopItemKind = 'shortcut' | 'url' | 'file' | 'folder'
 
-/** 桌面项分区：应用区（底部 dock）/ 文档区 */
+/** 桌面项分区：应用区（工单59 起由任务栏承载，桌面不摆位）/ 文档区（桌面唯一承载面） */
 export type DesktopZone = 'app' | 'doc'
 
 /** 桌面项（GLOSSARY.md 词汇：被面板承载并渲染的桌面文件或快捷方式） */
@@ -82,15 +82,6 @@ export interface DesktopItem {
   mtimeMs: number
 }
 
-/** 应用区栏位来源（工单06 编排）：手钉 / 用户拖拽摆位 / 使用频次推荐 */
-export type DesktopDockSource = 'pinned' | 'placed' | 'recommended'
-
-/** dock 有序条目（手钉在前、显式摆位其后、推荐按频次填补） */
-export interface DesktopDockEntry {
-  name: string
-  source: DesktopDockSource
-}
-
 /** 文档组（按扩展名聚合；组序固定） */
 export type DesktopDocGroup = 'folders' | 'office' | 'pdf' | 'image' | 'archive' | 'other'
 
@@ -103,9 +94,10 @@ export interface DesktopDocEntry {
   row: number
 }
 
-/** 编排计划（工单06）：渲染层按 dock 序铺条、按 docs 的组序/组内序铺列 */
+/** 编排计划（工单06）：渲染层按 docs 的组序/组内序铺列。
+ * dock 段随工单59 退役——应用区已并入任务栏，桌面只承载文档区；应用条目仍在条目
+ * 池内（zone=app），作为任务栏左组手钉与中组推荐位的元数据来源，不再由桌面渲染。 */
 export interface DesktopPlan {
-  dock: DesktopDockEntry[]
   docs: DesktopDocEntry[]
 }
 
@@ -122,8 +114,6 @@ export interface DesktopLayout {
   docZone: { left: number; top: number; maxWidth: number }
   /** 文档组满几行折右列 */
   docMaxRows: number
-  /** dock 条最大宽度（DIP；超出折行） */
-  dockMaxWidth: number
 }
 
 /** 设置状态（工单08）：卡片底色透明度全局滑杆值（0..1，rgba alpha 语义；config.appearance.cardOpacity 平移） */
@@ -134,12 +124,121 @@ export interface SettingsState {
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
 export type FocusAction = 'focused' | 'launched' | 'degraded'
 
-/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
-export type TaskbarSystemAction = 'start-menu' | 'task-view'
+/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层。
+ * 工单55 扩右组：通知中心 = Win+N（时钟格）、快速设置 = Win+A（音量格，ADR-0007）、
+ * 显示桌面 = Win+D（屏幕最右端细条，对齐 Win11 右下角肌肉记忆）。 */
+export type TaskbarSystemAction = 'start-menu' | 'task-view' | 'notification-center' | 'quick-settings' | 'toggle-desktop'
 
-/** 任务栏状态（工单49 tracer bullet）：enabled=false 时主进程销毁任务栏窗口 */
+/** 硬件摘要指标键（工单55，GLOSSARY.md「硬件摘要」五项）：与硬件卡同一份 HardwareGauges 口径 */
+export type TaskbarMetric = 'cpu' | 'gpu' | 'ram' | 'net-down' | 'net-up'
+
+/** 五项指标的规范顺序（显示序与 set-metrics 归一序的唯一出处；勾选持久化存的是子集） */
+export const TASKBAR_METRIC_KEYS: readonly TaskbarMetric[] = ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] as const
+
+/** 中组系统按钮 id（工单49/54）：开始按钮 + TaskView 按钮——显隐持久化与右键菜单按它寻址 */
+export type TaskbarButtonId = 'start' | 'tasks'
+
+/** 中组推荐位条目（工单54）：使用频次推荐的桌面条目；name 是合并去重键，path 供后续票的启动/图标 */
+export interface TaskbarRecommendation {
+  name: string
+  display: string
+  path: string
+}
+
+/**
+ * 任务栏左组条目（工单52，GLOSSARY.md「栏分组」左组）：手钉与运行中应用的合并视图。
+ * 身份 = exe 路径（原始大小写；比较时归一）。title 是窗口标题——仅内存即时读取的
+ * 即时呈现（tooltip），永不持久化（ADR-0007 对 ADR-0002 的书面口子；图标键、手钉
+ * 名单等落盘面绝不含它）。
+ */
+export interface TaskbarLeftEntry {
+  /** 身份：exe 绝对路径（手钉 = 手钉登记的 exe；仅运行 = 首见窗口的 exe） */
+  exe: string
+  /** 显示名（手钉 = 迁移时桌面项显示名；仅运行 = exe 基名去扩展） */
+  label: string
+  pinned: boolean
+  running: boolean
+  /** 窗口标题（tooltip 用；仅运行中在场，仅内存，永不落盘） */
+  title: string | null
+  /** 图标缓存键（desktop/icon 契约同款 path|mtimeMs；null = 无图标源） */
+  iconKey: string | null
+}
+
+/** 左组应用窗口引用（工单53 多窗口列表选窗）：hwnd 即时有效（仅当拍，不持久化）；
+ * title 仅内存即时显示（ADR-0007 书面口子：tooltip 与多窗口列表可用，永不落盘） */
+export interface TaskbarWindowRef {
+  hwnd: number
+  title: string | null
+}
+
+/** 左键点击结果动作（工单53 三态 + 多窗口列表）：launched=启动；activated=置前；
+ * minimized=最小化；window-list=弹出带窗口标题的选窗列表（windows 随响应携带） */
+export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'window-list'
+
+/** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
+ * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
+ * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
+ * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
+ * left（工单52）= 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
+ * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）。 */
 export interface TaskbarState {
   enabled: boolean
+  hiddenButtons: TaskbarButtonId[]
+  recommendations: TaskbarRecommendation[]
+  metrics: TaskbarMetric[]
+  left: TaskbarLeftEntry[]
+  tray: TaskbarTrayEntry[]
+}
+
+/** 托盘按钮（工单56）：左键 = 应用默认动作（启动/置前由图标所属应用自决），右键 = 上下文菜单 */
+export type TaskbarTrayButton = 'left' | 'right'
+
+/** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
+ * tooltip 即时显示不落盘；iconKey = 图标像素缓存键（null = 该条目尚无像素，渲染层按空格呈现） */
+export interface TaskbarTrayEntry {
+  key: string
+  tooltip: string
+  iconKey: string | null
+}
+
+/** 托盘图标像素（工单56）：32bpp 顶向下 BGRA，base64——渲染层本地 canvas 转 dataURL
+ * （与 desktop/icon 的 dataURL 面同款职责分工：编码在渲染层，主进程只搬运字节） */
+export interface TaskbarTrayPixels {
+  width: number
+  height: number
+  bgraBase64: string
+}
+
+/** 任务栏拖拽组（工单57，GLOSSARY.md「栏分组」）：左组 = 手钉+运行中合并；中组 = 系统按钮+推荐位 */
+export type TaskbarDragGroup = 'left' | 'mid'
+
+/**
+ * 任务栏拖拽落位描述子（工单57）：条目身份按组取值——左组 = exe 原文（TaskbarLeftEntry.exe），
+ * 中组 = 桌面项 name（TaskbarRecommendation.name）。before = 落点（排在该身份之前）；
+ * null = 组内可编辑段末尾（左组 = 手钉段末尾、中组 = 推荐位末尾）。落点身份不在场
+ * （渲染与落位之间的状态竞态）收敛到段末尾，不作废整次拖拽。
+ */
+export interface TaskbarDragDrop {
+  from: TaskbarDragGroup
+  to: TaskbarDragGroup
+  id: string
+  before: string | null
+}
+
+/**
+ * 左组应用激活动作（工单58 启动/置前基本分发通路）：launched = 未运行启动；
+ * focused = 运行中置前。action 是内核裁决（执行失败时仍回报裁决，ok 标记成败）；
+ * null = 未执行（栏外身份护栏）。中键新实例、最小化切换、多窗口列表与右键菜单
+ * 是工单53 的全交互面，在同一 exe 身份挂点上扩展。
+ */
+export type TaskbarActivateAction = 'launched' | 'focused'
+
+/** 任务栏右组 1Hz 数据帧（工单55）：时钟 + 硬件仪表，随数据面每拍快照回推
+ * （与 panel/changed 同源同拍——数值口径与硬件卡一致的依据；只裁右组要的两段，
+ * 整份 PanelSnapshot 不进条带渲染层） */
+export interface TaskbarStatus {
+  clock: ClockState
+  hardware: HardwareGauges
 }
 
 /**
@@ -323,18 +422,7 @@ export interface BridgeMethods {
     request: { names: string[]; zone: DesktopZone; beforeName: string | null }
     response: { ok: boolean; moved: string[]; skipped: string[]; error?: string }
   }
-  /**
-   * 钉到应用区（工单25 手钉管理）：name 进手钉清单前段（已在清单则移到最前），占据
-   * dock 前段栏位、不被推荐顶替；显式摆位名单不动（取消手钉时按其裁决归位）。
-   * name 必须在当前扫描池内（move 同款护栏）；落盘并即时重编排。
-   */
-  'desktop/pin': { request: { name: string }; response: { ok: boolean; error?: string } }
-  /**
-   * 取消手钉（工单25）：name 从手钉清单移除，条目回归归类与显式摆位裁决（文档类条目
-   * 回文档区）；清单本就不含时幂等空转。name 必须在当前扫描池内；落盘并即时重编排。
-   */
-  'desktop/unpin': { request: { name: string }; response: { ok: boolean; error?: string } }
-  /** 恢复出厂布局：清除全部显式摆位（手钉保留），回到归类 + 频次推荐的出厂编排 */
+  /** 恢复出厂布局：清除全部显式摆位，回到归类分组的出厂编排 */
   'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
   /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */
   'search/activate': { request: null; response: { state: SearchUiState } }
@@ -361,8 +449,68 @@ export interface BridgeMethods {
   'taskbar/get-state': { request: null; response: TaskbarState }
   /** 任务栏开关：禁用即销毁任务栏窗口、启用即恢复；整份回写 config.json；回推 taskbar/changed */
   'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
-  /** 任务栏系统动作（开始菜单/任务视图）：主进程按键合成触发原生系统 UI */
+  /** 任务栏系统动作（开始菜单/任务视图/通知中心/快速设置/显示桌面）：主进程按键合成触发原生系统 UI */
   'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
+  /**
+   * 中组系统按钮显隐（工单54）：右键菜单触发，整份回写 config.json taskbar.hiddenButtons，
+   * 回推 taskbar/changed。同态幂等空转；未知按钮 id 抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-button-hidden': { request: { id: TaskbarButtonId; hidden: boolean }; response: TaskbarState }
+  /**
+   * 栏上拖拽落位（工单57）：组内换位（左组手钉段内 / 中组推荐位内）与跨组拖拽
+   * （中→左 = 升为手钉，左→中 = 解除手钉回推荐池）。裁决进 taskbar/layout-store 纯函数，
+   * 先落盘 taskbar-layout.json（有序名单）再提交内存态并回推 taskbar/changed（一帧）。
+   * ok:false = 源条目不可拖（左组仅运行条目 / 中组推荐位名单外名字），状态与落盘不变；
+   * 同态幂等空转不重写不重推；描述子畸形（组别/身份非法）抛 BridgeError（契约违规）。
+   */
+  'taskbar/drag-drop': { request: TaskbarDragDrop; response: { ok: boolean; error?: string } }
+  /**
+   * 左组图标左键（工单53）：三态裁决内核落地——未运行（无窗口）→ 启动 exe；单窗口
+   * 未前台 → 置前；单窗口已前台 → 最小化；多窗口 → 不执行窗口效果，响应 action=
+   * 'window-list' 并携带带标题的窗口清单（渲染层弹出 pill 内列表，再经
+   * taskbar/activate-window 精确选窗）。exe 护栏 = 必须在当前左组条目内（归一匹配），
+   * 否则 ok:false（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   */
+  'taskbar/app-click': {
+    request: { exe: string }
+    response: { ok: boolean; action: TaskbarAppClickAction | null; windows?: TaskbarWindowRef[]; error?: string }
+  }
+  /** 多窗口列表选窗（工单53）：hwnd 必须在最近一次窗口枚举快照内且归属左组某 exe
+   * （不置前任意义外的窗口）；已销毁/名单外 hwnd 回报 ok:false 不抛。 */
+  'taskbar/activate-window': { request: { hwnd: number }; response: { ok: boolean; error?: string } }
+  /** 中键开新实例（工单53）：恒启动 exe（app-click 同款左组护栏） */
+  'taskbar/app-new-instance': { request: { exe: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 右键菜单「手钉/解除手钉」（工单53）：手钉 = exe 身份连同展示元数据（label/iconKey
+   * 取自当前左组条目）追加进栏布局存储手钉清单并落盘；解除 = 从清单移除。同态幂等
+   * 空转；落盘后即时重编排（手钉段迁移）并回推 taskbar/changed。手钉目标必须在
+   * 当前左组条目内（需要展示元数据来源），未知 exe 抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-app-pinned': { request: { exe: string; pinned: boolean }; response: TaskbarState }
+  /** 右键菜单「关闭窗口」（工单53）：向该 exe 的全部左组窗口投递 WM_CLOSE（多窗口
+   * 一并关，Win11「关闭所有窗口」语义）；closed = 成功投递数。左组护栏同 app-click。 */
+  'taskbar/close-window': { request: { exe: string }; response: { ok: boolean; closed: number; error?: string } }
+  /** 右键菜单「打开文件位置」（工单53）：explorer /select,<exe> 定位（desktop/reveal
+   * 同款 fire-and-forget 机制）；左组护栏同 app-click。 */
+  'taskbar/reveal-app': { request: { exe: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 左组应用图标点击（工单58，栏内与溢出浮层共用同一道契约）：exe 身份必须在当前左组
+   * 栏面上（desktop/launch 池护栏同款——栏外身份不启动，ok:false 回报）；运行中置前、
+   * 未运行启动，裁决在内核。执行失败（前台锁拒收/启动报错）ok:false + error 不抛——
+   * 点击语义不需 try/catch。工单53 的全交互（右键菜单/中键/最小化切换）在同一身份挂点扩展。
+   */
+  'taskbar/activate-app': { request: { exe: string }; response: { ok: boolean; action: TaskbarActivateAction | null; error?: string } }
+  /** 任务栏右组硬件摘要勾选（工单55）：metrics 为勾选子集（按规范序归一），整份回写 config.json；回推 taskbar/changed */
+  'taskbar/set-metrics': { request: { metrics: TaskbarMetric[] }; response: TaskbarState }
+  /**
+   * 托盘图标点击回放（工单56）：把点击按图标所属应用协商的负载语义回投到它的窗口
+   * （version>=4 走 MAKELPARAM 语义，旧版走 WM_LBUTTONUP/WM_RBUTTONUP），菜单由应用
+   * 自己渲染。key 护栏 = 必须在当前栏内托盘名单（名单外/已删图标 ok:false 不抛）；
+   * 执行失败（宿主不在场/投递被系统拒收）ok:false + error。
+   */
+  'taskbar/tray-click': { request: { key: string; button: TaskbarTrayButton }; response: { ok: boolean; error?: string } }
+  /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
+  'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
   /**
    * 退出面板（工单83）：设置浮层「退出面板」按钮 → 主进程 app.quit()，与托盘菜单
    * 「退出面板」（tray.ts click=app.quit()）、WM_CLOSE 走同一条 before-quit 优雅退出
@@ -388,6 +536,8 @@ export interface BridgeEvents {
   'plugins/changed': PluginInfo[]
   /** 工单49 任务栏：开关变化即时回推（任务栏窗口据此渲染/渲染层不等重启） */
   'taskbar/changed': TaskbarState
+  /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（与 panel/changed 同源同拍） */
+  'taskbar/status': TaskbarStatus
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

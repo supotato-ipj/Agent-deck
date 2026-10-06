@@ -1,12 +1,11 @@
-// 编排核心（工单06，纯逻辑）：归类、应用区栏位与文档区落位。
+// 编排核心（工单06，纯逻辑）：归类与文档区落位。
 // zones_plan.py 的自绘世界平移——不再输出屏幕像素坐标（自绘布局不受系统打扰），
-// 只输出语义位置：dock 有序条目（含来源），文档条目的组名与组内序；列折叠
-// （满 docMaxRows 行折本组右侧相邻列）以全局列号表达，渲染层按组铺列。
-// 条目形态类型（DesktopDockEntry/DesktopDocEntry/DesktopPlan）与契约面共用一份，
-// 不在此重复声明（防两处漂移）。
+// 只输出语义位置：文档条目的组名与组内序；列折叠（满 docMaxRows 行折本组右侧
+// 相邻列）以全局列号表达，渲染层按组铺列。应用区栏位段（planDock）随工单59 退役，
+// 应用条目改由任务栏左组/中组承载，桌面只编排文档区。
+// 条目形态类型（DesktopDocEntry/DesktopPlan）与契约面共用一份，不在此重复声明。
 import path from 'node:path'
 import type {
-  DesktopDockEntry,
   DesktopDocEntry,
   DesktopDocGroup,
   DesktopItem,
@@ -33,12 +32,8 @@ export function docGroupOf(item: Pick<DesktopItem, 'kind' | 'name'>): DocGroup {
   return 'other'
 }
 
-/** 应用区条目的栏位来源（契约面 DesktopDockSource 的域内别名） */
-export type DockSource = DesktopDockEntry['source']
-
-/** 用户显式摆位（layout-store 的成员清单：dock/docs 为有序显示名列表） */
+/** 用户显式摆位（layout-store 的成员清单：docs 为有序显示名列表） */
 export interface PlacedLists {
-  dock: string[]
   docs: string[]
 }
 
@@ -83,55 +78,12 @@ function planDocs(items: DesktopItem[], placed: PlacedLists, opts: PlanOptions):
   return out
 }
 
-/**
- * 应用区栏位分配（zones_plan.py 两段拼接语义的自绘版，无栏位上限——dock 可折行，
- * 承载一个不漏）：手钉按清单顺序占最前，显式拖拽摆位按其记录顺序紧随，
- * 剩余按使用分数降序填补；同分按当前条目序（name）稳定排序；无分数记 0 仍参与。
- * 手钉永不被推荐顶替（手钉段与推荐段不混排）。分数键 = 显示名（usage 打分的输出键）。
- */
-export function planDock(
-  items: DesktopItem[],
-  pinned: readonly string[],
-  placed: readonly string[],
-  scores: ReadonlyMap<string, number>,
-): DesktopDockEntry[] {
-  const present = new Set(items.map((i) => i.name))
-  const pinnedOrder: string[] = []
-  for (const name of pinned) {
-    if (present.has(name) && !pinnedOrder.includes(name)) pinnedOrder.push(name)
-  }
-  const pinnedSet = new Set(pinnedOrder)
-  const placedOrder: string[] = []
-  for (const name of placed) {
-    if (present.has(name) && !pinnedSet.has(name) && !placedOrder.includes(name)) placedOrder.push(name)
-  }
-  const placedSet = new Set(placedOrder)
-  const rest = items
-    .filter((i) => !pinnedSet.has(i.name) && !placedSet.has(i.name))
-    .sort((a, b) => {
-      const d = (scores.get(b.display) ?? 0) - (scores.get(a.display) ?? 0)
-      return d !== 0 ? d : a.name.localeCompare(b.name)
-    })
-  return [
-    ...pinnedOrder.map((name) => ({ name, source: 'pinned' as const })),
-    ...placedOrder.map((name) => ({ name, source: 'placed' as const })),
-    ...rest.map((i) => ({ name: i.name, source: 'recommended' as const })),
-  ]
-}
-
-/**
- * 编排计划：items 为已按显式摆位改写过 zone 的桌面项池（zoneOfOverride 由服务层处理）。
- * dock 段只收 zone=app 的条目，docs 段只收 zone=doc 的条目。
- */
+/** 编排计划：items 为已按显式摆位改写过 zone 的桌面项池（zone 覆写由服务层处理）。
+ * docs 段只收 zone=doc 的条目；zone=app 的条目不在桌面承载，留给任务栏取用。 */
 export function planDesktop(
   items: DesktopItem[],
-  pinned: readonly string[],
   placed: PlacedLists,
-  scores: ReadonlyMap<string, number>,
   opts: PlanOptions,
 ): DesktopPlan {
-  return {
-    dock: planDock(items.filter((i) => i.zone === 'app'), pinned, placed.dock, scores),
-    docs: planDocs(items.filter((i) => i.zone === 'doc'), placed, opts),
-  }
+  return { docs: planDocs(items.filter((i) => i.zone === 'doc'), placed, opts) }
 }

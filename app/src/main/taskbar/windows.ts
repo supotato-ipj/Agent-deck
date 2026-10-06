@@ -1,0 +1,201 @@
+// 任务栏运行中窗口枚举真源（工单52，效果层薄壳）：顶层可见窗口链式枚举 →
+// exe 绝对路径 + 窗口标题。枚举形态同 focus/adapter.ts（GetTopWindow/GetWindow 链，
+// 避免 FFI 回调生命周期问题）；差异是 exe 取全路径（左组身份）且读窗口标题。
+// 隐私（ADR-0007 对 ADR-0002 的书面口子，仅限任务栏链路）：标题仅内存即时读取，
+// 供栏上 tooltip 与多窗口列表即时显示——永不写使用日志、永不落任何持久化。
+// 离线测试不加载本模块（服务依赖缝注入假源后从不 require）。
+import { normalizeExe } from './left-plan'
+import type { TaskbarWindowInput } from './left-plan'
+
+const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+const GW_HWNDNEXT = 2
+const MAX_WINDOWS = 2048
+
+interface KoffiFunc {
+  (...args: unknown[]): unknown
+}
+
+interface Bound {
+  getTopWindow: KoffiFunc
+  getWindow: KoffiFunc
+  isWindowVisible: KoffiFunc
+  getWindowThreadProcessId: KoffiFunc
+  getWindowTextLength: KoffiFunc
+  getWindowText: KoffiFunc
+  isIconic: KoffiFunc
+  showWindow: KoffiFunc
+  bringWindowToTop: KoffiFunc
+  setForegroundWindow: KoffiFunc
+  openProcess: KoffiFunc
+  queryImageName: KoffiFunc
+  closeHandle: KoffiFunc
+  getForegroundWindow: KoffiFunc
+  postMessage: KoffiFunc
+  attachThreadInput: KoffiFunc
+  getCurrentThreadId: KoffiFunc
+}
+
+const SW_RESTORE = 9
+const SW_MINIMIZE = 6
+const WM_CLOSE = 0x0010
+
+let bound: Bound | null = null
+
+function bind(): Bound {
+  if (bound) return bound
+  const koffi = require('koffi')
+  const user32 = koffi.load('user32.dll')
+  const kernel32 = koffi.load('kernel32.dll')
+  bound = {
+    getTopWindow: user32.func('uintptr_t __stdcall GetTopWindow(uintptr_t hWnd)'),
+    getWindow: user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uint32 uCmd)'),
+    isWindowVisible: user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)'),
+    getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, uint32 *pid)'),
+    getWindowTextLength: user32.func('int __stdcall GetWindowTextLengthW(uintptr_t hWnd)'),
+    getWindowText: user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, char16_t *lpString, int nMaxCount)'),
+    isIconic: user32.func('bool __stdcall IsIconic(uintptr_t hWnd)'),
+    showWindow: user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)'),
+    bringWindowToTop: user32.func('bool __stdcall BringWindowToTop(uintptr_t hWnd)'),
+    setForegroundWindow: user32.func('bool __stdcall SetForegroundWindow(uintptr_t hWnd)'),
+    openProcess: kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)'),
+    queryImageName: kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)'),
+    closeHandle: kernel32.func('bool __stdcall CloseHandle(void *h)'),
+    getForegroundWindow: user32.func('uintptr_t __stdcall GetForegroundWindow()'),
+    postMessage: user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)'),
+    attachThreadInput: user32.func('bool __stdcall AttachThreadInput(uint32 idAttach, uint32 idAttachTo, bool fAttach)'),
+    getCurrentThreadId: kernel32.func('uint32 __stdcall GetCurrentThreadId()'),
+  }
+  return bound
+}
+
+function pidOf(b: Bound, hwnd: number): number {
+  const buf = Buffer.alloc(4)
+  b.getWindowThreadProcessId(hwnd, buf)
+  return buf.readUInt32LE(0)
+}
+
+function exeOfPid(b: Bound, pid: number): string {
+  const handle = b.openProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+  if (!handle) return ''
+  try {
+    const name = Buffer.alloc(1024) // 512 wchar
+    const size = Buffer.alloc(4)
+    size.writeUInt32LE(510, 0)
+    if (!b.queryImageName(handle, 0, name, size)) return ''
+    return name.toString('utf16le', 0, size.readUInt32LE(0) * 2)
+  } finally {
+    b.closeHandle(handle)
+  }
+}
+
+/** 窗口标题即时读取（仅内存；空标题归 null）。取不到/已销毁归 null，不抛。 */
+function titleOf(b: Bound, hwnd: number): string | null {
+  try {
+    const len = b.getWindowTextLength(hwnd) as number
+    if (len <= 0) return null
+    const buf = Buffer.alloc((len + 2) * 2)
+    const got = b.getWindowText(hwnd, buf, len + 2) as number
+    if (got <= 0) return null
+    return buf.toString('utf16le', 0, got * 2) || null
+  } catch {
+    return null
+  }
+}
+
+/** 任务栏窗口快照条目：exe 为绝对路径（左组身份），hwnd/pid 预留给工单53 的激活语义 */
+export interface TaskbarWindowInfo extends TaskbarWindowInput {
+  hwnd: number
+  pid: number
+}
+
+/**
+ * 当前可见顶层窗口快照（最小化窗口仍带 WS_VISIBLE，在列——任务栏运行态含最小化）。
+ * 取不到 exe 的窗口（权限/已退出）跳过；标题空归 null。纯枚举薄壳，无分支裁决
+ * （合并/去重/排序全在 left-plan 纯函数），真机行为由验收电池覆盖。
+ */
+export function nativeTaskbarWindows(): TaskbarWindowInfo[] {
+  const b = bind()
+  const out: TaskbarWindowInfo[] = []
+  let h = b.getTopWindow(0) as number
+  let guard = 0
+  while (h && guard++ < MAX_WINDOWS) {
+    if (b.isWindowVisible(h)) {
+      const pid = pidOf(b, h)
+      if (pid) {
+        const exe = exeOfPid(b, pid)
+        if (exe) out.push({ hwnd: h, pid, exe, title: titleOf(b, h) })
+      }
+    }
+    h = b.getWindow(h, GW_HWNDNEXT) as number
+  }
+  return out
+}
+
+// —— 工单53 窗口效果薄壳（无分支裁决——裁决全在 interactions.ts 纯函数；真机行为由验收电池覆盖）——
+
+/** 当前前台窗口 hwnd（三态裁决「已前台」判据；无前台窗口归 0） */
+export function nativeForegroundHwnd(): number {
+  return Number(bind().getForegroundWindow()) || 0
+}
+
+/**
+ * 置前目标窗口（最小化先还原）。SetForegroundWindow 有前台锁——本进程后台无焦点时
+ * 直调会静默失败（任务栏闪烁提示了事）；AttachThreadInput 链到当前前台线程再置前是
+ * 验收电池 forceForeground 同款实证形态。调用方按 hwnd 即时操作，句柄失效即 false。
+ */
+export function nativeActivateWindow(hwnd: number): boolean {
+  const b = bind()
+  if (b.isIconic(hwnd)) b.showWindow(hwnd, SW_RESTORE)
+  const fg = Number(b.getForegroundWindow()) || 0
+  const curTid = b.getCurrentThreadId() as number
+  const fgTid = fg ? (b.getWindowThreadProcessId(fg, Buffer.alloc(4)) as number) : 0
+  const attached = !!(fgTid && fgTid !== curTid && b.attachThreadInput(curTid, fgTid, true))
+  try {
+    b.bringWindowToTop(hwnd)
+    return !!b.setForegroundWindow(hwnd)
+  } finally {
+    if (attached) b.attachThreadInput(curTid, fgTid, false)
+  }
+}
+
+/** 最小化目标窗口（已前台再点的切换语义，Win11 同款） */
+export function nativeMinimizeWindow(hwnd: number): boolean {
+  return !!bind().showWindow(hwnd, SW_MINIMIZE)
+}
+
+/** 投递 WM_CLOSE（优雅关闭：多窗口/有未存确认的应用按自身语义处理，不强杀） */
+export function nativeCloseWindow(hwnd: number): boolean {
+  return !!bind().postMessage(hwnd, WM_CLOSE, 0, 0)
+}
+
+/**
+ * 按 exe 身份把运行中窗口带到前台（工单58 点击置前真源）：链式枚举找首个该 exe 的
+ * 可见顶层窗口，最小化先 SW_RESTORE，再 BringWindowToTop + SetForegroundWindow
+ * （focus/adapter 同款尽力序列——SetForegroundWindow 受前台锁限制可能失败，返回
+ * false 由调用方按拒收回报，不抛）。找不到该 exe 的窗口（竞态退出）返回 false。
+ */
+export function nativeFocusExeWindow(exe: string): boolean {
+  const b = bind()
+  const target = normalizeExe(exe)
+  let h = b.getTopWindow(0) as number
+  let guard = 0
+  while (h && guard++ < MAX_WINDOWS) {
+    if (b.isWindowVisible(h)) {
+      const pid = pidOf(b, h)
+      if (pid) {
+        const wexe = exeOfPid(b, pid)
+        if (wexe && normalizeExe(wexe) === target) {
+          try {
+            if (b.isIconic(h)) b.showWindow(h, SW_RESTORE)
+            b.bringWindowToTop(h)
+            return Boolean(b.setForegroundWindow(h))
+          } catch {
+            return false
+          }
+        }
+      }
+    }
+    h = b.getWindow(h, GW_HWNDNEXT) as number
+  }
+  return false
+}

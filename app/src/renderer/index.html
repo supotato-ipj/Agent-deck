@@ -194,15 +194,7 @@
   .srow .tasks { text-align: right; }
   #sessions-standby { font-size: 13px; letter-spacing: 0.2em; color: #6b7075; }
 
-  #hardware-card { right: 48px; top: 690px; width: 420px; height: 252px; }
-  #hw-lines { font-size: 13px; line-height: 1.7; color: #d6d6d6; }
-  #hw-lines .v { color: #fff; }
-  #hw-sparks { margin-top: 10px; }
-  .spark { display: grid; grid-template-columns: 4.5ch 1fr; column-gap: 10px; align-items: center; height: 30px; }
-  .spark label { font-size: 10px; color: #6b7075; }
-  .spark canvas { width: 100%; height: 24px; }
-
-  /* ---- 工单05 桌面承载：底部 dock 应用区 + 左中文档区（自绘桌面项） ---- */
+  /* ---- 工单05 桌面承载：文档区分组列（自绘桌面项；dock 应用区随工单59 退役） ---- */
   .zone { position: fixed; z-index: 1; }
   .ditem {
     display: flex;
@@ -289,23 +281,6 @@
   .doc-group .ditem { width: 100px; }
   .doc-group .ditem .label { max-width: 92px; }
 
-  /* dock：底部居中横条（Personal OS 北极星）；max-width 让开两侧卡片列（config 下发） */
-  #dock-zone {
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: 1240px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 10px 14px 8px;
-    background: rgba(0, 0, 0, var(--card-alpha));
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 16px;
-  }
-  #dock-zone .ditem { width: 76px; }
-  #dock-zone .ditem.drop-before { box-shadow: -2px 0 0 0 rgba(255, 255, 255, 0.7); }
 
   /* 拖拽跟随幽灵（工单06 摆位；工单22 批量加「N 项」徽标）：源条目半透明，幽灵贴光标 */
   .ditem.dragging { opacity: 0.35; }
@@ -367,8 +342,8 @@
   #ctx-menu .ctx-item-disabled:hover { background: transparent; color: #62686d; cursor: default; }
 
   /* 设置入口（工单08）：右下角极小文字按钮，位置沿用 06 恢复按钮的经验值——
-   * bottom: 64 让开任务栏带与 dock 折行区（电池实测右下角是通知横幅/系统浮层的
-   * 高发遮挡位，抬高留出余量）。入口按钮是控制件而非信息卡，底色不随滑杆。 */
+   * bottom: 64 让开任务栏带（电池实测右下角是通知横幅/系统浮层的高发遮挡位，
+   * 抬高留出余量）。入口按钮是控制件而非信息卡，底色不随滑杆。 */
   #settings-btn {
     position: fixed;
     right: 48px;
@@ -553,7 +528,6 @@
 </div>
 
 <div class="zone" id="doc-zone"><div class="zlabel">DOCS</div><div id="doc-groups"></div></div>
-<div class="zone" id="dock-zone"></div>
 
 <div class="card" id="settings-card" tabindex="-1">
   <h2>SETTINGS</h2>

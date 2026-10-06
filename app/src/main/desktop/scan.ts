@@ -105,13 +105,9 @@ export function desktopFingerprint(items: DesktopItem[]): string {
 }
 
 /**
- * 编排指纹：计划内容（dock 序与来源、文档组与列位）变化即翻转——与条目指纹拼接
- * 成完整 desktop 指纹，渲染层据此 diff（摆位/推荐序变化也触发重渲染，条目不变则图标缓存不动）。
+ * 编排指纹：计划内容（文档组与列位）变化即翻转——与条目指纹拼接
+ * 成完整 desktop 指纹，渲染层据此 diff（摆位变化也触发重渲染，条目不变则图标缓存不动）。
  */
 export function planFingerprint(plan: DesktopPlan): string {
-  const s =
-    plan.dock.map((d) => `${d.name}\t${d.source}`).join('\n') +
-    '||' +
-    plan.docs.map((d) => `${d.name}\t${d.group}\t${d.col}\t${d.row}`).join('\n')
-  return fnv1a(s)
+  return fnv1a(plan.docs.map((d) => `${d.name}\t${d.group}\t${d.col}\t${d.row}`).join('\n'))
 }

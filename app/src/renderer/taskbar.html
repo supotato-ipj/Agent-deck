@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>DECK-TASKBAR</title>
 <style>
-  /* 任务栏条带（工单49）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
+  /* 任务栏条带（工单49/52/54/55）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
   html, body {
     margin: 0;
     width: 100%;
@@ -16,12 +16,73 @@
     font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
     user-select: none;
     cursor: default;
+  }
+  /* 左组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
+  #pill-left {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    column-gap: 2px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+  .tb-app {
+    position: relative;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
   }
-  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透） */
-  #pill {
+  .tb-app:hover { background: rgba(255, 255, 255, 0.10); }
+  .tb-app img { width: 22px; height: 22px; }
+  /* 拖拽（工单57）：可拖源半透明，落点左侧亮条——落点反馈用形状不用颜色堆叠 */
+  .tb-app.dragging, .tb-rec.dragging { opacity: 0.4; }
+  .tb-drop-before { box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.85); }
+  /* 运行态叠加（工单52：已手钉应用运行时不新增图标，只在原图标下叠指示条） */
+  .tb-app.running::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 1px;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.85);
+  }
+  /* 左组溢出（工单58）：⋯ 钮与浮层条目同在左组 pill 内横排——条带窗只有 48px 高，
+   * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
+   * 热区按展开后的矩形重声明。 */
+  .tb-overflow {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #d6d6d6;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding-bottom: 8px; /* ⋯ 视觉居中（字形的点偏基线下） */
+  }
+  .tb-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-left-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px 2px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  /* 胶囊外观（中组与右组共用 .pill；#pill / #right-pill 只管各自的钉靠位置） */
+  .pill {
     display: flex;
     align-items: center;
     column-gap: 4px;
@@ -29,6 +90,22 @@
     background: rgba(0, 0, 0, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
+  }
+  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
+   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
+  #pill {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  #pill[hidden] { display: none; }
+  /* 右组 pill（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟；钉右端、给细条让位 */
+  #right-pill {
+    position: fixed;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
   }
   .tb-btn {
     padding: 5px 14px;
@@ -41,10 +118,76 @@
   }
   .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝 */
+  .tb-cell {
+    display: flex;
+    align-items: center;
+    column-gap: 8px;
+    padding: 5px 10px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #d6d6d6;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tb-cell:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-cell:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 摘要编辑态（工单55，右键进入）：五项全呈现，未勾选置灰供勾回 */
+  .tb-seg.off { opacity: 0.35; }
+  #hw-summary.editing { outline: 1px dashed rgba(255, 255, 255, 0.35); }
+  /* 托盘图标格（工单56）：平铺在摘要与音量格之间，尺寸随源图标（16/32px 原生像素，
+   * 不放大——系统托盘图标的原生观感即识别度），无像素的条目留等宽空格位 */
+  .tb-tray-icon { padding: 5px 2px; }
+  .tb-tray-icon img { display: block; width: 16px; height: 16px; image-rendering: pixelated; }
+  /* 显示桌面细条（工单55）：钉屏幕最右端、撑满条带高度，对齐 Win11 右下角肌肉记忆 */
+  #show-desktop {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border-left: 1px solid rgba(255, 255, 255, 0.20);
+    cursor: pointer;
+  }
+  #show-desktop:hover { background: rgba(255, 255, 255, 0.22); }
+  #show-desktop:active { background: rgba(255, 255, 255, 0.35); }
+  /* 推荐位（工单54）：使用频次自动填充；v1 只展示（点击/拖拽属后续票），指针保持默认 */
+  .tb-rec {
+    padding: 5px 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: #b9b9b9;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  /* 系统按钮显隐菜单（工单54）：自绘最小右键菜单——条带窗只有 48px 高，菜单以
+   * pill 内横排呈现（竖排浮层出不了窗口矩形）。配色与面板 ctx-menu 同一世界观
+   * （深底细边、文字实色、hover 反白灰底）。 */
+  .tb-menu-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px 2px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .tb-menu-item {
+    padding: 5px 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: #d6d6d6;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tb-menu-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 </style>
 </head>
 <body>
-<div id="pill" role="toolbar" aria-label="任务栏中组"></div>
+<div id="pill-left" role="toolbar" aria-label="任务栏左组"></div>
+<div id="pill" class="pill" role="toolbar" aria-label="任务栏中组"></div>
+<div id="right-pill" class="pill" role="toolbar" aria-label="任务栏右组"></div>
+<div id="show-desktop" role="button" aria-label="显示桌面"></div>
 <script type="module" src="./taskbar.js"></script>
 </body>
 </html>
