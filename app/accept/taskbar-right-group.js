@@ -76,6 +76,18 @@ async function waitWindow(pid, title, timeoutMs = 10000) {
   return null;
 }
 
+/** 按归属 exe basename 等窗口在台（探针类无标题/多窗口的进程用） */
+async function waitWindowByExe(exe, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    for (const h of win32.topLevelWindows()) {
+      if (win32.IsWindowVisible(h) && String(win32.exeNameOfWindow(h) || '').toLowerCase() === exe) return h;
+    }
+    await sleep(120);
+  }
+  return null;
+}
+
 /** 前台窗口取证：hwnd + 类名 + 归属 exe basename */
 function foregroundInfo() {
   const h = Number(win32.GetForegroundWindow());
@@ -315,6 +327,14 @@ async function main() {
 
     // P5 显示桌面细条 → ToggleDesktop：notepad 探针（一点全最小化落桌面、再点还原回前台）
     notepad = spawn('notepad.exe', [], { stdio: 'ignore' });
+    // 新窗口能不能自抢前台取决于启动方此刻是否持前台：本控制器刚做完 P4 的浮层收势，
+    // 前台在原生任务栏（explorer）手里，spawn 出来的 notepad 会被 Win 前台锁挡在台外
+    // （实测冷启 371ms 就有窗口，却始终等不到前台）。显式提前台，探针起点才干净。
+    const noteHwnd = await waitWindowByExe('notepad', 8000);
+    if (noteHwnd) {
+      win32.SetForegroundWindow(noteHwnd);
+      await sleep(300);
+    }
     const fgNote = await waitForeground((i) => i.exe === 'notepad', 8000);
     const sliverPt = toPhys(sliver.x + sliver.w / 2, sliver.y + sliver.h / 2);
     let p5min = null;
