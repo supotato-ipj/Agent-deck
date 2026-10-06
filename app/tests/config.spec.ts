@@ -473,7 +473,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'] })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -481,7 +481,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [] })
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 

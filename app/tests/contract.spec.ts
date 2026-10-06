@@ -1183,6 +1183,53 @@ describe('内核桥接契约（工单54 中组系统按钮显隐）', () => {
       await ctx.stop()
     }
   }, 30_000)
+
+  it('taskbar 推荐位：使用频次链路（fuseScores）产物随 get-state 下发——按分数降序、零分不占位、变化回推 taskbar/changed', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Alpha.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'Beta.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'Gamma.lnk'), 'stub') // 零分：从不启动
+    const targets: Record<string, string> = { 'Alpha.lnk': 'C:\\apps\\Alpha.exe', 'Beta.lnk': 'C:\\apps\\Beta.exe' }
+    let running = new Map<number, string>()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      ...t.opts,
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readShortcutTarget: (p: string) => targets[path.basename(p)] ?? null,
+        },
+      }),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => running,
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      // 启动记录：Alpha × 2、Beta × 1（pid 差分——新 pid 入场即一次启动）
+      const now = Date.now()
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe'], [2, 'C:\\apps\\Beta.exe']])
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe']])
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe'], [9, 'C:\\apps\\Alpha.exe']])
+      ctx.usage!.collect(now)
+      ctx.desktop!.refresh() // 重算编排与分数（生产由 1Hz tick 驱动）
+      const changed: Array<{ recommendations: Array<{ name: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      // Alpha（2 次）在 Beta（1 次）前；Gamma 零分不占位
+      expect(state.recommendations.map((r) => r.name)).toEqual(['Alpha.lnk', 'Beta.lnk'])
+      expect(state.recommendations[0].path).toBe(path.join(dir, 'user', 'Alpha.lnk'))
+      // get-state 的即时刷新发现名单从空变两席 → 回推一帧
+      expect(changed.map((s) => s.recommendations.map((r) => r.name))).toEqual([['Alpha.lnk', 'Beta.lnk']])
     } finally {
       await ctx.stop()
     }
