@@ -329,6 +329,12 @@ if (RESTORE_MODE) {
     app.commandLine.appendSwitch('remote-debugging-port', process.env.DECK_CDP_PORT)
   }
   void app.whenReady().then(() => {
+    // 工单86 验收提示条：控制器身份的四块电池统一挂条——琥珀药丸驻留屏幕上中部安全带，
+    // 提示用户暂勿键鼠操作；随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、
+    // docs/adr/0008-accept-hint-bar.md）。--panel-accept/--tray-spike 子进程是被测物，不挂。
+    if (ACCEPT_MODE || ACCEPT_TRAY_MODE || ACCEPT_TASKBAR_MODE || ACCEPT_TASKBAR_CARRY_MODE) {
+      require(path.join(app.getAppPath(), 'accept', 'lib', 'hint-bar.js')).showAcceptHintBar()
+    }
     if (ACCEPT_MODE) {
       // 验收电池：同一 Electron 应用上下文内以控制器身份运行（复用 nativeImage 截屏比对）。
       // 空处理器压掉「窗口全关默认退出」——电池自己管理生命周期（参照窗关掉后还要继续跑）。
