@@ -8,6 +8,9 @@
 // 2. 不抢焦点：focusable:false + showInactive——面板焦点与前台窗断言不受扰动；
 // 3. 顶部安全带：y<48 且静态无动画——条不得移入任何断言取样区，不得改为动画形态。
 // 纯提示定位（advisory）：不锁输入；用户不守提示导致的个别断言失败属固有风险。
+// 血泪教训（工单86 首轮真机实证）：控制器进程从此有了自己的 Chrome_WidgetWin_1 窗——
+// 电池里一切「按 pid+类名找控制器自身窗口」的代码必须再加标题甄别，否则永远误中
+// alwaysOnTop 的本条（P2 参照窗已按此修正为 pid+类名+标题 CHECKER-BACKDROP）。
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 
