@@ -4835,6 +4835,51 @@ async function main() {
       }
     }
 
+    // —— P10E 工单83 设置浮层「退出面板」按钮：托盘不可达时的本体退出路径 ——
+    // 托盘退出对真人也不总可达（Win11 默认把新托盘图标折叠进溢出区，且右键菜单不可
+    // 自动化——P10 探针结论；任务栏特性未完成），面板本体必须有退出入口。点击 →
+    // settings-exit-clicked → app/quit → 与托盘菜单/WM_CLOSE 同一 before-quit 收敛。
+    // 断言：clicked 在档、quit 在档、窗口销毁、主进程退出。P9 随后自会重启面板（其
+    // 段首重启不受此处面板死亡影响）。点击走热区（settings-exit 随浮层显隐进声明）。
+    {
+      const t0e = Date.now();
+      child = launchPanel();
+      hwnd = await waitPanelWindow(20000, t0e);
+      if (!hwnd) throw new Error('P10E 重启后未见面板窗口');
+      panelPid = w32.threadIdOf(hwnd).pid;
+      await sleep(2500); // boot + 热区声明落地（settings-btn 进声明，06/08 同等待口径）
+      const bzE = latestZoneOf('settings-btn');
+      if (!bzE) {
+        rep.fail('P10E：settings-btn 未进热区（无法开浮层点退出，工单83 用例未跑）');
+      } else {
+        await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), bzE), '设置入口');
+        const openedE = await waitEvent('settings-opened', (e) => e.t >= t0e, 3000);
+        await sleep(350); // 浮层热区声明落地（settings-exit 随开层进声明）
+        const ezE = latestZoneOf('settings-exit');
+        if (!openedE || !ezE) {
+          rep.fail(`P10E：设置浮层未开或退出按钮未进热区（opened=${JSON.stringify(openedE)}，exit=${JSON.stringify(ezE)}）`);
+        } else {
+          await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), ezE), '退出面板按钮');
+          const clickedE = await waitEvent('settings-exit-clicked', (e) => e.t >= t0e, 3000);
+          const tExitE = Date.now();
+          const deadE = await (async () => {
+            const deadline = Date.now() + 10000;
+            while (Date.now() < deadline) {
+              await sleep(200);
+              if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+            }
+            return false;
+          })();
+          deadE
+            ? rep.pass(`退出面板按钮闭环：settings-exit-clicked → app/quit → 窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - tExitE}ms）`)
+            : rep.fail(`退出面板按钮未达成完整退出（clicked=${JSON.stringify(clickedE)}，窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
+          readEvents().some((e) => e.type === 'quit' && e.t >= t0e)
+            ? rep.pass('退出按钮走 before-quit 同一收敛（quit 存证在档，桌面图标/原生任务栏/托盘随之还原）')
+            : rep.fail('退出按钮无 quit 存证（未走 before-quit 收敛）');
+        }
+      }
+    }
+
     // —— P9 工单09 会话行直达：点击会话行 → 工具窗口置前；工具未运行则启动。
     // 三条约束决定探针设计：
     // ① 真实五工具的启动/聚焦会扰动用户自己的应用 → 以 charmap（字符映射表）作受控探针进程，

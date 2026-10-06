@@ -363,6 +363,13 @@ export interface BridgeMethods {
   'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
   /** 任务栏系统动作（开始菜单/任务视图）：主进程按键合成触发原生系统 UI */
   'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
+  /**
+   * 退出面板（工单83）：设置浮层「退出面板」按钮 → 主进程 app.quit()，与托盘菜单
+   * 「退出面板」（tray.ts click=app.quit()）、WM_CLOSE 走同一条 before-quit 优雅退出
+   * 收敛（窗口销毁、托盘 destroy、桌面图标/原生任务栏还原）。主进程本地动作，无数据面
+   * 参与；quit 依赖由生产装配（index.ts）注入，未装配如实拒绝（不静默吞）。
+   */
+  'app/quit': { request: null; response: { ok: boolean } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
