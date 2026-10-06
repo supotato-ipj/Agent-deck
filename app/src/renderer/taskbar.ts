@@ -4,9 +4,9 @@
 // 溢出浮层开合。左组（工单52）显示 + 工单58 基本点击分发（启动/置前经 taskbar/activate-app，
 // 栏内与溢出浮层共用同一挂点）；右键菜单/中键/最小化切换等全交互属工单53，在同一
 // data-exe 身份挂点上扩展。窗口标题 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarViewModel } from './taskbar-view.js'
-import type { TaskbarLeftViewEntry } from './taskbar-view.js'
-import type { TaskbarState } from '../shared/contract'
+import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel } from './taskbar-view.js'
+import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
+import type { TaskbarState, TaskbarWindowRef } from '../shared/contract'
 
 const pill = document.getElementById('pill') as HTMLElement
 const pillLeft = document.getElementById('pill-left') as HTMLElement
@@ -25,6 +25,10 @@ let menuOpen = false
 let menuTimer: ReturnType<typeof setTimeout> | null = null
 /** 左组溢出浮层开合（工单58）：⋯ 钮拨动、点浮层条目收、数量回落自动收 */
 let overflowOpen = false
+/** 应用图标右键菜单（工单53）：手钉/解除手钉、关闭窗口、打开文件位置三行随条目形态变化 */
+let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
+/** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
+let windowList: { exe: string; windows: TaskbarWindowRef[] } | null = null
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
 
@@ -111,6 +115,26 @@ function leftSlots(): number {
   return Math.max(0, Math.floor(avail / CELL_W))
 }
 
+/** 左组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
+ * 分发与呈现——launch/activate/minimize 无需回显，window-list 才在 pill 内横排
+ * 列出窗口标题供精确选窗（条带窗 48px 高，竖排浮层出不了窗口矩形，54 菜单同款先例）。
+ * 标题仅即时进出 DOM，不落任何存储（ADR-0002）。 */
+async function onAppClick(e: TaskbarLeftViewEntry, inOverflow: boolean): Promise<void> {
+  window.deck.host.notify('taskbar-app-action', { exe: e.exe })
+  const r = await dispatchAppClick(window.deck.bridge, e.exe)
+  window.deck.host.notify('taskbar-app-result', {
+    exe: e.exe,
+    action: r.action,
+    ok: r.ok,
+    ...(r.error ? { error: r.error } : {}),
+  })
+  windowList = r.ok && r.action === 'window-list' && r.windows?.length
+    ? { exe: e.exe, windows: r.windows }
+    : null
+  if (inOverflow) overflowOpen = false
+  if (current) render(current)
+}
+
 /** 左组图标元素（栏内与溢出浮层同一构建路径——同 .tb-app 形态、同 data-exe 挂点、
  * 同点击分发；工单53 的全交互在同一挂点上扩展后两边自然一致）。inOverflow = 点在浮层
  * 里：分发后收层（Win11 溢出浮层同款——点完即收）。 */
@@ -124,14 +148,23 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
   img.alt = e.label
   el.appendChild(img)
   applyIcon(img, e.iconKey)
-  el.addEventListener('click', () => {
-    window.deck.host.notify('taskbar-app-action', { exe: e.exe })
-    void dispatchTaskbarApp(window.deck.bridge, e.exe)
-      .then((r) => window.deck.host.notify('taskbar-app-result', { exe: e.exe, action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+  el.addEventListener('click', () => { void onAppClick(e, inOverflow) })
+  el.addEventListener('auxclick', (ev) => {
+    if (ev.button !== 1) return
+    ev.preventDefault() // 中键开新实例：Win11 任务栏同款
+    window.deck.host.notify('taskbar-app-new-instance', { exe: e.exe })
+    void dispatchAppNewInstance(window.deck.bridge, e.exe)
     if (inOverflow) {
       overflowOpen = false
       if (current) render(current)
     }
+  })
+  el.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
+    windowList = null
+    appMenu = { exe: e.exe, rows: taskbarAppMenuRows(e) }
+    if (current) render(current)
   })
   return el
 }
@@ -214,6 +247,46 @@ function render(state: TaskbarState): void {
         // 回推的 taskbar/changed 驱动重渲收层；回执只为存证对齐
         void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
           .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
+      })
+      pill.appendChild(el)
+    }
+  }
+  if (appMenu) {
+    const sep = document.createElement('div')
+    sep.className = 'tb-menu-sep'
+    pill.appendChild(sep)
+    for (const row of appMenu.rows) {
+      const el = document.createElement('div')
+      el.className = 'tb-menu-item'
+      el.dataset.action = row.action
+      el.textContent = row.label
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        const exe = appMenu?.exe ?? ''
+        window.deck.host.notify('taskbar-app-menu-action', { exe, action: row.action })
+        // 回推的 taskbar/changed 驱动重渲收层（手钉变更即刻反映在左组）
+        void dispatchAppMenuAction(window.deck.bridge, exe, row.action)
+        appMenu = null
+        if (current) render(current)
+      })
+      pill.appendChild(el)
+    }
+  }
+  if (windowList) {
+    const sep = document.createElement('div')
+    sep.className = 'tb-menu-sep'
+    pill.appendChild(sep)
+    for (const w of windowList.windows) {
+      const el = document.createElement('div')
+      el.className = 'tb-win-item'
+      el.dataset.hwnd = String(w.hwnd)
+      el.textContent = w.title || '（无标题窗口）'
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        window.deck.host.notify('taskbar-window-pick', { exe: windowList?.exe ?? '', hwnd: w.hwnd })
+        void dispatchActivateWindow(window.deck.bridge, w.hwnd)
+        windowList = null
+        if (current) render(current)
       })
       pill.appendChild(el)
     }
