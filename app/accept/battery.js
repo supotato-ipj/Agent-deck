@@ -696,8 +696,12 @@ async function main() {
       const deadline = Date.now() + 8000;
       while (Date.now() < deadline) {
         await sleep(200);
+        // 工单86：控制器进程自验收提示条起常驻一个 Chrome 窗（同 pid 同类名且 alwaysOnTop
+        // 恒居枚举首位）——按 pid+类名找本参照窗会误中提示条（HWND_BOTTOM 落空、真参照窗
+        // 盖满面板、透明断言全灭），必须加标题甄别（checker.html 立标题 CHECKER-BACKDROP）。
         const h = w32.topLevelWindows().find(
-          (hh) => w32.threadIdOf(hh).pid === process.pid && w32.className(hh) === 'Chrome_WidgetWin_1');
+          (hh) => w32.threadIdOf(hh).pid === process.pid && w32.className(hh) === 'Chrome_WidgetWin_1'
+            && windowTitle(hh) === 'CHECKER-BACKDROP');
         if (h) return h;
       }
       throw new Error('参照窗未创建');
