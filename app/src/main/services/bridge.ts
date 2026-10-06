@@ -145,6 +145,10 @@ export class BridgeService extends Service {
         const { id, hidden } = payload as { id: TaskbarButtonId; hidden: boolean }
         return this.ctx.taskbar.setButtonHidden(id, hidden) as BridgeMethods[M]['response']
       }
+      case 'taskbar/activate-app': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.activateApp(exe) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

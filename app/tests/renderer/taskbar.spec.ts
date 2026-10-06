@@ -2,10 +2,11 @@
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54——fake bridge 驱动，Node 中直跑不碰 DOM）：
  * 渲染 = taskbar/get-state → 视图模型（左组形态映射 + 中组系统按钮显隐 + 推荐位 +
  * 整组显隐边界）；点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
+ * 工单58：左组溢出拆分（容量内全留栏、超限尾部收浮层）+ 应用图标点击分发 taskbar/activate-app。
  */
 import { describe, expect, it } from 'vitest'
-import { dispatchTaskbarButton, dispatchTaskbarVisibility, taskbarViewModel } from '../../src/renderer/taskbar-view'
-import type { TaskbarBridge } from '../../src/renderer/taskbar-view'
+import { dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarViewModel } from '../../src/renderer/taskbar-view'
+import type { TaskbarBridge, TaskbarLeftViewEntry } from '../../src/renderer/taskbar-view'
 import type { TaskbarLeftEntry, TaskbarState } from '../../src/shared/contract'
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
@@ -31,6 +32,12 @@ function fakeBridge(s: TaskbarState) {
           ? [...s.hiddenButtons, id]
           : s.hiddenButtons.filter((b) => b !== id)
         return Promise.resolve({ ...s, hiddenButtons } as never)
+      }
+      if (method === 'taskbar/activate-app') {
+        const { exe } = payload as { exe: string }
+        const hit = s.left.find((e) => e.exe === exe)
+        if (!hit) return Promise.resolve({ ok: false, action: null, error: '栏外身份' } as never)
+        return Promise.resolve({ ok: true, action: hit.running ? 'focused' : 'launched' } as never)
       }
       throw new Error(`fake bridge 未知方法: ${method}`)
     },
@@ -178,6 +185,66 @@ describe('系统按钮显隐菜单动作（工单54，fake bridge 驱动）', ()
     const { bridge, calls } = fakeBridge(state())
     const r = await dispatchTaskbarVisibility(bridge, 'ghost' as never, true)
     expect(r).toBeNull()
+    expect(calls).toEqual([])
+  })
+})
+
+/** 左组视图条目构造（工单58）：id/exe 身份 + 展示元数据，缺省仅运行 */
+function viewEntry(exe: string, over: Partial<TaskbarLeftViewEntry> = {}): TaskbarLeftViewEntry {
+  return { id: exe, exe, label: exe.replace(/^.*[\\/]/, ''), pinned: false, running: true, tooltip: exe, iconKey: null, ...over }
+}
+
+describe('左组溢出浮层视图拆分（工单58）', () => {
+  it('容量内全留栏：浮层为空，⋯ 钮不渲染（overflow 空即入口不存在的判据）', () => {
+    const left = [viewEntry('C:\\Apps\\A.exe'), viewEntry('C:\\Apps\\B.exe')]
+    expect(splitLeftOverflow(left, 3)).toEqual({ bar: left, overflow: [] })
+  })
+
+  it('超限：栏内让出 ⋯ 格，尾部视图条目原样进浮层（字段不失真——浮层与栏内同形态同挂点）', () => {
+    const left = [
+      viewEntry('C:\\Apps\\A.exe', { pinned: true, iconKey: 'C:\\Apps\\A.exe|1' }),
+      viewEntry('C:\\Apps\\B.exe', { pinned: true }),
+      viewEntry('C:\\Apps\\C.exe', { tooltip: '丙窗口' }),
+      viewEntry('C:\\Apps\\D.exe'),
+    ]
+    const { bar, overflow } = splitLeftOverflow(left, 3)
+    expect(bar.map((e) => e.id)).toEqual(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe'])
+    expect(overflow.map((e) => e.id)).toEqual(['C:\\Apps\\C.exe', 'C:\\Apps\\D.exe'])
+    expect(overflow[0]).toBe(left[2]) // 原样引用：data-exe/tooltip/图标键与栏内同一份
+  })
+
+  it('数量回落：同一容量重拆分，浮层清空（自动回栏的渲染层半）', () => {
+    const left = [viewEntry('C:\\Apps\\A.exe'), viewEntry('C:\\Apps\\B.exe')]
+    expect(splitLeftOverflow(left, 1).overflow).toHaveLength(2)
+    expect(splitLeftOverflow(left, 3).overflow).toEqual([])
+  })
+})
+
+describe('左组应用图标点击分发（工单58，fake bridge 驱动）', () => {
+  it('运行中应用 → taskbar/activate-app 到达桥，回执 focused', async () => {
+    const { bridge, calls } = fakeBridge(state({ left: [entry('C:\\Apps\\A.exe')] }))
+    const r = await dispatchTaskbarApp(bridge, 'C:\\Apps\\A.exe')
+    expect(r).toEqual({ ok: true, action: 'focused' })
+    expect(calls).toEqual([{ method: 'taskbar/activate-app', payload: { exe: 'C:\\Apps\\A.exe' } }])
+  })
+
+  it('手钉未运行应用 → 回执 launched（同一道契约，启动/置前由内核裁决）', async () => {
+    const { bridge, calls } = fakeBridge(state({ left: [entry('C:\\Apps\\A.exe', { pinned: true, running: false })] }))
+    const r = await dispatchTaskbarApp(bridge, 'C:\\Apps\\A.exe')
+    expect(r).toEqual({ ok: true, action: 'launched' })
+    expect(calls).toEqual([{ method: 'taskbar/activate-app', payload: { exe: 'C:\\Apps\\A.exe' } }])
+  })
+
+  it('栏外身份/失败回执原样上抛（ok:false 也返回——点击语义不需 try/catch）', async () => {
+    const { bridge } = fakeBridge(state())
+    const r = await dispatchTaskbarApp(bridge, 'C:\\Apps\\Ghost.exe')
+    expect(r).toEqual({ ok: false, action: null, error: '栏外身份' })
+  })
+
+  it('空 exe 是噪声：不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    const r = await dispatchTaskbarApp(bridge, '')
+    expect(r).toEqual({ ok: false, action: null })
     expect(calls).toEqual([])
   })
 })

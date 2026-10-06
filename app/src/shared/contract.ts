@@ -178,6 +178,14 @@ export interface TaskbarState {
 }
 
 /**
+ * 左组应用激活动作（工单58 启动/置前基本分发通路）：launched = 未运行启动；
+ * focused = 运行中置前。action 是内核裁决（执行失败时仍回报裁决，ok 标记成败）；
+ * null = 未执行（栏外身份护栏）。中键新实例、最小化切换、多窗口列表与右键菜单
+ * 是工单53 的全交互面，在同一 exe 身份挂点上扩展。
+ */
+export type TaskbarActivateAction = 'launched' | 'focused'
+
+/**
  * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
  * 取值与 PanelSnapshot 的段名一一对应——「少给而非不给」（同桌面项池校验思路）：
  * 渲染层按声明裁剪快照后交给插件，未声明的段根本不出内核。
@@ -403,6 +411,13 @@ export interface BridgeMethods {
    * 回推 taskbar/changed。同态幂等空转；未知按钮 id 抛 BridgeError（契约违规）。
    */
   'taskbar/set-button-hidden': { request: { id: TaskbarButtonId; hidden: boolean }; response: TaskbarState }
+  /**
+   * 左组应用图标点击（工单58，栏内与溢出浮层共用同一道契约）：exe 身份必须在当前左组
+   * 栏面上（desktop/launch 池护栏同款——栏外身份不启动，ok:false 回报）；运行中置前、
+   * 未运行启动，裁决在内核。执行失败（前台锁拒收/启动报错）ok:false + error 不抛——
+   * 点击语义不需 try/catch。工单53 的全交互（右键菜单/中键/最小化切换）在同一身份挂点扩展。
+   */
+  'taskbar/activate-app': { request: { exe: string }; response: { ok: boolean; action: TaskbarActivateAction | null; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
