@@ -919,7 +919,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     await ctx.start()
     try {
       await expect(ctx.bridge.invoke('taskbar/get-state', null))
-        .resolves.toEqual({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+        .resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     } finally {
       await ctx.stop()
     }
@@ -929,7 +929,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     await ctx2.start()
     try {
       await expect(ctx2.bridge.invoke('taskbar/get-state', null))
-        .resolves.toEqual({ enabled: false, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+        .resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     } finally {
       await ctx2.stop()
     }
@@ -944,16 +944,16 @@ describe('内核桥接契约（工单49 任务栏）', () => {
       const changed: TaskbarState[] = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })).resolves
-        .toEqual({ enabled: false, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: false, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })).resolves
-        .toEqual({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
       // 幂等：同值不重复推事件
       await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
       expect(changed.map((s) => s.enabled)).toEqual([false, true])
       const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
-      expect(onDisk.taskbar).toEqual({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     } finally {
       await ctx.stop()
     }
@@ -968,7 +968,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: 'off' as never }))
         .rejects.toThrow(/taskbar\.enabled/)
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     } finally {
       await ctx.stop()
     }
@@ -1010,11 +1010,12 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     const changed: TaskbarState[] = []
     ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
     await ctx.stop()
-    expect(changed).toEqual([{ enabled: false, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] }])
+    expect(changed).toEqual([{ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] }])
   }, 30_000)
 })
 
 describe('内核桥接契约（工单55 任务栏右组）', () => {
+  /** 任务栏桩：同 49 段（config 落 tmp + 假按键源） */
   function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
     const sent: string[] = []
     const so = settingsOpts(dir)
@@ -1056,17 +1057,17 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
       const changed: TaskbarState[] = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
       await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })).resolves
-        .toEqual({ enabled: true, metrics: ['cpu', 'ram'] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'] })
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: true, metrics: ['cpu', 'ram'] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'] })
       // 空子集合法（摘要整格隐藏）
       await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: [] })).resolves
-        .toEqual({ enabled: true, metrics: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: [] })
       // 幂等：同值不重复推事件
       await ctx.bridge.invoke('taskbar/set-metrics', { metrics: [] })
       expect(changed.map((s) => s.metrics)).toEqual([['cpu', 'ram'], []])
       const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
-      expect(onDisk.taskbar).toEqual({ enabled: true, metrics: [] })
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: [] })
     } finally {
       await ctx.stop()
     }
@@ -1082,11 +1083,11 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
       await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['cpu', 'ghost'] as never }))
         .rejects.toThrow(/taskbar\.metrics/)
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: true, metrics: ['gpu'] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['gpu'] })
       // 勾选子集不被开关切换冲掉（setEnabled 只动 enabled 位）
       await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: false, metrics: ['gpu'] })
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['gpu'] })
     } finally {
       await ctx.stop()
     }
@@ -1107,6 +1108,81 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
       off()
       ctx.bridge.tick()
       expect(received).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单54 中组系统按钮显隐）', () => {
+  /** 任务栏桩：同 49 段（config 落 tmp + 假按键源），hiddenButtons 初值可经 over 下发 */
+  function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: { sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true } },
+          ...over,
+        },
+      },
+    }
+  }
+
+  it('hiddenButtons 初值随 config taskbar 段下发（重启保持的读入路径）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir, { hiddenButtons: ['tasks'] })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-button-hidden：隐藏/恢复即时回推 taskbar/changed 并整份回写 config.json；同态幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: true }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+      // 恢复
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: false }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+      // 幂等：同态不重写盘不重推
+      await ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })
+      expect(changed.map((s) => s.hiddenButtons)).toEqual([['start'], ['start', 'tasks'], ['tasks']])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: ['tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-button-hidden：未知按钮 id 抛 BridgeError（契约违规不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'ghost' as never, hidden: true }))
+        .rejects.toThrow(/未知任务栏按钮/)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
     } finally {
       await ctx.stop()
     }

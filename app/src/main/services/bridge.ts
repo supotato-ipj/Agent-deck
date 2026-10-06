@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarMetric, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarMetric, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -130,6 +130,8 @@ export class BridgeService extends Service {
         return await this.ctx.focus.focusTool(String(tool ?? '')) as BridgeMethods[M]['response']
       }
       case 'taskbar/get-state':
+        // 推荐位即时刷新（工单54）：渲染层 boot/重连拉态即最新名单（1Hz 快照驱动之外的对齐点）
+        this.ctx.taskbar.refreshRecommendations()
         return this.ctx.taskbar.state() as BridgeMethods[M]['response']
       case 'taskbar/set-enabled': {
         const { enabled } = payload as { enabled: boolean }
@@ -138,6 +140,10 @@ export class BridgeService extends Service {
       case 'taskbar/system-action': {
         const { action } = payload as { action: TaskbarSystemAction }
         return this.ctx.taskbar.systemAction(action) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/set-button-hidden': {
+        const { id, hidden } = payload as { id: TaskbarButtonId; hidden: boolean }
+        return this.ctx.taskbar.setButtonHidden(id, hidden) as BridgeMethods[M]['response']
       }
       case 'taskbar/set-metrics': {
         const { metrics } = payload as { metrics: TaskbarMetric[] }

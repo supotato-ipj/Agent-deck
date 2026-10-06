@@ -415,7 +415,7 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -465,5 +465,39 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.taskbar.metrics).toEqual(['cpu', 'gpu', 'ram', 'net-down', 'net-up'])
     expect(r.warnings.some((w) => w.includes('config.taskbar.metrics'))).toBe(true)
+  })
+})
+
+describe('config.taskbar 系统按钮显隐（工单54）', () => {
+  it('hiddenButtons 合法名单生效（重启保持的持久化口径）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'] })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('缺 hiddenButtons 键时为空名单（工单49 老 config.json 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [] })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('未知按钮 id 丢弃并告警，合法条目保留；重复条目去重', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'ghost', 'start'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.hiddenButtons).toEqual(['start'])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.hiddenButtons'))).toBe(true)
+  })
+
+  it('hiddenButtons 非数组回退空名单并告警（不静默吞笔误）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: 'start' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.hiddenButtons).toEqual([])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.hiddenButtons'))).toBe(true)
   })
 })

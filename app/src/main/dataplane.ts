@@ -6,6 +6,7 @@ import type { Context } from 'cordis'
 import { appendFileSync } from 'node:fs'
 import type { DesktopZone } from '../shared/contract'
 import { createDataplaneKernel } from './kernel'
+import { planTaskbarRecommendations } from './taskbar/plan'
 import { TrayHost } from './trayhost/host'
 import {
   ProxyClipboardRead,
@@ -23,11 +24,14 @@ let trayHost: TrayHost | null = null
 
 function snapshotOf(c: Context): DataplaneSnapshot {
   const d = new Date()
+  const desktop = c.desktop.state()
   return {
     clock: { iso: d.toISOString(), epochMs: d.getTime() },
     sessions: c.sessions.current(),
     hardware: c.hardware.state(),
-    desktop: c.desktop.state(),
+    desktop,
+    // 中组推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推
+    recommendations: planTaskbarRecommendations(desktop.plan.dock, desktop.items, c.desktop.usageScores()),
   }
 }
 

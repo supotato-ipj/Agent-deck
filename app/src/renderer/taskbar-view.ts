@@ -1,6 +1,8 @@
-// 任务栏 pill 纯逻辑（工单49/55）：按钮清单是状态 → 视图的纯函数，点击分发只经桥契约。
+// 任务栏 pill 纯逻辑（工单49/54/55）：中组视图模型（系统按钮显隐、推荐位透出、整组显隐
+// 边界、右键菜单行）与右组视图模型（硬件摘要勾选子集、时钟/音量格、显示桌面细条）都是
+// 状态 → 视图的纯函数，点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarMetric, TaskbarState, TaskbarSystemAction } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarButtonId, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../shared/contract'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -8,9 +10,9 @@ export interface TaskbarBridge {
   on<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void
 }
 
-/** 中组系统按钮（工单49 tracer bullet：开始 + TaskView；推荐位属后续票） */
+/** 中组系统按钮（工单49：开始 + TaskView） */
 export interface TaskbarButtonSpec {
-  id: string
+  id: TaskbarButtonId
   label: string
   action: TaskbarSystemAction
 }
@@ -24,14 +26,20 @@ export const TASKBAR_BUTTONS: readonly TaskbarButtonSpec[] = [
  * 快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；显示桌面
  * 细条 = Win+D（label 空——细条无文字，钉屏幕最右端，对齐 Win11 右下角肌肉记忆）。
  * 组内序 = 硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟 → 细条。 */
-export const RIGHT_CELLS: readonly TaskbarButtonSpec[] = [
+export interface TaskbarCellSpec {
+  id: string
+  label: string
+  action: TaskbarSystemAction
+}
+
+export const RIGHT_CELLS: readonly TaskbarCellSpec[] = [
   { id: 'volume', label: '♪ VOL', action: 'quick-settings' },
   { id: 'clock', label: '', action: 'notification-center' },
   { id: 'show-desktop', label: '', action: 'toggle-desktop' },
 ] as const
 
 /** 点击分发目录 = 中组按钮 + 右组动作格 */
-const CATALOG: readonly TaskbarButtonSpec[] = [...TASKBAR_BUTTONS, ...RIGHT_CELLS]
+const CATALOG: ReadonlyArray<{ id: string; action: TaskbarSystemAction }> = [...TASKBAR_BUTTONS, ...RIGHT_CELLS]
 
 /** 硬件摘要指标显示名（序 = contract TASKBAR_METRIC_KEYS 规范序的渲染层镜像——
  * 渲染层只做类型级 import（协议资产只服务 dist/renderer 根，运行时值导入会 404），
@@ -55,12 +63,42 @@ export interface SummarySegment {
   on: boolean
 }
 
-/** 状态 → 视图：禁用即空壳（窗口随插件禁用销毁，这里仍给出确定性空态） */
-export function taskbarViewModel(state: TaskbarState): { buttons: TaskbarButtonSpec[]; metrics: TaskbarMetric[] } {
-  return {
-    buttons: state.enabled ? [...TASKBAR_BUTTONS] : [],
-    metrics: state.enabled ? [...state.metrics] : [],
-  }
+/** 右键菜单行（工单54）：每个系统按钮一行显隐切换；hidden=true 的行即恢复入口 */
+export interface TaskbarMenuRow {
+  id: TaskbarButtonId
+  label: string
+  hidden: boolean
+}
+
+/** 按钮 id → 菜单行中文名（隐藏/显示谓语共用同一词干） */
+const BUTTON_NAMES: Record<TaskbarButtonId, string> = { start: '开始按钮', tasks: '任务视图按钮' }
+
+/** 中组视图模型（工单54）：visible=false = 中组整个不渲染（只剩左右两组的边界条件）；
+ * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳） */
+export interface TaskbarMidGroupModel {
+  visible: boolean
+  buttons: TaskbarButtonSpec[]
+  recommendations: TaskbarRecommendation[]
+  menu: TaskbarMenuRow[]
+  metrics: TaskbarMetric[]
+}
+
+/**
+ * 状态 → 视图：禁用即空壳；中组显隐 = 可见按钮或推荐位任非空（两按钮都隐藏且
+ * 推荐位为空 → 整组不渲染）。菜单行恒列两按钮——只要中组还渲染，被藏按钮就有恢复入口；
+ * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
+ */
+export function taskbarViewModel(state: TaskbarState): TaskbarMidGroupModel {
+  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [] }
+  const hidden = new Set(state.hiddenButtons)
+  const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
+  const recommendations = [...state.recommendations]
+  const menu = TASKBAR_BUTTONS.map((b) => ({
+    id: b.id,
+    label: `${hidden.has(b.id) ? '显示' : '隐藏'}${BUTTON_NAMES[b.id]}`,
+    hidden: hidden.has(b.id),
+  }))
+  return { visible: buttons.length > 0 || recommendations.length > 0, buttons: [...buttons], recommendations, menu, metrics: [...state.metrics] }
 }
 
 /** 摘要格段清单：常态只呈现勾选子集，编辑态五项全呈现（未勾选的置灰供勾回） */
@@ -110,4 +148,17 @@ export async function dispatchTaskbarButton(
   if (!btn) return { ok: false, action: null }
   const res = await bridge.invoke('taskbar/system-action', { action: btn.action })
   return { ok: res.ok, action: btn.action, ...(res.error ? { error: res.error } : {}) }
+}
+
+/**
+ * 右键菜单显隐切换（工单54）：id + 目标态经桥 invoke，回执 = 最新任务栏状态
+ * （内核已回推 taskbar/changed，回执供调用点即时对齐）。未知 id 是噪声：不发 invoke，返回 null。
+ */
+export async function dispatchTaskbarVisibility(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  buttonId: TaskbarButtonId,
+  hidden: boolean,
+): Promise<TaskbarState | null> {
+  if (!TASKBAR_BUTTONS.some((b) => b.id === buttonId)) return null
+  return bridge.invoke('taskbar/set-button-hidden', { id: buttonId, hidden })
 }

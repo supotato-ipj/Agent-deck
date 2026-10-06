@@ -44,8 +44,16 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(PluginHostService, { roots: [], ...options.plugins })
   // 数据面端口（生产装配：utilityProcess 子进程宿主）——必须先于桥接层注册
   ctx.plugin(DataplaneService, options.dataplane)
-  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
-  ctx.plugin(TaskbarService, options.taskbar)
+  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。
+  // 中组推荐位（工单54）缺省接 panelData——数据面快照随拍携带的频次链路产物。
+  ctx.plugin(TaskbarService, {
+    ...options.taskbar,
+    deps: {
+      ...options.taskbar?.deps,
+      recommendations: options.taskbar?.deps?.recommendations
+        ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
+    },
+  })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {

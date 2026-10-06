@@ -145,10 +145,24 @@ export type TaskbarMetric = 'cpu' | 'gpu' | 'ram' | 'net-down' | 'net-up'
 /** 五项指标的规范顺序（显示序与 set-metrics 归一序的唯一出处；勾选持久化存的是子集） */
 export const TASKBAR_METRIC_KEYS: readonly TaskbarMetric[] = ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] as const
 
-/** 任务栏状态（工单49 tracer bullet）：enabled=false 时主进程销毁任务栏窗口；
- * 工单55 扩 metrics = 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持） */
+/** 中组系统按钮 id（工单49/54）：开始按钮 + TaskView 按钮——显隐持久化与右键菜单按它寻址 */
+export type TaskbarButtonId = 'start' | 'tasks'
+
+/** 中组推荐位条目（工单54）：使用频次推荐的桌面条目；name 是合并去重键，path 供后续票的启动/图标 */
+export interface TaskbarRecommendation {
+  name: string
+  display: string
+  path: string
+}
+
+/** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
+ * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
+ * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
+ * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）。 */
 export interface TaskbarState {
   enabled: boolean
+  hiddenButtons: TaskbarButtonId[]
+  recommendations: TaskbarRecommendation[]
   metrics: TaskbarMetric[]
 }
 
@@ -381,6 +395,11 @@ export interface BridgeMethods {
   'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
   /** 任务栏系统动作（开始菜单/任务视图/通知中心/快速设置/显示桌面）：主进程按键合成触发原生系统 UI */
   'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
+  /**
+   * 中组系统按钮显隐（工单54）：右键菜单触发，整份回写 config.json taskbar.hiddenButtons，
+   * 回推 taskbar/changed。同态幂等空转；未知按钮 id 抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-button-hidden': { request: { id: TaskbarButtonId; hidden: boolean }; response: TaskbarState }
   /** 任务栏右组硬件摘要勾选（工单55）：metrics 为勾选子集（按规范序归一），整份回写 config.json；回推 taskbar/changed */
   'taskbar/set-metrics': { request: { metrics: TaskbarMetric[] }; response: TaskbarState }
 }
