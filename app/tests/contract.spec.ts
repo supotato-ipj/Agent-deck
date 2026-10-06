@@ -918,7 +918,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
     try {
-      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, left: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], left: [] })
     } finally {
       await ctx.stop()
     }
@@ -927,7 +927,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     const ctx2 = createKernel(kernelOpts(dir2, t2.opts))
     await ctx2.start()
     try {
-      await expect(ctx2.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: false, left: [] })
+      await expect(ctx2.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], left: [] })
     } finally {
       await ctx2.stop()
     }
@@ -941,14 +941,17 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     try {
       const changed: Array<{ enabled: boolean }> = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
-      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })).resolves.toEqual({ enabled: false, left: [] })
-      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: false, left: [] })
-      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })).resolves.toEqual({ enabled: true, left: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })).resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], left: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], left: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], left: [] })
       // 幂等：同值不重复推事件
       await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
-      expect(changed).toEqual([{ enabled: false, left: [] }, { enabled: true, left: [] }])
+      expect(changed).toEqual([
+        { enabled: false, hiddenButtons: [], recommendations: [], left: [] },
+        { enabled: true, hiddenButtons: [], recommendations: [], left: [] },
+      ])
       const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
-      expect(onDisk.taskbar).toEqual({ enabled: true })
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: [] })
     } finally {
       await ctx.stop()
     }
@@ -962,7 +965,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     try {
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: 'off' as never }))
         .rejects.toThrow(/taskbar\.enabled/)
-      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, left: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], left: [] })
     } finally {
       await ctx.stop()
     }
@@ -1004,7 +1007,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     const changed: Array<{ enabled: boolean }> = []
     ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
     await ctx.stop()
-    expect(changed).toEqual([{ enabled: false, left: [] }])
+    expect(changed).toEqual([{ enabled: false, hiddenButtons: [], recommendations: [], left: [] }])
   }, 30_000)
 })
 
@@ -1152,6 +1155,128 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       expect(t.env.enumCalls).toBe(before)
       state = await ctx.bridge.invoke('taskbar/get-state', null)
       expect(state.enabled).toBe(false)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单54 中组系统按钮显隐）', () => {
+  /** 任务栏桩：同 49 段（config 落 tmp + 假按键源），hiddenButtons 初值可经 over 下发 */
+  function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: { sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true } },
+          ...over,
+        },
+      },
+    }
+  }
+
+  it('hiddenButtons 初值随 config taskbar 段下发（重启保持的读入路径）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir, { hiddenButtons: ['tasks'] })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], left: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-button-hidden：隐藏/恢复即时回推 taskbar/changed 并整份回写 config.json；同态幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: Array<{ hiddenButtons: string[] }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: true }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start'], recommendations: [], left: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], recommendations: [], left: [] })
+      // 恢复
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: false }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], left: [] })
+      // 幂等：同态不重写盘不重推
+      await ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })
+      expect(changed.map((s) => s.hiddenButtons)).toEqual([['start'], ['start', 'tasks'], ['tasks']])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: ['tasks'] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-button-hidden：未知按钮 id 抛 BridgeError（契约违规不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'ghost' as never, hidden: true }))
+        .rejects.toThrow(/未知任务栏按钮/)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], left: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar 推荐位：使用频次链路（fuseScores）产物随 get-state 下发——按分数降序、零分不占位、变化回推 taskbar/changed', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Alpha.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'Beta.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'Gamma.lnk'), 'stub') // 零分：从不启动
+    const targets: Record<string, string> = { 'Alpha.lnk': 'C:\\apps\\Alpha.exe', 'Beta.lnk': 'C:\\apps\\Beta.exe' }
+    let running = new Map<number, string>()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      ...t.opts,
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readShortcutTarget: (p: string) => targets[path.basename(p)] ?? null,
+        },
+      }),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => running,
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      // 启动记录：Alpha × 2、Beta × 1（pid 差分——新 pid 入场即一次启动）
+      const now = Date.now()
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe'], [2, 'C:\\apps\\Beta.exe']])
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe']])
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe'], [9, 'C:\\apps\\Alpha.exe']])
+      ctx.usage!.collect(now)
+      ctx.desktop!.refresh() // 重算编排与分数（生产由 1Hz tick 驱动）
+      const changed: Array<{ recommendations: Array<{ name: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      // Alpha（2 次）在 Beta（1 次）前；Gamma 零分不占位
+      expect(state.recommendations.map((r) => r.name)).toEqual(['Alpha.lnk', 'Beta.lnk'])
+      expect(state.recommendations[0].path).toBe(path.join(dir, 'user', 'Alpha.lnk'))
+      // get-state 的即时刷新发现名单从空变两席 → 回推一帧
+      expect(changed.map((s) => s.recommendations.map((r) => r.name))).toEqual([['Alpha.lnk', 'Beta.lnk']])
     } finally {
       await ctx.stop()
     }

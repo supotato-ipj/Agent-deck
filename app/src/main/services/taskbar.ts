@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarLeftEntry, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
+import type { TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
@@ -16,6 +16,8 @@ import { userDataPath } from '../paths'
 export interface TaskbarServiceOptions {
   /** 初始开关（config.json taskbar.enabled 下发；缺省 = 默认开启） */
   enabled?: boolean
+  /** 中组系统按钮隐藏名单初值（config.json taskbar.hiddenButtons 下发，工单54） */
+  hiddenButtons?: TaskbarButtonId[]
   /** config.json 绝对路径（缺省 = 不落盘，仅内存态——离线测试省配置桩） */
   file?: string
   /** 已加载的 config（可变引用：写开关即整份回写该对象，settings 先例） */
@@ -28,7 +30,12 @@ export interface TaskbarServiceOptions {
   deps?: {
     /** 按键合成真源（缺省延迟绑定 taskbar/syskeys） */
     sendSystemKeys?: (action: TaskbarSystemAction) => boolean
-    /** 运行中窗口枚举（缺省延迟绑定 taskbar/windows；标题仅内存即时读取，ADR-0007 书面口子） */
+    /**
+     * 中组推荐位来源（工单54）：数据面快照推导（fuseScores 链路的产物），
+     * 缺省空名单——离线测试注假源或经内核 panelData 装配。
+     */
+    recommendations?: () => TaskbarRecommendation[]
+    /** 运行中窗口枚举（工单52；缺省延迟绑定 taskbar/windows；标题仅内存即时读取，ADR-0007 书面口子） */
     listWindows?: () => TaskbarWindowInput[]
     /** 自家 exe（其窗口不上栏；默认 process.execPath） */
     ownExe?: string
@@ -46,8 +53,17 @@ export interface TaskbarServiceOptions {
 
 const SYSTEM_ACTIONS: readonly TaskbarSystemAction[] = ['start-menu', 'task-view']
 
+/** 中组系统按钮合法 id（与 config.ts 的持久化校验同源口径） */
+const BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
+
+/** 推荐位名单逐条比对（name+path 都变才算变——显示名同拍变化也该触发重渲） */
+function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly TaskbarRecommendation[]): boolean {
+  return a.length === b.length && a.every((r, i) => r.name === b[i].name && r.display === b[i].display && r.path === b[i].path)
+}
+
 interface TaskbarDeps {
   sendSystemKeys: (action: TaskbarSystemAction) => boolean
+  recommendations: () => TaskbarRecommendation[]
   listWindows: () => TaskbarWindowInput[]
   ownExe: string
   desktopItems: () => MigrationItem[]
@@ -58,10 +74,11 @@ interface TaskbarDeps {
 }
 
 /**
- * 任务栏插件（工单49/52，ADR-0007）：体系第一种非卡片形态的 cordis 主进程插件。
- * 本服务只管状态与动作——开关（config.json 持久化 + taskbar/changed 回推）、
- * 系统动作合成（开始菜单/任务视图）、左组编排（工单52：refresh 一轮 = 迁移就位 →
- * 窗口枚举 → planLeftGroup 纯函数编排 → 内容变化即推 taskbar/changed）。
+ * 任务栏插件（工单49/52/54，ADR-0007）：体系第一种非卡片形态的 cordis 主进程插件。
+ * 本服务只管状态与动作——开关与系统按钮显隐（config.json 持久化 + taskbar/changed
+ * 回推）、系统动作合成（开始菜单/任务视图）、中组推荐位名单（工单54：从数据面
+ * 链路拉取，变化即回推）、左组编排（工单52：refresh 一轮 = 迁移就位 → 窗口枚举 →
+ * planLeftGroup 纯函数编排 → 内容变化即推 taskbar/changed）。
  * 置顶窗口的创建/销毁是效果层，由生产装配（taskbar/window.ts 控制器）订阅
  * taskbar/changed 驱动，本服务不引 electron，离线契约测试经 createKernel 直装直测。
  * 隐私：窗口标题只活在内存态与桥事件载荷里（tooltip 即时呈现），落盘的栏布局
@@ -89,6 +106,7 @@ export class TaskbarService extends Service {
     this.deps = {
       sendSystemKeys: options.deps?.sendSystemKeys
         ?? ((action) => (require('../taskbar/syskeys') as typeof import('../taskbar/syskeys')).sendSystemAction(action)),
+      recommendations: options.deps?.recommendations ?? (() => []),
       listWindows: options.deps?.listWindows
         ?? (() => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeTaskbarWindows()),
       ownExe: options.deps?.ownExe ?? process.execPath,
@@ -105,34 +123,79 @@ export class TaskbarService extends Service {
         }
       }),
     }
-    this.current = { enabled: options.enabled ?? defaultTaskbar().enabled, left: [] }
+    this.current = {
+      enabled: options.enabled ?? defaultTaskbar().enabled,
+      hiddenButtons: [...(options.hiddenButtons ?? defaultTaskbar().hiddenButtons)],
+      recommendations: [],
+      left: [],
+    }
+    // 推荐位即时刷新（工单54）：数据面每拍快照即重拉一次，变化才回推（1Hz 拉取 ×
+    // 逐条 diff——名单稳定时零事件零重渲）。离线内核无 dataplane/snapshot，契约测试
+    // 手动驱动 refreshRecommendations（手动驱动采集轮同款纪律）。
+    this.ctx.on('dataplane/snapshot', () => this.refreshRecommendations())
   }
 
   state(): TaskbarState {
-    return { enabled: this.current.enabled, left: [...this.current.left] }
+    return {
+      ...this.current,
+      hiddenButtons: [...this.current.hiddenButtons],
+      recommendations: [...this.current.recommendations],
+      left: [...this.current.left],
+    }
   }
 
   /** 开关：先写盘后提交内存态（settings 同款顺序——写失败即抛，三者一致）；
-   * 同值幂等空转（不重写盘、不重推事件）。config.json 的 taskbar 段只持开关，
-   * 左组条目是运行态、永不进 config。 */
+   * 同值幂等空转（不重写盘、不重推事件）。config.json 的 taskbar 段只持开关与
+   * 按钮显隐，左组条目是运行态、永不进 config。 */
   setEnabled(enabled: boolean): TaskbarState {
     if (typeof enabled !== 'boolean') {
       throw new BridgeError(`taskbar.enabled 须为布尔值，收到 ${String(enabled)}`)
     }
     if (enabled === this.current.enabled) return this.state()
-    if (this.appConfig && this.file) {
-      saveConfig(this.file, { ...this.appConfig, taskbar: { enabled } })
-      this.appConfig.taskbar = { enabled }
-    }
+    this.persist({ enabled })
     this.current = { ...this.current, enabled }
     this.ctx.emit('taskbar/changed', this.state())
     return this.state()
   }
 
+  /** 中组系统按钮显隐（工单54）：右键菜单动作落点。同态幂等空转；未知 id 抛
+   * BridgeError（契约违规不静默吞掉）。先写盘后提交内存态（setEnabled 同款顺序）。 */
+  setButtonHidden(id: TaskbarButtonId, hidden: boolean): TaskbarState {
+    if (!BUTTON_IDS.includes(id)) {
+      throw new BridgeError(`未知任务栏按钮: ${String(id)}`)
+    }
+    if (typeof hidden !== 'boolean') {
+      throw new BridgeError(`taskbar.set-button-hidden.hidden 须为布尔值，收到 ${String(hidden)}`)
+    }
+    const has = this.current.hiddenButtons.includes(id)
+    if (hidden === has) return this.state()
+    const hiddenButtons = hidden
+      ? [...this.current.hiddenButtons, id]
+      : this.current.hiddenButtons.filter((b) => b !== id)
+    this.persist({ hiddenButtons })
+    this.current = { ...this.current, hiddenButtons }
+    this.ctx.emit('taskbar/changed', this.state())
+    return this.state()
+  }
+
+  /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed */
+  refreshRecommendations(): void {
+    let next: TaskbarRecommendation[]
+    try {
+      next = this.deps.recommendations()
+    } catch {
+      return // 来源未就绪（数据面首拍前）按上次名单继续持有
+    }
+    if (sameRecommendations(this.current.recommendations, next)) return
+    this.current = { ...this.current, recommendations: next }
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
   /**
-   * 左组一个编排轮（生产由内核 1Hz 定时器驱动——应用启动/退出 1–2 秒内反映到左组；
-   * 离线契约测试手动驱动）。禁用态空转：栏窗已销，不枚举窗口。迁移随首轮就位：
-   * 栏布局存储缺位时把旧 dock 手钉名单迁入（顺序保持），落盘成功才算迁移完成。
+   * 左组一个编排轮（工单52；生产由内核 1Hz 定时器驱动——应用启动/退出 1–2 秒内
+   * 反映到左组；离线契约测试手动驱动）。禁用态空转：栏窗已销，不枚举窗口。
+   * 迁移随首轮就位：栏布局存储缺位时把旧 dock 手钉名单迁入（顺序保持），
+   * 落盘成功才算迁移完成。
    */
   refresh(): void {
     if (!this.current.enabled) return
@@ -165,15 +228,15 @@ export class TaskbarService extends Service {
     }
   }
 
-  /** 测试观察缝：当前栏布局存储内容 */
+  /** 测试观察缝：当前栏布局存储内容（工单52） */
   storeForTest(): TaskbarLayoutStore {
     return { version: 1, pinned: [...this.store.pinned] }
   }
 
   /**
-   * 栏布局装载/迁移（一次性）：存储在场即读入（自愈解析）；缺位则首跑迁移——旧 dock
-   * 手钉名单经桌面项池解析为 exe 身份（顺序保持）落盘为栏布局。迁移只读 dock 摆位
-   * 存储（dock 退役属工单59）；写失败不置位，下一拍重试（迁移不丢手钉）。
+   * 栏布局装载/迁移（工单52，一次性）：存储在场即读入（自愈解析）；缺位则首跑迁移——
+   * 旧 dock 手钉名单经桌面项池解析为 exe 身份（顺序保持）落盘为栏布局。迁移只读
+   * dock 摆位存储（dock 退役属工单59）；写失败不置位，下一拍重试（迁移不丢手钉）。
    */
   private ensureLayout(): void {
     if (this.layoutReady) return
@@ -197,10 +260,21 @@ export class TaskbarService extends Service {
     }
   }
 
+  /** 整份回写 config.json 的 taskbar 段（enabled + hiddenButtons 同段共写）并同步可变引用 */
+  private persist(next?: Partial<Pick<TaskbarState, 'enabled' | 'hiddenButtons'>>): void {
+    if (!this.appConfig || !this.file) return
+    const taskbar = {
+      enabled: next?.enabled ?? this.current.enabled,
+      hiddenButtons: next?.hiddenButtons ?? [...this.current.hiddenButtons],
+    }
+    saveConfig(this.file, { ...this.appConfig, taskbar })
+    this.appConfig.taskbar = taskbar
+  }
+
   /** 插件卸载路径（cordis 生命周期）：运行期卸载后不会再有 taskbar/changed——
    * 以 enabled:false 终态补发一帧，效果层（窗口控制器）经既有「禁用即销窗」
    * 路径销窗，窗口不残留（工单49 code-review 补缺）。 */
   protected stop(): void {
-    this.ctx.emit('taskbar/changed', { enabled: false, left: [] })
+    this.ctx.emit('taskbar/changed', { ...this.current, enabled: false })
   }
 }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>DECK-TASKBAR</title>
 <style>
-  /* 任务栏条带（工单49）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
+  /* 任务栏条带（工单49/54）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
   html, body {
     margin: 0;
     width: 100%;
@@ -58,7 +58,8 @@
     border-radius: 1px;
     background: rgba(255, 255, 255, 0.85);
   }
-  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透） */
+  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
+   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
   #pill {
     display: flex;
     align-items: center;
@@ -68,6 +69,7 @@
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
   }
+  #pill[hidden] { display: none; }
   .tb-btn {
     padding: 5px 14px;
     font-size: 11px;
@@ -79,6 +81,34 @@
   }
   .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 推荐位（工单54）：使用频次自动填充；v1 只展示（点击/拖拽属后续票），指针保持默认 */
+  .tb-rec {
+    padding: 5px 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: #b9b9b9;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  /* 系统按钮显隐菜单（工单54）：自绘最小右键菜单——条带窗只有 48px 高，菜单以
+   * pill 内横排呈现（竖排浮层出不了窗口矩形）。配色与面板 ctx-menu 同一世界观
+   * （深底细边、文字实色、hover 反白灰底）。 */
+  .tb-menu-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px 2px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .tb-menu-item {
+    padding: 5px 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: #d6d6d6;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tb-menu-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 </style>
 </head>
 <body>

@@ -137,6 +137,16 @@ export type FocusAction = 'focused' | 'launched' | 'degraded'
 /** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
 export type TaskbarSystemAction = 'start-menu' | 'task-view'
 
+/** 中组系统按钮 id（工单49/54）：开始按钮 + TaskView 按钮——显隐持久化与右键菜单按它寻址 */
+export type TaskbarButtonId = 'start' | 'tasks'
+
+/** 中组推荐位条目（工单54）：使用频次推荐的桌面条目；name 是合并去重键，path 供后续票的启动/图标 */
+export interface TaskbarRecommendation {
+  name: string
+  display: string
+  path: string
+}
+
 /**
  * 任务栏左组条目（工单52，GLOSSARY.md「栏分组」左组）：手钉与运行中应用的合并视图。
  * 身份 = exe 路径（原始大小写；比较时归一）。title 是窗口标题——仅内存即时读取的
@@ -156,10 +166,14 @@ export interface TaskbarLeftEntry {
   iconKey: string | null
 }
 
-/** 任务栏状态（工单49 tracer bullet；工单52 起含左组条目）：enabled=false 时主进程销毁任务栏窗口 */
+/** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
+ * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
+ * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
+ * left（工单52）= 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）。 */
 export interface TaskbarState {
   enabled: boolean
-  /** 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空） */
+  hiddenButtons: TaskbarButtonId[]
+  recommendations: TaskbarRecommendation[]
   left: TaskbarLeftEntry[]
 }
 
@@ -384,6 +398,11 @@ export interface BridgeMethods {
   'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
   /** 任务栏系统动作（开始菜单/任务视图）：主进程按键合成触发原生系统 UI */
   'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
+  /**
+   * 中组系统按钮显隐（工单54）：右键菜单触发，整份回写 config.json taskbar.hiddenButtons，
+   * 回推 taskbar/changed。同态幂等空转；未知按钮 id 抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-button-hidden': { request: { id: TaskbarButtonId; hidden: boolean }; response: TaskbarState }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

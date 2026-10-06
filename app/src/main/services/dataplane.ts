@@ -1,7 +1,7 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { ClockState, DesktopState, DesktopZone, HardwareState } from '../../shared/contract'
+import type { ClockState, DesktopState, DesktopZone, HardwareState, TaskbarRecommendation } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
 import type { TrayWireEvent } from '../trayhost/protocol'
@@ -179,6 +179,11 @@ export class DataplaneService extends Service implements PanelDataPort {
 
   desktop(): DesktopState {
     return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { dock: [], docs: [] } }
+  }
+
+  /** 任务栏中组推荐位（工单54）：子进程随快照算好携带（分数跨进程不过桥——名单即产物） */
+  taskbarRecommendations(): TaskbarRecommendation[] {
+    return this.latest?.recommendations ?? []
   }
 
   refresh(): void {

@@ -90,6 +90,8 @@ export class DesktopService extends Service {
   private items: DesktopItem[] = []
   private plan: DesktopPlan = { dock: [], docs: [] }
   private fingerprint = ''
+  /** 最近一轮编排的使用频次融合分（fuseScores 产物；中组推荐位（工单54）的同源取数口） */
+  private lastScores: ReadonlyMap<string, number> = new Map()
 
   constructor(ctx: Context, options: DesktopServiceOptions = {}) {
     super(ctx, 'desktop')
@@ -156,9 +158,15 @@ export class DesktopService extends Service {
       target: i.kind === 'shortcut' ? this.targetOf(i) : null,
     }))
     const scores = this.deps.iconScores(scoreItems, resolve, this.deps.fileExists)
+    this.lastScores = scores
     return planDesktop(this.items, this.store.pinned, { dock: this.store.dock, docs: this.store.docs }, scores, {
       docMaxRows: this.docMaxRows,
     })
+  }
+
+  /** 最近一轮编排的使用频次融合分（{显示名: 分数}；任务栏中组推荐位经此同源取数，工单54） */
+  usageScores(): ReadonlyMap<string, number> {
+    return this.lastScores
   }
 
   private targetOf(item: DesktopItem): string | null {
