@@ -1,0 +1,15 @@
+# accept 55-taskbar-right-group — 2026-10-06T02:17:26.124Z
+[02:17:26.727] NOTE  面板 pid=29280
+[02:17:29.496] PASS  P1 右组 pill 在场（hw-summary/volume/clock），显示桌面细条钉屏幕最右端（右缘≈屏右、撑满条带高）
+[02:17:29.855] PASS  P2 硬件摘要五项与硬件卡口径一致（摘要={"cpu":0,"gpu":3,"ram":0,"dl":null,"up":null} 硬件卡={"cpu":0,"gpu":3,"ram":0,"dl":null,"up":null}）
+[02:17:30.122] NOTE  P3 点击前收敛=true
+[02:17:30.212] PASS  P3 时钟格弹出原生通知中心（前台 shellexperiencehost / Windows.UI.Core.CoreWindow）
+[02:17:30.531] NOTE  通知中心收起=true
+[02:17:31.398] NOTE  P4 点击前收敛=true
+[02:17:31.492] PASS  P4 音量格弹出原生快速设置（前台 shellhost / ControlCenterWindow）
+[02:17:31.810] NOTE  快速设置收起=true
+[02:17:32.811] NOTE  P5 点击前收敛=true
+[02:17:33.777] PASS  P5 显示桌面细条 ToggleDesktop：一点全最小化落桌面、再点 notepad 还原前台
+[02:17:39.148] PASS  P6 勾选子集持久化：落盘 config.json、任务栏即时收敛为 CPU/RAM、重拉后保持（重启保持）
+[02:17:40.118] NOTE  清场核验：原生任务栏可见
+[02:17:40.120] ===== 55-taskbar-right-group VERDICT: PASS (pass=6 fail=0) =====

@@ -134,12 +134,30 @@ export interface SettingsState {
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
 export type FocusAction = 'focused' | 'launched' | 'degraded'
 
-/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
-export type TaskbarSystemAction = 'start-menu' | 'task-view'
+/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层。
+ * 工单55 扩右组：通知中心 = Win+N（时钟格）、快速设置 = Win+A（音量格，ADR-0007）、
+ * 显示桌面 = Win+D（屏幕最右端细条，对齐 Win11 右下角肌肉记忆）。 */
+export type TaskbarSystemAction = 'start-menu' | 'task-view' | 'notification-center' | 'quick-settings' | 'toggle-desktop'
 
-/** 任务栏状态（工单49 tracer bullet）：enabled=false 时主进程销毁任务栏窗口 */
+/** 硬件摘要指标键（工单55，GLOSSARY.md「硬件摘要」五项）：与硬件卡同一份 HardwareGauges 口径 */
+export type TaskbarMetric = 'cpu' | 'gpu' | 'ram' | 'net-down' | 'net-up'
+
+/** 五项指标的规范顺序（显示序与 set-metrics 归一序的唯一出处；勾选持久化存的是子集） */
+export const TASKBAR_METRIC_KEYS: readonly TaskbarMetric[] = ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] as const
+
+/** 任务栏状态（工单49 tracer bullet）：enabled=false 时主进程销毁任务栏窗口；
+ * 工单55 扩 metrics = 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持） */
 export interface TaskbarState {
   enabled: boolean
+  metrics: TaskbarMetric[]
+}
+
+/** 任务栏右组 1Hz 数据帧（工单55）：时钟 + 硬件仪表，随数据面每拍快照回推
+ * （与 panel/changed 同源同拍——数值口径与硬件卡一致的依据；只裁右组要的两段，
+ * 整份 PanelSnapshot 不进条带渲染层） */
+export interface TaskbarStatus {
+  clock: ClockState
+  hardware: HardwareGauges
 }
 
 /**
@@ -361,8 +379,10 @@ export interface BridgeMethods {
   'taskbar/get-state': { request: null; response: TaskbarState }
   /** 任务栏开关：禁用即销毁任务栏窗口、启用即恢复；整份回写 config.json；回推 taskbar/changed */
   'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
-  /** 任务栏系统动作（开始菜单/任务视图）：主进程按键合成触发原生系统 UI */
+  /** 任务栏系统动作（开始菜单/任务视图/通知中心/快速设置/显示桌面）：主进程按键合成触发原生系统 UI */
   'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
+  /** 任务栏右组硬件摘要勾选（工单55）：metrics 为勾选子集（按规范序归一），整份回写 config.json；回推 taskbar/changed */
+  'taskbar/set-metrics': { request: { metrics: TaskbarMetric[] }; response: TaskbarState }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -381,6 +401,8 @@ export interface BridgeEvents {
   'plugins/changed': PluginInfo[]
   /** 工单49 任务栏：开关变化即时回推（任务栏窗口据此渲染/渲染层不等重启） */
   'taskbar/changed': TaskbarState
+  /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（与 panel/changed 同源同拍） */
+  'taskbar/status': TaskbarStatus
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

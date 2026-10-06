@@ -140,8 +140,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       },
       onTransition: (hot) => log?.append({ type: hot ? 'taskbar-hotzone-enter' : 'taskbar-hotzone-leave' }),
     })
-    // 任务栏窗只收自己关心的事件（面板事件不进条带渲染层）
-    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed'])
+    // 任务栏窗只收自己关心的事件（面板事件不进条带渲染层）：
+    // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）
+    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status'])
     wireHostIpc(w, tracker, log, { pin: (v) => { setTopmost(hwndOf(v), true) } })
     w.once('ready-to-show', () => {
       w.showInactive()
