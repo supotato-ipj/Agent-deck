@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>DECK-TASKBAR</title>
 <style>
-  /* 任务栏条带（工单49/54/55）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
+  /* 任务栏条带（工单49/52/54/55）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
   html, body {
     margin: 0;
     width: 100%;
@@ -16,6 +16,44 @@
     font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
     user-select: none;
     cursor: default;
+  }
+  /* 左组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
+  #pill-left {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    column-gap: 2px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+  .tb-app {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .tb-app:hover { background: rgba(255, 255, 255, 0.10); }
+  .tb-app img { width: 22px; height: 22px; }
+  /* 运行态叠加（工单52：已手钉应用运行时不新增图标，只在原图标下叠指示条） */
+  .tb-app.running::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 1px;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.85);
   }
   .pill {
     display: flex;
@@ -117,6 +155,7 @@
 </style>
 </head>
 <body>
+<div id="pill-left" role="toolbar" aria-label="任务栏左组"></div>
 <div id="pill" class="pill" role="toolbar" aria-label="任务栏中组"></div>
 <div id="right-pill" class="pill" role="toolbar" aria-label="任务栏右组"></div>
 <div id="show-desktop" role="button" aria-label="显示桌面"></div>

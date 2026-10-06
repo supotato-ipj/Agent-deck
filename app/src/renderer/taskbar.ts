@@ -1,12 +1,17 @@
-// 任务栏条带渲染入口（工单49/54/55）：状态经 taskbar/get-state 拉取 + taskbar/changed 订阅；
-// 右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。各 pill、按钮/推荐位
-// 矩形与细条矩形经宿主面声明为热区并落存证——验收电池据此取点击坐标。
+// 任务栏条带渲染入口（工单49/52/54/55）：状态经 taskbar/get-state 拉取 + taskbar/changed 订阅；
+// 右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。各 pill、按钮/推荐位/
+// 左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——验收电池据此取点击坐标。
 // 视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端 + 右键菜单开合（中组
 // 显隐菜单属工单54，摘要勾选编辑态属工单55）。
+// 左组（工单52）只做显示：图标 + 运行态指示 + 窗口标题 tooltip（标题随状态帧即时进出，
+// 渲染层不落任何存储）；点击/右键交互语义属工单53，本票预留挂点（条目元素 data-exe = 身份，
+// 视图模型 id 同值）。
 import { dispatchTaskbarButton, dispatchTaskbarVisibility, formatClock, formatMetric, summaryViewModel, taskbarViewModel, toggleMetric } from './taskbar-view.js'
+import type { TaskbarLeftViewEntry } from './taskbar-view.js'
 import type { HardwareGauges, TaskbarMetric, TaskbarState, TaskbarStatus } from '../shared/contract'
 
 const pill = document.getElementById('pill') as HTMLElement
+const pillLeft = document.getElementById('pill-left') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
 const sliver = document.getElementById('show-desktop') as HTMLElement
 
@@ -19,6 +24,8 @@ let editing = false
 /** 系统按钮显隐菜单开合（工单54）：右键开、点菜/点 pill 空白/状态回推收 */
 let menuOpen = false
 let menuTimer: ReturnType<typeof setTimeout> | null = null
+/** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
+const iconCache = new Map<string, string>()
 
 interface Rect { id: string; x: number; y: number; w: number; h: number }
 
@@ -27,7 +34,8 @@ function rectOf(el: HTMLElement, id: string): Rect {
   return { id, x: r.x, y: r.y, w: r.width, h: r.height }
 }
 
-/** 各 pill、按钮/推荐位/单元格与细条矩形（CSS px 相对客户区）：热区声明与验收存证共用同一份测量 */
+/** 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形（CSS px 相对客户区）：
+ * 热区声明与验收存证共用同一份测量 */
 function measure() {
   return {
     pill: rectOf(pill, 'pill'),
@@ -35,23 +43,51 @@ function measure() {
     recommendations: [...pill.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
       name: el.dataset.name ?? '', ...rectOf(el, ''),
     })).map(({ name, ...r }) => ({ name, x: r.x, y: r.y, w: r.w, h: r.h })),
+    leftPill: rectOf(pillLeft, 'pill-left'),
+    apps: [...pillLeft.querySelectorAll<HTMLElement>('.tb-app')].map((el) => rectOf(el, el.dataset.exe ?? '')),
     rightPill: rectOf(rightPill, 'right-pill'),
     rightCells: [...rightPill.querySelectorAll<HTMLElement>('[data-id]')].map((el) => rectOf(el, el.dataset.id ?? '')),
     sliver: rectOf(sliver, 'show-desktop'),
   }
 }
 
-/** 热区声明（工单54/55 并集）：中组不渲染（禁用/全隐藏且无推荐）不含 pill；
- * 右组（摘要+音量+时钟）与显示桌面细条随 enabled 声明；两皆无即清空——条带整幅恢复穿透 */
+/** 热区声明（工单52/54/55 并集）：中组不渲染（禁用/全隐藏且无推荐）不含 pill；左组装了
+ * 条目才报左组矩形（空组不渲染 pill，缝隙保持穿透）；右组（摘要+音量+时钟）与显示桌面
+ * 细条随 enabled 声明；三组皆无即清空——条带整幅恢复穿透 */
 function declareHotZones(state: TaskbarState): void {
   if (!state.enabled) {
     window.deck.host.setHotZones([])
     return
   }
+  const vm = taskbarViewModel(state)
   const m = measure()
   const zones = [m.rightPill, m.sliver]
-  if (taskbarViewModel(state).visible) zones.unshift(m.pill)
+  if (vm.visible) zones.unshift(m.pill)
+  if (vm.left.length > 0) zones.unshift(m.leftPill)
   window.deck.host.setHotZones(zones)
+}
+
+/** 最近一次几何存证签名：几何未变的重渲（窗口标题刷新等无位移帧）不重复刷事件流 */
+let lastGeometryJson = ''
+
+/** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/左组/右组矩形任一变化即补发一帧——
+ * 推荐位随数据面快照后到位会推中组 pill 移位，电池按 settle 后的最新帧取坐标 */
+function notifyGeometry(): void {
+  const m = measure()
+  const payload: Record<string, unknown> = {
+    pill: m.pill,
+    buttons: m.buttons,
+    recommendations: m.recommendations,
+    leftPill: m.leftPill,
+    apps: m.apps,
+    rightPill: m.rightPill,
+    rightCells: m.rightCells,
+    sliver: m.sliver,
+  }
+  const json = JSON.stringify(payload)
+  if (json === lastGeometryJson) return
+  lastGeometryJson = json
+  window.deck.host.notify('taskbar-geometry', payload)
 }
 
 /** 系统动作格点击分发 + 存证（中组按钮与右组格同一通道） */
@@ -108,15 +144,50 @@ function closeMenu(): void {
   menuOpen = false
 }
 
+/** 左组图标装载（工单52）：缓存命中即贴；未命中经 desktop/icon 契约提取（内核侧按
+ * iconKey 反解路径）。回填前核对元素仍代表同一图标键（重渲染后旧回填不贴错位）。 */
+function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
+  if (!iconKey) return
+  const cached = iconCache.get(iconKey)
+  if (cached) {
+    img.src = cached
+    return
+  }
+  void window.deck.bridge.invoke('desktop/icon', { key: iconKey }).then((r) => {
+    const dataUrl = r?.dataUrl
+    if (!dataUrl) return
+    iconCache.set(iconKey, dataUrl)
+    if (img.dataset.iconKey === iconKey) img.src = dataUrl
+  })
+}
+
+/** 左组渲染（工单52）：手钉+运行中合并条目；空组整组不渲染（display:none） */
+function renderLeft(entries: TaskbarLeftViewEntry[]): void {
+  pillLeft.textContent = ''
+  pillLeft.style.display = entries.length ? '' : 'none'
+  for (const e of entries) {
+    const el = document.createElement('div')
+    el.className = e.running ? 'tb-app running' : 'tb-app'
+    el.dataset.exe = e.exe // 工单53 交互挂点（点击/右键按 exe 身份分发）
+    el.title = e.tooltip // 窗口标题 tooltip：仅即时显示，渲染层不持久化
+    const img = document.createElement('img')
+    img.dataset.iconKey = e.iconKey ?? ''
+    img.alt = e.label
+    el.appendChild(img)
+    applyIcon(img, e.iconKey)
+    pillLeft.appendChild(el)
+  }
+}
+
 function render(state: TaskbarState): void {
   current = state
   const vm = taskbarViewModel(state)
+  // 左组（工单52）：手钉 + 运行中合并条目（空组整组不渲染）
+  renderLeft(vm.left)
   // 中组（工单54 边界条件：两按钮全隐藏且无推荐 → 整组不渲染，只剩左右两组）
   pill.hidden = !vm.visible
   pill.textContent = ''
-  if (!vm.visible) {
-    closeMenu()
-  } else {
+  if (vm.visible) {
     for (const b of vm.buttons) {
       const el = document.createElement('div')
       el.className = 'tb-btn'
@@ -155,6 +226,8 @@ function render(state: TaskbarState): void {
         pill.appendChild(el)
       }
     }
+  } else {
+    closeMenu()
   }
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
@@ -178,6 +251,7 @@ function render(state: TaskbarState): void {
     rightPill.appendChild(clock)
   }
   declareHotZones(state)
+  notifyGeometry()
 }
 
 /** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态） */
@@ -241,6 +315,7 @@ function boot(): void {
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, pill: m.pill, buttons: m.buttons, recommendations: m.recommendations,
+      leftPill: m.leftPill, apps: m.apps,
       rightPill: m.rightPill, rightCells: m.rightCells, sliver: m.sliver,
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
@@ -251,7 +326,10 @@ function boot(): void {
     // 几何重排重声明热区：主进程在 display-metrics-changed 时 setBounds 重排条带
     // （换分辨率/换主屏），pill 坐标随客户区宽度变化，旧热区矩形会落空
     window.addEventListener('resize', () => {
-      if (current) declareHotZones(current)
+      if (current) {
+        declareHotZones(current)
+        notifyGeometry()
+      }
     })
   })()
 }

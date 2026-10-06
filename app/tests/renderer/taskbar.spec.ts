@@ -1,8 +1,7 @@
 /**
-/**
- * 任务栏 pill 渲染/点击契约测试（工单49/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
- * 渲染 = taskbar/get-state → 中组视图模型（系统按钮显隐 + 推荐位 + 整组显隐边界）；
- * 点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
+ * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
+ * 渲染 = taskbar/get-state → 视图模型（左组形态映射 + 中组系统按钮显隐 + 推荐位 +
+ * 整组显隐边界）；点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
  * 工单55 右组：硬件摘要勾选子集、时钟/音量格与显示桌面细条的点击分发、数值格式化
  * （口径与硬件卡一致：百分比 Math.round、速率 toFixed(2) KB/s）。
  */
@@ -11,13 +10,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { dispatchTaskbarButton, dispatchTaskbarVisibility, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, taskbarViewModel, toggleMetric } from '../../src/renderer/taskbar-view'
 import type { TaskbarBridge } from '../../src/renderer/taskbar-view'
-import type { HardwareGauges, TaskbarMetric, TaskbarState } from '../../src/shared/contract'
+import type { HardwareGauges, TaskbarLeftEntry, TaskbarMetric, TaskbarState } from '../../src/shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, left: [], ...over }
 }
 
 const RECS = [
@@ -89,13 +88,58 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     expect(vm.recommendations).toEqual([])
   })
 
-  it('禁用态渲染空壳（中组不渲染、按钮与推荐位全空）', async () => {
-    const { bridge } = fakeBridge(state({ enabled: false, recommendations: RECS }))
+  it('禁用态渲染空壳（中组不渲染、按钮/推荐位/左组全空）', async () => {
+    const { bridge } = fakeBridge(state({ enabled: false, recommendations: RECS, left: [entry('C:\\Apps\\A.exe')] }))
     const s = await bridge.invoke('taskbar/get-state', null)
     const vm = taskbarViewModel(s)
     expect(vm.visible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
+    expect(vm.left).toEqual([])
+  })
+})
+
+/** 左组条目构造（工单52）：缺省仅运行、无标题、无图标键 */
+function entry(exe: string, over: Partial<TaskbarLeftEntry> = {}): TaskbarLeftEntry {
+  return {
+    exe,
+    label: over.label ?? exe.replace(/^.*[\\/]/, '').replace(/\.exe$/i, ''),
+    pinned: false,
+    running: true,
+    title: null,
+    iconKey: null,
+    ...over,
+  }
+}
+
+describe('任务栏左组视图模型（工单52，fake bridge 驱动）', () => {
+  it('左组条目按内核编排序原样映射（手钉在前、运行态叠加）；id = exe 身份（工单53 交互挂点）', async () => {
+    const { bridge } = fakeBridge(state({
+      left: [
+        entry('C:\\Apps\\A.exe', { label: '甲', pinned: true, running: true, title: '甲 - 编辑中', iconKey: 'C:\\Apps\\A.exe|1' }),
+        entry('C:\\Apps\\B.exe', { label: '乙', pinned: true, running: false }),
+        entry('C:\\Apps\\C.exe'),
+      ],
+    }))
+    const s = await bridge.invoke('taskbar/get-state', null)
+    const vm = taskbarViewModel(s)
+    expect(vm.left.map((e) => [e.id, e.pinned, e.running])).toEqual([
+      ['C:\\Apps\\A.exe', true, true],
+      ['C:\\Apps\\B.exe', true, false],
+      ['C:\\Apps\\C.exe', false, true],
+    ])
+    expect(vm.left[0].iconKey).toBe('C:\\Apps\\A.exe|1')
+  })
+
+  it('tooltip：运行中有窗口标题取标题（区分同名应用），否则回退显示名', async () => {
+    const { bridge } = fakeBridge(state({
+      left: [
+        entry('C:\\Apps\\A.exe', { title: '文档 1 - 甲' }),
+        entry('C:\\Apps\\B.exe', { label: '乙', pinned: true, running: false }),
+      ],
+    }))
+    const s = await bridge.invoke('taskbar/get-state', null)
+    expect(taskbarViewModel(s).left.map((e) => e.tooltip)).toEqual(['文档 1 - 甲', '乙'])
   })
 })
 

@@ -54,12 +54,16 @@ export interface KernelOptions {
   plugins?: PluginHostOptions
   /** 任务栏（工单49）：开关与依赖（离线测试注入假按键源；缺省默认启用 + 真源延迟绑定） */
   taskbar?: TaskbarServiceOptions
+  /** 任务栏左组编排轮询间隔（ms，工单52）；缺省 0 = 不装定时器（离线测试手动驱动 refresh） */
+  taskbarPollMs?: number
 }
 
 export const DEFAULT_TICK_MS = 1000
 export const DEFAULT_HARDWARE_MS = 1000
 export const DEFAULT_USAGE_MS = 2000
 export const DEFAULT_SEARCH_INTERVAL_MS = 50
+/** 任务栏左组轮询（工单52）：1Hz——应用启动/退出 1–2 秒内反映到左组 */
+export const DEFAULT_TASKBAR_POLL_MS = 1000
 export const USAGE_PRUNE_MS = 3600_000
 
 /** 组装 cordis 内核：插件生命周期 + 依赖注入（ADR-0004 圈定的子集）。 */
@@ -118,6 +122,12 @@ export function createKernel(options: KernelOptions = {}): Context {
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）
     const timer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
+    ctx.on('dispose', () => clearInterval(timer))
+  }
+  const taskbarPollMs = options.taskbarPollMs ?? 0
+  if (taskbarPollMs > 0) {
+    // 左组编排轮（工单52）：窗口枚举 → planLeftGroup → 变化即推 taskbar/changed
+    const timer = setInterval(() => ctx.taskbar?.refresh(), taskbarPollMs)
     ctx.on('dispose', () => clearInterval(timer))
   }
   return ctx

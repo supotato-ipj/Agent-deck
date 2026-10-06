@@ -27,7 +27,7 @@ declare module 'cordis' {
     'settings/changed': (payload: SettingsState) => void
     /** 工单10 桌面组件：插件清单变化（放入/移除/资产变更即推） */
     'plugins/changed': (payload: PluginInfo[]) => void
-    /** 工单49 任务栏：开关变化即时回推（窗口控制器据此建窗/销窗） */
+    /** 工单49/52 任务栏：开关变化与左组编排帧即时回推（窗口控制器据此建窗/销窗，渲染层据此重绘左组） */
     'taskbar/changed': (payload: TaskbarState) => void
     /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（桥接层随 panel/changed 同拍发出） */
     'taskbar/status': (payload: TaskbarStatus) => void
@@ -53,7 +53,7 @@ declare module 'cordis' {
     focus: FocusService
     /** 工单10 桌面组件宿主（内核总装必装；roots 为空时不做任何扫描） */
     plugins: PluginHostService
-    /** 工单49 任务栏（内核总装必装；离线测试注入假按键源） */
+    /** 工单49/52 任务栏（内核总装必装；离线测试注入假源，窗口枚举手动驱动 refresh） */
     taskbar: TaskbarService
   }
 }
