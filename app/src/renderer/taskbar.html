@@ -58,6 +58,29 @@
     border-radius: 1px;
     background: rgba(255, 255, 255, 0.85);
   }
+  /* 左组溢出（工单58）：⋯ 钮与浮层条目同在左组 pill 内横排——条带窗只有 48px 高，
+   * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
+   * 热区按展开后的矩形重声明。 */
+  .tb-overflow {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #d6d6d6;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding-bottom: 8px; /* ⋯ 视觉居中（字形的点偏基线下） */
+  }
+  .tb-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-left-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px 2px;
+    background: rgba(255, 255, 255, 0.14);
+  }
   /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
    * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
   #pill {
