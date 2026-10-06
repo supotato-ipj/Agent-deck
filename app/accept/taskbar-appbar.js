@@ -65,6 +65,20 @@ function hwndOf(win) {
   return typeof v === 'bigint' ? Number(v) : v;
 }
 
+/** 强制前台（前台锁下 focus() 会静默失败）：AttachThreadInput 链到当前前台线程再 SetForegroundWindow */
+function forceForeground(hwnd) {
+  const fg = Number(win32.GetForegroundWindow());
+  const curTid = win32.GetCurrentThreadId();
+  const fgTid = fg ? win32.threadIdOf(fg).tid : 0;
+  if (fgTid && fgTid !== curTid) win32.AttachThreadInput(curTid, fgTid, true);
+  try {
+    win32.SetForegroundWindow(hwnd);
+    win32.BringWindowToTop(hwnd);
+  } finally {
+    if (fgTid && fgTid !== curTid) win32.AttachThreadInput(curTid, fgTid, false);
+  }
+}
+
 /** 当前工作区（物理像素）：AppBar 占位的系统侧事实 */
 function workArea() {
   const r = {};
@@ -144,9 +158,10 @@ function setDisplayMode(buf) {
   return ChangeDisplaySettingsW(buf, 0) === DISP_CHANGE_SUCCESSFUL;
 }
 
-/** 覆写 config.json 的 taskbar.enabled（保留其余字段原文档位） */
+/** 覆写 config.json 的 taskbar.enabled（保留其余字段原文档位；worktree 里文件可缺位——
+ * 缺位写最小段，loadConfig 其余段走默认合并） */
 function writeTaskbarEnabled(enabled) {
-  const json = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  const json = fs.existsSync(CONFIG_FILE) ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) : {};
   json.taskbar = { ...(json.taskbar ?? {}), enabled };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
 }
@@ -175,9 +190,18 @@ async function main() {
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
     writeTaskbarEnabled(true);
+    // guard 拿槽时会强杀常驻面板，其藏下的原生任务栏由还原守护在数秒内翻回——
+    // 先等守护/兜底把现场收干净，再校验出发态（不从不属于自己的隐藏态出发）。
+    await waitMs(() => nativeTaskbarVisible(), 10000);
+    ensureNativeTaskbarVisible();
+    await sleep(500);
     if (!nativeTaskbarVisible()) {
-      throw new Error('开跑前原生任务栏已隐藏（他方现场）——先还原再跑，电池不从脏现场出发');
+      throw new Error('开跑前原生任务栏已隐藏（他方现场，等待+兜底后仍未还原）——先人工核查再跑');
     }
+    // 工作区基线（原生任务栏可见、我方未占位的出发态）：P5 归还断言对标它——
+    // 可见的原生任务栏自身就占底边一档，「归还」= 回到基线而非满屏。
+    const waBaseline = workArea();
+    if (!waBaseline) throw new Error('开跑前读不到工作区（SPI_GETWORKAREA）');
     if (!originalMode) throw new Error('读取当前显示模式失败（EnumDisplaySettingsW）');
 
     // —— P1：AppBar 占位生效 ——
@@ -265,19 +289,21 @@ async function main() {
     // 最大化参照窗先还原，避免它 fullscreen 退出后占前台干扰让位判定（它不覆盖
     // 全屏，判定本就为否——还原只为现场干净）。
     maxWin.restore();
+    const sinceP4 = Date.now();
     const fsWin = new BrowserWindow({ fullscreen: true, frame: false, title: 'DECK-ACCEPT-FULLSCREEN', backgroundColor: '#101820' });
     refWins.push(fsWin);
     await fsWin.loadURL('about:blank');
     fsWin.show();
     fsWin.focus();
-    await sleep(400);
-    const fgBefore = Number(win32.GetForegroundWindow());
+    forceForeground(hwndOf(fsWin)); // 前台锁下 focus() 静默失败（第3轮实证），强制链入
+    const fgMs = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(fsWin), 4000);
+    if (fgMs < 0) rep.note(`P4 前台强制未达（fg=${Number(win32.GetForegroundWindow())} fsHwnd=${hwndOf(fsWin)}），让位判定以前台事实为准`);
     const hideMs = await waitMs(() => !win32.IsWindowVisible(tbHwnd), 5000);
-    const yieldEv = await waitEvent('taskbar-yield', null, 3000);
+    const yieldEv = await waitEvent('taskbar-yield', (e) => e.t >= sinceP4, 3000);
     if (hideMs >= 0 && yieldEv) {
-      rep.pass(`P4a 全屏让位：前台全屏参照窗（hwnd=${fgBefore}）后 ${hideMs}ms 条带隐藏（taskbar-yield 存证 + 视图事实）`);
+      rep.pass(`P4a 全屏让位：前台全屏参照窗 ${fgMs}ms 落位前台后 ${hideMs}ms 条带隐藏（taskbar-yield 存证 + 视图事实）`);
     } else {
-      rep.fail(`P4a 隐藏时延=${hideMs}ms yield存证=${!!yieldEv} 前台hwnd=${fgBefore} 条带可见=${win32.IsWindowVisible(tbHwnd)}`);
+      rep.fail(`P4a 隐藏时延=${hideMs}ms yield存证=${!!yieldEv} 前台落位=${fgMs}ms 条带可见=${win32.IsWindowVisible(tbHwnd)}`);
     }
     const t0 = Date.now();
     fsWin.destroy();
@@ -296,15 +322,16 @@ async function main() {
     if (!panelHwnd) throw new Error('P5 面板主窗未找到');
     win32.PostMessageW(panelHwnd, WM_CLOSE, 0, 0);
     const removeEv = await waitEvent('taskbar-appbar-removed', (e) => e.t >= sinceP5, 8000);
+    // 归还判据 = 回到开跑前基线（原生任务栏还原后自身占底边一档，不是满屏）
     const restoreMs = await waitMs(() => {
       const wa = workArea();
-      return wa && Math.abs(wa.bottom - phys0.height) <= 2;
+      return wa && Math.abs(wa.bottom - waBaseline.bottom) <= 2 && Math.abs(wa.top - waBaseline.top) <= 2;
     }, 8000);
     const waEnd = workArea();
     if (removeEv && restoreMs >= 0) {
-      rep.pass(`P5 卸载归还：面板退出即注销 AppBar（存证在流），工作区归还全屏（底边 ${waEnd.bottom}/${phys0.height}）`);
+      rep.pass(`P5 卸载归还：面板退出即注销 AppBar（存证在流），工作区归还基线（底边 ${waEnd.bottom}/基线 ${waBaseline.bottom}）`);
     } else {
-      rep.fail(`P5 removed存证=${!!removeEv} 归还时延=${restoreMs}ms 工作区=${JSON.stringify(waEnd)} 屏高=${phys0.height}`);
+      rep.fail(`P5 removed存证=${!!removeEv} 归还时延=${restoreMs}ms 工作区=${JSON.stringify(waEnd)} 基线=${JSON.stringify(waBaseline)}`);
     }
     child = null; // 面板已正常退出
   } catch (err) {
@@ -328,6 +355,7 @@ async function main() {
       await sleep(500);
       try { ensureNativeTaskbarVisible(); } catch { /* 兜底中的兜底也不许抛 */ }
       if (originalConfig !== null) { try { fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8'); } catch { /* 尽力 */ } }
+      else { try { fs.unlinkSync(CONFIG_FILE); } catch { /* 缺位来、缺位去 */ } }
       try {
         (await waitMs(() => nativeTaskbarVisible(), 5000)) >= 0
           ? rep.note('清场核验：原生任务栏可见')
