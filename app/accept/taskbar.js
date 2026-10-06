@@ -283,7 +283,12 @@ async function main() {
       const b = ready.buttons.find((x) => x.id === id);
       return toPhys(b.x + b.w / 2, b.y + b.h / 2);
     };
-    const gapPt = toPhys(40, TASKBAR_HEIGHT_DIP / 2); // 条带左端缝隙（远离中组 pill）
+    // 缝隙探针（工单52 适配）：左组有条目时取「左组 pill 右缘与中组 pill 左缘的中点」
+    // （固定在 x=40 会落进左组 pill 热区）；左组空（pill-left 不渲染）回退条带左端 40
+    const gapCssX = ready.apps && ready.apps.length > 0
+      ? (ready.leftPill.x + ready.leftPill.w + ready.pill.x) / 2
+      : 40;
+    const gapPt = toPhys(gapCssX, TASKBAR_HEIGHT_DIP / 2); // 条带缝隙（两组 pill 之间/左端）
     const pillCenter = toPhys(ready.pill.x + ready.pill.w / 2, ready.pill.y + ready.pill.h / 2);
 
     // z 序收敛（ADR-0007 已知风险）：原生任务栏同在 TOPMOST 带，建窗瞬间可能压在我们之上；
