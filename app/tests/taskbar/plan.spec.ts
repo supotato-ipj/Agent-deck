@@ -3,8 +3,8 @@
  * 分数降序（同分按名）、上限 8；手钉/显式摆位段与零分条目不占位。
  */
 import { describe, expect, it } from 'vitest'
-import { planTaskbarRecommendations, RECOMMENDATION_LIMIT } from '../../src/main/taskbar/plan'
-import type { DesktopDockEntry, DesktopItem } from '../../src/shared/contract'
+import { applyRecommendationOrder, planTaskbarRecommendations, RECOMMENDATION_LIMIT } from '../../src/main/taskbar/plan'
+import type { DesktopDockEntry, DesktopItem, TaskbarRecommendation } from '../../src/shared/contract'
 
 function appItem(name: string, display?: string): DesktopItem {
   return {
@@ -66,5 +66,27 @@ describe('中组推荐位编排（工单54 纯函数）', () => {
   it('空 dock / 空池 → 空推荐位', () => {
     expect(planTaskbarRecommendations([], [], new Map())).toEqual([])
     expect(planTaskbarRecommendations(dockOf([['a.lnk', 'recommended']]), [], new Map([['A', 9]]))).toEqual([])
+  })
+})
+
+describe('推荐位显式序套用（工单57 纯函数）', () => {
+  const rec = (name: string): TaskbarRecommendation => ({ name, display: name.replace(/\.lnk$/i, ''), path: `C:\\Desktop\\${name}` })
+
+  it('显式序内的条目按名单次前排（用户拖出的序压过分数序）；序外条目保持原序随后', () => {
+    const recs = [rec('a.lnk'), rec('b.lnk'), rec('c.lnk'), rec('d.lnk')] // 分数序 a>b>c>d
+    expect(applyRecommendationOrder(recs, ['c.lnk', 'a.lnk']).map((r) => r.name))
+      .toEqual(['c.lnk', 'a.lnk', 'b.lnk', 'd.lnk'])
+  })
+
+  it('显式序的陈旧名（当前推荐位不在场）跳过；空显式序 = 原样返回', () => {
+    const recs = [rec('a.lnk'), rec('b.lnk')]
+    expect(applyRecommendationOrder(recs, ['ghost.lnk', 'b.lnk']).map((r) => r.name)).toEqual(['b.lnk', 'a.lnk'])
+    expect(applyRecommendationOrder(recs, [])).toEqual(recs)
+  })
+
+  it('不改动入参（纯函数纪律）', () => {
+    const recs = [rec('a.lnk'), rec('b.lnk')]
+    applyRecommendationOrder(recs, ['b.lnk'])
+    expect(recs.map((r) => r.name)).toEqual(['a.lnk', 'b.lnk'])
   })
 })

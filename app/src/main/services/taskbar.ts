@@ -1,14 +1,15 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
+import type { TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { normalizeExe, planLeftGroup } from '../taskbar/left-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/left-plan'
-import { loadTaskbarStore, migrateDockPinned, parseDockPinnedNames, serializeTaskbarStore } from '../taskbar/layout-store'
+import { loadTaskbarStore, migrateDockPinned, moveInOrder, parseDockPinnedNames, pinEntry, reorderPinned, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
+import { applyRecommendationOrder } from '../taskbar/plan'
 import { iconKeyOf } from '../desktop/scan'
 import { readStoreText, writeStoreText } from '../desktop/adapter'
 import { userDataPath } from '../paths'
@@ -56,6 +57,9 @@ const SYSTEM_ACTIONS: readonly TaskbarSystemAction[] = ['start-menu', 'task-view
 /** 中组系统按钮合法 id（与 config.ts 的持久化校验同源口径） */
 const BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
 
+/** 拖拽组别合法值（工单57） */
+const DRAG_GROUPS: readonly TaskbarDragGroup[] = ['left', 'mid']
+
 /** 推荐位名单逐条比对（name+path 都变才算变——显示名同拍变化也该触发重渲） */
 function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly TaskbarRecommendation[]): boolean {
   return a.length === b.length && a.every((r, i) => r.name === b[i].name && r.display === b[i].display && r.path === b[i].path)
@@ -93,7 +97,7 @@ export class TaskbarService extends Service {
   private readonly dockStoreFile: string
   private readonly deps: TaskbarDeps
   private current: TaskbarState
-  private store: TaskbarLayoutStore = { version: 1, pinned: [] }
+  private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [] }
   /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
   private layoutReady = false
 
@@ -178,17 +182,64 @@ export class TaskbarService extends Service {
     return this.state()
   }
 
-  /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed */
+  /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed。
+   * 名单经可见性管线（工单57）：手钉条目不占推荐位 + 用户显式序压过分数序。 */
   refreshRecommendations(): void {
     let next: TaskbarRecommendation[]
     try {
-      next = this.deps.recommendations()
+      next = this.visibleRecommendations()
     } catch {
       return // 来源未就绪（数据面首拍前）按上次名单继续持有
     }
     if (sameRecommendations(this.current.recommendations, next)) return
     this.current = { ...this.current, recommendations: next }
     this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /**
+   * 栏上拖拽落位（工单57）：组内换位（左组手钉段内 / 中组推荐位内）与跨组拖拽
+   * （中→左 = 升为手钉，左→中 = 解除手钉回推荐池）。裁决全部进 layout-store 纯函数，
+   * 本方法只做校验、编排与持久化：先落盘再提交内存态（setEnabled 同款顺序——写失败
+   * 即抛，盘/内存/事件三者一致），同态幂等空转不重写不重推。
+   */
+  dragDrop(drop: TaskbarDragDrop): { ok: boolean; error?: string } {
+    if (typeof drop !== 'object' || drop === null || !DRAG_GROUPS.includes(drop.from) || !DRAG_GROUPS.includes(drop.to)) {
+      throw new BridgeError(`未知任务栏拖拽组: ${String((drop as TaskbarDragDrop | null)?.from)} → ${String((drop as TaskbarDragDrop | null)?.to)}`)
+    }
+    if (typeof drop.id !== 'string' || !drop.id) {
+      throw new BridgeError(`任务栏拖拽条目身份须为非空字符串，收到 ${String(drop.id)}`)
+    }
+    if (drop.before !== null && typeof drop.before !== 'string') {
+      throw new BridgeError(`任务栏拖拽落点须为字符串或 null，收到 ${String(drop.before)}`)
+    }
+    if (!this.current.enabled) return { ok: false, error: '任务栏已禁用，栏面不可拖拽' }
+    this.ensureLayout()
+    if (drop.from === 'left' && drop.to === 'left') {
+      const next = reorderPinned(this.store, drop.id, drop.before)
+      if (next === this.store) {
+        // 同一引用 = 空转：非手钉条目（仅运行）不可换位 → ok:false；自落点幂等 → ok:true 不重推
+        return this.store.pinned.some((p) => normalizeExe(p.exe) === normalizeExe(drop.id))
+          ? { ok: true }
+          : { ok: false, error: '仅手钉条目可在左组拖拽换位（仅运行条目是运行态，不可摆位）' }
+      }
+      this.commitStore(next)
+      return { ok: true }
+    }
+    if (drop.from === 'mid' && drop.to === 'mid') {
+      let visible: TaskbarRecommendation[]
+      try {
+        visible = this.visibleRecommendations()
+      } catch {
+        return { ok: false, error: '推荐位来源未就绪，稍后再试' }
+      }
+      const names = visible.map((r) => r.name)
+      if (!names.includes(drop.id)) return { ok: false, error: '拖拽条目不在中组推荐位（名单外名字）' }
+      const ordered = moveInOrder(names, drop.id, drop.before)
+      if (ordered.length === names.length && ordered.every((n, i) => n === names[i])) return { ok: true } // 幂等空转
+      this.commitStore({ ...this.store, recommended: ordered })
+      return { ok: true }
+    }
+    throw new BridgeError(`不支持的任务栏拖拽组合: ${drop.from} → ${drop.to}`)
   }
 
   /**
@@ -228,9 +279,9 @@ export class TaskbarService extends Service {
     }
   }
 
-  /** 测试观察缝：当前栏布局存储内容（工单52） */
+  /** 测试观察缝：当前栏布局存储内容（工单52/57） */
   storeForTest(): TaskbarLayoutStore {
-    return { version: 1, pinned: [...this.store.pinned] }
+    return { version: 1, pinned: [...this.store.pinned], recommended: [...this.store.recommended] }
   }
 
   /**
@@ -251,13 +302,63 @@ export class TaskbarService extends Service {
       this.deps.desktopItems(),
       this.deps.resolveShortcutTarget,
     )
-    this.store = { version: 1, pinned }
+    this.store = { version: 1, pinned, recommended: [] }
     try {
       this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
       this.layoutReady = true
     } catch (err) {
       console.warn(`deck-taskbar: 栏布局迁移落盘失败（下一拍重试）：${err instanceof Error ? err.message : err}`)
     }
+  }
+
+  /**
+   * 拖拽落位的存储提交（工单57）：先落盘（写失败即抛——盘/内存/事件三者一致，
+   * setEnabled 同款顺序）再换内存引用并整态重排回推一帧。
+   */
+  private commitStore(next: TaskbarLayoutStore): void {
+    this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(next))
+    this.store = next
+    this.recompose()
+  }
+
+  /**
+   * 落位后的整态重排（工单57）：左组重编排 + 推荐位可见性管线，两路各自容错
+   * （窗口枚举/推荐位来源失败沿用上一轮对应段，不拖垮另半），收尾统一回推一帧
+   * taskbar/changed——一次拖拽一帧，渲染层一次重渲到位。
+   */
+  private recompose(): void {
+    try {
+      const own = normalizeExe(this.deps.ownExe)
+      const windows = this.deps.listWindows().filter((w) => normalizeExe(w.exe) !== own)
+      this.current = { ...this.current, left: planLeftGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe)) }
+    } catch { /* 枚举失败沿用上一轮左组（refresh 同款纪律） */ }
+    try {
+      this.current = { ...this.current, recommendations: this.visibleRecommendations() }
+    } catch { /* 来源未就绪沿用上一轮推荐位（refreshRecommendations 同款纪律） */ }
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /**
+   * 推荐位可见性管线（工单57）：原始名单 → 手钉条目滤除（中→左升手钉后不占中组位；
+   * 解除手钉即随下拍管线回池）→ 用户显式序套用（序内按名单次、序外保持分数序）。
+   * 手钉判重以 exe 身份（快捷方式经 resolve 取目标，迁移同款解析）；池外名字无法
+   * 判重按不重复保留（宁可暂留不误杀栏位）。
+   */
+  private visibleRecommendations(): TaskbarRecommendation[] {
+    const pinnedKeys = new Set(this.store.pinned.map((p) => normalizeExe(p.exe)))
+    const visible = this.deps.recommendations().filter((r) => {
+      const exe = this.resolveItemExe(r.name)
+      return exe === null || !pinnedKeys.has(exe)
+    })
+    return applyRecommendationOrder(visible, this.store.recommended)
+  }
+
+  /** 桌面项 name → 归一 exe 身份（迁移同款解析；池外/解析不出 → null = 无法判重） */
+  private resolveItemExe(name: string): string | null {
+    const item = this.deps.desktopItems().find((i) => i.name === name)
+    if (!item) return null
+    const exe = item.kind === 'shortcut' ? (this.deps.resolveShortcutTarget(item.path) ?? item.path) : item.path
+    return normalizeExe(exe)
   }
 
   /** 整份回写 config.json 的 taskbar 段（enabled + hiddenButtons 同段共写）并同步可变引用 */

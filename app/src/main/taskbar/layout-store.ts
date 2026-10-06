@@ -1,6 +1,8 @@
-// 任务栏栏布局存储（工单52，纯逻辑）：手钉清单（exe 身份 + 展示元数据）的有序名单，
-// 「有序名单」模式平移 desktop/layout-store.ts（自绘世界没有坐标可存，序即布局）。
-// 本票只有手钉段；组内换位/跨组拖拽的名单操作属工单57，届时在本文件同构扩展。
+// 任务栏栏布局存储（工单52/57，纯逻辑）：手钉清单（exe 身份 + 展示元数据）与中组
+// 推荐位显式序（桌面项 name）的有序名单，「有序名单」模式平移 desktop/layout-store.ts
+// （自绘世界没有坐标可存，序即布局）。
+// 工单57 扩展：recommended = 用户在中组推荐位拖出的显式序（组内换位持久化）；手钉归属
+// 与左组手钉段序仍由 pinned 承担（组内换位 = pinned 名单换位，跨组拖拽 = 两名单间迁移）。
 // 另含 dock 迁移纯逻辑：旧 dock 手钉名单（桌面项名）→ 栏手钉清单（exe 身份）。
 // 迁移读路径自包含（不 import desktop 模块）——工单59 退役 dock 代码时本读路径不受影响。
 import type { DesktopItemKind } from '../../shared/contract'
@@ -10,9 +12,11 @@ export interface TaskbarLayoutStore {
   version: 1
   /** 手钉有序清单（exe 身份；顺序 = 左组手钉段顺序） */
   pinned: TaskbarPinnedEntry[]
+  /** 中组推荐位显式序（工单57，桌面项 name 有序名单）；陈旧名原样保留、编排时过滤（不在场即跳过），解除手钉时旧位次随之复活 */
+  recommended: string[]
 }
 
-export const TASKBAR_FACTORY_STORE: TaskbarLayoutStore = { version: 1, pinned: [] }
+export const TASKBAR_FACTORY_STORE: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [] }
 
 function asPinnedEntry(value: unknown): TaskbarPinnedEntry | null {
   if (typeof value !== 'object' || value === null) return null
@@ -22,23 +26,77 @@ function asPinnedEntry(value: unknown): TaskbarPinnedEntry | null {
   return { exe: v.exe, label: v.label, iconKey: typeof v.iconKey === 'string' ? v.iconKey : null }
 }
 
-/** 解析落盘 JSON；缺失/损坏/结构不符 → 出厂态（损坏自愈，下次保存覆写） */
+/** 解析落盘 JSON；缺失/损坏/结构不符 → 出厂态（损坏自愈，下次保存覆写）。
+ * recommended 段缺位（工单52 旧版存储）按空名单读入——逐段自愈，不拖垮手钉段。 */
 export function loadTaskbarStore(text: string | null): TaskbarLayoutStore {
-  if (text === null) return { version: 1, pinned: [] }
+  if (text === null) return { version: 1, pinned: [], recommended: [] }
   let raw: unknown
   try {
     raw = JSON.parse(text)
   } catch {
-    return { version: 1, pinned: [] }
+    return { version: 1, pinned: [], recommended: [] }
   }
-  if (typeof raw !== 'object' || raw === null) return { version: 1, pinned: [] }
-  const pinned = (raw as Record<string, unknown>).pinned
-  if (!Array.isArray(pinned)) return { version: 1, pinned: [] }
-  return { version: 1, pinned: pinned.map(asPinnedEntry).filter((p): p is TaskbarPinnedEntry => p !== null) }
+  if (typeof raw !== 'object' || raw === null) return { version: 1, pinned: [], recommended: [] }
+  const r = raw as Record<string, unknown>
+  if (!Array.isArray(r.pinned)) return { version: 1, pinned: [], recommended: [] }
+  return {
+    version: 1,
+    pinned: r.pinned.map(asPinnedEntry).filter((p): p is TaskbarPinnedEntry => p !== null),
+    recommended: Array.isArray(r.recommended) ? r.recommended.filter((n): n is string => typeof n === 'string') : [],
+  }
 }
 
 export function serializeTaskbarStore(store: TaskbarLayoutStore): string {
   return JSON.stringify(store, null, 1) + '\n'
+}
+
+/**
+ * 名单换位原语（工单57，desktop/layout-store moveItem 同形）：name 从名单中移除后
+ * 插到 before 之前；before 为 null 或不在名单 → 追加末尾。name 本不在名单按插入处理
+ * （左→中回池落位就是插入语义）。before === name 的自落点原序返回。
+ */
+export function moveInOrder(names: readonly string[], name: string, before: string | null): string[] {
+  if (before === name) return [...names]
+  const rest = names.filter((n) => n !== name)
+  const at = before === null ? -1 : rest.indexOf(before)
+  if (at < 0) return [...rest, name]
+  return [...rest.slice(0, at), name, ...rest.slice(at)]
+}
+
+/**
+ * 左组手钉段内换位（工单57，组内拖拽裁决）：exe 条目移到 beforeExe 之前（身份归一
+ * 比较），落点 null/不在手钉段 → 排到手钉段末尾。exe 不在手钉清单（仅运行条目不可
+ * 换位）或自落点 → 原样返回（同一引用 = 幂等空转，服务层据此区分 ok:false/不重推）。
+ */
+export function reorderPinned(store: TaskbarLayoutStore, exe: string, beforeExe: string | null): TaskbarLayoutStore {
+  const key = normalizeExe(exe)
+  if (beforeExe !== null && normalizeExe(beforeExe) === key) return store
+  const entry = store.pinned.find((p) => normalizeExe(p.exe) === key)
+  if (!entry) return store
+  const rest = store.pinned.filter((p) => normalizeExe(p.exe) !== key)
+  const at = beforeExe === null ? -1 : rest.findIndex((p) => normalizeExe(p.exe) === normalizeExe(beforeExe))
+  const pinned = at < 0 ? [...rest, entry] : [...rest.slice(0, at), entry, ...rest.slice(at)]
+  return { ...store, pinned }
+}
+
+/**
+ * 升为手钉（工单57，中→左跨组裁决）：entry 插到 beforeExe 之前（落点 null/不在手钉段
+ * → 末尾）；同 exe（归一）已手钉先去重再插（= 换位，不重复上栏）。recommended 名单不动
+ * ——升手钉不擦回池位次（陈旧名留位，解除手钉时旧位次随之复活，「钉不销毁摆」同款纪律）。
+ */
+export function pinEntry(store: TaskbarLayoutStore, entry: TaskbarPinnedEntry, beforeExe: string | null): TaskbarLayoutStore {
+  const key = normalizeExe(entry.exe)
+  const rest = store.pinned.filter((p) => normalizeExe(p.exe) !== key)
+  const at = beforeExe === null ? -1 : rest.findIndex((p) => normalizeExe(p.exe) === normalizeExe(beforeExe))
+  const pinned = at < 0 ? [...rest, entry] : [...rest.slice(0, at), entry, ...rest.slice(at)]
+  return { ...store, pinned }
+}
+
+/** 解除手钉（工单57，左→中跨组裁决）：归一命中移除、其余序不动；不在手钉 → 原样返回（幂等空转）。 */
+export function unpinEntry(store: TaskbarLayoutStore, exe: string): TaskbarLayoutStore {
+  const key = normalizeExe(exe)
+  if (!store.pinned.some((p) => normalizeExe(p.exe) === key)) return store
+  return { ...store, pinned: store.pinned.filter((p) => normalizeExe(p.exe) !== key) }
 }
 
 /**

@@ -177,6 +177,22 @@ export interface TaskbarState {
   left: TaskbarLeftEntry[]
 }
 
+/** 任务栏拖拽组（工单57，GLOSSARY.md「栏分组」）：左组 = 手钉+运行中合并；中组 = 系统按钮+推荐位 */
+export type TaskbarDragGroup = 'left' | 'mid'
+
+/**
+ * 任务栏拖拽落位描述子（工单57）：条目身份按组取值——左组 = exe 原文（TaskbarLeftEntry.exe），
+ * 中组 = 桌面项 name（TaskbarRecommendation.name）。before = 落点（排在该身份之前）；
+ * null = 组内可编辑段末尾（左组 = 手钉段末尾、中组 = 推荐位末尾）。落点身份不在场
+ * （渲染与落位之间的状态竞态）收敛到段末尾，不作废整次拖拽。
+ */
+export interface TaskbarDragDrop {
+  from: TaskbarDragGroup
+  to: TaskbarDragGroup
+  id: string
+  before: string | null
+}
+
 /**
  * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
  * 取值与 PanelSnapshot 的段名一一对应——「少给而非不给」（同桌面项池校验思路）：
@@ -403,6 +419,14 @@ export interface BridgeMethods {
    * 回推 taskbar/changed。同态幂等空转；未知按钮 id 抛 BridgeError（契约违规）。
    */
   'taskbar/set-button-hidden': { request: { id: TaskbarButtonId; hidden: boolean }; response: TaskbarState }
+  /**
+   * 栏上拖拽落位（工单57）：组内换位（左组手钉段内 / 中组推荐位内）与跨组拖拽
+   * （中→左 = 升为手钉，左→中 = 解除手钉回推荐池）。裁决进 taskbar/layout-store 纯函数，
+   * 先落盘 taskbar-layout.json（有序名单）再提交内存态并回推 taskbar/changed（一帧）。
+   * ok:false = 源条目不可拖（左组仅运行条目 / 中组推荐位名单外名字），状态与落盘不变；
+   * 同态幂等空转不重写不重推；描述子畸形（组别/身份非法）抛 BridgeError（契约违规）。
+   */
+  'taskbar/drag-drop': { request: TaskbarDragDrop; response: { ok: boolean; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
