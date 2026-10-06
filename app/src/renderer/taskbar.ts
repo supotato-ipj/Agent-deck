@@ -44,6 +44,26 @@ function declareHotZones(visible: boolean, leftApps: number): void {
   window.deck.host.setHotZones(zones)
 }
 
+/** 最近一次几何存证签名：几何未变的重渲（窗口标题刷新等无位移帧）不重复刷事件流 */
+let lastGeometryJson = ''
+
+/** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/左组矩形任一变化即补发一帧——
+ * 推荐位随数据面快照后到位会推中组 pill 移位，电池按 settle 后的最新帧取坐标 */
+function notifyGeometry(): void {
+  const m = measure()
+  const payload: Record<string, unknown> = {
+    pill: m.pill,
+    buttons: m.buttons,
+    recommendations: m.recommendations,
+    leftPill: m.leftPill,
+    apps: m.apps,
+  }
+  const json = JSON.stringify(payload)
+  if (json === lastGeometryJson) return
+  lastGeometryJson = json
+  window.deck.host.notify('taskbar-geometry', payload)
+}
+
 function closeMenu(): void {
   if (menuTimer !== null) {
     clearTimeout(menuTimer)
@@ -96,6 +116,7 @@ function render(state: TaskbarState): void {
   if (!vm.visible) {
     closeMenu()
     declareHotZones(false, vm.left.length)
+    notifyGeometry()
     return
   }
   for (const b of vm.buttons) {
@@ -137,6 +158,7 @@ function render(state: TaskbarState): void {
     }
   }
   declareHotZones(true, vm.left.length)
+  notifyGeometry()
 }
 
 function boot(): void {
@@ -183,6 +205,7 @@ function boot(): void {
       if (current) {
         const vm = taskbarViewModel(current)
         declareHotZones(vm.visible, vm.left.length)
+        notifyGeometry()
       }
     })
   })()
