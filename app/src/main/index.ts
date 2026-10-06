@@ -146,8 +146,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     search: { port: config.search.port, engine: config.search.engine, everythingPort: config.search.everythingPort },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
-    // 任务栏（工单49）：开关随 config 下发，set-enabled 经此整份回写
-    taskbar: { enabled: config.taskbar.enabled, file: CONFIG_FILE, config },
+    // 任务栏（工单49/54）：开关与按钮显隐随 config 下发，set-enabled/set-button-hidden 经此整份回写
+    taskbar: { enabled: config.taskbar.enabled, hiddenButtons: config.taskbar.hiddenButtons, file: CONFIG_FILE, config },
     // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
     plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
