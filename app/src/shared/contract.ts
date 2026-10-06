@@ -134,8 +134,16 @@ export interface SettingsState {
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
 export type FocusAction = 'focused' | 'launched' | 'degraded'
 
-/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层 */
-export type TaskbarSystemAction = 'start-menu' | 'task-view'
+/** 任务栏系统动作（工单49，GLOSSARY.md「任务栏」）：按键合成触发原生系统 UI，不自绘系统浮层。
+ * 工单55 扩右组：通知中心 = Win+N（时钟格）、快速设置 = Win+A（音量格，ADR-0007）、
+ * 显示桌面 = Win+D（屏幕最右端细条，对齐 Win11 右下角肌肉记忆）。 */
+export type TaskbarSystemAction = 'start-menu' | 'task-view' | 'notification-center' | 'quick-settings' | 'toggle-desktop'
+
+/** 硬件摘要指标键（工单55，GLOSSARY.md「硬件摘要」五项）：与硬件卡同一份 HardwareGauges 口径 */
+export type TaskbarMetric = 'cpu' | 'gpu' | 'ram' | 'net-down' | 'net-up'
+
+/** 五项指标的规范顺序（显示序与 set-metrics 归一序的唯一出处；勾选持久化存的是子集） */
+export const TASKBAR_METRIC_KEYS: readonly TaskbarMetric[] = ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] as const
 
 /** 中组系统按钮 id（工单49/54）：开始按钮 + TaskView 按钮——显隐持久化与右键菜单按它寻址 */
 export type TaskbarButtonId = 'start' | 'tasks'
@@ -180,11 +188,13 @@ export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'wi
 /** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
  * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
  * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
+ * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
  * left（工单52）= 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）。 */
 export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
   recommendations: TaskbarRecommendation[]
+  metrics: TaskbarMetric[]
   left: TaskbarLeftEntry[]
 }
 
@@ -211,6 +221,14 @@ export interface TaskbarDragDrop {
  * 是工单53 的全交互面，在同一 exe 身份挂点上扩展。
  */
 export type TaskbarActivateAction = 'launched' | 'focused'
+
+/** 任务栏右组 1Hz 数据帧（工单55）：时钟 + 硬件仪表，随数据面每拍快照回推
+ * （与 panel/changed 同源同拍——数值口径与硬件卡一致的依据；只裁右组要的两段，
+ * 整份 PanelSnapshot 不进条带渲染层） */
+export interface TaskbarStatus {
+  clock: ClockState
+  hardware: HardwareGauges
+}
 
 /**
  * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
@@ -431,7 +449,7 @@ export interface BridgeMethods {
   'taskbar/get-state': { request: null; response: TaskbarState }
   /** 任务栏开关：禁用即销毁任务栏窗口、启用即恢复；整份回写 config.json；回推 taskbar/changed */
   'taskbar/set-enabled': { request: { enabled: boolean }; response: TaskbarState }
-  /** 任务栏系统动作（开始菜单/任务视图）：主进程按键合成触发原生系统 UI */
+  /** 任务栏系统动作（开始菜单/任务视图/通知中心/快速设置/显示桌面）：主进程按键合成触发原生系统 UI */
   'taskbar/system-action': { request: { action: TaskbarSystemAction }; response: { ok: boolean; error?: string } }
   /**
    * 中组系统按钮显隐（工单54）：右键菜单触发，整份回写 config.json taskbar.hiddenButtons，
@@ -482,6 +500,8 @@ export interface BridgeMethods {
    * 点击语义不需 try/catch。工单53 的全交互（右键菜单/中键/最小化切换）在同一身份挂点扩展。
    */
   'taskbar/activate-app': { request: { exe: string }; response: { ok: boolean; action: TaskbarActivateAction | null; error?: string } }
+  /** 任务栏右组硬件摘要勾选（工单55）：metrics 为勾选子集（按规范序归一），整份回写 config.json；回推 taskbar/changed */
+  'taskbar/set-metrics': { request: { metrics: TaskbarMetric[] }; response: TaskbarState }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -500,6 +520,8 @@ export interface BridgeEvents {
   'plugins/changed': PluginInfo[]
   /** 工单49 任务栏：开关变化即时回推（任务栏窗口据此渲染/渲染层不等重启） */
   'taskbar/changed': TaskbarState
+  /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（与 panel/changed 同源同拍） */
+  'taskbar/status': TaskbarStatus
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

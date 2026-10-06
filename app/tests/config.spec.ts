@@ -415,7 +415,7 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [] })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -442,6 +442,30 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     expect(r.config.taskbar.enabled).toBe(true)
     expect(r.warnings.some((w) => w.includes('config.taskbar'))).toBe(true)
   })
+
+  it('metrics 勾选子集生效（工单55）；缺省五项全选', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { metrics: ['ram', 'cpu'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.metrics).toEqual(['ram', 'cpu'])
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('metrics 混入未知指标：丢未知项并告警，合法项保留', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { metrics: ['cpu', 'ghost'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.metrics).toEqual(['cpu'])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.metrics'))).toBe(true)
+  })
+
+  it('metrics 非数组回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { metrics: 'cpu' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.metrics).toEqual(['cpu', 'gpu', 'ram', 'net-down', 'net-up'])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.metrics'))).toBe(true)
+  })
 })
 
 describe('config.taskbar 系统按钮显隐（工单54）', () => {
@@ -449,7 +473,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'] })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -457,7 +481,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [] })
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
     expect(r.warnings).toHaveLength(0)
   })
 

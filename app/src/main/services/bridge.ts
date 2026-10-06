@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -177,6 +177,10 @@ export class BridgeService extends Service {
         const { exe } = payload as { exe: string }
         return await this.ctx.taskbar.activateApp(exe) as BridgeMethods[M]['response']
       }
+      case 'taskbar/set-metrics': {
+        const { metrics } = payload as { metrics: TaskbarMetric[] }
+        return this.ctx.taskbar.setMetrics(metrics) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }
@@ -196,5 +200,7 @@ export class BridgeService extends Service {
   /** 推送当前快照（数据面宿主收到子进程快照后调用；与 tick 共用同一事件） */
   push(): void {
     this.ctx.emit('panel/changed', this.snapshot())
+    // 工单55 任务栏右组 1Hz 数据帧：与 panel/changed 同源同拍，只裁时钟 + 硬件仪表两段
+    this.ctx.emit('taskbar/status', { clock: this.ctx.panelData.clock(), hardware: this.ctx.panelData.hardware().gauges })
   }
 }

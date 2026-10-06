@@ -4,12 +4,22 @@
 // 溢出浮层开合。左组（工单52）显示 + 工单58 基本点击分发（启动/置前经 taskbar/activate-app，
 // 栏内与溢出浮层共用同一挂点）；右键菜单/中键/最小化切换等全交互属工单53，在同一
 // data-exe 身份挂点上扩展。窗口标题 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel } from './taskbar-view.js'
+import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
 import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
-import type { TaskbarDragGroup, TaskbarState, TaskbarWindowRef } from '../shared/contract'
+import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarWindowRef } from '../shared/contract'
+// 任务栏条带渲染入口（工单49/52/54/55）：状态经 taskbar/get-state 拉取 + taskbar/changed 订阅；
+// 右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。各 pill、按钮/推荐位/
+// 左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——验收电池据此取点击坐标。
+// 视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端 + 右键菜单开合（中组
+// 显隐菜单属工单54，摘要勾选编辑态属工单55）。
+// 左组（工单52）只做显示：图标 + 运行态指示 + 窗口标题 tooltip（标题随状态帧即时进出，
+// 渲染层不落任何存储）；点击/右键交互语义属工单53，本票预留挂点（条目元素 data-exe = 身份，
+// 视图模型 id 同值）。
 
 const pill = document.getElementById('pill') as HTMLElement
 const pillLeft = document.getElementById('pill-left') as HTMLElement
+const rightPill = document.getElementById('right-pill') as HTMLElement
+const sliver = document.getElementById('show-desktop') as HTMLElement
 
 /** 左组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 6+6、图标格 32+2 间距、组间距 8）。
  * 容量格数宁保守不少让——多留缝也不与中组 pill 重叠（中组居中、左组绝定位贴左）。 */
@@ -20,6 +30,10 @@ const GROUP_GAP = 8
 
 /** 最近一次渲染的状态：几何重排（resize）时按它重声明热区 */
 let current: TaskbarState | null = null
+/** 右组 1Hz 数据帧的最近值：重渲染（勾选变更）时按它立即填字，不等下一拍 */
+let latestStatus: TaskbarStatus | null = null
+/** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
+let editing = false
 /** 系统按钮显隐菜单开合（工单54）：右键开、点菜/点 pill 空白/状态回推收 */
 let menuOpen = false
 let menuTimer: ReturnType<typeof setTimeout> | null = null
@@ -34,37 +48,51 @@ let dragSource: { group: TaskbarDragGroup; id: string } | null = null
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
 
-/** pill 与按钮/推荐位/左组条目矩形（CSS px 相对客户区）：热区声明与验收存证共用同一份测量 */
+interface Rect { id: string; x: number; y: number; w: number; h: number }
+
+function rectOf(el: HTMLElement, id: string): Rect {
+  const r = el.getBoundingClientRect()
+  return { id, x: r.x, y: r.y, w: r.width, h: r.height }
+}
+
+/** 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形（CSS px 相对客户区）：
+ * 热区声明与验收存证共用同一份测量 */
 function measure() {
-  const rectOf = (el: HTMLElement) => {
-    const r = el.getBoundingClientRect()
-    return { x: r.x, y: r.y, w: r.width, h: r.height }
-  }
-  const overflowEl = pillLeft.querySelector<HTMLElement>('.tb-overflow')
   return {
-    pill: rectOf(pill),
-    buttons: [...pill.querySelectorAll<HTMLElement>('.tb-btn')].map((el) => ({ id: el.dataset.id ?? '', ...rectOf(el) })),
-    recommendations: [...pill.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({ name: el.dataset.name ?? '', ...rectOf(el) })),
-    leftPill: rectOf(pillLeft),
-    apps: [...pillLeft.querySelectorAll<HTMLElement>('.tb-app')].map((el) => ({ id: el.dataset.exe ?? '', ...rectOf(el) })),
-    overflow: overflowEl ? rectOf(overflowEl) : null,
+    pill: rectOf(pill, 'pill'),
+    buttons: [...pill.querySelectorAll<HTMLElement>('.tb-btn')].map((el) => rectOf(el, el.dataset.id ?? '')),
+    recommendations: [...pill.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
+      name: el.dataset.name ?? '', ...rectOf(el, ''),
+    })).map(({ name, ...r }) => ({ name, x: r.x, y: r.y, w: r.w, h: r.h })),
+    leftPill: rectOf(pillLeft, 'pill-left'),
+    apps: [...pillLeft.querySelectorAll<HTMLElement>('.tb-app')].map((el) => rectOf(el, el.dataset.exe ?? '')),
+    overflow: (() => { const el = pillLeft.querySelector<HTMLElement>('.tb-overflow'); return el ? rectOf(el, 'overflow') : null })(),
+    rightPill: rectOf(rightPill, 'right-pill'),
+    rightCells: [...rightPill.querySelectorAll<HTMLElement>('[data-id]')].map((el) => rectOf(el, el.dataset.id ?? '')),
+    sliver: rectOf(sliver, 'show-desktop'),
   }
 }
 
-/** 热区声明：中组不渲染（禁用/全隐藏且无推荐）即不报中组矩形；左组装了条目才报左组
- * 矩形（空组不渲染 pill，缝隙保持穿透）；两组皆空即清空——条带整幅恢复穿透 */
-function declareHotZones(visible: boolean, leftApps: number): void {
+/** 热区声明（工单52/54/55 并集）：中组不渲染（禁用/全隐藏且无推荐）不含 pill；左组装了
+ * 条目才报左组矩形（空组不渲染 pill，缝隙保持穿透）；右组（摘要+音量+时钟）与显示桌面
+ * 细条随 enabled 声明；三组皆无即清空——条带整幅恢复穿透 */
+function declareHotZones(state: TaskbarState): void {
+  if (!state.enabled) {
+    window.deck.host.setHotZones([])
+    return
+  }
+  const vm = taskbarViewModel(state)
   const m = measure()
-  const zones = []
-  if (visible) zones.push({ id: 'pill', ...m.pill })
-  if (leftApps > 0) zones.push({ id: 'pill-left', ...m.leftPill })
+  const zones = [m.rightPill, m.sliver]
+  if (vm.visible) zones.unshift(m.pill)
+  if (vm.left.length > 0) zones.unshift(m.leftPill)
   window.deck.host.setHotZones(zones)
 }
 
 /** 最近一次几何存证签名：几何未变的重渲（窗口标题刷新等无位移帧）不重复刷事件流 */
 let lastGeometryJson = ''
 
-/** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/左组矩形任一变化即补发一帧——
+/** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/左组/右组矩形任一变化即补发一帧——
  * 推荐位随数据面快照后到位会推中组 pill 移位，电池按 settle 后的最新帧取坐标 */
 function notifyGeometry(): void {
   const m = measure()
@@ -75,11 +103,60 @@ function notifyGeometry(): void {
     leftPill: m.leftPill,
     apps: m.apps,
     overflow: m.overflow,
+    rightPill: m.rightPill,
+    rightCells: m.rightCells,
+    sliver: m.sliver,
   }
   const json = JSON.stringify(payload)
   if (json === lastGeometryJson) return
   lastGeometryJson = json
   window.deck.host.notify('taskbar-geometry', payload)
+}
+
+/** 系统动作格点击分发 + 存证（中组按钮与右组格同一通道） */
+function wireAction(el: HTMLElement, id: string): void {
+  el.addEventListener('click', () => {
+    void dispatchTaskbarButton(window.deck.bridge, id)
+      .then((r) => {
+        if (r.action) window.deck.host.notify('taskbar-action', { action: r.action })
+        window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) })
+      })
+  })
+}
+
+/** 右组硬件摘要格（工单55）：常态按勾选子集呈现数值段；编辑态五项全呈现、点击段即
+ * 切换勾选（经 taskbar/set-metrics 持久化——重启保持的勾选通道），再右键/点格外退出编辑。 */
+function renderSummary(metrics: TaskbarState['metrics'], gauges: HardwareGauges | null): HTMLElement | null {
+  const segments = summaryViewModel(metrics, editing)
+  if (!segments.some((s) => s.visible)) return null
+  const cell = document.createElement('div')
+  cell.className = 'tb-cell'
+  cell.id = 'hw-summary'
+  cell.dataset.id = 'hw-summary'
+  if (editing) cell.classList.add('editing')
+  for (const seg of segments) {
+    if (!seg.visible) continue
+    const el = document.createElement('span')
+    el.className = `tb-seg${seg.on ? ' on' : ' off'}`
+    el.dataset.metric = seg.id
+    // 常态呈现数值；编辑态呈现指标名（勾选语义一目了见，数值被勾选态取代）
+    el.textContent = editing ? seg.label : formatMetric(seg.id, gauges ?? { cpu: 0, memory: 0, memory_gb: '--' })
+    if (editing) {
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        const next = toggleMetric(current?.metrics ?? [], seg.id)
+        void window.deck.bridge.invoke('taskbar/set-metrics', { metrics: next })
+      })
+    }
+    cell.appendChild(el)
+  }
+  // 右键进出编辑态（勾选显示子集的唯一入口）
+  cell.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault()
+    editing = !editing
+    if (current) render(current)
+  })
+  return cell
 }
 
 function closeMenu(): void {
@@ -269,7 +346,7 @@ function render(state: TaskbarState): void {
   if (!vm.visible) {
     closeMenu()
     renderLeft(vm.left) // 中组不渲染 ≠ 左组不渲染（两按钮全隐藏且无推荐的边界）
-    declareHotZones(false, vm.left.length)
+    declareHotZones(state) // 中组不渲染：热区只留左组/右组/细条（declareHotZones 内按 vm.visible 裁决）
     notifyGeometry()
     return
   }
@@ -293,24 +370,52 @@ function render(state: TaskbarState): void {
     makeDraggable(el, 'mid', rec.name)
     pill.appendChild(el)
   }
-  if (menuOpen) {
-    const sep = document.createElement('div')
-    sep.className = 'tb-menu-sep'
-    pill.appendChild(sep)
-    for (const row of vm.menu) {
+  // 左组（工单52）：手钉 + 运行中合并条目（空组整组不渲染）
+  renderLeft(vm.left)
+  // 中组（工单54 边界条件：两按钮全隐藏且无推荐 → 整组不渲染，只剩左右两组）
+  pill.hidden = !vm.visible
+  pill.textContent = ''
+  if (vm.visible) {
+    for (const b of vm.buttons) {
       const el = document.createElement('div')
-      el.className = 'tb-menu-item'
-      el.dataset.id = row.id
-      el.textContent = row.label
-      el.addEventListener('click', (e) => {
-        e.stopPropagation()
-        window.deck.host.notify('taskbar-menu-action', { id: row.id, hidden: !row.hidden })
-        // 回推的 taskbar/changed 驱动重渲收层；回执只为存证对齐
-        void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
-          .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
+      el.className = 'tb-btn'
+      el.dataset.id = b.id
+      el.textContent = b.label
+      el.addEventListener('click', () => {
+        window.deck.host.notify('taskbar-action', { action: b.action })
+        void dispatchTaskbarButton(window.deck.bridge, b.id)
+          .then((r) => window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
       })
       pill.appendChild(el)
     }
+    for (const rec of vm.recommendations) {
+      const el = document.createElement('div')
+      el.className = 'tb-rec'
+      el.dataset.name = rec.name
+      el.textContent = rec.display
+      pill.appendChild(el)
+    }
+    if (menuOpen) {
+      const sep = document.createElement('div')
+      sep.className = 'tb-menu-sep'
+      pill.appendChild(sep)
+      for (const row of vm.menu) {
+        const el = document.createElement('div')
+        el.className = 'tb-menu-item'
+        el.dataset.id = row.id
+        el.textContent = row.label
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          window.deck.host.notify('taskbar-menu-action', { id: row.id, hidden: !row.hidden })
+          // 回推的 taskbar/changed 驱动重渲收层；回执只为存证对齐
+          void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
+            .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
+        })
+        pill.appendChild(el)
+      }
+    }
+  } else {
+    closeMenu()
   }
   if (appMenu) {
     const sep = document.createElement('div')
@@ -353,9 +458,64 @@ function render(state: TaskbarState): void {
     }
   }
   renderLeft(vm.left) // 中组内容先行：左组容量按中组 pill 的当前矩形裁决溢出
-  declareHotZones(true, vm.left.length)
+  declareHotZones(current)
+  // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
+  rightPill.textContent = ''
+  if (state.enabled) {
+    const summary = renderSummary(vm.metrics, latestStatus?.hardware ?? null)
+    if (summary) rightPill.appendChild(summary)
+    const traySlot = document.createElement('div')
+    traySlot.id = 'tray-slot' // #56 托盘入栏的接入锚位
+    rightPill.appendChild(traySlot)
+    const volume = document.createElement('div')
+    volume.className = 'tb-cell'
+    volume.dataset.id = 'volume'
+    volume.textContent = '♪ VOL'
+    wireAction(volume, 'volume')
+    rightPill.appendChild(volume)
+    const clock = document.createElement('div')
+    clock.className = 'tb-cell'
+    clock.dataset.id = 'clock'
+    clock.textContent = latestStatus ? formatClock(latestStatus.clock) : '--:--'
+    wireAction(clock, 'clock')
+    rightPill.appendChild(clock)
+  }
+  declareHotZones(state)
   notifyGeometry()
 }
+
+/** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态） */
+function applyStatus(status: TaskbarStatus): void {
+  latestStatus = status
+  const clockEl = rightPill.querySelector<HTMLElement>('[data-id="clock"]')
+  if (clockEl) clockEl.textContent = formatClock(status.clock)
+  const values: Record<string, string> = {}
+  for (const el of rightPill.querySelectorAll<HTMLElement>('#hw-summary .tb-seg')) {
+    const id = (el.dataset.metric ?? '') as TaskbarMetric
+    const text = formatMetric(id, status.hardware)
+    values[id] = text
+    if (!editing) el.textContent = text
+  }
+  // 验收存证：渲染出的右组数值（电池与硬件卡文本比对口径一致性）
+  window.deck.host.notify('taskbar-right-status', { clock: clockEl?.textContent ?? '', values })
+}
+
+// 显示桌面细条（工单55）：点击 = Win+D ToggleDesktop
+sliver.addEventListener('click', () => {
+  void dispatchTaskbarButton(window.deck.bridge, 'show-desktop')
+    .then((r) => {
+      if (r.action) window.deck.host.notify('taskbar-action', { action: r.action })
+      window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) })
+    })
+})
+
+// 点摘要格外退出编辑态（窗口永不聚焦，键盘 Esc 不可靠——点空白即收）
+document.addEventListener('click', (ev) => {
+  if (editing && !(ev.target instanceof HTMLElement && ev.target.closest('#hw-summary'))) {
+    editing = false
+    if (current) render(current)
+  }
+})
 
 function boot(): void {
   makeGroupDropTarget(pillLeft, 'left') // 拖到左组空白 = 落手钉段末尾
@@ -386,23 +546,23 @@ function boot(): void {
     render(state)
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
-      enabled: state.enabled,
-      pill: m.pill,
-      buttons: m.buttons,
-      recommendations: m.recommendations,
-      leftPill: m.leftPill,
-      apps: m.apps,
-      overflow: m.overflow,
+      enabled: state.enabled, pill: m.pill, buttons: m.buttons, recommendations: m.recommendations,
+      leftPill: m.leftPill, apps: m.apps, overflow: m.overflow,
+      rightPill: m.rightPill, rightCells: m.rightCells, sliver: m.sliver,
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
       closeMenu() // 状态回推即收菜单（点菜成功的收层路径）
       render(next)
     })
-    // 几何重排重渲染（工单58 起）：主进程在 display-metrics-changed 时 setBounds 重排条带
-    // （换分辨率/换主屏），pill 居中坐标随客户区宽度变化——旧热区矩形会落空，左组容量
-    // 也随之变化（溢出拆分按新几何重裁决）
+    // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
+    window.deck.bridge.on('taskbar/status', (status) => applyStatus(status))
+    // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
+    // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空
     window.addEventListener('resize', () => {
-      if (current) render(current)
+      if (!current) return
+      render(current)
+      declareHotZones(current)
+      notifyGeometry()
     })
   })()
 }

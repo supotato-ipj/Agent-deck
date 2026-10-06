@@ -1,16 +1,20 @@
+import { describe, expect, it } from 'vitest'
+import { dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
+import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
- * 任务栏 pill 渲染/点击契约测试（工单49/52/54——fake bridge 驱动，Node 中直跑不碰 DOM）：
+ * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
  * 渲染 = taskbar/get-state → 视图模型（左组形态映射 + 中组系统按钮显隐 + 推荐位 +
  * 整组显隐边界）；点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
  * 工单58：左组溢出拆分（容量内全留栏、超限尾部收浮层）+ 应用图标点击分发 taskbar/activate-app。
  */
-import { describe, expect, it } from 'vitest'
-import { dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel } from '../../src/renderer/taskbar-view'
 import type { TaskbarBridge, TaskbarLeftViewEntry } from '../../src/renderer/taskbar-view'
-import type { TaskbarLeftEntry, TaskbarState } from '../../src/shared/contract'
+import fs from 'node:fs'
+import path from 'node:path'
+import type { HardwareGauges, TaskbarLeftEntry, TaskbarMetric, TaskbarState } from '../../src/shared/contract'
+const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], left: [], ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, left: [], ...over }
 }
 
 const RECS = [
@@ -181,6 +185,82 @@ describe('任务栏按钮点击（fake bridge 驱动）', () => {
     const r = await dispatchTaskbarButton(bridge, 'ghost')
     expect(r).toEqual({ ok: false, action: null })
     expect(calls).toEqual([])
+  })
+})
+
+describe('任务栏右组（工单55，fake bridge 驱动）', () => {
+  it('渲染层指标序与契约 TASKBAR_METRIC_KEYS 同序（镜像守卫——渲染层不得运行时 import 契约值）', () => {
+    expect(TASKBAR_METRICS.map((s) => s.id)).toEqual([...TASKBAR_METRIC_KEYS])
+  })
+
+  it('右组动作格：音量格 Win+A、时钟格 Win+N、显示桌面细条 Win+D 到达桥', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    expect(await dispatchTaskbarButton(bridge, 'volume')).toEqual({ ok: true, action: 'quick-settings' })
+    expect(await dispatchTaskbarButton(bridge, 'clock')).toEqual({ ok: true, action: 'notification-center' })
+    expect(await dispatchTaskbarButton(bridge, 'show-desktop')).toEqual({ ok: true, action: 'toggle-desktop' })
+    expect(calls).toEqual([
+      { method: 'taskbar/system-action', payload: { action: 'quick-settings' } },
+      { method: 'taskbar/system-action', payload: { action: 'notification-center' } },
+      { method: 'taskbar/system-action', payload: { action: 'toggle-desktop' } },
+    ])
+  })
+
+  it('视图模型携带勾选子集（组内序 = 规范序）；禁用态摘要同样空壳', async () => {
+    const { bridge } = fakeBridge(state({ metrics: ['cpu', 'ram'] }))
+    const s = await bridge.invoke('taskbar/get-state', null)
+    expect(taskbarViewModel(s).metrics).toEqual(['cpu', 'ram'])
+    expect(taskbarViewModel(state({ enabled: false })).metrics).toEqual([])
+  })
+
+  it('硬件摘要数值口径与硬件卡一致：百分比 Math.round、速率 toFixed(2) KB/s；源缺位落占位符', () => {
+    const gauges: HardwareGauges = {
+      cpu: 12.4, memory: 45.6, memory_gb: '14.5 GB/31.9 GB',
+      gpu_usage: 78.5, download_speed: 1.234, upload_speed: 0,
+    }
+    expect(formatMetric('cpu', gauges)).toBe('CPU 12%')
+    expect(formatMetric('gpu', gauges)).toBe('GPU 79%')
+    expect(formatMetric('ram', gauges)).toBe('RAM 46%')
+    expect(formatMetric('net-down', gauges)).toBe('DL 1.23KB/s')
+    expect(formatMetric('net-up', gauges)).toBe('UP 0.00KB/s')
+    // GPU/网络源不可用（字段缺位）→ 占位符而非 0（硬件卡同款纪律）
+    const bare: HardwareGauges = { cpu: 0, memory: 0, memory_gb: '-- GB/-- GB' }
+    expect(formatMetric('gpu', bare)).toBe('GPU ---')
+    expect(formatMetric('net-down', bare)).toBe('DL --')
+    expect(formatMetric('net-up', bare)).toBe('UP --')
+  })
+
+  it('时钟格文本：ClockState → 本地 HH:MM（两位补零）', () => {
+    const epochMs = new Date(2026, 9, 6, 8, 5).getTime()
+    expect(formatClock({ iso: new Date(epochMs).toISOString(), epochMs })).toBe('08:05')
+    const pm = new Date(2026, 9, 6, 23, 59).getTime()
+    expect(formatClock({ iso: new Date(pm).toISOString(), epochMs: pm })).toBe('23:59')
+  })
+
+  it('勾选切换：取消即移出、勾回按规范序归位；全不勾选合法（摘要整格隐藏）', () => {
+    const off = toggleMetric(ALL, 'gpu')
+    expect(off).toEqual(['cpu', 'ram', 'net-down', 'net-up'])
+    expect(toggleMetric(['cpu', 'ram'], 'gpu')).toEqual(['cpu', 'gpu', 'ram'])
+    let cur: TaskbarMetric[] = ALL
+    for (const k of ALL) cur = toggleMetric(cur, k)
+    expect(cur).toEqual([])
+  })
+
+  it('摘要编辑态呈现全部五项（含未勾选项，供勾回）；常态只呈现勾选子集', () => {
+    const editing = summaryViewModel(['cpu', 'ram'], true)
+    expect(editing.map((s) => [s.id, s.visible, s.on])).toEqual([
+      ['cpu', true, true], ['gpu', true, false], ['ram', true, true], ['net-down', true, false], ['net-up', true, false],
+    ])
+    const normal = summaryViewModel(['cpu', 'ram'], false)
+    expect(normal.filter((s) => s.visible).map((s) => s.id)).toEqual(['cpu', 'ram'])
+    expect(summaryViewModel([], false).some((s) => s.visible)).toBe(false)
+  })
+
+  it('源码级守卫：任务栏渲染层只做类型级 import（协议资产根只有 dist/renderer，运行时值导入会 404）', () => {
+    for (const rel of ['src/renderer/taskbar.ts', 'src/renderer/taskbar-view.ts']) {
+      const src = fs.readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')
+      const runtime = src.split('\n').filter((l) => /^import\s+\{/.test(l) && l.includes('shared/contract'))
+      expect(runtime, `${rel} 不得运行时 import shared/contract`).toEqual([])
+    }
   })
 })
 

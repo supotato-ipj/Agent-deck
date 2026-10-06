@@ -13,6 +13,7 @@
     "accept:tray": "npm run build && electron . --accept-tray",
     "accept:taskbar": "npm run build && electron . --accept-taskbar",
     "accept:taskbar-carry": "npm run build && electron . --accept-taskbar-carry",
+    "accept:taskbar-right-group": "npm run build && electron . --accept-taskbar-right-group",
     "accept:taskbar-appbar": "npm run build && electron . --accept-taskbar-appbar",
     "dev:panel": "npm run build && electron . --panel"
   },

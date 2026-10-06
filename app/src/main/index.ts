@@ -33,6 +33,8 @@ const ACCEPT_TRAY_MODE = process.argv.includes('--accept-tray')
 const ACCEPT_TASKBAR_MODE = process.argv.includes('--accept-taskbar')
 /** 任务栏显隐验收（工单50）：控制器身份跑 accept/taskbar-carry.js */
 const ACCEPT_TASKBAR_CARRY_MODE = process.argv.includes('--accept-taskbar-carry')
+/** 任务栏右组验收（工单55）：控制器身份跑 accept/taskbar-right-group.js */
+const ACCEPT_TASKBAR_RIGHT_GROUP_MODE = process.argv.includes('--accept-taskbar-right-group')
 /** 任务栏 AppBar 占位 + 全屏让位验收（工单51）：控制器身份跑 accept/taskbar-appbar.js */
 const ACCEPT_TASKBAR_APPBAR_MODE = process.argv.includes('--accept-taskbar-appbar')
 const PANEL_MODE = process.argv.includes('--panel')
@@ -146,8 +148,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     search: { port: config.search.port, engine: config.search.engine, everythingPort: config.search.everythingPort },
     settings: { file: CONFIG_FILE, config },
     focus: { tools: config.tools },
-    // 任务栏（工单49/54）：开关与按钮显隐随 config 下发，set-enabled/set-button-hidden 经此整份回写
-    taskbar: { enabled: config.taskbar.enabled, hiddenButtons: config.taskbar.hiddenButtons, file: CONFIG_FILE, config },
+    // 任务栏（工单49/54/55）：开关、按钮显隐与硬件摘要勾选随 config 下发，
+    // set-enabled/set-button-hidden/set-metrics 经此整份回写
+    taskbar: {
+      enabled: config.taskbar.enabled,
+      hiddenButtons: config.taskbar.hiddenButtons,
+      metrics: config.taskbar.metrics,
+      file: CONFIG_FILE,
+      config,
+    },
     // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
     plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
@@ -260,7 +269,7 @@ if (RESTORE_MODE) {
   forceShowIcons(log)
   forceShowNativeTaskbar(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE) {
+} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -318,7 +327,7 @@ if (RESTORE_MODE) {
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
@@ -353,6 +362,13 @@ if (RESTORE_MODE) {
       // （守卫链默认入口 + --panel-accept 混合，见电池文件头）。
       app.on('window-all-closed', () => {})
       require(path.join(app.getAppPath(), 'accept', 'taskbar-carry.js'))()
+      return
+    }
+    if (ACCEPT_TASKBAR_RIGHT_GROUP_MODE) {
+      // 任务栏右组验收（工单55）：控制器身份跑 accept/taskbar-right-group.js，面板以
+      // --panel-accept 子进程拉起。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'taskbar-right-group.js'))()
       return
     }
     if (ACCEPT_TASKBAR_APPBAR_MODE) {

@@ -10,7 +10,7 @@ import type { FocusService } from './services/focus'
 import type { PluginHostService } from './plugins/service'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
-import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarState } from '../shared/contract'
+import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarState, TaskbarStatus } from '../shared/contract'
 
 declare module 'cordis' {
   interface Events {
@@ -29,6 +29,8 @@ declare module 'cordis' {
     'plugins/changed': (payload: PluginInfo[]) => void
     /** 工单49/52 任务栏：开关变化与左组编排帧即时回推（窗口控制器据此建窗/销窗，渲染层据此重绘左组） */
     'taskbar/changed': (payload: TaskbarState) => void
+    /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（桥接层随 panel/changed 同拍发出） */
+    'taskbar/status': (payload: TaskbarStatus) => void
   }
   interface Context {
     clock: ClockService

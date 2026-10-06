@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopLayout, TaskbarButtonId, WeatherLocation } from '../shared/contract'
+import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, WeatherLocation } from '../shared/contract'
+import { TASKBAR_METRIC_KEYS } from '../shared/contract'
 import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
@@ -33,10 +34,12 @@ export interface AppConfig {
 }
 
 /** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失。
- * hiddenButtons（工单54）：中组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。 */
+ * hiddenButtons（工单54）：中组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
+ * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。 */
 export interface TaskbarConfig {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
+  metrics: TaskbarMetric[]
 }
 
 /**
@@ -185,16 +188,17 @@ export function defaultAutostart(): AutostartConfig {
 
 /** 默认任务栏：启用（接管形态即默认体验——开启即隐藏原生任务栏，逃生开关与
  * guard + watchdog 三路径还原（工单50）在场，默认开让行为可见且可逆）；
- * 系统按钮默认全显示（隐藏是用户经右键菜单的主动收窄，工单54） */
+ * 系统按钮默认全显示（隐藏是用户经右键菜单的主动收窄，工单54）；
+ * 硬件摘要五项默认全选（工单55） */
 export function defaultTaskbar(): TaskbarConfig {
-  return { enabled: true, hiddenButtons: [] }
+  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS] }
 }
 
 /** 中组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
 const TASKBAR_BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
 
 function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[]): TaskbarConfig {
-  const out: TaskbarConfig = { ...fallback, hiddenButtons: [...fallback.hiddenButtons] }
+  const out: TaskbarConfig = { ...fallback, hiddenButtons: [...fallback.hiddenButtons], metrics: [...fallback.metrics] }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     warnings.push('config.taskbar 不是对象，已整体回退默认任务栏开关')
@@ -205,6 +209,16 @@ function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[])
   if (enabled !== undefined) {
     if (typeof enabled === 'boolean') out.enabled = enabled
     else warnings.push(`config.taskbar.enabled 不是布尔值，已回退默认值 ${fallback.enabled}`)
+  }
+  const metrics = section.metrics
+  if (metrics !== undefined) {
+    if (!Array.isArray(metrics)) {
+      warnings.push('config.taskbar.metrics 不是数组，已回退默认五项全选')
+    } else {
+      const known = metrics.filter((m): m is TaskbarMetric => (TASKBAR_METRIC_KEYS as readonly string[]).includes(m as string))
+      if (known.length !== metrics.length) warnings.push('config.taskbar.metrics 含未知指标，已丢弃未知项')
+      out.metrics = [...new Set(known)]
+    }
   }
   const hiddenButtons = section.hiddenButtons
   if (hiddenButtons !== undefined) {

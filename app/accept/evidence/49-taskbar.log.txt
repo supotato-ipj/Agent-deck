@@ -1,16 +1,17 @@
-# accept 49-taskbar — 2026-10-06T02:15:54.766Z
-[02:15:55.331] NOTE  面板 pid=29276
-[02:15:57.760] PASS  P1 任务栏窗口在场：置顶 + 底部通栏落屏底（2560x48），原生任务栏已隐藏
-[02:15:57.806] PASS  P2 面板本体在场、非置顶、钉底存证在流
-[02:15:58.068] NOTE  置顶收敛=true
-[02:15:58.896] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
-[02:15:58.983] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
-[02:15:59.294] NOTE  开始菜单收起=true
-[02:16:01.082] NOTE  P5 点击前: fg={"hwnd":1839536,"cls":"Notepad","exe":"notepad"} tasks点收敛=true
-[02:16:01.183] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / ForegroundStaging）
-[02:16:02.684] PASS  P6 运行时禁用：任务栏窗口即销毁、原生任务栏还原、config 落盘、面板本体不受影响
-[02:16:03.000] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
-[02:16:07.690] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
-[02:16:12.164] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
-[02:16:12.654] NOTE  清场核验：原生任务栏可见
-[02:16:12.656] ===== 49-taskbar VERDICT: PASS (pass=9 fail=0) =====
+# accept 49-taskbar — 2026-10-06T09:06:55.465Z
+[09:06:56.408] NOTE  面板 pid=18208
+[09:06:59.413] PASS  P1 任务栏窗口在场：置顶 + 底部通栏落屏底（2560x48），原生任务栏已隐藏
+[09:06:59.464] PASS  P2 面板本体在场、非置顶、钉底存证在流
+[09:07:02.087] NOTE  几何帧: boot pill.w=230 → settled pill.w=458
+[09:07:02.352] NOTE  置顶收敛=true
+[09:07:03.163] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
+[09:07:03.244] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
+[09:07:03.569] NOTE  开始菜单收起=true
+[09:07:05.355] NOTE  P5 点击前: fg={"hwnd":65962,"cls":"Progman","exe":"explorer"} tasks点收敛=true
+[09:07:05.654] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / XamlExplorerHostIslandWindow）
+[09:07:06.546] PASS  P6 运行时禁用：任务栏窗口即销毁、原生任务栏还原、config 落盘、面板本体不受影响
+[09:07:06.858] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
+[09:07:11.494] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
+[09:07:16.081] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
+[09:07:16.684] NOTE  清场核验：原生任务栏可见
+[09:07:16.686] ===== 49-taskbar VERDICT: PASS (pass=9 fail=0) =====

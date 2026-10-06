@@ -1,8 +1,12 @@
 // 任务栏 pill 纯逻辑（工单49/52/54/58）：视图模型是状态 → 视图的纯函数（左组形态映射、
 // 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../shared/contract'
 import { planLeftOverflow } from '../main/taskbar/left-plan'
+// 任务栏 pill 纯逻辑（工单49/52/54/55）：视图模型是状态 → 视图的纯函数（左组形态映射、
+// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行；右组硬件摘要勾选子集、
+// 时钟/音量格、显示桌面细条），点击分发只经桥契约。
+// 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -21,6 +25,47 @@ export const TASKBAR_BUTTONS: readonly TaskbarButtonSpec[] = [
   { id: 'start', label: '⊞ START', action: 'start-menu' },
   { id: 'tasks', label: '▦ TASK VIEW', action: 'task-view' },
 ] as const
+
+/** 右组动作格（工单55）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、点击触发原生
+ * 快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；显示桌面
+ * 细条 = Win+D（label 空——细条无文字，钉屏幕最右端，对齐 Win11 右下角肌肉记忆）。
+ * 组内序 = 硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟 → 细条。 */
+export interface TaskbarCellSpec {
+  id: string
+  label: string
+  action: TaskbarSystemAction
+}
+
+export const RIGHT_CELLS: readonly TaskbarCellSpec[] = [
+  { id: 'volume', label: '♪ VOL', action: 'quick-settings' },
+  { id: 'clock', label: '', action: 'notification-center' },
+  { id: 'show-desktop', label: '', action: 'toggle-desktop' },
+] as const
+
+/** 点击分发目录 = 中组按钮 + 右组动作格 */
+const CATALOG: ReadonlyArray<{ id: string; action: TaskbarSystemAction }> = [...TASKBAR_BUTTONS, ...RIGHT_CELLS]
+
+/** 硬件摘要指标显示名（序 = contract TASKBAR_METRIC_KEYS 规范序的渲染层镜像——
+ * 渲染层只做类型级 import（协议资产只服务 dist/renderer 根，运行时值导入会 404），
+ * 两侧同序由 tests/renderer/taskbar.spec.ts 的镜像守卫钉住） */
+export const TASKBAR_METRICS: ReadonlyArray<{ id: TaskbarMetric; label: string }> = [
+  { id: 'cpu', label: 'CPU' },
+  { id: 'gpu', label: 'GPU' },
+  { id: 'ram', label: 'RAM' },
+  { id: 'net-down', label: 'DL' },
+  { id: 'net-up', label: 'UP' },
+] as const
+
+/** 渲染层规范序（TASKBAR_METRIC_KEYS 的镜像，见 TASKBAR_METRICS 注释） */
+const METRIC_ORDER: readonly TaskbarMetric[] = TASKBAR_METRICS.map((s) => s.id)
+
+/** 摘要单元格视图：visible = 是否进格（编辑态五项全可见供勾回），on = 当前勾选 */
+export interface SummarySegment {
+  id: TaskbarMetric
+  label: string
+  visible: boolean
+  on: boolean
+}
 
 /** 右键菜单行（工单54）：每个系统按钮一行显隐切换；hidden=true 的行即恢复入口 */
 export interface TaskbarMenuRow {
@@ -48,12 +93,14 @@ export interface TaskbarLeftViewEntry {
   iconKey: string | null
 }
 
-/** 任务栏视图模型：visible=false = 中组整个不渲染（只剩左右两组的边界条件） */
+/** 任务栏视图模型：visible=false = 中组整个不渲染（只剩左右两组的边界条件）；
+ * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳） */
 export interface TaskbarViewModel {
   visible: boolean
   buttons: TaskbarButtonSpec[]
   recommendations: TaskbarRecommendation[]
   menu: TaskbarMenuRow[]
+  metrics: TaskbarMetric[]
   /** 左组（工单52）：序与运行态由内核编排查好，本层原样透出 + tooltip 回退 */
   left: TaskbarLeftViewEntry[]
 }
@@ -64,7 +111,7 @@ export interface TaskbarViewModel {
  * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], left: [] }
+  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], left: [] }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -82,7 +129,42 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     tooltip: e.title ?? e.label,
     iconKey: e.iconKey,
   }))
-  return { visible: buttons.length > 0 || recommendations.length > 0, buttons, recommendations, menu, left }
+  return { visible: buttons.length > 0 || recommendations.length > 0, buttons, recommendations, menu, metrics: [...state.metrics], left }
+}
+
+/** 摘要格段清单：常态只呈现勾选子集，编辑态五项全呈现（未勾选的置灰供勾回） */
+export function summaryViewModel(metrics: readonly TaskbarMetric[], editing: boolean): SummarySegment[] {
+  return TASKBAR_METRICS.map((spec) => ({
+    ...spec,
+    visible: editing || metrics.includes(spec.id),
+    on: metrics.includes(spec.id),
+  }))
+}
+
+/** 勾选切换：取消即移出、勾回按规范序归位（与持久化口径同一序） */
+export function toggleMetric(metrics: readonly TaskbarMetric[], key: TaskbarMetric): TaskbarMetric[] {
+  const next = metrics.includes(key) ? metrics.filter((m) => m !== key) : [...metrics, key]
+  return METRIC_ORDER.filter((k) => next.includes(k))
+}
+
+/** 摘要数值格式化：口径与硬件卡一致（百分比 Math.round、速率 toFixed(2) KB/s；
+ * GPU/网络字段源缺位落占位符，不显示假 0） */
+export function formatMetric(id: TaskbarMetric, gauges: HardwareGauges): string {
+  const percent = (x: number | null | undefined) => (x == null ? '---' : `${Math.round(x)}%`)
+  const kbps = (x: number | null | undefined) => (x == null ? '--' : `${x.toFixed(2)}KB/s`)
+  switch (id) {
+    case 'cpu': return `CPU ${percent(gauges.cpu)}`
+    case 'gpu': return `GPU ${percent(gauges.gpu_usage)}`
+    case 'ram': return `RAM ${percent(gauges.memory)}`
+    case 'net-down': return `DL ${kbps(gauges.download_speed)}`
+    case 'net-up': return `UP ${kbps(gauges.upload_speed)}`
+  }
+}
+
+/** 时钟格文本：本地 HH:MM（两位补零） */
+export function formatClock(clock: ClockState): string {
+  const d = new Date(clock.epochMs)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 /**
@@ -93,7 +175,7 @@ export async function dispatchTaskbarButton(
   bridge: Pick<TaskbarBridge, 'invoke'>,
   buttonId: string,
 ): Promise<{ ok: boolean; action: TaskbarSystemAction | null; error?: string }> {
-  const btn = TASKBAR_BUTTONS.find((b) => b.id === buttonId)
+  const btn = CATALOG.find((b) => b.id === buttonId)
   if (!btn) return { ok: false, action: null }
   const res = await bridge.invoke('taskbar/system-action', { action: btn.action })
   return { ok: res.ok, action: btn.action, ...(res.error ? { error: res.error } : {}) }
