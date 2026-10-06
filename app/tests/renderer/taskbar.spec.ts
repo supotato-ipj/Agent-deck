@@ -359,3 +359,33 @@ describe('任务栏托盘入栏（工单56）', () => {
     await expect(fetchTrayIcon(b.bridge, 'guid:abc')).resolves.toBeNull()
   })
 })
+describe('任务栏页面样式完整性（真机事故回归）', () => {
+  // 55 验收失败的真根因：一次合并把 `#pill {` 与重复的 `.pill {` 拼在一起，
+  // 选择器块没闭合，内联样式表后半段（中组/右组/细条的全部规则）被浏览器整段丢弃——
+  // 页面照样执行、事件照发，只是没人上样式：现象是「格子都在，位置全是块级堆叠」。
+  const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
+
+  it('内联样式表的花括号逐个闭合、块内无嵌套开括号', () => {
+    expect(css).toBeTruthy()
+    let depth = 0
+    for (const ch of css!) {
+      if (ch === '{') {
+        expect(depth, '样式表出现嵌套 {：前一个块没闭合').toBe(0)
+        depth = 1
+      } else if (ch === '}') {
+        depth -= 1
+        expect(depth, '样式表出现多余的 }').toBe(0)
+      }
+    }
+    expect(depth, '样式表结尾仍有未闭合的块').toBe(0)
+  })
+
+  it('关键选择器各有且仅有一条规则（防合并残留的重复定义）', () => {
+    const ruleLines = css!.split(/\r?\n/).map((l) => l.trim())
+    for (const sel of ['#pill', '#pill-left', '#right-pill', '#show-desktop']) {
+      const hits = ruleLines.filter((l) => l === `${sel} {` || l.startsWith(`${sel},`))
+      expect(hits.length, `${sel} 规则数`).toBe(1)
+    }
+  })
+})
