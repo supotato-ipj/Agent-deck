@@ -56,6 +56,8 @@ export interface KernelOptions {
   taskbar?: TaskbarServiceOptions
   /** 任务栏左组编排轮询间隔（ms，工单52）；缺省 0 = 不装定时器（离线测试手动驱动 refresh） */
   taskbarPollMs?: number
+  /** 退出面板（工单83）：app.quit 注入（离线测试注假源；缺省未装配——invoke 如实拒绝） */
+  quit?: () => void
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -94,7 +96,7 @@ export function createKernel(options: KernelOptions = {}): Context {
         ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
     },
   })
-  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
+  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
   ctx.plugin(FocusService, options.focus)

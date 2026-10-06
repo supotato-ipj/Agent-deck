@@ -34,6 +34,8 @@ export interface PanelKernelOptions {
   taskbar?: TaskbarServiceOptions
   /** 任务栏左组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
   taskbarPollMs?: number
+  /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
+  quit?: () => void
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -61,7 +63,7 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
           ?.replayTrayClick?.(key, button) ?? false),
     },
   })
-  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
+  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）

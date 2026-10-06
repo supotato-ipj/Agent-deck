@@ -2070,3 +2070,27 @@ describe('内核桥接契约（工单56 托盘入栏）', () => {
     }
   }, 30_000)
 })
+
+describe('内核桥接契约（工单83 退出面板）', () => {
+  it('app/quit 调用注入的 quit 依赖并回报 ok（与托盘菜单同一退出收敛）', async () => {
+    let quitCalls = 0
+    const ctx = createKernel(kernelOpts(tmpDir(), { quit: () => { quitCalls++ } }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('app/quit', null)).resolves.toEqual({ ok: true })
+      expect(quitCalls).toBe(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('app/quit 未装配 quit 依赖时如实拒绝（不静默吞掉）', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('app/quit', null)).rejects.toThrow(/quit/)
+    } finally {
+      await ctx.stop()
+    }
+  })
+})

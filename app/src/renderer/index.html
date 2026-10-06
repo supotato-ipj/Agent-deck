@@ -424,6 +424,20 @@
     cursor: pointer;
   }
   #settings-reset:hover { color: #d6d6d6; }
+  /* 退出面板（工单83）：与设置项视觉隔离的底部独立动作区；hover 暖色提示这是破坏性动作 */
+  #settings-exit {
+    margin-top: 10px;
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #settings-exit:hover { color: #e0a87a; }
 
   /* 删除确认层（工单27）：多选【删除全部】先弹的自绘轻量确认——列出条数、确认/取消
    * 两钮。卡片同世界观（class="card" 底色随全局透明度）；开层期间热区换全窗（同菜单），
@@ -528,6 +542,7 @@
     <span id="taskbar-toggle-state">ON</span>
   </div>
   <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
+  <div id="settings-exit" role="button">&#9211; EXIT PANEL</div>
 </div>
 
 <div class="card" id="trash-confirm" tabindex="-1">

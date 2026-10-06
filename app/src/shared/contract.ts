@@ -511,6 +511,13 @@ export interface BridgeMethods {
   'taskbar/tray-click': { request: { key: string; button: TaskbarTrayButton }; response: { ok: boolean; error?: string } }
   /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
   'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
+  /**
+   * 退出面板（工单83）：设置浮层「退出面板」按钮 → 主进程 app.quit()，与托盘菜单
+   * 「退出面板」（tray.ts click=app.quit()）、WM_CLOSE 走同一条 before-quit 优雅退出
+   * 收敛（窗口销毁、托盘 destroy、桌面图标/原生任务栏还原）。主进程本地动作，无数据面
+   * 参与；quit 依赖由生产装配（index.ts）注入，未装配如实拒绝（不静默吞）。
+   */
+  'app/quit': { request: null; response: { ok: boolean } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

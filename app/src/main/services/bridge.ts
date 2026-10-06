@@ -24,11 +24,14 @@ export class BridgeService extends Service {
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
+  private readonly quitApp: () => void
 
-  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout } = {}) {
+  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout; quit?: () => void } = {}) {
     super(ctx, 'bridge')
     this.weather = options.weather ?? defaultWeather()
     this.layout = options.layout ?? defaultDesktopLayout()
+    // quit 依赖（工单83）：主进程 app.quit 由生产装配注入；离线装配未注入时如实拒绝
+    this.quitApp = options.quit ?? (() => { throw new BridgeError('app/quit 未装配 quit 依赖（生产装配缺注入）') })
     // 数据面快照到达即推送（生产装配：utilityProcess 每拍一发；进程内装配无此事件，
     // 契约测试经 tick 手动驱动）
     ctx.on('dataplane/snapshot', () => this.push())
@@ -181,6 +184,9 @@ export class BridgeService extends Service {
         const { key } = payload as { key: string }
         return { icon: this.ctx.taskbar.trayIconOf(String(key ?? '')) } as BridgeMethods[M]['response']
       }
+      case 'app/quit':
+        this.quitApp()
+        return { ok: true } as BridgeMethods[M]['response']
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

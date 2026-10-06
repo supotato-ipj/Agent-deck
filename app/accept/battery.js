@@ -822,8 +822,12 @@ async function main() {
       const deadline = Date.now() + 8000;
       while (Date.now() < deadline) {
         await sleep(200);
+        // 工单86：控制器进程自验收提示条起常驻一个 Chrome 窗（同 pid 同类名且 alwaysOnTop
+        // 恒居枚举首位）——按 pid+类名找本参照窗会误中提示条（HWND_BOTTOM 落空、真参照窗
+        // 盖满面板、透明断言全灭），必须加标题甄别（checker.html 立标题 CHECKER-BACKDROP）。
         const h = w32.topLevelWindows().find(
-          (hh) => w32.threadIdOf(hh).pid === process.pid && w32.className(hh) === 'Chrome_WidgetWin_1');
+          (hh) => w32.threadIdOf(hh).pid === process.pid && w32.className(hh) === 'Chrome_WidgetWin_1'
+            && windowTitle(hh) === 'CHECKER-BACKDROP');
         if (h) return h;
       }
       throw new Error('参照窗未创建');
@@ -941,23 +945,51 @@ async function main() {
     (ex & w32.WS_EX_TRANSPARENT) && (ex & w32.WS_EX_LAYERED)
       ? rep.pass('默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED')
       : rep.fail('默认穿透：窗口样式缺少预期位');
-    // 空落点选文档区右侧、右列卡片左侧的空带（05 起文档区占 x408..616，原 560 落其内）
-    const emptyPt = { x: 700 * f, y: 300 * f };
-    w32.clickPhys(emptyPt.x, emptyPt.y, 'left');
-    await sleep(500);
-    const fg = w32.GetForegroundWindow();
-    const fgCls = w32.className(fg);
-    ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(fgCls)
-      ? rep.pass(`默认穿透：面板空区点击直达桌面（前台翻转为 ${fgCls}）`)
-      : rep.fail(`面板空区点击未直达桌面：前台=0x${fg.toString(16)}(${fgCls})`);
-    w32.clickPhys(emptyPt.x, emptyPt.y, 'right');
-    await sleep(500);
-    const fgR = w32.GetForegroundWindow();
-    const fgRCls = w32.className(fgR);
-    // Win11 桌面右键菜单宿主为 XamlExplorerHostIslandWindow（WASDK）——菜单弹出即右键直达桌面
-    fgRCls === 'Progman' || fgRCls === 'WorkerW' || fgRCls.startsWith('XamlExplorerHost')
-      ? rep.pass(`默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 ${fgRCls}）`)
-      : rep.fail(`右键未直达桌面：前台=0x${fgR.toString(16)}(${fgRCls})`);
+    // 空落点运行时安全取点（工单89）：分区热区改为「容器矩形外扩 24px」后随桌面内容
+    // 长宽，硬编码空点会被热区吞进去（原 (700,300) 在文档区条目变宽后落进外扩带，断言
+    // 翻转）。改为读最近一拍常规态 hotzones 矩形（已含外扩），在面板窗内部扫一个与全部
+    // 热区沿保持净距的探针点：网格步进 16px、取距「文档区右侧历史空带」锚点最近者（确定序）。
+    const hzRects = (lastEvent('hotzones') || { rects: [] }).rects || [];
+    const emptyDip = (() => {
+      if (!hzRects.length) return null;
+      const winDip = { w: (rect.right - rect.left) / f, h: (rect.bottom - rect.top) / f };
+      const CLEAR = 12; // 探针与任一热区沿的最小净距（DIP）
+      const anchor = { x: winDip.w * 0.72, y: 300 };
+      const clearOf = (x, y) => hzRects.every((r) =>
+        x < r.x - CLEAR || x >= r.x + r.w + CLEAR || y < r.y - CLEAR || y >= r.y + r.h + CLEAR);
+      let best = null;
+      for (let y = 120; y <= winDip.h - 160; y += 16) {
+        for (let x = 16; x <= winDip.w - 16; x += 16) {
+          if (!clearOf(x, y)) continue;
+          const d = Math.hypot(x - anchor.x, y - anchor.y);
+          if (!best || d < best.d) best = { x, y, d };
+        }
+      }
+      return best;
+    })();
+    if (!hzRects.length) {
+      rep.fail('P3 前置缺失：hotzones 存证未见（穿透探针无据可取）');
+    } else if (!emptyDip) {
+      rep.fail('P3 前置缺失：面板窗内扫不到全部热区外的空点（hotzones 覆盖异常）');
+    } else {
+      rep.note(`P3 穿透探针点 DIP(${emptyDip.x},${emptyDip.y})——与全部热区沿净距 ≥12px`);
+      const emptyPhys = { x: rect.left + Math.round(emptyDip.x * f), y: rect.top + Math.round(emptyDip.y * f) };
+      w32.clickPhys(emptyPhys.x, emptyPhys.y, 'left');
+      await sleep(500);
+      const fg = w32.GetForegroundWindow();
+      const fgCls = w32.className(fg);
+      ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(fgCls)
+        ? rep.pass(`默认穿透：面板空区点击直达桌面（前台翻转为 ${fgCls}）`)
+        : rep.fail(`面板空区点击未直达桌面：前台=0x${fg.toString(16)}(${fgCls})`);
+      w32.clickPhys(emptyPhys.x, emptyPhys.y, 'right');
+      await sleep(500);
+      const fgR = w32.GetForegroundWindow();
+      const fgRCls = w32.className(fgR);
+      // Win11 桌面右键菜单宿主为 XamlExplorerHostIslandWindow（WASDK）——菜单弹出即右键直达桌面
+      fgRCls === 'Progman' || fgRCls === 'WorkerW' || fgRCls.startsWith('XamlExplorerHost')
+        ? rep.pass(`默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 ${fgRCls}）`)
+        : rep.fail(`右键未直达桌面：前台=0x${fgR.toString(16)}(${fgRCls})`);
+    }
     w32.tapKeys([0x1b]); // ESC 收起桌面右键菜单（若有）
     await sleep(300);
 
@@ -1778,7 +1810,8 @@ async function main() {
     })();
 
     // —— P5.7 工单21 框选：分区空白起笔、实时矩形与即时高亮、松手替换 / Ctrl 并集、
-    // 条目起笔不误触（阈值内=普通点击语义）、指针流出分区包围盒不中断。
+    // 条目起笔不误触（阈值内=普通点击语义）、指针流出分区包围盒不中断；工单89 补
+    // 外扩带起笔 ×2（doc 标签带 / dock body 环带——旧热区边带外的原穿透区）。
     // band/ctrl-band 语义矩阵穷举在离线测试（tests/renderer/selection.spec.ts），
     // 这里每类语义只留真机端到端代表用例（#19 spec 三缝约定）。命中期望值由电池按
     // desktop-rendered 的 rects + DOM 序（工单59 后只剩 doc 分组序，应用区不再渲染）
@@ -2062,6 +2095,50 @@ async function main() {
               }
             }
           }
+
+          // g. doc 外扩带起笔（工单89）：文档区顶条上沿外 20px——旧几何（条目包围盒
+          //    +10px 边带）下是穿透真桌面、起不了笔的空白；新几何（容器外扩 24px）下
+          //    面板接住、直接起笔框选。起笔点落分区 DOM 内（组标签带），前置断言其在
+          //    现役 doc-zone 热区矩形内且不落任何条目。工单59 后面板无应用区，master
+          //    上那条 dock 环带用例随分区退役一并删去，doc 环带保留并改挂 geo21 实时几何。
+          {
+            const G = geo21();
+            const docZoneRect = latestZoneOf('doc-zone', t21);
+            const T = G.top;
+            if (!T) {
+              rep.fail('doc 外扩带前置异常：最新渲染里取不到文档区顶排条目');
+            } else {
+              const docRingStart = { x: T.x + T.w / 2, y: T.y - 20 };
+              const docRingEnd = { x: T.x + T.w / 2, y: T.y + T.h / 2 };
+              const docRingBlank = !G.rects.some((r) => docRingStart.x > r.x && docRingStart.x < r.x + r.w && docRingStart.y > r.y && docRingStart.y < r.y + r.h);
+              const inDocZone = !!docZoneRect
+                && docRingStart.x >= docZoneRect.x && docRingStart.x < docZoneRect.x + docZoneRect.w
+                && docRingStart.y >= docZoneRect.y && docRingStart.y < docZoneRect.y + docZoneRect.h;
+              if (!docZoneRect || !inDocZone || !docRingBlank) {
+                rep.fail(`doc 外扩带前置异常：dz=${JSON.stringify(docZoneRect)} start=(${Math.round(docRingStart.x)},${Math.round(docRingStart.y)}) in=${inDocZone} blank=${docRingBlank}`);
+              } else {
+                const tDocRing = Date.now();
+                const okDocRing = await dragMarquee(ptOfDip(docRingStart.x, docRingStart.y), ptOfDip(docRingEnd.x, docRingEnd.y));
+                if (!okDocRing) {
+                  rep.fail('doc 外扩带框选用例未执行（前置失败）');
+                } else {
+                  const docRingExpected = G.hitsOf(boxOf(docRingStart, docRingEnd));
+                  const startedDocRing = await waitEvent('desktop-marquee-started', (e) => e.t >= tDocRing, 4000);
+                  const finDocRing = await waitEvent('desktop-marquee-finished', (e) => e.t >= tDocRing && e.ctrl === false && sameNames(e.hits, docRingExpected) && sameNames(e.names, docRingExpected), 4000);
+                  startedDocRing && finDocRing
+                    ? rep.pass(`doc 外扩带起笔框选：顶条上沿外 20px（旧 10px 边带外的穿透区）直接起笔，命中 [${docRingExpected.join(', ')}]`)
+                    : rep.fail(`doc 外扩带框选存证异常：started=${JSON.stringify(!!startedDocRing)} fin=${JSON.stringify(finDocRing && { hits: finDocRing.hits })}`);
+                  safeShot('89-marquee-doc-ring', {
+                    left: Math.max(0, rectS.left + Math.round((T.x - 24) * f)),
+                    top: Math.max(0, rectS.top + Math.round((docRingStart.y - 12) * f)),
+                    right: rectS.left + Math.round((T.x + T.w + 24) * f),
+                    bottom: rectS.top + Math.round((docRingEnd.y + 24) * f),
+                  });
+                }
+              }
+            }
+          }
+
         }
       } finally {
         for (const p of probePaths) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
@@ -5057,6 +5134,51 @@ async function main() {
           : rep.fail(`退出后识别色仍在托盘区（命中 ${afterExit.hits} 像素 @(${afterExit.x},${afterExit.y})）`);
       } finally {
         restorePromoted();
+      }
+    }
+
+    // —— P10E 工单83 设置浮层「退出面板」按钮：托盘不可达时的本体退出路径 ——
+    // 托盘退出对真人也不总可达（Win11 默认把新托盘图标折叠进溢出区，且右键菜单不可
+    // 自动化——P10 探针结论；任务栏特性未完成），面板本体必须有退出入口。点击 →
+    // settings-exit-clicked → app/quit → 与托盘菜单/WM_CLOSE 同一 before-quit 收敛。
+    // 断言：clicked 在档、quit 在档、窗口销毁、主进程退出。P9 随后自会重启面板（其
+    // 段首重启不受此处面板死亡影响）。点击走热区（settings-exit 随浮层显隐进声明）。
+    {
+      const t0e = Date.now();
+      child = launchPanel();
+      hwnd = await waitPanelWindow(20000, t0e);
+      if (!hwnd) throw new Error('P10E 重启后未见面板窗口');
+      panelPid = w32.threadIdOf(hwnd).pid;
+      await sleep(2500); // boot + 热区声明落地（settings-btn 进声明，06/08 同等待口径）
+      const bzE = latestZoneOf('settings-btn');
+      if (!bzE) {
+        rep.fail('P10E：settings-btn 未进热区（无法开浮层点退出，工单83 用例未跑）');
+      } else {
+        await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), bzE), '设置入口');
+        const openedE = await waitEvent('settings-opened', (e) => e.t >= t0e, 3000);
+        await sleep(350); // 浮层热区声明落地（settings-exit 随开层进声明）
+        const ezE = latestZoneOf('settings-exit');
+        if (!openedE || !ezE) {
+          rep.fail(`P10E：设置浮层未开或退出按钮未进热区（opened=${JSON.stringify(openedE)}，exit=${JSON.stringify(ezE)}）`);
+        } else {
+          await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), ezE), '退出面板按钮');
+          const clickedE = await waitEvent('settings-exit-clicked', (e) => e.t >= t0e, 3000);
+          const tExitE = Date.now();
+          const deadE = await (async () => {
+            const deadline = Date.now() + 10000;
+            while (Date.now() < deadline) {
+              await sleep(200);
+              if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+            }
+            return false;
+          })();
+          deadE
+            ? rep.pass(`退出面板按钮闭环：settings-exit-clicked → app/quit → 窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - tExitE}ms）`)
+            : rep.fail(`退出面板按钮未达成完整退出（clicked=${JSON.stringify(clickedE)}，窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
+          readEvents().some((e) => e.type === 'quit' && e.t >= t0e)
+            ? rep.pass('退出按钮走 before-quit 同一收敛（quit 存证在档，桌面图标/原生任务栏/托盘随之还原）')
+            : rep.fail('退出按钮无 quit 存证（未走 before-quit 收敛）');
+        }
       }
     }
 
