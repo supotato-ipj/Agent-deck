@@ -388,4 +388,13 @@ describe('任务栏页面样式完整性（真机事故回归）', () => {
       expect(hits.length, `${sel} 规则数`).toBe(1)
     }
   })
+
+  it('两组都挂 .pill，且 .pill 声明横排（丢了它两组就退化成块级堆叠、元素高出版带）', () => {
+    expect(html).toContain('id="pill" class="pill"')
+    expect(html).toContain('id="right-pill" class="pill"')
+    const body = css!.slice(css!.indexOf('.pill {'))
+    const block = body.slice(0, body.indexOf('}'))
+    expect(block).toContain('display: flex')
+    expect(block).toContain('align-items: center')
+  })
 })

@@ -81,6 +81,16 @@
     margin: 4px 2px;
     background: rgba(255, 255, 255, 0.14);
   }
+  /* 胶囊外观（中组与右组共用 .pill；#pill / #right-pill 只管各自的钉靠位置） */
+  .pill {
+    display: flex;
+    align-items: center;
+    column-gap: 4px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
   /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
    * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
   #pill {
