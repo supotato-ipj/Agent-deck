@@ -20,6 +20,7 @@ import { SettingsService, type SettingsServiceOptions } from './services/setting
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
+import { planTaskbarRecommendations } from './taskbar/plan'
 import type { WeatherLocation } from '../shared/contract'
 
 export interface KernelOptions {
@@ -79,8 +80,16 @@ export function createKernel(options: KernelOptions = {}): Context {
   })
   // 桥接层的数据面端口（进程内装配：直连上方采集服务）——必须先于桥接层注册
   ctx.plugin(LocalPanelDataService)
-  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册
-  ctx.plugin(TaskbarService, options.taskbar)
+  // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。
+  // 中组推荐位（工单54）缺省接 panelData 的频次链路产物（桌面编排 + usage 融合分）。
+  ctx.plugin(TaskbarService, {
+    ...options.taskbar,
+    deps: {
+      ...options.taskbar?.deps,
+      recommendations: options.taskbar?.deps?.recommendations
+        ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
+    },
+  })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
@@ -172,10 +181,13 @@ export function createDataplaneKernel(options: DataplaneKernelOptions = {}): Con
 /** 数据面快照（时钟就地构造——kernel.ts 不 import electron，可被离线测试加载） */
 function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
   const d = new Date()
+  const desktop = ctx.desktop.state()
   return {
     clock: { iso: d.toISOString(), epochMs: d.getTime() },
     sessions: ctx.sessions.current(),
     hardware: ctx.hardware.state(),
-    desktop: ctx.desktop.state(),
+    desktop,
+    // 中组推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源
+    recommendations: planTaskbarRecommendations(desktop.plan.dock, desktop.items, ctx.desktop.usageScores()),
   }
 }
