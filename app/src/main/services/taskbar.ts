@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
+import type { TaskbarActivateAction, TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
@@ -48,6 +48,10 @@ export interface TaskbarServiceOptions {
     writeStoreText?: (file: string, text: string) => void
     /** 仅运行条目的图标键（缺省 statSync mtime 组 iconKeyOf；入参为归一后的 exe） */
     iconKeyForPath?: (exe: string) => string | null
+    /** 运行中应用置前（工单58；缺省延迟绑定 taskbar/windows。返回 false = 前台锁拒收） */
+    focusExeWindow?: (exe: string) => boolean
+    /** 未运行应用启动（工单58；缺省延迟绑定 focus/adapter 的 shellLaunch——ShellExecute 语义，'' = 成功） */
+    launchExe?: (exe: string) => Promise<string>
   }
 }
 
@@ -71,6 +75,8 @@ interface TaskbarDeps {
   readStoreText: (file: string) => string | null
   writeStoreText: (file: string, text: string) => void
   iconKeyForPath: (exe: string) => string | null
+  focusExeWindow: (exe: string) => boolean
+  launchExe: (exe: string) => Promise<string>
 }
 
 /**
@@ -122,6 +128,10 @@ export class TaskbarService extends Service {
           return null // 竞态退出/权限缺席：无图标源，渲染层按无图降级
         }
       }),
+      focusExeWindow: options.deps?.focusExeWindow
+        ?? ((exe) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeFocusExeWindow(exe)),
+      launchExe: options.deps?.launchExe
+        ?? ((exe) => (require('../focus/adapter') as typeof import('../focus/adapter')).shellLaunch(exe)),
     }
     this.current = {
       enabled: options.enabled ?? defaultTaskbar().enabled,
@@ -225,6 +235,36 @@ export class TaskbarService extends Service {
       return { ok: this.deps.sendSystemKeys(action) }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /**
+   * 左组应用图标点击（工单58，栏内与溢出浮层共用）：exe 身份必须在当前左组栏面上
+   * （desktop/launch 池护栏同款——栏外身份 ok:false 不启动不置前，竞态退场走同一路径）；
+   * 运行中置前、未运行启动（action = 内核裁决），执行失败 ok:false + error 不抛。
+   * 空/非字符串 exe 是契约违规，抛 BridgeError。
+   */
+  async activateApp(exe: string): Promise<{ ok: boolean; action: TaskbarActivateAction | null; error?: string }> {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar.activate-app.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    const key = normalizeExe(exe)
+    const hit = this.current.left.find((e) => normalizeExe(e.exe) === key)
+    if (!hit) return { ok: false, action: null, error: '栏外身份不启动' }
+    if (hit.running) {
+      try {
+        return this.deps.focusExeWindow(hit.exe)
+          ? { ok: true, action: 'focused' }
+          : { ok: false, action: 'focused', error: '置前被系统拒收（前台锁）' }
+      } catch (err) {
+        return { ok: false, action: 'focused', error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    try {
+      const err = await this.deps.launchExe(hit.exe)
+      return err ? { ok: false, action: 'launched', error: err } : { ok: true, action: 'launched' }
+    } catch (err) {
+      return { ok: false, action: 'launched', error: err instanceof Error ? err.message : String(err) }
     }
   }
 

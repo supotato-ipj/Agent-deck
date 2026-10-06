@@ -1377,3 +1377,134 @@ describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
     }
   })
 })
+
+
+describe('内核桥接契约（工单58 左组应用点击分发：启动/置前）', () => {
+  /**
+   * 激活桩：栏布局存储落 tmp（绝不触真 userData）；置前/启动假源逐笔记录。
+   * focusFails / launchErr 控制失败路径。
+   */
+  function activateOpts(dir: string, over: Record<string, unknown> = {}) {
+    const env = {
+      windows: [] as Array<{ exe: string; title: string | null }>,
+      focused: [] as string[],
+      launched: [] as string[],
+      focusOk: true,
+      launchErr: '',
+    }
+    const opts = {
+      taskbar: {
+        storeFile: path.join(dir, 'taskbar-layout.json'),
+        dockStoreFile: path.join(dir, 'layout.json'),
+        deps: {
+          sendSystemKeys: () => true,
+          listWindows: () => env.windows,
+          ownExe: 'C:\\deck\\agent-deck.exe',
+          desktopItems: () => [],
+          resolveShortcutTarget: () => null,
+          iconKeyForPath: () => null,
+          focusExeWindow: (exe: string) => { env.focused.push(exe); return env.focusOk },
+          launchExe: (exe: string) => { env.launched.push(exe); return Promise.resolve(env.launchErr) },
+        },
+        ...over,
+      },
+    }
+    return { env, opts }
+  }
+
+  /** 栏面就位：手钉 A（未运行）+ 仅运行 B 进左组 */
+  async function bootBar(dir: string, t: ReturnType<typeof activateOpts>) {
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: null }],
+    }))
+    t.env.windows = [{ exe: 'C:\\Apps\\B.exe', title: '乙窗口' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    ctx.taskbar.refresh()
+    return ctx
+  }
+
+  it('运行中应用点击 → 置前源以栏面 exe 调用，回执 focused（身份归一寻址：大小写/斜杠向不敏感）', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 'c:/apps/b.exe' }))
+        .resolves.toEqual({ ok: true, action: 'focused' })
+      expect(t.env.focused).toEqual(['C:\\Apps\\B.exe'])
+      expect(t.env.launched).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('置前被系统拒收 → ok:false + error（不 reject——点击语义不需 try/catch）', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    t.env.focusOk = false
+    const ctx = await bootBar(dir, t)
+    try {
+      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\B.exe' })
+      expect(r.ok).toBe(false)
+      expect(r.action).toBe('focused')
+      expect(r.error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('手钉未运行应用点击 → 启动源以栏面 exe 调用，回执 launched', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'launched' })
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe'])
+      expect(t.env.focused).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('启动失败（ShellExecute 报错串）→ ok:false + error 原样回报', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    t.env.launchErr = '找不到应用程序'
+    const ctx = await bootBar(dir, t)
+    try {
+      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' })
+      expect(r).toEqual({ ok: false, action: 'launched', error: '找不到应用程序' })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('栏外身份不启动不置前（desktop/launch 池护栏同款）：ok:false，真假源零调用', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\evil\\rm.exe' })
+      expect(r.ok).toBe(false)
+      expect(r.action).toBeNull()
+      expect(t.env.focused).toEqual([])
+      expect(t.env.launched).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('空 exe / 非字符串是契约违规：抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: '' })).rejects.toThrow(/activate-app\.exe/)
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 42 as never })).rejects.toThrow(/activate-app\.exe/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})

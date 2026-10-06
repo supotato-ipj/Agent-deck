@@ -4,10 +4,12 @@
 // 隐私（ADR-0007 对 ADR-0002 的书面口子，仅限任务栏链路）：标题仅内存即时读取，
 // 供栏上 tooltip 与多窗口列表即时显示——永不写使用日志、永不落任何持久化。
 // 离线测试不加载本模块（服务依赖缝注入假源后从不 require）。
+import { normalizeExe } from './left-plan'
 import type { TaskbarWindowInput } from './left-plan'
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const GW_HWNDNEXT = 2
+const SW_RESTORE = 9
 const MAX_WINDOWS = 2048
 
 interface KoffiFunc {
@@ -21,6 +23,10 @@ interface Bound {
   getWindowThreadProcessId: KoffiFunc
   getWindowTextLength: KoffiFunc
   getWindowText: KoffiFunc
+  isIconic: KoffiFunc
+  showWindow: KoffiFunc
+  bringWindowToTop: KoffiFunc
+  setForegroundWindow: KoffiFunc
   openProcess: KoffiFunc
   queryImageName: KoffiFunc
   closeHandle: KoffiFunc
@@ -40,6 +46,10 @@ function bind(): Bound {
     getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, uint32 *pid)'),
     getWindowTextLength: user32.func('int __stdcall GetWindowTextLengthW(uintptr_t hWnd)'),
     getWindowText: user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, char16_t *lpString, int nMaxCount)'),
+    isIconic: user32.func('bool __stdcall IsIconic(uintptr_t hWnd)'),
+    showWindow: user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)'),
+    bringWindowToTop: user32.func('bool __stdcall BringWindowToTop(uintptr_t hWnd)'),
+    setForegroundWindow: user32.func('bool __stdcall SetForegroundWindow(uintptr_t hWnd)'),
     openProcess: kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)'),
     queryImageName: kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)'),
     closeHandle: kernel32.func('bool __stdcall CloseHandle(void *h)'),
@@ -108,4 +118,36 @@ export function nativeTaskbarWindows(): TaskbarWindowInfo[] {
     h = b.getWindow(h, GW_HWNDNEXT) as number
   }
   return out
+}
+
+/**
+ * 按 exe 身份把运行中窗口带到前台（工单58 点击置前真源）：链式枚举找首个该 exe 的
+ * 可见顶层窗口，最小化先 SW_RESTORE，再 BringWindowToTop + SetForegroundWindow
+ * （focus/adapter 同款尽力序列——SetForegroundWindow 受前台锁限制可能失败，返回
+ * false 由调用方按拒收回报，不抛）。找不到该 exe 的窗口（竞态退出）返回 false。
+ */
+export function nativeFocusExeWindow(exe: string): boolean {
+  const b = bind()
+  const target = normalizeExe(exe)
+  let h = b.getTopWindow(0) as number
+  let guard = 0
+  while (h && guard++ < MAX_WINDOWS) {
+    if (b.isWindowVisible(h)) {
+      const pid = pidOf(b, h)
+      if (pid) {
+        const wexe = exeOfPid(b, pid)
+        if (wexe && normalizeExe(wexe) === target) {
+          try {
+            if (b.isIconic(h)) b.showWindow(h, SW_RESTORE)
+            b.bringWindowToTop(h)
+            return Boolean(b.setForegroundWindow(h))
+          } catch {
+            return false
+          }
+        }
+      }
+    }
+    h = b.getWindow(h, GW_HWNDNEXT) as number
+  }
+  return false
 }

@@ -1,7 +1,8 @@
-// 任务栏 pill 纯逻辑（工单49/52/54）：视图模型是状态 → 视图的纯函数（左组形态映射、
-// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行），点击分发只经桥契约。
+// 任务栏 pill 纯逻辑（工单49/52/54/58）：视图模型是状态 → 视图的纯函数（左组形态映射、
+// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarActivateAction, TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../shared/contract'
+import { planLeftOverflow } from '../main/taskbar/left-plan'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -109,4 +110,28 @@ export async function dispatchTaskbarVisibility(
 ): Promise<TaskbarState | null> {
   if (!TASKBAR_BUTTONS.some((b) => b.id === buttonId)) return null
   return bridge.invoke('taskbar/set-button-hidden', { id: buttonId, hidden })
+}
+
+/** 左组溢出拆分（工单58）：裁决本体是 left-plan 的 planLeftOverflow（编排纯函数），
+ * 本层只是把它接到视图条目上——slots 由渲染层按 pill 几何实测（含 ⋯ 钮位）。
+ * overflow 非空即 ⋯ 钮的渲染判据；浮层条目与栏内同一份引用（同形态同挂点）。 */
+export function splitLeftOverflow(
+  left: readonly TaskbarLeftViewEntry[],
+  slots: number,
+): { bar: TaskbarLeftViewEntry[]; overflow: TaskbarLeftViewEntry[] } {
+  return planLeftOverflow(left, slots)
+}
+
+/**
+ * 左组应用图标点击分发（工单58）：栏内与溢出浮层共用同一道分发——exe 身份经桥
+ * invoke，启动/置前裁决在内核（taskbar/activate-app）。响应原样上抛（ok:false 也
+ * 返回——点击语义不需 try/catch）；空 exe 是噪声（不发 invoke）。
+ * 工单53 衔接面：右键菜单/中键/最小化切换在同一 exe 身份上另开动作，本分发不变。
+ */
+export async function dispatchTaskbarApp(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+): Promise<{ ok: boolean; action: TaskbarActivateAction | null; error?: string }> {
+  if (!exe) return { ok: false, action: null }
+  return bridge.invoke('taskbar/activate-app', { exe })
 }
