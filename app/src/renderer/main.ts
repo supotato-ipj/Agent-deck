@@ -10,6 +10,8 @@ import type { SelectionEvent, SelectionModel } from './selection.js'
 import { GATE_INITIAL, escapePlan, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
 import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState, KeyRoutingContext } from './keyboard-gate.js'
 import { pasteableWithinTimeout } from './pasteable-query.js'
+import { zoneHotzoneContains, zoneHotzoneRect } from './zone-hotzone.js'
+import type { ZoneBox } from './zone-hotzone.js'
 
 const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
@@ -445,10 +447,11 @@ function endDrag(): void {
 // 凡与矩形相交的桌面项即时高亮；松手普通=替换选区、Ctrl=并集（迁移入 selection.ts
 // 状态机，本文件只消费输出）。与拖拽摆位共用起笔阈值：阈值内松手就是普通空白单击
 // （清空语义走既有 click 冒泡，suppressed 不置位）；越过阈值后声明全窗热区续接指针流
-// （拖拽同法）——指针流出分区包围盒框选不中断。热区外空白桌面不经过面板（穿透照旧）。
+// （拖拽同法）——指针流出分区热区框选不中断。热区外空白桌面不经过面板（穿透照旧）。
+// 工单89 起热区=分区容器矩形外扩一圈（zone-hotzone.ts），起笔面从「条目缝隙+10px
+// 边带」扩成整个条带+环带（分区语义路由见下方 body 级监听注记）。
 
 interface MarqueeState {
-  zone: HTMLElement | null
   pointerId: number | null
   startX: number
   startY: number
@@ -462,7 +465,7 @@ interface MarqueeState {
 }
 
 const marqueeState: MarqueeState = {
-  zone: null, pointerId: null, startX: 0, startY: 0, ctrl: false, active: false, suppressed: false,
+  pointerId: null, startX: 0, startY: 0, ctrl: false, active: false, suppressed: false,
   rect: null, hits: [], rectNow: null,
 }
 
@@ -520,7 +523,6 @@ function resetMarquee(): void {
     marqueeState.rect.remove()
     marqueeState.rect = null
   }
-  marqueeState.zone = null
   marqueeState.pointerId = null
   marqueeState.active = false
   marqueeState.hits = []
@@ -531,75 +533,101 @@ function resetMarquee(): void {
   setTimeout(() => { marqueeState.suppressed = false }, 0)
 }
 
-// ---- 分区空白清空选区（工单20）+ 框选起笔（工单21）：条目之外的分区容器面单击即清空
-// （GLOSSARY.md「选区」）；同一起笔面按住拖动即框选。条目自身的点击会冒泡上来，按
-// closest 滤掉（各走各的语义）；分区热区只覆盖条目包围盒+边距，热区之外的空白本来
-// 就不进面板（透传真桌面，不到这里）。
+// ---- 分区空白清空选区（工单20）+ 框选起笔（工单21）+ 分区语义路由（工单89）：
+// 条目之外的分区面单击即清空（GLOSSARY.md「选区」）；同一起笔面按住拖动即框选。
+// 监听统一挂 body：分区热区是「容器可见矩形外扩一圈」（工单89，zone-hotzone.ts），
+// 环带内的落点 target 在 body 本体上（无分区 DOM 可挂），分区 DOM 面（容器、标签带）
+// 的落点 target 在分区内——两处共用同一几何门控（zoneAtPoint + onZoneSurface）路由进
+// 同一条语义；只扩热区不接语义，环带就成了「接住点击却无事发生」的黑洞。条目自身的
+// 点击同样冒泡到 body，closest 滤掉（点选/拖拽摆位各走各的语义）；卡片、浮层、插件面
+// 即使压着环带也不归分区（onZoneSurface 的 target 门控）。环带之外的空白桌面不经过
+// 面板（穿透照旧）。
 
-for (const zone of [dockZone, docZone]) {
-  zone.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return
-    if ((e.target as HTMLElement).closest('.ditem')) return // 起笔于条目：点选/拖拽摆位路径，不进框选
-    // 上一笔框选若因指针流中断而残留（up/cancel 未达，矩形/吞点击态悬空），起笔时静默收尸
-    if (marqueeState.active || marqueeState.rect) resetMarquee()
-    marqueeState.zone = zone
-    marqueeState.pointerId = e.pointerId
-    marqueeState.startX = e.clientX
-    marqueeState.startY = e.clientY
-    marqueeState.ctrl = e.ctrlKey
-    marqueeState.active = false
-    try { zone.setPointerCapture(e.pointerId) } catch { /* 旧环境退化：窗口内框选仍可用 */ }
-  })
-  zone.addEventListener('pointermove', (e) => {
-    if (marqueeState.pointerId !== e.pointerId || marqueeState.zone !== zone) return
-    if (!marqueeState.active) {
-      if (Math.hypot(e.clientX - marqueeState.startX, e.clientY - marqueeState.startY) < DRAG_THRESHOLD_PX) return
-      marqueeState.active = true
-      marqueeState.suppressed = true
-      const rect = document.createElement('div')
-      rect.id = 'marquee-rect'
-      document.body.appendChild(rect)
-      marqueeState.rect = rect
-      // 全窗热区：框选途中流出分区包围盒也不转穿透（拖拽同法）
-      window.deck.host.setHotZones([{ id: 'marquee', x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }])
-      notify('desktop-marquee-started', { from: { x: marqueeState.startX, y: marqueeState.startY } })
-    }
-    updateMarquee(e.clientX, e.clientY, marqueeState.ctrl)
-  })
-  zone.addEventListener('pointerup', (e) => {
-    if (marqueeState.pointerId !== e.pointerId) return
-    if (!marqueeState.active) {
-      resetMarquee() // 阈值内松手：尾随 click 走空白清空语义（普通点击）
-      return
-    }
-    const ctrl = marqueeState.ctrl
-    const hits = [...marqueeState.hits]
-    const rectNow = marqueeState.rectNow
-    applySelection(ctrl ? { type: 'ctrl-band', names: hits } : { type: 'band', names: hits })
-    notify('desktop-marquee-finished', { rect: rectNow, ctrl, hits, names: [...selection.names] })
-    resetMarquee()
-  })
-  zone.addEventListener('pointercancel', (e) => {
-    if (marqueeState.pointerId !== e.pointerId) return
-    if (marqueeState.active) notify('desktop-marquee-cancelled', {}) // 生灭存证的 abort 半边
-    resetMarquee() // 取消即作废：不提交命中，选区保持框选前原样
-  })
-  zone.addEventListener('click', (e) => {
-    if (dragState.suppressed || marqueeState.suppressed) return
-    if ((e.target as HTMLElement).closest('.ditem')) return
-    applySelection({ type: 'blank-click' })
-  })
-  // 右键分区空白（工单23）：热区内的分区面本来就只在这里可达（热区外穿透传真桌面），
-  // 到达即「热区内」。条目右键归条目自己的 contextmenu 监听（工单24 单项菜单），此处
-  // closest 滤掉不重复弹；手势进行中不弹（native 惯例）。开层走 openZoneMenu（工单30
-  // 起异步：先查可贴态再弹）。
-  zone.addEventListener('contextmenu', (e) => {
-    if (dragState.active || marqueeState.active) return
-    if ((e.target as HTMLElement).closest('.ditem')) return
-    e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
-    void openZoneMenu(e.clientX, e.clientY)
-  })
+/** 分区命中：几何上落在某分区热区（容器外扩带）内 */
+function zoneAtPoint(x: number, y: number): boolean {
+  for (const zone of [dockZone, docZone]) {
+    if (zoneHotzoneContains(zoneHotzoneRectOf(zone), x, y)) return true
+  }
+  return false
 }
+
+/** 起笔/点击目标是否为分区语义面：分区 DOM 内（容器面、标签带），或环带上的 body
+ * 本体。卡片/浮层/插件面不归分区——它们即使几何上压着环带，target 门控也先挡下。 */
+function onZoneSurface(t: EventTarget | null): boolean {
+  if (t === document.body || t === document.documentElement) return true
+  return t instanceof Element && t.closest('.zone') !== null
+}
+
+/** 分区空白事件判定：条目上不归分区（点选/拖拽摆位各走各的语义）；卡片、浮层、
+ * 插件面即使几何上压着环带也不归（target 门控）；热区外不归（穿透照旧）。三关全过
+ * 才算分区空白语义面——框选起笔、空白清空、分区菜单共用这一道门。 */
+function zoneBlankEvent(e: PointerEvent | MouseEvent): boolean {
+  const t = e.target as HTMLElement
+  if (t.closest('.ditem')) return false
+  return onZoneSurface(t) && zoneAtPoint(e.clientX, e.clientY)
+}
+
+document.body.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return
+  if (!zoneBlankEvent(e)) return
+  // 上一笔框选若因指针流中断而残留（up/cancel 未达，矩形/吞点击态悬空），起笔时静默收尸
+  if (marqueeState.active || marqueeState.rect) resetMarquee()
+  marqueeState.pointerId = e.pointerId
+  marqueeState.startX = e.clientX
+  marqueeState.startY = e.clientY
+  marqueeState.ctrl = e.ctrlKey
+  marqueeState.active = false
+  try { document.body.setPointerCapture(e.pointerId) } catch { /* 旧环境退化：窗口内框选仍可用 */ }
+})
+document.body.addEventListener('pointermove', (e) => {
+  if (marqueeState.pointerId !== e.pointerId) return
+  if (!marqueeState.active) {
+    if (Math.hypot(e.clientX - marqueeState.startX, e.clientY - marqueeState.startY) < DRAG_THRESHOLD_PX) return
+    marqueeState.active = true
+    marqueeState.suppressed = true
+    const rect = document.createElement('div')
+    rect.id = 'marquee-rect'
+    document.body.appendChild(rect)
+    marqueeState.rect = rect
+    // 全窗热区：框选途中流出分区热区也不转穿透（拖拽同法）
+    window.deck.host.setHotZones([{ id: 'marquee', x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }])
+    notify('desktop-marquee-started', { from: { x: marqueeState.startX, y: marqueeState.startY } })
+  }
+  updateMarquee(e.clientX, e.clientY, marqueeState.ctrl)
+})
+document.body.addEventListener('pointerup', (e) => {
+  if (marqueeState.pointerId !== e.pointerId) return
+  if (!marqueeState.active) {
+    resetMarquee() // 阈值内松手：尾随 click 走空白清空语义（普通点击）
+    return
+  }
+  const ctrl = marqueeState.ctrl
+  const hits = [...marqueeState.hits]
+  const rectNow = marqueeState.rectNow
+  applySelection(ctrl ? { type: 'ctrl-band', names: hits } : { type: 'band', names: hits })
+  notify('desktop-marquee-finished', { rect: rectNow, ctrl, hits, names: [...selection.names] })
+  resetMarquee()
+})
+document.body.addEventListener('pointercancel', (e) => {
+  if (marqueeState.pointerId !== e.pointerId) return
+  if (marqueeState.active) notify('desktop-marquee-cancelled', {}) // 生灭存证的 abort 半边
+  resetMarquee() // 取消即作废：不提交命中，选区保持框选前原样
+})
+document.body.addEventListener('click', (e) => {
+  if (dragState.suppressed || marqueeState.suppressed) return
+  if (!zoneBlankEvent(e)) return
+  applySelection({ type: 'blank-click' })
+})
+// 右键分区空白（工单23）：分区 DOM 面与外扩环带都可达（环带是工单89 新接的面），
+// 到达即「热区内」。条目右键归条目自己的 contextmenu 监听（工单24 单项菜单），此处
+// closest 滤掉不重复弹；手势进行中不弹（native 惯例）。开层走 openZoneMenu（工单30
+// 起异步：先查可贴态再弹）。
+document.body.addEventListener('contextmenu', (e) => {
+  if (dragState.active || marqueeState.active) return
+  if (!zoneBlankEvent(e)) return
+  e.preventDefault() // 自绘世界观没有原生菜单，右键只属于上下文菜单
+  void openZoneMenu(e.clientX, e.clientY)
+})
 
 // ---- 上下文菜单（工单23，GLOSSARY.md 词条）：shell 是 cordis 插件（cards/context-menu，
 // 卸载即摘 window.deckCtxMenu，这里的触发与收起全部 ?. 空转 = 热插拔自动生效）。
@@ -1707,29 +1735,18 @@ function render(snap: PanelSnapshot): void {
 }
 
 // ---- 热区声明（全部卡片 + 桌面承载区） ----
-// 桌面分区按「条目包围盒 + 10px 边距」声明：空分区不占热区（不产生点击死区），
-// dock 条的内边距随包围盒带进（光标在条边停留仍可交互）。
+// 桌面分区按「容器可见矩形外扩 ZONE_HOTZONE_PAD_PX、裁到窗内」声明（工单89，几何
+// 唯一出处 zone-hotzone.ts）：空分区不占热区（不产生点击死区，穿透照旧）；dock 条的
+// 内边距随容器带进（光标在条边停留仍可交互）。同一几何也门控 body 级分区语义路由
+// （zoneAtPoint）——声明与路由必须同源，环带点击才有语义。
 
-function zoneItemRect(zone: HTMLElement, id: string): HotzoneRect | null {
-  const items = zone.querySelectorAll<HTMLElement>('.ditem')
-  if (!items.length) return null
-  const box = zone.getBoundingClientRect() // 容器即可见边界（overflow: hidden 裁掉溢出条目）
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const it of items) {
-    const r = it.getBoundingClientRect()
-    minX = Math.min(minX, r.left)
-    minY = Math.min(minY, r.top)
-    maxX = Math.max(maxX, r.right)
-    maxY = Math.max(maxY, r.bottom)
-  }
-  // 包围盒与可见容器求交：被裁剪的溢出条目不占热区（不留点击死区），条内边距随包围盒带进
-  const pad = 10
-  const x = Math.max(minX - pad, box.left)
-  const y = Math.max(minY - pad, box.top)
-  const right = Math.min(maxX + pad, box.right)
-  const bottom = Math.min(maxY + pad, box.bottom)
-  if (right <= x || bottom <= y) return null
-  return { id, x, y, w: right - x, h: bottom - y }
+function zoneHotzoneRectOf(zone: HTMLElement): ZoneBox | null {
+  const r = zone.getBoundingClientRect()
+  return zoneHotzoneRect(
+    { x: r.left, y: r.top, w: r.width, h: r.height },
+    { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight },
+    zone.querySelector('.ditem') !== null,
+  )
 }
 
 function declareHotZones(): void {
@@ -1749,10 +1766,10 @@ function declareHotZones(): void {
     const r = card.getBoundingClientRect()
     return { id: card.id, x: r.left, y: r.top, w: r.width, h: r.height }
   })
-  const dock = zoneItemRect(dockZone, 'dock-zone')
-  if (dock) rects.push(dock)
-  const doc = zoneItemRect(docZone, 'doc-zone')
-  if (doc) rects.push(doc)
+  const dock = zoneHotzoneRectOf(dockZone)
+  if (dock) rects.push({ id: 'dock-zone', ...dock })
+  const doc = zoneHotzoneRectOf(docZone)
+  if (doc) rects.push({ id: 'doc-zone', ...doc })
   const sb = settingsBtn.getBoundingClientRect()
   if (sb.width > 0) rects.push({ id: 'settings-btn', x: sb.left, y: sb.top, w: sb.width, h: sb.height })
   // 浮层内的复位按钮自带矩形热区（电池按 id 定位点击，旧独立按钮同法）；随浮层显隐

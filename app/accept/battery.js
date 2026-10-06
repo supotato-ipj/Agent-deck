@@ -820,23 +820,51 @@ async function main() {
     (ex & w32.WS_EX_TRANSPARENT) && (ex & w32.WS_EX_LAYERED)
       ? rep.pass('默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED')
       : rep.fail('默认穿透：窗口样式缺少预期位');
-    // 空落点选文档区右侧、右列卡片左侧的空带（05 起文档区占 x408..616，原 560 落其内）
-    const emptyPt = { x: 700 * f, y: 300 * f };
-    w32.clickPhys(emptyPt.x, emptyPt.y, 'left');
-    await sleep(500);
-    const fg = w32.GetForegroundWindow();
-    const fgCls = w32.className(fg);
-    ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(fgCls)
-      ? rep.pass(`默认穿透：面板空区点击直达桌面（前台翻转为 ${fgCls}）`)
-      : rep.fail(`面板空区点击未直达桌面：前台=0x${fg.toString(16)}(${fgCls})`);
-    w32.clickPhys(emptyPt.x, emptyPt.y, 'right');
-    await sleep(500);
-    const fgR = w32.GetForegroundWindow();
-    const fgRCls = w32.className(fgR);
-    // Win11 桌面右键菜单宿主为 XamlExplorerHostIslandWindow（WASDK）——菜单弹出即右键直达桌面
-    fgRCls === 'Progman' || fgRCls === 'WorkerW' || fgRCls.startsWith('XamlExplorerHost')
-      ? rep.pass(`默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 ${fgRCls}）`)
-      : rep.fail(`右键未直达桌面：前台=0x${fgR.toString(16)}(${fgRCls})`);
+    // 空落点运行时安全取点（工单89）：分区热区改为「容器矩形外扩 24px」后随桌面内容
+    // 长宽，硬编码空点会被热区吞进去（原 (700,300) 在文档区条目变宽后落进外扩带，断言
+    // 翻转）。改为读最近一拍常规态 hotzones 矩形（已含外扩），在面板窗内部扫一个与全部
+    // 热区沿保持净距的探针点：网格步进 16px、取距「文档区右侧历史空带」锚点最近者（确定序）。
+    const hzRects = (lastEvent('hotzones') || { rects: [] }).rects || [];
+    const emptyDip = (() => {
+      if (!hzRects.length) return null;
+      const winDip = { w: (rect.right - rect.left) / f, h: (rect.bottom - rect.top) / f };
+      const CLEAR = 12; // 探针与任一热区沿的最小净距（DIP）
+      const anchor = { x: winDip.w * 0.72, y: 300 };
+      const clearOf = (x, y) => hzRects.every((r) =>
+        x < r.x - CLEAR || x >= r.x + r.w + CLEAR || y < r.y - CLEAR || y >= r.y + r.h + CLEAR);
+      let best = null;
+      for (let y = 120; y <= winDip.h - 160; y += 16) {
+        for (let x = 16; x <= winDip.w - 16; x += 16) {
+          if (!clearOf(x, y)) continue;
+          const d = Math.hypot(x - anchor.x, y - anchor.y);
+          if (!best || d < best.d) best = { x, y, d };
+        }
+      }
+      return best;
+    })();
+    if (!hzRects.length) {
+      rep.fail('P3 前置缺失：hotzones 存证未见（穿透探针无据可取）');
+    } else if (!emptyDip) {
+      rep.fail('P3 前置缺失：面板窗内扫不到全部热区外的空点（hotzones 覆盖异常）');
+    } else {
+      rep.note(`P3 穿透探针点 DIP(${emptyDip.x},${emptyDip.y})——与全部热区沿净距 ≥12px`);
+      const emptyPhys = { x: rect.left + Math.round(emptyDip.x * f), y: rect.top + Math.round(emptyDip.y * f) };
+      w32.clickPhys(emptyPhys.x, emptyPhys.y, 'left');
+      await sleep(500);
+      const fg = w32.GetForegroundWindow();
+      const fgCls = w32.className(fg);
+      ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(fgCls)
+        ? rep.pass(`默认穿透：面板空区点击直达桌面（前台翻转为 ${fgCls}）`)
+        : rep.fail(`面板空区点击未直达桌面：前台=0x${fg.toString(16)}(${fgCls})`);
+      w32.clickPhys(emptyPhys.x, emptyPhys.y, 'right');
+      await sleep(500);
+      const fgR = w32.GetForegroundWindow();
+      const fgRCls = w32.className(fgR);
+      // Win11 桌面右键菜单宿主为 XamlExplorerHostIslandWindow（WASDK）——菜单弹出即右键直达桌面
+      fgRCls === 'Progman' || fgRCls === 'WorkerW' || fgRCls.startsWith('XamlExplorerHost')
+        ? rep.pass(`默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 ${fgRCls}）`)
+        : rep.fail(`右键未直达桌面：前台=0x${fgR.toString(16)}(${fgRCls})`);
+    }
     w32.tapKeys([0x1b]); // ESC 收起桌面右键菜单（若有）
     await sleep(300);
 
@@ -1592,7 +1620,8 @@ async function main() {
     })();
 
     // —— P5.7 工单21 框选：分区空白起笔、实时矩形与即时高亮、松手替换 / Ctrl 并集、
-    // 条目起笔不误触（阈值内=普通点击语义）、指针流出分区包围盒不中断。
+    // 条目起笔不误触（阈值内=普通点击语义）、指针流出分区包围盒不中断；工单89 补
+    // 外扩带起笔 ×2（doc 标签带 / dock body 环带——旧热区边带外的原穿透区）。
     // band/ctrl-band 语义矩阵穷举在离线测试（tests/renderer/selection.spec.ts），
     // 这里每类语义只留真机端到端代表用例（#19 spec 三缝约定）。命中期望值由电池按
     // desktop-rendered 的 rects + DOM 序（doc 分组序在前、dock 序在后）复算——与渲染层
@@ -1613,7 +1642,8 @@ async function main() {
 
         const settled21 = await waitStable('desktop-rendered', 1500, 8000);
         const docRects = ((settled21 && settled21.rects) || []).filter((r) => r.zone === 'doc' && r.rect).map((r) => ({ name: r.name, ...r.rect }));
-        const rectOf = (name) => docRects.find((r) => r.name === name) || null;
+        const dockRects = ((settled21 && settled21.rects) || []).filter((r) => r.zone === 'app' && r.rect).map((r) => ({ name: r.name, ...r.rect }));
+        const rectOf = (name) => docRects.find((r) => r.name === name) || dockRects.find((r) => r.name === name) || null;
         // DOM 序复算（渲染层 marqueeHits 的 querySelectorAll 序）：doc 分组序 → dock 序
         const GROUPS21 = ['folders', 'office', 'pdf', 'image', 'archive', 'other'];
         const domOrder = [
@@ -1622,6 +1652,7 @@ async function main() {
         ].filter((n) => rectOf(n));
         const appRect = ((settled21 && settled21.rects) || []).filter((r) => r.zone === 'app' && r.rect).sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0];
         const boxOf = (p1, p2) => ({ l: Math.min(p1.x, p2.x), t: Math.min(p1.y, p2.y), r: Math.max(p1.x, p2.x), b: Math.max(p1.y, p2.y) });
+        const inBox = (p, r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
         const hitsOf = (box) => domOrder.filter((n) => {
           const r = rectOf(n);
           return r.x < box.r && r.x + r.w > box.l && r.y < box.b && r.y + r.h > box.t;
@@ -1784,7 +1815,6 @@ async function main() {
           //    路径（desktop-moved ok 为正证据），全程无框选事件。（原位抬键会被
           //    itemUnder 判成 beforeName=null 的「挪到末位」，故落点选真实的末条。）
           {
-            const dockRects = ((settled21 && settled21.rects) || []).filter((r) => r.zone === 'app' && r.rect).map((r) => ({ name: r.name, ...r.rect }));
             const lastApp = dockRects.slice().sort((a, b) => b.y - a.y || b.x - a.x).find((r) => r.name !== appItem.name);
             if (!lastApp) {
               rep.note('应用区无第二可视条目，条目起笔用例跳过');
@@ -1826,6 +1856,76 @@ async function main() {
               fin5 && reached
                 ? rep.pass(`指针流出分区包围盒框选不中断：矩形左沿 ${Math.round(fin5.rect.x)} < 包围盒左沿 ${Math.round(zoneBox.l)}，松手仍提交命中 [${expected5.join(', ')}]`)
                 : rep.fail(`越界续接异常：fin=${JSON.stringify(fin5 && { rect: fin5.rect, hits: fin5.hits })} reached=${JSON.stringify(!!reached)}`);
+            }
+          }
+
+          // g. doc 外扩带起笔（工单89）：文档区顶条上沿外 20px——旧几何（条目包围盒
+          //    +10px 边带）下是穿透真桌面、起不了笔的空白；新几何（容器外扩 24px）下
+          //    面板接住、直接起笔框选。起笔点落分区 DOM 内（组标签带），前置断言其在
+          //    现役 doc-zone 热区矩形内且不落任何条目。
+          {
+            const docZoneRect = latestZoneOf('doc-zone', t21);
+            const docRingStart = { x: T.x + T.w / 2, y: T.y - 20 };
+            const docRingEnd = N ? { x: N.x + N.w / 2, y: N.y + N.h / 2 } : { x: T.x + T.w / 2, y: T.y + T.h / 2 };
+            const docRingBlank = !docRects.some((r) => docRingStart.x > r.x && docRingStart.x < r.x + r.w && docRingStart.y > r.y && docRingStart.y < r.y + r.h);
+            if (!docZoneRect || !inBox(docRingStart, docZoneRect) || !docRingBlank) {
+              rep.fail(`doc 外扩带前置异常：dz=${JSON.stringify(docZoneRect)} start=(${Math.round(docRingStart.x)},${Math.round(docRingStart.y)}) blank=${docRingBlank}`);
+            } else {
+              const tDocRing = Date.now();
+              const okDocRing = await dragMarquee(ptOfDip(docRingStart.x, docRingStart.y), ptOfDip(docRingEnd.x, docRingEnd.y));
+              if (!okDocRing) {
+                rep.fail('doc 外扩带框选用例未执行（前置失败）');
+              } else {
+                const docRingExpected = hitsOf(boxOf(docRingStart, docRingEnd));
+                const startedDocRing = await waitEvent('desktop-marquee-started', (e) => e.t >= tDocRing, 4000);
+                const finDocRing = await waitEvent('desktop-marquee-finished', (e) => e.t >= tDocRing && e.ctrl === false && sameNames(e.hits, docRingExpected) && sameNames(e.names, docRingExpected), 4000);
+                startedDocRing && finDocRing
+                  ? rep.pass(`doc 外扩带起笔框选：顶条上沿外 20px（旧 10px 边带外的穿透区）直接起笔，命中 [${docRingExpected.join(', ')}]`)
+                  : rep.fail(`doc 外扩带框选存证异常：started=${JSON.stringify(!!startedDocRing)} fin=${JSON.stringify(finDocRing && { hits: finDocRing.hits })}`);
+                safeShot('89-marquee-doc-ring', {
+                  left: Math.max(0, rectS.left + Math.round((T.x - 24) * f)),
+                  top: Math.max(0, rectS.top + Math.round((docRingStart.y - 12) * f)),
+                  right: rectS.left + Math.round((T.x + T.w + 24) * f),
+                  bottom: rectS.top + Math.round((docRingEnd.y + 24) * f),
+                });
+              }
+            }
+          }
+
+          // h. dock 外扩带起笔（工单89）：dock 条目顶上 20px——条内边距只有 10px，此点
+          //    在旧热区边带外、也在分区 DOM 之外（target=body 的环带路由）。起笔下扫
+          //    首个应用条目，期望命中恰为该条目（零宽矩形：同排邻条贴边不相交）。
+          {
+            const dockZoneRect = latestZoneOf('dock-zone', t21);
+            const dockTop = dockRects.length ? Math.min(...dockRects.map((r) => r.y)) : null;
+            const dockRingStart = dockTop !== null ? { x: appItem.x + appItem.w / 2, y: dockTop - 20 } : null;
+            const dockRingEnd = dockRingStart ? { x: dockRingStart.x, y: appItem.y + appItem.h / 2 } : null;
+            const dockRingBlank = dockRingStart && !dockRects.some((r) => dockRingStart.x > r.x && dockRingStart.x < r.x + r.w && dockRingStart.y > r.y && dockRingStart.y < r.y + r.h);
+            if (!dockZoneRect || !dockRingStart || !inBox(dockRingStart, dockZoneRect) || !dockRingBlank) {
+              rep.fail(`dock 外扩带前置异常：dz=${JSON.stringify(dockZoneRect)} start=${JSON.stringify(dockRingStart)} blank=${JSON.stringify(dockRingBlank)}`);
+            } else {
+              const dockRingExpected = hitsOf(boxOf(dockRingStart, dockRingEnd));
+              if (!dockRingExpected.includes(appItem.name)) {
+                rep.fail(`dock 外扩带期望异常：A 未被起笔→A 中心矩形扫中（${JSON.stringify(dockRingExpected)}）`);
+              } else {
+                const tDockRing = Date.now();
+                const okDockRing = await dragMarquee(ptOfDip(dockRingStart.x, dockRingStart.y), ptOfDip(dockRingEnd.x, dockRingEnd.y));
+                if (!okDockRing) {
+                  rep.fail('dock 外扩带框选用例未执行（前置失败）');
+                } else {
+                  const startedDockRing = await waitEvent('desktop-marquee-started', (e) => e.t >= tDockRing, 4000);
+                  const finDockRing = await waitEvent('desktop-marquee-finished', (e) => e.t >= tDockRing && e.ctrl === false && sameNames(e.hits, dockRingExpected) && sameNames(e.names, dockRingExpected), 4000);
+                  startedDockRing && finDockRing
+                    ? rep.pass(`dock 外扩带起笔框选：条目顶上 20px（旧边带外的穿透区，body 环带路由）直接起笔，命中 [${dockRingExpected.join(', ')}]`)
+                    : rep.fail(`dock 外扩带框选存证异常：started=${JSON.stringify(!!startedDockRing)} fin=${JSON.stringify(finDockRing && { hits: finDockRing.hits })}`);
+                  safeShot('89-marquee-dock-ring', {
+                    left: Math.max(0, rectS.left + Math.round((appItem.x - 24) * f)),
+                    top: Math.max(0, rectS.top + Math.round((dockRingStart.y - 12) * f)),
+                    right: rectS.left + Math.round((appItem.x + appItem.w + 24) * f),
+                    bottom: rectS.top + Math.round((dockRingEnd.y + 24) * f),
+                  });
+                }
+              }
             }
           }
         }
