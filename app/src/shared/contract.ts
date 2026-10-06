@@ -62,7 +62,7 @@ export interface WeatherLocation {
 /** 桌面项种类（工单05）：快捷方式/网址文件归应用区，文件与文件夹归文档区 */
 export type DesktopItemKind = 'shortcut' | 'url' | 'file' | 'folder'
 
-/** 桌面项分区：应用区（底部 dock）/ 文档区 */
+/** 桌面项分区：应用区（工单59 起由任务栏承载，桌面不摆位）/ 文档区（桌面唯一承载面） */
 export type DesktopZone = 'app' | 'doc'
 
 /** 桌面项（GLOSSARY.md 词汇：被面板承载并渲染的桌面文件或快捷方式） */
@@ -82,15 +82,6 @@ export interface DesktopItem {
   mtimeMs: number
 }
 
-/** 应用区栏位来源（工单06 编排）：手钉 / 用户拖拽摆位 / 使用频次推荐 */
-export type DesktopDockSource = 'pinned' | 'placed' | 'recommended'
-
-/** dock 有序条目（手钉在前、显式摆位其后、推荐按频次填补） */
-export interface DesktopDockEntry {
-  name: string
-  source: DesktopDockSource
-}
-
 /** 文档组（按扩展名聚合；组序固定） */
 export type DesktopDocGroup = 'folders' | 'office' | 'pdf' | 'image' | 'archive' | 'other'
 
@@ -103,9 +94,10 @@ export interface DesktopDocEntry {
   row: number
 }
 
-/** 编排计划（工单06）：渲染层按 dock 序铺条、按 docs 的组序/组内序铺列 */
+/** 编排计划（工单06）：渲染层按 docs 的组序/组内序铺列。
+ * dock 段随工单59 退役——应用区已并入任务栏，桌面只承载文档区；应用条目仍在条目
+ * 池内（zone=app），作为任务栏左组手钉与中组推荐位的元数据来源，不再由桌面渲染。 */
 export interface DesktopPlan {
-  dock: DesktopDockEntry[]
   docs: DesktopDocEntry[]
 }
 
@@ -122,8 +114,6 @@ export interface DesktopLayout {
   docZone: { left: number; top: number; maxWidth: number }
   /** 文档组满几行折右列 */
   docMaxRows: number
-  /** dock 条最大宽度（DIP；超出折行） */
-  dockMaxWidth: number
 }
 
 /** 设置状态（工单08）：卡片底色透明度全局滑杆值（0..1，rgba alpha 语义；config.appearance.cardOpacity 平移） */
@@ -432,18 +422,7 @@ export interface BridgeMethods {
     request: { names: string[]; zone: DesktopZone; beforeName: string | null }
     response: { ok: boolean; moved: string[]; skipped: string[]; error?: string }
   }
-  /**
-   * 钉到应用区（工单25 手钉管理）：name 进手钉清单前段（已在清单则移到最前），占据
-   * dock 前段栏位、不被推荐顶替；显式摆位名单不动（取消手钉时按其裁决归位）。
-   * name 必须在当前扫描池内（move 同款护栏）；落盘并即时重编排。
-   */
-  'desktop/pin': { request: { name: string }; response: { ok: boolean; error?: string } }
-  /**
-   * 取消手钉（工单25）：name 从手钉清单移除，条目回归归类与显式摆位裁决（文档类条目
-   * 回文档区）；清单本就不含时幂等空转。name 必须在当前扫描池内；落盘并即时重编排。
-   */
-  'desktop/unpin': { request: { name: string }; response: { ok: boolean; error?: string } }
-  /** 恢复出厂布局：清除全部显式摆位（手钉保留），回到归类 + 频次推荐的出厂编排 */
+  /** 恢复出厂布局：清除全部显式摆位，回到归类分组的出厂编排 */
   'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
   /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */
   'search/activate': { request: null; response: { state: SearchUiState } }

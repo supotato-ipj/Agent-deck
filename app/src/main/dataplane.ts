@@ -31,7 +31,7 @@ function snapshotOf(c: Context): DataplaneSnapshot {
     hardware: c.hardware.state(),
     desktop,
     // 中组推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推
-    recommendations: planTaskbarRecommendations(desktop.plan.dock, desktop.items, c.desktop.usageScores()),
+    recommendations: planTaskbarRecommendations(desktop.items, c.desktop.usageScores()),
   }
 }
 
@@ -129,12 +129,6 @@ if (parentPort) {
           } else if (msg.method === 'desktop/move-batch') {
             const { names, zone, beforeName } = msg.payload as { names: string[]; zone: DesktopZone; beforeName: string | null }
             result = ctx.desktop.moveBatch(names, zone, beforeName)
-          } else if (msg.method === 'desktop/pin') {
-            const { name } = msg.payload as { name: string }
-            result = ctx.desktop.pin(name)
-          } else if (msg.method === 'desktop/unpin') {
-            const { name } = msg.payload as { name: string }
-            result = ctx.desktop.unpin(name)
           } else if (msg.method === 'desktop/reset-layout') {
             result = ctx.desktop.resetLayout()
           } else if (msg.method === 'desktop/trash') {

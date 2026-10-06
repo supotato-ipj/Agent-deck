@@ -100,9 +100,39 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: Ev
   ipcMain.on('deck:host-set-hotzones', onHotzones)
   ipcMain.on('deck:host-notify', onNotify)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
+  wireRendererWatchdog(win, log)
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
     ipcMain.removeListener('deck:host-keyboard-mode', onKeyboardMode)
   })
+}
+
+/** 渲染层看门狗（工单59 真机验收挖出）：面板本体永不激活、恒在普通窗之下，渲染层
+ * 一旦失能（崩或卡）不会有任何用户可见征兆——面板只是「不响应了」，而常驻件不重启
+ * 就是永久失去交互。这里把三种失能形态各自落一条存证：崩溃/退出（Electron 事件）与
+ * 「收不到任何渲染层上行」（心跳超时）——后者是静默卡死的唯一可观测信号。 */
+function wireRendererWatchdog(win: BrowserWindow, log: EventLog | null): void {
+  const wc = win.webContents;
+  wc.on('unresponsive', () => log?.append({ type: 'renderer-unresponsive' }));
+  wc.on('render-process-gone', (_e, d) => log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode }));
+  if (!log) return;
+  let lastBeat = Date.now();
+  let reported = false;
+  const beat = () => { lastBeat = Date.now(); if (reported) reported = false; };
+  wc.on('ipc-message', beat);
+  // 心跳：靠渲染层真实上行（热区声明/存证）计时，不另加定时器——渲染层死了就没有心跳
+  const timer = setInterval(() => {
+    if (win.isDestroyed() || wc.isDestroyed()) return;
+    if (Date.now() - lastBeat < 5000) return;
+    if (reported) return;
+    reported = true;
+    log.append({
+      type: 'renderer-stall',
+      quietMs: Date.now() - lastBeat,
+      crashed: wc.isCrashed(),
+      pid: wc.getOSProcessId(),
+    });
+  }, 2000);
+  win.once('closed', () => clearInterval(timer));
 }

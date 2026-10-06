@@ -31,7 +31,7 @@ export interface DataplaneServiceOptions {
  *
  * 本服务只做四件事：转发每拍快照（触发桥接推送）、预热图标（app.getFileIcon
  * 是主进程 API，按快照条目增量提取）、代理解析 lnk 目标（readShortcutLink 同理）、
- * 转发桌面承载写请求（move/reset/pin/unpin/trash；launch/reveal/copy-path/copy-paths 在
+ * 转发桌面承载写请求（move/reset/trash；launch/reveal/copy-path/copy-paths 在
  * 主进程校验快照条目池后执行——shell.openPath 与 clipboard 是主进程 API，reveal 校验段
  * 认主进程快照池；trash 的回收站源 shell.trashItem 同为主进程 API，但删除裁决与摆位
  * 清除在子进程（存储归属地），故走反向代理：子进程 trash-req → 本进程执行 → trash-res）。
@@ -189,7 +189,7 @@ export class DataplaneService extends Service implements PanelDataPort {
   }
 
   desktop(): DesktopState {
-    return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { dock: [], docs: [] } }
+    return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { docs: [] } }
   }
 
   /** 任务栏中组推荐位（工单54）：子进程随快照算好携带（分数跨进程不过桥——名单即产物） */
@@ -291,14 +291,6 @@ export class DataplaneService extends Service implements PanelDataPort {
 
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
     return this.call('desktop/move-batch', { names, zone, beforeName }) as Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
-  }
-
-  pin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return this.call('desktop/pin', { name }) as Promise<{ ok: boolean; error?: string }>
-  }
-
-  unpin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return this.call('desktop/unpin', { name }) as Promise<{ ok: boolean; error?: string }>
   }
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {

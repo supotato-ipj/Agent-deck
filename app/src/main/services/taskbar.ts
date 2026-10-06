@@ -11,7 +11,7 @@ import { normalizeExe, planLeftGroup } from '../taskbar/left-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/left-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
-import { loadTaskbarStore, migrateDockPinned, moveInOrder, parseDockPinnedNames, pinEntry, reorderPinned, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
+import { loadTaskbarStore, migrateLegacyPinned, moveInOrder, parseLegacyPinnedNames, pinEntry, reorderPinned, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
 import { applyRecommendationOrder } from '../taskbar/plan'
 import type { TaskbarWindowInfo } from '../taskbar/windows'
@@ -32,8 +32,8 @@ export interface TaskbarServiceOptions {
   config?: AppConfig
   /** 栏布局存储文件（工单52；默认 userData/taskbar-layout.json） */
   storeFile?: string
-  /** dock 迁移源（旧 dock 摆位存储；默认 userData/layout.json）。只读——dock 退役属工单59 */
-  dockStoreFile?: string
+  /** 旧桌面摆位存储（默认 userData/layout.json）。只读——只取其手钉名单迁进栏左组，工单59 后 desktop 只编排文档区 */
+  legacyLayoutFile?: string
   /** 依赖缝：真源缺省延迟绑定（离线测试注入假源后不触 FFI/Electron） */
   deps?: {
     /** 按键合成真源（缺省延迟绑定 taskbar/syskeys） */
@@ -127,7 +127,7 @@ export class TaskbarService extends Service {
   private readonly file: string | null
   private readonly appConfig: AppConfig | null
   private readonly storeFile: string
-  private readonly dockStoreFile: string
+  private readonly legacyLayoutFile: string
   private readonly deps: TaskbarDeps
   private current: TaskbarState
   private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [] }
@@ -143,7 +143,7 @@ export class TaskbarService extends Service {
     this.file = options.file ?? null
     this.appConfig = options.config ?? null
     this.storeFile = options.storeFile ?? userDataPath('taskbar-layout.json')
-    this.dockStoreFile = options.dockStoreFile ?? userDataPath('layout.json')
+    this.legacyLayoutFile = options.legacyLayoutFile ?? userDataPath('layout.json')
     this.deps = {
       sendSystemKeys: options.deps?.sendSystemKeys
         ?? ((action) => (require('../taskbar/syskeys') as typeof import('../taskbar/syskeys')).sendSystemAction(action)),
@@ -153,11 +153,15 @@ export class TaskbarService extends Service {
       ownExe: options.deps?.ownExe ?? process.execPath,
       desktopItems: options.deps?.desktopItems ?? (() => this.ctx.panelData.desktop().items),
       resolveShortcutTarget: options.deps?.resolveShortcutTarget
-        // 桌面服务在场时走它（同进程直连，无模块加载）；离线内核只有本服务时兜回
-        // desktop/adapter 的惰性绑定
+        // 桌面服务在场时走它（同进程直连，无模块加载）；不在场则走 desktop/adapter
+        // 的惰性绑定。ctx 是 cordis 代理，未注册属性的读取会抛（"property desktop is
+        // not registered"）——`ctx.desktop?.` 兜不住，必须 try 住，否则中组推荐位
+        // 每拍解析每个 lnk 都抛一次（工单59 真机首跑实证：1Hz 刷屏、中组空）
         ?? ((p: string) => {
-          const desktop = (this.ctx as unknown as { desktop?: { readShortcutTarget?: (lnk: string) => string | null } }).desktop
-          if (desktop?.readShortcutTarget) return desktop.readShortcutTarget(p)
+          try {
+            const desktop = (this.ctx as unknown as { desktop?: { readShortcutTarget?: (lnk: string) => string | null } }).desktop
+            if (desktop?.readShortcutTarget) return desktop.readShortcutTarget(p)
+          } catch { /* cordis 未注册访问抛错：落 Electron 兜底 */ }
           return (require('../desktop/adapter') as typeof import('../desktop/adapter')).electronShortcutTarget(p)
         }),
       readStoreText: options.deps?.readStoreText ?? readStoreText,
@@ -339,7 +343,7 @@ export class TaskbarService extends Service {
   /**
    * 左组一个编排轮（工单52；生产由内核 1Hz 定时器驱动——应用启动/退出 1–2 秒内
    * 反映到左组；离线契约测试手动驱动）。禁用态空转：栏窗已销，不枚举窗口。
-   * 迁移随首轮就位：栏布局存储缺位时把旧 dock 手钉名单迁入（顺序保持），
+   * 迁移随首轮就位：栏布局存储缺位时把旧桌面 layout.json 的手钉名单迁入（顺序保持），
    * 落盘成功才算迁移完成。
    */
   refresh(): void {
@@ -555,8 +559,8 @@ export class TaskbarService extends Service {
 
   /**
    * 栏布局装载/迁移（工单52，一次性）：存储在场即读入（自愈解析）；缺位则首跑迁移——
-   * 旧 dock 手钉名单经桌面项池解析为 exe 身份（顺序保持）落盘为栏布局。迁移只读
-   * dock 摆位存储（dock 退役属工单59）；写失败不置位，下一拍重试（迁移不丢手钉）。
+   * 旧桌面 layout.json 的手钉名单经桌面项池解析为 exe 身份（顺序保持）落盘为栏布局。
+   * 迁移源只读（工单59 后旧存储不再被写）；写失败不置位，下一拍重试（迁移不丢手钉）。
    */
   private ensureLayout(): void {
     if (this.layoutReady) return
@@ -566,8 +570,8 @@ export class TaskbarService extends Service {
       this.layoutReady = true
       return
     }
-    const pinned: TaskbarPinnedEntry[] = migrateDockPinned(
-      parseDockPinnedNames(this.deps.readStoreText(this.dockStoreFile)),
+    const pinned: TaskbarPinnedEntry[] = migrateLegacyPinned(
+      parseLegacyPinnedNames(this.deps.readStoreText(this.legacyLayoutFile)),
       this.deps.desktopItems(),
       this.deps.resolveShortcutTarget,
     )

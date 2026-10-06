@@ -338,6 +338,12 @@ if (RESTORE_MODE) {
   if (PANEL_ACCEPT_MODE && process.env.DECK_CDP_PORT) {
     app.commandLine.appendSwitch('remote-debugging-port', process.env.DECK_CDP_PORT)
   }
+  // 遮挡不得降频（工单59 真机首跑实证，见 panel-window.ts 的 backgroundThrottling）：
+  // 面板与条带是常驻桌面件，被普通窗盖住是常态而非「看不见」——Chromium 默认把被遮挡
+  // 的渲染层后台化（停帧、掐表），面板当场失能：热区不解穿透（点击漏到桌面）、新快照
+  // 不上屏（新建文件不出现）。这两项在 ready 之前必须挂上。
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
   void app.whenReady().then(() => {
     if (ACCEPT_MODE) {
       // 验收电池：同一 Electron 应用上下文内以控制器身份运行（复用 nativeImage 截屏比对）。

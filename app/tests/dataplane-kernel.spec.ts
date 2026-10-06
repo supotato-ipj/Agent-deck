@@ -81,7 +81,7 @@ describe('数据面内核（采集子进程的服务装配）', () => {
       expect('qoder' in snap).toBe(false)
       expect(snap.hardware.gauges.gpu_usage).toBe(42)
       expect(snap.desktop.items.map((i) => i.name)).toEqual(['Probe.lnk'])
-      expect(snap.desktop.plan.dock.map((d) => d.name)).toEqual(['Probe.lnk'])
+      expect(snap.desktop.plan.docs).toEqual([]) // 工单59：应用条目不再由桌面承载编排
     } finally {
       await ctx.stop()
     }
@@ -111,11 +111,11 @@ describe('数据面内核（采集子进程的服务装配）', () => {
     })
     await ctx.start()
     try {
-      expect(ctx.desktop.move('B.lnk', 'app', 'A.lnk')).toEqual({ ok: true })
+      expect(ctx.desktop.move('B.lnk', 'doc', null)).toEqual({ ok: true })
       await new Promise((r) => setTimeout(r, 60))
       const snap = snapshots[snapshots.length - 1]
-      expect(snap.desktop.plan.dock.map((d) => [d.name, d.source]))
-        .toEqual([['B.lnk', 'placed'], ['A.lnk', 'recommended']])
+      expect(snap.desktop.items.find((i) => i.name === 'B.lnk')?.zone).toBe('doc')
+      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['B.lnk'])
     } finally {
       await ctx.stop()
     }
@@ -157,19 +157,18 @@ describe('数据面内核（采集子进程的服务装配）', () => {
     })
     await ctx.start()
     try {
-      expect(ctx.desktop.move('B.lnk', 'app', 'A.lnk')).toEqual({ ok: true })
+      expect(ctx.desktop.move('B.lnk', 'doc', null)).toEqual({ ok: true })
       await new Promise((r) => setTimeout(r, 60))
-      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
-        .toEqual([['B.lnk', 'placed'], ['A.lnk', 'recommended']])
+      expect(snapshots[snapshots.length - 1].desktop.plan.docs.map((d) => d.name)).toEqual(['B.lnk'])
       const r = await ctx.desktop.trash([bPath])
       expect(r).toEqual({ ok: true, trashed: ['B.lnk'], failed: [] })
       await new Promise((r) => setTimeout(r, 60))
       expect(snapshots[snapshots.length - 1].desktop.items.map((i) => i.name)).toEqual(['A.lnk'])
-      // 同名复活不归位（摆位清除的防复活语义）：重建同名文件，编排退推荐段而非 placed 段
+      // 同名复活不归位（摆位清除的防复活语义）：重建同名文件，回扫描器默认分区而非摆位分区
       fs.writeFileSync(bPath, 'stub')
       await new Promise((r) => setTimeout(r, 60))
-      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
-        .toEqual([['A.lnk', 'recommended'], ['B.lnk', 'recommended']])
+      expect(snapshots[snapshots.length - 1].desktop.items.find((i) => i.name === 'B.lnk')?.zone).toBe('app')
+      expect(snapshots[snapshots.length - 1].desktop.plan.docs.map((d) => d.name)).toEqual([])
     } finally {
       await ctx.stop()
     }
@@ -199,18 +198,16 @@ describe('数据面内核（采集子进程的服务装配）', () => {
     })
     await ctx.start()
     try {
-      expect(ctx.desktop.move('B.lnk', 'app', 'A.lnk')).toEqual({ ok: true })
+      expect(ctx.desktop.move('B.lnk', 'doc', null)).toEqual({ ok: true })
       await new Promise((r) => setTimeout(r, 60))
-      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
-        .toEqual([['B.lnk', 'placed'], ['A.lnk', 'recommended']])
+      expect(snapshots[snapshots.length - 1].desktop.plan.docs.map((d) => d.name)).toEqual(['B.lnk'])
       // 显示名输入（不带 .lnk）→ 内核补回原扩展；盘面真改名
       expect(await ctx.desktop.rename('B.lnk', 'Renamed')).toEqual({ ok: true, to: 'Renamed.lnk' })
       expect(fs.existsSync(path.join(dir, 'user', 'B.lnk'))).toBe(false)
       expect(fs.existsSync(path.join(dir, 'user', 'Renamed.lnk'))).toBe(true)
       await new Promise((r) => setTimeout(r, 60))
-      // 摆位同拍迁移：placed 段身份随新名延续（面板发起的改名不丢位置）
-      expect(snapshots[snapshots.length - 1].desktop.plan.dock.map((d) => [d.name, d.source]))
-        .toEqual([['Renamed.lnk', 'placed'], ['A.lnk', 'recommended']])
+      // 摆位同拍迁移：文档区摆位身份随新名延续（面板发起的改名不丢位置）
+      expect(snapshots[snapshots.length - 1].desktop.plan.docs.map((d) => d.name)).toEqual(['Renamed.lnk'])
     } finally {
       await ctx.stop()
     }

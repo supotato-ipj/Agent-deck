@@ -151,7 +151,6 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     await ctx.start()
     try {
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.plan.dock.map((d) => d.name)).toEqual(['Probe.lnk'])
       expect(snap.desktop.plan.docs.map((d) => [d.name, d.group])).toEqual([['a.docx', 'office']])
       expect(snap.layout.docMaxRows).toBeGreaterThan(0)
       expect(snap.layout.docZone).toMatchObject({ left: expect.any(Number), top: expect.any(Number), maxWidth: expect.any(Number) })
@@ -273,18 +272,18 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }))
     await ctx.start()
     try {
-      // 先造显式摆位（A.lnk 入 dock placed 段），删除后须同拍清除
-      await ctx.bridge.invoke('desktop/move', { name: 'A.lnk', zone: 'app', beforeName: null })
+      // 先造显式摆位（A.lnk 入文档区摆位名单），删除后须同拍清除
+      await ctx.bridge.invoke('desktop/move', { name: 'A.lnk', zone: 'doc', beforeName: null })
       const snap0 = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap0.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([['A.lnk', 'placed']])
+      expect(snap0.desktop.plan.docs.map((d) => d.name)).toContain('A.lnk')
       const pathOf = (name: string) => (snap0.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
       // 部分失败：A 成功、B 权限拒绝——ok=false + failed + error 明细（菜单层提示依据）
       const r = await ctx.bridge.invoke('desktop/trash', { paths: [pathOf('A.lnk'), pathOf('B.docx')] })
       expect(r).toEqual({ ok: false, trashed: ['A.lnk'], failed: ['B.docx'], error: 'B.docx：拒绝访问。' })
       expect(trashedFiles).toEqual([pathOf('A.lnk')])
-      // A 的显式摆位同拍清除：条目还在池（假源不真删盘面），但编排退回推荐段
+      // A 的显式摆位同拍清除：条目还在池（假源不真删盘面），但编排退回归类位
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.plan.dock).toEqual([{ name: 'A.lnk', source: 'recommended' }])
+      expect(snap.desktop.plan.docs.map((d) => d.name)).not.toContain('A.lnk')
       // 池外整份拒绝（copy-paths 同款护栏）：不删半份
       const outside = await ctx.bridge.invoke('desktop/trash', { paths: [pathOf('B.docx'), 'C:\\Windows\\System32\\cmd.exe'] })
       expect(outside).toEqual({ ok: false, trashed: [], failed: [], error: '桌面项不在当前扫描池内' })
@@ -399,16 +398,16 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }))
     await ctx.start()
     try {
-      const moved = await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'app', beforeName: 'A.lnk' })
+      const moved = await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'doc', beforeName: 'n.docx' })
       expect(moved).toEqual({ ok: true })
       let snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.plan.dock.map((d) => d.name)).toEqual(['B.lnk', 'A.lnk'])
-      // 跨区：文档入 dock
+      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['n.docx', 'B.lnk'])
+      // 桌面只剩文档区一处承载（工单59 dock 退役）：拖到 app 区即撤掉显式摆位、回归类段
       const cross = await ctx.bridge.invoke('desktop/move', { name: 'n.docx', zone: 'app', beforeName: null })
       expect(cross).toEqual({ ok: true })
       snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.items.find((i) => i.name === 'n.docx')?.zone).toBe('app')
-      expect(snap.desktop.plan.docs).toEqual([])
+      // n.docx 本就属 office 组，归类段照样落在文档区；B.lnk 的显式摆位不受牵连
+      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['n.docx', 'B.lnk'])
       // 非法参照（在另一分区）
       const bad = await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'doc', beforeName: 'A.lnk' })
       expect(bad.ok).toBe(false)
@@ -424,72 +423,28 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     fs.writeFileSync(path.join(dir, 'user', 'B.lnk'), 'stub')
     fs.writeFileSync(path.join(dir, 'user', 'C.lnk'), 'stub')
     fs.writeFileSync(path.join(dir, 'user', 'n.docx'), 'stub')
-    const pinned = JSON.stringify({ version: 1, pinned: ['C.lnk'], dock: [], docs: [] })
+    const placed = JSON.stringify({ version: 1, docs: ['C.lnk'] })
     const ctx = createKernel(kernelOpts(dir, {
       desktop: desktopOpts(dir, {
         deps: {
           extractIcon: async () => null,
           open: async () => '',
-          readStoreText: () => pinned,
+          readStoreText: () => placed,
         },
       }),
     }))
     await ctx.start()
     try {
-      // 选区插入序 [B.lnk, A.lnk] 整组迁到文档区末尾；C.lnk 手钉跳过
-      const moved = await ctx.bridge.invoke('desktop/move-batch', { names: ['B.lnk', 'A.lnk', 'C.lnk'], zone: 'doc', beforeName: null })
-      expect(moved).toEqual({ ok: true, moved: ['B.lnk', 'A.lnk'], skipped: ['C.lnk'] })
+      // 选区插入序整组迁到文档区末尾；池外名字（外部删除竞态）跳过并如实回报
+      const moved = await ctx.bridge.invoke('desktop/move-batch',
+        { names: ['B.lnk', 'A.lnk', 'ghost.lnk'], zone: 'doc', beforeName: null })
+      expect(moved).toEqual({ ok: true, moved: ['B.lnk', 'A.lnk'], skipped: ['ghost.lnk'] })
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
       expect(snap.desktop.items.find((i) => i.name === 'B.lnk')?.zone).toBe('doc')
-      expect(snap.desktop.items.find((i) => i.name === 'C.lnk')?.zone).toBe('app')
-      expect(snap.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([['C.lnk', 'pinned']])
       // 无效参照（参照条目在被拖组内——批量特有的整批校验；他区/池外参照同拒）：整批拒绝
       const bad = await ctx.bridge.invoke('desktop/move-batch', { names: ['A.lnk', 'C.lnk'], zone: 'app', beforeName: 'C.lnk' })
       expect(bad.ok).toBe(false)
       expect(bad.error).toBeTruthy()
-    } finally {
-      await ctx.stop()
-    }
-  })
-
-  it('desktop/pin + desktop/unpin（工单25）：手钉清单变更即时重编排，池外名字拒绝', async () => {
-    const dir = tmpDir()
-    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
-    fs.writeFileSync(path.join(dir, 'user', 'hot.lnk'), 'stub')
-    fs.writeFileSync(path.join(dir, 'user', 'n.docx'), 'stub')
-    const ctx = createKernel(kernelOpts(dir, {
-      desktop: desktopOpts(dir, {
-        deps: {
-          extractIcon: async () => null,
-          open: async () => '',
-        },
-      }),
-    }))
-    await ctx.start()
-    try {
-      // 钉到应用区：文档类条目进 dock 前段（pinned），占栏位不被推荐顶替
-      const pinned = await ctx.bridge.invoke('desktop/pin', { name: 'n.docx' })
-      expect(pinned).toEqual({ ok: true })
-      let snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([
-        ['n.docx', 'pinned'],
-        ['A.lnk', 'recommended'],
-        ['hot.lnk', 'recommended'],
-      ])
-      expect(snap.desktop.plan.docs).toEqual([])
-      expect(snap.desktop.items.find((i) => i.name === 'n.docx')?.zone).toBe('app')
-      // 取消手钉：回归归类（文档类回文档区）
-      const unpinned = await ctx.bridge.invoke('desktop/unpin', { name: 'n.docx' })
-      expect(unpinned).toEqual({ ok: true })
-      snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.plan.dock.map((d) => d.source)).toEqual(['recommended', 'recommended'])
-      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['n.docx'])
-      expect(snap.desktop.items.find((i) => i.name === 'n.docx')?.zone).toBe('doc')
-      // 池外名字拒绝（move 同款护栏）
-      await expect(ctx.bridge.invoke('desktop/pin', { name: 'ghost.lnk' }))
-        .resolves.toMatchObject({ ok: false, error: '桌面项不在当前扫描池内' })
-      await expect(ctx.bridge.invoke('desktop/unpin', { name: 'ghost.lnk' }))
-        .resolves.toMatchObject({ ok: false, error: '桌面项不在当前扫描池内' })
     } finally {
       await ctx.stop()
     }
@@ -509,11 +464,14 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     }))
     await ctx.start()
     try {
-      await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'app', beforeName: 'A.lnk' })
+      // 快捷方式被拖进文档区 → 摆位名单 1 条；恢复出厂后它回到扫描器默认分区（应用区）
+      await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'doc', beforeName: null })
+      expect((await ctx.bridge.invoke('panel/snapshot', null)).desktop.plan.docs.map((d) => d.name))
+        .toContain('B.lnk')
       const r = await ctx.bridge.invoke('desktop/reset-layout', null)
       expect(r).toEqual({ ok: true, cleared: 1 })
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.desktop.plan.dock.map((d) => [d.name, d.source])).toEqual([['A.lnk', 'recommended'], ['B.lnk', 'recommended']])
+      expect(snap.desktop.plan.docs.map((d) => d.name)).not.toContain('B.lnk')
     } finally {
       await ctx.stop()
     }
@@ -1117,7 +1075,7 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
 
 describe('内核桥接契约（工单52 任务栏左组）', () => {
   /**
-   * 左组桩：栏布局存储与 dock 迁移源都落 tmp（绝不触真 userData）；窗口枚举/桌面项池/
+   * 左组桩：栏布局存储与旧桌面迁移源都落 tmp（绝不触真 userData）；窗口枚举/桌面项池/
    * lnk 解析/图标键全假源。返回引用以便逐用例改写窗口集与断言落盘文本。
    */
   function leftOpts(dir: string, over: Record<string, unknown> = {}) {
@@ -1130,7 +1088,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
     const opts = {
       taskbar: {
         storeFile: path.join(dir, 'taskbar-layout.json'),
-        dockStoreFile: path.join(dir, 'layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
         deps: {
           sendSystemKeys: () => true,
           listWindows: () => { env.enumCalls++; return env.windows },
@@ -1152,7 +1110,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       { name: 'A.lnk', path: 'C:\\Users\\u\\Desktop\\A.lnk', kind: 'shortcut', display: '甲', iconKey: 'C:\\Users\\u\\Desktop\\A.lnk|1' },
     ]
     t.env.targets.set('C:\\Users\\u\\Desktop\\A.lnk', 'C:\\Apps\\A.exe')
-    fs.writeFileSync(t.opts.taskbar.dockStoreFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
+    fs.writeFileSync(t.opts.taskbar.legacyLayoutFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
     t.env.windows = [
       { exe: 'C:\\Apps\\A.exe', title: '甲 - 编辑中', hwnd: 101, pid: 1001 },
       { exe: 'C:\\Apps\\B.exe', title: '乙窗口', hwnd: 102, pid: 1002 },
@@ -1182,7 +1140,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
     }
   }, 30_000)
 
-  it('dock 手钉迁移进栏布局且顺序保持；落盘只含 exe 身份与展示元数据（窗口标题永不持久化）', async () => {
+  it('旧桌面手钉迁移进栏布局且顺序保持；落盘只含 exe 身份与展示元数据（窗口标题永不持久化）', async () => {
     const dir = tmpDir()
     const t = leftOpts(dir)
     t.env.items = [
@@ -1191,7 +1149,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
     ]
     t.env.targets.set('C:\\Users\\u\\Desktop\\A.lnk', 'C:\\Apps\\A.exe')
     t.env.targets.set('C:\\Users\\u\\Desktop\\B.lnk', 'C:\\Apps\\B.exe')
-    fs.writeFileSync(t.opts.taskbar.dockStoreFile, JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] }))
+    fs.writeFileSync(t.opts.taskbar.legacyLayoutFile, JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] }))
     t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: 'SECRET-WINDOW-TITLE', hwnd: 101, pid: 1001 }]
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
@@ -1216,7 +1174,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       version: 1,
       pinned: [{ exe: 'C:\\keep.exe', label: '保留', iconKey: null }],
     }))
-    fs.writeFileSync(t.opts.taskbar.dockStoreFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
+    fs.writeFileSync(t.opts.taskbar.legacyLayoutFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
     t.env.items = [{ name: 'A.lnk', path: 'C:\\A.lnk', kind: 'shortcut', display: '甲', iconKey: 'C:\\A.lnk|1' }]
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
@@ -1228,7 +1186,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       await ctx.stop()
     }
     const dir2 = tmpDir()
-    const t2 = leftOpts(dir2) // dockStoreFile 不存在：迁移为空手钉，存储落盘标记迁移完成
+    const t2 = leftOpts(dir2) // legacyLayoutFile 不存在：迁移为空手钉，存储落盘标记迁移完成
     const ctx2 = createKernel(kernelOpts(dir2, t2.opts))
     await ctx2.start()
     try {
@@ -1267,7 +1225,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
 
 describe('内核桥接契约（工单53 左组交互）', () => {
   /**
-   * 左组交互桩：栏布局存储/dock 迁移源落 tmp；窗口枚举、前台、置前/最小化/关闭、
+   * 左组交互桩：栏布局存储/旧桌面迁移源落 tmp；窗口枚举、前台、置前/最小化/关闭、
    * 启动、reveal 全假源（Win32 系统效果不进单测——效果层薄壳由真机验收覆盖）。
    */
   function interactOpts(dir: string, over: Record<string, unknown> = {}) {
@@ -1283,7 +1241,7 @@ describe('内核桥接契约（工单53 左组交互）', () => {
     const opts = {
       taskbar: {
         storeFile: path.join(dir, 'taskbar-layout.json'),
-        dockStoreFile: path.join(dir, 'layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
         deps: {
           sendSystemKeys: () => true,
           listWindows: () => env.windows,
@@ -1647,7 +1605,7 @@ describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () =
     const opts = {
       taskbar: {
         storeFile: path.join(dir, 'taskbar-layout.json'),
-        dockStoreFile: path.join(dir, 'layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
         deps: {
           sendSystemKeys: () => true,
           listWindows: () => env.windows,
@@ -1893,7 +1851,7 @@ describe('内核桥接契约（工单58 左组应用点击分发：启动/置前
     const opts = {
       taskbar: {
         storeFile: path.join(dir, 'taskbar-layout.json'),
-        dockStoreFile: path.join(dir, 'layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
         deps: {
           sendSystemKeys: () => true,
           listWindows: () => env.windows,

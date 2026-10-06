@@ -99,14 +99,6 @@ export class BridgeService extends Service {
         const { names, zone, beforeName } = payload as { names: string[]; zone: DesktopZone; beforeName: string | null }
         return await this.ctx.panelData.moveBatch(names, zone, beforeName) as BridgeMethods[M]['response']
       }
-      case 'desktop/pin': {
-        const { name } = payload as { name: string }
-        return await this.ctx.panelData.pin(String(name)) as BridgeMethods[M]['response']
-      }
-      case 'desktop/unpin': {
-        const { name } = payload as { name: string }
-        return await this.ctx.panelData.unpin(String(name)) as BridgeMethods[M]['response']
-      }
       case 'desktop/reset-layout':
         return await this.ctx.panelData.resetLayout() as BridgeMethods[M]['response']
       case 'search/activate':

@@ -3,8 +3,8 @@
 // （自绘世界没有坐标可存，序即布局）。
 // 工单57 扩展：recommended = 用户在中组推荐位拖出的显式序（组内换位持久化）；手钉归属
 // 与左组手钉段序仍由 pinned 承担（组内换位 = pinned 名单换位，跨组拖拽 = 两名单间迁移）。
-// 另含 dock 迁移纯逻辑：旧 dock 手钉名单（桌面项名）→ 栏手钉清单（exe 身份）。
-// 迁移读路径自包含（不 import desktop 模块）——工单59 退役 dock 代码时本读路径不受影响。
+// 另含旧桌面迁移纯逻辑：旧桌面 layout.json 的手钉名单（桌面项名）→ 栏手钉清单（exe 身份）。
+// 迁移读路径自包含（不 import desktop 模块）——工单59 退役桌面 dock 后旧存储不再被写。
 import type { DesktopItemKind } from '../../shared/contract'
 import { normalizeExe, type TaskbarPinnedEntry } from './left-plan'
 
@@ -100,10 +100,10 @@ export function unpinEntry(store: TaskbarLayoutStore, exe: string): TaskbarLayou
 }
 
 /**
- * dock 迁移源解析：旧 dock 摆位存储（layout.json）的 pinned 名单原文读出，顺序保持。
+ * 迁移源解析：旧桌面摆位存储（layout.json）的 pinned 名单原文读出，顺序保持。
  * 防御性解析（损坏/非字符串数组 → 空名单）——迁移源不可信度与栏布局存储同款。
  */
-export function parseDockPinnedNames(text: string | null): string[] {
+export function parseLegacyPinnedNames(text: string | null): string[] {
   if (text === null) return []
   let raw: unknown
   try {
@@ -126,12 +126,12 @@ export interface MigrationItem {
 }
 
 /**
- * dock 手钉名单 → 栏手钉清单（顺序保持）：名字在桌面项池内解析身份——快捷方式经
+ * 旧桌面手钉名单 → 栏手钉清单（顺序保持）：名字在桌面项池内解析身份——快捷方式经
  * resolve 取目标 exe（解析不出以 lnk 路径为身份：栏位不丢，只是运行态合并不上），
  * 其余以自身路径为身份；label/iconKey 捕获桌面项的展示元数据。池外名字（条目已删）
  * 跳过——无法形成身份的迁移没有落点；归一后同身份的条目去重（首个胜）。
  */
-export function migrateDockPinned(
+export function migrateLegacyPinned(
   names: readonly string[],
   items: readonly MigrationItem[],
   resolve: (lnkPath: string) => string | null,

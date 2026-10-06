@@ -1,15 +1,15 @@
 /**
- * 任务栏布局存储与 dock 迁移纯逻辑测试（工单52）：
- * 存储自愈（desktop/layout-store 同款纪律）；迁移 = 旧 dock 手钉名单（显示名序）
+ * 任务栏布局存储与旧桌面迁移纯逻辑测试（工单52）：
+ * 存储自愈（desktop/layout-store 同款纪律）；迁移 = 旧桌面 layout.json 的手钉名单（显示名序）
  * 经桌面项池解析为 exe 身份的栏手钉清单，顺序保持。
  */
 import { describe, expect, it } from 'vitest'
 import {
   TASKBAR_FACTORY_STORE,
   loadTaskbarStore,
-  migrateDockPinned,
+  migrateLegacyPinned,
   moveInOrder,
-  parseDockPinnedNames,
+  parseLegacyPinnedNames,
   pinEntry,
   reorderPinned,
   serializeTaskbarStore,
@@ -59,18 +59,18 @@ describe('任务栏布局存储（自愈）', () => {
   })
 })
 
-describe('dock 迁移（旧 dock 手钉 → 栏手钉，顺序保持）', () => {
-  it('dock layout.json 的 pinned 名单解析：顺序保持；缺失/损坏/非字符串数组 → 空', () => {
+describe('旧桌面迁移（layout.json 手钉 → 栏左组手钉，顺序保持）', () => {
+  it('旧桌面 layout.json 的 pinned 名单解析：顺序保持；缺失/损坏/非字符串数组 → 空', () => {
     const text = JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] })
-    expect(parseDockPinnedNames(text)).toEqual(['B.lnk', 'A.lnk'])
-    expect(parseDockPinnedNames(null)).toEqual([])
-    expect(parseDockPinnedNames('{ 坏')).toEqual([])
-    expect(parseDockPinnedNames('{"version":1,"pinned":[1,2]}')).toEqual([])
+    expect(parseLegacyPinnedNames(text)).toEqual(['B.lnk', 'A.lnk'])
+    expect(parseLegacyPinnedNames(null)).toEqual([])
+    expect(parseLegacyPinnedNames('{ 坏')).toEqual([])
+    expect(parseLegacyPinnedNames('{"version":1,"pinned":[1,2]}')).toEqual([])
   })
 
   it('快捷方式解析目标为 exe 身份；label/iconKey 捕获桌面项元数据；顺序保持', () => {
     const targets = new Map([['C:\\Users\\u\\Desktop\\B.lnk', 'D:\\Apps\\Beta.exe']])
-    const out = migrateDockPinned(
+    const out = migrateLegacyPinned(
       ['B.lnk', 'A.lnk'],
       [item('A.lnk'), item('B.lnk', { display: '贝塔' })],
       (p) => targets.get(p) ?? null,
@@ -82,7 +82,7 @@ describe('dock 迁移（旧 dock 手钉 → 栏手钉，顺序保持）', () => 
   })
 
   it('解析不出目标的快捷方式以 lnk 路径为身份（栏位不丢，运行态合并不上）；非快捷方式以自身路径为身份', () => {
-    const out = migrateDockPinned(
+    const out = migrateLegacyPinned(
       ['dead.lnk', 'tool.exe'],
       [item('dead.lnk'), item('tool.exe', { kind: 'file', display: 'tool.exe' })],
       () => null,
@@ -94,7 +94,7 @@ describe('dock 迁移（旧 dock 手钉 → 栏手钉，顺序保持）', () => 
   })
 
   it('池外名字（条目已删）跳过；归一后同身份的条目去重（首个胜）', () => {
-    const out = migrateDockPinned(
+    const out = migrateLegacyPinned(
       ['gone.lnk', 'A.lnk', 'alias.lnk'],
       [item('A.lnk'), item('alias.lnk', { display: '别名' })],
       () => 'C:\\Apps\\A.exe', // 两个 lnk 指向同一目标
@@ -103,7 +103,7 @@ describe('dock 迁移（旧 dock 手钉 → 栏手钉，顺序保持）', () => 
   })
 
   it('迁移产物可落盘并读回（存储形态直通）', () => {
-    const pinned = migrateDockPinned(['A.lnk'], [item('A.lnk')], () => 'C:\\Apps\\A.exe')
+    const pinned = migrateLegacyPinned(['A.lnk'], [item('A.lnk')], () => 'C:\\Apps\\A.exe')
     const store = loadTaskbarStore(serializeTaskbarStore({ version: 1, pinned, recommended: [] }))
     expect(store.pinned).toEqual(pinned)
   })

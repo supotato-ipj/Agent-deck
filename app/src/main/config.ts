@@ -163,7 +163,7 @@ export function defaultWeather(): WeatherConfig {
 
 /** 默认桌面承载几何：renderer/index.html 工单05 的生产值固化（DIP） */
 export function defaultDesktopLayout(): DesktopLayout {
-  return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8, dockMaxWidth: 1240 }
+  return { docZone: { left: 408, top: 48, maxWidth: 640 }, docMaxRows: 8 }
 }
 
 /** 默认搜索配置：Listary 生产端口 + 缺省引擎 auto（零配置各用各的，工单14） */
@@ -365,7 +365,7 @@ function mergeWeather(raw: unknown, fallback: WeatherConfig, warnings: string[])
 }
 
 function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[]): DesktopLayout {
-  const out = { docZone: { ...fallback.docZone }, docMaxRows: fallback.docMaxRows, dockMaxWidth: fallback.dockMaxWidth }
+  const out = { docZone: { ...fallback.docZone }, docMaxRows: fallback.docMaxRows }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     warnings.push('config.desktop 不是对象，已整体回退默认桌面几何')
@@ -396,11 +396,6 @@ function mergeDesktop(raw: unknown, fallback: DesktopLayout, warnings: string[])
   if (rows !== undefined) {
     if (Number.isInteger(rows) && (rows as number) >= 1 && (rows as number) <= 32) out.docMaxRows = rows as number
     else warnings.push(`config.desktop.docMaxRows 须为 1..32 整数，已回退默认值 ${fallback.docMaxRows}`)
-  }
-  const dockW = desktop.dockMaxWidth
-  if (dockW !== undefined) {
-    if (isFiniteNumber(dockW) && dockW > 0) out.dockMaxWidth = dockW
-    else warnings.push(`config.desktop.dockMaxWidth 必须为正数，已回退默认值 ${fallback.dockMaxWidth}`)
   }
   return out
 }

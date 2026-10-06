@@ -27,3 +27,6 @@ app/config.json
 # coding agent 的项目本地目录；其中 agent-deck-worktree skill 的权威副本已入库到
 # docs/agents/worktree-workflow.md，本地副本只是给 agent 加载用的拷贝
 .zcode/
+
+# 电池整轮 stdout（调试产物；判决与证据在 03-battery.log.txt 与 03-runtime-events*.jsonl）
+app/accept/evidence/accept-stdout.log

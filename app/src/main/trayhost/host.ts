@@ -185,11 +185,14 @@ export class TrayHost {
     this.options.log?.({ type: 'tray-competition', why, win })
   }
 
-  /** 非阻塞泵：抽干队列即返回；跨进程 SendMessage（WM_COPYDATA）在 PeekMessage 内被派发到 WndProc */
+  /** 非阻塞泵：抽干**本窗**队列即返回；跨进程 SendMessage（WM_COPYDATA）在 PeekMessage
+   * 内被派发到 WndProc。hWnd 必须传本窗：传 0 会连 Chromium 自己那条线程队列一起抽干，
+   * 把 Electron 的窗口消息、线程消息乃至 WM_QUIT 都从它的泵里抢走（真机征候：面板
+   * 主线程停摆不再回消息、退出段收不到 quit 存证）。托盘窗是本进程唯一要自己泵的窗。 */
   private pump(): void {
-    if (!this.msgBuf) return
+    if (!this.msgBuf || !this.hwnd) return
     try {
-      while (this.f.peekMessage(this.msgBuf, 0, 0, 0, PM_REMOVE)) {
+      while (this.f.peekMessage(this.msgBuf, this.hwnd, 0, 0, PM_REMOVE)) {
         this.f.translateMessage(this.msgBuf)
         this.f.dispatchMessage(this.msgBuf)
       }

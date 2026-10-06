@@ -198,6 +198,6 @@ function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
     hardware: ctx.hardware.state(),
     desktop,
     // 中组推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源
-    recommendations: planTaskbarRecommendations(desktop.plan.dock, desktop.items, ctx.desktop.usageScores()),
+    recommendations: planTaskbarRecommendations(desktop.items, ctx.desktop.usageScores()),
   }
 }

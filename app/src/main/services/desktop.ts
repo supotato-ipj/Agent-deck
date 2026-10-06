@@ -5,7 +5,7 @@ import type { DesktopItem, DesktopPlan, DesktopState, DesktopZone } from '../../
 import { collectDesktopItems, desktopFingerprint, pathOfIconKey, planFingerprint } from '../desktop/scan'
 import type { DesktopDirEntry, DesktopRoots } from '../desktop/scan'
 import { planDesktop } from '../desktop/plan'
-import { forgetItems, loadStore, moveItem, pinItem, renameItemInStore, resetFactory, serializeStore, unpinItem, type LayoutStore } from '../desktop/layout-store'
+import { forgetItems, loadStore, moveItem, renameItemInStore, resetFactory, serializeStore, type LayoutStore } from '../desktop/layout-store'
 import { fileNameError, renameTarget } from '../desktop/filename'
 import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
@@ -88,7 +88,7 @@ export class DesktopService extends Service {
   /** lnk 目标缓存（键 = iconKey，mtime 变更即重解析） */
   private readonly targets = new Map<string, string | null>()
   private items: DesktopItem[] = []
-  private plan: DesktopPlan = { dock: [], docs: [] }
+  private plan: DesktopPlan = { docs: [] }
   private fingerprint = ''
   /** 最近一轮编排的使用频次融合分（fuseScores 产物；中组推荐位（工单54）的同源取数口） */
   private lastScores: ReadonlyMap<string, number> = new Map()
@@ -127,7 +127,7 @@ export class DesktopService extends Service {
     this.store = loadStore(this.deps.readStoreText(this.storeFile))
     const stopWatch = this.deps.watch(this.roots, () => this.refresh())
     ctx.on('dispose', stopWatch)
-    // 首拍即扫描：原生图标在面板启动前已被守护进程隐藏，dock 必须随窗口首绘就位，
+    // 首拍即扫描：原生图标在面板启动前已被守护进程隐藏，文档区必须随窗口首绘就位，
     // 不能等第一个 1Hz tick（那会是 ~1s 的无承载空窗）。
     this.refresh()
   }
@@ -157,11 +157,8 @@ export class DesktopService extends Service {
       path: i.path,
       target: i.kind === 'shortcut' ? this.targetOf(i) : null,
     }))
-    const scores = this.deps.iconScores(scoreItems, resolve, this.deps.fileExists)
-    this.lastScores = scores
-    return planDesktop(this.items, this.store.pinned, { dock: this.store.dock, docs: this.store.docs }, scores, {
-      docMaxRows: this.docMaxRows,
-    })
+    this.lastScores = this.deps.iconScores(scoreItems, resolve, this.deps.fileExists)
+    return planDesktop(this.items, { docs: this.store.docs }, { docMaxRows: this.docMaxRows })
   }
 
   /** 最近一轮编排的使用频次融合分（{显示名: 分数}；任务栏中组推荐位经此同源取数，工单54） */
@@ -200,7 +197,7 @@ export class DesktopService extends Service {
     return this.items.some((i) => i.path === filePath) ? null : '桌面项不在当前扫描池内'
   }
 
-  /** 扫描池护栏按名版（pin/unpin，工单25；move/moveBatch 的名字校验同语，工单28 rename 加入） */
+  /** 扫描池护栏按名版（工单25 手钉起手，dock 手钉随工单59 退役后本段只余 move/rename 用；move/moveBatch 的名字校验同语） */
   private poolNameError(name: string): string | null {
     return this.items.some((i) => i.name === name) ? null : '桌面项不在当前扫描池内'
   }
@@ -306,7 +303,7 @@ export class DesktopService extends Service {
     return error ? { ok: false, error } : { ok: true }
   }
 
-  /** 原地重命名（工单28 单项菜单【重命名】）：name 按名校验在池内（pin 同款护栏），
+  /** 原地重命名（工单28 单项菜单【重命名】）：name 按名校验在池内（按名护栏同款），
    * to（标签输入框原文）经纯逻辑推导盘面目标名（快捷方式/网址自动补回原扩展）并做
    * Win32 合法性校验。重名冲突显式拒绝（entryExists 依赖——fs.rename 落既有名会被
    * MoveFileEx 静默覆写，不是真桌面语义）；与现名仅大小写有别的改名对冲突校验豁免
@@ -401,33 +398,26 @@ export class DesktopService extends Service {
     }
   }
 
-  /** 拖拽摆位：name 必须在池内；beforeName 须为目标分区当前条目（null = 末尾）。落盘并即时重编排。
-   * 手钉条目在应用区内不可拖（栏位由手钉清单决定，拖了也会弹回——显式拒绝而非无声失效）；
-   * 跨区拖出仍允许且连同取消手钉（工单25）：「把它挪去文档区」是明确意图，拖出即离 dock、
-   * 不再滞留手钉身份——否则手钉覆盖会让拖拽无声失效（显式拒绝而非无声失效的同一原则）。 */
+  /** 文档区拖拽摆位（工单59 起桌面只承载文档区）：name 必须在池内；beforeName 须为
+   * 文档区当前条目（null = 末尾）。落盘并即时重编排。zone 非 doc 时即「拖出文档区」——
+   * 应用区不再由桌面承载，条目离文档区名单后归回扫描器的默认分区。 */
   move(name: string, zone: DesktopZone, beforeName: string | null): { ok: boolean; error?: string } {
     const item = this.items.find((i) => i.name === name)
     if (!item) return { ok: false, error: '桌面项不在当前扫描池内' }
-    if (zone === 'app' && this.store.pinned.includes(name)) {
-      return { ok: false, error: '手钉条目的应用区栏位由手钉清单决定（layout.json 的 pinned 列表）' }
-    }
     if (beforeName !== null) {
       const error = this.anchorError(beforeName, zone)
       if (error) return { ok: false, error }
       if (beforeName === name) return { ok: false, error: '不能以自身为参照' }
     }
-    if (this.store.pinned.includes(name)) this.store = unpinItem(this.store, name) // 仅跨区（app 目标已被拒）
     this.store = moveItem(this.store, name, zone, beforeName)
     this.persist()
     this.refresh()
     return { ok: true }
   }
 
-  /** 批量拖拽摆位（工单22）：names 按选区插入序整组迁移到落点，落点分区即目标分区。
-   * 手钉条目不可动——批量语境下一律跳过并如实回报 skipped（批量是「整理一批」，
-   * 手钉的稳定栏位是前提；挪手钉是单条明确意图，走单选拖拽的跨区通道），池外名字
-   * （选择与落点之间的外部删除竞态）同样跳过。参照校验整批一道：落点本身无效时
-   * 一个都不摆。通过校验的条目逐项落摆位存储——同锚点依序插回天然保持组内相对序
+  /** 批量拖拽摆位（工单22）：names 按选区插入序整组迁移到落点。池外名字（选择与
+   * 落点之间的外部删除竞态）跳过并如实回报 skipped。参照校验整批一道：落点本身无效
+   * 时一个都不摆。通过校验的条目逐项落摆位存储——同锚点依序插回天然保持组内相对序
    * （每组依次插到参照之前）——最后落盘并即时重编排一次。 */
   moveBatch(
     names: readonly string[],
@@ -445,7 +435,7 @@ export class DesktopService extends Service {
     const skipped: string[] = []
     for (const name of names) {
       if (moved.includes(name)) continue // 名单重复：选区是集合，防御性去重
-      if (!pool.has(name) || this.store.pinned.includes(name)) {
+      if (!pool.has(name)) {
         skipped.push(name)
         continue
       }
@@ -467,42 +457,18 @@ export class DesktopService extends Service {
     return null
   }
 
-  /** 恢复出厂布局：清除全部显式摆位（手钉保留），即时重编排。返回清除的摆位数。 */
+  /** 恢复出厂布局：清除全部显式摆位（即时重编排）。返回清除的摆位数。 */
   resetLayout(): { ok: boolean; cleared: number } {
-    const cleared = this.store.dock.length + this.store.docs.length
+    const cleared = this.store.docs.length
     this.store = resetFactory(this.store)
     this.persist()
     this.refresh()
     return { ok: true, cleared }
   }
 
-  /** 钉到应用区（工单25）：name 进手钉清单前段（已在清单则移到最前），占据 dock 前段栏位
-   * 不被推荐顶替。name 必须在池内（move 同款护栏）；显式摆位名单不动——取消手钉时按其
-   * 裁决归位。落盘并即时重编排。 */
-  pin(name: string): { ok: boolean; error?: string } {
-    const guard = this.poolNameError(name)
-    if (guard) return { ok: false, error: guard }
-    this.store = pinItem(this.store, name)
-    this.persist()
-    this.refresh()
-    return { ok: true }
-  }
-
-  /** 取消手钉（工单25）：name 从手钉清单移除，条目回归归类与显式摆位裁决（文档类回文档区）。
-   * name 必须在池内；手钉清单本就不含时幂等空转（菜单条件显隐下不可达，防御性放行）。
-   * 落盘并即时重编排。 */
-  unpin(name: string): { ok: boolean; error?: string } {
-    const guard = this.poolNameError(name)
-    if (guard) return { ok: false, error: guard }
-    this.store = unpinItem(this.store, name)
-    this.persist()
-    this.refresh()
-    return { ok: true }
-  }
-
   /** 测试观察缝：当前存储内容 */
   storeForTest(): LayoutStore {
-    return { version: 1, pinned: [...this.store.pinned], dock: [...this.store.dock], docs: [...this.store.docs] }
+    return { version: 1, docs: [...this.store.docs] }
   }
 
   private persist(): void {
@@ -514,18 +480,9 @@ export class DesktopService extends Service {
   }
 }
 
-/** 显式摆位与手钉覆盖归类分区（工单25 起手钉也是承载分区身份）：手钉或 dock 名单里的
- * 条目入应用区（手钉优先于 docs 名单——钉到应用区对文档区摆位条目同样生效，其摆位在
- * 手钉期间遮蔽、取消后恢复）、docs 名单里的入文档区（跨区拖拽即换区）。 */
+/** 显式摆位覆盖归类分区：docs 名单里的条目入文档区（其余条目回归扫描器的默认分区，
+ * 应用条目仍是 zone=app，作为任务栏左组手钉与中组推荐位的元数据来源）。 */
 function applyZoneOverrides(items: DesktopItem[], store: LayoutStore): DesktopItem[] {
-  const pinned = new Set(store.pinned)
-  const dock = new Set(store.dock)
   const docs = new Set(store.docs)
-  return items.map((i) =>
-    pinned.has(i.name) || dock.has(i.name)
-      ? { ...i, zone: 'app' as const }
-      : docs.has(i.name)
-        ? { ...i, zone: 'doc' as const }
-        : i,
-  )
+  return items.map((i) => (docs.has(i.name) ? { ...i, zone: 'doc' as const } : i))
 }

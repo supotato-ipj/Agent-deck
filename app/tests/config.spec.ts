@@ -80,7 +80,6 @@ describe('config 模型（工单06 桌面承载几何）', () => {
     expect(defaultDesktopLayout()).toEqual({
       docZone: { left: 408, top: 48, maxWidth: 640 },
       docMaxRows: 8,
-      dockMaxWidth: 1240,
     })
   })
 
@@ -95,21 +94,21 @@ describe('config 模型（工单06 桌面承载几何）', () => {
   it('desktop 合法值整体生效', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({
-      desktop: { docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6, dockMaxWidth: 1000 },
+      desktop: { docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6 },
     }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.desktop).toEqual({ docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6, dockMaxWidth: 1000 })
+    expect(r.config.desktop).toEqual({ docZone: { left: 500, top: 60, maxWidth: 700 }, docMaxRows: 6 })
     expect(r.warnings).toHaveLength(0)
   })
 
   it('desktop 非法字段回退默认并告警（docMaxRows 越界/宽度非正/坐标非数）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({
-      desktop: { docZone: { left: 'x', maxWidth: -3 }, docMaxRows: 0, dockMaxWidth: 'wide' },
+      desktop: { docZone: { left: 'x', maxWidth: -3 }, docMaxRows: 0 },
     }))
     const r = loadConfig(file, FALLBACK)
     expect(r.config.desktop).toEqual(defaultDesktopLayout())
-    expect(r.warnings.length).toBeGreaterThanOrEqual(4)
+    expect(r.warnings.length).toBeGreaterThanOrEqual(3)
   })
 
   it('desktop 整体非对象回退默认', () => {

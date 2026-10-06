@@ -1,26 +1,23 @@
 /**
- * 中组推荐位编排纯函数（工单54，desktop/plan.ts planDock 同形态）：
- * dock 计划的推荐段（source=recommended）∩ 正分条目 → 分数降序（同分按名稳定）→ 上限截断。
- * 手钉/显式摆位段永不进推荐位（左组栏位不与中组重复）；零分条目只是「在桌面」，
- * 不构成「常用」证据，不占推荐位——这也是「全隐藏 + 无推荐 → 中组不渲染」边界可达的前提。
+ * 中组推荐位编排纯函数（工单54）：应用区条目 ∩ 正分条目 → 分数降序（同分按名稳定）
+ * → 上限截断。零分条目只是「在桌面」，不构成「常用」证据，不占推荐位——这也是
+ * 「全隐藏 + 无推荐 → 中组不渲染」边界可达的前提。
+ * 工单59 起候选直接取自桌面条目池的 zone=app 段（dock 编排退役后不再有 dock 计划可依），
+ * 左组手钉由 taskbar/layout-store 独立承载并在本层之上按 exe 身份去重：中组只认「在池 + 有分」。
  */
-import type { DesktopDockEntry, DesktopItem, TaskbarRecommendation } from '../../shared/contract'
+import type { DesktopItem, TaskbarRecommendation } from '../../shared/contract'
 
 /** 推荐位上限（工单54 验收口径：8） */
 export const RECOMMENDATION_LIMIT = 8
 
 export function planTaskbarRecommendations(
-  dock: readonly DesktopDockEntry[],
   items: readonly DesktopItem[],
   scores: ReadonlyMap<string, number>,
   limit: number = RECOMMENDATION_LIMIT,
 ): TaskbarRecommendation[] {
-  const byName = new Map(items.map((i) => [i.name, i]))
   const candidates: Array<{ item: DesktopItem; score: number }> = []
-  for (const entry of dock) {
-    if (entry.source !== 'recommended') continue
-    const item = byName.get(entry.name)
-    if (!item) continue // 陈旧名字：编排输入允许含池外名，推荐位只认在场条目
+  for (const item of items) {
+    if (item.zone !== 'app') continue // 文档条目不是应用入口
     const score = scores.get(item.display) ?? 0
     if (score <= 0) continue
     candidates.push({ item, score })

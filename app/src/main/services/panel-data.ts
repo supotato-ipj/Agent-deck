@@ -41,10 +41,6 @@ export interface PanelDataPort {
   clipboardState(): Promise<{ pasteable: boolean }>
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
-  /** 钉到应用区（工单25）：进手钉清单前段并即时重编排 */
-  pin(name: string): Promise<{ ok: boolean; error?: string }>
-  /** 取消手钉（工单25）：从手钉清单移除并即时重编排 */
-  unpin(name: string): Promise<{ ok: boolean; error?: string }>
   resetLayout(): Promise<{ ok: boolean; cleared: number }>
 }
 
@@ -74,10 +70,10 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
     return this.ctx.desktop.state()
   }
 
-  /** 任务栏中组推荐位（工单54）：dock 推荐段 ∩ 正分条目（fuseScores 链路的同源产物） */
+  /** 任务栏中组推荐位（工单54）：应用区条目 ∩ 正分条目（fuseScores 链路的同源产物） */
   taskbarRecommendations(): TaskbarRecommendation[] {
     const d = this.ctx.desktop.state()
-    return planTaskbarRecommendations(d.plan.dock, d.items, this.ctx.desktop.usageScores())
+    return planTaskbarRecommendations(d.items, this.ctx.desktop.usageScores())
   }
 
   refresh(): void {
@@ -135,14 +131,6 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }> {
     return Promise.resolve(this.ctx.desktop.moveBatch(names, zone, beforeName))
-  }
-
-  pin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return Promise.resolve(this.ctx.desktop.pin(name))
-  }
-
-  unpin(name: string): Promise<{ ok: boolean; error?: string }> {
-    return Promise.resolve(this.ctx.desktop.unpin(name))
   }
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {

@@ -14,6 +14,14 @@ const pillLeft = document.getElementById('pill-left') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
 const sliver = document.getElementById('show-desktop') as HTMLElement
 
+// 换位拖拽（工单57）是本窗唯一的原生拖拽语义，且只长在 .tb-app/.tb-rec 上（makeDraggable）。
+// 别处的 img（托盘图标、推荐位图标）默认可拖：一起手就起 OLE 会话，会话收不掉时满屏 Ghost
+// 幽灵窗跟着光标走、渲染主线程进模态循环，整条常驻任务栏就此停摆（同面板那份守卫）。
+document.addEventListener('dragstart', (e) => {
+  if ((e.target as HTMLElement | null)?.closest('.tb-app, .tb-rec')) return
+  e.preventDefault()
+})
+
 /** 左组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 6+6、图标格 32+2 间距、组间距 8）。
  * 容量格数宁保守不少让——多留缝也不与中组 pill 重叠（中组居中、左组绝定位贴左）。 */
 const LEFT_INSET = 8
@@ -336,6 +344,7 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
   el.dataset.exe = e.exe // 交互挂点（点击/右键按 exe 身份分发）
   el.title = e.tooltip // 窗口标题 tooltip：仅即时显示，渲染层不持久化
   const img = document.createElement('img')
+  img.draggable = false // 手钉拖拽的宿主是 .tb-app 本身：图标默认可拖会把手势截成原生图片拖拽
   img.dataset.iconKey = e.iconKey ?? ''
   img.alt = e.label
   el.appendChild(img)
