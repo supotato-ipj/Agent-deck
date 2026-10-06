@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -180,6 +180,14 @@ export class BridgeService extends Service {
       case 'taskbar/set-metrics': {
         const { metrics } = payload as { metrics: TaskbarMetric[] }
         return this.ctx.taskbar.setMetrics(metrics) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/tray-click': {
+        const { key, button } = payload as { key: string; button: TaskbarTrayButton }
+        return this.ctx.taskbar.trayClick(String(key ?? ''), button) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/tray-icon': {
+        const { key } = payload as { key: string }
+        return { icon: this.ctx.taskbar.trayIconOf(String(key ?? '')) } as BridgeMethods[M]['response']
       }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)

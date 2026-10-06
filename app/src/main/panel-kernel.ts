@@ -54,6 +54,11 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
       ...options.taskbar?.deps,
       recommendations: options.taskbar?.deps?.recommendations
         ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
+      // 托盘点击回放（工单56）：真源在数据面托盘宿主（Win32 同处），主进程只转发请求。
+      // 离线内核无 panelData 时按「送不出去」回报（契约测试注假源）。
+      replayTrayClick: options.taskbar?.deps?.replayTrayClick
+        ?? ((key, button) => (ctx.panelData as { replayTrayClick?: (k: string, b: 'left' | 'right') => boolean } | undefined)
+          ?.replayTrayClick?.(key, button) ?? false),
     },
   })
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout })

@@ -4,7 +4,7 @@
 import type { DesktopRoots } from './desktop/scan'
 import type { ClipboardFiles } from './desktop/adapter'
 import type { ClockState, DesktopState, HardwareState, SessionInfo, TaskbarRecommendation } from '../shared/contract'
-import type { TrayWireEvent } from './trayhost/protocol'
+import type { TrayClickButton, TrayWireEvent } from './trayhost/protocol'
 
 /** 数据面子进程的快照段：面板主进程合并 weather/layout/settings/plugins 后成完整 PanelSnapshot（qoder 段随工单03 退役移除）；
  * recommendations（工单54）= 任务栏中组推荐位名单，在子进程算好携带（分数表本身不过进程边界） */
@@ -26,8 +26,9 @@ export interface DataplaneInit {
   docMaxRows: number
   /** 使用日志目录（userData/usage 的绝对路径） */
   usageDir: string
-  /** 托盘 spike（工单48）：在场即起托盘宿主；corpusFile 收真实字节语料（JSONL） */
-  traySpike?: { corpusFile: string }
+  /** 托盘宿主（工单48 起常驻、工单56 入栏）：子进程注册同名 Shell_TrayWnd 竞争窗口收编
+   * 系统托盘。corpusFile 收真实字节语料（JSONL，仅验收模式要——测试夹具来源） */
+  tray?: { corpusFile?: string }
 }
 
 /** 数据面受理的桥接方法（桌面承载的写路径，工单25 起含手钉管理、工单27 起含删除、
@@ -52,6 +53,8 @@ export type DataplaneMessage =
   | { type: 'res'; id: number; ok: boolean; result?: unknown; error?: string }
   | { type: 'tray-event'; event: TrayWireEvent }
   | { type: 'tray-host'; event: Record<string, unknown> }
+  /** 托盘点击回放请求（工单56）：主进程把渲染层的点击转成回放，回执走 tray-host 事件流 */
+  | { type: 'tray-replay'; key: string; button: TrayClickButton }
 
 /** utilityProcess 子进程侧的 parentPort 形状（@types/node 无此成员，局部声明） */
 export interface ParentPort {

@@ -79,16 +79,18 @@ if (parentPort) {
       void ctx.start().then(() => {
         parentPort.postMessage({ type: 'ready', snapshot: snapshotOf(ctx!) })
       })
-      // 托盘宿主（工单48 spike）：init.traySpike 在场才起。竞争窗口/泵/TaskbarCreated
-      // 全在子进程；事件经 parentPort 回主进程，原始字节语料落 JSONL（测试夹具来源）。
-      if (msg.init.traySpike && !trayHost) {
+      // 托盘宿主（工单48 起常驻、工单56 入栏）：竞争窗口/泵/TaskbarCreated 全在子进程，
+      // 事件经 parentPort 回主进程；验收模式下额外落原始字节语料（测试夹具来源）。
+      if (msg.init.tray && !trayHost) {
         try {
-          const corpusFile = msg.init.traySpike.corpusFile
+          const corpusFile = msg.init.tray.corpusFile
           trayHost = new TrayHost({
             onEvent: (event) => parentPort.postMessage({ type: 'tray-event', event }),
-            corpus: (entry) => {
-              try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
-            },
+            corpus: corpusFile
+              ? (entry) => {
+                  try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
+                }
+              : undefined,
             log: (event) => parentPort.postMessage({ type: 'tray-host', event }),
           })
           trayHost.start()
@@ -96,6 +98,12 @@ if (parentPort) {
           parentPort.postMessage({ type: 'tray-host', event: { type: 'tray-host-failed', message: (err as Error).message } })
         }
       }
+      return
+    }
+    if (msg.type === 'tray-replay') {
+      // 托盘点击回放（工单56）：宿主不在场（未起或已停）如实回执，渲染层按失败呈现
+      const r = trayHost?.replay(msg.key, msg.button) ?? { ok: false, error: '托盘宿主不在场' }
+      parentPort.postMessage({ type: 'tray-host', event: { type: 'tray-replay-result', key: msg.key, ...r } })
       return
     }
     if (msg.type === 'shortcuts') {

@@ -1,20 +1,13 @@
-// 任务栏条带渲染入口（工单49/52/54/58）：状态经 taskbar/get-state 拉取 + taskbar/changed 订阅；
-// pill 矩形（含各按钮/推荐位/左组条目矩形）经宿主面声明为热区并落存证——验收电池据此
-// 取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端 + 右键菜单/
-// 溢出浮层开合。左组（工单52）显示 + 工单58 基本点击分发（启动/置前经 taskbar/activate-app，
-// 栏内与溢出浮层共用同一挂点）；右键菜单/中键/最小化切换等全交互属工单53，在同一
-// data-exe 身份挂点上扩展。窗口标题 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
+// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58）：状态经 taskbar/get-state 拉取 +
+// taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
+// 三组布局：中组（系统按钮 + 推荐位，工单54）、左组（手钉 + 运行中合并，工单52，右键菜单/
+// 中键/多窗口选窗属工单53）、右组（硬件摘要 + 托盘图标 + 音量 + 时钟，工单55/56）。
+// 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
+// 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
+// + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
+import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
 import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
-import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarWindowRef } from '../shared/contract'
-// 任务栏条带渲染入口（工单49/52/54/55）：状态经 taskbar/get-state 拉取 + taskbar/changed 订阅；
-// 右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。各 pill、按钮/推荐位/
-// 左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——验收电池据此取点击坐标。
-// 视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端 + 右键菜单开合（中组
-// 显隐菜单属工单54，摘要勾选编辑态属工单55）。
-// 左组（工单52）只做显示：图标 + 运行态指示 + 窗口标题 tooltip（标题随状态帧即时进出，
-// 渲染层不落任何存储）；点击/右键交互语义属工单53，本票预留挂点（条目元素 data-exe = 身份，
-// 视图模型 id 同值）。
+import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
 const pill = document.getElementById('pill') as HTMLElement
 const pillLeft = document.getElementById('pill-left') as HTMLElement
@@ -69,6 +62,9 @@ function measure() {
     overflow: (() => { const el = pillLeft.querySelector<HTMLElement>('.tb-overflow'); return el ? rectOf(el, 'overflow') : null })(),
     rightPill: rectOf(rightPill, 'right-pill'),
     rightCells: [...rightPill.querySelectorAll<HTMLElement>('[data-id]')].map((el) => rectOf(el, el.dataset.id ?? '')),
+    trayIcons: [...rightPill.querySelectorAll<HTMLElement>('.tb-tray-icon')].map((el) => ({
+      key: el.dataset.key ?? '', ...rectOf(el, el.dataset.key ?? ''),
+    })).map(({ key, ...r }) => ({ key, x: r.x, y: r.y, w: r.w, h: r.h })),
     sliver: rectOf(sliver, 'show-desktop'),
   }
 }
@@ -105,6 +101,7 @@ function notifyGeometry(): void {
     overflow: m.overflow,
     rightPill: m.rightPill,
     rightCells: m.rightCells,
+    trayIcons: m.trayIcons,
     sliver: m.sliver,
   }
   const json = JSON.stringify(payload)
@@ -182,6 +179,65 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
     iconCache.set(iconKey, dataUrl)
     if (img.dataset.iconKey === iconKey) img.src = dataUrl
   })
+}
+
+/** 托盘图标像素缓存（工单56：身份键 → dataURL；仅内存，与桌面图标缓存同款纪律——
+ * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费） */
+const trayIconUrls = new Map<string, string>()
+
+/** BGRA → RGBA（canvas putImageData 像素序；与 trayhost/pixels 的 alpha 修复同算法，这里只换序） */
+function bgraToRgba(bgra: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(new ArrayBuffer(bgra.length))
+  for (let i = 0; i < bgra.length; i += 4) {
+    out[i] = bgra[i + 2]; out[i + 1] = bgra[i + 1]; out[i + 2] = bgra[i]; out[i + 3] = bgra[i + 3]
+  }
+  return out
+}
+
+/** 托盘像素 → dataURL（编码在渲染层：主进程只搬字节，tray-spike 验收页同款做法） */
+function trayDataUrl(pixels: TaskbarTrayPixels): string {
+  const bgra = Uint8Array.from(atob(pixels.bgraBase64), (c) => c.charCodeAt(0))
+  const canvas = document.createElement('canvas')
+  canvas.width = pixels.width
+  canvas.height = pixels.height
+  canvas.getContext('2d')?.putImageData(new ImageData(bgraToRgba(bgra), pixels.width, pixels.height), 0, 0)
+  return canvas.toDataURL()
+}
+
+/** 托盘图标格（工单56）：像素按需取（缓存命中即贴），左键/右键各自回放到所属应用。
+ * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位） */
+function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'tb-cell tb-tray-icon'
+  el.dataset.key = entry.key
+  el.title = entry.tooltip
+  const img = document.createElement('img')
+  img.dataset.key = entry.key
+  img.alt = entry.tooltip || entry.key
+  el.appendChild(img)
+  const cached = trayIconUrls.get(entry.key)
+  if (cached) {
+    img.src = cached
+  } else {
+    void fetchTrayIcon(window.deck.bridge, entry.key).then((pixels) => {
+      if (!pixels) return
+      const url = trayDataUrl(pixels)
+      trayIconUrls.set(entry.key, url)
+      if (img.dataset.key === entry.key) img.src = url
+    })
+  }
+  const click = (button: TaskbarTrayButton) => () => {
+    window.deck.host.notify('taskbar-tray-click', { key: entry.key, button })
+    void dispatchTrayClick(window.deck.bridge, entry.key, button)
+      .then((r) => window.deck.host.notify('taskbar-tray-click-result', { key: entry.key, button, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+  }
+  el.addEventListener('click', click('left'))
+  el.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    click('right')()
+  })
+  return el
 }
 
 /** 左组容量（工单58）：pill 实测几何 → 图标格数（含 ⋯ 钮位）。右限 = 中组 pill 左缘
@@ -350,31 +406,7 @@ function render(state: TaskbarState): void {
     notifyGeometry()
     return
   }
-  for (const b of vm.buttons) {
-    const el = document.createElement('div')
-    el.className = 'tb-btn'
-    el.dataset.id = b.id
-    el.textContent = b.label
-    el.addEventListener('click', () => {
-      window.deck.host.notify('taskbar-action', { action: b.action })
-      void dispatchTaskbarButton(window.deck.bridge, b.id)
-        .then((r) => window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
-    })
-    pill.appendChild(el)
-  }
-  for (const rec of vm.recommendations) {
-    const el = document.createElement('div')
-    el.className = 'tb-rec'
-    el.dataset.name = rec.name
-    el.textContent = rec.display
-    makeDraggable(el, 'mid', rec.name)
-    pill.appendChild(el)
-  }
-  // 左组（工单52）：手钉 + 运行中合并条目（空组整组不渲染）
-  renderLeft(vm.left)
   // 中组（工单54 边界条件：两按钮全隐藏且无推荐 → 整组不渲染，只剩左右两组）
-  pill.hidden = !vm.visible
-  pill.textContent = ''
   if (vm.visible) {
     for (const b of vm.buttons) {
       const el = document.createElement('div')
@@ -393,6 +425,7 @@ function render(state: TaskbarState): void {
       el.className = 'tb-rec'
       el.dataset.name = rec.name
       el.textContent = rec.display
+      makeDraggable(el, 'mid', rec.name) // 推荐位可拖：组内换位 / 拖左组升手钉
       pill.appendChild(el)
     }
     if (menuOpen) {
@@ -464,9 +497,8 @@ function render(state: TaskbarState): void {
   if (state.enabled) {
     const summary = renderSummary(vm.metrics, latestStatus?.hardware ?? null)
     if (summary) rightPill.appendChild(summary)
-    const traySlot = document.createElement('div')
-    traySlot.id = 'tray-slot' // #56 托盘入栏的接入锚位
-    rightPill.appendChild(traySlot)
+    // 托盘入栏（工单56）：系统托盘图标平铺在摘要与音量格之间；名单空即整段不渲染
+    for (const entry of vm.tray) rightPill.appendChild(makeTrayEl(entry))
     const volume = document.createElement('div')
     volume.className = 'tb-cell'
     volume.dataset.id = 'volume'
@@ -548,7 +580,7 @@ function boot(): void {
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, pill: m.pill, buttons: m.buttons, recommendations: m.recommendations,
       leftPill: m.leftPill, apps: m.apps, overflow: m.overflow,
-      rightPill: m.rightPill, rightCells: m.rightCells, sliver: m.sliver,
+      rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, sliver: m.sliver,
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
       closeMenu() // 状态回推即收菜单（点菜成功的收层路径）

@@ -276,3 +276,45 @@ export function encodeTrayPayload(o: EncodeNotifyOptions & { dwMessage: number; 
   nid.copy(buf, 8)
   return buf
 }
+
+/**
+ * 托盘点击回放打包（工单56；接缝③：纯函数，合成参数进出，零 Win32）。
+ * 两代语义分道——图标所属应用按自己协商的版本解释回调负载：
+ * - NOTIFYICON_VERSION_4（version >= 4）：lParam = uid | (x << 16)（光标 x 取低 16 位、
+ *   y 取高 16 位），wParam = MAKELPARAM(x, y)；
+ * - 旧版（version < 4 / 未协商）：lParam = uid，wParam = 事件消息
+ *   （左键 WM_LBUTTONUP=0x0203、右键 WM_RBUTTONUP=0x0205）。
+ * 菜单由图标所属应用自己渲染，回放前必须 AllowSetForegroundWindow（调用方负责）。
+ */
+export const WM_LBUTTONUP = 0x0203
+export const WM_RBUTTONUP = 0x0205
+
+export type TrayClickButton = 'left' | 'right'
+
+export interface TrayClickPack {
+  /** 投递到图标所属窗口的回调消息 */
+  message: number
+  wparam: number
+  lparam: number
+}
+
+export function packTrayClick(
+  entry: { uid: number; callbackMessage: number; version: number },
+  button: TrayClickButton,
+  cursor: { x: number; y: number },
+): TrayClickPack {
+  if (entry.version >= 4) {
+    const x = cursor.x & 0xffff
+    const y = cursor.y & 0xffff
+    return {
+      message: entry.callbackMessage,
+      wparam: (y << 16) | x,
+      lparam: (x << 16) | (entry.uid & 0xffff),
+    }
+  }
+  return {
+    message: entry.callbackMessage,
+    wparam: button === 'left' ? WM_LBUTTONUP : WM_RBUTTONUP,
+    lparam: entry.uid & 0xffff,
+  }
+}

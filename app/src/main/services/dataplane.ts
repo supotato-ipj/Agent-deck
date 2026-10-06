@@ -4,7 +4,7 @@ import type { Context } from 'cordis'
 import type { ClockState, DesktopState, DesktopZone, HardwareState, TaskbarRecommendation } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
-import type { TrayWireEvent } from '../trayhost/protocol'
+import type { TrayClickButton, TrayWireEvent } from '../trayhost/protocol'
 import { electronClipboardWrite, electronIconExtractor, electronShortcutTarget, electronTrashItem, explorerReveal, koffiClipboardFilesRead, shellOpen } from '../desktop/adapter'
 import { IconCache } from '../desktop/icons'
 import { pathOfIconKey } from '../desktop/scan'
@@ -20,7 +20,7 @@ export interface DataplaneServiceOptions {
   log?: (event: Record<string, unknown>) => void
   /** 首拍等待上限（默认 15s） */
   readyTimeoutMs?: number
-  /** 托盘 spike（工单48）：子进程托盘宿主的规范化事件出口（spike 窗渲染用） */
+  /** 托盘 spike 验收旁听（工单48）：子进程托盘宿主的规范化事件出口（spike 窗渲染用） */
   onTrayEvent?: (event: TrayWireEvent) => void
 }
 
@@ -129,6 +129,9 @@ export class DataplaneService extends Service implements PanelDataPort {
         this.child?.postMessage({ type: 'clipboard-read-res', id: msg.id, files })
       })()
     } else if (msg.type === 'tray-event') {
+      // 托盘事件（工单56 入栏）：任务栏服务经 cordis 事件订阅（与 dataplane/snapshot 同款
+      // 解耦，避免直取 ctx.taskbar 构成循环依赖）；onTrayEvent 供验收 spike 页旁听。
+      this.ctx.emit('dataplane/tray-event', msg.event)
       this.options.onTrayEvent?.(msg.event)
     } else if (msg.type === 'tray-host') {
       this.options.log?.(msg.event)
@@ -139,6 +142,14 @@ export class DataplaneService extends Service implements PanelDataPort {
       if (msg.ok) waiter.resolve(msg.result)
       else waiter.reject(new Error(msg.error ?? '数据面请求失败'))
     }
+  }
+
+  /** 托盘点击回放（工单56）：回放本体在子进程托盘宿主（Win32 真源同处），本进程只转发
+   * 请求；投递结果经 tray-host 事件流回存证，不占桥接往返（点击语义不需等回执） */
+  replayTrayClick(key: string, button: TrayClickButton): boolean {
+    if (!this.child) return false
+    this.child.postMessage({ type: 'tray-replay', key, button })
+    return true
   }
 
   private shutdown(): void {

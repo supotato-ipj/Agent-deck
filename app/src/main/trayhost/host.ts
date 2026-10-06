@@ -3,7 +3,7 @@
 // 同模式），广播 TaskbarCreated 收编存量图标，解析真实 NIM_* 流量并提取图标像素。
 // 压成无分支薄壳：字节 → trayhost/protocol 纯解码；像素修复 → trayhost/pixels。
 // 本文件只在数据面子进程加载（koffi 延迟绑定，离线测试不触）。
-import { COPYDATA_TRAY, decodeTrayPayload, toTrayEvent, type TrayIconPixels, type TrayWireEvent } from './protocol'
+import { COPYDATA_TRAY, decodeTrayPayload, packTrayClick, toTrayEvent, type TrayClickButton, type TrayIconPixels, type TrayWireEvent } from './protocol'
 import { fixIconAlpha, maskRowStride } from './pixels'
 
 const WM_COPYDATA = 0x004a
@@ -46,6 +46,17 @@ export interface TrayHostInfo {
   taskbarCreatedMsg: number
 }
 
+/** 托盘条目登记（工单56 点击回放用）：回调负载的地址与版本由图标所属应用的
+ * NIM_ADD 协商决定，回放时必须原样复现——缓存随事件流维护，不重新解析 */
+interface TrayEntry {
+  hwnd: number
+  uid: number
+  guid: string | null
+  callbackMessage: number
+  /** 应用协商的 NOTIFYICON_VERSION（未协商为 0，按旧版负载语义回放） */
+  version: number
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyFn = (...args: any[]) => any
 
@@ -60,6 +71,8 @@ export class TrayHost {
   private msgBuf: Buffer | null = null
   private hdc = 0
   private stopped = false
+  /** 托盘条目登记（工单56）：key → 回放所需的地址与协商版本；删除事件同步摘除 */
+  private readonly entries = new Map<string, TrayEntry>()
 
   constructor(private readonly options: TrayHostOptions) {}
 
@@ -102,6 +115,11 @@ export class TrayHost {
       getDIBits: gdi32.func('int __stdcall GetDIBits(uint32 hdc, uint32 hbm, uint32 start, uint32 lines, void *bits, void *bi, uint32 usage)'),
       deleteObject: gdi32.func('bool __stdcall DeleteObject(uint32 h)'),
       getModuleHandle: kernel32.func('uintptr_t __stdcall GetModuleHandleW(uintptr_t name)'),
+      // 点击回放（工单56）：AllowSetForegroundWindow 放行图标所属应用弹自己的菜单
+      // （我们抢了托盘前台权，应用默认收不到 SetForegroundWindow 许可）；GetCursorPos
+      // 取光标位置供 v4 负载的 MAKELPARAM 语义。
+      allowSetForegroundWindow: user32.func('bool __stdcall AllowSetForegroundWindow(uintptr_t hWnd)'),
+      getCursorPos: user32.func('bool __stdcall GetCursorPos(void *pt)'),
       // 外来指针的安全读取：ReadProcessMemory 读失败返回 false 而非访问违例崩溃——
       // WM_COPYDATA 被 Post/SendNotify 投递时 lpData 是发送方地址空间的悬垂指针
       // （真机实证：HRMAINTRAY 类应用的投递即如此），memcpy 直读即 0xC0000005。
@@ -157,6 +175,7 @@ export class TrayHost {
     } catch { /* 尽力拆 */ }
     this.options.log?.({ type: 'tray-host-stopped', hwnd: this.hwnd })
     this.hwnd = 0
+    this.entries.clear() // 交还真托盘后登记全部作废（图标将向 explorer 重新注册）
   }
 
   private assertTopmost(why: string): void {
@@ -233,8 +252,61 @@ export class TrayHost {
     if ((event.kind === 'add' || event.kind === 'update') && event.hicon) {
       event.icon = this.extractIcon(Number(event.hicon))
     }
+    this.remember(event)
     this.options.onEvent(event)
     return 1 // Shell_NotifyIcon 的成功语义：WM_COPYDATA 返回 TRUE
+  }
+
+  /**
+   * 条目登记（工单56）：点击回放的负载由应用协商版本决定，登记随事件流维护——
+   * add/update 覆盖（version 协商事件同样覆盖，只改版本字段），delete 摘除，
+   * 其余事件（setfocus/unknown）不动。stop 清空（交还真托盘后登记全部作废）。
+   */
+  private remember(event: TrayWireEvent): void {
+    if (event.kind === 'delete') {
+      this.entries.delete(event.key)
+      return
+    }
+    if (event.kind === 'version') {
+      const prev = this.entries.get(event.key)
+      if (prev) this.entries.set(event.key, { ...prev, version: event.version })
+      return
+    }
+    if (event.kind !== 'add' && event.kind !== 'update') return
+    const prev = this.entries.get(event.key)
+    this.entries.set(event.key, {
+      hwnd: Number(event.hwnd),
+      uid: event.uid,
+      guid: event.guid,
+      // 未带 NIF_MESSAGE 的部分更新不覆盖既有回调消息（部分更新语义同 tooltip）
+      callbackMessage: event.callbackMessage || (prev?.callbackMessage ?? 0),
+      version: event.version || (prev?.version ?? 0),
+    })
+  }
+
+  /**
+   * 点击回放（工单56）：按登记的协商版本合成回调负载，投递到图标所属窗口。
+   * 投递前放行前台权——应用靠它弹菜单（我们持托盘前台权时系统默认拒收）。
+   * 未知 key = 图标已退场或登记缺失，按普通失败回报不抛（点击语义不需 try/catch）。
+   */
+  replay(key: string, button: TrayClickButton): { ok: boolean; error?: string } {
+    const entry = this.entries.get(key)
+    if (!entry || !entry.callbackMessage) {
+      const error = '托盘图标不在场（未登记或未协商回调消息）'
+      this.options.log?.({ type: 'tray-replay-miss', key, button, known: this.entries.size })
+      return { ok: false, error }
+    }
+    const pt = Buffer.alloc(8) // POINT x64：两个 LONG，无填充
+    if (!this.f.getCursorPos(pt)) {
+      const error = '取光标位置失败，托盘点击未回放'
+      this.options.log?.({ type: 'tray-replay-fail', stage: 'GetCursorPos', key, button, lastError: this.f.getLastError() })
+      return { ok: false, error }
+    }
+    const pack = packTrayClick(entry, button, { x: pt.readInt32LE(0), y: pt.readInt32LE(4) })
+    this.f.allowSetForegroundWindow(entry.hwnd)
+    const posted = Boolean(this.f.postMessage(entry.hwnd, pack.message, pack.wparam, pack.lparam))
+    this.options.log?.({ type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version, ...pack, posted })
+    return posted ? { ok: true } : { ok: false, error: '回调投递被系统拒收' }
   }
 
   /** HICON → 32bpp 顶向下 BGRA 像素（alpha 修复走纯函数）。GetIconInfo 位图归我们销毁。 */

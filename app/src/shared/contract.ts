@@ -189,13 +189,34 @@ export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'wi
  * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
  * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
  * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
- * left（工单52）= 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）。 */
+ * left（工单52）= 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
+ * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）。 */
 export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
   recommendations: TaskbarRecommendation[]
   metrics: TaskbarMetric[]
   left: TaskbarLeftEntry[]
+  tray: TaskbarTrayEntry[]
+}
+
+/** 托盘按钮（工单56）：左键 = 应用默认动作（启动/置前由图标所属应用自决），右键 = 上下文菜单 */
+export type TaskbarTrayButton = 'left' | 'right'
+
+/** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
+ * tooltip 即时显示不落盘；iconKey = 图标像素缓存键（null = 该条目尚无像素，渲染层按空格呈现） */
+export interface TaskbarTrayEntry {
+  key: string
+  tooltip: string
+  iconKey: string | null
+}
+
+/** 托盘图标像素（工单56）：32bpp 顶向下 BGRA，base64——渲染层本地 canvas 转 dataURL
+ * （与 desktop/icon 的 dataURL 面同款职责分工：编码在渲染层，主进程只搬运字节） */
+export interface TaskbarTrayPixels {
+  width: number
+  height: number
+  bgraBase64: string
 }
 
 /** 任务栏拖拽组（工单57，GLOSSARY.md「栏分组」）：左组 = 手钉+运行中合并；中组 = 系统按钮+推荐位 */
@@ -502,6 +523,15 @@ export interface BridgeMethods {
   'taskbar/activate-app': { request: { exe: string }; response: { ok: boolean; action: TaskbarActivateAction | null; error?: string } }
   /** 任务栏右组硬件摘要勾选（工单55）：metrics 为勾选子集（按规范序归一），整份回写 config.json；回推 taskbar/changed */
   'taskbar/set-metrics': { request: { metrics: TaskbarMetric[] }; response: TaskbarState }
+  /**
+   * 托盘图标点击回放（工单56）：把点击按图标所属应用协商的负载语义回投到它的窗口
+   * （version>=4 走 MAKELPARAM 语义，旧版走 WM_LBUTTONUP/WM_RBUTTONUP），菜单由应用
+   * 自己渲染。key 护栏 = 必须在当前栏内托盘名单（名单外/已删图标 ok:false 不抛）；
+   * 执行失败（宿主不在场/投递被系统拒收）ok:false + error。
+   */
+  'taskbar/tray-click': { request: { key: string; button: TaskbarTrayButton }; response: { ok: boolean; error?: string } }
+  /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
+  'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

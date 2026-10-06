@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarLeftEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../../shared/contract'
+import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarLeftEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
@@ -9,6 +9,8 @@ import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
 import { normalizeExe, planLeftGroup } from '../taskbar/left-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/left-plan'
+import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
+import type { TrayWireEvent } from '../trayhost/protocol'
 import { loadTaskbarStore, migrateDockPinned, moveInOrder, parseDockPinnedNames, pinEntry, reorderPinned, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
 import { applyRecommendationOrder } from '../taskbar/plan'
@@ -69,6 +71,8 @@ export interface TaskbarServiceOptions {
     revealExe?: (exe: string) => void
     /** 运行中应用置前（工单58；缺省延迟绑定 taskbar/windows。返回 false = 前台锁拒收） */
     focusExeWindow?: (exe: string) => boolean
+    /** 托盘点击回放（工单56；缺省 = 无宿主，离线测试注入假源）。返回 false = 请求没送出去 */
+    replayTrayClick?: (key: string, button: TaskbarTrayButton) => boolean
   }
 }
 
@@ -102,6 +106,7 @@ interface TaskbarDeps {
   launchExe: (exe: string) => Promise<string>
   revealExe: (exe: string) => void
   focusExeWindow: (exe: string) => boolean
+  replayTrayClick: (key: string, button: TaskbarTrayButton) => boolean
 }
 
 /**
@@ -130,6 +135,8 @@ export class TaskbarService extends Service {
   private lastWindows: TaskbarWindowInfo[] = []
   /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
   private layoutReady = false
+  /** 托盘图标像素缓存（工单56：iconKey → 像素字节；随名单增删按需剪枝，仅内存不落盘） */
+  private readonly trayPixels = new Map<string, TaskbarTrayPixels>()
 
   constructor(ctx: Context, options: TaskbarServiceOptions = {}) {
     super(ctx, 'taskbar')
@@ -176,6 +183,9 @@ export class TaskbarService extends Service {
         ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).explorerReveal(exe)),
       focusExeWindow: options.deps?.focusExeWindow
         ?? ((exe) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeFocusExeWindow(exe)),
+      // 托盘回放真源在数据面子进程的托盘宿主（Win32 同处），本进程只转发请求；
+      // 生产装配经 panel-kernel 注入，离线内核无宿主时按「送不出去」回报。
+      replayTrayClick: options.deps?.replayTrayClick ?? (() => false),
     }
     const fallback = defaultTaskbar()
     this.current = {
@@ -184,11 +194,14 @@ export class TaskbarService extends Service {
       metrics: [...(options.metrics ?? fallback.metrics)],
       recommendations: [],
       left: [],
+      tray: [],
     }
     // 推荐位即时刷新（工单54）：数据面每拍快照即重拉一次，变化才回推（1Hz 拉取 ×
     // 逐条 diff——名单稳定时零事件零重渲）。离线内核无 dataplane/snapshot，契约测试
     // 手动驱动 refreshRecommendations（手动驱动采集轮同款纪律）。
     this.ctx.on('dataplane/snapshot', () => this.refreshRecommendations())
+    // 托盘入栏（工单56）：数据面托盘宿主的规范化事件流逐条进名单编排，变化才回推。
+    this.ctx.on('dataplane/tray-event', (event) => this.onTrayEvent(event))
   }
 
   state(): TaskbarState {
@@ -198,6 +211,7 @@ export class TaskbarService extends Service {
       metrics: [...this.current.metrics],
       recommendations: [...this.current.recommendations],
       left: [...this.current.left],
+      tray: [...this.current.tray],
     }
   }
 
@@ -360,7 +374,45 @@ export class TaskbarService extends Service {
     }
   }
 
-  /** 测试观察缝：当前栏布局存储内容（工单52/57） */
+  /**
+   * 托盘事件进栏（工单56）：名单推进走 taskbar/tray-plan 纯函数（部分更新语义、删除摘除、
+   * 其余空转），像素入缓存——名单未变即零事件零重渲（收编节奏可达数十条/秒，逐条回推会
+   * 拖垮渲染层）。剪枝按在场名单的 iconKey 集合，退场图标的像素随即释放（仅内存）。
+   */
+  onTrayEvent(event: TrayWireEvent): void {
+    const next = applyTrayEvent(this.current.tray, event)
+    if (sameTrayIcons(this.current.tray, next)) return
+    const iconKey = trayIconKeyOf(event)
+    if (iconKey && event.icon) this.trayPixels.set(iconKey, event.icon)
+    this.current = { ...this.current, tray: [...next] }
+    const live = new Set(next.map((i) => i.iconKey).filter((k): k is string => k !== null))
+    for (const k of [...this.trayPixels.keys()]) if (!live.has(k)) this.trayPixels.delete(k)
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /** 托盘条目像素（工单56 契约 taskbar/tray-icon）：按条目身份取字节；未知键/无像素 → null */
+  trayIconOf(key: string): TaskbarTrayPixels | null {
+    const entry = this.current.tray.find((i) => i.key === key)
+    if (!entry?.iconKey) return null
+    return this.trayPixels.get(entry.iconKey) ?? null
+  }
+
+  /**
+   * 托盘图标点击回放（工单56）：key 护栏 = 必须在当前栏内名单（应用退场与点击同帧的竞态
+   * 走普通失败，不抛）；负载合成与投递在数据面托盘宿主（Win32 真源同处），本方法只做
+   * 护栏与转发。
+   */
+  trayClick(key: string, button: TaskbarTrayButton): { ok: boolean; error?: string } {
+    if (!this.current.tray.some((i) => i.key === key)) return { ok: false, error: '托盘图标不在栏内名单' }
+    try {
+      return this.deps.replayTrayClick(key, button)
+        ? { ok: true }
+        : { ok: false, error: '托盘宿主不在场（数据面子进程未就绪）' }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
   /**
    * 左组应用图标点击（工单58，栏内与溢出浮层共用）：exe 身份必须在当前左组栏面上
    * （desktop/launch 池护栏同款——栏外身份 ok:false 不启动不置前，竞态退场走同一路径）；

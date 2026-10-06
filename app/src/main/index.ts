@@ -101,7 +101,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     log?.append({ type: 'usage-migrate-failed', message: (err as Error).message })
   }
 
-  // 托盘 spike（工单48）：最小验收页 + 托盘宿主开关（竞争窗口跑在数据面子进程）。
+  // 托盘 spike（工单48）：最小验收页（托盘宿主本身工单56 起常驻，不再由本开关起停）。
   // 页面未就绪前事件先入暂存，did-finish-load 后补发，不丢首波 NIM_ADD。
   let spikeWin: BrowserWindow | null = null
   let spikeReady = false
@@ -168,9 +168,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         storeFile: path.join(app.getPath('userData'), 'layout.json'),
         docMaxRows: config.desktop.docMaxRows,
         usageDir,
-        ...(options.traySpike
-          ? { traySpike: { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') } }
-          : {}),
+        // 托盘宿主常驻（工单56 入栏）：子进程竞争同名窗口收编系统托盘；验收模式额外收语料
+        tray: options.traySpike
+          ? { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') }
+          : {},
       },
       log: (event) => log?.append(event),
       onTrayEvent: options.traySpike ? onTrayEvent : undefined,

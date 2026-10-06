@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
+import { dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -14,7 +14,7 @@ import type { HardwareGauges, TaskbarLeftEntry, TaskbarMetric, TaskbarState } fr
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, left: [], ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, left: [], tray: [], ...over }
 }
 
 const RECS = [
@@ -54,6 +54,13 @@ function fakeBridge(s: TaskbarState) {
       if (method === 'taskbar/close-window') return Promise.resolve({ ok: true, closed: 1 } as never)
       if (method === 'taskbar/reveal-app') return Promise.resolve({ ok: true } as never)
       if (method === 'taskbar/drag-drop') return Promise.resolve({ ok: true } as never)
+      // 工单56 托盘入栏
+      if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/tray-icon') {
+        const { key } = payload as { key: string }
+        const hit = s.tray.find((t) => t.key === key)
+        return Promise.resolve({ icon: hit?.iconKey ? { width: 16, height: 16, bgraBase64: 'AAAA' } : null } as never)
+      }
       // 工单58 左组溢出分发
       if (method === 'taskbar/activate-app') {
         const { exe } = payload as { exe: string }
@@ -305,5 +312,50 @@ describe('栏上拖拽落位分发（工单57，fake bridge 驱动）', () => {
     expect(calls).toEqual([
       { method: 'taskbar/drag-drop', payload: { from: 'left', to: 'left', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' } },
     ])
+  })
+})
+
+describe('任务栏托盘入栏（工单56）', () => {
+  const TRAY = [
+    { key: '100:1', tooltip: '滴答清单', iconKey: '100:1|16x16:1' },
+    { key: 'guid:abc', tooltip: 'OneDrive', iconKey: null },
+  ]
+
+  it('视图模型原样透出托盘名单；禁用态收敛为空', () => {
+    expect(taskbarViewModel(state({ tray: TRAY })).tray).toEqual(TRAY)
+    expect(taskbarViewModel(state({ enabled: false, tray: TRAY })).tray).toEqual([])
+    // 旧快照无 tray 字段（持久化面从不存它）不炸
+    expect(taskbarViewModel({ ...state(), tray: undefined as never }).tray).toEqual([])
+  })
+
+  it('点击回放分发：左/右键各发一次 taskbar/tray-click', async () => {
+    const b = fakeBridge(state({ tray: TRAY }))
+    await expect(dispatchTrayClick(b.bridge, '100:1', 'left')).resolves.toEqual({ ok: true })
+    await expect(dispatchTrayClick(b.bridge, 'guid:abc', 'right')).resolves.toEqual({ ok: true })
+    expect(b.calls.filter((c) => c.method === 'taskbar/tray-click')).toEqual([
+      { method: 'taskbar/tray-click', payload: { key: '100:1', button: 'left' } },
+      { method: 'taskbar/tray-click', payload: { key: 'guid:abc', button: 'right' } },
+    ])
+  })
+
+  it('空身份不发 invoke（噪声不占桥接往返）', async () => {
+    const b = fakeBridge(state({ tray: TRAY }))
+    await expect(dispatchTrayClick(b.bridge, '', 'left')).resolves.toEqual({ ok: false, error: '空托盘身份' })
+    expect(b.calls.some((c) => c.method === 'taskbar/tray-click')).toBe(false)
+  })
+
+  it('回放失败按失败上抛（ok:false + error，不抛异常）', async () => {
+    const bridge: TaskbarBridge = {
+      invoke: () => Promise.resolve({ ok: false, error: '托盘图标不在栏内名单' } as never),
+      on: () => () => undefined,
+    }
+    await expect(dispatchTrayClick(bridge, '100:1', 'left')).resolves
+      .toEqual({ ok: false, error: '托盘图标不在栏内名单' })
+  })
+
+  it('像素按身份取字节；无像素条目回 null', async () => {
+    const b = fakeBridge(state({ tray: TRAY }))
+    await expect(fetchTrayIcon(b.bridge, '100:1')).resolves.toEqual({ width: 16, height: 16, bgraBase64: 'AAAA' })
+    await expect(fetchTrayIcon(b.bridge, 'guid:abc')).resolves.toBeNull()
   })
 })

@@ -138,8 +138,10 @@
   /* 摘要编辑态（工单55，右键进入）：五项全呈现，未勾选置灰供勾回 */
   .tb-seg.off { opacity: 0.35; }
   #hw-summary.editing { outline: 1px dashed rgba(255, 255, 255, 0.35); }
-  /* 托盘位（#56 占位）：本票只留锚位不渲染内容 */
-  #tray-slot { display: none; }
+  /* 托盘图标格（工单56）：平铺在摘要与音量格之间，尺寸随源图标（16/32px 原生像素，
+   * 不放大——系统托盘图标的原生观感即识别度），无像素的条目留等宽空格位 */
+  .tb-tray-icon { padding: 5px 2px; }
+  .tb-tray-icon img { display: block; width: 16px; height: 16px; image-rendering: pixelated; }
   /* 显示桌面细条（工单55）：钉屏幕最右端、撑满条带高度，对齐 Win11 右下角肌肉记忆 */
   #show-desktop {
     position: fixed;

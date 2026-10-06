@@ -11,6 +11,7 @@ import type { PluginHostService } from './plugins/service'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
 import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarState, TaskbarStatus } from '../shared/contract'
+import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
   interface Events {
@@ -20,6 +21,8 @@ declare module 'cordis' {
      * 桥接层订阅后推送 panel/changed。进程内装配不发出（tick 手动驱动同效果）。
      */
     'dataplane/snapshot': () => void
+    /** 工单56 托盘入栏：子进程托盘宿主每条规范化事件发出，任务栏服务据此编排栏内名单 */
+    'dataplane/tray-event': (event: TrayWireEvent) => void
     /** 工单07 搜索：派生态变化（待机/活动/引擎离线）与引擎成功响应 */
     'search/state': (payload: { state: SearchUiState }) => void
     'search/results': (payload: { total: number; items: SearchResultItem[] }) => void

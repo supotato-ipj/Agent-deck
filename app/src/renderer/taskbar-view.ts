@@ -1,12 +1,9 @@
-// 任务栏 pill 纯逻辑（工单49/52/54/58）：视图模型是状态 → 视图的纯函数（左组形态映射、
-// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分），点击分发只经桥契约。
+// 任务栏 pill 纯逻辑（工单49/52/54/55/56/58）：视图模型是状态 → 视图的纯函数（左组形态映射、
+// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
+// 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../shared/contract'
-import { planLeftOverflow } from '../main/taskbar/left-plan'
-// 任务栏 pill 纯逻辑（工单49/52/54/55）：视图模型是状态 → 视图的纯函数（左组形态映射、
-// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行；右组硬件摘要勾选子集、
-// 时钟/音量格、显示桌面细条），点击分发只经桥契约。
-// 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import { planLeftOverflow } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -103,6 +100,8 @@ export interface TaskbarViewModel {
   metrics: TaskbarMetric[]
   /** 左组（工单52）：序与运行态由内核编排查好，本层原样透出 + tooltip 回退 */
   left: TaskbarLeftViewEntry[]
+  /** 托盘入栏名单（工单56）：身份键/tooltip/像素键原样透出——渲染层只负责摆与画 */
+  tray: TaskbarTrayEntry[]
 }
 
 /**
@@ -111,7 +110,7 @@ export interface TaskbarViewModel {
  * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], left: [] }
+  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], left: [], tray: [] }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -129,7 +128,15 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     tooltip: e.title ?? e.label,
     iconKey: e.iconKey,
   }))
-  return { visible: buttons.length > 0 || recommendations.length > 0, buttons, recommendations, menu, metrics: [...state.metrics], left }
+  return {
+    visible: buttons.length > 0 || recommendations.length > 0,
+    buttons,
+    recommendations,
+    menu,
+    metrics: [...state.metrics],
+    left,
+    tray: [...(state.tray ?? [])],
+  }
 }
 
 /** 摘要格段清单：常态只呈现勾选子集，编辑态五项全呈现（未勾选的置灰供勾回） */
@@ -192,6 +199,29 @@ export async function dispatchTaskbarVisibility(
 ): Promise<TaskbarState | null> {
   if (!TASKBAR_BUTTONS.some((b) => b.id === buttonId)) return null
   return bridge.invoke('taskbar/set-button-hidden', { id: buttonId, hidden })
+}
+
+// —— 工单56 托盘入栏：像素取字节 + 点击回放分发 ——
+
+/** 托盘图标像素取字节（工单56）：条目身份 → BGRA 像素（渲染层本地 canvas 转 dataURL 并缓存） */
+export async function fetchTrayIcon(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  key: string,
+): Promise<TaskbarTrayPixels | null> {
+  const res = await bridge.invoke('taskbar/tray-icon', { key })
+  return res?.icon ?? null
+}
+
+/** 托盘图标点击回放（工单56）：左键/右键经桥 invoke，响应原样上抛（ok:false 不抛——
+ * 应用退场与点击同帧的竞态按普通失败呈现）。空 key 是噪声：不发 invoke。 */
+export async function dispatchTrayClick(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  key: string,
+  button: TaskbarTrayButton,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!key) return { ok: false, error: '空托盘身份' }
+  const res = await bridge.invoke('taskbar/tray-click', { key, button })
+  return { ok: res.ok, ...(res.error ? { error: res.error } : {}) }
 }
 
 // —— 工单53 左组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——

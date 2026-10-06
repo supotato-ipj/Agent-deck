@@ -920,7 +920,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     await ctx.start()
     try {
       await expect(ctx.bridge.invoke('taskbar/get-state', null))
-        .resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
     } finally {
       await ctx.stop()
     }
@@ -930,7 +930,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     await ctx2.start()
     try {
       await expect(ctx2.bridge.invoke('taskbar/get-state', null))
-        .resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
     } finally {
       await ctx2.stop()
     }
@@ -945,11 +945,11 @@ describe('内核桥接契约（工单49 任务栏）', () => {
       const changed: TaskbarState[] = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })).resolves
-        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })).resolves
-        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
       // 幂等：同值不重复推事件
       await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
       expect(changed.map((s) => s.enabled)).toEqual([false, true])
@@ -969,7 +969,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
       await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: 'off' as never }))
         .rejects.toThrow(/taskbar\.enabled/)
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
     } finally {
       await ctx.stop()
     }
@@ -1011,7 +1011,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     const changed: TaskbarState[] = []
     ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
     await ctx.stop()
-    expect(changed).toEqual([{ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] }])
+    expect(changed).toEqual([{ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] }])
   }, 30_000)
 })
 
@@ -1058,12 +1058,12 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
       const changed: TaskbarState[] = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
       await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })).resolves
-        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'], left: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'], left: [], tray: [] })
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'], left: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'], left: [], tray: [] })
       // 空子集合法（摘要整格隐藏）
       await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: [] })).resolves
-        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: [], left: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: [], left: [], tray: [] })
       // 幂等：同值不重复推事件
       await ctx.bridge.invoke('taskbar/set-metrics', { metrics: [] })
       expect(changed.map((s) => s.metrics)).toEqual([['cpu', 'ram'], []])
@@ -1084,11 +1084,11 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
       await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['cpu', 'ghost'] as never }))
         .rejects.toThrow(/taskbar\.metrics/)
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['gpu'], left: [] })
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['gpu'], left: [], tray: [] })
       // 勾选子集不被开关切换冲掉（setEnabled 只动 enabled 位）
       await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
       await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
-        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['gpu'], left: [] })
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['gpu'], left: [], tray: [] })
     } finally {
       await ctx.stop()
     }
@@ -1535,7 +1535,7 @@ describe('内核桥接契约（工单54 中组系统按钮显隐）', () => {
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
     try {
-      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
     } finally {
       await ctx.stop()
     }
@@ -1550,12 +1550,12 @@ describe('内核桥接契约（工单54 中组系统按钮显隐）', () => {
       const changed: TaskbarState[] = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
       await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: true }))
-        .resolves.toEqual({ enabled: true, hiddenButtons: ['start'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
       await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true }))
-        .resolves.toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
       // 恢复
       await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: false }))
-        .resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
       // 幂等：同态不重写盘不重推
       await ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })
       expect(changed.map((s) => s.hiddenButtons)).toEqual([['start'], ['start', 'tasks'], ['tasks']])
@@ -1574,7 +1574,7 @@ describe('内核桥接契约（工单54 中组系统按钮显隐）', () => {
     try {
       await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'ghost' as never, hidden: true }))
         .rejects.toThrow(/未知任务栏按钮/)
-      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], left: [], tray: [] })
     } finally {
       await ctx.stop()
     }
@@ -2001,6 +2001,112 @@ describe('内核桥接契约（工单58 左组应用点击分发：启动/置前
     try {
       await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: '' })).rejects.toThrow(/activate-app\.exe/)
       await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 42 as never })).rejects.toThrow(/activate-app\.exe/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单56 托盘入栏）', () => {
+  /** 任务栏桩：config 落 tmp + 假按键源 + 假托盘回放（Win32 真源在数据面子进程） */
+  function trayOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const replays: { key: string; button: string }[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      replays,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: {
+            sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true },
+            replayTrayClick: (key: string, button: string) => { replays.push({ key, button }); return true },
+          },
+          ...over,
+        },
+      },
+    }
+  }
+
+  const PIX = { width: 16, height: 16, bgraBase64: 'AAAA' }
+  const trayEv = (over: Record<string, unknown> = {}) => ({
+    kind: 'add', key: '100:1', hwnd: '100', uid: 1, guid: null, tooltip: '滴答清单',
+    callbackMessage: 0x0400, version: 0, flags: 0, hicon: null, icon: PIX, ...over,
+  })
+
+  it('托盘事件经 dataplane/tray-event 进名单并回推 taskbar/changed', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.tray).toHaveLength(1)
+      expect(state.tray[0]).toEqual({ key: '100:1', tooltip: '滴答清单', iconKey: expect.any(String) })
+      expect(changed).toHaveLength(1)
+      // 名单未变的重复事件零回推（收编节奏下逐条重渲会拖垮渲染层）
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      expect(changed).toHaveLength(1)
+      // 删除即摘除
+      ctx.emit('dataplane/tray-event', trayEv({ kind: 'delete', tooltip: '', icon: null }) as never)
+      expect((await ctx.bridge.invoke('taskbar/get-state', null)).tray).toEqual([])
+      expect(changed).toHaveLength(2)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/tray-icon：按身份取像素；未知身份与无像素条目回 null', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: '100:1' })).resolves.toEqual({ icon: null })
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: '100:1' })).resolves.toEqual({ icon: PIX })
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: 'nope' })).resolves.toEqual({ icon: null })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/tray-click：名单内身份转发回放（左/右键各一）；名单外 ok:false 不抛', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'left' })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'right' })).resolves.toEqual({ ok: true })
+      expect(t.replays).toEqual([
+        { key: '100:1', button: 'left' },
+        { key: '100:1', button: 'right' },
+      ])
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: 'ghost', button: 'left' }))
+        .resolves.toEqual({ ok: false, error: '托盘图标不在栏内名单' })
+      expect(t.replays).toHaveLength(2) // 名单外不转发
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('托盘宿主缺席时点击按失败回报（数据面子进程未就绪）', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir, { deps: { sendSystemKeys: () => true, replayTrayClick: () => false } })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'left' }))
+        .resolves.toEqual({ ok: false, error: '托盘宿主不在场（数据面子进程未就绪）' })
     } finally {
       await ctx.stop()
     }

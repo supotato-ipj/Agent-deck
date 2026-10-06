@@ -6,6 +6,11 @@
 // 书面口子：仅内存即时显示，永不持久化——本模块不碰任何持久化）。
 import type { TaskbarLeftEntry } from '../../shared/contract'
 
+// 溢出裁决本体已移至 shared/overflow（渲染层同用一份，见该文件头的边界说明）；此处转出
+// 保持主进程侧 import 路径不变。
+export { planLeftOverflow } from '../../shared/overflow'
+export type { TaskbarLeftOverflow } from '../../shared/overflow'
+
 /** 手钉条目（栏布局存储的记录形态；label/iconKey 是迁移时从桌面项捕获的展示元数据） */
 export interface TaskbarPinnedEntry {
   exe: string
@@ -79,23 +84,4 @@ export function planLeftGroup(
     })
   }
   return out
-}
-
-/** 溢出拆分（工单58）：bar = 栏内图标，overflow = 「⋯」浮层图标（编排序的尾部段） */
-export interface TaskbarLeftOverflow<T> {
-  bar: T[]
-  overflow: T[]
-}
-
-/**
- * 左组溢出裁决（工单58）：slots = pill 内容纳的图标格数（含 ⋯ 钮位，几何由渲染层测量）。
- * 条目数不超限即全留栏（不预留 ⋯ 格——容量边界的图标不应为不存在的按钮让位）；
- * 超限则栏内让出一格放 ⋯ 钮，其余按编排序尾部收进浮层（手钉在前的编排序即优先级，
- * 仅运行的后排应用先进浮层）。数量回落后重编排自然回栏。泛型：条目形态由调用方定
- * （内核喂 TaskbarLeftEntry、渲染层喂视图条目），裁决只看数量与序。
- */
-export function planLeftOverflow<T>(entries: readonly T[], slots: number): TaskbarLeftOverflow<T> {
-  if (entries.length <= slots) return { bar: [...entries], overflow: [] }
-  const keep = Math.max(0, slots - 1)
-  return { bar: entries.slice(0, keep), overflow: entries.slice(keep) }
 }
