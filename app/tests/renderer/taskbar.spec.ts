@@ -4,7 +4,7 @@
  * 整组显隐边界）；点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
  */
 import { describe, expect, it } from 'vitest'
-import { dispatchTaskbarButton, dispatchTaskbarVisibility, taskbarViewModel } from '../../src/renderer/taskbar-view'
+import { dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchActivateWindow, dispatchTaskbarButton, dispatchTaskbarVisibility, taskbarAppMenuRows, taskbarViewModel } from '../../src/renderer/taskbar-view'
 import type { TaskbarBridge } from '../../src/renderer/taskbar-view'
 import type { TaskbarLeftEntry, TaskbarState } from '../../src/shared/contract'
 
@@ -32,6 +32,22 @@ function fakeBridge(s: TaskbarState) {
           : s.hiddenButtons.filter((b) => b !== id)
         return Promise.resolve({ ...s, hiddenButtons } as never)
       }
+      // 工单53 左组交互族
+      if (method === 'taskbar/app-click') {
+        return Promise.resolve({
+          ok: true,
+          action: 'window-list',
+          windows: [
+            { hwnd: 101, title: '甲 - 文档1' },
+            { hwnd: 102, title: '甲 - 文档2' },
+          ],
+        } as never)
+      }
+      if (method === 'taskbar/activate-window') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/app-new-instance') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/set-app-pinned') return Promise.resolve(s as never)
+      if (method === 'taskbar/close-window') return Promise.resolve({ ok: true, closed: 1 } as never)
+      if (method === 'taskbar/reveal-app') return Promise.resolve({ ok: true } as never)
       throw new Error(`fake bridge 未知方法: ${method}`)
     },
     on: () => () => {},
@@ -178,6 +194,83 @@ describe('系统按钮显隐菜单动作（工单54，fake bridge 驱动）', ()
     const { bridge, calls } = fakeBridge(state())
     const r = await dispatchTaskbarVisibility(bridge, 'ghost' as never, true)
     expect(r).toBeNull()
+    expect(calls).toEqual([])
+  })
+})
+
+describe('左组右键菜单行（工单53，fake bridge 驱动）', () => {
+  it('手钉且运行中：解除手钉 + 关闭窗口 + 打开文件位置', () => {
+    expect(taskbarAppMenuRows({ pinned: true, running: true })).toEqual([
+      { action: 'unpin', label: '解除手钉' },
+      { action: 'close', label: '关闭窗口' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+
+  it('未手钉未运行（仅运行条目）差异：手钉到任务栏在首行；未运行无关闭窗口行', () => {
+    expect(taskbarAppMenuRows({ pinned: false, running: true })[0]).toEqual({ action: 'pin', label: '手钉到任务栏' })
+    expect(taskbarAppMenuRows({ pinned: true, running: false })).toEqual([
+      { action: 'unpin', label: '解除手钉' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+})
+
+describe('左组交互分发（工单53，fake bridge 驱动）', () => {
+  it('左键点击 → taskbar/app-click 带 exe 到达桥；window-list 响应（带标题窗口清单）原样上抛', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    const r = await dispatchAppClick(bridge, 'C:\\Apps\\A.exe')
+    expect(r).toEqual({
+      ok: true,
+      action: 'window-list',
+      windows: [
+        { hwnd: 101, title: '甲 - 文档1' },
+        { hwnd: 102, title: '甲 - 文档2' },
+      ],
+    })
+    expect(calls).toEqual([{ method: 'taskbar/app-click', payload: { exe: 'C:\\Apps\\A.exe' } }])
+  })
+
+  it('左键空 exe 是噪声：不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    const r = await dispatchAppClick(bridge, '')
+    expect(r).toEqual({ ok: false, action: null })
+    expect(calls).toEqual([])
+  })
+
+  it('多窗口列表选窗 → taskbar/activate-window 带 hwnd 到达桥；非法 hwnd 不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await expect(dispatchActivateWindow(bridge, 102)).resolves.toEqual({ ok: true })
+    expect(calls).toEqual([{ method: 'taskbar/activate-window', payload: { hwnd: 102 } }])
+    const bad = await dispatchActivateWindow(bridge, 0)
+    expect(bad.ok).toBe(false)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('中键新实例 → taskbar/app-new-instance 带 exe 到达桥', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await expect(dispatchAppNewInstance(bridge, 'C:\\Apps\\A.exe')).resolves.toEqual({ ok: true })
+    expect(calls).toEqual([{ method: 'taskbar/app-new-instance', payload: { exe: 'C:\\Apps\\A.exe' } }])
+  })
+
+  it('菜单动作映射：手钉/解除手钉归一为 set-app-pinned，关闭窗口/打开文件位置各自到桥', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await dispatchAppMenuAction(bridge, 'C:\\Apps\\A.exe', 'pin')
+    await dispatchAppMenuAction(bridge, 'C:\\Apps\\A.exe', 'unpin')
+    await dispatchAppMenuAction(bridge, 'C:\\Apps\\A.exe', 'close')
+    await dispatchAppMenuAction(bridge, 'C:\\Apps\\A.exe', 'reveal')
+    expect(calls).toEqual([
+      { method: 'taskbar/set-app-pinned', payload: { exe: 'C:\\Apps\\A.exe', pinned: true } },
+      { method: 'taskbar/set-app-pinned', payload: { exe: 'C:\\Apps\\A.exe', pinned: false } },
+      { method: 'taskbar/close-window', payload: { exe: 'C:\\Apps\\A.exe' } },
+      { method: 'taskbar/reveal-app', payload: { exe: 'C:\\Apps\\A.exe' } },
+    ])
+  })
+
+  it('未知菜单动作/空 exe 是噪声：不发 invoke（返回 null）', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await expect(dispatchAppMenuAction(bridge, 'C:\\Apps\\A.exe', 'ghost' as never)).resolves.toBeNull()
+    await expect(dispatchAppMenuAction(bridge, '', 'pin')).resolves.toBeNull()
     expect(calls).toEqual([])
   })
 })

@@ -24,7 +24,19 @@ interface Bound {
   openProcess: KoffiFunc
   queryImageName: KoffiFunc
   closeHandle: KoffiFunc
+  getForegroundWindow: KoffiFunc
+  setForegroundWindow: KoffiFunc
+  bringWindowToTop: KoffiFunc
+  showWindow: KoffiFunc
+  isIconic: KoffiFunc
+  postMessage: KoffiFunc
+  attachThreadInput: KoffiFunc
+  getCurrentThreadId: KoffiFunc
 }
+
+const SW_RESTORE = 9
+const SW_MINIMIZE = 6
+const WM_CLOSE = 0x0010
 
 let bound: Bound | null = null
 
@@ -43,6 +55,14 @@ function bind(): Bound {
     openProcess: kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)'),
     queryImageName: kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)'),
     closeHandle: kernel32.func('bool __stdcall CloseHandle(void *h)'),
+    getForegroundWindow: user32.func('uintptr_t __stdcall GetForegroundWindow()'),
+    setForegroundWindow: user32.func('bool __stdcall SetForegroundWindow(uintptr_t hWnd)'),
+    bringWindowToTop: user32.func('bool __stdcall BringWindowToTop(uintptr_t hWnd)'),
+    showWindow: user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)'),
+    isIconic: user32.func('bool __stdcall IsIconic(uintptr_t hWnd)'),
+    postMessage: user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)'),
+    attachThreadInput: user32.func('bool __stdcall AttachThreadInput(uint32 idAttach, uint32 idAttachTo, bool fAttach)'),
+    getCurrentThreadId: kernel32.func('uint32 __stdcall GetCurrentThreadId()'),
   }
   return bound
 }
@@ -108,4 +128,41 @@ export function nativeTaskbarWindows(): TaskbarWindowInfo[] {
     h = b.getWindow(h, GW_HWNDNEXT) as number
   }
   return out
+}
+
+// —— 工单53 窗口效果薄壳（无分支裁决——裁决全在 interactions.ts 纯函数；真机行为由验收电池覆盖）——
+
+/** 当前前台窗口 hwnd（三态裁决「已前台」判据；无前台窗口归 0） */
+export function nativeForegroundHwnd(): number {
+  return Number(bind().getForegroundWindow()) || 0
+}
+
+/**
+ * 置前目标窗口（最小化先还原）。SetForegroundWindow 有前台锁——本进程后台无焦点时
+ * 直调会静默失败（任务栏闪烁提示了事）；AttachThreadInput 链到当前前台线程再置前是
+ * 验收电池 forceForeground 同款实证形态。调用方按 hwnd 即时操作，句柄失效即 false。
+ */
+export function nativeActivateWindow(hwnd: number): boolean {
+  const b = bind()
+  if (b.isIconic(hwnd)) b.showWindow(hwnd, SW_RESTORE)
+  const fg = Number(b.getForegroundWindow()) || 0
+  const curTid = b.getCurrentThreadId() as number
+  const fgTid = fg ? (b.getWindowThreadProcessId(fg, Buffer.alloc(4)) as number) : 0
+  const attached = !!(fgTid && fgTid !== curTid && b.attachThreadInput(curTid, fgTid, true))
+  try {
+    b.bringWindowToTop(hwnd)
+    return !!b.setForegroundWindow(hwnd)
+  } finally {
+    if (attached) b.attachThreadInput(curTid, fgTid, false)
+  }
+}
+
+/** 最小化目标窗口（已前台再点的切换语义，Win11 同款） */
+export function nativeMinimizeWindow(hwnd: number): boolean {
+  return !!bind().showWindow(hwnd, SW_MINIMIZE)
+}
+
+/** 投递 WM_CLOSE（优雅关闭：多窗口/有未存确认的应用按自身语义处理，不强杀） */
+export function nativeCloseWindow(hwnd: number): boolean {
+  return !!bind().postMessage(hwnd, WM_CLOSE, 0, 0)
 }

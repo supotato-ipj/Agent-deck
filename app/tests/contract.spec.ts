@@ -7,6 +7,7 @@ import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugi
 import type { AppConfig } from '../src/main/config'
 import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
 import type { DesktopItem, PanelSnapshot, PluginInfo, TaskbarSystemAction } from '../src/shared/contract'
+import type { TaskbarWindowInfo } from '../src/main/taskbar/windows'
 import { flush, harness } from './search/harness'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
@@ -1018,7 +1019,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
    */
   function leftOpts(dir: string, over: Record<string, unknown> = {}) {
     const env = {
-      windows: [] as Array<{ exe: string; title: string | null }>,
+      windows: [] as TaskbarWindowInfo[],
       items: [] as Array<{ name: string; path: string; kind: 'shortcut' | 'url' | 'file' | 'folder'; display: string; iconKey: string }>,
       targets: new Map<string, string>(),
       enumCalls: 0,
@@ -1050,8 +1051,8 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
     t.env.targets.set('C:\\Users\\u\\Desktop\\A.lnk', 'C:\\Apps\\A.exe')
     fs.writeFileSync(t.opts.taskbar.dockStoreFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
     t.env.windows = [
-      { exe: 'C:\\Apps\\A.exe', title: '甲 - 编辑中' },
-      { exe: 'C:\\Apps\\B.exe', title: '乙窗口' },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 编辑中', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\B.exe', title: '乙窗口', hwnd: 102, pid: 1002 },
     ]
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
@@ -1068,7 +1069,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       ctx.taskbar.refresh() // 内容不变：不重推
       expect(changed).toHaveLength(1)
       // 运行态进出：B 退出、A 标题变化，各推一帧
-      t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲 - 已保存' }]
+      t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲 - 已保存', hwnd: 101, pid: 1001 }]
       ctx.taskbar.refresh()
       expect(changed).toHaveLength(2)
       const latest = changed[1].left as Array<{ exe: string; running: boolean; title: string | null }>
@@ -1088,7 +1089,7 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
     t.env.targets.set('C:\\Users\\u\\Desktop\\A.lnk', 'C:\\Apps\\A.exe')
     t.env.targets.set('C:\\Users\\u\\Desktop\\B.lnk', 'C:\\Apps\\B.exe')
     fs.writeFileSync(t.opts.taskbar.dockStoreFile, JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] }))
-    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: 'SECRET-WINDOW-TITLE' }]
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: 'SECRET-WINDOW-TITLE', hwnd: 101, pid: 1001 }]
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
     try {
@@ -1139,8 +1140,8 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
     const dir = tmpDir()
     const t = leftOpts(dir)
     t.env.windows = [
-      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK' }, // 归一后 = ownExe
-      { exe: 'C:\\Apps\\A.exe', title: '甲' },
+      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK', hwnd: 900, pid: 9000 }, // 归一后 = ownExe
+      { exe: 'C:\\Apps\\A.exe', title: '甲', hwnd: 101, pid: 1001 },
     ]
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
@@ -1155,6 +1156,251 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       expect(t.env.enumCalls).toBe(before)
       state = await ctx.bridge.invoke('taskbar/get-state', null)
       expect(state.enabled).toBe(false)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单53 左组交互）', () => {
+  /**
+   * 左组交互桩：栏布局存储/dock 迁移源落 tmp；窗口枚举、前台、置前/最小化/关闭、
+   * 启动、reveal 全假源（Win32 系统效果不进单测——效果层薄壳由真机验收覆盖）。
+   */
+  function interactOpts(dir: string, over: Record<string, unknown> = {}) {
+    const env = {
+      windows: [] as TaskbarWindowInfo[],
+      fg: 0,
+      activated: [] as number[],
+      minimized: [] as number[],
+      closed: [] as number[],
+      launched: [] as string[],
+      revealed: [] as string[],
+    }
+    const opts = {
+      taskbar: {
+        storeFile: path.join(dir, 'taskbar-layout.json'),
+        dockStoreFile: path.join(dir, 'layout.json'),
+        deps: {
+          sendSystemKeys: () => true,
+          listWindows: () => env.windows,
+          ownExe: 'C:\\deck\\agent-deck.exe',
+          desktopItems: () => [],
+          resolveShortcutTarget: () => null,
+          iconKeyForPath: () => null,
+          foregroundHwnd: () => env.fg,
+          activateWindow: (h: number) => { env.activated.push(h); return true },
+          minimizeWindow: (h: number) => { env.minimized.push(h); return true },
+          closeWindow: (h: number) => { env.closed.push(h); return true },
+          launchExe: async (e: string) => { env.launched.push(e); return '' },
+          revealExe: (e: string) => { env.revealed.push(e) },
+        },
+        ...over,
+      },
+    }
+    return { env, opts }
+  }
+
+  it('taskbar/app-click 三态：未运行手钉 → 启动；单窗口未前台 → 置前；单窗口已前台 → 最小化', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: 'C:\\Apps\\A.exe|1' }],
+    }))
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 手钉上栏、无窗口（未运行）
+      // ① 未运行 → 启动
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'launched' })
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe'])
+      // ② 单窗口未前台 → 置前
+      t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲 - 文档', hwnd: 101, pid: 1001 }]
+      t.env.fg = 999
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'activated' })
+      expect(t.env.activated).toEqual([101])
+      expect(t.env.minimized).toEqual([])
+      // ③ 单窗口已前台 → 最小化
+      t.env.fg = 101
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'minimized' })
+      expect(t.env.minimized).toEqual([101])
+      expect(t.env.launched).toHaveLength(1) // 运行后不再走启动
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/app-click：多窗口 → window-list 携带带标题清单（不执行窗口效果）；未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    t.env.fg = 101 // 其一已在前台：多窗口仍出列表（不最小化）
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({
+          ok: true,
+          action: 'window-list',
+          windows: [
+            { hwnd: 101, title: '甲 - 文档1' },
+            { hwnd: 102, title: '甲 - 文档2' },
+          ],
+        })
+      expect(t.env.activated).toEqual([])
+      expect(t.env.minimized).toEqual([])
+      const miss = await ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(miss.action).toBeNull()
+      expect(t.env.launched).toEqual([]) // 护栏：不执行任意路径
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/activate-window：多窗口列表选窗精确到达目标 hwnd；名单外 hwnd → ok:false（不置前）', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/activate-window', { hwnd: 102 })).resolves.toEqual({ ok: true })
+      expect(t.env.activated).toEqual([102])
+      const miss = await ctx.bridge.invoke('taskbar/activate-window', { hwnd: 999 })
+      expect(miss.ok).toBe(false)
+      expect(t.env.activated).toEqual([102])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/app-new-instance：中键恒启动新实例；未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/app-new-instance', { exe: 'C:\\Apps\\A.exe' })).resolves.toEqual({ ok: true })
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe'])
+      const miss = await ctx.bridge.invoke('taskbar/app-new-instance', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(t.env.launched).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-app-pinned：运行中应用手钉落盘（exe+label+iconKey，窗口标题永不入盘）并即时重编排回推；幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: 'SECRET-WINDOW-TITLE', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: Array<{ left: Array<{ exe: string; pinned: boolean }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: true })
+      expect(state.left.map((e) => [e.exe, e.pinned])).toEqual([['C:\\Apps\\A.exe', true]])
+      expect(changed).toHaveLength(1) // 重编排后手钉态变化即时回推
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned).toEqual([{ exe: 'C:\\Apps\\A.exe', label: 'A', iconKey: null }])
+      expect(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')).not.toContain('SECRET-WINDOW-TITLE')
+      // 幂等：同态不重推
+      await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: true })
+      expect(changed).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-app-pinned：解除手钉移除落盘并回推（未运行条目出左组）；不在清单幂等；未知 exe 与非布尔 pinned 抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: 'C:\\Apps\\A.exe|1' }],
+    }))
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: unknown[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: false })
+      expect(state.left).toEqual([]) // 未运行的手钉解除后整组出清
+      expect(changed).toHaveLength(1)
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned).toEqual([])
+      // 幂等：清单本就不含
+      await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: false })
+      expect(changed).toHaveLength(1)
+      // 契约违规：手钉目标必须在当前左组（展示元数据来源）；pinned 须布尔
+      await expect(ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\ghost.exe', pinned: true }))
+        .rejects.toThrow(/未知任务栏左组应用/)
+      await expect(ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: 'yes' as never }))
+        .rejects.toThrow(/须为布尔值/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/close-window：向该 exe 全部左组窗口投递关闭（多窗口一并关）；无窗口/未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/close-window', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, closed: 2 })
+      expect(t.env.closed).toEqual([101, 102])
+      const miss = await ctx.bridge.invoke('taskbar/close-window', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(t.env.closed).toHaveLength(2)
+      // 无窗口（应用刚退出）也按普通失败回报
+      t.env.windows = []
+      ctx.taskbar.refresh()
+      const none = await ctx.bridge.invoke('taskbar/close-window', { exe: 'C:\\Apps\\A.exe' })
+      expect(none).toMatchObject({ ok: false, closed: 0 })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/reveal-app：打开文件位置（explorer 定位 exe）；未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/reveal-app', { exe: 'C:\\Apps\\A.exe' })).resolves.toEqual({ ok: true })
+      expect(t.env.revealed).toEqual(['C:\\Apps\\A.exe'])
+      const miss = await ctx.bridge.invoke('taskbar/reveal-app', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(t.env.revealed).toHaveLength(1)
     } finally {
       await ctx.stop()
     }

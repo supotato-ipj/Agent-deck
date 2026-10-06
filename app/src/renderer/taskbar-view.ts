@@ -1,7 +1,7 @@
 // 任务栏 pill 纯逻辑（工单49/52/54）：视图模型是状态 → 视图的纯函数（左组形态映射、
 // 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, TaskbarAppClickAction, TaskbarButtonId, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../shared/contract'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -109,4 +109,88 @@ export async function dispatchTaskbarVisibility(
 ): Promise<TaskbarState | null> {
   if (!TASKBAR_BUTTONS.some((b) => b.id === buttonId)) return null
   return bridge.invoke('taskbar/set-button-hidden', { id: buttonId, hidden })
+}
+
+// —— 工单53 左组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——
+
+/** 左组应用右键菜单动作（工单53）：手钉/解除手钉、关闭窗口、打开文件位置 */
+export type TaskbarAppMenuAction = 'pin' | 'unpin' | 'close' | 'reveal'
+
+/** 左组应用右键菜单行（工单53）：pill 内横排最小菜单（工单54 同形态） */
+export interface TaskbarAppMenuRow {
+  action: TaskbarAppMenuAction
+  label: string
+}
+
+/**
+ * 左组应用右键菜单行：手钉/解除手钉按 pinned 取一首行；关闭窗口仅运行中在列
+ * （未运行没有可关的窗口）；打开文件位置恒在（手钉条目未运行也可定位 exe）。
+ */
+export function taskbarAppMenuRows(entry: Pick<TaskbarLeftViewEntry, 'pinned' | 'running'>): TaskbarAppMenuRow[] {
+  const rows: TaskbarAppMenuRow[] = [
+    entry.pinned ? { action: 'unpin', label: '解除手钉' } : { action: 'pin', label: '手钉到任务栏' },
+  ]
+  if (entry.running) rows.push({ action: 'close', label: '关闭窗口' })
+  rows.push({ action: 'reveal', label: '打开文件位置' })
+  return rows
+}
+
+/** 左键点击回执（工单53）：action=window-list 时 windows 携带带标题清单（标题仅即时显示） */
+export interface TaskbarAppClickResult {
+  ok: boolean
+  action: TaskbarAppClickAction | null
+  windows?: TaskbarWindowRef[]
+  error?: string
+}
+
+/** 左键分发：exe 身份经桥 invoke，三态/多窗口裁决在内核（渲染层不判前台）。空 exe 是噪声。 */
+export async function dispatchAppClick(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+): Promise<TaskbarAppClickResult> {
+  if (!exe) return { ok: false, action: null }
+  return bridge.invoke('taskbar/app-click', { exe })
+}
+
+/** 多窗口列表选窗分发：hwnd 精确到达目标窗口。非法 hwnd 是噪声（不发 invoke）。 */
+export async function dispatchActivateWindow(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  hwnd: number,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!Number.isFinite(hwnd) || hwnd <= 0) return { ok: false }
+  return bridge.invoke('taskbar/activate-window', { hwnd })
+}
+
+/** 中键新实例分发：恒启动（内核左组护栏兜底）。空 exe 是噪声。 */
+export async function dispatchAppNewInstance(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!exe) return { ok: false }
+  return bridge.invoke('taskbar/app-new-instance', { exe })
+}
+
+/**
+ * 右键菜单动作分发：pin/unpin 归一为 taskbar/set-app-pinned（回执 = 最新任务栏状态，
+ * 内核已回推 taskbar/changed）；close/reveal 各自到桥。未知动作/空 exe 是噪声：不发
+ * invoke，返回 null。
+ */
+export async function dispatchAppMenuAction(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+  action: TaskbarAppMenuAction,
+): Promise<TaskbarState | { ok: boolean; closed?: number; error?: string } | null> {
+  if (!exe) return null
+  switch (action) {
+    case 'pin':
+      return bridge.invoke('taskbar/set-app-pinned', { exe, pinned: true })
+    case 'unpin':
+      return bridge.invoke('taskbar/set-app-pinned', { exe, pinned: false })
+    case 'close':
+      return bridge.invoke('taskbar/close-window', { exe })
+    case 'reveal':
+      return bridge.invoke('taskbar/reveal-app', { exe })
+    default:
+      return null
+  }
 }
