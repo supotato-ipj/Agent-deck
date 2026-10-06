@@ -1,15 +1,17 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarRecommendation, TaskbarState, TaskbarSystemAction } from '../../shared/contract'
+import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarLeftEntry, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarWindowRef } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
+import { decideAppClick } from '../taskbar/interactions'
 import { normalizeExe, planLeftGroup } from '../taskbar/left-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/left-plan'
 import { loadTaskbarStore, migrateDockPinned, moveInOrder, parseDockPinnedNames, pinEntry, reorderPinned, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
 import { applyRecommendationOrder } from '../taskbar/plan'
+import type { TaskbarWindowInfo } from '../taskbar/windows'
 import { iconKeyOf } from '../desktop/scan'
 import { readStoreText, writeStoreText } from '../desktop/adapter'
 import { userDataPath } from '../paths'
@@ -36,8 +38,9 @@ export interface TaskbarServiceOptions {
      * 缺省空名单——离线测试注假源或经内核 panelData 装配。
      */
     recommendations?: () => TaskbarRecommendation[]
-    /** 运行中窗口枚举（工单52；缺省延迟绑定 taskbar/windows；标题仅内存即时读取，ADR-0007 书面口子） */
-    listWindows?: () => TaskbarWindowInput[]
+    /** 运行中窗口枚举（工单52/53；缺省延迟绑定 taskbar/windows；标题仅内存即时读取，ADR-0007 书面口子）。
+     * 工单53 起携带 hwnd/pid（点击三态与关闭/选窗的窗口寻址依据）。 */
+    listWindows?: () => TaskbarWindowInfo[]
     /** 自家 exe（其窗口不上栏；默认 process.execPath） */
     ownExe?: string
     /** 迁移解析用的桌面项池（缺省经数据面端口取最新快照条目） */
@@ -49,6 +52,20 @@ export interface TaskbarServiceOptions {
     writeStoreText?: (file: string, text: string) => void
     /** 仅运行条目的图标键（缺省 statSync mtime 组 iconKeyOf；入参为归一后的 exe） */
     iconKeyForPath?: (exe: string) => string | null
+    /** 前台窗口 hwnd（工单53 三态裁决的「已前台」判据；缺省延迟绑定 taskbar/windows） */
+    foregroundHwnd?: () => number
+    /** 窗口置前（工单53；含最小化还原；缺省延迟绑定 taskbar/windows） */
+    activateWindow?: (hwnd: number) => boolean
+    /** 窗口最小化（工单53；缺省延迟绑定 taskbar/windows） */
+    minimizeWindow?: (hwnd: number) => boolean
+    /** 窗口关闭（WM_CLOSE 投递；工单53；缺省延迟绑定 taskbar/windows） */
+    closeWindow?: (hwnd: number) => boolean
+    /** exe 启动（工单53 未运行启动/中键新实例；缺省延迟绑定 desktop/adapter 的 shellOpen，'' 即成功） */
+    launchExe?: (exe: string) => Promise<string>
+    /** 打开文件位置（工单53；缺省延迟绑定 desktop/adapter 的 explorerReveal，fire-and-forget） */
+    revealExe?: (exe: string) => void
+    /** 运行中应用置前（工单58；缺省延迟绑定 taskbar/windows。返回 false = 前台锁拒收） */
+    focusExeWindow?: (exe: string) => boolean
   }
 }
 
@@ -68,13 +85,20 @@ function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly Ta
 interface TaskbarDeps {
   sendSystemKeys: (action: TaskbarSystemAction) => boolean
   recommendations: () => TaskbarRecommendation[]
-  listWindows: () => TaskbarWindowInput[]
+  listWindows: () => TaskbarWindowInfo[]
   ownExe: string
   desktopItems: () => MigrationItem[]
   resolveShortcutTarget: (lnkPath: string) => string | null
   readStoreText: (file: string) => string | null
   writeStoreText: (file: string, text: string) => void
   iconKeyForPath: (exe: string) => string | null
+  foregroundHwnd: () => number
+  activateWindow: (hwnd: number) => boolean
+  minimizeWindow: (hwnd: number) => boolean
+  closeWindow: (hwnd: number) => boolean
+  launchExe: (exe: string) => Promise<string>
+  revealExe: (exe: string) => void
+  focusExeWindow: (exe: string) => boolean
 }
 
 /**
@@ -98,6 +122,8 @@ export class TaskbarService extends Service {
   private readonly deps: TaskbarDeps
   private current: TaskbarState
   private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [] }
+  /** 最近一枚窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；仅内存——标题同拍进出，永不持久化） */
+  private lastWindows: TaskbarWindowInfo[] = []
   /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
   private layoutReady = false
 
@@ -116,7 +142,13 @@ export class TaskbarService extends Service {
       ownExe: options.deps?.ownExe ?? process.execPath,
       desktopItems: options.deps?.desktopItems ?? (() => this.ctx.panelData.desktop().items),
       resolveShortcutTarget: options.deps?.resolveShortcutTarget
-        ?? ((p) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).electronShortcutTarget(p)),
+        // 桌面服务在场时走它（同进程直连，无模块加载）；离线内核只有本服务时兜回
+        // desktop/adapter 的惰性绑定
+        ?? ((p: string) => {
+          const desktop = (this.ctx as unknown as { desktop?: { readShortcutTarget?: (lnk: string) => string | null } }).desktop
+          if (desktop?.readShortcutTarget) return desktop.readShortcutTarget(p)
+          return (require('../desktop/adapter') as typeof import('../desktop/adapter')).electronShortcutTarget(p)
+        }),
       readStoreText: options.deps?.readStoreText ?? readStoreText,
       writeStoreText: options.deps?.writeStoreText ?? writeStoreText,
       iconKeyForPath: options.deps?.iconKeyForPath ?? ((exe) => {
@@ -126,6 +158,20 @@ export class TaskbarService extends Service {
           return null // 竞态退出/权限缺席：无图标源，渲染层按无图降级
         }
       }),
+      foregroundHwnd: options.deps?.foregroundHwnd
+        ?? (() => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeForegroundHwnd()),
+      activateWindow: options.deps?.activateWindow
+        ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeActivateWindow(h)),
+      minimizeWindow: options.deps?.minimizeWindow
+        ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeMinimizeWindow(h)),
+      closeWindow: options.deps?.closeWindow
+        ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeCloseWindow(h)),
+      launchExe: options.deps?.launchExe
+        ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).shellOpen(exe)),
+      revealExe: options.deps?.revealExe
+        ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).explorerReveal(exe)),
+      focusExeWindow: options.deps?.focusExeWindow
+        ?? ((exe) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeFocusExeWindow(exe)),
     }
     this.current = {
       enabled: options.enabled ?? defaultTaskbar().enabled,
@@ -251,7 +297,7 @@ export class TaskbarService extends Service {
   refresh(): void {
     if (!this.current.enabled) return
     this.ensureLayout()
-    let windows: TaskbarWindowInput[]
+    let windows: TaskbarWindowInfo[]
     try {
       const own = normalizeExe(this.deps.ownExe)
       windows = this.deps.listWindows().filter((w) => normalizeExe(w.exe) !== own)
@@ -260,6 +306,7 @@ export class TaskbarService extends Service {
       console.warn(`deck-taskbar: 本轮窗口枚举失败，沿用上一轮左组：${err instanceof Error ? err.message : err}`)
       return
     }
+    this.lastWindows = windows
     const left = planLeftGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe))
     if (JSON.stringify(left) === JSON.stringify(this.current.left)) return
     this.current = { ...this.current, left }
@@ -280,8 +327,144 @@ export class TaskbarService extends Service {
   }
 
   /** 测试观察缝：当前栏布局存储内容（工单52/57） */
+  /**
+   * 左组应用图标点击（工单58，栏内与溢出浮层共用）：exe 身份必须在当前左组栏面上
+   * （desktop/launch 池护栏同款——栏外身份 ok:false 不启动不置前，竞态退场走同一路径）；
+   * 运行中置前、未运行启动（action = 内核裁决），执行失败 ok:false + error 不抛。
+   * 空/非字符串 exe 是契约违规，抛 BridgeError。
+   */
+  async activateApp(exe: string): Promise<{ ok: boolean; action: TaskbarActivateAction | null; error?: string }> {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar.activate-app.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    const key = normalizeExe(exe)
+    const hit = this.current.left.find((e) => normalizeExe(e.exe) === key)
+    if (!hit) return { ok: false, action: null, error: '栏外身份不启动' }
+    if (hit.running) {
+      try {
+        return this.deps.focusExeWindow(hit.exe)
+          ? { ok: true, action: 'focused' }
+          : { ok: false, action: 'focused', error: '置前被系统拒收（前台锁）' }
+      } catch (err) {
+        return { ok: false, action: 'focused', error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    try {
+      const err = await this.deps.launchExe(hit.exe)
+      return err ? { ok: false, action: 'launched', error: err } : { ok: true, action: 'launched' }
+    } catch (err) {
+      return { ok: false, action: 'launched', error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /** 测试观察缝：当前栏布局存储内容（工单52） */
   storeForTest(): TaskbarLayoutStore {
     return { version: 1, pinned: [...this.store.pinned], recommended: [...this.store.recommended] }
+  }
+
+  /** 左组条目按 exe 身份归一匹配（点击/右键动作的统一寻址口） */
+  private leftEntry(exe: string): TaskbarLeftEntry | undefined {
+    const key = normalizeExe(exe)
+    return this.current.left.find((e) => normalizeExe(e.exe) === key)
+  }
+
+  /** 该 exe 的当拍窗口快照（裁决与关闭的寻址集；含 hwnd，标题仅内存） */
+  private windowsOf(exe: string): TaskbarWindowInfo[] {
+    const key = normalizeExe(exe)
+    return this.lastWindows.filter((w) => normalizeExe(w.exe) === key)
+  }
+
+  /**
+   * 左键点击（工单53）：裁决在纯函数 decideAppClick——未运行（无窗口）→ 启动 exe；
+   * 单窗口未前台 → 置前；单窗口已前台 → 最小化；多窗口 → 返回带标题清单（窗口效果
+   * 留给渲染层选窗后的 taskbar/activate-window）。exe 护栏 = 必须在当前左组条目内，
+   * 否则 ok:false（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   */
+  async appClick(exe: string): Promise<{ ok: boolean; action: TaskbarAppClickAction | null; windows?: TaskbarWindowRef[]; error?: string }> {
+    const entry = this.leftEntry(exe)
+    if (!entry) return { ok: false, action: null, error: '应用不在任务栏左组' }
+    let fg = 0
+    try {
+      fg = this.deps.foregroundHwnd()
+    } catch {
+      fg = 0 // 前台不可判按「不在前台」处理（置前是安全方向）
+    }
+    const decision = decideAppClick(this.windowsOf(entry.exe), fg)
+    switch (decision.kind) {
+      case 'launch': {
+        const err = await this.deps.launchExe(entry.exe)
+        return err ? { ok: false, action: null, error: err } : { ok: true, action: 'launched' }
+      }
+      case 'activate':
+        return { ok: this.deps.activateWindow(decision.hwnd), action: 'activated' }
+      case 'minimize':
+        return { ok: this.deps.minimizeWindow(decision.hwnd), action: 'minimized' }
+      case 'pick':
+        return { ok: true, action: 'window-list', windows: decision.windows }
+    }
+  }
+
+  /** 多窗口列表选窗（工单53）：hwnd 必须在当拍窗口快照内且归属左组某 exe——
+   * 不置前任意义外的窗口（名单外/已销毁 hwnd 回报 ok:false 不抛）。 */
+  activateWindowByHwnd(hwnd: number): { ok: boolean; error?: string } {
+    const hit = this.lastWindows.find((w) => w.hwnd === hwnd)
+    if (!hit || !this.leftEntry(hit.exe)) return { ok: false, error: '窗口不在任务栏左组' }
+    return { ok: this.deps.activateWindow(hwnd) }
+  }
+
+  /** 中键新实例（工单53）：恒启动 exe（左组护栏同 appClick） */
+  async appNewInstance(exe: string): Promise<{ ok: boolean; error?: string }> {
+    const entry = this.leftEntry(exe)
+    if (!entry) return { ok: false, error: '应用不在任务栏左组' }
+    const err = await this.deps.launchExe(entry.exe)
+    return err ? { ok: false, error: err } : { ok: true }
+  }
+
+  /**
+   * 右键菜单「手钉/解除手钉」（工单53）：手钉 = exe 身份连同展示元数据（label/iconKey
+   * 取自当前左组条目——窗口标题永不进落盘面）追加进手钉清单；解除 = 按归一身份移除。
+   * 先写盘后重编排回推（setEnabled 同款顺序：写失败即抛，盘/内存/事件三者一致）；
+   * 同态幂等空转。手钉目标必须在当前左组（展示元数据来源），未知 exe 抛 BridgeError。
+   */
+  setAppPinned(exe: string, pinned: boolean): TaskbarState {
+    if (typeof pinned !== 'boolean') {
+      throw new BridgeError(`taskbar.set-app-pinned.pinned 须为布尔值，收到 ${String(pinned)}`)
+    }
+    this.ensureLayout()
+    const key = normalizeExe(exe)
+    const idx = this.store.pinned.findIndex((p) => normalizeExe(p.exe) === key)
+    if (pinned === idx >= 0) return this.state() // 同态幂等
+    if (pinned) {
+      const entry = this.leftEntry(exe)
+      if (!entry) throw new BridgeError(`未知任务栏左组应用: ${String(exe)}`)
+      this.store = { ...this.store, pinned: [...this.store.pinned, { exe: entry.exe, label: entry.label, iconKey: entry.iconKey }] }
+    } else {
+      this.store = { ...this.store, pinned: this.store.pinned.filter((_, i) => i !== idx) }
+    }
+    this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
+    this.refresh() // 手钉段迁移即时上栏（变化才回推 taskbar/changed）
+    return this.state()
+  }
+
+  /** 右键菜单「关闭窗口」（工单53）：向该 exe 的全部左组窗口投递 WM_CLOSE（多窗口
+   * 一并关，Win11「关闭所有窗口」语义）。无可关窗口/未知 exe 按普通失败回报。 */
+  closeWindowFor(exe: string): { ok: boolean; closed: number; error?: string } {
+    const entry = this.leftEntry(exe)
+    if (!entry) return { ok: false, closed: 0, error: '应用不在任务栏左组' }
+    const wins = this.windowsOf(entry.exe)
+    if (wins.length === 0) return { ok: false, closed: 0, error: '应用没有可关闭的窗口' }
+    let closed = 0
+    for (const w of wins) if (this.deps.closeWindow(w.hwnd)) closed++
+    return { ok: closed > 0, closed }
+  }
+
+  /** 右键菜单「打开文件位置」（工单53）：explorer /select,<exe>（fire-and-forget；
+   * 左组护栏同 appClick）。 */
+  revealApp(exe: string): { ok: boolean; error?: string } {
+    const entry = this.leftEntry(exe)
+    if (!entry) return { ok: false, error: '应用不在任务栏左组' }
+    this.deps.revealExe(entry.exe)
+    return { ok: true }
   }
 
   /**
@@ -357,8 +540,14 @@ export class TaskbarService extends Service {
   private resolveItemExe(name: string): string | null {
     const item = this.deps.desktopItems().find((i) => i.name === name)
     if (!item) return null
-    const exe = item.kind === 'shortcut' ? (this.deps.resolveShortcutTarget(item.path) ?? item.path) : item.path
-    return normalizeExe(exe)
+    if (item.kind !== 'shortcut') return normalizeExe(item.path)
+    try {
+      return normalizeExe(this.deps.resolveShortcutTarget(item.path) ?? item.path)
+    } catch {
+      // 解析器不可用（离线内核未注入快捷方式解析）→ 退回以快捷方式路径判重，
+      // 宁可同一应用在两处各判一次，也不让推荐位整段因单点失败清空
+      return normalizeExe(item.path)
+    }
   }
 
   /** 整份回写 config.json 的 taskbar 段（enabled + hiddenButtons 同段共写）并同步可变引用 */

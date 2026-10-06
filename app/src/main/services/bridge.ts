@@ -149,6 +149,34 @@ export class BridgeService extends Service {
         const drop = payload as TaskbarDragDrop
         return this.ctx.taskbar.dragDrop(drop) as BridgeMethods[M]['response']
       }
+      case 'taskbar/app-click': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.appClick(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/activate-window': {
+        const { hwnd } = payload as { hwnd: number }
+        return this.ctx.taskbar.activateWindowByHwnd(Number(hwnd)) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/app-new-instance': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.appNewInstance(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/set-app-pinned': {
+        const { exe, pinned } = payload as { exe: string; pinned: boolean }
+        return this.ctx.taskbar.setAppPinned(String(exe ?? ''), pinned) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/close-window': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.closeWindowFor(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/reveal-app': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.revealApp(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/activate-app': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.activateApp(exe) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

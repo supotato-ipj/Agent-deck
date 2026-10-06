@@ -2,10 +2,11 @@
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54——fake bridge 驱动，Node 中直跑不碰 DOM）：
  * 渲染 = taskbar/get-state → 视图模型（左组形态映射 + 中组系统按钮显隐 + 推荐位 +
  * 整组显隐边界）；点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
+ * 工单58：左组溢出拆分（容量内全留栏、超限尾部收浮层）+ 应用图标点击分发 taskbar/activate-app。
  */
 import { describe, expect, it } from 'vitest'
-import { dispatchTaskbarButton, dispatchTaskbarVisibility, taskbarViewModel } from '../../src/renderer/taskbar-view'
-import type { TaskbarBridge } from '../../src/renderer/taskbar-view'
+import { dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel } from '../../src/renderer/taskbar-view'
+import type { TaskbarBridge, TaskbarLeftViewEntry } from '../../src/renderer/taskbar-view'
 import type { TaskbarLeftEntry, TaskbarState } from '../../src/shared/contract'
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
@@ -31,6 +32,30 @@ function fakeBridge(s: TaskbarState) {
           ? [...s.hiddenButtons, id]
           : s.hiddenButtons.filter((b) => b !== id)
         return Promise.resolve({ ...s, hiddenButtons } as never)
+      }
+// 工单53 左组交互族
+      if (method === 'taskbar/app-click') {
+        return Promise.resolve({
+          ok: true,
+          action: 'window-list',
+          windows: [
+            { hwnd: 101, title: '甲 - 文档1' },
+            { hwnd: 102, title: '甲 - 文档2' },
+          ],
+        } as never)
+      }
+      if (method === 'taskbar/activate-window') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/app-new-instance') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/set-app-pinned') return Promise.resolve(s as never)
+      if (method === 'taskbar/close-window') return Promise.resolve({ ok: true, closed: 1 } as never)
+      if (method === 'taskbar/reveal-app') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/drag-drop') return Promise.resolve({ ok: true } as never)
+      // 工单58 左组溢出分发
+      if (method === 'taskbar/activate-app') {
+        const { exe } = payload as { exe: string }
+        const hit = s.left.find((e) => e.exe === exe)
+        if (!hit) return Promise.resolve({ ok: false, action: null, error: '栏外身份' } as never)
+        return Promise.resolve({ ok: true, action: hit.running ? 'focused' : 'launched' } as never)
       }
       throw new Error(`fake bridge 未知方法: ${method}`)
     },
@@ -179,5 +204,26 @@ describe('系统按钮显隐菜单动作（工单54，fake bridge 驱动）', ()
     const r = await dispatchTaskbarVisibility(bridge, 'ghost' as never, true)
     expect(r).toBeNull()
     expect(calls).toEqual([])
+  })
+})
+
+describe('栏上拖拽落位分发（工单57，fake bridge 驱动）', () => {
+  it('跨组：中→左升手钉、左→中解除手钉回推荐池，落点身份随目标条目', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await dispatchTaskbarDragDrop(bridge, { from: 'mid', to: 'left', id: 'Alpha.lnk', before: 'C:\Apps\B.exe' })
+    await dispatchTaskbarDragDrop(bridge, { from: 'left', to: 'mid', id: 'C:\Apps\B.exe', before: null })
+    expect(calls).toEqual([
+      { method: 'taskbar/drag-drop', payload: { from: 'mid', to: 'left', id: 'Alpha.lnk', before: 'C:\Apps\B.exe' } },
+      { method: 'taskbar/drag-drop', payload: { from: 'left', to: 'mid', id: 'C:\Apps\B.exe', before: null } },
+    ])
+  })
+
+  it('组内换位：左→左换手钉序落位 before=目标身份；畸形描述子是噪声不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await dispatchTaskbarDragDrop(bridge, { from: 'left', to: 'left', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' })
+    await expect(dispatchTaskbarDragDrop(bridge, { from: 'x' as never, to: 'left', id: 'A', before: null })).resolves.toEqual({ ok: false, error: '拖拽描述子畸形' })
+    expect(calls).toEqual([
+      { method: 'taskbar/drag-drop', payload: { from: 'left', to: 'left', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' } },
+    ])
   })
 })

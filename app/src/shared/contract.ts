@@ -166,6 +166,17 @@ export interface TaskbarLeftEntry {
   iconKey: string | null
 }
 
+/** 左组应用窗口引用（工单53 多窗口列表选窗）：hwnd 即时有效（仅当拍，不持久化）；
+ * title 仅内存即时显示（ADR-0007 书面口子：tooltip 与多窗口列表可用，永不落盘） */
+export interface TaskbarWindowRef {
+  hwnd: number
+  title: string | null
+}
+
+/** 左键点击结果动作（工单53 三态 + 多窗口列表）：launched=启动；activated=置前；
+ * minimized=最小化；window-list=弹出带窗口标题的选窗列表（windows 随响应携带） */
+export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'window-list'
+
 /** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
  * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
  * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
@@ -192,6 +203,14 @@ export interface TaskbarDragDrop {
   id: string
   before: string | null
 }
+
+/**
+ * 左组应用激活动作（工单58 启动/置前基本分发通路）：launched = 未运行启动；
+ * focused = 运行中置前。action 是内核裁决（执行失败时仍回报裁决，ok 标记成败）；
+ * null = 未执行（栏外身份护栏）。中键新实例、最小化切换、多窗口列表与右键菜单
+ * 是工单53 的全交互面，在同一 exe 身份挂点上扩展。
+ */
+export type TaskbarActivateAction = 'launched' | 'focused'
 
 /**
  * 桌面组件能力（工单10 插件体系）：manifest 声明插件可读的快照段。
@@ -427,6 +446,42 @@ export interface BridgeMethods {
    * 同态幂等空转不重写不重推；描述子畸形（组别/身份非法）抛 BridgeError（契约违规）。
    */
   'taskbar/drag-drop': { request: TaskbarDragDrop; response: { ok: boolean; error?: string } }
+  /**
+   * 左组图标左键（工单53）：三态裁决内核落地——未运行（无窗口）→ 启动 exe；单窗口
+   * 未前台 → 置前；单窗口已前台 → 最小化；多窗口 → 不执行窗口效果，响应 action=
+   * 'window-list' 并携带带标题的窗口清单（渲染层弹出 pill 内列表，再经
+   * taskbar/activate-window 精确选窗）。exe 护栏 = 必须在当前左组条目内（归一匹配），
+   * 否则 ok:false（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   */
+  'taskbar/app-click': {
+    request: { exe: string }
+    response: { ok: boolean; action: TaskbarAppClickAction | null; windows?: TaskbarWindowRef[]; error?: string }
+  }
+  /** 多窗口列表选窗（工单53）：hwnd 必须在最近一次窗口枚举快照内且归属左组某 exe
+   * （不置前任意义外的窗口）；已销毁/名单外 hwnd 回报 ok:false 不抛。 */
+  'taskbar/activate-window': { request: { hwnd: number }; response: { ok: boolean; error?: string } }
+  /** 中键开新实例（工单53）：恒启动 exe（app-click 同款左组护栏） */
+  'taskbar/app-new-instance': { request: { exe: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 右键菜单「手钉/解除手钉」（工单53）：手钉 = exe 身份连同展示元数据（label/iconKey
+   * 取自当前左组条目）追加进栏布局存储手钉清单并落盘；解除 = 从清单移除。同态幂等
+   * 空转；落盘后即时重编排（手钉段迁移）并回推 taskbar/changed。手钉目标必须在
+   * 当前左组条目内（需要展示元数据来源），未知 exe 抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-app-pinned': { request: { exe: string; pinned: boolean }; response: TaskbarState }
+  /** 右键菜单「关闭窗口」（工单53）：向该 exe 的全部左组窗口投递 WM_CLOSE（多窗口
+   * 一并关，Win11「关闭所有窗口」语义）；closed = 成功投递数。左组护栏同 app-click。 */
+  'taskbar/close-window': { request: { exe: string }; response: { ok: boolean; closed: number; error?: string } }
+  /** 右键菜单「打开文件位置」（工单53）：explorer /select,<exe> 定位（desktop/reveal
+   * 同款 fire-and-forget 机制）；左组护栏同 app-click。 */
+  'taskbar/reveal-app': { request: { exe: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 左组应用图标点击（工单58，栏内与溢出浮层共用同一道契约）：exe 身份必须在当前左组
+   * 栏面上（desktop/launch 池护栏同款——栏外身份不启动，ok:false 回报）；运行中置前、
+   * 未运行启动，裁决在内核。执行失败（前台锁拒收/启动报错）ok:false + error 不抛——
+   * 点击语义不需 try/catch。工单53 的全交互（右键菜单/中键/最小化切换）在同一身份挂点扩展。
+   */
+  'taskbar/activate-app': { request: { exe: string }; response: { ok: boolean; action: TaskbarActivateAction | null; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
