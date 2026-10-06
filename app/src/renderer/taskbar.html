@@ -20,6 +20,44 @@
     align-items: center;
     justify-content: center;
   }
+  /* 左组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
+  #pill-left {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    column-gap: 2px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+  .tb-app {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .tb-app:hover { background: rgba(255, 255, 255, 0.10); }
+  .tb-app img { width: 22px; height: 22px; }
+  /* 运行态叠加（工单52：已手钉应用运行时不新增图标，只在原图标下叠指示条） */
+  .tb-app.running::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 1px;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.85);
+  }
   /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
    * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
   #pill {
@@ -74,6 +112,7 @@
 </style>
 </head>
 <body>
+<div id="pill-left" role="toolbar" aria-label="任务栏左组"></div>
 <div id="pill" role="toolbar" aria-label="任务栏中组"></div>
 <script type="module" src="./taskbar.js"></script>
 </body>

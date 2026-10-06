@@ -147,13 +147,34 @@ export interface TaskbarRecommendation {
   path: string
 }
 
+/**
+ * 任务栏左组条目（工单52，GLOSSARY.md「栏分组」左组）：手钉与运行中应用的合并视图。
+ * 身份 = exe 路径（原始大小写；比较时归一）。title 是窗口标题——仅内存即时读取的
+ * 即时呈现（tooltip），永不持久化（ADR-0007 对 ADR-0002 的书面口子；图标键、手钉
+ * 名单等落盘面绝不含它）。
+ */
+export interface TaskbarLeftEntry {
+  /** 身份：exe 绝对路径（手钉 = 手钉登记的 exe；仅运行 = 首见窗口的 exe） */
+  exe: string
+  /** 显示名（手钉 = 迁移时桌面项显示名；仅运行 = exe 基名去扩展） */
+  label: string
+  pinned: boolean
+  running: boolean
+  /** 窗口标题（tooltip 用；仅运行中在场，仅内存，永不落盘） */
+  title: string | null
+  /** 图标缓存键（desktop/icon 契约同款 path|mtimeMs；null = 无图标源） */
+  iconKey: string | null
+}
+
 /** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
  * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
- * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）。 */
+ * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
+ * left（工单52）= 左组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）。 */
 export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
   recommendations: TaskbarRecommendation[]
+  left: TaskbarLeftEntry[]
 }
 
 /**
