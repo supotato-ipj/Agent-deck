@@ -43,6 +43,10 @@ Issues 在 GitHub Issues，经 `gh` CLI 操作；认领 = assign（`gh issue edi
 
 单上下文布局：根目录 `GLOSSARY.md` + `docs/adr/`（按需惰性创建）。See `docs/agents/domain.md`.
 
+### 验收电池章法
+
+改动 `app/accept/` 下电池断言或段级清单（增/删/改段、flaky 处置、时长预算）前必读章法：增段三条件、删段硬规矩、flaky 禁止静默处理。See `docs/agents/battery-governance.md`.
+
 <!-- OPENWIKI:START -->
 
 ## OpenWiki
