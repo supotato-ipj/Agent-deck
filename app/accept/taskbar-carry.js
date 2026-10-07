@@ -194,6 +194,7 @@ async function main() {
 
     // —— 阶段A：守卫链全链路（隐藏 + 三条还原路径）——
     // A1 接管开启 → 原生任务栏隐藏，条带落屏底
+    rep.beginSegment('A1');
     child = launchGuardChain();
     const boot1 = await waitEvent('boot', null, 20000);
     if (!boot1) throw new Error('A1 守卫链面板未上报 boot');
@@ -217,6 +218,7 @@ async function main() {
     }
 
     // A2 正常退出（WM_CLOSE 面板主窗 → app.quit）→ 原生任务栏还原
+    rep.beginSegment('A2');
     const sinceA2 = Date.now();
     const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 8000);
     if (!panelHwnd) throw new Error('A2 面板主窗未找到');
@@ -232,6 +234,7 @@ async function main() {
     child = null;
 
     // A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫 panel-exit 还原
+    rep.beginSegment('A3');
     const sinceA3 = Date.now();
     child = launchGuardChain();
     const boot3 = await waitEvent('boot', (e) => e.t >= sinceA3, 20000);
@@ -252,6 +255,7 @@ async function main() {
 
     // A4 进程被杀路径：守卫 + 面板先后强杀（控制台信号同杀的等价现场——守卫进程内
     // 还原钩子全灭），还原守护（detached 出生、无控制台收信号）以 guard-dead 翻回。
+    rep.beginSegment('A4');
     const sinceA4 = Date.now();
     child = launchGuardChain();
     const boot4 = await waitEvent('boot', (e) => e.t >= sinceA4, 20000);
@@ -287,6 +291,7 @@ async function main() {
     if (!(await waitNativeVisible(false, 5000))) throw new Error('B 原生任务栏未被隐藏（前置不成立）');
 
     // B1 设置浮层关开关（真实 DOM 点击链：settings-btn → taskbar-toggle）→ 原生即还原
+    rep.beginSegment('B1');
     await cdpEval(`document.getElementById('settings-btn').click()`);
     const openedEv = await waitEvent('settings-opened', (e) => e.t >= sinceB, 5000);
     if (!openedEv) throw new Error('B1 设置浮层未开（settings-opened 存证缺失）');
@@ -305,6 +310,7 @@ async function main() {
     }
 
     // B2 再开 → 原生再隐、条带回来（开关双向可用，非一次性自救）
+    rep.beginSegment('B2');
     await cdpEval(`document.getElementById('taskbar-toggle').click()`);
     const setEvOn = await waitEvent('settings-taskbar-set', (e) => e.t >= sinceB && e.enabled === true, 6000);
     const nativeGoneB2 = await waitNativeVisible(false, 8000);
@@ -333,6 +339,8 @@ async function main() {
       await sleep(500);
       try { ensureNativeTaskbarVisible(); } catch { /* 兜底中的兜底也不许抛 */ }
       if (originalConfig !== null) { try { fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8'); } catch { /* 尽力 */ } }
+      // C1 偏好不扰（工单50）：清场收尾时比对用户既有任务栏偏好字节不变
+      rep.beginSegment('C1');
       const prefsAfter = stuckRectsSettings();
       if (prefsAfter === prefsBefore) {
         rep.pass('C1 用户既有任务栏偏好未被改写（StuckRects3 Settings 全程字节不变）');
