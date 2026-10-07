@@ -11,7 +11,7 @@ Status: accepted
 - **两条通路**（MCP 给外部 agent，对话窗另走私有 JSON 命令）—— 必然长出两套会漂移的管理契约，与 `bridge.ts` 既有的「不另开通道」正面冲突。注意面板↔后端 agent 的**对话通道**在一条通路方案下也是私有的（ACP / ZCode Protocol），那部分不构成两者差别，差别只在管理通道。
 - **反置：面板只做 MCP 客户端**，主动连各 agent 提供的 server —— 到不了目的地。Qoder 只能当客户端（`--add-mcp`）、Kimi Work 完全不支持用户可注册 MCP、`kimi server run` 是 REST+WS 而非 MCP。
 - **线级统一**（对话窗自己也当 MCP 客户端，经回环连面板自己的 server）—— 字面上只有一条线，但面板内部每次交互都要付 MCP 帧 + 回环一跳，且 MCP 宿主一旦不在，面板自己的 UI 跟着废。契约级统一同样满足「一份契约、一套护栏」，代价小得多。
-- **控制面 = `BridgeMethods` 全表** —— 25 个方法里有一半对外调不动，是在浪费 agent 的上下文并诱导重试；而「不存在」比「被拒绝」是更强的护栏。
+- **控制面 = `BridgeMethods` 全表** —— 27 个方法里有一半对外调不动，是在浪费 agent 的上下文并诱导重试；而「不存在」比「被拒绝」是更强的护栏。
 - **代发**（对话窗解析后端 agent 的输出，以自己的内核档身份调用）—— 实施上极有诱惑：不用起 MCP server、不用解决 in-band 注入，对话窗就能「能用」，连本机跑不通的一次性模式也能「工作」。但它让外部 LLM 借到内核档的完全信任，能调**全表**（含投影之外的 `app/quit`、`taskbar/set-enabled`），且闸门装在控制面内、代发根本不过控制面——四档模型与全部护栏形同虚设。
 - **三档模型**（面板内 / 后端 agent / 外部 agent，插件包留在「面板内」）—— 留出一条提权路径：agent 经控制面写一个插件包进用户插件根（一次受控写），`fs.watch` 立刻热重载（没有「提交前」的安全窗口），而插件包今天拿到的是**未裁剪的整条桥接契约**（`app/src/renderer/plugins.ts:99-108`，只有 `view` 按 capability 裁剪，`invoke` 全表透传）——一次受控写换来一个不受控的常驻代理。「capability 恒为空」堵不住它：capability 模型是只读的（`app/src/shared/contract.ts:143`），只管读不管 `invoke`。
 - **按传输/监听面分档**（给后端 agent 单开一个端口或命名管道）—— 身份最好认，但等于把「一条通路」悄悄做成了「两条」。
@@ -19,7 +19,7 @@ Status: accepted
 
 ## Consequences
 
-- 档位名不能叫「插件包档」：按 GLOSSARY，内置五卡也是**插件包**。「插件包」是形态词，与信任档正交；分档的接缝是插件根来源——内置根 `app/src/renderer/cards`（`app/src/main/index.ts:30`）vs 用户根 `config.plugins.dir || userData/plugins`（`index.ts:152`）。
+- 档位名不能叫「插件包档」：按 GLOSSARY，内置五卡也是**插件包**。「插件包」是形态词，与信任档正交；分档的接缝是插件根来源——内置根运行时是 `dist/renderer/cards`（源码路径 `app/src/renderer/cards`，`app/src/main/index.ts:30`）vs 用户根 `config.plugins.dir || userData/plugins`（`index.ts:152`）。
 - **投放档的 `invoke` 必须受裁剪**，不只是 `view`。用什么机制（扩张 capability 语义 vs 另立一个写授权概念）交《agent 写入插件包的契约与 capability 授予》决。
 - 现状是**零身份**：`deck:bridge-invoke` 连 `event.sender` 都不校验（`app/src/main/panel-ipc.ts:48-57`，对比 host 三通道各自校验 sender）。四档是第一次引入「谁在调」这个概念。
 - 后端 agent 无法回连 MCP 时，对话窗**只能聊天、不能管理面板**。这是接受的降级：Qoder 与 Kimi Work 本来就不能当后端 agent。
@@ -28,3 +28,14 @@ Status: accepted
 - **事件订阅整块未决**：`BridgeEvents` 六个事件算不算控制面的一部分、agent 能不能订阅，撞上 MCP 规范漂移（2025-11-25 有服务端主动通知，2026-07-28 修订版删掉改 MRTR）。交《MCP 传输与宿主进程选型》与《护栏分级》。
 - **自主管理**预留第五档（或作为后端档的一个子模式），交《自主管理的接口预留与数据口径》决。
 - 本 ADR 只定控制面的**形状**。凭证怎么铸、存哪、怎么轮换、面板重启后怎么办，交《控制面的本地安全边界与凭证》；各档对各类客体具体开到读还是写、写要不要闸门，交《可管理对象边界的护栏分级》。
+
+## 补记（票 #72《可管理对象边界的护栏分级》决完后的订正，2026-10-07）
+
+ADR-0010 定完「信任档 × 客体」宽严矩阵，本 ADR 有四处需要订正。**决策不重写**（它们是历史记录），只标注失效范围：
+
+- **方法数是 27 不是 25**（4 读 + 23 写，`app/src/shared/contract.ts:226-373`）。上文 Considered Options 里「控制面 = 全表」那条的计数已直接改正——那是引用笔误，不是决策。同理 Consequences 首条的内置插件根已改为运行时路径 `dist/renderer/cards`。
+- **「控制面是 `BridgeMethods` 的一个投影」这句判断不再成立**。Consequences 里「投影 = 四类客体的读写方法 + `panel/snapshot`」那条被 ADR-0010 修订为「**以既有契约的投影为主、允许受控新增，约束是单点分派与一份契约不变**」。原因是探明四类客体里有两类在母集里几乎是空的：**插件包类 0 个方法**（`PluginHost` 的 `rescan()` / `unload(id)` 在 `app/src/main/plugins/service.ts:134,168`，从未经桥暴露；安装 = 往用户根放目录、卸载 = 删目录，纯文件系统操作），**config 类只有 2 个写方法**（`settings/set-card-opacity`，以及 `taskbar/set-enabled` 顺带写 `config.taskbar.enabled`）。纯投影到不了 charting 时定下的最宽边界。
+- **Considered Options 里「代发」那条的举例已失效**：它把 `taskbar/set-enabled` 与 `app/quit` 并列为「投影之外」，而同文 Consequences 又把「内核插件层」列在投影之内——同一个方法两边都占，本 ADR 自相矛盾。ADR-0010 判 `taskbar/set-enabled` **在投影内**（charting 时 Q3=D 明确要把内核插件层的启停留在边界内），故该举例只余 `app/quit` 成立。「代发能调全表、绕开全部护栏」这条论证本身不受影响。
+- **Consequences 里「事件订阅整块未决」的护栏侧已决**：ADR-0010 定事件与快照是**同一只读客体的两种交付形态**、护栏口径完全一致（同套段级裁剪、事件载荷同样按档裁），`search/results` 全档永不进。**只剩传输可行性**归《MCP 传输与宿主进程选型》。
+
+「各档对各类客体具体开到读还是写、写要不要闸门」这一条已由 ADR-0010 履行。
