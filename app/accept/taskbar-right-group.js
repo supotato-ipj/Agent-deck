@@ -178,9 +178,8 @@ function killTree(child, panelPid) {
   try { child.kill(); } catch { /* 已退出 */ }
 }
 
-// 任务栏页摘要格读式（工单123）：hw-summary 在场取 innerText、缺位返回 null——
-// 旧读法 `getElementById(...).innerText` 会扎进 rightPill 清空重建的缺位窗口抛
-// TypeError 中止电池；P6 的即时收敛与重拉保持两读沿用此空安全形态。
+// 任务栏页摘要格读式（工单123 引入）：仅 P6 消费（即时收敛 + 重拉两读）——hw-summary
+// 缺位返回 null 而非抛 TypeError 的空安全读，防格缺位窗口期中止电池。
 const READ_SUMMARY_EXPR = `(() => { const el = document.getElementById('hw-summary'); return el ? el.innerText : null; })()`;
 
 async function main() {

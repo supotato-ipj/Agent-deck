@@ -130,12 +130,15 @@ function findPanelWindows(classified) {
  *   ② dwm 持有的全屏幽灵窗         → ghostWindows（Ghost 类窗，#107 取证所见形态）
  *   ③ 遗留提权面板进程             → panelWindows 恰一扇（电池未拉起任何面板时在场的遗孤）
  *   ④ 双面板并存                   → panelWindows ≥2 扇
- * @param {{panelWindows?: {pid:number, exeQueryable?:boolean}[], ghostWindows?: {cls:string,pid:number}[], fullscreenForeign?: {cls:string,pid:number,title?:string}[]}} probes
+ * @param {{panelWindows?: {pid:number, exeQueryable?:boolean}[], ghostWindows?: {cls:string,pid:number}[], fullscreenForeign?: {cls:string,pid:number,title?:string}[], rows?: object[]}} probes
+ *   （rows 为第五类 classifyUserWindowActivity 消费的可见窗快照行，本函数不读）
  * @returns {{kind: 'double-panel'|'leftover-panel'|'dwm-ghost'|'fullscreen-overlay', detail: string}[]}
  */
 
 // 壳层白名单（工单34 自 battery.js 迁入单点维护）：桌面宿主/任务栏/DefView 属 shell
 // 常驻件，既不算全屏覆盖层候选、也不算用户窗口活跃度。
+// 与 battery.js 的 CLEAR_DESKTOP_SKIP（清场跳过集）/DESKTOP_HIT_CLASSES（点即桌面集）同族异集
+// ——各站点生效集刻意不同，勿顺手统一（差异指认见 battery.js 清单注）。
 const PREFLIGHT_SHELL_CLASSES = new Set([
   'Progman', 'WorkerW', 'Shell_TrayWnd', 'Shell_SecondaryTrayWnd',
   'SHELLDLL_DefView', 'SysListView32',
@@ -164,20 +167,21 @@ function classifyPreflight(probes = {}) {
 }
 
 /**
- * preflight 第五类污染源：用户窗口活跃度（工单34 方向3）。纯检查函数——输入=窗口
- * 枚举快照行（battery.js 的 preflightProbes 行 + foreground 标记），输出=分类结论：
- * 检出 → 恰一条 user-window-activity；未检出 → 空数组。警示入账不拒跑、不进三路
- * 计数（ADR-0011：警示是 FAIL-ENV 证据链起点，不是断言）。
+ * preflight 第五类污染源：用户窗口活跃度（工单34 方向3）。纯检查函数——输入与
+ * classifyPreflight 同缝（整个 probes 对象；评审修正：两分类器入参形状统一，
+ * 快照行取 probes.rows = battery.js preflightProbes 带出的可见窗行 + foreground 标记），
+ * 输出=分类结论：检出 → 恰一条 user-window-activity；未检出 → 空数组。警示入账不拒跑、
+ * 不进三路计数（ADR-0011：警示是 FAIL-ENV 证据链起点，不是断言）。
  *
  * 判据边界：前台被「普通用户应用窗」占据 = 用户在机的最强快照信号。壳层静态件
  * （桌面宿主/任务栏/DefView）、Ghost（归既有 dwm-ghost 类）、cloaked（不可见合成）、
  * 电池自家窗（selfPid/自家标题）在场均不算——它们不预示「轮中抬窗」这一遮挡根因。
  * 快照预测不了未来抬窗：本警示只证明「发起时刻机器有用户活动迹象」，供轮后定责对读。
- * @param {{cls:string, title?:string, pid:number, selfPid?:number, visible?:boolean, cloaked?:boolean, foreground?:boolean}[]} rows
+ * @param {{rows?: {cls:string, title?:string, pid:number, selfPid?:number, visible?:boolean, cloaked?:boolean, foreground?:boolean}[]}} probes
  * @returns {{kind:'user-window-activity', detail:string}[]}
  */
-function classifyUserWindowActivity(rows = []) {
-  const list = Array.isArray(rows) ? rows : [];
+function classifyUserWindowActivity(probes = {}) {
+  const list = Array.isArray(probes.rows) ? probes.rows : [];
   const fg = list.find((r) => r && r.foreground);
   if (!fg) return [];
   const own = fg.selfPid != null && Number(fg.pid) === Number(fg.selfPid);
