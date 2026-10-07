@@ -1,162 +1,174 @@
-# accept 03-battery — 2026-10-06T15:18:59.228Z
-[15:18:59.231] NOTE  screen: phys 2560x1440 @ factor 1
-[15:19:00.561] NOTE  托盘识别色基线：无琥珀像素
-[15:19:00.563] NOTE  原生桌面图标基线：visible=true
-[15:19:00.564] NOTE  原生任务栏基线：visible=true
-[15:19:00.568] NOTE  已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）
-[15:19:07.588] NOTE  panel hwnd=0x4d0c86 rect(phys)=0,0 2560x1392
-[15:19:10.694] NOTE  透明区采样点 5355 个命中参照窗（其余被用户窗遮挡的点不计）
-[15:19:12.082] 透明区棋盘色命中率: 100.0% (样本 5355)
-[15:19:12.083] PASS  透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）
-[15:19:12.105] PASS  时钟卡白色文字像素 597/14080（文字实色清晰）
-[15:19:14.249] NOTE  实拍面板叠真壁纸（观感存证；动态壁纸逐帧不同，不做像素断言）
-[15:19:14.251] PASS  会话列表卡：渲染层收到内核会话数据并持续走数（第 2 次渲染，count=1，真机活跃池）
-[15:19:14.254] PASS  硬件卡已退役：面板全程未发 hardware-rendered/history-live（读数改由任务栏摘要承载）
-[15:19:14.256] PASS  天气卡：Open-Meteo 取数成功（weather_code=0 temp=19）
-[15:19:16.782] NOTE  卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（搜索/会话）
-[15:19:16.783] 穿透态 EXSTYLE=0x8280020
-[15:19:16.784] PASS  默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED
-[15:19:17.303] PASS  默认穿透：面板空区点击直达桌面（前台翻转为 Progman）
-[15:19:17.819] PASS  默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 XamlExplorerHostIslandWindow_WASDK）
-[15:19:18.135] PASS  热区声明：渲染层上报 clock-card rel(48,48) 320x176
-[15:19:18.845] NOTE  普通应用窗: notepad hwnd=0x650d10 @phys(1000,200) 1400x900
-[15:19:19.254] PASS  记事本盖住面板（普通窗在钉扎面板之上的自然 z 序）
-[15:19:19.317] PASS  光标进入时钟卡热区：面板临时解除穿透（WS_EX_TRANSPARENT 移除）
-[15:19:19.337] PASS  永不顶起：热区点击瞬间面板仍在记事本之下（回归线自「离开重钉后」前移到点击瞬间）
-[15:19:19.339] PASS  永不顶起：点击未抢走工作窗口前台（键盘焦点留在记事本，可继续盲打）
-[15:19:19.341] PASS  永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x8200000，点击不激活的机制保证）
-[15:19:19.348] PASS  热区点击由时钟卡接收（count=1）
-[15:19:19.350] PASS  时钟卡数据经桥接契约自内核而来并持续走时（3 次渲染，epoch 递增）
-[15:19:19.476] PASS  离开热区：面板恢复穿透
-[15:19:20.086] PASS  热区交互全程面板未顶起：记事本始终盖住面板（离开重钉路径保留，在永不顶起语义下是冗余保险）
-[15:19:20.088] PASS  底部钉扎 z 序：面板(40) 在记事本(21) 之下（自顶向下枚举序）
-[15:19:22.648] PASS  条目集合与磁盘扫描一致：16 项（用户桌面 10 + 公共桌面独有 6，电池对照）
-[15:19:22.650] NOTE  公共桌面 6 项（同名被用户桌面遮蔽 0 项）
-[15:19:22.651] PASS  原生桌面图标已隐藏（SysListView32 不可见）——桌面无「两套图标」
-[15:19:24.188] NOTE  面板承载实拍：05-icons-hidden.png（原生图标隐藏 + 文档区自绘）
-[15:19:28.641] FAIL  单击未见 desktop-selected 存证
-[15:19:38.249] FAIL  新建探针 bat 未入池（desktop-rendered 未见）
-[15:19:38.252] FAIL  探针 bat 条目无矩形（无法双击）
-[15:19:38.254] PASS  清理探针 bat 后条目同步消失（面板与磁盘一致）
-[15:19:50.452] FAIL  图标夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）
-[15:19:56.491] NOTE  图标夹具清理存证未到（不阻塞；夹具已尽力删除）
-[15:20:07.614] FAIL  工单06 夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）
-[15:20:13.634] NOTE  工单06 夹具清理存证未到（不阻塞；夹具已尽力删除）
-[15:20:14.133] PASS  杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=panel-exit，守卫还原后退出=true）
-[15:20:15.671] NOTE  杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）
-[15:20:20.192] PASS  面板只编排文档区：desktop-rendered 带 docEntries（5 项）、无 dock 段（工单59 退役）
-[15:20:20.459] PASS  新建桌面文件自动归类入区：DECK06-PROBE-1791300020194.docx→office 组、DECK06-PROBE-1791300020195.pdf→pdf 组（文档区按扩展名聚合）
-[15:20:22.468] PASS  删除探针文档后条目同步消失（面板与磁盘一致）
-[15:20:25.540] NOTE  拖拽源落点校验通过（面板在收输入）
-[15:20:26.457] NOTE  拖拽落点校验通过（输入流全程在面板）
-[15:20:26.535] PASS  拖拽摆位：DECK06-DRAG-1791300022470-B.docx 拖至 DECK06-DRAG-1791300022470-A.docx 之前（desktop/move ok=true，摆位落盘）
-[15:20:27.521] PASS  摆位即时重编排：拖拽条目越过参照（渲染序更新）
-[15:20:33.138] PASS  重启面板后位置保持：DECK06-DRAG-1791300022470-B.docx 仍在 DECK06-DRAG-1791300022470-A.docx 之前（layout.json 持久化）
-[15:20:37.335] PASS  设置浮层恢复出厂一键生效：清除 1 处显式摆位，文档区回到出厂归类序（DECK06-DRAG-1791300022470-A.docx, DECK06-DRAG-1791300022470-B.docx 归位）
-[15:20:41.126] NOTE  复位后 ESC 收层存证未到（不阻塞；08 段有专门断言）
-[15:20:41.579] PASS  清理拖拽探针后条目同步消失（面板与磁盘一致）
-[15:20:48.527] FAIL  单击重置未见 desktop-selected（单条 names）
-[15:20:53.132] FAIL  Ctrl 并集存证异常：null
-[15:21:00.757] FAIL  Ctrl 切换出选存证异常：null
-[15:21:09.129] FAIL  面板主线程假死（WM_NULL 超时）：已重启面板继续跑，本段及其后依赖它的断言不计
-[15:21:13.508] FAIL  选区-Ctrl 补选前置失败：面板主线程假死→已重启面板，本段跳过
-[15:21:13.510] FAIL  空白清空前置补选失败
-[15:21:17.961] FAIL  分区空白清空存证异常：null
-[15:21:22.410] FAIL  快照重建用例前置补选失败
-[15:21:28.884] FAIL  双击全开前置（选中集两条）未达成
-[15:21:36.958] FAIL  框选文档探针未入池（DECK21-DOC-1791300088890-0.docx, DECK21-DOC-1791300088890-1.docx, DECK21-DOC-1791300088890-2.docx）
-[15:21:41.422] FAIL  框选-预置单选未见 desktop-selected（替换语义不可分辨）
-[15:21:45.872] FAIL  面板主线程假死（WM_NULL 超时）：已重启面板继续跑，本段及其后依赖它的断言不计
-[15:21:50.243] FAIL  框选前置失败：面板主线程假死→已重启面板，本段跳过
-[15:21:50.245] FAIL  普通框选用例未执行（前置失败）
-[15:21:50.249] FAIL  Ctrl 并集几何前置缺失（最新渲染里取不到顶排条目/哨兵矩形）
-[15:21:56.014] FAIL  阈值语义异常：marquee-started=false cleared=false
-[15:21:56.018] FAIL  条目起笔用例几何前置缺失（哨兵不在最新渲染里）
-[15:21:57.138] PASS  指针流出分区包围盒框选不中断：矩形左沿 278 < 包围盒左沿 408，松手仍提交命中 [DECK21-DOC-1791300088890-2.docx, DECK21-DOC-1791300088890-1.docx, DECK21-DOC-1791300088890-0.docx, 任务-职责映射草案_20260901.xlsx, 个人简历.docx]
-[15:21:59.207] NOTE  批量拖拽夹具出厂序：[DECK22-DOC-1791300117142-3.docx, DECK22-DOC-1791300117142-2.docx, DECK22-DOC-1791300117142-1.docx]（mtime 1 最新 → 组内降序在前）
-[15:22:03.657] FAIL  批量拖拽前置：单击选中 2 未见 desktop-selected
-[15:22:03.667] FAIL  批量拖拽前置：Ctrl 补选 3 未达成（选区非 [2, 3]）
-[15:22:06.282] PASS  菜单以 cordis 插件装载：plugin-mounted（id=context-menu，随插件清单）在档
-[15:22:10.734] FAIL  分区空白右键未弹菜单（desktop-menu-opened 未见）
-[15:22:15.202] FAIL  菜单外一击用例前置（预置单选）未达成
-[15:22:15.203] FAIL  菜单外一击用例开层失败（desktop-menu-opened 未见）
-[15:22:25.272] FAIL  面板主线程假死（WM_NULL 超时）：已重启面板继续跑，本段及其后依赖它的断言不计
-[15:22:30.961] PASS  全选动作（选区状态机 select-all）：desktop-selection-all 17 条 = 池内全部条目
-[15:22:30.963] PASS  菜单动作执行后即收（reason=action）
-[15:22:31.941] PASS  全选入渲染态：指纹翻转重建后 desktop-rendered.sel=全选名单（快照重建不丢）
-[15:22:35.744] PASS  恢复出厂布局动作（06 契约复用）：desktop-reset-clicked(from=ctx-menu) → desktop-layout-reset ok=true cleared=0，菜单随动作收起
-[15:22:42.079] PASS  插件卸载即失效：移除插件目录后右键分区空白不再弹菜单（面板触发 ?. 空转）
-[15:22:42.920] PASS  插件重装即恢复：目录放回后右键再弹菜单（随清单热插拔全链路，未重启面板）
-[15:22:51.125] FAIL  条目右键未弹单项菜单（desktop-menu-opened 未见）
-[15:23:00.834] FAIL  多选菜单探针未入池（DECK26-BAT-1791300172816-A.bat/DECK26-BAT-1791300172816-B.bat/DECK26-DOC-1791300172816.docx）
-[15:23:00.836] FAIL  多选菜单用例几何前置缺失：A=undefined B=undefined doc=undefined
-[15:23:09.740] FAIL  删除用例探针未入池（DECK27-SINGLE-1791300181691.txt/DECK27-MULTI-1791300181691-B.docx/DECK27-MULTI-1791300181691-C.docx）
-[15:23:09.744] FAIL  删除用例几何前置缺失：A=undefined B=undefined C=undefined
-[15:23:17.796] FAIL  重命名用例探针未入池（DECK28A-1791300189749.txt/DECK28C-1791300189749.txt）
-[15:23:17.799] FAIL  重命名用例几何前置缺失：A=undefined
-[15:23:26.760] FAIL  复制剪切用例探针未入池（DECK29-SINGLE-1791300198727.txt/DECK29-MULTI-1791300198727-A.txt/DECK29-MULTI-1791300198727-B.txt）
-[15:23:26.763] FAIL  复制剪切用例几何前置缺失：S=undefined A=undefined B=undefined
-[15:23:32.964] FAIL  置灰用例开层失败（desktop-menu-opened 未见）
-[15:23:46.720] FAIL  键盘门控用例探针未入池（bat=DECK31-BAT-1791300213801.bat）
-[15:23:47.550] FAIL  生相同相断言未过：sel=null next=null
-[15:23:47.555] FAIL  Ctrl+A 用例键盘焦点未到手
-[15:23:47.559] FAIL  Enter 用例键盘焦点未到手
-[15:23:47.564] FAIL  Del 单删用例键盘焦点未到手
-[15:23:47.570] FAIL  Del 多选用例前置（选中集两条+焦点）未达成
-[15:23:47.575] FAIL  复制/剪切用例键盘焦点未到手
-[15:23:50.652] FAIL  Ctrl+V 用例键盘焦点未到手
-[15:23:50.656] FAIL  Esc 定序用例点选失败
-[15:23:50.659] FAIL  浮层优先用例前置失败：sel=false searchZone=false
-[15:23:53.937] PASS  真实 Listary 引擎在线且探针文件入索引排首位（直连取证——与内核同款回环链路）
-[15:23:55.170] NOTE  待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）
-[15:24:03.775] FAIL  搜索面板未激活或键盘焦点未落入面板进程（前台门校验 3 次失败）
-[15:24:10.937] PASS  设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 300x155（可交互）
-[15:24:10.940] PASS  设置浮层键盘模式：开层即 keyboard-mode-on 存证，键盘焦点到手（前台=面板）——ESC 可关层
-[15:24:12.524] PASS  初值同源：开层滑杆值 55% = config.appearance.cardOpacity 0.55
-[15:24:13.898] PASS  滑杆拖至低位 1%：底色即时反映（applied 同值）且 config 同步落盘 0.01
-[15:24:16.841] PASS  滑杆拖回高位 99%：config 同步落盘 0.99（滑杆调节即时反映于各信息卡底色）
-[15:24:21.404] FAIL  ESC 未关闭设置浮层（settings-closed reason=esc 未到）
-[15:24:22.777] PASS  失焦关闭：焦点移出浮层（点时钟卡）即收层（reason=blur 存证）
-[15:24:28.027] FAIL  重启保持前置失败（input={"t":1791300264116,"type":"settings-opacity-input","value":70}，set={"t":1791300264076,"type":"settings-opacity-set","value":67}，config=0.7）
-[15:24:33.477] 改几何重启后 rect(phys)=60,60 1100x800（期望 60,60 1100x800）
-[15:24:33.479] PASS  config.json 改动几何后重启面板即反映
-[15:24:34.086] PASS  单实例守卫：二次拉起 584ms 自行退出（code=0）
-[15:24:34.088] PASS  单实例守卫：被拒实例自报 single-instance-refused 存证
-[15:24:34.091] PASS  单实例守卫：原面板窗完好（Chrome 窗计数 1 → 1），屏上仍只有一个面板
-[15:24:35.245] PASS  托盘图标已注册：NotifyIconSettings 条目 7439253789013191653（exe 匹配）
-[15:24:36.100] NOTE  已设 IsPromoted=1（原值 0），等待 explorer 应用
-[15:24:39.163] PASS  托盘图标可见：识别色命中 64 像素 @(2266,1416)（基线 0），截图 03-tray-area.png
-[15:24:39.573] NOTE  已发送 Win+D
-[15:24:41.589] FAIL  Win+D 对照失败：记事本未被最小化，键盘投递未生效（本组断言不可信）
-[15:24:42.134] PASS  面板被最小化（来源=SW_MINIMIZE，存证 why=minimized，IsIconic=true）
-[15:24:43.197] NOTE  最小化期实拍：面板收起（时钟卡区无实色内容）
-[15:24:43.237] PASS  Win+D 后面板内容像素级在场：与最小化（仅壁纸）实拍均值差 56.3/255（≥8；合成层停帧退化即趋零）
-[15:24:43.848] PASS  防抖自动恢复：1.51s 后回到原位（存证 afterMs=1512，矩形偏差在容差内）
-[15:24:44.863] FAIL  恢复后重叠点命中 0x101aa(Progman)，面板未回底
-[15:24:47.946] NOTE  已发送 Win+D 还原桌面态（清 show desktop 残留，防遮挡后续段探针）
-[15:25:01.097] FAIL  托盘图标未被系统键盘导航命中（nav.status=1 末步焦点「Search box」全部输出："STEP 0: Search box\r\nSTEP 1: Search box\r\nSTEP 2: Search box\r\nSTEP 3: Search box\r\nSTEP 4: Search box\r\nSTEP 5: Search box\r\nSTEP 6: Search box\r\nSTEP 7: Search box\r\nSTEP 8: Search box\r\nSTEP 9: Search box\r\nSTEP 10: Search box\r\nSTEP 11: Search box\r\nSTEP 12: Search box\r\nSTEP 13: Search box\r\nSTEP 14: Search box\r\nSTEP 15: Search box\r\nSTEP 16: Search box\r\nSTEP 17: Search box\r\nSTEP 18: Search box\r\nSTEP 19: Search box\r\nNOT-FOUND" stderr: 无）
-[15:25:11.275] FAIL  退出闭环未达成（窗口销毁=false，pid=2424 存活=true）
-[15:25:11.278] FAIL  无 quit 存证
-[15:25:14.442] FAIL  退出后识别色仍在托盘区（命中 64 像素 @(2266,1416)）
-[15:25:15.999] NOTE  工具映射核对：config.json 无显式 tools 段（面板走代码内五工具默认值，电池不 import 生产代码故不核）
-[15:25:16.002] NOTE  会话行直达探针：受控探针进程 charmap.exe + 探针会话 DECK-PROBE-09（工具槽位 qoder 指向探针）
-[15:25:20.768] NOTE  启动路径 诊断：panel 0x62071a rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x101aa(Progman pid=31020，非面板→被遮挡)
-[15:25:22.618] PASS  会话行直达·启动路径：工具未运行 → 点击会话行拉起其 exe（action=launched，探针 charmap.exe 窗口 0x490e3c 出现）
-[15:25:25.123] NOTE  聚焦路径 诊断：panel 0x62071a rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x62071a
-[15:25:26.395] PASS  会话行直达·聚焦路径：工具在跑 → 点击会话行把其窗口还原并带到前台（探针 pid 7696，点击前前台 pid=31020，点击后=7696，IsIconic=false）
-[15:25:33.422] NOTE  降级 诊断：panel 0x6c0cee rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x6c0cee
-[15:25:34.710] PASS  会话行直达·静默降级：失效目标返回 degraded（reason=工具未运行且无启动目标）且面板未崩（降级后仍可交互：时钟卡点击存证到达）
-[15:25:35.339] PASS  桌面组件·内置三卡自举：clock/weather/sessions 三张信息卡均经插件契约装载渲染，且三张都进了热区声明（时钟卡矩形 48,48 320x176 与 index.html 一致；像素级观感按惯例人工核验 04-cards-*.png）
-[15:25:35.341] PASS  Qoder 状态块退役：qoder-card 不在任何热区声明里，会话卡加高补位到位（top 152、高 522，覆盖原状态块槽位 152..674）
-[15:25:35.353] NOTE  桌面组件探针：样例插件已放入 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins\hello（本段不重启面板，boot 存证基线 3 条）
-[15:25:36.048] PASS  桌面组件·放入即识别：外部样例插件放入插件目录后**无需重启面板**即被装载并渲染（capabilities=["clock"]，卡片热区 320x120，boot 存证 3→3 未增）
-[15:25:38.100] PASS  桌面组件·运行时重载：改插件自身资产后即时重载生效（未重启面板，入口代号变化即换 URL 绕开 ESM 模块缓存）
-[15:25:38.722] PASS  桌面组件·卸载：移除插件目录后其卡片从面板消失（热区不再声明，无残留死区）
-[15:25:39.421] PASS  桌面组件·重装恢复：把插件目录放回即恢复装载与渲染（boot 存证全程未增 = 四步都没重启面板）
-[15:25:41.129] NOTE  桌面组件探针清场：已移除 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins\hello
-[15:25:41.858] NOTE  搜索探针目录已清理
-[15:25:42.687] NOTE  图标状态清场核验：visible=true（电池前=true）
-[15:25:42.689] NOTE  原生任务栏清场核验：visible=true（电池前=true）
-[15:25:42.693] NOTE  config.json 已还原电池前原文
-[15:25:42.697] NOTE  摆位存储清场：已还原备份
-[15:25:42.927] ===== 03-battery VERDICT: FAIL (pass=64 fail=57) =====
+# accept 03-battery — 2026-10-07T14:15:11.446Z
+[14:15:11.449] NOTE  spec 范围段声明：P2（段注册表未填充前，未注册段号告警不阻断）
+[14:15:11.452] NOTE  screen: phys 2560x1440 @ factor 1
+[14:16:14.088] NOTE  托盘识别色基线：无琥珀像素
+[14:16:14.090] NOTE  原生桌面图标基线：visible=true
+[14:16:14.091] NOTE  原生任务栏基线：visible=true
+[14:16:14.095] NOTE  已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）
+[14:16:22.127] NOTE  panel hwnd=0xa0edc rect(phys)=0,0 2560x1392
+[14:16:25.197] NOTE  透明区采样点 5355 个命中参照窗（其余被用户窗遮挡的点不计）
+[14:16:26.740] 透明区棋盘色命中率: 99.5% (样本 5355)
+[14:16:26.742] PASS  透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）
+[14:16:26.770] PASS  时钟卡白色文字像素 675/14080（文字实色清晰）
+[14:16:28.976] NOTE  实拍面板叠真壁纸（观感存证；动态壁纸逐帧不同，不做像素断言）
+[14:16:28.978] PASS  会话列表卡：渲染层收到内核会话数据并持续走数（第 2 次渲染，count=1，真机活跃池）
+[14:16:28.980] PASS  硬件卡已退役：面板全程未发 hardware-rendered/history-live（读数改由任务栏摘要承载）
+[14:16:28.982] PASS  天气卡：Open-Meteo 取数成功（weather_code=0 temp=21）
+[14:16:31.529] NOTE  卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（搜索/会话）
+[14:16:31.530] 穿透态 EXSTYLE=0x8280020
+[14:16:31.531] PASS  默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED
+[14:16:31.536] NOTE  P3 穿透探针点 DIP(1840,296)——与全部热区沿净距 ≥12px
+[14:16:32.065] PASS  默认穿透：面板空区点击直达桌面（前台翻转为 Progman）
+[14:16:32.578] PASS  默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 XamlExplorerHostIslandWindow_WASDK）
+[14:16:32.893] PASS  热区声明：渲染层上报 clock-card rel(48,48) 320x176
+[14:16:34.243] NOTE  普通应用窗: notepad hwnd=0x51366 @phys(1000,200) 1400x900
+[14:16:34.664] PASS  记事本盖住面板（普通窗在钉扎面板之上的自然 z 序）
+[14:16:34.724] PASS  光标进入时钟卡热区：面板临时解除穿透（WS_EX_TRANSPARENT 移除）
+[14:16:34.737] PASS  永不顶起：热区点击瞬间面板仍在记事本之下（回归线自「离开重钉后」前移到点击瞬间）
+[14:16:34.738] PASS  永不顶起：点击未抢走工作窗口前台（键盘焦点留在记事本，可继续盲打）
+[14:16:34.740] PASS  永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x8200000，点击不激活的机制保证）
+[14:16:34.749] PASS  热区点击由时钟卡接收（count=1）
+[14:16:34.751] PASS  时钟卡数据经桥接契约自内核而来并持续走时（4 次渲染，epoch 递增）
+[14:16:34.818] PASS  离开热区：面板恢复穿透
+[14:16:35.426] PASS  热区交互全程面板未顶起：记事本始终盖住面板（离开重钉路径保留，在永不顶起语义下是冗余保险）
+[14:16:35.428] PASS  底部钉扎 z 序：面板(47) 在记事本(25) 之下（自顶向下枚举序）
+[14:16:38.107] PASS  条目集合与磁盘扫描一致：17 项（用户桌面 11 + 公共桌面独有 6，电池对照）
+[14:16:38.108] NOTE  公共桌面 6 项（同名被用户桌面遮蔽 0 项）
+[14:16:38.110] PASS  原生桌面图标已隐藏（SysListView32 不可见）——桌面无「两套图标」
+[14:16:39.657] NOTE  面板承载实拍：05-icons-hidden.png（原生图标隐藏 + 文档区自绘）
+[14:16:40.065] FAIL  单击选中前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:16:49.713] FAIL  新建探针 bat 未入池（desktop-rendered 未见）
+[14:16:49.715] FAIL  探针 bat 条目无矩形（无法双击）
+[14:16:49.718] PASS  清理探针 bat 后条目同步消失（面板与磁盘一致）
+[14:17:02.365] FAIL  图标夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）
+[14:17:08.429] NOTE  图标夹具清理存证未到（不阻塞；夹具已尽力删除）
+[14:17:19.857] FAIL  工单06 夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）
+[14:17:25.923] NOTE  工单06 夹具清理存证未到（不阻塞；夹具已尽力删除）
+[14:17:26.749] PASS  杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=panel-exit，守卫还原后退出=true）
+[14:17:28.553] NOTE  杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）
+[14:17:33.991] PASS  面板只编排文档区：desktop-rendered 带 docEntries（5 项）、无 dock 段（工单59 退役）
+[14:17:34.905] PASS  新建桌面文件自动归类入区：DECK06-PROBE-1791382653993.docx→office 组、DECK06-PROBE-1791382653994.pdf→pdf 组（文档区按扩展名聚合）
+[14:17:36.931] PASS  删除探针文档后条目同步消失（面板与磁盘一致）
+[14:17:39.953] NOTE  拖拽源落点校验通过（面板在收输入）
+[14:17:40.888] NOTE  拖拽落点校验通过（输入流全程在面板）
+[14:17:40.967] PASS  拖拽摆位：DECK06-DRAG-1791382656933-B.docx 拖至 DECK06-DRAG-1791382656933-A.docx 之前（desktop/move ok=true，摆位落盘）
+[14:17:41.941] PASS  摆位即时重编排：拖拽条目越过参照（渲染序更新）
+[14:17:47.990] PASS  重启面板后位置保持：DECK06-DRAG-1791382656933-B.docx 仍在 DECK06-DRAG-1791382656933-A.docx 之前（layout.json 持久化）
+[14:17:52.241] PASS  设置浮层恢复出厂一键生效：清除 1 处显式摆位，文档区回到出厂归类序（DECK06-DRAG-1791382656933-A.docx, DECK06-DRAG-1791382656933-B.docx 归位）
+[14:17:56.078] NOTE  复位后 ESC 收层存证未到（不阻塞；08 段有专门断言）
+[14:17:56.357] PASS  清理拖拽探针后条目同步消失（面板与磁盘一致）
+[14:17:59.500] PASS  单击重置选区：文档区条目「DECK20-A-1791382676359.docx」单选存证
+[14:18:00.087] PASS  Ctrl 点选并集：文档区「DECK20-A-1791382676359.docx」+「DECK20-B-1791382676359.docx」同选
+[14:18:08.766] FAIL  Ctrl 切换出选存证异常：null
+[14:18:13.919] FAIL  空白清空前置补选失败
+[14:18:22.362] NOTE  排除窗开启：面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信（归因=panel-stall）——窗内失败断言记环境降责，不计失败
+[14:18:22.363] EXENV 面板主线程假死（WM_NULL 超时）：已重启面板继续跑，停摆检出至重启健康验证之间的失败断言记环境降责（原因=面板主线程假死（WM_NULL 超时）｜归因=panel-stall｜排除窗内）
+[14:18:27.055] EXENV 选区-空白前置失败：面板主线程假死→已重启面板，本段跳过（原因=面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信｜归因=panel-stall｜排除窗内）
+[14:18:27.057] EXENV 分区空白清空存证异常：false（原因=面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信｜归因=panel-stall｜排除窗内）
+[14:18:27.491] NOTE  排除窗闭合（面板重启后首次落点命中（健康验证通过））：窗内排除 3 条
+[14:18:31.525] FAIL  快照重建用例前置补选失败
+[14:18:38.583] FAIL  双击全开前置（选中集两条）未达成
+[14:18:41.622] FAIL  框选-预置选区前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:41.624] FAIL  框选-预置单选未见 desktop-selected（替换语义不可分辨）
+[14:18:42.040] FAIL  框选前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:42.042] FAIL  普通框选用例未执行（前置失败）
+[14:18:42.447] FAIL  Ctrl 并集-预置前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:42.449] FAIL  Ctrl 并集前置（Ctrl 点选补回 A）未达成
+[14:18:42.867] FAIL  阈值用例前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:43.274] FAIL  框选前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:43.276] FAIL  条目起笔用例未执行（前置失败）
+[14:18:43.695] FAIL  框选前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:43.697] FAIL  越界框选用例未执行（前置失败）
+[14:18:44.117] FAIL  框选前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:18:44.118] FAIL  doc 外扩带框选用例未执行（前置失败）
+[14:18:52.194] FAIL  批量拖拽探针未入池（DECK22-DOC-1791382724122-1.docx, DECK22-DOC-1791382724122-2.docx, DECK22-DOC-1791382724122-3.docx）
+[14:18:52.197] NOTE  批量拖拽夹具出厂序：[]（mtime 1 最新 → 组内降序在前）
+[14:18:52.202] FAIL  批量拖拽用例矩形缺失：1=false 2=false 3=false
+[14:19:00.222] FAIL  菜单文档探针未入池（DECK23-DOC-1791382732207.docx）
+[14:19:00.228] PASS  菜单以 cordis 插件装载：plugin-mounted（id=context-menu，随插件清单）在档
+[14:19:00.644] FAIL  菜单打开前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:19:00.645] FAIL  分区空白右键未弹菜单（desktop-menu-opened 未见）
+[14:19:01.050] FAIL  菜单外一击用例前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:19:03.801] FAIL  菜单-全选前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:19:03.802] FAIL  全选用例开层失败（desktop-menu-opened 未见）
+[14:19:05.420] FAIL  菜单-恢复出厂前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:19:05.422] FAIL  恢复出厂用例开层失败（desktop-menu-opened 未见）
+[14:19:20.427] FAIL  热插拔卸载未生效：plugins-changed 未摘除 context-menu
+[14:19:20.847] FAIL  热插拔-卸载后右键前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:19:20.848] PASS  插件卸载即失效：移除插件目录后右键分区空白不再弹菜单（面板触发 ?. 空转）
+[14:19:50.885] FAIL  热插拔重装未生效：plugins-changed=false plugin-mounted=false
+[14:19:59.997] FAIL  单项菜单探针未入池（DECK24-BAT-1791382791957.bat）
+[14:20:00.000] FAIL  单项菜单用例几何前置缺失：探针 DECK24-BAT-1791382791957.bat 无矩形
+[14:20:10.050] FAIL  多选菜单探针未入池（DECK26-BAT-1791382802033-A.bat/DECK26-BAT-1791382802033-B.bat/DECK26-DOC-1791382802033.docx）
+[14:20:10.053] FAIL  多选菜单用例几何前置缺失：A=undefined B=undefined doc=undefined
+[14:20:19.091] FAIL  删除用例探针未入池（DECK27-SINGLE-1791382811076.txt/DECK27-MULTI-1791382811076-B.docx/DECK27-MULTI-1791382811076-C.docx）
+[14:20:19.094] FAIL  删除用例几何前置缺失：A=undefined B=undefined C=undefined
+[14:20:27.107] FAIL  重命名用例探针未入池（DECK28A-1791382819098.txt/DECK28C-1791382819098.txt）
+[14:20:27.110] FAIL  重命名用例几何前置缺失：A=undefined
+[14:20:36.152] FAIL  复制剪切用例探针未入池（DECK29-SINGLE-1791382828135.txt/DECK29-MULTI-1791382828135-A.txt/DECK29-MULTI-1791382828135-B.txt）
+[14:20:36.154] FAIL  复制剪切用例几何前置缺失：S=undefined A=undefined B=undefined
+[14:20:38.588] FAIL  粘贴-置灰开层前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:20:38.590] FAIL  置灰用例开层失败（desktop-menu-opened 未见）
+[14:20:52.358] FAIL  键盘门控用例探针未入池（bat=DECK31-BAT-1791382839438.bat）
+[14:20:52.777] FAIL  P5.17 段前清场前置失败：落点命中桌面层 Progman（show desktop 态残留或面板未在屏）
+[14:20:53.183] FAIL  生相同相断言未过：sel=null next=null
+[14:20:53.188] FAIL  Ctrl+A 用例键盘焦点未到手
+[14:20:53.192] FAIL  Enter 用例键盘焦点未到手
+[14:20:53.195] FAIL  Del 单删用例键盘焦点未到手
+[14:20:53.200] FAIL  Del 多选用例前置（选中集两条+焦点）未达成
+[14:20:53.204] FAIL  复制/剪切用例键盘焦点未到手
+[14:20:55.938] FAIL  Ctrl+V 用例键盘焦点未到手
+[14:20:55.942] FAIL  Esc 定序用例点选失败
+[14:20:55.947] FAIL  浮层优先用例前置失败：sel=false searchZone=false
+[14:20:59.744] PASS  真实 Listary 引擎在线且探针文件入索引排首位（直连取证——与内核同款回环链路）
+[14:21:01.080] NOTE  待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）
+[14:21:09.858] FAIL  搜索面板未激活或键盘焦点未落入面板进程（前台门校验 3 次失败）
+[14:21:17.558] PASS  设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 300x193（可交互）
+[14:21:17.560] PASS  设置浮层键盘模式：开层即 keyboard-mode-on 存证，键盘焦点到手（前台=面板）——ESC 可关层
+[14:21:19.225] PASS  初值同源：开层滑杆值 55% = config.appearance.cardOpacity 0.55
+[14:21:20.633] PASS  滑杆拖至低位 1%：底色即时反映（applied 同值）且 config 同步落盘 0.01
+[14:21:23.730] PASS  滑杆拖回高位 99%：config 同步落盘 0.99（滑杆调节即时反映于各信息卡底色）
+[14:21:28.355] FAIL  ESC 未关闭设置浮层（settings-closed reason=esc 未到）
+[14:21:31.771] FAIL  失焦探针前置失败（opened=null，clockZone={"id":"clock-card","x":48,"y":48,"w":320,"h":176}）
+[14:21:35.177] FAIL  重启保持前置失败：浮层未重开或无滑杆矩形
+[14:21:41.306] 改几何重启后 rect(phys)=60,60 1100x800（期望 60,60 1100x800）
+[14:21:41.308] PASS  config.json 改动几何后重启面板即反映
+[14:21:42.241] PASS  单实例守卫：二次拉起 836ms 自行退出（code=0）
+[14:21:42.244] PASS  单实例守卫：被拒实例自报 single-instance-refused 存证
+[14:21:42.247] PASS  单实例守卫：原面板窗完好（Chrome 窗计数 1 → 1），屏上仍只有一个面板
+[14:21:43.538] PASS  托盘图标已注册：NotifyIconSettings 条目 5920667057626803093（exe 匹配）
+[14:21:44.469] NOTE  已设 IsPromoted=1（原值 未设），等待 explorer 应用
+[14:21:47.622] PASS  托盘图标可见：识别色命中 64 像素 @(2262,1416)（基线 0），截图 03-tray-area.png
+[14:21:48.035] NOTE  已发送 Win+D
+[14:21:50.041] FAIL  Win+D 对照失败：记事本未被最小化，键盘投递未生效（本组断言不可信）
+[14:21:50.585] PASS  面板被最小化（来源=SW_MINIMIZE，存证 why=minimized，IsIconic=true）
+[14:21:51.637] NOTE  最小化期实拍：面板收起（时钟卡区无实色内容）
+[14:21:51.683] PASS  Win+D 后面板内容像素级在场：与最小化（仅壁纸）实拍均值差 56.4/255（≥8；合成层停帧退化即趋零）
+[14:21:52.286] PASS  防抖自动恢复：1.51s 后回到原位（存证 afterMs=1513，矩形偏差在容差内）
+[14:21:53.320] FAIL  恢复后重叠点命中 0x10150(Progman)，面板未回底
+[14:21:56.551] NOTE  已发送 Win+D 还原桌面态（清 show desktop 残留，防遮挡后续段探针）
+[14:22:09.909] FAIL  托盘图标未被系统键盘导航命中（nav.status=1 末步焦点「Search box」全部输出："STEP 0: Search box\r\nSTEP 1: Search box\r\nSTEP 2: Search box\r\nSTEP 3: Search box\r\nSTEP 4: Search box\r\nSTEP 5: Search box\r\nSTEP 6: Search box\r\nSTEP 7: Search box\r\nSTEP 8: Search box\r\nSTEP 9: Search box\r\nSTEP 10: Search box\r\nSTEP 11: Search box\r\nSTEP 12: Search box\r\nSTEP 13: Search box\r\nSTEP 14: Search box\r\nSTEP 15: Search box\r\nSTEP 16: Search box\r\nSTEP 17: Search box\r\nSTEP 18: Search box\r\nSTEP 19: Search box\r\nNOT-FOUND" stderr: 无）
+[14:22:20.128] FAIL  退出闭环未达成（窗口销毁=false，pid=40880 存活=true）
+[14:22:20.131] FAIL  无 quit 存证
+[14:22:22.986] FAIL  退出后识别色仍在托盘区（命中 64 像素 @(2262,1416)）
+[14:22:43.973] FAIL  电池中断: Error: P10E 重启后未见面板窗口
+    at main (D:\test-folder\wallpaperengine-research--spec109-t110\app\accept\battery.js:5170:24)
+[14:22:43.976] NOTE  死因取证：panelPid=40880 存活=true；stderr 尾=Unable to move the cache: Access is denied. (0x5) [45052:1007/221621.957:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache [45052:1007/221621.958:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2 [45052:1007/221621.958:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache [45052:1007/221621.958:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2 [45052:1007/221621.958:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache [45052:1007/221621.958:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2 [41900:1007/221826.814:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5) [41900:1007/221826.814:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5) [41900:1007/221826.814:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5) [41900:1007/221826.878:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache [41900:1007/221826.878:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2 [41900:1007/221826.879:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache [41900:1007/221826.879:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2 [41900:1007/221826.879:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache [41900:1007/221826.879:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2 
+[14:22:43.978] NOTE  死因取证·顶层窗全景（48）：Windows.Internal.Shell.TabProxyWindow#7844@0,0 136x39 | Windows.Internal.Shell.TabProxyWindow#7844@0,0 136x39 | Windows.Internal.Shell.TabProxyWindow#7844@0,0 136x39 | Windows.Internal.Shell.TabProxyWindow#7844@0,0 136x39 | Windows.UI.Core.CoreWindow#20592@0,0 2560x1440 | ApplicationFrameWindow#7844@0,0 136x39 | ApplicationFrameWindow#7844@0,0 136x39 | Windows.UI.Core.CoreWindow#20592@0,0 2560x1440 | Windows.UI.Core.CoreWindow#20592@0,0 2560x1440 | ApplicationFrameWindow#7844@0,0 136x39 | Windows.UI.Core.CoreWindow#20592@0,0 2560x1440 | ApplicationFrameWindow#7844@0,0 136x39 | Windows.UI.Core.CoreWindow#18264@0,0 2560x1440 | ThumbnailDeviceHelperWnd#7844@0,0 1x1 | EdgeUiInputWndClass#7844@0,0 0x0 | Windows.UI.Core.CoreWindow#25332@2164,1392 396x0 | Shell_TrayWnd#7844@0,1392 2560x48 | Windows.UI.Core.CoreWindow#12232@851,502 858x890 | Windows.UI.Core.CoreWindow#12144@0,0 2560x1392 | Windows.UI.Core.CoreWindow#25332@1306,1267 318x125 | Windows.UI.Core.CoreWindow#25332@0,0 1x1 | ApplicationManager_ImmersiveShellWindow#7844@0,0 0x0 | Chrome_WidgetWin_1#14836@863,573 0x0 | XamlExplorerHostIslandWindow_WASDK#7844@0,0 0x0 | Chrome_WidgetWin_1#41804@1100,8 360x39 | CabinetWClass#7844@-32000,-32000 160x28 | CabinetWClass#7844@-32000,-32000 160x28 | DuiHostWnd#26696@0,1364 160x28 | DuiHostWnd#26696@160,1364 160x28 | Windows.UI.Core.CoreWindow#20592@0,0 2560x1440 | Windows.UI.Core.CoreWindow#33160@0,1 622x421 | Chrome_WidgetWin_1#13068@-32000,-32000 160x28 | Qt51514QWindowIcon#31044@-32000,-32000 160x28 | Chrome_WidgetWin_1#21984@-32000,-32000 160x28 | Qt51514QWindowIcon#31044@-32000,-32000 160x28 | Chrome_WidgetWin_1#8208@-32000,-32000 160x28 | Chrome_WidgetWin_1#24340@-32000,-32000 160x28 | ApplicationFrameWindow#7844@-32000,-32000 160x28 | ApplicationFrameWindow#19436@-32000,-32000 160x28 | DummyDWMListenerWindow#7844@320,1364 160x28 | DummyDWMListenerWindow#7844@480,1364 160x28 | DummyDWMListenerWindow#7844@640,1364 160x28 | DummyDWMListenerWindow#7844@800,1364 160x28 | DummyDWMListenerWindow#7844@960,1364 160x28 | Chrome_WidgetWin_1#31852@-32000,-32000 160x28 | Notepad#29572@1000,200 1400x900 | Chrome_WidgetWin_1#40880@60,60 1100x800 | Progman#7844@0,0 2560x1440
+[14:22:43.980] NOTE  死因取证·最后一条存证：single-instance-refused @1791382944269
+[14:22:44.706] NOTE  搜索探针目录已清理
+[14:22:48.700] NOTE  清场兜底：--icon-restore 已还原图标（守卫被 /F 清杀时的自救通道）
+[14:22:48.702] NOTE  原生任务栏清场核验：visible=true（电池前=true）
+[14:22:48.704] NOTE  config.json 已还原电池前原文
+[14:22:48.707] NOTE  摆位存储清场：已还原备份
+[14:22:49.687] ===== 03-battery VERDICT: FAIL-CODE (pass=50 fail=69 excluded=3 scope=P2) =====
+[14:22:49.689] WARN  段注册表未填充（存量段起笔埋点归 #114）：声明范围段 P2 未能与本轮实跑段核对，告警不阻断
+===== 账目（三态记账，工单110） =====
+三路计数：pass=50 fail=69 excluded=3 ｜ FAIL-CODE → 退出码 1
+排除窗：轮末已全部闭合
+排除条目（环境降责）：
+  #1[窗内] 面板主线程假死（WM_NULL 超时）：已重启面板继续跑，停摆检出至重启健康验证之间的失败断言记环境降责 ｜原因=面板主线程假死（WM_NULL 超时）｜归因=panel-stall
+  #2[窗内] 选区-空白前置失败：面板主线程假死→已重启面板，本段跳过 ｜原因=面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信｜归因=panel-stall
+  #3[窗内] 分区空白清空存证异常：false ｜原因=面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信｜归因=panel-stall
+声明 spec 范围段：P2（未在本轮注册：P2）
+段账目：（空——段注册表未填充，存量段起笔埋点归 #114）
