@@ -133,6 +133,16 @@ function findPanelWindows(classified) {
  * @param {{panelWindows?: {pid:number, exeQueryable?:boolean}[], ghostWindows?: {cls:string,pid:number}[], fullscreenForeign?: {cls:string,pid:number,title?:string}[]}} probes
  * @returns {{kind: 'double-panel'|'leftover-panel'|'dwm-ghost'|'fullscreen-overlay', detail: string}[]}
  */
+
+// 壳层白名单（工单34 自 battery.js 迁入单点维护）：桌面宿主/任务栏/DefView 属 shell
+// 常驻件，既不算全屏覆盖层候选、也不算用户窗口活跃度。
+const PREFLIGHT_SHELL_CLASSES = new Set([
+  'Progman', 'WorkerW', 'Shell_TrayWnd', 'Shell_SecondaryTrayWnd',
+  'SHELLDLL_DefView', 'SysListView32',
+]);
+// 电池自家窗标题（控制器提示条/面板本体/任务栏条带）：自家现场不算污染不算用户活动。
+const PREFLIGHT_OWN_TITLES = new Set(['AGENT DECK', 'AGENT DECK ACCEPT HINT', 'DECK-TASKBAR']);
+
 function classifyPreflight(probes = {}) {
   const entries = [];
   const panels = Array.isArray(probes.panelWindows) ? probes.panelWindows : [];
@@ -153,4 +163,30 @@ function classifyPreflight(probes = {}) {
   return entries;
 }
 
-module.exports = { createPanelControl, findPanelWindows, classifyPreflight, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };
+/**
+ * preflight 第五类污染源：用户窗口活跃度（工单34 方向3）。纯检查函数——输入=窗口
+ * 枚举快照行（battery.js 的 preflightProbes 行 + foreground 标记），输出=分类结论：
+ * 检出 → 恰一条 user-window-activity；未检出 → 空数组。警示入账不拒跑、不进三路
+ * 计数（ADR-0011：警示是 FAIL-ENV 证据链起点，不是断言）。
+ *
+ * 判据边界：前台被「普通用户应用窗」占据 = 用户在机的最强快照信号。壳层静态件
+ * （桌面宿主/任务栏/DefView）、Ghost（归既有 dwm-ghost 类）、cloaked（不可见合成）、
+ * 电池自家窗（selfPid/自家标题）在场均不算——它们不预示「轮中抬窗」这一遮挡根因。
+ * 快照预测不了未来抬窗：本警示只证明「发起时刻机器有用户活动迹象」，供轮后定责对读。
+ * @param {{cls:string, title?:string, pid:number, selfPid?:number, visible?:boolean, cloaked?:boolean, foreground?:boolean}[]} rows
+ * @returns {{kind:'user-window-activity', detail:string}[]}
+ */
+function classifyUserWindowActivity(rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  const fg = list.find((r) => r && r.foreground);
+  if (!fg) return [];
+  const own = fg.selfPid != null && Number(fg.pid) === Number(fg.selfPid);
+  if (PREFLIGHT_SHELL_CLASSES.has(fg.cls) || fg.cls === 'Ghost' || own
+    || PREFLIGHT_OWN_TITLES.has(fg.title) || fg.cloaked || fg.visible === false) return [];
+  return [{
+    kind: 'user-window-activity',
+    detail: `前台为用户应用窗：cls=${fg.cls} pid=${fg.pid}${fg.title ? ` title=${JSON.stringify(fg.title)}` : ''}——发起时刻机器有用户活动迹象，轮中抬窗风险在案`,
+  }];
+}
+
+module.exports = { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };

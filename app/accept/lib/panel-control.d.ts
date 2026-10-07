@@ -59,9 +59,9 @@ export declare interface ClassifiedWindow {
 /** 遗留面板窗核验：只认 Chrome_WidgetWin_1 + 标题 AGENT DECK 且 pid≠selfPid 的窗 */
 export declare function findPanelWindows(classified: ClassifiedWindow[]): ClassifiedWindow[]
 
-/** preflight 警示条目（工单113）：kind = 四类污染源枚举；detail 为入账文本 */
+/** preflight 警示条目（工单113 四类 + 工单34 第五类）：kind = 五类污染源枚举；detail 为入账文本 */
 export declare interface PreflightEntry {
-  kind: 'double-panel' | 'leftover-panel' | 'dwm-ghost' | 'fullscreen-overlay'
+  kind: 'double-panel' | 'leftover-panel' | 'dwm-ghost' | 'fullscreen-overlay' | 'user-window-activity'
   detail: string
 }
 
@@ -77,3 +77,24 @@ export declare interface PreflightProbes {
 
 /** preflight 环境体检分类（工单113）：四类污染源 → 警示条目；无污染返回空数组 */
 export declare function classifyPreflight(probes?: PreflightProbes): PreflightEntry[]
+
+/** preflight 壳层白名单（工单34 自 battery.js 迁入单点维护）：桌面宿主/任务栏/DefView */
+export declare const PREFLIGHT_SHELL_CLASSES: Set<string>
+/** 电池自家窗标题（面板本体/验收提示条/任务栏条带） */
+export declare const PREFLIGHT_OWN_TITLES: Set<string>
+
+/** 窗口枚举快照行（battery.js preflightProbes 产出；foreground=是否为前台窗） */
+export declare interface WindowSnapshotRow {
+  cls: string
+  title?: string
+  pid: number
+  selfPid?: number
+  visible?: boolean
+  cloaked?: boolean
+  foreground?: boolean
+}
+
+/** preflight 第五类分类（工单34 方向3）：用户窗口活跃度——前台被普通用户应用窗占据
+ * 即检出（恰一条 user-window-activity）；壳层静态件/Ghost/cloaked/自家窗在场均未检出；
+ * 快照无前台行=未检出。警示入账不拒跑、不进三路计数（ADR-0011 同构）。 */
+export declare function classifyUserWindowActivity(rows?: WindowSnapshotRow[]): PreflightEntry[]
