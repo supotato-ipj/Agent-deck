@@ -44,8 +44,14 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
   ctx.plugin(FocusService, options.focus)
-  // 桌面组件宿主：缺省 roots=[]——不装任何插件、不建目录（与 createKernel 同款默认）
-  ctx.plugin(PluginHostService, { roots: [], ...options.plugins })
+  // 桌面组件宿主：缺省 roots=[]——不装任何插件、不建目录（与 createKernel 同款默认）。
+  // 停用集（工单101）：缺省接 settings 注入的 config 活引用（生产装配显式传同一引用），
+  // settings/set-card-enabled 改写后重扫即生效。
+  ctx.plugin(PluginHostService, {
+    roots: [],
+    disabledIds: () => options.settings?.config?.plugins?.disabled ?? [],
+    ...options.plugins,
+  })
   // 数据面端口（生产装配：utilityProcess 子进程宿主）——必须先于桥接层注册
   ctx.plugin(DataplaneService, options.dataplane)
   // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。

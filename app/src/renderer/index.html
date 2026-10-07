@@ -398,18 +398,35 @@
     min-width: 4ch;
     text-align: right;
   }
-  #taskbar-toggle {
+  #taskbar-toggle,
+  #settings-cards-list .card-toggle {
     flex: 1;
     min-width: 0;
     height: 14px;
     accent-color: #d6d6d6;
     cursor: pointer;
   }
-  #taskbar-toggle-state {
+  #taskbar-toggle-state,
+  #settings-cards-list .card-toggle-state {
     font-size: 11px;
     color: #fff;
     min-width: 3ch;
     text-align: right;
+  }
+  /* 卡片显隐开关列表（工单101）：行形状同任务栏逃生开关行；名单可能随用户插件增长，
+     包名超长按省略号截断（id 兜底显示，不停用包的名字只在快照在场时可得） */
+  #settings-cards-block { margin-top: 10px; }
+  #settings-cards-list {
+    display: flex;
+    flex-direction: column;
+    row-gap: 6px;
+    margin-top: 6px;
+  }
+  #settings-cards-list .set-label {
+    overflow: hidden;
+    max-width: 168px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   #settings-reset {
     margin-top: 14px;
@@ -523,6 +540,13 @@
     <span class="set-label">TASKBAR</span>
     <input id="taskbar-toggle" type="checkbox" aria-label="自绘任务栏接管（关闭即还原原生任务栏）">
     <span id="taskbar-toggle-state">ON</span>
+  </div>
+  <!-- 卡片显隐开关（工单101）：行由 main.ts 从快照插件清单 + 停用集动态装配
+       （全部已发现插件包，含上下文菜单 shell；设置浮层自身是内核 DOM 不在列）。
+       停用 = 插件包从清单剔除（卡片与热区随之消失），包文件不动；开关回弹即恢复。 -->
+  <div id="settings-cards-block">
+    <div class="set-row"><span class="set-label">CARDS</span></div>
+    <div id="settings-cards-list"></div>
   </div>
   <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
   <div id="settings-exit" role="button">&#9211; EXIT PANEL</div>

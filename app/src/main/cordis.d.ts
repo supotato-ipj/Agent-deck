@@ -28,6 +28,8 @@ declare module 'cordis' {
     'search/results': (payload: { total: number; items: SearchResultItem[] }) => void
     /** 工单08 设置：透明度滑杆即时回推 */
     'settings/changed': (payload: SettingsState) => void
+    /** 工单101 卡片显隐：停用集变化（设置服务落盘后发出，插件宿主据此重扫清单剔除/恢复停用包） */
+    'settings/cards-changed': (payload: { disabled: string[] }) => void
     /** 工单10 桌面组件：插件清单变化（放入/移除/资产变更即推） */
     'plugins/changed': (payload: PluginInfo[]) => void
     /** 工单49/52 任务栏：开关变化与左组编排帧即时回推（窗口控制器据此建窗/销窗，渲染层据此重绘左组） */

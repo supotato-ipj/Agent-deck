@@ -269,7 +269,7 @@ describe('config.plugins 插件目录（工单10 桌面组件安装位）', () =
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.plugins).toEqual({ dir: '' })
+    expect(r.config.plugins).toEqual({ dir: '', disabled: [] })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -295,6 +295,42 @@ describe('config.plugins 插件目录（工单10 桌面组件安装位）', () =
     const r = loadConfig(file, FALLBACK)
     expect(r.config.plugins.dir).toBe('')
     expect(r.warnings.join()).toMatch(/config\.plugins/)
+  })
+})
+
+describe('config.plugins 停用集（工单101 卡片显隐开关）', () => {
+  it('plugins.disabled 合法数组归一生效：去重、丢非串/空串条目、未知 id 保留（目录暂缺的停用不丢，重插不复活）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { disabled: ['search', 'search', 'ghost', 42, '', ' calendar '] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.disabled).toEqual(['search', 'ghost', 'calendar'])
+    expect(r.warnings.join()).toMatch(/plugins\.disabled/)
+  })
+
+  it('plugins.disabled 非数组回退默认（全启用）并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { disabled: 'search' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.disabled).toEqual([])
+    expect(r.warnings.join()).toMatch(/plugins\.disabled/)
+  })
+
+  it('disabled 与 dir 独立合并：只有 disabled 没有 dir 时 dir 走默认、disabled 生效（老 dir 也不被吞）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { disabled: ['search'] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins).toEqual({ dir: '', disabled: ['search'] })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('电池最小覆写存活：config 只剩 search+taskbar 段（battery.js 离线探针同款覆写）时停用集走默认空集，面板全启用', () => {
+    const file = tmpFile()
+    // 同 battery.js P7S 离线探针的最小覆写形状（只写 search.port + taskbar.enabled）
+    fs.writeFileSync(file, JSON.stringify({ search: { port: 39999 }, taskbar: { enabled: false } }, null, 2) + '\n')
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins).toEqual({ dir: '', disabled: [] })
+    expect(r.warnings).toHaveLength(0)
+    expect(r.config.search.port).toBe(39999)
   })
 })
 

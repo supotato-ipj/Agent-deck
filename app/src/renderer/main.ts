@@ -1214,6 +1214,7 @@ const settingsReset = el('settings-reset')
 const settingsExit = el('settings-exit')
 const taskbarToggle = el('taskbar-toggle') as HTMLInputElement
 const taskbarToggleState = el('taskbar-toggle-state')
+const settingsCardsList = el('settings-cards-list')
 let settingsOpen = false
 let appliedOpacity: number | null = null
 
@@ -1232,8 +1233,76 @@ function applyCardAlpha(alpha: number): void {
 }
 
 function renderSettings(s: SettingsState): void {
+  lastSettings = s // 最近一次内核态：开关 invoke 失败时的回滚真相
   applyCardAlpha(s.cardOpacity)
+  renderCardToggles(s)
 }
+
+// ---- 卡片显隐开关列表（工单101）----
+// 行 = 全部已发现插件包（快照 plugins 段 + 停用集并集），每行名称 + 开关。停用经
+// settings/set-card-enabled 落内核（整份回写 config.plugins.disabled），插件宿主重扫清单
+// 剔除该包 → syncPlugins 卸载 → 热区随 DOM 变更自动重声明；包文件一律不动。快照 plugins
+// 段天然不含停用包，其行以最近见过的名称（本会话内记得）或 id 兜底显示；开关回弹即恢复。
+
+/** 插件包 id → 最近见过的可读名（快照在场即记；停用后行仍显示人话，重启后 id 兜底） */
+const cardNames = new Map<string, string>()
+let lastSettings: SettingsState | null = null
+/** 行签名：名单/名称/开关态任一变了才重建 DOM（1Hz 快照 reconcile 不抖动交互中的行） */
+let cardRowsKey: string | null = null
+
+function renderCardToggles(s: SettingsState): void {
+  const rows: Array<{ id: string; name: string; enabled: boolean }> = []
+  const disabled = new Set(s.disabledCards)
+  for (const p of lastSnapshot?.plugins ?? []) {
+    cardNames.set(p.id, p.name)
+    rows.push({ id: p.id, name: p.name, enabled: !disabled.has(p.id) })
+  }
+  for (const id of [...disabled].sort()) {
+    if (!rows.some((r) => r.id === id)) rows.push({ id, name: cardNames.get(id) ?? id, enabled: false })
+  }
+  const key = JSON.stringify(rows)
+  if (key === cardRowsKey) return
+  cardRowsKey = key
+  settingsCardsList.replaceChildren(...rows.map((row) => {
+    const line = document.createElement('div')
+    line.className = 'set-row'
+    const label = document.createElement('span')
+    label.className = 'set-label'
+    label.textContent = row.name
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.className = 'card-toggle'
+    input.dataset['cardId'] = row.id
+    input.checked = row.enabled
+    input.setAttribute('aria-label', `显示或隐藏插件包 ${row.name}`)
+    const state = document.createElement('span')
+    state.className = 'card-toggle-state'
+    state.textContent = row.enabled ? 'ON' : 'OFF'
+    line.append(label, input, state)
+    return line
+  }))
+}
+
+// 开关切换（事件托付：行随 reconcile 重建也不换监听）：先存证意图，再经内核落盘生效；
+// 失败以最近一次内核态回滚勾选（内核未变）。生效回执里同时带回新停用集（reconcile 用）。
+settingsCardsList.addEventListener('change', (e) => {
+  const input = e.target as HTMLInputElement
+  const id = input.dataset['cardId']
+  if (!id) return
+  const enabled = input.checked
+  notify('settings-card-toggle', { id, enabled })
+  void window.deck.bridge.invoke('settings/set-card-enabled', { id, enabled }).then(
+    (s) => {
+      notify('settings-card-set', { id, enabled: !s.disabledCards.includes(id) })
+      renderSettings(s)
+    },
+    (err: unknown) => {
+      notify('settings-card-failed', { id, message: String(err) })
+      cardRowsKey = null // 强制重建，勾选态回滚到内核真相
+      if (lastSettings) renderSettings(lastSettings)
+    },
+  )
+})
 
 /** 任务栏逃生开关（工单50）：勾选态 reconcile——开层拉取、切换回执、taskbar/changed
  * 回推三路共用，幂等。开关关 = 还原原生任务栏的自救通道（内核落盘 config 并销条带窗）。 */
@@ -1256,12 +1325,19 @@ function openSettings(): void {
     (s) => applyTaskbarEnabled(s.enabled),
     () => { /* 拉取失败保持现状，回推会补齐 */ },
   )
-  // 滑杆/开关矩形随开层存证（电池按它们定位拖拽/点击落点，desktop-rendered rects 同法）
+  // 滑杆/开关矩形随开层存证（电池按它们定位拖拽/点击落点，desktop-rendered rects 同法）。
+  // 卡片开关行矩形（工单101）：id + 当拍勾选态 + 勾选框矩形（电池按 id 定位点击开关行）；
+  // 列表在浮层隐藏期间也持续 reconcile，此处矩形按已显示布局取（display 先行恢复）。
   const sr = opacitySlider.getBoundingClientRect()
   const tr = taskbarToggle.getBoundingClientRect()
+  const cards = Array.from(settingsCardsList.querySelectorAll<HTMLInputElement>('input.card-toggle')).map((input) => {
+    const r = input.getBoundingClientRect()
+    return { id: input.dataset['cardId'] ?? '', enabled: input.checked, rect: { x: r.left, y: r.top, w: r.width, h: r.height } }
+  })
   notify('settings-opened', {
     slider: { x: sr.left, y: sr.top, w: sr.width, h: sr.height },
     taskbarToggle: { x: tr.left, y: tr.top, w: tr.width, h: tr.height },
+    cards,
     value: appliedOpacity == null ? null : Math.round(appliedOpacity * 100),
   })
   declareHotZones()
@@ -1288,8 +1364,12 @@ settingsBtn.addEventListener('click', () => {
 })
 
 settingsCard.addEventListener('mousedown', (e) => {
-  // 滑杆/逃生开关要收焦点（拖拽/键盘切换中渲染层不抢位）；其余区域保焦点，点击不触发失焦关层
-  if (e.target !== opacitySlider && e.target !== taskbarToggle) e.preventDefault()
+  // 滑杆/逃生开关/卡片开关（工单101）要收焦点（拖拽/键盘切换中渲染层不抢位）；
+  // 其余区域保焦点，点击不触发失焦关层
+  if (e.target !== opacitySlider && e.target !== taskbarToggle
+    && !(e.target instanceof HTMLInputElement && e.target.classList.contains('card-toggle'))) {
+    e.preventDefault()
+  }
 })
 
 settingsCard.addEventListener('keydown', (e) => {
@@ -1357,7 +1437,7 @@ function exitPanel(): void {
 
 settingsExit.addEventListener('click', () => exitPanel())
 
-window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
+window.deck.bridge.on('settings/changed', (s) => renderSettings(s))
 // 逃生开关状态回推（工单50）：他端切换（如条带侧动作、插件卸载终态帧）即时对齐勾选态
 window.deck.bridge.on('taskbar/changed', (s) => applyTaskbarEnabled(s.enabled))
 

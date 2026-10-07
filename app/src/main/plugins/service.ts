@@ -42,6 +42,12 @@ export interface PluginInstance {
 export interface PluginHostOptions {
   /** 插件根目录，按序扫描；同 id 先到先得（内置根在前） */
   roots: string[]
+  /**
+   * 停用集读取缝（工单101 卡片显隐开关）：返回当前停用的插件包 id 列表，清单装配时剔除。
+   * 读缝而非拷贝：设置服务改写 config.plugins.disabled 后无需重建宿主，重扫即生效；
+   * 缺省恒空 = 全启用（离线装配不接设置域）。
+   */
+  disabledIds?: () => readonly string[]
   /** 目录看门狗（默认开；离线测试可关，改用显式 rescan 驱动） */
   watch?: boolean
   /** 看门狗风暴合并窗口（ms） */
@@ -86,6 +92,7 @@ function byMountOrder(a: PluginInfo, b: PluginInfo): number {
 
 export class PluginHostService extends Service {
   private readonly roots: string[]
+  private readonly disabledIds: () => readonly string[]
   private readonly watchEnabled: boolean
   private readonly settleMs: number | undefined
   private readonly factory: NonNullable<PluginHostOptions['createInstance']>
@@ -99,6 +106,7 @@ export class PluginHostService extends Service {
   constructor(ctx: Context, options: PluginHostOptions) {
     super(ctx, 'plugins')
     this.roots = [...(options.roots ?? [])]
+    this.disabledIds = options.disabledIds ?? (() => [])
     this.watchEnabled = options.watch ?? true
     this.settleMs = options.settleMs
     this.factory = options.createInstance ?? defaultInstance
@@ -107,10 +115,14 @@ export class PluginHostService extends Service {
     if (this.watchEnabled && this.roots.length) {
       ctx.on('dispose', watchPluginRoots(this.roots, () => this.rescan(), { settleMs: this.settleMs }))
     }
+    // 停用集变化即重扫（工单101）：设置服务落盘后发出，清单随即剔除/恢复——
+    // 渲染层经既有 plugins/changed 即时路径卸载/重挂，包文件全程不动
+    ctx.on('settings/cards-changed', () => this.rescan())
     ctx.on('dispose', () => this.disposeAll())
   }
 
-  /** 当前清单（快照段 `plugins` 的来源；坏插件以 error 态在列，面板据此静默降级） */
+  /** 当前清单（快照段 `plugins` 的来源；坏插件以 error 态在列，面板据此静默降级；
+   * 停用包已被剔除——工单101，恢复出厂/资产指纹互不影响） */
   info(): PluginInfo[] {
     return this.listing
   }
@@ -130,9 +142,12 @@ export class PluginHostService extends Service {
   /**
    * 全量重扫：新增 → 装载、消失 → 卸载、资产变化 → 换代号重载。
    * 清单无实质变化时不发事件（1Hz tick 与看门狗同频时无谓刷新）。
+   * 停用集过滤（工单101）在装配最上游：被停用的 id 视同本次没扫到——在装实例走
+   * 既有「消失 → 卸载」链、清单自然不含（快照 plugins 段天然无停用包），包文件不动。
    */
   rescan(): PluginInfo[] {
-    const scanned = this.scan()
+    const disabled = new Set(this.disabledIds())
+    const scanned = this.scan().filter((item) => !disabled.has(item.id))
     const seen = new Set<string>()
 
     for (const item of scanned) {

@@ -67,6 +67,12 @@ export interface AutostartConfig {
 export interface PluginsConfig {
   /** 插件根目录绝对路径；空串 = userData/plugins */
   dir: string
+  /**
+   * 停用集（工单101 卡片显隐开关）：不装载的插件包 id 列表，空集 = 全启用。
+   * 停用 = 从插件清单剔除（渲染层随之卸载、热区随之消失），包文件不动——开关只管装载不管卸载。
+   * 未知 id 保留：目录暂缺的停用条目不丢，包放回来仍保持停用（重启保留语义同一出处）。
+   */
+  disabled: string[]
 }
 
 /**
@@ -176,9 +182,9 @@ export function defaultAppearance(): AppearanceConfig {
   return { cardOpacity: 0.55 }
 }
 
-/** 默认插件目录：空串 = 由主进程解析为 userData/plugins（见 PluginsConfig 注释） */
+/** 默认插件目录：空串 = 由主进程解析为 userData/plugins（见 PluginsConfig 注释）；停用集缺省空 = 全启用 */
 export function defaultPlugins(): PluginsConfig {
-  return { dir: '' }
+  return { dir: '', disabled: [] }
 }
 
 /** 默认自启：开启（桌面常驻是第一诉求）；appDir 留空 = 未声明生产位置，面板不接管新建 */
@@ -263,16 +269,39 @@ function mergeAutostart(raw: unknown, fallback: AutostartConfig, warnings: strin
 }
 
 function mergePlugins(raw: unknown, fallback: PluginsConfig, warnings: string[]): PluginsConfig {
-  const out = { ...fallback }
+  const out = { ...fallback, disabled: [...fallback.disabled] }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     warnings.push('config.plugins 不是对象，已整体回退默认插件目录')
     return out
   }
-  const dir = (raw as Record<string, unknown>).dir
-  if (dir === undefined) return out
-  if (typeof dir === 'string') out.dir = dir.trim()
-  else warnings.push('config.plugins.dir 不是字符串，已回退默认插件目录')
+  // dir 与 disabled 各自独立合并（工单101）：只给 disabled 不给 dir（或反之）时另一键走默认，
+  // 不因单键缺席整体回退——电池最小覆写 config.json 后重启，缺段回落默认，停用集不得误丢或误留
+  const section = raw as Record<string, unknown>
+  const dir = section.dir
+  if (dir !== undefined) {
+    if (typeof dir === 'string') out.dir = dir.trim()
+    else warnings.push('config.plugins.dir 不是字符串，已回退默认插件目录')
+  }
+  const disabled = section.disabled
+  if (disabled !== undefined) {
+    if (!Array.isArray(disabled)) {
+      warnings.push('config.plugins.disabled 不是数组，已回退默认（全启用）')
+    } else {
+      const ids: string[] = []
+      let dropped = false
+      for (const id of disabled) {
+        if (typeof id !== 'string' || id.trim() === '') {
+          dropped = true
+          continue
+        }
+        const value = id.trim()
+        if (!ids.includes(value)) ids.push(value)
+      }
+      if (dropped) warnings.push('config.plugins.disabled 含非法条目，已丢弃（合法条目保留）')
+      out.disabled = ids
+    }
+  }
   return out
 }
 

@@ -120,6 +120,10 @@ export class BridgeService extends Service {
         const { opacity } = payload as { opacity: number }
         return this.ctx.settings.setCardOpacity(opacity) as BridgeMethods[M]['response']
       }
+      case 'settings/set-card-enabled': {
+        const { id, enabled } = payload as { id: string; enabled: boolean }
+        return this.ctx.settings.setCardEnabled(id, enabled) as BridgeMethods[M]['response']
+      }
       case 'session/focus': {
         const { tool } = payload as { tool: string }
         return await this.ctx.focus.focusTool(String(tool ?? '')) as BridgeMethods[M]['response']
