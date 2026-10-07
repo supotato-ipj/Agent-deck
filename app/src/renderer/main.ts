@@ -4,7 +4,7 @@
 // 渲染层向宿主声明交互热区（各卡片矩形）；字体就绪后再声明一次，免字体换挡挪动矩形。
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
-import { pad, pad3 } from './format.js'
+import { pad3 } from './format.js'
 import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
 import { GATE_INITIAL, escapePlan, keyRoutingContextOf, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
@@ -12,8 +12,6 @@ import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState } from '.
 import { pasteableWithinTimeout } from './pasteable-query.js'
 import { zoneHotzoneContains, zoneHotzoneRect } from './zone-hotzone.js'
 import type { ZoneBox } from './zone-hotzone.js'
-
-const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T
@@ -24,38 +22,6 @@ function el<T extends HTMLElement = HTMLElement>(id: string): T {
 function notify(type: string, payload?: Record<string, unknown>): void {
   window.deck.host.notify(type, payload)
 }
-
-// ---- 日历卡（纯前端，自快照时钟推导） ----
-
-const calTitle = el('cal-title')
-const calGrid = el('cal-grid')
-
-function renderCalendar(epochMs: number): void {
-  const d = new Date(epochMs)
-  calTitle.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
-  calGrid.textContent = ''
-  for (const wd of CAL_WEEKDAYS) {
-    const head = document.createElement('div')
-    head.className = 'head'
-    head.textContent = wd
-    calGrid.appendChild(head)
-  }
-  const first = new Date(d.getFullYear(), d.getMonth(), 1)
-  const lead = (first.getDay() + 6) % 7 // 周一为首列
-  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-  for (let i = 0; i < lead; i++) {
-    const blank = document.createElement('div')
-    calGrid.appendChild(blank)
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    const cell = document.createElement('div')
-    cell.className = day === d.getDate() ? 'day today' : 'day'
-    cell.textContent = String(day)
-    calGrid.appendChild(cell)
-  }
-}
-
-let calendarMonth = -1
 
 // ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：文档区分组列 ----
 // 工单59：dock 应用区退役——应用入口并入任务栏（左组手钉/运行中 + 中组推荐位），
@@ -1471,14 +1437,9 @@ function render(snap: PanelSnapshot): void {
   lastSnapshot = snap
   renderDesktop(snap.desktop, snap.layout)
   renderSettings(snap.settings)
-  // 桌面组件（工单10）：时钟/天气/会话/硬件四卡各由插件自己渲染（Qoder 状态卡随工单03 退役），
-  // 宿主只负责把清单与裁剪后的视图喂过去；日历仍在宿主页面内。
+  // 桌面组件（工单10 起）：全由插件自己渲染（时钟/天气/会话列表 + 日历随工单99 成包），
+  // 宿主只负责把清单与裁剪后的视图喂过去。
   syncPlugins(snap.plugins, snap, pluginDeps)
-  const month = new Date(snap.clock.epochMs).getMonth()
-  if (month !== calendarMonth) {
-    calendarMonth = month
-    renderCalendar(snap.clock.epochMs)
-  }
 }
 
 // ---- 热区声明（全部卡片 + 桌面承载区） ----
