@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron'
 import type { HotzoneRect } from '../shared/contract'
+import { panelLabels } from './lag-sentinel'
 
 const POLL_MS = 25
 /** 离开判定确认拍数：连续两拍不命中才恢复穿透——边界光标抖动不翻转窗口样式 */
@@ -44,6 +45,8 @@ export class HotzoneTracker {
       this.dispose()
       return
     }
+    // 滞后哨兵（工单117）：穿透翻转是触碰窗口全局态的动作（H2；final4 轮事件尾终点）。
+    // 25ms 的常态读（光标/几何）不挂标签——span 落盘量与主线程开销都按「动作」而非「节拍」计。
     const cursor = screen.getCursorScreenPoint()
     const bounds = this.win.getBounds()
     const px = cursor.x - bounds.x
@@ -54,7 +57,7 @@ export class HotzoneTracker {
       this.missCount = 0
       if (!this.hot) {
         this.hot = true
-        this.win.setIgnoreMouseEvents(false)
+        panelLabels.run('hotzone-toggle', () => this.win.setIgnoreMouseEvents(false))
         this.hooks.onTransition?.(true)
       }
       return
@@ -62,7 +65,7 @@ export class HotzoneTracker {
     this.missCount += 1
     if (this.hot && this.missCount >= LEAVE_CONFIRM_POLLS) {
       this.hot = false
-      this.win.setIgnoreMouseEvents(true)
+      panelLabels.run('hotzone-toggle', () => this.win.setIgnoreMouseEvents(true))
       this.hooks.onLeave?.()
       this.hooks.onTransition?.(false)
     }

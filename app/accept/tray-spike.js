@@ -172,6 +172,7 @@ async function main() {
   }
 
   // 互斥侦察基线：真托盘属主应为 explorer（RetroBar/Seelen/Zebar 在场则本验收不可判）
+  rep.beginSegment('PRE');
   const trayBase = realTrayHwnd();
   if (trayBase) {
     rep.pass(`互斥侦察：现役 Shell_TrayWnd 属主是 explorer（0x${trayBase.toString(16)}）——无第三方托盘托管冲突`);
@@ -196,6 +197,7 @@ async function main() {
 
   try {
     // —— P0 拉起 spike 面板 ——
+    rep.beginSegment('P0');
     child = spawn(process.execPath, ['.', '--tray-spike'], {
       cwd: APP_ROOT,
       env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_TRAY_CORPUS: CORPUS_FILE },
@@ -209,12 +211,14 @@ async function main() {
     rep.pass(`托盘宿主上线：竞争窗口 hwnd=0x${Number(ready.hwnd).toString(16)}，接管前真托盘=0x${Number(ready.realTrayHwnd).toString(16)}`);
 
     // —— P1 投递竞争：置顶重申持续赢下 FindWindow ——
+    rep.beginSegment('P1');
     const win1 = await waitEvent('tray-competition', (e) => e.win === true, 8000);
     win1
       ? rep.pass('投递竞争：FindWindow(Shell_TrayWnd) 命中我方竞争窗口（置顶重申生效）')
       : rep.fail('投递竞争：未见 tray-competition win=true 存证');
 
     // —— P2 泵延迟无感知：控制器直调 Shell_NotifyIconW，计时 + 返回值 ——
+    rep.beginSegment('P2');
     probeWin = new BrowserWindow({ show: false, skipTaskbar: true });
     const probeHwnd = hwndOf(probeWin);
     const { encodeNotifyIconData, NIM_ADD, NIM_DELETE, NIF_MESSAGE, NIF_ICON, NIF_TIP } =
@@ -245,6 +249,7 @@ async function main() {
 
     // —— P3 真实托盘图标渲染：面板自身琥珀托盘图标（Electron 真 Shell_NotifyIcon 调用方）为基准真值 ——
     // Electron 的注册是 add(空) → modify(icon) → modify(tip) 三条独立调用，按 key 聚合断言。
+    rep.beginSegment('P3');
     const ownTip = await waitEvent('tray-event', (e) => e.tooltip === 'AGENT DECK 独立面板', 20000);
     const ownKey = ownTip && ownTip.key;
     const ownIconEvt = ownKey && readEvents().find((e) => e.type === 'tray-event' && e.key === ownKey && e.hasIcon);
@@ -259,6 +264,7 @@ async function main() {
     }).join('、') || '（无——存量应用未响应广播）'}`);
 
     // —— P3b 验收页像素正确：spike 窗截图应有琥珀簇（非占位图）——
+    rep.beginSegment('P3b');
     const boot = readEvents().filter((e) => e.type === 'boot').pop();
     const panelPid = boot && boot.pid;
     let spikeHwnd = null;
@@ -281,6 +287,7 @@ async function main() {
 
       // —— P3c 第三方像素正确：取一条第三方带像素事件的主色真值（宿主提取图标本体的量化众数），
       // 页面应渲染出同色簇——渲染像素与提取像素互为印证。只取饱和色（避开页面底色/灰图标的假命中）——
+      rep.beginSegment('P3c');
       const tp = readEvents().find((e) =>
         e.type === 'tray-event' && e.hasIcon && Array.isArray(e.dom) && e.key !== ownKey &&
         Math.max(...e.dom) - Math.min(...e.dom) > 40);
@@ -295,6 +302,7 @@ async function main() {
     }
 
     // —— P4 投递改道旁证：真托盘条带此刻无琥珀（图标被我方吞下）——
+    rep.beginSegment('P4');
     const realTray = realTrayHwnd();
     if (!realTray) {
       rep.note('真托盘窗口未找到（P4 跳过）');
@@ -308,6 +316,7 @@ async function main() {
     }
 
     // —— P5 字节语料：JSONL 可解析、含 NIM_ADD 负载（dwMessage 用 dist 的协议解码，不手写偏移）——
+    rep.beginSegment('P5');
     let corpus = [];
     try {
       corpus = fs.readFileSync(CORPUS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -323,6 +332,7 @@ async function main() {
       : rep.fail(`字节语料异常：${corpus.length} 条（NIM_ADD ${adds.length}）`);
 
     // —— P6 交还：杀面板 → 广播 → 真托盘回归 explorer ——
+    rep.beginSegment('P6');
     await cleanup();
     const trayAfter = realTrayHwnd();
     trayAfter

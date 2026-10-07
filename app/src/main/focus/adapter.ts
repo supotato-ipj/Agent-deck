@@ -4,6 +4,7 @@
 // （accept/lib/win32.js 实证形态，避免 FFI 回调生命周期问题）。
 // 隐私：只取窗口所属进程的可执行路径，不读窗口标题（ADR-0002 边界同 usage/native）。
 import type { WindowCandidate } from './plan'
+import { panelLabels } from '../lag-sentinel'
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const GW_HWNDNEXT = 2
@@ -106,16 +107,20 @@ export function nativeWindowCandidates(): WindowCandidate[] {
  * 把窗口带到前台：最小化先 SW_RESTORE，再 BringWindowToTop + SetForegroundWindow。
  * SetForegroundWindow 受前台锁限制可能失败（返回 false）——调用方按「尽力」处理，
  * 降级不冒泡（面板不因拉不起别人的窗而崩）。
+ * 滞后哨兵（工单117）：跨线程 ShowWindow/SetForegroundWindow 对挂死目标可无限期等
+ * （#107 电池侧 ShowWindow 阻塞 12 分钟同机理，审计 B8）——整段挂 `focus-tool` 标签。
  */
 export function nativeFocusWindow(hwnd: number): boolean {
-  const b = bind()
-  try {
-    if (b.isIconic(hwnd)) b.showWindow(hwnd, SW_RESTORE)
-    b.bringWindowToTop(hwnd)
-    return Boolean(b.setForegroundWindow(hwnd))
-  } catch {
-    return false
-  }
+  return panelLabels.run('focus-tool', () => {
+    const b = bind()
+    try {
+      if (b.isIconic(hwnd)) b.showWindow(hwnd, SW_RESTORE)
+      b.bringWindowToTop(hwnd)
+      return Boolean(b.setForegroundWindow(hwnd))
+    } catch {
+      return false
+    }
+  })
 }
 
 /** 启动工具真源：shell.openPath（ShellExecute 语义，单实例应用即唤起） */
