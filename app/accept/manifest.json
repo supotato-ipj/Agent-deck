@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, script(npm run 别名), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。",
+  "surfaces": {
+    "panel-alive": "面板存活",
+    "pixel": "像素",
+    "event-evidence": "事件存证",
+    "input-injection": "输入注入",
+    "system-state": "系统状态"
+  },
+  "batteries": [
+    {
+      "id": "03-battery",
+      "title": "主电池：面板全部行为 + 宿主常驻（工单03 起逐票堆叠）",
+      "entry": "app/accept/battery.js",
+      "script": "accept",
+      "budgetSeconds": 720,
+      "lastMeasuredSeconds": 402,
+      "lastMeasuredAt": "2026-10-07",
+      "segments": [
+        { "seg": "P1", "ticket": 3, "title": "启动面板（子进程，存证事件落盘；假死自愈接线）", "surfaces": ["panel-alive"], "estSeconds": 15 },
+        { "seg": "P2", "ticket": 3, "title": "透明合成（棋盘参照窗 + 时钟卡文字像素）", "surfaces": ["pixel"], "estSeconds": 15 },
+        { "seg": "P2.5", "ticket": 4, "title": "数据卡片桥接契约上线（会话/天气 + 硬件卡退役回归）", "surfaces": ["event-evidence"], "estSeconds": 10 },
+        { "seg": "P3", "ticket": 3, "title": "默认穿透：左键/右键直达桌面", "surfaces": ["input-injection", "system-state"], "estSeconds": 10 },
+        { "seg": "P4", "ticket": 3, "title": "热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序", "surfaces": ["input-injection", "system-state", "event-evidence"], "estSeconds": 20 },
+        { "seg": "P5", "ticket": 5, "title": "桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原", "surfaces": ["input-injection", "event-evidence", "system-state", "panel-alive"], "estSeconds": 35 },
+        { "seg": "P5-ICON", "ticket": 1, "title": "快捷方式真实图标区分度（lnk 绕行提取链）", "surfaces": ["event-evidence"], "estSeconds": 12 },
+        { "seg": "P5-ICON2", "ticket": 6, "title": "巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW）", "surfaces": ["event-evidence"], "estSeconds": 12 },
+        { "seg": "P5.5", "ticket": 6, "title": "编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 35 },
+        { "seg": "P5.6", "ticket": 20, "title": "选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 30 },
+        { "seg": "P5.7", "ticket": 21, "title": "框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89）", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 25 },
+        { "seg": "P5.8", "ticket": 22, "title": "批量拖拽摆位：整组插入序 + ghost N 项徽标", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 20 },
+        { "seg": "P5.9", "ticket": 23, "title": "分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 35 },
+        { "seg": "P5.10", "ticket": 24, "title": "单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列）", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 30 },
+        { "seg": "P5.12", "ticket": 26, "title": "多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 25 },
+        { "seg": "P5.13", "ticket": 27, "title": "删除与删除全部：回收站直进/确认层取消与确认/摆位对账", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 30 },
+        { "seg": "P5.14", "ticket": 28, "title": "原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 25 },
+        { "seg": "P5.15", "ticket": 29, "title": "复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 25 },
+        { "seg": "P5.16", "ticket": 30, "title": "粘贴：置灰态/落桌面根/同名「 - 副本」递增", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 25 },
+        { "seg": "P5.17", "ticket": 31, "title": "键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先", "surfaces": ["input-injection", "event-evidence"], "estSeconds": 35 },
+        { "seg": "P7S", "ticket": 7, "title": "搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 40 },
+        { "seg": "P8S", "ticket": 8, "title": "设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持", "surfaces": ["input-injection", "event-evidence", "system-state"], "estSeconds": 30 },
+        { "seg": "P6", "ticket": 3, "title": "config 几何生效（改 config 重启面板）", "surfaces": ["system-state"], "estSeconds": 12 },
+        { "seg": "P7", "ticket": 3, "title": "单实例守卫：二次拉起即退 + refused 存证 + 原面板完好", "surfaces": ["panel-alive"], "estSeconds": 8 },
+        { "seg": "P8", "ticket": 3, "title": "托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色）", "surfaces": ["system-state", "pixel"], "estSeconds": 12 },
+        { "seg": "P9", "ticket": 3, "title": "Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07）", "surfaces": ["input-injection", "pixel", "event-evidence", "system-state"], "estSeconds": 20 },
+        { "seg": "P10", "ticket": 3, "title": "托盘退出闭环：UIA 可见/WM_CLOSE 退出/托盘消失", "surfaces": ["panel-alive", "system-state", "pixel"], "estSeconds": 18 },
+        { "seg": "P10E", "ticket": 83, "title": "设置浮层「退出面板」按钮闭环", "surfaces": ["panel-alive", "event-evidence"], "estSeconds": 12 },
+        { "seg": "P9B", "ticket": 9, "title": "会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话）", "surfaces": ["input-injection", "event-evidence", "panel-alive"], "estSeconds": 25 },
+        { "seg": "P11", "ticket": 10, "title": "桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装", "surfaces": ["event-evidence", "system-state"], "estSeconds": 25 }
+      ]
+    },
+    {
+      "id": "48-tray-spike",
+      "title": "托盘 spike（工单48 路线 C 闸门）：托盘宿主竞争/改道/渲染/语料/交还",
+      "entry": "app/accept/tray-spike.js",
+      "script": "accept:tray",
+      "budgetSeconds": 60,
+      "lastMeasuredSeconds": 13,
+      "lastMeasuredAt": "2026-10-07",
+      "segments": [
+        { "seg": "PRE", "ticket": 48, "title": "互斥侦察基线（Shell_TrayWnd 属主 explorer，第三方托管冲突不可判）", "surfaces": ["system-state"], "estSeconds": 1 },
+        { "seg": "P0", "ticket": 48, "title": "拉起 spike 面板（托盘宿主上线）", "surfaces": ["panel-alive", "event-evidence"], "estSeconds": 3 },
+        { "seg": "P1", "ticket": 48, "title": "投递竞争：FindWindow 命中我方竞争窗口", "surfaces": ["event-evidence"], "estSeconds": 1 },
+        { "seg": "P2", "ticket": 48, "title": "泵延迟无感知：NIM_ADD/NIM_DELETE 同步快回 + 改道实证", "surfaces": ["system-state", "event-evidence"], "estSeconds": 2 },
+        { "seg": "P3", "ticket": 48, "title": "真实图标流量：面板自身托盘图标带像素到达（按 key 聚合）", "surfaces": ["event-evidence"], "estSeconds": 2 },
+        { "seg": "P3b", "ticket": 48, "title": "验收页像素正确：spike 页琥珀簇（PrintWindow 直拍）", "surfaces": ["pixel"], "estSeconds": 2 },
+        { "seg": "P3c", "ticket": 48, "title": "第三方图标像素正确：提取主色与页面渲染互证", "surfaces": ["pixel"], "estSeconds": 1 },
+        { "seg": "P4", "ticket": 48, "title": "投递改道旁证：真托盘条带无琥珀（<40 噪声阈值）", "surfaces": ["pixel"], "estSeconds": 2 },
+        { "seg": "P5", "ticket": 48, "title": "字节语料固化：corpus JSONL 可解析、含 NIM_ADD 负载", "surfaces": ["event-evidence"], "estSeconds": 1 },
+        { "seg": "P6", "ticket": 48, "title": "交还：面板退出广播 TaskbarCreated，真托盘回归 explorer", "surfaces": ["system-state", "panel-alive"], "estSeconds": 3 }
+      ]
+    },
+    {
+      "id": "49-taskbar",
+      "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
+      "entry": "app/accept/taskbar.js",
+      "script": "accept:taskbar",
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 49,
+      "lastMeasuredAt": "2026-10-07",
+      "segments": [
+        { "seg": "P1", "ticket": 49, "title": "任务栏窗口在场：置顶 + 底部通栏落屏底 + 原生任务栏已隐藏（工单50 几何口径）", "surfaces": ["system-state"], "estSeconds": 8 },
+        { "seg": "P2", "ticket": 49, "title": "面板本体钉底不受影响（非置顶 + pin 存证在流）", "surfaces": ["panel-alive", "system-state", "event-evidence"], "estSeconds": 3 },
+        { "seg": "P3", "ticket": 49, "title": "pill 缝隙穿透 + pill 热区命中（双向往返，工单52 缝隙探针）", "surfaces": ["input-injection", "system-state"], "estSeconds": 2 },
+        { "seg": "P4", "ticket": 49, "title": "开始按钮弹出原生开始菜单（前台宿主版本相关）", "surfaces": ["input-injection", "system-state", "event-evidence"], "estSeconds": 6 },
+        { "seg": "P5", "ticket": 49, "title": "TaskView 按钮弹出原生任务视图 + 残留清场", "surfaces": ["input-injection", "system-state", "event-evidence"], "estSeconds": 8 },
+        { "seg": "P6", "ticket": 49, "title": "运行时禁用（CDP taskbar/set-enabled）：窗销/原生还原/config 落盘/面板无恙", "surfaces": ["system-state", "panel-alive"], "estSeconds": 3 },
+        { "seg": "P7", "ticket": 49, "title": "运行时重新启用：窗口恢复仍置顶", "surfaces": ["system-state"], "estSeconds": 2 },
+        { "seg": "P8", "ticket": 49, "title": "启动态禁用（config 门禁）：窗口不建面板照常", "surfaces": ["system-state", "panel-alive"], "estSeconds": 5 },
+        { "seg": "P9", "ticket": 49, "title": "启动态恢复启用：窗口回来仍置顶", "surfaces": ["system-state"], "estSeconds": 5 }
+      ]
+    },
+    {
+      "id": "50-taskbar-carry",
+      "title": "任务栏显隐还原（工单50）：守卫链三还原路径 + 逃生开关 + 偏好不扰",
+      "entry": "app/accept/taskbar-carry.js",
+      "script": "accept:taskbar-carry",
+      "budgetSeconds": 60,
+      "lastMeasuredSeconds": 31,
+      "lastMeasuredAt": "2026-10-07",
+      "segments": [
+        { "seg": "A1", "ticket": 50, "title": "接管开启：原生任务栏隐藏 + 条带落屏底", "surfaces": ["system-state", "event-evidence"], "estSeconds": 6 },
+        { "seg": "A2", "ticket": 50, "title": "正常退出（WM_CLOSE）：原生任务栏还原、守卫随退", "surfaces": ["panel-alive", "system-state", "event-evidence"], "estSeconds": 5 },
+        { "seg": "A3", "ticket": 50, "title": "崩溃路径（taskkill 面板树守卫存活）：panel-exit 还原", "surfaces": ["panel-alive", "system-state", "event-evidence"], "estSeconds": 5 },
+        { "seg": "A4", "ticket": 50, "title": "进程被杀路径（守卫+面板同杀）：还原守护 guard-dead 翻回后自退", "surfaces": ["panel-alive", "system-state", "event-evidence"], "estSeconds": 6 },
+        { "seg": "B1", "ticket": 50, "title": "逃生开关关闭（设置浮层真实 DOM 链）：原生即还原/条带销毁/config 落盘", "surfaces": ["system-state", "event-evidence"], "estSeconds": 4 },
+        { "seg": "B2", "ticket": 50, "title": "逃生开关再开：原生再隐、条带回来（双向可用）", "surfaces": ["system-state"], "estSeconds": 2 },
+        { "seg": "C1", "ticket": 50, "title": "偏好不扰：StuckRects3 Settings 全程字节不变", "surfaces": ["system-state"], "estSeconds": 1 }
+      ]
+    },
+    {
+      "id": "51-taskbar-appbar",
+      "title": "AppBar 工作区占位（工单51）：占位/最大化让位/分辨率重算/全屏让位/卸载归还",
+      "entry": "app/accept/taskbar-appbar.js",
+      "script": "accept:taskbar-appbar",
+      "budgetSeconds": 60,
+      "lastMeasuredSeconds": 22,
+      "lastMeasuredAt": "2026-10-07",
+      "segments": [
+        { "seg": "P1", "ticket": 51, "title": "AppBar 占位生效：registered/setpos 存证 + 工作区收缩 + 条带贴屏底", "surfaces": ["system-state", "event-evidence"], "estSeconds": 5 },
+        { "seg": "P2", "ticket": 51, "title": "最大化让位：参照窗底边停在栏上沿", "surfaces": ["system-state"], "estSeconds": 2 },
+        { "seg": "P3", "ticket": 51, "title": "分辨率变化重算：display-metrics-changed setpos + 几何随新分辨率 → 还原", "surfaces": ["system-state", "event-evidence"], "estSeconds": 5 },
+        { "seg": "P4", "ticket": 51, "title": "全屏让位：前台全屏参照窗 → 条带隐藏；退出 1 秒内恢复", "surfaces": ["system-state", "event-evidence"], "estSeconds": 3 },
+        { "seg": "P5", "ticket": 51, "title": "卸载归还：面板退出即注销 AppBar、工作区回基线", "surfaces": ["panel-alive", "system-state", "event-evidence"], "estSeconds": 2 }
+      ]
+    },
+    {
+      "id": "55-taskbar-right-group",
+      "title": "任务栏右组（工单55）：右组 pill/硬件摘要口径/系统动作三格/子集持久化",
+      "entry": "app/accept/taskbar-right-group.js",
+      "script": "accept:taskbar-right-group",
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": null,
+      "lastMeasuredAt": null,
+      "segments": [
+        { "seg": "P1", "ticket": 55, "title": "右组 pill 在场（摘要+音量+时钟）+ 显示桌面细条钉屏幕最右端", "surfaces": ["system-state"], "estSeconds": 3 },
+        { "seg": "P2", "ticket": 55, "title": "硬件摘要五项与硬件卡口径一致（紧邻双读 + 容差重试）", "surfaces": ["event-evidence"], "estSeconds": 5 },
+        { "seg": "P3", "ticket": 55, "title": "时钟格点击 → 原生通知中心前台", "surfaces": ["input-injection", "system-state"], "estSeconds": 5 },
+        { "seg": "P4", "ticket": 55, "title": "音量格点击 → 原生快速设置前台", "surfaces": ["input-injection", "system-state"], "estSeconds": 5 },
+        { "seg": "P5", "ticket": 55, "title": "显示桌面细条 → ToggleDesktop（notepad 探针一收一放）", "surfaces": ["input-injection", "system-state"], "estSeconds": 10 },
+        { "seg": "P6", "ticket": 55, "title": "勾选子集持久化：set-metrics 落盘 + 即时收敛 + 重拉保持", "surfaces": ["system-state", "event-evidence"], "estSeconds": 12 }
+      ]
+    }
+  ]
+}

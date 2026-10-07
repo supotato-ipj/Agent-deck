@@ -262,6 +262,7 @@ async function main() {
     // P1 置顶 + 底部通栏几何（rectOf 回 {left,top,right,bottom} 物理像素，宽高换算后归一 DIP）。
     // 底边判据 = 屏底（工单50：建窗先隐藏原生任务栏，净空归零条带落底；49 的让位净空
     // 只剩隐藏失败的降级档）。同时断言原生任务栏确已隐藏（隐藏失败则降级几何会在此暴露）。
+    rep.beginSegment('P1');
     const dip = screen.getPrimaryDisplay().bounds;
     const rect = win32.rectOf(tbHwnd);
     const wPhys = rect.right - rect.left;
@@ -282,6 +283,7 @@ async function main() {
     }
 
     // P2 面板本体钉底不受影响
+    rep.beginSegment('P2');
     const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 10000);
     const pinEvidence = await waitEvent('pin', null, 8000);
     if (panelHwnd && !isTopmost(panelHwnd) && pinEvidence) {
@@ -327,6 +329,7 @@ async function main() {
     }
 
     // P3 缝隙穿透 + pill 热区命中（双向往返）
+    rep.beginSegment('P3');
     win32.moveMousePhys(gapPt.x, gapPt.y);
     await sleep(400); // 热区轮询 25ms + 离开确认 2 拍，400ms 足够收敛
     const gapHit = win32.windowFromPointRoot(gapPt);
@@ -343,6 +346,7 @@ async function main() {
     // P4 开始按钮 → 原生开始菜单（先断言按键合成成功回执，再等前台易主）。
     // 前台宿主因 Win11 版本而异：StartMenuExperienceHost（≤23H2）或 SearchHost（24H2+，
     // 开始菜单前台 CoreWindow 由 SearchHost 承载——49 真机实证）；两者都是 shell CoreWindow。
+    rep.beginSegment('P4');
     const isStartMenu = (i) => i.cls === 'Windows.UI.Core.CoreWindow'
       && (i.exe === 'startmenuexperiencehost' || i.exe === 'searchhost');
     const before = foregroundInfo();
@@ -364,6 +368,7 @@ async function main() {
     // P5 TaskView 按钮 → 原生任务视图。前台宿主同样是版本相关：explorer 的
     // ForegroundStaging / CoreWindow / XamlIsland 都见过；判据 = 前台易主为 explorer
     // 的非桌面窗口（Progman/WorkerW 是桌面宿主，不算）。
+    rep.beginSegment('P5');
     const beforeTv = foregroundInfo();
     const tasksPt = btnOf('tasks');
     // 光标重新入场刷新热区（菜单开阖期间的热区状态不赌）
@@ -403,6 +408,7 @@ async function main() {
 
     // P6 运行时禁用（插件热切换真机链路）：CDP 在面板页驱动 taskbar/set-enabled →
     // taskbar/changed → 控制器销毁窗口；config.json 同步落盘；面板本体不受影响。
+    rep.beginSegment('P6');
     const r6 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
     let tbAfterDisable = null;
     for (let i = 0; i < 25 && !tbAfterDisable; i++) {
@@ -419,6 +425,7 @@ async function main() {
     }
 
     // P7 运行时重新启用 → 窗口恢复（仍置顶）
+    rep.beginSegment('P7');
     const r7 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
     const tbBackLive = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
     if (r7 && r7.enabled === true && tbBackLive && isTopmost(tbBackLive)) {
@@ -428,6 +435,7 @@ async function main() {
     }
 
     // P8 启动态禁用（config 门禁）：禁用配置下拉起 → 窗口不建，面板照常
+    rep.beginSegment('P8');
     writeTaskbarEnabled(false);
     killTree(child, panelPid);
     child = null;
@@ -447,6 +455,7 @@ async function main() {
     }
 
     // P9 启动态恢复启用 → 窗口回来
+    rep.beginSegment('P9');
     writeTaskbarEnabled(true);
     killTree(child, panelPid);
     child = null;
