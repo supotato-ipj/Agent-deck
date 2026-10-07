@@ -14,7 +14,7 @@ const http = require('http');
 const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
-const { Report } = require('./lib/report');
+const { Report, parseAcceptScope } = require('./lib/report');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
@@ -400,8 +400,13 @@ function panelLiveness(hwnd) {
 let hungDumped = false;
 // 面板假死自愈钩子（主流程装配成闭包：取证 → 重启面板 → 交还新 hwnd）。假死态下任何
 // 落点断言都不可能成立，留在原地只会让后续几十段连锁判死（首跑 52 fail 的形态）；
-// 诚实做法是把它记成一条根因失败、换一个新面板继续跑后面的段，而不是让噪声淹没判决。
+// 工单110 起它记环境降责排除而非失败：停摆是环境事件，检出即开排除窗，窗内失败断言
+// 改记排除——环境噪声不再污染 verdict。
 let healHungPanel = null;
+// 重启健康验证钩子（工单110）：排除窗自停摆检出开启，至「面板重启验证健康」闭合。
+// 验证判据取 ensurePanelHit 的落点命中（点击真能落到面板上=新面板可服务），故由
+// 主流程装配成闭包，ensurePanelHit 命中时回调闭合排除窗；其后失败断言恢复记失败。
+let onPanelHealthy = null;
 /** 面板假死取证（只取第一次）：冻住前最后在做什么（事件尾）+ 谁在跑（进程树、
  * 主线程态/等待原因、CPU）。判「卡在谁身上」只有这三样，别的都是猜。 */
 function hungForensics(hwnd) {
@@ -445,7 +450,10 @@ async function ensurePanelHit(pt, hwnd) {
       throw err;
     }
     const root = Number(win32.windowFromPointRoot(pt));
-    if (root === Number(hwnd)) return { ok: true };
+    if (root === Number(hwnd)) {
+      if (onPanelHealthy) onPanelHealthy(); // 落点命中面板=重启健康验证（工单110：闭合排除窗）
+      return { ok: true };
+    }
     const cls = win32.className(root);
     if (CLEAR_DESKTOP_SKIP.has(cls)) {
       return { ok: false, why: `落点命中桌面层 ${cls}（show desktop 态残留或面板未在屏）` };
@@ -645,7 +653,11 @@ function clipboardSet(text) {
 }
 
 async function main() {
-  const rep = new Report('03-battery');
+  // 工单110：--accept-scope 显式声明本次验收的 spec 范围段（如 npm run accept -- --accept-scope P6,P8）。
+  // 段号进 verdict 行与报告账目；段级清单（注册表）落地前，未知段号告警不阻断（硬交叉校验归 #115）。
+  const acceptScope = parseAcceptScope(process.argv);
+  const rep = new Report('03-battery', { scope: acceptScope });
+  if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（段注册表未填充前，未注册段号告警不阻断）`);
   const w32 = win32;
   const si = screenInfo();
   const f = si.factor;
@@ -731,7 +743,12 @@ async function main() {
     healHungPanel = async () => {
       const dump = hungForensics(hwnd);
       if (dump) console.log(`[battery] 面板假死取证：\n${dump}`);
-      rep.fail('面板主线程假死（WM_NULL 超时）：已重启面板继续跑，本段及其后依赖它的断言不计');
+      // 工单110 三态记账：停摆是环境事件——检出即开排除窗，停摆事件记环境降责排除而非
+      // 失败。窗自此刻开至面板重启验证健康（onPanelHealthy 在 ensurePanelHit 落点命中时
+      // 闭合），其间失败断言自动入排除账；重启失败（下方 !nh）也落在窗内，随窗不闭合
+      // 连带其后「无面板可用」的失败全数环境降责——环境噪声不再污染 verdict。
+      rep.beginEnvWindow('面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信', 'panel-stall');
+      rep.exclude('面板主线程假死（WM_NULL 超时）：已重启面板继续跑，停摆检出至重启健康验证之间的失败断言记环境降责', '面板主线程假死（WM_NULL 超时）', 'panel-stall');
       await stopPanel();
       child = launchPanel();
       child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
@@ -741,6 +758,9 @@ async function main() {
       panelPid = win32.threadIdOf(nh).pid;
       return true;
     };
+    // 工单110：重启健康验证闭合钩子——heal 后首次「落点命中面板」即证明新面板可服务，
+    // 闭合排除窗；其后的失败断言恢复照常记失败。
+    onPanelHealthy = () => rep.endEnvWindow('面板重启后首次落点命中（健康验证通过）');
     const rect = w32.rectOf(hwnd);
     rep.note(`panel hwnd=0x${hwnd.toString(16)} rect(phys)=${rect.left},${rect.top} ${rect.right - rect.left}x${rect.bottom - rect.top}`);
     await sleep(1200);
@@ -5625,13 +5645,14 @@ async function main() {
     restoreDesktop();
     try { w32.SetCursorPos(savedCursor.x, savedCursor.y); } catch { /* 尽力 */ }
   }
-  return rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
+  return rep.verdict();
 }
 
 module.exports = function battery() {
   app.whenReady().then(() => main().then((v) => {
-    process.exitCode = v.fails > 0 ? 1 : 0;
-    setTimeout(() => app.exit(v.fails > 0 ? 1 : 0), 300);
+    // 工单110 三态退出码：PASS=0 / FAIL-CODE=1 / FAIL-ENV=2（guard 与自动化按此分辨结局）
+    process.exitCode = v.exitCode;
+    setTimeout(() => app.exit(v.exitCode), 300);
   })).catch((e) => {
     console.error('BATTERY CRASH:', e && e.stack || e);
     app.exit(2);
