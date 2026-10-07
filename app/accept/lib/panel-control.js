@@ -22,7 +22,9 @@ const DEFAULT_VERIFY_MS = 5000;
 /** 验证窗内存活轮询间隔 */
 const DEFAULT_POLL_MS = 200;
 
-/** 存活探询缺省实现：process.kill(pid,0) 存在性探测（Windows 下零副作用） */
+/** 存活探询缺省实现：process.kill(pid,0) 存在性探测（Windows 下零副作用）。
+ *  已知边界（评审 P3）：验证窗内 pid 被系统复用给无关进程时会误判存活（概率极低），
+ *  后果是该轮报「需重启清障」入环境降责——宁可误停一轮，不放双面板污染后续。 */
 function defaultIsAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
