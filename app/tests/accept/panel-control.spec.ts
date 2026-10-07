@@ -201,3 +201,47 @@ describe('battery.js 接线的可执行规格：强退决策 → 环境降责账
     expect(r).toMatchObject({ verdict: 'PASS', exitCode: 0 })
   })
 })
+
+describe('battery.js ensurePanelHit 命中分支接线规格（评审 P0 回归钉）', () => {
+  /** 接线规格：命中面板后按探活与自愈结局三分支——heal 失败（重启后新窗未现）时
+   *  绝不调 onPanelHealthy（排除窗必须保持开启→FAIL-ENV），也绝不返回 ok:true。 */
+  function wireHitBranch(live: string, healed: boolean, calls: { healthy: number }) {
+    if (live.startsWith('主线程假死')) {
+      if (healed) return { ok: false, why: '落点命中面板但主线程假死→已重启面板，本段跳过' }
+      return { ok: false, why: '面板假死且重启失败，后续段无面板可用' }
+    }
+    calls.healthy++ // onPanelHealthy()：仅探活健康时闭窗
+    return { ok: true }
+  }
+  const calls = () => ({ healthy: 0 })
+
+  it('探活健康：闭窗一次 + ok:true（现状不变量）', () => {
+    const c = calls()
+    expect(wireHitBranch('主线程在', false, c)).toEqual({ ok: true })
+    expect(c.healthy).toBe(1)
+  })
+
+  it('假死+自愈成功：不闭窗 + ok:false（本段跳过，等落点重验）', () => {
+    const c = calls()
+    const r = wireHitBranch('主线程假死(WM_NULL 超时)', true, c)
+    expect(r.ok).toBe(false)
+    expect(c.healthy).toBe(0)
+  })
+
+  it('假死+自愈失败：不闭窗 + ok:false（排除窗保持开启，其后失败全数环境降责）', () => {
+    const rep = new Report('t', { file: null })
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      rep.beginEnvWindow('面板主线程假死（WM_NULL 超时）', 'panel-stall')
+      const c = calls()
+      const r = wireHitBranch('主线程假死(WM_NULL 超时)', false, c)
+      expect(r.ok).toBe(false)
+      expect(c.healthy).toBe(0)
+      rep.fail('P2 面板出现') // 窗仍在开：失败必须入排除账而非失败账
+      const v = rep.verdict()
+      expect(v).toMatchObject({ verdict: 'FAIL-ENV', exitCode: 2, envWindowOpen: true })
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})

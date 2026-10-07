@@ -454,10 +454,14 @@ async function ensurePanelHit(pt, hwnd) {
     if (root === Number(hwnd)) {
       // 工单112：命中面板 ≠ 面板健康——停摆的窗不收窗消息但仍中落点。命中即探活，
       // 假死走自愈（首跑二次停摆被「命中即健康」短路放过的形态，见工单110 现场记录）。
+      // 评审修正（P0）：heal 返回 false = 重启失败（新窗未现，面板已死）——绝不能走
+      // onPanelHealthy 闭窗（「重启验证健康」是假话）也不能对死 hwnd 返回 ok:true 继续
+      // 本段；窗保持开启，其后失败全数环境降责（FAIL-ENV 而非 FAIL-CODE）。
       const live = panelLiveness(hwnd);
       if (live.startsWith('主线程假死')) {
         const healed = healHungPanel ? await healHungPanel() : false;
         if (healed) return { ok: false, why: '落点命中面板但主线程假死→已重启面板，本段跳过' };
+        return { ok: false, why: '面板假死且重启失败，后续段无面板可用' };
       }
       if (onPanelHealthy) onPanelHealthy(); // 落点命中面板=重启健康验证（工单110：闭合排除窗）
       return { ok: true };
@@ -632,6 +636,9 @@ function preflightProbes() {
       rows.push({
         cls: win32.className(h), title: windowTitle(h), pid, selfPid: process.pid,
         rect: win32.rectOf(h), visible: !!win32.IsWindowVisible(h), cloaked: win32.isCloaked(h),
+        // 最大化普通窗工作区可占屏 ~96%——带 WS_MAXIMIZE(GWL_STYLE 0x10000000) 的是应用
+        // 窗不是覆盖层，预读样式供全屏判据排除（评审 P3）
+        maximized: !!(Number(win32.GetWindowLongW(h, -16)) & 0x10000000),
         exeQueryable: win32.exeOfPid(pid) !== '',
       });
     } catch { /* 已销毁：跳过 */ }
@@ -640,7 +647,7 @@ function preflightProbes() {
   const fullscreenForeign = vis.filter((r) => !PREFLIGHT_SHELL_CLASSES.has(r.cls)
     && r.cls !== 'Ghost' && !PREFLIGHT_OWN_TITLES.has(r.title)
     && r.rect && (r.rect.right - r.rect.left) * (r.rect.bottom - r.rect.top) >= screenArea * 0.95
-    && !r.cloaked);
+    && !r.cloaked && !r.maximized);
   return {
     panelWindows: findPanelWindows(vis).map((p) => ({ ...p, exeQueryable: (rows.find((r) => r.pid === p.pid) || {}).exeQueryable })),
     ghostWindows: vis.filter((r) => r.cls === 'Ghost'),
@@ -803,9 +810,8 @@ async function main() {
         // try/catch 汇流：异常落在停摆排除窗内自动环境降责，轮末 verdict=FAIL-ENV）。
         // 被污染的轮次（双面板并存）不再产出误导性 verdict。
         rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障，后续段中止`, '面板强退序列未能终结面板进程（#107 遗留进程形态）', 'panel-forcekill');
-        const err = new Error('面板强退失败：需重启清障——后续段中止');
-        err.clearanceRequired = true;
-        throw err;
+        // 中止机制 = 这个 throw 借主 try/catch 汇流；异常文本自带「需重启清障」定责语。
+        throw new Error('面板强退失败：需重启清障——后续段中止');
       }
       child = launchPanel();
       child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
