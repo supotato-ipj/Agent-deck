@@ -12,6 +12,7 @@ import {
   GATE_INITIAL,
   desiredKeyboardMode,
   escapePlan,
+  keyRoutingContextOf,
   nextKeyboardGate,
   pasteFailureNotice,
   routeSelectionKey,
@@ -35,17 +36,34 @@ const death = { type: 'selection', nonEmpty: false } as const
 const openSearch = { type: 'overlay-opened', name: 'search' } as const
 const closeSearch = { type: 'overlay-closed', name: 'search' } as const
 
+// 工单100 通用键盘档：插件档声明走自己的事件种类进同一归约器（名字带插件 id 命名空间）
+const tierA = { type: 'tier-acquired', name: 'plugin:search:search' } as const
+const tierAOff = { type: 'tier-released', name: 'plugin:search:search' } as const
+const tierB = { type: 'tier-acquired', name: 'plugin:note:input' } as const
+const tierBOff = { type: 'tier-released', name: 'plugin:note:input' } as const
+
 describe('desiredKeyboardMode 归一合成（唯一出处）', () => {
-  it('选区空 + 无浮层 = off', () => {
-    expect(desiredKeyboardMode(false, [])).toBe(false)
+  it('选区空 + 无浮层 + 无插件档 = off', () => {
+    expect(desiredKeyboardMode(false, [], [])).toBe(false)
   })
-  it('选区非空 = on（无论浮层）', () => {
-    expect(desiredKeyboardMode(true, [])).toBe(true)
-    expect(desiredKeyboardMode(true, ['search'])).toBe(true)
+  it('选区非空 = on（无论浮层/插件档）', () => {
+    expect(desiredKeyboardMode(true, [], [])).toBe(true)
+    expect(desiredKeyboardMode(true, ['search'], [])).toBe(true)
+    expect(desiredKeyboardMode(true, [], ['plugin:x:t'])).toBe(true)
   })
-  it('任一浮层开 = on（无论选区）', () => {
-    expect(desiredKeyboardMode(false, ['search'])).toBe(true)
-    expect(desiredKeyboardMode(false, ['search', 'settings', 'rename'])).toBe(true)
+  it('任一浮层开 = on（无论选区/插件档）', () => {
+    expect(desiredKeyboardMode(false, ['search'], [])).toBe(true)
+    expect(desiredKeyboardMode(false, ['search', 'settings', 'rename'], [])).toBe(true)
+    expect(desiredKeyboardMode(false, ['search'], ['plugin:x:t'])).toBe(true)
+  })
+  // 工单100 通用键盘档：插件档声明进同一归一合成（desired 第三项）——不是第二条通道
+  it('任一插件档在持 = on（无论选区/浮层）', () => {
+    expect(desiredKeyboardMode(false, [], ['plugin:search:search'])).toBe(true)
+    expect(desiredKeyboardMode(false, [], ['plugin:a:input', 'plugin:b:input'])).toBe(true)
+    expect(desiredKeyboardMode(false, ['settings'], ['plugin:search:search'])).toBe(true)
+  })
+  it('插件档全释放且无浮层无选区 = off', () => {
+    expect(desiredKeyboardMode(false, [], [])).toBe(false)
   })
 })
 
@@ -132,6 +150,82 @@ describe('nextKeyboardGate 真机序列（重命名全程，工单28 既有流�
       death,
     )
     expect(edges).toEqual(['on', null, null, 'off'])
+  })
+})
+
+describe('nextKeyboardGate 插件键盘档（工单100：同一归约器，档位事件不另开通道）', () => {
+  it('档位请求 → 沿 on；释放 → 沿 off（空选区无浮层）', () => {
+    const { state, edges } = feed(GATE_INITIAL, tierA, tierAOff)
+    expect(edges).toEqual(['on', 'off'])
+    expect(state.on).toBe(false)
+    expect(state.tiers).toEqual([])
+  })
+  it('同向不重发：重复请求同名档是幂等噪声（无沿），未持拿就释放也是噪声', () => {
+    const { edges } = feed(GATE_INITIAL, tierA, tierA, tierAOff, tierAOff)
+    expect(edges).toEqual(['on', null, 'off', null])
+  })
+  it('多插件并存：两档同持只产生一次 on 沿；释放其一键盘仍在，全释放才 off', () => {
+    const { state, edges } = feed(GATE_INITIAL, tierA, tierB, tierAOff, tierBOff)
+    expect(edges).toEqual(['on', null, null, 'off'])
+    expect(state.tiers).toEqual([])
+  })
+  it('关键反踩（与浮层同构）：档位释放而选区仍非空 → 保持 on（无沿不互踩）', () => {
+    const { state, edges } = feed(GATE_INITIAL, birth, tierA, tierAOff)
+    expect(edges).toEqual(['on', null, null])
+    expect(state.on).toBe(true)
+    expect(state.tiers).toEqual([])
+  })
+  it('关键反踩（与浮层同构）：选区清空而档位在持 → 键盘归档位（无沿）；档位随后释放 → off', () => {
+    const { edges, state } = feed(GATE_INITIAL, birth, tierA, death, tierAOff)
+    expect(edges).toEqual(['on', null, null, 'off'])
+    expect(state.on).toBe(false)
+  })
+  it('与浮层组合矩阵：浮层关而档位在持 → 保持 on；档位关而浮层开 → 保持 on', () => {
+    const { edges } = feed(GATE_INITIAL, openSearch, tierA, closeSearch)
+    expect(edges).toEqual(['on', null, null])
+    const { edges: edges2 } = feed(GATE_INITIAL, tierA, openSearch, tierAOff)
+    expect(edges2).toEqual(['on', null, null])
+  })
+  it('档位与浮层互不顶替：同名异种各行其账（浮层 search 与档位 plugin:search:search 同时在册）', () => {
+    const { state, edges } = feed(GATE_INITIAL, openSearch, tierA, closeSearch)
+    expect(edges).toEqual(['on', null, null])
+    expect(state.overlays).toEqual([])
+    expect(state.tiers).toEqual(['plugin:search:search'])
+    expect(state.on).toBe(true)
+  })
+})
+
+describe('keyRoutingContextOf 键盘路由上下文合成（工单31 捕获段装配的纯逻辑出处；工单100 档位并入）', () => {
+  const GATE_WITH_TIER: KeyboardGateState = { ...GATE_INITIAL, tiers: ['plugin:search:search'] }
+
+  it('档位在持等同浮层开：Esc 归档位自处理、六键不接管（浮层优先同构）', () => {
+    expect(keyRoutingContextOf(GATE_WITH_TIER, false)).toEqual({
+      overlayOpen: true,
+      menuOpen: false,
+      selectionNonEmpty: false,
+    })
+    // 档位在持期间六键放行（按键落在档位持有者聚焦元素上）
+    const ctx = keyRoutingContextOf(GATE_WITH_TIER, false)
+    ctx.selectionNonEmpty = true
+    expect(routeSelectionKey('a', true, ctx)).toBeNull()
+    expect(routeSelectionKey('v', true, ctx)).toBeNull()
+  })
+  it('浮层与档位任一在即 overlayOpen；全空则否', () => {
+    expect(keyRoutingContextOf({ ...GATE_INITIAL, overlays: ['rename'] }, false).overlayOpen).toBe(true)
+    expect(keyRoutingContextOf(GATE_INITIAL, true).overlayOpen).toBe(false)
+    expect(keyRoutingContextOf(GATE_INITIAL, false)).toEqual({
+      overlayOpen: false,
+      menuOpen: false,
+      selectionNonEmpty: false,
+    })
+  })
+  it('菜单与选区字段直通透传', () => {
+    const gate: KeyboardGateState = { ...GATE_INITIAL, selectionNonEmpty: true }
+    expect(keyRoutingContextOf(gate, true)).toEqual({
+      overlayOpen: false,
+      menuOpen: true,
+      selectionNonEmpty: true,
+    })
   })
 })
 

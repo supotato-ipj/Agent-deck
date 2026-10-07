@@ -14,8 +14,6 @@ declare global {
   type DesktopState = import('../shared/contract').DesktopState
   type DesktopPlan = import('../shared/contract').DesktopPlan
   type HotzoneRect = import('../shared/contract').HotzoneRect
-  type SearchResultItem = import('../shared/contract').SearchResultItem
-  type SearchUiState = import('../shared/contract').SearchUiState
   type SettingsState = import('../shared/contract').SettingsState
   /** 上下文菜单条目（工单23 contributor 形状：数组即注册位，注册机制后续工单接入）。
    * disabled = 置灰行（工单30【粘贴】）：呈现弱化 + activate 挡下（menu.ts 归约器）。 */

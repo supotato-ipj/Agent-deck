@@ -506,20 +506,9 @@
 </head>
 <body>
 
-<!-- 桌面组件自工单10 起是内置插件包（时钟/天气/会话列表 + 日历随工单99 成包；
+<!-- 桌面组件自工单10 起是内置插件包（时钟/天气/会话列表 + 日历随工单99、搜索面板随工单100 成包；
      Qoder 状态卡随工单03 退役）：卡片元素由各插件在 mount 时自建
-     （id 与样式表一一对应，观感不变），此处只留搜索、桌面承载区与设置浮层。 -->
-
-<div class="card" id="search-card">
-  <h2>SEARCH</h2>
-  <div id="search-row">
-    <div id="search-hint">CLICK TO SEARCH_</div>
-    <input id="search-input" type="text" autocomplete="off" spellcheck="false">
-    <div id="search-placeholder">TYPE TO SEARCH FILES_</div>
-  </div>
-  <div id="search-sep"></div>
-  <div id="search-results"></div>
-</div>
+     （id 与样式表一一对应，观感不变），此处只留桌面承载区与设置浮层。 -->
 
 <div class="zone" id="doc-zone"><div class="zlabel">DOCS</div><div id="doc-groups"></div></div>
 
