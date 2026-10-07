@@ -7,6 +7,8 @@ const user32 = koffi.load('user32.dll');
 const kernel32 = koffi.load('kernel32.dll');
 let imm32 = null;
 try { imm32 = koffi.load('imm32.dll'); } catch { /* imm32 缺失则 IME 探针降级为渲染层事件断言 */ }
+let dwmapi = null;
+try { dwmapi = koffi.load('dwmapi.dll'); } catch { /* dwmapi 缺失则 cloaked 探测不可判，按未 cloaked 处理 */ }
 
 koffi.struct('POINT', { x: 'long', y: 'long' });
 koffi.struct('RECT', { left: 'long', top: 'long', right: 'long', bottom: 'long' });
@@ -300,6 +302,18 @@ function imeString(hwnd, gcs) {
   return s;
 }
 
+// DWMWA_CLOAKED=14：UWP/壳宿主常驻「全屏」窗多为 DWM cloaked（不可见合成）——
+// 工单113 preflight 全屏覆盖层探测靠它滤掉这类常态误报源。
+function isCloaked(hwnd) {
+  if (!dwmapi) return false;
+  try {
+    const DwmGetWindowAttribute = dwmapi.func('int32 __stdcall DwmGetWindowAttribute(uintptr_t hwnd, uint32 attr, void *pv, uint32 cb)');
+    const buf = Buffer.alloc(4);
+    if (DwmGetWindowAttribute(Number(hwnd), 14, buf, 4) !== 0) return false;
+    return buf.readUInt32LE(0) !== 0;
+  } catch { return false; }
+}
+
 const INPUT_SIZE_EXPECT = process.arch === 'x64' ? 40 : 24;
 if (koffi.sizeof(INPUT) !== INPUT_SIZE_EXPECT) {
   throw new Error(`INPUT 结构尺寸异常: ${koffi.sizeof(INPUT)} != ${INPUT_SIZE_EXPECT}`);
@@ -320,7 +334,7 @@ module.exports = {
   GetWindowLongW, WindowFromPoint, IsWindow, IsWindowVisible, PostMessageW, AttachThreadInput,
   FindWindowExW, IsIconic, findDefView, desktopIconsVisible, SendMessageTimeoutW,
   nativeTrayHwnd, nativeTaskbarVisible, ensureNativeTaskbarVisible,
-  exeOfPid, exeNameOfWindow,
+  exeOfPid, exeNameOfWindow, isCloaked,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,
 };
