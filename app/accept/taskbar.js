@@ -19,9 +19,10 @@ const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
+// config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
+const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '49-taskbar-events.jsonl');
 const CDP_PORT = 9223;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -153,15 +154,6 @@ async function waitForeground(pred, timeoutMs = 6000) {
   return null;
 }
 
-/** 覆写 config.json 的 taskbar.enabled（保留其余字段原文档位）；返回原文供 finally 还原 */
-function writeTaskbarEnabled(enabled) {
-  const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
-  const json = JSON.parse(raw);
-  json.taskbar = { ...(json.taskbar ?? {}), enabled };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
-  return raw;
-}
-
 function launchPanel() {
   return spawn(process.execPath, ['.', '--panel-accept'], {
     cwd: APP_ROOT,
@@ -238,7 +230,7 @@ async function main() {
   const rep = new Report('49-taskbar');
   let child = null;
   let panelPid = 0;
-  const originalConfig = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+  const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
     app.exit(v.fails === 0 ? 0 : 1);
@@ -246,7 +238,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    writeTaskbarEnabled(true);
+    patchTaskbar({ enabled: true });
     await ensureTaskViewClosed(rep); // 上一轮 P5 的任务视图残留会盖住条带，先清场
 
     // —— 拉起面板子进程（任务栏启用态）——
@@ -436,7 +428,7 @@ async function main() {
 
     // P8 启动态禁用（config 门禁）：禁用配置下拉起 → 窗口不建，面板照常
     rep.beginSegment('P8');
-    writeTaskbarEnabled(false);
+    patchTaskbar({ enabled: false });
     killTree(child, panelPid);
     child = null;
     await sleep(1200);
@@ -456,7 +448,7 @@ async function main() {
 
     // P9 启动态恢复启用 → 窗口回来
     rep.beginSegment('P9');
-    writeTaskbarEnabled(true);
+    patchTaskbar({ enabled: true });
     killTree(child, panelPid);
     child = null;
     await sleep(1200);
@@ -475,7 +467,7 @@ async function main() {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
     killTree(child, panelPid);
-    if (originalConfig !== null) fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8');
+    restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生
     // 任务栏可能留隐藏态——电池不得给用户留无系统入口的桌面
     ensureNativeTaskbarVisible();

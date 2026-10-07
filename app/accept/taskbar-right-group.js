@@ -16,9 +16,11 @@ const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
+// config 读写/还原共通 helper（工单124）：本电池的 writeTaskbarFields 是有兜底参照实现，
+// 抽为单点维护后四电池同一契约（缺位读不抛、缺位落桩、三态还原）
+const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '55-taskbar-right-group-events.jsonl');
 const CDP_PORT = 9225;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -176,16 +178,6 @@ function killTree(child, panelPid) {
   try { child.kill(); } catch { /* 已退出 */ }
 }
 
-/** 覆写 config.json 的 taskbar 段字段（保留其余字段原文档位；文件缺位先落最小桩——
- * 面板 loadConfig 会按默认值补齐其余段）。返回原文供 finally 还原（null = 原本无文件） */
-function writeTaskbarFields(patch) {
-  const raw = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
-  const json = raw ? JSON.parse(raw) : {};
-  json.taskbar = { ...(json.taskbar ?? {}), ...patch };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
-  return raw;
-}
-
 /** 硬件卡五项文本解析（#hw-line1/line2 innerText）→ {cpu,gpu,ram,dl,up}（缺位 = null） */
 function parseCardText(t1, t2) {
   const num = (m) => (m ? Number(m[1]) : null);
@@ -215,7 +207,7 @@ async function main() {
   let child = null;
   let panelPid = 0;
   let notepad = null;
-  const originalConfig = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+  const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
     app.exit(v.fails === 0 ? 0 : 1);
@@ -223,7 +215,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    writeTaskbarFields({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] });
+    patchTaskbar({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] });
 
     // —— 拉起面板子进程（任务栏启用态）——
     child = launchPanel();
@@ -400,9 +392,8 @@ async function main() {
   } finally {
     if (notepad) spawnSync('taskkill', ['/PID', String(notepad.pid), '/T', '/F'], { stdio: 'ignore' });
     killTree(child, panelPid);
-    // config 还原：原本无文件则删掉电池落的最小桩（worktree 首跑场景）
-    if (originalConfig !== null) fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8');
-    else fs.rmSync(CONFIG_FILE, { force: true });
+    // config 三态还原（工单124）：原本无文件则删掉电池落的最小桩（worktree 首跑场景）
+    restoreConfig(originalConfig);
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生
     // 任务栏可能留隐藏态——电池不得给用户留无系统入口的桌面
     ensureNativeTaskbarVisible();
