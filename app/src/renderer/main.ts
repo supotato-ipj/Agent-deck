@@ -80,7 +80,7 @@ function markSelection(): void {
 // 起搜索/设置浮层、删除确认层、重命名编辑 9 处调用点；工单31 增选区生灭；工单100 增
 // 插件键盘档）。归一仲裁把开态合成一处——键盘模式 = 选区非空 OR 任一浮层开 OR 任一
 // 插件档在持（keyboard-gate.ts 纯逻辑）。全部开关意图都进同一归约器，变化沿才出通道：
-// 浮层关而选区仍非空 → 保持 on 不互相踩；选区清空而浮层/插件档仍开 → 键盘归浮层/档位。
+// 浮层关而选区仍非空 → 保持 on 不互相踩；选区清空而浮层/插件档仍开 → 键盘归浮层/键盘档。
 // panel-ipc 侧 keyboard-mode-on/off 存证与选区生灭严格同相（电池 P5.17 硬断言）。
 
 let keyboardGate: KeyboardGateState = GATE_INITIAL
@@ -1499,9 +1499,9 @@ const pluginDeps: PluginRuntimeDeps = {
   notify,
   invoke: (method, payload) => window.deck.bridge.invoke(method, payload),
   on: (event, listener) => window.deck.bridge.on(event, listener),
-  // 插件键盘档进宿主单点仲裁（工单100）：档位声明 = 归一仲裁的一种具名事件（与选区/
+  // 插件键盘档进宿主单点仲裁（工单100）：键盘档声明 = 归一仲裁的一种具名事件（与选区/
   // 浮层同一把合成开关，单通道不另立——keyboard-mode-on/off 同相是电池硬断言口径）。
-  // 名字带插件 id 命名空间，档位记账/去重/卸载回收在插件运行时（plugins.ts）。
+  // 名字带插件 id 命名空间，键盘档记账/去重/卸载回收在插件运行时（plugins.ts）。
   onKeyboardTier: (id, tier, held) => dispatchKeyboardGate(
     held
       ? { type: 'tier-acquired', name: `plugin:${id}:${tier}` }

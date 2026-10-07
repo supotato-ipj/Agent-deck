@@ -5572,7 +5572,7 @@ async function main() {
           && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
           && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
         builtinMounted.length === builtinIds.length && zonesOk && geomOk
-          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张信息卡均经插件契约装载渲染，`
+          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张桌面组件均经插件契约装载渲染，`
             + `且五张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
             + `像素级观感按惯例人工核验 04-cards-*.png）`)
           : rep.fail(`桌面组件·内置五卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`

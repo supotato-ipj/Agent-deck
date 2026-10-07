@@ -49,12 +49,12 @@ export class SettingsService extends Service {
       throw new BridgeError(`cardOpacity 须为有限数字，收到 ${String(opacity)}`)
     }
     const cardOpacity = Math.min(1, Math.max(0, opacity))
-    if (cardOpacity === this.current.cardOpacity) return { ...this.current, disabledCards: [...this.current.disabledCards] }
+    if (cardOpacity === this.current.cardOpacity) return this.state()
     if (this.appConfig && this.file) {
       saveConfig(this.file, { ...this.appConfig, appearance: { ...this.appConfig.appearance, cardOpacity } })
       this.appConfig.appearance = { cardOpacity }
     }
-    this.current = { cardOpacity, disabledCards: this.current.disabledCards }
+    this.current = { ...this.current, cardOpacity }
     this.ctx.emit('settings/changed', this.state())
     return this.state()
   }
@@ -83,7 +83,7 @@ export class SettingsService extends Service {
       saveConfig(this.file, { ...this.appConfig, plugins: { ...this.appConfig.plugins, disabled: [...next] } })
       this.appConfig.plugins = { ...this.appConfig.plugins, disabled: [...next] }
     }
-    this.current = { cardOpacity: this.current.cardOpacity, disabledCards: [...next] }
+    this.current = { ...this.current, disabledCards: [...next] }
     this.ctx.emit('settings/changed', this.state())
     this.ctx.emit('settings/cards-changed', { disabled: [...next] })
     return this.state()

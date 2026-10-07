@@ -11,7 +11,7 @@
 
 /** 门控状态：on = 已发送给宿主通道的开态（启动即 off，面板 focusable:false）；
  * selectionNonEmpty = 选区是否非空（applySelection 单点喂入，band 框选同过此口）；
- * overlays = 打开中的浮层名集（trash-confirm / rename / settings / search）；
+ * overlays = 打开中的浮层名集（trash-confirm / rename / settings；搜索已迁键盘档，工单100）；
  * tiers = 插件持拿中的键盘档名集（工单100 通用 API，宿主转交时已带插件 id 命名空间）。 */
 export interface KeyboardGateState {
   readonly on: boolean
@@ -98,7 +98,7 @@ export function nextKeyboardGate(state: KeyboardGateState, event: KeyboardGateEv
 
 /** 键盘路由上下文（评审结构项：Esc 定序与六键路由共用的裁决输入，main.ts keydown
  * 捕获段单点装配）：overlayOpen = 任一浮层开或任一插件档在持（浮层优先，按键归浮层
- * 聚焦元素/档位持有者）；menuOpen = 菜单开层；selectionNonEmpty = 选区非空。
+ * 聚焦元素/键盘档持有者）；menuOpen = 菜单开层；selectionNonEmpty = 选区非空。
  * 装配口径的纯逻辑出处 = keyRoutingContextOf（main.ts 只消费其输出）。 */
 export interface KeyRoutingContext {
   overlayOpen: boolean
@@ -119,7 +119,7 @@ export function escapePlan(ctx: KeyRoutingContext): EscapePlan {
 }
 
 /** 键盘路由上下文合成（工单31 起窗口 keydown 捕获段单点装配的纯逻辑出处）：浮层与插件
- * 键盘档（工单100）任一在即 overlayOpen——档位持有期间键盘归档位（Esc 归档位自处理、
+ * 键盘档（工单100）任一在即 overlayOpen——键盘档持有期间键盘归键盘档（Esc 归键盘档自处理、
  * 六键不接管），与浮层优先同构；menuOpen/selectionNonEmpty 直通透传。 */
 export function keyRoutingContextOf(gate: KeyboardGateState, menuOpen: boolean): KeyRoutingContext {
   return {
