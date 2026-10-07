@@ -681,8 +681,8 @@
       "entry": "app/accept/taskbar-right-group.js",
       "script": "accept:taskbar-right-group",
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": null,
-      "lastMeasuredAt": null,
+      "lastMeasuredSeconds": 20,
+      "lastMeasuredAt": "2026-10-08",
       "segments": [
         {
           "seg": "P1",
@@ -691,7 +691,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 3
+          "estSeconds": 1
         },
         {
           "seg": "P3",
@@ -701,7 +701,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 2
         },
         {
           "seg": "P4",
@@ -711,7 +711,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 2
         },
         {
           "seg": "P5",
@@ -721,7 +721,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 10
+          "estSeconds": 4
         },
         {
           "seg": "P6",
