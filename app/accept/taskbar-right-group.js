@@ -2,11 +2,8 @@
 // 工单55 任务栏右组验收：控制器以 --accept-taskbar-right-group 身份运行，
 // 拉起 --panel-accept 面板子进程（绕开单实例锁，与常驻面板共存），逐项验收：
 //   P1 右组 pill 在场（摘要+音量+时钟三格）、显示桌面细条钉屏幕最右端（撑满条带高）
-//   P2 硬件摘要五项数值与硬件卡口径一致（双侧首读前有界 settle 等待——工单123：
-//      ready 只证「曾渲染完成」，晚到的托盘枚举触发 rightPill 清空重建，首读会扎进
-//      缺位窗口；紧邻双读 + 容差重试——两边同拍 1Hz，读取跨拍允许小幅波动。
-//      注意：面板页参照 hw-line1/2 随硬件卡在工单59 退役——参照面缺位时按段失败
-//      附面板页现场证据（在场插件清单），重定参照属后续票）
+//   （无 P2：原「硬件摘要与硬件卡口径一致」段随硬件卡在工单59 退役、参照面 hw-line1/2
+//    已无渲染源，工单134 按特征退役整段删除；P3-P6 段号不重排，防历史证据错位）
 //   P3 时钟格点击 → 原生通知中心前台（Win+N）
 //   P4 音量格点击 → 原生快速设置前台（Win+A）
 //   P5 显示桌面细条点击 → ToggleDesktop（notepad 探针：一点全最小化、再点还原）
@@ -22,8 +19,6 @@ const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：本电池的 writeTaskbarFields 是有兜底参照实现，
 // 抽为单点维护后四电池同一契约（缺位读不抛、缺位落桩、三态还原）
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
-// 有界 settle 等待（工单123）：读侧时序共通件，等待有界、超界回报事实不糊绿
-const { waitForProbe } = require('./lib/bounded-wait');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '55-taskbar-right-group-events.jsonl');
@@ -183,61 +178,10 @@ function killTree(child, panelPid) {
   try { child.kill(); } catch { /* 已退出 */ }
 }
 
-/** 硬件卡五项文本解析（#hw-line1/line2 innerText）→ {cpu,gpu,ram,dl,up}（缺位 = null） */
-function parseCardText(t1, t2) {
-  const num = (m) => (m ? Number(m[1]) : null);
-  return {
-    cpu: num(/CPU\s+(\d+)%/.exec(t1)),
-    gpu: num(/GPU\s+(\d+)%/.exec(t1)),
-    ram: num(/RAM\s+(\d+)%/.exec(t2)),
-    dl: num(/DL\s+([\d.]+)KB\/s/.exec(t2)),
-    up: num(/UP\s+([\d.]+)KB\/s/.exec(t2)),
-  };
-}
-
-/** 任务栏摘要文本解析（「CPU 12% GPU 79% RAM 46% DL 1.23KB/s UP 0.00KB/s」，缺位 = ---） */
-function parseSummaryText(t) {
-  const num = (m) => (m ? Number(m[1]) : null);
-  return {
-    cpu: num(/CPU\s+(\d+)%/.exec(t)),
-    gpu: num(/GPU\s+(\d+)%/.exec(t)),
-    ram: num(/RAM\s+(\d+)%/.exec(t)),
-    dl: num(/DL\s+([\d.]+)KB\/s/.exec(t)),
-    up: num(/UP\s+([\d.]+)KB\/s/.exec(t)),
-  };
-}
-
 // 任务栏页摘要格读式（工单123）：hw-summary 在场取 innerText、缺位返回 null——
-// 旧读法 `getElementById(...).innerText` 在缺位窗口抛 TypeError，电池中止在 P2 起笔。
+// 旧读法 `getElementById(...).innerText` 会扎进 rightPill 清空重建的缺位窗口抛
+// TypeError 中止电池；P6 的即时收敛与重拉保持两读沿用此空安全形态。
 const READ_SUMMARY_EXPR = `(() => { const el = document.getElementById('hw-summary'); return el ? el.innerText : null; })()`;
-
-// 面板页硬件卡读式（工单123 同款空安全）：hw-line1/line2 任一缺位返回 null
-const READ_CARD_EXPR = `(() => { const l1 = document.getElementById('hw-line1'); const l2 = document.getElementById('hw-line2'); return (l1 && l2) ? (l1.innerText + '\\n' + l2.innerText) : null; })()`;
-
-// 超界失败的 DOM 现场证据（工单123 硬原则：不只留一句 null——读早了 vs 元素真丢失可定责）
-const DOM_EVIDENCE_EXPR = `(() => {
-  const el = document.getElementById('hw-summary');
-  const pill = document.getElementById('right-pill');
-  return JSON.stringify({
-    readyState: document.readyState,
-    hasSummary: !!el,
-    summaryText: el ? el.innerText : null,
-    pillChildren: pill ? Array.from(pill.children).map((c) => c.id || c.dataset.id || c.className || c.tagName) : null,
-  });
-})()`;
-
-// 面板页超界证据：硬件卡元素 + 在场插件清单（hardware 卡已随工单59 退役——
-// 若清单里无 hardware 且 hasLine1/2=false，即「参照面已退役」的直接证据，非时序竞态）
-const PANEL_EVIDENCE_EXPR = `(() => {
-  const l1 = document.getElementById('hw-line1');
-  const l2 = document.getElementById('hw-line2');
-  return JSON.stringify({
-    readyState: document.readyState,
-    hasLine1: !!l1,
-    hasLine2: !!l2,
-    plugins: Array.from(document.querySelectorAll('.deck-plugin')).map((c) => c.dataset.pluginId || c.className),
-  });
-})()`;
 
 async function main() {
   const rep = new Report('55-taskbar-right-group');
@@ -298,60 +242,6 @@ async function main() {
       rep.pass(`P1 右组 pill 在场（${cellIds.join('/')}），显示桌面细条钉屏幕最右端（右缘≈屏右、撑满条带高）`);
     } else {
       rep.fail(`P1 格清单=${JSON.stringify(cellIds)} 细条=${JSON.stringify({ sliverRightPhys, tbRight: tbRect.right, sliverHPhys, stripHPhys })}`);
-    }
-
-    // P2 摘要五项数值与硬件卡口径一致：紧邻双读（任务栏页摘要 DOM ↔ 面板页硬件卡 DOM），
-    // 容差重试——两边同拍 1Hz 推送，读取跨拍允许小幅波动。
-    // 双侧首读前都过有界 settle（工单123）：ready 事件只证「曾渲染完成」，晚到的托盘
-    // 枚举会触发 rightPill 清空重建，旧读法首读扎进缺位窗口即 TypeError 中止——
-    // 现轮询元素在场（各 10s 上限）；超界不糊绿：抓 DOM 现场证据按段失败，
-    // 「读早了」与「元素真丢失」的真回归由此可定责（面板页证据附在场插件清单，
-    // 可直接指证 hardware 卡已随工单59 退役的参照面断裂）。
-    rep.beginSegment('P2');
-    const settleSum = await waitForProbe(
-      () => cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR),
-      { timeoutMs: 10000, intervalMs: 150 },
-    );
-    const settleCard = settleSum.ok
-      ? await waitForProbe(
-          () => cdpEval(PANEL_TITLE, READ_CARD_EXPR),
-          { timeoutMs: 10000, intervalMs: 150 },
-        )
-      : null;
-    let p2ok = false;
-    let p2detail = '';
-    if (!settleSum.ok) {
-      const evidence = await cdpEval(TASKBAR_TITLE, DOM_EVIDENCE_EXPR)
-        .catch((e) => `证据采集失败: ${e && e.message || e}`);
-      rep.fail(`P2 首读有界等待未收敛（hw-summary ${(settleSum.elapsedMs / 1000).toFixed(1)}s/${settleSum.attempts} 次探测仍缺位）DOM 现场=${evidence}`);
-    } else if (!settleCard.ok) {
-      const evidence = await cdpEval(PANEL_TITLE, PANEL_EVIDENCE_EXPR)
-        .catch((e) => `证据采集失败: ${e && e.message || e}`);
-      rep.fail(`P2 硬件卡侧有界等待未收敛（hw-line1/2 ${(settleCard.elapsedMs / 1000).toFixed(1)}s/${settleCard.attempts} 次探测仍缺位）面板页现场=${evidence}`);
-    } else {
-      for (let round = 0; round < 8 && !p2ok; round++) {
-        await sleep(300);
-        const sumText = await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR);
-        if (!sumText) {
-          p2detail = `第${round + 1}读 hw-summary 缺位/空文本（rightPill 重建窗口内，settle 后再现=重建中的瞬态）`;
-          continue;
-        }
-        const card = await cdpEval(PANEL_TITLE, READ_CARD_EXPR);
-        if (!card) {
-          p2detail = `第${round + 1}读 hw-line1/2 缺位（面板页重渲染窗口内）`;
-          continue;
-        }
-        const [c1, c2] = String(card).split('\n');
-        const sum = parseSummaryText(String(sumText));
-        const ref = parseCardText(c1 ?? '', c2 ?? '');
-        const pctClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= 5);
-        const rateClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= Math.max(50, Math.abs(b) * 0.5));
-        p2ok = pctClose(sum.cpu, ref.cpu) && pctClose(sum.gpu, ref.gpu) && pctClose(sum.ram, ref.ram)
-          && rateClose(sum.dl, ref.dl) && rateClose(sum.up, ref.up);
-        p2detail = `摘要=${JSON.stringify(sum)} 硬件卡=${JSON.stringify(ref)}`;
-      }
-      if (p2ok) rep.pass(`P2 硬件摘要五项与硬件卡口径一致（${p2detail}）`);
-      else rep.fail(`P2 口径比对 8 轮未收敛：${p2detail}`);
     }
 
     // —— 系统动作三格（P3/P4/P5）：点击前统一收敛 z 序/热区 ——
@@ -432,7 +322,7 @@ async function main() {
     const r6 = await cdpEval(PANEL_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })`);
     await sleep(800); // 等 taskbar/changed 抵达任务栏页重渲染
     const disk6 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    // 工单123：同 P2 的读侧时序——set-metrics 触发重渲染，空安全读缺位返回 null
+    // 工单123：读侧时序——set-metrics 触发重渲染，空安全读缺位返回 null
     // （live6 判 false 走段失败留证据），不再 TypeError 中止整块电池
     const sumText6 = await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR);
     const live6 = /CPU/.test(String(sumText6)) && /RAM/.test(String(sumText6))

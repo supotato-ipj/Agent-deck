@@ -677,12 +677,12 @@
     },
     {
       "id": "55-taskbar-right-group",
-      "title": "任务栏右组（工单55）：右组 pill/硬件摘要口径/系统动作三格/子集持久化",
+      "title": "任务栏右组（工单55）：右组 pill/系统动作三格/子集持久化",
       "entry": "app/accept/taskbar-right-group.js",
       "script": "accept:taskbar-right-group",
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": null,
-      "lastMeasuredAt": null,
+      "lastMeasuredSeconds": 20,
+      "lastMeasuredAt": "2026-10-08",
       "segments": [
         {
           "seg": "P1",
@@ -691,16 +691,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P2",
-          "ticket": 55,
-          "title": "硬件摘要五项与硬件卡口径一致（紧邻双读 + 容差重试）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 5
+          "estSeconds": 1
         },
         {
           "seg": "P3",
@@ -710,7 +701,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 2
         },
         {
           "seg": "P4",
@@ -720,7 +711,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 2
         },
         {
           "seg": "P5",
@@ -730,7 +721,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 10
+          "estSeconds": 4
         },
         {
           "seg": "P6",
