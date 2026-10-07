@@ -100,8 +100,14 @@ export function createKernel(options: KernelOptions = {}): Context {
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)
   ctx.plugin(FocusService, options.focus)
-  // 桌面组件宿主（工单10）：缺省 roots=[]——离线测试不装任何插件，也不会被顺带建出目录
-  ctx.plugin(PluginHostService, { roots: [], ...options.plugins })
+  // 桌面组件宿主（工单10）：缺省 roots=[]——离线测试不装任何插件，也不会被顺带建出目录。
+  // 停用集（工单101）：与生产装配同源——设置服务持有的 config 活引用经读缝交给宿主，
+  // settings/set-card-enabled 改写后重扫即生效（调用方注入自己的 disabledIds 时不覆盖）。
+  ctx.plugin(PluginHostService, {
+    roots: [],
+    disabledIds: () => options.settings?.config?.plugins?.disabled ?? [],
+    ...options.plugins,
+  })
   const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
   if (tickMs > 0) {
     const timer = setInterval(() => ctx.bridge?.tick(), tickMs)

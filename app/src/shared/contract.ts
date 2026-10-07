@@ -116,9 +116,15 @@ export interface DesktopLayout {
   docMaxRows: number
 }
 
-/** 设置状态（工单08）：卡片底色透明度全局滑杆值（0..1，rgba alpha 语义；config.appearance.cardOpacity 平移） */
+/**
+ * 设置状态（工单08）：卡片底色透明度全局滑杆值（0..1，rgba alpha 语义；config.appearance.cardOpacity 平移）。
+ * 工单101 扩 disabledCards：卡片显隐停用集（插件包 id 列表；config.plugins.disabled 平移，
+ * 空集 = 全启用）。渲染层据此装配设置浮层的开关列表（快照 plugins 段已不含停用包，
+ * 停用包的行以 id 兜底显示），开关经 settings/set-card-enabled 回写。
+ */
 export interface SettingsState {
   cardOpacity: number
+  disabledCards: string[]
 }
 
 /** 会话行直达的结果动作（工单09）：聚焦既有窗口 / 启动工具 / 静默降级 */
@@ -437,6 +443,14 @@ export interface BridgeMethods {
   }
   /** 设置滑杆（工单08）：写卡片底色透明度（clamp 0..1）、整份回写 config.json；回推 settings/changed */
   'settings/set-card-opacity': { request: { opacity: number }; response: SettingsState }
+  /**
+   * 卡片显隐开关（工单101）：把插件包 id 加进/移出停用集（config.plugins.disabled），
+   * 整份回写 config.json；回推 settings/changed（渲染层对齐开关列表）+
+   * settings/cards-changed（插件宿主重扫清单，快照 plugins 段剔除/恢复，下一拍生效）。
+   * 同态幂等空转；空 id 与非布尔开关值抛 BridgeError（契约违规）。
+   * 未知 id 不拒：停用集只按 id 过滤，包未在场时条目静默待命（目录回来仍保持停用）。
+   */
+  'settings/set-card-enabled': { request: { id: string; enabled: boolean }; response: SettingsState }
   /**
    * 会话行直达（工单09）：点击会话行 → 对应工具窗口置前，工具未运行则启动。
    * 渲染层只发工具名（启动目标只从 config.tools 取，映射缺失即静默降级）。
