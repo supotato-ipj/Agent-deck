@@ -2,8 +2,9 @@
 // 工单55 任务栏右组验收：控制器以 --accept-taskbar-right-group 身份运行，
 // 拉起 --panel-accept 面板子进程（绕开单实例锁，与常驻面板共存），逐项验收：
 //   P1 右组 pill 在场（摘要+音量+时钟三格）、显示桌面细条钉屏幕最右端（撑满条带高）
-//   P2 硬件摘要五项数值与硬件卡口径一致（紧邻双读 + 容差重试——两边同拍 1Hz，
-//      读取跨拍允许小幅波动；GPU/网络源缺位时两边同落占位符）
+//   P2 硬件摘要五项数值与硬件卡口径一致（首读前有界 settle 等待——工单123：
+//      ready 只证「曾渲染完成」，晚到的托盘枚举触发 rightPill 清空重建，首读会扎进
+//      缺位窗口；紧邻双读 + 容差重试——两边同拍 1Hz，读取跨拍允许小幅波动）
 //   P3 时钟格点击 → 原生通知中心前台（Win+N）
 //   P4 音量格点击 → 原生快速设置前台（Win+A）
 //   P5 显示桌面细条点击 → ToggleDesktop（notepad 探针：一点全最小化、再点还原）
@@ -19,6 +20,8 @@ const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：本电池的 writeTaskbarFields 是有兜底参照实现，
 // 抽为单点维护后四电池同一契约（缺位读不抛、缺位落桩、三态还原）
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
+// 有界 settle 等待（工单123）：读侧时序共通件，等待有界、超界回报事实不糊绿
+const { waitForProbe } = require('./lib/bounded-wait');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '55-taskbar-right-group-events.jsonl');
@@ -202,6 +205,22 @@ function parseSummaryText(t) {
   };
 }
 
+// 任务栏页摘要格读式（工单123）：hw-summary 在场取 innerText、缺位返回 null——
+// 旧读法 `getElementById(...).innerText` 在缺位窗口抛 TypeError，电池中止在 P2 起笔。
+const READ_SUMMARY_EXPR = `(() => { const el = document.getElementById('hw-summary'); return el ? el.innerText : null; })()`;
+
+// 超界失败的 DOM 现场证据（工单123 硬原则：不只留一句 null——读早了 vs 元素真丢失可定责）
+const DOM_EVIDENCE_EXPR = `(() => {
+  const el = document.getElementById('hw-summary');
+  const pill = document.getElementById('right-pill');
+  return JSON.stringify({
+    readyState: document.readyState,
+    hasSummary: !!el,
+    summaryText: el ? el.innerText : null,
+    pillChildren: pill ? Array.from(pill.children).map((c) => c.id || c.dataset.id || c.className || c.tagName) : null,
+  });
+})()`;
+
 async function main() {
   const rep = new Report('55-taskbar-right-group');
   let child = null;
@@ -265,24 +284,42 @@ async function main() {
 
     // P2 摘要五项数值与硬件卡口径一致：紧邻双读（任务栏页摘要 DOM ↔ 面板页硬件卡 DOM），
     // 容差重试——两边同拍 1Hz 推送，读取跨拍允许小幅波动。
+    // 首读前过有界 settle 等待（工单123）：ready 事件只证「曾渲染完成」，晚到的托盘
+    // 枚举会触发 rightPill 清空重建，旧读法首读扎进缺位窗口即 TypeError 中止——
+    // 现轮询 hw-summary 在场（10s 上限）；超界不糊绿：抓 DOM 现场证据按段失败，
+    // 「读早了」与「元素真丢失」的真回归由此可定责。
     rep.beginSegment('P2');
+    const settle = await waitForProbe(
+      () => cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR),
+      { timeoutMs: 10000, intervalMs: 150 },
+    );
     let p2ok = false;
     let p2detail = '';
-    for (let round = 0; round < 8 && !p2ok; round++) {
-      await sleep(300);
-      const sumText = await cdpEval(TASKBAR_TITLE, `document.getElementById('hw-summary').innerText`);
-      const card = await cdpEval(PANEL_TITLE, `document.getElementById('hw-line1').innerText + '\\n' + document.getElementById('hw-line2').innerText`);
-      const [c1, c2] = String(card).split('\n');
-      const sum = parseSummaryText(String(sumText));
-      const ref = parseCardText(c1 ?? '', c2 ?? '');
-      const pctClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= 5);
-      const rateClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= Math.max(50, Math.abs(b) * 0.5));
-      p2ok = pctClose(sum.cpu, ref.cpu) && pctClose(sum.gpu, ref.gpu) && pctClose(sum.ram, ref.ram)
-        && rateClose(sum.dl, ref.dl) && rateClose(sum.up, ref.up);
-      p2detail = `摘要=${JSON.stringify(sum)} 硬件卡=${JSON.stringify(ref)}`;
+    if (settle.ok) {
+      for (let round = 0; round < 8 && !p2ok; round++) {
+        await sleep(300);
+        const sumText = await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR);
+        if (sumText === null) {
+          p2detail = `第${round + 1}读 hw-summary 缺位（rightPill 重建窗口内，settle 后再现=重建中的瞬态）`;
+          continue;
+        }
+        const card = await cdpEval(PANEL_TITLE, `document.getElementById('hw-line1').innerText + '\\n' + document.getElementById('hw-line2').innerText`);
+        const [c1, c2] = String(card).split('\n');
+        const sum = parseSummaryText(String(sumText));
+        const ref = parseCardText(c1 ?? '', c2 ?? '');
+        const pctClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= 5);
+        const rateClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= Math.max(50, Math.abs(b) * 0.5));
+        p2ok = pctClose(sum.cpu, ref.cpu) && pctClose(sum.gpu, ref.gpu) && pctClose(sum.ram, ref.ram)
+          && rateClose(sum.dl, ref.dl) && rateClose(sum.up, ref.up);
+        p2detail = `摘要=${JSON.stringify(sum)} 硬件卡=${JSON.stringify(ref)}`;
+      }
+      if (p2ok) rep.pass(`P2 硬件摘要五项与硬件卡口径一致（${p2detail}）`);
+      else rep.fail(`P2 口径比对 8 轮未收敛：${p2detail}`);
+    } else {
+      const evidence = await cdpEval(TASKBAR_TITLE, DOM_EVIDENCE_EXPR)
+        .catch((e) => `证据采集失败: ${e && e.message || e}`);
+      rep.fail(`P2 首读有界等待未收敛（hw-summary ${(settle.elapsedMs / 1000).toFixed(1)}s/${settle.attempts} 次探测仍缺位）DOM 现场=${evidence}`);
     }
-    if (p2ok) rep.pass(`P2 硬件摘要五项与硬件卡口径一致（${p2detail}）`);
-    else rep.fail(`P2 口径比对 8 轮未收敛：${p2detail}`);
 
     // —— 系统动作三格（P3/P4/P5）：点击前统一收敛 z 序/热区 ——
     // P3 时钟格 → 原生通知中心（Win+N）
@@ -362,7 +399,9 @@ async function main() {
     const r6 = await cdpEval(PANEL_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })`);
     await sleep(800); // 等 taskbar/changed 抵达任务栏页重渲染
     const disk6 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    const sumText6 = await cdpEval(TASKBAR_TITLE, `document.getElementById('hw-summary').innerText`);
+    // 工单123：同 P2 的读侧时序——set-metrics 触发重渲染，空安全读缺位返回 null
+    // （live6 判 false 走段失败留证据），不再 TypeError 中止整块电池
+    const sumText6 = await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR);
     const live6 = /CPU/.test(String(sumText6)) && /RAM/.test(String(sumText6))
       && !/GPU/.test(String(sumText6)) && !/DL/.test(String(sumText6)) && !/UP/.test(String(sumText6));
     // 重拉面板（重启保持判据）
@@ -378,7 +417,7 @@ async function main() {
     await waitWindow(panelPid, TASKBAR_TITLE, 12000);
     const ready6 = await waitEvent('taskbar-ready', (e) => e.t >= since6 && e.rightCells, 10000);
     const ids6 = ready6 ? ready6.rightCells.map((c) => c.id) : [];
-    const sumText6b = ready6 ? await cdpEval(TASKBAR_TITLE, `document.getElementById('hw-summary').innerText`) : '';
+    const sumText6b = ready6 ? await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR) : '';
     const persist6 = /CPU/.test(String(sumText6b)) && /RAM/.test(String(sumText6b)) && !/GPU/.test(String(sumText6b));
     if (r6 && JSON.stringify(r6.metrics) === JSON.stringify(['cpu', 'ram'])
       && JSON.stringify(disk6.taskbar?.metrics) === JSON.stringify(['cpu', 'ram'])
