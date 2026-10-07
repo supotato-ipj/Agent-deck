@@ -623,16 +623,16 @@ function windowTitle(hwnd) {
 const PREFLIGHT_SHELL_CLASSES = new Set(['Progman', 'WorkerW', 'Shell_TrayWnd', 'SHELLDLL_DefView', 'SysListView32']);
 const PREFLIGHT_OWN_TITLES = new Set(['AGENT DECK', 'AGENT DECK ACCEPT HINT', 'DECK-TASKBAR']);
 function preflightProbes() {
-  const vs = w32.virtualScreen();
+  const vs = win32.virtualScreen();
   const screenArea = Math.max(1, vs.w * vs.h);
   const rows = [];
-  for (const h of w32.topLevelWindows()) {
+  for (const h of win32.topLevelWindows()) {
     try {
-      const pid = w32.threadIdOf(h).pid;
+      const pid = win32.threadIdOf(h).pid;
       rows.push({
-        cls: w32.className(h), title: windowTitle(h), pid, selfPid: process.pid,
-        rect: w32.rectOf(h), visible: !!w32.IsWindowVisible(h), cloaked: w32.isCloaked(h),
-        exeQueryable: w32.exeOfPid(pid) !== '',
+        cls: win32.className(h), title: windowTitle(h), pid, selfPid: process.pid,
+        rect: win32.rectOf(h), visible: !!win32.IsWindowVisible(h), cloaked: win32.isCloaked(h),
+        exeQueryable: win32.exeOfPid(pid) !== '',
       });
     } catch { /* 已销毁：跳过 */ }
   }
@@ -707,11 +707,12 @@ async function main() {
   const w32 = win32;
   // —— 工单113 preflight 环境体检：四类已知污染源探测，警示入账不拒跑——本机覆盖层
   // 是常态在场，拒跑会把验收永久卡死。FAIL-ENV 的环境定责从报告第一行起就有证据链。
-  {
+  // 体检自身异常也只入账不中断（探测是增益，不是电池的前置条件）。
+  try {
     const entries = classifyPreflight(preflightProbes());
     if (entries.length === 0) rep.note('preflight 环境体检：四类污染源均不在场');
     else for (const e of entries) rep.note(`preflight 环境体检［${e.kind}］${e.detail}`);
-  }
+  } catch (e) { rep.note(`preflight 环境体检异常（不拒跑）: ${e && e.message}`); }
   const si = screenInfo();
   const f = si.factor;
   rep.note(`screen: phys ${si.phys.w}x${si.phys.h} @ factor ${f}`);
