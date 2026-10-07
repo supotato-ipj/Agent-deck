@@ -254,6 +254,7 @@ async function main() {
     };
 
     // P1 右组 pill 在场 + 细条钉屏幕最右端（右缘贴屏右、撑满条带高）
+    rep.beginSegment('P1');
     const sliver = ready.sliver;
     const sliverRightPhys = tbRect.left + (sliver.x + sliver.w) * scale;
     const sliverHPhys = sliver.h * scale;
@@ -272,6 +273,7 @@ async function main() {
 
     // P2 摘要五项数值与硬件卡口径一致：紧邻双读（任务栏页摘要 DOM ↔ 面板页硬件卡 DOM），
     // 容差重试——两边同拍 1Hz 推送，读取跨拍允许小幅波动。
+    rep.beginSegment('P2');
     let p2ok = false;
     let p2detail = '';
     for (let round = 0; round < 8 && !p2ok; round++) {
@@ -292,6 +294,7 @@ async function main() {
 
     // —— 系统动作三格（P3/P4/P5）：点击前统一收敛 z 序/热区 ——
     // P3 时钟格 → 原生通知中心（Win+N）
+    rep.beginSegment('P3');
     const beforeP3 = foregroundInfo();
     const clockPt = cellOf('clock');
     const convP3 = await convergeAt(clockPt, tbHwnd);
@@ -309,6 +312,7 @@ async function main() {
     await sleep(600);
 
     // P4 音量格 → 原生快速设置（Win+A）
+    rep.beginSegment('P4');
     const beforeP4 = foregroundInfo();
     const volPt = cellOf('volume');
     const convP4 = await convergeAt(volPt, tbHwnd);
@@ -326,6 +330,7 @@ async function main() {
     await sleep(600);
 
     // P5 显示桌面细条 → ToggleDesktop：notepad 探针（一点全最小化落桌面、再点还原回前台）
+    rep.beginSegment('P5');
     notepad = spawn('notepad.exe', [], { stdio: 'ignore' });
     // 新窗口能不能自抢前台取决于启动方此刻是否持前台：本控制器刚做完 P4 的浮层收势，
     // 前台在原生任务栏（explorer）手里，spawn 出来的 notepad 会被 Win 前台锁挡在台外
@@ -361,6 +366,7 @@ async function main() {
     }
 
     // P6 勾选子集持久化：CDP 面板页 set-metrics → 落盘 + 任务栏页即时收敛 + 重拉重启保持
+    rep.beginSegment('P6');
     const r6 = await cdpEval(PANEL_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })`);
     await sleep(800); // 等 taskbar/changed 抵达任务栏页重渲染
     const disk6 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));

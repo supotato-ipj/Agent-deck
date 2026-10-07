@@ -205,6 +205,7 @@ async function main() {
     if (!originalMode) throw new Error('读取当前显示模式失败（EnumDisplaySettingsW）');
 
     // —— P1：AppBar 占位生效 ——
+    rep.beginSegment('P1');
     child = launchPanelAccept();
     const boot = await waitEvent('boot', null, 20000);
     if (!boot) throw new Error('P1 面板未上报 boot');
@@ -230,6 +231,7 @@ async function main() {
     }
 
     // —— P2：最大化让位（参照窗 maximize → 底边停在栏上方）——
+    rep.beginSegment('P2');
     const maxWin = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-MAX', backgroundColor: '#203040' });
     refWins.push(maxWin);
     await maxWin.loadURL('about:blank');
@@ -246,6 +248,7 @@ async function main() {
     }
 
     // —— P3：分辨率变化重算（切到另一受支持模式 → setpos 存证 + 几何重算 → 还原）——
+    rep.beginSegment('P3');
     const alt = alternateDisplayMode(originalMode);
     if (!alt) {
       rep.fail('P3 找不到与当前不同的受支持分辨率（本机显示模式枚举异常）');
@@ -288,6 +291,7 @@ async function main() {
     // —— P4：全屏让位（全屏参照窗前台 → 条带隐藏；退出 → 1 秒内恢复）——
     // 最大化参照窗先还原，避免它 fullscreen 退出后占前台干扰让位判定（它不覆盖
     // 全屏，判定本就为否——还原只为现场干净）。
+    rep.beginSegment('P4');
     maxWin.restore();
     const sinceP4 = Date.now();
     const fsWin = new BrowserWindow({ fullscreen: true, frame: false, title: 'DECK-ACCEPT-FULLSCREEN', backgroundColor: '#101820' });
@@ -317,6 +321,7 @@ async function main() {
     }
 
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
+    rep.beginSegment('P5');
     const sinceP5 = Date.now();
     const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 8000);
     if (!panelHwnd) throw new Error('P5 面板主窗未找到');

@@ -10,9 +10,39 @@ export declare interface ExclusionEntry {
 export declare interface SegmentLedger {
   seg: string
   title: string
+  ticket: number | null
+  surfaces: string[]
   passes: number
   fails: number
   excluded: number
+  startedAt: number
+  durationMs: number | null
+}
+
+/** 段级清单条目（工单114，app/accept/manifest.json） */
+export declare interface ManifestSegment {
+  seg: string
+  ticket: number
+  title: string
+  surfaces: string[]
+  estSeconds: number
+}
+
+export declare interface ManifestBattery {
+  id: string
+  title: string
+  entry: string
+  script: string
+  budgetSeconds: number
+  lastMeasuredSeconds: number | null
+  lastMeasuredAt: string | null
+  segments: ManifestSegment[]
+}
+
+export declare interface AcceptManifest {
+  version: number
+  surfaces: Record<string, string>
+  batteries: ManifestBattery[]
 }
 
 export declare interface VerdictResult {
@@ -39,9 +69,11 @@ export declare class Report {
   exclusions: ExclusionEntry[]
   envWindow: { reason: string; attribution: string; openedAt: number; openedIndex: number } | null
   declaredScope: string[]
+  manifest: AcceptManifest | null
+  manifestBattery: ManifestBattery | null
   segments: SegmentLedger[]
   currentSegment: SegmentLedger | null
-  constructor(name: string, opts?: { file?: string | null; scope?: string[] })
+  constructor(name: string, opts?: { file?: string | null; scope?: string[]; manifest?: AcceptManifest | null })
   log(msg: string): void
   pass(msg: string): void
   fail(msg: string): void
@@ -56,4 +88,6 @@ export declare class Report {
 
 export declare function parseAcceptScope(argv: unknown[]): string[]
 export declare function normalizeScope(list: unknown): string[]
+export declare function loadManifest(): AcceptManifest | null
+export declare const MANIFEST_FILE: string
 export declare const EVIDENCE_DIR: string

@@ -1,9 +1,26 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { validateScopeSegments } = require('./manifest-check');
 
 const EVIDENCE_DIR = path.join(__dirname, '..', 'evidence');
 if (!fs.existsSync(EVIDENCE_DIR)) fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+
+/** 段级清单（工单114：唯一登记处）。缺文件/坏 JSON → null（报告降级为无元数据，不炸）。 */
+const MANIFEST_FILE = path.join(__dirname, '..', 'manifest.json');
+let manifestCache; // undefined=未读；null=读不到；object=已加载
+function loadManifest() {
+  if (manifestCache === undefined) {
+    try { manifestCache = JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8')); } catch { manifestCache = null; }
+  }
+  return manifestCache;
+}
+
+/** 失效面标注文本：清单 surfaces 键 → 中文标签（键缺地图时原样回显枚举键） */
+function surfaceLabels(manifest, surfaces) {
+  const map = (manifest && manifest.surfaces) || {};
+  return (surfaces || []).map((s) => map[s] || s).join('+');
+}
 
 /**
  * verdict 三态 → 进程退出码（工单110）：guard 与自动化编排按此分辨三种结局。
@@ -47,18 +64,19 @@ function parseAcceptScope(argv) {
  * 三路记账：passes（通过）/ fails（未定责失败）/ excluded（环境降责排除，条目附原因与归因）。
  * 排除窗：beginEnvWindow 开启（停摆检出）→ endEnvWindow 闭合（面板重启验证健康）；
  * 窗内 fail() 自动改记排除而非失败——环境噪声不再污染 verdict，窗外照常。
- * 段注册：beginSegment（段起笔报段号）——断言按当前段入账；--accept-scope 声明的
- * spec 范围段在 verdict 时与轮内注册段核对，未知段号告警不阻断（清单落地后由
- * #115 升级为硬校验；存量埋点归 #114）。
+ * 段注册：beginSegment（段起笔报段号）——断言按当前段入账；元数据由段级清单供给
+ * （工单114）。--accept-scope 声明的 spec 范围段在构造期对清单硬交叉校验（未知段号
+ * 即抛，工单115），verdict 时再与轮内实跑段核对（范围段被打断 → 合并门裁决须重跑）。
  * verdict 判定：存在未定责失败 → FAIL-CODE；全部失败已定责环境 → FAIL-ENV；无失败 → PASS。
  * 显式传入 verdict 字符串的旧调用（五块副电池）保持原行文与原返回形状，零迁移成本。
  */
 class Report {
   /**
-   * @param {string} name 报告名（即证据日志文件名主体）
-   * @param {{file?: string|null, scope?: string[]}} [opts]
+   * @param {string} name 报告名（即证据日志文件名主体；同时是清单 battery.id 的匹配键）
+   * @param {{file?: string|null, scope?: string[], manifest?: object|null}} [opts]
    *   file：string=显式路径，null=纯内存运行（单测夹具），缺省=证据目录；
-   *   scope：--accept-scope 声明的 spec 范围段
+   *   scope：--accept-scope 声明的 spec 范围段；
+   *   manifest：段级清单对象（工单114）。undefined=读缺省清单文件（缓存）；null=显式无清单。
    */
   constructor(name, opts = {}) {
     this.name = name;
@@ -73,7 +91,23 @@ class Report {
     this.envWindow = null;
     /** --accept-scope 声明的 spec 范围段（段号字符串，去重保序） */
     this.declaredScope = normalizeScope(opts.scope);
-    /** 段注册账：beginSegment 依序登记的 { seg, title, passes, fails, excluded } */
+    /** 段级清单（工单114）：undefined 入参 → 读缺省清单文件；报告启动加载，段注册时按名取元数据 */
+    const manifest = opts.manifest === undefined ? loadManifest() : opts.manifest;
+    this.manifest = manifest || null;
+    /** 本报告名对应的清单电池条目（无登记 = null，副电池逐块归账后即有） */
+    this.manifestBattery = (this.manifest && Array.isArray(this.manifest.batteries))
+      ? this.manifest.batteries.find((b) => b && b.id === name) || null
+      : null;
+    // --accept-scope 硬交叉校验（工单115）：清单在位时声明的段号必须已登记，未知段号
+    // 启动即错（烧完 7 分钟才发现声明打错的事不再发生）；清单缺位（fixture/未归账电池）
+    // 保持工单110 的告警不阻断形态。规则单点在 manifest-check.validateScopeSegments。
+    if (this.declaredScope.length && this.manifestBattery) {
+      const { unknown } = validateScopeSegments(this.declaredScope, this.manifest, name);
+      if (unknown.length) {
+        throw new Error(`--accept-scope 声明的段号未在清单登记：${unknown.join(', ')}（电池 ${name}，工单115 硬交叉校验）`);
+      }
+    }
+    /** 段注册账：beginSegment 依序登记的 { seg, title, ticket, surfaces, passes, fails, excluded, startedAt, durationMs } */
     this.segments = [];
     /** 当前段（beginSegment 起笔后的入账归属） */
     this.currentSegment = null;
@@ -149,18 +183,43 @@ class Report {
     return true;
   }
 
+  /** 清单段条目查找（本报告电池名下；无清单/无条目返回 null） */
+  _manifestSegment_(seg) {
+    if (!this.manifestBattery || !Array.isArray(this.manifestBattery.segments)) return null;
+    return this.manifestBattery.segments.find((s) => s && String(s.seg) === seg) || null;
+  }
+
+  /** 闭合当前段的实测墙钟（下一笔起笔或 verdict 时调用） */
+  _closeSegment_(now) {
+    if (this.currentSegment && this.currentSegment.durationMs == null) {
+      this.currentSegment.durationMs = Math.max(0, now - this.currentSegment.startedAt);
+    }
+  }
+
   /**
    * 段注册（段起笔报段号）：断言自此按段入账，直至下一笔起笔。同段重复起笔幂等。
-   * 工单110 只落 API；存量段的起笔埋点由归账票 #114 补齐。
+   * 工单114：命中清单条目时 SEG 行带工单号与失效面标注（清单是唯一登记处，代码只报段号）；
+   * 段条目同时记 startedAt，闭合（下一笔起笔/verdict）时得实测墙钟时长。
    * @param {string|number} seg 段号（清单票落地后与段级清单交叉校验）
-   * @param {string} [title] 段标题（可选，仅入账展示）
+   * @param {string} [title] 段标题（可选；显式传入优先于清单标题）
    */
   beginSegment(seg, title) {
     const id = String(seg);
     if (this.currentSegment && this.currentSegment.seg === id) return this.currentSegment;
-    this.currentSegment = { seg: id, title: title || '', passes: 0, fails: 0, excluded: 0 };
+    this._closeSegment_(Date.now());
+    const entry = this._manifestSegment_(id);
+    const label = title || (entry && entry.title) || '';
+    this.currentSegment = {
+      seg: id, title: label,
+      ticket: entry ? entry.ticket : null,
+      surfaces: entry ? (entry.surfaces || []).slice() : [],
+      passes: 0, fails: 0, excluded: 0,
+      startedAt: Date.now(), durationMs: null,
+    };
     this.segments.push(this.currentSegment);
-    this.log(`SEG   ▶ ${id}${title ? ` ${title}` : ''}`);
+    const ann = entry ? `｜工单${entry.ticket}｜失效面=${surfaceLabels(this.manifest, entry.surfaces)}` : '';
+    this.log(`SEG   ▶ ${id}${label ? ` ${label}` : ''}${ann}`);
+    if (!entry) this.note(`段 ${id} 未在清单登记（清单↔代码双向同步由 CI 校验器拦截，工单115）`);
     return this.currentSegment;
   }
 
@@ -176,6 +235,7 @@ class Report {
    * （副电池 `rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL')`），行文与退出码保持原语义。
    */
   verdict(explicit) {
+    this._closeSegment_(Date.now()); // 末段实测墙钟在判决时闭合（User Story 22）
     const tri = this.triVerdict();
     const label = explicit || tri.verdict;
     const exitCode = explicit ? (EXIT_CODES[explicit] ?? 1) : tri.exitCode;
@@ -186,15 +246,25 @@ class Report {
       this.log(`===== ${this.name} VERDICT: ${label} (pass=${this.passes} fail=${this.fails} excluded=${this.excluded}${scopePart}) =====`);
     }
 
-    // --accept-scope 核对：与轮内注册段（beginSegment 账）比对。未知段号告警不阻断；
-    // 注册表（段级清单）缺位时同样只告警——硬交叉校验归清单校验器票 #115。
+    // 清单范围段标注（工单114）：声明了 --accept-scope 且清单可解析时，逐段给出
+    // 工单号与失效面——验收者一眼看清「这轮在验谁的什么面」。
+    if (this.declaredScope.length && this.manifestBattery) {
+      for (const s of this.declaredScope) {
+        const e = this._manifestSegment_(s);
+        if (e) this.log(`NOTE  清单范围段 ${s}：${(e.title || '')}｜工单${e.ticket}｜失效面=${surfaceLabels(this.manifest, e.surfaces)}｜估计 ${e.estSeconds}s`);
+        else this.note(`清单范围段 ${s} 缺条目（构造期硬校验已在场——防御路径，不应到达）`);
+      }
+    }
+
+    // --accept-scope 与轮内实跑段核对：构造期已保证声明的段号都在清单里（工单115），
+    // 这里查的是「在清单但本轮没跑到」——合并门按「范围段被打断」裁决（须重跑），只告警不阻断。
     const registered = new Set(this.segments.map((s) => s.seg));
     const scopeUnknown = this.declaredScope.filter((s) => !registered.has(s));
     if (this.declaredScope.length) {
       if (!this.segments.length) {
-        this.log(`WARN  段注册表未填充（存量段起笔埋点归 #114）：声明范围段 ${this.declaredScope.join(', ')} 未能与本轮实跑段核对，告警不阻断`);
+        this.log(`WARN  本轮未实跑任何段（面板早亡等）：声明范围段 ${this.declaredScope.join(', ')} 未能核对——合并门按「范围段被打断」裁决`);
       } else if (scopeUnknown.length) {
-        this.log(`WARN  声明范围段未在本轮注册：${scopeUnknown.join(', ')}（告警不阻断；对段级清单的硬交叉校验归 #115）`);
+        this.log(`WARN  声明范围段未在本轮实跑：${scopeUnknown.join(', ')}（清单在位但段未注册——合并门按「范围段被打断」裁决，须重跑）`);
       }
     }
     // 排除窗未闭合即判终局：重启从未验证健康，其后的失败已全数环境降责——账目里必须可读
@@ -237,14 +307,16 @@ class Report {
       this._fileOnly(`声明 spec 范围段：${this.declaredScope.join(', ')}${scopeUnknown.length ? `（未在本轮注册：${scopeUnknown.join(', ')}）` : '（均已注册）'}`);
     }
     if (this.segments.length) {
-      this._fileOnly('段账目：');
+      this._fileOnly('段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：');
       for (const s of this.segments) {
-        this._fileOnly(`  ${s.seg}${s.title ? ` ${s.title}` : ''} pass=${s.passes} fail=${s.fails} excl=${s.excluded}`);
+        const took = s.durationMs != null ? `${(s.durationMs / 1000).toFixed(1)}s` : '?';
+        const ann = s.ticket != null ? `｜工单${s.ticket}｜失效面=${surfaceLabels(this.manifest, s.surfaces)}` : '';
+        this._fileOnly(`  ${s.seg}${s.title ? ` ${s.title}` : ''} pass=${s.passes} fail=${s.fails} excl=${s.excluded} took=${took}${ann}`);
       }
     } else if (this.declaredScope.length) {
-      this._fileOnly('段账目：（空——段注册表未填充，存量段起笔埋点归 #114）');
+      this._fileOnly('段账目：（空——本轮未实跑任何段）');
     }
   }
 }
 
-module.exports = { Report, EVIDENCE_DIR, EXIT_CODES, parseAcceptScope, normalizeScope };
+module.exports = { Report, EVIDENCE_DIR, EXIT_CODES, parseAcceptScope, normalizeScope, loadManifest, MANIFEST_FILE };

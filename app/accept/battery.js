@@ -706,11 +706,11 @@ function clipboardSet(text) {
 }
 
 async function main() {
-  // 工单110：--accept-scope 显式声明本次验收的 spec 范围段（如 npm run accept -- --accept-scope P6,P8）。
-  // 段号进 verdict 行与报告账目；段级清单（注册表）落地前，未知段号告警不阻断（硬交叉校验归 #115）。
+  // 工单110/115：--accept-scope 显式声明本次验收的 spec 范围段（如 npm run accept -- --accept-scope P6,P8）。
+  // 段号进 verdict 行与报告账目；构造期对清单硬交叉校验——未知段号即抛（不烧真机轮）。
   const acceptScope = parseAcceptScope(process.argv);
   const rep = new Report('03-battery', { scope: acceptScope });
-  if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（段注册表未填充前，未注册段号告警不阻断）`);
+  if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（已过清单硬交叉校验）`);
   const w32 = win32;
   // —— 工单113 preflight 环境体检：四类已知污染源探测，警示入账不拒跑——本机覆盖层
   // 是常态在场，拒跑会把验收永久卡死。FAIL-ENV 的环境定责从报告第一行起就有证据链。
@@ -788,6 +788,7 @@ async function main() {
   };
   try {
     // —— P1 启动面板（子进程，存证事件落盘）——
+    rep.beginSegment('P1');
     child = launchPanel();
     child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
     let hwnd = await waitPanelWindow(20000);
@@ -893,6 +894,7 @@ async function main() {
     };
 
     // —— P2 透明合成：棋盘参照窗压到面板之下（免受动态壁纸干扰）——
+    rep.beginSegment('P2');
     const checker = new BrowserWindow({
       x: Math.round(rect.left / f) - 8, y: Math.round(rect.top / f) - 8,
       width: Math.round((rect.right - rect.left) / f) + 16,
@@ -984,6 +986,7 @@ async function main() {
 
     // —— P2.5 工单04 数据卡片：四类卡片经桥接契约上线并实时刷新（工单59 后剩三类：
     //     时钟/天气/会话——硬件卡退役，硬件读数改由任务栏右组摘要承载，另有 accept:taskbar 电池盯）——
+    rep.beginSegment('P2.5');
     {
       const sess2 = await waitEvent('sessions-rendered', (e) => e.n >= 2, 8000);
       const sessionsEvt = sess2 || (await waitEvent('sessions-rendered', null, 2000));
@@ -1023,6 +1026,7 @@ async function main() {
 
 
     // —— P3 默认穿透：左键/右键直达桌面 ——
+    rep.beginSegment('P3');
     const ex = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
     rep.log(`穿透态 EXSTYLE=0x${(ex >>> 0).toString(16)}`);
     (ex & w32.WS_EX_TRANSPARENT) && (ex & w32.WS_EX_LAYERED)
@@ -1077,6 +1081,7 @@ async function main() {
     await sleep(300);
 
     // —— P4 热区接收 + 交互后重钉 ——
+    rep.beginSegment('P4');
     // 工单10 起卡片由插件异步挂载：首拍热区快照里还没有它们，必须等**声明了 clock-card 的那一拍**，
     // 否则会把「插件尚未挂上」误判成「渲染层没声明热区」（真机踩过，10b 回归）。
     const zones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'clock-card'));
@@ -1158,6 +1163,7 @@ async function main() {
     capture({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }, '02-pinned-bottom');
 
     // —— P5 工单05 桌面承载：条目一致性 / 图标隐藏 / 单击选中 / lnk 双击启动 / 杀进程还原 ——
+    rep.beginSegment('P5');
     {
       const rendered = await waitEvent('desktop-rendered', null, 8000);
       const scan = psDesktopScan();
@@ -1270,6 +1276,7 @@ async function main() {
       // 夹具法不依赖用户桌面内容：现场造两条指向不同真 exe（notepad/charmap）的 lnk，
       // 等面板扫描指纹翻转（desktop-rendered 只在变化时发，带入夹具名即翻转）后，
       // 经控制器内桥接取 desktop/icon 断言互不相等；结束删夹具，等条目同步消失。
+      rep.beginSegment('P5-ICON');
       {
         const tIcon = Date.now();
         const sysRoot = process.env.SystemRoot || 'C:\\Windows';
@@ -1342,6 +1349,7 @@ async function main() {
       // 误杀。修法：文件本体先走 SHDefExtractIconW 直取（icon-ffi.ts），目录回落 getFileIcon。
       // 断言法（沿工单01 区分度思路）：巨型 exe 夹具图标互不相等且 ≠ 文档基线（退化为通用
       // 即同串）；目录夹具图标 ≠ 文档基线（误杀回归即同串）。巨型 exe 不在本机时如实降级。
+      rep.beginSegment('P5-ICON2');
       {
         const t2 = Date.now();
         const dirFx = path.join(scan.user, `DECK-ICON2-${t2}-DIR.dirfx`);
@@ -1468,6 +1476,7 @@ async function main() {
     // —— P5.5 工单06 编排与摆位：按组归类 / 拖拽摆位即时重编排 + 落盘持久化 / 恢复出厂 ——
     // 工单59：应用区（dock）随任务栏接管退役，桌面只剩文档区一处承载。手钉/推荐位断言
     // 整段删除（手钉改由任务栏左组承担），改为文档区内的显式摆位序断言。
+    rep.beginSegment('P5.5');
     {
       const rendered0 = await waitEvent('desktop-rendered', null, 8000);
       // office 组内序：编排的身份就是这条序（拖拽/持久化/出厂三段都按它复算）
@@ -1668,6 +1677,7 @@ async function main() {
     //     原「跨区并集」改为区内两条并集）/ 空白清空 / 快照重建不丢 /
     // 外删自动剔除 / 双击全开。语义矩阵穷举在离线测试（tests/renderer/selection.spec.ts），
     // 这里每类语义只留一条真机端到端代表用例（#19 spec 三缝约定）。
+    rep.beginSegment('P5.6');
     await (async () => {
       const rectS = w32.rectOf(hwnd); // P5.5 可能重启过面板，取现役矩形
       const ptOf = (r) => ({ x: rectS.left + Math.round((r.x + r.w / 2) * f), y: rectS.top + Math.round((r.y + r.h / 2) * f) });
@@ -1899,6 +1909,7 @@ async function main() {
     // 这里每类语义只留真机端到端代表用例（#19 spec 三缝约定）。命中期望值由电池按
     // desktop-rendered 的 rects + DOM 序（工单59 后只剩 doc 分组序，应用区不再渲染）
     // 复算——与渲染层 querySelectorAll 的遍历序一致，不依赖具体桌面内容。
+    rep.beginSegment('P5.7');
     await (async () => {
       const rectS = w32.rectOf(hwnd);
       const ptOfDip = (x, y) => ({ x: rectS.left + Math.round(x * f), y: rectS.top + Math.round(y * f) });
@@ -2234,6 +2245,7 @@ async function main() {
     // 分区为准」退化为同区内按插入序插到参照之前。内核参照校验/落盘语义在离线测试
     // （tests/desktop/service.spec.ts + tests/contract.spec.ts），这里留真机端到端
     // 代表用例（#19 三缝约定）。
+    rep.beginSegment('P5.8');
     await (async () => {
       const rectB = w32.rectOf(hwnd);
       const ptOfB = (r) => ({ x: rectB.left + Math.round((r.x + r.w / 2) * f), y: rectB.top + Math.round((r.y + r.h / 2) * f) });
@@ -2357,6 +2369,7 @@ async function main() {
     // 断言随单项菜单落地退役。
     // 开合/激活转移矩阵在离线测试（tests/renderer/menu-shell.spec.ts），
     // 这里留真机端到端代表用例（#19 三缝约定）。
+    rep.beginSegment('P5.9');
     await (async () => {
       const rectM = w32.rectOf(hwnd); // P5.8 未重启面板，取现役矩形
       const ptOfM = (r) => ({ x: rectM.left + Math.round((r.x + r.w / 2) * f), y: rectM.top + Math.round((r.y + r.h / 2) * f) });
@@ -2653,6 +2666,7 @@ async function main() {
     // 右键切换选区后开层、打开=双击同款启动（探针标记文件实证）、定位弹资源管理器窗、
     // 复制路径剪贴板实读、单选态右键不重复发选区存证。（原「选中集内条目右键不弹」
     // 随工单26 多选菜单落地退役——现弹两行动作菜单，端到端用例移步 P5.12。）
+    rep.beginSegment('P5.10');
     await (async () => {
       const rect24 = w32.rectOf(hwnd);
       const savedClip24 = clipboardGet();
@@ -2850,6 +2864,7 @@ async function main() {
     // 右键集内条目弹动作菜单（无选区副作用）→ 打开全部逐项启动（存证按选区插入序 + 探针
     // 标记双落盘）→ 多选复制路径剪贴板实读两行（\n 分隔、行序同选区）→ 右键集外条目仍
     // 单项菜单（#24 回归）。
+    rep.beginSegment('P5.12');
     await (async () => {
       const rect26 = w32.rectOf(hwnd);
       const savedClip26 = clipboardGet();
@@ -3075,6 +3090,7 @@ async function main() {
     //    按钮矩形随层存证）→ CANCEL → 条目原样、无 desktop-trash-clicked
     // c. 多删确认：再弹 → DELETE → desktop-trashed ok=true 整批名单 + 文件离盘 +
     //    条目消失 + layout.json 对账
+    rep.beginSegment('P5.13');
     await (async () => {
       const rect27 = w32.rectOf(hwnd);
       const sameNames27 = (a, b) => (a || []).join() === b.join();
@@ -3360,6 +3376,7 @@ async function main() {
     //    keyboard-mode-off 成对、盘面与池内原样
     // c. 重名冲突：RENAME 输既有名字 + Enter → desktop-rename-rejected ok=false、
     //    两个盘面文件都原样（原名还原的盘面事实）
+    rep.beginSegment('P5.14');
     await (async () => {
       const rect28 = w32.rectOf(hwnd);
       let probeA28 = null;
@@ -3640,6 +3657,7 @@ async function main() {
     //    DropEffect=2（粘贴为搬移）；写剪贴板不动盘面（文件仍在原地，真桌面同款）
     // c. 多选复制：Ctrl 补选两条 → COPY → clicked 名单序整集 + FileDropList 两条按序俱全
     // （PS 通道当日可能不稳——文件表读空重试一轮，仍空则如实标注环境因素，不静默放行）
+    rep.beginSegment('P5.15');
     await (async () => {
       const rect29 = w32.rectOf(hwnd);
       const savedClip29 = clipboardGet();
@@ -3858,6 +3876,7 @@ async function main() {
     // c. 同名「 - 副本」：剪贴板原样再贴一份 → pasted 名带「 - 副本」、桌面两份共存不覆盖
     // 夹具与落物段内 finally 兜底；PS 通道（Set-Clipboard）不稳当日可能假败——播种失败
     // 重试一次，仍败在断言信息如实标注环境因素（历史上有一例「剪贴板空读」环境败）。
+    rep.beginSegment('P5.16');
     await (async () => {
       const rect30 = w32.rectOf(hwnd);
       const sameNames30 = (a, b) => (a || []).join() === b.join();
@@ -4010,6 +4029,7 @@ async function main() {
     // （搜索激活期间选区快捷键不接管、搜索输入不受影响、Esc 归浮层且关层不踩选区）。
     // 仲裁/路由/Esc 定序纯逻辑在离线测试（keyboard-gate.spec、menu-shell.spec）穷举；
     // 选区构造用 P5.6 点选 / P5.7 框选同款探针手法。夹具与落物段内 finally 兜底。
+    rep.beginSegment('P5.17');
     await (async () => {
       const rect31 = w32.rectOf(hwnd);
       const sameNames31 = (a, b) => (a || []).join() === b.join();
@@ -4500,6 +4520,7 @@ async function main() {
     // 链路：探针文件直连引擎取证 → 热区点击激活（前台门校验）→ 剪贴板粘贴探针词
     // （绕开输入法合成，旧电池同法；IME 机制本体由探针01-D 在同窗体实证）→ 实时结果 →
     // ↑/↓ 选择 → Enter 打开 → Ctrl+Enter 定位 → ESC/失焦退待机 → 假端口复现 ENGINE OFFLINE。
+    rep.beginSegment('P7S');
     await (async () => {
       // 记事本（P4 起 1000,200 1400x900）盖住搜索卡左半——挪开，段末挪回（P9 重钉断言仍按原位）
       const npRect0 = w32.rectOf(notepad.hwnd);
@@ -4789,6 +4810,7 @@ async function main() {
     // config 整段备份还原，不给 P6 及用户留残留。——
     // 整段裹一层 withControlWindowClear：本段落点（设置入口、浮层滑杆、时钟卡）全在面板
     // 右下，电池自己的对照记事本正压在那里——不挪开则开层与拖拽两头都到不了面板。
+    rep.beginSegment('P8S');
     await withControlWindowClear(async () => {
       const configBackup08 = backupConfigB();
       // 缺 appearance 段 = loadConfig 合并默认（与内核同语义），读盘断言按 0.55 兜底
@@ -4961,6 +4983,7 @@ async function main() {
 
 
     // —— P6 config 几何生效：改 config 重启面板 ——
+    rep.beginSegment('P6');
     const configBackup = backupConfigB();
     try {
       await stopPanel();
@@ -4991,6 +5014,7 @@ async function main() {
     }
 
     // —— P7 单实例守卫：二次拉起立即自行退出，屏幕上始终只有一个面板 ——
+    rep.beginSegment('P7');
     {
       // 计数只数面板 pid 的 Chrome 窗（工单49 起同进程还有 DECK-TASKBAR 条带窗；
       // 系统级计数会被无关 Electron/Chrome 窗与条带建窗时序扰动——49 实测 3→4 假阳性）
@@ -5028,6 +5052,7 @@ async function main() {
     // —— P8 托盘图标已注册且可上屏 ——
     // Win11 新图标默认收进溢出区：经 NotifyIconSettings 的 IsPromoted 提升到可见区，
     // 以识别色（琥珀）像素 + 截图断言「图标在系统托盘里」。
+    rep.beginSegment('P8');
     {
       const entries = listNotifyIcons();
       const exeLower = process.execPath.toLowerCase();
@@ -5078,6 +5103,7 @@ async function main() {
     // ① cover-engaged 事件（守望器在 Win+D 后 1s 内进场）；
     // ② 像素级：Win+D 实拍 vs 最小化实拍在面板内容上显著不同（退化即二者同为壁纸、趋零）；
     // ③ 防抖恢复演练（SW_MINIMIZE）不受守望干扰。
+    rep.beginSegment('P9');
     {
       const rect1 = w32.rectOf(hwnd);
       await sleep(400);
@@ -5175,6 +5201,7 @@ async function main() {
     // ① Win+B 键盘导航经 UIA 焦点链命中本图标（系统托盘里可见、名字正确、可聚焦）；
     // ② WM_CLOSE 走 window-all-closed → app.quit() → before-quit 拆托盘——与托盘菜单
     //   「退出面板」（click=app.quit()）共用同一退出管道，断言进程退出且托盘图标消失。
+    rep.beginSegment('P10');
     {
       try {
         w32.send([
@@ -5226,6 +5253,7 @@ async function main() {
     // settings-exit-clicked → app/quit → 与托盘菜单/WM_CLOSE 同一 before-quit 收敛。
     // 断言：clicked 在档、quit 在档、窗口销毁、主进程退出。P9 随后自会重启面板（其
     // 段首重启不受此处面板死亡影响）。点击走热区（settings-exit 随浮层显隐进声明）。
+    rep.beginSegment('P10E');
     {
       const t0e = Date.now();
       child = launchPanel();
@@ -5265,7 +5293,9 @@ async function main() {
       }
     }
 
-    // —— P9 工单09 会话行直达：点击会话行 → 工具窗口置前；工具未运行则启动。
+    // —— P9B 工单09 会话行直达：点击会话行 → 工具窗口置前；工具未运行则启动。
+    // （段号 P9B：与工单03 的 P9（Win+D 收起桌面）撞号，工单114 归账时辨析——
+    //   段号在电池内须唯一，清单 app/accept/manifest.json 为准。）
     // 三条约束决定探针设计：
     // ① 真实五工具的启动/聚焦会扰动用户自己的应用 → 以 charmap（字符映射表）作受控探针进程，
     //    把 config.tools.qoder 指向它（进程名 charmap），内核只会对它动作；
@@ -5277,12 +5307,13 @@ async function main() {
     // ③ 本机可能一个活跃会话都没有（会话卡空 → 无行可点）→ 在 .qoder-cn 数据根种一条
     //    专属探针会话（唯一标记 DECK-PROBE-09），按 project 精确定位那一行，绝不点到用户自己的行。
     // 探针会话与 config 整段备份还原，不给用户留残留（08 同法）。
-    // 探针窗口按「归属 exe 名 = charmap」识别，只关本段自己观测到的那一个 hwnd，
+    //    探针窗口按「归属 exe 名 = charmap」识别，只关本段自己观测到的那一个 hwnd，
     // 不做「按类名遍历全机关闭」——
     // ④ 位置约束：本段是电池**最后一段**（排在 P10 之后、清场之前）。它要为改 config
     //    而重启面板；排在中间会连带搅乱 P5「杀进程还原」的图标状态机（两轮实证确定性失败）。
     //    排最后则谁也不扰动，清场仍照常收尾。代价是此时对照记事本还开着——只关电池自己
     //    记录的那一扇（下面 try 开头处），P7S 搜索段的记事本它自己段尾已关。——
+    rep.beginSegment('P9B');
     await (async () => {
       const configBackup09 = backupConfigB();
       const PROBE_EXE = 'charmap.exe';
@@ -5499,6 +5530,7 @@ async function main() {
     // 电池运行中改 userData 下的插件目录，排在中间会扰动前面探针的时序。
     // 唯一判据的形状：**全程不重启面板**——只往插件目录里放一个目录，面板自己认出来。
     // 「没重启」由 boot 存证条数不变来证，不靠自述。
+    rep.beginSegment('P11');
     await (async () => {
       const pluginsDir = path.join(userDataDir, 'plugins');
       const sampleSrc = path.join(APP_ROOT, 'samples', 'hello-plugin');
