@@ -5426,9 +5426,9 @@ async function main() {
         //    事件按面板代次取（lastBootMs 之后）：事件文件跨重启不清，上一任面板的
         //    plugin-mounted 留着会让本段假通过。
         const since = lastBootMs();
-        const builtinIds = ['clock', 'weather', 'sessions'];
+        const builtinIds = ['clock', 'weather', 'sessions', 'search'];
         const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id, since));
-        // 观感一致性的机器可查部分：三张卡都进了热区声明（都在场、都在点击穿透模型里），
+        // 观感一致性的机器可查部分：四张卡都进了热区声明（都在场、都在点击穿透模型里），
         // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
         // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
         const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
@@ -5439,10 +5439,10 @@ async function main() {
           && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
           && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
         builtinMounted.length === builtinIds.length && zonesOk && geomOk
-          ? rep.pass(`桌面组件·内置三卡自举：${builtinIds.join('/')} 三张信息卡均经插件契约装载渲染，`
-            + `且三张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
+          ? rep.pass(`桌面组件·内置四卡自举：${builtinIds.join('/')} 四张信息卡均经插件契约装载渲染，`
+            + `且四张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
             + `像素级观感按惯例人工核验 04-cards-*.png）`)
-          : rep.fail(`桌面组件·内置三卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
+          : rep.fail(`桌面组件·内置四卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
             + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/') || '无'}）；`
             + `热区声明 ${zonesOk ? '齐' : `缺 ${builtinIds.filter((i) => !cardZones.has(`${i}-card`)).join('/') || '无'}`}；`
             + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);

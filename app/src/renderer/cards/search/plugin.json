@@ -1,0 +1,8 @@
+{
+  "id": "search",
+  "name": "SEARCH",
+  "version": "1.0.0",
+  "entry": "./card.js",
+  "capabilities": [],
+  "order": 40
+}
