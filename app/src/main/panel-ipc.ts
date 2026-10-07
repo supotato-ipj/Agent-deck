@@ -5,6 +5,7 @@ import type { BridgeEventName, BridgeMethod, HotzoneRect } from '../shared/contr
 import type { BridgeService } from './services/bridge'
 import type { HotzoneTracker } from './hotzone'
 import { pinToBottom } from './win32'
+import { RenderSentinelRun } from './render-sentinel-run'
 
 /** 存证事件日志：验收电池经 DECK_EVENT_LOG 环境变量启用，主进程关键行为逐行落盘。 */
 export interface EventLog {
@@ -100,7 +101,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: Ev
   ipcMain.on('deck:host-set-hotzones', onHotzones)
   ipcMain.on('deck:host-notify', onNotify)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
-  wireRendererWatchdog(win, log)
+  wireRenderSentinel(win, log)
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
@@ -108,31 +109,32 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: Ev
   })
 }
 
-/** 渲染层看门狗（工单59 真机验收挖出）：面板本体永不激活、恒在普通窗之下，渲染层
- * 一旦失能（崩或卡）不会有任何用户可见征兆——面板只是「不响应了」，而常驻件不重启
- * 就是永久失去交互。这里把三种失能形态各自落一条存证：崩溃/退出（Electron 事件）与
- * 「收不到任何渲染层上行」（心跳超时）——后者是静默卡死的唯一可观测信号。 */
-function wireRendererWatchdog(win: BrowserWindow, log: EventLog | null): void {
+/** 渲染层哨兵（工单59 真机验收挖出，工单94 更名）：面板本体永不激活、恒在普通窗之下，
+ * 渲染层一旦失能（崩或卡）不会有任何用户可见征兆——面板只是「不响应了」，而常驻件不重启
+ * 就是永久失去交互。这里挂三种失能形态各自的存证：崩溃/退出（Electron 事件）与
+ * 「收不到任何渲染层上行」（心跳超时）——后者是静默卡死的唯一可观测信号。
+ *
+ * 更名的来由：GLOSSARY 里「看门狗」已是工单11 退役词条，「守卫」「守护」各被既有机制占用，
+ * 再造第三个近义词只会让三者更难分辨。此机制定名**渲染层哨兵**——采数的是哨兵，裁决的是
+ * 纯函数（render-sentinel.ts 的 silenceVerdict）。本函数只管接线：Electron 事件、销毁闸门、
+ * 存证落盘字段都在这层，级别不在这里判。 */
+function wireRenderSentinel(win: BrowserWindow, log: EventLog | null): void {
   const wc = win.webContents;
   wc.on('unresponsive', () => log?.append({ type: 'renderer-unresponsive' }));
   wc.on('render-process-gone', (_e, d) => log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode }));
   if (!log) return;
-  let lastBeat = Date.now();
-  let reported = false;
-  const beat = () => { lastBeat = Date.now(); if (reported) reported = false; };
-  wc.on('ipc-message', beat);
   // 心跳：靠渲染层真实上行（热区声明/存证）计时，不另加定时器——渲染层死了就没有心跳
-  const timer = setInterval(() => {
-    if (win.isDestroyed() || wc.isDestroyed()) return;
-    if (Date.now() - lastBeat < 5000) return;
-    if (reported) return;
-    reported = true;
-    log.append({
+  const sentinel = new RenderSentinelRun({
+    onQuiet: ({ quietMs, recovered }) => log.append({
       type: 'renderer-stall',
-      quietMs: Date.now() - lastBeat,
+      quietMs,
+      recovered,
       crashed: wc.isCrashed(),
       pid: wc.getOSProcessId(),
-    });
-  }, 2000);
-  win.once('closed', () => clearInterval(timer));
+    }),
+    isWindowDestroyed: () => win.isDestroyed(),
+    isRendererDestroyed: () => wc.isDestroyed(),
+  });
+  wc.on('ipc-message', () => sentinel.beat());
+  win.once('closed', () => sentinel.dispose());
 }
