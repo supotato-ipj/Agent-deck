@@ -97,6 +97,16 @@ class Report {
     this.manifestBattery = (this.manifest && Array.isArray(this.manifest.batteries))
       ? this.manifest.batteries.find((b) => b && b.id === name) || null
       : null;
+    // --accept-scope 硬交叉校验（工单115 升级）：清单在位时声明的段号必须已登记，
+    // 未知段号启动即错（烧完 7 分钟才发现声明打错的事不再发生）；清单缺位
+    // （fixture/未归账电池）保持工单110 的告警不阻断形态。
+    if (this.declaredScope.length && this.manifestBattery) {
+      const known = new Set((this.manifestBattery.segments || []).map((s) => String(s && s.seg)));
+      const unknown = this.declaredScope.filter((s) => !known.has(s));
+      if (unknown.length) {
+        throw new Error(`--accept-scope 声明的段号未在清单登记：${unknown.join(', ')}（电池 ${name}，工单115 硬交叉校验）`);
+      }
+    }
     /** 段注册账：beginSegment 依序登记的 { seg, title, ticket, surfaces, passes, fails, excluded, startedAt, durationMs } */
     this.segments = [];
     /** 当前段（beginSegment 起笔后的入账归属） */
@@ -209,7 +219,7 @@ class Report {
     this.segments.push(this.currentSegment);
     const ann = entry ? `｜工单${entry.ticket}｜失效面=${surfaceLabels(this.manifest, entry.surfaces)}` : '';
     this.log(`SEG   ▶ ${id}${label ? ` ${label}` : ''}${ann}`);
-    if (!entry) this.note(`段 ${id} 未在清单登记（清单↔代码静态同步校验归 #115；运行期告警不阻断）`);
+    if (!entry) this.note(`段 ${id} 未在清单登记（清单↔代码双向同步由 CI 校验器拦截，工单115）`);
     return this.currentSegment;
   }
 
@@ -254,7 +264,7 @@ class Report {
       if (!this.segments.length) {
         this.log(`WARN  段注册表未填充（存量段起笔埋点归 #114）：声明范围段 ${this.declaredScope.join(', ')} 未能与本轮实跑段核对，告警不阻断`);
       } else if (scopeUnknown.length) {
-        this.log(`WARN  声明范围段未在本轮注册：${scopeUnknown.join(', ')}（告警不阻断；对段级清单的硬交叉校验归 #115）`);
+        this.log(`WARN  声明范围段未在本轮实跑：${scopeUnknown.join(', ')}（清单在位但段未注册——合并门按「范围段被打断」裁决，须重跑）`);
       }
     }
     // 排除窗未闭合即判终局：重启从未验证健康，其后的失败已全数环境降责——账目里必须可读
