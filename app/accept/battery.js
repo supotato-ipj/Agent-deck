@@ -1144,6 +1144,8 @@ async function main() {
 
     // —— 工单99 日历卡成包：挂载存证 + 月网格内容抽验（轻探针，时钟探针同款纪律）——
     // 插件异步挂载：先等 calendar-card 出现在热区声明那一拍再判（10b 真机踩过的坑）。
+    // 段号 P4.5（工单126 补登记）：物理上落在 P4 执行窗内，但归属 #99 不并入 P4（一段绑定一工单）。
+    rep.beginSegment('P4.5');
     const calZones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'calendar-card'));
     const calZone = calZones && (calZones.rects || []).find((r) => r.id === 'calendar-card');
     calZone
@@ -5013,6 +5015,7 @@ async function main() {
     // 截图存证；整段裹 withControlWindowClear（落点在右下设置浮层，对照记事本要让位）。
     // finally 还原 config + 重启：P7 搜索段虽在本段之前已跑，后续段（P6/P11 等）仍假设
     // 默认全启用，开关残留一律清场（spec 风险注记：电池假设默认全启用配置）。——
+    rep.beginSegment('P8T');
     await withControlWindowClear(async () => {
       const configBackup101 = backupConfigB();
       const readDisabled101 = () => {
