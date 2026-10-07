@@ -34,6 +34,16 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
 ## 收尾
 
 1. **真机验收**：分支上自检全绿后，在 worktree 里 `npm run accept`。验收模式绕开单实例锁，可与在跑面板共存。完成判据：验收电池通过。**注意**：全量电池拉起的真面板子进程仍会抢单实例锁，且本机多个检出共享同一验收槽——一律经 accept-guard 托管，禁止裸跑，协议见 `AGENTS.md` 的「真机验收调度协议（accept-guard）」一节。
-2. **PR 合流**：push `feat/<slug>` 并 `gh pr create`。gh 需 `HTTPS_PROXY=socks5h://127.0.0.1:1080`（本机直连 GitHub 常被重置；git 自身已在仓库配置带代理）。master 受 ruleset 保护，改动一律经 PR，CI（test.yml）绿后合并。完成判据：PR 合入 origin/master。
+2. **PR 合流**：push `feat/<slug>` 并 `gh pr create`。master 受 ruleset 保护，改动一律经 PR，CI（test.yml）绿后合并。完成判据：PR 合入 origin/master。
+
+   **网络**：`gh` 与 `git` 都不带代理配置（仓库 `.git/config` 只有 `[http] version = HTTP/1.1`，全局 `.gitconfig` 亦无 proxy 键）——本机直连 GitHub 慢而不稳，`push` 新建远端分支这类握手较重的操作容易长时间无输出。稳妥做法是两个命令都显式带上代理，别依赖任何已配置的代理：
+
+   ```powershell
+   $env:HTTPS_PROXY='socks5h://127.0.0.1:1080'   # gh 与 git 共用
+   git push -u origin feat/<slug>
+   gh pr create --base master --head feat/<slug>
+   ```
+
+   裸 `gh` 直连常被重置；裸 `git` 不是必然失败（`git ls-remote` 直连实测可用），但别把「有时能直连」当成有代理兜底。push 卡住时先确认自己设了代理或设了超时，别空等。
 3. **master 快进**：主检出执行 `git checkout master && git pull --ff-only`。主检出的 `app/` 是开机自启目标，每次合流后都要快进保持最新。完成判据：`git rev-parse master origin/master` 输出相等。
 4. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。删除**远端**分支前必须先取得用户明确确认。
