@@ -7,8 +7,8 @@ import type { PluginRuntimeDeps } from './plugins.js'
 import { pad, pad3 } from './format.js'
 import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
-import { GATE_INITIAL, escapePlan, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
-import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState, KeyRoutingContext } from './keyboard-gate.js'
+import { GATE_INITIAL, escapePlan, keyRoutingContextOf, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
+import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState } from './keyboard-gate.js'
 import { pasteableWithinTimeout } from './pasteable-query.js'
 import { zoneHotzoneContains, zoneHotzoneRect } from './zone-hotzone.js'
 import type { ZoneBox } from './zone-hotzone.js'
@@ -111,11 +111,11 @@ function markSelection(): void {
 }
 
 // ---- 键盘模式归一仲裁（工单31，ADR-0006 收官）：键盘模式是多方共用的单通道（工单02
-// 起搜索/设置浮层、删除确认层、重命名编辑 9 处调用点；工单31 增选区生灭）。归一仲裁
-// 把开态合成一处——键盘模式 = 选区非空 OR 任一浮层开（keyboard-gate.ts 纯逻辑）。
-// 全部开关意图都进同一归约器，变化沿才出通道：浮层关而选区仍非空 → 保持 on 不互相踩；
-// 选区清空而浮层仍开 → 键盘归浮层。panel-ipc 侧 keyboard-mode-on/off 存证与选区生灭
-// 严格同相（电池 P5.17 硬断言）。
+// 起搜索/设置浮层、删除确认层、重命名编辑 9 处调用点；工单31 增选区生灭；工单100 增
+// 插件键盘档）。归一仲裁把开态合成一处——键盘模式 = 选区非空 OR 任一浮层开 OR 任一
+// 插件档在持（keyboard-gate.ts 纯逻辑）。全部开关意图都进同一归约器，变化沿才出通道：
+// 浮层关而选区仍非空 → 保持 on 不互相踩；选区清空而浮层/插件档仍开 → 键盘归浮层/档位。
+// panel-ipc 侧 keyboard-mode-on/off 存证与选区生灭严格同相（电池 P5.17 硬断言）。
 
 let keyboardGate: KeyboardGateState = GATE_INITIAL
 
@@ -1648,11 +1648,8 @@ function runKeyboardAction(action: KeyboardActionType): void {
 }
 
 window.addEventListener('keydown', (e) => {
-  const ctx: KeyRoutingContext = {
-    overlayOpen: keyboardGate.overlays.length > 0,
-    menuOpen: menuOpen(),
-    selectionNonEmpty: selection.names.length > 0,
-  }
+  // 装配口径唯一出处 keyboard-gate.keyRoutingContextOf（工单100 起：插件档在持等同浮层开）
+  const ctx = keyRoutingContextOf(keyboardGate, menuOpen())
   if (e.key === 'Escape') {
     const plan = escapePlan(ctx)
     if (!plan.closeMenu && !plan.clearSelection) return // 浮层自处理/无事可做：不拦，既有监听接手
@@ -1675,6 +1672,15 @@ window.addEventListener('keydown', (e) => {
 const pluginDeps: PluginRuntimeDeps = {
   notify,
   invoke: (method, payload) => window.deck.bridge.invoke(method, payload),
+  on: (event, listener) => window.deck.bridge.on(event, listener),
+  // 插件键盘档进宿主单点仲裁（工单100）：档位声明 = 归一仲裁的一种具名事件（与选区/
+  // 浮层同一把合成开关，单通道不另立——keyboard-mode-on/off 同相是电池硬断言口径）。
+  // 名字带插件 id 命名空间，档位记账/去重/卸载回收在插件运行时（plugins.ts）。
+  onKeyboardTier: (id, tier, held) => dispatchKeyboardGate(
+    held
+      ? { type: 'tier-acquired', name: `plugin:${id}:${tier}` }
+      : { type: 'tier-released', name: `plugin:${id}:${tier}` },
+  ),
   onDomChanged: declareHotZones,
 }
 

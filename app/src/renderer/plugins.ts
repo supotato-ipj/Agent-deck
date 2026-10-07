@@ -4,8 +4,9 @@
 // deck-plugin:// 协议加载），插件资产与宿主页面同源同协议，动态 import 即为加载通道。
 // 插件拿到的永远是裁剪过的快照（manifest 的 capabilities 声明多少就给多少，少给而非不给），
 // 且插件文件永不由渲染层触碰——资产经协议下发、数据经既有桥接契约，两条通道都不新增。
-import type { BridgeMethod, BridgeMethods, PanelSnapshot, PluginInfo } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, PanelSnapshot, PluginInfo } from '../shared/contract'
 import { esc, pad, pad3, pct } from './format.js'
+import { createPluginTierRegistry } from './plugin-tiers.js'
 
 /** 插件拿到的裁剪视图：按 capabilities 取快照的若干段，其余键根本不存在 */
 export type PluginView = Partial<PanelSnapshot>
@@ -36,6 +37,16 @@ export interface PluginHost {
   notify(type: string, payload?: Record<string, unknown>): void
   /** 内核桥接契约调用（渲染层不另开通道） */
   invoke<M extends BridgeMethod>(method: M, payload: BridgeMethods[M]['request']): Promise<BridgeMethods[M]['response']>
+  /** 内核桥接事件订阅（工单100 扩充：与 invoke 同一通道，返回退订函数；unmount 时宿主兜底退订） */
+  on<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void
+  /**
+   * 键盘档请求占用（工单100，通用——不是搜索专用特例）：具名声明（名字插件内自取，
+   * 宿主按插件 id 加命名空间后进键盘模式单通道归一仲裁，与选区/浮层同一把合成开关）。
+   * 重复持拿同名是幂等噪声，不产生新事件。
+   */
+  holdKeyboardTier(tier: string): void
+  /** 键盘档释放（工单100）：未持拿就释放是噪声；unmount 未释放的档由宿主强制回收（crash 安全） */
+  releaseKeyboardTier(tier: string): void
   /** 插件自行改了 DOM（浮层/菜单开合等）后调：宿主重声明热区（工单23 起） */
   onDomChanged(): void
 }
@@ -63,11 +74,42 @@ interface Mounted {
 export interface PluginRuntimeDeps {
   notify(type: string, payload?: Record<string, unknown>): void
   invoke<M extends BridgeMethod>(method: M, payload: BridgeMethods[M]['request']): Promise<BridgeMethods[M]['response']>
+  /** 插件订阅桥接事件（工单100 扩充）：返回退订函数，宿主在卸载时兜底退订 */
+  on<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void
+  /** 插件键盘档声明进宿主单点仲裁（工单100）：held=true 请求占用 / false 释放 */
+  onKeyboardTier(id: string, tier: string, held: boolean): void
   /** 插件挂载/卸载后 DOM 变了（重声明热区） */
   onDomChanged(): void
 }
 
 const mounted = new Map<string, Mounted>()
+
+/**
+ * 插件键盘档记账（工单100）：id → 该插件在持的档名集。请求/释放去重在此，
+ * 事件进宿主单点仲裁（deps.onKeyboardTier → 键盘模式单通道归一归约器）；
+ * unmount/挂载失败时未释放的档由 reclaimPlugin 强制回收（crash 安全）。
+ */
+const tierRegistry = createPluginTierRegistry()
+
+/**
+ * 插件桥接事件订阅登记（工单100）：id → 退订函数集。插件 unmount 自己退订是正道，
+ * 这里兜底——插件忘了退（或 unmount 抛错）也不泄漏监听、不给已卸载组件回推事件。
+ */
+const pluginSubs = new Map<string, Set<() => void>>()
+
+/** 卸载善后（工单100）：兜底退订桥接事件 + 强制回收未释放的键盘档 */
+function reclaimPlugin(id: string, deps: PluginRuntimeDeps): void {
+  const subs = pluginSubs.get(id)
+  if (subs) {
+    pluginSubs.delete(id)
+    for (const off of subs) {
+      try {
+        off()
+      } catch { /* 兜底退订尽力而为 */ }
+    }
+  }
+  for (const tier of tierRegistry.reclaim(id)) deps.onKeyboardTier(id, tier, false)
+}
 /**
  * 在途装载的代号，**按插件计**：卸载（或换代重挂）即给该 id 换代。
  * 用全局单计数会让并发的多个插件互相作废——真机踩过：五卡同时 import，只有先落地的那个
@@ -103,12 +145,33 @@ function hostOf(info: PluginInfo, container: HTMLElement, view: PluginView, deps
     util: UTIL,
     notify: deps.notify,
     invoke: (method, payload) => deps.invoke(method, payload),
+    // 桥接事件订阅（工单100）：登记退订函数，unmount 时宿主兜底退订
+    on: (event, listener) => {
+      const off = deps.on(event, listener)
+      let set = pluginSubs.get(info.id)
+      if (!set) {
+        set = new Set()
+        pluginSubs.set(info.id, set)
+      }
+      set.add(off)
+      return () => {
+        off()
+        set.delete(off)
+      }
+    },
+    // 键盘档（工单100）：记账先行——确有状态迁移才向仲裁发事件（重复持拿/未持拿释放是噪声）
+    holdKeyboardTier: (tier) => {
+      if (tierRegistry.hold(info.id, tier)) deps.onKeyboardTier(info.id, tier, true)
+    },
+    releaseKeyboardTier: (tier) => {
+      if (tierRegistry.release(info.id, tier)) deps.onKeyboardTier(info.id, tier, false)
+    },
     onDomChanged: deps.onDomChanged,
   }
 }
 
 /** 坏插件静默降级：不弹窗、不打断面板，只留存证（与面板其余失败路径同纪律） */
-function unmountOne(id: string): void {
+function unmountOne(id: string, deps: PluginRuntimeDeps): void {
   const entry = mounted.get(id)
   // 卸载即给该 id 换代（并清失败记账）：在途 import 回来时令牌已旧，不得复活组件；
   // 重装时也给一次干净机会
@@ -121,6 +184,8 @@ function unmountOne(id: string): void {
   } catch (err) {
     console.warn(`[deck-plugin] ${id} 的 unmount 抛错：`, err)
   }
+  // 善后（工单100）：插件自己没退订/没释放的，宿主兜底——订阅不泄漏、键盘档强制回收
+  reclaimPlugin(id, deps)
   entry.container.remove()
 }
 
@@ -156,6 +221,8 @@ async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRunti
   } catch (err) {
     failed.set(info.id, { entry: info.entry, at: Date.now() })
     deps.notify('plugin-mount-failed', { id: info.id, message: String(err) })
+    // mount 半途抛错也可能已持键盘档/订阅事件（工单100）：同 unmount 兜底回收
+    reclaimPlugin(info.id, deps)
     container.remove()
     return
   }
@@ -171,7 +238,7 @@ async function mountOne(info: PluginInfo, snap: PanelSnapshot, deps: PluginRunti
  */
 export function syncPlugins(list: PluginInfo[], snap: PanelSnapshot, deps: PluginRuntimeDeps): void {
   const ok = new Set(list.filter((p) => p.status === 'ok').map((p) => p.id))
-  for (const id of [...mounted.keys()]) if (!ok.has(id)) unmountOne(id)
+  for (const id of [...mounted.keys()]) if (!ok.has(id)) unmountOne(id, deps)
 
   for (const info of list) {
     if (info.status !== 'ok') continue
@@ -183,7 +250,7 @@ export function syncPlugins(list: PluginInfo[], snap: PanelSnapshot, deps: Plugi
     }
     // 换代（资产变化 → 新 revision → entry URL 变）即重挂：ESM 模块缓存只能靠换 URL 绕开
     if (info.entry !== entry.entryUrl) {
-      unmountOne(info.id)
+      unmountOne(info.id, deps)
       void mountOne(info, snap, deps)
       continue
     }
