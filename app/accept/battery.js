@@ -768,9 +768,13 @@ async function main() {
   const seedScan = psDesktopScan();
   fs.mkdirSync(userDataDir, { recursive: true });
 
+  // 滞后哨兵（工单117）：电池拉起的面板自动带诊断开关——面板主进程 lag 越阈时在
+  // 同一事件文件落 main-lag 存证（lagMs + 子系统标签 + 事件尾），与 WM_NULL 超时对读。
+  // 阈值取哨兵缺省 2000ms（与探针 SMTO_ABORTIFHUNG 同数）；P7 的单实例二次拉起子进程
+  // 毫秒级自退，不必带。常规（非电池）运行不带此 env，面板行为零变化。
   const launchPanel = () => spawn(process.execPath, ['.'], {
     cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
+    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

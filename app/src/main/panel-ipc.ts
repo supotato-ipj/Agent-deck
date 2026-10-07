@@ -6,6 +6,7 @@ import type { BridgeService } from './services/bridge'
 import type { HotzoneTracker } from './hotzone'
 import { pinToBottom } from './win32'
 import { RenderSentinelSampler } from './render-sentinel-sampler'
+import { panelLabels } from './lag-sentinel'
 
 /** 存证事件日志：验收电池经 DECK_EVENT_LOG 环境变量启用，主进程关键行为逐行落盘。 */
 export interface EventLog {
@@ -88,12 +89,19 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: Ev
     if (event.sender !== win.webContents) return
     if (win.isDestroyed()) return
     if (on) {
-      win.setFocusable(true)
-      win.focus()
+      // 滞后哨兵（工单117）：键盘模式三连是 #111 审计的第一嫌疑（H1——六轮停摆事件尾唯一
+      // 共同终点）。setFocusable+focus 的原生激活路径与 pinToBottom 各挂标签，lag 事件的
+      // liveLabels 由此分辨卡在激活路径还是 z 序重排。
+      panelLabels.run('keyboard-mode-on', () => {
+        win.setFocusable(true)
+        win.focus()
+      })
       pin(win)
       log?.append({ type: 'keyboard-mode-on' })
     } else {
-      win.setFocusable(false)
+      panelLabels.run('keyboard-mode-off', () => {
+        win.setFocusable(false)
+      })
       pin(win)
       log?.append({ type: 'keyboard-mode-off' })
     }

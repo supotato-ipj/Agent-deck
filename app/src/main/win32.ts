@@ -2,6 +2,7 @@
 // 绑定与调用形态经工单01 探针实证（.scratch/standalone-app/probe01，探针C 6/6）。
 import { BrowserWindow } from 'electron'
 import koffi from 'koffi'
+import { panelLabels } from './lag-sentinel'
 
 const user32 = koffi.load('user32.dll')
 const SetWindowPos = user32.func('bool __stdcall SetWindowPos(uintptr_t hWnd, intptr_t hWndInsertAfter, int x, int y, int cx, int cy, uint32 uFlags)')
@@ -37,12 +38,14 @@ export function setPinGate(gate: (() => boolean) | null): void {
 }
 
 /** 底部钉扎：压到所有普通窗口之下、壁纸/桌面层之上。Electron 无原生档位，FFI 直调。
- * 闸门置位（桌面遮罩守望的 TOPMOST 期）时跳过并返回 false（调用方只记成功钉扎）。 */
+ * 闸门置位（桌面遮罩守望的 TOPMOST 期）时跳过并返回 false（调用方只记成功钉扎）。
+ * SetWindowPos 是全仓最频的 z 序原语（热区离开/焦点兜底/键盘模式/唤回共用此一出处），
+ * 滞后哨兵（工单117）在 FFI 调用本身挂 `pin` 标签——上游调用点无需各自重复标注。 */
 export function pinToBottom(win: BrowserWindow): boolean {
   if (win.isDestroyed()) return false
   if (pinBlocked && pinBlocked()) return false
-  return SetWindowPos(hwndOf(win), HWND_BOTTOM, 0, 0, 0, 0,
-    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER)
+  return panelLabels.run('pin', () => SetWindowPos(hwndOf(win), HWND_BOTTOM, 0, 0, 0, 0,
+    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER))
 }
 
 /** 按类名找顶层窗口（如桌面宿主 Progman）；找不到返回 null。 */

@@ -20,6 +20,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { panelLabels } from './lag-sentinel'
 
 /** 本应用自启项文件名（Startup 文件夹内） */
 export const AUTOSTART_LINK_NAME = 'AGENT DECK.lnk'
@@ -134,7 +135,8 @@ function runHelper(mode: 'read' | 'write', link: string, spec?: ShortcutSpec): H
     args.push('-Target', spec.target, '-LinkArgs', spec.args)
     if (spec.workDir) args.push('-WorkDir', spec.workDir)
   }
-  const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 20000 })
+  // 滞后哨兵（工单117）：同步子进程上限 20s（审计 B11，启动段唯一的大滞后源），挂 `autostart` 标签
+  const r = panelLabels.run('autostart', () => spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 20000 }))
   if (r.error) return { ok: false, json: null, error: r.error.message }
   if (r.status !== 0) return { ok: false, json: null, error: `status=${r.status} stderr=${(r.stderr ?? '').trim()}` }
   try {
