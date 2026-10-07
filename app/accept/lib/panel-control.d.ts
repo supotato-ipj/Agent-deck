@@ -58,3 +58,22 @@ export declare interface ClassifiedWindow {
 
 /** 遗留面板窗核验：只认 Chrome_WidgetWin_1 + 标题 AGENT DECK 且 pid≠selfPid 的窗 */
 export declare function findPanelWindows(classified: ClassifiedWindow[]): ClassifiedWindow[]
+
+/** preflight 警示条目（工单113）：kind = 四类污染源枚举；detail 为入账文本 */
+export declare interface PreflightEntry {
+  kind: 'double-panel' | 'leftover-panel' | 'dwm-ghost' | 'fullscreen-overlay'
+  detail: string
+}
+
+/** preflight 探测行（battery.js 从 win32 枚举产出后注入） */
+export declare interface PreflightProbes {
+  /** 面板本体窗（findPanelWindows 产出；exeQueryable=进程镜像可查询） */
+  panelWindows?: (ClassifiedWindow & { exeQueryable?: boolean })[]
+  /** Ghost 类窗（dwm/OLE 幽灵） */
+  ghostWindows?: { cls: string; pid: number }[]
+  /** 壳层白名单外的全屏可见未 cloaked 窗（cua 覆盖层候选） */
+  fullscreenForeign?: { cls: string; pid: number; title?: string }[]
+}
+
+/** preflight 环境体检分类（工单113）：四类污染源 → 警示条目；无污染返回空数组 */
+export declare function classifyPreflight(probes?: PreflightProbes): PreflightEntry[]

@@ -117,4 +117,38 @@ function findPanelWindows(classified) {
     && Number.isFinite(Number(c.pid)) && Number(c.pid) !== Number(c.selfPid));
 }
 
-module.exports = { createPanelControl, findPanelWindows, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };
+/**
+ * preflight 环境体检分类（工单113）：四类已知污染源 → 警示条目。纯函数——探测
+ * （窗枚举/可见性/cloaked/rect）由调用方产出后注入，本函数只做分类，可脱离真机单测。
+ * 警示入账不拒跑：条目由调用方以 note 入报告账目，不影响 verdict（三态只看
+ * fails/excluded——污染在场只作环境定责的证据链，不制造 FAIL-ENV）。
+ *
+ * 四类污染源（spec #109）：
+ *   ① 计算机使用代理全屏光标覆盖层 → fullscreenForeign（壳层白名单外的全屏可见未 cloaked 窗）
+ *   ② dwm 持有的全屏幽灵窗         → ghostWindows（Ghost 类窗，#107 取证所见形态）
+ *   ③ 遗留提权面板进程             → panelWindows 恰一扇（电池未拉起任何面板时在场的遗孤）
+ *   ④ 双面板并存                   → panelWindows ≥2 扇
+ * @param {{panelWindows?: {pid:number, exeQueryable?:boolean}[], ghostWindows?: {cls:string,pid:number}[], fullscreenForeign?: {cls:string,pid:number,title?:string}[]}} probes
+ * @returns {{kind: 'double-panel'|'leftover-panel'|'dwm-ghost'|'fullscreen-overlay', detail: string}[]}
+ */
+function classifyPreflight(probes = {}) {
+  const entries = [];
+  const panels = Array.isArray(probes.panelWindows) ? probes.panelWindows : [];
+  const ghosts = Array.isArray(probes.ghostWindows) ? probes.ghostWindows : [];
+  const overlays = Array.isArray(probes.fullscreenForeign) ? probes.fullscreenForeign : [];
+  if (panels.length >= 2) {
+    entries.push({ kind: 'double-panel', detail: `双面板并存：${panels.length} 扇面板本体窗（pid=${panels.map((p) => p.pid).join(', ')}）` });
+  } else if (panels.length === 1) {
+    const elev = panels[0].exeQueryable === false ? '；进程镜像不可查询——提权/僵尸嫌疑高' : '';
+    entries.push({ kind: 'leftover-panel', detail: `遗留面板进程：pid=${panels[0].pid}（本电池未拉起任何面板）${elev}` });
+  }
+  for (const g of ghosts) {
+    entries.push({ kind: 'dwm-ghost', detail: `dwm/OLE 幽灵窗：cls=${g.cls} pid=${g.pid}` });
+  }
+  for (const o of overlays) {
+    entries.push({ kind: 'fullscreen-overlay', detail: `全屏覆盖层候选：cls=${o.cls} pid=${o.pid} title=${o.title || '(空)'}（全屏可见、未 cloaked、非壳层）` });
+  }
+  return entries;
+}
+
+module.exports = { createPanelControl, findPanelWindows, classifyPreflight, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };

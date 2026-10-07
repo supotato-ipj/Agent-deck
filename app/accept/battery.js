@@ -15,7 +15,7 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
-const { createPanelControl, findPanelWindows } = require('./lib/panel-control');
+const { createPanelControl, findPanelWindows, classifyPreflight } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
@@ -617,6 +617,37 @@ function windowTitle(hwnd) {
   return s;
 }
 
+// —— 工单113 preflight 探测：四类污染源的原始行产出（分类在 panel-control.classifyPreflight，
+// 注入式纯函数可单测）。全屏判定 = 矩形覆盖虚拟屏 ≥95% 且可见、未 cloaked、非壳层白名单；
+// cloaked 滤除壳宿主常驻「全屏」窗（Start/搜索宿主等）的常态误报源。
+const PREFLIGHT_SHELL_CLASSES = new Set(['Progman', 'WorkerW', 'Shell_TrayWnd', 'SHELLDLL_DefView', 'SysListView32']);
+const PREFLIGHT_OWN_TITLES = new Set(['AGENT DECK', 'AGENT DECK ACCEPT HINT', 'DECK-TASKBAR']);
+function preflightProbes() {
+  const vs = w32.virtualScreen();
+  const screenArea = Math.max(1, vs.w * vs.h);
+  const rows = [];
+  for (const h of w32.topLevelWindows()) {
+    try {
+      const pid = w32.threadIdOf(h).pid;
+      rows.push({
+        cls: w32.className(h), title: windowTitle(h), pid, selfPid: process.pid,
+        rect: w32.rectOf(h), visible: !!w32.IsWindowVisible(h), cloaked: w32.isCloaked(h),
+        exeQueryable: w32.exeOfPid(pid) !== '',
+      });
+    } catch { /* 已销毁：跳过 */ }
+  }
+  const vis = rows.filter((r) => r.visible);
+  const fullscreenForeign = vis.filter((r) => !PREFLIGHT_SHELL_CLASSES.has(r.cls)
+    && r.cls !== 'Ghost' && !PREFLIGHT_OWN_TITLES.has(r.title)
+    && r.rect && (r.rect.right - r.rect.left) * (r.rect.bottom - r.rect.top) >= screenArea * 0.95
+    && !r.cloaked);
+  return {
+    panelWindows: findPanelWindows(vis).map((p) => ({ ...p, exeQueryable: (rows.find((r) => r.pid === p.pid) || {}).exeQueryable })),
+    ghostWindows: vis.filter((r) => r.cls === 'Ghost'),
+    fullscreenForeign,
+  };
+}
+
 // 直连真实 Listary 引擎（旧电池 engine_has_probe_first 平移）：探针文件入索引且排首位。
 // 路径比对用 realpath + basename：os.tmpdir() 可能返回 8.3 短名（ANW~1），Listary 报长名。
 function engineProbeFirst(word, probePath, token) {
@@ -674,6 +705,13 @@ async function main() {
   const rep = new Report('03-battery', { scope: acceptScope });
   if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（段注册表未填充前，未注册段号告警不阻断）`);
   const w32 = win32;
+  // —— 工单113 preflight 环境体检：四类已知污染源探测，警示入账不拒跑——本机覆盖层
+  // 是常态在场，拒跑会把验收永久卡死。FAIL-ENV 的环境定责从报告第一行起就有证据链。
+  {
+    const entries = classifyPreflight(preflightProbes());
+    if (entries.length === 0) rep.note('preflight 环境体检：四类污染源均不在场');
+    else for (const e of entries) rep.note(`preflight 环境体检［${e.kind}］${e.detail}`);
+  }
   const si = screenInfo();
   const f = si.factor;
   rep.note(`screen: phys ${si.phys.w}x${si.phys.h} @ factor ${f}`);
