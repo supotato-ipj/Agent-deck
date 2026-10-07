@@ -1,5 +1,6 @@
 import { app, Menu, nativeImage, Tray } from 'electron'
 import type { NativeImage } from 'electron'
+import { panelLabels } from './lag-sentinel'
 
 /**
  * 托盘常驻件（工单03）：图标程序化绘制（深底 + 琥珀色四点，deck 母题），免二进制资产。
@@ -33,11 +34,15 @@ export interface TrayHooks {
 }
 
 export function createTray(hooks: TrayHooks): Tray {
-  const tray = new Tray(buildTrayIcon())
-  tray.setToolTip(TRAY_TOOLTIP)
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '退出面板', click: () => app.quit() },
-  ]))
+  // 滞后哨兵（工单117）：Tray 构造即 Shell_NotifyIcon(NIM_ADD)、tooltip/菜单即 NIM_MODIFY——
+  // 同步 WM_COPYDATA 打进当届 Shell_TrayWnd 竞争赢家（H3：重启后段主嫌疑），各挂标签。
+  const tray = panelLabels.run('tray-add', () => new Tray(buildTrayIcon()))
+  panelLabels.run('tray-modify', () => {
+    tray.setToolTip(TRAY_TOOLTIP)
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: '退出面板', click: () => app.quit() },
+    ]))
+  })
   tray.on('click', () => hooks.onShowPanel())
   return tray
 }

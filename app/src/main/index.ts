@@ -12,6 +12,7 @@ import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
+import { attachLagSentinel, panelLabels } from './lag-sentinel'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
 import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/native'
@@ -50,7 +51,16 @@ registerPluginScheme()
 export const TRAY_SPIKE_TITLE = 'TRAY-SPIKE-ACCEPT'
 
 async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
-  const log = fileEventLog(process.env.DECK_EVENT_LOG)
+  // 滞后哨兵（工单117）：DECK_LAG_SENTINEL 未设时 attachLagSentinel 原样退回同一引用
+  // （常规模式零改动）；诊断模式起采样并把 lag 事件（type='main-lag'）落同一事件文件，
+  // 标签置/清另落 sidecar（事件文件 + '.spans.jsonl'）——终末冻结时它以无 close 的
+  // span-open 收尾，即卡死调用点的签名。
+  const eventFile = process.env.DECK_EVENT_LOG
+  const log = attachLagSentinel(
+    fileEventLog(eventFile),
+    process.env.DECK_LAG_SENTINEL,
+    eventFile ? `${eventFile}.spans.jsonl` : undefined,
+  )
   const fallback = {
     panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds),
     weather: defaultWeather(),
@@ -196,7 +206,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
   // 托盘点击、second-instance、Win+D 防抖恢复共用；恢复后的重钉是票01 实施要点。
   const showPanel = (reason: string) => {
-    if (win.isMinimized() || !win.isVisible()) win.showInactive()
+    // 滞后哨兵（工单117）：show 是原生窗口显示路径（审计 B5），与重钉分开标注
+    if (win.isMinimized() || !win.isVisible()) panelLabels.run('panel-show', () => win.showInactive())
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: `show-${reason}` })
     log?.append({ type: 'panel-shown', reason })
   }

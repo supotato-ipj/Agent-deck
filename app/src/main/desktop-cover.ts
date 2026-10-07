@@ -12,6 +12,7 @@
 // 延迟加载（沿 desktop/adapter 先例）：判定纯函数的离线测试不触碰 koffi。
 import type { BrowserWindow } from 'electron'
 import type { EventLog } from './panel-ipc'
+import { panelLabels } from './lag-sentinel'
 
 type Win32 = typeof import('./win32')
 
@@ -74,23 +75,27 @@ export class DesktopCoverWatcher {
     if (this.disposed || this.win.isDestroyed()) return
     const w = this.w32
     if (!w) return
+    // 滞后哨兵（工单117）：侦察是 150ms 常驻的同步 z 序枚举（H4——Win+D 过渡段主嫌疑，
+    // 最坏单拍数百次 user32 调用），engage/release 是唯一写侧——三段各自挂标签。
     const hwnd = w.hwndOf(this.win)
-    const progman = w.findTopWindowByClass('Progman')
-    const snap: CoverSnapshot = {
-      panelVisible: this.win.isVisible(),
-      panelMinimized: this.win.isMinimized(),
-      panelTopmost: w.isTopmost(hwnd),
-      progmanFound: progman !== null,
-      progmanAbovePanel: progman !== null && w.zPrecedes(progman, hwnd),
-      progmanBottomMost: progman !== null && !w.hasVisibleBelow(progman),
-    }
+    const snap = panelLabels.run('cover-scan', () => {
+      const progman = w.findTopWindowByClass('Progman')
+      return {
+        panelVisible: this.win.isVisible(),
+        panelMinimized: this.win.isMinimized(),
+        panelTopmost: w.isTopmost(hwnd),
+        progmanFound: progman !== null,
+        progmanAbovePanel: progman !== null && w.zPrecedes(progman, hwnd),
+        progmanBottomMost: progman !== null && !w.hasVisibleBelow(progman),
+      }
+    })
     const action = coverDecision(snap)
     if (action === 'engage') {
       this.elevated = true
-      if (w.setTopmost(hwnd, true)) this.log?.append({ type: 'cover-engaged' })
+      if (panelLabels.run('cover-engage', () => w.setTopmost(hwnd, true))) this.log?.append({ type: 'cover-engaged' })
     } else if (action === 'release') {
       this.elevated = false
-      const off = w.setTopmost(hwnd, false)
+      const off = panelLabels.run('cover-release', () => w.setTopmost(hwnd, false))
       const pinned = w.pinToBottom(this.win)
       if (off || pinned) this.log?.append({ type: 'cover-released', pinned })
     }

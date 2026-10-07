@@ -11,6 +11,7 @@ import { shortcutIconSource } from './icons'
 import { extractIconDataUrl } from './icon-ffi'
 import { CF_HDROP, DROPEFFECT_MOVE, clipboardFfi, retryClipboardBusy } from './clipboard-files'
 import type { ClipboardEffect } from './clipboard-files'
+import { panelLabels } from '../lag-sentinel'
 import { watchDesktopRoots } from './watch'
 
 const FILE_ATTRIBUTE_HIDDEN = 0x2
@@ -253,7 +254,8 @@ function koffiClipboardFilesReadOnce(): ReadAttempt {
 export async function koffiClipboardFilesRead(): Promise<ClipboardFiles | null> {
   const result = await retryClipboardBusy(async (): Promise<ReadAttempt> => {
     try {
-      return koffiClipboardFilesReadOnce()
+      // 滞后哨兵（工单117）：OpenClipboard 系是跨进程互斥面（审计 B7，被占时退避重试）
+      return panelLabels.run('clipboard-read', () => koffiClipboardFilesReadOnce())
     } catch {
       return { kind: 'empty' } // koffi/剪贴板缺席属环境异常：按不可贴处理
     }
