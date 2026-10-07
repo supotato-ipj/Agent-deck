@@ -12,6 +12,15 @@
 
 /** 电池源码里的段起笔字集：六电池全部单引号字面量、无模板串、无变量段号（工单114 交接） */
 const SEGMENT_CALL_RE = /rep\.beginSegment\(\s*'([^']+)'/g;
+/** tripwire 宽匹配（评审 P2）：任何形态的起笔调用都该被字集正则认出，认不出的判红 */
+const SEGMENT_CALL_LOOSE_RE = /beginSegment\s*\(/g;
+
+/** 剥注释后的源码（tripwire 计数用）：块注释清空、行注释按「// 前不是冒号」剔除（保 http://） */
+function stripJsComments(src) {
+  return String(src || '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
+}
 
 /** 从电池源码提取段号字集（保序去重——同段重复起笔幂等，字集只记一次） */
 function extractCodeSegments(source) {
@@ -26,9 +35,11 @@ function extractCodeSegments(source) {
 
 /**
  * 清单 ↔ 源码双向校验。
- * @param {{manifest: object, sources: Record<string, string>}} req
+ * @param {{manifest: object, sources: Record<string, string>, presentEntries?: string[]}} req
  *   manifest：清单对象（report.loadManifest() 的产物或夹具）；sources：batteryId → 源码全文。
  *   sources 缺某电池 = 该电池「清单在账、源码缺席」——判红（登记处指向的电池必须真实存在）。
+ *   presentEntries：accept 目录下实际在场的电池脚本路径表（评审 P2 反向核对——新电池脚本
+ *   不入清单则整块逃逸治理）；给出时，清单外的在场脚本判红。
  * @returns {{ok: boolean, errors: string[]}}
  */
 function validateManifest(req = {}) {
@@ -43,6 +54,7 @@ function validateManifest(req = {}) {
   }
   const legalSurfaces = new Set(Object.keys((manifest && manifest.surfaces) || {}));
   const seenIds = new Set();
+  const knownEntries = new Set();
   for (const b of manifest.batteries) {
     const where = `电池[${b && b.id}]`;
     if (!b || typeof b !== 'object') { errors.push('清单出现非对象电池条目'); continue; }
@@ -50,6 +62,7 @@ function validateManifest(req = {}) {
     else if (seenIds.has(b.id)) errors.push(`${where} id 重复`);
     else seenIds.add(b.id);
     if (!b.entry) errors.push(`${where} 缺 entry（源码路径）`);
+    else knownEntries.add(b.entry);
     if (!b.script) errors.push(`${where} 缺 script（npm run 别名）`);
     if (!Number.isFinite(b.budgetSeconds) || b.budgetSeconds <= 0) errors.push(`${where} 缺正数 budgetSeconds`);
 
@@ -90,7 +103,22 @@ function validateManifest(req = {}) {
       for (const seg of codeSegs) {
         if (!manifestSet.has(seg)) errors.push(`${where} 段 ${seg} 在源码起笔但未入清单（新段未登记）`);
       }
+      // tripwire（评审 P2）：宽匹配计数 > 字集正则认出的调用数 = 存在校验器读不懂的
+      // 起笔形态（双引号/模板串/变量段号）——「新段未登记」会静默漏判，判红逼其回归字面量。
+      const loose = (stripJsComments(sources[b.id]).match(SEGMENT_CALL_LOOSE_RE) || []).length;
+      if (loose > codeSegs.length) {
+        errors.push(`${where} 存在 ${loose - codeSegs.length} 处非单引号字面量形态的 beginSegment 起笔，校验器无法识别（章法：段起笔一律 rep.beginSegment('<seg>')）`);
+      }
+      // Report 名绑定（评审 P2）：运行期元数据与 scope 硬校验都按 Report 名对清单取数，
+      // 名字对不上 = 校验器全绿但机制静默失效——源码必须出现 new Report('<id>')。
+      if (!(new RegExp(`new\\s+Report\\(\\s*'${b.id}'`)).test(sources[b.id])) {
+        errors.push(`${where} 源码未见 new Report('${b.id}')——Report 名与清单 id 不对应，元数据与 scope 硬校验会静默失效`);
+      }
     }
+  }
+  // 反向核对（评审 P2）：accept 目录在场电池脚本必须全部入清单，否则整块逃逸治理
+  for (const p of Array.isArray(req.presentEntries) ? req.presentEntries : []) {
+    if (!knownEntries.has(p)) errors.push(`电池脚本 ${p} 在场但未入清单（新电池整块逃逸治理）`);
   }
   return { ok: errors.length === 0, errors };
 }

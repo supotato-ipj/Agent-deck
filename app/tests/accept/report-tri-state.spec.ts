@@ -309,15 +309,15 @@ describe('段注册 API（段起笔报段号）与 scope 核对', () => {
     expect(warned).toBe(true)
   })
 
-  it('注册表缺位（轮内零注册段）→ WARN 说明注册表未填充，告警不阻断', () => {
+  it('轮内零注册段（面板早亡等）→ WARN 按范围段被打断语义告警，不阻断', () => {
     const rep = ledger('t', { scope: ['P6'] })
-    rep.pass('全程无段起笔（存量埋点归 #114）')
+    rep.pass('全程无段起笔')
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
     let v: ReturnType<Report['verdict']>
     let warned = false
     try {
       v = rep.verdict()
-      warned = spy.mock.calls.some((c) => String(c[0]).includes('WARN') && String(c[0]).includes('注册表'))
+      warned = spy.mock.calls.some((c) => String(c[0]).includes('WARN') && String(c[0]).includes('范围段'))
     } finally {
       spy.mockRestore()
     }

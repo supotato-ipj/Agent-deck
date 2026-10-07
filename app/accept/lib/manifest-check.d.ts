@@ -8,6 +8,8 @@ export declare interface ManifestCheckRequest {
   manifest: unknown
   /** batteryId → 源码全文；缺某电池判红（登记处指向的电池必须可扫描） */
   sources: Record<string, string>
+  /** accept 目录在场电池脚本路径表（反向核对：清单外的在场脚本判红）；缺省不核 */
+  presentEntries?: string[]
 }
 
 export declare interface ManifestCheckResult {

@@ -21,7 +21,7 @@ function legalManifest() {
     }],
   }
 }
-const legalSource = "rep.beginSegment('F1')\nrep.pass('a')\nrep.beginSegment('F2')\nrep.fail('b')\n"
+const legalSource = "function go() {\n  const rep = new Report('fx', {})\n  rep.beginSegment('F1')\nrep.pass('a')\nrep.beginSegment('F2')\nrep.fail('b')\n}\n"
 
 describe('段号字集提取', () => {
   it('提取保序去重：同段重复起笔只记一次', () => {
@@ -91,6 +91,31 @@ describe('夹具校验：双向缺失/字段缺失/超预算各判红', () => {
     expect(validateManifest({ manifest: m, sources: { fx: legalSource } }).ok).toBe(false)
     expect(validateManifest({ manifest: null, sources: {} }).ok).toBe(false)
   })
+
+  it('tripwire：非单引号字面量形态的起笔（双引号/模板串）→ 判红（评审 P2）', () => {
+    const tricky = legalSource + 'rep.beginSegment("F9")\nrep.beginSegment(`F8`)\n'
+    const r = validateManifest({ manifest: legalManifest(), sources: { fx: tricky } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('非单引号字面量形态'))).toBe(true)
+  })
+
+  it('注释里的 beginSegment 字样不触发 tripwire', () => {
+    const commented = legalSource + '// rep.beginSegment("X") 未来再说\n/* rep.beginSegment(\n */\n'
+    expect(validateManifest({ manifest: legalManifest(), sources: { fx: commented } }).ok).toBe(true)
+  })
+
+  it('Report 名与清单 id 不对应 → 判红（元数据与 scope 硬校验会静默失效，评审 P2）', () => {
+    const m = legalManifest()
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource.replace("new Report('fx'", "new Report('other'") } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes("new Report('fx')"))).toBe(true)
+  })
+
+  it('在场电池脚本未入清单 → 判红（整块逃逸治理，评审 P2）', () => {
+    const r = validateManifest({ manifest: legalManifest(), sources: { fx: legalSource }, presentEntries: ['app/accept/fx.js', 'app/accept/rogue.js'] })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('rogue.js') && e.includes('未入清单'))).toBe(true)
+  })
 })
 
 describe('--accept-scope 硬交叉校验', () => {
@@ -128,14 +153,19 @@ describe('Report 构造期 scope 硬校验（工单110 告警不阻断的升级�
 describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
   // manifest.batteries[].entry 是仓库根相对路径（app/accept/...），从 app/ 上一级解析
   const APP_ROOT = resolve(__dirname, '../../..')
-  it('六电池真实清单 ↔ 六电池真实源码：双向同步、字段完备、预算合规', () => {
-    const manifest = loadManifest()
+  it('六电池真实清单 ↔ 六电池真实源码：双向同步、字段完备、预算合规、Report 名对应', () => {
+    const manifest = loadManifest() as { batteries: { id: string; entry: string }[] }
     expect(manifest).not.toBeNull()
     const sources: Record<string, string> = {}
-    for (const b of (manifest as { batteries: { id: string; entry: string }[] }).batteries) {
+    for (const b of manifest.batteries) {
       sources[b.id] = readFileSync(resolve(APP_ROOT, b.entry), 'utf8')
     }
-    const r = validateManifest({ manifest, sources })
+    // 反向核对：accept 目录（除 lib/ 与非电池脚本）在场脚本必须全部入清单
+    const { readdirSync } = require('node:fs') as { readdirSync: (p: string) => string[] }
+    const presentEntries = readdirSync(resolve(APP_ROOT, 'app/accept'))
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => `app/accept/${f}`)
+    const r = validateManifest({ manifest, sources, presentEntries })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
   })

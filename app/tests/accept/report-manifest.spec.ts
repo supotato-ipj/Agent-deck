@@ -142,7 +142,7 @@ describe('范围段标注（这轮在验谁的什么面）', () => {
     const rep = ledger('t', { scope: ['P2'], manifest: null })
     const lines = capture(() => { rep.verdict() })
     expect(lines.join('\n')).not.toContain('清单范围段')
-    expect(lines.join('\n')).toContain('段注册表未填充')
+    expect(lines.join('\n')).toContain('本轮未实跑任何段')
   })
 })
 

@@ -706,11 +706,11 @@ function clipboardSet(text) {
 }
 
 async function main() {
-  // 工单110：--accept-scope 显式声明本次验收的 spec 范围段（如 npm run accept -- --accept-scope P6,P8）。
-  // 段号进 verdict 行与报告账目；段级清单（注册表）落地前，未知段号告警不阻断（硬交叉校验归 #115）。
+  // 工单110/115：--accept-scope 显式声明本次验收的 spec 范围段（如 npm run accept -- --accept-scope P6,P8）。
+  // 段号进 verdict 行与报告账目；构造期对清单硬交叉校验——未知段号即抛（不烧真机轮）。
   const acceptScope = parseAcceptScope(process.argv);
   const rep = new Report('03-battery', { scope: acceptScope });
-  if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（段注册表未填充前，未注册段号告警不阻断）`);
+  if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（已过清单硬交叉校验）`);
   const w32 = win32;
   // —— 工单113 preflight 环境体检：四类已知污染源探测，警示入账不拒跑——本机覆盖层
   // 是常态在场，拒跑会把验收永久卡死。FAIL-ENV 的环境定责从报告第一行起就有证据链。
