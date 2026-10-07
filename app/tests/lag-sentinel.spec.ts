@@ -37,6 +37,12 @@ function capturingLog(): { events: Array<Record<string, unknown>>; append(event:
   return { events, append(event) { events.push(event) } }
 }
 
+// 评审 P3：labels 缺省是进程单例 panelLabels，点亮它的用例（span 落盘/attach 接线组）
+// 必须在每例后复位，否则「单例没被点亮」类断言只靠用例序才成立，重排即假红/假绿。
+afterEach(() => {
+  panelLabels.enabled = false
+})
+
 describe('滞后哨兵核（工单117）——lag 事件产出', () => {
   const sentinels: LagSentinel[] = []
 

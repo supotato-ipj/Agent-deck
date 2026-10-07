@@ -194,3 +194,23 @@ koffi 绑定声明总数约 **150 条**（`.func(` 计数），分散在 15 个�
 
 - 方向③（遗留进程内核级不可杀）→ 独立 issue（本票开出，needs-triage）：E3 WaitForSingleObject(INFINITE)、D1 竞争窗销毁路径（stop() 在非建窗线程调用 DestroyWindow 会失败）、F1 ShowWindow 无限阻塞 12 分钟实证——三块素材。
 - 方向④（UIA 空名）→ 独立 issue（本票开出，needs-triage）：#107 P10E 段托盘导航各步窗口名返回空串，与本审计调用面无交集（UIA 走 PowerShell uia-focus.ps1，非 koffi），独立复现性未证。
+
+## 7. 落地标签名对照（工单117 实装后补记）
+
+哨兵实装（`app/src/main/lag-sentinel.ts` + 各子系统包装）与 §5 建议清单的落地差异——读 main-lag 事件 / spans sidecar 时按下表对号，勿按 §5 字面找事件：
+
+| §5 建议标签 | 落地标签 | 说明 |
+| --- | --- | --- |
+| keyboard-mode-on/off | `keyboard-mode-on` / `keyboard-mode-off` | 一致 |
+| pin | `pin` | pinToBottom 单点（win32.ts） |
+| hotzone-enter/leave | **`hotzone-poll`** | 轮询读标整体一个标签；进出判据属轮询体内部 |
+| hotzone-toggle | `hotzone-toggle` | 穿透翻转独立标注 |
+| cover-scan/engage/release | `cover-scan` / `cover-engage` / `cover-release` | 一致 |
+| tray-add/modify | `tray-add` / `tray-modify` | 一致 |
+| tray-pump、tray-forward | **未落地** | trayhost 泵与转发在 utilityProcess（数据面子进程），面板主进程哨兵观测不到——数据面自记 lag 属独立工作（H7 级联账），未随工单117 落地 |
+| clipboard-read/write | `clipboard-read` | 仅读事务（主进程代答路径）；写未见调用点 |
+| focus-tool | `focus-tool` | 一致 |
+| panel-show | `panel-show` | 实装新增（showInactive 原生显示路径，审计 B5） |
+| autostart | `autostart` | 实装新增（spawnSync powershell，审计 B11，启动段最大滞后源） |
+
+另：lag 事件自带 `lastEvents[]`（事件尾环）与 spans sidecar（`.spans.jsonl`，置/清区间全量在录）——终末冻结时 sidecar 以无 close 的 span-open 收尾即卡死调用点签名。
