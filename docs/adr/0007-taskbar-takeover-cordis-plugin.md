@@ -69,6 +69,7 @@ Status: accepted
 
 只改名字与存证字段，不改结论。上一条补记里的「渲染层看门狗」改称**渲染层哨兵**（`GLOSSARY.md` 已入库该词条，连带**静默**、**失能**两级）：GLOSSARY 中「看门狗」已是工单11 退役词条，「守卫」「守护」各被既有机制占用，再造第三个近义词只会让三者更难分辨。
 
-- 代码标识随之更名：`panel-ipc.ts` 的 `wireRendererWatchdog` → `wireRenderSentinel`；采数与接线落到新模块 `render-sentinel-run.ts` 的 `RenderSentinelRun`，级别裁决仍在纯函数 `render-sentinel.ts` 的 `silenceVerdict`（工单93）。
-- 存证 `renderer-stall` 的事件名与落盘口径未动，只多一个字段 `recovered`：一条静默存证从此自证「后来恢复了没有」，不必翻上下文分辨级别。5 秒阈值、2 秒采样拍、存证条数与落点均与改前一致，面板运行时行为零影响——失能档的发射判据属 #91 验收口径，本轮不落代码。
+- 代码标识随之更名：`panel-ipc.ts` 的 `wireRendererWatchdog` → `wireRenderSentinel`；采数与接线落到新模块 `render-sentinel-sampler.ts` 的 `RenderSentinelSampler`，级别裁决仍在纯函数 `render-sentinel.ts` 的 `silenceVerdict`（工单93）。
+- 存证 `renderer-stall` 的事件名与落盘口径未动，只多一个字段 `recovered`：一条静默存证从此自证「这一轮之前渲染层是否活过来过」，不必翻上下文分辨级别。5 秒阈值、2 秒采样拍、存证条数与落点均与改前一致，面板运行时行为零影响。升级失能档在裁决里是命中的（连续静默的每一拍都判成 escalate），本轮只是不把它落成存证——发射判据属 #91 验收口径。
+- 本 ADR 正文与 `GLOSSARY.md`「任务栏」词条里那条 `guard + watchdog` 指的是任务栏隐藏/还原链，与本机制无关，故不在本次更名范围内；词表侧已按「看门狗」退役词条的 `_Avoid_` 改用「外层守卫与还原守护」表述。
 - 「失能稳定跟在 `keyboard-mode-on` 之后」这条结论本轮不动，其更正与降级由 #95 的补记处理。

@@ -9,30 +9,23 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  RenderSentinelRun,
+  RenderSentinelSampler,
   RENDER_SENTINEL_POLL_MS,
   RENDER_SENTINEL_QUIET_MS,
-} from '../src/main/render-sentinel-run'
-
-/** 落盘存证的形状：静默时长 + 这一轮后来恢复了没有（其余字段由 Electron 侧补） */
-interface QuietRecord {
-  quietMs: number
-  recovered: boolean
-}
+} from '../src/main/render-sentinel-sampler'
+import type { SilentRecord } from '../src/main/render-sentinel-sampler'
 
 interface HarnessOptions {
   thresholdMs?: number
-  pollMs?: number
   windowDestroyed?: () => boolean
   rendererDestroyed?: () => boolean
 }
 
 /** 起一个哨兵：onQuiet 把落定存证收进数组，其余开关按用例需要传 */
-function harness(options: HarnessOptions = {}): { records: QuietRecord[]; run: RenderSentinelRun } {
-  const records: QuietRecord[] = []
-  const run = new RenderSentinelRun({
+function harness(options: HarnessOptions = {}): { records: SilentRecord[]; run: RenderSentinelSampler } {
+  const records: SilentRecord[] = []
+  const run = new RenderSentinelSampler({
     ...(options.thresholdMs === undefined ? {} : { thresholdMs: options.thresholdMs }),
-    ...(options.pollMs === undefined ? {} : { pollMs: options.pollMs }),
     ...(options.windowDestroyed === undefined ? {} : { isWindowDestroyed: options.windowDestroyed }),
     ...(options.rendererDestroyed === undefined ? {} : { isRendererDestroyed: options.rendererDestroyed }),
     onQuiet: (record) => records.push(record),
@@ -41,7 +34,7 @@ function harness(options: HarnessOptions = {}): { records: QuietRecord[]; run: R
 }
 
 describe('渲染层哨兵接线（工单94）', () => {
-  const runs: RenderSentinelRun[] = []
+  const runs: RenderSentinelSampler[] = []
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
@@ -52,7 +45,7 @@ describe('渲染层哨兵接线（工单94）', () => {
   })
 
   /** 起一个哨兵并登记到 afterEach 统一 dispose（省得每个用例自己收尾） */
-  function start(options: HarnessOptions = {}): { records: QuietRecord[]; run: RenderSentinelRun } {
+  function start(options: HarnessOptions = {}): { records: SilentRecord[]; run: RenderSentinelSampler } {
     const h = harness(options)
     runs.push(h.run)
     return h
@@ -101,7 +94,7 @@ describe('渲染层哨兵接线（工单94）', () => {
     ])
   })
 
-  it('恢复标记的口径：落定存证之后收到过心跳才带——首条（哨兵起至今没见过心跳）不带，此后每轮都带', () => {
+  it('恢复标记的口径：自上次落定以来收到过心跳才带——首条（哨兵起至今没见过心跳）不带，此后每轮都带', () => {
     const { records, run } = start()
 
     vi.advanceTimersByTime(6000)
@@ -133,7 +126,8 @@ describe('渲染层哨兵接线（工单94）', () => {
   it('本轮只落静默档：裁决升级失能时也不落存证（失能发射判据属 #91 验收口径，工单94 明写不落代码）', () => {
     const { records } = start({ thresholdMs: 1000 })
 
-    vi.advanceTimersByTime(30000) // 阈值 1s 早已过；若接线自造 escalate 档，这里会多出第二条
+    // 阈值 1s：第 1 拍落静默存证，此后每拍都判成 escalate（不是不可达），但一律不落盘。
+    vi.advanceTimersByTime(30000)
     expect(records).toEqual([{ quietMs: 2000, recovered: false }])
   })
 
@@ -157,8 +151,8 @@ describe('哨兵口径常量（工单94：5 秒阈值一个数不动）', () => 
 
   it('默认接线就按这两个常量采（构造时不给阈值也不改变落存证的拍点）', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
-    const records: QuietRecord[] = []
-    const run = new RenderSentinelRun({ onQuiet: (r) => records.push(r) })
+    const records: SilentRecord[] = []
+    const run = new RenderSentinelSampler({ onQuiet: (r) => records.push(r) })
     try {
       vi.advanceTimersByTime(4000)
       expect(records).toEqual([])

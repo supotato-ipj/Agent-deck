@@ -5,7 +5,7 @@ import type { BridgeEventName, BridgeMethod, HotzoneRect } from '../shared/contr
 import type { BridgeService } from './services/bridge'
 import type { HotzoneTracker } from './hotzone'
 import { pinToBottom } from './win32'
-import { RenderSentinelRun } from './render-sentinel-run'
+import { RenderSentinelSampler } from './render-sentinel-sampler'
 
 /** 存证事件日志：验收电池经 DECK_EVENT_LOG 环境变量启用，主进程关键行为逐行落盘。 */
 export interface EventLog {
@@ -124,7 +124,7 @@ function wireRenderSentinel(win: BrowserWindow, log: EventLog | null): void {
   wc.on('render-process-gone', (_e, d) => log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode }));
   if (!log) return;
   // 心跳：靠渲染层真实上行（热区声明/存证）计时，不另加定时器——渲染层死了就没有心跳
-  const sentinel = new RenderSentinelRun({
+  const sentinel = new RenderSentinelSampler({
     onQuiet: ({ quietMs, recovered }) => log.append({
       type: 'renderer-stall',
       quietMs,
