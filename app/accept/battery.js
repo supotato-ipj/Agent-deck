@@ -1050,6 +1050,28 @@ async function main() {
       ? rep.pass(`时钟卡数据经桥接契约自内核而来并持续走时（${renders.length} 次渲染，epoch 递增）`)
       : rep.fail(`时钟卡未证实内核推送（clock-rendered 存证 ${renders.length} 条）`);
 
+    // —— 工单99 日历卡成包：挂载存证 + 月网格内容抽验（轻探针，时钟探针同款纪律）——
+    // 插件异步挂载：先等 calendar-card 出现在热区声明那一拍再判（10b 真机踩过的坑）。
+    const calZones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'calendar-card'));
+    const calZone = calZones && (calZones.rects || []).find((r) => r.id === 'calendar-card');
+    calZone
+      ? rep.pass(`热区声明：日历卡由插件包渲染并上报 calendar-card rel(${calZone.x},${calZone.y}) ${calZone.w}x${calZone.h}`)
+      : rep.fail('渲染层未上报 calendar-card 热区（日历未成包或插件未挂载）');
+    const calEvt = await waitEvent('calendar-rendered', (e) => typeof e.ym === 'string' && /^\d{4}-\d{2}$/.test(e.ym), 8000);
+    if (!calEvt) {
+      rep.fail('日历卡：未收到 calendar-rendered 存证（插件未渲染月网格）');
+    } else {
+      // 内容抽验：电池自 epochMs 独立重算同一推导对照——标题=合法 YYYY-MM、
+      // 周一首列空位数与当月天数与存证载荷一致（渲染层无 DOM 通道，以存证自证）。
+      const cd = new Date(calEvt.epochMs);
+      const expYm = `${cd.getFullYear()}-${String(cd.getMonth() + 1).padStart(2, '0')}`;
+      const expLead = (new Date(cd.getFullYear(), cd.getMonth(), 1).getDay() + 6) % 7;
+      const expDays = new Date(cd.getFullYear(), cd.getMonth() + 1, 0).getDate();
+      calEvt.ym === expYm && calEvt.lead === expLead && calEvt.days === expDays
+        ? rep.pass(`日历卡：月网格自快照时钟段推导正确（${calEvt.ym}，周一首列 ${calEvt.lead} 空位 + ${calEvt.days} 天）`)
+        : rep.fail(`日历卡月网格抽验不符：ym=${calEvt.ym}（期望 ${expYm}）、lead=${calEvt.lead}（期望 ${expLead}）、days=${calEvt.days}（期望 ${expDays}）`);
+    }
+
     w32.moveMousePhys(safePt.x, safePt.y);
     const exAfterLeave = await (async () => {
       const deadline = Date.now() + 1500;
@@ -5422,13 +5444,14 @@ async function main() {
       const dest = path.join(pluginsDir, 'hello');
       const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
       try {
-        // 0. 内置四卡自举：四个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        // 0. 内置卡自举：四个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        //    工单99 日历成包，内置清单随之扩到四张（时钟/天气/会话/日历）。
         //    事件按面板代次取（lastBootMs 之后）：事件文件跨重启不清，上一任面板的
         //    plugin-mounted 留着会让本段假通过。
         const since = lastBootMs();
-        const builtinIds = ['clock', 'weather', 'sessions'];
+        const builtinIds = ['clock', 'weather', 'sessions', 'calendar'];
         const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id, since));
-        // 观感一致性的机器可查部分：三张卡都进了热区声明（都在场、都在点击穿透模型里），
+        // 观感一致性的机器可查部分：四张卡都进了热区声明（都在场、都在点击穿透模型里），
         // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
         // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
         const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
@@ -5439,10 +5462,10 @@ async function main() {
           && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
           && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
         builtinMounted.length === builtinIds.length && zonesOk && geomOk
-          ? rep.pass(`桌面组件·内置三卡自举：${builtinIds.join('/')} 三张信息卡均经插件契约装载渲染，`
-            + `且三张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
+          ? rep.pass(`桌面组件·内置四卡自举：${builtinIds.join('/')} 四张信息卡均经插件契约装载渲染，`
+            + `且四张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
             + `像素级观感按惯例人工核验 04-cards-*.png）`)
-          : rep.fail(`桌面组件·内置三卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
+          : rep.fail(`桌面组件·内置四卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
             + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/') || '无'}）；`
             + `热区声明 ${zonesOk ? '齐' : `缺 ${builtinIds.filter((i) => !cardZones.has(`${i}-card`)).join('/') || '无'}`}；`
             + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);
