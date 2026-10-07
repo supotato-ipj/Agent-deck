@@ -318,10 +318,19 @@ function scanAmberInTray(tag) {
 }
 
 // —— 桌面清场：逐窗最小化，退出时精确还原（工单01 探针同法）——
+// 壳层/桌面层窗类清单同族三份、生效集刻意互异，勿顺手统一（评审修正：收拢声明并指认差异）：
+//   • CLEAR_DESKTOP_SKIP（此处，清场跳过集）：桌面宿主 + 任务栏 + UWP 壳窗——最小化无意义/不该动，
+//     清场与 z 序取证一律跳过；
+//   • DESKTOP_HIT_CLASSES（此处，「点即桌面」判定集）：仅桌面宿主四类——工单05 起 P3 前台断言的
+//     成功集，工单34 借作 P3 空区清场的停清条件（点在任务栏/UWP 壳窗上不构成「穿透直达桌面」，
+//     故刻意缺 Shell_TrayWnd/Shell_SecondaryTrayWnd/CoreWindow；增设缘起见 docs/accept-occlusion-audit.md 03 P3 行）；
+//   • PREFLIGHT_SHELL_CLASSES（panel-control.js，preflight 壳层白名单）：桌面宿主 + 任务栏 + DefView 族，
+//     服务「非污染/非用户活动」分类，与清场判定语义无关。
 const CLEAR_DESKTOP_SKIP = new Set([
   'Progman', 'WorkerW', 'Shell_TrayWnd', 'Shell_SecondaryTrayWnd',
   'Windows.UI.Core.CoreWindow', 'Windows.Internal.Shell.TabProxyWindow',
 ]);
+const DESKTOP_HIT_CLASSES = new Set(['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32']);
 const SW_MINIMIZE = 6, SW_RESTORE = 9;
 let minimizedForRestore = [];
 
@@ -329,7 +338,7 @@ async function clearDesktop(points, f) {
   const isDesktopAt = (pt) => {
     if (!pt) return true;
     const cls = win32.className(win32.windowFromPointRoot(pt));
-    return ['WorkerW', 'Progman', 'SHELLDLL_DefView', 'SysListView32'].includes(cls);
+    return DESKTOP_HIT_CLASSES.has(cls);
   };
   minimizedForRestore = [];
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -350,6 +359,26 @@ function restoreDesktop() {
     try { if (win32.IsWindow(h)) win32.ShowWindow(h, SW_RESTORE); } catch { /* 尽力还原 */ }
   }
   minimizedForRestore = [];
+}
+
+// 覆盖窗清场共享内核（评审修正：P2 清场重试环 / P3 空区清场 / ensurePanelHit 三处同形步骤
+// 收口，各调用点行为逐字节保留——清单差异与站点语义见上方清单注、下方判定注）。
+// 普通覆盖窗处置：记入退出还原清单（去重防重复入列）+ 最小化。
+function minimizeCoverForRestore(root) {
+  if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
+  win32.ShowWindow(root, SW_MINIMIZE);
+}
+// 单窗分类处置：Ghost/置顶层 → ESC 收层撤会话（最小化对它们无效——Ghost 是 OLE 拖拽自绘
+// 顶层窗、shell 浮层是 TOPMOST），其余普通覆盖窗最小化入还原清单。前置：调用方已排除
+// 桌面层（按站点取 CLEAR_DESKTOP_SKIP 或 DESKTOP_HIT_CLASSES）与面板本体。P2/P3 清场环
+// 共用；ensurePanelHit 刻意不走此判定——它对 Ghost 用 cancelDragGhost（ESC+抬起拖拽按键）
+// 且收层后仍最小化、置顶层也最小化入列（工单11 原始语义），与 P2/P3 的工单34 语义有意不同。
+function collapseOrMinimize(root, cls) {
+  if (cls === 'Ghost' || (win32.GetWindowLongW(root, win32.GWL_EXSTYLE) & win32.WS_EX_TOPMOST)) {
+    win32.tapKeys([0x1b]);
+    return;
+  }
+  minimizeCoverForRestore(root);
 }
 
 // —— 遮挡感知交互前置（工单11）：交互落点必须真被本面板接收——电池一跑数分钟，
@@ -494,8 +523,7 @@ async function ensurePanelHit(pt, hwnd) {
         } catch { /* 尽力 */ }
       }
     }
-    if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
-    win32.ShowWindow(root, SW_MINIMIZE);
+    minimizeCoverForRestore(root); // Ghost 收层（上方 cancelDragGhost）后仍最小化入列；置顶层同款——工单11 原始语义
     await sleep(700);
   }
   const cls = win32.className(Number(win32.windowFromPointRoot(pt)));
@@ -722,7 +750,7 @@ async function main() {
   // ADR-0011 警示语义同构）——检出=发起时刻机器有用户活动迹象，供轮中抬窗定责对读。
   try {
     const probes = preflightProbes();
-    const entries = classifyPreflight(probes).concat(classifyUserWindowActivity(probes.rows));
+    const entries = classifyPreflight(probes).concat(classifyUserWindowActivity(probes)); // 两分类器同缝收整个 probes
     if (entries.length === 0) rep.note('preflight 环境体检：五类污染源均不在场');
     else for (const e of entries) rep.note(`preflight 环境体检［${e.kind}］${e.detail}`);
   } catch (e) { rep.note(`preflight 环境体检异常（不拒跑）: ${e && e.message}`); }
@@ -1012,13 +1040,7 @@ async function main() {
         if (CLEAR_DESKTOP_SKIP.has(cls)) continue; // 桌面层：最小化无意义，交由断言如实判
         const pid = w32.threadIdOf(root).pid;
         if (pid === panelPid) continue; // 面板本体：不碰（面板只遮屏不遮断言，穿透区本不该中落点）
-        if (cls === 'Ghost' || (w32.GetWindowLongW(root, w32.GWL_EXSTYLE) & w32.WS_EX_TOPMOST)) {
-          w32.tapKeys([0x1b]); // OLE 拖拽幽灵 / shell 浮层：收层撤会话（最小化对它们无效）
-          cleared = true;
-          continue;
-        }
-        if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
-        w32.ShowWindow(root, SW_MINIMIZE);
+        collapseOrMinimize(root, cls); // Ghost/TOPMOST → ESC 收层撤会话，其余最小化入还原清单
         cleared = true;
       }
       if (!cleared) break; // 无可清者（带几何异常）：不空转，交由断言如实判
@@ -1146,21 +1168,16 @@ async function main() {
       for (let i = 0; i < 3; i++) {
         const root = Number(w32.windowFromPointRoot(emptyPhys));
         const cls = root ? w32.className(root) : '';
-        if (!root || ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(cls)) break;
+        if (!root || DESKTOP_HIT_CLASSES.has(cls)) break; // 点即桌面（清单刻意窄，见其注）：在位即放行
         if (w32.threadIdOf(root).pid === panelPid) break; // 面板本体不该中空区落点：出现即穿透已破，如实判
-        if (cls === 'Ghost' || (w32.GetWindowLongW(root, w32.GWL_EXSTYLE) & w32.WS_EX_TOPMOST)) {
-          w32.tapKeys([0x1b]);
-        } else {
-          if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
-          w32.ShowWindow(root, SW_MINIMIZE);
-        }
+        collapseOrMinimize(root, cls); // Ghost/TOPMOST → ESC 收层撤会话，其余最小化入还原清单
         await sleep(700);
       }
       w32.clickPhys(emptyPhys.x, emptyPhys.y, 'left');
       await sleep(500);
       const fg = w32.GetForegroundWindow();
       const fgCls = w32.className(fg);
-      ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(fgCls)
+      DESKTOP_HIT_CLASSES.has(fgCls) // 前台断言成功集 = 「点即桌面」清单本体（同源，见其注）
         ? rep.pass(`默认穿透：面板空区点击直达桌面（前台翻转为 ${fgCls}）`)
         : rep.fail(`面板空区点击未直达桌面：前台=0x${fg.toString(16)}(${fgCls})`);
       w32.clickPhys(emptyPhys.x, emptyPhys.y, 'right');

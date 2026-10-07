@@ -52,14 +52,14 @@ describe('preflight 四类污染源分类（注入假探测结果）', () => {
   })
 })
 
-describe('preflight 第五类：用户窗口活跃度（工单34 方向3，输入=窗口枚举快照）', () => {
+describe('preflight 第五类：用户窗口活跃度（工单34 方向3，输入=probes.rows 快照行，与 classifyPreflight 同缝收整个 probes）', () => {
   const row = (over: object = {}) => ({
     cls: 'Notepad', title: '无标题 - 记事本', pid: 5000, selfPid: 1000,
     visible: true, cloaked: false, foreground: false, ...over,
   })
 
   it('检出：前台是可见的普通用户应用窗 → user-window-activity，detail 指认 cls/pid', () => {
-    const entries = classifyUserWindowActivity([row({ foreground: true }), row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1000 })])
+    const entries = classifyUserWindowActivity({ rows: [row({ foreground: true }), row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1000 })] })
     expect(entries).toHaveLength(1)
     expect(entries[0].kind).toBe('user-window-activity')
     expect(entries[0].detail).toContain('cls=Notepad')
@@ -68,29 +68,30 @@ describe('preflight 第五类：用户窗口活跃度（工单34 方向3，输�
 
   it('未检出：前台是壳层桌面宿主/任务栏（用户停在桌面，无应用活动）', () => {
     for (const cls of ['Progman', 'WorkerW', 'Shell_TrayWnd', 'SHELLDLL_DefView', 'SysListView32']) {
-      expect(classifyUserWindowActivity([row({ cls, title: '', foreground: true })])).toEqual([])
+      expect(classifyUserWindowActivity({ rows: [row({ cls, title: '', foreground: true })] })).toEqual([])
     }
   })
 
   it('未检出：前台是电池自家窗（selfPid 命中或 OWN_TITLES 命中）——自家现场不算用户活动', () => {
     expect(PREFLIGHT_OWN_TITLES).toContain('AGENT DECK')
-    expect(classifyUserWindowActivity([row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1000, foreground: true })])).toEqual([])
-    expect(classifyUserWindowActivity([row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK ACCEPT HINT', pid: 1000, foreground: true })])).toEqual([])
-    expect(classifyUserWindowActivity([row({ pid: 1000, foreground: true })])).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1000, foreground: true })] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK ACCEPT HINT', pid: 1000, foreground: true })] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ pid: 1000, foreground: true })] })).toEqual([])
   })
 
   it('未检出：前台 cloaked（不可见合成）或不可见', () => {
-    expect(classifyUserWindowActivity([row({ foreground: true, cloaked: true })])).toEqual([])
-    expect(classifyUserWindowActivity([row({ foreground: true, visible: false })])).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ foreground: true, cloaked: true })] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ foreground: true, visible: false })] })).toEqual([])
   })
 
-  it('未检出：快照无前台行 / 空快照 / 缺省不抛', () => {
-    expect(classifyUserWindowActivity([row()])).toEqual([])
-    expect(classifyUserWindowActivity([])).toEqual([])
+  it('未检出：快照无前台行 / 空快照 / probes 无 rows / 缺省不抛', () => {
+    expect(classifyUserWindowActivity({ rows: [row()] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [] })).toEqual([])
+    expect(classifyUserWindowActivity({})).toEqual([])
     expect(classifyUserWindowActivity()).toEqual([])
   })
 
   it('未检出：Ghost 前台（OLE 幽灵归既有 dwm-ghost 类，不重复入账）', () => {
-    expect(classifyUserWindowActivity([row({ cls: 'Ghost', title: '', pid: 940, foreground: true })])).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ cls: 'Ghost', title: '', pid: 940, foreground: true })] })).toEqual([])
   })
 })

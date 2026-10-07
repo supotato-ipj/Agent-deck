@@ -65,7 +65,7 @@ export declare interface PreflightEntry {
   detail: string
 }
 
-/** preflight 探测行（battery.js 从 win32 枚举产出后注入） */
+/** preflight 探测行（battery.js 从 win32 枚举产出后注入；rows 供第五类分类消费） */
 export declare interface PreflightProbes {
   /** 面板本体窗（findPanelWindows 产出；exeQueryable=进程镜像可查询） */
   panelWindows?: (ClassifiedWindow & { exeQueryable?: boolean })[]
@@ -73,6 +73,8 @@ export declare interface PreflightProbes {
   ghostWindows?: { cls: string; pid: number }[]
   /** 壳层白名单外的全屏可见未 cloaked 窗（cua 覆盖层候选） */
   fullscreenForeign?: { cls: string; pid: number; title?: string }[]
+  /** 可见窗快照原样行（工单34 第五类输入；classifyPreflight 不读） */
+  rows?: WindowSnapshotRow[]
 }
 
 /** preflight 环境体检分类（工单113）：四类污染源 → 警示条目；无污染返回空数组 */
@@ -96,5 +98,6 @@ export declare interface WindowSnapshotRow {
 
 /** preflight 第五类分类（工单34 方向3）：用户窗口活跃度——前台被普通用户应用窗占据
  * 即检出（恰一条 user-window-activity）；壳层静态件/Ghost/cloaked/自家窗在场均未检出；
- * 快照无前台行=未检出。警示入账不拒跑、不进三路计数（ADR-0011 同构）。 */
-export declare function classifyUserWindowActivity(rows?: WindowSnapshotRow[]): PreflightEntry[]
+ * probes.rows 无前台行/缺省=未检出。入参与 classifyPreflight 同缝（整个 probes 对象）。
+ * 警示入账不拒跑、不进三路计数（ADR-0011 同构）。 */
+export declare function classifyUserWindowActivity(probes?: PreflightProbes): PreflightEntry[]
