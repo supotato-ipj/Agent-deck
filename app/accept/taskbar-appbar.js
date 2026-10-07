@@ -18,9 +18,10 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
+// config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
+const { readConfigRaw, patchTaskbar, restoreConfig } = require('./lib/battery-config');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '51-taskbar-appbar-events.jsonl');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
@@ -158,14 +159,6 @@ function setDisplayMode(buf) {
   return ChangeDisplaySettingsW(buf, 0) === DISP_CHANGE_SUCCESSFUL;
 }
 
-/** 覆写 config.json 的 taskbar.enabled（保留其余字段原文档位；worktree 里文件可缺位——
- * 缺位写最小段，loadConfig 其余段走默认合并） */
-function writeTaskbarEnabled(enabled) {
-  const json = fs.existsSync(CONFIG_FILE) ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) : {};
-  json.taskbar = { ...(json.taskbar ?? {}), enabled };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
-}
-
 function launchPanelAccept() {
   return spawn(process.execPath, ['.', '--panel-accept'], {
     cwd: APP_ROOT,
@@ -176,7 +169,7 @@ function launchPanelAccept() {
 
 async function main() {
   const rep = new Report('51-taskbar-appbar');
-  const originalConfig = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+  const originalConfig = readConfigRaw();
   const originalMode = currentDisplayMode();
   let child = null;
   let panelPid = 0;
@@ -189,7 +182,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    writeTaskbarEnabled(true);
+    patchTaskbar({ enabled: true });
     // guard 拿槽时会强杀常驻面板，其藏下的原生任务栏由还原守护在数秒内翻回——
     // 先等守护/兜底把现场收干净，再校验出发态（不从不属于自己的隐藏态出发）。
     await waitMs(() => nativeTaskbarVisible(), 10000);
@@ -359,8 +352,7 @@ async function main() {
       } catch { /* 尽力 */ }
       await sleep(500);
       try { ensureNativeTaskbarVisible(); } catch { /* 兜底中的兜底也不许抛 */ }
-      if (originalConfig !== null) { try { fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8'); } catch { /* 尽力 */ } }
-      else { try { fs.unlinkSync(CONFIG_FILE); } catch { /* 缺位来、缺位去 */ } }
+      try { restoreConfig(originalConfig); } catch { /* 尽力（三态还原，工单124） */ }
       try {
         (await waitMs(() => nativeTaskbarVisible(), 5000)) >= 0
           ? rep.note('清场核验：原生任务栏可见')
