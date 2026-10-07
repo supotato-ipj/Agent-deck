@@ -15,6 +15,7 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
+const { createPanelControl, findPanelWindows, classifyPreflight } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
@@ -451,11 +452,25 @@ async function ensurePanelHit(pt, hwnd) {
     }
     const root = Number(win32.windowFromPointRoot(pt));
     if (root === Number(hwnd)) {
+      // 工单112：命中面板 ≠ 面板健康——停摆的窗不收窗消息但仍中落点。命中即探活，
+      // 假死走自愈（首跑二次停摆被「命中即健康」短路放过的形态，见工单110 现场记录）。
+      const live = panelLiveness(hwnd);
+      if (live.startsWith('主线程假死')) {
+        const healed = healHungPanel ? await healHungPanel() : false;
+        if (healed) return { ok: false, why: '落点命中面板但主线程假死→已重启面板，本段跳过' };
+      }
       if (onPanelHealthy) onPanelHealthy(); // 落点命中面板=重启健康验证（工单110：闭合排除窗）
       return { ok: true };
     }
     const cls = win32.className(root);
     if (CLEAR_DESKTOP_SKIP.has(cls)) {
+      // 工单112：命中桌面层也可能是面板停摆退到了桌面层之下——先探活再下「残留」结论，
+      // 别把二次停摆说成 show desktop 残留（工单110 现场发现的漏检点）。
+      const live = panelLiveness(hwnd);
+      if (live.startsWith('主线程假死')) {
+        const healed = healHungPanel ? await healHungPanel() : false;
+        if (healed) return { ok: false, why: '面板主线程假死→已重启面板，本段跳过' };
+      }
       return { ok: false, why: `落点命中桌面层 ${cls}（show desktop 态残留或面板未在屏）` };
     }
     if (cls === 'Ghost') {
@@ -602,6 +617,37 @@ function windowTitle(hwnd) {
   return s;
 }
 
+// —— 工单113 preflight 探测：四类污染源的原始行产出（分类在 panel-control.classifyPreflight，
+// 注入式纯函数可单测）。全屏判定 = 矩形覆盖虚拟屏 ≥95% 且可见、未 cloaked、非壳层白名单；
+// cloaked 滤除壳宿主常驻「全屏」窗（Start/搜索宿主等）的常态误报源。
+const PREFLIGHT_SHELL_CLASSES = new Set(['Progman', 'WorkerW', 'Shell_TrayWnd', 'SHELLDLL_DefView', 'SysListView32']);
+const PREFLIGHT_OWN_TITLES = new Set(['AGENT DECK', 'AGENT DECK ACCEPT HINT', 'DECK-TASKBAR']);
+function preflightProbes() {
+  const vs = win32.virtualScreen();
+  const screenArea = Math.max(1, vs.w * vs.h);
+  const rows = [];
+  for (const h of win32.topLevelWindows()) {
+    try {
+      const pid = win32.threadIdOf(h).pid;
+      rows.push({
+        cls: win32.className(h), title: windowTitle(h), pid, selfPid: process.pid,
+        rect: win32.rectOf(h), visible: !!win32.IsWindowVisible(h), cloaked: win32.isCloaked(h),
+        exeQueryable: win32.exeOfPid(pid) !== '',
+      });
+    } catch { /* 已销毁：跳过 */ }
+  }
+  const vis = rows.filter((r) => r.visible);
+  const fullscreenForeign = vis.filter((r) => !PREFLIGHT_SHELL_CLASSES.has(r.cls)
+    && r.cls !== 'Ghost' && !PREFLIGHT_OWN_TITLES.has(r.title)
+    && r.rect && (r.rect.right - r.rect.left) * (r.rect.bottom - r.rect.top) >= screenArea * 0.95
+    && !r.cloaked);
+  return {
+    panelWindows: findPanelWindows(vis).map((p) => ({ ...p, exeQueryable: (rows.find((r) => r.pid === p.pid) || {}).exeQueryable })),
+    ghostWindows: vis.filter((r) => r.cls === 'Ghost'),
+    fullscreenForeign,
+  };
+}
+
 // 直连真实 Listary 引擎（旧电池 engine_has_probe_first 平移）：探针文件入索引且排首位。
 // 路径比对用 realpath + basename：os.tmpdir() 可能返回 8.3 短名（ANW~1），Listary 报长名。
 function engineProbeFirst(word, probePath, token) {
@@ -659,6 +705,14 @@ async function main() {
   const rep = new Report('03-battery', { scope: acceptScope });
   if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（段注册表未填充前，未注册段号告警不阻断）`);
   const w32 = win32;
+  // —— 工单113 preflight 环境体检：四类已知污染源探测，警示入账不拒跑——本机覆盖层
+  // 是常态在场，拒跑会把验收永久卡死。FAIL-ENV 的环境定责从报告第一行起就有证据链。
+  // 体检自身异常也只入账不中断（探测是增益，不是电池的前置条件）。
+  try {
+    const entries = classifyPreflight(preflightProbes());
+    if (entries.length === 0) rep.note('preflight 环境体检：四类污染源均不在场');
+    else for (const e of entries) rep.note(`preflight 环境体检［${e.kind}］${e.detail}`);
+  } catch (e) { rep.note(`preflight 环境体检异常（不拒跑）: ${e && e.message}`); }
   const si = screenInfo();
   const f = si.factor;
   rep.note(`screen: phys ${si.phys.w}x${si.phys.h} @ factor ${f}`);
@@ -713,23 +767,17 @@ async function main() {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  // 工单112：强退序列换面板控制模块（seam②）——优雅终止 → 整树强杀 → 有界等待并
+  // **验证进程确实消失**。现状缺的正是验证这一环：taskkill /F 后不确认消失就放行重启，
+  // 停摆面板存活 → 新面板被单实例守卫拒收 → 缓存互锁/托盘竞争成片失真。验证消失后
+  // 放行重启，验证失败就不让污染继续（决策→后果的接线在调用方：heal 中止后续段，清场入账）。
+  const panelControl = createPanelControl();
   const stopPanel = async () => {
-    if (!child && !panelPid) return;
-    try { child && child.kill(); } catch { /* 尽力 */ }
-    await sleep(800);
-    let alive = false;
-    for (const pid of [child && child.pid, panelPid].filter(Boolean)) {
-      try { process.kill(pid, 0); alive = true; } catch { /* 已退出 */ }
-    }
-    if (alive) {
-      // Electron 有 GPU/工具子进程，兜底整树强杀
-      const { spawnSync } = require('child_process');
-      for (const pid of [child && child.pid, panelPid].filter(Boolean)) {
-        spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
-      }
-    }
+    if (!child && !panelPid) return { gone: true, graceful: true, forced: false, pidsLeft: [], outcome: 'idle' };
+    const res = await panelControl.stop({ pids: [child && child.pid, panelPid].filter(Boolean), child });
     child = null;
     panelPid = null;
+    return res;
   };
   try {
     // —— P1 启动面板（子进程，存证事件落盘）——
@@ -750,7 +798,16 @@ async function main() {
       // 连带其后「无面板可用」的失败全数环境降责——环境噪声不再污染 verdict。
       rep.beginEnvWindow('面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信', 'panel-stall');
       rep.exclude('面板主线程假死（WM_NULL 超时）：已重启面板继续跑，停摆检出至重启健康验证之间的失败断言记环境降责', '面板主线程假死（WM_NULL 超时）', 'panel-stall');
-      await stopPanel();
+      const stopped = await stopPanel();
+      if (!stopped.gone) {
+        // 工单112：强退后仍存活 = 需重启清障——入环境降责账并**中止后续段**（借主
+        // try/catch 汇流：异常落在停摆排除窗内自动环境降责，轮末 verdict=FAIL-ENV）。
+        // 被污染的轮次（双面板并存）不再产出误导性 verdict。
+        rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障，后续段中止`, '面板强退序列未能终结面板进程（#107 遗留进程形态）', 'panel-forcekill');
+        const err = new Error('面板强退失败：需重启清障——后续段中止');
+        err.clearanceRequired = true;
+        throw err;
+      }
       child = launchPanel();
       child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
       const nh = await waitPanelWindow(20000, Date.now() - 1500); // sinceMs 必给：事件文件里还留着上一实例的 boot
@@ -5637,7 +5694,22 @@ async function main() {
     }
     for (const p of deckProbeFiles) { try { fs.unlinkSync(p); } catch { /* 已不在盘上 */ } }
     deckProbeFiles = [];
-    await stopPanel();
+    // 工单112：收尾清场换面板控制模块——强退后验证消失；「需重启清障」只入账不中止
+    // （清场不掩盖真结局），随后窗枚举核验无任何遗留面板本体窗（双面板级联的末道闸）。
+    const cleared = await stopPanel();
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill');
+    }
+    try {
+      const leftover = findPanelWindows(w32.topLevelWindows().map((h) => {
+        let cls = '?', title = '', pid = 0;
+        try { cls = w32.className(h); title = windowTitle(h); pid = w32.threadIdOf(h).pid; } catch { /* 已销毁 */ }
+        return { cls, title, pid, selfPid: process.pid };
+      }));
+      leftover.length === 0
+        ? rep.note('清场核验：无遗留面板本体窗')
+        : rep.exclude(`清场核验：仍有 ${leftover.length} 扇面板本体窗在场（pid=${leftover.map((c) => c.pid).join(', ')}）——需重启清障`, '收尾清场后面板窗仍存在', 'panel-leftover');
+    } catch (e) { rep.note(`清场核验·窗枚举异常: ${e && e.message}`); }
     // 工单05 清场核验：面板被 /F 清杀时守卫无还原路径（还原依赖存活），图标若仍隐藏则走
     // --icon-restore 自救通道回到电池前状态（电池不得改变用户原生偏好）
     try {
