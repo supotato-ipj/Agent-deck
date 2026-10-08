@@ -33,16 +33,16 @@ const WAKE_WINDOW_MS = 10000; // 冻结后有界等待：让迟到的 main-lag �
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseArgs(argv) {
-  const out = { arm: null, round: 1, seconds: 240, wind: false, tag: '1a' };
+  const out = { arm: null, round: 1, seconds: 240, wind: false, tag: '1a', taskbar: 'off' };
   for (const a of argv.slice(argv.indexOf('--accept-stall-duel') + 1)) {
-    const m = /^--(arm|round|seconds|tag)=(.+)$/.exec(a);
+    const m = /^--(arm|round|seconds|tag|taskbar)=(.+)$/.exec(a);
     if (m) out[m[1]] = m[2];
     if (a === '--wind') out.wind = true;
   }
   out.round = Number(out.round) || 1;
   out.seconds = Number(out.seconds) || 240;
-  if (out.arm !== 'kb' && out.arm !== 'sys') {
-    throw new Error('--arm=kb|sys 必填（A 臂=键盘模式定向，B 臂=系统竞争对照）');
+  if (out.arm !== 'kb' && out.arm !== 'sys' && out.arm !== 'raw' && out.arm !== 'still' && out.arm !== 'bare') {
+    throw new Error('--arm=kb|sys|raw|still|bare 必填（raw=去CDP裸负载，still=纯探针，bare=零接触终局对照）');
   }
   return out;
 }
@@ -67,6 +67,30 @@ function windowTitle(hwnd) {
   return s;
 }
 
+/** 冻结主进程 minidump：线程栈 + 上下文入盘（MiniDumpNormal）。零外部依赖（koffi 直调
+ * dbghelp），事后用 python minidump 库做模块归属——冻结点在哪个模块（win32u64/combase/
+ * electron/node）一翻便知，黑盒推不动时的最后实证手段。尽力而为，失败不碍轮账。 */
+const kernel32duel = win32.koffi.load('kernel32.dll');
+const dbghelp = win32.koffi.load('dbghelp.dll');
+const OpenProcess = kernel32duel.func('uintptr_t __stdcall OpenProcess(uint32 dwDesiredAccess, bool bInheritHandle, uint32 dwProcessId)');
+const CreateFileW = kernel32duel.func('uintptr_t __stdcall CreateFileW(const char16_t* lpFileName, uint32 dwDesiredAccess, uint32 dwShareMode, void* lpSecurityAttributes, uint32 dwCreationDisposition, uint32 dwFlagsAndAttributes, uintptr_t hTemplateFile)');
+const CloseHandle = kernel32duel.func('bool __stdcall CloseHandle(uintptr_t hObject)');
+const MiniDumpWriteDump = dbghelp.func('bool __stdcall MiniDumpWriteDump(uintptr_t hProcess, uint32 ProcessId, uintptr_t hFile, uint32 DumpType, void* ExceptionParam, void* UserStreamParam, void* CallbackParam)');
+function dumpFrozenMain(pid, outFile) {
+  const hProc = Number(OpenProcess(0x0410, false, pid)); // QUERY_INFORMATION | VM_READ
+  if (!hProc) throw new Error(`OpenProcess(${pid}) 失败`);
+  const hFile = Number(CreateFileW(outFile, 0x40000000, 0, null, 2, 0x80, 0)); // GENERIC_WRITE, CREATE_ALWAYS, NORMAL
+  try {
+    if (!hFile || hFile === -1) throw new Error('CreateFileW 失败');
+    const ok = MiniDumpWriteDump(hProc, pid, hFile, 0, null, null, null); // MiniDumpNormal：含线程栈与上下文
+    if (!ok) throw new Error(`MiniDumpWriteDump 失败 gle=${kernel32duel.GetLastError?.() ?? '?'}`);
+    return outFile;
+  } finally {
+    if (hFile && hFile !== -1) CloseHandle(hFile);
+    CloseHandle(hProc);
+  }
+}
+
 /** 面板活体探针（battery.panelLiveness 同款）：true=在泵消息 */
 function panelAlive(hwnd) {
   try {
@@ -77,7 +101,14 @@ function panelAlive(hwnd) {
 
 /** CDP evaluate（taskbar.js cdpEval 同款：每次新连接，8s 超时） */
 async function cdpEval(expression) {
-  const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+  // fetch 必须有界：面板主进程冻结时 CDP HTTP 端点不再应答，无界 fetch 会把驱动循环
+  // 挂死到轮末（r1-kb 实证）——观测者不能比被测物先死。
+  const ac = new AbortController();
+  const fetchTimer = setTimeout(() => ac.abort(), 3000);
+  let targets;
+  try {
+    targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`, { signal: ac.signal })).json();
+  } finally { clearTimeout(fetchTimer); }
   const target = targets.find((t) => t.title === 'AGENT DECK');
   if (!target) throw new Error('CDP 找不到面板页目标');
   const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -109,6 +140,18 @@ async function main() {
   const hlog = [];
   const h = (ev) => { hlog.push({ t: Date.now(), ...ev }); };
 
+  // —— taskbar 配置覆写（主电池 battery.js:775 同款纪律）：默认 off 对齐主电池跑法。
+  // r1 轮实证：默认配置 taskbar.enabled=true（config.ts defaultTaskbar），任务栏链
+  // （AppBar 注册/500ms 置顶 keepalive/1Hz 枚举/条带渲染层）在场与否是停摆实验的
+  // 生死级变量——不控制它，任何臂间对照都被它污染。
+  const configFile = path.join(APP_ROOT, 'config.json');
+  let configBackup = null;
+  if (fs.existsSync(configFile)) configBackup = fs.readFileSync(configFile, 'utf8');
+  const cfgNow = (() => { try { return JSON.parse(configBackup ?? '{}'); } catch { return {}; } })();
+  const cfgNext = { ...cfgNow, taskbar: { ...(cfgNow.taskbar ?? {}), enabled: args.taskbar === 'on' } };
+  fs.writeFileSync(configFile, JSON.stringify(cfgNext, null, 2) + '\n');
+  h({ type: 'config-override', taskbar: args.taskbar === 'on' });
+
   const si = (function screenInfo() {
     const d = screen.getPrimaryDisplay();
     return { factor: d.scaleFactor, phys: { w: Math.round(d.bounds.width * d.scaleFactor), h: Math.round(d.bounds.height * d.scaleFactor) } };
@@ -116,26 +159,38 @@ async function main() {
   h({ type: 'round-start', arm: args.arm, round: args.round, seconds: args.seconds, wind: args.wind, screen: si, bootUptimeS: Math.round(process.uptime()) });
   console.log(`[stall-duel] arm=${args.arm} round=${args.round} tag=${args.tag} seconds=${args.seconds} wind=${args.wind}`);
 
-  // —— 参照记事本（真实普通窗；Win+D 期的对照与恢复对象）——
-  const before = new Set(win32.topLevelWindows().filter((wnd) => win32.className(wnd) === 'Notepad'));
-  const np = spawn('notepad.exe', [], { stdio: 'ignore' });
-  let notepadHwnd = null;
-  for (let i = 0; i < 32 && !notepadHwnd; i++) {
-    await sleep(250);
-    notepadHwnd = win32.topLevelWindows().find((wnd) => win32.className(wnd) === 'Notepad' && !before.has(wnd)) || null;
+  // —— 参照记事本（真实普通窗；Win+D 期的对照与恢复对象）。bare 臂零接触：不拉。 ——
+  let notepadHwnd = null, np = null;
+  if (args.arm !== 'bare') {
+    const before = new Set(win32.topLevelWindows().filter((wnd) => win32.className(wnd) === 'Notepad'));
+    np = spawn('notepad.exe', [], { stdio: 'ignore' });
+    for (let i = 0; i < 32 && !notepadHwnd; i++) {
+      await sleep(250);
+      notepadHwnd = win32.topLevelWindows().find((wnd) => win32.className(wnd) === 'Notepad' && !before.has(wnd)) || null;
+    }
+    if (!notepadHwnd) throw new Error('8s 内未出现记事本窗口');
+    win32.SetWindowPos(notepadHwnd, 0, 1000, 200, 1400, 900, SWP_NOZORDER | win32.SWP_NOACTIVATE);
+    h({ type: 'notepad-ready', hwnd: notepadHwnd });
   }
-  if (!notepadHwnd) throw new Error('8s 内未出现记事本窗口');
-  win32.SetWindowPos(notepadHwnd, 0, 1000, 200, 1400, 900, SWP_NOZORDER | win32.SWP_NOACTIVATE);
-  h({ type: 'notepad-ready', hwnd: notepadHwnd });
 
   // —— 面板（--panel-accept：CDP 通道必需，spec 入账的形态差异）——
   const child = spawn(process.execPath, ['.', '--panel-accept'], {
     cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: eventsFile, DECK_LAG_SENTINEL: '1', DECK_CDP_PORT: String(CDP_PORT) },
+    // raw 臂不带 DECK_CDP_PORT：面板无 DevTools 端口，CDP 负载彻底归零
+    env: { ...process.env, DECK_EVENT_LOG: eventsFile, DECK_LAG_SENTINEL: '1', ...(args.arm === 'raw' ? {} : { DECK_CDP_PORT: String(CDP_PORT) }) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stderrTail = '';
   child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-2000); });
+  // stdout 必须排空（r3-bare minidump 实证：主线程终末冻结在 KERNELBASE 写路径的系统调用
+  // 上——子进程 stdout 管道无人读、64KB 写满后同步 WriteFile 永久阻塞。电池 battery.js:812
+  // 同款形态只读 stderr）。这里计数不落盘，只留量级入 harness 账。
+  let stdoutBytes = 0;
+  const stdoutSample = []; // 首个 64KB 采样：指认写入者（面板日志远达不到 6KB/s，IME/注入 DLL 嫌疑）
+  child.stdout.on('data', (d) => {
+    stdoutBytes += d.length;
+    if (stdoutSample.length < 65536) stdoutSample.push(d);
+  });
   let panelPid = null, panelHwnd = null;
   const launchDeadline = Date.now() + 25000;
   while (Date.now() < launchDeadline && !panelHwnd) {
@@ -171,7 +226,8 @@ async function main() {
   const deadline = Date.now() + args.seconds * 1000;
 
   // 探针：500ms 一拍（停摆拍自身阻塞 ≤2s，阻塞期间其他拍顺延——账目按发起时刻记，不虚增密度）
-  const probeTimer = setInterval(() => {
+  // bare 臂零接触：不起探针循环（终局单次探活）
+  const probeTimer = args.arm === 'bare' ? null : setInterval(() => {
     if (frozen && probeSamples.length && !probeSamples[probeSamples.length - 1].ok) {
       // 冻结后的探针只记有界几拍（wake window 内），不刷屏
       if (probeSamples.filter((s) => !s.ok).length > 400) return;
@@ -186,6 +242,20 @@ async function main() {
       driveOn = false;
       h({ type: 'terminal-freeze-detected', t });
       console.log('[stall-duel] 终末冻结检出：停驱动，进入有界唤醒窗');
+      try {
+        dumpFrozenMain(panelPid, path.join(roundDir, 'freeze-main.dmp'));
+        h({ type: 'freeze-dump-ok' });
+      } catch (e) { h({ type: 'freeze-dump-failed', message: e.message }); }
+      try {
+        const ps = spawnSync('powershell', ['-NoProfile', '-Command', [
+          `$ids=@(${panelPid}) + @((Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq ${panelPid} }).ProcessId)`,
+          `$rows=@(); foreach($id in $ids){ $p=Get-Process -Id $id -ErrorAction SilentlyContinue; $n=(Get-CimInstance Win32_Process -Filter "ProcessId=$id").Name; $t=if($p){($p.Threads | ForEach-Object { "$($_.ThreadState)/$($_.WaitReason)" } | Group-Object | Sort-Object Count -Descending | Select-Object -First 3 | ForEach-Object { "$($_.Name)x$($_.Count)" }) -join ' '}else{'<已退出>'}; $rows += "$id $n cpu=$($p.CPU)s 线程=$t" }`,
+          `$rows -join [Environment]::NewLine`,
+        ].join(';')], { encoding: 'utf8', timeout: 20000, windowsHide: true });
+        fs.writeFileSync(path.join(roundDir, 'freeze-forensics.txt'),
+          `# 终末冻结线程态取证（t=${new Date(t).toISOString()} pid=${panelPid}）
+` + (ps.stdout || ps.stderr || '').trim());
+      } catch (e) { h({ type: 'freeze-forensics-failed', message: e.message }); }
     }
   }, PROBE_MS);
 
@@ -194,10 +264,9 @@ async function main() {
   const pathB = { x: panelRect.left + Math.round(240 * si.factor), y: panelRect.top + Math.round(40 * si.factor) };
   const mouseState = { x: pathA.x, y: pathA.y, dir: 1 };
   function mouseStep() {
-    const dx = pathB.x - mouseState.x, dy = pathB.y - mouseState.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 90) mouseState.dir *= -1;
     const target = mouseState.dir > 0 ? pathB : pathA;
+    const dist = Math.hypot(target.x - mouseState.x, target.y - mouseState.y);
+    if (dist < 90) mouseState.dir *= -1; // 距当前目标端近即翻转（两端都翻，单端翻转会钉死在另一端）
     const tdx = target.x - mouseState.x, tdy = target.y - mouseState.y;
     const td = Math.hypot(tdx, tdy) || 1;
     const step = Math.min(80, td);
@@ -239,12 +308,16 @@ async function main() {
   // —— 驱动主循环：各活动按各自到期时刻跑，错过即跳（不补拍不并行堆积）——
   const next = { mouse: Date.now(), kb: Date.now(), capture: Date.now(), wind: args.wind ? Date.now() + 5000 : Infinity };
   let kbOn = false;
+  if (args.arm === 'bare') {
+    await sleep(Math.max(1000, args.seconds * 1000));
+    driveOn = false;
+  }
   while (driveOn && Date.now() < deadline) {
     const now = Date.now();
-    if (now >= next.mouse) { next.mouse = now + MOUSE_STEP_MS; try { mouseStep(); } catch (e) { h({ type: 'mouse-error', message: e.message }); } }
-    if (now >= next.capture) { next.capture = now + CAPTURE_MS; captureTick(); }
+    if (args.arm !== 'still' && now >= next.mouse) { next.mouse = now + MOUSE_STEP_MS; try { mouseStep(); } catch (e) { h({ type: 'mouse-error', message: e.message }); } }
+    if (args.arm !== 'still' && now >= next.capture) { next.capture = now + CAPTURE_MS; captureTick(); }
     if (now >= next.wind) { next.wind = now + WIND_MS; await windTick(); }
-    if (now >= next.kb) {
+    if (args.arm !== 'raw' && now >= next.kb) {
       next.kb = now + KB_CYCLE_MS;
       const t = Date.now();
       cdpEvalTimes.push(t);
@@ -272,13 +345,33 @@ async function main() {
   if (frozen) await sleep(WAKE_WINDOW_MS);
 
   // —— 收尾：有界强退（restart-clear-required 时以退出码 3 报脏机器）——
-  clearInterval(probeTimer);
+  if (probeTimer) clearInterval(probeTimer);
+  if (args.arm === 'bare') {
+    // 终局单次探活：探针本身是否为诱因已由 still/raw 臂交叉覆盖，这里只定生死与冻结时刻
+    const t = Date.now();
+    const ok = panelAlive(panelHwnd);
+    probeSamples.push({ t, ok });
+    if (!ok) {
+      frozen = true;
+      h({ type: 'terminal-freeze-detected', t });
+      try {
+        dumpFrozenMain(panelPid, path.join(roundDir, 'freeze-main.dmp'));
+        h({ type: 'freeze-dump-ok' });
+      } catch (e) { h({ type: 'freeze-dump-failed', message: e.message }); }
+    }
+  }
   const panelControl = createPanelControl();
   const stopRes = await panelControl.stop({ pids: [child.pid, panelPid].filter(Boolean), child });
-  h({ type: 'panel-stop', outcome: stopRes.outcome, pidsLeft: stopRes.pidsLeft });
-  try { win32.PostMessageW(notepadHwnd, 0x0010, 0, 0); } catch { /* 尽力 */ }
+  h({ type: 'panel-stop', outcome: stopRes.outcome, pidsLeft: stopRes.pidsLeft, stdoutBytes });
+  if (notepadHwnd) { try { win32.PostMessageW(notepadHwnd, 0x0010, 0, 0); } catch { /* 尽力 */ } }
   await sleep(800);
-  try { np.kill(); } catch { /* 已退 */ }
+  if (np) { try { np.kill(); } catch { /* 已退 */ } }
+
+  // 配置还原（尽力而为；失败入 harness 账不吞退出码）
+  try {
+    if (configBackup === null) { try { fs.unlinkSync(configFile); } catch { /* 本就无 */ } }
+    else fs.writeFileSync(configFile, configBackup);
+  } catch (e) { h({ type: 'config-restore-failed', message: e.message }); }
 
   // —— 轮账：事件侧 + harness 侧 → 分析器出 summary ——
   await sleep(600); // 事件文件尾拍落盘
@@ -287,7 +380,7 @@ async function main() {
   const rendererStalls = events.filter((e) => e.type === 'renderer-stall');
   const kbTransitions = events.filter((e) => e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off').map((e) => ({ t: e.t, kind: e.type }));
   const windSents = hlog.filter((e) => e.type === 'wind-sent').map((e) => e.t);
-  const stalls = dedupeProbeStalls(probeSamples, { timeoutMs: PROBE_TIMEOUT_MS });
+  const stalls = dedupeProbeStalls(probeSamples, { timeoutMs: PROBE_TIMEOUT_MS, mergeGapMs: 6000 });
   const stallOnsets = stalls.map((s) => s.onsetMs);
   const coupling = couplingStats(stallOnsets, args.arm === 'kb' ? kbTransitions.map((k) => k.t) : cdpEvalTimes);
   const windCoupling = couplingStats(stallOnsets, windSents, { windowMs: 2500 });
@@ -307,7 +400,7 @@ async function main() {
   })();
 
   const summary = {
-    arm: args.arm, round: args.round, tag: args.tag, wind: args.wind,
+    arm: args.arm, round: args.round, tag: args.tag, wind: args.wind, taskbar: args.taskbar,
     startedAt, activeSeconds: Math.round(activeMs / 1000),
     panel: { pid: panelPid, stopOutcome: stopRes.outcome },
     probeCount: probeSamples.length,
@@ -316,8 +409,10 @@ async function main() {
     rendererStalls: rendererStalls.map((e) => ({ t: e.t, quietMs: e.quietMs, recovered: e.recovered })),
     kbTransitions, cdpEvalCount: cdpEvalTimes.length, cdpErrors,
     coupling, windCoupling, order, labels, terminalSpan,
-    files: { eventsFile, spansFile, harnessLog },
+    files: { eventsFile, spansFile, harnessLog, probesFile: path.join(roundDir, 'probes.jsonl') },
   };
+  fs.writeFileSync(path.join(roundDir, 'probes.jsonl'), probeSamples.map((s2) => JSON.stringify(s2)).join('\n') + '\n');
+  if (stdoutSample.length) fs.writeFileSync(path.join(roundDir, 'stdout-sample.txt'), Buffer.concat(stdoutSample));
   fs.writeFileSync(path.join(roundDir, 'summary.json'), JSON.stringify(summary, null, 2));
   fs.writeFileSync(harnessLog, hlog.map((e) => JSON.stringify(e)).join('\n') + '\n');
   console.log(`[stall-duel] 轮账：停摆事件 ${stalls.length}（终末 ${stalls.filter((s) => s.terminal).length}）、main-lag ${mainLag.length}、renderer-stall ${rendererStalls.length}、kb 迁移沿 ${kbTransitions.length}、cdpErr ${cdpErrors.length}`);
@@ -330,9 +425,10 @@ process.on('unhandledRejection', (err) => {
   app.exit(3);
 });
 
-module.exports = { parseArgs };
+// 控制器路由约定（battery.js 同款）：require(...)() 直接调起，返回启动 promise
+module.exports = () => app.whenReady().then(main);
 if (require.main === module) {
-  void app.whenReady().then(main).catch((err) => {
+  module.exports().catch((err) => {
     console.error('[stall-duel] 轮失败：', err);
     app.exit(3);
   });

@@ -4,6 +4,31 @@
 - 日期：2026-10-09。性质：**预登记的对照实验设计**——轮数、判读标准、early-stop 在跑之前定死，防事后挑数据。
 - harness：`app/accept/experiments/stall-duel.js`（控制器模式 `electron . --accept-stall-duel`，guard 托管跑）；离线分析 `stall-duel-analyze.js`（纯函数，vitest 直测）。
 
+## 0.x 实验结论（2026-10-09 跑后补记——预登记设计与实际走的路都留档）
+
+**预登记的两臂对照没有走完：r1 一轮就把两臂同时证伪，实验转入消元阶梯，最终由 minidump 栈取证 + 排空干预一锤定音。** 全部 9 轮产物在 `app/accept/evidence/stall-duel/1a/`（r1-kb / r1-sys / r1-raw / r1-still / r1-bare / r2-bare / r3-bare / r4-bare / r5-bare / r6-bare——r2 起 taskbar 配置受控，r4 起排空 stdout，r6 附 stdout 采样）。
+
+| 轮 | 臂 | 消元对象 | 结果 |
+|---|---|---|---|
+| r1-kb | A 臂（kb 循环+全负载） | — | boot 后 ~13s 终末冻结（第 10 次 keyboard-mode off 后 <1s） |
+| r1-sys | B 臂（同负载去 kb） | H1 | ~27s 终末冻结 → **H1 出局**（键盘模式链非必要） |
+| r1-raw | 去 CDP 裸负载 | CDP churn | ~27s 终末冻结 → CDP 非必要 |
+| r1-still | 纯探针（无鼠标无捕获） | 鼠标流/捕获 | ~29s 终末冻结 → 输入合成/捕获/H7 **出局**（零输入也冻结） |
+| r1/r2/r3-bare | 零接触（240s 后单次探活） | 探针/记事本/taskbar 配置 | boot 后 **+15.8s 定时刻冻结**（taskbar on/off 同拍）→ 面板自冻结实锤 |
+| r3-bare | — | — | 冻结瞬间 minidump：主线程阻塞在 KERNELBASE 写路径系统调用，栈含 windows.storage/oleaut32/CallWindowProcW/KiUserCallbackDispatcher；全 64 线程 Wait；spans 全闭合（卡点在未标注区，与 #127「不在 11 个子系统内」一致） |
+| r4/r5/r6-bare | 零接触 + **排空 stdout** | 写入目标 | **0 停摆、面板全 240s 存活 ×3**；r4/r5 stdout 字节数逐字节相同 = 确定性写入者；r6 采样指认 |
+
+**根因（两层）**：
+
+1. **喂料端**：生产装配（panel-kernel + DataplaneService）不在主进程注册 desktop 服务，TaskbarService 推荐位每拍解析 lnk 的默认兜底读 `ctx.desktop`——cordis 对未声明属性的访问**每次落一条带全栈的 [W] 告警**（~1.2KB × ~5/s ≈ 6KB/s 刷 stdout；工单59 时代的 try/catch 只挡了异常没挡告警）。单测内核注册了 desktop 所以从未复现。
+2. **阻塞端**：验收控制器把面板子进程 stdout 接成管道而不排空（battery.js `stdio:['ignore','pipe','pipe']` 只读 stderr，自工单起即如此）——64KB 匿名管道 ~11s 写满，主线程下一次同步写（WriteFile）**永久阻塞**：boot 后 +15.8s 定时冻结，与全部 9 轮观测严丝合缝。
+
+**对历史证据的回读**：#97/#108/#127 全系「主进程假死」即此机制——电池每 (re)拉起一个面板，~15s 后冻死；电池懒探活（只在落点时探）让轮次带伤爬行，heal 重启 → 新面板 15s 后再冻 → 「重启恶性循环/双面板/12 波排除窗」；P9 的「cover-engaged 后卡死」= 电池 ShowWindow 撞上已冻面板（无界阻塞，本票已改 PostMessage 有界化）。#127 的「H4 修正」（守望状态迁移路径）与「真重启仍卡死」全部吻合：面板代际无关、机器态无关，只与「stdout 接管道不排空」有关。用户常驻面板不挂：Explorer 启动的 GUI 进程无 stdout 管道（写无效句柄即失败，不阻塞）。
+
+**假设账**：H1 证伪（B 臂同冻）、H7 证伪（零输入同冻）、H2 证伪（still 臂无热区活动）、H3 托盘链未单独消元但被 bare 臂覆盖（零接触无托盘操作仍冻）、H4 修正版证伪（无 Win+D 仍冻；P9 表象为次生）、H5 既有存档、「stdout 管道写阻塞」为新立主嫌并实锤。
+
+**修复面（第二阶段，同 PR）**：① taskbar.ts 可选 inject 抑制告警（喂料端，单测锁定）；② 电池/控制器 stdout 排空（阻塞端结构防御：battery.js 两处 + taskbar-carry.js + tray-spike.js）；③ P9 恢复等待有界化（PostMessage SC_MINIMIZE）；④ heal 有界唤醒窗（ADR-0011 约束①）。
+
 ## 0. 被分辨的假设（引用 #111 审计原文）
 
 - **H1**：键盘模式三连（setFocusable+focus+pinToBottom，`panel-ipc.ts` onKeyboardMode）× 输入合成竞争。预期信号：lag 时 `liveLabels` 含 keyboard-mode-*/pin/hotzone-* 且滞后时刻与 `keyboard-mode-on` 存证时差 <2s（审计 H1-①）。

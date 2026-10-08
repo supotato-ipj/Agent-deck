@@ -806,11 +806,20 @@ async function main() {
   // 同一事件文件落 main-lag 存证（lagMs + 子系统标签 + 事件尾），与 WM_NULL 超时对读。
   // 阈值取哨兵缺省 2000ms（与探针 SMTO_ABORTIFHUNG 同数）；P7 的单实例二次拉起子进程
   // 毫秒级自退，不必带。常规（非电池）运行不带此 env，面板行为零变化。
-  const launchPanel = () => spawn(process.execPath, ['.'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  // stdout 必须排空（工单132 根因修复）：面板主进程曾以 ~6KB/s 刷内核告警（任务栏推荐位
+  // lnk 解析的 cordis DI 告警，taskbar.ts 可选 inject 已在源头抑制）——子进程 stdout 接成
+  // 管道而无人读时，64KB 管道 ~11s 写满，主线程下一次同步写永久阻塞：这就是 #107 全系
+  // 「主进程假死」的真机形态（minidump + 排空对照实证，工单132 第一阶段，
+  // docs/audit/2026-10-09-t132-stall-duel-experiment.md）。排空是控制器侧的结构防御。
+  const launchPanel = () => {
+    const c = spawn(process.execPath, ['.'], {
+      cwd: APP_ROOT,
+      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    c.stdout.on('data', () => {}); // 排空即全部：管道永不满，面板永不因 stdout 阻塞
+    return c;
+  };
 
   // 工单112：强退序列换面板控制模块（seam②）——优雅终止 → 整树强杀 → 有界等待并
   // **验证进程确实消失**。现状缺的正是验证这一环：taskkill /F 后不确认消失就放行重启，
@@ -835,6 +844,7 @@ async function main() {
     // 假死自愈接线（钩子在 ensurePanelHit 里按需回调）：先取证再重启，交还新 hwnd。
     // hwnd/child/panelPid 都是本函数词法变量，闭包内赋值对后续段可见。
     healHungPanel = async () => {
+      const stallDetectedAt = Date.now();
       const dump = hungForensics(hwnd);
       if (dump) console.log(`[battery] 面板假死取证：\n${dump}`);
       // 工单110 三态记账：停摆是环境事件——检出即开排除窗，停摆事件记环境降责排除而非
@@ -843,6 +853,19 @@ async function main() {
       // 连带其后「无面板可用」的失败全数环境降责——环境噪声不再污染 verdict。
       rep.beginEnvWindow('面板主线程假死（WM_NULL 超时）——重启验证健康前断言不可信', 'panel-stall');
       rep.exclude('面板主线程假死（WM_NULL 超时）：已重启面板继续跑，停摆检出至重启健康验证之间的失败断言记环境降责', '面板主线程假死（WM_NULL 超时）', 'panel-stall');
+      // 有界唤醒窗（ADR-0011 约束①，工单132）：「停摆即杀」会摧毁滞后哨兵的 lag 观测——
+      // 主线程若只是瞬态停摆，迟到的察觉拍（带调用点标签的 main-lag 存证）只有在它恢复
+      // 后才落得了盘。检出后先留 8s 有界窗再清障；窗末重读事件文件，迟到的 main-lag
+      // 补进取证输出。终末冻结形态永远等不到迟到拍（8s 纯等待）——根因修复（工单132
+      // stdout 排空 + DI 告警抑制）落地后停摆本身应绝迹，此窗是给未来未知停摆留的观测面。
+      await sleep(8000);
+      const lateLag = readEvents().filter((e) => e.type === 'main-lag' && e.t >= stallDetectedAt - 2500);
+      if (lateLag.length) {
+        console.log(`[battery] 有界唤醒窗捕到迟到 main-lag ${lateLag.length} 条（瞬态停摆，恢复后落盘）：\n${
+          lateLag.map((e) => `  lagMs=${e.lagMs} liveLabels=${JSON.stringify(e.liveLabels)}`).join('\n')}`);
+      } else {
+        rep.note('有界唤醒窗 8s 无迟到 main-lag（终末冻结形态：主线程未再泵消息，spans sidecar 尾部即卡点签名）');
+      }
       const stopped = await stopPanel();
       if (!stopped.gone) {
         // 工单112：强退后仍存活 = 需重启清障——入环境降责账并**中止后续段**（借主
@@ -5149,6 +5172,7 @@ async function main() {
         env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
+      child2.stdout.on('data', () => {}); // 工单132：stdout 管道必须排空（同 launchPanel 注）
       let exited = null;
       child2.once('exit', (code) => { exited = { code, at: Date.now() }; });
       const deadline = Date.now() + 15000;
@@ -5255,8 +5279,13 @@ async function main() {
         rep.note(`面板亦被 Win+D 最小化（存证 ${JSON.stringify(windMin)}），等待防抖自动恢复`);
       }
       // —— 防抖自动恢复真机演练：SW_MINIMIZE 收起面板 → 1.5s 防抖 → 自动恢复原位并重钉 ——
+      // 工单132 恢复等待有界化：ShowWindow 是同步跨线程调用——面板主线程停摆时它无限
+      // 阻塞（#127 转正轮「P9 卡死（非超时 FAIL）」同款形态）。改投递 WM_SYSCOMMAND/
+      // SC_MINIMIZE（PostMessage 永不阻塞）：健康面板泵到消息即最小化（与点击标题栏
+      // 最小化同语义）；停摆面板收不到 → wind-minimized 事件门 6s 超时判 FAIL——
+      // 电池挂死形态消失，失败照常带证入账。
       const windMinPromise = waitEvent('wind-minimized', null, 6000);
-      w32.ShowWindow(hwnd, SW_MINIMIZE);
+      w32.PostMessageW(hwnd, 0x0112 /* WM_SYSCOMMAND */, 0xf020 /* SC_MINIMIZE */, 0);
       const windMin = await windMinPromise;
       await sleep(400);
       const minIconic = w32.IsIconic(hwnd);
