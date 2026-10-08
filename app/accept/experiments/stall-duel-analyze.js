@@ -8,7 +8,8 @@
 
 /** WM_NULL 探针样本 → 停摆事件：连续超时拍（发起间隔 ≤ mergeGapMs）合并为一段，
  * 段时长 = 末拍发起 − 首拍发起 + timeoutMs（首拍自身要吃满超时才落账）。
- * 时长 ≥ minDurationMs 才成事件（单拍抖动不成）；末拍后无恢复拍 = 终末段（轮被冻结收场）。 */
+ * 时长 ≥ minDurationMs 才成事件（缺省 timeoutMs=2000 下单拍即 2000ms 恰达阈——与电池 WM_NULL 2s 口径一致，
+ * 不存在会消失的形态；仅当自定义更小 timeoutMs 时短段不成事件，属调用方自选口径）。末拍后无恢复拍 = 终末段。 */
 function dedupeProbeStalls(samples, opts = {}) {
   const mergeGapMs = opts.mergeGapMs ?? 2000;
   const timeoutMs = opts.timeoutMs ?? 2000;

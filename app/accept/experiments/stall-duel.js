@@ -2,7 +2,9 @@
 // 工单132 第一阶段：H1 vs H7 对照实验 harness（stall-duel，单轮一进程）。
 // 设计与预登记判读标准：docs/audit/2026-10-09-t132-stall-duel-experiment.md。
 // 用法（一律经 accept-guard 托管）：
-//   electron . --accept-stall-duel --arm=kb|sys [--round=1] [--seconds=240] [--wind] [--tag=1a]
+//   electron . --accept-stall-duel --arm=kb|sys|raw|still|bare [--round=1] [--seconds=240]
+//     [--wind（phase-1b Win+D）] [--tag=1a] [--taskbar=on|off（默认 off，对齐主电池跑法）]
+// 消元阶梯（r1 后追加的臂，spec §0.x 入账）：raw=去CDP裸负载，still=纯探针，bare=零接触终局对照
 // 轮产物：accept/evidence/stall-duel/<tag>/r<round>-<arm>/{panel-events.jsonl(+.spans.jsonl),
 //   harness-log.jsonl, summary.json}；summary 由 stall-duel-analyze 纯函数算出。
 // 本 harness 是取证工具不是验收段：不进 manifest、不产 verdict、退出码 0=轮完成 3=机器脏。

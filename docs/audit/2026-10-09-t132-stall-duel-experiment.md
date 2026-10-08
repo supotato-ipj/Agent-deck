@@ -6,7 +6,7 @@
 
 ## 0.x 实验结论（2026-10-09 跑后补记——预登记设计与实际走的路都留档）
 
-**预登记的两臂对照没有走完：r1 一轮就把两臂同时证伪，实验转入消元阶梯，最终由 minidump 栈取证 + 排空干预一锤定音。** 全部 9 轮产物在 `app/accept/evidence/stall-duel/1a/`（r1-kb / r1-sys / r1-raw / r1-still / r1-bare / r2-bare / r3-bare / r4-bare / r5-bare / r6-bare——r2 起 taskbar 配置受控，r4 起排空 stdout，r6 附 stdout 采样）。
+**预登记的两臂对照没有走完：r1 一轮就把两臂同时证伪，实验转入消元阶梯，最终由 minidump 栈取证 + 排空干预一锤定音。** 全部 10 轮产物在 `app/accept/evidence/stall-duel/<tag>/`（1a 批次）（r1-kb / r1-sys / r1-raw / r1-still / r1-bare / r2-bare / r3-bare / r4-bare / r5-bare / r6-bare——r2 起 taskbar 配置受控，r4 起排空 stdout，r6 附 stdout 采样）。
 
 | 轮 | 臂 | 消元对象 | 结果 |
 |---|---|---|---|
@@ -25,7 +25,7 @@
 
 **对历史证据的回读**：#97/#108/#127 全系「主进程假死」即此机制——电池每 (re)拉起一个面板，~15s 后冻死；电池懒探活（只在落点时探）让轮次带伤爬行，heal 重启 → 新面板 15s 后再冻 → 「重启恶性循环/双面板/12 波排除窗」；P9 的「cover-engaged 后卡死」= 电池 ShowWindow 撞上已冻面板（无界阻塞，本票已改 PostMessage 有界化）。#127 的「H4 修正」（守望状态迁移路径）与「真重启仍卡死」全部吻合：面板代际无关、机器态无关，只与「stdout 接管道不排空」有关。用户常驻面板不挂：Explorer 启动的 GUI 进程无 stdout 管道（写无效句柄即失败，不阻塞）。
 
-**假设账**：H1 证伪（B 臂同冻）、H7 证伪（零输入同冻）、H2 证伪（still 臂无热区活动）、H3 托盘链未单独消元但被 bare 臂覆盖（零接触无托盘操作仍冻）、H4 修正版证伪（无 Win+D 仍冻；P9 表象为次生）、H5 既有存档、「stdout 管道写阻塞」为新立主嫌并实锤。
+**假设账**：H1 证伪（B 臂同冻）、H7 证伪（零输入同冻）、H2 证伪（still 臂无热区活动）、H3 托盘链未单独消元但被 bare 臂覆盖（零接触无托盘操作仍冻）、H4 修正版证伪（无 Win+D 仍冻；P9 表象为次生）、H5 既有存档、H6 存档（dwm Ghost 是停摆的伴生观测面非因——#107 取证所见形态，零接触冻结的复现与 Ghost 在场无涉）、「stdout 管道写阻塞」为新立主嫌并实锤。
 
 **修复面（第二阶段，同 PR）**：① taskbar.ts 可选 inject 抑制告警（喂料端，单测锁定）；② 电池/控制器 stdout 排空（阻塞端结构防御：battery.js 两处 + taskbar-carry.js + tray-spike.js）；③ P9 恢复等待有界化（PostMessage SC_MINIMIZE）；④ heal 有界唤醒窗（ADR-0011 约束①）。
 
@@ -67,7 +67,9 @@
 2. **面板侧滞后哨兵**（既有，DECK_LAG_SENTINEL=1）：main-lag 事件（lagMs/liveLabels/lastEvents）+ spans sidecar（`.spans.jsonl`）——终末冻结时无 close 的 span-open = 卡点签名（#127 已用此法定位 cover 迁移路径）。
 3. **面板侧渲染层哨兵**（既有）：renderer-stall 事件（quietMs≥5000），onset = t − quietMs。
 
-harness 自记流水：每次输入合成/CDP eval/探针/捕获的时间戳 → `harness-log.jsonl`。轮产物落 `app/accept/evidence/stall-duel/r<N>-<arm>/`（panel-events.jsonl、spans、harness-log、summary.json）。
+harness 自记流水：每次输入合成/CDP eval/探针/捕获的时间戳 → `harness-log.jsonl`。轮产物落 `app/accept/evidence/stall-duel/<tag>/r<N>-<arm>/`（panel-events.jsonl、spans、harness-log、probes、summary.json）。
+
+两处**跑后修正**（如实入账，不冒充预登记）：①停摆合并窗实跑取 6000ms 而非预登记的 2000ms——停摆期探针自身阻塞 2s、实际拍距 ~2.5s，按 2000 合并把一次冻结碎成 4 个假事件（r1-kb 实证）；probes.jsonl 全量在盘，可按任意窗口离线重算。②预登记的判读产物 `duel-verdict.json` 未产出——两臂在 r1 即同冻、耦合判读对象不存在，判读以消元阶梯 + 干预对照完成，各轮 verdict 输入在 summary.json，跨臂对决不再有意义。
 
 ## 4. 判读标准（预登记，跑前定死）
 

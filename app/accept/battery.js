@@ -332,6 +332,7 @@ const CLEAR_DESKTOP_SKIP = new Set([
 ]);
 const DESKTOP_HIT_CLASSES = new Set(['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32']);
 const SW_MINIMIZE = 6, SW_RESTORE = 9;
+const WM_SYSCOMMAND = 0x0112, SC_MINIMIZE = 0xf020; // 工单132 P9 有界化：投递式最小化（见 P9 段注）
 let minimizedForRestore = [];
 
 async function clearDesktop(points, f) {
@@ -5285,7 +5286,7 @@ async function main() {
       // 最小化同语义）；停摆面板收不到 → wind-minimized 事件门 6s 超时判 FAIL——
       // 电池挂死形态消失，失败照常带证入账。
       const windMinPromise = waitEvent('wind-minimized', null, 6000);
-      w32.PostMessageW(hwnd, 0x0112 /* WM_SYSCOMMAND */, 0xf020 /* SC_MINIMIZE */, 0);
+      w32.PostMessageW(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
       const windMin = await windMinPromise;
       await sleep(400);
       const minIconic = w32.IsIconic(hwnd);
