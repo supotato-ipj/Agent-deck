@@ -1,0 +1,6 @@
+{"t":1791480697638,"type":"round-start","arm":"bare","round":1,"seconds":240,"wind":false,"screen":{"factor":1,"phys":{"w":2560,"h":1440}},"bootUptimeS":0}
+{"t":1791480701204,"type":"panel-ready","pid":2004,"hwnd":461726}
+{"t":1791480701206,"type":"hotzones-seen","rect":{"left":0,"top":0,"right":2560,"bottom":1392}}
+{"t":1791480941219,"type":"drive-end","activeMs":240000,"frozen":false,"reason":"deadline"}
+{"t":1791480941219,"type":"terminal-freeze-detected"}
+{"t":1791480942027,"type":"panel-stop","outcome":"graceful-gone","pidsLeft":[]}

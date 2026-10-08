@@ -1,5 +1,5 @@
 import { Service } from 'cordis'
-import type { Context } from 'cordis'
+import type { Context, Inject } from 'cordis'
 import fs from 'node:fs'
 import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarLeftEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../../shared/contract'
@@ -122,7 +122,14 @@ interface TaskbarDeps {
  * 存储只有 exe 身份与展示元数据——标题永不持久化（ADR-0002 红线的书面口子口径）。
  */
 export class TaskbarService extends Service {
-  static inject = ['panelData']
+  // desktop 声明为可选依赖（工单132）：生产装配（panel-kernel + DataplaneService）不在
+  // 主进程注册 desktop 服务，而推荐位每拍解析 lnk 时默认兜底要读 ctx.desktop——cordis
+  // 对「访问了未声明属性」每次都落一条带全栈的 [W] 告警（~1.2KB/条 × 每拍每条目），
+  // 生产面板以 ~6KB/s 刷 stdout：验收控制器把面板 stdout 接成管道且不排空时，64KB
+  // 管道 ~11s 写满、主线程下一次同步写永久阻塞——#107 全系停摆的真机根因（minidump
+  // 实证 + 排空对照实验，工单132 第一阶段）。声明为 { required: false } 即抑制告警，
+  // 缺席时照旧走 Electron 兜底，服务照常启动。
+  static inject: Inject = { panelData: { required: true }, desktop: { required: false } }
 
   private readonly file: string | null
   private readonly appConfig: AppConfig | null
@@ -154,14 +161,14 @@ export class TaskbarService extends Service {
       desktopItems: options.deps?.desktopItems ?? (() => this.ctx.panelData.desktop().items),
       resolveShortcutTarget: options.deps?.resolveShortcutTarget
         // 桌面服务在场时走它（同进程直连，无模块加载）；不在场则走 desktop/adapter
-        // 的惰性绑定。ctx 是 cordis 代理，未注册属性的读取会抛（"property desktop is
-        // not registered"）——`ctx.desktop?.` 兜不住，必须 try 住，否则中组推荐位
-        // 每拍解析每个 lnk 都抛一次（工单59 真机首跑实证：1Hz 刷屏、中组空）
+        // 的惰性绑定。cordis 未注册属性的读取**会落一条带全栈的 [W] 告警**（工单59
+        // 时代以为 try 住就静默了——不抛但告警照刷屏，工单132 实证这就是停摆根因的
+        // 喂料端；告警的真正抑制在上方的 static inject 可选声明，这里的 try 只兜读异常）。
         ?? ((p: string) => {
           try {
             const desktop = (this.ctx as unknown as { desktop?: { readShortcutTarget?: (lnk: string) => string | null } }).desktop
             if (desktop?.readShortcutTarget) return desktop.readShortcutTarget(p)
-          } catch { /* cordis 未注册访问抛错：落 Electron 兜底 */ }
+          } catch { /* 读取异常兜底：落 Electron 兜底 */ }
           return (require('../desktop/adapter') as typeof import('../desktop/adapter')).electronShortcutTarget(p)
         }),
       readStoreText: options.deps?.readStoreText ?? readStoreText,

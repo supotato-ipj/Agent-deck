@@ -38,6 +38,9 @@ const ACCEPT_TASKBAR_CARRY_MODE = process.argv.includes('--accept-taskbar-carry'
 const ACCEPT_TASKBAR_RIGHT_GROUP_MODE = process.argv.includes('--accept-taskbar-right-group')
 /** 任务栏 AppBar 占位 + 全屏让位验收（工单51）：控制器身份跑 accept/taskbar-appbar.js */
 const ACCEPT_TASKBAR_APPBAR_MODE = process.argv.includes('--accept-taskbar-appbar')
+/** 工单132 第一阶段对照实验（stall-duel）：控制器身份跑 accept/experiments/stall-duel.js，
+ * 面板以 --panel-accept 子进程拉起。取证工具非验收段，一律经 accept-guard 托管。 */
+const ACCEPT_STALL_DUEL_MODE = process.argv.includes('--accept-stall-duel')
 const PANEL_MODE = process.argv.includes('--panel')
 /** 验收专用面板子进程（工单49）：完整面板但绕开单实例锁，与常驻面板共存 */
 const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
@@ -283,7 +286,7 @@ if (RESTORE_MODE) {
   forceShowIcons(log)
   forceShowNativeTaskbar(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE) {
+} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !ACCEPT_STALL_DUEL_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -341,7 +344,7 @@ if (RESTORE_MODE) {
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !ACCEPT_STALL_DUEL_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
@@ -361,7 +364,7 @@ if (RESTORE_MODE) {
     // 工单86 验收提示条：控制器身份的四块电池统一挂条——琥珀药丸驻留屏幕上中部安全带，
     // 提示用户暂勿键鼠操作；随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、
     // docs/adr/0008-accept-hint-bar.md）。--panel-accept/--tray-spike 子进程是被测物，不挂。
-    if (ACCEPT_MODE || ACCEPT_TRAY_MODE || ACCEPT_TASKBAR_MODE || ACCEPT_TASKBAR_CARRY_MODE) {
+    if (ACCEPT_MODE || ACCEPT_TRAY_MODE || ACCEPT_TASKBAR_MODE || ACCEPT_TASKBAR_CARRY_MODE || ACCEPT_STALL_DUEL_MODE) {
       require(path.join(app.getAppPath(), 'accept', 'lib', 'hint-bar.js')).showAcceptHintBar()
     }
     if (ACCEPT_MODE) {
@@ -402,6 +405,12 @@ if (RESTORE_MODE) {
       // 面板以 --panel-accept 子进程拉起；最大化/全屏参照窗由控制器自开（见电池文件头）。
       app.on('window-all-closed', () => {})
       require(path.join(app.getAppPath(), 'accept', 'taskbar-appbar.js'))()
+      return
+    }
+    if (ACCEPT_STALL_DUEL_MODE) {
+      // 工单132 第一阶段对照实验（取证工具非验收段）：单轮一进程，退出码 0=轮完成 3=机器脏。
+      app.on('window-all-closed', () => {})
+      require(path.join(app.getAppPath(), 'accept', 'experiments', 'stall-duel.js'))()
       return
     }
     bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {
