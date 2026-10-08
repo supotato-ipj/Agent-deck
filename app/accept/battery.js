@@ -15,7 +15,7 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
-const { createPanelControl, findPanelWindows, classifyPreflight } = require('./lib/panel-control');
+const { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
@@ -318,10 +318,19 @@ function scanAmberInTray(tag) {
 }
 
 // —— 桌面清场：逐窗最小化，退出时精确还原（工单01 探针同法）——
+// 壳层/桌面层窗类清单同族三份、生效集刻意互异，勿顺手统一（评审修正：收拢声明并指认差异）：
+//   • CLEAR_DESKTOP_SKIP（此处，清场跳过集）：桌面宿主 + 任务栏 + UWP 壳窗——最小化无意义/不该动，
+//     清场与 z 序取证一律跳过；
+//   • DESKTOP_HIT_CLASSES（此处，「点即桌面」判定集）：仅桌面宿主四类——工单05 起 P3 前台断言的
+//     成功集，工单34 借作 P3 空区清场的停清条件（点在任务栏/UWP 壳窗上不构成「穿透直达桌面」，
+//     故刻意缺 Shell_TrayWnd/Shell_SecondaryTrayWnd/CoreWindow；增设缘起见 docs/accept-occlusion-audit.md 03 P3 行）；
+//   • PREFLIGHT_SHELL_CLASSES（panel-control.js，preflight 壳层白名单）：桌面宿主 + 任务栏 + DefView 族，
+//     服务「非污染/非用户活动」分类，与清场判定语义无关。
 const CLEAR_DESKTOP_SKIP = new Set([
   'Progman', 'WorkerW', 'Shell_TrayWnd', 'Shell_SecondaryTrayWnd',
   'Windows.UI.Core.CoreWindow', 'Windows.Internal.Shell.TabProxyWindow',
 ]);
+const DESKTOP_HIT_CLASSES = new Set(['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32']);
 const SW_MINIMIZE = 6, SW_RESTORE = 9;
 let minimizedForRestore = [];
 
@@ -329,7 +338,7 @@ async function clearDesktop(points, f) {
   const isDesktopAt = (pt) => {
     if (!pt) return true;
     const cls = win32.className(win32.windowFromPointRoot(pt));
-    return ['WorkerW', 'Progman', 'SHELLDLL_DefView', 'SysListView32'].includes(cls);
+    return DESKTOP_HIT_CLASSES.has(cls);
   };
   minimizedForRestore = [];
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -350,6 +359,26 @@ function restoreDesktop() {
     try { if (win32.IsWindow(h)) win32.ShowWindow(h, SW_RESTORE); } catch { /* 尽力还原 */ }
   }
   minimizedForRestore = [];
+}
+
+// 覆盖窗清场共享内核（评审修正：P2 清场重试环 / P3 空区清场 / ensurePanelHit 三处同形步骤
+// 收口，各调用点行为逐字节保留——清单差异与站点语义见上方清单注、下方判定注）。
+// 普通覆盖窗处置：记入退出还原清单（去重防重复入列）+ 最小化。
+function minimizeCoverForRestore(root) {
+  if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
+  win32.ShowWindow(root, SW_MINIMIZE);
+}
+// 单窗分类处置：Ghost/置顶层 → ESC 收层撤会话（最小化对它们无效——Ghost 是 OLE 拖拽自绘
+// 顶层窗、shell 浮层是 TOPMOST），其余普通覆盖窗最小化入还原清单。前置：调用方已排除
+// 桌面层（按站点取 CLEAR_DESKTOP_SKIP 或 DESKTOP_HIT_CLASSES）与面板本体。P2/P3 清场环
+// 共用；ensurePanelHit 刻意不走此判定——它对 Ghost 用 cancelDragGhost（ESC+抬起拖拽按键）
+// 且收层后仍最小化、置顶层也最小化入列（工单11 原始语义），与 P2/P3 的工单34 语义有意不同。
+function collapseOrMinimize(root, cls) {
+  if (cls === 'Ghost' || (win32.GetWindowLongW(root, win32.GWL_EXSTYLE) & win32.WS_EX_TOPMOST)) {
+    win32.tapKeys([0x1b]);
+    return;
+  }
+  minimizeCoverForRestore(root);
 }
 
 // —— 遮挡感知交互前置（工单11）：交互落点必须真被本面板接收——电池一跑数分钟，
@@ -494,8 +523,7 @@ async function ensurePanelHit(pt, hwnd) {
         } catch { /* 尽力 */ }
       }
     }
-    if (!minimizedForRestore.includes(root)) minimizedForRestore.push(root);
-    win32.ShowWindow(root, SW_MINIMIZE);
+    minimizeCoverForRestore(root); // Ghost 收层（上方 cancelDragGhost）后仍最小化入列；置顶层同款——工单11 原始语义
     await sleep(700);
   }
   const cls = win32.className(Number(win32.windowFromPointRoot(pt)));
@@ -624,11 +652,12 @@ function windowTitle(hwnd) {
 // —— 工单113 preflight 探测：四类污染源的原始行产出（分类在 panel-control.classifyPreflight，
 // 注入式纯函数可单测）。全屏判定 = 矩形覆盖虚拟屏 ≥95% 且可见、未 cloaked、非壳层白名单；
 // cloaked 滤除壳宿主常驻「全屏」窗（Start/搜索宿主等）的常态误报源。
-const PREFLIGHT_SHELL_CLASSES = new Set(['Progman', 'WorkerW', 'Shell_TrayWnd', 'SHELLDLL_DefView', 'SysListView32']);
-const PREFLIGHT_OWN_TITLES = new Set(['AGENT DECK', 'AGENT DECK ACCEPT HINT', 'DECK-TASKBAR']);
+// 工单34 方向3：快照行带 foreground 标记（GetForegroundWindow 只采样一次，与枚举同瞬），
+// 壳层白名单/自家标题常量迁 panel-control 单点维护（第五类分类同用）。
 function preflightProbes() {
   const vs = win32.virtualScreen();
   const screenArea = Math.max(1, vs.w * vs.h);
+  const fgHwnd = Number(win32.GetForegroundWindow());
   const rows = [];
   for (const h of win32.topLevelWindows()) {
     try {
@@ -636,6 +665,7 @@ function preflightProbes() {
       rows.push({
         cls: win32.className(h), title: windowTitle(h), pid, selfPid: process.pid,
         rect: win32.rectOf(h), visible: !!win32.IsWindowVisible(h), cloaked: win32.isCloaked(h),
+        foreground: Number(h) === fgHwnd,
         // 最大化普通窗工作区可占屏 ~96%——带 WS_MAXIMIZE(GWL_STYLE 0x10000000) 的是应用
         // 窗不是覆盖层，预读样式供全屏判据排除（评审 P3）
         maximized: !!(Number(win32.GetWindowLongW(h, -16)) & 0x10000000),
@@ -652,6 +682,7 @@ function preflightProbes() {
     panelWindows: findPanelWindows(vis).map((p) => ({ ...p, exeQueryable: (rows.find((r) => r.pid === p.pid) || {}).exeQueryable })),
     ghostWindows: vis.filter((r) => r.cls === 'Ghost'),
     fullscreenForeign,
+    rows: vis, // 工单34 方向3：可见窗快照原样带出（含 foreground 标记），供第五类分类
   };
 }
 
@@ -712,12 +743,15 @@ async function main() {
   const rep = new Report('03-battery', { scope: acceptScope });
   if (acceptScope.length) rep.note(`spec 范围段声明：${acceptScope.join(', ')}（已过清单硬交叉校验）`);
   const w32 = win32;
-  // —— 工单113 preflight 环境体检：四类已知污染源探测，警示入账不拒跑——本机覆盖层
+  // —— 工单113 preflight 环境体检：已知污染源探测，警示入账不拒跑——本机覆盖层
   // 是常态在场，拒跑会把验收永久卡死。FAIL-ENV 的环境定责从报告第一行起就有证据链。
   // 体检自身异常也只入账不中断（探测是增益，不是电池的前置条件）。
+  // 工单34 方向3 起：第五类「用户窗口活跃度」同账入警示（不拒跑、不进三路计数，
+  // ADR-0011 警示语义同构）——检出=发起时刻机器有用户活动迹象，供轮中抬窗定责对读。
   try {
-    const entries = classifyPreflight(preflightProbes());
-    if (entries.length === 0) rep.note('preflight 环境体检：四类污染源均不在场');
+    const probes = preflightProbes();
+    const entries = classifyPreflight(probes).concat(classifyUserWindowActivity(probes)); // 两分类器同缝收整个 probes
+    if (entries.length === 0) rep.note('preflight 环境体检：五类污染源均不在场');
     else for (const e of entries) rep.note(`preflight 环境体检［${e.kind}］${e.detail}`);
   } catch (e) { rep.note(`preflight 环境体检异常（不拒跑）: ${e && e.message}`); }
   const si = screenInfo();
@@ -955,14 +989,73 @@ async function main() {
     // 截图前 ESC 收层，命中率不足再重拍一次取后值
     w32.tapKeys([0x1b]);
     await sleep(400);
-    // 采样点先经 WindowFromPoint 过滤：只取面板之下确为参照窗的点（遮挡感知，工单04）
-    const probePoints = [];
-    for (let y = transparentZone.top + 8; y < transparentZone.bottom - 8; y += 16) {
-      for (let x = transparentZone.left + 8; x < transparentZone.right - 8; x += 16) {
-        if (w32.windowFromPointRoot({ x: rect.left + x, y: rect.top + y }) === checkerHwnd) probePoints.push({ x, y });
+    // 采样点先经 WindowFromPoint 过滤：只取面板之下确为参照窗的点（遮挡感知，工单04）。
+    // 工单34 方向1：采样前对参照窗做 ensurePanelHit 式遮挡清场重试。改段理由：旧假设
+    // 「开局清场后数分钟内无窗抬起」不成立——电池一跑数分钟，用户窗随时抬回面板上空
+    // （工单34 轮3 实证：P2 采样时参照窗几乎被用户窗全遮，有效采样点仅 0），与 #17 dock
+    // 交互探针同一根因同一手法：压在取样带上的覆盖窗逐个最小化（TOPMOST 浮层 ESC 收层、
+    // OLE 幽灵撤会话、面板本体与桌面层不碰），有界 4 轮；清不掉如实 FAIL 附遮挡源现场
+    // 证据——不设 skip 注记（verdict 三态外无「不可判」，ADR-0011 修正级改动不做）。
+    const collectProbePoints = () => {
+      const pts = [];
+      for (let y = transparentZone.top + 8; y < transparentZone.bottom - 8; y += 16) {
+        for (let x = transparentZone.left + 8; x < transparentZone.right - 8; x += 16) {
+          if (Number(w32.windowFromPointRoot({ x: rect.left + x, y: rect.top + y })) === Number(checkerHwnd)) pts.push({ x, y });
+        }
       }
+      return pts;
+    };
+    // 带上仍压着谁（粗网格扫覆盖根，去重，cap 限取证规模；与 ensurePanelHit 同款指认）
+    const bandCoverWindows = (cap) => {
+      const cover = new Map();
+      for (let y = transparentZone.top + 8; y < transparentZone.bottom - 8 && cover.size < cap; y += 48) {
+        for (let x = transparentZone.left + 8; x < transparentZone.right - 8; x += 48) {
+          const root = Number(w32.windowFromPointRoot({ x: rect.left + x, y: rect.top + y }));
+          if (root === Number(checkerHwnd) || !root) continue;
+          if (!cover.has(root)) cover.set(root, w32.className(root));
+        }
+      }
+      return cover;
+    };
+    let probePoints = [];
+    let retries = 0;
+    // 工单34 方向2 查漏补前置：同 shot 的 whitePixels 断言取景时钟卡区，同受「用户窗抬起」
+    // 根因威胁——卡心命中参照窗（面板穿透态落点透到参照窗）或面板本体（热区已解穿透）都算净。
+    const cardCenterPhys = {
+      x: rect.left + Math.round((CARD_DIP.x + CARD_DIP.w / 2) * f),
+      y: rect.top + Math.round((CARD_DIP.y + CARD_DIP.h / 2) * f),
+    };
+    const cardCovering = () => {
+      const root = Number(w32.windowFromPointRoot(cardCenterPhys));
+      return (root === Number(checkerHwnd) || root === Number(hwnd)) ? null : root;
+    };
+    for (let round = 0; round < 4; round++) {
+      probePoints = collectProbePoints();
+      if (probePoints.length >= 500 && !cardCovering()) break;
+      const cover = bandCoverWindows(8);
+      const cardRoot = cardCovering();
+      if (cardRoot) cover.set(cardRoot, w32.className(cardRoot));
+      let cleared = false;
+      for (const [root, cls] of cover) {
+        if (CLEAR_DESKTOP_SKIP.has(cls)) continue; // 桌面层：最小化无意义，交由断言如实判
+        const pid = w32.threadIdOf(root).pid;
+        if (pid === panelPid) continue; // 面板本体：不碰（面板只遮屏不遮断言，穿透区本不该中落点）
+        collapseOrMinimize(root, cls); // Ghost/TOPMOST → ESC 收层撤会话，其余最小化入还原清单
+        cleared = true;
+      }
+      if (!cleared) break; // 无可清者（带几何异常）：不空转，交由断言如实判
+      retries++;
+      await sleep(700); // 与 ensurePanelHit 同拍（最小化动画 + z 序落定）
     }
-    rep.note(`透明区采样点 ${probePoints.length} 个命中参照窗（其余被用户窗遮挡的点不计）`);
+    const occlusionWho = (probePoints.length < 500 || cardCovering())
+      ? [...bandCoverWindows(5).entries()].map(([root, cls]) => {
+        try {
+          const pid = w32.threadIdOf(root).pid;
+          return `${cls}(pid=${pid} ${w32.exeNameOfWindow(root) || '?'})`;
+        } catch { return cls; } // 窗已销毁：类名够用
+      }).join('、') || '（带上已无覆盖窗——有效点不足为取样带几何异常）'
+      : '';
+    rep.note(`透明区采样点 ${probePoints.length} 个命中参照窗（清场重试 ${retries} 轮；其余被用户窗遮挡的点不计）`);
     const shot = capture(rect, '02-transparent-on-checker');
     let chk = checkerHitRateAtPoints(shot, probePoints);
     if (chk.rate <= 0.9 && probePoints.length >= 500) {
@@ -977,12 +1070,16 @@ async function main() {
     probePoints.length >= 500 && chk.rate > 0.9
       ? rep.pass('透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）')
       : rep.fail(probePoints.length < 500
-        ? `参照窗几乎被用户窗全遮（有效采样点仅 ${probePoints.length}），透明断言不可判`
+        ? `参照窗采样带被用户窗遮挡：清场重试 ${retries} 轮后有效采样点仅 ${probePoints.length}（<500），透明断言如实 FAIL；遮挡源：${occlusionWho}`
         : `透明区未透出参照窗（命中率 ${(chk.rate * 100).toFixed(1)}%）`);
     const wp = whitePixels(shot, localCard);
+    const cardRootLeft = cardCovering();
+    if (cardRootLeft) rep.note(`时钟卡区清场 ${retries} 轮后仍被压（root=${w32.className(cardRootLeft)}）——whitePixels 不足时先看此证`);
     wp.hit > 30
       ? rep.pass(`时钟卡白色文字像素 ${wp.hit}/${wp.n}（文字实色清晰）`)
-      : rep.fail(`时钟卡白色文字像素不足 ${wp.hit}/${wp.n}`);
+      : rep.fail(cardRootLeft
+        ? `时钟卡白色文字像素不足 ${wp.hit}/${wp.n}（卡区被 ${w32.className(cardRootLeft)} 遮挡在案——清场重试 ${retries} 轮未清掉）`
+        : `时钟卡白色文字像素不足 ${wp.hit}/${wp.n}`);
     checker.destroy();
     await sleep(600);
     capture(rect, '02-on-wallpaper');
@@ -1065,11 +1162,22 @@ async function main() {
     } else {
       rep.note(`P3 穿透探针点 DIP(${emptyDip.x},${emptyDip.y})——与全部热区沿净距 ≥12px`);
       const emptyPhys = { x: rect.left + Math.round(emptyDip.x * f), y: rect.top + Math.round(emptyDip.y * f) };
+      // 工单34 方向2 查漏补前置：穿透探针要求空区落点直达桌面层，用户窗抬起压在空区上
+      // 会把点击偷走（同一根因）。落点先做有界清场（3 轮）：覆盖窗最小化（TOPMOST/Ghost
+      // 走 ESC 收层撤会话），桌面层在位即放行；清不掉不停轮，交由下方前台断言如实判。
+      for (let i = 0; i < 3; i++) {
+        const root = Number(w32.windowFromPointRoot(emptyPhys));
+        const cls = root ? w32.className(root) : '';
+        if (!root || DESKTOP_HIT_CLASSES.has(cls)) break; // 点即桌面（清单刻意窄，见其注）：在位即放行
+        if (w32.threadIdOf(root).pid === panelPid) break; // 面板本体不该中空区落点：出现即穿透已破，如实判
+        collapseOrMinimize(root, cls); // Ghost/TOPMOST → ESC 收层撤会话，其余最小化入还原清单
+        await sleep(700);
+      }
       w32.clickPhys(emptyPhys.x, emptyPhys.y, 'left');
       await sleep(500);
       const fg = w32.GetForegroundWindow();
       const fgCls = w32.className(fg);
-      ['Progman', 'WorkerW', 'SHELLDLL_DefView', 'SysListView32'].includes(fgCls)
+      DESKTOP_HIT_CLASSES.has(fgCls) // 前台断言成功集 = 「点即桌面」清单本体（同源，见其注）
         ? rep.pass(`默认穿透：面板空区点击直达桌面（前台翻转为 ${fgCls}）`)
         : rep.fail(`面板空区点击未直达桌面：前台=0x${fg.toString(16)}(${fgCls})`);
       w32.clickPhys(emptyPhys.x, emptyPhys.y, 'right');
@@ -1105,6 +1213,11 @@ async function main() {
       : rep.fail(`重叠点命中 0x${wfp(overlap).toString(16)}(${w32.className(wfp(overlap))})，非记事本`);
 
     const cardCenter = { x: Math.round((CARD_DIP.x + CARD_DIP.w / 2) * f), y: Math.round((CARD_DIP.y + CARD_DIP.h / 2) * f) };
+    // 工单34 方向2 查漏补前置：热区点击的 clock-card-clicked 存证门对遮挡敏感——用户窗
+    // 压在卡上会把点击偷走（同一根因）。交互前 ensurePanelHit（#17 同款，未清掉不停轮），
+    // 带证继续（事件门判定）；面板永不顶起语义不受影响（探针只落点清场不点击）。
+    const hitCardPre = await ensurePanelHit(cardCenter, hwnd);
+    if (!hitCardPre.ok) rep.note(`时钟卡落点清场未果：${hitCardPre.why}（继续点击，事件门判定）`);
     w32.moveMousePhys(cardCenter.x, cardCenter.y);
     const exAfterEnter = await (async () => {
       const deadline = Date.now() + 1500;
@@ -4613,6 +4726,11 @@ async function main() {
         if (!z) return false;
         const cx = currentRect.left + Math.round((z.x + z.w / 2) * f);
         const cy = currentRect.top + Math.round((z.y + z.h / 2) * f);
+        // 工单34 方向2 查漏补前置：激活点击的 search-activated 事件门对遮挡敏感——用户窗
+        // 压在搜索卡上会把点击偷走（同一根因）。点击前 ensurePanelHit 落点清场（未清掉
+        // 不中止），带证继续（事件门 + 前台门判定）。
+        const hitActPre = await ensurePanelHit({ x: cx, y: cy }, hwnd);
+        if (!hitActPre.ok) rep.note(`搜索卡落点清场未果：${hitActPre.why}（继续激活重试，事件门判定）`);
         for (let i = 0; i < 3; i++) {
           w32.moveMousePhys(cx, cy);
           await sleep(350);

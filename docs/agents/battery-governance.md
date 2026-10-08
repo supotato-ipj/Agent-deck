@@ -43,4 +43,4 @@ description: 验收电池章法——增/删/改三面规矩、flaky 处置流�
 
 ## 词汇
 
-「验收电池 / 验收段 / 断言失效面 / 环境降责 / spec 范围段 / 基线判别 / 时长预算 / 验收提示条」的正式词义见根目录 `GLOSSARY.md`；verdict 三态与合并门语义见 `docs/adr/0011-acceptance-battery-governance.md`。
+「验收电池 / 验收段 / 断言失效面 / 环境降责 / spec 范围段 / 基线判别 / 健康轮 / 时长预算 / 验收提示条」的正式词义见根目录 `GLOSSARY.md`；verdict 三态与合并门语义见 `docs/adr/0011-acceptance-battery-governance.md`。

@@ -2,8 +2,8 @@
 // 工单55 任务栏右组验收：控制器以 --accept-taskbar-right-group 身份运行，
 // 拉起 --panel-accept 面板子进程（绕开单实例锁，与常驻面板共存），逐项验收：
 //   P1 右组 pill 在场（摘要+音量+时钟三格）、显示桌面细条钉屏幕最右端（撑满条带高）
-//   P2 硬件摘要五项数值与硬件卡口径一致（紧邻双读 + 容差重试——两边同拍 1Hz，
-//      读取跨拍允许小幅波动；GPU/网络源缺位时两边同落占位符）
+//   （无 P2：原「硬件摘要与硬件卡口径一致」段随硬件卡在工单59 退役、参照面 hw-line1/2
+//    已无渲染源，工单134 按特征退役整段删除；P3-P6 段号不重排，防历史证据错位）
 //   P3 时钟格点击 → 原生通知中心前台（Win+N）
 //   P4 音量格点击 → 原生快速设置前台（Win+A）
 //   P5 显示桌面细条点击 → ToggleDesktop（notepad 探针：一点全最小化、再点还原）
@@ -16,9 +16,11 @@ const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
+// config 读写/还原共通 helper（工单124）：本电池的 writeTaskbarFields 是有兜底参照实现，
+// 抽为单点维护后四电池同一契约（缺位读不抛、缺位落桩、三态还原）
+const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '55-taskbar-right-group-events.jsonl');
 const CDP_PORT = 9225;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -176,46 +178,16 @@ function killTree(child, panelPid) {
   try { child.kill(); } catch { /* 已退出 */ }
 }
 
-/** 覆写 config.json 的 taskbar 段字段（保留其余字段原文档位；文件缺位先落最小桩——
- * 面板 loadConfig 会按默认值补齐其余段）。返回原文供 finally 还原（null = 原本无文件） */
-function writeTaskbarFields(patch) {
-  const raw = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
-  const json = raw ? JSON.parse(raw) : {};
-  json.taskbar = { ...(json.taskbar ?? {}), ...patch };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
-  return raw;
-}
-
-/** 硬件卡五项文本解析（#hw-line1/line2 innerText）→ {cpu,gpu,ram,dl,up}（缺位 = null） */
-function parseCardText(t1, t2) {
-  const num = (m) => (m ? Number(m[1]) : null);
-  return {
-    cpu: num(/CPU\s+(\d+)%/.exec(t1)),
-    gpu: num(/GPU\s+(\d+)%/.exec(t1)),
-    ram: num(/RAM\s+(\d+)%/.exec(t2)),
-    dl: num(/DL\s+([\d.]+)KB\/s/.exec(t2)),
-    up: num(/UP\s+([\d.]+)KB\/s/.exec(t2)),
-  };
-}
-
-/** 任务栏摘要文本解析（「CPU 12% GPU 79% RAM 46% DL 1.23KB/s UP 0.00KB/s」，缺位 = ---） */
-function parseSummaryText(t) {
-  const num = (m) => (m ? Number(m[1]) : null);
-  return {
-    cpu: num(/CPU\s+(\d+)%/.exec(t)),
-    gpu: num(/GPU\s+(\d+)%/.exec(t)),
-    ram: num(/RAM\s+(\d+)%/.exec(t)),
-    dl: num(/DL\s+([\d.]+)KB\/s/.exec(t)),
-    up: num(/UP\s+([\d.]+)KB\/s/.exec(t)),
-  };
-}
+// 任务栏页摘要格读式（工单123 引入）：仅 P6 消费（即时收敛 + 重拉两读）——hw-summary
+// 缺位返回 null 而非抛 TypeError 的空安全读，防格缺位窗口期中止电池。
+const READ_SUMMARY_EXPR = `(() => { const el = document.getElementById('hw-summary'); return el ? el.innerText : null; })()`;
 
 async function main() {
   const rep = new Report('55-taskbar-right-group');
   let child = null;
   let panelPid = 0;
   let notepad = null;
-  const originalConfig = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+  const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
     app.exit(v.fails === 0 ? 0 : 1);
@@ -223,7 +195,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    writeTaskbarFields({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] });
+    patchTaskbar({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] });
 
     // —— 拉起面板子进程（任务栏启用态）——
     child = launchPanel();
@@ -270,27 +242,6 @@ async function main() {
     } else {
       rep.fail(`P1 格清单=${JSON.stringify(cellIds)} 细条=${JSON.stringify({ sliverRightPhys, tbRight: tbRect.right, sliverHPhys, stripHPhys })}`);
     }
-
-    // P2 摘要五项数值与硬件卡口径一致：紧邻双读（任务栏页摘要 DOM ↔ 面板页硬件卡 DOM），
-    // 容差重试——两边同拍 1Hz 推送，读取跨拍允许小幅波动。
-    rep.beginSegment('P2');
-    let p2ok = false;
-    let p2detail = '';
-    for (let round = 0; round < 8 && !p2ok; round++) {
-      await sleep(300);
-      const sumText = await cdpEval(TASKBAR_TITLE, `document.getElementById('hw-summary').innerText`);
-      const card = await cdpEval(PANEL_TITLE, `document.getElementById('hw-line1').innerText + '\\n' + document.getElementById('hw-line2').innerText`);
-      const [c1, c2] = String(card).split('\n');
-      const sum = parseSummaryText(String(sumText));
-      const ref = parseCardText(c1 ?? '', c2 ?? '');
-      const pctClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= 5);
-      const rateClose = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) <= Math.max(50, Math.abs(b) * 0.5));
-      p2ok = pctClose(sum.cpu, ref.cpu) && pctClose(sum.gpu, ref.gpu) && pctClose(sum.ram, ref.ram)
-        && rateClose(sum.dl, ref.dl) && rateClose(sum.up, ref.up);
-      p2detail = `摘要=${JSON.stringify(sum)} 硬件卡=${JSON.stringify(ref)}`;
-    }
-    if (p2ok) rep.pass(`P2 硬件摘要五项与硬件卡口径一致（${p2detail}）`);
-    else rep.fail(`P2 口径比对 8 轮未收敛：${p2detail}`);
 
     // —— 系统动作三格（P3/P4/P5）：点击前统一收敛 z 序/热区 ——
     // P3 时钟格 → 原生通知中心（Win+N）
@@ -370,7 +321,9 @@ async function main() {
     const r6 = await cdpEval(PANEL_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })`);
     await sleep(800); // 等 taskbar/changed 抵达任务栏页重渲染
     const disk6 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    const sumText6 = await cdpEval(TASKBAR_TITLE, `document.getElementById('hw-summary').innerText`);
+    // 工单123：读侧时序——set-metrics 触发重渲染，空安全读缺位返回 null
+    // （live6 判 false 走段失败留证据），不再 TypeError 中止整块电池
+    const sumText6 = await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR);
     const live6 = /CPU/.test(String(sumText6)) && /RAM/.test(String(sumText6))
       && !/GPU/.test(String(sumText6)) && !/DL/.test(String(sumText6)) && !/UP/.test(String(sumText6));
     // 重拉面板（重启保持判据）
@@ -386,7 +339,7 @@ async function main() {
     await waitWindow(panelPid, TASKBAR_TITLE, 12000);
     const ready6 = await waitEvent('taskbar-ready', (e) => e.t >= since6 && e.rightCells, 10000);
     const ids6 = ready6 ? ready6.rightCells.map((c) => c.id) : [];
-    const sumText6b = ready6 ? await cdpEval(TASKBAR_TITLE, `document.getElementById('hw-summary').innerText`) : '';
+    const sumText6b = ready6 ? await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR) : '';
     const persist6 = /CPU/.test(String(sumText6b)) && /RAM/.test(String(sumText6b)) && !/GPU/.test(String(sumText6b));
     if (r6 && JSON.stringify(r6.metrics) === JSON.stringify(['cpu', 'ram'])
       && JSON.stringify(disk6.taskbar?.metrics) === JSON.stringify(['cpu', 'ram'])
@@ -400,9 +353,8 @@ async function main() {
   } finally {
     if (notepad) spawnSync('taskkill', ['/PID', String(notepad.pid), '/T', '/F'], { stdio: 'ignore' });
     killTree(child, panelPid);
-    // config 还原：原本无文件则删掉电池落的最小桩（worktree 首跑场景）
-    if (originalConfig !== null) fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8');
-    else fs.rmSync(CONFIG_FILE, { force: true });
+    // config 三态还原（工单124）：原本无文件则删掉电池落的最小桩（worktree 首跑场景）
+    restoreConfig(originalConfig);
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生
     // 任务栏可能留隐藏态——电池不得给用户留无系统入口的桌面
     ensureNativeTaskbarVisible();

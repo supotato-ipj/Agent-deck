@@ -1,10 +1,19 @@
-# accept 55-taskbar-right-group — 2026-10-07T16:09:57.936Z
-[16:09:58.550] NOTE  面板 pid=18568
-[16:10:01.735] SEG   ▶ P1 右组 pill 在场（摘要+音量+时钟）+ 显示桌面细条钉屏幕最右端｜工单55｜失效面=系统状态
-[16:10:01.736] PASS  P1 右组 pill 在场（hw-summary/volume/clock），显示桌面细条钉屏幕最右端（右缘≈屏右、撑满条带高）
-[16:10:01.737] SEG   ▶ P2 硬件摘要五项与硬件卡口径一致（紧邻双读 + 容差重试）｜工单55｜失效面=事件存证
-[16:10:02.087] FAIL  电池异常: Error: CDP evaluate 失败: {"exceptionId":1,"text":"Uncaught","lineNumber":0,"columnNumber":35,"scriptId":"18","exception":{"type":"object","subtype":"error","className":"TypeError","description":"TypeError: Cannot read properties of null (reading 'innerText')\n    at <anonymous>:1:36","objectId":"-1589662896793043146.1.2"}}
-    at cdpEval (D:\test-folder\wallpaperengine-research--spec109-t114\app\accept\taskbar-right-group.js:156:13)
-    at async main (D:\test-folder\wallpaperengine-research--spec109-t114\app\accept\taskbar-right-group.js:282:20)
-[16:10:02.658] NOTE  清场核验：原生任务栏可见
-[16:10:02.661] ===== 55-taskbar-right-group VERDICT: FAIL (pass=1 fail=1) =====
+# accept 55-taskbar-right-group — 2026-10-07T21:30:31.105Z
+[21:30:31.690] NOTE  面板 pid=5888
+[21:30:35.680] SEG   ▶ P1 右组 pill 在场（摘要+音量+时钟）+ 显示桌面细条钉屏幕最右端｜工单55｜失效面=系统状态
+[21:30:35.682] PASS  P1 右组 pill 在场（hw-summary/volume/clock），显示桌面细条钉屏幕最右端（右缘≈屏右、撑满条带高）
+[21:30:35.684] SEG   ▶ P3 时钟格点击 → 原生通知中心前台｜工单55｜失效面=输入注入+系统状态
+[21:30:35.951] NOTE  P3 点击前收敛=true
+[21:30:36.166] PASS  P3 时钟格弹出原生通知中心（前台 shellexperiencehost / Windows.UI.Core.CoreWindow）
+[21:30:36.651] NOTE  通知中心收起=true
+[21:30:37.254] SEG   ▶ P4 音量格点击 → 原生快速设置前台｜工单55｜失效面=输入注入+系统状态
+[21:30:37.521] NOTE  P4 点击前收敛=true
+[21:30:37.647] PASS  P4 音量格弹出原生快速设置（前台 shellhost / ControlCenterWindow）
+[21:30:38.284] NOTE  快速设置收起=true
+[21:30:38.901] SEG   ▶ P5 显示桌面细条 → ToggleDesktop（notepad 探针一收一放）｜工单55｜失效面=输入注入+系统状态
+[21:30:39.701] NOTE  P5 点击前收敛=true
+[21:30:40.706] PASS  P5 显示桌面细条 ToggleDesktop：一点全最小化落桌面、再点 notepad 还原前台
+[21:30:40.708] SEG   ▶ P6 勾选子集持久化：set-metrics 落盘 + 即时收敛 + 重拉保持｜工单55｜失效面=系统状态+事件存证
+[21:30:49.740] PASS  P6 勾选子集持久化：落盘 config.json、任务栏即时收敛为 CPU/RAM、重拉后保持（重启保持）
+[21:30:51.224] NOTE  清场核验：原生任务栏可见
+[21:30:51.227] ===== 55-taskbar-right-group VERDICT: PASS (pass=5 fail=0) =====

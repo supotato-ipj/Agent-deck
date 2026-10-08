@@ -457,9 +457,9 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 120,
-      "lastMeasuredSeconds": 49,
-      "lastMeasuredAt": "2026-10-07",
+      "budgetSeconds": 60,
+      "lastMeasuredSeconds": 21,
+      "lastMeasuredAt": "2026-10-08",
       "segments": [
         {
           "seg": "P1",
@@ -468,7 +468,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 8
+          "estSeconds": 1
         },
         {
           "seg": "P2",
@@ -479,7 +479,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 3
+          "estSeconds": 2
         },
         {
           "seg": "P3",
@@ -489,7 +489,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 2
+          "estSeconds": 1
         },
         {
           "seg": "P4",
@@ -500,7 +500,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 6
+          "estSeconds": 2
         },
         {
           "seg": "P5",
@@ -511,7 +511,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8
+          "estSeconds": 3
         },
         {
           "seg": "P6",
@@ -521,7 +521,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 3
+          "estSeconds": 1
         },
         {
           "seg": "P7",
@@ -530,7 +530,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 2
+          "estSeconds": 1
         },
         {
           "seg": "P8",
@@ -549,7 +549,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 6
         }
       ]
     },
@@ -641,8 +641,8 @@
       "entry": "app/accept/taskbar-appbar.js",
       "script": "accept:taskbar-appbar",
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 22,
-      "lastMeasuredAt": "2026-10-07",
+      "lastMeasuredSeconds": 24,
+      "lastMeasuredAt": "2026-10-08",
       "segments": [
         {
           "seg": "P1",
@@ -652,7 +652,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 5
+          "estSeconds": 4
         },
         {
           "seg": "P2",
@@ -692,18 +692,18 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 2
+          "estSeconds": 12
         }
       ]
     },
     {
       "id": "55-taskbar-right-group",
-      "title": "任务栏右组（工单55）：右组 pill/硬件摘要口径/系统动作三格/子集持久化",
+      "title": "任务栏右组（工单55）：右组 pill/系统动作三格/子集持久化",
       "entry": "app/accept/taskbar-right-group.js",
       "script": "accept:taskbar-right-group",
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": null,
-      "lastMeasuredAt": null,
+      "lastMeasuredSeconds": 20,
+      "lastMeasuredAt": "2026-10-08",
       "segments": [
         {
           "seg": "P1",
@@ -712,16 +712,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P2",
-          "ticket": 55,
-          "title": "硬件摘要五项与硬件卡口径一致（紧邻双读 + 容差重试）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 5
+          "estSeconds": 1
         },
         {
           "seg": "P3",
@@ -731,7 +722,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 2
         },
         {
           "seg": "P4",
@@ -741,7 +732,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 5
+          "estSeconds": 2
         },
         {
           "seg": "P5",
@@ -751,7 +742,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 10
+          "estSeconds": 4
         },
         {
           "seg": "P6",

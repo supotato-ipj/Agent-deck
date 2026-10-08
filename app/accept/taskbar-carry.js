@@ -20,9 +20,10 @@ const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
+// config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
+const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '50-taskbar-carry-events.jsonl');
 const CDP_PORT = 9224;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -107,13 +108,6 @@ function stuckRectsSettings() {
   return r.status === 0 ? r.stdout : `ERR:${r.status}:${(r.stderr || '').trim()}`;
 }
 
-/** 覆写 config.json 的 taskbar.enabled（保留其余字段原文档位） */
-function writeTaskbarEnabled(enabled) {
-  const json = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-  json.taskbar = { ...(json.taskbar ?? {}), enabled };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
-}
-
 /** 守卫链（默认入口）：守卫 + 还原守护 + 面板全链路。返回 { child, guardPid }。 */
 function launchGuardChain() {
   const child = spawn(process.execPath, ['.'], {
@@ -176,7 +170,7 @@ async function cdpEval(expression) {
 
 async function main() {
   const rep = new Report('50-taskbar-carry');
-  const originalConfig = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+  const originalConfig = readConfigRaw();
   const prefsBefore = stuckRectsSettings();
   let child = null;   // 当前阶段子进程（守卫链或 --panel-accept）
   let panelPid = 0;   // 面板真实主进程 pid（boot 自报）
@@ -187,7 +181,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    writeTaskbarEnabled(true);
+    patchTaskbar({ enabled: true });
     if (!nativeTaskbarVisible()) {
       throw new Error('开跑前原生任务栏已隐藏（他方现场）——先还原再跑，电池不从脏现场出发');
     }
@@ -338,7 +332,7 @@ async function main() {
       } catch { /* 尽力 */ }
       await sleep(500);
       try { ensureNativeTaskbarVisible(); } catch { /* 兜底中的兜底也不许抛 */ }
-      if (originalConfig !== null) { try { fs.writeFileSync(CONFIG_FILE, originalConfig, 'utf8'); } catch { /* 尽力 */ } }
+      try { restoreConfig(originalConfig); } catch { /* 尽力（三态还原，工单124：缺位来、缺位去） */ }
       // C1 偏好不扰（工单50）：清场收尾时比对用户既有任务栏偏好字节不变
       rep.beginSegment('C1');
       const prefsAfter = stuckRectsSettings();
