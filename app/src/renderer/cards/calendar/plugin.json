@@ -1,0 +1,8 @@
+{
+  "id": "calendar",
+  "name": "CALENDAR",
+  "version": "1.0.0",
+  "entry": "./card.js",
+  "capabilities": ["clock"],
+  "order": 40
+}

@@ -4,16 +4,14 @@
 // 渲染层向宿主声明交互热区（各卡片矩形）；字体就绪后再声明一次，免字体换挡挪动矩形。
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
-import { pad, pad3 } from './format.js'
+import { pad3 } from './format.js'
 import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
-import { GATE_INITIAL, escapePlan, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
-import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState, KeyRoutingContext } from './keyboard-gate.js'
+import { GATE_INITIAL, escapePlan, keyRoutingContextOf, nextKeyboardGate, pasteFailureNotice, routeSelectionKey } from './keyboard-gate.js'
+import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState } from './keyboard-gate.js'
 import { pasteableWithinTimeout } from './pasteable-query.js'
 import { zoneHotzoneContains, zoneHotzoneRect } from './zone-hotzone.js'
 import type { ZoneBox } from './zone-hotzone.js'
-
-const CAL_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T
@@ -24,38 +22,6 @@ function el<T extends HTMLElement = HTMLElement>(id: string): T {
 function notify(type: string, payload?: Record<string, unknown>): void {
   window.deck.host.notify(type, payload)
 }
-
-// ---- 日历卡（纯前端，自快照时钟推导） ----
-
-const calTitle = el('cal-title')
-const calGrid = el('cal-grid')
-
-function renderCalendar(epochMs: number): void {
-  const d = new Date(epochMs)
-  calTitle.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
-  calGrid.textContent = ''
-  for (const wd of CAL_WEEKDAYS) {
-    const head = document.createElement('div')
-    head.className = 'head'
-    head.textContent = wd
-    calGrid.appendChild(head)
-  }
-  const first = new Date(d.getFullYear(), d.getMonth(), 1)
-  const lead = (first.getDay() + 6) % 7 // 周一为首列
-  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-  for (let i = 0; i < lead; i++) {
-    const blank = document.createElement('div')
-    calGrid.appendChild(blank)
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    const cell = document.createElement('div')
-    cell.className = day === d.getDate() ? 'day today' : 'day'
-    cell.textContent = String(day)
-    calGrid.appendChild(cell)
-  }
-}
-
-let calendarMonth = -1
 
 // ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：文档区分组列 ----
 // 工单59：dock 应用区退役——应用入口并入任务栏（左组手钉/运行中 + 中组推荐位），
@@ -111,11 +77,11 @@ function markSelection(): void {
 }
 
 // ---- 键盘模式归一仲裁（工单31，ADR-0006 收官）：键盘模式是多方共用的单通道（工单02
-// 起搜索/设置浮层、删除确认层、重命名编辑 9 处调用点；工单31 增选区生灭）。归一仲裁
-// 把开态合成一处——键盘模式 = 选区非空 OR 任一浮层开（keyboard-gate.ts 纯逻辑）。
-// 全部开关意图都进同一归约器，变化沿才出通道：浮层关而选区仍非空 → 保持 on 不互相踩；
-// 选区清空而浮层仍开 → 键盘归浮层。panel-ipc 侧 keyboard-mode-on/off 存证与选区生灭
-// 严格同相（电池 P5.17 硬断言）。
+// 起搜索/设置浮层、删除确认层、重命名编辑 9 处调用点；工单31 增选区生灭；工单100 增
+// 插件键盘档）。归一仲裁把开态合成一处——键盘模式 = 选区非空 OR 任一浮层开 OR 任一
+// 插件档在持（keyboard-gate.ts 纯逻辑）。全部开关意图都进同一归约器，变化沿才出通道：
+// 浮层关而选区仍非空 → 保持 on 不互相踩；选区清空而浮层/插件档仍开 → 键盘归浮层/键盘档。
+// panel-ipc 侧 keyboard-mode-on/off 存证与选区生灭严格同相（电池 P5.17 硬断言）。
 
 let keyboardGate: KeyboardGateState = GATE_INITIAL
 
@@ -1248,6 +1214,7 @@ const settingsReset = el('settings-reset')
 const settingsExit = el('settings-exit')
 const taskbarToggle = el('taskbar-toggle') as HTMLInputElement
 const taskbarToggleState = el('taskbar-toggle-state')
+const settingsCardsList = el('settings-cards-list')
 let settingsOpen = false
 let appliedOpacity: number | null = null
 
@@ -1266,8 +1233,76 @@ function applyCardAlpha(alpha: number): void {
 }
 
 function renderSettings(s: SettingsState): void {
+  lastSettings = s // 最近一次内核态：开关 invoke 失败时的回滚真相
   applyCardAlpha(s.cardOpacity)
+  renderCardToggles(s)
 }
+
+// ---- 卡片显隐开关列表（工单101）----
+// 行 = 全部已发现插件包（快照 plugins 段 + 停用集并集），每行名称 + 开关。停用经
+// settings/set-card-enabled 落内核（整份回写 config.plugins.disabled），插件宿主重扫清单
+// 剔除该包 → syncPlugins 卸载 → 热区随 DOM 变更自动重声明；包文件一律不动。快照 plugins
+// 段天然不含停用包，其行以最近见过的名称（本会话内记得）或 id 兜底显示；开关回弹即恢复。
+
+/** 插件包 id → 最近见过的可读名（快照在场即记；停用后行仍显示人话，重启后 id 兜底） */
+const cardNames = new Map<string, string>()
+let lastSettings: SettingsState | null = null
+/** 行签名：名单/名称/开关态任一变了才重建 DOM（1Hz 快照 reconcile 不抖动交互中的行） */
+let cardRowsKey: string | null = null
+
+function renderCardToggles(s: SettingsState): void {
+  const rows: Array<{ id: string; name: string; enabled: boolean }> = []
+  const disabled = new Set(s.disabledCards)
+  for (const p of lastSnapshot?.plugins ?? []) {
+    cardNames.set(p.id, p.name)
+    rows.push({ id: p.id, name: p.name, enabled: !disabled.has(p.id) })
+  }
+  for (const id of [...disabled].sort()) {
+    if (!rows.some((r) => r.id === id)) rows.push({ id, name: cardNames.get(id) ?? id, enabled: false })
+  }
+  const key = JSON.stringify(rows)
+  if (key === cardRowsKey) return
+  cardRowsKey = key
+  settingsCardsList.replaceChildren(...rows.map((row) => {
+    const line = document.createElement('div')
+    line.className = 'set-row'
+    const label = document.createElement('span')
+    label.className = 'set-label'
+    label.textContent = row.name
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.className = 'card-toggle'
+    input.dataset['cardId'] = row.id
+    input.checked = row.enabled
+    input.setAttribute('aria-label', `显示或隐藏插件包 ${row.name}`)
+    const state = document.createElement('span')
+    state.className = 'card-toggle-state'
+    state.textContent = row.enabled ? 'ON' : 'OFF'
+    line.append(label, input, state)
+    return line
+  }))
+}
+
+// 开关切换（事件托付：行随 reconcile 重建也不换监听）：先存证意图，再经内核落盘生效；
+// 失败以最近一次内核态回滚勾选（内核未变）。生效回执里同时带回新停用集（reconcile 用）。
+settingsCardsList.addEventListener('change', (e) => {
+  const input = e.target as HTMLInputElement
+  const id = input.dataset['cardId']
+  if (!id) return
+  const enabled = input.checked
+  notify('settings-card-toggle', { id, enabled })
+  void window.deck.bridge.invoke('settings/set-card-enabled', { id, enabled }).then(
+    (s) => {
+      notify('settings-card-set', { id, enabled: !s.disabledCards.includes(id) })
+      renderSettings(s)
+    },
+    (err: unknown) => {
+      notify('settings-card-failed', { id, message: String(err) })
+      cardRowsKey = null // 强制重建，勾选态回滚到内核真相
+      if (lastSettings) renderSettings(lastSettings)
+    },
+  )
+})
 
 /** 任务栏逃生开关（工单50）：勾选态 reconcile——开层拉取、切换回执、taskbar/changed
  * 回推三路共用，幂等。开关关 = 还原原生任务栏的自救通道（内核落盘 config 并销条带窗）。 */
@@ -1290,12 +1325,19 @@ function openSettings(): void {
     (s) => applyTaskbarEnabled(s.enabled),
     () => { /* 拉取失败保持现状，回推会补齐 */ },
   )
-  // 滑杆/开关矩形随开层存证（电池按它们定位拖拽/点击落点，desktop-rendered rects 同法）
+  // 滑杆/开关矩形随开层存证（电池按它们定位拖拽/点击落点，desktop-rendered rects 同法）。
+  // 卡片开关行矩形（工单101）：id + 当拍勾选态 + 勾选框矩形（电池按 id 定位点击开关行）；
+  // 列表在浮层隐藏期间也持续 reconcile，此处矩形按已显示布局取（display 先行恢复）。
   const sr = opacitySlider.getBoundingClientRect()
   const tr = taskbarToggle.getBoundingClientRect()
+  const cards = Array.from(settingsCardsList.querySelectorAll<HTMLInputElement>('input.card-toggle')).map((input) => {
+    const r = input.getBoundingClientRect()
+    return { id: input.dataset['cardId'] ?? '', enabled: input.checked, rect: { x: r.left, y: r.top, w: r.width, h: r.height } }
+  })
   notify('settings-opened', {
     slider: { x: sr.left, y: sr.top, w: sr.width, h: sr.height },
     taskbarToggle: { x: tr.left, y: tr.top, w: tr.width, h: tr.height },
+    cards,
     value: appliedOpacity == null ? null : Math.round(appliedOpacity * 100),
   })
   declareHotZones()
@@ -1322,8 +1364,12 @@ settingsBtn.addEventListener('click', () => {
 })
 
 settingsCard.addEventListener('mousedown', (e) => {
-  // 滑杆/逃生开关要收焦点（拖拽/键盘切换中渲染层不抢位）；其余区域保焦点，点击不触发失焦关层
-  if (e.target !== opacitySlider && e.target !== taskbarToggle) e.preventDefault()
+  // 滑杆/逃生开关/卡片开关（工单101）要收焦点（拖拽/键盘切换中渲染层不抢位）；
+  // 其余区域保焦点，点击不触发失焦关层
+  if (e.target !== opacitySlider && e.target !== taskbarToggle
+    && !(e.target instanceof HTMLInputElement && e.target.classList.contains('card-toggle'))) {
+    e.preventDefault()
+  }
 })
 
 settingsCard.addEventListener('keydown', (e) => {
@@ -1391,229 +1437,9 @@ function exitPanel(): void {
 
 settingsExit.addEventListener('click', () => exitPanel())
 
-window.deck.bridge.on('settings/changed', (s) => applyCardAlpha(s.cardOpacity))
+window.deck.bridge.on('settings/changed', (s) => renderSettings(s))
 // 逃生开关状态回推（工单50）：他端切换（如条带侧动作、插件卸载终态帧）即时对齐勾选态
 window.deck.bridge.on('taskbar/changed', (s) => applyTaskbarEnabled(s.enabled))
-
-// ---- 搜索面板（工单07，GLOSSARY.md「搜索面板」三态）----
-// 待机（SEARCH 头 + CLICK TO SEARCH_ 提示）/ 活动（原生输入框 + 实时结果）/ 引擎离线
-// （ENGINE OFFLINE 徽标）。引擎链路全在内核：这里只喂词（search/query，每次 input 事件
-// 一发，内核防抖 ~200ms 后直连 Listary），结果/离线经事件回推；↑/↓ 选择、Enter 打开、
-// Ctrl+Enter 定位经 search/action 由内核执行。01 探针结论落地：点击激活后渲染层 JS 聚焦
-// 输入框（中文输入法可输入，composition 事件照常喂词 = 拼音实时检索）。
-// 隐私边界：本文件与全部存证 notify 一律不含查询词内容（只带 qlen 长度，旧 QD_PANEL_TRACE 惯例）。
-
-const searchCard = el('search-card')
-const searchHint = el('search-hint')
-const searchInput = el('search-input') as HTMLInputElement
-const searchPlaceholder = el('search-placeholder')
-const searchResultsBox = el('search-results')
-const SEARCH_LIMIT = 8
-const SEARCH_NAME_CHARS = 26
-const SEARCH_PATH_CHARS = 24
-let searchActive = false
-let searchItems: SearchResultItem[] = []
-let searchSel = -1
-let searchDeactivating = false // 程序化失焦护栏：deactivate 主动 blur 不再触发失焦转移
-
-/** 完整路径 → (名称, 父目录) 两段展示（listary_engine.display_parts 平移，含盘根反斜杠语义） */
-function displayParts(path: string): { name: string; parent: string } {
-  const cut = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'))
-  if (cut < 0) return { name: path, parent: '' }
-  let parent = path.slice(0, cut)
-  if (parent.endsWith(':')) parent += '\\' // 盘根：C:\ 而非 C:（PureWindowsPath 语义）
-  return { name: path.slice(cut + 1), parent }
-}
-/** 超长时保留尾部（路径的辨识段在结尾） */
-function elideLeft(s: string, max: number): string {
-  return s.length <= max ? s : '…' + s.slice(-(max - 1))
-}
-/** 超长时保留头部（文件名的辨识段在开头） */
-function elideRight(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 1) + '…'
-}
-
-/** 面板按键 → 动作（listary_engine.decide_action 平移；其余键不接） */
-function searchDecideAction(key: string, ctrl: boolean): 'prev' | 'next' | 'open' | 'reveal' | null {
-  if (key === 'ArrowUp') return 'prev'
-  if (key === 'ArrowDown') return 'next'
-  if (key === 'Enter') return ctrl ? 'reveal' : 'open'
-  return null
-}
-
-function applySearchSelection(): void {
-  const rows = searchResultsBox.querySelectorAll<HTMLElement>('.qrow')
-  rows.forEach((row, i) => row.classList.toggle('sel', i === searchSel))
-}
-
-/** 选中项移动：首尾 clamp 不环绕（SelectionModel 语义）；结果刷新重置回首项 */
-function searchMove(delta: number): void {
-  if (!searchItems.length) return
-  searchSel = Math.max(0, Math.min(searchItems.length - 1, searchSel + delta))
-  applySearchSelection()
-  notify('search-selection-moved', { index: searchSel })
-}
-
-function clearSearchResultsDom(): void {
-  searchResultsBox.textContent = ''
-  searchResultsBox.style.display = 'none'
-  searchItems = []
-  searchSel = -1
-}
-
-function renderSearchRows(total: number, items: SearchResultItem[]): void {
-  searchItems = items.slice(0, SEARCH_LIMIT)
-  searchSel = searchItems.length ? 0 : -1
-  searchResultsBox.textContent = ''
-  if (!searchItems.length) {
-    const empty = document.createElement('div')
-    empty.id = 'search-empty'
-    empty.textContent = 'NO RESULTS'
-    searchResultsBox.appendChild(empty)
-  } else {
-    searchItems.forEach((item, idx) => {
-      const row = document.createElement('div')
-      row.className = 'qrow'
-      const parts = displayParts(item.path)
-      const name = document.createElement('span')
-      name.className = 'qname'
-      name.textContent = elideRight(parts.name, SEARCH_NAME_CHARS)
-      const dir = document.createElement('span')
-      dir.className = 'qpath'
-      dir.textContent = elideLeft(parts.parent, SEARCH_PATH_CHARS)
-      row.append(name, dir)
-      // mousedown preventDefault：行点击不夺输入框焦点（失焦即收层，点击会落空）
-      row.addEventListener('mousedown', (e) => e.preventDefault())
-      row.addEventListener('click', () => { void searchAct(idx, false) })
-      searchResultsBox.appendChild(row)
-    })
-  }
-  const foot = document.createElement('div')
-  foot.id = 'search-total'
-  foot.textContent = `TOTAL ${total}`
-  searchResultsBox.appendChild(foot)
-  searchResultsBox.style.display = 'block'
-  applySearchSelection()
-  declareHotZones()
-}
-
-function renderSearchOffline(): void {
-  searchResultsBox.textContent = ''
-  const badge = document.createElement('div')
-  badge.id = 'search-offline'
-  badge.textContent = 'ENGINE OFFLINE'
-  searchResultsBox.appendChild(badge)
-  searchResultsBox.style.display = 'block'
-  searchItems = []
-  searchSel = -1
-  declareHotZones()
-}
-
-async function searchAct(idx: number, reveal: boolean): Promise<void> {
-  const item = searchItems[idx]
-  if (!item) return
-  notify('search-action', { index: idx, reveal, qlen: searchInput.value.length })
-  try {
-    const r = await window.deck.bridge.invoke('search/action', { path: item.path, reveal })
-    notify(r.ok ? (reveal ? 'search-revealed' : 'search-opened') : 'search-action-rejected', {
-      index: idx, reveal, ok: r.ok, error: r.error ?? null,
-    })
-  } catch (err) {
-    notify('search-action-failed', { index: idx, reveal, message: String(err) })
-  }
-  searchDeactivate('action') // 动作完成即收起（旧 _act → _deactivate('esc') 惯例）
-}
-
-function searchActivate(): void {
-  if (searchActive) {
-    searchInput.focus() // 活动态重复点击 = 摆放光标，不重置查询
-    return
-  }
-  searchActive = true
-  // 键盘模式开（仲裁单点，工单31）：面板永不激活，这里临时取得键盘焦点再聚焦输入框
-  dispatchKeyboardGate({ type: 'overlay-opened', name: 'search' })
-  searchHint.style.display = 'none'
-  searchInput.style.display = 'block'
-  searchPlaceholder.style.display = searchInput.value ? 'none' : 'block'
-  void window.deck.bridge.invoke('search/activate', null).then((r) => {
-    if (r.state === 'offline' && searchActive) renderSearchOffline()
-  }, () => { /* 内核未就绪：下次交互再试 */ })
-  searchInput.focus()
-  notify('search-activated', {})
-  declareHotZones()
-}
-
-
-/** 退待机触发源（存证 reason 字段的契约：电池按 reason 断言） */
-type SearchDeactivateReason = 'esc' | 'blur' | 'action'
-
-function searchDeactivate(reason: SearchDeactivateReason): void {
-  if (!searchActive) return
-  searchDeactivating = true
-  searchActive = false
-  // 键盘模式关（仲裁单点，工单31）：恢复不可聚焦+钉底。窗口随之失活会再触发一次 input blur，
-  // 由 searchDeactivating 护栏与下方 searchActive 早退双保险拦住，不会打架。选区仍非空则仲裁保持 on。
-  dispatchKeyboardGate({ type: 'overlay-closed', name: 'search' })
-  void window.deck.bridge.invoke('search/deactivate', null).catch(() => {})
-  searchInput.value = ''
-  searchInput.style.display = 'none'
-  searchPlaceholder.style.display = 'none'
-  searchHint.style.display = 'block'
-  clearSearchResultsDom()
-  searchInput.blur()
-  setTimeout(() => { searchDeactivating = false }, 0)
-  notify('search-deactivated', { reason })
-  declareHotZones()
-}
-
-// 卡片任意位置点击激活；mousedown preventDefault 保输入框焦点（点击卡片他处不触发失焦转移）
-searchCard.addEventListener('mousedown', (e) => {
-  if (e.target !== searchInput) e.preventDefault()
-})
-searchCard.addEventListener('click', () => searchActivate())
-
-searchInput.addEventListener('input', () => {
-  if (!searchActive) return
-  const text = searchInput.value
-  searchPlaceholder.style.display = text ? 'none' : 'block'
-  if (!text) clearSearchResultsDom() // 空查询即收结果（旧 _on_text_changed 惯例）
-  void window.deck.bridge.invoke('search/query', { query: text }).catch(() => {})
-})
-
-searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    e.preventDefault()
-    searchDeactivate('esc')
-    return
-  }
-  const action = searchDecideAction(e.key, e.ctrlKey)
-  if (!action) return
-  e.preventDefault() // ↑↓ 不移动光标（旧 Tk "break" 惯例）
-  if (action === 'prev') searchMove(-1)
-  else if (action === 'next') searchMove(1)
-  else void searchAct(searchSel, action === 'reveal')
-})
-
-searchInput.addEventListener('blur', () => {
-  if (searchDeactivating) return
-  searchDeactivate('blur')
-})
-
-window.deck.bridge.on('search/results', (r) => {
-  if (!searchActive) return // 迟到响应（已退待机）：丢弃
-  renderSearchRows(r.total, r.items)
-  notify('search-results-rendered', {
-    qlen: searchInput.value.length, total: r.total, count: Math.min(SEARCH_LIMIT, r.items.length),
-  })
-})
-
-window.deck.bridge.on('search/state', (s) => {
-  if (s.state === 'offline' && searchActive) {
-    renderSearchOffline()
-    notify('search-offline-shown', {})
-  }
-  // 'active' 恢复由随后到达的 search/results 重绘（离线徽标被结果行替换）；'idle' 由本地转移处理
-})
 
 // ---- 键盘全局编排（工单31，ADR-0006 收官）：window keydown 捕获段优先级编排——
 // 浮层（既有自处理保持不动：浮层开着时本段对一切按键不拦不抢先，事件落到浮层聚焦
@@ -1648,11 +1474,8 @@ function runKeyboardAction(action: KeyboardActionType): void {
 }
 
 window.addEventListener('keydown', (e) => {
-  const ctx: KeyRoutingContext = {
-    overlayOpen: keyboardGate.overlays.length > 0,
-    menuOpen: menuOpen(),
-    selectionNonEmpty: selection.names.length > 0,
-  }
+  // 装配口径唯一出处 keyboard-gate.keyRoutingContextOf（工单100 起：插件档在持等同浮层开）
+  const ctx = keyRoutingContextOf(keyboardGate, menuOpen())
   if (e.key === 'Escape') {
     const plan = escapePlan(ctx)
     if (!plan.closeMenu && !plan.clearSelection) return // 浮层自处理/无事可做：不拦，既有监听接手
@@ -1675,6 +1498,15 @@ window.addEventListener('keydown', (e) => {
 const pluginDeps: PluginRuntimeDeps = {
   notify,
   invoke: (method, payload) => window.deck.bridge.invoke(method, payload),
+  on: (event, listener) => window.deck.bridge.on(event, listener),
+  // 插件键盘档进宿主单点仲裁（工单100）：键盘档声明 = 归一仲裁的一种具名事件（与选区/
+  // 浮层同一把合成开关，单通道不另立——keyboard-mode-on/off 同相是电池硬断言口径）。
+  // 名字带插件 id 命名空间，键盘档记账/去重/卸载回收在插件运行时（plugins.ts）。
+  onKeyboardTier: (id, tier, held) => dispatchKeyboardGate(
+    held
+      ? { type: 'tier-acquired', name: `plugin:${id}:${tier}` }
+      : { type: 'tier-released', name: `plugin:${id}:${tier}` },
+  ),
   onDomChanged: declareHotZones,
 }
 
@@ -1685,14 +1517,9 @@ function render(snap: PanelSnapshot): void {
   lastSnapshot = snap
   renderDesktop(snap.desktop, snap.layout)
   renderSettings(snap.settings)
-  // 桌面组件（工单10）：时钟/天气/会话/硬件四卡各由插件自己渲染（Qoder 状态卡随工单03 退役），
-  // 宿主只负责把清单与裁剪后的视图喂过去；日历仍在宿主页面内。
+  // 桌面组件（工单10 起）：全由插件自己渲染（时钟/天气/会话列表 + 日历随工单99 成包），
+  // 宿主只负责把清单与裁剪后的视图喂过去。
   syncPlugins(snap.plugins, snap, pluginDeps)
-  const month = new Date(snap.clock.epochMs).getMonth()
-  if (month !== calendarMonth) {
-    calendarMonth = month
-    renderCalendar(snap.clock.epochMs)
-  }
 }
 
 // ---- 热区声明（全部卡片 + 桌面承载区） ----

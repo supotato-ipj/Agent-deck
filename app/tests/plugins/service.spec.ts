@@ -275,6 +275,122 @@ describe('插件生命周期（cordis 子集：装载 ready / 卸载 dispose / �
   })
 })
 
+describe('插件清单停用集过滤（工单101 卡片显隐开关）', () => {
+  /** 可变停用集（模拟 config.plugins.disabled 活引用经设置服务改写） */
+  function disabledRef(initial: string[] = []) {
+    const state = { disabled: initial }
+    return {
+      get: () => state.disabled,
+      set: (next: string[]) => { state.disabled = next },
+    }
+  }
+
+  async function bootWithDisabled(roots: string[], ref: ReturnType<typeof disabledRef>, over: Partial<PluginHostOptions> = {}) {
+    const ctx = new Context()
+    ctx.plugin(PluginHostService, { roots, watch: false, disabledIds: ref.get, ...over })
+    const events: PluginInfo[][] = []
+    await ctx.start()
+    ctx.on('plugins/changed', (list) => events.push(list))
+    return { ctx, events }
+  }
+
+  it('空停用集默认全启用（缺省读缝恒空，离线装配不接设置域也不炸）', async () => {
+    const root = tmpDir()
+    writePlugin(root, baseManifest())
+    const { ctx } = await boot([root])
+    expect(ctx.plugins.info().map((p) => p.id)).toEqual(['clock'])
+    await ctx.stop()
+  })
+
+  it('停用 = 从清单剔除：包目录原地不动、在装实例走卸载链（dispose 调用、dirOf 摘除）', async () => {
+    const root = tmpDir()
+    writePlugin(root, baseManifest())
+    writePlugin(root, baseManifest({ id: 'weather' }))
+    const ref = disabledRef()
+    const disposed: string[] = []
+    const ctx = new Context()
+    ctx.plugin(PluginHostService, {
+      roots: [root], watch: false, disabledIds: ref.get,
+      createInstance: (_c, manifest, dir, info) => ({
+        manifest, dir, info, ready: () => {}, dispose: () => { disposed.push(manifest.id) },
+      }),
+    })
+    await ctx.start()
+    expect(ctx.plugins.info().map((p) => p.id)).toEqual(['clock', 'weather'])
+
+    ref.set(['clock'])
+    ctx.plugins.rescan()
+    expect(ctx.plugins.info().map((p) => p.id)).toEqual(['weather'])
+    expect(disposed).toEqual(['clock'])
+    expect(ctx.plugins.dirOf('clock')).toBeUndefined()
+    expect(fs.existsSync(path.join(root, 'clock', 'plugin.json'))).toBe(true) // 包文件不动
+    await ctx.stop()
+  })
+
+  it('先到先得不受影响：同 id 内置与用户并存时停用按 id 整体生效，不停用则内置胜出', async () => {
+    const builtin = tmpDir()
+    const user = tmpDir()
+    writePlugin(builtin, baseManifest({ name: '内置时钟' }))
+    writePlugin(user, baseManifest({ name: '冒名时钟' }))
+    const ref = disabledRef()
+    const { ctx } = await bootWithDisabled([builtin, user], ref)
+    expect(ctx.plugins.info()[0].name).toBe('内置时钟')
+
+    ref.set(['clock'])
+    ctx.plugins.rescan()
+    expect(ctx.plugins.info()).toEqual([])
+    await ctx.stop()
+  })
+
+  it('重新启用原位恢复：清单回来（代号重计，entry URL 换新绕开 ESM 缓存）', async () => {
+    const root = tmpDir()
+    writePlugin(root, baseManifest())
+    const ref = disabledRef(['clock'])
+    const { ctx } = await bootWithDisabled([root], ref)
+    expect(ctx.plugins.info()).toEqual([])
+
+    ref.set([])
+    ctx.plugins.rescan()
+    const [info] = ctx.plugins.info()
+    expect(info.id).toBe('clock')
+    expect(info.status).toBe('ok')
+    expect(info.entry).toContain(`${PLUGIN_SCHEME}://clock/card.js?v=1`)
+    await ctx.stop()
+  })
+
+  it('停用集含未发现 id 无害（目录暂缺的停用条目静默待命，不炸扫描）', async () => {
+    const root = tmpDir()
+    writePlugin(root, baseManifest())
+    const ref = disabledRef(['ghost', 'clock'])
+    const { ctx } = await bootWithDisabled([root], ref)
+    expect(ctx.plugins.info()).toEqual([])
+
+    ref.set(['ghost'])
+    ctx.plugins.rescan()
+    expect(ctx.plugins.info().map((p) => p.id)).toEqual(['clock'])
+    await ctx.stop()
+  })
+
+  it('settings/cards-changed 事件即重扫：设置服务落盘后无需手动 rescan，清单即时剔除/恢复', async () => {
+    const root = tmpDir()
+    writePlugin(root, baseManifest())
+    const ref = disabledRef()
+    const { ctx, events } = await bootWithDisabled([root], ref)
+    expect(ctx.plugins.info().map((p) => p.id)).toEqual(['clock'])
+
+    // emit 同步触发监听器（rescan 读缝取当拍停用集）：先改写活引用再发事件，与设置服务落盘后提交同序
+    ref.set(['clock'])
+    ctx.emit('settings/cards-changed', { disabled: ['clock'] })
+    expect(ctx.plugins.info()).toEqual([])
+    expect(events.at(-1)).toEqual([])
+
+    ref.set([])
+    ctx.emit('settings/cards-changed', { disabled: [] })
+    expect(ctx.plugins.info().map((p) => p.id)).toEqual(['clock'])
+    await ctx.stop()
+  })
+})
+
 describe('插件目录看门狗（真 fs.watch：放入即被识别，移除即消失）', () => {
   async function waitForEvent(ctx: Context, pred: (l: PluginInfo[]) => boolean, timeoutMs = 5000): Promise<PluginInfo[]> {
     const seen: PluginInfo[][] = []

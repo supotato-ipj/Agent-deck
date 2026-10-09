@@ -1279,6 +1279,30 @@ async function main() {
       ? rep.pass(`时钟卡数据经桥接契约自内核而来并持续走时（${renders.length} 次渲染，epoch 递增）`)
       : rep.fail(`时钟卡未证实内核推送（clock-rendered 存证 ${renders.length} 条）`);
 
+    // —— 工单99 日历卡成包：挂载存证 + 月网格内容抽验（轻探针，时钟探针同款纪律）——
+    // 插件异步挂载：先等 calendar-card 出现在热区声明那一拍再判（10b 真机踩过的坑）。
+    // 段号 P4.5（工单126 补登记）：物理上落在 P4 执行窗内，但归属 #99 不并入 P4（一段绑定一工单）。
+    rep.beginSegment('P4.5');
+    const calZones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'calendar-card'));
+    const calZone = calZones && (calZones.rects || []).find((r) => r.id === 'calendar-card');
+    calZone
+      ? rep.pass(`热区声明：日历卡由插件包渲染并上报 calendar-card rel(${calZone.x},${calZone.y}) ${calZone.w}x${calZone.h}`)
+      : rep.fail('渲染层未上报 calendar-card 热区（日历未成包或插件未挂载）');
+    const calEvt = await waitEvent('calendar-rendered', (e) => typeof e.ym === 'string' && /^\d{4}-\d{2}$/.test(e.ym), 8000);
+    if (!calEvt) {
+      rep.fail('日历卡：未收到 calendar-rendered 存证（插件未渲染月网格）');
+    } else {
+      // 内容抽验：电池自 epochMs 独立重算同一推导对照——标题=合法 YYYY-MM、
+      // 周一首列空位数与当月天数与存证载荷一致（渲染层无 DOM 通道，以存证自证）。
+      const cd = new Date(calEvt.epochMs);
+      const expYm = `${cd.getFullYear()}-${String(cd.getMonth() + 1).padStart(2, '0')}`;
+      const expLead = (new Date(cd.getFullYear(), cd.getMonth(), 1).getDay() + 6) % 7;
+      const expDays = new Date(cd.getFullYear(), cd.getMonth() + 1, 0).getDate();
+      calEvt.ym === expYm && calEvt.lead === expLead && calEvt.days === expDays
+        ? rep.pass(`日历卡：月网格自快照时钟段推导正确（${calEvt.ym}，周一首列 ${calEvt.lead} 空位 + ${calEvt.days} 天）`)
+        : rep.fail(`日历卡月网格抽验不符：ym=${calEvt.ym}（期望 ${expYm}）、lead=${calEvt.lead}（期望 ${expLead}）、days=${calEvt.days}（期望 ${expDays}）`);
+    }
+
     w32.moveMousePhys(safePt.x, safePt.y);
     const exAfterLeave = await (async () => {
       const deadline = Date.now() + 1500;
@@ -5128,6 +5152,116 @@ async function main() {
     });
 
 
+    // —— P8T 工单101 卡片显隐开关：设置浮层开关列表——停用搜索卡 → 卡片与热区消失
+    // （点击穿透落回背景层）→ 重启面板停用集保留 → 启用原位回归。全程事件门判定 +
+    // 截图存证；整段裹 withControlWindowClear（落点在右下设置浮层，对照记事本要让位）。
+    // finally 还原 config + 重启：P7 搜索段虽在本段之前已跑，后续段（P6/P11 等）仍假设
+    // 默认全启用，开关残留一律清场（spec 风险注记：电池假设默认全启用配置）。——
+    rep.beginSegment('P8T');
+    await withControlWindowClear(async () => {
+      const configBackup101 = backupConfigB();
+      const readDisabled101 = () => {
+        try { return JSON.parse(fs.readFileSync(CONFIG_FILE_B, 'utf8')).plugins?.disabled ?? []; } catch { return null; }
+      };
+      let rect101 = w32.rectOf(hwnd);
+      const openOverlay101 = async () => {
+        const t0 = Date.now();
+        const bz = latestZoneOf('settings-btn');
+        if (!bz) return null;
+        await occludedClickAt(ptOfZoneAt(rect101, bz), '设置入口');
+        const opened = await waitEvent('settings-opened', (e) => e.t >= t0, 3000);
+        if (opened) await sleep(350); // 浮层热区声明落地
+        return opened;
+      };
+      /** 热区表按最新一拍断言：stop 停用后 search-card 缺席 / start 启用后回归（P11 卸载/重装同式：
+       * 卡片 DOM 由插件自建，卸载即无元素，扫掠热区自然不再声明/重新声明） */
+      const waitHotzone101 = async (sinceMs, present, timeoutMs = 10000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          await sleep(300);
+          const last = readEvents().filter((e) => e.type === 'hotzones' && e.t >= sinceMs).pop();
+          const has = Boolean(last && (last.rects || []).some((r) => r.id === 'search-card'));
+          if (last && has === present) return true;
+        }
+        return false;
+      };
+      try {
+        // a. 开层：settings-opened 载荷携带卡片开关行（id+勾选态+勾选框矩形；向后兼容新增字段）
+        const openedA = await openOverlay101();
+        const rows101 = (openedA && openedA.cards) || [];
+        const searchRow0 = rows101.find((c) => c.id === 'search');
+        const hasShellRow = rows101.some((c) => c.id === 'context-menu');
+        openedA && searchRow0 && searchRow0.enabled && hasShellRow
+          ? rep.pass(`卡片显隐开关列表：开层存证携带 ${rows101.length} 个插件包开关行`
+            + `（含 search 与上下文菜单 shell——列出的都是插件包、都归用户管），search 当拍勾选态 ON`)
+          : rep.fail(`卡片显隐开关列表前置失败（opened=${JSON.stringify(openedA)}，`
+            + `rows=${JSON.stringify(rows101.map((c) => c.id))}）`);
+        fullShot('101-cards-list');
+
+        // b. 停用搜索卡：开关点击 → set 存证 → 卡片消失且热区表不再含 search-card → config 落盘
+        if (!searchRow0) { rep.fail('停用探针前置失败：settings-opened 无 search 开关行'); return; }
+        const tDisable = Date.now();
+        await occludedClickAt(ptOfZoneAt(rect101, searchRow0.rect), '搜索卡开关');
+        const setOff = await waitEvent('settings-card-set', (e) => e.t >= tDisable && e.id === 'search' && e.enabled === false, 6000);
+        const goneZone = setOff ? await waitHotzone101(tDisable, false) : false;
+        const cfgOff = readDisabled101();
+        setOff && goneZone && Array.isArray(cfgOff) && cfgOff.includes('search')
+          ? rep.pass(`停用搜索卡：settings-card-set{enabled:false} 回执，热区表不再含 search-card`
+            + `（卡片消失、点击穿透落回背景层），config.plugins.disabled=${JSON.stringify(cfgOff)}`)
+          : rep.fail(`停用搜索卡未过（setOff=${JSON.stringify(setOff)}，热区缺席=${goneZone}，config=${JSON.stringify(cfgOff)}）`);
+        fullShot('101-search-disabled');
+
+        // c. 重启保留：停用集在 config → 重启面板 → 新代次热区表仍无 search-card
+        await stopPanel();
+        const tRelaunch101 = Date.now();
+        child = launchPanel();
+        const hwndT = await waitPanelWindow(20000, tRelaunch101);
+        if (!hwndT) { rep.fail('开关段重启后面板窗口未出现'); return; }
+        hwnd = hwndT;
+        panelPid = win32.threadIdOf(hwndT).pid;
+        rect101 = w32.rectOf(hwndT);
+        await sleep(1200);
+        const keptZone = await waitHotzone101(tRelaunch101, false);
+        const cfgKept = readDisabled101();
+        keptZone && Array.isArray(cfgKept) && cfgKept.includes('search')
+          ? rep.pass(`重启保留：停用集经 config 回读（disabled=${JSON.stringify(cfgKept)}），`
+            + `新面板代次热区表仍无 search-card——停用的卡不因重启复活`)
+          : rep.fail(`重启保留未过（热区缺席=${keptZone}，config=${JSON.stringify(cfgKept)}）`);
+
+        // d. 启用回归：重开浮层核对开关态（当拍载荷 search 勾选态 OFF 自证）→ 点开关 → 热区回归
+        const openedD = await openOverlay101();
+        const searchRow1 = (openedD && (openedD.cards || []) || []).find((c) => c.id === 'search');
+        if (!openedD || !searchRow1) { rep.fail('启用探针前置失败：重启后开层无 search 开关行'); return; }
+        !searchRow1.enabled
+          ? rep.pass('重启后开关态核对：开层载荷 search 勾选态 OFF（列表如实呈现停用集）')
+          : rep.fail('重启后 search 开关行勾选态异常（期望 OFF）');
+        const tEnable = Date.now();
+        await occludedClickAt(ptOfZoneAt(rect101, searchRow1.rect), '搜索卡开关');
+        const setOn = await waitEvent('settings-card-set', (e) => e.t >= tEnable && e.id === 'search' && e.enabled === true, 6000);
+        const backZone = setOn ? await waitHotzone101(tEnable, true) : false;
+        const cfgOn = readDisabled101();
+        setOn && backZone && Array.isArray(cfgOn) && !cfgOn.includes('search')
+          ? rep.pass(`启用搜索卡：settings-card-set{enabled:true} 回执，search-card 回归热区表`
+            + `（原位恢复、观感一致），config.plugins.disabled=${JSON.stringify(cfgOn)}`)
+          : rep.fail(`启用搜索卡未过（setOn=${JSON.stringify(setOn)}，热区回归=${backZone}，config=${JSON.stringify(cfgOn)}）`);
+        fullShot('101-search-re-enabled');
+      } finally {
+        w32.moveMousePhys(safePt.x, safePt.y);
+        // 收尾恢复全启用现场：还原 config + 重启（后续段与用户拿到的机器都必须是默认配置）
+        restoreConfigB(configBackup101);
+        await stopPanel();
+        const tFinal101 = Date.now();
+        child = launchPanel();
+        const hwndF = await waitPanelWindow(20000, tFinal101);
+        if (hwndF) {
+          hwnd = hwndF;
+          panelPid = win32.threadIdOf(hwndF).pid;
+        } else {
+          rep.fail('开关段收尾重启后面板窗口未出现');
+        }
+      }
+    });
+
     // —— P6 config 几何生效：改 config 重启面板 ——
     rep.beginSegment('P6');
     const configBackup = backupConfigB();
@@ -5689,13 +5823,15 @@ async function main() {
       const dest = path.join(pluginsDir, 'hello');
       const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
       try {
-        // 0. 内置四卡自举：四个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        // 0. 内置卡自举：五个桌面组件必须**经插件契约**装载（不是面板自己画的）。
+        //    工单99 日历成包、工单100 搜索面板成包，内置清单随之扩到五张
+        //    （时钟/天气/会话/日历/搜索）。
         //    事件按面板代次取（lastBootMs 之后）：事件文件跨重启不清，上一任面板的
         //    plugin-mounted 留着会让本段假通过。
         const since = lastBootMs();
-        const builtinIds = ['clock', 'weather', 'sessions'];
+        const builtinIds = ['clock', 'weather', 'sessions', 'calendar', 'search'];
         const builtinMounted = builtinIds.filter((id) => lastEvent('plugin-mounted', (e) => e.id === id, since));
-        // 观感一致性的机器可查部分：三张卡都进了热区声明（都在场、都在点击穿透模型里），
+        // 观感一致性的机器可查部分：五张卡都进了热区声明（都在场、都在点击穿透模型里），
         // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
         // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
         const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
@@ -5706,10 +5842,10 @@ async function main() {
           && cardZones.get('clock-card').x === CARD_DIP.x && cardZones.get('clock-card').y === CARD_DIP.y
           && cardZones.get('clock-card').w === CARD_DIP.w && cardZones.get('clock-card').h === CARD_DIP.h;
         builtinMounted.length === builtinIds.length && zonesOk && geomOk
-          ? rep.pass(`桌面组件·内置三卡自举：${builtinIds.join('/')} 三张信息卡均经插件契约装载渲染，`
-            + `且三张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
+          ? rep.pass(`桌面组件·内置五卡自举：${builtinIds.join('/')} 五张桌面组件均经插件契约装载渲染，`
+            + `且五张都进了热区声明（时钟卡矩形 ${CARD_DIP.x},${CARD_DIP.y} ${CARD_DIP.w}x${CARD_DIP.h} 与 index.html 一致；`
             + `像素级观感按惯例人工核验 04-cards-*.png）`)
-          : rep.fail(`桌面组件·内置三卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
+          : rep.fail(`桌面组件·内置五卡自举未过：经插件契约装载 ${builtinMounted.join('/') || '无'}`
             + `（缺 ${builtinIds.filter((i) => !builtinMounted.includes(i)).join('/') || '无'}）；`
             + `热区声明 ${zonesOk ? '齐' : `缺 ${builtinIds.filter((i) => !cardZones.has(`${i}-card`)).join('/') || '无'}`}；`
             + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);

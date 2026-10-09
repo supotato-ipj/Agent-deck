@@ -172,8 +172,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       file: CONFIG_FILE,
       config,
     },
-    // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）
-    plugins: { roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')] },
+    // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）。
+    // 停用集（工单101）：读 config.plugins.disabled 的活引用——settings/set-card-enabled
+    // 改写 config 后经 settings/cards-changed 触发重扫，清单随即剔除/恢复，无需重建宿主。
+    plugins: {
+      roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')],
+      disabledIds: () => config.plugins.disabled,
+    },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
     // Electron API 不可用于子进程——桌面根/摆位存储/日志目录等路径全部在此解析后下发。
     dataplane: {

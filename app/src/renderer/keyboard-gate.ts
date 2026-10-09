@@ -11,14 +11,16 @@
 
 /** 门控状态：on = 已发送给宿主通道的开态（启动即 off，面板 focusable:false）；
  * selectionNonEmpty = 选区是否非空（applySelection 单点喂入，band 框选同过此口）；
- * overlays = 打开中的浮层名集（trash-confirm / rename / settings / search）。 */
+ * overlays = 打开中的浮层名集（trash-confirm / rename / settings；搜索已迁键盘档，工单100）；
+ * tiers = 插件持拿中的键盘档名集（工单100 通用 API，宿主转交时已带插件 id 命名空间）。 */
 export interface KeyboardGateState {
   readonly on: boolean
   readonly selectionNonEmpty: boolean
   readonly overlays: readonly string[]
+  readonly tiers: readonly string[]
 }
 
-export const GATE_INITIAL: KeyboardGateState = { on: false, selectionNonEmpty: false, overlays: [] }
+export const GATE_INITIAL: KeyboardGateState = { on: false, selectionNonEmpty: false, overlays: [], tiers: [] }
 
 export type KeyboardGateEvent =
   /** 选区生灭（applySelection 单点：只看 names 空否，事件种类无关——生灭判定出口唯一） */
@@ -27,6 +29,10 @@ export type KeyboardGateEvent =
   | { type: 'overlay-opened'; name: string }
   /** 浮层关 */
   | { type: 'overlay-closed'; name: string }
+  /** 插件键盘档请求占用（工单100 通用 API：具名声明进同一归一仲裁，不是第二条模式通道） */
+  | { type: 'tier-acquired'; name: string }
+  /** 插件键盘档释放（含宿主对未释放插件的强制回收——crash 安全） */
+  | { type: 'tier-released'; name: string }
 
 /** 通道变化沿：'on'/'off' = 需要发送 setKeyboardMode；null = 无沿（不重发同向消息） */
 export type KeyboardModeEdge = 'on' | 'off' | null
@@ -36,9 +42,13 @@ export interface KeyboardGateResult {
   edge: KeyboardModeEdge
 }
 
-/** 期望开态的归一合成（唯一出处）：选区非空 OR 任一浮层开 */
-export function desiredKeyboardMode(selectionNonEmpty: boolean, overlays: readonly string[]): boolean {
-  return selectionNonEmpty || overlays.length > 0
+/** 期望开态的归一合成（唯一出处）：选区非空 OR 任一浮层开 OR 任一插件档在持（工单100） */
+export function desiredKeyboardMode(
+  selectionNonEmpty: boolean,
+  overlays: readonly string[],
+  tiers: readonly string[],
+): boolean {
+  return selectionNonEmpty || overlays.length > 0 || tiers.length > 0
 }
 
 const edgeOf = (prev: boolean, desired: boolean): KeyboardModeEdge =>
@@ -48,7 +58,7 @@ const edgeOf = (prev: boolean, desired: boolean): KeyboardModeEdge =>
 export function nextKeyboardGate(state: KeyboardGateState, event: KeyboardGateEvent): KeyboardGateResult {
   switch (event.type) {
     case 'selection': {
-      const desired = desiredKeyboardMode(event.nonEmpty, state.overlays)
+      const desired = desiredKeyboardMode(event.nonEmpty, state.overlays, state.tiers)
       return {
         state: { ...state, selectionNonEmpty: event.nonEmpty, on: desired },
         edge: edgeOf(state.on, desired),
@@ -57,14 +67,26 @@ export function nextKeyboardGate(state: KeyboardGateState, event: KeyboardGateEv
     case 'overlay-opened': {
       if (state.overlays.includes(event.name)) return { state, edge: null } // 重复开：幂等噪声
       const overlays = [...state.overlays, event.name]
-      const desired = desiredKeyboardMode(state.selectionNonEmpty, overlays)
+      const desired = desiredKeyboardMode(state.selectionNonEmpty, overlays, state.tiers)
       return { state: { ...state, overlays, on: desired }, edge: edgeOf(state.on, desired) }
     }
     case 'overlay-closed': {
       if (!state.overlays.includes(event.name)) return { state, edge: null } // 未知名：噪声
       const overlays = state.overlays.filter((n) => n !== event.name)
-      const desired = desiredKeyboardMode(state.selectionNonEmpty, overlays)
+      const desired = desiredKeyboardMode(state.selectionNonEmpty, overlays, state.tiers)
       return { state: { ...state, overlays, on: desired }, edge: edgeOf(state.on, desired) }
+    }
+    case 'tier-acquired': {
+      if (state.tiers.includes(event.name)) return { state, edge: null } // 重复持拿：幂等噪声
+      const tiers = [...state.tiers, event.name]
+      const desired = desiredKeyboardMode(state.selectionNonEmpty, state.overlays, tiers)
+      return { state: { ...state, tiers, on: desired }, edge: edgeOf(state.on, desired) }
+    }
+    case 'tier-released': {
+      if (!state.tiers.includes(event.name)) return { state, edge: null } // 未持拿：噪声
+      const tiers = state.tiers.filter((n) => n !== event.name)
+      const desired = desiredKeyboardMode(state.selectionNonEmpty, state.overlays, tiers)
+      return { state: { ...state, tiers, on: desired }, edge: edgeOf(state.on, desired) }
     }
   }
 }
@@ -75,8 +97,9 @@ export function nextKeyboardGate(state: KeyboardGateState, event: KeyboardGateEv
 // （并经仲裁还原键盘模式）。都否 → 双否（不拦键，放行给默认行为）。
 
 /** 键盘路由上下文（评审结构项：Esc 定序与六键路由共用的裁决输入，main.ts keydown
- * 捕获段单点装配）：overlayOpen = 任一浮层开（浮层优先，按键归浮层聚焦元素）；
- * menuOpen = 菜单开层；selectionNonEmpty = 选区非空。 */
+ * 捕获段单点装配）：overlayOpen = 任一浮层开或任一插件档在持（浮层优先，按键归浮层
+ * 聚焦元素/键盘档持有者）；menuOpen = 菜单开层；selectionNonEmpty = 选区非空。
+ * 装配口径的纯逻辑出处 = keyRoutingContextOf（main.ts 只消费其输出）。 */
 export interface KeyRoutingContext {
   overlayOpen: boolean
   menuOpen: boolean
@@ -93,6 +116,17 @@ export function escapePlan(ctx: KeyRoutingContext): EscapePlan {
   if (ctx.menuOpen) return { closeMenu: true, clearSelection: false }
   if (ctx.selectionNonEmpty) return { closeMenu: false, clearSelection: true }
   return { closeMenu: false, clearSelection: false }
+}
+
+/** 键盘路由上下文合成（工单31 起窗口 keydown 捕获段单点装配的纯逻辑出处）：浮层与插件
+ * 键盘档（工单100）任一在即 overlayOpen——键盘档持有期间键盘归键盘档（Esc 归键盘档自处理、
+ * 六键不接管），与浮层优先同构；menuOpen/selectionNonEmpty 直通透传。 */
+export function keyRoutingContextOf(gate: KeyboardGateState, menuOpen: boolean): KeyRoutingContext {
+  return {
+    overlayOpen: gate.overlays.length > 0 || gate.tiers.length > 0,
+    menuOpen,
+    selectionNonEmpty: gate.selectionNonEmpty,
+  }
 }
 
 // ---- 选区六键路由（ADR-0006：选区存在期间 Del/Enter/Ctrl+A/Ctrl+C/X/V 可用）----

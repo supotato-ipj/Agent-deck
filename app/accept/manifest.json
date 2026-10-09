@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, script(npm run 别名), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。",
+  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, script(npm run 别名), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。",
   "surfaces": {
     "panel-alive": "面板存活",
     "pixel": "像素",
@@ -15,8 +15,8 @@
       "entry": "app/accept/battery.js",
       "script": "accept",
       "budgetSeconds": 720,
-      "lastMeasuredSeconds": 402,
-      "lastMeasuredAt": "2026-10-07",
+      "lastMeasuredSeconds": 410,
+      "lastMeasuredAt": "2026-10-09",
       "segments": [
         {
           "seg": "P1",
@@ -65,6 +65,15 @@
             "event-evidence"
           ],
           "estSeconds": 20
+        },
+        {
+          "seg": "P4.5",
+          "ticket": 99,
+          "title": "日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单）",
+          "surfaces": [
+            "event-evidence"
+          ],
+          "estSeconds": 3
         },
         {
           "seg": "P5",
@@ -242,6 +251,18 @@
             "system-state"
           ],
           "estSeconds": 30
+        },
+        {
+          "seg": "P8T",
+          "ticket": 101,
+          "title": "卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 19
         },
         {
           "seg": "P6",

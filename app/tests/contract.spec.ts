@@ -476,6 +476,33 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
       await ctx.stop()
     }
   })
+
+  it('desktop/reset-layout：恢复出厂不读写卡片显隐开关（不同域不连坐，工单101）', async () => {
+    const dir = tmpDir()
+    const so = settingsOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      settings: so.settings,
+      desktop: desktopOpts(dir, {
+        deps: { extractIcon: async () => null, open: async () => '' },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 先经真实写路径建立停用集（config.json 落盘），再恢复出厂，断言开关配置原地不动
+      await ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: false })
+      expect(JSON.parse(fs.readFileSync(so.settings.file, 'utf8')).plugins.disabled).toEqual(['search'])
+
+      const r = await ctx.bridge.invoke('desktop/reset-layout', null)
+      expect(r).toEqual({ ok: true, cleared: 0 })
+      // 开关三处真相（磁盘 / config 引用 / 快照 settings）在恢复出厂后原样保留
+      expect(JSON.parse(fs.readFileSync(so.settings.file, 'utf8')).plugins.disabled).toEqual(['search'])
+      expect(so.settings.config.plugins.disabled).toEqual(['search'])
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: ['search'] })
+    } finally {
+      await ctx.stop()
+    }
+  })
 })
 
 describe('内核桥接契约（工单07 搜索扩展）', () => {
@@ -567,7 +594,7 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
     await ctx.start()
     try {
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.settings).toEqual({ cardOpacity: 0.3 })
+      expect(snap.settings).toEqual({ cardOpacity: 0.3, disabledCards: [] })
     } finally {
       await ctx.stop()
     }
@@ -583,16 +610,16 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
       ctx.bridge.subscribe('settings/changed', (s) => changed.push(s))
 
       await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 0.25 }))
-        .resolves.toEqual({ cardOpacity: 0.25 })
+        .resolves.toEqual({ cardOpacity: 0.25, disabledCards: [] })
       // clamp 到边界
       await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 1.7 }))
-        .resolves.toEqual({ cardOpacity: 1 })
+        .resolves.toEqual({ cardOpacity: 1, disabledCards: [] })
       await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: -3 }))
-        .resolves.toEqual({ cardOpacity: 0 })
+        .resolves.toEqual({ cardOpacity: 0, disabledCards: [] })
 
-      expect(changed).toEqual([{ cardOpacity: 0.25 }, { cardOpacity: 1 }, { cardOpacity: 0 }])
+      expect(changed).toEqual([{ cardOpacity: 0.25, disabledCards: [] }, { cardOpacity: 1, disabledCards: [] }, { cardOpacity: 0, disabledCards: [] }])
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.settings).toEqual({ cardOpacity: 0 })
+      expect(snap.settings).toEqual({ cardOpacity: 0, disabledCards: [] })
       // 持久化：config.json 整份回写（重启保持的数据源）
       const onDisk = JSON.parse(fs.readFileSync(so.settings.file, 'utf8'))
       expect(onDisk.appearance).toEqual({ cardOpacity: 0 })
@@ -609,7 +636,72 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
       await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 'dark' as never }))
         .rejects.toThrow(/cardOpacity/)
       const snap = await ctx.bridge.invoke('panel/snapshot', null)
-      expect(snap.settings).toEqual({ cardOpacity: 0.55 })
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: [] })
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单101 卡片显隐开关）', () => {
+  /** 落一个可装载插件包（manifest + 入口资产）到 root 下 */
+  function writePlugin(root: string, id: string): string {
+    const dir = path.join(root, id)
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'plugin.json'),
+      JSON.stringify({ id, name: id.toUpperCase(), version: '1.0.0', entry: './card.js', capabilities: [] }), 'utf8')
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {}', 'utf8')
+    return dir
+  }
+
+  function opts101(dir: string) {
+    const so = settingsOpts(dir)
+    return { settings: so.settings, plugins: { roots: [path.join(dir, 'plugins')], watch: false } }
+  }
+
+  it('settings/set-card-enabled：停用 → 清单即时剔除 + settings 反映 + config 落盘；启用原位恢复', async () => {
+    const dir = tmpDir()
+    const o = opts101(dir)
+    writePlugin(path.join(dir, 'plugins'), 'search')
+    writePlugin(path.join(dir, 'plugins'), 'clock')
+    const ctx = createKernel(kernelOpts(dir, o))
+    await ctx.start()
+    const changed: PluginInfo[][] = []
+    ctx.bridge.subscribe('plugins/changed', (l) => changed.push(l))
+    try {
+      expect((await ctx.bridge.invoke('panel/snapshot', null)).plugins.map((p) => p.id)).toEqual(['clock', 'search'])
+
+      // 停用 search：停用集落盘 + 快照 settings 反映 + 清单即时重扫剔除（plugins/changed 同拍）
+      const st = await ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: false })
+      expect(st).toEqual({ cardOpacity: 0.55, disabledCards: ['search'] })
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins.map((p) => p.id)).toEqual(['clock'])
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: ['search'] })
+      expect(changed.at(-1)?.map((p) => p.id)).toEqual(['clock'])
+      expect(JSON.parse(fs.readFileSync(o.settings!.file, 'utf8')).plugins.disabled).toEqual(['search'])
+
+      // 启用恢复：清单回来（同 id 先到先得/排序规则不受停用往返影响），落盘清空
+      const back = await ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: true })
+      expect(back).toEqual({ cardOpacity: 0.55, disabledCards: [] })
+      const snap2 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap2.plugins.map((p) => p.id)).toEqual(['clock', 'search'])
+      expect(JSON.parse(fs.readFileSync(o.settings!.file, 'utf8')).plugins.disabled).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('settings/set-card-enabled：空 id / 非布尔开关值拒绝（契约违规不静默吞）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, opts101(dir)))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('settings/set-card-enabled', { id: '', enabled: false }))
+        .rejects.toThrow(/id/)
+      await expect(ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: 'yes' as never }))
+        .rejects.toThrow(/enabled/)
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: [] })
     } finally {
       await ctx.stop()
     }
