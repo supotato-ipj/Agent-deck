@@ -205,6 +205,7 @@ async function main() {
     });
     let stderrTail = '';
     child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
+    child.stdout.on('data', () => {}); // 工单132：stdout 管道必须排空（同主电池根因修复）
 
     const ready = await waitEvent('tray-host-ready', null, 25000);
     if (!ready) throw new Error(`25s 内未见 tray-host-ready\nstderr:\n${stderrTail}`);

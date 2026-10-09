@@ -10,6 +10,7 @@
     "test": "vitest run",
     "dev": "npm run build && electron .",
     "accept": "npm run build && electron . --accept",
+    "accept:stall-duel": "npm run build && electron . --accept-stall-duel",
     "accept:tray": "npm run build && electron . --accept-tray",
     "accept:taskbar": "npm run build && electron . --accept-taskbar",
     "accept:taskbar-carry": "npm run build && electron . --accept-taskbar-carry",

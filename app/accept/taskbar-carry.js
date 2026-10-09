@@ -116,6 +116,7 @@ function launchGuardChain() {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stderr.on('data', () => {}); // 排干管道防堵
+  child.stdout.on('data', () => {}); // 工单132：stdout 管道同样必须排空（面板内核告警流可写满 64KB 管道→主线程同步写永久阻塞）
   return child;
 }
 
