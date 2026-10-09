@@ -15,8 +15,8 @@
       "entry": "app/accept/battery.js",
       "script": "accept",
       "budgetSeconds": 720,
-      "lastMeasuredSeconds": 402,
-      "lastMeasuredAt": "2026-10-07",
+      "lastMeasuredSeconds": 410,
+      "lastMeasuredAt": "2026-10-09",
       "segments": [
         {
           "seg": "P1",
@@ -73,7 +73,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 8
+          "estSeconds": 3
         },
         {
           "seg": "P5",
@@ -262,7 +262,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 30
+          "estSeconds": 19
         },
         {
           "seg": "P6",
