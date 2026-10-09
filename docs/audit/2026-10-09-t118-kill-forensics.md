@@ -9,9 +9,9 @@
 
 | # | 问题 | 结论 |
 |---|---|---|
-| C1 | 满管道写卡死（#132 根因形态）的进程，同完整性 taskkill 能否杀灭 | **能**：R1 `taskkill /F /T` 214ms 收尸（s1） |
-| C2 | 读端死后，卡在管道写的写者能否自行解除 | **能**：proxy 死后 213ms 写者解除并退出（s2） |
-| C3 | 卡在对挂死窗同步 SendMessage 的发送者能否被杀灭 | **能**：R1 205ms 收尸（s3） |
+| C1 | 满管道写卡死（#132 根因形态）的进程，同完整性 taskkill 能否杀灭 | **能**：R1 `taskkill /F /T` 203ms 收尸（s1 干净复跑） |
+| C2 | 读端死后，卡在管道写的写者能否自行解除 | **能**：只杀 proxy 本身（不带 /T，taskkill 输出证单杀）后 202ms 写者解除并退出（s2 干净复跑） |
+| C3 | 卡在对挂死窗同步 SendMessage 的发送者能否被杀灭 | **能**：R1 207ms 收尸（s3 干净复跑，接收窗 messageOnly:true 断言通过） |
 | C4 | 真面板不排空 stdout 复现停摆后，可杀性/读端死亡反应 | **当前机器态复现不出停摆**：干净桌面裸起+不排空 360s 全程健康（事件账零 main-lag）；健康面板全树 R1 `taskkill /F /T` **208ms 杀灭、零残留**。冻结形态的可杀性由 S1 等价论证承接（同 KERNELBASE 同步写等待点，t132 r3-bare 真面板 minidump 锚定） |
 | C5 | 票面「管理员强杀仍不退」 | **未证实**：全档证据对账无一次管理员杀灭失败样本；唯一一次提权清扫成功 |
 | C6 | 「仅重启可清」 | 现场成立（10-08 两僵尸驻留至 10-09 00:05 重启），但与 C1-C4 合并后归因修正为：**不存在「内核级不可杀」机理；僵尸=未被任何人杀过的高完整性/终止态孤儿**（见 §3 归因） |
@@ -32,14 +32,16 @@
 
 | 臂 | 卡死形态与验证 | 阶梯结果 |
 |---|---|---|
-| s1 | 写者 `fs.writeSync` 循环写不被读取的 stdout：主线程 Wait（forensics `Wait/Executive`），dump 主线程归属 node.exe+KERNELBASE+ntdll（同步写路径，t132 定案同款） | **R1 杀灭，deathMs=214ms**；preOpen 探针 `opened:true` |
-| s2 | 同 s1 但读端经 proxy 持有；杀 proxy（204ms 死）后 | **写者 213ms 自行解除退出**（管道断→写失败→进程自灭）——无需任何人杀 |
-| s3 | 发送者 `SendMessageW` 到永不泵消息的 message-only 窗：主线程 Wait、无 send-returned，dump 主线程归属 node.exe+KERNELBASE+ntdll（win32k 同步发送路径） | **R1 杀灭，deathMs=205ms** |
+| s1 | 写者 `fs.writeSync` 循环写不被读取的 stdout：主线程 Wait（forensics `Wait/Executive`），dump 主线程归属 node.exe+KERNELBASE+ntdll（同步写路径，t132 定案同款） | **R1 杀灭，deathMs=203ms**；preOpen 探针 `opened:true` |
+| s2 | 同 s1 但读端经 proxy 持有；杀 proxy（204ms 死）后 | **写者 202ms 自行解除退出**（管道断→写失败→进程自灭）——无需任何人杀 |
+| s3 | 发送者 `SendMessageW` 到永不泵消息的 message-only 窗：主线程 Wait、无 send-returned，dump 主线程归属 node.exe+KERNELBASE+ntdll（win32k 同步发送路径） | **R1 杀灭，deathMs=207ms** |
 
 **判读**：
 
 - 三种内核等待卡死形态全部被同完整性普通 taskkill 毫秒级收尸——`TerminateProcess`（taskkill /F 的底层原语）对滞留内核同步等待的用户线程**不存在「杀不动」**。Windows 文档语义（终止不要求线程配合用户态返回）与实测一致。
 - S2 直接否定「管道写卡死的孤儿会无限滞留」：读端句柄一关，写者在 ~200ms 内解除。10-08 僵尸「父进程已死仍存活数小时」**不能**由 #132 停摆机理（stdout 管道写卡死）解释。
+
+**方法论注记（评审纠偏后的干净复跑）**：首轮 s2 误用 `taskkill /T /F` 杀 proxy——树杀连带写者，202ms 级的「自愈」观测被混杂污染。评审抓出后改为单杀 proxy（不带 /T，taskkill 输出证只终止 proxy 本身）复跑：写者仍在 202ms 自行解除退出，结论不变、归因干净。首轮数字已废弃，上表为干净复跑值。
 
 ## 3. 归因修正（僵尸的真实成因）
 
@@ -67,7 +69,7 @@ S4（高完整性孤儿拒杀）以文档引证带过：中完整性调用者对
 `panel-control.js` 的强退阶梯 = `child.kill()`（Windows 下即 TerminateProcess）→ 800ms 宽限 → `taskkill /T /F`（同为 TerminateProcess 原语）→ 5s 复核。本次取证表明：
 
 - 两档底层同原语且**该原语对停摆形态毫秒级有效**——阶梯语义成立；
-- 5s 复核窗对「杀灭后进程对象消散」绰绰有余（实测 205-214ms 量级）；
+- 5s 复核窗对「杀灭后进程对象消散」绰绰有余（实测 202-208ms 量级）；
 - `restart-clear-required` 出口**保留为兜底**：其真实触发面从「内核级不可杀」收窄为「对象状态/权限类拒开」（高完整性孤儿、第三方内核滞留等未穷举形态），仍值得留一个 FAIL-ENV 出口，但预期发生率应随 #132 根因修复（停摆不再生）趋零。
 
 ## 6. 与在档审计的关系
@@ -80,3 +82,4 @@ S4（高完整性孤儿拒杀）以文档引证带过：中完整性调用者对
 - 提权轮（R3/R4）按共识条件触发判定：L1 三形态 + L2 真面板全部 R1 即杀灭（205-214ms 量级）、无任何存活者——提权档**无信息增量，按预登记判读免跑**（如复核者要求补实证：提权 shell 下 `node accept/experiments/kill-forensics.js --arm=s1 --profile=elevated` 即可复验）。
 - 代码调整候选（另开票，不进本 PR）：无——阶梯与复核窗语义均被实测支持。
 - 若未来再出现「Access denied 遗留进程」，先以**提权** shell 重试杀灭再考虑重启；preflight 已有的 elevated/zombie 疑似旗标（panel-control.classifyPreflight）即为此设计。
+- 票面原列「对照变量：面板是否带存活数据面子进程（TrayHost 竞争窗在场）、是否处于双面板态」已被共识场景（S1-S3+panel）取代未单独对照——冻结真面板在当前干净机器态无法制造（§4），该对照随「不可杀」证伪失去意义，特此存档。

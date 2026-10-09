@@ -90,6 +90,13 @@ function taskkillTree(pid) {
   return { code: r.status, out: ((r.stdout || '') + (r.stderr || '')).trim().split('\n').pop() };
 }
 
+/** 只杀本进程不带 /T（读端死亡实验用）：/T 会连被试子进程一并树杀，
+ * 污染「读端句柄关闭 → 写者自行解除」的归因（评审抓出的混杂变量）。 */
+function taskkillPid(pid) {
+  const r = spawnSync('taskkill', ['/PID', String(pid), '/F'], { encoding: 'utf8', timeout: 15000, windowsHide: true });
+  return { code: r.status, out: ((r.stdout || '') + (r.stderr || '')).trim().split('\n').pop() };
+}
+
 function terminateDirect(pid) {
   const h = Number(OpenProcess(PROCESS_TERMINATE, false, pid));
   if (!h) return { issued: false, gle: GetLastError() };
@@ -198,6 +205,7 @@ fs.writeSync(2, 'send-returned ' + r + '\\n');
 
 const RECEIVER_TEMPLATE = `// s3 接收者：message-only 静态窗（HWND_MESSAGE——不可见、不入桌面 z 序、EnumWindows 不可见），
 // 建窗后 Atomics.wait 永不泵消息 = 挂死窗（审计嫌疑①：trayhost 泵卡死时对端窗无人应答的同款形态）。
+// HWND_MESSAGE 以 BigInt 传入：uintptr_t 按指针宽度取位，Number 会丢精度（评审指正）。
 const koffi = require(__KOFFI__);
 const u = koffi.load('user32.dll');
 const k = koffi.load('kernel32.dll');
@@ -209,6 +217,15 @@ const hwnd = Number(CreateWindowExW(0, 'STATIC', 't118recv', 0, 0, 0, 100, 50, H
 require('fs').writeSync(2, 'recv-ready hwnd=' + hwnd + '\\n');
 Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
 `;
+
+/** 等子进程流上首个匹配行（三臂就绪握手同款形状，抽公共） */
+function waitForLine(stream, re, ms) {
+  return new Promise((res) => {
+    let buf = '';
+    const timer = setTimeout(() => res(null), ms);
+    stream.on('data', (d) => { buf += d; const m = re.exec(buf); if (m) { clearTimeout(timer); res(m); } });
+  });
+}
 
 async function armS1(args, roundDir, h) {
   const writerPath = path.join(roundDir, 'writer.js');
@@ -229,21 +246,19 @@ async function armS2(args, roundDir, h) {
   fs.writeFileSync(writerPath, WRITER_JS);
   fs.writeFileSync(proxyPath, PROXY_JS);
   const proxy = spawn(process.execPath, [proxyPath, writerPath], { stdio: ['ignore', 'pipe', 'ignore'] });
-  let writerPid = null;
-  let buf = '';
-  const ready = new Promise((res) => { proxy.stdout.on('data', (d) => { buf += d; const m = /proxy-ready pid=(\d+)/.exec(buf); if (m) { writerPid = Number(m[1]); res(writerPid); } }); });
-  await Promise.race([ready, sleep(5000)]);
+  const ready = await waitForLine(proxy.stdout, /proxy-ready pid=(\d+)/, 5000);
+  const writerPid = ready ? Number(ready[1]) : null;
   if (!writerPid) throw new Error('proxy 5s 未就绪');
   await sleep(1500);
   const st = mainThreadWaiting(writerPid);
   h({ type: 'subject-stuck-check', pid: writerPid, waiting: st.waiting, forensics: st.txt });
   try { h({ type: 'pre-dump', file: dumpProcess(writerPid, path.join(roundDir, 'stuck-main.dmp')) }); } catch (e) { h({ type: 'pre-dump-failed', message: e.message }); }
-  // —— 读端死亡：杀 proxy（其持写者 stdout 读端；写者成孤儿）——
-  const killRes = taskkillTree(proxy.pid);
+  // —— 读端死亡：只杀 proxy 本身（不带 /T——writer 是其子进程，树杀会污染自愈归因）——
+  const killRes = taskkillPid(proxy.pid);
   let proxyGoneMs = null;
   const t0 = Date.now();
   while (Date.now() - t0 < 10000) { await sleep(POLL_MS); if (!isAlive(proxy.pid)) { proxyGoneMs = Date.now() - t0; break; } }
-  h({ type: 'reader-killed', proxyPid: proxy.pid, killRes, proxyGoneMs });
+  h({ type: 'reader-killed', proxyPid: proxy.pid, killRes, proxyGoneMs, treeKill: false });
   // —— 观察写者：解除阻塞应自行退出（fs.writeSync 抛错→未捕获→退出）——
   const t1 = Date.now();
   let writerDeathMs = null;
@@ -266,12 +281,12 @@ async function armS3(args, roundDir, h) {
   fs.writeFileSync(recvPath, RECEIVER_TEMPLATE.replace('__KOFFI__', JSON.stringify(koffiPath)));
   fs.writeFileSync(senderPath, SENDER_TEMPLATE.replace('__KOFFI__', JSON.stringify(koffiPath)));
   const recv = spawn(process.execPath, [recvPath], { stdio: ['ignore', 'ignore', 'pipe'] });
-  let recvSays = '';
-  let hwnd = null;
-  const ready = new Promise((res) => { recv.stderr.on('data', (d) => { recvSays += d; const m = /recv-ready hwnd=(\d+)/.exec(recvSays); if (m) { hwnd = Number(m[1]); res(hwnd); } }); });
-  await Promise.race([ready, sleep(5000)]);
-  if (!hwnd) throw new Error(`接收端 5s 未就绪：${recvSays.trim()}`);
-  h({ type: 'receiver-ready', pid: recv.pid, hwnd });
+  const ready = await waitForLine(recv.stderr, /recv-ready hwnd=(\d+)/, 5000);
+  const hwnd = ready ? Number(ready[1]) : null;
+  if (!hwnd) throw new Error('接收端 5s 未就绪');
+  // message-only 断言：EnumWindows 应看不到该窗（否则 HWND_MESSAGE 哨兵失效退化为隐藏顶层窗）
+  const messageOnly = !win32.topLevelWindows().includes(hwnd);
+  h({ type: 'receiver-ready', pid: recv.pid, hwnd, messageOnly });
   // 发送者：同步 SendMessage 冻结
   const sender = spawn(process.execPath, [senderPath, String(hwnd)], { stdio: ['ignore', 'ignore', 'pipe'] });
   let senderSays = '';
@@ -303,14 +318,14 @@ function readEvents(file) {
 }
 
 function windowTitle(hwnd) {
-  const user32Title = win32.koffi.load('user32.dll');
-  const GetWindowTextW = user32Title.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
   const buf = Buffer.alloc(1024);
   const n = GetWindowTextW(hwnd, buf, 512);
   let s = '';
   for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
   return s;
 }
+const user32Title = win32.koffi.load('user32.dll');
+const GetWindowTextW = user32Title.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
 
 function panelAliveByHwnd(hwnd) {
   try {
@@ -336,89 +351,98 @@ async function armPanel(args, roundDir, h) {
   if (fs.existsSync(configFile)) configBackup = fs.readFileSync(configFile, 'utf8');
   const cfgNow = (() => { try { return JSON.parse(configBackup ?? '{}'); } catch { return {}; } })();
   fs.writeFileSync(configFile, JSON.stringify({ ...cfgNow, taskbar: { ...(cfgNow.taskbar ?? {}), enabled: false } }, null, 2) + '\n');
-  const electronExe = require('electron'); // 纯 node 下 require('electron') 返回 exe 路径字符串
-  const proxy = spawn(process.execPath, [proxyPath, electronExe, APP_ROOT, eventsFile, path.join(roundDir, 'panel-stderr.log')], { stdio: ['ignore', 'pipe', 'ignore'] });
-  h({ type: 'proxy-spawned', pid: proxy.pid });
+  // 覆写后全程 try/finally：任何失败路径（proxy 未就绪/窗口未出现/实验异常）都清场并还原配置
+  // ——首跑实证：泄漏的 proxy 子进程会钉住 harness 事件循环，guard 槽永不释放（评审+现场双指正）。
+  let proxy = null;
   let panelPid = null;
-  let buf = '';
-  const ready = new Promise((res) => { proxy.stdout.on('data', (d) => { buf += d; const m = /proxy-ready pid=(\d+)/.exec(buf); if (m) { panelPid = Number(m[1]); res(panelPid); } }); });
-  await Promise.race([ready, sleep(15000)]);
-  if (!panelPid) throw new Error('panel proxy 15s 未就绪');
-  // 面板窗口就位（stall-duel 同款：boot 事件 pid + Chrome_WidgetWin_1/AGENT DECK）
-  let panelHwnd = null;
-  const launchDeadline = Date.now() + 25000;
-  while (Date.now() < launchDeadline && !panelHwnd) {
-    const boot = readEvents(eventsFile).filter((e) => e.type === 'boot').pop();
-    if (boot) {
-      panelHwnd = win32.topLevelWindows().find((w) =>
-        win32.threadIdOf(w).pid === panelPid && win32.className(w) === 'Chrome_WidgetWin_1' && windowTitle(w) === 'AGENT DECK') || null;
+  try {
+    const electronExe = require('electron'); // 纯 node 下 require('electron') 返回 exe 路径字符串
+    proxy = spawn(process.execPath, [proxyPath, electronExe, APP_ROOT, eventsFile, path.join(roundDir, 'panel-stderr.log')], { stdio: ['ignore', 'pipe', 'ignore'] });
+    h({ type: 'proxy-spawned', pid: proxy.pid });
+    const ready = await waitForLine(proxy.stdout, /proxy-ready pid=(\d+)/, 15000);
+    panelPid = ready ? Number(ready[1]) : null;
+    if (!panelPid) throw new Error('panel proxy 15s 未就绪');
+    // 面板窗口就位（stall-duel 同款：boot 事件 pid + Chrome_WidgetWin_1/AGENT DECK）
+    let panelHwnd = null;
+    const launchDeadline = Date.now() + 25000;
+    while (Date.now() < launchDeadline && !panelHwnd) {
+      const boot = readEvents(eventsFile).filter((e) => e.type === 'boot').pop();
+      if (boot) {
+        panelHwnd = win32.topLevelWindows().find((w) =>
+          win32.threadIdOf(w).pid === panelPid && win32.className(w) === 'Chrome_WidgetWin_1' && windowTitle(w) === 'AGENT DECK') || null;
+      }
+      await sleep(200);
     }
-    await sleep(200);
-  }
-  if (!panelHwnd) {
-    h({ type: 'panel-window-miss', panelPid });
-    taskkillTree(proxy.pid);            // 失败路径也清场：proxy/面板树不泄漏（否则 harness 事件循环被
-    if (panelPid) taskkillTree(panelPid); // 存活子进程钉住，guard 槽永不释放——首跑实证）
-    if (fs.existsSync(path.join(roundDir, 'panel-stderr.log'))) {
-      h({ type: 'panel-stderr-tail', tail: fs.readFileSync(path.join(roundDir, 'panel-stderr.log'), 'utf8').slice(-1500) });
+    if (!panelHwnd) {
+      h({ type: 'panel-window-miss', panelPid });
+      if (fs.existsSync(path.join(roundDir, 'panel-stderr.log'))) {
+        h({ type: 'panel-stderr-tail', tail: fs.readFileSync(path.join(roundDir, 'panel-stderr.log'), 'utf8').slice(-1500) });
+      }
+      throw new Error('25s 内未找到面板窗口'); // 清场交给下方 catch（proxy 单杀 + 面板树杀）
     }
-    throw new Error('25s 内未找到面板窗口');
-  }
-  h({ type: 'panel-ready', pid: panelPid, hwnd: panelHwnd });
-  // —— 停摆侦测：500ms 一拍 WM_NULL，连续 6 次超时 = 冻结（不排空 stdout 的自然后果）——
-  const deadline = Date.now() + args.seconds * 1000;
-  let timeouts = 0, frozen = false, freezeAt = null;
-  while (Date.now() < deadline) {
-    const ok = panelAliveByHwnd(panelHwnd);
-    timeouts = ok ? 0 : timeouts + 1;
-    if (timeouts >= FROZEN_PROBES) { frozen = true; freezeAt = Date.now(); break; }
-    await sleep(500);
-  }
-  h({ type: frozen ? 'panel-frozen' : 'panel-no-freeze', pid: panelPid, freezeAt, waitedMs: Date.now() - (deadline - args.seconds * 1000) });
-  const childListBefore = childrenOf(panelPid);
-  h({ type: 'panel-children-before', children: childListBefore });
-  const result = { panelPid, frozen, childListBefore, ladder: [] };
-  if (frozen) {
-    try { h({ type: 'freeze-dump', file: dumpProcess(panelPid, path.join(roundDir, 'freeze-main.dmp')) }); } catch (e) { h({ type: 'freeze-dump-failed', message: e.message }); }
-    fs.writeFileSync(path.join(roundDir, 'freeze-forensics.txt'),
-      `# 冻结线程态取证（t=${new Date(freezeAt).toISOString()} pid=${panelPid}）\n${psForensics([panelPid])}\n# 子进程\n${childListBefore}\n`);
-    // —— 读端死亡：杀 proxy（其持面板 stdout 读端）——观察面板是否自行解除/退出 ——
-    const killRes = taskkillTree(proxy.pid);
-    const t0 = Date.now();
-    while (Date.now() - t0 < 10000 && isAlive(proxy.pid)) await sleep(POLL_MS);
-    h({ type: 'reader-killed', proxyPid: proxy.pid, killRes });
-    const t1 = Date.now();
-    let panelDeathMs = null, panelUnfrozeMs = null;
-    while (Date.now() - t1 < READER_DEATH_WATCH_MS) {
-      await sleep(1000);
-      if (!isAlive(panelPid)) { panelDeathMs = Date.now() - t1; break; }
-      if (panelUnfrozeMs === null && panelAliveByHwnd(panelHwnd)) panelUnfrozeMs = Date.now() - t1;
+    h({ type: 'panel-ready', pid: panelPid, hwnd: panelHwnd });
+    // —— 停摆侦测：500ms 一拍 WM_NULL，连续 6 次超时 = 冻结（不排空 stdout 的自然后果）——
+    const deadline = Date.now() + args.seconds * 1000;
+    let timeouts = 0, frozen = false, freezeAt = null;
+    while (Date.now() < deadline) {
+      const ok = panelAliveByHwnd(panelHwnd);
+      timeouts = ok ? 0 : timeouts + 1;
+      if (timeouts >= FROZEN_PROBES) { frozen = true; freezeAt = Date.now(); break; }
+      await sleep(500);
     }
-    result.readerDeath = { killRes, panelDeathMs, panelUnfrozeMs };
-    h({ type: 'reader-death-watch', ...result.readerDeath });
-    if (panelDeathMs === null) {
-      // 仍活：补 dump 再上阶梯（含子进程树账目）
-      try { h({ type: 'post-reader-death-dump', file: dumpProcess(panelPid, path.join(roundDir, 'post-reader-death.dmp')) }); } catch (e) { h({ type: 'dump-failed', message: e.message }); }
+    h({ type: frozen ? 'panel-frozen' : 'panel-no-freeze', pid: panelPid, freezeAt, waitedMs: Date.now() - (deadline - args.seconds * 1000) });
+    const childListBefore = childrenOf(panelPid);
+    h({ type: 'panel-children-before', children: childListBefore });
+    const result = { panelPid, frozen, childListBefore, ladder: [] };
+    if (frozen) {
+      try { h({ type: 'freeze-dump', file: dumpProcess(panelPid, path.join(roundDir, 'freeze-main.dmp')) }); } catch (e) { h({ type: 'freeze-dump-failed', message: e.message }); }
+      fs.writeFileSync(path.join(roundDir, 'freeze-forensics.txt'),
+        `# 冻结线程态取证（t=${new Date(freezeAt).toISOString()} pid=${panelPid}）\n${psForensics([panelPid])}\n# 子进程\n${childListBefore}\n`);
+      // —— 读端死亡：杀 proxy（其持面板 stdout 读端）——观察面板是否自行解除/退出 ——
+      // 读端死亡：只杀 proxy 本身（不带 /T——面板是其子进程，树杀会污染解除归因）
+      const killRes = taskkillPid(proxy.pid);
+      const t0 = Date.now();
+      while (Date.now() - t0 < 10000 && isAlive(proxy.pid)) await sleep(POLL_MS);
+      h({ type: 'reader-killed', proxyPid: proxy.pid, killRes });
+      const t1 = Date.now();
+      let panelDeathMs = null, panelUnfrozeMs = null;
+      while (Date.now() - t1 < READER_DEATH_WATCH_MS) {
+        await sleep(1000);
+        if (!isAlive(panelPid)) { panelDeathMs = Date.now() - t1; break; }
+        if (panelUnfrozeMs === null && panelAliveByHwnd(panelHwnd)) panelUnfrozeMs = Date.now() - t1;
+      }
+      result.readerDeath = { killRes, panelDeathMs, panelUnfrozeMs };
+      h({ type: 'reader-death-watch', ...result.readerDeath });
+      if (panelDeathMs === null) {
+        // 仍活：补 dump 再上阶梯（含子进程树账目）
+        try { h({ type: 'post-reader-death-dump', file: dumpProcess(panelPid, path.join(roundDir, 'post-reader-death.dmp')) }); } catch (e) { h({ type: 'dump-failed', message: e.message }); }
+        result.ladder = await runLadder(panelPid, args.profile, roundDir, h);
+      }
+    } else {
+      // 未冻结：健康面板的阶梯基线（应 R1 即死——对照账）
       result.ladder = await runLadder(panelPid, args.profile, roundDir, h);
     }
-  } else {
-    // 未冻结：健康面板的阶梯基线（应 R1 即死——对照账）
-    result.ladder = await runLadder(panelPid, args.profile, roundDir, h);
+    // 清场：终局复核 + 子进程遗留账
+    await sleep(1000);
+    const leftovers = [];
+    for (const pid of [panelPid, ...childListBefore.split(',').filter(Boolean).map((s) => Number(s.split(':')[0]))]) {
+      if (pid && isAlive(pid)) leftovers.push(pid);
+    }
+    result.leftovers = leftovers;
+    h({ type: 'final-check', leftovers });
+    return result;
+  } catch (e) {
+    // 失败路径清场：proxy 单杀（不带 /T，避免误伤旁观树）+ 面板树杀
+    if (proxy && isAlive(proxy.pid)) { taskkillPid(proxy.pid); h({ type: 'failure-cleanup-proxy', pid: proxy.pid }); }
+    if (panelPid && isAlive(panelPid)) { taskkillTree(panelPid); h({ type: 'failure-cleanup-panel', pid: panelPid }); }
+    throw e;
+  } finally {
+    // 配置还原（成功失败都走）
+    try {
+      if (configBackup === null) { try { fs.unlinkSync(configFile); } catch { /* 本就无 */ } }
+      else fs.writeFileSync(configFile, configBackup);
+    } catch (e) { h({ type: 'config-restore-failed', message: e.message }); }
   }
-  // 清场：终局复核 + 子进程遗留账
-  await sleep(1000);
-  const leftovers = [];
-  for (const pid of [panelPid, ...childListBefore.split(',').filter(Boolean).map((s) => Number(s.split(':')[0]))]) {
-    if (pid && isAlive(pid)) leftovers.push(pid);
-  }
-  result.leftovers = leftovers;
-  h({ type: 'final-check', leftovers });
-  // 配置还原
-  try {
-    if (configBackup === null) { try { fs.unlinkSync(configFile); } catch { /* 本就无 */ } }
-    else fs.writeFileSync(configFile, configBackup);
-  } catch (e) { h({ type: 'config-restore-failed', message: e.message }); }
-  return result;
 }
 
 async function main() {
@@ -441,9 +465,10 @@ async function main() {
     h({ type: 'arm-failed', message: e.message, stack: (e.stack || '').split('\n').slice(0, 4).join(' | ') });
     result = { failed: e.message };
   }
-  const survivor = Array.isArray(result.ladder) && result.ladder.length > 0
-    ? result.ladder[result.ladder.length - 1].survived
-    : false;
+  const ladderSurvivor = Array.isArray(result.ladder) && result.ladder.length > 0
+    && result.ladder[result.ladder.length - 1].survived;
+  const leftoverSurvivor = Array.isArray(result.leftovers) && result.leftovers.length > 0; // 面板子进程遗留同样是脏机器
+  const survivor = ladderSurvivor || leftoverSurvivor;
   const summary = { ...args, roundDir, result, survivor, exitCode: survivor || result.failed ? 3 : 0 };
   fs.writeFileSync(path.join(roundDir, 'harness-log.jsonl'), hlog.map((e) => JSON.stringify(e)).join('\n') + '\n');
   fs.writeFileSync(path.join(roundDir, 'summary.json'), JSON.stringify(summary, null, 2));
@@ -452,6 +477,5 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((err) => { console.error('[kill-forensics] 轮失败：', err); process.exitCode = 3; });
+  main().catch((err) => { console.error('[kill-forensics] 轮失败：', err); process.exit(3); });
 }
-module.exports = { parseArgs, runLadder, isAlive, openProbe };
