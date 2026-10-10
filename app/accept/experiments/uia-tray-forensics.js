@@ -86,12 +86,14 @@ function describeWindows(cls) {
 
 /** 取证 dump 靶标：explorer 真托盘 + TrayHost 竞争窗（同类名）+ 溢出浮层（独立顶层窗，
  *  Win11 把未提升的第三方托盘图标收在这里——键盘导航走不到，树 dump 是唯一观测面。
- *  溢出窗类名随构建漂移：旧名 NotifyIconOverflowWindow，Win11 22H2+ 改 TopLevelWindowForOverflowXamlExplorer）。 */
+ *  溢出窗类名随构建漂移：本机 26200 实测为 TopLevelWindowForOverflowXamlIsland，
+ *  旧名 NotifyIconOverflowWindow 与常见资料名 ...XamlExplorer 均枚举不到——一并保留探扫）。 */
 function trayDumpTargets() {
   return [
     ...describeWindows('Shell_TrayWnd'),
     ...describeWindows('NotifyIconOverflowWindow'),
     ...describeWindows('TopLevelWindowForOverflowXamlExplorer'),
+    ...describeWindows('TopLevelWindowForOverflowXamlIsland'),
   ];
 }
 

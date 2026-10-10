@@ -56,10 +56,51 @@ harness：`uia-tray-forensics.js --arm=all`，臂序固定 baseline → idle →
 
 每轮 ≈15s（PS 冷启 2s + Win+B 稳 1.2s + 20 步×0.55s + dump ~2s + 间隔 2s）；净跑 ≈35–40 分钟，guard 槽位预算 45–60 分钟。
 
-## 6. 结果（跑后补记）
+## 6. 结果
 
-（待跑：`run-<时间戳>/summary.json` 的 statsByArm 与 verdict 行落此处。）
+全量轮：`run-2026-10-10T16-49-39`（guard selftest 托管，四臂连跑 ~40 分钟，退出码 0、终局侦察干净）。
+
+### 6.1 四臂主账（90 轮）
+
+| 臂 | 轮 | 签名分布 | 步级空名率 | 空名观测轮率 | MATCH 率 | 树中我方图标率 |
+|---|---|---|---|---|---|---|
+| baseline（裸托盘） | 30 | C×30 | 0 | 0 | 0 | — |
+| idle（静置面板） | 30 | C×30 | 0 | 0 | 0 | 0 |
+| broadcast（广播后即导航） | 20 | C×20 | 0 | 0 | 0 | 0 |
+| relaunch（每轮重启面板） | 10 | C×10 | 0 | 0 | 0 | 0 |
+
+- Win+B 前台窗 100% 落 **explorer 真托盘**（90/90，从不落竞争窗）；导航全部正常循环（签名 C 形态＝真托盘序列可导航）。
+- **签名 A（全空串）与签名 B（焦点冻住）零复现**；步级、树按钮级空名双口径均为 0。
+- 面板在场的全部 60 轮 firstMatch=-1：**AGENT DECK 图标键盘导航不可达、树 dump 不可见**——与 master 2026-10-09 全量电池 P8「已注册但可见区无识别色」+P10 键盘导航 NOT-FOUND 的现行失败同征（`app/accept/evidence/03-battery.log.txt`）。
+- 判读归行：**R5-no-repro-fallback**（四臂零空名复现）。
+
+### 6.2 追加诊断（R5 触发 fallback 后的系统级定位）
+
+**① 图标下落——溢出层开箱**（Win+B → ENTER 拨开「显示隐藏的图标」→ dump 浮层）：
+
+- 本机（Win11 26200）溢出浮层顶层窗类名实测为 **`TopLevelWindowForOverflowXamlIsland`**（旧名 `NotifyIconOverflowWindow` 与常见资料名 `...XamlExplorer` 均枚举不到——网上流传类名不可尽信，harness 已带三类名探扫）。
+- 浮层 85 个 UIA 条目里：NVIDIA/联想管家/Shadowsocks/PowerToys/Steam/OneDrive 等按名可见；**多枚 `SystemTray.NormalButton` 条目 Name 为空**（空名托盘按钮是本机 Windows 层现实，在场于溢出层而非可见托盘）；**Wallpaper Engine 重复条目 ×18**。
+- 全部 dump（可见托盘/溢出层/竞争窗）中**没有任何按名可识别的 AGENT DECK 条目**；UIA 里托盘按钮的进程字段一律报 explorer 宿主，按 exe 归属找图标的方法对托盘按钮失效——空名按钮之一是否为我方图标，UIA 层不可判定。
+
+**② 注册表提升位**（`HKCU\Control Panel\NotifyIconSettings`，纯读）：按**可执行文件全路径**分键——主检出 electron 条目无 `IsPromoted` 值（未提升），`--battery-baseline` 检出条目 `IsPromoted=0`，t119 worktree 的 electron 路径**无条目**。即：**每个检出/worktree 的面板 exe 是独立的提升记忆，且当前均未提升**——图标注册后默认进溢出层。
+
+**③ 竞争窗与事件流**：竞争窗在场全程（keepalive 全 `win:true`，始终是 FindWindow 首个命中），但其 **UIA 树恒为 0 条目**（纯消息接收窗——收编进它的图标在 UIA 世界不存在）；面板侧 tray-event 三轮全零——本取证中从未观测到任何图标进竞争窗。
+
+**④ 工具层**：PS 5.1 的 `FindWindowExW` 枚举**看不见隐藏的竞争窗**，同机同时刻 koffi 通道可见（A/B 对质实证）——托盘窗枚举必须走 koffi 通道；PS 树 dump 的空名口径必须收紧到按钮级条目（结构性容器 Pane/Image 天然无名，粗口径会把 Windows 本底虚构成 100%）。
 
 ## 7. 结论与衍生票
 
-（待判读归行后补记。）
+**C1（票题主答）空名独立复现性＝否。** 四臂 90 轮零复现（步级/树按钮级双口径）。签名 A（全空串）与签名 B（焦点冻住）是 #107 停摆场的时代产物——停摆根因修复（#132/#137 stdout 排空）后停摆绝迹，空名随之消失；票面「与停摆同场、因果未证」的悬念以「绑定停摆场」收口。溢出层空名按钮虽是 Windows 层现实，但键盘导航永远走不到溢出层，不构成 P10 步级空名来源。
+
+**C2（现行 P10 失败定案）签名 C＝图标不在可见托盘，探针报告的是真实。** 图标按系统提升位管理默认进溢出层（per-exe-path 记忆，当前各检出均未提升）→ 键盘导航对溢出层图标结构性不可达 → NOT-FOUND。P10 断言的前提「图标可见于系统托盘」在 Windows 提升位层面失效——不是面板缺陷、不是探针缺陷、也不是 TrayHost 收编窗口（本轮零收编观测）。历史 P10 绿 ⇔ 当年该 exe 路径提升位为 1；提升记忆丢失/新检出路径无记忆即红。此结论同时解释 master 2026-10-09 电池 P8「已注册但可见区无增量」+P10 NOT-FOUND 同场失败。
+
+**C3（系统级副作用实证）收编广播→响应应用重注册→溢出堆积。** 每次面板启动广播 TaskbarCreated，响应的应用重注册图标；未提升者溢出层堆积（Wallpaper Engine ×18，数量级与面板累计启动次数吻合）。对本票是环境证据，对 TrayHost 是值得评估的降噪项。
+
+**C4（工具层沉淀）** 托盘窗枚举走 koffi（PS 有盲区）；溢出窗类名以实测为准；空名口径按按钮级。harness/探针/分析器已按此固化，判读规则由单测锁定。
+
+**判读表归行：R5-no-repro-fallback**——fallback 条款（回票议系统变量轮）由追加诊断 §6.2 履行完毕（系统变量＝提升位/溢出层，已钉死），无需再加轮。
+
+**衍生票建议**（不在本票实施）：
+- **D1**：P10/P8 断言前提加固——导航/识别色断言前先读 `NotifyIconSettings` 提升位并在未提升时给出定向失败语（「图标在溢出层：提升位未置」而非笼统 NOT-FOUND）；或电池环境前置里包含提升位检查。机器态归 #138 域。
+- **D2**：TrayHost 收编广播降噪评估（C3 的 WE×18 堆积副作用）。
+- **D3**（可选）：若修 `uia-focus.ps1`，采集字段照抄 `uia-probe2.ps1`（hwnd/类名/aid/树 dump）。
