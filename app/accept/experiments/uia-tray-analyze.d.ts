@@ -54,10 +54,14 @@ export declare type Signature = 'A-all-empty' | 'B-frozen' | 'C-navigating' | 'n
 export declare interface TreeSummary {
   when: string
   host: HostInfo | null
+  hostClass: string
   itemCount: number
   truncated: boolean
   error: string | null
+  /** 按钮级空名条目数（结构性容器不计——它们天然无名） */
   emptyNames: number
+  /** 非按钮级空名条目数（观测性指标，不进判读口径） */
+  emptyOtherNames: number
   agentDeckPresent: boolean
   agentDeckName: string | null
   tailEmptyItem: boolean
@@ -76,6 +80,8 @@ export declare interface RoundRecord {
   hostCount: number
   hosts: HostInfo[]
   trees: TreeSummary[]
+  /** 我方图标被检出的宿主窗口类名（Shell_TrayWnd=explorer 真托盘 / NotifyIconOverflowWindow=溢出浮层 等）；测试 fixture 可省 */
+  agentDeckHostClasses?: string[]
   probeSummary: Record<string, unknown> | null
   badLines: number
   fatal: { message: string } | null
@@ -99,6 +105,8 @@ export declare interface ArmStats {
   walkAgentDeckRate: number | null
   treeAgentDeckRate: number | null
   treeTailEmptyRate: number | null
+  /** 我方图标按宿主类名的出现轮数直方图（图标在哪一问的直接答案） */
+  agentDeckByHost: Record<string, number>
   hostCountHistogram: Record<string, number>
   fgClassHistogram: Record<string, number>
 }

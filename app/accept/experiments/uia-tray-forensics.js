@@ -63,18 +63,36 @@ function windowTitle(hwnd) {
   return s;
 }
 
-/** 全部 Shell_TrayWnd 宿主（z 序：explorer 真托盘 + 在场竞争窗） */
-function shellTrayHosts() {
+/** 指定类名的全部顶层窗（z 序）。宿主枚举必须在 harness 侧做：PS 探针的
+ *  FindWindowExW 枚举看不见隐藏的竞争窗（A/B 实证 2026-10-11，koffi 通道可见）。 */
+function topLevelWindowsOfClass(cls) {
   const out = [];
   let after = 0;
   for (;;) {
-    const h = Number(win32.FindWindowExW(0, after, 'Shell_TrayWnd', null));
+    const h = Number(win32.FindWindowExW(0, after, cls, null));
     if (!h) break;
-    const pid = win32.threadIdOf(h).pid;
-    out.push({ hwnd: h, pid, exe: win32.exeOfPid(pid) });
+    out.push(h);
     after = h;
   }
   return out;
+}
+
+function describeWindows(cls) {
+  return topLevelWindowsOfClass(cls).map((h) => {
+    const pid = win32.threadIdOf(h).pid;
+    return { hwnd: h, class: cls, pid, exe: win32.exeOfPid(pid), visible: !!win32.IsWindowVisible(h) };
+  });
+}
+
+/** 取证 dump 靶标：explorer 真托盘 + TrayHost 竞争窗（同类名）+ 溢出浮层（独立顶层窗，
+ *  Win11 把未提升的第三方托盘图标收在这里——键盘导航走不到，树 dump 是唯一观测面）。 */
+function trayDumpTargets() {
+  return [...describeWindows('Shell_TrayWnd'), ...describeWindows('NotifyIconOverflowWindow')];
+}
+
+/** 仅 Shell_TrayWnd 宿主（互斥侦察用：竞争窗在场时 >1） */
+function shellTrayHosts() {
+  return describeWindows('Shell_TrayWnd');
 }
 
 function broadcastTaskbarCreated() {
@@ -163,18 +181,22 @@ function configTaskbarOff(h) {
   };
 }
 
-/** 一轮导航：Win+B → 稳 → probe2 全量走满 → ESC。原始输出落盘，返回分型轮记录。 */
+/** 一轮导航：Win+B → 稳 → probe2 全量走满 → ESC。dump 靶标由 harness 侧枚举显式下发
+ *  （harness 前后各拍一次宿主快照，与探针 dump 对照）。原始输出落盘，返回分型轮记录。 */
 async function runNavRound(roundsDir, tag, h, eventsFile) {
   const t0 = Date.now();
+  const targetsPre = trayDumpTargets();
   win32.send([
     win32.keyInput(VK_LWIN, win32.KEYDOWN), win32.keyInput(VK_B, win32.KEYDOWN),
     win32.keyInput(VK_B, win32.KEYUP), win32.keyInput(VK_LWIN, win32.KEYUP),
   ]);
   await sleep(WINB_SETTLE_MS);
+  const dumpHwnds = targetsPre.map((t) => t.hwnd).join(',');
   const probe = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass',
-    '-File', PROBE_PATH, '-Needle', NEEDLE, '-MaxSteps', '20'],
+    '-File', PROBE_PATH, '-Needle', NEEDLE, '-MaxSteps', '20', '-DumpHwnds', dumpHwnds],
   { encoding: 'utf8', timeout: PROBE_TIMEOUT_MS, windowsHide: true });
-  const raw = `${probe.stdout || ''}\n# stderr\n${probe.stderr || ''}\n# status=${probe.status} error=${probe.error ? probe.error.message : 'none'}\n`;
+  const targetsPost = trayDumpTargets();
+  const raw = `${probe.stdout || ''}\n# stderr\n${probe.stderr || ''}\n# status=${probe.status} error=${probe.error ? probe.error.message : 'none'}\n# targets-pre ${JSON.stringify(targetsPre)}\n# targets-post ${JSON.stringify(targetsPost)}\n`;
   fs.writeFileSync(path.join(roundsDir, `${tag}.jsonl`), raw);
   win32.tapKeys([VK_ESCAPE]);
   const parsed = parseProbeOutput(probe.stdout);
@@ -184,6 +206,8 @@ async function runNavRound(roundsDir, tag, h, eventsFile) {
   round.t1 = Date.now();
   round.probeStatus = probe.status;
   round.probeTimedOut = !!(probe.error && probe.error.killed);
+  round.targetsPre = targetsPre;
+  round.targetsPost = targetsPost;
   if (eventsFile) {
     // 轮窗内面板侧托盘事件（收编 add/delete、competition 等，带 t 对齐）
     round.panelEvents = readEvents(eventsFile)

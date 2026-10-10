@@ -1,8 +1,12 @@
-param([string]$Needle = '', [int]$MaxSteps = 20, [int]$DumpCap = 150)
+param([string]$Needle = '', [int]$MaxSteps = 20, [int]$DumpCap = 150, [string]$DumpHwnds = '')
 # Issue 119 forensics probe (uia-focus.ps1 sibling, battery untouched).
 # Full-walk tray keyboard navigation: per-step focused-element UIA fields plus
-# foreground window, and a Shell_TrayWnd subtree dump per host before and after
-# the walk (every host: explorer real tray + any competing window in place).
+# foreground window, and a subtree dump for EVERY requested tray window before
+# and after the walk. Dump targets come from the harness (-DumpHwnds, decimal
+# comma-separated: explorer tray + TrayHost competing window + overflow flyout)
+# because PS-side FindWindowExW enumeration misses the hidden competing window
+# while the harness-side koffi enumeration sees it (A/B verified 2026-10-11);
+# with no -DumpHwnds the probe falls back to its own enumeration.
 # Never early-exits; first MATCH step is recorded instead (superset of the
 # production probe behavior). Output = one JSON object per line on stdout;
 # ConvertTo-Json escapes non-ASCII names to \uXXXX so the stream stays ASCII.
@@ -78,19 +82,27 @@ function Dump-HostTree([IntPtr]$h, [string]$when) {
 }
 
 try {
-  # Every Shell_TrayWnd in z-order (explorer real tray + competing window, if any).
-  $hosts = New-Object System.Collections.ArrayList
-  $after = [IntPtr]::Zero
-  while ($true) {
-    $h = [P2.Native]::FindWindowExW([IntPtr]::Zero, $after, 'Shell_TrayWnd', $null)
-    if ($h -eq [IntPtr]::Zero) { break }
-    [void]$hosts.Add($h)
-    $after = $h
+  # Dump targets: explicit hwnd list from the harness, else own enumeration.
+  $targets = New-Object System.Collections.ArrayList
+  if ($DumpHwnds -ne '') {
+    foreach ($part in $DumpHwnds.Split(',')) {
+      $n = 0
+      if ([int64]::TryParse($part.Trim(), [ref]$n) -and $n -gt 0) { [void]$targets.Add([IntPtr]$n) }
+    }
   }
-  foreach ($h in $hosts) {
+  if ($targets.Count -eq 0) {
+    $after = [IntPtr]::Zero
+    while ($true) {
+      $h = [P2.Native]::FindWindowExW([IntPtr]::Zero, $after, 'Shell_TrayWnd', $null)
+      if ($h -eq [IntPtr]::Zero) { break }
+      [void]$targets.Add($h)
+      $after = $h
+    }
+  }
+  foreach ($h in $targets) {
     Write-Output (ConvertTo-Json -Compress -Depth 6 @{ kind = 'host'; host = (Describe-Hwnd $h) })
   }
-  foreach ($h in $hosts) { Dump-HostTree $h 'pre' }
+  foreach ($h in $targets) { Dump-HostTree $h 'pre' }
 
   $firstMatch = -1
   $emptySteps = 0
@@ -108,7 +120,7 @@ try {
     Start-Sleep -Milliseconds 500
   }
 
-  foreach ($h in $hosts) { Dump-HostTree $h 'post' }
+  foreach ($h in $targets) { Dump-HostTree $h 'post' }
 
   $distinct = @($names | Sort-Object -Unique)
   Write-Output (ConvertTo-Json -Compress -Depth 6 @{

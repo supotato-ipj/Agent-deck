@@ -63,10 +63,10 @@ describe('classifySteps：三签名分型', () => {
 })
 
 describe('summarizeDump：双树口径', () => {
-  const dump = (items: Array<{ name: string }>, host = { hwnd: 1, class: 'Shell_TrayWnd', pid: 4, exe: 'explorer' }): DumpLine =>
-    ({ kind: 'dump', when: 'post', host, itemCount: items.length, truncated: false, error: null, items })
+  const dump = (items: Array<{ name: string; type?: string }>, host = { hwnd: 1, class: 'Shell_TrayWnd', pid: 4, exe: 'explorer' }): DumpLine =>
+    ({ kind: 'dump', when: 'post', host, itemCount: items.length, truncated: false, error: null, items: items.map((it) => ({ type: 'ControlType.Button', ...it })) })
 
-  it('我方图标登记识别 + 末位空名项', () => {
+  it('我方图标登记识别 + 末位空名按钮', () => {
     const s = summarizeDump(dump([
       { name: 'Show Hidden Icons' }, { name: 'Clock' }, { name: 'AGENT DECK 独立面板' }, { name: '' },
     ]), 'AGENT DECK')
@@ -74,6 +74,15 @@ describe('summarizeDump：双树口径', () => {
     expect(s.agentDeckName).toBe('AGENT DECK 独立面板')
     expect(s.emptyNames).toBe(1)
     expect(s.tailEmptyItem).toBe(true)
+  })
+
+  it('结构性容器空名不计入按钮级口径（TaskbarFrame/Image 等天然无名）', () => {
+    const s = summarizeDump(dump([
+      { name: '', type: 'ControlType.Pane' }, { name: '', type: 'ControlType.Image' }, { name: 'Clock' },
+    ]), 'AGENT DECK')
+    expect(s.emptyNames).toBe(0)
+    expect(s.emptyOtherNames).toBe(2)
+    expect(s.tailEmptyItem).toBe(false)
   })
 
   it('竞争窗树：我方图标不在 explorer 树（签名 C 核心问题）', () => {
@@ -87,7 +96,7 @@ describe('classifyRound + 空名观测口径', () => {
   it('签名 C 无我方图标轮：步级无空名但树有末位空项 → 记空名观测', () => {
     const parsed = parseProbeOutput([
       step(0, 'Clock'), step(1, 'Volume'),
-      JSON.stringify({ kind: 'dump', when: 'post', host: { hwnd: 1, class: 'Shell_TrayWnd', pid: 4, exe: 'explorer' }, itemCount: 2, truncated: false, error: null, items: [{ name: 'Clock' }, { name: '' }] }),
+      JSON.stringify({ kind: 'dump', when: 'post', host: { hwnd: 1, class: 'Shell_TrayWnd', pid: 4, exe: 'explorer' }, itemCount: 2, truncated: false, error: null, items: [{ name: 'Clock', type: 'ControlType.Button' }, { name: '', type: 'ControlType.Button' }] }),
     ].join('\n'))
     const r = classifyRound(parsed)
     expect(r.signature).toBe('C-navigating')

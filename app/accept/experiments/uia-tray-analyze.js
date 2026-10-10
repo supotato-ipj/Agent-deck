@@ -34,22 +34,35 @@ function classifySteps(steps) {
   return { signature: 'C-navigating', distinctNames: distinct.length, frozenName: null };
 }
 
-/** dump → 托盘树观测摘要：空名项、我方图标登记在哪个宿主、末位空名项 */
+/** 按钮级条目判定：空名口径只数按钮类条目（SystemTray 按钮/工具栏钮/开关钮）。
+ *  结构性容器（TaskbarFrameAutomation/TrayNotifyWnd/Image/ReBarWindow32 等）
+ *  天然无名——数它们会把 Windows 本底虚构成 100%（smoke 轮实证）。 */
+function isButtonish(item) {
+  const t = String((item && item.type) || '');
+  const c = String((item && item.class) || '');
+  return t.includes('Button') || c.startsWith('SystemTray') || c.startsWith('Toolbar');
+}
+
+/** dump → 托盘树观测摘要：按钮级空名项、我方图标登记在哪个宿主、末位空名按钮 */
 function summarizeDump(dump, needle) {
   const items = Array.isArray(dump.items) ? dump.items : [];
   const names = items.map((it) => (it && typeof it.name === 'string') ? it.name : '');
   const lower = needle.toLowerCase();
   const agentDeckIdx = names.findIndex((n) => n.toLowerCase().includes(lower));
+  const buttons = items.filter(isButtonish);
+  const buttonNames = buttons.map((it) => (it && typeof it.name === 'string') ? it.name : '');
   return {
     when: dump.when,
     host: dump.host || null,
+    hostClass: (dump.host && dump.host.class) || '',
     itemCount: items.length,
     truncated: !!dump.truncated,
     error: dump.error || null,
-    emptyNames: names.filter((n) => n === '').length,
+    emptyNames: buttonNames.filter((n) => n === '').length,
+    emptyOtherNames: names.filter((n) => n === '').length - buttonNames.filter((n) => n === '').length,
     agentDeckPresent: agentDeckIdx >= 0,
     agentDeckName: agentDeckIdx >= 0 ? names[agentDeckIdx] : null,
-    tailEmptyItem: items.length > 0 && names[names.length - 1] === '',
+    tailEmptyItem: buttons.length > 0 && buttonNames[buttonNames.length - 1] === '',
   };
 }
 
@@ -74,13 +87,16 @@ function classifyRound(parsed, needle = 'AGENT DECK') {
     hostCount: parsed.hosts.length,
     hosts: parsed.hosts,
     trees: parsed.dumps.map((d) => summarizeDump(d, needle)),
+    agentDeckHostClasses: parsed.dumps
+      .filter((d) => summarizeDump(d, needle).agentDeckPresent)
+      .map((d) => (d.host && d.host.class) || ''),
     probeSummary: parsed.summary || null,
     badLines: parsed.badLines,
     fatal: parsed.fatal || null,
   };
 }
 
-/** 空名观测口径（判读表输入）：步级空名 或 树里空名项/末位空名项。
+/** 空名观测口径（判读表输入）：步级空名 或 树里按钮级空名项/末位空名按钮。
  *  签名 B 不算空名观测（它没有空名步，也不看树——树口径对所有签名一致采集，
  *  但 B 的机理是键盘注入面，归因时另行登记）。 */
 function roundHasEmptyNameObservation(round) {
@@ -101,6 +117,8 @@ function aggregateRounds(rounds) {
   const walkAgentDeck = rounds.filter((r) => r.agentDeckInWalk).length;
   const treeAgentDeck = rounds.filter((r) => r.trees.some((t) => t.agentDeckPresent)).length;
   const treeTailEmpty = rounds.filter((r) => r.trees.some((t) => t.tailEmptyItem)).length;
+  const agentDeckByHost = rounds.flatMap((r) => r.agentDeckHostClasses || [])
+    .reduce((m, c) => { m[c] = (m[c] || 0) + 1; return m; }, {});
   return {
     rounds: rounds.length,
     signatureCounts: sig,
@@ -113,6 +131,7 @@ function aggregateRounds(rounds) {
     walkAgentDeckRate: rounds.length ? +(walkAgentDeck / rounds.length).toFixed(4) : null,
     treeAgentDeckRate: rounds.length ? +(treeAgentDeck / rounds.length).toFixed(4) : null,
     treeTailEmptyRate: rounds.length ? +(treeTailEmpty / rounds.length).toFixed(4) : null,
+    agentDeckByHost,
     hostCountHistogram: by('hostCount'),
     fgClassHistogram: rounds.flatMap((r) => r.fgClasses).reduce((m, c) => { m[c] = (m[c] || 0) + 1; return m; }, {}),
   };
