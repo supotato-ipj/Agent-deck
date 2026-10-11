@@ -34,7 +34,7 @@ export interface AppConfig {
 }
 
 /** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失。
- * hiddenButtons（工单54）：中组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
+ * hiddenButtons（工单54）：开始组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
  * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。 */
 export interface TaskbarConfig {
   enabled: boolean
@@ -200,7 +200,7 @@ export function defaultTaskbar(): TaskbarConfig {
   return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS] }
 }
 
-/** 中组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
+/** 开始组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
 const TASKBAR_BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
 
 function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[]): TaskbarConfig {

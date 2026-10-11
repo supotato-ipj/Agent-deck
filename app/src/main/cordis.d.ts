@@ -32,7 +32,7 @@ declare module 'cordis' {
     'settings/cards-changed': (payload: { disabled: string[] }) => void
     /** 工单10 桌面组件：插件清单变化（放入/移除/资产变更即推） */
     'plugins/changed': (payload: PluginInfo[]) => void
-    /** 工单49/52 任务栏：开关变化与左组编排帧即时回推（窗口控制器据此建窗/销窗，渲染层据此重绘左组） */
+    /** 工单49/52 任务栏：开关变化与应用组编排帧即时回推（窗口控制器据此建窗/销窗，渲染层据此重绘应用组） */
     'taskbar/changed': (payload: TaskbarState) => void
     /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（桥接层随 panel/changed 同拍发出） */
     'taskbar/status': (payload: TaskbarStatus) => void

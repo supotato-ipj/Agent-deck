@@ -1,11 +1,11 @@
 // 任务栏运行中窗口枚举真源（工单52，效果层薄壳）：顶层可见窗口链式枚举 →
 // exe 绝对路径 + 窗口标题。枚举形态同 focus/adapter.ts（GetTopWindow/GetWindow 链，
-// 避免 FFI 回调生命周期问题）；差异是 exe 取全路径（左组身份）且读窗口标题。
+// 避免 FFI 回调生命周期问题）；差异是 exe 取全路径（应用组身份）且读窗口标题。
 // 隐私（ADR-0007 对 ADR-0002 的书面口子，仅限任务栏链路）：标题仅内存即时读取，
 // 供栏上 tooltip 与多窗口列表即时显示——永不写使用日志、永不落任何持久化。
 // 离线测试不加载本模块（服务依赖缝注入假源后从不 require）。
-import { normalizeExe } from './left-plan'
-import type { TaskbarWindowInput } from './left-plan'
+import { normalizeExe } from './apps-plan'
+import type { TaskbarWindowInput } from './apps-plan'
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const GW_HWNDNEXT = 2
@@ -102,7 +102,7 @@ function titleOf(b: Bound, hwnd: number): string | null {
   }
 }
 
-/** 任务栏窗口快照条目：exe 为绝对路径（左组身份），hwnd/pid 预留给工单53 的激活语义 */
+/** 任务栏窗口快照条目：exe 为绝对路径（应用组身份），hwnd/pid 预留给工单53 的激活语义 */
 export interface TaskbarWindowInfo extends TaskbarWindowInput {
   hwnd: number
   pid: number
@@ -111,7 +111,7 @@ export interface TaskbarWindowInfo extends TaskbarWindowInput {
 /**
  * 当前可见顶层窗口快照（最小化窗口仍带 WS_VISIBLE，在列——任务栏运行态含最小化）。
  * 取不到 exe 的窗口（权限/已退出）跳过；标题空归 null。纯枚举薄壳，无分支裁决
- * （合并/去重/排序全在 left-plan 纯函数），真机行为由验收电池覆盖。
+ * （合并/去重/排序全在 apps-plan 纯函数），真机行为由验收电池覆盖。
  */
 export function nativeTaskbarWindows(): TaskbarWindowInfo[] {
   const b = bind()
