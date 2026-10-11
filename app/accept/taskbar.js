@@ -43,6 +43,9 @@ const VK_ESC = 0x1b;
 const koffi = win32.koffi;
 const user32 = koffi.load('user32.dll');
 const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+// 按类名走 Z 序枚举（nativeTrayWnd 同法）：Shell_TrayWnd 竞争窗是 0×0 隐藏窗，
+// topLevelWindows() 只收可见窗永远看不见它（红轮实证枚举=0 而宿主在场收编 23 条）
+const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)');
 
 // 原生任务栏视图事实/兜底还原（工单50：本电池的面板会真实隐藏原生任务栏；
 // 判据共用 accept/lib/win32.js 导出，四电池单点维护）
@@ -571,8 +574,18 @@ async function main() {
     // FindWindow 首命是我方竞争窗；本电池、面板主进程、数据面子进程同 electron.exe——
     // 按 exe 名圈我方树，explorer 真栏按属主天然排除在外）。
     rep.beginSegment('P11');
-    const ourTrayHosts = () => win32.topLevelWindows().filter(
-      (h) => win32.className(h) === 'Shell_TrayWnd' && win32.exeNameOfWindow(h) === 'electron.exe');
+    // exeNameOfWindow 返回去 .exe 后缀的小写名（electron）；竞争窗隐藏故走类名 Z 序枚举
+    const ourTrayHosts = () => {
+      const out = [];
+      let after = 0;
+      for (;;) {
+        const h = Number(FindWindowExW(0, after, 'Shell_TrayWnd', null));
+        if (!h) break;
+        after = h;
+        if (win32.exeNameOfWindow(h) === 'electron') out.push(h);
+      }
+      return out;
+    };
     const baseHosts = ourTrayHosts();
     if (baseHosts.length >= 1) {
       rep.pass(`P11 基线：启用态我方托盘竞争窗在场（hwnd=${baseHosts[0]}）`);
@@ -588,9 +601,10 @@ async function main() {
     if (r11off && r11off.enabled === false && stopEv && hostsOff.length === 0) {
       rep.pass('P11 禁用即交还：tray-host-stopped 存证在流、我方 Shell_TrayWnd 归零');
     } else {
-      rep.fail(`P11 禁用响应=${JSON.stringify(r11off)} stopped存证=${!!stopEv} 残留竞争窗=${hostsOff.length}`);
+      rep.fail(`P11 禁用响应.enabled=${r11off && r11off.enabled} stopped存证=${!!stopEv} 残留竞争窗=${hostsOff.length}`);
     }
-    // 重启用 → 收编回填：宿主重建 + 条带恢复 + 名单非空（面板自家图标响应广播）
+    // 重启用 → 收编回填：宿主重建 + 条带恢复 + 名单非空（面板自家图标响应广播）。
+    // 状态满帧太长（断言失败时刷屏），再启用断言只回显 enabled 位。
     const t11on = Date.now();
     const r11on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
     const readyEv = await waitEvent('tray-host-ready', (e) => e.t >= t11on, 8000);
@@ -601,12 +615,17 @@ async function main() {
       const st = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
       rosterLen = st && st.tray ? st.tray.length : 0;
     }
+    // 宿主窗在场时取数据面子进程 pid（P12(a) 的击杀目标；dataplane-spawn 存证不带 pid
+    // ——utilityProcess.pid 在落存证时点尚未就绪，红轮实证字段缺席；窗亡后 hwnd 取不到 pid，
+    // 必须趁在场这一拍留档）
+    const hostsOn = ourTrayHosts();
+    const dpPid = hostsOn.length ? win32.threadIdOf(hostsOn[0]).pid : 0;
     if (r11on && r11on.enabled === true && readyEv && stripBack11 && isTopmost(stripBack11)
-      && ourTrayHosts().length >= 1 && rosterLen >= 1) {
+      && hostsOn.length >= 1 && rosterLen >= 1) {
       rep.pass(`P11 重启用即收编：宿主重建（新 ready 帧）、条带恢复置顶、名单回填（${rosterLen} 条）`);
     } else {
-      rep.fail(`P11 再启用响应=${JSON.stringify(r11on)} 新ready=${!!readyEv} 条带=${!!stripBack11}`
-        + ` 竞争窗=${ourTrayHosts().length} 名单=${rosterLen}`);
+      rep.fail(`P11 再启用响应.enabled=${r11on && r11on.enabled} 新ready=${!!readyEv} 条带=${!!stripBack11}`
+        + ` 竞争窗=${hostsOn.length} 名单=${rosterLen}`);
     }
     // 二次禁用（停→起→停整周期：类注销对称性的真机实证——重启后的宿主必须还能停）
     const t11off2 = Date.now();
@@ -624,11 +643,9 @@ async function main() {
     //       静态重放会再偷图标（红轮预期红：宿主随 respawn 复活）；
     //   (b) 启态禁用（config 门禁）拉起：宿主根本不该起（红轮预期红：init 无条件）。
     rep.beginSegment('P12');
-    // (a) 禁用态崩溃重启（沿用 P11 二次禁用后的禁用态现场）
-    const dpSpawns = readEvents().filter((e) => e.type === 'dataplane-spawn' && e.t >= sinceBurst);
-    const dpPid = dpSpawns.length ? dpSpawns[dpSpawns.length - 1].pid : 0;
+    // (a) 禁用态崩溃重启（沿用 P11 二次禁用后的禁用态现场；dpPid = P11 宿主窗在场时留档）
     if (!dpPid) {
-      rep.fail('P12(a) 无 dataplane-spawn 存证，无法定位数据面子进程');
+      rep.fail('P12(a) 无在位宿主窗可定位数据面子进程（dpPid=0）');
     } else {
       const t12kill = Date.now();
       spawnSync('taskkill', ['/PID', String(dpPid), '/F'], { stdio: 'ignore' });
