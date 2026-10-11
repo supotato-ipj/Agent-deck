@@ -282,6 +282,15 @@ function postPayload(hwnd, callbackMessage, pack) {
 
     const tail = new EventTail(eventsFile);
     tail.next(); // 排空既有
+    // P1/P2 共用的读窗游标：每次取「上次读到现在的增量」，避免跨 key 陈旧归因
+    // （首轮教训：窗口不前进时 miss 行会捡到上一 key 的 tray-replay 事件）
+    const evIdx = { n: 0 };
+    const freshEvents = () => {
+      const all = readEvents(eventsFile);
+      const fresh = all.slice(evIdx.n);
+      evIdx.n = all.length;
+      return fresh;
+    };
 
     // —— P1 链路与登记全量 dump（右键逐 key；③①证据+版本分布）——
     const state = await cdpEval(STRIP_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
@@ -292,32 +301,33 @@ function postPayload(hwnd, callbackMessage, pack) {
       win32.threadIdOf(w).pid === st.panelPid && windowTitle(w) === STRIP_TITLE);
     h({ type: 'P1-strip', stripHwnd: stripHwnd ?? 0 });
 
-    for (const entry of state.tray.slice(0, 10)) {
+    for (const entry of state.tray.slice(0, 25)) {
       try {
-        const before = tail.seen;
         const probe = await behaviorProbe(`P1:${entry.key}`, 0, async () => {
           await cdpEval(STRIP_TITLE, `window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(entry.key)}, button: 'right' })`);
         });
-        const fresh = readEvents(eventsFile).slice(before);
-        const replay = fresh.filter((e) => e.type === 'tray-replay').pop() || null;
-        const miss = fresh.filter((e) => e.type === 'tray-replay-miss').pop() || null;
-        const result = fresh.filter((e) => e.type === 'tray-replay-result').pop() || null;
-        const clickRes = fresh.filter((e) => e.type === 'taskbar-tray-click-result').pop() || null;
+        const fresh = freshEvents();
+        // 本 key 的 replay/miss 按事件内 key 字段匹配（防串行残留）
+        const replay = fresh.filter((e) => e.type === 'tray-replay' && e.key === entry.key).pop() || null;
+        const miss = fresh.filter((e) => e.type === 'tray-replay-miss' && e.key === entry.key).pop() || null;
+        const result = fresh.filter((e) => e.type === 'tray-replay-result' && e.key === entry.key).pop() || null;
+        const clickRes = fresh.filter((e) => e.type === 'taskbar-tray-click-result' && e.key === entry.key).pop() || null;
         let pid = 0, exe = '';
         if (replay?.hwnd) { pid = win32.threadIdOf(Number(replay.hwnd)).pid; exe = exeBase(win32.exeOfPid(pid)); }
         const row = {
           key: entry.key, tooltip: entry.tooltip, inDom: domKeys.includes(entry.key),
-          replay, miss, bridgeResult: result ?? clickRes ?? null, behavior: probe,
+          registered: !!replay, replay, miss, bridgeResult: result ?? clickRes ?? null, behavior: probe,
           pid, exe,
         };
         registry.push(row);
         h({ type: 'P1-row', key: entry.key, tooltip: entry.tooltip, exe,
           registered: !!replay, posted: replay?.posted ?? null, version: replay?.version ?? null,
+          cb: replay?.message ?? null, wparam: replay?.wparam ?? null, lparam: replay?.lparam ?? null,
           missKnown: miss?.known ?? null, responsiveAny: probe.responsiveAny,
           menuAny: probe.menus.length > 0, newVisibleAny: probe.newVisible.length > 0 });
         await dismissMenus();
       } catch (e) {
-        registry.push({ key: entry.key, tooltip: entry.tooltip, error: e && e.message });
+        registry.push({ key: entry.key, tooltip: entry.tooltip, registered: false, error: e && e.message });
         h({ type: 'P1-row-error', key: entry.key, message: e && e.message });
       }
     }
@@ -329,8 +339,8 @@ function postPayload(hwnd, callbackMessage, pack) {
     h({ type: 'P1-summary', total: registry.length, versionHisto });
 
     // —— P2 真实点击复现（用户「点了没反应」端到端；选一个有登记的第三方样本）——
-    let sample2 = registry.find((r) => r.registered && r.exe && !['electron', 'explorer', ''].includes(r.exe));
-    if (!sample2) sample2 = registry.find((r) => r.registered);
+    let sample2 = registry.find((r) => r.registered && r.exe && !['electron', 'explorer', ''].includes(r.exe))
+      || registry.find((r) => r.registered);
     let p2 = { skipped: 'no-registered-entry' };
     if (sample2 && stripHwnd) {
       const rect = win32.rectOf(stripHwnd);
@@ -350,14 +360,12 @@ function postPayload(hwnd, callbackMessage, pack) {
           await sleep(350);
           win32.clickPhys(sx, sy, button);
         };
-        const before = tail.seen;
         const left = await behaviorProbe('P2-left-real-click', sample2.pid, async () => { await realClick('left'); });
         await dismissMenus();
-        const freshL = readEvents(eventsFile).slice(before);
-        const beforeR = tail.seen;
+        const freshL = freshEvents();
         const right = await behaviorProbe('P2-right-real-click', sample2.pid, async () => { await realClick('right'); });
         await dismissMenus();
-        const freshR = readEvents(eventsFile).slice(beforeR);
+        const freshR = freshEvents();
         p2 = {
           sample: { key: sample2.key, tooltip: sample2.tooltip, exe: sample2.exe },
           screen: { sx, sy, scale }, left, right,
@@ -404,6 +412,10 @@ function postPayload(hwnd, callbackMessage, pack) {
       return { x: c.x, y: c.y, moved: true };
     };
 
+    // 左键三臂白名单（左键=应用默认动作，会真开窗——只对行为可预期的常见应用做）
+    const LEFT_WHITELIST = ['steam', 'onedrive', 'lenovotray', 'powertoys', 'shadowsocks', 'ticktick', 'snipaste', 'weixin'];
+    let leftArmsDone = false;
+
     for (const s of picked) {
       const entry = { uid: Number(s.replay.uid), version: Number(s.replay.version), callbackMessage: Number(s.replay.message) };
       const hwnd = Number(s.replay.hwnd);
@@ -413,6 +425,16 @@ function postPayload(hwnd, callbackMessage, pack) {
         { name: 'B-msdn', pack: packMsdn(entry, 'right', anchor.x, anchor.y) },
       ];
       if (entry.version >= 4) arms.push({ name: 'C-msdn-rbuttonup', pack: packMsdnLegacyRight(entry, anchor.x, anchor.y) });
+      // 左键三臂（首个白名单样本）：产品形态（wp=0x0203,lp=uid）/ MSDN 形态（wp=uid,lp=0x0202）/
+      // 只修排布（wp=uid,lp=0x0203）——第三臂隔离「常量 0x0203 是否也要修」的归因
+      if (!leftArmsDone && LEFT_WHITELIST.includes(s.exe)) {
+        leftArmsDone = true;
+        arms.push({ name: 'A-product-left', pack: packProduct(entry, 'left', anchor.x, anchor.y) });
+        arms.push({ name: 'B-msdn-left', pack: packMsdn(entry, 'left', anchor.x, anchor.y) });
+        if (entry.version < 4) {
+          arms.push({ name: 'D-swaponly-left', pack: { wp: (entry.uid & 0xffffffff) >>> 0, lp: MSG.WM_LBUTTONDBLCLK >>> 0 } });
+        }
+      }
       const armRows = [];
       for (const arm of arms) {
         const probe = await behaviorProbe(`P3:${arm.name}:${s.exe}`, s.pid, async () => {
