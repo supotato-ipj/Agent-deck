@@ -267,6 +267,41 @@ function leftSlots(): number {
   return Math.max(0, Math.floor(avail / CELL_W))
 }
 
+/** 中组 pill 挤撞回正（工单158）：屏幕居中的中组与右组（托盘 24px 升档后宽 ~430px）
+ * 在窄余裕下重叠，右组 DOM 后绘盖死任务视图钮（49 电池 P5 真机红：点击落到硬件摘要）。
+ * 以 [左组右缘, 右组左缘] 夹取居中位；死区拦住 1Hz 指标文本宽度抖动向 pill 传导；
+ * 极端拥挤时 pill 收窄裁推荐位（仅展示），系统钮 flex:none 不裁。余裕充足时与
+ * 屏幕居中观感一致。#159 布局重排以组级重排取代本夹取。
+ * 返回 true = 本拍落位有变（调用方重排左组容量并重声明热区/几何）。 */
+const PILL_CLAMP_GAP = 24
+const PILL_CLAMP_DEADBAND = 48
+let pillCenterApplied: number | null = null
+function positionCenterPill(): boolean {
+  if (pill.hidden) return false
+  pill.style.maxWidth = ''
+  const natural = pill.offsetWidth
+  const vw = document.body.clientWidth
+  const lo = pillLeft.style.display === 'none' ? PILL_CLAMP_GAP : pillLeft.getBoundingClientRect().right + PILL_CLAMP_GAP
+  const hi = rightPill.getBoundingClientRect().left - PILL_CLAMP_GAP
+  if (hi <= lo) return false // 右组自身已越界（异常态）：不动，等下一拍
+  let center = vw / 2
+  if (hi - lo < natural) {
+    pill.style.maxWidth = `${Math.round(hi - lo)}px`
+    center = (lo + hi) / 2
+  } else {
+    if (center - natural / 2 < lo) center = lo + natural / 2
+    if (center + natural / 2 > hi) center = hi - natural / 2
+  }
+  if (pillCenterApplied !== null) {
+    const width = pill.offsetWidth
+    const inside = pillCenterApplied - width / 2 >= lo - 2 && pillCenterApplied + width / 2 <= hi + 2
+    if (inside && Math.abs(center - pillCenterApplied) <= PILL_CLAMP_DEADBAND) return false
+  }
+  pillCenterApplied = center
+  pill.style.left = `${Math.round(center)}px`
+  return true
+}
+
 /** 左组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
  * 分发与呈现——launch/activate/minimize 无需回显，window-list 才在 pill 内横排
  * 列出窗口标题供精确选窗（条带窗 64px 高（工单158），竖排浮层出不了窗口矩形，54 菜单同款先例）。
@@ -508,8 +543,6 @@ function render(state: TaskbarState): void {
       pill.appendChild(el)
     }
   }
-  renderLeft(vm.left) // 中组内容先行：左组容量按中组 pill 的当前矩形裁决溢出
-  declareHotZones(current)
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
   if (state.enabled) {
@@ -530,6 +563,9 @@ function render(state: TaskbarState): void {
     wireAction(clock, 'clock')
     rightPill.appendChild(clock)
   }
+  // 工单158 挤撞回正：右组先行落位再夹取中组，左组容量按夹取后的 pill 矩形裁决
+  positionCenterPill()
+  renderLeft(vm.left)
   declareHotZones(state)
   notifyGeometry()
 }
@@ -548,6 +584,9 @@ function applyStatus(status: TaskbarStatus): void {
   }
   // 验收存证：渲染出的右组数值（电池与硬件卡文本比对口径一致性）
   window.deck.host.notify('taskbar-right-status', { clock: clockEl?.textContent ?? '', values })
+  // 工单158 挤撞回正：指标文本宽度变化会挪动右组左缘——越出死区才重落位
+  // （连带重渲以重算左组容量；编辑态极少与越界同拍，取舍为保几何正确）
+  if (positionCenterPill() && current) render(current)
 }
 
 // 显示桌面细条（工单55）：点击 = Win+D ToggleDesktop

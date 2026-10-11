@@ -437,4 +437,16 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
     expect(trayIconPixelated(24)).toBe(false) // 原生匹配：1:1 无缩放
     expect(trayIconPixelated(32)).toBe(false) // 32px 源降采样到 24：平滑插值
   })
+
+  it('挤撞回正守卫（49 电池 P5 真机红回归钉）：中组可收窄裁推荐位、系统钮永不裁切', () => {
+    // 事故：托盘 24px/字号升档后右组左侵屏幕居中的中组，DOM 后绘盖死任务视图钮
+    // （点击落到硬件摘要上、无 taskbar-action 存证）。守卫三件套缺一不可：
+    const pillRule = ruleOf('#pill')
+    expect(pillRule, '中组可收窄（positionCenterPill 拥挤时设 maxWidth）').toContain('min-width: 0')
+    expect(pillRule).toContain('overflow: hidden')
+    expect(ruleOf('.tb-btn'), '系统钮 flex:none——收窄时永不裁切（被裁即 P5 重演）').toContain('flex: none')
+    const rec = ruleOf('.tb-rec')
+    expect(rec, '推荐位（仅展示，工单54 v1）可收缩让位').toContain('flex: 0 1 auto')
+    expect(rec).toContain('text-overflow: ellipsis')
+  })
 })

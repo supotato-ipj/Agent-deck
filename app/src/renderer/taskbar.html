@@ -94,12 +94,19 @@
     border-radius: 999px;
   }
   /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
-   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
+   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件）。
+   * 工单158 挤撞回正：托盘 24px/字号升档后右组变宽会左侵屏幕居中的中组，右组在
+   * DOM 后绘会把任务视图钮盖死（49 电池 P5 真机红：点击落到硬件摘要上）——taskbar.ts
+   * positionCenterPill 以 [左组右缘, 右组左缘] 夹取居中位；极端拥挤（26+ 托盘）时
+   * pill 收窄、仅展示的推荐位（.tb-rec）收缩让位，交互钮（.tb-btn）flex:none 永不裁切。
+   * #159 布局重排以组级重排取代本夹取。 */
   #pill {
     position: fixed;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+    min-width: 0;
+    overflow: hidden;
   }
   #pill[hidden] { display: none; }
   /* 右组 pill（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟；钉右端、给细条让位 */
@@ -110,6 +117,7 @@
     transform: translateY(-50%);
   }
   .tb-btn {
+    flex: none; /* 工单158 挤撞回正：pill 收窄时系统按钮永不裁切（让位给 .tb-rec） */
     padding: 7px 16px;
     font-size: 12px;
     letter-spacing: 0.18em;
@@ -120,12 +128,14 @@
   }
   .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
-  /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝 */
+  /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝。
+   * 工单158 挤撞回正：右组密度回调（7/12→6/10）——托盘 24px 升档已让右组宽出
+   * 约 430px（26 枚×+8px 图标 + 字号），格 padding 回紧凑档延缓挤入中组 */
   .tb-cell {
     display: flex;
     align-items: center;
     column-gap: 8px;
-    padding: 7px 12px;
+    padding: 6px 10px;
     font-size: 12px;
     letter-spacing: 0.08em;
     color: #d6d6d6;
@@ -141,7 +151,7 @@
   /* 托盘图标格（工单56；尺寸升档工单158）：平铺在摘要与音量格之间，统一按 24px 显示
    * （16→24 观感不小于原生任务栏）。16px 原生源挂 .tb-tray-px 走最近邻放大保持锐利，
    * 32px 源降采样到 24 用默认平滑插值——挂靠判据 = taskbar-view trayIconPixelated */
-  .tb-tray-icon { padding: 7px 4px; }
+  .tb-tray-icon { padding: 5px 2px; } /* 工单158：密度紧凑档（格 28px），延缓右组左侵 */
   .tb-tray-icon img { display: block; width: 24px; height: 24px; }
   .tb-tray-px { image-rendering: pixelated; }
   /* 显示桌面细条（工单55）：钉屏幕最右端、撑满条带高度，对齐 Win11 右下角肌肉记忆 */
@@ -157,8 +167,13 @@
   }
   #show-desktop:hover { background: rgba(255, 255, 255, 0.22); }
   #show-desktop:active { background: rgba(255, 255, 255, 0.35); }
-  /* 推荐位（工单54）：使用频次自动填充；v1 只展示（点击/拖拽属后续票），指针保持默认 */
+  /* 推荐位（工单54）：使用频次自动填充；v1 只展示（点击/拖拽属后续票），指针保持默认。
+   * 工单158 挤撞回正：可收缩让位档——pill 极端收窄时从右起省略号截断，交互钮不裁 */
   .tb-rec {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding: 7px 12px;
     font-size: 12px;
     letter-spacing: 0.06em;
