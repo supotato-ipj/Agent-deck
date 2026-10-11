@@ -12,6 +12,9 @@
 //   P7 运行时重新启用 → 窗口恢复（仍置顶）
 //   P8 启动态禁用（config 门禁）→ 窗口不建，面板照常
 //   P9 启动态恢复启用 → 窗口回来
+//   P10 关-开连发竞态（#103 缺陷①）：单次 evaluate 内两次桥写毫秒级串联触发
+//      「旧窗 closed 迟到」竞态窗 → 条带恰一扇、随后完整禁用归零（孤儿检测器）、
+//      再启用恰一扇且新窗 AppBar 占位存证在场、无乱序注销
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -462,6 +465,53 @@ async function main() {
       rep.pass('P9 启动态重新启用后任务栏窗口恢复（仍置顶）');
     } else {
       rep.fail(`P9 任务栏窗恢复=${!!tbBack}`);
+    }
+
+    // P10 关-开连发竞态（#103 缺陷①）：取证判读（2026-10-11 并案取证 D 相）——CDP
+    // 两次独立调用间隔 ~313ms 够不到竞态窗，亚 50ms 需毫秒级连发。这里在单次 evaluate
+    // 内串联两写：第一写的返回只需 commit 完成（destroy 已同步跑完、旧窗 closed 尚未
+    // 发出），第二写毫秒级到达 → 旧窗 closed 必然晚于新窗 create 落地，竞态窗确定性进场。
+    // 孤儿检测器：连发后做一次完整禁用——若迟到的 closed 把控制器共享账抹掉（win=null），
+    // destroy() 空转、条带永不清；乱序注销存证：新窗 registered 之后若再冒 appbar-removed
+    // （且无对应 window-destroyed），即迟到 closed 拿新窗句柄误注销的直接证据。
+    rep.beginSegment('P10');
+    const sinceP10 = Date.now();
+    const burst = await cdpEval(`(async () => {
+      const a = await window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false });
+      const b = await window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true });
+      return { first: a && a.enabled, second: b && b.enabled };
+    })()`);
+    await sleep(1500); // 竞态窗：旧窗 closed 充分落地 + 新窗建窗稳定
+    const stripsAfterBurst = [];
+    for (const h of win32.topLevelWindows()) {
+      if (titleOf(h) === TASKBAR_TITLE && win32.threadIdOf(h).pid === panelPid) stripsAfterBurst.push(h);
+    }
+    const burstEnd = Date.now();
+    // 竞态窗内合法事件序：destroyed(旧,disabled) → removed(旧,destroy 路径) → created(新)
+    // → registered(新)；registered(新) 之后再冒 removed 即乱序注销（迟到 closed 误注销新窗占位）
+    const evsBurst = readEvents().filter((e) => e.t >= sinceP10 && e.t <= burstEnd);
+    const regsBurst = evsBurst.filter((e) => e.type === 'taskbar-appbar-registered');
+    const lastRegT = regsBurst.length ? regsBurst[regsBurst.length - 1].t : 0;
+    const spuriousRemoved = evsBurst.filter((e) => e.type === 'taskbar-appbar-removed' && e.t > lastRegT);
+    // 孤儿检测器：完整禁用后条带必须归零
+    const r10off = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
+    let stripGone = false;
+    for (let i = 0; i < 25 && !stripGone; i++) {
+      await sleep(200);
+      stripGone = !findWindow(panelPid, TASKBAR_TITLE);
+    }
+    // 再启用：恰一扇 + 仍置顶 + 新窗占位存证在场
+    const r10on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
+    const tbFinal = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const regFinal = await waitEvent('taskbar-appbar-registered', (e) => e.t > burstEnd, 8000);
+    if (burst && burst.first === false && burst.second === true
+      && stripsAfterBurst.length === 1 && spuriousRemoved.length === 0
+      && stripGone && r10off && r10off.enabled === false
+      && r10on && r10on.enabled === true && tbFinal && isTopmost(tbFinal) && regFinal) {
+      rep.pass(`P10 关-开连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=${regFinal.hwnd}）、无乱序注销`);
+    } else {
+      rep.fail(`P10 连发=${JSON.stringify(burst)} 条带数=${stripsAfterBurst.length} 乱序注销=${spuriousRemoved.length}`
+        + ` 禁用归零=${stripGone} 禁用响应=${JSON.stringify(r10off)} 再启用窗=${!!tbFinal} 新窗占位=${!!regFinal}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);

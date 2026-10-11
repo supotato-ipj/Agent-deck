@@ -559,6 +559,16 @@
             "system-state"
           ],
           "estSeconds": 6
+        },
+        {
+          "seg": "P10",
+          "ticket": 103,
+          "title": "关-开连发竞态：条带恰一扇/完整禁用归零（孤儿检测器）/再启用占位在场/无乱序注销",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 12
         }
       ]
     },
