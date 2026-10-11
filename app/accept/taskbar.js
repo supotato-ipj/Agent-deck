@@ -536,10 +536,11 @@ async function main() {
       const traySizeOk13 = trayLen13 > 0 && sizes13.tray.every((t) => t.w === '24px' && t.h === '24px');
       const loaded13 = sizes13.tray.filter((t) => t.nat > 0);
       const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 24) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
-      // 几何存证互证：应用格位 h≈44（cell）；托盘格 h≈38（24 图标 + 7+7 padding）
+      // 几何存证互证：应用格位 h≈44（cell）；托盘格 h≈34（24 图标 + 5+5 padding——
+      // 工单158 挤撞回正的密度紧凑档，托盘格 padding 7→5 延缓右组左侵中组）
       const geo13 = latestGeometry(null);
       const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 44) <= 2);
-      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 38) <= 2);
+      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 34) <= 2);
       if (stripOk13 && cellOk13 && iconOk13 && traySizeOk13 && geoAppsOk13 && geoTrayOk13
         && (loaded13.length === 0 || trayPxOk13)) {
         rep.pass(`P13 栏高与图标尺寸：条带 ${Math.round(heightDip13)}DIP；应用格位 44px/图标 32px；`
