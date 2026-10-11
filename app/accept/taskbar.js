@@ -18,6 +18,10 @@
 //      2026-10-11 红轮实证 renderer 双写够不到竞态窗）→ 两种连发后各断言：条带恰
 //      一扇、随后完整禁用归零（孤儿检测器）、再启用恰一扇且新窗占位存证在场、
 //      无乱序注销（新窗 registered 后冒 removed 即迟到 closed 误注销的直接证据）
+//   P11 运行时交还（#153）：禁用即交还托盘宿主（竞争窗按属主归零 + stopped 存证），
+//      重启用即收编（宿主重建 + 名单回填），停→起→停整周期（类注销对称性）
+//   P12 宿主守恒（#153）：禁用态数据面强杀重启不复活宿主（respawn 按期望态）、
+//      启态禁用（config 门禁）不建宿主
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -558,6 +562,101 @@ async function main() {
     } else {
       rep.fail(`P10(b) 连发存证=${!!burstDone} 条带数=${stripsBurst.length} 乱序注销=${spuriousRemoved2.length}`
         + ` 禁用归零=${stripGone2} 禁用响应=${JSON.stringify(rOff2)} 再启用窗=${!!tbFinal2} 新窗占位=${!!regFinal2}`);
+    }
+
+    // P11 运行时交还（#153 原子性契约的交还环）：禁用必须把托盘宿主还给 explorer——
+    // 竞争窗（Shell_TrayWnd 同名窗，属主=我方进程树）拆净 + tray-host-stopped 存证在流；
+    // 重启用反向对称：宿主重建（新 tray-host-ready 帧）+ 收编名单回填（真机真应用响应
+    // 广播回注册，面板自家图标即其一）。枚举一律按属主过滤（#103 缺陷②教训：裸
+    // FindWindow 首命是我方竞争窗；本电池、面板主进程、数据面子进程同 electron.exe——
+    // 按 exe 名圈我方树，explorer 真栏按属主天然排除在外）。
+    rep.beginSegment('P11');
+    const ourTrayHosts = () => win32.topLevelWindows().filter(
+      (h) => win32.className(h) === 'Shell_TrayWnd' && win32.exeNameOfWindow(h) === 'electron.exe');
+    const baseHosts = ourTrayHosts();
+    if (baseHosts.length >= 1) {
+      rep.pass(`P11 基线：启用态我方托盘竞争窗在场（hwnd=${baseHosts[0]}）`);
+    } else {
+      rep.fail(`P11 基线：启用态应有我方托盘竞争窗（枚举=${baseHosts.length}）`);
+    }
+    // 禁用 → 交还（红轮预期红：stop 死代码无存证、竞争窗残留即图标被扣的死账形态）
+    const t11off = Date.now();
+    const r11off = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
+    const stopEv = await waitEvent('tray-host-stopped', (e) => e.t >= t11off, 8000);
+    await sleep(500);
+    const hostsOff = ourTrayHosts();
+    if (r11off && r11off.enabled === false && stopEv && hostsOff.length === 0) {
+      rep.pass('P11 禁用即交还：tray-host-stopped 存证在流、我方 Shell_TrayWnd 归零');
+    } else {
+      rep.fail(`P11 禁用响应=${JSON.stringify(r11off)} stopped存证=${!!stopEv} 残留竞争窗=${hostsOff.length}`);
+    }
+    // 重启用 → 收编回填：宿主重建 + 条带恢复 + 名单非空（面板自家图标响应广播）
+    const t11on = Date.now();
+    const r11on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
+    const readyEv = await waitEvent('tray-host-ready', (e) => e.t >= t11on, 8000);
+    const stripBack11 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    let rosterLen = 0;
+    for (let i = 0; i < 12 && rosterLen === 0; i++) {
+      await sleep(700);
+      const st = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
+      rosterLen = st && st.tray ? st.tray.length : 0;
+    }
+    if (r11on && r11on.enabled === true && readyEv && stripBack11 && isTopmost(stripBack11)
+      && ourTrayHosts().length >= 1 && rosterLen >= 1) {
+      rep.pass(`P11 重启用即收编：宿主重建（新 ready 帧）、条带恢复置顶、名单回填（${rosterLen} 条）`);
+    } else {
+      rep.fail(`P11 再启用响应=${JSON.stringify(r11on)} 新ready=${!!readyEv} 条带=${!!stripBack11}`
+        + ` 竞争窗=${ourTrayHosts().length} 名单=${rosterLen}`);
+    }
+    // 二次禁用（停→起→停整周期：类注销对称性的真机实证——重启后的宿主必须还能停）
+    const t11off2 = Date.now();
+    await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
+    const stopEv2 = await waitEvent('tray-host-stopped', (e) => e.t >= t11off2, 8000);
+    await sleep(500);
+    if (stopEv2 && ourTrayHosts().length === 0) {
+      rep.pass('P11 二次禁用（重启后停）：竞争窗再次归零');
+    } else {
+      rep.fail(`P11 二次禁用 stopped存证=${!!stopEv2} 残留=${ourTrayHosts().length}`);
+    }
+
+    // P12 宿主守恒（#153）：禁用态下托盘宿主不得以任何路径复活——
+    //   (a) 数据面子进程被强杀后按退避重启：respawn 的 init 必须按「当前期望态」重算，
+    //       静态重放会再偷图标（红轮预期红：宿主随 respawn 复活）；
+    //   (b) 启态禁用（config 门禁）拉起：宿主根本不该起（红轮预期红：init 无条件）。
+    rep.beginSegment('P12');
+    // (a) 禁用态崩溃重启（沿用 P11 二次禁用后的禁用态现场）
+    const dpSpawns = readEvents().filter((e) => e.type === 'dataplane-spawn' && e.t >= sinceBurst);
+    const dpPid = dpSpawns.length ? dpSpawns[dpSpawns.length - 1].pid : 0;
+    if (!dpPid) {
+      rep.fail('P12(a) 无 dataplane-spawn 存证，无法定位数据面子进程');
+    } else {
+      const t12kill = Date.now();
+      spawnSync('taskkill', ['/PID', String(dpPid), '/F'], { stdio: 'ignore' });
+      const respawn = await waitEvent('dataplane-spawn', (e) => e.t >= t12kill && e.reason === 'restart', 15000);
+      await sleep(2500);
+      const hostRevived = readEvents().some((e) => e.type === 'tray-host-ready' && e.t >= t12kill);
+      if (respawn && !hostRevived && ourTrayHosts().length === 0) {
+        rep.pass('P12(a) 禁用态数据面重启：宿主不复活（respawn 按期望态重算，竞争窗仍归零）');
+      } else {
+        rep.fail(`P12(a) 重启存证=${!!respawn} 宿主复活=${hostRevived} 竞争窗=${ourTrayHosts().length}`);
+      }
+    }
+    // (b) 启态禁用：config 门禁下拉起，宿主不起
+    patchTaskbar({ enabled: false });
+    killTree(child, panelPid);
+    child = null;
+    await sleep(1200);
+    const since12 = Date.now();
+    child = launchPanel();
+    const boot12 = await waitEvent('boot', (e) => e.t >= since12, 15000);
+    if (!boot12) throw new Error('P12(b) 禁用态面板子进程未上报 boot');
+    panelPid = boot12.pid;
+    await sleep(3000); // 宿主若要起，init 即起（等数据面就绪线即过）
+    const hostBooted = readEvents().some((e) => e.type === 'tray-host-ready' && e.t >= since12);
+    if (!hostBooted && ourTrayHosts().length === 0) {
+      rep.pass('P12(b) 启态禁用：托盘宿主不建（不偷图标），面板照常');
+    } else {
+      rep.fail(`P12(b) 宿主起了=${hostBooted} 竞争窗=${ourTrayHosts().length}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
