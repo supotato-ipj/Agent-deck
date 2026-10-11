@@ -95,3 +95,36 @@ describe('preflight 第五类：用户窗口活跃度（工单34 方向3，输�
     expect(classifyUserWindowActivity({ rows: [row({ cls: 'Ghost', title: '', pid: 940, foreground: true })] })).toEqual([])
   })
 })
+
+// 第六类：托盘机器态（工单141，spec #145）——预告型警示（不拒跑、不进三路计数）。
+// 记账决定归 tray-machine-state.spec.ts 的严口径判定矩阵；这里只断言预告条目形态。
+import { classifyTrayMachineState } from '../../accept/lib/panel-control'
+
+describe('preflight 第六类：托盘机器态预告（注入假注册表事实）', () => {
+  it('无条目 → 预告建档时序 + 严口径提示', () => {
+    const entries = classifyTrayMachineState({ trayMachine: { exe: 'D:\wt\electron.exe', entryExists: false, promoted: null } })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].kind).toBe('tray-machine-state')
+    expect(entries[0].detail).toContain('无本电池 exe 条目')
+    expect(entries[0].detail).toContain('建档时序')
+    expect(entries[0].detail).toContain('tray-add 存证')
+  })
+
+  it('条目在场但提升位未置/未设 → 预告溢出层默认 + P8 自行提升', () => {
+    for (const promoted of [0, null]) {
+      const entries = classifyTrayMachineState({ trayMachine: { exe: 'D:\wt\electron.exe', entryExists: true, promoted } })
+      expect(entries).toHaveLength(1)
+      expect(entries[0].detail).toContain('提升位未置')
+      expect(entries[0].detail).toContain('溢出层')
+    }
+  })
+
+  it('条目在场且已提升 → 无预警（健康预告面）', () => {
+    expect(classifyTrayMachineState({ trayMachine: { exe: 'D:\wt\electron.exe', entryExists: true, promoted: 1 } })).toEqual([])
+  })
+
+  it('probes 无 trayMachine（注册表读失败）→ 空账目不炸', () => {
+    expect(classifyTrayMachineState({})).toEqual([])
+    expect(classifyTrayMachineState({ trayMachine: null })).toEqual([])
+  })
+})

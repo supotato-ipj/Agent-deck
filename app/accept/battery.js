@@ -15,7 +15,8 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
-const { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
+const { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
+const { judgeTrayMachineState, DND_MARKER } = require('./lib/tray-machine-state');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
@@ -259,6 +260,35 @@ function psSpawn(args, timeoutMs = 15000) {
 function psJson(script) {
   const s = psRun(script);
   return s ? JSON.parse(s) : null;
+}
+
+// —— 工单141 托盘机器态：注册正向证据——面板 pid 的 tray-add span-close 在事件流 sidecar。
+// Tray 构造即 Shell_NotifyIcon(NIM_ADD)（main/tray.ts 的 createTray 经 panelLabels.run('tray-add')
+// 打点，span-close 落 ${EVENTS_FILE}.spans.jsonl）＝「面板尽了本分」；严口径据此放行环境降责。
+function trayAddSpanSeen(pid) {
+  try {
+    return fs.readFileSync(`${EVENTS_FILE}.spans.jsonl`, 'utf8').split('\n').filter(Boolean).some((l) => {
+      try {
+        const s = JSON.parse(l);
+        return s && s.type === 'span-close' && s.label === 'tray-add' && Number(s.pid) === Number(pid);
+      } catch { return false; }
+    });
+  } catch { return false; }
+}
+
+// 工单141：机器态门禁接线——判定放行（严口径：机器态条件+tray-add 正向证据同时在场）时以
+// 单断言粒度开环境窗（窗内 fail 自动记环境降责并带 reason），窗即时闭合不外溢到邻断言；
+// 不放行时失败维持硬失败，失败语附定向提示（排查者不再把机器态当面板回归追）。
+function gatedTrayFail(rep, appliesTo, facts, buildMsg) {
+  const gate = judgeTrayMachineState(facts);
+  const msg = buildMsg();
+  if (gate && gate.allowExclude && gate.appliesTo.includes(appliesTo)) {
+    rep.beginEnvWindow(gate.reason, 'tray-machine-state');
+    rep.fail(`${msg}——${gate.directed}`);
+    rep.endEnvWindow('托盘机器态判定闭合');
+  } else {
+    rep.fail(`${msg}${gate && gate.directed ? `——${gate.directed}` : ''}`);
+  }
 }
 
 function listNotifyIcons() {
@@ -779,10 +809,17 @@ async function main() {
   // 体检自身异常也只入账不中断（探测是增益，不是电池的前置条件）。
   // 工单34 方向3 起：第五类「用户窗口活跃度」同账入警示（不拒跑、不进三路计数，
   // ADR-0011 警示语义同构）——检出=发起时刻机器有用户活动迹象，供轮中抬窗定责对读。
+  // 工单141 起：第六类「托盘机器态」（注册表预告：建档/提升位）同账入警示——只预告
+  // 不断言，P8/P10 失败时的记账决定由 tray-machine-state.js 严口径判定在断言位做出。
   try {
     const probes = preflightProbes();
-    const entries = classifyPreflight(probes).concat(classifyUserWindowActivity(probes)); // 两分类器同缝收整个 probes
-    if (entries.length === 0) rep.note('preflight 环境体检：五类污染源均不在场');
+    try {
+      const exeLower = process.execPath.toLowerCase();
+      const mine = listNotifyIcons().find((e) => (e.exe || '').toLowerCase() === exeLower);
+      probes.trayMachine = { exe: process.execPath, entryExists: !!mine, promoted: mine ? mine.promoted : null };
+    } catch { /* 注册表读失败只缺预告，轮中判定照常 */ }
+    const entries = classifyPreflight(probes).concat(classifyUserWindowActivity(probes)).concat(classifyTrayMachineState(probes)); // 三分类器同缝收整个 probes
+    if (entries.length === 0) rep.note('preflight 环境体检：六类污染源均不在场');
     else for (const e of entries) rep.note(`preflight 环境体检［${e.kind}］${e.detail}`);
   } catch (e) { rep.note(`preflight 环境体检异常（不拒跑）: ${e && e.message}`); }
   const si = screenInfo();
@@ -5365,12 +5402,20 @@ async function main() {
     // 以识别色（琥珀）像素 + 截图断言「图标在系统托盘里」。
     rep.beginSegment('P8');
     {
-      const entries = listNotifyIcons();
       const exeLower = process.execPath.toLowerCase();
-      const mine = entries.find((e) => (e.exe || '').toLowerCase() === exeLower);
-      mine
-        ? rep.pass(`托盘图标已注册：NotifyIconSettings 条目 ${mine.key}（exe 匹配）`)
-        : rep.fail(`托盘图标未注册：NotifyIconSettings 无本面板条目（exe=${process.execPath}）`);
+      const findMine = () => listNotifyIcons().find((e) => (e.exe || '').toLowerCase() === exeLower);
+      let mine = findMine();
+      if (!mine) {
+        // 工单141：Windows 为新 exe 路径建 NotifyIconSettings 档可能迟于图标注册——有界等待
+        rep.note('NotifyIconSettings 无本面板条目：有界等待建档（3×2s，工单141）');
+        for (let k = 0; k < 3 && !mine; k++) { await sleep(2000); mine = findMine(); }
+      }
+      if (mine) rep.pass(`托盘图标已注册：NotifyIconSettings 条目 ${mine.key}（exe 匹配）`);
+      else {
+        gatedTrayFail(rep, 'P8-register',
+          { entryExists: false, promoted: null, trayAddSpan: trayAddSpanSeen(panelPid) },
+          () => `托盘图标未注册：NotifyIconSettings 无本面板条目（exe=${process.execPath}）`);
+      }
       if (mine) {
         promotedKey = mine.key;
         promotedOld = mine.promoted;
@@ -5397,9 +5442,15 @@ async function main() {
             amber = scanAmberInTray('area');
           }
         }
-        amber && (!amberBase || amber.hits > amberBase.hits)
-          ? rep.pass(`托盘图标可见：识别色命中 ${amber.hits} 像素 @(${amber.x},${amber.y})（基线 ${amberBase ? amberBase.hits : 0}），截图 03-tray-area.png`)
-          : rep.fail('托盘图标未在可见区检出（识别色无增量）');
+        if (amber && (!amberBase || amber.hits > amberBase.hits)) {
+          rep.pass(`托盘图标可见：识别色命中 ${amber.hits} 像素 @(${amber.x},${amber.y})（基线 ${amberBase ? amberBase.hits : 0}），截图 03-tray-area.png`);
+        } else {
+          // 工单141：可见面失败先过机器态判定（提升位未置/已置未重挂，tray-add 存证在场才入环境账）
+          const fresh = findMine();
+          gatedTrayFail(rep, 'P8-visibility',
+            { entryExists: !!fresh, promoted: fresh ? fresh.promoted : null, trayAddSpan: trayAddSpanSeen(panelPid), amberVisible: false },
+            () => '托盘图标未在可见区检出（识别色无增量）');
+        }
       }
     }
 
@@ -5530,9 +5581,19 @@ async function main() {
         { encoding: 'utf8', timeout: 45000 });
         const navOut = (nav.stdout || '').trim();
         const focusLine = (navOut.split('\n').filter((l) => l.startsWith('STEP')).pop() || '').replace(/^STEP \d+: /, '');
-        navOut.includes('MATCH')
-          ? rep.pass(`托盘图标系统级可见：Win+B 键盘导航命中托盘焦点元素「${focusLine}」（tooltip 名匹配）`)
-          : rep.fail(`托盘图标未被系统键盘导航命中（nav.status=${nav.status} 末步焦点「${focusLine}」全部输出：${JSON.stringify(navOut)} stderr: ${nav.stderr || '无'}）`);
+        if (navOut.includes('MATCH')) {
+          rep.pass(`托盘图标系统级可见：Win+B 键盘导航命中托盘焦点元素「${focusLine}」（tooltip 名匹配）`);
+        } else {
+          // 工单141：导航失败先过机器态判定（溢出层/勿扰布局；tray-add 存证在场才入环境账）
+          const fresh = listNotifyIcons().find((e) => (e.exe || '').toLowerCase() === process.execPath.toLowerCase());
+          gatedTrayFail(rep, 'P10-nav',
+            {
+              entryExists: !!fresh, promoted: fresh ? fresh.promoted : null,
+              trayAddSpan: trayAddSpanSeen(panelPid),
+              dndMarkerSeen: navOut.includes(DND_MARKER), amberVisible: !!scanAmberInTray('area'),
+            },
+            () => `托盘图标未被系统键盘导航命中（nav.status=${nav.status} 末步焦点「${focusLine}」全部输出：${JSON.stringify(navOut)} stderr: ${nav.stderr || '无'}）`);
+        }
         w32.tapKeys([VK_ESCAPE]); // 收起可能弹出的托盘气泡/焦点残留
 
         const t0 = Date.now();
