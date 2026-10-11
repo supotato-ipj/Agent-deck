@@ -14,7 +14,9 @@
 // 不必每改一版就占用真机跑一轮。阈值由调用方原样传入，模块内不持阈值——调阈值是观测口径
 // 的决定，不该藏在一个纯函数里。
 
-/** 一次裁决的输入快照（全部由调用方采数所得，纯函数只管裁决） */
+/**
+ * 一次裁决的输入快照（全部由调用方采数所得，纯函数只管裁决）
+ */
 export interface SilenceSnapshot {
   /** 已静默时长（ms）：距上一次渲染层上行过去了多久 */
   readonly quietMs: number
@@ -22,11 +24,9 @@ export interface SilenceSnapshot {
   readonly thresholdMs: number
   /**
    * 同一形态是否已上报过静默。
-   * 接线约定（接线实现在 render-sentinel-sampler.ts，本模块只消费不维护）：原建议该位跨心跳保留、
-   * 不因一次自愈而清零。升级失能只在「已报过静默且仍未收到心跳」时成立，即连续静默的每一拍都会
-   * 命中那一档；工单94 按「面板运行时行为零影响」的验收口径取了相反一侧（上报态随心跳复位，存证
-   * 条数与落点须与改前逐条可比），故那一档本轮只被裁决、不落存证——取舍与代价记在
-   * render-sentinel-sampler.ts 的模块头，判据与存证口径由 #91 那一票一并打开。
+   * 接线约定（接线实现在 render-sentinel-sampler.ts，本模块只消费不维护）：上报态随心跳复位，
+   * 一轮静默一条静默存证（工单94 口径，条数与落点逐条可比）。升级失能只在「已报过静默且仍未
+   * 收到心跳」时成立；同一轮内失能档只发射一条，是否已发射由 frozenReported 讲。
    */
   readonly reportedQuiet: boolean
   /**
@@ -35,6 +35,12 @@ export interface SilenceSnapshot {
    * 使「已报静默后再次静默」与「同一轮内尚未恢复」两种形态在数据上分得开。
    */
   readonly recovered: boolean
+  /**
+   * 本轮静默是否已发射过失能档（#91 定案）：失能档一轮只发射一条，发射后其余各拍不再重复
+   * （发射后等心跳闭合 episode，闭合记账在采样体）。false = 还没发过，达「已报静默且仍未
+   * 收到心跳」即判升级。
+   */
+  readonly frozenReported: boolean
   /** 面板窗口已销毁 */
   readonly windowDestroyed: boolean
   /** 渲染进程已销毁 */
@@ -59,12 +65,15 @@ const NONE: SilenceVerdict = Object.freeze({ action: 'none', recovered: false })
  * - 未达阈值：静默未成形，不动作。
  * - 达阈值且该形态未上报过：报静默，并把「期间是否曾恢复」原样带出——恢复过就是
  *   「静默 + 已恢复」，这正是 15:19:15 那次的读法，绝不与失能混同。
- * - 达阈值但该形态已上报过：期间收到过心跳 = 这一轮已自愈，不重复报也不升级；未收到
- *   心跳 = 静默跨过了上一轮继续（已报静默后再次静默），升级失能。
+ * - 达阈值、已报静默且期间无心跳、失能档尚未发射：升级失能（#91 发射判据，采样体据此
+ *   落失能档存证）。
+ * - 达阈值、已报静默且期间无心跳、失能档已发射：不再动作——失能档一轮一条，episode
+ *   等心跳闭合（闭合记账在采样体），重复发射只会把同一轮冻结刷成存证瀑布。
  */
 export function silenceVerdict(s: SilenceSnapshot): SilenceVerdict {
   if (s.windowDestroyed || s.rendererDestroyed) return NONE
   if (s.quietMs < s.thresholdMs) return NONE
   if (!s.reportedQuiet) return { action: 'report-quiet', recovered: s.recovered }
-  return s.recovered ? NONE : { action: 'escalate-unresponsive', recovered: false }
+  if (s.recovered || s.frozenReported) return NONE
+  return { action: 'escalate-unresponsive', recovered: false }
 }

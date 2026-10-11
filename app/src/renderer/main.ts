@@ -23,6 +23,13 @@ function notify(type: string, payload?: Record<string, unknown>): void {
   window.deck.host.notify(type, payload)
 }
 
+// ---- 渲染层活性心跳（#91）：2s 一拍 deck:host-beat ----
+// 面板窗的哨兵判据由此定音：旧口径只认真实上行，空闲期（时钟分钟沿之间）渲染层无话
+// 可说，静默档全是伪案；活性心跳把「静默」收紧成「渲染层主线程不再走针」——阻塞即断拍，
+// 空闲照常。任务栏条带不接此拍（其静默维持旧语义，见 render-sentinel-sampler.ts 模块头）。
+const RENDER_HEARTBEAT_MS = 2000
+setInterval(() => window.deck.host.beat(), RENDER_HEARTBEAT_MS)
+
 // ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：文档区分组列 ----
 // 工单59：dock 应用区退役——应用入口并入任务栏（左组手钉/运行中 + 中组推荐位），
 // 桌面只承载文档区。应用条目仍在条目池里（zone=app），供任务栏取元数据，不再上屏。

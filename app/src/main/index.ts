@@ -233,7 +233,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
     onTransition: (hot) => log?.append({ type: hot ? 'hotzone-enter' : 'hotzone-leave' }),
   })
-  wireHostIpc(win, tracker, log)
+  // 渲染层活性心跳武装（#91）：面板窗接 2s 心跳（deck:host-beat，渲染层 main.ts 起拍），
+  // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
+  wireHostIpc(win, tracker, log, { sentinelHeartbeat: true })
 
   const tray = createTray({ onShowPanel: () => showPanel('tray-click') })
   app.on('before-quit', () => {
@@ -354,9 +356,10 @@ if (RESTORE_MODE) {
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
 } else {
-  // 验收子进程（--panel-accept）：电池要求时开 CDP 端口——运行时的桥动作（如任务栏
-  // 开关 taskbar/set-enabled）由电池经 CDP 在真实渲染层驱动，覆盖「插件热切换」真机链路。
-  if (PANEL_ACCEPT_MODE && process.env.DECK_CDP_PORT) {
+  // 面板进程（--panel / --panel-accept）：电池要求时开 CDP 端口——运行时的桥动作（如任务栏
+  // 开关 taskbar/set-enabled）与渲染层活性取证（#91 P12 忙环注入）由电池经 CDP 在真实
+  // 渲染层驱动。守卫拉起的 --panel 子进程继承环境变量，故门控不分公司/验收两种面板态。
+  if ((PANEL_ACCEPT_MODE || PANEL_MODE) && process.env.DECK_CDP_PORT) {
     app.commandLine.appendSwitch('remote-debugging-port', process.env.DECK_CDP_PORT)
   }
   // 遮挡不得降频（工单59 真机首跑实证，见 panel-window.ts 的 backgroundThrottling）：

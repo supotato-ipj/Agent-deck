@@ -15,8 +15,8 @@
       "entry": "app/accept/battery.js",
       "script": "accept",
       "budgetSeconds": 720,
-      "lastMeasuredSeconds": 410,
-      "lastMeasuredAt": "2026-10-09",
+      "lastMeasuredSeconds": 495,
+      "lastMeasuredAt": "2026-10-11",
       "segments": [
         {
           "seg": "P1",
@@ -345,6 +345,15 @@
             "system-state"
           ],
           "estSeconds": 25
+        },
+        {
+          "seg": "P12",
+          "ticket": 91,
+          "title": "渲染层哨兵判据（#91 定案）：活性心跳武装在证/忙环注入失能档发射与闭合/全程无自发静默失能",
+          "surfaces": [
+            "event-evidence"
+          ],
+          "estSeconds": 16
         }
       ]
     },

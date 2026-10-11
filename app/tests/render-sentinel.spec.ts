@@ -17,6 +17,7 @@ const normal: SilenceSnapshot = {
   thresholdMs: T,
   reportedQuiet: false,
   recovered: false,
+  frozenReported: false,
   windowDestroyed: false,
   rendererDestroyed: false,
 }
@@ -54,22 +55,33 @@ describe('silenceVerdict 静默分级裁决', () => {
     })
   })
 
-  it('已报静默后再次静默（未收到心跳）→ 升级失能', () => {
-    expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet: true, recovered: false })).toEqual({
+  it('已报静默后再次静默（未收到心跳）且失能档未发射 → 升级失能', () => {
+    expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet: true, recovered: false, frozenReported: false })).toEqual({
       action: 'escalate-unresponsive',
       recovered: false,
     })
   })
 
+  it('已报静默后再次静默但失能档本轮已发射 → 不再动作（失能档一轮一条，episode 等心跳闭合）', () => {
+    for (const quietMs of [6313, 10000, 60000]) {
+      expect(silenceVerdict({ ...normal, quietMs, reportedQuiet: true, recovered: false, frozenReported: true })).toEqual({
+        action: 'none',
+        recovered: false,
+      })
+    }
+  })
+
   it('窗口销毁或渲染进程已销毁 → 不动作（各上报/恢复组合一律不动作）', () => {
     for (const reportedQuiet of [false, true]) {
       for (const recovered of [false, true]) {
-        expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet, recovered, windowDestroyed: true }))
-          .toEqual({ action: 'none', recovered: false })
-        expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet, recovered, rendererDestroyed: true }))
-          .toEqual({ action: 'none', recovered: false })
-        expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet, recovered, windowDestroyed: true, rendererDestroyed: true }))
-          .toEqual({ action: 'none', recovered: false })
+        for (const frozenReported of [false, true]) {
+          expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet, recovered, frozenReported, windowDestroyed: true }))
+            .toEqual({ action: 'none', recovered: false })
+          expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet, recovered, frozenReported, rendererDestroyed: true }))
+            .toEqual({ action: 'none', recovered: false })
+          expect(silenceVerdict({ ...normal, quietMs: 6313, reportedQuiet, recovered, frozenReported, windowDestroyed: true, rendererDestroyed: true }))
+            .toEqual({ action: 'none', recovered: false })
+        }
       }
     }
   })
@@ -85,28 +97,34 @@ describe('silenceVerdict 静默分级裁决', () => {
   it('已恢复的静默永不升级为失能（分级语义不变量：失能 = 静默且不自愈）', () => {
     for (const quietMs of [0, T - 1, T, 5213, 6313, 60000]) {
       for (const reportedQuiet of [false, true]) {
-        expect(silenceVerdict({ ...normal, quietMs, reportedQuiet, recovered: true }).action)
-          .not.toBe('escalate-unresponsive')
+        for (const frozenReported of [false, true]) {
+          expect(silenceVerdict({ ...normal, quietMs, reportedQuiet, frozenReported, recovered: true }).action)
+            .not.toBe('escalate-unresponsive')
+        }
       }
     }
   })
 })
 
 /**
- * 达阈值后的分档字面表（#92 spec 的裁决矩阵写成数据，不重述实现的分支次序）：
- * 键 = 「是否已上报过_期间是否收到过心跳」，值 = 该格应有的裁决与恢复标记。
+ * 达阈值后的分档字面表（#92 spec 的裁决矩阵写成数据，不重述实现的分支次序；#91 扩一格）：
+ * 键 = 「是否已上报过_期间是否收到过心跳_失能档是否已发射」，值 = 该格应有的裁决与恢复标记。
  * 这里刻意不写成 if 链——若写成与实现同形的分支，穷举只能查出「实现与自身不符」，
  * 查不出「实现与矩阵不符」；落成数据表才能钉住规则本身。
  */
 const AFTER_THRESHOLD: Record<string, { action: SilenceAction; recovered: boolean }> = {
-  'no_no': { action: 'report-quiet', recovered: false },
-  'no_yes': { action: 'report-quiet', recovered: true },
-  'yes_yes': { action: 'none', recovered: false },
-  'yes_no': { action: 'escalate-unresponsive', recovered: false },
+  'no_no_no': { action: 'report-quiet', recovered: false },
+  'no_no_yes': { action: 'report-quiet', recovered: false },
+  'no_yes_no': { action: 'report-quiet', recovered: true },
+  'no_yes_yes': { action: 'report-quiet', recovered: true },
+  'yes_yes_no': { action: 'none', recovered: false },
+  'yes_yes_yes': { action: 'none', recovered: false },
+  'yes_no_no': { action: 'escalate-unresponsive', recovered: false },
+  'yes_no_yes': { action: 'none', recovered: false },
 }
 
 describe('silenceVerdict 全组合穷举', () => {
-  it('上报态 × 恢复态 × 销毁态 × 时长档（16 × 4）逐格命中字面表', () => {
+  it('上报态 × 恢复态 × 发射态 × 销毁态 × 时长档（8 × 4）逐格命中字面表', () => {
     const quietLevels = [0, T - 1, T, 6313]
     const yesNo = (b: boolean) => (b ? 'yes' : 'no')
     const mismatches: string[] = []
@@ -114,28 +132,31 @@ describe('silenceVerdict 全组合穷举', () => {
 
     for (const reportedQuiet of [false, true]) {
       for (const recovered of [false, true]) {
-        for (const windowDestroyed of [false, true]) {
-          for (const rendererDestroyed of [false, true]) {
-            for (const quietMs of quietLevels) {
-              const got = silenceVerdict({
-                quietMs,
-                thresholdMs: T,
-                reportedQuiet,
-                recovered,
-                windowDestroyed,
-                rendererDestroyed,
-              })
-              // 销毁闸门与阈值闸门各自一行，均落在「不动作」
-              const want = windowDestroyed || rendererDestroyed || quietMs < T
-                ? { action: 'none' as SilenceAction, recovered: false }
-                : AFTER_THRESHOLD[`${yesNo(reportedQuiet)}_${yesNo(recovered)}`]
-              checked += 1
-              if (got.action !== want.action || got.recovered !== want.recovered) {
-                mismatches.push(
-                  `quietMs=${quietMs} reported=${reportedQuiet} recovered=${recovered} ` +
-                  `winDead=${windowDestroyed} procDead=${rendererDestroyed} → ` +
-                  `${got.action}/${got.recovered}（期望 ${want.action}/${want.recovered}）`,
-                )
+        for (const frozenReported of [false, true]) {
+          for (const windowDestroyed of [false, true]) {
+            for (const rendererDestroyed of [false, true]) {
+              for (const quietMs of quietLevels) {
+                const got = silenceVerdict({
+                  quietMs,
+                  thresholdMs: T,
+                  reportedQuiet,
+                  recovered,
+                  frozenReported,
+                  windowDestroyed,
+                  rendererDestroyed,
+                })
+                // 销毁闸门与阈值闸门各自一行，均落在「不动作」
+                const want = windowDestroyed || rendererDestroyed || quietMs < T
+                  ? { action: 'none' as SilenceAction, recovered: false }
+                  : AFTER_THRESHOLD[`${yesNo(reportedQuiet)}_${yesNo(recovered)}_${yesNo(frozenReported)}`]
+                checked += 1
+                if (got.action !== want.action || got.recovered !== want.recovered) {
+                  mismatches.push(
+                    `quietMs=${quietMs} reported=${reportedQuiet} recovered=${recovered} frozen=${frozenReported} ` +
+                    `winDead=${windowDestroyed} procDead=${rendererDestroyed} → ` +
+                    `${got.action}/${got.recovered}（期望 ${want.action}/${want.recovered}）`,
+                  )
+                }
               }
             }
           }
@@ -143,12 +164,15 @@ describe('silenceVerdict 全组合穷举', () => {
       }
     }
 
-    expect(checked).toBe(64)
+    expect(checked).toBe(128)
     expect(mismatches).toEqual([])
   })
 
-  it('字面表覆盖齐四种上报/恢复组合（守卫表自身不漏格）', () => {
-    expect(Object.keys(AFTER_THRESHOLD).sort()).toEqual(['no_no', 'no_yes', 'yes_no', 'yes_yes'])
+  it('字面表覆盖齐八种上报/恢复/发射组合（守卫表自身不漏格）', () => {
+    expect(Object.keys(AFTER_THRESHOLD).sort()).toEqual([
+      'no_no_no', 'no_no_yes', 'no_yes_no', 'no_yes_yes',
+      'yes_no_no', 'yes_no_yes', 'yes_yes_no', 'yes_yes_yes',
+    ])
   })
 })
 

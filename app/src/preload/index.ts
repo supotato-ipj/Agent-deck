@@ -27,5 +27,9 @@ contextBridge.exposeInMainWorld('deck', {
     notify: (type: string, payload?: Record<string, unknown>) => {
       ipcRenderer.send('deck:host-notify', { type, payload })
     },
+    // 渲染层活性心跳（#91）：渲染层 main.ts 按拍调用，走 'deck:host-beat' 通道——
+    // 主进程哨兵按 wc 'ipc-message' 计拍，本通道不另挂处理器（心跳只证明渲染层主线程
+    // 还在走针，无载荷）。沙箱 preload 不引外部模块，通道字面量与渲染层侧保持一致。
+    beat: () => { ipcRenderer.send('deck:host-beat') },
   },
 })
