@@ -133,6 +133,8 @@ interface TaskbarSession {
   yieldTimer: NodeJS.Timeout | null
   yielded: boolean
   keepalive: NodeJS.Timeout
+  /** 最近一次协商落定的 DIP 目标几何（工单158 回正守卫用；未协商过 = null） */
+  negotiated: { x: number; y: number; width: number; height: number } | null
 }
 
 /**
@@ -167,10 +169,30 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const applyNegotiated = (s: TaskbarSession, rc: AppBarRect) => {
     if (s.win.isDestroyed()) return
     const dip = screen.screenToDipRect(s.win, { x: rc.left, y: rc.top, width: rc.right - rc.left, height: rc.bottom - rc.top })
+    s.negotiated = dip
     const cur = s.win.getBounds()
     if (Math.abs(dip.x - cur.x) > 1 || Math.abs(dip.y - cur.y) > 1
       || Math.abs(dip.width - cur.width) > 1 || Math.abs(dip.height - cur.height) > 1) {
       s.win.setBounds(dip)
+    }
+  }
+
+  /** 几何回正守卫（工单158 真机取证修）：壳侧 AppBar 通路会在 ABM_SETPOS 与
+   * showInactive 之后异步把条带窗挪到「协商带上移一身高」的位置（64 高真机取证：
+   * 目标 [1376,1440] 反复被挪 [1312,1376]，协商 rc 始终正确、挪的是窗口本体）。
+   * 48 时代带位 [1392,1440] 与原生任务栏旧带重合、净零工作区变更，壳侧不扰动，
+   * 缺陷潜伏未暴露——升档 64 后带位错开才显形。三个协商入口（create/ABN_POSCHANGED/
+   * display-metrics-changed）都赶在挪移拍之前，最后一拍纠正追不上 show 拍的挪移；
+   * keepalive 500ms 与 ready-to-show 即拍各补一记回正（取证：挪移一触发一拍、纠正
+   * 后不复发，回正恒获最后一语）。回正事件落 taskbar-geometry-reasserted 存证。 */
+  const reassertGeometry = (s: TaskbarSession, reason: string) => {
+    if (!s.negotiated || s.win.isDestroyed()) return
+    const cur = s.win.getBounds()
+    const t = s.negotiated
+    if (Math.abs(cur.x - t.x) > 1 || Math.abs(cur.y - t.y) > 1
+      || Math.abs(cur.width - t.width) > 1 || Math.abs(cur.height - t.height) > 1) {
+      s.win.setBounds(t)
+      log?.append({ type: 'taskbar-geometry-reasserted', reason, from: cur, to: t })
     }
   }
 
@@ -234,9 +256,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       appBarHwnd: null,
       yieldTimer: null,
       yielded: false,
-      keepalive: setInterval(assertTop, 500),
+      negotiated: null,
+      keepalive: null as unknown as NodeJS.Timeout,
     }
     session = s
+    // 置顶维持 + 几何回正（工单158 起同一拍：置顶重申与协商带回正都是壳侧扰动兜底）
+    s.keepalive = setInterval(() => {
+      if (w.isDestroyed()) return
+      assertTop()
+      reassertGeometry(s, 'keepalive')
+    }, 500)
     // 工单51 AppBar 工作区占位：注册 → 协商 → 按协商矩形重排窗口（renegotiate 在
     // 控制器作用域，display-metrics 事件同路）。注册失败走 49/50 的净空降级档
     // （不占工作区、不让位）。
@@ -280,6 +309,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     w.once('ready-to-show', () => {
       w.showInactive()
       assertTop()
+      // show 拍挪移的即拍回正（工单158）：取证显示 showInactive 会触发壳侧把窗挪到
+      // 协商带上方，等 keepalive 首拍最多闪 500ms——此处同步补一记
+      reassertGeometry(s, 'shown')
     })
     w.once('closed', () => {
       // 自家定时器无条件清（destroy 路径已清过也无害）：keepalive 属本闭包，
