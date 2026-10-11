@@ -105,6 +105,7 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+    box-sizing: border-box; /* 工单158：收窄档以整盒（含内衬边框）计，余裕带不被吃掉 */
     min-width: 0;
     overflow: hidden;
   }
