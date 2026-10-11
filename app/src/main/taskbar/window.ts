@@ -147,6 +147,15 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 显隐与哪扇条带窗现任无关。
   let hidNative = false
 
+  // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
+  // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
+  // （不上 PanelDataPort：本地装配无宿主概念，缺席即静默跳过）。
+  const setTray = (on: boolean) => {
+    try {
+      (ctx.panelData as { setTrayActive?: (on: boolean) => boolean } | undefined)?.setTrayActive?.(on)
+    } catch { /* 数据面不在场（离线装配）：链路无从谈起 */ }
+  }
+
   const stopYieldPoll = (s: TaskbarSession) => {
     if (s.yieldTimer) clearInterval(s.yieldTimer)
     s.yieldTimer = null
@@ -194,6 +203,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
 
   const create = () => {
     if (session) return
+    // 宿主先起（#153）：收编广播尽早落地，图标随条带就位（boot 启用态由 init 先建，
+    // 此处幂等 no-op）
+    setTray(true)
     // 先隐原生再建窗（工单50）：stripBounds 按视图事实取净空——隐藏成功落屏底，
     // 失败（句柄缺位等）降级让出原生任务栏上沿，49 实证的同矩形 z 序竞争不进场。
     hidNative = hideNativeTaskbar(log)
@@ -302,7 +314,13 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   if (ctx.taskbar.state().enabled) create()
   const offChanged = ctx.on('taskbar/changed', (state: TaskbarState) => {
     if (state.enabled) create()
-    else destroy('disabled')
+    else {
+      // 禁用三件套的交还环（#153）：先发宿主停（广播落地时条带可能仍在场，图标无缝
+      // 回注册 explorer），随即销条带、还原原生栏。dispose（应用退出）不走这里——
+      // 退出侧交还广播已被 ADR-0012 否决，强杀路径本就走不到钩子。
+      setTray(false)
+      destroy('disabled')
+    }
   })
   screen.on('display-metrics-changed', onDisplayMetrics)
 

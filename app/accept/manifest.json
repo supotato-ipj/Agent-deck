@@ -467,7 +467,7 @@
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 39,
+      "lastMeasuredSeconds": 53,
       "lastMeasuredAt": "2026-10-11",
       "segments": [
         {
@@ -569,6 +569,26 @@
             "system-state"
           ],
           "estSeconds": 15
+        },
+        {
+          "seg": "P11",
+          "ticket": 153,
+          "title": "运行时交还：禁用即交还托盘宿主（竞争窗按属主归零+stopped存证）/重启用即收编（宿主重建+名单回填）/停起停整周期",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 4
+        },
+        {
+          "seg": "P12",
+          "ticket": 153,
+          "title": "宿主守恒：禁用态数据面强杀重启不复活宿主（respawn按期望态）/启态禁用不建宿主",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 10
         }
       ]
     },

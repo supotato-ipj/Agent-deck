@@ -48,6 +48,9 @@ export class DataplaneService extends Service implements PanelDataPort {
   private stopped = false
   private restartAttempt = 0
   private restartTimer: NodeJS.Timeout | null = null
+  /** 托盘宿主期望态（#153）：init 与运行期启停共用。respawn 的 init 按它重算——
+   * 静态重放 options.init 会在「运行期已禁用」时把宿主拉回来再偷一次图标。 */
+  private trayActive: boolean
   private readonly readyResolve: () => void
   readonly whenReady: Promise<void>
 
@@ -58,6 +61,7 @@ export class DataplaneService extends Service implements PanelDataPort {
       resolveReady = res
     })
     this.readyResolve = resolveReady
+    this.trayActive = options.init.tray != null
     ctx.on('dispose', () => this.shutdown())
     this.spawn('boot')
     const timeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS
@@ -70,6 +74,11 @@ export class DataplaneService extends Service implements PanelDataPort {
     void this.whenReady.then(() => clearTimeout(timeout))
   }
 
+  /** respawn init 按当前期望态重算托盘段（#153）：禁用态的子进程不带 tray 起 */
+  private effectiveInit(): DataplaneInit {
+    return this.trayActive ? this.options.init : { ...this.options.init, tray: undefined }
+  }
+
   private spawn(reason: string): void {
     this.child = utilityProcess.fork(this.options.workerModule, [], {
       serviceName: 'deck-dataplane',
@@ -78,7 +87,7 @@ export class DataplaneService extends Service implements PanelDataPort {
     this.options.log?.({ type: 'dataplane-spawn', pid: this.child.pid, reason })
     this.child.on('message', (msg: DataplaneMessage) => this.onMessage(msg))
     this.child.on('exit', (code: number) => this.onExit(code))
-    this.child.postMessage({ type: 'init', init: this.options.init })
+    this.child.postMessage({ type: 'init', init: this.effectiveInit() })
   }
 
   private onExit(code: number): void {
@@ -149,6 +158,15 @@ export class DataplaneService extends Service implements PanelDataPort {
   replayTrayClick(key: string, button: TrayClickButton): boolean {
     if (!this.child) return false
     this.child.postMessage({ type: 'tray-replay', key, button })
+    return true
+  }
+
+  /** 托盘宿主启停（#153 交还链路）：先记账期望态再发消息——子进程不在场（重启退避中）
+   * 时 respawn 的 init 按 `effectiveInit()` 兑现，消息不丢语义。 */
+  setTrayActive(on: boolean): boolean {
+    this.trayActive = on
+    if (!this.child) return false
+    this.child.postMessage({ type: 'tray-control', on })
     return true
   }
 

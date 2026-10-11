@@ -248,12 +248,18 @@ export class TaskbarService extends Service {
     return this.state()
   }
 
-  /** 开关：同值幂等空转（不重写盘、不重推事件）。只动 enabled 位，显隐与勾选子集原样。 */
+  /** 开关：同值幂等空转（不重写盘、不重推事件）。只动 enabled 位，显隐与勾选子集原样。
+   * 禁用即清托盘名单与像素缓存（#153）：宿主随事件交还，名单是已交还图标的死账——
+   * 不清则重启用瞬间陈旧条目先于事件流上栏（名单语义 = 收编在场的图标，禁用态为零）。 */
   setEnabled(enabled: boolean): TaskbarState {
     if (typeof enabled !== 'boolean') {
       throw new BridgeError(`taskbar.enabled 须为布尔值，收到 ${String(enabled)}`)
     }
     if (enabled === this.current.enabled) return this.state()
+    if (!enabled) {
+      this.current = { ...this.current, tray: [] }
+      this.trayPixels.clear()
+    }
     return this.commit({ ...this.current, enabled })
   }
 
