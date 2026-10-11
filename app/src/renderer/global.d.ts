@@ -36,6 +36,8 @@ declare global {
         /** 键盘模式开关（工单02）：开 = 面板临时可聚焦+聚焦+钉底；关 = 恢复不可聚焦+钉底 */
         setKeyboardMode(on: boolean): void
         notify(type: string, payload?: Record<string, unknown>): void
+        /** 渲染层活性心跳（#91）：deck:host-beat 一拍，主进程哨兵按此计活 */
+        beat(): void
       }
     }
     /**

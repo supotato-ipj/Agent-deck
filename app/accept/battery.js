@@ -40,6 +40,36 @@ const DOC_ZONE_RIGHT_DIP = 1056
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 工单91 P12：渲染层活性取证经 CDP（忙环把渲染层主线程钉死 N 秒，验哨兵失能档发射/闭合）。
+// 面板侧由 DECK_CDP_PORT 环境变量开 remote-debugging-port（--panel/--panel-accept 均认）。
+const CDP_PORT = 9223;
+const PANEL_TITLE = 'AGENT DECK';
+
+/** CDP Runtime.evaluate（同 accept/taskbar.js 通道；timeoutMs 可调——忙环表达式本身要跑到 N 秒后才回包） */
+async function cdpEval(expression, timeoutMs = 8000) {
+  const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+  const target = targets.find((t) => t.title === PANEL_TITLE);
+  if (!target) throw new Error('CDP 找不到面板页目标');
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  try {
+    await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('CDP WebSocket 连接失败')); });
+    const reply = await new Promise((res, rej) => {
+      const timer = setTimeout(() => rej(new Error('CDP evaluate 超时')), timeoutMs);
+      ws.onmessage = (ev) => {
+        const m = JSON.parse(ev.data);
+        if (m.id === 1) { clearTimeout(timer); res(m); }
+      };
+      ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
+    });
+    if (reply.error || (reply.result && reply.result.exceptionDetails)) {
+      throw new Error(`CDP evaluate 失败: ${JSON.stringify(reply.error || reply.result.exceptionDetails)}`);
+    }
+    return reply.result.result.value;
+  } finally {
+    ws.close();
+  }
+}
+
 function screenInfo() {
   const d = screen.getPrimaryDisplay();
   return {
@@ -815,7 +845,7 @@ async function main() {
   const launchPanel = () => {
     const c = spawn(process.execPath, ['.'], {
       cwd: APP_ROOT,
-      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1' },
+      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1', DECK_CDP_PORT: String(CDP_PORT) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     c.stdout.on('data', () => {}); // 排空即全部：管道永不满，面板永不因 stdout 阻塞
@@ -5944,6 +5974,81 @@ async function main() {
         // 不给用户留残留：插件目录里的东西电池放进去的，电池自己收走
         try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* 尽力 */ }
         rep.note(`桌面组件探针清场：已移除 ${dest}`);
+      }
+    })();
+
+    // —— P12 渲染层哨兵判据（工单91）：活性心跳在证 + 忙环注入验失能档发射/闭合 + 全程无自发失能 ——
+    // 判据定案（#91）：心跳 = 面板渲染层 2s 一拍 deck:host-beat（+真实上行），静默 = 活性信号断流；
+    // 失能档发射 = 静默落定后下一采样拍（2s）仍无心跳 ≈ 活性静默 7s。本段排全部交互段之后：
+    // 注入的忙环让面板渲染层真失能 12s，不能挡在任何交互断言前面。忙环取 12s（非 9s）是给
+    // 发射拍留余量：静默落定 ∈ [5,7)s、失能发射 ∈ [7,9)s，12s 内必落，忙环结束后心跳才回归。
+    rep.beginSegment('P12');
+    await (async () => {
+      // 事件域：P6 重启时截断过事件文件——当前文件 = 当前面板代次，P6 前的代次在 preP6 留档。
+      // 两代面板都开着活性心跳，两代都要查自发静默/失能。
+      let pre6 = [];
+      try {
+        pre6 = fs.readFileSync(path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl'), 'utf8')
+          .split('\n').filter(Boolean).map((l) => JSON.parse(l));
+      } catch { /* 首轮无留档（P6 未跑过的范围段轮）——当代照查 */ }
+      const cur = readEvents();
+
+      // ① 武装在证：sentinel-armed 只有接活性心跳的面板窗会发（任务栏条带不接）
+      const armedCur = cur.some((e) => e.type === 'sentinel-armed');
+      const armedPre = pre6.some((e) => e.type === 'sentinel-armed');
+      armedCur && armedPre
+        ? rep.pass('渲染层哨兵武装在证：两代面板启动均有 sentinel-armed（deck:host-beat 活性心跳接线，#91 判据）')
+        : rep.fail(`渲染层哨兵未武装：sentinel-armed 当代=${armedCur} preP6=${armedPre}（面板窗活性心跳未接线）`);
+
+      // ② 注入前无自发静默/失能：活性心跳在场，空闲静默（时钟分钟沿之间无话可说）不再产伪档
+      //    ——2026-10-09 基线轮两条空闲 renderer-stall 即此口的回归线。真有档先对读 main-lag（主线程滞
+      //    会把 quietMs 抬进静默），别急着记渲染层头上。
+      const spon = (evs) => evs.filter((e) => e.type === 'renderer-stall' || e.type === 'renderer-frozen');
+      spon(pre6).length === 0 && spon(cur).length === 0
+        ? rep.pass('全程无自发静默/失能档：两代面板零 renderer-stall/renderer-frozen（空闲静默已被活性心跳消音）')
+        : rep.fail(`存在自发静默/失能档：preP6=${JSON.stringify(spon(pre6))} 当代=${JSON.stringify(spon(cur))}——先对读 main-lag 再定责`);
+
+      // ③ 忙环注入：CDP 把渲染层主线程钉死 12s——静默（≈5s）与失能（≈7s）两档应依次发射。
+      //    注意此刻面板主进程照常泵消息（热区轮询/遮罩守望不受扰），托盘心跳照常——恰是
+      //    「主进程健康、渲染层失能」的教科书现场，哨兵必须只咬渲染层那一档。
+      const injectT0 = Date.now();
+      let injected;
+      try {
+        await cdpEval('(() => { const t0 = performance.now(); while (performance.now() - t0 < 12000); return "frozen"; })()', 20000);
+        injected = '忙环 12s 注入完成（渲染层主线程阻塞期间本断言阻塞至忙环结束才返回）';
+      } catch (e) { injected = `忙环注入异常: ${e.message}`; }
+      rep.note(`渲染层失能注入（CDP Runtime.evaluate 忙环）：${injected}`);
+
+      // 静默档：活性静默越过 5s 阈值即报一条（recovered=true——注入前心跳一直在流）。
+      // 注入后必须重读事件文件：上面 readEvents() 是注入前快照，忙环期间的存证不在里面。
+      const curAfter = readEvents();
+      const quietRec = curAfter.filter((e) => e.type === 'renderer-stall' && e.t >= injectT0).pop();
+      quietRec && quietRec.recovered === true
+        ? rep.pass(`注入静默档发射：renderer-stall quietMs=${quietRec.quietMs} recovered=${quietRec.recovered}（活性静默越过 5s 阈值）`)
+        : rep.fail(`注入静默档未发射：${JSON.stringify(quietRec || null)}（活性心跳断流 5s 应报静默）`);
+
+      // 失能档：静默落定后下一采样拍仍无心跳，发射一条且仅一条
+      const frozenRecs = curAfter.filter((e) => e.type === 'renderer-frozen' && e.t >= injectT0);
+      frozenRecs.length === 1
+        ? rep.pass(`注入失能档发射：renderer-frozen quietMs=${frozenRecs[0].quietMs} crashed=${frozenRecs[0].crashed}（活性静默 ≥ 阈值+一拍，一轮一条）`)
+        : rep.fail(`注入失能档发射异常：${JSON.stringify(frozenRecs)}（期望恰一条）`);
+
+      // 闭合：忙环结束后的首个心跳闭合 episode，frozenMs ≥ 忙环时长（恢复在账 = 自愈可读）
+      const unfrozenRec = await waitEvent('renderer-unfrozen', (e) => e.t >= injectT0, 10000);
+      unfrozenRec && unfrozenRec.frozenMs >= 12000
+        ? rep.pass(`失能 episode 闭合：renderer-unfrozen frozenMs=${unfrozenRec.frozenMs}（忙环结束首个心跳闭合）`)
+        : rep.fail(`失能 episode 未闭合：${JSON.stringify(unfrozenRec || null)}（忙环结束后 10s 内应见恢复闭合）`);
+
+      // 收紧：本轮注入窗口内三档各恰一条（多发/漏发都算接线病）
+      const win = readEvents().filter((e) => (e.type === 'renderer-stall' || e.type === 'renderer-frozen' || e.type === 'renderer-unfrozen') && e.t >= injectT0);
+      win.length === 3
+        ? rep.pass('注入窗口记账收紧：静默/失能/闭合三档各恰一条，无多发无漏发')
+        : rep.fail(`注入窗口记账异常：${JSON.stringify(win.map((e) => ({ type: e.type, quietMs: e.quietMs, frozenMs: e.frozenMs })))}（期望恰三条）`);
+      try {
+        process.kill(panelPid, 0);
+        rep.note(`忙环后面板进程存活：pid=${panelPid}（渲染层失能 12s 未伤及主进程）`);
+      } catch {
+        rep.fail(`忙环后面板进程不在场：pid=${panelPid}（忙环不该带走面板）`);
       }
     })();
   } catch (e) {

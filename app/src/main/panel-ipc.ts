@@ -69,8 +69,10 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService, events:
 /** 窗口宿主通道（非内核契约）：热区声明、键盘模式开关与点击存证。
  * 多窗口（面板 + 工单49 任务栏窗）各自注册——ipcMain.on 是全局通道，
  * 每个处理器按 event.sender 路由到所属窗口；窗口关闭即摘除自己的处理器，不泄漏。
- * hooks.pin：键盘模式进出的 z 序恢复动作——面板钉底（默认），任务栏窗重申置顶。 */
-export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void } = {}): void {
+ * hooks.pin：键盘模式进出的 z 序恢复动作——面板钉底（默认），任务栏窗重申置顶。
+ * hooks.sentinelHeartbeat：哨兵失能档发射武装（#91）——只有接了渲染层活性心跳的窗
+ * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。 */
+export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean } = {}): void {
   const pin = hooks.pin ?? pinToBottom
   const onHotzones = (event: Electron.IpcMainEvent, rects: HotzoneRect[]) => {
     if (event.sender !== win.webContents) return
@@ -109,7 +111,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: Ev
   ipcMain.on('deck:host-set-hotzones', onHotzones)
   ipcMain.on('deck:host-notify', onNotify)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
-  wireRenderSentinel(win, log)
+  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false })
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
@@ -118,20 +120,25 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: Ev
 }
 
 /** 渲染层哨兵（工单59 真机验收挖出，工单94 更名）：面板本体永不激活、恒在普通窗之下，
- * 渲染层一旦失能（崩或卡）不会有任何用户可见征兆——面板只是「不响应了」，而常驻件不重启
- * 就是永久失去交互。这里挂三种失能形态各自的存证：崩溃/退出（Electron 事件）与
+ * 渲染层一旦失能（崩或卡）不会有任何用户可见征兆——面板只是「不响应了」，而常驻件
+ * 不重启就是永久失去交互。这里挂三种失能形态各自的存证：崩溃/退出（Electron 事件）与
  * 「收不到任何渲染层上行」（心跳超时）——后者是静默卡死的唯一可观测信号。
  *
  * 更名的来由：GLOSSARY 里「看门狗」已是工单11 退役词条，「守卫」「守护」各被既有机制占用，
  * 再造第三个近义词只会让三者更难分辨。此机制定名**渲染层哨兵**——采数的是哨兵，裁决的是
  * 纯函数（render-sentinel.ts 的 silenceVerdict）。本函数只管接线：Electron 事件、销毁闸门、
- * 存证落盘字段都在这层，级别不在这里判。 */
-function wireRenderSentinel(win: BrowserWindow, log: EventLog | null): void {
+ * 存证落盘字段都在这层，级别不在这里判。
+ *
+ * 心跳与失能档（#91 定案）：心跳 = wc 'ipc-message' 全收（真实上行 + 渲染层活性心跳
+ * deck:host-beat 同走此通道，见 preload/渲染层 main.ts）；仅面板窗接活性心跳，故失能档
+ * 发射（renderer-frozen / renderer-unfrozen 闭合）只在 heartbeat=true 时接线——没接心跳的
+ * 窗静默没有失能语义（工单94 口径）。armed 存证标记「武装在证」，验收断言找它。 */
+function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean } = {}): void {
   const wc = win.webContents;
   wc.on('unresponsive', () => log?.append({ type: 'renderer-unresponsive' }));
   wc.on('render-process-gone', (_e, d) => log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode }));
   if (!log) return;
-  // 心跳：靠渲染层真实上行（热区声明/存证）计时，不另加定时器——渲染层死了就没有心跳
+  // 心跳：靠渲染层上行（活性心跳 + 热区声明/存证）计时，不另加定时器——渲染层死了就没有心跳
   const sentinel = new RenderSentinelSampler({
     onQuiet: ({ quietMs, recovered }) => log.append({
       type: 'renderer-stall',
@@ -140,9 +147,24 @@ function wireRenderSentinel(win: BrowserWindow, log: EventLog | null): void {
       crashed: wc.isCrashed(),
       pid: wc.getOSProcessId(),
     }),
+    ...(opts.heartbeat ? {
+      onFrozen: ({ quietMs }) => log.append({
+        type: 'renderer-frozen',
+        quietMs,
+        crashed: wc.isCrashed(),
+        pid: wc.getOSProcessId(),
+      }),
+      onUnfrozen: ({ frozenMs }) => log.append({
+        type: 'renderer-unfrozen',
+        frozenMs,
+        pid: wc.getOSProcessId(),
+      }),
+    } : {}),
+    heartbeatArmed: opts.heartbeat,
     isWindowDestroyed: () => win.isDestroyed(),
     isRendererDestroyed: () => wc.isDestroyed(),
   });
   wc.on('ipc-message', () => sentinel.beat());
+  if (opts.heartbeat) log.append({ type: 'sentinel-armed', pid: wc.getOSProcessId() });
   win.once('closed', () => sentinel.dispose());
 }
