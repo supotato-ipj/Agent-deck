@@ -32,7 +32,7 @@ export interface PanelKernelOptions {
   dataplane: DataplaneServiceOptions
   /** 任务栏（工单49）：config 文件路径与可变引用（持久化通道，settings 同款） */
   taskbar?: TaskbarServiceOptions
-  /** 任务栏左组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
+  /** 任务栏应用组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
   taskbarPollMs?: number
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
   quit?: () => void
@@ -55,7 +55,7 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   // 数据面端口（生产装配：utilityProcess 子进程宿主）——必须先于桥接层注册
   ctx.plugin(DataplaneService, options.dataplane)
   // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。
-  // 中组推荐位（工单54）缺省接 panelData——数据面快照随拍携带的频次链路产物。
+  // 推荐位（工单54）缺省接 panelData——数据面快照随拍携带的频次链路产物。
   ctx.plugin(TaskbarService, {
     ...options.taskbar,
     deps: {
@@ -78,7 +78,7 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   }
   const taskbarPollMs = options.taskbarPollMs ?? DEFAULT_TASKBAR_POLL_MS
   if (taskbarPollMs > 0) {
-    // 左组编排轮（工单52）：应用启动/退出 1–2 秒内反映到左组（窗口枚举 → 纯函数编排 → 变化即推）
+    // 应用组编排轮（工单52）：应用启动/退出 1–2 秒内反映到应用组（窗口枚举 → 纯函数编排 → 变化即推）
     const timer = setInterval(() => ctx.taskbar?.refresh(), taskbarPollMs)
     ctx.on('dispose', () => clearInterval(timer))
   }

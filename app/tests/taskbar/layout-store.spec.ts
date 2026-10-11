@@ -16,7 +16,7 @@ import {
   unpinEntry,
 } from '../../src/main/taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../../src/main/taskbar/layout-store'
-import type { TaskbarPinnedEntry } from '../../src/main/taskbar/left-plan'
+import type { TaskbarPinnedEntry } from '../../src/main/taskbar/apps-plan'
 
 const item = (name: string, over: Partial<MigrationItem> = {}): MigrationItem => ({
   name,
@@ -59,7 +59,7 @@ describe('任务栏布局存储（自愈）', () => {
   })
 })
 
-describe('旧桌面迁移（layout.json 手钉 → 栏左组手钉，顺序保持）', () => {
+describe('旧桌面迁移（layout.json 手钉 → 栏应用组手钉，顺序保持）', () => {
   it('旧桌面 layout.json 的 pinned 名单解析：顺序保持；缺失/损坏/非字符串数组 → 空', () => {
     const text = JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] })
     expect(parseLegacyPinnedNames(text)).toEqual(['B.lnk', 'A.lnk'])
@@ -122,7 +122,7 @@ describe('拖拽落位裁决（工单57 纯函数）', () => {
     expect(moveInOrder(['a', 'b'], 'a', 'a')).toEqual(['a', 'b']) // 自落点 = 原序
   })
 
-  it('reorderPinned：左组手钉段内换位，exe 身份归一命中（NTFS 大小写/斜杠不敏感）', () => {
+  it('reorderPinned：应用组手钉段内换位，exe 身份归一命中（NTFS 大小写/斜杠不敏感）', () => {
     const store = storeOf(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe', 'C:\\Apps\\C.exe'])
     const next = reorderPinned(store, 'c:\\apps/a.exe', 'C:\\Apps\\C.exe')
     expect(next.pinned.map((p) => p.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\Apps\\C.exe'])

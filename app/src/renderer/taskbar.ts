@@ -1,16 +1,16 @@
 // 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58）：状态经 taskbar/get-state 拉取 +
 // taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
-// 三组布局：中组（系统按钮 + 推荐位，工单54）、左组（手钉 + 运行中合并，工单52，右键菜单/
+// 三组布局：开始组 pill（系统按钮 + 推荐位——推荐组独立拆出前的过渡栖位，工单54）、应用组（手钉 + 运行中合并，工单52，右键菜单/
 // 中键/多窗口选窗属工单53）、右组（硬件摘要 + 托盘图标 + 音量 + 时钟，工单55/56）。
-// 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
+// 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
-import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
+import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitAppsOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
+import type { TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
-const pill = document.getElementById('pill') as HTMLElement
-const pillLeft = document.getElementById('pill-left') as HTMLElement
+const pillStart = document.getElementById('pill-start') as HTMLElement
+const pillApps = document.getElementById('pill-apps') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
 const sliver = document.getElementById('show-desktop') as HTMLElement
 
@@ -22,9 +22,9 @@ document.addEventListener('dragstart', (e) => {
   e.preventDefault()
 })
 
-/** 左组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 6+6、图标格 32+2 间距、组间距 8）。
- * 容量格数宁保守不少让——多留缝也不与中组 pill 重叠（中组居中、左组绝定位贴左）。 */
-const LEFT_INSET = 8
+/** 应用组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 6+6、图标格 32+2 间距、组间距 8）。
+ * 容量格数宁保守不少让——多留缝也不与开始组 pill 重叠（开始组 pill 居中、应用组绝定位贴左）。 */
+const APPS_INSET = 8
 const PILL_PAD_X = 12
 const CELL_W = 34
 const GROUP_GAP = 8
@@ -38,7 +38,7 @@ let editing = false
 /** 系统按钮显隐菜单开合（工单54）：右键开、点菜/点 pill 空白/状态回推收 */
 let menuOpen = false
 let menuTimer: ReturnType<typeof setTimeout> | null = null
-/** 左组溢出浮层开合（工单58）：⋯ 钮拨动、点浮层条目收、数量回落自动收 */
+/** 应用组溢出浮层开合（工单58）：⋯ 钮拨动、点浮层条目收、数量回落自动收 */
 let overflowOpen = false
 /** 应用图标右键菜单（工单53）：手钉/解除手钉、关闭窗口、打开文件位置三行随条目形态变化 */
 let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
@@ -56,18 +56,18 @@ function rectOf(el: HTMLElement, id: string): Rect {
   return { id, x: r.x, y: r.y, w: r.width, h: r.height }
 }
 
-/** 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形（CSS px 相对客户区）：
+/** 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形（CSS px 相对客户区）：
  * 热区声明与验收存证共用同一份测量 */
 function measure() {
   return {
-    pill: rectOf(pill, 'pill'),
-    buttons: [...pill.querySelectorAll<HTMLElement>('.tb-btn')].map((el) => rectOf(el, el.dataset.id ?? '')),
-    recommendations: [...pill.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
+    startPill: rectOf(pillStart, 'pill-start'),
+    buttons: [...pillStart.querySelectorAll<HTMLElement>('.tb-btn')].map((el) => rectOf(el, el.dataset.id ?? '')),
+    recommendations: [...pillStart.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
       name: el.dataset.name ?? '', ...rectOf(el, ''),
     })).map(({ name, ...r }) => ({ name, x: r.x, y: r.y, w: r.w, h: r.h })),
-    leftPill: rectOf(pillLeft, 'pill-left'),
-    apps: [...pillLeft.querySelectorAll<HTMLElement>('.tb-app')].map((el) => rectOf(el, el.dataset.exe ?? '')),
-    overflow: (() => { const el = pillLeft.querySelector<HTMLElement>('.tb-overflow'); return el ? rectOf(el, 'overflow') : null })(),
+    appsPill: rectOf(pillApps, 'pill-apps'),
+    apps: [...pillApps.querySelectorAll<HTMLElement>('.tb-app')].map((el) => rectOf(el, el.dataset.exe ?? '')),
+    overflow: (() => { const el = pillApps.querySelector<HTMLElement>('.tb-overflow'); return el ? rectOf(el, 'overflow') : null })(),
     rightPill: rectOf(rightPill, 'right-pill'),
     rightCells: [...rightPill.querySelectorAll<HTMLElement>('[data-id]')].map((el) => rectOf(el, el.dataset.id ?? '')),
     trayIcons: [...rightPill.querySelectorAll<HTMLElement>('.tb-tray-icon')].map((el) => ({
@@ -77,8 +77,8 @@ function measure() {
   }
 }
 
-/** 热区声明（工单52/54/55 并集）：中组不渲染（禁用/全隐藏且无推荐）不含 pill；左组装了
- * 条目才报左组矩形（空组不渲染 pill，缝隙保持穿透）；右组（摘要+音量+时钟）与显示桌面
+/** 热区声明（工单52/54/55 并集）：开始组 pill 不渲染（禁用/全隐藏且无推荐）不含其矩形；应用组装了
+ * 条目才报应用组矩形（空组不渲染 pill，缝隙保持穿透）；右组（摘要+音量+时钟）与显示桌面
  * 细条随 enabled 声明；三组皆无即清空——条带整幅恢复穿透 */
 function declareHotZones(state: TaskbarState): void {
   if (!state.enabled) {
@@ -88,23 +88,23 @@ function declareHotZones(state: TaskbarState): void {
   const vm = taskbarViewModel(state)
   const m = measure()
   const zones = [m.rightPill, m.sliver]
-  if (vm.visible) zones.unshift(m.pill)
-  if (vm.left.length > 0) zones.unshift(m.leftPill)
+  if (vm.visible) zones.unshift(m.startPill)
+  if (vm.apps.length > 0) zones.unshift(m.appsPill)
   window.deck.host.setHotZones(zones)
 }
 
 /** 最近一次几何存证签名：几何未变的重渲（窗口标题刷新等无位移帧）不重复刷事件流 */
 let lastGeometryJson = ''
 
-/** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/左组/右组矩形任一变化即补发一帧——
- * 推荐位随数据面快照后到位会推中组 pill 移位，电池按 settle 后的最新帧取坐标 */
+/** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/应用组/右组矩形任一变化即补发一帧——
+ * 推荐位随数据面快照后到位会推开始组 pill 移位，电池按 settle 后的最新帧取坐标 */
 function notifyGeometry(): void {
   const m = measure()
   const payload: Record<string, unknown> = {
-    pill: m.pill,
+    startPill: m.startPill,
     buttons: m.buttons,
     recommendations: m.recommendations,
-    leftPill: m.leftPill,
+    appsPill: m.appsPill,
     apps: m.apps,
     overflow: m.overflow,
     rightPill: m.rightPill,
@@ -118,7 +118,7 @@ function notifyGeometry(): void {
   window.deck.host.notify('taskbar-geometry', payload)
 }
 
-/** 系统动作格点击分发 + 存证（中组按钮与右组格同一通道） */
+/** 系统动作格点击分发 + 存证（开始组按钮与右组格同一通道） */
 function wireAction(el: HTMLElement, id: string): void {
   el.addEventListener('click', () => {
     void dispatchTaskbarButton(window.deck.bridge, id)
@@ -172,7 +172,7 @@ function closeMenu(): void {
   menuOpen = false
 }
 
-/** 左组图标装载（工单52）：缓存命中即贴；未命中经 desktop/icon 契约提取（内核侧按
+/** 应用组图标装载（工单52）：缓存命中即贴；未命中经 desktop/icon 契约提取（内核侧按
  * iconKey 反解路径）。回填前核对元素仍代表同一图标键（重渲染后旧回填不贴错位）。 */
 function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
   if (!iconKey) return
@@ -248,21 +248,21 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   return el
 }
 
-/** 左组容量（工单58）：pill 实测几何 → 图标格数（含 ⋯ 钮位）。右限 = 中组 pill 左缘
- * （中组整组不渲染时 = 条带右缘）；中组绝定位不参与左组布局，其矩形只作边界。 */
-function leftSlots(): number {
-  const rightLimit = pill.hidden
+/** 应用组容量（工单58）：pill 实测几何 → 图标格数（含 ⋯ 钮位）。右限 = 开始组 pill 左缘
+ * （开始组整组不渲染时 = 条带右缘）；开始组绝定位不参与应用组布局，其矩形只作边界。 */
+function appsSlots(): number {
+  const rightLimit = pillStart.hidden
     ? document.body.clientWidth - GROUP_GAP
-    : pill.getBoundingClientRect().left - GROUP_GAP
-  const avail = rightLimit - LEFT_INSET - PILL_PAD_X
+    : pillStart.getBoundingClientRect().left - GROUP_GAP
+  const avail = rightLimit - APPS_INSET - PILL_PAD_X
   return Math.max(0, Math.floor(avail / CELL_W))
 }
 
-/** 左组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
+/** 应用组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
  * 分发与呈现——launch/activate/minimize 无需回显，window-list 才在 pill 内横排
  * 列出窗口标题供精确选窗（条带窗 48px 高，竖排浮层出不了窗口矩形，54 菜单同款先例）。
  * 标题仅即时进出 DOM，不落任何存储（ADR-0002）。 */
-async function onAppClick(e: TaskbarLeftViewEntry, inOverflow: boolean): Promise<void> {
+async function onAppClick(e: TaskbarAppViewEntry, inOverflow: boolean): Promise<void> {
   window.deck.host.notify('taskbar-app-action', { exe: e.exe })
   const r = await dispatchAppClick(window.deck.bridge, e.exe)
   window.deck.host.notify('taskbar-app-result', {
@@ -279,7 +279,7 @@ async function onAppClick(e: TaskbarLeftViewEntry, inOverflow: boolean): Promise
 }
 
 /** 拖拽接线（工单57）：拖到某个条目上 = 落该条目之前（亮条指示）；拖到组内空白 =
- * 落可编辑段末尾（before=null）。跨组同款：中→左升手钉、左→中解除手钉回推荐池。
+ * 落可编辑段末尾（before=null）。跨组同款：推荐→应用升手钉、应用→推荐解除手钉回推荐池。
  * 落点裁决与落盘在内核（taskbar/drag-drop），渲染层只负责源记录与落点反馈。 */
 function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): void {
   el.draggable = true
@@ -335,10 +335,10 @@ function makeGroupDropTarget(container: HTMLElement, group: TaskbarDragGroup): v
   })
 }
 
-/** 左组图标元素（栏内与溢出浮层同一构建路径——同 .tb-app 形态、同 data-exe 挂点、
+/** 应用组图标元素（栏内与溢出浮层同一构建路径——同 .tb-app 形态、同 data-exe 挂点、
  * 同点击分发；工单53 的全交互在同一挂点上扩展后两边自然一致）。inOverflow = 点在浮层
  * 里：分发后收层（Win11 溢出浮层同款——点完即收）。 */
-function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
+function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
   const el = document.createElement('div')
   el.className = e.running ? 'tb-app running' : 'tb-app'
   el.dataset.exe = e.exe // 交互挂点（点击/右键按 exe 身份分发）
@@ -349,7 +349,7 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
   img.alt = e.label
   el.appendChild(img)
   applyIcon(img, e.iconKey)
-  if (e.pinned) makeDraggable(el, 'left', e.exe) // 仅手钉可拖（内核只接受手钉段内换位）
+  if (e.pinned) makeDraggable(el, 'apps', e.exe) // 仅手钉可拖（内核只接受应用组手钉段内换位）
   el.addEventListener('click', () => { void onAppClick(e, inOverflow) })
   el.addEventListener('auxclick', (ev) => {
     if (ev.button !== 1) return
@@ -371,19 +371,19 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
   return el
 }
 
-/** 左组渲染（工单52/58）：手钉+运行中合并条目按容量拆分——栏内满员即出 ⋯ 钮，
+/** 应用组渲染（工单52/58）：手钉+运行中合并条目按容量拆分——栏内满员即出 ⋯ 钮，
  * 浮层开着时尾部条目横排进 pill（条带窗只有 48px 高，竖排浮层出不了窗口矩形，
  * 54 右键菜单同款先例）；数量回落浮层自动收、图标回栏。空组整组不渲染（display:none） */
-function renderLeft(entries: TaskbarLeftViewEntry[]): void {
-  pillLeft.textContent = ''
-  pillLeft.style.display = entries.length ? '' : 'none'
+function renderApps(entries: TaskbarAppViewEntry[]): void {
+  pillApps.textContent = ''
+  pillApps.style.display = entries.length ? '' : 'none'
   if (!entries.length) {
     overflowOpen = false
     return
   }
-  const { bar, overflow } = splitLeftOverflow(entries, leftSlots())
+  const { bar, overflow } = splitAppsOverflow(entries, appsSlots())
   if (!overflow.length) overflowOpen = false // 数量回落自动收层（图标全部回栏）
-  for (const e of bar) pillLeft.appendChild(makeAppEl(e, false))
+  for (const e of bar) pillApps.appendChild(makeAppEl(e, false))
   if (overflow.length) {
     const toggle = document.createElement('div')
     toggle.className = 'tb-overflow'
@@ -393,12 +393,12 @@ function renderLeft(entries: TaskbarLeftViewEntry[]): void {
       overflowOpen = !overflowOpen
       if (current) render(current)
     })
-    pillLeft.appendChild(toggle)
+    pillApps.appendChild(toggle)
     if (overflowOpen) {
       const sep = document.createElement('div')
-      sep.className = 'tb-left-sep'
-      pillLeft.appendChild(sep)
-      for (const e of overflow) pillLeft.appendChild(makeAppEl(e, true))
+      sep.className = 'tb-apps-sep'
+      pillApps.appendChild(sep)
+      for (const e of overflow) pillApps.appendChild(makeAppEl(e, true))
     }
   }
 }
@@ -406,16 +406,17 @@ function renderLeft(entries: TaskbarLeftViewEntry[]): void {
 function render(state: TaskbarState): void {
   current = state
   const vm = taskbarViewModel(state)
-  pill.hidden = !vm.visible
-  pill.textContent = ''
+  pillStart.hidden = !vm.visible
+  pillStart.textContent = ''
   if (!vm.visible) {
     closeMenu()
-    renderLeft(vm.left) // 中组不渲染 ≠ 左组不渲染（两按钮全隐藏且无推荐的边界）
-    declareHotZones(state) // 中组不渲染：热区只留左组/右组/细条（declareHotZones 内按 vm.visible 裁决）
+    renderApps(vm.apps) // 开始组不渲染 ≠ 应用组不渲染（两按钮全隐藏且无推荐的边界）
+    declareHotZones(state) // 开始组不渲染：热区只留应用组/右组/细条（declareHotZones 内按 vm.visible 裁决）
     notifyGeometry()
     return
   }
-  // 中组（工单54 边界条件：两按钮全隐藏且无推荐 → 整组不渲染，只剩左右两组）
+  // 开始组 pill（工单54 边界条件：两按钮全隐藏且无推荐 → 整组不渲染，只剩应用组与右组；
+  // 推荐位暂栖本 pill，推荐组拆出前随其显隐）
   if (vm.visible) {
     for (const b of vm.buttons) {
       const el = document.createElement('div')
@@ -427,20 +428,20 @@ function render(state: TaskbarState): void {
         void dispatchTaskbarButton(window.deck.bridge, b.id)
           .then((r) => window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
       })
-      pill.appendChild(el)
+      pillStart.appendChild(el)
     }
     for (const rec of vm.recommendations) {
       const el = document.createElement('div')
       el.className = 'tb-rec'
       el.dataset.name = rec.name
       el.textContent = rec.display
-      makeDraggable(el, 'mid', rec.name) // 推荐位可拖：组内换位 / 拖左组升手钉
-      pill.appendChild(el)
+      makeDraggable(el, 'recs', rec.name) // 推荐位可拖：组内换位 / 拖应用组升手钉
+      pillStart.appendChild(el)
     }
     if (menuOpen) {
       const sep = document.createElement('div')
       sep.className = 'tb-menu-sep'
-      pill.appendChild(sep)
+      pillStart.appendChild(sep)
       for (const row of vm.menu) {
         const el = document.createElement('div')
         el.className = 'tb-menu-item'
@@ -453,7 +454,7 @@ function render(state: TaskbarState): void {
           void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
             .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
         })
-        pill.appendChild(el)
+        pillStart.appendChild(el)
       }
     }
   } else {
@@ -462,7 +463,7 @@ function render(state: TaskbarState): void {
   if (appMenu) {
     const sep = document.createElement('div')
     sep.className = 'tb-menu-sep'
-    pill.appendChild(sep)
+    pillStart.appendChild(sep)
     for (const row of appMenu.rows) {
       const el = document.createElement('div')
       el.className = 'tb-menu-item'
@@ -472,18 +473,18 @@ function render(state: TaskbarState): void {
         ev.stopPropagation()
         const exe = appMenu?.exe ?? ''
         window.deck.host.notify('taskbar-app-menu-action', { exe, action: row.action })
-        // 回推的 taskbar/changed 驱动重渲收层（手钉变更即刻反映在左组）
+        // 回推的 taskbar/changed 驱动重渲收层（手钉变更即刻反映在应用组）
         void dispatchAppMenuAction(window.deck.bridge, exe, row.action)
         appMenu = null
         if (current) render(current)
       })
-      pill.appendChild(el)
+      pillStart.appendChild(el)
     }
   }
   if (windowList) {
     const sep = document.createElement('div')
     sep.className = 'tb-menu-sep'
-    pill.appendChild(sep)
+    pillStart.appendChild(sep)
     for (const w of windowList.windows) {
       const el = document.createElement('div')
       el.className = 'tb-win-item'
@@ -496,10 +497,10 @@ function render(state: TaskbarState): void {
         windowList = null
         if (current) render(current)
       })
-      pill.appendChild(el)
+      pillStart.appendChild(el)
     }
   }
-  renderLeft(vm.left) // 中组内容先行：左组容量按中组 pill 的当前矩形裁决溢出
+  renderApps(vm.apps) // 开始组内容先行：应用组容量按开始组 pill 的当前矩形裁决溢出
   declareHotZones(current)
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
@@ -559,10 +560,10 @@ document.addEventListener('click', (ev) => {
 })
 
 function boot(): void {
-  makeGroupDropTarget(pillLeft, 'left') // 拖到左组空白 = 落手钉段末尾
-  makeGroupDropTarget(pill, 'mid') // 拖到中组空白 = 落推荐位末尾
+  makeGroupDropTarget(pillApps, 'apps') // 拖到应用组空白 = 落手钉段末尾
+  makeGroupDropTarget(pillStart, 'recs') // 拖到推荐位栖身的开始组 pill 空白 = 落推荐位末尾
   // 右键 = 系统按钮显隐菜单（工单54 自绘最小菜单；应用图标右键菜单是 #53 的领域，不依赖它）
-  pill.addEventListener('contextmenu', (e) => {
+  pillStart.addEventListener('contextmenu', (e) => {
     e.preventDefault()
     if (menuOpen) closeMenu()
     else {
@@ -576,7 +577,7 @@ function boot(): void {
     if (current) render(current)
   })
   // 点 pill 空白（非按钮/推荐位/菜单项）收菜单
-  pill.addEventListener('click', (e) => {
+  pillStart.addEventListener('click', (e) => {
     if (!menuOpen) return
     if ((e.target as HTMLElement).closest('.tb-btn, .tb-rec, .tb-menu-item')) return
     closeMenu()
@@ -600,8 +601,8 @@ function boot(): void {
     }
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
-      enabled: state.enabled, pill: m.pill, buttons: m.buttons, recommendations: m.recommendations,
-      leftPill: m.leftPill, apps: m.apps, overflow: m.overflow,
+      enabled: state.enabled, startPill: m.startPill, buttons: m.buttons, recommendations: m.recommendations,
+      appsPill: m.appsPill, apps: m.apps, overflow: m.overflow,
       rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, sliver: m.sliver,
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
