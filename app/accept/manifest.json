@@ -801,6 +801,8 @@
       "entry": "app/accept/taskbar-apps-filter.js",
       "script": "accept:taskbar-apps-filter",
       "budgetSeconds": 60,
+      "lastMeasuredSeconds": 10,
+      "lastMeasuredAt": "2026-10-11",
       "segments": [
         {
           "seg": "P1",
