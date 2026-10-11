@@ -759,7 +759,15 @@ async function main() {
     //           WM_LBUTTONUP）——本机无真实 v4 样本，自注册探针补合成对照
     rep.beginSegment('P13');
     const t13on = Date.now();
-    const r13on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
+    // P12(b) 重拉的面板渲染页可能尚未就位 CDP（boot 存证早于渲染页加载，红轮实证
+    // /json 列表还无 AGENT DECK 目标）——先等面板窗在场，再重试取页（各 500ms 一拍）
+    await waitWindow(panelPid, PANEL_TITLE, 10000);
+    let r13on = null;
+    for (let i = 0; i < 20 && !(r13on && r13on.enabled === true); i++) {
+      try { r13on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`); }
+      catch { /* 渲染页未就位——下一拍重试 */ }
+      if (!(r13on && r13on.enabled === true)) await sleep(500);
+    }
     const strip13 = await waitWindow(panelPid, TASKBAR_TITLE, 10000);
     const hostReady13 = await waitEvent('tray-host-ready', (e) => e.t >= t13on, 10000);
     let roster13 = 0;
@@ -791,35 +799,39 @@ async function main() {
         tooltip: 'DECK164-PROBE-V4', uVersion: 0 });
       const okAdd0 = ShellNotifyIconW(NIM_ADD, nidV0);
       const okAdd4 = ShellNotifyIconW(NIM_ADD, nidV4);
-      // 事件流 tray-event 落盘字段=kind/key/hwnd/tooltip（无 uid/version，#163 留档口径）——
-      // 探针按自算 key（<hwnd十进制>:<uid十进制>）匹配；协商版本号不在 add/version 事件里，
-      // 其真值断言落在 v4 臂的 tray-replay 存证 version 字段（宿主登记表回读）
+      // 探针收编确认：tray-event 明细只在 spike 模式落盘（#163 留档口径，红轮实证
+      // 非轮 0 行）——改走栏内名单（get-state 的 key 集合，服务层消费同一事件流，
+      // P11 收编断言同源）轮询等待探针在册；key = <hwnd十进制>:<uid十进制>
+      const waitRosterKey = async (key, timeoutMs = 9000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const st = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
+          if (st && st.tray && st.tray.some((t) => t.key === key)) return true;
+          await sleep(400);
+        }
+        return false;
+      };
       const expKey0 = `${probe164.hwnd}:${PROBE_UID_V0}`;
       const expKey4 = `${probe164.hwnd}:${PROBE_UID_V4}`;
-      const addEv0 = await waitEvent('tray-event', (e) => e.kind === 'add' && e.key === expKey0, 8000);
-      const addEv4 = await waitEvent('tray-event', (e) => e.kind === 'add' && e.key === expKey4, 8000);
-      // v4 协商：NIM_SETVERSION 负载只带 hwnd/uid/uVersion=4（uVersion 字段即协商值）
+      const inRoster0 = okAdd0 ? await waitRosterKey(expKey0) : false;
+      const inRoster4 = okAdd4 ? await waitRosterKey(expKey4) : false;
+      // v4 协商：NIM_SETVERSION 负载只带 hwnd/uid/uVersion=4（uVersion 字段即协商值）。
+      // 协商真值断言落在 v4 臂的 tray-replay 存证 version 字段（宿主登记表回读——
+      // version 类事件明细同样只在 spike 模式落盘）
       const nidV4set = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe164.hwnd, uid: PROBE_UID_V4,
         flags: 0, callbackMessage: 0, hicon: 0, uVersion: 4 });
-      const okSet4 = okAdd4 ? ShellNotifyIconW(NIM_SETVERSION, nidV4set) : false;
-      const verEv4 = await waitEvent('tray-event', (e) => e.kind === 'version' && e.key === expKey4, 8000);
+      const okSet4 = okAdd4 && inRoster4 ? ShellNotifyIconW(NIM_SETVERSION, nidV4set) : false;
       const arms = [];
       const armFail = (name, detail) => arms.push(`${name}: ${detail}`);
-      if (!(okAdd0 && addEv0)) armFail('probe-add-v0', `ok=${okAdd0} 事件=${!!addEv0} key=${expKey0}`);
-      if (!(okAdd4 && addEv4)) armFail('probe-add-v4', `ok=${okAdd4} 事件=${!!addEv4} key=${expKey4}`);
-      if (!(okSet4 && verEv4)) armFail('probe-setversion', `ok=${okSet4} 事件=${!!verEv4}（version 真值由 v4 臂存证断言）`);
-
-      // 名单护栏确认（key 护栏 = 栏内托盘名单，探针收编后必须在册）
-      await sleep(800); // 服务层 applyTrayEvent 推进 + 条带渲染稳定拍
-      const key0 = addEv0 && addEv0.key;
-      const key4 = addEv4 && addEv4.key;
-      const state13 = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
-      const keys13 = state13 && state13.tray ? state13.tray.map((t) => t.key) : [];
-      if (key0 && !keys13.includes(key0)) armFail('roster-v0', `key=${key0} 不在栏内名单`);
-      if (key4 && !keys13.includes(key4)) armFail('roster-v4', `key=${key4} 不在栏内名单`);
+      if (!(okAdd0 && inRoster0)) armFail('probe-add-v0', `ok=${okAdd0} 名单在册=${inRoster0} key=${expKey0}`);
+      if (!(okAdd4 && inRoster4)) armFail('probe-add-v4', `ok=${okAdd4} 名单在册=${inRoster4} key=${expKey4}`);
+      if (!okSet4) armFail('probe-setversion', `ok=${okSet4}（version 真值由 v4 臂存证断言）`);
+      const key0 = okAdd0 && inRoster0 ? expKey0 : null;
+      const key4 = okAdd4 && inRoster4 ? expKey4 : null;
+      if (key0 || key4) await sleep(800); // 条带渲染稳定拍（真实点击臂取几何前）
 
       // —— v0 右键（invoke 臂）：存证 + 收帧逐字段 ——
-      if (addEv0 && key0 && keys13.includes(key0)) {
+      if (key0) {
         const t = Date.now();
         probe164.frames.length = 0;
         await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key0)}, button: 'right' })`);
@@ -835,7 +847,7 @@ async function main() {
       }
 
       // —— v0 左键（真实点击臂）：SendInput 点条带探针图标 → DOM handler → 桥 → 宿主 → 收帧 ——
-      if (addEv0 && key0 && keys13.includes(key0)) {
+      if (key0) {
         const rect13 = win32.rectOf(strip13);
         const dip13 = screen.getPrimaryDisplay().bounds;
         const scale13 = (rect13.right - rect13.left) / dip13.width;
@@ -862,12 +874,13 @@ async function main() {
             && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_LBUTTONUP_T;
           ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 lp=0x0202)')
             : armFail('v0-左键', `点击存证=${!!clickEv} 回放存证=${JSON.stringify(ev && { wparam: ev.wparam, lparam: ev.lparam, posted: ev.posted })} 收帧=${JSON.stringify(frame)}`);
+          win32.tapKeys([VK_ESC]); // 万一名单漂移点到邻位第三方图标开了菜单——尽力收净不留桌面残留
         }
       }
 
       // —— v4 两键（invoke 臂 + 定锚）：wparam=MAKELPARAM(x,y)、lparam=(uID<<16)|事件 ——
       // （门槛不再看 version 事件字段——事件流不落 version；协商真值 = 臂内存证 ev.version===4）
-      if (verEv4 && key4 && keys13.includes(key4)) {
+      if (okSet4 && key4) {
         const mkLparam = (x, y) => ((y & 0xffff) << 16) | (x & 0xffff);
         const mkLpV4 = (event) => ((PROBE_UID_V4 & 0xffff) << 16) | event;
         for (const [button, anchor, event, eventName] of [
