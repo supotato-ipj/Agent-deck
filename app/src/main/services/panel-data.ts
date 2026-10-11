@@ -13,7 +13,7 @@ export interface PanelDataPort {
   sessions(): SessionInfo[]
   hardware(): HardwareState
   desktop(): DesktopState
-  /** 任务栏中组推荐位（工单54）：使用频次链路产物，本地装配现算、数据面装配随快照携带 */
+  /** 任务栏推荐位（工单54）：使用频次链路产物，本地装配现算、数据面装配随快照携带 */
   taskbarRecommendations(): TaskbarRecommendation[]
   /** 一个采样轮：本地装配驱动采集服务刷新；数据面装配为空操作（子进程自驱动） */
   refresh(): void
@@ -70,7 +70,7 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
     return this.ctx.desktop.state()
   }
 
-  /** 任务栏中组推荐位（工单54）：应用区条目 ∩ 正分条目（fuseScores 链路的同源产物） */
+  /** 任务栏推荐位（工单54）：应用区条目 ∩ 正分条目（fuseScores 链路的同源产物） */
   taskbarRecommendations(): TaskbarRecommendation[] {
     const d = this.ctx.desktop.state()
     return planTaskbarRecommendations(d.items, this.ctx.desktop.usageScores())

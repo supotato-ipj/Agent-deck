@@ -90,7 +90,7 @@ export class DesktopService extends Service {
   private items: DesktopItem[] = []
   private plan: DesktopPlan = { docs: [] }
   private fingerprint = ''
-  /** 最近一轮编排的使用频次融合分（fuseScores 产物；中组推荐位（工单54）的同源取数口） */
+  /** 最近一轮编排的使用频次融合分（fuseScores 产物；推荐位（工单54）的同源取数口） */
   private lastScores: ReadonlyMap<string, number> = new Map()
 
   constructor(ctx: Context, options: DesktopServiceOptions = {}) {
@@ -161,7 +161,7 @@ export class DesktopService extends Service {
     return planDesktop(this.items, { docs: this.store.docs }, { docMaxRows: this.docMaxRows })
   }
 
-  /** 最近一轮编排的使用频次融合分（{显示名: 分数}；任务栏中组推荐位经此同源取数，工单54） */
+  /** 最近一轮编排的使用频次融合分（{显示名: 分数}；任务栏推荐位经此同源取数，工单54） */
   usageScores(): ReadonlyMap<string, number> {
     return this.lastScores
   }
@@ -481,7 +481,7 @@ export class DesktopService extends Service {
 }
 
 /** 显式摆位覆盖归类分区：docs 名单里的条目入文档区（其余条目回归扫描器的默认分区，
- * 应用条目仍是 zone=app，作为任务栏左组手钉与中组推荐位的元数据来源）。 */
+ * 应用条目仍是 zone=app，作为任务栏应用组手钉与推荐位（推荐组）的元数据来源）。 */
 function applyZoneOverrides(items: DesktopItem[], store: LayoutStore): DesktopItem[] {
   const docs = new Set(store.docs)
   return items.map((i) => (docs.has(i.name) ? { ...i, zone: 'doc' as const } : i))

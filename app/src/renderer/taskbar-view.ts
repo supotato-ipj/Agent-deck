@@ -1,9 +1,9 @@
-// 任务栏 pill 纯逻辑（工单49/52/54/55/56/58）：视图模型是状态 → 视图的纯函数（左组形态映射、
-// 中组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
+// 任务栏 pill 纯逻辑（工单49/52/54/55/56/58）：视图模型是状态 → 视图的纯函数（应用组形态映射、
+// 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
 import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
-import { planLeftOverflow } from '../shared/overflow.js'
+import { planAppsOverflow } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -11,7 +11,7 @@ export interface TaskbarBridge {
   on<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void
 }
 
-/** 中组系统按钮（工单49：开始 + TaskView） */
+/** 开始组系统按钮（工单49：开始 + TaskView） */
 export interface TaskbarButtonSpec {
   id: TaskbarButtonId
   label: string
@@ -39,7 +39,7 @@ export const RIGHT_CELLS: readonly TaskbarCellSpec[] = [
   { id: 'show-desktop', label: '', action: 'toggle-desktop' },
 ] as const
 
-/** 点击分发目录 = 中组按钮 + 右组动作格 */
+/** 点击分发目录 = 开始组按钮 + 右组动作格 */
 const CATALOG: ReadonlyArray<{ id: string; action: TaskbarSystemAction }> = [...TASKBAR_BUTTONS, ...RIGHT_CELLS]
 
 /** 硬件摘要指标显示名（序 = contract TASKBAR_METRIC_KEYS 规范序的渲染层镜像——
@@ -75,11 +75,11 @@ export interface TaskbarMenuRow {
 const BUTTON_NAMES: Record<TaskbarButtonId, string> = { start: '开始按钮', tasks: '任务视图按钮' }
 
 /**
- * 左组条目视图（工单52）：内核编排（left-plan 纯函数）的输出原样进渲染层，
+ * 应用组条目视图（工单52）：内核编排（apps-plan 纯函数）的输出原样进渲染层，
  * 本层只做形态映射。id = exe 身份原文——工单53 的点击/右键分发以它为挂点
  * （渲染层元素落 data-exe，分发经桥契约按身份寻址）。
  */
-export interface TaskbarLeftViewEntry {
+export interface TaskbarAppViewEntry {
   id: string
   exe: string
   label: string
@@ -90,7 +90,7 @@ export interface TaskbarLeftViewEntry {
   iconKey: string | null
 }
 
-/** 任务栏视图模型：visible=false = 中组整个不渲染（只剩左右两组的边界条件）；
+/** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染（只剩应用组与右组的边界条件）；
  * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳） */
 export interface TaskbarViewModel {
   visible: boolean
@@ -98,19 +98,19 @@ export interface TaskbarViewModel {
   recommendations: TaskbarRecommendation[]
   menu: TaskbarMenuRow[]
   metrics: TaskbarMetric[]
-  /** 左组（工单52）：序与运行态由内核编排查好，本层原样透出 + tooltip 回退 */
-  left: TaskbarLeftViewEntry[]
+  /** 应用组（工单52）：序与运行态由内核编排查好，本层原样透出 + tooltip 回退 */
+  apps: TaskbarAppViewEntry[]
   /** 托盘入栏名单（工单56）：身份键/tooltip/像素键原样透出——渲染层只负责摆与画 */
   tray: TaskbarTrayEntry[]
 }
 
 /**
- * 状态 → 视图：禁用即空壳；中组显隐 = 可见按钮或推荐位任非空（两按钮都隐藏且
- * 推荐位为空 → 整组不渲染）。菜单行恒列两按钮——只要中组还渲染，被藏按钮就有恢复入口；
+ * 状态 → 视图：禁用即空壳；开始组 pill 显隐 = 可见按钮或推荐位任非空（两按钮都隐藏且
+ * 推荐位为空 → 整组不渲染）。菜单行恒列两按钮——只要开始组 pill 还渲染，被藏按钮就有恢复入口；
  * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], left: [], tray: [] }
+  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], apps: [], tray: [] }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -119,7 +119,7 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     label: `${hidden.has(b.id) ? '显示' : '隐藏'}${BUTTON_NAMES[b.id]}`,
     hidden: hidden.has(b.id),
   }))
-  const left = (state.left ?? []).map((e) => ({
+  const apps = (state.apps ?? []).map((e) => ({
     id: e.exe,
     exe: e.exe,
     label: e.label,
@@ -134,7 +134,7 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     recommendations,
     menu,
     metrics: [...state.metrics],
-    left,
+    apps,
     tray: [...(state.tray ?? [])],
   }
 }
@@ -237,22 +237,22 @@ export async function dispatchTrayClick(
   return { ok: res.ok, ...(res.error ? { error: res.error } : {}) }
 }
 
-// —— 工单53 左组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——
+// —— 工单53 应用组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——
 
-/** 左组应用右键菜单动作（工单53）：手钉/解除手钉、关闭窗口、打开文件位置 */
+/** 应用组应用右键菜单动作（工单53）：手钉/解除手钉、关闭窗口、打开文件位置 */
 export type TaskbarAppMenuAction = 'pin' | 'unpin' | 'close' | 'reveal'
 
-/** 左组应用右键菜单行（工单53）：pill 内横排最小菜单（工单54 同形态） */
+/** 应用组应用右键菜单行（工单53）：pill 内横排最小菜单（工单54 同形态） */
 export interface TaskbarAppMenuRow {
   action: TaskbarAppMenuAction
   label: string
 }
 
 /**
- * 左组应用右键菜单行：手钉/解除手钉按 pinned 取一首行；关闭窗口仅运行中在列
+ * 应用组应用右键菜单行：手钉/解除手钉按 pinned 取一首行；关闭窗口仅运行中在列
  * （未运行没有可关的窗口）；打开文件位置恒在（手钉条目未运行也可定位 exe）。
  */
-export function taskbarAppMenuRows(entry: Pick<TaskbarLeftViewEntry, 'pinned' | 'running'>): TaskbarAppMenuRow[] {
+export function taskbarAppMenuRows(entry: Pick<TaskbarAppViewEntry, 'pinned' | 'running'>): TaskbarAppMenuRow[] {
   const rows: TaskbarAppMenuRow[] = [
     entry.pinned ? { action: 'unpin', label: '解除手钉' } : { action: 'pin', label: '手钉到任务栏' },
   ]
@@ -287,7 +287,7 @@ export async function dispatchActivateWindow(
   return bridge.invoke('taskbar/activate-window', { hwnd })
 }
 
-/** 中键新实例分发：恒启动（内核左组护栏兜底）。空 exe 是噪声。 */
+/** 中键新实例分发：恒启动（内核应用组护栏兜底）。空 exe 是噪声。 */
 export async function dispatchAppNewInstance(
   bridge: Pick<TaskbarBridge, 'invoke'>,
   exe: string,
@@ -330,25 +330,25 @@ export async function dispatchTaskbarDragDrop(
   bridge: Pick<TaskbarBridge, 'invoke'>,
   drop: TaskbarDragDrop,
 ): Promise<{ ok: boolean; error?: string }> {
-  const groups: readonly string[] = ['left', 'mid']
+  const groups: readonly string[] = ['apps', 'recs']
   if (!drop || !drop.id || !groups.includes(drop.from) || !groups.includes(drop.to)) {
     return { ok: false, error: '拖拽描述子畸形' }
   }
   return bridge.invoke('taskbar/drag-drop', drop)
 }
 
-/** 左组溢出拆分（工单58）：裁决本体是 left-plan 的 planLeftOverflow（编排纯函数），
+/** 应用组溢出拆分（工单58）：裁决本体是 apps-plan 的 planAppsOverflow（编排纯函数），
  * 本层只是把它接到视图条目上——slots 由渲染层按 pill 几何实测（含 ⋯ 钮位）。
  * overflow 非空即 ⋯ 钮的渲染判据；浮层条目与栏内同一份引用（同形态同挂点）。 */
-export function splitLeftOverflow(
-  left: readonly TaskbarLeftViewEntry[],
+export function splitAppsOverflow(
+  apps: readonly TaskbarAppViewEntry[],
   slots: number,
-): { bar: TaskbarLeftViewEntry[]; overflow: TaskbarLeftViewEntry[] } {
-  return planLeftOverflow(left, slots)
+): { bar: TaskbarAppViewEntry[]; overflow: TaskbarAppViewEntry[] } {
+  return planAppsOverflow(apps, slots)
 }
 
 /**
- * 左组应用图标点击分发（工单58）：栏内与溢出浮层共用同一道分发——exe 身份经桥
+ * 应用组应用图标点击分发（工单58）：栏内与溢出浮层共用同一道分发——exe 身份经桥
  * invoke，启动/置前裁决在内核（taskbar/activate-app）。响应原样上抛（ok:false 也
  * 返回——点击语义不需 try/catch）；空 exe 是噪声（不发 invoke）。
  * 工单53 衔接面：右键菜单/中键/最小化切换在同一 exe 身份上另开动作，本分发不变。

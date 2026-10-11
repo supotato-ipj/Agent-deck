@@ -31,7 +31,7 @@ const RENDER_HEARTBEAT_MS = 2000
 setInterval(() => window.deck.host.beat(), RENDER_HEARTBEAT_MS)
 
 // ---- 桌面承载（工单05 扫描/图标/启动 + 工单06 编排/摆位 + 工单20 选区）：文档区分组列 ----
-// 工单59：dock 应用区退役——应用入口并入任务栏（左组手钉/运行中 + 中组推荐位），
+// 工单59：dock 应用区退役——应用入口并入任务栏（应用组手钉/运行中 + 推荐位），
 // 桌面只承载文档区。应用条目仍在条目池里（zone=app），供任务栏取元数据，不再上屏。
 // 条目池随 1Hz 快照下发，按指纹 diff——集合未变不重建 DOM；图标经 desktop/icon
 // 懒取（dataURL 本地缓存，键含 mtime，lnk 指向变更自然换图标）。
@@ -674,7 +674,7 @@ for (const type of ['click', 'contextmenu'] as const) {
  * 第 4/5 行【复制】【剪切】（工单29，文件级剪贴板写向，COPY PATH 之后）、
  * 第 6 行【重命名】（工单28）：原地编辑（beginRename，标签变输入框）、
  * 第 7 行【删除】（工单27）：单删直接执行不弹确认（送回收站，误删可找回）。
- * 工单59：钉到应用区/取消手钉两行随 dock 一并退役——手钉改由任务栏左组承担。 */
+ * 工单59：钉到应用区/取消手钉两行随 dock 一并退役——手钉改由任务栏应用组承担。 */
 function itemMenuItems(item: DesktopItem): DeckCtxMenuItem[] {
   return [
     { id: 'open', label: 'OPEN', run: () => launchNames([item.name], 'ctx-menu') },

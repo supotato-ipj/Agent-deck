@@ -17,8 +17,8 @@
     user-select: none;
     cursor: default;
   }
-  /* 左组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
-  #pill-left {
+  /* 应用组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
+  #pill-apps {
     position: absolute;
     left: 8px;
     top: 50%;
@@ -60,7 +60,7 @@
     border-radius: 1px;
     background: rgba(255, 255, 255, 0.85);
   }
-  /* 左组溢出（工单58）：⋯ 钮与浮层条目同在左组 pill 内横排——条带窗只有 64px 高，
+  /* 应用组溢出（工单58）：⋯ 钮与浮层条目同在应用组 pill 内横排——条带窗只有 64px 高，
    * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
    * 热区按展开后的矩形重声明。 */
   .tb-overflow {
@@ -77,13 +77,13 @@
     padding-bottom: 10px; /* ⋯ 视觉居中（字形的点偏基线下） */
   }
   .tb-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
-  .tb-left-sep {
+  .tb-apps-sep {
     width: 1px;
     align-self: stretch;
     margin: 6px 2px;
     background: rgba(255, 255, 255, 0.14);
   }
-  /* 胶囊外观（中组与右组共用 .pill；#pill / #right-pill 只管各自的钉靠位置） */
+  /* 胶囊外观（开始组与右组共用 .pill；#pill-start / #right-pill 只管各自的钉靠位置） */
   .pill {
     display: flex;
     align-items: center;
@@ -93,14 +93,15 @@
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
   }
-  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
-   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件）。
-   * 工单158 挤撞回正：托盘 24px/字号升档后右组变宽会左侵屏幕居中的中组，右组在
+  /* 开始组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
+   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件；推荐位暂栖
+   * 本 pill，推荐组拆出前随其显隐）。
+   * 工单158 挤撞回正：托盘 24px/字号升档后右组变宽会左侵屏幕居中的开始组，右组在
    * DOM 后绘会把任务视图钮盖死（49 电池 P5 真机红：点击落到硬件摘要上）——taskbar.ts
-   * positionCenterPill 以 [左组右缘, 右组左缘] 夹取居中位；极端拥挤（26+ 托盘）时
+   * positionStartPill 以 [应用组右缘, 右组左缘] 夹取居中位；极端拥挤（26+ 托盘）时
    * pill 收窄、仅展示的推荐位（.tb-rec）收缩让位，交互钮（.tb-btn）flex:none 永不裁切。
    * #159 布局重排以组级重排取代本夹取。 */
-  #pill {
+  #pill-start {
     position: fixed;
     left: 50%;
     top: 50%;
@@ -109,7 +110,7 @@
     min-width: 0;
     overflow: hidden;
   }
-  #pill[hidden] { display: none; }
+  #pill-start[hidden] { display: none; }
   /* 右组 pill（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟；钉右端、给细条让位 */
   #right-pill {
     position: fixed;
@@ -204,8 +205,8 @@
 </style>
 </head>
 <body>
-<div id="pill-left" role="toolbar" aria-label="任务栏左组"></div>
-<div id="pill" class="pill" role="toolbar" aria-label="任务栏中组"></div>
+<div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
+<div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
 <div id="right-pill" class="pill" role="toolbar" aria-label="任务栏右组"></div>
 <div id="show-desktop" role="button" aria-label="显示桌面"></div>
 <script type="module" src="./taskbar.js"></script>
