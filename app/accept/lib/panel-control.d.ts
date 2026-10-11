@@ -59,9 +59,9 @@ export declare interface ClassifiedWindow {
 /** 遗留面板窗核验：只认 Chrome_WidgetWin_1 + 标题 AGENT DECK 且 pid≠selfPid 的窗 */
 export declare function findPanelWindows(classified: ClassifiedWindow[]): ClassifiedWindow[]
 
-/** preflight 警示条目（工单113 四类 + 工单34 第五类）：kind = 五类污染源枚举；detail 为入账文本 */
+/** preflight 警示条目（工单113 四类 + 工单34 第五类 + 工单141 第六类）：kind = 六类污染源枚举；detail 为入账文本 */
 export declare interface PreflightEntry {
-  kind: 'double-panel' | 'leftover-panel' | 'dwm-ghost' | 'fullscreen-overlay' | 'user-window-activity'
+  kind: 'double-panel' | 'leftover-panel' | 'dwm-ghost' | 'fullscreen-overlay' | 'user-window-activity' | 'tray-machine-state'
   detail: string
 }
 
@@ -75,6 +75,8 @@ export declare interface PreflightProbes {
   fullscreenForeign?: { cls: string; pid: number; title?: string }[]
   /** 可见窗快照原样行（工单34 第五类输入；classifyPreflight 不读） */
   rows?: WindowSnapshotRow[]
+  /** 托盘机器态预告（工单141 第六类输入：本电池 exe 的 NotifyIconSettings 条目读数） */
+  trayMachine?: { exe?: string; entryExists?: boolean; promoted?: number | null } | null
 }
 
 /** preflight 环境体检分类（工单113）：四类污染源 → 警示条目；无污染返回空数组 */
@@ -101,3 +103,8 @@ export declare interface WindowSnapshotRow {
  * probes.rows 无前台行/缺省=未检出。入参与 classifyPreflight 同缝（整个 probes 对象）。
  * 警示入账不拒跑、不进三路计数（ADR-0011 同构）。 */
 export declare function classifyUserWindowActivity(probes?: PreflightProbes): PreflightEntry[]
+
+/** preflight 第六类分类（工单141，spec #145）：托盘机器态预告——条目缺失/提升位未置各恰一条
+ * tray-machine-state 警示（不拒跑、不进三路计数）；它只预告，P8/P10 失败时的记账决定由
+ * tray-machine-state.js 的严口径判定在断言位做出。入参同缝（整个 probes 对象）。 */
+export declare function classifyTrayMachineState(probes?: PreflightProbes): PreflightEntry[]

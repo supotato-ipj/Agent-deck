@@ -193,4 +193,30 @@ function classifyUserWindowActivity(probes = {}) {
   }];
 }
 
-module.exports = { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };
+/**
+ * preflight 第六类：托盘机器态（工单141，spec #145）。纯检查函数——入参同缝
+ * （probes.trayMachine 由 battery 侧带出：本电池 exe 的 NotifyIconSettings 条目预告），
+ * 输出=警示条目（不拒跑、不进三路计数）。它只预告：P8/P10 失败时的记账决定由
+ * tray-machine-state.js 的严口径判定在断言位做出（tray-add 注册存证在场才入环境账）。
+ * @param {{trayMachine?: {exe?:string, entryExists?:boolean, promoted?:number|null}|null}} probes
+ * @returns {{kind:'tray-machine-state', detail:string}[]}
+ */
+function classifyTrayMachineState(probes = {}) {
+  const tm = probes.trayMachine;
+  if (!tm) return [];
+  if (tm.entryExists === false) {
+    return [{
+      kind: 'tray-machine-state',
+      detail: `NotifyIconSettings 无本电池 exe 条目（${tm.exe}）——新 exe 路径建档时序常态；P8/P10 托盘断言若失败将按严口径判定（tray-add 存证在场才入环境账，工单141）`,
+    }];
+  }
+  if (tm.promoted !== 1) {
+    return [{
+      kind: 'tray-machine-state',
+      detail: `托盘提升位未置（IsPromoted=${tm.promoted ?? '未设'}）——图标默认溢出层；P8 将自行提升，失败语将带机器态定向（工单141）`,
+    }];
+  }
+  return [];
+}
+
+module.exports = { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };
