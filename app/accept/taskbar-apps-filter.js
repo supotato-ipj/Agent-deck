@@ -174,14 +174,24 @@ async function main() {
       }
       return null;
     })();
+    const PROBE_DIAG = path.join(__dirname, 'evidence', '156-probe-diag.txt');
+    try { fs.rmSync(PROBE_DIAG, { force: true }); } catch { /* 无旧档 */ }
     probe = spawn('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File',
-      path.join(__dirname, 'lib', 'garbage-window-probe.ps1')], { stdio: 'ignore' });
+      path.join(__dirname, 'lib', 'garbage-window-probe.ps1')], {
+      stdio: 'ignore',
+      env: { ...process.env, DECK_PROBE_DIAG: PROBE_DIAG },
+    });
     // 等三扇垃圾窗可见在场（按宿主 pid 圈定，最多 12s）
     let probeWins = [];
     for (let i = 0; i < 40 && probeWins.length < 3; i++) {
       await sleep(300);
       probeWins = visibleWindowsOfPid(probe.pid);
     }
+    // 红轮定责出口（首红轮实证：stdio ignore 吞错时探针无声缺席）：退出码 + 诊断档
+    const probeExit = probe.exitCode;
+    let probeDiag = null;
+    try { probeDiag = fs.readFileSync(PROBE_DIAG, 'utf8').trim(); } catch { /* 探针没来得及写 */ }
+    rep.note(`垃圾窗探针: exit=${probeExit} diag=${probeDiag === null ? '(无诊断档)' : probeDiag}`);
     // 取证每扇特征（探针自证——阴性断言的输入必须真实在场）
     const forensics = probeWins.map((h) => ({
       hwnd: h,

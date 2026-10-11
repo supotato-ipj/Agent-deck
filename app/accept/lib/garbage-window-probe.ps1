@@ -4,8 +4,15 @@
 #   窗2 工具窗（WS_EX_TOOLWINDOW，带标题——特性窗/悬浮工具条形态）
 #   窗3 有属主且无 WS_EX_APPWINDOW 的弹窗（owner=窗1——对话框/二级窗形态）
 # 三扇均 WS_VISIBLE 在场。造完进消息泵保窗；宿主被 taskkill 即窗亡（电池清场路径）。
+# 诊断落盘：DECK_PROBE_DIAG 环境变量给路径时写造窗结果（stdio 被 ignore，红轮定责
+# 唯一出口——首红轮实证探针窗未到场，无诊断无从定责）。
 $ErrorActionPreference = 'Stop'
-$src = @'
+function Write-Diag([string]$text) {
+  $p = $env:DECK_PROBE_DIAG
+  if ($p) { try { Set-Content -Path $p -Value $text -Encoding UTF8 } catch { } }
+}
+try {
+  $src = @'
 using System;
 using System.Runtime.InteropServices;
 public static class G {
@@ -18,17 +25,25 @@ public static class G {
   [DllImport("user32.dll")] public static extern int GetMessageW(ref MSG m, IntPtr h, uint a, uint b);
 }
 '@
-Add-Type -TypeDefinition $src
-$inst = [G]::GetModuleHandleW($null)
-$WS_OVERLAPPEDWINDOW = 0x00CF0000
-$WS_VISIBLE = 0x10000000
-$WS_EX_TOOLWINDOW = 0x80
-# 窗1：可见空标题（标题参数传 null）
-$h1 = [G]::CreateWindowExW(0, 'Static', $null, $WS_OVERLAPPEDWINDOW -bor $WS_VISIBLE, 90, 90, 320, 200, [IntPtr]::Zero, [IntPtr]::Zero, $inst, [IntPtr]::Zero)
-# 窗2：工具窗（WS_EX_TOOLWINDOW，带标题）
-$h2 = [G]::CreateWindowExW($WS_EX_TOOLWINDOW, 'Static', 'Deck156ToolProbe', $WS_OVERLAPPEDWINDOW -bor $WS_VISIBLE, 130, 130, 320, 200, [IntPtr]::Zero, [IntPtr]::Zero, $inst, [IntPtr]::Zero)
-# 窗3：有属主无 APPWINDOW 的弹窗（hWndParent=窗1 → GW_OWNER 非空）
-$h3 = [G]::CreateWindowExW(0, 'Static', 'Deck156OwnedProbe', $WS_OVERLAPPEDWINDOW -bor $WS_VISIBLE, 170, 170, 320, 200, $h1, [IntPtr]::Zero, $inst, [IntPtr]::Zero)
-if ($h1 -eq [IntPtr]::Zero -or $h2 -eq [IntPtr]::Zero -or $h3 -eq [IntPtr]::Zero) { exit 2 }
-$m = New-Object G+MSG
-while ([G]::GetMessageW([ref]$m, [IntPtr]::Zero, 0, 0) -gt 0) { }
+  Add-Type -TypeDefinition $src
+  $inst = [G]::GetModuleHandleW($null)
+  $WS_OVERLAPPEDWINDOW = 0x00CF0000
+  $WS_VISIBLE = 0x10000000
+  $WS_EX_TOOLWINDOW = 0x80
+  # 窗1：可见空标题（标题参数传 null）
+  $h1 = [G]::CreateWindowExW(0, 'Static', $null, $WS_OVERLAPPEDWINDOW -bor $WS_VISIBLE, 90, 90, 320, 200, [IntPtr]::Zero, [IntPtr]::Zero, $inst, [IntPtr]::Zero)
+  # 窗2：工具窗（WS_EX_TOOLWINDOW，带标题）
+  $h2 = [G]::CreateWindowExW($WS_EX_TOOLWINDOW, 'Static', 'Deck156ToolProbe', $WS_OVERLAPPEDWINDOW -bor $WS_VISIBLE, 130, 130, 320, 200, [IntPtr]::Zero, [IntPtr]::Zero, $inst, [IntPtr]::Zero)
+  # 窗3：有属主无 APPWINDOW 的弹窗（hWndParent=窗1 → GW_OWNER 非空）
+  $h3 = [G]::CreateWindowExW(0, 'Static', 'Deck156OwnedProbe', $WS_OVERLAPPEDWINDOW -bor $WS_VISIBLE, 170, 170, 320, 200, $h1, [IntPtr]::Zero, $inst, [IntPtr]::Zero)
+  if ($h1 -eq [IntPtr]::Zero -or $h2 -eq [IntPtr]::Zero -or $h3 -eq [IntPtr]::Zero) {
+    Write-Diag "create-fail h1=$h1 h2=$h2 h3=$h3 lasterr=$([Runtime.InteropServices.Marshal]::GetLastWin32Error()) psver=$($PSVersionTable.PSVersion)"
+    exit 2
+  }
+  Write-Diag "ok h1=$h1 h2=$h2 h3=$h3 pid=$PID psver=$($PSVersionTable.PSVersion)"
+  $m = New-Object G+MSG
+  while ([G]::GetMessageW([ref]$m, [IntPtr]::Zero, 0, 0) -gt 0) { }
+} catch {
+  Write-Diag "err: $($_.Exception.Message) at $($_.InvocationInfo.PositionMessage)"
+  exit 1
+}
