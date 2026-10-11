@@ -175,10 +175,11 @@ function launchPanel(extraEnv = {}) {
   });
 }
 
-/** CDP 驱动面板渲染层（运行时桥动作的真机通道）：在面板页执行表达式并取回值 */
-async function cdpEval(expression) {
+/** CDP 驱动面板渲染层（运行时桥动作的真机通道）：在指定页面执行表达式并取回值
+ * （默认面板页；P13 真实点击臂的托盘图标几何取自条带页，title 参数化） */
+async function cdpEval(expression, title = PANEL_TITLE) {
   const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
-  const target = targets.find((t) => t.title === PANEL_TITLE);
+  const target = targets.find((t) => t.title === title);
   if (!target) throw new Error('CDP 找不到面板页目标');
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   try {
@@ -239,10 +240,81 @@ async function ensureTaskViewClosed(rep) {
   return !left;
 }
 
+// —— P13 托盘回放探针（工单164）：控制器进程自建消息窗 + 自注册 v0/v4 两枚托盘图标，
+// 把「宿主按协商版本合成的回调负载真实到达目标应用窗口」收进电池断言。口径 = MSDN
+// NOTIFYICONDATAW uCallbackMessage 备注（#163 取证坐实产品 v0 wParam/lParam 互换为
+// 全哑主因）：v0 wparam=uID/lparam=鼠标消息（左 0x0202/右 0x0205）；v4 wparam=
+// MAKELPARAM(x,y) 锚点/lparam=(uID<<16)|事件（右键 WM_CONTEXTMENU=0x007B）。
+// 探针窗的 wndProc 记录收到的帧（msg/wp/lp），回放臂断言存证事件与收帧逐字段一致。
+const shell32 = koffi.load('shell32.dll');
+const ShellNotifyIconW = shell32.func('bool __stdcall Shell_NotifyIconW(uint32 dwMessage, void *nid)');
+const kernel32Tb = koffi.load('kernel32.dll');
+const GetModuleHandleW164 = kernel32Tb.func('uintptr_t __stdcall GetModuleHandleW(uintptr_t name)');
+const LoadIconW164 = user32.func('uintptr_t __stdcall LoadIconW(uintptr_t hInst, uintptr_t name)');
+koffi.proto('__stdcall', 'Deck164WndProc', 'intptr_t', ['uintptr_t', 'uint32', 'uintptr_t', 'intptr_t']);
+const DECK164_WNDCLASS = koffi.struct('Deck164WndClassW', {
+  cbSize: 'uint32', style: 'uint32', lpfnWndProc: 'Deck164WndProc *',
+  cbClsExtra: 'int32', cbWndExtra: 'int32', hInstance: 'uintptr_t',
+  hIcon: 'uintptr_t', hCursor: 'uintptr_t', hbrBackground: 'uintptr_t',
+  lpszMenuName: 'uintptr_t', lpszClassName: 'char16_t *', hIconSm: 'uintptr_t',
+});
+const RegisterClassExW164 = user32.func('uint16 __stdcall RegisterClassExW(Deck164WndClassW *wc)');
+const CreateWindowExW164 = user32.func('uintptr_t __stdcall CreateWindowExW(uint32 ex, const char16_t *cls, const char16_t *name, uint32 style, int x, int y, int w, int h, uintptr_t parent, uintptr_t menu, uintptr_t hinst, uintptr_t param)');
+const DestroyWindow164 = user32.func('bool __stdcall DestroyWindow(uintptr_t hWnd)');
+const UnregisterClassW164 = user32.func('bool __stdcall UnregisterClassW(const char16_t *cls, uintptr_t hinst)');
+const DefWindowProcW164 = user32.func('intptr_t __stdcall DefWindowProcW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)');
+const PeekMessageW164 = user32.func('bool __stdcall PeekMessageW(void *msg, uintptr_t hWnd, uint32 min, uint32 max, uint32 remove)');
+const TranslateMessage164 = user32.func('bool __stdcall TranslateMessage(const void *msg)');
+const DispatchMessageW164 = user32.func('intptr_t __stdcall DispatchMessageW(const void *msg)');
+
+function makeReplayProbe() {
+  const frames = [];
+  const proc = koffi.register((h, msg, wp, lp) => {
+    // intptr_t lParam 按有符号回来（≥0x80000000 为负）——归一成无符号 32 位再断言
+    const lpn = typeof lp === 'bigint' ? Number(BigInt.asUintN(32, lp)) : Number(lp) >>> 0;
+    frames.push({ h: Number(h), msg, wp: Number(wp), lp: lpn });
+    return Number(DefWindowProcW164(h, msg, wp, lp));
+  }, 'Deck164WndProc *');
+  const hinst = Number(GetModuleHandleW164(0));
+  const atom = RegisterClassExW164({
+    cbSize: koffi.sizeof(DECK164_WNDCLASS), style: 0, lpfnWndProc: proc,
+    cbClsExtra: 0, cbWndExtra: 0, hInstance: hinst,
+    hIcon: 0, hCursor: 0, hbrBackground: 0,
+    lpszMenuName: 0, lpszClassName: 'DECK164PROBE', hIconSm: 0,
+  });
+  // 隐藏 0 尺寸工具窗（TOOLWINDOW|NOACTIVATE，同宿主竞争窗形态）：只收回调不露脸
+  const hwnd = Number(CreateWindowExW164(0x80 | 0x08000000, 'DECK164PROBE', 'DECK164PROBE',
+    0x80000000, 0, 0, 0, 0, 0, 0, hinst, 0));
+  const msgBuf = Buffer.alloc(48); // MSG x64
+  const pump = () => {
+    while (PeekMessageW164(msgBuf, hwnd, 0, 0, 1 /* PM_REMOVE */)) {
+      TranslateMessage164(msgBuf);
+      DispatchMessageW164(msgBuf);
+    }
+  };
+  const waitFrame = async (pred, timeoutMs = 4000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      pump();
+      const hit = frames.filter(pred).pop();
+      if (hit) return hit;
+      await sleep(60);
+    }
+    return null;
+  };
+  const destroy = () => {
+    try { if (hwnd) DestroyWindow164(hwnd); } catch { /* 尽力 */ }
+    try { if (atom) UnregisterClassW164('DECK164PROBE', hinst); } catch { /* 尽力 */ }
+    try { koffi.unregister(proc); } catch { /* 尽力 */ }
+  };
+  return { frames, hwnd, pump, waitFrame, destroy };
+}
+
 async function main() {
   const rep = new Report('49-taskbar');
   let child = null;
   let panelPid = 0;
+  let probe164 = null; // P13 探针（#164）：finally 兜底拆除（段内异常也不漏窗漏类）
   const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
@@ -675,9 +747,168 @@ async function main() {
     } else {
       rep.fail(`P12(b) 宿主起了=${hostBooted} 竞争窗=${ourTrayHosts().length}`);
     }
+
+    // P13 托盘点击回放负载语义（#164，回归面 = #163 取证坐实的回放全哑主因）：
+    //   (前置) 重启用（P12 收在禁用态）→ 条带 + 宿主 + 名单回填
+    //   (v0-右) CDP invoke 右键 → tray-replay 存证 wparam=uID/lparam=WM_RBUTTONUP +
+    //           探针窗收帧逐字段一致 + pid=属主进程（抓 ASFW 传 hwnd 当 pid 回归）
+    //   (v0-左) 真实 SendInput 点击条带探针图标（用户链路端到端：DOM handler → 桥 →
+    //           宿主 → 回调到达）→ 收帧 lp=WM_LBUTTONUP(0x0202，旧实现误为 0x0203)
+    //   (v4-右/v4-左) NIM_SETVERSION 协商 4 → SetCursorPos 定锚 → invoke →
+    //           wparam=MAKELPARAM(x,y)/lparam=(uID<<16)|事件（右 WM_CONTEXTMENU/左
+    //           WM_LBUTTONUP）——本机无真实 v4 样本，自注册探针补合成对照
+    rep.beginSegment('P13');
+    const t13on = Date.now();
+    const r13on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
+    const strip13 = await waitWindow(panelPid, TASKBAR_TITLE, 10000);
+    const hostReady13 = await waitEvent('tray-host-ready', (e) => e.t >= t13on, 10000);
+    let roster13 = 0;
+    for (let i = 0; i < 12 && roster13 === 0; i++) {
+      await sleep(700);
+      const st = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
+      roster13 = st && st.tray ? st.tray.length : 0;
+    }
+    if (!(r13on && r13on.enabled === true && strip13 && hostReady13 && roster13 >= 1)) {
+      rep.fail(`P13 前置失败：启用=${r13on && r13on.enabled} 条带=${!!strip13} 宿主=${!!hostReady13} 名单=${roster13}`);
+    } else {
+      const {
+        encodeNotifyIconData, NIM_ADD, NIM_DELETE, NIM_SETVERSION,
+        NIF_MESSAGE, NIF_ICON, NIF_TIP,
+      } = require(path.join(APP_ROOT, 'dist', 'main', 'trayhost', 'protocol.js'));
+      const WM_LBUTTONUP_T = 0x0202, WM_RBUTTONUP_T = 0x0205, WM_CONTEXTMENU_T = 0x007b;
+      // v0 uid 用满 32 位（断言 wParam 不截位）；v4 uid 高 16 位故意放垃圾（0x1234 应被丢弃）
+      const PROBE_UID_V0 = 0x1640001;
+      const PROBE_UID_V4 = 0x12341802;
+      const CB_V0 = 0x8000 + 164, CB_V4 = 0x8000 + 165;
+      probe164 = makeReplayProbe();
+      if (!probe164.hwnd) throw new Error('P13 探针窗创建失败');
+      const hicon164 = Number(LoadIconW164(0, 32512)); // IDI_APPLICATION
+      const nidV0 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe164.hwnd, uid: PROBE_UID_V0,
+        flags: NIF_MESSAGE | NIF_ICON | NIF_TIP, callbackMessage: CB_V0, hicon: hicon164,
+        tooltip: 'DECK164-PROBE-V0', uVersion: 0 });
+      const nidV4 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe164.hwnd, uid: PROBE_UID_V4,
+        flags: NIF_MESSAGE | NIF_ICON | NIF_TIP, callbackMessage: CB_V4, hicon: hicon164,
+        tooltip: 'DECK164-PROBE-V4', uVersion: 0 });
+      const okAdd0 = ShellNotifyIconW(NIM_ADD, nidV0);
+      const okAdd4 = ShellNotifyIconW(NIM_ADD, nidV4);
+      // 事件流 tray-event 落盘字段=kind/key/hwnd/tooltip（无 uid/version，#163 留档口径）——
+      // 探针按自算 key（<hwnd十进制>:<uid十进制>）匹配；协商版本号不在 add/version 事件里，
+      // 其真值断言落在 v4 臂的 tray-replay 存证 version 字段（宿主登记表回读）
+      const expKey0 = `${probe164.hwnd}:${PROBE_UID_V0}`;
+      const expKey4 = `${probe164.hwnd}:${PROBE_UID_V4}`;
+      const addEv0 = await waitEvent('tray-event', (e) => e.kind === 'add' && e.key === expKey0, 8000);
+      const addEv4 = await waitEvent('tray-event', (e) => e.kind === 'add' && e.key === expKey4, 8000);
+      // v4 协商：NIM_SETVERSION 负载只带 hwnd/uid/uVersion=4（uVersion 字段即协商值）
+      const nidV4set = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe164.hwnd, uid: PROBE_UID_V4,
+        flags: 0, callbackMessage: 0, hicon: 0, uVersion: 4 });
+      const okSet4 = okAdd4 ? ShellNotifyIconW(NIM_SETVERSION, nidV4set) : false;
+      const verEv4 = await waitEvent('tray-event', (e) => e.kind === 'version' && e.key === expKey4, 8000);
+      const arms = [];
+      const armFail = (name, detail) => arms.push(`${name}: ${detail}`);
+      if (!(okAdd0 && addEv0)) armFail('probe-add-v0', `ok=${okAdd0} 事件=${!!addEv0} key=${expKey0}`);
+      if (!(okAdd4 && addEv4)) armFail('probe-add-v4', `ok=${okAdd4} 事件=${!!addEv4} key=${expKey4}`);
+      if (!(okSet4 && verEv4)) armFail('probe-setversion', `ok=${okSet4} 事件=${!!verEv4}（version 真值由 v4 臂存证断言）`);
+
+      // 名单护栏确认（key 护栏 = 栏内托盘名单，探针收编后必须在册）
+      await sleep(800); // 服务层 applyTrayEvent 推进 + 条带渲染稳定拍
+      const key0 = addEv0 && addEv0.key;
+      const key4 = addEv4 && addEv4.key;
+      const state13 = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
+      const keys13 = state13 && state13.tray ? state13.tray.map((t) => t.key) : [];
+      if (key0 && !keys13.includes(key0)) armFail('roster-v0', `key=${key0} 不在栏内名单`);
+      if (key4 && !keys13.includes(key4)) armFail('roster-v4', `key=${key4} 不在栏内名单`);
+
+      // —— v0 右键（invoke 臂）：存证 + 收帧逐字段 ——
+      if (addEv0 && key0 && keys13.includes(key0)) {
+        const t = Date.now();
+        probe164.frames.length = 0;
+        await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key0)}, button: 'right' })`);
+        const ev = await waitEvent('tray-replay', (e) => e.key === key0 && e.t >= t, 6000);
+        const frame = await probe164.waitFrame((f) => f.msg === CB_V0);
+        const ok = ev && ev.posted === true && ev.version === 0
+          && ev.wparam === PROBE_UID_V0 && ev.lparam === WM_RBUTTONUP_T
+          && ev.pid === process.pid // ASFW 属主 pid（旧实现传 hwnd——必不等）
+          && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_RBUTTONUP_T;
+        ok ? arms.push('v0-右键:存证+收帧一致(wparam=uID/lparam=0x0205/pid=属主)')
+          : armFail('v0-右键', `存证=${JSON.stringify(ev && { posted: ev.posted, wparam: ev.wparam, lparam: ev.lparam, version: ev.version, pid: ev.pid })} 收帧=${JSON.stringify(frame)}`);
+        rep.note(`v0 右键 asfw=${ev && ev.asfw}（前台态依赖，尽力放行不作硬断言）`);
+      }
+
+      // —— v0 左键（真实点击臂）：SendInput 点条带探针图标 → DOM handler → 桥 → 宿主 → 收帧 ——
+      if (addEv0 && key0 && keys13.includes(key0)) {
+        const rect13 = win32.rectOf(strip13);
+        const dip13 = screen.getPrimaryDisplay().bounds;
+        const scale13 = (rect13.right - rect13.left) / dip13.width;
+        const geo = await cdpEval(`(() => {
+          const el = document.querySelector('.tb-tray-icon[data-key=${JSON.stringify(key0)}]');
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2, iw: window.innerWidth };
+        })()`, TASKBAR_TITLE);
+        if (!geo) {
+          armFail('v0-左键', '条带页找不到探针图标 .tb-tray-icon');
+        } else {
+          const sx = Math.round(rect13.left + geo.x * scale13), sy = Math.round(rect13.top + geo.y * scale13);
+          const t = Date.now();
+          probe164.frames.length = 0;
+          win32.SetCursorPos(sx, sy); // 条带默认鼠标穿透：热区 25ms 轮询命中才开门
+          await sleep(400);
+          win32.clickPhys(sx, sy, 'left');
+          const clickEv = await waitEvent('taskbar-tray-click', (e) => e.key === key0 && e.t >= t, 6000);
+          const ev = await waitEvent('tray-replay', (e) => e.key === key0 && e.t >= t, 6000);
+          const frame = await probe164.waitFrame((f) => f.msg === CB_V0);
+          const ok = clickEv && ev && ev.posted === true
+            && ev.wparam === PROBE_UID_V0 && ev.lparam === WM_LBUTTONUP_T
+            && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_LBUTTONUP_T;
+          ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 lp=0x0202)')
+            : armFail('v0-左键', `点击存证=${!!clickEv} 回放存证=${JSON.stringify(ev && { wparam: ev.wparam, lparam: ev.lparam, posted: ev.posted })} 收帧=${JSON.stringify(frame)}`);
+        }
+      }
+
+      // —— v4 两键（invoke 臂 + 定锚）：wparam=MAKELPARAM(x,y)、lparam=(uID<<16)|事件 ——
+      // （门槛不再看 version 事件字段——事件流不落 version；协商真值 = 臂内存证 ev.version===4）
+      if (verEv4 && key4 && keys13.includes(key4)) {
+        const mkLparam = (x, y) => ((y & 0xffff) << 16) | (x & 0xffff);
+        const mkLpV4 = (event) => ((PROBE_UID_V4 & 0xffff) << 16) | event;
+        for (const [button, anchor, event, eventName] of [
+          ['right', { x: 101, y: 202 }, WM_CONTEXTMENU_T, 'WM_CONTEXTMENU'],
+          ['left', { x: 103, y: 201 }, WM_LBUTTONUP_T, 'WM_LBUTTONUP'],
+        ]) {
+          const t = Date.now();
+          probe164.frames.length = 0;
+          win32.SetCursorPos(anchor.x, anchor.y); // v4 锚点 = 宿主回放瞬间的 GetCursorPos
+          await sleep(150);
+          await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key4)}, button: ${JSON.stringify(button)} })`);
+          const ev = await waitEvent('tray-replay', (e) => e.key === key4 && e.t >= t, 6000);
+          const frame = await probe164.waitFrame((f) => f.msg === CB_V4);
+          const ok = ev && ev.posted === true && ev.version === 4
+            && ev.wparam === mkLparam(anchor.x, anchor.y) && ev.lparam === mkLpV4(event)
+            && frame && frame.wp === mkLparam(anchor.x, anchor.y) && frame.lp === mkLpV4(event);
+          ok ? arms.push(`v4-${button === 'right' ? '右' : '左'}键:存证+收帧一致(wparam=MAKELPARAM(${anchor.x},${anchor.y})/lparam=(uID<<16)|${eventName})`)
+            : armFail(`v4-${button}`, `存证=${JSON.stringify(ev && { posted: ev.posted, version: ev.version, wparam: ev.wparam, lparam: ev.lparam })} 期望=${JSON.stringify({ wparam: mkLparam(anchor.x, anchor.y), lparam: mkLpV4(event) })} 收帧=${JSON.stringify(frame)}`);
+        }
+      }
+
+      // 臂判读：通过臂含「一致/端到端」标记，失败臂为「名: 明细」
+      const passCount = arms.filter((a) => a.includes('一致') || a.includes('端到端')).length;
+      const failArms = arms.filter((a) => !(a.includes('一致') || a.includes('端到端')));
+      if (failArms.length === 0 && passCount >= 4) {
+        rep.pass(`P13 托盘回放负载语义：${passCount} 臂全过（${arms.join('；')}）`);
+      } else {
+        rep.fail(`P13 ${failArms.length}/${arms.length} 臂失败：${failArms.join(' | ')}`);
+      }
+
+      // 清理探针（正常路径；异常路径 finally 兜底）
+      try { ShellNotifyIconW(NIM_DELETE, nidV0); } catch { /* 尽力 */ }
+      try { ShellNotifyIconW(NIM_DELETE, nidV4); } catch { /* 尽力 */ }
+      probe164.destroy();
+      probe164 = null;
+      await sleep(300);
+    }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
+    if (probe164) { try { probe164.destroy(); } catch { /* 尽力 */ } }
     killTree(child, panelPid);
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生

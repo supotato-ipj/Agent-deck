@@ -466,7 +466,7 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 60,
+      "budgetSeconds": 90,
       "lastMeasuredSeconds": 53,
       "lastMeasuredAt": "2026-10-11",
       "segments": [
@@ -589,6 +589,16 @@
             "system-state"
           ],
           "estSeconds": 10
+        },
+        {
+          "seg": "P13",
+          "ticket": 164,
+          "title": "托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言 + 真实点击端到端",
+          "surfaces": [
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 20
         }
       ]
     },
