@@ -121,86 +121,93 @@ export interface TaskbarController {
 }
 
 /**
+ * 一扇条带窗的全部账（#103 缺陷①按窗记账）：keepalive/让位轮询/AppBar 句柄/热区
+ * 跟踪器都随窗生灭。控制器的正确性不再依赖「closed 恰好在下一窗建立前落地」的
+ * 时序巧合——迟到旧窗的 closed 只清自家定时器，共享账只在仍是现任时清。
+ */
+interface TaskbarSession {
+  win: BrowserWindow
+  tracker: HotzoneTracker | null
+  appBarHwnd: number | null
+  yieldTimer: NodeJS.Timeout | null
+  yielded: boolean
+  keepalive: NodeJS.Timeout
+}
+
+/**
  * 任务栏窗口控制器：跟随 TaskbarService 状态建/销窗口（启用即建、禁用即销）。
  * 与面板的 z 序纪律相反：面板钉底，本窗置顶——热区离开即重申置顶（ADR-0007 残余
  * 风险：z 序竞争需定时/事件驱动维持置顶）。
  */
 export function startTaskbarController(options: { ctx: Context; log: EventLog | null }): TaskbarController {
   const { ctx, log } = options
-  let win: BrowserWindow | null = null
-  let tracker: HotzoneTracker | null = null
+  let session: TaskbarSession | null = null
   // 原生任务栏显隐账（工单50）：只还原「本次由我隐藏」的那次；隐藏失败/本已隐藏
-  // 则无还原义务（死路径兜底由守卫与还原守护以视图事实补足）。
+  // 则无还原义务（死路径兜底由守卫与还原守护以视图事实补足）。控制器级——原生栏
+  // 显隐与哪扇条带窗现任无关。
   let hidNative = false
-  // AppBar 占位账（工单51）：注册成功的条带窗句柄；销窗先注销归还工作区。
-  // null = 注册失败降级档（不占工作区，也不做全屏让位——降级档最大化窗覆盖
-  // 全屏会造成误判，宁可不让位也不闪）。
-  let appBarHwnd: number | null = null
-  // 全屏让位态与轮询（工单51）：仅 AppBar 生效档轮询。
-  let yielded = false
-  let yieldTimer: NodeJS.Timeout | null = null
 
-  const stopYieldPoll = () => {
-    if (yieldTimer) clearInterval(yieldTimer)
-    yieldTimer = null
-    yielded = false
+  const stopYieldPoll = (s: TaskbarSession) => {
+    if (s.yieldTimer) clearInterval(s.yieldTimer)
+    s.yieldTimer = null
+    s.yielded = false
   }
 
   /** 协商矩形（物理）→ 条带窗 DIP 几何（差异 >1 DIP 才动，避免与系统微调来回震荡） */
-  const applyNegotiated = (rc: AppBarRect) => {
-    if (!win || win.isDestroyed()) return
-    const dip = screen.screenToDipRect(win, { x: rc.left, y: rc.top, width: rc.right - rc.left, height: rc.bottom - rc.top })
-    const cur = win.getBounds()
+  const applyNegotiated = (s: TaskbarSession, rc: AppBarRect) => {
+    if (s.win.isDestroyed()) return
+    const dip = screen.screenToDipRect(s.win, { x: rc.left, y: rc.top, width: rc.right - rc.left, height: rc.bottom - rc.top })
+    const cur = s.win.getBounds()
     if (Math.abs(dip.x - cur.x) > 1 || Math.abs(dip.y - cur.y) > 1
       || Math.abs(dip.width - cur.width) > 1 || Math.abs(dip.height - cur.height) > 1) {
-      win.setBounds(dip)
+      s.win.setBounds(dip)
     }
   }
 
-  /** 占位重协商（建窗后初次、ABN_POSCHANGED、display-metrics-changed 三入口同路） */
+  /** 占位重协商（建窗后初次、ABN_POSCHANGED、display-metrics-changed 三入口同路）；
+   * 只作用于现任 session 的占位账。 */
   const renegotiate = (reason: string) => {
-    if (appBarHwnd === null || !win || win.isDestroyed()) return
-    applyNegotiated(negotiateAppBarPos(appBarHwnd, stripPhysRect(), log, reason))
+    const s = session
+    if (!s || s.appBarHwnd === null || s.win.isDestroyed()) return
+    applyNegotiated(s, negotiateAppBarPos(s.appBarHwnd, stripPhysRect(), log, reason))
   }
 
   const destroy = (reason: string) => {
-    // 还原先于窗口判空：hidNative 账独立于 win 存续（窗被外部先销/建窗半途抛错
+    // 还原先于会话判空：hidNative 账独立于窗存续（窗被外部先销/建窗半途抛错
     // 都不能把「我藏的原生任务栏」赖成孤儿账——code-review 工单50 收口）
     if (hidNative) {
       hidNative = false
       showNativeTaskbar(log, reason)
     }
-    // AppBar 注销同理独立于 win 存续（closed 先行时句柄账仍在，归还工作区不赖账）
-    stopYieldPoll()
-    if (appBarHwnd !== null) {
-      removeAppBar(appBarHwnd, log)
-      appBarHwnd = null
-    }
-    if (!win) return
-    tracker?.dispose()
-    tracker = null
-    const w = win
-    win = null
-    w.destroy()
+    const s = session
+    session = null
+    if (!s) return
+    // 会话全账就地清（keepalive 不再依赖 closed 收尾）：先摘控制器引用再动手，
+    // closed 无论同步落地还是迟到，撞见的都是「已退位的会话」。
+    stopYieldPoll(s)
+    if (s.appBarHwnd !== null) removeAppBar(s.appBarHwnd, log)
+    clearInterval(s.keepalive)
+    s.tracker?.dispose()
+    s.win.destroy()
     log?.append({ type: 'taskbar-window-destroyed', reason })
   }
 
   const create = () => {
-    if (win) return
+    if (session) return
     // 先隐原生再建窗（工单50）：stripBounds 按视图事实取净空——隐藏成功落屏底，
     // 失败（句柄缺位等）降级让出原生任务栏上沿，49 实证的同矩形 z 序竞争不进场。
     hidNative = hideNativeTaskbar(log)
+    let w: BrowserWindow
     try {
-      win = createTaskbarWindow(log)
+      w = createTaskbarWindow(log)
     } catch (err) {
-      // 建窗失败即还账：hidNative 不带出 create（destroy 的还原前提不变式：hidNative ⇒ win 在场）
+      // 建窗失败即还账：hidNative 不带出 create（destroy 的还原前提不变式：hidNative ⇒ 有会话）
       if (hidNative) {
         hidNative = false
         showNativeTaskbar(log, 'create-failed')
       }
       throw err
     }
-    const w = win
     // 置顶维持（ADR-0007 已知风险）：49 起条带不再与可见的 Shell_TrayWnd 同矩形竞争
     // （那条赛道无解——其层级高于普通 TOPMOST 且 explorer 主动防守）；工单50 隐藏原生
     // 任务栏后竞争面进一步收窄。keepalive 500ms + 热区离开重申只守一般性置顶争夺
@@ -208,27 +215,35 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     const assertTop = () => {
       if (!w.isDestroyed()) setTopmost(hwndOf(w), true)
     }
-    const keepalive = setInterval(assertTop, 500)
+    const s: TaskbarSession = {
+      win: w,
+      tracker: null,
+      appBarHwnd: null,
+      yieldTimer: null,
+      yielded: false,
+      keepalive: setInterval(assertTop, 500),
+    }
+    session = s
     // 工单51 AppBar 工作区占位：注册 → 协商 → 按协商矩形重排窗口（renegotiate 在
     // 控制器作用域，display-metrics 事件同路）。注册失败走 49/50 的净空降级档
     // （不占工作区、不让位）。
     if (registerAppBar(hwndOf(w), stripPhysRect(), log)) {
-      appBarHwnd = hwndOf(w)
+      s.appBarHwnd = hwndOf(w)
       renegotiate('create')
       // 系统侧工作区变动（其他 AppBar 增删等）→ 重协商（ABN_POSCHANGED 经回调消息送达）
       w.hookWindowMessage(appBarCallbackMessage(), (wParam) => {
         if (Number(wParam.readUInt32LE(0)) === ABN_POSCHANGED) renegotiate('abn-poschanged')
       })
       // 全屏让位轮询（仅 AppBar 生效档）：前台全屏即 hide，退出即 showInactive 复位顶
-      yieldTimer = setInterval(() => {
+      s.yieldTimer = setInterval(() => {
         if (w.isDestroyed()) return
         const hit = shouldYieldToFullscreen(probeForegroundWindow(), primaryPhysRect(), process.pid)
-        if (hit && !yielded) {
-          yielded = true
+        if (hit && !s.yielded) {
+          s.yielded = true
           w.hide()
           log?.append({ type: 'taskbar-yield' })
-        } else if (!hit && yielded) {
-          yielded = false
+        } else if (!hit && s.yielded) {
+          s.yielded = false
           w.showInactive()
           assertTop()
           log?.append({ type: 'taskbar-yield-lifted' })
@@ -237,7 +252,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     }
     // 热区离开重申置顶：热区交互（点击）会顶起 z 序归属变化（探针01-C 同机制），
     // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。
-    tracker = new HotzoneTracker(w, {
+    s.tracker = new HotzoneTracker(w, {
       onLeave: () => {
         if (!w.isDestroyed() && setTopmost(hwndOf(w), true)) {
           log?.append({ type: 'taskbar-topmost', reason: 'hotzone-leave' })
@@ -248,22 +263,28 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // 任务栏窗只收自己关心的事件（面板事件不进条带渲染层）：
     // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）
     wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status'])
-    wireHostIpc(w, tracker, log, { pin: (v) => { setTopmost(hwndOf(v), true) } })
+    wireHostIpc(w, s.tracker, log, { pin: (v) => { setTopmost(hwndOf(v), true) } })
     w.once('ready-to-show', () => {
       w.showInactive()
       assertTop()
     })
     w.once('closed', () => {
-      clearInterval(keepalive)
-      // 外部先销窗（非 destroy 路径）：AppBar/让位账在此归还，不留孤儿占位
-      stopYieldPoll()
-      if (appBarHwnd !== null) {
-        removeAppBar(appBarHwnd, log)
-        appBarHwnd = null
+      // 自家定时器无条件清（destroy 路径已清过也无害）：keepalive 属本闭包，
+      // 即便本会话已退位也不能让 interval 悬空漏掉。
+      clearInterval(s.keepalive)
+      // 身份校验（#103 缺陷①）：destroy() 路径摘除 session 在先、closed 落地在后
+      // （或同步），此处 session 已不指向本会话；外部先销窗（close 管线）时本会话
+      // 仍是现任——AppBar/让位账在此归还，不留孤儿占位。迟到的旧窗 closed 永远
+      // 撞不上现任共享账，新窗的占位/热区/让位轮询不被动。
+      if (session !== s) return
+      stopYieldPoll(s)
+      if (s.appBarHwnd !== null) {
+        removeAppBar(s.appBarHwnd, log)
+        s.appBarHwnd = null
       }
-      tracker?.dispose()
-      tracker = null
-      win = null
+      s.tracker?.dispose()
+      s.tracker = null
+      session = null
     })
     void w.loadURL(taskbarUrl())
     log?.append({ type: 'taskbar-window-created' })
@@ -272,9 +293,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 主屏几何变化（换分辨率/DPI/换主屏）即重排条带；窗口不在场（禁用态）无事可做。
   // AppBar 生效档走重协商（占位与栏同矩形重算），降级档维持净空几何重排。
   const onDisplayMetrics = () => {
-    if (!win || win.isDestroyed()) return
-    if (appBarHwnd !== null) renegotiate('display-metrics-changed')
-    else win.setBounds(stripBounds())
+    const s = session
+    if (!s || s.win.isDestroyed()) return
+    if (s.appBarHwnd !== null) renegotiate('display-metrics-changed')
+    else s.win.setBounds(stripBounds())
   }
 
   if (ctx.taskbar.state().enabled) create()
