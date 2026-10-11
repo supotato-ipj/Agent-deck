@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
- * 渲染 = taskbar/get-state → 视图模型（左组形态映射 + 中组系统按钮显隐 + 推荐位 +
+ * 渲染 = taskbar/get-state → 视图模型（应用组形态映射 + 开始组系统按钮显隐 + 推荐位 +
  * 整组显隐边界）；点击 = 按钮 id → taskbar/system-action；右键菜单动作 = taskbar/set-button-hidden。
- * 工单58：左组溢出拆分（容量内全留栏、超限尾部收浮层）+ 应用图标点击分发 taskbar/activate-app。
+ * 工单58：应用组溢出拆分（容量内全留栏、超限尾部收浮层）+ 应用图标点击分发 taskbar/activate-app。
  */
-import type { TaskbarBridge, TaskbarLeftViewEntry } from '../../src/renderer/taskbar-view'
+import type { TaskbarBridge, TaskbarAppViewEntry } from '../../src/renderer/taskbar-view'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { HardwareGauges, TaskbarLeftEntry, TaskbarMetric, TaskbarState } from '../../src/shared/contract'
+import type { HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState } from '../../src/shared/contract'
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, left: [], tray: [], ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, apps: [], tray: [], ...over }
 }
 
 const RECS = [
@@ -37,7 +37,7 @@ function fakeBridge(s: TaskbarState) {
           : s.hiddenButtons.filter((b) => b !== id)
         return Promise.resolve({ ...s, hiddenButtons } as never)
       }
-// 工单53 左组交互族
+// 工单53 应用组交互族
       if (method === 'taskbar/app-click') {
         return Promise.resolve({
           ok: true,
@@ -61,10 +61,10 @@ function fakeBridge(s: TaskbarState) {
         const hit = s.tray.find((t) => t.key === key)
         return Promise.resolve({ icon: hit?.iconKey ? { width: 16, height: 16, bgraBase64: 'AAAA' } : null } as never)
       }
-      // 工单58 左组溢出分发
+      // 工单58 应用组溢出分发
       if (method === 'taskbar/activate-app') {
         const { exe } = payload as { exe: string }
-        const hit = s.left.find((e) => e.exe === exe)
+        const hit = s.apps.find((e) => e.exe === exe)
         if (!hit) return Promise.resolve({ ok: false, action: null, error: '栏外身份' } as never)
         return Promise.resolve({ ok: true, action: hit.running ? 'focused' : 'launched' } as never)
       }
@@ -76,7 +76,7 @@ function fakeBridge(s: TaskbarState) {
 }
 
 describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
-  it('启用态渲染中组两按钮：开始在前、TaskView 在后（Win11 肌肉记忆位）', async () => {
+  it('启用态渲染开始组两按钮：开始在前、TaskView 在后（Win11 肌肉记忆位）', async () => {
     const { bridge } = fakeBridge(state())
     const s = await bridge.invoke('taskbar/get-state', null)
     const vm = taskbarViewModel(s)
@@ -103,33 +103,33 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     ])
   })
 
-  it('两按钮都隐藏 + 有推荐位：中组仍渲染（只余推荐位）', () => {
+  it('两按钮都隐藏 + 有推荐位：开始组 pill 仍渲染（只余推荐位）', () => {
     const vm = taskbarViewModel(state({ hiddenButtons: ['start', 'tasks'], recommendations: RECS }))
     expect(vm.visible).toBe(true)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual(RECS)
   })
 
-  it('两按钮都隐藏 + 推荐位为空：中组整个不渲染（只剩左右两组的边界）', () => {
+  it('两按钮都隐藏 + 推荐位为空：开始组整个不渲染（只剩应用组与右组的边界）', () => {
     const vm = taskbarViewModel(state({ hiddenButtons: ['start', 'tasks'] }))
     expect(vm.visible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
   })
 
-  it('禁用态渲染空壳（中组不渲染、按钮/推荐位/左组全空）', async () => {
-    const { bridge } = fakeBridge(state({ enabled: false, recommendations: RECS, left: [entry('C:\\Apps\\A.exe')] }))
+  it('禁用态渲染空壳（开始组不渲染、按钮/推荐位/应用组全空）', async () => {
+    const { bridge } = fakeBridge(state({ enabled: false, recommendations: RECS, apps: [entry('C:\\Apps\\A.exe')] }))
     const s = await bridge.invoke('taskbar/get-state', null)
     const vm = taskbarViewModel(s)
     expect(vm.visible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
-    expect(vm.left).toEqual([])
+    expect(vm.apps).toEqual([])
   })
 })
 
-/** 左组条目构造（工单52）：缺省仅运行、无标题、无图标键 */
-function entry(exe: string, over: Partial<TaskbarLeftEntry> = {}): TaskbarLeftEntry {
+/** 应用组条目构造（工单52）：缺省仅运行、无标题、无图标键 */
+function entry(exe: string, over: Partial<TaskbarAppEntry> = {}): TaskbarAppEntry {
   return {
     exe,
     label: over.label ?? exe.replace(/^.*[\\/]/, '').replace(/\.exe$/i, ''),
@@ -141,10 +141,10 @@ function entry(exe: string, over: Partial<TaskbarLeftEntry> = {}): TaskbarLeftEn
   }
 }
 
-describe('任务栏左组视图模型（工单52，fake bridge 驱动）', () => {
-  it('左组条目按内核编排序原样映射（手钉在前、运行态叠加）；id = exe 身份（工单53 交互挂点）', async () => {
+describe('任务栏应用组视图模型（工单52，fake bridge 驱动）', () => {
+  it('应用组条目按内核编排序原样映射（手钉在前、运行态叠加）；id = exe 身份（工单53 交互挂点）', async () => {
     const { bridge } = fakeBridge(state({
-      left: [
+      apps: [
         entry('C:\\Apps\\A.exe', { label: '甲', pinned: true, running: true, title: '甲 - 编辑中', iconKey: 'C:\\Apps\\A.exe|1' }),
         entry('C:\\Apps\\B.exe', { label: '乙', pinned: true, running: false }),
         entry('C:\\Apps\\C.exe'),
@@ -152,23 +152,23 @@ describe('任务栏左组视图模型（工单52，fake bridge 驱动）', () =>
     }))
     const s = await bridge.invoke('taskbar/get-state', null)
     const vm = taskbarViewModel(s)
-    expect(vm.left.map((e) => [e.id, e.pinned, e.running])).toEqual([
+    expect(vm.apps.map((e) => [e.id, e.pinned, e.running])).toEqual([
       ['C:\\Apps\\A.exe', true, true],
       ['C:\\Apps\\B.exe', true, false],
       ['C:\\Apps\\C.exe', false, true],
     ])
-    expect(vm.left[0].iconKey).toBe('C:\\Apps\\A.exe|1')
+    expect(vm.apps[0].iconKey).toBe('C:\\Apps\\A.exe|1')
   })
 
   it('tooltip：运行中有窗口标题取标题（区分同名应用），否则回退显示名', async () => {
     const { bridge } = fakeBridge(state({
-      left: [
+      apps: [
         entry('C:\\Apps\\A.exe', { title: '文档 1 - 甲' }),
         entry('C:\\Apps\\B.exe', { label: '乙', pinned: true, running: false }),
       ],
     }))
     const s = await bridge.invoke('taskbar/get-state', null)
-    expect(taskbarViewModel(s).left.map((e) => e.tooltip)).toEqual(['文档 1 - 甲', '乙'])
+    expect(taskbarViewModel(s).apps.map((e) => e.tooltip)).toEqual(['文档 1 - 甲', '乙'])
   })
 })
 
@@ -310,20 +310,20 @@ describe('系统按钮显隐菜单动作（工单54，fake bridge 驱动）', ()
 describe('栏上拖拽落位分发（工单57，fake bridge 驱动）', () => {
   it('跨组：中→左升手钉、左→中解除手钉回推荐池，落点身份随目标条目', async () => {
     const { bridge, calls } = fakeBridge(state())
-    await dispatchTaskbarDragDrop(bridge, { from: 'mid', to: 'left', id: 'Alpha.lnk', before: 'C:\Apps\B.exe' })
-    await dispatchTaskbarDragDrop(bridge, { from: 'left', to: 'mid', id: 'C:\Apps\B.exe', before: null })
+    await dispatchTaskbarDragDrop(bridge, { from: 'recs', to: 'apps', id: 'Alpha.lnk', before: 'C:\Apps\B.exe' })
+    await dispatchTaskbarDragDrop(bridge, { from: 'apps', to: 'recs', id: 'C:\Apps\B.exe', before: null })
     expect(calls).toEqual([
-      { method: 'taskbar/drag-drop', payload: { from: 'mid', to: 'left', id: 'Alpha.lnk', before: 'C:\Apps\B.exe' } },
-      { method: 'taskbar/drag-drop', payload: { from: 'left', to: 'mid', id: 'C:\Apps\B.exe', before: null } },
+      { method: 'taskbar/drag-drop', payload: { from: 'recs', to: 'apps', id: 'Alpha.lnk', before: 'C:\Apps\B.exe' } },
+      { method: 'taskbar/drag-drop', payload: { from: 'apps', to: 'recs', id: 'C:\Apps\B.exe', before: null } },
     ])
   })
 
   it('组内换位：左→左换手钉序落位 before=目标身份；畸形描述子是噪声不发 invoke', async () => {
     const { bridge, calls } = fakeBridge(state())
-    await dispatchTaskbarDragDrop(bridge, { from: 'left', to: 'left', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' })
-    await expect(dispatchTaskbarDragDrop(bridge, { from: 'x' as never, to: 'left', id: 'A', before: null })).resolves.toEqual({ ok: false, error: '拖拽描述子畸形' })
+    await dispatchTaskbarDragDrop(bridge, { from: 'apps', to: 'apps', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' })
+    await expect(dispatchTaskbarDragDrop(bridge, { from: 'x' as never, to: 'apps', id: 'A', before: null })).resolves.toEqual({ ok: false, error: '拖拽描述子畸形' })
     expect(calls).toEqual([
-      { method: 'taskbar/drag-drop', payload: { from: 'left', to: 'left', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' } },
+      { method: 'taskbar/drag-drop', payload: { from: 'apps', to: 'apps', id: 'C:\Apps\A.exe', before: 'C:\Apps\B.exe' } },
     ])
   })
 })
@@ -374,7 +374,7 @@ describe('任务栏托盘入栏（工单56）', () => {
 })
 describe('任务栏页面样式完整性（真机事故回归）', () => {
   // 55 验收失败的真根因：一次合并把 `#pill {` 与重复的 `.pill {` 拼在一起，
-  // 选择器块没闭合，内联样式表后半段（中组/右组/细条的全部规则）被浏览器整段丢弃——
+  // 选择器块没闭合，内联样式表后半段（开始组/右组/细条的全部规则）被浏览器整段丢弃——
   // 页面照样执行、事件照发，只是没人上样式：现象是「格子都在，位置全是块级堆叠」。
   const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
   const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
@@ -396,14 +396,14 @@ describe('任务栏页面样式完整性（真机事故回归）', () => {
 
   it('关键选择器各有且仅有一条规则（防合并残留的重复定义）', () => {
     const ruleLines = css!.split(/\r?\n/).map((l) => l.trim())
-    for (const sel of ['#pill', '#pill-left', '#right-pill', '#show-desktop']) {
+    for (const sel of ['#pill-start', '#pill-apps', '#right-pill', '#show-desktop']) {
       const hits = ruleLines.filter((l) => l === `${sel} {` || l.startsWith(`${sel},`))
       expect(hits.length, `${sel} 规则数`).toBe(1)
     }
   })
 
-  it('两组都挂 .pill，且 .pill 声明横排（丢了它两组就退化成块级堆叠、元素高出版带）', () => {
-    expect(html).toContain('id="pill" class="pill"')
+  it('开始组与右组都挂 .pill，且 .pill 声明横排（丢了它两组就退化成块级堆叠、元素高出版带）', () => {
+    expect(html).toContain('id="pill-start" class="pill"')
     expect(html).toContain('id="right-pill" class="pill"')
     const body = css!.slice(css!.indexOf('.pill {'))
     const block = body.slice(0, body.indexOf('}'))

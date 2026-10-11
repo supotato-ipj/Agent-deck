@@ -1,18 +1,18 @@
-// 任务栏栏布局存储（工单52/57，纯逻辑）：手钉清单（exe 身份 + 展示元数据）与中组
+// 任务栏栏布局存储（工单52/57，纯逻辑）：手钉清单（exe 身份 + 展示元数据）与推荐组
 // 推荐位显式序（桌面项 name）的有序名单，「有序名单」模式平移 desktop/layout-store.ts
 // （自绘世界没有坐标可存，序即布局）。
-// 工单57 扩展：recommended = 用户在中组推荐位拖出的显式序（组内换位持久化）；手钉归属
-// 与左组手钉段序仍由 pinned 承担（组内换位 = pinned 名单换位，跨组拖拽 = 两名单间迁移）。
+// 工单57 扩展：recommended = 用户在推荐位拖出的显式序（组内换位持久化）；手钉归属
+// 与应用组手钉段序仍由 pinned 承担（组内换位 = pinned 名单换位，跨组拖拽 = 两名单间迁移）。
 // 另含旧桌面迁移纯逻辑：旧桌面 layout.json 的手钉名单（桌面项名）→ 栏手钉清单（exe 身份）。
 // 迁移读路径自包含（不 import desktop 模块）——工单59 退役桌面 dock 后旧存储不再被写。
 import type { DesktopItemKind } from '../../shared/contract'
-import { normalizeExe, type TaskbarPinnedEntry } from './left-plan'
+import { normalizeExe, type TaskbarPinnedEntry } from './apps-plan'
 
 export interface TaskbarLayoutStore {
   version: 1
-  /** 手钉有序清单（exe 身份；顺序 = 左组手钉段顺序） */
+  /** 手钉有序清单（exe 身份；顺序 = 应用组手钉段顺序） */
   pinned: TaskbarPinnedEntry[]
-  /** 中组推荐位显式序（工单57，桌面项 name 有序名单）；陈旧名原样保留、编排时过滤（不在场即跳过），解除手钉时旧位次随之复活 */
+  /** 推荐组推荐位显式序（工单57，桌面项 name 有序名单）；陈旧名原样保留、编排时过滤（不在场即跳过），解除手钉时旧位次随之复活 */
   recommended: string[]
 }
 
@@ -53,7 +53,7 @@ export function serializeTaskbarStore(store: TaskbarLayoutStore): string {
 /**
  * 名单换位原语（工单57，desktop/layout-store moveItem 同形）：name 从名单中移除后
  * 插到 before 之前；before 为 null 或不在名单 → 追加末尾。name 本不在名单按插入处理
- * （左→中回池落位就是插入语义）。before === name 的自落点原序返回。
+ * （应用→推荐回池落位就是插入语义）。before === name 的自落点原序返回。
  */
 export function moveInOrder(names: readonly string[], name: string, before: string | null): string[] {
   if (before === name) return [...names]
@@ -64,7 +64,7 @@ export function moveInOrder(names: readonly string[], name: string, before: stri
 }
 
 /**
- * 左组手钉段内换位（工单57，组内拖拽裁决）：exe 条目移到 beforeExe 之前（身份归一
+ * 应用组手钉段内换位（工单57，组内拖拽裁决）：exe 条目移到 beforeExe 之前（身份归一
  * 比较），落点 null/不在手钉段 → 排到手钉段末尾。exe 不在手钉清单（仅运行条目不可
  * 换位）或自落点 → 原样返回（同一引用 = 幂等空转，服务层据此区分 ok:false/不重推）。
  */
@@ -80,7 +80,7 @@ export function reorderPinned(store: TaskbarLayoutStore, exe: string, beforeExe:
 }
 
 /**
- * 升为手钉（工单57，中→左跨组裁决）：entry 插到 beforeExe 之前（落点 null/不在手钉段
+ * 升为手钉（工单57，推荐→应用跨组裁决）：entry 插到 beforeExe 之前（落点 null/不在手钉段
  * → 末尾）；同 exe（归一）已手钉先去重再插（= 换位，不重复上栏）。recommended 名单不动
  * ——升手钉不擦回池位次（陈旧名留位，解除手钉时旧位次随之复活，「钉不销毁摆」同款纪律）。
  */
@@ -92,7 +92,7 @@ export function pinEntry(store: TaskbarLayoutStore, entry: TaskbarPinnedEntry, b
   return { ...store, pinned }
 }
 
-/** 解除手钉（工单57，左→中跨组裁决）：归一命中移除、其余序不动；不在手钉 → 原样返回（幂等空转）。 */
+/** 解除手钉（工单57，应用→推荐跨组裁决）：归一命中移除、其余序不动；不在手钉 → 原样返回（幂等空转）。 */
 export function unpinEntry(store: TaskbarLayoutStore, exe: string): TaskbarLayoutStore {
   const key = normalizeExe(exe)
   if (!store.pinned.some((p) => normalizeExe(p.exe) === key)) return store

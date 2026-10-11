@@ -7,7 +7,7 @@ import type { ClockState, DesktopState, HardwareState, SessionInfo, TaskbarRecom
 import type { TrayClickButton, TrayWireEvent } from './trayhost/protocol'
 
 /** 数据面子进程的快照段：面板主进程合并 weather/layout/settings/plugins 后成完整 PanelSnapshot（qoder 段随工单03 退役移除）；
- * recommendations（工单54）= 任务栏中组推荐位名单，在子进程算好携带（分数表本身不过进程边界） */
+ * recommendations（工单54）= 任务栏推荐位名单，在子进程算好携带（分数表本身不过进程边界） */
 export interface DataplaneSnapshot {
   clock: ClockState
   sessions: SessionInfo[]

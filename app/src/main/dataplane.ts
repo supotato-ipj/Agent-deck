@@ -55,7 +55,7 @@ function snapshotOf(c: Context): DataplaneSnapshot {
     sessions: c.sessions.current(),
     hardware: c.hardware.state(),
     desktop,
-    // 中组推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推
+    // 推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推
     recommendations: planTaskbarRecommendations(desktop.items, c.desktop.usageScores()),
   }
 }

@@ -136,7 +136,7 @@ describe('隐私守卫（ADR-0002：不读窗口标题）', () => {
   it('任务栏标题口子永不持久化：窗口枚举模块不写盘，栏编排/栏布局模块不读标题', () => {
     const win = fs.readFileSync(path.resolve(__dirname, '../../src/main/taskbar/windows.ts'), 'utf8')
     expect(win).not.toMatch(/writeFileSync|appendFileSync|appendFile|createWriteStream/)
-    for (const rel of ['src/main/taskbar/left-plan.ts', 'src/main/taskbar/layout-store.ts']) {
+    for (const rel of ['src/main/taskbar/apps-plan.ts', 'src/main/taskbar/layout-store.ts']) {
       const src = fs.readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')
       expect(src, `${rel} 不得读窗口标题`).not.toContain('GetWindowText')
     }

@@ -1,13 +1,13 @@
 // 任务栏运行中窗口枚举真源（工单52，效果层薄壳）：顶层可见窗口链式枚举 →
 // exe 绝对路径 + 窗口标题。枚举形态同 focus/adapter.ts（GetTopWindow/GetWindow 链，
-// 避免 FFI 回调生命周期问题）；差异是 exe 取全路径（左组身份）且读窗口标题。
+// 避免 FFI 回调生命周期问题）；差异是 exe 取全路径（应用组身份）且读窗口标题。
 // 工单156：枚举只负责采集窗口特征（可见样式位/cloaked/工具窗/属主/APPWINDOW），
-// 收/拒裁决全在 left-plan 的 shouldShowOnTaskbar 纯函数，本层不载裁决。
+// 收/拒裁决全在 apps-plan 的 shouldShowOnTaskbar 纯函数，本层不载裁决。
 // 隐私（ADR-0007 对 ADR-0002 的书面口子，仅限任务栏链路）：标题仅内存即时读取，
 // 供栏上 tooltip 与多窗口列表即时显示——永不写使用日志、永不落任何持久化。
 // 离线测试不加载本模块（服务依赖缝注入假源后从不 require）。
-import { normalizeExe } from './left-plan'
-import type { TaskbarWindowInput, TaskbarWindowTraits } from './left-plan'
+import { normalizeExe } from './apps-plan'
+import type { TaskbarWindowInput, TaskbarWindowTraits } from './apps-plan'
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const GW_HWNDNEXT = 2
@@ -139,7 +139,7 @@ function traitsOf(b: Bound, hwnd: number): TaskbarWindowTraits {
   return { visible: true, cloaked, toolWindow, owned, appWindow }
 }
 
-/** 任务栏窗口快照条目：exe 为绝对路径（左组身份），hwnd/pid 预留给工单53 的激活语义；
+/** 任务栏窗口快照条目：exe 为绝对路径（应用组身份），hwnd/pid 预留给工单53 的激活语义；
  * 特征位（工单156）由本枚举采集，收/拒裁决在 shouldShowOnTaskbar 纯函数 */
 export interface TaskbarWindowInfo extends TaskbarWindowInput, TaskbarWindowTraits {
   hwnd: number
@@ -149,7 +149,7 @@ export interface TaskbarWindowInfo extends TaskbarWindowInput, TaskbarWindowTrai
 /**
  * 当前可见顶层窗口快照（最小化窗口仍带 WS_VISIBLE，在列——任务栏运行态含最小化）。
  * 取不到 exe 的窗口（权限/已退出）跳过；标题空归 null。纯枚举薄壳，无分支裁决
- * （过滤判据在 left-plan 的 shouldShowOnTaskbar，合并/去重/排序在 planLeftGroup），
+ * （过滤判据在 apps-plan 的 shouldShowOnTaskbar，合并/去重/排序在 planAppsGroup），
  * 真机行为由验收电池覆盖。
  */
 export function nativeTaskbarWindows(): TaskbarWindowInfo[] {

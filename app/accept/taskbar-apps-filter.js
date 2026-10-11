@@ -220,10 +220,10 @@ async function main() {
     for (let i = 0; i < 20 && !notepadIn; i++) {
       await sleep(600);
       state = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`);
-      notepadIn = !!(state && state.left && state.left.some((e) => e.running && /notepad\.exe$/i.test(e.exe)));
+      notepadIn = !!(state && state.apps && state.apps.some((e) => e.running && /notepad\.exe$/i.test(e.exe)));
     }
-    const runningEntries = (state && state.left ? state.left : []).filter((e) => e.running);
-    const psEntries = (state && state.left ? state.left : []).filter((e) => /powershell\.exe$/i.test(e.exe));
+    const runningEntries = (state && state.apps ? state.apps : []).filter((e) => e.running);
+    const psEntries = (state && state.apps ? state.apps : []).filter((e) => /powershell\.exe$/i.test(e.exe));
     const untitled = runningEntries.filter((e) => !e.title);
     rep.note(`栏面名单: running=${runningEntries.length} 条 [${runningEntries.map((e) => `${e.exe.split(/[\\/]/).pop()}(${e.title ? '有题' : '无题'})`).join(', ')}]`);
     if (notepadIn && psEntries.length === 0 && untitled.length === 0) {

@@ -1,4 +1,4 @@
-// 左组点击裁决纯函数测试（工单53，plan.spec 同形态）：输入 = 该应用的窗口快照 + 前台 hwnd，
+// 应用组点击裁决纯函数测试（工单53，plan.spec 同形态）：输入 = 该应用的窗口快照 + 前台 hwnd，
 // 输出 = 启动/置前/最小化/多窗口列表四态裁决。零 Win32——效果层薄壳由真机验收覆盖。
 import { describe, expect, it } from 'vitest'
 import { decideAppClick } from '../../src/main/taskbar/interactions'

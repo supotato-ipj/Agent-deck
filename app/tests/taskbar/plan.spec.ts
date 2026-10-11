@@ -1,5 +1,5 @@
 /**
- * 中组推荐位编排纯函数测试（工单54）：推荐位 = 应用区条目 ∩ 正分条目，
+ * 推荐组推荐位编排纯函数测试（工单54）：推荐位 = 应用区条目 ∩ 正分条目，
  * 分数降序（同分按名）、上限 8；零分条目与文档条目不占位。
  * 工单59：候选不再经 dock 推荐段，直接取自桌面条目池的 zone=app 段。
  */
@@ -19,7 +19,7 @@ function appItem(name: string, display?: string): DesktopItem {
   }
 }
 
-describe('中组推荐位编排（工单54 纯函数）', () => {
+describe('推荐组推荐位编排（工单54 纯函数）', () => {
   it('按使用频次分数降序填充，超出上限 8 截断（低分让位）', () => {
     const names = Array.from({ length: 10 }, (_, i) => `App${i}.lnk`)
     const items = names.map((n) => appItem(n))
