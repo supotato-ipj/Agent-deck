@@ -924,35 +924,47 @@ async function main() {
       }
 
       // —— v0 左键（真实点击臂）：SendInput 点条带探针图标 → DOM handler → 桥 → 宿主 → 收帧 ——
+      // #158 并流后红轮实证：放大档托盘图标像素装载会重排条带（taskbar-geometry 在
+      // 取几何与点击之间推进），点击落到邻位探针——先等几何安静，再取位点击；点击
+      // 存证未命中 key0（名单漂移）则重取几何重试一次（探针排布期间唯一的不稳源）。
       if (key0) {
         const rect13 = win32.rectOf(strip13);
         const dip13 = screen.getPrimaryDisplay().bounds;
         const scale13 = (rect13.right - rect13.left) / dip13.width;
-        const geo = await cdpEval(`(() => {
-          const el = document.querySelector('.tb-tray-icon[data-key=${JSON.stringify(key0)}]');
-          if (!el) return null;
-          const r = el.getBoundingClientRect();
-          return { x: r.x + r.width / 2, y: r.y + r.height / 2, iw: window.innerWidth };
-        })()`, TASKBAR_TITLE);
-        if (!geo) {
-          armFail('v0-左键', '条带页找不到探针图标 .tb-tray-icon');
-        } else {
+        await waitGeometrySettled(latestGeometry(null), 9000);
+        let clickEv = null, ev = null, frame = null, geoMissing = false;
+        for (let attempt = 0; attempt < 2 && !clickEv; attempt++) {
+          const geo = await cdpEval(`(() => {
+            const el = document.querySelector('.tb-tray-icon[data-key=${JSON.stringify(key0)}]');
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2, iw: window.innerWidth };
+          })()`, TASKBAR_TITLE);
+          if (!geo) { geoMissing = true; break; }
           const sx = Math.round(rect13.left + geo.x * scale13), sy = Math.round(rect13.top + geo.y * scale13);
           const t = Date.now();
           probe164.frames.length = 0;
           win32.SetCursorPos(sx, sy); // 条带默认鼠标穿透：热区 25ms 轮询命中才开门
           await sleep(400);
           win32.clickPhys(sx, sy, 'left');
-          const clickEv = await waitEvent('taskbar-tray-click', (e) => e.key === key0 && e.t >= t, 6000);
-          const ev = await waitEvent('tray-replay', (e) => e.key === key0 && e.t >= t, 6000);
-          const frame = await probe164.waitFrame((f) => f.msg === CB_V0);
+          clickEv = await waitEvent('taskbar-tray-click', (e) => e.key === key0 && e.t >= t, 6000);
+          if (clickEv) {
+            ev = await waitEvent('tray-replay', (e) => e.key === key0 && e.t >= t, 6000);
+            frame = await probe164.waitFrame((f) => f.msg === CB_V0);
+          } else {
+            await waitGeometrySettled(latestGeometry(null), 9000); // 漂移重试前再等安静
+          }
+        }
+        if (geoMissing) {
+          armFail('v0-左键', '条带页找不到探针图标 .tb-tray-icon');
+        } else {
           const ok = clickEv && ev && ev.posted === true
             && ev.wparam === PROBE_UID_V0 && ev.lparam === WM_LBUTTONUP_T
             && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_LBUTTONUP_T;
           ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 lp=0x0202)')
             : armFail('v0-左键', `点击存证=${!!clickEv} 回放存证=${JSON.stringify(ev && { wparam: ev.wparam, lparam: ev.lparam, posted: ev.posted })} 收帧=${JSON.stringify(frame)}`);
-          win32.tapKeys([VK_ESC]); // 万一名单漂移点到邻位第三方图标开了菜单——尽力收净不留桌面残留
         }
+        win32.tapKeys([VK_ESC]); // 万一名单漂移点到邻位第三方图标开了菜单——尽力收净不留桌面残留
       }
 
       // —— v4 两键（invoke 臂 + 定锚）：wparam=MAKELPARAM(x,y)、lparam=(uID<<16)|事件 ——
