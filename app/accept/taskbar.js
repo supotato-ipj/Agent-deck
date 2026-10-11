@@ -26,7 +26,7 @@
 //      托盘图标 24px（16px 源最近邻放大档、32px 源平滑降采样）——CDP computed
 //      style 与几何存证帧互证；应用格位用 notepad 探针（栏上无应用时 1Hz 编排轮
 //      1–2s 内上栏）
-//   P14 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
+//   P15 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
 //      空带内居中（随两侧内容浮动）、右组与细条位置不变、不与邻组重叠——几何存证帧
 //      与 CDP computed style 互证；居中回正驱动 = set-button-hidden 藏/显 TaskView 钮
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
@@ -561,13 +561,13 @@ async function main() {
       if (notepad13) spawnSync('taskkill', ['/PID', String(notepad13.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
-    // P14 栏分组布局重排（工单159）：三组新布局落位与居中回正。证据两路互证：
+    // P15 栏分组布局重排（工单159）：三组新布局落位与居中回正。证据两路互证：
     //   (1) taskbar-geometry 存证帧（渲染层量出的 pill 矩形，与电池点击坐标同源）；
     //   (2) 任务栏页 CDP computed style（开始组钉左 CSS 落位 + 应用组 JS 落位在场）。
     //   居中回正驱动 = CDP taskbar/set-button-hidden 藏/显 TaskView 钮（左界内容变化 →
     //   taskbar/changed 结构性重渲 → 应用组按新空带回正）；hiddenButtons 是 config 落盘项，
     //   段内显式复原（finally 的三态还原兜底）。应用格空时 notepad 探针（同 P13）。
-    rep.beginSegment('P14');
+    rep.beginSegment('P15');
     let notepad14 = null;
     try {
       let geom14 = latestGeometry(null);
@@ -581,11 +581,11 @@ async function main() {
         }
       }
       const g0 = await waitGeometrySettled(geom14);
-      const GAP14 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px）
+      const GAP15 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px）
       const bandOf = (g) => ({
-        lo: g.startPill.x + g.startPill.w + GAP14,
-        hi: g.rightPill.x - GAP14,
-        mid: (g.startPill.x + g.startPill.w + GAP14 + g.rightPill.x - GAP14) / 2,
+        lo: g.startPill.x + g.startPill.w + GAP15,
+        hi: g.rightPill.x - GAP15,
+        mid: (g.startPill.x + g.startPill.w + GAP15 + g.rightPill.x - GAP15) / 2,
       });
       // CDP 互证：#pill-start 钉左（computed left=8px）、#pill-apps 由 JS 落位（inline left 在场）
       const css14 = await cdpEval(`(() => {
@@ -612,11 +612,11 @@ async function main() {
       const recsOk14 = recs14.length === 0
         || recs14.every((r) => r.x >= g0.startPill.x - 0.5 && r.x + r.w <= g0.startPill.x + g0.startPill.w + 0.5);
       if (startOk14 && cssOk14 && centerOk14 && noOverlap14 && rightOk14 && recsOk14) {
-        rep.pass(`P14 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
+        rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
           + `应用组空带居中（组心 ${appsMid0.toFixed(1)} ≈ 带中点 ${b0.mid.toFixed(1)}，带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]）、`
           + `不与邻组重叠、右组+细条钉右不变${recs14.length ? `、推荐位 ${recs14.length} 枚占位其后` : ''}`);
       } else {
-        rep.fail(`P14 钉左=${startOk14}(x=${g0.startPill.x}) css互证=${cssOk14}(${JSON.stringify(css14)})`
+        rep.fail(`P15 钉左=${startOk14}(x=${g0.startPill.x}) css互证=${cssOk14}(${JSON.stringify(css14)})`
           + ` 居中=${centerOk14}(组心${appsMid0.toFixed(1)} vs 带中点${b0.mid.toFixed(1)}) 不重叠=${noOverlap14}`
           + ` 右组细条=${rightOk14} 推荐位界内=${recsOk14}(${recs14.length} 枚)`
           + ` 帧=${JSON.stringify({ startPill: g0.startPill, appsPill: g0.appsPill, rightPill: g0.rightPill, sliver: g0.sliver })}`);
@@ -651,11 +651,11 @@ async function main() {
       const b2 = g2 ? bandOf(g2) : null;
       const recenterRestoreOk = !!(g2 && b2 && Math.abs(g2.appsPill.x + g2.appsPill.w / 2 - b2.mid) <= 2.5);
       if (recenterHideOk && recenterRestoreOk) {
-        rep.pass(`P14 居中随两侧内容浮动：藏 TaskView 钮（开始组 ${w0.toFixed(0)}→${g1.startPill.w.toFixed(0)}px）`
+        rep.pass(`P15 居中随两侧内容浮动：藏 TaskView 钮（开始组 ${w0.toFixed(0)}→${g1.startPill.w.toFixed(0)}px）`
           + `应用组左移回正（组心 ${(g1.appsPill.x + g1.appsPill.w / 2).toFixed(1)} ≈ 带中点 ${b1.mid.toFixed(1)}），`
           + `复原回中（组心 ${(g2.appsPill.x + g2.appsPill.w / 2).toFixed(1)} ≈ ${b2.mid.toFixed(1)}）`);
       } else {
-        rep.fail(`P14 居中回正: 藏钮后=${recenterHideOk}(帧=${g1 ? JSON.stringify({ startPill: g1.startPill, appsPill: g1.appsPill }) : 'null'})`
+        rep.fail(`P15 居中回正: 藏钮后=${recenterHideOk}(帧=${g1 ? JSON.stringify({ startPill: g1.startPill, appsPill: g1.appsPill }) : 'null'})`
           + ` 复原后=${recenterRestoreOk}(帧=${g2 ? JSON.stringify({ startPill: g2.startPill, appsPill: g2.appsPill }) : 'null'})`);
       }
     } finally {
