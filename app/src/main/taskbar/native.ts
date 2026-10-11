@@ -15,13 +15,29 @@ const SW_HIDE = 0
 const SW_SHOW = 5
 
 const user32 = koffi.load('user32.dll')
-const FindWindowW = user32.func('uintptr_t __stdcall FindWindowW(const char16_t *lpClassName, const char16_t *lpWindowName)')
+const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)')
+const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, _Out_ uint32 *pid)')
 const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)')
 const ShowWindow = user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)')
 
-/** 原生主任务栏句柄；explorer 不在场（崩溃重启间隙等）返回 0 */
+/** 原生主任务栏句柄；explorer 不在场（崩溃重启间隙等）返回 0。
+ *  按属主过滤（工单103 缺陷②，2026-10-11 真机坐实）：托盘宿主以同类名注册的 0×0
+ *  隐藏置顶竞争窗**确定性**霸占裸 FindWindowW 首命（TOPMOST z 序）——旧实现拿到的是
+ *  我方窗，IsWindowVisible 恒假 → explorer 真任务栏从未被隐藏、条带与它同矩形重叠
+ *  （docs/audit/2026-10-11-t142-103-joint-forensics.md）。枚举全部同类窗，跳过本进程
+ *  属主，取第一个非我方窗（= explorer 真任务栏）。 */
 export function nativeTrayWnd(): number {
-  return Number(FindWindowW('Shell_TrayWnd', null))
+  const ownPid = process.pid
+  let after = 0
+  for (;;) {
+    const h = Number(FindWindowExW(0, after, 'Shell_TrayWnd', null))
+    if (!h) return 0
+    after = h
+    const pidBuf = Buffer.alloc(4)
+    GetWindowThreadProcessId(h, pidBuf)
+    if (pidBuf.readUInt32LE(0) === ownPid) continue // 我方托盘宿主竞争窗：跳过
+    return h
+  }
 }
 
 /** 原生任务栏当前是否可见（视图事实；找不到句柄视同不可见） */

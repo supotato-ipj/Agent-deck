@@ -240,7 +240,7 @@ function colorIconTarget(pngPath, rgb, tol = 20) {
 // —— 托盘常驻件（Win11 纯 XAML 任务栏，无 legacy ToolbarWindow32 可数）——
 // 存在性与退出以两层证据断言：注册表 NotifyIconSettings 条目（Shell_NotifyIcon 注册事实源）
 // + 识别色像素（程序化琥珀图标 #f5a623，IsPromoted 提升到可见区后可截屏定位）。
-const w32FindWindowEx = (parent, after, cls) => win32.FindWindowExW(parent, after, cls, null);
+// （Shell_TrayWnd 查找一律走 win32.nativeTrayHwnd()——属主感知，工单103 缺陷②）
 
 // —— 通知区域注册表（Win11 22H2+）：IsPromoted=1 把溢出区图标提升到任务栏可见区 ——
 function psRun(script, timeoutMs) {
@@ -365,9 +365,12 @@ function isAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-// 在任务栏条带截图中定位本面板托盘图标（识别色图标中心 → 物理屏幕坐标），截图按名存证
+// 在任务栏条带截图中定位本面板托盘图标（识别色图标中心 → 物理屏幕坐标），截图按名存证。
+// 属主感知（工单103 缺陷②同族，2026-10-11 坐实）：裸首命拿到的是托盘宿主 0×0 置顶竞争窗
+// ——矩形 0×0 截图恒空、识别色恒找不到（任务栏 epic 合入 TOPMOST keepalive 起 P8 可见
+// 断言的隐性失灵面）；改用 win32.nativeTrayHwnd()（取 explorer 属主那扇）。
 function scanAmberInTray(tag) {
-  const tb = w32FindWindowEx(0, 0, 'Shell_TrayWnd');
+  const tb = win32.nativeTrayHwnd();
   if (!tb) return null;
   const r = win32.rectOf(tb);
   if (!r) return null;

@@ -120,9 +120,19 @@ function desktopIconsVisible() {
 }
 
 // 原生主任务栏句柄/可见性/兜底还原（工单50：四个电池共用同一视图事实判据，
-// 与 src/main/taskbar/native.ts 同纪律——SW_SHOW 兜底只在确为隐藏态时翻回）
+// 与 src/main/taskbar/native.ts 同纪律——SW_SHOW 兜底只在确为隐藏态时翻回）。
+// 按属主取 explorer 的那扇（工单103 缺陷②，2026-10-11 坐实）：托盘宿主同类名竞争窗
+// 置顶霸首命，裸首命把我方 0×0 隐藏窗当「原生任务栏」读——视图事实断言随之空转
+// （判「已隐藏」恒真）。控制器与面板不同 pid，排除自身不可用，按 exe 名取 explorer。
 function nativeTrayHwnd() {
-  return Number(FindWindowExW(0, 0, 'Shell_TrayWnd', null));
+  let after = 0;
+  for (;;) {
+    const h = Number(FindWindowExW(0, after, 'Shell_TrayWnd', null));
+    if (!h) return 0;
+    after = h;
+    const exe = exeOfPid(threadIdOf(h).pid).replace(/^.*[\\/]/, '');
+    if (/^explorer\.exe$/i.test(exe)) return h;
+  }
 }
 function nativeTaskbarVisible() {
   const h = nativeTrayHwnd();
