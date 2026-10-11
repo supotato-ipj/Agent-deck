@@ -21,6 +21,28 @@ const parentPort: ParentPort | undefined = (process as unknown as { parentPort?:
 
 let ctx: Context | null = null
 let trayHost: TrayHost | null = null
+// 托盘宿主装配参数（#153）：init 与 tray-control 起共用一条装配路径（语料文件在 init 定档）
+let trayCorpusFile: string | undefined
+
+/** 托盘宿主起（#153 幂等）：在场即不动——不重播收编广播（每播一次图标往返一次，ADR-0012） */
+function startTrayHost(): void {
+  if (trayHost) return
+  try {
+    const corpusFile = trayCorpusFile // 闭包内 let 收窄失效，先落 const
+    trayHost = new TrayHost({
+      onEvent: (event) => parentPort!.postMessage({ type: 'tray-event', event }),
+      corpus: corpusFile
+        ? (entry) => {
+          try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
+        }
+        : undefined,
+      log: (event) => parentPort!.postMessage({ type: 'tray-host', event }),
+    })
+    trayHost.start()
+  } catch (err) {
+    parentPort!.postMessage({ type: 'tray-host', event: { type: 'tray-host-failed', message: (err as Error).message } })
+  }
+}
 
 function snapshotOf(c: Context): DataplaneSnapshot {
   const d = new Date()
@@ -79,24 +101,23 @@ if (parentPort) {
       void ctx.start().then(() => {
         parentPort.postMessage({ type: 'ready', snapshot: snapshotOf(ctx!) })
       })
-      // 托盘宿主（工单48 起常驻、工单56 入栏）：竞争窗口/泵/TaskbarCreated 全在子进程，
-      // 事件经 parentPort 回主进程；验收模式下额外落原始字节语料（测试夹具来源）。
-      if (msg.init.tray && !trayHost) {
-        try {
-          const corpusFile = msg.init.tray.corpusFile
-          trayHost = new TrayHost({
-            onEvent: (event) => parentPort.postMessage({ type: 'tray-event', event }),
-            corpus: corpusFile
-              ? (entry) => {
-                  try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
-                }
-              : undefined,
-            log: (event) => parentPort.postMessage({ type: 'tray-host', event }),
-          })
-          trayHost.start()
-        } catch (err) {
-          parentPort.postMessage({ type: 'tray-host', event: { type: 'tray-host-failed', message: (err as Error).message } })
-        }
+      // 托盘宿主（工单48 起、工单56 入栏、#153 随任务栏开关）：竞争窗口/泵/
+      // TaskbarCreated 全在子进程，事件经 parentPort 回主进程；验收模式下额外落原始
+      // 字节语料（测试夹具来源）。init.tray 缺席（任务栏启态禁用）不建——主进程
+      // 重启用经 tray-control 起。
+      if (msg.init.tray) {
+        trayCorpusFile = msg.init.tray.corpusFile
+        startTrayHost()
+      }
+      return
+    }
+    if (msg.type === 'tray-control') {
+      // 托盘宿主启停（#153 交还链路）：停 = 拆竞争窗 + 广播 TaskbarCreated 交还真托盘；
+      // 起 = 新实例收编。两侧幂等（同态重复消息不动宿主、不重播广播）。
+      if (msg.on) startTrayHost()
+      else {
+        trayHost?.stop()
+        trayHost = null
       }
       return
     }

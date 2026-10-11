@@ -55,6 +55,9 @@ export type DataplaneMessage =
   | { type: 'tray-host'; event: Record<string, unknown> }
   /** 托盘点击回放请求（工单56）：主进程把渲染层的点击转成回放，回执走 tray-host 事件流 */
   | { type: 'tray-replay'; key: string; button: TrayClickButton }
+  /** 托盘宿主启停（#153 交还链路）：停 = 拆竞争窗 + 广播 TaskbarCreated 交还真托盘，
+   * 起 = 收编（新实例 + 收编广播）。子进程侧幂等：同态重复消息不动宿主。 */
+  | { type: 'tray-control'; on: boolean }
 
 /** utilityProcess 子进程侧的 parentPort 形状（@types/node 无此成员，局部声明） */
 export interface ParentPort {

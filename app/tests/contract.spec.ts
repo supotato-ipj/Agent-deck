@@ -1025,6 +1025,36 @@ describe('内核桥接契约（工单49 任务栏）', () => {
     }
   }, 30_000)
 
+  it('taskbar/set-enabled：禁用即清托盘名单与像素缓存（#153 交还的死账不复活）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      // 数据面托盘宿主的规范化事件流播种名单与像素（工单56 同链路，离线注假事件）
+      const add = (uid: number) => ctx.emit('dataplane/tray-event', {
+        kind: 'add', key: `100:${uid}`, hwnd: '100', uid, guid: null, tooltip: `t${uid}`,
+        callbackMessage: 0, version: 0, flags: 0, hicon: '999',
+        icon: { width: 2, height: 2, bgraBase64: 'AAAA' },
+      })
+      add(1)
+      add(2)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toMatchObject({ enabled: true, tray: [{ key: '100:1' }, { key: '100:2' }] })
+      // 禁用即交还：名单是已交还图标的死账，当场清空（重启用由新宿主收编广播回填）
+      const off = await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
+      expect(off.tray).toEqual([])
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toMatchObject({ enabled: false, tray: [] })
+      // 像素缓存同清：名单空即取不到像素（tray-icon 查询走名单→缓存两跳）
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: '100:1' })).resolves.toEqual({ icon: null })
+      // 重启用不复活死账：名单仍空，等真事件流回填
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toMatchObject({ enabled: true, tray: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
   it('taskbar/system-action：开始菜单/任务视图经桥到达按键合成源；未知动作抛 BridgeError', async () => {
     const dir = tmpDir()
     const t = taskbarOpts(dir)

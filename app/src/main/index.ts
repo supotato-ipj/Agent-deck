@@ -188,10 +188,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         storeFile: path.join(app.getPath('userData'), 'layout.json'),
         docMaxRows: config.desktop.docMaxRows,
         usageDir,
-        // 托盘宿主常驻（工单56 入栏）：子进程竞争同名窗口收编系统托盘；验收模式额外收语料
-        tray: options.traySpike
-          ? { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') }
-          : {},
+        // 托盘宿主（工单56 入栏、#153 随任务栏开关）：子进程竞争同名窗口收编系统托盘；
+        // 启态禁用不建（不偷图标——图标只该随条带收编），运行期启停经 tray-control；
+        // 验收 spike 模式恒建并额外收语料（测试夹具来源）
+        tray: (options.traySpike || config.taskbar.enabled)
+          ? (options.traySpike
+            ? { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') }
+            : {})
+          : undefined,
       },
       log: (event) => log?.append(event),
       onTrayEvent: options.traySpike ? onTrayEvent : undefined,

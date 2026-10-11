@@ -66,6 +66,7 @@ export class TrayHost {
   private realTrayHwnd: number | null = null
   private taskbarCreatedMsg = 0
   private wndproc: unknown = null // 持住防 GC
+  private hinst = 0 // 类注销用（#153 重启用路）：stop 时 UnregisterClassW 的属主
   private pumpTimer: NodeJS.Timeout | null = null
   private topmostTimer: NodeJS.Timeout | null = null
   private msgBuf: Buffer | null = null
@@ -94,6 +95,7 @@ export class TrayHost {
       registerClass: user32.func('uint16 __stdcall RegisterClassExW(WNDCLASSEXW *wc)'),
       createWindow: user32.func('uintptr_t __stdcall CreateWindowExW(uint32 ex, const char16_t *cls, const char16_t *name, uint32 style, int x, int y, int w, int h, uintptr_t parent, uintptr_t menu, uintptr_t hinst, uintptr_t param)'),
       destroyWindow: user32.func('bool __stdcall DestroyWindow(uintptr_t hWnd)'),
+      unregisterClass: user32.func('bool __stdcall UnregisterClassW(const char16_t *cls, uintptr_t hinst)'),
       findWindow: user32.func('uintptr_t __stdcall FindWindowW(const char16_t *cls, const char16_t *name)'),
       setWindowPos: user32.func('bool __stdcall SetWindowPos(uintptr_t hWnd, intptr_t after, int x, int y, int cx, int cy, uint32 flags)'),
       peekMessage: user32.func('bool __stdcall PeekMessageW(void *msg, uintptr_t hWnd, uint32 min, uint32 max, uint32 remove)'),
@@ -133,6 +135,7 @@ export class TrayHost {
 
     this.wndproc = koffi.register((h: number, msg: number, wp: number, lp: number | bigint) => this.onWndProc(h, msg, wp, lp), 'TrayWndProc *')
     const hinst = Number(this.f.getModuleHandle(0))
+    this.hinst = hinst
     const atom = this.f.registerClass({
       cbSize: koffi.sizeof(WNDCLASSEXW), style: 0, lpfnWndProc: this.wndproc,
       cbClsExtra: 0, cbWndExtra: 0, hInstance: hinst,
@@ -162,7 +165,10 @@ export class TrayHost {
     return { hwnd: this.hwnd, realTrayHwnd: this.realTrayHwnd, taskbarCreatedMsg: this.taskbarCreatedMsg }
   }
 
-  /** 拆窗 + 广播 TaskbarCreated 交还真托盘（响应广播的应用重新注册回 explorer） */
+  /** 拆窗 + 广播 TaskbarCreated 交还真托盘（响应广播的应用重新注册回 explorer）。
+   * 类注销对称（#153 重启用路）：不注销则同一进程内新实例 RegisterClassExW 撞
+   * ERROR_CLASS_ALREADY_EXISTS，宿主停后不能再起；koffi 回调一并注销，启停
+   * 周期不泄漏回调句柄。两笔注销尽力而为——失败不阻断交还语义（下轮起会重试失败面）。 */
   stop(): void {
     if (this.stopped) return
     this.stopped = true
@@ -173,6 +179,11 @@ export class TrayHost {
       if (this.taskbarCreatedMsg) this.f.postMessage(HWND_BROADCAST, this.taskbarCreatedMsg, 0, 0)
       if (this.hdc) this.f.releaseDC(0, this.hdc)
     } catch { /* 尽力拆 */ }
+    try {
+      const koffi = require('koffi') as { unregister(callback: unknown): void }
+      if (this.hinst) this.f.unregisterClass('Shell_TrayWnd', this.hinst)
+      if (this.wndproc) koffi.unregister(this.wndproc)
+    } catch { /* 尽力注销 */ }
     this.options.log?.({ type: 'tray-host-stopped', hwnd: this.hwnd })
     this.hwnd = 0
     this.entries.clear() // 交还真托盘后登记全部作废（图标将向 explorer 重新注册）
