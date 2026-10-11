@@ -466,7 +466,7 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 60,
+      "budgetSeconds": 180,
       "lastMeasuredSeconds": 53,
       "lastMeasuredAt": "2026-10-11",
       "segments": [
@@ -597,6 +597,16 @@
           "surfaces": [
             "pixel",
             "event-evidence"
+          ],
+          "estSeconds": 8
+        },
+        {
+          "seg": "P14",
+          "ticket": 159,
+          "title": "栏分组布局重排：开始组钉左/应用组空带居中（几何存证+CDP 互证+藏显钮回正），不与邻组重叠、右组细条不变",
+          "surfaces": [
+            "event-evidence",
+            "pixel"
           ],
           "estSeconds": 8
         }

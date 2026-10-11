@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, toggleMetric, trayIconPixelated } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, toggleMetric, trayIconPixelated } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -455,11 +455,68 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
     // 事故：托盘 24px/字号升档后右组左侵屏幕居中的开始组，DOM 后绘盖死任务视图钮
     // （点击落到硬件摘要上、无 taskbar-action 存证）。守卫三件套缺一不可：
     const pillRule = ruleOf('#pill-start')
-    expect(pillRule, '开始组可收窄（positionStartPill 拥挤时设 maxWidth）').toContain('min-width: 0')
+    expect(pillRule, '开始组可收窄（clampStartPillWidth 拥挤时设 maxWidth）').toContain('min-width: 0')
     expect(pillRule).toContain('overflow: hidden')
     expect(ruleOf('.tb-btn'), '系统钮 flex:none——收窄时永不裁切（被裁即 P5 重演）').toContain('flex: none')
     const rec = ruleOf('.tb-rec')
     expect(rec, '推荐位（仅展示，工单54 v1）可收缩让位').toContain('flex: 0 1 auto')
     expect(rec).toContain('text-overflow: ellipsis')
+  })
+})
+
+describe('栏分组布局重排（工单159：开始组钉左、应用组空带居中）', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
+
+  function ruleOf(sel: string): string {
+    const i = css!.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    const body = css!.slice(i)
+    return body.slice(0, body.indexOf('}'))
+  }
+
+  it('开始组 pill 钉条带左缘（CSS 落位）：left 8px + 仅纵向居中变换，居中时代的横向位移退役', () => {
+    const rule = ruleOf('#pill-start')
+    expect(rule).toContain('left: 8px')
+    expect(rule).toContain('transform: translateY(-50%)')
+    expect(rule, '不得残留屏幕居中横向位移（工单159 反转布局）').not.toContain('translate(-50%')
+  })
+
+  it('应用组 pill 落位归渲染层（绝对定位 + JS 居中），CSS 不携带横向居中形态', () => {
+    const rule = ruleOf('#pill-apps')
+    expect(rule).toContain('position: absolute')
+    expect(rule, 'CSS 不得自行居中（居中裁决 = appsPillLeft 纯函数）').not.toContain('left: 50%')
+    expect(rule).not.toContain('translate(-50%')
+  })
+
+  it('空带两侧边界（纯函数）：左=开始组右缘+组间距（整组不渲染=条带左内衬）、右=右组左缘−组间距', () => {
+    // 常态：开始组在左、右组在右
+    expect(appsBand(320, 2000)).toEqual({ lo: 328, hi: 1992 })
+    // 开始组整组不渲染（两按钮全隐藏且无推荐）：左界退到条带左缘内衬
+    expect(appsBand(null, 2000)).toEqual({ lo: 8, hi: 1992 })
+    // 异常态（右组自身越界左侵）：零宽带，等下一拍——不产出负带宽
+    expect(appsBand(2400, 2200)).toEqual({ lo: 2408, hi: 2408 })
+  })
+
+  it('应用组容量两侧化（纯函数）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位）；窄带/零宽带 0 格', () => {
+    // 常态宽带：1992−8=1984 内容宽，−16 内衬 = 1968 → 42 格（1968/46=42.78 保守取整）
+    expect(appsSlotsFor({ lo: 8, hi: 1992 })).toBe(42)
+    // 窄带容不下一格：0
+    expect(appsSlotsFor({ lo: 8, hi: 50 })).toBe(0)
+    // 零宽带（异常态）：0
+    expect(appsSlotsFor({ lo: 2408, hi: 2408 })).toBe(0)
+  })
+
+  it('居中位夹取（纯函数）：带宽足够取带中点；恰满/超带宽钉带左缘（溢出展开病态档）', () => {
+    // 常态：200px pill 居中于 [100,500] 带 → 带中点 300 − 半宽 100 = 200
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 200)).toBe(200)
+    // 非整除带宽：取整后两侧余隙差 ≤1px（带 460 宽、pill 200：中点 300−100=200，两侧 100/160）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 201)).toBe(200) // 中点 300−100.5=199.5 → 200（右侧余 99，左侧 100）
+    // 恰占满带宽：贴带左缘
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 400)).toBe(100)
+    // 超带宽（溢出展开等病态档）：钉带左缘（右溢不反演到开始组一侧）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 450)).toBe(100)
+    // 负宽防御：按 0 宽居中带中点（不炸、不越界）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, -1)).toBe(300)
   })
 })

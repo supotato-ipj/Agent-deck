@@ -360,6 +360,49 @@ export function splitAppsOverflow(
   return planAppsOverflow(apps, slots)
 }
 
+// —— 工单159 栏分组布局重排：应用组空带居中几何（纯函数；DOM 落位在 taskbar.ts）——
+// 布局反转：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘] 空带内居中（随两侧内容
+// 浮动，非屏幕绝对中心）。居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，
+// DOM 侧（taskbar.ts）只做矩形实测与落位。
+
+/** 应用组几何常量（与 taskbar.html CSS 同源：pill 内衬 8+8、图标格 44+2 间距、组间距 8、
+ * 条带左缘内衬 8——工单158 尺寸基）。格数宁保守不少让——多留缝也不与邻组重叠。 */
+export const APPS_INSET = 8
+export const PILL_PAD_X = 16
+export const CELL_W = 46
+export const GROUP_GAP = 8
+
+/** 应用组空带：[lo, hi] = [开始组右缘（含组间距）, 右组左缘（含组间距）]——
+ * 应用组居中的参照系（工单159 词汇口径：推荐组右缘与右组左缘之间；推荐位暂栖开始组
+ * pill，故左界 = 开始组 pill 右缘，推荐组独立拆出后随迁） */
+export interface AppsBand { lo: number; hi: number }
+
+/** 空带两侧边界：开始组整组不渲染（两按钮全隐藏且无推荐）时左界退到条带左缘内衬；
+ * 右组自身越界左侵（异常态，26+ 托盘极端拥挤）产出零宽带——不产出负带宽，等下一拍 */
+export function appsBand(startRight: number | null, rightLeft: number): AppsBand {
+  const lo = startRight === null ? APPS_INSET : startRight + GROUP_GAP
+  const hi = Math.max(rightLeft - GROUP_GAP, lo)
+  return { lo, hi }
+}
+
+/** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。
+ * 旧单侧口径（右限 = 开始组 pill 左缘）随布局反转退役——现在两侧邻组都是边界 */
+export function appsSlotsFor(band: AppsBand): number {
+  return Math.max(0, Math.floor((band.hi - band.lo - PILL_PAD_X) / CELL_W))
+}
+
+/** 居中位：带宽足够取带中点；恰占满贴带左缘；超带宽（溢出浮层展开等病态档）钉带左缘
+ * ——右溢不反演到开始组一侧（DOM 后绘的右组在上，病态档从右组下溢出，与旧布局同降级）。
+ * 夹取保证有带宽时永不与邻组重叠；容量（appsSlotsFor）按闭合形态算，栏内段恒在带内 */
+export function appsPillLeft(band: AppsBand, pillWidth: number): number {
+  const w = Math.max(0, pillWidth)
+  let left = (band.lo + band.hi) / 2 - w / 2
+  if (left < band.lo) left = band.lo
+  if (left + w > band.hi) left = band.hi - w
+  if (left < band.lo) left = band.lo
+  return Math.round(left)
+}
+
 /**
  * 应用组应用图标点击分发（工单58）：栏内与溢出浮层共用同一道分发——exe 身份经桥
  * invoke，启动/置前裁决在内核（taskbar/activate-app）。响应原样上抛（ok:false 也

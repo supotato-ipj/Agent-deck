@@ -26,6 +26,9 @@
 //      托盘图标 24px（16px 源最近邻放大档、32px 源平滑降采样）——CDP computed
 //      style 与几何存证帧互证；应用格位用 notepad 探针（栏上无应用时 1Hz 编排轮
 //      1–2s 内上栏）
+//   P14 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
+//      空带内居中（随两侧内容浮动）、右组与细条位置不变、不与邻组重叠——几何存证帧
+//      与 CDP computed style 互证；居中回正驱动 = set-button-hidden 藏/显 TaskView 钮
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -317,11 +320,13 @@ async function main() {
       const b = geom.buttons.find((x) => x.id === id);
       return toPhys(b.x + b.w / 2, b.y + b.h / 2);
     };
-    // 缝隙探针（工单52 适配）：应用组有条目时取「应用组 pill 右缘与开始组 pill 左缘的中点」
-    // （固定在 x=40 会落进应用组 pill 热区）；应用组空（pill-apps 不渲染）回退条带左端 40
+    // 缝隙探针（工单159 布局重排适配）：应用组空带居中后，pill 间缝隙取「应用组右缘与
+    // 右组左缘的中点」（带宽恒宽敞）；应用组空（pill-apps 不渲染）退「开始组右缘与右组
+    // 左缘的中点」；开始组也整组不渲染时 startPill 矩形归零、退化为条带左半任意点
+    // （固定 x=40 会落进钉左的开始组热区——工单159 起开始组钉条带左缘）
     const gapCssX = geom.apps && geom.apps.length > 0
-      ? (geom.appsPill.x + geom.appsPill.w + geom.startPill.x) / 2
-      : 40;
+      ? (geom.appsPill.x + geom.appsPill.w + geom.rightPill.x) / 2
+      : (geom.startPill.x + geom.startPill.w + geom.rightPill.x) / 2;
     const gapPt = toPhys(gapCssX, TASKBAR_HEIGHT_DIP / 2); // 条带缝隙（两组 pill 之间/左端）
     const pillCenter = toPhys(geom.startPill.x + geom.startPill.w / 2, geom.startPill.y + geom.startPill.h / 2);
 
@@ -554,6 +559,107 @@ async function main() {
       }
     } finally {
       if (notepad13) spawnSync('taskkill', ['/PID', String(notepad13.pid), '/T', '/F'], { stdio: 'ignore' });
+    }
+
+    // P14 栏分组布局重排（工单159）：三组新布局落位与居中回正。证据两路互证：
+    //   (1) taskbar-geometry 存证帧（渲染层量出的 pill 矩形，与电池点击坐标同源）；
+    //   (2) 任务栏页 CDP computed style（开始组钉左 CSS 落位 + 应用组 JS 落位在场）。
+    //   居中回正驱动 = CDP taskbar/set-button-hidden 藏/显 TaskView 钮（左界内容变化 →
+    //   taskbar/changed 结构性重渲 → 应用组按新空带回正）；hiddenButtons 是 config 落盘项，
+    //   段内显式复原（finally 的三态还原兜底）。应用格空时 notepad 探针（同 P13）。
+    rep.beginSegment('P14');
+    let notepad14 = null;
+    try {
+      let geom14 = latestGeometry(null);
+      if (!geom14 || !geom14.apps || geom14.apps.length === 0) {
+        notepad14 = spawn('notepad.exe', [], { stdio: 'ignore' });
+        const deadline14 = Date.now() + 12000;
+        while (Date.now() < deadline14) {
+          geom14 = latestGeometry(null);
+          if (geom14 && geom14.apps && geom14.apps.length > 0) break;
+          await sleep(300);
+        }
+      }
+      const g0 = await waitGeometrySettled(geom14);
+      const GAP14 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px）
+      const bandOf = (g) => ({
+        lo: g.startPill.x + g.startPill.w + GAP14,
+        hi: g.rightPill.x - GAP14,
+        mid: (g.startPill.x + g.startPill.w + GAP14 + g.rightPill.x - GAP14) / 2,
+      });
+      // CDP 互证：#pill-start 钉左（computed left=8px）、#pill-apps 由 JS 落位（inline left 在场）
+      const css14 = await cdpEval(`(() => {
+        const st = document.getElementById('pill-start');
+        const ap = document.getElementById('pill-apps');
+        return {
+          startLeft: getComputedStyle(st).left,
+          startTransform: getComputedStyle(st).transform,
+          appsInlineLeft: ap.style.left,
+          appsDisplay: getComputedStyle(ap).display,
+        };
+      })()`, TASKBAR_TITLE);
+      const b0 = bandOf(g0);
+      const startOk14 = Math.abs(g0.startPill.x - 8) <= 2
+        && Math.abs(g0.startPill.y + g0.startPill.h / 2 - TASKBAR_HEIGHT_DIP / 2) <= 2;
+      const cssOk14 = css14.startLeft === '8px' && css14.appsInlineLeft !== '' && css14.appsDisplay !== 'none';
+      const appsMid0 = g0.appsPill.x + g0.appsPill.w / 2;
+      const centerOk14 = Math.abs(appsMid0 - b0.mid) <= 2.5;
+      const noOverlap14 = g0.appsPill.x >= b0.lo - 0.5 && g0.appsPill.x + g0.appsPill.w <= b0.hi + 0.5;
+      const dip14 = screen.getPrimaryDisplay().bounds;
+      const rightOk14 = Math.abs(g0.rightPill.x + g0.rightPill.w - (dip14.width - 14)) <= 2
+        && Math.abs(g0.sliver.x + g0.sliver.w - dip14.width) <= 2;
+      const recs14 = g0.recommendations || [];
+      const recsOk14 = recs14.length === 0
+        || recs14.every((r) => r.x >= g0.startPill.x - 0.5 && r.x + r.w <= g0.startPill.x + g0.startPill.w + 0.5);
+      if (startOk14 && cssOk14 && centerOk14 && noOverlap14 && rightOk14 && recsOk14) {
+        rep.pass(`P14 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
+          + `应用组空带居中（组心 ${appsMid0.toFixed(1)} ≈ 带中点 ${b0.mid.toFixed(1)}，带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]）、`
+          + `不与邻组重叠、右组+细条钉右不变${recs14.length ? `、推荐位 ${recs14.length} 枚占位其后` : ''}`);
+      } else {
+        rep.fail(`P14 钉左=${startOk14}(x=${g0.startPill.x}) css互证=${cssOk14}(${JSON.stringify(css14)})`
+          + ` 居中=${centerOk14}(组心${appsMid0.toFixed(1)} vs 带中点${b0.mid.toFixed(1)}) 不重叠=${noOverlap14}`
+          + ` 右组细条=${rightOk14} 推荐位界内=${recsOk14}(${recs14.length} 枚)`
+          + ` 帧=${JSON.stringify({ startPill: g0.startPill, appsPill: g0.appsPill, rightPill: g0.rightPill, sliver: g0.sliver })}`);
+      }
+      // —— 居中回正（随两侧内容浮动）：藏 TaskView 钮 → 左界收窄 → 应用组左移带中点回正 ——
+      const w0 = g0.startPill.w;
+      const sinceHide = Date.now();
+      await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })`);
+      let g1 = null;
+      for (let i = 0; i < 30 && !g1; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceHide && cand.startPill && cand.startPill.w < w0 - 4) g1 = cand;
+      }
+      await sleep(1300); // settle 窗（推荐位后到位会推位移帧，取跨拍稳定帧）
+      if (g1) g1 = latestGeometry(null);
+      const b1 = g1 ? bandOf(g1) : null;
+      const recenterHideOk = !!(g1 && b1
+        && Math.abs(g1.appsPill.x + g1.appsPill.w / 2 - b1.mid) <= 2.5
+        && g1.appsPill.x < g0.appsPill.x - 4);
+      // 复原 TaskView 钮 → 左界回宽 → 应用组右移回正（显式复原；config 三态还原兜底）
+      const sinceRestore = Date.now();
+      await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false })`);
+      let g2 = null;
+      for (let i = 0; i < 30 && !g2; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceRestore && cand.startPill && g1 && cand.startPill.w > g1.startPill.w + 4) g2 = cand;
+      }
+      await sleep(1300);
+      if (g2) g2 = latestGeometry(null);
+      const b2 = g2 ? bandOf(g2) : null;
+      const recenterRestoreOk = !!(g2 && b2 && Math.abs(g2.appsPill.x + g2.appsPill.w / 2 - b2.mid) <= 2.5);
+      if (recenterHideOk && recenterRestoreOk) {
+        rep.pass(`P14 居中随两侧内容浮动：藏 TaskView 钮（开始组 ${w0.toFixed(0)}→${g1.startPill.w.toFixed(0)}px）`
+          + `应用组左移回正（组心 ${(g1.appsPill.x + g1.appsPill.w / 2).toFixed(1)} ≈ 带中点 ${b1.mid.toFixed(1)}），`
+          + `复原回中（组心 ${(g2.appsPill.x + g2.appsPill.w / 2).toFixed(1)} ≈ ${b2.mid.toFixed(1)}）`);
+      } else {
+        rep.fail(`P14 居中回正: 藏钮后=${recenterHideOk}(帧=${g1 ? JSON.stringify({ startPill: g1.startPill, appsPill: g1.appsPill }) : 'null'})`
+          + ` 复原后=${recenterRestoreOk}(帧=${g2 ? JSON.stringify({ startPill: g2.startPill, appsPill: g2.appsPill }) : 'null'})`);
+      }
+    } finally {
+      if (notepad14) spawnSync('taskkill', ['/PID', String(notepad14.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
     // P10(a) 关-开连发竞态（#103 缺陷①）：单次 evaluate 内串联两桥写（await 第一写

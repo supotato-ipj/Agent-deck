@@ -1,12 +1,14 @@
-// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58）：状态经 taskbar/get-state 拉取 +
+// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159）：状态经 taskbar/get-state 拉取 +
 // taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
-// 三组布局：开始组 pill（系统按钮 + 推荐位——推荐组独立拆出前的过渡栖位，工单54）、应用组（手钉 + 运行中合并，工单52，右键菜单/
-// 中键/多窗口选窗属工单53）、右组（硬件摘要 + 托盘图标 + 音量 + 时钟，工单55/56）。
+// 三组布局（工单159 重排）：开始组 pill 钉条带左缘（系统按钮 + 推荐位——推荐组独立拆出前
+// 的过渡栖位，工单54）、应用组（手钉 + 运行中合并，工单52，右键菜单/中键/多窗口选窗属工单53）
+// 在 [开始组右缘, 右组左缘] 空带内居中（appsPillLeft——随两侧内容浮动，非屏幕绝对中心）、
+// 右组（硬件摘要 + 托盘图标 + 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { appIconFallbackText, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitAppsOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
-import type { TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import type { AppsBand, TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
@@ -22,13 +24,8 @@ document.addEventListener('dragstart', (e) => {
   e.preventDefault()
 })
 
-/** 应用组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 8+8、图标格 44+2 间距、组间距 8）。
- * 容量格数宁保守不少让——多留缝也不与开始组 pill 重叠（开始组 pill 居中、应用组绝定位贴左）。
- * 工单158 尺寸升档：格位 32→44（图标 22→32），pill padding 6→8。 */
-const APPS_INSET = 8
-const PILL_PAD_X = 16
-const CELL_W = 46
-const GROUP_GAP = 8
+/** 应用组几何常量已随工单159 纯函数化迁至 taskbar-view（APPS_INSET/PILL_PAD_X/CELL_W/
+ * GROUP_GAP，与 taskbar.html CSS 同源）——空带/容量/居中算式在那侧单测钉住 */
 
 /** 最近一次渲染的状态：几何重排（resize）时按它重声明热区 */
 let current: TaskbarState | null = null
@@ -257,40 +254,34 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   return el
 }
 
-/** 应用组容量（工单58）：pill 实测几何 → 图标格数（含 ⋯ 钮位）。右限 = 开始组 pill 左缘
- * （开始组整组不渲染时 = 条带右缘）；开始组绝定位不参与应用组布局，其矩形只作边界。 */
-function appsSlots(): number {
-  const rightLimit = pillStart.hidden
-    ? document.body.clientWidth - GROUP_GAP
-    : pillStart.getBoundingClientRect().left - GROUP_GAP
-  const avail = rightLimit - APPS_INSET - PILL_PAD_X
-  return Math.max(0, Math.floor(avail / CELL_W))
+/** 开始组钉条带左缘（工单159 布局重排）：位置由 CSS（#pill-start left:8px）钉死——旧
+ * positionStartPill 的屏幕居中 + [应用组右缘, 右组左缘] 夹取随布局反转退役，夹取/拥挤
+ * 裁剪守卫迁移到本函数（挤撞裁剪换侧不换语义）：唯一守卫 = 极端拥挤（26+ 托盘 + 满推荐位）
+ * 时 maxWidth 收窄到右组左缘前——仅展示的推荐位（.tb-rec）ellipsis 收缩让位，系统钮
+ * flex:none 永不裁切（工单158 P5 真机红回归钉的守卫三件套全数保留）。
+ * 只在结构性重渲落位：右组 1Hz 指标文本宽度抖动（±45px）不传导（applyStatus 不动 pill），
+ * 电池的 settle 几何因此跨拍稳定。 */
+function clampStartPillWidth(): void {
+  if (pillStart.hidden) return
+  const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - APPS_INSET
+  pillStart.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
-/** 开始组 pill 挤撞回正（工单158）：屏幕居中的开始组与右组（托盘 24px 升档后宽 ~430px）
- * 在窄余裕下重叠，右组 DOM 后绘盖死任务视图钮（49 电池 P5 真机红：点击落到硬件摘要）。
- * 以 [应用组右缘, 右组左缘] 夹取居中位；极端拥挤时 pill 收窄裁推荐位（仅展示），
- * 系统钮 flex:none 不裁。只在结构性重渲（状态帧/resize）落位——1Hz 指标文本宽度
- * 抖动不传导（applyStatus 不夹取），电池的 settle 几何因此跨拍稳定。余裕充足时与
- * 屏幕居中观感一致。#159 布局重排以组级重排取代本夹取。 */
-const PILL_CLAMP_GAP = 24
-function positionStartPill(): void {
-  if (pillStart.hidden) return
-  pillStart.style.maxWidth = ''
-  const natural = pillStart.offsetWidth
-  const lo = pillApps.style.display === 'none' ? PILL_CLAMP_GAP : pillApps.getBoundingClientRect().right + PILL_CLAMP_GAP
-  const hi = rightPill.getBoundingClientRect().left - PILL_CLAMP_GAP
-  if (hi <= lo) return // 右组自身已越界（异常态）：不动，等下一拍
-  if (hi - lo < natural) {
-    // 拥挤：收窄（border-box，含内衬与边框）居中于余裕带，推荐位收缩让位
-    pillStart.style.maxWidth = `${Math.round(hi - lo)}px`
-    pillStart.style.left = `${Math.round((lo + hi) / 2)}px`
-    return
-  }
-  let center = document.body.clientWidth / 2
-  if (center - natural / 2 < lo) center = lo + natural / 2
-  if (center + natural / 2 > hi) center = hi - natural / 2
-  pillStart.style.left = `${Math.round(center)}px`
+/** 应用组空带（工单159）：[开始组右缘, 右组左缘] —— 居中参照系与两侧容量边界同源。
+ * 开始组整组不渲染（两按钮全隐藏且无推荐）时左界退到条带左缘内衬（appsBand 纯函数裁决） */
+function currentAppsBand(): AppsBand {
+  return appsBand(
+    pillStart.hidden ? null : pillStart.getBoundingClientRect().right,
+    rightPill.getBoundingClientRect().left,
+  )
+}
+
+/** 应用组落位（工单159）：空带中点居中（appsPillLeft 纯函数——随两侧内容浮动，溢出
+ * 浮层开合/推荐增删后结构性重渲自动回正；带宽不足钉带左缘）。pill 宽度按 offsetWidth
+ * 实测（border-box，含内衬边框），内容装配完同步落位——无中间帧闪烁 */
+function positionAppsPill(band: AppsBand): void {
+  if (pillApps.style.display === 'none') return
+  pillApps.style.left = `${appsPillLeft(band, pillApps.offsetWidth)}px`
 }
 
 /** 应用组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
@@ -414,9 +405,11 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
   return el
 }
 
-/** 应用组渲染（工单52/58）：手钉+运行中合并条目按容量拆分——栏内满员即出 ⋯ 钮，
- * 浮层开着时尾部条目横排进 pill（条带窗只有 64px 高（工单158），竖排浮层出不了窗口矩形，
- * 54 右键菜单同款先例）；数量回落浮层自动收、图标回栏。空组整组不渲染（display:none） */
+/** 应用组渲染（工单52/58/159）：手钉+运行中合并条目按容量拆分——容量按空带两侧边界
+ * 裁决（appsSlotsFor——闭合形态恒在带内，不与邻组重叠）；栏内满员即出 ⋯ 钮，浮层开着时
+ * 尾部条目横排进 pill（条带窗只有 64px 高（工单158），竖排浮层出不了窗口矩形，54 右键
+ * 菜单同款先例）；数量回落浮层自动收、图标回栏。装配完就地居中落位（positionAppsPill
+ * ——开合/增删后的结构性重渲即回正）。空组整组不渲染（display:none） */
 function renderApps(entries: TaskbarAppViewEntry[]): void {
   pillApps.textContent = ''
   pillApps.style.display = entries.length ? '' : 'none'
@@ -424,7 +417,8 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
     overflowOpen = false
     return
   }
-  const { bar, overflow } = splitAppsOverflow(entries, appsSlots())
+  const band = currentAppsBand()
+  const { bar, overflow } = splitAppsOverflow(entries, appsSlotsFor(band))
   if (!overflow.length) overflowOpen = false // 数量回落自动收层（图标全部回栏）
   for (const e of bar) pillApps.appendChild(makeAppEl(e, false))
   if (overflow.length) {
@@ -444,6 +438,7 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
       for (const e of overflow) pillApps.appendChild(makeAppEl(e, true))
     }
   }
+  positionAppsPill(band)
 }
 
 function render(state: TaskbarState): void {
@@ -563,8 +558,9 @@ function render(state: TaskbarState): void {
     wireAction(clock, 'clock')
     rightPill.appendChild(clock)
   }
-  // 工单158 挤撞回正：右组先行落位再夹取开始组，应用组容量按夹取后的 pill 矩形裁决
-  positionStartPill()
+  // 工单159 布局重排：右组先行落位 → 开始组钉左（CSS）+ 拥挤守卫收窄 → 应用组按空带
+  // （两侧邻组矩形）裁容量并居中落位——依赖序与工单158 挤撞回正相同，方向反转
+  clampStartPillWidth()
   renderApps(vm.apps)
   declareHotZones(state)
   notifyGeometry()

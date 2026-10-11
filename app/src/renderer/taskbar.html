@@ -17,7 +17,9 @@
     user-select: none;
     cursor: default;
   }
-  /* 应用组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
+  /* 应用组 pill（工单52：手钉+运行中应用合并）：空带居中漂浮（工单159）——落位归渲染层
+   * taskbar.ts positionAppsPill（appsPillLeft：[开始组右缘, 右组左缘] 带中点夹取，随两侧
+   * 内容浮动），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制） */
   #pill-apps {
     position: absolute;
     left: 8px;
@@ -107,19 +109,17 @@
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
   }
-  /* 开始组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
-   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件；推荐位暂栖
-   * 本 pill，推荐组拆出前随其显隐）。
-   * 工单158 挤撞回正：托盘 24px/字号升档后右组变宽会左侵屏幕居中的开始组，右组在
-   * DOM 后绘会把任务视图钮盖死（49 电池 P5 真机红：点击落到硬件摘要上）——taskbar.ts
-   * positionStartPill 以 [应用组右缘, 右组左缘] 夹取居中位；极端拥挤（26+ 托盘）时
-   * pill 收窄、仅展示的推荐位（.tb-rec）收缩让位，交互钮（.tb-btn）flex:none 永不裁切。
-   * #159 布局重排以组级重排取代本夹取。 */
+  /* 开始组 pill：钉条带左缘（工单159 布局重排——居中时代随布局反转退役），漂浮胶囊
+   * （组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。两系统按钮全隐藏且推荐位为空时
+   * 整组不渲染（hidden——工单54 边界条件；推荐位暂栖本 pill，推荐组拆出前随其显隐）。
+   * 工单158 挤撞守卫迁移（clampStartPillWidth）：极端拥挤（26+ 托盘 + 满推荐位）时
+   * pill 收窄到右组左缘前，仅展示的推荐位（.tb-rec）收缩让位，交互钮（.tb-btn）
+   * flex:none 永不裁切。 */
   #pill-start {
     position: fixed;
-    left: 50%;
+    left: 8px;
     top: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateY(-50%);
     box-sizing: border-box; /* 工单158：收窄档以整盒（含内衬边框）计，余裕带不被吃掉 */
     min-width: 0;
     overflow: hidden;
