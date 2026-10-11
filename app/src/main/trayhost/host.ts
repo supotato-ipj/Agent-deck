@@ -60,6 +60,26 @@ interface TrayEntry {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyFn = (...args: any[]) => any
 
+/** koffi 具名类型进程级单登（#153 重启用路）：proto/struct 的具名类型在同一进程
+ * 重复注册被 koffi 拒绝（真机实证 Duplicate type name 'TrayWndProc'，停后再起的
+ * 第一抛）——宿主启停周期共用一份类型表，返回 WNDCLASSEXW 供 sizeof。 */
+let koffiWndClassType: unknown = null
+function ensureKoffiTypes(koffi: {
+  proto: (...args: unknown[]) => unknown
+  struct: (...args: unknown[]) => unknown
+}): unknown {
+  if (koffiWndClassType === null) {
+    koffi.proto('__stdcall', 'TrayWndProc', 'intptr_t', ['uintptr_t', 'uint32', 'uintptr_t', 'intptr_t'])
+    koffiWndClassType = koffi.struct('WNDCLASSEXW', {
+      cbSize: 'uint32', style: 'uint32', lpfnWndProc: 'TrayWndProc *',
+      cbClsExtra: 'int32', cbWndExtra: 'int32', hInstance: 'uintptr_t',
+      hIcon: 'uintptr_t', hCursor: 'uintptr_t', hbrBackground: 'uintptr_t',
+      lpszMenuName: 'uintptr_t', lpszClassName: 'char16_t *', hIconSm: 'uintptr_t',
+    })
+  }
+  return koffiWndClassType
+}
+
 export class TrayHost {
   private f: Record<string, AnyFn> = {}
   private hwnd = 0
@@ -83,13 +103,7 @@ export class TrayHost {
     const gdi32 = koffi.load('gdi32.dll')
     const kernel32 = koffi.load('kernel32.dll')
 
-    koffi.proto('__stdcall', 'TrayWndProc', 'intptr_t', ['uintptr_t', 'uint32', 'uintptr_t', 'intptr_t'])
-    const WNDCLASSEXW = koffi.struct('WNDCLASSEXW', {
-      cbSize: 'uint32', style: 'uint32', lpfnWndProc: 'TrayWndProc *',
-      cbClsExtra: 'int32', cbWndExtra: 'int32', hInstance: 'uintptr_t',
-      hIcon: 'uintptr_t', hCursor: 'uintptr_t', hbrBackground: 'uintptr_t',
-      lpszMenuName: 'uintptr_t', lpszClassName: 'char16_t *', hIconSm: 'uintptr_t',
-    })
+    const WNDCLASSEXW = ensureKoffiTypes(koffi)
 
     this.f = {
       registerClass: user32.func('uint16 __stdcall RegisterClassExW(WNDCLASSEXW *wc)'),

@@ -24,21 +24,24 @@ let trayHost: TrayHost | null = null
 // 托盘宿主装配参数（#153）：init 与 tray-control 起共用一条装配路径（语料文件在 init 定档）
 let trayCorpusFile: string | undefined
 
-/** 托盘宿主起（#153 幂等）：在场即不动——不重播收编广播（每播一次图标往返一次，ADR-0012） */
+/** 托盘宿主起（#153 幂等）：在场即不动——不重播收编广播（每播一次图标往返一次，ADR-0012）。
+ * 起成功才登记 trayHost：半途抛错（类型表/类注册等）不滞留半死实例——后续 stop 不产
+ * 幻影 tray-host-stopped 存证、重试起也不被旧实例挡道（绿轮实证教训）。 */
 function startTrayHost(): void {
   if (trayHost) return
+  const corpusFile = trayCorpusFile // 闭包内 let 收窄失效，先落 const
+  const host = new TrayHost({
+    onEvent: (event) => parentPort!.postMessage({ type: 'tray-event', event }),
+    corpus: corpusFile
+      ? (entry) => {
+        try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
+      }
+      : undefined,
+    log: (event) => parentPort!.postMessage({ type: 'tray-host', event }),
+  })
   try {
-    const corpusFile = trayCorpusFile // 闭包内 let 收窄失效，先落 const
-    trayHost = new TrayHost({
-      onEvent: (event) => parentPort!.postMessage({ type: 'tray-event', event }),
-      corpus: corpusFile
-        ? (entry) => {
-          try { appendFileSync(corpusFile, JSON.stringify(entry) + '\n') } catch { /* 语料尽力而为 */ }
-        }
-        : undefined,
-      log: (event) => parentPort!.postMessage({ type: 'tray-host', event }),
-    })
-    trayHost.start()
+    host.start()
+    trayHost = host
   } catch (err) {
     parentPort!.postMessage({ type: 'tray-host', event: { type: 'tray-host-failed', message: (err as Error).message } })
   }
