@@ -22,6 +22,10 @@
 //      重启用即收编（宿主重建 + 名单回填），停→起→停整周期（类注销对称性）
 //   P12 宿主守恒（#153）：禁用态数据面强杀重启不复活宿主（respawn 按期望态）、
 //      启态禁用（config 门禁）不建宿主
+//   P13 栏高与图标尺寸（工单158）：条带 48→64DIP；应用组图标 32px/格位 44px；
+//      托盘图标 24px（16px 源最近邻放大档、32px 源平滑降采样）——CDP computed
+//      style 与几何存证帧互证；应用格位用 notepad 探针（栏上无应用时 1Hz 编排轮
+//      1–2s 内上栏）
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -37,7 +41,7 @@ const EVENTS_FILE = path.join(__dirname, 'evidence', '49-taskbar-events.jsonl');
 const CDP_PORT = 9223;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT
+const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
 const VK_ESC = 0x1b;
 
 const koffi = win32.koffi;
@@ -175,11 +179,13 @@ function launchPanel(extraEnv = {}) {
   });
 }
 
-/** CDP 驱动面板渲染层（运行时桥动作的真机通道）：在面板页执行表达式并取回值 */
-async function cdpEval(expression) {
+/** CDP 驱动面板渲染层（运行时桥动作的真机通道）：在指定标题的页执行表达式并取回值
+ * （默认面板页；P13 传 'DECK-TASKBAR' 直读任务栏页 DOM/computed style——同属面板
+ * 子进程的 targets，right-group 电池 P6 同款先例） */
+async function cdpEval(expression, pageTitle = PANEL_TITLE) {
   const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
-  const target = targets.find((t) => t.title === PANEL_TITLE);
-  if (!target) throw new Error('CDP 找不到面板页目标');
+  const target = targets.find((t) => t.title === pageTitle);
+  if (!target) throw new Error(`CDP 找不到页面目标: ${pageTitle}`);
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   try {
     await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('CDP WebSocket 连接失败')); });
@@ -475,6 +481,79 @@ async function main() {
       rep.pass('P9 启动态重新启用后任务栏窗口恢复（仍置顶）');
     } else {
       rep.fail(`P9 任务栏窗恢复=${!!tbBack}`);
+    }
+
+    // P13 栏高与图标尺寸（工单158）：条带 64DIP + 应用组图标 32px/格位 44px + 托盘 24px。
+    //   读数两路互证：(1) 任务栏页 CDP computed style（CSS px——浏览器层落的尺寸事实）；
+    //   (2) taskbar-geometry 存证帧（渲染层量出的矩形，电池既有点击坐标来源）。
+    //   应用格位若栏上暂无应用，spawn notepad 探针（运行中应用经 1Hz 编排轮 1–2s 上栏）；
+    //   托盘名单收编后面板自家图标恒在栏（#153 链路，P11 同款确定性来源）。
+    //   最近邻放大档交叉核验：已装载像素的托盘图标（naturalWidth>0）源尺寸 <24px 必须
+    //   挂 .tb-tray-px（image-rendering: pixelated），≥24px 不得挂——像素未到齐的图标
+    //   只断 24px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
+    rep.beginSegment('P13');
+    const tbH13 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    let notepad13 = null;
+    try {
+      // 栏上无应用格时铺一枚探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
+      let geom13 = latestGeometry(null);
+      if (!geom13 || !geom13.apps || geom13.apps.length === 0) {
+        notepad13 = spawn('notepad.exe', [], { stdio: 'ignore' });
+        const deadline13 = Date.now() + 12000;
+        while (Date.now() < deadline13) {
+          geom13 = latestGeometry(null);
+          if (geom13 && geom13.apps && geom13.apps.length > 0) break;
+          await sleep(300);
+        }
+      }
+      // 条带窗口高度（物理像素 → DIP，P1 同口径；本段自带一份证据不依赖 P1 现场）
+      const rect13 = tbH13 ? win32.rectOf(tbH13) : null;
+      const dip13 = screen.getPrimaryDisplay().bounds;
+      const scale13 = rect13 ? (rect13.right - rect13.left) / dip13.width : 0;
+      const heightDip13 = rect13 ? (rect13.bottom - rect13.top) / scale13 : 0;
+      // 等托盘像素到齐（自家图标 dataURL 装载后 naturalWidth>0；5s 内未到齐走软核验）
+      const probe13 = async () => cdpEval(`(() => {
+        const cell = document.querySelector('.tb-app');
+        const icon = document.querySelector('.tb-app img');
+        const tray = [...document.querySelectorAll('.tb-tray-icon img')];
+        const cs = (el, p) => (el ? getComputedStyle(el)[p] : null);
+        return {
+          cell: cell ? { w: cs(cell, 'width'), h: cs(cell, 'height') } : null,
+          icon: icon ? { w: cs(icon, 'width'), h: cs(icon, 'height') } : null,
+          tray: tray.map((t) => ({ w: cs(t, 'width'), h: cs(t, 'height'), nat: t.naturalWidth, px: t.classList.contains('tb-tray-px'), rendering: cs(t, 'imageRendering') })),
+        };
+      })()`, TASKBAR_TITLE);
+      let sizes13 = null;
+      for (let i = 0; i < 10; i++) {
+        sizes13 = await probe13();
+        if (sizes13.tray.some((t) => t.nat > 0)) break;
+        await sleep(500);
+      }
+      const stripOk13 = Math.abs(heightDip13 - TASKBAR_HEIGHT_DIP) <= 2;
+      const cellOk13 = sizes13.cell && sizes13.cell.w === '44px' && sizes13.cell.h === '44px';
+      const iconOk13 = sizes13.icon && sizes13.icon.w === '32px' && sizes13.icon.h === '32px';
+      const trayLen13 = sizes13.tray.length;
+      const traySizeOk13 = trayLen13 > 0 && sizes13.tray.every((t) => t.w === '24px' && t.h === '24px');
+      const loaded13 = sizes13.tray.filter((t) => t.nat > 0);
+      const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 24) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
+      // 几何存证互证：应用格位 h≈44（cell）；托盘格 h≈34（24 图标 + 5+5 padding——
+      // 工单158 挤撞回正的密度紧凑档，托盘格 padding 7→5 延缓右组左侵中组）
+      const geo13 = latestGeometry(null);
+      const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 44) <= 2);
+      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 34) <= 2);
+      if (stripOk13 && cellOk13 && iconOk13 && traySizeOk13 && geoAppsOk13 && geoTrayOk13
+        && (loaded13.length === 0 || trayPxOk13)) {
+        rep.pass(`P13 栏高与图标尺寸：条带 ${Math.round(heightDip13)}DIP；应用格位 44px/图标 32px；`
+          + `托盘 ${trayLen13} 枚均 24px（已装载 ${loaded13.length} 枚放大档核验`
+          + `${loaded13.length === 0 ? '未及（像素未到齐，软核验跳过）' : trayPxOk13 ? '通过' : '不符'}）`
+          + `；几何存证互证（格位 h=${geo13.apps[0].h.toFixed(1)}、托盘格 h=${geo13.trayIcons[0].h.toFixed(1)}）`);
+      } else {
+        rep.fail(`P13 条带=${Math.round(heightDip13)}DIP 格位=${JSON.stringify(sizes13.cell)} 图标=${JSON.stringify(sizes13.icon)}`
+          + ` 托盘=${trayLen13} 枚尺寸全24=${traySizeOk13} 放大档核验=${trayPxOk13}（装载 ${loaded13.length}）`
+          + ` 几何互证(格位=${geoAppsOk13}/托盘=${geoTrayOk13}) 几何帧=${JSON.stringify(geo13 && { apps: geo13.apps, trayIcons: geo13.trayIcons })}`);
+      }
+    } finally {
+      if (notepad13) spawnSync('taskkill', ['/PID', String(notepad13.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
     // P10(a) 关-开连发竞态（#103 缺陷①）：单次 evaluate 内串联两桥写（await 第一写

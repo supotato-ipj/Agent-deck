@@ -28,7 +28,7 @@ const EVENTS_FILE = path.join(__dirname, 'evidence', '50-taskbar-carry-events.js
 const CDP_PORT = 9224;
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT
+const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
 const WM_CLOSE = 0x0010;
 
 const koffi = win32.koffi;

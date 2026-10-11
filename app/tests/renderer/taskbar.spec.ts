@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, toggleMetric, trayIconPixelated } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -409,5 +409,57 @@ describe('任务栏页面样式完整性（真机事故回归）', () => {
     const block = body.slice(0, body.indexOf('}'))
     expect(block).toContain('display: flex')
     expect(block).toContain('align-items: center')
+  })
+})
+
+describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托盘 24px）', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
+
+  /** 取选择器块的规则体（`sel {` 起到配对 `}`；块内无嵌套括号——样式完整性守卫保证。
+   * 匹配串带 ` {`：注释里出现的裸类名（如 .tb-tray-px）不得被误认成规则。 */
+  function ruleOf(sel: string): string {
+    const i = css!.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    const body = css!.slice(i)
+    return body.slice(0, body.indexOf('}'))
+  }
+
+  it('应用组图标格位 44px、图标 32px（CSS 落位——观感不小于原生任务栏）', () => {
+    const cell = ruleOf('.tb-app')
+    expect(cell).toContain('width: 44px')
+    expect(cell).toContain('height: 44px')
+    const icon = ruleOf('.tb-app img')
+    expect(icon).toContain('width: 32px')
+    expect(icon).toContain('height: 32px')
+  })
+
+  it('托盘图标 24px：16px 原生源走最近邻放大档（.tb-tray-px），32px 源按 24 平滑显示', () => {
+    const base = ruleOf('.tb-tray-icon img')
+    expect(base).toContain('width: 24px')
+    expect(base).toContain('height: 24px')
+    expect(base, '基础档不得带 pixelated（32px 源缩到 24 需平滑插值）').not.toContain('image-rendering')
+    const px = ruleOf('.tb-tray-px')
+    expect(px, '最近邻放大档必须存在且只挂 image-rendering: pixelated').toContain('image-rendering: pixelated')
+  })
+
+  it('托盘放大判据（纯函数）：源小于 24px 需最近邻放大档；≥24px 不需要', () => {
+    expect(TASKBAR_TRAY_ICON_PX).toBe(24)
+    expect(trayIconPixelated(16)).toBe(true) // 16px 原生源放大到 24：最近邻保持锐利
+    expect(trayIconPixelated(20)).toBe(true) // 非常用尺寸但小于显示档同规则
+    expect(trayIconPixelated(24)).toBe(false) // 原生匹配：1:1 无缩放
+    expect(trayIconPixelated(32)).toBe(false) // 32px 源降采样到 24：平滑插值
+  })
+
+  it('挤撞回正守卫（49 电池 P5 真机红回归钉）：开始组可收窄裁推荐位、系统钮永不裁切', () => {
+    // 事故：托盘 24px/字号升档后右组左侵屏幕居中的开始组，DOM 后绘盖死任务视图钮
+    // （点击落到硬件摘要上、无 taskbar-action 存证）。守卫三件套缺一不可：
+    const pillRule = ruleOf('#pill-start')
+    expect(pillRule, '开始组可收窄（positionStartPill 拥挤时设 maxWidth）').toContain('min-width: 0')
+    expect(pillRule).toContain('overflow: hidden')
+    expect(ruleOf('.tb-btn'), '系统钮 flex:none——收窄时永不裁切（被裁即 P5 重演）').toContain('flex: none')
+    const rec = ruleOf('.tb-rec')
+    expect(rec, '推荐位（仅展示，工单54 v1）可收缩让位').toContain('flex: 0 1 auto')
+    expect(rec).toContain('text-overflow: ellipsis')
   })
 })

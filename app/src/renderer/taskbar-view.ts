@@ -216,6 +216,19 @@ export async function dispatchTaskbarVisibility(
 
 // —— 工单56 托盘入栏：像素取字节 + 点击回放分发 ——
 
+/** 托盘图标显示档（工单158：16→24px，观感不小于原生任务栏的 24px 托盘图标） */
+export const TASKBAR_TRAY_ICON_PX = 24
+
+/**
+ * 托盘图标最近邻放大判据（工单158 纯函数）：源尺寸小于显示档（典型 16px 原生源）
+ * 需挂 .tb-tray-px（image-rendering: pixelated）做最近邻放大保持锐利——平滑插值会把
+ * 16px 小图标糊成一团；源 ≥ 显示档（典型 32px 源降采样到 24）相反，平滑插值才干净，
+ * 最近邻降采样会丢像素出毛边。挂靠 class 的裁决在渲染层 makeTrayEl，本函数只判尺寸。
+ */
+export function trayIconPixelated(naturalWidth: number): boolean {
+  return Number.isFinite(naturalWidth) && naturalWidth > 0 && naturalWidth < TASKBAR_TRAY_ICON_PX
+}
+
 /** 托盘图标像素取字节（工单56）：条目身份 → BGRA 像素（渲染层本地 canvas 转 dataURL 并缓存） */
 export async function fetchTrayIcon(
   bridge: Pick<TaskbarBridge, 'invoke'>,
