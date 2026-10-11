@@ -20,14 +20,37 @@ const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadPr
 const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)')
 const ShowWindow = user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)')
 
+const kernel32 = koffi.load('kernel32.dll')
+const OpenProcess = kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)')
+const QueryFullProcessImageNameW = kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)')
+const CloseHandle = kernel32.func('bool __stdcall CloseHandle(void *h)')
+const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+/** pid 所属进程的完整 exe 路径；取不到返回空串（窗口已退出/权限不足） */
+function exePathOfPid(pid: number): string {
+  if (!pid) return ''
+  const handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+  if (!handle) return ''
+  try {
+    const name = Buffer.alloc(1024) // 512 wchar
+    const size = Buffer.alloc(4)
+    size.writeUInt32LE(510, 0)
+    if (!QueryFullProcessImageNameW(handle, 0, name, size)) return ''
+    return name.toString('utf16le', 0, size.readUInt32LE(0) * 2)
+  } finally {
+    CloseHandle(handle)
+  }
+}
+
 /** 原生主任务栏句柄；explorer 不在场（崩溃重启间隙等）返回 0。
- *  按属主过滤（工单103 缺陷②，2026-10-11 真机坐实）：托盘宿主以同类名注册的 0×0
- *  隐藏置顶竞争窗**确定性**霸占裸 FindWindowW 首命（TOPMOST z 序）——旧实现拿到的是
- *  我方窗，IsWindowVisible 恒假 → explorer 真任务栏从未被隐藏、条带与它同矩形重叠
- *  （docs/audit/2026-10-11-t142-103-joint-forensics.md）。枚举全部同类窗，跳过本进程
- *  属主，取第一个非我方窗（= explorer 真任务栏）。 */
+ *  按属主排除自家进程树（工单103 缺陷②，2026-10-11 真机坐实）：托盘宿主以同类名注册的
+ *  0×0 隐藏置顶竞争窗**确定性**霸占裸 FindWindowW 首命——旧实现拿到的是我方窗，
+ *  IsWindowVisible 恒假 → explorer 真任务栏从未被隐藏、条带与它同矩形重叠
+ *  （docs/audit/2026-10-11-t142-103-joint-forensics.md）。注意竞争窗属主是**数据面
+ *  utilityProcess 子进程**（#144 已更正发射点归属），pid 异于主进程——排除自身 pid 不够，
+ *  按 exe 全路径排除（主进程与全部 Electron 子进程同 exe）。 */
 export function nativeTrayWnd(): number {
-  const ownPid = process.pid
+  const ownExe = process.execPath.toLowerCase()
   let after = 0
   for (;;) {
     const h = Number(FindWindowExW(0, after, 'Shell_TrayWnd', null))
@@ -35,7 +58,7 @@ export function nativeTrayWnd(): number {
     after = h
     const pidBuf = Buffer.alloc(4)
     GetWindowThreadProcessId(h, pidBuf)
-    if (pidBuf.readUInt32LE(0) === ownPid) continue // 我方托盘宿主竞争窗：跳过
+    if (exePathOfPid(pidBuf.readUInt32LE(0)).toLowerCase() === ownExe) continue // 自家进程树（含数据面子进程）：跳过
     return h
   }
 }
