@@ -12,9 +12,12 @@
 //   P7 运行时重新启用 → 窗口恢复（仍置顶）
 //   P8 启动态禁用（config 门禁）→ 窗口不建，面板照常
 //   P9 启动态恢复启用 → 窗口回来
-//   P10 关-开连发竞态（#103 缺陷①）：单次 evaluate 内两次桥写毫秒级串联触发
-//      「旧窗 closed 迟到」竞态窗 → 条带恰一扇、随后完整禁用归零（孤儿检测器）、
-//      再启用恰一扇且新窗 AppBar 占位存证在场、无乱序注销
+//   P10 关-开连发竞态（#103 缺陷①）双触发：(a) 单次 evaluate 内两桥写毫秒级串联
+//      （真实 agent 路径回归面）；(b) DECK_TASKBAR_BURST=1 重拉面板、主进程同一
+//      JS 任务连发两次 setEnabled（destroy/create 零轮转、旧窗 closed 确定性迟到，
+//      2026-10-11 红轮实证 renderer 双写够不到竞态窗）→ 两种连发后各断言：条带恰
+//      一扇、随后完整禁用归零（孤儿检测器）、再启用恰一扇且新窗占位存证在场、
+//      无乱序注销（新窗 registered 后冒 removed 即迟到 closed 误注销的直接证据）
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -157,10 +160,10 @@ async function waitForeground(pred, timeoutMs = 6000) {
   return null;
 }
 
-function launchPanel() {
+function launchPanel(extraEnv = {}) {
   return spawn(process.execPath, ['.', '--panel-accept'], {
     cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT) },
+    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT), ...extraEnv },
     stdio: 'ignore',
   });
 }
@@ -467,13 +470,13 @@ async function main() {
       rep.fail(`P9 任务栏窗恢复=${!!tbBack}`);
     }
 
-    // P10 关-开连发竞态（#103 缺陷①）：取证判读（2026-10-11 并案取证 D 相）——CDP
-    // 两次独立调用间隔 ~313ms 够不到竞态窗，亚 50ms 需毫秒级连发。这里在单次 evaluate
-    // 内串联两写：第一写的返回只需 commit 完成（destroy 已同步跑完、旧窗 closed 尚未
-    // 发出），第二写毫秒级到达 → 旧窗 closed 必然晚于新窗 create 落地，竞态窗确定性进场。
-    // 孤儿检测器：连发后做一次完整禁用——若迟到的 closed 把控制器共享账抹掉（win=null），
-    // destroy() 空转、条带永不清；乱序注销存证：新窗 registered 之后若再冒 appbar-removed
-    // （且无对应 window-destroyed），即迟到 closed 拿新窗句柄误注销的直接证据。
+    // P10(a) 关-开连发竞态（#103 缺陷①）：单次 evaluate 内串联两桥写（await 第一写
+    // 返回即发第二写，毫秒级）——真实 agent 路径的回归面。取证判读（2026-10-11 并案
+    // 取证 D 相）CDP 两独立调用间隔 ~313ms；红轮实证毫秒级串联在未修代码上竞态仍
+    // 进不了场（closed 在 ~2-5ms 内先落地）——确定性的缺陷①触发在 (b) 进程内连发，
+    // 本段断言面 (a)/(b) 同款：孤儿检测器（连发后完整禁用，条带必须归零——迟到的
+    // closed 若抹掉控制器共享账，destroy() 因 win=null 空转、条带永不清）；乱序注销
+    // 存证（新窗 registered 之后再冒 appbar-removed 即迟到 closed 拿新窗句柄误注销）。
     rep.beginSegment('P10');
     const sinceP10 = Date.now();
     const burst = await cdpEval(`(async () => {
@@ -508,10 +511,53 @@ async function main() {
       && stripsAfterBurst.length === 1 && spuriousRemoved.length === 0
       && stripGone && r10off && r10off.enabled === false
       && r10on && r10on.enabled === true && tbFinal && isTopmost(tbFinal) && regFinal) {
-      rep.pass(`P10 关-开连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=${regFinal.hwnd}）、无乱序注销`);
+      rep.pass(`P10(a) 桥写连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=${regFinal.hwnd}）、无乱序注销`);
     } else {
-      rep.fail(`P10 连发=${JSON.stringify(burst)} 条带数=${stripsAfterBurst.length} 乱序注销=${spuriousRemoved.length}`
+      rep.fail(`P10(a) 连发=${JSON.stringify(burst)} 条带数=${stripsAfterBurst.length} 乱序注销=${spuriousRemoved.length}`
         + ` 禁用归零=${stripGone} 禁用响应=${JSON.stringify(r10off)} 再启用窗=${!!tbFinal} 新窗占位=${!!regFinal}`);
+    }
+
+    // P10(b) 进程内同任务连发（取证判读的确定性触发）：renderer 双桥写跨 IPC 任务、
+    // 未修代码上竞态进不了场（(a) 的红轮实证）——带 DECK_TASKBAR_BURST=1 重拉面板，
+    // 主进程在同一 JS 任务内连发两次 setEnabled（destroy/create 零事件循环轮转，
+    // 旧窗 closed 确定性迟到），这才是缺陷①的完整触发形态。断言面与 (a) 同款。
+    patchTaskbar({ enabled: true });
+    killTree(child, panelPid);
+    child = null;
+    await sleep(1200);
+    const sinceBurst = Date.now();
+    child = launchPanel({ DECK_TASKBAR_BURST: '1' });
+    const bootBurst = await waitEvent('boot', (e) => e.t >= sinceBurst, 15000);
+    if (!bootBurst) throw new Error('P10(b) 连发面板子进程未上报 boot');
+    panelPid = bootBurst.pid;
+    const burstDone = await waitEvent('taskbar-burst-done', (e) => e.t >= sinceBurst, 20000);
+    await sleep(1500); // 竞态窗：迟到 closed 充分落地
+    const stripsBurst = [];
+    for (const h of win32.topLevelWindows()) {
+      if (titleOf(h) === TASKBAR_TITLE && win32.threadIdOf(h).pid === panelPid) stripsBurst.push(h);
+    }
+    const burstEnd2 = Date.now();
+    const evsInProc = readEvents().filter((e) => e.t >= sinceBurst && e.t <= burstEnd2);
+    const regsInProc = evsInProc.filter((e) => e.type === 'taskbar-appbar-registered');
+    const lastRegT2 = regsInProc.length ? regsInProc[regsInProc.length - 1].t : 0;
+    const spuriousRemoved2 = evsInProc.filter((e) => e.type === 'taskbar-appbar-removed' && e.t > lastRegT2);
+    // 孤儿检测器：完整禁用后条带必须归零
+    const rOff2 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
+    let stripGone2 = false;
+    for (let i = 0; i < 25 && !stripGone2; i++) {
+      await sleep(200);
+      stripGone2 = !findWindow(panelPid, TASKBAR_TITLE);
+    }
+    const rOn2 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
+    const tbFinal2 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const regFinal2 = await waitEvent('taskbar-appbar-registered', (e) => e.t > burstEnd2, 8000);
+    if (burstDone && stripsBurst.length === 1 && spuriousRemoved2.length === 0
+      && stripGone2 && rOff2 && rOff2.enabled === false
+      && rOn2 && rOn2.enabled === true && tbFinal2 && isTopmost(tbFinal2) && regFinal2) {
+      rep.pass(`P10(b) 进程内连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=${regFinal2.hwnd}）、无乱序注销`);
+    } else {
+      rep.fail(`P10(b) 连发存证=${!!burstDone} 条带数=${stripsBurst.length} 乱序注销=${spuriousRemoved2.length}`
+        + ` 禁用归零=${stripGone2} 禁用响应=${JSON.stringify(rOff2)} 再启用窗=${!!tbFinal2} 新窗占位=${!!regFinal2}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
