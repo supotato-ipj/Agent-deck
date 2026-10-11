@@ -5,7 +5,7 @@
 // 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
+import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
@@ -22,11 +22,12 @@ document.addEventListener('dragstart', (e) => {
   e.preventDefault()
 })
 
-/** 左组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 6+6、图标格 32+2 间距、组间距 8）。
- * 容量格数宁保守不少让——多留缝也不与中组 pill 重叠（中组居中、左组绝定位贴左）。 */
+/** 左组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 8+8、图标格 44+2 间距、组间距 8）。
+ * 容量格数宁保守不少让——多留缝也不与中组 pill 重叠（中组居中、左组绝定位贴左）。
+ * 工单158 尺寸升档：格位 32→44（图标 22→32），pill padding 6→8。 */
 const LEFT_INSET = 8
-const PILL_PAD_X = 12
-const CELL_W = 34
+const PILL_PAD_X = 16
+const CELL_W = 46
 const GROUP_GAP = 8
 
 /** 最近一次渲染的状态：几何重排（resize）时按它重声明热区 */
@@ -190,8 +191,9 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
 }
 
 /** 托盘图标像素缓存（工单56：身份键 → dataURL；仅内存，与桌面图标缓存同款纪律——
- * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费） */
-const trayIconUrls = new Map<string, string>()
+ * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费）。px = 源尺寸小于显示档
+ * （工单158：16px 原生源）需挂最近邻放大档保持锐利——重渲直接复用，不再重判。 */
+const trayIconUrls = new Map<string, { url: string; px: boolean }>()
 
 /** BGRA → RGBA（canvas putImageData 像素序；与 trayhost/pixels 的 alpha 修复同算法，这里只换序） */
 function bgraToRgba(bgra: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
@@ -213,7 +215,9 @@ function trayDataUrl(pixels: TaskbarTrayPixels): string {
 }
 
 /** 托盘图标格（工单56）：像素按需取（缓存命中即贴），左键/右键各自回放到所属应用。
- * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位） */
+ * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单158：图标统一按 24px
+ * 显示——16px 原生源挂 .tb-tray-px 最近邻放大保持锐利，32px 源降采样平滑插值
+ * （挂靠判据 = taskbar-view trayIconPixelated 纯函数，离线单测钉住）。 */
 function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   const el = document.createElement('div')
   el.className = 'tb-cell tb-tray-icon'
@@ -225,13 +229,18 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   el.appendChild(img)
   const cached = trayIconUrls.get(entry.key)
   if (cached) {
-    img.src = cached
+    img.src = cached.url
+    img.classList.toggle('tb-tray-px', cached.px)
   } else {
     void fetchTrayIcon(window.deck.bridge, entry.key).then((pixels) => {
       if (!pixels) return
       const url = trayDataUrl(pixels)
-      trayIconUrls.set(entry.key, url)
-      if (img.dataset.key === entry.key) img.src = url
+      const px = trayIconPixelated(pixels.width)
+      trayIconUrls.set(entry.key, { url, px })
+      if (img.dataset.key === entry.key) {
+        img.src = url
+        img.classList.toggle('tb-tray-px', px)
+      }
     })
   }
   const click = (button: TaskbarTrayButton) => () => {
@@ -260,7 +269,7 @@ function leftSlots(): number {
 
 /** 左组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
  * 分发与呈现——launch/activate/minimize 无需回显，window-list 才在 pill 内横排
- * 列出窗口标题供精确选窗（条带窗 48px 高，竖排浮层出不了窗口矩形，54 菜单同款先例）。
+ * 列出窗口标题供精确选窗（条带窗 64px 高（工单158），竖排浮层出不了窗口矩形，54 菜单同款先例）。
  * 标题仅即时进出 DOM，不落任何存储（ADR-0002）。 */
 async function onAppClick(e: TaskbarLeftViewEntry, inOverflow: boolean): Promise<void> {
   window.deck.host.notify('taskbar-app-action', { exe: e.exe })
@@ -372,7 +381,7 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
 }
 
 /** 左组渲染（工单52/58）：手钉+运行中合并条目按容量拆分——栏内满员即出 ⋯ 钮，
- * 浮层开着时尾部条目横排进 pill（条带窗只有 48px 高，竖排浮层出不了窗口矩形，
+ * 浮层开着时尾部条目横排进 pill（条带窗只有 64px 高（工单158），竖排浮层出不了窗口矩形，
  * 54 右键菜单同款先例）；数量回落浮层自动收、图标回栏。空组整组不渲染（display:none） */
 function renderLeft(entries: TaskbarLeftViewEntry[]): void {
   pillLeft.textContent = ''

@@ -23,8 +23,9 @@ import type { PhysRect } from './yield'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
 export const TASKBAR_TITLE = 'DECK-TASKBAR'
-/** 条带高度（DIP，工单37 默认档位；几何手改口属后续票） */
-export const TASKBAR_HEIGHT = 48
+/** 条带高度（DIP，工单158 起 64：栏高与图标尺寸升档——48px 条带配 22px 应用图标
+ * 的观感小于原生任务栏，升档后应用图标 32px/托盘 24px；几何手改口属后续票） */
+export const TASKBAR_HEIGHT = 64
 /**
  * 条带底边距屏底的降级净空（DIP，工单50 起仅降级档）：原生任务栏仍可见时让出它的
  * 高度、坐到上沿。49 真机实证（zprobe 阶梯）：Shell_TrayWnd 位于普通 TOPMOST 之上的

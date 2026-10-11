@@ -589,6 +589,16 @@
             "system-state"
           ],
           "estSeconds": 10
+        },
+        {
+          "seg": "P13",
+          "ticket": 158,
+          "title": "栏高与图标尺寸（48→64DIP、应用图标 32px/格位 44px、托盘 24px+最近邻放大档）：CDP computed style 与几何存证互证",
+          "surfaces": [
+            "pixel",
+            "event-evidence"
+          ],
+          "estSeconds": 8
         }
       ]
     },
