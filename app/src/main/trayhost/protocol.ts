@@ -279,15 +279,21 @@ export function encodeTrayPayload(o: EncodeNotifyOptions & { dwMessage: number; 
 
 /**
  * 托盘点击回放打包（工单56；接缝③：纯函数，合成参数进出，零 Win32）。
- * 两代语义分道——图标所属应用按自己协商的版本解释回调负载：
- * - NOTIFYICON_VERSION_4（version >= 4）：lParam = uid | (x << 16)（光标 x 取低 16 位、
- *   y 取高 16 位），wParam = MAKELPARAM(x, y)；
- * - 旧版（version < 4 / 未协商）：lParam = uid，wParam = 事件消息
- *   （左键 WM_LBUTTONUP=0x0203、右键 WM_RBUTTONUP=0x0205）。
- * 菜单由图标所属应用自己渲染，回放前必须 AllowSetForegroundWindow（调用方负责）。
+ * 两代语义分道——图标所属应用按自己协商的版本解释回调负载（口径 = MSDN
+ * NOTIFYICONDATAW uCallbackMessage 备注，工单163 取证坐实并工单164 修正）：
+ * - NOTIFYICON_VERSION_4（version >= 4）：wParam = MAKELPARAM(x, y)（GET_X/Y_LPARAM
+ *   取锚点坐标）；lParam = (uID << 16) | 事件消息（LOWORD=通知事件——右键
+ *   WM_CONTEXTMENU、左键 WM_LBUTTONUP；HIWORD=图标 ID，v4 限 16 位）；
+ * - 旧版（version < 4 / 未协商）：wParam = 图标 uID（MSDN：可 32 位长）、
+ *   lParam = 事件消息（左键 WM_LBUTTONUP=0x0202、右键 WM_RBUTTONUP=0x0205）。
+ *   （工单164 前实现两参数整体互换且 WM_LBUTTONUP 误为 0x0203=WM_LBUTTONDBLCLK，
+ *   #163 真机 A/B 坐实为回放全哑主因。）
+ * 菜单由图标所属应用自己渲染，回放前必须 AllowSetForegroundWindow（调用方负责，
+ * 传属主进程 ID 而非 hwnd——API 形参是 DWORD dwProcessId）。
  */
-export const WM_LBUTTONUP = 0x0203
+export const WM_LBUTTONUP = 0x0202
 export const WM_RBUTTONUP = 0x0205
+export const WM_CONTEXTMENU = 0x007b
 
 export type TrayClickButton = 'left' | 'right'
 
@@ -306,15 +312,16 @@ export function packTrayClick(
   if (entry.version >= 4) {
     const x = cursor.x & 0xffff
     const y = cursor.y & 0xffff
+    const event = button === 'right' ? WM_CONTEXTMENU : WM_LBUTTONUP
     return {
       message: entry.callbackMessage,
       wparam: (y << 16) | x,
-      lparam: (x << 16) | (entry.uid & 0xffff),
+      lparam: ((entry.uid & 0xffff) << 16) | event,
     }
   }
   return {
     message: entry.callbackMessage,
-    wparam: button === 'left' ? WM_LBUTTONUP : WM_RBUTTONUP,
-    lparam: entry.uid & 0xffff,
+    wparam: entry.uid >>> 0,
+    lparam: button === 'left' ? WM_LBUTTONUP : WM_RBUTTONUP,
   }
 }

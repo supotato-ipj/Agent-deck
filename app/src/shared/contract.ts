@@ -519,7 +519,8 @@ export interface BridgeMethods {
   'taskbar/set-metrics': { request: { metrics: TaskbarMetric[] }; response: TaskbarState }
   /**
    * 托盘图标点击回放（工单56）：把点击按图标所属应用协商的负载语义回投到它的窗口
-   * （version>=4 走 MAKELPARAM 语义，旧版走 WM_LBUTTONUP/WM_RBUTTONUP），菜单由应用
+   * （v0：wParam=uID/lParam=鼠标消息；v4：wParam=锚点坐标/lParam=事件|(uID<<16)，右键
+   * WM_CONTEXTMENU——工单164 修正，口径=MSDN uCallbackMessage 备注），菜单由应用
    * 自己渲染。key 护栏 = 必须在当前栏内托盘名单（名单外/已删图标 ok:false 不抛）；
    * 执行失败（宿主不在场/投递被系统拒收）ok:false + error。
    */

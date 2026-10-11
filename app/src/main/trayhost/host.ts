@@ -133,8 +133,11 @@ export class TrayHost {
       getModuleHandle: kernel32.func('uintptr_t __stdcall GetModuleHandleW(uintptr_t name)'),
       // 点击回放（工单56）：AllowSetForegroundWindow 放行图标所属应用弹自己的菜单
       // （我们抢了托盘前台权，应用默认收不到 SetForegroundWindow 许可）；GetCursorPos
-      // 取光标位置供 v4 负载的 MAKELPARAM 语义。
-      allowSetForegroundWindow: user32.func('bool __stdcall AllowSetForegroundWindow(uintptr_t hWnd)'),
+      // 取光标位置供 v4 负载的 MAKELPARAM 语义。工单164 修正：ASFW 形参是属主进程 ID
+      // （DWORD）——旧实现传 hwnd 恒失败（#163 取证 asfw=false 实测），GetWindowThreadProcessId
+      // 换取 pid 再放行。
+      allowSetForegroundWindow: user32.func('bool __stdcall AllowSetForegroundWindow(uintptr_t dwProcessId)'),
+      getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, uint32 *lpdwProcessId)'),
       getCursorPos: user32.func('bool __stdcall GetCursorPos(void *pt)'),
       // 外来指针的安全读取：ReadProcessMemory 读失败返回 false 而非访问违例崩溃——
       // WM_COPYDATA 被 Post/SendNotify 投递时 lpData 是发送方地址空间的悬垂指针
@@ -331,9 +334,14 @@ export class TrayHost {
       return { ok: false, error }
     }
     const pack = packTrayClick(entry, button, { x: pt.readInt32LE(0), y: pt.readInt32LE(4) })
-    this.f.allowSetForegroundWindow(entry.hwnd)
+    // 前台权放行（工单164 修正）：ASFW 形参是属主进程 ID——GetWindowThreadProcessId 换取
+    // pid 再放行（旧实现传 hwnd 当 pid，恒 false）；结果随存证留档供验收判读
+    const pidBuf = Buffer.alloc(4)
+    this.f.getWindowThreadProcessId(entry.hwnd, pidBuf)
+    const ownerPid = pidBuf.readUInt32LE(0)
+    const asfw = Boolean(this.f.allowSetForegroundWindow(ownerPid))
     const posted = Boolean(this.f.postMessage(entry.hwnd, pack.message, pack.wparam, pack.lparam))
-    this.options.log?.({ type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version, ...pack, posted })
+    this.options.log?.({ type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version, pid: ownerPid, asfw, ...pack, posted })
     return posted ? { ok: true } : { ok: false, error: '回调投递被系统拒收' }
   }
 
