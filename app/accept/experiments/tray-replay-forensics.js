@@ -457,9 +457,14 @@ function postPayload(hwnd, callbackMessage, pack) {
     const noEventRows = p1Rows.filter((r) => !r.replay && !r.miss);
     const postRejected = [...postedRows.filter((r) => r.replay.posted === false)].map((r) => r.key);
     const p3Arms = hlog.filter((e) => e.type === 'P3-arm');
+    // arm 名形如 A-product/B-msdn/C-msdn-rbuttonup/D-swaponly-left——按首段（A/B/C/D）分桶
     const groupArms = (pred) => {
       const by = new Map();
-      for (const r of p3Arms) { if (!by.has(r.sample)) by.set(r.sample, {}); by.get(r.sample)[r.arm] = r; }
+      for (const r of p3Arms) {
+        const k = String(r.arm).split('-')[0];
+        if (!by.has(r.sample)) by.set(r.sample, {});
+        by.get(r.sample)[k] = r;
+      }
       return [...by.entries()].filter(([, v]) => pred(v)).map(([k]) => k);
     };
     const verdict = {
