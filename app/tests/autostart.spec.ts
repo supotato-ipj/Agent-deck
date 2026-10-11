@@ -154,8 +154,13 @@ describe('自启：动作决策（工单11）', () => {
   })
 })
 
-/** 真 COM 集成的单测限时：常态 ~3s，并行工作进程的负载尖峰会撞 5s 默认值（全量实测） */
-const COM_TIMEOUT = 15_000
+/**
+ * 真 COM 集成的单测限时：常态 ~3s，并行工作进程的负载尖峰会撞 5s 默认值（全量实测）；
+ * GH 冷 runner 起 COM 内核慢于开发机还会再叠一层（#33：15s 限下实测 16.4s 超时、同 run
+ * 复跑即绿；#13 时期同族另一用例同病）——照 a89af9c 内核契约超时 30s 先例放宽，
+ * 文件内两个真 COM 组（applyAutostart 集成 / .lnk 读写缝）统一适用
+ */
+const COM_TIMEOUT = 30_000
 
 describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Startup 目录）', () => {
   /** 造一个假 Startup 目录（含旧链快捷方式），返回目录与旧链路径 */
@@ -250,7 +255,7 @@ describe.skipIf(!isWindows)('自启：.lnk 读写适配缝（真 COM，tmp 目�
     writeShortcut(link, DESIRED)
     expect(fs.existsSync(link)).toBe(true)
     expect(readShortcut(link)).toMatchObject({ target: DESIRED.target, args: DESIRED.args })
-  })
+  }, COM_TIMEOUT)
 
   it('不存在的链接读作 null（不做异常）', () => {
     expect(readShortcut(path.join(tmpDir(), 'nope.lnk'))).toBeNull()
@@ -261,5 +266,5 @@ describe.skipIf(!isWindows)('自启：.lnk 读写适配缝（真 COM，tmp 目�
     const spec: ShortcutSpec = { target: 'C:\\Program Files\\app\\electron.exe', args: '"C:\\Program Files\\app"', workDir: 'C:\\Program Files\\app' }
     writeShortcut(link, spec)
     expect(readShortcut(link)).toMatchObject({ target: spec.target, args: spec.args })
-  })
+  }, COM_TIMEOUT)
 })
