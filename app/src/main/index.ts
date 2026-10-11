@@ -211,6 +211,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const taskbarCtl = startTaskbarController({ ctx: kernel, log })
   app.on('before-quit', () => taskbarCtl.dispose())
 
+  // #103 缺陷① 验收触发器（accept 双门禁）：P10 需要同一 JS 任务内连发两次 setEnabled——
+  // renderer 侧双桥写无论多快都跨 IPC 任务，旧窗 closed 总能先落地（2026-10-11 红轮实证）。
+  // hint-bar 同款 accept 树 require 先例，仅 DECK_TASKBAR_BURST=1 的 --panel-accept 拉起。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_TASKBAR_BURST === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'taskbar-burst.js')).run(kernel, log)
+  }
+
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
   // 托盘点击、second-instance、Win+D 防抖恢复共用；恢复后的重钉是票01 实施要点。
   const showPanel = (reason: string) => {
