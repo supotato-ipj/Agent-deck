@@ -5,7 +5,7 @@
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitAppsOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
+import { appIconFallbackText, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitAppsOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
@@ -22,11 +22,12 @@ document.addEventListener('dragstart', (e) => {
   e.preventDefault()
 })
 
-/** 应用组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 6+6、图标格 32+2 间距、组间距 8）。
- * 容量格数宁保守不少让——多留缝也不与开始组 pill 重叠（开始组 pill 居中、应用组绝定位贴左）。 */
+/** 应用组几何常量（与 taskbar.html CSS 同源：左缘 8px、padding 8+8、图标格 44+2 间距、组间距 8）。
+ * 容量格数宁保守不少让——多留缝也不与开始组 pill 重叠（开始组 pill 居中、应用组绝定位贴左）。
+ * 工单158 尺寸升档：格位 32→44（图标 22→32），pill padding 6→8。 */
 const APPS_INSET = 8
-const PILL_PAD_X = 12
-const CELL_W = 34
+const PILL_PAD_X = 16
+const CELL_W = 46
 const GROUP_GAP = 8
 
 /** 最近一次渲染的状态：几何重排（resize）时按它重声明热区 */
@@ -190,8 +191,9 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
 }
 
 /** 托盘图标像素缓存（工单56：身份键 → dataURL；仅内存，与桌面图标缓存同款纪律——
- * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费） */
-const trayIconUrls = new Map<string, string>()
+ * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费）。px = 源尺寸小于显示档
+ * （工单158：16px 原生源）需挂最近邻放大档保持锐利——重渲直接复用，不再重判。 */
+const trayIconUrls = new Map<string, { url: string; px: boolean }>()
 
 /** BGRA → RGBA（canvas putImageData 像素序；与 trayhost/pixels 的 alpha 修复同算法，这里只换序） */
 function bgraToRgba(bgra: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
@@ -213,7 +215,9 @@ function trayDataUrl(pixels: TaskbarTrayPixels): string {
 }
 
 /** 托盘图标格（工单56）：像素按需取（缓存命中即贴），左键/右键各自回放到所属应用。
- * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位） */
+ * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单158：图标统一按 24px
+ * 显示——16px 原生源挂 .tb-tray-px 最近邻放大保持锐利，32px 源降采样平滑插值
+ * （挂靠判据 = taskbar-view trayIconPixelated 纯函数，离线单测钉住）。 */
 function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   const el = document.createElement('div')
   el.className = 'tb-cell tb-tray-icon'
@@ -225,13 +229,18 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   el.appendChild(img)
   const cached = trayIconUrls.get(entry.key)
   if (cached) {
-    img.src = cached
+    img.src = cached.url
+    img.classList.toggle('tb-tray-px', cached.px)
   } else {
     void fetchTrayIcon(window.deck.bridge, entry.key).then((pixels) => {
       if (!pixels) return
       const url = trayDataUrl(pixels)
-      trayIconUrls.set(entry.key, url)
-      if (img.dataset.key === entry.key) img.src = url
+      const px = trayIconPixelated(pixels.width)
+      trayIconUrls.set(entry.key, { url, px })
+      if (img.dataset.key === entry.key) {
+        img.src = url
+        img.classList.toggle('tb-tray-px', px)
+      }
     })
   }
   const click = (button: TaskbarTrayButton) => () => {
@@ -258,9 +267,35 @@ function appsSlots(): number {
   return Math.max(0, Math.floor(avail / CELL_W))
 }
 
+/** 开始组 pill 挤撞回正（工单158）：屏幕居中的开始组与右组（托盘 24px 升档后宽 ~430px）
+ * 在窄余裕下重叠，右组 DOM 后绘盖死任务视图钮（49 电池 P5 真机红：点击落到硬件摘要）。
+ * 以 [应用组右缘, 右组左缘] 夹取居中位；极端拥挤时 pill 收窄裁推荐位（仅展示），
+ * 系统钮 flex:none 不裁。只在结构性重渲（状态帧/resize）落位——1Hz 指标文本宽度
+ * 抖动不传导（applyStatus 不夹取），电池的 settle 几何因此跨拍稳定。余裕充足时与
+ * 屏幕居中观感一致。#159 布局重排以组级重排取代本夹取。 */
+const PILL_CLAMP_GAP = 24
+function positionStartPill(): void {
+  if (pillStart.hidden) return
+  pillStart.style.maxWidth = ''
+  const natural = pillStart.offsetWidth
+  const lo = pillApps.style.display === 'none' ? PILL_CLAMP_GAP : pillApps.getBoundingClientRect().right + PILL_CLAMP_GAP
+  const hi = rightPill.getBoundingClientRect().left - PILL_CLAMP_GAP
+  if (hi <= lo) return // 右组自身已越界（异常态）：不动，等下一拍
+  if (hi - lo < natural) {
+    // 拥挤：收窄（border-box，含内衬与边框）居中于余裕带，推荐位收缩让位
+    pillStart.style.maxWidth = `${Math.round(hi - lo)}px`
+    pillStart.style.left = `${Math.round((lo + hi) / 2)}px`
+    return
+  }
+  let center = document.body.clientWidth / 2
+  if (center - natural / 2 < lo) center = lo + natural / 2
+  if (center + natural / 2 > hi) center = hi - natural / 2
+  pillStart.style.left = `${Math.round(center)}px`
+}
+
 /** 应用组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
  * 分发与呈现——launch/activate/minimize 无需回显，window-list 才在 pill 内横排
- * 列出窗口标题供精确选窗（条带窗 48px 高，竖排浮层出不了窗口矩形，54 菜单同款先例）。
+ * 列出窗口标题供精确选窗（条带窗 64px 高（工单158），竖排浮层出不了窗口矩形，54 菜单同款先例）。
  * 标题仅即时进出 DOM，不落任何存储（ADR-0002）。 */
 async function onAppClick(e: TaskbarAppViewEntry, inOverflow: boolean): Promise<void> {
   window.deck.host.notify('taskbar-app-action', { exe: e.exe })
@@ -343,12 +378,20 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
   el.className = e.running ? 'tb-app running' : 'tb-app'
   el.dataset.exe = e.exe // 交互挂点（点击/右键按 exe 身份分发）
   el.title = e.tooltip // 窗口标题 tooltip：仅即时显示，渲染层不持久化
-  const img = document.createElement('img')
-  img.draggable = false // 手钉拖拽的宿主是 .tb-app 本身：图标默认可拖会把手势截成原生图片拖拽
-  img.dataset.iconKey = e.iconKey ?? ''
-  img.alt = e.label
-  el.appendChild(img)
-  applyIcon(img, e.iconKey)
+  if (e.iconKey) {
+    const img = document.createElement('img')
+    img.draggable = false // 手钉拖拽的宿主是 .tb-app 本身：图标默认可拖会把手势截成原生图片拖拽
+    img.dataset.iconKey = e.iconKey
+    img.alt = e.label
+    el.appendChild(img)
+    applyIcon(img, e.iconKey)
+  } else {
+    // 工单156：无图标键条目渲染首字母占位（应用组统一，含仅运行条目），不出空白格
+    const fb = document.createElement('div')
+    fb.className = 'tb-app-letter'
+    fb.textContent = appIconFallbackText(e)
+    el.appendChild(fb)
+  }
   if (e.pinned) makeDraggable(el, 'apps', e.exe) // 仅手钉可拖（内核只接受应用组手钉段内换位）
   el.addEventListener('click', () => { void onAppClick(e, inOverflow) })
   el.addEventListener('auxclick', (ev) => {
@@ -372,7 +415,7 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
 }
 
 /** 应用组渲染（工单52/58）：手钉+运行中合并条目按容量拆分——栏内满员即出 ⋯ 钮，
- * 浮层开着时尾部条目横排进 pill（条带窗只有 48px 高，竖排浮层出不了窗口矩形，
+ * 浮层开着时尾部条目横排进 pill（条带窗只有 64px 高（工单158），竖排浮层出不了窗口矩形，
  * 54 右键菜单同款先例）；数量回落浮层自动收、图标回栏。空组整组不渲染（display:none） */
 function renderApps(entries: TaskbarAppViewEntry[]): void {
   pillApps.textContent = ''
@@ -500,8 +543,6 @@ function render(state: TaskbarState): void {
       pillStart.appendChild(el)
     }
   }
-  renderApps(vm.apps) // 开始组内容先行：应用组容量按开始组 pill 的当前矩形裁决溢出
-  declareHotZones(current)
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
   if (state.enabled) {
@@ -522,6 +563,9 @@ function render(state: TaskbarState): void {
     wireAction(clock, 'clock')
     rightPill.appendChild(clock)
   }
+  // 工单158 挤撞回正：右组先行落位再夹取开始组，应用组容量按夹取后的 pill 矩形裁决
+  positionStartPill()
+  renderApps(vm.apps)
   declareHotZones(state)
   notifyGeometry()
 }
