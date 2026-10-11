@@ -139,6 +139,19 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
   }
 }
 
+/**
+ * 左组图标首字母占位文本（工单156）：无图标键条目不出空白格——显示名首字符
+ * （ASCII 字母大写化，非字母原样），显示名空回退 exe 基名首字符，再取不到回退 '?'。
+ * 纯函数：DOM 落位在 taskbar.ts 的 makeAppEl，本函数只出文本。
+ */
+export function appIconFallbackText(e: Pick<TaskbarLeftViewEntry, 'label' | 'exe'>): string {
+  const first = (s: string) => {
+    const c = s.replace(/^.*[\\/]/, '').replace(/^\.+/, '').charAt(0)
+    return c ? c.toUpperCase() : ''
+  }
+  return first(e.label) || first(e.exe) || '?'
+}
+
 /** 摘要格段清单：常态只呈现勾选子集，编辑态五项全呈现（未勾选的置灰供勾回） */
 export function summaryViewModel(metrics: readonly TaskbarMetric[], editing: boolean): SummarySegment[] {
   return TASKBAR_METRICS.map((spec) => ({

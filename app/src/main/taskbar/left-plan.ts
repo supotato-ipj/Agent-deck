@@ -24,6 +24,42 @@ export interface TaskbarWindowInput {
   title: string | null
 }
 
+/**
+ * 窗口特征位（工单156，枚举壳采集）：可见样式位 / DWM cloaked / 工具窗样式 / 属主 /
+ * APPWINDOW——全部由 FFI 枚举薄壳逐窗采集，判据不落在采集层。特征位缺省 =
+ * 未采集到该拒绝位，按通过处理（生产枚举壳恒给全量特征；离线旧 fake 源不带位
+ * 即「正常可见带标题主窗」口径，契约面零破坏）。
+ */
+export interface TaskbarWindowTraits {
+  /** 可见样式位（IsWindowVisible；最小化窗仍带该位——运行态含最小化的既有语义） */
+  visible?: boolean
+  /** DWM cloaked（UWP 挂起 / 其他虚拟桌面）；拒 */
+  cloaked?: boolean
+  /** WS_EX_TOOLWINDOW 工具窗样式；拒 */
+  toolWindow?: boolean
+  /** 有属主窗（GW_OWNER 非空）；配合 appWindow 判 */
+  owned?: boolean
+  /** WS_EX_APPWINDOW（应用自证该窗是任务栏形态）；有属主时唯一的赦免位 */
+  appWindow?: boolean
+}
+
+/**
+ * 应用组窗口过滤判据（工单156，纯函数）：真任务栏同款口径——后台进程、cloaked 挂起窗、
+ * 工具窗、有属主弹窗（无 APPWINDOW）、无标题窗、自家进程的窗口一律拒；正常可见带
+ * 标题主窗收（最小化窗特征与正常主窗一致，同收）。自家判据按 exe 归一身份（NTFS
+ * 大小写斜杠不敏感）。FFI 枚举薄壳只采集特征不载裁决（本函数是唯一裁决点）。
+ */
+export function shouldShowOnTaskbar(w: TaskbarWindowInput & TaskbarWindowTraits, ownExe: string): boolean {
+  if (w.visible === false) return false // 不可见样式位
+  if (w.cloaked) return false // 挂起/其他桌面
+  if (w.toolWindow) return false // 工具窗
+  if (w.owned && !w.appWindow) return false // 有属主且无 APPWINDOW
+  if (!w.title) return false // 空标题（后台无窗口面进程的常态）
+  if (!w.exe) return false // 取不到身份的窗口无从寻址
+  if (normalizeExe(w.exe) === normalizeExe(ownExe)) return false // 自家进程
+  return true
+}
+
 /** exe 身份归一：小写 + 斜杠归一到反斜杠（NTFS 大小写不敏感） */
 export function normalizeExe(exe: string): string {
   return exe.replace(/\//g, '\\').toLowerCase()

@@ -5,7 +5,7 @@
 // 各 pill、按钮/推荐位/左组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
+import { appIconFallbackText, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, splitLeftOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric } from './taskbar-view.js'
 import type { TaskbarAppMenuRow, TaskbarLeftViewEntry } from './taskbar-view.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
@@ -343,12 +343,20 @@ function makeAppEl(e: TaskbarLeftViewEntry, inOverflow: boolean): HTMLElement {
   el.className = e.running ? 'tb-app running' : 'tb-app'
   el.dataset.exe = e.exe // 交互挂点（点击/右键按 exe 身份分发）
   el.title = e.tooltip // 窗口标题 tooltip：仅即时显示，渲染层不持久化
-  const img = document.createElement('img')
-  img.draggable = false // 手钉拖拽的宿主是 .tb-app 本身：图标默认可拖会把手势截成原生图片拖拽
-  img.dataset.iconKey = e.iconKey ?? ''
-  img.alt = e.label
-  el.appendChild(img)
-  applyIcon(img, e.iconKey)
+  if (e.iconKey) {
+    const img = document.createElement('img')
+    img.draggable = false // 手钉拖拽的宿主是 .tb-app 本身：图标默认可拖会把手势截成原生图片拖拽
+    img.dataset.iconKey = e.iconKey
+    img.alt = e.label
+    el.appendChild(img)
+    applyIcon(img, e.iconKey)
+  } else {
+    // 工单156：无图标键条目渲染首字母占位（应用组统一，含仅运行条目），不出空白格
+    const fb = document.createElement('div')
+    fb.className = 'tb-app-letter'
+    fb.textContent = appIconFallbackText(e)
+    el.appendChild(fb)
+  }
   if (e.pinned) makeDraggable(el, 'left', e.exe) // 仅手钉可拖（内核只接受手钉段内换位）
   el.addEventListener('click', () => { void onAppClick(e, inOverflow) })
   el.addEventListener('auxclick', (ev) => {

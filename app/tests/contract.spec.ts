@@ -1343,6 +1343,47 @@ describe('内核桥接契约（工单52 任务栏左组）', () => {
       await ctx.stop()
     }
   }, 30_000)
+
+  it('refresh 枚举轮走过滤判据（工单156）：cloaked/工具窗/属主无 APPWINDOW/空标题/自家窗口不上栏，正常主窗与属主带 APPWINDOW 窗收', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲窗口', hwnd: 101, pid: 1001, visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\Suspended.exe', title: '挂起的 UWP', hwnd: 102, pid: 1002, visible: true, cloaked: true, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\Tool.exe', title: '工具窗', hwnd: 103, pid: 1003, visible: true, cloaked: false, toolWindow: true, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\Popup.exe', title: '有属主弹窗', hwnd: 104, pid: 1004, visible: true, cloaked: false, toolWindow: false, owned: true, appWindow: false },
+      { exe: 'C:\\Apps\\Faceless.exe', title: null, hwnd: 105, pid: 1005, visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK', hwnd: 900, pid: 9000, visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\SelfCert.exe', title: '属主带 APPWINDOW', hwnd: 106, pid: 1006, visible: true, cloaked: false, toolWindow: false, owned: true, appWindow: true },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.left.map((e) => e.exe)).toEqual(['C:\\Apps\\A.exe', 'C:\\Apps\\SelfCert.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('过滤判据对特征位缺省的旧枚举源兼容（不带特征 = 正常主窗口径，既有 fake 源不破）', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲窗口', hwnd: 101, pid: 1001 },
+      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK', hwnd: 900, pid: 9000 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.left.map((e) => e.exe)).toEqual(['C:\\Apps\\A.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单53 左组交互）', () => {

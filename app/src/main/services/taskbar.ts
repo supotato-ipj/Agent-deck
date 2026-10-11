@@ -7,7 +7,7 @@ import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
-import { normalizeExe, planLeftGroup } from '../taskbar/left-plan'
+import { normalizeExe, planLeftGroup, shouldShowOnTaskbar } from '../taskbar/left-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/left-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
@@ -364,8 +364,9 @@ export class TaskbarService extends Service {
     this.ensureLayout()
     let windows: TaskbarWindowInfo[]
     try {
-      const own = normalizeExe(this.deps.ownExe)
-      windows = this.deps.listWindows().filter((w) => normalizeExe(w.exe) !== own)
+      // 工单156 过滤判据（shouldShowOnTaskbar 纯函数）：cloaked/工具窗/有属主无
+      // APPWINDOW/空标题/自家的窗口不上栏——枚举薄壳只采集特征，裁决全在判据内
+      windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
     } catch (err) {
       // 枚举失败沿用上一轮（desktop 扫描同款纪律：慢半拍优于瞬时空白）
       console.warn(`deck-taskbar: 本轮窗口枚举失败，沿用上一轮左组：${err instanceof Error ? err.message : err}`)
@@ -614,8 +615,8 @@ export class TaskbarService extends Service {
    */
   private recompose(): void {
     try {
-      const own = normalizeExe(this.deps.ownExe)
-      const windows = this.deps.listWindows().filter((w) => normalizeExe(w.exe) !== own)
+      // 工单156：重排轮与 refresh 同一过滤口径（垃圾窗不进左组）
+      const windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
       this.current = { ...this.current, left: planLeftGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe)) }
     } catch { /* 枚举失败沿用上一轮左组（refresh 同款纪律） */ }
     try {

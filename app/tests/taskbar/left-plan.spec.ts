@@ -5,7 +5,7 @@
  * 先例：tests/desktop/plan.spec.ts（直接喂构造输入断言输出清单）。
  */
 import { describe, expect, it } from 'vitest'
-import { planLeftGroup, planLeftOverflow } from '../../src/main/taskbar/left-plan'
+import { planLeftGroup, planLeftOverflow, shouldShowOnTaskbar } from '../../src/main/taskbar/left-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../../src/main/taskbar/left-plan'
 
 const pinned = (exe: string, over: Partial<TaskbarPinnedEntry> = {}): TaskbarPinnedEntry => ({
@@ -95,6 +95,59 @@ describe('左组编排（手钉 ∪ 运行中，工单52）', () => {
 
   it('全空输入 → 空左组', () => {
     expect(planLeftGroup([], [])).toEqual([])
+  })
+})
+
+describe('窗口过滤判据（工单156）：枚举特征 → 收/拒（后台进程/cloaked/工具窗/无标题窗不上栏）', () => {
+  /** 正常可见带标题主窗基线（枚举壳采集的全量特征都在场） */
+  const main = { exe: 'C:\\Apps\\A.exe', title: '甲窗口', visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false }
+  const OWN = 'c:\\deck\\agent-deck.exe'
+
+  it('正常可见带标题主窗：收', () => {
+    expect(shouldShowOnTaskbar(main, OWN)).toBe(true)
+  })
+
+  it('最小化窗口：收（运行态含最小化——最小化窗仍带可见样式位，特征与正常主窗一致）', () => {
+    // 最小化不进特征位：IsWindowVisible 对最小化窗仍真（WS_VISIBLE 位还在），判据与正常主窗同路
+    expect(shouldShowOnTaskbar({ ...main }, OWN)).toBe(true)
+  })
+
+  it('不可见样式位：拒', () => {
+    expect(shouldShowOnTaskbar({ ...main, visible: false }, OWN)).toBe(false)
+  })
+
+  it('cloaked（UWP 挂起/其他虚拟桌面）：拒', () => {
+    expect(shouldShowOnTaskbar({ ...main, cloaked: true }, OWN)).toBe(false)
+  })
+
+  it('工具窗（WS_EX_TOOLWINDOW）：拒', () => {
+    expect(shouldShowOnTaskbar({ ...main, toolWindow: true }, OWN)).toBe(false)
+  })
+
+  it('有属主且无 APPWINDOW：拒；有属主带 APPWINDOW：收（应用自证上栏的弹窗主形态）', () => {
+    expect(shouldShowOnTaskbar({ ...main, owned: true }, OWN)).toBe(false)
+    expect(shouldShowOnTaskbar({ ...main, owned: true, appWindow: true }, OWN)).toBe(true)
+  })
+
+  it('空标题（null / 空串）：拒（后台无窗口面进程的常态）', () => {
+    expect(shouldShowOnTaskbar({ ...main, title: null }, OWN)).toBe(false)
+    expect(shouldShowOnTaskbar({ ...main, title: '' }, OWN)).toBe(false)
+  })
+
+  it('自家进程（exe 归一同身份，大小写斜杠不敏感）：拒', () => {
+    expect(shouldShowOnTaskbar({ ...main, exe: 'C:/Deck/Agent-Deck.EXE' }, OWN)).toBe(false)
+  })
+
+  it('无 exe 身份：拒（取不到身份的窗口无从寻址，不上栏）', () => {
+    expect(shouldShowOnTaskbar({ ...main, exe: '' }, OWN)).toBe(false)
+  })
+
+  it('特征位缺省 = 未采集到拒绝位按通过（离线旧 fake 源兼容口径；生产枚举壳恒给全量特征）', () => {
+    expect(shouldShowOnTaskbar({ exe: 'C:\\Apps\\A.exe', title: '甲' }, OWN)).toBe(true)
+  })
+
+  it('自家拒的判据输入不带特征位也成立（判据次序：可见 → cloaked → 工具 → 属主 → 标题 → 身份 → 自家）', () => {
+    expect(shouldShowOnTaskbar({ exe: OWN, title: '自家' }, OWN)).toBe(false)
   })
 })
 

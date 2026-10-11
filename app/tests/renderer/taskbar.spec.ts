@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitLeftOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, toggleMetric } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -169,6 +169,19 @@ describe('任务栏左组视图模型（工单52，fake bridge 驱动）', () =>
     }))
     const s = await bridge.invoke('taskbar/get-state', null)
     expect(taskbarViewModel(s).left.map((e) => e.tooltip)).toEqual(['文档 1 - 甲', '乙'])
+  })
+})
+
+describe('应用组图标首字母占位（工单156）：无图标键条目不出空白格', () => {
+  it('占位取显示名首字符（ASCII 字母大写化，非字母原样）', () => {
+    expect(appIconFallbackText({ label: 'wechat', exe: 'C:\\Apps\\WeChat.exe' })).toBe('W')
+    expect(appIconFallbackText({ label: '微信', exe: 'C:\\Apps\\WeChat.exe' })).toBe('微')
+    expect(appIconFallbackText({ label: '7-Zip', exe: 'C:\\Apps\\7z.exe' })).toBe('7')
+  })
+
+  it('显示名空回退 exe 基名首字符（去扩展）；再取不到回退 ?', () => {
+    expect(appIconFallbackText({ label: '', exe: 'C:\\Apps\\Fallback.exe' })).toBe('F')
+    expect(appIconFallbackText({ label: '', exe: '' })).toBe('?')
   })
 })
 
