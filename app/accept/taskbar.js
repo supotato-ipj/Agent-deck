@@ -331,8 +331,11 @@ function makeReplayProbe() {
 // 临时目录里的唯一路径：首条 = notepad 副本（真 exe，左键启动臂的端到端依据），余四条
 // = 占位文件（不可执行，只做图标/菜单/拖拽/手钉的寻址体）。打分 = 每探针 2000 条新鲜
 // start 事件（decay(0)≈1 → 融合分 ~2000，确定性压过真实条目占满 top-5；同分按名稳定序）。
-// cleanupRecsProbes 摘除全部痕迹：桌面夹具 / usage 按行摘除（探针 exe 是临时唯一路径，
-// 无合法流量撞行）/ 栏布局存储按探针身份过滤（手钉/拖拽臂的落盘残留）。
+// 工单161 增两条递补候选（extras F=1000/G=500，夹具法与种子通道同款）：不进 P16 的
+// 「必在推荐位」断言集，只作第 6/7 名——手钉/移除腾位的递补断言（滤除后截断）与
+// 「第 6 名及以后不出现」的强断言都吃它。cleanupRecsProbes 摘除全部痕迹：桌面夹具 /
+// usage 按行摘除（探针 exe 是临时唯一路径，无合法流量撞行）/ 栏布局存储按探针身份
+// 过滤（手钉/拖拽/移除臂的落盘残留，工单161 起含 excluded 段）。
 const shell32P16 = koffi.load('shell32.dll');
 const PostMessageW16 = user32.func('int __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)');
 const WM_CLOSE_16 = 0x0010;
@@ -392,7 +395,15 @@ function seedRecsProbes(rep) {
       const name = `DECK-P16-${t}-${tag}.lnk`;
       return { name, display: `DeckP16${tag}`, exe: target };
     });
-    for (const p of probes) createShortcutLnkP16(path.join(desktopRoot, p.name), p.exe);
+    // 递补候选（工单161）：F/G 是第 6/7 名——不进可见集，只在手钉/移除腾位时递补
+    const EXTRA_SCORES_16 = { F: 1000, G: 500 };
+    const extras = Object.keys(EXTRA_SCORES_16).map((tag) => {
+      const target = path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
+      fs.writeFileSync(target, 'deck-p16 placeholder (not an executable)', 'utf8');
+      const name = `DECK-P16-${t}-${tag}.lnk`;
+      return { name, display: `DeckP16${tag}`, exe: target };
+    });
+    for (const p of [...probes, ...extras]) createShortcutLnkP16(path.join(desktopRoot, p.name), p.exe);
     // 种子事件的 exe 身份走 byStem 通道（第二轮红轮取证）：面板子进程的 lnk 目标解析是
     // 异步代理（ProxyShortcutResolver 首轮 null 即被 targets 缓存），.exe 分数键经
     // byTarget 永远映射不上；真实条目的分全靠 UserAssist 先验里「盘上不存在的 .lnk
@@ -400,10 +411,10 @@ function seedRecsProbes(rep) {
     // .lnk 路径，文件名 stem = 夹具显示名（byStem 键 = display 小写）——与解析缓存、
     // 目标形态、盘上存在性全部解耦。（本地装配的直连解析器不经此路，取证实验
     // recs-seed-forensics.js 已实证打分链路本体无误。）
-    for (const p of probes) p.seedExe = path.join('C:\\deck-p16-usage-seed', String(t), p.name);
+    for (const p of [...probes, ...extras]) p.seedExe = path.join('C:\\deck-p16-usage-seed', String(t), p.name);
     // usage 打分种子：按天 JSONL 追加（appendEvent 同款记录形态 {ts, exe}，UTC 日）。
     // 打分键 = seedExe（byStem 通道，见上）；p.exe（解析目标）留给 evidence 归一与
-    // 栏布局存储清理（手钉/拖拽臂落盘的是富化后的目标路径）。
+    // 栏布局存储清理（手钉/拖拽/移除臂落盘的是富化后的目标路径）。
     const usageDir = path.join(app.getPath('userData'), 'usage');
     const d = new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -411,9 +422,10 @@ function seedRecsProbes(rep) {
     const ts = new Date(Math.floor(t / 1000) * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
     let blob = '';
     for (const p of probes) for (let i = 0; i < 2000; i++) blob += JSON.stringify({ ts, exe: p.seedExe }) + '\n';
+    for (const p of extras) for (let i = 0; i < EXTRA_SCORES_16[p.display.slice(-1)]; i++) blob += JSON.stringify({ ts, exe: p.seedExe }) + '\n';
     fs.mkdirSync(usageDir, { recursive: true });
     fs.appendFileSync(usageFile, blob, 'utf8');
-    return { t, desktopRoot, tmpDir, usageFile, probes, done: false };
+    return { t, desktopRoot, tmpDir, usageFile, probes, extras, done: false };
   } catch (err) {
     rep.note(`P16 探针种入失败（段内将以缺前置判红）: ${err && err.message}`);
     return null;
@@ -423,13 +435,14 @@ function seedRecsProbes(rep) {
 function cleanupRecsProbes(p16) {
   if (!p16 || p16.done) return;
   p16.done = true;
-  for (const p of p16.probes) {
+  const all16 = [...p16.probes, ...(p16.extras || [])]; // 工单161 起含递补候选 F/G
+  for (const p of all16) {
     try { fs.unlinkSync(path.join(p16.desktopRoot, p.name)); } catch { /* 尽力 */ }
   }
   try {
     // 摘除集合 = 种子键（seedExe，byStem 合成路径）+ 解析目标（p.exe——面板在启动臂
     // 检测到的副本真启动事件同键）
-    const probeExes = new Set(p16.probes.flatMap((p) => [p.seedExe, p.exe].map((x) => String(x).toLowerCase())));
+    const probeExes = new Set(all16.flatMap((p) => [p.seedExe, p.exe].map((x) => String(x).toLowerCase())));
     const text = fs.readFileSync(p16.usageFile, 'utf8');
     const kept = text.split('\n').filter((l) => {
       if (!l.trim()) return false;
@@ -440,11 +453,12 @@ function cleanupRecsProbes(p16) {
   try {
     const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
     const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
-    const probeExes = new Set(p16.probes.map((p) => p.exe.toLowerCase()));
-    const probeNames = new Set(p16.probes.map((p) => p.name));
+    const probeExes = new Set(all16.map((p) => p.exe.toLowerCase()));
+    const probeNames = new Set(all16.map((p) => p.name));
     const before = JSON.stringify(store);
     if (Array.isArray(store.pinned)) store.pinned = store.pinned.filter((e) => !probeExes.has(String(e.exe || '').toLowerCase()));
     if (Array.isArray(store.recommended)) store.recommended = store.recommended.filter((n) => !probeNames.has(n));
+    if (Array.isArray(store.excluded)) store.excluded = store.excluded.filter((e) => !probeExes.has(String(e.exe || '').toLowerCase())); // 工单161 移除名单段
     if (JSON.stringify(store) !== before) fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
   } catch { /* 尽力 */ }
   try { fs.rmSync(p16.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
@@ -872,12 +886,14 @@ async function main() {
 
     // P16 推荐组交互主体（工单160）：探针五条确定性占满推荐位（usage 种子压分），真机
     // 断言六臂——①图标化+上限5（.tb-rec 定宽图标格 img/首字母占位，无显示名文本残留，
-    // 探针恰满 5 枚=第 6 名及以后不出现）②左键启动（真点击 → rec-click 存证 → notepad
-    // 副本窗口真出场，端到端 shell 打开通道）③右键两行菜单+手钉（真右键 → 两行在列 →
-    // 点「手钉到任务栏」→ 推荐组即时消失+应用组手钉段出现，不双占位）④拖拽组内换位
-    // （真 OLE 拖拽 recs→recs，显式序压过分数序）⑤拖去应用组升手钉（recs→apps 跨组，
-    // 落点条目前插入）⑥解除手钉随下拍回池 + 打开文件位置（explorer 定位真出场）。
-    // 痕迹三处在 finally 摘除（桌面夹具/usage 行/栏布局存储身份）。
+    // 探针恰满 5 枚=第 6/7 名 F/G 不出现）②左键启动（真点击 → rec-click 存证 → cmd
+    // 副本真出场，端到端 shell 打开通道）③右键三行菜单+手钉（真右键 → 三行在列 →
+    // 点「手钉到任务栏」→ B 即时消失、第 6 名 F 递补（工单161 滤除后截断），不双占位）
+    // ④拖拽组内换位（真 OLE 拖拽 recs→recs，显式序压过分数序）⑤拖去应用组升手钉
+    // （recs→apps 跨组，落点条目前插入、G 随 D 升钉递补）⑥解除手钉随下拍回池 +
+    // 打开文件位置（explorer 定位真出场）。可见数断言按工单161 递补语义校准（升手钉
+    // 不再留空位，候选池后续名次即时补齐）。痕迹三处在 finally 摘除（桌面夹具/usage
+    // 行/栏布局存储身份含 excluded 段）。
     rep.beginSegment('P16');
     if (!p16) {
       rep.fail('P16 前置缺失：探针种入失败（见种入 note）');
@@ -931,6 +947,8 @@ async function main() {
       } else {
         const dom16 = await domRecs16();
         const countOk16 = recNames16(g16).length === 5;
+        // 第 6/7 名不出现（工单161 强断言：F/G 在候选池里，滤除后截断才不可见）
+        const fillersHidden16 = (p16.extras || []).every((f) => !recNames16(g16).includes(f.name));
         const iconizedOk16 = dom16.length === 5 && dom16.every((c) => (c.img || c.letter) && !c.ownText
           && Math.abs(c.w - 44) <= 2 && Math.abs(c.h - 44) <= 2);
         // tooltip = 扫描显示名（文件名去扩展——图标化后名称的唯一即时呈现位；种子侧的
@@ -939,11 +957,11 @@ async function main() {
           const hit = probes16.find((p) => p.name === c.name);
           return hit && c.title === scanDisplay16(hit.name);
         });
-        if (countOk16 && iconizedOk16 && tooltipOk16) {
-          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6 名及以后不出现）；每格 44×44 图标格`
+        if (countOk16 && fillersHidden16 && iconizedOk16 && tooltipOk16) {
+          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 44×44 图标格`
             + `（img ${dom16.filter((c) => c.img).length}/占位 ${dom16.filter((c) => c.letter).length}），无显示名文本残留，扫描显示名即时进 tooltip`);
         } else {
-          rep.fail(`P16 图标化断言：count=${countOk16}(${recNames16(g16).length}) iconized=${iconizedOk16}`
+          rep.fail(`P16 图标化断言：count=${countOk16}(${recNames16(g16).length}) fillersHidden=${fillersHidden16} iconized=${iconizedOk16}`
             + `(${JSON.stringify(dom16)}) tooltip=${tooltipOk16}`);
         }
 
@@ -980,7 +998,7 @@ async function main() {
             + ` 控制台窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
         }
 
-        // —— ③ 右键两行菜单 + 手钉（推荐组消失、应用组前段出现，不双占位）——
+        // —— ③ 右键三行菜单 + 手钉（B 消失、F 递补，不双占位；工单161 扩移除行）——
         let gB = await waitGeometrySettled(g16);
         const ptB = recPt16(gB, pB16.name);
         if (!ptB) {
@@ -991,10 +1009,10 @@ async function main() {
           for (let i = 0; i < 20 && !rowsB; i++) {
             await sleep(200);
             const rows = await menuRows16(pB16.name);
-            if (rows.length === 2) rowsB = rows;
+            if (rows.length === 3) rowsB = rows;
           }
-          const rowsOk16 = !!rowsB && rowsB.map((r) => r.action).join(',') === 'pin,reveal'
-            && rowsB.map((r) => r.label).join(',') === '手钉到任务栏,打开文件位置';
+          const rowsOk16 = !!rowsB && rowsB.map((r) => r.action).join(',') === 'pin,remove,reveal'
+            && rowsB.map((r) => r.label).join(',') === '手钉到任务栏,从推荐栏移除,打开文件位置';
           let pinned16 = null;
           if (rowsOk16) {
             const pr = rowsB.find((r) => r.action === 'pin').rect;
@@ -1004,19 +1022,21 @@ async function main() {
             for (let i = 0; i < 30 && !pinned16; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
-              // 手钉落位判据：推荐组即时少 B（4 枚不双占位）+ 应用组按 exe 身份在册
-              // （几何矩形不带 pinned 位——手钉段语义由离线契约测试与⑤的落点前插邻接断言收口）
-              if (cand && recNames16(cand).length === 4 && !recNames16(cand).includes(pB16.name)
+              // 手钉落位判据：B 即时消失 + 第 6 名 F 递补（工单161 滤除后截断，可见恒 5）
+              // + 应用组按 exe 身份在册（几何矩形不带 pinned 位——手钉段语义由离线契约测试
+              // 与⑤的落点前插邻接断言收口）
+              if (cand && recNames16(cand).length === 5 && !recNames16(cand).includes(pB16.name)
+                && recNames16(cand).includes(p16.extras[0].name)
                 && (cand.apps || []).some((a) => norm16(a.id) === norm16(pB16.exe))) pinned16 = cand;
             }
           }
           if (rowsOk16 && pinned16) {
             const apps16 = pinned16.apps || [];
-            rep.pass(`P16 右键两行+手钉：菜单恰两行（手钉到任务栏/打开文件位置）；点手钉后推荐组即时消失`
-              + `（4 枚不双占位）、应用组在册（位次 ${apps16.findIndex((a) => norm16(a.id) === norm16(pB16.exe)) + 1}/${apps16.length}，手钉段）`);
+            rep.pass(`P16 右键三行+手钉：菜单恰三行（手钉到任务栏/从推荐栏移除/打开文件位置）；点手钉后 B 即时消失`
+              + `、第 6 名 F 递补（可见恒 5，工单161 递补语义）、应用组在册（位次 ${apps16.findIndex((a) => norm16(a.id) === norm16(pB16.exe)) + 1}/${apps16.length}，手钉段）`);
           } else {
-            rep.fail(`P16 右键/手钉：两行=${JSON.stringify(rowsB)} 手钉落位=${!!pinned16}`
-              + `(recs=${pinned16 ? recNames16(pinned16).length : 'n/a'} apps0=${pinned16 && pinned16.apps[0] ? pinned16.apps[0].id : 'n/a'})`);
+            rep.fail(`P16 右键/手钉：三行=${JSON.stringify(rowsB)} 手钉落位=${!!pinned16}`
+              + `(recs=${pinned16 ? JSON.stringify(recNames16(pinned16)) : 'n/a'} apps0=${pinned16 && pinned16.apps[0] ? pinned16.apps[0].id : 'n/a'})`);
           }
 
           // —— ④ 拖拽组内换位（recs→recs：显式序压过分数序）——
@@ -1039,7 +1059,7 @@ async function main() {
               await sleep(200);
               const cand = latestGeometry(null);
               const names = recNames16(cand);
-              if (names.length === 4 && names.indexOf(pE16.name) >= 0 && names.indexOf(pE16.name) < names.indexOf(pC16.name)) dragOrder16 = cand;
+              if (names.length === 5 && names.indexOf(pE16.name) >= 0 && names.indexOf(pE16.name) < names.indexOf(pC16.name)) dragOrder16 = cand;
             }
           }
           if (dragOrder16) {
@@ -1074,8 +1094,9 @@ async function main() {
             for (let i = 0; i < 30 && !cross16; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
-              // 落点前插判据：D 紧邻 B 之前（pinEntry before 语义；用户自钉条目可在段首）
-              if (cand && recNames16(cand).length === 3) {
+              // 落点前插判据：D 紧邻 B 之前（pinEntry before 语义；G 随 D 升钉递补——可见恒 4；
+              // 用户自钉条目可在段首）
+              if (cand && recNames16(cand).length === 4 && recNames16(cand).includes(p16.extras[1].name)) {
                 const apps16 = cand.apps || [];
                 const di16 = apps16.findIndex((a) => norm16(a.id) === norm16(pD16.exe));
                 const bi16 = apps16.findIndex((a) => norm16(a.id) === norm16(pB16.exe));
@@ -1085,7 +1106,7 @@ async function main() {
           }
           if (cross16) {
             const apps16 = cross16.apps || [];
-            rep.pass(`P16 拖去应用组升手钉：D 拖至 B 之前（跨组 recs→apps 落点前插——应用组 [${apps16.map((a) => path.basename(String(a.id))).join(', ')}]，推荐组余 3 枚不双占位）`);
+            rep.pass(`P16 拖去应用组升手钉：D 拖至 B 之前（跨组 recs→apps 落点前插——应用组 [${apps16.map((a) => path.basename(String(a.id))).join(', ')}]，推荐组余 4 枚、第 7 名 G 递补不双占位）`);
           } else {
             rep.fail(`P16 跨组升手钉未达成：源/落点矩形=${!!ptD}/${!!ptApps}`
               + ` 应用组=${JSON.stringify((latestGeometry(null).apps || []).map((a) => a.id))} 推荐组=${JSON.stringify(recNames16(latestGeometry(null)))}`);
@@ -1122,7 +1143,7 @@ async function main() {
               for (let i = 0; i < 30 && !repool16; i++) {
                 await sleep(200);
                 const cand = latestGeometry(null);
-                if (cand && recNames16(cand).includes(pD16.name) && recNames16(cand).length === 4
+                if (cand && recNames16(cand).includes(pD16.name) && recNames16(cand).length === 5
                   && !(cand.apps || []).some((a) => norm16(a.id) === norm16(pD16.exe))) repool16 = cand;
               }
           }
@@ -1137,7 +1158,7 @@ async function main() {
             for (let i = 0; i < 20 && !rowsR; i++) {
               await sleep(200);
               const rows = await menuRows16(pC16.name);
-              if (rows.length === 2) rowsR = rows;
+              if (rows.length === 3) rowsR = rows;
             }
             if (rowsR) {
               const rr = rowsR.find((r) => r.action === 'reveal').rect;
@@ -1160,6 +1181,170 @@ async function main() {
             rep.fail(`P16 解除回池/reveal：回池=${!!repool16}(recs=${JSON.stringify(recNames16(latestGeometry(null)))})`
               + ` reveal存证=${!!reveal16} explorer窗=${expHwnd16 ? '在场' : '未出场'}`);
           }
+        }
+      }
+    }
+
+    // P17 推荐组移除名单（工单161）：持久排除 + 名次递补 + 空白右键恢复。三臂——
+    // ①右键探针 F（第 6 名，经⑤递补在栏）→ 菜单恰三行 → 点「从推荐栏移除」→ F 即时消失、
+    //   第 7 名 G 递补（可见恒 5），移除落盘（get-state excluded 含 F，exe=富化目标身份）；
+    // ②推荐组空白右键 → 54 菜单恢复段在列（「恢复 <显示名>」行）→ 点选 → F 回池（G 让位），
+    //   excluded 清空；
+    // ③重启保持：CDP 桥直发 rec-remove（输入注入路径①已证）→ killTree+重启面板 →
+    //   get-state 排除名单与可见名单都保持（F 不复活、G 占位）→ 空白右键恢复行仍在 →
+    //   点选恢复 → F 回池。恢复入口用 pill 内横排形态（#162 浮层菜单面板为托盘域专用：
+    //   挂点在「⋯」钮且行交互接托盘像素管线，推荐组恢复行是纯文本标签——票内裁定走横排）。
+    rep.beginSegment('P17');
+    if (!p16 || !(p16.extras && p16.extras.length === 2)) {
+      rep.fail('P17 前置缺失：探针/递补候选种入失败（见种入 note）');
+    } else {
+      const pF17 = p16.extras[0]; // F：递补源（本段移除→恢复的主角）
+      const pG17 = p16.extras[1]; // G：递补实证的补位者
+      const norm17 = (s) => String(s || '').toLowerCase();
+      const recNames17 = (g) => (g && g.recommendations ? g.recommendations.map((r) => r.name) : []);
+      const recPt17 = (g, name) => {
+        const r = (g.recommendations || []).find((x) => x.name === name);
+        return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+      };
+      const restoreRow17 = () => cdpEval(`(() => {
+        const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"]');
+        return r ? { label: r.textContent || '', exe: r.dataset.exe || '', rect: r.getBoundingClientRect().toJSON() } : null;
+      })()`, TASKBAR_TITLE);
+      const state17 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
+      // ① 右键 F → 三行 → 点「从推荐栏移除」→ F 消失 G 递补 + 移除落盘
+      let g17 = await waitGeometrySettled(latestGeometry(null));
+      const ptF = recPt17(g17, pF17.name);
+      let removed17 = null;
+      if (!ptF) {
+        rep.fail(`P17 前置缺失：探针 F 不在推荐位（${JSON.stringify(recNames17(g17))}）`);
+      } else {
+        win32.clickPhys(ptF.x, ptF.y, 'right');
+        let rows17 = null;
+        for (let i = 0; i < 20 && !rows17; i++) {
+          await sleep(200);
+          const rows = await cdpEval(`(() => {
+            return [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
+          })()`, TASKBAR_TITLE);
+          if (rows.length === 3) rows17 = rows;
+        }
+        if (rows17 && rows17.map((r) => r.action).join(',') === 'pin,remove,reveal') {
+          const rr = rows17.find((r) => r.action === 'remove').rect;
+          const rp = toPhys(rr.x + rr.width / 2, rr.y + rr.height / 2);
+          win32.clickPhys(rp.x, rp.y, 'left');
+          await waitEvent('taskbar-rec-menu-action', (e) => e.name === pF17.name && e.action === 'remove', 5000);
+          for (let i = 0; i < 30 && !removed17; i++) {
+            await sleep(200);
+            const cand = latestGeometry(null);
+            if (cand && recNames17(cand).length === 5 && !recNames17(cand).includes(pF17.name)
+              && recNames17(cand).includes(pG17.name)) removed17 = cand;
+          }
+        }
+        const st17 = await state17();
+        const excludedOk17 = !!(st17 && Array.isArray(st17.excluded) && st17.excluded.some((e) => norm17(e.exe) === norm17(pF17.exe)));
+        if (removed17 && excludedOk17) {
+          rep.pass(`P17 从推荐栏移除：三行菜单点「从推荐栏移除」→ F 即时消失、第 7 名 G 递补（可见恒 5），`
+            + `持久排除落盘（excluded 含富化身份 ${path.basename(pF17.exe)}）`);
+        } else {
+          rep.fail(`P17 移除臂：菜单=${JSON.stringify(rows17)} 递补=${!!removed17}(recs=${JSON.stringify(recNames17(latestGeometry(null)))}) 落盘=${excludedOk17}`);
+        }
+
+        // ② 推荐组空白右键 → 恢复段点选 → F 回池（G 让位）
+        let restored17 = null;
+        let row17 = null;
+        for (let attempt17 = 0; attempt17 < 2 && !row17; attempt17++) {
+          const gBlank = await waitGeometrySettled(latestGeometry(null));
+          // 空白点 = pill 左缘内衬（padding 6px 8px——按钮/推荐位条目不占左缘 8px 带）
+          const blankPt = toPhys(gBlank.startPill.x + 3, gBlank.startPill.y + gBlank.startPill.h / 2);
+          win32.clickPhys(blankPt.x, blankPt.y, 'right');
+          for (let i = 0; i < 10 && !row17; i++) {
+            await sleep(200);
+            row17 = await restoreRow17();
+          }
+          if (!row17 && attempt17 === 0) {
+            win32.moveMousePhys(blankPt.x, blankPt.y - 60); // 离位刷新热区（⑥右键两试同款）
+            await sleep(300);
+          }
+        }
+        if (row17) {
+          const labelOk17 = row17.label === `恢复 ${pF17.name.replace(/\.lnk$/i, '')}`;
+          const rp = toPhys(row17.rect.x + row17.rect.width / 2, row17.rect.y + row17.rect.height / 2);
+          win32.clickPhys(rp.x, rp.y, 'left');
+          await waitEvent('taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), 5000);
+          for (let i = 0; i < 30 && !restored17; i++) {
+            await sleep(200);
+            const cand = latestGeometry(null);
+            if (cand && recNames17(cand).length === 5 && recNames17(cand).includes(pF17.name)
+              && !recNames17(cand).includes(pG17.name)) restored17 = cand;
+          }
+          const stClean17 = await state17();
+          const cleanOk17 = !!(stClean17 && Array.isArray(stClean17.excluded) && stClean17.excluded.length === 0);
+          if (restored17 && cleanOk17) {
+            rep.pass(`P17 空白右键恢复：恢复段「${row17.label}」行在列（label 对扫描显示名=${labelOk17}），点选即回池`
+              + `（F 复见、G 让位）、excluded 清空`);
+          } else {
+            rep.fail(`P17 恢复臂：行=${JSON.stringify(row17)} 回池=${!!restored17}(recs=${JSON.stringify(recNames17(latestGeometry(null)))}) excluded清空=${cleanOk17}`);
+          }
+        } else {
+          rep.fail(`P17 恢复臂前置缺失：空白右键恢复段未开出（excluded 应含 F）`);
+        }
+
+        // ③ 重启保持：再移除 → 重启面板 → 名单与排除都保持 → 恢复入口仍可达
+        await cdpEval(`window.deck.bridge.invoke('taskbar/rec-remove', { exe: ${JSON.stringify(pF17.exe)} })`, TASKBAR_TITLE);
+        await sleep(600); // 落盘+重排一帧
+        const stBefore17 = await state17();
+        const diskOk17 = !!(stBefore17 && Array.isArray(stBefore17.excluded) && stBefore17.excluded.some((e) => norm17(e.exe) === norm17(pF17.exe)));
+        killTree(child, panelPid);
+        child = null;
+        await sleep(1200);
+        const since17 = Date.now();
+        child = launchPanel();
+        const boot17 = await waitEvent('boot', (e) => e.t >= since17, 15000);
+        if (boot17) {
+          panelPid = boot17.pid;
+          await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+        }
+        let reboot17 = null;
+        for (let i = 0; i < 40 && !reboot17; i++) {
+          await sleep(300); // 推荐位随数据面快照后到位（P16 同款等待）
+          const g2 = latestGeometry(null);
+          if (g2 && recNames17(g2).length === 5 && !recNames17(g2).includes(pF17.name) && recNames17(g2).includes(pG17.name)) reboot17 = g2;
+        }
+        const stAfter17 = await state17();
+        const persistOk17 = !!(stAfter17 && Array.isArray(stAfter17.excluded) && stAfter17.excluded.some((e) => norm17(e.exe) === norm17(pF17.exe)));
+        // 重启后恢复入口仍可达：空白右键 → 恢复行在 → 点选 → F 回池
+        let rowAfter17 = null;
+        let restoredAfter17 = null;
+        if (boot17 && reboot17 && persistOk17) {
+          for (let attempt17 = 0; attempt17 < 2 && !rowAfter17; attempt17++) {
+            const gBlank = await waitGeometrySettled(latestGeometry(null));
+            const blankPt = toPhys(gBlank.startPill.x + 3, gBlank.startPill.y + gBlank.startPill.h / 2);
+            win32.clickPhys(blankPt.x, blankPt.y, 'right');
+            for (let i = 0; i < 10 && !rowAfter17; i++) {
+              await sleep(200);
+              rowAfter17 = await restoreRow17();
+            }
+            if (!rowAfter17 && attempt17 === 0) {
+              win32.moveMousePhys(blankPt.x, blankPt.y - 60);
+              await sleep(300);
+            }
+          }
+          if (rowAfter17) {
+            const rp = toPhys(rowAfter17.rect.x + rowAfter17.rect.width / 2, rowAfter17.rect.y + rowAfter17.rect.height / 2);
+            win32.clickPhys(rp.x, rp.y, 'left');
+            await waitEvent('taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), 5000);
+            for (let i = 0; i < 30 && !restoredAfter17; i++) {
+              await sleep(200);
+              const cand = latestGeometry(null);
+              if (cand && recNames17(cand).includes(pF17.name) && !recNames17(cand).includes(pG17.name)) restoredAfter17 = cand;
+            }
+          }
+        }
+        if (diskOk17 && boot17 && reboot17 && persistOk17 && restoredAfter17) {
+          rep.pass(`P17 重启保持：移除落盘（重启前 excluded 在）→ 面板重启后排除名单保持（F 不复活、G 占位）、`
+            + `空白右键恢复行仍在 → 点选即回池（重启记住 + 恢复入口跨重启可达）`);
+        } else {
+          rep.fail(`P17 重启臂：重启前落盘=${diskOk17} boot=${!!boot17} 可见名单=${!!reboot17}(recs=${JSON.stringify(recNames17(latestGeometry(null)))}) `
+            + `重启后排除保持=${persistOk17} 恢复行=${!!rowAfter17} 回池=${!!restoredAfter17}`);
         }
       }
     }
