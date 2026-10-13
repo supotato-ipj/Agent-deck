@@ -812,6 +812,17 @@
             "event-evidence"
           ],
           "estSeconds": 12
+        },
+        {
+          "seg": "P7",
+          "ticket": 162,
+          "title": "托盘溢出菜单：默认5可见+超量入⋯/浮层随鼠标弹出/行左右键同一回放分发/点外收起/档位两挂点（⋯右键+右组空白右键）落盘/数量回落自动回栏⋯消失",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 25
         }
       ]
     },
