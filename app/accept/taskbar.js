@@ -933,6 +933,13 @@ async function main() {
             .map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
         })()`, TASKBAR_TITLE);
       };
+      // 菜单诊断（右键开合抖动的取证面：menuOpen 标记 + 在册菜单行）
+      const menuDiag16 = () => cdpEval(`(() => {
+        return {
+          menuOpen: document.getElementById('pill-start')?.dataset.menuOpen || '',
+          rows: [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
+        };
+      })()`, TASKBAR_TITLE);
       // —— ① 图标化 + 上限 5 ——
       let g16 = null;
       for (let i = 0; i < 40 && !g16; i++) {
@@ -1094,9 +1101,9 @@ async function main() {
             for (let i = 0; i < 30 && !cross16; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
-              // 落点前插判据：D 紧邻 B 之前（pinEntry before 语义；G 随 D 升钉递补——可见恒 4；
+              // 落点前插判据：D 紧邻 B 之前（pinEntry before 语义；G 随 D 升钉递补——可见恒 5；
               // 用户自钉条目可在段首）
-              if (cand && recNames16(cand).length === 4 && recNames16(cand).includes(p16.extras[1].name)) {
+              if (cand && recNames16(cand).length === 5 && recNames16(cand).includes(p16.extras[1].name)) {
                 const apps16 = cand.apps || [];
                 const di16 = apps16.findIndex((a) => norm16(a.id) === norm16(pD16.exe));
                 const bi16 = apps16.findIndex((a) => norm16(a.id) === norm16(pB16.exe));
@@ -1106,7 +1113,7 @@ async function main() {
           }
           if (cross16) {
             const apps16 = cross16.apps || [];
-            rep.pass(`P16 拖去应用组升手钉：D 拖至 B 之前（跨组 recs→apps 落点前插——应用组 [${apps16.map((a) => path.basename(String(a.id))).join(', ')}]，推荐组余 4 枚、第 7 名 G 递补不双占位）`);
+            rep.pass(`P16 拖去应用组升手钉：D 拖至 B 之前（跨组 recs→apps 落点前插——应用组 [${apps16.map((a) => path.basename(String(a.id))).join(', ')}]，推荐组恒 5 枚、第 7 名 G 递补不双占位）`);
           } else {
             rep.fail(`P16 跨组升手钉未达成：源/落点矩形=${!!ptD}/${!!ptApps}`
               + ` 应用组=${JSON.stringify((latestGeometry(null).apps || []).map((a) => a.id))} 推荐组=${JSON.stringify(recNames16(latestGeometry(null)))}`);
@@ -1147,19 +1154,27 @@ async function main() {
                   && !(cand.apps || []).some((a) => norm16(a.id) === norm16(pD16.exe))) repool16 = cand;
               }
           }
-          // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）
+          // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）。
+          // 右键两试（⑥解除臂同款：右键偶发不开菜单——离位刷新热区+重取 settle 几何再试）。
           let reveal16 = null;
           let expHwnd16 = null;
-          const gR = await waitGeometrySettled(repool16 || gU);
-          const ptR = recPt16(gR, pC16.name);
-          if (ptR) {
+          const gR0 = await waitGeometrySettled(repool16 || gU);
+          let rowsR = null;
+          let ptR = recPt16(gR0, pC16.name);
+          for (let attempt16 = 0; attempt16 < 2 && ptR && !rowsR; attempt16++) {
             win32.clickPhys(ptR.x, ptR.y, 'right');
-            let rowsR = null;
             for (let i = 0; i < 20 && !rowsR; i++) {
               await sleep(200);
               const rows = await menuRows16(pC16.name);
               if (rows.length === 3) rowsR = rows;
             }
+            if (!rowsR && attempt16 === 0) {
+              win32.moveMousePhys(ptR.x, ptR.y - 60); // 离位刷新热区
+              await sleep(300);
+              const gR = await waitGeometrySettled(latestGeometry(null));
+              ptR = recPt16(gR, pC16.name);
+            }
+          }
             if (rowsR) {
               const rr = rowsR.find((r) => r.action === 'reveal').rect;
               const rp = toPhys(rr.x + rr.width / 2, rr.y + rr.height / 2);
@@ -1173,13 +1188,13 @@ async function main() {
               }
               if (expHwnd16) PostMessageW16(expHwnd16, WM_CLOSE_16, 0, 0); // 只关窗不碰 shell
             }
-          }
           if (repool16 && reveal16) {
-            rep.pass(`P16 解除手钉回池+打开文件位置：D 解除手钉随下拍回池（推荐组回 4 枚、应用组摘除）；`
+            rep.pass(`P16 解除手钉回池+打开文件位置：D 解除手钉随下拍回池（推荐组恒 5、第 7 名 G 让位、应用组摘除）；`
               + `reveal 行点击存证在案${expHwnd16 ? '，explorer 定位窗口真出场（已收窗）' : '（explorer 窗未及出场，软核验）'}`);
           } else {
+            const diagU = await menuDiag16();
             rep.fail(`P16 解除回池/reveal：回池=${!!repool16}(recs=${JSON.stringify(recNames16(latestGeometry(null)))})`
-              + ` reveal存证=${!!reveal16} explorer窗=${expHwnd16 ? '在场' : '未出场'}`);
+              + ` reveal存证=${!!reveal16} explorer窗=${expHwnd16 ? '在场' : '未出场'} 菜单诊断=${JSON.stringify(diagU)}`);
           }
         }
       }
@@ -1211,21 +1226,67 @@ async function main() {
         return r ? { label: r.textContent || '', exe: r.dataset.exe || '', rect: r.getBoundingClientRect().toJSON() } : null;
       })()`, TASKBAR_TITLE);
       const state17 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
-      // ① 右键 F → 三行 → 点「从推荐栏移除」→ F 消失 G 递补 + 移除落盘
+      const menuDiag17 = () => cdpEval(`(() => {
+        return {
+          menuOpen: document.getElementById('pill-start')?.dataset.menuOpen || '',
+          rows: [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
+        };
+      })()`, TASKBAR_TITLE);
+      // 空白右键（恢复菜单挂点 = pillStart 空白，54 菜单同一点）：三点轮试——左缘内衬 3px
+      // 在热区/DPI 取整松弛下余量太窄（红轮两轮 4 试全败的系统性签名；图标点击 44px 格
+      // 中心从无此问题），换顶部内衬横中点（水平余量大）与开始钮面（contextmenu 冒泡到
+      // pill，同挂点语义）兜底。每次尝试后轮询 menuOpen 标记 + 恢复行。
+      const blankRightClick17 = async (gBlank) => {
+        const pill = gBlank.startPill;
+        const cands = [
+          { x: pill.x + pill.w / 2, y: pill.y + 3, tag: 'top-pad-center' },
+          { x: pill.x + 3, y: pill.y + pill.h / 2, tag: 'left-pad-mid' },
+        ];
+        for (const c of cands) {
+          const pt = toPhys(c.x, c.y);
+          win32.clickPhys(pt.x, pt.y, 'right');
+          for (let i = 0; i < 10; i++) {
+            await sleep(200);
+            const row = await restoreRow17();
+            if (row) return { row, tag: c.tag };
+          }
+          const diag = await menuDiag17();
+          rep.note(`P17 空白右键试点 ${c.tag} 未出恢复行：menuOpen=${diag.menuOpen} rows=${JSON.stringify(diag.rows)}`);
+          // 收层再试下一点（菜单可能开了但无恢复行——excluded 空态，或压根没开）
+          win32.moveMousePhys(pt.x, pt.y - 60);
+          await sleep(300);
+          const g2 = await waitGeometrySettled(latestGeometry(null));
+          if (g2) gBlank.startPill = g2.startPill;
+        }
+        return { row: null, tag: 'none' };
+      };
+      // ① 右键 F → 三行 → 点「从推荐栏移除」→ F 消失 G 递补 + 移除落盘（右键两试：
+      // 右键偶发不开菜单——⑥解除臂同款抖动，离位刷新热区+重取 settle 几何再试）
       let g17 = await waitGeometrySettled(latestGeometry(null));
-      const ptF = recPt17(g17, pF17.name);
+      const ptF0 = recPt17(g17, pF17.name);
       let removed17 = null;
-      if (!ptF) {
+      let rows17 = null;
+      if (!ptF0) {
         rep.fail(`P17 前置缺失：探针 F 不在推荐位（${JSON.stringify(recNames17(g17))}）`);
       } else {
-        win32.clickPhys(ptF.x, ptF.y, 'right');
-        let rows17 = null;
-        for (let i = 0; i < 20 && !rows17; i++) {
-          await sleep(200);
-          const rows = await cdpEval(`(() => {
-            return [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
-          })()`, TASKBAR_TITLE);
-          if (rows.length === 3) rows17 = rows;
+        let ptF = ptF0;
+        for (let attempt17 = 0; attempt17 < 2 && !rows17; attempt17++) {
+          win32.clickPhys(ptF.x, ptF.y, 'right');
+          for (let i = 0; i < 20 && !rows17; i++) {
+            await sleep(200);
+            const rows = await cdpEval(`(() => {
+              return [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
+            })()`, TASKBAR_TITLE);
+            if (rows.length === 3) rows17 = rows;
+          }
+          if (!rows17 && attempt17 === 0) {
+            const diag = await menuDiag17();
+            rep.note(`P17 移除臂右键首试未开菜单：menuOpen=${diag.menuOpen} rows=${JSON.stringify(diag.rows)}——离位刷新热区重试`);
+            win32.moveMousePhys(ptF.x, ptF.y - 60);
+            await sleep(300);
+            const gR = await waitGeometrySettled(latestGeometry(null));
+            ptF = recPt17(gR, pF17.name) || ptF;
+          }
         }
         if (rows17 && rows17.map((r) => r.action).join(',') === 'pin,remove,reveal') {
           const rr = rows17.find((r) => r.action === 'remove').rect;
@@ -1251,19 +1312,11 @@ async function main() {
         // ② 推荐组空白右键 → 恢复段点选 → F 回池（G 让位）
         let restored17 = null;
         let row17 = null;
-        for (let attempt17 = 0; attempt17 < 2 && !row17; attempt17++) {
+        {
           const gBlank = await waitGeometrySettled(latestGeometry(null));
-          // 空白点 = pill 左缘内衬（padding 6px 8px——按钮/推荐位条目不占左缘 8px 带）
-          const blankPt = toPhys(gBlank.startPill.x + 3, gBlank.startPill.y + gBlank.startPill.h / 2);
-          win32.clickPhys(blankPt.x, blankPt.y, 'right');
-          for (let i = 0; i < 10 && !row17; i++) {
-            await sleep(200);
-            row17 = await restoreRow17();
-          }
-          if (!row17 && attempt17 === 0) {
-            win32.moveMousePhys(blankPt.x, blankPt.y - 60); // 离位刷新热区（⑥右键两试同款）
-            await sleep(300);
-          }
+          const hit = await blankRightClick17(gBlank);
+          row17 = hit.row;
+          if (row17) rep.note(`P17 恢复段经试点 ${hit.tag} 开出`);
         }
         if (row17) {
           const labelOk17 = row17.label === `恢复 ${pF17.name.replace(/\.lnk$/i, '')}`;
@@ -1315,19 +1368,10 @@ async function main() {
         let rowAfter17 = null;
         let restoredAfter17 = null;
         if (boot17 && reboot17 && persistOk17) {
-          for (let attempt17 = 0; attempt17 < 2 && !rowAfter17; attempt17++) {
-            const gBlank = await waitGeometrySettled(latestGeometry(null));
-            const blankPt = toPhys(gBlank.startPill.x + 3, gBlank.startPill.y + gBlank.startPill.h / 2);
-            win32.clickPhys(blankPt.x, blankPt.y, 'right');
-            for (let i = 0; i < 10 && !rowAfter17; i++) {
-              await sleep(200);
-              rowAfter17 = await restoreRow17();
-            }
-            if (!rowAfter17 && attempt17 === 0) {
-              win32.moveMousePhys(blankPt.x, blankPt.y - 60);
-              await sleep(300);
-            }
-          }
+          const gBlank = await waitGeometrySettled(latestGeometry(null));
+          const hit = await blankRightClick17(gBlank);
+          rowAfter17 = hit.row;
+          if (rowAfter17) rep.note(`P17 重启后恢复段经试点 ${hit.tag} 开出`);
           if (rowAfter17) {
             const rp = toPhys(rowAfter17.rect.x + rowAfter17.rect.width / 2, rowAfter17.rect.y + rowAfter17.rect.height / 2);
             win32.clickPhys(rp.x, rp.y, 'left');

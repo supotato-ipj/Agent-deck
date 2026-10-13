@@ -34,7 +34,10 @@ let current: TaskbarState | null = null
 let latestStatus: TaskbarStatus | null = null
 /** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
 let editing = false
-/** 系统按钮显隐菜单开合（工单54）：右键开、点菜/点 pill 空白/状态回推收 */
+/** 系统按钮显隐菜单 + 恢复段开合（工单54，工单161 扩恢复段）：右键开、点行/点 pill 空白/
+ * 8s 兜底收。**不随 taskbar/changed 收**（工单161，工单162 档位菜单同款纪律）：托盘图标
+ * churn 每几秒推一帧，回推即收会把刚开出的菜单抢走（真机红轮实证）——收层只走点行
+ * （显式）/点空白/兜底超时三路径。 */
 let menuOpen = false
 let menuTimer: ReturnType<typeof setTimeout> | null = null
 /** 托盘溢出档位菜单开合（工单162）：「⋯」右键或右组空白处右键开、点档/状态回推/兜底超时收 */
@@ -501,6 +504,8 @@ function render(state: TaskbarState): void {
   current = state
   const vm = taskbarViewModel(state)
   pillStart.hidden = !vm.visible
+  // 证据标记（验收电池可观测：菜单开着没有——右键菜单开合抖动的取证面）
+  pillStart.dataset.menuOpen = menuOpen ? '1' : ''
   pillStart.textContent = ''
   if (!vm.visible) {
     closeMenu()
@@ -539,14 +544,18 @@ function render(state: TaskbarState): void {
         el.addEventListener('click', (e) => {
           e.stopPropagation()
           window.deck.host.notify('taskbar-menu-action', { id: row.id, hidden: !row.hidden })
-          // 回推的 taskbar/changed 驱动重渲收层；回执只为存证对齐
+          // 点行显式收层（工单161 起 changed 不再代收——churn 回推会抢开着的菜单）；
+          // 回执只为存证对齐
+          closeMenu()
           void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
             .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
+          if (current) render(current)
         })
         pillStart.appendChild(el)
       }
       // 恢复段（工单161）：推荐组空白右键菜单的「已移除应用」恢复入口——名单非空才出段
-      // （pill 内横排形态，54 菜单同款纪律：点行经回推收层、点空白/8s 兜底同款收层）。
+      // （pill 内横排形态，54 菜单同款纪律：点行显式收层、点空白/8s 兜底同款收层；
+      // changed 回推不收层——churn 抢菜单，工单162 档位菜单同款先例）。
       // 行文本 = 「恢复 <显示名>」，data-exe 挂交互寻址；pill 不渲染的空壳态（两钮全隐
       // 且无推荐）恢复入口不可达，走 config/存储手改口（54 菜单同款边界）。
       if (vm.excluded.length > 0) {
@@ -561,9 +570,11 @@ function render(state: TaskbarState): void {
           el.textContent = `恢复 ${ex.label}`
           el.addEventListener('click', (e) => {
             e.stopPropagation()
+            closeMenu()
             window.deck.host.notify('taskbar-rec-restore', { exe: ex.exe, label: ex.label })
             void dispatchRecRestore(window.deck.bridge, ex.exe)
               .then((s) => window.deck.host.notify('taskbar-rec-restore-result', { exe: ex.exe, excluded: s?.excluded?.length ?? null }))
+            if (current) render(current)
           })
           pillStart.appendChild(el)
         }
@@ -817,9 +828,8 @@ function boot(): void {
       rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, trayOverflow: m.trayOverflow, sliver: m.sliver,
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
-      closeMenu() // 状态回推即收菜单（点菜成功的收层路径）
-      // 档位菜单不随 changed 收：机器图标 churn 每几秒推一帧（红轮实证刚开的菜单被收掉、
-      // 选档点击落空）——收层只走选档显式关闭/点空白/8s 兜底（工单162）
+      // 菜单不随 changed 收（工单161，工单162 档位菜单同款纪律：托盘 churn 每几秒推一帧，
+      // 红轮实证回推即收会抢走刚开的菜单）——收层只走点行显式/点空白/8s 兜底三路径。
       render(next)
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
