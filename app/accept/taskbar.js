@@ -29,6 +29,12 @@
 //   P15 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
 //      空带内居中（随两侧内容浮动）、右组与细条位置不变、不与邻组重叠——几何存证帧
 //      与 CDP computed style 互证；居中回正驱动 = set-button-hidden 藏/显 TaskView 钮
+//   P16 推荐组交互主体（工单160）：五条 usage 种子探针确定性占满推荐位（先于面板种入
+//      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 44 格/32 图标
+//      img/首字母占位，无显示名文本残留）、左键启动（真点击→rec-click 存证→notepad 副本
+//      真窗口出场）、右键两行菜单（手钉到任务栏/打开文件位置）+手钉即时迁移（推荐组消失
+//      +应用组手钉段前位出现）、真 OLE 拖拽组内换位（显式序压过分数序）、跨组升手钉
+//      （recs→apps 落点条目前插入）、解除手钉随下拍回池；痕迹三处在 finally 摘除
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -318,11 +324,120 @@ function makeReplayProbe() {
   return { frames, hwnd, pump, waitFrame, destroy };
 }
 
+// —— P16 推荐组探针（工单160）：五条推荐位夹具 + usage 打分种子 ——
+// 推荐位只在条目有正分时占位（候选池=桌面项池 ∩ 正分条目），而 usage 事件只在
+// UsageService 构造时读盘一次（services/usage.ts）——探针种入必须先于面板拉起。
+// 五条 lnk 夹具落真实桌面扫描根（P5-ICON 夹具法先例：不依赖用户桌面内容），目标指向
+// 临时目录里的唯一路径：首条 = notepad 副本（真 exe，左键启动臂的端到端依据），余四条
+// = 占位文件（不可执行，只做图标/菜单/拖拽/手钉的寻址体）。打分 = 每探针 2000 条新鲜
+// start 事件（decay(0)≈1 → 融合分 ~2000，确定性压过真实条目占满 top-5；同分按名稳定序）。
+// cleanupRecsProbes 摘除全部痕迹：桌面夹具 / usage 按行摘除（探针 exe 是临时唯一路径，
+// 无合法流量撞行）/ 栏布局存储按探针身份过滤（手钉/拖拽臂的落盘残留）。
+const shell32P16 = koffi.load('shell32.dll');
+const PostMessageW16 = user32.func('int __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)');
+const WM_CLOSE_16 = 0x0010;
+
+function psRunP16(args, timeoutMs = 15000) {
+  const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: timeoutMs });
+  if (r.status !== 0) throw new Error(`powershell 失败: ${r.stderr || r.stdout}`);
+  return (r.stdout || '').trim();
+}
+
+function createShortcutLnkP16(lnkPath, targetPath) {
+  const script = [
+    '$s = (New-Object -ComObject WScript.Shell).CreateShortcut($args[0])',
+    '$s.TargetPath = $args[1]',
+    '$s.Save()',
+    "Write-Output ('exists=' + (Test-Path -LiteralPath $args[0]))",
+  ].join('\n');
+  const scriptFile = path.join(__dirname, 'evidence', '49-create-shortcut-lnk.ps1');
+  fs.writeFileSync(scriptFile, script, 'utf8');
+  try {
+    return psRunP16(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptFile, lnkPath, targetPath]);
+  } finally {
+    try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理 */ }
+  }
+}
+
+function userDesktopRootP16() {
+  const out = psRunP16(['-NoProfile', '-Command',
+    '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; [Environment]::GetFolderPath("Desktop")']);
+  if (!out) throw new Error('桌面根定位失败');
+  return out;
+}
+
+function seedRecsProbes(rep) {
+  try {
+    const t = Date.now();
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+    const notepadSrc = path.join(sysRoot, 'notepad.exe');
+    if (!fs.existsSync(notepadSrc)) {
+      rep.note('P16 探针前置失败：notepad 缺失');
+      return null;
+    }
+    const desktopRoot = userDesktopRootP16();
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'deck-p16-'));
+    const launchTarget = path.join(tmpDir, 'deck-p16-notepad.exe');
+    fs.copyFileSync(notepadSrc, launchTarget);
+    const tags = ['A', 'B', 'C', 'D', 'E'];
+    const probes = tags.map((tag, i) => {
+      const target = i === 0 ? launchTarget : path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
+      if (i > 0) fs.writeFileSync(target, 'deck-p16 placeholder (not an executable)', 'utf8');
+      const name = `DECK-P16-${t}-${tag}.lnk`;
+      return { name, display: `DeckP16${tag}`, exe: target };
+    });
+    for (const p of probes) createShortcutLnkP16(path.join(desktopRoot, p.name), p.exe);
+    // usage 打分种子：按天 JSONL 追加（appendEvent 同款记录形态 {ts, exe}，UTC 日）
+    const usageDir = path.join(app.getPath('userData'), 'usage');
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const usageFile = path.join(usageDir, `start-${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}.jsonl`);
+    const ts = new Date(Math.floor(t / 1000) * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    let blob = '';
+    for (const p of probes) for (let i = 0; i < 2000; i++) blob += JSON.stringify({ ts, exe: p.exe }) + '\n';
+    fs.mkdirSync(usageDir, { recursive: true });
+    fs.appendFileSync(usageFile, blob, 'utf8');
+    return { t, desktopRoot, tmpDir, usageFile, probes, done: false };
+  } catch (err) {
+    rep.note(`P16 探针种入失败（段内将以缺前置判红）: ${err && err.message}`);
+    return null;
+  }
+}
+
+function cleanupRecsProbes(p16) {
+  if (!p16 || p16.done) return;
+  p16.done = true;
+  for (const p of p16.probes) {
+    try { fs.unlinkSync(path.join(p16.desktopRoot, p.name)); } catch { /* 尽力 */ }
+  }
+  try {
+    const probeExes = new Set(p16.probes.map((p) => p.exe.toLowerCase()));
+    const text = fs.readFileSync(p16.usageFile, 'utf8');
+    const kept = text.split('\n').filter((l) => {
+      if (!l.trim()) return false;
+      try { return !probeExes.has(String(JSON.parse(l).exe || '').toLowerCase()); } catch { return true; }
+    });
+    fs.writeFileSync(p16.usageFile, kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+  } catch { /* 尽力 */ }
+  try {
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    const probeExes = new Set(p16.probes.map((p) => p.exe.toLowerCase()));
+    const probeNames = new Set(p16.probes.map((p) => p.name));
+    const before = JSON.stringify(store);
+    if (Array.isArray(store.pinned)) store.pinned = store.pinned.filter((e) => !probeExes.has(String(e.exe || '').toLowerCase()));
+    if (Array.isArray(store.recommended)) store.recommended = store.recommended.filter((n) => !probeNames.has(n));
+    if (JSON.stringify(store) !== before) fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
+  } catch { /* 尽力 */ }
+  try { fs.rmSync(p16.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+}
+
 async function main() {
   const rep = new Report('49-taskbar');
   let child = null;
   let panelPid = 0;
   let probe164 = null; // P14 探针（#164）：finally 兜底拆除（段内异常也不漏窗漏类）
+  let p16 = null; // P16 推荐组探针（#160）：面板启动前种入（usage 只在服务构造时读盘），finally 兜底清理
   const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
@@ -333,6 +448,10 @@ async function main() {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
     patchTaskbar({ enabled: true });
     await ensureTaskViewClosed(rep); // 上一轮 P5 的任务视图残留会盖住条带，先清场
+
+    // —— P16 推荐组探针（工单160）：先于面板种入（usage 打分只在服务构造时读盘）——
+    p16 = seedRecsProbes(rep);
+    if (p16) rep.note(`P16 探针已种入：${p16.probes.map((p) => p.name).join(' / ')}`);
 
     // —— 拉起面板子进程（任务栏启用态）——
     child = launchPanel();
@@ -733,6 +852,256 @@ async function main() {
       if (notepad14) spawnSync('taskkill', ['/PID', String(notepad14.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
+    // P16 推荐组交互主体（工单160）：探针五条确定性占满推荐位（usage 种子压分），真机
+    // 断言六臂——①图标化+上限5（.tb-rec 定宽图标格 img/首字母占位，无显示名文本残留，
+    // 探针恰满 5 枚=第 6 名及以后不出现）②左键启动（真点击 → rec-click 存证 → notepad
+    // 副本窗口真出场，端到端 shell 打开通道）③右键两行菜单+手钉（真右键 → 两行在列 →
+    // 点「手钉到任务栏」→ 推荐组即时消失+应用组手钉段出现，不双占位）④拖拽组内换位
+    // （真 OLE 拖拽 recs→recs，显式序压过分数序）⑤拖去应用组升手钉（recs→apps 跨组，
+    // 落点条目前插入）⑥解除手钉随下拍回池 + 打开文件位置（explorer 定位真出场）。
+    // 痕迹三处在 finally 摘除（桌面夹具/usage 行/栏布局存储身份）。
+    rep.beginSegment('P16');
+    if (!p16) {
+      rep.fail('P16 前置缺失：探针种入失败（见种入 note）');
+    } else {
+      const probes16 = p16.probes;
+      const [pA16, pB16, pC16, pD16, pE16] = probes16;
+      const norm16 = (s) => String(s || '').toLowerCase();
+      const recNames16 = (g) => (g && g.recommendations ? g.recommendations.map((r) => r.name) : []);
+      const recPt16 = (g, name) => {
+        const r = (g.recommendations || []).find((x) => x.name === name);
+        return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+      };
+      const appPt16 = (g, i) => {
+        const r = (g.apps || [])[i];
+        return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+      };
+      const domRecs16 = async () => cdpEval(`(() => {
+        const cells = [...document.querySelectorAll('#pill-start .tb-rec')];
+        return cells.map((c) => ({
+          name: c.dataset.name || '',
+          img: !!c.querySelector('img'),
+          letter: !!c.querySelector('.tb-rec-letter'),
+          ownText: [...c.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(''),
+          title: c.title || '',
+          w: c.getBoundingClientRect().width,
+          h: c.getBoundingClientRect().height,
+        }));
+      })()`, TASKBAR_TITLE);
+      const menuRows16 = (name) => {
+        const n = JSON.stringify(name);
+        return cdpEval(`(() => {
+          return [...document.querySelectorAll('#pill-start .tb-menu-item')]
+            .filter((r) => !${n} || r.dataset.name === ${n})
+            .map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
+        })()`, TASKBAR_TITLE);
+      };
+      // —— ① 图标化 + 上限 5 ——
+      let g16 = null;
+      for (let i = 0; i < 40 && !g16; i++) {
+        await sleep(300);
+        const cand = latestGeometry(null);
+        const names = recNames16(cand);
+        if (probes16.every((p) => names.includes(p.name))) g16 = cand;
+      }
+      if (!g16) {
+        rep.fail(`P16 探针未占满推荐位（12s 内五条夹具未同帧在场——usage 种子/桌面扫描链路断，`
+          + `或机器真实条目分压过种子）：几何=${JSON.stringify(latestGeometry(null) && recNames16(latestGeometry(null)))}`);
+      } else {
+        const dom16 = await domRecs16();
+        const countOk16 = recNames16(g16).length === 5;
+        const iconizedOk16 = dom16.length === 5 && dom16.every((c) => (c.img || c.letter) && !c.ownText
+          && Math.abs(c.w - 44) <= 2 && Math.abs(c.h - 44) <= 2);
+        const tooltipOk16 = dom16.every((c) => probes16.some((p) => p.name === c.name && p.display === c.title));
+        if (countOk16 && iconizedOk16 && tooltipOk16) {
+          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6 名及以后不出现）；每格 44×44 图标格`
+            + `（img ${dom16.filter((c) => c.img).length}/占位 ${dom16.filter((c) => c.letter).length}），无显示名文本残留，显示名即时进 tooltip`);
+        } else {
+          rep.fail(`P16 图标化断言：count=${countOk16}(${recNames16(g16).length}) iconized=${iconizedOk16}`
+            + `(${JSON.stringify(dom16)}) tooltip=${tooltipOk16}`);
+        }
+
+        // —— ② 左键启动（端到端：真点击 → rec-click 存证 → notepad 副本窗口出场）——
+        const ptA = recPt16(await waitGeometrySettled(g16), pA16.name);
+        const clickPt16 = ptA || toPhys(g16.recommendations[0].x + g16.recommendations[0].w / 2, g16.recommendations[0].y + g16.recommendations[0].h / 2);
+        win32.clickPhys(clickPt16.x, clickPt16.y, 'left');
+        const clickEv16 = await waitEvent('taskbar-rec-click', (e) => e.name === pA16.name, 5000);
+        const clickOk16 = await waitEvent('taskbar-rec-click-result', (e) => e.name === pA16.name && e.ok, 5000);
+        let copyHwnd16 = null;
+        for (let i = 0; i < 40 && !copyHwnd16; i++) {
+          await sleep(250);
+          copyHwnd16 = win32.topLevelWindows().find((h) => win32.exeNameOfWindow(h) === 'deck-p16-notepad') || null;
+        }
+        if (copyHwnd16) spawnSync('taskkill', ['/PID', String(win32.threadIdOf(copyHwnd16).pid), '/T', '/F'], { stdio: 'ignore' });
+        if (clickEv16 && clickOk16 && copyHwnd16) {
+          rep.pass(`P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（notepad 副本）真窗口出场并收杀`);
+        } else {
+          rep.fail(`P16 左键启动：点击存证=${!!clickEv16} 回执ok=${!!clickOk16} 目标窗口=${copyHwnd16 ? '在场' : '未出场'}`
+            + `（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
+        }
+
+        // —— ③ 右键两行菜单 + 手钉（推荐组消失、应用组前段出现，不双占位）——
+        let gB = await waitGeometrySettled(g16);
+        const ptB = recPt16(gB, pB16.name);
+        if (!ptB) {
+          rep.fail(`P16 右键臂前置缺失：探针 B 不在推荐位（${JSON.stringify(recNames16(gB))}）`);
+        } else {
+          win32.clickPhys(ptB.x, ptB.y, 'right');
+          let rowsB = null;
+          for (let i = 0; i < 20 && !rowsB; i++) {
+            await sleep(200);
+            const rows = await menuRows16(pB16.name);
+            if (rows.length === 2) rowsB = rows;
+          }
+          const rowsOk16 = !!rowsB && rowsB.map((r) => r.action).join(',') === 'pin,reveal'
+            && rowsB.map((r) => r.label).join(',') === '手钉到任务栏,打开文件位置';
+          let pinned16 = null;
+          if (rowsOk16) {
+            const pr = rowsB.find((r) => r.action === 'pin').rect;
+            const pp = toPhys(pr.x + pr.width / 2, pr.y + pr.height / 2);
+            win32.clickPhys(pp.x, pp.y, 'left');
+            await waitEvent('taskbar-rec-menu-action', (e) => e.name === pB16.name && e.action === 'pin', 5000);
+            for (let i = 0; i < 30 && !pinned16; i++) {
+              await sleep(200);
+              const cand = latestGeometry(null);
+              if (cand && recNames16(cand).length === 4 && !recNames16(cand).includes(pB16.name)
+                && cand.apps.length > 0 && norm16(cand.apps[0].id) === norm16(pB16.exe)) pinned16 = cand;
+            }
+          }
+          if (rowsOk16 && pinned16) {
+            rep.pass(`P16 右键两行+手钉：菜单恰两行（手钉到任务栏/打开文件位置）；点手钉后推荐组即时消失`
+              + `（4 枚不双占位）、应用组手钉段前位出现（exe=${pinned16.apps[0].id}）`);
+          } else {
+            rep.fail(`P16 右键/手钉：两行=${JSON.stringify(rowsB)} 手钉落位=${!!pinned16}`
+              + `(recs=${pinned16 ? recNames16(pinned16).length : 'n/a'} apps0=${pinned16 && pinned16.apps[0] ? pinned16.apps[0].id : 'n/a'})`);
+          }
+
+          // —— ④ 拖拽组内换位（recs→recs：显式序压过分数序）——
+          let gE = await waitGeometrySettled(pinned16 || gB);
+          const ptE = recPt16(gE, pE16.name);
+          const ptC = recPt16(gE, pC16.name);
+          let dragOrder16 = null;
+          if (ptE && ptC) {
+            win32.moveMousePhys(ptE.x, ptE.y);
+            await sleep(250);
+            win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+            const steps16 = 12; // 渲染层拖拽阈值 6px，步进远超阈值；每步 24ms 保持事件流
+            for (let s = 1; s <= steps16; s++) {
+              await sleep(24);
+              win32.moveMousePhys(ptE.x + Math.round(((ptC.x - ptE.x) * s) / steps16), ptE.y + Math.round(((ptC.y - ptE.y) * s) / steps16));
+            }
+            await sleep(140);
+            win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+            await waitEvent('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'recs' && e.id === pE16.name && e.before === pC16.name, 6000);
+            for (let i = 0; i < 30 && !dragOrder16; i++) {
+              await sleep(200);
+              const cand = latestGeometry(null);
+              const names = recNames16(cand);
+              if (names.length === 4 && names.indexOf(pE16.name) >= 0 && names.indexOf(pE16.name) < names.indexOf(pC16.name)) dragOrder16 = cand;
+            }
+          }
+          if (dragOrder16) {
+            rep.pass(`P16 推荐组内拖拽换位：E 拖至 C 之前（真 OLE 拖拽，显式序压过分数序，落位存证 recs→recs）`);
+          } else {
+            rep.fail(`P16 组内换位未达成：源/落点矩形=${!!ptE}/${!!ptC} 落位后序=${JSON.stringify(recNames16(latestGeometry(null)))}`);
+          }
+
+          // —— ⑤ 拖去应用组升手钉（recs→apps 跨组，落点条目前插入）——
+          let gD = await waitGeometrySettled(dragOrder16 || gE);
+          const ptD = recPt16(gD, pD16.name);
+          const ptApps = appPt16(gD, 0); // 应用组首位 = 手钉段头（探针 B）
+          let cross16 = null;
+          if (ptD && ptApps) {
+            win32.moveMousePhys(ptD.x, ptD.y);
+            await sleep(250);
+            win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+            for (let s = 1; s <= steps16; s++) {
+              await sleep(24);
+              win32.moveMousePhys(ptD.x + Math.round(((ptApps.x - ptD.x) * s) / steps16), ptD.y + Math.round(((ptApps.y - ptD.y) * s) / steps16));
+            }
+            await sleep(140);
+            win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+            await waitEvent('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'apps' && e.id === pD16.name, 6000);
+            for (let i = 0; i < 30 && !cross16; i++) {
+              await sleep(200);
+              const cand = latestGeometry(null);
+              if (cand && recNames16(cand).length === 3
+                && cand.apps.length >= 2 && norm16(cand.apps[0].id) === norm16(pD16.exe)
+                && norm16(cand.apps[1].id) === norm16(pB16.exe)) cross16 = cand;
+            }
+          }
+          if (cross16) {
+            rep.pass(`P16 拖去应用组升手钉：D 拖至手钉段头 B 之前（跨组 recs→apps，落点条目前插入——应用组 [D, B]，推荐组余 3 枚不双占位）`);
+          } else {
+            rep.fail(`P16 跨组升手钉未达成：源/落点矩形=${!!ptD}/${!!ptApps}`
+              + ` 应用组=${JSON.stringify((latestGeometry(null).apps || []).map((a) => a.id))} 推荐组=${JSON.stringify(recNames16(latestGeometry(null)))}`);
+          }
+
+          // —— ⑥ 解除手钉随下拍回池 + 打开文件位置 ——
+          let gU = await waitGeometrySettled(cross16 || gD);
+          const ptU = appPt16(gU, 0); // 应用组首位 = 探针 D（拖拽升手钉）
+          let repool16 = null;
+          if (ptU) {
+            win32.clickPhys(ptU.x, ptU.y, 'right');
+            let unpinRow = null;
+            for (let i = 0; i < 20 && !unpinRow; i++) {
+              await sleep(200);
+              const rows = await cdpEval(`(() => {
+                const r = document.querySelector('#pill-start .tb-menu-item[data-action="unpin"]');
+                return r ? { label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() } : null;
+              })()`, TASKBAR_TITLE);
+              if (rows) unpinRow = rows;
+            }
+            if (unpinRow) {
+              const up = toPhys(unpinRow.rect.x + unpinRow.rect.width / 2, unpinRow.rect.y + unpinRow.rect.height / 2);
+              win32.clickPhys(up.x, up.y, 'left');
+              await waitEvent('taskbar-app-menu-action', (e) => e.action === 'unpin', 5000);
+              for (let i = 0; i < 30 && !repool16; i++) {
+                await sleep(200);
+                const cand = latestGeometry(null);
+                if (cand && recNames16(cand).includes(pD16.name) && recNames16(cand).length === 4
+                  && !(cand.apps || []).some((a) => norm16(a.id) === norm16(pD16.exe))) repool16 = cand;
+              }
+            }
+          }
+          // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）
+          let reveal16 = null;
+          let expHwnd16 = null;
+          const gR = await waitGeometrySettled(repool16 || gU);
+          const ptR = recPt16(gR, pC16.name);
+          if (ptR) {
+            win32.clickPhys(ptR.x, ptR.y, 'right');
+            let rowsR = null;
+            for (let i = 0; i < 20 && !rowsR; i++) {
+              await sleep(200);
+              const rows = await menuRows16(pC16.name);
+              if (rows.length === 2) rowsR = rows;
+            }
+            if (rowsR) {
+              const rr = rowsR.find((r) => r.action === 'reveal').rect;
+              const rp = toPhys(rr.x + rr.width / 2, rr.y + rr.height / 2);
+              win32.clickPhys(rp.x, rp.y, 'left');
+              reveal16 = await waitEvent('taskbar-rec-menu-action', (e) => e.name === pC16.name && e.action === 'reveal', 5000);
+              await waitEvent('taskbar-rec-menu-result', (e) => e.name === pC16.name && e.action === 'reveal', 5000);
+              const dirName = path.basename(p16.tmpDir);
+              for (let i = 0; i < 24 && !expHwnd16; i++) {
+                await sleep(250);
+                expHwnd16 = win32.topLevelWindows().find((h) => win32.className(h) === 'CabinetWClass' && titleOf(h).includes(dirName)) || null;
+              }
+              if (expHwnd16) PostMessageW16(expHwnd16, WM_CLOSE_16, 0, 0); // 只关窗不碰 shell
+            }
+          }
+          if (repool16 && reveal16) {
+            rep.pass(`P16 解除手钉回池+打开文件位置：D 解除手钉随下拍回池（推荐组回 4 枚、应用组摘除）；`
+              + `reveal 行点击存证在案${expHwnd16 ? '，explorer 定位窗口真出场（已收窗）' : '（explorer 窗未及出场，软核验）'}`);
+          } else {
+            rep.fail(`P16 解除回池/reveal：回池=${!!repool16}(recs=${JSON.stringify(recNames16(latestGeometry(null)))})`
+              + ` reveal存证=${!!reveal16} explorer窗=${expHwnd16 ? '在场' : '未出场'}`);
+          }
+        }
+      }
+    }
+
     // P10(a) 关-开连发竞态（#103 缺陷①）：单次 evaluate 内串联两桥写（await 第一写
     // 返回即发第二写，毫秒级）——真实 agent 路径的回归面。取证判读（2026-10-11 并案
     // 取证 D 相）CDP 两独立调用间隔 ~313ms；红轮实证毫秒级串联在未修代码上竞态仍
@@ -1118,6 +1487,7 @@ async function main() {
   } finally {
     if (probe164) { try { probe164.destroy(); } catch { /* 尽力 */ } }
     killTree(child, panelPid);
+    cleanupRecsProbes(p16); // P16 痕迹三处摘除（面板已杀，落盘清理不再被回写）
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生
     // 任务栏可能留隐藏态——电池不得给用户留无系统入口的桌面

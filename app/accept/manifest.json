@@ -611,6 +611,16 @@
           "estSeconds": 8
         },
         {
+          "seg": "P16",
+          "ticket": 160,
+          "title": "推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键两行菜单（手钉→推荐组消失应用组前段/打开位置）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 40
+        },
+        {
           "seg": "P14",
           "ticket": 164,
           "title": "托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言 + 真实点击端到端",
