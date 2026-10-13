@@ -19,6 +19,9 @@
 //               右键 WM_CONTEXTMENU）；C=v4 布局对但右键仍用 WM_RBUTTONUP（修复范围输入）。
 //               行为.oracle = #32768 菜单窗（按目标 pid）/ 新可见顶层窗 / 前台切到目标 pid
 //   P4 判读     汇总三假设证据与第三方样本行为对照，落 verdict.json
+//   P5 修复验证（#164，t9 轮加） 对 2-3 个第三方样本走**产品链路**（CDP invoke
+//               taskbar/tray-click 左/右键）做行为观测 + tray-replay 存证断言——修复后
+//               产品链路应出现 P3-B 的行为签名（A 臂自本票起=旧缺陷形态对照）。
 // 纪律：产品代码零改动；本 harness 是取证工具不进 manifest 不产 verdict 电池；退出码
 // 0=完成 3=机器脏。碰真桌面（真面板+CDP+键鼠注入），一律经 accept-guard 托管。
 const path = require('path');
@@ -450,6 +453,60 @@ function postPayload(hwnd, callbackMessage, pack) {
       samples.push({ key: s.key, tooltip: s.tooltip, exe: s.exe, pid: s.pid, version: entry.version, arms: armRows });
     }
 
+    // —— P5 修复验证（#164）：产品链路（CDP invoke taskbar/tray-click）对第三方样本
+    //    左/右键回放——修复后产品链路应出现 P3-B 的行为签名（右键弹菜单/开面板）。
+    //    样本=已登记第三方，优先已知 oracle 好的 exe；左键臂限白名单（会真开窗，
+    //    观测后 WM_CLOSE 尽力还原桌面）。存证断言面=tray-replay 的
+    //    wparam/lparam/version/posted/pid/asfw 逐字段留档。 ——
+    const WM_CLOSE = 0x0010;
+    const closeNewWindows = (probe) => {
+      for (const w of probe.newVisible || []) {
+        if (w.pid && w.pid !== process.pid) { try { win32.PostMessageW(w.hwnd, WM_CLOSE, 0, 0); } catch { /* 尽力 */ } }
+      }
+    };
+    const P5_PREF = ['powertoys', 'onedrive', 'steam', 'weixin', 'ticktick', 'snipaste', 'shadowsocks', 'lenovotray'];
+    const p5Candidates = registry.filter((r) => r.registered && r.replay?.hwnd && r.exe
+      && !['electron', 'explorer', ''].includes(r.exe));
+    p5Candidates.sort((a, b) => {
+      const ra = P5_PREF.indexOf(a.exe), rb = P5_PREF.indexOf(b.exe);
+      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    });
+    const p5 = [];
+    const p5Seen = new Set();
+    for (const s of p5Candidates) {
+      if (p5.length >= 3) break;
+      if (p5Seen.has(s.exe)) continue;
+      p5Seen.add(s.exe);
+      const row = { key: s.key, exe: s.exe, tooltip: s.tooltip, version: Number(s.replay.version), uid: Number(s.replay.uid) };
+      for (const button of ['right', 'left']) {
+        if (button === 'left' && !LEFT_WHITELIST.includes(s.exe)) { row[button] = { skipped: 'left-not-whitelisted' }; continue; }
+        await anchorFor(s.key); // v4 负载含 GetCursorPos 锚点——对齐产品回放瞬间的光标形态
+        const probe = await behaviorProbe(`P5:${button}:${s.exe}`, s.pid, async () => {
+          await cdpEval(STRIP_TITLE, `window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(s.key)}, button: ${JSON.stringify(button)} })`);
+        });
+        const fresh = freshEvents();
+        const replay = fresh.filter((e) => e.type === 'tray-replay' && e.key === s.key).pop() || null;
+        const result = fresh.filter((e) => e.type === 'tray-replay-result' && e.key === s.key).pop() || null;
+        row[button] = {
+          responsive: probe.responsive,
+          replay: replay && { posted: replay.posted, version: replay.version, wparam: replay.wparam, lparam: replay.lparam, pid: replay.pid, asfw: replay.asfw },
+          bridgeResult: result ?? null,
+          menus: probe.menus.length, fgBecame: probe.foregroundBecameTarget,
+          newVisible: probe.newVisible.map((w) => ({ exe: w.exe, title: w.title })),
+        };
+        h({ type: 'P5-arm', sample: s.exe, button, responsive: probe.responsive, posted: replay?.posted ?? null,
+          version: replay?.version ?? null, wparam: replay?.wparam ?? null, lparam: replay?.lparam ?? null,
+          asfw: replay?.asfw ?? null, menus: probe.menus.length, fgBecame: probe.foregroundBecameTarget,
+          newVisible: probe.newVisible.length });
+        await dismissMenus();
+        if (button === 'left') { closeNewWindows(probe); await sleep(400); } // 左键新窗尽力还原
+      }
+      p5.push(row);
+    }
+    const p5Arms = hlog.filter((e) => e.type === 'P5-arm');
+    h({ type: 'P5-summary', samples: p5.length,
+      responsiveArms: p5Arms.filter((a) => a.responsive).length, totalArms: p5Arms.length });
+
     // —— P4 判读（数据驱动；最终归因在 audit 报告）——
     const p1Rows = registry.filter((r) => r.inDom !== false);
     const postedRows = p1Rows.filter((r) => r.replay);
@@ -487,7 +544,7 @@ function postPayload(hwnd, callbackMessage, pack) {
       samples: samples.map((s) => ({ exe: s.exe, tooltip: s.tooltip, version: s.version, arms: s.arms })),
     };
     h({ type: 'P4-verdict', verdict });
-    fs.writeFileSync(path.join(outDir, 'registry.json'), JSON.stringify({ registry, samples, p2, verdict, msg: MSG }, null, 2));
+    fs.writeFileSync(path.join(outDir, 'registry.json'), JSON.stringify({ registry, samples, p2, p5, verdict, msg: MSG }, null, 2));
   } catch (e) {
     dirty = true;
     h({ type: 'fatal', message: e && e.message, stack: (e && e.stack || '').split('\n').slice(0, 4).join(' | ') });
