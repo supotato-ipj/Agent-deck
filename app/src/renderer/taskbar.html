@@ -170,6 +170,22 @@
   .tb-tray-icon { padding: 5px 2px; } /* 工单158：密度紧凑档（格 28px），延缓右组左侵 */
   .tb-tray-icon img { display: block; width: 24px; height: 24px; }
   .tb-tray-px { image-rendering: pixelated; }
+  /* 托盘溢出「⋯」钮（工单162）：与应用组 ⋯（.tb-overflow）同格位观感；左键请求宿主
+   * 在鼠标位置开托盘溢出菜单浮层（自绘竖排面板，独立浮层窗承载），右键开档位菜单 */
+  .tb-tray-overflow {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #d6d6d6;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding-bottom: 6px; /* ⋯ 视觉居中（字形的点偏基线下） */
+  }
+  .tb-tray-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   /* 显示桌面细条（工单55）：钉屏幕最右端、撑满条带高度，对齐 Win11 右下角肌肉记忆 */
   #show-desktop {
     position: fixed;

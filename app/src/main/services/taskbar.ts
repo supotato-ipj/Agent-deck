@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
+import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
@@ -26,6 +26,8 @@ export interface TaskbarServiceOptions {
   hiddenButtons?: TaskbarButtonId[]
   /** 硬件摘要勾选子集（config.json taskbar.metrics 下发；缺省 = 五项全选，工单55） */
   metrics?: TaskbarMetric[]
+  /** 托盘溢出档位（config.json taskbar.trayOverflowLimit 下发；缺省 = 5 枚，工单162） */
+  trayOverflowLimit?: TaskbarTrayOverflowLimit
   /** config.json 绝对路径（缺省 = 不落盘，仅内存态——离线测试省配置桩） */
   file?: string
   /** 已加载的 config（可变引用：写开关即整份回写该对象，settings 先例） */
@@ -83,6 +85,9 @@ const BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
 
 /** 拖拽组别合法值（工单57） */
 const DRAG_GROUPS: readonly TaskbarDragGroup[] = ['apps', 'recs']
+
+/** 托盘溢出档位合法值（工单162；与 config.ts TRAY_OVERFLOW_LIMITS 同源核对） */
+const TRAY_OVERFLOW_LIMITS: readonly TaskbarTrayOverflowLimit[] = [3, 5, 8, 'all']
 
 /** 推荐位名单逐条比对（name+path 都变才算变——显示名同拍变化也该触发重渲） */
 function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly TaskbarRecommendation[]): boolean {
@@ -203,6 +208,7 @@ export class TaskbarService extends Service {
       enabled: options.enabled ?? fallback.enabled,
       hiddenButtons: [...(options.hiddenButtons ?? fallback.hiddenButtons)],
       metrics: [...(options.metrics ?? fallback.metrics)],
+      trayOverflowLimit: options.trayOverflowLimit ?? fallback.trayOverflowLimit,
       recommendations: [],
       apps: [],
       tray: [],
@@ -234,6 +240,7 @@ export class TaskbarService extends Service {
       enabled: next.enabled,
       hiddenButtons: [...next.hiddenButtons],
       metrics: [...next.metrics],
+      trayOverflowLimit: next.trayOverflowLimit,
     }
     saveConfig(this.file, { ...this.appConfig, taskbar })
     this.appConfig.taskbar = taskbar
@@ -291,6 +298,20 @@ export class TaskbarService extends Service {
       return this.state()
     }
     return this.commit({ ...this.current, metrics: normalized })
+  }
+
+  /**
+   * 托盘溢出档位（工单162）：档位菜单挂点（「⋯」右键/右组空白处右键）的落点。档位外
+   * 取值抛 BridgeError（契约违规不静默吞掉）；同值幂等空转（不重写盘、不重推事件）。
+   * 持久化 + 提交 + 回推走 commit 三段收口（setMetrics 同款）——渲染层重拆名单，
+   * 上调即图标回栏、「⋯」消失，下调即尾部图标进溢出。
+   */
+  setTrayOverflowLimit(limit: TaskbarTrayOverflowLimit): TaskbarState {
+    if (!(TRAY_OVERFLOW_LIMITS as readonly unknown[]).includes(limit)) {
+      throw new BridgeError(`taskbar.trayOverflowLimit 须为合法档位（3/5/8/all），收到 ${String(limit)}`)
+    }
+    if (limit === this.current.trayOverflowLimit) return this.state()
+    return this.commit({ ...this.current, trayOverflowLimit: limit })
   }
 
   /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed。

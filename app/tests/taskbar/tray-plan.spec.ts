@@ -2,7 +2,7 @@
 // 重点覆盖三件：NIM_MODIFY 的部分更新语义（无图不带图、无 tip 不清 tip）、
 // 删除摘除、其余事件（setversion/setfocus/unknown）空转。
 import { describe, expect, it } from 'vitest'
-import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../../src/main/taskbar/tray-plan'
+import { applyTrayEvent, planTrayOverflow, sameTrayIcons, trayIconKeyOf } from '../../src/main/taskbar/tray-plan'
 import type { TaskbarTrayEntry } from '../../src/shared/contract'
 import type { TrayIconPixels, TrayWireEvent } from '../../src/main/trayhost/protocol'
 
@@ -88,5 +88,54 @@ describe('托盘名单编排', () => {
     expect(sameTrayIcons(a, [{ key: 'a', tooltip: 'y', iconKey: 'i1' }])).toBe(false)
     expect(sameTrayIcons(a, [{ key: 'a', tooltip: 'x', iconKey: 'i2' }])).toBe(false)
     expect(sameTrayIcons(a, [...a, { key: 'b', tooltip: '', iconKey: null }])).toBe(false)
+  })
+})
+
+describe('托盘溢出拆分（工单162）：名单序前 N 可见、超量入溢出，数量回落自动回栏', () => {
+  // 与应用组 planAppsOverflow 同形态，但语义不同源：档位是用户声明的可见数
+  // （config 持久化），不是几何实测容量——「⋯」钮是额外铬件，**不吃档位名额**。
+  const icons = (n: number): TaskbarTrayEntry[] =>
+    Array.from({ length: n }, (_, i) => ({ key: `${100 + i}:1`, tooltip: `图标${i}`, iconKey: `k${i}` }))
+
+  it('档位内全可见（含恰好齐档的边界）：无溢出、「⋯」不出场', () => {
+    expect(planTrayOverflow(icons(3), 5)).toEqual({ bar: icons(3), overflow: [] })
+    expect(planTrayOverflow(icons(5), 5)).toEqual({ bar: icons(5), overflow: [] })
+  })
+
+  it('超量取尾部：名单序前 5 可见，第 6 枚起进溢出（到达序即优先级）', () => {
+    const { bar, overflow } = planTrayOverflow(icons(7), 5)
+    expect(bar.map((i) => i.key)).toEqual(['100:1', '101:1', '102:1', '103:1', '104:1'])
+    expect(overflow.map((i) => i.key)).toEqual(['105:1', '106:1'])
+  })
+
+  it('「⋯」不吃名额：档位 3 就是真的 3 枚可见（与容量语义的分界）', () => {
+    const { bar } = planTrayOverflow(icons(8), 3)
+    expect(bar).toHaveLength(3)
+  })
+
+  it('档位「全部」：永不溢出，「⋯」不出场', () => {
+    expect(planTrayOverflow(icons(26), 'all')).toEqual({ bar: icons(26), overflow: [] })
+    expect(planTrayOverflow([], 'all')).toEqual({ bar: [], overflow: [] })
+  })
+
+  it('数量回落自动回栏：图标退出使名单低于档位，重拆即溢出清空', () => {
+    expect(planTrayOverflow(icons(7), 5).overflow).toHaveLength(2)
+    const again = planTrayOverflow(icons(5), 5)
+    expect(again.bar).toHaveLength(5)
+    expect(again.overflow).toEqual([])
+  })
+
+  it('空名单恒双空；档位为 0 的退化输入全部入溢出（契约边界校验兜底，不炸）', () => {
+    expect(planTrayOverflow([], 5)).toEqual({ bar: [], overflow: [] })
+    expect(planTrayOverflow(icons(2), 0).overflow).toHaveLength(2)
+  })
+
+  it('输入不被改动，条目原样引用（不复制不重组字段）', () => {
+    const entries = icons(4)
+    const snapshot = entries.map((e) => ({ ...e }))
+    const { bar, overflow } = planTrayOverflow(entries, 3)
+    expect(bar[0]).toBe(entries[0])
+    expect(overflow[0]).toBe(entries[3])
+    expect(entries).toEqual(snapshot)
   })
 })

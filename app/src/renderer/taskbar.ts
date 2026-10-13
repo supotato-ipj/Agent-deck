@@ -1,14 +1,15 @@
-// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159）：状态经 taskbar/get-state 拉取 +
+// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162）：状态经 taskbar/get-state 拉取 +
 // taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
 // 三组布局（工单159 重排）：开始组 pill 钉条带左缘（系统按钮 + 推荐位——推荐组独立拆出前
 // 的过渡栖位，工单54）、应用组（手钉 + 运行中合并，工单52，右键菜单/中键/多窗口选窗属工单53）
 // 在 [开始组右缘, 右组左缘] 空带内居中（appsPillLeft——随两侧内容浮动，非屏幕绝对中心）、
-// 右组（硬件摘要 + 托盘图标 + 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
+// 右组（硬件摘要 + 托盘图标（溢出收进「⋯」，工单162）+ 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
+import { trayDataUrl } from './tray-pixels.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
@@ -36,6 +37,12 @@ let editing = false
 /** 系统按钮显隐菜单开合（工单54）：右键开、点菜/点 pill 空白/状态回推收 */
 let menuOpen = false
 let menuTimer: ReturnType<typeof setTimeout> | null = null
+/** 托盘溢出档位菜单开合（工单162）：「⋯」右键或右组空白处右键开、点档/状态回推/兜底超时收 */
+let tierMenuOpen = false
+let tierMenuTimer: ReturnType<typeof setTimeout> | null = null
+/** 托盘溢出菜单浮层（工单162）请求态：「⋯」左键发起，宿主浮层窗随请求开合；
+ * 条带内任意点击即请求收层（浮层窗 blur 收「栏外」点击，条带窗 focusable:false 收不到 blur） */
+let trayPopupRequested = false
 /** 应用组溢出浮层开合（工单58）：⋯ 钮拨动、点浮层条目收、数量回落自动收 */
 let overflowOpen = false
 /** 应用图标右键菜单（工单53）：手钉/解除手钉、关闭窗口、打开文件位置三行随条目形态变化 */
@@ -71,6 +78,7 @@ function measure() {
     trayIcons: [...rightPill.querySelectorAll<HTMLElement>('.tb-tray-icon')].map((el) => ({
       key: el.dataset.key ?? '', ...rectOf(el, el.dataset.key ?? ''),
     })).map(({ key, ...r }) => ({ key, x: r.x, y: r.y, w: r.w, h: r.h })),
+    trayOverflow: (() => { const el = rightPill.querySelector<HTMLElement>('.tb-tray-overflow'); return el ? rectOf(el, 'tray-overflow') : null })(),
     sliver: rectOf(sliver, 'show-desktop'),
   }
 }
@@ -108,6 +116,7 @@ function notifyGeometry(): void {
     rightPill: m.rightPill,
     rightCells: m.rightCells,
     trayIcons: m.trayIcons,
+    trayOverflow: m.trayOverflow,
     sliver: m.sliver,
   }
   const json = JSON.stringify(payload)
@@ -170,6 +179,26 @@ function closeMenu(): void {
   menuOpen = false
 }
 
+/** 档位菜单开合（工单162）：54 菜单同款纪律——无焦点窗收不到 Esc、窗外点击穿透不可达，
+ * 开层起 8s 兜底自动收；点档/状态回推是常规收层路径。 */
+function openTierMenu(): void {
+  tierMenuOpen = true
+  if (tierMenuTimer !== null) clearTimeout(tierMenuTimer)
+  tierMenuTimer = setTimeout(() => {
+    tierMenuOpen = false
+    tierMenuTimer = null
+    if (current) render(current)
+  }, 8000)
+}
+
+function closeTierMenu(): void {
+  if (tierMenuTimer !== null) {
+    clearTimeout(tierMenuTimer)
+    tierMenuTimer = null
+  }
+  tierMenuOpen = false
+}
+
 /** 应用组图标装载（工单52）：缓存命中即贴；未命中经 desktop/icon 契约提取（内核侧按
  * iconKey 反解路径）。回填前核对元素仍代表同一图标键（重渲染后旧回填不贴错位）。 */
 function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
@@ -191,25 +220,6 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
  * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费）。px = 源尺寸小于显示档
  * （工单158：16px 原生源）需挂最近邻放大档保持锐利——重渲直接复用，不再重判。 */
 const trayIconUrls = new Map<string, { url: string; px: boolean }>()
-
-/** BGRA → RGBA（canvas putImageData 像素序；与 trayhost/pixels 的 alpha 修复同算法，这里只换序） */
-function bgraToRgba(bgra: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
-  const out = new Uint8ClampedArray(new ArrayBuffer(bgra.length))
-  for (let i = 0; i < bgra.length; i += 4) {
-    out[i] = bgra[i + 2]; out[i + 1] = bgra[i + 1]; out[i + 2] = bgra[i]; out[i + 3] = bgra[i + 3]
-  }
-  return out
-}
-
-/** 托盘像素 → dataURL（编码在渲染层：主进程只搬字节，tray-spike 验收页同款做法） */
-function trayDataUrl(pixels: TaskbarTrayPixels): string {
-  const bgra = Uint8Array.from(atob(pixels.bgraBase64), (c) => c.charCodeAt(0))
-  const canvas = document.createElement('canvas')
-  canvas.width = pixels.width
-  canvas.height = pixels.height
-  canvas.getContext('2d')?.putImageData(new ImageData(bgraToRgba(bgra), pixels.width, pixels.height), 0, 0)
-  return canvas.toDataURL()
-}
 
 /** 托盘图标格（工单56）：像素按需取（缓存命中即贴），左键/右键各自回放到所属应用。
  * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单158：图标统一按 24px
@@ -543,8 +553,56 @@ function render(state: TaskbarState): void {
   if (state.enabled) {
     const summary = renderSummary(vm.metrics, latestStatus?.hardware ?? null)
     if (summary) rightPill.appendChild(summary)
-    // 托盘入栏（工单56）：系统托盘图标平铺在摘要与音量格之间；名单空即整段不渲染
-    for (const entry of vm.tray) rightPill.appendChild(makeTrayEl(entry))
+    // 托盘入栏（工单56）+ 溢出收口（工单162）：按档位拆分——名单序前 N 枚平铺在摘要与
+    // 音量格之间，超量尾部收进「⋯」（档位是用户声明的可见数，「⋯」不吃名额）；数量回落
+    // 重拆即图标回栏、「⋯」消失。名单空即整段不渲染（无 ⋯ 亦无图标）。
+    const { bar: trayBar, overflow: trayOverflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit)
+    if (!trayOverflow.length) trayPopupRequested = false // 溢出清空：浮层请求随之失效（宿主侧由 changed/空拆分自收）
+    for (const entry of trayBar) rightPill.appendChild(makeTrayEl(entry))
+    if (trayOverflow.length) {
+      const more = document.createElement('div')
+      more.className = 'tb-tray-overflow'
+      more.dataset.id = 'tray-overflow'
+      more.textContent = '⋯'
+      more.title = `托盘溢出菜单（${trayOverflow.length}）`
+      // 左键：请求宿主在鼠标位置开自绘竖排菜单面板（行交互与栏内图标同一回放分发）
+      more.addEventListener('click', () => {
+        trayPopupRequested = true
+        window.deck.host.notify('taskbar-tray-overflow-open', { count: trayOverflow.length })
+      })
+      // 右键：档位菜单挂点一（挂点二 = 右组空白处右键，接线在 boot）
+      more.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault()
+        ev.stopPropagation()
+        openTierMenu()
+        if (current) render(current)
+      })
+      rightPill.appendChild(more)
+    }
+    // 档位菜单（工单162）：pill 内横排自绘（54 菜单同款先例——条带窗 64px 高，竖排出不了
+    // 窗口矩形；竖排形态属溢出菜单浮层，不属档位菜单）。行 data-id 供几何存证取点击坐标。
+    if (tierMenuOpen) {
+      const sep = document.createElement('div')
+      sep.className = 'tb-menu-sep'
+      rightPill.appendChild(sep)
+      for (const row of trayOverflowTierRows(vm.trayOverflowLimit)) {
+        const el = document.createElement('div')
+        el.className = 'tb-menu-item'
+        el.dataset.id = `tier-${row.limit}`
+        el.textContent = `${row.current ? '✓ ' : ''}托盘 ${row.label}`
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation()
+          closeTierMenu() // 选档即收（显式——不靠 changed 回推：名单churn每几秒推一帧，
+          // 红轮实证把刚开的档位菜单收掉，选档点击落空）
+          window.deck.host.notify('taskbar-tray-overflow-limit', { limit: row.limit })
+          // 回推的 taskbar/changed 驱动重拆名单；回执只为存证对齐
+          void dispatchTrayOverflowLimit(window.deck.bridge, row.limit)
+            .then((s) => window.deck.host.notify('taskbar-tray-overflow-limit-result', { limit: row.limit, ok: s !== null }))
+          if (current) render(current)
+        })
+        rightPill.appendChild(el)
+      }
+    }
     const volume = document.createElement('div')
     volume.className = 'tb-cell'
     volume.dataset.id = 'volume'
@@ -597,6 +655,13 @@ document.addEventListener('click', (ev) => {
     editing = false
     if (current) render(current)
   }
+  // 托盘溢出浮层（工单162）：条带内任意点击（非「⋯」自身——那是开层钮）即请求收层。
+  // 浮层窗 focusable:true 自收「栏外」点击（blur）；条带窗 focusable:false 点了不夺焦，
+  // 浮层收不到 blur——栏面点击由本页显式转达宿主。
+  if (trayPopupRequested && !(ev.target instanceof HTMLElement && ev.target.closest('.tb-tray-overflow'))) {
+    trayPopupRequested = false
+    window.deck.host.notify('taskbar-tray-overflow-close', { reason: 'strip-click' })
+  }
 })
 
 function boot(): void {
@@ -614,6 +679,21 @@ function boot(): void {
         if (current) render(current)
       }, 8000)
     }
+    if (current) render(current)
+  })
+  // 右组空白处右键 = 托盘溢出档位菜单挂点二（工单162）：格/托盘图标/「⋯」/菜单行都有
+  // 自己的右键语义（托盘图标回放、摘要编辑态切换等），只认 pill 自身与缝隙
+  rightPill.addEventListener('contextmenu', (e) => {
+    if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow, .tb-menu-item')) return
+    e.preventDefault()
+    openTierMenu()
+    if (current) render(current)
+  })
+  // 点右组空白（非格/菜单行）收档位菜单
+  rightPill.addEventListener('click', (e) => {
+    if (!tierMenuOpen) return
+    if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow, .tb-menu-item')) return
+    closeTierMenu()
     if (current) render(current)
   })
   // 点 pill 空白（非按钮/推荐位/菜单项）收菜单
@@ -643,10 +723,12 @@ function boot(): void {
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, startPill: m.startPill, buttons: m.buttons, recommendations: m.recommendations,
       appsPill: m.appsPill, apps: m.apps, overflow: m.overflow,
-      rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, sliver: m.sliver,
+      rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, trayOverflow: m.trayOverflow, sliver: m.sliver,
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
       closeMenu() // 状态回推即收菜单（点菜成功的收层路径）
+      // 档位菜单不随 changed 收：机器图标 churn 每几秒推一帧（红轮实证刚开的菜单被收掉、
+      // 选档点击落空）——收层只走选档显式关闭/点空白/8s 兜底（工单162）
       render(next)
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
