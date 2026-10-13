@@ -50,7 +50,7 @@ let trayPopupRequested = false
 let overflowOpen = false
 /** 应用图标右键菜单（工单53）：手钉/解除手钉、关闭窗口、打开文件位置三行随条目形态变化 */
 let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
-/** 推荐组条目右键菜单（工单160）：手钉到任务栏、打开文件位置两行——按 exe 身份寻址 */
+/** 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉到任务栏、从推荐栏移除、打开文件位置——按 exe 身份寻址 */
 let recMenu: { exe: string; name: string } | null = null
 /** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
 let windowList: { exe: string; windows: TaskbarWindowRef[] } | null = null
@@ -425,7 +425,7 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
 /** 推荐组条目元素（工单160 图标化）：只呈现应用图标（无名称文字，显示名即时进出
  * tooltip），图标经 desktop/icon 契约同款管线（iconKey → dataURL 本地缓存，应用组
  * applyIcon 同源）；无图标键条目首字母占位（工单156 appIconFallbackText 复用）。
- * 左键启动经 taskbar/rec-click（exe 身份寻址）；右键两行菜单（手钉/打开位置）；
+ * 左键启动经 taskbar/rec-click（exe 身份寻址）；右键三行菜单（手钉/移除/打开位置，工单161）；
  * 拖拽宿主 .tb-rec 本身（组内换位 / 拖应用组升手钉，工单57 内核已接线）。 */
 function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   const el = document.createElement('div')
@@ -604,7 +604,7 @@ function render(state: TaskbarState): void {
       pillStart.appendChild(el)
     }
   }
-  // 推荐组条目右键菜单（工单160）：手钉到任务栏、打开文件位置两行（54/53 菜单同形态
+  // 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉/移除/打开位置（54/53 菜单同形态
   // 横排）。行点击先收层再分发（appMenu 同款），手钉变更经回推的 taskbar/changed 重渲。
   if (recMenu) {
     const sep = document.createElement('div')

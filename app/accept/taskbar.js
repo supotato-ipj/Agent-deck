@@ -32,7 +32,8 @@
 //   P16 推荐组交互主体（工单160）：五条 usage 种子探针确定性占满推荐位（先于面板种入
 //      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 44 格/32 图标
 //      img/首字母占位，无显示名文本残留）、左键启动（真点击→rec-click 存证→notepad 副本
-//      真窗口出场）、右键两行菜单（手钉到任务栏/打开文件位置）+手钉即时迁移（推荐组消失
+//      真窗口出场）、右键三行菜单（手钉到任务栏/从推荐栏移除/打开文件位置，工单161）+手钉
+//      即时迁移（推荐组消失
 //      +应用组手钉段前位出现）、真 OLE 拖拽组内换位（显式序压过分数序）、跨组升手钉
 //      （recs→apps 落点条目前插入）、解除手钉随下拍回池；痕迹三处在 finally 摘除
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
@@ -764,7 +765,7 @@ async function main() {
       const loaded13 = sizes13.tray.filter((t) => t.nat > 0);
       const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 24) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
       // 几何存证互证：应用格位 h≈44（cell）；托盘格 h≈34（24 图标 + 5+5 padding——
-      // 工单158 挤撞回正的密度紧凑档，托盘格 padding 7→5 延缓右组左侵中组）
+      // 工单158 挤撞回正的密度紧凑档，托盘格 padding 7→5 延缓右组左侵开始组）
       const geo13 = latestGeometry(null);
       const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 44) <= 2);
       const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 34) <= 2);
