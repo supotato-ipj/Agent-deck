@@ -98,6 +98,13 @@ function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly Ta
     && r.iconKey === b[i].iconKey && r.exe === b[i].exe)
 }
 
+/** 非空字符串身份护栏（工单154 评审收口：activate/drag/rec 五动作等七处同形守卫合一）：
+ * 违反即抛 BridgeError；消息整串由调用方给定（各入口措辞不一——点分/斜杠路径、有无
+ * 空格——逐字保持），正常返回即保证 value 为非空字符串。 */
+function requireNonEmptyId(value: unknown, message: string): asserts value is string {
+  if (typeof value !== 'string' || !value) throw new BridgeError(message)
+}
+
 interface TaskbarDeps {
   sendSystemKeys: (action: TaskbarSystemAction) => boolean
   recommendations: () => TaskbarRecommendation[]
@@ -350,9 +357,7 @@ export class TaskbarService extends Service {
     if (typeof drop !== 'object' || drop === null || !DRAG_GROUPS.includes(drop.from) || !DRAG_GROUPS.includes(drop.to)) {
       throw new BridgeError(`未知任务栏拖拽组: ${String((drop as TaskbarDragDrop | null)?.from)} → ${String((drop as TaskbarDragDrop | null)?.to)}`)
     }
-    if (typeof drop.id !== 'string' || !drop.id) {
-      throw new BridgeError(`任务栏拖拽条目身份须为非空字符串，收到 ${String(drop.id)}`)
-    }
+    requireNonEmptyId(drop.id, `任务栏拖拽条目身份须为非空字符串，收到 ${String(drop.id)}`)
     if (drop.before !== null && typeof drop.before !== 'string') {
       throw new BridgeError(`任务栏拖拽落点须为字符串或 null，收到 ${String(drop.before)}`)
     }
@@ -499,9 +504,7 @@ export class TaskbarService extends Service {
    * 空/非字符串 exe 是契约违规，抛 BridgeError。
    */
   async activateApp(exe: string): Promise<{ ok: boolean; action: TaskbarActivateAction | null; error?: string }> {
-    if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar.activate-app.exe 须为非空字符串，收到 ${String(exe)}`)
-    }
+    requireNonEmptyId(exe, `taskbar.activate-app.exe 须为非空字符串，收到 ${String(exe)}`)
     const key = normalizeExe(exe)
     const hit = this.current.apps.find((e) => normalizeExe(e.exe) === key)
     if (!hit) return { ok: false, action: null, error: '栏外身份不启动' }
@@ -650,9 +653,7 @@ export class TaskbarService extends Service {
    * 空/非字符串 exe 是契约违规，抛 BridgeError。
    */
   async recClick(exe: string): Promise<{ ok: boolean; error?: string }> {
-    if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar.rec-click.exe 须为非空字符串，收到 ${String(exe)}`)
-    }
+    requireNonEmptyId(exe, `taskbar.rec-click.exe 须为非空字符串，收到 ${String(exe)}`)
     const entry = this.recEntry(exe)
     if (!entry) return { ok: false, error: '栏外身份不启动' }
     try {
@@ -671,9 +672,7 @@ export class TaskbarService extends Service {
    * 身份抛 BridgeError（契约违规——元数据来源必须在当前推荐位，set-app-pinned 同款口径）。
    */
   recPin(exe: string): TaskbarState {
-    if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar.rec-pin.exe 须为非空字符串，收到 ${String(exe)}`)
-    }
+    requireNonEmptyId(exe, `taskbar.rec-pin.exe 须为非空字符串，收到 ${String(exe)}`)
     const key = normalizeExe(exe)
     if (this.store.pinned.some((p) => normalizeExe(p.exe) === key)) return this.state() // 同态幂等
     const entry = this.recEntry(exe)
@@ -689,9 +688,7 @@ export class TaskbarService extends Service {
    * 抛 BridgeError。
    */
   recReveal(exe: string): { ok: boolean; error?: string } {
-    if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar/rec-reveal.exe 须为非空字符串，收到 ${String(exe)}`)
-    }
+    requireNonEmptyId(exe, `taskbar/rec-reveal.exe 须为非空字符串，收到 ${String(exe)}`)
     const entry = this.recEntry(exe)
     if (!entry) return { ok: false, error: '栏外条目不定位' }
     this.deps.revealExe(entry.exe)
@@ -708,9 +705,7 @@ export class TaskbarService extends Service {
    * ——展示元数据来源必须在当前推荐位，rec-pin 同款口径）。
    */
   recRemove(exe: string): TaskbarState {
-    if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar/rec-remove.exe 须为非空字符串，收到 ${String(exe)}`)
-    }
+    requireNonEmptyId(exe, `taskbar/rec-remove.exe 须为非空字符串，收到 ${String(exe)}`)
     const key = normalizeExe(exe)
     if (this.store.excluded.some((e) => normalizeExe(e.exe) === key)) return this.state() // 同态幂等
     const entry = this.recEntry(exe)
@@ -727,9 +722,7 @@ export class TaskbarService extends Service {
    * 原样返回（菜单行与状态之间的帧间竞态按空转呈现，不抛）。
    */
   recRestore(exe: string): TaskbarState {
-    if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar/rec-restore.exe 须为非空字符串，收到 ${String(exe)}`)
-    }
+    requireNonEmptyId(exe, `taskbar/rec-restore.exe 须为非空字符串，收到 ${String(exe)}`)
     this.ensureLayout()
     const next = restoreEntry(this.store, exe)
     if (next === this.store) return this.state() // 幂等空转
