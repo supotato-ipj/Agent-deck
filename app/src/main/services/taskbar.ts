@@ -89,9 +89,12 @@ const DRAG_GROUPS: readonly TaskbarDragGroup[] = ['apps', 'recs']
 /** 托盘溢出档位合法值（工单162；与 config.ts TRAY_OVERFLOW_LIMITS 同源核对） */
 const TRAY_OVERFLOW_LIMITS: readonly TaskbarTrayOverflowLimit[] = [3, 5, 8, 'all']
 
-/** 推荐位名单逐条比对（name+path 都变才算变——显示名同拍变化也该触发重渲） */
+/** 推荐位名单逐条比对（name+path 都变才算变——显示名同拍变化也该触发重渲；
+ * 工单160 起图标键与 exe 身份同列——富化解析升级/图标键翻新同拍重渲） */
 function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly TaskbarRecommendation[]): boolean {
-  return a.length === b.length && a.every((r, i) => r.name === b[i].name && r.display === b[i].display && r.path === b[i].path)
+  return a.length === b.length && a.every((r, i) =>
+    r.name === b[i].name && r.display === b[i].display && r.path === b[i].path
+    && r.iconKey === b[i].iconKey && r.exe === b[i].exe)
 }
 
 interface TaskbarDeps {
@@ -371,6 +374,34 @@ export class TaskbarService extends Service {
       this.commitStore({ ...this.store, recommended: ordered })
       return { ok: true }
     }
+    if (drop.from === 'recs' && drop.to === 'apps') {
+      // 中→左 升手钉（工单160 在新组位落地既有语义）：推荐位条目（id = 桌面项 name）
+      // 连同展示元数据（label/iconKey 取自富化后的条目）升进手钉段；落点语义与手钉段
+      // 内换位一致（before = 排在该 exe 之前，null = 手钉段末尾）。recommended 名单
+      // 不动——钉不销毁摆（解除手钉时旧位次随之复活）。
+      let visible: TaskbarRecommendation[]
+      try {
+        visible = this.visibleRecommendations()
+      } catch {
+        return { ok: false, error: '推荐位来源未就绪，稍后再试' }
+      }
+      const entry = visible.find((r) => r.name === drop.id)
+      if (!entry) return { ok: false, error: '拖拽条目不在推荐组推荐位（名单外名字）' }
+      this.ensureLayout()
+      this.commitStore(pinEntry(this.store, { exe: entry.exe, label: entry.display, iconKey: entry.iconKey }, drop.before))
+      return { ok: true }
+    }
+    if (drop.from === 'apps' && drop.to === 'recs') {
+      // 左→中 解除手钉回池（工单160 在新组位落地既有语义）：手钉段按归一身份移除，
+      // 条目随同帧推荐位管线回池（recompose 一次重排一次回推）。落点 before 不吃进
+      // recommended 名单——回池位次按既有显式序/分数序（钉不销毁摆纪律）；仅运行
+      // 条目（非手钉）是运行态不可摆位 → ok:false。
+      this.ensureLayout()
+      const next = unpinEntry(this.store, drop.id)
+      if (next === this.store) return { ok: false, error: '仅手钉条目可解除手钉回推荐池（仅运行条目是运行态）' }
+      this.commitStore(next)
+      return { ok: true }
+    }
     throw new BridgeError(`不支持的任务栏拖拽组合: ${drop.from} → ${drop.to}`)
   }
 
@@ -592,6 +623,67 @@ export class TaskbarService extends Service {
     return { ok: true }
   }
 
+  /** 推荐组条目按 exe 身份归一匹配（工单160 推荐位三动作的统一寻址口） */
+  private recEntry(exe: string): TaskbarRecommendation | undefined {
+    const key = normalizeExe(exe)
+    return this.current.recommendations.find((r) => normalizeExe(r.exe) === key)
+  }
+
+  /**
+   * 推荐组条目左键启动（工单160）：富化后的 exe 身份必须在当前推荐组条目内（归一
+   * 匹配，栏外 ok:false——推荐位随快照刷新进出的帧间竞态按普通失败回报），启动经
+   * 既有 shell 打开通道（launchExe = desktop/adapter shellOpen，应用组启动同款）。
+   * 空/非字符串 exe 是契约违规，抛 BridgeError。
+   */
+  async recClick(exe: string): Promise<{ ok: boolean; error?: string }> {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar.rec-click.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    const entry = this.recEntry(exe)
+    if (!entry) return { ok: false, error: '栏外身份不启动' }
+    try {
+      const err = await this.deps.launchExe(entry.exe)
+      return err ? { ok: false, error: err } : { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /**
+   * 推荐组条目「手钉到任务栏」（工单160）：exe 身份连同展示元数据（label=显示名、
+   * iconKey=条目图标键）追加进手钉清单，先落盘再提交内存态（commitStore 三段收口：
+   * 写失败即抛，盘/内存/事件三者一致）——重编排即时生效，该应用从推荐组消失（可见性
+   * 管线）、出现在应用组手钉段，回推一帧 taskbar/changed。同态幂等空转；推荐位名单外
+   * 身份抛 BridgeError（契约违规——元数据来源必须在当前推荐位，set-app-pinned 同款口径）。
+   */
+  recPin(exe: string): TaskbarState {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar.rec-pin.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    const key = normalizeExe(exe)
+    if (this.store.pinned.some((p) => normalizeExe(p.exe) === key)) return this.state() // 同态幂等
+    const entry = this.recEntry(exe)
+    if (!entry) throw new BridgeError(`未知推荐组条目（手钉目标必须在当前推荐位）: ${String(exe)}`)
+    this.ensureLayout()
+    this.commitStore(pinEntry(this.store, { exe: entry.exe, label: entry.display, iconKey: entry.iconKey }, null))
+    return this.state()
+  }
+
+  /**
+   * 推荐组条目「打开文件位置」（工单160）：explorer /select,<exe>（fire-and-forget）；
+   * exe 护栏同 rec-click（栏外身份 ok:false 不抛）。空/非字符串 exe 是契约违规，
+   * 抛 BridgeError。
+   */
+  recReveal(exe: string): { ok: boolean; error?: string } {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar.rec-reveal.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    const entry = this.recEntry(exe)
+    if (!entry) return { ok: false, error: '栏外条目不定位' }
+    this.deps.revealExe(entry.exe)
+    return { ok: true }
+  }
+
   /**
    * 栏布局装载/迁移（工单52，一次性）：存储在场即读入（自愈解析）；缺位则首跑迁移——
    * 旧桌面 layout.json 的手钉名单经桌面项池解析为 exe 身份（顺序保持）落盘为栏布局。
@@ -651,27 +743,32 @@ export class TaskbarService extends Service {
    * 解除手钉即随下拍管线回池）→ 用户显式序套用（序内按名单次、序外保持分数序）。
    * 手钉判重以 exe 身份（快捷方式经 resolve 取目标，迁移同款解析）；池外名字无法
    * 判重按不重复保留（宁可暂留不误杀栏位）。
+   * 工单160 富化：条目 exe 身份在本层升级——数据面快照携带的暂定身份（条目路径）经
+   * 同款解析替换为快捷方式目标（解析不出/池外 = 暂定值兜底），左键启动/手钉/打开
+   * 位置三动作自此以富化后的 exe 统一寻址。
    */
   private visibleRecommendations(): TaskbarRecommendation[] {
     const pinnedKeys = new Set(this.store.pinned.map((p) => normalizeExe(p.exe)))
-    const visible = this.deps.recommendations().filter((r) => {
-      const exe = this.resolveItemExe(r.name)
-      return exe === null || !pinnedKeys.has(exe)
-    })
+    const visible: TaskbarRecommendation[] = []
+    for (const r of this.deps.recommendations()) {
+      const exe = this.resolveItemExe(r.name) // 原文身份；判重按归一比较
+      if (exe !== null && pinnedKeys.has(normalizeExe(exe))) continue // 手钉条目不占推荐位
+      visible.push({ ...r, exe: exe ?? r.path })
+    }
     return applyRecommendationOrder(visible, this.store.recommended)
   }
 
-  /** 桌面项 name → 归一 exe 身份（迁移同款解析；池外/解析不出 → null = 无法判重） */
+  /** 桌面项 name → exe 身份（原文大小写，迁移同款解析；比较方自行归一。池外/解析不出 → null = 无法判重） */
   private resolveItemExe(name: string): string | null {
     const item = this.deps.desktopItems().find((i) => i.name === name)
     if (!item) return null
-    if (item.kind !== 'shortcut') return normalizeExe(item.path)
+    if (item.kind !== 'shortcut') return item.path
     try {
-      return normalizeExe(this.deps.resolveShortcutTarget(item.path) ?? item.path)
+      return this.deps.resolveShortcutTarget(item.path) ?? item.path
     } catch {
       // 解析器不可用（离线内核未注入快捷方式解析）→ 退回以快捷方式路径判重，
       // 宁可同一应用在两处各判一次，也不让推荐位整段因单点失败清空
-      return normalizeExe(item.path)
+      return item.path
     }
   }
 

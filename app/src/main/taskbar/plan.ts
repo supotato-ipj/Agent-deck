@@ -4,11 +4,14 @@
  * 「全隐藏 + 无推荐 → 开始组 pill 不渲染」边界可达的前提。
  * 工单59 起候选直接取自桌面条目池的 zone=app 段（dock 编排退役后不再有 dock 计划可依），
  * 应用组手钉由 taskbar/layout-store 独立承载并在本层之上按 exe 身份去重：推荐位只认「在池 + 有分」。
+ * 工单160：上限 8→5（排序算法与候选池口径不变）；条目携带图标键与 exe 身份（图标渲染、
+ * 手钉、启动、定位的统一寻址）。exe 在本层以条目路径为暂定身份——快捷方式目标解析
+ * 需要 Electron 真源，由主进程服务层富化（数据面子进程无 Electron API，快照携带暂定值）。
  */
 import type { DesktopItem, TaskbarRecommendation } from '../../shared/contract'
 
-/** 推荐位上限（工单54 验收口径：8） */
-export const RECOMMENDATION_LIMIT = 8
+/** 推荐位上限（工单160 收窄口径：5；工单54 时代的 8 随推荐组交互票退役） */
+export const RECOMMENDATION_LIMIT = 5
 
 export function planTaskbarRecommendations(
   items: readonly DesktopItem[],
@@ -27,6 +30,8 @@ export function planTaskbarRecommendations(
     name: item.name,
     display: item.display,
     path: item.path,
+    iconKey: item.iconKey,
+    exe: item.path, // 暂定身份；主进程服务层按快捷方式目标富化（resolveItemExe 同款解析）
   }))
 }
 

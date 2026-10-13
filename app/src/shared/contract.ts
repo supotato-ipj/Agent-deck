@@ -144,11 +144,20 @@ export const TASKBAR_METRIC_KEYS: readonly TaskbarMetric[] = ['cpu', 'gpu', 'ram
 /** 开始组系统按钮 id（工单49/54）：开始按钮 + TaskView 按钮——显隐持久化与右键菜单按它寻址 */
 export type TaskbarButtonId = 'start' | 'tasks'
 
-/** 推荐组推荐位条目（工单54）：使用频次推荐的桌面条目；name 是合并去重键，path 供后续票的启动/图标 */
+/**
+ * 推荐组推荐位条目（工单54/160）：使用频次推荐的桌面条目；name 是合并去重键。
+ * 工单160 起携带图标键与 exe 身份——图标渲染、手钉、启动、定位的统一寻址。
+ * exe 的快捷方式目标解析（Electron 真源）在主进程服务层富化：纯函数层与数据面
+ * 子进程（无 Electron API）以条目路径为暂定身份，服务层经同款解析升级为目标 exe。
+ */
 export interface TaskbarRecommendation {
   name: string
   display: string
   path: string
+  /** 图标缓存键（desktop 契约同款 path|mtimeMs，随条目池扫描产出） */
+  iconKey: string
+  /** exe 身份：快捷方式经解析取目标（解析不出/池外 = 条目路径兜底） */
+  exe: string
 }
 
 /**
@@ -183,7 +192,7 @@ export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'wi
 
 /** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
  * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
- * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
+ * recommendations（工单54）= 使用频次推荐位（上限 5，工单160 收窄；随数据面快照即时刷新）；
  * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
  * apps（工单52）= 应用组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
  * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）；
@@ -517,6 +526,27 @@ export interface BridgeMethods {
   /** 右键菜单「打开文件位置」（工单53）：explorer /select,<exe> 定位（desktop/reveal
    * 同款 fire-and-forget 机制）；应用组护栏同 app-click。 */
   'taskbar/reveal-app': { request: { exe: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 推荐组条目左键启动（工单160）：以富化后的 exe 身份寻址（快捷方式经服务层解析为
+   * 目标），经既有 shell 打开通道启动（desktop/adapter shellOpen——应用组启动同款）。
+   * exe 护栏 = 必须在当前推荐组条目内（归一匹配），栏外身份 ok:false 不启动不抛
+   * （推荐位随快照刷新进出栏的帧间竞态按普通失败回报）；空/非字符串 exe 抛
+   * BridgeError（契约违规）。
+   */
+  'taskbar/rec-click': { request: { exe: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 推荐组条目「手钉到任务栏」（工单160）：exe 身份连同推荐条目展示元数据（label=
+   * 显示名、iconKey=条目图标键）追加进栏布局存储手钉清单并落盘，重编排即时生效——
+   * 该应用从推荐组消失（既有可见性管线：手钉条目不占推荐位）、出现在应用组手钉段
+   * （不双占位），回推一帧 taskbar/changed。同态幂等空转；推荐位名单外身份抛
+   * BridgeError（契约违规——展示元数据来源必须在当前推荐位，set-app-pinned 同款口径）。
+   */
+  'taskbar/rec-pin': { request: { exe: string }; response: TaskbarState }
+  /**
+   * 推荐组条目「打开文件位置」（工单160）：explorer /select,<exe> 定位（reveal-app
+   * 同款 fire-and-forget 机制）；exe 护栏同 rec-click（栏外身份 ok:false 不抛）。
+   */
+  'taskbar/rec-reveal': { request: { exe: string }; response: { ok: boolean; error?: string } }
   /**
    * 应用组应用图标点击（工单58，栏内与溢出浮层共用同一道契约）：exe 身份必须在当前应用组
    * 栏面上（desktop/launch 池护栏同款——栏外身份不启动，ok:false 回报）；运行中置前、

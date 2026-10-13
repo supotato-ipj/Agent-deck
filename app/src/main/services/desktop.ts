@@ -190,6 +190,13 @@ export class DesktopService extends Service {
     return this.icons.fetch(key, pathOfIconKey(key))
   }
 
+  /** lnk 目标解析（deps 同名真源的公共出口）：任务栏服务推荐位 exe 身份富化（工单160）
+   * 等服务级消费口——离线内核里桌面服务在册而 Electron 兜底不可用，须经此复用同一份
+   * 注入解析（desktop service 此前缺公共出口，默认链空转过 Electron 兜底）。 */
+  readShortcutTarget(lnkPath: string): string | null {
+    return this.deps.readShortcutTarget(lnkPath)
+  }
+
   /** 扫描池护栏共通段（launch/reveal/copyPath/copyPaths/trash + clipboardCopy/clipboardCut，
    * 工单24 起共用、工单29 增至七处）：路径不在当前池内即拒绝——拒绝任意路径执行/定位/
    * 落剪贴板/删除的同一道防线，错误语也同源。 */

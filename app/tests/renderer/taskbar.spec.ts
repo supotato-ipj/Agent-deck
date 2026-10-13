@@ -18,8 +18,8 @@ function state(over: Partial<TaskbarState> = {}): TaskbarState {
 }
 
 const RECS = [
-  { name: 'Alpha.lnk', display: 'Alpha', path: 'C:\\Desktop\\Alpha.lnk' },
-  { name: 'Beta.lnk', display: 'Beta', path: 'C:\\Desktop\\Beta.lnk' },
+  { name: 'Alpha.lnk', display: 'Alpha', path: 'C:\\Desktop\\Alpha.lnk', iconKey: 'Alpha.lnk|0', exe: 'C:\\Apps\\Alpha.exe' },
+  { name: 'Beta.lnk', display: 'Beta', path: 'C:\\Desktop\\Beta.lnk', iconKey: 'Beta.lnk|0', exe: 'C:\\Desktop\\Beta.lnk' },
 ]
 
 /** fake bridge：get-state 返回给定状态；invoke 逐笔记录（方法 + 载荷） */
