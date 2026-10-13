@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -14,7 +14,7 @@ import type { HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, Task
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, ...over }
 }
 
 const RECS = [
@@ -57,6 +57,9 @@ function fakeBridge(s: TaskbarState) {
       // 工单160 推荐组交互
       if (method === 'taskbar/rec-click') return Promise.resolve({ ok: true } as never)
       if (method === 'taskbar/rec-pin') return Promise.resolve(s as never)
+      // 工单161 移除名单
+      if (method === 'taskbar/rec-remove') return Promise.resolve(s as never)
+      if (method === 'taskbar/rec-restore') return Promise.resolve(s as never)
       if (method === 'taskbar/rec-reveal') return Promise.resolve({ ok: true } as never)
       // 工单56 托盘入栏
       if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
@@ -600,9 +603,10 @@ describe('推荐组交互（工单160，fake bridge 驱动）', () => {
     expect(vm.recommendations[1].exe).toBe('C:\\Desktop\\Beta.lnk')
   })
 
-  it('右键菜单两行：手钉到任务栏、打开文件位置（移除名单行是 #161 领域，不在列）', () => {
+  it('右键菜单三行（工单161 扩第三行）：手钉到任务栏、从推荐栏移除、打开文件位置', () => {
     expect(taskbarRecMenuRows()).toEqual([
       { action: 'pin', label: '手钉到任务栏' },
+      { action: 'remove', label: '从推荐栏移除' },
       { action: 'reveal', label: '打开文件位置' },
     ])
   })
@@ -628,6 +632,30 @@ describe('推荐组交互（工单160，fake bridge 驱动）', () => {
     ])
     expect(await dispatchRecMenuAction(bridge, 'C:\\Apps\\Alpha.exe', 'close' as never)).toBeNull()
     expect(await dispatchRecMenuAction(bridge, '', 'pin')).toBeNull()
+  })
+
+  it('右键菜单动作分发（工单161 扩 remove）：remove→taskbar/rec-remove（回执最新状态）', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    const removed = await dispatchRecMenuAction(bridge, 'C:\\Apps\\Alpha.exe', 'remove')
+    expect(removed).toEqual(state())
+    expect(calls).toEqual([{ method: 'taskbar/rec-remove', payload: { exe: 'C:\\Apps\\Alpha.exe' } }])
+  })
+
+  it('移除名单透出（工单161）：视图模型原样透出 state.excluded（恢复菜单行的来源）；禁用态空壳', () => {
+    const excluded = [{ exe: 'C:\\Apps\\Gone.exe', label: '移除过的', iconKey: null }]
+    const vm = taskbarViewModel(state({ excluded }))
+    expect(vm.excluded).toEqual(excluded)
+    expect(taskbarViewModel(state({ enabled: false })).excluded).toEqual([])
+  })
+
+  it('恢复分发（工单161）：exe 经 taskbar/rec-restore（回执最新状态）；空 exe 是噪声不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    const restored = await dispatchRecRestore(bridge, 'C:\\Apps\\Gone.exe')
+    expect(restored).toEqual(state())
+    expect(calls).toEqual([{ method: 'taskbar/rec-restore', payload: { exe: 'C:\\Apps\\Gone.exe' } }])
+    const { bridge: b2, calls: c2 } = fakeBridge(state())
+    await dispatchRecRestore(b2, '')
+    expect(c2).toEqual([])
   })
 
   it('首字母占位复用（工单156 appIconFallbackText）：推荐条目按显示名/exe 出占位文本', () => {

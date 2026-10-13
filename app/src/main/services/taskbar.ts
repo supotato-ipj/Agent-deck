@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
+import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
@@ -11,9 +11,10 @@ import { normalizeExe, planAppsGroup, shouldShowOnTaskbar } from '../taskbar/app
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
-import { loadTaskbarStore, migrateLegacyPinned, moveInOrder, parseLegacyPinnedNames, pinEntry, reorderPinned, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
+import { excludeEntry, loadTaskbarStore, migrateLegacyPinned, moveInOrder, parseLegacyPinnedNames, pinEntry, reorderPinned, restoreEntry, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
-import { applyRecommendationOrder } from '../taskbar/plan'
+import { composeVisibleRecommendations } from '../taskbar/plan'
+import { RECOMMENDATION_LIMIT } from '../taskbar/plan'
 import type { TaskbarWindowInfo } from '../taskbar/windows'
 import { iconKeyOf } from '../desktop/scan'
 import { readStoreText, writeStoreText } from '../desktop/adapter'
@@ -145,7 +146,7 @@ export class TaskbarService extends Service {
   private readonly legacyLayoutFile: string
   private readonly deps: TaskbarDeps
   private current: TaskbarState
-  private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [] }
+  private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [], excluded: [] }
   /** 最近一枚窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；仅内存——标题同拍进出，永不持久化） */
   private lastWindows: TaskbarWindowInfo[] = []
   /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
@@ -213,6 +214,7 @@ export class TaskbarService extends Service {
       metrics: [...(options.metrics ?? fallback.metrics)],
       trayOverflowLimit: options.trayOverflowLimit ?? fallback.trayOverflowLimit,
       recommendations: [],
+      excluded: [],
       apps: [],
       tray: [],
     }
@@ -230,6 +232,9 @@ export class TaskbarService extends Service {
       hiddenButtons: [...this.current.hiddenButtons],
       metrics: [...this.current.metrics],
       recommendations: [...this.current.recommendations],
+      // 移除名单从栏布局存储投影（落盘真源单点——store 段随 ensureLayout/commitStore 流转，
+      // current 不另持副本；装载前的空名单 = 未排除任何应用的语义）
+      excluded: this.store.excluded.map((e) => ({ ...e })),
       apps: [...this.current.apps],
       tray: [...this.current.tray],
     }
@@ -318,8 +323,12 @@ export class TaskbarService extends Service {
   }
 
   /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed。
-   * 名单经可见性管线（工单57）：手钉条目不占推荐位 + 用户显式序压过分数序。 */
+   * 名单经可见性管线（工单57，工单161 合成收口）：手钉条目不占推荐位 + 持久排除滤除 +
+   * 用户显式序压过分数序，截断在滤除后（递补）。装载闸（工单161）：拉取先于裁决——
+   * 排除/手钉滤除读的是存储段，装载未就绪时读默认空段会静默放行被移除条目（重启后
+   * 首个 get-state 就撞这条路径），故在此挂 ensureLayout（一次性闸，与 refresh 同款）。 */
   refreshRecommendations(): void {
+    this.ensureLayout()
     let next: TaskbarRecommendation[]
     try {
       next = this.visibleRecommendations()
@@ -513,9 +522,14 @@ export class TaskbarService extends Service {
     }
   }
 
-  /** 测试观察缝：当前栏布局存储内容（工单52） */
+  /** 测试观察缝：当前栏布局存储内容（工单52；工单161 起含移除名单段） */
   storeForTest(): TaskbarLayoutStore {
-    return { version: 1, pinned: [...this.store.pinned], recommended: [...this.store.recommended] }
+    return {
+      version: 1,
+      pinned: [...this.store.pinned],
+      recommended: [...this.store.recommended],
+      excluded: this.store.excluded.map((e) => ({ ...e })),
+    }
   }
 
   /** 应用组条目按 exe 身份归一匹配（点击/右键动作的统一寻址口） */
@@ -676,12 +690,51 @@ export class TaskbarService extends Service {
    */
   recReveal(exe: string): { ok: boolean; error?: string } {
     if (typeof exe !== 'string' || !exe) {
-      throw new BridgeError(`taskbar.rec-reveal.exe 须为非空字符串，收到 ${String(exe)}`)
+      throw new BridgeError(`taskbar/rec-reveal.exe 须为非空字符串，收到 ${String(exe)}`)
     }
     const entry = this.recEntry(exe)
     if (!entry) return { ok: false, error: '栏外条目不定位' }
     this.deps.revealExe(entry.exe)
     return { ok: true }
+  }
+
+  /**
+   * 推荐组条目「从推荐栏移除」（工单161）：exe 身份连同展示元数据（label=显示名、
+   * iconKey=条目图标键）进栏布局存储持久排除名单，先落盘再提交内存态（commitStore
+   * 三段收口：写失败即抛，盘/内存/事件三者一致）——重编排即时生效，该应用从推荐组消失
+   * （可见性管线第三条滤除线），空位由候选池后续名次递补（候选池按池上限进服务、截断在
+   * 滤除后），回推一帧 taskbar/changed。持久排除重启记住；恢复入口 = 推荐组空白处右键
+   * 的恢复菜单（recRestore）。同态幂等空转；推荐位名单外身份抛 BridgeError（契约违规
+   * ——展示元数据来源必须在当前推荐位，rec-pin 同款口径）。
+   */
+  recRemove(exe: string): TaskbarState {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar/rec-remove.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    const key = normalizeExe(exe)
+    if (this.store.excluded.some((e) => normalizeExe(e.exe) === key)) return this.state() // 同态幂等
+    const entry = this.recEntry(exe)
+    if (!entry) throw new BridgeError(`未知推荐组条目（移除目标必须在当前推荐位）: ${String(exe)}`)
+    this.ensureLayout()
+    this.commitStore(excludeEntry(this.store, { exe: entry.exe, label: entry.display, iconKey: entry.iconKey }))
+    return this.state()
+  }
+
+  /**
+   * 从推荐栏移除名单恢复（工单161）：exe 身份（归一匹配）移出持久排除名单，先落盘再提交
+   * 内存态（commitStore 三段收口）——条目随同帧推荐位管线回池（按既有显式序/分数序，
+   * 「陈旧名留位」纪律下旧位次随之复活），回推一帧 taskbar/changed。不在名单 → 幂等空转
+   * 原样返回（菜单行与状态之间的帧间竞态按空转呈现，不抛）。
+   */
+  recRestore(exe: string): TaskbarState {
+    if (typeof exe !== 'string' || !exe) {
+      throw new BridgeError(`taskbar/rec-restore.exe 须为非空字符串，收到 ${String(exe)}`)
+    }
+    this.ensureLayout()
+    const next = restoreEntry(this.store, exe)
+    if (next === this.store) return this.state() // 幂等空转
+    this.commitStore(next)
+    return this.state()
   }
 
   /**
@@ -702,7 +755,7 @@ export class TaskbarService extends Service {
       this.deps.desktopItems(),
       this.deps.resolveShortcutTarget,
     )
-    this.store = { version: 1, pinned, recommended: [] }
+    this.store = { version: 1, pinned, recommended: [], excluded: [] }
     try {
       this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
       this.layoutReady = true
@@ -739,23 +792,31 @@ export class TaskbarService extends Service {
   }
 
   /**
-   * 推荐位可见性管线（工单57）：原始名单 → 手钉条目滤除（推荐→应用升手钉后不占推荐组位；
-   * 解除手钉即随下拍管线回池）→ 用户显式序套用（序内按名单次、序外保持分数序）。
-   * 手钉判重以 exe 身份（快捷方式经 resolve 取目标，迁移同款解析）；池外名字无法
-   * 判重按不重复保留（宁可暂留不误杀栏位）。
+   * 推荐位可见性管线（工单57，工单161 合成收口）：候选池 → 手钉条目滤除（推荐→应用升手钉
+   * 后不占推荐组位；解除手钉即随下拍管线回池）→ 移除名单滤除（持久排除不上推荐位）→
+   * 用户显式序套用（序内按名单次、序外保持分数序）→ 上限截断（滤除后收口——手钉/移除腾出
+   * 的空位由候选池后续名次递补，上限仍 5）。三条滤除线正交：手钉与移除判重都以 exe 身份
+   * （快捷方式经 resolve 取目标，迁移同款解析）；池外名字（解析不出 = 池缩竞态）以条目
+   * 路径为兜底身份参与判重（宁可按路径多滤一次，不让无法解析的身份绕过排除面）。截断
+   * 前提 = 候选池宽于可见上限进管线（工单161 起数据面按 RECOMMENDATION_POOL_LIMIT 产池）。
    * 工单160 富化：条目 exe 身份在本层升级——数据面快照携带的暂定身份（条目路径）经
    * 同款解析替换为快捷方式目标（解析不出/池外 = 暂定值兜底），左键启动/手钉/打开
    * 位置三动作自此以富化后的 exe 统一寻址。
    */
   private visibleRecommendations(): TaskbarRecommendation[] {
-    const pinnedKeys = new Set(this.store.pinned.map((p) => normalizeExe(p.exe)))
-    const visible: TaskbarRecommendation[] = []
+    const pinnedNorm = new Set(this.store.pinned.map((p) => normalizeExe(p.exe)))
+    const excludedNorm = new Set(this.store.excluded.map((e) => normalizeExe(e.exe)))
+    const enriched: TaskbarRecommendation[] = []
     for (const r of this.deps.recommendations()) {
       const exe = this.resolveItemExe(r.name) // 原文身份；判重按归一比较
-      if (exe !== null && pinnedKeys.has(normalizeExe(exe))) continue // 手钉条目不占推荐位
-      visible.push({ ...r, exe: exe ?? r.path })
+      enriched.push({ ...r, exe: exe ?? r.path })
     }
-    return applyRecommendationOrder(visible, this.store.recommended)
+    return composeVisibleRecommendations(enriched, {
+      pinnedNorm,
+      excludedNorm,
+      order: this.store.recommended,
+      limit: RECOMMENDATION_LIMIT,
+    })
   }
 
   /** 桌面项 name → exe 身份（原文大小写，迁移同款解析；比较方自行归一。池外/解析不出 → null = 无法判重） */

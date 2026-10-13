@@ -184,6 +184,14 @@ export class BridgeService extends Service {
         const { exe } = payload as { exe: string }
         return this.ctx.taskbar.recPin(exe) as BridgeMethods[M]['response']
       }
+      case 'taskbar/rec-remove': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.recRemove(exe) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/rec-restore': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.recRestore(exe) as BridgeMethods[M]['response']
+      }
       case 'taskbar/rec-reveal': {
         const { exe } = payload as { exe: string }
         return this.ctx.taskbar.recReveal(exe) as BridgeMethods[M]['response']

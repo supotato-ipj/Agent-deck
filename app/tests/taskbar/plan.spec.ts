@@ -6,7 +6,7 @@
  * （exe 暂以条目路径为身份——快捷方式目标解析在主进程服务层富化，纯函数层不触 Electron）。
  */
 import { describe, expect, it } from 'vitest'
-import { applyRecommendationOrder, planTaskbarRecommendations, RECOMMENDATION_LIMIT } from '../../src/main/taskbar/plan'
+import { applyRecommendationOrder, composeVisibleRecommendations, planTaskbarRecommendations, RECOMMENDATION_LIMIT } from '../../src/main/taskbar/plan'
 import type { DesktopItem, TaskbarRecommendation } from '../../src/shared/contract'
 
 function appItem(name: string, display?: string): DesktopItem {
@@ -100,5 +100,52 @@ describe('推荐位显式序套用（工单57 纯函数）', () => {
     const recs = [rec('a.lnk'), rec('b.lnk')]
     applyRecommendationOrder(recs, ['b.lnk'])
     expect(recs.map((r) => r.name)).toEqual(['a.lnk', 'b.lnk'])
+  })
+})
+
+describe('推荐位可见性管线合成（工单161 纯函数：排除名单 ∥ 手钉滤除 ∥ 显式序 → 滤除后截断）', () => {
+  const rec = (name: string, i = 0): TaskbarRecommendation => ({
+    name,
+    display: name.replace(/\.lnk$/i, ''),
+    path: `C:\\Desktop\\${name}`,
+    iconKey: `${name}|0`,
+    exe: `C:\\Apps\\${name.replace(/\.lnk$/i, '')}-${i}.exe`,
+  })
+  const pool = () => [rec('a.lnk', 0), rec('b.lnk', 1), rec('c.lnk', 2), rec('d.lnk', 3), rec('e.lnk', 4), rec('f.lnk', 5), rec('g.lnk', 6)]
+  const keys = (exes: string[]): ReadonlySet<string> => new Set(exes.map((x) => x.toLowerCase()))
+
+  it('排除名单滤除：exe 归一命中（大小写不敏感）不上推荐位；输出恒受上限截断', () => {
+    const out = composeVisibleRecommendations(pool(), { pinnedNorm: new Set(), excludedNorm: keys(['C:\\Apps\\c-2.exe']), order: [] })
+    expect(out.map((r) => r.name)).toEqual(['a.lnk', 'b.lnk', 'd.lnk', 'e.lnk', 'f.lnk']) // 滤 1 后 6 候选 → 截 5
+    expect(out.some((r) => r.exe.toLowerCase() === 'c:\\apps\\c-2.exe')).toBe(false)
+  })
+
+  it('截断在滤除后（递补语义）：排除腾出的空位由后续名次补齐，上限仍 5——候选池必须宽于可见上限进管线', () => {
+    expect(RECOMMENDATION_LIMIT).toBe(5)
+    const out = composeVisibleRecommendations(pool(), { pinnedNorm: new Set(), excludedNorm: keys(['c:\\apps\\b-1.exe', 'C:\\APPS\\E-4.EXE']), order: [] })
+    expect(out.map((r) => r.name)).toEqual(['a.lnk', 'c.lnk', 'd.lnk', 'f.lnk', 'g.lnk']) // 7 进 2 排除 → 5 满
+    expect(out).toHaveLength(RECOMMENDATION_LIMIT)
+  })
+
+  it('三线正交合成：手钉滤除与排除滤除各自独立生效、互不侵蚀，显式序压过分数序后再截断', () => {
+    const out = composeVisibleRecommendations(pool(), {
+      pinnedNorm: keys(['c:\\apps\\a-0.exe']),
+      excludedNorm: keys(['c:\\apps\\b-1.exe']),
+      order: ['d.lnk', 'c.lnk'],
+    })
+    expect(out.map((r) => r.name)).toEqual(['d.lnk', 'c.lnk', 'e.lnk', 'f.lnk', 'g.lnk'])
+  })
+
+  it('空排除/空手钉/空序 = 既有管线行为（分数序 + 上限截断）；池不超上限时原样透出', () => {
+    expect(composeVisibleRecommendations(pool(), { pinnedNorm: new Set(), excludedNorm: new Set(), order: [] }).map((r) => r.name))
+      .toEqual(['a.lnk', 'b.lnk', 'c.lnk', 'd.lnk', 'e.lnk'])
+    const two = [rec('x.lnk'), rec('y.lnk')]
+    expect(composeVisibleRecommendations(two, { pinnedNorm: new Set(), excludedNorm: new Set(), order: [] })).toEqual(two)
+  })
+
+  it('不改动入参（纯函数纪律）', () => {
+    const src = pool()
+    composeVisibleRecommendations(src, { pinnedNorm: new Set(), excludedNorm: keys(['c:\\apps\\a-0.exe']), order: ['c.lnk'] })
+    expect(src).toHaveLength(7)
   })
 })

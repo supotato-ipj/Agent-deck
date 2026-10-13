@@ -14,9 +14,12 @@ export interface TaskbarLayoutStore {
   pinned: TaskbarPinnedEntry[]
   /** 推荐组推荐位显式序（工单57，桌面项 name 有序名单）；陈旧名原样保留、编排时过滤（不在场即跳过），解除手钉时旧位次随之复活 */
   recommended: string[]
+  /** 推荐栏移除名单（工单161，持久排除）：用户「从推荐栏移除」的应用（exe 身份 + 移除时点展示
+   * 元数据），可见性管线据它滤除推荐位条目——重启记住；恢复 = 移出名单，按既有排序回池 */
+  excluded: TaskbarPinnedEntry[]
 }
 
-export const TASKBAR_FACTORY_STORE: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [] }
+export const TASKBAR_FACTORY_STORE: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [], excluded: [] }
 
 function asPinnedEntry(value: unknown): TaskbarPinnedEntry | null {
   if (typeof value !== 'object' || value === null) return null
@@ -27,22 +30,24 @@ function asPinnedEntry(value: unknown): TaskbarPinnedEntry | null {
 }
 
 /** 解析落盘 JSON；缺失/损坏/结构不符 → 出厂态（损坏自愈，下次保存覆写）。
- * recommended 段缺位（工单52 旧版存储）按空名单读入——逐段自愈，不拖垮手钉段。 */
+ * recommended 段缺位（工单52 旧版存储）按空名单读入——逐段自愈，不拖垮手钉段。
+ * excluded 段缺位（工单161 前的存储）同款逐段自愈。 */
 export function loadTaskbarStore(text: string | null): TaskbarLayoutStore {
-  if (text === null) return { version: 1, pinned: [], recommended: [] }
+  if (text === null) return { version: 1, pinned: [], recommended: [], excluded: [] }
   let raw: unknown
   try {
     raw = JSON.parse(text)
   } catch {
-    return { version: 1, pinned: [], recommended: [] }
+    return { version: 1, pinned: [], recommended: [], excluded: [] }
   }
-  if (typeof raw !== 'object' || raw === null) return { version: 1, pinned: [], recommended: [] }
+  if (typeof raw !== 'object' || raw === null) return { version: 1, pinned: [], recommended: [], excluded: [] }
   const r = raw as Record<string, unknown>
-  if (!Array.isArray(r.pinned)) return { version: 1, pinned: [], recommended: [] }
+  if (!Array.isArray(r.pinned)) return { version: 1, pinned: [], recommended: [], excluded: [] }
   return {
     version: 1,
     pinned: r.pinned.map(asPinnedEntry).filter((p): p is TaskbarPinnedEntry => p !== null),
     recommended: Array.isArray(r.recommended) ? r.recommended.filter((n): n is string => typeof n === 'string') : [],
+    excluded: Array.isArray(r.excluded) ? r.excluded.map(asPinnedEntry).filter((p): p is TaskbarPinnedEntry => p !== null) : [],
   }
 }
 
@@ -97,6 +102,26 @@ export function unpinEntry(store: TaskbarLayoutStore, exe: string): TaskbarLayou
   const key = normalizeExe(exe)
   if (!store.pinned.some((p) => normalizeExe(p.exe) === key)) return store
   return { ...store, pinned: store.pinned.filter((p) => normalizeExe(p.exe) !== key) }
+}
+
+/**
+ * 移除进持久排除名单（工单161，推荐组右键「从推荐栏移除」裁决）：entry（exe 身份 + 移除
+ * 时点展示元数据）追加名单末尾；同 exe（归一）已排除 → 原样返回（幂等空转）。pinned 与
+ * recommended 两段不动——移除是可见性管线的第三条滤除线，与手钉滤除、显式序正交（恢复
+ * 后旧位次随「陈旧名留位」纪律复活）。
+ */
+export function excludeEntry(store: TaskbarLayoutStore, entry: TaskbarPinnedEntry): TaskbarLayoutStore {
+  const key = normalizeExe(entry.exe)
+  if (store.excluded.some((e) => normalizeExe(e.exe) === key)) return store
+  return { ...store, excluded: [...store.excluded, entry] }
+}
+
+/** 从排除名单恢复（工单161，推荐组空白右键恢复菜单裁决）：归一命中移除、其余序不动；
+ * 不在名单 → 原样返回（幂等空转）。恢复只是移出排除——回池位次按既有显式序/分数序。 */
+export function restoreEntry(store: TaskbarLayoutStore, exe: string): TaskbarLayoutStore {
+  const key = normalizeExe(exe)
+  if (!store.excluded.some((e) => normalizeExe(e.exe) === key)) return store
+  return { ...store, excluded: store.excluded.filter((e) => normalizeExe(e.exe) !== key) }
 }
 
 /**

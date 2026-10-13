@@ -2,7 +2,7 @@
 // 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 import { planAppsOverflow, planTrayOverflow } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
@@ -92,11 +92,13 @@ export interface TaskbarAppViewEntry {
 
 /** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染（只剩应用组与右组的边界条件）；
  * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
+ * excluded（工单161）= 推荐栏移除名单（恢复菜单段的行来源）；
  * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径） */
 export interface TaskbarViewModel {
   visible: boolean
   buttons: TaskbarButtonSpec[]
   recommendations: TaskbarRecommendation[]
+  excluded: TaskbarExcludedEntry[]
   menu: TaskbarMenuRow[]
   metrics: TaskbarMetric[]
   /** 应用组（工单52）：序与运行态由内核编排查好，本层原样透出 + tooltip 回退 */
@@ -113,10 +115,11 @@ export interface TaskbarViewModel {
  * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
+  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
+  const excluded = [...(state.excluded ?? [])] // 旧快照无字段兼容口径（工单161）
   const menu = TASKBAR_BUTTONS.map((b) => ({
     id: b.id,
     label: `${hidden.has(b.id) ? '显示' : '隐藏'}${BUTTON_NAMES[b.id]}`,
@@ -135,6 +138,7 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     visible: buttons.length > 0 || recommendations.length > 0,
     buttons,
     recommendations,
+    excluded,
     menu,
     metrics: [...state.metrics],
     apps,
@@ -400,11 +404,11 @@ export async function dispatchTaskbarDragDrop(
   return bridge.invoke('taskbar/drag-drop', drop)
 }
 
-// —— 工单160 推荐组交互：图标化条目的左键启动 / 右键两行菜单 ——
+// —— 工单160 推荐组交互：图标化条目的左键启动 / 右键菜单（工单161 扩「从推荐栏移除」） ——
 
-/** 推荐组条目右键菜单动作（工单160）：手钉到任务栏、打开文件位置——「从推荐栏移除」
- * 是工单161 的持久排除名单领域，本菜单不列。 */
-export type TaskbarRecMenuAction = 'pin' | 'reveal'
+/** 推荐组条目右键菜单动作（工单160，工单161 扩 remove）：手钉到任务栏、从推荐栏移除
+ * （进持久排除名单——恢复入口在推荐组空白处右键）、打开文件位置。 */
+export type TaskbarRecMenuAction = 'pin' | 'remove' | 'reveal'
 
 /** 推荐组条目右键菜单行（工单160）：pill 内横排最小菜单（工单53/54 同形态） */
 export interface TaskbarRecMenuRow {
@@ -413,13 +417,15 @@ export interface TaskbarRecMenuRow {
 }
 
 /**
- * 推荐组条目右键菜单行（工单160）：固定两行——手钉进既有手钉清单管线（手钉后该应用
- * 从推荐组消失、应用组手钉段出现）、打开文件位置走 explorer 定位通道。无按条目形态
- * 变化的行（推荐位条目恒未手钉——手钉条目被可见性管线滤出推荐组）。
+ * 推荐组条目右键菜单行（工单160，工单161 扩第三行）：手钉进既有手钉清单管线（手钉后该应用
+ * 从推荐组消失、应用组手钉段出现）、移除进持久排除名单（移除后空位由候选池后续名次递补，
+ * 恢复入口 = 推荐组空白处右键）、打开文件位置走 explorer 定位通道。无按条目形态变化的行
+ * （推荐位条目恒未手钉——手钉条目被可见性管线滤出推荐组）。
  */
 export function taskbarRecMenuRows(): TaskbarRecMenuRow[] {
   return [
     { action: 'pin', label: '手钉到任务栏' },
+    { action: 'remove', label: '从推荐栏移除' },
     { action: 'reveal', label: '打开文件位置' },
   ]
 }
@@ -438,9 +444,9 @@ export async function dispatchRecClick(
 }
 
 /**
- * 推荐组条目右键菜单动作分发（工单160）：pin→taskbar/rec-pin（回执 = 最新任务栏状态，
- * 内核已回推 taskbar/changed）；reveal→taskbar/rec-reveal。未知动作/空 exe 是噪声：
- * 不发 invoke，返回 null。
+ * 推荐组条目右键菜单动作分发（工单160，工单161 扩 remove）：pin→taskbar/rec-pin（回执 =
+ * 最新任务栏状态，内核已回推 taskbar/changed）；remove→taskbar/rec-remove（同回执形态）；
+ * reveal→taskbar/rec-reveal。未知动作/空 exe 是噪声：不发 invoke，返回 null。
  */
 export async function dispatchRecMenuAction(
   bridge: Pick<TaskbarBridge, 'invoke'>,
@@ -451,11 +457,26 @@ export async function dispatchRecMenuAction(
   switch (action) {
     case 'pin':
       return bridge.invoke('taskbar/rec-pin', { exe })
+    case 'remove':
+      return bridge.invoke('taskbar/rec-remove', { exe })
     case 'reveal':
       return bridge.invoke('taskbar/rec-reveal', { exe })
     default:
       return null
   }
+}
+
+/**
+ * 恢复分发（工单161）：推荐组空白右键恢复菜单的点选落点——exe 身份经桥 invoke
+ * （taskbar/rec-restore），回执 = 最新任务栏状态（内核已回推 taskbar/changed 收层）。
+ * 空 exe 是噪声：不发 invoke，返回 null。
+ */
+export async function dispatchRecRestore(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+): Promise<TaskbarState | null> {
+  if (!exe) return null
+  return bridge.invoke('taskbar/rec-restore', { exe })
 }
 
 /** 应用组溢出拆分（工单58）：裁决本体是 apps-plan 的 planAppsOverflow（编排纯函数），

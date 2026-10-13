@@ -190,9 +190,22 @@ export interface TaskbarWindowRef {
  * minimized=最小化；window-list=弹出带窗口标题的选窗列表（windows 随响应携带） */
 export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'window-list'
 
+/**
+ * 推荐栏移除名单条目（工单161）：用户「从推荐栏移除」的应用（exe 身份 + 移除时点展示
+ * 元数据），落栏布局存储持久化（重启记住）。渲染层据它渲染推荐组空白右键菜单的恢复段；
+ * iconKey = 移除时点图标键（null = 无图标源）。
+ */
+export interface TaskbarExcludedEntry {
+  exe: string
+  label: string
+  iconKey: string | null
+}
+
 /** 任务栏状态（工单49 起）：enabled=false 时主进程销毁任务栏窗口；
  * hiddenButtons（工单54）= 右键菜单藏起的系统按钮（config.json 持久化）；
- * recommendations（工单54）= 使用频次推荐位（上限 5，工单160 收窄；随数据面快照即时刷新）；
+ * recommendations（工单54）= 使用频次推荐位（上限 5，工单160 收窄；随数据面快照即时刷新；
+ * 工单161 起移除名单与手钉条目不占位、滤除后由候选池后续名次递补）；
+ * excluded（工单161）= 推荐栏移除名单（栏布局存储持久化，重启记住；推荐组空白右键恢复段的来源）；
  * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
  * apps（工单52）= 应用组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
  * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）；
@@ -201,6 +214,7 @@ export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
   recommendations: TaskbarRecommendation[]
+  excluded: TaskbarExcludedEntry[]
   metrics: TaskbarMetric[]
   apps: TaskbarAppEntry[]
   tray: TaskbarTrayEntry[]
@@ -542,6 +556,22 @@ export interface BridgeMethods {
    * BridgeError（契约违规——展示元数据来源必须在当前推荐位，set-app-pinned 同款口径）。
    */
   'taskbar/rec-pin': { request: { exe: string }; response: TaskbarState }
+  /**
+   * 推荐组条目「从推荐栏移除」（工单161）：exe 身份连同推荐条目展示元数据（label=显示名、
+   * iconKey=条目图标键）进栏布局存储持久排除名单并落盘，重编排即时生效——该应用从推荐组
+   * 消失（可见性管线第三条滤除线，与手钉滤除、显式序正交），空位由候选池后续名次递补
+   * （上限仍 5），回推一帧 taskbar/changed。持久排除重启记住；恢复入口 = 推荐组空白处
+   * 右键的恢复菜单（taskbar/rec-restore）。同态幂等空转；推荐位名单外身份抛 BridgeError
+   * （契约违规——展示元数据来源必须在当前推荐位，rec-pin 同款口径）。
+   */
+  'taskbar/rec-remove': { request: { exe: string }; response: TaskbarState }
+  /**
+   * 从推荐栏移除名单恢复（工单161）：推荐组空白处右键弹出的「已移除应用」恢复菜单点选
+   * 落点——exe 身份（归一匹配）移出持久排除名单并落盘，条目随同帧推荐位管线回池（按既有
+   * 显式序/分数序）。不在名单 → 幂等空转原样返回（菜单行与状态之间的帧间竞态按空转呈现，
+   * 不抛）。
+   */
+  'taskbar/rec-restore': { request: { exe: string }; response: TaskbarState }
   /**
    * 推荐组条目「打开文件位置」（工单160）：explorer /select,<exe> 定位（reveal-app
    * 同款 fire-and-forget 机制）；exe 护栏同 rec-click（栏外身份 ok:false 不抛）。

@@ -20,7 +20,7 @@ import { SettingsService, type SettingsServiceOptions } from './services/setting
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
-import { planTaskbarRecommendations } from './taskbar/plan'
+import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from './taskbar/plan'
 import type { WeatherLocation } from '../shared/contract'
 
 export interface KernelOptions {
@@ -205,7 +205,8 @@ function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
     sessions: ctx.sessions.current(),
     hardware: ctx.hardware.state(),
     desktop,
-    // 推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源
-    recommendations: planTaskbarRecommendations(desktop.items, ctx.desktop.usageScores()),
+    // 推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源。
+    // 工单161 起按池上限携带（可见上限的截断在服务层滤除后做，递补语义）。
+    recommendations: planTaskbarRecommendations(desktop.items, ctx.desktop.usageScores(), RECOMMENDATION_POOL_LIMIT),
   }
 }

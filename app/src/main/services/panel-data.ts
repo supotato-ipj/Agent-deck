@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import type { ClockState, DesktopState, DesktopZone, HardwareState, SessionInfo, TaskbarRecommendation } from '../../shared/contract'
-import { planTaskbarRecommendations } from '../taskbar/plan'
+import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from '../taskbar/plan'
 
 /**
  * 桥接层的数据面端口：panel/snapshot 的数据段与桌面承载动作的统一出口。
@@ -70,10 +70,11 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
     return this.ctx.desktop.state()
   }
 
-  /** 任务栏推荐位（工单54）：应用区条目 ∩ 正分条目（fuseScores 链路的同源产物） */
+  /** 任务栏推荐位（工单54）：应用区条目 ∩ 正分条目（fuseScores 链路的同源产物）。
+   * 工单161 起按池上限出池——可见上限的截断在 TaskbarService 滤除后做（递补语义）。 */
   taskbarRecommendations(): TaskbarRecommendation[] {
     const d = this.ctx.desktop.state()
-    return planTaskbarRecommendations(d.items, this.ctx.desktop.usageScores())
+    return planTaskbarRecommendations(d.items, this.ctx.desktop.usageScores(), RECOMMENDATION_POOL_LIMIT)
   }
 
   refresh(): void {

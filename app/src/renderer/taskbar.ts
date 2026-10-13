@@ -7,7 +7,7 @@
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
@@ -544,6 +544,29 @@ function render(state: TaskbarState): void {
             .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
         })
         pillStart.appendChild(el)
+      }
+      // 恢复段（工单161）：推荐组空白右键菜单的「已移除应用」恢复入口——名单非空才出段
+      // （pill 内横排形态，54 菜单同款纪律：点行经回推收层、点空白/8s 兜底同款收层）。
+      // 行文本 = 「恢复 <显示名>」，data-exe 挂交互寻址；pill 不渲染的空壳态（两钮全隐
+      // 且无推荐）恢复入口不可达，走 config/存储手改口（54 菜单同款边界）。
+      if (vm.excluded.length > 0) {
+        const rsep = document.createElement('div')
+        rsep.className = 'tb-menu-sep'
+        pillStart.appendChild(rsep)
+        for (const ex of vm.excluded) {
+          const el = document.createElement('div')
+          el.className = 'tb-menu-item'
+          el.dataset.action = 'restore'
+          el.dataset.exe = ex.exe
+          el.textContent = `恢复 ${ex.label}`
+          el.addEventListener('click', (e) => {
+            e.stopPropagation()
+            window.deck.host.notify('taskbar-rec-restore', { exe: ex.exe, label: ex.label })
+            void dispatchRecRestore(window.deck.bridge, ex.exe)
+              .then((s) => window.deck.host.notify('taskbar-rec-restore-result', { exe: ex.exe, excluded: s?.excluded?.length ?? null }))
+          })
+          pillStart.appendChild(el)
+        }
       }
     }
   } else {
