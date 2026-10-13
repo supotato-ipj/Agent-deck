@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, WeatherLocation } from '../shared/contract'
+import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, TaskbarTrayOverflowLimit, WeatherLocation } from '../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../shared/contract'
 import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 
@@ -35,11 +35,13 @@ export interface AppConfig {
 
 /** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失。
  * hiddenButtons（工单54）：开始组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
- * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。 */
+ * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。
+ * trayOverflowLimit（工单162）：托盘溢出档位（通知区域默认可见数，3/5/8/全部；重启保持）。 */
 export interface TaskbarConfig {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
   metrics: TaskbarMetric[]
+  trayOverflowLimit: TaskbarTrayOverflowLimit
 }
 
 /**
@@ -197,11 +199,14 @@ export function defaultAutostart(): AutostartConfig {
  * 系统按钮默认全显示（隐藏是用户经右键菜单的主动收窄，工单54）；
  * 硬件摘要五项默认全选（工单55） */
 export function defaultTaskbar(): TaskbarConfig {
-  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS] }
+  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5 }
 }
 
 /** 开始组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
 const TASKBAR_BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
+
+/** 托盘溢出档位合法值（与契约面 TaskbarTrayOverflowLimit 同源核对；新档漏加会在此暴露） */
+const TRAY_OVERFLOW_LIMITS: readonly TaskbarTrayOverflowLimit[] = [3, 5, 8, 'all']
 
 function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[]): TaskbarConfig {
   const out: TaskbarConfig = { ...fallback, hiddenButtons: [...fallback.hiddenButtons], metrics: [...fallback.metrics] }
@@ -242,6 +247,14 @@ function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[])
       }
       if (dropped) warnings.push('config.taskbar.hiddenButtons 含未知按钮 id，已丢弃（合法条目保留）')
       out.hiddenButtons = known
+    }
+  }
+  const trayOverflowLimit = section.trayOverflowLimit
+  if (trayOverflowLimit !== undefined) {
+    if ((TRAY_OVERFLOW_LIMITS as readonly unknown[]).includes(trayOverflowLimit)) {
+      out.trayOverflowLimit = trayOverflowLimit as TaskbarTrayOverflowLimit
+    } else {
+      warnings.push(`config.taskbar.trayOverflowLimit 不是合法档位（3/5/8/all），已回退默认值 ${fallback.trayOverflowLimit}`)
     }
   }
   return out

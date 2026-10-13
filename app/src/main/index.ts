@@ -171,6 +171,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       enabled: config.taskbar.enabled,
       hiddenButtons: config.taskbar.hiddenButtons,
       metrics: config.taskbar.metrics,
+      trayOverflowLimit: config.taskbar.trayOverflowLimit,
       file: CONFIG_FILE,
       config,
     },

@@ -450,7 +450,7 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -508,7 +508,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -516,7 +516,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -527,6 +527,33 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     expect(r.config.taskbar.hiddenButtons).toEqual(['start'])
     expect(r.warnings.some((w) => w.includes('config.taskbar.hiddenButtons'))).toBe(true)
   })
+
+describe('config.taskbar 托盘溢出档位（工单162）', () => {
+  it('合法档位 3/5/8/all 生效（重启保持的持久化口径）；缺省 5 枚', () => {
+    for (const limit of [3, 5, 8, 'all']) {
+      const file = tmpFile()
+      fs.writeFileSync(file, JSON.stringify({ taskbar: { trayOverflowLimit: limit } }))
+      const r = loadConfig(file, FALLBACK)
+      expect(r.config.taskbar.trayOverflowLimit).toBe(limit)
+      expect(r.warnings).toHaveLength(0)
+    }
+  })
+
+  it('档位外取值回退默认 5 并告警（不静默吞掉用户笔误）；缺键静默兼容旧 config', () => {
+    for (const bad of [4, 0, 'x', true, [5]]) {
+      const file = tmpFile()
+      fs.writeFileSync(file, JSON.stringify({ taskbar: { trayOverflowLimit: bad } }))
+      const r = loadConfig(file, FALLBACK)
+      expect(r.config.taskbar.trayOverflowLimit).toBe(5)
+      expect(r.warnings.some((w) => w.includes('config.taskbar.trayOverflowLimit'))).toBe(true)
+    }
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: true } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.trayOverflowLimit).toBe(5)
+    expect(r.warnings).toHaveLength(0)
+  })
+})
 
   it('hiddenButtons 非数组回退空名单并告警（不静默吞笔误）', () => {
     const file = tmpFile()

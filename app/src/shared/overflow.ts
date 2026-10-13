@@ -21,3 +21,16 @@ export function planAppsOverflow<T>(entries: readonly T[], slots: number): Taskb
   const keep = Math.max(0, slots - 1)
   return { bar: entries.slice(0, keep), overflow: entries.slice(keep) }
 }
+
+/**
+ * 托盘溢出裁决（工单162）：limit = 用户档位（config 持久化的可见数，3/5/8/'all'），
+ * 非几何容量——「⋯」钮是额外铬件，不吃档位名额（档位 3 就是真的 3 枚可见，这是与
+ * planAppsOverflow 容量语义的分界）。名单序前 limit 枚可见、超量按序尾部收进溢出；
+ * 'all' 永不溢出。数量回落（图标退出/档位上调）重拆即自动回栏。泛型：条目形态由
+ * 调用方定（内核与渲染层共用同一裁决本体，两侧不许各判一次）。
+ */
+export function planTrayOverflow<T>(entries: readonly T[], limit: number | 'all'): TaskbarAppsOverflow<T> {
+  if (limit === 'all' || entries.length <= limit) return { bar: [...entries], overflow: [] }
+  const keep = Math.max(0, limit)
+  return { bar: entries.slice(0, keep), overflow: entries.slice(keep) }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, toggleMetric, trayIconPixelated } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -10,11 +10,11 @@ import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 import type { TaskbarBridge, TaskbarAppViewEntry } from '../../src/renderer/taskbar-view'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState } from '../../src/shared/contract'
+import type { HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, apps: [], tray: [], ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, ...over }
 }
 
 const RECS = [
@@ -56,6 +56,8 @@ function fakeBridge(s: TaskbarState) {
       if (method === 'taskbar/drag-drop') return Promise.resolve({ ok: true } as never)
       // 工单56 托盘入栏
       if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
+      // 工单162 托盘溢出档位
+      if (method === 'taskbar/set-tray-overflow-limit') return Promise.resolve(s as never)
       if (method === 'taskbar/tray-icon') {
         const { key } = payload as { key: string }
         const hit = s.tray.find((t) => t.key === key)
@@ -370,6 +372,62 @@ describe('任务栏托盘入栏（工单56）', () => {
     const b = fakeBridge(state({ tray: TRAY }))
     await expect(fetchTrayIcon(b.bridge, '100:1')).resolves.toEqual({ width: 16, height: 16, bgraBase64: 'AAAA' })
     await expect(fetchTrayIcon(b.bridge, 'guid:abc')).resolves.toBeNull()
+  })
+})
+
+describe('托盘溢出菜单（工单162，fake bridge 驱动）', () => {
+  const SEVEN: TaskbarTrayEntry[] = Array.from({ length: 7 }, (_, i) => ({ key: `${100 + i}:1`, tooltip: `图标${i}`, iconKey: `k${i}` }))
+
+  it('视图模型透出档位（缺省 5；旧快照无字段不炸）', () => {
+    expect(taskbarViewModel(state({ trayOverflowLimit: 8 })).trayOverflowLimit).toBe(8)
+    expect(taskbarViewModel(state()).trayOverflowLimit).toBe(5)
+    expect(taskbarViewModel({ ...state(), trayOverflowLimit: undefined as never }).trayOverflowLimit).toBe(5)
+  })
+
+  it('溢出拆分接视图条目：档位内全可见、超量尾部入溢出、「⋯」渲染判据 = overflow 非空', () => {
+    const bar5 = splitTrayOverflow(SEVEN, 5)
+    expect(bar5.bar.map((e) => e.key)).toEqual(['100:1', '101:1', '102:1', '103:1', '104:1'])
+    expect(bar5.overflow.map((e) => e.key)).toEqual(['105:1', '106:1'])
+    // 「⋯」不吃名额：档位 3 就是 3 枚可见
+    expect(splitTrayOverflow(SEVEN, 3).bar).toHaveLength(3)
+    // 全部档：永不溢出
+    expect(splitTrayOverflow(SEVEN, 'all')).toEqual({ bar: SEVEN, overflow: [] })
+  })
+
+  it('菜单行生成：每行 key+名称（tooltip 优先，空 tooltip 回退身份键）、序 = 名单序', () => {
+    const rows = trayOverflowMenuRows([
+      { key: 'a:1', tooltip: '滴答清单', iconKey: 'k1' },
+      { key: 'guid:abc', tooltip: '', iconKey: null },
+    ])
+    expect(rows).toEqual([
+      { key: 'a:1', label: '滴答清单' },
+      { key: 'guid:abc', label: 'guid:abc' },
+    ])
+    expect(trayOverflowMenuRows([])).toEqual([])
+  })
+
+  it('档位菜单行：3/5/8/全部四档、序固定、current 标记当前档', () => {
+    expect(TRAY_OVERFLOW_TIERS.map((t) => [t.limit, t.label])).toEqual([
+      [3, '3 枚'], [5, '5 枚'], [8, '8 枚'], ['all', '全部'],
+    ])
+    expect(trayOverflowTierRows(5).map((r) => [r.limit, r.current])).toEqual([
+      [3, false], [5, true], [8, false], ['all', false],
+    ])
+    expect(trayOverflowTierRows('all').every((r) => r.current === (r.limit === 'all'))).toBe(true)
+  })
+
+  it('档位选择分发：合法档位经 taskbar/set-tray-overflow-limit 到桥；档位外是噪声不发 invoke', async () => {
+    const b = fakeBridge(state())
+    await expect(dispatchTrayOverflowLimit(b.bridge, 3)).resolves.toEqual(state())
+    await expect(dispatchTrayOverflowLimit(b.bridge, 'all')).resolves.toEqual(state())
+    expect(b.calls.filter((c) => c.method === 'taskbar/set-tray-overflow-limit')).toEqual([
+      { method: 'taskbar/set-tray-overflow-limit', payload: { limit: 3 } },
+      { method: 'taskbar/set-tray-overflow-limit', payload: { limit: 'all' } },
+    ])
+    for (const bad of [4, 0, 'x', 26]) {
+      await expect(dispatchTrayOverflowLimit(b.bridge, bad as never)).resolves.toBeNull()
+    }
+    expect(b.calls.filter((c) => c.method === 'taskbar/set-tray-overflow-limit')).toHaveLength(2)
   })
 })
 describe('任务栏页面样式完整性（真机事故回归）', () => {

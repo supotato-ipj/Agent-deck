@@ -2,8 +2,8 @@
 // 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
-import { planAppsOverflow } from '../shared/overflow.js'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import { planAppsOverflow, planTrayOverflow } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -91,7 +91,8 @@ export interface TaskbarAppViewEntry {
 }
 
 /** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染（只剩应用组与右组的边界条件）；
- * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳） */
+ * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
+ * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径） */
 export interface TaskbarViewModel {
   visible: boolean
   buttons: TaskbarButtonSpec[]
@@ -102,6 +103,8 @@ export interface TaskbarViewModel {
   apps: TaskbarAppViewEntry[]
   /** 托盘入栏名单（工单56）：身份键/tooltip/像素键原样透出——渲染层只负责摆与画 */
   tray: TaskbarTrayEntry[]
+  /** 托盘溢出档位（工单162）：拆分名单与档位菜单 current 标记的唯一来源 */
+  trayOverflowLimit: TaskbarTrayOverflowLimit
 }
 
 /**
@@ -110,7 +113,7 @@ export interface TaskbarViewModel {
  * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], apps: [], tray: [] }
+  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -136,6 +139,7 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     metrics: [...state.metrics],
     apps,
     tray: [...(state.tray ?? [])],
+    trayOverflowLimit: state.trayOverflowLimit ?? 5,
   }
 }
 
@@ -248,6 +252,52 @@ export async function dispatchTrayClick(
   if (!key) return { ok: false, error: '空托盘身份' }
   const res = await bridge.invoke('taskbar/tray-click', { key, button })
   return { ok: res.ok, ...(res.error ? { error: res.error } : {}) }
+}
+
+// —— 工单162 托盘溢出菜单：档位拆分 + 菜单行生成 + 档位分发 ——
+
+/** 档位菜单行清单（两挂点「⋯」右键/右组空白处右键共用）：序即渲染序 */
+export const TRAY_OVERFLOW_TIERS: ReadonlyArray<{ limit: TaskbarTrayOverflowLimit; label: string }> = [
+  { limit: 3, label: '3 枚' },
+  { limit: 5, label: '5 枚' },
+  { limit: 8, label: '8 枚' },
+  { limit: 'all', label: '全部' },
+] as const
+
+/** 档位菜单行（current = 当前档）：「✓ 」前缀在渲染层落，本函数只给数据 */
+export function trayOverflowTierRows(current: TaskbarTrayOverflowLimit): Array<{ limit: TaskbarTrayOverflowLimit; label: string; current: boolean }> {
+  return TRAY_OVERFLOW_TIERS.map((t) => ({ ...t, current: t.limit === current }))
+}
+
+/**
+ * 托盘溢出拆分（工单162）：裁决本体是 shared/overflow 的 planTrayOverflow（与应用组
+ * planAppsOverflow 同形态、同处 shared），本层只是把它接到托盘条目上。
+ * overflow 非空即栏内「⋯」钮的渲染判据；浮层条目与栏内同一份名单序。
+ */
+export function splitTrayOverflow(
+  tray: readonly TaskbarTrayEntry[],
+  limit: TaskbarTrayOverflowLimit,
+): { bar: TaskbarTrayEntry[]; overflow: TaskbarTrayEntry[] } {
+  return planTrayOverflow(tray, limit)
+}
+
+/** 托盘溢出菜单行（工单162）：每行图标+名称——名称取 tooltip，空回退身份键（无 tip
+ * 图标不出空行）。序 = 溢出名单序（= 栏内名单序的尾部）。 */
+export function trayOverflowMenuRows(overflow: readonly TaskbarTrayEntry[]): Array<{ key: string; label: string }> {
+  return overflow.map((e) => ({ key: e.key, label: e.tooltip || e.key }))
+}
+
+/**
+ * 档位选择分发（工单162）：档位经桥 invoke（taskbar/set-tray-overflow-limit），校验
+ * 与持久化在内核；回执 = 最新任务栏状态。档位外取值是噪声：不发 invoke，返回 null
+ * （菜单层只有四档固定行，畸形值只可能来自被篡改的调用方）。
+ */
+export async function dispatchTrayOverflowLimit(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  limit: TaskbarTrayOverflowLimit,
+): Promise<TaskbarState | null> {
+  if (!(TRAY_OVERFLOW_TIERS as ReadonlyArray<{ limit: TaskbarTrayOverflowLimit }>).some((t) => t.limit === limit)) return null
+  return bridge.invoke('taskbar/set-tray-overflow-limit', { limit })
 }
 
 // —— 工单53 应用组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——

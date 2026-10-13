@@ -186,7 +186,8 @@ export type TaskbarAppClickAction = 'launched' | 'activated' | 'minimized' | 'wi
  * recommendations（工单54）= 使用频次推荐位（上限 8，随数据面快照即时刷新）；
  * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
  * apps（工单52）= 应用组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
- * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）。 */
+ * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）；
+ * trayOverflowLimit（工单162）= 托盘溢出档位（config 任务栏段持久化，重启保持）。 */
 export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
@@ -194,6 +195,7 @@ export interface TaskbarState {
   metrics: TaskbarMetric[]
   apps: TaskbarAppEntry[]
   tray: TaskbarTrayEntry[]
+  trayOverflowLimit: TaskbarTrayOverflowLimit
 }
 
 /** 托盘按钮（工单56）：左键 = 应用默认动作（启动/置前由图标所属应用自决），右键 = 上下文菜单 */
@@ -206,6 +208,13 @@ export interface TaskbarTrayEntry {
   tooltip: string
   iconKey: string | null
 }
+
+/**
+ * 托盘溢出档位（工单162）：通知区域默认最多可见的托盘图标数，超量收进「⋯」钮。
+ * 3/5/8 为固定档，'all' = 全部可见（「⋯」不出场）；config.json taskbar.trayOverflowLimit
+ * 持久化。档位是用户声明的可见数，「⋯」钮不吃名额——语义与容量实测的 planAppsOverflow 分界。
+ */
+export type TaskbarTrayOverflowLimit = 3 | 5 | 8 | 'all'
 
 /** 托盘图标像素（工单56）：32bpp 顶向下 BGRA，base64——渲染层本地 canvas 转 dataURL
  * （与 desktop/icon 的 dataURL 面同款职责分工：编码在渲染层，主进程只搬运字节） */
@@ -525,6 +534,12 @@ export interface BridgeMethods {
    * 执行失败（宿主不在场/投递被系统拒收）ok:false + error。
    */
   'taskbar/tray-click': { request: { key: string; button: TaskbarTrayButton }; response: { ok: boolean; error?: string } }
+  /**
+   * 托盘溢出档位（工单162）：档位菜单（「⋯」右键/右组空白处右键挂点）选择即生效，
+   * 整份回写 config.json taskbar.trayOverflowLimit，回推 taskbar/changed（渲染层重拆
+   * 名单：上调即图标回栏、「⋯」消失）。同态幂等空转；档位外取值抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-tray-overflow-limit': { request: { limit: TaskbarTrayOverflowLimit }; response: TaskbarState }
   /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
   'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
   /**
