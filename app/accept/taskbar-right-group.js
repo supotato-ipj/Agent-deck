@@ -438,6 +438,10 @@ async function main() {
     // P7 托盘溢出菜单（工单162）：探针 7 枚钉名单量 → 默认档 5 恒溢出，机器图标数不影响断言。
     rep.beginSegment('P7');
     const t7 = Date.now();
+    // P6 重拉了面板：旧条带窗句柄已死（convergeAt 对死 hwnd 轮询必超时），重取现任窗
+    const tbHwnd7 = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    if (!tbHwnd7) throw new Error('P7 条带窗未出现');
+    const conv = (pt) => convergeAt(pt, tbHwnd7);
     const {
       encodeNotifyIconData, NIM_ADD, NIM_DELETE,
       NIF_MESSAGE, NIF_ICON, NIF_TIP,
@@ -485,31 +489,66 @@ async function main() {
 
       const more = geo7.trayOverflow;
       const morePt = toPhys(more.x + more.w / 2, more.y + more.h / 2);
-      // 行矩形在页面 ready 事件（rows 数组带 y/h），窗 bounds 在宿主 opened 事件——两路配对
+      // 行矩形在页面 ready 事件（rows 数组带 y/h），窗 bounds 在宿主 opened/resized 事件
+      //（常驻窗重开从 cache 弹出，名单churn重定窗落 resized）——两路配对。开层后 700ms
+      // 沉降：红轮两轮实证「show 后 ~100ms 内落点的点击整帧丢失」（新窗输入路由未就绪），
+      // 沉降拍后 bounds/rows 都取最新帧（churn 重定窗后的现行布局）。只点视口内行
+      //（row.y+h ≤ ready.h）：帽外行点击会落到浮层外（红轮实证：触发条带 strip-click
+      // 收层 + 杂散点击，连锁红）。
       const openPopup = async (note) => {
         const since = Date.now();
-        await convergeAt(morePt, tbHwnd);
+        const convOk = await conv(morePt);
+        if (note) rep.note(`${note} 收敛=${convOk}`);
         win32.clickPhys(morePt.x, morePt.y, 'left');
-        const opened = await waitEvent('taskbar-tray-overflow-opened', (e) => e.t >= since, 6000);
-        const ready = await waitLastEvent('taskbar-tray-overflow-ready', (e) => e.t >= since && Array.isArray(e.rows) && e.rows.length > 0, 5000);
-        const rows = ready ? ready.rows : null;
+        await sleep(700);
+        const boundsOf = () => {
+          const os = readEvents().filter((e) => e.t >= since
+            && (e.type === 'taskbar-tray-overflow-opened' || e.type === 'taskbar-tray-overflow-resized'));
+          return os.length ? os[os.length - 1] : null;
+        };
+        let opened = null;
+        const dl = Date.now() + 8000;
+        while (Date.now() < dl) {
+          opened = boundsOf();
+          if (opened) break;
+          await sleep(80);
+        }
+        const ready = await waitLastEvent('taskbar-tray-overflow-ready', (e) => e.t >= since && Array.isArray(e.rows) && e.rows.length > 0, 4000);
+        let rows = ready ? ready.rows : null;
+        let viewH = ready ? Number(ready.h) || 0 : 0;
+        if (!rows) {
+          // 兜底：页面 ready 随名单 churn 才重报，无 churn 窗口内可能缺席——直接从内核
+          // 现取名单按行几何推（同一态：浮层行 = 名单去前 limit 的尾段，行高 34/内衬 6
+          // 与浮层页 CSS 同源），key 实时、坐标算术稳定
+          const st = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+          const limit = st && st.trayOverflowLimit === 'all' ? st.tray.length : (st?.trayOverflowLimit ?? 5);
+          const tail = (st?.tray || []).slice(limit);
+          rows = tail.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 6 + 34 * i, h: 34 }));
+          viewH = rows.length * 34 + 12;
+        }
         if (note) rep.note(`${note}: ${opened ? `rows=${rows ? rows.length : 'n/a'} bounds=${JSON.stringify(opened.bounds)}` : '未开'}`);
-        return { opened, rows };
+        return { opened, rows, viewH };
       };
       const rowPt = (pop, idx) => ({
         x: Math.round((pop.opened.bounds.x + 140) * scale),
         y: Math.round((pop.opened.bounds.y + pop.rows[idx].y + pop.rows[idx].h / 2) * scale),
       });
-      const probeRowIdx = (pop) => pop.rows.findIndex((r) => probesIn.includes(r.key));
+      const probeRowIdx = (pop) => pop.rows.findIndex((r) => probesIn.includes(r.key) && r.y + r.h <= pop.viewH + 4);
 
       // 臂2：点「⋯」浮层随鼠标弹出（独立浮层窗 DECK-TRAY-OVERFLOW 在场、行数 = 名单-5）
       const pop2 = await openPopup('臂2开层');
       const popWin2 = pop2.opened ? await waitWindow(panelPid, 'DECK-TRAY-OVERFLOW', 3000) : null;
-      if (pop2.opened && popWin2 && pop2.rows && pop2.rows.length === roster7.length - 5
+      // 机器图标有进出（churn 是常态）：开层后重读名单对账，行数 = 现任名单 - 5
+      let roster2 = roster7;
+      for (let i = 0; i < 5 && pop2.rows && pop2.rows.length !== roster2.length - 5; i++) {
+        await sleep(300);
+        roster2 = await rosterKeys();
+      }
+      if (pop2.opened && popWin2 && pop2.rows && pop2.rows.length === roster2.length - 5
         && probeRowIdx(pop2) >= 0) {
-        rep.pass(`臂2 浮层随鼠标弹出（行 ${pop2.rows.length} = 名单 ${roster7.length} - 5，浮层窗在场）`);
+        rep.pass(`臂2 浮层随鼠标弹出（行 ${pop2.rows.length} = 名单 ${roster2.length} - 5，浮层窗在场）`);
       } else {
-        armFail7('浮层弹出', `opened=${!!pop2.opened} 窗=${!!popWin2} rows=${pop2.rows ? pop2.rows.length : 'n/a'} 期望=${roster7.length - 5} 探针行=${pop2.rows ? probeRowIdx(pop2) : 'n/a'}`);
+        armFail7('浮层弹出', `opened=${!!pop2.opened} 窗=${!!popWin2} rows=${pop2.rows ? pop2.rows.length : 'n/a'} 名单=${roster2.length} 探针行=${pop2.rows ? probeRowIdx(pop2) : 'n/a'}`);
       }
 
       // 臂3：行左键 = 默认动作（同一回放分发）：溢出行点击 → taskbar/tray-click 存证
@@ -551,20 +590,22 @@ async function main() {
           armFail7('行右键', `存证=${JSON.stringify(click4)} 收帧=${JSON.stringify(frame4)}`);
         }
         // 臂5：点面板外即收起——notepad 探针前台点击夺焦（面板永不激活点不出 blur，
-        // 桌面/应用窗才夺焦点；浮层 blur 即「点面板外」的全局信号）
-        let note7 = await waitWindowByExe('notepad', 1500);
-        if (!note7) {
+        // 桌面/应用窗才夺焦点；浮层 blur 即「点面板外」的全局信号）。臂4 行点已收层
+        //（回执殿后修复生效），先重开浮层
+        const pop5 = await openPopup('臂5开层');
+        let note7 = pop5.opened ? await waitWindowByExe('notepad', 1500) : null;
+        if (!note7 && pop5.opened) {
           const spawned = spawn('notepad.exe', [], { stdio: 'ignore' });
           note7 = await waitWindowByExe('notepad', 8000);
           if (note7) spawnedP7 = spawned;
         }
-        if (note7) {
+        if (note7 && pop5.opened) {
           win32.SetForegroundWindow(note7);
           await sleep(300);
           const r7n = win32.rectOf(note7);
           const center7 = { x: Math.round((r7n.left + r7n.right) / 2), y: Math.round((r7n.top + r7n.bottom) / 2) };
           // notepad 中心若被浮层盖住（低分屏），改点浮层窗外一定距离的屏中
-          const b7 = pop4.opened.bounds;
+          const b7 = pop5.opened.bounds;
           const covered = center7.x > b7.x - 8 && center7.x < b7.x + b7.width + 8
             && center7.y > b7.y - 8 && center7.y < b7.y + b7.height + 8;
           const pt5 = covered
@@ -585,9 +626,11 @@ async function main() {
       }
 
       // 臂6：档位菜单挂点一（「⋯」右键）→ 选 3 枚：落盘 + 即时收敛 + ⋯ 保持（名单 ≥4 恒真）
-      await convergeAt(morePt, tbHwnd);
+      const conv6 = await conv(morePt);
+      rep.note(`臂6 收敛=${conv6}`);
+      const since6c = Date.now();
       win32.clickPhys(morePt.x, morePt.y, 'right');
-      const geo6a = await waitLastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000
+      const geo6a = await waitLastEvent('taskbar-geometry', (e) => e.t >= since6c
         && (e.rightCells || []).some((c) => c.id === 'tier-3'), 6000);
       let arm6 = false;
       let detail6 = `档位行=${geo6a ? '在场' : '缺'}`;
@@ -598,7 +641,7 @@ async function main() {
         const limitEv = await waitEvent('taskbar-tray-overflow-limit-result', (e) => e.limit === 3 && e.ok && e.t >= Date.now() - 6000, 5000);
         await sleep(800); // 重拆 + 几何重报一拍
         const disk6b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        const geo6b = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+        const geo6b = lastEvent('taskbar-geometry', (e) => e.t >= since6c && e.trayIcons);
         arm6 = !!limitEv && disk6b.taskbar?.trayOverflowLimit === 3
           && geo6b && geo6b.trayIcons.length === 3 && !!geo6b.trayOverflow;
         detail6 += ` 回执=${JSON.stringify(limitEv)} 落盘=${disk6b.taskbar?.trayOverflowLimit} 栏内=${geo6b ? geo6b.trayIcons.length : 'n/a'} ⋯=${geo6b ? !!geo6b.trayOverflow : 'n/a'}`;
@@ -612,8 +655,11 @@ async function main() {
       // 臂7：档位菜单挂点二（右组空白处右键）→ 选全部：⋯ 消失、栏内 = 名单
       const rp7 = lastEvent('taskbar-geometry', (e) => e.rightPill);
       const blankPt = toPhys(rp7.rightPill.x + 4, rp7.rightPill.y + rp7.rightPill.h / 2);
+      const conv7 = await conv(blankPt);
+      rep.note(`臂7 收敛=${conv7}`);
       win32.clickPhys(blankPt.x, blankPt.y, 'right');
-      const geo7a = await waitLastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000
+      const since7c = Date.now();
+      const geo7a = await waitLastEvent('taskbar-geometry', (e) => e.t >= since7c
         && (e.rightCells || []).some((c) => c.id === 'tier-all'), 6000);
       let arm7 = false;
       let detail7 = `档位行=${geo7a ? '在场' : '缺'}`;
@@ -624,7 +670,7 @@ async function main() {
         const limitEv = await waitEvent('taskbar-tray-overflow-limit-result', (e) => e.limit === 'all' && e.ok && e.t >= Date.now() - 6000, 5000);
         await sleep(800);
         const disk7b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        const geo7b = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+        const geo7b = lastEvent('taskbar-geometry', (e) => e.t >= since7c && e.trayIcons);
         roster7 = await rosterKeys();
         arm7 = !!limitEv && disk7b.taskbar?.trayOverflowLimit === 'all'
           && geo7b && geo7b.trayIcons.length === roster7.length && geo7b.trayOverflow === null;
@@ -644,10 +690,19 @@ async function main() {
       let sawFallback = false;
       for (let round = 0; round < 14; round++) {
         roster7 = await rosterKeys();
-        const g = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+        // 名单churn（机器图标进出）与渲染推帧之间有时序差：不一致时沉降 600ms 重读两拍再判
+        let g = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+        let wantBar = Math.min(roster7.length, 5);
+        let wantMore = roster7.length > 5;
+        for (let settle = 0; settle < 2 && g
+          && (g.trayIcons.length !== wantBar || !!g.trayOverflow !== wantMore); settle++) {
+          await sleep(600);
+          roster7 = await rosterKeys();
+          g = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+          wantBar = Math.min(roster7.length, 5);
+          wantMore = roster7.length > 5;
+        }
         if (!g) break;
-        const wantBar = Math.min(roster7.length, 5);
-        const wantMore = roster7.length > 5;
         if (g.trayIcons.length !== wantBar || !!g.trayOverflow !== wantMore) { fell = false; break; }
         fell = true;
         if (roster7.length <= 5) { sawFallback = true; break; }

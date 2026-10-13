@@ -597,10 +597,13 @@ function render(state: TaskbarState): void {
         el.textContent = `${row.current ? '✓ ' : ''}托盘 ${row.label}`
         el.addEventListener('click', (ev) => {
           ev.stopPropagation()
+          closeTierMenu() // 选档即收（显式——不靠 changed 回推：名单churn每几秒推一帧，
+          // 红轮实证把刚开的档位菜单收掉，选档点击落空）
           window.deck.host.notify('taskbar-tray-overflow-limit', { limit: row.limit })
-          // 回推的 taskbar/changed 驱动重拆名单与收菜单；回执只为存证对齐
+          // 回推的 taskbar/changed 驱动重拆名单；回执只为存证对齐
           void dispatchTrayOverflowLimit(window.deck.bridge, row.limit)
             .then((s) => window.deck.host.notify('taskbar-tray-overflow-limit-result', { limit: row.limit, ok: s !== null }))
+          if (current) render(current)
         })
         rightPill.appendChild(el)
       }
@@ -728,7 +731,8 @@ function boot(): void {
     })
     window.deck.bridge.on('taskbar/changed', (next) => {
       closeMenu() // 状态回推即收菜单（点菜成功的收层路径）
-      closeTierMenu() // 档位菜单同款：点档成功经回推收层（工单162）
+      // 档位菜单不随 changed 收：机器图标 churn 每几秒推一帧（红轮实证刚开的菜单被收掉、
+      // 选档点击落空）——收层只走选档显式关闭/点空白/8s 兜底（工单162）
       render(next)
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍

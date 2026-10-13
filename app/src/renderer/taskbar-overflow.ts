@@ -10,6 +10,10 @@ import { trayDataUrl } from './tray-pixels.js'
 
 const list = document.getElementById('overflow-list') as HTMLElement
 
+// 视口帽随宿主 query 下发（工作区高留边距）：名单超帽才滚动，帽内行全部可点
+const maxH = Number(new URLSearchParams(location.search).get('maxH')) || 560
+if (Number.isFinite(maxH) && maxH > 100) list.style.maxHeight = `${maxH}px`
+
 /** 图标像素缓存（身份键 → dataURL；条带页同款纪律，仅内存） */
 const pxCache = new Map<string, { url: string; px: boolean }>()
 
@@ -46,12 +50,13 @@ function makeRow(entry: TaskbarTrayEntry): HTMLElement {
     })
   }
   const act = (button: TaskbarTrayButton): void => {
-    // 存证与分发同条带 makeTrayEl 同型（surface 区分落点）；先收层再回放——浮层不遮
-    // 应用的响应窗（左键开窗/右键应用自带菜单都在浮层收起后浮现）
+    // 存证与分发同条带 makeTrayEl 同型（surface 区分落点）。顺序=回执存证先行、收层殿后
+    //（红轮实证：先收层后回执时窗已销、pending .then 随渲染进程一起死——result 存证永不落）；
+    // 回放已发出，浮层稍收不遮应用的响应窗（左键开窗/右键应用自带菜单都在浮层收起后浮现）
     window.deck.host.notify('taskbar-tray-click', { key: entry.key, button, surface: 'overflow' })
     void dispatchTrayClick(window.deck.bridge, entry.key, button)
       .then((r) => window.deck.host.notify('taskbar-tray-click-result', { key: entry.key, button, surface: 'overflow', ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
-    requestClose('row', { key: entry.key, button })
+      .finally(() => requestClose('row', { key: entry.key, button }))
   }
   row.addEventListener('click', () => act('left'))
   row.addEventListener('contextmenu', (ev) => {
@@ -102,8 +107,9 @@ void (async () => {
     return
   }
   reportReady(overflow)
-  // 名单/档位变化：重拆重渲；拆空即收（数量回落「⋯」消失同拍语义），行数变化重回报
-  // （宿主重定窗，浮层已在场不再 show）
+  // 名单/档位变化：重拆重渲（不做隐藏拍跳渲——show 拍 visibilitychange 补渲染在真机
+  // 红轮实测不可靠：重开后 6s 无 ready，浮层行悬空；隐藏拍渲染本就廉价）；拆空即收
+  // （数量回落「⋯」消失同拍语义），行数变化重回报（宿主重定窗，浮层已在场不再 show）
   window.deck.bridge.on('taskbar/changed', (next) => {
     const nextOverflow = render(next)
     if (!nextOverflow.length) {

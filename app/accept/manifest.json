@@ -761,8 +761,8 @@
       "entry": "app/accept/taskbar-right-group.js",
       "script": "accept:taskbar-right-group",
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 20,
-      "lastMeasuredAt": "2026-10-08",
+      "lastMeasuredSeconds": 34,
+      "lastMeasuredAt": "2026-10-13",
       "segments": [
         {
           "seg": "P1",
