@@ -400,6 +400,64 @@ export async function dispatchTaskbarDragDrop(
   return bridge.invoke('taskbar/drag-drop', drop)
 }
 
+// —— 工单160 推荐组交互：图标化条目的左键启动 / 右键两行菜单 ——
+
+/** 推荐组条目右键菜单动作（工单160）：手钉到任务栏、打开文件位置——「从推荐栏移除」
+ * 是工单161 的持久排除名单领域，本菜单不列。 */
+export type TaskbarRecMenuAction = 'pin' | 'reveal'
+
+/** 推荐组条目右键菜单行（工单160）：pill 内横排最小菜单（工单53/54 同形态） */
+export interface TaskbarRecMenuRow {
+  action: TaskbarRecMenuAction
+  label: string
+}
+
+/**
+ * 推荐组条目右键菜单行（工单160）：固定两行——手钉进既有手钉清单管线（手钉后该应用
+ * 从推荐组消失、应用组手钉段出现）、打开文件位置走 explorer 定位通道。无按条目形态
+ * 变化的行（推荐位条目恒未手钉——手钉条目被可见性管线滤出推荐组）。
+ */
+export function taskbarRecMenuRows(): TaskbarRecMenuRow[] {
+  return [
+    { action: 'pin', label: '手钉到任务栏' },
+    { action: 'reveal', label: '打开文件位置' },
+  ]
+}
+
+/**
+ * 推荐组条目左键启动分发（工单160）：富化后的 exe 身份经桥 invoke
+ * （taskbar/rec-click），启动走既有 shell 打开通道，裁决与护栏在内核。响应原样上抛
+ * （ok:false 也返回——栏面竞态按普通失败呈现）；空 exe 是噪声（不发 invoke）。
+ */
+export async function dispatchRecClick(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!exe) return { ok: false, error: '空推荐条目身份' }
+  return bridge.invoke('taskbar/rec-click', { exe })
+}
+
+/**
+ * 推荐组条目右键菜单动作分发（工单160）：pin→taskbar/rec-pin（回执 = 最新任务栏状态，
+ * 内核已回推 taskbar/changed）；reveal→taskbar/rec-reveal。未知动作/空 exe 是噪声：
+ * 不发 invoke，返回 null。
+ */
+export async function dispatchRecMenuAction(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  exe: string,
+  action: TaskbarRecMenuAction,
+): Promise<TaskbarState | { ok: boolean; error?: string } | null> {
+  if (!exe) return null
+  switch (action) {
+    case 'pin':
+      return bridge.invoke('taskbar/rec-pin', { exe })
+    case 'reveal':
+      return bridge.invoke('taskbar/rec-reveal', { exe })
+    default:
+      return null
+  }
+}
+
 /** 应用组溢出拆分（工单58）：裁决本体是 apps-plan 的 planAppsOverflow（编排纯函数），
  * 本层只是把它接到视图条目上——slots 由渲染层按 pill 几何实测（含 ⋯ 钮位）。
  * overflow 非空即 ⋯ 钮的渲染判据；浮层条目与栏内同一份引用（同形态同挂点）。 */

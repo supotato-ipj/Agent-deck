@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -54,6 +54,10 @@ function fakeBridge(s: TaskbarState) {
       if (method === 'taskbar/close-window') return Promise.resolve({ ok: true, closed: 1 } as never)
       if (method === 'taskbar/reveal-app') return Promise.resolve({ ok: true } as never)
       if (method === 'taskbar/drag-drop') return Promise.resolve({ ok: true } as never)
+      // 工单160 推荐组交互
+      if (method === 'taskbar/rec-click') return Promise.resolve({ ok: true } as never)
+      if (method === 'taskbar/rec-pin') return Promise.resolve(s as never)
+      if (method === 'taskbar/rec-reveal') return Promise.resolve({ ok: true } as never)
       // 工单56 托盘入栏
       if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
       // 工单162 托盘溢出档位
@@ -516,9 +520,9 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
     expect(pillRule, '开始组可收窄（clampStartPillWidth 拥挤时设 maxWidth）').toContain('min-width: 0')
     expect(pillRule).toContain('overflow: hidden')
     expect(ruleOf('.tb-btn'), '系统钮 flex:none——收窄时永不裁切（被裁即 P5 重演）').toContain('flex: none')
-    const rec = ruleOf('.tb-rec')
-    expect(rec, '推荐位（仅展示，工单54 v1）可收缩让位').toContain('flex: 0 1 auto')
-    expect(rec).toContain('text-overflow: ellipsis')
+    // 工单160 图标化后推荐位不再吃文字收缩档（.tb-rec 定宽图标格）：极端拥挤的让位面
+    // 收敛为 pill maxWidth 收窄整体裁剪（overflow hidden），系统钮 flex:none 优先权不变
+    expect(ruleOf('.tb-rec'), '推荐位图标格定宽（不吃收缩）').toContain('width: 44px')
   })
 })
 
@@ -576,5 +580,69 @@ describe('栏分组布局重排（工单159：开始组钉左、应用组空带�
     expect(appsPillLeft({ lo: 100, hi: 500 }, 450)).toBe(100)
     // 负宽防御：按 0 宽居中带中点（不炸、不越界）
     expect(appsPillLeft({ lo: 100, hi: 500 }, -1)).toBe(300)
+  })
+})
+
+// —— 工单160 推荐组交互主体（渲染层视图：图标化条目 + 右键两行菜单 + 左键启动分发）——
+
+describe('推荐组交互（工单160，fake bridge 驱动）', () => {
+  const html160 = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css160 = /<style>([\s\S]*?)<\/style>/.exec(html160)?.[1] ?? ''
+  function ruleOf160(sel: string): string {
+    const i = css160.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    return css160.slice(i, css160.indexOf('}', i))
+  }
+  it('推荐位条目携带 exe 身份与图标键透出（启动/手钉/定位的统一寻址原样进渲染层）', () => {
+    const vm = taskbarViewModel(state({ recommendations: RECS }))
+    expect(vm.recommendations[0].exe).toBe('C:\\Apps\\Alpha.exe')
+    expect(vm.recommendations[0].iconKey).toBe('Alpha.lnk|0')
+    expect(vm.recommendations[1].exe).toBe('C:\\Desktop\\Beta.lnk')
+  })
+
+  it('右键菜单两行：手钉到任务栏、打开文件位置（移除名单行是 #161 领域，不在列）', () => {
+    expect(taskbarRecMenuRows()).toEqual([
+      { action: 'pin', label: '手钉到任务栏' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+
+  it('左键启动分发：exe 身份经 taskbar/rec-click；空 exe 是噪声不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    await dispatchRecClick(bridge, 'C:\\Apps\\Alpha.exe')
+    expect(calls).toEqual([{ method: 'taskbar/rec-click', payload: { exe: 'C:\\Apps\\Alpha.exe' } }])
+    const { bridge: b2, calls: c2 } = fakeBridge(state())
+    await dispatchRecClick(b2, '')
+    expect(c2).toEqual([])
+  })
+
+  it('右键菜单动作分发：pin→taskbar/rec-pin（回执最新状态）、reveal→taskbar/rec-reveal；未知动作/空 exe 是噪声不发 invoke', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    const pinned = await dispatchRecMenuAction(bridge, 'C:\\Apps\\Alpha.exe', 'pin')
+    expect(pinned).toEqual(state())
+    const revealed = await dispatchRecMenuAction(bridge, 'C:\\Apps\\Alpha.exe', 'reveal')
+    expect(revealed).toEqual({ ok: true })
+    expect(calls).toEqual([
+      { method: 'taskbar/rec-pin', payload: { exe: 'C:\\Apps\\Alpha.exe' } },
+      { method: 'taskbar/rec-reveal', payload: { exe: 'C:\\Apps\\Alpha.exe' } },
+    ])
+    expect(await dispatchRecMenuAction(bridge, 'C:\\Apps\\Alpha.exe', 'close' as never)).toBeNull()
+    expect(await dispatchRecMenuAction(bridge, '', 'pin')).toBeNull()
+  })
+
+  it('首字母占位复用（工单156 appIconFallbackText）：推荐条目按显示名/exe 出占位文本', () => {
+    expect(appIconFallbackText({ label: 'Alpha', exe: 'C:\\Apps\\Alpha.exe' })).toBe('A')
+    expect(appIconFallbackText({ label: '', exe: 'C:\\Apps\\Beta.exe' })).toBe('B')
+  })
+
+  it('推荐位图标格 CSS（图标化形态）：格位 44px/图标 32px 与应用组同观感，无文字截断形态残留', () => {
+    const rec = ruleOf160('.tb-rec')
+    expect(rec).toContain('width: 44px')
+    expect(rec).toContain('height: 44px')
+    expect(rec, '图标格不再收缩让位（文字 ellipsis 形态随图标化退役）').not.toContain('text-overflow')
+    const img = ruleOf160('.tb-rec img')
+    expect(img).toContain('width: 32px')
+    expect(img).toContain('height: 32px')
+    expect(ruleOf160('.tb-rec-letter'), '无图标键条目首字母占位不出空白格').toContain('font-size')
   })
 })

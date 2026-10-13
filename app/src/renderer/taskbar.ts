@@ -7,10 +7,10 @@
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
-import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
 const pillApps = document.getElementById('pill-apps') as HTMLElement
@@ -47,6 +47,8 @@ let trayPopupRequested = false
 let overflowOpen = false
 /** 应用图标右键菜单（工单53）：手钉/解除手钉、关闭窗口、打开文件位置三行随条目形态变化 */
 let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
+/** 推荐组条目右键菜单（工单160）：手钉到任务栏、打开文件位置两行——按 exe 身份寻址 */
+let recMenu: { exe: string; name: string } | null = null
 /** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
 let windowList: { exe: string; windows: TaskbarWindowRef[] } | null = null
 /** 拖拽源（工单57）：dragstart 记录，落位判定全在渲染层，落位裁决在内核 */
@@ -267,7 +269,8 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
 /** 开始组钉条带左缘（工单159 布局重排）：位置由 CSS（#pill-start left:8px）钉死——旧
  * positionStartPill 的屏幕居中 + [应用组右缘, 右组左缘] 夹取随布局反转退役，夹取/拥挤
  * 裁剪守卫迁移到本函数（挤撞裁剪换侧不换语义）：唯一守卫 = 极端拥挤（26+ 托盘 + 满推荐位）
- * 时 maxWidth 收窄到右组左缘前——仅展示的推荐位（.tb-rec）ellipsis 收缩让位，系统钮
+ * 时 maxWidth 收窄到右组左缘前——推荐位图标格随 pill 整体裁剪（工单160 图标化定宽格
+ * 不吃文字收缩档），系统钮
  * flex:none 永不裁切（工单158 P5 真机红回归钉的守卫三件套全数保留）。
  * 只在结构性重渲落位：右组 1Hz 指标文本宽度抖动（±45px）不传导（applyStatus 不动 pill），
  * 电池的 settle 几何因此跨拍稳定。 */
@@ -409,7 +412,50 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
     ev.preventDefault()
     ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
     windowList = null
+    recMenu = null // 两菜单互斥（工单160 推荐条目菜单同挂 pill 横排位）
     appMenu = { exe: e.exe, rows: taskbarAppMenuRows(e) }
+    if (current) render(current)
+  })
+  return el
+}
+
+/** 推荐组条目元素（工单160 图标化）：只呈现应用图标（无名称文字，显示名即时进出
+ * tooltip），图标经 desktop/icon 契约同款管线（iconKey → dataURL 本地缓存，应用组
+ * applyIcon 同源）；无图标键条目首字母占位（工单156 appIconFallbackText 复用）。
+ * 左键启动经 taskbar/rec-click（exe 身份寻址）；右键两行菜单（手钉/打开位置）；
+ * 拖拽宿主 .tb-rec 本身（组内换位 / 拖应用组升手钉，工单57 内核已接线）。 */
+function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'tb-rec'
+  el.dataset.name = rec.name // 几何存证与拖拽挂点按桌面项 name（既有口径）
+  el.dataset.exe = rec.exe // 交互挂点（点击/右键按富化 exe 身份分发）
+  el.title = rec.display
+  if (rec.iconKey) {
+    const img = document.createElement('img')
+    img.draggable = false // 拖拽宿主是 .tb-rec 本身：图标默认可拖会把手势截成原生图片拖拽
+    img.dataset.iconKey = rec.iconKey
+    img.alt = rec.display
+    el.appendChild(img)
+    applyIcon(img, rec.iconKey)
+  } else {
+    // 无图标键条目首字母占位（工单156 同款），不出空白格
+    const fb = document.createElement('div')
+    fb.className = 'tb-rec-letter'
+    fb.textContent = appIconFallbackText({ label: rec.display, exe: rec.exe })
+    el.appendChild(fb)
+  }
+  makeDraggable(el, 'recs', rec.name) // 推荐位可拖：组内换位 / 拖应用组升手钉
+  el.addEventListener('click', () => {
+    window.deck.host.notify('taskbar-rec-click', { name: rec.name, exe: rec.exe })
+    void dispatchRecClick(window.deck.bridge, rec.exe)
+      .then((r) => window.deck.host.notify('taskbar-rec-click-result', { name: rec.name, exe: rec.exe, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+  })
+  el.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault()
+    ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
+    appMenu = null
+    windowList = null
+    recMenu = { exe: rec.exe, name: rec.name }
     if (current) render(current)
   })
   return el
@@ -479,12 +525,7 @@ function render(state: TaskbarState): void {
       pillStart.appendChild(el)
     }
     for (const rec of vm.recommendations) {
-      const el = document.createElement('div')
-      el.className = 'tb-rec'
-      el.dataset.name = rec.name
-      el.textContent = rec.display
-      makeDraggable(el, 'recs', rec.name) // 推荐位可拖：组内换位 / 拖应用组升手钉
-      pillStart.appendChild(el)
+      pillStart.appendChild(makeRecEl(rec))
     }
     if (menuOpen) {
       const sep = document.createElement('div')
@@ -524,6 +565,33 @@ function render(state: TaskbarState): void {
         // 回推的 taskbar/changed 驱动重渲收层（手钉变更即刻反映在应用组）
         void dispatchAppMenuAction(window.deck.bridge, exe, row.action)
         appMenu = null
+        if (current) render(current)
+      })
+      pillStart.appendChild(el)
+    }
+  }
+  // 推荐组条目右键菜单（工单160）：手钉到任务栏、打开文件位置两行（54/53 菜单同形态
+  // 横排）。行点击先收层再分发（appMenu 同款），手钉变更经回推的 taskbar/changed 重渲。
+  if (recMenu) {
+    const sep = document.createElement('div')
+    sep.className = 'tb-menu-sep'
+    pillStart.appendChild(sep)
+    for (const row of taskbarRecMenuRows()) {
+      const el = document.createElement('div')
+      el.className = 'tb-menu-item'
+      el.dataset.action = row.action
+      el.dataset.name = recMenu.name
+      el.textContent = row.label
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        const target = recMenu
+        recMenu = null
+        if (!target) return
+        window.deck.host.notify('taskbar-rec-menu-action', { name: target.name, exe: target.exe, action: row.action })
+        void dispatchRecMenuAction(window.deck.bridge, target.exe, row.action)
+          .then((r) => {
+            if (r) window.deck.host.notify('taskbar-rec-menu-result', { name: target.name, exe: target.exe, action: row.action })
+          })
         if (current) render(current)
       })
       pillStart.appendChild(el)
