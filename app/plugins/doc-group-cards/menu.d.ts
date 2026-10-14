@@ -124,8 +124,9 @@ export declare function isHandEditableKind(kind: CardKind | undefined): boolean
 
 /** 文件菜单（单选）七项：工单182 的只读五项 + 工单183 的 RENAME / DELETE */
 export declare const FILE_MENU_ROWS: readonly MenuRowSpec[]
-/** 组卡菜单（卡片空白处右键）行表：工单185 的 NEW GROUP / EDIT TYPES（固有扩展组卡不出这两行）；
- *  PASTE 与 DISSOLVE 归工单186 */
+/** 组卡菜单（卡片空白处右键）行表：工单186 起为 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE。
+ *  PASTE 恒可见（needs:'pasteable' 按剪贴板实况置灰），另三行只在手改得动的卡上出现——
+ *  固有扩展组卡不出 NEW GROUP / EDIT TYPES / DISSOLVE（它随文件增删自生自灭，没有定义可删） */
 export declare const GROUP_CARD_MENU_ROWS: readonly MenuRowSpec[]
 
 /** 一行在当前上下文下可不可用（唯一的置灰裁决出口） */

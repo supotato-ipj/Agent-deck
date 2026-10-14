@@ -185,8 +185,15 @@ function checkedExts(): string[] {
   return typeRows().filter((r) => r.children[0].textContent === '☑').map((r) => r.dataset.ext)
 }
 
-function rightClickBlank(card: Element, x = 900, y = 700): void {
+/**
+ * 卡片**空白处**右键 → 组卡菜单。
+ *
+ * 工单186 起这一击是**异步**的：组卡菜单里多了 PASTE 行，它的置灰必须跟着剪贴板实况走
+ * （desktop/clipboard-state 是异步契约），故开层前要先问一次。故这里等一拍再返回。
+ */
+async function rightClickBlank(card: Element, x = 900, y = 700): Promise<void> {
   card.dispatch('contextmenu', card, { clientX: x, clientY: y })
+  await flush()
 }
 
 function pressEsc(): void {
@@ -252,7 +259,7 @@ describe('组定义经插件私有状态通道存取（工单178 那对方法；
     plugin.mount(h.host)
     await flush()
 
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('new-group').dispatch('click')
     byId(TYPE_NAME_ID)!.value = '票据'
     byId(TYPE_OK_ID)!.dispatch('click')
@@ -288,19 +295,24 @@ describe('组卡菜单：NEW GROUP / EDIT TYPES 只在手改得动的卡上出�
     plugin.mount(h.host)
     await flush()
 
-    rightClickBlank(cardById('dgc-c1'))
-    expect(menuLabels()).toEqual(['NEW GROUP', 'EDIT TYPES'])
-    expect(menuRows().some((r) => r.classList.contains(DISABLED_CLASS))).toBe(false)
+    await rightClickBlank(cardById('dgc-c1'))
+    // 工单186 起 PASTE 是第一行、DISSOLVE 是第四行（前者恒可见但按剪贴板实况置灰；
+    // 后者只在手改得动的卡上出现——本用例是自定义卡，出）
+    expect(menuLabels()).toEqual(['PASTE', 'NEW GROUP', 'EDIT TYPES', 'DISSOLVE'])
+    // NEW GROUP / EDIT TYPES 两行都可用（置灰的那一格是 PASTE——本用例宿主桩没给剪贴板实况）
+    expect(menuRows().filter((r) => r.dataset.row !== 'paste' && r.classList.contains(DISABLED_CLASS))).toEqual([])
   })
 
   it('固有扩展组卡**不出**这两行：规则生成的卡不该被手改', async () => {
     plugin.mount(h.host)
     await flush()
 
-    rightClickBlank(cardById('dgc-pdf'))
-    // 零可见行 → 按工单182 定的规则不弹菜单（那道规则一个字没动）
-    expect(menuRows()).toEqual([])
-    expect(panel()).toBeNull()
+    await rightClickBlank(cardById('dgc-pdf'))
+    // 工单185 登记过的「零可见行 → 不弹菜单」被工单186 的 PASTE 行化解了一半：那只菜单出得来，
+    // 但里面**只有 PASTE 一行**（NEW GROUP / EDIT TYPES / DISSOLVE 三行仍不可见）。
+    // 「一可见行都没有就不弹」那道规则（工单182）本身一个字没动——PASTE 让它不再被触发。
+    expect(menuRows().map((r) => r.dataset.row)).toEqual(['paste'])
+    expect(panel()).not.toBeNull()
     expect(typesOverlay()).toBeNull()
   })
 
@@ -323,7 +335,7 @@ describe('NEW GROUP：勾选浮层铺出来的那一面（工单185）', () => {
     seedCustomGroup([CONTRACT_GROUP])
     plugin.mount(h.host)
     await flush()
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('new-group').dispatch('click')
     openSnapshot = { domChanges: h.domChanges.length, keydown: win.listenerCount('keydown') }
   })
@@ -391,7 +403,7 @@ describe('NEW GROUP：勾选浮层铺出来的那一面（工单185）', () => {
     expect(h.configCalls().filter((c) => c.method === 'plugin-config/set')).toEqual([])
     expect(cards().map((c) => c.id)).toEqual(['dgc-c1', 'dgc-pdf'])
 
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('new-group').dispatch('click')
     pressEsc()
     await flush()
@@ -454,20 +466,20 @@ describe('EDIT TYPES：改接受的类型，既有文件自动改主', () => {
     await flush()
   })
 
-  function openEdit() {
-    rightClickBlank(cardById('dgc-c1'))
+  async function openEdit() {
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('edit-types').dispatch('click')
   }
 
   it('开层如实带回这张卡的名字与已声明的类型（已声明的显示为勾住）', async () => {
-    openEdit()
+    await openEdit()
     expect(checkedExts()).toEqual(['.docx'])
     expect(byId(TYPE_NAME_ID)).toBeNull() // EDIT TYPES 不改卡名，故没有名字输入
     expect(byId(TYPE_OK_ID)!.textContent).toBe('SAVE')
   })
 
   it('把 .pdf 也勾进来：pdf 自动改主，固有 PDF 卡不再生成，docx 不动', async () => {
-    openEdit()
+    await openEdit()
     typeRows().find((r) => r.dataset.ext === '.pdf')!.dispatch('click')
     byId(TYPE_OK_ID)!.dispatch('click')
     await flush()
@@ -480,7 +492,7 @@ describe('EDIT TYPES：改接受的类型，既有文件自动改主', () => {
   })
 
   it('把 .docx 取消勾：文件落回固有组（迁移的另一头，同样无需手动干预）', async () => {
-    openEdit()
+    await openEdit()
     typeRows().find((r) => r.dataset.ext === '.docx')!.dispatch('click')
     byId(TYPE_OK_ID)!.dispatch('click')
     await flush()
@@ -492,7 +504,7 @@ describe('EDIT TYPES：改接受的类型，既有文件自动改主', () => {
   })
 
   it('改完落盘，重启之后归属不变', async () => {
-    openEdit()
+    await openEdit()
     typeRows().find((r) => r.dataset.ext === '.pdf')!.dispatch('click')
     byId(TYPE_OK_ID)!.dispatch('click')
     await flush()
@@ -506,7 +518,7 @@ describe('EDIT TYPES：改接受的类型，既有文件自动改主', () => {
   })
 
   it('取消：一次落库动作都不发，原定义原样', async () => {
-    openEdit()
+    await openEdit()
     typeRows().find((r) => r.dataset.ext === '.pdf')!.dispatch('click')
     pressEsc()
     await flush()
@@ -521,7 +533,7 @@ describe('生命周期纪律：键盘档、热区、遮罩、样式一个都不�
     plugin.mount(h.host)
     await flush()
 
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('new-group').dispatch('click')
     expect(h.tiers).toEqual(['hold:menu', 'release:menu', 'hold:types'])
     byId(TYPE_CANCEL_ID)!.dispatch('click')
@@ -532,7 +544,7 @@ describe('生命周期纪律：键盘档、热区、遮罩、样式一个都不�
     seedCustomGroup([CONTRACT_GROUP])
     plugin.mount(h.host)
     await flush()
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('new-group').dispatch('click')
     expect(typesOverlay()).not.toBeNull()
 
@@ -550,7 +562,7 @@ describe('生命周期纪律：键盘档、热区、遮罩、样式一个都不�
     seedCustomGroup([CONTRACT_GROUP])
     plugin.mount(h.host)
     await flush()
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     rowById('new-group').dispatch('click')
     expect(typesOverlay()).not.toBeNull()
 
@@ -596,7 +608,7 @@ describe('生命周期纪律：键盘档、热区、遮罩、样式一个都不�
     seedCustomGroup([CONTRACT_GROUP])
     plugin.mount(h.host)
     await flush()
-    rightClickBlank(cardById('dgc-c1'))
+    await rightClickBlank(cardById('dgc-c1'))
     const note = h.notes.find((n) => n.type === 'doc-group-cards-menu-opened')
     expect(note?.payload).toMatchObject({ cardId: 'dgc-c1' })
     expect(KIND_CUSTOM).toBe('custom')

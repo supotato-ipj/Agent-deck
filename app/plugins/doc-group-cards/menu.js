@@ -16,9 +16,10 @@
 //   - 工单183 已往里加 RENAME / DELETE（写动作，各配一块自绘 UX：删除确认层 / 内联重命名编辑器，
 //     见 writeops.js）；
 //   - 工单184 上多选后，needs:'single' 的行（打开所在位置、以及届时新增的重命名）自然被置灰；
-//   - 工单185 加组卡菜单的 NEW GROUP / EDIT TYPES（各配 visibleWhen：固有扩展组卡不出这两行），
-//     工单186 再加 PASTE（走 needs:'pasteable'）与 DISSOLVE。
-// 三张票都只往这张表里加行或改裁决函数，本文件与 card.js 的接缝不用动。
+//   - 工单185 加组卡菜单的 NEW GROUP / EDIT TYPES（各配 visibleWhen：固有扩展组卡不出这两行）；
+//   - 工单186 再加 PASTE（needs:'pasteable'，恒可见——任何一张卡都能接粘贴）与 DISSOLVE
+//     （visibleWhen 同款：固有扩展组卡没有定义可删，故不出这一行）。
+// 四张票都只往这张表里加行或改裁决函数，本文件与 card.js 的接缝不用动。
 
 /** 菜单宽度（像素）。定死它，钳制的算式才与画出来的盒子同源 */
 export const MENU_W = 176
@@ -156,30 +157,35 @@ export function isHandEditableKind(kind) {
 }
 
 /**
- * 组卡菜单（卡片**空白处**右键；与文件菜单同一副壳、同一套裁决）——NEW GROUP / EDIT TYPES。
+ * 组卡菜单（卡片**空白处**右键；与文件菜单同一副壳、同一套裁决）——PASTE / NEW GROUP / EDIT TYPES / DISSOLVE。
  *
- * 两行都带 `visibleWhen: 归宿自定义卡或临时卡`：**固有扩展组卡不出这两行**（规则生成的卡
- * 不该被手改）。行可见性只有 rowVisibleOf 这一个出口，渲染端不判。
+ * 行序即 spec166「菜单（自绘外壳）」写的次序：PASTE / NEW GROUP / EDIT TYPES / DISSOLVE
+ * （破坏性的 DISSOLVE 收尾，与文件菜单里 DELETE 收尾同款）。
  *
- * **这条判据带来的已知后果（工单185 交付时如实登记，不自行"改进"票面）**：全新安装时桌面上
- * 只有固有扩展组卡，而这张表对它们零可见行 → 按工单182 的规则右键卡片空白不出菜单 → 用户
- * **建不出第一张自定义卡**。票面 AC 写的是「固有扩展组卡不出 NEW GROUP / EDIT TYPES」，而
- * spec166 的「菜单（自绘外壳）」一节只把 EDIT TYPES / DISSOLVE 限制在自定义卡与临时卡上，两者
- * 在 NEW GROUP 这一行上不一致。本票按**票面**实现（票面是权威），把不一致登记在这里而不是
- * 偷偷改判：要让第一张卡建得出来，只需删掉 NEW GROUP 那一行的 `visibleWhen`（一处、一行），
- * 届时右键固有卡空白即出「NEW GROUP」，其余裁决一行不动。
+ * **PASTE 恒可见**（任何一张卡都能接粘贴），可用性走 `needs:'pasteable'`——读的是
+ * `desktop/clipboard-state` 的实况，查不到即置灰，绝不误使能。它是本票（#186）加进来的第一行。
+ *
+ * 另外三行都带 `visibleWhen: 归宿自定义卡或临时卡`：**固有扩展组卡不出这三行**（规则生成的卡
+ * 不该被手改，DISSOLVE 更是无从谈起——它压根没有定义可删）。行可见性只有 rowVisibleOf 这一个
+ * 出口，渲染端不判。
+ *
+ * **工单185 登记过的那个后果，本票改变了一半，如实更新**：#185 交付时这张表对固有扩展组卡
+ * 零可见行，于是右键卡片空白**不出菜单**、用户**建不出第一张自定义卡**（#185 按票面实现，并把
+ * 修法留成「删掉 NEW GROUP 那一行的 visibleWhen」一行）。本票加的 PASTE 行**恒可见**，于是
+ * 固有卡上右键**会出菜单了，只是菜单里只有 PASTE 一行**——NEW GROUP 仍在（票面 AC 与 spec166
+ * 那一节对不上，本票不改 #185 的裁决）。副作用是那条路反而通了：第一次粘贴生成的临时卡是
+ * 手改得动的卡，用户从它上面就能 NEW GROUP / EDIT TYPES 了。
  *
  * 可见性挂在卡片身份上而不挂在选区上：组卡菜单的选区恒为空（菜单是从卡片空白处开出来的，
  * 不是一个文件），故判据只能是 ctx.cardKind。
  *
- * PASTE（needs:'pasteable'）与 DISSOLVE 归工单186：前者要粘贴路由规则，后者要解散的确认层，
- * 两者都在那张票的验收标准里，本票一行不加。
- *
  * @type {{ id: string, label: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
  */
 export const GROUP_CARD_MENU_ROWS = [
+  { id: 'paste', label: 'PASTE', needs: NEED_PASTEABLE },
   { id: 'new-group', label: 'NEW GROUP', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
   { id: 'edit-types', label: 'EDIT TYPES', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
+  { id: 'dissolve', label: 'DISSOLVE', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
 ]
 
 /**

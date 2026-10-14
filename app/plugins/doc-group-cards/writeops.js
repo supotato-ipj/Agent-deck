@@ -1,4 +1,4 @@
-// 两块自绘写操作层的**纯逻辑**（工单183 = spec166 之⑥：删除确认层 + 内联重命名编辑器）。
+// 删除确认层与内联重命名编辑器的纯逻辑（工单183 = spec166 之⑥；工单186 在确认层上加了「解散」这一用途）。
 //
 // 与同目录 grouping.js / interaction.js / geometry.js / menu.js 同一条缝：**纯模块、零 DOM、零
 // Electron**，vitest 直测。「什么时候弹、弹出来长什么样、按哪个键干什么、键盘档什么时候持
@@ -10,6 +10,8 @@
 //     闭包，既不导出也不挂 window，桥接契约表里没有对应方法；插件跑在 deck-plugin:// 下的
 //     另一套模块图里，够不着那段源码。故自建一层**显示逻辑**——真正的删除动作仍走内核既有
 //     契约 desktop/trash（送回收站、扫描池全有全无护栏、清理摆位存证全部保留）。
+//     工单186 的**解散确认层复用同一块壳与同一张效果表**（只多一个 mode），不另建一层：
+//     同样是「先问过用户」，同样是取消零副作用，同样一块遮罩、同一套热区做法。
 //   - 内联重命名编辑器：同理（内核的 beginRename/createRenameInput 同样取不到）。提交仍走
 //     desktop/rename，**命名校验规则一个字都不在本插件重写**：Win32 合法名、同名幂等、大小写
 //     改名豁免、冲突拒绝——这些是内核的职责，本插件只负责把用户敲的字符串原样递过去，并把
@@ -22,6 +24,19 @@
 // 反过来说，档不放，窗口就一直可聚焦——故每一路收起都必须放，卸载亦然；万一插件连卸载钩子都
 // 没跑到（进程被杀），宿主在 reclaimPlugin 里按插件 id 强制回收（plugins.ts + plugin-tiers.ts），
 // 那是**兜底**，不是可以依赖的常规路径。
+
+/**
+ * 确认层开着时的**用途**（工单186 起两种，删掉删除那一层一个字没动）：
+ * - `trash` 送回收站（工单183）：唯一的落盘动作是内核既有契约 desktop/trash；
+ * - `dissolve` 解散组卡（工单186）：**没有任何落盘动作**——删掉的只是插件私有状态里那张卡的定义，
+ *   文件按扩展名回落固有分组，磁盘上零移动。故它的 `run` 效果是 `{op:'dissolve', cardId}`，
+ *   card.js 收到后只改组定义，**不发任何 desktop/* 契约调用**。
+ *
+ * 两种用途共用同一副壳、同一套遮罩与热区做法、同一张效果表，故「取消四路一律无副作用」这条
+ * 不变量对两者同款成立（cancel/esc/outside 三个分支里没有 run 条目，这是结构事实）。
+ */
+export const CONFIRM_MODE_TRASH = 'trash'
+export const CONFIRM_MODE_DISSOLVE = 'dissolve'
 
 /** 删除确认层的全屏遮罩 id（同时是 class='card'，故进热区扫掠；热区身份靠 id 且不去重，取唯一） */
 export const CONFIRM_OVERLAY_ID = 'dgc-confirm-overlay'
@@ -74,9 +89,20 @@ export const CONFIRM_GAP_Y = 10
 /** 按钮行高（像素） */
 export const CONFIRM_BTN_H = 26
 
-/** 确认层标题：与内核同款措辞（单数/复数），一字不差地照抄不是巧合——同一个心智模型 */
-export function confirmTitleOf(names) {
+/**
+ * 确认层标题：与内核同款措辞（单数/复数），一字不差地照抄不是巧合——同一个心智模型。
+ * 解散是另一种心智模型（删的是归属、不是文件），故它自己的措辞，不套用 DELETE 那句。
+ * @param {readonly string[]} names
+ * @param {string} [mode]
+ */
+export function confirmTitleOf(names, mode) {
+  if (mode === CONFIRM_MODE_DISSOLVE) return 'DISSOLVE CARD?'
   return names.length === 1 ? 'DELETE 1 ITEM?' : `DELETE ${names.length} ITEMS?`
+}
+
+/** 确认钮上的字：与标题同源（解散时写 DISSOLVE，不写 DELETE——那会骗用户） */
+export function confirmOkLabelOf(mode) {
+  return mode === CONFIRM_MODE_DISSOLVE ? 'DISSOLVE' : 'DELETE'
 }
 
 /**
@@ -117,19 +143,19 @@ export function confirmBoxOf(viewport, names) {
 // ---------------------------------------------------------------------------
 
 /** 闭态：清单空着——闭态不残留上一次的行，免得「确认层没开却还认得某个文件」的错觉 */
-export const CLOSED_CONFIRM = { open: false, names: [], paths: [] }
+export const CLOSED_CONFIRM = { open: false, mode: CONFIRM_MODE_TRASH, names: [], paths: [], cardId: '' }
 
 /**
- * @typedef {{ open: boolean, names: readonly string[], paths: readonly string[] }} ConfirmState
- *   names 仅供显示（标题与清单文案）；paths 才是送给 desktop/trash 的载荷，且**开层时冻结**——
- *   确认层开着期间桌面变了也按冻结那份走，绝不把中途新增的件搭车送进回收站。
+ * @typedef {{ open: boolean, mode: string, names: readonly string[], paths: readonly string[], cardId: string }} ConfirmState
+ *   names 仅供显示（标题与清单文案）；paths 是送 desktop/trash 的载荷；cardId 是解散的目标卡。
+ *   两者都**开层时冻结**——确认层开着期间桌面变了也按冻结那份走（绝不把中途新增的件搭车送走）。
  * @typedef {{ kind: 'tier', held: boolean }
- *   | { kind: 'show', names: readonly string[], box: { left: number, top: number, width: number, height: number } }
+ *   | { kind: 'show', mode: string, names: readonly string[], box: { left: number, top: number, width: number, height: number } }
  *   | { kind: 'hide' }
- *   | { kind: 'run', op: 'trash', paths: readonly string[] }
+ *   | { kind: 'run', op: 'trash' | 'dissolve', paths: readonly string[], cardId: string }
  *   | { kind: 'hotzones' }
  *   | { kind: 'notify', type: string, payload?: object }} ConfirmEffect
- * @typedef {{ type: 'open', names: readonly string[], paths: readonly string[] }
+ * @typedef {{ type: 'open', names: readonly string[], paths: readonly string[], mode?: string, cardId?: string }
  *   | { type: 'confirm' }
  *   | { type: 'cancel', reason: string }
  *   | { type: 'esc' }
@@ -138,7 +164,7 @@ export const CLOSED_CONFIRM = { open: false, names: [], paths: [] }
  */
 
 /**
- * 删除确认层的归约：一个事件一次合成。
+ * 确认层的归约：一个事件一次合成。
  *
  * 副作用顺序即纪律，与 menu.js 同款：
  *   1. **键盘档先持**——窗口先可聚焦，Esc 才送得到本插件自己的 keydown 监听；
@@ -146,11 +172,13 @@ export const CLOSED_CONFIRM = { open: false, names: [], paths: [] }
  *   4. 再执行动作；5. 最后存证。
  *
  * **取消四路（confirm 之外的一切）一律不产生 run 效果**——即「取消则无副作用」不是一句承诺，
- * 而是这张效果表的结构事实：没有 run，就没有 desktop/trash，也就没有任何落盘动作。
+ * 而是这张效果表的结构事实：没有 run，就没有 desktop/trash，也就没有任何落盘动作。解散确认层
+ * 共用这张表，故「取消即不解散」是同一件结构事实，不是另写一遍的承诺。
  *
  * 闭态下的 confirm/cancel/esc/outside 是迟到噪声（无转移、无效果）；已在层里时再 open 不重入
- * （与内核 openTrashConfirm 的 `if (trashConfirmOpen()) return` 同款）。空清单一律不开层：
- * 没有可确认的东西时弹一个空框毫无意义。
+ * （与内核 openTrashConfirm 的 `if (trashConfirmOpen()) return` 同款）。两种用途各自的开层门槛：
+ * 送回收站要有路径（没有可删的东西时弹一只空框毫无意义），解散要有目标卡（没有定义可删时
+ * 更是无从谈起——固有扩展组卡压根不落在组定义里）。
  *
  * @param {ConfirmState} state
  * @param {ConfirmEvent} event
@@ -161,17 +189,23 @@ export function nextConfirmLayer(state, event, viewport) {
   switch (event.type) {
     case 'open': {
       if (state.open) return { state, effects: [] }
-      if (!event.paths.length) return { state, effects: [] }
+      const mode = event.mode === CONFIRM_MODE_DISSOLVE ? CONFIRM_MODE_DISSOLVE : CONFIRM_MODE_TRASH
+      const cardId = mode === CONFIRM_MODE_DISSOLVE ? String(event.cardId || '') : ''
+      if (mode === CONFIRM_MODE_DISSOLVE ? !cardId : !event.paths.length) return { state, effects: [] }
       const names = [...event.names]
       const paths = [...event.paths]
       const box = confirmBoxOf(viewport, names)
       return {
-        state: { open: true, names, paths },
+        state: { open: true, mode, names, paths, cardId },
         effects: [
           { kind: 'tier', held: true },
-          { kind: 'show', names, box },
+          { kind: 'show', mode, names, box },
           { kind: 'hotzones' },
-          { kind: 'notify', type: CONFIRM_OPENED_NOTIFY, payload: { names, count: paths.length, box } },
+          {
+            kind: 'notify',
+            type: CONFIRM_OPENED_NOTIFY,
+            payload: { mode, names, count: paths.length, cardId, box },
+          },
         ],
       }
     }
@@ -183,8 +217,17 @@ export function nextConfirmLayer(state, event, viewport) {
           { kind: 'hide' },
           { kind: 'hotzones' },
           { kind: 'tier', held: false },
-          { kind: 'run', op: 'trash', paths: state.paths },
-          { kind: 'notify', type: CONFIRM_CLOSED_NOTIFY, payload: { reason: 'confirm', count: state.paths.length } },
+          {
+            kind: 'run',
+            op: state.mode === CONFIRM_MODE_DISSOLVE ? 'dissolve' : 'trash',
+            paths: state.paths,
+            cardId: state.cardId,
+          },
+          {
+            kind: 'notify',
+            type: CONFIRM_CLOSED_NOTIFY,
+            payload: { reason: 'confirm', mode: state.mode, count: state.paths.length, cardId: state.cardId },
+          },
         ],
       }
     }
@@ -201,7 +244,12 @@ export function nextConfirmLayer(state, event, viewport) {
           {
             kind: 'notify',
             type: CONFIRM_CLOSED_NOTIFY,
-            payload: { reason: event.type === 'esc' ? 'esc' : event.type === 'outside' ? 'outside' : event.reason, count: state.paths.length },
+            payload: {
+              reason: event.type === 'esc' ? 'esc' : event.type === 'outside' ? 'outside' : event.reason,
+              mode: state.mode,
+              count: state.paths.length,
+              cardId: state.cardId,
+            },
           },
         ],
       }

@@ -21,14 +21,16 @@ export type CustomGroupDef = {
   seq: number
 }
 
-/** 临时组卡的定义（本票只占位并落盘序号；生成规则与成员模型归工单186） */
+/** 临时组卡的定义（工单186：每次粘贴各一张，成员 = 这一批粘贴落地的桌面文件名） */
 export type TempGroupDef = {
   id: string
-  /** 卡面名（只带序号，如 `临时 01`） */
+  /** 卡面名（粘贴时刻 + 序号，如 `临时 10-15 21:04 01`；时刻丢失时退化成 `临时 01`） */
   name: string
   seq: number
-  /** 粘贴时刻（工单186 按批次排序用；缺失落 0） */
+  /** 粘贴时刻（缺失落 0，不编一个当前时间） */
   createdAtMs: number
+  /** 这一批真正落地的桌面文件名（内核 desktop/paste 的 `pasted` 响应）；临时卡唯一的成员表示 */
+  names: string[]
 }
 
 /** 组定义整份状态（落在 plugin-config 的 STORE_KEY 一个键里，一次写 = 一次原子写） */
@@ -82,7 +84,10 @@ export declare function storeOf(response: unknown): GroupStore
 
 export declare function customCardIdOf(seq: number): string
 export declare function tempCardIdOf(seq: number): string
-export declare function tempLabelOf(seq: number): string
+/** 粘贴时刻 → `MM-DD HH:mm`（**本地时刻**；时刻缺失返回空串，不编一个当前时间） */
+export declare function pasteStampOf(nowMs: number): string
+/** 临时卡面名：粘贴时刻 + 序号（`临时 10-15 21:04 01`；无时刻则 `临时 01`） */
+export declare function tempLabelOf(seq: number, stamp?: string | null): string
 
 /** 建一张自定义组卡（纯函数；序号取自落盘的单调计数器） */
 export declare function addCustomGroup(
@@ -97,11 +102,28 @@ export declare function editCustomGroupTypes(
   types: { exts?: unknown; acceptAll?: unknown },
 ): GroupStore
 
-/** 占一张临时组卡的序号（纯占位；生成规则归工单186） */
+/** 建一张临时组卡（取号 + 命名 + 记下这一批的成员；纯函数） */
 export declare function allocateTempCard(
   store: unknown,
   nowMs?: number,
+  names?: readonly string[],
 ): { store: GroupStore; card: TempGroupDef }
+
+/** 往一张已有临时卡里再粘一批（只加不重；返回本次真正新加进去的那几个） */
+export declare function appendToTempCard(
+  store: unknown,
+  cardId: string,
+  names: readonly string[],
+): { store: GroupStore; card: TempGroupDef | null; added: string[] }
+
+/** 解散一张组卡：只删定义，成员按扩展名回落固有分组；磁盘零移动（返回值里没有路径也没有文件操作） */
+export declare function dissolveGroup(
+  store: unknown,
+  cardId: string,
+): { store: GroupStore; dissolved: CustomGroupDef | TempGroupDef | null; kind: string }
+
+/** 这张卡接受任意类型吗（显式对卡粘贴能否粘进去；有限清单的自定义卡不算是） */
+export declare function acceptsAnyTypeOf(store: unknown, cardId: string): boolean
 
 /** 第一层裁决：创建顺序最早、且接受该扩展名的那张自定义卡（先建先得） */
 export declare function acceptingCustomOf(store: unknown, ext: string): CustomGroupDef | null

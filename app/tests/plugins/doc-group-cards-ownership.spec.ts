@@ -24,6 +24,7 @@ import {
   editCustomGroupTypes,
   emptyStore,
   normalizeStore,
+  pasteStampOf,
   presentExtensionsOf,
   resolveOwner,
   storeOf,
@@ -150,7 +151,10 @@ describe('临时卡序号：纳入持久化设计，跨重启不撞名（工单1
     const a = allocateTempCard(emptyStore(), 1710000000000)
     const b = allocateTempCard(a.store, 1710000001000)
     expect([a.card.seq, b.card.seq]).toEqual([1, 2])
-    expect([a.card.name, b.card.name]).toEqual(['临时 01', '临时 02'])
+    // 工单186 AC「命名含粘贴时间与序号」：卡面名改带时刻，序号仍在末尾（唯一性依旧只靠序号）
+    expect(a.card.name).toBe(tempLabelOf(1, pasteStampOf(1710000000000)))
+    expect(b.card.name).toBe(tempLabelOf(2, pasteStampOf(1710000001000)))
+    expect(a.card.name).not.toBe(b.card.name)
     expect(a.card.id).not.toBe(b.card.id)
     expect(b.store.temps.map((t) => t.id)).toEqual([a.card.id, b.card.id])
   })
@@ -160,7 +164,7 @@ describe('临时卡序号：纳入持久化设计，跨重启不撞名（工单1
     const afterRestart = roundTrip(a.store)
     const b = allocateTempCard(afterRestart, 1710000001000)
     expect(b.card.seq).toBe(2)
-    expect(b.card.name).toBe('临时 02')
+    expect(b.card.name).toBe(tempLabelOf(2, pasteStampOf(1710000001000)))
     // 与重启前那张不是同一张卡
     expect(b.card.id).not.toBe(a.card.id)
     expect(b.store.temps).toHaveLength(2)
@@ -175,7 +179,7 @@ describe('临时卡序号：纳入持久化设计，跨重启不撞名（工单1
     expect(b.card.seq).toBe(2)
     expect(b.card.id).not.toBe(a.card.id)
 
-    const seven = roundTrip({ ...emptyStore(), nextSeq: 1, temps: [{ id: 'dgc-t7', name: '临时 07', seq: 7, createdAtMs: 0 }] })
+    const seven = roundTrip({ ...emptyStore(), nextSeq: 1, temps: [{ id: 'dgc-t7', name: '临时 07', seq: 7, createdAtMs: 0, names: [] }] })
     expect(seven.nextSeq).toBe(8)
     expect(allocateTempCard(seven, 0).card.seq).toBe(8)
   })
@@ -189,11 +193,21 @@ describe('临时卡序号：纳入持久化设计，跨重启不撞名（工单1
     expect(customCardIdOf(1)).toBe('dgc-c1')
   })
 
-  it('临时卡定义带创建时刻（工单186 按粘贴时间排序要用），但不参与命名——命名只带序号', () => {
-    const a = allocateTempCard(emptyStore(), 1710000000000)
-    expect(a.card).toMatchObject({ id: 'dgc-t1', name: tempLabelOf(1), seq: 1, createdAtMs: 1710000000000 })
-    // 时刻缺失时落 0，不猜一个当前时间（编时刻 = 以后没法复现「哪一批」）
+  it('临时卡定义带创建时刻，**时刻与序号一起进卡面名**（工单186 AC「命名含粘贴时间与序号」）', () => {
+    const a = allocateTempCard(emptyStore(), 1710000000000, ['甲.zip'])
+    // 工单185 交付时命名「只带序号」（唯一性靠序号）；工单186 按 AC 把粘贴时刻也加进来，
+    // 序号仍在末尾——「唯一性靠序号、不靠名字」那条不变量一个字没动。详见 ownership.tempLabelOf。
+    expect(a.card).toMatchObject({
+      id: 'dgc-t1',
+      name: tempLabelOf(1, pasteStampOf(1710000000000)),
+      seq: 1,
+      createdAtMs: 1710000000000,
+      names: ['甲.zip'],
+    })
+    expect(a.card.name).toContain('01')
+    // 时刻缺失时落 0，不猜一个当前时间（编时刻 = 以后没法复现「哪一批」）；名字退化成只带序号
     expect(allocateTempCard(emptyStore(), Number.NaN).card.createdAtMs).toBe(0)
+    expect(allocateTempCard(emptyStore(), Number.NaN).card.name).toBe(tempLabelOf(1))
   })
 })
 

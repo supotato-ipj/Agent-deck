@@ -21,21 +21,29 @@ export type Box = { left: number; top: number; width: number; height: number }
 /** 确认层状态：开层时冻结的文件名清单（显示用）与绝对路径（真正送给 desktop/trash 的载荷） */
 export type ConfirmState = {
   open: boolean
+  /** 用途：trash 送回收站（#183）/ dissolve 解散组卡（#186）。缺省即 trash */
+  mode: string
   names: readonly string[]
   paths: readonly string[]
+  /** 解散的目标卡 id（trash 恒为空串） */
+  cardId: string
 }
+
+/** 确认层的两种用途 */
+export declare const CONFIRM_MODE_TRASH: 'trash'
+export declare const CONFIRM_MODE_DISSOLVE: 'dissolve'
 
 /** 确认层的一个事件的全部副作用（按数组序执行） */
 export type ConfirmEffect =
   | { kind: 'tier'; held: boolean }
-  | { kind: 'show'; names: readonly string[]; box: Box }
+  | { kind: 'show'; mode: string; names: readonly string[]; box: Box }
   | { kind: 'hide' }
-  | { kind: 'run'; op: 'trash'; paths: readonly string[] }
+  | { kind: 'run'; op: 'trash' | 'dissolve'; paths: readonly string[]; cardId: string }
   | { kind: 'hotzones' }
   | { kind: 'notify'; type: string; payload?: Record<string, unknown> }
 
 export type ConfirmEvent =
-  | { type: 'open'; names: readonly string[]; paths: readonly string[] }
+  | { type: 'open'; names: readonly string[]; paths: readonly string[]; mode?: string; cardId?: string }
   | { type: 'confirm' }
   | { type: 'cancel'; reason: string }
   | { type: 'esc' }
@@ -47,8 +55,10 @@ export type ConfirmResult = { state: ConfirmState; effects: ConfirmEffect[] }
 /** 闭态 */
 export declare const CLOSED_CONFIRM: ConfirmState
 
-/** 确认层标题（单数/复数，与内核同款措辞） */
-export declare function confirmTitleOf(names: readonly string[]): string
+/** 确认层标题（trash：单数/复数与内核同款措辞；dissolve：DISSOLVE CARD?） */
+export declare function confirmTitleOf(names: readonly string[], mode?: string): string
+/** 确认钮上的字（与标题同源：dissolve 时写 DISSOLVE） */
+export declare function confirmOkLabelOf(mode?: string): string
 /** 文案行数：标题一行 + 文件名每件一行 */
 export declare function confirmLinesOf(names: readonly string[]): number
 /** 确认层盒子尺寸 */

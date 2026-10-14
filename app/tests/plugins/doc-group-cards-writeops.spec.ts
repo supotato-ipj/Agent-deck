@@ -27,6 +27,7 @@ import {
   GROUP_CARD_MENU_ROWS,
   KEYBOARD_TIER,
   NEED_ANY,
+  NEED_PASTEABLE,
   NEED_SINGLE,
   nextMenuShell,
   resolveMenuRows,
@@ -37,11 +38,14 @@ import {
   CONFIRM_BTN_H,
   CONFIRM_KEYBOARD_TIER,
   CONFIRM_LINE_H,
+  CONFIRM_MODE_DISSOLVE,
+  CONFIRM_MODE_TRASH,
   CONFIRM_PAD_Y,
   CONFIRM_W,
   RENAME_KEYBOARD_TIER,
   confirmBoxOf,
   confirmLinesOf,
+  confirmOkLabelOf,
   confirmSizeOf,
   confirmTitleOf,
   nextConfirmLayer,
@@ -98,7 +102,8 @@ describe('删除确认层：开层（工单183：DELETE 前必须先问过用户
 
   it('开层时冻结清单：桌面此后怎么变，确认层要删的仍是开层那一份', () => {
     const { state } = confirm({ type: 'open', names: [DOCX], paths: PATHS })
-    expect(state).toEqual({ open: true, names: [DOCX], paths: PATHS })
+    // 工单186 起确认层多带一个用途（mode，默认 trash）与一个解散目标（cardId，trash 恒空串）
+    expect(state).toEqual({ open: true, mode: CONFIRM_MODE_TRASH, names: [DOCX], paths: PATHS, cardId: '' })
     // 入参被原样拷进去：调用方之后再往数组里塞东西也影响不到已冻结的状态
     const src = [DOCX]
     const frozen = confirm({ type: 'open', names: src, paths: src }).state
@@ -127,7 +132,7 @@ describe('删除确认层：确认 = 唯一会产生写动作的那一路', () =
     expect(kinds(effects)).toEqual(['hide', 'hotzones', 'tier', 'run', 'notify'])
     expect(state).toBe(CLOSED_CONFIRM)
     expect(effects[2]).toEqual({ kind: 'tier', held: false })
-    expect(runs(effects)).toEqual([{ kind: 'run', op: 'trash', paths: PATHS }])
+    expect(runs(effects)).toEqual([{ kind: 'run', op: 'trash', paths: PATHS, cardId: '' }])
   })
 
   it('送回收站走的是内核既有契约 desktop/trash（插件不自己 shell.trashItem）', () => {
@@ -395,20 +400,76 @@ describe('文件菜单新增的两行（工单183 往 FILE_MENU_ROWS 里加）',
   })
 })
 
-describe('组卡菜单（卡片空白右键；工单185 已往里填 NEW GROUP / EDIT TYPES，PASTE 与 DISSOLVE 归工单186）', () => {
-  it('工单185 填进了 NEW GROUP / EDIT TYPES；PASTE 仍归工单186（粘贴路由），DISSOLVE 同一票', () => {
-    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).toEqual(['new-group', 'edit-types'])
-    expect(GROUP_CARD_MENU_ROWS.map((r) => r.label)).toEqual(['NEW GROUP', 'EDIT TYPES'])
-    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).not.toContain('paste')
-    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).not.toContain('dissolve')
+describe('解散确认层（工单186：复用删除确认层那块壳与那张效果表，只多一个 mode）', () => {
+  const opened = confirm({
+    type: 'open',
+    mode: CONFIRM_MODE_DISSOLVE,
+    cardId: 'dgc-t2',
+    names: ['临时 10-15 21:04 02', '杂.zip'],
+    paths: ['C:\\me\\杂.zip'],
+  }).state
+
+  it('开层门槛不同：解散要**目标卡**（没有定义可删时无从谈起），没有目标就不开层', () => {
+    expect(opened.open).toBe(true)
+    expect(confirm({ type: 'open', mode: CONFIRM_MODE_DISSOLVE, names: ['卡'], paths: [] })).toEqual({ state: CLOSED_CONFIRM, effects: [] })
   })
 
-  it('两行都带 visibleWhen（可见性裁决只有 rowVisibleOf 一个出口，渲染端不判）', () => {
-    expect(GROUP_CARD_MENU_ROWS.every((r) => typeof r.visibleWhen === 'function')).toBe(true)
+  it('标题与钮字是**解散**的措辞，不套用 DELETE（那会骗用户以为要删文件）', () => {
+    expect(confirmTitleOf(['临时 10-15 21:04 02'], CONFIRM_MODE_DISSOLVE)).toBe('DISSOLVE CARD?')
+    expect(confirmOkLabelOf(CONFIRM_MODE_DISSOLVE)).toBe('DISSOLVE')
+    expect(confirmTitleOf([DOCX])).toBe('DELETE 1 ITEM?')
+    expect(confirmOkLabelOf(CONFIRM_MODE_TRASH)).toBe('DELETE')
+  })
+
+  it("确认 → run 是 {op:'dissolve', cardId}：**零个 desktop/trash**（删的是定义，不是文件）", () => {
+    const { state, effects } = confirm({ type: 'confirm' }, opened)
+    expect(kinds(effects)).toEqual(['hide', 'hotzones', 'tier', 'run', 'notify'])
+    expect(state).toBe(CLOSED_CONFIRM)
+    expect(runs(effects)).toEqual([{ kind: 'run', op: 'dissolve', paths: ['C:\\me\\杂.zip'], cardId: 'dgc-t2' }])
+    // 载荷里只有归属信息，**没有一个路径字段是给内核搬文件用的**（card.js 收到后只改组定义）
+    expect(Object.keys(runs(effects)[0]).sort()).toEqual(['cardId', 'kind', 'op', 'paths'])
+  })
+
+  it('**取消三路（confirm 之外的一切）一律无副作用**：一张卡都不删', () => {
+    for (const event of [{ type: 'cancel', reason: 'button' }, { type: 'esc' }, { type: 'outside' }] as ConfirmEvent[]) {
+      const { state, effects } = confirm(event, opened)
+      expect(runs(effects), event.type).toEqual([])
+      expect(state).toBe(CLOSED_CONFIRM)
+    }
+  })
+
+  it('闭态下的取消 / 确认是迟到噪声（无转移、无效果）', () => {
+    expect(confirm({ type: 'confirm' }, CLOSED_CONFIRM).effects).toEqual([])
+    expect(confirm({ type: 'cancel', reason: 'x' }, CLOSED_CONFIRM).effects).toEqual([])
+  })
+
+  it('卸载静默收场：遮罩 / 热区 / 键盘档一样不漏地收回', () => {
+    const { state, effects } = confirm({ type: 'unmount' }, opened)
+    expect(state).toBe(CLOSED_CONFIRM)
+    expect(kinds(effects)).toEqual(['hide', 'hotzones', 'tier'])
+    expect(runs(effects)).toEqual([])
+  })
+})
+
+describe('组卡菜单（卡片空白右键；工单185 填 NEW GROUP / EDIT TYPES，工单186 再填 PASTE / DISSOLVE）', () => {  it('工单186 补齐 PASTE / DISSOLVE，四行齐了，顺序即 spec166「菜单（自绘外壳）」那一节', () => {
+    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
+    expect(GROUP_CARD_MENU_ROWS.map((r) => r.label)).toEqual(['PASTE', 'NEW GROUP', 'EDIT TYPES', 'DISSOLVE'])
+  })
+
+  it('PASTE 走 needs:pasteable（按剪贴板实况置灰），且**恒可见**——任何一张卡都能接粘贴', () => {
+    const paste = GROUP_CARD_MENU_ROWS[0]
+    expect(paste.needs).toBe(NEED_PASTEABLE)
+    expect(paste.visibleWhen).toBeUndefined()
+    expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' }).map((r) => r.id))
+      .toEqual(['paste'])
+  })
+
+  it('另外三行都带 visibleWhen（可见性裁决只有 rowVisibleOf 一个出口，渲染端不判）', () => {
+    expect(GROUP_CARD_MENU_ROWS.slice(1).every((r) => typeof r.visibleWhen === 'function')).toBe(true)
   })
 
   it('行一填即生效，无需改渲染端：同一副壳、同一套裁决，只换行表与上下文', () => {
-    // 拿组卡菜单该有的形状（工单185 的 DISSOLVE）走一遍：出菜单、可见、带 cardId、动作带回 cardId
+    // 拿组卡菜单该有的形状（工单186 的 DISSOLVE）走一遍：出菜单、可见、带 cardId、动作带回 cardId
     const specs = [{ id: 'dissolve', label: 'DISSOLVE' }]
     const { state, effects } = nextMenuShell(CLOSED_MENU, {
       type: 'open', x: 10, y: 20, viewport: VIEWPORT, specs, ctx: { paths: [], cardId: 'dgc-docx' },
@@ -427,21 +488,23 @@ describe('组卡菜单（卡片空白右键；工单185 已往里填 NEW GROUP /
     expect(state.cardId).toBe('')
   })
 
-  it('「一可见行都没有就不弹」的规则原样保留：固有扩展组卡上这两行都不可见，故不出菜单', () => {
-    // 工单182 钉死的规则一个字没动。工单185 往表里填了行，但两行都带
-    // `visibleWhen: 自定义卡或临时卡` —— 固有扩展组卡是规则生成的，不该被手改，
-    // 于是那张卡上仍是零可见行，按规则不出菜单（弹一只空框毫无意义）。
+  it('「一可见行都没有就不弹」的规则原样保留：固有扩展组卡上只剩 PASTE 一行（工单185 登记的后果被化解一半）', () => {
+    // 工单182 钉死的规则一个字没动。固有扩展组卡是规则生成的，不该被手改，故 NEW GROUP /
+    // EDIT TYPES / DISSOLVE 三行都不可见；工单186 的 PASTE 行**恒可见**，于是那张卡上从
+    // 「零可见行 → 不出菜单」变成「出一只只有 PASTE 的菜单」。仍不是空壳，故照弹。
     const { state, effects } = nextMenuShell(CLOSED_MENU, {
       type: 'open', x: 0, y: 0, viewport: VIEWPORT, specs: GROUP_CARD_MENU_ROWS, ctx: { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' },
     })
-    expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' })).toEqual([])
-    expect(state).toBe(CLOSED_MENU)
-    expect(effects).toEqual([])
+    const rows = resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' })
+    expect(rows.map((r) => r.id)).toEqual(['paste'])
+    expect(rows[0].enabled).toBe(false) // 没给剪贴板实况 → 查不到即置灰，绝不误使能
+    expect(state.open).toBe(true)
+    expect(kinds(effects)).toEqual(['keyboard-tier', 'show', 'hotzones', 'notify'])
   })
 
   it('**同一个壳**在手改得动的卡上就弹得出来了（行到即生效，渲染端一行不改）', () => {
-    const ctx = { paths: [], cardId: 'dgc-c1', cardKind: 'custom' as const }
-    expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, ctx).map((r) => r.id)).toEqual(['new-group', 'edit-types'])
+    const ctx = { paths: [], cardId: 'dgc-c1', cardKind: 'custom' as const, pasteable: true }
+    expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, ctx).map((r) => r.id)).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
     const { state, effects } = nextMenuShell(CLOSED_MENU, {
       type: 'open', x: 10, y: 20, viewport: VIEWPORT, specs: GROUP_CARD_MENU_ROWS, ctx,
     })

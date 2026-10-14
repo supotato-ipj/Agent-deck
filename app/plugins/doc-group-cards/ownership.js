@@ -44,16 +44,25 @@ export const TIER_BUILTIN = 'builtin'
 /**
  * @typedef {object} TempGroupDef
  * @property {string} id `dgc-t<seq>`
- * @property {string} name 卡面名（只带序号：`临时 01`）
+ * @property {string} name 卡面名（粘贴时刻 + 序号：`临时 10-15 21:04 01`）
  * @property {number} seq 序号（与自定义卡共用一个计数器）
  * @property {number} createdAtMs 粘贴时刻（工单186 按批次排序用；缺失落 0，不编一个当前时间）
+ * @property {readonly string[]} names 这一批粘贴真正落地的**桌面文件名**（内核 desktop/paste 的
+ *   `pasted` 响应：落盘最终名，含「x - 副本」后缀）。
+ *
+ *   **为什么临时卡非得存一份名单，而自定义卡不用**：自定义卡的成员是**定义**的函数（它接受哪些
+ *   扩展名，桌面上就有哪些文件属于它），所以工单185 那句「归属不存盘、只由定义现推」成立；
+ *   临时卡恰恰相反——它接受**任意**类型，「哪些文件属于它」这件事**无法**从扩展名推出来，它就是
+ *   「一次粘贴」这个事实本身。故名单是这张卡**唯一**的成员表示，别的路一条也没有（不另设同步表、
+ *   不靠到达次序、磁盘上更不需要任何记号）。文件本身**一个字节都不动**：名单记的是「归它」，
+ *   不是「搬到哪儿去」。
  */
 /**
  * @typedef {object} GroupStore
  * @property {number} version
  * @property {number} nextSeq 下一个序号（单调；读回时按盘上已用的序号抬齐）
  * @property {readonly CustomGroupDef[]} groups 自定义组卡（按 (seq, id) 有序 = 创建顺序）
- * @property {readonly TempGroupDef[]} temps 临时组卡（本票只占位，生成规则归工单186）
+ * @property {readonly TempGroupDef[]} temps 临时组卡（工单186：每次粘贴各一张，按创建序）
  */
 
 /** 空状态：计数器从 1 起，第一张卡拿到 seq 1 */
@@ -108,15 +117,35 @@ function normGroupDef(raw) {
   return { id, name, exts: normExts(raw.exts), acceptAll: raw.acceptAll === true, seq }
 }
 
-/** 临时卡定义自愈（本票它没有 exts/acceptAll：临时卡接受任意类型，规则归工单186） */
+/** 文件名清单归一：逐条 trim、去重（留第一次出现的次序）。次序即批内次序，落盘形状稳定 */
+function normNames(raw) {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set()
+  const out = []
+  for (const v of raw) {
+    if (typeof v !== 'string') continue
+    const n = v.trim()
+    if (!n || seen.has(n)) continue
+    seen.add(n)
+    out.push(n)
+  }
+  return out
+}
+
+/**
+ * 临时卡定义自愈（工单186 起带 names）：**成员名单是这张卡唯一的成员表示**，丢一个名字就等于
+ * 那个文件回落固有组，故名单逐条清洗而不是整条丢弃（与自定义卡 exts 同一处置）。
+ */
 function normTempDef(raw) {
   if (!isPlainObject(raw)) return null
   const id = typeof raw.id === 'string' ? raw.id.trim() : ''
   const seq = Number.isInteger(raw.seq) && raw.seq > 0 ? raw.seq : 0
   if (!id || !seq) return null
-  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : tempLabelOf(seq)
   const createdAtMs = Number.isFinite(raw.createdAtMs) ? Math.round(raw.createdAtMs) : 0
-  return { id, name, seq, createdAtMs }
+  const name = typeof raw.name === 'string' && raw.name.trim()
+    ? raw.name.trim()
+    : tempLabelOf(seq, pasteStampOf(createdAtMs) || null)
+  return { id, name, seq, createdAtMs, names: normNames(raw.names) }
 }
 
 /**
@@ -181,9 +210,43 @@ export function tempCardIdOf(seq) {
   return `dgc-t${seq}`
 }
 
-/** 临时卡面名：只带序号（`临时 01`）。序号即唯一性，名字里再加时间戳也不能替代它 */
-export function tempLabelOf(seq) {
-  return `临时 ${String(seq).padStart(2, '0')}`
+/** 两位补零（卡面宽度有限，序号一律两位；过 99 也不截断——那才是撞名） */
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+/**
+ * 粘贴时刻 → 卡面用的时间戳（`10-15 21:04`，**本地时刻**）。
+ *
+ * 卡面是人看的，粘在 21:04 的那一批就该写 21:04，故按本地时区折算（跨时区看自己的桌面，
+ * UTC 读数是错的）。时刻缺失（0 / 非有限）返回空串——**不编一个当前时间**：编出来的时刻
+ * 让「哪一批」从此没法复现。
+ *
+ * 唯一性由序号保证，不靠这段文本（时间戳里没有秒，两次粘贴完全可能落在同一分钟）。
+ * @param {number} nowMs
+ * @returns {string}
+ */
+export function pasteStampOf(nowMs) {
+  const ms = Number(nowMs)
+  if (!Number.isFinite(ms) || ms <= 0) return ''
+  const d = new Date(ms)
+  return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+/**
+ * 临时卡面名：**粘贴时刻 + 序号**（工单186 AC「命名含粘贴时间与序号」）。
+ *
+ * 时刻丢失时退化成只带序号（`临时 03`）——工单185 交付时是这个名字，兜底路径保持原样，
+ * 不因为本票改了命名就让它连兜底都换一副面孔。
+ *
+ * 工单185 交付时这里刻意只写序号（「序号即唯一性」）；本票按 AC 把时刻加进来，**序号仍在末尾**，
+ * 那条「唯一性靠序号、不靠名字」的不变量一个字没动。
+ * @param {number} seq
+ * @param {string | null} [stamp] `MM-DD HH:mm`（由 pasteStampOf 出）；空/缺省则不写
+ */
+export function tempLabelOf(seq, stamp) {
+  const s = typeof stamp === 'string' ? stamp.trim() : ''
+  return s ? `临时 ${s} ${pad2(seq)}` : `临时 ${pad2(seq)}`
 }
 
 /** 卡名的兜底裁剪（卡面宽度有限；空名也不该画成一张没标题的卡） */
@@ -234,24 +297,103 @@ export function editCustomGroupTypes(store, id, types) {
 }
 
 /**
- * 占一张临时组卡的序号（**只占位不实现**：生成规则、接收哪些文件归工单186）。
+ * 建一张临时组卡。**纯函数**：返回新状态 + 新卡，不改入参。
  *
- * 本票要它，是因为序号**必须**在盘上：若序号只在内存里递增，重启后从头数，第二批粘贴又会拿到
- * `临时 01`，与盘上那张重名。故这里只做一件事——从**落盘的单调计数器**取号并把计数器一起推进。
+ * 工单185 只占位（取号 + 推进计数器），工单186 补上成员与命名：
+ *   - `names` = 这一批粘贴真正落地的桌面文件名（内核 desktop/paste 的 `pasted` 响应）。文件
+ *     **不移动**：内核的粘贴契约无参、落点固定用户桌面根，插件控制不了物理去向，故「存放」只能是
+ *     分组归属，而归属对临时卡来说就是这份名单。
+ *   - 卡面名 = 粘贴时刻 + 序号（序号取自**落盘的单调计数器**，跨重启不撞名见上）。
  * @param {unknown} store
- * @param {number} [nowMs] 粘贴时刻（仅记录，不参与取号）
+ * @param {number} [nowMs] 粘贴时刻（写进 createdAtMs，并进卡面名）
+ * @param {readonly string[]} [names] 这一批落地的文件名（缺省 = 空批次）
  * @returns {{ store: GroupStore, card: TempGroupDef }}
  */
-export function allocateTempCard(store, nowMs) {
+export function allocateTempCard(store, nowMs, names) {
   const base = normalizeStore(store)
   const seq = base.nextSeq
+  const at = Number.isFinite(nowMs) ? Math.round(Number(nowMs)) : 0
   const card = {
     id: tempCardIdOf(seq),
-    name: tempLabelOf(seq),
+    name: tempLabelOf(seq, pasteStampOf(at) || null),
     seq,
-    createdAtMs: Number.isFinite(nowMs) ? Math.round(Number(nowMs)) : 0,
+    createdAtMs: at,
+    names: normNames(names),
   }
   return { store: { ...base, nextSeq: seq + 1, temps: [...base.temps, card] }, card }
+}
+
+/**
+ * 往一张已有的临时卡里再粘一批（用户对临时卡显式粘贴；它接受任意类型，故总是可粘）。
+ *
+ * 只加不重（同一批文件再点一次 PASTE 不产生第二份名单），返回新状态 + 本次真正新加进去的那几个。
+ * @param {unknown} store
+ * @param {string} cardId
+ * @param {readonly string[]} names
+ * @returns {{ store: GroupStore, card: TempGroupDef | null, added: readonly string[] }}
+ */
+export function appendToTempCard(store, cardId, names) {
+  const base = normalizeStore(store)
+  const card = base.temps.find((t) => t.id === cardId)
+  if (!card) return { store: base, card: null, added: [] }
+  const added = normNames(names).filter((n) => card.names.indexOf(n) < 0)
+  if (!added.length) return { store: base, card, added: [] }
+  const next = { ...card, names: [...card.names, ...added] }
+  return {
+    store: { ...base, temps: base.temps.map((t) => (t.id === cardId ? next : t)) },
+    card: next,
+    added,
+  }
+}
+
+/**
+ * 解散一张组卡（工单186）：**只删掉这张卡的定义**，卡内文件按扩展名回落固有分组。
+ *
+ * **磁盘文件零移动**——这不是一句承诺，是这份返回值的形状事实：它只带 `store`（插件私有状态里
+ * 的定义）与被删掉的那条定义本身，**不带任何路径、不带任何文件操作**。组卡是归属概念不是目录
+ * （ADR-0014），删掉归属即可，文件仍在用户桌面根原地不动。
+ *
+ * **nextSeq 一个字都不动**：序号只增不减是「跨重启不撞名」那条不变量的全部依托——解散一张卡
+ * 若把号退回去，重启后新粘贴的那张就会与盘上某张重名。退号省下的那个号换不来任何东西。
+ *
+ * 固有扩展组卡**没有定义可删**（它是规则算出来的），故传它的 id 原样返回，dissolved 为 null——
+ * 菜单那一侧用 visibleWhen 挡掉，这一层只是把「拦不住也不会出错」钉住。
+ * @param {unknown} store
+ * @param {string} cardId
+ * @returns {{ store: GroupStore, dissolved: CustomGroupDef | TempGroupDef | null, kind: string }}
+ */
+export function dissolveGroup(store, cardId) {
+  const base = normalizeStore(store)
+  const temp = base.temps.find((t) => t.id === cardId) ?? null
+  const group = base.groups.find((g) => g.id === cardId) ?? null
+  if (!temp && !group) return { store: base, dissolved: null, kind: '' }
+  return {
+    store: {
+      ...base,
+      groups: base.groups.filter((g) => g.id !== cardId),
+      temps: base.temps.filter((t) => t.id !== cardId),
+    },
+    dissolved: temp ?? group,
+    kind: temp ? TIER_TEMP : TIER_CUSTOM,
+  }
+}
+
+/**
+ * 这张卡**接受任意类型**吗（显式对卡粘贴能不能把它粘进去）。
+ *
+ * 归宿两类：临时组卡（按定义接受一切）与「接受全部类型」开关打开的自定义卡。
+ * 有限扩展名清单的自定义卡**不在其中**——它的成员是定义的函数，粘一个它不接受的类型进去，
+ * 除非另设一份成员表（那是与「归属不存盘」打架的第二套真相），否则它在下一帧根本不会显示。
+ * 故那一路退回自动路由：新卡或并入，绝不假装粘进了那张卡。
+ * @param {unknown} store
+ * @param {string} cardId
+ * @returns {boolean}
+ */
+export function acceptsAnyTypeOf(store, cardId) {
+  const base = normalizeStore(store)
+  if (base.temps.some((t) => t.id === cardId)) return true
+  const group = base.groups.find((g) => g.id === cardId)
+  return Boolean(group && group.acceptAll)
 }
 
 /**
@@ -302,9 +444,17 @@ export function resolveOwner(ext, store) {
 /**
  * 桌面项 + 组定义 → 一整排卡（**归属的全部来源**）。
  *
- * 卡序：自定义卡按创建序在前，其后固有组按固定组序表、表外按字母序。两段各自有序，故加一张
- * 卡不会让既有卡乱跳。空组不占卡（自定义卡声明了类型但桌面上没有对应文件时不出卡）。
- * 临时卡本票不产卡：它还没有成员模型（成员来自粘贴，归工单186）。
+ * 卡序：自定义卡（创建序）→ 临时卡（创建序）→ 固有组（固定组序表、表外字母序）。三段各自有序，
+ * 故加一张卡不会让既有卡乱跳。空组不占卡（声明了类型但桌面上没有对应文件时不出卡）。
+ *
+ * **三层优先级在这里是结构，不是注释**（工单186 票面点名要验的那条推导）：
+ * 临时卡的成员（`names` 里那批粘贴落地的文件名）在**分桶之前**就被摘走，故
+ *   - 它们**不进**固有扩展组卡 —— 这就是「临时层高于固有层」；
+ *   - 它们也**不进**任何自定义组卡 —— 已进临时卡的那一批是一个可独立处理的整体，不该被后来
+ *     的一次 EDIT TYPES 拆散（否则同一文件出现在两张卡里，违反「同一批文件只在一张卡里」）。
+ *     已登记的代价：要改这批文件的归属，先解散临时卡。
+ * 若把这一句摘掉（即让临时层排在固有层之下），上两件事同时不成立——而那正是票面要求验的
+ * 反面：那样「没有卡接受」这个状态永远不会出现，临时卡也就永远生成不出来。
  *
  * @param {readonly GroupableItem[]} items 桌面条目池（内核 state.items 形状）
  * @param {unknown} store 组定义
@@ -313,9 +463,21 @@ export function resolveOwner(ext, store) {
  */
 export function buildCards(items, store, order = EXT_GROUP_ORDER) {
   const base = normalizeStore(store)
-  /** @type {Map<string, GroupableItem[]>} 扩展名 → 条目 */
+  /** 临时层的硬认领：文件名 → 归属那张临时卡（这张表是三层优先级在代码里的唯一体现） */
+  const tempOfName = new Map()
+  for (const card of base.temps) for (const name of card.names) if (!tempOfName.has(name)) tempOfName.set(name, card.id)
+
+  /** @type {Map<string, GroupableItem[]>} 扩展名 → 条目（**临时层摘走的不进来**） */
   const byExt = new Map()
+  /** @type {Map<string, GroupableItem[]>} 临时卡 id → 条目（按快照序，成员取的是同一个条目对象） */
+  const tempBuckets = new Map()
+  for (const card of base.temps) tempBuckets.set(card.id, [])
   for (const item of items) {
+    const tempId = tempOfName.get(item.name)
+    if (tempId !== undefined) {
+      tempBuckets.get(tempId).push(item)
+      continue
+    }
     const key = groupKeyOf(item)
     if (key === null) continue // 快捷方式 / 网址 / 文件夹：进不了卡
     const bucket = byExt.get(key)
@@ -346,6 +508,10 @@ export function buildCards(items, store, order = EXT_GROUP_ORDER) {
   for (const group of base.groups) {
     const bucket = customBuckets.get(group.id)
     if (bucket && bucket.length) cards.push({ id: group.id, label: group.name, tier: TIER_CUSTOM, items: bucket })
+  }
+  for (const card of base.temps) {
+    const bucket = tempBuckets.get(card.id)
+    if (bucket && bucket.length) cards.push({ id: card.id, label: card.name, tier: TIER_TEMP, items: bucket })
   }
   for (const group of groupByExtension(rest, order)) {
     cards.push({ id: group.id, label: group.label, tier: TIER_BUILTIN, items: group.items })

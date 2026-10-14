@@ -1,7 +1,8 @@
 // 组卡（工单179 = spec166 之②，tracer bullet；工单181 = spec166 之④，交互语义与生命周期；
 // 工单182 = spec166 之⑤，自绘菜单外壳与只读五项；工单183 = spec166 之⑥，写操作两项
 // RENAME/DELETE + 组卡菜单骨架；工单185 = spec166 之⑧，自定义组卡的建立与编辑——组定义持久化
-// 与三层归属）：投放型插件包 doc-group-cards 的入口。
+// 与三层归属；工单186 = spec166 之⑨，粘贴路由三态 + 临时组卡 + 解散归档）：投放型插件包
+// doc-group-cards 的入口。
 //
 // 交付形态（ADR-0014）：投放型插件包，不是内置卡片包。源码在仓库内（app/plugins/doc-group-cards/），
 // 另有一道安装步骤把它拷进用户插件根；运行态仍投放型——删掉那个目录即完全撤回，内核文档区自己回来。
@@ -11,8 +12,9 @@
 //   - 折叠/展开几何在同目录 geometry.js（同一条缝，工单180）；
 //   - 菜单开合/置灰/落位在同目录 menu.js（同一条缝，工单182）；
 //   - 删除确认层与内联重命名编辑器的状态迁移在同目录 writeops.js（同一条缝，工单183）；
-//   - **组定义形状、三层归属、临时卡序号**在同目录 ownership.js（同一条缝，工单185）；
+//   - **组定义形状、三层归属、临时卡成员与序号**在同目录 ownership.js（同一条缝，工单185/186）；
 //   - **「接受的类型」勾选浮层**的状态迁移在同目录 typepicker.js（同一条缝，工单185）；
+//   - **粘贴三态路由与临时卡生成**在同目录 pasting.js（同一条缝，工单186）；
 //   - 本文件只管「画卡」「接线」「画浮层」与「存取组定义」：几何、图标、启动、点击监听、热区、
 //     菜单与浮层接线。
 //
@@ -85,8 +87,11 @@ import {
   CONFIRM_CANCEL_CLASS,
   CONFIRM_CANCEL_ID,
   CONFIRM_KEYBOARD_TIER,
+  CONFIRM_MODE_DISSOLVE,
+  CONFIRM_MODE_TRASH,
   CONFIRM_OK_CLASS,
   CONFIRM_OK_ID,
+  CONFIRM_OPENED_NOTIFY,
   CONFIRM_OVERLAY_CLASS,
   CONFIRM_OVERLAY_ID,
   CONFIRM_PAD_Y,
@@ -97,19 +102,29 @@ import {
   RENAME_INPUT_CLASS,
   RENAME_KEYBOARD_TIER,
   confirmTitleOf,
+  confirmOkLabelOf,
   nextConfirmLayer,
   nextRenameEditor,
   renameCssOf,
 } from './writeops.js'
 import {
   STORE_KEY,
+  TIER_CUSTOM,
+  TIER_TEMP,
   addCustomGroup,
   buildCards,
+  dissolveGroup,
   editCustomGroupTypes,
   emptyStore,
   presentExtensionsOf,
   storeOf,
 } from './ownership.js'
+import {
+  PASTE_FAILED_NOTIFY,
+  PASTE_ROUTED_NOTIFY,
+  pastedNamesOf,
+  routePaste,
+} from './pasting.js'
 import {
   CLOSED_TYPES,
   TYPE_ALL_CLASS,
@@ -576,7 +591,7 @@ function onMenuKeydown(ev) {
  * 对话框的落位与尺寸按 writeops.js 算出的数写内联样式（存证里报的按钮矩形与用户真点到的那一枚
  * 必须是同一个盒子，故落位与画法同源）。
  */
-function showConfirm(host, names, box) {
+function showConfirm(host, mode, names, box) {
   hideConfirm() // 重开不留两层
 
   const style = document.createElement('style')
@@ -600,13 +615,14 @@ function showConfirm(host, names, box) {
   text.id = CONFIRM_TEXT_ID
   text.className = CONFIRM_TEXT_CLASS
   // white-space: pre-wrap，故标题与文件名清单用换行拼在一处（与内核确认层同款排版）
-  text.textContent = `${confirmTitleOf(names)}\n${names.join('\n')}`
+  text.textContent = `${confirmTitleOf(names, mode)}\n${names.join('\n')}`
   dialog.appendChild(text)
 
   const ok = document.createElement('div')
   ok.id = CONFIRM_OK_ID
   ok.className = CONFIRM_OK_CLASS
-  ok.textContent = 'DELETE'
+  // 钮上的字与标题同源：解散时写 DISSOLVE，不写 DELETE（那会骗用户以为要删文件）
+  ok.textContent = confirmOkLabelOf(mode)
   ok.addEventListener('click', (ev) => {
     ev.stopPropagation() // 钮自己处置，不外溢到遮罩的「层外点击」（否则确认一次变取消一次）
     dispatchConfirm(host, { type: 'confirm' })
@@ -665,12 +681,17 @@ function dispatchConfirm(host, event) {
       if (fx.held) host.holdKeyboardTier(CONFIRM_KEYBOARD_TIER)
       else host.releaseKeyboardTier(CONFIRM_KEYBOARD_TIER)
     } else if (fx.kind === 'show') {
-      showConfirm(host, fx.names, fx.box)
+      showConfirm(host, fx.mode, fx.names, fx.box)
     } else if (fx.kind === 'hide') {
       hideConfirm()
     } else if (fx.kind === 'run') {
-      // 唯一的落盘动作出口：送回收站，内核既有契约，插件不自己 shell.trashItem
-      void host.invoke('desktop/trash', { paths: [...fx.paths] })
+      if (fx.op === 'dissolve') {
+        // 解散：**只删组定义，一个 desktop/* 契约都不发**（磁盘零移动是这条分支的形状事实）
+        doDissolve(host, fx.cardId)
+      } else {
+        // 唯一的落盘动作出口：送回收站，内核既有契约，插件不自己 shell.trashItem
+        void host.invoke('desktop/trash', { paths: [...fx.paths] })
+      }
     } else if (fx.kind === 'hotzones') {
       // 热区纪律：遮罩一铺一撤都改了矩形，两个方向都要让渲染层重扫
       host.onDomChanged()
@@ -683,7 +704,125 @@ function dispatchConfirm(host, event) {
 /** 从菜单的 DELETE 行进来：把绝对路径换成本轮快照里的显示名（开层时冻结的清单） */
 function openConfirm(host, paths) {
   if (!paths.length) return
-  dispatchConfirm(host, { type: 'open', names: namesOf(paths), paths })
+  dispatchConfirm(host, { type: 'open', mode: CONFIRM_MODE_TRASH, names: namesOf(paths), paths })
+}
+
+// ---------------------------------------------------------------------------
+// 解散（工单186）与粘贴（工单186）
+//
+// 两者是同一件事的两面：**都只改归属、都不动磁盘上的文件**（ADR-0014：组卡是归属概念，不是
+// 目录）。区别只在改哪一份归属：
+//   - 解散：从组定义里**删掉**一张卡。落盘动作只有一次 plugin-config/set（写的是插件自己的
+//     私有状态），**零个 desktop/* 契约调用**——没有一个内核契约能搬文件，也一个都没发。
+//   - 粘贴：先由内核既有契约 desktop/paste 落文件（落点固定用户桌面根、无参，插件控制不了
+//     物理去向），再把落地的那些文件名**记进**组定义。文件是内核放的，插件只是给它一个归属。
+// ---------------------------------------------------------------------------
+
+/** 组定义里那张卡的定义与归属层（自定义卡 / 临时卡 / 不在组定义里——后者是固有扩展组卡） */
+function cardDefOf(cardId) {
+  const temp = groupStore.temps.find((t) => t.id === cardId)
+  if (temp) return { def: temp, kind: TIER_TEMP }
+  const group = groupStore.groups.find((g) => g.id === cardId)
+  return group ? { def: group, kind: TIER_CUSTOM } : { def: null, kind: '' }
+}
+
+/**
+ * 从菜单的 DISSOLVE 行进来：过确认层（**先问过用户**，与 DELETE 同一副壳）。
+ *
+ * 清单是「卡名 + 卡内此刻的文件名」，开层时冻结。卡内文件取自本轮渲染结果（归属的求值结果），
+ * 而不是从卡面标签反推——一个字节都不猜。
+ *
+ * **固有扩展组卡到不了这里**：菜单那一行的 visibleWhen 挡掉了（它没有定义可删，是规则算出来的）。
+ * 这一层仍兜一道：拿不到定义就如实上报，绝不开一只没有目标的确认层。
+ * @param {Host} host
+ * @param {string} cardId
+ */
+function openDissolveConfirm(host, cardId) {
+  const { def } = cardDefOf(cardId)
+  if (!def) {
+    host.notify(CONFIRM_OPENED_NOTIFY, { ok: false, mode: CONFIRM_MODE_DISSOLVE, error: '这张卡不在当前组定义里', cardId })
+    return
+  }
+  const members = membersOfCard(cardId)
+  dispatchConfirm(host, {
+    type: 'open',
+    mode: CONFIRM_MODE_DISSOLVE,
+    cardId,
+    names: [def.name, ...members.map((item) => item.name)],
+    paths: members.map((item) => item.path),
+  })
+}
+
+/** 那张卡此刻装着的条目（归属的求值结果，不是任何一份记着的表——那张表不存在） */
+function membersOfCard(cardId) {
+  const desktop = hostRef && hostRef.view.desktop
+  const cards = buildCards(desktop ? desktop.items : [], groupStore)
+  const card = cards.find((c) => c.id === cardId)
+  return card ? card.items : []
+}
+
+/**
+ * 确认之后的那一步：删掉这张卡的定义，然后**什么都不做**。
+ *
+ * 卡内文件按扩展名回落固有分组是 `buildCards` 的**结构后果**（归属是定义的函数），不是一段
+ * 要单独同步的逻辑；磁盘上的文件一个字节都没动，故这里没有任何 desktop/* 调用。
+ * @param {Host} host
+ * @param {string} cardId
+ */
+function doDissolve(host, cardId) {
+  const next = dissolveGroup(groupStore, cardId)
+  if (!next.dissolved) {
+    host.notify(GROUPS_SAVED_NOTIFY, { ok: false, error: '这张卡不在当前组定义里', cardId })
+    return
+  }
+  saveGroups(host, next.store)
+}
+
+/**
+ * 粘贴：先问内核要剪贴板里的文件落在哪儿（desktop/paste，**无参**，落点固定用户桌面根），
+ * 再把落地的那些文件名按三态路由记进组定义（pasting.js 的纯裁决）。
+ *
+ * **插件控制不了物理去向**，所以「存放」只是归属：文件在桌面根原地不动，插件只决定它归哪张卡。
+ * @param {Host} host
+ * @param {string} cardId 用户点的那张卡（空串 = 不针对任何卡，走自动路由）
+ */
+async function doPaste(host, cardId) {
+  const mine = generation
+  /** @type {{ ok?: boolean, pasted?: unknown, failed?: unknown, error?: unknown } | null} */
+  let response = null
+  try {
+    response = await Promise.resolve(host.invoke('desktop/paste', null))
+  } catch (err) {
+    if (generation === mine) {
+      host.notify(PASTE_FAILED_NOTIFY, { ok: false, error: err instanceof Error ? err.message : String(err) })
+    }
+    return
+  }
+  if (generation !== mine || hostRef !== host) return // 换代途中回来的是上一代的请求，丢弃
+  const names = pastedNamesOf(response)
+  const failed = response && Array.isArray(response.failed) ? response.failed.map(String) : []
+  if (!names.length) {
+    // 一个文件都没落地：不为一个空的批次建卡（否则凭空多一张永远空的临时卡）
+    host.notify(PASTE_FAILED_NOTIFY, {
+      ok: false,
+      error: response && typeof response.error === 'string' ? response.error : '剪贴板里没有可粘贴的文件',
+      failed,
+    })
+    return
+  }
+  const route = routePaste(groupStore, names, { nowMs: Date.now(), intoCardId: cardId })
+  host.notify(PASTE_ROUTED_NOTIFY, {
+    ok: true,
+    kind: route.kind,
+    cardId: route.targetCardId,
+    pasted: names,
+    merged: route.mergeCardIds,
+    tempCard: route.tempCard ? { id: route.tempCard.id, name: route.tempCard.name, seq: route.tempCard.seq } : null,
+    failed,
+  })
+  // 组定义没变就不落盘（并入自定义卡那一态：成员是定义的函数，一个字节都不必写）
+  if (route.changed) saveGroups(host, route.store)
+  else render(host)
 }
 
 /** 绝对路径 → 快照里的显示名。快照里查不到（菜单开着的那一拍文件刚好没了）时退回路径末段，
@@ -1162,8 +1301,17 @@ function runMenuRow(host, id, paths, cardId = '') {
     case 'edit-types':
       openEditTypes(host, cardId)
       return
+    case 'paste':
+      // PASTE：一个字节都不在这里落。落文件走内核 desktop/paste（唯一动磁盘的一步，且落点固定
+      // 用户桌面根、插件无从选择）；归属由 pasting.js 的三态路由裁决，之后才谈得上存组定义。
+      void doPaste(host, cardId)
+      return
+    case 'dissolve':
+      // DISSOLVE：开确认层（**先问过用户**是这一行的全部语义），真正删定义发生在确认之后
+      openDissolveConfirm(host, cardId)
+      return
     default:
-      // 未知行不猜动作（工单186 的 PASTE / DISSOLVE 还没到；真到了也会有自己的 case）
+      // 未知行不猜动作
   }
 }
 
@@ -1230,28 +1378,46 @@ function openFileMenu(host, x, y, paths) {
  * 在卡片**空白处**打开组卡菜单。
  *
  * 与文件菜单**同一副壳、同一套裁决**，换的只有两样：行表（GROUP_CARD_MENU_ROWS）与上下文
- * （无选区 + 触发它的卡片 id + 那张卡的归属层）。渲染端一行都不用改——card.js 画的是
- * resolveMenuRows() 的输出。
+ * （无选区 + 触发它的卡片 id + 那张卡的归属层 + **剪贴板实况**）。渲染端一行都不用改——card.js
+ * 画的是 resolveMenuRows() 的输出。
  *
- * **归属层是可见性的唯一判据**：工单185 给 NEW GROUP / EDIT TYPES 两行都配了
- * `visibleWhen: 自定义卡或临时卡`，故固有扩展组卡的空白处右键**一可见行都没有**、按工单182
- * 定下的规则不出菜单（规则生成的卡不该被手改；那道规则一个字都没动）。工单186 的临时卡与
- * 本票的自定义卡走同一个判据，故那一票不需要再改这张表。
+ * **PASTE 的置灰必须按剪贴板实况**（needs:'pasteable'），而那份实况要问内核
+ * desktop/clipboard-state，故开层前先发一次查询。**查不到即视为不可贴**（宁可置灰，绝不误使能——
+ * 与内核「粘贴按剪贴板实况置灰」同纪律）。查询回来之前菜单不弹：带着未知实况弹一只菜单再改行
+ * 会让用户看见一次会变的置灰态。
  *
+ * **归属层是可见性的唯一判据**：NEW GROUP / EDIT TYPES / DISSOLVE 三行都配了
+ * `visibleWhen: 自定义卡或临时卡`，故固有扩展组卡上只有 PASTE 一行可见（工单185 登记过的那个
+ * 「零可见行 → 不出菜单」的后果，本票的 PASTE 行把它化解了一半，详见 menu.js 的注释）。
  * @param {Host} host
  * @param {number} x
  * @param {number} y
  * @param {string} cardId
  */
-function openGroupMenu(host, x, y, cardId) {
+async function openGroupMenu(host, x, y, cardId) {
+  const mine = generation
+  const pasteable = await pasteableNow(host, mine)
+  if (generation !== mine || hostRef !== host) return // 换代途中：不把上一代的菜单画进这一代
   dispatchMenu(host, {
     type: 'open',
     x,
     y,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     specs: GROUP_CARD_MENU_ROWS,
-    ctx: { paths: [], cardId, cardKind: cardTierById.get(cardId) || '' },
+    ctx: { paths: [], cardId, cardKind: cardTierById.get(cardId) || '', pasteable },
   })
+}
+
+/** 剪贴板实况（只读契约 desktop/clipboard-state）。查不到 / 查询失败一律读作**不可贴** */
+async function pasteableNow(host, mine) {
+  try {
+    const state = await Promise.resolve(host.invoke('desktop/clipboard-state', null))
+    if (generation !== mine) return false
+    return Boolean(state && typeof state === 'object' && (/** @type {{ pasteable?: unknown }} */ (state).pasteable) === true)
+  } catch (err) {
+    // 查询失败按不可贴（契约原文：「查询失败按不可贴，宁可置灰不误可用」），不外溢也不打断开层
+    return false
+  }
 }
 
 /** 该卡当前的交互态（没有记录过就是初始态：收起、无高亮） */
@@ -1496,7 +1662,8 @@ function draw(host, groups) {
       if (!isGroupMenuHit(hitOf(card, ev.target))) return
       ev.preventDefault()
       ev.stopPropagation()
-      openGroupMenu(host, ev.clientX, ev.clientY, card.id)
+      // 开层前要问一次剪贴板实况（PASTE 行的置灰），故这一击是异步的；世代/宿主对不上就放弃
+      void openGroupMenu(host, ev.clientX, ev.clientY, card.id)
     })
     host.el.appendChild(card)
     cardNodes.set(group.id, card)
