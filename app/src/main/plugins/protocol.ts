@@ -43,6 +43,11 @@ export function taskbarOverflowUrl(): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/taskbar-overflow.html`
 }
 
+/** 任务栏弹窗菜单页 URL（工单193：通用竖排弹窗菜单通路的载页，query 寻址菜单面） */
+export function taskbarMenuUrl(): string {
+  return `${PLUGIN_SCHEME}://${APP_HOST}/taskbar-menu.html`
+}
+
 /**
  * 装协议处理器：应用渲染层根目录 + 当前在装插件的目录，随插件增删实时变化。
  * 读盘只在这里发生——渲染层永远拿不到文件系统句柄（contextIsolation + sandbox 不变）。

@@ -328,6 +328,20 @@ export function taskbarAppMenuRows(entry: Pick<TaskbarAppViewEntry, 'pinned' | '
   return rows
 }
 
+/**
+ * 应用组弹窗菜单行推导（工单193）：按 exe 身份在应用组视图条目中寻址，行集 =
+ * taskbarAppMenuRows 同源（条目集现状不变）。浮层页自足取行用——开层请求只携带
+ * 身份不携带行集，浮层行与条带视图永不各判一次（托盘溢出浮层 splitTrayOverflow
+ * 同纪律）。exe 不在场（开层间隙应用退场）= null，浮层页据此自收。
+ */
+export function taskbarAppMenuPopupRows(
+  apps: ReadonlyArray<Pick<TaskbarAppViewEntry, 'exe' | 'pinned' | 'running'>>,
+  exe: string,
+): TaskbarAppMenuRow[] | null {
+  const entry = apps.find((a) => a.exe === exe)
+  return entry ? taskbarAppMenuRows(entry) : null
+}
+
 /** 左键点击回执（工单53）：action=window-list 时 windows 携带带标题清单（标题仅即时显示） */
 export interface TaskbarAppClickResult {
   ok: boolean

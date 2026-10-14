@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -672,5 +672,33 @@ describe('推荐组交互（工单160，fake bridge 驱动）', () => {
     expect(img).toContain('width: 32px')
     expect(img).toContain('height: 32px')
     expect(ruleOf160('.tb-rec-letter'), '无图标键条目首字母占位不出空白格').toContain('font-size')
+  })
+})
+
+// —— 工单193 应用组弹窗菜单（条目集现状不变，行推导按 exe 寻址供浮层页自足取行）——
+
+describe('应用组弹窗菜单行推导（工单193，taskbarAppMenuPopupRows）', () => {
+  const entry = (over: Partial<TaskbarAppViewEntry>): TaskbarAppViewEntry => ({
+    id: 'C:\\Apps\\X.exe', exe: 'C:\\Apps\\X.exe', label: 'X', tooltip: 'X', iconKey: null, pinned: false, running: false, ...over,
+  })
+
+  it('未钉+运行中三行（条目集现状）：手钉到任务栏/关闭窗口/打开文件位置', () => {
+    expect(taskbarAppMenuPopupRows([entry({ running: true })], 'C:\\Apps\\X.exe')).toEqual([
+      { action: 'pin', label: '手钉到任务栏' },
+      { action: 'close', label: '关闭窗口' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+
+  it('已手钉首行换解除手钉；未运行无关闭窗口行（手钉+未运行两行）', () => {
+    expect(taskbarAppMenuPopupRows([entry({ pinned: true, running: false })], 'C:\\Apps\\X.exe')).toEqual([
+      { action: 'unpin', label: '解除手钉' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+
+  it('exe 不在场（开层间隙应用退场）= null：浮层页据此自收', () => {
+    expect(taskbarAppMenuPopupRows([entry({ running: true })], 'C:\\Apps\\Gone.exe')).toBeNull()
+    expect(taskbarAppMenuPopupRows([], 'C:\\Apps\\X.exe')).toBeNull()
   })
 })

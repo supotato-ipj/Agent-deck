@@ -20,6 +20,7 @@ import { ABN_POSCHANGED, appBarCallbackMessage, negotiateAppBarPos, registerAppB
 import type { AppBarRect } from './appbar'
 import { probeForegroundWindow, shouldYieldToFullscreen } from './yield'
 import { startTrayOverflowHost } from './overflow'
+import { startAppMenuHost } from './app-menu'
 import type { PhysRect } from './yield'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
@@ -151,9 +152,12 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 显隐与哪扇条带窗现任无关。
   let hidNative = false
 
-  // 托盘溢出菜单浮层（工单162）：载体裁定 = 独立浮层窗（见模块头注释）。随本控制器
+  // 托盘溢出菜单浮层（工单162）：载体裁定 = 独立浮层窗（见 popup.ts 模块头）。随本控制器
   // 生灭——条带销毁（禁用/退役）即收层；全屏让位即收层。
   const trayOverflow = startTrayOverflowHost({ ctx, log })
+  // 应用组图标右键菜单浮层（工单193）：同一通用载体（popup.ts）的首个新菜单面，生灭
+  // 与让位纪律同托盘溢出浮层。
+  const appMenuPopup = startAppMenuHost({ ctx, log })
 
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
@@ -226,6 +230,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     clearInterval(s.keepalive)
     s.tracker?.dispose()
     trayOverflow.dispose() // 条带销毁即收浮层（禁用/退役路径都在此收敛，工单162）
+    appMenuPopup.dispose() // 应用组菜单浮层同行（工单193）
     s.win.destroy()
     log?.append({ type: 'taskbar-window-destroyed', reason })
   }
@@ -289,6 +294,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         if (hit && !s.yielded) {
           s.yielded = true
           trayOverflow.close('yield') // 全屏让位：浮层不悬置在已隐藏的条带之上（工单162）
+          appMenuPopup.close('yield') // 应用组菜单浮层同让位（工单193）
           w.hide()
           log?.append({ type: 'taskbar-yield' })
         } else if (!hit && s.yielded) {
@@ -314,7 +320,12 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status'])
     wireHostIpc(w, s.tracker, log, {
       pin: (v) => { setTopmost(hwndOf(v), true) },
-      onNotify: trayOverflow.onStripNotify, // 「⋯」开层/条带点击收层请求（工单162）
+      onNotify: (type, payload) => {
+        // 「⋯」开层/条带点击收层请求（工单162）+ 应用组菜单开层/收层请求（工单193）——
+        // 各宿主包装层只认自家 notify 名，域外类型静默跳过
+        trayOverflow.onStripNotify(type, payload)
+        appMenuPopup.onStripNotify(type, payload)
+      },
     })
     w.once('ready-to-show', () => {
       w.showInactive()
