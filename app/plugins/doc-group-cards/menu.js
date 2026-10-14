@@ -16,7 +16,8 @@
 //   - 工单183 已往里加 RENAME / DELETE（写动作，各配一块自绘 UX：删除确认层 / 内联重命名编辑器，
 //     见 writeops.js）；
 //   - 工单184 上多选后，needs:'single' 的行（打开所在位置、以及届时新增的重命名）自然被置灰；
-//   - 工单185 加组卡菜单的 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE，PASTE 走 needs:'pasteable'。
+//   - 工单185 加组卡菜单的 NEW GROUP / EDIT TYPES（各配 visibleWhen：固有扩展组卡不出这两行），
+//     工单186 再加 PASTE（走 needs:'pasteable'）与 DISSOLVE。
 // 三张票都只往这张表里加行或改裁决函数，本文件与 card.js 的接缝不用动。
 
 /** 菜单宽度（像素）。定死它，钳制的算式才与画出来的盒子同源 */
@@ -133,20 +134,53 @@ export const FILE_MENU_ROWS = [
 ]
 
 /**
- * 组卡菜单（卡片**空白处**右键；与文件菜单同一副壳、同一套裁决，工单183 立骨架）——**当前为空**。
+ * 卡片身份（组卡菜单的上下文里带着它；工单185 起）。
+ * 与 ownership.js 的三层同名同字面量——「这是不是自定义卡」是三层归属的一部分，
+ * 不该在菜单这边另写一份判定。
+ * @typedef {'custom' | 'temp' | 'builtin' | ''} CardKind
+ */
+export const KIND_CUSTOM = 'custom'
+export const KIND_TEMP = 'temp'
+export const KIND_BUILTIN = 'builtin'
+
+/**
+ * 这张卡**手改得动**吗（固有扩展组卡是规则生成的，不该被手改）。
  *
- * spec166「菜单（自绘外壳）」列的四行是 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE，四行**分别**由
- * 工单185（建卡/编辑类型/解散）与工单186（粘贴路由）落地，本票一行都不含：本票交的是**接线**
- * ——表、上下文、落位、遮罩、置灰、可见性全通，票子一到只需往这张表里加行（按 spec 的说明给
- * EDIT TYPES / DISSOLVE 补 `visibleWhen`：只在自定义组卡与临时组卡上出现），**渲染端一行不改**
- * （card.js 画的是 resolveMenuRows() 的输出，不是写死的行）。
+ * 归宿两层：自定义组卡与临时组卡。内置的 builtin 卡不在其中——它的内容由扩展名规则算出来，
+ * 勾选/改名对它没有意义，出了那两行只会是一个点了没用的入口。
+ * @param {CardKind | undefined} kind
+ * @returns {boolean}
+ */
+export function isHandEditableKind(kind) {
+  return kind === KIND_CUSTOM || kind === KIND_TEMP
+}
+
+/**
+ * 组卡菜单（卡片**空白处**右键；与文件菜单同一副壳、同一套裁决）——NEW GROUP / EDIT TYPES。
  *
- * 为什么空表也不开层：nextMenuShell 的「一可见行都没有就不弹」是工单182 定的规则并被其测试钉死
- * （弹一只空框毫无意义）。骨架既已铺到归约器门口，行一到即自动生效——这是本票的刻意选择，
- * 不去动那条规则换一个「能弹的空菜单」。
+ * 两行都带 `visibleWhen: 归宿自定义卡或临时卡`：**固有扩展组卡不出这两行**（规则生成的卡
+ * 不该被手改）。行可见性只有 rowVisibleOf 这一个出口，渲染端不判。
+ *
+ * **这条判据带来的已知后果（工单185 交付时如实登记，不自行"改进"票面）**：全新安装时桌面上
+ * 只有固有扩展组卡，而这张表对它们零可见行 → 按工单182 的规则右键卡片空白不出菜单 → 用户
+ * **建不出第一张自定义卡**。票面 AC 写的是「固有扩展组卡不出 NEW GROUP / EDIT TYPES」，而
+ * spec166 的「菜单（自绘外壳）」一节只把 EDIT TYPES / DISSOLVE 限制在自定义卡与临时卡上，两者
+ * 在 NEW GROUP 这一行上不一致。本票按**票面**实现（票面是权威），把不一致登记在这里而不是
+ * 偷偷改判：要让第一张卡建得出来，只需删掉 NEW GROUP 那一行的 `visibleWhen`（一处、一行），
+ * 届时右键固有卡空白即出「NEW GROUP」，其余裁决一行不动。
+ *
+ * 可见性挂在卡片身份上而不挂在选区上：组卡菜单的选区恒为空（菜单是从卡片空白处开出来的，
+ * 不是一个文件），故判据只能是 ctx.cardKind。
+ *
+ * PASTE（needs:'pasteable'）与 DISSOLVE 归工单186：前者要粘贴路由规则，后者要解散的确认层，
+ * 两者都在那张票的验收标准里，本票一行不加。
+ *
  * @type {{ id: string, label: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
  */
-export const GROUP_CARD_MENU_ROWS = []
+export const GROUP_CARD_MENU_ROWS = [
+  { id: 'new-group', label: 'NEW GROUP', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
+  { id: 'edit-types', label: 'EDIT TYPES', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
+]
 
 /**
  * 当前上下文：菜单作用于哪个选区（绝对路径数组）+ 剪贴板实况 + 菜单是**从哪儿**开出来的。
@@ -154,8 +188,9 @@ export const GROUP_CARD_MENU_ROWS = []
  * @property {readonly string[]} paths 当前选区（工单182 只有单选：一个路径）
  * @property {boolean} [pasteable] 剪贴板可贴实况（needs:'pasteable' 的行读它）
  * @property {string} [cardId] 触发本次开层的卡片 id（组卡菜单用；文件菜单为空串）。
- *   工单185 的 DISSOLVE / EDIT TYPES 按它判「这是不是自定义组卡或临时组卡」——落在 ctx 里而不是
- *   藏在 card.js 的闭包里，是为了让 visibleWhen 成为唯一的可见性裁决出口（渲染端不判）。
+ *   工单185 起两行的可见性按它判「这是不是手改得动的卡」（落在 ctx 里而不是藏在 card.js 的
+ *   闭包里，是为了让 visibleWhen 成为唯一的可见性裁决出口——渲染端不判）。
+ * @property {CardKind} [cardKind] 那张卡的归属层（custom / temp / builtin；文件菜单为空串）。
  */
 
 /**

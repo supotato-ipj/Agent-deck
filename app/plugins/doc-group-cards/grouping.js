@@ -76,8 +76,15 @@ export function cardIdOf(key) {
   return slug ? `dgc-${slug}` : 'dgc-x'
 }
 
-/** 组序：表内按表序，表外（表外扩展名与无扩展名组）统一按字母序兜底 */
-function sortGroupKeys(keys, order) {
+/** 组序：表内按表序，表外（表外扩展名与无扩展名组）统一按字母序兜底。
+ *
+ *  工单185 起这张排序**多了一个消费方**：勾选浮层的类型清单要与卡序同一份排法（用户按清单
+ *  勾选，看到的次序必须与勾完之后卡片的排列对得上）。故把它提为导出，而不是让新模块另写一份。
+ * @param {Iterable<string>} keys
+ * @param {readonly string[]} order
+ * @returns {string[]}
+ */
+export function sortGroupKeys(keys, order) {
   return [...keys].sort((a, b) => {
     const rank = order.indexOf(a) - order.indexOf(b)
     return rank !== 0 ? rank : (a < b ? -1 : a > b ? 1 : 0)

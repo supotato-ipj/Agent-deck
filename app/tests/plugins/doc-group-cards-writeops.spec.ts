@@ -395,10 +395,16 @@ describe('文件菜单新增的两行（工单183 往 FILE_MENU_ROWS 里加）',
   })
 })
 
-describe('组卡菜单骨架（卡片空白右键；本票不含 PASTE，四行归工单185/186）', () => {
-  it('本票的行表是空的：PASTE 归工单186（粘贴路由），其余三行归工单185', () => {
-    expect(GROUP_CARD_MENU_ROWS).toEqual([])
+describe('组卡菜单（卡片空白右键；工单185 已往里填 NEW GROUP / EDIT TYPES，PASTE 与 DISSOLVE 归工单186）', () => {
+  it('工单185 填进了 NEW GROUP / EDIT TYPES；PASTE 仍归工单186（粘贴路由），DISSOLVE 同一票', () => {
+    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).toEqual(['new-group', 'edit-types'])
+    expect(GROUP_CARD_MENU_ROWS.map((r) => r.label)).toEqual(['NEW GROUP', 'EDIT TYPES'])
     expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).not.toContain('paste')
+    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).not.toContain('dissolve')
+  })
+
+  it('两行都带 visibleWhen（可见性裁决只有 rowVisibleOf 一个出口，渲染端不判）', () => {
+    expect(GROUP_CARD_MENU_ROWS.every((r) => typeof r.visibleWhen === 'function')).toBe(true)
   })
 
   it('行一填即生效，无需改渲染端：同一副壳、同一套裁决，只换行表与上下文', () => {
@@ -421,12 +427,26 @@ describe('组卡菜单骨架（卡片空白右键；本票不含 PASTE，四行�
     expect(state.cardId).toBe('')
   })
 
-  it('空表不弹层：工单182 定的「一可见行都没有就不弹」规则原样保留（弹一只空框毫无意义）', () => {
+  it('「一可见行都没有就不弹」的规则原样保留：固有扩展组卡上这两行都不可见，故不出菜单', () => {
+    // 工单182 钉死的规则一个字没动。工单185 往表里填了行，但两行都带
+    // `visibleWhen: 自定义卡或临时卡` —— 固有扩展组卡是规则生成的，不该被手改，
+    // 于是那张卡上仍是零可见行，按规则不出菜单（弹一只空框毫无意义）。
     const { state, effects } = nextMenuShell(CLOSED_MENU, {
-      type: 'open', x: 0, y: 0, viewport: VIEWPORT, specs: GROUP_CARD_MENU_ROWS, ctx: { paths: [], cardId: 'dgc-docx' },
+      type: 'open', x: 0, y: 0, viewport: VIEWPORT, specs: GROUP_CARD_MENU_ROWS, ctx: { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' },
     })
+    expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' })).toEqual([])
     expect(state).toBe(CLOSED_MENU)
     expect(effects).toEqual([])
+  })
+
+  it('**同一个壳**在手改得动的卡上就弹得出来了（行到即生效，渲染端一行不改）', () => {
+    const ctx = { paths: [], cardId: 'dgc-c1', cardKind: 'custom' as const }
+    expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, ctx).map((r) => r.id)).toEqual(['new-group', 'edit-types'])
+    const { state, effects } = nextMenuShell(CLOSED_MENU, {
+      type: 'open', x: 10, y: 20, viewport: VIEWPORT, specs: GROUP_CARD_MENU_ROWS, ctx,
+    })
+    expect(state.open).toBe(true)
+    expect(kinds(effects)).toEqual(['keyboard-tier', 'show', 'hotzones', 'notify'])
   })
 
   it('卡片空白/徽标命中才开组卡菜单；图标格命中不开（那道闸与折叠切换同源，在 interaction.js）', () => {

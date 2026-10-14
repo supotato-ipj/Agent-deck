@@ -38,6 +38,9 @@ export declare function groupLabelOf(key: string): string
 /** 分组键 → 组卡 id 基名（撞车后的唯一化在 groupByExtension 内） */
 export declare function cardIdOf(key: string): string
 
+/** 组序排法（表内按表序、表外按字母序）：卡序与工单185 勾选浮层的类型清单共用这一份 */
+export declare function sortGroupKeys(keys: Iterable<string>, order: readonly string[]): string[]
+
 export declare function groupByExtension(
   items: readonly GroupableItem[],
   order?: readonly string[],

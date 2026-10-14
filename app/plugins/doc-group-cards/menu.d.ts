@@ -9,14 +9,19 @@
 /** 一行需要什么才可用（选区口径） */
 export type RowNeed = 'any' | 'single' | 'pasteable'
 
+/** 卡片身份（组卡菜单上下文里带着它）：与 ownership.js 的三层同名同字面量 */
+export type CardKind = 'custom' | 'temp' | 'builtin' | ''
+
 /** 菜单上下文：当前选区 + 剪贴板实况 + 来源卡片 */
 export type MenuCtx = {
   /** 当前选区（绝对路径数组；工单182 为单选，一个路径） */
   paths: readonly string[]
   /** 剪贴板可贴实况（needs:'pasteable' 的行读它） */
   pasteable?: boolean
-  /** 触发本次开层的卡片 id（组卡菜单用；文件菜单为空串。工单185 按它判卡片身份） */
+  /** 触发本次开层的卡片 id（组卡菜单用；文件菜单为空串） */
   cardId?: string
+  /** 那张卡的归属层；工单185 的 NEW GROUP / EDIT TYPES 按它判「这张卡手改得动吗」 */
+  cardKind?: CardKind
 }
 
 /** 行描述符：数据驱动的一行。动作回调不进状态，由 card.js 旁路持有 */
@@ -109,9 +114,18 @@ export declare const NEED_ANY: RowNeed
 export declare const NEED_SINGLE: RowNeed
 export declare const NEED_PASTEABLE: RowNeed
 
+/** 卡片身份的三个字面量（与 ownership.js 同名同值） */
+export declare const KIND_CUSTOM: 'custom'
+export declare const KIND_TEMP: 'temp'
+export declare const KIND_BUILTIN: 'builtin'
+
+/** 这张卡手改得动吗（自定义卡与临时卡可；固有扩展组卡是规则生成的，不可） */
+export declare function isHandEditableKind(kind: CardKind | undefined): boolean
+
 /** 文件菜单（单选）七项：工单182 的只读五项 + 工单183 的 RENAME / DELETE */
 export declare const FILE_MENU_ROWS: readonly MenuRowSpec[]
-/** 组卡菜单（卡片空白处右键）行表：工单183 只立骨架与接线，四行由工单185/186 往里加 */
+/** 组卡菜单（卡片空白处右键）行表：工单185 的 NEW GROUP / EDIT TYPES（固有扩展组卡不出这两行）；
+ *  PASTE 与 DISSOLVE 归工单186 */
 export declare const GROUP_CARD_MENU_ROWS: readonly MenuRowSpec[]
 
 /** 一行在当前上下文下可不可用（唯一的置灰裁决出口） */

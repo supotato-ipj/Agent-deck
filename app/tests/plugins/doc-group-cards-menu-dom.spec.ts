@@ -153,7 +153,10 @@ function overlaySpyClicks(): { n: number } {
 }
 
 const labels = () => rowsOf().map((r) => r.textContent)
-const menuInvokes = () => h.invokes.filter((c) => c.method !== 'desktop/icon')
+// 菜单动作走的那批内核契约调用。排除两类与菜单动作无关的噪声：
+//   - desktop/icon：取图标（工单179 起就有）；
+//   - plugin-config/*：工单185 起装载时要经插件私有状态通道读一次组定义，那不是菜单动作。
+const menuInvokes = () => h.invokes.filter((c) => c.method !== 'desktop/icon' && !c.method.startsWith('plugin-config/'))
 
 // ---------------------------------------------------------------------------
 

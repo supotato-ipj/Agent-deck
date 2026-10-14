@@ -140,7 +140,9 @@ function rowById(id: string): Element {
   return row
 }
 const byId = (id: string): Element | null => dom.documentShim.getElementById(id)
-const menuInvokes = () => h.invokes.filter((c) => c.method !== 'desktop/icon')
+// 排除两类与写操作无关的噪声：desktop/icon（取图标）与 plugin-config/*（工单185 起装载时
+// 经插件私有状态通道读一次组定义——那是本插件的状态通道，不是菜单动作）。
+const menuInvokes = () => h.invokes.filter((c) => c.method !== 'desktop/icon' && !c.method.startsWith('plugin-config/'))
 const writeInvokes = () => menuInvokes().filter((c) => c.method === 'desktop/trash' || c.method === 'desktop/rename')
 const classesOf = (n: Element) => n.className.split(/\s+/).filter(Boolean)
 

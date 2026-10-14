@@ -1,6 +1,7 @@
 // 组卡（工单179 = spec166 之②，tracer bullet；工单181 = spec166 之④，交互语义与生命周期；
 // 工单182 = spec166 之⑤，自绘菜单外壳与只读五项；工单183 = spec166 之⑥，写操作两项
-// RENAME/DELETE + 组卡菜单骨架）：投放型插件包 doc-group-cards 的入口。
+// RENAME/DELETE + 组卡菜单骨架；工单185 = spec166 之⑧，自定义组卡的建立与编辑——组定义持久化
+// 与三层归属）：投放型插件包 doc-group-cards 的入口。
 //
 // 交付形态（ADR-0014）：投放型插件包，不是内置卡片包。源码在仓库内（app/plugins/doc-group-cards/），
 // 另有一道安装步骤把它拷进用户插件根；运行态仍投放型——删掉那个目录即完全撤回，内核文档区自己回来。
@@ -10,7 +11,10 @@
 //   - 折叠/展开几何在同目录 geometry.js（同一条缝，工单180）；
 //   - 菜单开合/置灰/落位在同目录 menu.js（同一条缝，工单182）；
 //   - 删除确认层与内联重命名编辑器的状态迁移在同目录 writeops.js（同一条缝，工单183）；
-//   - 本文件只管「画卡」「接线」与「画浮层」：几何、图标、启动、点击监听、热区、菜单与写操作接线。
+//   - **组定义形状、三层归属、临时卡序号**在同目录 ownership.js（同一条缝，工单185）；
+//   - **「接受的类型」勾选浮层**的状态迁移在同目录 typepicker.js（同一条缝，工单185）；
+//   - 本文件只管「画卡」「接线」「画浮层」与「存取组定义」：几何、图标、启动、点击监听、热区、
+//     菜单与浮层接线。
 //
 // 词：GLOSSARY 的**扩展组**（按单个扩展名聚合）是**组卡**（渲染它的那张卡）的分组单位；
 // 内核按类别聚合的**文档组**（六类列）与此并存、互不干涉（内核那条规则本插件一行不改）。
@@ -18,11 +22,11 @@
 // 装载即接管桌面文档的呈现：mount 藏掉内核文档区，unmount 原样还回去。呈现层的调用纪律：
 // 插件每一次改变卡片几何之后都必须主动 host.onDomChanged()——热区没有周期性重算，
 // 不申报新覆盖的区域就既点不到也滚不动（spec166「热区纪律」）。折叠切换会改形状，故申报；
-// 高亮只改类名不改布局盒，矩形不动，故不申报；菜单遮罩与删除确认层遮罩一铺一撤都改几何，
-// 故两个方向都申报；内联重命名编辑器在**卡框内部**顶替一个标签、卡框那两行内联几何一字未动，
-// 故不申报（详见 writeops.js 的归约器注释）。
+// 高亮只改类名不改布局盒，矩形不动，故不申报；菜单遮罩、删除确认层遮罩与勾选浮层遮罩一铺一撤
+// 都改几何，故三个方向都申报；内联重命名编辑器在**卡框内部**顶替一个标签、卡框那两行内联几何
+// 一字未动，故不申报（详见 writeops.js 的归约器注释）。
 
-import { extOf, groupByExtension } from './grouping.js'
+import { extOf } from './grouping.js'
 import {
   CARD_PAD_X,
   CARD_PAD_Y,
@@ -97,8 +101,46 @@ import {
   nextRenameEditor,
   renameCssOf,
 } from './writeops.js'
+import {
+  STORE_KEY,
+  addCustomGroup,
+  buildCards,
+  editCustomGroupTypes,
+  emptyStore,
+  presentExtensionsOf,
+  storeOf,
+} from './ownership.js'
+import {
+  CLOSED_TYPES,
+  TYPE_ALL_CLASS,
+  TYPE_ALL_ID,
+  TYPE_BOX_MARK_CLASS,
+  TYPE_BOX_CLASS,
+  TYPE_BOX_ID,
+  TYPE_CANCEL_CLASS,
+  TYPE_CANCEL_ID,
+  TYPE_KEYBOARD_TIER,
+  TYPE_LIST_CLASS,
+  TYPE_LIST_ID,
+  TYPE_NAME_CLASS,
+  TYPE_NAME_ID,
+  TYPE_OK_CLASS,
+  TYPE_OK_ID,
+  TYPE_OPENED_NOTIFY,
+  TYPE_OVERLAY_CLASS,
+  TYPE_OVERLAY_ID,
+  TYPE_PICKER_CSS,
+  TYPE_ROW_CLASS,
+  TYPE_STYLE_ID,
+  checkedOf,
+  nextTypePicker,
+  typePickerBoxOf,
+} from './typepicker.js'
 
 const PLUGIN_ID = 'doc-group-cards'
+/** 组卡样式与组定义存证族 */
+const GROUPS_LOADED_NOTIFY = 'doc-group-cards-groups-loaded'
+const GROUPS_SAVED_NOTIFY = 'doc-group-cards-groups-saved'
 
 /** 本插件插进文档头的样式元素的 id（换代前一代没清干净时按它扫；热区日志也认这个名字） */
 export const STYLE_ID = 'dgc-style'
@@ -309,6 +351,43 @@ let renameState = CLOSED_RENAME
 let renameInputNode = null
 let renameLabelNode = null
 let renameCellNode = null
+
+// ---------------------------------------------------------------------------
+// 组定义（工单185）：本插件自己那份「有哪些自定义卡、临时卡序号到几了」
+//
+// 存取只走**内核的插件私有状态通道**（工单178 的 plugin-config/get|set，一对桥接方法），
+// 落盘由主进程做（合并校验、坏值逐键回退、原子写、体积上限）。插件自己一个文件都不写——
+// 那是内核那份实现的职责，两边各写一份迟早在合并策略上分叉。
+//
+// **命名空间隔离是约定式、不是强制式**：`invoke` 是全表透传的单一 handler，主进程无从分辨
+// 调用方，插件 id 由本插件自证。这与面板现有的零护栏状态一致（ADR-0014 Consequences）。
+//
+// 世代守卫：读定义是异步的，而换代（热重载）可能在读回来之前就把上一代拆了。故每次
+// mount/unmount 都换一个世代号，读回来的结果世代对不上就丢弃——否则上一代的组定义会
+// 画进新代的卡里。
+// ---------------------------------------------------------------------------
+
+/** 当前生效的组定义（内存态；与盘上那一份同步） */
+let groupStore = emptyStore()
+/** 世代号：换代即 +1，异步读回时用它判断自己是不是上一代 */
+let generation = 0
+
+/**
+ * 本次装载画出的**卡片归属层**（卡 id → custom / temp / builtin）。
+ *
+ * 组卡菜单的可见性要判「这张卡手改得动吗」，判据就是它；故这一张表随整排重画重建，
+ * 不另设一份真相（菜单那边只读 ctx，不回头来问）。
+ */
+let cardTierById = new Map()
+
+/**
+ * 「接受的类型」勾选浮层状态（工单185）。与另两层一样由归约器（typepicker.js）拥有；
+ * 本文件持有的是它落到 DOM 上的那几枚节点。
+ */
+let typeState = CLOSED_TYPES
+let typesOverlayNode = null
+let typesStyleNode = null
+let typesNameNode = null
 
 /**
  * 本轮快照的桌面项索引（绝对路径 → 项）与格子索引（绝对路径 → 格子节点）。
@@ -736,6 +815,301 @@ function walkIn(root, out = []) {
   return out
 }
 
+// ---------------------------------------------------------------------------
+// 组定义的存取（工单185）
+//
+// **只经内核的插件私有状态通道**（工单178：`plugin-config/get` {id} → {config, warnings}、
+// `plugin-config/set` {id, patch} → {config, warnings}）。落盘位置、合并校验、坏值逐键回退、
+// 原子写、体积上限全是主进程那份实现的职责——插件一个文件都不自己写，也不在渲染层碰盘。
+//
+// 整份定义放**一个**键（STORE_KEY）里：一次写 = 一次原子写。拆成「组表」「计数器」两个键，
+// 就会出现「组表写成功、计数器写失败」的半份状态，而计数器退回去就是 `临时 01` 撞名。
+//
+// 读不到定义不是致命的：给空状态照常画固有卡（用户一张自定义卡还没建过时本就是空状态），
+// 但要把失败如实上报，而不是静默当空——否则用户建过卡、读失败、卡全散了他还不知道原因。
+// ---------------------------------------------------------------------------
+
+/**
+ * 读回本插件的组定义（异步）。世代对不上就放弃——上一代的读回不该画进新代的卡里。
+ * @param {Host} host
+ */
+async function loadGroups(host) {
+  const mine = generation
+  let response = null
+  try {
+    response = await host.invoke('plugin-config/get', { id: PLUGIN_ID })
+  } catch (err) {
+    if (generation !== mine) return
+    host.notify(GROUPS_LOADED_NOTIFY, { ok: false, error: err instanceof Error ? err.message : String(err) })
+    return
+  }
+  if (generation !== mine) return
+  groupStore = storeOf(response)
+  const warnings = response && typeof response === 'object' ? /** @type {{ warnings?: string[] }} */ (response).warnings : null
+  host.notify(GROUPS_LOADED_NOTIFY, {
+    ok: true,
+    groups: groupStore.groups.length,
+    temps: groupStore.temps.length,
+    nextSeq: groupStore.nextSeq,
+    warnings: warnings && warnings.length ? warnings : undefined,
+  })
+  // 定义变了就重画整排：归属是定义的函数（组卡是归属概念，不是目录——磁盘上的文件一个都不动）
+  if (hostRef) render(hostRef)
+}
+
+/**
+ * 落盘一次组定义。内核归一之后的那一份才是权威，故以它为准接回内存。
+ *
+ * 调用方已经先把新定义落到内存并重画过（界面不等磁盘）；这里落完盘再接回来，通常结构指纹
+ * 没变故整排原样不动（1Hz 快照不会因此把用户的卡刷没了）。
+ * @param {Host} host
+ * @param {GroupStore} next
+ */
+function saveGroups(host, next) {
+  groupStore = next
+  render(host)
+  void Promise.resolve(host.invoke('plugin-config/set', { id: PLUGIN_ID, patch: { [STORE_KEY]: next } })).then(
+    (response) => {
+      if (!hostRef) return
+      groupStore = storeOf(response ?? next)
+      host.notify(GROUPS_SAVED_NOTIFY, { groups: groupStore.groups.length, nextSeq: groupStore.nextSeq })
+      render(hostRef)
+    },
+    (err) => {
+      // 落盘失败就如实上报：内存里已经是新定义（界面照新定义画），但盘上还是旧的
+      host.notify(GROUPS_SAVED_NOTIFY, { ok: false, error: err instanceof Error ? err.message : String(err) })
+    },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 「接受的类型」勾选浮层（工单185）
+//
+// 第三块自绘浮层（菜单、删除确认层之后）。**遮罩与那两块同一套热区接管做法**（newOverlay），
+// 但**各取唯一 id**——热区扫掠对重复 id 不去重。铺一张铺满视口的 .card 即全屏热区，
+// 撤掉必须**再申报一次**（两个方向都改矩形，故 open/hide 各发一次 hotzones 效果）。
+//
+// 焦点两步走：效果数组里**档先持**（窗口因此可聚焦），show 里才 focus，顺序反了焦点落空。
+// 宿主与桥接契约里没有任何「聚焦某个元素」的 API，故这两步缺一不可。
+// ---------------------------------------------------------------------------
+
+/**
+ * 铺浮层：全屏遮罩 + 居中盒子 + 名字输入（仅 NEW GROUP）+「接受全部类型」开关 + 类型清单 + 两钮。
+ *
+ * 盒子的落位与尺寸按 typepicker.js 算出的数写内联样式（热区与存证矩形取 getBoundingClientRect()，
+ * 落位算式与画法必须同源）。
+ */
+function showTypes(host, fx) {
+  hideTypes() // 重开不留两层
+
+  const style = document.createElement('style')
+  style.id = TYPE_STYLE_ID
+  style.textContent = TYPE_PICKER_CSS
+  document.head.appendChild(style)
+  injected.push(style)
+  typesStyleNode = style
+
+  const overlay = newOverlay(TYPE_OVERLAY_ID, TYPE_OVERLAY_CLASS, 1002)
+  const box = document.createElement('div')
+  box.id = TYPE_BOX_ID
+  box.className = TYPE_BOX_CLASS
+  box.style.left = `${fx.box.left}px`
+  box.style.top = `${fx.box.top}px`
+  box.style.width = `${fx.box.width}px`
+  box.style.height = `${fx.box.height}px`
+
+  if (fx.mode === 'create') {
+    const name = document.createElement('input')
+    name.type = 'text'
+    name.id = TYPE_NAME_ID
+    name.className = TYPE_NAME_CLASS
+    name.maxLength = 40
+    name.spellcheck = false
+    name.setAttribute('autocomplete', 'off')
+    name.setAttribute('placeholder', 'CARD NAME')
+    name.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault()
+        ev.stopPropagation()
+        dispatchTypes(host, { type: 'submit' }) // 草稿由 dispatchTypes 统一从输入框读回
+      }
+    })
+    box.appendChild(name)
+    typesNameNode = name
+  }
+
+  // 「接受全部类型」开关在顶部：宽卡不必逐个勾
+  const all = document.createElement('div')
+  all.id = TYPE_ALL_ID
+  all.className = TYPE_ALL_CLASS
+  const allMark = document.createElement('span')
+  allMark.className = TYPE_BOX_MARK_CLASS
+  allMark.textContent = typeState.acceptAll ? '☑' : '☐'
+  const allLabel = document.createElement('span')
+  allLabel.textContent = 'ACCEPT ALL TYPES'
+  all.append(allMark, allLabel)
+  all.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    dispatchTypes(host, { type: 'toggle-all' })
+  })
+  box.appendChild(all)
+
+  // 类型清单：桌面上此刻真实存在的扩展名逐个勾（不存在的类型不列——列了也没文件可放）
+  const list = document.createElement('div')
+  list.id = TYPE_LIST_ID
+  list.className = TYPE_LIST_CLASS
+  for (const row of fx.present) {
+    const line = document.createElement('div')
+    line.className = TYPE_ROW_CLASS
+    line.dataset.ext = row.ext
+    const mark = document.createElement('span')
+    mark.className = TYPE_BOX_MARK_CLASS
+    mark.textContent = checkedOf(typeState, row.ext) ? '☑' : '☐'
+    const text = document.createElement('span')
+    text.textContent = row.label
+    line.append(mark, text)
+    line.addEventListener('click', (ev) => {
+      ev.stopPropagation()
+      dispatchTypes(host, { type: 'toggle', ext: row.ext })
+    })
+    list.appendChild(line)
+  }
+  box.appendChild(list)
+
+  const ok = document.createElement('div')
+  ok.id = TYPE_OK_ID
+  ok.className = TYPE_OK_CLASS
+  ok.textContent = fx.mode === 'create' ? 'CREATE' : 'SAVE'
+  ok.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    dispatchTypes(host, { type: 'submit' })
+  })
+
+  const cancel = document.createElement('div')
+  cancel.id = TYPE_CANCEL_ID
+  cancel.className = TYPE_CANCEL_CLASS
+  cancel.textContent = 'CANCEL'
+  cancel.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    dispatchTypes(host, { type: 'cancel', reason: 'button' })
+  })
+  box.append(ok, cancel)
+  overlay.appendChild(box)
+
+  // 层外点击 = 取消（与删除确认层同款：那一击不落任何面板语义）。盒子自身的留白**不**取消。
+  overlay.addEventListener('click', (ev) => {
+    if (box.contains(ev.target)) return
+    ev.stopPropagation()
+    dispatchTypes(host, { type: 'outside' })
+  })
+
+  document.body.appendChild(overlay)
+  injected.push(overlay)
+  typesOverlayNode = overlay
+  window.addEventListener('keydown', onTypesKeydown)
+
+  // 焦点两步走：键盘档已在效果数组的前一步持拿（窗口此刻可聚焦），这里才落得到输入框上
+  if (typesNameNode) {
+    typesNameNode.value = fx.name
+    typesNameNode.focus()
+  }
+}
+
+/** 关层：遮罩、样式、窗口监听一起收，登记项也从表里划掉（关层后屏幕上一点不留） */
+function hideTypes() {
+  window.removeEventListener('keydown', onTypesKeydown)
+  dropInjected(typesOverlayNode)
+  dropInjected(typesStyleNode)
+  typesOverlayNode = null
+  typesStyleNode = null
+  typesNameNode = null
+}
+
+/** 名字输入框开着时，把框里的文本读回状态（草稿以 DOM 为真相；关着则无事可做） */
+function syncTypesDraft() {
+  if (typesNameNode && typeState.open && typeState.name !== typesNameNode.value) {
+    typeState = { ...typeState, name: typesNameNode.value }
+  }
+}
+
+/** 只改状态的那几类事件（勾一项、切开关、改名）没有 show 效果，但勾号与草稿得跟上——
+ * 故自己重画浮层本体。落位尺寸在重画时按当前状态重算（清单没变则尺寸不变）。
+ */
+function repaintTypes(host) {
+  if (!typesOverlayNode || !typeState.open) return
+  showTypes(host, {
+    mode: typeState.mode,
+    cardId: typeState.cardId,
+    label: typeState.label,
+    name: typeState.name,
+    acceptAll: typeState.acceptAll,
+    present: typeState.present,
+    checked: typeState.picked,
+    box: typePickerBoxFor(typeState),
+  })
+}
+
+function onTypesKeydown(ev) {
+  if (!hostRef || ev.key !== 'Escape') return
+  ev.preventDefault()
+  ev.stopPropagation()
+  dispatchTypes(hostRef, { type: 'esc' })
+}
+
+/**
+ * 一个事件一次合成：状态交给 typepicker.js 的归约器，效果数组按序落到宿主与 DOM 上。
+ *
+ * **草稿以输入框为真相**（与工单183 的内联重命名编辑器同纪律）：状态里那份 name 只是开层时的
+ * 初稿，用户敲的每一个字都在 DOM 的输入框上。故每个事件进来先把它读回来——不然点 CREATE 会
+ * 拿空名去建卡，勾一项触发重画还会把已敲的名字抹掉。
+ */
+function dispatchTypes(host, event) {
+  if (!host) return
+  syncTypesDraft()
+  const next = nextTypePicker(typeState, event, { width: window.innerWidth, height: window.innerHeight })
+  typeState = next.state
+  const painted = next.effects.some((fx) => fx.kind === 'show' || fx.kind === 'hide')
+  for (const fx of next.effects) {
+    if (fx.kind === 'tier') {
+      // 键盘档是「让位」不是「抢占」：持档期间内核六键路由与 Esc 拦截双双让开。档不放窗口就一直
+      // 可聚焦，故每一路收起都必须放，卸载亦然。
+      if (fx.held) host.holdKeyboardTier(TYPE_KEYBOARD_TIER)
+      else host.releaseKeyboardTier(TYPE_KEYBOARD_TIER)
+    } else if (fx.kind === 'show') {
+      showTypes(host, fx)
+    } else if (fx.kind === 'hide') {
+      hideTypes()
+    } else if (fx.kind === 'run') {
+      // 唯一的落库出口：两条动作都只改**定义**，归属随后由定义重算（磁盘上的文件一个都不动）
+      if (fx.op === 'create-group') {
+        saveGroups(host, addCustomGroup(groupStore, { name: fx.name, exts: fx.exts, acceptAll: fx.acceptAll }).store)
+      } else {
+        saveGroups(host, editCustomGroupTypes(groupStore, fx.cardId, { exts: fx.exts, acceptAll: fx.acceptAll }))
+      }
+    } else if (fx.kind === 'hotzones') {
+      // 热区纪律：遮罩一铺一撤都改了矩形，两个方向都要让渲染层重扫
+      host.onDomChanged()
+    } else if (fx.kind === 'notify') {
+      host.notify(fx.type, fx.payload)
+    }
+  }
+  if (!painted && typeState.open) repaintTypes(host)
+}
+
+/** 桌面上此刻真实存在的扩展名清单（勾选浮层逐个勾的就是它；空快照也给空清单，不抛） */
+function presentTypes() {
+  const desktop = hostRef ? hostRef.view.desktop : null
+  return presentExtensionsOf(desktop ? desktop.items : [])
+}
+
+/** 浮层盒子按当前状态重算落位（重画浮层本体时用；算式与 typepicker.js 同一处） */
+function typePickerBoxFor(state) {
+  return typePickerBoxOf(
+    { width: window.innerWidth, height: window.innerHeight },
+    { present: state.present, mode: state.mode },
+  )
+}
+
 /**
  * 行动作：一律经内核既有桥接契约调用，插件自己不碰 shell、不碰剪贴板。
  * 与内核单项菜单（工单24）走同一批契约：
@@ -779,9 +1153,41 @@ function runMenuRow(host, id, paths, cardId = '') {
     case 'delete':
       openConfirm(host, paths)
       return
+    case 'new-group':
+      // NEW GROUP：开勾选浮层（建卡模式要起名 + 勾类型）。此处一个字节都不落库——
+      // 「先问过用户」是这一行的全部语义，落库发生在浮层 submit 之后。
+      if (typeState.open) dispatchTypes(host, { type: 'cancel', reason: 'reopen' })
+      dispatchTypes(host, { type: 'create', present: presentTypes() })
+      return
+    case 'edit-types':
+      openEditTypes(host, cardId)
+      return
     default:
-      // 未知行不猜动作（工单185 的组卡行还没到；真到了也会有自己的 case）
+      // 未知行不猜动作（工单186 的 PASTE / DISSOLVE 还没到；真到了也会有自己的 case）
   }
+}
+
+/**
+ * 从菜单的 EDIT TYPES 行进来：开勾选浮层（编辑模式只改接受的类型，不改卡名）。
+ *
+ * 卡的身份取自本轮组定义（不按 id 反查、不从卡面标签猜）；快照里已经没有这张卡（解散过、或
+ * 读定义失败）就如实上报，不开一只没有归属的浮层。
+ */
+function openEditTypes(host, cardId) {
+  const group = groupStore.groups.find((g) => g.id === cardId)
+  if (!group) {
+    host.notify(TYPE_OPENED_NOTIFY, { ok: false, error: '这张卡不在当前组定义里', cardId })
+    return
+  }
+  if (typeState.open) dispatchTypes(host, { type: 'cancel', reason: 'reopen' })
+  dispatchTypes(host, {
+    type: 'edit',
+    cardId: group.id,
+    label: group.name,
+    exts: group.exts,
+    acceptAll: group.acceptAll,
+    present: presentTypes(),
+  })
 }
 
 /** 一个事件一次合成：状态交给归约器，效果数组按序落到宿主与 DOM 上 */
@@ -821,16 +1227,21 @@ function openFileMenu(host, x, y, paths) {
 }
 
 /**
- * 在卡片**空白处**打开组卡菜单（工单183 立骨架）。
+ * 在卡片**空白处**打开组卡菜单。
  *
  * 与文件菜单**同一副壳、同一套裁决**，换的只有两样：行表（GROUP_CARD_MENU_ROWS）与上下文
- * （无选区 + 触发它的卡片 id）。故工单185/186 往那张表里加行时，本函数一行都不用改——
- * 包括 PASTE 的 needs:'pasteable' 置灰（读 ctx.pasteable，查不到即灰，绝不误使能）。
+ * （无选区 + 触发它的卡片 id + 那张卡的归属层）。渲染端一行都不用改——card.js 画的是
+ * resolveMenuRows() 的输出。
  *
- * 当前那张表是**空的**（spec166 的组卡菜单四行 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE
- * 分属工单185/186），而 menu.js「一可见行都没有就不弹」的规则是工单182 定下并被其测试钉死的：
- * 弹一只空框毫无意义。故此刻右键组卡空白**不出菜单**——本函数与整条接线已就位，行一到即生效。
- * 这是本票的刻意取舍，不是漏做：宁可不出，也不动别人钉过的规则换一个「能弹的空菜单」。
+ * **归属层是可见性的唯一判据**：工单185 给 NEW GROUP / EDIT TYPES 两行都配了
+ * `visibleWhen: 自定义卡或临时卡`，故固有扩展组卡的空白处右键**一可见行都没有**、按工单182
+ * 定下的规则不出菜单（规则生成的卡不该被手改；那道规则一个字都没动）。工单186 的临时卡与
+ * 本票的自定义卡走同一个判据，故那一票不需要再改这张表。
+ *
+ * @param {Host} host
+ * @param {number} x
+ * @param {number} y
+ * @param {string} cardId
  */
 function openGroupMenu(host, x, y, cardId) {
   dispatchMenu(host, {
@@ -839,7 +1250,7 @@ function openGroupMenu(host, x, y, cardId) {
     y,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     specs: GROUP_CARD_MENU_ROWS,
-    ctx: { paths: [], cardId },
+    ctx: { paths: [], cardId, cardKind: cardTierById.get(cardId) || '' },
   })
 }
 
@@ -1020,9 +1431,14 @@ function buildHead(group) {
   return head
 }
 
-/** 结构指纹：组 id + 组内路径。刻意不含 mtime/iconKey——文件被碰一下不该重画整排卡 */
+/**
+ * 结构指纹：卡 id + 归属层 + 卡面名 + 组内路径。
+ *
+ * 工单185 起**卡面名与归属层也进了指纹**：自定义卡的标题是用户起的名，改名 / 改归属层若不计入，
+ * 指纹不变则整排不重画，标题就停在旧值上。刻意仍不含 mtime/iconKey——文件被碰一下不该重画整排卡。
+ */
 function fingerprintOf(groups) {
-  return JSON.stringify(groups.map((g) => [g.id, g.items.map((i) => i.path)]))
+  return JSON.stringify(groups.map((g) => [g.id, g.tier, g.label, g.items.map((i) => i.path)]))
 }
 
 function draw(host, groups) {
@@ -1042,6 +1458,8 @@ function draw(host, groups) {
   cardState = new Map()
   cellByPath = new Map()
   itemByPath = new Map()
+  // 归属层表随之重建：组卡菜单的可见性要判「这张卡手改得动吗」，判据就是它，不另设一份真相
+  cardTierById = new Map()
   for (const group of groups) {
     // .card 是渲染层扫热区的唯一通用入口，不挂则永不收输入；id 必须唯一（扫掠不去重），
     // 唯一性由 grouping.js 保证。不用 .ditem：那是内核条目类，挂上会让内核的框选/选区/摆位
@@ -1082,6 +1500,7 @@ function draw(host, groups) {
     })
     host.el.appendChild(card)
     cardNodes.set(group.id, card)
+    cardTierById.set(group.id, group.tier)
   }
   paintStates(cardState)
   host.onDomChanged()
@@ -1093,9 +1512,16 @@ function isInsideRename(target) {
   return typeof target?.closest === 'function' ? Boolean(target.closest(`.${RENAME_INPUT_CLASS}`)) : false
 }
 
+/**
+ * 画一整排卡。
+ *
+ * 归属是**定义的函数**（工单185）：buildCards(桌面项, 组定义) 一次算出每张卡装什么。磁盘上的
+ * 文件一个都不动、不移动、不改名——组卡是归属概念，不是目录。故用户在 EDIT TYPES 里改了勾选，
+ * 下一帧的归属就随之迁移，无需任何手动步骤，也不需要「文件 → 卡」那张同步表。
+ */
 function render(host) {
   const desktop = host.view.desktop
-  draw(host, groupByExtension(desktop ? desktop.items : []))
+  draw(host, buildCards(desktop ? desktop.items : [], groupStore))
 }
 
 function onResize() {
@@ -1107,13 +1533,20 @@ function onResize() {
 export default {
   mount(host) {
     hostRef = host
+    generation += 1 // 换代即换世代：上一代那次异步读回不该画进这一代的卡里
+    groupStore = emptyStore()
+    cardTierById = new Map()
     menuState = CLOSED_MENU // 换代后从头来过：菜单不跨代续着开
     confirmState = CLOSED_CONFIRM // 同上：确认层不跨代续着开
     renameState = CLOSED_RENAME // 同上：编辑器不跨代续着开
+    typeState = CLOSED_TYPES // 同上：勾选浮层不跨代续着开
     injectStyle()
     try {
       hideDocZone()
+      // 先用空定义画一排固有卡（用户一张自定义卡还没建过时本就是这个结果，故不是错画），
+      // 组定义读回来后由 loadGroups 自己重画——mount 是同步的，不能等一个异步 IO。
       render(host)
+      void loadGroups(host)
       window.addEventListener('resize', onResize)
       host.notify('doc-group-cards-mounted', { id: PLUGIN_ID })
     } catch (err) {
@@ -1125,6 +1558,7 @@ export default {
       cardState = new Map()
       cellByPath = new Map()
       itemByPath = new Map()
+      cardTierById = new Map()
       drawnKey = ''
       hostRef = null
       restoreDocZone()
@@ -1141,7 +1575,8 @@ export default {
 
   unmount() {
     window.removeEventListener('resize', onResize)
-    // 三层浮层开着就各自静默收场：遮罩/样式/热区/键盘档一样不漏地收回（归约器的 unmount
+    generation += 1 // 异步读回若在路上，回来时世代已变，自会被丢弃
+    // 四层浮层开着就各自静默收场：遮罩/样式/热区/键盘档一样不漏地收回（归约器的 unmount
     // 事件不带存证——通道随插件消亡，但热区必须重申报，否则全屏热区会残留到卸载之后）。
     // **键盘档必须在每一条路径上都被放掉**：不放窗口就一直可聚焦，面板再也点不动。
     // 万一连这个钩子都没跑到（进程被杀），宿主在 reclaimPlugin 里按插件 id 强制回收
@@ -1149,17 +1584,21 @@ export default {
     dispatchMenu(hostRef, { type: 'unmount' })
     dispatchConfirm(hostRef, { type: 'unmount' })
     dispatchRename(hostRef, { type: 'unmount' })
+    dispatchTypes(hostRef, { type: 'unmount' })
     menuState = CLOSED_MENU
     confirmState = CLOSED_CONFIRM
     renameState = CLOSED_RENAME
+    typeState = CLOSED_TYPES
     for (const card of cardNodes.values()) card.remove()
     cardNodes.clear()
     cardState = new Map()
     cellByPath = new Map()
     itemByPath = new Map()
+    cardTierById = new Map()
     releaseInjected()
     iconCache.clear()
     drawnKey = ''
+    groupStore = emptyStore()
     restoreDocZone()
     // 文档区回来后热区要跟着回声明（含内核那条 24px 文档区环带），否则新露出的区域点不动
     hostRef?.onDomChanged()
