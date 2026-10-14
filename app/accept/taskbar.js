@@ -1199,30 +1199,36 @@ async function main() {
           // （时钟格——非内核动作键，dispatch 噪声免费）转达收层（strip-click）。blur 路径
           // 已由 55 族臂5 在同一载体实证（浮层窗 blur 收「栏外」点击，桌面/应用窗夺焦；
           // 面板钉底永不激活点不出 blur——缝隙点击落在面板上无效），此处不再拉探针重复拉证。
+          // B 定位走条带页 CDP 现取 DOM 矩形（P13/P15 同款观察缝）——应用组 pill 随托盘
+          // churn 每拍重居中，settle 几何快照到点击之间必有一拍 churn 概率（两轮红轮实证
+          // 右键落 pill 空白），现取矩形消掉这一整类失配。到靶停拍 300ms（热区 25ms 轮询
+          // 翻转接收——行点后光标离条带，先挪上靶标再点击）。右键三试。
+          const liveAppPt16 = async (exe) => {
+            const r = await cdpEval(`(() => {
+              const want = ${JSON.stringify(exe)}.toLowerCase();
+              const el = [...document.querySelectorAll('#pill-apps .tb-app')].find((n) => (n.dataset.exe || '').toLowerCase() === want);
+              return el ? el.getBoundingClientRect().toJSON() : null;
+            })()`, TASKBAR_TITLE);
+            return r ? toPhys(r.x + r.width / 2, r.y + r.height / 2) : null;
+          };
           let outsideClose16 = null;
-          const gB2 = await waitGeometrySettled(repool16 || gU);
-          let ptB2 = appPt16(gB2, pB16.exe);
-          // 右键两试（⑥解除臂同款：解除行点击后光标在浮层行上、离条带，热区轮询窗右键
-          // 偶发不开菜单——离位刷新热区 + 重取 settle 几何再试一次）
-          for (let attemptB2 = 0; attemptB2 < 2 && ptB2 && !outsideClose16; attemptB2++) {
+          for (let attemptB2 = 0; attemptB2 < 3 && !outsideClose16; attemptB2++) {
+            const ptB2 = await liveAppPt16(pB16.exe);
+            if (!ptB2) break; // B 不在栏（转 ⋯ 溢出）：子臂无从谈起
             const sinceB2 = Date.now();
+            win32.moveMousePhys(ptB2.x, ptB2.y); // 到靶停拍：热区翻转接收后再点击
+            await sleep(300);
             win32.clickPhys(ptB2.x, ptB2.y, 'right');
             for (let i = 0; i < 12 && !popupSince16(sinceB2); i++) await sleep(200);
-            if (!popupSince16(sinceB2) && attemptB2 === 0) {
-              win32.moveMousePhys(ptB2.x, ptB2.y - 60); // 离位刷新热区
-              await sleep(300);
-              const gB2r = await waitGeometrySettled(latestGeometry(null));
-              ptB2 = appPt16(gB2r, pB16.exe);
-              continue;
-            }
-            if (popupSince16(sinceB2)) {
-              const gClock = latestGeometry(null);
-              const clockCell = (gClock.rightCells || []).find((c) => c.id === 'clock');
-              if (clockCell) {
-                const cp = toPhys(clockCell.x + clockCell.w / 2, clockCell.y + clockCell.h / 2);
-                win32.clickPhys(cp.x, cp.y, 'left');
-                outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= Date.now() - 6000, 5000);
-              }
+            if (!popupSince16(sinceB2)) continue;
+            const gClock = latestGeometry(null);
+            const clockCell = (gClock.rightCells || []).find((c) => c.id === 'clock');
+            if (clockCell) {
+              const cp = toPhys(clockCell.x + clockCell.w / 2, clockCell.y + clockCell.h / 2);
+              win32.moveMousePhys(cp.x, cp.y);
+              await sleep(250);
+              win32.clickPhys(cp.x, cp.y, 'left');
+              outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= Date.now() - 6000, 5000);
             }
           }
           // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）。
