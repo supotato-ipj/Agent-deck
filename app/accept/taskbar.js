@@ -1587,13 +1587,26 @@ async function main() {
       // 段末 rec-restore 原路回池（excluded 清空 = 复原干净，不给后续段留账）。
       const seenRemove18 = [];
       let emptied18 = null;
-      let stuck18 = null; // 池里剩不可移除条目（exe 空——内核 requireNonEmptyId 拒收）时记录，清空判 FAIL 留账
+      let stuck18 = null; // 池里滞留的条目（含完整形态诊断——exe 富化身份是裁决依据）
       const sinceRemove18 = Date.now();
-      for (let round18 = 0; round18 < 16 && !emptied18; round18++) {
+      // 滞留宽限：账已覆盖当前池 / exe 暂空时，数据面下一拍可能重算富化身份或清池——
+      // 重轮 get-state（≤5×400ms）再判滞留，不立断（同拍竞态的陈旧读不作数）
+      const regauge18 = async (recs) => {
+        for (let i = 0; i < 5; i++) {
+          await sleep(400);
+          const st = await state18();
+          const list = st && Array.isArray(st.recommendations) ? st.recommendations : [];
+          if (!list.length) return { recs: [] };
+          const exes = [...new Set(list.map((r) => String(r.exe || '')).filter(Boolean))];
+          if (exes.some((exe) => !seenRemove18.includes(exe))) return { recs: list };
+          if (exes.length) continue; // 还是已见身份，继续宽限
+        }
+        return { recs };
+      };
+      for (let round18 = 0; round18 < 24 && !emptied18; round18++) {
         const st18 = await state18();
         const recs18 = st18 && Array.isArray(st18.recommendations) ? st18.recommendations : [];
         const exes18 = [...new Set(recs18.map((r) => String(r.exe || '')).filter(Boolean))];
-        if (recs18.length && !exes18.length) { stuck18 = recs18; break } // 池内全是不可移除身份
         if (!recs18.length) {
           for (let i = 0; i < 30 && !emptied18; i++) {
             await sleep(200);
@@ -1603,13 +1616,20 @@ async function main() {
           }
           break;
         }
-        if (exes18.every((exe) => seenRemove18.includes(exe))) { stuck18 = recs18; break } // 移除未生效（防打转）
+        if (!exes18.length || exes18.every((exe) => seenRemove18.includes(exe))) {
+          const re = await regauge18(recs18);
+          if (!re.recs.length) continue; // 池清了，外层走空分支
+          if (re.recs !== recs18) continue; // 新身份进池，外层继续移除
+          stuck18 = re.recs;
+          break;
+        }
         for (const exe of exes18) if (!seenRemove18.includes(exe)) seenRemove18.push(exe);
         await cdpEval(`(async () => {
           for (const exe of ${JSON.stringify(exes18)}) {
             await window.deck.bridge.invoke('taskbar/rec-remove', { exe });
           }
         })()`, TASKBAR_TITLE);
+        await sleep(400); // 一移除一拍：changed 回推/几何帧到位再取下一轮名单
       }
       const domEmpty18 = emptied18
         ? await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE)
@@ -1635,7 +1655,7 @@ async function main() {
           + `（可见集复原、excluded 清空）`);
       } else {
         rep.fail(`P18 解耦反向：清空=${!!emptied18}(移除账=${seenRemove18.length}`
-          + ` 池内滞留=${stuck18 ? JSON.stringify(stuck18.map((r) => r.name)) : '无'}`
+          + ` 池内滞留=${stuck18 ? JSON.stringify(stuck18.map((r) => ({ name: r.name, exe: r.exe, path: r.path }))) : '无'}`
           + ` 帧=${emptied18 ? JSON.stringify({ recPill: emptied18.recPill, startPill: emptied18.startPill }) : 'null'})`
           + ` dom=${JSON.stringify(domEmpty18)} 回池=${!!repool18}(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
       }
