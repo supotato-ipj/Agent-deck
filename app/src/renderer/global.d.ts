@@ -35,6 +35,8 @@ declare global {
         setHotZones(rects: HotzoneRect[]): void
         /** 键盘模式开关（工单02）：开 = 面板临时可聚焦+聚焦+钉底；关 = 恢复不可聚焦+钉底 */
         setKeyboardMode(on: boolean): void
+        /** 拖拽会话开关（工单195）：开 = 热区穿透轮询持门（抑制关门），OLE 拖拽活动期跨组/缝隙松手不丢 */
+        setDragSession(on: boolean): void
         notify(type: string, payload?: Record<string, unknown>): void
         /** 渲染层活性心跳（#91）：deck:host-beat 一拍，主进程哨兵按此计活 */
         beat(): void

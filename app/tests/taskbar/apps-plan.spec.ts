@@ -5,7 +5,7 @@
  * 先例：tests/desktop/plan.spec.ts（直接喂构造输入断言输出清单）。
  */
 import { describe, expect, it } from 'vitest'
-import { planAppsGroup, planAppsOverflow, planAppsSequence, promoteRunToFront, shouldShowOnTaskbar } from '../../src/main/taskbar/apps-plan'
+import { planAppsGroup, planAppsOverflow, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../../src/main/taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../../src/main/taskbar/apps-plan'
 
 const pinned = (exe: string, over: Partial<TaskbarPinnedEntry> = {}): TaskbarPinnedEntry => ({
@@ -226,6 +226,34 @@ describe('解除手钉原地转运行（工单189，promoteRunToFront）', () =>
       ['C:\\apps\\A.exe', false, true],
     ])
     expect(r1.runOrder).toEqual(['c:\\apps\\x.exe', 'c:\\apps\\a.exe'])
+  })
+})
+
+describe('未钉运行条目会话换位（工单195，reorderRunOrder）：拖位落会话运行序、不落盘', () => {
+  it('运行段内换位：before=运行身份 → 移到该键之前', () => {
+    expect(reorderRunOrder(['c:\\apps\\b.exe', 'c:\\apps\\c.exe'], 'C:\\Apps\\C.exe', 'c:\\apps\\B.exe'))
+      .toEqual(['c:\\apps\\c.exe', 'c:\\apps\\b.exe'])
+  })
+
+  it('before=null（组空白落点）→ 运行段末尾', () => {
+    expect(reorderRunOrder(['c:\\apps\\c.exe', 'c:\\apps\\b.exe'], 'C:\\Apps\\C.exe', null))
+      .toEqual(['c:\\apps\\b.exe', 'c:\\apps\\c.exe'])
+  })
+
+  it('before 指向手钉段/序外身份 → 运行段首位钳取（紧随手钉段=离落点最近的可达位）', () => {
+    expect(reorderRunOrder(['c:\\apps\\b.exe', 'c:\\apps\\c.exe'], 'C:\\Apps\\C.exe', 'C:\\Apps\\Pinned.exe'))
+      .toEqual(['c:\\apps\\c.exe', 'c:\\apps\\b.exe'])
+  })
+
+  it('自落点与身份不在序：原引用原样返回（服务层据同一引用=空转 + includes 区分 ok:true/ok:false）', () => {
+    const order = ['c:\\apps\\b.exe', 'c:\\apps\\c.exe']
+    expect(reorderRunOrder(order, 'c:\\apps\\b.exe', 'c:\\apps\\b.exe')).toBe(order)
+    expect(reorderRunOrder(order, 'C:\\Gone\\ghost.exe', 'c:\\apps\\b.exe')).toBe(order)
+  })
+
+  it('身份归一匹配（NTFS 大小写/斜杠不敏感），换位不重不漏', () => {
+    expect(reorderRunOrder(['c:\\apps\\b.exe', 'c:\\apps\\c.exe', 'c:\\apps\\d.exe'], 'C:/APPS/D.exe', 'c:\\apps\\b.exe'))
+      .toEqual(['c:\\apps\\d.exe', 'c:\\apps\\b.exe', 'c:\\apps\\c.exe'])
   })
 })
 

@@ -172,3 +172,23 @@ export function planAppsSequence(
 export function promoteRunToFront(runOrder: readonly string[], key: string): string[] {
   return [key, ...runOrder.filter((k) => k !== key)]
 }
+
+/**
+ * 未钉运行条目的会话换位（工单195，断点①全条目接线的运行段裁决）：拖位落在会话运行
+ * 序内（仅内存——面板重启归零回默认序，不落盘）。before 语义与手钉段换位一致：
+ * before=运行身份 → 移到该键之前；before=null（组空白）→ 运行段末尾；before=手钉段/
+ * 序外身份 → 运行段**首位**钳取（两段模型下手钉段恒在前，离落点最近的可达位=紧随手
+ * 钉段）。自落点与「身份不在序」（栏外/已退场陈旧键）均原样返回**同一引用**——调用方
+ * 据此区分「幂等空转 ok:true（序内在场）」与「身份不在场 ok:false」（reorderPinned
+ * 同一引用=空转的既有区分纪律）。
+ */
+export function reorderRunOrder(runOrder: readonly string[], exe: string, beforeExe: string | null): string[] {
+  const key = normalizeExe(exe)
+  if (beforeExe !== null && normalizeExe(beforeExe) === key) return runOrder as string[]
+  if (!runOrder.includes(key)) return runOrder as string[]
+  const rest = runOrder.filter((k) => k !== key)
+  if (beforeExe === null) return [...rest, key]
+  const at = rest.indexOf(normalizeExe(beforeExe))
+  if (at < 0) return [key, ...rest]
+  return [...rest.slice(0, at), key, ...rest.slice(at)]
+}

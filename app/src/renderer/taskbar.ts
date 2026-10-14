@@ -1,4 +1,4 @@
-// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162/190/192）：状态经 taskbar/get-state 拉取 +
+// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162/190/192/195）：状态经 taskbar/get-state 拉取 +
 // taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
 // 四组布局（工单192 推荐组独立拆出、工单190 应用组中心锚定）：开始组 pill 钉条带左缘
 // （系统按钮，工单54）、推荐组 pill 漂浮于开始组右侧应用组左侧（positionRecPill 落位，
@@ -9,6 +9,11 @@
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
+// 工单195 全量拖拽三断点：①所有应用组条目（含未钉运行）可起拖可落（before 语义、
+// 落点条目化——落在仅运行图标上被容器守卫静默吞掉的老病根除）；②拖拽会话活动期整树
+// 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
+// OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
+// 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
 import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
@@ -60,8 +65,16 @@ let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
 let recMenu: { exe: string; name: string } | null = null
 /** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
 let windowList: { exe: string; windows: TaskbarWindowRef[] } | null = null
-/** 拖拽源（工单57）：dragstart 记录，落位判定全在渲染层，落位裁决在内核 */
+/** 拖拽源（工单57）：dragstart 记录，落位判定全在渲染层，落位裁决在内核。
+ * 工单195：dragSource 活动期即 OLE 拖拽会话活动期——渲染冻结（②）与热区持门（③）
+ * 都以它为闸。 */
 let dragSource: { group: TaskbarDragGroup; id: string } | null = null
+/** 拖拽期合帧挂起（工单195 断点②）：dragSource 活动期收到的 taskbar/changed 只留最新
+ * 一帧，dragend 补渲一次——被拖节点被重建即中止 Chromium OLE 拖拽会话（真机上窗口
+ * 标题变化/托盘事件/快照刷新每几秒推一帧，~75% 偶发弹回的根因）。 */
+let dragHeld: TaskbarState | null = null
+/** 拖拽期被跳过的 resize 重渲（工单195 断点②）：dragend 补渲凭它决定是否补一帧 */
+let dragResized = false
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
 
@@ -182,7 +195,7 @@ function renderSummary(metrics: TaskbarState['metrics'], gauges: HardwareGauges 
   cell.addEventListener('contextmenu', (ev) => {
     ev.preventDefault()
     editing = !editing
-    if (current) render(current)
+    if (current) requestRender(current)
   })
   return cell
 }
@@ -203,7 +216,7 @@ function openTierMenu(): void {
   tierMenuTimer = setTimeout(() => {
     tierMenuOpen = false
     tierMenuTimer = null
-    if (current) render(current)
+    if (current) requestRender(current)
   }, 8000)
 }
 
@@ -350,18 +363,21 @@ async function onAppClick(e: TaskbarAppViewEntry, inOverflow: boolean): Promise<
     ? { exe: e.exe, windows: r.windows }
     : null
   if (inOverflow) overflowOpen = false
-  if (current) render(current)
+  if (current) requestRender(current)
 }
 
-/** 拖拽接线（工单57）：拖到某个条目上 = 落该条目之前（亮条指示）；拖到组内空白 =
- * 落可编辑段末尾（before=null）。跨组同款：推荐→应用升手钉、应用→推荐解除手钉回推荐池。
- * 落点裁决与落盘在内核（taskbar/drag-drop），渲染层只负责源记录与落点反馈。 */
+/** 拖拽接线（工单57，工单195 全量拖拽语义）：拖到某个条目上 = 落该条目之前（亮条指示
+ * ——before 语义，所有条目都可落）；拖到组内空白 = 落源条目所属段末尾（before=null）。
+ * 跨组同款：推荐→应用升手钉、应用→推荐解除手钉回推荐池。落点裁决与落盘在内核
+ * （taskbar/drag-drop），渲染层只负责源记录与落点反馈。 */
 function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): void {
   el.draggable = true
   el.addEventListener('dragstart', (ev) => {
     dragSource = { group, id }
     el.classList.add('dragging')
     window.deck.host.notify('taskbar-drag-start', { group, id })
+    // 断点③（工单195）：热区持门开门——OLE 拖拽活动期穿透轮询不关门，跨组/缝隙松手不丢
+    window.deck.host.setDragSession(true)
     if (ev.dataTransfer) {
       ev.dataTransfer.effectAllowed = 'move'
       ev.dataTransfer.setData('text/plain', id)
@@ -369,8 +385,15 @@ function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): vo
   })
   el.addEventListener('dragend', () => {
     dragSource = null
+    window.deck.host.setDragSession(false)
     el.classList.remove('dragging')
     document.querySelectorAll('.tb-drop-before').forEach((n) => n.classList.remove('tb-drop-before'))
+    // 断点②（工单195）补渲：会话已结束，挂起的最新一帧（无则 resize 跳拍时的现态）一次补上
+    const held = dragHeld
+    dragHeld = null
+    if (dragResized && current) render(held ?? current)
+    else if (held) render(held)
+    dragResized = false
   })
   el.addEventListener('dragover', (ev) => {
     ev.preventDefault()
@@ -387,15 +410,52 @@ function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): vo
   })
 }
 
-/** 落位一次拖拽：同组换位与跨组语义同一道分发，落点 before 恒为条目身份 */
-async function onDrop(src: { group: TaskbarDragGroup; id: string }, to: TaskbarDragGroup, before: string | null): Promise<void> {
-  window.deck.host.notify('taskbar-drag-drop', { from: src.group, to, id: src.id, before })
-  const r = await dispatchTaskbarDragDrop(window.deck.bridge, { from: src.group, to, id: src.id, before })
-  window.deck.host.notify('taskbar-drag-result', { ok: r.ok, ...(r.error ? { error: r.error } : {}) })
-  dragSource = null
+/** 拖拽失败可见反馈（工单195）：服务层拒返（ok:false）与契约异常都不静默——条带内
+ * toast 逐字透出错误文案，5s 兜底自收；#drag-toast 是 body 直挂节点，整树重渲不触碰，
+ * 验收电池按 DOM 在场 + 文案断言。 */
+let dragToastTimer: ReturnType<typeof setTimeout> | null = null
+function showDragError(message: string): void {
+  let el = document.getElementById('drag-toast')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'drag-toast'
+    document.body.appendChild(el)
+  }
+  el.textContent = message
+  el.dataset.on = '1'
+  if (dragToastTimer !== null) clearTimeout(dragToastTimer)
+  dragToastTimer = setTimeout(() => {
+    const t = document.getElementById('drag-toast')
+    if (t) {
+      t.textContent = ''
+      delete t.dataset.on
+    }
+    dragToastTimer = null
+  }, 5000)
 }
 
-/** 组容器落尾（拖到组内空白处）：before = null = 可编辑段末尾 */
+/** 落位一次拖拽：同组换位与跨组语义同一道分发，落点 before 恒为条目身份。
+ * dragSource 不在此清（drop 后 dragend 恒尾随，清场+补渲统一在 dragend——成功换位
+ * 的 taskbar/changed 回推若赶在 dragend 之前到达，冻结闸还开着，正好由 dragend 补渲）。
+ * 失败（拒返/契约异常）走可见反馈，不静默（工单195）。 */
+async function onDrop(src: { group: TaskbarDragGroup; id: string }, to: TaskbarDragGroup, before: string | null): Promise<void> {
+  window.deck.host.notify('taskbar-drag-drop', { from: src.group, to, id: src.id, before })
+  let r: { ok: boolean; error?: string }
+  try {
+    r = await dispatchTaskbarDragDrop(window.deck.bridge, { from: src.group, to, id: src.id, before })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    window.deck.host.notify('taskbar-drag-result', { ok: false, error: message })
+    showDragError(`拖拽落位失败：${message}`)
+    return
+  }
+  window.deck.host.notify('taskbar-drag-result', { ok: r.ok, ...(r.error ? { error: r.error } : {}) })
+  if (!r.ok) showDragError(`拖拽落位失败：${r.error ?? '服务层拒收'}`)
+}
+
+/** 组容器落尾（拖到组内空白处）：before = null = 源条目所属段末尾（工单195：应用组按源
+ * 归属落手钉段/运行段末尾——段位收敛裁决在内核；条目自身的 drop 已 stopPropagation，
+ * 本容器处理器只接真空白） */
 function makeGroupDropTarget(container: HTMLElement, group: TaskbarDragGroup): void {
   container.addEventListener('dragover', (ev) => {
     if (!dragSource) return
@@ -432,7 +492,10 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
     fb.textContent = appIconFallbackText(e)
     el.appendChild(fb)
   }
-  if (e.pinned) makeDraggable(el, 'apps', e.exe) // 仅手钉可拖（内核只接受应用组手钉段内换位）
+  // 工单195 断点①全条目接线：所有应用组条目（含未钉运行）可起拖可落——运行段拖位是
+  // 会话态（reorderRunOrder），手钉段拖位落盘；任何条目都是 before 落点（不再被容器
+  // 守卫静默吞掉）
+  makeDraggable(el, 'apps', e.exe)
   el.addEventListener('click', () => { void onAppClick(e, inOverflow) })
   el.addEventListener('auxclick', (ev) => {
     if (ev.button !== 1) return
@@ -441,7 +504,7 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
     void dispatchAppNewInstance(window.deck.bridge, e.exe)
     if (inOverflow) {
       overflowOpen = false
-      if (current) render(current)
+      if (current) requestRender(current)
     }
   })
   el.addEventListener('contextmenu', (ev) => {
@@ -450,7 +513,7 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
     windowList = null
     recMenu = null // 两菜单互斥（工单160 推荐条目菜单同挂 pill 横排位）
     appMenu = { exe: e.exe, rows: taskbarAppMenuRows(e) }
-    if (current) render(current)
+    if (current) requestRender(current)
   })
   return el
 }
@@ -492,7 +555,7 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
     appMenu = null
     windowList = null
     recMenu = { exe: rec.exe, name: rec.name }
-    if (current) render(current)
+    if (current) requestRender(current)
   })
   return el
 }
@@ -520,7 +583,7 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
     toggle.title = `更多应用（${overflow.length}）`
     toggle.addEventListener('click', () => {
       overflowOpen = !overflowOpen
-      if (current) render(current)
+      if (current) requestRender(current)
     })
     pillApps.appendChild(toggle)
     if (overflowOpen) {
@@ -591,7 +654,7 @@ function render(state: TaskbarState): void {
         closeMenu()
         void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
           .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
-        if (current) render(current)
+        if (current) requestRender(current)
       })
       host.appendChild(el)
     }
@@ -615,7 +678,7 @@ function render(state: TaskbarState): void {
           window.deck.host.notify('taskbar-rec-restore', { exe: ex.exe, label: ex.label })
           void dispatchRecRestore(window.deck.bridge, ex.exe)
             .then((s) => window.deck.host.notify('taskbar-rec-restore-result', { exe: ex.exe, excluded: s?.excluded?.length ?? null }))
-          if (current) render(current)
+          if (current) requestRender(current)
         })
         host.appendChild(el)
       }
@@ -637,7 +700,7 @@ function render(state: TaskbarState): void {
         // 回推的 taskbar/changed 驱动重渲收层（手钉变更即刻反映在应用组）
         void dispatchAppMenuAction(window.deck.bridge, exe, row.action)
         appMenu = null
-        if (current) render(current)
+        if (current) requestRender(current)
       })
       pillStart.appendChild(el)
     }
@@ -665,7 +728,7 @@ function render(state: TaskbarState): void {
           .then((r) => {
             if (r) window.deck.host.notify('taskbar-rec-menu-result', { name: target.name, exe: target.exe, action: row.action })
           })
-        if (current) render(current)
+        if (current) requestRender(current)
       })
       pillRecs.appendChild(el)
     }
@@ -684,7 +747,7 @@ function render(state: TaskbarState): void {
         window.deck.host.notify('taskbar-window-pick', { exe: windowList?.exe ?? '', hwnd: w.hwnd })
         void dispatchActivateWindow(window.deck.bridge, w.hwnd)
         windowList = null
-        if (current) render(current)
+        if (current) requestRender(current)
       })
       pillStart.appendChild(el)
     }
@@ -716,7 +779,7 @@ function render(state: TaskbarState): void {
         ev.preventDefault()
         ev.stopPropagation()
         openTierMenu()
-        if (current) render(current)
+        if (current) requestRender(current)
       })
       rightPill.appendChild(more)
     }
@@ -739,7 +802,7 @@ function render(state: TaskbarState): void {
           // 回推的 taskbar/changed 驱动重拆名单；回执只为存证对齐
           void dispatchTrayOverflowLimit(window.deck.bridge, row.limit)
             .then((s) => window.deck.host.notify('taskbar-tray-overflow-limit-result', { limit: row.limit, ok: s !== null }))
-          if (current) render(current)
+          if (current) requestRender(current)
         })
         rightPill.appendChild(el)
       }
@@ -766,6 +829,19 @@ function render(state: TaskbarState): void {
   renderApps(vm.apps)
   declareHotZones(state)
   notifyGeometry()
+}
+
+/** 整树重渲的单一入口（工单195 断点②拖拽期渲染冻结）：dragSource 活动期（OLE 会话
+ * 进行中）合帧挂起——只留最新一帧，dragend 补渲一次。被拖节点被重建即中止 Chromium
+ * 拖拽会话（真机上标题变化/托盘事件/快照刷新每几秒推一帧 → ~75% 偶发弹回）。
+ * taskbar/changed 回推、resize、8s 兜底定时器等一切可能撞上拖拽窗口的重渲都走这里；
+ * dragend 补渲直接调 render（会话已终，无需再冻结）。 */
+function requestRender(state: TaskbarState): void {
+  if (dragSource) {
+    dragHeld = state
+    return
+  }
+  render(state)
 }
 
 /** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态） */
@@ -797,7 +873,7 @@ sliver.addEventListener('click', () => {
 document.addEventListener('click', (ev) => {
   if (editing && !(ev.target instanceof HTMLElement && ev.target.closest('#hw-summary'))) {
     editing = false
-    if (current) render(current)
+    if (current) requestRender(current)
   }
   // 托盘溢出浮层（工单162）：条带内任意点击（非「⋯」自身——那是开层钮）即请求收层。
   // 浮层窗 focusable:true 自收「栏外」点击（blur）；条带窗 focusable:false 点了不夺焦，
@@ -809,7 +885,7 @@ document.addEventListener('click', (ev) => {
 })
 
 function boot(): void {
-  makeGroupDropTarget(pillApps, 'apps') // 拖到应用组空白 = 落手钉段末尾
+  makeGroupDropTarget(pillApps, 'apps') // 拖到应用组空白 = 落源条目所属段末尾（工单195 段位收敛裁决在内核）
   makeGroupDropTarget(pillRecs, 'recs') // 拖到推荐组空白 = 落推荐位末尾（工单192 宿主随拆出随迁）
   // 右键（开始组/推荐组空白）= 系统按钮显隐菜单 + 恢复段（工单54 自绘最小菜单；应用图标
   // 右键菜单是 #53、推荐条目右键菜单是 #160 的领域，各自 stopPropagation 不落到这里）。
@@ -824,10 +900,10 @@ function boot(): void {
         // 无焦点窗收不到 Esc、窗外点击穿透不可达——兜底自动收层
         menuTimer = setTimeout(() => {
           closeMenu()
-          if (current) render(current)
+          if (current) requestRender(current)
         }, 8000)
       }
-      if (current) render(current)
+      if (current) requestRender(current)
     })
   }
   wireBlankMenu(pillStart, 'start')
@@ -838,14 +914,14 @@ function boot(): void {
     if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow, .tb-menu-item')) return
     e.preventDefault()
     openTierMenu()
-    if (current) render(current)
+    if (current) requestRender(current)
   })
   // 点右组空白（非格/菜单行）收档位菜单
   rightPill.addEventListener('click', (e) => {
     if (!tierMenuOpen) return
     if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow, .tb-menu-item')) return
     closeTierMenu()
-    if (current) render(current)
+    if (current) requestRender(current)
   })
   // 点 pill 空白（非组内条目/菜单项）收菜单（工单192：两组宿主同款接线——点别组空白也收）
   const wireBlankClose = (pill: HTMLElement, itemSelector: string) => {
@@ -853,7 +929,7 @@ function boot(): void {
       if (!menuOpen) return
       if ((e.target as HTMLElement).closest(itemSelector)) return
       closeMenu()
-      if (current) render(current)
+      if (current) requestRender(current)
     })
   }
   wireBlankClose(pillStart, '.tb-btn, .tb-menu-item')
@@ -883,14 +959,20 @@ function boot(): void {
     window.deck.bridge.on('taskbar/changed', (next) => {
       // 菜单不随 changed 收（工单161，工单162 档位菜单同款纪律：托盘 churn 每几秒推一帧，
       // 红轮实证回推即收会抢走刚开的菜单）——收层只走点行显式/点空白/8s 兜底三路径。
-      render(next)
+      // 工单195 断点②：经 requestRender 单一入口——拖拽会话活动期合帧挂起，dragend 补渲。
+      requestRender(next)
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
     window.deck.bridge.on('taskbar/status', (status) => applyStatus(status))
     // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
-    // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空
+    // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空。
+    // 工单195 断点②：拖拽会话活动期跳过重建（会中止 OLE 会话），dragend 凭 dragResized 补渲。
     window.addEventListener('resize', () => {
       if (!current) return
+      if (dragSource) {
+        dragResized = true
+        return
+      }
       render(current)
       declareHotZones(current)
       notifyGeometry()
