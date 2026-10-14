@@ -489,10 +489,11 @@ export function splitAppsOverflow(
   return planAppsOverflow(apps, slots)
 }
 
-// —— 工单159 栏分组布局重排：应用组空带居中几何（纯函数；DOM 落位在 taskbar.ts）——
-// 布局反转：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘] 空带内居中（随两侧内容
-// 浮动，非屏幕绝对中心）。居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，
-// DOM 侧（taskbar.ts）只做矩形实测与落位。
+// —— 工单159 栏分组布局重排 + 工单190 屏幕中心线锚定：应用组几何（纯函数；DOM 落位在
+// taskbar.ts）——布局反转：开始组钉条带左缘；应用组 pill 中心对齐屏幕水平中心线（工单190，
+// 不随开始组/推荐组/右组宽度漂移），空带 [开始组右缘, 右组左缘] 降为容量与夹取边界。
+// 居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，DOM 侧（taskbar.ts）
+// 只做矩形实测与落位。
 
 /** 应用组几何常量（与 taskbar.html CSS 同源：pill 内衬 8+8、图标格 44+2 间距、组间距 8、
  * 条带左缘内衬 8——工单158 尺寸基）。格数宁保守不少让——多留缝也不与邻组重叠。 */
@@ -502,8 +503,8 @@ export const CELL_W = 46
 export const GROUP_GAP = 8
 
 /** 应用组空带：[lo, hi] = [开始组右缘（含组间距）, 右组左缘（含组间距）]——
- * 应用组居中的参照系（工单159 词汇口径：推荐组右缘与右组左缘之间；推荐位暂栖开始组
- * pill，故左界 = 开始组 pill 右缘，推荐组独立拆出后随迁） */
+ * 工单190 起不再承载居中参照（居中锚 = 屏幕水平中心线），只作容量边界与夹取围栏
+ * （pill 永不越带压邻居）；推荐位暂栖开始组 pill，推荐组独立拆出后两侧口径随迁 */
 export interface AppsBand { lo: number; hi: number }
 
 /** 空带两侧边界：开始组整组不渲染（两按钮全隐藏且无推荐）时左界退到条带左缘内衬；
@@ -515,17 +516,21 @@ export function appsBand(startRight: number | null, rightLeft: number): AppsBand
 }
 
 /** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。
- * 旧单侧口径（右限 = 开始组 pill 左缘）随布局反转退役——现在两侧邻组都是边界 */
+ * 中心锚定（工单190）不改容量口径——格数仍受两侧邻组约束（不越界压邻居），邻居变宽
+ * 挤的是容量（格数变少、溢出 ⋯ 兜底），不是居中位 */
 export function appsSlotsFor(band: AppsBand): number {
   return Math.max(0, Math.floor((band.hi - band.lo - PILL_PAD_X) / CELL_W))
 }
 
-/** 居中位：带宽足够取带中点；恰占满贴带左缘；超带宽（溢出浮层展开等病态档）钉带左缘
- * ——右溢不反演到开始组一侧（DOM 后绘的右组在上，病态档从右组下溢出，与旧布局同降级）。
- * 夹取保证有带宽时永不与邻组重叠；容量（appsSlotsFor）按闭合形态算，栏内段恒在带内 */
-export function appsPillLeft(band: AppsBand, pillWidth: number): number {
+/** 居中位（工单190）：pill 中心对齐屏幕水平中心线（centerX = 条带窗视口坐标系里的屏幕
+ * 中心 x——条带窗横跨主屏全宽且窗 x = 屏 x，DOM 侧传 innerWidth/2），不随带宽漂移；
+ * 带外夹取维持现状：理想位越带界即夹回（左探钉带左缘、右探钉「带右界−半宽」），带宽不足
+ * （溢出浮层展开等病态档）钉带左缘——右溢不反演到开始组一侧（DOM 后绘的右组在上，
+ * 病态档从右组下溢出，与旧布局同降级）。夹取保证任何带宽下永不与邻组重叠；容量
+ * （appsSlotsFor）按闭合形态算，栏内段恒在带内 */
+export function appsPillLeft(band: AppsBand, pillWidth: number, centerX: number): number {
   const w = Math.max(0, pillWidth)
-  let left = (band.lo + band.hi) / 2 - w / 2
+  let left = centerX - w / 2
   if (left < band.lo) left = band.lo
   if (left + w > band.hi) left = band.hi - w
   if (left < band.lo) left = band.lo
