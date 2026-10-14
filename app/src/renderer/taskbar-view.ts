@@ -90,12 +90,15 @@ export interface TaskbarAppViewEntry {
   iconKey: string | null
 }
 
-/** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染（只剩应用组与右组的边界条件）；
- * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
+/** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染、recsVisible=false = 推荐组 pill
+ * 整个不渲染（工单192 两组显隐解耦——开始组按系统按钮、推荐组按推荐位有无，各自空则整组
+ * 不渲染）；metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
  * excluded（工单161）= 推荐栏移除名单（恢复菜单段的行来源）；
  * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径） */
 export interface TaskbarViewModel {
   visible: boolean
+  /** 推荐组 pill 显隐（工单192 独立拆出）：推荐位非空即独立在场，与开始组解耦 */
+  recsVisible: boolean
   buttons: TaskbarButtonSpec[]
   recommendations: TaskbarRecommendation[]
   excluded: TaskbarExcludedEntry[]
@@ -110,12 +113,13 @@ export interface TaskbarViewModel {
 }
 
 /**
- * 状态 → 视图：禁用即空壳；开始组 pill 显隐 = 可见按钮或推荐位任非空（两按钮都隐藏且
- * 推荐位为空 → 整组不渲染）。菜单行恒列两按钮——只要开始组 pill 还渲染，被藏按钮就有恢复入口；
- * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
+ * 状态 → 视图：禁用即空壳；两组显隐解耦（工单192）——开始组 pill 显隐 = 可见系统按钮
+ * 非空（两按钮都隐藏 → 整组不渲染），推荐组 pill 显隐 = 推荐位非空（各自独立裁决，互不
+ * 牵连）。菜单行恒列两按钮——只要开始组 pill 还渲染，被藏按钮就有恢复入口；两按钮全隐藏
+ * 且推荐组也不在场的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
+  if (!state.enabled) return { visible: false, recsVisible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -135,7 +139,8 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     iconKey: e.iconKey,
   }))
   return {
-    visible: buttons.length > 0 || recommendations.length > 0,
+    visible: buttons.length > 0,
+    recsVisible: recommendations.length > 0,
     buttons,
     recommendations,
     excluded,
@@ -516,15 +521,22 @@ export const PILL_PAD_X = 16
 export const CELL_W = 46
 export const GROUP_GAP = 8
 
-/** 应用组空带：[lo, hi] = [开始组右缘（含组间距）, 右组左缘（含组间距）]——
- * 工单190 起不再承载居中参照（居中锚 = 屏幕水平中心线），只作容量边界与夹取围栏
- * （pill 永不越带压邻居）；推荐位暂栖开始组 pill，推荐组独立拆出后两侧口径随迁 */
+/** 应用组空带：[lo, hi] = [左邻组右缘（含组间距）, 右组左缘（含组间距）]——
+ * 工单190 起不承载居中参照（居中锚 = 屏幕水平中心线），只作容量边界与夹取围栏
+ * （pill 永不越带压邻居）；左邻按工单192 推荐组独立拆出随迁 = 推荐组 pill（appsBandLeft
+ * 裁决：缺席回退开始组 pill） */
 export interface AppsBand { lo: number; hi: number }
 
-/** 空带两侧边界：开始组整组不渲染（两按钮全隐藏且无推荐）时左界退到条带左缘内衬；
+/** 应用组空带左邻右缘（工单192 推荐组独立拆出随迁）：推荐组在场取推荐组右缘，缺席回退
+ * 开始组右缘，两组都不在场（各自空则整组不渲染）返回 null——appsBand 据此退条带左缘内衬 */
+export function appsBandLeft(recsRight: number | null, startRight: number | null): number | null {
+  return recsRight ?? startRight
+}
+
+/** 空带两侧边界：左邻组整组不在场（推荐组与开始组都不渲染）时左界退到条带左缘内衬；
  * 右组自身越界左侵（异常态，26+ 托盘极端拥挤）产出零宽带——不产出负带宽，等下一拍 */
-export function appsBand(startRight: number | null, rightLeft: number): AppsBand {
-  const lo = startRight === null ? APPS_INSET : startRight + GROUP_GAP
+export function appsBand(leftRight: number | null, rightLeft: number): AppsBand {
+  const lo = leftRight === null ? APPS_INSET : leftRight + GROUP_GAP
   const hi = Math.max(rightLeft - GROUP_GAP, lo)
   return { lo, hi }
 }

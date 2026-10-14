@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -96,9 +96,10 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     ])
   })
 
-  it('推荐位随状态透出（排序与名单内核已定，视图模型原样承接）', () => {
+  it('推荐位随状态透出（排序与名单内核已定，视图模型原样承接；推荐组独立在场，工单192）', () => {
     const vm = taskbarViewModel(state({ recommendations: RECS }))
     expect(vm.visible).toBe(true)
+    expect(vm.recsVisible).toBe(true)
     expect(vm.recommendations).toEqual(RECS)
   })
 
@@ -112,18 +113,26 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     ])
   })
 
-  it('两按钮都隐藏 + 有推荐位：开始组 pill 仍渲染（只余推荐位）', () => {
+  it('显隐解耦（工单192）：两按钮都隐藏 + 有推荐位 → 开始组不渲染、推荐组独立在场', () => {
     const vm = taskbarViewModel(state({ hiddenButtons: ['start', 'tasks'], recommendations: RECS }))
-    expect(vm.visible).toBe(true)
+    expect(vm.visible).toBe(false)
+    expect(vm.recsVisible).toBe(true)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual(RECS)
   })
 
-  it('两按钮都隐藏 + 推荐位为空：开始组整个不渲染（只剩应用组与右组的边界）', () => {
+  it('两按钮都隐藏 + 推荐位为空：开始组与推荐组都不渲染（只剩应用组与右组的边界）', () => {
     const vm = taskbarViewModel(state({ hiddenButtons: ['start', 'tasks'] }))
     expect(vm.visible).toBe(false)
+    expect(vm.recsVisible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
+  })
+
+  it('显隐解耦反向（工单192）：两按钮在场 + 推荐位为空 → 开始组在场、推荐组不渲染', () => {
+    const vm = taskbarViewModel(state())
+    expect(vm.visible).toBe(true)
+    expect(vm.recsVisible).toBe(false)
   })
 
   it('禁用态渲染空壳（开始组不渲染、按钮/推荐位/应用组全空）', async () => {
@@ -131,6 +140,7 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     const s = await bridge.invoke('taskbar/get-state', null)
     const vm = taskbarViewModel(s)
     expect(vm.visible).toBe(false)
+    expect(vm.recsVisible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
     expect(vm.apps).toEqual([])
@@ -554,13 +564,42 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
     expect(rule).not.toContain('translate(-50%')
   })
 
-  it('空带两侧边界（纯函数）：左=开始组右缘+组间距（整组不渲染=条带左内衬）、右=右组左缘−组间距', () => {
-    // 常态：开始组在左、右组在右
+  it('推荐组独立漂浮 pill（工单192）：钉落位归 JS 的 fixed 容器，拥挤收窄档与显隐边界样式同开始组族', () => {
+    const rule = ruleOf('#pill-recs')
+    expect(rule, '推荐组独立容器 fixed 漂浮（横向落位归渲染层 positionRecPill）').toContain('position: fixed')
+    expect(rule, '拥挤收窄整体裁剪（clampRecPillWidth 守卫语义随拆出随迁）').toContain('overflow: hidden')
+    expect(rule).toContain('min-width: 0')
+    expect(css).toContain('#pill-recs[hidden]')
+    // 拆出后开始组仍保挤撞收窄三件套（守卫不随拆出退役）
+    const startRule = ruleOf('#pill-start')
+    expect(startRule).toContain('overflow: hidden')
+    expect(startRule).toContain('min-width: 0')
+  })
+
+  it('推荐组 pill 容器在 DOM 序上居开始组之后、右组之前（工单192 独立漂浮位；应用组首元素是工单159 既有形态）', () => {
+    const iStart = html.indexOf('id="pill-start"')
+    const iRecs = html.indexOf('id="pill-recs"')
+    const iRight = html.indexOf('id="right-pill"')
+    expect(iStart).toBeGreaterThanOrEqual(0)
+    expect(iRecs, '#pill-recs 容器元素在场').toBeGreaterThan(0)
+    expect(iStart, '推荐组在开始组之后').toBeLessThan(iRecs)
+    expect(iRecs, '推荐组在右组之前（「开始组与应用组之间」的几何落位由 positionRecPill 裁决、P19 真机断言）').toBeLessThan(iRight)
+  })
+
+  it('空带两侧边界（纯函数）：左=左邻组右缘+组间距（左右邻都不在场=条带左内衬）、右=右组左缘−组间距', () => {
+    // 常态：左邻组（推荐组或开始组）在左、右组在右
     expect(appsBand(320, 2000)).toEqual({ lo: 328, hi: 1992 })
-    // 开始组整组不渲染（两按钮全隐藏且无推荐）：左界退到条带左缘内衬
+    // 左邻组整组不在场：左界退到条带左缘内衬
     expect(appsBand(null, 2000)).toEqual({ lo: 8, hi: 1992 })
     // 异常态（右组自身越界左侵）：零宽带，等下一拍——不产出负带宽
     expect(appsBand(2400, 2200)).toEqual({ lo: 2408, hi: 2408 })
+  })
+
+  it('应用组空带左邻（工单192 推荐组拆出随迁）：推荐组在场取推荐组右缘，缺席回退开始组右缘，都缺=null', () => {
+    expect(appsBandLeft(300, 200)).toBe(300)
+    expect(appsBandLeft(null, 200)).toBe(200)
+    expect(appsBandLeft(300, null)).toBe(300)
+    expect(appsBandLeft(null, null)).toBe(null)
   })
 
   it('应用组容量两侧化（纯函数）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位）；窄带/零宽带 0 格', () => {

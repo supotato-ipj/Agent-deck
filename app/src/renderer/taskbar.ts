@@ -1,19 +1,21 @@
-// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162/190）：状态经 taskbar/get-state 拉取 +
+// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162/190/192）：状态经 taskbar/get-state 拉取 +
 // taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
-// 三组布局（工单159 重排、工单190 中心锚定）：开始组 pill 钉条带左缘（系统按钮 + 推荐位——
-// 推荐组独立拆出前的过渡栖位，工单54）、应用组（手钉 + 运行中合并，工单52，右键菜单/中键/
-// 多窗口选窗属工单53）pill 中心对齐屏幕水平中心线（appsPillLeft——不随两侧内容漂移，
-// 空带只作容量与夹取围栏）、右组（硬件摘要 + 托盘图标（溢出收进「⋯」，工单162）+ 音量 +
-// 时钟，工单55/56）与显示桌面细条位置不变。
+// 四组布局（工单192 推荐组独立拆出、工单190 应用组中心锚定）：开始组 pill 钉条带左缘
+// （系统按钮，工单54）、推荐组 pill 漂浮于开始组右侧应用组左侧（positionRecPill 落位，
+// 显隐按推荐位有无与开始组解耦，工单192）、应用组（手钉 + 运行中合并，工单52，右键菜单/
+// 中键/多窗口选窗属工单53）pill 中心对齐屏幕水平中心线（appsPillLeft——不随两侧内容漂移，
+// 空带 [左邻组右缘, 右组左缘] 只作容量与夹取围栏）、右组（硬件摘要 + 托盘图标（溢出收进
+// 「⋯」，工单162）+ 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { APPS_INSET, appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
+const pillRecs = document.getElementById('pill-recs') as HTMLElement
 const pillApps = document.getElementById('pill-apps') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
 const sliver = document.getElementById('show-desktop') as HTMLElement
@@ -38,8 +40,11 @@ let editing = false
 /** 系统按钮显隐菜单 + 恢复段开合（工单54，工单161 扩恢复段）：右键开、点行/点 pill 空白/
  * 8s 兜底收。**不随 taskbar/changed 收**（工单161，工单162 档位菜单同款纪律）：托盘图标
  * churn 每几秒推一帧，回推即收会把刚开出的菜单抢走（真机红轮实证）——收层只走点行
- * （显式）/点空白/兜底超时三路径。 */
+ * （显式）/点空白/兜底超时三路径。menuHost（工单192）= 开层挂点所在组：推荐组拆出后
+ * 两组空白右键都可开层，菜单横排进宿主 pill（开始组空白 → pill-start、推荐组空白 →
+ * pill-recs）——宿主 pill 不在场的解耦态（如开始组整组隐藏）菜单随之收层。 */
 let menuOpen = false
+let menuHost: 'start' | 'recs' = 'start'
 let menuTimer: ReturnType<typeof setTimeout> | null = null
 /** 托盘溢出档位菜单开合（工单162）：「⋯」右键或右组空白处右键开、点档/状态回推/兜底超时收 */
 let tierMenuOpen = false
@@ -70,12 +75,14 @@ function rectOf(el: HTMLElement, id: string): Rect {
 }
 
 /** 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形（CSS px 相对客户区）：
- * 热区声明与验收存证共用同一份测量 */
+ * 热区声明与验收存证共用同一份测量。推荐位矩形量测出处随工单192 拆出迁到 #pill-recs
+ * （字段名与语义不变——taskbar-geometry 的 recommendations 断言存活前提） */
 function measure() {
   return {
     startPill: rectOf(pillStart, 'pill-start'),
+    recPill: rectOf(pillRecs, 'pill-recs'),
     buttons: [...pillStart.querySelectorAll<HTMLElement>('.tb-btn')].map((el) => rectOf(el, el.dataset.id ?? '')),
-    recommendations: [...pillStart.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
+    recommendations: [...pillRecs.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
       name: el.dataset.name ?? '', ...rectOf(el, ''),
     })).map(({ name, ...r }) => ({ name, x: r.x, y: r.y, w: r.w, h: r.h })),
     appsPill: rectOf(pillApps, 'pill-apps'),
@@ -91,9 +98,10 @@ function measure() {
   }
 }
 
-/** 热区声明（工单52/54/55 并集）：开始组 pill 不渲染（禁用/全隐藏且无推荐）不含其矩形；应用组装了
- * 条目才报应用组矩形（空组不渲染 pill，缝隙保持穿透）；右组（摘要+音量+时钟）与显示桌面
- * 细条随 enabled 声明；三组皆无即清空——条带整幅恢复穿透 */
+/** 热区声明（工单52/54/55 并集，工单192 推荐组独立 pill 入列）：开始组不渲染（两按钮全
+ * 隐藏）不含其矩形、推荐组不渲染（无推荐位）不含其矩形（两组显隐解耦，各自缺席各自裁）；
+ * 应用组装了条目才报应用组矩形（空组不渲染 pill，缝隙保持穿透）；右组（摘要+音量+时钟）
+ * 与显示桌面细条随 enabled 声明；三组皆无即清空——条带整幅恢复穿透 */
 function declareHotZones(state: TaskbarState): void {
   if (!state.enabled) {
     window.deck.host.setHotZones([])
@@ -103,6 +111,7 @@ function declareHotZones(state: TaskbarState): void {
   const m = measure()
   const zones = [m.rightPill, m.sliver]
   if (vm.visible) zones.unshift(m.startPill)
+  if (vm.recsVisible) zones.unshift(m.recPill)
   if (vm.apps.length > 0) zones.unshift(m.appsPill)
   window.deck.host.setHotZones(zones)
 }
@@ -111,11 +120,12 @@ function declareHotZones(state: TaskbarState): void {
 let lastGeometryJson = ''
 
 /** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/应用组/右组矩形任一变化即补发一帧——
- * 推荐位随数据面快照后到位会推开始组 pill 移位，电池按 settle 后的最新帧取坐标 */
+ * 推荐位随数据面快照后到位会推推荐组/开始组 pill 移位，电池按 settle 后的最新帧取坐标 */
 function notifyGeometry(): void {
   const m = measure()
   const payload: Record<string, unknown> = {
     startPill: m.startPill,
+    recPill: m.recPill,
     buttons: m.buttons,
     recommendations: m.recommendations,
     appsPill: m.appsPill,
@@ -273,11 +283,9 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
 }
 
 /** 开始组钉条带左缘（工单159 布局重排）：位置由 CSS（#pill-start left:8px）钉死——旧
- * positionStartPill 的屏幕居中 + [应用组右缘, 右组左缘] 夹取随布局反转退役，夹取/拥挤
- * 裁剪守卫迁移到本函数（挤撞裁剪换侧不换语义）：唯一守卫 = 极端拥挤（26+ 托盘 + 满推荐位）
- * 时 maxWidth 收窄到右组左缘前——推荐位图标格随 pill 整体裁剪（工单160 图标化定宽格
- * 不吃文字收缩档），系统钮
- * flex:none 永不裁切（工单158 P5 真机红回归钉的守卫三件套全数保留）。
+ * positionStartPill 的屏幕居中 + [应用组右缘, 右组左缘] 夹取随布局反转退役。唯一守卫 =
+ * 极端拥挤（26+ 托盘右组宽出）时 maxWidth 收窄到右组左缘前——系统钮 flex:none 永不裁切
+ * （工单158 P5 真机红回归钉的守卫保留；推荐位图标格已随工单192 拆出，让位面迁 clampRecPillWidth）。
  * 只在结构性重渲落位：右组 1Hz 指标文本宽度抖动（±45px）不传导（applyStatus 不动 pill），
  * 电池的 settle 几何因此跨拍稳定。 */
 function clampStartPillWidth(): void {
@@ -286,11 +294,33 @@ function clampStartPillWidth(): void {
   pillStart.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
-/** 应用组空带（工单159）：[开始组右缘, 右组左缘] —— 居中参照系与两侧容量边界同源。
- * 开始组整组不渲染（两按钮全隐藏且无推荐）时左界退到条带左缘内衬（appsBand 纯函数裁决） */
+/** 推荐组落位（工单192 独立拆出）：开始组右缘+组间距（开始组整组不渲染时退条带左缘内衬
+ * ——两组显隐解耦后推荐组可独自在场）。内容装配完同步落位——无中间帧闪烁；推荐组不渲染
+ * （无推荐位）不落位 */
+function positionRecPill(): void {
+  if (pillRecs.hidden) return
+  const left = pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP
+  pillRecs.style.left = `${Math.round(left)}px`
+}
+
+/** 推荐组拥挤守卫（工单158 守卫语义随工单192 拆出随迁）：极端拥挤（26+ 托盘右组宽出）
+ * 时 maxWidth 收窄到右组左缘前——推荐位图标格随 pill 整体裁剪（定宽格不吃文字收缩档，
+ * overflow hidden），与 clampStartPillWidth 同族。 */
+function clampRecPillWidth(): void {
+  if (pillRecs.hidden) return
+  const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - pillRecs.getBoundingClientRect().left
+  pillRecs.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
+}
+
+/** 应用组空带（工单159，工单192 左邻随推荐组拆出随迁）：[左邻组右缘, 右组左缘] —— 居中
+ * 参照系与两侧容量边界同源。左邻按推荐组优先（appsBandLeft 纯函数裁决：推荐组在场取其
+ * 右缘，缺席回退开始组右缘，都不在场退条带左缘内衬） */
 function currentAppsBand(): AppsBand {
   return appsBand(
-    pillStart.hidden ? null : pillStart.getBoundingClientRect().right,
+    appsBandLeft(
+      pillRecs.hidden ? null : pillRecs.getBoundingClientRect().right,
+      pillStart.hidden ? null : pillStart.getBoundingClientRect().right,
+    ),
     rightPill.getBoundingClientRect().left,
   )
 }
@@ -511,94 +541,100 @@ function render(state: TaskbarState): void {
   current = state
   const vm = taskbarViewModel(state)
   pillStart.hidden = !vm.visible
-  // 证据标记（验收电池可观测：菜单开着没有——右键菜单开合抖动的取证面）
-  pillStart.dataset.menuOpen = menuOpen ? '1' : ''
+  pillRecs.hidden = !vm.recsVisible // 两组显隐解耦（工单192）：推荐组按推荐位有无独立裁决
   pillStart.textContent = ''
-  if (!vm.visible) {
-    closeMenu()
-    renderApps(vm.apps) // 开始组不渲染 ≠ 应用组不渲染（两按钮全隐藏且无推荐的边界）
-    declareHotZones(state) // 开始组不渲染：热区只留应用组/右组/细条（declareHotZones 内按 vm.visible 裁决）
-    notifyGeometry()
-    return
+  pillRecs.textContent = ''
+  // 宿主 pill 不在场即收层（工单192 显隐解耦后各自可缺席——菜单不渲染进隐藏 pill）；
+  // 挂点条目/列表同此理（recMenu 宿主推荐组；应用组菜单已迁浮层窗——工单193，宿主 pill
+  // 缺席由浮层页按 changed 重推导自收（行集空=empty），条带侧无开合态可收）
+  if (menuOpen && (menuHost === 'start' ? !vm.visible : !vm.recsVisible)) closeMenu()
+  if (recMenu && !vm.recsVisible) recMenu = null
+  if (windowList && !vm.visible) {
+    windowList = null
   }
-  // 开始组 pill（工单54 边界条件：两按钮全隐藏且无推荐 → 整组不渲染，只剩应用组与右组；
-  // 推荐位暂栖本 pill，推荐组拆出前随其显隐）
-  if (vm.visible) {
-    for (const b of vm.buttons) {
+  // 证据标记（验收电池可观测：菜单开着没有——右键菜单开合抖动的取证面；工单192 起双 pill
+  // 同标——菜单可开在任一组宿主，标记是条带级事实；收层裁决后落标，不留陈旧开标）
+  const menuMarker = menuOpen ? '1' : ''
+  pillStart.dataset.menuOpen = menuMarker
+  pillRecs.dataset.menuOpen = menuMarker
+  // 开始组 pill（工单54；工单192 边界收窄：两按钮全隐藏 → 整组不渲染，推荐位已拆出不随其显隐）
+  for (const b of vm.buttons) {
+    const el = document.createElement('div')
+    el.className = 'tb-btn'
+    el.dataset.id = b.id
+    el.textContent = b.label
+    el.addEventListener('click', () => {
+      window.deck.host.notify('taskbar-action', { action: b.action })
+      void dispatchTaskbarButton(window.deck.bridge, b.id)
+        .then((r) => window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+    })
+    pillStart.appendChild(el)
+  }
+  // 推荐组 pill（工单192 独立拆出）：推荐位图标渲染迁入独立容器，推荐位非空即独立在场
+  for (const rec of vm.recommendations) {
+    pillRecs.appendChild(makeRecEl(rec))
+  }
+  // 系统按钮显隐菜单 + 恢复段（工单54/161；工单192 横排进开层挂点所在的宿主 pill——
+  // 两组空白右键都可开层）：点行显式收层、点空白/8s 兜底同款收层；changed 回推不收层。
+  // 行文本/交互与拆出前一致；宿主缺席的解耦态已在上文收层。
+  if (menuOpen) {
+    const host = menuHost === 'recs' ? pillRecs : pillStart
+    const sep = document.createElement('div')
+    sep.className = 'tb-menu-sep'
+    host.appendChild(sep)
+    for (const row of vm.menu) {
       const el = document.createElement('div')
-      el.className = 'tb-btn'
-      el.dataset.id = b.id
-      el.textContent = b.label
-      el.addEventListener('click', () => {
-        window.deck.host.notify('taskbar-action', { action: b.action })
-        void dispatchTaskbarButton(window.deck.bridge, b.id)
-          .then((r) => window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+      el.className = 'tb-menu-item'
+      el.dataset.id = row.id
+      el.textContent = row.label
+      el.addEventListener('click', (e) => {
+        e.stopPropagation()
+        window.deck.host.notify('taskbar-menu-action', { id: row.id, hidden: !row.hidden })
+        // 点行显式收层（工单161 起 changed 不再代收——churn 回推会抢开着的菜单）；
+        // 回执只为存证对齐
+        closeMenu()
+        void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
+          .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
+        if (current) render(current)
       })
-      pillStart.appendChild(el)
+      host.appendChild(el)
     }
-    for (const rec of vm.recommendations) {
-      pillStart.appendChild(makeRecEl(rec))
-    }
-    if (menuOpen) {
-      const sep = document.createElement('div')
-      sep.className = 'tb-menu-sep'
-      pillStart.appendChild(sep)
-      for (const row of vm.menu) {
+    // 恢复段（工单161）：推荐组空白右键菜单的「已移除应用」恢复入口——名单非空才出段
+    // （pill 内横排形态，54 菜单同款纪律）。行文本 = 「恢复 <显示名>」，data-exe 挂交互
+    // 寻址；工单192 起推荐组独立在场，两组皆不在场的空壳态恢复入口不可达，走 config/
+    // 存储手改口（54 菜单同款边界）。
+    if (vm.excluded.length > 0) {
+      const rsep = document.createElement('div')
+      rsep.className = 'tb-menu-sep'
+      host.appendChild(rsep)
+      for (const ex of vm.excluded) {
         const el = document.createElement('div')
         el.className = 'tb-menu-item'
-        el.dataset.id = row.id
-        el.textContent = row.label
+        el.dataset.action = 'restore'
+        el.dataset.exe = ex.exe
+        el.textContent = `恢复 ${ex.label}`
         el.addEventListener('click', (e) => {
           e.stopPropagation()
-          window.deck.host.notify('taskbar-menu-action', { id: row.id, hidden: !row.hidden })
-          // 点行显式收层（工单161 起 changed 不再代收——churn 回推会抢开着的菜单）；
-          // 回执只为存证对齐
           closeMenu()
-          void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
-            .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
+          window.deck.host.notify('taskbar-rec-restore', { exe: ex.exe, label: ex.label })
+          void dispatchRecRestore(window.deck.bridge, ex.exe)
+            .then((s) => window.deck.host.notify('taskbar-rec-restore-result', { exe: ex.exe, excluded: s?.excluded?.length ?? null }))
           if (current) render(current)
         })
-        pillStart.appendChild(el)
-      }
-      // 恢复段（工单161）：推荐组空白右键菜单的「已移除应用」恢复入口——名单非空才出段
-      // （pill 内横排形态，54 菜单同款纪律：点行显式收层、点空白/8s 兜底同款收层；
-      // changed 回推不收层——churn 抢菜单，工单162 档位菜单同款先例）。
-      // 行文本 = 「恢复 <显示名>」，data-exe 挂交互寻址；pill 不渲染的空壳态（两钮全隐
-      // 且无推荐）恢复入口不可达，走 config/存储手改口（54 菜单同款边界）。
-      if (vm.excluded.length > 0) {
-        const rsep = document.createElement('div')
-        rsep.className = 'tb-menu-sep'
-        pillStart.appendChild(rsep)
-        for (const ex of vm.excluded) {
-          const el = document.createElement('div')
-          el.className = 'tb-menu-item'
-          el.dataset.action = 'restore'
-          el.dataset.exe = ex.exe
-          el.textContent = `恢复 ${ex.label}`
-          el.addEventListener('click', (e) => {
-            e.stopPropagation()
-            closeMenu()
-            window.deck.host.notify('taskbar-rec-restore', { exe: ex.exe, label: ex.label })
-            void dispatchRecRestore(window.deck.bridge, ex.exe)
-              .then((s) => window.deck.host.notify('taskbar-rec-restore-result', { exe: ex.exe, excluded: s?.excluded?.length ?? null }))
-            if (current) render(current)
-          })
-          pillStart.appendChild(el)
-        }
+        host.appendChild(el)
       }
     }
-  } else {
-    closeMenu()
   }
   // 应用组图标右键菜单已迁浮层窗（工单193，ADR-0013）：pill 内横排形态退役——菜单
   // 不再出现在开始组 pill 区域，64px 条带高从此不约束菜单形态（开层/收层走
   // taskbar-app-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts）。
   // 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉/移除/打开位置（54/53 菜单同形态
-  // 横排，工单196 随通路迁浮层窗）。行点击先收层再分发，手钉变更经回推的 taskbar/changed 重渲。
+  // 横排，工单192 起进推荐组宿主 pill，工单196 随通路迁浮层窗）。行点击先收层再分发
+  // （appMenu 迁移前同款），手钉变更经回推的 taskbar/changed 重渲。
   if (recMenu) {
     const sep = document.createElement('div')
     sep.className = 'tb-menu-sep'
-    pillStart.appendChild(sep)
+    pillRecs.appendChild(sep)
     for (const row of taskbarRecMenuRows()) {
       const el = document.createElement('div')
       el.className = 'tb-menu-item'
@@ -617,7 +653,7 @@ function render(state: TaskbarState): void {
           })
         if (current) render(current)
       })
-      pillStart.appendChild(el)
+      pillRecs.appendChild(el)
     }
   }
   if (windowList) {
@@ -707,9 +743,12 @@ function render(state: TaskbarState): void {
     wireAction(clock, 'clock')
     rightPill.appendChild(clock)
   }
-  // 工单159 布局重排：右组先行落位 → 开始组钉左（CSS）+ 拥挤守卫收窄 → 应用组按空带
-  // （两侧邻组矩形）裁容量并居中落位——依赖序与工单158 挤撞回正相同，方向反转
+  // 工单159 布局重排（工单192 推荐组拆出随迁）：右组先行落位 → 开始组钉左（CSS）+ 拥挤
+  // 守卫收窄 → 推荐组落位（开始组右缘+组间距）+ 拥挤守卫收窄 → 应用组按空带（左邻=推荐组
+  // 优先回退开始组，右邻=右组）裁容量并居中落位——依赖序自左向右，左邻矩形先于应用组成壳
   clampStartPillWidth()
+  positionRecPill()
+  clampRecPillWidth()
   renderApps(vm.apps)
   declareHotZones(state)
   notifyGeometry()
@@ -775,21 +814,28 @@ document.addEventListener('contextmenu', (ev) => {
 
 function boot(): void {
   makeGroupDropTarget(pillApps, 'apps') // 拖到应用组空白 = 落手钉段末尾
-  makeGroupDropTarget(pillStart, 'recs') // 拖到推荐位栖身的开始组 pill 空白 = 落推荐位末尾
-  // 右键 = 系统按钮显隐菜单（工单54 自绘最小菜单；应用图标右键菜单是 #53 的领域，不依赖它）
-  pillStart.addEventListener('contextmenu', (e) => {
-    e.preventDefault()
-    if (menuOpen) closeMenu()
-    else {
-      menuOpen = true
-      // 无焦点窗收不到 Esc、窗外点击穿透不可达——兜底自动收层
-      menuTimer = setTimeout(() => {
-        closeMenu()
-        if (current) render(current)
-      }, 8000)
-    }
-    if (current) render(current)
-  })
+  makeGroupDropTarget(pillRecs, 'recs') // 拖到推荐组空白 = 落推荐位末尾（工单192 宿主随拆出随迁）
+  // 右键（开始组/推荐组空白）= 系统按钮显隐菜单 + 恢复段（工单54 自绘最小菜单；应用图标
+  // 右键菜单是 #53、推荐条目右键菜单是 #160 的领域，各自 stopPropagation 不落到这里）。
+  // 工单192：推荐组拆出后两组空白都可开层，菜单横排进开层挂点所在的宿主 pill（menuHost）。
+  const wireBlankMenu = (pill: HTMLElement, host: 'start' | 'recs') => {
+    pill.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      if (menuOpen) closeMenu()
+      else {
+        menuOpen = true
+        menuHost = host
+        // 无焦点窗收不到 Esc、窗外点击穿透不可达——兜底自动收层
+        menuTimer = setTimeout(() => {
+          closeMenu()
+          if (current) render(current)
+        }, 8000)
+      }
+      if (current) render(current)
+    })
+  }
+  wireBlankMenu(pillStart, 'start')
+  wireBlankMenu(pillRecs, 'recs')
   // 右组空白处右键 = 托盘溢出档位菜单挂点二（工单162）：格/托盘图标/「⋯」/菜单行都有
   // 自己的右键语义（托盘图标回放、摘要编辑态切换等），只认 pill 自身与缝隙
   rightPill.addEventListener('contextmenu', (e) => {
@@ -805,13 +851,17 @@ function boot(): void {
     closeTierMenu()
     if (current) render(current)
   })
-  // 点 pill 空白（非按钮/推荐位/菜单项）收菜单
-  pillStart.addEventListener('click', (e) => {
-    if (!menuOpen) return
-    if ((e.target as HTMLElement).closest('.tb-btn, .tb-rec, .tb-menu-item')) return
-    closeMenu()
-    if (current) render(current)
-  })
+  // 点 pill 空白（非组内条目/菜单项）收菜单（工单192：两组宿主同款接线——点别组空白也收）
+  const wireBlankClose = (pill: HTMLElement, itemSelector: string) => {
+    pill.addEventListener('click', (e) => {
+      if (!menuOpen) return
+      if ((e.target as HTMLElement).closest(itemSelector)) return
+      closeMenu()
+      if (current) render(current)
+    })
+  }
+  wireBlankClose(pillStart, '.tb-btn, .tb-menu-item')
+  wireBlankClose(pillRecs, '.tb-rec, .tb-menu-item')
   void (async () => {
     // 启动期失败不留痕的病（真机实证：条带静默不执行时电池只报「存证缺失」）——
     // 失败即落存证，验收与排障都能看见「是没跑还是跑崩了」
@@ -830,7 +880,7 @@ function boot(): void {
     }
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
-      enabled: state.enabled, startPill: m.startPill, buttons: m.buttons, recommendations: m.recommendations,
+      enabled: state.enabled, startPill: m.startPill, recPill: m.recPill, buttons: m.buttons, recommendations: m.recommendations,
       appsPill: m.appsPill, apps: m.apps, overflow: m.overflow,
       rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, trayOverflow: m.trayOverflow, sliver: m.sliver,
     })

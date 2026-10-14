@@ -7,7 +7,7 @@ import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
-import { normalizeExe, planAppsGroup, shouldShowOnTaskbar } from '../taskbar/apps-plan'
+import { normalizeExe, planAppsSequence, promoteRunToFront, shouldShowOnTaskbar } from '../taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
@@ -156,6 +156,9 @@ export class TaskbarService extends Service {
   private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [], excluded: [] }
   /** 最近一枚窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；仅内存——标题同拍进出，永不持久化） */
   private lastWindows: TaskbarWindowInfo[] = []
+  /** 会话运行序（工单189，ADR-0013 应用组统一序列）：未钉运行应用的位次账本（归一 exe 键），
+   * 仅内存、不落盘、无时间戳——面板重启归零重引导（首拍按首见序建立），运行应用重启回最右 */
+  private runOrder: string[] = []
   /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
   private layoutReady = false
   /** 托盘图标像素缓存（工单56：iconKey → 像素字节；随名单增删按需剪枝，仅内存不落盘） */
@@ -413,6 +416,9 @@ export class TaskbarService extends Service {
       this.ensureLayout()
       const next = unpinEntry(this.store, drop.id)
       if (next === this.store) return { ok: false, error: '仅手钉条目可解除手钉回推荐池（仅运行条目是运行态）' }
+      // 工单189 解除手钉原地转运行（set-app-pinned 解除臂同款）：目标在运行时键插回
+      // 会话运行序首位，条目原地转为运行图标——先落账再 commitStore（重编排即刻可用）
+      if (this.windowsOf(drop.id).length > 0) this.runOrder = promoteRunToFront(this.runOrder, normalizeExe(drop.id))
       this.commitStore(next)
       return { ok: true }
     }
@@ -439,9 +445,12 @@ export class TaskbarService extends Service {
       return
     }
     this.lastWindows = windows
-    const apps = planAppsGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe))
-    if (JSON.stringify(apps) === JSON.stringify(this.current.apps)) return
-    this.current = { ...this.current, apps }
+    // 工单189：编排一拍走 planAppsSequence（默认规则落位＋手工序合并）——会话运行序
+    // 先行回存再判内容变化（序推进与可见序列是两本账，摘除陈旧键不改可见序也须落账）
+    const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+    this.runOrder = plan.runOrder
+    if (JSON.stringify(plan.apps) === JSON.stringify(this.current.apps)) return
+    this.current = { ...this.current, apps: plan.apps }
     this.ctx.emit('taskbar/changed', this.state())
   }
 
@@ -613,6 +622,9 @@ export class TaskbarService extends Service {
       this.store = { ...this.store, pinned: [...this.store.pinned, { exe: entry.exe, label: entry.label, iconKey: entry.iconKey }] }
     } else {
       this.store = { ...this.store, pinned: this.store.pinned.filter((_, i) => i !== idx) }
+      // 工单189 解除手钉原地转运行：目标在运行时其键插回会话运行序首位——运行段紧随
+      // 手钉段，键落首位即条目停在原位次（不按新面孔跳最右）；未运行则键本不在序，无操作。
+      if (this.windowsOf(exe).length > 0) this.runOrder = promoteRunToFront(this.runOrder, key)
     }
     this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
     this.refresh() // 手钉段迁移即时上栏（变化才回推 taskbar/changed）
@@ -774,9 +786,12 @@ export class TaskbarService extends Service {
    */
   private recompose(): void {
     try {
-      // 工单156：重排轮与 refresh 同一过滤口径（垃圾窗不进应用组）
+      // 工单189：重排轮与 refresh 同一编排口径（planAppsSequence + 会话运行序回存，
+      // 垃圾窗不进应用组的过滤判据在 shouldShowOnTaskbar 不变）
       const windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
-      this.current = { ...this.current, apps: planAppsGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe)) }
+      const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+      this.runOrder = plan.runOrder
+      this.current = { ...this.current, apps: plan.apps }
     } catch { /* 枚举失败沿用上一轮应用组（refresh 同款纪律） */ }
     try {
       this.current = { ...this.current, recommendations: this.visibleRecommendations() }

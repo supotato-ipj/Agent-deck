@@ -467,8 +467,8 @@
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
       "budgetSeconds": 180,
-      "lastMeasuredSeconds": 168,
-      "lastMeasuredAt": "2026-10-14",
+      "lastMeasuredSeconds": 148,
+      "lastMeasuredAt": "2026-10-15",
       "segments": [
         {
           "seg": "P1",
@@ -641,6 +641,16 @@
           "estSeconds": 30
         },
         {
+          "seg": "P19",
+          "ticket": 192,
+          "title": "推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙（开始组右侧/应用组左侧）、开始组 pill 推荐位零残留、两组显隐解耦（藏两系统按钮推荐组独立在场并退条带左缘 / 推荐位清空推荐组不渲染、回池复原）",
+          "surfaces": [
+            "event-evidence",
+            "pixel"
+          ],
+          "estSeconds": 10
+        },
+        {
           "seg": "P14",
           "ticket": 164,
           "title": "托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言 + 真实点击端到端",
@@ -649,6 +659,16 @@
             "input-injection"
           ],
           "estSeconds": 10
+        },
+        {
+          "seg": "P18",
+          "ticket": 189,
+          "title": "应用组统一序列默认落位（ADR-0013）：z 序脱钩（反复切前台位次纹丝不动+几何帧互证）/新面孔追加最右/全关消失/复启回最右/钉入原地转正/已钉开新窗并入钉图标/关闭不消失/未运行解除消失/解除原地转运行",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 20
         }
       ]
     },
