@@ -892,9 +892,10 @@ async function main() {
     // 点「手钉到任务栏」→ B 即时消失、第 6 名 F 递补（工单161 滤除后截断），不双占位）
     // ④拖拽组内换位（真 OLE 拖拽 recs→recs，显式序压过分数序）⑤拖去应用组升手钉
     // （recs→apps 跨组，落点条目前插入、G 随 D 升钉递补）⑥解除手钉随下拍回池 +
-    // 打开文件位置（explorer 定位真出场）。可见数断言按工单161 递补语义校准（升手钉
-    // 不再留空位，候选池后续名次即时补齐）。痕迹三处在 finally 摘除（桌面夹具/usage
-    // 行/栏布局存储身份含 excluded 段）。
+    // 打开文件位置（explorer 定位真出场）——⑥解除臂的应用组菜单随工单193 迁竖排浮层窗
+    // DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收四面断言随迁（动作存证名不变）。
+    // 可见数断言按工单161 递补语义校准（升手钉不再留空位，候选池后续名次即时补齐）。
+    // 痕迹三处在 finally 摘除（桌面夹具/usage 行/栏布局存储身份含 excluded 段）。
     rep.beginSegment('P16');
     if (!p16) {
       rep.fail('P16 前置缺失：探针种入失败（见种入 note）');
@@ -1120,45 +1121,72 @@ async function main() {
               + ` 应用组=${JSON.stringify((latestGeometry(null).apps || []).map((a) => a.id))} 推荐组=${JSON.stringify(recNames16(latestGeometry(null)))}`);
           }
 
-          // —— ⑥ 解除手钉随下拍回池 + 打开文件位置 ——
-          // 右键两试（第 5 轮实证 pill-apps 右键偶发不开菜单）：未开则光标离位刷新热区、
-          // 重取 settle 几何再试一次。
+          // —— ⑥ 解除手钉随下拍回池 + 打开文件位置（工单193：菜单锚点随迁浮层窗）——
+          // 应用组右键菜单已迁竖排浮层窗 DECK-TASKBAR-MENU（横排进 pill 退役）：行几何
+          // 取 taskbar-app-menu-ready（rows 带 y/h）与 opened/resized（窗 bounds）两路
+          // 配对（55 族 overflow 浮层先例同款验收缝），动作存证名不变。右键两试（第 5 轮
+          // 实证 pill-apps 右键偶发不开菜单）：未开则光标离位刷新热区、重取 settle 几何再试。
+          const APP_MENU_TITLE = 'DECK-TASKBAR-MENU';
+          const APP_MENU_LABELS = { pin: '手钉到任务栏', unpin: '解除手钉', close: '关闭窗口', reveal: '打开文件位置' };
+          const popupSince16 = (since) => {
+            const os = readEvents().filter((e) => e.t >= since
+              && (e.type === 'taskbar-app-menu-opened' || e.type === 'taskbar-app-menu-resized'));
+            const rd = readEvents().filter((e) => e.type === 'taskbar-app-menu-ready' && e.t >= since && Array.isArray(e.rows));
+            return os.length && rd.length ? { bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 } : null;
+          };
           let gU = await waitGeometrySettled(cross16 || gD);
           let ptU = appPt16(gU, pD16.exe); // 解除对象 = 探针 D（拖拽升手钉；按 exe 定位）
           let repool16 = null;
-          let unpinRow = null;
-          for (let attempt16 = 0; attempt16 < 2 && ptU && !unpinRow; attempt16++) {
+          let unpinPop = null; // { bounds, rows, w }：浮层在场证据（含行矩形）
+          let menuRowsOk16 = false; // 条目集现状断言（工单193：行集随迁不变）
+          let horizGone16 = false; // 横排入口退役断言：pill 区域不再出应用菜单行
+          let rowClose16 = null; // 行点即收存证（reason=row）
+          for (let attempt16 = 0; attempt16 < 2 && ptU && !unpinPop; attempt16++) {
+            const since16 = Date.now();
             win32.clickPhys(ptU.x, ptU.y, 'right');
-            for (let i = 0; i < 10 && !unpinRow; i++) {
+            for (let i = 0; i < 12 && !unpinPop; i++) {
               await sleep(200);
-              const rows = await cdpEval(`(() => {
-                const r = document.querySelector('#pill-start .tb-menu-item[data-action="unpin"]');
-                return r ? { label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() } : null;
-              })()`, TASKBAR_TITLE);
-              if (rows) unpinRow = rows;
+              unpinPop = popupSince16(since16);
             }
-            if (!unpinRow && attempt16 === 0) {
+            if (unpinPop && !menuRowsOk16) {
+              // 行集断言（条目集现状）：首行按 pinned 取 手钉/解除手钉、运行中在列关闭窗口、
+              // 打开文件位置恒在——期望行集从内核态的 pinned/running 独立推导（规格编码）
+              const stD = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+              const dE = (stD && stD.apps ? stD.apps : []).find((a) => norm16(a.exe) === norm16(pD16.exe)) || {};
+              const expect = [dE.pinned ? 'unpin' : 'pin', ...(dE.running ? ['close'] : []), 'reveal'];
+              menuRowsOk16 = unpinPop.rows.map((r) => r.id).join(',') === expect.join(',')
+                && unpinPop.rows.map((r) => r.label).join(',') === expect.map((x) => APP_MENU_LABELS[x]).join(',');
+              // 横排入口退役：浮层在场拍，pill 内不再有应用菜单行（DOM 锚点已随迁）
+              const stripRows = await cdpEval(`(() => {
+                return [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || '');
+              })()`, TASKBAR_TITLE);
+              horizGone16 = Array.isArray(stripRows) && !stripRows.includes('unpin');
+            }
+            if (!unpinPop && attempt16 === 0) {
               win32.moveMousePhys(ptU.x, ptU.y - 60); // 离位刷新热区
               await sleep(300);
               gU = await waitGeometrySettled(latestGeometry(null));
               ptU = appPt16(gU, pD16.exe);
             }
           }
-          if (ptU && unpinRow) {
+          if (ptU && unpinPop) {
               // 点行核验重试（红轮实证：菜单开、行在，点行那一下仍可能撞热区轮询窗落空——
-              // 事件 3s 不来就重查行矩形再点，≤3 试；到靶停拍同 P16⑤ 先例）
+              // 事件 3s 不来就重查行矩形再点，≤3 试；到靶停拍同 P16⑤ 先例）。行矩形 = 浮层
+              // 窗 bounds + ready 行偏移（55 族 rowPt 同式；面板子进程主屏原点 (0,0)，DIP×缩放即物理）
               for (let click16 = 0; click16 < 3 && !repool16; click16++) {
-                const rowNow = await cdpEval(`(() => {
-                  const r = document.querySelector('#pill-start .tb-menu-item[data-action="unpin"]');
-                  return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
-                })()`, TASKBAR_TITLE);
+                const popNow = popupSince16(Date.now() - 12000);
+                const rowNow = popNow && popNow.rows.find((r) => r.id === 'unpin');
                 if (!rowNow) break;
-                const up = toPhys(rowNow.rect.x + rowNow.rect.width / 2, rowNow.rect.y + rowNow.rect.height / 2);
+                const up = {
+                  x: Math.round((popNow.bounds.x + popNow.w / 2) * scale),
+                  y: Math.round((popNow.bounds.y + rowNow.y + rowNow.h / 2) * scale),
+                };
                 win32.moveMousePhys(up.x, up.y);
                 await sleep(250);
                 win32.clickPhys(up.x, up.y, 'left');
-                const ev16 = await waitEvent('taskbar-app-menu-action', (e) => e.action === 'unpin', 3000);
+                const ev16 = await waitEvent('taskbar-app-menu-action', (e) => e.action === 'unpin' && norm16(e.exe || '') === norm16(pD16.exe), 3000);
                 if (!ev16) continue;
+                rowClose16 = await waitEvent('taskbar-app-menu-closed', (e) => e.reason === 'row' && e.t >= Date.now() - 6000, 5000); // 行点即收（随 pass 行一并呈报）
                 for (let i = 0; i < 30 && !repool16; i++) {
                   await sleep(200);
                   const cand = latestGeometry(null);
@@ -1166,6 +1194,25 @@ async function main() {
                     && !(cand.apps || []).some((a) => norm16(a.id) === norm16(pD16.exe))) repool16 = cand;
                 }
               }
+          }
+          // 点外即收（工单193 AC）：再开一扇（右键探针 B——③手钉的在册条目），条带外点击
+          // （pill 缝隙 = 桌面穿透点，P3 先例同点）夺焦 → 浮层 blur 收层；若热区映射落进
+          // 条带则走 strip-click 转达收层——两 reason 都是「点外即收」的收层路径实证。
+          let outsideClose16 = null;
+          const gB2 = await waitGeometrySettled(repool16 || gU);
+          const ptB2 = appPt16(gB2, pB16.exe);
+          if (ptB2) {
+            const sinceB2 = Date.now();
+            win32.clickPhys(ptB2.x, ptB2.y, 'right');
+            for (let i = 0; i < 12 && !popupSince16(sinceB2); i++) await sleep(200);
+            if (popupSince16(sinceB2)) {
+              const gapNow = latestGeometry(null);
+              const gapX = gapNow.apps && gapNow.apps.length > 0
+                ? (gapNow.appsPill.x + gapNow.appsPill.w + gapNow.rightPill.x) / 2
+                : (gapNow.startPill.x + gapNow.startPill.w + gapNow.rightPill.x) / 2;
+              win32.clickPhys(toPhys(gapX, TASKBAR_HEIGHT_DIP / 2).x, toPhys(gapX, TASKBAR_HEIGHT_DIP / 2).y, 'left');
+              outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'blur' || e.reason === 'strip-click') && e.t >= Date.now() - 6000, 5000);
+            }
           }
           // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）。
           // 右键两试（⑥解除臂同款：右键偶发不开菜单——离位刷新热区+重取 settle 几何再试）。
@@ -1201,13 +1248,17 @@ async function main() {
               }
               if (expHwnd16) PostMessageW16(expHwnd16, WM_CLOSE_16, 0, 0); // 只关窗不碰 shell
             }
-          if (repool16 && reveal16) {
-            rep.pass(`P16 解除手钉回池+打开文件位置：D 解除手钉随下拍回池（推荐组恒 5、第 7 名 G 让位、应用组摘除）；`
-              + `reveal 行点击存证在案${expHwnd16 ? '，explorer 定位窗口真出场（已收窗）' : '（explorer 窗未及出场，软核验）'}`);
+          if (repool16 && reveal16 && menuRowsOk16 && horizGone16 && outsideClose16) {
+            rep.pass(`P16 解除手钉回池+打开文件位置（工单193 菜单随迁浮层窗）：右键浮层 DECK-TASKBAR-MENU 在场`
+              + `（条目集现状行集=${unpinPop.rows.map((r) => r.label).join('/')}）、pill 内横排行已退役；`
+              + `解除手钉行点存证（exe 身份核对）+行点即收${rowClose16 ? '在案' : '（收层存证缺席）'}、D 随下拍回池（推荐组恒 5、第 7 名 G 让位、应用组摘除）；`
+              + `点外即收（reason=${outsideClose16.reason}）；reveal 行点击存证在案${expHwnd16 ? '，explorer 定位窗口真出场（已收窗）' : '（explorer 窗未及出场，软核验）'}`);
           } else {
             const diagU = await menuDiag16();
             rep.fail(`P16 解除回池/reveal：回池=${!!repool16}(recs=${JSON.stringify(recNames16(latestGeometry(null)))})`
-              + ` reveal存证=${!!reveal16} explorer窗=${expHwnd16 ? '在场' : '未出场'} 菜单诊断=${JSON.stringify(diagU)}`);
+              + ` 浮层行集=${unpinPop ? JSON.stringify(unpinPop.rows.map((r) => r.id)) : '未开'} rowsOk=${menuRowsOk16} 横排退役=${horizGone16}`
+              + ` 行点即收=${rowClose16 ? JSON.stringify(rowClose16.reason) : '缺'} 点外即收=${outsideClose16 ? outsideClose16.reason : '缺'}`
+              + ` reveal存证=${!!reveal16} explorer窗=${expHwnd16 ? '在场' : '未出场'} 条带菜单诊断=${JSON.stringify(diagU)}`);
           }
         }
       }
