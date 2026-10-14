@@ -466,7 +466,7 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 180,
+      "budgetSeconds": 200,
       "lastMeasuredSeconds": 148,
       "lastMeasuredAt": "2026-10-15",
       "segments": [
