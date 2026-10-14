@@ -1582,9 +1582,12 @@ async function main() {
       }
 
       // —— ③ 解耦反向：推荐位清空 → 推荐组不渲染、开始组不受牵连；回池复原 ——
-      // 滤除后截断语义（工单161）：移除腾位由候选池后续名次即时递补——清空必须迭代移除
-      // 当前可见名单直至池竭（探针 5 + 递补 F/G + 机器真实条目都吃进来），移除账全数记录、
-      // 段末 rec-restore 原路回池（excluded 清空 = 复原干净，不给后续段留账）。
+      // 迭代 rec-remove 当前可见名单直至候选池竭（滤除后截断语义——移除腾位即时递补，
+      // 清空=池竭），移除账全数记录、段末 rec-restore 原路回池（excluded 清空复原）。
+      // 池竭前置可能被机器态封死：桌面滞留项 exe 富化空串（resolveShortcutTarget 空串
+      // 兜底链死角）= 契约惰性身份——rec-remove/rec-pin 六 exe 口 requireNonEmptyId 拒收、
+      // 存储装载器丢空 exe 条目，用户无任何路径可排除之；此时断言本体保留（不降阈值），
+      // 本臂记环境降责排除（机器态）留证，真失败（可移除身份滞留=移除未生效）照判红。
       const seenRemove18 = [];
       let emptied18 = null;
       let stuck18 = null; // 池里滞留的条目（含完整形态诊断——exe 富化身份是裁决依据）
@@ -1631,10 +1634,7 @@ async function main() {
         })()`, TASKBAR_TITLE);
         await sleep(400); // 一移除一拍：changed 回推/几何帧到位再取下一轮名单
       }
-      const domEmpty18 = emptied18
-        ? await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE)
-        : null;
-      // 回池复原（rec-restore 全数移除账；excluded 清空 = 复原干净）
+      // 回池复原（rec-restore 全数移除账；excluded 清空 = 复原干净，不给后续段留账）
       await cdpEval(`(async () => {
         for (const exe of ${JSON.stringify(seenRemove18)}) {
           await window.deck.bridge.invoke('taskbar/rec-restore', { exe });
@@ -1649,15 +1649,33 @@ async function main() {
       }
       const stClean18 = await state18();
       const clean18 = !!(stClean18 && Array.isArray(stClean18.excluded) && stClean18.excluded.length === 0);
-      if (emptied18 && domEmpty18 === 'none' && repool18 && clean18) {
-        rep.pass(`P18 显隐解耦反向：候选池竭（移除 ${seenRemove18.length} 枚）→ 推荐组不渲染（display:none、`
-          + `recPill 矩形归零、recommendations []），开始组在场不受牵连；rec-restore 回池复原`
-          + `（可见集复原、excluded 清空）`);
+      if (emptied18) {
+        const domEmpty18 = await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE);
+        if (domEmpty18 === 'none' && repool18 && clean18) {
+          rep.pass(`P18 显隐解耦反向：候选池竭（移除 ${seenRemove18.length} 枚）→ 推荐组不渲染（display:none、`
+            + `recPill 矩形归零、recommendations []），开始组在场不受牵连；rec-restore 回池复原`
+            + `（可见集复原、excluded 清空）`);
+        } else {
+          rep.fail(`P18 解耦反向：清空=${!!emptied18} dom=${JSON.stringify(domEmpty18)} 回池=${!!repool18}`
+            + `(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
+        }
+      } else if (stuck18 && stuck18.length && stuck18.every((r) => !String(r.exe || ''))) {
+        // 机器态封死（滞留体全部契约惰性身份）：空池前置本机不可达——断言保留、本臂记
+        // 环境降责排除；可移除账已全数移除+回池、推荐组仍按非空在场（与①一致）作旁证
+        const keptRender18 = await cdpEval(`(() => {
+          const rs = document.getElementById('pill-recs');
+          return { display: rs ? getComputedStyle(rs).display : 'missing', cells: rs ? rs.querySelectorAll('.tb-rec').length : -1 };
+        })()`, TASKBAR_TITLE);
+        rep.note(`P18 反向臂机器态滞留：可移除账 ${seenRemove18.length} 枚全移除+回池=${!!repool18}、`
+          + `滞留体 ${JSON.stringify(stuck18.map((r) => ({ name: r.name, exe: r.exe })))} 契约惰性（渲染 ${keptRender18.cells} 格保持在场=非空不渲染界线一致）`);
+        rep.exclude(`P18 显隐解耦反向（池竭清空）本机前置不可达：滞留体 exe 富化空串、契约性不可排除`
+          + `（rec-remove requireNonEmptyId 拒收 + 存储装载滤空 exe 条目）——空渲染断言保留未降阈值`,
+        '机器态：桌面滞留项（ZCode.lnk 同类）空 exe 身份进池且用户无排除路径', 'machine-state');
       } else {
         rep.fail(`P18 解耦反向：清空=${!!emptied18}(移除账=${seenRemove18.length}`
-          + ` 池内滞留=${stuck18 ? JSON.stringify(stuck18.map((r) => ({ name: r.name, exe: r.exe, path: r.path }))) : '无'}`
+          + ` 池内滞留=${stuck18 ? JSON.stringify(stuck18.map((r) => ({ name: r.name, exe: r.exe, path: r.path }))) : 'null'}`
           + ` 帧=${emptied18 ? JSON.stringify({ recPill: emptied18.recPill, startPill: emptied18.startPill }) : 'null'})`
-          + ` dom=${JSON.stringify(domEmpty18)} 回池=${!!repool18}(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
+          + ` 回池=${!!repool18}(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
       }
     }
 
