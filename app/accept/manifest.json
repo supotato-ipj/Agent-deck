@@ -467,7 +467,7 @@
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
       "budgetSeconds": 180,
-      "lastMeasuredSeconds": 149,
+      "lastMeasuredSeconds": 148,
       "lastMeasuredAt": "2026-10-15",
       "segments": [
         {
@@ -659,6 +659,16 @@
             "input-injection"
           ],
           "estSeconds": 10
+        },
+        {
+          "seg": "P18",
+          "ticket": 189,
+          "title": "应用组统一序列默认落位（ADR-0013）：z 序脱钩（反复切前台位次纹丝不动+几何帧互证）/新面孔追加最右/全关消失/复启回最右/钉入原地转正/已钉开新窗并入钉图标/关闭不消失/未运行解除消失/解除原地转运行",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 20
         }
       ]
     },

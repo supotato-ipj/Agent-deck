@@ -40,6 +40,13 @@
 //      +应用组手钉段前位出现）、真 OLE 拖拽组内换位（显式序压过分数序）、跨组升手钉
 //      （recs→apps 落点条目前插入）、解除手钉随下拍回池；痕迹三处在 finally 摘除
 //   P17 推荐组移除名单（工单161）：持久排除 + 名次递补 + 空白右键恢复 + 重启保持
+//   P18 应用组统一序列默认落位（工单189，ADR-0013）：排序键与 z 序快照脱钩——
+//      反复切换前台应用组位次纹丝不动；新面孔追加最右/全关消失/复启回最右；
+//      钉入原地转正（手钉段末位=落最后一个手钉之后，安静栏面即位次不动）、
+//      已钉应用开新窗并入钉图标呈运行态、关闭后不消失、解除未运行消失、
+//      解除在运行原地转运行。探针 = csc 现编译 WinForms 最小窗副本×3（自有探针：
+//      窗直属探针进程、镜像名唯一、真多开；选型取证见 seedP18Probes 注），位次读数
+//      = get-state 的 apps 数组（编排序权威真源），taskbar-geometry 几何帧互证。
 //   P19 推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙、开始组零残留、
 //      两组显隐解耦（藏两钮推荐组独立在场并退条带左缘内衬 / 推荐位清空推荐组不渲染、回池复原）
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
@@ -471,12 +478,94 @@ function cleanupRecsProbes(p16) {
   try { fs.rmSync(p16.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
 }
 
+// —— P18 统一序列探针（工单189）：csc 现编译 WinForms 最小窗，副本×3 ——
+// 探针选型四轮真机取证留痕（禁静默换径）：
+//   R2 cmd 副本直接 spawn 无窗——默认终端宿主（Windows Terminal）接管控制台窗；
+//   R3 openPath 后窗出场但栏面身份=windowsterminal.exe 全并一格——控制台窗宿主
+//      代持，探针 exe 身份永不进栏，cmd 族在默认终端形态下整族不可用；
+//   R4 charmap 副本 openPath 无错而进程=0——Win11 System32 charmap.exe 副本本机
+//      不启动（秒退）；notepad 副本同症（秒退 code=0，P16 种入注同证：存根重定向
+//      Store 版，进程/窗两级判据都抓不到）——「拷贝系统 GUI exe」路线在本机否决；
+//   R5 自有探针：csc（.NET Framework 自带，无新依赖）现编译 WinForms 最小窗，
+//      副本×3 各自镜像名唯一。一次性取证实证：编译 446ms、三副本进程=1 且窗直属
+//      探针 exe（标题含镜像名）、ShellExecute 通路 OK、二实例不并、taskkill 收杀
+//      干净。窗按 tag 横向错位摆开（focus18 点中兜底不误点邻探针）。
+const P18_PROBE_CS = `
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+static class Probe {
+  [STAThread]
+  static void Main() {
+    string img = AppDomain.CurrentDomain.FriendlyName; // deck-p18-N.exe
+    int tag = 1;
+    int p = img.LastIndexOf('-');
+    if (p >= 0) int.TryParse(img.Substring(p + 1), out tag);
+    Form f = new Form();
+    f.Text = img + " deck-p18 probe";
+    f.StartPosition = FormStartPosition.Manual;
+    f.Bounds = new Rectangle(40 + (tag - 1) * 360, 60, 300, 160);
+    Application.Run(f);
+  }
+}
+`;
+function seedP18Probes(rep) {
+  try {
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+    const csc = path.join(sysRoot, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+    if (!fs.existsSync(csc)) {
+      rep.note('P18 探针前置失败：csc.exe 缺失（.NET Framework4.x）');
+      return null;
+    }
+    const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p18-'));
+    const csFile = path.join(tmpDir, 'probe.cs');
+    fs.writeFileSync(csFile, P18_PROBE_CS, 'utf8');
+    const built = spawnSync(csc, ['/nologo', '/target:winexe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+      `/out:${path.join(tmpDir, 'deck-p18-probe.exe')}`, csFile], { encoding: 'utf8' });
+    if (built.status !== 0 || !fs.existsSync(path.join(tmpDir, 'deck-p18-probe.exe'))) {
+      rep.note(`P18 探针编译失败：status=${built.status} ${(built.stderr || '').trim().slice(0, 200)}`);
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      return null;
+    }
+    const tags = ['1', '2', '3'];
+    const probes = tags.map((tag) => {
+      const exe = path.join(tmpDir, `deck-p18-${tag}.exe`);
+      fs.copyFileSync(path.join(tmpDir, 'deck-p18-probe.exe'), exe);
+      return { tag, exe, img: path.basename(exe), hwnd: 0, child: null };
+    });
+    return { tmpDir, probes, done: false };
+  } catch (err) {
+    rep.note(`P18 探针种入失败（段内将以缺前置判红）: ${err && err.message}`);
+    return null;
+  }
+}
+
+function cleanupP18Probes(p18) {
+  if (!p18 || p18.done) return;
+  p18.done = true;
+  for (const p of p18.probes) {
+    spawnSync('taskkill', ['/IM', p.img, '/T', '/F'], { stdio: 'ignore' });
+    try { if (p.child) p.child.kill(); } catch { /* 已退出 */ }
+  }
+  try {
+    // 栏布局存储按探针身份过滤（钉入/解除臂失败路径的手钉残留，工单161 三处摘除同款）
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    const probeExes = new Set(p18.probes.map((p) => p.exe.toLowerCase()));
+    const before = JSON.stringify(store);
+    if (Array.isArray(store.pinned)) store.pinned = store.pinned.filter((e) => !probeExes.has(String(e.exe || '').toLowerCase()));
+    if (JSON.stringify(store) !== before) fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
+  } catch { /* 尽力 */ }
+  try { fs.rmSync(p18.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+}
+
 async function main() {
   const rep = new Report('49-taskbar');
   let child = null;
   let panelPid = 0;
   let probe164 = null; // P14 探针（#164）：finally 兜底拆除（段内异常也不漏窗漏类）
   let p16 = null; // P16 推荐组探针（#160）：面板启动前种入（usage 只在服务构造时读盘），finally 兜底清理
+  let p18 = null; // P18 统一序列探针（#189）：finally 兜底清理
   const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
@@ -491,6 +580,10 @@ async function main() {
     // —— P16 推荐组探针（工单160）：先于面板种入（usage 打分只在服务构造时读盘）——
     p16 = seedRecsProbes(rep);
     if (p16) rep.note(`P16 探针已种入：${p16.probes.map((p) => p.name).join(' / ')}`);
+
+    // —— P18 统一序列探针（工单189）：面板拉起后段内种入（无 usage 前置）——
+    p18 = seedP18Probes(rep);
+    if (p18) rep.note(`P18 探针已备：${p18.probes.map((p) => p.img).join(' / ')}`);
 
     // —— 拉起面板子进程（任务栏启用态）——
     child = launchPanel();
@@ -2202,10 +2295,330 @@ async function main() {
       probe164 = null;
       await sleep(300);
     }
+
+    // P18 应用组统一序列默认落位（工单189，ADR-0013）：应用组排序键与 z 序快照脱钩。
+    // 位次读数 = get-state 的 apps 数组（编排纯函数产序的权威真源），taskbar-geometry
+    // 几何帧互证。四臂——
+    //   A z 序脱钩：SetForegroundWindow 反复切换前台（每步前台归属核验），应用组序列
+    //     纹丝不动（跨 1Hz 编排拍，几何帧同序互证）；
+    //   B 新面孔追加最右：后启动探针恒在序列末位；全部窗口关闭即消失；再启动回末位；
+    //   C 钉入原地转正：运行图标钉入落手钉段末位（=落最后一个手钉之后；安静栏面即
+    //     原位次不动），手钉段/运行段两账各自保序；已钉应用开新窗不新增条目、钉图标
+    //     呈运行态；全部窗口关闭后条目不消失（pinned 在、running 落、标题清空）；
+    //     未运行解除手钉即消失；
+    //   D 解除原地转运行：在运行的已钉图标解除手钉，条目停原位次（紧随手钉段=运行段
+    //     首位），不按新面孔跳最右；随后关闭仍消失。
+    rep.beginSegment('P18');
+    if (!p18) {
+      rep.fail('P18 前置缺失：探针种入失败（见种入 note）');
+    } else {
+      const [q1, q2, q3] = p18.probes;
+      const norm18 = (s) => String(s || '').toLowerCase();
+      const stem18 = (img) => img.replace(/\.exe$/i, '');
+      const arms18 = [];
+      const armOk18 = (name, detail) => arms18.push(`${name}:一致(${detail})`);
+      const armFail18 = (name, detail) => arms18.push(`${name}: ${detail}`);
+      const state18 = async () => {
+        for (let i = 0; i < 10; i++) {
+          try { return await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE); }
+          catch { await sleep(400); } // 渲染页未就位重试
+        }
+        return null;
+      };
+      const seq18 = (st) => ((st && st.apps) || []).map((a) => norm18(a.exe));
+      const entry18 = (st, p) => ((st && st.apps) || []).find((a) => norm18(a.exe) === norm18(p.exe)) || null;
+      const waitSeq18 = async (pred, timeoutMs = 12000) => {
+        const deadline = Date.now() + timeoutMs;
+        for (;;) {
+          const st = await state18();
+          if (st && pred(st)) return st;
+          if (Date.now() >= deadline) return null;
+          await sleep(300);
+        }
+      };
+      const procCount18 = (img) => {
+        const r = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${img}`, '/NH'], { encoding: 'utf8' });
+        return ((r.stdout || '').toLowerCase().match(new RegExp(img.toLowerCase().replace(/\./g, '\\.'), 'g')) || []).length;
+      };
+      // 探针窗定位：自有 GUI 探针窗直属探针进程（R5 取证：标题含镜像名，按 exe
+      // 归属识别，不猜类名）。R2/R3 的终端宿主代持匹配已随控制台探针废弃。
+      const probeWin18 = (p) => {
+        const stem = stem18(p.img);
+        for (const h of win32.topLevelWindows()) {
+          if (win32.exeNameOfWindow(h) === stem && win32.IsWindowVisible(h)) return h;
+        }
+        return null;
+      };
+      // 启动经 shell 通道（ShellExecute，贴近用户路径；P16② 同通道已证端到端）。
+      // 失败诊断：进程数 + 探针镜像名相关窗清单（GUI 探针窗直属自身进程，无宿主代持形态）。
+      const launch18 = async (p) => {
+        const err18 = await require('electron').shell.openPath(p.exe);
+        if (err18) { p.diag = `openPath=${err18}`; return false; }
+        let hwnd = null;
+        for (let i = 0; i < 30 && !hwnd; i++) { await sleep(200); hwnd = probeWin18(p); }
+        p.hwnd = hwnd || 0;
+        if (!hwnd) {
+          const stem = stem18(p.img);
+          const wins18 = win32.topLevelWindows()
+            .filter((h) => win32.exeNameOfWindow(h) === stem || titleOf(h).includes(p.img))
+            .slice(0, 8)
+            .map((h) => `${win32.exeNameOfWindow(h)}:${titleOf(h).slice(0, 48)}`);
+          p.diag = `进程=${procCount18(p.img)} 同名窗=[${wins18.join(' | ') || '无'}]`;
+          return false;
+        }
+        return true;
+      };
+      const kill18 = async (p) => {
+        spawnSync('taskkill', ['/IM', p.img, '/T', '/F'], { stdio: 'ignore' });
+        for (let i = 0; i < 20 && procCount18(p.img) > 0; i++) await sleep(200);
+        return procCount18(p.img) === 0;
+      };
+      // 前台切换（z 序驱动）：SetForegroundWindow → AttachThreadInput 附着 assist →
+      // 真实点击兜底，每步以 GetForegroundWindow 归属核验（切不动则该步不计——
+      // z 序根本没变，脱钩断言必须建立在真实切换之上）
+      const focus18 = async (p) => {
+        const hwnd = p.hwnd;
+        if (!hwnd) return false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          win32.SetForegroundWindow(hwnd);
+          await sleep(300);
+          if (Number(win32.GetForegroundWindow()) === hwnd) return true;
+          const fg = Number(win32.GetForegroundWindow());
+          if (fg) {
+            const myTid = win32.GetCurrentThreadId();
+            const fgTid = win32.threadIdOf(fg).tid;
+            const tTid = win32.threadIdOf(hwnd).tid;
+            win32.AttachThreadInput(myTid, fgTid, true);
+            win32.AttachThreadInput(myTid, tTid, true);
+            win32.SetForegroundWindow(hwnd);
+            win32.BringWindowToTop(hwnd);
+            win32.AttachThreadInput(myTid, fgTid, false);
+            win32.AttachThreadInput(myTid, tTid, false);
+          }
+          await sleep(300);
+          if (Number(win32.GetForegroundWindow()) === hwnd) return true;
+          const r = win32.rectOf(hwnd);
+          if (r) {
+            const cx = Math.round((r.left + r.right) / 2), cy = Math.round((r.top + r.bottom) / 2);
+            win32.SetCursorPos(cx, cy);
+            await sleep(250);
+            if (Number(win32.windowFromPointRoot({ x: cx, y: cy })) === hwnd) win32.clickPhys(cx, cy, 'left');
+            await sleep(400);
+            if (Number(win32.GetForegroundWindow()) === hwnd) return true;
+          }
+        }
+        return false;
+      };
+      // 段化对账（默认规则的结构不变式）：手钉段 = 前态手钉段（+新增钉），运行段保序
+      const segSplit18 = (st) => {
+        const apps = (st && st.apps) || [];
+        return {
+          pinned: apps.filter((a) => a.pinned).map((a) => norm18(a.exe)),
+          running: apps.filter((a) => !a.pinned).map((a) => norm18(a.exe)),
+        };
+      };
+      const same18 = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      // 搅动容忍的保序断言：before 的每一项都在 after 中、且相对次序不颠倒（after 可有
+      // before 之外的机器侧新增项——并行会话共享桌面，段间生灭不算失据）
+      const subseq18 = (after, before) => {
+        let j = 0;
+        for (const k of after) { if (j < before.length && k === before[j]) j++; }
+        return j === before.length;
+      };
+
+      // —— 前置：q1/q2 按序上栏（1Hz 编排轮 1–2s）——
+      if (!(await launch18(q1)) || !(await launch18(q2))) {
+        rep.fail(`P18 前置失败：探针窗未出场（q1=${!!q1.hwnd}${q1.diag ? ' ' + q1.diag : ''} q2=${!!q2.hwnd}${q2.diag ? ' ' + q2.diag : ''}）`);
+      } else {
+        const pre18 = await waitSeq18((st) => {
+          const s = seq18(st);
+          return s.includes(norm18(q1.exe)) && s.includes(norm18(q2.exe));
+        });
+        if (!pre18) {
+          rep.fail(`P18 前置失败：q1/q2 未上栏（编排链断）get-state=${JSON.stringify(seq18(await state18()))}`);
+        } else {
+          rep.note(`P18 栏面基线：${seq18(pre18).map((id) => path.basename(id)).join(' | ')}`);
+
+          // —— 臂A z 序脱钩：反复切换前台，序列纹丝不动 ——
+          // 断言走搅动容忍口径（验收机多应用并存、并行会话抢前台）：q1/q2 相对序不变
+          // （z 序若参与排序必翻这俩）、前态手钉条目全体保序在场、几何帧与 get-state
+          // 对两探针同序互证。机器侧新增/退出条目不算失据。
+          {
+            const beforeA = await state18();
+            const seqA0 = seq18(beforeA);
+            const key1 = norm18(q1.exe), key2 = norm18(q2.exe);
+            const f0 = seqA0.filter((k) => k === key1 || k === key2);
+            const pinnedA0 = segSplit18(beforeA).pinned;
+            let q1Fg = 0, q2Fg = 0;
+            for (const target of [q2, q1, q2, q1]) {
+              if (await focus18(target)) { if (target === q1) q1Fg++; else q2Fg++; }
+              await sleep(1300); // ≥1 个编排拍：z 序若再参与排序，重排就落在这一拍内
+            }
+            const stA = await state18();
+            const seqA1 = seq18(stA);
+            const f1 = seqA1.filter((k) => k === key1 || k === key2);
+            const pinnedA1 = segSplit18(stA).pinned;
+            const pinnedOkA = pinnedA0.every((k) => pinnedA1.includes(k))
+              && pinnedA1.filter((k) => pinnedA0.includes(k)).every((k, i) => k === pinnedA0[i]);
+            const geoA = latestGeometry(null);
+            const geoIdsA = geoA && geoA.apps ? geoA.apps.map((a) => norm18(a.id)) : [];
+            const geoF = geoIdsA.filter((k) => k === key1 || k === key2);
+            const geoOkA = f1.length === 2 && same18(f1, geoF);
+            if (q1Fg >= 1 && q2Fg >= 1 && (q1Fg + q2Fg) >= 3 && f0.length === 2 && same18(f0, f1) && pinnedOkA && geoOkA) {
+              armOk18('A-z序脱钩', `前后台切换达成 q1=${q1Fg}/q2=${q2Fg}，探针相对序与手钉段纹丝不动（get-state 与几何帧同序）`);
+            } else {
+              armFail18('A-z序脱钩', `切前台 q1=${q1Fg}/q2=${q2Fg} 探针序 前=${JSON.stringify(f0)} 后=${JSON.stringify(f1)}`
+                + ` 手钉段保序=${pinnedOkA} 几何互证=${geoOkA}(geo=${JSON.stringify(geoF)})`);
+            }
+          }
+
+          // —— 臂B 新面孔追加最右 / 全关消失 / 复启回最右 ——
+          // 「追加最右」断言走搅动容忍口径：启动前在场的条目，凡此刻仍在场者必在 q3
+          // 之左（q3 追加全序最右）；机器侧启动晚于 q3 的新面孔可在其右，不算失据。
+          {
+            const killedB = (await kill18(q1)) && (await kill18(q2));
+            const goneB = await waitSeq18((st) => !seq18(st).includes(norm18(q1.exe)) && !seq18(st).includes(norm18(q2.exe)));
+            let armB = !!killedB && !!goneB;
+            let lastB1 = false;
+            if (armB) {
+              const l0B = seq18(await state18());
+              await launch18(q3);
+              const stB = await waitSeq18((st) => !!entry18(st, q3));
+              const l1B = seq18(stB);
+              const key3 = norm18(q3.exe);
+              lastB1 = !!stB && l0B.every((k) => { const i = l1B.indexOf(k); return i < 0 || i < l1B.indexOf(key3); });
+              armB = lastB1;
+            }
+            let goneB2 = false;
+            if (armB) {
+              armB = await kill18(q3);
+              goneB2 = !!(armB && await waitSeq18((st) => !seq18(st).includes(norm18(q3.exe))));
+              armB = goneB2;
+            }
+            let lastB2 = false;
+            if (armB) {
+              const l0B2 = seq18(await state18());
+              await launch18(q3);
+              const stB2 = await waitSeq18((st) => !!entry18(st, q3));
+              const l1B2 = seq18(stB2);
+              const key3 = norm18(q3.exe);
+              lastB2 = !!stB2 && l0B2.every((k) => { const i = l1B2.indexOf(k); return i < 0 || i < l1B2.indexOf(key3); });
+              armB = lastB2;
+            }
+            if (armB) {
+              armOk18('B-追加最右/全关消失/复启回最右', `q1/q2 摘除、q3 两度落全体在场条目之右（末位）`);
+            } else {
+              armFail18('B-追加最右/全关消失/复启回最右', `进程摘除=${!!killedB} 栏面摘除=${!!goneB} 首启最右=${lastB1} 关闭消失=${goneB2} 复启最右=${lastB2}`
+                + ` 现序=${JSON.stringify(seq18(await state18()))}`);
+            }
+          }
+
+          // —— 臂C 钉入原地转正 / 已钉开新窗并入 / 关闭不消失 / 未运行解除消失 ——
+          // 钉入段化不变式（搅动容忍公共子序列）：前态手钉条目全体在场保序、q3 成为
+          // 手钉段最后一位（老左新右=落最后一个手钉之后）、运行段 = 前态 − q3 保序。
+          {
+            const preC = await state18();
+            const keyC = norm18(q3.exe);
+            const beforeC = segSplit18(preC);
+            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: true })`, TASKBAR_TITLE);
+            const postC = await waitSeq18((st) => { const e = entry18(st, q3); return e && e.pinned; });
+            const afterC = segSplit18(postC);
+            const pinOkC = !!postC && subseq18(afterC.pinned, beforeC.pinned)
+              && afterC.pinned.includes(keyC) && afterC.pinned.indexOf(keyC) === afterC.pinned.length - 1
+              && !afterC.running.includes(keyC)
+              && subseq18(afterC.running, beforeC.running.filter((k) => k !== keyC));
+            let armC = !!pinOkC;
+
+            // 已钉应用开新窗：不新增条目、钉图标呈运行态（第二实例若被应用并回单实例，
+            // 栏面同样恰一条目运行态——「不新增图标」在两种形态下都成立）
+            let mergeC = false;
+            if (armC) {
+              await launch18(q3);
+              const stM = await waitSeq18((st) => {
+                const hits = (st.apps || []).filter((a) => norm18(a.exe) === keyC);
+                return hits.length === 1 && hits[0].pinned && hits[0].running;
+                }, 8000);
+              mergeC = !!stM;
+              armC = mergeC;
+            }
+            // 全部窗口关闭：条目不消失（pinned 在、running 落、标题清空）
+            let keepC = false;
+            if (armC) {
+              armC = await kill18(q3);
+              const stK = armC ? await waitSeq18((st) => { const e = entry18(st, q3); return e && e.pinned && !e.running; }) : null;
+              keepC = !!stK && entry18(stK, q3).title === null;
+              armC = keepC;
+            }
+            // 未运行解除手钉：消失（按推荐管线回池；探针非桌面项，回池即不可见）
+            let unpinGoneC = false;
+            if (armC) {
+              await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: false })`, TASKBAR_TITLE);
+              unpinGoneC = !!(await waitSeq18((st) => !seq18(st).includes(keyC)));
+              armC = unpinGoneC;
+            }
+            if (armC) {
+              armOk18('C-钉入转正/开新窗并入/关闭不消失/未运行解除消失',
+                `钉入落手钉段末位（前态手钉 ${beforeC.pinned.length} 项保序在后）、运行段摘键保序，新窗并入单条目=${mergeC}，关闭后钉态驻留=${keepC}，未运行解除即消失=${unpinGoneC}`);
+            } else {
+              armFail18('C-钉入转正/开新窗并入/关闭不消失/未运行解除消失',
+                `钉后帧=${!!postC} 段化=${!!pinOkC} 并入=${mergeC} 驻留=${keepC} 消失=${unpinGoneC}`
+                + ` 前态=${JSON.stringify(beforeC)} 后态=${JSON.stringify(afterC)}`);
+            }
+          }
+
+          // —— 臂D 解除原地转运行 ——
+          {
+            let armD = await launch18(q3);
+            const stD0 = armD ? await waitSeq18((st) => !!entry18(st, q3)) : null;
+            armD = !!stD0;
+            const beforeD0 = segSplit18(stD0);
+            // 钉入（运行中）→ 解除（仍在运行）：原地转运行
+            if (armD) {
+              await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: true })`, TASKBAR_TITLE);
+              const pinnedD = await waitSeq18((st) => { const e = entry18(st, q3); return e && e.pinned; });
+              armD = !!pinnedD;
+            }
+            let demoteD = null;
+            if (armD) {
+              await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: false })`, TASKBAR_TITLE);
+              demoteD = await waitSeq18((st) => { const e = entry18(st, q3); return e && !e.pinned && e.running; });
+            }
+            const keyD = norm18(q3.exe);
+            const afterD = segSplit18(demoteD);
+            // 解除臂结构不变式：手钉段回到钉入前态（保序），q3 落运行段**首位**（紧随
+            // 手钉段=原地转运行；新面孔只会追加最右、无人能插到它前面），先序运行条目保序殿后
+            const segOkD = !!demoteD && afterD.running.indexOf(keyD) === 0
+              && subseq18(afterD.running, beforeD0.running.filter((k) => k !== keyD))
+              && subseq18(afterD.pinned, beforeD0.pinned) && beforeD0.pinned.every((k) => afterD.pinned.includes(k));
+            let goneD = false;
+            if (armD && demoteD) {
+              armD = await kill18(q3);
+              goneD = !!(armD && await waitSeq18((st) => !seq18(st).includes(keyD)));
+              armD = goneD;
+            }
+            if (armD && segOkD) {
+              armOk18('D-解除原地转运行', `解除后停运行段首位（原位次、两段保序），随后全关消失=${goneD}`);
+            } else {
+              armFail18('D-解除原地转运行', `钉入=${armD} 解除帧=${!!demoteD} 段化=${!!segOkD} 全关消失=${goneD}`
+                + ` 钉前=${JSON.stringify(beforeD0)} 解后=${JSON.stringify(afterD)}`);
+            }
+          }
+
+          const pass18 = arms18.filter((a) => a.includes(':一致(')).length;
+          const fail18 = arms18.filter((a) => !a.includes(':一致('));
+          if (fail18.length === 0 && pass18 === 4) {
+            rep.pass(`P18 统一序列默认落位：4 臂全过（${arms18.join('；')}）`);
+          } else {
+            rep.fail(`P18 ${fail18.length}/4 臂失败：${arms18.join(' | ')}`);
+          }
+        }
+      }
+    }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
     if (probe164) { try { probe164.destroy(); } catch { /* 尽力 */ } }
+    cleanupP18Probes(p18); // P18 痕迹摘除（进程/目录/栏布局存储手钉残留）
     killTree(child, panelPid);
     cleanupRecsProbes(p16); // P16 痕迹三处摘除（面板已杀，落盘清理不再被回写）
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
