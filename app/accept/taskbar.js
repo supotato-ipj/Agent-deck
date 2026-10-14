@@ -2804,10 +2804,12 @@ async function main() {
           // —— 臂B 运行段会话拖位 + 渲染冻结（断点①②）：中程强推 changed，节点不重建 ——
           {
             await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: false })`, TASKBAR_TITLE);
-            // q3 在运行：解除手钉原地转运行（工单189）→ 会话序 [q3, q1]
+            // q3 在运行：解除手钉原地转运行（工单189）→ q3 插回会话序首位（q1 之前；机器侧
+            // 未钉运行条目可夹在中间——首见序随编排拍与 z 序快照走，断言只认两探针相对序）
             const demoted20 = await waitSeq20((st) => {
               const seg = segSplit20(st);
-              return seg.running.indexOf(norm20(q3.exe)) === 0 && seg.running.indexOf(norm20(q1.exe)) === 1;
+              return seg.running.indexOf(norm20(q3.exe)) >= 0 && seg.running.indexOf(norm20(q1.exe)) >= 0
+                && seg.running.indexOf(norm20(q3.exe)) < seg.running.indexOf(norm20(q1.exe));
             });
             let dragB = null;
             let startB20 = false;
@@ -2850,10 +2852,11 @@ async function main() {
                 if (okB) dragB.ok20 = true;
                 orderB = await waitSeq20((st) => {
                   const seg = segSplit20(st);
-                  return seg.running.indexOf(norm20(q1.exe)) === 0 && seg.running.indexOf(norm20(q3.exe)) === 1;
+                  return seg.running.indexOf(norm20(q1.exe)) >= 0 && seg.running.indexOf(norm20(q3.exe)) >= 0
+                    && seg.running.indexOf(norm20(q1.exe)) < seg.running.indexOf(norm20(q3.exe));
                 });
               }
-              // 第二拖（无中程推帧）：q3 拖回 q1 之前 → 会话序 [q3, q1]（臂D 重启对照态）
+              // 第二拖（无中程推帧）：q3 拖回 q1 之前 → 会话序 q3<q1（臂D 重启对照态）
               const gB2 = await waitGeometrySettled(orderB || gB);
               const srcB2 = appPt20(gB2, q3.exe);
               const dstB2 = appPt20(gB2, q1.exe);
@@ -2863,12 +2866,13 @@ async function main() {
                 await waitEvent('taskbar-drag-drop', (e) => e.t >= t0B2 && e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
                 orderB = await waitSeq20((st) => {
                   const seg = segSplit20(st);
-                  return seg.running.indexOf(norm20(q3.exe)) === 0 && seg.running.indexOf(norm20(q1.exe)) === 1;
+                  return seg.running.indexOf(norm20(q3.exe)) >= 0 && seg.running.indexOf(norm20(q1.exe)) >= 0
+                    && seg.running.indexOf(norm20(q3.exe)) < seg.running.indexOf(norm20(q1.exe));
                 });
               }
             }
             if (dragB && dragB.ok20 && startB20 && token20 === 'same-node' && orderB) {
-              rep.pass(`P20 臂B 运行段会话拖位+渲染冻结：运行条目真拖两连落位（会话序 [q3, q1]），中程强推 changed 两帧被拖节点同一性保持`
+              rep.pass(`P20 臂B 运行段会话拖位+渲染冻结：运行条目真拖两连落位（会话序 q3<q1），中程强推 changed 两帧被拖节点同一性保持`
                 + `（token=${token20}）——冻结生效无闪烁无回弹，drag-start/drag-drop/drag-result 三存证齐`);
             } else {
               rep.fail(`P20 臂B 未达成：drag-start存证=${startB20} drag-drop存证=${!!dragB} ok=${!!(dragB && dragB.ok20)} 冻结token=${token20} 落位后运行段=${JSON.stringify(segSplit20(await state20()).running)}`
@@ -2954,9 +2958,11 @@ async function main() {
             // 手钉拖位记住：钉入落盘序是 [.., q3, q2]，臂A 拖位后 [.., q2, q3]——重启后仍 q2 在 q3 前
             const pinPersistD = !!rebootD && segD1.pinned.indexOf(norm20(q2.exe)) >= 0
               && segD1.pinned.indexOf(norm20(q2.exe)) < segD1.pinned.indexOf(norm20(q3.exe));
-            // 运行拖位回默认序：臂B 摆下的会话序 [q3, q1] 不落盘——重启后首见序（q1 前台在先）= [q1, q3]
+            // 运行拖位回默认序：臂B 摆下的会话序（q3 在 q1 前）不落盘——重启后首见序
+            // （q1 前台=z 序最前）q1 在 q3 之前；机器侧条目不参与判据（只认两探针相对序）
             const runResetD = !!rebootD && focusOkD
-              && segD1.running.indexOf(norm20(q1.exe)) === 0 && segD1.running.indexOf(norm20(q3.exe)) === 1;
+              && segD1.running.indexOf(norm20(q1.exe)) >= 0 && segD1.running.indexOf(norm20(q3.exe)) >= 0
+              && segD1.running.indexOf(norm20(q1.exe)) < segD1.running.indexOf(norm20(q3.exe));
             // 存储文件无运行序段（会话态不落盘）+ 手钉拖位确在盘面
             let diskD = null;
             try {
