@@ -2939,8 +2939,17 @@ async function main() {
             const segD0 = segSplit20(stD0);
             const beforeD = JSON.stringify(segD0);
             const focusOkD = await focus20(q1); // q1 前台=重启后 z 序首见第一（默认序判据的确定性底座）
+            const oldPidD = panelPid;
             killTree(child, panelPid);
             child = null;
+            // 等旧面板进程彻底退场再拉新面板（第1/2轮 arm D 同签名取证：taskkill /F 后旧
+            // remote-debugging-port 短暂未释放，新面板 Chromium 静默跳过 CDP 绑定——渲染层
+            // 1Hz status 帧照走 EventLog 而 CDP get-state 全灭）。旧 pid 消失再 spawn。
+            for (let i = 0; i < 50 && oldPidD; i++) {
+              const r = spawnSync('tasklist', ['/FI', `PID eq ${oldPidD}`, '/NH'], { encoding: 'utf8' });
+              if (!(r.stdout || '').includes(String(oldPidD))) break;
+              await sleep(200);
+            }
             await sleep(1200);
             const sinceD = Date.now();
             child = launchPanel();
@@ -2973,11 +2982,16 @@ async function main() {
               && (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q2.exe))
                 < (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q3.exe));
             if (bootD && rebootD && pinPersistD && runResetD && diskOkD) {
-              rep.pass(`P20 臂D 拖位持久化口径：重启面板——手钉拖位 q2<q3 落盘记住（get-state 与盘面一致），运行拖位 [q3, q1] 回默认序 [q1, q3]`
-                + `（q1 前台=首见序判据，重启前台达成），存储无运行序段（会话态不落盘）`);
+              rep.pass(`P20 臂D 拖位持久化口径：重启面板——手钉拖位 q2<q3 落盘记住（get-state 与盘面一致），运行拖位回默认序（q1 前台=首见序判据，重启前台达成，q1<q3）`
+                + `，存储无运行序段（会话态不落盘）`);
             } else {
+              let cdpDiagD = 'fetch-fail';
+              try {
+                const tg = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+                cdpDiagD = 'targets=[' + tg.map((x) => x.title).join('|') + ']';
+              } catch (e) { cdpDiagD = 'fetch-fail:' + (e && e.message); }
               rep.fail(`P20 臂D 持久化口径未达成：boot=${!!bootD} 重启帧=${!!rebootD} 手钉拖位保持=${pinPersistD} 运行拖位复位=${runResetD}(前台=${focusOkD}) 盘面=${diskOkD}`
-                + ` 重启前=${beforeD} 重启后=${JSON.stringify(segD1)} 盘面pinned=${diskD ? JSON.stringify((diskD.pinned || []).map((e) => e.exe)) : 'n/a'}`);
+                + ` 重启前=${beforeD} 重启后=${JSON.stringify(segD1)} 盘面pinned=${diskD ? JSON.stringify((diskD.pinned || []).map((e) => e.exe)) : 'n/a'} CDP=${cdpDiagD}`);
             }
           }
         }
