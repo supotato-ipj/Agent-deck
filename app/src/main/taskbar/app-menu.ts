@@ -45,10 +45,13 @@ export function startAppMenuHost(options: { ctx: Context; log: EventLog | null }
     bridgeChannels: ['taskbar/changed'],
   })
 
-  // 视口帽随工作区下发（托盘溢出先例同式；应用组行集 ≤3 行远不及帽，极端机器态兜底）
-  const maxH = Math.max(320, screen.getPrimaryDisplay().workArea.height - 80)
-  const menuUrl = (exe: string): string =>
-    `${taskbarMenuUrl()}?menu=app&exe=${encodeURIComponent(exe)}&maxH=${maxH}`
+  // 视口帽随工作区下发（托盘溢出先例同式；应用组行集 ≤3 行远不及帽，极端机器态兜底）。
+  // 开层首拍才取工作区（宿主装配拍可能早于 app ready，screen 未就绪即取会炸）
+  let maxH = 0
+  const menuUrl = (exe: string): string => {
+    if (!maxH) maxH = Math.max(320, screen.getPrimaryDisplay().workArea.height - 80)
+    return `${taskbarMenuUrl()}?menu=app&exe=${encodeURIComponent(exe)}&maxH=${maxH}`
+  }
 
   return {
     onStripNotify(type, payload) {
