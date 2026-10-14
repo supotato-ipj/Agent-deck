@@ -8,10 +8,13 @@
 //               · 目标 pid 的 #32768 菜单窗在场 + 菜单矩形实拍（PNG 留证）+ 菜单内
 //                 点命中测试（z 序在条带之上的视图佐证）
 //               · 让位期间 keepalive 重申点被压制（taskbar-topmost-suppressed 事件在场）
-//               · taskbar-tray-yield-restored（reason=menu-closed/foreground-changed）
+//               · 2.5s 趁菜单在场实拍后敲 ESC → restored reason=menu-closed（侦测①路）
 //   P3 超时轮   无菜单目标（自种探针图标，属主=条带窗自身——回放投递必达但不弹菜单）
 //               右键回放 → 三路侦测全盲 → restored reason=timeout elapsed≈10s
 //               （盲区兜底不死锁让位）
+//   P3b 重申点  让位窗口中段：全屏探针顶前台→条带让位→探针退场→恢复拍被闸门压制
+//               （fullscreen-yield-lifted 存证 + 可见但 topmost=0 视图事实）；光标划入
+//               条带热区再离开→热区离开重申拍被压制（hotzone-leave 存证）
 //   P4 左键回归 左键回放不触发让位（taskbar-tray-yield 缺席）
 //   P5 时间线   事件日志按类型抽取落盘（让位/恢复时序存证样本，报告引用）
 // 纪律：产品代码零改动；取证工具不进 manifest 不产 verdict 电池；退出码 0=完成 3=机器脏。
@@ -28,6 +31,9 @@ const CDP_PORT = 9229;
 const VK_ESCAPE = 0x1b;
 const WS_EX_TOPMOST = 0x8;
 const GWL_EXSTYLE = -20;
+const WM_CANCELMODE = 0x001f; // 直投菜单窗收菜单（无前台菜单收不到键盘 ESC，r4 实证）
+const WM_KEYDOWN = 0x0100;
+const WM_KEYUP = 0x0101;
 
 const user32Local = win32.koffi.load('user32.dll');
 const shell32Local = win32.koffi.load('shell32.dll');
@@ -76,6 +82,26 @@ function menuWindowsOfPid(pid) {
   }
   return out;
 }
+/** 全桌面在场的可见 #32768 菜单窗（清场核验用） */
+function visibleMenuWindows() {
+  const out = [];
+  let after = 0;
+  for (;;) {
+    const h = Number(win32.FindWindowExW(0, after, '#32768', null));
+    if (!h) break;
+    after = h;
+    if (win32.IsWindowVisible(h)) out.push(h);
+  }
+  return out;
+}
+/** 直投菜单窗收菜（WM_CANCELMODE+ESC）：无前台菜单收不到全局键盘，tapKeys 收不掉 */
+function cancelMenusOf(pid) {
+  for (const h of menuWindowsOfPid(pid)) {
+    win32.PostMessageW(h, WM_CANCELMODE, 0, 0);
+    win32.PostMessageW(h, WM_KEYDOWN, VK_ESCAPE, 0);
+    win32.PostMessageW(h, WM_KEYUP, VK_ESCAPE, 0);
+  }
+}
 function foregroundPid() {
   const h = Number(win32.GetForegroundWindow());
   return h ? win32.threadIdOf(h).pid : 0;
@@ -90,6 +116,56 @@ function capture(rect, name, outDir) {
     '-W', String(rect.right - rect.left), '-H', String(rect.bottom - rect.top),
   ], { encoding: 'utf8', timeout: 20000 });
   return r.status === 0 && fs.existsSync(out) ? out : null;
+}
+
+// —— P3b 全屏探针（taskbar-appbar 电池 P4 同款形态，本 harness 是裸 node 故走子进程）：
+//    独立 Electron 全屏无边框窗，让位轮中段顶前台 → 条带全屏让位（hide），探针一死
+//    → 恢复拍 showInactive+重申置顶——让位闸门在场时该拍必须被压制（票面第三处
+//    重申点的在场证据）。 ——
+const FS_PROBE_TITLE = 'DECK-T194-FULLSCREEN';
+function writeFullscreenProbe(outDir) {
+  const file = path.join(outDir, 'fs-probe.js');
+  fs.writeFileSync(file, [
+    "const { app, BrowserWindow } = require('electron');",
+    'app.whenReady().then(() => {',
+    "  const win = new BrowserWindow({ fullscreen: true, frame: false, title: " + JSON.stringify(FS_PROBE_TITLE) + ", backgroundColor: '#101820' });",
+    "  win.loadURL('about:blank');",
+    '  win.show();',
+    '});',
+  ].join('\n'));
+  return file;
+}
+function spawnFullscreenProbe(outDir) {
+  const child = spawn(require('electron'), [writeFullscreenProbe(outDir)], {
+    cwd: APP_ROOT,
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  let err = '';
+  child.stderr.on('data', (d) => { err = (err + d).slice(-2000); });
+  child.stderrTail = () => err;
+  return child;
+}
+async function waitFor(fn, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const v = fn();
+    if (v) return v;
+    if (Date.now() > deadline) return null;
+    await sleep(120);
+  }
+}
+/** 强制前台（前台锁下普通手段静默失败，taskbar-appbar 同款：AttachThreadInput 链入再置前） */
+function forceForegroundH(hwnd) {
+  const fg = Number(win32.GetForegroundWindow());
+  const curTid = win32.GetCurrentThreadId();
+  const fgTid = fg ? win32.threadIdOf(fg).tid : 0;
+  if (fgTid && fgTid !== curTid) win32.AttachThreadInput(curTid, fgTid, true);
+  try {
+    win32.SetForegroundWindow(hwnd);
+    win32.BringWindowToTop(hwnd);
+  } finally {
+    if (fgTid && fgTid !== curTid) win32.AttachThreadInput(curTid, fgTid, false);
+  }
 }
 
 function launchPanel(eventsFile) {
@@ -153,25 +229,34 @@ async function cdpEval(title, expression) {
 }
 
 async function dismissMenus() {
-  win32.tapKeys([VK_ESCAPE]);
-  await sleep(300);
-  win32.tapKeys([VK_ESCAPE]);
-  await sleep(300);
+  // 双管齐下：全局键盘 ESC（前台菜单常规路）+ 直投 WM_CANCELMODE（无前台菜单兜底，
+  // r4 实证 tapKeys 收不掉 → 残留菜单 dirty 退场）；最多三轮，逐轮复查
+  for (let i = 0; i < 3; i++) {
+    win32.tapKeys([VK_ESCAPE]);
+    for (const h of visibleMenuWindows()) win32.PostMessageW(h, WM_CANCELMODE, 0, 0);
+    await sleep(350);
+    if (visibleMenuWindows().length === 0) return;
+  }
 }
 
-// —— 让位轮观测：右键回放 → 每 100ms 采样视图事实（TOPMOST 位/菜单窗/前台），直到
-//    恢复事件落地后再续 500ms 收尾拍。返回逐拍样本 + 结构化事件（时序存证样本）。
+// —— 让位轮观测：右键回放 → 每 100ms 采样视图事实（TOPMOST 位/可见/菜单窗/前台），
+//    直到恢复事件落地后再续 500ms 收尾拍。返回逐拍样本 + 结构化事件（时序存证样本）。
 //    窗口内事件全程累积（yield/suppressed/replay 都要在轮内记账，只捞尾拍会漏光）；
-//    opts.escAfterMs：到点先调 opts.beforeEsc（趁菜单在场取证的窗口）再敲一记 ESC
-//    收菜单——P2 走三路侦测第①路（menu-closed）恢复；不配则放任到超时上限（P3）。 ——
+//    opts.plan：让位窗口内的定时动作表（{ atMs, fn }，按到点序各执行一次）——P2 趁菜单
+//    在场实拍后敲 ESC（三路侦测第①路 menu-closed）；P3b 中段起全屏探针/热区划过
+//    （重申点在场驱证）；不配则放任到超时上限（P3 盲区口径）。 ——
 async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
   const since = Date.now();
   tail.next(); // 排空既有
   const samples = [];
   const seen = [];
+  const plan = (opts.plan || []).slice().sort((a, b) => a.atMs - b.atMs);
+  const planDone = [];
   let restored = null;
   let restoredAt = 0;
-  let escTapped = false;
+  // 光标先落到托盘区（真实右键的常态：光标就在图标上）——应用菜单按光标点锚定，
+  // 不钉就弹到物理鼠标残留位置（r2/r3 实证弹到屏左上，与条带零重叠，覆盖不到缺陷面）
+  if (opts.cursorAt) win32.SetCursorPos(opts.cursorAt.x, opts.cursorAt.y);
   void cdpEval(STRIP_TITLE,
     `window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key)}, button: 'right' })`).catch(() => null);
   const deadline = Date.now() + 12000; // 超时上限 10s + 余量
@@ -181,13 +266,18 @@ async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
     samples.push({
       t,
       topmost: stripHwnd ? topmostBit(stripHwnd) : null,
+      visible: win32.IsWindow(stripHwnd) ? win32.IsWindowVisible(stripHwnd) : null,
       menus: opts.watchPid ? menuWindowsOfPid(opts.watchPid).length : null,
       fgPid: foregroundPid(),
     });
-    if (opts.escAfterMs && !escTapped && t >= opts.escAfterMs) {
-      escTapped = true;
-      if (opts.beforeEsc) await opts.beforeEsc(samples);
-      win32.tapKeys([VK_ESCAPE]);
+    while (plan.length && t >= plan[0].atMs) {
+      const step = plan.shift();
+      try {
+        await step.fn();
+        planDone.push({ atMs: step.atMs, ok: true });
+      } catch (e) {
+        planDone.push({ atMs: step.atMs, ok: false, error: e && e.message });
+      }
     }
     for (const e of tail.next()) {
       seen.push(e);
@@ -204,7 +294,7 @@ async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
     replay: fresh.find((e) => e.type === 'tray-replay' && e.key === key) || null,
     restored: restored ? { t: restored.t - since, reason: restored.reason, pid: restored.pid, menuSeen: restored.menuSeen, elapsedMs: restored.elapsedMs } : null,
   };
-  return { tag, key, since, samples, events };
+  return { tag, key, since, samples, events, planDone };
 }
 
 // —— 主流程 ——
@@ -231,7 +321,7 @@ async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
   let child = null;
   let dirty = false;
   let probeNid = null;
-  const findings = { p1: null, p2: null, p3: null, p4: null, finalStripTopmost: null, leftoverMenus: null };
+  const findings = { p1: null, p2: null, p3: null, p3b: null, p4: null, finalStripTopmost: null, leftoverMenus: null };
   try {
     // —— P0 拉起 ——
     child = launchPanel(eventsFile);
@@ -265,28 +355,36 @@ async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
     if (!candidates.length) throw new Error('无第三方托盘样本可验（机器态域）');
 
     // —— P2 让位轮：逐候选试到第一个「右键后目标 pid 出 #32768 菜单」的样本。
-    //    escAfterMs：菜单在场读 2.5s 后趁在场取证实拍（截图+命中测试，条带尚在普通带
-    //    ——菜单压得过的直接视图佐证）再敲 ESC 收菜单 → 三路侦测第①路 menu-closed
-    //    恢复（此前轮次只走到超时恢复，第①路无真机实证）。 ——
+    //    cursorAt：光标钉到条带托盘区（菜单按光标锚定，与条带重叠才是缺陷场景位形，
+    //    r2/r3 实证不钉则弹到物理鼠标残留位）。plan：菜单在场读 2.5s 后先命中测试
+    //    （快、权威的 z 序事实）再实拍留证（条带尚在普通带——菜单压得过的直接视图
+    //    佐证），然后直投收菜 → 三路侦测第①路 menu-closed 恢复。 ——
     let p2 = null;
+    const stripRect = win32.rectOf(strip);
+    const trayPoint = { x: stripRect.right - 200, y: Math.round((stripRect.top + stripRect.bottom) / 2) };
     for (const cand of candidates.slice(0, 4)) {
       let menuShot = null, hitTest = null;
       const snapMenu = () => {
         const menus = menuWindowsOfPid(cand.pid);
         if (!menus.length) return;
         const mr = win32.rectOf(menus[0]);
+        const hit = win32.windowFromPointRoot({ x: Math.round((mr.left + mr.right) / 2), y: Math.round((mr.top + mr.bottom) / 2) });
+        hitTest = { hwnd: hit, isMenu: menus.includes(hit) };
         const sr = win32.rectOf(strip);
         menuShot = capture({
           left: Math.min(mr.left, sr.left) - 24, top: Math.min(mr.top, sr.top) - 24,
           right: Math.max(mr.right, sr.right) + 24, bottom: Math.max(mr.bottom, sr.bottom) + 24,
         }, `t194-menu-over-strip-${cand.exe}`, outDir);
-        const hit = win32.windowFromPointRoot({ x: Math.round((mr.left + mr.right) / 2), y: Math.round((mr.top + mr.bottom) / 2) });
-        hitTest = { hwnd: hit, isMenu: menus.includes(hit) };
       };
       const round = await yieldRound(`P2:${cand.exe}`, cand.key, strip, tail, {
         watchPid: cand.pid,
-        escAfterMs: 2500,
-        beforeEsc: snapMenu,
+        cursorAt: trayPoint,
+        plan: [{ atMs: 2500, fn: async () => {
+          snapMenu();
+          // 直投收菜（WM_CANCELMODE）：无前台菜单收不到全局键盘 ESC——确定性触发
+          // 三路侦测第①路 menu-closed（r4 实证 tapKeys 路不可靠）
+          cancelMenusOf(cand.pid);
+        } }],
       });
       const menuBorn = round.samples.some((s) => (s.menus ?? 0) > 0);
       const topmostDropped = round.samples.some((s) => s.topmost === false);
@@ -328,6 +426,64 @@ async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
       h({ type: 'P3-skipped', reason: 'probe-not-rostered' });
     }
 
+    // —— P3b 重申点在场驱证（票面 AC「让位期间条带不被三处重申点抢回置顶」的其余两处，
+    //    keepalive 已由 P2/P3 每 500ms 压制存证在场）。监视 pid 走未知口径（死 hwnd 探针
+    //    →pidOfWindow=0）让位窗口内**只有超时一条恢复路**——全屏探针顶前台/退场引起的
+    //    前台变化不触发三路侦测第②路，恢复拍（5.5s）必然落在让位窗口内，不与前台变化
+    //    恢复赛跑（前任轮口径：pid 未知两路停用只超时兜底）：
+    //    ① 2s 起全屏探针顶前台 → 条带全屏让位（taskbar-yield，条带 hide）
+    //    ② 5.5s 探针退场 → 恢复拍 showInactive+assertTop——闸门必须压制（存证
+    //       fullscreen-yield-lifted；视图事实：条带可见但 topmost 位仍 0）
+    //    ③ 7s 光标划入条带热区再离开 → 热区离开重申拍被压制（存证 hotzone-leave） ——
+    let probe2Nid = null;
+    if (okAdd && inRoster) {
+      const FAKE_HWND = 0x1940194; // 非真实窗口句柄：pidOfWindow→0，监视 pid 未知口径
+      const PROBE2_UID = 0x19400192;
+      probe2Nid = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: FAKE_HWND, uid: PROBE2_UID,
+        flags: NIF_MESSAGE | NIF_TIP, callbackMessage: CB, hicon: 0,
+        tooltip: 'DECK194-YIELD-PROBE2', uVersion: 0 });
+      const okAdd2 = ShellNotifyIconW(NIM_ADD, probe2Nid);
+      const probe2Key = `${FAKE_HWND}:${PROBE2_UID}`;
+      let inRoster2 = false;
+      for (let i = 0; i < 12 && !inRoster2; i++) {
+        await sleep(700);
+        const st3 = await cdpEval(STRIP_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+        inRoster2 = (st3.tray || []).some((t) => t.key === probe2Key);
+      }
+      h({ type: 'P3b-probe-seeded', okAdd: okAdd2, inRoster: inRoster2, key: probe2Key });
+      if (okAdd2 && inRoster2) {
+        const origCursor = win32.cursor();
+        const probeChild = spawnFullscreenProbe(outDir);
+        const round = await yieldRound('P3b:reassert-points', probe2Key, strip, tail, {
+          watchPid: 0, // 死 hwnd → pid 未知口径（与产品链路 begin(pid=0) 同形）
+          plan: [
+            { atMs: 2000, fn: async () => {
+                const fsHwnd = await waitFor(() => win32.topLevelWindows().find((w) => titleOf(w) === FS_PROBE_TITLE) || null, 6000);
+                if (!fsHwnd) throw new Error(`全屏探针窗未现身（stderr尾：${probeChild.stderrTail()}`);
+                forceForegroundH(fsHwnd);
+            } },
+            { atMs: 5500, fn: async () => { if (probeChild.exitCode === null) probeChild.kill(); } },
+            { atMs: 7000, fn: async () => {
+                const sr = win32.rectOf(strip);
+                win32.SetCursorPos(Math.round((sr.left + sr.right) / 2), Math.round((sr.top + sr.bottom) / 2));
+                await sleep(350); // 热区命中拍（25ms 轮询）
+                win32.SetCursorPos(origCursor.x, origCursor.y);
+                await sleep(450); // 离开确认拍（LEAVE_CONFIRM_POLLS=2）
+            } },
+          ],
+        });
+        // 恢复拍压制视图事实：全屏退场后（>6s）、超时恢复前（<9.3s）条带可见但 topmost 位恒 0
+        const visibleAfterLift = round.samples
+          .filter((s) => s.t > 6000 && s.t < 9300)
+          .every((s) => s.visible === true && s.topmost === false);
+        findings.p3b = { ...round, visibleAfterLift };
+        h({ type: 'P3b-round', events: round.events, visibleAfterLift, planDone: round.planDone });
+        try { if (probeChild.exitCode === null) probeChild.kill(); } catch { /* 尽力 */ }
+        ShellNotifyIconW(NIM_DELETE, probe2Nid);
+        probe2Nid = null;
+      }
+    }
+
     // —— P4 左键回归：左键回放不触发让位（探针须仍在册） ——
     if (okAdd && inRoster) {
       const since = Date.now();
@@ -352,6 +508,7 @@ async function yieldRound(tag, key, stripHwnd, tail, opts = {}) {
     h({ type: 'fatal', message: e && e.message, stack: (e && e.stack || '').split('\n').slice(0, 4).join(' | ') });
   } finally {
     try { if (probeNid) ShellNotifyIconW(NIM_DELETE, probeNid); } catch { /* 尽力 */ }
+    try { if (probe2Nid) ShellNotifyIconW(NIM_DELETE, probe2Nid); } catch { /* 尽力 */ }
     await stopPanel(child);
     restoreConfig();
     // P5 时间线：让位/恢复相关事件全量抽取（报告引用的时序存证样本）
