@@ -603,12 +603,22 @@
         {
           "seg": "P15",
           "ticket": 159,
-          "title": "栏分组布局重排：开始组钉左/应用组空带居中（几何存证+CDP 互证+藏显钮回正），不与邻组重叠、右组细条不变",
+          "title": "栏分组布局重排：开始组钉左/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
           "surfaces": [
             "event-evidence",
             "pixel"
           ],
-          "estSeconds": 8
+          "estSeconds": 5
+        },
+        {
+          "seg": "P15B",
+          "ticket": 190,
+          "title": "屏幕中心线锚定：应用组中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张；全程带内不越界",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 20
         },
         {
           "seg": "P16",

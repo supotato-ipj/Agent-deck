@@ -17,9 +17,9 @@
     user-select: none;
     cursor: default;
   }
-  /* 应用组 pill（工单52：手钉+运行中应用合并）：空带居中漂浮（工单159）——落位归渲染层
-   * taskbar.ts positionAppsPill（appsPillLeft：[开始组右缘, 右组左缘] 带中点夹取，随两侧
-   * 内容浮动），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制） */
+  /* 应用组 pill（工单52：手钉+运行中应用合并）：屏幕中心线锚定漂浮（工单190）——落位归渲染层
+   * taskbar.ts positionAppsPill（appsPillLeft：centerX=屏幕水平中心线，带外按 [开始组右缘,
+   * 右组左缘] 夹取不压邻居），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制） */
   #pill-apps {
     position: absolute;
     left: 8px;

@@ -1,64 +1,48 @@
-# accept 49-taskbar — 2026-10-14T16:51:34.275Z
-[16:51:52.803] NOTE  P16 探针已种入：DECK-P16-1791996694290-A.lnk / DECK-P16-1791996694290-B.lnk / DECK-P16-1791996694290-C.lnk / DECK-P16-1791996694290-D.lnk / DECK-P16-1791996694290-E.lnk
-[16:51:53.761] NOTE  面板 pid=44556
-[16:52:00.065] SEG   ▶ P1 任务栏窗口在场：置顶 + 底部通栏落屏底 + 原生任务栏已隐藏（工单50 几何口径）｜工单49｜失效面=系统状态
-[16:52:00.068] PASS  P1 任务栏窗口在场：置顶 + 底部通栏落屏底（2560x64），原生任务栏已隐藏
-[16:52:00.070] SEG   ▶ P2 面板本体钉底不受影响（非置顶 + pin 存证在流）｜工单49｜失效面=面板存活+系统状态+事件存证
-[16:52:00.203] PASS  P2 面板本体在场、非置顶、钉底存证在流
-[16:52:02.814] NOTE  几何帧: boot startPill.w=256 → settled startPill.w=256
-[16:52:03.077] NOTE  置顶收敛=true
-[16:52:03.078] SEG   ▶ P3 pill 缝隙穿透 + pill 热区命中（双向往返，工单52 缝隙探针）｜工单49｜失效面=输入注入+系统状态
-[16:52:03.899] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
-[16:52:03.902] SEG   ▶ P4 开始按钮弹出原生开始菜单（前台宿主版本相关）｜工单49｜失效面=输入注入+系统状态+事件存证
-[16:52:03.997] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
-[16:52:04.321] NOTE  开始菜单收起=true
-[16:52:05.136] SEG   ▶ P5 TaskView 按钮弹出原生任务视图 + 残留清场｜工单49｜失效面=输入注入+系统状态+事件存证
-[16:52:06.118] NOTE  P5 点击前: fg={"hwnd":331386,"cls":"Chrome_WidgetWin_1","exe":"minimax code"} tasks点收敛=true
-[16:52:06.201] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / ForegroundStaging）
-[16:52:07.428] SEG   ▶ P6 运行时禁用（CDP taskbar/set-enabled）：窗销/原生还原/config 落盘/面板无恙｜工单49｜失效面=系统状态+面板存活
-[16:52:08.573] PASS  P6 运行时禁用：任务栏窗口即销毁、原生任务栏还原、config 落盘、面板本体不受影响
-[16:52:08.575] SEG   ▶ P7 运行时重新启用：窗口恢复仍置顶｜工单49｜失效面=系统状态
-[16:52:09.989] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
-[16:52:09.992] SEG   ▶ P8 启动态禁用（config 门禁）：窗口不建面板照常｜工单49｜失效面=系统状态+面板存活
-[16:52:17.256] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
-[16:52:17.260] SEG   ▶ P9 启动态恢复启用：窗口回来仍置顶｜工单49｜失效面=系统状态
-[16:52:25.854] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
-[16:52:25.857] SEG   ▶ P13 栏高与图标尺寸（48→64DIP、应用图标 32px/格位 44px、托盘 24px+最近邻放大档）：CDP computed style 与几何存证互证｜工单158｜失效面=像素+事件存证
-[16:52:26.053] PASS  P13 栏高与图标尺寸：条带 64DIP；应用格位 44px/图标 32px；托盘 5 枚均 24px（已装载 5 枚放大档核验通过）；几何存证互证（格位 h=44.0、托盘格 h=34.0）
-[16:52:26.055] SEG   ▶ P15 栏分组布局重排：开始组钉左/应用组空带居中（几何存证+CDP 互证+藏显钮回正），不与邻组重叠、右组细条不变｜工单159｜失效面=事件存证+像素
-[16:52:28.689] PASS  P15 三组新布局落位：开始组钉左（x=8.0，CSS=8px）、应用组空带居中（组心 1161.0 ≈ 带中点 1161.2，带 [534, 1788]）、不与邻组重叠、右组+细条钉右不变、推荐位 5 枚独立 pill 界内（pill @272，与开始组间隙 8px）
-[16:52:31.736] PASS  P15 居中随两侧内容浮动：藏 TaskView 钮（开始组 256→119px）应用组左移回正（组心 1093.0 ≈ 带中点 1092.7），复原回中（组心 1161.0 ≈ 1161.2）
-[16:52:31.738] SEG   ▶ P16 推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池｜工单160｜失效面=输入注入+事件存证
-[16:52:32.052] PASS  P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 44×44 图标格（img 5/占位 0），无显示名文本残留，扫描显示名即时进 tooltip
-[16:52:35.014] PASS  P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（cmd 副本）进程真出场并收杀
-[16:52:36.859] PASS  P16 右键三行+手钉：菜单恰三行（手钉到任务栏/从推荐栏移除/打开文件位置）；点手钉后 B 即时消失、第 6 名 F 递补（可见恒 5，工单161 递补语义）、应用组在册（位次 2/9，手钉段）
-[16:52:39.247] PASS  P16 推荐组内拖拽换位：E 拖至 C 之前（真 OLE 拖拽，显式序压过分数序，落位存证 recs→recs）
-[16:52:42.184] PASS  P16 拖去应用组升手钉：D 拖至 B 之前（跨组 recs→apps 落点前插——应用组 [Kimi.exe, deck-p16-probe-D.exe, deck-p16-probe-B.exe, MiniMax Code.exe, Notepad.exe, wps.exe, ZCode.exe, msedge.exe, explorer.exe, Qoder CN.exe]，推荐组恒 5 枚、第 7 名 G 递补不双占位）
-[16:52:48.490] PASS  P16 解除手钉回池+打开文件位置：D 解除手钉随下拍回池（推荐组恒 5、第 7 名 G 让位、应用组摘除）；reveal 行点击存证在案，explorer 定位窗口真出场（已收窗）
-[16:52:48.492] SEG   ▶ P17 推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）｜工单161｜失效面=输入注入+事件存证
-[16:52:53.473] PASS  P17 从推荐栏移除：三行菜单点「从推荐栏移除」→ F 即时消失、第 7 名 G 递补（可见恒 5），持久排除落盘（excluded 含富化身份 deck-p16-probe-F.exe）
-[16:52:55.294] NOTE  P17 恢复段经试点 top-pad-center 开出
-[16:52:55.955] PASS  P17 空白右键恢复：恢复段「恢复 DECK-P16-1791996694290-F」行在列（label 对扫描显示名=true），点选即回池（F 复见、G 让位）、excluded 清空
-[16:53:08.521] NOTE  P17 重启后恢复段经试点 top-pad-center 开出
-[16:53:08.999] PASS  P17 重启保持：移除落盘（重启前 excluded 在）→ 面板重启后排除名单保持（F 不复活、G 占位）、空白右键恢复行仍在 → 点选即回池（重启记住 + 恢复入口跨重启可达）
-[16:53:09.001] SEG   ▶ P18 推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙（开始组右侧/应用组左侧）、开始组 pill 推荐位零残留、两组显隐解耦（藏两系统按钮推荐组独立在场并退条带左缘 / 推荐位清空推荐组不渲染、回池复原）｜工单192｜失效面=事件存证+像素
-[16:53:10.322] PASS  P18 推荐组独立漂浮 pill：5 枚推荐位全部界内 #pill-recs（pill @272，开始组零残留），与开始组间隙达标（≥8px）、应用组居其右侧空带，独立容器 DOM 在场
-[16:53:10.784] PASS  P18 显隐解耦正向：两系统按钮全藏 → 开始组不渲染（display:none）、推荐组独立在场（recPill 退条带左缘 left=8px，5 枚推荐位无牵连），复原后开始组回归
-[16:53:16.679] NOTE  P18 反向臂机器态滞留：可移除账 7 枚全移除+回池=true、滞留体 [{"name":"ZCode.lnk","exe":""}] 契约惰性（渲染 5 格保持在场=非空不渲染界线一致）
-[16:53:16.681] EXENV P18 显隐解耦反向（池竭清空）本机前置不可达：滞留体 exe 富化空串、契约性不可排除（rec-remove requireNonEmptyId 拒收 + 存储装载滤空 exe 条目）——空渲染断言保留未降阈值（原因=机器态：桌面滞留项（ZCode.lnk 同类）空 exe 身份进池且用户无排除路径｜归因=machine-state）
-[16:53:16.682] SEG   ▶ P10 关-开连发竞态：条带恰一扇/完整禁用归零（孤儿检测器）/再启用占位在场/无乱序注销｜工单103｜失效面=事件存证+系统状态
-[16:53:22.408] PASS  P10(a) 桥写连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=1381594）、无乱序注销
-[16:53:38.327] PASS  P10(b) 进程内连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=3151058）、无乱序注销
-[16:53:38.330] SEG   ▶ P11 运行时交还：禁用即交还托盘宿主（竞争窗按属主归零+stopped存证）/重启用即收编（宿主重建+名单回填）/停起停整周期｜工单153｜失效面=事件存证+系统状态
-[16:53:38.333] PASS  P11 基线：启用态我方托盘竞争窗在场（hwnd=16978014）
-[16:53:39.429] PASS  P11 禁用即交还：tray-host-stopped 存证在流、我方 Shell_TrayWnd 归零
-[16:53:42.205] PASS  P11 重启用即收编：宿主重建（新 ready 帧）、条带恢复置顶、名单回填（24 条）
-[16:53:43.193] PASS  P11 二次禁用（重启后停）：竞争窗再次归零
-[16:53:43.194] SEG   ▶ P12 宿主守恒：禁用态数据面强杀重启不复活宿主（respawn按期望态）/启态禁用不建宿主｜工单153｜失效面=事件存证+系统状态
-[16:53:47.191] PASS  P12(a) 禁用态数据面重启：宿主不复活（respawn 按期望态重算，竞争窗仍归零）
-[16:53:52.801] PASS  P12(b) 启态禁用：托盘宿主不建（不偷图标），面板照常
-[16:53:52.803] SEG   ▶ P14 托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言 + 真实点击端到端｜工单164｜失效面=事件存证+输入注入
-[16:53:58.720] NOTE  v0 右键 asfw=true（前台态依赖，尽力放行不作硬断言）
-[16:54:01.703] PASS  P14 托盘回放负载语义：4 臂全过（v0-右键:存证+收帧一致(wparam=uID/lparam=0x0205/pid=属主)；v0-左键:真实点击端到端(存证+收帧 lp=0x0202)；v4-右键:存证+收帧一致(wparam=MAKELPARAM(101,202)/lparam=(uID<<16)|WM_CONTEXTMENU)；v4-左键:存证+收帧一致(wparam=MAKELPARAM(103,201)/lparam=(uID<<16)|WM_LBUTTONUP)）
-[16:54:03.134] NOTE  清场核验：原生任务栏可见
-[16:54:03.137] ===== 49-taskbar VERDICT: PASS (pass=32 fail=0) =====
+# accept 49-taskbar — 2026-10-14T16:28:18.791Z
+[16:28:40.125] NOTE  P16 探针已种入：DECK-P16-1791995298812-A.lnk / DECK-P16-1791995298812-B.lnk / DECK-P16-1791995298812-C.lnk / DECK-P16-1791995298812-D.lnk / DECK-P16-1791995298812-E.lnk
+[16:28:41.060] NOTE  面板 pid=11828
+[16:28:48.030] SEG   ▶ P1 任务栏窗口在场：置顶 + 底部通栏落屏底 + 原生任务栏已隐藏（工单50 几何口径）｜工单49｜失效面=系统状态
+[16:28:48.036] PASS  P1 任务栏窗口在场：置顶 + 底部通栏落屏底（2560x64），原生任务栏已隐藏
+[16:28:48.038] SEG   ▶ P2 面板本体钉底不受影响（非置顶 + pin 存证在流）｜工单49｜失效面=面板存活+系统状态+事件存证
+[16:28:48.170] PASS  P2 面板本体在场、非置顶、钉底存证在流
+[16:28:50.793] NOTE  几何帧: boot startPill.w=496 → settled startPill.w=496
+[16:28:51.057] NOTE  置顶收敛=true
+[16:28:51.060] SEG   ▶ P3 pill 缝隙穿透 + pill 热区命中（双向往返，工单52 缝隙探针）｜工单49｜失效面=输入注入+系统状态
+[16:28:51.884] PASS  P3 pill 缝隙点击穿透到下方窗口，pill 内热区命中任务栏窗
+[16:28:51.887] SEG   ▶ P4 开始按钮弹出原生开始菜单（前台宿主版本相关）｜工单49｜失效面=输入注入+系统状态+事件存证
+[16:28:51.982] PASS  P4 开始按钮弹出原生开始菜单（前台 searchhost / Windows.UI.Core.CoreWindow）
+[16:28:52.319] NOTE  开始菜单收起=true
+[16:28:53.130] SEG   ▶ P5 TaskView 按钮弹出原生任务视图 + 残留清场｜工单49｜失效面=输入注入+系统状态+事件存证
+[16:28:54.112] NOTE  P5 点击前: fg={"hwnd":1051890,"cls":"OpusApp","exe":"wps"} tasks点收敛=true
+[16:28:54.174] PASS  P5 TaskView 按钮弹出原生任务视图（前台 explorer / ForegroundStaging）
+[16:28:55.422] SEG   ▶ P6 运行时禁用（CDP taskbar/set-enabled）：窗销/原生还原/config 落盘/面板无恙｜工单49｜失效面=系统状态+面板存活
+[16:28:56.649] FAIL  P6 响应={"enabled":false,"hiddenButtons":[],"metrics":["cpu","gpu","ram","net-down","net-up"],"trayOverflowLimit":5,"recommendations":[{"name":"DECK-P16-1791995298812-A.lnk","display":"DECK-P16-1791995298812-A","path":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-A.lnk","iconKey":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-A.lnk|1791995302922.4597","exe":"C:\\Users\\An W\\AppData\\Local\\Temp\\deck-p16-rO2yWm\\deck-p16-cmd.exe"},{"name":"DECK-P16-1791995298812-B.lnk","display":"DECK-P16-1791995298812-B","path":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-B.lnk","iconKey":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-B.lnk|1791995305608.0105","exe":"C:\\Users\\An W\\AppData\\Local\\Temp\\deck-p16-rO2yWm\\deck-p16-probe-B.exe"},{"name":"DECK-P16-1791995298812-C.lnk","display":"DECK-P16-1791995298812-C","path":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-C.lnk","iconKey":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-C.lnk|1791995308548.643","exe":"C:\\Users\\An W\\AppData\\Local\\Temp\\deck-p16-rO2yWm\\deck-p16-probe-C.exe"},{"name":"DECK-P16-1791995298812-D.lnk","display":"DECK-P16-1791995298812-D","path":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-D.lnk","iconKey":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-D.lnk|1791995311542.4526","exe":"C:\\Users\\An W\\AppData\\Local\\Temp\\deck-p16-rO2yWm\\deck-p16-probe-D.exe"},{"name":"DECK-P16-1791995298812-E.lnk","display":"DECK-P16-1791995298812-E","path":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-E.lnk","iconKey":"C:\\Users\\An W\\Desktop\\DECK-P16-1791995298812-E.lnk|1791995314276.8894","exe":"C:\\Users\\An W\\AppData\\Local\\Temp\\deck-p16-rO2yWm\\deck-p16-probe-E.exe"}],"excluded":[],"apps":[{"exe":"C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe","label":"Kimi","pinned":true,"running":false,"title":null,"iconKey":"C:\\Users\\An W\\Desktop\\Kimi.lnk|1790090739899.0508"},{"exe":"C:\\Users\\An W\\AppData\\Local\\Kingsoft\\WPS Office\\12.1.0.28802\\office6\\wps.exe","label":"wps","pinned":false,"running":true,"title":"[只读]6.新闻稿-【总部要闻】集团法律事务部一行赴中建八局开展“百案攻坚”专项工作推进调研.docx - WPS Office","iconKey":"c:\\users\\an w\\appdata\\local\\kingsoft\\wps office\\12.1.0.28802\\office6\\wps.exe|1790174645031.663"},{"exe":"D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe","label":"MiniMax Code","pinned":false,"running":true,"title":"MiniMax Code","iconKey":"d:\\program\\minimax-code\\minimax code\\minimax code.exe|1791117962000"},{"exe":"C:\\Program Files\\ZCode\\ZCode.exe","label":"ZCode","pinned":false,"running":true,"title":"ZCode","iconKey":"c:\\program files\\zcode\\zcode.exe|1791881638000"},{"exe":"C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe","label":"Notepad","pinned":false,"running":true,"title":"无标题 - Notepad","iconKey":"c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe|1788455165247.5156"},{"exe":"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe","label":"msedge","pinned":false,"running":true,"title":"supotato-ipj/Agent-deck - Personal - Microsoft​ Edge","iconKey":"c:\\program files (x86)\\microsoft\\edge\\application\\msedge.exe|1791427914389.2175"},{"exe":"C:\\Windows\\explorer.exe","label":"explorer","pinned":false,"running":true,"title":"20261012集团迎检PPT - File Explorer","iconKey":"c:\\windows\\explorer.exe|1791936991458.1665"},{"exe":"D:\\Program\\Qoder CN\\.qoder-versions\\0.4.7\\Qoder CN.exe","label":"Qoder CN","pinned":false,"running":true,"title":"Qoder CN","iconKey":"d:\\program\\qoder cn\\.qoder-versions\\0.4.7\\qoder cn.exe|1791985322139.51"}],"tray":[]} 窗已销=true 原生还原=false 落盘={"enabled":false,"hiddenButtons":[],"metrics":["cpu","gpu","ram","net-down","net-up"],"trayOverflowLimit":5} 面板在=true
+[16:28:56.652] SEG   ▶ P7 运行时重新启用：窗口恢复仍置顶｜工单49｜失效面=系统状态
+[16:28:58.310] PASS  P7 运行时重新启用：任务栏窗口恢复（仍置顶）
+[16:28:58.312] SEG   ▶ P8 启动态禁用（config 门禁）：窗口不建面板照常｜工单49｜失效面=系统状态+面板存活
+[16:29:05.597] PASS  P8 启动态禁用：任务栏窗口不建，面板本体照常
+[16:29:05.600] SEG   ▶ P9 启动态恢复启用：窗口回来仍置顶｜工单49｜失效面=系统状态
+[16:29:13.685] PASS  P9 启动态重新启用后任务栏窗口恢复（仍置顶）
+[16:29:13.689] SEG   ▶ P13 栏高与图标尺寸（48→64DIP、应用图标 32px/格位 44px、托盘 24px+最近邻放大档）：CDP computed style 与几何存证互证｜工单158｜失效面=像素+事件存证
+[16:29:13.898] PASS  P13 栏高与图标尺寸：条带 64DIP；应用格位 44px/图标 32px；托盘 5 枚均 24px（已装载 5 枚放大档核验通过）；几何存证互证（格位 h=44.0、托盘格 h=34.0）
+[16:29:13.900] SEG   ▶ P15 栏分组布局重排：开始组钉左/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）｜工单159｜失效面=事件存证+像素
+[16:29:16.534] PASS  P15 三组新布局落位：开始组钉左（x=8.0，CSS=8px）、应用组带内落位（带 [512, 1772]，居中语义见 P15B）、不与邻组重叠、右组+细条钉右不变、推荐位 5 枚占位其后
+[16:29:16.536] SEG   ▶ P15B 屏幕中心线锚定：应用组中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张；全程带内不越界｜工单190｜失效面=事件存证+系统状态
+[16:29:37.192] FAIL  P15B 锚定=true(组心1280.0 vs 中心线1280.0) 藏钮=true 显回=true 推荐位=true 档位切换=true 档位还原=false 对称扩张=true/true(帧={"id":"pill-apps","x":1065,"y":3,"w":430,"h":58}) 带内=true 帧={"gA":{"id":"pill-apps","x":1088,"y":3,"w":384,"h":58},"gHide":{"id":"pill-apps","x":1088,"y":3,"w":384,"h":58},"gShow":{"id":"pill-apps","x":1088,"y":3,"w":384,"h":58}}
+[16:29:37.715] SEG   ▶ P16 推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池｜工单160｜失效面=输入注入+事件存证
+[16:29:38.037] PASS  P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 44×44 图标格（img 5/占位 0），无显示名文本残留，扫描显示名即时进 tooltip
+[16:29:42.222] PASS  P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（cmd 副本）进程真出场并收杀
+[16:29:44.041] PASS  P16 右键三行+手钉：菜单恰三行（手钉到任务栏/从推荐栏移除/打开文件位置）；点手钉后 B 即时消失、第 6 名 F 递补（可见恒 5，工单161 递补语义）、应用组在册（位次 2/9，手钉段）
+[16:29:46.435] PASS  P16 推荐组内拖拽换位：E 拖至 C 之前（真 OLE 拖拽，显式序压过分数序，落位存证 recs→recs）
+[16:29:49.365] PASS  P16 拖去应用组升手钉：D 拖至 B 之前（跨组 recs→apps 落点前插——应用组 [Kimi.exe, deck-p16-probe-D.exe, deck-p16-probe-B.exe, wps.exe, MiniMax Code.exe, ZCode.exe, Notepad.exe, msedge.exe, explorer.exe, Qoder CN.exe]，推荐组恒 5 枚、第 7 名 G 递补不双占位）
+[16:29:55.444] PASS  P16 解除手钉回池+打开文件位置：D 解除手钉随下拍回池（推荐组恒 5、第 7 名 G 让位、应用组摘除）；reveal 行点击存证在案，explorer 定位窗口真出场（已收窗）
+[16:29:55.447] SEG   ▶ P17 推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）｜工单161｜失效面=输入注入+事件存证
+[16:30:00.393] PASS  P17 从推荐栏移除：三行菜单点「从推荐栏移除」→ F 即时消失、第 7 名 G 递补（可见恒 5），持久排除落盘（excluded 含富化身份 deck-p16-probe-F.exe）
+[16:30:02.223] NOTE  P17 恢复段经试点 top-pad-center 开出
+[16:30:03.186] PASS  P17 空白右键恢复：恢复段「恢复 DECK-P16-1791995298812-F」行在列（label 对扫描显示名=true），点选即回池（F 复见、G 让位）、excluded 清空
+[16:30:20.611] FAIL  电池异常: Error: CDP 找不到页面目标: DECK-TASKBAR
+    at cdpEval (D:\test-folder\wallpaperengine-research--spec188-t190\app\accept\taskbar.js:201:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async main (D:\test-folder\wallpaperengine-research--spec188-t190\app\accept\taskbar.js:1543:27)
+[16:30:23.409] NOTE  清场核验：原生任务栏可见
+[16:30:23.412] ===== 49-taskbar VERDICT: FAIL (pass=18 fail=3) =====

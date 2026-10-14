@@ -539,7 +539,7 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
   })
 })
 
-describe('栏分组布局重排（工单159：开始组钉左、应用组空带居中）', () => {
+describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕中心线锚定）', () => {
   const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
   const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
 
@@ -611,17 +611,28 @@ describe('栏分组布局重排（工单159：开始组钉左、应用组空带�
     expect(appsSlotsFor({ lo: 2408, hi: 2408 })).toBe(0)
   })
 
-  it('居中位夹取（纯函数）：带宽足够取带中点；恰满/超带宽钉带左缘（溢出展开病态档）', () => {
-    // 常态：200px pill 居中于 [100,500] 带 → 带中点 300 − 半宽 100 = 200
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 200)).toBe(200)
-    // 非整除带宽：取整后两侧余隙差 ≤1px（带 460 宽、pill 200：中点 300−100=200，两侧 100/160）
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 201)).toBe(200) // 中点 300−100.5=199.5 → 200（右侧余 99，左侧 100）
-    // 恰占满带宽：贴带左缘
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 400)).toBe(100)
+  it('居中锚定（纯函数，工单190）：pill 中心对齐屏幕水平中心线（centerX），不随带宽漂移', () => {
+    // 常态：屏幕中心线 300、pill 200 → 左缘 = 300 − 100 = 200
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 200, 300)).toBe(200)
+    // 邻居宽度无关：带 [100,500]→[50,700]（两侧邻组增删内容）而中心线不变 → 落位不变
+    expect(appsPillLeft({ lo: 50, hi: 700 }, 200, 300)).toBe(200)
+    // 非整除：中心线 300、pill 201 → 199.5 → 取整 200（两侧余隙差 ≤1px）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 201, 300)).toBe(200)
+    // 中心线落在带外一侧（带整体右偏）：理想位越出左界 → 钉带左缘（夹取不越界）
+    expect(appsPillLeft({ lo: 400, hi: 800 }, 100, 300)).toBe(400)
+    // 负宽防御：按 0 宽锚中心线（不炸、不越界）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, -1, 300)).toBe(300)
+  })
+
+  it('居中位夹取（纯函数，工单190 维持现状）：带内容不下时贴理想位；带窄于 pill 钉带左缘（溢出展开病态档）', () => {
+    // 理想位右探越出右界：中心线 450、pill 300 → 理想 300，右缘 600 > 500 → 夹回 200（右缘恰贴带右界）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 300, 450)).toBe(200)
+    // 恰占满带宽：贴带左缘（中心线即带中点时与带中点居中重合）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 400, 300)).toBe(100)
     // 超带宽（溢出展开等病态档）：钉带左缘（右溢不反演到开始组一侧）
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 450)).toBe(100)
-    // 负宽防御：按 0 宽居中带中点（不炸、不越界）
-    expect(appsPillLeft({ lo: 100, hi: 500 }, -1)).toBe(300)
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 450, 300)).toBe(100)
+    // 零宽带（异常态）：钉带左缘（等下一拍）
+    expect(appsPillLeft({ lo: 2408, hi: 2408 }, 46, 1204)).toBe(2408)
   })
 })
 

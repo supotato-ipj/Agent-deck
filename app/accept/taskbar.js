@@ -27,8 +27,11 @@
 //      style 与几何存证帧互证；应用格位用 notepad 探针（栏上无应用时 1Hz 编排轮
 //      1–2s 内上栏）
 //   P15 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
-//      空带内居中（随两侧内容浮动）、右组与细条位置不变、不与邻组重叠——几何存证帧
-//      与 CDP computed style 互证；居中回正驱动 = set-button-hidden 藏/显 TaskView 钮
+//      带内落位（不与邻组重叠）、右组与细条位置不变——几何存证帧与 CDP computed style
+//      互证；居中语义随工单190 移交 P15B（原「空带居中+随带回正」断言退役）
+//   P15B 屏幕中心线锚定（工单190，ADR-0013 决策2）：应用组 pill 中心对齐屏幕水平中心线
+//      （容差 ±2.5px 段内注明），藏/显 TaskView、推荐位移除/恢复、托盘溢出档位切换三路
+//      邻居宽度驱动中心不变；图标增多向两侧对称扩张；全程带内不越界（夹取围栏）
 //   P16 推荐组交互主体（工单160）：五条 usage 种子探针确定性占满推荐位（先于面板种入
 //      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 44 格/32 图标
 //      img/首字母占位，无显示名文本残留）、左键启动（真点击→rec-click 存证→notepad 副本
@@ -546,10 +549,11 @@ async function main() {
       const b = geom.buttons.find((x) => x.id === id);
       return toPhys(b.x + b.w / 2, b.y + b.h / 2);
     };
-    // 缝隙探针（工单159 布局重排适配；工单192 推荐组拆出随迁）：应用组空带居中后，pill 间
-    // 缝隙取「应用组右缘与右组左缘的中点」（带宽恒宽敞）；应用组空（pill-apps 不渲染）退
-    // 「左邻组右缘与右组左缘的中点」——左邻按推荐组优先（工单192 独立 pill 在场取其右缘，
-    // 缺席回退开始组）；左邻也整组不渲染时矩形归零、退化为条带左半任意点
+    // 缝隙探针（工单159 布局重排适配；工单190 起居中锚定不改变本探针——缝隙点从实测
+    // 几何取；工单192 推荐组拆出随迁）：pill 间缝隙取「应用组右缘与右组左缘的中点」
+    // （带宽恒宽敞）；应用组空（pill-apps 不渲染）退「左邻组右缘与右组左缘的中点」——
+    // 左邻按推荐组优先（工单192 独立 pill 在场取其右缘，缺席回退开始组）；左邻也整组
+    // 不渲染时矩形归零、退化为条带左半任意点
     // （固定 x=40 会落进钉左的开始组热区——工单159 起开始组钉条带左缘）
     const leftEdgeCss192 = geom.recPill && geom.recPill.w > 0
       ? geom.recPill.x + geom.recPill.w
@@ -791,15 +795,15 @@ async function main() {
       if (notepad13) spawnSync('taskkill', ['/PID', String(notepad13.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
-    // P15 栏分组布局重排（工单159；工单192 推荐组独立 pill 随迁重定界）：三组新布局落位与
-    // 居中回正。证据两路互证：
+    // P15 栏分组布局重排（工单159；工单192 推荐组独立 pill 随迁重定界）：三组新布局落位。
+    // 证据两路互证：
     //   (1) taskbar-geometry 存证帧（渲染层量出的 pill 矩形，与电池点击坐标同源）；
     //   (2) 任务栏页 CDP computed style（开始组钉左 CSS 落位 + 应用组 JS 落位在场）。
-    //   应用组空带左邻按推荐组优先（工单192 独立 pill 在场取其右缘，缺席回退开始组）；
-    //   推荐位界内断言重定界到 #pill-recs（量测出处随迁、字段语义不变）。居中回正驱动 =
-    //   CDP taskbar/set-button-hidden 藏/显 TaskView 钮（左界内容变化 → taskbar/changed
-    //   结构性重渲 → 应用组按新空带回正）；hiddenButtons 是 config 落盘项，段内显式复原
-    //   （finally 的三态还原兜底）。应用格空时 notepad 探针（同 P13）。
+    //   工单190 起居中语义移交 P15B（屏幕中心线锚定）：本段只钉钉左/两侧界（不与邻组
+    //   重叠，界 = 推荐组右缘优先回退开始组右缘——工单192 左邻随迁）、右组细条钉右、
+    //   推荐位界内——原「空带中点居中 + 随带回正」断言随功能变更退役（P15B 接班）。
+    //   推荐位界内断言重定界到 #pill-recs（量测出处随迁、字段语义不变）。应用格空时
+    //   notepad 探针（同 P13）。
     rep.beginSegment('P15');
     let notepad14 = null;
     try {
@@ -816,12 +820,12 @@ async function main() {
       const g0 = await waitGeometrySettled(geom14);
       const GAP15 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px）
       const bandOf = (g) => {
-        // 左邻组右缘：推荐组独立 pill 在场取其右缘（工单192），缺席回退开始组
+        // 左邻组右缘：推荐组独立 pill 在场取其右缘（工单192），缺席回退开始组；
+        // 工单190 起空带只作容量/夹取围栏（居中语义在 P15B），不带中点
         const leftEdge = g.recPill && g.recPill.w > 0 ? g.recPill.x + g.recPill.w : g.startPill.x + g.startPill.w;
         return {
           lo: leftEdge + GAP15,
           hi: g.rightPill.x - GAP15,
-          mid: (leftEdge + GAP15 + g.rightPill.x - GAP15) / 2,
         };
       };
       // CDP 互证：#pill-start 钉左（computed left=8px）、#pill-apps 由 JS 落位（inline left 在场）
@@ -839,8 +843,6 @@ async function main() {
       const startOk14 = Math.abs(g0.startPill.x - 8) <= 2
         && Math.abs(g0.startPill.y + g0.startPill.h / 2 - TASKBAR_HEIGHT_DIP / 2) <= 2;
       const cssOk14 = css14.startLeft === '8px' && css14.appsInlineLeft !== '' && css14.appsDisplay !== 'none';
-      const appsMid0 = g0.appsPill.x + g0.appsPill.w / 2;
-      const centerOk14 = Math.abs(appsMid0 - b0.mid) <= 2.5;
       const noOverlap14 = g0.appsPill.x >= b0.lo - 0.5 && g0.appsPill.x + g0.appsPill.w <= b0.hi + 0.5;
       const dip14 = screen.getPrimaryDisplay().bounds;
       const rightOk14 = Math.abs(g0.rightPill.x + g0.rightPill.w - (dip14.width - 14)) <= 2
@@ -855,57 +857,189 @@ async function main() {
         : !!recPill14
           && recPill14.x >= g0.startPill.x + g0.startPill.w + GAP15 - 0.5
           && recs14.every((r) => r.x >= recPill14.x - 0.5 && r.x + r.w <= recPill14.x + recPill14.w + 0.5);
-      if (startOk14 && cssOk14 && centerOk14 && noOverlap14 && rightOk14 && recsOk14) {
+      if (startOk14 && cssOk14 && noOverlap14 && rightOk14 && recsOk14) {
         rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
-          + `应用组空带居中（组心 ${appsMid0.toFixed(1)} ≈ 带中点 ${b0.mid.toFixed(1)}，带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]）、`
+          + `应用组带内落位（带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]，居中语义见 P15B）、`
           + `不与邻组重叠、右组+细条钉右不变${recs14.length
             ? `、推荐位 ${recs14.length} 枚独立 pill 界内（pill @${recPill14.x.toFixed(0)}，与开始组间隙 ${(recPill14.x - g0.startPill.x - g0.startPill.w).toFixed(0)}px）`
             : '、推荐位空缺独立 pill 不渲染'}`);
       } else {
         rep.fail(`P15 钉左=${startOk14}(x=${g0.startPill.x}) css互证=${cssOk14}(${JSON.stringify(css14)})`
-          + ` 居中=${centerOk14}(组心${appsMid0.toFixed(1)} vs 带中点${b0.mid.toFixed(1)}) 不重叠=${noOverlap14}`
-          + ` 右组细条=${rightOk14} 推荐位界内=${recsOk14}(${recs14.length} 枚 recPill=${JSON.stringify(g0.recPill || null)})`
+          + ` 不重叠=${noOverlap14} 右组细条=${rightOk14} 推荐位界内=${recsOk14}(${recs14.length} 枚 recPill=${JSON.stringify(g0.recPill || null)})`
           + ` 帧=${JSON.stringify({ startPill: g0.startPill, appsPill: g0.appsPill, rightPill: g0.rightPill, sliver: g0.sliver })}`);
-      }
-      // —— 居中回正（随两侧内容浮动）：藏 TaskView 钮 → 左界收窄 → 应用组左移带中点回正 ——
-      const w0 = g0.startPill.w;
-      const sinceHide = Date.now();
-      await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })`);
-      let g1 = null;
-      for (let i = 0; i < 30 && !g1; i++) {
-        await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceHide && cand.startPill && cand.startPill.w < w0 - 4) g1 = cand;
-      }
-      await sleep(1300); // settle 窗（推荐位后到位会推位移帧，取跨拍稳定帧）
-      if (g1) g1 = latestGeometry(null);
-      const b1 = g1 ? bandOf(g1) : null;
-      const recenterHideOk = !!(g1 && b1
-        && Math.abs(g1.appsPill.x + g1.appsPill.w / 2 - b1.mid) <= 2.5
-        && g1.appsPill.x < g0.appsPill.x - 4);
-      // 复原 TaskView 钮 → 左界回宽 → 应用组右移回正（显式复原；config 三态还原兜底）
-      const sinceRestore = Date.now();
-      await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false })`);
-      let g2 = null;
-      for (let i = 0; i < 30 && !g2; i++) {
-        await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceRestore && cand.startPill && g1 && cand.startPill.w > g1.startPill.w + 4) g2 = cand;
-      }
-      await sleep(1300);
-      if (g2) g2 = latestGeometry(null);
-      const b2 = g2 ? bandOf(g2) : null;
-      const recenterRestoreOk = !!(g2 && b2 && Math.abs(g2.appsPill.x + g2.appsPill.w / 2 - b2.mid) <= 2.5);
-      if (recenterHideOk && recenterRestoreOk) {
-        rep.pass(`P15 居中随两侧内容浮动：藏 TaskView 钮（开始组 ${w0.toFixed(0)}→${g1.startPill.w.toFixed(0)}px）`
-          + `应用组左移回正（组心 ${(g1.appsPill.x + g1.appsPill.w / 2).toFixed(1)} ≈ 带中点 ${b1.mid.toFixed(1)}），`
-          + `复原回中（组心 ${(g2.appsPill.x + g2.appsPill.w / 2).toFixed(1)} ≈ ${b2.mid.toFixed(1)}）`);
-      } else {
-        rep.fail(`P15 居中回正: 藏钮后=${recenterHideOk}(帧=${g1 ? JSON.stringify({ startPill: g1.startPill, appsPill: g1.appsPill }) : 'null'})`
-          + ` 复原后=${recenterRestoreOk}(帧=${g2 ? JSON.stringify({ startPill: g2.startPill, appsPill: g2.appsPill }) : 'null'})`);
       }
     } finally {
       if (notepad14) spawnSync('taskkill', ['/PID', String(notepad14.pid), '/T', '/F'], { stdio: 'ignore' });
+    }
+
+    // P15B 屏幕中心线锚定（工单190，ADR-0013 决策2）：应用组 pill 中心对齐屏幕水平
+    // 中心线，不随开始组/推荐组/右组宽度漂移。容差 ±2.5px CSS px（段内注明口径：落位
+    // 取整 ±1px + 1Hz 快照抖动余量，与旧空带居中容差同源）。三路邻居宽度驱动各带复原：
+    // 藏/显 TaskView（左邻）、推荐位移除/恢复（开始组内容增删，工单161 rec-remove/
+    // rec-restore 通道，P16 种子探针保证在场）、托盘溢出档位切换（右邻，工单162 档位
+    // 通道，原档位读 config 还原）；对称扩张臂用第二应用探针（图标增多向两侧对称扩张，
+    // mspaint 独立 exe 不与 notepad 合一）。夹取/不越界 = 逐帧「pill 恒在带内」断言
+    // （超宽病态档夹取数学由单测钉——章法：单测能覆盖的不进电池）；居中锚 = 屏幕中心线
+    // （条带窗通栏横跨主屏、窗 x = 屏 x，存证帧视口中线 = 屏宽/2 − 窗 DIP 原点）。
+    rep.beginSegment('P15B');
+    let notepad15b = null;
+    let mspaint15b = null;
+    let recExe15b = null;
+    let tier15b = null;
+    let tierTarget15b = null;
+    try {
+      const dip15b = screen.getPrimaryDisplay().bounds;
+      const appsMid = (g) => g.appsPill.x + g.appsPill.w / 2;
+      const tbHwnd15b = findWindow(panelPid, TASKBAR_TITLE);
+      const rect15b = tbHwnd15b ? win32.rectOf(tbHwnd15b) : null;
+      // 窗 DIP 原点（P1 同款换算：窗物理宽 / 屏 DIP 宽 = 缩放），存证帧视口原点 = 窗原点
+      const winXDip15b = rect15b ? rect15b.left / ((rect15b.right - rect15b.left) / dip15b.width) : 0;
+      const centerLine15b = dip15b.x + dip15b.width / 2 - winXDip15b;
+      const inBand15b = (g) => {
+        const lo = g.startPill.x + g.startPill.w + 8;
+        const hi = g.rightPill.x - 8;
+        return g.appsPill.x >= lo - 0.5 && g.appsPill.x + g.appsPill.w <= hi + 0.5;
+      };
+      // 应用格保底探针（同 P15：栏上无应用时 notepad 1–2s 上栏）
+      let geom15b = latestGeometry(null);
+      if (!geom15b || !geom15b.apps || geom15b.apps.length === 0) {
+        notepad15b = spawn('notepad.exe', [], { stdio: 'ignore' });
+        const deadline15b = Date.now() + 12000;
+        while (Date.now() < deadline15b) {
+          geom15b = latestGeometry(null);
+          if (geom15b && geom15b.apps && geom15b.apps.length > 0) break;
+          await sleep(300);
+        }
+      }
+      const gA = await waitGeometrySettled(geom15b);
+      const midA = appsMid(gA);
+      const anchorOk = Math.abs(midA - centerLine15b) <= 2.5;
+      // 臂1 藏 TaskView（左邻收窄）→ 中心不变；显回 → 中心不变
+      const wA = gA.startPill.w;
+      let gHide = null;
+      const sinceHide15b = Date.now();
+      await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })`);
+      for (let i = 0; i < 30 && !gHide; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceHide15b && cand.startPill && cand.startPill.w < wA - 4) gHide = cand;
+      }
+      await sleep(1300);
+      if (gHide) gHide = latestGeometry(null);
+      const hideOk = !!(gHide && Math.abs(appsMid(gHide) - centerLine15b) <= 2.5);
+      let gShow = null;
+      const sinceShow15b = Date.now();
+      await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false })`);
+      for (let i = 0; i < 30 && !gShow; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceShow15b && cand.startPill && cand.startPill.w > wA - 4) gShow = cand;
+      }
+      await sleep(1300);
+      if (gShow) gShow = latestGeometry(null);
+      const showOk = !!(gShow && Math.abs(appsMid(gShow) - centerLine15b) <= 2.5);
+      // 臂2 推荐位移除/恢复（开始组内容增删）→ 中心不变（P16 种子保证推荐位在场）。
+      // 递补语义（工单161）：候选池有后继时移除后第 6 名即时递补、可见恒 5——开始组
+      // 宽度不变，宽度类邻居驱动由臂1（TaskView）/臂3（托盘档位）承载；本臂口径 =
+      // 驱动真行使（excluded 落账/回池）+ 推荐管线重渲后中心不漂移
+      const st15b = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+      const recs15b = (st15b && st15b.recommendations) || [];
+      let recOk = null;
+      if (recs15b.length > 0) {
+        recExe15b = recs15b[0].exe;
+        const eqExe = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+        const sinceRec15b = Date.now();
+        await cdpEval(`window.deck.bridge.invoke('taskbar/rec-remove', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE);
+        await sleep(1600); // 1Hz 快照拍 + 重渲 settle（递补后几何不变则无新帧，取最新帧比对）
+        const gRec = latestGeometry(null);
+        const stRec = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+        const removed = !!(stRec && stRec.excluded && stRec.excluded.some((e) => eqExe(e.exe, recExe15b)));
+        const recGoneOk = !!(removed && gRec && Math.abs(appsMid(gRec) - centerLine15b) <= 2.5);
+        const sinceRecBack = Date.now();
+        await cdpEval(`window.deck.bridge.invoke('taskbar/rec-restore', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE);
+        await sleep(1600);
+        const gRecBack = latestGeometry(null);
+        const stBack = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+        const restored = !!(stBack && stBack.excluded && !stBack.excluded.some((e) => eqExe(e.exe, recExe15b)));
+        const recBackOk = !!(restored && gRecBack && Math.abs(appsMid(gRecBack) - centerLine15b) <= 2.5);
+        // recExe15b 不清空：finally 幂等重发恢复（rec-restore 对名单外身份空转）
+        recOk = !!(recGoneOk && recBackOk);
+      } else {
+        recOk = null; // 空池（种子未上场）——留证不静默：报表注明「驱动未行使」
+      }
+      // 臂3 托盘溢出档位切换（右邻宽度变化）→ 中心不变；还原原档位
+      const cfgRaw15b = readConfigRaw();
+      let cfg15b = null;
+      try { cfg15b = cfgRaw15b ? JSON.parse(cfgRaw15b) : null; } catch { cfg15b = null; }
+      tier15b = (cfg15b && cfg15b.taskbar && cfg15b.taskbar.trayOverflowLimit) ?? 5;
+      tierTarget15b = tier15b === 3 ? 8 : 3;
+      const gTier0 = latestGeometry(null) || gA;
+      const rp0 = gTier0.rightPill.x;
+      const sinceTier15b = Date.now();
+      await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tierTarget15b)} })`, TASKBAR_TITLE);
+      let gTier = null;
+      for (let i = 0; i < 30 && !gTier; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceTier15b && cand.rightPill && Math.abs(cand.rightPill.x - rp0) > 8) gTier = cand;
+      }
+      await sleep(1300);
+      if (gTier) gTier = latestGeometry(null);
+      const tierMoved = !!(gTier && Math.abs(appsMid(gTier) - centerLine15b) <= 2.5);
+      const sinceTierBack = Date.now();
+      await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tier15b)} })`, TASKBAR_TITLE);
+      let gTierBack = null;
+      for (let i = 0; i < 30 && !gTierBack; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceTierBack && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8) gTierBack = cand;
+      }
+      await sleep(1300);
+      if (gTierBack) gTierBack = latestGeometry(null);
+      const tierRestored = !!(gTierBack && Math.abs(appsMid(gTierBack) - centerLine15b) <= 2.5);
+      // tier15b 不清空：finally 幂等重发原档位（set-tray-overflow-limit 同值幂等）
+      // 臂4 图标增多向两侧对称扩张：第二应用探针（mspaint 独立 exe 不与 notepad 合一）
+      const wBefore = (latestGeometry(null) || gA).appsPill.w;
+      const xBefore = (latestGeometry(null) || gA).appsPill.x;
+      mspaint15b = spawn('mspaint.exe', [], { stdio: 'ignore' });
+      let gGrow = null;
+      const sinceGrow15b = Date.now();
+      for (let i = 0; i < 40 && !gGrow; i++) {
+        await sleep(250);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceGrow15b && cand.apps && cand.apps.length > (gA.apps || []).length
+          && cand.appsPill.w > wBefore + 20) gGrow = cand;
+      }
+      await sleep(1300);
+      if (gGrow) gGrow = latestGeometry(null);
+      const growOk = !!(gGrow && Math.abs(appsMid(gGrow) - centerLine15b) <= 2.5);
+      // 对称性：左缘左移量 ≈ 右缘右移量（落位取整 ±1px → 合计不对称 ≤3px）
+      const symOk = !!(gGrow
+        && Math.abs((xBefore - gGrow.appsPill.x) - ((gGrow.appsPill.x + gGrow.appsPill.w) - (xBefore + wBefore))) <= 3);
+      // 全程不越界：采样帧 pill 恒在带内（夹取围栏）
+      const frames15b = [gA, gHide, gShow, gGrow].filter(Boolean);
+      const allInBand = frames15b.every(inBand15b);
+      if (anchorOk && hideOk && showOk && (recOk !== false) && tierMoved && tierRestored && growOk && symOk && allInBand) {
+        const recNote = recOk === true ? '推荐位移除/恢复中心不变' : '推荐位空池（种子未上场），增删驱动未行使';
+        rep.pass(`P15B 屏幕中心线锚定：应用组中心 ${midA.toFixed(1)} ≈ 屏幕中心线 ${centerLine15b.toFixed(1)}（容差 ±2.5px）、`
+          + `藏/显 TaskView 中心不变、${recNote}、托盘档位 ${JSON.stringify(tierTarget15b)} 切换中心不变、`
+          + `图标增多对称扩张（宽 ${wBefore.toFixed(0)}→${gGrow ? gGrow.appsPill.w.toFixed(0) : '?'}px，不对称 ≤3px）、全程带内不越界`);
+      } else {
+        rep.fail(`P15B 锚定=${anchorOk}(组心${midA.toFixed(1)} vs 中心线${centerLine15b.toFixed(1)})`
+          + ` 藏钮=${hideOk} 显回=${showOk} 推荐位=${JSON.stringify(recOk)} 档位切换=${tierMoved} 档位还原=${tierRestored}`
+          + ` 对称扩张=${growOk}/${symOk}(帧=${gGrow ? JSON.stringify(gGrow.appsPill) : 'null'})`
+          + ` 带内=${allInBand} 帧=${JSON.stringify({ gA: gA && gA.appsPill, gHide: gHide && gHide.appsPill, gShow: gShow && gShow.appsPill })}`);
+      }
+    } finally {
+      // 痕迹四处复原（各臂已就地还原，此处兜底幂等）：探针进程、推荐位、托盘档位
+      if (mspaint15b) spawnSync('taskkill', ['/PID', String(mspaint15b.pid), '/T', '/F'], { stdio: 'ignore' });
+      if (notepad15b) spawnSync('taskkill', ['/PID', String(notepad15b.pid), '/T', '/F'], { stdio: 'ignore' });
+      if (recExe15b) {
+        try { await cdpEval(`window.deck.bridge.invoke('taskbar/rec-restore', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE); } catch { /* 条带已不在场 */ }
+      }
+      if (tier15b !== null) {
+        try { await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tier15b)} })`, TASKBAR_TITLE); } catch { /* 条带已不在场 */ }
+      }
     }
 
     // P16 推荐组交互主体（工单160）：探针五条确定性占满推荐位（usage 种子压分），真机
