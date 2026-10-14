@@ -36,6 +36,9 @@
 //      即时迁移（推荐组消失
 //      +应用组手钉段前位出现）、真 OLE 拖拽组内换位（显式序压过分数序）、跨组升手钉
 //      （recs→apps 落点条目前插入）、解除手钉随下拍回池；痕迹三处在 finally 摘除
+//   P17 推荐组移除名单（工单161）：持久排除 + 名次递补 + 空白右键恢复 + 重启保持
+//   P18 推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙、开始组零残留、
+//      两组显隐解耦（藏两钮推荐组独立在场并退条带左缘内衬 / 推荐位清空推荐组不渲染、回池复原）
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -543,13 +546,17 @@ async function main() {
       const b = geom.buttons.find((x) => x.id === id);
       return toPhys(b.x + b.w / 2, b.y + b.h / 2);
     };
-    // 缝隙探针（工单159 布局重排适配）：应用组空带居中后，pill 间缝隙取「应用组右缘与
-    // 右组左缘的中点」（带宽恒宽敞）；应用组空（pill-apps 不渲染）退「开始组右缘与右组
-    // 左缘的中点」；开始组也整组不渲染时 startPill 矩形归零、退化为条带左半任意点
+    // 缝隙探针（工单159 布局重排适配；工单192 推荐组拆出随迁）：应用组空带居中后，pill 间
+    // 缝隙取「应用组右缘与右组左缘的中点」（带宽恒宽敞）；应用组空（pill-apps 不渲染）退
+    // 「左邻组右缘与右组左缘的中点」——左邻按推荐组优先（工单192 独立 pill 在场取其右缘，
+    // 缺席回退开始组）；左邻也整组不渲染时矩形归零、退化为条带左半任意点
     // （固定 x=40 会落进钉左的开始组热区——工单159 起开始组钉条带左缘）
+    const leftEdgeCss192 = geom.recPill && geom.recPill.w > 0
+      ? geom.recPill.x + geom.recPill.w
+      : geom.startPill.x + geom.startPill.w;
     const gapCssX = geom.apps && geom.apps.length > 0
       ? (geom.appsPill.x + geom.appsPill.w + geom.rightPill.x) / 2
-      : (geom.startPill.x + geom.startPill.w + geom.rightPill.x) / 2;
+      : (leftEdgeCss192 + geom.rightPill.x) / 2;
     const gapPt = toPhys(gapCssX, TASKBAR_HEIGHT_DIP / 2); // 条带缝隙（两组 pill 之间/左端）
     const pillCenter = toPhys(geom.startPill.x + geom.startPill.w / 2, geom.startPill.y + geom.startPill.h / 2);
 
@@ -784,12 +791,15 @@ async function main() {
       if (notepad13) spawnSync('taskkill', ['/PID', String(notepad13.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
-    // P15 栏分组布局重排（工单159）：三组新布局落位与居中回正。证据两路互证：
+    // P15 栏分组布局重排（工单159；工单192 推荐组独立 pill 随迁重定界）：三组新布局落位与
+    // 居中回正。证据两路互证：
     //   (1) taskbar-geometry 存证帧（渲染层量出的 pill 矩形，与电池点击坐标同源）；
     //   (2) 任务栏页 CDP computed style（开始组钉左 CSS 落位 + 应用组 JS 落位在场）。
-    //   居中回正驱动 = CDP taskbar/set-button-hidden 藏/显 TaskView 钮（左界内容变化 →
-    //   taskbar/changed 结构性重渲 → 应用组按新空带回正）；hiddenButtons 是 config 落盘项，
-    //   段内显式复原（finally 的三态还原兜底）。应用格空时 notepad 探针（同 P13）。
+    //   应用组空带左邻按推荐组优先（工单192 独立 pill 在场取其右缘，缺席回退开始组）；
+    //   推荐位界内断言重定界到 #pill-recs（量测出处随迁、字段语义不变）。居中回正驱动 =
+    //   CDP taskbar/set-button-hidden 藏/显 TaskView 钮（左界内容变化 → taskbar/changed
+    //   结构性重渲 → 应用组按新空带回正）；hiddenButtons 是 config 落盘项，段内显式复原
+    //   （finally 的三态还原兜底）。应用格空时 notepad 探针（同 P13）。
     rep.beginSegment('P15');
     let notepad14 = null;
     try {
@@ -805,11 +815,15 @@ async function main() {
       }
       const g0 = await waitGeometrySettled(geom14);
       const GAP15 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px）
-      const bandOf = (g) => ({
-        lo: g.startPill.x + g.startPill.w + GAP15,
-        hi: g.rightPill.x - GAP15,
-        mid: (g.startPill.x + g.startPill.w + GAP15 + g.rightPill.x - GAP15) / 2,
-      });
+      const bandOf = (g) => {
+        // 左邻组右缘：推荐组独立 pill 在场取其右缘（工单192），缺席回退开始组
+        const leftEdge = g.recPill && g.recPill.w > 0 ? g.recPill.x + g.recPill.w : g.startPill.x + g.startPill.w;
+        return {
+          lo: leftEdge + GAP15,
+          hi: g.rightPill.x - GAP15,
+          mid: (leftEdge + GAP15 + g.rightPill.x - GAP15) / 2,
+        };
+      };
       // CDP 互证：#pill-start 钉左（computed left=8px）、#pill-apps 由 JS 落位（inline left 在场）
       const css14 = await cdpEval(`(() => {
         const st = document.getElementById('pill-start');
@@ -832,16 +846,25 @@ async function main() {
       const rightOk14 = Math.abs(g0.rightPill.x + g0.rightPill.w - (dip14.width - 14)) <= 2
         && Math.abs(g0.sliver.x + g0.sliver.w - dip14.width) <= 2;
       const recs14 = g0.recommendations || [];
+      // 推荐位界内断言重定界（工单192）：有推荐位 → 独立 pill 在场、与开始组有明确间隙、
+      // 枚枚界内 #pill-recs；无推荐位 → 独立 pill 不渲染（矩形归零）。量测出处随迁、
+      // recommendations 字段名与语义不变（taskbar-geometry 断言存活前提）
+      const recPill14 = g0.recPill && g0.recPill.w > 0 ? g0.recPill : null;
       const recsOk14 = recs14.length === 0
-        || recs14.every((r) => r.x >= g0.startPill.x - 0.5 && r.x + r.w <= g0.startPill.x + g0.startPill.w + 0.5);
+        ? !recPill14
+        : !!recPill14
+          && recPill14.x >= g0.startPill.x + g0.startPill.w + GAP15 - 0.5
+          && recs14.every((r) => r.x >= recPill14.x - 0.5 && r.x + r.w <= recPill14.x + recPill14.w + 0.5);
       if (startOk14 && cssOk14 && centerOk14 && noOverlap14 && rightOk14 && recsOk14) {
         rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
           + `应用组空带居中（组心 ${appsMid0.toFixed(1)} ≈ 带中点 ${b0.mid.toFixed(1)}，带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]）、`
-          + `不与邻组重叠、右组+细条钉右不变${recs14.length ? `、推荐位 ${recs14.length} 枚占位其后` : ''}`);
+          + `不与邻组重叠、右组+细条钉右不变${recs14.length
+            ? `、推荐位 ${recs14.length} 枚独立 pill 界内（pill @${recPill14.x.toFixed(0)}，与开始组间隙 ${(recPill14.x - g0.startPill.x - g0.startPill.w).toFixed(0)}px）`
+            : '、推荐位空缺独立 pill 不渲染'}`);
       } else {
         rep.fail(`P15 钉左=${startOk14}(x=${g0.startPill.x}) css互证=${cssOk14}(${JSON.stringify(css14)})`
           + ` 居中=${centerOk14}(组心${appsMid0.toFixed(1)} vs 带中点${b0.mid.toFixed(1)}) 不重叠=${noOverlap14}`
-          + ` 右组细条=${rightOk14} 推荐位界内=${recsOk14}(${recs14.length} 枚)`
+          + ` 右组细条=${rightOk14} 推荐位界内=${recsOk14}(${recs14.length} 枚 recPill=${JSON.stringify(g0.recPill || null)})`
           + ` 帧=${JSON.stringify({ startPill: g0.startPill, appsPill: g0.appsPill, rightPill: g0.rightPill, sliver: g0.sliver })}`);
       }
       // —— 居中回正（随两侧内容浮动）：藏 TaskView 钮 → 左界收窄 → 应用组左移带中点回正 ——
@@ -914,8 +937,9 @@ async function main() {
         const r = (g.apps || []).find((a) => norm16(a.id) === norm16(exe));
         return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
       };
+      // 图标化查询锚点随迁（工单192）：推荐位图标格已拆出 #pill-recs 独立容器
       const domRecs16 = async () => cdpEval(`(() => {
-        const cells = [...document.querySelectorAll('#pill-start .tb-rec')];
+        const cells = [...document.querySelectorAll('#pill-recs .tb-rec')];
         return cells.map((c) => ({
           name: c.dataset.name || '',
           img: !!c.querySelector('img'),
@@ -926,19 +950,21 @@ async function main() {
           h: c.getBoundingClientRect().height,
         }));
       })()`, TASKBAR_TITLE);
+      // 推荐组条目右键三行菜单的宿主随拆出迁 #pill-recs（工单192）；54/恢复菜单可开在任一
+      // 宿主 pill——组合选择器双宿主都查（段内只认 data-action/data-name 锚定行）
       const menuRows16 = (name) => {
         const n = JSON.stringify(name);
         return cdpEval(`(() => {
-          return [...document.querySelectorAll('#pill-start .tb-menu-item')]
+          return [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')]
             .filter((r) => !${n} || r.dataset.name === ${n})
             .map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
         })()`, TASKBAR_TITLE);
       };
-      // 菜单诊断（右键开合抖动的取证面：menuOpen 标记 + 在册菜单行）
+      // 菜单诊断（右键开合抖动的取证面：menuOpen 标记 + 在册菜单行；标记双 pill 同值——条带级事实）
       const menuDiag16 = () => cdpEval(`(() => {
         return {
-          menuOpen: document.getElementById('pill-start')?.dataset.menuOpen || '',
-          rows: [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
+          menuOpen: document.getElementById('pill-recs')?.dataset.menuOpen || document.getElementById('pill-start')?.dataset.menuOpen || '',
+          rows: [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
         };
       })()`, TASKBAR_TITLE);
       // —— ① 图标化 + 上限 5 ——
@@ -1234,15 +1260,17 @@ async function main() {
         const r = (g.recommendations || []).find((x) => x.name === name);
         return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
       };
+      // 恢复行查询（工单192 锚点随迁）：恢复段横排进开层宿主 pill（开始组或推荐组）——
+      // 组合选择器双宿主都查
       const restoreRow17 = () => cdpEval(`(() => {
-        const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"]');
+        const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"], #pill-recs .tb-menu-item[data-action="restore"]');
         return r ? { label: r.textContent || '', exe: r.dataset.exe || '', rect: r.getBoundingClientRect().toJSON() } : null;
       })()`, TASKBAR_TITLE);
       const state17 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
       const menuDiag17 = () => cdpEval(`(() => {
         return {
-          menuOpen: document.getElementById('pill-start')?.dataset.menuOpen || '',
-          rows: [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
+          menuOpen: document.getElementById('pill-recs')?.dataset.menuOpen || document.getElementById('pill-start')?.dataset.menuOpen || '',
+          rows: [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
         };
       })()`, TASKBAR_TITLE);
       // 菜单行点击核验重试（点行也可能撞热区轮询窗——证据 3s 不来就重查行矩形再点，≤3 试）
@@ -1276,12 +1304,14 @@ async function main() {
         }
         return false;
       };
-      // 空白右键（恢复菜单挂点 = pillStart 空白，54 菜单同一点）：两点轮试——左缘内衬 3px
-      // 在热区/DPI 取整松弛下余量太窄（红轮两轮 4 试全败的系统性签名；图标点击 44px 格
-      // 中心从无此问题），换顶部内衬横中点（水平余量大）兜底。每次尝试后轮询 menuOpen
-      // 标记 + 恢复行。到靶停拍同 rightClickVerify17。
+      // 空白右键（恢复菜单挂点 = 推荐组空白，工单192 起推荐组独立 pill 承接——54 菜单同
+      // 一开层态）：两点轮试——顶部内衬横中点（水平余量大）、左缘内衬中点兜底。推荐组
+      // pill 不在场（前置红轮推荐位清空）时回退开始组空白。每次尝试后轮询 menuOpen 标记
+      // + 恢复行。到靶停拍同 rightClickVerify17。
       const blankRightClick17 = async (gBlank) => {
-        const pill = gBlank.startPill;
+        const pillOf = (g) => (g.recPill && g.recPill.w > 0 ? g.recPill : (g.startPill.w > 0 ? g.startPill : null));
+        const pill = pillOf(gBlank);
+        if (!pill) return { row: null, tag: 'no-pill' };
         const cands = [
           { x: pill.x + pill.w / 2, y: pill.y + 3, tag: 'top-pad-center' },
           { x: pill.x + 3, y: pill.y + pill.h / 2, tag: 'left-pad-mid' },
@@ -1302,7 +1332,12 @@ async function main() {
           win32.moveMousePhys(pt.x, pt.y - 60);
           await sleep(300);
           const g2 = await waitGeometrySettled(latestGeometry(null));
-          if (g2) gBlank.startPill = g2.startPill;
+          if (g2) {
+            const p2 = pillOf(g2);
+            if (p2) {
+              pill.x = p2.x; pill.y = p2.y; pill.w = p2.w; pill.h = p2.h;
+            }
+          }
         }
         return { row: null, tag: 'none' };
       };
@@ -1319,7 +1354,7 @@ async function main() {
           () => recPt17(latestGeometry(null), pF17.name),
           async () => {
             const rows = await cdpEval(`(() => {
-              return [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
+              return [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')].map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
             })()`, TASKBAR_TITLE);
             if (rows.length === 3) { rows17 = rows; return true; }
             return false;
@@ -1332,7 +1367,7 @@ async function main() {
         if (rows17 && rows17.map((r) => r.action).join(',') === 'pin,remove,reveal') {
           const clicked17 = await clickRowVerify17(
             `(() => {
-              const r = document.querySelector('#pill-start .tb-menu-item[data-action="remove"]');
+              const r = document.querySelector('#pill-start .tb-menu-item[data-action="remove"], #pill-recs .tb-menu-item[data-action="remove"]');
               return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
             })()`,
             'taskbar-rec-menu-action', (e) => e.name === pF17.name && e.action === 'remove');
@@ -1365,7 +1400,7 @@ async function main() {
           const labelOk17 = row17.label === `恢复 ${pF17.name.replace(/\.lnk$/i, '')}`;
           await clickRowVerify17(
             `(() => {
-              const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"]');
+              const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"], #pill-recs .tb-menu-item[data-action="restore"]');
               return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
             })()`,
             'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe));
@@ -1421,7 +1456,7 @@ async function main() {
           if (rowAfter17) {
             await clickRowVerify17(
               `(() => {
-                const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"]');
+                const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"], #pill-recs .tb-menu-item[data-action="restore"]');
                 return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
               })()`,
               'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe));
@@ -1438,6 +1473,153 @@ async function main() {
         } else {
           rep.fail(`P17 重启臂：重启前落盘=${diskOk17} boot=${!!boot17} 可见名单=${!!reboot17}(recs=${JSON.stringify(recNames17(latestGeometry(null)))}) `
             + `重启后排除保持=${persistOk17} 恢复行=${!!rowAfter17} 回池=${!!restoredAfter17}`);
+        }
+      }
+    }
+
+    // P18 推荐组独立漂浮 pill（工单192）：拆出开始组的独立容器（开始组右侧、应用组左侧，
+    // 间隙与样式同族）与两组显隐解耦。三臂——
+    // ①独立容器在场：P16/P17 存活的五探针推荐位全部落 #pill-recs 界内、开始组 pill 内
+    //   零残留（.tb-rec 不再出现在 #pill-start）、与开始组有明确间隙（GROUP_GAP 8px）、
+    //   应用组不越推荐组右缘（应用组空带左邻=推荐组右缘）；
+    // ②显隐解耦正向：CDP 藏两系统按钮 → 开始组 display:none、推荐组独立在场（recPill
+    //   在场、recommendations 名单不变、退条带左缘内衬 x≈8），复原后开始组回归；
+    // ③解耦反向：CDP rec-remove 清空当前推荐位 → 推荐组 display:none、recPill 矩形归零、
+    //   recommendations []、开始组不受牵连；rec-restore 全数回池（excluded 清空复原）。
+    // 全臂 CDP 桥直发 + 几何存证帧 + DOM 读取（显隐裁决面，无输入注入——驱动式同 P15）。
+    rep.beginSegment('P18');
+    if (!p16) {
+      rep.fail('P18 前置缺失：P16 探针种入失败（见种入 note）');
+    } else {
+      const probes18 = p16.probes;
+      const recNames18 = (g) => (g && g.recommendations ? g.recommendations.map((r) => r.name) : []);
+      const state18 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
+      const GAP18 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px，与 P15 同源）
+      // —— ① 独立容器在场与组间隙 ——
+      const g18 = await waitGeometrySettled(latestGeometry(null));
+      const dom18 = await cdpEval(`(() => {
+        const rs = document.getElementById('pill-recs');
+        const st = document.getElementById('pill-start');
+        return {
+          recsDisplay: rs ? getComputedStyle(rs).display : 'missing',
+          recsInlineLeft: rs ? rs.style.left : '',
+          recCells: rs ? rs.querySelectorAll('.tb-rec').length : -1,
+          startCells: st ? st.querySelectorAll('.tb-rec').length : -1,
+        };
+      })()`, TASKBAR_TITLE);
+      const names18 = recNames18(g18);
+      const pill18 = g18.recPill && g18.recPill.w > 0 ? g18.recPill : null;
+      const full18 = probes18.every((p) => names18.includes(p.name));
+      const inside18 = !!pill18 && names18.every((n) => {
+        const r = (g18.recommendations || []).find((x) => x.name === n);
+        return r && r.x >= pill18.x - 0.5 && r.x + r.w <= pill18.x + pill18.w + 0.5;
+      });
+      const gapOk18 = !!pill18 && g18.startPill.w > 0
+        && pill18.x >= g18.startPill.x + g18.startPill.w + GAP18 - 0.5;
+      const appsAfter18 = !pill18 || g18.appsPill.w === 0
+        || g18.appsPill.x >= pill18.x + pill18.w + GAP18 - 0.5;
+      const zeroResidue18 = dom18.startCells === 0;
+      const domOk18 = dom18.recsDisplay !== 'none' && dom18.recsInlineLeft !== ''
+        && dom18.recCells === names18.length;
+      if (full18 && inside18 && gapOk18 && appsAfter18 && zeroResidue18 && domOk18) {
+        rep.pass(`P18 推荐组独立漂浮 pill：${names18.length} 枚推荐位全部界内 #pill-recs`
+          + `（pill @${pill18.x.toFixed(0)}，开始组零残留），与开始组间隙达标（≥8px）`
+          + `、应用组居其右侧空带，独立容器 DOM 在场`);
+      } else {
+        rep.fail(`P18 独立容器：探针齐=${full18}(${JSON.stringify(names18)}) 界内=${inside18} 间隙=${gapOk18}`
+          + ` 应用组右置=${appsAfter18} 开始组零残留=${zeroResidue18}(startCells=${dom18.startCells})`
+          + ` DOM=${domOk18}(${JSON.stringify(dom18)}) recPill=${JSON.stringify(g18.recPill || null)}`);
+      }
+
+      // —— ② 显隐解耦正向：藏两系统按钮 → 开始组不渲染、推荐组独立在场 ——
+      const sinceHide18 = Date.now();
+      await cdpEval(`(async () => {
+        await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: true });
+        await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true });
+      })()`);
+      let decoupled18 = null;
+      for (let i = 0; i < 30 && !decoupled18; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceHide18 && cand.startPill && cand.startPill.w === 0
+          && cand.recPill && cand.recPill.w > 0 && recNames18(cand).length === names18.length) decoupled18 = cand;
+      }
+      const domHide18 = decoupled18 ? await cdpEval(`(() => {
+        const rs = document.getElementById('pill-recs');
+        const st = document.getElementById('pill-start');
+        return {
+          recsDisplay: rs ? getComputedStyle(rs).display : 'missing',
+          startDisplay: st ? getComputedStyle(st).display : 'missing',
+          recsLeft: rs ? rs.style.left : '',
+        };
+      })()`, TASKBAR_TITLE) : null;
+      const hideOk18 = !!(decoupled18 && domHide18
+        && domHide18.startDisplay === 'none'
+        && domHide18.recsDisplay !== 'none'
+        && Math.abs(parseFloat(domHide18.recsLeft || 'NaN') - 8) <= 2); // 退条带左缘内衬（APPS_INSET=8）
+      // 复原两钮（显式复原；config 三态还原兜底）
+      const sinceShow18 = Date.now();
+      await cdpEval(`(async () => {
+        await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: false });
+        await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false });
+      })()`);
+      let reshown18 = null;
+      for (let i = 0; i < 30 && !reshown18; i++) {
+        await sleep(200);
+        const cand = latestGeometry(null);
+        if (cand && cand.t >= sinceShow18 && cand.startPill && cand.startPill.w > 0
+          && cand.recPill && cand.recPill.w > 0) reshown18 = cand;
+      }
+      if (hideOk18 && reshown18) {
+        rep.pass(`P18 显隐解耦正向：两系统按钮全藏 → 开始组不渲染（display:none）、推荐组独立在场`
+          + `（recPill 退条带左缘 left=${domHide18.recsLeft}，${recNames18(decoupled18).length} 枚推荐位无牵连），复原后开始组回归`);
+      } else {
+        rep.fail(`P18 解耦正向：藏钮后=${hideOk18}(帧=${decoupled18 ? JSON.stringify({ startPill: decoupled18.startPill, recPill: decoupled18.recPill }) : 'null'}`
+          + ` dom=${JSON.stringify(domHide18 || {})}) 复原=${!!reshown18}`);
+      }
+
+      // —— ③ 解耦反向：推荐位清空 → 推荐组不渲染、开始组不受牵连；回池复原 ——
+      const st018 = await state18();
+      const exes18 = st018 && Array.isArray(st018.recommendations) ? st018.recommendations.map((r) => r.exe) : [];
+      if (!exes18.length) {
+        rep.fail(`P18 解耦反向前置缺失：推荐位已空（recs=${JSON.stringify(recNames18(latestGeometry(null)))}）`);
+      } else {
+        const sinceRemove18 = Date.now();
+        await cdpEval(`(async () => {
+          for (const exe of ${JSON.stringify(exes18)}) {
+            await window.deck.bridge.invoke('taskbar/rec-remove', { exe });
+          }
+        })()`);
+        let emptied18 = null;
+        for (let i = 0; i < 30 && !emptied18; i++) {
+          await sleep(200);
+          const cand = latestGeometry(null);
+          if (cand && cand.t >= sinceRemove18 && recNames18(cand).length === 0
+            && cand.recPill && cand.recPill.w === 0 && cand.startPill && cand.startPill.w > 0) emptied18 = cand;
+        }
+        const domEmpty18 = emptied18
+          ? await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE)
+          : null;
+        // 回池复原（rec-restore 全数；excluded 清空 = 复原干净，不给 P17 之后的段留账）
+        await cdpEval(`(async () => {
+          for (const exe of ${JSON.stringify(exes18)}) {
+            await window.deck.bridge.invoke('taskbar/rec-restore', { exe });
+          }
+        })()`);
+        let repool18 = null;
+        for (let i = 0; i < 30 && !repool18; i++) {
+          await sleep(200);
+          const cand = latestGeometry(null);
+          if (cand && exes18.length === recNames18(cand).length && probes18.every((p) => recNames18(cand).includes(p.name))) repool18 = cand;
+        }
+        const stClean18 = await state18();
+        const clean18 = !!(stClean18 && Array.isArray(stClean18.excluded) && stClean18.excluded.length === 0);
+        if (emptied18 && domEmpty18 === 'none' && repool18 && clean18) {
+          rep.pass(`P18 显隐解耦反向：${exes18.length} 枚推荐位全移除 → 推荐组不渲染（display:none、recPill 矩形归零、`
+            + `recommendations []），开始组在场不受牵连；rec-restore 回池复原（探针复见、excluded 清空）`);
+        } else {
+          rep.fail(`P18 解耦反向：清空=${!!emptied18}(帧=${emptied18 ? JSON.stringify({ recPill: emptied18.recPill, startPill: emptied18.startPill }) : 'null'})`
+            + ` dom=${JSON.stringify(domEmpty18)} 回池=${!!repool18}(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
         }
       }
     }
