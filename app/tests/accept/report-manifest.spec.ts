@@ -159,10 +159,10 @@ describe('仓库清单自一致性（app/accept/manifest.json，schema 定稿的
     }>
   } | null
 
-  it('清单可加载且六电池全部登记', () => {
+  it('清单可加载且七电池全部登记', () => {
     expect(manifest).not.toBeNull()
     expect(manifest!.batteries.map((b) => b.id).sort()).toEqual(
-      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group'].sort(),
+      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter'].sort(),
     )
   })
 

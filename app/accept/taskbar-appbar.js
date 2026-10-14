@@ -2,7 +2,7 @@
 // 工单51 任务栏 AppBar 工作区占位 + 全屏让位验收：控制器以 --accept-taskbar-appbar
 // 身份运行，拉起 --panel-accept 面板子进程（绕单实例锁），逐项验收：
 //   P1 AppBar 占位生效：taskbar-appbar-registered 存证 + SPI_GETWORKAREA 底边
-//      = 屏底 - 48DIP（物理像素口径），条带几何与占位同矩形
+//      = 屏底 - 64DIP（物理像素口径；工单158 栏高升档），条带几何与占位同矩形
 //   P2 最大化让位：控制器自开参照窗 maximize → 底边停在栏上方不被遮挡
 //   P3 分辨率变化重算：切到另一受支持分辨率 → taskbar-appbar-setpos
 //      （reason=display-metrics-changed）存证 + 条带与工作区随新分辨率重算 → 还原
@@ -25,7 +25,7 @@ const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '51-taskbar-appbar-events.jsonl');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT
+const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
 const WM_CLOSE = 0x0010;
 const SPI_GETWORKAREA = 0x0030;
 const ENUM_CURRENT_SETTINGS = -1;
@@ -218,7 +218,7 @@ async function main() {
     const stripRect = win32.rectOf(tbHwnd);
     const stripOk = stripRect && Math.abs(stripRect.bottom - phys0.height) <= 2;
     if (regEv && setposEv && waMs >= 0 && stripOk) {
-      rep.pass(`P1 AppBar 占位生效：工作区底边 ${wa1.bottom}/${phys0.height}（让出 ${phys0.height - wa1.bottom}px ≈ 48DIP×${phys0.scale}），条带底边 ${stripRect.bottom} 贴屏底`);
+      rep.pass(`P1 AppBar 占位生效：工作区底边 ${wa1.bottom}/${phys0.height}（让出 ${phys0.height - wa1.bottom}px ≈ ${TASKBAR_HEIGHT_DIP}DIP×${phys0.scale}），条带底边 ${stripRect.bottom} 贴屏底`);
     } else {
       rep.fail(`P1 注册存证=${!!regEv} setpos=${!!setposEv} 工作区=${JSON.stringify(wa1)} 期望底=${expectBottom0} 条带=${JSON.stringify(stripRect)} 屏高=${phys0.height}`);
     }

@@ -17,8 +17,10 @@
     user-select: none;
     cursor: default;
   }
-  /* 左组 pill（工单52：手钉+运行中应用合并）：贴左缘漂浮；空组不渲染（display:none 由入口控制） */
-  #pill-left {
+  /* 应用组 pill（工单52：手钉+运行中应用合并）：空带居中漂浮（工单159）——落位归渲染层
+   * taskbar.ts positionAppsPill（appsPillLeft：[开始组右缘, 右组左缘] 带中点夹取，随两侧
+   * 内容浮动），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制） */
+  #pill-apps {
     position: absolute;
     left: 8px;
     top: 50%;
@@ -26,23 +28,25 @@
     display: flex;
     align-items: center;
     column-gap: 2px;
-    padding: 4px 6px;
+    padding: 6px 8px;
     background: rgba(0, 0, 0, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
   }
+  /* 格位与图标尺寸（工单158）：条带 48→64px，应用图标 22→32px、格位 32→44px——
+   * 观感不小于原生任务栏；渲染层容量常量（taskbar.ts CELL_W）与这里的 44+2 同源 */
   .tb-app {
     position: relative;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
   }
   .tb-app:hover { background: rgba(255, 255, 255, 0.10); }
-  .tb-app img { width: 22px; height: 22px; }
+  .tb-app img { width: 32px; height: 32px; }
   /* 拖拽（工单57）：可拖源半透明，落点左侧亮条——落点反馈用形状不用颜色堆叠 */
   .tb-app.dragging, .tb-rec.dragging { opacity: 0.4; }
   .tb-drop-before { box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.85); }
@@ -51,55 +55,62 @@
     content: "";
     position: absolute;
     left: 50%;
-    bottom: 1px;
+    bottom: 2px;
     transform: translateX(-50%);
-    width: 12px;
+    width: 16px;
     height: 2px;
     border-radius: 1px;
     background: rgba(255, 255, 255, 0.85);
   }
-  /* 左组溢出（工单58）：⋯ 钮与浮层条目同在左组 pill 内横排——条带窗只有 48px 高，
+  /* 应用组溢出（工单58）：⋯ 钮与浮层条目同在应用组 pill 内横排——条带窗只有 64px 高，
    * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
    * 热区按展开后的矩形重声明。 */
   .tb-overflow {
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     color: #d6d6d6;
-    font-size: 13px;
+    font-size: 15px;
     letter-spacing: 0.08em;
-    padding-bottom: 8px; /* ⋯ 视觉居中（字形的点偏基线下） */
+    padding-bottom: 10px; /* ⋯ 视觉居中（字形的点偏基线下） */
   }
   .tb-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
-  .tb-left-sep {
+  .tb-apps-sep {
     width: 1px;
     align-self: stretch;
-    margin: 4px 2px;
+    margin: 6px 2px;
     background: rgba(255, 255, 255, 0.14);
   }
-  /* 胶囊外观（中组与右组共用 .pill；#pill / #right-pill 只管各自的钉靠位置） */
+  /* 胶囊外观（开始组与右组共用 .pill；#pill-start / #right-pill 只管各自的钉靠位置） */
   .pill {
     display: flex;
     align-items: center;
     column-gap: 4px;
-    padding: 4px 6px;
+    padding: 6px 8px;
     background: rgba(0, 0, 0, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
   }
-  /* 中组 pill：漂浮胶囊（组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
-   * 两系统按钮全隐藏且推荐位为空时整组不渲染（hidden——工单54 边界条件） */
-  #pill {
+  /* 开始组 pill：钉条带左缘（工单159 布局重排——居中时代随布局反转退役），漂浮胶囊
+   * （组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。两系统按钮全隐藏且推荐位为空时
+   * 整组不渲染（hidden——工单54 边界条件；推荐位暂栖本 pill，推荐组拆出前随其显隐）。
+   * 工单158 挤撞守卫迁移（clampStartPillWidth）：极端拥挤时 pill 收窄到右组左缘前，
+   * 整体裁剪（overflow hidden）——工单160 起推荐位是定宽图标格不吃文字收缩档，
+   * 系统钮（.tb-btn）flex:none 永不裁切（工单158 P5 真机红回归钉的守卫三件套保留）。 */
+  #pill-start {
     position: fixed;
-    left: 50%;
+    left: 8px;
     top: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateY(-50%);
+    box-sizing: border-box; /* 工单158：收窄档以整盒（含内衬边框）计，余裕带不被吃掉 */
+    min-width: 0;
+    overflow: hidden;
   }
-  #pill[hidden] { display: none; }
+  #pill-start[hidden] { display: none; }
   /* 右组 pill（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟；钉右端、给细条让位 */
   #right-pill {
     position: fixed;
@@ -108,8 +119,9 @@
     transform: translateY(-50%);
   }
   .tb-btn {
-    padding: 5px 14px;
-    font-size: 11px;
+    flex: none; /* 工单158 挤撞回正：pill 收窄时系统按钮永不裁切（让位给 .tb-rec） */
+    padding: 7px 16px;
+    font-size: 12px;
     letter-spacing: 0.18em;
     color: #d6d6d6;
     border-radius: 999px;
@@ -118,13 +130,15 @@
   }
   .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
-  /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝 */
+  /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝。
+   * 工单158 挤撞回正：右组密度回调（7/12→6/10）——托盘 24px 升档已让右组宽出
+   * 约 430px（26 枚×+8px 图标 + 字号），格 padding 回紧凑档延缓挤入中组 */
   .tb-cell {
     display: flex;
     align-items: center;
     column-gap: 8px;
-    padding: 5px 10px;
-    font-size: 11px;
+    padding: 6px 10px;
+    font-size: 12px;
     letter-spacing: 0.08em;
     color: #d6d6d6;
     border-radius: 999px;
@@ -136,10 +150,28 @@
   /* 摘要编辑态（工单55，右键进入）：五项全呈现，未勾选置灰供勾回 */
   .tb-seg.off { opacity: 0.35; }
   #hw-summary.editing { outline: 1px dashed rgba(255, 255, 255, 0.35); }
-  /* 托盘图标格（工单56）：平铺在摘要与音量格之间，尺寸随源图标（16/32px 原生像素，
-   * 不放大——系统托盘图标的原生观感即识别度），无像素的条目留等宽空格位 */
-  .tb-tray-icon { padding: 5px 2px; }
-  .tb-tray-icon img { display: block; width: 16px; height: 16px; image-rendering: pixelated; }
+  /* 托盘图标格（工单56；尺寸升档工单158）：平铺在摘要与音量格之间，统一按 24px 显示
+   * （16→24 观感不小于原生任务栏）。16px 原生源挂 .tb-tray-px 走最近邻放大保持锐利，
+   * 32px 源降采样到 24 用默认平滑插值——挂靠判据 = taskbar-view trayIconPixelated */
+  .tb-tray-icon { padding: 5px 2px; } /* 工单158：密度紧凑档（格 28px），延缓右组左侵 */
+  .tb-tray-icon img { display: block; width: 24px; height: 24px; }
+  .tb-tray-px { image-rendering: pixelated; }
+  /* 托盘溢出「⋯」钮（工单162）：与应用组 ⋯（.tb-overflow）同格位观感；左键请求宿主
+   * 在鼠标位置开托盘溢出菜单浮层（自绘竖排面板，独立浮层窗承载），右键开档位菜单 */
+  .tb-tray-overflow {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #d6d6d6;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding-bottom: 6px; /* ⋯ 视觉居中（字形的点偏基线下） */
+  }
+  .tb-tray-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   /* 显示桌面细条（工单55）：钉屏幕最右端、撑满条带高度，对齐 Win11 右下角肌肉记忆 */
   #show-desktop {
     position: fixed;
@@ -153,27 +185,50 @@
   }
   #show-desktop:hover { background: rgba(255, 255, 255, 0.22); }
   #show-desktop:active { background: rgba(255, 255, 255, 0.35); }
-  /* 推荐位（工单54）：使用频次自动填充；v1 只展示（点击/拖拽属后续票），指针保持默认 */
+  /* 推荐位（工单54；工单160 图标化）：使用频次自动填充、上限 5——只呈现应用图标
+   * （无名称文字，显示名即时进出 tooltip），与应用组图标同观感（格位 44、图标 32，
+   * 工单158 尺寸基）。左键启动、右键两行菜单、拖拽换位/升手钉（工单160）。
+   * 极端拥挤的让位面收敛为 pill maxWidth 收窄整体裁剪（#pill-start overflow hidden）——
+   * 图标格定宽不吃文字收缩档，系统钮 flex:none 永不裁切的守卫语义不变（工单158）。 */
   .tb-rec {
-    padding: 5px 10px;
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    color: #b9b9b9;
-    border-radius: 999px;
-    white-space: nowrap;
+    flex: none;
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
   }
-  /* 系统按钮显隐菜单（工单54）：自绘最小右键菜单——条带窗只有 48px 高，菜单以
+  .tb-rec:hover { background: rgba(255, 255, 255, 0.10); }
+  .tb-rec img { width: 32px; height: 32px; }
+  /* 首字母占位（工单160 推荐位复用工单156 口径）：无图标键条目不出空白格——与图标
+   * 同尺寸位、居中单字，样式与应用组占位同一世界观 */
+  .tb-app-letter, .tb-rec-letter {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.85);
+    user-select: none;
+  }
+  /* 系统按钮显隐菜单（工单54）：自绘最小右键菜单——条带窗只有 64px 高，菜单以
    * pill 内横排呈现（竖排浮层出不了窗口矩形）。配色与面板 ctx-menu 同一世界观
    * （深底细边、文字实色、hover 反白灰底）。 */
   .tb-menu-sep {
     width: 1px;
     align-self: stretch;
-    margin: 4px 2px;
+    margin: 6px 2px;
     background: rgba(255, 255, 255, 0.14);
   }
   .tb-menu-item {
-    padding: 5px 10px;
-    font-size: 11px;
+    padding: 7px 12px;
+    font-size: 12px;
     letter-spacing: 0.06em;
     color: #d6d6d6;
     border-radius: 999px;
@@ -184,8 +239,8 @@
 </style>
 </head>
 <body>
-<div id="pill-left" role="toolbar" aria-label="任务栏左组"></div>
-<div id="pill" class="pill" role="toolbar" aria-label="任务栏中组"></div>
+<div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
+<div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
 <div id="right-pill" class="pill" role="toolbar" aria-label="任务栏右组"></div>
 <div id="show-desktop" role="button" aria-label="显示桌面"></div>
 <script type="module" src="./taskbar.js"></script>

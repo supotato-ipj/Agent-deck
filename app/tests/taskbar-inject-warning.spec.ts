@@ -38,7 +38,7 @@ describe('TaskbarService 可选 inject（工单132：desktop 缺席不告警）'
       deps: {
         // 不给 resolveShortcutTarget：强制走默认兜底（ctx.desktop 读 → Electron 兜底），
         // 这就是告警的出处。desktopItems/recommendations 喂一条 shortcut 推荐项驱动解析。
-        recommendations: () => [{ name: 'Probe.lnk', display: '探针', path: 'C:\\Users\\u\\Desktop\\Probe.lnk', score: 1 }],
+        recommendations: () => [{ name: 'Probe.lnk', display: '探针', path: 'C:\\Users\\u\\Desktop\\Probe.lnk', iconKey: 'k', exe: 'C:\\Users\\u\\Desktop\\Probe.lnk' }],
         desktopItems: () => [{
           name: 'Probe.lnk', path: 'C:\\Users\\u\\Desktop\\Probe.lnk',
           kind: 'shortcut' as const, display: '探针', iconKey: 'k',

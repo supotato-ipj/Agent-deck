@@ -19,12 +19,14 @@ import { hideNativeTaskbar, nativeTaskbarVisible, showNativeTaskbar } from './na
 import { ABN_POSCHANGED, appBarCallbackMessage, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
 import type { AppBarRect } from './appbar'
 import { probeForegroundWindow, shouldYieldToFullscreen } from './yield'
+import { startTrayOverflowHost } from './overflow'
 import type { PhysRect } from './yield'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
 export const TASKBAR_TITLE = 'DECK-TASKBAR'
-/** 条带高度（DIP，工单37 默认档位；几何手改口属后续票） */
-export const TASKBAR_HEIGHT = 48
+/** 条带高度（DIP，工单158 起 64：栏高与图标尺寸升档——48px 条带配 22px 应用图标
+ * 的观感小于原生任务栏，升档后应用图标 32px/托盘 24px；几何手改口属后续票） */
+export const TASKBAR_HEIGHT = 64
 /**
  * 条带底边距屏底的降级净空（DIP，工单50 起仅降级档）：原生任务栏仍可见时让出它的
  * 高度、坐到上沿。49 真机实证（zprobe 阶梯）：Shell_TrayWnd 位于普通 TOPMOST 之上的
@@ -132,6 +134,8 @@ interface TaskbarSession {
   yieldTimer: NodeJS.Timeout | null
   yielded: boolean
   keepalive: NodeJS.Timeout
+  /** 最近一次协商落定的 DIP 目标几何（工单158 回正守卫用；未协商过 = null） */
+  negotiated: { x: number; y: number; width: number; height: number } | null
 }
 
 /**
@@ -146,6 +150,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 则无还原义务（死路径兜底由守卫与还原守护以视图事实补足）。控制器级——原生栏
   // 显隐与哪扇条带窗现任无关。
   let hidNative = false
+
+  // 托盘溢出菜单浮层（工单162）：载体裁定 = 独立浮层窗（见模块头注释）。随本控制器
+  // 生灭——条带销毁（禁用/退役）即收层；全屏让位即收层。
+  const trayOverflow = startTrayOverflowHost({ ctx, log })
 
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
@@ -166,10 +174,30 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const applyNegotiated = (s: TaskbarSession, rc: AppBarRect) => {
     if (s.win.isDestroyed()) return
     const dip = screen.screenToDipRect(s.win, { x: rc.left, y: rc.top, width: rc.right - rc.left, height: rc.bottom - rc.top })
+    s.negotiated = dip
     const cur = s.win.getBounds()
     if (Math.abs(dip.x - cur.x) > 1 || Math.abs(dip.y - cur.y) > 1
       || Math.abs(dip.width - cur.width) > 1 || Math.abs(dip.height - cur.height) > 1) {
       s.win.setBounds(dip)
+    }
+  }
+
+  /** 几何回正守卫（工单158 真机取证修）：壳侧 AppBar 通路会在 ABM_SETPOS 与
+   * showInactive 之后异步把条带窗挪到「协商带上移一身高」的位置（64 高真机取证：
+   * 目标 [1376,1440] 反复被挪 [1312,1376]，协商 rc 始终正确、挪的是窗口本体）。
+   * 48 时代带位 [1392,1440] 与原生任务栏旧带重合、净零工作区变更，壳侧不扰动，
+   * 缺陷潜伏未暴露——升档 64 后带位错开才显形。三个协商入口（create/ABN_POSCHANGED/
+   * display-metrics-changed）都赶在挪移拍之前，最后一拍纠正追不上 show 拍的挪移；
+   * keepalive 500ms 与 ready-to-show 即拍各补一记回正（取证：挪移一触发一拍、纠正
+   * 后不复发，回正恒获最后一语）。回正事件落 taskbar-geometry-reasserted 存证。 */
+  const reassertGeometry = (s: TaskbarSession, reason: string) => {
+    if (!s.negotiated || s.win.isDestroyed()) return
+    const cur = s.win.getBounds()
+    const t = s.negotiated
+    if (Math.abs(cur.x - t.x) > 1 || Math.abs(cur.y - t.y) > 1
+      || Math.abs(cur.width - t.width) > 1 || Math.abs(cur.height - t.height) > 1) {
+      s.win.setBounds(t)
+      log?.append({ type: 'taskbar-geometry-reasserted', reason, from: cur, to: t })
     }
   }
 
@@ -197,6 +225,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     if (s.appBarHwnd !== null) removeAppBar(s.appBarHwnd, log)
     clearInterval(s.keepalive)
     s.tracker?.dispose()
+    trayOverflow.dispose() // 条带销毁即收浮层（禁用/退役路径都在此收敛，工单162）
     s.win.destroy()
     log?.append({ type: 'taskbar-window-destroyed', reason })
   }
@@ -233,9 +262,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       appBarHwnd: null,
       yieldTimer: null,
       yielded: false,
-      keepalive: setInterval(assertTop, 500),
+      negotiated: null,
+      keepalive: null as unknown as NodeJS.Timeout,
     }
     session = s
+    // 置顶维持 + 几何回正（工单158 起同一拍：置顶重申与协商带回正都是壳侧扰动兜底）
+    s.keepalive = setInterval(() => {
+      if (w.isDestroyed()) return
+      assertTop()
+      reassertGeometry(s, 'keepalive')
+    }, 500)
     // 工单51 AppBar 工作区占位：注册 → 协商 → 按协商矩形重排窗口（renegotiate 在
     // 控制器作用域，display-metrics 事件同路）。注册失败走 49/50 的净空降级档
     // （不占工作区、不让位）。
@@ -252,6 +288,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         const hit = shouldYieldToFullscreen(probeForegroundWindow(), primaryPhysRect(), process.pid)
         if (hit && !s.yielded) {
           s.yielded = true
+          trayOverflow.close('yield') // 全屏让位：浮层不悬置在已隐藏的条带之上（工单162）
           w.hide()
           log?.append({ type: 'taskbar-yield' })
         } else if (!hit && s.yielded) {
@@ -275,10 +312,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // 任务栏窗只收自己关心的事件（面板事件不进条带渲染层）：
     // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）
     wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status'])
-    wireHostIpc(w, s.tracker, log, { pin: (v) => { setTopmost(hwndOf(v), true) } })
+    wireHostIpc(w, s.tracker, log, {
+      pin: (v) => { setTopmost(hwndOf(v), true) },
+      onNotify: trayOverflow.onStripNotify, // 「⋯」开层/条带点击收层请求（工单162）
+    })
     w.once('ready-to-show', () => {
       w.showInactive()
       assertTop()
+      // show 拍挪移的即拍回正（工单158）：取证显示 showInactive 会触发壳侧把窗挪到
+      // 协商带上方，等 keepalive 首拍最多闪 500ms——此处同步补一记
+      reassertGeometry(s, 'shown')
     })
     w.once('closed', () => {
       // 自家定时器无条件清（destroy 路径已清过也无害）：keepalive 属本闭包，

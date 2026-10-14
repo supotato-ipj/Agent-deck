@@ -72,15 +72,16 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService, events:
  * hooks.pin：键盘模式进出的 z 序恢复动作——面板钉底（默认），任务栏窗重申置顶。
  * hooks.sentinelHeartbeat：哨兵失能档发射武装（#91）——只有接了渲染层活性心跳的窗
  * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。 */
-export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean } = {}): void {
+export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void } = {}): void {
   const pin = hooks.pin ?? pinToBottom
   const onHotzones = (event: Electron.IpcMainEvent, rects: HotzoneRect[]) => {
     if (event.sender !== win.webContents) return
-    tracker.setRects(rects)
+    tracker?.setRects(rects) // tracker 缺席窗（工单162 浮层：无热区穿透机制）声明即弃
     log?.append({ type: 'hotzones', rects })
   }
   const onNotify = (event: Electron.IpcMainEvent, msg: { type: string; payload?: Record<string, unknown> }) => {
     if (event.sender !== win.webContents) return
+    hooks.onNotify?.(msg?.type ?? '', msg?.payload) // 窗级分发（存证照落：条带→浮层开合转发）
     log?.append({ type: msg?.type, ...(msg?.payload ?? {}) })
   }
   // 键盘模式（工单02）：面板永不激活，需要键盘的场景（搜索输入、设置浮层）经此临时

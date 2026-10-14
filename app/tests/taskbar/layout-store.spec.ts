@@ -6,17 +6,19 @@
 import { describe, expect, it } from 'vitest'
 import {
   TASKBAR_FACTORY_STORE,
+  excludeEntry,
   loadTaskbarStore,
   migrateLegacyPinned,
   moveInOrder,
   parseLegacyPinnedNames,
   pinEntry,
   reorderPinned,
+  restoreEntry,
   serializeTaskbarStore,
   unpinEntry,
 } from '../../src/main/taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../../src/main/taskbar/layout-store'
-import type { TaskbarPinnedEntry } from '../../src/main/taskbar/left-plan'
+import type { TaskbarPinnedEntry } from '../../src/main/taskbar/apps-plan'
 
 const item = (name: string, over: Partial<MigrationItem> = {}): MigrationItem => ({
   name,
@@ -59,7 +61,7 @@ describe('任务栏布局存储（自愈）', () => {
   })
 })
 
-describe('旧桌面迁移（layout.json 手钉 → 栏左组手钉，顺序保持）', () => {
+describe('旧桌面迁移（layout.json 手钉 → 栏应用组手钉，顺序保持）', () => {
   it('旧桌面 layout.json 的 pinned 名单解析：顺序保持；缺失/损坏/非字符串数组 → 空', () => {
     const text = JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] })
     expect(parseLegacyPinnedNames(text)).toEqual(['B.lnk', 'A.lnk'])
@@ -104,7 +106,7 @@ describe('旧桌面迁移（layout.json 手钉 → 栏左组手钉，顺序保�
 
   it('迁移产物可落盘并读回（存储形态直通）', () => {
     const pinned = migrateLegacyPinned(['A.lnk'], [item('A.lnk')], () => 'C:\\Apps\\A.exe')
-    const store = loadTaskbarStore(serializeTaskbarStore({ version: 1, pinned, recommended: [] }))
+    const store = loadTaskbarStore(serializeTaskbarStore({ version: 1, pinned, recommended: [], excluded: [] }))
     expect(store.pinned).toEqual(pinned)
   })
 })
@@ -112,7 +114,7 @@ describe('旧桌面迁移（layout.json 手钉 → 栏左组手钉，顺序保�
 describe('拖拽落位裁决（工单57 纯函数）', () => {
   const pin = (exe: string): TaskbarPinnedEntry => ({ exe, label: exe.replace(/^.*[\\/]/, ''), iconKey: null })
   const storeOf = (exes: string[], recommended: string[] = []): TaskbarLayoutStore =>
-    ({ version: 1, pinned: exes.map(pin), recommended })
+    ({ version: 1, pinned: exes.map(pin), recommended, excluded: [] })
 
   it('moveInOrder：name 移到 before 之前；before=null/不在名单 → 末尾；name 不在名单按插入处理（回池落位）', () => {
     expect(moveInOrder(['a', 'b', 'c'], 'c', 'a')).toEqual(['c', 'a', 'b'])
@@ -122,7 +124,7 @@ describe('拖拽落位裁决（工单57 纯函数）', () => {
     expect(moveInOrder(['a', 'b'], 'a', 'a')).toEqual(['a', 'b']) // 自落点 = 原序
   })
 
-  it('reorderPinned：左组手钉段内换位，exe 身份归一命中（NTFS 大小写/斜杠不敏感）', () => {
+  it('reorderPinned：应用组手钉段内换位，exe 身份归一命中（NTFS 大小写/斜杠不敏感）', () => {
     const store = storeOf(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe', 'C:\\Apps\\C.exe'])
     const next = reorderPinned(store, 'c:\\apps/a.exe', 'C:\\Apps\\C.exe')
     expect(next.pinned.map((p) => p.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\Apps\\C.exe'])
@@ -167,5 +169,65 @@ describe('拖拽落位裁决（工单57 纯函数）', () => {
     const store = pinEntry(storeOf(['C:\\A.exe']), { exe: 'C:\\B.exe', label: '乙', iconKey: null }, null)
     const withOrder: TaskbarLayoutStore = { ...store, recommended: moveInOrder([], 'B.lnk', null) }
     expect(loadTaskbarStore(serializeTaskbarStore(withOrder))).toEqual(withOrder)
+  })
+})
+
+describe('推荐栏移除名单（工单161 纯函数）', () => {
+  const pin = (exe: string): TaskbarPinnedEntry => ({ exe, label: exe.replace(/^.*[\\/]/, ''), iconKey: null })
+  const storeOf = (exes: string[], recommended: string[] = []): TaskbarLayoutStore =>
+    ({ version: 1, pinned: exes.map(pin), recommended, excluded: [] })
+
+  it('loadTaskbarStore：excluded 段缺位（旧版存储）/形状不符 → 空名单（逐段自愈不拖垮手钉段）；坏条目滤除、序保持；round-trip', () => {
+    expect(loadTaskbarStore(null).excluded).toEqual([])
+    expect(loadTaskbarStore(JSON.stringify({ version: 1, pinned: [] })).excluded).toEqual([]) // 工单57 旧版存储
+    expect(loadTaskbarStore(JSON.stringify({ version: 1, pinned: [], excluded: 'oops' })).excluded).toEqual([])
+    const store = loadTaskbarStore(JSON.stringify({
+      version: 1,
+      pinned: [],
+      excluded: [
+        { exe: 'C:\\a.exe', label: '甲', iconKey: 'C:\\a.exe|1' },
+        { exe: '', label: '空身份' },
+        'junk',
+        { exe: 'C:\\b.exe', label: '乙', iconKey: null },
+      ],
+    }))
+    expect(store.excluded).toEqual([
+      { exe: 'C:\\a.exe', label: '甲', iconKey: 'C:\\a.exe|1' },
+      { exe: 'C:\\b.exe', label: '乙', iconKey: null },
+    ])
+    expect(loadTaskbarStore(serializeTaskbarStore(store))).toEqual(store)
+    expect(TASKBAR_FACTORY_STORE.excluded).toEqual([]) // 出厂态带空排除名单
+  })
+
+  it('excludeEntry：移除进名单——条目（exe+展示元数据）追加末尾；同 exe（归一）已排除 → 原样返回（幂等空转）', () => {
+    const store = storeOf(['C:\\Apps\\P.exe'], ['x.lnk'])
+    const entry = { exe: 'C:\\Apps\\Real.exe', label: '应用', iconKey: 'C:\\app.lnk|3' }
+    const next = excludeEntry(store, entry)
+    expect(next.excluded).toEqual([entry])
+    expect(next.pinned.map((p) => p.exe)).toEqual(['C:\\Apps\\P.exe']) // 手钉段不受侵蚀
+    expect(next.recommended).toEqual(['x.lnk']) // 显式序不受侵蚀（恢复后旧位次复活）
+    const again = excludeEntry(next, { exe: 'c:\\apps/REAL.exe', label: '改过的名', iconKey: null })
+    expect(again).toBe(next) // 服务层据此同态幂等空转
+  })
+
+  it('restoreEntry：恢复回池——归一命中移除、其余序不动（恢复后按既有排序回池）；不在名单 → 原样返回（幂等空转）', () => {
+    const store: TaskbarLayoutStore = {
+      version: 1,
+      pinned: [],
+      recommended: ['y.lnk'],
+      excluded: [
+        { exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: null },
+        { exe: 'C:\\Apps\\B.exe', label: '乙', iconKey: null },
+      ],
+    }
+    const next = restoreEntry(store, 'c:\\apps\\b.exe')
+    expect(next.excluded.map((e) => e.exe)).toEqual(['C:\\Apps\\A.exe'])
+    expect(next.recommended).toEqual(['y.lnk'])
+    expect(restoreEntry(store, 'C:\\never-excluded.exe')).toBe(store)
+  })
+
+  it('移除名单结果可落盘并读回（持久排除的存储形态直通——重启记住）', () => {
+    const store = excludeEntry(storeOf([]), { exe: 'C:\\B.exe', label: '乙', iconKey: null })
+    expect(loadTaskbarStore(serializeTaskbarStore(store))).toEqual(store)
   })
 })

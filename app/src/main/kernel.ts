@@ -20,7 +20,7 @@ import { SettingsService, type SettingsServiceOptions } from './services/setting
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
-import { planTaskbarRecommendations } from './taskbar/plan'
+import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from './taskbar/plan'
 import type { WeatherLocation } from '../shared/contract'
 
 export interface KernelOptions {
@@ -54,7 +54,7 @@ export interface KernelOptions {
   plugins?: PluginHostOptions
   /** 任务栏（工单49）：开关与依赖（离线测试注入假按键源；缺省默认启用 + 真源延迟绑定） */
   taskbar?: TaskbarServiceOptions
-  /** 任务栏左组编排轮询间隔（ms，工单52）；缺省 0 = 不装定时器（离线测试手动驱动 refresh） */
+  /** 任务栏应用组编排轮询间隔（ms，工单52）；缺省 0 = 不装定时器（离线测试手动驱动 refresh） */
   taskbarPollMs?: number
   /** 退出面板（工单83）：app.quit 注入（离线测试注假源；缺省未装配——invoke 如实拒绝） */
   quit?: () => void
@@ -64,7 +64,7 @@ export const DEFAULT_TICK_MS = 1000
 export const DEFAULT_HARDWARE_MS = 1000
 export const DEFAULT_USAGE_MS = 2000
 export const DEFAULT_SEARCH_INTERVAL_MS = 50
-/** 任务栏左组轮询（工单52）：1Hz——应用启动/退出 1–2 秒内反映到左组 */
+/** 任务栏应用组轮询（工单52）：1Hz——应用启动/退出 1–2 秒内反映到应用组 */
 export const DEFAULT_TASKBAR_POLL_MS = 1000
 export const USAGE_PRUNE_MS = 3600_000
 
@@ -87,7 +87,7 @@ export function createKernel(options: KernelOptions = {}): Context {
   // 桥接层的数据面端口（进程内装配：直连上方采集服务）——必须先于桥接层注册
   ctx.plugin(LocalPanelDataService)
   // 任务栏（工单49）：BridgeService 注入依赖它，必须先于桥接层注册。
-  // 中组推荐位（工单54）缺省接 panelData 的频次链路产物（桌面编排 + usage 融合分）。
+  // 推荐位（工单54）缺省接 panelData 的频次链路产物（桌面编排 + usage 融合分）。
   ctx.plugin(TaskbarService, {
     ...options.taskbar,
     deps: {
@@ -134,7 +134,7 @@ export function createKernel(options: KernelOptions = {}): Context {
   }
   const taskbarPollMs = options.taskbarPollMs ?? 0
   if (taskbarPollMs > 0) {
-    // 左组编排轮（工单52）：窗口枚举 → planLeftGroup → 变化即推 taskbar/changed
+    // 应用组编排轮（工单52）：窗口枚举 → planAppsGroup → 变化即推 taskbar/changed
     const timer = setInterval(() => ctx.taskbar?.refresh(), taskbarPollMs)
     ctx.on('dispose', () => clearInterval(timer))
   }
@@ -205,7 +205,8 @@ function dataplaneSnapshot(ctx: Context): DataplaneSnapshot {
     sessions: ctx.sessions.current(),
     hardware: ctx.hardware.state(),
     desktop,
-    // 中组推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源
-    recommendations: planTaskbarRecommendations(desktop.items, ctx.desktop.usageScores()),
+    // 推荐位（工单54）：与生产子进程（dataplane.ts snapshotOf）同一纯函数同源。
+    // 工单161 起按池上限携带（可见上限的截断在服务层滤除后做，递补语义）。
+    recommendations: planTaskbarRecommendations(desktop.items, ctx.desktop.usageScores(), RECOMMENDATION_POOL_LIMIT),
   }
 }

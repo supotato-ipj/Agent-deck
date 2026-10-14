@@ -6,7 +6,7 @@ import type { Context } from 'cordis'
 import { appendFileSync } from 'node:fs'
 import type { DesktopZone } from '../shared/contract'
 import { createDataplaneKernel } from './kernel'
-import { planTaskbarRecommendations } from './taskbar/plan'
+import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from './taskbar/plan'
 import { TrayHost } from './trayhost/host'
 import {
   ProxyClipboardRead,
@@ -55,8 +55,10 @@ function snapshotOf(c: Context): DataplaneSnapshot {
     sessions: c.sessions.current(),
     hardware: c.hardware.state(),
     desktop,
-    // 中组推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推
-    recommendations: planTaskbarRecommendations(desktop.items, c.desktop.usageScores()),
+    // 推荐位（工单54）：fuseScores 链路产物随每拍携带，主进程 TaskbarService 据此回推。
+    // 工单161 起按池上限携带（可见上限的截断在主进程服务层滤除后做——手钉/移除腾出的
+    // 空位由后续名次递补，池必须宽于可见上限过桥）。
+    recommendations: planTaskbarRecommendations(desktop.items, c.desktop.usageScores(), RECOMMENDATION_POOL_LIMIT),
   }
 }
 

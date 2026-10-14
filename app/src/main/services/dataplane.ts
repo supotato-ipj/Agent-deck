@@ -210,7 +210,7 @@ export class DataplaneService extends Service implements PanelDataPort {
     return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { docs: [] } }
   }
 
-  /** 任务栏中组推荐位（工单54）：子进程随快照算好携带（分数跨进程不过桥——名单即产物） */
+  /** 任务栏推荐位（工单54）：子进程随快照算好携带（分数跨进程不过桥——名单即产物） */
   taskbarRecommendations(): TaskbarRecommendation[] {
     return this.latest?.recommendations ?? []
   }

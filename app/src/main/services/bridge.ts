@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, WeatherLocation } from '../../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -176,6 +176,26 @@ export class BridgeService extends Service {
         const { exe } = payload as { exe: string }
         return await this.ctx.taskbar.activateApp(exe) as BridgeMethods[M]['response']
       }
+      case 'taskbar/rec-click': {
+        const { exe } = payload as { exe: string }
+        return await this.ctx.taskbar.recClick(exe) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/rec-pin': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.recPin(exe) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/rec-remove': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.recRemove(exe) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/rec-restore': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.recRestore(exe) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/rec-reveal': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.recReveal(exe) as BridgeMethods[M]['response']
+      }
       case 'taskbar/set-metrics': {
         const { metrics } = payload as { metrics: TaskbarMetric[] }
         return this.ctx.taskbar.setMetrics(metrics) as BridgeMethods[M]['response']
@@ -183,6 +203,10 @@ export class BridgeService extends Service {
       case 'taskbar/tray-click': {
         const { key, button } = payload as { key: string; button: TaskbarTrayButton }
         return this.ctx.taskbar.trayClick(String(key ?? ''), button) as BridgeMethods[M]['response']
+      }
+      case 'taskbar/set-tray-overflow-limit': {
+        const { limit } = payload as { limit: TaskbarTrayOverflowLimit }
+        return this.ctx.taskbar.setTrayOverflowLimit(limit) as BridgeMethods[M]['response']
       }
       case 'taskbar/tray-icon': {
         const { key } = payload as { key: string }

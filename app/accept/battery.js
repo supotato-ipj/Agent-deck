@@ -1710,7 +1710,7 @@ async function main() {
 
     // —— P5.5 工单06 编排与摆位：按组归类 / 拖拽摆位即时重编排 + 落盘持久化 / 恢复出厂 ——
     // 工单59：应用区（dock）随任务栏接管退役，桌面只剩文档区一处承载。手钉/推荐位断言
-    // 整段删除（手钉改由任务栏左组承担），改为文档区内的显式摆位序断言。
+    // 整段删除（手钉改由任务栏应用组承担），改为文档区内的显式摆位序断言。
     rep.beginSegment('P5.5');
     {
       const rendered0 = await waitEvent('desktop-rendered', null, 8000);
@@ -3086,7 +3086,7 @@ async function main() {
     })();
 
     // —— P5.11 工单25 手钉管理菜单随工单59 整段退役：桌面侧 desktop/pin、
-    //    desktop/unpin 与 layout.json 的 pinned 名单一并移除，手钉改由任务栏左组
+    //    desktop/unpin 与 layout.json 的 pinned 名单一并移除，手钉改由任务栏应用组
     //    承担。契约与栏位语义在离线内核测试（desktop service spec + 契约 spec）
     //    另有覆盖；这里不再留真机端到端用例（原证手钉往返 + dock 前段承载）。
 

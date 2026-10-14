@@ -1,4 +1,4 @@
-// 托盘入栏的名单编排（工单56，与 left-plan/plan 同形态）：规范化托盘事件序列 → 栏内
+// 托盘入栏的名单编排（工单56，与 apps-plan/plan 同形态）：规范化托盘事件序列 → 栏内
 // 图标名单。纯函数、零 Win32——字节解码与像素提取在 trayhost 侧完成，本模块只认
 // 事件：增/改 upsert（同 key 覆盖 tooltip 与图标）、删摘除、版本协商/聚焦/未知空转。
 // 顺序 = 到达序（Windows 托盘不承诺全局序；栏内沿用到达序，重排由用户拖拽语义管）。
@@ -6,6 +6,10 @@
 
 import type { TaskbarTrayEntry } from '../../shared/contract'
 import type { TrayWireEvent } from '../trayhost/protocol'
+
+// 托盘溢出裁决本体已移至 shared/overflow（工单162，渲染层同用一份；apps-plan 转出同款
+// 边界说明）；此处转出保持主进程侧 import 路径不变。
+export { planTrayOverflow } from '../../shared/overflow'
 
 /** FNV-1a 32 位摘要（图标键用：同尺寸图标换内容后长度不变，只比长度会撞键） */
 function digest(s: string): string {
