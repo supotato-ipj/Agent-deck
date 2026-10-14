@@ -1195,9 +1195,10 @@ async function main() {
                 }
               }
           }
-          // 点外即收（工单193 AC）：再开一扇（右键探针 B——③手钉的在册条目），条带外点击
-          // （pill 缝隙 = 桌面穿透点，P3 先例同点）夺焦 → 浮层 blur 收层；若热区映射落进
-          // 条带则走 strip-click 转达收层——两 reason 都是「点外即收」的收层路径实证。
+          // 点外即收（工单193 AC）：再开一扇（右键探针 B——③手钉的在册条目），条带内点击
+          // （时钟格——非内核动作键，dispatch 噪声免费）转达收层（strip-click）。blur 路径
+          // 已由 55 族臂5 在同一载体实证（浮层窗 blur 收「栏外」点击，桌面/应用窗夺焦；
+          // 面板钉底永不激活点不出 blur——缝隙点击落在面板上无效），此处不再拉探针重复拉证。
           let outsideClose16 = null;
           const gB2 = await waitGeometrySettled(repool16 || gU);
           const ptB2 = appPt16(gB2, pB16.exe);
@@ -1206,12 +1207,13 @@ async function main() {
             win32.clickPhys(ptB2.x, ptB2.y, 'right');
             for (let i = 0; i < 12 && !popupSince16(sinceB2); i++) await sleep(200);
             if (popupSince16(sinceB2)) {
-              const gapNow = latestGeometry(null);
-              const gapX = gapNow.apps && gapNow.apps.length > 0
-                ? (gapNow.appsPill.x + gapNow.appsPill.w + gapNow.rightPill.x) / 2
-                : (gapNow.startPill.x + gapNow.startPill.w + gapNow.rightPill.x) / 2;
-              win32.clickPhys(toPhys(gapX, TASKBAR_HEIGHT_DIP / 2).x, toPhys(gapX, TASKBAR_HEIGHT_DIP / 2).y, 'left');
-              outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'blur' || e.reason === 'strip-click') && e.t >= Date.now() - 6000, 5000);
+              const gClock = latestGeometry(null);
+              const clockCell = (gClock.rightCells || []).find((c) => c.id === 'clock');
+              if (clockCell) {
+                const cp = toPhys(clockCell.x + clockCell.w / 2, clockCell.y + clockCell.h / 2);
+                win32.clickPhys(cp.x, cp.y, 'left');
+                outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= Date.now() - 6000, 5000);
+              }
             }
           }
           // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）。
