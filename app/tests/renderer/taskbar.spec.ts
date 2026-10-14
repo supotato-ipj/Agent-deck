@@ -583,7 +583,7 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
     expect(iStart).toBeGreaterThanOrEqual(0)
     expect(iRecs, '#pill-recs 容器元素在场').toBeGreaterThan(0)
     expect(iStart, '推荐组在开始组之后').toBeLessThan(iRecs)
-    expect(iRecs, '推荐组在右组之前（「开始组与应用组之间」的几何落位由 positionRecPill 裁决、P18 真机断言）').toBeLessThan(iRight)
+    expect(iRecs, '推荐组在右组之前（「开始组与应用组之间」的几何落位由 positionRecPill 裁决、P19 真机断言）').toBeLessThan(iRight)
   })
 
   it('空带两侧边界（纯函数）：左=左邻组右缘+组间距（左右邻都不在场=条带左内衬）、右=右组左缘−组间距', () => {

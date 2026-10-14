@@ -40,7 +40,7 @@
 //      +应用组手钉段前位出现）、真 OLE 拖拽组内换位（显式序压过分数序）、跨组升手钉
 //      （recs→apps 落点条目前插入）、解除手钉随下拍回池；痕迹三处在 finally 摘除
 //   P17 推荐组移除名单（工单161）：持久排除 + 名次递补 + 空白右键恢复 + 重启保持
-//   P18 推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙、开始组零残留、
+//   P19 推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙、开始组零残留、
 //      两组显隐解耦（藏两钮推荐组独立在场并退条带左缘内衬 / 推荐位清空推荐组不渲染、回池复原）
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
@@ -1611,7 +1611,7 @@ async function main() {
       }
     }
 
-    // P18 推荐组独立漂浮 pill（工单192）：拆出开始组的独立容器（开始组右侧、应用组左侧，
+    // P19 推荐组独立漂浮 pill（工单192）：拆出开始组的独立容器（开始组右侧、应用组左侧，
     // 间隙与样式同族）与两组显隐解耦。三臂——
     // ①独立容器在场：P16/P17 存活的五探针推荐位全部落 #pill-recs 界内、开始组 pill 内
     //   零残留（.tb-rec 不再出现在 #pill-start）、与开始组有明确间隙（GROUP_GAP 8px）、
@@ -1622,17 +1622,17 @@ async function main() {
     //   即时递补，清空=池竭）→ 推荐组 display:none、recPill 矩形归零、recommendations []、
     //   开始组不受牵连；移除账全数 rec-restore 回池（excluded 清空复原）。
     // 全臂 CDP 桥直发 + 几何存证帧 + DOM 读取（显隐裁决面，无输入注入——驱动式同 P15）。
-    rep.beginSegment('P18');
+    rep.beginSegment('P19');
     if (!p16) {
-      rep.fail('P18 前置缺失：P16 探针种入失败（见种入 note）');
+      rep.fail('P19 前置缺失：P16 探针种入失败（见种入 note）');
     } else {
-      const probes18 = p16.probes;
-      const recNames18 = (g) => (g && g.recommendations ? g.recommendations.map((r) => r.name) : []);
-      const state18 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
-      const GAP18 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px，与 P15 同源）
+      const probes19 = p16.probes;
+      const recNames19 = (g) => (g && g.recommendations ? g.recommendations.map((r) => r.name) : []);
+      const state19 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
+      const GAP19 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px，与 P15 同源）
       // —— ① 独立容器在场与组间隙 ——
-      const g18 = await waitGeometrySettled(latestGeometry(null));
-      const dom18 = await cdpEval(`(() => {
+      const g19 = await waitGeometrySettled(latestGeometry(null));
+      const dom19 = await cdpEval(`(() => {
         const rs = document.getElementById('pill-recs');
         const st = document.getElementById('pill-start');
         return {
@@ -1642,46 +1642,46 @@ async function main() {
           startCells: st ? st.querySelectorAll('.tb-rec').length : -1,
         };
       })()`, TASKBAR_TITLE);
-      const names18 = recNames18(g18);
-      const pill18 = g18.recPill && g18.recPill.w > 0 ? g18.recPill : null;
+      const names19 = recNames19(g19);
+      const pill19 = g19.recPill && g19.recPill.w > 0 ? g19.recPill : null;
       // 前置口径：可见推荐位全部是本电池夹具身份（DECK-P16-*）且非空——探针 B 在 P16③
       // 已合法手钉迁出推荐组（第 6 名 F 递补），可见集 = 探针减手钉加递补，不要求全五探针
-      const fixture18 = names18.length > 0 && names18.every((n) => String(n).startsWith('DECK-P16-'));
-      const inside18 = !!pill18 && names18.every((n) => {
-        const r = (g18.recommendations || []).find((x) => x.name === n);
-        return r && r.x >= pill18.x - 0.5 && r.x + r.w <= pill18.x + pill18.w + 0.5;
+      const fixture19 = names19.length > 0 && names19.every((n) => String(n).startsWith('DECK-P16-'));
+      const inside19 = !!pill19 && names19.every((n) => {
+        const r = (g19.recommendations || []).find((x) => x.name === n);
+        return r && r.x >= pill19.x - 0.5 && r.x + r.w <= pill19.x + pill19.w + 0.5;
       });
-      const gapOk18 = !!pill18 && g18.startPill.w > 0
-        && pill18.x >= g18.startPill.x + g18.startPill.w + GAP18 - 0.5;
-      const appsAfter18 = !pill18 || g18.appsPill.w === 0
-        || g18.appsPill.x >= pill18.x + pill18.w + GAP18 - 0.5;
-      const zeroResidue18 = dom18.startCells === 0;
-      const domOk18 = dom18.recsDisplay !== 'none' && dom18.recsInlineLeft !== ''
-        && dom18.recCells === names18.length;
-      if (fixture18 && inside18 && gapOk18 && appsAfter18 && zeroResidue18 && domOk18) {
-        rep.pass(`P18 推荐组独立漂浮 pill：${names18.length} 枚推荐位全部界内 #pill-recs`
-          + `（pill @${pill18.x.toFixed(0)}，开始组零残留），与开始组间隙达标（≥8px）`
+      const gapOk19 = !!pill19 && g19.startPill.w > 0
+        && pill19.x >= g19.startPill.x + g19.startPill.w + GAP19 - 0.5;
+      const appsAfter19 = !pill19 || g19.appsPill.w === 0
+        || g19.appsPill.x >= pill19.x + pill19.w + GAP19 - 0.5;
+      const zeroResidue19 = dom19.startCells === 0;
+      const domOk19 = dom19.recsDisplay !== 'none' && dom19.recsInlineLeft !== ''
+        && dom19.recCells === names19.length;
+      if (fixture19 && inside19 && gapOk19 && appsAfter19 && zeroResidue19 && domOk19) {
+        rep.pass(`P19 推荐组独立漂浮 pill：${names19.length} 枚推荐位全部界内 #pill-recs`
+          + `（pill @${pill19.x.toFixed(0)}，开始组零残留），与开始组间隙达标（≥8px）`
           + `、应用组居其右侧空带，独立容器 DOM 在场`);
       } else {
-        rep.fail(`P18 独立容器：夹具集=${fixture18}(${JSON.stringify(names18)}) 界内=${inside18} 间隙=${gapOk18}`
-          + ` 应用组右置=${appsAfter18} 开始组零残留=${zeroResidue18}(startCells=${dom18.startCells})`
-          + ` DOM=${domOk18}(${JSON.stringify(dom18)}) recPill=${JSON.stringify(g18.recPill || null)}`);
+        rep.fail(`P19 独立容器：夹具集=${fixture19}(${JSON.stringify(names19)}) 界内=${inside19} 间隙=${gapOk19}`
+          + ` 应用组右置=${appsAfter19} 开始组零残留=${zeroResidue19}(startCells=${dom19.startCells})`
+          + ` DOM=${domOk19}(${JSON.stringify(dom19)}) recPill=${JSON.stringify(g19.recPill || null)}`);
       }
 
       // —— ② 显隐解耦正向：藏两系统按钮 → 开始组不渲染、推荐组独立在场 ——
-      const sinceHide18 = Date.now();
+      const sinceHide19 = Date.now();
       await cdpEval(`(async () => {
         await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: true });
         await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true });
       })()`);
-      let decoupled18 = null;
-      for (let i = 0; i < 30 && !decoupled18; i++) {
+      let decoupled19 = null;
+      for (let i = 0; i < 30 && !decoupled19; i++) {
         await sleep(200);
         const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceHide18 && cand.startPill && cand.startPill.w === 0
-          && cand.recPill && cand.recPill.w > 0 && recNames18(cand).length === names18.length) decoupled18 = cand;
+        if (cand && cand.t >= sinceHide19 && cand.startPill && cand.startPill.w === 0
+          && cand.recPill && cand.recPill.w > 0 && recNames19(cand).length === names19.length) decoupled19 = cand;
       }
-      const domHide18 = decoupled18 ? await cdpEval(`(() => {
+      const domHide19 = decoupled19 ? await cdpEval(`(() => {
         const rs = document.getElementById('pill-recs');
         const st = document.getElementById('pill-start');
         return {
@@ -1690,29 +1690,29 @@ async function main() {
           recsLeft: rs ? rs.style.left : '',
         };
       })()`, TASKBAR_TITLE) : null;
-      const hideOk18 = !!(decoupled18 && domHide18
-        && domHide18.startDisplay === 'none'
-        && domHide18.recsDisplay !== 'none'
-        && Math.abs(parseFloat(domHide18.recsLeft || 'NaN') - 8) <= 2); // 退条带左缘内衬（APPS_INSET=8）
+      const hideOk19 = !!(decoupled19 && domHide19
+        && domHide19.startDisplay === 'none'
+        && domHide19.recsDisplay !== 'none'
+        && Math.abs(parseFloat(domHide19.recsLeft || 'NaN') - 8) <= 2); // 退条带左缘内衬（APPS_INSET=8）
       // 复原两钮（显式复原；config 三态还原兜底）
-      const sinceShow18 = Date.now();
+      const sinceShow19 = Date.now();
       await cdpEval(`(async () => {
         await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: false });
         await window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false });
       })()`);
-      let reshown18 = null;
-      for (let i = 0; i < 30 && !reshown18; i++) {
+      let reshown19 = null;
+      for (let i = 0; i < 30 && !reshown19; i++) {
         await sleep(200);
         const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceShow18 && cand.startPill && cand.startPill.w > 0
-          && cand.recPill && cand.recPill.w > 0) reshown18 = cand;
+        if (cand && cand.t >= sinceShow19 && cand.startPill && cand.startPill.w > 0
+          && cand.recPill && cand.recPill.w > 0) reshown19 = cand;
       }
-      if (hideOk18 && reshown18) {
-        rep.pass(`P18 显隐解耦正向：两系统按钮全藏 → 开始组不渲染（display:none）、推荐组独立在场`
-          + `（recPill 退条带左缘 left=${domHide18.recsLeft}，${recNames18(decoupled18).length} 枚推荐位无牵连），复原后开始组回归`);
+      if (hideOk19 && reshown19) {
+        rep.pass(`P19 显隐解耦正向：两系统按钮全藏 → 开始组不渲染（display:none）、推荐组独立在场`
+          + `（recPill 退条带左缘 left=${domHide19.recsLeft}，${recNames19(decoupled19).length} 枚推荐位无牵连），复原后开始组回归`);
       } else {
-        rep.fail(`P18 解耦正向：藏钮后=${hideOk18}(帧=${decoupled18 ? JSON.stringify({ startPill: decoupled18.startPill, recPill: decoupled18.recPill }) : 'null'}`
-          + ` dom=${JSON.stringify(domHide18 || {})}) 复原=${!!reshown18}`);
+        rep.fail(`P19 解耦正向：藏钮后=${hideOk19}(帧=${decoupled19 ? JSON.stringify({ startPill: decoupled19.startPill, recPill: decoupled19.recPill }) : 'null'}`
+          + ` dom=${JSON.stringify(domHide19 || {})}) 复原=${!!reshown19}`);
       }
 
       // —— ③ 解耦反向：推荐位清空 → 推荐组不渲染、开始组不受牵连；回池复原 ——
@@ -1722,47 +1722,47 @@ async function main() {
       // 兜底链死角）= 契约惰性身份——rec-remove/rec-pin 六 exe 口 requireNonEmptyId 拒收、
       // 存储装载器丢空 exe 条目，用户无任何路径可排除之；此时断言本体保留（不降阈值），
       // 本臂记环境降责排除（机器态）留证，真失败（可移除身份滞留=移除未生效）照判红。
-      const seenRemove18 = [];
-      let emptied18 = null;
-      let stuck18 = null; // 池里滞留的条目（含完整形态诊断——exe 富化身份是裁决依据）
-      const sinceRemove18 = Date.now();
+      const seenRemove19 = [];
+      let emptied19 = null;
+      let stuck19 = null; // 池里滞留的条目（含完整形态诊断——exe 富化身份是裁决依据）
+      const sinceRemove19 = Date.now();
       // 滞留宽限：账已覆盖当前池 / exe 暂空时，数据面下一拍可能重算富化身份或清池——
       // 重轮 get-state（≤5×400ms）再判滞留，不立断（同拍竞态的陈旧读不作数）
-      const regauge18 = async (recs) => {
+      const regauge19 = async (recs) => {
         for (let i = 0; i < 5; i++) {
           await sleep(400);
-          const st = await state18();
+          const st = await state19();
           const list = st && Array.isArray(st.recommendations) ? st.recommendations : [];
           if (!list.length) return { recs: [] };
           const exes = [...new Set(list.map((r) => String(r.exe || '')).filter(Boolean))];
-          if (exes.some((exe) => !seenRemove18.includes(exe))) return { recs: list };
+          if (exes.some((exe) => !seenRemove19.includes(exe))) return { recs: list };
           if (exes.length) continue; // 还是已见身份，继续宽限
         }
         return { recs };
       };
-      for (let round18 = 0; round18 < 24 && !emptied18; round18++) {
-        const st18 = await state18();
-        const recs18 = st18 && Array.isArray(st18.recommendations) ? st18.recommendations : [];
-        const exes18 = [...new Set(recs18.map((r) => String(r.exe || '')).filter(Boolean))];
-        if (!recs18.length) {
-          for (let i = 0; i < 30 && !emptied18; i++) {
+      for (let round19 = 0; round19 < 24 && !emptied19; round19++) {
+        const st19 = await state19();
+        const recs19 = st19 && Array.isArray(st19.recommendations) ? st19.recommendations : [];
+        const exes19 = [...new Set(recs19.map((r) => String(r.exe || '')).filter(Boolean))];
+        if (!recs19.length) {
+          for (let i = 0; i < 30 && !emptied19; i++) {
             await sleep(200);
             const cand = latestGeometry(null);
-            if (cand && cand.t >= sinceRemove18 && recNames18(cand).length === 0
-              && cand.recPill && cand.recPill.w === 0 && cand.startPill && cand.startPill.w > 0) emptied18 = cand;
+            if (cand && cand.t >= sinceRemove19 && recNames19(cand).length === 0
+              && cand.recPill && cand.recPill.w === 0 && cand.startPill && cand.startPill.w > 0) emptied19 = cand;
           }
           break;
         }
-        if (!exes18.length || exes18.every((exe) => seenRemove18.includes(exe))) {
-          const re = await regauge18(recs18);
+        if (!exes19.length || exes19.every((exe) => seenRemove19.includes(exe))) {
+          const re = await regauge19(recs19);
           if (!re.recs.length) continue; // 池清了，外层走空分支
-          if (re.recs !== recs18) continue; // 新身份进池，外层继续移除
-          stuck18 = re.recs;
+          if (re.recs !== recs19) continue; // 新身份进池，外层继续移除
+          stuck19 = re.recs;
           break;
         }
-        for (const exe of exes18) if (!seenRemove18.includes(exe)) seenRemove18.push(exe);
+        for (const exe of exes19) if (!seenRemove19.includes(exe)) seenRemove19.push(exe);
         await cdpEval(`(async () => {
-          for (const exe of ${JSON.stringify(exes18)}) {
+          for (const exe of ${JSON.stringify(exes19)}) {
             await window.deck.bridge.invoke('taskbar/rec-remove', { exe });
           }
         })()`, TASKBAR_TITLE);
@@ -1770,46 +1770,46 @@ async function main() {
       }
       // 回池复原（rec-restore 全数移除账；excluded 清空 = 复原干净，不给后续段留账）
       await cdpEval(`(async () => {
-        for (const exe of ${JSON.stringify(seenRemove18)}) {
+        for (const exe of ${JSON.stringify(seenRemove19)}) {
           await window.deck.bridge.invoke('taskbar/rec-restore', { exe });
         }
       })()`, TASKBAR_TITLE);
-      let repool18 = null;
-      for (let i = 0; i < 30 && !repool18; i++) {
+      let repool19 = null;
+      for (let i = 0; i < 30 && !repool19; i++) {
         await sleep(200);
         const cand = latestGeometry(null);
-        if (cand && recNames18(cand).length === names18.length
-          && names18.every((n) => recNames18(cand).includes(n))) repool18 = cand;
+        if (cand && recNames19(cand).length === names19.length
+          && names19.every((n) => recNames19(cand).includes(n))) repool19 = cand;
       }
-      const stClean18 = await state18();
-      const clean18 = !!(stClean18 && Array.isArray(stClean18.excluded) && stClean18.excluded.length === 0);
-      if (emptied18) {
-        const domEmpty18 = await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE);
-        if (domEmpty18 === 'none' && repool18 && clean18) {
-          rep.pass(`P18 显隐解耦反向：候选池竭（移除 ${seenRemove18.length} 枚）→ 推荐组不渲染（display:none、`
+      const stClean19 = await state19();
+      const clean19 = !!(stClean19 && Array.isArray(stClean19.excluded) && stClean19.excluded.length === 0);
+      if (emptied19) {
+        const domEmpty19 = await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE);
+        if (domEmpty19 === 'none' && repool19 && clean19) {
+          rep.pass(`P19 显隐解耦反向：候选池竭（移除 ${seenRemove19.length} 枚）→ 推荐组不渲染（display:none、`
             + `recPill 矩形归零、recommendations []），开始组在场不受牵连；rec-restore 回池复原`
             + `（可见集复原、excluded 清空）`);
         } else {
-          rep.fail(`P18 解耦反向：清空=${!!emptied18} dom=${JSON.stringify(domEmpty18)} 回池=${!!repool18}`
-            + `(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
+          rep.fail(`P19 解耦反向：清空=${!!emptied19} dom=${JSON.stringify(domEmpty19)} 回池=${!!repool19}`
+            + `(recs=${JSON.stringify(recNames19(latestGeometry(null)))}) excluded清空=${clean19}`);
         }
-      } else if (stuck18 && stuck18.length && stuck18.every((r) => !String(r.exe || ''))) {
+      } else if (stuck19 && stuck19.length && stuck19.every((r) => !String(r.exe || ''))) {
         // 机器态封死（滞留体全部契约惰性身份）：空池前置本机不可达——断言保留、本臂记
         // 环境降责排除；可移除账已全数移除+回池、推荐组仍按非空在场（与①一致）作旁证
-        const keptRender18 = await cdpEval(`(() => {
+        const keptRender19 = await cdpEval(`(() => {
           const rs = document.getElementById('pill-recs');
           return { display: rs ? getComputedStyle(rs).display : 'missing', cells: rs ? rs.querySelectorAll('.tb-rec').length : -1 };
         })()`, TASKBAR_TITLE);
-        rep.note(`P18 反向臂机器态滞留：可移除账 ${seenRemove18.length} 枚全移除+回池=${!!repool18}、`
-          + `滞留体 ${JSON.stringify(stuck18.map((r) => ({ name: r.name, exe: r.exe })))} 契约惰性（渲染 ${keptRender18.cells} 格保持在场=非空不渲染界线一致）`);
-        rep.exclude(`P18 显隐解耦反向（池竭清空）本机前置不可达：滞留体 exe 富化空串、契约性不可排除`
+        rep.note(`P19 反向臂机器态滞留：可移除账 ${seenRemove19.length} 枚全移除+回池=${!!repool19}、`
+          + `滞留体 ${JSON.stringify(stuck19.map((r) => ({ name: r.name, exe: r.exe })))} 契约惰性（渲染 ${keptRender19.cells} 格保持在场=非空不渲染界线一致）`);
+        rep.exclude(`P19 显隐解耦反向（池竭清空）本机前置不可达：滞留体 exe 富化空串、契约性不可排除`
           + `（rec-remove requireNonEmptyId 拒收 + 存储装载滤空 exe 条目）——空渲染断言保留未降阈值`,
         '机器态：桌面滞留项（ZCode.lnk 同类）空 exe 身份进池且用户无排除路径', 'machine-state');
       } else {
-        rep.fail(`P18 解耦反向：清空=${!!emptied18}(移除账=${seenRemove18.length}`
-          + ` 池内滞留=${stuck18 ? JSON.stringify(stuck18.map((r) => ({ name: r.name, exe: r.exe, path: r.path }))) : 'null'}`
-          + ` 帧=${emptied18 ? JSON.stringify({ recPill: emptied18.recPill, startPill: emptied18.startPill }) : 'null'})`
-          + ` 回池=${!!repool18}(recs=${JSON.stringify(recNames18(latestGeometry(null)))}) excluded清空=${clean18}`);
+        rep.fail(`P19 解耦反向：清空=${!!emptied19}(移除账=${seenRemove19.length}`
+          + ` 池内滞留=${stuck19 ? JSON.stringify(stuck19.map((r) => ({ name: r.name, exe: r.exe, path: r.path }))) : 'null'}`
+          + ` 帧=${emptied19 ? JSON.stringify({ recPill: emptied19.recPill, startPill: emptied19.startPill }) : 'null'})`
+          + ` 回池=${!!repool19}(recs=${JSON.stringify(recNames19(latestGeometry(null)))}) excluded清空=${clean19}`);
       }
     }
 
