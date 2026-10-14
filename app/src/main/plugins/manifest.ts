@@ -8,7 +8,7 @@ import { PLUGIN_CAPABILITIES, type PluginCapability, type PluginManifest } from 
  */
 
 /** 协议主机名的合法字符集：小写字母数字打头，其后可含 `-` `.` `_` */
-const ID_RE = /^[a-z0-9][a-z0-9._-]*$/
+export const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]*$/
 
 /** 合法能力集（与快照段同源，新增快照段须同步登记） */
 const CAPABILITY_SET = new Set<string>(PLUGIN_CAPABILITIES)
@@ -44,7 +44,7 @@ export function parseManifest(raw: unknown): ManifestResult {
 
   const id = str(m.id)
   if (id === null || id === '') return { error: 'plugin.json 缺 id' }
-  if (!ID_RE.test(id)) return { error: `plugin.json id 非法（非小写主机名字符集）: ${id}` }
+  if (!PLUGIN_ID_RE.test(id)) return { error: `plugin.json id 非法（非小写主机名字符集）: ${id}` }
 
   const name = str(m.name)?.trim() ?? ''
   if (!name) return { error: 'plugin.json 缺 name' }

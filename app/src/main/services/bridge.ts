@@ -20,7 +20,7 @@ export class BridgeError extends Error {
  * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar']
+  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar', 'pluginConfig']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -211,6 +211,14 @@ export class BridgeService extends Service {
       case 'taskbar/tray-icon': {
         const { key } = payload as { key: string }
         return { icon: this.ctx.taskbar.trayIconOf(String(key ?? '')) } as BridgeMethods[M]['response']
+      }
+      case 'plugin-config/get': {
+        const { id } = payload as { id: string }
+        return this.ctx.pluginConfig.get(id) as BridgeMethods[M]['response']
+      }
+      case 'plugin-config/set': {
+        const { id, patch } = payload as { id: string; patch: Record<string, unknown> }
+        return this.ctx.pluginConfig.set(id, patch) as BridgeMethods[M]['response']
       }
       case 'app/quit':
         this.quitApp()
