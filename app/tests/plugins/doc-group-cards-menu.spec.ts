@@ -56,18 +56,20 @@ function notifyOf(fx: MenuEffect): { type: string; payload?: Record<string, unkn
   return fx
 }
 
-describe('文件菜单只读五项（工单182）', () => {
-  it('恰好五项，顺序与文案即票面所列', () => {
+describe('文件菜单七项（工单182 只读五项 + 工单183 写两项 RENAME/DELETE）', () => {
+  it('恰好七项，顺序与文案即 spec166「菜单（自绘外壳）」所列', () => {
     expect(FILE_MENU_ROWS.map((r) => [r.id, r.label])).toEqual([
       ['open', 'OPEN'],
       ['open-location', 'OPEN LOCATION'],
       ['copy-path', 'COPY PATH'],
       ['copy', 'COPY'],
       ['cut', 'CUT'],
+      ['rename', 'RENAME'],
+      ['delete', 'DELETE'],
     ])
   })
 
-  it('单选时五项全部可用（本票的置灰口径：单选即全可用）', () => {
+  it('单选时七项全部可用（本票的置灰口径：单选即全可用）', () => {
     expect(resolveMenuRows(FILE_MENU_ROWS, ONE).every((r) => r.enabled)).toBe(true)
   })
 
@@ -125,8 +127,8 @@ describe('落位钳制（工单182：菜单定位不出屏）', () => {
   const size = menuSizeOf(FILE_MENU_ROWS)
 
   it('尺寸：宽定死、高 = 行数 × 行高 + 上下内边距（唯一出处，CSS 里插的是同两个常量）', () => {
-    expect(size).toEqual({ width: MENU_W, height: 5 * MENU_ROW_H + 2 * MENU_PAD_Y })
-    expect(size.height).toBe(142)
+    expect(size).toEqual({ width: MENU_W, height: 7 * MENU_ROW_H + 2 * MENU_PAD_Y })
+    expect(size.height).toBe(194)
   })
 
   it('不出屏：贴右下角弹出时整块收回视口内（左右两边各留 MENU_EDGE）', () => {
@@ -193,7 +195,7 @@ describe('壳的转移矩阵（开合、激活、收起、卸载）', () => {
     const { effects } = nextMenuShell(open(), { type: 'activate', id: 'copy' })
     expect(effects.map((f) => f.kind)).toEqual(['hide', 'hotzones', 'keyboard-tier', 'run', 'notify'])
     expect(effects[2]).toEqual({ kind: 'keyboard-tier', held: false })
-    expect(effects[3]).toEqual({ kind: 'run', id: 'copy', paths: ONE.paths })
+    expect(effects[3]).toEqual({ kind: 'run', id: 'copy', paths: ONE.paths, cardId: '' })
   })
 
   it('点置灰行 / 未知 id：无转移无副作用，菜单**保持开着**（真菜单同款）', () => {

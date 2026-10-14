@@ -35,6 +35,9 @@ export declare const FADED_CLASS: string
 /** 卡片级监听器该不该切换折叠：图标命中为 false（那道闸） */
 export declare function isCardToggle(hit: ClickHit): boolean
 
+/** 这次右键该不该开组卡菜单（工单183）：图标格命中为 false（同一道闸，组卡菜单是卡片空白右键） */
+export declare function isGroupMenuHit(hit: ClickHit): boolean
+
 export declare function initialCardState(): CardUiState
 
 export declare function isHighlighted(state: CardUiState, path: string): boolean

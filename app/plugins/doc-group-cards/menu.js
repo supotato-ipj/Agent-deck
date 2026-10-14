@@ -13,7 +13,8 @@
 // 但实现、状态与生命周期各归各的。
 //
 // 行清单是**数据驱动**的（行描述符 + 逐行可用性裁决），不是一段写死的 DOM 顺序：
-//   - 工单183 往里加 DELETE / RENAME（都是只读之外的写动作，另配删除确认层与重命名编辑）；
+//   - 工单183 已往里加 RENAME / DELETE（写动作，各配一块自绘 UX：删除确认层 / 内联重命名编辑器，
+//     见 writeops.js）；
 //   - 工单184 上多选后，needs:'single' 的行（打开所在位置、以及届时新增的重命名）自然被置灰；
 //   - 工单185 加组卡菜单的 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE，PASTE 走 needs:'pasteable'。
 // 三张票都只往这张表里加行或改裁决函数，本文件与 card.js 的接缝不用动。
@@ -107,7 +108,17 @@ export const NEED_SINGLE = 'single'
 export const NEED_PASTEABLE = 'pasteable'
 
 /**
- * 文件菜单（单选）——工单182 的只读五项。顺序即显示顺序。
+ * 文件菜单（单选）——工单182 的只读五项 + 工单183 的两个写动作。顺序即显示顺序，
+ * 追加在末尾（spec166「菜单（自绘外壳）」：OPEN / OPEN LOCATION / COPY PATH / COPY / CUT /
+ * RENAME / DELETE；破坏性的 DELETE 收尾，与真菜单同款）。
+ *
+ * 两个写动作的 needs 口径**故意不同**，理由是内核两个契约的批量语义不同：
+ *   - RENAME 走 `single`：`desktop/rename` 是**按名**一对一改的（护栏也是 name-keyed），
+ *     多选下天然无解，故工单184 上多选时它自然被置灰（#182 留在本文件里的接缝说明即指这一行）。
+ *   - DELETE 走 `any`：`desktop/trash {paths}` 是整批语义且**全有全无**（扫描池护栏先于任何
+ *     一件生效），内核自己的 Del 在多选时也是弹确认层整批送回收站。故工单184 上多选时它
+ *     仍然可用——现在只有单选，needs 的差别只在多选那一张票上显形。
+ *
  * 动作回调**不进状态**（状态只存数据），由 card.js 旁路持有：`run` 一律经内核既有桥接契约调用。
  * @type {{ id: string, label: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
  */
@@ -117,13 +128,34 @@ export const FILE_MENU_ROWS = [
   { id: 'copy-path', label: 'COPY PATH', needs: NEED_ANY },
   { id: 'copy', label: 'COPY', needs: NEED_ANY },
   { id: 'cut', label: 'CUT', needs: NEED_ANY },
+  { id: 'rename', label: 'RENAME', needs: NEED_SINGLE },
+  { id: 'delete', label: 'DELETE', needs: NEED_ANY },
 ]
 
 /**
- * 当前上下文：菜单作用于哪个选区（绝对路径数组）+ 剪贴板实况。
+ * 组卡菜单（卡片**空白处**右键；与文件菜单同一副壳、同一套裁决，工单183 立骨架）——**当前为空**。
+ *
+ * spec166「菜单（自绘外壳）」列的四行是 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE，四行**分别**由
+ * 工单185（建卡/编辑类型/解散）与工单186（粘贴路由）落地，本票一行都不含：本票交的是**接线**
+ * ——表、上下文、落位、遮罩、置灰、可见性全通，票子一到只需往这张表里加行（按 spec 的说明给
+ * EDIT TYPES / DISSOLVE 补 `visibleWhen`：只在自定义组卡与临时组卡上出现），**渲染端一行不改**
+ * （card.js 画的是 resolveMenuRows() 的输出，不是写死的行）。
+ *
+ * 为什么空表也不开层：nextMenuShell 的「一可见行都没有就不弹」是工单182 定的规则并被其测试钉死
+ * （弹一只空框毫无意义）。骨架既已铺到归约器门口，行一到即自动生效——这是本票的刻意选择，
+ * 不去动那条规则换一个「能弹的空菜单」。
+ * @type {{ id: string, label: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
+ */
+export const GROUP_CARD_MENU_ROWS = []
+
+/**
+ * 当前上下文：菜单作用于哪个选区（绝对路径数组）+ 剪贴板实况 + 菜单是**从哪儿**开出来的。
  * @typedef {object} MenuCtx
  * @property {readonly string[]} paths 当前选区（工单182 只有单选：一个路径）
  * @property {boolean} [pasteable] 剪贴板可贴实况（needs:'pasteable' 的行读它）
+ * @property {string} [cardId] 触发本次开层的卡片 id（组卡菜单用；文件菜单为空串）。
+ *   工单185 的 DISSOLVE / EDIT TYPES 按它判「这是不是自定义组卡或临时组卡」——落在 ctx 里而不是
+ *   藏在 card.js 的闭包里，是为了让 visibleWhen 成为唯一的可见性裁决出口（渲染端不判）。
  */
 
 /**
@@ -226,6 +258,7 @@ export const CLOSED_MENU = {
   y: 0,
   rows: [],
   paths: [],
+  cardId: '',
   box: { left: 0, top: 0, width: 0, height: 0 },
 }
 
@@ -238,6 +271,7 @@ export const CLOSED_MENU = {
  * @property {number} y
  * @property {readonly MenuRowState[]} rows 本次打开解析出来的行表
  * @property {readonly string[]} paths 本次打开冻结的选区（动作作用于它，菜单开着期间选区变了也不改）
+ * @property {string} cardId 本次打开冻结的来源卡片 id（组卡菜单用；文件菜单为空串。工单185 的行按它判卡片身份）
  * @property {MenuBox} box 钳制后的落位
  */
 
@@ -246,7 +280,7 @@ export const CLOSED_MENU = {
  * @typedef {{ kind: 'keyboard-tier', held: boolean }
  *   | { kind: 'show', rows: readonly MenuRowState[], box: MenuBox }
  *   | { kind: 'hide' }
- *   | { kind: 'run', id: string, paths: readonly string[] }
+ *   | { kind: 'run', id: string, paths: readonly string[], cardId: string }
  *   | { kind: 'hotzones' }
  *   | { kind: 'notify', type: string, payload?: object }} MenuEffect
  */
@@ -286,7 +320,7 @@ export function nextMenuShell(state, event) {
       const size = menuSizeOf(rows)
       const box = clampMenuBox({ x: event.x, y: event.y }, size, event.viewport)
       return {
-        state: { open: true, x: event.x, y: event.y, rows, paths: ctx.paths, box },
+        state: { open: true, x: event.x, y: event.y, rows, paths: ctx.paths, cardId: ctx.cardId || '', box },
         effects: [
           { kind: 'keyboard-tier', held: true },
           { kind: 'show', rows, box },
@@ -294,7 +328,7 @@ export function nextMenuShell(state, event) {
           {
             kind: 'notify',
             type: MENU_OPENED_NOTIFY,
-            payload: { x: event.x, y: event.y, box, rows: rows.map((r) => r.id) },
+            payload: { x: event.x, y: event.y, box, rows: rows.map((r) => r.id), cardId: ctx.cardId || '' },
           },
         ],
       }
@@ -308,7 +342,7 @@ export function nextMenuShell(state, event) {
           { kind: 'hide' },
           { kind: 'hotzones' },
           { kind: 'keyboard-tier', held: false },
-          { kind: 'run', id: row.id, paths: state.paths },
+          { kind: 'run', id: row.id, paths: state.paths, cardId: state.cardId },
           { kind: 'notify', type: MENU_CLOSED_NOTIFY, payload: { reason: 'action', row: row.id } },
         ],
       }

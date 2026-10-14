@@ -1,0 +1,297 @@
+/**
+ * 组卡插件测试用的**极简 DOM 桩**（工单183 抽出）。
+ *
+ * 为什么自带桩而不上 jsdom：本仓库没装 jsdom/happy-dom（package.json 里没有，也不为一条测试
+ * 加依赖），渲染层的既有测试一律是纯逻辑（tests/renderer/*）。这份桩只实现 doc-group-cards
+ * 入口真实用到的那几个面——createElement / append / classList / closest / addEventListener +
+ * **真冒泡**（沿 parent 链上溯，stopPropagation 即断链）——外加一个能派发 keydown 的 window 桩。
+ *
+ * 它证明的不是「DOM 怎么冒泡」（那是规范，这里只做最小近似），而是**card.js 把监听挂在哪、
+ * 铺没铺遮罩、焦点落没落到位、申报没申报、卸载摘了哪些节点**。
+ *
+ * **为什么现在才抽出来**：工单181 与工单182 各自带了一份几乎相同的桩（约 230 行 ×2），已经
+ * 是第三份出现的边缘——工单183 要再加一份。与其复制第四份，不如把两份收进这一处，让三张票
+ * 共用。抽取时取的是工单182 那份的超集（多了 key / clientX / clientY / preventDefault /
+ * window 的 EventTarget / document.querySelectorAll），故工单181 用到的那几个面一个不少。
+ * 工单183 在此基础上补了输入框那一面（value / focus / setSelectionRange / replaceWith /
+ * setAttribute），因为「焦点怎么落到输入框上」正是本票要钉的东西。
+ */
+export type DomEvent = {
+  type: string
+  target: Element
+  clientX: number
+  clientY: number
+  key?: string
+  stopped: boolean
+  stopPropagation(): void
+  preventDefault(): void
+}
+
+export type Listener = (ev: DomEvent) => void
+
+/**
+ * 焦点调用流水（模块级）：`focus()` 被调过几次、按什么次序、在哪个元素上。
+ *
+ * 本票要钉的正是**次序**——键盘档必须先持、focus 才落得到（宿主/契约里没有「聚焦某元素」的
+ * API，档让窗口可聚焦是第一步）。次序只有在一份共用的流水上才看得见，故挂在桩的模块级，
+ * 由 newDom() 每次清零（每条用例换一份全新文档，流水自然归零）。
+ */
+export const focusLog: Array<{ node: Element; tag: string }> = []
+
+/** 只认 class 选择器的 `closest`/`querySelectorAll`（card.js 只用 `.dgc-cell` / `.dgc-menu-row` 这类） */
+export function matches(node: Element, selector: string): boolean {
+  return selector.startsWith('.') && node.classList.contains(selector.slice(1))
+}
+
+export class Element {
+  parent: Element | null = null
+  children: Element[] = []
+  listeners = new Map<string, Listener[]>()
+  style: Record<string, string> = {}
+  dataset: Record<string, string> = {}
+  attrs: Record<string, string> = {}
+  /** 文档根标记：document.head 与宿主容器顶层各一 */
+  isRoot = false
+  alt = ''
+  draggable = false
+  src = ''
+  /** 输入框那一面（工单183）：真 DOM 上是 HTMLInputElement 的成员 */
+  type = ''
+  value = ''
+  maxLength = 255
+  spellcheck = true
+  selectionStart = 0
+  selectionEnd = 0
+  focused = false
+
+  constructor(public tagName: string, public id = '', public textContent = '') {}
+
+  private _className = ''
+
+  set className(v: string) {
+    this._className = v
+  }
+
+  get className(): string {
+    return this._className
+  }
+
+  get classList() {
+    const list = () => this.className.split(/\s+/).filter(Boolean)
+    return {
+      contains: (c: string) => list().includes(c),
+      add: (...cs: string[]) => {
+        const now = list()
+        for (const c of cs) if (!now.includes(c)) now.push(c)
+        this.className = now.join(' ')
+      },
+      remove: (...cs: string[]) => {
+        this.className = list().filter((c) => !cs.includes(c)).join(' ')
+      },
+    }
+  }
+
+  get firstChild(): Element | null {
+    return this.children[0] ?? null
+  }
+
+  /** 在桩里「已挂载」= 能沿 parent 链走到某个文档根 */
+  get isConnected(): boolean {
+    let n: Element | null = this
+    while (n.parent) n = n.parent
+    return n?.isRoot === true
+  }
+
+  appendChild(node: Element): Element {
+    node.parent = this
+    this.children.push(node)
+    return node
+  }
+
+  append(...nodes: Element[]): void {
+    for (const n of nodes) this.appendChild(n)
+  }
+
+  replaceChild(next: Element, old: Element): Element {
+    const i = this.children.indexOf(old)
+    if (i < 0) throw new Error('replaceChild：旧节点不在本节点内')
+    next.parent = this
+    this.children[i] = next
+    old.parent = null
+    return old
+  }
+
+  /** 就地顶替（真 DOM 的 Node.replaceWith）：新节点接管本节点在父节点里的槽位 */
+  replaceWith(...nodes: Element[]): void {
+    const p = this.parent
+    if (!p) return
+    const i = p.children.indexOf(this)
+    if (i < 0) return
+    for (const n of nodes) n.parent = p
+    p.children.splice(i, 1, ...nodes)
+    this.parent = null
+  }
+
+  remove(): void {
+    if (!this.parent) return
+    const i = this.parent.children.indexOf(this)
+    if (i >= 0) this.parent.children.splice(i, 1)
+    this.parent = null
+  }
+
+  setAttribute(name: string, value: string): void {
+    this.attrs[name] = value
+  }
+
+  getAttribute(name: string): string | null {
+    return name in this.attrs ? this.attrs[name] : null
+  }
+
+  /**
+   * 取焦点。真 DOM 上这一步要求窗口 focusable（面板默认 focusable:false，靠键盘档打开）——
+   * 桩不做这层检查，故「档先持、focus 在后」的次序由 focusLog 的记录次序来钉，不靠桩模拟。
+   */
+  focus(): void {
+    this.focused = true
+    focusLog.push({ node: this, tag: this.tagName })
+  }
+
+  select(): void {
+    this.selectionStart = 0
+    this.selectionEnd = this.value.length
+  }
+
+  setSelectionRange(start: number, end: number): void {
+    this.selectionStart = start
+    this.selectionEnd = end
+  }
+
+  addEventListener(type: string, fn: Listener): void {
+    const set = this.listeners.get(type) ?? []
+    set.push(fn)
+    this.listeners.set(type, set)
+  }
+
+  removeEventListener(type: string, fn: Listener): void {
+    const set = this.listeners.get(type)
+    if (!set) return
+    const i = set.indexOf(fn)
+    if (i >= 0) set.splice(i, 1)
+  }
+
+  contains(node: Element | null): boolean {
+    let n: Element | null = node
+    while (n) {
+      if (n === this) return true
+      n = n.parent
+    }
+    return false
+  }
+
+  closest(selector: string): Element | null {
+    let n: Element | null = this
+    while (n) {
+      if (matches(n, selector)) return n
+      n = n.parent
+    }
+    return null
+  }
+
+  querySelectorAll(selector: string): Element[] {
+    return walk(this).filter((n) => n !== this && matches(n, selector))
+  }
+
+  /** 真冒泡：自 target 起沿 parent 链上溯，`stopPropagation()` 即断链 */
+  dispatch(type: string, target: Element = this, init: Partial<DomEvent> = {}): DomEvent {
+    const ev: DomEvent = {
+      type,
+      target,
+      clientX: 0,
+      clientY: 0,
+      stopped: false,
+      stopPropagation() {
+        this.stopped = true
+      },
+      preventDefault() { /* 桩不实现默认行为，只记录调用不报错 */ },
+      ...init,
+    }
+    let n: Element | null = target
+    while (n) {
+      for (const fn of [...(n.listeners.get(type) ?? [])]) fn(ev)
+      if (ev.stopped) break
+      n = n.parent
+    }
+    return ev
+  }
+}
+
+/** 深度优先列出子元素（含自身） */
+export function walk(root: Element, out: Element[] = []): Element[] {
+  out.push(root)
+  for (const c of root.children) walk(c, out)
+  return out
+}
+
+/** 事件目标（window / document 共用一份语义）：只记监听，不冒泡到别处去 */
+export class EventTarget {
+  listeners = new Map<string, Listener[]>()
+
+  addEventListener(type: string, fn: Listener): void {
+    const set = this.listeners.get(type) ?? []
+    set.push(fn)
+    this.listeners.set(type, set)
+  }
+
+  removeEventListener(type: string, fn: Listener): void {
+    const set = this.listeners.get(type)
+    if (!set) return
+    const i = set.indexOf(fn)
+    if (i >= 0) set.splice(i, 1)
+  }
+
+  listenerCount(type: string): number {
+    return this.listeners.get(type)?.length ?? 0
+  }
+
+  dispatch(type: string, target: Element, init: Partial<DomEvent> = {}): DomEvent {
+    const ev: DomEvent = {
+      type,
+      target,
+      clientX: 0,
+      clientY: 0,
+      stopped: false,
+      stopPropagation() {
+        this.stopped = true
+      },
+      preventDefault() { /* 同上 */ },
+      ...init,
+    }
+    for (const fn of [...(this.listeners.get(type) ?? [])]) fn(ev)
+    return ev
+  }
+}
+
+/** 一份全新的文档：head / body（含内核文档区）/ document 门面；顺带把焦点流水清零 */
+export function newDom() {
+  focusLog.length = 0
+  const head = new Element('head')
+  const body = new Element('body')
+  head.isRoot = true
+  body.isRoot = true
+  const docZone = new Element('div', 'doc-zone')
+  docZone.style.display = 'flex'
+  body.appendChild(docZone)
+  const documentShim = {
+    head,
+    body,
+    createElement: (tag: string) => new Element(tag),
+    getElementById: (id: string) => {
+      if (!id) return null
+      for (const r of [head, body]) for (const n of walk(r)) if (n.id === id) return n
+      return null
+    },
+    /** 渲染层热区扫掠的**同一条**路径：document.querySelectorAll('.card') */
+    querySelectorAll: (selector: string) => body.querySelectorAll(selector),
+  }
+  return { documentShim, head, body, docZone }
+}

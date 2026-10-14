@@ -7,14 +7,10 @@
  *   - 菜单外的点击收起、面板自身的留白**不**收起、Esc 收起；
  *   - 关层后遮罩与菜单样式**一点不留**；
  *   - 键盘档开层持拿、关层与卸载必放，且**持放平衡**；
- *   - 五个动作各走各的内核既有契约，且全程没碰过 `window.deck.ctxMenu`（那是上下文菜单插件的
- *     非公开全局，它停用时本菜单必须照常工作）。
+ *   - 五个只读动作各走各的内核既有契约，且全程没碰过 `window.deck.ctxMenu`（那是上下文菜单
+ *     插件的非公开全局，它停用时本菜单必须照常工作）。
  *
- * 为什么自带一个极简 DOM 桩而不上 jsdom：本仓库没装 jsdom/happy-dom（也不为一条测试加依赖），
- * 渲染层的既有测试一律是纯逻辑（tests/renderer/*）。这里手写一个只实现 card.js 真实用到的那几个面的
- * 桩——createElement / append / classList / closest / addEventListener + **真冒泡**（沿 parent 链上溯，
- * stopPropagation 即断链），外加一个能派发 keydown 的 window 桩。桩证明的不是「DOM 怎么冒泡」
- * （那是规范），而是 card.js 把监听挂在哪、铺没铺遮罩、申报没申报、卸载摘了哪些节点。
+ * DOM 桩已抽到 doc-group-cards-dom-shim.ts（工单183 抽出，与工单181 的接线测试共用同一份）。
  */
 import { describe, expect, it, beforeEach } from 'vitest'
 import {
@@ -30,232 +26,7 @@ import {
   ROW_CLASS,
 } from '../../plugins/doc-group-cards/menu'
 import plugin, { STYLE_ID, type Host, type HostDesktopItem, type HostView } from '../../plugins/doc-group-cards/card'
-
-// ---------------------------------------------------------------------------
-// 极简 DOM 桩
-// ---------------------------------------------------------------------------
-
-type Listener = (ev: DomEvent) => void
-
-type DomEvent = {
-  type: string
-  target: Element
-  clientX: number
-  clientY: number
-  key?: string
-  stopped: boolean
-  stopPropagation(): void
-  preventDefault(): void
-}
-
-/** 只认 class 选择器的 `closest`（card.js 只用 `.dgc-cell` / `.dgc-menu-row` 这类） */
-function matches(node: Element, selector: string): boolean {
-  return selector.startsWith('.') && node.classList.contains(selector.slice(1))
-}
-
-class Element {
-  parent: Element | null = null
-  children: Element[] = []
-  listeners = new Map<string, Listener[]>()
-  style: Record<string, string> = {}
-  dataset: Record<string, string> = {}
-  /** 文档根标记：document.head 与宿主容器顶层各一 */
-  isRoot = false
-  alt = ''
-  draggable = false
-  src = ''
-
-  constructor(public tagName: string, public id = '', public textContent = '') {}
-
-  private _className = ''
-
-  set className(v: string) {
-    this._className = v
-  }
-
-  get className(): string {
-    return this._className
-  }
-
-  get classList() {
-    const list = () => this.className.split(/\s+/).filter(Boolean)
-    return {
-      contains: (c: string) => list().includes(c),
-      add: (...cs: string[]) => {
-        const now = list()
-        for (const c of cs) if (!now.includes(c)) now.push(c)
-        this.className = now.join(' ')
-      },
-      remove: (...cs: string[]) => {
-        this.className = list().filter((c) => !cs.includes(c)).join(' ')
-      },
-    }
-  }
-
-  get firstChild(): Element | null {
-    return this.children[0] ?? null
-  }
-
-  /** 在桩里「已挂载」= 能沿 parent 链走到某个文档根 */
-  get isConnected(): boolean {
-    let n: Element | null = this
-    while (n.parent) n = n.parent
-    return n?.isRoot === true
-  }
-
-  appendChild(node: Element): Element {
-    node.parent = this
-    this.children.push(node)
-    return node
-  }
-
-  append(...nodes: Element[]): void {
-    for (const n of nodes) this.appendChild(n)
-  }
-
-  replaceChild(next: Element, old: Element): Element {
-    const i = this.children.indexOf(old)
-    if (i < 0) throw new Error('replaceChild：旧节点不在本节点内')
-    next.parent = this
-    this.children[i] = next
-    old.parent = null
-    return old
-  }
-
-  remove(): void {
-    if (!this.parent) return
-    const i = this.parent.children.indexOf(this)
-    if (i >= 0) this.parent.children.splice(i, 1)
-    this.parent = null
-  }
-
-  addEventListener(type: string, fn: Listener): void {
-    const set = this.listeners.get(type) ?? []
-    set.push(fn)
-    this.listeners.set(type, set)
-  }
-
-  removeEventListener(type: string, fn: Listener): void {
-    const set = this.listeners.get(type)
-    if (!set) return
-    const i = set.indexOf(fn)
-    if (i >= 0) set.splice(i, 1)
-  }
-
-  contains(node: Element | null): boolean {
-    let n: Element | null = node
-    while (n) {
-      if (n === this) return true
-      n = n.parent
-    }
-    return false
-  }
-
-  closest(selector: string): Element | null {
-    let n: Element | null = this
-    while (n) {
-      if (matches(n, selector)) return n
-      n = n.parent
-    }
-    return null
-  }
-
-  querySelectorAll(selector: string): Element[] {
-    return walk(this).filter((n) => n !== this && matches(n, selector))
-  }
-
-  /** 真冒泡：自 target 起沿 parent 链上溯，`stopPropagation()` 即断链 */
-  dispatch(type: string, target: Element = this, init: Partial<DomEvent> = {}): DomEvent {
-    const ev: DomEvent = {
-      type,
-      target,
-      clientX: 0,
-      clientY: 0,
-      stopped: false,
-      stopPropagation() {
-        this.stopped = true
-      },
-      preventDefault() { /* 桩不实现默认行为，只记录调用不报错 */ },
-      ...init,
-    }
-    let n: Element | null = target
-    while (n) {
-      for (const fn of [...(n.listeners.get(type) ?? [])]) fn(ev)
-      if (ev.stopped) break
-      n = n.parent
-    }
-    return ev
-  }
-}
-
-/** 深度优先列出子元素（含自身） */
-function walk(root: Element, out: Element[] = []): Element[] {
-  out.push(root)
-  for (const c of root.children) walk(c, out)
-  return out
-}
-
-/** 事件目标（window / document 共用一份语义）：只记监听，不冒泡到别处去 */
-class EventTarget {
-  listeners = new Map<string, Listener[]>()
-
-  addEventListener(type: string, fn: Listener): void {
-    const set = this.listeners.get(type) ?? []
-    set.push(fn)
-    this.listeners.set(type, set)
-  }
-
-  removeEventListener(type: string, fn: Listener): void {
-    const set = this.listeners.get(type)
-    if (!set) return
-    const i = set.indexOf(fn)
-    if (i >= 0) set.splice(i, 1)
-  }
-
-  listenerCount(type: string): number {
-    return this.listeners.get(type)?.length ?? 0
-  }
-
-  dispatch(type: string, target: Element, init: Partial<DomEvent> = {}): DomEvent {
-    const ev: DomEvent = {
-      type,
-      target,
-      clientX: 0,
-      clientY: 0,
-      stopped: false,
-      stopPropagation() {
-        this.stopped = true
-      },
-      preventDefault() { /* 同上 */ },
-      ...init,
-    }
-    for (const fn of [...(this.listeners.get(type) ?? [])]) fn(ev)
-    return ev
-  }
-}
-
-function newDom() {
-  const head = new Element('head')
-  const body = new Element('body')
-  head.isRoot = true
-  body.isRoot = true
-  const docZone = new Element('div', 'doc-zone')
-  docZone.style.display = 'flex'
-  body.appendChild(docZone)
-  const documentShim = {
-    head,
-    body,
-    createElement: (tag: string) => new Element(tag),
-    getElementById: (id: string) => {
-      if (!id) return null
-      for (const r of [head, body]) for (const n of walk(r)) if (n.id === id) return n
-      return null
-    },
-    /** 渲染层热区扫掠的**同一条**路径：document.querySelectorAll('.card') */
-    querySelectorAll: (selector: string) => body.querySelectorAll(selector),
-  }
-  return { documentShim, head, body, docZone }
-}
+import { Element, EventTarget, newDom, walk } from './doc-group-cards-dom-shim'
 
 // ---------------------------------------------------------------------------
 // 宿主桩
@@ -449,26 +220,26 @@ describe('右键出菜单：全屏遮罩真的铺出来了（工单182：热区�
   })
 })
 
-describe('文件菜单只读五项（工单182）', () => {
-  it('五行的顺序与文案即票面所列', () => {
+describe('文件菜单七项（工单182 只读五项 + 工单183 写两项 RENAME/DELETE）', () => {
+  it('七行的顺序与文案即 spec166「菜单（自绘外壳）」所列', () => {
     plugin.mount(h.host)
     rightClick(cellsOf(cards()[0])[0])
-    expect(labels()).toEqual(['OPEN', 'OPEN LOCATION', 'COPY PATH', 'COPY', 'CUT'])
-    expect(rowsOf().map((r) => r.dataset.row)).toEqual(['open', 'open-location', 'copy-path', 'copy', 'cut'])
+    expect(labels()).toEqual(['OPEN', 'OPEN LOCATION', 'COPY PATH', 'COPY', 'CUT', 'RENAME', 'DELETE'])
+    expect(rowsOf().map((r) => r.dataset.row)).toEqual(['open', 'open-location', 'copy-path', 'copy', 'cut', 'rename', 'delete'])
   })
 
-  it('五项**全部可用**：没有一行带置灰类名（单选态下本票不置灰任何一行）', () => {
+  it('七项**全部可用**：没有一行带置灰类名（单选态下本票不置灰任何一行）', () => {
     plugin.mount(h.host)
     rightClick(cellsOf(cards()[0])[0])
-    expect(rowsOf()).toHaveLength(5)
+    expect(rowsOf()).toHaveLength(7)
     expect(rowsOf().some((r) => classesOf(r).includes(DISABLED_CLASS))).toBe(false)
   })
 
   it('面板尺寸 = 钳制用的那一份（几何只有一个出处：CSS 里的行高/内边距由常量插值）', () => {
     plugin.mount(h.host)
     rightClick(cellsOf(cards()[0])[0])
-    // 5 行 × 26 + 2 × 6 = 142
-    expect(panel()!.style.height).toBe('142px')
+    // 7 行 × 26 + 2 × 6 = 194
+    expect(panel()!.style.height).toBe('194px')
     expect(panel()!.style.width).toBe('176px')
   })
 
@@ -586,7 +357,7 @@ describe('收起的三条路（外击 / Esc / 动作），关层一点不留', (
     rightClick(cellsOf(cards()[0])[1])
     const overlays = dom.documentShim.querySelectorAll('.card').filter((n) => n.id === OVERLAY_ID)
     expect(overlays).toHaveLength(1)
-    expect(dom.documentShim.querySelectorAll(`.${ROW_CLASS}`)).toHaveLength(5)
+    expect(dom.documentShim.querySelectorAll(`.${ROW_CLASS}`)).toHaveLength(7)
     expect(dom.head.children.filter((n) => n.id === MENU_STYLE_ID)).toHaveLength(1)
   })
 })
@@ -642,7 +413,7 @@ describe('零依赖运行期证明（验收标准：上下文菜单插件停用�
     expect(h.ctxMenuTouched()).toBe(false)
     plugin.mount(h.host)
     rightClick(cellsOf(cards()[0])[0])
-    expect(labels()).toHaveLength(5)
+    expect(labels()).toHaveLength(7)
     rowById('copy').dispatch('click')
     pressEsc()
     rightClick(cellsOf(cards()[0])[0])
@@ -657,7 +428,7 @@ describe('零依赖运行期证明（验收标准：上下文菜单插件停用�
     expect(note?.payload).toMatchObject({
       x: 1234,
       y: 567,
-      rows: ['open', 'open-location', 'copy-path', 'copy', 'cut'],
+      rows: ['open', 'open-location', 'copy-path', 'copy', 'cut', 'rename', 'delete'],
     })
     expect((note?.payload as { box: { left: number; top: number } }).box).toMatchObject({ left: 1234, top: 567 })
   })

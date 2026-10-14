@@ -58,6 +58,22 @@ export function isCardToggle(hit) {
   return hit === 'card-blank' || hit === 'more'
 }
 
+/**
+ * 这次右键该不该开**组卡菜单**（工单183）。
+ *
+ * 与 {@link isCardToggle} 同一道闸、同一个 spirit：**图标格上右键是文件菜单**，格那侧已经
+ * 截断冒泡自己开去了；即便漏了，这里也返回 false，卡片级监听器对图标命中无动作可做。
+ * 徽标与空白处等价（卡片自己的空白面，spec166：组卡菜单是卡片空白右键）。
+ *
+ * 组卡菜单的行表当前是空的（spec166 的 PASTE / NEW GROUP / EDIT TYPES / DISSOLVE 分属
+ * 工单185/186），故本题只钉住**裁决**这一半：命中判对了，行到即自动出菜单。
+ * @param {ClickHit} hit
+ * @returns {boolean}
+ */
+export function isGroupMenuHit(hit) {
+  return hit === 'card-blank' || hit === 'more'
+}
+
 /** 初始态：收起、无高亮。热重载重挂（换代即新模块实例）回到的就是这个态 */
 export function initialCardState() {
   return { expanded: false, highlight: new Set() }
