@@ -41,9 +41,9 @@
 //      反复切换前台应用组位次纹丝不动；新面孔追加最右/全关消失/复启回最右；
 //      钉入原地转正（手钉段末位=落最后一个手钉之后，安静栏面即位次不动）、
 //      已钉应用开新窗并入钉图标呈运行态、关闭后不消失、解除未运行消失、
-//      解除在运行原地转运行。探针 = cmd 副本×3（P16② 同款：真控制台窗、进程
-//      常驻、镜像名唯一），位次读数 = get-state 的 apps 数组（编排序权威真源），
-//      taskbar-geometry 几何帧互证。
+//      解除在运行原地转运行。探针 = csc 现编译 WinForms 最小窗副本×3（自有探针：
+//      窗直属探针进程、镜像名唯一、真多开；选型取证见 seedP18Probes 注），位次读数
+//      = get-state 的 apps 数组（编排序权威真源），taskbar-geometry 几何帧互证。
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -473,24 +473,59 @@ function cleanupRecsProbes(p16) {
   try { fs.rmSync(p16.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
 }
 
-// —— P18 统一序列探针（工单189）：charmap 副本×3 ——
-// GUI 探针（P9B charmap 先例）：窗直属探针进程（exe 身份唯一、可点名收杀）——第 3 轮
-// 实证 cmd 副本在本机被 Windows Terminal 代持（栏面身份=windowsterminal.exe，全并一格，
-// 探针 exe 身份永不进栏），控制台探针在默认终端宿主下不可用。charmap 为经典 Win32
-// GUI（可见带标题主窗、可多开），三副本互不并实例。痕迹 cleanupP18Probes 摘除。
+// —— P18 统一序列探针（工单189）：csc 现编译 WinForms 最小窗，副本×3 ——
+// 探针选型四轮真机取证留痕（禁静默换径）：
+//   R2 cmd 副本直接 spawn 无窗——默认终端宿主（Windows Terminal）接管控制台窗；
+//   R3 openPath 后窗出场但栏面身份=windowsterminal.exe 全并一格——控制台窗宿主
+//      代持，探针 exe 身份永不进栏，cmd 族在默认终端形态下整族不可用；
+//   R4 charmap 副本 openPath 无错而进程=0——Win11 System32 charmap.exe 副本本机
+//      不启动（秒退）；notepad 副本同症（秒退 code=0，P16 种入注同证：存根重定向
+//      Store 版，进程/窗两级判据都抓不到）——「拷贝系统 GUI exe」路线在本机否决；
+//   R5 自有探针：csc（.NET Framework 自带，无新依赖）现编译 WinForms 最小窗，
+//      副本×3 各自镜像名唯一。一次性取证实证：编译 446ms、三副本进程=1 且窗直属
+//      探针 exe（标题含镜像名）、ShellExecute 通路 OK、二实例不并、taskkill 收杀
+//      干净。窗按 tag 横向错位摆开（focus18 点中兜底不误点邻探针）。
+const P18_PROBE_CS = `
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+static class Probe {
+  [STAThread]
+  static void Main() {
+    string img = AppDomain.CurrentDomain.FriendlyName; // deck-p18-N.exe
+    int tag = 1;
+    int p = img.LastIndexOf('-');
+    if (p >= 0) int.TryParse(img.Substring(p + 1), out tag);
+    Form f = new Form();
+    f.Text = img + " deck-p18 probe";
+    f.StartPosition = FormStartPosition.Manual;
+    f.Bounds = new Rectangle(40 + (tag - 1) * 360, 60, 300, 160);
+    Application.Run(f);
+  }
+}
+`;
 function seedP18Probes(rep) {
   try {
     const sysRoot = process.env.SystemRoot || 'C:\\Windows';
-    const src = path.join(sysRoot, 'System32', 'charmap.exe');
-    if (!fs.existsSync(src)) {
-      rep.note('P18 探针前置失败：charmap.exe 缺失');
+    const csc = path.join(sysRoot, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+    if (!fs.existsSync(csc)) {
+      rep.note('P18 探针前置失败：csc.exe 缺失（.NET Framework4.x）');
       return null;
     }
     const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p18-'));
+    const csFile = path.join(tmpDir, 'probe.cs');
+    fs.writeFileSync(csFile, P18_PROBE_CS, 'utf8');
+    const built = spawnSync(csc, ['/nologo', '/target:winexe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+      `/out:${path.join(tmpDir, 'deck-p18-probe.exe')}`, csFile], { encoding: 'utf8' });
+    if (built.status !== 0 || !fs.existsSync(path.join(tmpDir, 'deck-p18-probe.exe'))) {
+      rep.note(`P18 探针编译失败：status=${built.status} ${(built.stderr || '').trim().slice(0, 200)}`);
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      return null;
+    }
     const tags = ['1', '2', '3'];
     const probes = tags.map((tag) => {
       const exe = path.join(tmpDir, `deck-p18-${tag}.exe`);
-      fs.copyFileSync(src, exe);
+      fs.copyFileSync(path.join(tmpDir, 'deck-p18-probe.exe'), exe);
       return { tag, exe, img: path.basename(exe), hwnd: 0, child: null };
     });
     return { tmpDir, probes, done: false };
@@ -1935,37 +1970,30 @@ async function main() {
         const r = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${img}`, '/NH'], { encoding: 'utf8' });
         return ((r.stdout || '').toLowerCase().match(new RegExp(img.toLowerCase().replace(/\./g, '\\.'), 'g')) || []).length;
       };
-      // 探针窗定位：经典主控台（窗直属探针进程）+ 终端宿主代持（Win11 24H2+ 默认终端
-      // = Windows Terminal，控制台窗属 WindowsTerminal.exe，按窗标题含探针镜像名匹配
-      // ——第 2 轮实证：cmd 副本进程在场而两类控制台类名无窗）
-      const consoleWin18 = (p) => {
+      // 探针窗定位：自有 GUI 探针窗直属探针进程（R5 取证：标题含镜像名，按 exe
+      // 归属识别，不猜类名）。R2/R3 的终端宿主代持匹配已随控制台探针废弃。
+      const probeWin18 = (p) => {
         const stem = stem18(p.img);
         for (const h of win32.topLevelWindows()) {
-          if (win32.exeNameOfWindow(h) === stem) return h;
-        }
-        for (const h of win32.topLevelWindows()) {
-          const t = titleOf(h);
-          if (t.includes(p.img) || t.includes(stem)) {
-            if (['windowsterminal', 'conhost', 'openconsole'].includes(win32.exeNameOfWindow(h))) return h;
-          }
+          if (win32.exeNameOfWindow(h) === stem && win32.IsWindowVisible(h)) return h;
         }
         return null;
       };
-      // 启动经 shell 通道（ShellExecute，P16② 已证出真控制台窗/进程；直接 spawn 在本机
-      // 不出窗——第 2 轮实证 q1/q2 双双无窗）。失败诊断：进程数 + 同名进程的全窗类名清单。
+      // 启动经 shell 通道（ShellExecute，贴近用户路径；P16② 同通道已证端到端）。
+      // 失败诊断：进程数 + 探针镜像名相关窗清单（GUI 探针窗直属自身进程，无宿主代持形态）。
       const launch18 = async (p) => {
         const err18 = await require('electron').shell.openPath(p.exe);
         if (err18) { p.diag = `openPath=${err18}`; return false; }
         let hwnd = null;
-        for (let i = 0; i < 30 && !hwnd; i++) { await sleep(200); hwnd = consoleWin18(p); }
+        for (let i = 0; i < 30 && !hwnd; i++) { await sleep(200); hwnd = probeWin18(p); }
         p.hwnd = hwnd || 0;
         if (!hwnd) {
+          const stem = stem18(p.img);
           const wins18 = win32.topLevelWindows()
-            .filter((h) => ['windowsterminal', 'conhost', 'openconsole'].includes(win32.exeNameOfWindow(h))
-              || win32.exeNameOfWindow(h) === stem18(p.img))
+            .filter((h) => win32.exeNameOfWindow(h) === stem || titleOf(h).includes(p.img))
             .slice(0, 8)
             .map((h) => `${win32.exeNameOfWindow(h)}:${titleOf(h).slice(0, 48)}`);
-          p.diag = `进程=${procCount18(p.img)} 终端/同名窗=[${wins18.join(' | ') || '无'}]`;
+          p.diag = `进程=${procCount18(p.img)} 同名窗=[${wins18.join(' | ') || '无'}]`;
           return false;
         }
         return true;
