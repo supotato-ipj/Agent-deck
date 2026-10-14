@@ -14,6 +14,9 @@ import type { EventLog } from '../panel-ipc'
 const SW_HIDE = 0
 const SW_SHOW = 5
 
+/** Win32 标准弹出菜单窗类名（user32 内部菜单窗口，右键菜单的标准形态） */
+export const MENU_WINDOW_CLASS = '#32768'
+
 const user32 = koffi.load('user32.dll')
 const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)')
 const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, _Out_ uint32 *pid)')
@@ -131,4 +134,35 @@ export function forceShowNativeTaskbar(log: EventLog | null): void {
   if (!wasVisible) ShowWindow(hwnd, SW_SHOW)
   const ok = Boolean(IsWindowVisible(hwnd))
   log?.append({ type: ok ? 'taskbar-restored' : 'taskbar-restore-failed', reason: 'force', wasVisible, visibleAfter: nativeTaskbarVisible() })
+}
+
+/** 窗口属主 pid；句柄缺位（窗口已销）返回 0 */
+export function pidOfWindow(hwnd: number): number {
+  if (!hwnd) return 0
+  const pidBuf = Buffer.alloc(4)
+  GetWindowThreadProcessId(hwnd, pidBuf)
+  return pidBuf.readUInt32LE(0)
+}
+
+/**
+ * 在场可见的标准菜单窗（#32768）按属主 pid 清点（工单194 菜单关闭侦测第一路）。
+ * 枚举走既有 FindWindowExW 形态（nativeTrayWnd 同款游标循环）——新增绑定零新增
+ * 具名类型（koffi 具名类型进程级单登，#153 教训）。只数可见窗：关闭瞬间菜单窗
+ * 随销毁退场，隐藏残留不该把「菜单已关」误判成「菜单在场」。
+ */
+export function menuWindowCountByPids(pids: readonly number[]): Map<number, number> {
+  const counts = new Map<number, number>()
+  if (pids.length === 0) return counts
+  const wanted = new Set(pids)
+  let after = 0
+  for (;;) {
+    const h = Number(FindWindowExW(0, after, MENU_WINDOW_CLASS, null))
+    if (!h) break
+    after = h
+    if (!IsWindowVisible(h)) continue
+    const pid = pidOfWindow(h)
+    if (!wanted.has(pid)) continue
+    counts.set(pid, (counts.get(pid) ?? 0) + 1)
+  }
+  return counts
 }

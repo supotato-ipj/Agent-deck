@@ -163,6 +163,10 @@ export class TaskbarService extends Service {
   private layoutReady = false
   /** 托盘图标像素缓存（工单56：iconKey → 像素字节；随名单增删按需剪枝，仅内存不落盘） */
   private readonly trayPixels = new Map<string, TaskbarTrayPixels>()
+  /** 托盘条目身份键 → 图标属主窗口 hwnd（工单194：右键回放让位的 pid 解析依据。
+   * 托盘事件流携带 hwnd 但契约面 TaskbarTrayEntry 不外发——此处随名单维护影子账，
+   * 仅内存不落盘，禁用即清（与 trayPixels 同纪律）。 */
+  private readonly trayHwnds = new Map<string, string>()
 
   constructor(ctx: Context, options: TaskbarServiceOptions = {}) {
     super(ctx, 'taskbar')
@@ -284,6 +288,7 @@ export class TaskbarService extends Service {
     if (!enabled) {
       this.current = { ...this.current, tray: [] }
       this.trayPixels.clear()
+      this.trayHwnds.clear()
     }
     return this.commit({ ...this.current, enabled })
   }
@@ -473,6 +478,10 @@ export class TaskbarService extends Service {
    * 拖垮渲染层）。剪枝按在场名单的 iconKey 集合，退场图标的像素随即释放（仅内存）。
    */
   onTrayEvent(event: TrayWireEvent): void {
+    // 影子 hwnd 账（工单194）先于名单变化早退维护：同名条目换了属主窗口（应用重启、
+    // guid 键不变 hwnd 换新）时名单可能零变化，账却必须跟上最新 hwnd。
+    if (event.kind === 'delete') this.trayHwnds.delete(event.key)
+    else if (event.kind === 'add' || event.kind === 'update') this.trayHwnds.set(event.key, event.hwnd)
     const next = applyTrayEvent(this.current.tray, event)
     if (sameTrayIcons(this.current.tray, next)) return
     const iconKey = trayIconKeyOf(event)
@@ -494,9 +503,16 @@ export class TaskbarService extends Service {
    * 托盘图标点击回放（工单56）：key 护栏 = 必须在当前栏内名单（应用退场与点击同帧的竞态
    * 走普通失败，不抛）；负载合成与投递在数据面托盘宿主（Win32 真源同处），本方法只做
    * 护栏与转发。
+   * 右键回放先发让位起拍事件（工单194）：条带是置顶带，应用菜单诞生在普通带压不过——
+   * 效果层（taskbar/window.ts 控制器）收到事件即把条带临时降非置顶。必须在转发回放
+   * **之前**同步发出：菜单在应用处理回调后才诞生，让位先落位才有「菜单生在让位后」
+   * 的 z 序保证（cordis emit 同步派发，同轮内先于 PostMessage 链）。
    */
   trayClick(key: string, button: TaskbarTrayButton): { ok: boolean; error?: string } {
     if (!this.current.tray.some((i) => i.key === key)) return { ok: false, error: '托盘图标不在栏内名单' }
+    if (button === 'right') {
+      this.ctx.emit('taskbar/tray-replay-begin', { key, button, hwnd: this.trayHwnds.get(key) ?? null })
+    }
     try {
       return this.deps.replayTrayClick(key, button)
         ? { ok: true }
