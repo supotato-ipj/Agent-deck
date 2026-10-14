@@ -1201,11 +1201,20 @@ async function main() {
           // 面板钉底永不激活点不出 blur——缝隙点击落在面板上无效），此处不再拉探针重复拉证。
           let outsideClose16 = null;
           const gB2 = await waitGeometrySettled(repool16 || gU);
-          const ptB2 = appPt16(gB2, pB16.exe);
-          if (ptB2) {
+          let ptB2 = appPt16(gB2, pB16.exe);
+          // 右键两试（⑥解除臂同款：解除行点击后光标在浮层行上、离条带，热区轮询窗右键
+          // 偶发不开菜单——离位刷新热区 + 重取 settle 几何再试一次）
+          for (let attemptB2 = 0; attemptB2 < 2 && ptB2 && !outsideClose16; attemptB2++) {
             const sinceB2 = Date.now();
             win32.clickPhys(ptB2.x, ptB2.y, 'right');
             for (let i = 0; i < 12 && !popupSince16(sinceB2); i++) await sleep(200);
+            if (!popupSince16(sinceB2) && attemptB2 === 0) {
+              win32.moveMousePhys(ptB2.x, ptB2.y - 60); // 离位刷新热区
+              await sleep(300);
+              const gB2r = await waitGeometrySettled(latestGeometry(null));
+              ptB2 = appPt16(gB2r, pB16.exe);
+              continue;
+            }
             if (popupSince16(sinceB2)) {
               const gClock = latestGeometry(null);
               const clockCell = (gClock.rightCells || []).find((c) => c.id === 'clock');
