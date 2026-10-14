@@ -29,6 +29,9 @@ export type Host = {
   view: HostView
   notify(type: string, payload?: Record<string, unknown>): void
   invoke(method: string, payload: Record<string, unknown>): Promise<unknown>
+  /** 具名占用键盘档（工单100 通用能力）：开层即持，关层必放。窗口因此可聚焦，Esc 才送得到插件 */
+  holdKeyboardTier(tier: string): void
+  releaseKeyboardTier(tier: string): void
   /** 「我动了 DOM，请重扫热区」——插件侧唯一的热区重申报入口 */
   onDomChanged(): void
 }

@@ -1,11 +1,14 @@
-// 组卡（工单179 = spec166 之②，tracer bullet；工单181 = spec166 之④，交互语义与生命周期）：投放型插件包 doc-group-cards 的入口。
+// 组卡（工单179 = spec166 之②，tracer bullet；工单181 = spec166 之④，交互语义与生命周期；
+// 工单182 = spec166 之⑤，自绘菜单外壳与只读五项）：投放型插件包 doc-group-cards 的入口。
 //
 // 交付形态（ADR-0014）：投放型插件包，不是内置卡片包。源码在仓库内（app/plugins/doc-group-cards/），
 // 另有一道安装步骤把它拷进用户插件根；运行态仍投放型——删掉那个目录即完全撤回，内核文档区自己回来。
 // 本文件是浏览器可跑的 ES 模块（面板经 deck-plugin:// 原样 import，无编译步骤），故：
 //   - 分组规则在同目录 grouping.js（纯逻辑、零 DOM 零 Electron，vitest 直测）；
 //   - 交互裁决在同目录 interaction.js（同一条缝，工单181）；
-//   - 本文件只管「画卡」与「接线」：几何、图标、启动、点击监听、热区。
+//   - 折叠/展开几何在同目录 geometry.js（同一条缝，工单180）；
+//   - 菜单开合/置灰/落位在同目录 menu.js（同一条缝，工单182）；
+//   - 本文件只管「画卡」「接线」与「画菜单」：几何、图标、启动、点击监听、热区、菜单接线。
 //
 // 词：GLOSSARY 的**扩展组**（按单个扩展名聚合）是**组卡**（渲染它的那张卡）的分组单位；
 // 内核按类别聚合的**文档组**（六类列）与此并存、互不干涉（内核那条规则本插件一行不改）。
@@ -13,7 +16,7 @@
 // 装载即接管桌面文档的呈现：mount 藏掉内核文档区，unmount 原样还回去。呈现层的调用纪律：
 // 插件每一次改变卡片几何之后都必须主动 host.onDomChanged()——热区没有周期性重算，
 // 不申报新覆盖的区域就既点不到也滚不动（spec166「热区纪律」）。折叠切换会改形状，故申报；
-// 高亮只改类名不改布局盒，矩形不动，故不申报。
+// 高亮只改类名不改布局盒，矩形不动，故不申报。菜单遮罩一铺一撤都改几何，故两向都申报。
 
 import { extOf, groupByExtension } from './grouping.js'
 import {
@@ -47,6 +50,22 @@ import {
   initialCardState,
   isCardToggle,
 } from './interaction.js'
+import {
+  CLOSED_MENU,
+  DISABLED_CLASS,
+  FILE_MENU_ROWS,
+  KEYBOARD_TIER,
+  MENU_ACTION_NOTIFY,
+  MENU_CLOSED_NOTIFY,
+  MENU_CSS,
+  MENU_STYLE_ID,
+  OVERLAY_CLASS,
+  OVERLAY_ID,
+  PANEL_CLASS,
+  PANEL_ID,
+  ROW_CLASS,
+  nextMenuShell,
+} from './menu.js'
 
 const PLUGIN_ID = 'doc-group-cards'
 
@@ -212,6 +231,27 @@ let cardState = new Map()
  */
 const injected = []
 
+/**
+ * 按引用摘一个自建节点，并把它从登记表里划掉（关菜单只摘菜单那两枚，不动样式表）。
+ * @param {Element | null} node
+ */
+function dropInjected(node) {
+  if (!node) return
+  const i = injected.indexOf(node)
+  if (i >= 0) injected.splice(i, 1)
+  node.remove()
+}
+
+/**
+ * 菜单壳状态（工单182）。归约器（menu.js）拥有它，本文件只负责把效果数组落到 DOM 与宿主上。
+ * 世代交换后重新装载一律回到闭态：菜单不该跨代续着开（上一代已经没人负责它的收尾了）。
+ */
+let menuState = CLOSED_MENU
+/** 开层期间挂在 document.body 上的全屏遮罩（按引用持有，关层即摘） */
+let overlayNode = null
+/** 开层期间挂在文档头的菜单样式元素（与菜单同寿：开层才插，关层即摘） */
+let menuStyleNode = null
+
 function injectStyle() {
   // 换代时先按 id 扫掉上一代可能没清干净的那一枚：留着它，装载期就会**静默沿用上一代的旧
   // 样式**，改了 CSS 也不生效（这正是「热重载后不留旧状态」要堵的口子）。扫的是本插件命名
@@ -242,6 +282,186 @@ function restoreDocZone() {
   if (!docZone) return
   docZone.style.display = docZoneDisplay
   docZone = null
+}
+
+// ---------------------------------------------------------------------------
+// 自绘菜单外壳（工单182 = spec166 之⑤）
+//
+// **不依赖任何其他插件。** 内置上下文菜单插件本机停用（config.json 的 plugins.disabled）、
+// 用户可随时关掉，且它挂在 window.deck.ctxMenu 上——那不是任何声明契约的一部分
+// （PluginHost / global.d.ts / BridgeMethods 都没有），依赖它等于交付一个开箱即坏的功能。
+// 故这里自己画、自己收、自己申报热区。
+//
+// **全屏热区接管的做法**：开层期间往 document.body 铺一张 `class="card"` 的全屏元素。
+// 渲染层的常规热区扫掠就是 `document.querySelectorAll('.card')` 取每个的 getBoundingClientRect，
+// 零尺寸矩形被滤掉——故一张铺满视口的 .card 即被声明成全屏热区，主进程那侧 25ms 轮询
+// 解掉鼠标穿透，面板在整屏范围内不再穿透（内核自己有同款特例：menuOpen()/trashConfirmOpen()
+// 直发全窗矩形；那是内核私有状态，插件够不着，铺一张遮罩就是插件侧的等价物）。
+// 撤遮罩后必须**再申报一次**，否则全屏热区会残留到菜单关闭之后。
+//
+// 关层要一样不漏地收回：遮罩节点、菜单样式元素、窗口 keydown 监听、键盘档。
+// ---------------------------------------------------------------------------
+
+/** 行点击：置灰行与未知 id 由归约器挡下（无效果、菜单不收）；此处只保证点击不上浮到遮罩 */
+function buildRow(host, row) {
+  const el = document.createElement('div')
+  el.className = row.enabled ? ROW_CLASS : `${ROW_CLASS} ${DISABLED_CLASS}`
+  el.dataset.row = row.id
+  el.textContent = row.label
+  el.addEventListener('click', (ev) => {
+    ev.stopPropagation() // 行点击到此为止：绝不外溢到遮罩的「菜单外点击」
+    dispatchMenu(host, { type: 'activate', id: row.id })
+  })
+  return el
+}
+
+/**
+ * 铺菜单：全屏遮罩 + 菜单面板 + 行表 + 两个接管面（遮罩上的菜单外点击、窗口上的 Esc）。
+ *
+ * 遮罩与面板的几何都按 menu.js 算出的数写**内联样式**：热区取的是 getBoundingClientRect()，
+ * 内联数字与纯模块的算式同源才不会出现「钳制按 A、画出来是 B」。`.card` 底盘带来的圆角/边框/
+ * 内边距/底色对一张遮罩全是多余的，用内联样式逐条中和（内联压得过面板样式表的 `.card`）。
+ */
+function showMenu(host, rows, box) {
+  hideMenu() // 重开不留两层：上一轮若有残留，先原样收干净
+
+  const style = document.createElement('style')
+  style.id = MENU_STYLE_ID
+  style.textContent = MENU_CSS
+  document.head.appendChild(style)
+  injected.push(style)
+  menuStyleNode = style
+
+  const overlay = document.createElement('div')
+  overlay.id = OVERLAY_ID
+  // class='card' 是热区扫掠唯一的通用入口，不挂则整屏仍穿透；id 必须唯一（扫掠不去重）
+  overlay.className = `card ${OVERLAY_CLASS}`
+  overlay.style.left = '0px'
+  overlay.style.top = '0px'
+  overlay.style.width = `${window.innerWidth}px`
+  overlay.style.height = `${window.innerHeight}px`
+  overlay.style.padding = '0'
+  overlay.style.border = 'none'
+  overlay.style.borderRadius = '0'
+  overlay.style.background = 'transparent'
+  // 盖在组卡之上：展开卡自带 z-index:2（工单180），遮罩不抬层级就会被它糊住
+  overlay.style.zIndex = '1000'
+
+  const panel = document.createElement('div')
+  panel.id = PANEL_ID
+  panel.className = PANEL_CLASS
+  panel.style.left = `${box.left}px`
+  panel.style.top = `${box.top}px`
+  panel.style.width = `${box.width}px`
+  panel.style.height = `${box.height}px`
+  for (const row of rows) panel.appendChild(buildRow(host, row))
+  overlay.appendChild(panel)
+
+  // 菜单外点击由遮罩接管（真菜单同款）。面板自身的留白**不**收起：那一击不是「菜单外」，
+  // 收起它只会让用户想瞄准某一行时手一抖就丢了菜单。
+  overlay.addEventListener('click', (ev) => {
+    if (panel.contains(ev.target)) return
+    ev.stopPropagation()
+    dispatchMenu(host, { type: 'dismiss', reason: 'outside' })
+  })
+
+  document.body.appendChild(overlay)
+  injected.push(overlay)
+  overlayNode = overlay
+  window.addEventListener('keydown', onMenuKeydown)
+}
+
+/** 关层：遮罩、菜单样式、窗口监听一起收，登记项也从表里划掉（关层后屏幕上一点不留） */
+function hideMenu() {
+  window.removeEventListener('keydown', onMenuKeydown)
+  dropInjected(overlayNode)
+  dropInjected(menuStyleNode)
+  overlayNode = null
+  menuStyleNode = null
+}
+
+/**
+ * Esc 收起。键盘档已由开层时的 `holdKeyboardTier` 持拿——窗口因此可聚焦，Esc 才送得到这里
+ * （内核的 Esc 定序把「插件档在持」等同浮层开，故键盘那段捕获监听会放行不拦，本监听是唯一处置处）。
+ */
+function onMenuKeydown(ev) {
+  if (!hostRef || ev.key !== 'Escape') return
+  ev.preventDefault()
+  ev.stopPropagation()
+  dispatchMenu(hostRef, { type: 'esc' })
+}
+
+/**
+ * 行动作：一律经内核既有桥接契约调用，插件自己不碰 shell、不碰剪贴板。
+ * 五个动作对应票面五项，与内核单项菜单（工单24）走同一批契约：
+ *   OPEN → desktop/launch（带扫描池护栏：不在扫描池内即 {ok:false}，不抛）
+ *   OPEN LOCATION → desktop/reveal（explorer /select, 内核执行，面板不写磁盘）
+ *   COPY PATH → desktop/copy-path（主进程写文本剪贴板；面板 focusable:false，
+ *              渲染层 navigator.clipboard 用不上，故只能走这条）
+ *   COPY → desktop/clipboard-copy（CF_HDROP + Preferred DropEffect=copy）
+ *   CUT  → desktop/clipboard-cut （同格式，拖放效果 = move，即搬移语义）
+ * @param {Host} host
+ * @param {string} id 行 id
+ * @param {readonly string[]} paths 开层时冻结的选区
+ */
+function runMenuRow(host, id, paths) {
+  const one = paths[0]
+  host.notify(MENU_ACTION_NOTIFY, { row: id, paths: [...paths] })
+  switch (id) {
+    case 'open':
+      void host.invoke('desktop/launch', { path: one })
+      return
+    case 'open-location':
+      void host.invoke('desktop/reveal', { path: one })
+      return
+    case 'copy-path':
+      void host.invoke('desktop/copy-path', { path: one })
+      return
+    case 'copy':
+      void host.invoke('desktop/clipboard-copy', { paths })
+      return
+    case 'cut':
+      void host.invoke('desktop/clipboard-cut', { paths })
+      return
+    default:
+      // 未知行不猜动作（工单183/185 新增的行在本票还不存在，真到了也会有自己的 case）
+  }
+}
+
+/** 一个事件一次合成：状态交给归约器，效果数组按序落到宿主与 DOM 上 */
+function dispatchMenu(host, event) {
+  if (!host) return
+  const next = nextMenuShell(menuState, event)
+  menuState = next.state
+  for (const fx of next.effects) {
+    if (fx.kind === 'keyboard-tier') {
+      if (fx.held) host.holdKeyboardTier(KEYBOARD_TIER)
+      else host.releaseKeyboardTier(KEYBOARD_TIER)
+    } else if (fx.kind === 'show') {
+      showMenu(host, fx.rows, fx.box)
+    } else if (fx.kind === 'hide') {
+      hideMenu()
+    } else if (fx.kind === 'run') {
+      runMenuRow(host, fx.id, fx.paths)
+    } else if (fx.kind === 'hotzones') {
+      // 热区纪律：遮罩一铺一撤都改了矩形，两个方向都要让渲染层重扫
+      host.onDomChanged()
+    } else if (fx.kind === 'notify') {
+      host.notify(fx.type, fx.payload)
+    }
+  }
+}
+
+/** 在一个文件上打开只读五项（右键落点即菜单原点，越界由 menu.js 钳制） */
+function openFileMenu(host, x, y, paths) {
+  dispatchMenu(host, {
+    type: 'open',
+    x,
+    y,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    specs: FILE_MENU_ROWS,
+    ctx: { paths },
+  })
 }
 
 /** 该卡当前的交互态（没有记录过就是初始态：收起、无高亮） */
@@ -357,6 +577,18 @@ function buildCell(host, item, card) {
     host.notify('doc-group-cards-launch', { path: item.path, name: item.name })
     void host.invoke('desktop/launch', { path: item.path })
   })
+  // 右键：本插件自绘的只读菜单（工单182）。不派发给内核那份——它挂在 window.deckCtxMenu 上
+  // 且本机停用；停用时内核那段只会空转，依赖它等于交付开箱即坏的功能。
+  cell.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault() // 自绘世界观没有原生右键菜单
+    ev.stopPropagation() // 不让文档区的右键分发看见这次右键（它只会去调停用的内核菜单）
+    // 右键即选中该文件（与内核单项菜单同语义：先切选区再弹菜单）：复用 #181 的单选裁决，
+    // 高亮与选区口径同源，不另设一份「菜单开着时选中谁」的真相。
+    const next = clickOnIcon(stateOf(card), item.path)
+    cardState.set(card.id, next.state)
+    paintStates(cardState) // 只改类名不改布局盒 → 不申报热区（#181 的纪律）
+    openFileMenu(host, ev.clientX, ev.clientY, [item.path])
+  })
   return cell
 }
 
@@ -465,6 +697,7 @@ function onResize() {
 export default {
   mount(host) {
     hostRef = host
+    menuState = CLOSED_MENU // 换代后从头来过：菜单不跨代续着开
     injectStyle()
     try {
       hideDocZone()
@@ -494,6 +727,10 @@ export default {
 
   unmount() {
     window.removeEventListener('resize', onResize)
+    // 菜单开着就静默收场：遮罩/样式/键盘档一样不漏地收回（归约器的 unmount 事件不带存证——
+    // 通道随插件消亡，但热区必须重申报，否则全屏热区会残留到卸载之后）
+    dispatchMenu(hostRef, { type: 'unmount' })
+    menuState = CLOSED_MENU
     for (const card of cardNodes.values()) card.remove()
     cardNodes.clear()
     cardState = new Map()
