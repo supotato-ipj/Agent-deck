@@ -17,30 +17,36 @@
 
 import { extOf, groupByExtension } from './grouping.js'
 import {
+  CARD_PAD_X,
+  CARD_PAD_Y,
+  CARD_GAP,
+  CELL,
+  CELL_GAP,
+  COLLAPSED_COLS,
+  COLLAPSED_ROWS,
+  EXPANDED_COLS,
+  EXPANDED_H,
+  EXPANDED_W,
+  HEAD_H,
+  moreLabelOf,
+  rowLayoutOf,
+} from './geometry.js'
+import {
   CARD_CLASS,
   CELL_CLASS,
   EXPANDED_CLASS,
+  FADED_CLASS,
   HIGHLIGHT_CLASS,
   MORE_CLASS,
-  clickOnCardBlank,
   clickOnIcon,
+  clickToggleExclusive,
+  expandedCardIdOf,
   expandedClassOf,
+  fadedClassOf,
   highlightClassOf,
   initialCardState,
   isCardToggle,
 } from './interaction.js'
-
-// ---- 折叠态几何（工单179：宽 320、内容区 280、单格 88、3 列 × 2 行）----
-const CARD_W = 320
-const CARD_H = 244
-const COLS = 3
-const ROWS = 2
-const CELL = 88
-const CELL_GAP = 8
-/** 卡间横向留白，与内核文档区的 column-gap（index.html #doc-groups）同值 */
-const CARD_GAP = 18
-/** 卡头行高 + 下边距（`.card h2` 家族：11px 字 + 10px 下边距，此处定死保证热区矩形稳定） */
-const HEAD_H = 24
 
 const PLUGIN_ID = 'doc-group-cards'
 
@@ -52,10 +58,15 @@ export const STYLE_ID = 'dgc-style'
  *
  * 作用域根是**卡片根类名** `.dgc-card`，不是样式元素自己的 id：`#dgc-style .dgc-cell` 这种写法
  * 选的是「#dgc-style 的元素后代里的 .dgc-cell」，而 <style> 元素在 DOM 树里没有任何后代，
- * 于是整表规则一条都不会命中（工单179 原样如此，本票顺带修正——不改这条，本票新加的高亮与
- * 指针样式同样是哑的）。
+ * 于是整表规则一条都不会命中（工单179 原样如此，工单181 修正——不改这条，新增规则同样是哑的）。
  *
- * 折叠几何一行不写：那张表留给工单180，挂在 `.card.dgc-expanded` 上即可（见 EXPANDED_CLASS）。
+ * 几何只有一个出处：`geometry.js`。本表里的格子尺寸与列数都从那里插值进来，卡框那两行
+ * （width/height）则由 JS 按 geometry.js 的同一张表写进行内样式——CSS 与 JS 各写一份宽度，
+ * 迟早会有一份过期，而热区矩形取的是 getBoundingClientRect()，两份数字打架时用户看到的是错的。
+ *
+ * 展开态的**卡框**在 JS（内联），**内容区重排与滚动**在这里（`.dgc-expanded .dgc-grid`）：
+ * 内容区没有任何内联对手，交给 CSS 才是它该待的地方；卡框必须跟着 `.dgc-expanded` 这个类名走，
+ * 否则工单181 留在 interaction.js 里的那道接缝（只切类名、不写几何）就白留了。
  */
 const CARD_CSS = `
 .${CARD_CLASS} {
@@ -67,15 +78,57 @@ const CARD_CSS = `
   line-height: 14px;
   overflow: hidden;
   white-space: nowrap;
+  /* 徽标挂在标题行右侧：卡片本身是 .card（position:fixed），内部要自己开定位上下文 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+.${CARD_CLASS} .dgc-title { overflow: hidden; text-overflow: ellipsis; }
+/* 「+N」徽标：折叠态藏起来的个数。仅在确有溢出时渲染（见 geometry.js moreLabelOf）。 */
+.${CARD_CLASS} .${MORE_CLASS} {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #cfd3d6;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+}
+.${CARD_CLASS} .${MORE_CLASS}:hover { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .${CARD_CLASS} .dgc-grid {
   display: grid;
-  grid-template-columns: repeat(${COLS}, ${CELL}px);
+  grid-template-columns: repeat(${COLLAPSED_COLS}, ${CELL}px);
   grid-auto-rows: ${CELL}px;
   gap: ${CELL_GAP}px;
-  width: ${COLS * CELL + (COLS - 1) * CELL_GAP}px;
-  height: ${ROWS * CELL + (ROWS - 1) * CELL_GAP}px;
+  width: ${COLLAPSED_COLS * CELL + (COLLAPSED_COLS - 1) * CELL_GAP}px;
+  height: ${COLLAPSED_ROWS * CELL + (COLLAPSED_ROWS - 1) * CELL_GAP}px;
+  /* 折叠态内容区与卡框的内边距盒严丝合缝（280 + 20×2 = 320），margin:0 auto 在这一态是空操作；
+     展开态内容区 568 比内边距盒 600 窄，居中才不像漏排了一列。 */
+  margin: 0 auto;
+  /* 折叠态：固定两行，超出部分隐藏——文件仍在 DOM 里（geometry.js 的 visibleCount/remainingCount
+     说的就是这件事），只是这一屏露不出来。想看就点 +N。 */
   overflow: hidden;
+}
+/* 展开态（工单180）：卡框尺寸由 JS 按 geometry.js 写内联样式，这里负责内容区的重排与滚动。
+   6 列重排；内容区高度取卡框扣掉内边距与卡头的全部（976 − 36 − 24 = 916），卡内不留死带；
+   overflow-y:auto 即那道纵向滚动条——卡内滚轮滚的是它自己，不是整窗。 */
+.${CARD_CLASS}.${EXPANDED_CLASS} .dgc-grid {
+  grid-template-columns: repeat(${EXPANDED_COLS}, ${CELL}px);
+  width: ${EXPANDED_COLS * CELL + (EXPANDED_COLS - 1) * CELL_GAP}px;
+  height: ${EXPANDED_H - 2 * CARD_PAD_Y - HEAD_H}px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* 展开卡压在淡出的卡之上：淡出只改 opacity 与 pointer-events（都不参与布局，卡片矩形不动），
+   但叠放次序仍要定下来，否则淡出的卡可能糊在展开卡上面。 */
+.${CARD_CLASS}.${EXPANDED_CLASS} { z-index: 2; }
+.${CARD_CLASS}.${FADED_CLASS} {
+  opacity: 0.06;
+  /* 淡出的卡不该再吃点击：指针事件走穿到下面的展开卡/桌面。热区矩形照旧（主进程那侧
+     按 getBoundingClientRect 算，opacity 与 pointer-events 都不影响它），但那片区域里
+     仍看得见一个极淡的卡，不是「看不见却点得到」的死区。 */
+  pointer-events: none;
 }
 .${CARD_CLASS} .${CELL_CLASS} {
   width: ${CELL}px;
@@ -147,8 +200,11 @@ const cardNodes = new Map()
  * 插件没有任何接口可接。故「选中」就是这里的一套自建高亮，不读内核选区、不写内核选区、
  * 也不伪造内核那套 desktop-selected 存证。内核选中态是 `.ditem.sel`，本插件的格子一律不是
  * `.ditem`，两条线互不相干（ADR-0014 已登记「失去内核选区」）。
+ *
+ * 工单180 起它多担一件事：**全表里谁展开着**由这张表推导（`expandedCardIdOf`），不另设单值——
+ * 两个真相来源迟早各记各的。
  */
-const cardState = new Map()
+let cardState = new Map()
 /**
  * 本插件插到宿主管之外的节点（样式元素；将来的遮罩同样登记在此）。
  * **按引用登记、按引用摘除**——不靠 id 反查：卸载时手里拿着的正是自己插进去的那个节点，
@@ -193,18 +249,28 @@ function stateOf(card) {
   return cardState.get(card.id) ?? initialCardState()
 }
 
+/** 加/去一个类名（`classList.toggle` 在旧桩上未必有，这里显式写两步） */
+function setClass(node, name, on) {
+  if (on) node.classList.add(name)
+  else node.classList.remove(name)
+}
+
 /**
- * 把交互态整个刷到卡上（状态 → 类名的唯一出口，映射在 interaction.js 里）。
- * 整卡刷而不是增量改：高亮是单选，清掉旧的那一枚与点亮新的是同一次动作。
+ * 把整排的交互态刷到 DOM 上（状态 → 类名与几何的唯一出口，映射全在 interaction.js / geometry.js）。
+ * 整排刷而不是增量改：高亮是单选、排他展开是全表性质，清掉旧的那一枚与点亮新的是同一次动作。
+ *
+ * @param {ReadonlyMap<string, { expanded: boolean, highlight: ReadonlySet<string> }>} states 全表交互态
  */
-function paintCardState(card, state) {
-  const expanded = expandedClassOf(state)
-  if (expanded) card.classList.add(expanded)
-  else card.classList.remove(EXPANDED_CLASS)
-  for (const cell of card.querySelectorAll(`.${CELL_CLASS}`)) {
-    const highlight = highlightClassOf(state, cell.dataset.path)
-    if (highlight) cell.classList.add(highlight)
-    else cell.classList.remove(HIGHLIGHT_CLASS)
+function paintStates(states) {
+  const expandedId = expandedCardIdOf(states)
+  layoutRow(expandedId)
+  for (const [id, card] of cardNodes) {
+    const state = states.get(id) ?? initialCardState()
+    setClass(card, EXPANDED_CLASS, Boolean(expandedClassOf(state)))
+    setClass(card, FADED_CLASS, Boolean(fadedClassOf(expandedId, id)))
+    for (const cell of card.querySelectorAll(`.${CELL_CLASS}`)) {
+      setClass(cell, HIGHLIGHT_CLASS, Boolean(highlightClassOf(state, cell.dataset.path)))
+    }
   }
 }
 
@@ -283,7 +349,7 @@ function buildCell(host, item, card) {
     const next = clickOnIcon(stateOf(card), item.path)
     if (next.stopPropagation) ev.stopPropagation() // 这次点击到此为止，不上浮到卡片
     cardState.set(card.id, next.state)
-    paintCardState(card, next.state)
+    paintStates(cardState) // 只改类名不改布局盒 → 不申报热区（#181 的纪律）
   })
   // 双击启动：走内核既有启动契约（desktop/launch），主进程侧的扫描池护栏原样生效——
   // 插件不自己 shell.openPath，那会绕开「桌面项不在当前扫描池内」的拒绝。
@@ -295,20 +361,48 @@ function buildCell(host, item, card) {
 }
 
 /**
- * 整行布局：水平居中 + 按视口垂直居中。
+ * 整行布局：水平居中 + 按视口垂直居中；展开的那张独占屏幕正中并**按自己的高度重新垂直居中**。
+ *
+ * 位置与卡框尺寸全由 `rowLayoutOf` 算（geometry.js，纯模块、可直测），这里只把数写进 DOM——
+ * 卡框那两行是**内联样式**而非 CSS 规则：热区矩形取的就是 getBoundingClientRect()，卡框必须
+ * 与它同源；内容区的重排与滚动归 CSS（`.dgc-expanded .dgc-grid`），那里没有内联对手。
+ *
  * 面板窗几何是主显示器**全屏 bounds（含任务栏占位）**，故视口中心本就比工作区中心低一个
- * 任务栏高度——这里按视口居中即 spec166 的要求，不要再减任务栏。
+ * 任务栏高度——按视口居中即 spec166 的要求，不要再减任务栏。展开卡若不重新居中，976 的高度
+ * 会沿用折叠态的 top，底边直接越过视口插进任务栏（1440 屏上 598+976 = 1574）。
  */
-function layoutRow() {
-  const rowWidth = cardNodes.size * CARD_W + Math.max(0, cardNodes.size - 1) * CARD_GAP
-  const left = Math.round((window.innerWidth - rowWidth) / 2)
-  const top = Math.round((window.innerHeight - CARD_H) / 2)
-  let i = 0
-  for (const card of cardNodes.values()) {
-    card.style.left = `${left + i * (CARD_W + CARD_GAP)}px`
-    card.style.top = `${top}px`
-    i += 1
+function layoutRow(expandedId = expandedCardIdOf(cardState)) {
+  const boxes = rowLayoutOf([...cardNodes.keys()], {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }, expandedId)
+  for (const box of boxes) {
+    const card = cardNodes.get(box.id)
+    if (!card) continue
+    card.style.width = `${box.width}px`
+    card.style.height = `${box.height}px`
+    card.style.left = `${box.left}px`
+    card.style.top = `${box.top}px`
   }
+}
+
+/** 卡头：标题 + 「+N」徽标（徽标仅在确有溢出时渲染；点击它与点空白是同一个裁决） */
+function buildHead(group) {
+  const head = document.createElement('h2')
+  head.className = 'dgc-head'
+  const title = document.createElement('span')
+  title.className = 'dgc-title'
+  title.textContent = `${group.label} · ${group.items.length}`
+  head.appendChild(title)
+  // 徽标数的是「折叠起来看不到几个」——文件还在，只是这一屏露不出来（工单180：隐藏而不丢弃）
+  const more = moreLabelOf(group.items.length)
+  if (more) {
+    const badge = document.createElement('span')
+    badge.className = MORE_CLASS
+    badge.textContent = more
+    head.appendChild(badge)
+  }
+  return head
 }
 
 /** 结构指纹：组 id + 组内路径。刻意不含 mtime/iconKey——文件被碰一下不该重画整排卡 */
@@ -326,8 +420,7 @@ function draw(host, groups) {
   for (const card of cardNodes.values()) card.remove()
   cardNodes.clear()
   // 整排重画即从头来过：交互态按卡片 id 存着，卡片节点都换了，旧态没有可以依附的实体。
-  // （工单180 起若要跨重画保持折叠，那是那张表自己的事，本票只保证不留旧状态。）
-  cardState.clear()
+  cardState = new Map()
   for (const group of groups) {
     // .card 是渲染层扫热区的唯一通用入口，不挂则永不收输入；id 必须唯一（扫掠不去重），
     // 唯一性由 grouping.js 保证。不用 .ditem：那是内核条目类，挂上会让内核的框选/选区/摆位
@@ -335,28 +428,26 @@ function draw(host, groups) {
     const card = document.createElement('div')
     card.className = `card ${CARD_CLASS}`
     card.id = group.id
-    card.style.width = `${CARD_W}px`
-    card.style.height = `${CARD_H}px`
-    const head = document.createElement('h2')
-    head.className = 'dgc-head'
-    head.textContent = `${group.label} · ${group.items.length}`
     const grid = document.createElement('div')
     grid.className = 'dgc-grid'
     for (const item of group.items) grid.appendChild(buildCell(host, item, card))
-    card.append(head, grid)
-    // 点空白（或将来的「更多」徽标）→ 折叠/展开往复切换 + 清高亮。
+    card.append(buildHead(group), grid)
+    // 点空白或点「更多」徽标 → 折叠/展开往复切换 + 清高亮 + 排他（同一时刻至多一张展开）。
     // 图标命中即便因为漏截断而冒泡上来，这道闸也不让它改卡片形状。
     card.addEventListener('click', (ev) => {
       if (!isCardToggle(hitOf(card, ev.target))) return
-      const next = clickOnCardBlank(stateOf(card))
-      cardState.set(card.id, next.state)
-      paintCardState(card, next.state)
-      host.onDomChanged() // 折叠切换改了卡片形状 → 热区跟着重申报
+      const next = clickToggleExclusive(cardState, card.id)
+      cardState = next.states
+      paintStates(cardState)
+      host.onDomChanged()
+      // 热区纪律：折叠切换改了卡框（640×976）与位置，热区矩形随之变——不申报，新露出的
+      // 那块区域既收不到点击也收不到滚轮（面板默认鼠标穿透，靠主进程 25ms 轮询解除）。
+      
     })
     host.el.appendChild(card)
     cardNodes.set(group.id, card)
   }
-  layoutRow()
+  paintStates(cardState)
   host.onDomChanged()
 }
 
@@ -386,7 +477,7 @@ export default {
       // 故半途画出来的卡与留下的宿主引用都在这里自己收干净。
       for (const card of cardNodes.values()) card.remove()
       cardNodes.clear()
-      cardState.clear()
+      cardState = new Map()
       drawnKey = ''
       hostRef = null
       restoreDocZone()
@@ -405,7 +496,7 @@ export default {
     window.removeEventListener('resize', onResize)
     for (const card of cardNodes.values()) card.remove()
     cardNodes.clear()
-    cardState.clear()
+    cardState = new Map()
     releaseInjected()
     iconCache.clear()
     drawnKey = ''

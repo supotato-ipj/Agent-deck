@@ -19,15 +19,20 @@ import {
   CARD_CLASS,
   CELL_CLASS,
   EXPANDED_CLASS,
+  FADED_CLASS,
   HIGHLIGHT_CLASS,
   MORE_CLASS,
   clickOnCardBlank,
   clickOnIcon,
+  clickToggleExclusive,
+  expandedCardIdOf,
   expandedClassOf,
+  fadedClassOf,
   highlightClassOf,
   initialCardState,
   isCardToggle,
   isHighlighted,
+  type CardUiState,
 } from '../../plugins/doc-group-cards/interaction'
 
 const P = (n: string) => `C:\\Users\\me\\Desktop\\${n}`
@@ -127,5 +132,119 @@ describe('状态 → 类名（工单180 接缝：折叠几何挂在 EXPANDED_CLA
     const s = initialCardState()
     expect(s.expanded).toBe(false)
     expect(s.highlight.size).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单180（spec166 之③）：同一时刻只允许一张卡展开 + 其余卡淡出
+// ---------------------------------------------------------------------------
+
+const A = 'dgc-docx'
+const B = 'dgc-pdf'
+
+/** 两张卡的初始交互表（Map 的插入序即卡序） */
+function twoCards(): Map<string, CardUiState> {
+  return new Map([
+    [A, initialCardState()],
+    [B, initialCardState()],
+  ])
+}
+
+/** 表里某张卡是不是展开着（表里没有它 = 没展开） */
+function isExpanded(states: ReadonlyMap<string, CardUiState>, id: string): boolean {
+  return states.get(id)?.expanded ?? false
+}
+
+/** 表里某张卡高亮了哪些路径 */
+function highlightOf(states: ReadonlyMap<string, CardUiState>, id: string): string[] {
+  return [...(states.get(id)?.highlight ?? [])]
+}
+
+describe('同一时刻只允许一张卡展开（工单180）', () => {
+  it('点空白/徽标展开的是被点的那一张', () => {
+    const { states, state } = clickToggleExclusive(twoCards(), A)
+    expect(state.expanded).toBe(true)
+    expect(expandedCardIdOf(states)).toBe(A)
+  })
+
+  it('点另一张自动收起前一张（全表里至多一张展开）', () => {
+    const opened = clickToggleExclusive(twoCards(), A)
+    const next = clickToggleExclusive(opened.states, B)
+    expect(isExpanded(next.states, B)).toBe(true)
+    expect(isExpanded(next.states, A)).toBe(false)
+    expect(expandedCardIdOf(next.states)).toBe(B)
+  })
+
+  it('再点已展开的那张即收起，回到全收起', () => {
+    const opened = clickToggleExclusive(twoCards(), A)
+    const closed = clickToggleExclusive(opened.states, A)
+    expect(closed.state.expanded).toBe(false)
+    expect(expandedCardIdOf(closed.states)).toBe('')
+  })
+
+  it('被点的那张清高亮（与工单181 的折叠切换同一语义），别人被收起但不清高亮', () => {
+    const seeded = twoCards()
+    seeded.set(A, clickOnIcon(initialCardState(), P('方案.docx')).state)
+    seeded.set(B, clickOnIcon(initialCardState(), P('预算.pdf')).state)
+
+    const next = clickToggleExclusive(seeded, B)
+    expect(highlightOf(next.states, B)).toEqual([]) // 被点的那张：清
+    expect(highlightOf(next.states, A)).toEqual([P('方案.docx')]) // 被顺带收起的：不清
+  })
+
+  it('表里还没有这张卡时也能展开（卡刚被重画出来，态表还没记它）', () => {
+    const { states, state } = clickToggleExclusive(twoCards(), 'dgc-xlsx')
+    expect(state.expanded).toBe(true)
+    expect(isExpanded(states, 'dgc-xlsx')).toBe(true)
+  })
+
+  it('结果表恒满足「至多一张展开」——连点四下的穷举也不破例', () => {
+    let states = twoCards()
+    for (const id of [A, B, A, B, A]) {
+      states = clickToggleExclusive(states, id).states
+      const expanded = [...states.values()].filter((s) => s.expanded)
+      expect(expanded.length).toBeLessThanOrEqual(1)
+      expect(expandedCardIdOf(states)).toBe(id)
+    }
+  })
+
+  it('原表不被就地改写（纯函数：返回值是新表，旧表原样可用）', () => {
+    const before = twoCards()
+    const snapshot = JSON.stringify([...before.entries()].map(([id, s]) => [id, s.expanded]))
+    clickToggleExclusive(before, A)
+    expect(JSON.stringify([...before.entries()].map(([id, s]) => [id, s.expanded]))).toBe(snapshot)
+  })
+
+  it('全表都没有展开时，expandedCardIdOf 落空串（不是 null，也不是 undefined）', () => {
+    expect(expandedCardIdOf(twoCards())).toBe('')
+  })
+
+  it('点「更多」徽标与点空白等价：徽标落成元素后点它就是展开（工单181 的裁决，#180 兑现）', () => {
+    expect(isCardToggle('more')).toBe(true)
+    expect(isCardToggle('more')).toBe(isCardToggle('card-blank'))
+  })
+})
+
+describe('其余卡淡出（工单180：展开卡独占注意力）', () => {
+  it('别人展开时你淡出', () => {
+    expect(fadedClassOf(A, B)).toBe(FADED_CLASS)
+  })
+
+  it('自己是展开卡不淡出（否则自己把自己糊掉）', () => {
+    expect(fadedClassOf(A, A)).toBe('')
+  })
+
+  it('没人展开时不淡出', () => {
+    expect(fadedClassOf('', A)).toBe('')
+    expect(fadedClassOf('', B)).toBe('')
+  })
+
+  it('淡出类名是插件私有的，且不与内核选区类名相撞（#181 的钉死不能在本票被破）', () => {
+    expect(FADED_CLASS).toBe('dgc-faded')
+    expect(FADED_CLASS).not.toBe('sel')
+    expect(FADED_CLASS).not.toBe(EXPANDED_CLASS)
+    expect(FADED_CLASS).not.toBe(CARD_CLASS)
+    expect(FADED_CLASS).not.toBe(CELL_CLASS)
+    expect(FADED_CLASS).not.toBe(MORE_CLASS)
   })
 })

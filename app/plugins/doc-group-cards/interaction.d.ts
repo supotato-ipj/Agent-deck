@@ -29,6 +29,8 @@ export declare const MORE_CLASS: string
 export declare const EXPANDED_CLASS: string
 /** 高亮类名（插件私有，不叫内核那个 `sel`） */
 export declare const HIGHLIGHT_CLASS: string
+/** 淡出类名（工单180：别的卡展开了，你才淡出） */
+export declare const FADED_CLASS: string
 
 /** 卡片级监听器该不该切换折叠：图标命中为 false（那道闸） */
 export declare function isCardToggle(hit: ClickHit): boolean
@@ -53,3 +55,25 @@ export declare function expandedClassOf(state: CardUiState): string
 
 /** 状态 → 某格的高亮类名（未高亮返回空串） */
 export declare function highlightClassOf(state: CardUiState, path: string): string
+
+// ---- 工单180：全表的排他展开与淡出 ----
+
+/** 全表交互态（键为卡片 id，插入序即卡序） */
+export type CardStateTable = ReadonlyMap<string, CardUiState>
+
+/** 全表里当前展开的卡 id（空串 = 都没展开）；若多张同时展开，取卡序最前的一张 */
+export declare function expandedCardIdOf(states: CardStateTable): string
+
+/** 全表版本的折叠切换：同一时刻至多一张展开，纯函数（入表不改，返回新表） */
+export declare function clickToggleExclusive(
+  states: CardStateTable,
+  cardId: string,
+): {
+  states: Map<string, CardUiState>
+  state: CardUiState
+  stopPropagation: false
+  action: 'toggle-expand'
+}
+
+/** 全表状态 → 某张卡的淡出类名（没人展开返回空串） */
+export declare function fadedClassOf(expandedId: string, cardId: string): string
