@@ -473,23 +473,24 @@ function cleanupRecsProbes(p16) {
   try { fs.rmSync(p16.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
 }
 
-// —— P18 统一序列探针（工单189）：cmd 副本×3 ——
-// P16② 同款取证口径：真控制台窗（进程常驻、出场可轮询）、镜像名唯一（tasklist /FI
-// 可点名）、互不并入既有实例。三副本落同一 mkdtemp 临时目录；痕迹（进程/目录/栏布局
-// 存储的手钉残留）cleanupP18Probes 摘除。
+// —— P18 统一序列探针（工单189）：charmap 副本×3 ——
+// GUI 探针（P9B charmap 先例）：窗直属探针进程（exe 身份唯一、可点名收杀）——第 3 轮
+// 实证 cmd 副本在本机被 Windows Terminal 代持（栏面身份=windowsterminal.exe，全并一格，
+// 探针 exe 身份永不进栏），控制台探针在默认终端宿主下不可用。charmap 为经典 Win32
+// GUI（可见带标题主窗、可多开），三副本互不并实例。痕迹 cleanupP18Probes 摘除。
 function seedP18Probes(rep) {
   try {
     const sysRoot = process.env.SystemRoot || 'C:\\Windows';
-    const cmdSrc = path.join(sysRoot, 'System32', 'cmd.exe');
-    if (!fs.existsSync(cmdSrc)) {
-      rep.note('P18 探针前置失败：cmd.exe 缺失');
+    const src = path.join(sysRoot, 'System32', 'charmap.exe');
+    if (!fs.existsSync(src)) {
+      rep.note('P18 探针前置失败：charmap.exe 缺失');
       return null;
     }
     const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p18-'));
     const tags = ['1', '2', '3'];
     const probes = tags.map((tag) => {
       const exe = path.join(tmpDir, `deck-p18-${tag}.exe`);
-      fs.copyFileSync(cmdSrc, exe);
+      fs.copyFileSync(src, exe);
       return { tag, exe, img: path.basename(exe), hwnd: 0, child: null };
     });
     return { tmpDir, probes, done: false };
@@ -2130,13 +2131,16 @@ async function main() {
               && subseq18(afterC.running, beforeC.running.filter((k) => k !== keyC));
             let armC = !!pinOkC;
 
-            // 已钉应用开新窗：不新增条目、钉图标呈运行态
+            // 已钉应用开新窗：不新增条目、钉图标呈运行态（第二实例若被应用并回单实例，
+            // 栏面同样恰一条目运行态——「不新增图标」在两种形态下都成立）
             let mergeC = false;
             if (armC) {
               await launch18(q3);
-              for (let i = 0; i < 15 && procCount18(q3.img) < 2; i++) await sleep(200);
-              const stM = await waitSeq18((st) => { const e = entry18(st, q3); return e && e.pinned && e.running && procCount18(q3.img) >= 2; });
-              mergeC = !!stM && (stM.apps || []).filter((a) => norm18(a.exe) === keyC).length === 1;
+              const stM = await waitSeq18((st) => {
+                const hits = (st.apps || []).filter((a) => norm18(a.exe) === keyC);
+                return hits.length === 1 && hits[0].pinned && hits[0].running;
+                }, 8000);
+              mergeC = !!stM;
               armC = mergeC;
             }
             // 全部窗口关闭：条目不消失（pinned 在、running 落、标题清空）
