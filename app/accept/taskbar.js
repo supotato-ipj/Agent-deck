@@ -49,6 +49,14 @@
 //      = get-state 的 apps 数组（编排序权威真源），taskbar-geometry 几何帧互证。
 //   P19 推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙、开始组零残留、
 //      两组显隐解耦（藏两钮推荐组独立在场并退条带左缘内衬 / 推荐位清空推荐组不渲染、回池复原）
+//   P20 全量拖拽三断点（工单195，ADR-0013 全量自由拖拽落地）：真 OLE 拖拽臂 apps→apps
+//      （现行电池无此臂，三断点曾因此漏掉）——A 全条目接线（手钉拖到仅运行图标上，
+//      before 语义不被容器守卫静默吞掉）、B 运行段会话拖位+渲染冻结（中程 CDP 强推
+//      changed，被拖节点 expando 同一性保持=无闪烁无回弹；drag-start/drag-drop/
+//      drag-result 三存证组合为分诊判据）、C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop
+//      不丢；拖拽窗口 hotzone-leave=0 = 热区持门存证）、D 拖位持久化口径（重启面板：
+//      手钉拖位落盘记住、运行拖位回默认序、存储无运行序段=会话态不落盘）。
+//      探针复用 P18 的 csc WinForms 副本×3。
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -2610,6 +2618,361 @@ async function main() {
             rep.pass(`P18 统一序列默认落位：4 臂全过（${arms18.join('；')}）`);
           } else {
             rep.fail(`P18 ${fail18.length}/4 臂失败：${arms18.join(' | ')}`);
+          }
+        }
+      }
+    }
+
+    // P20 全量拖拽三断点（工单195，ADR-0013 全量自由拖拽落地）：真 OLE 拖拽臂 apps→apps
+    // （现行电池无此臂，三断点曾因此漏掉，2026-10-14 取证在案）。复用 P18 探针
+    // （deck-p18-1/2/3.exe——P18 段尾已收杀，exe 文件仍在，P18 finally 兜底清理不提前），
+    // drag-start/drag-drop/drag-result 三存证组合为分诊判据。四臂——
+    //   A 全条目接线（断点① ~80% 必现）：手钉条目真拖到仅运行图标上松手——before=运行
+    //     身份被内核接受（钳取手钉段末尾），不再被容器守卫静默吞掉（落点条目化）；
+    //   B 运行段会话拖位 + 渲染冻结（断点①② ~75% 弹回）：运行条目互拖两连，第一拖
+    //     中程经 CDP 强推 taskbar/changed（set-metrics 往返两帧）——被拖节点同一性凭
+    //     expando token 断言（节点重建即丢 token），冻结生效则拖拽全程节点不重建、
+    //     1–2 秒真机节奏无弹回，落点即所得；
+    //   C 跨组拖拽 + 组间缝隙松手（断点③ ~60% 跨 pill）：推荐条目拖经组间缝隙（缝隙
+    //     中停拍 400ms——持门期 25ms 穿透轮询不关门）落应用组运行图标上升手钉；拖拽
+    //     窗口（drag-start→drag-drop 存证 t 区间）无 taskbar-hotzone-leave；
+    //   D 拖位持久化口径：重启面板——手钉拖位（臂A 摆下的 q2<q3 序，钉入时落盘为
+    //     q3<q2）落盘记住、运行拖位（臂B 摆下的 [q3, q1]）回默认序（重启前置 q1 前台
+    //     =首见序 [q1, q3]）；存储文件无运行序段（会话态不落盘）。
+    rep.beginSegment('P20');
+    if (!p18) {
+      rep.fail('P20 前置缺失：P18 探针种入失败（见种入 note）');
+    } else {
+      const [q1, q2, q3] = p18.probes;
+      const norm20 = (s) => String(s || '').toLowerCase();
+      const stem20 = (img) => img.replace(/\.exe$/i, '');
+      const steps20 = 12; // OLE 拖拽步进（渲染层拖拽阈值 6px，步进远超阈值；每步 24ms 保持事件流）
+      const state20 = async () => {
+        for (let i = 0; i < 10; i++) {
+          try { return await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE); }
+          catch { await sleep(400); } // 渲染页未就位重试
+        }
+        return null;
+      };
+      const seq20 = (st) => ((st && st.apps) || []).map((a) => norm20(a.exe));
+      const segSplit20 = (st) => {
+        const apps = (st && st.apps) || [];
+        return {
+          pinned: apps.filter((a) => a.pinned).map((a) => norm20(a.exe)),
+          running: apps.filter((a) => !a.pinned).map((a) => norm20(a.exe)),
+        };
+      };
+      const waitSeq20 = async (pred, timeoutMs = 12000) => {
+        const deadline = Date.now() + timeoutMs;
+        for (;;) {
+          const st = await state20();
+          if (st && pred(st)) return st;
+          if (Date.now() >= deadline) return null;
+          await sleep(300);
+        }
+      };
+      const probeWin20 = (p) => {
+        const stem = stem20(p.img);
+        for (const h of win32.topLevelWindows()) {
+          if (win32.exeNameOfWindow(h) === stem && win32.IsWindowVisible(h)) return h;
+        }
+        return null;
+      };
+      const launch20 = async (p) => {
+        const err20 = await require('electron').shell.openPath(p.exe);
+        if (err20) { p.diag = `openPath=${err20}`; return false; }
+        let hwnd = null;
+        for (let i = 0; i < 30 && !hwnd; i++) { await sleep(200); hwnd = probeWin20(p); }
+        p.hwnd = hwnd || 0;
+        return !!hwnd;
+      };
+      // 前台切换（P18 focus18 同款三段：直调 → AttachThreadInput 附着 assist → 真实点击兜底），
+      // 每步 GetForegroundWindow 归属核验
+      const focus20 = async (p) => {
+        const hwnd = p.hwnd;
+        if (!hwnd) return false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          win32.SetForegroundWindow(hwnd);
+          await sleep(300);
+          if (Number(win32.GetForegroundWindow()) === hwnd) return true;
+          const fg = Number(win32.GetForegroundWindow());
+          if (fg) {
+            const myTid = win32.GetCurrentThreadId();
+            const fgTid = win32.threadIdOf(fg).tid;
+            const tTid = win32.threadIdOf(hwnd).tid;
+            win32.AttachThreadInput(myTid, fgTid, true);
+            win32.AttachThreadInput(myTid, tTid, true);
+            win32.SetForegroundWindow(hwnd);
+            win32.BringWindowToTop(hwnd);
+            win32.AttachThreadInput(myTid, fgTid, false);
+            win32.AttachThreadInput(myTid, tTid, false);
+          }
+          await sleep(300);
+          if (Number(win32.GetForegroundWindow()) === hwnd) return true;
+          const r = win32.rectOf(hwnd);
+          if (r) {
+            const cx = Math.round((r.left + r.right) / 2), cy = Math.round((r.top + r.bottom) / 2);
+            win32.SetCursorPos(cx, cy);
+            await sleep(250);
+            if (Number(win32.windowFromPointRoot({ x: cx, y: cy })) === hwnd) win32.clickPhys(cx, cy, 'left');
+            await sleep(400);
+            if (Number(win32.GetForegroundWindow()) === hwnd) return true;
+          }
+        }
+        return false;
+      };
+      const appPt20 = (g, exe) => {
+        const r = (g.apps || []).find((a) => norm20(a.id) === norm20(exe));
+        return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+      };
+      const recPt20 = (g, name) => {
+        const r = (g.recommendations || []).find((x) => x.name === name);
+        return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+      };
+      // 真 OLE 拖拽一步到底：down → 前半程步进 → 中程钩子（拖拽会话活动期）→ 后半程 →
+      // 到靶停拍 + jitter 两下（dragover 重注册）→ 抬键（P16④⑤ 同款收尾三拍）
+      const oleDrag20 = async (srcPt, dstPt, midDrag) => {
+        win32.moveMousePhys(srcPt.x, srcPt.y);
+        await sleep(250);
+        win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+        const half = Math.ceil(steps20 / 2);
+        for (let s = 1; s <= half; s++) {
+          await sleep(24);
+          win32.moveMousePhys(srcPt.x + Math.round(((dstPt.x - srcPt.x) * s) / steps20), srcPt.y + Math.round(((dstPt.y - srcPt.y) * s) / steps20));
+        }
+        if (midDrag) await midDrag();
+        for (let s = half + 1; s <= steps20; s++) {
+          await sleep(24);
+          win32.moveMousePhys(srcPt.x + Math.round(((dstPt.x - srcPt.x) * s) / steps20), srcPt.y + Math.round(((dstPt.y - srcPt.y) * s) / steps20));
+        }
+        await sleep(300); // 到靶停拍：dragover 落靶（热区持门期恒开，无需等轮询开门拍）
+        win32.moveMousePhys(dstPt.x - 3, dstPt.y);
+        await sleep(120);
+        win32.moveMousePhys(dstPt.x, dstPt.y);
+        await sleep(200);
+        win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+      };
+
+      // —— 前置：q1/q2/q3 按序上栏（首见序引导会话运行序 [q1, q2, q3]）——
+      if (!(await launch20(q1)) || !(await launch20(q2)) || !(await launch20(q3))) {
+        rep.fail(`P20 前置失败：探针窗未出场（q1=${!!q1.hwnd} q2=${!!q2.hwnd} q3=${!!q3.hwnd}${q1.diag ? ' ' + q1.diag : ''}）`);
+      } else {
+        const pre20 = await waitSeq20((st) => {
+          const s = seq20(st);
+          return s.includes(norm20(q1.exe)) && s.includes(norm20(q2.exe)) && s.includes(norm20(q3.exe));
+        });
+        if (!pre20) {
+          rep.fail(`P20 前置失败：q1/q2/q3 未上栏（编排链断）get-state=${JSON.stringify(seq20(await state20()))}`);
+        } else {
+          rep.note(`P20 栏面基线：${seq20(pre20).map((id) => path.basename(id)).join(' | ')}`);
+
+          // —— 臂A 全条目接线（断点①）：手钉条目拖到仅运行图标上，before=运行身份不被吞 ——
+          {
+            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: true })`, TASKBAR_TITLE);
+            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q2.exe)}, pinned: true })`, TASKBAR_TITLE);
+            // 钉入序 = 清单序 [q3, q2]（老左新右）；手钉拖位将把 q3 拖过 q2
+            const pinned20 = await waitSeq20((st) => {
+              const seg = segSplit20(st);
+              return seg.pinned.includes(norm20(q3.exe)) && seg.pinned.includes(norm20(q2.exe));
+            });
+            const gA = await waitGeometrySettled(pinned20);
+            const srcA = appPt20(gA, q3.exe);
+            const dstA = appPt20(gA, q1.exe); // 落点 = 仅运行图标（未钉运行条目——老代码在此静默吞掉）
+            let dragA = null;
+            let orderA = null;
+            if (srcA && dstA) {
+              oleDrag20(srcA, dstA, null).catch(() => {});
+              dragA = await waitEvent('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
+              if (dragA) {
+                const okA = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragA.t, 6000);
+                orderA = await waitSeq20((st) => {
+                  const seg = segSplit20(st);
+                  return seg.pinned.indexOf(norm20(q2.exe)) >= 0 && seg.pinned.indexOf(norm20(q2.exe)) < seg.pinned.indexOf(norm20(q3.exe));
+                });
+                if (okA) dragA.ok20 = true;
+              }
+            }
+            if (dragA && dragA.ok20 && orderA) {
+              rep.pass(`P20 臂A 全条目接线：手钉条目拖到仅运行图标上松手——drag-drop 存证 before=运行身份、ok 回执、`
+                + `手钉段 ${segSplit20(orderA).pinned.map((k) => path.basename(k)).join('|')}（q3 跨 q2 落手钉段末尾=运行段邻接钳取，不再被容器守卫静默吞掉）`);
+            } else {
+              rep.fail(`P20 臂A 全条目接线未达成：drag-drop存证=${!!dragA} ok=${!!(dragA && dragA.ok20)} 落位后序=${JSON.stringify(seq20(await state20()))}`
+                + ` 源/落点矩形=${!!srcA}/${!!dstA}`);
+            }
+          }
+
+          // —— 臂B 运行段会话拖位 + 渲染冻结（断点①②）：中程强推 changed，节点不重建 ——
+          {
+            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: false })`, TASKBAR_TITLE);
+            // q3 在运行：解除手钉原地转运行（工单189）→ 会话序 [q3, q1]
+            const demoted20 = await waitSeq20((st) => {
+              const seg = segSplit20(st);
+              return seg.running.indexOf(norm20(q3.exe)) === 0 && seg.running.indexOf(norm20(q1.exe)) === 1;
+            });
+            let dragB = null;
+            let startB20 = false;
+            let token20 = 'skip';
+            let orderB = null;
+            const gB = await waitGeometrySettled(demoted20);
+            const srcB = appPt20(gB, q1.exe);
+            const dstB = appPt20(gB, q3.exe);
+            if (demoted20 && srcB && dstB) {
+              oleDrag20(srcB, dstB, async () => {
+                // 拖拽会话活动期（真机节奏 1–2s 的中程）：等 drag-start 存证（三存证组合第一证）
+                // → 给被拖节点打 expando token → CDP 强推 taskbar/changed 两帧（set-metrics
+                // 往返，目标集保证与现值不同=真推帧）→ 复核 token。
+                // 冻结生效：帧被合挂、节点不重建 → token 犹在；冻结缺失：整树重建 →
+                // .dragging 换人/消失 → OLE 会话中止（drag-drop 存证缺失）。
+                const startB = await waitEvent('taskbar-drag-start', (e) => e.group === 'apps' && norm20(e.id) === norm20(q1.exe), 3000);
+                startB20 = !!startB;
+                if (!startB) { token20 = 'no-drag-start'; return; }
+                token20 = await cdpEval(`(() => {
+                  const el = document.querySelector('.tb-app.dragging');
+                  if (!el) return 'no-dragging';
+                  el.__deckP20 = 42;
+                  return 'stamped';
+                })()`, TASKBAR_TITLE);
+                const stM = await state20();
+                const metrics0 = (stM && stM.metrics) || [];
+                const altM = (metrics0.length === 1 && metrics0[0] === 'cpu') ? ['cpu', 'memory'] : ['cpu'];
+                await cdpEval(`window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ${JSON.stringify(altM)} })`, TASKBAR_TITLE);
+                await cdpEval(`window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ${JSON.stringify(metrics0)} })`, TASKBAR_TITLE);
+                await sleep(300); // 两帧回推落地窗
+                token20 = await cdpEval(`(() => {
+                  const el = document.querySelector('.tb-app.dragging');
+                  if (!el) return 'no-dragging';
+                  return el.__deckP20 === 42 ? 'same-node' : 'rebuilt';
+                })()`, TASKBAR_TITLE);
+              }).catch(() => {});
+              dragB = await waitEvent('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q1.exe) && norm20(e.before) === norm20(q3.exe), 6000);
+              if (dragB) {
+                const okB = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragB.t, 6000);
+                if (okB) dragB.ok20 = true;
+                orderB = await waitSeq20((st) => {
+                  const seg = segSplit20(st);
+                  return seg.running.indexOf(norm20(q1.exe)) === 0 && seg.running.indexOf(norm20(q3.exe)) === 1;
+                });
+              }
+              // 第二拖（无中程推帧）：q3 拖回 q1 之前 → 会话序 [q3, q1]（臂D 重启对照态）
+              const gB2 = await waitGeometrySettled(orderB || gB);
+              const srcB2 = appPt20(gB2, q3.exe);
+              const dstB2 = appPt20(gB2, q1.exe);
+              if (srcB2 && dstB2) {
+                const t0B2 = Date.now();
+                oleDrag20(srcB2, dstB2, null).catch(() => {});
+                await waitEvent('taskbar-drag-drop', (e) => e.t >= t0B2 && e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
+                orderB = await waitSeq20((st) => {
+                  const seg = segSplit20(st);
+                  return seg.running.indexOf(norm20(q3.exe)) === 0 && seg.running.indexOf(norm20(q1.exe)) === 1;
+                });
+              }
+            }
+            if (dragB && dragB.ok20 && startB20 && token20 === 'same-node' && orderB) {
+              rep.pass(`P20 臂B 运行段会话拖位+渲染冻结：运行条目真拖两连落位（会话序 [q3, q1]），中程强推 changed 两帧被拖节点同一性保持`
+                + `（token=${token20}）——冻结生效无闪烁无回弹，drag-start/drag-drop/drag-result 三存证齐`);
+            } else {
+              rep.fail(`P20 臂B 未达成：drag-start存证=${startB20} drag-drop存证=${!!dragB} ok=${!!(dragB && dragB.ok20)} 冻结token=${token20} 落位后运行段=${JSON.stringify(segSplit20(await state20()).running)}`
+                + ` 源/落点矩形=${!!srcB}/${!!dstB} 前置解除帧=${!!demoted20}（token=rebuilt/no-dragging 即节点被重建=冻结缺失；drag-start 在而 drag-drop 无即会话被中止）`);
+            }
+          }
+
+          // —— 臂C 跨组拖拽 + 组间缝隙松手（断点③）：推荐条目经缝隙落运行图标升手钉 ——
+          {
+            const recNameC = p16 ? p16.probes[0].name : null;
+            const gC = await waitGeometrySettled(null);
+            const srcC = recNameC ? recPt20(gC, recNameC) : null;
+            const dstC = appPt20(gC, q1.exe);
+            // 组间缝隙中点（推荐组右缘 ~ 应用组左缘，CSS 口径进 toPhys；y 取应用组格带中线）：
+            // 持门期门恒开，缝隙停拍不再丢拖拽
+            const gapC = (gC && gC.recPill && gC.appsPill && srcC && dstC)
+              ? toPhys((gC.recPill.x + gC.recPill.w + gC.appsPill.x) / 2, gC.appsPill.y + gC.appsPill.h / 2)
+              : null;
+            let dragC = null;
+            if (srcC && dstC && gapC) {
+              // 手工三段路径：recs → 缝隙（停拍 400ms，断点③的丢失点）→ 运行图标
+              win32.moveMousePhys(srcC.x, srcC.y);
+              await sleep(250);
+              win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+              for (let s = 1; s <= 6; s++) {
+                await sleep(24);
+                win32.moveMousePhys(srcC.x + Math.round(((gapC.x - srcC.x) * s) / 6), srcC.y + Math.round(((gapC.y - srcC.y) * s) / 6));
+              }
+              await sleep(400); // 缝隙中停拍：老代码此处 25ms 轮询两拍关门 → ~60% 跨 pill 丢 drop
+              for (let s = 1; s <= 6; s++) {
+                await sleep(24);
+                win32.moveMousePhys(gapC.x + Math.round(((dstC.x - gapC.x) * s) / 6), gapC.y + Math.round(((dstC.y - gapC.y) * s) / 6));
+              }
+              await sleep(300);
+              win32.moveMousePhys(dstC.x - 3, dstC.y);
+              await sleep(120);
+              win32.moveMousePhys(dstC.x, dstC.y);
+              await sleep(200);
+              win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+              const startC = await waitEvent('taskbar-drag-start', (e) => e.group === 'recs' && e.id === recNameC, 6000);
+              dragC = await waitEvent('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'apps' && e.id === recNameC && norm20(e.before) === norm20(q1.exe), 6000);
+              if (dragC) {
+                const okC = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragC.t, 6000);
+                if (okC) dragC.ok20 = true;
+                // 拖拽窗口（drag-start→drag-drop 存证 t 区间）无 hotzone-leave：持门生效的直接存证
+                if (startC) {
+                  const leavesC = readEvents().filter((e) => e.type === 'taskbar-hotzone-leave' && e.t >= startC.t && e.t <= dragC.t);
+                  if (leavesC.length > 0) dragC.leaves20 = leavesC.length;
+                }
+              }
+            }
+            if (dragC && dragC.ok20) {
+              rep.pass(`P20 臂C 跨组拖拽+组间缝隙松手：推荐条目拖经缝隙（中停 400ms）落运行图标升手钉——drag-drop 存证 before=运行身份、ok 回执`
+                + `，拖拽窗口 hotzone-leave=${dragC.leaves20 || 0} 次（持门生效${dragC.leaves20 ? '' : '，门全程未关'}）`);
+            } else {
+              rep.fail(`P20 臂C 跨组/缝隙未达成：drag-drop存证=${!!dragC} ok=${!!(dragC && dragC.ok20)} 拖拽窗口hotzone-leave=${dragC ? (dragC.leaves20 || 0) : 'n/a'}`
+                + ` 源/落点/缝隙矩形=${!!srcC}/${!!dstC}/${!!gapC}（drag-start 在而 drag-drop 无 = 缝隙处门关丢了会话）`);
+            }
+          }
+
+          // —— 臂D 拖位持久化口径：重启面板——手钉拖位记住、运行拖位回默认序 ——
+          {
+            const stD0 = await state20();
+            const segD0 = segSplit20(stD0);
+            const beforeD = JSON.stringify(segD0);
+            const focusOkD = await focus20(q1); // q1 前台=重启后 z 序首见第一（默认序判据的确定性底座）
+            killTree(child, panelPid);
+            child = null;
+            await sleep(1200);
+            const sinceD = Date.now();
+            child = launchPanel();
+            const bootD = await waitEvent('boot', (e) => e.t >= sinceD, 15000);
+            if (bootD) {
+              panelPid = bootD.pid;
+              await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+            }
+            const rebootD = await waitSeq20((st) => {
+              const seg = segSplit20(st);
+              return seg.pinned.includes(norm20(q2.exe)) && seg.pinned.includes(norm20(q3.exe))
+                && seg.running.includes(norm20(q1.exe)) && seg.running.includes(norm20(q3.exe));
+            }, 20000);
+            const segD1 = segSplit20(rebootD);
+            // 手钉拖位记住：钉入落盘序是 [.., q3, q2]，臂A 拖位后 [.., q2, q3]——重启后仍 q2 在 q3 前
+            const pinPersistD = !!rebootD && segD1.pinned.indexOf(norm20(q2.exe)) >= 0
+              && segD1.pinned.indexOf(norm20(q2.exe)) < segD1.pinned.indexOf(norm20(q3.exe));
+            // 运行拖位回默认序：臂B 摆下的会话序 [q3, q1] 不落盘——重启后首见序（q1 前台在先）= [q1, q3]
+            const runResetD = !!rebootD && focusOkD
+              && segD1.running.indexOf(norm20(q1.exe)) === 0 && segD1.running.indexOf(norm20(q3.exe)) === 1;
+            // 存储文件无运行序段（会话态不落盘）+ 手钉拖位确在盘面
+            let diskD = null;
+            try {
+              diskD = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'taskbar-layout.json'), 'utf8'));
+            } catch { /* 读不到按失败判 */ }
+            const diskOkD = !!diskD && !('runOrder' in diskD)
+              && (diskD.pinned || []).some((e) => norm20(e.exe) === norm20(q2.exe))
+              && (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q2.exe))
+                < (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q3.exe));
+            if (bootD && rebootD && pinPersistD && runResetD && diskOkD) {
+              rep.pass(`P20 臂D 拖位持久化口径：重启面板——手钉拖位 q2<q3 落盘记住（get-state 与盘面一致），运行拖位 [q3, q1] 回默认序 [q1, q3]`
+                + `（q1 前台=首见序判据，重启前台达成），存储无运行序段（会话态不落盘）`);
+            } else {
+              rep.fail(`P20 臂D 持久化口径未达成：boot=${!!bootD} 重启帧=${!!rebootD} 手钉拖位保持=${pinPersistD} 运行拖位复位=${runResetD}(前台=${focusOkD}) 盘面=${diskOkD}`
+                + ` 重启前=${beforeD} 重启后=${JSON.stringify(segD1)} 盘面pinned=${diskD ? JSON.stringify((diskD.pinned || []).map((e) => e.exe)) : 'n/a'}`);
+            }
           }
         }
       }

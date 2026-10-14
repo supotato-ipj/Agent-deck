@@ -466,7 +466,7 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 180,
+      "budgetSeconds": 240,
       "lastMeasuredSeconds": 148,
       "lastMeasuredAt": "2026-10-15",
       "segments": [
@@ -669,6 +669,17 @@
             "event-evidence"
           ],
           "estSeconds": 20
+        },
+        {
+          "seg": "P20",
+          "ticket": 195,
+          "title": "全量拖拽三断点（真 OLE apps→apps 拖拽臂，现行电池无此臂）：A 全条目接线（手钉拖到仅运行图标上不静默吞掉，before 语义落点条目化）/B 运行段会话拖位+渲染冻结（中程强推 changed 被拖节点 expando 同一性保持，drag-start/drag-drop/drag-result 三存证组合）/C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop 不丢，拖拽窗口 hotzone-leave=0 持门存证）/D 拖位持久化口径（重启面板：手钉拖位落盘记住、运行拖位回默认序、存储无运行序段）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 40
         }
       ]
     },
