@@ -546,9 +546,9 @@ async function main() {
       const b = geom.buttons.find((x) => x.id === id);
       return toPhys(b.x + b.w / 2, b.y + b.h / 2);
     };
-    // 缝隙探针（工单159 布局重排适配）：应用组空带居中后，pill 间缝隙取「应用组右缘与
-    // 右组左缘的中点」（带宽恒宽敞）；应用组空（pill-apps 不渲染）退「开始组右缘与右组
-    // 左缘的中点」；开始组也整组不渲染时 startPill 矩形归零、退化为条带左半任意点
+    // 缝隙探针（工单159 布局重排适配；工单190 起居中锚定不改变本探针——缝隙点从实测
+    // 几何取）：pill 间缝隙取「应用组右缘与右组左缘的中点」（带宽恒宽敞）；应用组空
+    // （pill-apps 不渲染）退「开始组右缘与右组左缘的中点」；开始组也整组不渲染时 startPill 矩形归零、退化为条带左半任意点
     // （固定 x=40 会落进钉左的开始组热区——工单159 起开始组钉条带左缘）
     const gapCssX = geom.apps && geom.apps.length > 0
       ? (geom.appsPill.x + geom.appsPill.w + geom.rightPill.x) / 2
@@ -913,36 +913,32 @@ async function main() {
       await sleep(1300);
       if (gShow) gShow = latestGeometry(null);
       const showOk = !!(gShow && Math.abs(appsMid(gShow) - centerLine15b) <= 2.5);
-      // 臂2 推荐位移除/恢复（开始组内容增删）→ 中心不变（P16 种子保证推荐位在场）
+      // 臂2 推荐位移除/恢复（开始组内容增删）→ 中心不变（P16 种子保证推荐位在场）。
+      // 递补语义（工单161）：候选池有后继时移除后第 6 名即时递补、可见恒 5——开始组
+      // 宽度不变，宽度类邻居驱动由臂1（TaskView）/臂3（托盘档位）承载；本臂口径 =
+      // 驱动真行使（excluded 落账/回池）+ 推荐管线重渲后中心不漂移
       const st15b = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
       const recs15b = (st15b && st15b.recommendations) || [];
       let recOk = null;
       if (recs15b.length > 0) {
         recExe15b = recs15b[0].exe;
-        const wRec0 = (latestGeometry(null) || gA).startPill.w;
+        const eqExe = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
         const sinceRec15b = Date.now();
         await cdpEval(`window.deck.bridge.invoke('taskbar/rec-remove', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE);
-        let gRec = null;
-        for (let i = 0; i < 30 && !gRec; i++) {
-          await sleep(200);
-          const cand = latestGeometry(null);
-          if (cand && cand.t >= sinceRec15b && cand.startPill && cand.startPill.w < wRec0 - 8) gRec = cand;
-        }
-        await sleep(1300);
-        if (gRec) gRec = latestGeometry(null);
-        const recGoneOk = !!(gRec && Math.abs(appsMid(gRec) - centerLine15b) <= 2.5);
+        await sleep(1600); // 1Hz 快照拍 + 重渲 settle（递补后几何不变则无新帧，取最新帧比对）
+        const gRec = latestGeometry(null);
+        const stRec = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+        const removed = !!(stRec && stRec.excluded && stRec.excluded.some((e) => eqExe(e.exe, recExe15b)));
+        const recGoneOk = !!(removed && gRec && Math.abs(appsMid(gRec) - centerLine15b) <= 2.5);
         const sinceRecBack = Date.now();
         await cdpEval(`window.deck.bridge.invoke('taskbar/rec-restore', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE);
-        let gRecBack = null;
-        for (let i = 0; i < 30 && !gRecBack; i++) {
-          await sleep(200);
-          const cand = latestGeometry(null);
-          if (cand && cand.t >= sinceRecBack && cand.startPill && cand.startPill.w > wRec0 - 8) gRecBack = cand;
-        }
-        await sleep(1300);
-        if (gRecBack) gRecBack = latestGeometry(null);
+        await sleep(1600);
+        const gRecBack = latestGeometry(null);
+        const stBack = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+        const restored = !!(stBack && stBack.excluded && !stBack.excluded.some((e) => eqExe(e.exe, recExe15b)));
+        const recBackOk = !!(restored && gRecBack && Math.abs(appsMid(gRecBack) - centerLine15b) <= 2.5);
         // recExe15b 不清空：finally 幂等重发恢复（rec-restore 对名单外身份空转）
-        recOk = !!(recGoneOk && gRecBack && Math.abs(appsMid(gRecBack) - centerLine15b) <= 2.5);
+        recOk = !!(recGoneOk && recBackOk);
       } else {
         recOk = null; // 空池（种子未上场）——留证不静默：报表注明「驱动未行使」
       }
