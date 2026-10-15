@@ -41,7 +41,7 @@ export function startRecMenuHost(options: { ctx: Context; log: EventLog | null }
   let maxH = 0
   const menuUrl = (exe: string, name: string): string => {
     if (!maxH) maxH = Math.max(320, screen.getPrimaryDisplay().workArea.height - 80)
-    return `${taskbarMenuUrl()}?menu=rec&exe=${encodeURIComponent(exe)}&name=${encodeURIComponent(name)}&maxH=${maxH}`
+    return `${taskbarMenuUrl()}?menu=rec&exe=${encodeURIComponent(exe)}&name=${encodeURIComponent(name)}&title=${encodeURIComponent(REC_MENU_TITLE)}&maxH=${maxH}`
   }
 
   return {

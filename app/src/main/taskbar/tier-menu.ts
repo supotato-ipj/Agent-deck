@@ -40,7 +40,7 @@ export function startTierMenuHost(options: { ctx: Context; log: EventLog | null 
   let maxH = 0
   const menuUrl = (): string => {
     if (!maxH) maxH = Math.max(320, screen.getPrimaryDisplay().workArea.height - 80)
-    return `${taskbarMenuUrl()}?menu=tier&maxH=${maxH}`
+    return `${taskbarMenuUrl()}?menu=tier&title=${encodeURIComponent(TIER_MENU_TITLE)}&maxH=${maxH}`
   }
 
   return {

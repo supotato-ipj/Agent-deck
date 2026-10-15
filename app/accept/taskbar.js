@@ -2714,8 +2714,12 @@ static class Probe {
         return el ? el.getBoundingClientRect().toJSON() : null;
       })()`, TASKBAR_TITLE);
       const WINS_MENU_FAMILY21 = 'taskbar-wins-menu';
+      // 开层证据 = opened/resized（show 重开不触发页重回报 ready——页只在 boot 与
+      // changed 回报，行内容由载页常活自养；行几何另由 ready 锚点配对，见①）
+      const popOpen21 = (since) => readEvents().some((e) => e.t >= since
+        && (e.type === 'taskbar-wins-menu-opened' || e.type === 'taskbar-wins-menu-resized'));
       const clickIconOpen21 = async () => {
-        // 左键图标 → 浮层开层（三试：到靶停拍后点击，等 opened/resized+ready 两路配对）
+        // 左键图标 → 浮层开层（三试：到靶停拍后点击，等开层存证）
         for (let attempt21 = 0; attempt21 < 3; attempt21++) {
           const r21 = await liveAppPt21();
           if (!r21) return null;
@@ -2726,8 +2730,7 @@ static class Probe {
           win32.clickPhys(pt21.x, pt21.y, 'left');
           for (let i = 0; i < 15; i++) {
             await sleep(200);
-            const pop = popupAnchored(WINS_MENU_FAMILY21)(since21);
-            if (pop && pop.rows.length > 0) return pop;
+            if (popOpen21(since21)) return { since: since21 };
           }
         }
         return null;
@@ -2746,27 +2749,36 @@ static class Probe {
         } else {
           const pop21 = await clickIconOpen21();
           const popWin21 = pop21 ? await waitWindow(panelPid, 'DECK-TASKBAR-WINS-MENU', 3000) : null;
-          const rowsOk21 = !!pop21 && pop21.rows.length === 2
-            && new Set(pop21.rows.map((r) => r.id)).size === 2
-            && pop21.rows.every((r) => titles21.includes(r.label.trim()));
+          // 行几何锚点（create 路径页 boot 即报 ready；行集/行坐标据此断言与取点击点）
+          let popReady21 = null;
+          if (pop21) {
+            for (let i = 0; i < 15 && !popReady21; i++) {
+              await sleep(200);
+              popReady21 = popupAnchored(WINS_MENU_FAMILY21)(pop21.since);
+            }
+          }
+          const rowsOk21 = !!popReady21 && popReady21.rows.length === 2
+            && new Set(popReady21.rows.map((r) => r.id)).size === 2
+            && popReady21.rows.every((r) => titles21.includes(r.label.trim()));
           if (pop21 && popWin21 && rowsOk21) {
-            rep.pass(`P21① 选窗浮层随左键弹出：DECK-TASKBAR-WINS-MENU 在场、行集恰 2（行身份=hwnd 互异，`
-              + `标题=[${pop21.rows.map((r) => r.label).join(', ')}]）——横排进 pill 退役（taskbar/app-windows 行源）`);
+            rep.pass(`P21① 选窗浮层随左键弹出：DECK-TASKBAR-WINS-MENU 在场（pid+标题寻窗实锤）、行集恰 2（行身份=hwnd 互异，`
+              + `标题=[${popReady21.rows.map((r) => r.label).join(', ')}]）——横排进 pill 退役（taskbar/app-windows 行源）`);
           } else {
-            rep.fail(`P21① 浮层弹出：浮层=${!!pop21} 窗=${!!popWin21} rows=${pop21 ? JSON.stringify(pop21.rows.map((r) => [r.id, r.label])) : 'n/a'}`);
+            rep.fail(`P21① 浮层弹出：开层=${!!pop21} 窗=${!!popWin21} ready=${!!popReady21}`
+              + ` rows=${popReady21 ? JSON.stringify(popReady21.rows.map((r) => [r.id, r.label])) : 'n/a'}`);
           }
           // ② 点行选窗 → 存证 + 前台对账 + 行点即收
           let pick21 = null;
           let fgOk21 = false;
           let closedRow21 = null;
-          if (pop21 && rowsOk21) {
-            const row21 = pop21.rows[0];
-            pick21 = await clickPopupRowVerify(WINS_MENU_FAMILY21, pop21.since, row21.id, 'taskbar-window-pick', (e) => norm21(e.exe).endsWith(img21) && String(e.hwnd) === row21.id, scale);
+          if (popReady21 && rowsOk21) {
+            const row21 = popReady21.rows[0];
+            pick21 = await clickPopupRowVerify(WINS_MENU_FAMILY21, popReady21.since, row21.id, 'taskbar-window-pick', (e) => norm21(e.exe).endsWith(img21) && String(e.hwnd) === row21.id, scale);
             for (let i = 0; i < 12 && !fgOk21; i++) {
               await sleep(250);
               fgOk21 = Number(win32.GetForegroundWindow()) === Number(row21.id);
             }
-            closedRow21 = await waitEvent('taskbar-wins-menu-closed', (e) => e.reason === 'row' && e.t >= pop21.since, 5000);
+            closedRow21 = await waitEvent('taskbar-wins-menu-closed', (e) => e.reason === 'row' && e.t >= popReady21.since, 5000);
           }
           if (pick21 && fgOk21 && closedRow21) {
             rep.pass(`P21② 选窗聚焦端到端：行点存证（exe/hwnd 身份核对）→ 目标探针窗真前台（hwnd=${pick21.hwnd}）、行点即收（reason=row）`);

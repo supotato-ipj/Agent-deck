@@ -51,6 +51,12 @@ if (Number.isFinite(maxH) && maxH > 100) list.style.maxHeight = `${maxH}px`
 
 const adapter = adapters[new URLSearchParams(location.search).get('menu') ?? '']
 
+// 浮层窗标题随宿主 query 下发（工单196：文档 <title> 会覆盖 BrowserWindow 的 title
+// 选项——五面共用本页时窗口标题全部塌成页默认值，验收按 pid+标题寻窗歧义）。缺省
+// 保持页默认（app 面宿主不传参，行为与工单193 一致）。
+const titleParam = new URLSearchParams(location.search).get('title')
+if (titleParam) document.title = titleParam
+
 function requestClose(reason: string): void {
   if (!adapter) return
   window.deck.host.notify(adapter.closeEvent, { reason })

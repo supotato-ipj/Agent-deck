@@ -39,7 +39,7 @@ export function startWinsMenuHost(options: { ctx: Context; log: EventLog | null 
   let maxH = 0
   const menuUrl = (exe: string): string => {
     if (!maxH) maxH = Math.max(320, screen.getPrimaryDisplay().workArea.height - 80)
-    return `${taskbarMenuUrl()}?menu=wins&exe=${encodeURIComponent(exe)}&maxH=${maxH}`
+    return `${taskbarMenuUrl()}?menu=wins&exe=${encodeURIComponent(exe)}&title=${encodeURIComponent(WINS_MENU_TITLE)}&maxH=${maxH}`
   }
 
   return {
