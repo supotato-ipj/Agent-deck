@@ -2959,6 +2959,30 @@ async function main() {
               panelPid = bootD.pid;
               await waitWindow(panelPid, TASKBAR_TITLE, 12000);
             }
+            // 渲染层就绪守卫 + 二次重启兜底（P16 右键两试同款先例）：第1-4轮取证 arm D
+            // 偶发「新面板 boot 后主进程/渲染层停滞」（taskbar-ready 不出场、1Hz keepalive
+            // 停拍；P17③ 同款重启路径每轮绿=重启机制无损，是 P20 时点晚轮实例的偶发态）。
+            // 未就绪即杀掉重拉一次，不再烧 20s 等一个死实例。
+            let readyD = bootD ? await waitEvent('taskbar-ready', (e) => e.t >= sinceD, 15000) : null;
+            if (bootD && !readyD) {
+              rep.note('P20 臂D 首拉实例未就绪（taskbar-ready 15s 未出场）——二次重启兜底');
+              killTree(child, panelPid);
+              child = null;
+              for (let i = 0; i < 50 && panelPid; i++) {
+                const r = spawnSync('tasklist', ['/FI', `PID eq ${panelPid}`, '/NH'], { encoding: 'utf8' });
+                if (!(r.stdout || '').includes(String(panelPid))) break;
+                await sleep(200);
+              }
+              await sleep(1200);
+              const sinceD2 = Date.now();
+              child = launchPanel();
+              const bootD2 = await waitEvent('boot', (e) => e.t >= sinceD2, 15000);
+              if (bootD2) {
+                panelPid = bootD2.pid;
+                await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+              }
+              readyD = bootD2 ? await waitEvent('taskbar-ready', (e) => e.t >= sinceD2, 15000) : null;
+            }
             const rebootD = await waitSeq20((st) => {
               const seg = segSplit20(st);
               return seg.pinned.includes(norm20(q2.exe)) && seg.pinned.includes(norm20(q3.exe))
@@ -2982,7 +3006,7 @@ async function main() {
               && (diskD.pinned || []).some((e) => norm20(e.exe) === norm20(q2.exe))
               && (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q2.exe))
                 < (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q3.exe));
-            if (bootD && rebootD && pinPersistD && runResetD && diskOkD) {
+            if (bootD && readyD && rebootD && pinPersistD && runResetD && diskOkD) {
               rep.pass(`P20 臂D 拖位持久化口径：重启面板——手钉拖位 q2<q3 落盘记住（get-state 与盘面一致），运行拖位回默认序（q1 前台=首见序判据，重启前台达成，q1<q3）`
                 + `，存储无运行序段（会话态不落盘）`);
             } else {
@@ -2991,7 +3015,7 @@ async function main() {
                 const tg = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
                 cdpDiagD = 'targets=[' + tg.map((x) => x.title).join('|') + ']';
               } catch (e) { cdpDiagD = 'fetch-fail:' + (e && e.message); }
-              rep.fail(`P20 臂D 持久化口径未达成：boot=${!!bootD} 重启帧=${!!rebootD} 手钉拖位保持=${pinPersistD} 运行拖位复位=${runResetD}(前台=${focusOkD}) 盘面=${diskOkD}`
+              rep.fail(`P20 臂D 持久化口径未达成：boot=${!!bootD} 就绪=${!!readyD} 重启帧=${!!rebootD} 手钉拖位保持=${pinPersistD} 运行拖位复位=${runResetD}(前台=${focusOkD}) 盘面=${diskOkD}`
                 + ` 重启前=${beforeD} 重启后=${JSON.stringify(segD1)} 盘面pinned=${diskD ? JSON.stringify((diskD.pinned || []).map((e) => e.exe)) : 'n/a'} CDP=${cdpDiagD}`);
             }
           }
