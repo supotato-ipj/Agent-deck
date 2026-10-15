@@ -1068,8 +1068,28 @@ async function main() {
         await until(async () => { const x = await cardProbe('dgc-pdf'); return x && x.multiOn; }, 4000, 120);
       }
       const up2 = await cardProbe('dgc-pdf');
-      const startCss = { x: up2.grid.x + up2.grid.w / 2, y: up2.grid.y + up2.grid.h - 20 };
-      const endCss = { x: up2.grid.x + up2.grid.w * 0.62, y: up2.grid.y + 20 };
+      // 全表落证（工单187 第二轮）：起笔点能不能落在卡内，全看这张「展开卡」此刻**真的**按展开几何
+      // 摆在那儿。类名 dgc-expanded 与内联几何是两回事——首轮红臂实测到二者脱节（类名在、卡框仍是
+      // 折叠尺寸且停在折叠槽位），于是内容区下半截掉出视口、起笔点落空，框选恒空。
+      const rowNow = (await cdpEval(EXPR.cards)).map((c) => ({
+        id: c.id, expanded: c.expanded, faded: c.faded,
+        x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h),
+      }));
+      rep.note(`框选段落首全表落证：${JSON.stringify(rowNow)}｜视口=${JSON.stringify(await cdpEval(EXPR.viewport))}`);
+      // 起笔点/收笔点按**实测格子**取，不按网格外沿的固定比例。
+      // 【工单187 第二轮修正】原先取 `grid.x + grid.w/2` 与 `grid.w * 0.62`：展开态是 6 列，
+      // 而这张卡只有 3 格，格子只占前 3 列（实测 x 996..1276），网格外沿 60% 处（x≈1280 起）
+      // 整条带子都在**格子右侧的空白列**里——那一框从头到尾没压到任何一格，命中恒为 0。
+      // 与其对列数与件数做假设，不如直接量那几格的真矩形，从它们正下方的内容区空白起笔、
+      // 收到最后一格中心：这条带子必然横穿每一格。
+      const cellRects = up2.cells;
+      if (cellRects.length < 2) {
+        rep.fail(`框选取证前置失败：dgc-pdf 只有 ${cellRects.length} 格，构不成「拖过若干格」的框`);
+      }
+      const firstCell = cellRects[0];
+      const lastCell = cellRects[cellRects.length - 1];
+      const startCss = { x: firstCell.x + firstCell.w / 2, y: up2.grid.y + up2.grid.h - 20 };
+      const endCss = { x: lastCell.x + lastCell.w / 2, y: lastCell.y + lastCell.h / 2 };
       const a = toPhys(startCss); const b = toPhys(endCss);
       await ensureHit(a);
       await settleAt(a); // 同 clickAt：拖拽起笔同样要等热区轮询把这一片接管
@@ -1085,9 +1105,13 @@ async function main() {
       const marqueeSeen = duringMarquee && duringMarquee.marquee;
       const selAfter = await cardProbe('dgc-pdf');
       const hitCount = selAfter.cells.filter((k) => k.sel).length;
+      // 坐标系自证（工单187 真机轮）：实测网格外沿 vs「卡框内联 left/top + 内边距 20/18 + 卡头 24」
+      // 那套换算。差值非零即两份「网格局部」不是同一个系——真格子的实测矩形是唯一的裁判。
+      const drift = { dx: Math.round(selAfter.grid.x - (selAfter.x + 20)), dy: Math.round(selAfter.grid.y - (selAfter.y + 42)) };
+      rep.note(`框选坐标系自证：实测网格外沿 ${Math.round(selAfter.grid.x)},${Math.round(selAfter.grid.y)}｜算式外沿 ${Math.round(selAfter.x + 20)},${Math.round(selAfter.y + 42)}｜偏移 ${JSON.stringify(drift)}｜松手后带子残留=${!!selAfter.marquee} multiOn=${!!selAfter.multiOn}`);
       marqueeSeen && hitCount >= 2
-        ? rep.pass(`框选成立：拖拽期间卡上有 .dgc-marquee 带，松手后 ${hitCount} 格入选（内容区空白起笔，不改写已有格序）`)
-        : rep.fail(`框选异常：拖拽带=${!!marqueeSeen} 入选=${hitCount}`);
+        ? rep.pass(`框选成立：拖拽期间卡上有 .dgc-marquee 带，松手后 ${hitCount} 格入选（内容区空白起笔，不改写已有格序；网格外沿与算式外沿偏移 ${JSON.stringify(drift)}）`)
+        : rep.fail(`框选异常：拖拽带=${!!marqueeSeen} 入选=${hitCount} 松手后带子残留=${!!selAfter.marquee} multiOn=${!!selAfter.multiOn} 坐标系偏移=${JSON.stringify(drift)} 格子数=${selAfter.cells.length}`);
 
       // ENTER 整批启动
       const tEnt = Date.now();
@@ -1099,16 +1123,29 @@ async function main() {
       await closeFixtureWindows();
 
       // 多选菜单：两格在选时 OPEN LOCATION / RENAME 置灰
-      await clickAt(centerOf(selAfter.cells[0]));
-      await clickAt(centerOf(selAfter.cells[1]));
+      // 【工单187 第三轮修正】原先无脑点前两格：那是「从 0 选起切到 2 选」的写法，可本用例接在
+      // 框选之后——框选已经把 3 格选上了，再点两格是**摘**（3→2→1），落到「恰一选中」那一档，
+      // 判据自然不成立。故改成收敛到恰好两格：多退少补，点到 selected===2 为止。
+      const fixSel = await until(async () => {
+        const cur = await cardProbe('dgc-pdf');
+        if (!cur) return null;
+        const n = cur.cells.filter((k) => k.sel).length;
+        if (n === 2) return n;
+        // 多于两格就摘掉最后一格，少于两格就补上第一格未选中的
+        const target = n > 2 ? cur.cells.filter((k) => k.sel).slice(-1)[0] : cur.cells.find((k) => !k.sel);
+        if (!target) return null;
+        await clickAt(centerOf(target));
+        return null;
+      }, 8000, 200);
       const tM = Date.now();
-      await clickAt(centerOf(selAfter.cells[0]), 'right');
+      const selNow = await cardProbe('dgc-pdf');
+      await clickAt(centerOf(selNow.cells[0]), 'right');
       const mm = await until(() => cdpEval(EXPR.menu), 6000, 150);
       const g = (id) => mm && mm.rows.find((r) => r.id === id);
       const greyed = g('open-location') && g('open-location').disabled && g('rename') && g('rename').disabled;
       greyed && g('open') && !g('open').disabled
-        ? rep.pass(`多选菜单置灰：恰一选中才可用的 OPEN LOCATION 与 RENAME 两行置灰，OPEN 仍可用（needs 单一裁决出口）`)
-        : rep.fail(`多选菜单异常：${JSON.stringify(mm && mm.rows)}`);
+        ? rep.pass(`多选菜单置灰：恰一选中才可用的 OPEN LOCATION 与 RENAME 两行置灰，OPEN 仍可用（needs 单一裁决出口）；本条先把框选选中的 ${hitCount} 格收敛到 2 格再验`)
+        : rep.fail(`多选菜单异常：选区=${selNow.cells.filter((k) => k.sel).length} 格（收敛=${!!fixSel}）rows=${JSON.stringify(mm && mm.rows)}`);
       void tM;
       await clickAt({ x: (await cdpEval(EXPR.viewport)).w - 12, y: (await cdpEval(EXPR.viewport)).h - 12 });
       await sleep(400);
@@ -1168,6 +1205,8 @@ async function main() {
             return t || null;
           }, 4000, 250);
           let dissolved = false;
+          /** 临时卡那张菜单实见到的行（拿到块外，红臂信息里要印它） */
+          let tempRows = [];
           if (temp) {
             await clickAt({ x: temp.x + 8, y: temp.y + temp.h / 2 }, 'right');
             const tGm = Date.now();
@@ -1177,12 +1216,19 @@ async function main() {
             rep.note(`临时卡开层存证：cardId=${JSON.stringify(evGm && evGm.cardId)} rows=${JSON.stringify(evGm && evGm.rows)}｜磁盘组定义 temps=${JSON.stringify(storeNow && storeNow.groups ? storeNow.groups.temps : null)}`);
             const dis = gm && gm.rows.find((r) => r.id === 'dissolve');
             const rows = gm ? gm.rows : [];
+            tempRows = rows;
             if (dis) {
+              // DISSOLVE 是「先问过用户」的那一行（工单186：删定义发生在确认**之后**，且磁盘零移动）。
+              // 不点掉确认层上的确定，组定义根本没被删——上一轮红臂「dissolved=false / temps 还在」
+              // 正是漏了这一步，不是产品没落库。这里按 DELETE 段同款走：开层 → 等确定 → 点确定。
               await clickAt(rowPoint(gm, 'dissolve'));
+              const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150);
+              rep.note(`DISSOLVE 确认层：${cf ? `在场（文案「${String(cf.text).slice(0, 40)}」）` : '未开'}`);
+              if (cf && cf.ok) await clickAt(centerOf(cf.ok));
               dissolved = await until(async () => {
                 const cards = await cdpEval(EXPR.cards);
                 return !cards.some((c) => c.id === temp.id);
-              }, 6000, 200);
+              }, 8000, 200);
             }
             rep.note(`临时卡组卡菜单行：${rows.map((r) => r.id + (r.disabled ? '(灰)' : '')).join(', ')}`);
           }
@@ -1194,7 +1240,7 @@ async function main() {
           const diskSame = JSON.stringify(beforeList) === JSON.stringify(afterList);
           dissolved && backInTxt && diskSame
             ? rep.pass(`解散回落：临时卡退场，其名下文件回到固有 TXT 卡，磁盘清单前后一致（${afterList.length} 份，${diskSame ? '未动' : '变了'}）——组卡是归属概念不是目录`)
-            : rep.fail(`解散回落异常：dissolved=${!!dissolved} 回TXT卡=${!!backInTxt} 磁盘一致=${diskSame} 前=${JSON.stringify(beforeList)} 后=${JSON.stringify(afterList)}`);
+            : rep.fail(`解散回落异常：dissolved=${!!dissolved} 回TXT卡=${!!backInTxt} 磁盘一致=${diskSame} 前=${JSON.stringify(beforeList)} 后=${JSON.stringify(afterList)}｜临时卡菜单行=${JSON.stringify(tempRows.map((r) => r.id + (r.disabled ? '(灰)' : '')))}`);
         }
       }
     }
@@ -1228,13 +1274,17 @@ async function main() {
       const diskBefore = desktopList(desktop).slice().sort();
       const tNg = Date.now();
       if (gate) {
-        await clickAt({ x: gate.x + 8, y: gate.y + gate.h / 2 }, 'right');
+        // 入口卡必须**临点现取**：粘贴落一张临时卡会让整排重排重居中，gate 是重排前量下的矩形，
+        // 拿旧坐标右键会整笔落空——上一轮红臂「组卡菜单行异常：」后面空无一物正是这么来的
+        // （空串即 rows=[]，即菜单压根没开），而不是产品少给了行。
+        const gLive = await cardProbe(gate.id);
+        await clickAt({ x: gLive.x + 8, y: gLive.y + gLive.h / 2 }, 'right');
         const gm = await until(() => cdpEval(EXPR.menu), 6000, 150);
         const rows = gm ? gm.rows : [];
         const ngIdx = rows.findIndex((r) => r.id === 'new-group');
         ngIdx >= 0
           ? rep.pass(`组卡菜单四行齐（手改得动的卡）：${rows.map((r) => r.label).join(' / ')}`)
-          : rep.fail(`组卡菜单行异常：${rows.map((r) => r.id).join(',')}`);
+          : rep.fail(`组卡菜单行异常：右键落在 ${gLive.id} 卡片空白（${Math.round(gLive.x)},${Math.round(gLive.y)} ${Math.round(gLive.w)}×${Math.round(gLive.h)}），菜单${gm ? '开了' : '没开'}，实见行=${JSON.stringify(rows.map((r) => ({ id: r.id, label: r.label, disabled: !!r.disabled })))}，全表卡序=${JSON.stringify((await cdpEval(EXPR.cards)).map((c) => c.id))}，页内错误=${JSON.stringify(await pageErrors())}`);
         if (ngIdx >= 0) {
           await clickAt({ x: gm.rect.x + gm.rect.w / 2, y: gm.rect.y + (ngIdx + 0.5) * (gm.rect.h / rows.length), w: 2, h: 2 });
           const box = await until(() => cdpEval(EXPR.types), 6000, 150);
@@ -1243,45 +1293,71 @@ async function main() {
             ? rep.pass(`NEW GROUP 开勾选浮层：#dgc-types 在场（起名框默认值「${box.name}」，类型清单 ${box.rows.length} 行按桌面上真实存在的扩展名逐个列），一个字节都还没落库`)
             : rep.fail(`勾选浮层异常：box=${!!box} event=${!!evTypes}`);
           if (box) {
+            // 起名是**必填**：typepicker.js 的 submit 判空后原地报「给这张卡起个名」且不落任何库
+            // （产品行为是对的：空名卡建出来无从辨认）。上一轮红臂「建卡异常 custom=null」正是
+            // 本段漏敲名字——浮层开了、CREATE 也点了，提交被那条空名校验当场挡下。故先敲名。
+            const cardName = `${DESKTOP_PREFIX}grp`;
+            if (box.nameRect) await clickAt(centerOf(box.nameRect));
+            win32.sendUnicode(cardName);
+            await sleep(400);
+            const named = await cdpEval(EXPR.types);
             // 勾一个类型（.pdf）后提交：只勾 pdf 这张自定义卡
-            const row = box.rows.find((r) => r.ext === '.pdf');
+            const row = named && named.rows.find((r) => r.ext === '.pdf');
             if (row) await clickAt(centerOf(row));
             const box2 = await cdpEval(EXPR.types);
             const okRect = box2 && box2.ok;
             if (okRect) await clickAt(centerOf(okRect));
-            const saved = await waitEvent('doc-group-cards-groups-saved', (e) => e.t >= tNg, 6000);
-            const custom = await until(async () => {
+            await sleep(400);
+            // 点完 CREATE 立刻问一句「层还在不在」：提交成功时层当场收起（typepicker 的 submit
+            // 走 CLOSED_TYPES），还在就说明这一击没进 reducer——空名校验、或这一击压根没落在钮上。
+            // 两条路都是真机轮实测过的岔口（首轮漏敲名字、第二轮名字在框里却仍无落库），故留证。
+            const afterCreate = await cdpEval(EXPR.types);
+            let viaEnter = false;
+            if (afterCreate) {
+              rep.note(`CREATE 一击后浮层仍开着：name=${JSON.stringify(afterCreate.name)} 勾选=${JSON.stringify(afterCreate.rows.filter((r) => r.checked).map((r) => r.ext))} 改走起名框回车提交（产品同一条 reducer 路径）`);
+              if (afterCreate.nameRect) await clickAt(centerOf(afterCreate.nameRect));
+              win32.tapKeys([0x0D]);
+              viaEnter = true;
+            }
+            const saved = await waitEvent('doc-group-cards-groups-saved', (e) => e.t >= tNg, 6000);            const custom = await until(async () => {
               const cards = await cdpEval(EXPR.cards);
               return cards.find((c) => /^dgc-c\d+$/.test(c.id)) || null;
             }, 6000, 250);
             const pdfCard = await cardProbe('dgc-pdf');
             custom && pdfCard && pdfCard.cellCount === 0 && saved
-              ? rep.pass(`建卡落库：自定义卡 ${custom.id} 出现（「${custom.title}」），它认领的 .pdf 全数从固有 PDF 卡迁走（固有卡剩 ${pdfCard.cells} 格），groups-saved 存证在档`)
-              : rep.fail(`建卡异常：custom=${JSON.stringify(custom)} 固有PDF卡余=${pdfCard && pdfCard.cells} saved=${!!saved}`);
+              ? rep.pass(`建卡落库：自定义卡 ${custom.id} 出现（「${custom.title}」），它认领的 .pdf 全数从固有 PDF 卡迁走（固有卡剩 ${pdfCard.cellCount} 格），groups-saved 存证在档${viaEnter ? '（CREATE 一击未进 reducer，改走起名框回车提交——两条路是同一条 reducer，见上条留证）' : ''}`)
+              : rep.fail(`建卡异常：custom=${JSON.stringify(custom)} 固有PDF卡余=${pdfCard && pdfCard.cellCount} 格 saved=${!!saved} 浮层起名框实况=${JSON.stringify(named && named.name)} CREATE钮在场=${!!okRect} 走回车=${viaEnter}｜磁盘组定义=${JSON.stringify((() => { try { const s = JSON.parse(fs.readFileSync(cfgFile, 'utf8')); const g = s.groups || {}; return { custom: g.custom, nextSeq: g.nextSeq }; } catch (e) { return '读不到'; } })())} 页内错误=${JSON.stringify(await pageErrors())}`);
             const diskSame = JSON.stringify(diskBefore) === JSON.stringify(desktopList(desktop).slice().sort());
             diskSame
               ? rep.pass(`全程只改归属不动磁盘：建卡前后桌面清单一致（${diskBefore.length} 份，${diskSame ? '未动' : '变了'}）`)
               : rep.fail(`磁盘被动过：前=${JSON.stringify(diskBefore)} 后=${JSON.stringify(desktopList(desktop).slice().sort())}`);
 
             // EDIT TYPES：把 .pdf 取消勾 → 归属回落固有卡，磁盘仍不动
+            // 自定义卡不存在时**记一条红并跳过**，而不是让 `cst.x` 抛出去把整段后面的用例全带崩
+            // （上一轮红臂里电池就是这么在 16:14:59 中止的，后面几条根本没跑到）。
             const cst = (await cdpEval(EXPR.cards)).find((c) => /^dgc-c\d+$/.test(c.id));
-            await clickAt({ x: cst.x + 8, y: cst.y + cst.h / 2 }, 'right');
-            const gm2 = await until(() => cdpEval(EXPR.menu), 6000, 150);
-            const rows2 = gm2 ? gm2.rows : [];
-            const etIdx = rows2.findIndex((r) => r.id === 'edit-types');
-            if (etIdx >= 0) {
-              await clickAt({ x: gm2.rect.x + gm2.rect.w / 2, y: gm2.rect.y + (etIdx + 0.5) * (gm2.rect.h / rows2.length), w: 2, h: 2 });
-              const box3 = await until(() => cdpEval(EXPR.types), 6000, 150);
-              const prow = box3 && box3.rows.find((r) => r.ext === '.pdf');
-              if (prow) await clickAt(centerOf(prow));
-              const box4 = box3 && (await cdpEval(EXPR.types));
-              if (box4 && box4.ok) await clickAt(centerOf(box4.ok));
-              const pdfBack = await until(async () => { const c = await cardProbe('dgc-pdf'); return c && c.cellCount >= 3; }, 6000, 250);
-              const cstAfter = (await cdpEval(EXPR.cards)).find((c) => /^dgc-c\d+$/.test(c.id));
-              pdfBack && cstAfter && cstAfter.cellCount === 0
-                ? rep.pass(`EDIT TYPES 迁移归属：取消勾选 .pdf 后文件回落固有 PDF 卡（${pdfBack} 格），自定义卡清空；勾选即归属，磁盘始终不动`)
-                : rep.fail(`EDIT TYPES 异常：固有PDF卡=${pdfBack} 自定义卡余=${cstAfter && cstAfter.cells}`);
-            }
+            if (!cst) {
+              rep.fail('EDIT TYPES 异常：建卡未落库，全表没有 dgc-c* 自定义卡，本用例无从进入');
+              await closeMenu();
+            } else {
+              await clickAt({ x: cst.x + 8, y: cst.y + cst.h / 2 }, 'right');
+              const gm2 = await until(() => cdpEval(EXPR.menu), 6000, 150);
+              const rows2 = gm2 ? gm2.rows : [];
+              const etIdx = rows2.findIndex((r) => r.id === 'edit-types');
+              if (etIdx < 0) rep.fail(`EDIT TYPES 异常：菜单未开或缺该行，menu=${!!gm2} rows=${JSON.stringify(rows2.map((r) => r.id))}`);
+              if (etIdx >= 0) {
+                await clickAt({ x: gm2.rect.x + gm2.rect.w / 2, y: gm2.rect.y + (etIdx + 0.5) * (gm2.rect.h / rows2.length), w: 2, h: 2 });
+                const box3 = await until(() => cdpEval(EXPR.types), 6000, 150);
+                const prow = box3 && box3.rows.find((r) => r.ext === '.pdf');
+                if (prow) await clickAt(centerOf(prow));
+                const box4 = box3 && (await cdpEval(EXPR.types));
+                if (box4 && box4.ok) await clickAt(centerOf(box4.ok));
+                const pdfBack = await until(async () => { const c = await cardProbe('dgc-pdf'); return c && c.cellCount >= 3; }, 6000, 250);
+                const cstAfter = (await cdpEval(EXPR.cards)).find((c) => /^dgc-c\d+$/.test(c.id));
+                pdfBack && cstAfter && cstAfter.cellCount === 0
+                  ? rep.pass(`EDIT TYPES 迁移归属：取消勾选 .pdf 后文件回落固有 PDF 卡（${pdfBack} 格），自定义卡清空；勾选即归属，磁盘始终不动`)
+                  : rep.fail(`EDIT TYPES 异常：固有PDF卡=${pdfBack} 自定义卡余=${cstAfter && cstAfter.cellCount} 页内错误=${JSON.stringify(await pageErrors())}`);
+              }
             const diskSame2 = JSON.stringify(diskBefore) === JSON.stringify(desktopList(desktop).slice().sort());
             rep.note(`EDIT TYPES 后磁盘一致性：${diskSame2}`);
 
@@ -1299,6 +1375,7 @@ async function main() {
               ? rep.pass(`组定义持久化：面板重启后自定义卡 ${restored.id} 原样回来（groups-loaded 存证在档），归属仍按定义算（固有 PDF 卡 ${pdfAfter ? pdfAfter.cells : '?'} 格）`)
               : rep.fail(`持久化异常：restored=${JSON.stringify(restored)} loaded=${!!loaded} 定义文件=${!!defsBefore}`);
             if (restored) await captureRect(restored, '187-p185-custom');
+            } // 自定义卡在场的正常路径到此为止
           }
         }
       }
