@@ -633,7 +633,11 @@ async function main() {
       const tierPopup7 = (since) => {
         const os = readEvents().filter((e) => e.t >= since
           && (e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized'));
-        const rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && e.t >= since && Array.isArray(e.rows));
+        // ready 行几何：本开层拍有新回报用新拍；缺席（show 重开不触发页重回报——页只在
+        // boot/changed 回报）回退最近一拍——档位面行集静态（四行恒列，✓ 前缀不修行高，
+        // 行几何跨开拍不变），坐标算术稳定
+        let rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && e.t >= since && Array.isArray(e.rows));
+        if (!rd.length) rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && Array.isArray(e.rows));
         return os.length && rd.length
           ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
           : null;
