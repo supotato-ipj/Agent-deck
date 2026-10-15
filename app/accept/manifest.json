@@ -673,7 +673,7 @@
         {
           "seg": "P21",
           "ticket": 196,
-          "title": "多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：cmd 副本 start 双开——左键图标出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）、点行选窗存证+前台对账+行点即收、点外即收（时钟格转达 strip-click）",
+          "title": "多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：csc 现编译 WinForms 最小窗同 exe 双实例（argv 定标题，cmd 副本双开弃用）——左键图标出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）、点行选窗存证+前台对账+行点即收、点外即收（时钟格转达 strip-click）",
           "surfaces": [
             "input-injection",
             "event-evidence"
