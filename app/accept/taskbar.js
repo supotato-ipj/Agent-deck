@@ -2626,19 +2626,20 @@ async function main() {
     // P20 全量拖拽三断点（工单195，ADR-0013 全量自由拖拽落地）：真 OLE 拖拽臂 apps→apps
     // （现行电池无此臂，三断点曾因此漏掉，2026-10-14 取证在案）。复用 P18 探针
     // （deck-p18-1/2/3.exe——P18 段尾已收杀，exe 文件仍在，P18 finally 兜底清理不提前），
-    // drag-start/drag-drop/drag-result 三存证组合为分诊判据。四臂——
-    //   A 全条目接线（断点① ~80% 必现）：手钉条目真拖到仅运行图标上松手——before=运行
-    //     身份被内核接受（钳取手钉段末尾），不再被容器守卫静默吞掉（落点条目化）；
+    // drag-start/drag-drop/drag-result 三存证组合为分诊判据。四臂执行序 B→A→C→D
+    // （运行臂先于手钉臂：q1/q2/q3 起手全为未钉运行，臂D 重启判据两对同时可满足）——
     //   B 运行段会话拖位 + 渲染冻结（断点①② ~75% 弹回）：运行条目互拖两连，第一拖
     //     中程经 CDP 强推 taskbar/changed（set-metrics 往返两帧）——被拖节点同一性凭
     //     expando token 断言（节点重建即丢 token），冻结生效则拖拽全程节点不重建、
     //     1–2 秒真机节奏无弹回，落点即所得；
+    //   A 全条目接线（断点① ~80% 必现）：手钉条目真拖到仅运行图标上松手——before=运行
+    //     身份被内核接受（钳取手钉段末尾），不再被容器守卫静默吞掉（落点条目化）；
     //   C 跨组拖拽 + 组间缝隙松手（断点③ ~60% 跨 pill）：推荐条目拖经组间缝隙（缝隙
     //     中停拍 400ms——持门期 25ms 穿透轮询不关门）落应用组运行图标上升手钉；拖拽
     //     窗口（drag-start→drag-drop 存证 t 区间）无 taskbar-hotzone-leave；
     //   D 拖位持久化口径：重启面板——手钉拖位（臂A 摆下的 q2<q3 序，钉入时落盘为
-    //     q3<q2）落盘记住、运行拖位（臂B 摆下的 [q3, q1]）回默认序（重启前置 q1 前台
-    //     =首见序 [q1, q3]）；存储文件无运行序段（会话态不落盘）。
+    //     q3<q2）落盘记住、运行拖位（臂B 摆下的 q3<q1）回默认序（重启前置 q1 前台
+    //     =首见序 q1<q3）；存储文件无运行序段（会话态不落盘）。
     rep.beginSegment('P20');
     if (!p18) {
       rep.fail('P20 前置缺失：P18 探针种入失败（见种入 note）');
@@ -2766,59 +2767,24 @@ async function main() {
         } else {
           rep.note(`P20 栏面基线：${seq20(pre20).map((id) => path.basename(id)).join(' | ')}`);
 
-          // —— 臂A 全条目接线（断点①）：手钉条目拖到仅运行图标上，before=运行身份不被吞 ——
-          {
-            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: true })`, TASKBAR_TITLE);
-            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q2.exe)}, pinned: true })`, TASKBAR_TITLE);
-            // 钉入序 = 清单序 [q3, q2]（老左新右）；手钉拖位将把 q3 拖过 q2
-            const pinned20 = await waitSeq20((st) => {
-              const seg = segSplit20(st);
-              return seg.pinned.includes(norm20(q3.exe)) && seg.pinned.includes(norm20(q2.exe));
-            });
-            const gA = await waitGeometrySettled(pinned20);
-            const srcA = appPt20(gA, q3.exe);
-            const dstA = appPt20(gA, q1.exe); // 落点 = 仅运行图标（未钉运行条目——老代码在此静默吞掉）
-            let dragA = null;
-            let orderA = null;
-            if (srcA && dstA) {
-              oleDrag20(srcA, dstA, null).catch(() => {});
-              dragA = await waitEvent('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
-              if (dragA) {
-                const okA = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragA.t, 6000);
-                orderA = await waitSeq20((st) => {
-                  const seg = segSplit20(st);
-                  return seg.pinned.indexOf(norm20(q2.exe)) >= 0 && seg.pinned.indexOf(norm20(q2.exe)) < seg.pinned.indexOf(norm20(q3.exe));
-                });
-                if (okA) dragA.ok20 = true;
-              }
-            }
-            if (dragA && dragA.ok20 && orderA) {
-              rep.pass(`P20 臂A 全条目接线：手钉条目拖到仅运行图标上松手——drag-drop 存证 before=运行身份、ok 回执、`
-                + `手钉段 ${segSplit20(orderA).pinned.map((k) => path.basename(k)).join('|')}（q3 跨 q2 落手钉段末尾=运行段邻接钳取，不再被容器守卫静默吞掉）`);
-            } else {
-              rep.fail(`P20 臂A 全条目接线未达成：drag-drop存证=${!!dragA} ok=${!!(dragA && dragA.ok20)} 落位后序=${JSON.stringify(seq20(await state20()))}`
-                + ` 源/落点矩形=${!!srcA}/${!!dstA}`);
-            }
-          }
-
           // —— 臂B 运行段会话拖位 + 渲染冻结（断点①②）：中程强推 changed，节点不重建 ——
+          // （先于臂A 执行：q1/q2/q3 此时全为未钉运行——臂D 重启判据两对同时可满足：
+          //   pinned 对 = 臂A 摆下的 q2<q3，running 对 = 本臂摆下的 q3<q1）
           {
-            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: false })`, TASKBAR_TITLE);
-            // q3 在运行：解除手钉原地转运行（工单189）→ q3 插回会话序首位（q1 之前；机器侧
-            // 未钉运行条目可夹在中间——首见序随编排拍与 z 序快照走，断言只认两探针相对序）
-            const demoted20 = await waitSeq20((st) => {
+            // 前置等待：两探针都在运行段（首见序随编排拍与 z 序快照走——机器侧未钉运行
+            // 条目可夹中间，断言只认两探针相对序）
+            const runPre20 = await waitSeq20((st) => {
               const seg = segSplit20(st);
-              return seg.running.indexOf(norm20(q3.exe)) >= 0 && seg.running.indexOf(norm20(q1.exe)) >= 0
-                && seg.running.indexOf(norm20(q3.exe)) < seg.running.indexOf(norm20(q1.exe));
+              return seg.running.indexOf(norm20(q3.exe)) >= 0 && seg.running.indexOf(norm20(q1.exe)) >= 0;
             });
             let dragB = null;
             let startB20 = false;
             let token20 = 'skip';
             let orderB = null;
-            const gB = await waitGeometrySettled(demoted20);
+            const gB = await waitGeometrySettled(runPre20);
             const srcB = appPt20(gB, q1.exe);
             const dstB = appPt20(gB, q3.exe);
-            if (demoted20 && srcB && dstB) {
+            if (runPre20 && srcB && dstB) {
               oleDrag20(srcB, dstB, async () => {
                 // 拖拽会话活动期（真机节奏 1–2s 的中程）：等 drag-start 存证（三存证组合第一证）
                 // → 给被拖节点打 expando token → CDP 强推 taskbar/changed 两帧（set-metrics
@@ -2876,7 +2842,42 @@ async function main() {
                 + `（token=${token20}）——冻结生效无闪烁无回弹，drag-start/drag-drop/drag-result 三存证齐`);
             } else {
               rep.fail(`P20 臂B 未达成：drag-start存证=${startB20} drag-drop存证=${!!dragB} ok=${!!(dragB && dragB.ok20)} 冻结token=${token20} 落位后运行段=${JSON.stringify(segSplit20(await state20()).running)}`
-                + ` 源/落点矩形=${!!srcB}/${!!dstB} 前置解除帧=${!!demoted20}（token=rebuilt/no-dragging 即节点被重建=冻结缺失；drag-start 在而 drag-drop 无即会话被中止）`);
+                + ` 源/落点矩形=${!!srcB}/${!!dstB} 前置帧=${!!runPre20}（token=rebuilt/no-dragging 即节点被重建=冻结缺失；drag-start 在而 drag-drop 无即会话被中止）`);
+            }
+          }
+
+          // —— 臂A 全条目接线（断点①）：手钉条目拖到仅运行图标上，before=运行身份不被吞 ——
+          {
+            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q3.exe)}, pinned: true })`, TASKBAR_TITLE);
+            await cdpEval(`window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(q2.exe)}, pinned: true })`, TASKBAR_TITLE);
+            // 钉入序 = 清单序 [q3, q2]（老左新右）；手钉拖位将把 q3 拖过 q2
+            const pinned20 = await waitSeq20((st) => {
+              const seg = segSplit20(st);
+              return seg.pinned.includes(norm20(q3.exe)) && seg.pinned.includes(norm20(q2.exe));
+            });
+            const gA = await waitGeometrySettled(pinned20);
+            const srcA = appPt20(gA, q3.exe);
+            const dstA = appPt20(gA, q1.exe); // 落点 = 仅运行图标（未钉运行条目——老代码在此静默吞掉）
+            let dragA = null;
+            let orderA = null;
+            if (srcA && dstA) {
+              oleDrag20(srcA, dstA, null).catch(() => {});
+              dragA = await waitEvent('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
+              if (dragA) {
+                const okA = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragA.t, 6000);
+                orderA = await waitSeq20((st) => {
+                  const seg = segSplit20(st);
+                  return seg.pinned.indexOf(norm20(q2.exe)) >= 0 && seg.pinned.indexOf(norm20(q2.exe)) < seg.pinned.indexOf(norm20(q3.exe));
+                });
+                if (okA) dragA.ok20 = true;
+              }
+            }
+            if (dragA && dragA.ok20 && orderA) {
+              rep.pass(`P20 臂A 全条目接线：手钉条目拖到仅运行图标上松手——drag-drop 存证 before=运行身份、ok 回执、`
+                + `手钉段 ${segSplit20(orderA).pinned.map((k) => path.basename(k)).join('|')}（q3 跨 q2 落手钉段末尾=运行段邻接钳取，不再被容器守卫静默吞掉）`);
+            } else {
+              rep.fail(`P20 臂A 全条目接线未达成：drag-drop存证=${!!dragA} ok=${!!(dragA && dragA.ok20)} 落位后序=${JSON.stringify(seq20(await state20()))}`
+                + ` 源/落点矩形=${!!srcA}/${!!dstA}`);
             }
           }
 
