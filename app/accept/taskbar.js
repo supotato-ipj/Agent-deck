@@ -54,7 +54,8 @@
 //      before 语义不被容器守卫静默吞掉）、B 运行段会话拖位+渲染冻结（中程 CDP 强推
 //      changed，被拖节点 expando 同一性保持=无闪烁无回弹；drag-start/drag-drop/
 //      drag-result 三存证组合为分诊判据）、C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop
-//      不丢；拖拽窗口 hotzone-leave=0 = 热区持门存证）、D 拖位持久化口径（重启面板：
+//      不丢；拖拽窗口 hotzone-leave=0 = 热区持门存证）、E 拖拽失败可见反馈（未钉运行
+//      拖到推荐组=服务层确定性拒返，toast 在场+文案断言）、D 拖位持久化口径（重启面板：
 //      手钉拖位落盘记住、运行拖位回默认序、存储无运行序段=会话态不落盘）。
 //      探针复用 P18 的 csc WinForms 副本×3。
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
@@ -2637,6 +2638,8 @@ async function main() {
     //   C 跨组拖拽 + 组间缝隙松手（断点③ ~60% 跨 pill）：推荐条目拖经组间缝隙（缝隙
     //     中停拍 400ms——持门期 25ms 穿透轮询不关门）落应用组运行图标上升手钉；拖拽
     //     窗口（drag-start→drag-drop 存证 t 区间）无 taskbar-hotzone-leave；
+    //   E 拖拽失败可见反馈（票面 AC）：未钉运行条目拖到推荐组——服务层确定性拒返
+    //     ok:false（仅手钉可解除），toast 在场+文案断言，拒返不静默；
     //   D 拖位持久化口径：重启面板——手钉拖位（臂A 摆下的 q2<q3 序，钉入时落盘为
     //     q3<q2）落盘记住、运行拖位（臂B 摆下的 q3<q1）回默认序（重启前置 q1 前台
     //     =首见序 q1<q3）；存储文件无运行序段（会话态不落盘）。
@@ -2931,6 +2934,45 @@ async function main() {
             } else {
               rep.fail(`P20 臂C 跨组/缝隙未达成：drag-drop存证=${!!dragC} ok=${!!(dragC && dragC.ok20)} 拖拽窗口hotzone-leave=${dragC ? (dragC.leaves20 || 0) : 'n/a'}`
                 + ` 源/落点/缝隙矩形=${!!srcC}/${!!dstC}/${!!gapC}（drag-start 在而 drag-drop 无 = 缝隙处门关丢了会话）`);
+            }
+          }
+
+          // —— 臂E 拖拽失败可见反馈（票面 AC：服务层拒返渲染层不静默）：未钉运行条目
+          // 拖到推荐组（apps→recs 解除臂）——服务层确定性拒返 ok:false（仅手钉可解除，
+          // 运行态不可摆位），零竞态路径；断言 drag-result ok:false 存证 + #drag-toast
+          // DOM 在场与文案（5s 兜底自收窗内即时取），栏面状态不变 ——
+          {
+            const gE = await waitGeometrySettled(null);
+            const srcE = appPt20(gE, q1.exe); // q1 此刻仍为未钉运行（臂B 会话序、臂C 未触钉态）
+            const dstE = (gE && gE.recPill && gE.recPill.w > 0)
+              ? toPhys(gE.recPill.x + gE.recPill.w / 2, gE.recPill.y + gE.recPill.h / 2)
+              : null; // 推荐组 pill 中心：落推荐位条目或组空白同达 apps→recs 分发
+            let dragE = null;
+            let resultE = null;
+            let toastE = null;
+            if (srcE && dstE) {
+              const t0E = Date.now();
+              oleDrag20(srcE, dstE, null).catch(() => {});
+              dragE = await waitEvent('taskbar-drag-drop', (e) => e.t >= t0E && e.from === 'apps' && e.to === 'recs' && norm20(e.id) === norm20(q1.exe), 6000);
+              if (dragE) {
+                resultE = await waitEvent('taskbar-drag-result', (e) => e.ok === false && e.t >= dragE.t, 6000);
+                // toast 5s 自收：drag-result 后即时取 DOM（dataset.on=1 且文案前缀）
+                try {
+                  toastE = await cdpEval(`(() => {
+                    const t = document.getElementById('drag-toast');
+                    return t && t.dataset.on === '1' ? (t.textContent || '') : null;
+                  })()`, TASKBAR_TITLE);
+                } catch { toastE = null; }
+              }
+            }
+            const stE = await state20();
+            const stillE = !!stE && seq20(stE).includes(norm20(q1.exe));
+            if (dragE && resultE && toastE && toastE.includes('拖拽落位失败') && stillE) {
+              rep.pass(`P20 臂E 拖拽失败可见反馈：未钉运行条目拖到推荐组——服务层拒返（仅手钉可解除）、`
+                + `drag-result ok:false 存证（error=${resultE.error || 'n/a'}）、条带内 toast 在场文案「${toastE.slice(0, 40)}」、栏面状态不变（拒返不摆位）`);
+            } else {
+              rep.fail(`P20 臂E 失败反馈未达成：drag-drop存证=${!!dragE} ok:false回执=${!!resultE} toast=${JSON.stringify(toastE)}`
+                + ` 源/落点矩形=${!!srcE}/${!!dstE}（toast=null = 拒返无可见反馈或 5s 窗外取拍）`);
             }
           }
 
