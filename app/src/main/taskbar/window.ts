@@ -27,6 +27,7 @@ import { startRecMenuHost } from './rec-menu'
 import { startBlankMenuHost } from './blank-menu'
 import { startTierMenuHost } from './tier-menu'
 import { startWinsMenuHost } from './wins-menu'
+import type { MenuHost } from './menu-host'
 import type { PhysRect } from './yield'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
@@ -253,6 +254,12 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const blankMenuPopup = startBlankMenuHost({ ctx, log })
   const tierMenuPopup = startTierMenuHost({ ctx, log })
   const winsMenuPopup = startWinsMenuHost({ ctx, log })
+  // 六浮层宿主清单（spec188 评审收口）：dispose 清算与全屏让位收层两处收成单遍历——
+  // 新增菜单面只在清单追加一行，不再两处平行展开防漏。onNotify 转发扇形不在此列
+  // （0301676 接缝教训定的 canonical 形态：各宿主在箭头体内并列追加自家 onStripNotify）。
+  const popupHosts: ReadonlyArray<MenuHost> = [
+    trayOverflow, appMenuPopup, recMenuPopup, blankMenuPopup, tierMenuPopup, winsMenuPopup,
+  ]
 
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
@@ -326,12 +333,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     if (s.appBarHwnd !== null) removeAppBar(s.appBarHwnd, log)
     clearInterval(s.keepalive)
     s.tracker?.dispose()
-    trayOverflow.dispose() // 条带销毁即收浮层（禁用/退役路径都在此收敛，工单162）
-    appMenuPopup.dispose() // 应用组菜单浮层同行（工单193）
-    recMenuPopup.dispose() // 推荐条目菜单浮层同行（工单196）
-    blankMenuPopup.dispose() // 空白右键菜单浮层同行（工单196）
-    tierMenuPopup.dispose() // 托盘档位菜单浮层同行（工单196）
-    winsMenuPopup.dispose() // 多窗选窗浮层同行（工单196）
+    for (const h of popupHosts) h.dispose() // 条带销毁即收浮层（禁用/退役路径都在此收敛，工单162/193/196）
     s.win.destroy()
     log?.append({ type: 'taskbar-window-destroyed', reason })
   }
@@ -401,12 +403,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         const hit = shouldYieldToFullscreen(probeForegroundWindow(), primaryPhysRect(), process.pid)
         if (hit && !s.yielded) {
           s.yielded = true
-          trayOverflow.close('yield') // 全屏让位：浮层不悬置在已隐藏的条带之上（工单162）
-          appMenuPopup.close('yield') // 应用组菜单浮层同让位（工单193）
-          recMenuPopup.close('yield') // 推荐条目菜单浮层同让位（工单196）
-          blankMenuPopup.close('yield') // 空白右键菜单浮层同让位（工单196）
-          tierMenuPopup.close('yield') // 托盘档位菜单浮层同让位（工单196）
-          winsMenuPopup.close('yield') // 多窗选窗浮层同让位（工单196）
+          for (const h of popupHosts) h.close('yield') // 全屏让位：浮层不悬置在已隐藏的条带之上（工单162/193/196）
           w.hide()
           log?.append({ type: 'taskbar-yield' })
         } else if (!hit && s.yielded) {

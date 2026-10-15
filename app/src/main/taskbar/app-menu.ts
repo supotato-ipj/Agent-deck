@@ -7,23 +7,18 @@
 // 开层语义 = 右键手势恒（重）开（原生右键菜单同款）：在场遇同目标开层即重锚定（不
 // 拨动收层——右键不是拨动钮；换目标重载行集）；行集由载页按 exe 自足推导
 // （taskbarAppMenuPopupRows——与条带视图同一份视图模型，永不各判一次）。
-import { screen } from 'electron'
+// 装配 = 五面同形工厂（menu-host.ts，spec188 评审收口）：本文件只持域参数——193 形态
+// 的开层 URL 不带 title 参数（页面缺省保持 document.title 原样），其余四面才随 query
+// 下发标题。
 import type { Context } from 'cordis'
 import type { EventLog } from '../panel-ipc'
-import { taskbarMenuUrl } from '../plugins/protocol'
-import { startPopupMenuCarrier } from './popup'
+import { startMenuHost } from './menu-host'
+import type { MenuHost } from './menu-host'
 
 /** 浮层窗标题：验收控制器按 pid + 标题寻窗（TRAY_OVERFLOW_TITLE 先例） */
 export const TASKBAR_MENU_TITLE = 'DECK-TASKBAR-MENU'
 
-export interface AppMenuHost {
-  /** 条带页 host-notify 的转发入口（wireHostIpc onNotify 钩子；open/close 两型） */
-  onStripNotify(type: string, payload: Record<string, unknown> | undefined): void
-  /** 显式收层（全屏让位等场景；reason 落存证） */
-  close(reason: string): void
-  /** 条带销毁/控制器退役随行（禁用即销窗） */
-  dispose(): void
-}
+export type AppMenuHost = MenuHost
 
 /**
  * 应用组菜单浮层宿主：条带页右键请求开层（携带 exe 身份）→ 通用载体（首开建窗 /
@@ -33,42 +28,15 @@ export interface AppMenuHost {
  * 条带点击转达 / 条目退场（页自收）/ 全屏让位 / 条带销毁（destroy）。
  */
 export function startAppMenuHost(options: { ctx: Context; log: EventLog | null }): AppMenuHost {
-  const { ctx, log } = options
-  const carrier = startPopupMenuCarrier({
-    ctx,
-    log,
+  return startMenuHost({
+    ...options,
     title: TASKBAR_MENU_TITLE,
-    events: { opened: 'taskbar-app-menu-opened', resized: 'taskbar-app-menu-resized', closed: 'taskbar-app-menu-closed' },
-    readyEvent: 'taskbar-app-menu-ready',
-    closeEvent: 'taskbar-app-menu-close',
-    diagPrefix: 'app-menu',
-    bridgeChannels: ['taskbar/changed'],
+    family: 'taskbar-app-menu',
+    menu: 'app',
+    buildUrl: (base, maxH, payload) => {
+      const exe = String((payload as { exe?: unknown } | undefined)?.exe ?? '')
+      if (!exe) return '' // 空身份是噪声：不开层
+      return `${base}&exe=${encodeURIComponent(exe)}&maxH=${maxH}`
+    },
   })
-
-  // 视口帽随工作区下发（托盘溢出先例同式；应用组行集 ≤3 行远不及帽，极端机器态兜底）。
-  // 开层首拍才取工作区（宿主装配拍可能早于 app ready，screen 未就绪即取会炸）
-  let maxH = 0
-  const menuUrl = (exe: string): string => {
-    if (!maxH) maxH = Math.max(320, screen.getPrimaryDisplay().workArea.height - 80)
-    return `${taskbarMenuUrl()}?menu=app&exe=${encodeURIComponent(exe)}&maxH=${maxH}`
-  }
-
-  return {
-    onStripNotify(type, payload) {
-      if (type === 'taskbar-app-menu-open') {
-        const exe = String((payload as { exe?: unknown } | undefined)?.exe ?? '')
-        if (!exe) return // 空身份是噪声：不开层
-        // 右键手势恒开：URL 未变（同目标）= show 即刻重锚定；换目标 = reload 行集
-        carrier.open({ url: menuUrl(exe) })
-      } else if (type === 'taskbar-app-menu-close') {
-        carrier.close(String((payload as { reason?: unknown } | undefined)?.reason ?? 'request'))
-      }
-    },
-    close(reason) {
-      carrier.close(reason)
-    },
-    dispose() {
-      carrier.dispose()
-    },
-  }
 }

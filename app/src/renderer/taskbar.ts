@@ -743,6 +743,15 @@ document.addEventListener('click', (ev) => {
   relayCloseAllPopups(ev.target instanceof HTMLElement && !!ev.target.closest('.tb-tray-overflow'))
 })
 
+/** 托盘档位菜单右键挂点谓词（spec188 评审收口：捕获相转达收层判据与 boot 内 rightPill
+ * 开层守卫两处异形收一，恒等锁步防漂移）——右键落「⋯」（挂点一，自带接线）或右组
+ * pill 自身与缝隙（挂点二）即属档位菜单域；格/托盘图标各有自家右键语义不属。挂点一
+ * 与托盘图标自带 stopPropagation，开层守卫在可达输入上只放行 pill 自身与缝隙。 */
+function isTierMenuSpot(el: Element | null): boolean {
+  return !!el && (!!el.closest('.tb-tray-overflow')
+    || (!!el.closest('#right-pill') && !el.closest('.tb-cell') && !el.closest('.tb-tray-icon')))
+}
+
 // 弹窗菜单互斥（工单193/196）：条带内右键 = 开某面（挂点上——原生菜单语义：右键开
 // 新菜单收旧菜单）或开原生菜单（托盘图标回放等非挂点）——无论如何都把「非本拍挂点」
 // 的面转达收层。捕获相先行（各挂点 preventDefault/stopPropagation 之前）；各挂点豁免
@@ -753,7 +762,7 @@ document.addEventListener('contextmenu', (ev) => {
   const keepApp = inSel('.tb-app')
   const keepRec = inSel('.tb-rec')
   const keepBlank = inSel('#pill-start') || inSel('#pill-recs')
-  const keepTier = inSel('.tb-tray-overflow') || (inSel('#right-pill') && !inSel('.tb-cell') && !inSel('.tb-tray-icon'))
+  const keepTier = isTierMenuSpot(el)
   if (appMenuRequested && !keepApp) relayClose('app')
   if (recMenuRequested && !keepRec) relayClose('rec')
   if (blankMenuRequested && !keepBlank) relayClose('blank')
@@ -779,9 +788,10 @@ function boot(): void {
   wireBlankMenu(pillStart)
   wireBlankMenu(pillRecs)
   // 右组空白处右键 = 托盘档位菜单挂点二（工单162，工单196 迁浮层）：格/托盘图标/「⋯」
-  // 都有自己的右键语义（托盘图标回放、摘要编辑态切换等），只认 pill 自身与缝隙
+  // 都有自己的右键语义（托盘图标回放、摘要编辑态切换等），只认 pill 自身与缝隙——
+  // 豁免判据与捕获相收层判据同一谓词（isTierMenuSpot，spec188 评审收口恒等锁步）
   rightPill.addEventListener('contextmenu', (e) => {
-    if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow')) return
+    if (!isTierMenuSpot(e.target as HTMLElement)) return
     e.preventDefault()
     tierMenuRequested = true
     window.deck.host.notify('taskbar-tier-menu-open', {})
