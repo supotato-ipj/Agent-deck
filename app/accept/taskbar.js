@@ -2664,20 +2664,44 @@ async function main() {
     //   （再开一层=重锚定 → 点时钟格 → reason=strip-click）。
     rep.beginSegment('P21');
     {
-      const img21 = 'deck-p21-cmd.exe';
+      // 探针 = csc 编译最小 WinForms 窗（P18 同款制备法）：同 exe 双实例、argv 定标题
+      //（断言锚点）。cmd 副本双开弃用：Win11 默认终端下控制台窗属主是 WindowsTerminal.exe
+      //（CASCADIA 宿主）——栏面 exe 枚举归到终端宿主，cmd 副本身份永远不上栏（三轮红轮
+      // 实证：窗就位=true 进程=2 而栏面无条目）。
+      const P21_PROBE_CS = `
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+static class Probe {
+  [STAThread]
+  static void Main(string[] args) {
+    string title = (args != null && args.Length > 0 && args[0].Length > 0) ? args[0] : "deck-p21 probe";
+    Form f = new Form();
+    f.Text = title;
+    f.StartPosition = FormStartPosition.Manual;
+    f.Bounds = new Rectangle(40, 60, 300, 160);
+    Application.Run(f);
+  }
+}
+`;
+      const img21 = 'deck-p21-app.exe';
       const sysRoot21 = process.env.SystemRoot || 'C:\Windows';
       const tmp21 = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p21-'));
       const copy21 = path.join(tmp21, img21);
-      fs.copyFileSync(path.join(sysRoot21, 'System32', 'cmd.exe'), copy21);
+      const csc21 = path.join(sysRoot21, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+      const cs21 = path.join(tmp21, 'probe.cs');
+      fs.writeFileSync(cs21, P21_PROBE_CS, 'utf8');
+      const built21 = spawnSync(csc21, ['/nologo', '/target:winexe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', `/out:${copy21}`, cs21], { encoding: 'utf8' });
       const titles21 = ['DECK-P21-WIN-1', 'DECK-P21-WIN-2'];
+      if (built21.status !== 0 || !fs.existsSync(copy21)) {
+        rep.fail(`P21 前置缺失：探针编译失败 status=${built21.status} ${(built21.stderr || '').trim().slice(0, 160)}`);
+        try { fs.rmSync(tmp21, { recursive: true, force: true }); } catch { /* 尽力 */ }
+        spawnSync('taskkill', ['/IM', img21, '/T', '/F'], { stdio: 'ignore' });
+      } else {
       for (const t of titles21) {
-        // PowerShell Start-Process：控制台程序必开新窗（cmd start 的引号/驻留语义在
-        // node spawn 转义下不可靠——首轮红轮实证 start 命令行被二次转义打坏且同步阻塞）；
-        // /K 驻留 + title 定名（断言锚点）。串行两发各 ~1-2s，est 已计。
-        spawnSync('powershell.exe', ['-NoProfile', '-Command', `Start-Process -FilePath '${copy21}' -ArgumentList '/K','title ${t}'`], { encoding: 'utf8', timeout: 15000 });
+        spawn(copy21, [t], { stdio: 'ignore' });
       }
-      // 控制台窗就绪等待（两窗标题就位——Start-Process 异步出生 + title 命令再改一拍；
-      // trim 对账：Start-Process 拼参尾随空格会进 title 命令的行尾——标题实带尾空格）
+      // 双窗就绪等待（WinForms 窗出生即带 argv 标题；trim 对账沿既往口径）
       let winsUp21 = false;
       for (let i = 0; i < 30 && !winsUp21; i++) {
         await sleep(400);
@@ -2716,8 +2740,8 @@ async function main() {
         }
         if (!appSeen21) {
           const diagProc21 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${img21}`, '/NH'], { encoding: 'utf8' });
-          const procCount21 = ((diagProc21.stdout || '').match(/deck-p21-cmd/g) || []).length;
-          rep.fail(`P21 前置缺失：双实例探针未上栏（应用组合一条目未出现——控制台窗被栏面枚举过滤或双开失败）`
+          const procCount21 = ((diagProc21.stdout || '').match(/deck-p21-app/g) || []).length;
+          rep.fail(`P21 前置缺失：双实例探针未上栏（应用组合一条目未出现——探针窗被栏面枚举过滤或双开失败）`
             + ` 窗就位=${winsUp21} 进程=${procCount21}`);
         } else {
           const pop21 = await clickIconOpen21();
@@ -2745,7 +2769,7 @@ async function main() {
             closedRow21 = await waitEvent('taskbar-wins-menu-closed', (e) => e.reason === 'row' && e.t >= pop21.since, 5000);
           }
           if (pick21 && fgOk21 && closedRow21) {
-            rep.pass(`P21② 选窗聚焦端到端：行点存证（exe/hwnd 身份核对）→ 目标控制台窗真前台（hwnd=${pick21.hwnd}）、行点即收（reason=row）`);
+            rep.pass(`P21② 选窗聚焦端到端：行点存证（exe/hwnd 身份核对）→ 目标探针窗真前台（hwnd=${pick21.hwnd}）、行点即收（reason=row）`);
           } else {
             rep.fail(`P21② 选窗：存证=${!!pick21}${pick21 ? `(hwnd=${pick21.hwnd})` : ''} 前台对账=${fgOk21} 行点即收=${closedRow21 ? closedRow21.reason : '缺'}`);
           }
@@ -2774,6 +2798,7 @@ async function main() {
         spawnSync('taskkill', ['/IM', img21, '/T', '/F'], { stdio: 'ignore' });
         try { fs.rmSync(tmp21, { recursive: true, force: true }); } catch { /* 尽力 */ }
       }
+      } // 编译成功分支（探针缺编只判前置红，不再走注入臂）
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
