@@ -2671,8 +2671,16 @@ async function main() {
       fs.copyFileSync(path.join(sysRoot21, 'System32', 'cmd.exe'), copy21);
       const titles21 = ['DECK-P21-WIN-1', 'DECK-P21-WIN-2'];
       for (const t of titles21) {
-        // start 首参带引号 = 新控制台窗标题位；/K 驻留 + title 定名（断言锚点）
-        spawn('cmd.exe', ['/c', 'start', `"${t}"`, `"${copy21}"`, '/K', `title ${t}`], { stdio: 'ignore' });
+        // PowerShell Start-Process：控制台程序必开新窗（cmd start 的引号/驻留语义在
+        // node spawn 转义下不可靠——首轮红轮实证 start 命令行被二次转义打坏且同步阻塞）；
+        // /K 驻留 + title 定名（断言锚点）。串行两发各 ~1-2s，est 已计。
+        spawnSync('powershell.exe', ['-NoProfile', '-Command', `Start-Process -FilePath '${copy21}' -ArgumentList '/K','title ${t}'`], { encoding: 'utf8', timeout: 15000 });
+      }
+      // 控制台窗就绪等待（两窗标题就位——Start-Process 异步出生 + title 命令再改一拍）
+      let winsUp21 = false;
+      for (let i = 0; i < 30 && !winsUp21; i++) {
+        await sleep(400);
+        winsUp21 = titles21.every((t) => win32.topLevelWindows().some((h) => titleOf(h) === t));
       }
       const norm21 = (s21) => String(s21 || '').toLowerCase();
       const liveAppPt21 = async () => cdpEval(`(() => {
