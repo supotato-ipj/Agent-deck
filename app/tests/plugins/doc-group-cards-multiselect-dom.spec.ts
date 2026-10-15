@@ -358,6 +358,35 @@ describe('卡内框选（工单184：命中集合只含本卡）', () => {
     expect(selectedOf(DOCX)).toEqual(['纪要.docx'])
   })
 
+  // 工单187 真机轮：这条是**首轮红臂那处坐标错配的钉子**。展开态内容区比卡框内边距盒窄、
+  // `margin:0 auto` 真居中，于是「卡框内联 left/top + 内边距 + 卡头」那套算式外沿与真实
+  // 网格外沿差着一截常数；命中表若按算式推、拖拽带的 left/top 若也按算式写，两侧都挂在算式上，
+  // 真机上恒空命中（本轮实测「拖拽带=true 入选=0」）。折叠态两者恰好相等（内容区与内边距盒同宽），
+  // 所以这个缺陷对折叠态用例是隐形的——必须显式展开这张卡、并且直接量那条带子的矩形才看得见。
+  it('**展开态**框选带与命中集都按实测外沿：带子的 left/top = 视口矩形 − 实测网格外沿', async () => {
+    await boot()
+    clickNode(cardById(DOCX)) // 点卡片空白 → 展开
+    expect(cardById(DOCX).classList.contains('dgc-expanded')).toBe(true)
+    toggleMultiOn(DOCX)
+    // 先把前提钉住：这一态下算式外沿与实测外沿确实不等（不是 0），否则本条是空转
+    const grid = gridOf(DOCX).getBoundingClientRect()
+    const driftX = grid.left - contentOrigin(DOCX).x
+    expect(Math.round(driftX)).not.toBe(0)
+    // 起笔/收笔都按**实测**网格外沿取——真机上那正是用户看到的那一片
+    const start = { clientX: grid.left + grid.width / 2, clientY: grid.top + grid.height - 20 }
+    const end = { left: grid.left + 40, top: grid.top + 40 }
+    gridOf(DOCX).dispatch('mousedown', gridOf(DOCX), start)
+    win.dispatch('mousemove', dom.body, { clientX: end.left, clientY: end.top })
+    const band = marqueeNodes()[0]
+    expect(band).toBeTruthy()
+    // 拖拽带的 left/top 走的是 `position:relative` 的网格外沿，故必须是「视口矩形 − 实测外沿」。
+    // 挂回算式外沿（真机上的那 16px 偏移）时这条直接红——它就是那处错配的最小复现。
+    expect(Math.round(Number.parseFloat(band.style.left))).toBe(Math.round(Math.min(start.clientX, end.left) - grid.left))
+    expect(Math.round(Number.parseFloat(band.style.top))).toBe(Math.round(Math.min(start.clientY, end.top) - grid.top))
+    win.dispatch('mouseup', dom.body, { clientX: end.left, clientY: end.top })
+    expect(selectedOf(DOCX)).toEqual(['方案.docx', '纪要.docx'])
+  })
+
   it('框空即清空本卡选区', async () => {
     await boot()
     toggleMultiOn(DOCX)

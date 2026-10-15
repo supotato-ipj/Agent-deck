@@ -15,7 +15,9 @@
  * window 的 EventTarget / document.querySelectorAll），故工单181 用到的那几个面一个不少。
  * 工单183 在此基础上补了输入框那一面（value / focus / setSelectionRange / replaceWith /
  * setAttribute），因为「焦点怎么落到输入框上」正是本票要钉的东西。
+ * 工单187 真机轮再补 `getBoundingClientRect()`——见文件末尾那段「桩里的布局」。
  */
+import { CARD_PAD_X, CARD_PAD_Y, HEAD_H, cardGeometryOf, cellRectOf } from '../../plugins/doc-group-cards/geometry'
 export type DomEvent = {
   type: string
   target: Element
@@ -93,6 +95,20 @@ export class Element {
 
   get firstChild(): Element | null {
     return this.children[0] ?? null
+  }
+
+  /**
+   * 桩里的**实测**矩形（工单187 真机轮补）。
+   *
+   * 为什么现在才有：card.js 的框选命中表原按 geometry.js 的算式「推」格子位置，真机上那份算式
+   * 与真实网格外沿差着一段常数偏移（展开态内容区 `margin:0 auto` 居中 + 溢出滚动条），框选恒空，
+   * 而这份桩当时只按同一套算式伪造点击点，**照单全收同一个错**，于是缺陷对它是隐形的。
+   * 故补上这个方法，并让它按**真实布局**给数：卡框读内联 left/top，卡头与内容区按内边距/卡头高摆，
+   * 内容区按 `margin:0 auto` 真居中，格子按格序在内容区内排开。折叠态下居中偏移恰为 0，
+   * 展开态下不为 0——缺陷在两种形态上表现不同，正是它此前看不见的原因。
+   */
+  getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
+    return rectOf(this)
   }
 
   /** 在桩里「已挂载」= 能沿 parent 链走到某个文档根 */
@@ -294,4 +310,54 @@ export function newDom() {
     querySelectorAll: (selector: string) => body.querySelectorAll(selector),
   }
   return { documentShim, head, body, docZone }
+}
+
+// ---------------------------------------------------------------------------
+// 桩里的布局：按**真实布局**给 getBoundingClientRect() 的数（工单187 真机轮补）
+//
+// 只有卡片子树需要——card.js 只有框选那一处在运行时量矩形，且量的都是卡框/内容区/格子。
+// 数字全部取自 geometry.js（单一出处）：卡框两行读内联样式（card.js 按 rowLayoutOf 写的），
+// 其余按内边距、卡头高、列数、格边长与间距摆。**内容区按 `margin:0 auto` 真居中**：
+// 折叠态内容区与内边距盒等宽（偏移 0），展开态窄一截（偏移非 0）——这正是真机上
+// 「算式外沿 ≠ 实测外沿」的那个常数，也正是这份桩当年照抄同一套算式而看不见缺陷的原因。
+// ---------------------------------------------------------------------------
+
+function px(style: Record<string, string>, key: string): number {
+  const v = Number.parseFloat(style[key] ?? '')
+  return Number.isFinite(v) ? v : 0
+}
+
+function rectOf(node: Element): { left: number; top: number; width: number; height: number } {
+  const card = cardAncestorOf(node)
+  if (!card) return { left: 0, top: 0, width: 0, height: 0 }
+  const box = { left: px(card.style, 'left'), top: px(card.style, 'top') }
+  const expanded = card.classList.contains('dgc-expanded')
+  const geo = cardGeometryOf(expanded)
+  const width = px(card.style, 'width') || geo.width
+  const height = px(card.style, 'height') || geo.height
+  if (node === card) return { left: box.left, top: box.top, width, height }
+  // 内容区（网格外沿）：卡框内边距盒减去卡头一行；宽度按真布局居中
+  const innerWidth = width - 2 * CARD_PAD_X
+  const gridWidth = geo.contentWidth
+  const grid = { left: box.left + CARD_PAD_X + (innerWidth - gridWidth) / 2, top: box.top + CARD_PAD_Y + HEAD_H, width: gridWidth, height: geo.contentHeight }
+  if (node === gridElementOf(card)) return grid
+  // 格子：在内容区里按格序（只数 .dgc-cell，拖拽带不是格子）
+  const cells = gridElementOf(card)!.children.filter((c) => c.classList.contains('dgc-cell'))
+  const i = cells.indexOf(node)
+  if (i < 0) return { left: grid.left, top: grid.top, width: 0, height: 0 }
+  const cell = cellRectOf(i, expanded)
+  return { left: grid.left + cell.x, top: grid.top + cell.y, width: cell.width, height: cell.height }
+}
+
+function cardAncestorOf(node: Element): Element | null {
+  let n: Element | null = node
+  while (n) {
+    if (n.classList.contains('card')) return n
+    n = n.parent
+  }
+  return null
+}
+
+function gridElementOf(card: Element): Element | null {
+  return card.children.find((c) => c.classList.contains('dgc-grid')) ?? null
 }

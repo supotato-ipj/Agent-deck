@@ -41,8 +41,8 @@ import {
   EXPANDED_H,
   EXPANDED_W,
   HEAD_H,
-  cellRectOf,
-  contentOriginOf,
+  // 工单187 真机轮：cellRectOf / contentOriginOf 不再被卡面引用（命中表改实测，见 cellRectsOf 的注记）；
+  // 它们仍是格子布局的几何出处，纯模块测试与文档继续钉着。
   moreLabelOf,
   rowLayoutOf,
 } from './geometry.js'
@@ -225,6 +225,10 @@ const CARD_CSS_BASE = `
 .${CARD_CLASS} .${MORE_CLASS}:hover { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .${CARD_CLASS} .dgc-grid {
   display: grid;
+  /* 工单187 真机轮：开定位上下文，让框选那条 position:absolute 的拖拽带以**网格外沿**为基准。
+     没有这一行时它的定位基准是更外层的卡片（position:fixed），带子会被内边距与卡头整体顶偏，
+     与「按什么算」对不上——这正是工单184 首轮红臂里那条坐标系错配的另一半。 */
+  position: relative;
   grid-template-columns: repeat(${COLLAPSED_COLS}, ${CELL}px);
   grid-auto-rows: ${CELL}px;
   gap: ${CELL_GAP}px;
@@ -1660,31 +1664,69 @@ let marqueeNode = null
 let selectTierHeld = false
 
 /**
- * 那张卡此刻的格子矩形表（**网格局部**坐标）。
+ * 那张卡的内容区（`.dgc-grid`）元素；没有就返回 null。
  *
- * 这就是命中集卡内的结构性保证：传进来的只有这一张卡的格子，且位置由 geometry.js 的
- * `cellRectOf` 算出（格序 → 规则网格位置），不量 DOM、不跨卡。
+ * HTMLCollection 没有 find（那是 Array 的方法）——真机轮实证：原样写会在页内抛
+ * TypeError，框选拖拽带与命中集一起哑掉（工单187 P184 段存证）。
+ * @param {Element} card
+ * @returns {Element|null}
+ */
+function gridOf(card) {
+  return Array.from(card.children).find((c) => c.classList.contains('dgc-grid')) || null
+}
+
+/**
+ * 那张卡此刻的格子矩形表（**视口**坐标，**实测**）。
+ *
+ * 这就是命中集卡内的结构性保证：传进来的只有这一张卡的格子，不跨卡。
+ *
+ * 【与 geometry.js `cellRectOf` 的分工，工单187 真机轮改】原先这里按格序**算**位置
+ * （网格局部坐标），鼠标坐标则按 `contentOriginOf`（卡框内联 left/top + 内边距 + 卡头）换算，
+ * 两侧都自认是「网格局部」却并不对齐：展开态内容区比卡框内边距盒窄、`margin:0 auto` 居中，
+ * 且内容区一旦溢出即出现纵向滚动条——真实网格外沿与 `contentOriginOf` 差着一段常数偏移。
+ * 算出来的命中表与真格子永远错开，框选即恒空。**故这一侧改为实测**：命中表、鼠标端点、
+ * 拖拽带三者同在视口坐标系里算，网格局部坐标只剩「画」这一个用途（见 toGridLocal）。
+ * geometry.js 的 `cellRectOf`/`contentOriginOf` 仍是格子布局的**几何出处**（测试与文档都还钉着），
+ * 只是不再被当作卡面上的实测替身。
+ *
+ * 按类名筛而不是按 `grid.children` 的下标：拖拽带是网格外挂进来的一个 `position:absolute`
+ * 子节点，它不在格子里，下标一旦被它顶掉，后面每一格的算式位置都会平移。
  * @param {Element} card
  * @returns {{ path: string, x: number, y: number, width: number, height: number }[]}
  */
 function cellRectsOf(card) {
-  const state = stateOf(card)
-  // HTMLCollection 没有 find（那是 Array 的方法）——真机轮实证：原样写会在页内抛
-  // TypeError，框选拖拽带与命中集一起哑掉（工单187 P184 段存证）。
-  const grid = Array.from(card.children).find((c) => c.classList.contains('dgc-grid'))
+  const grid = gridOf(card)
   if (!grid) return []
-  return Array.from(grid.children).map((cell, index) => ({
-    path: cell.dataset.path,
-    ...cellRectOf(index, state.expanded),
-  }))
+  return Array.from(grid.children)
+    .filter((el) => el.classList.contains(CELL_CLASS))
+    .map((cell) => {
+      const r = cell.getBoundingClientRect()
+      return { path: cell.dataset.path, x: r.left, y: r.top, width: r.width, height: r.height }
+    })
 }
 
-/** 那张卡内容区在视口里的原点（卡框内联矩形 + 内边距 + 卡头；三个数全部出自 geometry.js） */
-function originOf(card) {
-  return contentOriginOf({ left: Number.parseFloat(card.style.left), top: Number.parseFloat(card.style.top) })
+/** 那张卡内容区在视口里的原点（**实测**网格外沿，不从卡框内联两行反推） */
+function gridOriginOf(card) {
+  const grid = gridOf(card)
+  if (!grid) return null
+  const r = grid.getBoundingClientRect()
+  return { x: r.left, y: r.top }
 }
 
-/** 铺/挪那一条拖拽带（几何写内联样式，与 contentOriginOf 的换算同源） */
+/**
+ * 视口矩形 → 网格局部矩形（只平移，尺寸不动）。
+ *
+ * 拖拽带是 `position:absolute` 的网格子节点，而 `.dgc-grid` 开了 `position:relative`
+ * （见 CARD_CSS_BASE），故它的定位基准就是网格外沿：减掉实测原点即得该写的 left/top。
+ * @param {{ x: number, y: number, width: number, height: number }} rect 视口矩形
+ * @param {{ x: number, y: number }} origin 网格外沿（视口坐标）
+ * @returns {{ x: number, y: number, width: number, height: number }}
+ */
+function toGridLocal(rect, origin) {
+  return { x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height }
+}
+
+/** 铺/挪那一条拖拽带（几何写内联样式，基准是 `.dgc-grid` 自己的定位上下文） */
 function showMarquee(card, rect) {
   if (!marqueeNode) {
     const band = document.createElement('div')
@@ -1692,8 +1734,7 @@ function showMarquee(card, rect) {
     marqueeNode = band
     injected.push(band) // 按引用登记：卸载时摘的正是这一枚
   }
-  // 同 cellRectsOf：HTMLCollection 没有 find（工单187 真机轮实证的页内 TypeError 出处）
-  const grid = Array.from(card.children).find((c) => c.classList.contains('dgc-grid'))
+  const grid = gridOf(card)
   if (grid && marqueeNode.parent !== grid) grid.appendChild(marqueeNode)
   marqueeNode.style.left = `${rect.x}px`
   marqueeNode.style.top = `${rect.y}px`
@@ -1712,8 +1753,7 @@ function hideMarquee() {
  * （落在图标格上的那一笔归单击切换，见 buildCell 的闸）。
  */
 function startMarquee(card, ev) {
-  const origin = originOf(card)
-  marquee = { cardId: card.id, from: { x: ev.clientX - origin.x, y: ev.clientY - origin.y } }
+  marquee = { cardId: card.id, from: { x: ev.clientX, y: ev.clientY } } // 视口坐标，与命中表同一系
   showMarquee(card, { x: 0, y: 0, width: 0, height: 0 })
   hostRef?.onDomChanged() // 带子铺上了：命中区变了，重扫
   window.addEventListener('mousemove', onMarqueeMove)
@@ -1725,8 +1765,9 @@ function onMarqueeMove(ev) {
   if (!marquee) return
   const card = cardNodes.get(marquee.cardId)
   if (!card) return
-  const origin = originOf(card)
-  showMarquee(card, marqueeRectOf(marquee.from, { x: ev.clientX - origin.x, y: ev.clientY - origin.y }))
+  const origin = gridOriginOf(card)
+  if (!origin) return
+  showMarquee(card, toGridLocal(marqueeRectOf(marquee.from, { x: ev.clientX, y: ev.clientY }), origin))
 }
 
 /**
@@ -1744,10 +1785,9 @@ function onMarqueeUp(ev) {
   hideMarquee()
   hostRef?.onDomChanged() // 带子撤了：命中区又变了，重扫
   if (!card) return
-  const origin = originOf(card)
   const next = marqueeSelect(
     stateOf(card),
-    marqueeRectOf(from, { x: ev.clientX - origin.x, y: ev.clientY - origin.y }),
+    marqueeRectOf(from, { x: ev.clientX, y: ev.clientY }), // 视口矩形：与 cellRectsOf 同一坐标系
     cellRectsOf(card),
   )
   cardState.set(cardId, next.state)
