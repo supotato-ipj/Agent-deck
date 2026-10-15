@@ -2817,10 +2817,20 @@ static class Probe {
           }
           // 清场（工单195 前台敏感臂共存注记）：③点时钟格 = Win+N 拉起原生通知中心——
           // 本段紧随其后的是 P20 拖拽段（臂D1 重启帧判据含前台态），残留原生面会把
-          // 前台判据毒死（合并态两连红轮实证）。Esc 尽力收净（P4 原生开始菜单同款
-          // 手势；light-dismiss 被拖拽手势绕过——drag 不构成栏面点击）。
-          win32.tapKeys([VK_ESC]);
-          await sleep(400);
+          // 前台判据毒死（合并态两连红轮实证）。收净带前台对账（dismissShellMenu 同款
+          // 口径）：先等通知中心入场动画走完真占前台再 Esc——裸 Esc 在点击后即刻发出，
+          // 键落当时前景窗（探针窗）打空、通知中心随后入场常驻（续作复验轮同签再红实
+          // 证）；CoreWindow 面未让位按次重试；light-dismiss 被拖拽手势绕过——drag 不
+          // 构成栏面点击；未拉起（时钟点击偶发不触发）视同场净不空等。
+          {
+            const native21 = await waitForeground((i) => i.cls === 'Windows.UI.Core.CoreWindow', 3000);
+            for (let attempt = 0; native21 && attempt < 3; attempt++) {
+              win32.tapKeys([VK_ESC]);
+              if (await waitForeground((i) => i.cls !== 'Windows.UI.Core.CoreWindow', 4000)) break;
+              await sleep(200);
+            }
+            await sleep(400);
+          }
         }
       } finally {
         spawnSync('taskkill', ['/IM', img21, '/T', '/F'], { stdio: 'ignore' });
@@ -3121,7 +3131,8 @@ static class Probe {
               rep.pass(`P20 臂D1 运行拖位重启回默认序：重启面板——臂B 会话拖位（q3<q1）随会话归零，`
                 + `重启后 q1 前台=首见序（q1<q3，运行段=${JSON.stringify(segSplit20(rebootD1).running.map((k) => path.basename(k)))}）`);
             } else {
-              rep.fail(`P20 臂D1 运行拖位复位未达成：boot=${!!bootD1} 就绪=${!!readyD1} 重启帧=${!!rebootD1}(前台=${focusOkD1})`
+              rep.fail(`P20 臂D1 运行拖位复位未达成：boot=${!!bootD1} 就绪=${!!readyD1} 重启帧=${!!rebootD1}(前台=${focusOkD1}`
+                + ` 残留占焦=${JSON.stringify(foregroundInfo())})`
                 + ` 重启前=${beforeD1} 重启后=${JSON.stringify(segSplit20(await state20()))}`);
             }
           }
