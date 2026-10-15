@@ -22,6 +22,10 @@ export class HotzoneTracker {
   private rects: HotzoneRect[] = []
   private hot = false
   private missCount = 0
+  /** 拖拽会话持门计数（工单195）：OLE 拖拽活动期抑制关门——渲染层 dragstart/dragend
+   * 成对上行（嵌套安全用计数），持门期 poll 跳过离场判定、穿透恒开。跨组/缝隙松手
+   * 不丢（断点③：~60% 跨 pill 场景 drop 随 25ms 轮询关门丢失，2026-10-14 取证在案）。 */
+  private holdCount = 0
   private readonly timer: NodeJS.Timeout
   private disposed = false
 
@@ -31,6 +35,21 @@ export class HotzoneTracker {
 
   setRects(rects: HotzoneRect[]): void {
     this.rects = rects
+  }
+
+  /** 拖拽会话持门（工单195）：on=true 计数 +1 并立即开门（拖拽起手时窗必在穿透态——
+   * 不开门则首个 dragover 就收不到）；on=false 计数 -1，归零后下一拍恢复常态判定。 */
+  setHold(on: boolean): void {
+    if (this.disposed) return
+    this.holdCount = Math.max(0, this.holdCount + (on ? 1 : -1))
+    if (this.holdCount > 0) {
+      this.missCount = 0
+      if (!this.hot) {
+        this.hot = true
+        panelLabels.run('hotzone-toggle', () => this.win.setIgnoreMouseEvents(false))
+        this.hooks.onTransition?.(true)
+      }
+    }
   }
 
   dispose(): void {
@@ -43,6 +62,12 @@ export class HotzoneTracker {
     if (this.disposed) return
     if (this.win.isDestroyed()) {
       this.dispose()
+      return
+    }
+    // 拖拽会话持门（工单195）：跳过命中/离场判定——门保持开（setHold 已即时开门），
+    // missCount 清零使释门后从干净拍恢复常态判定，不会因陈旧计数秒关。
+    if (this.holdCount > 0) {
+      this.missCount = 0
       return
     }
     // 滞后哨兵（工单117）：穿透翻转是触碰窗口全局态的动作（H2；final4 轮事件尾终点）。

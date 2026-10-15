@@ -7,7 +7,7 @@ import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
-import { normalizeExe, planAppsSequence, promoteRunToFront, shouldShowOnTaskbar } from '../taskbar/apps-plan'
+import { normalizeExe, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
@@ -372,14 +372,26 @@ export class TaskbarService extends Service {
     if (!this.current.enabled) return { ok: false, error: '任务栏已禁用，栏面不可拖拽' }
     this.ensureLayout()
     if (drop.from === 'apps' && drop.to === 'apps') {
-      const next = reorderPinned(this.store, drop.id, drop.before)
-      if (next === this.store) {
-        // 同一引用 = 空转：非手钉条目（仅运行）不可换位 → ok:false；自落点幂等 → ok:true 不重推
-        return this.store.pinned.some((p) => normalizeExe(p.exe) === normalizeExe(drop.id))
-          ? { ok: true }
-          : { ok: false, error: '仅手钉条目可在应用组拖拽换位（仅运行条目是运行态，不可摆位）' }
+      const key = normalizeExe(drop.id)
+      // 手钉条目：拖位写栏布局存储（重启记住，工单57 既有落盘语义）
+      if (this.store.pinned.some((p) => normalizeExe(p.exe) === key)) {
+        const next = reorderPinned(this.store, drop.id, drop.before)
+        if (next === this.store) return { ok: true } // 自落点幂等：不重写盘、不重推
+        this.commitStore(next)
+        return { ok: true }
       }
-      this.commitStore(next)
+      // 工单195 断点①全条目接线：未钉运行条目可拖——拖位落会话运行序（仅内存不落盘，
+      // 面板重启回默认序）。before 指向手钉段身份时运行段首位钳取（两段模型，紧随手钉段）。
+      const nextOrder = reorderRunOrder(this.runOrder, drop.id, drop.before)
+      if (nextOrder === this.runOrder) {
+        // 同一引用 = 空转：自落点幂等 → ok:true 不重推；身份不在会话序（栏外/已退场
+        // 陈旧键）→ ok:false 有可见反馈，不静默吞掉
+        return this.runOrder.includes(key)
+          ? { ok: true }
+          : { ok: false, error: '拖拽条目不在当前应用组（栏外身份或已退场）' }
+      }
+      this.runOrder = nextOrder
+      this.recompose() // 会话序变化 → 重编排回推一帧（不落盘——运行位次是会话态）
       return { ok: true }
     }
     if (drop.from === 'recs' && drop.to === 'recs') {

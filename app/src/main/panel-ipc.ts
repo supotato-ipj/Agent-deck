@@ -109,14 +109,23 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
       log?.append({ type: 'keyboard-mode-off' })
     }
   }
+  // 拖拽会话开关（工单195）：渲染层 dragstart/dragend 成对上行，宿主转热区跟踪器持门
+  // （OLE 拖拽活动期抑制穿透轮询关门——跨组/缝隙松手不丢）。跟踪器缺席窗（浮层）声明即弃。
+  const onDragSession = (event: Electron.IpcMainEvent, on: boolean) => {
+    if (event.sender !== win.webContents) return
+    tracker?.setHold(!!on)
+    log?.append({ type: on ? 'taskbar-drag-hold-on' : 'taskbar-drag-hold-off' })
+  }
   ipcMain.on('deck:host-set-hotzones', onHotzones)
   ipcMain.on('deck:host-notify', onNotify)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
+  ipcMain.on('deck:host-drag-session', onDragSession)
   wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false })
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
     ipcMain.removeListener('deck:host-keyboard-mode', onKeyboardMode)
+    ipcMain.removeListener('deck:host-drag-session', onDragSession)
   })
 }
 

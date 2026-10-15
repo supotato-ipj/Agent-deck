@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('deck', {
     setHotZones: (rects: unknown) => { ipcRenderer.send('deck:host-set-hotzones', rects) },
     // 键盘模式开关（工单02）：开 = 面板临时可聚焦+聚焦+钉底；关 = 恢复不可聚焦+钉底
     setKeyboardMode: (on: boolean) => { ipcRenderer.send('deck:host-keyboard-mode', on) },
+    // 拖拽会话开关（工单195）：开 = 热区穿透轮询持门（抑制关门）——OLE 拖拽活动期跨
+    // 组/缝隙松手不丢；关 = 恢复常态判定。渲染层 dragstart/dragend 成对调用。
+    setDragSession: (on: boolean) => { ipcRenderer.send('deck:host-drag-session', on) },
     notify: (type: string, payload?: Record<string, unknown>) => {
       ipcRenderer.send('deck:host-notify', { type, payload })
     },

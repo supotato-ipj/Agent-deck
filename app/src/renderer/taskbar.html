@@ -235,9 +235,34 @@
   }
   <!-- 工单196（ADR-0013）：pill 内横排菜单样式整体退役——全部右键菜单与多窗选窗
        迁入弹窗浮层窗（taskbar-menu.html，配色世界观在彼处承载），条带内不再有菜单行。 -->
+
+  /* 拖拽失败可见反馈（工单195）：服务层拒返不静默——条带内 toast 逐字透出错误文案，
+   * 居中悬浮于应用组 pill 之上，5s 兜底自收（渲染层 taskbar.ts showDragError 独家读写，
+   * 整树重渲不触碰——body 直挂节点不随 pill 重建）。 */
+  #drag-toast {
+    position: fixed;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
+    max-width: 60%;
+    padding: 5px 14px;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: #ffd9d9;
+    background: rgba(60, 10, 10, 0.88);
+    border: 1px solid rgba(255, 120, 120, 0.55);
+    border-radius: 999px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 9;
+    display: none;
+  }
+  #drag-toast[data-on="1"] { display: block; }
 </style>
 </head>
 <body>
+<div id="drag-toast" aria-live="polite"></div>
 <div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
 <div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
 <div id="pill-recs" class="pill" role="toolbar" aria-label="任务栏推荐组"></div>
