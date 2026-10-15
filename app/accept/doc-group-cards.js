@@ -1023,14 +1023,16 @@ async function main() {
         rep.fail('DELETE 用例夹具缺失：找不到 ' + delName);
       }
 
-      // 组卡菜单骨架：固有卡只有 PASTE 一行（NEW GROUP / EDIT TYPES / DISSOLVE 挂在手改得动的卡上）
+      // 组卡菜单骨架：固有卡出 PASTE / NEW GROUP 两行（EDIT TYPES / DISSOLVE 挂在手改得动的卡上）
+      // 工单187 裁决②：NEW GROUP 建的是**新**卡、不改脚下那张，故在固有卡上恒可见；
+      // 「全新安装时全是固有卡、建不出第一张自定义卡」那条路由此通了。另两行仍不出现。
       const zip = await cardProbe('dgc-zip');
       await clickAt({ x: zip.x + 8, y: zip.y + zip.h / 2 }, 'right');
       const gmenu = await until(() => cdpEval(EXPR.menu), 6000, 150);
       const gids = gmenu ? gmenu.rows.map((r) => r.id) : [];
-      gids.length === 1 && gids[0] === 'paste'
-        ? rep.pass(`组卡菜单骨架（固有卡）：右键卡片空白出菜单，但只有 PASTE 一行——${gids.join(',')}；规则生成的卡不该被手改`)
-        : rep.fail(`固有卡组卡菜单异常：${JSON.stringify(gids)}`);
+      JSON.stringify(gids) === JSON.stringify(['paste', 'new-group'])
+        ? rep.pass(`组卡菜单骨架（固有卡）：右键卡片空白出菜单，行集=PASTE + NEW GROUP——${gids.join(',')}；NEW GROUP 建的是新卡、不改这张规则生成的卡，而 EDIT TYPES·DISSOLVE 仍不出`)
+        : rep.fail(`固有卡组卡菜单异常：${JSON.stringify(gids)}（期望恰为 paste,new-group）`);
       if (gmenu) { await clickAt({ x: (await cdpEval(EXPR.viewport)).w - 12, y: (await cdpEval(EXPR.viewport)).h - 12 }); await sleep(400); }
     }
 
@@ -1249,8 +1251,9 @@ async function main() {
     rep.beginSegment('P185');
     {
       await collapseAll(); // 段首收排：淡出卡 pointer-events:none，不收就会吃掉本段后续点击
-      // 前置：NEW GROUP 只对手改得动的卡可见（menu.js:169-178 记着这条），故先借一次粘贴
-      // 落一张临时卡当入口（粘贴面本身归工单186，见 P186 段）。
+      // 本段仍借一次粘贴落一张临时卡当 NEW GROUP 的入口卡（临时卡是手改得动的卡）——工单187
+      // 裁决②之后，固有卡上其实也出 NEW GROUP 了（那一面由 P183 段钉），此处入口卡换个来路
+      // 不影响本段要验的东西：组定义落库、归属迁移、取消勾选回落、重启后原样回来。
       const seeded = await seedClipboard([stageFiles[1]]);
       if (!seeded) rep.fail('P185 前置：剪贴板播种失败');
       let gate = await until(async () => {
@@ -1261,7 +1264,9 @@ async function main() {
         const z = await cardProbe('dgc-zip');
         await clickAt({ x: z.x + 8, y: z.y + z.h / 2 }, 'right');
         const m = await until(() => cdpEval(EXPR.menu), 6000, 150);
-        if (m) await clickAt({ x: m.rect.x + m.rect.w / 2, y: m.rect.y + m.rect.h / 2, w: 2, h: 2 });
+        // 按行 id 落点，不取菜单正中：裁决②给这张固有卡加了一行 NEW GROUP，两行菜单的正中
+        // 恰好落在两行之间，点正中等于掷硬币（上一轮单行时无此问题）
+        if (m) { const rp = rowPoint(m, 'paste'); if (rp) await clickAt(rp); }
         await until(() => desktopHas(desktop, 'q1.txt'), 8000, 250);
         gate = await until(async () => {
           const cards = await cdpEval(EXPR.cards);
@@ -1324,9 +1329,14 @@ async function main() {
               return cards.find((c) => /^dgc-c\d+$/.test(c.id)) || null;
             }, 6000, 250);
             const pdfCard = await cardProbe('dgc-pdf');
-            custom && pdfCard && pdfCard.cellCount === 0 && saved
-              ? rep.pass(`建卡落库：自定义卡 ${custom.id} 出现（「${custom.title}」），它认领的 .pdf 全数从固有 PDF 卡迁走（固有卡剩 ${pdfCard.cellCount} 格），groups-saved 存证在档${viaEnter ? '（CREATE 一击未进 reducer，改走起名框回车提交——两条路是同一条 reducer，见上条留证）' : ''}`)
-              : rep.fail(`建卡异常：custom=${JSON.stringify(custom)} 固有PDF卡余=${pdfCard && pdfCard.cellCount} 格 saved=${!!saved} 浮层起名框实况=${JSON.stringify(named && named.name)} CREATE钮在场=${!!okRect} 走回车=${viaEnter}｜磁盘组定义=${JSON.stringify((() => { try { const s = JSON.parse(fs.readFileSync(cfgFile, 'utf8')); const g = s.groups || {}; return { custom: g.custom, nextSeq: g.nextSeq }; } catch (e) { return '读不到'; } })())} 页内错误=${JSON.stringify(await pageErrors())}`);
+            // 工单187 裁决①后的新前提：「空组不占卡」只对固有扩展组成立，故被领空的**固有** PDF 组
+            // 应当**退场**（而不是留一张 0 格的卡）。这一条不是把断言放松：它要求自定义卡里的格数
+            // **恰好等于桌面上 .pdf 的全量**——「全数迁走」由此被逐份数出来，而旧写法只说剩 0 格。
+            const pdfOnDesk = diskBefore.filter((n) => /\.pdf$/i.test(n)).length;
+            const migratedAll = !!custom && pdfOnDesk > 0 && custom.cells === pdfOnDesk;
+            migratedAll && pdfCard === null && saved
+              ? rep.pass(`建卡落库：自定义卡 ${custom.id} 出现（「${custom.title}」），它认领的 .pdf 全数从固有 PDF 卡迁走（卡内 ${custom.cells} 格 = 桌面 .pdf 全量 ${pdfOnDesk} 份；固有 PDF 组此刻一份不剩，按工单187 裁决①「空组不占卡」退场，不再是 0 格留屏），groups-saved 存证在档${viaEnter ? '（CREATE 一击未进 reducer，改走起名框回车提交——两条路是同一条 reducer，见上条留证）' : ''}`)
+              : rep.fail(`建卡异常：custom=${JSON.stringify(custom)} 桌面.pdf 全量=${pdfOnDesk} 逐份数齐=${migratedAll} 固有PDF卡=${pdfCard ? `在场（${pdfCard.cellCount} 格）` : '已退场'} saved=${!!saved} 浮层起名框实况=${JSON.stringify(named && named.name)} CREATE钮在场=${!!okRect} 走回车=${viaEnter}｜磁盘组定义=${JSON.stringify((() => { try { const s = JSON.parse(fs.readFileSync(cfgFile, 'utf8')); const g = s.groups || {}; return { custom: g.custom, nextSeq: g.nextSeq }; } catch (e) { return '读不到'; } })())} 页内错误=${JSON.stringify(await pageErrors())}`);
             const diskSame = JSON.stringify(diskBefore) === JSON.stringify(desktopList(desktop).slice().sort());
             diskSame
               ? rep.pass(`全程只改归属不动磁盘：建卡前后桌面清单一致（${diskBefore.length} 份，${diskSame ? '未动' : '变了'}）`)
@@ -1352,11 +1362,21 @@ async function main() {
                 if (prow) await clickAt(centerOf(prow));
                 const box4 = box3 && (await cdpEval(EXPR.types));
                 if (box4 && box4.ok) await clickAt(centerOf(box4.ok));
+                // 存证取 SAVE **之后**那一发 groups-saved（带 t 门槛，否则会捡到粘贴那次更早的）
+                const tSave = Date.now();
+                const savedEdit = await waitEvent('doc-group-cards-groups-saved', (e) => e.t >= tSave, 4000);
+                // 事件行把载荷平铺在顶层（没有 payload 子对象），故去掉 t/type 只留判读字段
+                const savedEditView = savedEdit ? JSON.stringify({ ...savedEdit, t: undefined, type: undefined }) : '(无)';
                 const pdfBack = await until(async () => { const c = await cardProbe('dgc-pdf'); return c && c.cellCount >= 3; }, 6000, 250);
+                // 卡清单里的格数字段叫 **cells**（只有 cardProbe 那份探针才叫 cellCount）。工单187
+                // 前两轮这条读的是 cellCount，恒为 undefined —— 于是「自定义卡清空但留屏」这条判据
+                // **永远不成立**：红臂红的是电池自己的一处字段名笔误，不是产品（实测落定耗时 3ms，
+                // 空卡当下就在屏上）。断言的意图一个字没改，仍是「卡在屏上且恰好 0 格」。
                 const cstAfter = (await cdpEval(EXPR.cards)).find((c) => /^dgc-c\d+$/.test(c.id));
-                pdfBack && cstAfter && cstAfter.cellCount === 0
-                  ? rep.pass(`EDIT TYPES 迁移归属：取消勾选 .pdf 后文件回落固有 PDF 卡（${pdfBack} 格），自定义卡清空；勾选即归属，磁盘始终不动`)
-                  : rep.fail(`EDIT TYPES 异常：固有PDF卡=${pdfBack} 自定义卡余=${cstAfter && cstAfter.cellCount} 页内错误=${JSON.stringify(await pageErrors())}`);
+                rep.note(`EDIT TYPES 落库存证：${savedEditView}；全表=${JSON.stringify((await cdpEval(EXPR.cards)).map((c) => `${c.id}:${c.cells}`))}`);
+                pdfBack && cstAfter && cstAfter.cells === 0
+                  ? rep.pass(`EDIT TYPES 迁移归属：取消勾选 .pdf 后文件回落固有 PDF 卡（${pdfBack} 格），自定义卡清空**但留屏**（${cstAfter.cells} 格，工单187 裁决①：0 格卡仍在屏上，EDIT TYPES / DISSOLVE 两条出路回得去）；勾选即归属，磁盘始终不动`)
+                  : rep.fail(`EDIT TYPES 异常：固有PDF卡=${pdfBack} 自定义卡余=${cstAfter && cstAfter.cells} 落库存证=${savedEditView} 全表=${JSON.stringify((await cdpEval(EXPR.cards)).map((c) => `${c.id}:${c.cells}`))} 页内错误=${JSON.stringify(await pageErrors())}`);
               }
             const diskSame2 = JSON.stringify(diskBefore) === JSON.stringify(desktopList(desktop).slice().sort());
             rep.note(`EDIT TYPES 后磁盘一致性：${diskSame2}`);

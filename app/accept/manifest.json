@@ -949,7 +949,7 @@
         {
           "seg": "P183",
           "ticket": 183,
-          "title": "写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单只出 PASTE 一行（NEW GROUP·EDIT TYPES·DISSOLVE 挂在手改得动的卡上）",
+          "title": "写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②）",
           "surfaces": [
             "input-injection",
             "event-evidence"
@@ -980,7 +980,7 @@
         {
           "seg": "P185",
           "ticket": 185,
-          "title": "组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡清空 / EDIT TYPES 取消勾即回落固有卡 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证）",
+          "title": "组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证）",
           "surfaces": [
             "input-injection",
             "event-evidence",
