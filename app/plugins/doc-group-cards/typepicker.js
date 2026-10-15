@@ -71,25 +71,34 @@ export const PICKER_GAP_Y = 8
 /** 按钮行高（像素） */
 export const PICKER_BTN_H = 26
 
-/**
- * 勾选浮层要摆多少行（NEW GROUP 多一行名字输入）。
- * @param {{ present: readonly { ext: string }[], mode?: string }} view
- */
-function rowCountOf(view) {
-  const listed = Math.min(view.present.length, PICKER_MAX_ROWS)
-  return 1 /* 开关 */ + listed + 1 /* 按钮行 */ + (view.mode === 'create' ? 1 /* 名字 */ : 0)
-}
 
 /**
- * 盒子尺寸：高 = 上内边距 + 行数 × 行高 + 间距 + 下内边距（开关/名字/按钮行各自占一行高）。
+ * 盒子尺寸：**照 TYPE_PICKER_CSS 的内容堆叠**自上而下加总（工单187 真机轮修）。
+ *
+ * 这一段与 CSS 的对应是**硬约束**，不是两处各写一份的巧合——此前正是这里与 CSS 分家：CSS 里类型
+ * 清单是**定高可滚动视口**（`height: PICKER_MAX_ROWS × PICKER_ROW_H`，溢出在清单内部滚），这里却
+ * 按**行数**算清单高、且只给**一个**钮留位。真机轮实测：桌面上只有五个扩展名时盒子比内容短 86px，
+ * CREATE 与 CANCEL 被排到盒子外沿之下、被 `overflow:hidden` 裁掉——那一击穿过盒子落在遮罩上，被判成
+ * outside：层当场收起、落库一个字节没发生，用户看着像「点了 CREATE 没反应」，而页内一个错误都没有。
+ * 存证佐证（app/accept/evidence/166-doc-group-cards-events.jsonl）：那次提交记的是
+ * `types-closed reason=outside`，从头到尾没有 `groups-saved`。
+ *
+ * 逐项对照（改任何一项都必须连 CSS 一起改）：
+ *   - 上下内边距      PICKER_PAD_Y × 2（`.dgc-types-box` 的 padding）
+ *   - 名字输入        PICKER_FIELD_H（仅 NEW GROUP）+ 其后一个间距
+ *   - 「接受全部类型」PICKER_SWITCH_H + 其后一个间距
+ *   - 类型清单        PICKER_MAX_ROWS × PICKER_ROW_H（**定高视口**，行数不参与）
+ *   - 两钮            2 × PICKER_BTN_H + 一个间距（CANCEL 的 margin-top）
+ *   - 间距合计        4 × PICKER_GAP_Y
+ * 盒子高度因此与类型数无关：类型多时清单内部滚动，而不是把盒子撑大。
  * @param {{ present: readonly { ext: string }[], mode?: string }} view
  */
 export function typePickerSizeOf(view) {
   const nameH = view.mode === 'create' ? PICKER_FIELD_H : 0
-  const listH = Math.min(view.present.length, PICKER_MAX_ROWS) * PICKER_ROW_H
+  const listH = PICKER_MAX_ROWS * PICKER_ROW_H
   return {
     width: PICKER_W,
-    height: 2 * PICKER_PAD_Y + nameH + PICKER_SWITCH_H + listH + PICKER_BTN_H + 4 * PICKER_GAP_Y,
+    height: 2 * PICKER_PAD_Y + nameH + PICKER_SWITCH_H + listH + 2 * PICKER_BTN_H + 4 * PICKER_GAP_Y,
   }
 }
 

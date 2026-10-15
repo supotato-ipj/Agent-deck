@@ -15,7 +15,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   CLOSED_TYPES,
+  PICKER_BTN_H,
+  PICKER_FIELD_H,
+  PICKER_GAP_Y,
   PICKER_MAX_ROWS,
+  PICKER_PAD_Y,
+  PICKER_ROW_H,
+  PICKER_SWITCH_H,
   TYPE_CLOSED_NOTIFY,
   TYPE_OPENED_NOTIFY,
   checkedOf,
@@ -63,16 +69,54 @@ function createPicked(name = ''): TypePickerState {
 // ---------------------------------------------------------------------------
 
 describe('几何：尺寸与居中只有一个出处（热区取 getBoundingClientRect，CSS 与 JS 必须同源）', () => {
-  it('盒子高度随行数增长；行数再多也只按可见上限算（超出部分滚动，不把盒子撑出视口）', () => {
-    const few = typePickerSizeOf({ present: PRESENT, mode: 'edit' })
-    const many = typePickerSizeOf({ present: Array.from({ length: 40 }, (_, i) => ({ ext: `.e${i}`, label: `E${i}` })), mode: 'edit' })
-    expect(few.height).toBeLessThan(many.height)
-    // 40 行与 99 行同高：都按可见上限算，不再长
-    expect(many.height).toBe(typePickerSizeOf({ present: Array.from({ length: 99 }, () => ({ ext: '.x', label: 'X' })), mode: 'edit' }).height)
-    // 每多一行恰好长出一个行高（尺寸算式与 CSS 里插值的是同一批常量）
-    const one = typePickerSizeOf({ present: PRESENT, mode: 'edit' })
-    const two = typePickerSizeOf({ present: [...PRESENT, { ext: '.zzz', label: 'ZZZ' }], mode: 'edit' })
-    expect(two.height - one.height).toBeGreaterThan(0)
+  /**
+   * TYPE_PICKER_CSS 那条内容堆叠**独立地**抄一遍（刻意不复用 typePickerSizeOf——它正是被测方，
+   * 复用即恒真）。两份各写一份不是重复，而是这份测试的全部意义：JS 算式与 CSS 曾经分家过一次，
+   * 症状是 CREATE 被排到盒子外沿之下、被 overflow 裁掉，那一击穿过盒子落在遮罩上被判 outside，
+   * 建卡静默取消（app/accept P185 建卡红臂：types-closed reason=outside、无 groups-saved）。
+   */
+  function cssStackHeight(mode: 'create' | 'edit'): number {
+    return (
+      PICKER_PAD_Y * 2 // .dgc-types-box 的上下 padding
+      + (mode === 'create' ? PICKER_FIELD_H : 0) // 名字输入
+      + PICKER_SWITCH_H // 「接受全部类型」
+      + PICKER_MAX_ROWS * PICKER_ROW_H // 清单：定高可滚动视口（溢出在清单内部滚）
+      + PICKER_BTN_H * 2 // CREATE 与 CANCEL 两块
+      + PICKER_GAP_Y * 4 // 名字/开关/清单各一 + CANCEL 的 margin-top
+    )
+  }
+
+  /** CREATE 那一块在盒内坐标系的上沿：照 CSS 自上而下加总 */
+  function okTopOffset(mode: 'create' | 'edit'): number {
+    return (
+      PICKER_PAD_Y
+      + (mode === 'create' ? PICKER_FIELD_H + PICKER_GAP_Y : 0)
+      + PICKER_SWITCH_H + PICKER_GAP_Y
+      + PICKER_MAX_ROWS * PICKER_ROW_H + PICKER_GAP_Y
+    )
+  }
+
+  const presentOf = (n: number) => Array.from({ length: n }, (_, i) => ({ ext: `.e${i}`, label: `E${i}` }))
+
+  it('盒子高度恒等于 CSS 内容堆叠：清单是定高视口，行数不参与盒子高度', () => {
+    for (const n of [0, 1, 5, 7, 8, 12, 40, 99]) {
+      for (const mode of ['create', 'edit'] as const) {
+        expect(typePickerSizeOf({ present: presentOf(n), mode }).height).toBe(cssStackHeight(mode))
+      }
+    }
+    // 修正前这里是「行数越多盒子越高」——正是那个分家：行数一少盒子就短一截，两钮掉到外沿之下
+    expect(typePickerSizeOf({ present: presentOf(3), mode: 'edit' }).height)
+      .toBe(typePickerSizeOf({ present: presentOf(40), mode: 'edit' }).height)
+  })
+
+  it('真机那一份（桌面 5 个扩展名）：CREATE 整块落在盒子内——否则那一击穿到遮罩上被判 outside，建卡静默取消', () => {
+    // 工单187 真机轮实测：present = .txt/.docx/.xlsx/.pdf/.zip。修正前盒子 226px、内容 312px，
+    // CREATE 落在 240..266，整块在盒子外沿之下 → 点击穿到遮罩 → types-closed reason=outside。
+    const size = typePickerSizeOf({ present: presentOf(5), mode: 'create' })
+    const top = okTopOffset('create')
+    expect(top + PICKER_BTN_H).toBeLessThanOrEqual(size.height)
+    const box = typePickerBoxOf(VIEWPORT, { present: presentOf(5), mode: 'create' })
+    expect(box.top + top + PICKER_BTN_H).toBeLessThanOrEqual(box.top + box.height)
   })
 
   it('NEW GROUP 比 EDIT TYPES 多一行名字输入框（建卡要起名，编辑不改名）', () => {

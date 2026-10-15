@@ -32,6 +32,15 @@ import {
   TYPE_ROW_CLASS,
   TYPE_STYLE_ID,
 } from '../../plugins/doc-group-cards/typepicker'
+import {
+  PICKER_BTN_H,
+  PICKER_FIELD_H,
+  PICKER_GAP_Y,
+  PICKER_MAX_ROWS,
+  PICKER_PAD_Y,
+  PICKER_ROW_H,
+  PICKER_SWITCH_H,
+} from '../../plugins/doc-group-cards/typepicker'
 import plugin, { STYLE_ID, type Host, type HostDesktopItem, type HostView } from '../../plugins/doc-group-cards/card'
 import { Element, EventTarget, focusLog, newDom, walk } from './doc-group-cards-dom-shim'
 
@@ -361,6 +370,23 @@ describe('NEW GROUP：勾选浮层铺出来的那一面（工单185）', () => {
     // 焦点流水里只有输入框一次 focus，且键盘档已先持
     expect(focusLog.map((f) => f.tag)).toEqual(['input'])
     expect(h.tiers).toContain('hold:types')
+  })
+
+  it('两钮都长在盒子里面，且盒子的高度装得下 CSS 内容堆叠', () => {
+    // 工单187 真机轮修：算式曾按行数给盒子算高、且只给一个钮留位，于是 CREATE/CANCEL 被排到盒子
+    // 外沿之下、被 overflow 裁掉——那一击穿过盒子落在遮罩上被判 outside，建卡静默取消
+    // （app/accept P185 建卡红臂：types-closed reason=outside、无 groups-saved、页内无错误）。
+    const box = byId(TYPE_BOX_ID)!
+    expect(box.contains(byId(TYPE_OK_ID)!)).toBe(true)
+    expect(box.contains(byId(TYPE_CANCEL_ID)!)).toBe(true)
+    const cssStack =
+      PICKER_PAD_Y * 2
+      + PICKER_FIELD_H // 建卡模式的名字输入
+      + PICKER_SWITCH_H
+      + PICKER_MAX_ROWS * PICKER_ROW_H
+      + PICKER_BTN_H * 2
+      + PICKER_GAP_Y * 4
+    expect(Number.parseFloat(box.style.height)).toBeGreaterThanOrEqual(cssStack)
   })
 
   it('顶部一个「接受全部类型」开关', () => {
