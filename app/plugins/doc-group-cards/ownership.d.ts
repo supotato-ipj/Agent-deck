@@ -131,7 +131,12 @@ export declare function acceptingCustomOf(store: unknown, ext: string): CustomGr
 /** 三层归属判定（临时层显式不参与自动路由） */
 export declare function resolveOwner(ext: string, store: unknown): OwnerVerdict
 
-/** 桌面项 + 组定义 → 一整排卡（归属的全部来源；空组不占卡、id 全表唯一） */
+/**
+ * 桌面项 + 组定义 → 一整排卡（归属的全部来源；id 全表唯一）。
+ *
+ * 工单187 裁决①：空的自定义卡照样出卡（0 格，留着可 EDIT TYPES / DISSOLVE）；
+ * 「空组不占卡」只对固有扩展组卡成立。
+ */
 export declare function buildCards(
   items: readonly GroupableItem[],
   store: unknown,

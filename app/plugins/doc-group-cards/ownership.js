@@ -445,7 +445,11 @@ export function resolveOwner(ext, store) {
  * 桌面项 + 组定义 → 一整排卡（**归属的全部来源**）。
  *
  * 卡序：自定义卡（创建序）→ 临时卡（创建序）→ 固有组（固定组序表、表外字母序）。三段各自有序，
- * 故加一张卡不会让既有卡乱跳。空组不占卡（声明了类型但桌面上没有对应文件时不出卡）。
+ * 故加一张卡不会让既有卡乱跳。
+ *
+ * **「空组不占卡」只对固有扩展组卡成立（工单187 裁决①）**：一条被全部文件领走而空掉的固有组
+ * 不出卡，那条纪律是为「规则生成、桌面上此刻没文件的类型不糊屏」而设的（spec166 用户故事 #7）。
+ * 自定义卡是用户建的持久对象，空卡**照样出卡（0 格）**，理由见下面 push 自定义卡那一段的注释。
  *
  * **三层优先级在这里是结构，不是注释**（工单186 票面点名要验的那条推导）：
  * 临时卡的成员（`names` 里那批粘贴落地的文件名）在**分桶之前**就被摘走，故
@@ -485,7 +489,7 @@ export function buildCards(items, store, order = EXT_GROUP_ORDER) {
     else byExt.set(key, [item])
   }
 
-  // 自定义卡的桶按创建序预置（空桶后面会被滤掉，故这里预置不影响「空组不占卡」）
+  // 自定义卡的桶按创建序预置（工单187 裁决①起，**空桶也出卡**，故这里预置会直接变成一张 0 格卡）
   /** @type {Map<string, GroupableItem[]>} */
   const customBuckets = new Map()
   for (const group of base.groups) customBuckets.set(group.id, [])
@@ -507,7 +511,12 @@ export function buildCards(items, store, order = EXT_GROUP_ORDER) {
   const cards = []
   for (const group of base.groups) {
     const bucket = customBuckets.get(group.id)
-    if (bucket && bucket.length) cards.push({ id: group.id, label: group.name, tier: TIER_CUSTOM, items: bucket })
+    // 工单187 裁决①：空的自定义卡**照样出卡（0 格）**，只把自定义层这一行去掉「必须非空」的条件。
+    // 它是用户亲手建的持久对象：定义还在插件私有状态里存着，面板重启后还会回来——可它一空就退场，
+    // 屏上就再没有 EDIT TYPES（勾回类型）与 DISSOLVE（解散）这两条出路，用户界面上**不可恢复**
+    // （造一张什么类型都没勾的卡、或在 EDIT TYPES 里把勾全取消，皆可走到这一步）。
+    // 固有组那一条「空组不占卡」一个字没动：它是规则生成的卡，出不出卡由桌面上的文件决定。
+    if (bucket) cards.push({ id: group.id, label: group.name, tier: TIER_CUSTOM, items: bucket })
   }
   for (const card of base.temps) {
     const bucket = tempBuckets.get(card.id)

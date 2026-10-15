@@ -5,7 +5,10 @@
  * 转移矩阵），本份钉的是那些裁决在 card.js 里真的落到 DOM 与宿主上了吗：
  *   - 组定义**只**经内核的插件私有状态通道存取（plugin-config/get|set），插件一个文件都不自己写，
  *     且卸载重挂（换代）之后组定义仍在（重启后仍在）；
- *   - 组卡菜单在自定义卡上出 NEW GROUP / EDIT TYPES，在固有扩展组卡上**不出**这两行；
+ *   - 组卡菜单在自定义卡上出 NEW GROUP / EDIT TYPES；固有扩展组卡上只出 PASTE / NEW GROUP
+ *     （工单187 裁决②：NEW GROUP 建的是新卡、不改脚下那张，故放出；EDIT TYPES 仍不出）；
+ *   - 工单187 裁决①：空的自定义卡**留在屏上**（0 格、卡面在、菜单可开 → EDIT TYPES / DISSOLVE 回得去），
+ *     而空掉的**固有**组仍不出卡；
  *   - NEW GROUP 铺出勾选浮层：名字输入 +「接受全部类型」开关 + 桌面上此刻真实存在的扩展名逐个勾；
  *   - 保存后既有文件的归属随之迁移（不手工干预），取消则一次落库动作都不发；
  *   - 浮层铺/撤都申报热区、键盘档持放平衡、样式元素随浮层同寿、卸载一点不留。
@@ -20,6 +23,9 @@ import {
   ROW_CLASS,
 } from '../../plugins/doc-group-cards/menu'
 import { STORE_KEY } from '../../plugins/doc-group-cards/ownership'
+import { MORE_CLASS } from '../../plugins/doc-group-cards/interaction'
+import { MARQUEE_CLASS, MULTI_CLASS, MULTI_ON_CLASS } from '../../plugins/doc-group-cards/selection'
+import { CONFIRM_TEXT_ID } from '../../plugins/doc-group-cards/writeops'
 import {
   TYPE_ALL_CLASS,
   TYPE_ALL_ID,
@@ -312,15 +318,15 @@ describe('组卡菜单：NEW GROUP / EDIT TYPES 只在手改得动的卡上出�
     expect(menuRows().filter((r) => r.dataset.row !== 'paste' && r.classList.contains(DISABLED_CLASS))).toEqual([])
   })
 
-  it('固有扩展组卡**不出**这两行：规则生成的卡不该被手改', async () => {
+  it('固有扩展组卡只出 PASTE / NEW GROUP：EDIT TYPES / DISSOLVE 仍不出（规则生成的卡不该被手改、也没有定义可删）', async () => {
     plugin.mount(h.host)
     await flush()
 
     await rightClickBlank(cardById('dgc-pdf'))
-    // 工单185 登记过的「零可见行 → 不弹菜单」被工单186 的 PASTE 行化解了一半：那只菜单出得来，
-    // 但里面**只有 PASTE 一行**（NEW GROUP / EDIT TYPES / DISSOLVE 三行仍不可见）。
-    // 「一可见行都没有就不弹」那道规则（工单182）本身一个字没动——PASTE 让它不再被触发。
-    expect(menuRows().map((r) => r.dataset.row)).toEqual(['paste'])
+    // 工单185 登记过的「零可见行 → 不弹菜单」先后被 PASTE（#186）与 NEW GROUP（#187 裁决②）化解：
+    // 那只菜单出得来，里面是 PASTE / NEW GROUP 两行——后者建的是**新**卡，不改脚下这张。
+    // 「一可见行都没有就不弹」那道规则（工单182）本身一个字没动。
+    expect(menuRows().map((r) => r.dataset.row)).toEqual(['paste', 'new-group'])
     expect(panel()).not.toBeNull()
     expect(typesOverlay()).toBeNull()
   })
@@ -523,10 +529,12 @@ describe('EDIT TYPES：改接受的类型，既有文件自动改主', () => {
     byId(TYPE_OK_ID)!.dispatch('click')
     await flush()
 
-    expect(cards().map((c) => c.id)).toEqual(['dgc-docx', 'dgc-pdf'])
+    expect(cards().map((c) => c.id)).toEqual(['dgc-c1', 'dgc-docx', 'dgc-pdf'])
     expect(membersOf('dgc-docx')).toEqual(['方案.docx', '纪要.docx'])
-    // 自定义卡没东西了就不占卡（空组不占卡）
-    expect(cards().some((c) => c.id === 'dgc-c1')).toBe(false)
+    // 工单187 裁决①：这张自定义卡**留在屏上**（0 格）。它一退场，定义还在盘上、屏上却再没有
+    // EDIT TYPES / DISSOLVE 能改回或解散它——面板重启它还会回来，用户界面上不可恢复
+    expect(membersOf('dgc-c1')).toEqual([])
+    expect(labelsOf('dgc-c1')).toBe('合同 · 0')
   })
 
   it('改完落盘，重启之后归属不变', async () => {
@@ -640,3 +648,104 @@ describe('生命周期纪律：键盘档、热区、遮罩、样式一个都不�
     expect(KIND_CUSTOM).toBe('custom')
   })
 })
+
+// ---------------------------------------------------------------------------
+// 工单187 两条裁决的接线。裁决本身在 ownership.spec.ts / writeops.spec.ts，这里钉的是
+// 它们在 card.js 里真的落到 DOM 上了吗（卡出不出屏、卡面写什么、菜单回不回得去、0 格卡
+// 上那几处交互读几何会不会炸）。
+// ---------------------------------------------------------------------------
+
+/** 一张**空**的自定义卡：领 .zip，而这份桌面上一个 .zip 都没有 → 这张卡此刻 0 格 */
+const EMPTY_GROUP = { id: 'dgc-c1', name: '空卡', exts: ['.zip'], acceptAll: false, seq: 1 }
+
+function gridOf(id: string): Element {
+  return cardById(id).children.find((c) => c.classList.contains('dgc-grid'))!
+}
+
+function multiSwitchOf(id: string): Element {
+  const head = cardById(id).children.find((c) => c.classList.contains('dgc-head'))!
+  const sw = head.children.find((n) => n.classList.contains(MULTI_CLASS))
+  if (!sw) throw new Error(`${id} 上没有多选开关`)
+  return sw
+}
+
+/** 卡 id → 该卡里的格子节点 */
+const cellsOf = (id: string): Element[] => gridOf(id).children
+
+describe('工单187 裁决①：空的自定义卡留在屏上（可编辑、可解散），空掉的固有组仍不出卡', () => {
+  it('0 格的自定义卡照样出卡：卡面是用户起的名 + 「· 0」，且**没有**「+0」徽标', async () => {
+    seedCustomGroup([EMPTY_GROUP])
+    plugin.mount(h.host)
+    await flush()
+
+    // 桌面（docx ×2 + pdf）上没有任何 .zip → dgc-c1 是张 0 格卡，但它在屏上
+    expect(cards().map((c) => c.id)).toEqual(['dgc-c1', 'dgc-docx', 'dgc-pdf'])
+    expect(membersOf('dgc-c1')).toEqual([])
+    expect(labelsOf('dgc-c1')).toBe('空卡 · 0') // 卡面写的是用户起的名，计数如实是 0
+    // 「+N」徽标只在确有溢出时渲染：0 格卡上一个徽标都不该有（更不许出现「+0」）
+    expect(walk(cardById('dgc-c1')).filter((n) => n.classList.contains(MORE_CLASS))).toEqual([])
+  })
+
+  it('同一个纪律的另一半：被自定义卡领空的那个**固有**组不出卡（空组不占卡只对固有组成立）', async () => {
+    seedCustomGroup([{ id: 'dgc-c1', name: '文档', exts: ['.docx'], acceptAll: false, seq: 1 }])
+    plugin.mount(h.host)
+    await flush()
+
+    // 两份 .docx 全被领走 → 固有 DOCX 组空了，它**退场**（规则生成的卡不占屏）
+    expect(cards().map((c) => c.id)).toEqual(['dgc-c1', 'dgc-pdf'])
+    expect(membersOf('dgc-c1')).toEqual(['方案.docx', '纪要.docx'])
+    expect(cards().every((c) => c.id === 'dgc-c1' || membersOf(c.id).length > 0)).toBe(true)
+  })
+
+  it('0 格卡上那几处**要读几何**的交互一个都不炸：多选开关、框选拖拽、ENTER（它们有几何可读）', async () => {
+    seedCustomGroup([EMPTY_GROUP])
+    plugin.mount(h.host)
+    await flush()
+    const card = cardById('dgc-c1')
+
+    // 多选开关：点得动，且翻的是自己那张卡（0 格卡照样能进多选态）
+    expect(() => multiSwitchOf('dgc-c1').dispatch('click', multiSwitchOf('dgc-c1'))).not.toThrow()
+    expect(multiSwitchOf('dgc-c1').classList.contains(MULTI_ON_CLASS)).toBe(true)
+
+    // 框选：从内容区空白起笔拖到别处再松手（0 格卡上拖得起来、拖完即撤，且一格都选不中）
+    const origin = gridOf('dgc-c1').getBoundingClientRect()
+    expect(() => {
+      gridOf('dgc-c1').dispatch('mousedown', gridOf('dgc-c1'), { clientX: origin.left + 2, clientY: origin.top + 2 })
+      win.dispatch('mousemove', dom.body, { clientX: origin.left + 120, clientY: origin.top + 60 })
+    }).not.toThrow()
+    expect(walk(dom.body).filter((n) => n.classList.contains(MARQUEE_CLASS))).toHaveLength(1)
+    win.dispatch('mouseup', dom.body, { clientX: origin.left + 120, clientY: origin.top + 60 })
+    expect(walk(dom.body).filter((n) => n.classList.contains(MARQUEE_CLASS))).toEqual([])
+    expect(cellsOf('dgc-c1').filter((c) => c.classList.contains('dgc-selected'))).toEqual([])
+
+    // ENTER：选区恒空 → 什么都不启动，也不抛
+    expect(() => win.dispatch('keydown', dom.body, { key: 'Enter' })).not.toThrow()
+    expect(h.invokes.filter((c) => c.method === 'desktop/launch')).toEqual([])
+  })
+
+  it('裁决①要救回来的正是那条路：空卡上仍能 EDIT TYPES（勾回类型）与 DISSOLVE（解散）', async () => {
+    seedCustomGroup([EMPTY_GROUP])
+    plugin.mount(h.host)
+    await flush()
+
+    // 菜单开在 0 格卡上，四行齐全——EDIT TYPES / DISSOLVE 这两条出路没有被裁决拿走
+    await rightClickBlank(cardById('dgc-c1'))
+    expect(menuRows().map((r) => r.dataset.row)).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
+
+    // 走 EDIT TYPES：浮层开、钮是 SAVE，清单里列的是桌面上此刻真实存在的扩展名——
+    // 这张空卡一个都没勾，故「勾回一个类型」的路就在眼前（EDIT TYPES 不改卡名，故无名字输入框）
+    rowById('edit-types').dispatch('click')
+    await flush()
+    expect(typesOverlay()).not.toBeNull()
+    expect(byId(TYPE_OK_ID)!.textContent).toBe('SAVE')
+    expect(checkedExts()).toEqual([])
+    expect(listedExts().sort()).toEqual(['.docx', '.pdf'])
+
+    // 走 DISSOLVE：确认层开、文案指名道姓（这是那张卡的唯一退场方式，故必须可达）
+    await rightClickBlank(cardById('dgc-c1'))
+    rowById('dissolve').dispatch('click')
+    await flush()
+    expect(byId(CONFIRM_TEXT_ID)!.textContent).toContain('空卡')
+  })
+})
+

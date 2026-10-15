@@ -1451,9 +1451,9 @@ function openFileMenu(host, x, y, paths) {
  * 与内核「粘贴按剪贴板实况置灰」同纪律）。查询回来之前菜单不弹：带着未知实况弹一只菜单再改行
  * 会让用户看见一次会变的置灰态。
  *
- * **归属层是可见性的唯一判据**：NEW GROUP / EDIT TYPES / DISSOLVE 三行都配了
- * `visibleWhen: 自定义卡或临时卡`，故固有扩展组卡上只有 PASTE 一行可见（工单185 登记过的那个
- * 「零可见行 → 不出菜单」的后果，本票的 PASTE 行把它化解了一半，详见 menu.js 的注释）。
+ * **归属层是可见性的唯一判据**：EDIT TYPES / DISSOLVE 两行都配了
+ * `visibleWhen: 自定义卡或临时卡`，故固有扩展组卡上不出这两行（规则生成的卡没有定义可勾可删）；
+ * PASTE（#186）与 NEW GROUP（#187 裁决②）恒可见，于是那张卡上出的是 PASTE / NEW GROUP 两行。
  * @param {Host} host
  * @param {number} x
  * @param {number} y

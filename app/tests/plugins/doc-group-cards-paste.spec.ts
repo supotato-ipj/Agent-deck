@@ -268,7 +268,13 @@ describe('⚠️ 票面点名要验的推导：临时卡优先级必须高于固
     store = normalizeStore({ ...store, groups: [{ id: 'dgc-c1', name: '压缩包', exts: ['.zip'], acceptAll: false, seq: 1 }], nextSeq: 9 })
     const cards = buildCards([file('杂.zip')], store)
     expect(membersOf(cards, 'dgc-t1')).toEqual(['杂.zip'])
-    expect(cards.map((c) => c.tier)).toEqual([TIER_TEMP])
+    // 那张自定义卡领不到这只文件 → 它此刻是张 0 格卡。工单187 裁决①起 0 格卡照样出卡（可 EDIT
+    // TYPES 勾回类型、可 DISSOLVE 解散），但它一格都没有，故「同一文件出现在两张卡里」仍不成立
+    expect(cards.map((c) => [c.id, c.tier, c.items.length])).toEqual([
+      ['dgc-c1', TIER_CUSTOM, 0],
+      ['dgc-t1', TIER_TEMP, 1],
+    ])
+    expect(membersOf(cards, 'dgc-c1')).toEqual([])
   })
 })
 

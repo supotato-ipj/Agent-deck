@@ -287,14 +287,56 @@ describe('三层归属：自定义卡命中 / 冲突先建先得 / 领走的不�
     // 路由裁决里根本没有 temps 这一层：没有自定义卡领走时一律落固有组
     expect(resolveOwner('.docx', store)).toMatchObject({ tier: TIER_BUILTIN })
     const cards = buildCards([file('a.docx')], store)
-    expect(cards.map((c) => c.tier)).toEqual([TIER_BUILTIN])
+    // 工单187 裁决①起，自定义卡即便空着也出卡（0 格），临时卡空着不出（它是粘贴的产物，
+    // 不属于本次裁决的范围）；本用例要钉的那条——a.docx 既不进自定义卡也不进临时卡——一字未动
+    expect(cards.map((c) => [c.id, c.tier, c.items.length])).toEqual([
+      ['dgc-c1', TIER_CUSTOM, 0],
+      ['dgc-docx', TIER_BUILTIN, 1],
+    ])
+    expect(membersOf(cards, 'dgc-c1')).toEqual([])
+    expect(membersOf(cards, 'dgc-docx')).toEqual(['a.docx'])
   })
 
-  it('空组不占卡：声明了但桌面上没有对应文件的自定义卡不出卡（与固有组同一条纪律）', () => {
+  it('工单187 裁决①：空的自定义卡**照样出卡**（0 格、id 唯一、卡面是用户起的名），固有组仍守「空组不占卡」', () => {
     const store = withCustom(withCustom(emptyStore(), 1, ['.zip']), 2, ['.png'])
     const cards = buildCards([file('a.docx')], store)
-    expect(cards.map((c) => c.id)).toEqual(['dgc-docx'])
-    expect(cards.some((c) => c.id === 'dgc-c1' || c.id === 'dgc-c2')).toBe(false)
+
+    // 两张自定义卡此刻都空着 → 都在屏上，且排在固有组之前（自定义段=创建序）
+    expect(cards.map((c) => [c.id, c.label, c.tier, c.items.length])).toEqual([
+      ['dgc-c1', '卡1', TIER_CUSTOM, 0],
+      ['dgc-c2', '卡2', TIER_CUSTOM, 0],
+      ['dgc-docx', 'DOCX', TIER_BUILTIN, 1],
+    ])
+    const ids = cards.map((c) => c.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    // 桌面上的 .docx 照旧归固有组；而「桌面上此刻没有文件」的那种**固有**组（.zip/.png）不出卡
+    expect(membersOf(cards, 'dgc-docx')).toEqual(['a.docx'])
+    expect(cards.some((c) => c.tier === TIER_BUILTIN && c.items.length === 0)).toBe(false)
+  })
+
+  it('工单187 裁决①的由来那条：EDIT TYPES 把勾全取消后，卡**留在屏上**（0 格）——否则界面上再也回不去', () => {
+    const before = withCustom(emptyStore(), 1, ['.docx'])
+    // 取消勾选 = 用户在这张卡的 EDIT TYPES 里把最后一个类型也摘掉
+    const after = editCustomGroupTypes(before, 'dgc-c1', { exts: [], acceptAll: false })
+    const cards = buildCards([file('a.docx'), file('b.pdf')], after)
+
+    // 卡还在（id、名字、层都不变），只是空了；文件回落固有组
+    const card = cards.find((c) => c.id === 'dgc-c1')!
+    expect([card.label, card.tier, card.items.length]).toEqual(['卡1', TIER_CUSTOM, 0])
+    expect(membersOf(cards, 'dgc-docx')).toEqual(['a.docx'])
+    expect(membersOf(cards, 'dgc-pdf')).toEqual(['b.pdf'])
+    // 定义本身没丢：它还在 store 里，重启后仍能算出同一张空卡
+    expect(roundTrip(after).groups.map((g) => g.id)).toEqual(['dgc-c1'])
+  })
+
+  it('工单187 裁决①：唯一化兜底对 0 格卡一样生效（空卡也占一个 id，撞名照旧被顶开）', () => {
+    // '.c1' 净化后正是 dgc-c1 —— 与**空**的自定义卡正面相撞，故 0 格卡也必须被唯一化
+    const store = withCustom(emptyStore(), 1, ['.png'])
+    const cards = buildCards([file('x.c1')], store)
+    const ids = cards.map((c) => c.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(cards.find((c) => c.items.length === 0)!.id).toBe('dgc-c1')
+    expect(ids).toContain('dgc-c1-2')
   })
 
   it('只收 kind 为 file 的条目：快捷方式 / 网址 / 文件夹不进任何卡（与 grouping 同一条过滤）', () => {

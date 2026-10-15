@@ -218,12 +218,13 @@ describe('组卡菜单：PASTE 恒可见且按剪贴板实况置灰，DISSOLVE �
   it('PASTE 在**每一张**卡上都出现（任何一张卡都能接粘贴），包括固有扩展组卡', async () => {
     plugin.mount(h.host)
     await flush()
-    // 全新安装：桌面上只有固有扩展组卡（零自定义卡），那一层零可见行的老问题被 PASTE 化解了一半
+    // 全新安装：桌面上只有固有扩展组卡（零自定义卡）。工单187 裁决②给 NEW GROUP 开了恒可见，
+    // 于是「建不出第一张自定义卡」那条路也通了（NEW GROUP 建的是新卡，不改脚下那张）
     await openGroupMenuOn('dgc-docx')
-    expect(menuIds()).toEqual(['paste'])
-    // 固有扩展组卡不出 NEW GROUP / EDIT TYPES / DISSOLVE（规则生成的卡不该被手改、也没有定义可删）
+    expect(menuIds()).toEqual(['paste', 'new-group'])
+    // 固有扩展组卡仍不出 EDIT TYPES / DISSOLVE（规则生成的卡不该被手改、也没有定义可删）
     expect(menuIds()).not.toContain('dissolve')
-    expect(menuIds()).not.toContain('new-group')
+    expect(menuIds()).not.toContain('edit-types')
   })
 
   it('剪贴板里有文件 → PASTE 可用；没有 → 置灰（needs:pasteable 的实况接线）', async () => {
@@ -247,7 +248,7 @@ describe('组卡菜单：PASTE 恒可见且按剪贴板实况置灰，DISSOLVE �
     await flush()
     clipboard = new Error('主进程问不到剪贴板')
     await openGroupMenuOn('dgc-docx')
-    expect(menuIds()).toEqual(['paste'])
+    expect(menuIds()).toEqual(['paste', 'new-group'])
     expect(rowById('paste').classList.contains(DISABLED_CLASS)).toBe(true)
     expect(h.invokes.some((c) => c.method === 'desktop/clipboard-state')).toBe(true)
   })
@@ -271,9 +272,9 @@ describe('组卡菜单：PASTE 恒可见且按剪贴板实况置灰，DISSOLVE �
     await openGroupMenuOn('dgc-c1')
     expect(menuIds()).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
 
-    // 另一张卡（固有 PDF）上只有 PASTE：DISSOLVE 不出
+    // 另一张卡（固有 PDF）上是 PASTE + NEW GROUP（#187 裁决②）：DISSOLVE 仍不出
     await openGroupMenuOn('dgc-pdf')
-    expect(menuIds()).toEqual(['paste'])
+    expect(menuIds()).toEqual(['paste', 'new-group'])
   })
 
   it('临时卡（本次粘贴生成的那种）同样是手改得动的卡：DISSOLVE 出、PASTE 出', async () => {
@@ -540,7 +541,7 @@ describe('DISSOLVE 那一行：先过确认层，确认后只删卡定义，磁�
     // 绕过菜单直接驱动归约器那一路不可能，故走菜单：先在固有卡上把 cardId 换掉——用临时卡的
     // 可见性作等价证明：固有卡上根本**没有** DISSOLVE 这一行可点
     await openGroupMenuOn('dgc-docx')
-    expect(menuIds()).toEqual(['paste'])
+    expect(menuIds()).toEqual(['paste', 'new-group'])
     expect(() => rowById('dissolve')).toThrow()
     expect(byId(CONFIRM_TEXT_ID)).toBeNull()
   })

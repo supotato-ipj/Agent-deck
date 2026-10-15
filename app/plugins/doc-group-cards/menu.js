@@ -18,7 +18,8 @@
 //   - 工单184 上多选后，needs:'single' 的行（打开所在位置、以及届时新增的重命名）自然被置灰；
 //   - 工单185 加组卡菜单的 NEW GROUP / EDIT TYPES（各配 visibleWhen：固有扩展组卡不出这两行）；
 //   - 工单186 再加 PASTE（needs:'pasteable'，恒可见——任何一张卡都能接粘贴）与 DISSOLVE
-//     （visibleWhen 同款：固有扩展组卡没有定义可删，故不出这一行）。
+//     （visibleWhen 同款：固有扩展组卡没有定义可删，故不出这一行）；
+//   - 工单187 裁决②把 NEW GROUP 也放成恒可见（建新卡 ≠ 手改脚下那张卡），另两行的 visibleWhen 不动。
 // 四张票都只往这张表里加行或改裁决函数，本文件与 card.js 的接缝不用动。
 
 /** 菜单宽度（像素）。定死它，钳制的算式才与画出来的盒子同源 */
@@ -166,16 +167,14 @@ export function isHandEditableKind(kind) {
  * **PASTE 恒可见**（任何一张卡都能接粘贴），可用性走 `needs:'pasteable'`——读的是
  * `desktop/clipboard-state` 的实况，查不到即置灰，绝不误使能。它是本票（#186）加进来的第一行。
  *
- * 另外三行都带 `visibleWhen: 归宿自定义卡或临时卡`：**固有扩展组卡不出这三行**（规则生成的卡
- * 不该被手改，DISSOLVE 更是无从谈起——它压根没有定义可删）。行可见性只有 rowVisibleOf 这一个
- * 出口，渲染端不判。
+ * **NEW GROUP 自工单187 裁决②起同样恒可见**。#185 当初给它挂的 `visibleWhen`（归宿自定义卡或临时卡）
+ * 理由是「规则生成的卡不该被手改」，但 NEW GROUP 建的是**另一张新卡**、压根不动脚下那张，
+ * 那条理由管不着它；而那一挂的直接后果是**用户建不出第一张自定义卡**——全新安装时屏上
+ * 一张自定义卡都没有，全是固有卡，于是唯一那条路只剩「先粘贴一张临时卡，再从它上面 NEW GROUP」。
+ * 裁决只放开这一行，**不放宽另两行**：EDIT TYPES 与 DISSOLVE 仍带 `visibleWhen`，
+ * 固有扩展组卡不出这两行（规则生成的卡没有定义可勾、没有定义可删，出了就是点了没用的入口）。
  *
- * **工单185 登记过的那个后果，本票改变了一半，如实更新**：#185 交付时这张表对固有扩展组卡
- * 零可见行，于是右键卡片空白**不出菜单**、用户**建不出第一张自定义卡**（#185 按票面实现，并把
- * 修法留成「删掉 NEW GROUP 那一行的 visibleWhen」一行）。本票加的 PASTE 行**恒可见**，于是
- * 固有卡上右键**会出菜单了，只是菜单里只有 PASTE 一行**——NEW GROUP 仍在（票面 AC 与 spec166
- * 那一节对不上，本票不改 #185 的裁决）。副作用是那条路反而通了：第一次粘贴生成的临时卡是
- * 手改得动的卡，用户从它上面就能 NEW GROUP / EDIT TYPES 了。
+ * 行可见性只有 rowVisibleOf 这一个出口，渲染端不判。
  *
  * 可见性挂在卡片身份上而不挂在选区上：组卡菜单的选区恒为空（菜单是从卡片空白处开出来的，
  * 不是一个文件），故判据只能是 ctx.cardKind。
@@ -184,7 +183,7 @@ export function isHandEditableKind(kind) {
  */
 export const GROUP_CARD_MENU_ROWS = [
   { id: 'paste', label: 'PASTE', needs: NEED_PASTEABLE },
-  { id: 'new-group', label: 'NEW GROUP', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
+  { id: 'new-group', label: 'NEW GROUP' }, // 工单187 裁决②：恒可见（建的是**新**卡，不动脚下的那张）
   { id: 'edit-types', label: 'EDIT TYPES', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
   { id: 'dissolve', label: 'DISSOLVE', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
 ]

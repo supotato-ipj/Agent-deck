@@ -464,11 +464,31 @@ describe('组卡菜单（卡片空白右键；工单185 填 NEW GROUP / EDIT TYP
     expect(paste.needs).toBe(NEED_PASTEABLE)
     expect(paste.visibleWhen).toBeUndefined()
     expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' }).map((r) => r.id))
-      .toEqual(['paste'])
+      .toEqual(['paste', 'new-group'])
   })
 
-  it('另外三行都带 visibleWhen（可见性裁决只有 rowVisibleOf 一个出口，渲染端不判）', () => {
-    expect(GROUP_CARD_MENU_ROWS.slice(1).every((r) => typeof r.visibleWhen === 'function')).toBe(true)
+  it('工单187 裁决②：NEW GROUP **恒可见**——它建的是新卡，不改脚下那张固有卡', () => {
+    const newGroup = GROUP_CARD_MENU_ROWS.find((r) => r.id === 'new-group')!
+    expect(newGroup.visibleWhen).toBeUndefined()
+    // 全新安装时屏上一张自定义卡都没有、全是固有卡：那一行正是「建出第一张自定义卡」的唯一入口
+    for (const cardKind of ['builtin', 'custom', 'temp'] as const) {
+      expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind }).map((r) => r.id))
+        .toContain('new-group')
+    }
+  })
+
+  it('裁决②只放开 NEW GROUP 一行：EDIT TYPES / DISSOLVE 仍只在手改得动的卡上（固有卡没有定义可勾可删）', () => {
+    const gated = GROUP_CARD_MENU_ROWS.filter((r) => typeof r.visibleWhen === 'function')
+    expect(gated.map((r) => r.id)).toEqual(['edit-types', 'dissolve'])
+    const onBuiltin = resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' })
+      .map((r) => r.id)
+    expect(onBuiltin).not.toContain('edit-types')
+    expect(onBuiltin).not.toContain('dissolve')
+    // 手改得动的两张卡上这两行照旧齐活
+    for (const cardKind of ['custom', 'temp'] as const) {
+      expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-c1', cardKind }).map((r) => r.id))
+        .toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
+    }
   })
 
   it('行一填即生效，无需改渲染端：同一副壳、同一套裁决，只换行表与上下文', () => {
@@ -491,15 +511,15 @@ describe('组卡菜单（卡片空白右键；工单185 填 NEW GROUP / EDIT TYP
     expect(state.cardId).toBe('')
   })
 
-  it('「一可见行都没有就不弹」的规则原样保留：固有扩展组卡上只剩 PASTE 一行（工单185 登记的后果被化解一半）', () => {
-    // 工单182 钉死的规则一个字没动。固有扩展组卡是规则生成的，不该被手改，故 NEW GROUP /
-    // EDIT TYPES / DISSOLVE 三行都不可见；工单186 的 PASTE 行**恒可见**，于是那张卡上从
-    // 「零可见行 → 不出菜单」变成「出一只只有 PASTE 的菜单」。仍不是空壳，故照弹。
+  it('「一可见行都没有就不弹」的规则原样保留：固有扩展组卡上出的是 PASTE / NEW GROUP 两行（工单185 登记的后果被工单187 裁决②清干净）', () => {
+    // 工单182 钉死的规则一个字没动。固有扩展组卡是规则生成的、不该被手改，故 EDIT TYPES /
+    // DISSOLVE 两行都不可见；PASTE（#186）与 NEW GROUP（#187 裁决②）**恒可见**——后者建的是
+    // 一张新卡、压根不动脚下那张，于是「全新安装时全是固有卡，建不出第一张自定义卡」那条路通了。
     const { state, effects } = nextMenuShell(CLOSED_MENU, {
       type: 'open', x: 0, y: 0, viewport: VIEWPORT, specs: GROUP_CARD_MENU_ROWS, ctx: { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' },
     })
     const rows = resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' })
-    expect(rows.map((r) => r.id)).toEqual(['paste'])
+    expect(rows.map((r) => r.id)).toEqual(['paste', 'new-group'])
     expect(rows[0].enabled).toBe(false) // 没给剪贴板实况 → 查不到即置灰，绝不误使能
     expect(state.open).toBe(true)
     expect(kinds(effects)).toEqual(['keyboard-tier', 'show', 'hotzones', 'notify'])
