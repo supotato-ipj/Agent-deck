@@ -467,7 +467,7 @@
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
       "budgetSeconds": 240,
-      "lastMeasuredSeconds": 148,
+      "lastMeasuredSeconds": 191,
       "lastMeasuredAt": "2026-10-15",
       "segments": [
         {
@@ -679,7 +679,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 60
+          "estSeconds": 35
         }
       ]
     },
