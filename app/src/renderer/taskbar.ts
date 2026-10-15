@@ -14,8 +14,8 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
-import type { AppsBand, TaskbarAppMenuRow, TaskbarAppViewEntry } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
+import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 
@@ -59,8 +59,10 @@ let tierMenuTimer: ReturnType<typeof setTimeout> | null = null
 let trayPopupRequested = false
 /** 应用组溢出浮层开合（工单58）：⋯ 钮拨动、点浮层条目收、数量回落自动收 */
 let overflowOpen = false
-/** 应用图标右键菜单（工单53）：手钉/解除手钉、关闭窗口、打开文件位置三行随条目形态变化 */
-let appMenu: { exe: string; rows: TaskbarAppMenuRow[] } | null = null
+/** 应用图标右键菜单（工单53→193 迁移）：竖排浮层窗承载（鼠标位置弹出，ADR-0013——
+ * 横排进 pill 的形态退役）。条带只持「已请求开层」标记供条带内点击转达收层（浮层窗
+ * blur 收「栏外」点击，条带窗 focusable:false 点了不夺焦——托盘溢出浮层同款纪律） */
+let appMenuRequested = false
 /** 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉到任务栏、从推荐栏移除、打开文件位置——按 exe 身份寻址 */
 let recMenu: { exe: string; name: string } | null = null
 /** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
@@ -512,8 +514,10 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
     ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
     windowList = null
     recMenu = null // 两菜单互斥（工单160 推荐条目菜单同挂 pill 横排位）
-    appMenu = { exe: e.exe, rows: taskbarAppMenuRows(e) }
-    if (current) requestRender(current)
+    // 右键菜单迁浮层窗（工单193）：开层请求只携带 exe 身份（行集由浮层页自足推导，
+    // 与条带视图永不各判一次）；鼠标位置即锚点（宿主开层拍取光标）
+    appMenuRequested = true
+    window.deck.host.notify('taskbar-app-menu-open', { exe: e.exe })
   })
   return el
 }
@@ -552,7 +556,7 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   el.addEventListener('contextmenu', (ev) => {
     ev.preventDefault()
     ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
-    appMenu = null
+    // 应用组菜单已迁浮层窗（工单193）：互斥收层走条带级 contextmenu 捕获相转达
     windowList = null
     recMenu = { exe: rec.exe, name: rec.name }
     if (current) requestRender(current)
@@ -604,11 +608,11 @@ function render(state: TaskbarState): void {
   pillStart.textContent = ''
   pillRecs.textContent = ''
   // 宿主 pill 不在场即收层（工单192 显隐解耦后各自可缺席——菜单不渲染进隐藏 pill）；
-  // 挂点条目/列表同此理（appMenu/windowList 宿主开始组、recMenu 宿主推荐组）
+  // 挂点条目/列表同此理（recMenu 宿主推荐组；应用组菜单已迁浮层窗——工单193，宿主 pill
+  // 缺席由浮层页按 changed 重推导自收（行集空=empty），条带侧无开合态可收）
   if (menuOpen && (menuHost === 'start' ? !vm.visible : !vm.recsVisible)) closeMenu()
   if (recMenu && !vm.recsVisible) recMenu = null
-  if ((appMenu || windowList) && !vm.visible) {
-    appMenu = null
+  if (windowList && !vm.visible) {
     windowList = null
   }
   // 证据标记（验收电池可观测：菜单开着没有——右键菜单开合抖动的取证面；工单192 起双 pill
@@ -684,30 +688,12 @@ function render(state: TaskbarState): void {
       }
     }
   }
-  if (appMenu) {
-    const sep = document.createElement('div')
-    sep.className = 'tb-menu-sep'
-    pillStart.appendChild(sep)
-    for (const row of appMenu.rows) {
-      const el = document.createElement('div')
-      el.className = 'tb-menu-item'
-      el.dataset.action = row.action
-      el.textContent = row.label
-      el.addEventListener('click', (ev) => {
-        ev.stopPropagation()
-        const exe = appMenu?.exe ?? ''
-        window.deck.host.notify('taskbar-app-menu-action', { exe, action: row.action })
-        // 回推的 taskbar/changed 驱动重渲收层（手钉变更即刻反映在应用组）
-        void dispatchAppMenuAction(window.deck.bridge, exe, row.action)
-        appMenu = null
-        if (current) requestRender(current)
-      })
-      pillStart.appendChild(el)
-    }
-  }
+  // 应用组图标右键菜单已迁浮层窗（工单193，ADR-0013）：pill 内横排形态退役——菜单
+  // 不再出现在开始组 pill 区域，64px 条带高从此不约束菜单形态（开层/收层走
+  // taskbar-app-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts）。
   // 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉/移除/打开位置（54/53 菜单同形态
-  // 横排，工单192 起进推荐组宿主 pill）。行点击先收层再分发（appMenu 同款），手钉变更经
-  // 回推的 taskbar/changed 重渲。
+  // 横排，工单192 起进推荐组宿主 pill，工单196 随通路迁浮层窗）。行点击先收层再分发
+  // （appMenu 迁移前同款），手钉变更经回推的 taskbar/changed 重渲。
   if (recMenu) {
     const sep = document.createElement('div')
     sep.className = 'tb-menu-sep'
@@ -882,7 +868,25 @@ document.addEventListener('click', (ev) => {
     trayPopupRequested = false
     window.deck.host.notify('taskbar-tray-overflow-close', { reason: 'strip-click' })
   }
+  // 应用组弹窗菜单（工单193）：条带内任意左键点击即请求收层（点应用图标也是——原生
+  // 同语义：激活应用即收菜单；转达纪律与托盘溢出浮层同款。冒泡相即可——条带内唯一
+  // stopPropagation 的点击挂点是摘要编辑段，而进编辑态的右键已被下方 contextmenu
+  // 捕获相转达收层，两态不并存）
+  if (appMenuRequested) {
+    appMenuRequested = false
+    window.deck.host.notify('taskbar-app-menu-close', { reason: 'strip-click' })
+  }
 })
+
+// 应用组弹窗菜单（工单193）：条带内右键开别的菜单（系统按钮/档位/推荐条目）时转达
+// 收层——菜单互斥原生语义。捕获相先行（各挂点 preventDefault/stopPropagation 之前）；
+// 右键应用图标自身除外——那是开层/换目标请求（taskbar-app-menu-open）。
+document.addEventListener('contextmenu', (ev) => {
+  if (!appMenuRequested) return
+  if (ev.target instanceof HTMLElement && ev.target.closest('.tb-app')) return
+  appMenuRequested = false
+  window.deck.host.notify('taskbar-app-menu-close', { reason: 'strip-click' })
+}, true)
 
 function boot(): void {
   makeGroupDropTarget(pillApps, 'apps') // 拖到应用组空白 = 落源条目所属段末尾（工单195 段位收敛裁决在内核）
