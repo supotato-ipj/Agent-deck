@@ -36,6 +36,13 @@ declare module 'cordis' {
     'taskbar/changed': (payload: TaskbarState) => void
     /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（桥接层随 panel/changed 同拍发出） */
     'taskbar/status': (payload: TaskbarStatus) => void
+    /**
+     * 工单194 托盘右键回放让位起拍：TaskbarService.trayClick 在转发回放**之前**同步
+     * 发出（cordis emit 同步派发——让位先落位、菜单后诞生，z 序正确性赖此顺序），
+     * 任务栏窗口控制器订阅即把条带临时降非置顶。hwnd = 图标属主窗口（十进制串，
+     * 影子账缺位为 null），pid 由控制器 FFI 解析。
+     */
+    'taskbar/tray-replay-begin': (payload: { key: string; button: 'left' | 'right'; hwnd: string | null }) => void
   }
   interface Context {
     clock: ClockService

@@ -1,303 +1,303 @@
-# accept 03-battery — 2026-10-15T00:02:15.772Z
-[00:02:17.124] NOTE  preflight 环境体检［user-window-activity］前台为用户应用窗：cls=ApplicationFrameWindow pid=15200 title="Settings"——发起时刻机器有用户活动迹象，轮中抬窗风险在案
-[00:02:17.127] NOTE  preflight 环境体检［tray-machine-state］托盘提升位未置（IsPromoted=未设）——图标默认溢出层；P8 将自行提升，失败语将带机器态定向（工单141）
-[00:02:17.129] NOTE  screen: phys 2560x1440 @ factor 1
-[00:02:18.471] NOTE  托盘识别色基线：无琥珀像素
-[00:02:18.472] NOTE  原生桌面图标基线：visible=true
-[00:02:18.474] NOTE  原生任务栏基线：visible=true
-[00:02:18.477] NOTE  已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）
-[00:02:21.846] SEG   ▶ P1 启动面板（子进程，存证事件落盘；假死自愈接线）｜工单3｜失效面=面板存活
-[00:02:25.534] NOTE  panel hwnd=0x10123c rect(phys)=0,0 2560x1392
-[00:02:26.745] SEG   ▶ P2 透明合成（棋盘参照窗 + 时钟卡文字像素）｜工单3｜失效面=像素
-[00:02:28.585] NOTE  透明区采样点 5355 个命中参照窗（清场重试 0 轮；其余被用户窗遮挡的点不计）
-[00:02:30.004] 透明区棋盘色命中率: 99.5% (样本 5355)
-[00:02:30.006] PASS  透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）
-[00:02:30.031] PASS  时钟卡白色文字像素 793/14080（文字实色清晰）
-[00:02:32.287] NOTE  实拍面板叠真壁纸（观感存证；动态壁纸逐帧不同，不做像素断言）
-[00:02:32.288] SEG   ▶ P2.5 数据卡片桥接契约上线（会话/天气 + 硬件卡退役回归）｜工单4｜失效面=事件存证
-[00:02:40.348] PASS  会话列表卡：渲染层收到内核会话数据并持续走数（第 1 次渲染，count=0，真机活跃池）
-[00:02:40.350] PASS  硬件卡已退役：面板全程未发 hardware-rendered/history-live（读数改由任务栏摘要承载）
-[00:02:40.353] PASS  天气卡：Open-Meteo 取数成功（weather_code=0 temp=14）
-[00:02:42.968] NOTE  卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（搜索/会话）
-[00:02:42.970] SEG   ▶ P3 默认穿透：左键/右键直达桌面｜工单3｜失效面=输入注入+系统状态
-[00:02:42.972] 穿透态 EXSTYLE=0x8280020
-[00:02:42.973] PASS  默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED
-[00:02:42.978] NOTE  P3 穿透探针点 DIP(1840,296)——与全部热区沿净距 ≥12px
-[00:02:43.488] PASS  默认穿透：面板空区点击直达桌面（前台翻转为 Progman）
-[00:02:44.003] PASS  默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 XamlExplorerHostIslandWindow_WASDK）
-[00:02:44.312] SEG   ▶ P4 热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序｜工单3｜失效面=输入注入+系统状态+事件存证
-[00:02:44.315] PASS  热区声明：渲染层上报 clock-card rel(48,48) 320x176
-[00:02:45.093] NOTE  普通应用窗: notepad hwnd=0x410f88 @phys(1000,200) 1400x900
-[00:02:45.510] PASS  记事本盖住面板（普通窗在钉扎面板之上的自然 z 序）
-[00:02:45.915] PASS  光标进入时钟卡热区：面板临时解除穿透（WS_EX_TRANSPARENT 移除）
-[00:02:45.919] PASS  永不顶起：热区点击瞬间面板仍在记事本之下（回归线自「离开重钉后」前移到点击瞬间）
-[00:02:45.921] PASS  永不顶起：点击未抢走工作窗口前台（键盘焦点留在记事本，可继续盲打）
-[00:02:45.922] PASS  永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x8200000，点击不激活的机制保证）
-[00:02:45.932] PASS  热区点击由时钟卡接收（count=1）
-[00:02:45.933] PASS  时钟卡数据经桥接契约自内核而来并持续走时（3 次渲染，epoch 递增）
-[00:02:45.935] SEG   ▶ P4.5 日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单）｜工单99｜失效面=事件存证
-[00:02:45.937] PASS  热区声明：日历卡由插件包渲染并上报 calendar-card rel(48,442) 320x292
-[00:02:45.938] PASS  日历卡：月网格自快照时钟段推导正确（2026-10，周一首列 3 空位 + 31 天）
-[00:02:46.054] PASS  离开热区：面板恢复穿透
-[00:02:46.663] PASS  热区交互全程面板未顶起：记事本始终盖住面板（离开重钉路径保留，在永不顶起语义下是冗余保险）
-[00:02:46.666] PASS  底部钉扎 z 序：面板(44) 在记事本(24) 之下（自顶向下枚举序）
-[00:02:48.229] SEG   ▶ P5 桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原｜工单5｜失效面=输入注入+事件存证+系统状态+面板存活
-[00:02:49.366] PASS  条目集合与磁盘扫描一致：18 项（用户桌面 11 + 公共桌面独有 7，电池对照）
-[00:02:49.367] NOTE  公共桌面 7 项（同名被用户桌面遮蔽 0 项）
-[00:02:49.369] PASS  原生桌面图标已隐藏（SysListView32 不可见）——桌面无「两套图标」
-[00:02:50.919] NOTE  面板承载实拍：05-icons-hidden.png（原生图标隐藏 + 文档区自绘）
-[00:02:51.403] PASS  单击选中态：文档区条目「个人简历.docx」选中并上报存证
-[00:02:53.738] PASS  新建探针 bat 入池：DECK-PROBE-1792022573035.bat（1Hz 重扫描自动出现，other 组落文档区）
-[00:02:55.964] PASS  双击启动：探针 bat 经桥接 desktop/launch 启动（ok=true）
-[00:02:57.292] PASS  双击验收探针 bat 启动成功（目标进程写标记文件实证）
-[00:02:57.298] PASS  清理探针 bat 后条目同步消失（面板与磁盘一致）
-[00:02:57.302] SEG   ▶ P5-ICON 快捷方式真实图标区分度（lnk 绕行提取链）｜工单1｜失效面=事件存证
-[00:03:00.074] NOTE  图标夹具入池，面板扫描指纹已翻转：DECK-ICON-1792022577304-NOTEPAD.lnk / DECK-ICON-1792022577304-CHARMAP.lnk
-[00:03:00.567] PASS  快捷方式真实图标：两条夹具经桥接 desktop/icon 取得的 dataUrl 互不相等（notepad 5514B / charmap 4214B——lnk 绕行提取链生效，通用图标回归即二者同串）
-[00:03:01.087] PASS  图标夹具清理后条目同步消失（面板与磁盘一致）
-[00:03:01.088] SEG   ▶ P5-ICON2 巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW）｜工单6｜失效面=事件存证
-[00:03:03.129] NOTE  工单06 夹具入池：目录 lnk / txt 基线 / 巨型 exe×0
-[00:03:03.396] PASS  文档基线夹具取得图标（886B）
-[00:03:03.398] PASS  目录目标 lnk 显示目录图标（398B ≠ 文档基线——文件夹目标不再被 isFile 误杀）
-[00:03:03.400] NOTE  巨型 exe 不在本机（0/3 在场），兜底断言按缺席降级
-[00:03:04.121] PASS  工单06 夹具清理后条目同步消失
-[00:03:04.650] PASS  杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=panel-exit，守卫还原后退出=true）
-[00:03:06.236] NOTE  杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）
-[00:03:11.335] SEG   ▶ P5.5 编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂｜工单6｜失效面=输入注入+事件存证
-[00:03:11.338] PASS  面板只编排文档区：desktop-rendered 带 docEntries（5 项）、无 dock 段（工单59 退役）
-[00:03:12.475] PASS  新建桌面文件自动归类入区：DECK06-PROBE-1792022591339.docx→office 组、DECK06-PROBE-1792022591340.pdf→pdf 组（文档区按扩展名聚合）
-[00:03:14.503] PASS  删除探针文档后条目同步消失（面板与磁盘一致）
-[00:03:17.505] NOTE  拖拽源落点校验通过（面板在收输入）
-[00:03:18.435] NOTE  拖拽落点校验通过（输入流全程在面板）
-[00:03:18.593] PASS  拖拽摆位：DECK06-DRAG-1792022594505-B.docx 拖至 DECK06-DRAG-1792022594505-A.docx 之前（desktop/move ok=true，摆位落盘）
-[00:03:19.577] PASS  摆位即时重编排：拖拽条目越过参照（渲染序更新）
-[00:03:25.561] PASS  重启面板后位置保持：DECK06-DRAG-1792022594505-B.docx 仍在 DECK06-DRAG-1792022594505-A.docx 之前（layout.json 持久化）
-[00:03:29.927] PASS  设置浮层恢复出厂一键生效：清除 1 处显式摆位，文档区回到出厂归类序（DECK06-DRAG-1792022594505-A.docx, DECK06-DRAG-1792022594505-B.docx 归位）
-[00:03:33.812] NOTE  复位后 ESC 收层存证未到（不阻塞；08 段有专门断言）
-[00:03:33.958] PASS  清理拖拽探针后条目同步消失（面板与磁盘一致）
-[00:03:33.959] SEG   ▶ P5.6 选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开｜工单20｜失效面=输入注入+事件存证
-[00:03:37.114] PASS  单击重置选区：文档区条目「DECK20-A-1792022613960.docx」单选存证
-[00:03:37.672] PASS  Ctrl 点选并集：文档区「DECK20-A-1792022613960.docx」+「DECK20-B-1792022613960.docx」同选
-[00:03:42.299] PASS  Ctrl 再点同条切换出选：names 只剩先选那条
-[00:03:43.936] PASS  单击分区空白清空选区：desktop-selection-cleared 存证（had=2）
-[00:03:45.198] PASS  快照重建（条目集合不变）后选中态不丢：desktop-rendered.sel=[DECK20-A-1792022613960.docx, DECK20-B-1792022613960.docx]
-[00:03:46.181] PASS  选中条目外部删除自动剔除：removed=[DECK20-B-1792022613960.docx]，余 [DECK20-A-1792022613960.docx]
-[00:03:51.061] PASS  双击选中集内任一条 = 整集启动名单（desktop-launch-set-clicked 两条）
-[00:03:51.217] PASS  整集逐项启动：两条 desktop-launched ok=true（desktop/launch 逐项存证）
-[00:03:52.538] PASS  双击全开目标实证：两条探针 bat 均启动（标记文件双落盘）
-[00:03:52.548] SEG   ▶ P5.7 框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89）｜工单21｜失效面=输入注入+事件存证
-[00:03:57.396] PASS  框选越过阈值即启动：desktop-marquee-started（起笔于分区空白 (460, 76)）
-[00:03:57.401] PASS  拖动途中即时高亮：desktop-marquee-updated 途中携带命中 [DECK21-DOC-1792022632550-2.docx, DECK21-DOC-1792022632550-1.docx]（矩形实拍见 21-marquee-live.png）
-[00:03:57.423] PASS  松手普通框选=替换：选区由 [王金胜案子花的钱.xlsx] → [DECK21-DOC-1792022632550-2.docx, DECK21-DOC-1792022632550-1.docx]（desktop-marquee-finished ctrl=false）
-[00:03:59.206] PASS  松手 Ctrl 框选=并集：[DECK21-DOC-1792022632550-2.docx, DECK21-DOC-1792022632550-1.docx, 王金胜案子花的钱.xlsx] ∪ 命中 [DECK21-DOC-1792022632550-2.docx, DECK21-DOC-1792022632550-1.docx, DECK21-DOC-1792022632550-0.docx] → [DECK21-DOC-1792022632550-2.docx, DECK21-DOC-1792022632550-1.docx, 王金胜案子花的钱.xlsx, DECK21-DOC-1792022632550-0.docx]（按名去重）
-[00:04:02.509] PASS  并集结果入渲染态：指纹翻转重建后 desktop-rendered.sel=并集（选中不闪没）
-[00:04:04.244] PASS  阈值内松手=普通点击：无框选事件，尾随 click 清空选区（desktop-selection-cleared had=4 条）
-[00:04:06.505] PASS  起笔于条目不误触框选（仍走拖拽摆位路径：desktop-moved ok=true）
-[00:04:07.638] PASS  指针流出分区包围盒框选不中断：矩形左沿 278 < 包围盒左沿 408，松手仍提交命中 [王金胜案子花的钱.xlsx, DECK21-DOC-1792022632550-2.docx, DECK21-DOC-1792022632550-1.docx, DECK21-DOC-1792022632550-0.docx, 任务-职责映射草案_20260901.xlsx]
-[00:04:08.758] PASS  doc 外扩带起笔框选：顶条上沿外 20px（旧 10px 边带外的穿透区）直接起笔，命中 [王金胜案子花的钱.xlsx]
-[00:04:10.523] SEG   ▶ P5.8 批量拖拽摆位：整组插入序 + ghost N 项徽标｜工单22｜失效面=输入注入+事件存证
-[00:04:12.201] NOTE  批量拖拽夹具出厂序：[DECK22-DOC-1792022650524-3.docx, DECK22-DOC-1792022650524-2.docx, DECK22-DOC-1792022650524-1.docx]（mtime 1 最新 → 组内降序在前）
-[00:04:15.872] PASS  ghost「N 项」徽标：desktop-batch-drag-started count=2（整组 2 条都实际拖动）
-[00:04:15.897] PASS  批量落位意图存证：desktop-move-batch-clicked zone=doc，参照 beforeName 落在 1 上
-[00:04:15.972] PASS  整组落位 + skipped 如实上报：moved=[DECK22-DOC-1792022650524-2.docx, DECK22-DOC-1792022650524-3.docx]，skipped=[]（面板无手钉组员可跳过，desktop-moved-batch ok=true）
-[00:04:16.712] PASS  组内相对序 = 选区插入序：显式段 [2, 3] 插到 1 之前，office 序由 [3.docx, 2.docx, 1.docx] 翻转为 [2, 3, 1]
-[00:04:18.235] SEG   ▶ P5.9 分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔｜工单23｜失效面=输入注入+事件存证
-[00:04:20.342] PASS  菜单以 cordis 插件装载：plugin-mounted（id=context-menu，随插件清单）在档
-[00:04:20.835] PASS  空白右键弹菜单：条目集=[paste, select-all, reset-layout]，行矩形随开层存证
-[00:04:20.836] PASS  菜单在光标处弹出：开层原点 (460, 76) = 右键落点
-[00:04:20.839] PASS  开层期间热区换全窗：hotzones=[menu 2560x1392]（面板 2560x1392）
-[00:04:25.458] PASS  菜单外一击即收（reason=outside；点位在分区热区外的面板空档，收得到即全窗承接）
-[00:04:25.462] PASS  收起后热区恢复原状：[clock-card, weather-card, sessions-card, calendar-card, search-card, doc-zone, settings-btn]，menu 全窗矩形退场
-[00:04:27.988] PASS  分区空白左键收起：尾随 click 被吞没，预置单选原样（无 desktop-selection-cleared）
-[00:04:30.487] PASS  分区空白右键收起：尾随 contextmenu 被吞没，菜单不立刻复弹
-[00:04:32.718] PASS  全选动作（选区状态机 select-all）：desktop-selection-all 19 条 = 池内全部条目
-[00:04:32.721] PASS  菜单动作执行后即收（reason=action）
-[00:04:32.937] PASS  全选入渲染态：指纹翻转重建后 desktop-rendered.sel=全选名单（快照重建不丢）
-[00:04:36.775] PASS  恢复出厂布局动作（06 契约复用）：desktop-reset-clicked(from=ctx-menu) → desktop-layout-reset ok=true cleared=3，菜单随动作收起
-[00:04:43.260] PASS  插件卸载即失效：移除插件目录后右键分区空白不再弹菜单（面板触发 ?. 空转）
-[00:04:44.179] PASS  插件重装即恢复：目录放回后右键再弹菜单（随清单热插拔全链路，未重启面板）
-[00:04:44.666] SEG   ▶ P5.10 单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列）｜工单24｜失效面=输入注入+事件存证+系统状态
-[00:04:48.519] PASS  右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单
-[00:04:48.521] PASS  单项菜单条目集=[open, reveal, copy-path, copy, cut, rename, delete]，七行矩形随开层存证（第 4/5 行=复制/剪切文件级写向，工单29；第 6 行=重命名，工单28；第 7 行=删除，工单27；工单59 起无手钉管理行）
-[00:04:51.566] PASS  打开动作（菜单行 → desktop/launch）：via=ctx-menu 存证 + 菜单随动作收起 + 探针目标进程写标记文件（双击同款启动）
-[00:04:53.699] PASS  单选态右键：选区已是该条，不重复发 desktop-selected（直接弹菜单）
-[00:04:55.331] PASS  打开所在位置动作（desktop/reveal）：ok=true 存证 + 资源管理器窗弹出（新 CabinetWClass）
-[00:04:59.484] PASS  复制路径动作（desktop/copy-path）：ok=true 存证 + 剪贴板实读 = 完整路径（粘贴可用）
-[00:05:02.089] PASS  清理单项菜单探针后条目同步消失（面板与磁盘一致）
-[00:05:02.093] SEG   ▶ P5.12 多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归｜工单26｜失效面=输入注入+事件存证
-[00:05:07.259] PASS  右键选中集内条目弹多选菜单：条目集=[open-all, copy-path, copy, cut, delete-all] 五行矩形随开层存证（菜单作用于整集；复制/剪切=工单29，删除全部=工单27）
-[00:05:07.264] PASS  多选菜单开层无选区副作用：desktop-selected/toggled/cleared 均未见（选区保持两条）
-[00:05:10.357] PASS  打开全部动作（菜单行 → desktop/launch 逐项）：clicked 按选区插入序 [DECK26-BAT-1792022702982-A.bat, DECK26-BAT-1792022702982-B.bat]（via=ctx-menu）+ launched 双 ok + 探针标记双落盘
-[00:05:13.759] PASS  多选复制路径动作（desktop/copy-paths）：ok=true 存证 + 剪贴板实读两行 = [A 路径, B 路径]（\n 分隔，行序同选区插入序）
-[00:05:15.913] PASS  右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）
-[00:05:15.915] PASS  集外右键单项菜单条目集=[open, reveal, copy-path, copy, cut, rename, delete]（未收敛为多选动作；第 4/5 行=复制/剪切，工单29；第 6 行=重命名，工单28；第 7 行=删除，工单27）
-[00:05:17.779] PASS  清理多选菜单探针后条目同步消失（面板与磁盘一致）
-[00:05:17.781] SEG   ▶ P5.13 删除与删除全部：回收站直进/确认层取消与确认/摆位对账｜工单27｜失效面=输入注入+事件存证+系统状态
-[00:05:21.335] PASS  单删前置：DECK27-SINGLE-1792022717783.txt 真拖拽造显式摆位（layout.json docs 对账在列）
-[00:05:21.852] PASS  单项菜单含【删除】行（条目集=[open, reveal, copy-path, copy, cut, rename, delete]）
-[00:05:24.596] PASS  单删直进回收站：无确认层、desktop-trashed ok=true、文件离盘、条目消失、layout.json docs 摆位同拍清除 + 回收站实查可找回
-[00:05:27.891] PASS  多选【删除全部】先弹自绘确认：desktop-trash-confirm-opened count=2，确认/取消钮矩形随层存证（确认 124x25 / 取消 124x25）
-[00:05:30.782] PASS  确认层取消不动：confirm-closed reason=cancel、无 desktop-trash-clicked、两条探针在盘且池内原样（最后一条 rendered 仍含两者）
-[00:05:34.988] PASS  确认整批进回收站：desktop-trashed ok=true trashed=[B, C]、文件离盘、条目消失、layout.json docs 名单对账干净 + 回收站实查可找回
-[00:05:36.634] NOTE  删除用例残留：已删探针在回收站可找回（AC 语义本体），如需清净请手动清空回收站
-[00:05:36.636] SEG   ▶ P5.14 原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移｜工单28｜失效面=输入注入+事件存证+系统状态
-[00:05:39.738] PASS  改名前置：靶子真拖拽造显式摆位（layout.json docs 对账在列）
-[00:05:40.227] PASS  单项菜单含【重命名】行（条目集=[open, reveal, copy-path, copy, cut, rename, delete]，工单28 第六行）
-[00:05:44.285] FAIL  重命名编辑器开层异常：started=null kbOn=false(last=keyboard-mode-on) fg=null
-[00:05:45.888] SEG   ▶ P5.15 复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选｜工单29｜失效面=输入注入+事件存证+系统状态
-[00:05:50.498] PASS  单项复制动作（desktop/clipboard-copy）：ok=true 存证 + 剪贴板实读 FileDropList=[探针全路径] + Preferred DropEffect=1（资源管理器粘贴得副本）
-[00:05:53.867] PASS  单项剪切动作（desktop/clipboard-cut）：ok=true 存证 + 剪贴板实读 FileDropList=[探针全路径] + Preferred DropEffect=2（粘贴为搬移）+ 文件仍在盘上
-[00:05:58.360] PASS  多选复制整集动作：clicked/copied 按选区插入序 [A, B] + 剪贴板实读 FileDropList 两条按序俱全（AC「多选整集进剪贴板」）
-[00:06:01.569] SEG   ▶ P5.16 粘贴：置灰态/落桌面根/同名「 - 副本」递增｜工单30｜失效面=输入注入+事件存证+系统状态
-[00:06:04.601] PASS  空白菜单含【粘贴】行（条目集=[paste, select-all, reset-layout]，行矩形 170x28 随开层存证）
-[00:06:06.318] PASS  置灰态：【粘贴】行点击无反应（无 desktop-paste-clicked）、菜单保持开着由外击收起——剪贴板无文件时置灰（shell 归约器挡下）
-[00:06:10.681] PASS  可用态：desktop-pasted ok=true pasted=[DECK30-PASTE-1792022761571.txt]，文件落桌面根且 watch 后条目入池（desktop-rendered 在档）
-[00:06:12.894] PASS  同名冲突自动「 - 副本」递增：再贴落为 [DECK30-PASTE-1792022761571 - 副本.txt]，桌面两份共存不覆盖（真桌面同款不弹框）
-[00:06:15.423] SEG   ▶ P5.17 键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先｜工单31｜失效面=输入注入+事件存证
-[00:06:19.367] PASS  选区生与 keyboard-mode-on 同相（硬断言①）：desktop-selected 后首个键盘模式事件即 on（+439ms）
-[00:06:19.445] PASS  选区灭与 keyboard-mode-off 同相（硬断言②）：Esc 清空后首个键盘模式事件即 off
-[00:06:21.750] PASS  Ctrl+A 全选（select-all 进状态机）：desktop-selection-all 名单=池内全部 23 条
-[00:06:24.159] PASS  Enter 打开选中（desktop/launch）：desktop-launch-clicked via=keyboard + desktop-launched ok=true + 探针标记落盘
-[00:06:25.266] PASS  Del 删除选中（单项直删不弹确认）：desktop-trash-clicked via=keyboard + desktop-trashed ok=true + 文件离盘
-[00:06:25.855] PASS  删尽灭相同相（硬断言③）：desktop-selection-pruned 后紧跟 keyboard-mode-off（面板还原不可聚焦）
-[00:06:28.358] PASS  同向抑制（硬断言④）：[点选, confirm-opened] 内 keyboard-mode-on 计数=1——选区生只发一次，确认层开（浮层接管）不重发
-[00:06:28.932] PASS  Del 多选弹确认层→确认整份删除：desktop-trashed ok=true 两条、文件离盘、keyboard-mode-off 同相还原
-[00:06:32.093] PASS  Ctrl+C 复制选中（desktop/clipboard-copy）：via=keyboard + ok=true + FileDropList 实读 effect=1（资源管理器粘贴得副本）
-[00:06:33.409] PASS  Ctrl+X 剪切选中（desktop/clipboard-cut）：via=keyboard + ok=true + effect=2（粘贴为搬移）+ 文件仍在盘上
-[00:06:38.052] PASS  Ctrl+V 粘贴（desktop/paste）：via=keyboard + desktop-pasted ok=true pasted=[DECK31-PASTE-1792022775425.txt]，文件落桌面根且入池
-[00:06:40.879] PASS  Esc 第一层（硬断言⑤）：菜单开着只关菜单（desktop-menu-closed reason=esc），选区不清、keyboard-mode 不还原（无 cleared / 无 off 泄漏）
-[00:06:40.956] PASS  Esc 第二层（硬断言⑥）：菜单已关 Esc 清空选区（desktop-selection-cleared）并同相还原 keyboard-mode-off
-[00:06:43.602] PASS  浮层开不重发 keyboard-mode-on（硬断言⑦）：search-activated 且 [selected, activated] 内 on 计数=1（选区生唯一一次）
-[00:06:44.590] PASS  浮层优先（硬断言⑧）：搜索激活期间 Ctrl+A / Ctrl+V 不接管（无 selection-all / paste-* 泄漏），搜索输入不受影响、层未收
-[00:06:44.664] PASS  Esc 归浮层（硬断言⑨）：search-deactivated reason=esc，选区保持、keyboard-mode 保持 on（浮层关而选区非空不互相踩）
-[00:06:45.162] PASS  浮层关后清选区：灭相同相（硬断言）keyboard-mode-off——门控收官归零
-[00:06:47.727] SEG   ▶ P7S 搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE｜工单7｜失效面=输入注入+事件存证+系统状态
-[00:06:50.181] PASS  真实 Listary 引擎在线且探针文件入索引排首位（直连取证——与内核同款回环链路）
-[00:06:51.501] NOTE  待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）
-[00:06:52.363] PASS  热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论在永不激活语义下经键盘模式落地）
-[00:06:52.368] PASS  键盘模式开启：keyboard-mode-on 存证；键盘焦点在手（前台=面板）且面板仍在全部普通窗之下（其下仅桌面层）——键盘模式也钉底
-[00:06:53.820] PASS  键入探针词后防抖-引擎-渲染管线打通（结果 1 行 TOTAL 1，qlen=26——存证只带长度不带查询词；Ctrl+V 键程直达输入框 = 键盘模式焦点到手）
-[00:06:56.033] PASS  Enter 打开验收探针文件（首行确为探针——渲染正确性行为级实证）
-[00:07:01.575] PASS  Ctrl+Enter 资源管理器定位（CabinetWClass 窗口弹出且标题含探针目录）
-[00:07:04.954] PASS  ↑/↓ 选择：两击 DOWN 选中第 3 行（index=2 存证）
-[00:07:05.031] PASS  ESC 退回待机态（search-deactivated reason=esc：输入清空、结果收起）
-[00:07:05.035] PASS  键盘模式退出：keyboard-mode-off 存证，面板恢复不可聚焦（WS_EX_NOACTIVATE 回归）且仍钉底（其下仅桌面层）
-[00:07:07.862] PASS  失焦退回待机态（点击桌面后前台翻转，输入框 blur → 收层）
-[00:07:16.279] PASS  引擎不可达显示 ENGINE OFFLINE（假端口连接失败 → offline 态 → 徽标；内核 3s 静默重试在场）
-[00:07:23.841] SEG   ▶ P8S 设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持｜工单8｜失效面=输入注入+事件存证+系统状态
-[00:07:25.167] PASS  设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 300x370（可交互）
-[00:07:25.171] PASS  设置浮层键盘模式：开层即 keyboard-mode-on 存证，键盘焦点到手（前台=面板）——ESC 可关层
-[00:07:26.850] PASS  初值同源：开层滑杆值 55% = config.appearance.cardOpacity 0.55
-[00:07:28.244] PASS  滑杆拖至低位 1%：底色即时反映（applied 同值）且 config 同步落盘 0.01
-[00:07:31.250] PASS  滑杆拖回高位 99%：config 同步落盘 0.99（滑杆调节即时反映于各信息卡底色）
-[00:07:32.913] PASS  ESC 关闭设置浮层（settings-closed reason=esc 存证）
-[00:07:32.920] PASS  关层恢复不可聚焦：keyboard-mode-off 存证，WS_EX_NOACTIVATE 回归（EXSTYLE=0x8280020）
-[00:07:34.176] PASS  失焦关闭：焦点移出浮层（点时钟卡）即收层（reason=blur 存证）
-[00:07:40.927] PASS  重启保持：config 0.91 回灌渲染层（boot applied 91%，滑杆与底色同值）
-[00:07:43.124] SEG   ▶ P8T 卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启｜工单101｜失效面=输入注入+事件存证+系统状态+面板存活
-[00:07:44.460] PASS  卡片显隐开关列表：开层存证携带 6 个插件包开关行（含 search 与上下文菜单 shell——列出的都是插件包、都归用户管），search 当拍勾选态 ON
-[00:07:46.769] PASS  停用搜索卡：settings-card-set{enabled:false} 回执，热区表不再含 search-card（卡片消失、点击穿透落回背景层），config.plugins.disabled=["search"]
-[00:07:54.347] PASS  重启保留：停用集经 config 回读（disabled=["search"]），新面板代次热区表仍无 search-card——停用的卡不因重启复活
-[00:07:55.185] PASS  重启后开关态核对：开层载荷 search 勾选态 OFF（列表如实呈现停用集）
-[00:07:55.950] PASS  启用搜索卡：settings-card-set{enabled:true} 回执，search-card 回归热区表（原位恢复、观感一致），config.plugins.disabled=[]
-[00:08:02.636] SEG   ▶ P6 config 几何生效（改 config 重启面板）｜工单3｜失效面=系统状态
-[00:08:07.149] 改几何重启后 rect(phys)=60,60 1100x800（期望 60,60 1100x800）
-[00:08:07.151] PASS  config.json 改动几何后重启面板即反映
-[00:08:07.155] SEG   ▶ P7 单实例守卫：二次拉起即退 + refused 存证 + 原面板完好｜工单3｜失效面=面板存活
-[00:08:08.095] PASS  单实例守卫：二次拉起 840ms 自行退出（code=0）
-[00:08:08.098] PASS  单实例守卫：被拒实例自报 single-instance-refused 存证
-[00:08:08.101] PASS  单实例守卫：原面板窗完好（Chrome 窗计数 1 → 1），屏上仍只有一个面板
-[00:08:08.102] SEG   ▶ P8 托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色）｜工单3｜失效面=系统状态+像素
-[00:08:09.298] PASS  托盘图标已注册：NotifyIconSettings 条目 9311401458683718866（exe 匹配）
-[00:08:10.173] NOTE  已设 IsPromoted=1（原值 未设），等待 explorer 应用
-[00:08:13.372] PASS  托盘图标可见：识别色命中 64 像素 @(2259,1416)（基线 0），截图 03-tray-area.png
-[00:08:13.373] SEG   ▶ P9 Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07）｜工单3｜失效面=输入注入+像素+事件存证+系统状态
-[00:08:13.781] NOTE  已发送 Win+D
-[00:08:15.784] PASS  Win+D 收起桌面：普通窗（记事本）最小化，面板窗口未被收起（窗口态级豁免）
-[00:08:16.757] NOTE  Win+D 后实拍：面板仍在原位（对照窗已收起）；内容级断言见最小化实拍之后的比对
-[00:08:16.759] PASS  桌面遮罩守望进场：cover-engaged 已存证（Progman 压顶 → 面板临时 TOPMOST）
-[00:08:17.295] PASS  面板被最小化（来源=SW_MINIMIZE，存证 why=minimized，IsIconic=true）
-[00:08:18.206] NOTE  最小化期实拍：面板收起（时钟卡区无实色内容）
-[00:08:18.237] PASS  Win+D 后面板内容像素级在场：与最小化（仅壁纸）实拍均值差 52.5/255（≥8；合成层停帧退化即趋零）
-[00:08:18.992] PASS  防抖自动恢复：1.51s 后回到原位（存证 afterMs=1511，矩形偏差在容差内）
-[00:08:20.050] PASS  最小化恢复后重钉生效：记事本重新盖住面板
-[00:08:24.946] NOTE  已发送 Win+D 还原桌面态（清 show desktop 残留，防遮挡后续段探针）
-[00:08:24.948] SEG   ▶ P10 托盘退出闭环：UIA 可见/WM_CLOSE 退出/托盘消失｜工单3｜失效面=面板存活+系统状态+像素
-[00:08:32.594] PASS  托盘图标系统级可见：Win+B 键盘导航命中托盘焦点元素「AGENT DECK �������」（tooltip 名匹配）
-[00:08:34.836] PASS  退出闭环：窗口销毁、主进程（pid=42168）退出（耗时 2239ms）
-[00:08:34.838] PASS  退出管道经 before-quit 存证（quit，托盘随之 destroy）
-[00:08:37.726] PASS  退出后托盘图标随之消失（识别色回落至基线水平，截图 03-tray-after-exit.png）
-[00:08:38.590] SEG   ▶ P10E 设置浮层「退出面板」按钮闭环｜工单83｜失效面=面板存活+事件存证
-[00:08:48.084] PASS  退出面板按钮闭环：settings-exit-clicked → app/quit → 窗口销毁、主进程（pid=39656）退出（耗时 2055ms）
-[00:08:48.087] PASS  退出按钮走 before-quit 同一收敛（quit 存证在档，桌面图标/原生任务栏/托盘随之还原）
-[00:08:48.088] SEG   ▶ P9B 会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话）｜工单9｜失效面=输入注入+事件存证+面板存活
-[00:08:48.803] NOTE  工具映射核对：config.json 无显式 tools 段（面板走代码内五工具默认值，电池不 import 生产代码故不核）
-[00:08:48.809] NOTE  会话行直达探针：受控探针进程 charmap.exe + 探针会话 DECK-PROBE-09（工具槽位 qoder 指向探针）
-[00:08:53.729] NOTE  启动路径 诊断：panel 0x2281024 rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x10206(Progman pid=15640，非面板→被遮挡)
-[00:08:55.346] PASS  会话行直达·启动路径：工具未运行 → 点击会话行拉起其 exe（action=launched，探针 charmap.exe 窗口 0xf3129e 出现）
-[00:08:57.914] NOTE  聚焦路径 诊断：panel 0x2281024 rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x2281024
-[00:08:59.123] PASS  会话行直达·聚焦路径：工具在跑 → 点击会话行把其窗口还原并带到前台（探针 pid 22444，点击前前台 pid=15640，点击后=22444，IsIconic=false）
-[00:09:06.318] NOTE  降级 诊断：panel 0x640e2a rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x640e2a
-[00:09:07.592] PASS  会话行直达·静默降级：失效目标返回 degraded（reason=工具未运行且无启动目标）且面板未崩（降级后仍可交互：时钟卡点击存证到达）
-[00:09:08.206] SEG   ▶ P11 桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装｜工单10｜失效面=事件存证+系统状态
-[00:09:08.213] PASS  桌面组件·内置五卡自举：clock/weather/sessions/calendar/search 五张桌面组件均经插件契约装载渲染，且五张都进了热区声明（时钟卡矩形 48,48 320x176 与 index.html 一致；像素级观感按惯例人工核验 04-cards-*.png）
-[00:09:08.215] PASS  Qoder 状态块退役：qoder-card 不在任何热区声明里，会话卡加高补位到位（top 152、高 522，覆盖原状态块槽位 152..674）
-[00:09:08.224] NOTE  桌面组件探针：样例插件已放入 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins\hello（本段不重启面板，boot 存证基线 4 条）
-[00:09:08.916] PASS  桌面组件·放入即识别：外部样例插件放入插件目录后**无需重启面板**即被装载并渲染（capabilities=["clock"]，卡片热区 320x120，boot 存证 4→4 未增）
-[00:09:10.907] PASS  桌面组件·运行时重载：改插件自身资产后即时重载生效（未重启面板，入口代号变化即换 URL 绕开 ESM 模块缓存）
-[00:09:11.531] PASS  桌面组件·卸载：移除插件目录后其卡片从面板消失（热区不再声明，无残留死区）
-[00:09:12.234] PASS  桌面组件·重装恢复：把插件目录放回即恢复装载与渲染（boot 存证全程未增 = 四步都没重启面板）
-[00:09:13.874] NOTE  桌面组件探针清场：已移除 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins\hello
-[00:09:13.876] SEG   ▶ P12 渲染层哨兵判据（#91 定案）：活性心跳武装在证/忙环注入失能档发射与闭合/全程无自发静默失能｜工单91｜失效面=事件存证
-[00:09:13.889] PASS  渲染层哨兵武装在证：两代面板启动均有 sentinel-armed（deck:host-beat 活性心跳接线，#91 判据）
-[00:09:13.891] PASS  全程无自发静默/失能档：两代面板零 renderer-stall/renderer-frozen（空闲静默已被活性心跳消音）
-[00:09:25.941] NOTE  渲染层失能注入（CDP Runtime.evaluate 忙环）：忙环 12s 注入完成（渲染层主线程阻塞期间本断言阻塞至忙环结束才返回）
-[00:09:25.956] PASS  注入静默档发射：renderer-stall quietMs=5458 recovered=true（活性静默越过 5s 阈值）
-[00:09:25.957] PASS  注入失能档发射：renderer-frozen quietMs=7469 crashed=false（活性静默 ≥ 阈值+一拍，一轮一条）
-[00:09:25.959] PASS  失能 episode 闭合：renderer-unfrozen frozenMs=12221（忙环结束首个心跳闭合）
-[00:09:25.962] PASS  注入窗口记账收紧：静默/失能/闭合三档各恰一条，无多发无漏发
-[00:09:25.964] NOTE  忙环后面板进程存活：pid=22656（渲染层失能 12s 未伤及主进程）
-[00:09:26.684] NOTE  搜索探针目录已清理
-[00:09:27.509] NOTE  清场核验：无遗留面板本体窗
-[00:09:27.510] NOTE  图标状态清场核验：visible=true（电池前=true）
-[00:09:27.512] NOTE  原生任务栏清场核验：visible=true（电池前=true）
-[00:09:27.514] NOTE  config.json 已还原电池前原文
-[00:09:27.517] NOTE  摆位存储清场：已还原备份
-[00:09:27.926] ===== 03-battery VERDICT: FAIL-CODE (pass=182 fail=1 excluded=0) =====
+# accept 03-battery — 2026-10-14T23:25:26.330Z
+[23:25:27.993] NOTE  preflight 环境体检［user-window-activity］前台为用户应用窗：cls=Notepad pid=31360 title="无标题 - Notepad"——发起时刻机器有用户活动迹象，轮中抬窗风险在案
+[23:25:27.996] NOTE  preflight 环境体检［tray-machine-state］托盘提升位未置（IsPromoted=未设）——图标默认溢出层；P8 将自行提升，失败语将带机器态定向（工单141）
+[23:25:27.997] NOTE  screen: phys 2560x1440 @ factor 1
+[23:25:29.447] NOTE  托盘识别色基线：无琥珀像素
+[23:25:29.449] NOTE  原生桌面图标基线：visible=true
+[23:25:29.451] NOTE  原生任务栏基线：visible=true
+[23:25:29.454] NOTE  已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）
+[23:25:32.994] SEG   ▶ P1 启动面板（子进程，存证事件落盘；假死自愈接线）｜工单3｜失效面=面板存活
+[23:25:37.750] NOTE  panel hwnd=0x1f513f4 rect(phys)=0,0 2560x1392
+[23:25:38.964] SEG   ▶ P2 透明合成（棋盘参照窗 + 时钟卡文字像素）｜工单3｜失效面=像素
+[23:25:40.899] NOTE  透明区采样点 5355 个命中参照窗（清场重试 0 轮；其余被用户窗遮挡的点不计）
+[23:25:42.582] 透明区棋盘色命中率: 99.5% (样本 5355)
+[23:25:42.583] PASS  透明合成：面板透明区透出其下参照窗（壁纸可见性的机制保证）
+[23:25:42.610] PASS  时钟卡白色文字像素 663/14080（文字实色清晰）
+[23:25:45.079] NOTE  实拍面板叠真壁纸（观感存证；动态壁纸逐帧不同，不做像素断言）
+[23:25:45.081] SEG   ▶ P2.5 数据卡片桥接契约上线（会话/天气 + 硬件卡退役回归）｜工单4｜失效面=事件存证
+[23:25:53.141] PASS  会话列表卡：渲染层收到内核会话数据并持续走数（第 1 次渲染，count=0，真机活跃池）
+[23:25:53.143] PASS  硬件卡已退役：面板全程未发 hardware-rendered/history-live（读数改由任务栏摘要承载）
+[23:25:53.145] PASS  天气卡：Open-Meteo 取数成功（weather_code=0 temp=12）
+[23:25:55.785] NOTE  卡片实拍存证：04-cards-left.png（时钟/天气/日历）、04-cards-right.png（搜索/会话）
+[23:25:55.787] SEG   ▶ P3 默认穿透：左键/右键直达桌面｜工单3｜失效面=输入注入+系统状态
+[23:25:55.788] 穿透态 EXSTYLE=0x8280020
+[23:25:55.789] PASS  默认穿透：窗口样式含 WS_EX_TRANSPARENT|WS_EX_LAYERED
+[23:25:55.794] NOTE  P3 穿透探针点 DIP(1840,296)——与全部热区沿净距 ≥12px
+[23:25:56.318] PASS  默认穿透：面板空区点击直达桌面（前台翻转为 Progman）
+[23:25:56.865] PASS  默认穿透：右键同样直达桌面（桌面右键菜单弹出，前台 XamlExplorerHostIslandWindow_WASDK）
+[23:25:57.176] SEG   ▶ P4 热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序｜工单3｜失效面=输入注入+系统状态+事件存证
+[23:25:57.179] PASS  热区声明：渲染层上报 clock-card rel(48,48) 320x176
+[23:25:58.191] NOTE  普通应用窗: notepad hwnd=0x43093a @phys(1000,200) 1400x900
+[23:25:58.610] PASS  记事本盖住面板（普通窗在钉扎面板之上的自然 z 序）
+[23:25:59.017] PASS  光标进入时钟卡热区：面板临时解除穿透（WS_EX_TRANSPARENT 移除）
+[23:25:59.039] PASS  永不顶起：热区点击瞬间面板仍在记事本之下（回归线自「离开重钉后」前移到点击瞬间）
+[23:25:59.041] PASS  永不顶起：点击未抢走工作窗口前台（键盘焦点留在记事本，可继续盲打）
+[23:25:59.043] PASS  永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x8200000，点击不激活的机制保证）
+[23:25:59.052] PASS  热区点击由时钟卡接收（count=1）
+[23:25:59.055] PASS  时钟卡数据经桥接契约自内核而来并持续走时（3 次渲染，epoch 递增）
+[23:25:59.058] SEG   ▶ P4.5 日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单）｜工单99｜失效面=事件存证
+[23:25:59.060] PASS  热区声明：日历卡由插件包渲染并上报 calendar-card rel(48,442) 320x292
+[23:25:59.063] PASS  日历卡：月网格自快照时钟段推导正确（2026-10，周一首列 3 空位 + 31 天）
+[23:25:59.190] PASS  离开热区：面板恢复穿透
+[23:25:59.796] PASS  热区交互全程面板未顶起：记事本始终盖住面板（离开重钉路径保留，在永不顶起语义下是冗余保险）
+[23:25:59.798] PASS  底部钉扎 z 序：面板(42) 在记事本(24) 之下（自顶向下枚举序）
+[23:26:01.447] SEG   ▶ P5 桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原｜工单5｜失效面=输入注入+事件存证+系统状态+面板存活
+[23:26:02.602] PASS  条目集合与磁盘扫描一致：18 项（用户桌面 11 + 公共桌面独有 7，电池对照）
+[23:26:02.604] NOTE  公共桌面 7 项（同名被用户桌面遮蔽 0 项）
+[23:26:02.606] PASS  原生桌面图标已隐藏（SysListView32 不可见）——桌面无「两套图标」
+[23:26:04.883] NOTE  面板承载实拍：05-icons-hidden.png（原生图标隐藏 + 文档区自绘）
+[23:26:05.382] PASS  单击选中态：文档区条目「个人简历.docx」选中并上报存证
+[23:26:07.732] PASS  新建探针 bat 入池：DECK-PROBE-1792020367232.bat（1Hz 重扫描自动出现，other 组落文档区）
+[23:26:10.025] PASS  双击启动：探针 bat 经桥接 desktop/launch 启动（ok=true）
+[23:26:11.335] PASS  双击验收探针 bat 启动成功（目标进程写标记文件实证）
+[23:26:11.341] PASS  清理探针 bat 后条目同步消失（面板与磁盘一致）
+[23:26:11.345] SEG   ▶ P5-ICON 快捷方式真实图标区分度（lnk 绕行提取链）｜工单1｜失效面=事件存证
+[23:26:13.858] NOTE  图标夹具入池，面板扫描指纹已翻转：DECK-ICON-1792020371348-NOTEPAD.lnk / DECK-ICON-1792020371348-CHARMAP.lnk
+[23:26:14.513] PASS  快捷方式真实图标：两条夹具经桥接 desktop/icon 取得的 dataUrl 互不相等（notepad 5514B / charmap 4214B——lnk 绕行提取链生效，通用图标回归即二者同串）
+[23:26:14.862] PASS  图标夹具清理后条目同步消失（面板与磁盘一致）
+[23:26:14.864] SEG   ▶ P5-ICON2 巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW）｜工单6｜失效面=事件存证
+[23:26:16.875] NOTE  工单06 夹具入池：目录 lnk / txt 基线 / 巨型 exe×0
+[23:26:17.177] PASS  文档基线夹具取得图标（886B）
+[23:26:17.178] PASS  目录目标 lnk 显示目录图标（398B ≠ 文档基线——文件夹目标不再被 isFile 误杀）
+[23:26:17.180] NOTE  巨型 exe 不在本机（0/3 在场），兜底断言按缺席降级
+[23:26:17.888] PASS  工单06 夹具清理后条目同步消失
+[23:26:18.429] PASS  杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=panel-exit，守卫还原后退出=true）
+[23:26:20.066] NOTE  杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）
+[23:26:25.220] SEG   ▶ P5.5 编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂｜工单6｜失效面=输入注入+事件存证
+[23:26:25.223] PASS  面板只编排文档区：desktop-rendered 带 docEntries（5 项）、无 dock 段（工单59 退役）
+[23:26:25.377] PASS  新建桌面文件自动归类入区：DECK06-PROBE-1792020385225.docx→office 组、DECK06-PROBE-1792020385226.pdf→pdf 组（文档区按扩展名聚合）
+[23:26:27.369] PASS  删除探针文档后条目同步消失（面板与磁盘一致）
+[23:26:30.371] NOTE  拖拽源落点校验通过（面板在收输入）
+[23:26:31.310] NOTE  拖拽落点校验通过（输入流全程在面板）
+[23:26:31.465] PASS  拖拽摆位：DECK06-DRAG-1792020387370-B.docx 拖至 DECK06-DRAG-1792020387370-A.docx 之前（desktop/move ok=true，摆位落盘）
+[23:26:32.412] PASS  摆位即时重编排：拖拽条目越过参照（渲染序更新）
+[23:26:38.630] PASS  重启面板后位置保持：DECK06-DRAG-1792020387370-B.docx 仍在 DECK06-DRAG-1792020387370-A.docx 之前（layout.json 持久化）
+[23:26:42.871] PASS  设置浮层恢复出厂一键生效：清除 1 处显式摆位，文档区回到出厂归类序（DECK06-DRAG-1792020387370-A.docx, DECK06-DRAG-1792020387370-B.docx 归位）
+[23:26:46.735] NOTE  复位后 ESC 收层存证未到（不阻塞；08 段有专门断言）
+[23:26:47.003] PASS  清理拖拽探针后条目同步消失（面板与磁盘一致）
+[23:26:47.004] SEG   ▶ P5.6 选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开｜工单20｜失效面=输入注入+事件存证
+[23:26:50.102] PASS  单击重置选区：文档区条目「DECK20-A-1792020407005.docx」单选存证
+[23:26:50.650] PASS  Ctrl 点选并集：文档区「DECK20-A-1792020407005.docx」+「DECK20-B-1792020407005.docx」同选
+[23:26:53.715] PASS  Ctrl 再点同条切换出选：names 只剩先选那条
+[23:26:55.395] PASS  单击分区空白清空选区：desktop-selection-cleared 存证（had=2）
+[23:26:57.201] PASS  快照重建（条目集合不变）后选中态不丢：desktop-rendered.sel=[DECK20-A-1792020407005.docx, DECK20-B-1792020407005.docx]
+[23:26:58.240] PASS  选中条目外部删除自动剔除：removed=[DECK20-B-1792020407005.docx]，余 [DECK20-A-1792020407005.docx]
+[23:27:03.096] PASS  双击选中集内任一条 = 整集启动名单（desktop-launch-set-clicked 两条）
+[23:27:03.227] PASS  整集逐项启动：两条 desktop-launched ok=true（desktop/launch 逐项存证）
+[23:27:04.523] PASS  双击全开目标实证：两条探针 bat 均启动（标记文件双落盘）
+[23:27:04.534] SEG   ▶ P5.7 框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89）｜工单21｜失效面=输入注入+事件存证
+[23:27:09.303] PASS  框选越过阈值即启动：desktop-marquee-started（起笔于分区空白 (460, 76)）
+[23:27:09.325] PASS  拖动途中即时高亮：desktop-marquee-updated 途中携带命中 [DECK21-DOC-1792020424536-2.docx, DECK21-DOC-1792020424536-1.docx]（矩形实拍见 21-marquee-live.png）
+[23:27:09.328] PASS  松手普通框选=替换：选区由 [王金胜案子花的钱.xlsx] → [DECK21-DOC-1792020424536-2.docx, DECK21-DOC-1792020424536-1.docx]（desktop-marquee-finished ctrl=false）
+[23:27:11.106] PASS  松手 Ctrl 框选=并集：[DECK21-DOC-1792020424536-2.docx, DECK21-DOC-1792020424536-1.docx, 王金胜案子花的钱.xlsx] ∪ 命中 [DECK21-DOC-1792020424536-2.docx, DECK21-DOC-1792020424536-1.docx, DECK21-DOC-1792020424536-0.docx] → [DECK21-DOC-1792020424536-2.docx, DECK21-DOC-1792020424536-1.docx, 王金胜案子花的钱.xlsx, DECK21-DOC-1792020424536-0.docx]（按名去重）
+[23:27:13.443] PASS  并集结果入渲染态：指纹翻转重建后 desktop-rendered.sel=并集（选中不闪没）
+[23:27:15.164] PASS  阈值内松手=普通点击：无框选事件，尾随 click 清空选区（desktop-selection-cleared had=4 条）
+[23:27:17.408] PASS  起笔于条目不误触框选（仍走拖拽摆位路径：desktop-moved ok=true）
+[23:27:18.531] PASS  指针流出分区包围盒框选不中断：矩形左沿 278 < 包围盒左沿 408，松手仍提交命中 [王金胜案子花的钱.xlsx, DECK21-DOC-1792020424536-2.docx, DECK21-DOC-1792020424536-1.docx, DECK21-DOC-1792020424536-0.docx, 任务-职责映射草案_20260901.xlsx]
+[23:27:19.600] PASS  doc 外扩带起笔框选：顶条上沿外 20px（旧 10px 边带外的穿透区）直接起笔，命中 [王金胜案子花的钱.xlsx]
+[23:27:21.171] SEG   ▶ P5.8 批量拖拽摆位：整组插入序 + ghost N 项徽标｜工单22｜失效面=输入注入+事件存证
+[23:27:23.527] NOTE  批量拖拽夹具出厂序：[DECK22-DOC-1792020441172-3.docx, DECK22-DOC-1792020441172-2.docx, DECK22-DOC-1792020441172-1.docx]（mtime 1 最新 → 组内降序在前）
+[23:27:27.206] PASS  ghost「N 项」徽标：desktop-batch-drag-started count=2（整组 2 条都实际拖动）
+[23:27:27.229] PASS  批量落位意图存证：desktop-move-batch-clicked zone=doc，参照 beforeName 落在 1 上
+[23:27:27.305] PASS  整组落位 + skipped 如实上报：moved=[DECK22-DOC-1792020441172-2.docx, DECK22-DOC-1792020441172-3.docx]，skipped=[]（面板无手钉组员可跳过，desktop-moved-batch ok=true）
+[23:27:28.129] PASS  组内相对序 = 选区插入序：显式段 [2, 3] 插到 1 之前，office 序由 [3.docx, 2.docx, 1.docx] 翻转为 [2, 3, 1]
+[23:27:29.699] SEG   ▶ P5.9 分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔｜工单23｜失效面=输入注入+事件存证
+[23:27:31.716] PASS  菜单以 cordis 插件装载：plugin-mounted（id=context-menu，随插件清单）在档
+[23:27:32.207] PASS  空白右键弹菜单：条目集=[paste, select-all, reset-layout]，行矩形随开层存证
+[23:27:32.209] PASS  菜单在光标处弹出：开层原点 (460, 76) = 右键落点
+[23:27:32.212] PASS  开层期间热区换全窗：hotzones=[menu 2560x1392]（面板 2560x1392）
+[23:27:36.882] PASS  菜单外一击即收（reason=outside；点位在分区热区外的面板空档，收得到即全窗承接）
+[23:27:36.885] PASS  收起后热区恢复原状：[clock-card, sessions-card, weather-card, search-card, calendar-card, doc-zone, settings-btn]，menu 全窗矩形退场
+[23:27:39.413] PASS  分区空白左键收起：尾随 click 被吞没，预置单选原样（无 desktop-selection-cleared）
+[23:27:41.905] PASS  分区空白右键收起：尾随 contextmenu 被吞没，菜单不立刻复弹
+[23:27:44.145] PASS  全选动作（选区状态机 select-all）：desktop-selection-all 19 条 = 池内全部条目
+[23:27:44.150] PASS  菜单动作执行后即收（reason=action）
+[23:27:44.566] PASS  全选入渲染态：指纹翻转重建后 desktop-rendered.sel=全选名单（快照重建不丢）
+[23:27:48.651] PASS  恢复出厂布局动作（06 契约复用）：desktop-reset-clicked(from=ctx-menu) → desktop-layout-reset ok=true cleared=3，菜单随动作收起
+[23:27:55.566] PASS  插件卸载即失效：移除插件目录后右键分区空白不再弹菜单（面板触发 ?. 空转）
+[23:27:56.437] PASS  插件重装即恢复：目录放回后右键再弹菜单（随清单热插拔全链路，未重启面板）
+[23:27:56.922] SEG   ▶ P5.10 单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列）｜工单24｜失效面=输入注入+事件存证+系统状态
+[23:28:00.323] PASS  右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单
+[23:28:00.324] PASS  单项菜单条目集=[open, reveal, copy-path, copy, cut, rename, delete]，七行矩形随开层存证（第 4/5 行=复制/剪切文件级写向，工单29；第 6 行=重命名，工单28；第 7 行=删除，工单27；工单59 起无手钉管理行）
+[23:28:03.483] PASS  打开动作（菜单行 → desktop/launch）：via=ctx-menu 存证 + 菜单随动作收起 + 探针目标进程写标记文件（双击同款启动）
+[23:28:05.567] PASS  单选态右键：选区已是该条，不重复发 desktop-selected（直接弹菜单）
+[23:28:07.215] PASS  打开所在位置动作（desktop/reveal）：ok=true 存证 + 资源管理器窗弹出（新 CabinetWClass）
+[23:28:11.987] PASS  复制路径动作（desktop/copy-path）：ok=true 存证 + 剪贴板实读 = 完整路径（粘贴可用）
+[23:28:14.669] PASS  清理单项菜单探针后条目同步消失（面板与磁盘一致）
+[23:28:14.671] SEG   ▶ P5.12 多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归｜工单26｜失效面=输入注入+事件存证
+[23:28:18.880] PASS  右键选中集内条目弹多选菜单：条目集=[open-all, copy-path, copy, cut, delete-all] 五行矩形随开层存证（菜单作用于整集；复制/剪切=工单29，删除全部=工单27）
+[23:28:18.883] PASS  多选菜单开层无选区副作用：desktop-selected/toggled/cleared 均未见（选区保持两条）
+[23:28:22.004] PASS  打开全部动作（菜单行 → desktop/launch 逐项）：clicked 按选区插入序 [DECK26-BAT-1792020495595-A.bat, DECK26-BAT-1792020495595-B.bat]（via=ctx-menu）+ launched 双 ok + 探针标记双落盘
+[23:28:25.432] PASS  多选复制路径动作（desktop/copy-paths）：ok=true 存证 + 剪贴板实读两行 = [A 路径, B 路径]（\n 分隔，行序同选区插入序）
+[23:28:27.611] PASS  右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）
+[23:28:27.612] PASS  集外右键单项菜单条目集=[open, reveal, copy-path, copy, cut, rename, delete]（未收敛为多选动作；第 4/5 行=复制/剪切，工单29；第 6 行=重命名，工单28；第 7 行=删除，工单27）
+[23:28:29.503] PASS  清理多选菜单探针后条目同步消失（面板与磁盘一致）
+[23:28:29.506] SEG   ▶ P5.13 删除与删除全部：回收站直进/确认层取消与确认/摆位对账｜工单27｜失效面=输入注入+事件存证+系统状态
+[23:28:32.927] PASS  单删前置：DECK27-SINGLE-1792020509507.txt 真拖拽造显式摆位（layout.json docs 对账在列）
+[23:28:33.469] PASS  单项菜单含【删除】行（条目集=[open, reveal, copy-path, copy, cut, rename, delete]）
+[23:28:36.729] PASS  单删直进回收站：无确认层、desktop-trashed ok=true、文件离盘、条目消失、layout.json docs 摆位同拍清除 + 回收站实查可找回
+[23:28:40.009] PASS  多选【删除全部】先弹自绘确认：desktop-trash-confirm-opened count=2，确认/取消钮矩形随层存证（确认 124x25 / 取消 124x25）
+[23:28:42.958] PASS  确认层取消不动：confirm-closed reason=cancel、无 desktop-trash-clicked、两条探针在盘且池内原样（最后一条 rendered 仍含两者）
+[23:28:47.823] PASS  确认整批进回收站：desktop-trashed ok=true trashed=[B, C]、文件离盘、条目消失、layout.json docs 名单对账干净 + 回收站实查可找回
+[23:28:50.027] NOTE  删除用例残留：已删探针在回收站可找回（AC 语义本体），如需清净请手动清空回收站
+[23:28:50.029] SEG   ▶ P5.14 原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移｜工单28｜失效面=输入注入+事件存证+系统状态
+[23:28:53.260] PASS  改名前置：靶子真拖拽造显式摆位（layout.json docs 对账在列）
+[23:28:53.790] PASS  单项菜单含【重命名】行（条目集=[open, reveal, copy-path, copy, cut, rename, delete]，工单28 第六行）
+[23:28:57.866] FAIL  重命名编辑器开层异常：started=null kbOn=false(last=keyboard-mode-on) fg=null
+[23:29:00.139] SEG   ▶ P5.15 复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选｜工单29｜失效面=输入注入+事件存证+系统状态
+[23:29:05.102] PASS  单项复制动作（desktop/clipboard-copy）：ok=true 存证 + 剪贴板实读 FileDropList=[探针全路径] + Preferred DropEffect=1（资源管理器粘贴得副本）
+[23:29:08.491] PASS  单项剪切动作（desktop/clipboard-cut）：ok=true 存证 + 剪贴板实读 FileDropList=[探针全路径] + Preferred DropEffect=2（粘贴为搬移）+ 文件仍在盘上
+[23:29:12.975] PASS  多选复制整集动作：clicked/copied 按选区插入序 [A, B] + 剪贴板实读 FileDropList 两条按序俱全（AC「多选整集进剪贴板」）
+[23:29:16.059] SEG   ▶ P5.16 粘贴：置灰态/落桌面根/同名「 - 副本」递增｜工单30｜失效面=输入注入+事件存证+系统状态
+[23:29:19.086] PASS  空白菜单含【粘贴】行（条目集=[paste, select-all, reset-layout]，行矩形 170x28 随开层存证）
+[23:29:20.791] PASS  置灰态：【粘贴】行点击无反应（无 desktop-paste-clicked）、菜单保持开着由外击收起——剪贴板无文件时置灰（shell 归约器挡下）
+[23:29:25.102] PASS  可用态：desktop-pasted ok=true pasted=[DECK30-PASTE-1792020556061.txt]，文件落桌面根且 watch 后条目入池（desktop-rendered 在档）
+[23:29:27.332] PASS  同名冲突自动「 - 副本」递增：再贴落为 [DECK30-PASTE-1792020556061 - 副本.txt]，桌面两份共存不覆盖（真桌面同款不弹框）
+[23:29:30.018] SEG   ▶ P5.17 键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先｜工单31｜失效面=输入注入+事件存证
+[23:29:33.908] PASS  选区生与 keyboard-mode-on 同相（硬断言①）：desktop-selected 后首个键盘模式事件即 on（+443ms）
+[23:29:33.982] PASS  选区灭与 keyboard-mode-off 同相（硬断言②）：Esc 清空后首个键盘模式事件即 off
+[23:29:36.410] PASS  Ctrl+A 全选（select-all 进状态机）：desktop-selection-all 名单=池内全部 23 条
+[23:29:39.097] PASS  Enter 打开选中（desktop/launch）：desktop-launch-clicked via=keyboard + desktop-launched ok=true + 探针标记落盘
+[23:29:40.281] PASS  Del 删除选中（单项直删不弹确认）：desktop-trash-clicked via=keyboard + desktop-trashed ok=true + 文件离盘
+[23:29:40.382] PASS  删尽灭相同相（硬断言③）：desktop-selection-pruned 后紧跟 keyboard-mode-off（面板还原不可聚焦）
+[23:29:42.888] PASS  同向抑制（硬断言④）：[点选, confirm-opened] 内 keyboard-mode-on 计数=1——选区生只发一次，确认层开（浮层接管）不重发
+[23:29:43.532] PASS  Del 多选弹确认层→确认整份删除：desktop-trashed ok=true 两条、文件离盘、keyboard-mode-off 同相还原
+[23:29:46.932] PASS  Ctrl+C 复制选中（desktop/clipboard-copy）：via=keyboard + ok=true + FileDropList 实读 effect=1（资源管理器粘贴得副本）
+[23:29:48.328] PASS  Ctrl+X 剪切选中（desktop/clipboard-cut）：via=keyboard + ok=true + effect=2（粘贴为搬移）+ 文件仍在盘上
+[23:29:52.687] PASS  Ctrl+V 粘贴（desktop/paste）：via=keyboard + desktop-pasted ok=true pasted=[DECK31-PASTE-1792020570020.txt]，文件落桌面根且入池
+[23:29:55.549] PASS  Esc 第一层（硬断言⑤）：菜单开着只关菜单（desktop-menu-closed reason=esc），选区不清、keyboard-mode 不还原（无 cleared / 无 off 泄漏）
+[23:29:55.625] PASS  Esc 第二层（硬断言⑥）：菜单已关 Esc 清空选区（desktop-selection-cleared）并同相还原 keyboard-mode-off
+[23:29:58.445] PASS  浮层开不重发 keyboard-mode-on（硬断言⑦）：search-activated 且 [selected, activated] 内 on 计数=1（选区生唯一一次）
+[23:29:59.432] PASS  浮层优先（硬断言⑧）：搜索激活期间 Ctrl+A / Ctrl+V 不接管（无 selection-all / paste-* 泄漏），搜索输入不受影响、层未收
+[23:29:59.521] PASS  Esc 归浮层（硬断言⑨）：search-deactivated reason=esc，选区保持、keyboard-mode 保持 on（浮层关而选区非空不互相踩）
+[23:30:00.017] PASS  浮层关后清选区：灭相同相（硬断言）keyboard-mode-off——门控收官归零
+[23:30:02.806] SEG   ▶ P7S 搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE｜工单7｜失效面=输入注入+事件存证+系统状态
+[23:30:05.495] PASS  真实 Listary 引擎在线且探针文件入索引排首位（直连取证——与内核同款回环链路）
+[23:30:07.028] NOTE  待机态实拍：07-search-idle.png（SEARCH 头 + CLICK TO SEARCH_ 融入右窄栏卡片视觉）
+[23:30:07.896] PASS  热区点击激活搜索面板（search-activated 存证；前台=面板进程——01-D 低 z 序键盘聚焦结论在永不激活语义下经键盘模式落地）
+[23:30:07.902] PASS  键盘模式开启：keyboard-mode-on 存证；键盘焦点在手（前台=面板）且面板仍在全部普通窗之下（其下仅桌面层）——键盘模式也钉底
+[23:30:09.605] PASS  键入探针词后防抖-引擎-渲染管线打通（结果 1 行 TOTAL 1，qlen=26——存证只带长度不带查询词；Ctrl+V 键程直达输入框 = 键盘模式焦点到手）
+[23:30:13.462] PASS  Enter 打开验收探针文件（首行确为探针——渲染正确性行为级实证）
+[23:30:25.683] PASS  Ctrl+Enter 资源管理器定位（CabinetWClass 窗口弹出且标题含探针目录）
+[23:30:29.243] PASS  ↑/↓ 选择：两击 DOWN 选中第 3 行（index=2 存证）
+[23:30:29.322] PASS  ESC 退回待机态（search-deactivated reason=esc：输入清空、结果收起）
+[23:30:29.328] PASS  键盘模式退出：keyboard-mode-off 存证，面板恢复不可聚焦（WS_EX_NOACTIVATE 回归）且仍钉底（其下仅桌面层）
+[23:30:32.208] PASS  失焦退回待机态（点击桌面后前台翻转，输入框 blur → 收层）
+[23:30:40.941] PASS  引擎不可达显示 ENGINE OFFLINE（假端口连接失败 → offline 态 → 徽标；内核 3s 静默重试在场）
+[23:30:49.466] SEG   ▶ P8S 设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持｜工单8｜失效面=输入注入+事件存证+系统状态
+[23:30:50.873] PASS  设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 300x370（可交互）
+[23:30:50.878] PASS  设置浮层键盘模式：开层即 keyboard-mode-on 存证，键盘焦点到手（前台=面板）——ESC 可关层
+[23:30:52.562] PASS  初值同源：开层滑杆值 55% = config.appearance.cardOpacity 0.55
+[23:30:53.936] PASS  滑杆拖至低位 1%：底色即时反映（applied 同值）且 config 同步落盘 0.01
+[23:30:56.928] PASS  滑杆拖回高位 99%：config 同步落盘 0.99（滑杆调节即时反映于各信息卡底色）
+[23:30:58.643] PASS  ESC 关闭设置浮层（settings-closed reason=esc 存证）
+[23:30:58.650] PASS  关层恢复不可聚焦：keyboard-mode-off 存证，WS_EX_NOACTIVATE 回归（EXSTYLE=0x8280020）
+[23:31:00.000] PASS  失焦关闭：焦点移出浮层（点时钟卡）即收层（reason=blur 存证）
+[23:31:11.435] PASS  重启保持：config 0.91 回灌渲染层（boot applied 91%，滑杆与底色同值）
+[23:31:14.877] SEG   ▶ P8T 卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启｜工单101｜失效面=输入注入+事件存证+系统状态+面板存活
+[23:31:16.265] PASS  卡片显隐开关列表：开层存证携带 6 个插件包开关行（含 search 与上下文菜单 shell——列出的都是插件包、都归用户管），search 当拍勾选态 ON
+[23:31:18.789] PASS  停用搜索卡：settings-card-set{enabled:false} 回执，热区表不再含 search-card（卡片消失、点击穿透落回背景层），config.plugins.disabled=["search"]
+[23:31:26.773] PASS  重启保留：停用集经 config 回读（disabled=["search"]），新面板代次热区表仍无 search-card——停用的卡不因重启复活
+[23:31:27.656] PASS  重启后开关态核对：开层载荷 search 勾选态 OFF（列表如实呈现停用集）
+[23:31:28.416] PASS  启用搜索卡：settings-card-set{enabled:true} 回执，search-card 回归热区表（原位恢复、观感一致），config.plugins.disabled=[]
+[23:31:35.395] SEG   ▶ P6 config 几何生效（改 config 重启面板）｜工单3｜失效面=系统状态
+[23:31:39.919] 改几何重启后 rect(phys)=60,60 1100x800（期望 60,60 1100x800）
+[23:31:39.921] PASS  config.json 改动几何后重启面板即反映
+[23:31:39.925] SEG   ▶ P7 单实例守卫：二次拉起即退 + refused 存证 + 原面板完好｜工单3｜失效面=面板存活
+[23:31:40.753] PASS  单实例守卫：二次拉起 825ms 自行退出（code=0）
+[23:31:40.755] PASS  单实例守卫：被拒实例自报 single-instance-refused 存证
+[23:31:40.758] PASS  单实例守卫：原面板窗完好（Chrome 窗计数 1 → 1），屏上仍只有一个面板
+[23:31:40.759] SEG   ▶ P8 托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色）｜工单3｜失效面=系统状态+像素
+[23:31:42.207] PASS  托盘图标已注册：NotifyIconSettings 条目 17147260445154702363（exe 匹配）
+[23:31:43.143] NOTE  已设 IsPromoted=1（原值 未设），等待 explorer 应用
+[23:31:46.449] PASS  托盘图标可见：识别色命中 64 像素 @(2259,1416)（基线 0），截图 03-tray-area.png
+[23:31:46.452] SEG   ▶ P9 Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07）｜工单3｜失效面=输入注入+像素+事件存证+系统状态
+[23:31:46.862] NOTE  已发送 Win+D
+[23:31:48.873] PASS  Win+D 收起桌面：普通窗（记事本）最小化，面板窗口未被收起（窗口态级豁免）
+[23:31:49.878] NOTE  Win+D 后实拍：面板仍在原位（对照窗已收起）；内容级断言见最小化实拍之后的比对
+[23:31:49.880] PASS  桌面遮罩守望进场：cover-engaged 已存证（Progman 压顶 → 面板临时 TOPMOST）
+[23:31:50.354] PASS  面板被最小化（来源=SW_MINIMIZE，存证 why=minimized，IsIconic=true）
+[23:31:51.334] NOTE  最小化期实拍：面板收起（时钟卡区无实色内容）
+[23:31:51.374] PASS  Win+D 后面板内容像素级在场：与最小化（仅壁纸）实拍均值差 52.3/255（≥8；合成层停帧退化即趋零）
+[23:31:52.081] PASS  防抖自动恢复：1.51s 后回到原位（存证 afterMs=1512，矩形偏差在容差内）
+[23:31:53.156] PASS  最小化恢复后重钉生效：记事本重新盖住面板
+[23:31:56.525] NOTE  已发送 Win+D 还原桌面态（清 show desktop 残留，防遮挡后续段探针）
+[23:31:56.527] SEG   ▶ P10 托盘退出闭环：UIA 可见/WM_CLOSE 退出/托盘消失｜工单3｜失效面=面板存活+系统状态+像素
+[23:32:04.191] PASS  托盘图标系统级可见：Win+B 键盘导航命中托盘焦点元素「AGENT DECK �������」（tooltip 名匹配）
+[23:32:06.448] PASS  退出闭环：窗口销毁、主进程（pid=33096）退出（耗时 2255ms）
+[23:32:06.450] PASS  退出管道经 before-quit 存证（quit，托盘随之 destroy）
+[23:32:09.260] PASS  退出后托盘图标随之消失（识别色回落至基线水平，截图 03-tray-after-exit.png）
+[23:32:10.102] SEG   ▶ P10E 设置浮层「退出面板」按钮闭环｜工单83｜失效面=面板存活+事件存证
+[23:32:19.745] PASS  退出面板按钮闭环：settings-exit-clicked → app/quit → 窗口销毁、主进程（pid=25336）退出（耗时 2037ms）
+[23:32:19.747] PASS  退出按钮走 before-quit 同一收敛（quit 存证在档，桌面图标/原生任务栏/托盘随之还原）
+[23:32:19.749] SEG   ▶ P9B 会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话）｜工单9｜失效面=输入注入+事件存证+面板存活
+[23:32:20.473] NOTE  工具映射核对：config.json 无显式 tools 段（面板走代码内五工具默认值，电池不 import 生产代码故不核）
+[23:32:20.477] NOTE  会话行直达探针：受控探针进程 charmap.exe + 探针会话 DECK-PROBE-09（工具槽位 qoder 指向探针）
+[23:32:25.568] NOTE  启动路径 诊断：panel 0xf00f22 rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0x10206(Progman pid=15640，非面板→被遮挡)
+[23:32:27.382] PASS  会话行直达·启动路径：工具未运行 → 点击会话行拉起其 exe（action=launched，探针 charmap.exe 窗口 0x1980c0c 出现）
+[23:32:29.907] NOTE  聚焦路径 诊断：panel 0xf00f22 rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0xf00f22
+[23:32:31.124] PASS  会话行直达·聚焦路径：工具在跑 → 点击会话行把其窗口还原并带到前台（探针 pid 13648，点击前前台 pid=15640，点击后=13648，IsIconic=false）
+[23:32:38.471] NOTE  降级 诊断：panel 0xd71016 rect(0,0 2560x1392) rowRect(2113,194 378x26) pt(2302,207) 落点命中 0xd71016
+[23:32:39.711] PASS  会话行直达·静默降级：失效目标返回 degraded（reason=工具未运行且无启动目标）且面板未崩（降级后仍可交互：时钟卡点击存证到达）
+[23:32:40.337] SEG   ▶ P11 桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装｜工单10｜失效面=事件存证+系统状态
+[23:32:40.346] PASS  桌面组件·内置五卡自举：clock/weather/sessions/calendar/search 五张桌面组件均经插件契约装载渲染，且五张都进了热区声明（时钟卡矩形 48,48 320x176 与 index.html 一致；像素级观感按惯例人工核验 04-cards-*.png）
+[23:32:40.348] PASS  Qoder 状态块退役：qoder-card 不在任何热区声明里，会话卡加高补位到位（top 152、高 522，覆盖原状态块槽位 152..674）
+[23:32:40.359] NOTE  桌面组件探针：样例插件已放入 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins\hello（本段不重启面板，boot 存证基线 4 条）
+[23:32:41.054] PASS  桌面组件·放入即识别：外部样例插件放入插件目录后**无需重启面板**即被装载并渲染（capabilities=["clock"]，卡片热区 320x120，boot 存证 4→4 未增）
+[23:32:43.557] PASS  桌面组件·运行时重载：改插件自身资产后即时重载生效（未重启面板，入口代号变化即换 URL 绕开 ESM 模块缓存）
+[23:32:44.179] PASS  桌面组件·卸载：移除插件目录后其卡片从面板消失（热区不再声明，无残留死区）
+[23:32:44.889] PASS  桌面组件·重装恢复：把插件目录放回即恢复装载与渲染（boot 存证全程未增 = 四步都没重启面板）
+[23:32:46.549] NOTE  桌面组件探针清场：已移除 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins\hello
+[23:32:46.550] SEG   ▶ P12 渲染层哨兵判据（#91 定案）：活性心跳武装在证/忙环注入失能档发射与闭合/全程无自发静默失能｜工单91｜失效面=事件存证
+[23:32:46.566] PASS  渲染层哨兵武装在证：两代面板启动均有 sentinel-armed（deck:host-beat 活性心跳接线，#91 判据）
+[23:32:46.567] PASS  全程无自发静默/失能档：两代面板零 renderer-stall/renderer-frozen（空闲静默已被活性心跳消音）
+[23:32:58.628] NOTE  渲染层失能注入（CDP Runtime.evaluate 忙环）：忙环 12s 注入完成（渲染层主线程阻塞期间本断言阻塞至忙环结束才返回）
+[23:32:58.640] PASS  注入静默档发射：renderer-stall quietMs=5418 recovered=true（活性静默越过 5s 阈值）
+[23:32:58.642] PASS  注入失能档发射：renderer-frozen quietMs=7423 crashed=false（活性静默 ≥ 阈值+一拍，一轮一条）
+[23:32:58.645] PASS  失能 episode 闭合：renderer-unfrozen frozenMs=12782（忙环结束首个心跳闭合）
+[23:32:58.648] PASS  注入窗口记账收紧：静默/失能/闭合三档各恰一条，无多发无漏发
+[23:32:58.650] NOTE  忙环后面板进程存活：pid=27840（渲染层失能 12s 未伤及主进程）
+[23:32:59.369] NOTE  搜索探针目录已清理
+[23:33:00.191] NOTE  清场核验：无遗留面板本体窗
+[23:33:00.192] NOTE  图标状态清场核验：visible=true（电池前=true）
+[23:33:00.195] NOTE  原生任务栏清场核验：visible=true（电池前=true）
+[23:33:00.197] NOTE  config.json 已还原电池前原文
+[23:33:00.201] NOTE  摆位存储清场：已还原备份
+[23:33:00.697] ===== 03-battery VERDICT: FAIL-CODE (pass=182 fail=1 excluded=0) =====
 ===== 账目（三态记账，工单110） =====
 三路计数：pass=182 fail=1 excluded=0 ｜ FAIL-CODE → 退出码 1
 排除窗：轮末已全部闭合
 段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
-  P1 启动面板（子进程，存证事件落盘；假死自愈接线） pass=0 fail=0 excl=0 took=4.9s｜工单3｜失效面=面板存活
-  P2 透明合成（棋盘参照窗 + 时钟卡文字像素） pass=2 fail=0 excl=0 took=5.5s｜工单3｜失效面=像素
+  P1 启动面板（子进程，存证事件落盘；假死自愈接线） pass=0 fail=0 excl=0 took=6.0s｜工单3｜失效面=面板存活
+  P2 透明合成（棋盘参照窗 + 时钟卡文字像素） pass=2 fail=0 excl=0 took=6.1s｜工单3｜失效面=像素
   P2.5 数据卡片桥接契约上线（会话/天气 + 硬件卡退役回归） pass=3 fail=0 excl=0 took=10.7s｜工单4｜失效面=事件存证
-  P3 默认穿透：左键/右键直达桌面 pass=3 fail=0 excl=0 took=1.3s｜工单3｜失效面=输入注入+系统状态
-  P4 热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序 pass=8 fail=0 excl=0 took=1.6s｜工单3｜失效面=输入注入+系统状态+事件存证
-  P4.5 日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单） pass=5 fail=0 excl=0 took=2.3s｜工单99｜失效面=事件存证
-  P5 桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原 pass=7 fail=0 excl=0 took=9.1s｜工单5｜失效面=输入注入+事件存证+系统状态+面板存活
-  P5-ICON 快捷方式真实图标区分度（lnk 绕行提取链） pass=2 fail=0 excl=0 took=3.8s｜工单1｜失效面=事件存证
-  P5-ICON2 巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW） pass=4 fail=0 excl=0 took=10.2s｜工单6｜失效面=事件存证
-  P5.5 编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂 pass=8 fail=0 excl=0 took=22.6s｜工单6｜失效面=输入注入+事件存证
-  P5.6 选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开 pass=9 fail=0 excl=0 took=18.6s｜工单20｜失效面=输入注入+事件存证
-  P5.7 框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89） pass=9 fail=0 excl=0 took=18.0s｜工单21｜失效面=输入注入+事件存证
-  P5.8 批量拖拽摆位：整组插入序 + ghost N 项徽标 pass=4 fail=0 excl=0 took=7.7s｜工单22｜失效面=输入注入+事件存证
-  P5.9 分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔 pass=14 fail=0 excl=0 took=26.4s｜工单23｜失效面=输入注入+事件存证
-  P5.10 单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列） pass=7 fail=0 excl=0 took=17.4s｜工单24｜失效面=输入注入+事件存证+系统状态
-  P5.12 多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归 pass=7 fail=0 excl=0 took=15.7s｜工单26｜失效面=输入注入+事件存证
-  P5.13 删除与删除全部：回收站直进/确认层取消与确认/摆位对账 pass=6 fail=0 excl=0 took=18.9s｜工单27｜失效面=输入注入+事件存证+系统状态
-  P5.14 原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移 pass=2 fail=1 excl=0 took=9.3s｜工单28｜失效面=输入注入+事件存证+系统状态
-  P5.15 复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选 pass=3 fail=0 excl=0 took=15.7s｜工单29｜失效面=输入注入+事件存证+系统状态
-  P5.16 粘贴：置灰态/落桌面根/同名「 - 副本」递增 pass=4 fail=0 excl=0 took=13.9s｜工单30｜失效面=输入注入+事件存证+系统状态
-  P5.17 键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先 pass=17 fail=0 excl=0 took=32.3s｜工单31｜失效面=输入注入+事件存证
-  P7S 搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE pass=11 fail=0 excl=0 took=36.1s｜工单7｜失效面=输入注入+事件存证+系统状态
-  P8S 设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持 pass=9 fail=0 excl=0 took=19.3s｜工单8｜失效面=输入注入+事件存证+系统状态
-  P8T 卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启 pass=5 fail=0 excl=0 took=19.5s｜工单101｜失效面=输入注入+事件存证+系统状态+面板存活
+  P3 默认穿透：左键/右键直达桌面 pass=3 fail=0 excl=0 took=1.4s｜工单3｜失效面=输入注入+系统状态
+  P4 热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序 pass=8 fail=0 excl=0 took=1.9s｜工单3｜失效面=输入注入+系统状态+事件存证
+  P4.5 日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单） pass=5 fail=0 excl=0 took=2.4s｜工单99｜失效面=事件存证
+  P5 桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原 pass=7 fail=0 excl=0 took=9.9s｜工单5｜失效面=输入注入+事件存证+系统状态+面板存活
+  P5-ICON 快捷方式真实图标区分度（lnk 绕行提取链） pass=2 fail=0 excl=0 took=3.5s｜工单1｜失效面=事件存证
+  P5-ICON2 巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW） pass=4 fail=0 excl=0 took=10.4s｜工单6｜失效面=事件存证
+  P5.5 编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂 pass=8 fail=0 excl=0 took=21.8s｜工单6｜失效面=输入注入+事件存证
+  P5.6 选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开 pass=9 fail=0 excl=0 took=17.5s｜工单20｜失效面=输入注入+事件存证
+  P5.7 框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89） pass=9 fail=0 excl=0 took=16.6s｜工单21｜失效面=输入注入+事件存证
+  P5.8 批量拖拽摆位：整组插入序 + ghost N 项徽标 pass=4 fail=0 excl=0 took=8.5s｜工单22｜失效面=输入注入+事件存证
+  P5.9 分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔 pass=14 fail=0 excl=0 took=27.2s｜工单23｜失效面=输入注入+事件存证
+  P5.10 单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列） pass=7 fail=0 excl=0 took=17.7s｜工单24｜失效面=输入注入+事件存证+系统状态
+  P5.12 多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归 pass=7 fail=0 excl=0 took=14.8s｜工单26｜失效面=输入注入+事件存证
+  P5.13 删除与删除全部：回收站直进/确认层取消与确认/摆位对账 pass=6 fail=0 excl=0 took=20.5s｜工单27｜失效面=输入注入+事件存证+系统状态
+  P5.14 原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移 pass=2 fail=1 excl=0 took=10.1s｜工单28｜失效面=输入注入+事件存证+系统状态
+  P5.15 复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选 pass=3 fail=0 excl=0 took=15.9s｜工单29｜失效面=输入注入+事件存证+系统状态
+  P5.16 粘贴：置灰态/落桌面根/同名「 - 副本」递增 pass=4 fail=0 excl=0 took=14.0s｜工单30｜失效面=输入注入+事件存证+系统状态
+  P5.17 键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先 pass=17 fail=0 excl=0 took=32.8s｜工单31｜失效面=输入注入+事件存证
+  P7S 搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE pass=11 fail=0 excl=0 took=46.7s｜工单7｜失效面=输入注入+事件存证+系统状态
+  P8S 设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持 pass=9 fail=0 excl=0 took=25.4s｜工单8｜失效面=输入注入+事件存证+系统状态
+  P8T 卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启 pass=5 fail=0 excl=0 took=20.5s｜工单101｜失效面=输入注入+事件存证+系统状态+面板存活
   P6 config 几何生效（改 config 重启面板） pass=1 fail=0 excl=0 took=4.5s｜工单3｜失效面=系统状态
-  P7 单实例守卫：二次拉起即退 + refused 存证 + 原面板完好 pass=3 fail=0 excl=0 took=0.9s｜工单3｜失效面=面板存活
-  P8 托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色） pass=2 fail=0 excl=0 took=5.3s｜工单3｜失效面=系统状态+像素
-  P9 Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07） pass=6 fail=0 excl=0 took=11.6s｜工单3｜失效面=输入注入+像素+事件存证+系统状态
+  P7 单实例守卫：二次拉起即退 + refused 存证 + 原面板完好 pass=3 fail=0 excl=0 took=0.8s｜工单3｜失效面=面板存活
+  P8 托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色） pass=2 fail=0 excl=0 took=5.7s｜工单3｜失效面=系统状态+像素
+  P9 Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07） pass=6 fail=0 excl=0 took=10.1s｜工单3｜失效面=输入注入+像素+事件存证+系统状态
   P10 托盘退出闭环：UIA 可见/WM_CLOSE 退出/托盘消失 pass=4 fail=0 excl=0 took=13.6s｜工单3｜失效面=面板存活+系统状态+像素
-  P10E 设置浮层「退出面板」按钮闭环 pass=2 fail=0 excl=0 took=9.5s｜工单83｜失效面=面板存活+事件存证
-  P9B 会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话） pass=3 fail=0 excl=0 took=20.1s｜工单9｜失效面=输入注入+事件存证+面板存活
-  P11 桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装 pass=6 fail=0 excl=0 took=5.7s｜工单10｜失效面=事件存证+系统状态
+  P10E 设置浮层「退出面板」按钮闭环 pass=2 fail=0 excl=0 took=9.6s｜工单83｜失效面=面板存活+事件存证
+  P9B 会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话） pass=3 fail=0 excl=0 took=20.6s｜工单9｜失效面=输入注入+事件存证+面板存活
+  P11 桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装 pass=6 fail=0 excl=0 took=6.2s｜工单10｜失效面=事件存证+系统状态
   P12 渲染层哨兵判据（#91 定案）：活性心跳武装在证/忙环注入失能档发射与闭合/全程无自发静默失能 pass=6 fail=0 excl=0 took=14.1s｜工单91｜失效面=事件存证

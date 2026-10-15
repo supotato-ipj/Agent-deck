@@ -15,10 +15,12 @@ import type { EventLog } from '../panel-ipc'
 import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import { taskbarUrl } from '../plugins/protocol'
 import { setTopmost, hwndOf } from '../win32'
-import { hideNativeTaskbar, nativeTaskbarVisible, showNativeTaskbar } from './native'
+import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
 import { ABN_POSCHANGED, appBarCallbackMessage, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
 import type { AppBarRect } from './appbar'
 import { probeForegroundWindow, shouldYieldToFullscreen } from './yield'
+import { TrayYieldMachine, TRAY_YIELD_POLL_MS } from './tray-yield'
+import type { TrayYieldDecision, TrayYieldRestoreReason } from './tray-yield'
 import { startTrayOverflowHost } from './overflow'
 import { startAppMenuHost } from './app-menu'
 import type { PhysRect } from './yield'
@@ -152,7 +154,89 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 显隐与哪扇条带窗现任无关。
   let hidNative = false
 
-  // 托盘溢出菜单浮层（工单162）：载体裁定 = 独立浮层窗（见 popup.ts 模块头）。随本控制器
+  // —— 托盘右键让位闸门（工单194，ADR-0013「托盘自带菜单让位」）——
+  // 条带是 WS_EX_TOPMOST 带且有 500ms keepalive、热区离开重申、全屏让位恢复拍三处
+  // 置顶重申点，应用右键弹的菜单（#32768 或自绘面板）诞生在普通带、重叠区压不过。
+  // 回放右键期间条带临时降非置顶；「菜单已关闭」三路侦测（目标 pid 菜单窗消失 /
+  // 前台窗变化 / 超时上限）任一命中即恢复。闸门形态仿桌面遮罩的钉扎闸门先例
+  // （win32.setPinGate）：置位期间全部置顶重申点跳过重申并落存证——被自家重申点
+  // 抢回置顶等于修复白做。裁决在 tray-yield 纯状态机（单测钉），本层只做 FFI 采集
+  // 与置顶动作；native 菜单 z 序真机人工验收留证（事件时序存证为主，票面口径）。
+  let trayYield: { machine: TrayYieldMachine; timer: NodeJS.Timeout } | null = null
+
+  /** 让位中再次右键（换图标）：换监视 pid 续时限（machine 语义），条带已在普通带不动 */
+  const beginTrayYield = (payload: { key: string; hwnd: string | null }): void => {
+    const s = session
+    if (!s || s.win.isDestroyed()) return // 条带不在场（禁用态）：无可让位，回放照常
+    const hwnd = payload.hwnd ? Number(payload.hwnd) : 0
+    const pid = hwnd ? pidOfWindow(hwnd) : 0
+    let fgPid = 0
+    try {
+      fgPid = probeForegroundWindow()?.pid ?? 0
+    } catch { /* 前台不可判按无前台处理（恢复是安全方向，与 yield.ts 同纪律） */ }
+    const machine = trayYield?.machine ?? new TrayYieldMachine()
+    const mode = machine.begin(pid, fgPid, process.pid, Date.now())
+    if (mode === 'yield') {
+      // 降非置顶走 Electron 自家 API：内部 alwaysOnTop 账同步翻转，hide/show 等
+      // 内部路径不会把 TOPMOST 位写回（FFI 直翻样式位会留下「Electron 以为还置顶」
+      // 的分叉账）。NOTOPMOST 把条带放到普通带顶，菜单此后才诞生、必在其上。
+      s.win.setAlwaysOnTop(false)
+    }
+    if (!trayYield) trayYield = { machine, timer: setInterval(() => pollTrayYield(), TRAY_YIELD_POLL_MS) }
+    log?.append({ type: 'taskbar-tray-yield', key: payload.key, pid, fgPid, mode })
+  }
+
+  /** 一拍侦测：FFI 采集（目标 pid 菜单窗数 + 前台属主）喂状态机，restore 即收闸回顶 */
+  const pollTrayYield = (): void => {
+    const ty = trayYield
+    if (!ty) return
+    const s = session
+    if (!s || s.win.isDestroyed()) {
+      endTrayYield('session-gone', null)
+      return
+    }
+    const pid = ty.machine.pid
+    let menuCount = 0
+    if (pid) {
+      try {
+        menuCount = menuWindowCountByPids([pid]).get(pid) ?? 0
+      } catch { /* 枚举失败按「菜单不在场」继续——三路侦测不因单拍 FFI 抖动翻脸 */ }
+    }
+    let fgPid = 0
+    try {
+      fgPid = probeForegroundWindow()?.pid ?? 0
+    } catch { /* 同上：本拍放弃前台证据 */ }
+    let decision: TrayYieldDecision
+    try {
+      decision = ty.machine.poll({ menuCount, fgPid, now: Date.now() })
+    } catch {
+      return // 状态机不抛；防御性收口不把侦测拍变崩点
+    }
+    if (decision.action === 'restore') endTrayYield(decision.reason, decision)
+  }
+
+  /** 收闸回顶（三路命中 / teardown）：回置顶带 + 存证（时序可审计的落点） */
+  const endTrayYield = (reason: TrayYieldRestoreReason | 'session-gone', decision: TrayYieldDecision | null): void => {
+    const ty = trayYield
+    if (!ty) return
+    trayYield = null
+    clearInterval(ty.timer)
+    const s = session
+    if (s && !s.win.isDestroyed()) {
+      try {
+        s.win.setAlwaysOnTop(true)
+      } catch { /* 尽力回顶：窗销毁竞态下一条 destroy 路径收尾 */ }
+    }
+    log?.append({
+      type: 'taskbar-tray-yield-restored',
+      reason,
+      pid: ty.machine.pid,
+      menuSeen: ty.machine.menuSeen,
+      elapsedMs: decision && decision.action === 'restore' ? decision.elapsedMs : null,
+    })
+  }
+
+  // 托盘溢出菜单浮层（工单162）：载体裁定 = 独立浮层窗（见模块头注释）。随本控制器
   // 生灭——条带销毁（禁用/退役）即收层；全屏让位即收层。
   const trayOverflow = startTrayOverflowHost({ ctx, log })
   // 应用组图标右键菜单浮层（工单193）：同一通用载体（popup.ts）的首个新菜单面，生灭
@@ -220,6 +304,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       hidNative = false
       showNativeTaskbar(log, reason)
     }
+    // 托盘让位闸门随控制器收摊（工单194）：侦测定时器随窗灭，不让位账悬空
+    endTrayYield('session-gone', null)
     const s = session
     session = null
     if (!s) return
@@ -258,7 +344,13 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // （那条赛道无解——其层级高于普通 TOPMOST 且 explorer 主动防守）；工单50 隐藏原生
     // 任务栏后竞争面进一步收窄。keepalive 500ms + 热区离开重申只守一般性置顶争夺
     // （其他 always-on-top 窗口、shell 事件扰动）。
-    const assertTop = () => {
+    // 托盘让位闸门（工单194）：置位期间重申一律跳过并落存证——重申点把条带抢回
+    // 置顶带，应用菜单就又被压回条带之下，修复等于白做（票面验收第二条款）。
+    const assertTop = (reason: string) => {
+      if (trayYield) {
+        log?.append({ type: 'taskbar-topmost-suppressed', reason })
+        return
+      }
       if (!w.isDestroyed()) setTopmost(hwndOf(w), true)
     }
     const s: TaskbarSession = {
@@ -274,7 +366,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // 置顶维持 + 几何回正（工单158 起同一拍：置顶重申与协商带回正都是壳侧扰动兜底）
     s.keepalive = setInterval(() => {
       if (w.isDestroyed()) return
-      assertTop()
+      assertTop('keepalive')
       reassertGeometry(s, 'keepalive')
     }, 500)
     // 工单51 AppBar 工作区占位：注册 → 协商 → 按协商矩形重排窗口（renegotiate 在
@@ -288,6 +380,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         if (Number(wParam.readUInt32LE(0)) === ABN_POSCHANGED) renegotiate('abn-poschanged')
       })
       // 全屏让位轮询（仅 AppBar 生效档）：前台全屏即 hide，退出即 showInactive 复位顶
+      // （复位顶同样吃让位闸门——全屏恢复拍是票面点名的第三处重申点）
       s.yieldTimer = setInterval(() => {
         if (w.isDestroyed()) return
         const hit = shouldYieldToFullscreen(probeForegroundWindow(), primaryPhysRect(), process.pid)
@@ -300,15 +393,20 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         } else if (!hit && s.yielded) {
           s.yielded = false
           w.showInactive()
-          assertTop()
+          assertTop('fullscreen-yield-lifted')
           log?.append({ type: 'taskbar-yield-lifted' })
         }
       }, YIELD_POLL_MS)
     }
     // 热区离开重申置顶：热区交互（点击）会顶起 z 序归属变化（探针01-C 同机制），
-    // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。
+    // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。让位闸门置位期间跳过
+    // （工单194：菜单就铺在条带热区上，鼠标划过菜单/热区边缘的离开拍不许抢回置顶）。
     s.tracker = new HotzoneTracker(w, {
       onLeave: () => {
+        if (trayYield) {
+          log?.append({ type: 'taskbar-topmost-suppressed', reason: 'hotzone-leave' })
+          return
+        }
         if (!w.isDestroyed() && setTopmost(hwndOf(w), true)) {
           log?.append({ type: 'taskbar-topmost', reason: 'hotzone-leave' })
         }
@@ -319,7 +417,14 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）
     wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status'])
     wireHostIpc(w, s.tracker, log, {
-      pin: (v) => { setTopmost(hwndOf(v), true) },
+      // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶
+      pin: (v) => {
+        if (trayYield) {
+          log?.append({ type: 'taskbar-topmost-suppressed', reason: 'keyboard-pin' })
+          return
+        }
+        setTopmost(hwndOf(v), true)
+      },
       onNotify: (type, payload) => {
         // 「⋯」开层/条带点击收层请求（工单162）+ 应用组菜单开层/收层请求（工单193）——
         // 各宿主包装层只认自家 notify 名，域外类型静默跳过
@@ -329,7 +434,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     })
     w.once('ready-to-show', () => {
       w.showInactive()
-      assertTop()
+      assertTop('shown')
       // show 拍挪移的即拍回正（工单158）：取证显示 showInactive 会触发壳侧把窗挪到
       // 协商带上方，等 keepalive 首拍最多闪 500ms——此处同步补一记
       reassertGeometry(s, 'shown')
@@ -344,6 +449,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       // 撞不上现任共享账，新窗的占位/热区/让位轮询不被动。
       if (session !== s) return
       stopYieldPoll(s)
+      // 外部先销窗路径（close 管线）：让位侦测一并收摊（destroy 路径已在先清过也无害）
+      endTrayYield('session-gone', null)
       if (s.appBarHwnd !== null) {
         removeAppBar(s.appBarHwnd, log)
         s.appBarHwnd = null
@@ -376,12 +483,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       destroy('disabled')
     }
   })
+  // 托盘右键让位起拍（工单194）：TaskbarService.trayClick 在转发回放前同步发出，
+  // 本控制器同轮内先降置顶、后见菜单诞生（z 序正确性赖此顺序，见 trayClick 注）
+  const offTrayBegin = ctx.on('taskbar/tray-replay-begin', beginTrayYield)
   screen.on('display-metrics-changed', onDisplayMetrics)
 
   return {
     dispose() {
       screen.removeListener('display-metrics-changed', onDisplayMetrics)
       offChanged()
+      offTrayBegin()
       destroy('dispose')
     },
   }
