@@ -32,6 +32,9 @@
 //   P15B 屏幕中心线锚定（工单190，ADR-0013 决策2）：应用组 pill 中心对齐屏幕水平中心线
 //      （容差 ±2.5px 段内注明），藏/显 TaskView、推荐位移除/恢复、托盘溢出档位切换三路
 //      邻居宽度驱动中心不变；图标增多向两侧对称扩张；全程带内不越界（夹取围栏）
+//   P21 多窗选窗浮层（工单196）：cmd 副本 start 双开（/K 驻留+title 定名）——左键图标
+//   出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）→ 点行选窗存证+
+//   前台对账+行点即收 → 点外即收（时钟格转达 strip-click）
 //   P16 推荐组交互主体（工单160）：五条 usage 种子探针确定性占满推荐位（先于面板种入
 //      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 44 格/32 图标
 //      img/首字母占位，无显示名文本残留）、左键启动（真点击→rec-click 存证→notepad 副本
@@ -135,6 +138,64 @@ async function waitGeometrySettled(fallback, timeoutMs = 9000) {
     if (a.t === b.t || Date.now() >= deadline) return b;
   }
 }
+
+// —— 弹窗菜单浮层锚点（工单196 五面迁浮层窗）——
+// 行矩形取 opened/resized（窗 bounds，屏幕 DIP）与 ready（rows 带 id/label/y/h 相对客户
+// 区）两路配对——勿用 settle 静态几何（6fab89d 教训：托盘 churn 会重居中）。family =
+// 存证事件家族前缀（taskbar-rec-menu / taskbar-blank-menu / taskbar-tier-menu /
+// taskbar-wins-menu / taskbar-app-menu）。窗常驻（hide 不销）事件流跨段累积——所有取数
+// 必须以开层拍 since 为下界，防上一段同族浮层的旧帧串门。
+const popupAnchored = (family) => (since) => {
+  const os = readEvents().filter((e) => e.t >= since
+    && (e.type === `${family}-opened` || e.type === `${family}-resized`));
+  const rd = readEvents().filter((e) => e.type === `${family}-ready` && e.t >= since && Array.isArray(e.rows));
+  return os.length && rd.length
+    ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
+    : null;
+};
+
+/** 右键开浮层核验重试（右键偶发不开菜单——离位刷新热区+重取 settle 几何再试，≤3 试；
+ * 到靶停拍 250ms 同 P16⑤ 热区开门先例）。命中即返回浮层锚（含 since 供行点击续用）。 */
+const rightClickPopupVerify = async (ptOf, family, minRows) => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const pt = ptOf();
+    if (!pt) return null;
+    win32.moveMousePhys(pt.x, pt.y);
+    await sleep(250);
+    const since = Date.now();
+    win32.clickPhys(pt.x, pt.y, 'right');
+    for (let i = 0; i < 12; i++) {
+      await sleep(200);
+      const pop = popupAnchored(family)(since);
+      if (pop && pop.rows.length >= minRows) return pop;
+    }
+    win32.moveMousePhys(pt.x, pt.y - 60);
+    await sleep(300);
+  }
+  return null;
+};
+
+/** 浮层行点击核验重试（点行也可能撞热区轮询窗/新窗输入路由——证据 3s 不来就重查行矩形
+ * 再点，≤3 试；行物理坐标 = 窗 bounds + ready 行偏移，直乘 scale 不叠条带 rect，P16⑥
+ * 先例同式）。返回动作存证事件（供调用方对账身份）。 */
+const clickPopupRowVerify = async (family, since, rowId, evidenceType, evidencePred, scale) => {
+  for (let i = 0; i < 3; i++) {
+    const pop = popupAnchored(family)(since);
+    const row = pop ? pop.rows.find((r) => r.id === rowId) : null;
+    if (!row) return null;
+    // 行物理坐标 = 窗 bounds（DIP）+ ready 行偏移直乘 scale（面板子进程主屏原点 (0,0)）
+    const pt = {
+      x: Math.round((pop.bounds.x + pop.w / 2) * scale),
+      y: Math.round((pop.bounds.y + row.y + row.h / 2) * scale),
+    };
+    win32.moveMousePhys(pt.x, pt.y);
+    await sleep(250);
+    win32.clickPhys(pt.x, pt.y, 'left');
+    const ev = await waitEvent(evidenceType, evidencePred, 3000);
+    if (ev) return ev;
+  }
+  return null;
+};
 
 async function waitWindow(pid, title, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
@@ -1178,22 +1239,14 @@ async function main() {
           h: c.getBoundingClientRect().height,
         }));
       })()`, TASKBAR_TITLE);
-      // 推荐组条目右键三行菜单的宿主随拆出迁 #pill-recs（工单192）；54/恢复菜单可开在任一
-      // 宿主 pill——组合选择器双宿主都查（段内只认 data-action/data-name 锚定行）
-      const menuRows16 = (name) => {
-        const n = JSON.stringify(name);
-        return cdpEval(`(() => {
-          return [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')]
-            .filter((r) => !${n} || r.dataset.name === ${n})
-            .map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
-        })()`, TASKBAR_TITLE);
-      };
-      // 菜单诊断（右键开合抖动的取证面：menuOpen 标记 + 在册菜单行；标记双 pill 同值——条带级事实）
-      const menuDiag16 = () => cdpEval(`(() => {
-        return {
-          menuOpen: document.getElementById('pill-recs')?.dataset.menuOpen || document.getElementById('pill-start')?.dataset.menuOpen || '',
-          rows: [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
-        };
+      // 推荐条目右键三行菜单已迁浮层窗 DECK-TASKBAR-REC-MENU（工单196，ADR-0013）：
+      // 行集/label/顺序断言走 taskbar-rec-menu-opened/-ready 两路配对（模块级
+      // popupAnchored/rightClickPopupVerify/clickPopupRowVerify），动作存证名不变。
+      const REC_MENU_FAMILY16 = 'taskbar-rec-menu';
+      // 横排退役诊断（取证面）：条带 DOM 不应再有任何菜单行/窗口列表行（工单196 AC——
+      // 全任务栏任何右键入口不再出现横排形态）
+      const stripMenuRows16 = () => cdpEval(`(() => {
+        return [...document.querySelectorAll('.tb-menu-item, .tb-win-item')].map((r) => r.dataset.action || r.dataset.id || '');
       })()`, TASKBAR_TITLE);
       // —— ① 图标化 + 上限 5 ——
       let g16 = null;
@@ -1260,27 +1313,21 @@ async function main() {
             + ` 控制台窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
         }
 
-        // —— ③ 右键三行菜单 + 手钉（B 消失、F 递补，不双占位；工单161 扩移除行）——
+        // —— ③ 右键三行菜单 + 手钉（B 消失、F 递补，不双占位；工单161 扩移除行；
+        //     工单196 菜单迁浮层窗 DECK-TASKBAR-REC-MENU——行集/label/顺序随迁浮层锚点）——
         let gB = await waitGeometrySettled(g16);
         const ptB = recPt16(gB, pB16.name);
         if (!ptB) {
           rep.fail(`P16 右键臂前置缺失：探针 B 不在推荐位（${JSON.stringify(recNames16(gB))}）`);
         } else {
-          win32.clickPhys(ptB.x, ptB.y, 'right');
-          let rowsB = null;
-          for (let i = 0; i < 20 && !rowsB; i++) {
-            await sleep(200);
-            const rows = await menuRows16(pB16.name);
-            if (rows.length === 3) rowsB = rows;
-          }
-          const rowsOk16 = !!rowsB && rowsB.map((r) => r.action).join(',') === 'pin,remove,reveal'
+          const popB = await rightClickPopupVerify(() => recPt16(latestGeometry(null), pB16.name), REC_MENU_FAMILY16, 3);
+          const rowsB = popB ? popB.rows : null;
+          const rowsOk16 = !!rowsB && rowsB.length === 3 && rowsB.map((r) => r.id).join(',') === 'pin,remove,reveal'
             && rowsB.map((r) => r.label).join(',') === '手钉到任务栏,从推荐栏移除,打开文件位置';
           let pinned16 = null;
           if (rowsOk16) {
-            const pr = rowsB.find((r) => r.action === 'pin').rect;
-            const pp = toPhys(pr.x + pr.width / 2, pr.y + pr.height / 2);
-            win32.clickPhys(pp.x, pp.y, 'left');
-            await waitEvent('taskbar-rec-menu-action', (e) => e.name === pB16.name && e.action === 'pin', 5000);
+            const pinEv16 = await clickPopupRowVerify(REC_MENU_FAMILY16, popB.since, 'pin', 'taskbar-rec-menu-action', (e) => e.name === pB16.name && e.action === 'pin', scale);
+            rep.note(`P16③ 手钉行点击存证=${!!pinEv16}（浮层窗 DECK-TASKBAR-REC-MENU 行点）`);
             for (let i = 0; i < 30 && !pinned16; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
@@ -1409,11 +1456,9 @@ async function main() {
               const expect = [dE.pinned ? 'unpin' : 'pin', ...(dE.running ? ['close'] : []), 'reveal'];
               menuRowsOk16 = unpinPop.rows.map((r) => r.id).join(',') === expect.join(',')
                 && unpinPop.rows.map((r) => r.label).join(',') === expect.map((x) => APP_MENU_LABELS[x]).join(',');
-              // 横排入口退役：浮层在场拍，pill 内不再有应用菜单行（DOM 锚点已随迁）
-              const stripRows = await cdpEval(`(() => {
-                return [...document.querySelectorAll('#pill-start .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || '');
-              })()`, TASKBAR_TITLE);
-              horizGone16 = Array.isArray(stripRows) && !stripRows.includes('unpin');
+              // 横排入口退役（工单196 AC 全条带口径）：浮层在场拍，条带 DOM 不再有
+              // 任何菜单行/窗口列表行（五面全迁浮层，pill 内横排形态整体退役）
+              horizGone16 = await stripMenuRows16().then((rows) => Array.isArray(rows) && rows.length === 0);
             }
             if (!unpinPop && attempt16 === 0) {
               win32.moveMousePhys(ptU.x, ptU.y - 60); // 离位刷新热区
@@ -1484,32 +1529,16 @@ async function main() {
               outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= Date.now() - 6000, 5000);
             }
           }
-          // 打开文件位置（推荐位 C）：右键 → 点 reveal 行 → explorer 定位窗口真出场（软核验收尾关闭）。
-          // 右键两试（⑥解除臂同款：右键偶发不开菜单——离位刷新热区+重取 settle 几何再试）。
+          // 打开文件位置（推荐位 C）：右键 → 点 reveal 行（工单196 迁浮层窗锚点）→
+          // explorer 定位窗口真出场（软核验收尾关闭）。右键三试（模块级助手内置：
+          // 右键偶发不开菜单——离位刷新热区+重取几何再试）。
           let reveal16 = null;
           let expHwnd16 = null;
           const gR0 = await waitGeometrySettled(repool16 || gU);
-          let rowsR = null;
-          let ptR = recPt16(gR0, pC16.name);
-          for (let attempt16 = 0; attempt16 < 2 && ptR && !rowsR; attempt16++) {
-            win32.clickPhys(ptR.x, ptR.y, 'right');
-            for (let i = 0; i < 20 && !rowsR; i++) {
-              await sleep(200);
-              const rows = await menuRows16(pC16.name);
-              if (rows.length === 3) rowsR = rows;
-            }
-            if (!rowsR && attempt16 === 0) {
-              win32.moveMousePhys(ptR.x, ptR.y - 60); // 离位刷新热区
-              await sleep(300);
-              const gR = await waitGeometrySettled(latestGeometry(null));
-              ptR = recPt16(gR, pC16.name);
-            }
-          }
-            if (rowsR) {
-              const rr = rowsR.find((r) => r.action === 'reveal').rect;
-              const rp = toPhys(rr.x + rr.width / 2, rr.y + rr.height / 2);
-              win32.clickPhys(rp.x, rp.y, 'left');
-              reveal16 = await waitEvent('taskbar-rec-menu-action', (e) => e.name === pC16.name && e.action === 'reveal', 5000);
+          const ptR = recPt16(gR0, pC16.name);
+          const popR = ptR ? await rightClickPopupVerify(() => recPt16(latestGeometry(null), pC16.name), REC_MENU_FAMILY16, 3) : null;
+            if (popR) {
+              reveal16 = await clickPopupRowVerify(REC_MENU_FAMILY16, popR.since, 'reveal', 'taskbar-rec-menu-action', (e) => e.name === pC16.name && e.action === 'reveal', scale);
               await waitEvent('taskbar-rec-menu-result', (e) => e.name === pC16.name && e.action === 'reveal', 5000);
               const dirName = path.basename(p16.tmpDir);
               for (let i = 0; i < 24 && !expHwnd16; i++) {
@@ -1524,7 +1553,7 @@ async function main() {
               + `解除手钉行点存证（exe 身份核对）+行点即收${rowClose16 ? '在案' : '（收层存证缺席）'}、D 随下拍回池（推荐组恒 5、第 7 名 G 让位、应用组摘除）；`
               + `点外即收（reason=${outsideClose16.reason}）；reveal 行点击存证在案${expHwnd16 ? '，explorer 定位窗口真出场（已收窗）' : '（explorer 窗未及出场，软核验）'}`);
           } else {
-            const diagU = await menuDiag16();
+            const diagU = await stripMenuRows16(); // 横排退役诊断（条带菜单行应恒空）
             rep.fail(`P16 解除回池/reveal：回池=${!!repool16}(recs=${JSON.stringify(recNames16(latestGeometry(null)))})`
               + ` 浮层行集=${unpinPop ? JSON.stringify(unpinPop.rows.map((r) => r.id)) : '未开'} rowsOk=${menuRowsOk16} 横排退役=${horizGone16}`
               + ` 行点即收=${rowClose16 ? JSON.stringify(rowClose16.reason) : '缺'} 点外即收=${outsideClose16 ? outsideClose16.reason : '缺'}`
@@ -1537,12 +1566,13 @@ async function main() {
     // P17 推荐组移除名单（工单161）：持久排除 + 名次递补 + 空白右键恢复。三臂——
     // ①右键探针 F（第 6 名，经⑤递补在栏）→ 菜单恰三行 → 点「从推荐栏移除」→ F 即时消失、
     //   第 7 名 G 递补（可见恒 5），移除落盘（get-state excluded 含 F，exe=富化目标身份）；
-    // ②推荐组空白右键 → 54 菜单恢复段在列（「恢复 <显示名>」行）→ 点选 → F 回池（G 让位），
+    // ②推荐组空白右键 → 恢复段在列（「恢复 <显示名>」行）→ 点选 → F 回池（G 让位），
     //   excluded 清空；
     // ③重启保持：CDP 桥直发 rec-remove（输入注入路径①已证）→ killTree+重启面板 →
     //   get-state 排除名单与可见名单都保持（F 不复活、G 占位）→ 空白右键恢复行仍在 →
-    //   点选恢复 → F 回池。恢复入口用 pill 内横排形态（#162 浮层菜单面板为托盘域专用：
-    //   挂点在「⋯」钮且行交互接托盘像素管线，推荐组恢复行是纯文本标签——票内裁定走横排）。
+    //   点选恢复 → F 回池。工单196（ADR-0013）：移除臂菜单迁浮层窗 DECK-TASKBAR-REC-MENU、
+    //   恢复入口迁浮层窗 DECK-TASKBAR-BLANK-MENU（通用弹窗通路域适配器——t193 票内
+    //   「横排保留」裁定随本票通路迁移退役），断言锚点随迁浮层窗（章法改段）。
     rep.beginSegment('P17');
     if (!p16 || !(p16.extras && p16.extras.length === 2)) {
       rep.fail('P17 前置缺失：探针/递补候选种入失败（见种入 note）');
@@ -1555,58 +1585,18 @@ async function main() {
         const r = (g.recommendations || []).find((x) => x.name === name);
         return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
       };
-      // 恢复行查询（工单192 锚点随迁）：恢复段横排进开层宿主 pill（开始组或推荐组）——
-      // 组合选择器双宿主都查
-      const restoreRow17 = () => cdpEval(`(() => {
-        const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"], #pill-recs .tb-menu-item[data-action="restore"]');
-        return r ? { label: r.textContent || '', exe: r.dataset.exe || '', rect: r.getBoundingClientRect().toJSON() } : null;
-      })()`, TASKBAR_TITLE);
       const state17 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
-      const menuDiag17 = () => cdpEval(`(() => {
-        return {
-          menuOpen: document.getElementById('pill-recs')?.dataset.menuOpen || document.getElementById('pill-start')?.dataset.menuOpen || '',
-          rows: [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')].map((r) => r.dataset.action || r.dataset.id || ''),
-        };
-      })()`, TASKBAR_TITLE);
-      // 菜单行点击核验重试（点行也可能撞热区轮询窗——证据 3s 不来就重查行矩形再点，≤3 试）
-      const clickRowVerify17 = async (rowQuery, evidenceType, evidencePred) => {
-        for (let i = 0; i < 3; i++) {
-          const row = await cdpEval(rowQuery, TASKBAR_TITLE);
-          if (!row) return false;
-          const p = toPhys(row.rect.x + row.rect.width / 2, row.rect.y + row.rect.height / 2);
-          win32.moveMousePhys(p.x, p.y);
-          await sleep(250); // 到靶停拍
-          win32.clickPhys(p.x, p.y, 'left');
-          const ev = await waitEvent(evidenceType, evidencePred, 3000);
-          if (ev) return true;
-        }
-        return false;
-      };
-      // 带到靶停拍与点击核验的右键（P16⑤ 热区开门时序先例：瞬移后立即点击会撞热区
-      // 轮询窗——到靶停 250ms 再点；点击后 verify() 不过则重取坐标重试，≤3 试）
-      const rightClickVerify17 = async (ptOf, verify) => {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const pt = ptOf();
-          if (!pt) continue;
-          win32.moveMousePhys(pt.x, pt.y);
-          await sleep(250); // 到靶停拍（热区 25ms 轮询开门）
-          win32.clickPhys(pt.x, pt.y, 'right');
-          for (let i = 0; i < 12 && !(await verify()); i++) await sleep(200);
-          if (await verify()) return true;
-          rep.note(`P17 右键第 ${attempt + 1} 试未达（点=(${Math.round(pt.x)},${Math.round(pt.y)})）——重取坐标重试`);
-          win32.moveMousePhys(pt.x, pt.y - 60);
-          await sleep(300);
-        }
-        return false;
-      };
-      // 空白右键（恢复菜单挂点 = 推荐组空白，工单192 起推荐组独立 pill 承接——54 菜单同
-      // 一开层态）：两点轮试——顶部内衬横中点（水平余量大）、左缘内衬中点兜底。推荐组
-      // pill 不在场（前置红轮推荐位清空）时回退开始组空白。每次尝试后轮询 menuOpen 标记
-      // + 恢复行。到靶停拍同 rightClickVerify17。
+      const REC_MENU_FAMILY17 = 'taskbar-rec-menu';       // 移除臂浮层（DECK-TASKBAR-REC-MENU）
+      const BLANK_MENU_FAMILY17 = 'taskbar-blank-menu';   // 恢复臂浮层（DECK-TASKBAR-BLANK-MENU）
+      const restoreRowId17 = `restore:${pF17.exe}`;       // 恢复行身份 = restore:<exe>（适配器行 id 口径）
+      // 空白右键（恢复菜单挂点 = 推荐组空白，工单192 起推荐组独立 pill 承接；工单196 迁
+      // 浮层窗 DECK-TASKBAR-BLANK-MENU——系统显隐+恢复段同一面）：两点轮试——顶部内衬横
+      // 中点（水平余量大）、左缘内衬中点兜底。推荐组 pill 不在场时回退开始组空白。每次
+      // 尝试后轮询浮层 ready 行集。到靶停拍 250ms（热区开门先例）。
       const blankRightClick17 = async (gBlank) => {
         const pillOf = (g) => (g.recPill && g.recPill.w > 0 ? g.recPill : (g.startPill.w > 0 ? g.startPill : null));
         const pill = pillOf(gBlank);
-        if (!pill) return { row: null, tag: 'no-pill' };
+        if (!pill) return { row: null, tag: 'no-pill', since: 0 };
         const cands = [
           { x: pill.x + pill.w / 2, y: pill.y + 3, tag: 'top-pad-center' },
           { x: pill.x + 3, y: pill.y + pill.h / 2, tag: 'left-pad-mid' },
@@ -1615,15 +1605,16 @@ async function main() {
           const pt = toPhys(c.x, c.y);
           win32.moveMousePhys(pt.x, pt.y);
           await sleep(250); // 到靶停拍
+          const since = Date.now();
           win32.clickPhys(pt.x, pt.y, 'right');
           for (let i = 0; i < 10; i++) {
             await sleep(200);
-            const row = await restoreRow17();
-            if (row) return { row, tag: c.tag };
+            const pop = popupAnchored(BLANK_MENU_FAMILY17)(since);
+            const row = pop ? pop.rows.find((r) => r.id === restoreRowId17) : null;
+            if (row) return { row, tag: c.tag, since };
           }
-          const diag = await menuDiag17();
-          rep.note(`P17 空白右键试点 ${c.tag} 未出恢复行：menuOpen=${diag.menuOpen} rows=${JSON.stringify(diag.rows)}`);
-          // 收层再试下一点（菜单可能开了但无恢复行——excluded 空态，或压根没开）
+          rep.note(`P17 空白右键试点 ${c.tag} 未出恢复行（浮层未开或恢复行缺席——excluded 空态或开层失手）`);
+          // 收层再试下一点（右键恒重开语义，重开即重锚定）
           win32.moveMousePhys(pt.x, pt.y - 60);
           await sleep(300);
           const g2 = await waitGeometrySettled(latestGeometry(null));
@@ -1634,10 +1625,10 @@ async function main() {
             }
           }
         }
-        return { row: null, tag: 'none' };
+        return { row: null, tag: 'none', since: 0 };
       };
-      // ① 右键 F → 三行 → 点「从推荐栏移除」→ F 消失 G 递补 + 移除落盘（右键带到靶停拍
-      // 与三试核验——右键偶发不开菜单＝⑥解除臂同款抖动，几何新鲜也可能撞热区轮询窗）
+      // ① 右键 F → 三行（工单196 迁浮层窗 DECK-TASKBAR-REC-MENU）→ 点「从推荐栏移除」
+      // → F 消失 G 递补 + 移除落盘（右键三试核验内置——右键偶发不开菜单＝⑥解除臂同款抖动）
       let g17 = await waitGeometrySettled(latestGeometry(null));
       const ptF0 = recPt17(g17, pF17.name);
       let removed17 = null;
@@ -1645,27 +1636,13 @@ async function main() {
       if (!ptF0) {
         rep.fail(`P17 前置缺失：探针 F 不在推荐位（${JSON.stringify(recNames17(g17))}）`);
       } else {
-        const menuOpened17 = await rightClickVerify17(
-          () => recPt17(latestGeometry(null), pF17.name),
-          async () => {
-            const rows = await cdpEval(`(() => {
-              return [...document.querySelectorAll('#pill-start .tb-menu-item, #pill-recs .tb-menu-item')].map((r) => ({ action: r.dataset.action, label: r.textContent || '', rect: r.getBoundingClientRect().toJSON() }));
-            })()`, TASKBAR_TITLE);
-            if (rows.length === 3) { rows17 = rows; return true; }
-            return false;
-          },
-        );
-        if (!menuOpened17) {
-          const diag = await menuDiag17();
-          rep.note(`P17 移除臂右键三试未开菜单：menuOpen=${diag.menuOpen} rows=${JSON.stringify(diag.rows)}`);
-        }
-        if (rows17 && rows17.map((r) => r.action).join(',') === 'pin,remove,reveal') {
-          const clicked17 = await clickRowVerify17(
-            `(() => {
-              const r = document.querySelector('#pill-start .tb-menu-item[data-action="remove"], #pill-recs .tb-menu-item[data-action="remove"]');
-              return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
-            })()`,
-            'taskbar-rec-menu-action', (e) => e.name === pF17.name && e.action === 'remove');
+        const popF17 = await rightClickPopupVerify(() => recPt17(latestGeometry(null), pF17.name), REC_MENU_FAMILY17, 3);
+        rows17 = popF17 ? popF17.rows : null;
+        if (!rows17) rep.note('P17 移除臂右键三试未开浮层');
+        if (rows17 && rows17.map((r) => r.id).join(',') === 'pin,remove,reveal'
+          && rows17.map((r) => r.label).join(',') === '手钉到任务栏,从推荐栏移除,打开文件位置') {
+          const clicked17 = await clickPopupRowVerify(REC_MENU_FAMILY17, popF17.since, 'remove', 'taskbar-rec-menu-action', (e) => e.name === pF17.name && e.action === 'remove', scale);
+          rep.note(`P17① 移除行点击存证=${!!clicked17}（浮层窗行点，name/exe 身份随事件核对）`);
           for (let i = 0; i < 30 && !removed17; i++) {
             await sleep(200);
             const cand = latestGeometry(null);
@@ -1682,23 +1659,20 @@ async function main() {
           rep.fail(`P17 移除臂：菜单=${JSON.stringify(rows17)} 递补=${!!removed17}(recs=${JSON.stringify(recNames17(latestGeometry(null)))}) 落盘=${excludedOk17}`);
         }
 
-        // ② 推荐组空白右键 → 恢复段点选 → F 回池（G 让位）
+        // ② 推荐组空白右键 → 恢复段（工单196 迁浮层窗 DECK-TASKBAR-BLANK-MENU）点选 → F 回池（G 让位）
         let restored17 = null;
         let row17 = null;
+        let hit17 = null;
         {
           const gBlank = await waitGeometrySettled(latestGeometry(null));
-          const hit = await blankRightClick17(gBlank);
-          row17 = hit.row;
-          if (row17) rep.note(`P17 恢复段经试点 ${hit.tag} 开出`);
+          hit17 = await blankRightClick17(gBlank);
+          row17 = hit17.row;
+          if (row17) rep.note(`P17 恢复段经试点 ${hit17.tag} 开出（浮层窗 DECK-TASKBAR-BLANK-MENU）`);
         }
         if (row17) {
           const labelOk17 = row17.label === `恢复 ${pF17.name.replace(/\.lnk$/i, '')}`;
-          await clickRowVerify17(
-            `(() => {
-              const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"], #pill-recs .tb-menu-item[data-action="restore"]');
-              return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
-            })()`,
-            'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe));
+          const clicked17 = await clickPopupRowVerify(BLANK_MENU_FAMILY17, hit17.since, restoreRowId17, 'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), scale);
+          rep.note(`P17② 恢复行点击存证=${!!clicked17}（restore:<exe> 行身份，事件 exe 对账）`);
           for (let i = 0; i < 30 && !restored17; i++) {
             await sleep(200);
             const cand = latestGeometry(null);
@@ -1747,14 +1721,10 @@ async function main() {
           const gBlank = await waitGeometrySettled(latestGeometry(null));
           const hit = await blankRightClick17(gBlank);
           rowAfter17 = hit.row;
-          if (rowAfter17) rep.note(`P17 重启后恢复段经试点 ${hit.tag} 开出`);
+          if (rowAfter17) rep.note(`P17 重启后恢复段经试点 ${hit.tag} 开出（浮层窗行集）`);
           if (rowAfter17) {
-            await clickRowVerify17(
-              `(() => {
-                const r = document.querySelector('#pill-start .tb-menu-item[data-action="restore"], #pill-recs .tb-menu-item[data-action="restore"]');
-                return r ? { rect: r.getBoundingClientRect().toJSON() } : null;
-              })()`,
-              'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe));
+            const clickedAfter17 = await clickPopupRowVerify(BLANK_MENU_FAMILY17, hit.since, restoreRowId17, 'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), scale);
+            rep.note(`P17③ 重启后恢复行点击存证=${!!clickedAfter17}`);
             for (let i = 0; i < 30 && !restoredAfter17; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
@@ -2680,6 +2650,116 @@ async function main() {
             rep.fail(`P18 ${fail18.length}/4 臂失败：${arms18.join(' | ')}`);
           }
         }
+      }
+    }
+    // P21 多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：应用组多窗应用左键点出的
+    // 选窗列表迁浮层窗 DECK-TASKBAR-WINS-MENU（横排进开始组 pill 退役；行源 = 工单196
+    // 新只读契约 taskbar/app-windows 即席拉取——app-click window-list 的 windowsOf 同一
+    // 当拍枚举）。探针 = cmd 副本 start 双开（/K 驻留 + title 定名——真多开两控制台窗、
+    // 标题可断言；cmd 副本规避 System32 notepad 存根重定向，P16② 同款选型）。臂——
+    // ①左键图标 → 浮层在场（pid+标题寻窗）+ ready 行集恰 2 行（行身份=hwnd 互异、
+    //   标题=探针定名）；②点行选窗 → taskbar-window-pick 存证（exe/hwnd 身份核对）+
+    //   目标窗真前台（GetForegroundWindow 对账）+ 行点即收（reason=row）；③点外即收
+    //   （再开一层=重锚定 → 点时钟格 → reason=strip-click）。
+    rep.beginSegment('P21');
+    {
+      const img21 = 'deck-p21-cmd.exe';
+      const sysRoot21 = process.env.SystemRoot || 'C:\Windows';
+      const tmp21 = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p21-'));
+      const copy21 = path.join(tmp21, img21);
+      fs.copyFileSync(path.join(sysRoot21, 'System32', 'cmd.exe'), copy21);
+      const titles21 = ['DECK-P21-WIN-1', 'DECK-P21-WIN-2'];
+      for (const t of titles21) {
+        // start 首参带引号 = 新控制台窗标题位；/K 驻留 + title 定名（断言锚点）
+        spawn('cmd.exe', ['/c', 'start', `"${t}"`, `"${copy21}"`, '/K', `title ${t}`], { stdio: 'ignore' });
+      }
+      const norm21 = (s21) => String(s21 || '').toLowerCase();
+      const liveAppPt21 = async () => cdpEval(`(() => {
+        const want = ${JSON.stringify(img21)}.toLowerCase();
+        const el = [...document.querySelectorAll('#pill-apps .tb-app')].find((n) => (n.dataset.exe || '').toLowerCase().endsWith(want));
+        return el ? el.getBoundingClientRect().toJSON() : null;
+      })()`, TASKBAR_TITLE);
+      const WINS_MENU_FAMILY21 = 'taskbar-wins-menu';
+      const clickIconOpen21 = async () => {
+        // 左键图标 → 浮层开层（三试：到靶停拍后点击，等 opened/resized+ready 两路配对）
+        for (let attempt21 = 0; attempt21 < 3; attempt21++) {
+          const r21 = await liveAppPt21();
+          if (!r21) return null;
+          const pt21 = toPhys(r21.x + r21.width / 2, r21.y + r21.height / 2);
+          win32.moveMousePhys(pt21.x, pt21.y);
+          await sleep(300); // 到靶停拍（热区开门 + 托盘 churn 重居中后现取矩形）
+          const since21 = Date.now();
+          win32.clickPhys(pt21.x, pt21.y, 'left');
+          for (let i = 0; i < 15; i++) {
+            await sleep(200);
+            const pop = popupAnchored(WINS_MENU_FAMILY21)(since21);
+            if (pop && pop.rows.length > 0) return pop;
+          }
+        }
+        return null;
+      };
+      try {
+        let appSeen21 = null;
+        for (let i = 0; i < 40 && !appSeen21; i++) {
+          await sleep(400);
+          appSeen21 = await liveAppPt21();
+        }
+        if (!appSeen21) {
+          rep.fail('P21 前置缺失：双实例探针未上栏（应用组合一条目未出现——控制台窗被栏面枚举过滤或 start 双开失败）');
+        } else {
+          const pop21 = await clickIconOpen21();
+          const popWin21 = pop21 ? await waitWindow(panelPid, 'DECK-TASKBAR-WINS-MENU', 3000) : null;
+          const rowsOk21 = !!pop21 && pop21.rows.length === 2
+            && new Set(pop21.rows.map((r) => r.id)).size === 2
+            && pop21.rows.every((r) => titles21.includes(r.label));
+          if (pop21 && popWin21 && rowsOk21) {
+            rep.pass(`P21① 选窗浮层随左键弹出：DECK-TASKBAR-WINS-MENU 在场、行集恰 2（行身份=hwnd 互异，`
+              + `标题=[${pop21.rows.map((r) => r.label).join(', ')}]）——横排进 pill 退役（taskbar/app-windows 行源）`);
+          } else {
+            rep.fail(`P21① 浮层弹出：浮层=${!!pop21} 窗=${!!popWin21} rows=${pop21 ? JSON.stringify(pop21.rows.map((r) => [r.id, r.label])) : 'n/a'}`);
+          }
+          // ② 点行选窗 → 存证 + 前台对账 + 行点即收
+          let pick21 = null;
+          let fgOk21 = false;
+          let closedRow21 = null;
+          if (pop21 && rowsOk21) {
+            const row21 = pop21.rows[0];
+            pick21 = await clickPopupRowVerify(WINS_MENU_FAMILY21, pop21.since, row21.id, 'taskbar-window-pick', (e) => norm21(e.exe).endsWith(img21) && String(e.hwnd) === row21.id, scale);
+            for (let i = 0; i < 12 && !fgOk21; i++) {
+              await sleep(250);
+              fgOk21 = Number(win32.GetForegroundWindow()) === Number(row21.id);
+            }
+            closedRow21 = await waitEvent('taskbar-wins-menu-closed', (e) => e.reason === 'row' && e.t >= pop21.since, 5000);
+          }
+          if (pick21 && fgOk21 && closedRow21) {
+            rep.pass(`P21② 选窗聚焦端到端：行点存证（exe/hwnd 身份核对）→ 目标控制台窗真前台（hwnd=${pick21.hwnd}）、行点即收（reason=row）`);
+          } else {
+            rep.fail(`P21② 选窗：存证=${!!pick21}${pick21 ? `(hwnd=${pick21.hwnd})` : ''} 前台对账=${fgOk21} 行点即收=${closedRow21 ? closedRow21.reason : '缺'}`);
+          }
+          // ③ 点外即收：再开一层（左键重开=重锚定），条带内点击（时钟格——非内核动作键）
+          // 转达收层（strip-click）
+          let outside21 = null;
+          const pop21b = await clickIconOpen21();
+          if (pop21b) {
+            const g21 = latestGeometry(null);
+            const clock21 = (g21.rightCells || []).find((c) => c.id === 'clock');
+            if (clock21) {
+              const cp21 = toPhys(clock21.x + clock21.w / 2, clock21.y + clock21.h / 2);
+              win32.moveMousePhys(cp21.x, cp21.y);
+              await sleep(250);
+              win32.clickPhys(cp21.x, cp21.y, 'left');
+              outside21 = await waitEvent('taskbar-wins-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= pop21b.since, 5000);
+            }
+          }
+          if (outside21) {
+            rep.pass(`P21③ 点外即收：条带内点击转达收层（reason=${outside21.reason}）`);
+          } else {
+            rep.fail(`P21③ 点外即收：再开=${!!pop21b} 收层存证=缺`);
+          }
+        }
+      } finally {
+        spawnSync('taskkill', ['/IM', img21, '/T', '/F'], { stdio: 'ignore' });
+        try { fs.rmSync(tmp21, { recursive: true, force: true }); } catch { /* 尽力 */ }
       }
     }
   } catch (err) {

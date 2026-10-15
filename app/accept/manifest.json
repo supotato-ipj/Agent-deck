@@ -466,7 +466,7 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 200,
+      "budgetSeconds": 220,
       "lastMeasuredSeconds": 148,
       "lastMeasuredAt": "2026-10-15",
       "segments": [
@@ -623,7 +623,7 @@
         {
           "seg": "P16",
           "ticket": 160,
-          "title": "推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁）",
+          "title": "推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁；③右键三行随工单196 迁浮层窗 DECK-TASKBAR-REC-MENU，横排退役断言扩全条带）",
           "surfaces": [
             "input-injection",
             "event-evidence"
@@ -633,7 +633,7 @@
         {
           "seg": "P17",
           "ticket": 161,
-          "title": "推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）",
+          "title": "推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）（工单196：移除臂迁 DECK-TASKBAR-REC-MENU、恢复入口迁 DECK-TASKBAR-BLANK-MENU 浮层窗锚点）",
           "surfaces": [
             "input-injection",
             "event-evidence"
@@ -666,6 +666,16 @@
           "title": "应用组统一序列默认落位（ADR-0013）：z 序脱钩（反复切前台位次纹丝不动+几何帧互证）/新面孔追加最右/全关消失/复启回最右/钉入原地转正/已钉开新窗并入钉图标/关闭不消失/未运行解除消失/解除原地转运行",
           "surfaces": [
             "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 20
+        },
+        {
+          "seg": "P21",
+          "ticket": 196,
+          "title": "多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：cmd 副本 start 双开——左键图标出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）、点行选窗存证+前台对账+行点即收、点外即收（时钟格转达 strip-click）",
+          "surfaces": [
+            "input-injection",
             "event-evidence"
           ],
           "estSeconds": 20
