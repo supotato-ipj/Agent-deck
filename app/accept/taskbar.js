@@ -2685,7 +2685,7 @@ static class Probe {
 }
 `;
       const img21 = 'deck-p21-app.exe';
-      const sysRoot21 = process.env.SystemRoot || 'C:\Windows';
+      const sysRoot21 = process.env.SystemRoot || 'C:\\Windows';
       const tmp21 = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p21-'));
       const copy21 = path.join(tmp21, img21);
       const csc21 = path.join(sysRoot21, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
