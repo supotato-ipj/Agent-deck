@@ -55,8 +55,9 @@
 //      changed，被拖节点 expando 同一性保持=无闪烁无回弹；drag-start/drag-drop/
 //      drag-result 三存证组合为分诊判据）、C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop
 //      不丢；拖拽窗口 hotzone-leave=0 = 热区持门存证）、E 拖拽失败可见反馈（未钉运行
-//      拖到推荐组=服务层确定性拒返，toast 在场+文案断言）、D 拖位持久化口径（重启面板：
-//      手钉拖位落盘记住、运行拖位回默认序、存储无运行序段=会话态不落盘）。
+//      拖到推荐组=服务层确定性拒返，toast 在场+文案断言）、D1/D2 拖位持久化两半
+//      （D1 臂A 钉入前重启=运行拖位回默认序；D2 末尾重启=手钉拖位落盘记住、存储无
+//      运行序段=会话态不落盘；q3 钉入后只在手钉段，两半各配一次重启）。
 //      探针复用 P18 的 csc WinForms 副本×3。
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
 const { app, screen } = require('electron');
@@ -2627,12 +2628,16 @@ async function main() {
     // P20 全量拖拽三断点（工单195，ADR-0013 全量自由拖拽落地）：真 OLE 拖拽臂 apps→apps
     // （现行电池无此臂，三断点曾因此漏掉，2026-10-14 取证在案）。复用 P18 探针
     // （deck-p18-1/2/3.exe——P18 段尾已收杀，exe 文件仍在，P18 finally 兜底清理不提前），
-    // drag-start/drag-drop/drag-result 三存证组合为分诊判据。四臂执行序 B→A→C→D
-    // （运行臂先于手钉臂：q1/q2/q3 起手全为未钉运行，臂D 重启判据两对同时可满足）——
+    // drag-start/drag-drop/drag-result 三存证组合为分诊判据。六臂执行序 B→D1→A→C→E→D2
+    // （运行臂先于手钉臂；持久化两半各配一次重启——D1 在臂A 钉入前重启验运行拖位回默认序
+    //  （q1/q3 同在运行段才可断相对序，q3 钉入后恒不可满足，第1-5轮臂D 全红的真根因），
+    //  D2 在末尾重启验手钉拖位落盘记住）——
     //   B 运行段会话拖位 + 渲染冻结（断点①② ~75% 弹回）：运行条目互拖两连，第一拖
     //     中程经 CDP 强推 taskbar/changed（set-metrics 往返两帧）——被拖节点同一性凭
     //     expando token 断言（节点重建即丢 token），冻结生效则拖拽全程节点不重建、
     //     1–2 秒真机节奏无弹回，落点即所得；
+    //   D1 运行拖位重启回默认序（持久化口径前半）：三探针全未钉时重启——臂B 摆下的
+    //     会话序（q3<q1）随会话归零，重启后按首见序回默认序（q1 前台=z 序最先→q1<q3）；
     //   A 全条目接线（断点① ~80% 必现）：手钉条目真拖到仅运行图标上松手——before=运行
     //     身份被内核接受（钳取手钉段末尾），不再被容器守卫静默吞掉（落点条目化）；
     //   C 跨组拖拽 + 组间缝隙松手（断点③ ~60% 跨 pill）：推荐条目拖经组间缝隙（缝隙
@@ -2640,9 +2645,8 @@ async function main() {
     //     窗口（drag-start→drag-drop 存证 t 区间）无 taskbar-hotzone-leave；
     //   E 拖拽失败可见反馈（票面 AC）：未钉运行条目拖到推荐组——服务层确定性拒返
     //     ok:false（仅手钉可解除），toast 在场+文案断言，拒返不静默；
-    //   D 拖位持久化口径：重启面板——手钉拖位（臂A 摆下的 q2<q3 序，钉入时落盘为
-    //     q3<q2）落盘记住、运行拖位（臂B 摆下的 q3<q1）回默认序（重启前置 q1 前台
-    //     =首见序 q1<q3）；存储文件无运行序段（会话态不落盘）。
+    //   D2 手钉拖位落盘记住（持久化口径后半）：重启面板——臂A 摆下的手钉拖位
+    //     （q2<q3）落盘记住；存储文件无运行序段（会话态不落盘）。
     rep.beginSegment('P20');
     if (!p18) {
       rep.fail('P20 前置缺失：P18 探针种入失败（见种入 note）');
@@ -2756,6 +2760,50 @@ async function main() {
         await sleep(200);
         win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
       };
+      // 面板重启（臂D1/D2 共用，14b4c16 就绪守卫+二次重启兜底两处同款）：旧 pid 真死再
+      // spawn（cb174c8：taskkill /F 后旧 remote-debugging-port 短暂未释放，新面板 Chromium
+      // 静默跳过 CDP 绑定）；boot 后等 taskbar-ready，未就绪即杀掉重拉一次（14b4c16：
+      // 偶发新实例 boot 后主进程/渲染层停滞，不烧 20s 等死实例）。
+      const restartPanel20 = async (tag) => {
+        const oldPid = panelPid;
+        killTree(child, panelPid);
+        child = null;
+        for (let i = 0; i < 50 && oldPid; i++) {
+          const r = spawnSync('tasklist', ['/FI', `PID eq ${oldPid}`, '/NH'], { encoding: 'utf8' });
+          if (!(r.stdout || '').includes(String(oldPid))) break;
+          await sleep(200);
+        }
+        await sleep(1200);
+        const since = Date.now();
+        child = launchPanel();
+        const boot = await waitEvent('boot', (e) => e.t >= since, 15000);
+        if (boot) {
+          panelPid = boot.pid;
+          await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+        }
+        let ready = boot ? await waitEvent('taskbar-ready', (e) => e.t >= since, 15000) : null;
+        if (boot && !ready) {
+          rep.note(`P20 ${tag} 首拉实例未就绪（taskbar-ready 15s 未出场）——二次重启兜底`);
+          const pid2 = panelPid;
+          killTree(child, panelPid);
+          child = null;
+          for (let i = 0; i < 50 && pid2; i++) {
+            const r = spawnSync('tasklist', ['/FI', `PID eq ${pid2}`, '/NH'], { encoding: 'utf8' });
+            if (!(r.stdout || '').includes(String(pid2))) break;
+            await sleep(200);
+          }
+          await sleep(1200);
+          const since2 = Date.now();
+          child = launchPanel();
+          const boot2 = await waitEvent('boot', (e) => e.t >= since2, 15000);
+          if (boot2) {
+            panelPid = boot2.pid;
+            await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+          }
+          ready = boot2 ? await waitEvent('taskbar-ready', (e) => e.t >= since2, 15000) : null;
+        }
+        return { boot, ready };
+      };
 
       // —— 前置：q1/q2/q3 按序上栏（首见序引导会话运行序 [q1, q2, q3]）——
       if (!(await launch20(q1)) || !(await launch20(q2)) || !(await launch20(q3))) {
@@ -2846,6 +2894,30 @@ async function main() {
             } else {
               rep.fail(`P20 臂B 未达成：drag-start存证=${startB20} drag-drop存证=${!!dragB} ok=${!!(dragB && dragB.ok20)} 冻结token=${token20} 落位后运行段=${JSON.stringify(segSplit20(await state20()).running)}`
                 + ` 源/落点矩形=${!!srcB}/${!!dstB} 前置帧=${!!runPre20}（token=rebuilt/no-dragging 即节点被重建=冻结缺失；drag-start 在而 drag-drop 无即会话被中止）`);
+            }
+          }
+
+          // —— 臂D1 运行拖位重启回默认序（持久化口径前半，第5轮取证重构）：此刻
+          // q1/q2/q3 全为未钉运行（臂A 尚未钉入——q3 一经钉入便只出现在手钉段，两段模型
+          // 下「重启后运行段含 q3」恒不可满足，第1-5轮臂D 读态半边全红的真根因；
+          // 2dd29a0 只改了臂序与判据对，判据门/判据仍要求 q3 在 running，本臂拆出修复）。
+          // 重启面板——臂B 摆下的会话序（q3<q1）不落盘：重启前置 q1 前台=首见序 q1<q3 ——
+          {
+            const stD1 = await state20();
+            const beforeD1 = JSON.stringify(segSplit20(stD1));
+            const focusOkD1 = await focus20(q1); // q1 前台=重启后 z 序首见第一（默认序判据的确定性底座）
+            const { boot: bootD1, ready: readyD1 } = await restartPanel20('臂D1');
+            const rebootD1 = await waitSeq20((st) => {
+              const seg = segSplit20(st);
+              return seg.running.indexOf(norm20(q1.exe)) >= 0 && seg.running.indexOf(norm20(q3.exe)) >= 0
+                && seg.running.indexOf(norm20(q1.exe)) < seg.running.indexOf(norm20(q3.exe));
+            }, 20000);
+            if (bootD1 && readyD1 && rebootD1) {
+              rep.pass(`P20 臂D1 运行拖位重启回默认序：重启面板——臂B 会话拖位（q3<q1）随会话归零，`
+                + `重启后 q1 前台=首见序（q1<q3，运行段=${JSON.stringify(segSplit20(rebootD1).running.map((k) => path.basename(k)))}）`);
+            } else {
+              rep.fail(`P20 臂D1 运行拖位复位未达成：boot=${!!bootD1} 就绪=${!!readyD1} 重启帧=${!!rebootD1}(前台=${focusOkD1})`
+                + ` 重启前=${beforeD1} 重启后=${JSON.stringify(segSplit20(await state20()))}`);
             }
           }
 
@@ -2976,69 +3048,21 @@ async function main() {
             }
           }
 
-          // —— 臂D 拖位持久化口径：重启面板——手钉拖位记住、运行拖位回默认序 ——
+          // —— 臂D2 手钉拖位落盘记住（持久化口径后半）：重启面板——臂A 摆下的手钉拖位
+          // （钉入落盘序 [.., q3, q2]，拖位后 [.., q2, q3]）落盘记住；存储文件无运行序段
+          // （会话态不落盘；运行半边见臂D1）——
           {
             const stD0 = await state20();
-            const segD0 = segSplit20(stD0);
-            const beforeD = JSON.stringify(segD0);
-            const focusOkD = await focus20(q1); // q1 前台=重启后 z 序首见第一（默认序判据的确定性底座）
-            const oldPidD = panelPid;
-            killTree(child, panelPid);
-            child = null;
-            // 等旧面板进程彻底退场再拉新面板（第1/2轮 arm D 同签名取证：taskkill /F 后旧
-            // remote-debugging-port 短暂未释放，新面板 Chromium 静默跳过 CDP 绑定——渲染层
-            // 1Hz status 帧照走 EventLog 而 CDP get-state 全灭）。旧 pid 消失再 spawn。
-            for (let i = 0; i < 50 && oldPidD; i++) {
-              const r = spawnSync('tasklist', ['/FI', `PID eq ${oldPidD}`, '/NH'], { encoding: 'utf8' });
-              if (!(r.stdout || '').includes(String(oldPidD))) break;
-              await sleep(200);
-            }
-            await sleep(1200);
-            const sinceD = Date.now();
-            child = launchPanel();
-            const bootD = await waitEvent('boot', (e) => e.t >= sinceD, 15000);
-            if (bootD) {
-              panelPid = bootD.pid;
-              await waitWindow(panelPid, TASKBAR_TITLE, 12000);
-            }
-            // 渲染层就绪守卫 + 二次重启兜底（P16 右键两试同款先例）：第1-4轮取证 arm D
-            // 偶发「新面板 boot 后主进程/渲染层停滞」（taskbar-ready 不出场、1Hz keepalive
-            // 停拍；P17③ 同款重启路径每轮绿=重启机制无损，是 P20 时点晚轮实例的偶发态）。
-            // 未就绪即杀掉重拉一次，不再烧 20s 等一个死实例。
-            let readyD = bootD ? await waitEvent('taskbar-ready', (e) => e.t >= sinceD, 15000) : null;
-            if (bootD && !readyD) {
-              rep.note('P20 臂D 首拉实例未就绪（taskbar-ready 15s 未出场）——二次重启兜底');
-              killTree(child, panelPid);
-              child = null;
-              for (let i = 0; i < 50 && panelPid; i++) {
-                const r = spawnSync('tasklist', ['/FI', `PID eq ${panelPid}`, '/NH'], { encoding: 'utf8' });
-                if (!(r.stdout || '').includes(String(panelPid))) break;
-                await sleep(200);
-              }
-              await sleep(1200);
-              const sinceD2 = Date.now();
-              child = launchPanel();
-              const bootD2 = await waitEvent('boot', (e) => e.t >= sinceD2, 15000);
-              if (bootD2) {
-                panelPid = bootD2.pid;
-                await waitWindow(panelPid, TASKBAR_TITLE, 12000);
-              }
-              readyD = bootD2 ? await waitEvent('taskbar-ready', (e) => e.t >= sinceD2, 15000) : null;
-            }
+            const beforeD = JSON.stringify(segSplit20(stD0));
+            const { boot: bootD, ready: readyD } = await restartPanel20('臂D2');
             const rebootD = await waitSeq20((st) => {
               const seg = segSplit20(st);
-              return seg.pinned.includes(norm20(q2.exe)) && seg.pinned.includes(norm20(q3.exe))
-                && seg.running.includes(norm20(q1.exe)) && seg.running.includes(norm20(q3.exe));
+              return seg.pinned.includes(norm20(q2.exe)) && seg.pinned.includes(norm20(q3.exe));
             }, 20000);
             const segD1 = segSplit20(rebootD);
             // 手钉拖位记住：钉入落盘序是 [.., q3, q2]，臂A 拖位后 [.., q2, q3]——重启后仍 q2 在 q3 前
             const pinPersistD = !!rebootD && segD1.pinned.indexOf(norm20(q2.exe)) >= 0
               && segD1.pinned.indexOf(norm20(q2.exe)) < segD1.pinned.indexOf(norm20(q3.exe));
-            // 运行拖位回默认序：臂B 摆下的会话序（q3 在 q1 前）不落盘——重启后首见序
-            // （q1 前台=z 序最前）q1 在 q3 之前；机器侧条目不参与判据（只认两探针相对序）
-            const runResetD = !!rebootD && focusOkD
-              && segD1.running.indexOf(norm20(q1.exe)) >= 0 && segD1.running.indexOf(norm20(q3.exe)) >= 0
-              && segD1.running.indexOf(norm20(q1.exe)) < segD1.running.indexOf(norm20(q3.exe));
             // 存储文件无运行序段（会话态不落盘）+ 手钉拖位确在盘面
             let diskD = null;
             try {
@@ -3048,16 +3072,16 @@ async function main() {
               && (diskD.pinned || []).some((e) => norm20(e.exe) === norm20(q2.exe))
               && (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q2.exe))
                 < (diskD.pinned || []).map((e) => norm20(e.exe)).indexOf(norm20(q3.exe));
-            if (bootD && readyD && rebootD && pinPersistD && runResetD && diskOkD) {
-              rep.pass(`P20 臂D 拖位持久化口径：重启面板——手钉拖位 q2<q3 落盘记住（get-state 与盘面一致），运行拖位回默认序（q1 前台=首见序判据，重启前台达成，q1<q3）`
-                + `，存储无运行序段（会话态不落盘）`);
+            if (bootD && readyD && rebootD && pinPersistD && diskOkD) {
+              rep.pass(`P20 臂D2 手钉拖位落盘记住：重启面板——手钉拖位 q2<q3 落盘记住（get-state 与盘面一致），`
+                + `存储无运行序段（会话态不落盘）`);
             } else {
               let cdpDiagD = 'fetch-fail';
               try {
                 const tg = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
                 cdpDiagD = 'targets=[' + tg.map((x) => x.title).join('|') + ']';
               } catch (e) { cdpDiagD = 'fetch-fail:' + (e && e.message); }
-              rep.fail(`P20 臂D 持久化口径未达成：boot=${!!bootD} 就绪=${!!readyD} 重启帧=${!!rebootD} 手钉拖位保持=${pinPersistD} 运行拖位复位=${runResetD}(前台=${focusOkD}) 盘面=${diskOkD}`
+              rep.fail(`P20 臂D2 手钉拖位保持未达成：boot=${!!bootD} 就绪=${!!readyD} 重启帧=${!!rebootD} 手钉拖位保持=${pinPersistD} 盘面=${diskOkD}`
                 + ` 重启前=${beforeD} 重启后=${JSON.stringify(segD1)} 盘面pinned=${diskD ? JSON.stringify((diskD.pinned || []).map((e) => e.exe)) : 'n/a'} CDP=${cdpDiagD}`);
             }
           }
