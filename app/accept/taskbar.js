@@ -2815,6 +2815,12 @@ static class Probe {
           } else {
             rep.fail(`P21③ 点外即收：再开=${!!pop21b} 收层存证=缺`);
           }
+          // 清场（工单195 前台敏感臂共存注记）：③点时钟格 = Win+N 拉起原生通知中心——
+          // 本段紧随其后的是 P20 拖拽段（臂D1 重启帧判据含前台态），残留原生面会把
+          // 前台判据毒死（合并态两连红轮实证）。Esc 尽力收净（P4 原生开始菜单同款
+          // 手势；light-dismiss 被拖拽手势绕过——drag 不构成栏面点击）。
+          win32.tapKeys([VK_ESC]);
+          await sleep(400);
         }
       } finally {
         spawnSync('taskkill', ['/IM', img21, '/T', '/F'], { stdio: 'ignore' });
