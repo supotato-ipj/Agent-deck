@@ -156,6 +156,10 @@ export class BridgeService extends Service {
         const { hwnd } = payload as { hwnd: number }
         return this.ctx.taskbar.activateWindowByHwnd(Number(hwnd)) as BridgeMethods[M]['response']
       }
+      case 'taskbar/app-windows': {
+        const { exe } = payload as { exe: string }
+        return this.ctx.taskbar.appWindows(String(exe ?? '')) as BridgeMethods[M]['response']
+      }
       case 'taskbar/app-new-instance': {
         const { exe } = payload as { exe: string }
         return await this.ctx.taskbar.appNewInstance(String(exe ?? '')) as BridgeMethods[M]['response']

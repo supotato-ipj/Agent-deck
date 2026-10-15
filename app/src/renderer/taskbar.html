@@ -233,25 +233,8 @@
     color: rgba(255, 255, 255, 0.85);
     user-select: none;
   }
-  /* 系统按钮显隐菜单（工单54）：自绘最小右键菜单——条带窗只有 64px 高，菜单以
-   * pill 内横排呈现（竖排浮层出不了窗口矩形）。配色与面板 ctx-menu 同一世界观
-   * （深底细边、文字实色、hover 反白灰底）。 */
-  .tb-menu-sep {
-    width: 1px;
-    align-self: stretch;
-    margin: 6px 2px;
-    background: rgba(255, 255, 255, 0.14);
-  }
-  .tb-menu-item {
-    padding: 7px 12px;
-    font-size: 12px;
-    letter-spacing: 0.06em;
-    color: #d6d6d6;
-    border-radius: 999px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .tb-menu-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  <!-- 工单196（ADR-0013）：pill 内横排菜单样式整体退役——全部右键菜单与多窗选窗
+       迁入弹窗浮层窗（taskbar-menu.html，配色世界观在彼处承载），条带内不再有菜单行。 -->
 </style>
 </head>
 <body>

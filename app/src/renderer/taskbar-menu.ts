@@ -12,6 +12,10 @@
 // 等）成对声明，改名两处同步。
 import type { TaskbarState } from '../shared/contract'
 import { appMenuAdapter } from './taskbar-menu-app.js'
+import { blankMenuAdapter } from './taskbar-menu-blank.js'
+import { recMenuAdapter } from './taskbar-menu-rec.js'
+import { tierMenuAdapter } from './taskbar-menu-tier.js'
+import { winsMenuAdapter } from './taskbar-menu-wins.js'
 
 /** 域适配器：菜单面的全部域语义收口在这两个挂点 + 两个 notify 名（通路不写死任何域） */
 interface MenuPageRow { id: string; label: string }
@@ -22,13 +26,21 @@ interface MenuPageAdapter {
   closeEvent: string
   /** 行集推导：条目不在场/名单空 = null（页自收，reason=empty） */
   rows(state: TaskbarState): MenuPageRow[] | null
+  /** 行集异步推导（工单196 选窗面：窗口清单不在 state 快照内，需即席经桥拉取——
+   * 在场时优先于同步 rows，页 await 后同一渲染管线） */
+  rowsAsync?(state: TaskbarState): Promise<MenuPageRow[] | null>
   /** 行动作分发（存证在此先行；调用方随后收层） */
   onRow(row: MenuPageRow): void
 }
 
-/** 菜单面注册表：#196 其余五面（系统按钮/恢复段/推荐条目/多窗选窗/托盘档位）随票扩 */
+/** 菜单面注册表（工单196 五面迁毕）：系统按钮显隐+恢复段（开始/推荐组空白右键）、
+ * 推荐条目三行、托盘档位、多窗选窗 */
 const adapters: Record<string, MenuPageAdapter> = {
   app: appMenuAdapter,
+  rec: recMenuAdapter,
+  blank: blankMenuAdapter,
+  tier: tierMenuAdapter,
+  wins: winsMenuAdapter,
 }
 
 const list = document.getElementById('menu-panel') as HTMLElement
@@ -58,9 +70,14 @@ function makeRow(row: MenuPageRow): HTMLElement {
   return el
 }
 
+/** 状态 → 行集（同步/异步适配器同一道；异步行源即席拉取后再进渲染） */
+async function deriveRows(state: TaskbarState): Promise<MenuPageRow[] | null> {
+  if (!adapter) return null
+  return adapter.rowsAsync ? adapter.rowsAsync(state) : adapter.rows(state)
+}
+
 /** 状态 → 行渲染；返回当拍行集（空 = 收层判据）。 */
-function render(state: TaskbarState): MenuPageRow[] | null {
-  const rows = adapter ? adapter.rows(state) : null
+function render(rows: MenuPageRow[] | null): MenuPageRow[] | null {
   list.textContent = ''
   if (rows) for (const row of rows) list.appendChild(makeRow(row))
   return rows
@@ -92,7 +109,7 @@ void (async () => {
     requestClose('boot-failed')
     return
   }
-  const rows = render(state)
+  const rows = render(await deriveRows(state))
   if (!rows || !rows.length) {
     requestClose('empty')
     return
@@ -100,12 +117,14 @@ void (async () => {
   reportReady(rows)
   // 名单/条目变化：重推导重渲（行数变化重回报，宿主重定窗——浮层已在场不再 show）
   window.deck.bridge.on('taskbar/changed', (next: TaskbarState) => {
-    const nextRows = render(next)
-    if (!nextRows || !nextRows.length) {
-      requestClose('empty')
-      return
-    }
-    reportReady(nextRows)
+    void deriveRows(next).then((nextRows) => {
+      if (!nextRows || !nextRows.length) {
+        requestClose('empty')
+        return
+      }
+      render(nextRows)
+      reportReady(nextRows)
+    })
   })
 })()
 

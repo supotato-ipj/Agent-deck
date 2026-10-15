@@ -8,11 +8,13 @@
 // 「⋯」，工单162）+ 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
-// + 右键菜单/溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTaskbarVisibility, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarRecMenuRows, taskbarViewModel, toggleMetric, trayIconPixelated, trayOverflowTierRows } from './taskbar-view.js'
+// + 弹窗菜单开层/转达收层（工单193/196，ADR-0013：全部右键菜单与多窗选窗迁独立浮层窗
+// 竖排呈现，条带内横排菜单形态整体退役——条带只发开层请求携身份，行集由浮层页自足推导）
+// 与托盘溢出浮层开合。窗口标题与托盘 tooltip 随状态帧即时进出，渲染层不落任何存储。
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
-import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
 const pillRecs = document.getElementById('pill-recs') as HTMLElement
@@ -37,31 +39,23 @@ let current: TaskbarState | null = null
 let latestStatus: TaskbarStatus | null = null
 /** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
 let editing = false
-/** 系统按钮显隐菜单 + 恢复段开合（工单54，工单161 扩恢复段）：右键开、点行/点 pill 空白/
- * 8s 兜底收。**不随 taskbar/changed 收**（工单161，工单162 档位菜单同款纪律）：托盘图标
- * churn 每几秒推一帧，回推即收会把刚开出的菜单抢走（真机红轮实证）——收层只走点行
- * （显式）/点空白/兜底超时三路径。menuHost（工单192）= 开层挂点所在组：推荐组拆出后
- * 两组空白右键都可开层，菜单横排进宿主 pill（开始组空白 → pill-start、推荐组空白 →
- * pill-recs）——宿主 pill 不在场的解耦态（如开始组整组隐藏）菜单随之收层。 */
-let menuOpen = false
-let menuHost: 'start' | 'recs' = 'start'
-let menuTimer: ReturnType<typeof setTimeout> | null = null
-/** 托盘溢出档位菜单开合（工单162）：「⋯」右键或右组空白处右键开、点档/状态回推/兜底超时收 */
-let tierMenuOpen = false
-let tierMenuTimer: ReturnType<typeof setTimeout> | null = null
 /** 托盘溢出菜单浮层（工单162）请求态：「⋯」左键发起，宿主浮层窗随请求开合；
  * 条带内任意点击即请求收层（浮层窗 blur 收「栏外」点击，条带窗 focusable:false 收不到 blur） */
 let trayPopupRequested = false
 /** 应用组溢出浮层开合（工单58）：⋯ 钮拨动、点浮层条目收、数量回落自动收 */
 let overflowOpen = false
-/** 应用图标右键菜单（工单53→193 迁移）：竖排浮层窗承载（鼠标位置弹出，ADR-0013——
- * 横排进 pill 的形态退役）。条带只持「已请求开层」标记供条带内点击转达收层（浮层窗
- * blur 收「栏外」点击，条带窗 focusable:false 点了不夺焦——托盘溢出浮层同款纪律） */
-let appMenuRequested = false
-/** 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉到任务栏、从推荐栏移除、打开文件位置——按 exe 身份寻址 */
-let recMenu: { exe: string; name: string } | null = null
-/** 多窗口选窗列表（工单53）：app-click 回 window-list 时在 pill 内横排列出，标题仅即时呈现 */
-let windowList: { exe: string; windows: TaskbarWindowRef[] } | null = null
+/**
+ * 弹窗菜单浮层请求态（工单193/196，ADR-0013 全家迁通路）：条带只持「已请求开层」
+ * 标记供条带内点击/右键转达收层（浮层窗 blur 收「栏外」点击，条带窗 focusable:false
+ * 点了不夺焦——托盘溢出浮层同款纪律）。五面各自一扇常驻浮层窗（每面独立标题/事件
+ * 家族），开层请求只携带寻址身份（行集由浮层页自足推导），条带内不再渲染任何菜单
+ * 行——pill 内横排形态整体退役。
+ */
+let appMenuRequested = false // 应用组图标右键（工单193 首迁）
+let recMenuRequested = false // 推荐组条目右键三行菜单
+let blankMenuRequested = false // 开始组/推荐组空白右键（系统按钮显隐+恢复段）
+let tierMenuRequested = false // 右组空白/「⋯」右键托盘档位
+let winsListRequested = false // 多窗应用左键选窗列表
 /** 拖拽源（工单57）：dragstart 记录，落位判定全在渲染层，落位裁决在内核 */
 let dragSource: { group: TaskbarDragGroup; id: string } | null = null
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
@@ -189,32 +183,34 @@ function renderSummary(metrics: TaskbarState['metrics'], gauges: HardwareGauges 
   return cell
 }
 
-function closeMenu(): void {
-  if (menuTimer !== null) {
-    clearTimeout(menuTimer)
-    menuTimer = null
-  }
-  menuOpen = false
+/**
+ * 弹窗菜单面转达收层（工单196）：条带窗 focusable:false 点了不夺焦，浮层收不到
+ * blur——栏面点击/右键由本页显式转达宿主（托盘溢出浮层工单162 同款纪律）。各域只认
+ * 自家 notify 名；请求不在册（浮层本未开）不发 notify（宿主 hide 对不可见窗本就
+ * no-op，省空转）。reason=strip-click 落各域 closed 存证。
+ */
+function relayClose(face: 'app' | 'rec' | 'blank' | 'tier' | 'wins'): void {
+  const map = {
+    app: { get: () => appMenuRequested, set: (v: boolean) => { appMenuRequested = v }, close: 'taskbar-app-menu-close' },
+    rec: { get: () => recMenuRequested, set: (v: boolean) => { recMenuRequested = v }, close: 'taskbar-rec-menu-close' },
+    blank: { get: () => blankMenuRequested, set: (v: boolean) => { blankMenuRequested = v }, close: 'taskbar-blank-menu-close' },
+    tier: { get: () => tierMenuRequested, set: (v: boolean) => { tierMenuRequested = v }, close: 'taskbar-tier-menu-close' },
+    wins: { get: () => winsListRequested, set: (v: boolean) => { winsListRequested = v }, close: 'taskbar-wins-menu-close' },
+  } as const
+  const f = map[face]
+  if (!f.get()) return
+  f.set(false)
+  window.deck.host.notify(f.close, { reason: 'strip-click' })
 }
 
-/** 档位菜单开合（工单162）：54 菜单同款纪律——无焦点窗收不到 Esc、窗外点击穿透不可达，
- * 开层起 8s 兜底自动收；点档/状态回推是常规收层路径。 */
-function openTierMenu(): void {
-  tierMenuOpen = true
-  if (tierMenuTimer !== null) clearTimeout(tierMenuTimer)
-  tierMenuTimer = setTimeout(() => {
-    tierMenuOpen = false
-    tierMenuTimer = null
-    if (current) render(current)
-  }, 8000)
-}
-
-function closeTierMenu(): void {
-  if (tierMenuTimer !== null) {
-    clearTimeout(tierMenuTimer)
-    tierMenuTimer = null
-  }
-  tierMenuOpen = false
+/** 条带内左键点击的转达收层全集（「⋯」豁免由调用面裁决——左键点它开的是托盘溢出
+ * 浮层而非档位菜单，横排时代点「⋯」不收档位菜单的行为随豁免保留） */
+function relayCloseAllPopups(keepTrayOverflow: boolean): void {
+  relayClose('app')
+  relayClose('rec')
+  relayClose('blank')
+  if (!keepTrayOverflow) relayClose('tier')
+  relayClose('wins')
 }
 
 /** 应用组图标装载（工单52）：缓存命中即贴；未命中经 desktop/icon 契约提取（内核侧按
@@ -336,9 +332,9 @@ function positionAppsPill(band: AppsBand): void {
 }
 
 /** 应用组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
- * 分发与呈现——launch/activate/minimize 无需回显，window-list 才在 pill 内横排
- * 列出窗口标题供精确选窗（条带窗 64px 高（工单158），竖排浮层出不了窗口矩形，54 菜单同款先例）。
- * 标题仅即时进出 DOM，不落任何存储（ADR-0002）。 */
+ * 分发与呈现——launch/activate/minimize 无需回显，window-list 即请求选窗浮层开层
+ * （工单196 迁浮层窗：行集由浮层页按 exe 即席经 taskbar/app-windows 拉取，条带内
+ * 不再横排列窗口；标题仅即时呈现不落存储，ADR-0002）。 */
 async function onAppClick(e: TaskbarAppViewEntry, inOverflow: boolean): Promise<void> {
   window.deck.host.notify('taskbar-app-action', { exe: e.exe })
   const r = await dispatchAppClick(window.deck.bridge, e.exe)
@@ -348,9 +344,13 @@ async function onAppClick(e: TaskbarAppViewEntry, inOverflow: boolean): Promise<
     ok: r.ok,
     ...(r.error ? { error: r.error } : {}),
   })
-  windowList = r.ok && r.action === 'window-list' && r.windows?.length
-    ? { exe: e.exe, windows: r.windows }
-    : null
+  if (r.ok && r.action === 'window-list' && r.windows?.length) {
+    winsListRequested = true
+    window.deck.host.notify('taskbar-wins-menu-open', { exe: e.exe })
+  } else if (winsListRequested) {
+    // 非列表回执（多窗化退为单窗等）：转达收层——原生同语义，点图标未出列表即收旧列表
+    relayClose('wins')
+  }
   if (inOverflow) overflowOpen = false
   if (current) render(current)
 }
@@ -448,9 +448,7 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
   })
   el.addEventListener('contextmenu', (ev) => {
     ev.preventDefault()
-    ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
-    windowList = null
-    recMenu = null // 两菜单互斥（工单160 推荐条目菜单同挂 pill 横排位）
+    ev.stopPropagation() // 不让冒泡到 pill 的空白右键菜单（工单54）
     // 右键菜单迁浮层窗（工单193）：开层请求只携带 exe 身份（行集由浮层页自足推导，
     // 与条带视图永不各判一次）；鼠标位置即锚点（宿主开层拍取光标）
     appMenuRequested = true
@@ -492,11 +490,12 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   })
   el.addEventListener('contextmenu', (ev) => {
     ev.preventDefault()
-    ev.stopPropagation() // 不让冒泡到 pill 的系统按钮菜单（工单54）
-    // 应用组菜单已迁浮层窗（工单193）：互斥收层走条带级 contextmenu 捕获相转达
-    windowList = null
-    recMenu = { exe: rec.exe, name: rec.name }
-    if (current) render(current)
+    ev.stopPropagation() // 不让冒泡到 pill 的空白右键菜单（工单54）
+    // 推荐条目三行菜单迁浮层窗（工单196，ADR-0013）：开层请求携带 exe/name 身份
+    // （行集由浮层页自足推导；name 随动作事件原样回传——事件载荷保持既有口径）；
+    // 鼠标位置即锚点
+    recMenuRequested = true
+    window.deck.host.notify('taskbar-rec-menu-open', { exe: rec.exe, name: rec.name })
   })
   return el
 }
@@ -544,19 +543,8 @@ function render(state: TaskbarState): void {
   pillRecs.hidden = !vm.recsVisible // 两组显隐解耦（工单192）：推荐组按推荐位有无独立裁决
   pillStart.textContent = ''
   pillRecs.textContent = ''
-  // 宿主 pill 不在场即收层（工单192 显隐解耦后各自可缺席——菜单不渲染进隐藏 pill）；
-  // 挂点条目/列表同此理（recMenu 宿主推荐组；应用组菜单已迁浮层窗——工单193，宿主 pill
-  // 缺席由浮层页按 changed 重推导自收（行集空=empty），条带侧无开合态可收）
-  if (menuOpen && (menuHost === 'start' ? !vm.visible : !vm.recsVisible)) closeMenu()
-  if (recMenu && !vm.recsVisible) recMenu = null
-  if (windowList && !vm.visible) {
-    windowList = null
-  }
-  // 证据标记（验收电池可观测：菜单开着没有——右键菜单开合抖动的取证面；工单192 起双 pill
-  // 同标——菜单可开在任一组宿主，标记是条带级事实；收层裁决后落标，不留陈旧开标）
-  const menuMarker = menuOpen ? '1' : ''
-  pillStart.dataset.menuOpen = menuMarker
-  pillRecs.dataset.menuOpen = menuMarker
+  // 菜单开合态不驻条带（工单196 五面全迁浮层窗）：条带内无菜单 DOM，宿主 pill 缺席/
+  // 条目退场等空态由浮层页按 changed 重推导自收（行集空=empty）
   // 开始组 pill（工单54；工单192 边界收窄：两按钮全隐藏 → 整组不渲染，推荐位已拆出不随其显隐）
   for (const b of vm.buttons) {
     const el = document.createElement('div')
@@ -574,107 +562,10 @@ function render(state: TaskbarState): void {
   for (const rec of vm.recommendations) {
     pillRecs.appendChild(makeRecEl(rec))
   }
-  // 系统按钮显隐菜单 + 恢复段（工单54/161；工单192 横排进开层挂点所在的宿主 pill——
-  // 两组空白右键都可开层）：点行显式收层、点空白/8s 兜底同款收层；changed 回推不收层。
-  // 行文本/交互与拆出前一致；宿主缺席的解耦态已在上文收层。
-  if (menuOpen) {
-    const host = menuHost === 'recs' ? pillRecs : pillStart
-    const sep = document.createElement('div')
-    sep.className = 'tb-menu-sep'
-    host.appendChild(sep)
-    for (const row of vm.menu) {
-      const el = document.createElement('div')
-      el.className = 'tb-menu-item'
-      el.dataset.id = row.id
-      el.textContent = row.label
-      el.addEventListener('click', (e) => {
-        e.stopPropagation()
-        window.deck.host.notify('taskbar-menu-action', { id: row.id, hidden: !row.hidden })
-        // 点行显式收层（工单161 起 changed 不再代收——churn 回推会抢开着的菜单）；
-        // 回执只为存证对齐
-        closeMenu()
-        void dispatchTaskbarVisibility(window.deck.bridge, row.id, !row.hidden)
-          .then((s) => window.deck.host.notify('taskbar-menu-result', { id: row.id, hiddenButtons: s?.hiddenButtons ?? null }))
-        if (current) render(current)
-      })
-      host.appendChild(el)
-    }
-    // 恢复段（工单161）：推荐组空白右键菜单的「已移除应用」恢复入口——名单非空才出段
-    // （pill 内横排形态，54 菜单同款纪律）。行文本 = 「恢复 <显示名>」，data-exe 挂交互
-    // 寻址；工单192 起推荐组独立在场，两组皆不在场的空壳态恢复入口不可达，走 config/
-    // 存储手改口（54 菜单同款边界）。
-    if (vm.excluded.length > 0) {
-      const rsep = document.createElement('div')
-      rsep.className = 'tb-menu-sep'
-      host.appendChild(rsep)
-      for (const ex of vm.excluded) {
-        const el = document.createElement('div')
-        el.className = 'tb-menu-item'
-        el.dataset.action = 'restore'
-        el.dataset.exe = ex.exe
-        el.textContent = `恢复 ${ex.label}`
-        el.addEventListener('click', (e) => {
-          e.stopPropagation()
-          closeMenu()
-          window.deck.host.notify('taskbar-rec-restore', { exe: ex.exe, label: ex.label })
-          void dispatchRecRestore(window.deck.bridge, ex.exe)
-            .then((s) => window.deck.host.notify('taskbar-rec-restore-result', { exe: ex.exe, excluded: s?.excluded?.length ?? null }))
-          if (current) render(current)
-        })
-        host.appendChild(el)
-      }
-    }
-  }
-  // 应用组图标右键菜单已迁浮层窗（工单193，ADR-0013）：pill 内横排形态退役——菜单
-  // 不再出现在开始组 pill 区域，64px 条带高从此不约束菜单形态（开层/收层走
-  // taskbar-app-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts）。
-  // 推荐组条目右键菜单（工单160，工单161 扩三行）：手钉/移除/打开位置（54/53 菜单同形态
-  // 横排，工单192 起进推荐组宿主 pill，工单196 随通路迁浮层窗）。行点击先收层再分发
-  // （appMenu 迁移前同款），手钉变更经回推的 taskbar/changed 重渲。
-  if (recMenu) {
-    const sep = document.createElement('div')
-    sep.className = 'tb-menu-sep'
-    pillRecs.appendChild(sep)
-    for (const row of taskbarRecMenuRows()) {
-      const el = document.createElement('div')
-      el.className = 'tb-menu-item'
-      el.dataset.action = row.action
-      el.dataset.name = recMenu.name
-      el.textContent = row.label
-      el.addEventListener('click', (ev) => {
-        ev.stopPropagation()
-        const target = recMenu
-        recMenu = null
-        if (!target) return
-        window.deck.host.notify('taskbar-rec-menu-action', { name: target.name, exe: target.exe, action: row.action })
-        void dispatchRecMenuAction(window.deck.bridge, target.exe, row.action)
-          .then((r) => {
-            if (r) window.deck.host.notify('taskbar-rec-menu-result', { name: target.name, exe: target.exe, action: row.action })
-          })
-        if (current) render(current)
-      })
-      pillRecs.appendChild(el)
-    }
-  }
-  if (windowList) {
-    const sep = document.createElement('div')
-    sep.className = 'tb-menu-sep'
-    pillStart.appendChild(sep)
-    for (const w of windowList.windows) {
-      const el = document.createElement('div')
-      el.className = 'tb-win-item'
-      el.dataset.hwnd = String(w.hwnd)
-      el.textContent = w.title || '（无标题窗口）'
-      el.addEventListener('click', (ev) => {
-        ev.stopPropagation()
-        window.deck.host.notify('taskbar-window-pick', { exe: windowList?.exe ?? '', hwnd: w.hwnd })
-        void dispatchActivateWindow(window.deck.bridge, w.hwnd)
-        windowList = null
-        if (current) render(current)
-      })
-      pillStart.appendChild(el)
-    }
-  }
+  // 菜单行不再渲染进任何 pill（工单196，ADR-0013 全家迁通路）：应用组图标菜单（工单193
+  // 首迁）、推荐条目三行、空白右键（系统显隐+恢复段）、托盘档位、多窗选窗五行全在
+  // 浮层窗 DECK-TASKBAR-*-MENU 竖排呈现——条带 64px 高从此不约束菜单形态；开层/收层
+  // 走 taskbar-*-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts（域适配器）。
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
   if (state.enabled) {
@@ -697,38 +588,15 @@ function render(state: TaskbarState): void {
         trayPopupRequested = true
         window.deck.host.notify('taskbar-tray-overflow-open', { count: trayOverflow.length })
       })
-      // 右键：档位菜单挂点一（挂点二 = 右组空白处右键，接线在 boot）
+      // 右键：档位菜单挂点一（挂点二 = 右组空白处右键，接线在 boot）——迁浮层窗
+      //（工单196）：开层请求恒发（右键恒重开，横排时代右键拨动收层随通路语义退役）
       more.addEventListener('contextmenu', (ev) => {
         ev.preventDefault()
         ev.stopPropagation()
-        openTierMenu()
-        if (current) render(current)
+        tierMenuRequested = true
+        window.deck.host.notify('taskbar-tier-menu-open', {})
       })
       rightPill.appendChild(more)
-    }
-    // 档位菜单（工单162）：pill 内横排自绘（54 菜单同款先例——条带窗 64px 高，竖排出不了
-    // 窗口矩形；竖排形态属溢出菜单浮层，不属档位菜单）。行 data-id 供几何存证取点击坐标。
-    if (tierMenuOpen) {
-      const sep = document.createElement('div')
-      sep.className = 'tb-menu-sep'
-      rightPill.appendChild(sep)
-      for (const row of trayOverflowTierRows(vm.trayOverflowLimit)) {
-        const el = document.createElement('div')
-        el.className = 'tb-menu-item'
-        el.dataset.id = `tier-${row.limit}`
-        el.textContent = `${row.current ? '✓ ' : ''}托盘 ${row.label}`
-        el.addEventListener('click', (ev) => {
-          ev.stopPropagation()
-          closeTierMenu() // 选档即收（显式——不靠 changed 回推：名单churn每几秒推一帧，
-          // 红轮实证把刚开的档位菜单收掉，选档点击落空）
-          window.deck.host.notify('taskbar-tray-overflow-limit', { limit: row.limit })
-          // 回推的 taskbar/changed 驱动重拆名单；回执只为存证对齐
-          void dispatchTrayOverflowLimit(window.deck.bridge, row.limit)
-            .then((s) => window.deck.host.notify('taskbar-tray-overflow-limit-result', { limit: row.limit, ok: s !== null }))
-          if (current) render(current)
-        })
-        rightPill.appendChild(el)
-      }
     }
     const volume = document.createElement('div')
     volume.className = 'tb-cell'
@@ -792,76 +660,56 @@ document.addEventListener('click', (ev) => {
     trayPopupRequested = false
     window.deck.host.notify('taskbar-tray-overflow-close', { reason: 'strip-click' })
   }
-  // 应用组弹窗菜单（工单193）：条带内任意左键点击即请求收层（点应用图标也是——原生
-  // 同语义：激活应用即收菜单；转达纪律与托盘溢出浮层同款。冒泡相即可——条带内唯一
-  // stopPropagation 的点击挂点是摘要编辑段，而进编辑态的右键已被下方 contextmenu
-  // 捕获相转达收层，两态不并存）
-  if (appMenuRequested) {
-    appMenuRequested = false
-    window.deck.host.notify('taskbar-app-menu-close', { reason: 'strip-click' })
-  }
+  // 弹窗菜单五面（工单193/196）：条带内任意左键点击即转达收层（点应用图标也是——原生
+  // 同语义：激活应用即收菜单；选窗列表同此理，同应用再点由回执 window-list 重开=重锚
+  // 定。转达纪律与托盘溢出浮层同款。冒泡相即可——条带内唯一 stopPropagation 的点击
+  // 挂点是摘要编辑段，而进编辑态的右键已被下方 contextmenu 捕获相转达收层，两态不并存）
+  relayCloseAllPopups(ev.target instanceof HTMLElement && !!ev.target.closest('.tb-tray-overflow'))
 })
 
-// 应用组弹窗菜单（工单193）：条带内右键开别的菜单（系统按钮/档位/推荐条目）时转达
-// 收层——菜单互斥原生语义。捕获相先行（各挂点 preventDefault/stopPropagation 之前）；
-// 右键应用图标自身除外——那是开层/换目标请求（taskbar-app-menu-open）。
+// 弹窗菜单互斥（工单193/196）：条带内右键 = 开某面（挂点上——原生菜单语义：右键开
+// 新菜单收旧菜单）或开原生菜单（托盘图标回放等非挂点）——无论如何都把「非本拍挂点」
+// 的面转达收层。捕获相先行（各挂点 preventDefault/stopPropagation 之前）；各挂点豁免
+// 判据与其开层接线一一对应（应用图标/推荐条目/两组 pill 空白/「⋯」与右组缝隙）。
 document.addEventListener('contextmenu', (ev) => {
-  if (!appMenuRequested) return
-  if (ev.target instanceof HTMLElement && ev.target.closest('.tb-app')) return
-  appMenuRequested = false
-  window.deck.host.notify('taskbar-app-menu-close', { reason: 'strip-click' })
+  const el = ev.target instanceof HTMLElement ? ev.target : null
+  const inSel = (sel: string): boolean => !!(el && el.closest(sel))
+  const keepApp = inSel('.tb-app')
+  const keepRec = inSel('.tb-rec')
+  const keepBlank = inSel('#pill-start') || inSel('#pill-recs')
+  const keepTier = inSel('.tb-tray-overflow') || (inSel('#right-pill') && !inSel('.tb-cell') && !inSel('.tb-tray-icon'))
+  if (appMenuRequested && !keepApp) relayClose('app')
+  if (recMenuRequested && !keepRec) relayClose('rec')
+  if (blankMenuRequested && !keepBlank) relayClose('blank')
+  if (tierMenuRequested && !keepTier) relayClose('tier')
+  if (winsListRequested) relayClose('wins') // 选窗列表无右键挂点：右键一律收
 }, true)
 
 function boot(): void {
   makeGroupDropTarget(pillApps, 'apps') // 拖到应用组空白 = 落手钉段末尾
   makeGroupDropTarget(pillRecs, 'recs') // 拖到推荐组空白 = 落推荐位末尾（工单192 宿主随拆出随迁）
-  // 右键（开始组/推荐组空白）= 系统按钮显隐菜单 + 恢复段（工单54 自绘最小菜单；应用图标
-  // 右键菜单是 #53、推荐条目右键菜单是 #160 的领域，各自 stopPropagation 不落到这里）。
-  // 工单192：推荐组拆出后两组空白都可开层，菜单横排进开层挂点所在的宿主 pill（menuHost）。
-  const wireBlankMenu = (pill: HTMLElement, host: 'start' | 'recs') => {
+  // 右键（开始组/推荐组空白）= 空白菜单（系统按钮显隐+恢复段，工单54/161）迁浮层窗
+  // （工单196）：开层请求恒发（右键恒重开——同 URL show 重锚定；横排时代右键拨动收层
+  // 与 8s 兜底定时器随通路语义退役：blur/点空白/条目退场/条带转达收层全 Family 由通用
+  // 浮层承载）。应用图标右键菜单是 #53（工单193 迁浮层）、推荐条目右键菜单是 #160
+  // （工单196 迁浮层），各自 stopPropagation 不落到这里。
+  const wireBlankMenu = (pill: HTMLElement) => {
     pill.addEventListener('contextmenu', (e) => {
       e.preventDefault()
-      if (menuOpen) closeMenu()
-      else {
-        menuOpen = true
-        menuHost = host
-        // 无焦点窗收不到 Esc、窗外点击穿透不可达——兜底自动收层
-        menuTimer = setTimeout(() => {
-          closeMenu()
-          if (current) render(current)
-        }, 8000)
-      }
-      if (current) render(current)
+      blankMenuRequested = true
+      window.deck.host.notify('taskbar-blank-menu-open', {})
     })
   }
-  wireBlankMenu(pillStart, 'start')
-  wireBlankMenu(pillRecs, 'recs')
-  // 右组空白处右键 = 托盘溢出档位菜单挂点二（工单162）：格/托盘图标/「⋯」/菜单行都有
-  // 自己的右键语义（托盘图标回放、摘要编辑态切换等），只认 pill 自身与缝隙
+  wireBlankMenu(pillStart)
+  wireBlankMenu(pillRecs)
+  // 右组空白处右键 = 托盘档位菜单挂点二（工单162，工单196 迁浮层）：格/托盘图标/「⋯」
+  // 都有自己的右键语义（托盘图标回放、摘要编辑态切换等），只认 pill 自身与缝隙
   rightPill.addEventListener('contextmenu', (e) => {
-    if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow, .tb-menu-item')) return
+    if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow')) return
     e.preventDefault()
-    openTierMenu()
-    if (current) render(current)
+    tierMenuRequested = true
+    window.deck.host.notify('taskbar-tier-menu-open', {})
   })
-  // 点右组空白（非格/菜单行）收档位菜单
-  rightPill.addEventListener('click', (e) => {
-    if (!tierMenuOpen) return
-    if ((e.target as HTMLElement).closest('.tb-cell, .tb-tray-icon, .tb-tray-overflow, .tb-menu-item')) return
-    closeTierMenu()
-    if (current) render(current)
-  })
-  // 点 pill 空白（非组内条目/菜单项）收菜单（工单192：两组宿主同款接线——点别组空白也收）
-  const wireBlankClose = (pill: HTMLElement, itemSelector: string) => {
-    pill.addEventListener('click', (e) => {
-      if (!menuOpen) return
-      if ((e.target as HTMLElement).closest(itemSelector)) return
-      closeMenu()
-      if (current) render(current)
-    })
-  }
-  wireBlankClose(pillStart, '.tb-btn, .tb-menu-item')
-  wireBlankClose(pillRecs, '.tb-rec, .tb-menu-item')
   void (async () => {
     // 启动期失败不留痕的病（真机实证：条带静默不执行时电池只报「存证缺失」）——
     // 失败即落存证，验收与排障都能看见「是没跑还是跑崩了」

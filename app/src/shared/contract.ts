@@ -525,6 +525,13 @@ export interface BridgeMethods {
   /** 多窗口列表选窗（工单53）：hwnd 必须在最近一次窗口枚举快照内且归属应用组某 exe
    * （不置前任意义外的窗口）；已销毁/名单外 hwnd 回报 ok:false 不抛。 */
   'taskbar/activate-window': { request: { hwnd: number }; response: { ok: boolean; error?: string } }
+  /**
+   * 应用组窗口清单查询（工单196 选窗浮层行源）：只读——按 exe 归一匹配回当拍带标题
+   * 窗口清单（与 app-click window-list 同一 windowsOf 枚举，选窗浮层页自足取行用，
+   * 行集永不与条带视图各判一次）。exe 护栏 = 必须在当前应用组条目内（归一匹配），
+   * 否则 ok:false 空清单（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   */
+  'taskbar/app-windows': { request: { exe: string }; response: { ok: boolean; windows: TaskbarWindowRef[] } }
   /** 中键开新实例（工单53）：恒启动 exe（app-click 同款应用组护栏） */
   'taskbar/app-new-instance': { request: { exe: string }; response: { ok: boolean; error?: string } }
   /**

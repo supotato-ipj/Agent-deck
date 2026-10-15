@@ -602,6 +602,14 @@ export class TaskbarService extends Service {
     }
   }
 
+  /** 应用组窗口清单查询（工单196 选窗浮层行源）：只读，app-click 的 windowsOf 同一
+   * 当拍枚举（不执行任何窗口效果）。exe 护栏同 app-click（应用组外身份 ok:false 空清单）。 */
+  appWindows(exe: string): { ok: boolean; windows: TaskbarWindowRef[] } {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, windows: [] }
+    return { ok: true, windows: this.windowsOf(entry.exe).map((w) => ({ hwnd: w.hwnd, title: w.title })) }
+  }
+
   /** 多窗口列表选窗（工单53）：hwnd 必须在当拍窗口快照内且归属应用组某 exe——
    * 不置前任意义外的窗口（名单外/已销毁 hwnd 回报 ok:false 不抛）。 */
   activateWindowByHwnd(hwnd: number): { ok: boolean; error?: string } {

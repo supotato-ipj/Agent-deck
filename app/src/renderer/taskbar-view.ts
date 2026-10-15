@@ -278,6 +278,16 @@ export function trayOverflowTierRows(current: TaskbarTrayOverflowLimit): Array<{
   return TRAY_OVERFLOW_TIERS.map((t) => ({ ...t, current: t.limit === current }))
 }
 
+/** 档位弹窗菜单行（工单196）：id = tier-<limit>（动作寻址身份，横排退役前几何存证
+ * data-id 同款）、label = 「[✓ ]托盘 <档位名>」（横排退役前行文本同源——条目集现状不变）。
+ * 四档恒在列（选档菜单无空态），档位不取 null。 */
+export function taskbarTierMenuPopupRows(current: TaskbarTrayOverflowLimit): Array<{ id: string; label: string }> {
+  return trayOverflowTierRows(current).map((row) => ({
+    id: `tier-${row.limit}`,
+    label: `${row.current ? '✓ ' : ''}托盘 ${row.label}`,
+  }))
+}
+
 /**
  * 托盘溢出拆分（工单162）：裁决本体是 shared/overflow 的 planTrayOverflow（与应用组
  * planAppsOverflow 同形态、同处 shared），本层只是把它接到托盘条目上。
@@ -345,6 +355,26 @@ export function taskbarAppMenuPopupRows(
 ): TaskbarAppMenuRow[] | null {
   const entry = apps.find((a) => a.exe === exe)
   return entry ? taskbarAppMenuRows(entry) : null
+}
+
+/** 空白右键弹窗菜单行（工单196）：系统按钮显隐（工单54，vm.menu 原样——id=按钮 id、
+ * 被藏按钮给「显示」恢复行）+ 恢复段（工单161，id=restore:<exe> 供动作寻址、label=
+ * 「恢复 <显示名>」与横排退役前行文本同源）。开始组/推荐组空白右键同一份行集（横排
+ * 时代两组宿主渲染同一内容，工单196 起共用 menu=blank 适配器，恒重开语义）。 */
+export function taskbarBlankMenuPopupRows(vm: TaskbarViewModel): Array<{ id: string; label: string }> | null {
+  if (!vm.menu.length) return null
+  return [
+    ...vm.menu.map((row) => ({ id: row.id as string, label: row.label })),
+    ...vm.excluded.map((ex) => ({ id: `restore:${ex.exe}`, label: `恢复 ${ex.label}` })),
+  ]
+}
+
+/** 选窗列表弹窗行（工单196）：hwnd 即行身份（点行经 taskbar/activate-window 精确到达），
+ * label = 窗口标题（无标题窗回退「（无标题窗口）」——横排退役前 pill 内列表同文案）。
+ * 空清单（选窗间隙窗口全关）= null，浮层页据此自收。 */
+export function taskbarWinsMenuPopupRows(windows: ReadonlyArray<TaskbarWindowRef>): Array<{ id: string; label: string }> | null {
+  if (!windows.length) return null
+  return windows.map((w) => ({ id: String(w.hwnd), label: w.title || '（无标题窗口）' }))
 }
 
 /** 左键点击回执（工单53）：action=window-list 时 windows 携带带标题清单（标题仅即时显示） */
@@ -447,6 +477,20 @@ export function taskbarRecMenuRows(): TaskbarRecMenuRow[] {
     { action: 'remove', label: '从推荐栏移除' },
     { action: 'reveal', label: '打开文件位置' },
   ]
+}
+
+/**
+ * 推荐组条目弹窗菜单行推导（工单196）：按 exe 身份在推荐位名单中寻址，行集 =
+ * taskbarRecMenuRows 同源（条目集现状不变，三行 label 单测钉住）。浮层页自足取行
+ * 用——开层请求只携带身份不携带行集（应用组弹窗菜单 taskbarAppMenuPopupRows 同纪律，
+ * 浮层行与条带视图永不各判一次）。exe 不在场（开层间隙条目被递补换出）= null，
+ * 浮层页据此自收。
+ */
+export function taskbarRecMenuPopupRows(
+  recs: ReadonlyArray<Pick<TaskbarRecommendation, 'exe'>>,
+  exe: string,
+): TaskbarRecMenuRow[] | null {
+  return recs.some((r) => r.exe === exe) ? taskbarRecMenuRows() : null
 }
 
 /**

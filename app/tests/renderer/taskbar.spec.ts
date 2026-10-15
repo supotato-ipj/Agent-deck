@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -750,5 +750,65 @@ describe('应用组弹窗菜单行推导（工单193，taskbarAppMenuPopupRows�
   it('exe 不在场（开层间隙应用退场）= null：浮层页据此自收', () => {
     expect(taskbarAppMenuPopupRows([entry({ running: true })], 'C:\\Apps\\Gone.exe')).toBeNull()
     expect(taskbarAppMenuPopupRows([], 'C:\\Apps\\X.exe')).toBeNull()
+  })
+})
+
+// —— 工单196 五菜单面迁移（弹窗通路行推导：与条带视图同一份纯函数，浮层行永不各判一次）——
+
+describe('弹窗菜单行推导（工单196，四枚面行推导）', () => {
+  it('推荐条目三行菜单：exe 在场出三行（条目集不变）、不在场 null（浮层页据此自收）', () => {
+    expect(taskbarRecMenuPopupRows(RECS, 'C:\\Apps\\Alpha.exe')).toEqual([
+      { action: 'pin', label: '手钉到任务栏' },
+      { action: 'remove', label: '从推荐栏移除' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+    expect(taskbarRecMenuPopupRows(RECS, 'C:\\Apps\\Gone.exe')).toBeNull()
+    expect(taskbarRecMenuPopupRows([], 'C:\\Apps\\Alpha.exe')).toBeNull()
+  })
+
+  it('档位菜单四行（条目集不变）：id=tier-<limit> 供动作寻址、当前档 ✓ 前缀（与横排退役前行文本同源）', () => {
+    expect(taskbarTierMenuPopupRows(5)).toEqual([
+      { id: 'tier-3', label: '托盘 3 枚' },
+      { id: 'tier-5', label: '✓ 托盘 5 枚' },
+      { id: 'tier-8', label: '托盘 8 枚' },
+      { id: 'tier-all', label: '托盘 全部' },
+    ])
+    expect(taskbarTierMenuPopupRows('all')).toEqual([
+      { id: 'tier-3', label: '托盘 3 枚' },
+      { id: 'tier-5', label: '托盘 5 枚' },
+      { id: 'tier-8', label: '托盘 8 枚' },
+      { id: 'tier-all', label: '✓ 托盘 全部' },
+    ])
+  })
+
+  it('空白右键菜单行（系统显隐 + 恢复段）：被藏按钮给「显示」行、恢复行 id=restore:<exe> 供动作寻址、label=「恢复 <显示名>」', () => {
+    const vm = taskbarViewModel(state({
+      hiddenButtons: ['start'],
+      excluded: [{ exe: 'C:\\Apps\\Gone.exe', label: '移除过的', iconKey: null }],
+    }))
+    expect(taskbarBlankMenuPopupRows(vm)).toEqual([
+      { id: 'start', label: '显示开始按钮' },
+      { id: 'tasks', label: '隐藏任务视图按钮' },
+      { id: 'restore:C:\\Apps\\Gone.exe', label: '恢复 移除过的' },
+    ])
+  })
+
+  it('空白右键菜单行：无恢复名单只出系统两行；禁用态（空壳视图）null——浮层页据此自收', () => {
+    expect(taskbarBlankMenuPopupRows(taskbarViewModel(state()))).toEqual([
+      { id: 'start', label: '隐藏开始按钮' },
+      { id: 'tasks', label: '隐藏任务视图按钮' },
+    ])
+    expect(taskbarBlankMenuPopupRows(taskbarViewModel(state({ enabled: false })))).toBeNull()
+  })
+
+  it('选窗列表行：hwnd 即行身份（点行经 activate-window 精确到达）、无标题窗回退「（无标题窗口）」、空清单 null（页自收）', () => {
+    expect(taskbarWinsMenuPopupRows([
+      { hwnd: 101, title: '甲 - 文档1' },
+      { hwnd: 102, title: null },
+    ])).toEqual([
+      { id: '101', label: '甲 - 文档1' },
+      { id: '102', label: '（无标题窗口）' },
+    ])
+    expect(taskbarWinsMenuPopupRows([])).toBeNull()
   })
 })

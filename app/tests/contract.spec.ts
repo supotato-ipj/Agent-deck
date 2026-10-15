@@ -1537,6 +1537,32 @@ describe('内核桥接契约（工单53 应用组交互）', () => {
     }
   }, 30_000)
 
+  it('taskbar/app-windows（工单196 选窗浮层行源）：应用组护栏内回带标题窗口清单（与 app-click window-list 同一当拍枚举）；未知 exe → ok:false 空', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\Apps\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\Apps\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 未钉但运行中 → 应用组合一在册（ADR-0013 统一序列）
+      const hit = await ctx.bridge.invoke('taskbar/app-windows', { exe: 'C:\Apps\A.exe' })
+      expect(hit.ok).toBe(true)
+      expect(hit.windows).toEqual([
+        { hwnd: 101, title: '甲 - 文档1' },
+        { hwnd: 102, title: '甲 - 文档2' },
+      ])
+      const miss = await ctx.bridge.invoke('taskbar/app-windows', { exe: 'C:\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(miss.windows).toEqual([])
+      expect(t.env.activated).toEqual([]) // 只读查询：不执行任何窗口效果
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
   it('taskbar/activate-window：多窗口列表选窗精确到达目标 hwnd；名单外 hwnd → ok:false（不置前）', async () => {
     const dir = tmpDir()
     const t = interactOpts(dir)

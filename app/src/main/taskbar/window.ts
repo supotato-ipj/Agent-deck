@@ -23,6 +23,10 @@ import { TrayYieldMachine, TRAY_YIELD_POLL_MS } from './tray-yield'
 import type { TrayYieldDecision, TrayYieldRestoreReason } from './tray-yield'
 import { startTrayOverflowHost } from './overflow'
 import { startAppMenuHost } from './app-menu'
+import { startRecMenuHost } from './rec-menu'
+import { startBlankMenuHost } from './blank-menu'
+import { startTierMenuHost } from './tier-menu'
+import { startWinsMenuHost } from './wins-menu'
 import type { PhysRect } from './yield'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
@@ -242,6 +246,13 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 应用组图标右键菜单浮层（工单193）：同一通用载体（popup.ts）的首个新菜单面，生灭
   // 与让位纪律同托盘溢出浮层。
   const appMenuPopup = startAppMenuHost({ ctx, log })
+  // 其余四菜单面浮层（工单196，ADR-0013 全家迁通路）：推荐条目三行（rec）、空白右键
+  // （blank：系统按钮显隐+恢复段）、托盘档位（tier）、多窗选窗列表（wins）——生灭与
+  // 让位纪律同上（每面一枚宿主各持一扇常驻浮层窗，惰性建）。
+  const recMenuPopup = startRecMenuHost({ ctx, log })
+  const blankMenuPopup = startBlankMenuHost({ ctx, log })
+  const tierMenuPopup = startTierMenuHost({ ctx, log })
+  const winsMenuPopup = startWinsMenuHost({ ctx, log })
 
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
@@ -317,6 +328,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     s.tracker?.dispose()
     trayOverflow.dispose() // 条带销毁即收浮层（禁用/退役路径都在此收敛，工单162）
     appMenuPopup.dispose() // 应用组菜单浮层同行（工单193）
+    recMenuPopup.dispose() // 推荐条目菜单浮层同行（工单196）
+    blankMenuPopup.dispose() // 空白右键菜单浮层同行（工单196）
+    tierMenuPopup.dispose() // 托盘档位菜单浮层同行（工单196）
+    winsMenuPopup.dispose() // 多窗选窗浮层同行（工单196）
     s.win.destroy()
     log?.append({ type: 'taskbar-window-destroyed', reason })
   }
@@ -388,6 +403,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
           s.yielded = true
           trayOverflow.close('yield') // 全屏让位：浮层不悬置在已隐藏的条带之上（工单162）
           appMenuPopup.close('yield') // 应用组菜单浮层同让位（工单193）
+          recMenuPopup.close('yield') // 推荐条目菜单浮层同让位（工单196）
+          blankMenuPopup.close('yield') // 空白右键菜单浮层同让位（工单196）
+          tierMenuPopup.close('yield') // 托盘档位菜单浮层同让位（工单196）
+          winsMenuPopup.close('yield') // 多窗选窗浮层同让位（工单196）
           w.hide()
           log?.append({ type: 'taskbar-yield' })
         } else if (!hit && s.yielded) {
@@ -426,10 +445,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         setTopmost(hwndOf(v), true)
       },
       onNotify: (type, payload) => {
-        // 「⋯」开层/条带点击收层请求（工单162）+ 应用组菜单开层/收层请求（工单193）——
-        // 各宿主包装层只认自家 notify 名，域外类型静默跳过
+        // 「⋯」开层/条带点击收层请求（工单162）+ 应用组菜单开层/收层请求（工单193）+
+        // 其余四菜单面开层/收层请求（工单196）——各宿主包装层只认自家 notify 名，
+        // 域外类型静默跳过（双宿主转发箭头形态：新宿主在箭头体内并列追加一行自家
+        // onStripNotify，勿写回单转发赋值形态——0301676 接缝教训）
         trayOverflow.onStripNotify(type, payload)
         appMenuPopup.onStripNotify(type, payload)
+        recMenuPopup.onStripNotify(type, payload)
+        blankMenuPopup.onStripNotify(type, payload)
+        tierMenuPopup.onStripNotify(type, payload)
+        winsMenuPopup.onStripNotify(type, payload)
       },
     })
     w.once('ready-to-show', () => {
