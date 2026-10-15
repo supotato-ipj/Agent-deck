@@ -1588,7 +1588,6 @@ async function main() {
       const state17 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
       const REC_MENU_FAMILY17 = 'taskbar-rec-menu';       // 移除臂浮层（DECK-TASKBAR-REC-MENU）
       const BLANK_MENU_FAMILY17 = 'taskbar-blank-menu';   // 恢复臂浮层（DECK-TASKBAR-BLANK-MENU）
-      const restoreRowId17 = `restore:${pF17.exe}`;       // 恢复行身份 = restore:<exe>（适配器行 id 口径）
       // 空白右键（恢复菜单挂点 = 推荐组空白，工单192 起推荐组独立 pill 承接；工单196 迁
       // 浮层窗 DECK-TASKBAR-BLANK-MENU——系统显隐+恢复段同一面）：两点轮试——顶部内衬横
       // 中点（水平余量大）、左缘内衬中点兜底。推荐组 pill 不在场时回退开始组空白。每次
@@ -1610,7 +1609,9 @@ async function main() {
           for (let i = 0; i < 10; i++) {
             await sleep(200);
             const pop = popupAnchored(BLANK_MENU_FAMILY17)(since);
-            const row = pop ? pop.rows.find((r) => r.id === restoreRowId17) : null;
+            // 行身份 restore:<exe> 归一前缀匹配（excluded.exe 与探针 exe 的字节差不破匹配）
+            const row = pop ? pop.rows.find((r) => r.id.startsWith('restore:')
+              && norm17(r.id.slice('restore:'.length)) === norm17(pF17.exe)) : null;
             if (row) return { row, tag: c.tag, since };
           }
           rep.note(`P17 空白右键试点 ${c.tag} 未出恢复行（浮层未开或恢复行缺席——excluded 空态或开层失手）`);
@@ -1671,7 +1672,7 @@ async function main() {
         }
         if (row17) {
           const labelOk17 = row17.label === `恢复 ${pF17.name.replace(/\.lnk$/i, '')}`;
-          const clicked17 = await clickPopupRowVerify(BLANK_MENU_FAMILY17, hit17.since, restoreRowId17, 'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), scale);
+          const clicked17 = await clickPopupRowVerify(BLANK_MENU_FAMILY17, hit17.since, row17.id, 'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), scale);
           rep.note(`P17② 恢复行点击存证=${!!clicked17}（restore:<exe> 行身份，事件 exe 对账）`);
           for (let i = 0; i < 30 && !restored17; i++) {
             await sleep(200);
@@ -1723,7 +1724,7 @@ async function main() {
           rowAfter17 = hit.row;
           if (rowAfter17) rep.note(`P17 重启后恢复段经试点 ${hit.tag} 开出（浮层窗行集）`);
           if (rowAfter17) {
-            const clickedAfter17 = await clickPopupRowVerify(BLANK_MENU_FAMILY17, hit.since, restoreRowId17, 'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), scale);
+            const clickedAfter17 = await clickPopupRowVerify(BLANK_MENU_FAMILY17, hit.since, rowAfter17.id, 'taskbar-rec-restore', (e) => norm17(e.exe) === norm17(pF17.exe), scale);
             rep.note(`P17③ 重启后恢复行点击存证=${!!clickedAfter17}`);
             for (let i = 0; i < 30 && !restoredAfter17; i++) {
               await sleep(200);
