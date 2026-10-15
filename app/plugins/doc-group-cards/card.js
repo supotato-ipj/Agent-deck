@@ -1669,9 +1669,11 @@ let selectTierHeld = false
  */
 function cellRectsOf(card) {
   const state = stateOf(card)
-  const grid = card.children.find((c) => c.classList.contains('dgc-grid'))
+  // HTMLCollection 没有 find（那是 Array 的方法）——真机轮实证：原样写会在页内抛
+  // TypeError，框选拖拽带与命中集一起哑掉（工单187 P184 段存证）。
+  const grid = Array.from(card.children).find((c) => c.classList.contains('dgc-grid'))
   if (!grid) return []
-  return grid.children.map((cell, index) => ({
+  return Array.from(grid.children).map((cell, index) => ({
     path: cell.dataset.path,
     ...cellRectOf(index, state.expanded),
   }))
@@ -1690,7 +1692,8 @@ function showMarquee(card, rect) {
     marqueeNode = band
     injected.push(band) // 按引用登记：卸载时摘的正是这一枚
   }
-  const grid = card.children.find((c) => c.classList.contains('dgc-grid'))
+  // 同 cellRectsOf：HTMLCollection 没有 find（工单187 真机轮实证的页内 TypeError 出处）
+  const grid = Array.from(card.children).find((c) => c.classList.contains('dgc-grid'))
   if (grid && marqueeNode.parent !== grid) grid.appendChild(marqueeNode)
   marqueeNode.style.left = `${rect.x}px`
   marqueeNode.style.top = `${rect.y}px`

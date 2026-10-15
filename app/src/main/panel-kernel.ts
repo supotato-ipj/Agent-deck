@@ -10,6 +10,7 @@ import { FocusService, type FocusServiceOptions } from './services/focus'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
+import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { DEFAULT_SEARCH_INTERVAL_MS, DEFAULT_TASKBAR_POLL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
@@ -34,6 +35,8 @@ export interface PanelKernelOptions {
   taskbar?: TaskbarServiceOptions
   /** 任务栏应用组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
   taskbarPollMs?: number
+  /** 插件私有状态（工单178）：命名空间存储目录缺省 userData/plugin-config（生产装配不传即缺省落点） */
+  pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
   quit?: () => void
 }
@@ -69,6 +72,10 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
           ?.replayTrayClick?.(key, button) ?? false),
     },
   })
+  // 插件私有状态（工单178）：BridgeService 的 inject 列了 'pluginConfig'，本装配必须注册它——
+  // 缺注册时 cordis 静默不装载 BridgeService（ctx.bridge 为 undefined），面板在
+  // wireBridgeIpc(win, kernel.bridge) 处即崩，一扇窗都开不出来（工单187 真机轮实证）。
+  ctx.plugin(PluginConfigService, options.pluginConfig)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {
