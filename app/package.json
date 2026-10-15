@@ -18,6 +18,7 @@
     "accept:taskbar-right-group": "npm run build && electron . --accept-taskbar-right-group",
     "accept:taskbar-appbar": "npm run build && electron . --accept-taskbar-appbar",
     "accept:taskbar-apps-filter": "npm run build && electron . --accept-taskbar-apps-filter",
+    "accept:doc-group-cards": "npm run build && electron . --accept-doc-group-cards",
     "dev:panel": "npm run build && electron . --panel"
   },
   "dependencies": {
