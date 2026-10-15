@@ -79,3 +79,8 @@ export declare function rowLayoutOf(
   viewport: Viewport,
   expandedId: string,
 ): CardBox[]
+
+/** 内容区（网格局部坐标系原点）在视口里的原点 */
+export declare function contentOriginOf(box: { left: number; top: number }): { x: number; y: number }
+/** 第 index 格在网格局部坐标系里的矩形（列数随形态变） */
+export declare function cellRectOf(index: number, expanded?: boolean): { x: number; y: number; width: number; height: number }

@@ -42,7 +42,11 @@ export const FADED_CLASS = 'dgc-faded'
  * 卡片级交互态：**插件自建**（内核够不着，本插件也不去够）。
  * @typedef {object} CardUiState
  * @property {boolean} expanded 折叠/展开（本票只切这个布尔量，不碰几何）
- * @property {ReadonlySet<string>} highlight 高亮的绝对路径集合（单选：后点的顶掉先点的）
+ * @property {ReadonlySet<string>} highlight 高亮的绝对路径集合（单选：后点的顶掉先点的；
+ *   多选：并集，见 selection.js —— **同一个集合，两种用法**，不是第二个状态）
+ * @property {boolean} multi 该卡的**多选开关**（工单184）。每卡一枚，故卡间天然互不影响；
+ *   关着时 `highlight` 仍按单选语义用。本字段的裁决全在 selection.js（toggleMulti），
+ *   本模块只负责把它原样带过各处，别处不得另写一份判断。
  */
 
 /**
@@ -74,9 +78,9 @@ export function isGroupMenuHit(hit) {
   return hit === 'card-blank' || hit === 'more'
 }
 
-/** 初始态：收起、无高亮。热重载重挂（换代即新模块实例）回到的就是这个态 */
+/** 初始态：收起、无高亮、非多选。热重载重挂（换代即新模块实例）回到的就是这个态 */
 export function initialCardState() {
-  return { expanded: false, highlight: new Set() }
+  return { expanded: false, multi: false, highlight: new Set() }
 }
 
 /** 该路径是否处于高亮态 */
@@ -94,9 +98,11 @@ export function isHighlighted(state, path) {
  */
 export function clickOnIcon(state, path) {
   // 单选语义：后点的高亮顶掉先点的（点空白即全清，故不存在多选残留）。
+  // **多选态不走这里**——card.js 先问 selection.js 的 isMultiOn(state)，开着就改走
+  // toggleSelection（并集/切换）。本函数是**非多选态的唯一路径**，故单选行为一字未动。
   // 后续工单要 Ctrl 多选，改的就是这一行（并集）。
   return {
-    state: { expanded: state.expanded, highlight: new Set([path]) },
+    state: { expanded: state.expanded, multi: false, highlight: new Set([path]) },
     stopPropagation: true,
     action: 'highlight',
   }
@@ -154,7 +160,7 @@ export function expandedClassOf(state) {
  */
 export function clickOnCardBlank(state) {
   return {
-    state: { expanded: !state.expanded, highlight: new Set() },
+    state: { expanded: !state.expanded, multi: state.multi === true, highlight: new Set() },
     stopPropagation: false,
     action: 'toggle-expand',
   }
@@ -180,11 +186,13 @@ export function clickToggleExclusive(states, cardId) {
   /** @type {Map<string, CardUiState>} */
   const next = new Map()
   for (const [id, state] of states) {
-    if (id === cardId) next.set(id, { expanded: !collapsing, highlight: new Set() })
-    else next.set(id, { expanded: false, highlight: state.highlight })
+    // 多选开关（工单184）**原样带过**：折叠/展开是一件事，多选是另一件，折叠别人的卡不该
+    // 顺手关掉它的多选开关；被点的那张按 #181 的单卡语义清高亮，但它的开关同样不动。
+    if (id === cardId) next.set(id, { expanded: !collapsing, multi: state.multi === true, highlight: new Set() })
+    else next.set(id, { expanded: false, multi: state.multi === true, highlight: state.highlight })
   }
   // 表里还没有这张卡（刚被重画出来，态表还没记它）：照样能展开
-  if (!next.has(cardId)) next.set(cardId, { expanded: !collapsing, highlight: new Set() })
+  if (!next.has(cardId)) next.set(cardId, { expanded: !collapsing, multi: false, highlight: new Set() })
   return { states: next, state: next.get(cardId), stopPropagation: false, action: 'toggle-expand' }
 }
 

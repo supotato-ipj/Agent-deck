@@ -97,12 +97,13 @@ export const MENU_CSS = `
 
 /**
  * 一行需要什么才可用（**选区口径**的三个档）。
- * - `any`：有无选中都可用（打开 / 复制路径 / 复制 / 剪切）。工单184 上多选后仍是 any——
- *   内核的 desktop/copy-paths、clipboard-copy、clipboard-cut 都是整批语义，多选天然支持。
- * - `single`：**恰一个**选中才可用（打开所在位置；工单183 的重命名同此档）。
- *   本票只做单选，故工单原文的口径是「无选中时全部可用」——菜单是从一个文件上右键弹出来的，
- *   无选中态根本到不了这里；多选工单184 落地时把这一档收紧成「长度 === 1」即可，别的行一行不动。
- * - `pasteable`：剪贴板里真有可贴内容才可用（工单185 的 PASTE 行接这一档；读的是
+ * - `any`：有无选中都可用（打开 / 复制路径 / 复制 / 剪切 / 删除）。工单184 上多选后仍是 any——
+ *   内核的 desktop/copy-paths、clipboard-copy、clipboard-cut、trash 都是整批语义，多选天然支持。
+ * - `single`：**恰一个**选中才可用（打开所在位置；重命名）。工单184 落地前这里是
+ *   `n === 0 || n === 1`（工单原文口径「无选中时全部可用」——那时只有单选，菜单是从一个文件上
+ *   右键弹出来的，无选中态根本到不了这里）；**工单184 已收紧成 `n === 1`**：多选下这两行必须
+ *   置灰，因为 desktop/reveal 是按 path 单个定位、desktop/rename 是按名一对一改，多选天然无解。
+ * - `pasteable`：剪贴板里真有可贴内容才可用（PASTE 行接这一档；读的是
  *   desktop/clipboard-state 的实况，查不到即置灰，不误使能）。
  */
 export const NEED_ANY = 'any'
@@ -208,9 +209,10 @@ export const GROUP_CARD_MENU_ROWS = [
 export function rowEnabledOf(spec, ctx) {
   const n = ctx.paths.length
   switch (spec.needs) {
-    // 无选中时全部可用（工单原文口径）；单选时可用；**多选时置灰**——工单184 的接缝在这一行
+    // **恰一个**选中才可用（工单184 收紧）：多选下 OPEN LOCATION 与 RENAME 置灰。
+    // 无选中时同样置灰——这两行到那时本就无事可做，置灰比误使能诚实。
     case NEED_SINGLE:
-      return n === 0 || n === 1
+      return n === 1
     // 查不到实况即置灰，绝不误使能（与内核「粘贴按剪贴板实况置灰」同纪律）
     case NEED_PASTEABLE:
       return ctx.pasteable === true

@@ -41,6 +41,8 @@ import {
   EXPANDED_H,
   EXPANDED_W,
   HEAD_H,
+  cellRectOf,
+  contentOriginOf,
   moreLabelOf,
   rowLayoutOf,
 } from './geometry.js'
@@ -107,6 +109,24 @@ import {
   nextRenameEditor,
   renameCssOf,
 } from './writeops.js'
+import {
+  MARQUEE_CLASS,
+  MULTI_CLASS,
+  MULTI_ON_CLASS,
+  MULTI_TOGGLED_NOTIFY,
+  SELECTION_LAUNCHED_NOTIFY,
+  SELECT_KEYBOARD_TIER,
+  hasSelection,
+  isMultiOn,
+  launchTargetsOf,
+  marqueeHits,
+  marqueeRectOf,
+  marqueeSelect,
+  menuSelectionFor,
+  selectionPathsOf,
+  toggleMulti,
+  toggleSelection,
+} from './selection.js'
 import {
   STORE_KEY,
   TIER_CUSTOM,
@@ -287,6 +307,39 @@ const CARD_CSS_BASE = `
   background: rgba(120, 180, 255, 0.16);
 }
 .${CARD_CLASS} .${CELL_CLASS}.${HIGHLIGHT_CLASS} .dgc-name { color: #fff; }
+/* 多选开关（工单184）：挂在卡头右侧，与「更多」徽标同一排。每张卡一枚——卡片之间互不影响
+   是结构性的（开关点的是自己那张卡的 CardUiState），样式上也就没有「全表统一亮」的写法。
+   开着时点亮，用户的眼睛能立刻分清「这张卡现在收不收点击切换」。 */
+.${CARD_CLASS} .${MULTI_CLASS} {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: #cfd3d6;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.${CARD_CLASS} .${MULTI_CLASS}:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.${CARD_CLASS} .${MULTI_CLASS}.${MULTI_ON_CLASS} {
+  background: rgba(120, 180, 255, 0.28);
+  border-color: rgba(120, 180, 255, 0.75);
+  color: #fff;
+}
+/* 框选拖拽带（工单184）：只在拖拽期间在场。position:absolute 落在网格局部坐标系里，
+   pointer-events:none 保证它不吃事件（否则它自己会截断它下面的 mousemove）。
+   半透明蓝，与高亮同一个色系，让用户看得见「我正在框的这一片」。 */
+.${CARD_CLASS} .${MARQUEE_CLASS} {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  border: 1px solid rgba(120, 180, 255, 0.9);
+  background: rgba(120, 180, 255, 0.16);
+  pointer-events: none;
+}
 `
 
 /**
@@ -1272,6 +1325,13 @@ function runMenuRow(host, id, paths, cardId = '') {
   host.notify(MENU_ACTION_NOTIFY, { row: id, paths: [...paths], cardId })
   switch (id) {
     case 'open':
+      // 多选态下 OPEN 作用于**整个选中集**（菜单对选中集生效，OPEN 自然也在其中）：
+      // 逐项 desktop/launch，与 ENTER 走的是同一条路、同一个契约（spec166 多选菜单的 OPEN ALL）。
+      // 单选态仍只启动那一个——那正是双击之外的另一个单文件入口。
+      if (paths.length > 1) {
+        for (const path of paths) void host.invoke('desktop/launch', { path })
+        return
+      }
       void host.invoke('desktop/launch', { path: one })
       return
     case 'open-location':
@@ -1420,9 +1480,14 @@ async function pasteableNow(host, mine) {
   }
 }
 
-/** 该卡当前的交互态（没有记录过就是初始态：收起、无高亮） */
+/** 该卡当前的交互态（没有记录过就是初始态：收起、无高亮、非多选） */
 function stateOf(card) {
   return cardState.get(card.id) ?? initialCardState()
+}
+
+/** 按 id 取卡片节点（卡节点整排重画会换新，故一律现取，不缓存引用） */
+function cardById(cardId) {
+  return cardNodes.get(cardId) ?? { id: cardId }
 }
 
 /** 加/去一个类名（`classList.toggle` 在旧桩上未必有，这里显式写两步） */
@@ -1444,6 +1509,8 @@ function paintStates(states) {
     const state = states.get(id) ?? initialCardState()
     setClass(card, EXPANDED_CLASS, Boolean(expandedClassOf(state)))
     setClass(card, FADED_CLASS, Boolean(fadedClassOf(expandedId, id)))
+    // 多选开关的点亮态（工单184）：状态 → 类名仍只有这一个出口，card.js 不自己判断 multi
+    for (const sw of card.querySelectorAll(`.${MULTI_CLASS}`)) setClass(sw, MULTI_ON_CLASS, isMultiOn(state))
     for (const cell of card.querySelectorAll(`.${CELL_CLASS}`)) {
       setClass(cell, HIGHLIGHT_CLASS, Boolean(highlightClassOf(state, cell.dataset.path)))
     }
@@ -1526,13 +1593,22 @@ function buildCell(host, item, card) {
   cellByPath.set(item.path, cell)
   itemByPath.set(item.path, item)
   cell.addEventListener('click', (ev) => {
-    const next = clickOnIcon(stateOf(card), item.path)
+    // **多选态走切换、单选态走替换**——同一个 `highlight` 集合的两种用法，裁决各归一处
+    // （selection.js 的 toggleSelection / interaction.js 的 clickOnIcon）。这里只问一句
+    // 「这张卡开着多选吗」，绝不自己判语义。展开态一律不动（选文件绝不改卡片形状）。
+    const before = stateOf(card)
+    const next = isMultiOn(before) ? toggleSelection(before, item.path) : clickOnIcon(before, item.path)
     if (next.stopPropagation) ev.stopPropagation() // 这次点击到此为止，不上浮到卡片
     cardState.set(card.id, next.state)
     paintStates(cardState) // 只改类名不改布局盒 → 不申报热区（#181 的纪律）
+    syncSelectTier(host) // 选区可能从 0 变非 0（或反过来）→ 键盘档跟着起落
   })
   // 双击启动：走内核既有启动契约（desktop/launch），主进程侧的扫描池护栏原样生效——
   // 插件不自己 shell.openPath，那会绕开「桌面项不在当前扫描池内」的拒绝。
+  //
+  // **多选态下这一行一个字都没改**：双击启动是肌肉记忆，不该因为进了一个模式就改掉
+  // （工单184 明列的验收标准）。它启动的永远是**被双击的那一个文件**，与选区里有什么无关，
+  // 也不改动选区——启动不是选择。
   cell.addEventListener('dblclick', () => {
     host.notify('doc-group-cards-launch', { path: item.path, name: item.name })
     void host.invoke('desktop/launch', { path: item.path })
@@ -1542,14 +1618,186 @@ function buildCell(host, item, card) {
   cell.addEventListener('contextmenu', (ev) => {
     ev.preventDefault() // 自绘世界观没有原生右键菜单
     ev.stopPropagation() // 不让文档区的右键分发看见这次右键（它只会去调停用的内核菜单）
-    // 右键即选中该文件（与内核单项菜单同语义：先切选区再弹菜单）：复用 #181 的单选裁决，
-    // 高亮与选区口径同源，不另设一份「菜单开着时选中谁」的真相。
-    const next = clickOnIcon(stateOf(card), item.path)
-    cardState.set(card.id, next.state)
+    // 右键即选中（与内核单项菜单同语义：先切选区再弹菜单）。**多选态下**判据是
+    // menuSelectionFor：点在**已选中**的格子上 → 选区原样保留、菜单作用于整个选中集；
+    // 点在**未选中**的格子上 → 单独选中它（菜单不作用于一个用户并没有选的集合）。
+    // 单选态走老路：高亮这一个文件，菜单作用于它。裁决在 selection.js，此处不判。
+    const before = stateOf(card)
+    const multi = isMultiOn(before)
+    const targets = multi ? menuSelectionFor(before, item.path) : [item.path]
+    // 高亮**恰等于**菜单的作用对象：点在已选中项上时选区原样不动（toggle 到取消是错的——
+    // 菜单弹出的一瞬间用户看见的那一片就是他要操作的那一片），点在未选中项上则单独选中它。
+    cardState.set(card.id, {
+      expanded: before.expanded,
+      multi,
+      highlight: new Set(targets),
+    })
     paintStates(cardState) // 只改类名不改布局盒 → 不申报热区（#181 的纪律）
-    openFileMenu(host, ev.clientX, ev.clientY, [item.path])
+    syncSelectTier(host)
+    openFileMenu(host, ev.clientX, ev.clientY, targets)
   })
   return cell
+}
+
+// ---------------------------------------------------------------------------
+// 卡内框选与 ENTER 批量启动（工单184 = spec166 之⑦）
+//
+// **框选天然是卡内动作，跨卡明确不做**（spec166「已知代价」）：本节从头到尾只看得见**一张卡**
+// ——`marquee.cardId` 就是发起的那张，命中集合由那张卡自己的格子表算出（`cellRectsOf`）。
+// 别的卡的格子压根不在表里，故选不到。跨卡要引入「选区分布在哪几张卡」的集合状态与跨卡高亮
+// 同步，第一版不值这个复杂度，故不建、也不留一个假接口。
+//
+// **拖拽带是一层会改命中区的自建层**，故一铺一撤都要 host.onDomChanged()（同 #182 的遮罩纪律：
+// 热区取的是矩形，带子铺着/撤掉都改了那一带，不申报就既点不到也滚不动）。
+// 它按引用登记进 injected[]：卸载时手里拿着的正是自己插进去的那枚节点，不靠 id 反查。
+// ---------------------------------------------------------------------------
+
+/** 拖拽中的框选（空 = 没在拖）；只记发起的那张卡与起笔端点，命中集在松手那一刻才算 */
+let marquee = null
+/** 拖拽带节点（松手即摘，按引用持有） */
+let marqueeNode = null
+/** ENTER 档当前是否持在本插件手里（幂等持/放的记账，防重复 hold 或漏放） */
+let selectTierHeld = false
+
+/**
+ * 那张卡此刻的格子矩形表（**网格局部**坐标）。
+ *
+ * 这就是命中集卡内的结构性保证：传进来的只有这一张卡的格子，且位置由 geometry.js 的
+ * `cellRectOf` 算出（格序 → 规则网格位置），不量 DOM、不跨卡。
+ * @param {Element} card
+ * @returns {{ path: string, x: number, y: number, width: number, height: number }[]}
+ */
+function cellRectsOf(card) {
+  const state = stateOf(card)
+  const grid = card.children.find((c) => c.classList.contains('dgc-grid'))
+  if (!grid) return []
+  return grid.children.map((cell, index) => ({
+    path: cell.dataset.path,
+    ...cellRectOf(index, state.expanded),
+  }))
+}
+
+/** 那张卡内容区在视口里的原点（卡框内联矩形 + 内边距 + 卡头；三个数全部出自 geometry.js） */
+function originOf(card) {
+  return contentOriginOf({ left: Number.parseFloat(card.style.left), top: Number.parseFloat(card.style.top) })
+}
+
+/** 铺/挪那一条拖拽带（几何写内联样式，与 contentOriginOf 的换算同源） */
+function showMarquee(card, rect) {
+  if (!marqueeNode) {
+    const band = document.createElement('div')
+    band.className = MARQUEE_CLASS
+    marqueeNode = band
+    injected.push(band) // 按引用登记：卸载时摘的正是这一枚
+  }
+  const grid = card.children.find((c) => c.classList.contains('dgc-grid'))
+  if (grid && marqueeNode.parent !== grid) grid.appendChild(marqueeNode)
+  marqueeNode.style.left = `${rect.x}px`
+  marqueeNode.style.top = `${rect.y}px`
+  marqueeNode.style.width = `${rect.width}px`
+  marqueeNode.style.height = `${rect.height}px`
+}
+
+/** 撤拖拽带：节点与登记项一起收干净（关掉不在卡上留一层薄纱） */
+function hideMarquee() {
+  dropInjected(marqueeNode)
+  marqueeNode = null
+}
+
+/**
+ * 起笔：**内容区空白** + 该卡开着多选 → 进入拖拽
+ * （落在图标格上的那一笔归单击切换，见 buildCell 的闸）。
+ */
+function startMarquee(card, ev) {
+  const origin = originOf(card)
+  marquee = { cardId: card.id, from: { x: ev.clientX - origin.x, y: ev.clientY - origin.y } }
+  showMarquee(card, { x: 0, y: 0, width: 0, height: 0 })
+  hostRef?.onDomChanged() // 带子铺上了：命中区变了，重扫
+  window.addEventListener('mousemove', onMarqueeMove)
+  window.addEventListener('mouseup', onMarqueeUp)
+}
+
+/** 拖：带子跟着鼠标长；命中集**此刻不算**（松手才算，用户还没松手就被选中是另一种交互） */
+function onMarqueeMove(ev) {
+  if (!marquee) return
+  const card = cardNodes.get(marquee.cardId)
+  if (!card) return
+  const origin = originOf(card)
+  showMarquee(card, marqueeRectOf(marquee.from, { x: ev.clientX - origin.x, y: ev.clientY - origin.y }))
+}
+
+/**
+ * 松手：命中集落定（**整批替换**本卡选区），拖拽带与两个窗口监听一起撤。
+ *
+ * 命中表是**起笔那张卡**自己的格子表——别的卡的格子不在表里，故跨卡选不成立。
+ */
+function onMarqueeUp(ev) {
+  window.removeEventListener('mousemove', onMarqueeMove)
+  window.removeEventListener('mouseup', onMarqueeUp)
+  if (!marquee) return
+  const { cardId, from } = marquee
+  marquee = null
+  const card = cardNodes.get(cardId)
+  hideMarquee()
+  hostRef?.onDomChanged() // 带子撤了：命中区又变了，重扫
+  if (!card) return
+  const origin = originOf(card)
+  const next = marqueeSelect(
+    stateOf(card),
+    marqueeRectOf(from, { x: ev.clientX - origin.x, y: ev.clientY - origin.y }),
+    cellRectsOf(card),
+  )
+  cardState.set(cardId, next.state)
+  paintStates(cardState)
+  syncSelectTier(hostRef)
+}
+
+/**
+ * ENTER 档的起落（工单184）：**随选区起，不随模式起**。
+ *
+ * 多选开着但一个都没选时没有可启动的东西，档不必持——持着会让面板一直可聚焦，那是白占键盘
+ * 通道。档名与 #182 的菜单档、#183 的确认层/重命名档各持各的，一层开着不会把另一层的放行
+ * 误领走。幂等：状态没变时既不重复 hold 也不重复 release。
+ */
+function syncSelectTier(host) {
+  if (!host) return
+  const should = hasSelection(cardState)
+  if (should === selectTierHeld) return
+  selectTierHeld = should
+  if (should) {
+    host.holdKeyboardTier(SELECT_KEYBOARD_TIER)
+    window.addEventListener('keydown', onSelectKeydown)
+  } else {
+    window.removeEventListener('keydown', onSelectKeydown)
+    host.releaseKeyboardTier(SELECT_KEYBOARD_TIER)
+  }
+}
+
+/**
+ * ENTER → **整个选中集一次启动，逐项走既有启动契约**（desktop/launch，主进程侧扫描池护栏原样生效）。
+ *
+ * 只在多选态有目标（launchTargetsOf 对单选态返回空）——双击启动是肌肉记忆，ENTER 不抢它的活。
+ * 启动不改动选区（与双击同款：启动不是选择），故这里不清选区、不放档。
+ */
+function onSelectKeydown(ev) {
+  const host = hostRef
+  if (!host || ev.key !== 'Enter') return
+  ev.preventDefault()
+  ev.stopPropagation()
+  // 全表按卡序遍历：每张开着多选且选区非空的卡各自启动自己那一批（卡间选区本就独立）
+  const paths = []
+  for (const state of cardState.values()) paths.push(...launchTargetsOf(state))
+  if (!paths.length) return
+  host.notify(SELECTION_LAUNCHED_NOTIFY, { paths: [...paths] })
+  for (const path of paths) void host.invoke('desktop/launch', { path })
+}
+
+/** 卸载路径上的收尾：拖拽带与两个窗口监听一样不漏（不放就永远挂着 mousemove） */
+function stopMarquee() {
+  marquee = null
+  window.removeEventListener('mousemove', onMarqueeMove)
+  window.removeEventListener('mouseup', onMarqueeUp)
+  hideMarquee()
 }
 
 /**
@@ -1578,7 +1826,13 @@ function layoutRow(expandedId = expandedCardIdOf(cardState)) {
   }
 }
 
-/** 卡头：标题 + 「+N」徽标（徽标仅在确有溢出时渲染；点击它与点空白是同一个裁决） */
+/**
+ * 卡头：标题 + 「+N」徽标（徽标仅在确有溢出时渲染；点击它与点空白是同一个裁决）
+ * **+ 多选开关（工单184，每张卡一枚）**。
+ *
+ * 开关挂在卡头右侧、与徽标同排：卡头是卡片自己的面，点它不该被当成「点空白折叠卡」
+ * （它自己截断冒泡，见下），也不该被当成组卡菜单的空白右键。
+ */
 function buildHead(group) {
   const head = document.createElement('h2')
   head.className = 'dgc-head'
@@ -1594,7 +1848,31 @@ function buildHead(group) {
     badge.textContent = more
     head.appendChild(badge)
   }
+  head.appendChild(buildMultiSwitch(hostRef, group.id))
   return head
+}
+
+/**
+ * 多选开关（工单184）：**每张卡一枚，点它只翻自己那张卡**。
+ *
+ * 独立不是靠约定维持的——它改的就是 `cardState` 里那张卡自己的 `multi` 字段，
+ * 全表没有任何一处读别的卡的开关。裁决在 selection.js 的 toggleMulti（关掉即清空选区）。
+ *
+ * 截断冒泡：否则同一次点击会上浮到卡片级监听器，顺带把整卡折叠（#181 钉死的那道闸）。
+ */
+function buildMultiSwitch(host, cardId) {
+  const sw = document.createElement('span')
+  sw.className = MULTI_CLASS
+  sw.textContent = '多选'
+  sw.addEventListener('click', (ev) => {
+    ev.stopPropagation()
+    const next = toggleMulti(stateOf(cardById(cardId)))
+    cardState.set(cardId, next.state)
+    paintStates(cardState)
+    syncSelectTier(host) // 开关关掉可能让本卡选区归零 → 档要跟着放
+    host?.notify(MULTI_TOGGLED_NOTIFY, { cardId, multi: next.state.multi })
+  })
+  return sw
 }
 
 /**
@@ -1618,6 +1896,16 @@ function draw(host, groups) {
   // 留着就是个悬空的输入框。与内核删除确认层/重命名编辑器的 `reason:'rebuild'` 同款口径。
   // 注意 1Hz 快照**不会**走到这里——结构指纹不含 mtime/iconKey，文件没增删时整排原样不动。
   if (renameState.open) dispatchRename(host, { type: 'cancel', reason: 'rebuild' })
+  // 拖拽中的框选随整排重画收场（格节点马上要换）：带着一条指向旧格子的带子继续拖，
+  // 命中表已经对不上了。与确认层/编辑器的 `reason:'rebuild'` 同款口径。
+  stopMarquee()
+  // 选区与多选开关都随整排重画归零（格节点换了，旧态没有可依附的实体）→ 键盘档必须跟着放，
+  // 否则会留一枚永远持着的档：窗口一直可聚焦，而已经没有任何选区了。
+  if (selectTierHeld) {
+    selectTierHeld = false
+    window.removeEventListener('keydown', onSelectKeydown)
+    host.releaseKeyboardTier(SELECT_KEYBOARD_TIER)
+  }
   for (const card of cardNodes.values()) card.remove()
   cardNodes.clear()
   // 整排重画即从头来过：交互态按卡片 id 存着，卡片节点都换了，旧态没有可以依附的实体。
@@ -1636,6 +1924,14 @@ function draw(host, groups) {
     const grid = document.createElement('div')
     grid.className = 'dgc-grid'
     for (const item of group.items) grid.appendChild(buildCell(host, item, card))
+    // 内容区**空白处**按下 → 多选态起笔框选（工单184）。落在图标格上的那一笔归单击切换，
+    // 这里返回让位（cellRectsOf 的表以格序为准，起笔在格上会框出半个格子的怪结果）。
+    grid.addEventListener('mousedown', (ev) => {
+      if (!isMultiOn(stateOf(card))) return // 非多选态：空白处仍是折叠/展开的老语义
+      if (typeof ev.target?.closest === 'function' && ev.target.closest(`.${CELL_CLASS}`)) return
+      ev.preventDefault() // 拖拽选区，别让浏览器去做文本选择
+      startMarquee(card, ev)
+    })
     card.append(buildHead(group), grid)
     // 点空白或点「更多」徽标 → 折叠/展开往复切换 + 清高亮 + 排他（同一时刻至多一张展开）。
     // 图标命中即便因为漏截断而冒泡上来，这道闸也不让它改卡片形状。
@@ -1707,6 +2003,8 @@ export default {
     confirmState = CLOSED_CONFIRM // 同上：确认层不跨代续着开
     renameState = CLOSED_RENAME // 同上：编辑器不跨代续着开
     typeState = CLOSED_TYPES // 同上：勾选浮层不跨代续着开
+    selectTierHeld = false // 工单184：换代后从头来过，档不跨代续着持
+    marquee = null
     injectStyle()
     try {
       hideDocZone()
@@ -1752,6 +2050,14 @@ export default {
     dispatchConfirm(hostRef, { type: 'unmount' })
     dispatchRename(hostRef, { type: 'unmount' })
     dispatchTypes(hostRef, { type: 'unmount' })
+    // 工单184：拖拽带、mousemove/mouseup 监听、ENTER 键盘档**每一条路径上都要收回**。
+    // 档不放窗口就一直可聚焦，面板再也点不动——与上面四层浮层同一纪律。
+    stopMarquee()
+    if (selectTierHeld) {
+      selectTierHeld = false
+      window.removeEventListener('keydown', onSelectKeydown)
+      hostRef?.releaseKeyboardTier(SELECT_KEYBOARD_TIER)
+    }
     menuState = CLOSED_MENU
     confirmState = CLOSED_CONFIRM
     renameState = CLOSED_RENAME

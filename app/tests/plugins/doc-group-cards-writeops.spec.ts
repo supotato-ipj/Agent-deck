@@ -383,9 +383,12 @@ describe('文件菜单新增的两行（工单183 往 FILE_MENU_ROWS 里加）',
     expect(ids.slice(5)).toEqual(['rename', 'delete'])
   })
 
-  it('RENAME 走 needs:"single"：desktop/rename 是按名一对一改的，多选天然无解（工单184 落地即自然置灰）', () => {
+  it('RENAME 走 needs:"single"：desktop/rename 是按名一对一改的，多选天然无解（工单184 已落地：谓词收紧成 n === 1）', () => {
     expect(specOf('rename').needs).toBe(NEED_SINGLE)
-    expect(resolveMenuRows([specOf('rename')], { paths: [] })[0].enabled).toBe(true)
+    // 无选中时也置灰：#184 落地前这里是 `n === 0 || n === 1`（那时只有单选，无选中态到不了这里），
+    // 多选那张票把它收紧成 `n === 1`——置灰比误使能诚实，这三档现在一起钉死。
+    expect(resolveMenuRows([specOf('rename')], { paths: [] })[0].enabled).toBe(false)
+    expect(resolveMenuRows([specOf('rename')], { paths: ['a'] })[0].enabled).toBe(true)
     expect(resolveMenuRows([specOf('rename')], { paths: ['a', 'b'] })[0].enabled).toBe(false)
   })
 

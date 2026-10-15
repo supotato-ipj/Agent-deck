@@ -185,3 +185,43 @@ export function rowLayoutOf(ids, viewport, expandedId) {
     }
   })
 }
+
+// ---------------------------------------------------------------------------
+// 框选的格子几何（工单184 = spec166 之⑦）
+//
+// **格子的位置由本文件算，不由 DOM 反查。** 格子是一张规则网格（列数 × 定死的边长与间距），
+// 位置是「格序」的纯函数——同样的输入必然给出同样的矩形，不必真去量 getBoundingClientRect()，
+// 也就不会因为滚动、缩放、DPR 而让框选判据漂移。判据本身（矩形相交）在 selection.js。
+//
+// 两个坐标系：**网格局部**（本文件产出）与**视口**（card.js 把鼠标坐标换算进来）。
+// 换算靠 `contentOriginOf` —— 卡框矩形 + 内边距 + 卡头高度，三个数全部来自本文件，
+// 故「按什么算」与「画在哪」永远同源（同 CARD_CSS_BASE 那条纪律）。
+// ---------------------------------------------------------------------------
+
+/**
+ * 内容区（网格局部坐标系原点在网格外沿左上角）在**视口**里的原点。
+ * @param {{ left: number, top: number }} box 卡框的视口矩形（card.js 按 rowLayoutOf 写在卡上的那两行）
+ * @returns {{ x: number, y: number }}
+ */
+export function contentOriginOf(box) {
+  return { x: box.left + CARD_PAD_X, y: box.top + CARD_PAD_Y + HEAD_H }
+}
+
+/**
+ * 第 `index` 格在**网格局部**坐标系里的矩形。
+ *
+ * 列数随形态变（折叠 3 列 / 展开 6 列），格序是 DOM 里的顺序，故位置是格序的纯函数。
+ * @param {number} index 格序（0 起）
+ * @param {boolean} [expanded] 该卡此刻是否展开（决定列数）
+ * @returns {{ x: number, y: number, width: number, height: number }}
+ */
+export function cellRectOf(index, expanded = false) {
+  const cols = expanded ? EXPANDED_COLS : COLLAPSED_COLS
+  const pitch = CELL + CELL_GAP
+  return {
+    x: (index % cols) * pitch,
+    y: Math.floor(index / cols) * pitch,
+    width: CELL,
+    height: CELL,
+  }
+}

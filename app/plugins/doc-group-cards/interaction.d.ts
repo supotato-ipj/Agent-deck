@@ -15,8 +15,11 @@ export type ClickHit = 'icon' | 'card-blank' | 'more' | 'outside'
  */
 export type CardUiState = {
   expanded: boolean
-  /** 高亮的绝对路径集合（单选语义：后点的顶掉先点的） */
+  /** 高亮的绝对路径集合（**同一个集合，两种用法**：非多选时是单选，后点顶掉先点；
+   *  多选时是并集，由 selection.js 的 toggleSelection/marqueeSelect 写） */
   highlight: ReadonlySet<string>
+  /** 该卡的独立多选开关（工单184）。每卡一枚，卡间互不影响；裁决在 selection.js */
+  multi: boolean
 }
 
 /** 卡片根类名，同时是本插件样式表的作用域根 */

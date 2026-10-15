@@ -99,8 +99,30 @@ describe('逐行可用性裁决（工单184 的接缝就在 NEED_SINGLE 那一�
     expect(rowEnabledOf(spec, TWO)).toBe(false)
   })
 
-  it('needs=single 且无选中时仍可用——票面口径「无选中时全部可用」', () => {
-    expect(rowEnabledOf({ id: 'open-location', label: 'X', needs: NEED_SINGLE }, { paths: [] })).toBe(true)
+  it('needs=single：**恰一个**选中才可用；多选与无选中都置灰（工单184 收紧）', () => {
+    // 【工单184 改这一条断言】原断言是「无选中时仍可用」（工单原文口径：菜单是从一个文件上
+    // 右键弹出来的，无选中态到不了那里）。工单184 落地多选后收紧成「长度 === 1」：
+    // 无选中时这两行（OPEN LOCATION / RENAME）本来就无事可做，置灰比误使能更诚实。
+    expect(rowEnabledOf({ id: 'open-location', label: 'X', needs: NEED_SINGLE }, { paths: [] })).toBe(false)
+    expect(rowEnabledOf({ id: 'rename', label: 'X', needs: NEED_SINGLE }, { paths: [] })).toBe(false)
+  })
+
+  it('needs=single 的两行在**多选**（两个及以上）下置灰：OPEN LOCATION 与 RENAME', () => {
+    for (const id of ['open-location', 'rename']) {
+      const spec = FILE_MENU_ROWS.find((r) => r.id === id)!
+      expect(spec.needs).toBe(NEED_SINGLE)
+      expect(rowEnabledOf(spec, ONE)).toBe(true)
+      expect(rowEnabledOf(spec, TWO)).toBe(false)
+      expect(rowEnabledOf(spec, { paths: ['C:\\me\\方案.docx', 'C:\\me\\纪要.docx', 'C:\\me\\预算.xlsx'] })).toBe(false)
+    }
+  })
+
+  it('needs=any 的批量行在多选下**仍然可用**（内核那几个契约本就是整批语义）', () => {
+    for (const id of ['copy', 'cut', 'delete']) {
+      const spec = FILE_MENU_ROWS.find((r) => r.id === id)!
+      expect(spec.needs).toBe(NEED_ANY)
+      expect(rowEnabledOf(spec, TWO)).toBe(true)
+    }
   })
 
   it('needs=pasteable：只看剪贴板实况，查不到（false / undefined）即置灰，绝不误使能', () => {
