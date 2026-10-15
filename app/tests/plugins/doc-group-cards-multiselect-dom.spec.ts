@@ -315,6 +315,29 @@ describe('卡内框选（工单184：命中集合只含本卡）', () => {
     expect(selectedOf(DOCX)).toEqual([])
   })
 
+  // 工单187 真机轮暴露的产品缺陷：mousedown+mouseup 同元素落下时浏览器必补发一次 click，
+  // 而框选落点正是内容区空白（其语义=折叠整卡+清高亮）。不吞掉那一发，每一次框选都会在
+  // 选区落定的同一瞬间把卡折起来、把选区抹掉——真机上恒定表现为「拖拽带在场、松手后 0 入选」。
+  it('拖拽松手后浏览器补发的那一发 click 被吞掉：卡不折、选区不丢', async () => {
+    await boot()
+    toggleMultiOn(DOCX)
+    clickNode(cardById(DOCX)) // 展开，让这一框落在展开态内容区上
+    const grid = gridOf(DOCX).getBoundingClientRect()
+    const start = { clientX: grid.left + grid.width / 2, clientY: grid.top + grid.height - 20 }
+    gridOf(DOCX).dispatch('mousedown', gridOf(DOCX), start)
+    win.dispatch('mousemove', dom.body, { clientX: grid.left + 40, clientY: grid.top + 40 })
+    win.dispatch('mouseup', dom.body, { clientX: grid.left + 40, clientY: grid.top + 40 })
+    const picked = selectedOf(DOCX)
+    expect(picked.length).toBeGreaterThanOrEqual(1)
+    // 浏览器补发的那一发 click（真机上由 mouseup 之后、同一批事件里到达）
+    clickNode(cardById(DOCX))
+    expect(cardById(DOCX).classList.contains('dgc-expanded')).toBe(true)
+    expect(selectedOf(DOCX)).toEqual(picked)
+    // 再点一次就是用户新一笔单击了：老语义照旧（折叠整卡）
+    clickNode(cardById(DOCX))
+    expect(cardById(DOCX).classList.contains('dgc-expanded')).toBe(false)
+  })
+
   it('多选态下从内容区空白起笔能拖出框选带，松手即撤', async () => {
     await boot()
     toggleMultiOn(DOCX)

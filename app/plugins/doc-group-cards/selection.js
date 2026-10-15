@@ -111,6 +111,32 @@ export function menuSelectionFor(state, path) {
 }
 
 /**
+ * 框选松手到紧随其后那次 click 的最大间隔（毫秒）。**超了就该算用户新一笔单击**。
+ *
+ * 取值依据：浏览器补发 click 与 mouseup 同批、几乎零延迟；人手动一次单击的最短间隔远大于此。
+ */
+export const MARQUEE_TAIL_MS = 250
+
+/**
+ * 这次 click 是**拖拽的尾巴**吗——即松手后浏览器在同一批事件里补发的那一击，而不是用户的新一笔单击？
+ *
+ * **为什么要有这道闸（工单187 真机轮暴露的产品缺陷）**：mousedown+mouseup 落在同一个元素上时，
+ * 浏览器必然补发一次 `click`。框选的落点正是内容区空白，而空白处点击的语义是
+ * 「折叠/展开整卡 + 清高亮」——于是每一次框选都会在选区落定的同一瞬间把卡折起来、把选区抹掉：
+ * 真机上表现为「拖拽带在场、松手后 0 入选、卡还塌回了折叠态」，ENTER 批量启动自然也无从谈起。
+ * 这不是手感问题，是框选**永远选不中**：用户每框一次，结果都被下一次补发的 click 抹掉。
+ *
+ * 因此拖拽松手后的一小段时间内，卡片级 click 一律吞掉。拖拽**没有位移**（零尺寸框）时不置此闸，
+ * 那一下本来就该走「点空白折叠/展开」的老语义（见 {@link marqueeHits}：零尺寸框不命中任何格子）。
+ * @param {number} endedAtMs 拖拽松手的时刻（`Date.now()`；0 = 本代还没拖过）
+ * @param {number} nowMs 这次 click 的时刻
+ * @returns {boolean}
+ */
+export function isMarqueeTailClick(endedAtMs, nowMs) {
+  return endedAtMs > 0 && nowMs - endedAtMs <= MARQUEE_TAIL_MS
+}
+
+/**
  * 拖拽两端点 → 归一化矩形（左上/右下与右下/左上两种拖法等效）。
  * @param {{ x: number, y: number }} from
  * @param {{ x: number, y: number }} to

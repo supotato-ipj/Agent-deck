@@ -118,6 +118,7 @@ import {
   SELECT_KEYBOARD_TIER,
   hasSelection,
   isMultiOn,
+  isMarqueeTailClick,
   launchTargetsOf,
   marqueeHits,
   marqueeRectOf,
@@ -1658,6 +1659,8 @@ function buildCell(host, item, card) {
 
 /** 拖拽中的框选（空 = 没在拖）；只记发起的那张卡与起笔端点，命中集在松手那一刻才算 */
 let marquee = null
+/** 上一次**拖过**的框选松手时刻（0 = 本代没有）；用来吞掉浏览器补发的那一发 click，见 isMarqueeTailClick */
+let marqueeEndedAt = 0
 /** 拖拽带节点（松手即摘，按引用持有） */
 let marqueeNode = null
 /** ENTER 档当前是否持在本插件手里（幂等持/放的记账，防重复 hold 或漏放） */
@@ -1785,14 +1788,14 @@ function onMarqueeUp(ev) {
   hideMarquee()
   hostRef?.onDomChanged() // 带子撤了：命中区又变了，重扫
   if (!card) return
-  const next = marqueeSelect(
-    stateOf(card),
-    marqueeRectOf(from, { x: ev.clientX, y: ev.clientY }), // 视口矩形：与 cellRectsOf 同一坐标系
-    cellRectsOf(card),
-  )
+  const rect = marqueeRectOf(from, { x: ev.clientX, y: ev.clientY })
+  const next = marqueeSelect(stateOf(card), rect, cellRectsOf(card))
   cardState.set(cardId, next.state)
   paintStates(cardState)
   syncSelectTier(hostRef)
+  // 拖过（框有面积）才置尾闸：mousedown 与 mouseup 同点落下时浏览器必补发一次 click，而那正是
+  // 「点空白折叠整卡 + 清高亮」的老语义，不该被吞。拖过则相反——那一击是拖拽的尾巴，见 isMarqueeTailClick。
+  marqueeEndedAt = rect.width > 0 && rect.height > 0 ? Date.now() : 0
 }
 
 /**
@@ -1838,6 +1841,7 @@ function onSelectKeydown(ev) {
 /** 卸载路径上的收尾：拖拽带与两个窗口监听一样不漏（不放就永远挂着 mousemove） */
 function stopMarquee() {
   marquee = null
+  marqueeEndedAt = 0
   window.removeEventListener('mousemove', onMarqueeMove)
   window.removeEventListener('mouseup', onMarqueeUp)
   hideMarquee()
@@ -1979,6 +1983,12 @@ function draw(host, groups) {
     // 点空白或点「更多」徽标 → 折叠/展开往复切换 + 清高亮 + 排他（同一时刻至多一张展开）。
     // 图标命中即便因为漏截断而冒泡上来，这道闸也不让它改卡片形状。
     card.addEventListener('click', (ev) => {
+      // 框选的尾巴：拖拽松手后浏览器补发的这一发 click 不是用户的新一笔单击。吞掉它——
+      // 否则每一框都会在选区落定的同一瞬间把整卡折起来、把选区清空（工单187 真机轮实证）。
+      if (isMarqueeTailClick(marqueeEndedAt, Date.now())) {
+        marqueeEndedAt = 0
+        return
+      }
       // 编辑器开着时这一击归编辑器处置：点在编辑器里不吞（还要让人继续打字），点在外面则
       // 收场——那一击不该顺手把整卡折起来，也不该落到别的格子上改高亮。
       if (renameState.open) {
@@ -2048,6 +2058,7 @@ export default {
     typeState = CLOSED_TYPES // 同上：勾选浮层不跨代续着开
     selectTierHeld = false // 工单184：换代后从头来过，档不跨代续着持
     marquee = null
+    marqueeEndedAt = 0 // 同上：尾闸不跨代，上一代那一发的时刻不作数
     injectStyle()
     try {
       hideDocZone()
