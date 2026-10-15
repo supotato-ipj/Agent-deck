@@ -2676,11 +2676,12 @@ async function main() {
         // /K 驻留 + title 定名（断言锚点）。串行两发各 ~1-2s，est 已计。
         spawnSync('powershell.exe', ['-NoProfile', '-Command', `Start-Process -FilePath '${copy21}' -ArgumentList '/K','title ${t}'`], { encoding: 'utf8', timeout: 15000 });
       }
-      // 控制台窗就绪等待（两窗标题就位——Start-Process 异步出生 + title 命令再改一拍）
+      // 控制台窗就绪等待（两窗标题就位——Start-Process 异步出生 + title 命令再改一拍；
+      // trim 对账：Start-Process 拼参尾随空格会进 title 命令的行尾——标题实带尾空格）
       let winsUp21 = false;
       for (let i = 0; i < 30 && !winsUp21; i++) {
         await sleep(400);
-        winsUp21 = titles21.every((t) => win32.topLevelWindows().some((h) => titleOf(h) === t));
+        winsUp21 = titles21.every((t) => win32.topLevelWindows().some((h) => titleOf(h).trim() === t));
       }
       const norm21 = (s21) => String(s21 || '').toLowerCase();
       const liveAppPt21 = async () => cdpEval(`(() => {
@@ -2714,13 +2715,16 @@ async function main() {
           appSeen21 = await liveAppPt21();
         }
         if (!appSeen21) {
-          rep.fail('P21 前置缺失：双实例探针未上栏（应用组合一条目未出现——控制台窗被栏面枚举过滤或 start 双开失败）');
+          const diagProc21 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${img21}`, '/NH'], { encoding: 'utf8' });
+          const procCount21 = ((diagProc21.stdout || '').match(/deck-p21-cmd/g) || []).length;
+          rep.fail(`P21 前置缺失：双实例探针未上栏（应用组合一条目未出现——控制台窗被栏面枚举过滤或双开失败）`
+            + ` 窗就位=${winsUp21} 进程=${procCount21}`);
         } else {
           const pop21 = await clickIconOpen21();
           const popWin21 = pop21 ? await waitWindow(panelPid, 'DECK-TASKBAR-WINS-MENU', 3000) : null;
           const rowsOk21 = !!pop21 && pop21.rows.length === 2
             && new Set(pop21.rows.map((r) => r.id)).size === 2
-            && pop21.rows.every((r) => titles21.includes(r.label));
+            && pop21.rows.every((r) => titles21.includes(r.label.trim()));
           if (pop21 && popWin21 && rowsOk21) {
             rep.pass(`P21① 选窗浮层随左键弹出：DECK-TASKBAR-WINS-MENU 在场、行集恰 2（行身份=hwnd 互异，`
               + `标题=[${pop21.rows.map((r) => r.label).join(', ')}]）——横排进 pill 退役（taskbar/app-windows 行源）`);
