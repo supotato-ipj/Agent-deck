@@ -10,6 +10,7 @@
 //   P6 勾选子集持久化：set-metrics 落盘 config.json、任务栏页即时收敛、
 //      面板重拉（重启保持）后摘要仍只有勾选子集
 //   P7 托盘溢出菜单（工单162）：自注册 7 枚探针钉名单量——默认档 5 可见+超量入「⋯」/
+//     （工单196：档位两挂点臂6/7 断言锚点迁浮层窗 DECK-TASKBAR-TIER-MENU，落盘/收敛口径不变）/
 //      点「⋯」浮层随鼠标弹出（独立浮层窗）/行左键右键同回放分发（探针窗收帧）/点面板
 //      外即收（blur）/档位两挂点（「⋯」右键+右组空白右键）选档落盘/数量回落自动回栏
 // 运行：npm run accept:taskbar-right-group（= electron . --accept-taskbar-right-group）。
@@ -625,59 +626,103 @@ async function main() {
         armFail7('行右键', '浮层未开或溢出无探针行（臂2 失败连带）');
       }
 
+      // 档位菜单浮层锚点（工单196：档位菜单迁浮层窗 DECK-TASKBAR-TIER-MENU，横排进右组
+      // pill 退役）：opened/resized（窗 bounds）与 ready（rows 带 id/label/y/h 相对客户区）
+      // 两路配对取行点击坐标——勿用 settle 静态几何（49 族 6fab89d 教训同源）。窗常驻事件
+      // 跨臂累积，以开层拍 since 为下界。落盘与栏面收敛断言口径不变（system-state 面）。
+      const tierPopup7 = (since) => {
+        const os = readEvents().filter((e) => e.t >= since
+          && (e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized'));
+        // ready 行几何：本开层拍有新回报用新拍；缺席（show 重开不触发页重回报——页只在
+        // boot/changed 回报）回退最近一拍——档位面行集静态（四行恒列，✓ 前缀不修行高，
+        // 行几何跨开拍不变），坐标算术稳定
+        let rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && e.t >= since && Array.isArray(e.rows));
+        if (!rd.length) rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && Array.isArray(e.rows));
+        return os.length && rd.length
+          ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
+          : null;
+      };
+      // 右键开浮层（三试：右键偶发不开——49 族 P16⑥/⑰ 同款抖动，到靶收敛后重试）
+      const openTierPopup7 = async (ptOf) => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const pt = ptOf();
+          if (!pt) return null;
+          await conv(pt); // 到靶停拍（convergeAt 内含热区翻转窗口）
+          const since = Date.now();
+          win32.clickPhys(pt.x, pt.y, 'right');
+          for (let i = 0; i < 12; i++) {
+            await sleep(200);
+            const pop = tierPopup7(since);
+            if (pop && pop.rows.length === 4) return pop;
+          }
+        }
+        return null;
+      };
+      // 浮层行点击核验重试（点行撞热区轮询窗同款——回执 3s 不来就重查行矩形再点，≤3 试；
+      // 行物理坐标 = 窗 bounds + ready 行偏移直乘 scale，49 族 P16⑥ 先例同式）
+      const clickTierRowVerify7 = async (since, rowId, limitVal) => {
+        for (let i = 0; i < 3; i++) {
+          const pop = tierPopup7(since);
+          const row = pop ? pop.rows.find((r) => r.id === rowId) : null;
+          if (!row) return null;
+          const pt = {
+            x: Math.round((pop.bounds.x + pop.w / 2) * scale),
+            y: Math.round((pop.bounds.y + row.y + row.h / 2) * scale),
+          };
+          win32.moveMousePhys(pt.x, pt.y);
+          await sleep(250);
+          win32.clickPhys(pt.x, pt.y, 'left');
+          const ev = await waitEvent('taskbar-tray-overflow-limit-result', (e) => e.limit === limitVal && e.ok && e.t >= Date.now() - 5000, 5000);
+          if (ev) return ev;
+        }
+        return null;
+      };
+
       // 臂6：档位菜单挂点一（「⋯」右键）→ 选 3 枚：落盘 + 即时收敛 + ⋯ 保持（名单 ≥4 恒真）
       const conv6 = await conv(morePt);
       rep.note(`臂6 收敛=${conv6}`);
-      const since6c = Date.now();
-      win32.clickPhys(morePt.x, morePt.y, 'right');
-      const geo6a = await waitLastEvent('taskbar-geometry', (e) => e.t >= since6c
-        && (e.rightCells || []).some((c) => c.id === 'tier-3'), 6000);
+      const pop6 = await openTierPopup7(() => morePt);
       let arm6 = false;
-      let detail6 = `档位行=${geo6a ? '在场' : '缺'}`;
-      if (geo6a) {
-        const tier3 = geo6a.rightCells.find((c) => c.id === 'tier-3');
-        const tierPt = toPhys(tier3.x + tier3.w / 2, tier3.y + tier3.h / 2);
-        win32.clickPhys(tierPt.x, tierPt.y, 'left');
-        const limitEv = await waitEvent('taskbar-tray-overflow-limit-result', (e) => e.limit === 3 && e.ok && e.t >= Date.now() - 6000, 5000);
+      let detail6 = `档位浮层=${pop6 ? '在场' : '缺'}`;
+      if (pop6) {
+        const limitEv = await clickTierRowVerify7(pop6.since, 'tier-3', 3);
         await sleep(800); // 重拆 + 几何重报一拍
         const disk6b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        const geo6b = lastEvent('taskbar-geometry', (e) => e.t >= since6c && e.trayIcons);
+        const geo6b = lastEvent('taskbar-geometry', (e) => e.t >= pop6.since && e.trayIcons);
         arm6 = !!limitEv && disk6b.taskbar?.trayOverflowLimit === 3
           && geo6b && geo6b.trayIcons.length === 3 && !!geo6b.trayOverflow;
         detail6 += ` 回执=${JSON.stringify(limitEv)} 落盘=${disk6b.taskbar?.trayOverflowLimit} 栏内=${geo6b ? geo6b.trayIcons.length : 'n/a'} ⋯=${geo6b ? !!geo6b.trayOverflow : 'n/a'}`;
       }
       if (arm6) {
-        rep.pass('臂6 「⋯」右键档位菜单选 3 枚：落盘 config（trayOverflowLimit=3）、即时收敛 3 枚、「⋯」保持');
+        rep.pass('臂6 「⋯」右键档位浮层（DECK-TASKBAR-TIER-MENU）选 3 枚：落盘 config（trayOverflowLimit=3）、即时收敛 3 枚、「⋯」保持');
       } else {
         armFail7('档位挂点一', detail6);
       }
 
-      // 臂7：档位菜单挂点二（右组空白处右键）→ 选全部：⋯ 消失、栏内 = 名单
-      const rp7 = lastEvent('taskbar-geometry', (e) => e.rightPill);
-      const blankPt = toPhys(rp7.rightPill.x + 4, rp7.rightPill.y + rp7.rightPill.h / 2);
+      // 臂7：档位菜单挂点二（右组空白处右键）→ 选全部：⋯ 消失、栏内 = 名单（工单196
+      // 迁浮层窗锚点，行点击 = DECK-TASKBAR-TIER-MENU ready 行集）
+      const blankPtOf7 = () => {
+        const rp7 = lastEvent('taskbar-geometry', (e) => e.rightPill);
+        return toPhys(rp7.rightPill.x + 4, rp7.rightPill.y + rp7.rightPill.h / 2);
+      };
+      const blankPt = blankPtOf7();
       const conv7 = await conv(blankPt);
       rep.note(`臂7 收敛=${conv7}`);
-      win32.clickPhys(blankPt.x, blankPt.y, 'right');
-      const since7c = Date.now();
-      const geo7a = await waitLastEvent('taskbar-geometry', (e) => e.t >= since7c
-        && (e.rightCells || []).some((c) => c.id === 'tier-all'), 6000);
+      const pop7 = await openTierPopup7(blankPtOf7);
       let arm7 = false;
-      let detail7 = `档位行=${geo7a ? '在场' : '缺'}`;
-      if (geo7a) {
-        const tierAll = geo7a.rightCells.find((c) => c.id === 'tier-all');
-        const tierPt = toPhys(tierAll.x + tierAll.w / 2, tierAll.y + tierAll.h / 2);
-        win32.clickPhys(tierPt.x, tierPt.y, 'left');
-        const limitEv = await waitEvent('taskbar-tray-overflow-limit-result', (e) => e.limit === 'all' && e.ok && e.t >= Date.now() - 6000, 5000);
+      let detail7 = `档位浮层=${pop7 ? '在场' : '缺'}`;
+      if (pop7) {
+        const limitEv = await clickTierRowVerify7(pop7.since, 'tier-all', 'all');
         await sleep(800);
         const disk7b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        const geo7b = lastEvent('taskbar-geometry', (e) => e.t >= since7c && e.trayIcons);
+        const geo7b = lastEvent('taskbar-geometry', (e) => e.t >= pop7.since && e.trayIcons);
         roster7 = await rosterKeys();
         arm7 = !!limitEv && disk7b.taskbar?.trayOverflowLimit === 'all'
           && geo7b && geo7b.trayIcons.length === roster7.length && geo7b.trayOverflow === null;
         detail7 += ` 回执=${JSON.stringify(limitEv)} 落盘=${disk7b.taskbar?.trayOverflowLimit} 栏内=${geo7b ? geo7b.trayIcons.length : 'n/a'}/${roster7.length} ⋯=${geo7b ? JSON.stringify(geo7b.trayOverflow) : 'n/a'}`;
       }
       if (arm7) {
-        rep.pass('臂7 右组空白处右键档位菜单选全部：「⋯」消失、全部图标回栏（栏内=名单）');
+        rep.pass('臂7 右组空白处右键档位浮层选全部：「⋯」消失、全部图标回栏（栏内=名单）');
       } else {
         armFail7('档位挂点二', detail7);
       }

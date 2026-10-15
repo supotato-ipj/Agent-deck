@@ -252,10 +252,13 @@ export interface TaskbarTrayPixels {
 export type TaskbarDragGroup = 'apps' | 'recs'
 
 /**
- * 任务栏拖拽落位描述子（工单57）：条目身份按组取值——应用组 = exe 原文（TaskbarAppEntry.exe），
- * 推荐组 = 桌面项 name（TaskbarRecommendation.name）。before = 落点（排在该身份之前）；
- * null = 组内可编辑段末尾（应用组 = 手钉段末尾、推荐组 = 推荐位末尾）。落点身份不在场
- * （渲染与落位之间的状态竞态）收敛到段末尾，不作废整次拖拽。
+ * 任务栏拖拽落位描述子（工单57；工单195 起全量拖拽语义）：条目身份按组取值——应用组 =
+ * exe 原文（TaskbarAppEntry.exe，手钉与未钉运行条目均可起拖），推荐组 = 桌面项 name
+ * （TaskbarRecommendation.name）。before = 落点（排在该身份之前）；null = 组空白（落段
+ * 末尾）。落点段位按源条目归属收敛：手钉源只在手钉段内换位（拖位落盘持久），未钉运行
+ * 源在运行段内换位（拖位会话态）——落点指向另一段身份时向本段邻接边界钳取（手钉段末尾
+ * /运行段首位），不作废整次拖拽、不静默吞掉。落点身份不在场（渲染与落位之间的状态竞态）
+ * 同款边界收敛。
  */
 export interface TaskbarDragDrop {
   from: TaskbarDragGroup
@@ -525,6 +528,13 @@ export interface BridgeMethods {
   /** 多窗口列表选窗（工单53）：hwnd 必须在最近一次窗口枚举快照内且归属应用组某 exe
    * （不置前任意义外的窗口）；已销毁/名单外 hwnd 回报 ok:false 不抛。 */
   'taskbar/activate-window': { request: { hwnd: number }; response: { ok: boolean; error?: string } }
+  /**
+   * 应用组窗口清单查询（工单196 选窗浮层行源）：只读——按 exe 归一匹配回当拍带标题
+   * 窗口清单（与 app-click window-list 同一 windowsOf 枚举，选窗浮层页自足取行用，
+   * 行集永不与条带视图各判一次）。exe 护栏 = 必须在当前应用组条目内（归一匹配），
+   * 否则 ok:false 空清单（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   */
+  'taskbar/app-windows': { request: { exe: string }; response: { ok: boolean; windows: TaskbarWindowRef[] } }
   /** 中键开新实例（工单53）：恒启动 exe（app-click 同款应用组护栏） */
   'taskbar/app-new-instance': { request: { exe: string }; response: { ok: boolean; error?: string } }
   /**

@@ -466,9 +466,9 @@
       "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
       "entry": "app/accept/taskbar.js",
       "script": "accept:taskbar",
-      "budgetSeconds": 180,
-      "lastMeasuredSeconds": 117,
-      "lastMeasuredAt": "2026-10-14",
+      "budgetSeconds": 240,
+      "lastMeasuredSeconds": 168,
+      "lastMeasuredAt": "2026-10-15",
       "segments": [
         {
           "seg": "P1",
@@ -603,32 +603,52 @@
         {
           "seg": "P15",
           "ticket": 159,
-          "title": "栏分组布局重排：开始组钉左/应用组空带居中（几何存证+CDP 互证+藏显钮回正），不与邻组重叠、右组细条不变",
+          "title": "栏分组布局重排：开始组钉左/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
           "surfaces": [
             "event-evidence",
             "pixel"
           ],
-          "estSeconds": 8
+          "estSeconds": 5
+        },
+        {
+          "seg": "P15B",
+          "ticket": 190,
+          "title": "屏幕中心线锚定：应用组中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张；全程带内不越界",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 20
         },
         {
           "seg": "P16",
           "ticket": 160,
-          "title": "推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 25
-        },
-        {
-          "seg": "P17",
-          "ticket": 161,
-          "title": "推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）",
+          "title": "推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁；③右键三行随工单196 迁浮层窗 DECK-TASKBAR-REC-MENU，横排退役断言扩全条带）",
           "surfaces": [
             "input-injection",
             "event-evidence"
           ],
           "estSeconds": 30
+        },
+        {
+          "seg": "P17",
+          "ticket": 161,
+          "title": "推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）（工单196：移除臂迁 DECK-TASKBAR-REC-MENU、恢复入口迁 DECK-TASKBAR-BLANK-MENU 浮层窗锚点）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 30
+        },
+        {
+          "seg": "P19",
+          "ticket": 192,
+          "title": "推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙（开始组右侧/应用组左侧）、开始组 pill 推荐位零残留、两组显隐解耦（藏两系统按钮推荐组独立在场并退条带左缘 / 推荐位清空推荐组不渲染、回池复原）",
+          "surfaces": [
+            "event-evidence",
+            "pixel"
+          ],
+          "estSeconds": 10
         },
         {
           "seg": "P14",
@@ -639,6 +659,37 @@
             "input-injection"
           ],
           "estSeconds": 10
+        },
+        {
+          "seg": "P18",
+          "ticket": 189,
+          "title": "应用组统一序列默认落位（ADR-0013）：z 序脱钩（反复切前台位次纹丝不动+几何帧互证）/新面孔追加最右/全关消失/复启回最右/钉入原地转正/已钉开新窗并入钉图标/关闭不消失/未运行解除消失/解除原地转运行",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 20
+        },
+        {
+          "seg": "P21",
+          "ticket": 196,
+          "title": "多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：csc 现编译 WinForms 最小窗同 exe 双实例（argv 定标题，cmd 副本双开弃用）——左键图标出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）、点行选窗存证+前台对账+行点即收、点外即收（时钟格转达 strip-click）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 20
+        },
+        {
+          "seg": "P20",
+          "ticket": 195,
+          "title": "全量拖拽三断点（真 OLE apps→apps 拖拽臂，现行电池无此臂）：A 全条目接线（手钉拖到仅运行图标上不静默吞掉，before 语义落点条目化）/B 运行段会话拖位+渲染冻结（中程强推 changed 被拖节点 expando 同一性保持，drag-start/drag-drop/drag-result 三存证组合）/C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop 不丢，拖拽窗口 hotzone-leave=0 持门存证）/E 拖拽失败可见反馈（未钉运行拖到推荐组=服务层确定性拒返，toast 在场+文案断言）/D1+D2 拖位持久化两半（D1 臂A 钉入前重启=运行拖位回默认序；D2 末尾重启=手钉拖位落盘记住、存储无运行序段；q3 钉入后只在手钉段，两半各配一次重启）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 35
         }
       ]
     },

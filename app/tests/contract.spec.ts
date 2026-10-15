@@ -1537,6 +1537,32 @@ describe('内核桥接契约（工单53 应用组交互）', () => {
     }
   }, 30_000)
 
+  it('taskbar/app-windows（工单196 选窗浮层行源）：应用组护栏内回带标题窗口清单（与 app-click window-list 同一当拍枚举）；未知 exe → ok:false 空', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\Apps\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\Apps\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 未钉但运行中 → 应用组合一在册（ADR-0013 统一序列）
+      const hit = await ctx.bridge.invoke('taskbar/app-windows', { exe: 'C:\Apps\A.exe' })
+      expect(hit.ok).toBe(true)
+      expect(hit.windows).toEqual([
+        { hwnd: 101, title: '甲 - 文档1' },
+        { hwnd: 102, title: '甲 - 文档2' },
+      ])
+      const miss = await ctx.bridge.invoke('taskbar/app-windows', { exe: 'C:\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(miss.windows).toEqual([])
+      expect(t.env.activated).toEqual([]) // 只读查询：不执行任何窗口效果
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
   it('taskbar/activate-window：多窗口列表选窗精确到达目标 hwnd；名单外 hwnd → ok:false（不置前）', async () => {
     const dir = tmpDir()
     const t = interactOpts(dir)
@@ -1871,24 +1897,109 @@ describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () =
     }
   }, 30_000)
 
-  it('左→左：仅运行条目（非手钉）不可换位——ok:false、状态与落盘不变、不回推', async () => {
+  it('左→左：未钉运行条目拖位落会话运行序——即时生效、回推一帧、落盘不变（会话态，工单195）', async () => {
     const dir = tmpDir()
     const t = dragOpts(dir)
     fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({ version: 1, pinned: seedPinned(['C:\\Apps\\A.exe']) }))
-    t.env.windows = [{ exe: 'C:\\run\\only.exe', title: null }]
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }, { exe: 'C:\\run\\c.exe', title: '运行丙' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: Array<{ apps: Array<{ exe: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\c.exe', before: 'C:\\run\\b.exe' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string; pinned: boolean }) => [e.exe, e.pinned])).toEqual([
+        ['C:\\Apps\\A.exe', true],
+        ['C:\\run\\c.exe', false], // 拖到 b 之前：统一序列 = 手钉段在前 + 运行段按会话序
+        ['C:\\run\\b.exe', false],
+      ])
+      expect(changed.map((s) => s.apps.map((e: { exe: string }) => e.exe))).toEqual([
+        ['C:\\Apps\\A.exe', 'C:\\run\\c.exe', 'C:\\run\\b.exe'],
+      ])
+      // 会话态不落盘：栏布局存储零写入（盘面保持装载原样，无运行序段）
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned.map((p: { exe: string }) => p.exe)).toEqual(['C:\\Apps\\A.exe'])
+      expect('runOrder' in onDisk).toBe(false)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('左→左：未钉运行条目落点在手钉条目上 → 运行段首位钳取（两段模型紧随手钉段，不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({ version: 1, pinned: seedPinned(['C:\\Apps\\A.exe']) }))
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }, { exe: 'C:\\run\\c.exe', title: '运行丙' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 栏面 [A] + 运行段 [b, c]（首见序）
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\c.exe', before: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\Apps\\A.exe', 'C:\\run\\c.exe', 'C:\\run\\b.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('左→左：运行条目自落点幂等 ok:true 不回推；栏外身份 ok:false 状态不变（工单195）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }]
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
     try {
       ctx.taskbar.refresh()
       const changed: unknown[] = []
       ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
-      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\only.exe', before: 'C:\\Apps\\A.exe' }))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\b.exe', before: 'C:\\run\\b.exe' }))
+        .resolves.toEqual({ ok: true })
+      expect(changed).toEqual([])
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\gone\\ghost.exe', before: null }))
         .resolves.toMatchObject({ ok: false })
       expect(changed).toEqual([])
-      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
-      expect(onDisk.pinned.map((p: { exe: string }) => p.exe)).toEqual(['C:\\Apps\\A.exe'])
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\run\\b.exe'])
     } finally {
       await ctx.stop()
+    }
+  }, 30_000)
+
+  it('工单195 重启语义：运行拖位不落盘回默认序、手钉拖位落盘保持——新内核实例（同一栏布局存储）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({ version: 1, pinned: seedPinned(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe']) }))
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }, { exe: 'C:\\run\\c.exe', title: '运行丙' }]
+    const first = createKernel(kernelOpts(dir, t.opts))
+    await first.start()
+    first.taskbar.refresh() // 栏面装载 + 会话运行序首见引导 [b, c]
+    await first.bridge.invoke('taskbar/get-state', null)
+    // 手钉 B 拖到 A 之前（落盘 [B, A]）+ 运行 c 拖到 b 之前（会话序 [c, b]）
+    await expect(first.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\Apps\\B.exe', before: 'C:\\Apps\\A.exe' }))
+      .resolves.toEqual({ ok: true })
+    await expect(first.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\c.exe', before: 'C:\\run\\b.exe' }))
+      .resolves.toEqual({ ok: true })
+    const before = await first.bridge.invoke('taskbar/get-state', null)
+    expect(before.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\run\\c.exe', 'C:\\run\\b.exe'])
+    await first.stop()
+    // 新实例 = 重启语义：手钉拖位从盘面读回保持，运行拖位随会话归零回首见默认序
+    const second = createKernel(kernelOpts(dir, t.opts))
+    await second.start()
+    try {
+      second.taskbar.refresh()
+      const state = await second.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string; pinned: boolean }) => [e.exe, e.pinned])).toEqual([
+        ['C:\\Apps\\B.exe', true],
+        ['C:\\Apps\\A.exe', true],
+        ['C:\\run\\b.exe', false],
+        ['C:\\run\\c.exe', false],
+      ])
+    } finally {
+      await second.stop()
     }
   }, 30_000)
 

@@ -7,7 +7,7 @@ import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
-import { normalizeExe, planAppsGroup, shouldShowOnTaskbar } from '../taskbar/apps-plan'
+import { normalizeExe, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
@@ -156,10 +156,17 @@ export class TaskbarService extends Service {
   private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [], excluded: [] }
   /** 最近一枚窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；仅内存——标题同拍进出，永不持久化） */
   private lastWindows: TaskbarWindowInfo[] = []
+  /** 会话运行序（工单189，ADR-0013 应用组统一序列）：未钉运行应用的位次账本（归一 exe 键），
+   * 仅内存、不落盘、无时间戳——面板重启归零重引导（首拍按首见序建立），运行应用重启回最右 */
+  private runOrder: string[] = []
   /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
   private layoutReady = false
   /** 托盘图标像素缓存（工单56：iconKey → 像素字节；随名单增删按需剪枝，仅内存不落盘） */
   private readonly trayPixels = new Map<string, TaskbarTrayPixels>()
+  /** 托盘条目身份键 → 图标属主窗口 hwnd（工单194：右键回放让位的 pid 解析依据。
+   * 托盘事件流携带 hwnd 但契约面 TaskbarTrayEntry 不外发——此处随名单维护影子账，
+   * 仅内存不落盘，禁用即清（与 trayPixels 同纪律）。 */
+  private readonly trayHwnds = new Map<string, string>()
 
   constructor(ctx: Context, options: TaskbarServiceOptions = {}) {
     super(ctx, 'taskbar')
@@ -281,6 +288,7 @@ export class TaskbarService extends Service {
     if (!enabled) {
       this.current = { ...this.current, tray: [] }
       this.trayPixels.clear()
+      this.trayHwnds.clear()
     }
     return this.commit({ ...this.current, enabled })
   }
@@ -364,14 +372,26 @@ export class TaskbarService extends Service {
     if (!this.current.enabled) return { ok: false, error: '任务栏已禁用，栏面不可拖拽' }
     this.ensureLayout()
     if (drop.from === 'apps' && drop.to === 'apps') {
-      const next = reorderPinned(this.store, drop.id, drop.before)
-      if (next === this.store) {
-        // 同一引用 = 空转：非手钉条目（仅运行）不可换位 → ok:false；自落点幂等 → ok:true 不重推
-        return this.store.pinned.some((p) => normalizeExe(p.exe) === normalizeExe(drop.id))
-          ? { ok: true }
-          : { ok: false, error: '仅手钉条目可在应用组拖拽换位（仅运行条目是运行态，不可摆位）' }
+      const key = normalizeExe(drop.id)
+      // 手钉条目：拖位写栏布局存储（重启记住，工单57 既有落盘语义）
+      if (this.store.pinned.some((p) => normalizeExe(p.exe) === key)) {
+        const next = reorderPinned(this.store, drop.id, drop.before)
+        if (next === this.store) return { ok: true } // 自落点幂等：不重写盘、不重推
+        this.commitStore(next)
+        return { ok: true }
       }
-      this.commitStore(next)
+      // 工单195 断点①全条目接线：未钉运行条目可拖——拖位落会话运行序（仅内存不落盘，
+      // 面板重启回默认序）。before 指向手钉段身份时运行段首位钳取（两段模型，紧随手钉段）。
+      const nextOrder = reorderRunOrder(this.runOrder, drop.id, drop.before)
+      if (nextOrder === this.runOrder) {
+        // 同一引用 = 空转：自落点幂等 → ok:true 不重推；身份不在会话序（栏外/已退场
+        // 陈旧键）→ ok:false 有可见反馈，不静默吞掉
+        return this.runOrder.includes(key)
+          ? { ok: true }
+          : { ok: false, error: '拖拽条目不在当前应用组（栏外身份或已退场）' }
+      }
+      this.runOrder = nextOrder
+      this.recompose() // 会话序变化 → 重编排回推一帧（不落盘——运行位次是会话态）
       return { ok: true }
     }
     if (drop.from === 'recs' && drop.to === 'recs') {
@@ -413,6 +433,9 @@ export class TaskbarService extends Service {
       this.ensureLayout()
       const next = unpinEntry(this.store, drop.id)
       if (next === this.store) return { ok: false, error: '仅手钉条目可解除手钉回推荐池（仅运行条目是运行态）' }
+      // 工单189 解除手钉原地转运行（set-app-pinned 解除臂同款）：目标在运行时键插回
+      // 会话运行序首位，条目原地转为运行图标——先落账再 commitStore（重编排即刻可用）
+      if (this.windowsOf(drop.id).length > 0) this.runOrder = promoteRunToFront(this.runOrder, normalizeExe(drop.id))
       this.commitStore(next)
       return { ok: true }
     }
@@ -439,9 +462,12 @@ export class TaskbarService extends Service {
       return
     }
     this.lastWindows = windows
-    const apps = planAppsGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe))
-    if (JSON.stringify(apps) === JSON.stringify(this.current.apps)) return
-    this.current = { ...this.current, apps }
+    // 工单189：编排一拍走 planAppsSequence（默认规则落位＋手工序合并）——会话运行序
+    // 先行回存再判内容变化（序推进与可见序列是两本账，摘除陈旧键不改可见序也须落账）
+    const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+    this.runOrder = plan.runOrder
+    if (JSON.stringify(plan.apps) === JSON.stringify(this.current.apps)) return
+    this.current = { ...this.current, apps: plan.apps }
     this.ctx.emit('taskbar/changed', this.state())
   }
 
@@ -464,6 +490,10 @@ export class TaskbarService extends Service {
    * 拖垮渲染层）。剪枝按在场名单的 iconKey 集合，退场图标的像素随即释放（仅内存）。
    */
   onTrayEvent(event: TrayWireEvent): void {
+    // 影子 hwnd 账（工单194）先于名单变化早退维护：同名条目换了属主窗口（应用重启、
+    // guid 键不变 hwnd 换新）时名单可能零变化，账却必须跟上最新 hwnd。
+    if (event.kind === 'delete') this.trayHwnds.delete(event.key)
+    else if (event.kind === 'add' || event.kind === 'update') this.trayHwnds.set(event.key, event.hwnd)
     const next = applyTrayEvent(this.current.tray, event)
     if (sameTrayIcons(this.current.tray, next)) return
     const iconKey = trayIconKeyOf(event)
@@ -485,9 +515,16 @@ export class TaskbarService extends Service {
    * 托盘图标点击回放（工单56）：key 护栏 = 必须在当前栏内名单（应用退场与点击同帧的竞态
    * 走普通失败，不抛）；负载合成与投递在数据面托盘宿主（Win32 真源同处），本方法只做
    * 护栏与转发。
+   * 右键回放先发让位起拍事件（工单194）：条带是置顶带，应用菜单诞生在普通带压不过——
+   * 效果层（taskbar/window.ts 控制器）收到事件即把条带临时降非置顶。必须在转发回放
+   * **之前**同步发出：菜单在应用处理回调后才诞生，让位先落位才有「菜单生在让位后」
+   * 的 z 序保证（cordis emit 同步派发，同轮内先于 PostMessage 链）。
    */
   trayClick(key: string, button: TaskbarTrayButton): { ok: boolean; error?: string } {
     if (!this.current.tray.some((i) => i.key === key)) return { ok: false, error: '托盘图标不在栏内名单' }
+    if (button === 'right') {
+      this.ctx.emit('taskbar/tray-replay-begin', { key, button, hwnd: this.trayHwnds.get(key) ?? null })
+    }
     try {
       return this.deps.replayTrayClick(key, button)
         ? { ok: true }
@@ -577,6 +614,14 @@ export class TaskbarService extends Service {
     }
   }
 
+  /** 应用组窗口清单查询（工单196 选窗浮层行源）：只读，app-click 的 windowsOf 同一
+   * 当拍枚举（不执行任何窗口效果）。exe 护栏同 app-click（应用组外身份 ok:false 空清单）。 */
+  appWindows(exe: string): { ok: boolean; windows: TaskbarWindowRef[] } {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, windows: [] }
+    return { ok: true, windows: this.windowsOf(entry.exe).map((w) => ({ hwnd: w.hwnd, title: w.title })) }
+  }
+
   /** 多窗口列表选窗（工单53）：hwnd 必须在当拍窗口快照内且归属应用组某 exe——
    * 不置前任意义外的窗口（名单外/已销毁 hwnd 回报 ok:false 不抛）。 */
   activateWindowByHwnd(hwnd: number): { ok: boolean; error?: string } {
@@ -613,6 +658,9 @@ export class TaskbarService extends Service {
       this.store = { ...this.store, pinned: [...this.store.pinned, { exe: entry.exe, label: entry.label, iconKey: entry.iconKey }] }
     } else {
       this.store = { ...this.store, pinned: this.store.pinned.filter((_, i) => i !== idx) }
+      // 工单189 解除手钉原地转运行：目标在运行时其键插回会话运行序首位——运行段紧随
+      // 手钉段，键落首位即条目停在原位次（不按新面孔跳最右）；未运行则键本不在序，无操作。
+      if (this.windowsOf(exe).length > 0) this.runOrder = promoteRunToFront(this.runOrder, key)
     }
     this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
     this.refresh() // 手钉段迁移即时上栏（变化才回推 taskbar/changed）
@@ -774,9 +822,12 @@ export class TaskbarService extends Service {
    */
   private recompose(): void {
     try {
-      // 工单156：重排轮与 refresh 同一过滤口径（垃圾窗不进应用组）
+      // 工单189：重排轮与 refresh 同一编排口径（planAppsSequence + 会话运行序回存，
+      // 垃圾窗不进应用组的过滤判据在 shouldShowOnTaskbar 不变）
       const windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
-      this.current = { ...this.current, apps: planAppsGroup(this.store.pinned, windows, (exe) => this.deps.iconKeyForPath(exe)) }
+      const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+      this.runOrder = plan.runOrder
+      this.current = { ...this.current, apps: plan.apps }
     } catch { /* 枚举失败沿用上一轮应用组（refresh 同款纪律） */ }
     try {
       this.current = { ...this.current, recommendations: this.visibleRecommendations() }

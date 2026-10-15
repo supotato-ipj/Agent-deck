@@ -90,12 +90,15 @@ export interface TaskbarAppViewEntry {
   iconKey: string | null
 }
 
-/** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染（只剩应用组与右组的边界条件）；
- * metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
+/** 任务栏视图模型：visible=false = 开始组 pill 整个不渲染、recsVisible=false = 推荐组 pill
+ * 整个不渲染（工单192 两组显隐解耦——开始组按系统按钮、推荐组按推荐位有无，各自空则整组
+ * 不渲染）；metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
  * excluded（工单161）= 推荐栏移除名单（恢复菜单段的行来源）；
  * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径） */
 export interface TaskbarViewModel {
   visible: boolean
+  /** 推荐组 pill 显隐（工单192 独立拆出）：推荐位非空即独立在场，与开始组解耦 */
+  recsVisible: boolean
   buttons: TaskbarButtonSpec[]
   recommendations: TaskbarRecommendation[]
   excluded: TaskbarExcludedEntry[]
@@ -110,12 +113,13 @@ export interface TaskbarViewModel {
 }
 
 /**
- * 状态 → 视图：禁用即空壳；开始组 pill 显隐 = 可见按钮或推荐位任非空（两按钮都隐藏且
- * 推荐位为空 → 整组不渲染）。菜单行恒列两按钮——只要开始组 pill 还渲染，被藏按钮就有恢复入口；
- * 两按钮全隐藏且推荐位为空的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
+ * 状态 → 视图：禁用即空壳；两组显隐解耦（工单192）——开始组 pill 显隐 = 可见系统按钮
+ * 非空（两按钮都隐藏 → 整组不渲染），推荐组 pill 显隐 = 推荐位非空（各自独立裁决，互不
+ * 牵连）。菜单行恒列两按钮——只要开始组 pill 还渲染，被藏按钮就有恢复入口；两按钮全隐藏
+ * 且推荐组也不在场的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
+  if (!state.enabled) return { visible: false, recsVisible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -135,7 +139,8 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     iconKey: e.iconKey,
   }))
   return {
-    visible: buttons.length > 0 || recommendations.length > 0,
+    visible: buttons.length > 0,
+    recsVisible: recommendations.length > 0,
     buttons,
     recommendations,
     excluded,
@@ -273,6 +278,16 @@ export function trayOverflowTierRows(current: TaskbarTrayOverflowLimit): Array<{
   return TRAY_OVERFLOW_TIERS.map((t) => ({ ...t, current: t.limit === current }))
 }
 
+/** 档位弹窗菜单行（工单196）：id = tier-<limit>（动作寻址身份，横排退役前几何存证
+ * data-id 同款）、label = 「[✓ ]托盘 <档位名>」（横排退役前行文本同源——条目集现状不变）。
+ * 四档恒在列（选档菜单无空态），档位不取 null。 */
+export function taskbarTierMenuPopupRows(current: TaskbarTrayOverflowLimit): Array<{ id: string; label: string }> {
+  return trayOverflowTierRows(current).map((row) => ({
+    id: `tier-${row.limit}`,
+    label: `${row.current ? '✓ ' : ''}托盘 ${row.label}`,
+  }))
+}
+
 /**
  * 托盘溢出拆分（工单162）：裁决本体是 shared/overflow 的 planTrayOverflow（与应用组
  * planAppsOverflow 同形态、同处 shared），本层只是把它接到托盘条目上。
@@ -326,6 +341,40 @@ export function taskbarAppMenuRows(entry: Pick<TaskbarAppViewEntry, 'pinned' | '
   if (entry.running) rows.push({ action: 'close', label: '关闭窗口' })
   rows.push({ action: 'reveal', label: '打开文件位置' })
   return rows
+}
+
+/**
+ * 应用组弹窗菜单行推导（工单193）：按 exe 身份在应用组视图条目中寻址，行集 =
+ * taskbarAppMenuRows 同源（条目集现状不变）。浮层页自足取行用——开层请求只携带
+ * 身份不携带行集，浮层行与条带视图永不各判一次（托盘溢出浮层 splitTrayOverflow
+ * 同纪律）。exe 不在场（开层间隙应用退场）= null，浮层页据此自收。
+ */
+export function taskbarAppMenuPopupRows(
+  apps: ReadonlyArray<Pick<TaskbarAppViewEntry, 'exe' | 'pinned' | 'running'>>,
+  exe: string,
+): TaskbarAppMenuRow[] | null {
+  const entry = apps.find((a) => a.exe === exe)
+  return entry ? taskbarAppMenuRows(entry) : null
+}
+
+/** 空白右键弹窗菜单行（工单196）：系统按钮显隐（工单54，vm.menu 原样——id=按钮 id、
+ * 被藏按钮给「显示」恢复行）+ 恢复段（工单161，id=restore:<exe> 供动作寻址、label=
+ * 「恢复 <显示名>」与横排退役前行文本同源）。开始组/推荐组空白右键同一份行集（横排
+ * 时代两组宿主渲染同一内容，工单196 起共用 menu=blank 适配器，恒重开语义）。 */
+export function taskbarBlankMenuPopupRows(vm: TaskbarViewModel): Array<{ id: string; label: string }> | null {
+  if (!vm.menu.length) return null
+  return [
+    ...vm.menu.map((row) => ({ id: row.id as string, label: row.label })),
+    ...vm.excluded.map((ex) => ({ id: `restore:${ex.exe}`, label: `恢复 ${ex.label}` })),
+  ]
+}
+
+/** 选窗列表弹窗行（工单196）：hwnd 即行身份（点行经 taskbar/activate-window 精确到达），
+ * label = 窗口标题（无标题窗回退「（无标题窗口）」——横排退役前 pill 内列表同文案）。
+ * 空清单（选窗间隙窗口全关）= null，浮层页据此自收。 */
+export function taskbarWinsMenuPopupRows(windows: ReadonlyArray<TaskbarWindowRef>): Array<{ id: string; label: string }> | null {
+  if (!windows.length) return null
+  return windows.map((w) => ({ id: String(w.hwnd), label: w.title || '（无标题窗口）' }))
 }
 
 /** 左键点击回执（工单53）：action=window-list 时 windows 携带带标题清单（标题仅即时显示） */
@@ -431,6 +480,20 @@ export function taskbarRecMenuRows(): TaskbarRecMenuRow[] {
 }
 
 /**
+ * 推荐组条目弹窗菜单行推导（工单196）：按 exe 身份在推荐位名单中寻址，行集 =
+ * taskbarRecMenuRows 同源（条目集现状不变，三行 label 单测钉住）。浮层页自足取行
+ * 用——开层请求只携带身份不携带行集（应用组弹窗菜单 taskbarAppMenuPopupRows 同纪律，
+ * 浮层行与条带视图永不各判一次）。exe 不在场（开层间隙条目被递补换出）= null，
+ * 浮层页据此自收。
+ */
+export function taskbarRecMenuPopupRows(
+  recs: ReadonlyArray<Pick<TaskbarRecommendation, 'exe'>>,
+  exe: string,
+): TaskbarRecMenuRow[] | null {
+  return recs.some((r) => r.exe === exe) ? taskbarRecMenuRows() : null
+}
+
+/**
  * 推荐组条目左键启动分发（工单160）：富化后的 exe 身份经桥 invoke
  * （taskbar/rec-click），启动走既有 shell 打开通道，裁决与护栏在内核。响应原样上抛
  * （ok:false 也返回——栏面竞态按普通失败呈现）；空 exe 是噪声（不发 invoke）。
@@ -489,10 +552,11 @@ export function splitAppsOverflow(
   return planAppsOverflow(apps, slots)
 }
 
-// —— 工单159 栏分组布局重排：应用组空带居中几何（纯函数；DOM 落位在 taskbar.ts）——
-// 布局反转：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘] 空带内居中（随两侧内容
-// 浮动，非屏幕绝对中心）。居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，
-// DOM 侧（taskbar.ts）只做矩形实测与落位。
+// —— 工单159 栏分组布局重排 + 工单190 屏幕中心线锚定：应用组几何（纯函数；DOM 落位在
+// taskbar.ts）——布局反转：开始组钉条带左缘；应用组 pill 中心对齐屏幕水平中心线（工单190，
+// 不随开始组/推荐组/右组宽度漂移），空带 [开始组右缘, 右组左缘] 降为容量与夹取边界。
+// 居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，DOM 侧（taskbar.ts）
+// 只做矩形实测与落位。
 
 /** 应用组几何常量（与 taskbar.html CSS 同源：pill 内衬 8+8、图标格 44+2 间距、组间距 8、
  * 条带左缘内衬 8——工单158 尺寸基）。格数宁保守不少让——多留缝也不与邻组重叠。 */
@@ -501,31 +565,42 @@ export const PILL_PAD_X = 16
 export const CELL_W = 46
 export const GROUP_GAP = 8
 
-/** 应用组空带：[lo, hi] = [开始组右缘（含组间距）, 右组左缘（含组间距）]——
- * 应用组居中的参照系（工单159 词汇口径：推荐组右缘与右组左缘之间；推荐位暂栖开始组
- * pill，故左界 = 开始组 pill 右缘，推荐组独立拆出后随迁） */
+/** 应用组空带：[lo, hi] = [左邻组右缘（含组间距）, 右组左缘（含组间距）]——
+ * 工单190 起不承载居中参照（居中锚 = 屏幕水平中心线），只作容量边界与夹取围栏
+ * （pill 永不越带压邻居）；左邻按工单192 推荐组独立拆出随迁 = 推荐组 pill（appsBandLeft
+ * 裁决：缺席回退开始组 pill） */
 export interface AppsBand { lo: number; hi: number }
 
-/** 空带两侧边界：开始组整组不渲染（两按钮全隐藏且无推荐）时左界退到条带左缘内衬；
+/** 应用组空带左邻右缘（工单192 推荐组独立拆出随迁）：推荐组在场取推荐组右缘，缺席回退
+ * 开始组右缘，两组都不在场（各自空则整组不渲染）返回 null——appsBand 据此退条带左缘内衬 */
+export function appsBandLeft(recsRight: number | null, startRight: number | null): number | null {
+  return recsRight ?? startRight
+}
+
+/** 空带两侧边界：左邻组整组不在场（推荐组与开始组都不渲染）时左界退到条带左缘内衬；
  * 右组自身越界左侵（异常态，26+ 托盘极端拥挤）产出零宽带——不产出负带宽，等下一拍 */
-export function appsBand(startRight: number | null, rightLeft: number): AppsBand {
-  const lo = startRight === null ? APPS_INSET : startRight + GROUP_GAP
+export function appsBand(leftRight: number | null, rightLeft: number): AppsBand {
+  const lo = leftRight === null ? APPS_INSET : leftRight + GROUP_GAP
   const hi = Math.max(rightLeft - GROUP_GAP, lo)
   return { lo, hi }
 }
 
 /** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。
- * 旧单侧口径（右限 = 开始组 pill 左缘）随布局反转退役——现在两侧邻组都是边界 */
+ * 中心锚定（工单190）不改容量口径——格数仍受两侧邻组约束（不越界压邻居），邻居变宽
+ * 挤的是容量（格数变少、溢出 ⋯ 兜底），不是居中位 */
 export function appsSlotsFor(band: AppsBand): number {
   return Math.max(0, Math.floor((band.hi - band.lo - PILL_PAD_X) / CELL_W))
 }
 
-/** 居中位：带宽足够取带中点；恰占满贴带左缘；超带宽（溢出浮层展开等病态档）钉带左缘
- * ——右溢不反演到开始组一侧（DOM 后绘的右组在上，病态档从右组下溢出，与旧布局同降级）。
- * 夹取保证有带宽时永不与邻组重叠；容量（appsSlotsFor）按闭合形态算，栏内段恒在带内 */
-export function appsPillLeft(band: AppsBand, pillWidth: number): number {
+/** 居中位（工单190）：pill 中心对齐屏幕水平中心线（centerX = 条带窗视口坐标系里的屏幕
+ * 中心 x——条带窗横跨主屏全宽且窗 x = 屏 x，DOM 侧传 innerWidth/2），不随带宽漂移；
+ * 带外夹取维持现状：理想位越带界即夹回（左探钉带左缘、右探钉「带右界−半宽」），带宽不足
+ * （溢出浮层展开等病态档）钉带左缘——右溢不反演到开始组一侧（DOM 后绘的右组在上，
+ * 病态档从右组下溢出，与旧布局同降级）。夹取保证任何带宽下永不与邻组重叠；容量
+ * （appsSlotsFor）按闭合形态算，栏内段恒在带内 */
+export function appsPillLeft(band: AppsBand, pillWidth: number, centerX: number): number {
   const w = Math.max(0, pillWidth)
-  let left = (band.lo + band.hi) / 2 - w / 2
+  let left = centerX - w / 2
   if (left < band.lo) left = band.lo
   if (left + w > band.hi) left = band.hi - w
   if (left < band.lo) left = band.lo

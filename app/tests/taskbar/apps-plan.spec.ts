@@ -5,7 +5,7 @@
  * 先例：tests/desktop/plan.spec.ts（直接喂构造输入断言输出清单）。
  */
 import { describe, expect, it } from 'vitest'
-import { planAppsGroup, planAppsOverflow, shouldShowOnTaskbar } from '../../src/main/taskbar/apps-plan'
+import { planAppsGroup, planAppsOverflow, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../../src/main/taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../../src/main/taskbar/apps-plan'
 
 const pinned = (exe: string, over: Partial<TaskbarPinnedEntry> = {}): TaskbarPinnedEntry => ({
@@ -95,6 +95,165 @@ describe('应用组编排（手钉 ∪ 运行中，工单52）', () => {
 
   it('全空输入 → 空应用组', () => {
     expect(planAppsGroup([], [])).toEqual([])
+  })
+})
+
+describe('统一序列默认落位（工单189）：排序键与 z 序快照脱钩，会话运行序承接位次', () => {
+  it('runOrder 在场：仅运行应用按会话序落位，当拍窗口枚举序（z 序快照）不再决定位次', () => {
+    // 当拍 z 序 B 在前（焦点刚切到 B），会话序 A 先入场——位次应跟会话序
+    const out = planAppsGroup(
+      [],
+      [{ exe: 'C:\\apps\\B.exe', title: '乙' }, { exe: 'C:\\apps\\A.exe', title: '甲' }],
+      undefined,
+      ['c:\\apps\\a.exe', 'c:\\apps\\b.exe'],
+    )
+    expect(out.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe', 'C:\\apps\\B.exe'])
+  })
+
+  it('runOrder 陈旧键跳过；序外新面孔按首见序殿后（引导/兜底口径）', () => {
+    const out = planAppsGroup(
+      [],
+      [{ exe: 'C:\\apps\\C.exe', title: '丙' }, { exe: 'C:\\apps\\A.exe', title: '甲' }],
+      undefined,
+      ['c:\\apps\\a.exe'], // C 不在会话序（首拍引导）——殿后
+    )
+    expect(out.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe', 'C:\\apps\\C.exe'])
+  })
+
+  it('手钉居前语义不变：会话序只裁决运行段内部位次', () => {
+    const out = planAppsGroup(
+      [pinned('C:\\apps\\P.exe')],
+      [{ exe: 'C:\\apps\\A.exe', title: '甲' }, { exe: 'C:\\apps\\P.exe', title: '手钉运行中' }],
+      undefined,
+      ['c:\\apps\\a.exe'],
+    )
+    expect(out.map((e) => [e.exe, e.pinned, e.running])).toEqual([
+      ['C:\\apps\\P.exe', true, true],
+      ['C:\\apps\\A.exe', false, true],
+    ])
+  })
+})
+
+describe('编排一拍：默认规则落位＋手工序合并（工单189，planAppsSequence）', () => {
+  const win = (exe: string, title: string | null = '窗') => ({ exe, title })
+
+  it('首拍引导：会话序空按首见序落位，并把该序建立为会话运行序', () => {
+    const r1 = planAppsSequence([], [win('C:\\apps\\A.exe'), win('C:\\apps\\B.exe')], [])
+    expect(r1.apps.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe', 'C:\\apps\\B.exe'])
+    expect(r1.runOrder).toEqual(['c:\\apps\\a.exe', 'c:\\apps\\b.exe'])
+  })
+
+  it('z 序脱钩（本票主断言）：连续拍之间窗口枚举序任意翻转，序列与会话序纹丝不动', () => {
+    const r1 = planAppsSequence([], [win('C:\\apps\\A.exe'), win('C:\\apps\\B.exe'), win('C:\\apps\\C.exe')], [])
+    // 用户切焦点：z 序翻成 C、A、B（首见序完全颠倒）
+    const r2 = planAppsSequence([], [win('C:\\apps\\C.exe'), win('C:\\apps\\A.exe'), win('C:\\apps\\B.exe')], r1.runOrder)
+    expect(r2.apps.map((e) => e.exe)).toEqual(r1.apps.map((e) => e.exe))
+    expect(r2.runOrder).toEqual(r1.runOrder)
+  })
+
+  it('新面孔追加最右：后启动的应用即使当拍 z 序居首也排在既有运行应用之后', () => {
+    const r1 = planAppsSequence([], [win('C:\\apps\\A.exe'), win('C:\\apps\\B.exe')], [])
+    // 新窗 D 置顶（z 序最前）；B、A 照旧
+    const r2 = planAppsSequence([], [win('C:\\apps\\D.exe'), win('C:\\apps\\B.exe'), win('C:\\apps\\A.exe')], r1.runOrder)
+    expect(r2.apps.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe', 'C:\\apps\\B.exe', 'C:\\apps\\D.exe'])
+    expect(r2.runOrder).toEqual(['c:\\apps\\a.exe', 'c:\\apps\\b.exe', 'c:\\apps\\d.exe'])
+  })
+
+  it('有窗在位不动：窗口标题变化、同应用一窗关闭（另一窗存续）都不动位次', () => {
+    const r1 = planAppsSequence([], [win('C:\\apps\\A.exe', '文档1'), win('C:\\apps\\B.exe', '乙 1')], [])
+    // A 的标题窗关了只剩另一窗；B 改标题；z 序翻转
+    const r2 = planAppsSequence([], [win('C:\\apps\\B.exe', '乙 2'), win('C:\\apps\\A.exe', '文档2')], r1.runOrder)
+    expect(r2.apps.map((e) => [e.exe, e.title])).toEqual([['C:\\apps\\A.exe', '文档2'], ['C:\\apps\\B.exe', '乙 2']])
+  })
+
+  it('全关消失、再启动回最右：键摘除出会话序，复启按新面孔追加末位', () => {
+    const r1 = planAppsSequence([], [win('C:\\apps\\A.exe'), win('C:\\apps\\B.exe')], [])
+    const r2 = planAppsSequence([], [win('C:\\apps\\A.exe')], r1.runOrder) // B 全关
+    expect(r2.apps.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe'])
+    expect(r2.runOrder).toEqual(['c:\\apps\\a.exe']) // B 键摘除
+    const r3 = planAppsSequence([], [win('C:\\apps\\B.exe'), win('C:\\apps\\A.exe')], r2.runOrder) // B 复启（z 序居首）
+    expect(r3.apps.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe', 'C:\\apps\\B.exe'])
+  })
+
+  it('手钉段在前不变；会话序只含未钉运行键——已钉应用开新窗并入钉图标、不进会话序', () => {
+    const r1 = planAppsSequence([pinned('C:\\apps\\P.exe')], [win('C:\\apps\\P.exe', '手钉窗'), win('C:\\apps\\A.exe')], [])
+    expect(r1.apps.map((e) => [e.exe, e.pinned, e.running])).toEqual([
+      ['C:\\apps\\P.exe', true, true],
+      ['C:\\apps\\A.exe', false, true],
+    ])
+    expect(r1.runOrder).toEqual(['c:\\apps\\a.exe'])
+  })
+
+  it('钉入原地转正：运行段首位应用进手钉清单后，统一序列位次不动、会话序摘除其键', () => {
+    const r1 = planAppsSequence([pinned('C:\\apps\\P.exe')], [win('C:\\apps\\P.exe'), win('C:\\apps\\X.exe')], [])
+    expect(r1.apps.map((e) => e.exe)).toEqual(['C:\\apps\\P.exe', 'C:\\apps\\X.exe'])
+    // 用户把 X 钉入（服务层 = 手钉清单追加至末位＋下拍重编排）：X 原地转正（位次 2 不动）
+    const r2 = planAppsSequence([pinned('C:\\apps\\P.exe'), pinned('C:\\apps\\X.exe')], [win('C:\\apps\\X.exe')], r1.runOrder)
+    expect(r2.apps.map((e) => [e.exe, e.pinned, e.running])).toEqual([
+      ['C:\\apps\\P.exe', true, false],
+      ['C:\\apps\\X.exe', true, true],
+    ])
+    expect(r2.runOrder).toEqual([])
+  })
+
+  it('同拍多新面孔按首见序一次并列追加（突发窗口不互相翻转）', () => {
+    const r1 = planAppsSequence([], [win('C:\\apps\\A.exe')], [])
+    const r2 = planAppsSequence([], [win('C:\\apps\\C.exe'), win('C:\\apps\\B.exe'), win('C:\\apps\\A.exe')], r1.runOrder)
+    expect(r2.apps.map((e) => e.exe)).toEqual(['C:\\apps\\A.exe', 'C:\\apps\\C.exe', 'C:\\apps\\B.exe'])
+  })
+})
+
+describe('解除手钉原地转运行（工单189，promoteRunToFront）', () => {
+  const win = (exe: string, title: string | null = '窗') => ({ exe, title })
+  it('键插回会话序首位（紧随手钉段=原地），陈旧键先去重', () => {
+    expect(promoteRunToFront(['c:\\apps\\a.exe', 'c:\\apps\\b.exe'], 'c:\\apps\\x.exe'))
+      .toEqual(['c:\\apps\\x.exe', 'c:\\apps\\a.exe', 'c:\\apps\\b.exe'])
+    expect(promoteRunToFront(['c:\\apps\\x.exe', 'c:\\apps\\a.exe'], 'c:\\apps\\x.exe'))
+      .toEqual(['c:\\apps\\x.exe', 'c:\\apps\\a.exe'])
+    expect(promoteRunToFront([], 'c:\\apps\\x.exe')).toEqual(['c:\\apps\\x.exe'])
+  })
+
+  it('解除在运行的已钉应用：promote 后重编排，该应用落运行段首位=原位次原地转运行', () => {
+    // 现场手钉 [P, X]（X 运行中），未钉运行 [A]
+    const r0 = planAppsSequence([pinned('C:\\apps\\P.exe'), pinned('C:\\apps\\X.exe')], [win('C:\\apps\\X.exe'), win('C:\\apps\\A.exe')], [])
+    expect(r0.apps.map((e) => e.exe)).toEqual(['C:\\apps\\P.exe', 'C:\\apps\\X.exe', 'C:\\apps\\A.exe'])
+    // 用户解除 X 手钉：服务层 promote（X 插回会话序首位）再重编排——X 停在位次 2
+    const order = promoteRunToFront(r0.runOrder, 'c:\\apps\\x.exe')
+    const r1 = planAppsSequence([pinned('C:\\apps\\P.exe')], [win('C:\\apps\\X.exe'), win('C:\\apps\\A.exe')], order)
+    expect(r1.apps.map((e) => [e.exe, e.pinned, e.running])).toEqual([
+      ['C:\\apps\\P.exe', true, false],
+      ['C:\\apps\\X.exe', false, true],
+      ['C:\\apps\\A.exe', false, true],
+    ])
+    expect(r1.runOrder).toEqual(['c:\\apps\\x.exe', 'c:\\apps\\a.exe'])
+  })
+})
+
+describe('未钉运行条目会话换位（工单195，reorderRunOrder）：拖位落会话运行序、不落盘', () => {
+  it('运行段内换位：before=运行身份 → 移到该键之前', () => {
+    expect(reorderRunOrder(['c:\\apps\\b.exe', 'c:\\apps\\c.exe'], 'C:\\Apps\\C.exe', 'c:\\apps\\B.exe'))
+      .toEqual(['c:\\apps\\c.exe', 'c:\\apps\\b.exe'])
+  })
+
+  it('before=null（组空白落点）→ 运行段末尾', () => {
+    expect(reorderRunOrder(['c:\\apps\\c.exe', 'c:\\apps\\b.exe'], 'C:\\Apps\\C.exe', null))
+      .toEqual(['c:\\apps\\b.exe', 'c:\\apps\\c.exe'])
+  })
+
+  it('before 指向手钉段/序外身份 → 运行段首位钳取（紧随手钉段=离落点最近的可达位）', () => {
+    expect(reorderRunOrder(['c:\\apps\\b.exe', 'c:\\apps\\c.exe'], 'C:\\Apps\\C.exe', 'C:\\Apps\\Pinned.exe'))
+      .toEqual(['c:\\apps\\c.exe', 'c:\\apps\\b.exe'])
+  })
+
+  it('自落点与身份不在序：原引用原样返回（服务层据同一引用=空转 + includes 区分 ok:true/ok:false）', () => {
+    const order = ['c:\\apps\\b.exe', 'c:\\apps\\c.exe']
+    expect(reorderRunOrder(order, 'c:\\apps\\b.exe', 'c:\\apps\\b.exe')).toBe(order)
+    expect(reorderRunOrder(order, 'C:\\Gone\\ghost.exe', 'c:\\apps\\b.exe')).toBe(order)
+  })
+
+  it('身份归一匹配（NTFS 大小写/斜杠不敏感），换位不重不漏', () => {
+    expect(reorderRunOrder(['c:\\apps\\b.exe', 'c:\\apps\\c.exe', 'c:\\apps\\d.exe'], 'C:/APPS/D.exe', 'c:\\apps\\b.exe'))
+      .toEqual(['c:\\apps\\d.exe', 'c:\\apps\\b.exe', 'c:\\apps\\c.exe'])
   })
 })
 

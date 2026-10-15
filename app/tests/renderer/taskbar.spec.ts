@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuRows, taskbarRecMenuRows, taskbarViewModel, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -96,9 +96,10 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     ])
   })
 
-  it('推荐位随状态透出（排序与名单内核已定，视图模型原样承接）', () => {
+  it('推荐位随状态透出（排序与名单内核已定，视图模型原样承接；推荐组独立在场，工单192）', () => {
     const vm = taskbarViewModel(state({ recommendations: RECS }))
     expect(vm.visible).toBe(true)
+    expect(vm.recsVisible).toBe(true)
     expect(vm.recommendations).toEqual(RECS)
   })
 
@@ -112,18 +113,26 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     ])
   })
 
-  it('两按钮都隐藏 + 有推荐位：开始组 pill 仍渲染（只余推荐位）', () => {
+  it('显隐解耦（工单192）：两按钮都隐藏 + 有推荐位 → 开始组不渲染、推荐组独立在场', () => {
     const vm = taskbarViewModel(state({ hiddenButtons: ['start', 'tasks'], recommendations: RECS }))
-    expect(vm.visible).toBe(true)
+    expect(vm.visible).toBe(false)
+    expect(vm.recsVisible).toBe(true)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual(RECS)
   })
 
-  it('两按钮都隐藏 + 推荐位为空：开始组整个不渲染（只剩应用组与右组的边界）', () => {
+  it('两按钮都隐藏 + 推荐位为空：开始组与推荐组都不渲染（只剩应用组与右组的边界）', () => {
     const vm = taskbarViewModel(state({ hiddenButtons: ['start', 'tasks'] }))
     expect(vm.visible).toBe(false)
+    expect(vm.recsVisible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
+  })
+
+  it('显隐解耦反向（工单192）：两按钮在场 + 推荐位为空 → 开始组在场、推荐组不渲染', () => {
+    const vm = taskbarViewModel(state())
+    expect(vm.visible).toBe(true)
+    expect(vm.recsVisible).toBe(false)
   })
 
   it('禁用态渲染空壳（开始组不渲染、按钮/推荐位/应用组全空）', async () => {
@@ -131,6 +140,7 @@ describe('任务栏 pill 渲染（fake bridge 驱动）', () => {
     const s = await bridge.invoke('taskbar/get-state', null)
     const vm = taskbarViewModel(s)
     expect(vm.visible).toBe(false)
+    expect(vm.recsVisible).toBe(false)
     expect(vm.buttons).toEqual([])
     expect(vm.recommendations).toEqual([])
     expect(vm.apps).toEqual([])
@@ -529,7 +539,7 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
   })
 })
 
-describe('栏分组布局重排（工单159：开始组钉左、应用组空带居中）', () => {
+describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕中心线锚定）', () => {
   const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
   const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
 
@@ -554,13 +564,42 @@ describe('栏分组布局重排（工单159：开始组钉左、应用组空带�
     expect(rule).not.toContain('translate(-50%')
   })
 
-  it('空带两侧边界（纯函数）：左=开始组右缘+组间距（整组不渲染=条带左内衬）、右=右组左缘−组间距', () => {
-    // 常态：开始组在左、右组在右
+  it('推荐组独立漂浮 pill（工单192）：钉落位归 JS 的 fixed 容器，拥挤收窄档与显隐边界样式同开始组族', () => {
+    const rule = ruleOf('#pill-recs')
+    expect(rule, '推荐组独立容器 fixed 漂浮（横向落位归渲染层 positionRecPill）').toContain('position: fixed')
+    expect(rule, '拥挤收窄整体裁剪（clampRecPillWidth 守卫语义随拆出随迁）').toContain('overflow: hidden')
+    expect(rule).toContain('min-width: 0')
+    expect(css).toContain('#pill-recs[hidden]')
+    // 拆出后开始组仍保挤撞收窄三件套（守卫不随拆出退役）
+    const startRule = ruleOf('#pill-start')
+    expect(startRule).toContain('overflow: hidden')
+    expect(startRule).toContain('min-width: 0')
+  })
+
+  it('推荐组 pill 容器在 DOM 序上居开始组之后、右组之前（工单192 独立漂浮位；应用组首元素是工单159 既有形态）', () => {
+    const iStart = html.indexOf('id="pill-start"')
+    const iRecs = html.indexOf('id="pill-recs"')
+    const iRight = html.indexOf('id="right-pill"')
+    expect(iStart).toBeGreaterThanOrEqual(0)
+    expect(iRecs, '#pill-recs 容器元素在场').toBeGreaterThan(0)
+    expect(iStart, '推荐组在开始组之后').toBeLessThan(iRecs)
+    expect(iRecs, '推荐组在右组之前（「开始组与应用组之间」的几何落位由 positionRecPill 裁决、P19 真机断言）').toBeLessThan(iRight)
+  })
+
+  it('空带两侧边界（纯函数）：左=左邻组右缘+组间距（左右邻都不在场=条带左内衬）、右=右组左缘−组间距', () => {
+    // 常态：左邻组（推荐组或开始组）在左、右组在右
     expect(appsBand(320, 2000)).toEqual({ lo: 328, hi: 1992 })
-    // 开始组整组不渲染（两按钮全隐藏且无推荐）：左界退到条带左缘内衬
+    // 左邻组整组不在场：左界退到条带左缘内衬
     expect(appsBand(null, 2000)).toEqual({ lo: 8, hi: 1992 })
     // 异常态（右组自身越界左侵）：零宽带，等下一拍——不产出负带宽
     expect(appsBand(2400, 2200)).toEqual({ lo: 2408, hi: 2408 })
+  })
+
+  it('应用组空带左邻（工单192 推荐组拆出随迁）：推荐组在场取推荐组右缘，缺席回退开始组右缘，都缺=null', () => {
+    expect(appsBandLeft(300, 200)).toBe(300)
+    expect(appsBandLeft(null, 200)).toBe(200)
+    expect(appsBandLeft(300, null)).toBe(300)
+    expect(appsBandLeft(null, null)).toBe(null)
   })
 
   it('应用组容量两侧化（纯函数）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位）；窄带/零宽带 0 格', () => {
@@ -572,17 +611,28 @@ describe('栏分组布局重排（工单159：开始组钉左、应用组空带�
     expect(appsSlotsFor({ lo: 2408, hi: 2408 })).toBe(0)
   })
 
-  it('居中位夹取（纯函数）：带宽足够取带中点；恰满/超带宽钉带左缘（溢出展开病态档）', () => {
-    // 常态：200px pill 居中于 [100,500] 带 → 带中点 300 − 半宽 100 = 200
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 200)).toBe(200)
-    // 非整除带宽：取整后两侧余隙差 ≤1px（带 460 宽、pill 200：中点 300−100=200，两侧 100/160）
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 201)).toBe(200) // 中点 300−100.5=199.5 → 200（右侧余 99，左侧 100）
-    // 恰占满带宽：贴带左缘
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 400)).toBe(100)
+  it('居中锚定（纯函数，工单190）：pill 中心对齐屏幕水平中心线（centerX），不随带宽漂移', () => {
+    // 常态：屏幕中心线 300、pill 200 → 左缘 = 300 − 100 = 200
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 200, 300)).toBe(200)
+    // 邻居宽度无关：带 [100,500]→[50,700]（两侧邻组增删内容）而中心线不变 → 落位不变
+    expect(appsPillLeft({ lo: 50, hi: 700 }, 200, 300)).toBe(200)
+    // 非整除：中心线 300、pill 201 → 199.5 → 取整 200（两侧余隙差 ≤1px）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 201, 300)).toBe(200)
+    // 中心线落在带外一侧（带整体右偏）：理想位越出左界 → 钉带左缘（夹取不越界）
+    expect(appsPillLeft({ lo: 400, hi: 800 }, 100, 300)).toBe(400)
+    // 负宽防御：按 0 宽锚中心线（不炸、不越界）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, -1, 300)).toBe(300)
+  })
+
+  it('居中位夹取（纯函数，工单190 维持现状）：带内容不下时贴理想位；带窄于 pill 钉带左缘（溢出展开病态档）', () => {
+    // 理想位右探越出右界：中心线 450、pill 300 → 理想 300，右缘 600 > 500 → 夹回 200（右缘恰贴带右界）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 300, 450)).toBe(200)
+    // 恰占满带宽：贴带左缘（中心线即带中点时与带中点居中重合）
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 400, 300)).toBe(100)
     // 超带宽（溢出展开等病态档）：钉带左缘（右溢不反演到开始组一侧）
-    expect(appsPillLeft({ lo: 100, hi: 500 }, 450)).toBe(100)
-    // 负宽防御：按 0 宽居中带中点（不炸、不越界）
-    expect(appsPillLeft({ lo: 100, hi: 500 }, -1)).toBe(300)
+    expect(appsPillLeft({ lo: 100, hi: 500 }, 450, 300)).toBe(100)
+    // 零宽带（异常态）：钉带左缘（等下一拍）
+    expect(appsPillLeft({ lo: 2408, hi: 2408 }, 46, 1204)).toBe(2408)
   })
 })
 
@@ -672,5 +722,93 @@ describe('推荐组交互（工单160，fake bridge 驱动）', () => {
     expect(img).toContain('width: 32px')
     expect(img).toContain('height: 32px')
     expect(ruleOf160('.tb-rec-letter'), '无图标键条目首字母占位不出空白格').toContain('font-size')
+  })
+})
+
+// —— 工单193 应用组弹窗菜单（条目集现状不变，行推导按 exe 寻址供浮层页自足取行）——
+
+describe('应用组弹窗菜单行推导（工单193，taskbarAppMenuPopupRows）', () => {
+  const entry = (over: Partial<TaskbarAppViewEntry>): TaskbarAppViewEntry => ({
+    id: 'C:\\Apps\\X.exe', exe: 'C:\\Apps\\X.exe', label: 'X', tooltip: 'X', iconKey: null, pinned: false, running: false, ...over,
+  })
+
+  it('未钉+运行中三行（条目集现状）：手钉到任务栏/关闭窗口/打开文件位置', () => {
+    expect(taskbarAppMenuPopupRows([entry({ running: true })], 'C:\\Apps\\X.exe')).toEqual([
+      { action: 'pin', label: '手钉到任务栏' },
+      { action: 'close', label: '关闭窗口' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+
+  it('已手钉首行换解除手钉；未运行无关闭窗口行（手钉+未运行两行）', () => {
+    expect(taskbarAppMenuPopupRows([entry({ pinned: true, running: false })], 'C:\\Apps\\X.exe')).toEqual([
+      { action: 'unpin', label: '解除手钉' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+  })
+
+  it('exe 不在场（开层间隙应用退场）= null：浮层页据此自收', () => {
+    expect(taskbarAppMenuPopupRows([entry({ running: true })], 'C:\\Apps\\Gone.exe')).toBeNull()
+    expect(taskbarAppMenuPopupRows([], 'C:\\Apps\\X.exe')).toBeNull()
+  })
+})
+
+// —— 工单196 五菜单面迁移（弹窗通路行推导：与条带视图同一份纯函数，浮层行永不各判一次）——
+
+describe('弹窗菜单行推导（工单196，四枚面行推导）', () => {
+  it('推荐条目三行菜单：exe 在场出三行（条目集不变）、不在场 null（浮层页据此自收）', () => {
+    expect(taskbarRecMenuPopupRows(RECS, 'C:\\Apps\\Alpha.exe')).toEqual([
+      { action: 'pin', label: '手钉到任务栏' },
+      { action: 'remove', label: '从推荐栏移除' },
+      { action: 'reveal', label: '打开文件位置' },
+    ])
+    expect(taskbarRecMenuPopupRows(RECS, 'C:\\Apps\\Gone.exe')).toBeNull()
+    expect(taskbarRecMenuPopupRows([], 'C:\\Apps\\Alpha.exe')).toBeNull()
+  })
+
+  it('档位菜单四行（条目集不变）：id=tier-<limit> 供动作寻址、当前档 ✓ 前缀（与横排退役前行文本同源）', () => {
+    expect(taskbarTierMenuPopupRows(5)).toEqual([
+      { id: 'tier-3', label: '托盘 3 枚' },
+      { id: 'tier-5', label: '✓ 托盘 5 枚' },
+      { id: 'tier-8', label: '托盘 8 枚' },
+      { id: 'tier-all', label: '托盘 全部' },
+    ])
+    expect(taskbarTierMenuPopupRows('all')).toEqual([
+      { id: 'tier-3', label: '托盘 3 枚' },
+      { id: 'tier-5', label: '托盘 5 枚' },
+      { id: 'tier-8', label: '托盘 8 枚' },
+      { id: 'tier-all', label: '✓ 托盘 全部' },
+    ])
+  })
+
+  it('空白右键菜单行（系统显隐 + 恢复段）：被藏按钮给「显示」行、恢复行 id=restore:<exe> 供动作寻址、label=「恢复 <显示名>」', () => {
+    const vm = taskbarViewModel(state({
+      hiddenButtons: ['start'],
+      excluded: [{ exe: 'C:\\Apps\\Gone.exe', label: '移除过的', iconKey: null }],
+    }))
+    expect(taskbarBlankMenuPopupRows(vm)).toEqual([
+      { id: 'start', label: '显示开始按钮' },
+      { id: 'tasks', label: '隐藏任务视图按钮' },
+      { id: 'restore:C:\\Apps\\Gone.exe', label: '恢复 移除过的' },
+    ])
+  })
+
+  it('空白右键菜单行：无恢复名单只出系统两行；禁用态（空壳视图）null——浮层页据此自收', () => {
+    expect(taskbarBlankMenuPopupRows(taskbarViewModel(state()))).toEqual([
+      { id: 'start', label: '隐藏开始按钮' },
+      { id: 'tasks', label: '隐藏任务视图按钮' },
+    ])
+    expect(taskbarBlankMenuPopupRows(taskbarViewModel(state({ enabled: false })))).toBeNull()
+  })
+
+  it('选窗列表行：hwnd 即行身份（点行经 activate-window 精确到达）、无标题窗回退「（无标题窗口）」、空清单 null（页自收）', () => {
+    expect(taskbarWinsMenuPopupRows([
+      { hwnd: 101, title: '甲 - 文档1' },
+      { hwnd: 102, title: null },
+    ])).toEqual([
+      { id: '101', label: '甲 - 文档1' },
+      { id: '102', label: '（无标题窗口）' },
+    ])
+    expect(taskbarWinsMenuPopupRows([])).toBeNull()
   })
 })
