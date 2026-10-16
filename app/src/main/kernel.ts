@@ -20,6 +20,7 @@ import { SettingsService, type SettingsServiceOptions } from './services/setting
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
+import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from './taskbar/plan'
 import type { WeatherLocation } from '../shared/contract'
 
@@ -52,6 +53,11 @@ export interface KernelOptions {
   focus?: FocusServiceOptions
   /** 桌面组件宿主（工单10）：插件根目录等（缺省 roots=[]：不装任何插件、不建目录） */
   plugins?: PluginHostOptions
+  /**
+   * 插件私有状态（工单178）：命名空间存储目录（缺省 userData/plugin-config，每 id 一个文件）
+   * 与存储读写真源。缺省即生产落点——离线测试须注入 tmp 目录，绝不触真 userData。
+   */
+  pluginConfig?: PluginConfigServiceOptions
   /** 任务栏（工单49）：开关与依赖（离线测试注入假按键源；缺省默认启用 + 真源延迟绑定） */
   taskbar?: TaskbarServiceOptions
   /** 任务栏应用组编排轮询间隔（ms，工单52）；缺省 0 = 不装定时器（离线测试手动驱动 refresh） */
@@ -96,6 +102,8 @@ export function createKernel(options: KernelOptions = {}): Context {
         ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
     },
   })
+  // 插件私有状态（工单178）：BridgeService 注入依赖它，必须先于桥接层注册。
+  ctx.plugin(PluginConfigService, options.pluginConfig)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   ctx.plugin(SearchService, options.search)
   ctx.plugin(SettingsService, options.settings)

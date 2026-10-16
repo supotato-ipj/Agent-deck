@@ -8,6 +8,7 @@ import type { SearchService } from './services/search'
 import type { SettingsService } from './services/settings'
 import type { FocusService } from './services/focus'
 import type { PluginHostService } from './plugins/service'
+import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
 import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarState, TaskbarStatus } from '../shared/contract'
@@ -67,5 +68,7 @@ declare module 'cordis' {
     plugins: PluginHostService
     /** 工单49/52 任务栏（内核总装必装；离线测试注入假源，窗口枚举手动驱动 refresh） */
     taskbar: TaskbarService
+    /** 工单178 插件私有状态（内核总装必装；命名空间存储目录默认 userData/plugin-config） */
+    pluginConfig: PluginConfigService
   }
 }

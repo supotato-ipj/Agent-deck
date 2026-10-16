@@ -363,6 +363,19 @@ export interface SearchResultItem {
 /** 搜索面板派生态（GLOSSARY.md 三态词汇）：待机 / 活动 / 引擎离线（活动态的降级显示） */
 export type SearchUiState = 'idle' | 'active' | 'offline'
 
+/**
+ * 插件私有状态的一份快照（工单178 plugin-config）：config 是该插件 id 名下整份键值状态，
+ * warnings 是本次读/写的自愈记录（坏值逐键回退、坏 JSON 视同空对象……）。
+ *
+ * 载荷限定为 JSON 数据模型内的值（纯对象/数组/字符串/有限数/布尔/null）；键值语义由插件
+ * 自定，内核不解释内容只管持久化强度——这是「组卡存组定义与临时卡序号」一类运行态数据的
+ * 通道（工单166 之⑧），不是通用配置面。
+ */
+export interface PluginConfigState {
+  config: Record<string, unknown>
+  warnings: string[]
+}
+
 /** 内核桥接方法表：method → [请求体, 响应体] */
 export interface BridgeMethods {
   'panel/snapshot': { request: null; response: PanelSnapshot }
@@ -612,6 +625,26 @@ export interface BridgeMethods {
   'taskbar/set-tray-overflow-limit': { request: { limit: TaskbarTrayOverflowLimit }; response: TaskbarState }
   /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
   'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
+  /**
+   * 插件私有状态读取（工单178，ADR-0014 决策 (c)）：按插件 id 取回整份键值状态，落盘在
+   * userData 下每个 id 一个文件；从未写过 = 空对象，坏 JSON 视同空对象并记 warning。
+   *
+   * **命名空间隔离是约定式、不是强制式**（ADR-0014 Consequences 原文）：invoke 是全表
+   * 透传的单一 handler，主进程无从分辨调用方，`id` 由调用方自证。读别人那一份没有任何
+   * 机制拦得住——这与面板现有的零护栏状态一致（同 ADR-0010 所述，控制面在代码里尚不存在）。
+   * 本契约不引入信任档/开放级/护栏（那套覆盖四类客体与两维矩阵，为一个 KV 搭半套只会留下
+   * 残缺结构）；「只能写自己命名空间」写成该契约的固有约束，落地靠自律。
+   */
+  'plugin-config/get': { request: { id: string }; response: PluginConfigState }
+  /**
+   * 插件私有状态写入（工单178）：patch 按键合并到该 id 的既有状态后整份落盘（tmp+rename
+   * 原子写，坏写不碰原文件、不留半份）。
+   *
+   * 沿用项目既有的持久化强度：逐键校验——坏值**逐键**回退（保留既有值）并记 warning，
+   * 不整体失败；体积超限则拒收并抛 BridgeError，如实回报，绝不静默截断。
+   * 同上，命名空间隔离仅为约定式。
+   */
+  'plugin-config/set': { request: { id: string; patch: Record<string, unknown> }; response: PluginConfigState }
   /**
    * 退出面板（工单83）：设置浮层「退出面板」按钮 → 主进程 app.quit()，与托盘菜单
    * 「退出面板」（tray.ts click=app.quit()）、WM_CLOSE 走同一条 before-quit 优雅退出
