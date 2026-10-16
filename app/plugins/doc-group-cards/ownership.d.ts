@@ -125,8 +125,18 @@ export declare function dissolveGroup(
 /** 这张卡接受任意类型吗（显式对卡粘贴能否粘进去；有限清单的自定义卡不算是） */
 export declare function acceptsAnyTypeOf(store: unknown, cardId: string): boolean
 
-/** 第一层裁决：创建顺序最早、且接受该扩展名的那张自定义卡（先建先得） */
+/** 第一层裁决：创建顺序最早、且接受该扩展名的那张自定义卡（先建先得，按 seq 不按数组下标） */
 export declare function acceptingCustomOf(store: unknown, ext: string): CustomGroupDef | null
+
+/** 显式「粘到这张卡上」会不会真落在它身上（工单167 评审 F2 的判据；有限清单的自定义卡为 false） */
+export declare function acceptsExplicitPasteOf(store: unknown, cardId: string): boolean
+
+/** 改名之后把临时卡的成员名跟过去（工单167 评审 F4；changed=false 表示无人认领，不该落盘） */
+export declare function renameTempMember(
+  store: unknown,
+  from: string,
+  to: string,
+): { store: GroupStore; changed: boolean }
 
 /** 三层归属判定（临时层显式不参与自动路由） */
 export declare function resolveOwner(ext: string, store: unknown): OwnerVerdict

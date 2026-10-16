@@ -28,6 +28,7 @@ import {
   KEYBOARD_TIER,
   NEED_ANY,
   NEED_PASTEABLE,
+  NEED_PASTE_INTO,
   NEED_SINGLE,
   nextMenuShell,
   resolveMenuRows,
@@ -454,17 +455,36 @@ describe('解散确认层（工单186：复用删除确认层那块壳与那张�
   })
 })
 
-describe('组卡菜单（卡片空白右键；工单185 填 NEW GROUP / EDIT TYPES，工单186 再填 PASTE / DISSOLVE）', () => {  it('工单186 补齐 PASTE / DISSOLVE，四行齐了，顺序即 spec166「菜单（自绘外壳）」那一节', () => {
-    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
+describe('组卡菜单（卡片空白右键；工单185 填 NEW GROUP / EDIT TYPES，工单186 再填 PASTE / DISSOLVE）', () => {  it('工单186 补齐 PASTE / DISSOLVE，四行齐了，顺序即 spec166「菜单（自绘外壳）」那一节', () => {    expect(GROUP_CARD_MENU_ROWS.map((r) => r.id)).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
     expect(GROUP_CARD_MENU_ROWS.map((r) => r.label)).toEqual(['PASTE', 'NEW GROUP', 'EDIT TYPES', 'DISSOLVE'])
   })
 
-  it('PASTE 走 needs:pasteable（按剪贴板实况置灰），且**恒可见**——任何一张卡都能接粘贴', () => {
+  it('PASTE 走 needs:paste-into（剪贴板实况 ∧ 这一贴真落在那张卡上），且**恒可见**', () => {
     const paste = GROUP_CARD_MENU_ROWS[0]
-    expect(paste.needs).toBe(NEED_PASTEABLE)
+    // 工单167 评审 F2：在 NEED_PASTEABLE 之上再加一道「粘进去会不会真落在那张卡上」——
+    // 有限清单的自定义卡不满足（那一贴会静默改投别处），临时卡与固有卡满足（见同文件下的用例）。
+    expect(paste.needs).toBe(NEED_PASTE_INTO)
     expect(paste.visibleWhen).toBeUndefined()
     expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-docx', cardKind: 'builtin' }).map((r) => r.id))
       .toEqual(['paste', 'new-group'])
+  })
+
+  it('F2：PASTE 恒**可见**，但有限清单的自定义卡上**置灰**（剪贴板有货也不使能）', () => {
+    const row = (ctx: Record<string, unknown>) =>
+      resolveMenuRows(GROUP_CARD_MENU_ROWS, { paths: [], cardId: 'dgc-c1', cardKind: 'custom', ...ctx })
+        .find((r) => r.id === 'paste')!
+    // 置灰的那一种：这一贴不会落在 dgc-c1 上
+    expect(row({ pasteable: true, pasteIntoCard: false })).toMatchObject({ label: 'PASTE', enabled: false })
+    // 仍然**出得来**（只是灰）——不许用 visibleWhen 把整行藏掉
+    expect(row({ pasteable: true, pasteIntoCard: false })).toBeDefined()
+    // 其余三种照旧可用
+    for (const cardKind of ['builtin', 'temp', 'custom'] as const) {
+      expect(resolveMenuRows(GROUP_CARD_MENU_ROWS, {
+        paths: [], cardId: 'dgc-c1', cardKind, pasteable: true, pasteIntoCard: true,
+      }).find((r) => r.id === 'paste')!.enabled).toBe(true)
+    }
+    // 剪贴板空的那一种仍然按 needs:pasteable 置灰（新档是「在旧档之上」，不顶掉旧档）
+    expect(row({ pasteable: false, pasteIntoCard: true }).enabled).toBe(false)
   })
 
   it('工单187 裁决②：NEW GROUP **恒可见**——它建的是新卡，不改脚下那张固有卡', () => {
@@ -540,6 +560,32 @@ describe('组卡菜单（卡片空白右键；工单185 填 NEW GROUP / EDIT TYP
     expect(isGroupMenuHit('more')).toBe(true)
     expect(isGroupMenuHit('icon')).toBe(false)
     expect(isGroupMenuHit('outside')).toBe(false)
+  })
+})
+
+describe('F5：文件菜单的标签随选区张数走（只换文案，不换契约）', () => {
+  const labels = (paths: string[]) => resolveMenuRows(FILE_MENU_ROWS, { paths }).map((r) => r.label)
+  const ONE = ['C:\\me\\a.txt']
+  const MANY = ['C:\\me\\a.txt', 'C:\\me\\b.txt']
+
+  it('单选：七行一字不改（OPEN / DELETE 就是 OPEN / DELETE）', () => {
+    expect(labels(ONE)).toEqual(['OPEN', 'OPEN LOCATION', 'COPY PATH', 'COPY', 'CUT', 'RENAME', 'DELETE'])
+  })
+
+  it('多选：OPEN ALL / DELETE ALL（spec166「文件菜单（多选）」那一行）', () => {
+    expect(labels(MANY)).toEqual(['OPEN ALL', 'OPEN LOCATION', 'COPY PATH', 'COPY', 'CUT', 'RENAME', 'DELETE ALL'])
+  })
+
+  it('只有这两行带 multiLabel——COPY PATH / COPY / CUT 本来就是整批语义，spec166 没要标 ALL', () => {
+    expect(FILE_MENU_ROWS.filter((r) => r.multiLabel).map((r) => r.id)).toEqual(['open', 'delete'])
+  })
+
+  it('改的只是文案：行 id 与可用性一分未动（调用的契约一个都没换）', () => {
+    const one = resolveMenuRows(FILE_MENU_ROWS, { paths: ONE })
+    const many = resolveMenuRows(FILE_MENU_ROWS, { paths: MANY })
+    expect(many.map((r) => r.id)).toEqual(one.map((r) => r.id))
+    // 多选下置灰的仍是那两行 needs:'single' 的（口径没被文案改动带偏）
+    expect(many.map((r) => r.enabled)).toEqual([true, false, true, true, true, false, true])
   })
 })
 

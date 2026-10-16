@@ -18,6 +18,8 @@ import {
   TIER_BUILTIN,
   TIER_CUSTOM,
   TIER_TEMP,
+  acceptsExplicitPasteOf,
+  acceptingCustomOf,
   addCustomGroup,
   allocateTempCard,
   customCardIdOf,
@@ -26,6 +28,7 @@ import {
   normalizeStore,
   pasteStampOf,
   presentExtensionsOf,
+  renameTempMember,
   resolveOwner,
   storeOf,
   tempCardIdOf,
@@ -448,3 +451,104 @@ describe('勾选浮层的类型清单：只列桌面上真实存在的扩展名�
 function resolvedFirst(store: GroupStore): string {
   return resolveOwner('.docx', store).id
 }
+
+// ---------------------------------------------------------------------------
+// 工单167 评审修复轮
+// ---------------------------------------------------------------------------
+
+describe('F3：先建先得按 seq，不按数组下标', () => {
+  const store = (groups: CustomGroupDef[]): GroupStore => normalizeStore({ version: 1, nextSeq: 9, groups, temps: [] })
+
+  it('入参数组顺序与 seq 相反时，仍归**创建序号最小**的那张', () => {
+    // 数组里 later 在前、earlier 在后 —— 与 seq 明确矛盾
+    const s = store([
+      { id: 'dgc-c2', name: '后来', exts: ['.docx'], acceptAll: false, seq: 7 },
+      { id: 'dgc-c1', name: '先来', exts: ['.docx'], acceptAll: false, seq: 2 },
+    ])
+    expect(acceptingCustomOf(s, '.docx')!.id).toBe('dgc-c1')
+    expect(resolvedFirst(s)).toBe('dgc-c1')
+  })
+
+  it('seq 相同时按 id 定序（不是按数组下标）——两次归一结果一致', () => {
+    const a = store([
+      { id: 'dgc-cB', name: 'B', exts: ['.docx'], acceptAll: false, seq: 4 },
+      { id: 'dgc-cA', name: 'A', exts: ['.docx'], acceptAll: false, seq: 4 },
+    ])
+    const b = store([...a.groups].reverse())
+    expect(acceptingCustomOf(a, '.docx')!.id).toBe('dgc-cA')
+    expect(acceptingCustomOf(b, '.docx')!.id).toBe('dgc-cA')
+  })
+
+  it('acceptAll 那张仍排在同 seq 的有限清单卡之前（先建先得对两 alike 一视同仁）', () => {
+    const s = store([
+      { id: 'dgc-c1', name: '只收 docx', exts: ['.docx'], acceptAll: false, seq: 1 },
+      { id: 'dgc-c2', name: '全收', exts: [], acceptAll: true, seq: 2 },
+    ])
+    expect(acceptingCustomOf(s, '.pdf')!.id).toBe('dgc-c2')
+  })
+})
+
+describe('F2：显式「粘到这张卡上」会不会真落在它身上', () => {
+  const store = normalizeStore({
+    version: 1,
+    nextSeq: 4,
+    groups: [
+      { id: 'dgc-c1', name: '合同', exts: ['.docx'], acceptAll: false, seq: 1 },
+      { id: 'dgc-c2', name: '全收', exts: [], acceptAll: true, seq: 2 },
+    ],
+    temps: [{ id: 'dgc-t1', label: '临时 1', names: ['杂.zip'], seq: 3 }],
+  })
+
+  it('有限清单的自定义卡 → false（那一贴会退回自动路由、静默改投别处）', () => {
+    expect(acceptsExplicitPasteOf(store, 'dgc-c1')).toBe(false)
+  })
+
+  it('接受全部类型的自定义卡 / 临时卡 → true（收下，且成员已是定义的函数）', () => {
+    expect(acceptsExplicitPasteOf(store, 'dgc-c2')).toBe(true)
+    expect(acceptsExplicitPasteOf(store, 'dgc-t1')).toBe(true)
+  })
+
+  it('固有扩展组卡（不在组定义里）→ true：那一贴新起一张临时卡，本就该做', () => {
+    expect(acceptsExplicitPasteOf(store, 'dgc-pdf')).toBe(true)
+  })
+})
+
+describe('F4：改名之后临时卡的成员名跟过去', () => {
+  const withTemp = normalizeStore({
+    version: 1,
+    nextSeq: 3,
+    groups: [],
+    temps: [{ id: 'dgc-t1', label: '临时 1', names: ['杂.zip', '图.png'], seq: 2 }],
+  })
+
+  it('命中成员 → 名单里那一项改名，别的一律不动', () => {
+    const r = renameTempMember(withTemp, '杂.zip', '杂 - 副本.zip')
+    expect(r.changed).toBe(true)
+    expect(r.store.temps[0].names).toEqual(['杂 - 副本.zip', '图.png'])
+  })
+
+  it('没人认领这个名字 → changed=false，调用方据此不落盘', () => {
+    const r = renameTempMember(withTemp, '无关.pdf', '别的.pdf')
+    expect(r.changed).toBe(false)
+    expect(r.store.temps[0].names).toEqual(['杂.zip', '图.png'])
+  })
+
+  it('同名 / 空名都是空转（不制造一次没意义的落盘）', () => {
+    expect(renameTempMember(withTemp, '杂.zip', '杂.zip').changed).toBe(false)
+    expect(renameTempMember(withTemp, '', 'x.pdf').changed).toBe(false)
+    expect(renameTempMember(withTemp, '杂.zip', '').changed).toBe(false)
+  })
+
+  it('端到端：改名前那一份**认不出**这个文件（它静默回落固有组卡），改完名跟过去就认得了', () => {
+    const items: GroupableItem[] = [file('杂 - 副本.zip')]
+    // 改名前的组定义：名单里还是旧名 → 改过名的文件不在任何人名下 → 回落固有 zip 组卡
+    const orphan = buildCards(items, withTemp)
+    expect(orphan.some((c) => c.tier === TIER_TEMP && c.items.length > 0)).toBe(false)
+    expect(orphan.some((c) => c.tier === TIER_BUILTIN && c.items.length === 1)).toBe(true)
+    // 改名后：归属跟过去，那张临时卡仍认得它（不是靠文件名认，是靠刚更新过的名单）
+    const moved = renameTempMember(withTemp, '杂.zip', '杂 - 副本.zip').store
+    const after = buildCards(items, moved)
+    expect(after.find((c) => c.id === 'dgc-t1')!.items.map((i) => i.name)).toEqual(['杂 - 副本.zip'])
+    expect(after.some((c) => c.tier === TIER_BUILTIN && c.items.length > 0)).toBe(false)
+  })
+})

@@ -333,11 +333,17 @@ function rectOf(node: Element): { left: number; top: number; width: number; heig
   const box = { left: px(card.style, 'left'), top: px(card.style, 'top') }
   const expanded = card.classList.contains('dgc-expanded')
   const geo = cardGeometryOf(expanded)
-  const width = px(card.style, 'width') || geo.width
-  const height = px(card.style, 'height') || geo.height
+  // 淡出态卡框塌成 0×0（card.js 的 `.dgc-faded` 规则）——照抄那份 !important 的效果：
+  // 内联的 width/height 仍在，但被样式表压成 0。热区那侧滤掉的就是这个零尺寸
+  // （src/renderer/main.ts:1575 那条 r.w > 0 && r.h > 0），故淡出的卡不进热区。
+  const faded = card.classList.contains('dgc-faded')
+  const width = faded ? 0 : px(card.style, 'width') || geo.width
+  const height = faded ? 0 : px(card.style, 'height') || geo.height
   if (node === card) return { left: box.left, top: box.top, width, height }
-  // 内容区（网格外沿）：卡框内边距盒减去卡头一行；宽度按真布局居中
-  const innerWidth = width - 2 * CARD_PAD_X
+  // 内容区（网格外沿）：卡框内边距盒减去卡头一行；宽度按真布局居中。
+  // 淡出态卡框已是 0×0，内容区改由 `.dgc-faded .dgc-grid` 的 position:absolute 摆位
+  // （left=CARD_PAD_X / top=CARD_PAD_Y+HEAD_H，居中偏移归零）——与上面那两个偏移一致。
+  const innerWidth = faded ? geo.contentWidth : width - 2 * CARD_PAD_X
   const gridWidth = geo.contentWidth
   const grid = { left: box.left + CARD_PAD_X + (innerWidth - gridWidth) / 2, top: box.top + CARD_PAD_Y + HEAD_H, width: gridWidth, height: geo.contentHeight }
   if (node === gridElementOf(card)) return grid

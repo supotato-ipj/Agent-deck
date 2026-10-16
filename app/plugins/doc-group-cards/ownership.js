@@ -399,18 +399,77 @@ export function acceptsAnyTypeOf(store, cardId) {
 /**
  * 第一层裁决：创建顺序最早、且接受该扩展名的那张自定义组卡（**先建先得**）。
  *
- * 判据是 `store.groups` 的次序，而那个次序由 normalizeStore 按 (seq, id) 排定——所以
- * 「先建先得」是**创建序号**的函数，不是数组下标的函数（把数组顺序打乱，改判不会发生）。
+ * 判据是 `seq`（先建先得），**不**是入参数组的下标。normalizeStore 已按 (seq, id) 排过一遍，
+ * 这里仍显式再排一次，是为了让「先建先得」在这一个函数里读得出来——题面把它当数组序用，是只见
+ * 到 `for (const group of ...)` 没见到上游那次排序；两边任一处改了排序口径，这里都还是对的。
+ * 次序键与上游同款：(seq, id)，id 只是 seq 撞了的定序（真撞了就是同一张卡发两次序号）。
  * @param {unknown} store
  * @param {string} ext 分组键（小写含点；无扩展名为空串）
  * @returns {CustomGroupDef | null}
  */
 export function acceptingCustomOf(store, ext) {
-  for (const group of normalizeStore(store).groups) {
+  const byCreate = [...normalizeStore(store).groups].sort(
+    (a, b) => (a.seq - b.seq) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  )
+  for (const group of byCreate) {
     if (group.acceptAll) return group
     if (group.exts.indexOf(ext) >= 0) return group
   }
   return null
+}
+
+/**
+ * 显式「粘到这张卡上」会不会**真落在它身上**（工单167 评审 F2 的判据，纯函数，menu.js 只按它置灰）。
+ *
+ * 与 `acceptsAnyTypeOf` 的区别正是本函数存在的理由：那把判据问的是「这张卡收不收任意类型」，
+ * 而菜单要问的是「点了这一下，文件去哪儿」——对**固有扩展组卡**这两问答案不同：它不收任意类型，
+ * 但那一贴会**新起一张临时卡**收下（spec166 的第三态，工单186 电池断的就是这一条），所以不该置灰。
+ * 反过来对**有限清单的自定义卡**，那一贴会静默改投另一张卡（pasting.js 退回自动路由），菜单却写着
+ * 「粘到这张卡上」——那是一个自己不兑现的动作，故这一种置灰。
+ *
+ * 归宿三类：临时组卡（按定义收任意类型）→ 真落在它身上；接受全部类型的自定义卡 → 成员已是定义的
+ * 函数，不落盘即已在它身上；有限清单的自定义卡 → 收不下，改投别处（false）。
+ * 不在组定义里的（固有扩展组卡）→ 新临时卡（true）。
+ *
+ * @param {unknown} store
+ * @param {string} cardId
+ * @returns {boolean}
+ */
+export function acceptsExplicitPasteOf(store, cardId) {
+  const base = normalizeStore(store)
+  if (base.temps.some((t) => t.id === cardId)) return true
+  const group = base.groups.find((g) => g.id === cardId)
+  return group ? Boolean(group.acceptAll) : true
+}
+
+/**
+ * 改名之后把临时卡里的成员名跟过去（工单167 评审 F4）。
+ *
+ * **为什么不是「换一个改名不动的键」**：题面建议改键到绝对路径，但路径里就带着文件名——
+ * `C:\…\a.txt` 改名成 `b.txt` 之后路径一样变，拿路径当键同样接不住。宿主条目上也没有任何跨改名稳定的
+ * 标识（card.d.ts 的 HostDesktopItem 只有 name / kind / path / iconKey，path 随名变）。故这里走另一条
+ * 也是唯一可靠的路：**改名是本插件自己发起的**（卡片上的 RENAME 行 → writeops.js 的 run 效果 →
+ * `desktop/rename`），内核响应里带着盘面最终名（`to`，含「 - 副本」一类冲突后缀），据此把组定义里
+ * 那一项成员名改掉即可。
+ *
+ * 边界：资源管理器发起的外部改名本契约不覆盖（内核那条改名契约自己也是这么写的），那种情况下文件
+ * 照旧回落它的固有扩展组卡——那条已记在 ADR-0014 的代价里，不在本函数的口径内。
+ *
+ * @param {unknown} store
+ * @param {string} from 改名前的文件名
+ * @param {string} to 改名后的盘面最终文件名
+ * @returns {{ store: GroupStore, changed: boolean }} changed=false 表示没人认领这个名字，调用方不必落盘
+ */
+export function renameTempMember(store, from, to) {
+  const base = normalizeStore(store)
+  if (!from || !to || from === to) return { store: base, changed: false }
+  let changed = false
+  const temps = base.temps.map((card) => {
+    if (card.names.indexOf(from) < 0) return card
+    changed = true
+    return { ...card, names: card.names.map((n) => (n === from ? to : n)) }
+  })
+  return changed ? { store: { ...base, temps }, changed: true } : { store: base, changed: false }
 }
 
 /**

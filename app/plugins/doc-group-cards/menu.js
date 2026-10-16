@@ -106,10 +106,13 @@ export const MENU_CSS = `
  *   置灰，因为 desktop/reveal 是按 path 单个定位、desktop/rename 是按名一对一改，多选天然无解。
  * - `pasteable`：剪贴板里真有可贴内容才可用（PASTE 行接这一档；读的是
  *   desktop/clipboard-state 的实况，查不到即置灰，不误使能）。
+ * - `paste-into`：在 `pasteable` 之上再加一道「**这一贴真落在这张卡上吗**」（PASTE 行自工单167
+ *   评审 F2 起接这一档）。见 `NEED_PASTE_INTO` 与 `acceptsExplicitPasteOf`。
  */
 export const NEED_ANY = 'any'
 export const NEED_SINGLE = 'single'
 export const NEED_PASTEABLE = 'pasteable'
+export const NEED_PASTE_INTO = 'paste-into'
 
 /**
  * 文件菜单（单选）——工单182 的只读五项 + 工单183 的两个写动作。顺序即显示顺序，
@@ -124,16 +127,22 @@ export const NEED_PASTEABLE = 'pasteable'
  *     仍然可用——现在只有单选，needs 的差别只在多选那一张票上显形。
  *
  * 动作回调**不进状态**（状态只存数据），由 card.js 旁路持有：`run` 一律经内核既有桥接契约调用。
- * @type {{ id: string, label: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
+ *
+ * **标签随选区张数走**（工单167 评审 F5；spec166「文件菜单（多选）：OPEN ALL / COPY PATH / COPY /
+ * CUT / DELETE ALL」）：`multiLabel` 只给**语义确实随张数变**的那两行挂（OPEN、DELETE），单选时照旧
+ * 叫 OPEN / DELETE，多选时叫 OPEN ALL / DELETE ALL。COPY PATH / COPY / CUT 三行不挂——那三个动作
+ * 本来就是整批语义，标不标 ALL 都不改变它们做什么，spec166 也没要。只有文案变，**调用的契约一个
+ * 都不换**（仍是 desktop/open 逐个、desktop/trash {paths} 整批）。
+ * @type {{ id: string, label: string, multiLabel?: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
  */
 export const FILE_MENU_ROWS = [
-  { id: 'open', label: 'OPEN', needs: NEED_ANY },
+  { id: 'open', label: 'OPEN', multiLabel: 'OPEN ALL', needs: NEED_ANY },
   { id: 'open-location', label: 'OPEN LOCATION', needs: NEED_SINGLE },
   { id: 'copy-path', label: 'COPY PATH', needs: NEED_ANY },
   { id: 'copy', label: 'COPY', needs: NEED_ANY },
   { id: 'cut', label: 'CUT', needs: NEED_ANY },
   { id: 'rename', label: 'RENAME', needs: NEED_SINGLE },
-  { id: 'delete', label: 'DELETE', needs: NEED_ANY },
+  { id: 'delete', label: 'DELETE', multiLabel: 'DELETE ALL', needs: NEED_ANY },
 ]
 
 /**
@@ -182,7 +191,7 @@ export function isHandEditableKind(kind) {
  * @type {{ id: string, label: string, needs?: string, visibleWhen?: (ctx: object) => boolean }[]}
  */
 export const GROUP_CARD_MENU_ROWS = [
-  { id: 'paste', label: 'PASTE', needs: NEED_PASTEABLE },
+  { id: 'paste', label: 'PASTE', needs: NEED_PASTE_INTO },
   { id: 'new-group', label: 'NEW GROUP' }, // 工单187 裁决②：恒可见（建的是**新**卡，不动脚下的那张）
   { id: 'edit-types', label: 'EDIT TYPES', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
   { id: 'dissolve', label: 'DISSOLVE', visibleWhen: (ctx) => isHandEditableKind(ctx.cardKind) },
@@ -197,6 +206,9 @@ export const GROUP_CARD_MENU_ROWS = [
  *   工单185 起两行的可见性按它判「这是不是手改得动的卡」（落在 ctx 里而不是藏在 card.js 的
  *   闭包里，是为了让 visibleWhen 成为唯一的可见性裁决出口——渲染端不判）。
  * @property {CardKind} [cardKind] 那张卡的归属层（custom / temp / builtin；文件菜单为空串）。
+ * @property {boolean} [pasteIntoCard] 显式「粘到这张卡上」会不会真落在它身上（工单167 评审 F2）。
+ *   由 card.js 带着组定义调 `ownership.js` 的 `acceptsExplicitPasteOf` 算出来放在这里，menu.js
+ *   只按它判置灰——与 cardKind 同一个约定：事实进 ctx，裁决留在本文件。
  */
 
 /**
@@ -215,6 +227,14 @@ export function rowEnabledOf(spec, ctx) {
     // 查不到实况即置灰，绝不误使能（与内核「粘贴按剪贴板实况置灰」同纪律）
     case NEED_PASTEABLE:
       return ctx.pasteable === true
+    // 「对这张卡粘贴」这一档（工单167 评审 F2）：剪贴板有货 ∧ 这一贴真落在这张卡上。
+    // 有限清单的自定义卡置灰——那一格会静默改投别的卡（pasting.js 退回自动路由），菜单却写着
+    // 「粘到这张卡上」，于是等于提供了一个自己不兑现的动作。判据是 ownership.js 的
+    // `acceptsExplicitPasteOf`，由 card.js 带着组定义算好后落进 ctx（裁决出口仍只有这一个）。
+    // 临时卡与固有卡都算「真落在某处」：临时卡收下，固有卡新起一张临时卡——那是 spec166 的
+    // 第三态，本就该照做，故不置灰。ctx.pasteIntoCard 查不到时按「收」处理：判不出来不误置灰。
+    case NEED_PASTE_INTO:
+      return ctx.pasteable === true && ctx.pasteIntoCard !== false
     default:
       return true
   }
@@ -232,8 +252,20 @@ export function rowVisibleOf(spec, ctx) {
 }
 
 /**
- * 行描述符 + 上下文 → 渲染端要画的那张表（可见 ∧ 带可用性）。
- * @param {readonly { id: string, label: string, needs?: string, visibleWhen?: (ctx: MenuCtx) => boolean }[]} specs
+ * 一行在当前上下文下画什么标签（**唯一的标签裁决出口**；工单167 评审 F5）。
+ *
+ * 多选（`paths.length > 1`）且该行挂了 `multiLabel` 时用它，否则用 `label`。
+ * @param {{ label: string, multiLabel?: string }} spec
+ * @param {MenuCtx} ctx
+ * @returns {string}
+ */
+export function rowLabelOf(spec, ctx) {
+  return ctx.paths.length > 1 && typeof spec.multiLabel === 'string' ? spec.multiLabel : spec.label
+}
+
+/**
+ * 行描述符 + 上下文 → 渲染端要画的那张表（可见 ∧ 带可用性 ∧ 带标签）。
+ * @param {readonly { id: string, label: string, multiLabel?: string, needs?: string, visibleWhen?: (ctx: MenuCtx) => boolean }[]} specs
  * @param {MenuCtx} ctx
  * @returns {{ id: string, label: string, enabled: boolean }[]}
  */
@@ -241,7 +273,7 @@ export function resolveMenuRows(specs, ctx) {
   const out = []
   for (const spec of specs) {
     if (!rowVisibleOf(spec, ctx)) continue
-    out.push({ id: spec.id, label: spec.label, enabled: rowEnabledOf(spec, ctx) })
+    out.push({ id: spec.id, label: rowLabelOf(spec, ctx), enabled: rowEnabledOf(spec, ctx) })
   }
   return out
 }

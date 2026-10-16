@@ -13,6 +13,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { CARD_CLASS, CELL_CLASS, EXPANDED_CLASS, FADED_CLASS, HIGHLIGHT_CLASS, MORE_CLASS } from '../../plugins/doc-group-cards/interaction'
 import plugin, { STYLE_ID, type Host, type HostDesktopItem, type HostView } from '../../plugins/doc-group-cards/card'
+import { CARD_PAD_X, CARD_PAD_Y, HEAD_H } from '../../plugins/doc-group-cards/geometry'
 import { Element, newDom, walk } from './doc-group-cards-dom-shim'
 
 // ---------------------------------------------------------------------------
@@ -464,6 +465,63 @@ describe('同一时刻只允许一张卡展开（工单180）', () => {
     redrawWithDocx(9)
     expect(cards().some((c) => classesOf(c).includes(EXPANDED_CLASS))).toBe(false)
     expect(cards().some((c) => classesOf(c).includes(FADED_CLASS))).toBe(false)
+  })
+})
+
+/**
+ * 渲染层热区声明的**逐字复刻**（src/renderer/main.ts:1560-1575）：
+ * `document.querySelectorAll('.card')` → 每个取 getBoundingClientRect() → 滤掉零尺寸。
+ * 这一段不是「顺手写个断言」，而是把主进程那套判定搬进来：不滤零尺寸就没有「淡出卡退出热区」这回事。
+ */
+function declaredHotzones(): Array<{ id: string; x: number; y: number; w: number; h: number }> {
+  return dom.documentShim
+    .querySelectorAll('.card')
+    .map((c: Element) => ({ node: c, r: c.getBoundingClientRect() }))
+    .filter(({ r }) => r.width > 0 && r.height > 0)
+    .map(({ node, r }) => ({ id: node.id, x: r.left, y: r.top, w: r.width, h: r.height }))
+}
+
+describe('淡出的卡退出热区（工单167 评审 F1：淡出不该留一片点不着的死区）', () => {
+  it('展开 B 时：A 淡出且**不再声明热区**，B 照旧按自己的新矩形声明', () => {
+    plugin.mount(h.host)
+    const [a, b] = cards()
+    headOf(b).dispatch('click')
+    const zones = declaredHotzones()
+    // 淡出的 A：矩形塌成 0×0 → 被零尺寸那一条滤掉 → 面板在那一带转穿透，点下去落到桌面
+    expect(classesOf(a)).toContain(FADED_CLASS)
+    expect(zones.map((z) => z.id)).not.toContain(a.id)
+    expect(zones.map((z) => z.id)).toContain(b.id)
+    // 展开的 B 仍是真矩形（640×976），没有被自己那条规则误伤
+    expect(zones.find((z) => z.id === b.id)).toMatchObject({ w: 640, h: 976 })
+  })
+
+  it('收起后 A 的热区回来（退出只限淡出这一态，不粘住）', () => {
+    plugin.mount(h.host)
+    const [a, b] = cards()
+    headOf(b).dispatch('click')
+    headOf(b).dispatch('click')
+    expect(declaredHotzones().map((z) => z.id)).toEqual(cards().map((c) => c.id))
+  })
+
+  it('幽灵仍停在原处：卡框塌了，偏移从 geometry.js 插值而不是另抄一份数', () => {
+    plugin.mount(h.host)
+    const sheet = sheetOf()
+    // 卡内边距 20/18 与卡头行高 24 都写进了摆位规则（geometry.js 的那三个数）
+    expect(sheet).toContain(`.${CARD_CLASS}.${FADED_CLASS} .dgc-head`)
+    expect(sheet).toContain(`left: ${CARD_PAD_X}px`)
+    expect(sheet).toContain(`top: ${CARD_PAD_Y + HEAD_H}px`)
+    expect(sheet).toContain(`.${CARD_CLASS}.${FADED_CLASS} .dgc-grid`)
+    // 塌的是卡框，且要压过 layoutRow 写的内联宽高。
+    // 声明前的那一位要卡死（`[\s;{]`）：不卡的话 `border-width: 0 !important` 里的
+    // `width: 0 !important` 子串会把这条断言喂绿——它当时正是这么假绿的。
+    expect(sheet).toMatch(new RegExp(`\\.${CARD_CLASS}\\.${FADED_CLASS}\\s*\\{[^}]*[\\s;{]width:\\s*0\\s*!important`))
+    expect(sheet).toMatch(new RegExp(`\\.${CARD_CLASS}\\.${FADED_CLASS}\\s*\\{[^}]*[\\s;{]height:\\s*0\\s*!important`))
+  })
+
+  it('淡出卡的样式表里不再有那句把 DOM 命中与 OS 穿透混为一谈的注释', () => {
+    // 注释被 sheetOf() 剥掉了，这里直接查原文：那句「走穿到下面的展开卡/桌面」正是 F1 的病根
+    const raw = dom.documentShim.getElementById(STYLE_ID)?.textContent ?? ''
+    expect(raw).not.toContain('走穿到下面的展开卡/桌面')
   })
 })
 

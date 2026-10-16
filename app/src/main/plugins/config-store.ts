@@ -92,20 +92,25 @@ export function mergePluginConfig(
  * 解析落盘文本（读路径）：null = 从未写过（首次装载，区别于「写坏了」）。
  * 坏 JSON / 顶层非对象 → 空对象并记 warning（损坏自愈，下次保存覆写，同 loadTaskbarStore）；
  * 顶层对象里逐键再校验一遍——坏键丢弃记 warning，其余键照常读入（逐键自愈，不拖垮整份）。
+ *
+ * 「从未写过」与「写坏了」在本函数里**同归** `{config:{}, warnings:[]}`：两个调用点
+ * （plugin-config.ts 的 get / set）对这两种情况的处置完全一样——读回空配置、照常写。
+ * 工单167 评审 F6：这里原有一个 `missing` 布尔表达那份区分，全仓无人读它（Speculative
+ * Generality），故删掉，不留一个只为「也许将来要分」的字段。
  */
-export function loadPluginConfig(text: string | null): { config: Record<string, unknown>; warnings: string[]; missing: boolean } {
-  if (text === null) return { config: {}, warnings: [], missing: true }
+export function loadPluginConfig(text: string | null): { config: Record<string, unknown>; warnings: string[] } {
+  if (text === null) return { config: {}, warnings: [] }
   let raw: unknown
   try {
     raw = JSON.parse(text)
   } catch {
-    return { config: {}, warnings: ['plugin-config 文件不是合法 JSON，已视同空对象'], missing: false }
+    return { config: {}, warnings: ['plugin-config 文件不是合法 JSON，已视同空对象'] }
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return { config: {}, warnings: ['plugin-config 文件顶层不是对象，已视同空对象'], missing: false }
+    return { config: {}, warnings: ['plugin-config 文件顶层不是对象，已视同空对象'] }
   }
   // 逐键自愈：坏键丢、其余留（与写路径同一份判据，不给读/写两套口径）
-  return { ...mergePluginConfig({}, raw), missing: false }
+  return mergePluginConfig({}, raw)
 }
 
 /** 序列化（与 taskbar/layout-store 同款：两空格缩进 + 尾换行，便于人工看与手工改） */

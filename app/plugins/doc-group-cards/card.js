@@ -37,6 +37,7 @@ import {
   CELL_GAP,
   COLLAPSED_COLS,
   COLLAPSED_ROWS,
+  COLLAPSED_W,
   EXPANDED_COLS,
   EXPANDED_H,
   EXPANDED_W,
@@ -132,12 +133,14 @@ import {
   STORE_KEY,
   TIER_CUSTOM,
   TIER_TEMP,
+  acceptsExplicitPasteOf,
   addCustomGroup,
   buildCards,
   dissolveGroup,
   editCustomGroupTypes,
   emptyStore,
   presentExtensionsOf,
+  renameTempMember,
   storeOf,
 } from './ownership.js'
 import {
@@ -252,15 +255,45 @@ const CARD_CSS_BASE = `
   overflow-y: auto;
   overflow-x: hidden;
 }
-/* 展开卡压在淡出的卡之上：淡出只改 opacity 与 pointer-events（都不参与布局，卡片矩形不动），
-   但叠放次序仍要定下来，否则淡出的卡可能糊在展开卡上面。 */
+/* 展开卡压在淡出的卡之上：淡出的卡退出命中（见下），叠放次序仍要定下来，
+   否则淡出的卡可能糊在展开卡上面。 */
 .${CARD_CLASS}.${EXPANDED_CLASS} { z-index: 2; }
+/* 淡出 = **整张卡退出命中**，不是「看得见却点不到」。
+ *
+ * 工单167 评审 F1：原写法只改 opacity 与 pointer-events，并注释「指针事件走穿到下面的展开卡/桌面」。
+ * 那句把两件不相干的事混成了一件——DOM 的 pointer-events 管的是「这一击命中谁」，而「能不能穿透到
+ * 桌面」是主进程按热区矩形判的（setIgnoreMouseEvents），两套判定互不知情。热区矩形取的是
+ * getBoundingClientRect()，opacity 与 pointer-events 都不改变它，于是淡出的那一圈照旧被声明成热区：
+ * 面板在那一带不转穿透，点下去既不落在展开卡上（它不在这儿）也不落到桌面上（被热区挡着），
+ * 那是一片**看得见的死区**。
+ *
+ * 取法：卡框塌成 0×0（连带内边距与边框一并归零）。主进程扫到的便是零尺寸矩形，而渲染层本就滤掉
+ * 零尺寸（src/renderer/main.ts:1575 那条 r.w > 0 && r.h > 0），这一张遂不再声明热区——淡出的那一带
+ * 真正穿透回桌面。这与「摘掉 .card 类」等效，但不摘：.card 是渲染层扫热区的唯一通用入口，也是电池
+ * 取景点阵的定位式（accept/doc-group-cards.js:121 的 .card.dgc-card 选择器），摘掉等于改电池。
+ *
+ * 代价：那点极淡的幽灵得自己把位置摆回去，否则卡框一塌，内容会贴着左上角糊成一块。摆位不另抄数字：
+ * 三个偏移全部从 geometry.js 插值（卡内边距与卡头行高，同一份数），幽灵停在与卡框在位时**同一处**，
+ * 故淡出这一态的观感与改动前一致。宽度/高度要压过 layoutRow 写的内联样式，故用 !important。 */
 .${CARD_CLASS}.${FADED_CLASS} {
   opacity: 0.06;
-  /* 淡出的卡不该再吃点击：指针事件走穿到下面的展开卡/桌面。热区矩形照旧（主进程那侧
-     按 getBoundingClientRect 算，opacity 与 pointer-events 都不影响它），但那片区域里
-     仍看得见一个极淡的卡，不是「看不见却点得到」的死区。 */
   pointer-events: none;
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  overflow: visible;
+}
+.${CARD_CLASS}.${FADED_CLASS} .dgc-head {
+  position: absolute;
+  left: ${CARD_PAD_X}px;
+  top: ${CARD_PAD_Y}px;
+  width: ${COLLAPSED_W - 2 * CARD_PAD_X}px;
+}
+.${CARD_CLASS}.${FADED_CLASS} .dgc-grid {
+  position: absolute;
+  left: ${CARD_PAD_X}px;
+  top: ${CARD_PAD_Y + HEAD_H}px;
 }
 .${CARD_CLASS} .${CELL_CLASS} {
   width: ${CELL}px;
@@ -978,7 +1011,14 @@ function dispatchRename(host, event) {
     } else if (fx.kind === 'hide') {
       hideRename()
     } else if (fx.kind === 'run') {
-      void host.invoke('desktop/rename', { name: fx.name, to: fx.to })
+      // 改名成功就把临时卡的成员名跟过去（工单167 评审 F4）。**只在 ok 时动组定义**：内核对非法名/
+      // 重名冲突是 ok=false，此时盘上还是原名，若照样改组定义反而把一个还在临时卡里的文件踢出去。
+      // to 取内核给的盘面最终名（含「 - 副本」一类冲突后缀），不以请求值为准。
+      void host.invoke('desktop/rename', { name: fx.name, to: fx.to }).then((r) => {
+        if (!r || r.ok !== true || !hostRef) return
+        const moved = renameTempMember(groupStore, fx.name, typeof r.to === 'string' && r.to ? r.to : fx.to)
+        if (moved.changed) saveGroups(hostRef, moved.store)
+      })
     } else if (fx.kind === 'notify') {
       host.notify(fx.type, fx.payload)
     }
@@ -1469,7 +1509,15 @@ async function openGroupMenu(host, x, y, cardId) {
     y,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     specs: GROUP_CARD_MENU_ROWS,
-    ctx: { paths: [], cardId, cardKind: cardTierById.get(cardId) || '', pasteable },
+    // pasteIntoCard（工单167 评审 F2）：组定义带着算「这一贴真落在这张卡上吗」，有限清单的自定义卡
+    // 那一格因此置灰（pasting.js 退回自动路由 → 会静默改投别处，菜单不该给一个自己不兑现的动作）。
+    ctx: {
+      paths: [],
+      cardId,
+      cardKind: cardTierById.get(cardId) || '',
+      pasteable,
+      pasteIntoCard: acceptsExplicitPasteOf(groupStore, cardId),
+    },
   })
 }
 

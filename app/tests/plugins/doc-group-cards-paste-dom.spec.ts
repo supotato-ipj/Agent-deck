@@ -352,7 +352,10 @@ describe('PASTE 那一行：落文件走内核无参契约，归属由三态路�
     await flush()
     clipboard = true
     pastedNext = ['补充.docx']
-    await openGroupMenuOn('dgc-c1')
+    // 入口换成固有卡 dgc-pdf：工单167 评审 F2 起 PASTE 在「有限清单的自定义卡」那一格置灰
+    // （显式粘进去不会落在那张卡上），故这条**自动路由第一态**的用例改从一张 PASTE 仍可用的
+    // 卡进来。断言一件没动——被断的仍是「自动路由把这一批并进接受该类型的自定义卡」。
+    await openGroupMenuOn('dgc-pdf')
     await clickRow('paste')
 
     // 并入的那一批**不产生任何落库调用**（成员是定义的函数，粘进去的文件下一帧自然就在那张卡上）
