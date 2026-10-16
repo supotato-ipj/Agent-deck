@@ -517,6 +517,26 @@ async function ensureCollapsed(cardId) {
   }, 5000, 120);
 }
 
+/**
+ * 等整排**稳下来**：相邻两次快照（间隔一个快照周期）里，整排的张数与逐卡矩形完全一致才算稳。
+ *
+ * 为什么不能只看某一张卡的位置：卡片的增删（撤夹具、删除最后一份文件）触发整排重新居中，而那一拍
+ * 可能还没落进快照——此时两次量到的某张卡相同、判据就提前放行，随后它才消失、别的卡才位移，
+ * 于是「量到的卡框」与「点击那一刻的真位置」错开一整排。实测那一击会落到隔壁的 calendar-card 上：
+ * 点不中图标、不高亮、卡框前后两份也对不上（工单167 修复轮复现，见 §证据）。
+ * 判据按整排即是对题面那句「等排稳住」的本意，不是把判据放松——一致性要求比原来**更严**。
+ */
+async function rowStable() {
+  return until(async () => {
+    const shot = async () => (await cdpEval(EXPR.cards))
+      .map((k) => `${k.id}@${Math.round(k.x)},${Math.round(k.y)},${Math.round(k.w)},${Math.round(k.h)}`).join('|');
+    const a1 = await shot();
+    await sleep(700);
+    const a2 = await shot();
+    return a1.length > 0 && a1 === a2;
+  }, 8000, 300)
+}
+
 /** 段首把整排收回折叠态：淡出卡 pointer-events:none，谁没收起谁就吃掉后续段的卡片点击 */
 async function collapseAll() {  const cards = await cdpEval(EXPR.cards);
   for (const c of cards.filter((k) => k.expanded)) {
@@ -750,7 +770,7 @@ async function main() {
       const otherId = others.length ? others[0].id : '';
       const pdfProbe = otherId ? await cdpEval(cardExpr(otherId)) : null;
       pdfProbe && pdfProbe.faded && Number(pdfProbe.opacity) <= 0.1 && pdfProbe.pointerEvents === 'none'
-        ? rep.pass(`淡出卡形态：${otherId} opacity=${pdfProbe.opacity}、pointer-events=${pdfProbe.pointerEvents}（不参与布局，卡片矩形不动）`)
+        ? rep.pass(`淡出卡形态：${otherId} opacity=${pdfProbe.opacity}、pointer-events=${pdfProbe.pointerEvents}（工单167：淡出卡卡框塌成 0×0 → 主进程那侧扫 .card 取零尺寸矩形、按 main.ts:1575 滤掉 → 不再声明热区，那一带真正穿透回桌面，不再是「看得见的死区」）`)
         : rep.fail(`淡出卡形态异常：${JSON.stringify(pdfProbe && { id: pdfProbe.id, faded: pdfProbe.faded, opacity: pdfProbe.opacity, pe: pdfProbe.pointerEvents })}`);
       const hzNow = lastHotzones();
       const hzCard = hzNow && (hzNow.rects || []).find((r) => r.id === 'dgc-txt');
@@ -834,13 +854,8 @@ async function main() {
       removeFixtures(desktop, 'w');
       rep.note(`滚轮用例夹具已撤（rtf 批量 ${many.length} 份），其余夹具留着给后续段`);
       // 撤夹具会触发下一拍重排（整行重新居中 → 卡片位移）。等排稳住再进下一段，
-      // 否则下一段开头量到的卡框会与点击那一刻的真位置对不上（首轮假红成因之二）。
-      await until(async () => {
-        const a1 = await cardProbe('dgc-txt');
-        await sleep(700);
-        const a2 = await cardProbe('dgc-txt');
-        return a1 && a2 && Math.abs(a1.x - a2.x) < 0.5 && Math.abs(a1.y - a2.y) < 0.5;
-      }, 8000, 300);
+      // 否则下一段开头量到的卡框会与点击那一刻的真位置对不上（首轮假红成因之二；判据见 rowStable）。
+      await rowStable();
     }
 
     // ===== P181 · 工单181 卡级交互（高亮不改形状 / 空白切折叠 / 徽标同裁决 / 双击启动）=
@@ -1026,6 +1041,9 @@ async function main() {
       // 组卡菜单骨架：固有卡出 PASTE / NEW GROUP 两行（EDIT TYPES / DISSOLVE 挂在手改得动的卡上）
       // 工单187 裁决②：NEW GROUP 建的是**新**卡、不改脚下那张，故在固有卡上恒可见；
       // 「全新安装时全是固有卡、建不出第一张自定义卡」那条路由此通了。另两行仍不出现。
+      // 同款：DELETE 刚删掉一份文件，整排要重排（最后一份被删时那张卡整个消失）。
+      // 不等稳就量 dgc-zip 的矩形，这一记右键会落在陈旧坐标上、菜单压根不开（实测复现过两次）。
+      await rowStable()
       const zip = await cardProbe('dgc-zip');
       await clickAt({ x: zip.x + 8, y: zip.y + zip.h / 2 }, 'right');
       const gmenu = await until(() => cdpEval(EXPR.menu), 6000, 150);
