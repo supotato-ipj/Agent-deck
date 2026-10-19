@@ -23,10 +23,19 @@ const { cdpPortFor } = require('./lib/registry');
 // 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
 // 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
 const { createEventTape } = require('./lib/event-tape');
+// 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '156-taskbar-apps-filter-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单211：句柄装配——发射形态 accept（['.','--panel-accept'] ＋ CDP 端口）；证据档按电池
+// 注入专属档名（裁决 10：缺省是八块电池共用的同一文件，混批会让红轮归因变难）
+const handle = createPanelHandle({
+  execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '156-taskbar-apps-filter-panel-handle-child.log'),
+});
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('156-taskbar-apps-filter');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -67,31 +76,6 @@ function visibleWindowsOfPid(pid) {
   return win32.topLevelWindows().filter((h) => win32.threadIdOf(h).pid === pid);
 }
 
-function findWindowByPidTitle(pid, title) {
-  for (const h of visibleWindowsOfPid(pid)) {
-    if (titleOf(h) === title) return h;
-  }
-  return null;
-}
-
-async function waitWindow(pid, title, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const h = findWindowByPidTitle(pid, title);
-    if (h) return h;
-    await sleep(120);
-  }
-  return null;
-}
-
-function launchPanel() {
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT) },
-    stdio: 'ignore',
-  });
-}
-
 /** CDP 驱动面板渲染层（桥动作真机通道，同 taskbar.js）：在面板页执行表达式并取回值 */
 async function cdpEval(expression) {
   const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
@@ -117,14 +101,8 @@ async function cdpEval(expression) {
   }
 }
 
-function killTree(child, panelPid) {
-  if (panelPid) spawnSync('taskkill', ['/PID', String(panelPid), '/T', '/F'], { stdio: 'ignore' });
-  try { child.kill(); } catch { /* 已退出 */ }
-}
-
 async function main() {
   const rep = new Report('156-taskbar-apps-filter');
-  let child = null;
   let panelPid = 0;
   let notepad = null;
   let probe = null;
@@ -139,12 +117,13 @@ async function main() {
     patchTaskbar({ enabled: true });
 
     // —— 拉起面板子进程（任务栏启用态）——
-    child = launchPanel();
+    // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept'] ＋ CDP 端口）
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
     rep.note(`面板 pid=${panelPid}`);
-    const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('任务栏窗口未出现');
 
     // —— 探针就位：notepad 正常主窗 + powershell 三扇垃圾形态窗 ——
@@ -224,7 +203,13 @@ async function main() {
   } finally {
     try { if (notepad) notepad.kill(); } catch { /* 已退出 */ }
     try { if (probe) spawnSync('taskkill', ['/PID', String(probe.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 已退出 */ }
-    killTree(child, panelPid);
+    // 工单211：面板清场归句柄**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失；
+    // gone=false 只入环境降责账、**不中止**——清场段抛错会拦住 finish() → 控制器不退）
+    const cleared = await handle.stop();
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+        '清场后仍有面板进程存活', 'panel-forcekill');
+    }
     restoreConfig(originalConfig);
     // 同 49 清场纪律：不留无系统入口的桌面
     ensureNativeTaskbarVisible();
