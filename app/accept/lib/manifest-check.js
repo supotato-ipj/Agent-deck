@@ -14,6 +14,16 @@
  *      （副电池单域覆盖口径），两处皆缺即判红（每段都必须有归属域）；
  *   ⑤ path→area 映射表完备性——源码目录须逐个登记、源码文件须被某条规则覆盖，
  *      且规则自身的域必须在封闭词表内（新目录不先定域＝耦合表有洞）。
+ *
+ * 工单214（spec #203 决策 1/2/5/6）增电池接入表接线校验（validateRegistry）：
+ *   ⑥ flag 唯一——控制器身份旗标全表唯一（撞号＝两电池抢同一身份）；
+ *   ⑦ entry 存在——登记处指向的电池模块必须真实在场；
+ *   ⑧ script 派生一致——script 名不存表，由 flag 派生，package.json 必须有同形态 script；
+ *   ⑨ cdpPort 唯一——CDP 端口全表唯一（撞号在 CI 即红，不等真机轮里连错页）；
+ *   ⑩ experiment 条目豁免段级校验——取证工具（kind='experiment'）入表即获全套接线，
+ *      但不冒充电池：不要求段/域标签/预算/Report 名绑定。
+ *   ⑪ 双向完备——表内每电池接线五字段齐备；接线字段无孤儿（package.json 里出现
+ *      的控制器旗标必须有表项、accept 目录在场电池脚本必须入表）。
  */
 
 /** 电池源码里的段起笔字集：六电池全部单引号字面量、无模板串、无变量段号（工单114 交接） */
@@ -123,7 +133,11 @@ function validateManifest(req = {}) {
     else seenIds.add(b.id);
     if (!b.entry) errors.push(`${where} 缺 entry（源码路径）`);
     else knownEntries.add(b.entry);
-    if (!b.script) errors.push(`${where} 缺 script（npm run 别名）`);
+
+    // 工单214：experiment 条目（取证工具）豁免段级治理——入表即获全套接线，
+    // 但段/域标签/预算/Report 名绑定一概不适用（它不是电池，不冒充电池）。
+    if (b.kind === 'experiment') continue;
+
     if (!Number.isFinite(b.budgetSeconds) || b.budgetSeconds <= 0) errors.push(`${where} 缺正数 budgetSeconds`);
     // 电池级域标签（工单204）：副电池单域覆盖用——取值同样必须在封闭词表内
     const batteryAreas = Array.isArray(b.areas) ? b.areas : [];
@@ -229,12 +243,139 @@ function validateScopeSegments(scope, manifest, batteryId) {
   return { ok: declared.every((s) => known.has(s)), unknown: declared.filter((s) => !known.has(s)) };
 }
 
+/**
+ * 电池接入表接线五字段（工单214，spec #203 决策 2）：flag/entry/hintBar/cdpPort/kind。
+ * 段级管段、电池级管接线——新电池的登记面就这五个字段 ＋ 一个 npm script。
+ */
+const REGISTRY_FIELDS = ['flag', 'entry', 'hintBar', 'cdpPort', 'kind'];
+
+/**
+ * npm script 名由 flag 派生（工单214 决策 2：script 名不存表，避免两处登记漂移）。
+ * --accept → accept；--accept-tray → accept:tray；--accept-taskbar-right-group → accept:taskbar-right-group。
+ * @param {string} flag 控制器身份旗标
+ * @returns {string} npm run 别名
+ */
+function deriveScriptName(flag) {
+  return String(flag == null ? '' : flag).replace(/^--/, '').replace('-', ':');
+}
+
+/** package.json 的 script 命令行里出现的控制器旗标（--accept-scope 是段范围旗标，不算身份） */
+function scriptFlags(cmd) {
+  const out = [];
+  for (const m of String(cmd || '').matchAll(/--[a-z][a-z0-9-]*/g)) {
+    const flag = m[0];
+    if (flag === '--accept-scope') continue;
+    if (flag.startsWith('--accept')) out.push(flag);
+  }
+  return out;
+}
+
+/**
+ * 电池接入表校验（工单214，spec #203 决策 2/5/6）——接线面的牙齿，六项：
+ *   ① flag 唯一；② entry 文件存在；③ script 派生一致；④ cdpPort 唯一；
+ *   ⑤ experiment 条目豁免段级校验（落在 validateManifest 内）；
+ *   ⑥ 双向完备（表内每电池接线五字段齐备；接线字段无孤儿）。
+ *
+ * 纯函数：登记处事实由调用方注入（accept 目录在场文件、顶层电池脚本、package.json scripts），
+ * 与既有 manifest-check 同款——静态分析、零 Electron 零真机依赖。
+ *
+ * @param {{manifest: object, acceptFiles?: string[], presentEntries?: string[], scripts?: Record<string,string>}} req
+ *   acceptFiles：accept 目录递归枚举的在场文件（仓库根相对路径）——entry 存在性事实。
+ *   presentEntries：顶层电池脚本全集（仓库根相对路径）——「在场必入表」事实。
+ *   scripts：package.json 的 scripts 对象——script 派生一致与孤儿旗标事实。
+ * @returns {{ok: boolean, errors: string[]}}
+ */
+function validateRegistry(req = {}) {
+  const manifest = req.manifest;
+  const errors = [];
+  if (!manifest || !Array.isArray(manifest.batteries) || !manifest.batteries.length) {
+    return { ok: false, errors: ['清单缺 batteries 数组（或清单缺位）'] };
+  }
+  const hasFileFacts = Array.isArray(req.acceptFiles);
+  const acceptFiles = new Set((Array.isArray(req.acceptFiles) ? req.acceptFiles : []).map(normalizeRepoPath));
+  const presentEntries = (Array.isArray(req.presentEntries) ? req.presentEntries : []).map(normalizeRepoPath);
+  const scripts = (req.scripts && typeof req.scripts === 'object') ? req.scripts : {};
+
+  const seenFlags = new Map(); // flag → 电池 id（① 撞号即红）
+  const seenPorts = new Map(); // cdpPort → 电池 id（④ 撞号即红）
+  const knownEntries = new Set();
+  for (const b of manifest.batteries) {
+    const where = `电池[${b && b.id}]`;
+    if (!b || typeof b !== 'object') { errors.push('清单出现非对象电池条目'); continue; }
+    // ⑥ 正向：接线五字段齐备（缺一即登记不完整）
+    for (const f of REGISTRY_FIELDS) {
+      if (!(f in b)) errors.push(`${where} 缺接线字段 ${f}（电池接入表五字段须齐备）`);
+    }
+    // ① flag 唯一
+    const flag = b.flag;
+    if (typeof flag !== 'string' || !flag) {
+      errors.push(`${where} 缺 flag（控制器身份旗标）`);
+    } else if (!flag.startsWith('--')) {
+      errors.push(`${where} flag "${flag}" 形态非法（控制器身份旗标须以 -- 开头）`);
+    } else if (seenFlags.has(flag)) {
+      errors.push(`${where} flag "${flag}" 与电池[${seenFlags.get(flag)}] 重复（flag 全表唯一）`);
+    } else {
+      seenFlags.set(flag, b.id);
+    }
+    // ② entry 文件存在
+    const entry = b.entry;
+    if (typeof entry !== 'string' || !entry) {
+      errors.push(`${where} 缺 entry（电池模块路径）`);
+    } else {
+      knownEntries.add(normalizeRepoPath(entry));
+      if (hasFileFacts && !acceptFiles.has(normalizeRepoPath(entry))) {
+        errors.push(`${where} entry "${entry}" 指向的文件不存在（登记处与实际电池脚本脱节）`);
+      }
+    }
+    // ③ script 派生一致（script 名不存表，由 flag 派生）
+    if (typeof flag === 'string' && flag) {
+      const script = deriveScriptName(flag);
+      if (!Object.prototype.hasOwnProperty.call(scripts, script)) {
+        errors.push(`${where} flag "${flag}" 派生的 npm script "${script}" 在 package.json 不存在（script 名由 flag 派生，不另存表）`);
+      }
+    }
+    // ④ cdpPort 唯一（可空：无端口的电池留空）
+    const port = b.cdpPort;
+    if (port === undefined || port === null) {
+      // 留空合法
+    } else if (!Number.isInteger(port) || port <= 0) {
+      errors.push(`${where} cdpPort "${port}" 形态非法（可空数字，取正整数端口）`);
+    } else if (seenPorts.has(port)) {
+      errors.push(`${where} cdpPort ${port} 与电池[${seenPorts.get(port)}] 重复（CDP 端口全表唯一）`);
+    } else {
+      seenPorts.set(port, b.id);
+    }
+    if (b.hintBar !== undefined && typeof b.hintBar !== 'boolean') {
+      errors.push(`${where} hintBar 非布尔（挂条条件由表派生）`);
+    }
+    if (b.kind !== undefined && b.kind !== null && typeof b.kind !== 'string') {
+      errors.push(`${where} kind 非法（可空字符串；'experiment' 为取证工具）`);
+    }
+  }
+  // ⑥ 反向：accept 目录在场电池脚本必须全部入表（否则整块逃逸接线治理）
+  for (const p of presentEntries) {
+    if (!knownEntries.has(p)) errors.push(`电池脚本 ${p} 在场但未入电池接入表（新电池整块逃逸接线治理）`);
+  }
+  // ⑥ 反向：package.json 里出现的控制器旗标必须有表项（接线字段无孤儿）
+  for (const [name, cmd] of Object.entries(scripts)) {
+    for (const flag of scriptFlags(cmd)) {
+      if (!seenFlags.has(flag)) {
+        errors.push(`package.json 的 script "${name}" 引用旗标 ${flag} 但电池接入表无此条目（接线字段有孤儿）`);
+      }
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+
 module.exports = {
   extractCodeSegments,
   validateManifest,
   validateScopeSegments,
+  validateRegistry,
+  deriveScriptName,
   matchPathArea,
   areaVocabulary,
   normalizeRepoPath,
   SEGMENT_CALL_RE,
+  REGISTRY_FIELDS,
 };

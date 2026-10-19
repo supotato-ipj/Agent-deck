@@ -8,7 +8,7 @@ export declare interface PlanBattery {
   /** 电池 id（清单 battery.id） */
   id: string
   title: string
-  /** npm run 别名（清单 battery.script） */
+  /** npm run 别名（由清单 battery.flag 派生——script 名不存表，工单214） */
   script: string
   /** full=整块跑；scoped=按 --accept-scope 段号跑 */
   mode: PlanMode

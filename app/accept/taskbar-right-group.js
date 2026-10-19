@@ -23,10 +23,12 @@ const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：本电池的 writeTaskbarFields 是有兜底参照实现，
 // 抽为单点维护后四电池同一契约（缺位读不抛、缺位落桩、三态还原）
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
+const { cdpPortFor } = require('./lib/registry');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '55-taskbar-right-group-events.jsonl');
-const CDP_PORT = 9225;
+// 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
+const CDP_PORT = cdpPortFor('55-taskbar-right-group');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const VK_ESC = 0x1b;
