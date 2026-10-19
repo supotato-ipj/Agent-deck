@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, flag/hintBar/cdpPort/kind(电池接入表接线五字段，工单214 扩展), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。 工单204（spec #201 A1）schema 扩展——段耦合登记：顶层 areas＝段耦合的域标签封闭词表（14 域，与 surfaces 五枚举同款治理；取值越表判红，词表与映射表同处维护）；pathAreas＝声明式 path→area 映射表（{path 仓库相对路径前缀, area 域标签, wires?}，最长前缀命中；wires=\"*\" 表示共享验收基建——该路径被全部电池接线）；wideAreas＝公共底座域（命中即给保守计划：波及面未知，多跑不少跑）；sourceRoots＝完备性校验的源码树根目录。段条目新增 areas 数组（主电池 33 段逐段标注）；电池条目新增 areas 数组（电池级标签覆盖——七块副电池单域口径，段级缺省时取电池级）与 scope 布尔（该电池代码解析 --accept-scope，可按段声明范围段）。校验器（app/accept/lib/manifest-check.js）据此加判：域标签越出词表判红、段无归属域判红、映射表对源码目录不完备判红。 工单214（spec #203）schema 扩展——电池接入表：电池级条目新增接线五字段 flag（控制器身份旗标，全表唯一）/ entry（电池模块路径，仓库根相对路径）/ hintBar（验收提示条挂条条件，布尔——挂条由表派生）/ cdpPort（CDP 端口，可空，全表唯一；无端口的电池留空）/ kind（可空；'experiment' 表示取证工具，段级治理豁免、接线四项仍受校验）；script 名不存表——由 flag 派生（--accept-tray → accept:tray），CI 校验 package.json 存在同形态 script。运行端（src/main/index.ts）读本表统一分发：flag 匹配 argv → require(entry)()，单实例豁免与挂条条件一并由表派生；面板侧被测物模式（--panel/--panel-accept/--tray-spike）不表化。校验器（app/accept/lib/manifest-check.js 的 validateRegistry）据此加判：flag 唯一、entry 文件存在、script 派生一致、cdpPort 唯一、experiment 条目豁免段级校验、双向完备（表内每电池接线五字段齐备、接线字段无孤儿）。",
+  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, flag/hintBar/cdpPort/kind(电池接入表接线五字段，工单214 扩展), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。 工单204（spec #201 A1）schema 扩展——段耦合登记：顶层 areas＝段耦合的域标签封闭词表（14 域，与 surfaces 五枚举同款治理；取值越表判红，词表与映射表同处维护）；pathAreas＝声明式 path→area 映射表（{path 仓库相对路径前缀, area 域标签, wires?}，最长前缀命中；wires=\"*\" 表示共享验收基建——该路径被全部电池接线）；wideAreas＝公共底座域（命中即给保守计划：波及面未知，多跑不少跑）；sourceRoots＝完备性校验的源码树根目录。段条目新增 areas 数组（主电池 33 段逐段标注）；电池条目新增 areas 数组（电池级标签覆盖——七块副电池单域口径，段级缺省时取电池级）与 scope 布尔（该电池代码解析 --accept-scope，可按段声明范围段）。校验器（app/accept/lib/manifest-check.js）据此加判：域标签越出词表判红、段无归属域判红、映射表对源码目录不完备判红。 工单214（spec #203）schema 扩展——电池接入表：电池级条目新增接线五字段 flag（控制器身份旗标，全表唯一）/ entry（电池模块路径，仓库根相对路径）/ hintBar（验收提示条挂条条件，布尔——挂条由表派生）/ cdpPort（CDP 端口，可空，全表唯一；无端口的电池留空）/ kind（可空；'experiment' 表示取证工具，段级治理豁免、接线四项仍受校验）；script 名不存表——由 flag 派生（--accept-tray → accept:tray），CI 校验 package.json 存在同形态 script。运行端（src/main/index.ts）读本表统一分发：flag 匹配 argv → require(entry)()，单实例豁免与挂条条件一并由表派生；面板侧被测物模式（--panel/--panel-accept/--tray-spike）不表化。校验器（app/accept/lib/manifest-check.js 的 validateRegistry）据此加判：flag 唯一、entry 文件存在、script 派生一致、cdpPort 唯一、experiment 条目豁免段级校验、双向完备（表内每电池接线五字段齐备、接线字段无孤儿）。 工单220 数据面修正（6 处语义缺口，与源码实际耦合对齐）：P9B 段增补 cards 域（会话行的点击 handler 与 sessions-rendered 存证同在 app/src/renderer/cards/sessions/card.ts）；P5.9/P5.10/P5.12/P5.13/P5.14/P5.15/P5.16/P5.17 八段增补 cards 域（桌面右键上下文菜单的 shell 在 app/src/renderer/cards/context-menu/menu.ts，desktop-menu-opened/closed 由该卡自己 notify，八段全靠它才跑得起来——两表同改，不许只改一边）；50-taskbar-carry 电池级增补 settings 域（B1/B2 走设置浮层真实 DOM 链，落在 app/src/main/services/settings.ts；config 已属 wideAreas，保守计划自动覆盖，不另补）；pathAreas 里 app/src/renderer/tray-pixels.ts 的域由 tray 改 taskbar（该模块头注自述服务任务栏条带的托盘溢出页，唯一消费者是 renderer/taskbar.ts 与 renderer/taskbar-overflow.ts）。",
   "surfaces": {
     "panel-alive": "面板存活",
     "pixel": "像素",
@@ -204,7 +204,8 @@
           "areas": [
             "desktop",
             "hotzone",
-            "plugins"
+            "plugins",
+            "cards"
           ]
         },
         {
@@ -218,7 +219,8 @@
           ],
           "estSeconds": 30,
           "areas": [
-            "desktop"
+            "desktop",
+            "cards"
           ]
         },
         {
@@ -231,7 +233,8 @@
           ],
           "estSeconds": 25,
           "areas": [
-            "desktop"
+            "desktop",
+            "cards"
           ]
         },
         {
@@ -245,7 +248,8 @@
           ],
           "estSeconds": 30,
           "areas": [
-            "desktop"
+            "desktop",
+            "cards"
           ]
         },
         {
@@ -259,7 +263,8 @@
           ],
           "estSeconds": 25,
           "areas": [
-            "desktop"
+            "desktop",
+            "cards"
           ]
         },
         {
@@ -273,7 +278,8 @@
           ],
           "estSeconds": 25,
           "areas": [
-            "desktop"
+            "desktop",
+            "cards"
           ]
         },
         {
@@ -287,7 +293,8 @@
           ],
           "estSeconds": 25,
           "areas": [
-            "desktop"
+            "desktop",
+            "cards"
           ]
         },
         {
@@ -300,7 +307,8 @@
           ],
           "estSeconds": 35,
           "areas": [
-            "panel.core"
+            "panel.core",
+            "cards"
           ]
         },
         {
@@ -444,7 +452,8 @@
           ],
           "estSeconds": 25,
           "areas": [
-            "sessions"
+            "sessions",
+            "cards"
           ]
         },
         {
@@ -910,7 +919,8 @@
         }
       ],
       "areas": [
-        "taskbar"
+        "taskbar",
+        "settings"
       ]
     },
     {
@@ -1469,7 +1479,7 @@
     },
     {
       "path": "app/src/renderer/tray-pixels.ts",
-      "area": "tray"
+      "area": "taskbar"
     },
     {
       "path": "app/src/renderer/zone-hotzone.ts",
