@@ -4,6 +4,11 @@
 //
 // 严口径不变量：四方法签名与母票 #201 决策7 逐字一致；超时返回 null 不抛错；
 // 时间门只由 since 参数承担（t0 语义：只认 e.t >= since 的拍）。
+//
+// pred 口径（工单205 审计补测·附带 A）：谓词位放宽为「可为 null」——运行时本就接受
+// null 谓词（等价于无谓词），但严格 TS 下 pred?: (e) => boolean 不接受 null，
+// 接线时正典那 8 处显式传 null 的调用点（waitEvent(type, null, timeout)）都得改写成
+// undefined 才过得去类型检查——那是接线噪音，不是语义要求。故类型口径与运行时口径对齐。
 
 /** 一拍事件：t 是面板写事件时落的 Date.now() 毫秒，type 是事件名，其余字段随 type 而变 */
 export declare interface EventTapeEvent {
@@ -43,7 +48,7 @@ export declare interface EventTape {
    */
   wait(
     type: string,
-    pred?: (e: EventTapeEvent) => boolean,
+    pred?: ((e: EventTapeEvent) => boolean) | null,
     options?: EventTapeWaitOptions,
   ): Promise<EventTapeEvent | null>
 
@@ -56,14 +61,14 @@ export declare interface EventTape {
   /** 现取最新一拍（既有 readEvents().filter(...).pop() 口径）；无匹配拍返回 null */
   latest(
     type: string,
-    pred?: (e: EventTapeEvent) => boolean,
+    pred?: ((e: EventTapeEvent) => boolean) | null,
     options?: EventTapeQueryOptions,
   ): EventTapeEvent | null
 
   /** 裸读全量（可按 type / 谓词 / since 过滤） */
   all(
     type?: string,
-    pred?: (e: EventTapeEvent) => boolean,
+    pred?: ((e: EventTapeEvent) => boolean) | null,
     options?: EventTapeQueryOptions,
   ): EventTapeEvent[]
 }
