@@ -19,10 +19,12 @@ const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig } = require('./lib/battery-config');
+const { cdpPortFor } = require('./lib/registry');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '156-taskbar-apps-filter-events.jsonl');
-const CDP_PORT = 9226; // 9223-9225 已被 49/battery/carry/right-group 占用
+// 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
+const CDP_PORT = cdpPortFor('156-taskbar-apps-filter');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 
