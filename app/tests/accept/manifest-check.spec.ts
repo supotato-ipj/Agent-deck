@@ -321,7 +321,7 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
  */
 function fileRuleManifest() {
   const m = legalManifest()
-  m.areas = { ...m.areas, tray: '托盘域' }
+  ;(m as { areas: Record<string, string> }).areas = { ...m.areas, tray: '托盘域' }
   m.pathAreas = [
     { path: 'app/src', area: 'panel.core' },
     { path: 'app/src/main', area: 'panel.core' },
