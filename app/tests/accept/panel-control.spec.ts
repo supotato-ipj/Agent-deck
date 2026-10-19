@@ -2,7 +2,7 @@
 // 验证消失 → 仍存活报需重启清障」的四路径决策与中止信号。杀灭/探询/时钟全经注入——
 // 假进程世界直测决策，不碰真机；真机行为归验收电池。
 import { describe, expect, it, vi } from 'vitest'
-import { createPanelControl, findPanelWindows } from '../../accept/lib/panel-control'
+import { createPanelControl, createPanelHandle, findPanelWindows } from '../../accept/lib/panel-control'
 import type { PanelStopResult } from '../../accept/lib/panel-control'
 import { Report } from '../../accept/lib/report'
 
@@ -243,5 +243,272 @@ describe('battery.js ensurePanelHit 命中分支接线规格（评审 P0 回归�
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+// —— 面板句柄（工单206，spec #202 决策3）：注入式假世界 ——
+// 假发射器记参数、假子进程带可断言的 stdout/stderr 流、假事件档给 boot 自报 pid、
+// 假窗口枚举供标题甄别、假时钟推进（since 门与超时可精确断言）——全程不碰真机。
+interface FakeStream {
+  dataListeners: Array<(chunk: string) => void>
+  on(evt: string, cb: (chunk: string) => void): FakeStream
+  emit(chunk: string): void
+}
+function fakeStream(): FakeStream {
+  const dataListeners: Array<(chunk: string) => void> = []
+  const s: FakeStream = {
+    dataListeners,
+    on(evt: string, cb: (chunk: string) => void) { if (evt === 'data') dataListeners.push(cb); return s },
+    emit(chunk: string) { for (const cb of dataListeners) cb(chunk) },
+  }
+  return s
+}
+interface FakeWin { hwnd: number; pid: number; title: string; cls: string; visible?: boolean }
+interface FakeChild { pid: number; stdout: FakeStream; stderr: FakeStream; kills: number; kill(): void }
+
+function handleWorld(opts: {
+  at?: number
+  bootEvents?: Array<{ t: number; pid: number }>
+  windows?: FakeWin[]
+  alive?: number[]
+  gracefulKills?: boolean
+  forceKills?: boolean
+  responsive?: boolean
+} = {}) {
+  let now = opts.at ?? 1000
+  const alivePids = new Set(opts.alive ?? [])
+  const windows = opts.windows ?? []
+  const spawnCalls: Array<{ cmd: string; args: string[]; opts: { cwd: string; env: Record<string, string | undefined>; stdio: unknown } }> = []
+  const children: FakeChild[] = []
+  const logs: string[] = []
+  const forceKills: number[] = []
+  const gracefulKilled: unknown[] = []
+  const winOf = (h: unknown) => windows.find((w) => w.hwnd === h)
+
+  const handle = createPanelHandle({
+    execPath: 'C:/fake/electron.exe',
+    appRoot: 'C:/fake/app',
+    baseEnv: { PATH: 'C:/fake/bin' },
+    eventLogPath: 'C:/fake/app/accept/evidence/events.jsonl',
+    spawn: (cmd, args, spawnOpts) => {
+      spawnCalls.push({ cmd, args, opts: spawnOpts })
+      const child: FakeChild = { pid: 5100 + children.length, stdout: fakeStream(), stderr: fakeStream(), kills: 0, kill() { this.kills++ } }
+      children.push(child)
+      return child
+    },
+    openArchive: () => 42,
+    now: () => now,
+    sleep: async (ms) => { now += ms },
+    isAlive: (pid) => alivePids.has(pid),
+    gracefulKill: (child) => {
+      gracefulKilled.push(child)
+      if (opts.gracefulKills) for (const p of [...alivePids]) alivePids.delete(p)
+    },
+    forceKillTree: (pid) => { forceKills.push(pid); if (opts.forceKills) alivePids.delete(pid) },
+    readEvents: () => (opts.bootEvents ?? []).map((b) => ({ type: 'boot', t: b.t, pid: b.pid })),
+    topLevelWindows: () => windows.map((w) => w.hwnd),
+    windowPid: (h) => winOf(h)?.pid ?? 0,
+    windowTitle: (h) => winOf(h)?.title ?? '',
+    windowClass: (h) => winOf(h)?.cls ?? '',
+    isWindowVisible: (h) => winOf(h)?.visible !== false,
+    responsiveProbe: () => opts.responsive !== false,
+    log: (msg) => { logs.push(String(msg)) },
+  })
+  return { handle, spawnCalls, children, logs, forceKills, gracefulKilled, now: () => now }
+}
+
+describe('面板句柄·launch 配置展开（注入假发射器）', () => {
+  it('mode 决定进程参数：full=全量面板（守卫链同形）、accept=验收面板（--panel-accept 绕开单实例锁）', () => {
+    const w = handleWorld()
+    w.handle.launch({ mode: 'full' })
+    w.handle.launch({ mode: 'accept' })
+    expect(w.spawnCalls.map((c) => c.cmd)).toEqual(['C:/fake/electron.exe', 'C:/fake/electron.exe'])
+    expect(w.spawnCalls.map((c) => c.args)).toEqual([['.'], ['.', '--panel-accept']])
+  })
+
+  it('env 组装：事件档路径 + CDP 端口 + 滞后哨兵 + extraEnv 叠加，baseEnv 透传', () => {
+    const w = handleWorld()
+    w.handle.launch({ mode: 'full', cdpPort: 9333, lagSentinel: true, extraEnv: { DECK_TASKBAR_BURST: '1' } })
+    const env = w.spawnCalls[0].opts.env
+    expect(env.PATH).toBe('C:/fake/bin')
+    expect(env.DECK_EVENT_LOG).toBe('C:/fake/app/accept/evidence/events.jsonl')
+    expect(env.DECK_CDP_PORT).toBe('9333')
+    expect(env.DECK_LAG_SENTINEL).toBe('1')
+    expect(env.DECK_TASKBAR_BURST).toBe('1')
+  })
+
+  it('stdio 三形态：ignore 无管道 / drain 管道且两流都排空 / archive 落证据档', () => {
+    const w = handleWorld()
+    w.handle.launch({ mode: 'full', stdio: 'ignore' })
+    expect(w.spawnCalls[0].opts.stdio).toBe('ignore')
+    w.handle.launch({ mode: 'full', stdio: 'drain' })
+    expect(w.spawnCalls[1].opts.stdio).toEqual(['ignore', 'pipe', 'pipe'])
+    // 排空纪律从注释口口相传变结构保证：两个流都挂了读端监听
+    expect(w.children[1].stdout.dataListeners.length).toBe(1)
+    expect(w.children[1].stderr.dataListeners.length).toBe(1)
+    w.handle.launch({ mode: 'full', stdio: 'archive' })
+    expect(w.spawnCalls[2].opts.stdio).toEqual(['ignore', 42, 42])
+  })
+
+  it('drain 形态把 stderr 尾部截留给调用方（早亡留证不丢）', () => {
+    const w = handleWorld()
+    const r = w.handle.launch({ mode: 'full', stdio: 'drain' })
+    w.children[0].stderr.emit('面板早亡栈')
+    expect(r.stderrTail()).toContain('面板早亡栈')
+  })
+})
+
+describe('面板句柄·waitWindow 就绪判据与标题甄别', () => {
+  it('只认同 pid + 同标题且可见的窗：异 pid 的面板本体窗、同 pid 的任务栏条带窗都不入列', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [
+        { hwnd: 0x11, pid: 7777, title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1' },
+        { hwnd: 0x22, pid: 9999, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+        { hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+      ],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 5000 })).toBe(0x33)
+  })
+
+  it('找不到窗：超时返回 null 并落可见 Chrome 窗诊断转储（红轮定位能力不降级）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x44, pid: 7777, title: 'AGENT DECK ACCEPT HINT', cls: 'Chrome_WidgetWin_1' }],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBeNull()
+    const dump = w.logs.join('\n')
+    expect(dump).toContain('Chrome_WidgetWin_1')
+    expect(dump).toContain('0x44')
+  })
+
+  it('boot 存证缺位：就绪判据超时返回 null（不拿旧代次充数）', async () => {
+    const w = handleWorld({ bootEvents: [] })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBeNull()
+  })
+})
+
+describe('面板句柄·relaunch：since 门默认＝上次发射时点', () => {
+  it('默认门：上一代次的 boot 不算数（漏给 sinceMs 的坑由句柄记账堵死）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 500, pid: 7000 }],
+      windows: [{ hwnd: 0x33, pid: 7000, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+    })
+    w.handle.launch({ mode: 'full' }) // 发射时点 = 1000；旧 boot t=500 属上一代次
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBeNull()
+  })
+
+  it('显式 sinceMs 覆盖默认门：旧 boot 被认作本代次（迁移期显式调用点保持显式）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 500, pid: 7000 }],
+      windows: [{ hwnd: 0x33, pid: 7000, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+    })
+    await w.handle.relaunch({ sinceMs: 400 })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBe(0x33)
+  })
+
+  it('relaunch = 强退 + 重发：强退失败则不重发（中止信号留给调用方）', async () => {
+    const w = handleWorld({ alive: [5100] }) // 杀不动
+    w.handle.launch({ mode: 'full' })
+    const res = await w.handle.relaunch()
+    expect(res.outcome).toBe('restart-clear-required')
+    expect(res.launched).toBe(false)
+    expect(w.spawnCalls.length).toBe(1) // 只发过首发：强退失败不再发
+  })
+
+  it('relaunch 成功：先强退再重发，since 门随新发射时点记账', async () => {
+    const w = handleWorld({ alive: [5100], gracefulKills: true })
+    w.handle.launch({ mode: 'full' })
+    const res = await w.handle.relaunch()
+    expect(res.outcome).toBe('graceful-gone')
+    expect(res.launched).toBe(true)
+    expect(w.spawnCalls.length).toBe(2) // 首发 + 重发
+  })
+})
+
+describe('面板句柄·两套存活谓词分立', () => {
+  it('alive＝进程存在谓词、responsive＝WM_NULL 探活谓词（各答各的）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+      alive: [7777],
+    })
+    w.handle.launch({ mode: 'full' })
+    await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 5000 })
+    expect(w.handle.alive()).toBe(true)
+    expect(w.handle.responsive()).toBe(true)
+  })
+
+  it('进程已死但窗还在：alive 假、responsive 真（两判据的分工，不互相顶替）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+      alive: [],
+    })
+    w.handle.launch({ mode: 'full' })
+    await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 5000 })
+    expect(w.handle.alive()).toBe(false)
+    expect(w.handle.responsive()).toBe(true)
+  })
+
+  it('探活超时：responsive 假（主线程不泵消息＝停摆形态）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+      alive: [7777],
+      responsive: false,
+    })
+    w.handle.launch({ mode: 'full' })
+    await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 5000 })
+    expect(w.handle.responsive()).toBe(false)
+  })
+
+  it('还没等到就绪窗：无主窗句柄 → responsive 假；alive 回落子进程 pid', () => {
+    const w = handleWorld({ alive: [5100] })
+    w.handle.launch({ mode: 'full' })
+    expect(w.handle.responsive()).toBe(false)
+    expect(w.handle.alive()).toBe(true)
+  })
+})
+
+describe('面板句柄·stop：沿用既有验证强退（idle 短路 + 决策/后果分离）', () => {
+  it('从未发射：idle 短路（不动杀灭，outcome=idle）', async () => {
+    const w = handleWorld()
+    const res = await w.handle.stop()
+    expect(res).toEqual({ gone: true, graceful: true, forced: false, pidsLeft: [], outcome: 'idle' })
+    expect(w.gracefulKilled.length).toBe(0)
+    expect(w.forceKills).toEqual([])
+  })
+
+  it('强退序列：pids＝[子进程 pid, 面板自报 pid] 交给面板控制模块的验证强退', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+      alive: [5100, 7777],
+      forceKills: true,
+    })
+    w.handle.launch({ mode: 'full' })
+    await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 5000 })
+    const res = await w.handle.stop()
+    expect(res).toEqual({ gone: true, graceful: false, forced: true, pidsLeft: [], outcome: 'forced-gone' })
+    expect(w.gracefulKilled.length).toBe(1) // 优雅终止先试过
+    expect(w.forceKills).toEqual([5100, 7777]) // 两个 pid 各一次 /T /F
+  })
+
+  it('强退后仍存活：outcome=restart-clear-required（中止信号；句柄不记账不抛）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+      alive: [5100, 7777],
+    })
+    w.handle.launch({ mode: 'full' })
+    await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 5000 })
+    const res = await w.handle.stop()
+    expect(res.gone).toBe(false)
+    expect(res.outcome).toBe('restart-clear-required')
+    expect(res.pidsLeft).toEqual([5100, 7777])
   })
 })
