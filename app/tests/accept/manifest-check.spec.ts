@@ -314,3 +314,73 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     }
   })
 })
+
+/**
+ * 文件级例外规则白名单（工单220，spec #201 A 链 P1 机制补强）——夹具：
+ * 两条目录级规则 + 一条文件级例外规则（tray.ts 归 tray 域，与父目录 panel.core 不同）。
+ */
+function fileRuleManifest() {
+  const m = legalManifest()
+  m.areas = { ...m.areas, tray: '托盘域' }
+  m.pathAreas = [
+    { path: 'app/src', area: 'panel.core' },
+    { path: 'app/src/main', area: 'panel.core' },
+    { path: 'app/src/main/tray.ts', area: 'tray' },
+  ]
+  ;(m as unknown as { requiredFileRules: { path: string; area: string }[] }).requiredFileRules = [
+    { path: 'app/src/main/tray.ts', area: 'tray' },
+  ]
+  return m
+}
+
+describe('文件级例外规则白名单（工单220：文件级规则不得被静默删/改域）', () => {
+  it('白名单与映射表一致 → 判绿零错误', () => {
+    const r = validateManifest({ manifest: fileRuleManifest(), sources: { fx: legalSource } })
+    expect(r.errors).toEqual([])
+    expect(r.ok).toBe(true)
+  })
+
+  it('文件级规则被删（目录规则兜住它）→ 判红（负例：静默删规则不得过关）', () => {
+    const m = fileRuleManifest()
+    m.pathAreas = m.pathAreas.filter((r) => r.path !== 'app/src/main/tray.ts')
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('app/src/main/tray.ts') && e.includes('删除'))).toBe(true)
+  })
+
+  it('文件级规则的域被改 → 判红（负例：域归属不得被静默改）', () => {
+    const m = fileRuleManifest()
+    m.pathAreas.find((r) => r.path === 'app/src/main/tray.ts')!.area = 'desktop'
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('app/src/main/tray.ts') && e.includes('域被改'))).toBe(true)
+  })
+
+  it('映射表有文件级规则但未在白名单登记 → 判红（负例：白名单须是全量台账）', () => {
+    const m = fileRuleManifest()
+    m.pathAreas.push({ path: 'app/src/main/rogue.ts', area: 'tray' })
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('app/src/main/rogue.ts') && e.includes('未在 requiredFileRules 白名单登记'))).toBe(true)
+  })
+
+  it('清单缺 requiredFileRules 白名单（而映射表有文件级规则）→ 判红（负例：白名单不得被整份删掉）', () => {
+    const m = fileRuleManifest()
+    delete (m as unknown as { requiredFileRules?: unknown }).requiredFileRules
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
+  })
+
+  it('真仓库现状：34 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+    const manifest = loadManifest()!
+    const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
+    expect(fileRules.length).toBe(34)
+    expect(manifest.requiredFileRules!.length).toBe(34)
+    for (const req of manifest.requiredFileRules!) {
+      const hit = fileRules.find((r) => r.path === req.path)
+      expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()
+      expect(hit!.area, `文件级例外规则 ${req.path} 的域被改了`).toBe(req.area)
+    }
+  })
+})
