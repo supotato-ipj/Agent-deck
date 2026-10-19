@@ -76,10 +76,19 @@ const { cdpPortFor } = require('./lib/registry');
 // 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
 // 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
 const { createEventTape } = require('./lib/event-tape');
+// 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '49-taskbar-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单211：句柄装配——发射形态 accept（['.','--panel-accept']，绕单实例锁）；证据档按
+// 电池注入专属档名（裁决 10：缺省是八块电池共用的同一文件，混批会让红轮归因变难）
+const handle = createPanelHandle({
+  execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '49-taskbar-panel-handle-child.log'),
+});
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -199,16 +208,6 @@ const clickPopupRowVerify = async (family, since, rowId, evidenceType, evidenceP
   return null;
 };
 
-async function waitWindow(pid, title, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const h = findWindow(pid, title);
-    if (h) return h;
-    await sleep(120);
-  }
-  return null;
-}
-
 /** 开始菜单是否占据前台（DWM cloak 会让 IsWindowVisible 撒谎，只能以前台判定） */
 function shellMenuForeground() {
   const i = foregroundInfo();
@@ -257,14 +256,6 @@ async function waitForeground(pred, timeoutMs = 6000) {
   return null;
 }
 
-function launchPanel(extraEnv = {}) {
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT), ...extraEnv },
-    stdio: 'ignore',
-  });
-}
-
 /** CDP 驱动面板渲染层（运行时桥动作的真机通道）：在指定标题的页执行表达式并取回值
  * （默认面板页；P13 传 'DECK-TASKBAR' 直读任务栏页 DOM/computed style——同属面板
  * 子进程的 targets，right-group 电池 P6 同款先例） */
@@ -292,10 +283,21 @@ async function cdpEval(expression, pageTitle = PANEL_TITLE) {
   }
 }
 
-function killTree(child, panelPid) {
-  // 面板真实主进程 pid 以 boot 自报为准（spawn 的 child.pid 在 Electron 父进程下不可靠——battery 先例）
-  if (panelPid) spawnSync('taskkill', ['/PID', String(panelPid), '/T', '/F'], { stdio: 'ignore' });
-  try { child.kill(); } catch { /* 已退出 */ }
+/**
+ * 验证强退（工单211，#202 决策 8）：句柄 stop() 沿用工单112 的强退序列
+ * （优雅终止 → 整树强杀 → 有界等待并验证消失）。**gone=false ＝「需重启清障」中止信号**：
+ * 入环境降责账并中止后续段（throw 借电池的 try/catch 汇流，不吞）。
+ * 原实现是无验证 killTree（taskkill /T /F 后不验消失就放行重启）——停摆面板残留会撞
+ * 单实例守卫，本刀起补上「验证消失」这一环。
+ */
+async function stopPanelOrAbort(rep) {
+  const stopped = await handle.stop();
+  if (!stopped.gone) {
+    rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障`,
+      '面板强退序列未能终结面板进程', 'panel-forcekill');
+    throw new Error('面板强退失败：需重启清障——后续段中止');
+  }
+  return stopped;
 }
 
 // —— 残留任务视图清场（49 实测）——
@@ -625,7 +627,6 @@ function cleanupP18Probes(p18) {
 
 async function main() {
   const rep = new Report('49-taskbar');
-  let child = null;
   let panelPid = 0;
   let probe164 = null; // P14 探针（#164）：finally 兜底拆除（段内异常也不漏窗漏类）
   let p16 = null; // P16 推荐组探针（#160）：面板启动前种入（usage 只在服务构造时读盘），finally 兜底清理
@@ -650,13 +651,15 @@ async function main() {
     if (p18) rep.note(`P18 探针已备：${p18.probes.map((p) => p.img).join(' / ')}`);
 
     // —— 拉起面板子进程（任务栏启用态）——
-    child = launchPanel();
+    // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept']，绕单实例锁；
+    // 发射配置逐字保真——relaunch 的 lastCfg 快照也据此复现，退化成 full 会撞单实例守卫）
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
     rep.note(`面板 pid=${panelPid}`);
 
-    const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('P1 任务栏窗口未出现');
 
     // P1 置顶 + 底部通栏几何（rectOf 回 {left,top,right,bottom} 物理像素，宽高换算后归一 DIP）。
@@ -684,7 +687,7 @@ async function main() {
 
     // P2 面板本体钉底不受影响
     rep.beginSegment('P2');
-    const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 10000);
+    const panelHwnd = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 10000 });
     const pinEvidence = await tape.wait('pin', null, { timeoutMs: 8000 });
     if (panelHwnd && !isTopmost(panelHwnd) && pinEvidence) {
       rep.pass('P2 面板本体在场、非置顶、钉底存证在流');
@@ -834,7 +837,7 @@ async function main() {
     // P7 运行时重新启用 → 窗口恢复（仍置顶）
     rep.beginSegment('P7');
     const r7 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const tbBackLive = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbBackLive = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     if (r7 && r7.enabled === true && tbBackLive && isTopmost(tbBackLive)) {
       rep.pass('P7 运行时重新启用：任务栏窗口恢复（仍置顶）');
     } else {
@@ -844,17 +847,16 @@ async function main() {
     // P8 启动态禁用（config 门禁）：禁用配置下拉起 → 窗口不建，面板照常
     rep.beginSegment('P8');
     patchTaskbar({ enabled: false });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const since8 = Date.now(); // boot 事件按时间戳门禁——存证文件跨阶段累积，旧 boot 会误配
-    child = launchPanel();
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
     const boot2 = await tape.wait('boot', undefined, { since: since8, timeoutMs: 15000 });
     if (!boot2) throw new Error('P8 禁用态面板子进程未上报 boot');
     panelPid = boot2.pid;
     await sleep(2500); // 给窗口创建留出时间（应不发生）
     const tbGone = !findWindow(panelPid, TASKBAR_TITLE);
-    const panelUp = await waitWindow(panelPid, PANEL_TITLE, 10000);
+    const panelUp = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 10000 });
     if (tbGone && panelUp) {
       rep.pass('P8 启动态禁用：任务栏窗口不建，面板本体照常');
     } else {
@@ -864,15 +866,14 @@ async function main() {
     // P9 启动态恢复启用 → 窗口回来
     rep.beginSegment('P9');
     patchTaskbar({ enabled: true });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const since9 = Date.now();
-    child = launchPanel();
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
     const boot3 = await tape.wait('boot', undefined, { since: since9, timeoutMs: 15000 });
     if (!boot3) throw new Error('P9 启用态面板子进程未上报 boot');
     panelPid = boot3.pid;
-    const tbBack = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbBack = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (tbBack && isTopmost(tbBack)) {
       rep.pass('P9 启动态重新启用后任务栏窗口恢复（仍置顶）');
     } else {
@@ -888,7 +889,7 @@ async function main() {
     //   挂 .tb-tray-px（image-rendering: pixelated），≥24px 不得挂——像素未到齐的图标
     //   只断 24px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
     rep.beginSegment('P13');
-    const tbH13 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbH13 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     let notepad13 = null;
     try {
       // 栏上无应用格时铺一枚探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
@@ -1700,15 +1701,14 @@ async function main() {
         await sleep(600); // 落盘+重排一帧
         const stBefore17 = await state17();
         const diskOk17 = !!(stBefore17 && Array.isArray(stBefore17.excluded) && stBefore17.excluded.some((e) => norm17(e.exe) === norm17(pF17.exe)));
-        killTree(child, panelPid);
-        child = null;
+        await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
         await sleep(1200);
         const since17 = Date.now();
-        child = launchPanel();
+        handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
         const boot17 = await tape.wait('boot', undefined, { since: since17, timeoutMs: 15000 });
         if (boot17) {
           panelPid = boot17.pid;
-          await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+          await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
         }
         let reboot17 = null;
         for (let i = 0; i < 40 && !reboot17; i++) {
@@ -1983,7 +1983,7 @@ async function main() {
     }
     // 再启用：恰一扇 + 仍置顶 + 新窗占位存证在场
     const r10on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const tbFinal = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbFinal = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     const regFinal = await tape.wait('taskbar-appbar-registered', (e) => e.t > burstEnd, { timeoutMs: 8000 });
     if (burst && burst.first === false && burst.second === true
       && stripsAfterBurst.length === 1 && spuriousRemoved.length === 0
@@ -2000,11 +2000,11 @@ async function main() {
     // 主进程在同一 JS 任务内连发两次 setEnabled（destroy/create 零事件循环轮转，
     // 旧窗 closed 确定性迟到），这才是缺陷①的完整触发形态。断言面与 (a) 同款。
     patchTaskbar({ enabled: true });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const sinceBurst = Date.now();
-    child = launchPanel({ DECK_TASKBAR_BURST: '1' });
+    // 工单211：extraEnv 整包透传（连发触发器 DECK_TASKBAR_BURST=1 不能丢）
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: { DECK_TASKBAR_BURST: '1' } });
     const bootBurst = await tape.wait('boot', undefined, { since: sinceBurst, timeoutMs: 15000 });
     if (!bootBurst) throw new Error('P10(b) 连发面板子进程未上报 boot');
     panelPid = bootBurst.pid;
@@ -2027,7 +2027,7 @@ async function main() {
       stripGone2 = !findWindow(panelPid, TASKBAR_TITLE);
     }
     const rOn2 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const tbFinal2 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbFinal2 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     const regFinal2 = await tape.wait('taskbar-appbar-registered', (e) => e.t > burstEnd2, { timeoutMs: 8000 });
     if (burstDone && stripsBurst.length === 1 && spuriousRemoved2.length === 0
       && stripGone2 && rOff2 && rOff2.enabled === false
@@ -2079,7 +2079,7 @@ async function main() {
     const t11on = Date.now();
     const r11on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
     const readyEv = await tape.wait('tray-host-ready', undefined, { since: t11on, timeoutMs: 8000 });
-    const stripBack11 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const stripBack11 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     let rosterLen = 0;
     for (let i = 0; i < 12 && rosterLen === 0; i++) {
       await sleep(700);
@@ -2131,11 +2131,10 @@ async function main() {
     }
     // (b) 启态禁用：config 门禁下拉起，宿主不起
     patchTaskbar({ enabled: false });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const since12 = Date.now();
-    child = launchPanel();
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
     const boot12 = await tape.wait('boot', undefined, { since: since12, timeoutMs: 15000 });
     if (!boot12) throw new Error('P12(b) 禁用态面板子进程未上报 boot');
     panelPid = boot12.pid;
@@ -2159,14 +2158,14 @@ async function main() {
     const t13on = Date.now();
     // P12(b) 重拉的面板渲染页可能尚未就位 CDP（boot 存证早于渲染页加载，红轮实证
     // /json 列表还无 AGENT DECK 目标）——先等面板窗在场，再重试取页（各 500ms 一拍）
-    await waitWindow(panelPid, PANEL_TITLE, 10000);
+    await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 10000 });
     let r13on = null;
     for (let i = 0; i < 20 && !(r13on && r13on.enabled === true); i++) {
       try { r13on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`); }
       catch { /* 渲染页未就位——下一拍重试 */ }
       if (!(r13on && r13on.enabled === true)) await sleep(500);
     }
-    const strip13 = await waitWindow(panelPid, TASKBAR_TITLE, 10000);
+    const strip13 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 10000 });
     const hostReady13 = await tape.wait('tray-host-ready', undefined, { since: t13on, timeoutMs: 10000 });
     let roster13 = 0;
     for (let i = 0; i < 12 && roster13 === 0; i++) {
@@ -2752,7 +2751,7 @@ static class Probe {
             + ` 窗就位=${winsUp21} 进程=${procCount21}`);
         } else {
           const pop21 = await clickIconOpen21();
-          const popWin21 = pop21 ? await waitWindow(panelPid, 'DECK-TASKBAR-WINS-MENU', 3000) : null;
+          const popWin21 = pop21 ? await handle.waitWindow({ title: 'DECK-TASKBAR-WINS-MENU', timeoutMs: 3000 }) : null;
           // 行几何锚点（create 路径页 boot 即报 ready；行集/行坐标据此断言与取点击点）
           let popReady21 = null;
           if (pop21) {
@@ -2975,8 +2974,7 @@ static class Probe {
       // 偶发新实例 boot 后主进程/渲染层停滞，不烧 20s 等死实例）。
       const restartPanel20 = async (tag) => {
         const oldPid = panelPid;
-        killTree(child, panelPid);
-        child = null;
+        await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
         for (let i = 0; i < 50 && oldPid; i++) {
           const r = spawnSync('tasklist', ['/FI', `PID eq ${oldPid}`, '/NH'], { encoding: 'utf8' });
           if (!(r.stdout || '').includes(String(oldPid))) break;
@@ -2984,18 +2982,17 @@ static class Probe {
         }
         await sleep(1200);
         const since = Date.now();
-        child = launchPanel();
+        handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
         const boot = await tape.wait('boot', undefined, { since, timeoutMs: 15000 });
         if (boot) {
           panelPid = boot.pid;
-          await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+          await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
         }
         let ready = boot ? await tape.wait('taskbar-ready', undefined, { since, timeoutMs: 15000 }) : null;
         if (boot && !ready) {
           rep.note(`P20 ${tag} 首拉实例未就绪（taskbar-ready 15s 未出场）——二次重启兜底`);
           const pid2 = panelPid;
-          killTree(child, panelPid);
-          child = null;
+          await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
           for (let i = 0; i < 50 && pid2; i++) {
             const r = spawnSync('tasklist', ['/FI', `PID eq ${pid2}`, '/NH'], { encoding: 'utf8' });
             if (!(r.stdout || '').includes(String(pid2))) break;
@@ -3003,11 +3000,11 @@ static class Probe {
           }
           await sleep(1200);
           const since2 = Date.now();
-          child = launchPanel();
+          handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
           const boot2 = await tape.wait('boot', undefined, { since: since2, timeoutMs: 15000 });
           if (boot2) {
             panelPid = boot2.pid;
-            await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+            await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
           }
           ready = boot2 ? await tape.wait('taskbar-ready', undefined, { since: since2, timeoutMs: 15000 }) : null;
         }
@@ -3303,7 +3300,13 @@ static class Probe {
   } finally {
     if (probe164) { try { probe164.destroy(); } catch { /* 尽力 */ } }
     cleanupP18Probes(p18); // P18 痕迹摘除（进程/目录/栏布局存储手钉残留）
-    killTree(child, panelPid);
+    // 工单211：收尾清场归句柄验证强退——gone=false 只入环境降责账、**不中止**
+    // （清场不掩盖真结局；中止会拦住 finish() → 控制器不退 → 验收槽租约挂死）
+    const cleared = await handle.stop();
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+        '清场后仍有面板进程存活', 'panel-forcekill');
+    }
     cleanupRecsProbes(p16); // P16 痕迹三处摘除（面板已杀，落盘清理不再被回写）
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生

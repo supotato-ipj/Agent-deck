@@ -17,7 +17,7 @@
 const { app, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
@@ -26,10 +26,20 @@ const { cdpPortFor } = require('./lib/registry');
 // 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
 // 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
 const { createEventTape } = require('./lib/event-tape');
+// 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '50-taskbar-carry-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单211：句柄装配——守卫链形态 full（['.']，真 guard + watchdog 全链路，stdio 排空
+// 管道防堵）与验收面板形态 accept（['.','--panel-accept'] ＋ CDP）；证据档按电池注入
+// 专属档名（裁决 10：缺省是八块电池共用的同一文件，混批会让红轮归因变难）
+const handle = createPanelHandle({
+  execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '50-taskbar-carry-panel-handle-child.log'),
+});
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('50-taskbar-carry');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -69,16 +79,6 @@ function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-async function waitWindow(pid, title, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const h = findWindow(pid, title);
-    if (h) return h;
-    await sleep(120);
-  }
-  return null;
-}
-
 /** 等原生任务栏可见性到达期望态（还原/隐藏都有 explorer 动画与时序，轮询不赌单拍） */
 async function waitNativeVisible(want, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
@@ -96,27 +96,12 @@ function stuckRectsSettings() {
   return r.status === 0 ? r.stdout : `ERR:${r.status}:${(r.stderr || '').trim()}`;
 }
 
-/** 守卫链（默认入口）：守卫 + 还原守护 + 面板全链路。返回 { child, guardPid }。 */
-function launchGuardChain() {
-  const child = spawn(process.execPath, ['.'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  child.stderr.on('data', () => {}); // 排干管道防堵
-  child.stdout.on('data', () => {}); // 工单132：stdout 管道同样必须排空（面板内核告警流可写满 64KB 管道→主线程同步写永久阻塞）
-  return child;
-}
-
-/** 验收面板（--panel-accept + CDP）：逃生开关阶段用（绕开单实例锁，无守卫）。 */
-function launchPanelAccept() {
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT) },
-    stdio: 'ignore',
-  });
-}
-
+/**
+ * 定点杀面板树（**只杀面板，不杀守卫**）：A3 崩溃路径的段前提就是「面板整树死、守卫存活」，
+ * 守卫才能以 panel-exit 还原原生任务栏。**故此处不迁句柄 stop()**——句柄 stop() 会连带
+ * 终结发射子进程（＝守卫载体），段前提不成立。「验证消失」由 A3 既有 waitExit(child, 15000)
+ * 承担（守卫随面板死亡而退＝面板已死的证据）。
+ */
 function killTree(pid) {
   if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
 }
@@ -179,12 +164,13 @@ async function runSegments() {
     // —— 阶段A：守卫链全链路（隐藏 + 三条还原路径）——
     // A1 接管开启 → 原生任务栏隐藏，条带落屏底
     rep.beginSegment('A1');
-    child = launchGuardChain();
+    // 工单211：发射归面板句柄——守卫链形态 full（['.']，stdio 排空管道防堵，工单132）
+    child = handle.launch({ mode: 'full', stdio: 'drain' }).child;
     const boot1 = await tape.wait('boot', null, { timeoutMs: 20000 });
     if (!boot1) throw new Error('A1 守卫链面板未上报 boot');
     panelPid = boot1.pid;
     rep.note(`A1 守卫 pid=${child.pid} 面板 pid=${panelPid}`);
-    const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('A1 任务栏条带窗未出现');
     const hiddenEv = await tape.wait('taskbar-hidden', null, { timeoutMs: 5000 });
     const nativeGone = await waitNativeVisible(false, 5000);
@@ -204,7 +190,7 @@ async function runSegments() {
     // A2 正常退出（WM_CLOSE 面板主窗 → app.quit）→ 原生任务栏还原
     rep.beginSegment('A2');
     const sinceA2 = Date.now();
-    const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 8000);
+    const panelHwnd = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 8000 });
     if (!panelHwnd) throw new Error('A2 面板主窗未找到');
     win32.PostMessageW(panelHwnd, WM_CLOSE, 0, 0);
     const guardExited = await waitExit(child, 15000);
@@ -220,13 +206,13 @@ async function runSegments() {
     // A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫 panel-exit 还原
     rep.beginSegment('A3');
     const sinceA3 = Date.now();
-    child = launchGuardChain();
+    child = handle.launch({ mode: 'full', stdio: 'drain' }).child;
     const boot3 = await tape.wait('boot', undefined, { since: sinceA3, timeoutMs: 20000 });
     if (!boot3) throw new Error('A3 守卫链面板未上报 boot');
     panelPid = boot3.pid;
-    if (!(await waitWindow(panelPid, TASKBAR_TITLE, 12000))) throw new Error('A3 条带窗未出现');
+    if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A3 条带窗未出现');
     if (!(await waitNativeVisible(false, 5000))) throw new Error('A3 原生任务栏未被隐藏（前置不成立）');
-    killTree(panelPid); // 模拟崩溃/强杀：面板整树死，守卫存活
+    killTree(panelPid); // 模拟崩溃/强杀：面板整树死，守卫存活（**不迁句柄**——见 killTree 注）
     const guardExited3 = await waitExit(child, 15000);
     const restoredA3 = await waitNativeVisible(true, 8000);
     const restoredEvA3 = await tape.wait('taskbar-restored', (e) => e.reason === 'panel-exit', { since: sinceA3, timeoutMs: 5000 });
@@ -241,19 +227,26 @@ async function runSegments() {
     // 还原钩子全灭），还原守护（detached 出生、无控制台收信号）以 guard-dead 翻回。
     rep.beginSegment('A4');
     const sinceA4 = Date.now();
-    child = launchGuardChain();
+    child = handle.launch({ mode: 'full', stdio: 'drain' }).child;
     const boot4 = await tape.wait('boot', undefined, { since: sinceA4, timeoutMs: 20000 });
     if (!boot4) throw new Error('A4 守卫链面板未上报 boot');
     panelPid = boot4.pid;
     const guardPid4 = child.pid;
     const watchEv = await tape.wait('restore-watch-spawned', undefined, { since: sinceA4, timeoutMs: 5000 });
     const watchPid = watchEv ? watchEv.pid : 0;
-    if (!(await waitWindow(panelPid, TASKBAR_TITLE, 12000))) throw new Error('A4 条带窗未出现');
+    if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A4 条带窗未出现');
     if (!(await waitNativeVisible(false, 5000))) throw new Error('A4 原生任务栏未被隐藏（前置不成立）');
     // 先杀守卫（不带 /T：守护是守卫的子进程，/T 会把它一起带走——守护的存活前提
     // 正是「控制台信号只同杀有控制台的进程」，这里用不带 /T 复刻该现场），再杀面板树。
     spawnSync('taskkill', ['/PID', String(guardPid4), '/F'], { stdio: 'ignore' });
-    killTree(panelPid);
+    // 工单211：面板树清场归句柄**验证强退**（守卫已死，句柄的整树强杀落在死 pid 上是
+    // 空操作——还原守护的「不带 /T」前提不受影响；gone=false 即中止信号）
+    const stoppedA4 = await handle.stop();
+    if (!stoppedA4.gone) {
+      rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stoppedA4.pidsLeft.join(', ')}）——需重启清障`,
+        '面板强退序列未能终结面板进程', 'panel-forcekill');
+      throw new Error('面板强退失败：需重启清障——后续段中止');
+    }
     const restoredA4 = await waitNativeVisible(true, 10000);
     const restoredEvA4 = await tape.wait('taskbar-restored', (e) => e.reason === 'guard-dead', { since: sinceA4, timeoutMs: 8000 });
     let watchDead = false;
@@ -267,11 +260,11 @@ async function runSegments() {
 
     // —— 阶段B：逃生开关真机链路（--panel-accept + CDP 驱动设置浮层真实 DOM）——
     const sinceB = Date.now();
-    child = launchPanelAccept();
+    child = handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' }).child;
     const bootB = await tape.wait('boot', undefined, { since: sinceB, timeoutMs: 20000 });
     if (!bootB) throw new Error('B 验收面板未上报 boot');
     panelPid = bootB.pid;
-    if (!(await waitWindow(panelPid, TASKBAR_TITLE, 12000))) throw new Error('B 条带窗未出现');
+    if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('B 条带窗未出现');
     if (!(await waitNativeVisible(false, 5000))) throw new Error('B 原生任务栏未被隐藏（前置不成立）');
 
     // B1 设置浮层关开关（真实 DOM 点击链：settings-btn → taskbar-toggle）→ 原生即还原
@@ -298,7 +291,7 @@ async function runSegments() {
     await cdpEval(`document.getElementById('taskbar-toggle').click()`);
     const setEvOn = await tape.wait('settings-taskbar-set', (e) => e.enabled === true, { since: sinceB, timeoutMs: 6000 });
     const nativeGoneB2 = await waitNativeVisible(false, 8000);
-    const tbBackB2 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbBackB2 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     if (setEvOn && nativeGoneB2 && tbBackB2) {
       rep.pass('B2 逃生开关再开：原生任务栏再隐、条带恢复（开关双向可用）');
     } else {
@@ -312,8 +305,13 @@ async function runSegments() {
     // （工单50 起同通道还原图标 + 原生任务栏）→ 还原 config → 核验用户任务栏偏好
     // （自动隐藏等）字节级不变。
     try {
-      try { killTree(panelPid); } catch { /* 尽力 */ }
-      try { child && child.kill(); } catch { /* 尽力 */ }
+      // 工单211：收尾清场归句柄验证强退（gone=false 只入环境降责账、**不中止**——
+      // 清场段任何抛错都会拦住 finish() → 控制器不退 → 验收槽租约挂死）
+      const cleared = await handle.stop();
+      if (cleared && cleared.gone === false) {
+        rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+          '清场后仍有面板进程存活', 'panel-forcekill');
+      }
       await sleep(800);
       try {
         spawnSync(process.execPath, ['.', '--icon-restore'], {
