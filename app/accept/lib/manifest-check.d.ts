@@ -48,3 +48,28 @@ export declare function validateScopeSegments(
   manifest: unknown,
   batteryId: string,
 ): { ok: boolean; unknown: string[] }
+
+/**
+ * 电池接入表接线五字段（工单214，spec #203 决策 2）：flag/entry/hintBar/cdpPort/kind。
+ * 段级管段、电池级管接线——新电池的登记面就这五个字段 ＋ 一个 npm script。
+ */
+export declare const REGISTRY_FIELDS: string[]
+
+/** npm run 别名由 flag 派生（工单214：script 名不存表）：--accept-tray → accept:tray */
+export declare function deriveScriptName(flag: string): string
+
+export declare interface RegistryCheckRequest {
+  manifest: unknown
+  /** accept 目录递归枚举的在场文件（仓库根相对路径）——entry 存在性事实 */
+  acceptFiles?: string[]
+  /** 顶层电池脚本全集（仓库根相对路径）——「在场必入表」事实 */
+  presentEntries?: string[]
+  /** package.json 的 scripts 对象——script 派生一致与孤儿旗标事实 */
+  scripts?: Record<string, string>
+}
+
+/**
+ * 电池接入表校验（工单214）：六项接线校验——flag 唯一、entry 文件存在、script 派生一致、
+ * cdpPort 唯一、experiment 条目豁免段级校验（落在 validateManifest 内）、双向完备。
+ */
+export declare function validateRegistry(req: RegistryCheckRequest): ManifestCheckResult

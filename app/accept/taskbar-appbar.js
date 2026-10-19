@@ -167,7 +167,8 @@ function launchPanelAccept() {
   });
 }
 
-async function main() {
+/** 电池主体（工单214 导出归一：原 main 改名 runSegments，导出面收归 main） */
+async function runSegments() {
   const rep = new Report('51-taskbar-appbar');
   const originalConfig = readConfigRaw();
   const originalMode = currentDisplayMode();
@@ -366,9 +367,17 @@ async function main() {
   finish();
 }
 
-module.exports = function appbarBattery() {
-  app.whenReady().then(() => main()).catch((e) => {
+/**
+ * 导出归一（工单214，spec #203 决策 6）：控制器已在 whenReady 内调起 → 直接导出 main
+ * （消双重 whenReady 包装）；崩溃兜底在此收口，机械等价于原 wrapper 的 catch。
+ */
+async function main() {
+  try {
+    await runSegments();
+  } catch (e) {
     console.error('APPBAR BATTERY CRASH:', e && e.stack || e);
     app.exit(2);
-  });
-};
+  }
+}
+
+module.exports = main;

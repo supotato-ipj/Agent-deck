@@ -10,7 +10,7 @@
  * （manifest.pathAreas）、段级/电池级 areas、公共底座域（manifest.wideAreas）。
  */
 
-const { matchPathArea, normalizeRepoPath } = require('./manifest-check');
+const { matchPathArea, normalizeRepoPath, deriveScriptName } = require('./manifest-check');
 
 /** 验收域标签：app/accept 下的电池代码不是面板域，而是「谁接线」的线索 */
 const ACCEPT_AREA = 'accept';
@@ -41,7 +41,9 @@ function effectiveAreas(battery, segment) {
  */
 function selectPlan(req = {}) {
   const manifest = req.manifest || null;
-  const batteries = (manifest && Array.isArray(manifest.batteries)) ? manifest.batteries : [];
+  // 工单214：experiment 条目（取证工具）不是电池——无段、不进电池轮计划（它自带参数与轮次账）
+  const batteries = ((manifest && Array.isArray(manifest.batteries)) ? manifest.batteries : [])
+    .filter((b) => b && b.kind !== 'experiment');
   const pathAreas = (manifest && Array.isArray(manifest.pathAreas)) ? manifest.pathAreas : [];
   const wideAreas = new Set((manifest && Array.isArray(manifest.wideAreas)) ? manifest.wideAreas : []);
   const sourceRoots = (manifest && Array.isArray(manifest.sourceRoots) && manifest.sourceRoots.length)
@@ -104,7 +106,8 @@ function selectPlan(req = {}) {
     out.push({
       id: b.id,
       title: b.title || b.id,
-      script: b.script || '',
+      // npm run 别名由 flag 派生（工单214 决策 2：script 名不存电池接入表）
+      script: b.flag ? deriveScriptName(b.flag) : '',
       mode,
       segments: segments || [],
       reason: reason || '',

@@ -14,12 +14,14 @@ const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('../lib/win32');
 const { createPanelControl } = require('../lib/panel-control');
+const { cdpPortFor } = require('../lib/registry');
 const {
   dedupeProbeStalls, couplingStats, classifyOrder, labelDistribution,
 } = require('./stall-duel-analyze');
 
 const APP_ROOT = path.resolve(__dirname, '..', '..');
-const CDP_PORT = 9333;
+// 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——实验条目同样从表取值。
+const CDP_PORT = cdpPortFor('132-stall-duel');
 const VK_LWIN = 0x5b, VK_D = 0x44;
 const SW_RESTORE = 9;
 const SWP_NOZORDER = 0x0004; // lib/win32.js 未导出此常量（battery.js 同名引用实为 undefined 的既有潜伏坑，本地常量避开）
@@ -428,9 +430,11 @@ process.on('unhandledRejection', (err) => {
 });
 
 // 控制器路由约定（battery.js 同款）：require(...)() 直接调起，返回启动 promise
-module.exports = () => app.whenReady().then(main);
+// 工单214 导出归一：控制器已在 whenReady 内调起 → 直接导出 main（消双重 whenReady 包装）；
+// 自跑分支（require.main === module）不经控制器，仍须自己等 whenReady。
+module.exports = main;
 if (require.main === module) {
-  module.exports().catch((err) => {
+  app.whenReady().then(main).catch((err) => {
     console.error('[stall-duel] 轮失败：', err);
     app.exit(3);
   });

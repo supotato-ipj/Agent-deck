@@ -153,24 +153,26 @@ describe('仓库清单自一致性（app/accept/manifest.json，schema 定稿的
     version: number
     surfaces: Record<string, string>
     batteries: Array<{
-      id: string; title: string; entry: string; script: string
+      id: string; title: string; entry: string; flag: string; hintBar: boolean; cdpPort: number | null; kind?: string | null
       budgetSeconds: number; lastMeasuredSeconds: number | null; lastMeasuredAt: string | null
-      segments: Array<{ seg: string; ticket: number; title: string; surfaces: string[]; estSeconds: number }>
+      segments?: Array<{ seg: string; ticket: number; title: string; surfaces: string[]; estSeconds: number }>
     }>
   } | null
+  /** 工单214：experiment 条目（取证工具）段级治理豁免——无段/无预算，不参与段级断言 */
+  const cellBatteries = () => manifest!.batteries.filter((b) => b.kind !== 'experiment')
 
-  it('清单可加载且八电池全部登记', () => {
+  it('清单可加载且八块电池 ＋ 一条 experiment 条目全部登记', () => {
     expect(manifest).not.toBeNull()
     expect(manifest!.batteries.map((b) => b.id).sort()).toEqual(
-      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter', '166-doc-group-cards'].sort(),
+      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter', '166-doc-group-cards', '132-stall-duel'].sort(),
     )
   })
 
   it('五枚举失效面键齐备，段条目字段完备且 surfaces 全在枚举内', () => {
     expect(Object.keys(manifest!.surfaces).sort()).toEqual([...SURFACES].sort())
-    for (const b of manifest!.batteries) {
-      expect(b.segments.length).toBeGreaterThan(0)
-      for (const s of b.segments) {
+    for (const b of cellBatteries()) {
+      expect((b.segments || []).length).toBeGreaterThan(0)
+      for (const s of b.segments!) {
         expect(String(s.seg)).not.toBe('')
         expect(Number(s.ticket)).toBeGreaterThan(0)
         expect(String(s.title)).not.toBe('')
@@ -182,15 +184,15 @@ describe('仓库清单自一致性（app/accept/manifest.json，schema 定稿的
   })
 
   it('段号电池内唯一（P9 撞号已辨析为 P9/P9B 一类）', () => {
-    for (const b of manifest!.batteries) {
-      const segs = b.segments.map((s) => s.seg)
+    for (const b of cellBatteries()) {
+      const segs = (b.segments || []).map((s) => s.seg)
       expect(new Set(segs).size).toBe(segs.length)
     }
   })
 
   it('分电池时长预算：估计总和 ≤ 预算；主电池预算 = 12 分钟封顶', () => {
-    for (const b of manifest!.batteries) {
-      const sum = b.segments.reduce((acc, s) => acc + s.estSeconds, 0)
+    for (const b of cellBatteries()) {
+      const sum = (b.segments || []).reduce((acc, s) => acc + s.estSeconds, 0)
       expect(sum).toBeLessThanOrEqual(b.budgetSeconds)
       if (b.id === '03-battery') expect(b.budgetSeconds).toBe(720)
     }
