@@ -326,6 +326,20 @@ describe('面板句柄·launch 配置展开（注入假发射器）', () => {
     expect(w.spawnCalls.map((c) => c.args)).toEqual([['.'], ['.', '--panel-accept']])
   })
 
+  it('mode=tray-spike 决定进程参数：托盘 spike 特殊形态（编排台账 §8 裁决 3 扩枚举，纯增量）', () => {
+    const w = handleWorld()
+    w.handle.launch({ mode: 'tray-spike' })
+    expect(w.spawnCalls.map((c) => c.args)).toEqual([['.', '--tray-spike']])
+  })
+
+  it('mode=tray-spike 与既有两形态并存：既有 full/accept 的参数逐字不变（扩枚举不改既有语义）', () => {
+    const w = handleWorld()
+    w.handle.launch({ mode: 'full' })
+    w.handle.launch({ mode: 'accept' })
+    w.handle.launch({ mode: 'tray-spike' })
+    expect(w.spawnCalls.map((c) => c.args)).toEqual([['.'], ['.', '--panel-accept'], ['.', '--tray-spike']])
+  })
+
   it('env 组装：事件档路径 + CDP 端口 + 滞后哨兵 + extraEnv 叠加，baseEnv 透传', () => {
     const w = handleWorld()
     w.handle.launch({ mode: 'full', cdpPort: 9333, lagSentinel: true, extraEnv: { DECK_TASKBAR_BURST: '1' } })
