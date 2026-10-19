@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, script(npm run 别名), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。",
+  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, script(npm run 别名), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。 工单204（spec #201 A1）schema 扩展——段耦合登记：顶层 areas＝段耦合的域标签封闭词表（14 域，与 surfaces 五枚举同款治理；取值越表判红，词表与映射表同处维护）；pathAreas＝声明式 path→area 映射表（{path 仓库相对路径前缀, area 域标签, wires?}，最长前缀命中；wires=\"*\" 表示共享验收基建——该路径被全部电池接线）；wideAreas＝公共底座域（命中即给保守计划：波及面未知，多跑不少跑）；sourceRoots＝完备性校验的源码树根目录。段条目新增 areas 数组（主电池 33 段逐段标注）；电池条目新增 areas 数组（电池级标签覆盖——七块副电池单域口径，段级缺省时取电池级）与 scope 布尔（该电池代码解析 --accept-scope，可按段声明范围段）。校验器（app/accept/lib/manifest-check.js）据此加判：域标签越出词表判红、段无归属域判红、映射表对源码目录不完备判红。",
   "surfaces": {
     "panel-alive": "面板存活",
     "pixel": "像素",
@@ -25,7 +25,10 @@
           "surfaces": [
             "panel-alive"
           ],
-          "estSeconds": 15
+          "estSeconds": 15,
+          "areas": [
+            "panel.core"
+          ]
         },
         {
           "seg": "P2",
@@ -34,7 +37,11 @@
           "surfaces": [
             "pixel"
           ],
-          "estSeconds": 15
+          "estSeconds": 15,
+          "areas": [
+            "panel.core",
+            "cards"
+          ]
         },
         {
           "seg": "P2.5",
@@ -43,7 +50,11 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 10
+          "estSeconds": 10,
+          "areas": [
+            "cards",
+            "sessions"
+          ]
         },
         {
           "seg": "P3",
@@ -53,7 +64,11 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 10
+          "estSeconds": 10,
+          "areas": [
+            "panel.core",
+            "hotzone"
+          ]
         },
         {
           "seg": "P4",
@@ -64,7 +79,11 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 20
+          "estSeconds": 20,
+          "areas": [
+            "hotzone",
+            "panel.core"
+          ]
         },
         {
           "seg": "P4.5",
@@ -73,7 +92,11 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 3
+          "estSeconds": 3,
+          "areas": [
+            "cards",
+            "hotzone"
+          ]
         },
         {
           "seg": "P5",
@@ -85,7 +108,10 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 35
+          "estSeconds": 35,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5-ICON",
@@ -94,7 +120,10 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 12
+          "estSeconds": 12,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5-ICON2",
@@ -103,7 +132,10 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 12
+          "estSeconds": 12,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.5",
@@ -113,7 +145,10 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35
+          "estSeconds": 35,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.6",
@@ -123,7 +158,10 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 30
+          "estSeconds": 30,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.7",
@@ -133,7 +171,10 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.8",
@@ -143,7 +184,10 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 20
+          "estSeconds": 20,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.9",
@@ -153,7 +197,12 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35
+          "estSeconds": 35,
+          "areas": [
+            "desktop",
+            "hotzone",
+            "plugins"
+          ]
         },
         {
           "seg": "P5.10",
@@ -164,7 +213,10 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30
+          "estSeconds": 30,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.12",
@@ -174,7 +226,10 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.13",
@@ -185,7 +240,10 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30
+          "estSeconds": 30,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.14",
@@ -196,7 +254,10 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.15",
@@ -207,7 +268,10 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.16",
@@ -218,7 +282,10 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "desktop"
+          ]
         },
         {
           "seg": "P5.17",
@@ -228,7 +295,10 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35
+          "estSeconds": 35,
+          "areas": [
+            "panel.core"
+          ]
         },
         {
           "seg": "P7S",
@@ -239,7 +309,11 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 40
+          "estSeconds": 40,
+          "areas": [
+            "search",
+            "cards"
+          ]
         },
         {
           "seg": "P8S",
@@ -250,7 +324,11 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30
+          "estSeconds": 30,
+          "areas": [
+            "settings",
+            "config"
+          ]
         },
         {
           "seg": "P8T",
@@ -262,7 +340,13 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 19
+          "estSeconds": 19,
+          "areas": [
+            "settings",
+            "cards",
+            "plugins",
+            "config"
+          ]
         },
         {
           "seg": "P6",
@@ -271,7 +355,10 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 12
+          "estSeconds": 12,
+          "areas": [
+            "config"
+          ]
         },
         {
           "seg": "P7",
@@ -280,7 +367,10 @@
           "surfaces": [
             "panel-alive"
           ],
-          "estSeconds": 8
+          "estSeconds": 8,
+          "areas": [
+            "panel.core"
+          ]
         },
         {
           "seg": "P8",
@@ -290,7 +380,10 @@
             "system-state",
             "pixel"
           ],
-          "estSeconds": 18
+          "estSeconds": 18,
+          "areas": [
+            "tray"
+          ]
         },
         {
           "seg": "P9",
@@ -302,7 +395,11 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 20
+          "estSeconds": 20,
+          "areas": [
+            "desktop",
+            "panel.core"
+          ]
         },
         {
           "seg": "P10",
@@ -313,7 +410,11 @@
             "system-state",
             "pixel"
           ],
-          "estSeconds": 18
+          "estSeconds": 18,
+          "areas": [
+            "tray",
+            "panel.core"
+          ]
         },
         {
           "seg": "P10E",
@@ -323,7 +424,11 @@
             "panel-alive",
             "event-evidence"
           ],
-          "estSeconds": 12
+          "estSeconds": 12,
+          "areas": [
+            "settings",
+            "panel.core"
+          ]
         },
         {
           "seg": "P9B",
@@ -334,7 +439,10 @@
             "event-evidence",
             "panel-alive"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "sessions"
+          ]
         },
         {
           "seg": "P11",
@@ -344,7 +452,11 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25
+          "estSeconds": 25,
+          "areas": [
+            "plugins",
+            "cards"
+          ]
         },
         {
           "seg": "P12",
@@ -353,9 +465,13 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 16
+          "estSeconds": 16,
+          "areas": [
+            "render"
+          ]
         }
-      ]
+      ],
+      "scope": true
     },
     {
       "id": "48-tray-spike",
@@ -459,6 +575,9 @@
           ],
           "estSeconds": 3
         }
+      ],
+      "areas": [
+        "tray"
       ]
     },
     {
@@ -691,6 +810,10 @@
           ],
           "estSeconds": 35
         }
+      ],
+      "areas": [
+        "taskbar",
+        "taskbar.menu"
       ]
     },
     {
@@ -773,6 +896,9 @@
           ],
           "estSeconds": 1
         }
+      ],
+      "areas": [
+        "taskbar"
       ]
     },
     {
@@ -834,6 +960,9 @@
           ],
           "estSeconds": 12
         }
+      ],
+      "areas": [
+        "taskbar"
       ]
     },
     {
@@ -905,6 +1034,10 @@
           ],
           "estSeconds": 25
         }
+      ],
+      "areas": [
+        "taskbar",
+        "taskbar.menu"
       ]
     },
     {
@@ -926,6 +1059,9 @@
           ],
           "estSeconds": 15
         }
+      ],
+      "areas": [
+        "taskbar"
       ]
     },
     {
@@ -1040,7 +1176,289 @@
           ],
           "estSeconds": 30
         }
-      ]
+      ],
+      "areas": [
+        "desktop",
+        "plugins"
+      ],
+      "scope": true
+    }
+  ],
+  "areas": {
+    "panel.core": "面板内核",
+    "desktop": "桌面域",
+    "tray": "托盘域",
+    "taskbar": "任务栏域",
+    "taskbar.menu": "任务栏弹窗菜单域",
+    "search": "搜索域",
+    "settings": "设置域",
+    "cards": "卡片域",
+    "plugins": "插件域",
+    "config": "配置域",
+    "hotzone": "交互热区域",
+    "sessions": "会话域",
+    "render": "渲染层域",
+    "accept": "验收域"
+  },
+  "wideAreas": [
+    "panel.core",
+    "render",
+    "config"
+  ],
+  "sourceRoots": [
+    "app/src",
+    "app/plugins"
+  ],
+  "pathAreas": [
+    {
+      "path": "app/src",
+      "area": "panel.core"
+    },
+    {
+      "path": "app/src/main",
+      "area": "panel.core"
+    },
+    {
+      "path": "app/src/main/desktop",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/focus",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/hardware",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/plugins",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/scanners",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/search",
+      "area": "search"
+    },
+    {
+      "path": "app/src/main/services",
+      "area": "panel.core"
+    },
+    {
+      "path": "app/src/main/taskbar",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/trayhost",
+      "area": "tray"
+    },
+    {
+      "path": "app/src/main/usage",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/preload",
+      "area": "panel.core"
+    },
+    {
+      "path": "app/src/renderer",
+      "area": "panel.core"
+    },
+    {
+      "path": "app/src/renderer/cards",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/cards/calendar",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/cards/clock",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/cards/context-menu",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/cards/search",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/cards/sessions",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/cards/weather",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/shared",
+      "area": "panel.core"
+    },
+    {
+      "path": "app/plugins",
+      "area": "plugins"
+    },
+    {
+      "path": "app/plugins/doc-group-cards",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/config.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/desktop-cover.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/main/icon-carry.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/icon-restore-watch.cjs",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/lag-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/paths.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/render-sentinel-sampler.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/render-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/tray.ts",
+      "area": "tray"
+    },
+    {
+      "path": "app/src/main/services/clock.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/main/services/desktop.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/services/focus.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/hardware.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/plugin-config.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/services/search.ts",
+      "area": "search"
+    },
+    {
+      "path": "app/src/main/services/sessions.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/settings.ts",
+      "area": "settings"
+    },
+    {
+      "path": "app/src/main/services/taskbar.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/usage.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/taskbar/app-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/blank-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/menu-host.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/rec-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/tier-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/wins-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/renderer/pasteable-query.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/plugin-tiers.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/plugins.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/selection.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/renderer/taskbar",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/renderer/taskbar-menu",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/renderer/tray-pixels.ts",
+      "area": "tray"
+    },
+    {
+      "path": "app/src/renderer/zone-hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/shared/overflow.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/accept",
+      "area": "accept"
+    },
+    {
+      "path": "app/accept/lib",
+      "area": "accept",
+      "wires": "*"
+    },
+    {
+      "path": "app/accept/manifest.json",
+      "area": "accept",
+      "wires": "*"
     }
   ]
 }
