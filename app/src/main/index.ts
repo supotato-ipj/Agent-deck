@@ -386,10 +386,14 @@ if (RESTORE_MODE) {
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
   app.commandLine.appendSwitch('disable-renderer-backgrounding')
   void app.whenReady().then(() => {
-    // 工单86 验收提示条：控制器身份的四块电池统一挂条——琥珀药丸驻留屏幕上中部安全带，
+    // 工单86 验收提示条：控制器身份的全部验收模式统一挂条——琥珀药丸驻留屏幕上中部安全带，
     // 提示用户暂勿键鼠操作；随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、
-    // docs/adr/0008-accept-hint-bar.md）。--panel-accept/--tray-spike 子进程是被测物，不挂。
-    if (ACCEPT_MODE || ACCEPT_TRAY_MODE || ACCEPT_TASKBAR_MODE || ACCEPT_TASKBAR_CARRY_MODE || ACCEPT_STALL_DUEL_MODE) {
+    // docs/adr/0008-accept-hint-bar.md）。覆盖面（工单213 起共九项）：主/托盘/任务栏/任务栏
+    // 显隐/任务栏右组/任务栏 AppBar/任务栏应用组枚举过滤/桌面文档组卡八块电池 + stall-duel
+    // 对照实验。--panel-accept/--tray-spike 子进程是被测物，不挂。
+    // 过渡说明（工单213 / spec #203 决策 4）：本条件是手维护布尔式，电池接入表（#214）落地后
+    // 挂条条件改由表派生、本条件行随之删除——本补丁只止血，不背技术债。
+    if (ACCEPT_MODE || ACCEPT_TRAY_MODE || ACCEPT_TASKBAR_MODE || ACCEPT_TASKBAR_CARRY_MODE || ACCEPT_TASKBAR_RIGHT_GROUP_MODE || ACCEPT_TASKBAR_APPBAR_MODE || ACCEPT_TASKBAR_APPS_FILTER_MODE || ACCEPT_DOC_GROUP_CARDS_MODE || ACCEPT_STALL_DUEL_MODE) {
       require(path.join(app.getAppPath(), 'accept', 'lib', 'hint-bar.js')).showAcceptHintBar()
     }
     if (ACCEPT_MODE) {

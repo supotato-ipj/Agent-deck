@@ -19,13 +19,25 @@ export declare interface SegmentLedger {
   durationMs: number | null
 }
 
-/** 段级清单条目（工单114，app/accept/manifest.json） */
+/** 段级清单条目（工单114，app/accept/manifest.json；工单204 起带 areas 域标签） */
 export declare interface ManifestSegment {
   seg: string
   ticket: number
   title: string
   surfaces: string[]
+  /** 段耦合的域标签（工单204）：须落在清单 areas 封闭词表内；缺省时取电池级 */
+  areas?: string[]
   estSeconds: number
+}
+
+/** path→area 映射表的一条规则（工单204） */
+export declare interface ManifestPathArea {
+  /** 仓库相对路径前缀（目录或文件名前缀） */
+  path: string
+  /** 域标签（须落在清单 areas 封闭词表内） */
+  area: string
+  /** 缺省=该路径由电池自身代码决定接线；'*'=共享验收基建（全部电池接线） */
+  wires?: string
 }
 
 export declare interface ManifestBattery {
@@ -36,12 +48,24 @@ export declare interface ManifestBattery {
   budgetSeconds: number
   lastMeasuredSeconds: number | null
   lastMeasuredAt: string | null
+  /** 电池级域标签（工单204）：副电池单域覆盖口径 */
+  areas?: string[]
+  /** 该电池代码解析 --accept-scope（可按段声明范围段，工单204） */
+  scope?: boolean
   segments: ManifestSegment[]
 }
 
 export declare interface AcceptManifest {
   version: number
   surfaces: Record<string, string>
+  /** 段耦合的域标签封闭词表（工单204）：14 域 */
+  areas: Record<string, string>
+  /** 公共底座域（工单204）：命中即给保守计划（波及面未知，多跑不少跑） */
+  wideAreas?: string[]
+  /** 完备性校验的源码树根目录（工单204） */
+  sourceRoots?: string[]
+  /** 声明式 path→area 映射表（工单204） */
+  pathAreas?: ManifestPathArea[]
   batteries: ManifestBattery[]
 }
 
