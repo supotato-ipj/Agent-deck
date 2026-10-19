@@ -391,6 +391,115 @@ describe('面板句柄·waitWindow 就绪判据与标题甄别', () => {
   })
 })
 
+// —— 面板句柄·就绪判据的承重件（工单206 独立审计必改项）——
+// 三道判据各自承重：boot 取本代次最后一条、标题必填、可见性必查。
+// 审计时三道判据各自「去掉→全部用例仍绿」，此处逐道钉死。
+describe('面板句柄·就绪判据的承重件（独立审计必改项）', () => {
+  it('同代次两条 boot：取最后一条（旧实例迟到的 boot 不被选中）', async () => {
+    // 回溯门下同窗内可能同时存在「旧实例迟到的 boot」与「新实例的 boot」：
+    // 取首个会选中旧 boot → 拿旧 pid 寻窗 → 误报「重启后面板窗口未现」。
+    const w = handleWorld({
+      bootEvents: [{ t: 1200, pid: 7000 }, { t: 1500, pid: 7777 }],
+      windows: [
+        { hwnd: 0x33, pid: 7000, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+        { hwnd: 0x44, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+      ],
+      alive: [7777],
+    })
+    w.handle.launch({ mode: 'full' }) // 发射时点 = 1000：两条 boot 都属本代次
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBe(0x44)
+    expect(w.handle.alive()).toBe(true) // 句柄记账的是新实例 pid（7000 那条已被越过）
+  })
+
+  it('就绪窗标题缺省：判据失准 → 返回 null 并落诊断转储（不退化为「任一可见窗即面板本体窗」）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1' }],
+    })
+    w.handle.launch({ mode: 'full' })
+    const before = w.now()
+    expect(await w.handle.waitWindow({ title: '' })).toBeNull()
+    expect(w.logs.join('\n')).toContain('Chrome_WidgetWin_1') // 诊断转储照落（红轮定位能力不降级）
+    expect(w.now()).toBe(before) // 判负即返：不进轮询
+  })
+
+  it('就绪窗标题缺位（undefined）：与空标题同形 → 返回 null（判据失准不退化）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1' }],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: undefined as unknown as string })).toBeNull()
+  })
+
+  it('就绪窗标题只有空白：与缺省同形 → 判负即返 null（不进轮询，不空等超时）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1' }],
+    })
+    w.handle.launch({ mode: 'full' })
+    const before = w.now()
+    expect(await w.handle.waitWindow({ title: '   ' })).toBeNull()
+    expect(w.now()).toBe(before) // 判负即返：空白标题不进轮询（否则空等满超时）
+  })
+
+  it('就绪窗标题传非字符串：判负即返 null（不抛——「不记账不抛」纪律）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1' }],
+    })
+    w.handle.launch({ mode: 'full' })
+    const before = w.now()
+    expect(await w.handle.waitWindow({ title: 123 as unknown as string })).toBeNull()
+    expect(w.now()).toBe(before)
+  })
+
+  it('同 pid + 同标题但不可见：不认作就绪窗（可见性判据承重）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [
+        { hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', visible: false },
+        { hwnd: 0x44, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+      ],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBe(0x44)
+  })
+
+  it('在场只有不可见窗：超时返回 null（不可见窗不被当成面板本体窗）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', visible: false }],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBeNull()
+  })
+
+  it('cls 过滤（可选）：给了类名只认同类名窗（异类名同标题不入列）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [
+        { hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'SomeOtherClass' },
+        { hwnd: 0x44, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+      ],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 1000 })).toBe(0x44)
+  })
+
+  it('cls 缺省：不做类名过滤（纯增量——行为与原先逐字一致）', async () => {
+    const w = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [
+        { hwnd: 0x33, pid: 7777, title: 'AGENT DECK', cls: 'SomeOtherClass' },
+        { hwnd: 0x44, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' },
+      ],
+    })
+    w.handle.launch({ mode: 'full' })
+    expect(await w.handle.waitWindow({ title: 'AGENT DECK', timeoutMs: 1000 })).toBe(0x33)
+  })
+})
+
 describe('面板句柄·relaunch：since 门默认＝上次发射时点', () => {
   it('默认门：上一代次的 boot 不算数（漏给 sinceMs 的坑由句柄记账堵死）', async () => {
     const w = handleWorld({
@@ -426,6 +535,52 @@ describe('面板句柄·relaunch：since 门默认＝上次发射时点', () => 
     expect(res.outcome).toBe('graceful-gone')
     expect(res.launched).toBe(true)
     expect(w.spawnCalls.length).toBe(2) // 首发 + 重发
+  })
+})
+
+// —— 面板句柄·relaunch 发射配置保真（工单206 独立审计必改项）——
+// relaunch 静默退回 full 形态就会去撞单实例守卫——「新面板被拒收」正是母票要斩的形态。
+// 断言重发的 spawn 参数与首发**逐字相同**（不是只断言「发了两次」）。
+describe('面板句柄·relaunch 发射配置保真（独立审计必改项）', () => {
+  it('重发的 spawn 参数与首发逐字相同：进程参数/env 各项/stdio 配置全项保真', async () => {
+    const w = handleWorld({ alive: [5100], gracefulKills: true })
+    w.handle.launch({ mode: 'accept', cdpPort: 9333, stdio: 'archive', extraEnv: { DECK_TASKBAR_BURST: '1' } })
+    const res = await w.handle.relaunch()
+    expect(res.launched).toBe(true)
+    expect(w.spawnCalls.length).toBe(2)
+    const [first, second] = w.spawnCalls
+    expect(second.cmd).toBe(first.cmd)
+    expect(second.args).toEqual(first.args)
+    expect(second.args).toEqual(['.', '--panel-accept']) // accept 形态没退回 full
+    expect(second.opts.cwd).toBe(first.opts.cwd)
+    expect(second.opts.env).toEqual(first.opts.env)
+    expect(second.opts.env.DECK_CDP_PORT).toBe('9333')
+    expect(second.opts.env.DECK_TASKBAR_BURST).toBe('1')
+    expect(second.opts.stdio).toEqual(first.opts.stdio)
+    expect(second.opts.stdio).toEqual(['ignore', 42, 42])
+  })
+
+  it('stdio 三形态逐形态复现：ignore/drain/archive 重发后各归其位', async () => {
+    const cases: Array<{ stdio: 'ignore' | 'drain' | 'archive'; expected: unknown }> = [
+      { stdio: 'ignore', expected: 'ignore' },
+      { stdio: 'drain', expected: ['ignore', 'pipe', 'pipe'] },
+      { stdio: 'archive', expected: ['ignore', 42, 42] },
+    ]
+    for (const c of cases) {
+      const w = handleWorld({ alive: [5100], gracefulKills: true })
+      w.handle.launch({ mode: 'full', stdio: c.stdio })
+      await w.handle.relaunch()
+      expect(w.spawnCalls[1].opts.stdio).toEqual(c.expected)
+    }
+  })
+
+  it('重发用的是发射时的配置快照：调用方事后改自己的 extraEnv 对象不改写重发配置', async () => {
+    const w = handleWorld({ alive: [5100], gracefulKills: true })
+    const extraEnv = { DECK_TASKBAR_BURST: '1' }
+    w.handle.launch({ mode: 'accept', stdio: 'archive', extraEnv })
+    extraEnv.DECK_TASKBAR_BURST = '99' // 调用方事后改了自己的对象
+    await w.handle.relaunch()
+    expect(w.spawnCalls[1].opts.env.DECK_TASKBAR_BURST).toBe('1')
   })
 })
 
