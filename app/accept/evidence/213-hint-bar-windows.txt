@@ -1,0 +1,6 @@
+# 顶层窗快照 2026-10-19T18:22:24.129Z
+# 全部顶层窗 26 扇；下列为 Chrome_WidgetWin_1 / AGENT DECK* / DECK-TASKBAR 相关
+# 前景窗（此刻键盘输入的接收方）={"hwnd":65938,"cls":"Shell_TrayWnd","title":"","pid":78428,"rect":{"left":0,"top":1392,"right":2560,"bottom":1440}}
+{"hwnd":3740376,"cls":"Chrome_WidgetWin_1","title":"AGENT DECK ACCEPT HINT","pid":25384,"visible":true,"rect":{"left":1100,"top":8,"right":1460,"bottom":47}}
+{"hwnd":1772438,"cls":"Chrome_WidgetWin_1","title":"MiniMax Code","pid":83388,"visible":true,"rect":{"left":-32000,"top":-32000,"right":-31840,"bottom":-31972}}
+{"hwnd":1381212,"cls":"Chrome_WidgetWin_1","title":"AGENT DECK","pid":32904,"visible":true,"rect":{"left":0,"top":0,"right":2560,"bottom":1392}}

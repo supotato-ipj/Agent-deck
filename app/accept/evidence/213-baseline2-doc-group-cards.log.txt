@@ -1,0 +1,24 @@
+# accept 166-doc-group-cards — 2026-10-19T18:20:35.725Z
+[18:20:38.247] NOTE  插件私有根（私有，绝不落共享根）：C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins
+[18:20:39.020] NOTE  install-plugin --root 就位：C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards\plugin.json
+[18:20:39.088] NOTE  夹具就位：桌面 15 份，暂存 2 份
+[18:20:49.338] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1392} 视口={"w":2560,"h":1392} scale=1.0000
+[18:20:49.376] SEG   ▶ P178 插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验）｜工单178｜失效面=事件存证+系统状态
+[18:20:49.394] PASS  跨进程读回成立：面板页 invoke('plugin-config/get') 返回 {config, warnings} 形状（warnings=[]）
+[18:20:49.444] PASS  落盘面成立：set 之后 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugin-config\doc-group-cards.json 即为 22 字节且含新键，get 读回同值
+[18:20:49.499] PASS  命名空间隔离成立：deck187-probe 落 deck187-probe.json，doc-group-cards 文件逐字节未变（同）
+[18:20:49.518] NOTE  已把 doc-group-cards.json 写成坏 JSON，重启面板验自愈面
+[18:21:10.759] FAIL  电池异常: Error: 面板窗矩形/视口取不到：rect={"left":0,"top":0,"right":2560,"bottom":1392} inner=null
+    at refreshPanelMap (D:\test-folder\wallpaperengine-research--spec203-hintbar-patch\app\accept\doc-group-cards.js:231:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPanel (D:\test-folder\wallpaperengine-research--spec203-hintbar-patch\app\accept\doc-group-cards.js:376:3)
+    at async main (D:\test-folder\wallpaperengine-research--spec203-hintbar-patch\app\accept\doc-group-cards.js:663:14)
+[18:21:13.267] NOTE  桌面落物清理：撤 15 份 DGC187-* 夹具
+[18:21:15.693] NOTE  共享插件根核验：C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins 仍为空（0 项）
+[18:21:15.698] NOTE  清场核验：原生任务栏可见
+[18:21:15.702] ===== 166-doc-group-cards VERDICT: FAIL-CODE (pass=3 fail=1 excluded=0) =====
+===== 账目（三态记账，工单110） =====
+三路计数：pass=3 fail=1 excluded=0 ｜ FAIL-CODE → 退出码 1
+排除窗：轮末已全部闭合
+段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
+  P178 插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验） pass=3 fail=1 excl=0 took=26.3s｜工单178｜失效面=事件存证+系统状态
