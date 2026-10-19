@@ -24,6 +24,12 @@
  *      但不冒充电池：不要求段/域标签/预算/Report 名绑定。
  *   ⑪ 双向完备——表内每电池接线五字段齐备；接线字段无孤儿（package.json 里出现
  *      的控制器旗标必须有表项、accept 目录在场电池脚本必须入表）。
+ *
+ * 工单220（spec #201 A 链 P1 机制补强）增文件级例外规则白名单校验（validateRequiredFileRules）：
+ *   ⑫ 文件级例外规则不得被静默删/改域——目录级规则会兜住任何文件级规则，
+ *      删掉一条（或把它的域改掉）耦合表照样"结构性完备"，选段就悄悄漏报。
+ *      清单 requiredFileRules 登记全部文件级例外规则（path + 域），
+ *      校验器据此判：白名单条目在映射表在场且域一致、映射表里的文件级规则都登记在案。
  */
 
 /** 电池源码里的段起笔字集：六电池全部单引号字面量、无模板串、无变量段号（工单114 交接） */
@@ -79,9 +85,78 @@ function matchPathArea(path, pathAreas) {
   return best;
 }
 
-/** 域标签封闭词表（工单204）：清单 areas 键集——词表与映射表同处维护，取值越表即判红 */
+/**
+ * 域标签封闭词表（工单204）：清单 areas 键集——词表与映射表同处维护，取值越表即判红 */
 function areaVocabulary(manifest) {
   return new Set(Object.keys((manifest && manifest.areas) || {}));
+}
+
+/**
+ * 文件级例外规则识别（工单220）：path 末段带扩展名＝文件级规则（目录级规则的末段无扩展名）。
+ * 与清单里 34 条文件级例外规则一一对应——它们正是"目录规则兜不住、必须单独立一条"的那批路径。
+ * @param {string} path 仓库相对路径
+ * @returns {boolean}
+ */
+function isFileLevelRulePath(path) {
+  const p = normalizeRepoPath(path);
+  if (!p) return false;
+  const last = p.split('/').pop() || '';
+  return last.includes('.');
+}
+
+/**
+ * 文件级例外规则白名单校验（工单220，spec #201 A 链 P1 机制补强）——三道：
+ *   ⑫a 白名单条目必须在 path→area 映射表在场（删一条即判红）；
+ *   ⑫b 在场条目的域必须与白名单登记一致（改一域即判红）；
+ *   ⑫c 映射表里的文件级规则必须都登记在白名单（白名单须是全量台账）。
+ * 另：映射表有文件级规则而清单缺白名单 → 判红（白名单不得被整份删掉）。
+ *
+ * 纯函数：只吃清单，零 I/O。
+ * @param {object} manifest 段级清单
+ * @returns {string[]} 错误列表（空数组＝判绿）
+ */
+function validateRequiredFileRules(manifest) {
+  const errors = [];
+  const pathAreas = Array.isArray(manifest && manifest.pathAreas) ? manifest.pathAreas : [];
+  const required = Array.isArray(manifest && manifest.requiredFileRules) ? manifest.requiredFileRules : [];
+  const fileRules = pathAreas.filter((r) => r && typeof r.path === 'string' && isFileLevelRulePath(r.path));
+
+  if (!required.length) {
+    if (fileRules.length) {
+      errors.push(`path→area 映射表有 ${fileRules.length} 条文件级例外规则，但清单缺 requiredFileRules 白名单（工单220：文件级规则不得被静默删/改域）`);
+    }
+    return errors;
+  }
+
+  // ⑫a ⑫b：白名单条目 → 映射表在场且域一致
+  for (const req of required) {
+    if (!req || typeof req !== 'object' || typeof req.path !== 'string' || !req.path) {
+      errors.push('requiredFileRules 白名单出现非法条目（缺 path）');
+      continue;
+    }
+    const rp = normalizeRepoPath(req.path);
+    const hit = pathAreas.find((r) => r && typeof r.path === 'string' && normalizeRepoPath(r.path) === rp);
+    if (!hit) {
+      errors.push(`必需的文件级例外规则 "${rp}" 已从 path→area 映射表删除（工单220：文件级规则不得被静默删——删了它域归属就退回父目录规则）`);
+      continue;
+    }
+    if (hit.area !== req.area) {
+      errors.push(`必需的文件级例外规则 "${rp}" 的域被改（登记 ${req.area} → 现状 ${hit.area}）（工单220：文件级规则的域归属不得被静默改）`);
+    }
+    if (req.wires !== undefined && hit.wires !== req.wires) {
+      errors.push(`必需的文件级例外规则 "${rp}" 的 wires 被改（登记 ${req.wires} → 现状 ${hit.wires}）（工单220：共享验收基建的接线面不得被静默改）`);
+    }
+  }
+
+  // ⑫c：映射表里的文件级规则必须都在白名单登记
+  for (const r of fileRules) {
+    const rp = normalizeRepoPath(r.path);
+    if (!required.some((q) => q && typeof q.path === 'string' && normalizeRepoPath(q.path) === rp)) {
+      errors.push(`文件级例外规则 "${rp}" 未在 requiredFileRules 白名单登记（工单220：文件级规则必须登记在案，删/改域才判得出）`);
+    }
+  }
+
+  return errors;
 }
 
 /**
@@ -123,6 +198,9 @@ function validateManifest(req = {}) {
       errors.push(`path→area 映射规则 "${rp || '?'}" 的 wires 只接受 "*"（共享验收基建）或缺省`);
     }
   }
+  // 文件级例外规则白名单（工单220）：目录规则会兜住任何文件级规则——删一条或改一域，
+  // 耦合表照样"结构性完备"，选段却悄悄漏报。白名单是这块的牙齿。
+  errors.push(...validateRequiredFileRules(manifest));
   const seenIds = new Set();
   const knownEntries = new Set();
   for (const b of manifest.batteries) {
@@ -372,10 +450,12 @@ module.exports = {
   validateManifest,
   validateScopeSegments,
   validateRegistry,
+  validateRequiredFileRules,
   deriveScriptName,
   matchPathArea,
   areaVocabulary,
   normalizeRepoPath,
+  isFileLevelRulePath,
   SEGMENT_CALL_RE,
   REGISTRY_FIELDS,
 };
