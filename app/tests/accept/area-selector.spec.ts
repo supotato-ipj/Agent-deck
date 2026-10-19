@@ -18,7 +18,7 @@ interface FxManifest {
     id: string
     title: string
     entry: string
-    script: string
+    flag: string
     budgetSeconds: number
     scope?: boolean
     areas?: string[]
@@ -44,7 +44,7 @@ function fxManifest(): FxManifest {
     ],
     batteries: [
       {
-        id: 'fx-main', title: '夹具主电池', entry: 'app/accept/fx-main.js', script: 'accept:fx-main',
+        id: 'fx-main', title: '夹具主电池', entry: 'app/accept/fx-main.js', flag: '--accept-fx-main',
         budgetSeconds: 100, scope: true,
         segments: [
           { seg: 'A1', ticket: 1, title: '桌面段', surfaces: ['panel-alive'], areas: ['desktop'], estSeconds: 10 },
@@ -53,12 +53,12 @@ function fxManifest(): FxManifest {
         ],
       },
       {
-        id: 'fx-sub', title: '夹具副电池', entry: 'app/accept/fx-sub.js', script: 'accept:fx-sub',
+        id: 'fx-sub', title: '夹具副电池', entry: 'app/accept/fx-sub.js', flag: '--accept-fx-sub',
         budgetSeconds: 60, areas: ['taskbar'],
         segments: [{ seg: 'B1', ticket: 4, title: '副段', surfaces: ['system-state'], estSeconds: 10 }],
       },
       {
-        id: 'fx-other', title: '夹具另一电池', entry: 'app/accept/fx-other.js', script: 'accept:fx-other',
+        id: 'fx-other', title: '夹具另一电池', entry: 'app/accept/fx-other.js', flag: '--accept-fx-other',
         budgetSeconds: 60, areas: ['desktop'],
         segments: [{ seg: 'C1', ticket: 5, title: '另一段', surfaces: ['system-state'], estSeconds: 10 }],
       },
@@ -132,7 +132,7 @@ describe('定向验收轮选择器：纯函数核心（工单207）', () => {
   it('命中段恰为全部段 → 不给 scope（范围段声明无意义）', () => {
     const m = fxManifest()
     m.batteries.push({
-      id: 'fx-full', title: '全命中电池', entry: 'app/accept/fx-full.js', script: 'accept:fx-full',
+      id: 'fx-full', title: '全命中电池', entry: 'app/accept/fx-full.js', flag: '--accept-fx-full',
       budgetSeconds: 60, scope: true, areas: ['desktop'],
       segments: [{ seg: 'D1', ticket: 9, title: '单段', surfaces: ['panel-alive'], estSeconds: 10 }],
     })

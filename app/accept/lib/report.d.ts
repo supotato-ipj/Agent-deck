@@ -44,15 +44,23 @@ export declare interface ManifestBattery {
   id: string
   title: string
   entry: string
-  script: string
-  budgetSeconds: number
+  /** 控制器身份旗标（工单214，电池接入表）：全表唯一；npm script 名由它派生（--accept-tray → accept:tray） */
+  flag: string
+  /** 验收提示条挂条条件（工单214）：布尔——挂条条件由表派生，不再手维护布尔式 */
+  hintBar: boolean
+  /** CDP 端口（工单214）：可空；全表唯一（无端口的电池留空） */
+  cdpPort: number | null
+  /** 工单214：'experiment' = 取证工具（段级治理豁免，接线四项仍受校验）；缺省/null = 普通电池 */
+  kind?: string | null
+  budgetSeconds?: number
   lastMeasuredSeconds: number | null
   lastMeasuredAt: string | null
   /** 电池级域标签（工单204）：副电池单域覆盖口径 */
   areas?: string[]
   /** 该电池代码解析 --accept-scope（可按段声明范围段，工单204） */
   scope?: boolean
-  segments: ManifestSegment[]
+  /** 段条目（工单214：experiment 条目无段——段级治理豁免） */
+  segments?: ManifestSegment[]
 }
 
 export declare interface AcceptManifest {

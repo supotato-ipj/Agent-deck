@@ -295,7 +295,8 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 词表落在 14 域上（封闭：清单 areas 键集就是全集，CI 以它为准）
     expect(Object.keys(manifest!.areas).length).toBe(14)
     const sources: Record<string, string> = {}
-    for (const b of manifest!.batteries) {
+    // 工单214：experiment 条目（取证工具）段级治理豁免——不参与段级源码扫描
+    for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       sources[b.id] = readFileSync(resolve(APP_ROOT, b.entry), 'utf8')
     }
     const sourceTree = collectSourceTree(APP_ROOT, manifest!.sourceRoots || [])
@@ -303,10 +304,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
     // 94 段全部有归属域：段级或电池级至少一处登记
-    const total = manifest!.batteries.reduce((n, b) => n + b.segments.length, 0)
+    const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
     expect(total).toBe(94)
-    for (const b of manifest!.batteries) {
-      for (const s of b.segments) {
+    for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
+      for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
         expect(eff.length).toBeGreaterThan(0)
       }

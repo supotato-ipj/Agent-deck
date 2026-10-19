@@ -33,6 +33,7 @@ const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
+const { cdpPortFor } = require('./lib/registry');
 
 const BATTERY_ID = '166-doc-group-cards';
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -40,7 +41,8 @@ const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVIDENCE_FILE = path.join(__dirname, 'evidence', '166-doc-group-cards-events.jsonl');
 const PLUGIN_ROOT = path.join(os.tmpdir(), 'deck187-plugins');
 const STAGING = path.join(os.tmpdir(), 'deck187-staging');
-const CDP_PORT = 9227; // 9223-9226 已被 battery/49/50/55/156 占用
+// 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
+const CDP_PORT = cdpPortFor('166-doc-group-cards');
 const PANEL_TITLE = 'AGENT DECK';
 const DESKTOP_PREFIX = 'DGC187-';
 const PAD_SOURCE = path.join(APP_ROOT, 'src', 'renderer', 'zone-hotzone.ts');
