@@ -1,0 +1,2728 @@
+import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { createKernel } from '../src/main/kernel'
+import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather } from '../src/main/config'
+import type { AppConfig } from '../src/main/config'
+import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
+import type { TaskbarWindowInfo } from '../src/main/taskbar/windows'
+import type { DesktopItem, PanelSnapshot, PluginInfo, TaskbarState, TaskbarStatus, TaskbarSystemAction } from '../src/shared/contract'
+import { flush, harness } from './search/harness'
+
+/** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
+
+function tmpDir(): string {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-ct-'))
+  fs.mkdirSync(path.join(d, 'user'), { recursive: true })
+  fs.mkdirSync(path.join(d, 'common'), { recursive: true })
+  return d
+}
+
+function desktopOpts(dir: string, over: Record<string, unknown> = {}) {
+  // 摆位存储一律内存假源：内核级测试绝不触 LOCALAPPDATA 真文件
+  let storeText: string | null = null
+  const base = {
+    roots: { user: path.join(dir, 'user'), common: path.join(dir, 'common') },
+    deps: {
+      readStoreText: () => storeText,
+      writeStoreText: (_f: string, text: string) => {
+        storeText = text
+      },
+    },
+  }
+  return { ...base, ...over, deps: { ...base.deps, ...((over.deps as object) ?? {}) } }
+}
+
+/** 离线 usage：假源 + 空目录（不触 native 真源与本机 LOCALAPPDATA） */
+function usageOpts(dir: string) {
+  return {
+    dir: path.join(dir, 'usage'),
+    deps: {
+      runningPidExes: () => new Map<number, string>(),
+      foregroundExe: () => null,
+      readPrior: async () => new Map(),
+    },
+  }
+}
+
+/** 全离线内核选项基座：usage 一并假源化；搜索泵定时器不装（07 契约测试手动驱动） */
+function kernelOpts(dir: string, over: Record<string, unknown> = {}) {
+  return { tickIntervalMs: 0, hardwareIntervalMs: 0, usageIntervalMs: 0, searchIntervalMs: 0, desktop: desktopOpts(dir), usage: usageOpts(dir), ...over }
+}
+
+/** 设置桩（工单08）：config 落 tmp 文件，断言持久化不触真 config.json */
+function settingsOpts(dir: string): { settings: { file: string; config: AppConfig } } {
+  const config: AppConfig = {
+    panel: { x: 0, y: 0, width: 100, height: 100 },
+    weather: defaultWeather(),
+    desktop: defaultDesktopLayout(),
+    search: defaultSearchConfig(),
+    appearance: defaultAppearance(),
+    tools: defaultTools(),
+    plugins: defaultPlugins(),
+    autostart: defaultAutostart(),
+    taskbar: defaultTaskbar(),
+  }
+  return { settings: { file: path.join(dir, 'config.json'), config } }
+}
+
+// 完整起内核的用例在 CI 冷 runner 上初始化远慢于开发机（本地 <400ms，GH runner 曾超 5s），统一放宽到 30s
+describe('内核桥接契约', () => {
+  it('panel/snapshot 返回时钟快照', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.clock.epochMs).toBeGreaterThan(0)
+      expect(Number.isNaN(Date.parse(snap.clock.iso))).toBe(false)
+      expect(Math.abs(snap.clock.epochMs - Date.now())).toBeLessThan(5000)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('panel/changed 订阅推送快照，退订后停止', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      const received: PanelSnapshot[] = []
+      const off = ctx.bridge.subscribe('panel/changed', (s) => received.push(s))
+      ctx.bridge.tick()
+      ctx.bridge.tick()
+      expect(received).toHaveLength(2)
+      expect(received[1].clock.epochMs).toBeGreaterThanOrEqual(received[0].clock.epochMs)
+      off()
+      ctx.bridge.tick()
+      expect(received).toHaveLength(2)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('未知方法拒绝', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('nope' as never, null as never)).rejects.toThrow(/未知桥接方法/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单05 桌面承载扩展）', () => {
+  it('panel/snapshot 含桌面项池（fingerprint + items）；desktop/icon 可取图标', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'note.txt'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async (p: string) => `icon:${path.basename(p)}`,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.items.map((i) => [i.name, i.zone])).toEqual([['Probe.lnk', 'app'], ['note.txt', 'doc']])
+      expect(snap.desktop.fingerprint).toBeTruthy()
+      const key = snap.desktop.items[0].iconKey
+      await expect(ctx.bridge.invoke('desktop/icon', { key })).resolves.toEqual({ dataUrl: `icon:Probe.lnk` })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('panel/snapshot 含编排计划与桌面几何（工单06）', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'a.docx'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.docs.map((d) => [d.name, d.group])).toEqual([['a.docx', 'office']])
+      expect(snap.layout.docMaxRows).toBeGreaterThan(0)
+      expect(snap.layout.docZone).toMatchObject({ left: expect.any(Number), top: expect.any(Number), maxWidth: expect.any(Number) })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/launch：池内路径启动成功，池外路径拒绝（不执行任意路径）', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
+    const opened: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async (p: string) => {
+            opened.push(p)
+            return ''
+          },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const target = snap.desktop.items[0].path
+      await expect(ctx.bridge.invoke('desktop/launch', { path: target })).resolves.toEqual({ ok: true })
+      expect(opened).toEqual([target])
+      const outside = await ctx.bridge.invoke('desktop/launch', { path: 'C:\\Windows\\System32\\cmd.exe' })
+      expect(outside.ok).toBe(false)
+      expect(opened).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/reveal + desktop/copy-path（工单24）：池内路径经桥接执行，池外拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
+    const revealed: string[] = []
+    const copied: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          reveal: (p: string) => { revealed.push(p) },
+          copyText: (t: string) => { copied.push(t) },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const target = snap.desktop.items[0].path
+      await expect(ctx.bridge.invoke('desktop/reveal', { path: target })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('desktop/copy-path', { path: target })).resolves.toEqual({ ok: true })
+      expect(revealed).toEqual([target])
+      expect(copied).toEqual([target])
+      const outsideReveal = await ctx.bridge.invoke('desktop/reveal', { path: 'C:\\Windows\\System32\\cmd.exe' })
+      expect(outsideReveal.ok).toBe(false)
+      const outsideCopy = await ctx.bridge.invoke('desktop/copy-path', { path: 'C:\\Windows\\System32\\cmd.exe' })
+      expect(outsideCopy.ok).toBe(false)
+      expect(revealed).toHaveLength(1)
+      expect(copied).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/copy-paths（工单26 多选菜单）：池内整份执行（多行 \\n），任一池外整份拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const copied: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          copyText: (t: string) => { copied.push(t) },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const pathOf = (name: string) => (snap.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      await expect(ctx.bridge.invoke('desktop/copy-paths', { paths: [pathOf('A.lnk'), pathOf('B.docx')] })).resolves.toEqual({ ok: true })
+      expect(copied).toEqual([`${pathOf('A.lnk')}\n${pathOf('B.docx')}`])
+      const outside = await ctx.bridge.invoke('desktop/copy-paths', { paths: [pathOf('A.lnk'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(copied).toHaveLength(1) // 整份拒绝：剪贴板不写半份名单
+      await expect(ctx.bridge.invoke('desktop/copy-paths', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '复制路径名单为空' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/trash（工单27）：池内整份送回收站并同拍清除摆位；池外整份拒绝；失败条目如实回报', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const trashedFiles: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          trash: async (p: string) => {
+            if (p.endsWith('B.docx')) return '拒绝访问。'
+            trashedFiles.push(p)
+            return ''
+          },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 先造显式摆位（A.lnk 入文档区摆位名单），删除后须同拍清除
+      await ctx.bridge.invoke('desktop/move', { name: 'A.lnk', zone: 'doc', beforeName: null })
+      const snap0 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap0.desktop.plan.docs.map((d) => d.name)).toContain('A.lnk')
+      const pathOf = (name: string) => (snap0.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      // 部分失败：A 成功、B 权限拒绝——ok=false + failed + error 明细（菜单层提示依据）
+      const r = await ctx.bridge.invoke('desktop/trash', { paths: [pathOf('A.lnk'), pathOf('B.docx')] })
+      expect(r).toEqual({ ok: false, trashed: ['A.lnk'], failed: ['B.docx'], error: 'B.docx：拒绝访问。' })
+      expect(trashedFiles).toEqual([pathOf('A.lnk')])
+      // A 的显式摆位同拍清除：条目还在池（假源不真删盘面），但编排退回归类位
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.docs.map((d) => d.name)).not.toContain('A.lnk')
+      // 池外整份拒绝（copy-paths 同款护栏）：不删半份
+      const outside = await ctx.bridge.invoke('desktop/trash', { paths: [pathOf('B.docx'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, trashed: [], failed: [], error: '桌面项不在当前扫描池内' })
+      expect(trashedFiles).toHaveLength(1)
+      await expect(ctx.bridge.invoke('desktop/trash', { paths: [] })).resolves
+        .toEqual({ ok: false, trashed: [], failed: [], error: '删除名单为空' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/clipboard-copy + desktop/clipboard-cut（工单29）：池内整份写入（多文件有序 + effect），任一池外整份拒绝；空名单拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const writes: Array<{ paths: string[]; effect: string }> = []
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          writeClipboardFiles: async (paths: readonly string[], effect: 'copy' | 'move') => {
+            writes.push({ paths: [...paths], effect })
+            return ''
+          },
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      const pathOf = (name: string) => (snap.desktop.items as DesktopItem[]).find((i) => i.name === name)!.path
+      // 复制：多文件整份、有序（序 = 名单序 = 选区插入序）
+      await expect(ctx.bridge.invoke('desktop/clipboard-copy', { paths: [pathOf('B.docx'), pathOf('A.lnk')] }))
+        .resolves.toEqual({ ok: true })
+      expect(writes).toEqual([{ paths: [pathOf('B.docx'), pathOf('A.lnk')], effect: 'copy' }])
+      // 剪切：effect=move（粘贴为搬移）
+      await expect(ctx.bridge.invoke('desktop/clipboard-cut', { paths: [pathOf('A.lnk')] }))
+        .resolves.toEqual({ ok: true })
+      expect(writes).toHaveLength(2)
+      expect(writes[1]).toEqual({ paths: [pathOf('A.lnk')], effect: 'move' })
+      // 池外整份拒绝（copy-paths/trash 同款护栏）：剪贴板不写半份名单
+      const outside = await ctx.bridge.invoke('desktop/clipboard-copy', { paths: [pathOf('B.docx'), 'C:\\Windows\\System32\\cmd.exe'] })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+      expect(writes).toHaveLength(2)
+      // 空名单拒绝（信封错误）
+      await expect(ctx.bridge.invoke('desktop/clipboard-copy', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '复制名单为空' })
+      await expect(ctx.bridge.invoke('desktop/clipboard-cut', { paths: [] })).resolves
+        .toEqual({ ok: false, error: '剪切名单为空' })
+      expect(writes).toHaveLength(2)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/rename（工单28）：池内改名真落盘、摆位同拍迁移；冲突与非法名拒绝；池外拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.docx'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 先造显式摆位（B.docx 入 docs placed 段），改名后须原位迁移（位置不丢）
+      await ctx.bridge.invoke('desktop/move', { name: 'B.docx', zone: 'doc', beforeName: null })
+      // 快捷方式显示名输入（不带 .lnk）→ 内核补回原扩展
+      const r = await ctx.bridge.invoke('desktop/rename', { name: 'A.lnk', to: 'Renamed' })
+      expect(r).toEqual({ ok: true, to: 'Renamed.lnk' })
+      expect(fs.existsSync(path.join(dir, 'user', 'A.lnk'))).toBe(false)
+      expect(fs.existsSync(path.join(dir, 'user', 'Renamed.lnk'))).toBe(true)
+      const snap1 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect((snap1.desktop.items as DesktopItem[]).map((i) => i.name).sort()).toEqual(['B.docx', 'Renamed.lnk'])
+      // B.docx 改名：docs 摆位名单同拍带走新名（下一拍快照按显式摆位承载）
+      const r2 = await ctx.bridge.invoke('desktop/rename', { name: 'B.docx', to: 'Report.docx' })
+      expect(r2).toEqual({ ok: true, to: 'Report.docx' })
+      const snap2 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap2.desktop.plan.docs.map((d) => [d.name, d.group])).toEqual([['Report.docx', 'office']])
+      // 重名冲突：目标已存在 → ok=false，盘面与摆位原样
+      const conflict = await ctx.bridge.invoke('desktop/rename', { name: 'Report.docx', to: 'Renamed.lnk' })
+      expect(conflict.ok).toBe(false)
+      expect(fs.existsSync(path.join(dir, 'user', 'Report.docx'))).toBe(true)
+      // 非法文件名：ok=false（fs 不被触碰）
+      const invalid = await ctx.bridge.invoke('desktop/rename', { name: 'Report.docx', to: 'bad|name' })
+      expect(invalid.ok).toBe(false)
+      // 池外名字：pin 同款按名护栏（含已改走的旧名）
+      const outside = await ctx.bridge.invoke('desktop/rename', { name: 'B.docx', to: 'X.docx' })
+      expect(outside).toEqual({ ok: false, error: '桌面项不在当前扫描池内' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/move：摆位经桥接落位、跨区换区；非法参照拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'n.docx'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const moved = await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'doc', beforeName: 'n.docx' })
+      expect(moved).toEqual({ ok: true })
+      let snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['n.docx', 'B.lnk'])
+      // 桌面只剩文档区一处承载（工单59 dock 退役）：拖到 app 区即撤掉显式摆位、回归类段
+      const cross = await ctx.bridge.invoke('desktop/move', { name: 'n.docx', zone: 'app', beforeName: null })
+      expect(cross).toEqual({ ok: true })
+      snap = await ctx.bridge.invoke('panel/snapshot', null)
+      // n.docx 本就属 office 组，归类段照样落在文档区；B.lnk 的显式摆位不受牵连
+      expect(snap.desktop.plan.docs.map((d) => d.name)).toEqual(['n.docx', 'B.lnk'])
+      // 非法参照（在另一分区）
+      const bad = await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'doc', beforeName: 'A.lnk' })
+      expect(bad.ok).toBe(false)
+      expect(bad.error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/move-batch：整组按序落位、手钉跳过回报、无效参照整批拒绝', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'C.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'n.docx'), 'stub')
+    const placed = JSON.stringify({ version: 1, docs: ['C.lnk'] })
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readStoreText: () => placed,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 选区插入序整组迁到文档区末尾；池外名字（外部删除竞态）跳过并如实回报
+      const moved = await ctx.bridge.invoke('desktop/move-batch',
+        { names: ['B.lnk', 'A.lnk', 'ghost.lnk'], zone: 'doc', beforeName: null })
+      expect(moved).toEqual({ ok: true, moved: ['B.lnk', 'A.lnk'], skipped: ['ghost.lnk'] })
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.items.find((i) => i.name === 'B.lnk')?.zone).toBe('doc')
+      // 无效参照（参照条目在被拖组内——批量特有的整批校验；他区/池外参照同拒）：整批拒绝
+      const bad = await ctx.bridge.invoke('desktop/move-batch', { names: ['A.lnk', 'C.lnk'], zone: 'app', beforeName: 'C.lnk' })
+      expect(bad.ok).toBe(false)
+      expect(bad.error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/reset-layout：清摆位回出厂编排', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'A.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'B.lnk'), 'stub')
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 快捷方式被拖进文档区 → 摆位名单 1 条；恢复出厂后它回到扫描器默认分区（应用区）
+      await ctx.bridge.invoke('desktop/move', { name: 'B.lnk', zone: 'doc', beforeName: null })
+      expect((await ctx.bridge.invoke('panel/snapshot', null)).desktop.plan.docs.map((d) => d.name))
+        .toContain('B.lnk')
+      const r = await ctx.bridge.invoke('desktop/reset-layout', null)
+      expect(r).toEqual({ ok: true, cleared: 1 })
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.desktop.plan.docs.map((d) => d.name)).not.toContain('B.lnk')
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/reset-layout：恢复出厂不读写卡片显隐开关（不同域不连坐，工单101）', async () => {
+    const dir = tmpDir()
+    const so = settingsOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      settings: so.settings,
+      desktop: desktopOpts(dir, {
+        deps: { extractIcon: async () => null, open: async () => '' },
+      }),
+    }))
+    await ctx.start()
+    try {
+      // 先经真实写路径建立停用集（config.json 落盘），再恢复出厂，断言开关配置原地不动
+      await ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: false })
+      expect(JSON.parse(fs.readFileSync(so.settings.file, 'utf8')).plugins.disabled).toEqual(['search'])
+
+      const r = await ctx.bridge.invoke('desktop/reset-layout', null)
+      expect(r).toEqual({ ok: true, cleared: 0 })
+      // 开关三处真相（磁盘 / config 引用 / 快照 settings）在恢复出厂后原样保留
+      expect(JSON.parse(fs.readFileSync(so.settings.file, 'utf8')).plugins.disabled).toEqual(['search'])
+      expect(so.settings.config.plugins.disabled).toEqual(['search'])
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: ['search'] })
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单07 搜索扩展）', () => {
+  it('search/activate → query 防抖到期直连假引擎 → search/state 与 search/results 事件回推', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    const ctx = createKernel(kernelOpts(dir, { search: { deps: h.deps } }))
+    await ctx.start()
+    try {
+      const states: string[] = []
+      const results: Array<{ total: number; items: Array<{ path: string }> }> = []
+      ctx.bridge.subscribe('search/state', (p) => states.push(p.state))
+      ctx.bridge.subscribe('search/results', (p) => results.push(p))
+
+      await expect(ctx.bridge.invoke('search/activate', null)).resolves.toEqual({ state: 'active' })
+      expect(states).toEqual(['active'])
+      // 待机态之外喂词不成立（未激活时 accepted=false）
+      await ctx.bridge.invoke('search/deactivate', null)
+      await expect(ctx.bridge.invoke('search/query', { query: 'x' })).resolves.toEqual({ accepted: false })
+      await ctx.bridge.invoke('search/activate', null)
+
+      await expect(ctx.bridge.invoke('search/query', { query: 'probe' })).resolves.toEqual({ accepted: true })
+      h.advance(100)
+      ctx.search!.tick()
+      await flush()
+      expect(h.calls).toHaveLength(0) // 防抖窗口内
+      h.advance(100)
+      ctx.search!.tick()
+      await flush()
+      expect(h.calls).toEqual([{ query: 'probe', limit: 8, offset: 0 }])
+      expect(results).toHaveLength(1)
+      expect(results[0].items[0].path).toBe('C:\\probe.txt')
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('search/action：Enter 打开 / Ctrl+Enter 定位；path 护栏 = 最近一次结果集', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    const ctx = createKernel(kernelOpts(dir, { search: { deps: h.deps } }))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('search/activate', null)
+      await ctx.bridge.invoke('search/query', { query: 'probe' })
+      h.advance(250)
+      ctx.search!.tick()
+      await flush()
+      await expect(ctx.bridge.invoke('search/action', { path: 'C:\\probe.txt', reveal: false })).resolves.toEqual({ ok: true })
+      expect(h.opened).toEqual(['C:\\probe.txt'])
+      await expect(ctx.bridge.invoke('search/action', { path: 'C:\\probe.txt', reveal: true })).resolves.toEqual({ ok: true })
+      expect(h.revealed).toEqual(['C:\\probe.txt'])
+      // 结果集外的路径拒绝执行（任意路径执行防线，desktop/launch 同款护栏）
+      await expect(ctx.bridge.invoke('search/action', { path: 'C:\\Windows\\System32\\cmd.exe', reveal: false }))
+        .resolves.toMatchObject({ ok: false })
+      expect(h.opened).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('连接失败经桥接回推引擎离线态（ENGINE OFFLINE 数据源）', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    h.goOffline()
+    const ctx = createKernel(kernelOpts(dir, { search: { deps: h.deps } }))
+    await ctx.start()
+    try {
+      const states: string[] = []
+      ctx.bridge.subscribe('search/state', (p) => states.push(p.state))
+      await ctx.bridge.invoke('search/activate', null)
+      await ctx.bridge.invoke('search/query', { query: 'probe' })
+      h.advance(250)
+      ctx.search!.tick()
+      await flush()
+      expect(states).toEqual(['active', 'offline'])
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单08 设置浮层扩展）', () => {
+  it('panel/snapshot 携带 settings（初值 = config.appearance.cardOpacity）', async () => {
+    const dir = tmpDir()
+    const so = settingsOpts(dir)
+    so.settings.config.appearance.cardOpacity = 0.3
+    const ctx = createKernel(kernelOpts(dir, so))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.3, disabledCards: [] })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('settings/set-card-opacity：clamp 生效、settings/changed 即时回推、快照与磁盘同步', async () => {
+    const dir = tmpDir()
+    const so = settingsOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, so))
+    await ctx.start()
+    try {
+      const changed: Array<{ cardOpacity: number }> = []
+      ctx.bridge.subscribe('settings/changed', (s) => changed.push(s))
+
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 0.25 }))
+        .resolves.toEqual({ cardOpacity: 0.25, disabledCards: [] })
+      // clamp 到边界
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 1.7 }))
+        .resolves.toEqual({ cardOpacity: 1, disabledCards: [] })
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: -3 }))
+        .resolves.toEqual({ cardOpacity: 0, disabledCards: [] })
+
+      expect(changed).toEqual([{ cardOpacity: 0.25, disabledCards: [] }, { cardOpacity: 1, disabledCards: [] }, { cardOpacity: 0, disabledCards: [] }])
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0, disabledCards: [] })
+      // 持久化：config.json 整份回写（重启保持的数据源）
+      const onDisk = JSON.parse(fs.readFileSync(so.settings.file, 'utf8'))
+      expect(onDisk.appearance).toEqual({ cardOpacity: 0 })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('settings/set-card-opacity：非有限数字拒绝（契约违规不 clamp 吞掉）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, settingsOpts(dir)))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('settings/set-card-opacity', { opacity: 'dark' as never }))
+        .rejects.toThrow(/cardOpacity/)
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: [] })
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单101 卡片显隐开关）', () => {
+  /** 落一个可装载插件包（manifest + 入口资产）到 root 下 */
+  function writePlugin(root: string, id: string): string {
+    const dir = path.join(root, id)
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'plugin.json'),
+      JSON.stringify({ id, name: id.toUpperCase(), version: '1.0.0', entry: './card.js', capabilities: [] }), 'utf8')
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {}', 'utf8')
+    return dir
+  }
+
+  function opts101(dir: string) {
+    const so = settingsOpts(dir)
+    return { settings: so.settings, plugins: { roots: [path.join(dir, 'plugins')], watch: false } }
+  }
+
+  it('settings/set-card-enabled：停用 → 清单即时剔除 + settings 反映 + config 落盘；启用原位恢复', async () => {
+    const dir = tmpDir()
+    const o = opts101(dir)
+    writePlugin(path.join(dir, 'plugins'), 'search')
+    writePlugin(path.join(dir, 'plugins'), 'clock')
+    const ctx = createKernel(kernelOpts(dir, o))
+    await ctx.start()
+    const changed: PluginInfo[][] = []
+    ctx.bridge.subscribe('plugins/changed', (l) => changed.push(l))
+    try {
+      expect((await ctx.bridge.invoke('panel/snapshot', null)).plugins.map((p) => p.id)).toEqual(['clock', 'search'])
+
+      // 停用 search：停用集落盘 + 快照 settings 反映 + 清单即时重扫剔除（plugins/changed 同拍）
+      const st = await ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: false })
+      expect(st).toEqual({ cardOpacity: 0.55, disabledCards: ['search'] })
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins.map((p) => p.id)).toEqual(['clock'])
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: ['search'] })
+      expect(changed.at(-1)?.map((p) => p.id)).toEqual(['clock'])
+      expect(JSON.parse(fs.readFileSync(o.settings!.file, 'utf8')).plugins.disabled).toEqual(['search'])
+
+      // 启用恢复：清单回来（同 id 先到先得/排序规则不受停用往返影响），落盘清空
+      const back = await ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: true })
+      expect(back).toEqual({ cardOpacity: 0.55, disabledCards: [] })
+      const snap2 = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap2.plugins.map((p) => p.id)).toEqual(['clock', 'search'])
+      expect(JSON.parse(fs.readFileSync(o.settings!.file, 'utf8')).plugins.disabled).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('settings/set-card-enabled：空 id / 非布尔开关值拒绝（契约违规不静默吞）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, opts101(dir)))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('settings/set-card-enabled', { id: '', enabled: false }))
+        .rejects.toThrow(/id/)
+      await expect(ctx.bridge.invoke('settings/set-card-enabled', { id: 'search', enabled: 'yes' as never }))
+        .rejects.toThrow(/enabled/)
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.settings).toEqual({ cardOpacity: 0.55, disabledCards: [] })
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单09 会话行直达扩展）', () => {
+  it('session/focus：工具在跑则聚焦既有窗口（不经启动）', async () => {
+    const dir = tmpDir()
+    const focused: number[] = []
+    const launched: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      focus: {
+        tools: { zcode: { launch: 'C:\\ZCode.exe', processes: ['zcode'] } },
+        deps: {
+          listWindows: () => [{ hwnd: 0x3000, pid: 88, exe: 'ZCode.exe', visible: true, minimized: false }],
+          focusWindow: (h: number) => { focused.push(h); return true },
+          launch: async (e: string) => { launched.push(e); return '' },
+          env: {},
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('session/focus', { tool: 'zcode' }))
+        .resolves.toEqual({ ok: true, action: 'focused', hwnd: 0x3000 })
+      expect(focused).toEqual([0x3000])
+      expect(launched).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('session/focus：工具未运行则启动；未知工具静默降级不抛', async () => {
+    const dir = tmpDir()
+    const launched: string[] = []
+    const ctx = createKernel(kernelOpts(dir, {
+      focus: {
+        tools: { zcode: { launch: 'C:\\ZCode.exe', processes: ['zcode'] } },
+        deps: {
+          listWindows: () => [],
+          focusWindow: () => true,
+          launch: async (e: string) => { launched.push(e); return '' },
+          env: {},
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('session/focus', { tool: 'zcode' })).resolves.toEqual({ ok: true, action: 'launched' })
+      expect(launched).toEqual(['C:\\ZCode.exe'])
+      // 未知工具：响应降级而非 reject——渲染层不需 try/catch 也不会崩面板
+      await expect(ctx.bridge.invoke('session/focus', { tool: 'ghost' }))
+        .resolves.toMatchObject({ ok: false, action: 'degraded' })
+      expect(launched).toHaveLength(1)
+      // 降级后面板照常：快照仍可取
+      await expect(ctx.bridge.invoke('panel/snapshot', null)).resolves.toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('内核桥接契约（工单10 桌面组件扩展）', () => {
+  /** 落一个插件目录：manifest + 入口资产 */
+  function writePlugin(root: string, manifest: Record<string, unknown>): string {
+    const dir = path.join(root, String(manifest.id))
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'plugin.json'), JSON.stringify(manifest), 'utf8')
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {}', 'utf8')
+    return dir
+  }
+
+  const manifest = (over: Record<string, unknown> = {}) => ({
+    id: 'sample', name: '样例插件', version: '1.0.0', entry: './card.js', capabilities: ['clock'], ...over,
+  })
+
+  it('未配置插件根时快照带空 plugins 段（契约在场，不必装插件才成立）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('放入插件 → 快照带可 import 的 entry；移除 → 段内消失（无需重启面板）', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      writePlugin(root, manifest())
+      ctx.plugins!.rescan()
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins).toHaveLength(1)
+      expect(snap.plugins[0]).toMatchObject({ id: 'sample', status: 'ok', capabilities: ['clock'], error: null })
+      expect(snap.plugins[0].entry).toContain('deck-plugin://sample/card.js?v=')
+
+      fs.rmSync(path.join(root, 'sample'), { recursive: true, force: true })
+      ctx.plugins!.rescan()
+      expect((await ctx.bridge.invoke('panel/snapshot', null)).plugins).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('plugins/changed 独立于 1Hz 快照即时推送（热插拔不等下一拍）', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      const received: PluginInfo[][] = []
+      const off = ctx.bridge.subscribe('plugins/changed', (list) => received.push(list))
+      writePlugin(root, manifest())
+      ctx.plugins!.rescan()
+      expect(received).toHaveLength(1)
+      expect(received[0].map((p) => p.id)).toEqual(['sample'])
+      off()
+      writePlugin(root, manifest({ id: 'second' }))
+      ctx.plugins!.rescan()
+      expect(received).toHaveLength(1) // 退订后不再收
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('坏插件以 error 态在列而非静默消失（面板据此静默降级）', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const broken = path.join(root, 'broken')
+    fs.mkdirSync(broken, { recursive: true })
+    fs.writeFileSync(path.join(broken, 'plugin.json'), '{ not json', 'utf8')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins).toHaveLength(1)
+      expect(snap.plugins[0]).toMatchObject({ id: 'broken', status: 'error', entry: '' })
+      expect(snap.plugins[0].error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('源码级守卫：渲染层不碰 fs（插件资产只经协议下发，读盘只在主进程）', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../src/renderer/plugins.ts'), 'utf8')
+    expect(src).not.toMatch(/require\(|node:fs/)
+    const preload = fs.readFileSync(path.resolve(__dirname, '../src/preload/index.ts'), 'utf8')
+    expect(preload).not.toMatch(/node:fs|readFileSync/) // 渲染层唯一的特权面只做 IPC 转发
+  })
+})
+
+describe('内核桥接契约（工单03 Qoder 状态块退役）', () => {
+  /** 落一个插件目录：manifest + 入口资产（工单10 同款最小形态） */
+  function writePlugin(root: string, manifest: Record<string, unknown>): void {
+    const dir = path.join(root, String(manifest.id))
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'plugin.json'), JSON.stringify(manifest), 'utf8')
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {}', 'utf8')
+  }
+
+  it('插件能力表无 qoder：快照段移除后能力声明不撒谎', () => {
+    expect(PLUGIN_CAPABILITIES).not.toContain('qoder')
+  })
+
+  it('旧 manifest 声明的 qoder 能力按未知能力串静默丢弃，manifest 仍有效', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'plugins')
+    const ctx = createKernel(kernelOpts(dir, { plugins: { roots: [root], watch: false } }))
+    await ctx.start()
+    try {
+      writePlugin(root, {
+        id: 'legacy-qoder', name: '旧状态卡', version: '1.0.0', entry: './card.js',
+        capabilities: ['qoder', 'clock'],
+      })
+      ctx.plugins!.rescan()
+      const snap = await ctx.bridge.invoke('panel/snapshot', null)
+      expect(snap.plugins[0]).toMatchObject({ id: 'legacy-qoder', status: 'ok', capabilities: ['clock'] })
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+describe('隐私守卫（工单07：查询词只发往本机 Listary API、不入使用日志）', () => {
+  it('行为级：完整搜索流跑过后，使用日志目录里没有任何文件、查询词不落盘', async () => {
+    const dir = tmpDir()
+    const h = harness()
+    const ctx = createKernel(kernelOpts(dir, {
+      usage: usageOpts(dir),
+      search: { deps: h.deps },
+    }))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('search/activate', null)
+      await ctx.bridge.invoke('search/query', { query: 'SECRET-QUERY-WORDS' })
+      h.advance(250)
+      ctx.search!.tick()
+      await flush()
+      ctx.usage!.collect() // 使用日志采集轮照常跑（真服务写盘）
+      const usageDir = path.join(dir, 'usage')
+      const files = fs.existsSync(usageDir) ? fs.readdirSync(usageDir) : []
+      for (const f of files) {
+        expect(fs.readFileSync(path.join(usageDir, f), 'utf8')).not.toContain('SECRET-QUERY-WORDS')
+      }
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('源码级：搜索链路不引用使用日志、不直接写盘；查询目标收口本机回环', () => {
+    const files = [
+      'src/main/search/engine.ts',
+      'src/main/search/client.ts',
+      'src/main/services/search.ts',
+    ]
+    for (const rel of files) {
+      const src = fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8')
+      expect(src, `${rel} 不得引用使用日志`).not.toMatch(/usage\/log|appendEvent|UsageService/)
+      expect(src, `${rel} 不得直接写盘`).not.toMatch(/writeFileSync|appendFileSync/)
+      expect(src, `${rel} 不得出现硬编码 http(s) URL`).not.toMatch(/https?:\/\//)
+    }
+    const client = fs.readFileSync(path.resolve(__dirname, '../src/main/search/client.ts'), 'utf8')
+    expect(client).toContain('BASE_HOST') // 目标主机只从 engine 常量取（127.0.0.1）
+  })
+
+  it('源码级：会话行直达只认 exe 进程名，不读窗口标题（ADR-0002 边界）', () => {
+    // 全量守卫在 tests/usage/log.spec.ts（覆盖 src/main 全部 .ts）；此处只补该守卫没覆盖的两条：
+    // ① 另一条读标题的 API SendMessageW ② 窗口候选结构不得带 title 字段
+    for (const rel of ['src/main/focus/plan.ts', 'src/main/focus/adapter.ts', 'src/main/services/focus.ts']) {
+      const src = fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8')
+      expect(src, `${rel} 不得经 SendMessageW 读窗口标题`).not.toMatch(/SendMessageW/)
+      expect(src, `${rel} 窗口候选不得带标题字段`).not.toMatch(/^\s*title\s*[?:]/m)
+    }
+  })
+})
+
+describe('内核桥接契约（工单49 任务栏）', () => {
+  /** 任务栏桩：config 落 tmp 文件（断言持久化不触真 config.json）+ 假按键源 */
+  function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: { sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true } },
+          ...over,
+        },
+      },
+    }
+  }
+
+  it('taskbar/get-state：初值随 config taskbar 段（缺省启用；enabled:false 即禁用）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/get-state', null))
+        .resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+    } finally {
+      await ctx.stop()
+    }
+    const dir2 = tmpDir()
+    const t2 = taskbarOpts(dir2, { enabled: false })
+    const ctx2 = createKernel(kernelOpts(dir2, t2.opts))
+    await ctx2.start()
+    try {
+      await expect(ctx2.bridge.invoke('taskbar/get-state', null))
+        .resolves.toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+    } finally {
+      await ctx2.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-enabled：切换即时回推 taskbar/changed、整份回写 config.json；同值幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })).resolves
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      // 幂等：同值不重复推事件
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
+      expect(changed.map((s) => s.enabled)).toEqual([false, true])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-enabled：非布尔值拒绝（契约违规不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/set-enabled', { enabled: 'off' as never }))
+        .rejects.toThrow(/taskbar\.enabled/)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-enabled：禁用即清托盘名单与像素缓存（#153 交还的死账不复活）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      // 数据面托盘宿主的规范化事件流播种名单与像素（工单56 同链路，离线注假事件）
+      const add = (uid: number) => ctx.emit('dataplane/tray-event', {
+        kind: 'add', key: `100:${uid}`, hwnd: '100', uid, guid: null, tooltip: `t${uid}`,
+        callbackMessage: 0, version: 0, flags: 0, hicon: '999',
+        icon: { width: 2, height: 2, bgraBase64: 'AAAA' },
+      })
+      add(1)
+      add(2)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toMatchObject({ enabled: true, tray: [{ key: '100:1' }, { key: '100:2' }] })
+      // 禁用即交还：名单是已交还图标的死账，当场清空（重启用由新宿主收编广播回填）
+      const off = await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
+      expect(off.tray).toEqual([])
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toMatchObject({ enabled: false, tray: [] })
+      // 像素缓存同清：名单空即取不到像素（tray-icon 查询走名单→缓存两跳）
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: '100:1' })).resolves.toEqual({ icon: null })
+      // 重启用不复活死账：名单仍空，等真事件流回填
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: true })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toMatchObject({ enabled: true, tray: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/system-action：开始菜单/任务视图经桥到达按键合成源；未知动作抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'start-menu' })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'task-view' })).resolves.toEqual({ ok: true })
+      expect(t.sent).toEqual(['start-menu', 'task-view'])
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'ghost' as never }))
+        .rejects.toThrow(/未知任务栏系统动作/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/system-action：合成被系统拒收回报 ok:false（不 reject——点击语义不需 try/catch）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir, { deps: { sendSystemKeys: () => false } })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'start-menu' })).resolves.toEqual({ ok: false })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('插件卸载（内核停）：补发 enabled:false 终态帧，效果层经「禁用即销窗」收窗', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    const changed: TaskbarState[] = []
+    ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+    await ctx.stop()
+    expect(changed).toEqual([{ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] }])
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单55 任务栏右组）', () => {
+  /** 任务栏桩：同 49 段（config 落 tmp + 假按键源） */
+  function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: { sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true } },
+          ...over,
+        },
+      },
+    }
+  }
+
+  it('taskbar/system-action：通知中心/快速设置/显示桌面经桥到达按键合成源', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'notification-center' })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'quick-settings' })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('taskbar/system-action', { action: 'toggle-desktop' })).resolves.toEqual({ ok: true })
+      expect(t.sent).toEqual(['notification-center', 'quick-settings', 'toggle-desktop'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-metrics：勾选子集即时回推 taskbar/changed、整份回写 config.json（重启保持的依据）；同值幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['ram', 'cpu'] })).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'ram'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      // 空子集合法（摘要整格隐藏）
+      await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: [] })).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      // 幂等：同值不重复推事件
+      await ctx.bridge.invoke('taskbar/set-metrics', { metrics: [] })
+      expect(changed.map((s) => s.metrics)).toEqual([['cpu', 'ram'], []])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: [], trayOverflowLimit: 5 })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-metrics：未知指标名拒绝（契约违规不静默吞掉），全不勾选之外的开关互不影响', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['gpu'] })
+      await expect(ctx.bridge.invoke('taskbar/set-metrics', { metrics: ['cpu', 'ghost'] as never }))
+        .rejects.toThrow(/taskbar\.metrics/)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['gpu'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      // 勾选子集不被开关切换冲掉（setEnabled 只动 enabled 位）
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['gpu'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-tray-overflow-limit：档位 3/5/8/全部 即时回推 + 整份落盘（重启保持的依据）；同值幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      // 初值 = 默认档 5
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 3, excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 'all' })).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 'all', excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 8 })).resolves
+        .toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 8, excluded: [] })
+      // 幂等：同值不重复推事件
+      await ctx.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 8 })
+      expect(changed.map((s) => s.trayOverflowLimit)).toEqual([3, 'all', 8])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 8 })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-tray-overflow-limit：档位外取值拒绝（契约违规不静默吞掉）；档位不被开关切换冲掉', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      for (const bad of [4, 0, -5, 'x', 26, null, undefined]) {
+        await expect(ctx.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: bad as never }))
+          .rejects.toThrow(/taskbar\.trayOverflowLimit/)
+      }
+      await ctx.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 8 })
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves
+        .toEqual({ enabled: false, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 8, excluded: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/status：每拍快照随 tick 回推时钟 + 硬件仪表（右组 1Hz 数据源）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const received: TaskbarStatus[] = []
+      const off = ctx.bridge.subscribe('taskbar/status', (s) => received.push(s))
+      ctx.bridge.tick()
+      expect(received).toHaveLength(1)
+      expect(received[0].clock.epochMs).toBeGreaterThan(0)
+      expect(typeof received[0].hardware.cpu).toBe('number')
+      off()
+      ctx.bridge.tick()
+      expect(received).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单52 任务栏应用组）', () => {
+  /**
+   * 应用组桩：栏布局存储与旧桌面迁移源都落 tmp（绝不触真 userData）；窗口枚举/桌面项池/
+   * lnk 解析/图标键全假源。返回引用以便逐用例改写窗口集与断言落盘文本。
+   */
+  function leftOpts(dir: string, over: Record<string, unknown> = {}) {
+    const env = {
+      windows: [] as TaskbarWindowInfo[],
+      items: [] as Array<{ name: string; path: string; kind: 'shortcut' | 'url' | 'file' | 'folder'; display: string; iconKey: string }>,
+      targets: new Map<string, string>(),
+      enumCalls: 0,
+    }
+    const opts = {
+      taskbar: {
+        storeFile: path.join(dir, 'taskbar-layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
+        deps: {
+          sendSystemKeys: () => true,
+          listWindows: () => { env.enumCalls++; return env.windows },
+          ownExe: 'C:\\deck\\agent-deck.exe',
+          desktopItems: () => env.items,
+          resolveShortcutTarget: (p: string) => env.targets.get(p) ?? null,
+          iconKeyForPath: () => null,
+        },
+        ...over,
+      },
+    }
+    return { env, opts }
+  }
+
+  it('refresh：手钉与运行中合并上栏（手钉在前、运行叠加不重复）；变化经 taskbar/changed 推送，内容不变不重推', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.items = [
+      { name: 'A.lnk', path: 'C:\\Users\\u\\Desktop\\A.lnk', kind: 'shortcut', display: '甲', iconKey: 'C:\\Users\\u\\Desktop\\A.lnk|1' },
+    ]
+    t.env.targets.set('C:\\Users\\u\\Desktop\\A.lnk', 'C:\\Apps\\A.exe')
+    fs.writeFileSync(t.opts.taskbar.legacyLayoutFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 编辑中', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\B.exe', title: '乙窗口', hwnd: 102, pid: 1002 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: Array<{ enabled: boolean; apps: unknown[] }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      ctx.taskbar.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e) => [e.exe, e.pinned, e.running, e.title])).toEqual([
+        ['C:\\Apps\\A.exe', true, true, '甲 - 编辑中'],
+        ['C:\\Apps\\B.exe', false, true, '乙窗口'],
+      ])
+      expect(changed).toHaveLength(1)
+      ctx.taskbar.refresh() // 内容不变：不重推
+      expect(changed).toHaveLength(1)
+      // 运行态进出：B 退出、A 标题变化，各推一帧
+      t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲 - 已保存', hwnd: 101, pid: 1001 }]
+      ctx.taskbar.refresh()
+      expect(changed).toHaveLength(2)
+      const latest = changed[1].apps as Array<{ exe: string; running: boolean; title: string | null }>
+      expect(latest.map((e) => [e.exe, e.running, e.title])).toEqual([['C:\\Apps\\A.exe', true, '甲 - 已保存']])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('旧桌面手钉迁移进栏布局且顺序保持；落盘只含 exe 身份与展示元数据（窗口标题永不持久化）', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.items = [
+      { name: 'A.lnk', path: 'C:\\Users\\u\\Desktop\\A.lnk', kind: 'shortcut', display: '甲', iconKey: 'C:\\Users\\u\\Desktop\\A.lnk|1' },
+      { name: 'B.lnk', path: 'C:\\Users\\u\\Desktop\\B.lnk', kind: 'shortcut', display: '乙', iconKey: 'C:\\Users\\u\\Desktop\\B.lnk|2' },
+    ]
+    t.env.targets.set('C:\\Users\\u\\Desktop\\A.lnk', 'C:\\Apps\\A.exe')
+    t.env.targets.set('C:\\Users\\u\\Desktop\\B.lnk', 'C:\\Apps\\B.exe')
+    fs.writeFileSync(t.opts.taskbar.legacyLayoutFile, JSON.stringify({ version: 1, pinned: ['B.lnk', 'A.lnk'], dock: [], docs: [] }))
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: 'SECRET-WINDOW-TITLE', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned.map((p: { exe: string }) => p.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe'])
+      // 标题即时上栏但永不落盘：栏布局存储与 config.json 都不含标题串
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps[0]).toMatchObject({ exe: 'C:\\Apps\\B.exe', running: false })
+      expect(state.apps[1]).toMatchObject({ exe: 'C:\\Apps\\A.exe', running: true, title: 'SECRET-WINDOW-TITLE' })
+      expect(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')).not.toContain('SECRET-WINDOW-TITLE')
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('栏布局存储已存在即不迁移（尊重既有栏布局）；dock 源缺失时迁移为空手钉', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\keep.exe', label: '保留', iconKey: null }],
+    }))
+    fs.writeFileSync(t.opts.taskbar.legacyLayoutFile, JSON.stringify({ version: 1, pinned: ['A.lnk'], dock: [], docs: [] }))
+    t.env.items = [{ name: 'A.lnk', path: 'C:\\A.lnk', kind: 'shortcut', display: '甲', iconKey: 'C:\\A.lnk|1' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e) => e.exe)).toEqual(['C:\\keep.exe'])
+    } finally {
+      await ctx.stop()
+    }
+    const dir2 = tmpDir()
+    const t2 = leftOpts(dir2) // legacyLayoutFile 不存在：迁移为空手钉，存储落盘标记迁移完成
+    const ctx2 = createKernel(kernelOpts(dir2, t2.opts))
+    await ctx2.start()
+    try {
+      ctx2.taskbar.refresh()
+      expect(JSON.parse(fs.readFileSync(t2.opts.taskbar.storeFile, 'utf8'))).toEqual({ version: 1, pinned: [], recommended: [], excluded: [] })
+    } finally {
+      await ctx2.stop()
+    }
+  }, 30_000)
+
+  it('自家进程窗口不上栏（ownExe 过滤）；禁用态 refresh 空转（不枚举窗口）', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.windows = [
+      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK', hwnd: 900, pid: 9000 }, // 归一后 = ownExe
+      { exe: 'C:\\Apps\\A.exe', title: '甲', hwnd: 101, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      let state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e) => e.exe)).toEqual(['C:\\Apps\\A.exe'])
+      // 禁用后 refresh 不再枚举窗口（栏窗已销，无枚举必要）
+      await ctx.bridge.invoke('taskbar/set-enabled', { enabled: false })
+      const before = t.env.enumCalls
+      ctx.taskbar.refresh()
+      expect(t.env.enumCalls).toBe(before)
+      state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.enabled).toBe(false)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('refresh 枚举轮走过滤判据（工单156）：cloaked/工具窗/属主无 APPWINDOW/空标题/自家窗口不上栏，正常主窗与属主带 APPWINDOW 窗收', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲窗口', hwnd: 101, pid: 1001, visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\Suspended.exe', title: '挂起的 UWP', hwnd: 102, pid: 1002, visible: true, cloaked: true, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\Tool.exe', title: '工具窗', hwnd: 103, pid: 1003, visible: true, cloaked: false, toolWindow: true, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\Popup.exe', title: '有属主弹窗', hwnd: 104, pid: 1004, visible: true, cloaked: false, toolWindow: false, owned: true, appWindow: false },
+      { exe: 'C:\\Apps\\Faceless.exe', title: null, hwnd: 105, pid: 1005, visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK', hwnd: 900, pid: 9000, visible: true, cloaked: false, toolWindow: false, owned: false, appWindow: false },
+      { exe: 'C:\\Apps\\SelfCert.exe', title: '属主带 APPWINDOW', hwnd: 106, pid: 1006, visible: true, cloaked: false, toolWindow: false, owned: true, appWindow: true },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e) => e.exe)).toEqual(['C:\\Apps\\A.exe', 'C:\\Apps\\SelfCert.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('过滤判据对特征位缺省的旧枚举源兼容（不带特征 = 正常主窗口径，既有 fake 源不破）', async () => {
+    const dir = tmpDir()
+    const t = leftOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲窗口', hwnd: 101, pid: 1001 },
+      { exe: 'c:\\deck\\AGENT-DECK.exe', title: 'AGENT DECK', hwnd: 900, pid: 9000 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e) => e.exe)).toEqual(['C:\\Apps\\A.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单53 应用组交互）', () => {
+  /**
+   * 应用组交互桩：栏布局存储/旧桌面迁移源落 tmp；窗口枚举、前台、置前/最小化/关闭、
+   * 启动、reveal 全假源（Win32 系统效果不进单测——效果层薄壳由真机验收覆盖）。
+   */
+  function interactOpts(dir: string, over: Record<string, unknown> = {}) {
+    const env = {
+      windows: [] as TaskbarWindowInfo[],
+      fg: 0,
+      activated: [] as number[],
+      minimized: [] as number[],
+      closed: [] as number[],
+      launched: [] as string[],
+      revealed: [] as string[],
+    }
+    const opts = {
+      taskbar: {
+        storeFile: path.join(dir, 'taskbar-layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
+        deps: {
+          sendSystemKeys: () => true,
+          listWindows: () => env.windows,
+          ownExe: 'C:\\deck\\agent-deck.exe',
+          desktopItems: () => [],
+          resolveShortcutTarget: () => null,
+          iconKeyForPath: () => null,
+          foregroundHwnd: () => env.fg,
+          activateWindow: (h: number) => { env.activated.push(h); return true },
+          minimizeWindow: (h: number) => { env.minimized.push(h); return true },
+          closeWindow: (h: number) => { env.closed.push(h); return true },
+          launchExe: async (e: string) => { env.launched.push(e); return '' },
+          revealExe: (e: string) => { env.revealed.push(e) },
+        },
+        ...over,
+      },
+    }
+    return { env, opts }
+  }
+
+  it('taskbar/app-click 三态：未运行手钉 → 启动；单窗口未前台 → 置前；单窗口已前台 → 最小化', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: 'C:\\Apps\\A.exe|1' }],
+    }))
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 手钉上栏、无窗口（未运行）
+      // ① 未运行 → 启动
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'launched' })
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe'])
+      // ② 单窗口未前台 → 置前
+      t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲 - 文档', hwnd: 101, pid: 1001 }]
+      t.env.fg = 999
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'activated' })
+      expect(t.env.activated).toEqual([101])
+      expect(t.env.minimized).toEqual([])
+      // ③ 单窗口已前台 → 最小化
+      t.env.fg = 101
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'minimized' })
+      expect(t.env.minimized).toEqual([101])
+      expect(t.env.launched).toHaveLength(1) // 运行后不再走启动
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/app-click：多窗口 → window-list 携带带标题清单（不执行窗口效果）；未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    t.env.fg = 101 // 其一已在前台：多窗口仍出列表（不最小化）
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({
+          ok: true,
+          action: 'window-list',
+          windows: [
+            { hwnd: 101, title: '甲 - 文档1' },
+            { hwnd: 102, title: '甲 - 文档2' },
+          ],
+        })
+      expect(t.env.activated).toEqual([])
+      expect(t.env.minimized).toEqual([])
+      const miss = await ctx.bridge.invoke('taskbar/app-click', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(miss.action).toBeNull()
+      expect(t.env.launched).toEqual([]) // 护栏：不执行任意路径
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/app-windows（工单196 选窗浮层行源）：应用组护栏内回带标题窗口清单（与 app-click window-list 同一当拍枚举）；未知 exe → ok:false 空', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\Apps\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\Apps\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 未钉但运行中 → 应用组合一在册（ADR-0013 统一序列）
+      const hit = await ctx.bridge.invoke('taskbar/app-windows', { exe: 'C:\Apps\A.exe' })
+      expect(hit.ok).toBe(true)
+      expect(hit.windows).toEqual([
+        { hwnd: 101, title: '甲 - 文档1' },
+        { hwnd: 102, title: '甲 - 文档2' },
+      ])
+      const miss = await ctx.bridge.invoke('taskbar/app-windows', { exe: 'C:\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(miss.windows).toEqual([])
+      expect(t.env.activated).toEqual([]) // 只读查询：不执行任何窗口效果
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/activate-window：多窗口列表选窗精确到达目标 hwnd；名单外 hwnd → ok:false（不置前）', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/activate-window', { hwnd: 102 })).resolves.toEqual({ ok: true })
+      expect(t.env.activated).toEqual([102])
+      const miss = await ctx.bridge.invoke('taskbar/activate-window', { hwnd: 999 })
+      expect(miss.ok).toBe(false)
+      expect(t.env.activated).toEqual([102])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/app-new-instance：中键恒启动新实例；未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/app-new-instance', { exe: 'C:\\Apps\\A.exe' })).resolves.toEqual({ ok: true })
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe'])
+      const miss = await ctx.bridge.invoke('taskbar/app-new-instance', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(t.env.launched).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-app-pinned：运行中应用手钉落盘（exe+label+iconKey，窗口标题永不入盘）并即时重编排回推；幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: 'SECRET-WINDOW-TITLE', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: Array<{ apps: Array<{ exe: string; pinned: boolean }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: true })
+      expect(state.apps.map((e) => [e.exe, e.pinned])).toEqual([['C:\\Apps\\A.exe', true]])
+      expect(changed).toHaveLength(1) // 重编排后手钉态变化即时回推
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned).toEqual([{ exe: 'C:\\Apps\\A.exe', label: 'A', iconKey: null }])
+      expect(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')).not.toContain('SECRET-WINDOW-TITLE')
+      // 幂等：同态不重推
+      await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: true })
+      expect(changed).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-app-pinned：解除手钉移除落盘并回推（未运行条目出应用组）；不在清单幂等；未知 exe 与非布尔 pinned 抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: 'C:\\Apps\\A.exe|1' }],
+    }))
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: unknown[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: false })
+      expect(state.apps).toEqual([]) // 未运行的手钉解除后整组出清
+      expect(changed).toHaveLength(1)
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned).toEqual([])
+      // 幂等：清单本就不含
+      await ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: false })
+      expect(changed).toHaveLength(1)
+      // 契约违规：手钉目标必须在当前应用组（展示元数据来源）；pinned 须布尔
+      await expect(ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\ghost.exe', pinned: true }))
+        .rejects.toThrow(/未知任务栏应用组应用/)
+      await expect(ctx.bridge.invoke('taskbar/set-app-pinned', { exe: 'C:\\Apps\\A.exe', pinned: 'yes' as never }))
+        .rejects.toThrow(/须为布尔值/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/close-window：向该 exe 全部应用组窗口投递关闭（多窗口一并关）；无窗口/未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档1', hwnd: 101, pid: 1001 },
+      { exe: 'C:\\Apps\\A.exe', title: '甲 - 文档2', hwnd: 102, pid: 1001 },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/close-window', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, closed: 2 })
+      expect(t.env.closed).toEqual([101, 102])
+      const miss = await ctx.bridge.invoke('taskbar/close-window', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(t.env.closed).toHaveLength(2)
+      // 无窗口（应用刚退出）也按普通失败回报
+      t.env.windows = []
+      ctx.taskbar.refresh()
+      const none = await ctx.bridge.invoke('taskbar/close-window', { exe: 'C:\\Apps\\A.exe' })
+      expect(none).toMatchObject({ ok: false, closed: 0 })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/reveal-app：打开文件位置（explorer 定位 exe）；未知 exe → ok:false', async () => {
+    const dir = tmpDir()
+    const t = interactOpts(dir)
+    t.env.windows = [{ exe: 'C:\\Apps\\A.exe', title: '甲', hwnd: 101, pid: 1001 }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await expect(ctx.bridge.invoke('taskbar/reveal-app', { exe: 'C:\\Apps\\A.exe' })).resolves.toEqual({ ok: true })
+      expect(t.env.revealed).toEqual(['C:\\Apps\\A.exe'])
+      const miss = await ctx.bridge.invoke('taskbar/reveal-app', { exe: 'C:\\ghost.exe' })
+      expect(miss.ok).toBe(false)
+      expect(t.env.revealed).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单54 开始组系统按钮显隐）', () => {
+  /** 任务栏桩：同 49 段（config 落 tmp + 假按键源），hiddenButtons 初值可经 over 下发 */
+  function taskbarOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: { sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true } },
+          ...over,
+        },
+      },
+    }
+  }
+
+  it('hiddenButtons 初值随 config taskbar 段下发（重启保持的读入路径）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir, { hiddenButtons: ['tasks'] })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-button-hidden：隐藏/恢复即时回推 taskbar/changed 并整份回写 config.json；同态幂等不重推', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: true }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      // 恢复
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'start', hidden: false }))
+        .resolves.toEqual({ enabled: true, hiddenButtons: ['tasks'], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+      // 幂等：同态不重写盘不重推
+      await ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })
+      expect(changed.map((s) => s.hiddenButtons)).toEqual([['start'], ['start', 'tasks'], ['tasks']])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.file, 'utf8'))
+      expect(onDisk.taskbar).toEqual({ enabled: true, hiddenButtons: ['tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/set-button-hidden：未知按钮 id 抛 BridgeError（契约违规不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/set-button-hidden', { id: 'ghost' as never, hidden: true }))
+        .rejects.toThrow(/未知任务栏按钮/)
+      await expect(ctx.bridge.invoke('taskbar/get-state', null)).resolves.toEqual({ enabled: true, hiddenButtons: [], recommendations: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], apps: [], tray: [], trayOverflowLimit: 5, excluded: [] })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar 推荐位：使用频次链路（fuseScores）产物随 get-state 下发——按分数降序、零分不占位、变化回推 taskbar/changed', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Alpha.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'Beta.lnk'), 'stub')
+    fs.writeFileSync(path.join(dir, 'user', 'Gamma.lnk'), 'stub') // 零分：从不启动
+    const targets: Record<string, string> = { 'Alpha.lnk': 'C:\\apps\\Alpha.exe', 'Beta.lnk': 'C:\\apps\\Beta.exe' }
+    let running = new Map<number, string>()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      ...t.opts,
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readShortcutTarget: (p: string) => targets[path.basename(p)] ?? null,
+        },
+      }),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => running,
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      // 启动记录：Alpha × 2、Beta × 1（pid 差分——新 pid 入场即一次启动）
+      const now = Date.now()
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe'], [2, 'C:\\apps\\Beta.exe']])
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe']])
+      ctx.usage!.collect(now)
+      running = new Map([[1, 'C:\\apps\\Alpha.exe'], [9, 'C:\\apps\\Alpha.exe']])
+      ctx.usage!.collect(now)
+      ctx.desktop!.refresh() // 重算编排与分数（生产由 1Hz tick 驱动）
+      const changed: Array<{ recommendations: Array<{ name: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      // Alpha（2 次）在 Beta（1 次）前；Gamma 零分不占位
+      expect(state.recommendations.map((r) => r.name)).toEqual(['Alpha.lnk', 'Beta.lnk'])
+      expect(state.recommendations[0].path).toBe(path.join(dir, 'user', 'Alpha.lnk'))
+      // 工单160：条目携带图标键与 exe 身份——快捷方式经服务层解析富化为目标 exe
+      // （图标键与桌面扫描池同一份，经独立快照互证；数据面产物的暂定 exe=条目路径在此升级）
+      const snap160 = await ctx.bridge.invoke('panel/snapshot', null)
+      const item160 = (snap160.desktop.items as Array<{ name: string; iconKey: string }>).find((i) => i.name === 'Alpha.lnk')
+      expect(state.recommendations[0].exe).toBe('C:\\apps\\Alpha.exe')
+      expect(state.recommendations[1].exe).toBe('C:\\apps\\Beta.exe')
+      expect(item160).toBeDefined()
+      expect(state.recommendations[0].iconKey).toBe(item160!.iconKey)
+      // get-state 的即时刷新发现名单从空变两席 → 回推一帧
+      expect(changed.map((s) => s.recommendations.map((r) => r.name))).toEqual([['Alpha.lnk', 'Beta.lnk']])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () => {
+  /**
+   * 拖拽桩：栏布局存储落 tmp（绝不触真 userData）；窗口枚举/桌面项池/lnk 解析/推荐位
+   * 来源全假源。返回引用以便逐用例改写窗口集、推荐位名单与断言落盘文本。
+   */
+  function dragOpts(dir: string, over: Record<string, unknown> = {}) {
+    const env = {
+      windows: [] as Array<{ exe: string; title: string | null }>,
+      items: [] as Array<{ name: string; path: string; kind: 'shortcut' | 'url' | 'file' | 'folder'; display: string; iconKey: string }>,
+      targets: new Map<string, string>(),
+      recommendations: [] as Array<{ name: string; display: string; path: string; iconKey: string; exe: string }>,
+      launched: [] as string[],
+      revealed: [] as string[],
+    }
+    const opts = {
+      taskbar: {
+        storeFile: path.join(dir, 'taskbar-layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
+        deps: {
+          sendSystemKeys: () => true,
+          listWindows: () => env.windows,
+          ownExe: 'C:\\deck\\agent-deck.exe',
+          desktopItems: () => env.items,
+          resolveShortcutTarget: (p: string) => env.targets.get(p) ?? null,
+          iconKeyForPath: () => null,
+          recommendations: () => env.recommendations,
+          launchExe: (exe: string) => { env.launched.push(exe); return Promise.resolve('') },
+          revealExe: (exe: string) => { env.revealed.push(exe) },
+        },
+        ...over,
+      },
+    }
+    return { env, opts }
+  }
+
+  const seedPinned = (exes: string[]) => exes.map((exe) => ({ exe, label: exe.replace(/^.*[\\/]/, ''), iconKey: null }))
+
+  it('左→左：手钉段内换位即时生效（taskbar/changed 回推新序）并落盘有序名单', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: seedPinned(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe', 'C:\\Apps\\C.exe']),
+    }))
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 装载栏布局
+      const changed: Array<{ apps: Array<{ exe: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\Apps\\A.exe', before: 'C:\\Apps\\C.exe' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e) => e.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\Apps\\C.exe'])
+      expect(changed.map((s) => s.apps.map((e) => e.exe))).toEqual([
+        ['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\Apps\\C.exe'],
+      ])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned.map((p: { exe: string }) => p.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\Apps\\C.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('左→左：未钉运行条目拖位落会话运行序——即时生效、回推一帧、落盘不变（会话态，工单195）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({ version: 1, pinned: seedPinned(['C:\\Apps\\A.exe']) }))
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }, { exe: 'C:\\run\\c.exe', title: '运行丙' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: Array<{ apps: Array<{ exe: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\c.exe', before: 'C:\\run\\b.exe' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string; pinned: boolean }) => [e.exe, e.pinned])).toEqual([
+        ['C:\\Apps\\A.exe', true],
+        ['C:\\run\\c.exe', false], // 拖到 b 之前：统一序列 = 手钉段在前 + 运行段按会话序
+        ['C:\\run\\b.exe', false],
+      ])
+      expect(changed.map((s) => s.apps.map((e: { exe: string }) => e.exe))).toEqual([
+        ['C:\\Apps\\A.exe', 'C:\\run\\c.exe', 'C:\\run\\b.exe'],
+      ])
+      // 会话态不落盘：栏布局存储零写入（盘面保持装载原样，无运行序段）
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned.map((p: { exe: string }) => p.exe)).toEqual(['C:\\Apps\\A.exe'])
+      expect('runOrder' in onDisk).toBe(false)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('左→左：未钉运行条目落点在手钉条目上 → 运行段首位钳取（两段模型紧随手钉段，不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({ version: 1, pinned: seedPinned(['C:\\Apps\\A.exe']) }))
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }, { exe: 'C:\\run\\c.exe', title: '运行丙' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 栏面 [A] + 运行段 [b, c]（首见序）
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\c.exe', before: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\Apps\\A.exe', 'C:\\run\\c.exe', 'C:\\run\\b.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('左→左：运行条目自落点幂等 ok:true 不回推；栏外身份 ok:false 状态不变（工单195）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      const changed: unknown[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\b.exe', before: 'C:\\run\\b.exe' }))
+        .resolves.toEqual({ ok: true })
+      expect(changed).toEqual([])
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\gone\\ghost.exe', before: null }))
+        .resolves.toMatchObject({ ok: false })
+      expect(changed).toEqual([])
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\run\\b.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('工单195 重启语义：运行拖位不落盘回默认序、手钉拖位落盘保持——新内核实例（同一栏布局存储）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({ version: 1, pinned: seedPinned(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe']) }))
+    t.env.windows = [{ exe: 'C:\\run\\b.exe', title: '运行乙' }, { exe: 'C:\\run\\c.exe', title: '运行丙' }]
+    const first = createKernel(kernelOpts(dir, t.opts))
+    await first.start()
+    first.taskbar.refresh() // 栏面装载 + 会话运行序首见引导 [b, c]
+    await first.bridge.invoke('taskbar/get-state', null)
+    // 手钉 B 拖到 A 之前（落盘 [B, A]）+ 运行 c 拖到 b 之前（会话序 [c, b]）
+    await expect(first.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\Apps\\B.exe', before: 'C:\\Apps\\A.exe' }))
+      .resolves.toEqual({ ok: true })
+    await expect(first.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: 'C:\\run\\c.exe', before: 'C:\\run\\b.exe' }))
+      .resolves.toEqual({ ok: true })
+    const before = await first.bridge.invoke('taskbar/get-state', null)
+    expect(before.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\Apps\\B.exe', 'C:\\Apps\\A.exe', 'C:\\run\\c.exe', 'C:\\run\\b.exe'])
+    await first.stop()
+    // 新实例 = 重启语义：手钉拖位从盘面读回保持，运行拖位随会话归零回首见默认序
+    const second = createKernel(kernelOpts(dir, t.opts))
+    await second.start()
+    try {
+      second.taskbar.refresh()
+      const state = await second.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string; pinned: boolean }) => [e.exe, e.pinned])).toEqual([
+        ['C:\\Apps\\B.exe', true],
+        ['C:\\Apps\\A.exe', true],
+        ['C:\\run\\b.exe', false],
+        ['C:\\run\\c.exe', false],
+      ])
+    } finally {
+      await second.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/drag-drop：描述子畸形（非法组别/空身份）抛 BridgeError（契约违规不静默吞掉）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'up' as never, to: 'apps', id: 'x', before: null }))
+        .rejects.toThrow(/拖拽组/)
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'apps', id: '', before: null }))
+        .rejects.toThrow(/身份/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('中→中：推荐位组内换位即时生效并落盘显式序；分数序后续变化不顶掉用户序', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    t.env.recommendations = [
+      { name: 'A.lnk', display: '甲', path: 'C:\\Desktop\\A.lnk', iconKey: 'A.lnk|0', exe: 'C:\\Desktop\\A.lnk' },
+      { name: 'B.lnk', display: '乙', path: 'C:\\Desktop\\B.lnk', iconKey: 'B.lnk|0', exe: 'C:\\Desktop\\B.lnk' },
+      { name: 'C.lnk', display: '丙', path: 'C:\\Desktop\\C.lnk', iconKey: 'C.lnk|0', exe: 'C:\\Desktop\\C.lnk' },
+    ]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null) // 推荐位首轮装载
+      const changed: Array<{ recommendations: Array<{ name: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'recs', to: 'recs', id: 'C.lnk', before: 'A.lnk' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.recommendations.map((r) => r.name)).toEqual(['C.lnk', 'A.lnk', 'B.lnk'])
+      expect(changed.map((s) => s.recommendations.map((r) => r.name))).toEqual([['C.lnk', 'A.lnk', 'B.lnk']])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.recommended).toEqual(['C.lnk', 'A.lnk', 'B.lnk'])
+      // 分数序翻新（来源名单重排）：用户显式序仍压过分数序
+      t.env.recommendations = [t.env.recommendations[1], t.env.recommendations[2], t.env.recommendations[0]]
+      ctx.taskbar.refreshRecommendations()
+      const next = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(next.recommendations.map((r) => r.name)).toEqual(['C.lnk', 'A.lnk', 'B.lnk'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('中→中：名单外名字回报 ok:false（状态与落盘不变）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    t.env.recommendations = [{ name: 'A.lnk', display: '甲', path: 'C:\\Desktop\\A.lnk', iconKey: 'A.lnk|0', exe: 'C:\\Desktop\\A.lnk' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      const changed: unknown[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'recs', to: 'recs', id: 'ghost.lnk', before: 'A.lnk' }))
+        .resolves.toMatchObject({ ok: false })
+      expect(changed).toEqual([])
+      // 落盘只有迁移的出厂态（ensureLayout 一次性闸门），显式序段未被写入
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.recommended ?? []).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  // —— 工单160 推荐组交互主体：左键启动 / 右键手钉·打开位置 / 跨组拖拽 ——
+  /** 推荐位夹具：一条 lnk 推荐项 + 解析目标（exe 身份 = 解析出的目标） */
+  function seedRec(t: ReturnType<typeof dragOpts>, name: string, display: string, target: string) {
+    const lnkPath = `C:\\Desktop\\${name}`
+    t.env.items.push({ name, path: lnkPath, kind: 'shortcut', display, iconKey: `${name}|0` })
+    t.env.targets.set(lnkPath, target)
+    t.env.recommendations.push({ name, display, path: lnkPath, iconKey: `${name}|0`, exe: lnkPath })
+  }
+
+  it('taskbar/rec-click：左键启动经既有 shell 打开通道，以富化后的 exe 身份寻址（归一匹配）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedRec(t, 'App.lnk', '应用', 'C:\\Apps\\Real.exe')
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null) // 推荐位首轮装载（富化 exe）
+      await expect(ctx.bridge.invoke('taskbar/rec-click', { exe: 'c:\\apps\\REAL.exe' })) // 归一匹配
+        .resolves.toEqual({ ok: true })
+      expect(t.env.launched).toEqual(['C:\\Apps\\Real.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/rec-click：栏外身份不启动（ok:false 不抛——栏面竞态按普通失败回报）；空 exe 抛 BridgeError（契约违规）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedRec(t, 'App.lnk', '应用', 'C:\\Apps\\Real.exe')
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      await expect(ctx.bridge.invoke('taskbar/rec-click', { exe: 'C:\\Not\\On\\Bar.exe' }))
+        .resolves.toMatchObject({ ok: false })
+      expect(t.env.launched).toEqual([])
+      await expect(ctx.bridge.invoke('taskbar/rec-click', { exe: '' }))
+        .rejects.toThrow(/非空字符串/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/rec-pin：手钉推荐应用——推荐组即时消失、应用组手钉段出现（不双占位）、落盘、回推一帧；同态幂等', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedRec(t, 'App.lnk', '应用', 'C:\\Apps\\Real.exe')
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      const changed: Array<{ recommendations: Array<{ name: string }>; apps: Array<{ exe: string; pinned: boolean }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/rec-pin', { exe: 'C:\\Apps\\Real.exe' })
+      expect(state.recommendations.map((r: { name: string }) => r.name)).toEqual([]) // 推荐组消失
+      expect(state.apps).toEqual([{ exe: 'C:\\Apps\\Real.exe', label: '应用', pinned: true, running: false, title: null, iconKey: 'App.lnk|0' }]) // 应用组前段（手钉段）
+      expect(changed).toHaveLength(1) // 一帧
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned).toEqual([{ exe: 'C:\\Apps\\Real.exe', label: '应用', iconKey: 'App.lnk|0' }])
+      // 同态幂等：已手钉再钉不重写不重推
+      const calls = changed.length
+      const again = await ctx.bridge.invoke('taskbar/rec-pin', { exe: 'C:\\Apps\\Real.exe' })
+      expect(again.apps).toHaveLength(1)
+      expect(changed).toHaveLength(calls)
+      const onDisk2 = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk2).toEqual(onDisk)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/rec-pin：推荐位名单外身份抛 BridgeError（契约违规——元数据来源必须在当前推荐位）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedRec(t, 'App.lnk', '应用', 'C:\\Apps\\Real.exe')
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/rec-pin', { exe: 'C:\\Not\\In\\Recs.exe' }))
+        .rejects.toThrow(/推荐/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/rec-reveal：打开文件位置经 explorer 定位通道以 exe 身份寻址；栏外身份 ok:false', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedRec(t, 'App.lnk', '应用', 'C:\\Apps\\Real.exe')
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      await expect(ctx.bridge.invoke('taskbar/rec-reveal', { exe: 'C:\\Apps\\Real.exe' }))
+        .resolves.toEqual({ ok: true })
+      expect(t.env.revealed).toEqual(['C:\\Apps\\Real.exe'])
+      await expect(ctx.bridge.invoke('taskbar/rec-reveal', { exe: 'C:\\Not\\On\\Bar.exe' }))
+        .resolves.toMatchObject({ ok: false })
+      expect(t.env.revealed).toHaveLength(1)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  // —— 工单161 推荐组移除名单：持久排除 + 名次递补 + 空白右键恢复 ——
+
+  /** 七条候选夹具（池序 = env.recommendations 数组序 = 分数序）：可见上限 5、第 6/7 名在池候补 */
+  function seedSeven(t: ReturnType<typeof dragOpts>) {
+    for (const n of ['A', 'B', 'C', 'D', 'E', 'F', 'G']) seedRec(t, `${n}.lnk`, n, `C:\\Apps\\${n}.exe`)
+  }
+
+  it('taskbar/rec-remove：移除进持久排除名单——推荐组即时消失、候选池后续名次递补（上限仍 5）、落盘、回推一帧；同态幂等', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedSeven(t)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null) // 首轮装载：可见 = 池前 5（A..E）
+      const changed: Array<{ recommendations: Array<{ name: string }>; excluded: Array<{ exe: string }> }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/rec-remove', { exe: 'C:\\Apps\\B.exe' })
+      // B 消失，第 6 名 F 递补（滤除后截断——递补语义）；G 仍不出现（上限 5）
+      expect(state.recommendations.map((r) => r.name)).toEqual(['A.lnk', 'C.lnk', 'D.lnk', 'E.lnk', 'F.lnk'])
+      expect(state.excluded).toEqual([{ exe: 'C:\\Apps\\B.exe', label: 'B', iconKey: 'B.lnk|0' }])
+      expect(changed).toHaveLength(1) // 一帧收口（commitStore → recompose）
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.excluded).toEqual([{ exe: 'C:\\Apps\\B.exe', label: 'B', iconKey: 'B.lnk|0' }])
+      // 同态幂等：归一命中的重复移除不重写盘、不重推
+      const before = fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')
+      const again = await ctx.bridge.invoke('taskbar/rec-remove', { exe: 'c:\\apps\\B.exe' })
+      expect(again.excluded).toHaveLength(1)
+      expect(changed).toHaveLength(1)
+      expect(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')).toBe(before)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/rec-remove：池内但不可见（第 7 名）= 名单外身份抛 BridgeError（元数据来源必须在当前推荐位）；空 exe 抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedSeven(t)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      await expect(ctx.bridge.invoke('taskbar/rec-remove', { exe: 'C:\\Apps\\G.exe' }))
+        .rejects.toThrow(/移除目标必须在当前推荐位/)
+      await expect(ctx.bridge.invoke('taskbar/rec-remove', { exe: '' }))
+        .rejects.toThrow(/非空字符串/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/rec-restore：恢复回池按既有分数序（第 6 名让位）；落盘清除、回推一帧；名单外身份幂等空转', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedSeven(t)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      await ctx.bridge.invoke('taskbar/rec-remove', { exe: 'C:\\Apps\\B.exe' })
+      const changed: Array<{ recommendations: Array<{ name: string }>; excluded: unknown[] }> = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      const state = await ctx.bridge.invoke('taskbar/rec-restore', { exe: 'c:\\apps\\B.exe' }) // 归一寻址
+      expect(state.recommendations.map((r) => r.name)).toEqual(['A.lnk', 'B.lnk', 'C.lnk', 'D.lnk', 'E.lnk'])
+      expect(state.excluded).toEqual([])
+      expect(changed).toHaveLength(1)
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.excluded).toEqual([])
+      // 名单外身份：幂等空转（不抛、不重写盘、不重推）
+      const before = fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')
+      const noop = await ctx.bridge.invoke('taskbar/rec-restore', { exe: 'C:\\Never\\Removed.exe' })
+      expect(noop.excluded).toEqual([])
+      expect(changed).toHaveLength(1)
+      expect(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8')).toBe(before)
+      await expect(ctx.bridge.invoke('taskbar/rec-restore', { exe: '' }))
+        .rejects.toThrow(/非空字符串/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('工单161 移除期间显式序位次不丢：恢复后旧位次随「陈旧名留位」纪律复活（移除不动显式序段）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedSeven(t)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      // 用户拖 E 到首位（显式序 [E]），再移除 E、移除 B
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'recs', to: 'recs', id: 'E.lnk', before: 'A.lnk' }))
+        .resolves.toEqual({ ok: true })
+      await ctx.bridge.invoke('taskbar/rec-remove', { exe: 'C:\\Apps\\E.exe' })
+      await ctx.bridge.invoke('taskbar/rec-remove', { exe: 'C:\\Apps\\B.exe' })
+      const removed = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(removed.recommendations.map((r) => r.name)).toEqual(['A.lnk', 'C.lnk', 'D.lnk', 'F.lnk', 'G.lnk'])
+      const onDiskMid = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      // 移除不动显式序段（拖拽落位持久化的是整段可见序，工单57 既有语义——E 仍在首位）
+      expect(onDiskMid.recommended).toEqual(['E.lnk', 'A.lnk', 'B.lnk', 'C.lnk', 'D.lnk'])
+      // 恢复 E：旧位次（首位）复活，B 仍排除
+      const restored = await ctx.bridge.invoke('taskbar/rec-restore', { exe: 'C:\\Apps\\E.exe' })
+      expect(restored.recommendations.map((r) => r.name)).toEqual(['E.lnk', 'A.lnk', 'C.lnk', 'D.lnk', 'F.lnk'])
+      expect(restored.excluded.map((e: { exe: string }) => e.exe)).toEqual(['C:\\Apps\\B.exe'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('工单161 重启保持：排除名单落盘——新内核实例（同一栏布局存储）读回，被移除应用不复活、递补位次保持', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    seedSeven(t)
+    const first = createKernel(kernelOpts(dir, t.opts))
+    await first.start()
+    await first.bridge.invoke('taskbar/get-state', null) // 首轮装载（移除元数据来源 = 当前推荐位）
+    await first.bridge.invoke('taskbar/rec-remove', { exe: 'C:\\Apps\\B.exe' })
+    await first.stop()
+    // 新实例 = 重启语义：存储从盘面重读，排除名单与可见名单都保持
+    const second = createKernel(kernelOpts(dir, t.opts))
+    await second.start()
+    try {
+      const state = await second.bridge.invoke('taskbar/get-state', null)
+      expect(state.excluded).toEqual([{ exe: 'C:\\Apps\\B.exe', label: 'B', iconKey: 'B.lnk|0' }])
+      expect(state.recommendations.map((r) => r.name)).toEqual(['A.lnk', 'C.lnk', 'D.lnk', 'E.lnk', 'F.lnk'])
+      // 重启后的恢复入口语义不变：恢复即同帧回池
+      const restored = await second.bridge.invoke('taskbar/rec-restore', { exe: 'C:\\Apps\\B.exe' })
+      expect(restored.recommendations.map((r) => r.name)).toEqual(['A.lnk', 'B.lnk', 'C.lnk', 'D.lnk', 'E.lnk'])
+    } finally {
+      await second.stop()
+    }
+  }, 30_000)
+
+  it('中→左：推荐拖去应用组升手钉——落点条目前插入、推荐位即时消失、recommended 名单不动（钉不销毁摆）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    // 预置一枚手钉 B（拖落点）+ 一条推荐 A：A 拖到 B 之前 → 手钉段 [A, B]
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: seedPinned(['C:\\Apps\\B.exe']),
+      recommended: [],
+    }))
+    seedRec(t, 'A.lnk', '甲', 'C:\\Apps\\A.exe')
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh() // 装载栏布局（B 上栏）
+      await ctx.bridge.invoke('taskbar/get-state', null) // 推荐位首轮装载
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'recs', to: 'apps', id: 'A.lnk', before: 'C:\\Apps\\B.exe' }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string; pinned: boolean }) => [e.exe, e.pinned])).toEqual([
+        ['C:\\Apps\\A.exe', true],
+        ['C:\\Apps\\B.exe', true],
+      ])
+      // 推荐位即时消失（不双占位——既有可见性管线）
+      expect(state.recommendations.map((r: { name: string }) => r.name)).toEqual([])
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned.map((p: { exe: string }) => p.exe)).toEqual(['C:\\Apps\\A.exe', 'C:\\Apps\\B.exe'])
+      expect(onDisk.recommended ?? []).toEqual([]) // 钉不销毁摆：升手钉不擦回池位次
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('左→中：应用拖去推荐组解除手钉回池——手钉段移除、随同帧推荐位管线回池；仅运行条目 ok:false', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: seedPinned(['C:\\Apps\\A.exe']),
+      recommended: [],
+    }))
+    seedRec(t, 'A.lnk', '甲', 'C:\\Apps\\A.exe') // 解除手钉后按分数回池
+    t.env.windows = [{ exe: 'C:\\run\\only.exe', title: '仅运行' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.taskbar.refresh()
+      await ctx.bridge.invoke('taskbar/get-state', null)
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'recs', id: 'C:\\Apps\\A.exe', before: null }))
+        .resolves.toEqual({ ok: true })
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.apps.map((e: { exe: string }) => e.exe)).toEqual(['C:\\run\\only.exe']) // 手钉段移除，仅运行条目仍在
+      expect(state.recommendations.map((r: { name: string }) => r.name)).toEqual(['A.lnk']) // 同帧回池
+      const onDisk = JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))
+      expect(onDisk.pinned).toEqual([])
+      // 仅运行条目（非手钉）拖去推荐组：ok:false 状态与落盘不变
+      await expect(ctx.bridge.invoke('taskbar/drag-drop', { from: 'apps', to: 'recs', id: 'C:\\run\\only.exe', before: null }))
+        .resolves.toMatchObject({ ok: false })
+      expect(JSON.parse(fs.readFileSync(t.opts.taskbar.storeFile, 'utf8'))).toEqual(onDisk)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
+  it('desktop/clipboard-state 只读可贴态 + desktop/paste 无文件整份拒绝（菜单置灰依据）', async () => {
+    const dir = tmpDir()
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => null,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('desktop/clipboard-state', null)).resolves.toEqual({ pasteable: false })
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: false, pasted: [], failed: [], error: '剪贴板没有可粘贴的文件' })
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/paste（copy）：递归复制落用户桌面根；同名「 - 副本」递增多份不互相覆盖', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(path.join(staging, 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(staging, 'DECK30.txt'), 'v1')
+    fs.writeFileSync(path.join(staging, 'docs', 'inner.txt'), 'inner')
+    fs.writeFileSync(path.join(dir, 'user', 'DECK30.txt'), 'original') // 冲突靶子
+    const clip = {
+      paths: [path.join(staging, 'DECK30.txt'), path.join(staging, 'docs')],
+      effect: 'copy' as const,
+    }
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => clip,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('desktop/clipboard-state', null)).resolves.toEqual({ pasteable: true })
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: true, pasted: ['DECK30 - 副本.txt', 'docs'], failed: [] })
+      // 冲突不覆盖：原名与副本各有内容
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30.txt'), 'utf8')).toBe('original')
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30 - 副本.txt'), 'utf8')).toBe('v1')
+      expect(fs.existsSync(path.join(dir, 'user', 'docs', 'inner.txt'))).toBe(true) // 文件夹递归复制
+      // 再贴一份：续号「 - 副本 2」不互相覆盖（文件夹同款）
+      await expect(ctx.bridge.invoke('desktop/paste', null)).resolves
+        .toEqual({ ok: true, pasted: ['DECK30 - 副本 2.txt', 'docs - 副本'], failed: [] })
+      expect(fs.readFileSync(path.join(dir, 'user', 'DECK30 - 副本 2.txt'), 'utf8')).toBe('v1')
+      expect(fs.existsSync(path.join(dir, 'user', 'docs - 副本', 'inner.txt'))).toBe(true)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('desktop/paste（move）：rename 落盘源离位；部分失败信封（成功保留 + failed 明细）', async () => {
+    const dir = tmpDir()
+    const staging = path.join(dir, 'staging')
+    fs.mkdirSync(staging, { recursive: true })
+    const srcA = path.join(staging, 'A.txt')
+    fs.writeFileSync(srcA, 'move-me')
+    const clip = {
+      paths: [srcA, path.join(staging, 'GHOST.txt')], // GHOST 不在盘上：真 fs 落败 → 部分失败
+      effect: 'move' as const,
+    }
+    const ctx = createKernel(kernelOpts(dir, {
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readClipboardFiles: async () => clip,
+        },
+      }),
+    }))
+    await ctx.start()
+    try {
+      const r = await ctx.bridge.invoke('desktop/paste', null)
+      expect(r.ok).toBe(false)
+      expect(r.pasted).toEqual(['A.txt'])
+      expect(r.failed).toEqual(['GHOST.txt'])
+      expect(r.error).toContain('GHOST.txt')
+      expect(fs.existsSync(srcA)).toBe(false) // move 语义：源离位
+      expect(fs.readFileSync(path.join(dir, 'user', 'A.txt'), 'utf8')).toBe('move-me')
+    } finally {
+      await ctx.stop()
+    }
+  })
+})
+
+
+describe('内核桥接契约（工单58 应用组应用点击分发：启动/置前）', () => {
+  /**
+   * 激活桩：栏布局存储落 tmp（绝不触真 userData）；置前/启动假源逐笔记录。
+   * focusFails / launchErr 控制失败路径。
+   */
+  function activateOpts(dir: string, over: Record<string, unknown> = {}) {
+    const env = {
+      windows: [] as Array<{ exe: string; title: string | null }>,
+      focused: [] as string[],
+      launched: [] as string[],
+      focusOk: true,
+      launchErr: '',
+    }
+    const opts = {
+      taskbar: {
+        storeFile: path.join(dir, 'taskbar-layout.json'),
+        legacyLayoutFile: path.join(dir, 'layout.json'),
+        deps: {
+          sendSystemKeys: () => true,
+          listWindows: () => env.windows,
+          ownExe: 'C:\\deck\\agent-deck.exe',
+          desktopItems: () => [],
+          resolveShortcutTarget: () => null,
+          iconKeyForPath: () => null,
+          focusExeWindow: (exe: string) => { env.focused.push(exe); return env.focusOk },
+          launchExe: (exe: string) => { env.launched.push(exe); return Promise.resolve(env.launchErr) },
+        },
+        ...over,
+      },
+    }
+    return { env, opts }
+  }
+
+  /** 栏面就位：手钉 A（未运行）+ 仅运行 B 进应用组 */
+  async function bootBar(dir: string, t: ReturnType<typeof activateOpts>) {
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Apps\\A.exe', label: '甲', iconKey: null }],
+    }))
+    t.env.windows = [{ exe: 'C:\\Apps\\B.exe', title: '乙窗口' }]
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    ctx.taskbar.refresh()
+    return ctx
+  }
+
+  it('运行中应用点击 → 置前源以栏面 exe 调用，回执 focused（身份归一寻址：大小写/斜杠向不敏感）', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 'c:/apps/b.exe' }))
+        .resolves.toEqual({ ok: true, action: 'focused' })
+      expect(t.env.focused).toEqual(['C:\\Apps\\B.exe'])
+      expect(t.env.launched).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('置前被系统拒收 → ok:false + error（不 reject——点击语义不需 try/catch）', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    t.env.focusOk = false
+    const ctx = await bootBar(dir, t)
+    try {
+      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\B.exe' })
+      expect(r.ok).toBe(false)
+      expect(r.action).toBe('focused')
+      expect(r.error).toBeTruthy()
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('手钉未运行应用点击 → 启动源以栏面 exe 调用，回执 launched', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'launched' })
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe'])
+      expect(t.env.focused).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('启动失败（ShellExecute 报错串）→ ok:false + error 原样回报', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    t.env.launchErr = '找不到应用程序'
+    const ctx = await bootBar(dir, t)
+    try {
+      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' })
+      expect(r).toEqual({ ok: false, action: 'launched', error: '找不到应用程序' })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('栏外身份不启动不置前（desktop/launch 池护栏同款）：ok:false，真假源零调用', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\evil\\rm.exe' })
+      expect(r.ok).toBe(false)
+      expect(r.action).toBeNull()
+      expect(t.env.focused).toEqual([])
+      expect(t.env.launched).toEqual([])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('空 exe / 非字符串是契约违规：抛 BridgeError', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    try {
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: '' })).rejects.toThrow(/activate-app\.exe/)
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 42 as never })).rejects.toThrow(/activate-app\.exe/)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单56 托盘入栏）', () => {
+  /** 任务栏桩：config 落 tmp + 假按键源 + 假托盘回放（Win32 真源在数据面子进程） */
+  function trayOpts(dir: string, over: Record<string, unknown> = {}) {
+    const sent: string[] = []
+    const replays: { key: string; button: string }[] = []
+    const so = settingsOpts(dir)
+    return {
+      sent,
+      replays,
+      opts: {
+        ...so,
+        taskbar: {
+          file: so.settings.file,
+          config: so.settings.config,
+          deps: {
+            sendSystemKeys: (action: TaskbarSystemAction) => { sent.push(action); return true },
+            replayTrayClick: (key: string, button: string) => { replays.push({ key, button }); return true },
+          },
+          ...over,
+        },
+      },
+    }
+  }
+
+  const PIX = { width: 16, height: 16, bgraBase64: 'AAAA' }
+  const trayEv = (over: Record<string, unknown> = {}) => ({
+    kind: 'add', key: '100:1', hwnd: '100', uid: 1, guid: null, tooltip: '滴答清单',
+    callbackMessage: 0x0400, version: 0, flags: 0, hicon: null, icon: PIX, ...over,
+  })
+
+  it('托盘事件经 dataplane/tray-event 进名单并回推 taskbar/changed', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const changed: TaskbarState[] = []
+      ctx.bridge.subscribe('taskbar/changed', (s) => changed.push(s))
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.tray).toHaveLength(1)
+      expect(state.tray[0]).toEqual({ key: '100:1', tooltip: '滴答清单', iconKey: expect.any(String) })
+      expect(changed).toHaveLength(1)
+      // 名单未变的重复事件零回推（收编节奏下逐条重渲会拖垮渲染层）
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      expect(changed).toHaveLength(1)
+      // 删除即摘除
+      ctx.emit('dataplane/tray-event', trayEv({ kind: 'delete', tooltip: '', icon: null }) as never)
+      expect((await ctx.bridge.invoke('taskbar/get-state', null)).tray).toEqual([])
+      expect(changed).toHaveLength(2)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/tray-icon：按身份取像素；未知身份与无像素条目回 null', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: '100:1' })).resolves.toEqual({ icon: null })
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: '100:1' })).resolves.toEqual({ icon: PIX })
+      await expect(ctx.bridge.invoke('taskbar/tray-icon', { key: 'nope' })).resolves.toEqual({ icon: null })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('taskbar/tray-click：名单内身份转发回放（左/右键各一）；名单外 ok:false 不抛', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'left' })).resolves.toEqual({ ok: true })
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'right' })).resolves.toEqual({ ok: true })
+      expect(t.replays).toEqual([
+        { key: '100:1', button: 'left' },
+        { key: '100:1', button: 'right' },
+      ])
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: 'ghost', button: 'left' }))
+        .resolves.toEqual({ ok: false, error: '托盘图标不在栏内名单' })
+      expect(t.replays).toHaveLength(2) // 名单外不转发
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('托盘宿主缺席时点击按失败回报（数据面子进程未就绪）', async () => {
+    const dir = tmpDir()
+    const t = trayOpts(dir, { deps: { sendSystemKeys: () => true, replayTrayClick: () => false } })
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      await expect(ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'left' }))
+        .resolves.toEqual({ ok: false, error: '托盘宿主不在场（数据面子进程未就绪）' })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单83 退出面板）', () => {
+  it('app/quit 调用注入的 quit 依赖并回报 ok（与托盘菜单同一退出收敛）', async () => {
+    let quitCalls = 0
+    const ctx = createKernel(kernelOpts(tmpDir(), { quit: () => { quitCalls++ } }))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('app/quit', null)).resolves.toEqual({ ok: true })
+      expect(quitCalls).toBe(1)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
+  it('app/quit 未装配 quit 依赖时如实拒绝（不静默吞掉）', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      await expect(ctx.bridge.invoke('app/quit', null)).rejects.toThrow(/quit/)
+    } finally {
+      await ctx.stop()
+    }
+  })
+})

@@ -1,0 +1,16 @@
+{
+  "name": "probe01-transparent-input-spike",
+  "version": "0.0.1",
+  "private": true,
+  "description": "工单01 一次性探针：透明合成/鼠标穿透/底部钉扎/低z序键盘聚焦",
+  "main": "run.js",
+  "scripts": {
+    "probe": "electron ."
+  },
+  "devDependencies": {
+    "electron": "44.4.3"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0"
+  }
+}

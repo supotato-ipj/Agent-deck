@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>TRAY-SPIKE-ACCEPT</title>
+<style>
+  body { margin: 0; background: #10131a; color: #e8e8e8; font: 12px/1.5 "Segoe UI", sans-serif; padding: 12px; }
+  h1 { font-size: 14px; margin: 0 0 4px; color: #7aa2f7; }
+  #status { color: #888; margin-bottom: 10px; }
+  .icon-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin-bottom: 4px; background: #1a1f2e; border-radius: 4px; }
+  .icon-row img { width: 32px; height: 32px; image-rendering: pixelated; background: repeating-conic-gradient(#222 0 25%, #333 0 50%) 0 0/8px 8px; }
+  .icon-row .tip { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-row .meta { color: #666; font-size: 10px; }
+</style>
+</head>
+<body>
+<h1>托盘 spike 验收页（工单48 路线 C）</h1>
+<div id="status">等待托盘事件…</div>
+<div id="icons"></div>
+<script>
+// BGRA → RGBA 互换（canvas putImageData 像素序；与 src/main/trayhost/pixels.ts 同算法，
+// 验收页是纯 HTML 不能 import TS，此处内联一份）。
+function bgraToRgba(bgra) {
+  const out = new Uint8ClampedArray(bgra.length)
+  for (let i = 0; i < bgra.length; i += 4) {
+    out[i] = bgra[i + 2]; out[i + 1] = bgra[i + 1]; out[i + 2] = bgra[i]; out[i + 3] = bgra[i + 3]
+  }
+  return out
+}
+
+const icons = new Map() // key → { row, img, tooltip, updates }
+let eventCount = 0
+const statusEl = document.getElementById('status')
+const iconsEl = document.getElementById('icons')
+
+function iconDataUrl(icon) {
+  const bgra = Uint8Array.from(atob(icon.bgraBase64), (c) => c.charCodeAt(0))
+  const canvas = document.createElement('canvas')
+  canvas.width = icon.width; canvas.height = icon.height
+  const ctx = canvas.getContext('2d')
+  ctx.putImageData(new ImageData(bgraToRgba(bgra), icon.width, icon.height), 0, 0)
+  return canvas.toDataURL()
+}
+
+window.traySpike.onEvent((ev) => {
+  eventCount++
+  statusEl.textContent = `已收 ${eventCount} 条事件 / 在栏图标 ${icons.size} 个（末条 ${ev.kind} ${ev.key}）`
+  if (ev.kind === 'delete') {
+    const row = icons.get(ev.key)
+    if (row) { row.row.remove(); icons.delete(ev.key) }
+    return
+  }
+  if (ev.kind !== 'add' && ev.kind !== 'update') return
+  let entry = icons.get(ev.key)
+  if (!entry) {
+    const row = document.createElement('div')
+    row.className = 'icon-row'
+    row.dataset.key = ev.key
+    row.innerHTML = '<img alt=""><span class="tip"></span><span class="meta"></span>'
+    iconsEl.appendChild(row)
+    entry = { row, img: row.querySelector('img'), tip: row.querySelector('.tip'), meta: row.querySelector('.meta'), updates: 0 }
+    icons.set(ev.key, entry)
+  }
+  entry.updates++
+  if (ev.icon) entry.img.src = iconDataUrl(ev.icon)
+  entry.tip.textContent = ev.tooltip || '(无 tooltip)'
+  entry.tip.title = ev.tooltip
+  entry.meta.textContent = `${ev.kind}#${entry.updates}`
+})
+</script>
+</body>
+</html>

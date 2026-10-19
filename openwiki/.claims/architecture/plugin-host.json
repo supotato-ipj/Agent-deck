@@ -1,0 +1,582 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:25fd1ee2c265cef0949f83d320801b836e8e9db9c8c6ed1c3ed6ab8d1855279f",
+  "claims": [
+    {
+      "id": "claim_7ea16f9abf5b4e6f8f7d600115e8ea98",
+      "statement": "`plugin.json` is the only file the host looks for inside a plugin directory, and the two failure policies differ: a missing or invalid required field (`id`, `name`, `version`, `entry`) rejects the whole manifest so the plugin is never installed, while a bad optional field (unknown `capabilities` entries, non-numeric `order`, non-string `mount`) is dropped and the manifest survives; `readManifest` folds a missing file and unparsable JSON into the same error shape as a validation failure.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L19-L19",
+          "version": "repo-lines-v1:sha256:c7f438d3f89e86bacf7f5162c928277ce3d56fae3b488229911a60935694b15d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzdmNDM4ZDNmODllODZiYWNmN2Y1MTYyYzkyODI3N2NlM2Q1NmZhZTNiNDg4MjI5OTExYTYwOTM1Njk0YjE1ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzdmNDM4ZDNmODllODZiYWNmN2Y1MTYyYzkyODI3N2NlM2Q1NmZhZTNiNDg4MjI5OTExYTYwOTM1Njk0YjE1ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTc4NjRmOTM2ZTkzMjQ2NDY2NmU3OWI4YTcxMDU0MTA0MzI4MGM5MWYyODdiYjA0N2UwOGQ5M2ZlYTk4NmI1OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmVhN2ZiOTFlMDJkN2JkOTg3Y2RjYzExMThiY2QwZGY3MmU0NTNkMDhiOGU0YjY2NTIzZWZiODFjMzY1ODhlMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L39-L69",
+          "version": "repo-lines-v1:sha256:06188604514f3443ebf8be286663afdb3621c4f4916c745c6aefc3dedace4316:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNDljZmFjOWI1MzQ3YjZiYjkxM2Y5OGNlMGFmMWE0NGM1MGE4MWRmOThiZjE5N2ZmNWFhYTIzM2Q2MGRiZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkxOWU1N2M2ZmJhMmMyNDk1MTkzMGVhMjhkOWJjNWQ4MWJkYWM0NGM1ZGE3MGYxMzdjZjc2MTM3YzJhNTQ5MTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcwYWZjODc1MWY5NjQyMzZmOTgyODgyMTM5ZDBkNGE4NjQ2OGY1ZDQ5YTA4Y2U4NDE0NDQzNzhjN2NmYTE3MmMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L71-L85",
+          "version": "repo-lines-v1:sha256:a74c8ba2ed658d064b5cfcb56a707ae7f127624c50eb7241cd3ed0012fa2441a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ZTY0NWM0NGQ2MjBhNDQ1MmJjODc5MmY3NGQzYTZkNzYxZmYwZTE2YTkyMGFjOTRmNWE0NWZkYjA3YTE2OTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNlOGE0ODQ5MDYzOTQ2YmFmYTdkNmE0M2FhZDJjMjU1NzhjM2Q2YTA2YmM1ZmNhNDMzN2NlZjg5YzI0MDBhNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/manifest.spec.ts#L73-L94",
+          "version": "repo-lines-v1:sha256:7e16f0281fd6ac74fa1e55226aef9c5e986bc830ba2f46fe79b7bce845c7982e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1MmM4NGE2MmJlMjlkMDU3YWYyOGNiNDg0Y2NlZjRlNTA0NWY3NTkxN2IzYjJmYWY0OTZhNmUwZmE4YjJmMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4ODkxNjVjMmRkYTliNzk1MzRhMDA0MzcxYTg0ZDdlZGI4MjNkNzNjYWFmODUyODdlYzJhMGZhOWJhNGEyZDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1MjYzNGRlYWMxNWY3Y2E1ZThhNDE0OTgxOTQxNmZlYWRiOGY2MmQ0NTkwMDU4OTBmMDVmNTBiMmVhMjFlYzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6a18bc9f847c4f24b058019da43d4c30",
+      "statement": "Manifest validation is also addressing validation: `id` must match the lowercase hostname charset /^[a-z0-9][a-z0-9._-]*$/ because it doubles as the `deck-plugin://` host name, and `entry` must be a `.js`/`.mjs` path inside the plugin directory — absolute paths, drive letters, backslashes, non-module extensions and any `..` segment are rejected before the plugin can be installed.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L11-L11",
+          "version": "repo-lines-v1:sha256:f4f84e34870fcc5492e286521c83ecec4d51e77594300d4fb84c6dc9803e7637:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRmODRlMzQ4NzBmY2M1NDkyZTI4NjUyMWM4M2VjZWM0ZDUxZTc3NTk0MzAwZDRmYjg0YzZkYzk4MDNlNzYzNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRmODRlMzQ4NzBmY2M1NDkyZTI4NjUyMWM4M2VjZWM0ZDUxZTc3NTk0MzAwZDRmYjg0YzZkYzk4MDNlNzYzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjI4MWFiODUzMGViMGIyNzYwZGE5YzE2N2VmOWE3MWJlNjdiODdiMzg2YWEwY2I5NGM4YjE5MDViYzE0OTViMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTY1OTVjZGVjZWZkODYzOWY3OTYyOWVkMjY5NzYzNGFjODg0NDU1MGUyZDI1NDE0YTM0ZDliYjQ4MTViOTk1OSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L25-L32",
+          "version": "repo-lines-v1:sha256:464e5b5ab82d30f4220bad8b9036db68eba2ed8e0da7cc232ae2f8a6ccb6e3d6:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjIwODNjODkyN2JiMjJmYzNjZDA5ODRmY2NkYzNjOTQ1OTY0OGE4OTAwN2FiZGUyZjExMmY0MzNkMzY1YWJkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGE3N2RjYjZiYzU3ZDBlNzlkMjBiYjAzOGU0N2ZlMTc2Y2YxNzc0ZTMzNzJkZjJmNGE5MjA1ODU3ZmMyM2NiMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWIxZDgwZTA1ZjYwMTAyMGYxMDliNDgwMmI3NzU5ZGQ3NTQzYmY2ZDhhNGU2MTcwZTY5ZDQzOGI5NTVmNzc3MSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L150-L169",
+          "version": "repo-lines-v1:sha256:db835327829dc2f305621876d8b47ff2f7b5bebfc90620c450c221c4aff46afc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5OTlhMmRjYjJmNTQ1OGE3ODQ1NTgwYjJmNTUwOTFhODU3N2M1YzI4MmIwMjExZDI0YWZkZDdhOTlmYmMyNTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiMTQyYzkyODdiNzU0MjkyMWJhZTE4MGUwMmFlNDgwNGI2NzQ4MWIxNjAzNmVmOGM3MjIyNTI1ZWM3NGY5ZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgxZDRkODUzZjcwYWM1MTU2MWQ0OGM0YzQxODkxMzFiYTY5YzExMzQ3ZmU4NGM3YmY3YjY0ZWIzOGM3OTE5ZDgifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/manifest.spec.ts#L37-L71",
+          "version": "repo-lines-v1:sha256:9c463a1c4444c141e247ec642e4ee90e1e5afa68e5eb02841c445d2c8e4f3583:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlNWYzNTcyMThlMjBjZTlhZDc2ZTljN2M3N2M3ODJlZDE4NWZkNGI4ZTQyZGI1OGI2ZjA3NTcwMWU0ZmExMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJmYjRlNTRjNThiZTg1ZmNhMjRjOGZjNTM4NzZiNGM0OTljMDYwODM3MWY0OGJmMDExOTJmZTkzMzJjMmIzMDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYTdjMGY5ZTQwYzI5M2FiNzI3YzIwYzcyMGYwMTJjOGM2NDdmMjlmYWEyMjg3N2Y0ZTA2ZDQzYzE3OTVlNjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c10d4c04b0a44f0daa10a66f9e7566a8",
+      "statement": "`PluginHostService` is a cordis `Service` registered as `plugins` that performs its first scan synchronously in its constructor — so the first `PanelSnapshot.plugins` section is already populated — and registers both the directory watchdog and a dispose handler on the context.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L83-L84",
+          "version": "repo-lines-v1:sha256:5d9340342e82d480842779a082ed54114fa1342f103a47de98ac1600956ce0b7:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTExM2U3YjhlNjM4M2I2OWU3ZmY0NDk3YzA1NjI3ZGY2ZTkzNmIyZWI0NzQwNWJlZjVjNTM3MzRjNGIyMmJlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTdiOTRkNGYyZjAwMGIxOWQ5NWNkY2UzZDBkZjE4NDc5MTYzYzAxOGZmNDU3MmI2NTVkMGU1ZjE4YzczMTBiOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWEwNGRmNzNjNjlkOWY3MjA0OTMwM2ZmZTc1ZWIxMGYxYTJlMjQ2NjljNDUxZGVhOWI0YWQyMmVkMDc3NzNkNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2U5ZGYwOTcwNTQzOTEwMDE1OGNjZTBlNzkxZTA4YjRiMGFiN2ZkNzkxNDFkNzM1MDExMjgxMDcyYThhN2YwZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L87-L111",
+          "version": "repo-lines-v1:sha256:c16fa0f583c3d601927a8658f7fdd654ed71bdde490bc77e1a7ee2fbaae19133:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkNWJhOWUyYzIyMDhjNzIzYTNkMGRkOTI3MmUwYWFkY2FiYzdlODMzMzljOGU1MWQ3ZTBjMjQ2YTM1MjdiYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0NTVkODkxYzE2MjdmZGFkMDI2ZmQyYzRhMGQzYmU1NTU4MjlhN2UzNWQ1MjdmOGJkZWYzOWUzZWFlZjhkYzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmNmE2MWI3MTIxOTEwN2NkMzhkZTQzMDEwM2RiMTYxYmYyYWM5YjRhNDA5ODYwYWU2ZGYxYWFmMThkNDJhMWYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L37-L48",
+          "version": "repo-lines-v1:sha256:4304cf51b499f4bbbfdf05852a3702f9d72f3b06eb8451ebf1fe23744b8a8c4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjMjI2ODQ0MWZkMDU2ZGQwNzQxMTc3MDUyNTE4YWI3MDY5ZWFlMWY4MDZlODU3Zjg0YmU3YTc2MzljNTcwMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0ZGJhMjVmNjY4MTgyNzRjMTJiYzcyYzIyZDFmZWM1YmEyZjg4ZjgxZmE4MWU3ZDVjYmE0ZWIzNmMwMzdmYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMGE2MGY5Njg1YjM4ZWE4NmMwZGY0YzYyODU3MzI2ZjkwM2NmODI5NGMzMzhiMDc1NmNmODA1YmNmZDkzOTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc507f947bd64ccf8aa9cb2e8b9de474",
+      "statement": "Each installed plugin is represented by a `PluginInstance` carrying its `PluginInfo`, manifest and directory plus a cordis-subset lifecycle of `ready(ctx)`/`dispose()`; the default factory implements both hooks as empty no-ops because today's desktop components render in the page and own no main-process resource, so the hooks are contract positions rather than behaviour.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L270-L279",
+          "version": "repo-lines-v1:sha256:7fad545355d176063f66168ad1f93cc360d0d0aee9d96225206edbca8ffa4018:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMjkwZmU1M2MwMDkxZDZlZDk0YjFhZTc2Yjk2M2JiZDFhMDBkMGFlYjQzNWRkZDMwZGNiNTBmMWFlN2I0ODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L30-L51",
+          "version": "repo-lines-v1:sha256:c7fe7b9cad3f1de956ce6b9f9aabafb1632fee6eee2fc6a32b0c6556e86a6b96:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3NGM0YTdiODFhOTRjODIwYWFkNDNkZWUzYTQ0MjcwZTM3MjMyZjgwNTYwYjUzZjBmYjVkMGQyMzE2ZDA4NTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmZmJjYjFiMTc0YmZhNTc3YThhMmFjMmVhZGMzNWIzYWU5ZjZlMDAzMDgyZjQ5N2IyNWUwOTVkYmNiMjQ2ZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkZDYxZjgzYzMxZDdkYmIyMTNlNzM5YjI5OTU4NjI0MTAwN2ZlODUyYTc0NTZiZTJlNDVmMmNhOTA1NmVhZWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_66aea4550f0f4def8f8862db24ebcd36",
+      "statement": "`rescan()` diffs per-id asset fingerprints and acts on the difference: a new id is installed with `revision = 1`, a changed fingerprint unloads the old instance, bumps `revision` and installs again (that is the reload path), a vanished id is unloaded and its generation record dropped, and the rebuilt listing is sorted by `order` then id and emitted as `plugins/changed` only when its serialized form actually changed.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L134-L165",
+          "version": "repo-lines-v1:sha256:c229972a8e8c230c3d3e45b2ad63f7925f1587c1b4ea653e72226c881236578a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ODIzMjE2YTY3YTI1Y2I0MmUwNjcwNWJhN2IyMDlkMjZjZWY4NDZlNWYxNjA3N2M1YTQ3NWMwMmE5NDIwNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2Mzg1YzEyZGRmNjcyMGVmNzc2NDk5NDkwMjk3ZTlhZTZkMWUzZTkyZTkzMzc4NjMwOWJkMWFiZjRlY2M4M2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4YmMxNzk1MWFhYzg2OWFhMjgwYTBiNDJjMGI5NDU1MDU0OWM2NWJmYWVmMjIyYzY0ODcyZjY5YTQ2ZjFkMWMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L82-L85",
+          "version": "repo-lines-v1:sha256:c9346f8e6970440269cc48af30b73a4ad3b823475afa85b6f81cfc962cade176:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk2ZTExNTdmNzg2Y2ViNTEzMTU2YWZhM2RiZjIzNWJkNjY0YzI5MmNkNjhjNzI2MGIyOGVlNjQ1NjljN2Q2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWMzZDFiMGE3MTlhMGM2MjI4NTVlOGI1OWQ2MGI1OTNlOTUyN2Y3N2RjZmEwZDM4NzIwMGJhYjQ3NjVmMzk2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzg3MjBmZWQwOGRjN2YwMTJjNjA5MmQ0MWZkMDdkM2MyNmZlMWRiZWMzZjY5YzZlYzJmZGY0ZDljMGU0MmY4NyJ9"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L177-L211",
+          "version": "repo-lines-v1:sha256:eba340cb954b8b0d06bf713020e3ec117d6b32b3d041e30a0ca3bfdcb176be22:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZmU5NjkxYjk2MzcxNTYzMzQ5NTdjOTA0ZTQwYTUwNzg5ZjBlN2VkMTgzMGVhZGEwYTkyOGM2ODdkZDU1YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MTlmYzFmNzE5MDNiZDc4MzI3ZTUxODE3YWMwNDBhMTA4NDk1YWEwODEzOGNjNDZhNjk3MmU1NzQxMWYwZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNjN2QzNGUyY2FhYjU4MzRhM2UzZDY2Yjc2OWNiMjg4ZjgxYjE2ZWU4NGRiMzczN2IwMTYzZjBiNDUzYjQ5Y2UifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6e149d896be147ebbe69ab18d8b9e9b4",
+      "statement": "The asset fingerprint covers the serialized manifest plus only the entry module's `mtimeMs:size` (`missing` when absent), which means editing another file in the same plugin directory triggers a rescan from the watcher but produces no generation change: a reload requires touching `plugin.json` or the entry module.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L53-L80",
+          "version": "repo-lines-v1:sha256:ff3279892f03d1680bea0a42d7f34e6c074dae601859d2062e4eb21628dbddb8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYzliZmY4NWZjYzVlNTE4OTVjNDY3NzcyZGNkYmM1MzFlMmM5NzZiM2ZhYzNkYTFlZTFhZjhjZTk1YTZmM2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZjNGI5NWRhNDU2OGJjNDMxMDFmMDY0MDkxYWEzOTUyZDA0ZWQ5MGIyNDgwODQ2M2E2NGUzZTcxNmUyZmZhOGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5ZDE0ZTQ3MjhhMThmMjI4ZTc2ZTcwYTZlNTY5ZjJkZmRkNjc0YTk3MDg1M2E3MjkyMzI1MDlkYjczYjU4M2MifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L177-L201",
+          "version": "repo-lines-v1:sha256:c1158bf258df1d6f9f65c05fbc6c6fe5d1ef1c7d4ff659224fdbdd9f70f498f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZmU5NjkxYjk2MzcxNTYzMzQ5NTdjOTA0ZTQwYTUwNzg5ZjBlN2VkMTgzMGVhZGEwYTkyOGM2ODdkZDU1YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MTlmYzFmNzE5MDNiZDc4MzI3ZTUxODE3YWMwNDBhMTA4NDk1YWEwODEzOGNjNDZhNjk3MmU1NzQxMWYwZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQyYTdlNGE4NmRkYmRmODBjNWNkY2IyNDQxYjUzNGZkM2IwOTE0NjVjYWZhZjBkOTRiZDBkZGJmNDFmZDNmYTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_af1fb01487c447bca36d787414b95477",
+      "statement": "Scanning is deliberately two-pass so a valid manifest always outranks a broken directory for an id: pass 1 lets valid manifests claim their ids in root order with the first root winning duplicate ids, and pass 2 admits directories whose `plugin.json` is missing or invalid under a sanitized directory-derived fallback id only when that id is still free; because production passes the built-in cards root first, a user plugin can never displace a built-in id.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L22-L26",
+          "version": "repo-lines-v1:sha256:5af15dd31f745edf4a00e8b23ec518059e241cc421ca791d96403c18e2741c11:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDAzZTY1MDNkMDU0NjJiZTJiYTYxYjNjY2M2NTdmMjg1NzQzMzM1NDBkYjQ4ZjllYjI4ZjMzMjhiNjU2ZjExOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjQyMTI2OGUzMGVhZWQ4Mjk3NjYzZmZiZjM1YzU3NWM3ZWRmYTU3NTdjOWQ0ZTJlNWUzZTJlZTExOGU5ZDY4NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZThmMzRjMjdlZjU3MTVlNDk3N2U4MjMwZDU2MzRhNWRkZGIzOGU4ZDlmOWM4OGU3ZjBmYWU5YTkzZDgxMTVjYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L185-L219",
+          "version": "repo-lines-v1:sha256:1be5a95a799dc325e46f023791e90747e1611d978ed4e711b5fe7383b31b895e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5ZWNmZTA0MDA1YWJmZGU1ZDExYTA3MTU3YmJiODVlZmI0NDc0OTRiYTQyNDc5MmE4ODEwZDFmZGNjZTc2YjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzMDQwOTM0NTkzZGVmMmNiNTNiNTdhYTJkYTdjYjQ5ZTFhNTI3NTAxNjk2OTk3ZjZjZDVlMmYxZDRlNzUxMzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY5YjgyODQ1NDBmYWVjYjUzNDFkMDdlYTVjNjBlMWMzOTcxMDE5Zjg4NGI1MTlmMjBlMTJmOTA5NmU4NWVhYTgifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L64-L67",
+          "version": "repo-lines-v1:sha256:25e8c2eb673147abaff119b6a44ceb4b98d5af8b6e6bae8d888827d797b7d263:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUwZWYwZmJjY2FiYmE2YjBkNmJiZWU1Mzk5YTE3NzZhMmRlN2M5ODgzYTIwNTgxY2JmNGFmMmZlNDc2NThmOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODg0YjcxMDNjYjkyNzcwMjg2ZmJiMTE4YzJmNmU0ZTk0YTI3NWU3MjE0MjY0ZDhmZDllMjIxMjMyNjA5OWFmMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjNhZDBkMmFiYWI0MDU1YTk1MWQ0MzhlOTViMGQwZjlkMzI0OGJkOTU3ZTBmMWNhZDAyYWRjNTRmN2Q1NmZjMSJ9"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L92-L101",
+          "version": "repo-lines-v1:sha256:82246e25e9c276341005a94ac91116e0bbcb91f6b485112ed85dbb308ba5ef89:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1ZjBiNmNiMDllZTUxOTc0NThlYzI1YjFlZDE0YTM0NGY1MGRkZmI3MDFkOTM3NzVlN2YyYTRjNDA5ZTE4MjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MTlmYzFmNzE5MDNiZDc4MzI3ZTUxODE3YWMwNDBhMTA4NDk1YWEwODEzOGNjNDZhNjk3MmU1NzQxMWYwZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5ZTE0YWI4MTRmNDRkNjcxMzJmYmY4NGEzNDhhOTBlZDMyOTA3YmFhMzUxNjRiYTgyYWQ4OWQwMmQ0MWQ1OGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7ada637a11e543ff97b795e88647bc4a",
+      "statement": "A broken plugin is listed rather than silently dropped: an invalid manifest produces no instance at all but appears in the listing as `status: 'error'` with `entry: ''`, and a valid manifest whose entry asset is missing is likewise `status: 'error'` with an empty entry, so the renderer is never handed a module URL that cannot open.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L148-L151",
+          "version": "repo-lines-v1:sha256:82b0c87afd09d41d3bb2bf244f24ebb8674d7ef627cb06af682eea47a47a56df:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTZhNjZiNzVjNWNhMzQ1OTQxMzUxNzFiNTg0MGQxNGJhMThjMTgyMmY4ODFiOTdjYTIyNjUyNDk5Njg0ZjU5OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUxMjM2ZjJhZWExY2U0MmZhMmIwY2NiMjc4MzJjNzhmNWQ4YzFjMTkyMzhhMjQwOTIyMTA2NjNkNTM5ZWQ2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2FhYjIzNGI2NmVlMzFjZGYwZTg5MDE4OGViMWJlOTMxNGI2YTc0YjUwZTZkODA1Njc4MmVjZWZhZmUxNDZjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2MxZWE5MDRiYjBjZjIwYTg5Y2I5NTY5NDRkMTNjODM0NGIzMmY5OGMzMTYwMmRlOWE3OTNiNzRiNDc5ZGI4NiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L221-L250",
+          "version": "repo-lines-v1:sha256:ffd6c72e7daab3e0feb71005d82d2f3040eefa8996ea5e4de135819793ab1724:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExYTgxOWQ4ZmQzZjU4MjQ1NjVjOGNhN2FhMjQ3MDQyN2FlNmYzZDg4ZmI5YTY4MDM1MzBhMzBhMTE1YmE3MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlZDliODcxZDkxNGEyODgyMWY0YjgxYTk4MzBkNmYwYWEzY2FmZWUwNjhhZmU0NzVkZGQ3ZmEzNTZkODg5MGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhODY4MzNiMTRjODBlODkzODRkYjk1YTBkNjliY2I5NGU2YWIyZDQ3MTk0MWY5YTQxZWE0ZDdkOThmN2QwMjkifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L511-L527",
+          "version": "repo-lines-v1:sha256:37344c0d288250114074fe0c4919cc62e02e1a099e8a7b2747df604434457c59:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4ZTZiNTEzMzk3N2EzMTRhNGMzNTk0MGE5ZTUwOTg5NGY3MDQ5NTkyMmIwOWM4ZjVlODRmYWFlNjg5ODZmZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZTlmNTMxZjA0NDRiMjc1MWRjNjhlNzAwMWFiNjMxNDNlZDIxNmYwNmYxNmEzYzYyNWFiMzJiOGJjNjJlMWMifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L81-L90",
+          "version": "repo-lines-v1:sha256:afcf03ce29c017d1f9cff3634b38ee42a4cc355dc73329d1914caa21f6654980:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzZDdkNzQ5NTYwMzhlZjEzYzE1MDhhYjI5OTFmODQ1MTgwYmNmOGNkZjg4MGY3YzRjYjVmZDhlNWNhNmJkMTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MTlmYzFmNzE5MDNiZDc4MzI3ZTUxODE3YWMwNDBhMTA4NDk1YWEwODEzOGNjNDZhNjk3MmU1NzQxMWYwZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3ZjM1MDY0MzBiMDQyMTRjNGVlMWRlOGY4NzY0MzRiMmY3YTJmNWU5NDAyNDJhMTVmZWQzMTdkYzg4MTk5ODQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2e7232a585f940c88c8d81b4f6008f4c",
+      "statement": "Lifecycle-hook failures are contained to one plugin: a synchronous throw from `ready()` removes the instance from the live map, a throw from `dispose()` is caught and warned while the plugin still leaves the live map, and kernel teardown unloads every remaining instance behind a `stopped` guard so the dispose hook runs exactly once per instance.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L167-L178",
+          "version": "repo-lines-v1:sha256:dfd43b5acc7e7b86dd8f39cbd23acd541e2f8877019dbf3690f48b1efb5de686:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiYjM1MjE4NjQwMWNmNGY3ZTM0OGRkYTZiMGYwZTBjMjg0MWI3ODk1ZmZkZDEyN2IyMzA4MjNhMTk5ZWUzZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0OTVmNTFjMDUyNDA5NGI3Zjg5YzFhODM5Mjc3ODE0YjRlMWE0YmQ4YzRhZmMyZjZlYmZkYWNlODhlOGMxNTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmYzYxMWQwNWNkZmVmMTc5Yjc4MDMwNjdiOTBkNTJiMzQyZjVhNWRkNTk1ODAzMTE0MGQ5ZjAxYTQzYWVlM2MifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L252-L261",
+          "version": "repo-lines-v1:sha256:57f3e2e3d48ea718c0528b1e238e492ad958647bdbbf9ee95e5ff66fced2d81c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwMTIwOGNiZjFmOTg2MTFhZDI4MTlhMmRlYTlhYWRhNTYzZTJjYTdkMmY1OTY0OWY4ZWRjMTViZDZmMDdmODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5OGE0MmNkZDVhOTJlYzVhMzlhNzY0ZmE0YTQ0NTZlN2U1MTNjNWZmMTBkODhiMzc0MjM3ODY4OGU5Zjc5ZDMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L263-L267",
+          "version": "repo-lines-v1:sha256:12daa113151fb8d2c27a899c77e290be7e69e9803ae953d6940298cd0e08ac8c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjZiZmEyNjhjMTlkY2ZhNDhmY2RmZmM5YTQ5MDFkOWI1NTRjZWY4Y2MyNWI1ZWM5MjJlMmZjYWJlYjZiNmQ1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg1MDhiNmNiMDU4OWFiYTc1MDMyMDJkZTJjOGY4N2VkOWIxOWNkNTg2NTNmZDAxYTNlNjc1ZTNhYjdiNTk2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTMyNTliYmUwNGRkOWEzZGU5NTE5YzdjZThmMTYxMjcwYTQ3MmFmODhlMTUwY2U3ZGIzN2RhODg3NTExZTE1ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7389bde519904ea380da2b3ba4b2dd12",
+      "statement": "The directory watchdog creates each plugin root with `fs.mkdirSync(dir, { recursive: true })` before `fs.watch(dir, { recursive: true })` because the install location not existing yet is the normal first-run case; it merges event storms through a settle window (default 300 ms) before invoking the rescan callback once, skips roots it cannot create or watch (explicit `rescan()` remains the fallback), and returns a closer that clears the pending timer and closes every watcher.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L107-L109",
+          "version": "repo-lines-v1:sha256:5ad852dd6c3df396a961dcecc783fd8cc11f6bb555282ef8acef325b0d39d71d:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGRhYzIwNmFhNGRmM2E3MWE1NzgxZmEzMDIxMDFlM2M5ZmY5NWJlNGI5YWE2N2JmN2YxMmZhYTJmMmQ1ZTMwOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmZhYTVjN2VmYjEyMTExNmVlODE3OThjMjYwOGM0OGQ5MTNjZjgzNjNkZDM1NWEwOTA4NTk1ZDhmYjI3MDQyZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDdiY2MyMGNjODc4MDI1YjBlZmYxYjFmNmM4NTEwYTA3Y2U1NTUyZmVkOTU0NjQzNDQxYjBmNGQ5NTI0MjJiNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/watch.ts#L17-L49",
+          "version": "repo-lines-v1:sha256:4714d8bb9b34790d716aa9b44bebfc7324b409d1a5ee7a60837a0cc6d32de764:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwOGMwMDc3ZGI0YjY2NWM3ZmIyYjU1YjU5NjM1YjUxZjc2OTZiOGE5NzAxNjJjMDcwODlkZDlmNjM0ZmRlMWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2YzIzOThmMGJkODE3OGVkNjBkY2M3MjU5NjE3OTdmZDNkZjY0OWJmNWExNWY1NjJjNDY2MGIzMGVlNThkMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3YjdiNjhjOTAyNzRiMDExNWFhMDk2MTFmNDZjNjQ2ZTNkODRkZWZmOTRmNGVhMzU0MDFjYzJmZTMwMGRmMTcifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L296-L313",
+          "version": "repo-lines-v1:sha256:dd6b006746bff922a93d2afaa5c46b504436e38d5407c5720a84c90675b32271:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmZjJjNTJkZmNhODYzYmU0NTBmYTJkZWI4ZWI4NjczZTRhYzk1OTY0ZjlhYTFhN2RiMGU0NTRmOTMyNTdhOWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlNjcwOTlhMzYyY2U0YTNhNGY3NDM1YjRkYTAyMmEyODQ0NWI3Njc2YjJmZTA5NTg5MmQ1ZTI0M2Y5ZmNmNTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e7ca5fd209dd4c8db2e81c7728fb2391",
+      "statement": "`plugins/changed` exists so hot-plugging is visible without waiting for the 1 Hz snapshot: it is emitted on the cordis context by `rescan()`, declared both in the cordis `Events` augmentation and in `BridgeEvents`, forwarded by `FORWARDED_EVENTS` over the `deck:bridge-event` channel, and applied by the page against its last snapshot instead of waiting for the next tick.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L27-L28",
+          "version": "repo-lines-v1:sha256:f61cb10aace382de4290f2a390e14b223487eaab7ee00921a02e26a263ab0465:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDIzZWJhMzYzYWY2NjY1M2YxMTQyY2Y3ZTcyMjM2OWNiM2Y0ZDU0ZGUwNjExM2Q2YThiYWFjMzFmM2ZiNWY4YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWRhOGE3N2IwMDljMzYxYTA5N2U5MWRlNzY2ZjU4MzljYmY0MTdjZjczYWMyOGJhMTkzMmUyNDE2ZGRkZWU1YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmY0NzA5Y2U3NjNmMzMzYmNiM2I1MDVmZjNmZTU4YjljMjRhOGFmMDU0ZTJlNjhiMzZlYjgyZDI0MDY0ZDg5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWNmMjBiNzBkNzI5ZTk5Mzc3NDc1ZDA4MTZiODA0Y2Q2ZTcwYjRhMTJlNWQ3YWU2MDE1ODg0YjVmMzFhMTU4YSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L30-L36",
+          "version": "repo-lines-v1:sha256:d007bc0fca8d97b4c4dc19e5eb67c2be0a540904033e77c244a68dd585664ef2:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2UxZmRiMWM1YWM1MTllZWRhYWRkZTI2NDllOTgwY2I1YzNjYTA5ZTExYTNiM2E2YjRhODEwZDBkYmI1ZDgyMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmQzYjZjNWI5NDQyMmE3YzA0ZjAwOTMzODFiZjhkMTcwN2U2ZWNjYTZmNzg3MzIxYTY3OTRlYTNkZjE2NDUyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGYzMTA2MTg5N2U5ZTdhZjZiYjhmMTU1YTIxZmYyZjkyMTQ1YWYwYTNiMTM2YzRiMTAxMTQ4MTFjYWVlODFiYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjEyMGUzMGUwMDAyZjI3Y2RmMWM2MTJkYWM3YjMzMTE5YTA4MGExOTY0ZmE2MzBiNDhhMzgwYWJhNDE5YWE3NyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L756-L763",
+          "version": "repo-lines-v1:sha256:a63ef52b08de7238d87f926ab1356b0c6a2bdd08efbc0fd49d278d9e7bdc8087:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTc0NDlhYmMyYjM2ZGVmNmUyZGU3NTM3MzgxZGM5Y2U3N2IxOTczNTAwM2YwZjNjYzYwYzJkOTJmNTgxOGI3MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmUzZmY4OTkwMThjNTVlYTM5YmM4YjlmODkwZDc1MWE1OGJlYzQ2NTNkZjk1OGY1ZTViZWZmYjRiMWMxNWViOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWNjOTkxMDNjNmZhMzkyMjkyNTYzNzNhYmEzZDZhYjQyZThlNTg4OTQ4NjhlYTMwYTIwY2ExYmQ3NzM0NGUxNCJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L263-L267",
+          "version": "repo-lines-v1:sha256:5f826ab8a8cb73995458ea8894f526aee9ecba5788b322854f3ebd3997d499b1:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGYzNWQ5ODY2MTY3NjMzZmViOGE1YTBhZGI0ZTJmOGVlNDhhOTVmODJiZWRmNzIwODVkYzgzOTdmNzI0NjUwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjY0MjQwODFiNzE4OTc3NDMwOGE4ZTViZjg1MmFhYzEwMDIzOWZjODBhZTNkMWZkMmJjZGY4NTlmOGUxNDk5ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTg1NWI0MTVhYjFkMWY3MTY4ODY3ZTQ4M2Q4NDRmMTZhOWUwMmQxOTgzOTFlMmUyZjNmMWJiNmYwZDAyMWZhZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjc0MDE1NjQwZDQ0NmI2ZDU5NzI0ZTVmYmQ2YjVjYWFhZTZhZjNlMGFmODdmZmVjMjkyNDY4YzFhYjgxNDg5ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_28145c009a374513aff63542fe7f125e",
+      "statement": "Plugin assets are delivered by the privileged `deck-plugin://` scheme rather than a preload API: `registerPluginScheme()` runs at module top level before app ready with `standard`, `secure`, `supportFetchAPI`, `corsEnabled` and `stream` privileges, the panel page itself loads from `deck-plugin://app/index.html` so page and plugin modules share the scheme and ESM semantics, and `installPluginProtocol()` is wired after the kernel starts but before the window loads the page.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L106-L113",
+          "version": "repo-lines-v1:sha256:fa8d71a2bd0fd34422e5d3f632cbc1997f7b66cb02eb3a3d380cec9190e761f1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTk4MGI0NjVmOGExNjFlOGMwNDNhMDNjNDIyOGZkYmY2MTI1MDVlYmFjZGNkNDBlNDExN2I3N2E5MGFiYzU5ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjI0YmVhYjU1YzJhNDU2MmVjNmNiNTEyMjhjYjRiNGJjYTUzZTNkMjJkYzk3ZDgxYTNiYmY3YTUxOGQ0ZjkxNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjBiYTQxNTQ5NjdmYmM1MjIwMDcxZjcwNTQxOWMzYWIzZGIzYWNlMGNjZWE0OGEwNWY5ZGM0NDI1NDY2YWY3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWI1OWUxZmMyNjBjNmZlYTM1NzMxODY3NmY3NjMzMTg1NjExZjdmODZlZDk2MTc4ODdjNjZjMDkwMmNjMTk4ZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L170-L171",
+          "version": "repo-lines-v1:sha256:26a886d379c1c7ead609c93c490ee13cb7dc13e3cde3c28b1706c440e0690ea2:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjQyNmE3MjMxMWE4ZWIzNjUxNWVkOTE4M2IxOWNjNTE1ZGYzOTQ5YTg2NmM0ZTYzZTllMDRmMzcwNzhkOGY0ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2JjNmEyMmIyNjBmN2RlZWVlNjE4Njc4MzVmNDc5MjA3ZDQ0NzIzZGZlMGRkYTYwNWM1MTM4Mzc3ZmQyZjQ2ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2Y2M2IxNWM5YmY2NzY5Y2MwMzA0MGUxZDNlNGE5NmMxYmEwNDJjYTUzYzdjOGVmMThkYWFmNGMzNjY4OTdjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGQ4ZWY3NzgxN2I1YmU3N2IyOGU4NjAyN2QzNWI0Yjc1NTM5NzFjMDdmYjI2NDJmN2IwMTBlZmMwY2M1Mjc0ZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L31-L32",
+          "version": "repo-lines-v1:sha256:a41c532848c5047235015679e3a2a6dfdfddfc425f4e8410ff4e81800ac0448c:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGZiZGQ1YjYyY2Q2MTg4MjIwYmEwMjYxZDk5Mjk0MGI2M2M2NWYwNTE4Y2E5N2E2MWE2MDg5N2JiODVlNzg1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTllYzhkY2ZjODQ0ODNiMDZjNThkZmU1ZjlhOTMxOWMyYjdkYjg4MDhiY2IzOTAyMDRkOWNhMWY2NjExMWRkNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzBjOTU0ZGFkNmRhMmUwZWVlY2Q5YTk0MzU4YWU3ODQ0ZTUwZGI0ZmNlYzY1MmU1YTU2MzI1YWE1N2JlNzU5NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTk4OTFkZTQwNDg2ZDlhNzY4ZWMzZjYxNzFhMzlkMGYxZjA3ODIzOTM0M2YyOTg2Y2E1ZTFjNzE0OGMwZDM5OCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L15-L34",
+          "version": "repo-lines-v1:sha256:66773ff45b8db139eba57ec8652844351dc907d782dc7eaf84310ad439601f18:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNmQ0NDkzYTQ4MDYyNzFhNWRhNjBhNzkyY2RhNmMzMGE5M2YwNzg4OWYxOGEyODdjNjI5NzE5NWE1YjYwMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1OTE3MjFmYzAwNjMyNjdlNTYzYzNjYjNmOWVlOTAyMmI2NzAwZjNlMTE3NWUwOTcyZTYwNDEzZGZmYTc3ZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjNDk0ZDg0NDczMzcyODgzMjAxMmNlY2FkMGI4OGIzYmVkMTZlMTQ1OTBkMzkzZDFjNzRmODEyMWQ5NWIzNWUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L40-L58",
+          "version": "repo-lines-v1:sha256:5fa42f5e250ab47be9eb3899205fa9f6809542299c3d2ccfc5340bc862d955b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MTczNDYyMDJmODg2MTYxMjYwM2U2YWQyYzQyOTRjNGNiOTIyZGUzZDFkYTJhMGY3ODFhYzk5ZWFlZjQ0MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5NTU4NGU5ZGE0MzdlZGUzZTMzNDdkMGQxNWIzNGI0OWRjODM3MDliYzA4N2YyNDU5MTQ1OTk4NjU5MmNhNTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_62c0e555ea4a4a36a6f51acb3b76f569",
+      "statement": "The protocol handler rebuilds its asset roots on every request from the app root plus `host.allDirs()` — the live instance map — so a plugin's files become addressable as soon as it is installed and stop resolving once it is removed, an unregistered host is a 404, and successful responses add `access-control-allow-origin: *` for cross-host module loads plus `cache-control: no-store`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L41-L58",
+          "version": "repo-lines-v1:sha256:17f2ec820731e688ec063a064b8c60715dcb091b1167dde1913673973bcbe2a0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4ZmIxMTQxOThiOGViYmU3MjViZTgyZTUzOThjMjJlNzg0YzMxZTc4ZjBiMTM1NzVhZTY5OTdkZTNmMDY2NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwZjY5Zjg0MDVhNjZmZmM0YTgwYWI4ZjA5NGNjN2IwMjQ2M2NlYTViODE5Y2IzOGExNmU2MzMyN2YxMGQxMzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L122-L128",
+          "version": "repo-lines-v1:sha256:8cf28a0598f8637450be00e777c6677777ba9b35c2cae7f5a92f169c7b97798e:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGU0YjQyYjY1NDlkYzllZmZiMzM3NjRkOGQ1OTg0ZTMyNTJhNjNkYThlOGQ3ZDBlNDAzNDI4OTZiN2QwZGIyMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzA2NTU3N2NmN2EwOGJhZDdhNmVkZDM4MzFiNmRlMWMyMWQ3MTg3ZWI3OGIwNGUwZGQxNjUwZmViZDYxYzhiNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_417d4f9508864cc691299d3429a6c489",
+      "statement": "`resolveAssetUrl` is pure (no Electron import) and returns null, which the handler turns into a 404, for a wrong scheme, an unregistered host, malformed percent-encoding, a NUL or backslash in the path, a resolved path outside the asset root, a directory target, a missing file, and any extension outside the delivery whitelist; `../`, `%2e%2e/`, deep `../` chains, backslash traversal and `%00` escape attempts are all pinned by test cases.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/assets.ts#L46-L89",
+          "version": "repo-lines-v1:sha256:10d4bcacbb5e3bb2d31834e099eb3485c7aa6b3e955e29cacade4faad6f42310:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMmRmMmU1MjgwNzFlOWU0MmUwYmI5NDE1NTM5MmFiNTIwMzkxODNkMDQ3ZGNkNjM2NTEzMmUyY2JiY2QyODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/assets.spec.ts#L51-L87",
+          "version": "repo-lines-v1:sha256:4635d55a1450c62b216b46adfa212f4dc6aef205827148ff2d8e69b5181e7b3d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlNWYzNTcyMThlMjBjZTlhZDc2ZTljN2M3N2M3ODJlZDE4NWZkNGI4ZTQyZGI1OGI2ZjA3NTcwMWU0ZmExMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1MTU2ZDBlMDNiNDlmZTgwY2Q3ZjNiNjFmZDZmMTg4YmMxMjA3ZGE2ZjEzYjJmZGM0ZTI1ZWIzMjhjNjBmMTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU4YTk0YmZkZGY4Yjk5MTgzMWE1MTgzOTRlZjczZWNhNTAxNjYwNzI4MmI0NGFjODQ1OGI2MTNjY2UwOGQ3MDAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c9e633dd69a44de8bfb54c8c78186655",
+      "statement": "Delivery is gated by a MIME whitelist rather than a header nicety: `.js`/`.mjs` must be sent as `text/javascript` or the module is refused, only `.css`, `.json`, `.html`, `.svg`, `.png` and `.woff2` join them, and an unlisted extension is never served at all.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/assets.ts#L24-L39",
+          "version": "repo-lines-v1:sha256:7697fbceb7f1a5cb9f75e7f5b77f0b2dbb0abae387cb4c1f5756b9d20f7fa4d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNWM4YTlhNWNjYTA5ZTFhZjYyMTliNWU3ODQ4YTJlNGIxMWMyNDRjNWZkMjdkNjQ2M2JiZTU5N2JhZDczM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhlYjQwOTVkODMzMDY1NWE5ZjE2NDRhN2ZiNTU0ZGNjYzFiZWU3YzRhMDA5MWY4N2UyZWY5YjM2YjhiOGUzOGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlODE5NWJiNDE1MzFlYzk4NjdjOTQ2YjUzNjNmYjRkNDQ1M2M1ZTMzYzg0OGQwNzUzZjQ2MWVlNDMwOGQwMjAifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/assets.spec.ts#L98-L119",
+          "version": "repo-lines-v1:sha256:3faded72df871851a348b456e45422aa57ba9377ee081eac1a4bfee272815137:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRmMzI5NzA1MDhmZWI5NjkwN2I1NmM5ZDRmODg4NzU3MTkzOWJlNjU4NThiMzRlZDdlMWQ3YmFhMmIyMjg1MjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6a8e4858ce694dc7a5e46865a5e64026",
+      "statement": "`deck-plugin` is a non-special URL scheme, so host names are matched literally and not case-folded: `deck-plugin://CLOCK/card.js` resolves to nothing while `deck-plugin://clock/card.js` resolves, which lines up with the lowercase-only manifest id charset instead of guessing a mapping.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/assets.ts#L61-L63",
+          "version": "repo-lines-v1:sha256:bf376c85b580ffb16174d33b39f2587c8bd06eebe7af0a897c2abc4a932e0d8e:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkzNzgyYWY0MmQwNTQzM2RkMGQ2NjczZWFlOWU4YmZkOGZlNDkxYjI3MGM4NmEzOWE3NGYzNzI1Yjg1ZjEzNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBiYzIzNzQ0Njc2ODk1NjgzMjJlYzJmYTZmMjFlNmY1N2M5ZDlkOGM5YjgzNjg4YWE5MWZhNTdlOTBlOTk5MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzY0YTA2NjBkY2M0MjU0MmU3MGZhN2MyZjY2OWZkZjQ4YWUzY2JiNDMyN2M2YWJiMDAxMThlYTU5MTE1MGUyZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTdhZjJjYmNmYjU2MDhlMmE3MmU1MTc4MjQxNzMwZmI2ZDU5M2E5YTg2NGE1NzEwOWEyMDYxZWMwYzM2NmZiNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L11-L11",
+          "version": "repo-lines-v1:sha256:f4f84e34870fcc5492e286521c83ecec4d51e77594300d4fb84c6dc9803e7637:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRmODRlMzQ4NzBmY2M1NDkyZTI4NjUyMWM4M2VjZWM0ZDUxZTc3NTk0MzAwZDRmYjg0YzZkYzk4MDNlNzYzNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRmODRlMzQ4NzBmY2M1NDkyZTI4NjUyMWM4M2VjZWM0ZDUxZTc3NTk0MzAwZDRmYjg0YzZkYzk4MDNlNzYzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjI4MWFiODUzMGViMGIyNzYwZGE5YzE2N2VmOWE3MWJlNjdiODdiMzg2YWEwY2I5NGM4YjE5MDViYzE0OTViMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTY1OTVjZGVjZWZkODYzOWY3OTYyOWVkMjY5NzYzNGFjODg0NDU1MGUyZDI1NDE0YTM0ZDliYjQ4MTViOTk1OSJ9"
+        },
+        {
+          "resource": "repo://app/tests/plugins/assets.spec.ts#L88-L95",
+          "version": "repo-lines-v1:sha256:9441e3a0b4c8920a1bc98ed5b43fb066397975260af51bfea7df7689e2421615:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQzNmRmZjYwMzBmZWMwOTRmODcwYjA2YjJhMTI3NWE5YTZiNjc5YzA0Y2FkOWZjMmE2MTc1YWM3ZDVhYTc0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmIyNzRhYjhkN2RhMzZjMGYzYjgyNTYyMDE5OTc0NTRlZWUwNjVhOWVjMWI5ZTM5ZDQwNTYwNjMzMmViYzg2NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmUxNmE3YWRmYThmNGMzMGY5MDBiMTkxN2MyNTE2OTVjNzUwYTQ1ODE3ZjBjYmNkYTBmZTgwZWVjZDA3ODI1ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9b7e76b36ee240699e470478f93605ec",
+      "statement": "All plugin file reads happen in the main process's protocol handler; the renderer window keeps `contextIsolation: true`, `sandbox: true` and `nodeIntegration: false` and its only privileged surface is the preload IPC forwarder, and a source-level guard in the kernel contract suite asserts the renderer plugin runtime contains no `require(`/`node:fs` and the preload no `readFileSync`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L31-L36",
+          "version": "repo-lines-v1:sha256:82b76a8d6812c042ed1f8129c6515c7e6f169e7800c58537c3223168901d1f82:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODRjOGJiZDA5OWU1MzhlMGQ1NmY1YWE0N2RmMGRmNzMyMTFhOTgxYjExMzVmNzMxOTRjMDI3MjI2ZTZlNzU2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg3NGYwNTUyZTg2ZjM3MmNmMjczNGU5ODFhMzRlZTNkZDVlODI1NzdlNzc2ZDc1YmQ3ZDQzYTkzNGU2NDdjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWExYzJmNjU5ZmI3YzNjN2U1NmM0N2M1ODQ5MmMwOWNiYTQwNWE3NjYwZTU2NDA2YTdjYzFlY2I1NGJlZTgyMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzUyMDY0NTFhNzAzMzI2MzI0NDIwZTlkOGJmYTlhZDY5YzBmMzM5ZDNiYWYwZTQzMjU5Mzg2OThhMDJiMzlmMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L36-L39",
+          "version": "repo-lines-v1:sha256:69fdc029c6faa44f62fa8c299d31eb43849d8239ccee1cc13e1a3b21ff3b3424:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWM2MmZlN2U0YzFhOGViYzNmZDRlYzc4YzVmYmM4OTA0ZTA1NzBlNTYzMzMzMmNhNzFiZjk1ZTY5ODFlZTFhMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVjZTU0MDAxNjU3NTkxZmM1OTk4NWJlNDBjZmI2OWIzOTQ3MTQxMmI2ZjU3MjYwNmYxMjBhY2U0YzNhN2UxYiJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L529-L534",
+          "version": "repo-lines-v1:sha256:e072125d5c18d22525bcf2e77d1e3a8bdaabea629028683b43f6ff3f6cd8aa43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk1MGE5Y2MwZGRmZmVhMmYzN2ZiOTI3NmNiY2ZkNzFiNzBjYTM4MzAwZDRjYjJkNjEzZWJlNzI3NmE0YzEyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDcxOTAwOWZhMDdlNWY3Mzg2ZDJkNWMxMjcxODkxNWM3ODdmMjU3YjE4N2RlMzVmNzQ4OTE5MDNjY2ZlNDY3NCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d5049aefde5b458c8493cf8a33387830",
+      "statement": "Capability trimming narrows data, not privileges: the plugin module is dynamically imported into the panel page's own realm, so it can reach `window.deck` and the DOM directly and its network access is the page's; the capability list is a contract about which snapshot sections the host hands over, not a sandbox for untrusted code.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/cards/weather/card.ts#L28-L40",
+          "version": "repo-lines-v1:sha256:9b3260954a31981963be764834e222f166803dd093267da997e5b60152225d24:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmOWEzNjhiNjI5MmZlODU3NjE3NjgzNTVhYTNjMmU4OGM1MjYxMzQ2OTBmOTgyNTlmYzllNWVkMjRlZDE3OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNDRhYjc3YjcyZDNlNDM2MDNjOTA1ZjdjMGVmOTYyNzg2MTc3N2RlN2YzOGM0YmFjYTdjYTQ0NTI0Y2Y5ZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYyMjIwZGZlN2MxODkwMGFkYWYzYjg0NmQ3YTQ2YTA5MjcxYmU2MmViYmUzMjA3OTcxNzUyZGIxMmY3MmI4NDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyMTNlOWJlYTEzNzY3MjFmY2EwYmIxOGUwNGJiODYyNzc4N2I4ZDM5NGNjMzFmZmQ2ZWRiOWU5OGMyZjFkZTAifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/global.d.ts#L21-L41",
+          "version": "repo-lines-v1:sha256:242275f9df942fc4b0a70b916d7b1bdb1d4716b0d35e1b1021429e356e8fbc0a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlMTU1ZGY1ODQzOGZjNDQ2MjhjZjE4MWY4MjI3ODRkNDgxNzAyMjgwNzM3ZDQ3MGNjZDNlZDE4YWU4YTdlZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxYjllN2NiYmJmNWQ4ZDI1NTFhNzM0N2ViMzUzNWRkN2IzYjc4ZWFhMWJiZjBkZTJjZGJiMTI4ZmM3ZmY3NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzOWZhNmQ3Mzc2YmNkN2E2NzhlOGVkZTIxMDUzOTZjODU5YjUzZGJkMzM1NzEyNjE4NDVhYTdkY2EyNWY4ZTUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L124-L150",
+          "version": "repo-lines-v1:sha256:71cb415e29db7555cda3b42a917aab5292545bab1944693ffd22396d3e6a90a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4MzkzOTg2MmRlMjQ5Mzg1MmJiMTBmNjVkMDJiZDUyODE0YjliZTJkMTdmZDIwYTRmNGM4MTlkZjQ0OGMxYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NmY0OWE5NzZjMDdmYTIyMTcxOGUwNjhkMWQ2YjA1OWFlODMyNWZlZmYwOWM4MmExNGEwNDcyODBjODk2OWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4ZDgzY2U4MTUwZDY2YmJmOWQ4MmQ4ZjM1OWUxNzM1Mzg1ZDllMmM3MzFlNzJjNTQ4OWQzZTA0MzNiZjM3NGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5MmMxY2M5NDU4YzlkYTIxYTVmOWNjMmI4MTU4NTg4ODhkYmQyMzY0ZjZhODFlNjY0NDFhMzUxNzQ1ODE5YTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7c05c17ab6cf468e94082d06017a38e6",
+      "statement": "Because a relative specifier inside a plugin module resolves against that plugin's own `deck-plugin://<id>/` host root, files outside the plugin directory cannot be reached by relative import (the real-machine failure that killed the first five-card run), so the shared presentational helpers `pad`, `pad3`, `pct` and `esc` are handed to plugins through `PluginHost.util` and plugins stay single-file with zero relative imports — while a sub-directory inside the plugin directory remains legitimately addressable.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L92-L99",
+          "version": "repo-lines-v1:sha256:84fec5a98a97a9f4e3a40302ce142b6007a39cde8a4388bf9f95192865a25858:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzA5MWExMTNlZjA0OTM0MDg5NzIwM2Y1MjA0ZWVmMTE0MDQxZmY5MDZkMzA1ZmZjYzg1YjI2Y2Q1YzI5NjE3YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTU4MTE4MjA4NDIxMWUyMWQwMDg0M2FkODllMGUyNTUyZmJjNGM1M2E0ZGE2NDViMmNkMjcyZWY0NmM1NDU2NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTM3NGEwZDBiMDgwNTBlOTJkMTk2MzY0MmY1MzAyZGQzYjFkM2I1YmQ5YmJjZmM0ZTcyMzEwMzJmNGNjNTU2MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTFmNDA2ZjEzYjNlMzY2NDZmYmZkYjJiNTMxMjAwZGFiYTljZWRiMjYyY2RmOTVlYjExY2IwMzQ2YTAyNTE2NSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/format.ts#L1-L6",
+          "version": "repo-lines-v1:sha256:ae1e53dba894eeb0f79e6be254235adc73c887c1f4a80d402d9bef6d1238886b:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTY1Y2VkYjJmYjk2Y2ViNzZjN2ViMDMyYzY4ODFmZWUzZjhiOTk1YTE5NTA0MWZlYWZkNTFlZjQ3YWNlYmFjOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTdmODA1NDU2OGM1YTQ0ZTVhMDg5OGViOTc5ODhmNjJmYzVmMTZiMGJiZTcxYzAxMGUyZDY5MDNjN2YwMWI3NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2FlMzIzM2QwZjNiNmMwNWViMjc3NjAxYWMxMjM1ODY2YzE5M2RmNDUxNDQ1YzU0M2ZmNzUyMTYzNzdhYTFjYyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L13-L25",
+          "version": "repo-lines-v1:sha256:503aff6d063a72398c862e468beaa9afcf0c00b666a64d0252cfdf3a9000239a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4N2JjMmJjNjAzZTNmYzMxZTY2MmI5YjAxMGE5NzgxZWExZjcwMGVjOTJlMDE2OGYyMWI1OTk5YjAxNTJhYTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhZTY2ZTc1MjJjOTE2NDFhZGYyYzVmN2E4MjViZjFjNWNlNTNiM2FmNzYyZGYyM2JlNGQxNjI3NTkwMDYzNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0YmY5ZWNhMmZmMjcxMjY1OTNmOWVkNWZiOTRlYzg1ZWQ5NjEwM2RlN2EwNWIxZTE1N2U1YjFjZmQwY2NhNDEifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/assets.spec.ts#L43-L49",
+          "version": "repo-lines-v1:sha256:2ac42a902d40ac58c2ffca24951763c1bcbb536cda6f761def00618b47d295fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWU4OWI3YTZiMGY0NGFhOTIyOThhMWZkMTQ1NTI3YzI3MGIzZDJjNTU2MTJlMjhkNTE4YjYyY2IxNjg5YWJkNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTA2MTg1Zjc2NTcyN2IyN2EwMDA5NzVhNjBiNjdiYTM5YTIwOWVkYTgxNTkzODkzYmZiZTMwNzFhMDZhYjIwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmI1M2FkMDhlYzBmZTM3ODc5MDU1YTQwM2YzZGI2MDE1NGQ4ZDBiYzgxMmJmNzk5NzJiNDY1OTc2MzIyYzI5YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_43bb8d2e237c4e5b808bf3a075d3233a",
+      "statement": "The renderer runtime keeps three maps — `mounted` (live components with their API, container, trimmed view, view key and entry URL), a per-plugin `generations` token counter, and a `failed` ledger — where unmounting bumps the plugin's own generation so an in-flight import that finishes later is discarded instead of resurrecting a removed component, and the counter is per plugin because a single global counter let concurrently importing cards invalidate each other.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L108-L122",
+          "version": "repo-lines-v1:sha256:b65ef65bd05a95d6d47b5390f18456c7bf3a6509da76fd3b35c5c0804fb7d628:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkOGNhOTY1NzYxMWRjYWQ5YjVjMjQzZWM4MWRlN2I5ZTJjZGM1Mzc5Y2M0YmE0OTY5YzE3MDZmYmUwYTgzZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNjE0ZDM1ODhkMThjNGFiOWQ3MWQzODNmMDU4ZTY0ZGVhOWU4OTgzZjU1OWIzMmVkZGUxN2QzMTc3YmIyZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5ZWM1MDRhYTBhZDA2OTYxMjA3Yjg3NWM3MWQzYjI5MjRmZjQ1MGQxMzI5YzZiYjQ3MWUyMmYzMjdkZTE0ZDMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L124-L163",
+          "version": "repo-lines-v1:sha256:b5e8ac89fead092e9b6d1eabbe2ce8f5dd4c5515f2206aa145ca39e15fd5b888:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4MzkzOTg2MmRlMjQ5Mzg1MmJiMTBmNjVkMDJiZDUyODE0YjliZTJkMTdmZDIwYTRmNGM4MTlkZjQ0OGMxYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4ZDgzY2U4MTUwZDY2YmJmOWQ4MmQ4ZjM1OWUxNzM1Mzg1ZDllMmM3MzFlNzJjNTQ4OWQzZTA0MzNiZjM3NGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMDhmOTIzNmI3YjkxNGMyODJmYzYxZDFlYzAzZWJhMjkxZWQzZDc0NzFiMGY4NTczYTg1NTI2ZDE1MTg5NmIifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L51-L85",
+          "version": "repo-lines-v1:sha256:962bf075c6bbedd4f0d722c993412ccdf7f7c0d00fb7f14a094c396160b5d6fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmMjYzZTQ3ODY5OTIxNzBjMzU1M2VmZTAxZTA5ZjRlMjk3ZTdkNTQ3NzBiMzVhOGUyMzA0ODc5NWNkNjVkNGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiOTg3MjQ2MzlkMGU2YjZlYTJmYmM2YjYxNWI2NDJkNGQ4ODM1NTMyYWMzZjljZDg5YTE2NTM2NTQ4ZDBkZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3NmFiNmMyMDg4ZDY4NDAzMGZhMzA1OGM4NjliNDg2MjFlYjlhOTdlZTA0MjllZWIyZTFmMzlmMTFlNWEyNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3M2QxZjEyOGE5OTY4ODYxZTUzZThhZjA5OGQxYmFlNTNkODQ5ZmRlYTU4NTYxYTk2NTAzNTdiZjEwYWM0MGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1043a76079234240b03a83e7345d55ba",
+      "statement": "Import and mount failures are recorded per id together with the entry URL and reported as `plugin-load-failed`/`plugin-mount-failed`; no retry happens inside the `FAIL_RETRY_MS` cooldown (30 s) so a 404 card cannot flood the evidence log, a changed entry URL (new revision) or the elapsed cooldown grants one self-healing retry, and a successful mount clears the record.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L124-L163",
+          "version": "repo-lines-v1:sha256:b5e8ac89fead092e9b6d1eabbe2ce8f5dd4c5515f2206aa145ca39e15fd5b888:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4MzkzOTg2MmRlMjQ5Mzg1MmJiMTBmNjVkMDJiZDUyODE0YjliZTJkMTdmZDIwYTRmNGM4MTlkZjQ0OGMxYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4ZDgzY2U4MTUwZDY2YmJmOWQ4MmQ4ZjM1OWUxNzM1Mzg1ZDllMmM3MzFlNzJjNTQ4OWQzZTA0MzNiZjM3NGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMDhmOTIzNmI3YjkxNGMyODJmYzYxZDFlYzAzZWJhMjkxZWQzZDc0NzFiMGY4NTczYTg1NTI2ZDE1MTg5NmIifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L75-L85",
+          "version": "repo-lines-v1:sha256:2c652c18c3318a776b4be51940b7dc31bb92123714c62f77f1a4694c3ee7d1ab:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiOTg3MjQ2MzlkMGU2YjZlYTJmYmM2YjYxNWI2NDJkNGQ4ODM1NTMyYWMzZjljZDg5YTE2NTM2NTQ4ZDBkZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2NjRjYjY3ODAyMjUxNjhjYWI3MmJlNzNiNjBhMWY2N2VkYTA3NmI5OTgwZTAxNGVhNWI3Y2NhNmZiMTQwZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3M2QxZjEyOGE5OTY4ODYxZTUzZThhZjA5OGQxYmFlNTNkODQ5ZmRlYTU4NTYxYTk2NTAzNTdiZjEwYWM0MGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_214c51253c784786b4ae8bb9f7c4a737",
+      "statement": "`syncPlugins` is idempotent and runs on every snapshot and every `plugins/changed`: entries that are no longer `status: 'ok'` are unmounted, a changed entry URL forces unmount plus remount to bypass the ESM module cache, a changed trimmed-view JSON calls `update`, and an unchanged view produces no DOM work at all.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L698-L704",
+          "version": "repo-lines-v1:sha256:b87e140dde5de78ddc085698698c4ea5bc75a018e3aad94aac950d7db4a24d86:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjZjZTBhMTcyZGQ4ODVjOTQ5MjMzOTU4NjM1NDE1M2Y3NjVkYmQ4MjQ5NGEyZWQ5MjYyMGIxMzU4MTYwZTkzNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc3MDM2YjNlZjhmZGJjNTQxNWZiMDRjNTY3MzY3NzdmNDZiMTU0ZDY2M2JhOTI3MGVkYmU0NjQ3N2U2ZDNmYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjRlNTQzY2Y4YTEzNzU2YTI1Y2UyNzMxNjc3ZjZhNDA4NzQwMGFkMzVjYzU2OWRlODA5MGJhMTM4MzRiZWUxNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTdlOWI2YjM2NGYxNjRjMTFhZjUzOWY4NWFkOWY2MGRjYzAzNDAxMGU5OTVhYmU5MzRhNGI4ZWFjNWI3MDEwYyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L756-L763",
+          "version": "repo-lines-v1:sha256:a63ef52b08de7238d87f926ab1356b0c6a2bdd08efbc0fd49d278d9e7bdc8087:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTc0NDlhYmMyYjM2ZGVmNmUyZGU3NTM3MzgxZGM5Y2U3N2IxOTczNTAwM2YwZjNjYzYwYzJkOTJmNTgxOGI3MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmUzZmY4OTkwMThjNTVlYTM5YmM4YjlmODkwZDc1MWE1OGJlYzQ2NTNkZjk1OGY1ZTViZWZmYjRiMWMxNWViOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWNjOTkxMDNjNmZhMzkyMjkyNTYzNzNhYmEzZDZhYjQyZThlNTg4OTQ4NjhlYTMwYTIwY2ExYmQ3NzM0NGUxNCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L169-L196",
+          "version": "repo-lines-v1:sha256:5766498bd944d6dcc7508faadf3281524c21de83a2de29422670b7e53f4dc9d3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1MzliOTg0YzQwMjJmNGNiYzk2M2Q0NWQxNTU4OGI0MjI2N2QxNTE2OTE5YmFjM2IxZThjZDE2OTdiNWMzZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZDhiY2JiYWFjMGI0ZWQwZDk2YWEzOTBkODc0Y2Q1MzdiOTIyMmQxYmU2N2FkMzU4ZjFjZWM1MDA2OTdmNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkNDc2YTQ0NmJkNzUwMjY1ZTUxNjlmZTExYWVkNTU5MTkzNDQ4MzhlZWI2Y2E3NDVjZjk5MTAzZDE3ODcxMWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c584f44a6b0e404aadeafb8a826bfc41",
+      "statement": "`viewFor` copies only the declared capability sections that also exist as snapshot sections, so a plugin receives a `Partial<PanelSnapshot>` in which undeclared or unavailable sections are absent keys rather than empty values; `mount` receives that first view, `update` fires only when the trimmed view actually changes, and `unmount` runs on removal.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L186-L194",
+          "version": "repo-lines-v1:sha256:3d1348eccc95b48757e08b11d4fd48d5d2618d33c186638a26376850f79f2545:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2NhZTlmMzM5YmY4OTY1ZDFmZTdlN2YwOGMzNDg2MWFlOTg2NmQ0MmNkYmQ5YWI3Y2I3MzI0MWUwNjY3MDE3NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L28-L49",
+          "version": "repo-lines-v1:sha256:c24fb52dd637a002423aeb327ee0f766852f5f4014ba2de8c4a9c170a4224755:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1N2YzMGYxNGQ4MjA2MWJkZTAwMDkwNWFiOWVlMDZlMzk4OWFlOTdkZDdkY2FkZTEyODJhMzk1NjJmN2JjZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmODU2Njk5NWE2MWVlZmJkOTExYjM4MDg3OTc3YWUzNzQzM2ZjMjFiN2ZjZmQ3OWMxMTU5ZTQ3YjQxOGZlMWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4ZDJjZDkxZDZhNDE2M2FkZjVmYjE4YmQ3ODgyMTJjMzJmY2IxYmQ3MTM3M2I2YTIyZjNhNTkzNjg5OTUxMTEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L87-L95",
+          "version": "repo-lines-v1:sha256:15f8341bbf6394eafb406380c51a05385bbc6f73b2c37d06cfead8b8268b86f8:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDUxYWUwNzAyODRjMzZiY2Q3MDc5MGQ4NTljMmVmZDZjMTQ5NjM0YThjMDFhZjc1ODAwNDJkMGYxZGIwMWQ0OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjFjZjI0NjA2Mjg3MjEzZTg5NGNmZTI4OGYzOTViNDZjMTc3ZTc1NWVkYWM4N2NjZmFhNWYxNzE4YTEzYjBhNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWM3NDU0M2JiYTQzNmNjYjRmMWNjMmE1MzBiZGMxMTJmZWEwZmQzZDM1MzZiMWRhMDU1MmQ4M2Y2YmRmYTMzZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1c243635433441e292b2f246d9e3dbad",
+      "statement": "Plugin mounting affects the panel's click-through model: `deps.onDomChanged` is `declareHotZones`, which collects elements carrying the shared `card` class, so a component must put that class (and an id) on its own element inside the host container to become clickable — otherwise it renders into a mouse pass-through region; the acceptance battery asserts both the built-in hotzones and a freshly installed plugin's card rectangle.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2131-L2151",
+          "version": "repo-lines-v1:sha256:cf5c93dcdf434efadd033110091926cdb0ec5d7d4f3411e1447924b8d92c6414:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ODg2M2MzYzNlZmFmOWQ2ODBjZTVlZTUwYTUyYWVjNDZhYmNlZTZjMWFkMWUyZWQ4YTM3NTYyZWI1ZTBhNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkOTc2NWIxMjczMTE1N2E1YzZjNTMxODI5OGIyODdiOWVhMmQ0OWYxYzE2MDcyZDcyYmNmOGFlNzE3MDdiOTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5NmQ3NjY4NmEzYjI2NzY1YzY3ZDUxM2JlZWY0ZDNiNjJkNWE2MjViNzZlYjVkM2QxYzA3ZmNkODMwNGZkOTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4ZjYxMThjZWNmZjA3Y2JmYWE0M2QyOTdjZTVhMWZkNTQxYzdlMDM4OWQ1Yjk3MGUxOWJkMWI4ZWMxOGFhMjMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L65-L80",
+          "version": "repo-lines-v1:sha256:037020e93029a8a51e00bd39b7efc344b7d082912cf081ac12da6542e1c4ff71:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiZjlkYTVhZDBkMmZmYjc1ODFhNDgzMWRhZDMwMDZmZjhhOTUzMGQyMzg4N2NlZDJhNjczY2U5YzM4ZTNlMGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYzk0OTg1NTI2YzFjNTdlZjAwYzAwZDNmNGRjOTA2MTU2NzdhMGEzNmE4Yjc5NWRmZjlhZmZkNTBmZTlmNTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzN2I2ODM5MzQ2OWQ3YWY5YWY0Nzg1MWY2MDhkMWY5YmFkMWQ0OGE0NmQwNzBhZmFhZTY3YmZhZDU3M2RiOWEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L688-L693",
+          "version": "repo-lines-v1:sha256:c7021c1616afec284354b370a600a0bed0f75f9bca0827b652ea2da271823a35:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDk4MGFhMjAxZmNjYjZkNTVmMzUzMWJlY2NjZTFjYmFkOTUxMTBjMzBiZGQ1Zjg4MzZiZGNmMzBhODg5N2E3YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzIxM2RhNzMyYWZkYzQ1Yjk0MGJjODQxZWI3OTkyOTAyMTc3Y2JmN2RkNDlkMzc5NTk2Yjk2YTk5MDE1NDg0ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTIyYmFhNmMxZTY1YTFmNmUxMWNiMGE5YjFkNTlhNmE0NDQ5OTUxNTk1ZjQzZmJjYTM2NmM0MGI4ZGM3ZDQyNSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L738-L753",
+          "version": "repo-lines-v1:sha256:d0ca0ecd707cfc0dd2e94569637eb00bcc7389ffd9af82d8d89e703588e81d6e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmOWFjOTE2Nzc2YzJlYzI5ZDZiM2I1Njg4NDEzZTBmMmVmNmEzZTg4NWM3YjkzNWIwYzVkNWM2YWRjZGY2N2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3NzAwZGExODA5YmFkMjIyMjI0OTcwOGJlODY5YjNiYmUwZDdkMzU3NGY4MzEyM2Y0ZTg0YTIyY2FlYzgzODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0YjNmNjAzOWZkOWU0OWExYzBjYmEyMjhlMjQ1YjI1ODM4ZjMwMWNjMzJhZmFhNTU5ZDRjN2MzZWE1NmE5YjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYzIxMjc0MmI1NjI5ZTUxMzc2YTU0M2Y0ZTZmYTU5ZTM0ZTc0YWI5NmI2NjY2Y2VmMzAyOWIyMTZiZmNhZjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_aae2e6e74a8a46f7ad43b6c6d76ef7a1",
+      "statement": "Built-in cards are ordinary plugins that live in the build output: sources are `src/renderer/cards/<id>/card.ts` plus a `plugin.json`, `tsc -p tsconfig.renderer.json` compiles the entry and `scripts/copy-assets.mjs` copies each manifest into `dist/renderer/cards/<id>/` while skipping directories without one, and the built-in root `dist/renderer/cards` is scanned first and is also inside the app asset tree even though each card is its own protocol host.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L7-L13",
+          "version": "repo-lines-v1:sha256:b3fa610ec723f4df6442ae2af56f03dba6c0dfc82c2656d50551de0cf9dd9a4b:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg0MDY5ODRiZGVmY2EzNGRkNmJjOTAwMjdmMWQxMWFiY2IxNzAzNGM1MjVjOWE1Y2VmYTFkODRmY2NkODFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTJiMDc0MWQ0NWZhNGMzNDQzN2Y0NTc2YTI2YTgyZThhMGExMDRiYjBmMmM4YmQzNjA5YzQ2OTdjMTBjYjI3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGI1NThjNTRhNmY1MTE4NjhkMDY5ZmIxYzhlMjgxZGY2NGFhOGUwMzQ2MjFkYzY2MmE2ZDMyODBmZDk5ZTE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJjZjVhYTRmMTc4MWU5ZWIwZDJmYTg1MGI2N2M0Y2RjZWNjOGFkYTFiYTA5ZmUzMmEzZmRlOWI2MzY5ZGU2YyJ9"
+        },
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L10-L19",
+          "version": "repo-lines-v1:sha256:9a8982d914fdeda27da8acf84dbafcf02bc5eef1851e83a9109bb1a85a85884c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0YzY2NjhmMGM4N2MzOTIzYjdhZmJiNzQ4Mjk0ZWQ5ZTMwMWNkNTA0MmE2ZTNlNDI2ZGZkOTFjZThkZGNiMjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0MjQ0NjFiODYzYTEzMmM2NDBlMzA2MzY4MDFiOWY5Nzk1Zjc1MzUyM2U2NTU1N2UwY2FmMzg1MDIyNmUxN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZGRmYjcxMTIyZDNjZTcwMGMyYTNiZjYxNTdkMzM2MzY5NDllYTQxZGNhYTM1NDExZmFlZTViZDlkOTFiYjIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L20-L26",
+          "version": "repo-lines-v1:sha256:9f7b038ef449b60441b021d71333eb3dc92d671876a8fa81985c258e0afd3eb3:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGFhMzhlMDY4Nzk3MDQyNzM2MDFmMDFmODExMjljZjQ1N2NiOTM5OWI3NGUwZTg5Mjk4N2I0NGFiNmI1ZjBhNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDAzZTY1MDNkMDU0NjJiZTJiYTYxYjNjY2M2NTdmMjg1NzQzMzM1NDBkYjQ4ZjllYjI4ZjMzMjhiNjU2ZjExOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTllODFlZWI4MjEyN2FlZDBmMGJlZjI3YmY4ZDZmMGJjMTNkZjk3ODQyYzJiMGE5MWMwYjJjZGY1OGJkN2M0ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZThmMzRjMjdlZjU3MTVlNDk3N2U4MjMwZDU2MzRhNWRkZGIzOGU4ZDlmOWM4OGU3ZjBmYWU5YTkzZDgxMTVjYSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/clock/plugin.json#L1-L8",
+          "version": "repo-lines-v1:sha256:478363819a0fdc6892e64ca6fab5b9841c5e38c173d3fddef477451b949fabc0:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODNlYWU3ZTZhNGQzYzcxYmNjOTYzMjhjNTE5ZmJhMjk0MWVlNDg2OTY4YTZkNjMyMmZiMDhjZWI0NGUzZWZkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_97203c88126a44f6a080e2e01ecc20a5",
+      "statement": "Adding a plugin-visible data capability is a four-step recipe — add the section to `PanelSnapshot`, register the same name in `PLUGIN_CAPABILITIES`, have the owning service fill it in `BridgeService.snapshot()`, and declare it in a manifest — and skipping a step fails silently because the type checker passes while plugins never see the data; narrowing the vocabulary is the same seam, with unknown capability strings dropped silently as the retired `qoder` capability shows.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L37-L48",
+          "version": "repo-lines-v1:sha256:4304cf51b499f4bbbfdf05852a3702f9d72f3b06eb8451ebf1fe23744b8a8c4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjMjI2ODQ0MWZkMDU2ZGQwNzQxMTc3MDUyNTE4YWI3MDY5ZWFlMWY4MDZlODU3Zjg0YmU3YTc2MzljNTcwMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0ZGJhMjVmNjY4MTgyNzRjMTJiYzcyYzIyZDFmZWM1YmEyZjg4ZjgxZmE4MWU3ZDVjYmE0ZWIzNmMwMzdmYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMGE2MGY5Njg1YjM4ZWE4NmMwZGY0YzYyODU3MzI2ZjkwM2NmODI5NGMzMzhiMDc1NmNmODA1YmNmZDkzOTEifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L137-L148",
+          "version": "repo-lines-v1:sha256:9e88126d3998c81340d50e6fdd082f5f602d97fcc825f6fa615ccc4aef5169d0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwN2ExZWIwZThhYjkyMWI3MDVjOTYxYjJkYTkxNzMzNGE4OWI2NWNkM2E0ZWViNzg0ODYzMzljMzdhNTA0NWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxNGM4ODIzNDBiMDRjYjM2MzhmNDZkNjlmN2Y5NTNhOThlMDE5ZDY5NDU0MGM5ODZlMzFhMGFhMWU4NzRiNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyMTc4NTI2OTk1MDI5ZWE0Y2VmZWRkMWJlZDIyZmZkNmU2YjE2YWYzY2QwMTBjNTkyNGE5ODFjN2MxMDE5MWIifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L546-L566",
+          "version": "repo-lines-v1:sha256:6c8861542d28c174ab3fabfc805ae8a04234a8df3dea2250c13cc8677368528c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmYzU2ZGY1ODk2NDU4ZDg0NzljMDYwMjk2NDFiZTZiMTEwOGZmYzRiOGEwMGFmNmY2NjdhMGExOWY3YjBkZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzYjVmOTM0NGEwMzdhYmQ2MjQwNDk4MTg4Y2E5N2M4OWU5Y2EwODBjMmNlODc2ZmZlZjJkZTc4MTliZDQzZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhlMDVhN2Q3OGY3OGQ3MmUwMDg0MTc0OThlNTkzMzIyOWE3OTgwZDM2NmQyMGE5ZjBlMzQ5NzkyZGRiNzg1NTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7c95985c1b634850a06cb6da4cd1d381",
+      "statement": "The plugin install location is `userData/plugins` unless `config.plugins.dir` overrides it: the config module stays Electron-free and its shipped default is an empty string meaning \"use the default\", which the main process resolves through `userDataPath`, and a non-object `plugins` section or non-string `dir` warns and reverts to the default instead of failing the boot.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L160-L163",
+          "version": "repo-lines-v1:sha256:4b49d8f12fa8ef3b66e3418237a6838005a282560cad306a3451f52b9720e6e8:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmY1NjIyYmEwYWRmYzUyNDY0ZjFjYzExMzhkYjEzODUwYjc0NmQzMGY2Yzk3NzQ3OTQzY2RkNTBhMThkNjU2NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2JjYmZlYjlmYmJhMzQ1ZDYyMDVkMzk5MWRmNzAzMzQ2MzQ3ZmJlOTkwOTNiNDUxNmI5NTY2MTQ4NDJjMTc2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDUyZjc2OTRkZjhhZmEwZTk4ZTBjNDllYzE2MWZmMDYzOTFmODBkOWUzN2E5ZDNkMDgwZGE2NTJjNGEzOTMwOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L195-L201",
+          "version": "repo-lines-v1:sha256:49db9bde9ed743b3aac968f00198d6fda08e097c69e55083f7d9d5c467ef8cbe:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTQ1MzczYmQ5MDZlNjljNDM0ZTk2ZDk0ZDQyNGMwYmNlOWRjODY4NTlkZDI2OWQ4MTc1YzA1Y2Y2ZmQ2ZDY5YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmViOTBjYjJkYmUxZTQ0NDQ5YzA1ZThhZmRmZjBhZGVhZTNjMWNjYzU4OWFmNDYwNTQ2NjNmMWVkM2YzNDEwNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjU1MzJkMzcwNzI5Y2EzMjIxYzQ4MjhjNzkwNTIyNzg3ZmFiNjNiYmM3YTdkNTFhY2I1MTZjOGJiZTZmNzEwZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzgxNTVmNWIwMDVhM2IxYTEyMzc3MDUyOGVmMTI2MmY3ODI2ZmJjZTUyNTEzNjYxYzZhM2Q0ZDdjYmRkMTI0NiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L50-L58",
+          "version": "repo-lines-v1:sha256:4566bb25b11b0323afaafa637cded9690ca773ef8513f3a4e8a05e879efe3e2b:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2ViMzA2ODcxMDI5ZDJiNTMzMDQwYzYwOGJhZTBhMTBiZTdkMDQ3Y2MzMDcyY2ZjM2YzMGU5ZDM1NGI1Y2E3MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmNiM2VhYTRlZDZkNjczZjJmM2Y4MjVkOTExMmQ2ZjVjYTY3ZDdmNjUzYWNiZGE4YmU2ZTQzYzA0NTcwZTg2NiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L91-L92",
+          "version": "repo-lines-v1:sha256:2e955a8b0e5502789f29c8ddae45cb678f10566067447bb9ecf49a862bb58b0f:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdhMTJlYzBhOGU0MjljOWVhOGYzNWRiMDk3MzQxYTY1ZTI0NWZhMTVkMzA2NTZkZjg5NDMzZDI1NmI2MTBiZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRlOTVjMjE0NWRkNzkzMDM0NjQ1NWZjNmUzZDNkYWU2OTM1OGM0N2EzNzIxMWU2ZjQ2NDcwNWFlMTc2ZmExOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTNjYTNlYmE5MzRmMDI2NDA2MzZkMDA0OTM2ZGY0MWM3ZWQ1ZTRjMDUwYTg3NmM2ZGQwZWFlZWIwZGE1NTYxMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODJmZDc4NWUwZTRjZjg3MTAyNmNlNTc4NGRkZjM4NGExNzQwNTMzMjIwNzg0NzJjNWQ2N2YwZDYyYWE3MDNkOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/paths.ts#L7-L14",
+          "version": "repo-lines-v1:sha256:10d70f1ea2eef19756751cf327f2018c56daff9c9a23c9393d3e2bd2e58a2550:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODYyNTQxMTlmYjAzNmFkNmQxOTRiZTE1MDIzZDRlOGZjYjY0ZTZiODlkNGRhMDkzNzVkYzE1NzQwYWJjMzZkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWU0ZDNhNGU2ZWRjZTNkZWM2NTNhODY0NWEzMzMyMWViZjRjM2MwMzgzMzY3ZTAwNDFlYWIyM2VkNTFjMTE4NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_04a33bd8397d4acbb7fd9f31e2f3979b",
+      "statement": "`samples/hello-plugin` is the reference third-party plugin: one directory holding a `plugin.json` (id `hello`, `capabilities: [\"clock\"]`, order 900) and a single-file `card.js` whose default export implements `mount`/`update`/`unmount`, draws into `host.el`, reads only `host.view.clock` and reports `hello-mounted` so the acceptance battery can prove the plugin module itself ran, separately from the host's `plugin-mounted` event.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2127-L2162",
+          "version": "repo-lines-v1:sha256:983a7bb824fa7181f897f9ea2354d8250c807b70fed5f530703bdd0e8607cec0:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxYzViNjA2ODY1NWU2NDQ3MzM4NDM3MjljOGFjNzJiYjA1Y2FkYzBmNmNkZWZiNDlmZGMxNGFmZDZkNWE3ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2ODExYmE5Y2FmMzk3ZDJhNjdlNDExOGViNmFjMGM1NTdlNDdkODhjNmZjYTEyMmFiOGI2MTMyNzg3OWZiZDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhZjc1Y2NiOTI1ZjI4NTNiMDIzMDk1NjVmMDdhNzU3Y2ViNjdmNzg5M2U1MDhjZGU4NGQ2OGJmZTRhZmM3NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjNmJkZmJlNGEzYjhjNjJhNmJlYzI2YzgxNTZjNzNlYzVlOTc1ZGE4OTY0OGFjZGJmYzQ0NTI1NDA1MmRkNjkifQ"
+        },
+        {
+          "resource": "repo://app/samples/hello-plugin/card.js#L1-L45",
+          "version": "repo-lines-v1:sha256:f405758bfe5df0b6f9bc8592d8a50f6d62dc91c58e35749dd424836eb4e87fac:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkYmQwYWUxY2U0YTg3ODQ4MGFlOTNhNDcwZjY3YTE3ZTc5ZmMzNDBiNWU5MDY5ZjZiZGZjYzNhYzdhYzQ2NTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYzk0OTg1NTI2YzFjNTdlZjAwYzAwZDNmNGRjOTA2MTU2NzdhMGEzNmE4Yjc5NWRmZjlhZmZkNTBmZTlmNTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/samples/hello-plugin/plugin.json#L1-L8",
+          "version": "repo-lines-v1:sha256:ac7ea0a27b5bbbec2737bb171a0e3e5a0a5d205ce39b525e72f3ca556d53cc57:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODNlYWU3ZTZhNGQzYzcxYmNjOTYzMjhjNTE5ZmJhMjk0MWVlNDg2OTY4YTZkNjMyMmZiMDhjZWI0NGUzZWZkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_dc7a71ed8b974b5f879e2fc05d898741",
+      "statement": "Plugin id lookups are Map-based throughout the host and the protocol, so prototype-key ids such as `constructor` are addressable and `dirOf`/asset resolution for an unregistered id such as `toString` returns undefined instead of hitting `Object.prototype` — the defence is the data structure, not a banned-name list.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L92-L128",
+          "version": "repo-lines-v1:sha256:1486d13e05646bfe61696a53d03e95c823e81ef332a5c38b46502e3f92071fdc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0NWJjNGVmN2E0NTlhMjNhNGM1OWY4Y2Y4MDM3MDFmYmVkZmVjOWEzNTYzM2ExYWM1NDFjMTNkNzllMzA4ZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc4OWNmM2Y5ZDExNjc4MDllYmIyNzg4OGU0NGNjYTljZTRlMWI4ODU5NWVmMzRjYmNkZDgwYTU3Yzg1YjhhZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMwNjU1NzdjZjdhMDhiYWQ3YTZlZGQzODMxYjZkZTFjMjFkNzE4N2ViNzhiMDRlMGRkMTY1MGZlYmQ2MWM4YjQifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/manifest.spec.ts#L48-L55",
+          "version": "repo-lines-v1:sha256:dcfa4adddb0c992f262077c91b9d9e903aacd263bce3011371c8e866c8b6ea9f:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGQzNTcxOTM5ZjFkODcyMTFiOTBkMGU5NzY5ZGZkNzBhZDY1YjIzZWIzM2I3ZTRjYTdiY2JlOWE4YTY5YmVhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTY2NGQwNjk2NmQyMzhiZWU3ZTFlZWUxYWFhZGRhN2ZkN2QwYjg0MDM5YjczNGFlOTRmMjVkZWFkOGNmYmExNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmJhZjNhYzg4YTc3ZmZjODI1ZWE1NWVkYTVmMWYyMWY4ZTZiOTJhODViYTU3NTY3NzcyODA1N2Y4YTRiMDJkZiJ9"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L113-L128",
+          "version": "repo-lines-v1:sha256:ada6f9fc960ff7f9fc519669757380f882fd334b8c2ec5b1054820f528f5a94b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxYWVhNjY1ZWYyYzhhYTEyMDhkOTBhOWZhNTQwYzQ1MmMxY2I3OTg0ZjJkZDcyZTY0MGI1NjRhNDE4ZjMwYTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MTlmYzFmNzE5MDNiZDc4MzI3ZTUxODE3YWMwNDBhMTA4NDk1YWEwODEzOGNjNDZhNjk3MmU1NzQxMWYwZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExMzAwMTdlNGFmZjk4NmEyNDcyYmU1ODgzNjc5ZGZhY2Q2Yjk3YjQ2MTg0ZmJiNDAwNjVjMjc2YTgxMmMyNGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e9694f9bdba440d085dee399c04a7492",
+      "statement": "Offline coverage is three plugin suites (`manifest`, `assets`, `service`) plus a plugin section in the kernel contract suite; the renderer runtime and the Electron protocol wiring have no unit tests and are instead covered by the real-machine acceptance battery, whose P11 segment installs the sample plugin at runtime and asserts mount, hotzone presence, reload after editing `card.js`, disappearance on uninstall and recovery on reinstall while the boot evidence count stays unchanged.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2065-L2196",
+          "version": "repo-lines-v1:sha256:b92fdeb51d3cf7591da774899707c16e028cbfaa21417c1896fef871c176a442:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3ODk1NDBkNTJhYmNmZGQyNmY5ODczZGJjYmZjYjQ4Zjg4NjE1ZTI5OGE5ZDc5Y2JiNjgyOGJmOWQ0YmU2Y2M4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI2NTkzZGM5NzcyZjI4ZTMwNTU3NzFmNzQzZjU5YTBlZWQ2NjMwZGZmYjgyMDk5MTdiM2NlNTU2YmVjNzhmNWRlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlNTUyZGFiMjc5NDA4ODNlNTE3YjIzMTkyNTE1ZTc2ZTFiYjQ4NGFiYjBkMTgxMzIzYWQ2OTE2M2JiYWM3ODZiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwZGI5NmQ5YzNhNDMxYzg2MDZjNzY1MmFkZjEyMThmYzFkNDBkNGIxMjUwN2RkODY5N2U2NjM4ZjkzMzFhYTg1In0"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L443-L535",
+          "version": "repo-lines-v1:sha256:34f0501bf2080e8e45f1b70ee0157ffdefbe8482a4a9292b7627dd67ead820ca:eyJzZWxlY3RlZExpbmVDb3VudCI6OTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3ZGE3YjExZWIwNWEyZGFhYTIxNDE2MzExM2U0MWZlZTZhMzc1ZTA2M2E3MWYyMjQzZmM1YjA3MzllZWRlNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3ODJlMzYxNWIzNmMzZTBlYjI0NDdhYzlhZTJiODg2MWJjNjU1NjU2MzdhOTU5ZTlmNzBlYmM3ZjY2YThjZGYifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/assets.spec.ts#L22-L96",
+          "version": "repo-lines-v1:sha256:cf02b79d2ccdc876a3b6f4a69f21dae74f4dcee17afd65685a0c7ec51d017cc2:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlNGJhZmNkOWE4MDM4MmNkOTYxZjE1ODk3OTA5NTc1Y2E2MzNmZDMxYjRmMjcxMjFhNjlhNTg3NzI2MmYyNjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3MzhiMjEyZDA4MWM4ZGM5NDcyYTYyMDAwNjllMzY3ODQwNjZlNTUwMjY5NjA0M2RkMGJlYmI1YjVjNTQ5MTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUzMjg4OTk3ZDVjNTg3MTAxN2QxYTUyNDRlNzllNjYwZTBlYjJkODhmZGIxYWY3NjA0ZmMwZDViMDU4ODE2NjIifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/manifest.spec.ts#L14-L100",
+          "version": "repo-lines-v1:sha256:1770594016a861292d4f8ebc7b458f3c8891a39f209c8159b4570c3354109655:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ3M2ZmNGVlNzU1YWRkZDUzYzA3YjZiZDQyYjE2MGFlMjVhODA2ZWM4YzgzYzBlYzMzZTY1NDZkNWY0ZmFlNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxODExMjQyMjY1NzZkN2NlODNiYmIwYzQzNDY5YmIwOTdjNDdiODc4NThkNDM2N2RlNTZkYTc4ZWI1MmQwNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        },
+        {
+          "resource": "repo://app/tests/plugins/service.spec.ts#L10-L13",
+          "version": "repo-lines-v1:sha256:1b86166bc05a08c40f30d804faf513f47cea050d0a6ef03f500821e8848d104a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGNlMDMxYzIzNmU4OWE3NDhjZjY2Njc1ZTJlZTg5MDFhNzc0ZjIzZTc5Nzk0ZTQ0ODI3ODJiODMyNTgxMWRlOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjAwYTBiOGYxNjY2MmRkZTJjNmExNmJmNmQwZWVkMjg0MGRkYTIyMmY3MWU4Njg4ODc5OWQ0NGU2YWRkODQzNCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}
