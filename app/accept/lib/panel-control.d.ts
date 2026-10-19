@@ -50,8 +50,9 @@ export declare function createPanelControl(deps?: PanelControlDeps): {
 
 // —— 面板句柄（工单206，spec #202 决策3）——
 
-/** 发射形态：full=全量面板（守卫链同形），accept=验收面板（--panel-accept 绕开单实例锁） */
-export type PanelLaunchMode = 'full' | 'accept'
+/** 发射形态：full=全量面板（守卫链同形），accept=验收面板（--panel-accept 绕开单实例锁），
+ *  tray-spike=托盘 spike 特殊形态（--tray-spike；编排台账 §8 裁决 3 扩枚举，纯增量） */
+export type PanelLaunchMode = 'full' | 'accept' | 'tray-spike'
 /** stdio 三形态：ignore=无管道 / drain=管道且排空（工单132 正解） / archive=落证据档 */
 export type PanelStdioMode = 'ignore' | 'drain' | 'archive'
 

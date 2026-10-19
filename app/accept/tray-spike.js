@@ -11,17 +11,29 @@
 const { app, BrowserWindow, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // 工单212：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
 // 超时档 6000（母票 #201 决策 8 原文列举的 tray-spike 档）
 const { createEventTape } = require('./lib/event-tape');
+// 工单212：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '48-runtime-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 6000 });
+// 工单212：句柄装配——发射形态 tray-spike（['.','--tray-spike']，编排台账 §8 裁决 3 扩枚举）；
+// 事件档 EVENTS_FILE（boot 自报 pid 的来源）；证据档按电池注入专属档名（裁决 10 第①条）——
+// 本电池走 stdio=drain 形态，不产生需 close 的 fd
+const handle = createPanelHandle({
+  execPath: process.execPath,
+  appRoot: APP_ROOT,
+  eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '48-tray-spike-panel-handle-child.log'),
+});
 const CORPUS_FILE = path.join(__dirname, 'evidence', '48-tray-corpus.jsonl');
 const AMBER = [245, 166, 35]; // 面板托盘图标识别色（tray.ts #f5a623）
 const SPIKE_TITLE = 'TRAY-SPIKE-ACCEPT';
@@ -170,35 +182,33 @@ async function main() {
     rep.fail('互斥侦察失败：未找到 explorer 的 Shell_TrayWnd（存在 RetroBar/Seelen 类竞争者时本验收不可判）');
   }
 
-  let child = null;
   let probeWin = null;
   const cleanup = async () => {
     try { probeWin && probeWin.destroy(); } catch { /* 尽力 */ }
-    if (child) {
-      try { child.kill(); } catch { /* 尽力 */ }
-      await sleep(600);
-      try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 尽力 */ }
-      child = null;
-    }
+    // 工单212：清场归面板句柄**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）；
+    // 原实现是无验证 taskkill（/T /F 后不验消失就广播 TaskbarCreated）——面板残留会占着
+    // 竞争窗位，「交还真托盘」这条断言本就靠面板真的死掉才成立
+    const cleared = await handle.stop();
     // 交还真托盘：我方窗口随进程死亡消失，广播 TaskbarCreated 让响应的应用重新注册回 explorer
     broadcastTaskbarCreated();
     await sleep(2500);
+    return cleared;
   };
 
   try {
     // —— P0 拉起 spike 面板 ——
     rep.beginSegment('P0');
-    child = spawn(process.execPath, ['.', '--tray-spike'], {
-      cwd: APP_ROOT,
-      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_TRAY_CORPUS: CORPUS_FILE },
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // 工单212：发射归面板句柄——mode='tray-spike'（['.','--tray-spike']，编排台账 §8 裁决 3
+    // 扩 mode 枚举）；stdio='drain'（工单132：stdout 管道必须排空，同主电池根因修复）；
+    // 托盘语料库路径经 extraEnv **逐字**保住（DECK_TRAY_CORPUS）；事件档由句柄注入
+    const receipt = handle.launch({
+      mode: 'tray-spike',
+      stdio: 'drain',
+      extraEnv: { DECK_TRAY_CORPUS: CORPUS_FILE },
     });
-    let stderrTail = '';
-    child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-    child.stdout.on('data', () => {}); // 工单132：stdout 管道必须排空（同主电池根因修复）
 
     const ready = await tape.wait('tray-host-ready', null, { timeoutMs: 25000 });
-    if (!ready) throw new Error(`25s 内未见 tray-host-ready\nstderr:\n${stderrTail}`);
+    if (!ready) throw new Error(`25s 内未见 tray-host-ready\nstderr:\n${receipt.stderrTail()}`);
     rep.pass(`托盘宿主上线：竞争窗口 hwnd=0x${Number(ready.hwnd).toString(16)}，接管前真托盘=0x${Number(ready.realTrayHwnd).toString(16)}`);
 
     // —— P1 投递竞争：置顶重申持续赢下 FindWindow ——
@@ -325,7 +335,14 @@ async function main() {
 
     // —— P6 交还：杀面板 → 广播 → 真托盘回归 explorer ——
     rep.beginSegment('P6');
-    await cleanup();
+    const cleared = await cleanup();
+    // 工单212：gone=false ＝「需重启清障」中止信号（#202 决策 8 的中止语义）——入环境降责账
+    // 并中止后续段（throw 借电池的 try/catch 汇流，不吞）
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+        '面板强退序列未能终结面板进程', 'panel-forcekill');
+      throw new Error('面板强退失败：需重启清障——后续段中止');
+    }
     const trayAfter = realTrayHwnd();
     trayAfter
       ? rep.pass(`交还真托盘：面板退出后 explorer 托盘在场（0x${trayAfter.toString(16)}），TaskbarCreated 已广播`)
