@@ -1,27 +1,60 @@
 // 清单校验器（工单115，spec #109 seam③）：夹具源码+夹具清单断言双向缺失/字段缺失/
 // 超预算各判红、合法清单判绿；另以真仓库清单+六电池真实源码跑「现状全绿」——
 // CI（test.yml 的 npm test）由此静态把关测试集的每次增删改。
-import { readFileSync } from 'node:fs'
+// 工单204（spec #201 A1）扩：段级 areas 域标签（封闭词表）+ path→area 映射表完备性，
+// 与既有「失效面五枚举」治理同执行力。
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { extractCodeSegments, validateManifest, validateScopeSegments } from '../../accept/lib/manifest-check'
 import { loadManifest } from '../../accept/lib/report'
 
-/** 夹具清单：单电池两段，全字段合法 */
+/** 夹具清单：单电池两段，全字段合法（工单204 起含域标签与 path→area 映射表） */
 function legalManifest() {
   return {
     version: 1,
     surfaces: { 'panel-alive': '面板存活', pixel: '像素', 'event-evidence': '事件存证', 'input-injection': '输入注入', 'system-state': '系统状态' },
+    areas: { 'panel.core': '面板内核', desktop: '桌面域', accept: '验收域' },
+    wideAreas: ['panel.core'],
+    sourceRoots: ['app/src'],
+    pathAreas: [
+      { path: 'app/src', area: 'panel.core' },
+      { path: 'app/src/main', area: 'panel.core' },
+      { path: 'app/src/desktop', area: 'desktop' },
+    ],
     batteries: [{
       id: 'fx', title: '夹具电池', entry: 'accept/fx.js', script: 'accept:fx', budgetSeconds: 100,
+      areas: ['accept'],
       segments: [
-        { seg: 'F1', ticket: 1, title: '首段', surfaces: ['panel-alive'], estSeconds: 30 },
-        { seg: 'F2', ticket: 2, title: '次段', surfaces: ['pixel', 'system-state'], estSeconds: 40 },
+        { seg: 'F1', ticket: 1, title: '首段', surfaces: ['panel-alive'], areas: ['panel.core'], estSeconds: 30 },
+        { seg: 'F2', ticket: 2, title: '次段', surfaces: ['pixel', 'system-state'], areas: ['desktop'], estSeconds: 40 },
       ],
     }],
   }
 }
 const legalSource = "function go() {\n  const rep = new Report('fx', {})\n  rep.beginSegment('F1')\nrep.pass('a')\nrep.beginSegment('F2')\nrep.fail('b')\n}\n"
+
+/** 递归枚举源码树（工单204：path→area 完备性校验的输入）——目录与文件，仓库根相对路径、/ 分隔 */
+function collectSourceTree(root: string, roots: string[]): { dirs: string[]; files: string[] } {
+  const dirs: string[] = []
+  const files: string[] = []
+  const walk = (abs: string, rel: string) => {
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const childRel = `${rel}/${entry.name}`
+      if (entry.isDirectory()) {
+        dirs.push(childRel)
+        walk(resolve(abs, entry.name), childRel)
+      } else if (entry.isFile()) {
+        files.push(childRel)
+      }
+    }
+  }
+  for (const r of roots) {
+    dirs.push(r)
+    walk(resolve(root, r), r)
+  }
+  return { dirs, files }
+}
 
 describe('段号字集提取', () => {
   it('提取保序去重：同段重复起笔只记一次', () => {
@@ -118,6 +151,93 @@ describe('夹具校验：双向缺失/字段缺失/超预算各判红', () => {
   })
 })
 
+describe('段级 areas 域标签（工单204：域标签封闭词表）', () => {
+  it('段级域标签越出封闭词表 → 判红（负例）', () => {
+    const m = legalManifest()
+    m.batteries[0].segments[0].areas = ['smell']
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('smell') && e.includes('不在域标签封闭词表内'))).toBe(true)
+  })
+
+  it('电池级域标签越出封闭词表 → 判红（负例）', () => {
+    const m = legalManifest()
+    m.batteries[0].areas = ['smell']
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('smell') && e.includes('不在域标签封闭词表内'))).toBe(true)
+  })
+
+  it('段级与电池级都无域标签 → 判红（每段必须登记归属域）', () => {
+    const m = legalManifest()
+    delete (m.batteries[0].segments[0] as { areas?: string[] }).areas
+    delete (m.batteries[0] as { areas?: string[] }).areas
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('F1') && e.includes('缺域标签 areas'))).toBe(true)
+  })
+
+  it('电池级标签覆盖：段无域标签时取电池级（副电池单域覆盖口径）', () => {
+    const m = legalManifest()
+    delete (m.batteries[0].segments[1] as { areas?: string[] }).areas
+    m.batteries[0].areas = ['desktop']
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.errors).toEqual([])
+    expect(r.ok).toBe(true)
+  })
+
+  it('清单缺 areas 封闭词表 → 判红（词表缺位＝治理缺位）', () => {
+    const m = legalManifest()
+    delete (m as { areas?: Record<string, string> }).areas
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('缺 areas 域标签封闭词表'))).toBe(true)
+  })
+})
+
+describe('path→area 映射表完备性（工单204）', () => {
+  it('源码目录未在映射表登记 → 判红（负例：新目录必须先定域）', () => {
+    const m = legalManifest()
+    const r = validateManifest({
+      manifest: m,
+      sources: { fx: legalSource },
+      sourceTree: { dirs: ['app/src', 'app/src/main', 'app/src/undeclared'], files: ['app/src/main/a.ts'] },
+    })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('app/src/undeclared') && e.includes('未在 path→area 映射表登记'))).toBe(true)
+  })
+
+  it('源码文件未被任何映射规则覆盖 → 判红（负例：源码根本身未登记）', () => {
+    const m = legalManifest()
+    const r = validateManifest({
+      manifest: m,
+      sources: { fx: legalSource },
+      sourceTree: { dirs: ['app/other'], files: ['app/other/x.ts'] },
+    })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('app/other/x.ts') && e.includes('未被 path→area 映射表覆盖'))).toBe(true)
+  })
+
+  it('映射规则的域越出封闭词表 → 判红（负例）', () => {
+    const m = legalManifest()
+    m.pathAreas.push({ path: 'app/src/x', area: 'nope' })
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('app/src/x') && e.includes('不在域标签封闭词表内'))).toBe(true)
+  })
+
+  it('映射规则缺 path / 缺 area → 判红（负例）', () => {
+    const m = legalManifest()
+    m.pathAreas.push({ area: 'desktop' } as never)
+    m.pathAreas.push({ path: 'app/src/y' } as never)
+    const r = validateManifest({ manifest: m, sources: { fx: legalSource } })
+    expect(r.ok).toBe(false)
+    const joined = r.errors.join('\n')
+    expect(joined).toContain('缺 path')
+    expect(joined).toContain('缺 area')
+  })
+})
+
 describe('--accept-scope 硬交叉校验', () => {
   it('声明段号全在清单 → ok；任一未知 → unknown 指认', () => {
     const m = legalManifest()
@@ -161,12 +281,35 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
       sources[b.id] = readFileSync(resolve(APP_ROOT, b.entry), 'utf8')
     }
     // 反向核对：accept 目录（除 lib/ 与非电池脚本）在场脚本必须全部入清单
-    const { readdirSync } = require('node:fs') as { readdirSync: (p: string) => string[] }
     const presentEntries = readdirSync(resolve(APP_ROOT, 'app/accept'))
       .filter((f) => f.endsWith('.js'))
       .map((f) => `app/accept/${f}`)
     const r = validateManifest({ manifest, sources, presentEntries })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
+  })
+
+  it('八电池真实清单：域标签全回填 + path→area 映射表对源码目录完备（工单204）', () => {
+    const manifest = loadManifest()
+    expect(manifest).not.toBeNull()
+    // 词表落在 14 域上（封闭：清单 areas 键集就是全集，CI 以它为准）
+    expect(Object.keys(manifest!.areas).length).toBe(14)
+    const sources: Record<string, string> = {}
+    for (const b of manifest!.batteries) {
+      sources[b.id] = readFileSync(resolve(APP_ROOT, b.entry), 'utf8')
+    }
+    const sourceTree = collectSourceTree(APP_ROOT, manifest!.sourceRoots || [])
+    const r = validateManifest({ manifest, sources, sourceTree })
+    expect(r.errors).toEqual([])
+    expect(r.ok).toBe(true)
+    // 94 段全部有归属域：段级或电池级至少一处登记
+    const total = manifest!.batteries.reduce((n, b) => n + b.segments.length, 0)
+    expect(total).toBe(94)
+    for (const b of manifest!.batteries) {
+      for (const s of b.segments) {
+        const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
+        expect(eff.length).toBeGreaterThan(0)
+      }
+    }
   })
 })

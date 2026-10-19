@@ -8,6 +8,12 @@
  *   ② 字段完备校验——清单条目缺段号/工单号/失效面/估计时长判红；
  *   ③ 分电池时长预算——估计时长求和 ≤ 该电池预算，超预算判红。
  * 另供 --accept-scope 的硬交叉校验（工单110 告警不阻断的升级）：声明未知段号即错。
+ *
+ * 工单204（spec #201 A1）增两道硬校验，与既有失效面五枚举治理同执行力：
+ *   ④ 段级 areas 域标签——取值必须落在清单 areas 封闭词表内；段级缺省时取电池级
+ *      （副电池单域覆盖口径），两处皆缺即判红（每段都必须有归属域）；
+ *   ⑤ path→area 映射表完备性——源码目录须逐个登记、源码文件须被某条规则覆盖，
+ *      且规则自身的域必须在封闭词表内（新目录不先定域＝耦合表有洞）。
  */
 
 /** 电池源码里的段起笔字集：六电池全部单引号字面量、无模板串、无变量段号（工单114 交接） */
@@ -34,12 +40,48 @@ function extractCodeSegments(source) {
 }
 
 /**
+ * 仓库相对路径归一（工单204）：反斜杠转正斜杠、去 './' 前缀、去尾部斜杠。
+ * 映射表与源码树两侧同一把尺，Windows 路径与 POSIX 写法都能命中。
+ */
+function normalizeRepoPath(p) {
+  return String(p == null ? '' : p).replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+/**
+ * path→area 映射命中（工单204）：最长前缀命中——同目录内更细的规则覆盖更粗的目录规则
+ * （例：app/src/renderer/taskbar-menu 覆盖 app/src/renderer/taskbar 下的菜单族文件）。
+ * @param {string} path 仓库相对路径
+ * @param {Array<{path: string, area: string, wires?: string}>} pathAreas 映射表
+ * @returns {{path: string, area: string, wires?: string}|null}
+ */
+function matchPathArea(path, pathAreas) {
+  const p = normalizeRepoPath(path);
+  if (!p) return null;
+  let best = null;
+  let bestLen = -1;
+  for (const rule of Array.isArray(pathAreas) ? pathAreas : []) {
+    if (!rule || typeof rule.path !== 'string') continue;
+    const rp = normalizeRepoPath(rule.path);
+    if (!rp) continue;
+    if (p !== rp && !p.startsWith(rp)) continue;
+    if (rp.length > bestLen) { best = rule; bestLen = rp.length; }
+  }
+  return best;
+}
+
+/** 域标签封闭词表（工单204）：清单 areas 键集——词表与映射表同处维护，取值越表即判红 */
+function areaVocabulary(manifest) {
+  return new Set(Object.keys((manifest && manifest.areas) || {}));
+}
+
+/**
  * 清单 ↔ 源码双向校验。
- * @param {{manifest: object, sources: Record<string, string>, presentEntries?: string[]}} req
+ * @param {{manifest: object, sources: Record<string, string>, presentEntries?: string[], sourceTree?: {dirs: string[], files: string[]}}} req
  *   manifest：清单对象（report.loadManifest() 的产物或夹具）；sources：batteryId → 源码全文。
  *   sources 缺某电池 = 该电池「清单在账、源码缺席」——判红（登记处指向的电池必须真实存在）。
  *   presentEntries：accept 目录下实际在场的电池脚本路径表（评审 P2 反向核对——新电池脚本
  *   不入清单则整块逃逸治理）；给出时，清单外的在场脚本判红。
+ *   sourceTree：源码树枚举（工单204）——目录与文件，仓库相对路径；给出时核 path→area 完备性。
  * @returns {{ok: boolean, errors: string[]}}
  */
 function validateManifest(req = {}) {
@@ -52,7 +94,25 @@ function validateManifest(req = {}) {
   if (!manifest.surfaces || typeof manifest.surfaces !== 'object') {
     errors.push('清单缺 surfaces 五枚举映射');
   }
+  // 域标签封闭词表（工单204）：词表缺位＝治理缺位——与失效面五枚举同款执行力
+  if (!manifest.areas || typeof manifest.areas !== 'object' || !Object.keys(manifest.areas).length) {
+    errors.push('清单缺 areas 域标签封闭词表（工单204）');
+  }
   const legalSurfaces = new Set(Object.keys((manifest && manifest.surfaces) || {}));
+  const legalAreas = areaVocabulary(manifest);
+  // path→area 映射表（工单204）：规则先过词表，再核源码目录完备性
+  const pathAreas = Array.isArray(manifest.pathAreas) ? manifest.pathAreas : [];
+  if (!pathAreas.length) errors.push('清单缺 path→area 映射表（工单204：源码目录 → 域标签）');
+  for (const r of pathAreas) {
+    if (!r || typeof r !== 'object') { errors.push('path→area 映射表出现非对象规则'); continue; }
+    const rp = typeof r.path === 'string' ? r.path : '';
+    if (!rp) errors.push('path→area 映射规则缺 path');
+    if (typeof r.area !== 'string' || !r.area) errors.push(`path→area 映射规则 "${rp || '?'}" 缺 area（域标签）`);
+    else if (!legalAreas.has(r.area)) errors.push(`path→area 映射规则 "${rp}" 的域 "${r.area}" 不在域标签封闭词表内`);
+    if (r.wires !== undefined && r.wires !== '*') {
+      errors.push(`path→area 映射规则 "${rp || '?'}" 的 wires 只接受 "*"（共享验收基建）或缺省`);
+    }
+  }
   const seenIds = new Set();
   const knownEntries = new Set();
   for (const b of manifest.batteries) {
@@ -65,6 +125,11 @@ function validateManifest(req = {}) {
     else knownEntries.add(b.entry);
     if (!b.script) errors.push(`${where} 缺 script（npm run 别名）`);
     if (!Number.isFinite(b.budgetSeconds) || b.budgetSeconds <= 0) errors.push(`${where} 缺正数 budgetSeconds`);
+    // 电池级域标签（工单204）：副电池单域覆盖用——取值同样必须在封闭词表内
+    const batteryAreas = Array.isArray(b.areas) ? b.areas : [];
+    for (const a of batteryAreas) {
+      if (!legalAreas.has(a)) errors.push(`${where} 电池级域标签 "${a}" 不在域标签封闭词表内`);
+    }
 
     const segs = Array.isArray(b.segments) ? b.segments : [];
     if (!segs.length) errors.push(`${where} 段条目为空（电池无段=登记处与代码脱节）`);
@@ -82,6 +147,13 @@ function validateManifest(req = {}) {
       else for (const sf of s.surfaces) {
         if (!legalSurfaces.has(sf)) errors.push(`${tag} 失效面 "${sf}" 不在五枚举内`);
       }
+      // 段级域标签（工单204）：段级优先，缺则取电池级覆盖（副电池单域口径）；两处皆缺判红
+      const segAreas = Array.isArray(s.areas) ? s.areas : [];
+      for (const a of segAreas) {
+        if (!legalAreas.has(a)) errors.push(`${tag} 域标签 "${a}" 不在域标签封闭词表内`);
+      }
+      const effAreas = segAreas.length ? segAreas : batteryAreas;
+      if (!effAreas.length) errors.push(`${tag} 缺域标签 areas（段级与电池级至少一处登记，工单204）`);
       if (!Number.isFinite(s.estSeconds) || s.estSeconds <= 0) errors.push(`${tag} 缺正数估计时长 estSeconds`);
       else estSum += s.estSeconds;
       manifestSegs.push(s.seg);
@@ -120,6 +192,24 @@ function validateManifest(req = {}) {
   for (const p of Array.isArray(req.presentEntries) ? req.presentEntries : []) {
     if (!knownEntries.has(p)) errors.push(`电池脚本 ${p} 在场但未入清单（新电池整块逃逸治理）`);
   }
+  // path→area 映射表完备性（工单204）：源码目录逐个登记（新目录不先定域＝耦合表有洞），
+  // 源码文件须被某条规则覆盖（否则改动落到哪个域说不清，选段就无从推理）
+  if (req.sourceTree) {
+    const exactPaths = new Set(pathAreas
+      .filter((r) => r && typeof r.path === 'string' && r.path)
+      .map((r) => normalizeRepoPath(r.path)));
+    const rulePaths = [...exactPaths];
+    for (const d of Array.isArray(req.sourceTree.dirs) ? req.sourceTree.dirs : []) {
+      const key = normalizeRepoPath(d);
+      if (!exactPaths.has(key)) errors.push(`源码目录 ${key} 未在 path→area 映射表登记（新目录必须先定域）`);
+    }
+    for (const f of Array.isArray(req.sourceTree.files) ? req.sourceTree.files : []) {
+      const key = normalizeRepoPath(f);
+      if (!rulePaths.some((rp) => key === rp || key.startsWith(rp))) {
+        errors.push(`源码文件 ${key} 未被 path→area 映射表覆盖`);
+      }
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 
@@ -139,4 +229,12 @@ function validateScopeSegments(scope, manifest, batteryId) {
   return { ok: declared.every((s) => known.has(s)), unknown: declared.filter((s) => !known.has(s)) };
 }
 
-module.exports = { extractCodeSegments, validateManifest, validateScopeSegments, SEGMENT_CALL_RE };
+module.exports = {
+  extractCodeSegments,
+  validateManifest,
+  validateScopeSegments,
+  matchPathArea,
+  areaVocabulary,
+  normalizeRepoPath,
+  SEGMENT_CALL_RE,
+};
