@@ -19,6 +19,7 @@
     "accept:taskbar-appbar": "npm run build && electron . --accept-taskbar-appbar",
     "accept:taskbar-apps-filter": "npm run build && electron . --accept-taskbar-apps-filter",
     "accept:doc-group-cards": "npm run build && electron . --accept-doc-group-cards",
+    "accept:plan": "node scripts/select-rounds.js",
     "dev:panel": "npm run build && electron . --panel"
   },
   "dependencies": {
