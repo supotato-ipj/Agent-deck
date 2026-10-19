@@ -2,6 +2,16 @@
 // 外部行为契约。seam = 工厂返回的四方法（母票决策7 定稿的对外接口）——只测公开语义，
 // 不断言内部实现：半行容错与自愈、since 时间门、超时返回 null、waitStable 安静判据、
 // 解析缓存不改变可见行为、构造默认超时与显式覆盖的关系。
+//
+// 工单205 独立审计补测（变异存活欠账）：审计 31 个变异里 10 个存活，4 个落在批1 迁移
+// 的 214 个调用点主路径上——根因是「所有 wait 命中场景都是事件在调用前就已存在」，
+// 没有一条用例断言「事件在等待期间到达能被接到」。本文件按此补齐四条盲区：
+//   必补1 wait() 的谓词路径（第一拍不满足、第二拍满足 → 交出第二拍）
+//   必补2 wait() 的等待期间重读（等待途中落盘的新事件能被接到）
+//   必补3 waitStable() 的等待期间重读（等待途中的更新拍才是交出的那一拍）
+//   必补4 latest() 的 pred 腿与 since 腿（两条腿此前零覆盖）
+// 外加三处口径同步：d.ts 的 pred 放宽为 | null、解析缓存注释改如实口径、
+// 兜底默认档与 waitStable 默认值各钉一条断言。
 import { appendFileSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import fs from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -202,6 +212,175 @@ describe('事件磁带·四方法外部行为（工单205）', () => {
     const future = new Date(Date.now() + 5000)
     utimesSync(file, future, future)
     expect(tape.all().map((e) => e.t)).toEqual([999])
+  })
+})
+
+// —— 工单205 审计补测·必补1/4：谓词路径与 latest 的两条腿 ——
+// 审计根因：既有 wait 命中场景全是「事件在调用前就存在」，谓词这条腿（批1 迁移的 214 个
+// 调用点里 206 个带谓词）从未被独立断言过——wait 独吞 pred 也照样全绿。
+describe('谓词路径与 latest 的两条腿（工单205 审计补测）', () => {
+  it('必补1 wait() 谓词路径：只有第二拍满足谓词 → 交出第二拍（谓词真的参与了筛选）', async () => {
+    const file = tempEventsFile()
+    writeFileSync(file, `${line('hit', 100, { n: 1 })}\n${line('hit', 200, { n: 2 })}\n`, 'utf8')
+    const tape = createEventTape(file)
+    const got = await tape.wait('hit', (e) => e.n === 2, { timeoutMs: 500 })
+    // 谓词若被独吞，find 会交出第一拍（t=100）
+    expect(got?.t).toBe(200)
+    expect(got?.n).toBe(2)
+  })
+
+  it('必补1 wait() 谓词路径：无一拍满足谓词 → 超时 null（不拿不满足的那一拍充数）', async () => {
+    const file = tempEventsFile()
+    writeFileSync(file, `${line('hit', 100, { n: 1 })}\n${line('hit', 200, { n: 2 })}\n`, 'utf8')
+    const tape = createEventTape(file)
+    await expect(tape.wait('hit', (e) => e.n === 99, { timeoutMs: 120 })).resolves.toBeNull()
+  })
+
+  it('必补4 latest() 谓词腿：只认满足谓词的拍（不取全场最新那一拍）', () => {
+    const file = tempEventsFile()
+    writeFileSync(
+      file,
+      `${line('a', 100, { n: 1 })}\n${line('a', 200, { n: 2 })}\n${line('a', 300, { n: 3 })}\n`,
+      'utf8',
+    )
+    const tape = createEventTape(file)
+    // 谓词若被独吞，latest 会交出全场最新那一拍（t=300）
+    expect(tape.latest('a', (e) => e.n === 2)?.t).toBe(200)
+  })
+
+  it('必补4 latest() 的 pred 腿与 since 腿同时生效：断任一条腿都转红', () => {
+    const file = tempEventsFile()
+    writeFileSync(
+      file,
+      `${line('a', 100, { n: 1 })}\n${line('a', 200, { n: 2 })}\n${line('a', 300, { n: 3 })}\n`,
+      'utf8',
+    )
+    const tape = createEventTape(file)
+    // 两条腿同时上：pred 选出 n=2 那拍、since=150 又把更早的 t=100 挡在门外 → 交出 t=200
+    // 断 pred（独吞谓词）→ 命中集变成 t>=150 的两拍 → 交出全场最新 t=300（红）
+    // 断 since（忽略时间门）→ 这条断言仍绿，故下面那条负向断言才是 since 腿的杀手
+    expect(tape.latest('a', (e) => e.n === 2, { since: 150 })?.t).toBe(200)
+    // since 门把那唯一命中拍（t=200）排除 → null（since 腿此前零覆盖）
+    // 断 since → 会交出 t=200（红）
+    expect(tape.latest('a', (e) => e.n === 2, { since: 250 })).toBeNull()
+  })
+
+  it('附带A null 谓词被接受：等价于「无谓词」（正典 8 处调用点显式传 null 作谓词）', async () => {
+    const file = tempEventsFile()
+    writeFileSync(file, `${line('a', 100, { n: 1 })}\n${line('a', 200, { n: 2 })}\n`, 'utf8')
+    const tape = createEventTape(file)
+    // 类型口径：d.ts 的 pred 放宽为 | null，严格 TS 下 pred?: 不接受 null
+    expect(tape.latest('a', null)?.t).toBe(200)
+    expect(tape.all('a', null).map((e) => e.t)).toEqual([100, 200])
+    await expect(tape.wait('a', null, { timeoutMs: 500 })).resolves.toMatchObject({ t: 100 })
+  })
+})
+
+// —— 工单205 审计补测·必补2/3 + 附带C：等待语义（等待期间重读）与默认档 ——
+// 假时钟断（时间是系统边界，可 mock——见 tdd skill 的 mocking 口径）：
+// 等待期语义靠真实计时器既慢又不确定（等 6s/12s），假时钟能把「等多久」钉成毫秒级断言。
+describe('等待语义（工单205 审计补测：等待期间重读 + 默认档）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('必补2 wait() 等待期间重读：等待途中落盘的新事件能被接到（不是只读一次盘）', async () => {
+    const file = tempEventsFile()
+    writeFileSync(file, `${line('boot', 100)}\n`, 'utf8')
+    const tape = createEventTape(file)
+    let resolved = false
+    const p = tape.wait('late', undefined, { timeoutMs: 5000 }).then((v) => {
+      resolved = true
+      return v
+    })
+
+    // 先让 wait 至少读过一轮盘（读盘发生在落盘之前）
+    await vi.advanceTimersByTimeAsync(200)
+    expect(resolved).toBe(false)
+
+    // 等待途中面板落盘了新事件
+    appendFileSync(file, `${line('late', 777, { n: 7 })}\n`, 'utf8')
+    // 推进到超时线：若实现是「整个等待只读一次盘」，这里干净收工返 null（断言红）
+    await vi.advanceTimersByTimeAsync(5000)
+
+    const got = await p
+    expect(got?.n).toBe(7)
+    expect(got?.t).toBe(777)
+  })
+
+  it('必补3 waitStable() 等待期间重读：等待途中的更新拍才是交出的那一拍', async () => {
+    const file = tempEventsFile()
+    const t0 = Date.now()
+    writeFileSync(file, `${line('a', t0, { n: 1 })}\n`, 'utf8')
+    const tape = createEventTape(file)
+    const p = tape.waitStable('a', 600, 5000)
+
+    await vi.advanceTimersByTimeAsync(200)
+    // 等待途中落盘了更新的第二拍
+    appendFileSync(file, `${line('a', Date.now(), { n: 2 })}\n`, 'utf8')
+    await vi.advanceTimersByTimeAsync(5000)
+
+    const got = await p
+    // 若实现是「整个等待只读一次盘」，交出的会是第一拍（n=1）
+    expect(got?.n).toBe(2)
+  })
+
+  it('附带C 构造省略 defaultTimeoutMs → 兜底 6000 档（d.ts 明写「省略时兜底 6000」）', async () => {
+    const file = tempEventsFile()
+    writeFileSync(file, `${line('boot', 100)}\n`, 'utf8')
+    const tape = createEventTape(file) // 省略 options → 走兜底档
+    let done = false
+    const p = tape.wait('never').then((v) => {
+      done = true
+      return v
+    })
+
+    await vi.advanceTimersByTimeAsync(5900)
+    expect(done).toBe(false) // 还没到 6000 兜底档
+
+    await vi.advanceTimersByTimeAsync(200)
+    expect(done).toBe(true)
+    expect(await p).toBeNull()
+  })
+
+  it('附带C waitStable() 默认安静判据 2000ms：1500ms 时还不算安静（默认档不是更小的值）', async () => {
+    const file = tempEventsFile()
+    const t0 = Date.now()
+    writeFileSync(file, `${line('a', t0)}\n`, 'utf8')
+    const tape = createEventTape(file)
+    let done = false
+    const p = tape.waitStable('a').then((v) => {
+      done = true
+      return v
+    })
+
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(done).toBe(false) // 默认 quietMs=2000：1500ms 未达安静线
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(done).toBe(true)
+    expect((await p)?.t).toBe(t0)
+  })
+
+  it('附带C waitStable() 默认超时 12000ms：不到 12s 不收工，超时返 null（默认档不是更小的值）', async () => {
+    const file = tempEventsFile()
+    writeFileSync(file, `${line('boot', 100)}\n`, 'utf8') // 没有该类型的事件 → 永远不安静
+    const tape = createEventTape(file)
+    let done = false
+    const p = tape.waitStable('never').then((v) => {
+      done = true
+      return v
+    })
+
+    await vi.advanceTimersByTimeAsync(11900)
+    expect(done).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(done).toBe(true)
+    expect(await p).toBeNull()
   })
 })
 

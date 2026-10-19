@@ -57,7 +57,8 @@ function createEventTape(eventsFile, options) {
    *
    * 解析缓存（母票决策9）：以 (size, mtime) 为键，文件没变不重复解析；
    * 字节游标增量读不做（事件文件实测 36KB–412KB，性能无感，留作 interface
-   * 不变的内部优化）。缓存只影响「读不读盘」，不影响读到的内容。
+   * 不变的内部优化）。缓存只影响「读不读盘」；同 size 且同 mtime 的整体改写
+   * 会读陈数据（面板只追加不触发——追加必改 size）。
    */
   function readAll() {
     let stat;
@@ -95,7 +96,7 @@ function createEventTape(eventsFile, options) {
     /**
      * 等某类事件：命中即返回「首个」匹配拍；超时返回 null（不抛错）。
      * @param {string} type 事件类型
-     * @param {(e: any) => boolean} [pred] 附加谓词
+     * @param {(e: any) => boolean} [pred] 附加谓词（null 视为无谓词——正典 8 处调用点显式传 null）
      * @param {{ since?: number, timeoutMs?: number }} [waitOptions] since=时间门；timeoutMs 覆盖构造默认
      */
     async wait(type, pred, waitOptions) {
@@ -134,7 +135,7 @@ function createEventTape(eventsFile, options) {
     /**
      * 现取最新一拍（既有 readEvents().filter(...).pop() 口径）；无匹配拍返回 null。
      * @param {string} type 事件类型
-     * @param {(e: any) => boolean} [pred] 附加谓词
+     * @param {(e: any) => boolean} [pred] 附加谓词（null 视为无谓词）
      * @param {{ since?: number }} [queryOptions] since=时间门
      */
     latest(type, pred, queryOptions) {
@@ -146,7 +147,7 @@ function createEventTape(eventsFile, options) {
     /**
      * 裸读全量（可按 type / 谓词 / since 过滤）。
      * @param {string} [type] 事件类型；省略 = 不按类型过滤
-     * @param {(e: any) => boolean} [pred] 附加谓词
+     * @param {(e: any) => boolean} [pred] 附加谓词（null 视为无谓词）
      * @param {{ since?: number }} [queryOptions] since=时间门
      */
     all(type, pred, queryOptions) {
