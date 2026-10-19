@@ -1,0 +1,8 @@
+(node:62608) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+npm notice run agent-deck-panel@0.1.0 accept
+npm notice run npm run build && electron . --accept
+npm notice run agent-deck-panel@0.1.0 build
+npm notice run node scripts/clean-dist.mjs && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs
+[64236:1020/022722.881:ERROR:content\browser\network_service_instance_impl.cc:650] Network service crashed or was terminated, restarting service.
+[hint-bar] 提示条页面加载失败: ERR_FAILED (-2) loading 'file:///D:\test-folder\wallpaperengine-research--spec201-a-targeted-rounds\app\accept\lib\hint-bar.html'
