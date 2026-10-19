@@ -500,6 +500,35 @@ describe('面板句柄·就绪判据的承重件（独立审计必改项）', ()
   })
 })
 
+// —— 面板句柄·就绪窗标题按原值参与匹配（工单205/206 独立审计欠账 F2）——
+// 实现方曾一度把标题改成「trim 后再匹配」并主动收回（trim 参与匹配＝给非空标题改语义，
+// 属 #202 决策 8 名额之外的未申报行为变更）——但当时无用例钉住，往后被改回 trim 写法不转红。
+// 本例从两侧钉住「按原值比」：窗标题带空白时按原值命中；只差空白时按原值不命中。
+describe('面板句柄·就绪窗标题按原值参与匹配（审计欠账 F2 回归钉）', () => {
+  it('标题带首尾空白：窗标题逐字相同才算命中，trim 后相同不算命中', async () => {
+    // ① 窗标题恰为 ' AGENT DECK '（带空白）而传入同值：按原值比 → 命中
+    //    （若被 trim 成 'AGENT DECK' 去比，这扇窗就匹配不上——漏判即转红）
+    const hit = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x55, pid: 7777, title: ' AGENT DECK ', cls: 'Chrome_WidgetWin_1' }],
+    })
+    hit.handle.launch({ mode: 'full' })
+    expect(await hit.handle.waitWindow({ title: ' AGENT DECK ', timeoutMs: 1000 })).toBe(0x55)
+
+    // ② 窗标题为 'AGENT DECK'（无空白）而传入 ' AGENT DECK '：按原值比 → 不命中
+    //    （若改成 trim 比较则会被误判命中——那正是被收回的那处语义变更）
+    const miss = handleWorld({
+      bootEvents: [{ t: 1500, pid: 7777 }],
+      windows: [{ hwnd: 0x66, pid: 7777, title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1' }],
+      alive: [7777],
+    })
+    miss.handle.launch({ mode: 'full' })
+    expect(await miss.handle.waitWindow({ title: ' AGENT DECK ', timeoutMs: 1000 })).toBeNull()
+    // boot 已找到、pid 已记账——判负来自标题不匹配，不是「boot 缺位」
+    expect(miss.handle.alive()).toBe(true)
+  })
+})
+
 describe('面板句柄·relaunch：since 门默认＝上次发射时点', () => {
   it('默认门：上一代次的 boot 不算数（漏给 sinceMs 的坑由句柄记账堵死）', async () => {
     const w = handleWorld({
