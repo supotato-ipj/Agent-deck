@@ -16,11 +16,29 @@ const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { cdpPortFor } = require('./lib/registry');
-const { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
+const { createPanelHandle, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
+const { createEventTape } = require('./lib/event-tape');
 const { judgeTrayMachineState, DND_MARKER } = require('./lib/tray-machine-state');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
+// 工单208：事件观测收口到磁带（app/accept/lib/event-tape）——主电池走 6000 缺省档
+// （母票 #201 决策 8：主电池 waitEvent 缺省档正是 6000；显式传 timeoutMs 的调用点逐字保留）。
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 6000 });
+
+// 工单209：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场与两套存活谓词收口到句柄。archive 档按电池注入专属档名（编排裁决 10：
+// 缺省是八块电池共用的共享档，混批会让红轮归因变难）；archive 形态的证据档 fd 由
+// 电池侧持有并在清场时关闭（裁决 10：句柄的 archive 形态按缺省语义不 close，长跑漏 fd）。
+const archiveFds = [];
+const handle = createPanelHandle({
+  execPath: process.execPath,
+  appRoot: APP_ROOT,
+  eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '03-panel-handle-child.log'),
+  openArchive: (file) => { const fd = fs.openSync(file, 'a'); archiveFds.push(fd); return fd; },
+});
+
 const WM_CLOSE = 0x0010;
 const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_UP = 0x26, VK_RETURN = 0x0d, VK_ESCAPE = 0x1b;
 const VK_CONTROL = 0x11, VK_V = 0x56, VK_A = 0x41, VK_C = 0x43, VK_X = 0x58, VK_DELETE = 0x2e;
@@ -511,7 +529,7 @@ function hungForensics(hwnd) {
   hungDumped = true;
   const lines = [];
   try {
-    const evs = readEvents().slice(-14);
+    const evs = tape.all().slice(-14);
     lines.push(`事件尾：${evs.map((e) => `${new Date(e.t).toISOString().slice(11, 23)} ${e.type}`).join(' ; ')}`);
   } catch (e) { lines.push(`事件尾取不到：${e.message}`); }
   let pid = 0;
@@ -553,8 +571,8 @@ async function ensurePanelHit(pt, hwnd) {
       // 评审修正（P0）：heal 返回 false = 重启失败（新窗未现，面板已死）——绝不能走
       // onPanelHealthy 闭窗（「重启验证健康」是假话）也不能对死 hwnd 返回 ok:true 继续
       // 本段；窗保持开启，其后失败全数环境降责（FAIL-ENV 而非 FAIL-CODE）。
-      const live = panelLiveness(hwnd);
-      if (live.startsWith('主线程假死')) {
+      // 判据位用句柄的 WM_NULL 探活谓词（panelLiveness 留电池层作诊断文案源——裁决 13）
+      if (!handle.responsive()) {
         const healed = healHungPanel ? await healHungPanel() : false;
         if (healed) return { ok: false, why: '落点命中面板但主线程假死→已重启面板，本段跳过' };
         return { ok: false, why: '面板假死且重启失败，后续段无面板可用' };
@@ -566,8 +584,8 @@ async function ensurePanelHit(pt, hwnd) {
     if (CLEAR_DESKTOP_SKIP.has(cls)) {
       // 工单112：命中桌面层也可能是面板停摆退到了桌面层之下——先探活再下「残留」结论，
       // 别把二次停摆说成 show desktop 残留（工单110 现场发现的漏检点）。
-      const live = panelLiveness(hwnd);
-      if (live.startsWith('主线程假死')) {
+      // 判据位用句柄的 WM_NULL 探活谓词（panelLiveness 留电池层作诊断文案源——裁决 13）
+      if (!handle.responsive()) {
         const healed = healHungPanel ? await healHungPanel() : false;
         if (healed) return { ok: false, why: '面板主线程假死→已重启面板，本段跳过' };
       }
@@ -602,8 +620,8 @@ async function ensurePanelHit(pt, hwnd) {
     const pid = win32.threadIdOf(stuck).pid;
     who = `${cls}（pid=${pid} ${win32.exeNameOfWindow(stuck) || win32.exeOfPid(pid) || '?'}｜${ghostIdentity(pid)}）`;
   } catch { /* 窗已销毁：类名够用 */ }
-  const live = panelLiveness(hwnd);
-  if (live.startsWith('主线程假死')) {
+  const live = panelLiveness(hwnd); // 文案仍用 panelLiveness（裁决 13）
+  if (!handle.responsive()) {
     const healed = healHungPanel ? await healHungPanel() : false;
     if (healed) return { ok: false, why: '面板主线程假死→已重启面板，本段跳过' };
   }
@@ -626,82 +644,18 @@ async function launchNotepad(rep, rect) {
   await sleep(300);
   return { hwnd, kind, child: np };
 }
-
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
 /** 临点现取矩形（工单59 真机首跑教训）：文档区名序随后台使用频次落定会重排
  * （工单05，~1s 内动），一次 settle 抓的快照隔几秒再点就点空。落点一律现取。 */
 function liveItemRect(name) {
-  const last = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+  const last = tape.latest('desktop-rendered');
   return ((last && last.rects) || []).find((r) => r.name === name && r.rect) || null;
 }
 /** 文档区顶排条目矩形（分区空白落点要用它上面的容器空白）：同上，临点现取 */
 function liveTopDocRect() {
-  const last = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+  const last = tape.latest('desktop-rendered');
   return ((last && last.rects) || []).filter((r) => r.zone === 'doc' && r.rect)
     .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0] || null;
 }
-
-async function waitEvent(type, pred, timeoutMs = 6000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
-}
-
-async function waitPanelWindow(timeoutMs, sinceMs = 0) {
-  // 面板自报 pid（boot 事件）：spawn 的 child.pid 在 Electron 父进程下不等于
-  // 面板真实主进程 pid（实测），以面板自报为准。sinceMs 之后的 boot 才算数——
-  // 电池中途重启面板时事件文件里已有旧 boot（P6 重置过、P10 未重置）。
-  const deadline = Date.now() + timeoutMs;
-  let boot = null;
-  while (Date.now() < deadline) {
-    boot = readEvents().filter((e) => e.type === 'boot' && e.t >= sinceMs).pop() || null;
-    if (boot) break;
-    await sleep(60);
-  }
-  if (!boot) { console.log('[battery] 未收到 boot 存证'); return null; }
-  const pid = boot.pid;
-  const winDeadline = Date.now() + timeoutMs;
-  while (Date.now() < winDeadline) {
-    const hwnd = win32.topLevelWindows().find(
-      // 工单49 起面板进程有了第二个 Chrome 窗（DECK-TASKBAR 条带）：按标题甄别面板本体
-      (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1'
-        && windowTitle(h) === 'AGENT DECK');
-    if (hwnd) return hwnd;
-    await sleep(200);
-  }
-  const dump = win32.topLevelWindows()
-    .filter((h) => win32.className(h).startsWith('Chrome'))
-    .slice(0, 12)
-    .map((h) => `0x${h.toString(16)} pid=${win32.threadIdOf(h).pid} cls=${win32.className(h)}`);
-  console.log(`[battery] boot.pid=${pid} 的窗口未找到。controller.pid=${process.pid} 可见 Chrome 窗:`, dump.join(' | '));
-  return null;
-}
-
-// 等某类事件安静 quietMs（工单06）：渲染层按指纹 diff，事件只在变化时发——
-// 安静即稳定。06 起使用分数异步就位会让首拍名序在 ~1s 后重排为频次序，
-// 拿首拍矩形去点击会点在换位后的别的条目上（首轮电池实证）。
-async function waitStable(type, quietMs = 2000, timeoutMs = 12000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const evts = readEvents().filter((e) => e.type === type);
-    const last = evts.length ? evts[evts.length - 1] : null;
-    if (last && Date.now() - last.t >= quietMs) return last;
-    await sleep(250);
-  }
-  return null;
-}
-
 // —— 工单07 搜索并入：accept_search 电池（scripts/ 版已随 Tk 窗退役）的探针件 ——
 
 // 窗口标题（win32.js 未导出；与 className 同款 koffi 缓冲形态）
@@ -886,38 +840,26 @@ async function runSegments() {
   // 管道而无人读时，64KB 管道 ~11s 写满，主线程下一次同步写永久阻塞：这就是 #107 全系
   // 「主进程假死」的真机形态（minidump + 排空对照实证，工单132 第一阶段，
   // docs/audit/2026-10-09-t132-stall-duel-experiment.md）。排空是控制器侧的结构防御。
-  const launchPanel = () => {
-    const c = spawn(process.execPath, ['.'], {
-      cwd: APP_ROOT,
-      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1', DECK_CDP_PORT: String(CDP_PORT) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    c.stdout.on('data', () => {}); // 排空即全部：管道永不满，面板永不因 stdout 阻塞
-    return c;
-  };
-
-  // 工单112：强退序列换面板控制模块（seam②）——优雅终止 → 整树强杀 → 有界等待并
-  // **验证进程确实消失**。现状缺的正是验证这一环：taskkill /F 后不确认消失就放行重启，
-  // 停摆面板存活 → 新面板被单实例守卫拒收 → 缓存互锁/托盘竞争成片失真。验证消失后
-  // 放行重启，验证失败就不让污染继续（决策→后果的接线在调用方：heal 中止后续段，清场入账）。
-  const panelControl = createPanelControl();
-  const stopPanel = async () => {
-    if (!child && !panelPid) return { gone: true, graceful: true, forced: false, pidsLeft: [], outcome: 'idle' };
-    const res = await panelControl.stop({ pids: [child && child.pid, panelPid].filter(Boolean), child });
-    child = null;
-    panelPid = null;
-    return res;
-  };
+  //
+  // 工单209：发射/就绪/重启/清场四段样板归面板句柄——handle.launch({ mode:'full',
+  // cdpPort, lagSentinel:true, stdio:'drain' }) 逐字复现上记发射配置（DECK_EVENT_LOG /
+  // DECK_LAG_SENTINEL / DECK_CDP_PORT ＋ stdout 排空）；handle.waitWindow({ title,
+  // cls:'Chrome_WidgetWin_1', timeoutMs }) 复现「等 boot 自报 pid → 按 pid＋类名＋标题
+  // 寻就绪窗」；handle.stop() 沿用工单112 的验证强退序列（优雅终止 → 整树强杀 → 有界
+  // 等待并验证消失，outcome 四档语义不变）。
   try {
     // —— P1 启动面板（子进程，存证事件落盘）——
     rep.beginSegment('P1');
-    child = launchPanel();
+    // since 门用句柄缺省（发射时点）——裁决 14：事件文件在电池启动时已被 unlink，
+    // 文件里只剩新面板的 boot，「since=0」与「since=发射时点」接到的是同一条 boot
+    const launchedP1 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+    child = launchedP1.child;
     child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-    let hwnd = await waitPanelWindow(20000);
+    let hwnd = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
     if (!hwnd) throw new Error(`20s 内未见面板窗口\nstderr:\n${stderrTail}`);
     panelPid = win32.threadIdOf(hwnd).pid;
     // 假死自愈接线（钩子在 ensurePanelHit 里按需回调）：先取证再重启，交还新 hwnd。
-    // hwnd/child/panelPid 都是本函数词法变量，闭包内赋值对后续段可见。
+    // hwnd/child/panelPid 仍是本函数词法变量（句柄另有一份记账），闭包内赋值对后续段可见。
     healHungPanel = async () => {
       const stallDetectedAt = Date.now();
       const dump = hungForensics(hwnd);
@@ -934,25 +876,26 @@ async function runSegments() {
       // 补进取证输出。终末冻结形态永远等不到迟到拍（8s 纯等待）——根因修复（工单132
       // stdout 排空 + DI 告警抑制）落地后停摆本身应绝迹，此窗是给未来未知停摆留的观测面。
       await sleep(8000);
-      const lateLag = readEvents().filter((e) => e.type === 'main-lag' && e.t >= stallDetectedAt - 2500);
+      const lateLag = tape.all('main-lag', undefined, { since: stallDetectedAt - 2500 });
       if (lateLag.length) {
         console.log(`[battery] 有界唤醒窗捕到迟到 main-lag ${lateLag.length} 条（瞬态停摆，恢复后落盘）：\n${
           lateLag.map((e) => `  lagMs=${e.lagMs} liveLabels=${JSON.stringify(e.liveLabels)}`).join('\n')}`);
       } else {
         rep.note('有界唤醒窗 8s 无迟到 main-lag（终末冻结形态：主线程未再泵消息，spans sidecar 尾部即卡点签名）');
       }
-      const stopped = await stopPanel();
-      if (!stopped.gone) {
+      // sinceMs 必给：事件文件里还留着上一实例的 boot（回溯 1.5s；句柄取末条 boot——裁决 4）
+      const rl = await handle.relaunch({ sinceMs: Date.now() - 1500 });
+      if (!rl.gone) {
         // 工单112：强退后仍存活 = 需重启清障——入环境降责账并**中止后续段**（借主
         // try/catch 汇流：异常落在停摆排除窗内自动环境降责，轮末 verdict=FAIL-ENV）。
         // 被污染的轮次（双面板并存）不再产出误导性 verdict。
-        rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障，后续段中止`, '面板强退序列未能终结面板进程（#107 遗留进程形态）', 'panel-forcekill');
+        rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${rl.pidsLeft.join(', ')}）——需重启清障，后续段中止`, '面板强退序列未能终结面板进程（#107 遗留进程形态）', 'panel-forcekill');
         // 中止机制 = 这个 throw 借主 try/catch 汇流；异常文本自带「需重启清障」定责语。
         throw new Error('面板强退失败：需重启清障——后续段中止');
       }
-      child = launchPanel();
+      child = rl.child;
       child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-      const nh = await waitPanelWindow(20000, Date.now() - 1500); // sinceMs 必给：事件文件里还留着上一实例的 boot
+      const nh = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!nh) { rep.fail('假死自愈：重启后面板窗口未现，后续段无面板可用'); return false; }
       hwnd = nh;
       panelPid = win32.threadIdOf(nh).pid;
@@ -971,17 +914,16 @@ async function runSegments() {
     // 热区矩形按**面板代次**取：面板重启后旧矩形不再作数（几何虽同，上一任面板的热区
     // 属于上一任现场）。sinceMs 缺省 0 = 全部历史，与旧行为同。
     const latestZoneOf = (id, sinceMs = 0) => {
-      const evts = readEvents().filter((e) => e.type === 'hotzones' && e.t >= sinceMs && (e.rects || []).some((r) => r.id === id));
-      const last = evts[evts.length - 1];
+      const last = tape.latest('hotzones', (e) => (e.rects || []).some((r) => r.id === id), { since: sinceMs });
       return last ? (last.rects || []).find((r) => r.id === id) || null : null;
     };
     /** 最近一次面板启动时刻（boot 存证自报 pid 的那次）——重启后面板代次的下界 */
     const lastBootMs = () => {
-      const hits = readEvents().filter((e) => e.type === 'boot');
-      return hits.length ? hits[hits.length - 1].t : 0;
+      const b = tape.latest('boot');
+      return b ? b.t : 0;
     };
     const lastEvent = (type, pred, sinceMs = 0) => {
-      const hits = readEvents().filter((e) => e.type === type && e.t >= sinceMs && (!pred || pred(e)));
+      const hits = tape.all(type, pred, { since: sinceMs });
       return hits.length ? hits[hits.length - 1] : null;
     };
     const ptOfZoneAt = (winRect, z) => ({ x: winRect.left + Math.round((z.x + z.w / 2) * f), y: winRect.top + Math.round((z.y + z.h / 2) * f) });
@@ -1187,21 +1129,21 @@ async function runSegments() {
     //     时钟/天气/会话——硬件卡退役，硬件读数改由任务栏右组摘要承载，另有 accept:taskbar 电池盯）——
     rep.beginSegment('P2.5');
     {
-      const sess2 = await waitEvent('sessions-rendered', (e) => e.n >= 2, 8000);
-      const sessionsEvt = sess2 || (await waitEvent('sessions-rendered', null, 2000));
+      const sess2 = await tape.wait('sessions-rendered', (e) => e.n >= 2, { timeoutMs: 8000 });
+      const sessionsEvt = sess2 || (await tape.wait('sessions-rendered', null, { timeoutMs: 2000 }));
       sessionsEvt
         ? rep.pass(`会话列表卡：渲染层收到内核会话数据并持续走数（第 ${sessionsEvt.n} 次渲染，count=${sessionsEvt.count}，真机活跃池）`)
         : rep.fail('会话列表卡：未收到 sessions-rendered 存证');
       // 工单59 退役回归：硬件卡已删，面板不再发 hardware-rendered / history-live
-      const hwGone = !readEvents().some((e) => e.type === 'hardware-rendered' || e.type === 'history-live');
+      const hwGone = !tape.latest('hardware-rendered') && !tape.latest('history-live');
       hwGone
         ? rep.pass('硬件卡已退役：面板全程未发 hardware-rendered/history-live（读数改由任务栏摘要承载）')
         : rep.fail('硬件卡退役不彻底：面板仍在发 hardware-rendered/history-live 存证');
-      const weatherOk = await waitEvent('weather-rendered', null, 15000);
+      const weatherOk = await tape.wait('weather-rendered', null, { timeoutMs: 15000 });
       if (weatherOk) {
         rep.pass(`天气卡：Open-Meteo 取数成功（weather_code=${weatherOk.code} temp=${weatherOk.temp}）`);
       } else {
-        const weatherErr = readEvents().find((e) => e.type === 'weather-error');
+        const weatherErr = tape.all('weather-error')[0] || null;
         weatherErr
           ? rep.note(`天气卡取数失败（网络相关，不作硬断言）：${weatherErr.message}`)
           : rep.fail('天气卡：既无 weather-rendered 也无 weather-error（卡片逻辑未运行）');
@@ -1294,7 +1236,7 @@ async function runSegments() {
     rep.beginSegment('P4');
     // 工单10 起卡片由插件异步挂载：首拍热区快照里还没有它们，必须等**声明了 clock-card 的那一拍**，
     // 否则会把「插件尚未挂上」误判成「渲染层没声明热区」（真机踩过，10b 回归）。
-    const zones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'clock-card'));
+    const zones = await tape.wait('hotzones', (e) => (e.rects || []).some((r) => r.id === 'clock-card'));
     const cardZone = zones && (zones.rects || []).find((r) => r.id === 'clock-card');
     cardZone
       ? rep.pass(`热区声明：渲染层上报 clock-card rel(${cardZone.x},${cardZone.y}) ${cardZone.w}x${cardZone.h}`)
@@ -1344,11 +1286,11 @@ async function runSegments() {
     exAfterClick & w32.WS_EX_NOACTIVATE
       ? rep.pass(`永不激活：面板窗口样式含 WS_EX_NOACTIVATE（EXSTYLE=0x${(exAfterClick >>> 0).toString(16)}，点击不激活的机制保证）`)
       : rep.fail(`面板无 WS_EX_NOACTIVATE 样式（EXSTYLE=0x${(exAfterClick >>> 0).toString(16)}）`);
-    const clickEvt = await waitEvent('clock-card-clicked', (e) => e.count >= 1);
+    const clickEvt = await tape.wait('clock-card-clicked', (e) => e.count >= 1);
     clickEvt
       ? rep.pass(`热区点击由时钟卡接收（count=${clickEvt.count}）`)
       : rep.fail('热区点击未被时钟卡接收（无 clock-card-clicked 存证）');
-    const renders = readEvents().filter((e) => e.type === 'clock-rendered');
+    const renders = tape.all('clock-rendered');
     renders.length >= 2 && renders[1].epochMs > renders[0].epochMs
       ? rep.pass(`时钟卡数据经桥接契约自内核而来并持续走时（${renders.length} 次渲染，epoch 递增）`)
       : rep.fail(`时钟卡未证实内核推送（clock-rendered 存证 ${renders.length} 条）`);
@@ -1357,12 +1299,12 @@ async function runSegments() {
     // 插件异步挂载：先等 calendar-card 出现在热区声明那一拍再判（10b 真机踩过的坑）。
     // 段号 P4.5（工单126 补登记）：物理上落在 P4 执行窗内，但归属 #99 不并入 P4（一段绑定一工单）。
     rep.beginSegment('P4.5');
-    const calZones = await waitEvent('hotzones', (e) => (e.rects || []).some((r) => r.id === 'calendar-card'));
+    const calZones = await tape.wait('hotzones', (e) => (e.rects || []).some((r) => r.id === 'calendar-card'));
     const calZone = calZones && (calZones.rects || []).find((r) => r.id === 'calendar-card');
     calZone
       ? rep.pass(`热区声明：日历卡由插件包渲染并上报 calendar-card rel(${calZone.x},${calZone.y}) ${calZone.w}x${calZone.h}`)
       : rep.fail('渲染层未上报 calendar-card 热区（日历未成包或插件未挂载）');
-    const calEvt = await waitEvent('calendar-rendered', (e) => typeof e.ym === 'string' && /^\d{4}-\d{2}$/.test(e.ym), 8000);
+    const calEvt = await tape.wait('calendar-rendered', (e) => typeof e.ym === 'string' && /^\d{4}-\d{2}$/.test(e.ym), { timeoutMs: 8000 });
     if (!calEvt) {
       rep.fail('日历卡：未收到 calendar-rendered 存证（插件未渲染月网格）');
     } else {
@@ -1404,7 +1346,7 @@ async function runSegments() {
     // —— P5 工单05 桌面承载：条目一致性 / 图标隐藏 / 单击选中 / lnk 双击启动 / 杀进程还原 ——
     rep.beginSegment('P5');
     {
-      const rendered = await waitEvent('desktop-rendered', null, 8000);
+      const rendered = await tape.wait('desktop-rendered', null, { timeoutMs: 8000 });
       const scan = psDesktopScan();
       const userNames = scan.items.filter((i) => i.dir === scan.user).map((i) => i.name);
       const commonNames = scan.items.filter((i) => i.dir === scan.common).map((i) => i.name);
@@ -1431,7 +1373,7 @@ async function runSegments() {
 
       // 单击选中态（文档区首个可视条目）。矩形取静置后的最新一拍：使用频次异步就位
       // 会在 boot 后 ~1s 内重排文档区，首拍矩形会指向换位后的别的条目。
-      const stableSel = await waitStable('desktop-rendered', 1500, 8000);
+      const stableSel = await tape.waitStable('desktop-rendered', 1500, 8000);
       const docRect = stableSel && (stableSel.rects || []).filter((r) => r.zone === 'doc' && r.rect)[0];
       if (!docRect) {
         rep.fail('desktop-rendered 未带文档区条目矩形（选中态不可测）');
@@ -1443,7 +1385,7 @@ async function runSegments() {
           rep.fail(`单击选中前置失败：${hitSel.why}`);
         } else {
           w32.clickPhys(cx, cy, 'left');
-          const sel = await waitEvent('desktop-selected', (e) => e.name === docRect.name, 4000);
+          const sel = await tape.wait('desktop-selected', (e) => e.name === docRect.name, { timeoutMs: 4000 });
           sel
             ? rep.pass(`单击选中态：文档区条目「${docRect.name}」选中并上报存证`)
             : rep.fail('单击未见 desktop-selected 存证');
@@ -1466,11 +1408,11 @@ async function runSegments() {
       const markerPath = path.join(__dirname, 'evidence', `05-marker-${Date.now()}.txt`);
       try {
         createProbeBat(lnkPath, markerPath);
-        const shown = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probeName), 8000);
+        const shown = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(probeName), { timeoutMs: 8000 });
         shown
           ? rep.pass(`新建探针 bat 入池：${probeName}（1Hz 重扫描自动出现，other 组落文档区）`)
           : rep.fail('新建探针 bat 未入池（desktop-rendered 未见）');
-        const settledProbe = await waitStable('desktop-rendered', 1500, 8000);
+        const settledProbe = await tape.waitStable('desktop-rendered', 1500, 8000);
         const probeRect = settledProbe && (settledProbe.rects || []).find((r) => r.name === probeName && r.rect);
         if (probeRect) {
           const cx = rect.left + Math.round((probeRect.rect.x + probeRect.rect.w / 2) * f);
@@ -1483,7 +1425,7 @@ async function runSegments() {
             await sleep(90); // 第二击须落在 GetDoubleClickTime（默认 500ms）内
             w32.clickPhys(cx, cy, 'left');
             w32.moveMousePhys(safePt.x, safePt.y);
-            const launched = await waitEvent('desktop-launched', (e) => e.name === probeName, 6000);
+            const launched = await tape.wait('desktop-launched', (e) => e.name === probeName, { timeoutMs: 6000 });
             launched && launched.ok
               ? rep.pass('双击启动：探针 bat 经桥接 desktop/launch 启动（ok=true）')
               : rep.fail(`双击启动存证异常：${JSON.stringify(launched)}`);
@@ -1503,7 +1445,7 @@ async function runSegments() {
       } finally {
         try { fs.unlinkSync(lnkPath); } catch { /* 尽力清理 */ }
       }
-      const gone = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(probeName), 6000);
+      const gone = await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(probeName), { timeoutMs: 6000 });
       gone
         ? rep.pass('清理探针 bat 后条目同步消失（面板与磁盘一致）')
         : rep.fail('清理探针 bat 后条目未消失');
@@ -1529,8 +1471,7 @@ async function runSegments() {
             rep.fail(`图标区分度探针前置失败：目标 exe 缺失（${fixtureDefs.map((fx) => fx.target).join(', ')}）`);
           } else {
             for (const fx of fixtureDefs) createShortcutLnk(path.join(scan.user, fx.name), fx.target);
-            const joined = await waitEvent('desktop-rendered',
-              (e) => e.t >= tIcon && fixtureDefs.every((fx) => (e.names || []).includes(fx.name)), 10000);
+            const joined = await tape.wait('desktop-rendered', (e) => fixtureDefs.every((fx) => (e.names || []).includes(fx.name)), { since: tIcon, timeoutMs: 10000 });
             joined
               ? rep.note(`图标夹具入池，面板扫描指纹已翻转：${fixtureDefs.map((fx) => fx.name).join(' / ')}`)
               : rep.fail('图标夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）');
@@ -1574,8 +1515,7 @@ async function runSegments() {
           for (const p of fixturePaths) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
           // 清场存证按时间下限取：历史 desktop-rendered 天然不含夹具名，须只认夹具创建之后的拍
           const tClean = Date.now();
-          const goneFixtures = await waitEvent('desktop-rendered',
-            (e) => e.t >= tClean && fixtureDefs.every((fx) => !(e.names || []).includes(fx.name)), 6000);
+          const goneFixtures = await tape.wait('desktop-rendered', (e) => fixtureDefs.every((fx) => !(e.names || []).includes(fx.name)), { since: tClean, timeoutMs: 6000 });
           goneFixtures
             ? rep.pass('图标夹具清理后条目同步消失（面板与磁盘一致）')
             : rep.note('图标夹具清理存证未到（不阻塞；夹具已尽力删除）');
@@ -1605,8 +1545,7 @@ async function runSegments() {
           fs.writeFileSync(txtFx, 'deck icon probe');
           createShortcutLnk(path.join(scan.user, dirLnkName), dirFx);
           for (const fx of giantDefs) createShortcutLnk(path.join(scan.user, fx.name), fx.target);
-          const joined = await waitEvent('desktop-rendered',
-            (e) => e.t >= t2 && allNames.every((n) => (e.names || []).includes(n)), 10000);
+          const joined = await tape.wait('desktop-rendered', (e) => allNames.every((n) => (e.names || []).includes(n)), { since: t2, timeoutMs: 10000 });
           joined
             ? rep.note(`工单06 夹具入池：目录 lnk / txt 基线 / 巨型 exe×${giantDefs.length}`)
             : rep.fail('工单06 夹具未入池（desktop-rendered 10s 未见夹具名，图标断言不可信）');
@@ -1665,8 +1604,7 @@ async function runSegments() {
             try { fs.unlinkSync(path.join(scan.user, p)); } catch { /* 尽力清理 */ }
           }
           try { fs.rmSync(dirFx, { recursive: true, force: true }); } catch { /* 尽力清理 */ }
-          const gone2 = await waitEvent('desktop-rendered',
-            (e) => e.t >= tClean2 && allNames.every((n) => !(e.names || []).includes(n)), 6000);
+          const gone2 = await tape.wait('desktop-rendered', (e) => allNames.every((n) => !(e.names || []).includes(n)), { since: tClean2, timeoutMs: 6000 });
           gone2
             ? rep.pass('工单06 夹具清理后条目同步消失')
             : rep.note('工单06 夹具清理存证未到（不阻塞；夹具已尽力删除）');
@@ -1681,7 +1619,7 @@ async function runSegments() {
         restoredVis = w32.desktopIconsVisible();
         if (!restoredVis) await sleep(200);
       }
-      const carryRestored = await waitEvent('icons-restored', null, 2000);
+      const carryRestored = await tape.wait('icons-restored', null, { timeoutMs: 2000 });
       let supervisorDead = false;
       const superDeadline = Date.now() + 4000;
       while (Date.now() < superDeadline && !supervisorDead) {
@@ -1702,10 +1640,13 @@ async function runSegments() {
       rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
 
       // 后续探针继续：重新拉起面板（完整守卫链——此刻图标可见，守卫将再次隐藏）。
-      // sinceMs 必传：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）
-      const relaunchT0 = Date.now();
-      child = launchPanel();
-      const hwnd3 = await waitPanelWindow(20000, relaunchT0);
+      // 时间下限必给：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）。
+      // 面板已被上面的 taskkill /F 定点清掉（外层守卫要活着还原原生图标）——此处只发射不重退：
+      // 走句柄的 relaunch 会整树强杀（/T）把守卫一起带走 → 图标不还原 → 本段判死。
+      // since 门用句柄缺省（发射时点）：原 relaunchT0 就取在发射前那一瞬，与缺省门等价。
+      const launched3 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+      child = launched3.child;
+      const hwnd3 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!hwnd3) throw new Error(`P5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
       hwnd = hwnd3;
       panelPid = w32.threadIdOf(hwnd3).pid;
@@ -1717,7 +1658,7 @@ async function runSegments() {
     // 整段删除（手钉改由任务栏应用组承担），改为文档区内的显式摆位序断言。
     rep.beginSegment('P5.5');
     {
-      const rendered0 = await waitEvent('desktop-rendered', null, 8000);
+      const rendered0 = await tape.wait('desktop-rendered', null, { timeoutMs: 8000 });
       // office 组内序：编排的身份就是这条序（拖拽/持久化/出厂三段都按它复算）
       const officeOrder = (e) => ((e && e.docEntries) || []).filter((d) => d.group === 'office').map((d) => d.name);
       const docShot = (name, r) => capture({
@@ -1739,7 +1680,7 @@ async function runSegments() {
       try {
         fs.writeFileSync(docPaths[0], 'probe');
         fs.writeFileSync(docPaths[1], 'probe');
-        const grouped = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probeDocx) && (e.names || []).includes(probePdf), 8000);
+        const grouped = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(probeDocx) && (e.names || []).includes(probePdf), { timeoutMs: 8000 });
         if (grouped) {
           const g1 = (grouped.docEntries || []).find((d) => d.name === probeDocx);
           const g2 = (grouped.docEntries || []).find((d) => d.name === probePdf);
@@ -1757,7 +1698,7 @@ async function runSegments() {
       // 命中创建前的旧拍——电池以为删除已同步、实则下一拍重建仍在路上（本轮实证：
       // 在飞拖拽被这次迟到重建掐断）。P5-ICON 清场同法。
       const tDocGone = Date.now();
-      const goneDocs = await waitEvent('desktop-rendered', (e) => e.t >= tDocGone && !(e.names || []).includes(probeDocx) && !(e.names || []).includes(probePdf), 6000);
+      const goneDocs = await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(probeDocx) && !(e.names || []).includes(probePdf), { since: tDocGone, timeoutMs: 6000 });
       goneDocs
         ? rep.pass('删除探针文档后条目同步消失（面板与磁盘一致）')
         : rep.fail('删除探针文档后条目未消失');
@@ -1779,10 +1720,9 @@ async function runSegments() {
         fs.writeFileSync(dragPaths[1], 'probe');
         fs.utimesSync(dragPaths[0], mA, mA); // A 新于 B → 出厂序 [A, B, ...]
         fs.utimesSync(dragPaths[1], mB, mB);
-        const joinedDrag = await waitEvent('desktop-rendered',
-          (e) => officeOrder(e).includes(dragA) && officeOrder(e).includes(dragB), 8000);
+        const joinedDrag = await tape.wait('desktop-rendered', (e) => officeOrder(e).includes(dragA) && officeOrder(e).includes(dragB), { timeoutMs: 8000 });
         // 源/参照矩形取安静后的最新一拍（拖拽中途编排序再变会错位）
-        const dragEvt = await waitStable('desktop-rendered', 1500, 8000);
+        const dragEvt = await tape.waitStable('desktop-rendered', 1500, 8000);
         orderBefore = officeOrder(dragEvt);
         const rectByName = (name) => {
           const r = ((dragEvt && dragEvt.rects) || []).find((x) => x.name === name && x.rect);
@@ -1815,17 +1755,14 @@ async function runSegments() {
             w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
           }
           w32.moveMousePhys(safePt.x, safePt.y);
-          const moved = hitDrag.ok && await waitEvent('desktop-moved', (e) => e.name === dragged && e.ok, 6000);
+          const moved = hitDrag.ok && await tape.wait('desktop-moved', (e) => e.name === dragged && e.ok, { timeoutMs: 6000 });
           if (hitDrag.ok) {
             moved
               ? rep.pass(`拖拽摆位：${dragged} 拖至 ${anchor} 之前（desktop/move ok=true，摆位落盘）`)
               : rep.fail(`拖拽摆位未达成（desktop-moved=${JSON.stringify(moved)}）`);
           }
           const tReordered = Date.now();
-          const reordered = hitDrag.ok && await waitEvent('desktop-rendered', (e) => {
-            const ord = officeOrder(e);
-            return e.t >= tReordered - 2500 && ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor);
-          }, 6000);
+          const reordered = hitDrag.ok && await tape.wait('desktop-rendered', (e) => { const ord = officeOrder(e); return ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor); }, { since: tReordered - 2500, timeoutMs: 6000 });
           if (!hitDrag.ok) {
             rep.note('拖拽未执行（前置遮挡失败），排序/持久化连锁断言跳过');
           } else {
@@ -1837,18 +1774,15 @@ async function runSegments() {
 
           // 重启面板：摆位持久化（layout.json）。拖拽未执行时跳过（重启只为验证持久化）。
           if (hitDrag.ok) {
-          await stopPanel();
           const rt0 = Date.now();
-          child = launchPanel();
-          const hwnd4 = await waitPanelWindow(20000, rt0);
+          const rl4 = await handle.relaunch({ sinceMs: rt0 });
+          child = rl4.child;
+          const hwnd4 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
           if (!hwnd4) throw new Error(`P5.5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
           hwnd = hwnd4;
           panelPid = w32.threadIdOf(hwnd4).pid;
           rectN = w32.rectOf(hwnd4);
-          const persisted = await waitEvent('desktop-rendered', (e) => {
-            const ord = officeOrder(e);
-            return e.t >= rt0 && ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor);
-          }, 8000);
+          const persisted = await tape.wait('desktop-rendered', (e) => { const ord = officeOrder(e); return ord.includes(dragged) && ord.includes(anchor) && ord.indexOf(dragged) < ord.indexOf(anchor); }, { since: rt0, timeoutMs: 8000 });
           persisted
             ? rep.pass(`重启面板后位置保持：${dragged} 仍在 ${anchor} 之前（layout.json 持久化）`)
             : rep.fail('重启后摆位未保持（layout.json 未生效）');
@@ -1867,13 +1801,13 @@ async function runSegments() {
             const bz = latestZoneOf('settings-btn');
             if (!bz) return { reset: null, why: 'settings-btn 未进热区' };
             await occludedClickAt(ptOfZone(bz), '设置入口');
-            const opened = await waitEvent('settings-opened', (e) => e.t >= tRound, 3000);
+            const opened = await tape.wait('settings-opened', undefined, { since: tRound, timeoutMs: 3000 });
             if (!opened) return { reset: null, why: 'settings-opened 未到（浮层未开）' };
             await sleep(350); // 浮层热区声明落地
             const rz2 = latestZoneOf('settings-reset');
             if (!rz2) return { reset: null, why: 'settings-reset 未进热区' };
             await occludedClickAt(ptOfZone(rz2), '浮层复位');
-            const reset = await waitEvent('desktop-layout-reset', (e) => e.ok, 3000);
+            const reset = await tape.wait('desktop-layout-reset', (e) => e.ok, { timeoutMs: 3000 });
             return { reset, why: reset ? '' : 'desktop-layout-reset 未到' };
           };
           let reset = await withControlWindowClear(resetViaOverlay);
@@ -1886,11 +1820,7 @@ async function runSegments() {
             rep.fail(`恢复出厂未达成（${reset.why}）`);
           } else {
             const tReset = Date.now() - 15000; // 覆盖重试轮的窗口
-            const factoryEvt = orderBefore && await waitEvent('desktop-rendered', (e) => {
-              const ord = officeOrder(e);
-              return e.t >= tReset && orderBefore.every((n) => ord.includes(n))
-                && ord.indexOf(dragged) > ord.indexOf(anchor);
-            }, 6000);
+            const factoryEvt = orderBefore && await tape.wait('desktop-rendered', (e) => { const ord = officeOrder(e); return orderBefore.every((n) => ord.includes(n)) && ord.indexOf(dragged) > ord.indexOf(anchor); }, { since: tReset, timeoutMs: 6000 });
             factoryEvt
               ? rep.pass(`设置浮层恢复出厂一键生效：清除 ${reset.reset.cleared} 处显式摆位，文档区回到出厂归类序（${orderBefore.slice(0, 2).join(', ')} 归位）`)
               : rep.fail(`恢复出厂未达成（reset=${JSON.stringify(reset.reset)}，出厂序=${JSON.stringify(orderBefore && orderBefore.slice(0, 2))}）`);
@@ -1898,15 +1828,14 @@ async function runSegments() {
             // 收层退场：ESC 关浮层（08 段对 esc/blur 有专门断言，这里只求干净退场）
             const tClose = Date.now();
             w32.tapKeys([VK_ESCAPE]);
-            const closed = await waitEvent('settings-closed', (e) => e.t >= tClose && e.reason === 'esc', 2500);
+            const closed = await tape.wait('settings-closed', (e) => e.reason === 'esc', { since: tClose, timeoutMs: 2500 });
             closed || rep.note('复位后 ESC 收层存证未到（不阻塞；08 段有专门断言）');
           }
         }
       }
       for (const p of dragPaths) { try { fs.unlinkSync(p); } catch { /* 尽力清理 */ } }
       const tDragGone = Date.now();
-      const dragGone = await waitEvent('desktop-rendered',
-        (e) => e.t >= tDragGone && !(e.names || []).includes(dragA) && !(e.names || []).includes(dragB), 6000);
+      const dragGone = await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(dragA) && !(e.names || []).includes(dragB), { since: tDragGone, timeoutMs: 6000 });
       dragGone
         ? rep.pass('清理拖拽探针后条目同步消失（面板与磁盘一致）')
         : rep.note('拖拽探针清理存证未到（不阻塞；探针已尽力删除）');
@@ -1948,12 +1877,11 @@ async function runSegments() {
       deckProbeFiles.push(selDocPath, selDoc2Path);
       fs.writeFileSync(selDocPath, 'probe');
       fs.writeFileSync(selDoc2Path, 'probe');
-      const joined = await waitEvent('desktop-rendered',
-        (e) => (e.names || []).includes(selDoc) && (e.names || []).includes(selDoc2), 8000);
+      const joined = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(selDoc) && (e.names || []).includes(selDoc2), { timeoutMs: 8000 });
       joined || rep.fail(`选区文档探针未入池（${selDoc} / ${selDoc2}）`);
 
       // b. 单击重置 + Ctrl 点选并集 + 再点切换出选
-      const settled20 = await waitStable('desktop-rendered', 1500, 8000);
+      const settled20 = await tape.waitStable('desktop-rendered', 1500, 8000);
       const docR = settled20 && (settled20.rects || []).find((r) => r.name === selDoc && r.rect);
       const docR2 = settled20 && (settled20.rects || []).find((r) => r.name === selDoc2 && r.rect);
       // 文档区顶排条目：分区空白清空的落点原语（20c 同法）
@@ -1965,7 +1893,7 @@ async function runSegments() {
         // 逐击取最新矩形：文档区名序随后台使用频次落定会重排（工单05，~1s 内动），
         // 一次 settle 抓的矩形隔几秒再点就点空——「Ctrl 切换出选存证异常」的根因。
         const liveRect20 = (name) => {
-          const last = readEvents().filter((e) => e.type === 'desktop-rendered' && e.t >= t20).pop();
+          const last = tape.latest('desktop-rendered', undefined, { since: t20 });
           return ((last && last.rects) || []).find((r) => r.name === name && r.rect) || null;
         };
         const ctrlClickItem20 = async (name, label) => {
@@ -1977,14 +1905,14 @@ async function runSegments() {
         const rSel = liveItemRect(selDoc); // 落点现取：同 liveRect20，名序随后台频次重排
         if (!rSel) rep.fail(`选区-单击取矩形失败（${selDoc} 不在最新渲染里）`);
         const okA = rSel && await hitAndClick(ptOf(rSel.rect), '选区-单击');
-        const selected = okA && await waitEvent('desktop-selected', (e) => e.t >= tSel && e.name === selDoc && sameNames(e.names, [selDoc]), 4000);
+        const selected = okA && await tape.wait('desktop-selected', (e) => e.name === selDoc && sameNames(e.names, [selDoc]), { since: tSel, timeoutMs: 4000 });
         selected
           ? rep.pass(`单击重置选区：文档区条目「${selDoc}」单选存证`)
           : rep.fail('单击重置未见 desktop-selected（单条 names）');
 
         const tX = Date.now();
         const okX = await ctrlClickItem20(selDoc2, '选区-Ctrl 补选');
-        const union = okX && await waitEvent('desktop-selection-toggled', (e) => e.t >= tX && e.selected === true && sameNames(e.names, [selDoc, selDoc2]), 4000);
+        const union = okX && await tape.wait('desktop-selection-toggled', (e) => e.selected === true && sameNames(e.names, [selDoc, selDoc2]), { since: tX, timeoutMs: 4000 });
         union
           ? rep.pass(`Ctrl 点选并集：文档区「${selDoc}」+「${selDoc2}」同选`)
           : rep.fail(`Ctrl 并集存证异常：${JSON.stringify(union)}`);
@@ -1993,7 +1921,7 @@ async function runSegments() {
         await sleep(600); // 隔开同位置双击窗口，确保下一击 detail 重新计 1（切换出选要真到达渲染层）
         const tOff = Date.now();
         const okOff = await ctrlClickItem20(selDoc2, '选区-Ctrl 再点');
-        const off = okOff && await waitEvent('desktop-selection-toggled', (e) => e.t >= tOff && e.selected === false && sameNames(e.names, [selDoc]), 4000);
+        const off = okOff && await tape.wait('desktop-selection-toggled', (e) => e.selected === false && sameNames(e.names, [selDoc]), { since: tOff, timeoutMs: 4000 });
         off
           ? rep.pass('Ctrl 再点同条切换出选：names 只剩先选那条')
           : rep.fail(`Ctrl 切换出选存证异常：${JSON.stringify(off)}`);
@@ -2002,7 +1930,7 @@ async function runSegments() {
         await sleep(600); // 同上：隔开同位置（docR2 第三击）的双击窗口
         const tBack = Date.now();
         const okBack = await ctrlClickItem20(selDoc2, '选区-Ctrl 补选');
-        const back = okBack && await waitEvent('desktop-selection-toggled', (e) => e.t >= tBack && (e.names || []).length === 2, 4000);
+        const back = okBack && await tape.wait('desktop-selection-toggled', (e) => (e.names || []).length === 2, { since: tBack, timeoutMs: 4000 });
         if (!back) rep.fail('空白清空前置补选失败');
         // 文档区容器内边距空白：顶排条目上沿之上 6px——在条目包围盒+10px 热区内、又不落任何条目。
         // 顶排条目也随后台频次换位，这落点离补选/断言隔了几秒，临点现取
@@ -2011,7 +1939,7 @@ async function runSegments() {
         const blankPt = topBlank && { x: rectS.left + Math.round((topBlank.rect.x + topBlank.rect.w / 2) * f), y: rectS.top + Math.round((topBlank.rect.y - 6) * f) };
         const tBlank = Date.now();
         const okBlank = blankPt && await hitAndClick(blankPt, '选区-空白');
-        const cleared = okBlank && await waitEvent('desktop-selection-cleared', (e) => e.t >= tBlank && (e.had || []).length === 2, 4000);
+        const cleared = okBlank && await tape.wait('desktop-selection-cleared', (e) => (e.had || []).length === 2, { since: tBlank, timeoutMs: 4000 });
         cleared
           ? rep.pass('单击分区空白清空选区：desktop-selection-cleared 存证（had=2）')
           : rep.fail(`分区空白清空存证异常：${JSON.stringify(cleared)}`);
@@ -2025,17 +1953,17 @@ async function runSegments() {
         const rRe1 = liveItemRect(selDoc);
         if (!rRe1) rep.fail(`重建-重选取矩形失败（${selDoc} 不在最新渲染里）`);
         const okRe1 = rRe1 && await hitAndClick(ptOf(rRe1.rect), '重建-重选');
-        const reSel = okRe1 && await waitEvent('desktop-selected', (e) => e.t >= tRe && e.name === selDoc, 4000);
+        const reSel = okRe1 && await tape.wait('desktop-selected', (e) => e.name === selDoc, { since: tRe, timeoutMs: 4000 });
         const rRe2 = liveItemRect(selDoc2);
         if (!rRe2) rep.fail(`重建-Ctrl 补选取矩形失败（${selDoc2} 不在最新渲染里）`);
         const okRe2 = reSel && rRe2 && await ctrlClick(ptOf(rRe2.rect), '重建-Ctrl 补选');
-        const reTwo = okRe2 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tRe && (e.names || []).length === 2, 4000);
+        const reTwo = okRe2 && await tape.wait('desktop-selection-toggled', (e) => (e.names || []).length === 2, { since: tRe, timeoutMs: 4000 });
         if (!reTwo) {
           rep.fail('快照重建用例前置补选失败');
         } else {
           const fut = new Date(Date.now() + 5000);
           fs.utimesSync(selDocPath, fut, fut); // mtime 变 → iconKey/指纹翻转，条目集合不变
-          const rebuilt = await waitEvent('desktop-rendered', (e) => e.t >= tRe && sameNames(e.sel, [selDoc, selDoc2]), 8000);
+          const rebuilt = await tape.wait('desktop-rendered', (e) => sameNames(e.sel, [selDoc, selDoc2]), { since: tRe, timeoutMs: 8000 });
           rebuilt
             ? rep.pass(`快照重建（条目集合不变）后选中态不丢：desktop-rendered.sel=[${(rebuilt.sel || []).join(', ')}]`)
             : rep.fail('指纹翻转重建后选中态丢失（desktop-rendered.sel 未见两条）');
@@ -2043,11 +1971,11 @@ async function runSegments() {
           // e. 选中条目被外部删除 → 自动出选区
           fs.unlinkSync(selDoc2Path);
           const tPrune = Date.now();
-          const pruned = await waitEvent('desktop-selection-pruned', (e) => e.t >= tPrune && (e.removed || []).join() === selDoc2, 8000);
+          const pruned = await tape.wait('desktop-selection-pruned', (e) => (e.removed || []).join() === selDoc2, { since: tPrune, timeoutMs: 8000 });
           pruned && sameNames(pruned.names, [selDoc])
             ? rep.pass(`选中条目外部删除自动剔除：removed=[${selDoc2}]，余 [${(pruned.names || []).join(', ')}]`)
             : rep.fail(`外删剔除存证异常：${JSON.stringify(pruned)}`);
-          const goneSel = await waitEvent('desktop-rendered', (e) => e.t >= tPrune && sameNames(e.sel, [selDoc]), 8000);
+          const goneSel = await tape.wait('desktop-rendered', (e) => sameNames(e.sel, [selDoc]), { since: tPrune, timeoutMs: 8000 });
           goneSel || rep.fail('外删后 desktop-rendered.sel 仍含被删条目（悬空选中）');
         }
       }
@@ -2064,11 +1992,11 @@ async function runSegments() {
         try {
           createProbeBat(pathA, markerA);
           createProbeBat(pathB, markerB);
-          const both = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(batA) && (e.names || []).includes(batB), 8000);
+          const both = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(batA) && (e.names || []).includes(batB), { timeoutMs: 8000 });
           if (!both) {
             rep.fail('双击全开探针 bat 未入池');
           } else {
-            await waitStable('desktop-rendered', 1500, 8000);
+            await tape.waitStable('desktop-rendered', 1500, 8000);
             // 落点现取（工单59 真机首跑教训）：两条 bat 入池后频次分数落定会重排名序，
             // 一次 settle 抓的矩形隔几秒再点就点空
             const rA = liveItemRect(batA);
@@ -2080,11 +2008,11 @@ async function runSegments() {
               const rAl1 = liveItemRect(batA);
               if (!rAl1) rep.fail(`双击全开-点选 A 取矩形失败（${batA} 不在最新渲染里）`);
               const ok1 = rAl1 && await hitAndClick(ptOf(rAl1.rect), '双击全开-点选 A');
-              const selA = ok1 && await waitEvent('desktop-selected', (e) => e.t >= tSet && e.name === batA, 4000);
+              const selA = ok1 && await tape.wait('desktop-selected', (e) => e.name === batA, { since: tSet, timeoutMs: 4000 });
               const rBl = liveItemRect(batB);
               if (!rBl) rep.fail(`双击全开-Ctrl 补选 B 取矩形失败（${batB} 不在最新渲染里）`);
               const ok2 = selA && rBl && await ctrlClick(ptOf(rBl.rect), '双击全开-Ctrl 补选 B');
-              const two = ok2 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSet && sameNames(e.names, [batA, batB]), 4000);
+              const two = ok2 && await tape.wait('desktop-selection-toggled', (e) => sameNames(e.names, [batA, batB]), { since: tSet, timeoutMs: 4000 });
               if (!two) {
                 rep.fail('双击全开前置（选中集两条）未达成');
               } else {
@@ -2103,14 +2031,14 @@ async function runSegments() {
                     await sleep(90); // 第二击落在 GetDoubleClickTime（默认 500ms）内
                     w32.clickPhys(pt.x, pt.y, 'left');
                     w32.moveMousePhys(safePt.x, safePt.y);
-                    const setClicked = await waitEvent('desktop-launch-set-clicked', (e) => e.t >= tDbl && (e.names || []).length === 2, 6000);
+                    const setClicked = await tape.wait('desktop-launch-set-clicked', (e) => (e.names || []).length === 2, { since: tDbl, timeoutMs: 6000 });
                     const setOk = setClicked && (setClicked.names || []).join() === [batA, batB].join();
                     setOk
                       ? rep.pass('双击选中集内任一条 = 整集启动名单（desktop-launch-set-clicked 两条）')
                       : rep.fail(`双击全开名单存证异常：${JSON.stringify(setClicked)}`);
                     const tLa = Date.now();
-                    const launchA = await waitEvent('desktop-launched', (e) => e.t >= tLa && e.name === batA && e.ok, 6000);
-                    const launchB = await waitEvent('desktop-launched', (e) => e.t >= tLa && e.name === batB && e.ok, 6000);
+                    const launchA = await tape.wait('desktop-launched', (e) => e.name === batA && e.ok, { since: tLa, timeoutMs: 6000 });
+                    const launchB = await tape.wait('desktop-launched', (e) => e.name === batB && e.ok, { since: tLa, timeoutMs: 6000 });
                     launchA && launchB
                       ? rep.pass('整集逐项启动：两条 desktop-launched ok=true（desktop/launch 逐项存证）')
                       : rep.fail(`整集启动存证异常：A=${JSON.stringify(launchA)} B=${JSON.stringify(launchB)}`);
@@ -2160,17 +2088,17 @@ async function runSegments() {
       const probePaths = probes.map((n) => path.join(seedScan.user, n));
       try {
         for (const p of probePaths) fs.writeFileSync(p, 'probe');
-        const joined21 = await waitEvent('desktop-rendered', (e) => probes.every((n) => (e.names || []).includes(n)), 8000);
+        const joined21 = await tape.wait('desktop-rendered', (e) => probes.every((n) => (e.names || []).includes(n)), { timeoutMs: 8000 });
         joined21 || rep.fail(`框选文档探针未入池（${probes.join(', ')}）`);
 
-        const settled21 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled21 = await tape.waitStable('desktop-rendered', 1500, 8000);
         // 几何现取（工单59 真机首跑教训）：文档区名序随后台使用频次落定会重排（工单05，~1s 内动），
         // settled21 抓的那份几何隔几秒再点就点空。各段按「要点的这一刻」重读最新一拍；落点与期望
         // 命中集同源同拍复算——框变了而期望没变，一样是假败。
         const GROUPS21 = ['folders', 'office', 'pdf', 'image', 'archive', 'other'];
         const boxOf = (p1, p2) => ({ l: Math.min(p1.x, p2.x), t: Math.min(p1.y, p2.y), r: Math.max(p1.x, p2.x), b: Math.max(p1.y, p2.y) });
         const geo21 = () => {
-          const last = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+          const last = tape.latest('desktop-rendered');
           const rects = ((last && last.rects) || []).filter((r) => r.zone === 'doc' && r.rect).map((r) => ({ name: r.name, ...r.rect }));
           const byName = new Map(rects.map((r) => [r.name, r]));
           // DOM 序复算（渲染层 marqueeHits 的 querySelectorAll 序）：doc 分组序（工单59 后无 dock 段）
@@ -2244,7 +2172,7 @@ async function runSegments() {
               const hitPre = await ensurePanelHit(ptA, hwnd);
               if (!hitPre.ok) rep.fail(`框选-预置选区前置失败：${hitPre.why}`);
               else w32.clickPhys(ptA.x, ptA.y, 'left');
-              const pre = hitPre.ok && await waitEvent('desktop-selected', (e) => e.t >= tPre && e.name === preItem.name, 4000);
+              const pre = hitPre.ok && await tape.wait('desktop-selected', (e) => e.name === preItem.name, { since: tPre, timeoutMs: 4000 });
               pre || rep.fail('框选-预置单选未见 desktop-selected（替换语义不可分辨）');
 
               const zoneBox = G.zoneBox;
@@ -2263,15 +2191,15 @@ async function runSegments() {
               if (!ok1) {
                 rep.fail('普通框选用例未执行（前置失败）');
               } else {
-                const started = await waitEvent('desktop-marquee-started', (e) => e.t >= tMq1, 4000);
+                const started = await tape.wait('desktop-marquee-started', undefined, { since: tMq1, timeoutMs: 4000 });
                 started
                   ? rep.pass(`框选越过阈值即启动：desktop-marquee-started（起笔于分区空白 (${Math.round(started.from.x)}, ${Math.round(started.from.y)})）`)
                   : rep.fail('desktop-marquee-started 未见（阈值/起笔接线异常）');
-                const live = await waitEvent('desktop-marquee-updated', (e) => e.t >= tMq1 && sameNames(e.hits, expected1), 4000);
+                const live = await tape.wait('desktop-marquee-updated', (e) => sameNames(e.hits, expected1), { since: tMq1, timeoutMs: 4000 });
                 live
                   ? rep.pass(`拖动途中即时高亮：desktop-marquee-updated 途中携带命中 [${expected1.join(', ')}]（矩形实拍见 21-marquee-live.png）`)
                   : rep.fail(`途中命中存证异常：期望 [${expected1.join(', ')}]，未见对应 desktop-marquee-updated`);
-                const fin1 = await waitEvent('desktop-marquee-finished', (e) => e.t >= tMq1 && e.ctrl === false && sameNames(e.hits, expected1) && sameNames(e.names, expected1), 4000);
+                const fin1 = await tape.wait('desktop-marquee-finished', (e) => e.ctrl === false && sameNames(e.hits, expected1) && sameNames(e.names, expected1), { since: tMq1, timeoutMs: 4000 });
                 fin1
                   ? rep.pass(`松手普通框选=替换：选区由 [${preItem.name}] → [${expected1.join(', ')}]（desktop-marquee-finished ctrl=false）`)
                   : rep.fail(`替换语义存证异常：${JSON.stringify(fin1)}`);
@@ -2303,7 +2231,7 @@ async function runSegments() {
                 await sleep(60);
                 w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
               }
-              const cc = okCc0.ok && await waitEvent('desktop-selection-toggled', (e) => e.t >= tCc && e.selected === true && sameNames(e.names, [...expected1, preItem.name]), 4000);
+              const cc = okCc0.ok && await tape.wait('desktop-selection-toggled', (e) => e.selected === true && sameNames(e.names, [...expected1, preItem.name]), { since: tCc, timeoutMs: 4000 });
               if (!cc) {
                 rep.fail('Ctrl 并集前置（Ctrl 点选补回 A）未达成');
               } else {
@@ -2318,7 +2246,7 @@ async function runSegments() {
                 if (!ok2) {
                   rep.fail('Ctrl 框选用例未执行（前置失败）');
                 } else {
-                  const fin2 = await waitEvent('desktop-marquee-finished', (e) => e.t >= tMq2 && e.ctrl === true && sameNames(e.hits, expected2) && sameNames(e.names, expectedUnion), 4000);
+                  const fin2 = await tape.wait('desktop-marquee-finished', (e) => e.ctrl === true && sameNames(e.hits, expected2) && sameNames(e.names, expectedUnion), { since: tMq2, timeoutMs: 4000 });
                   fin2
                     ? rep.pass(`松手 Ctrl 框选=并集：[${selBefore.join(', ')}] ∪ 命中 [${expected2.join(', ')}] → [${expectedUnion.join(', ')}]（按名去重）`)
                     : rep.fail(`并集语义存证异常：${JSON.stringify(fin2)}`);
@@ -2331,7 +2259,7 @@ async function runSegments() {
                   // 渲染态交叉校验：touch 探针 mtime 翻指纹 → desktop-rendered.sel 应携带并集
                   const fut21 = new Date(Date.now() + 5000);
                   fs.utimesSync(probePaths[2], fut21, fut21);
-                  const selEvt = await waitEvent('desktop-rendered', (e) => e.t >= tMq2 && sameNames(e.sel, expectedUnion), 8000);
+                  const selEvt = await tape.wait('desktop-rendered', (e) => sameNames(e.sel, expectedUnion), { since: tMq2, timeoutMs: 8000 });
                   selEvt
                     ? rep.pass('并集结果入渲染态：指纹翻转重建后 desktop-rendered.sel=并集（选中不闪没）')
                     : rep.fail('重建后 desktop-rendered.sel 与并集不符');
@@ -2360,8 +2288,8 @@ async function runSegments() {
                 await sleep(30);
                 w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
                 w32.moveMousePhys(safePt.x, safePt.y);
-                const noStart = await waitEvent('desktop-marquee-started', (e) => e.t >= tSub, 1200);
-                const clearedSub = await waitEvent('desktop-selection-cleared', (e) => e.t >= tSub && (!unionNames || sameNames(e.had, unionNames)), 4000);
+                const noStart = await tape.wait('desktop-marquee-started', undefined, { since: tSub, timeoutMs: 1200 });
+                const clearedSub = await tape.wait('desktop-selection-cleared', (e) => (!unionNames || sameNames(e.had, unionNames)), { since: tSub, timeoutMs: 4000 });
                 !noStart && clearedSub
                   ? rep.pass(`阈值内松手=普通点击：无框选事件，尾随 click 清空选区（desktop-selection-cleared had=${clearedSub.had ? clearedSub.had.length : '?'} 条）`)
                   : rep.fail(`阈值语义异常：marquee-started=${JSON.stringify(!!noStart)} cleared=${JSON.stringify(!!clearedSub)}`);
@@ -2388,8 +2316,8 @@ async function runSegments() {
               if (!okItem) {
                 rep.fail('条目起笔用例未执行（前置失败）');
               } else {
-                const noMq = await waitEvent('desktop-marquee-started', (e) => e.t >= tItem, 1200);
-                const moved = await waitEvent('desktop-moved', (e) => e.t >= tItem && e.name === preItem.name && e.ok, 5000);
+                const noMq = await tape.wait('desktop-marquee-started', undefined, { since: tItem, timeoutMs: 1200 });
+                const moved = await tape.wait('desktop-moved', (e) => e.name === preItem.name && e.ok, { since: tItem, timeoutMs: 5000 });
                 !noMq
                   ? rep.pass(`起笔于条目不误触框选（仍走拖拽摆位路径：desktop-moved ok=${moved ? 'true' : '未落盘（同位守卫）'}）`)
                   : rep.fail('条目起笔误入框选（desktop-marquee-started 不应出现）');
@@ -2420,7 +2348,7 @@ async function runSegments() {
               if (!ok5) {
                 rep.fail('越界框选用例未执行（前置失败）');
               } else {
-                const fin5 = await waitEvent('desktop-marquee-finished', (e) => e.t >= tOut && sameNames(e.hits, expected5), 4000);
+                const fin5 = await tape.wait('desktop-marquee-finished', (e) => sameNames(e.hits, expected5), { since: tOut, timeoutMs: 4000 });
                 const reached = fin5 && fin5.rect && fin5.rect.x <= zoneBox.l - 60;
                 fin5 && reached
                   ? rep.pass(`指针流出分区包围盒框选不中断：矩形左沿 ${Math.round(fin5.rect.x)} < 包围盒左沿 ${Math.round(zoneBox.l)}，松手仍提交命中 [${expected5.join(', ')}]`)
@@ -2456,8 +2384,8 @@ async function runSegments() {
                   rep.fail('doc 外扩带框选用例未执行（前置失败）');
                 } else {
                   const docRingExpected = G.hitsOf(boxOf(docRingStart, docRingEnd));
-                  const startedDocRing = await waitEvent('desktop-marquee-started', (e) => e.t >= tDocRing, 4000);
-                  const finDocRing = await waitEvent('desktop-marquee-finished', (e) => e.t >= tDocRing && e.ctrl === false && sameNames(e.hits, docRingExpected) && sameNames(e.names, docRingExpected), 4000);
+                  const startedDocRing = await tape.wait('desktop-marquee-started', undefined, { since: tDocRing, timeoutMs: 4000 });
+                  const finDocRing = await tape.wait('desktop-marquee-finished', (e) => e.ctrl === false && sameNames(e.hits, docRingExpected) && sameNames(e.names, docRingExpected), { since: tDocRing, timeoutMs: 4000 });
                   startedDocRing && finDocRing
                     ? rep.pass(`doc 外扩带起笔框选：顶条上沿外 20px（旧 10px 边带外的穿透区）直接起笔，命中 [${docRingExpected.join(', ')}]`)
                     : rep.fail(`doc 外扩带框选存证异常：started=${JSON.stringify(!!startedDocRing)} fin=${JSON.stringify(finDocRing && { hits: finDocRing.hits })}`);
@@ -2526,10 +2454,10 @@ async function runSegments() {
         for (const p of paths22) fs.writeFileSync(p, 'probe');
         const now22 = Date.now();
         paths22.forEach((p, i) => { const t = new Date(now22 - (2 - i) * 60000); fs.utimesSync(p, t, t); });
-        const joined22 = await waitEvent('desktop-rendered', (e) => probes22.every((n) => (e.names || []).includes(n)), 8000);
+        const joined22 = await tape.wait('desktop-rendered', (e) => probes22.every((n) => (e.names || []).includes(n)), { timeoutMs: 8000 });
         joined22 || rep.fail(`批量拖拽探针未入池（${probes22.join(', ')}）`);
 
-        const settled22 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled22 = await tape.waitStable('desktop-rendered', 1500, 8000);
         const orderBefore22 = officeOrder22(settled22).filter((n) => probes22.includes(n));
         rep.note(`批量拖拽夹具出厂序：[${orderBefore22.join(', ')}]（mtime 1 最新 → 组内降序在前）`);
         const rect22 = (name) => {
@@ -2554,12 +2482,12 @@ async function runSegments() {
         const hitTwo = await ensurePanelHit(ptTwo, hwnd);
         if (!hitTwo.ok) { rep.fail(`批量拖拽点选前置失败：${hitTwo.why}`); return; }
         w32.clickPhys(ptTwo.x, ptTwo.y, 'left');
-        const selTwo = await waitEvent('desktop-selected', (e) => e.t >= tSet22 && e.name === probes22[1], 4000);
+        const selTwo = await tape.wait('desktop-selected', (e) => e.name === probes22[1], { since: tSet22, timeoutMs: 4000 });
         selTwo || rep.fail('批量拖拽前置：单击选中 2 未见 desktop-selected');
         const lThree = rect22(probes22[2]);
         if (!lThree) rep.fail(`批量-Ctrl 补选 3 取矩形失败（${probes22[2]} 不在最新渲染里）`);
         const okThree = selTwo && lThree && await ctrlClick22(ptOfB(lThree), '批量-Ctrl 补选 3');
-        const twoOk = okThree && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSet22 && sameNames22(e.names, [probes22[1], probes22[2]]), 4000);
+        const twoOk = okThree && await tape.wait('desktop-selection-toggled', (e) => sameNames22(e.names, [probes22[1], probes22[2]]), { since: tSet22, timeoutMs: 4000 });
         twoOk || rep.fail('批量拖拽前置：Ctrl 补选 3 未达成（选区非 [2, 3]）');
 
         // c. 抓起 2 拖到 1 之前 → 显式段 [2, 3]，office 组内序翻转为 [2, 3, 1]
@@ -2579,19 +2507,19 @@ async function runSegments() {
           }
         });
         if (!dragOk) return;
-        const started22 = await waitEvent('desktop-batch-drag-started', (e) => e.t >= tDrag22 && sameNames22(e.names, [probes22[1], probes22[2]]) && e.count === 2, 4000);
+        const started22 = await tape.wait('desktop-batch-drag-started', (e) => sameNames22(e.names, [probes22[1], probes22[2]]) && e.count === 2, { since: tDrag22, timeoutMs: 4000 });
         started22
           ? rep.pass(`ghost「N 项」徽标：desktop-batch-drag-started count=${started22.count}（整组 2 条都实际拖动）`)
           : rep.fail('ghost 徽标存证异常：desktop-batch-drag-started 未见或 count≠2');
-        const clicked22 = await waitEvent('desktop-move-batch-clicked', (e) => e.t >= tDrag22 && e.zone === 'doc' && sameNames22(e.names, [probes22[1], probes22[2]]) && e.beforeName === probes22[0], 4000);
+        const clicked22 = await tape.wait('desktop-move-batch-clicked', (e) => e.zone === 'doc' && sameNames22(e.names, [probes22[1], probes22[2]]) && e.beforeName === probes22[0], { since: tDrag22, timeoutMs: 4000 });
         clicked22
           ? rep.pass(`批量落位意图存证：desktop-move-batch-clicked zone=doc，参照 beforeName 落在 1 上`)
           : rep.fail('批量落位意图存证异常：desktop-move-batch-clicked 未见（zone=doc + 参照=1）');
-        const done22 = await waitEvent('desktop-moved-batch', (e) => e.t >= tDrag22 && e.ok === true && sameNames22(e.moved, [probes22[1], probes22[2]]) && sameNames22(e.skipped, []), 6000);
+        const done22 = await tape.wait('desktop-moved-batch', (e) => e.ok === true && sameNames22(e.moved, [probes22[1], probes22[2]]) && sameNames22(e.skipped, []), { since: tDrag22, timeoutMs: 6000 });
         done22
           ? rep.pass(`整组落位 + skipped 如实上报：moved=[${done22.moved.join(', ')}]，skipped=[]（面板无手钉组员可跳过，desktop-moved-batch ok=true）`)
           : rep.fail(`批量落位/skipped 存证异常：${JSON.stringify(done22)}`);
-        const relaid = await waitEvent('desktop-rendered', (e) => e.t >= tDrag22 && sameNames22(officeOrder22(e).filter((n) => probes22.includes(n)), [probes22[1], probes22[2], probes22[0]]), 6000);
+        const relaid = await tape.wait('desktop-rendered', (e) => sameNames22(officeOrder22(e).filter((n) => probes22.includes(n)), [probes22[1], probes22[2], probes22[0]]), { since: tDrag22, timeoutMs: 6000 });
         relaid
           ? rep.pass(`组内相对序 = 选区插入序：显式段 [2, 3] 插到 1 之前，office 序由 [${orderBefore22.map((n) => n.slice(-6)).join(', ')}] 翻转为 [2, 3, 1]`)
           : rep.fail('批量落位后编排未达预期（显式段序 ≠ 选区插入序）');
@@ -2633,7 +2561,7 @@ async function runSegments() {
         if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
         const t0 = Date.now();
         w32.clickPhys(ptBlank.x, ptBlank.y, 'right');
-        const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+        const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
         return opened ? { t0, opened } : null;
       };
       // 收起原语：点 pt（物理坐标）。两处用法：
@@ -2649,7 +2577,7 @@ async function runSegments() {
         if (!hit.ok) return null;
         const t0 = Date.now();
         w32.clickPhys(pt.x, pt.y, button || 'left');
-        return waitEvent('desktop-menu-closed', (e) => e.t >= t0 && e.reason === 'outside', 4000);
+        return tape.wait('desktop-menu-closed', (e) => e.reason === 'outside', { since: t0, timeoutMs: 4000 });
       };
       const outPtM = { x: rectM.left + Math.round((DOC_ZONE_RIGHT_DIP + 100) * f), y: rectM.top + Math.round(600 * f) };
 
@@ -2659,9 +2587,9 @@ async function runSegments() {
       const probe23Path = path.join(seedScan.user, probe23);
       try {
         fs.writeFileSync(probe23Path, 'probe');
-        const joined23 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probe23), 8000);
+        const joined23 = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(probe23), { timeoutMs: 8000 });
         joined23 || rep.fail(`菜单文档探针未入池（${probe23}）`);
-        const settledM = await waitStable('desktop-rendered', 1500, 8000);
+        const settledM = await tape.waitStable('desktop-rendered', 1500, 8000);
         const docRectsM = ((settledM && settledM.rects) || []).filter((r) => r.zone === 'doc' && r.rect).map((r) => ({ name: r.name, ...r.rect }));
         const topDocM = docRectsM.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0] || null;
         const poolNames = (settledM && settledM.names) || [];
@@ -2690,7 +2618,7 @@ async function runSegments() {
           typeof opened.x === 'number' && Math.abs(opened.x - blankDip.x) < 2 && Math.abs(opened.y - blankDip.y) < 2
             ? rep.pass(`菜单在光标处弹出：开层原点 (${Math.round(opened.x)}, ${Math.round(opened.y)}) = 右键落点`)
             : rep.fail(`开层原点异常：(${opened.x}, ${opened.y}) ≠ 落点 (${blankDip.x}, ${blankDip.y})`);
-          const lastZones = readEvents().filter((e) => e.type === 'hotzones' && e.t >= t0).pop();
+          const lastZones = tape.latest('hotzones', undefined, { since: t0 });
           const menuRects = (lastZones && lastZones.rects) || [];
           const menuZone = menuRects.find((r) => r.id === 'menu');
           const panelW = (rectM.right - rectM.left) / f;
@@ -2722,7 +2650,7 @@ async function runSegments() {
             rep.fail(`菜单外一击用例前置失败：${hitPre.why}`);
           } else {
             w32.clickPhys(ptItem.x, ptItem.y, 'left');
-            const selPre = await waitEvent('desktop-selected', (e) => e.t >= tSelM && e.name === topLive.name, 4000);
+            const selPre = await tape.wait('desktop-selected', (e) => e.name === topLive.name, { since: tSelM, timeoutMs: 4000 });
             selPre || rep.fail('菜单外一击用例前置（预置单选）未达成');
 
             // ① 空档收起 + 热区恢复
@@ -2735,7 +2663,7 @@ async function runSegments() {
               closedD1
                 ? rep.pass('菜单外一击即收（reason=outside；点位在分区热区外的面板空档，收得到即全窗承接）')
                 : rep.fail('菜单外一击未收起（desktop-menu-closed outside 未见）');
-              const after = readEvents().filter((e) => e.type === 'hotzones' && e.t >= tD1).pop();
+              const after = tape.latest('hotzones', undefined, { since: tD1 });
               const rectsAfter = (after && after.rects) || [];
               !rectsAfter.some((r) => r.id === 'menu') && rectsAfter.some((r) => r.id === 'doc-zone')
                 ? rep.pass(`收起后热区恢复原状：[${rectsAfter.map((r) => r.id).join(', ')}]，menu 全窗矩形退场`)
@@ -2749,7 +2677,7 @@ async function runSegments() {
                 const tD2 = Date.now();
                 const closedD2 = await dismissAt(refreshBlank() && ptBlank);
                 closedD2 || rep.fail('分区空白左键未收起（desktop-menu-closed outside 未见）');
-                const leaked = await waitEvent('desktop-selection-cleared', (e) => e.t >= tD2, 1500);
+                const leaked = await tape.wait('desktop-selection-cleared', undefined, { since: tD2, timeoutMs: 1500 });
                 !leaked
                   ? rep.pass('分区空白左键收起：尾随 click 被吞没，预置单选原样（无 desktop-selection-cleared）')
                   : rep.fail(`外击泄漏成空白清空：${JSON.stringify(leaked)}`);
@@ -2762,7 +2690,7 @@ async function runSegments() {
                   const tD3 = Date.now();
                   const closedD3 = await dismissAt(refreshBlank() && ptBlank, 'right');
                   closedD3 || rep.fail('分区空白右键未收起（desktop-menu-closed outside 未见）');
-                  const reopened = await waitEvent('desktop-menu-opened', (e) => e.t >= tD3, 1500);
+                  const reopened = await tape.wait('desktop-menu-opened', undefined, { since: tD3, timeoutMs: 1500 });
                   !reopened
                     ? rep.pass('分区空白右键收起：尾随 contextmenu 被吞没，菜单不立刻复弹')
                     : rep.fail('右键收起复弹菜单（contextmenu 未被吞没）');
@@ -2794,17 +2722,17 @@ async function runSegments() {
               } else {
                 const tE = Date.now();
                 w32.clickPhys(rowPt.x, rowPt.y, 'left');
-                const all = await waitEvent('desktop-selection-all', (e) => e.t >= tE, 4000);
+                const all = await tape.wait('desktop-selection-all', undefined, { since: tE, timeoutMs: 4000 });
                 all && sameNamesM(all.names, poolNames)
                   ? rep.pass(`全选动作（选区状态机 select-all）：desktop-selection-all ${poolNames.length} 条 = 池内全部条目`)
                   : rep.fail(`全选存证异常：${JSON.stringify(all && all.names)}（期望池内全部 ${poolNames.length} 条）`);
-                const closedE = await waitEvent('desktop-menu-closed', (e) => e.t >= tE && e.reason === 'action', 4000);
+                const closedE = await tape.wait('desktop-menu-closed', (e) => e.reason === 'action', { since: tE, timeoutMs: 4000 });
                 closedE
                   ? rep.pass('菜单动作执行后即收（reason=action）')
                   : rep.fail('全选动作后菜单未收起');
                 const fut23 = new Date(Date.now() + 5000);
                 fs.utimesSync(probe23Path, fut23, fut23);
-                const rebuilt = await waitEvent('desktop-rendered', (e) => e.t >= tE && sameNamesM(e.sel, poolNames), 8000);
+                const rebuilt = await tape.wait('desktop-rendered', (e) => sameNamesM(e.sel, poolNames), { since: tE, timeoutMs: 8000 });
                 rebuilt
                   ? rep.pass('全选入渲染态：指纹翻转重建后 desktop-rendered.sel=全选名单（快照重建不丢）')
                   : rep.fail('重建后 desktop-rendered.sel 与全选名单不符');
@@ -2835,9 +2763,9 @@ async function runSegments() {
               } else {
                 const tF = Date.now();
                 w32.clickPhys(rowPt.x, rowPt.y, 'left');
-                const clickedF = await waitEvent('desktop-reset-clicked', (e) => e.t >= tF && e.from === 'ctx-menu', 4000);
-                const resetF = await waitEvent('desktop-layout-reset', (e) => e.t >= tF && e.ok === true, 6000);
-                const closedF = await waitEvent('desktop-menu-closed', (e) => e.t >= tF && e.reason === 'action', 4000);
+                const clickedF = await tape.wait('desktop-reset-clicked', (e) => e.from === 'ctx-menu', { since: tF, timeoutMs: 4000 });
+                const resetF = await tape.wait('desktop-layout-reset', (e) => e.ok === true, { since: tF, timeoutMs: 6000 });
+                const closedF = await tape.wait('desktop-menu-closed', (e) => e.reason === 'action', { since: tF, timeoutMs: 4000 });
                 clickedF && resetF && closedF
                   ? rep.pass(`恢复出厂布局动作（06 契约复用）：desktop-reset-clicked(from=ctx-menu) → desktop-layout-reset ok=true cleared=${resetF.cleared}，菜单随动作收起`)
                   : rep.fail(`恢复出厂存证异常：clicked=${JSON.stringify(clickedF)} reset=${JSON.stringify(resetF)} closed=${JSON.stringify(closedF)}`);
@@ -2858,15 +2786,15 @@ async function runSegments() {
               return;
             }
             fs.renameSync(MENU_DIR, MENU_BAK);
-            const goneList = await waitEvent('plugins-changed', (e) => !(e.ids || []).includes('context-menu'), 15000);
+            const goneList = await tape.wait('plugins-changed', (e) => !(e.ids || []).includes('context-menu'), { timeoutMs: 15000 });
             goneList || rep.fail('热插拔卸载未生效：plugins-changed 未摘除 context-menu');
             const openedGone = await openMenuAt('热插拔-卸载后右键');
             !openedGone
               ? rep.pass('插件卸载即失效：移除插件目录后右键分区空白不再弹菜单（面板触发 ?. 空转）')
               : rep.fail('热插拔卸载未生效：目录已移除仍弹出菜单');
             fs.renameSync(MENU_BAK, MENU_DIR);
-            const backList = await waitEvent('plugins-changed', (e) => (e.ids || []).includes('context-menu'), 15000);
-            const backMounted = await waitEvent('plugin-mounted', (e) => e.id === 'context-menu' && e.t >= (goneList ? goneList.t : t23), 15000);
+            const backList = await tape.wait('plugins-changed', (e) => (e.ids || []).includes('context-menu'), { timeoutMs: 15000 });
+            const backMounted = await tape.wait('plugin-mounted', (e) => e.id === 'context-menu', { since: (goneList ? goneList.t : t23), timeoutMs: 15000 });
             if (!backList || !backMounted) {
               rep.fail(`热插拔重装未生效：plugins-changed=${Boolean(backList)} plugin-mounted=${Boolean(backMounted)}`);
               return;
@@ -2926,9 +2854,9 @@ async function runSegments() {
         createProbeBat(probe24Path, marker24Path);
         fs.writeFileSync(doc24Path, 'probe');
         deckProbeFiles.push(probe24Path, doc24Path);
-        const joined24 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probe24Name), 8000);
+        const joined24 = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(probe24Name), { timeoutMs: 8000 });
         joined24 || rep.fail(`单项菜单探针未入池（${probe24Name}）`);
-        const settled24 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled24 = await tape.waitStable('desktop-rendered', 1500, 8000);
         const probeRect = settled24 && (settled24.rects || []).find((r) => r.name === probe24Name && r.rect);
         if (!probeRect) {
           rep.fail(`单项菜单用例几何前置缺失：探针 ${probe24Name} 无矩形`);
@@ -2951,7 +2879,7 @@ async function runSegments() {
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
           const t0 = Date.now();
           w32.clickPhys(pt.x, pt.y, 'right');
-          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
           return opened ? { t0, opened } : null;
         };
         // 菜单行点击原语（按 id 定位行矩形；返回点击时刻，行缺失返回 null）
@@ -2976,7 +2904,7 @@ async function runSegments() {
           rep.fail('条目右键未弹单项菜单（desktop-menu-opened 未见）');
           return;
         }
-        const selA = await waitEvent('desktop-selected', (e) => e.t >= sessA.t0 && e.name === probe24Name, 4000);
+        const selA = await tape.wait('desktop-selected', (e) => e.name === probe24Name, { since: sessA.t0, timeoutMs: 4000 });
         selA && sameNames24(selA.names, [probe24Name]) && selA.t <= sessA.opened.t
           ? rep.pass('右键非选中条目：选区先切为该条（desktop-selected names=[探针]，先于开层存证）再弹菜单')
           : rep.fail(`右键切换选区存证异常：${JSON.stringify(selA)}`);
@@ -2991,9 +2919,9 @@ async function runSegments() {
           if (!tB) {
             rep.fail('打开用例开层存证缺 open 行矩形');
           } else {
-            const closedB = await waitEvent('desktop-menu-closed', (e) => e.t >= tB && e.reason === 'action', 4000);
-            const clickedB = await waitEvent('desktop-launch-clicked', (e) => e.t >= tB && e.name === probe24Name && e.via === 'ctx-menu', 4000);
-            const launchedB = await waitEvent('desktop-launched', (e) => e.t >= tB && e.name === probe24Name && e.ok, 6000);
+            const closedB = await tape.wait('desktop-menu-closed', (e) => e.reason === 'action', { since: tB, timeoutMs: 4000 });
+            const clickedB = await tape.wait('desktop-launch-clicked', (e) => e.name === probe24Name && e.via === 'ctx-menu', { since: tB, timeoutMs: 4000 });
+            const launchedB = await tape.wait('desktop-launched', (e) => e.name === probe24Name && e.ok, { since: tB, timeoutMs: 6000 });
             let markerOk = false;
             const markerDeadline = Date.now() + 20000;
             while (Date.now() < markerDeadline && !markerOk) {
@@ -3016,7 +2944,7 @@ async function runSegments() {
           if (!sessC) {
             rep.fail('打开所在位置用例开层失败（desktop-menu-opened 未见）');
           } else {
-            const dupSel = readEvents().some((e) => e.type === 'desktop-selected' && e.t >= sessC.t0 && e.t <= sessC.opened.t);
+            const dupSel = tape.all('desktop-selected', (e) => e.t <= sessC.opened.t, { since: sessC.t0 }).length > 0;
             !dupSel
               ? rep.pass('单选态右键：选区已是该条，不重复发 desktop-selected（直接弹菜单）')
               : rep.fail('单选态右键重复发 desktop-selected（选区被无谓重置）');
@@ -3025,8 +2953,8 @@ async function runSegments() {
             if (!tC) {
               rep.fail('打开所在位置用例开层存证缺 reveal 行矩形');
             } else {
-              const clickedC = await waitEvent('desktop-reveal-clicked', (e) => e.t >= tC && e.name === probe24Name, 4000);
-              const revealedC = await waitEvent('desktop-revealed', (e) => e.t >= tC && e.ok === true, 6000);
+              const clickedC = await tape.wait('desktop-reveal-clicked', (e) => e.name === probe24Name, { since: tC, timeoutMs: 4000 });
+              const revealedC = await tape.wait('desktop-revealed', (e) => e.ok === true, { since: tC, timeoutMs: 6000 });
               let revealWin = null;
               const revealDeadline = Date.now() + 10000;
               while (Date.now() < revealDeadline && !revealWin) {
@@ -3055,8 +2983,8 @@ async function runSegments() {
             if (!tD) {
               rep.fail('复制路径用例开层存证缺 copy-path 行矩形');
             } else {
-              const clickedD = await waitEvent('desktop-path-copy-clicked', (e) => e.t >= tD && e.name === probe24Name, 4000);
-              const copiedD = await waitEvent('desktop-path-copied', (e) => e.t >= tD && e.ok === true, 4000);
+              const clickedD = await tape.wait('desktop-path-copy-clicked', (e) => e.name === probe24Name, { since: tD, timeoutMs: 4000 });
+              const copiedD = await tape.wait('desktop-path-copied', (e) => e.ok === true, { since: tD, timeoutMs: 4000 });
               let clip = '';
               const clipDeadline = Date.now() + 8000;
               while (Date.now() < clipDeadline) {
@@ -3081,7 +3009,7 @@ async function runSegments() {
         clipboardSet(savedClip24); // 电池不得改变用户剪贴板内容（07 搜索段同法）
       }
       if (probe24Name) {
-        const gone24 = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(probe24Name), 6000);
+        const gone24 = await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(probe24Name), { timeoutMs: 6000 });
         gone24
           ? rep.pass('清理单项菜单探针后条目同步消失（面板与磁盘一致）')
           : rep.fail('单项菜单探针清理后未消失');
@@ -3130,10 +3058,9 @@ async function runSegments() {
         createProbeBat(probeB26Path, markerB26Path);
         fs.writeFileSync(doc26Path, 'probe');
         deckProbeFiles.push(probeA26Path, probeB26Path, doc26Path);
-        const joined26 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(probeA26)
-          && (e.names || []).includes(probeB26) && (e.names || []).includes(doc26Name), 8000);
+        const joined26 = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(probeA26) && (e.names || []).includes(probeB26) && (e.names || []).includes(doc26Name), { timeoutMs: 8000 });
         joined26 || rep.fail(`多选菜单探针未入池（${probeA26}/${probeB26}/${doc26Name}）`);
-        const settled26 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled26 = await tape.waitStable('desktop-rendered', 1500, 8000);
         const rA26 = settled26 && (settled26.rects || []).find((r) => r.name === probeA26 && r.rect);
         const rB26 = settled26 && (settled26.rects || []).find((r) => r.name === probeB26 && r.rect);
         const rDoc26 = settled26 && (settled26.rects || []).find((r) => r.name === doc26Name && r.rect);
@@ -3167,7 +3094,7 @@ async function runSegments() {
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
           const t0 = Date.now();
           w32.clickPhys(pt.x, pt.y, 'right');
-          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
           return opened ? { t0, opened } : null;
         };
         const clickRow26 = (rows, id) => {
@@ -3185,9 +3112,9 @@ async function runSegments() {
         if (!hitA26.ok) { rep.fail(`多选菜单选区前置失败：${hitA26.why}`); return; }
         const tSel26 = Date.now();
         w32.clickPhys(ptA26.x, ptA26.y, 'left');
-        const selA26 = await waitEvent('desktop-selected', (e) => e.t >= tSel26 && e.name === probeA26 && sameNames26(e.names, [probeA26]), 4000);
+        const selA26 = await tape.wait('desktop-selected', (e) => e.name === probeA26 && sameNames26(e.names, [probeA26]), { since: tSel26, timeoutMs: 4000 });
         const okCtrl26 = selA26 && await ctrlClick26(ptItem26(probeB26), '多选菜单-Ctrl 补选');
-        const two26 = okCtrl26 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSel26 && e.selected === true && sameNames26(e.names, [probeA26, probeB26]), 4000);
+        const two26 = okCtrl26 && await tape.wait('desktop-selection-toggled', (e) => e.selected === true && sameNames26(e.names, [probeA26, probeB26]), { since: tSel26, timeoutMs: 4000 });
         if (!two26) {
           rep.fail('多选菜单用例前置（选中集两条）未达成');
           return;
@@ -3203,8 +3130,7 @@ async function runSegments() {
         sameNames26(sessA26.opened.items, ['open-all', 'copy-path', 'copy', 'cut', 'delete-all']) && (sessA26.opened.rows || []).length === 5
           ? rep.pass(`右键选中集内条目弹多选菜单：条目集=[${(sessA26.opened.items || []).join(', ')}] 五行矩形随开层存证（菜单作用于整集；复制/剪切=工单29，删除全部=工单27）`)
           : rep.fail(`多选菜单条目集异常：${JSON.stringify({ items: sessA26.opened.items, rows: sessA26.opened.rows })}`);
-        const sideEffect26 = readEvents().find((e) => e.t >= sessA26.t0 && e.t <= sessA26.opened.t
-          && (e.type === 'desktop-selected' || e.type === 'desktop-selection-toggled' || e.type === 'desktop-selection-cleared'));
+        const sideEffect26 = tape.all(undefined, (e) => e.t <= sessA26.opened.t && (e.type === 'desktop-selected' || e.type === 'desktop-selection-toggled' || e.type === 'desktop-selection-cleared'), { since: sessA26.t0 })[0] || null;
         !sideEffect26
           ? rep.pass('多选菜单开层无选区副作用：desktop-selected/toggled/cleared 均未见（选区保持两条）')
           : rep.fail(`多选菜单开层选区被改动：${JSON.stringify(sideEffect26)}`);
@@ -3217,11 +3143,11 @@ async function runSegments() {
           if (!tB26) {
             rep.fail('打开全部用例开层存证缺 open-all 行矩形');
           } else {
-            const closedB26 = await waitEvent('desktop-menu-closed', (e) => e.t >= tB26 && e.reason === 'action', 4000);
-            const clickedB26 = await waitEvent('desktop-launch-clicked', (e) => e.t >= tB26 && e.name === probeB26 && e.via === 'ctx-menu', 6000);
-            const clickedOrder26 = readEvents().filter((e) => e.type === 'desktop-launch-clicked' && e.t >= tB26 && e.via === 'ctx-menu').map((e) => e.name);
-            const launchedA26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === probeA26 && e.ok, 6000);
-            const launchedB26 = await waitEvent('desktop-launched', (e) => e.t >= tB26 && e.name === probeB26 && e.ok, 6000);
+            const closedB26 = await tape.wait('desktop-menu-closed', (e) => e.reason === 'action', { since: tB26, timeoutMs: 4000 });
+            const clickedB26 = await tape.wait('desktop-launch-clicked', (e) => e.name === probeB26 && e.via === 'ctx-menu', { since: tB26, timeoutMs: 6000 });
+            const clickedOrder26 = tape.all('desktop-launch-clicked', (e) => e.via === 'ctx-menu', { since: tB26 }).map((e) => e.name);
+            const launchedA26 = await tape.wait('desktop-launched', (e) => e.name === probeA26 && e.ok, { since: tB26, timeoutMs: 6000 });
+            const launchedB26 = await tape.wait('desktop-launched', (e) => e.name === probeB26 && e.ok, { since: tB26, timeoutMs: 6000 });
             let markerOk26 = { A: false, B: false };
             const markerDeadline26 = Date.now() + 20000;
             while (Date.now() < markerDeadline26 && !(markerOk26.A && markerOk26.B)) {
@@ -3251,8 +3177,8 @@ async function runSegments() {
             if (!tC26) {
               rep.fail('多选复制路径用例开层存证缺 copy-path 行矩形');
             } else {
-              const clickedC26 = await waitEvent('desktop-paths-copy-clicked', (e) => e.t >= tC26 && sameNames26(e.names, [probeA26, probeB26]) && e.via === 'ctx-menu', 4000);
-              const copiedC26 = await waitEvent('desktop-paths-copied', (e) => e.t >= tC26 && e.ok === true && sameNames26(e.names, [probeA26, probeB26]), 6000);
+              const clickedC26 = await tape.wait('desktop-paths-copy-clicked', (e) => sameNames26(e.names, [probeA26, probeB26]) && e.via === 'ctx-menu', { since: tC26, timeoutMs: 4000 });
+              const copiedC26 = await tape.wait('desktop-paths-copied', (e) => e.ok === true && sameNames26(e.names, [probeA26, probeB26]), { since: tC26, timeoutMs: 6000 });
               const expectClip26 = `${probeA26Path}\n${probeB26Path}`;
               // 剪贴板实读：单进程内轮询（电池负载下每轮重开 powershell 冷启 1.5-3s，
               // 8s 窗口实际只能读到 ~3 次，工单27 轮次实测三连败；27 回收站实查同法）
@@ -3289,7 +3215,7 @@ async function runSegments() {
           if (!sessD26) {
             rep.fail('右键集外条目未弹单项菜单（desktop-menu-opened 未见）');
           } else {
-            const selD26 = await waitEvent('desktop-selected', (e) => e.t >= sessD26.t0 && e.name === doc26Name && sameNames26(e.names, [doc26Name]), 4000);
+            const selD26 = await tape.wait('desktop-selected', (e) => e.name === doc26Name && sameNames26(e.names, [doc26Name]), { since: sessD26.t0, timeoutMs: 4000 });
             selD26 && selD26.t <= sessD26.opened.t
               ? rep.pass('右键非选中条目仍走单项菜单：先切单选（desktop-selected names=[docx]）再弹（#24 语义回归）')
               : rep.fail(`集外右键切单选存证异常：${JSON.stringify(selD26)}`);
@@ -3309,8 +3235,7 @@ async function runSegments() {
         clipboardSet(savedClip26); // 电池不得改变用户剪贴板内容（07 搜索段同法）
       }
       if (probeA26Path && probeB26Path && doc26Path) {
-        const gone26 = await waitEvent('desktop-rendered', (e) => !(e.names || []).includes(path.basename(probeA26Path))
-          && !(e.names || []).includes(path.basename(probeB26Path)) && !(e.names || []).includes(path.basename(doc26Path)), 6000);
+        const gone26 = await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(path.basename(probeA26Path)) && !(e.names || []).includes(path.basename(probeB26Path)) && !(e.names || []).includes(path.basename(doc26Path)), { timeoutMs: 6000 });
         gone26
           ? rep.pass('清理多选菜单探针后条目同步消失（面板与磁盘一致）')
           : rep.fail('多选菜单探针清理后未消失');
@@ -3349,10 +3274,9 @@ async function runSegments() {
         fs.writeFileSync(probeB27Path, 'probe');
         fs.writeFileSync(probeC27Path, 'probe');
         deckProbeFiles.push(single27Path, probeB27Path, probeC27Path);
-        const joined27 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(single27Name)
-          && (e.names || []).includes(docB27) && (e.names || []).includes(docC27), 8000);
+        const joined27 = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(single27Name) && (e.names || []).includes(docB27) && (e.names || []).includes(docC27), { timeoutMs: 8000 });
         joined27 || rep.fail(`删除用例探针未入池（${single27Name}/${docB27}/${docC27}）`);
-        const settled27 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled27 = await tape.waitStable('desktop-rendered', 1500, 8000);
         const rects27 = settled27 && (settled27.rects || []);
         const rA27 = rects27.find((r) => r.name === single27Name && r.rect);
         const rB27 = rects27.find((r) => r.name === docB27 && r.rect);
@@ -3383,7 +3307,7 @@ async function runSegments() {
           await sleep(140);
           w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
           w32.moveMousePhys(safePt.x, safePt.y);
-          const moved = await waitEvent('desktop-moved', (e) => e.t >= t0 && e.name === name && e.ok === true, 6000);
+          const moved = await tape.wait('desktop-moved', (e) => e.name === name && e.ok === true, { since: t0, timeoutMs: 6000 });
           return !!moved;
         };
         // 右键/行点击/确认层钮点击原语（P5.10/12 同款；钮矩形来自开层存证）
@@ -3393,7 +3317,7 @@ async function runSegments() {
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
           const t0 = Date.now();
           w32.clickPhys(pt.x, pt.y, 'right');
-          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
           return opened ? { t0, opened } : null;
         };
         const clickRow27 = (rows, id) => {
@@ -3493,13 +3417,13 @@ async function runSegments() {
             rep.fail('单删用例开层存证缺 delete 行矩形');
             return;
           }
-          const clickedA = await waitEvent('desktop-trash-clicked', (e) => e.t >= tDel && sameNames27(e.names, [single27Name]) && e.via === 'ctx-menu', 4000);
-          const trashedA = await waitEvent('desktop-trashed', (e) => e.t >= tDel && e.ok === true && sameNames27(e.trashed, [single27Name]), 8000);
+          const clickedA = await tape.wait('desktop-trash-clicked', (e) => sameNames27(e.names, [single27Name]) && e.via === 'ctx-menu', { since: tDel, timeoutMs: 4000 });
+          const trashedA = await tape.wait('desktop-trashed', (e) => e.ok === true && sameNames27(e.trashed, [single27Name]), { since: tDel, timeoutMs: 8000 });
           // 单删直进：确认层不开（desktop-trash-confirm-opened 在动作后 1.2s 内不得出现）
           await sleep(1200);
-          const confirmA = readEvents().some((e) => e.type === 'desktop-trash-confirm-opened' && e.t >= tDel);
+          const confirmA = tape.latest('desktop-trash-confirm-opened', undefined, { since: tDel }) !== null;
           const goneDiskA = trashedA ? await goneFromDisk27(single27Path) : false;
-          const prunedA = trashedA && await waitEvent('desktop-rendered', (e) => e.t >= tDel && !(e.names || []).includes(single27Name), 8000);
+          const prunedA = trashedA && await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(single27Name), { since: tDel, timeoutMs: 8000 });
           const diskA = trashedA ? await layoutOnDisk27() : null;
           const placedGone = diskA && Array.isArray(diskA.docs) ? !diskA.docs.includes(single27Name) : false;
           const inBin = trashedA ? await recycleHas27(`DECK27-SINGLE-${t27}*`) : null;
@@ -3523,9 +3447,9 @@ async function runSegments() {
         if (!okSelB.ok) { rep.fail(`多删选区前置失败：${okSelB.why}`); return; }
         const tSel27 = Date.now();
         w32.clickPhys(ptSelB.x, ptSelB.y, 'left');
-        const selB27 = await waitEvent('desktop-selected', (e) => e.t >= tSel27 && e.name === docB27, 4000);
+        const selB27 = await tape.wait('desktop-selected', (e) => e.name === docB27, { since: tSel27, timeoutMs: 4000 });
         const okCtrl27 = selB27 && await ctrlClick27(ptItem27(docC27), '多删-Ctrl 补选');
-        const two27 = okCtrl27 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSel27 && e.selected === true && sameNames27(e.names, [docB27, docC27]), 4000);
+        const two27 = okCtrl27 && await tape.wait('desktop-selection-toggled', (e) => e.selected === true && sameNames27(e.names, [docB27, docC27]), { since: tSel27, timeoutMs: 4000 });
         if (!two27) {
           rep.fail('多删用例前置（选中集两条）未达成');
           return;
@@ -3541,7 +3465,7 @@ async function runSegments() {
             rep.fail('多删用例开层存证缺 delete-all 行矩形');
             return;
           }
-          const confirmOpen = await waitEvent('desktop-trash-confirm-opened', (e) => e.t >= tAll && e.count === 2 && sameNames27(e.names, [docB27, docC27]) && e.confirm && e.cancel, 4000);
+          const confirmOpen = await tape.wait('desktop-trash-confirm-opened', (e) => e.count === 2 && sameNames27(e.names, [docB27, docC27]) && e.confirm && e.cancel, { since: tAll, timeoutMs: 4000 });
           if (!confirmOpen) {
             rep.fail('多删确认层未开（desktop-trash-confirm-opened 未见或载荷缺按钮矩形）');
             return;
@@ -3549,13 +3473,13 @@ async function runSegments() {
           rep.pass(`多选【删除全部】先弹自绘确认：desktop-trash-confirm-opened count=2，确认/取消钮矩形随层存证（确认 ${confirmOpen.confirm.w}x${confirmOpen.confirm.h} / 取消 ${confirmOpen.cancel.w}x${confirmOpen.cancel.h}）`);
           safeShot('27-multi-confirm-open');
           const tCancel = clickBtn27(confirmOpen.cancel);
-          const closedCancel = await waitEvent('desktop-trash-confirm-closed', (e) => e.t >= tCancel && e.reason === 'cancel', 4000);
+          const closedCancel = await tape.wait('desktop-trash-confirm-closed', (e) => e.reason === 'cancel', { since: tCancel, timeoutMs: 4000 });
           await sleep(1200);
-          const noTrashClicked = !readEvents().some((e) => e.type === 'desktop-trash-clicked' && e.t >= tAll);
+          const noTrashClicked = !tape.latest('desktop-trash-clicked', undefined, { since: tAll });
           const stillOnDisk = fs.existsSync(probeB27Path) && fs.existsSync(probeC27Path);
           // 池内原样：desktop-rendered 只在指纹变化时发——取消后无变化即无新事件，
           // 故断言「最近一条 rendered 仍含两条目」（若真被删，删除后的池会翻转最后的 rendered）
-          const lastRendered27 = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+          const lastRendered27 = tape.latest('desktop-rendered');
           const stillInPool = !!lastRendered27 && (lastRendered27.names || []).includes(docB27) && (lastRendered27.names || []).includes(docC27);
           closedCancel && noTrashClicked && stillOnDisk && stillInPool
             ? rep.pass('确认层取消不动：confirm-closed reason=cancel、无 desktop-trash-clicked、两条探针在盘且池内原样（最后一条 rendered 仍含两者）')
@@ -3571,18 +3495,18 @@ async function runSegments() {
             return;
           }
           const tAll2 = clickRow27(sessD.opened.rows, 'delete-all');
-          const confirmOpen2 = tAll2 && await waitEvent('desktop-trash-confirm-opened', (e) => e.t >= tAll2 && e.count === 2, 4000);
+          const confirmOpen2 = tAll2 && await tape.wait('desktop-trash-confirm-opened', (e) => e.count === 2, { since: tAll2, timeoutMs: 4000 });
           if (!confirmOpen2) {
             rep.fail('多删确认段确认层未开');
             return;
           }
           const tOk = clickBtn27(confirmOpen2.confirm);
-          const closedOk = await waitEvent('desktop-trash-confirm-closed', (e) => e.t >= tOk && e.reason === 'confirm', 4000);
-          const clickedAll = await waitEvent('desktop-trash-clicked', (e) => e.t >= tOk && sameNames27(e.names, [docB27, docC27]) && e.count === 2 && e.via === 'ctx-menu', 4000);
-          const trashedAll = await waitEvent('desktop-trashed', (e) => e.t >= tOk && e.ok === true && sameNames27(e.trashed, [docB27, docC27]) && sameNames27(e.failed, []), 8000);
+          const closedOk = await tape.wait('desktop-trash-confirm-closed', (e) => e.reason === 'confirm', { since: tOk, timeoutMs: 4000 });
+          const clickedAll = await tape.wait('desktop-trash-clicked', (e) => sameNames27(e.names, [docB27, docC27]) && e.count === 2 && e.via === 'ctx-menu', { since: tOk, timeoutMs: 4000 });
+          const trashedAll = await tape.wait('desktop-trashed', (e) => e.ok === true && sameNames27(e.trashed, [docB27, docC27]) && sameNames27(e.failed, []), { since: tOk, timeoutMs: 8000 });
           const goneB = trashedAll ? await goneFromDisk27(probeB27Path) : false;
           const goneC = trashedAll ? await goneFromDisk27(probeC27Path) : false;
-          const prunedAll = trashedAll && await waitEvent('desktop-rendered', (e) => e.t >= tOk && !(e.names || []).includes(docB27) && !(e.names || []).includes(docC27), 8000);
+          const prunedAll = trashedAll && await tape.wait('desktop-rendered', (e) => !(e.names || []).includes(docB27) && !(e.names || []).includes(docC27), { since: tOk, timeoutMs: 8000 });
           const diskAll = trashedAll ? await layoutOnDisk27() : null;
           const cleanLists = diskAll
             ? Array.isArray(diskAll.docs) && !diskAll.docs.includes(docB27) && !diskAll.docs.includes(docC27)
@@ -3632,10 +3556,9 @@ async function runSegments() {
         fs.writeFileSync(probeA28, 'probe');
         fs.writeFileSync(probeC28, 'probe');
         deckProbeFiles.push(probeA28, probeC28);
-        const joined28 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(nameA28)
-          && (e.names || []).includes(nameC28), 8000);
+        const joined28 = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(nameA28) && (e.names || []).includes(nameC28), { timeoutMs: 8000 });
         joined28 || rep.fail(`重命名用例探针未入池（${nameA28}/${nameC28}）`);
-        const settled28 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled28 = await tape.waitStable('desktop-rendered', 1500, 8000);
         const rects28 = settled28 && (settled28.rects || []);
         if (!rects28.find((r) => r.name === nameA28 && r.rect)) {
           rep.fail(`重命名用例几何前置缺失：A=${JSON.stringify(rects28.find((r) => r.name === nameA28))}`);
@@ -3665,7 +3588,7 @@ async function runSegments() {
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
           const t0 = Date.now();
           w32.clickPhys(pt.x, pt.y, 'right');
-          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
           return opened ? { t0, opened } : null;
         };
         const clickRow28 = (rows, id) => {
@@ -3715,7 +3638,7 @@ async function runSegments() {
           await sleep(140);
           w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
           w32.moveMousePhys(safePt.x, safePt.y);
-          const moved = await waitEvent('desktop-moved', (e) => e.t >= t0 && e.name === name && e.ok === true, 6000);
+          const moved = await tape.wait('desktop-moved', (e) => e.name === name && e.ok === true, { since: t0, timeoutMs: 6000 });
           return !!moved;
         };
 
@@ -3743,7 +3666,7 @@ async function runSegments() {
             ? rep.pass('改名前置：靶子真拖拽造显式摆位（layout.json docs 对账在列）')
             : rep.fail(`改名前置摆位异常：placed=${placedA} docs=${JSON.stringify(placeDisk.docs)}`);
           // 摆位后编排会重排：重取探针矩形再右键（点错条目 = 假败），落点改为临点现取
-          const settledA = await waitStable('desktop-rendered', 1500, 8000);
+          const settledA = await tape.waitStable('desktop-rendered', 1500, 8000);
           if (!settledA || !((settledA.rects || []).find((r) => r.name === nameA28 && r.rect))) {
             rep.fail('重命名用例摆位后探针矩形缺失');
             return;
@@ -3757,10 +3680,10 @@ async function runSegments() {
             ? rep.pass(`单项菜单含【重命名】行（条目集=[${(sessRen.opened.items || []).join(', ')}]，工单28 第六行）`)
             : rep.fail(`单项菜单缺 rename 行：${JSON.stringify(sessRen.opened.items)}`);
           const tRen = clickRow28(sessRen.opened.rows, 'rename');
-          const started = tRen && await waitEvent('desktop-rename-started', (e) => e.t >= tRen && e.name === nameA28 && e.input && e.input.w > 0, 4000);
+          const started = tRen && await tape.wait('desktop-rename-started', (e) => e.name === nameA28 && e.input && e.input.w > 0, { since: tRen, timeoutMs: 4000 });
           // 工单31 起键盘模式归一仲裁：on 沿属选区生（右键切换单选那拍已取得，P5.17 硬断言①），
           // 编辑器开层共用同态不重发——这里断言 started 时刻键盘模式在 on 态 + 键盘焦点到手
-          const lastKb28 = (readEvents().filter((e) => e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off').pop() || {}).type || null;
+          const lastKb28 = (tape.all(undefined, (e) => e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off').pop() || {}).type || null;
           const kbOn = started && lastKb28 === 'keyboard-mode-on';
           const fgOk = started && await waitForeground28();
           started && kbOn && fgOk
@@ -3773,8 +3696,8 @@ async function runSegments() {
           w32.sendUnicode(`DECK28B-${t28}`);
           await sleep(150);
           w32.tapKeys([VK_RETURN]);
-          const renamed = await waitEvent('desktop-renamed', (e) => e.t >= tRen && e.ok === true && e.to === nameB28, 8000);
-          const renamedOld = await waitEvent('desktop-rendered', (e) => e.t >= tRen && (e.names || []).includes(nameB28) && !(e.names || []).includes(nameA28), 8000);
+          const renamed = await tape.wait('desktop-renamed', (e) => e.ok === true && e.to === nameB28, { since: tRen, timeoutMs: 8000 });
+          const renamedOld = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(nameB28) && !(e.names || []).includes(nameA28), { since: tRen, timeoutMs: 8000 });
           const goneA = renamed ? await (async () => {
             const deadline = Date.now() + 8000;
             while (Date.now() < deadline) {
@@ -3792,7 +3715,7 @@ async function runSegments() {
 
         // b. Esc 取消：再进 RENAME 直接 Esc——原名原样、keyboard-mode-off 成对
         {
-          const settledB = await waitStable('desktop-rendered', 1500, 8000);
+          const settledB = await tape.waitStable('desktop-rendered', 1500, 8000);
           if (!settledB || !((settledB.rects || []).find((r) => r.name === nameB28 && r.rect))) {
             rep.fail('取消用例探针矩形缺失（改名后新名未承载？）');
             return;
@@ -3803,7 +3726,7 @@ async function runSegments() {
             return;
           }
           const tEscRow = clickRow28(sessEsc.opened.rows, 'rename');
-          const started2 = tEscRow && await waitEvent('desktop-rename-started', (e) => e.t >= tEscRow && e.name === nameB28, 4000);
+          const started2 = tEscRow && await tape.wait('desktop-rename-started', (e) => e.name === nameB28, { since: tEscRow, timeoutMs: 4000 });
           if (!started2 || !(await waitForeground28())) {
             rep.fail(`取消用例编辑器未就绪：started=${JSON.stringify(started2)}`);
             return;
@@ -3811,12 +3734,12 @@ async function runSegments() {
           await sleep(300); // 焦点落定缓冲
           const tEsc = Date.now();
           w32.tapKeys([VK_ESCAPE]);
-          const cancelled = await waitEvent('desktop-rename-cancelled', (e) => e.t >= tEsc && e.reason === 'esc' && e.name === nameB28, 4000);
+          const cancelled = await tape.wait('desktop-rename-cancelled', (e) => e.reason === 'esc' && e.name === nameB28, { since: tEsc, timeoutMs: 4000 });
           // 工单31 起键盘模式归一仲裁：Esc 只取消编辑会话，选区（右键切换那拍所生）仍非空
           // → keyboard-mode 保持 on 不还原（浮层关而选区非空不互相踩，P5.17 硬断言⑨同款）；
           // 不可聚焦还原的出口 = 选区清空（段末空白点击补断言）。
           await sleep(400);
-          const leakOffB = readEvents().some((e) => e.type === 'keyboard-mode-off' && e.t >= tEsc);
+          const leakOffB = tape.latest('keyboard-mode-off', undefined, { since: tEsc }) !== null;
           const stillB = fs.existsSync(probeB28) && !fs.existsSync(probeA28);
           cancelled && leakOffB === false && stillB
             ? rep.pass(`Esc 取消编辑：desktop-rename-cancelled reason=esc、keyboard-mode 保持 on（选区仍非空，仲裁不互相踩）、盘面原名原样`)
@@ -3824,13 +3747,13 @@ async function runSegments() {
           safeShot('28-rename-cancelled');
           // 选区清空 → keyboard-mode-off 同相还原（门控出口：面板恢复不可聚焦）
           const tClr28 = Date.now();
-          const settledClr = await waitStable('desktop-rendered', 1500, 8000);
+          const settledClr = await tape.waitStable('desktop-rendered', 1500, 8000);
           if (settledClr && refreshBlank28()) {
             const hitClr = await ensurePanelHit(ptBlank28, hwnd);
             if (hitClr.ok) {
               w32.clickPhys(ptBlank28.x, ptBlank28.y, 'left');
-              const cleared28 = await waitEvent('desktop-selection-cleared', (e) => e.t >= tClr28, 4000);
-              const kbOff28 = cleared28 && await waitEvent('keyboard-mode-off', (e) => e.t >= tClr28, 3000);
+              const cleared28 = await tape.wait('desktop-selection-cleared', undefined, { since: tClr28, timeoutMs: 4000 });
+              const kbOff28 = cleared28 && await tape.wait('keyboard-mode-off', undefined, { since: tClr28, timeoutMs: 3000 });
               cleared28 && kbOff28
                 ? rep.pass('取消编辑后清空选区：desktop-selection-cleared → keyboard-mode-off 同相还原（ADR-0006 出口：选区灭即还原不可聚焦）')
                 : rep.fail(`取消后清场断言未过：cleared=${JSON.stringify(cleared28)} kbOff=${!!kbOff28}`);
@@ -3844,7 +3767,7 @@ async function runSegments() {
 
         // c. 重名冲突：输既有名字 + Enter——ok=false 存证，两个盘面文件都原样
         {
-          const settledC = await waitStable('desktop-rendered', 1500, 8000);
+          const settledC = await tape.waitStable('desktop-rendered', 1500, 8000);
           if (!settledC || !((settledC.rects || []).find((r) => r.name === nameB28 && r.rect))) {
             rep.fail('冲突用例探针矩形缺失');
             return;
@@ -3855,7 +3778,7 @@ async function runSegments() {
             return;
           }
           const tConf = clickRow28(sessC.opened.rows, 'rename');
-          const started3 = tConf && await waitEvent('desktop-rename-started', (e) => e.t >= tConf && e.name === nameB28, 4000);
+          const started3 = tConf && await tape.wait('desktop-rename-started', (e) => e.name === nameB28, { since: tConf, timeoutMs: 4000 });
           if (!started3 || !(await waitForeground28())) {
             rep.fail(`冲突用例编辑器未就绪：started=${JSON.stringify(started3)}`);
             return;
@@ -3865,11 +3788,11 @@ async function runSegments() {
           await sleep(150);
           const tEnter = Date.now();
           w32.tapKeys([VK_RETURN]);
-          const rejected = await waitEvent('desktop-rename-rejected', (e) => e.t >= tEnter && e.ok === false && e.to === nameC28, 8000);
+          const rejected = await tape.wait('desktop-rename-rejected', (e) => e.ok === false && e.to === nameC28, { since: tEnter, timeoutMs: 8000 });
           await sleep(1500); // 留足「若误放行则池内换名」的时间窗，再核对盘面与池
           const intact = fs.existsSync(probeB28) && fs.existsSync(probeC28);
           // 拒绝路径不动指纹（无重建无新 rendered）：最新一拍 rendered 仍载原名即池内未动
-          const lastRendered = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+          const lastRendered = tape.latest('desktop-rendered');
           const stillInPool = !!lastRendered && (lastRendered.names || []).includes(nameB28);
           rejected && intact && stillInPool
             ? rep.pass(`重名冲突如实拒绝：desktop-rename-rejected ok=false（原名还原），盘面两文件原样、池内条目未动`)
@@ -3916,10 +3839,9 @@ async function runSegments() {
         fs.writeFileSync(probeS29Path, 'probe');
         fs.writeFileSync(multiA29Path, 'probe');
         fs.writeFileSync(multiB29Path, 'probe');
-        const joined29 = await waitEvent('desktop-rendered', (e) => (e.names || []).includes(single29Name)
-          && (e.names || []).includes(multiA29) && (e.names || []).includes(multiB29), 8000);
+        const joined29 = await tape.wait('desktop-rendered', (e) => (e.names || []).includes(single29Name) && (e.names || []).includes(multiA29) && (e.names || []).includes(multiB29), { timeoutMs: 8000 });
         joined29 || rep.fail(`复制剪切用例探针未入池（${single29Name}/${multiA29}/${multiB29}）`);
-        const settled29 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled29 = await tape.waitStable('desktop-rendered', 1500, 8000);
         const rects29 = settled29 && (settled29.rects || []);
         const rS29 = rects29.find((r) => r.name === single29Name && r.rect);
         const rA29 = rects29.find((r) => r.name === multiA29 && r.rect);
@@ -3943,7 +3865,7 @@ async function runSegments() {
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
           const t0 = Date.now();
           w32.clickPhys(pt.x, pt.y, 'right');
-          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
           return opened ? { t0, opened } : null;
         };
         const clickRow29 = (rows, id) => {
@@ -4023,8 +3945,8 @@ async function runSegments() {
             rep.fail('单项复制用例开层存证缺 copy 行矩形');
             return;
           }
-          const clickedA = await waitEvent('desktop-copy-clicked', (e) => e.t >= tCopy && sameNames29(e.names, [single29Name]) && e.via === 'ctx-menu', 4000);
-          const copiedA = await waitEvent('desktop-copied', (e) => e.t >= tCopy && e.ok === true && sameNames29(e.names, [single29Name]), 8000);
+          const clickedA = await tape.wait('desktop-copy-clicked', (e) => sameNames29(e.names, [single29Name]) && e.via === 'ctx-menu', { since: tCopy, timeoutMs: 4000 });
+          const copiedA = await tape.wait('desktop-copied', (e) => e.ok === true && sameNames29(e.names, [single29Name]), { since: tCopy, timeoutMs: 8000 });
           const clipA = (clickedA && copiedA) ? await fileDropList29(1) : null;
           const effOkA = !!clipA && clipA.effect === 1;
           const diskOkA = fs.existsSync(probeS29Path); // 复制不动盘面
@@ -4047,8 +3969,8 @@ async function runSegments() {
             rep.fail('单项剪切用例开层存证缺 cut 行矩形');
             return;
           }
-          const clickedB = await waitEvent('desktop-cut-clicked', (e) => e.t >= tCut && sameNames29(e.names, [single29Name]) && e.via === 'ctx-menu', 4000);
-          const cutB = await waitEvent('desktop-cut', (e) => e.t >= tCut && e.ok === true && sameNames29(e.names, [single29Name]), 8000);
+          const clickedB = await tape.wait('desktop-cut-clicked', (e) => sameNames29(e.names, [single29Name]) && e.via === 'ctx-menu', { since: tCut, timeoutMs: 4000 });
+          const cutB = await tape.wait('desktop-cut', (e) => e.ok === true && sameNames29(e.names, [single29Name]), { since: tCut, timeoutMs: 8000 });
           const clipB = (clickedB && cutB) ? await fileDropList29(1) : null;
           const effOkB = !!clipB && clipB.effect === 2;
           const diskOkB = fs.existsSync(probeS29Path); // 剪切语义：写剪贴板不动盘面
@@ -4066,9 +3988,9 @@ async function runSegments() {
           if (!okSelA29.ok) { rep.fail(`多选复制选区前置失败：${okSelA29.why}`); return; }
           const tSel29 = Date.now();
           w32.clickPhys(ptSelA29.x, ptSelA29.y, 'left');
-          const selA29 = await waitEvent('desktop-selected', (e) => e.t >= tSel29 && e.name === multiA29, 4000);
+          const selA29 = await tape.wait('desktop-selected', (e) => e.name === multiA29, { since: tSel29, timeoutMs: 4000 });
           const okCtrl29 = selA29 && await ctrlClick29(ptItem29(multiB29), '多选复制-Ctrl 补选');
-          const two29 = okCtrl29 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tSel29 && e.selected === true && sameNames29(e.names, [multiA29, multiB29]), 4000);
+          const two29 = okCtrl29 && await tape.wait('desktop-selection-toggled', (e) => e.selected === true && sameNames29(e.names, [multiA29, multiB29]), { since: tSel29, timeoutMs: 4000 });
           if (!two29) {
             rep.fail('多选复制用例前置（选中集两条）未达成');
             return;
@@ -4084,8 +4006,8 @@ async function runSegments() {
             rep.fail('多选复制用例开层存证缺 copy 行矩形');
             return;
           }
-          const clickedC = await waitEvent('desktop-copy-clicked', (e) => e.t >= tCopyAll && sameNames29(e.names, [multiA29, multiB29]) && e.count === 2 && e.via === 'ctx-menu', 4000);
-          const copiedC = await waitEvent('desktop-copied', (e) => e.t >= tCopyAll && e.ok === true && sameNames29(e.names, [multiA29, multiB29]), 8000);
+          const clickedC = await tape.wait('desktop-copy-clicked', (e) => sameNames29(e.names, [multiA29, multiB29]) && e.count === 2 && e.via === 'ctx-menu', { since: tCopyAll, timeoutMs: 4000 });
+          const copiedC = await tape.wait('desktop-copied', (e) => e.ok === true && sameNames29(e.names, [multiA29, multiB29]), { since: tCopyAll, timeoutMs: 8000 });
           const clipC = (clickedC && copiedC) ? await fileDropList29(2) : null;
           const diskOkC = fs.existsSync(multiA29Path) && fs.existsSync(multiB29Path);
           clickedC && copiedC && clipC && sameNames29(clipC.names, [multiA29Path, multiB29Path]) && diskOkC
@@ -4136,7 +4058,7 @@ async function runSegments() {
           ptBlank30 = { x: rect30.left + Math.round(blankDip30.x * f), y: rect30.top + Math.round(blankDip30.y * f) };
           return true;
         };
-        const settled30 = await waitStable('desktop-rendered', 1500, 8000);
+        const settled30 = await tape.waitStable('desktop-rendered', 1500, 8000);
         if (!settled30 || !refreshBlank30()) {
           rep.fail('粘贴用例几何前置缺失：文档区顶排矩形未取到');
           return;
@@ -4147,7 +4069,7 @@ async function runSegments() {
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
           const t0 = Date.now();
           w32.clickPhys(ptBlank30.x, ptBlank30.y, 'right');
-          const opened = await waitEvent('desktop-menu-opened', (e) => e.t >= t0, 4000);
+          const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
           return opened ? { t0, opened } : null;
         };
         const clickRow30 = (rows, id) => {
@@ -4164,7 +4086,7 @@ async function runSegments() {
           const hit = await ensurePanelHit(outPt30, hwnd);
           if (!hit.ok) return false;
           w32.clickPhys(outPt30.x, outPt30.y, 'left');
-          return !!(await waitEvent('desktop-menu-closed', (e) => e.t >= since && e.reason === 'outside', 4000));
+          return !!(await tape.wait('desktop-menu-closed', (e) => e.reason === 'outside', { since: since, timeoutMs: 4000 }));
         };
         // 剪贴板播种（PS 通道）：Set-Clipboard -Path → FileDropList 回读核验；不稳重试一次
         const seedClipboardFiles = async (paths) => {
@@ -4197,7 +4119,7 @@ async function runSegments() {
           : rep.fail(`空白菜单缺 paste 行：${JSON.stringify(sessA.opened.items)}`);
         const tGray = rowA ? clickRow30(sessA.opened.rows, 'paste') : null;
         await sleep(1200);
-        const grayLeaked = tGray && readEvents().some((e) => e.type === 'desktop-paste-clicked' && e.t >= tGray);
+        const grayLeaked = tGray && tape.latest('desktop-paste-clicked', undefined, { since: tGray }) !== null;
         const grayStill = tGray ? await dismissBlank30(tGray) : false;
         tGray && !grayLeaked && grayStill
           ? rep.pass('置灰态：【粘贴】行点击无反应（无 desktop-paste-clicked）、菜单保持开着由外击收起——剪贴板无文件时置灰（shell 归约器挡下）')
@@ -4224,10 +4146,10 @@ async function runSegments() {
           rep.fail('可用用例开层存证缺 paste 行矩形');
           return;
         }
-        const clickedB = await waitEvent('desktop-paste-clicked', (e) => e.t >= tPaste && e.via === 'ctx-menu', 4000);
-        const pastedB = await waitEvent('desktop-pasted', (e) => e.t >= tPaste && e.ok === true && sameNames30(e.pasted, [baseA]), 8000);
+        const clickedB = await tape.wait('desktop-paste-clicked', (e) => e.via === 'ctx-menu', { since: tPaste, timeoutMs: 4000 });
+        const pastedB = await tape.wait('desktop-pasted', (e) => e.ok === true && sameNames30(e.pasted, [baseA]), { since: tPaste, timeoutMs: 8000 });
         const landedDiskB = pastedB ? fs.existsSync(path.join(userDesktop, baseA)) : false;
-        const landedPoolB = pastedB && await waitEvent('desktop-rendered', (e) => e.t >= tPaste && (e.names || []).includes(baseA), 8000);
+        const landedPoolB = pastedB && await tape.wait('desktop-rendered', (e) => (e.names || []).includes(baseA), { since: tPaste, timeoutMs: 8000 });
         clickedB && pastedB && landedDiskB && landedPoolB
           ? rep.pass(`可用态：desktop-pasted ok=true pasted=[${baseA}]，文件落桌面根且 watch 后条目入池（desktop-rendered 在档）`)
           : rep.fail(`可用态存证异常：clicked=${JSON.stringify(clickedB)} pasted=${JSON.stringify(pastedB)} disk=${landedDiskB} pool=${!!landedPoolB}`);
@@ -4240,7 +4162,7 @@ async function runSegments() {
           return;
         }
         const tPaste2 = clickRow30(sessC.opened.rows, 'paste');
-        const pastedC = tPaste2 && await waitEvent('desktop-pasted', (e) => e.t >= tPaste2 && e.ok === true && sameNames30(e.pasted, [copyA]), 8000);
+        const pastedC = tPaste2 && await tape.wait('desktop-pasted', (e) => e.ok === true && sameNames30(e.pasted, [copyA]), { since: tPaste2, timeoutMs: 8000 });
         const bothOnDisk = pastedC && fs.existsSync(path.join(userDesktop, baseA)) && fs.existsSync(path.join(userDesktop, copyA));
         pastedC && bothOnDisk
           ? rep.pass(`同名冲突自动「 - 副本」递增：再贴落为 [${copyA}]，桌面两份共存不覆盖（真桌面同款不弹框）`)
@@ -4293,7 +4215,7 @@ async function runSegments() {
       const nextKeyboardMode31 = async (since, want, timeoutMs = 4000) => {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-          const hits = readEvents().filter((e) => (e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off') && e.t >= since);
+          const hits = tape.all(undefined, (e) => e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off', { since });
           if (hits.length) {
             const first = hits[0];
             return { ok: first.type === want, first, between: hits.slice(1, 3).map((h) => h.type) };
@@ -4303,18 +4225,18 @@ async function runSegments() {
         return { ok: false, first: null, between: [] };
       };
       // 反向硬断言：since 起不得出现某类事件（快捷键泄漏 / 通道重发检测）
-      const leaked31 = (type, since) => readEvents().some((e) => e.type === type && e.t >= since);
+      const leaked31 = (type, since) => tape.latest(type, undefined, { since }) !== null;
       const latestRect31 = (name) => {
-        const last = readEvents().filter((e) => e.type === 'desktop-rendered').pop();
+        const last = tape.latest('desktop-rendered');
         return last ? (((last.rects || []).find((r) => r.name === name && r.rect) || {}).rect || null) : null;
       };
       // 矩形读取统一先等渲染安静（P5.6 纪律：用法分重排在首拍 ~1s 后，读早了会点错条目）
       const settledRect31 = async (name) => {
-        await waitStable('desktop-rendered', 1200, 8000);
+        await tape.waitStable('desktop-rendered', 1200, 8000);
         return latestRect31(name);
       };
       const latestSearchZone31 = () => {
-        const evts = readEvents().filter((e) => e.type === 'hotzones' && (e.rects || []).some((r) => r.id === 'search-card'));
+        const evts = tape.all('hotzones', (e) => (e.rects || []).some((r) => r.id === 'search-card'));
         const last = evts[evts.length - 1];
         return last ? (last.rects || []).find((r) => r.id === 'search-card') || null : null;
       };
@@ -4327,7 +4249,7 @@ async function runSegments() {
       };
       // 选区清场：文档区顶排上沿之上 6px 分区空白（P5.6 同法，热区内非条目面）
       const blankClear31 = async (label) => {
-        const settled = await waitStable('desktop-rendered', 1200, 8000);
+        const settled = await tape.waitStable('desktop-rendered', 1200, 8000);
         const docRects = ((settled && settled.rects) || []).filter((r) => r.zone === 'doc' && r.rect).map((r) => ({ name: r.name, ...r.rect }));
         const topDoc = docRects.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0];
         if (!topDoc) { rep.fail(`${label}清场取矩形失败`); return false; }
@@ -4427,8 +4349,7 @@ async function runSegments() {
         fs.mkdirSync(staging31, { recursive: true });
         const staged31 = path.join(staging31, namePaste31);
         fs.writeFileSync(staged31, 'paste-v1');
-        const joined31 = await waitEvent('desktop-rendered', (e) => e.t >= t31
-          && [nameCopy31, nameDel31, nameDelB31, nameDelC31, nameBat31].every((n) => (e.names || []).includes(n)), 12000);
+        const joined31 = await tape.wait('desktop-rendered', (e) => [nameCopy31, nameDel31, nameDelB31, nameDelC31, nameBat31].every((n) => (e.names || []).includes(n)), { since: t31, timeoutMs: 12000 });
         joined31 || rep.fail(`键盘门控用例探针未入池（bat=${nameBat31}）`);
         // 段前清场：上游段若遗留选区（异常路径）先归零（空选区上是无操作）
         await blankClear31('P5.17 段前');
@@ -4440,7 +4361,7 @@ async function runSegments() {
           const rA = await settledRect31(nameCopy31);
           const tA = Date.now();
           const okA = rA && await clickItem31(rA, '同相-点选');
-          const selA = okA && await waitEvent('desktop-selected', (e) => e.t >= tA && e.name === nameCopy31, 4000);
+          const selA = okA && await tape.wait('desktop-selected', (e) => e.name === nameCopy31, { since: tA, timeoutMs: 4000 });
           const onA = selA && await nextKeyboardMode31(tA, 'keyboard-mode-on');
           selA && onA && onA.ok
             ? rep.pass(`选区生与 keyboard-mode-on 同相（硬断言①）：desktop-selected 后首个键盘模式事件即 on（+${onA.first.t - tA}ms）`)
@@ -4452,7 +4373,7 @@ async function runSegments() {
           if (onAOk && fgA) {
             const tEsc = Date.now();
             tapKey31(VK_ESCAPE);
-            const clrA = await waitEvent('desktop-selection-cleared', (e) => e.t >= tEsc && (e.had || []).length === 1, 4000);
+            const clrA = await tape.wait('desktop-selection-cleared', (e) => (e.had || []).length === 1, { since: tEsc, timeoutMs: 4000 });
             const offA = clrA && await nextKeyboardMode31(tEsc, 'keyboard-mode-off');
             clrA && offA && offA.ok
               ? rep.pass('选区灭与 keyboard-mode-off 同相（硬断言②）：Esc 清空后首个键盘模式事件即 off')
@@ -4466,14 +4387,14 @@ async function runSegments() {
           const rB = await settledRect31(nameCopy31);
           const tB = Date.now();
           const okB = rB && await clickItem31(rB, '全选-点选');
-          const selB = okB && await waitEvent('desktop-selected', (e) => e.t >= tB && e.name === nameCopy31, 4000);
+          const selB = okB && await tape.wait('desktop-selected', (e) => e.name === nameCopy31, { since: tB, timeoutMs: 4000 });
           const fgB = selB && await waitFg31();
           if (!fgB) {
             rep.fail('Ctrl+A 用例键盘焦点未到手');
           } else {
             await ctrlKey31(VK_A);
-            const pool = (readEvents().filter((e) => e.type === 'desktop-rendered').pop() || {}).names || [];
-            const allB = await waitEvent('desktop-selection-all', (e) => e.t >= tB && sameNames31(e.names, pool), 4000);
+            const pool = (tape.latest('desktop-rendered') || {}).names || [];
+            const allB = await tape.wait('desktop-selection-all', (e) => sameNames31(e.names, pool), { since: tB, timeoutMs: 4000 });
             allB
               ? rep.pass(`Ctrl+A 全选（select-all 进状态机）：desktop-selection-all 名单=池内全部 ${pool.length} 条`)
               : rep.fail(`Ctrl+A 全选存证异常：${JSON.stringify(allB)}（池 ${pool.length} 条）`);
@@ -4486,14 +4407,14 @@ async function runSegments() {
           const rC = await settledRect31(nameBat31);
           const tC = Date.now();
           const okC = rC && await clickItem31(rC, 'Enter-点选');
-          const selC = okC && await waitEvent('desktop-selected', (e) => e.t >= tC && e.name === nameBat31, 4000);
+          const selC = okC && await tape.wait('desktop-selected', (e) => e.name === nameBat31, { since: tC, timeoutMs: 4000 });
           const fgC = selC && await waitFg31();
           if (!fgC) {
             rep.fail('Enter 用例键盘焦点未到手');
           } else {
             tapKey31(VK_RETURN);
-            const clickedC = await waitEvent('desktop-launch-clicked', (e) => e.t >= tC && e.name === nameBat31 && e.via === 'keyboard', 4000);
-            const launchedC = clickedC && await waitEvent('desktop-launched', (e) => e.t >= tC && e.name === nameBat31 && e.ok === true, 6000);
+            const clickedC = await tape.wait('desktop-launch-clicked', (e) => e.name === nameBat31 && e.via === 'keyboard', { since: tC, timeoutMs: 4000 });
+            const launchedC = clickedC && await tape.wait('desktop-launched', (e) => e.name === nameBat31 && e.ok === true, { since: tC, timeoutMs: 6000 });
             let markerOk31 = false;
             const mDeadline = Date.now() + 20000;
             while (Date.now() < mDeadline && !markerOk31) {
@@ -4512,14 +4433,14 @@ async function runSegments() {
           const rD = await settledRect31(nameDel31);
           const tD = Date.now();
           const okD = rD && await clickItem31(rD, 'Del-点选');
-          const selD = okD && await waitEvent('desktop-selected', (e) => e.t >= tD && e.name === nameDel31, 4000);
+          const selD = okD && await tape.wait('desktop-selected', (e) => e.name === nameDel31, { since: tD, timeoutMs: 4000 });
           const fgD = selD && await waitFg31();
           if (!fgD) {
             rep.fail('Del 单删用例键盘焦点未到手');
           } else {
             tapKey31(VK_DELETE);
-            const clickedD = await waitEvent('desktop-trash-clicked', (e) => e.t >= tD && sameNames31(e.names, [nameDel31]) && e.via === 'keyboard', 4000);
-            const trashedD = clickedD && await waitEvent('desktop-trashed', (e) => e.t >= tD && e.ok === true && sameNames31(e.names, [nameDel31]), 8000);
+            const clickedD = await tape.wait('desktop-trash-clicked', (e) => sameNames31(e.names, [nameDel31]) && e.via === 'keyboard', { since: tD, timeoutMs: 4000 });
+            const trashedD = clickedD && await tape.wait('desktop-trashed', (e) => e.ok === true && sameNames31(e.names, [nameDel31]), { since: tD, timeoutMs: 8000 });
             const goneD = trashedD ? await (async () => {
               const dl = Date.now() + 8000;
               while (Date.now() < dl) { if (!fs.existsSync(probeDel31)) return true; await sleep(250); }
@@ -4528,7 +4449,7 @@ async function runSegments() {
             clickedD && trashedD && goneD
               ? rep.pass('Del 删除选中（单项直删不弹确认）：desktop-trash-clicked via=keyboard + desktop-trashed ok=true + 文件离盘')
               : rep.fail(`Del 存证异常：clicked=${JSON.stringify(clickedD)} trashed=${JSON.stringify(trashedD)} gone=${goneD}`);
-            const prunedD = trashedD && await waitEvent('desktop-selection-pruned', (e) => e.t >= tD && (e.removed || []).join() === nameDel31, 8000);
+            const prunedD = trashedD && await tape.wait('desktop-selection-pruned', (e) => (e.removed || []).join() === nameDel31, { since: tD, timeoutMs: 8000 });
             const offD = prunedD && await nextKeyboardMode31(prunedD.t, 'keyboard-mode-off');
             prunedD && offD && offD.ok
               ? rep.pass('删尽灭相同相（硬断言③）：desktop-selection-pruned 后紧跟 keyboard-mode-off（面板还原不可聚焦）')
@@ -4543,7 +4464,7 @@ async function runSegments() {
           const rC2 = await settledRect31(nameDelC31);
           const tM = Date.now();
           const okM1 = rB && await clickItem31(rB, 'Del 多选-点选');
-          const selM = okM1 && await waitEvent('desktop-selected', (e) => e.t >= tM && e.name === nameDelB31, 4000);
+          const selM = okM1 && await tape.wait('desktop-selected', (e) => e.name === nameDelB31, { since: tM, timeoutMs: 4000 });
           const okM2 = selM && rC2 && await (async () => {
             const hit = await ensurePanelHit(ptOf31(rC2), hwnd);
             if (!hit.ok) return false;
@@ -4554,23 +4475,23 @@ async function runSegments() {
             w32.send([w32.keyInput(VK_CONTROL, w32.KEYUP)]);
             return true;
           })();
-          const twoM = okM2 && await waitEvent('desktop-selection-toggled', (e) => e.t >= tM && e.selected === true && sameNames31(e.names, [nameDelB31, nameDelC31]), 4000);
+          const twoM = okM2 && await tape.wait('desktop-selection-toggled', (e) => e.selected === true && sameNames31(e.names, [nameDelB31, nameDelC31]), { since: tM, timeoutMs: 4000 });
           const fgM = twoM && await waitFg31();
           if (!fgM) {
             rep.fail('Del 多选用例前置（选中集两条+焦点）未达成');
           } else {
             tapKey31(VK_DELETE);
-            const confirmM = await waitEvent('desktop-trash-confirm-opened', (e) => e.t >= tM && e.count === 2, 4000);
+            const confirmM = await tape.wait('desktop-trash-confirm-opened', (e) => e.count === 2, { since: tM, timeoutMs: 4000 });
             if (!confirmM) {
               rep.fail('Del 多选未弹删除确认层（desktop-trash-confirm-opened 未见）');
             } else {
-              const onCountM = readEvents().filter((e) => e.type === 'keyboard-mode-on' && e.t >= tM && e.t <= confirmM.t).length;
+              const onCountM = tape.all('keyboard-mode-on', (e) => e.t <= confirmM.t, { since: tM }).length;
               onCountM === 1
                 ? rep.pass('同向抑制（硬断言④）：[点选, confirm-opened] 内 keyboard-mode-on 计数=1——选区生只发一次，确认层开（浮层接管）不重发')
                 : rep.fail(`同向抑制断言未过：[tM, confirm-opened] 内 keyboard-mode-on 计数=${onCountM}（期望 1）`);
               const ptOk = { x: rect31.left + Math.round((confirmM.confirm.x + confirmM.confirm.w / 2) * f), y: rect31.top + Math.round((confirmM.confirm.y + confirmM.confirm.h / 2) * f) };
               w32.clickPhys(ptOk.x, ptOk.y, 'left');
-              const trashedM = await waitEvent('desktop-trashed', (e) => e.t >= confirmM.t && e.ok === true && sameNames31(e.names, [nameDelB31, nameDelC31]), 8000);
+              const trashedM = await tape.wait('desktop-trashed', (e) => e.ok === true && sameNames31(e.names, [nameDelB31, nameDelC31]), { since: confirmM.t, timeoutMs: 8000 });
               const goneM = trashedM ? await (async () => {
                 const dl = Date.now() + 8000;
                 while (Date.now() < dl) { if (!fs.existsSync(probeDelB31) && !fs.existsSync(probeDelC31)) return true; await sleep(250); }
@@ -4589,14 +4510,14 @@ async function runSegments() {
           const rE = await settledRect31(nameCopy31);
           const tE = Date.now();
           const okE = rE && await clickItem31(rE, 'Ctrl+C-点选');
-          const selE = okE && await waitEvent('desktop-selected', (e) => e.t >= tE && e.name === nameCopy31, 4000);
+          const selE = okE && await tape.wait('desktop-selected', (e) => e.name === nameCopy31, { since: tE, timeoutMs: 4000 });
           const fgE = selE && await waitFg31();
           if (!fgE) {
             rep.fail('复制/剪切用例键盘焦点未到手');
           } else {
             await ctrlKey31(VK_C);
-            const clickedE = await waitEvent('desktop-copy-clicked', (e) => e.t >= tE && sameNames31(e.names, [nameCopy31]) && e.via === 'keyboard', 4000);
-            const copiedE = clickedE && await waitEvent('desktop-copied', (e) => e.t >= tE && e.ok === true && sameNames31(e.names, [nameCopy31]), 8000);
+            const clickedE = await tape.wait('desktop-copy-clicked', (e) => sameNames31(e.names, [nameCopy31]) && e.via === 'keyboard', { since: tE, timeoutMs: 4000 });
+            const copiedE = clickedE && await tape.wait('desktop-copied', (e) => e.ok === true && sameNames31(e.names, [nameCopy31]), { since: tE, timeoutMs: 8000 });
             const clipE = (clickedE && copiedE) ? await fileDropList31(1) : null;
             const effOkE = !!clipE && clipE.effect === 1;
             clickedE && copiedE && clipE && sameNames31(clipE.names, [probeCopy31]) && effOkE
@@ -4604,8 +4525,8 @@ async function runSegments() {
               : rep.fail(`Ctrl+C 存证异常：clicked=${JSON.stringify(clickedE)} copied=${JSON.stringify(copiedE)} 剪贴板=${JSON.stringify(clipE)}（names 空 = PS 通道空读环境败）`);
             const tX = Date.now();
             await ctrlKey31(VK_X);
-            const clickedX = await waitEvent('desktop-cut-clicked', (e) => e.t >= tX && sameNames31(e.names, [nameCopy31]) && e.via === 'keyboard', 4000);
-            const cutX = clickedX && await waitEvent('desktop-cut', (e) => e.t >= tX && e.ok === true && sameNames31(e.names, [nameCopy31]), 8000);
+            const clickedX = await tape.wait('desktop-cut-clicked', (e) => sameNames31(e.names, [nameCopy31]) && e.via === 'keyboard', { since: tX, timeoutMs: 4000 });
+            const cutX = clickedX && await tape.wait('desktop-cut', (e) => e.ok === true && sameNames31(e.names, [nameCopy31]), { since: tX, timeoutMs: 8000 });
             const clipX = (clickedX && cutX) ? await fileDropList31(1) : null;
             const effOkX = !!clipX && clipX.effect === 2;
             const diskX = fs.existsSync(probeCopy31); // 剪切语义：写剪贴板不动盘面
@@ -4626,16 +4547,16 @@ async function runSegments() {
             const rF = await settledRect31(nameCopy31);
             const tF = Date.now();
             const okF = rF && await clickItem31(rF, 'Ctrl+V-点选');
-            const selF = okF && await waitEvent('desktop-selected', (e) => e.t >= tF && e.name === nameCopy31, 4000);
+            const selF = okF && await tape.wait('desktop-selected', (e) => e.name === nameCopy31, { since: tF, timeoutMs: 4000 });
             const fgF = selF && await waitFg31();
             if (!fgF) {
               rep.fail('Ctrl+V 用例键盘焦点未到手');
             } else {
               await ctrlKey31(VK_V);
-              const clickedF = await waitEvent('desktop-paste-clicked', (e) => e.t >= tF && e.via === 'keyboard', 4000);
-              const pastedF = clickedF && await waitEvent('desktop-pasted', (e) => e.t >= tF && e.ok === true && sameNames31(e.pasted, [namePaste31]), 8000);
+              const clickedF = await tape.wait('desktop-paste-clicked', (e) => e.via === 'keyboard', { since: tF, timeoutMs: 4000 });
+              const pastedF = clickedF && await tape.wait('desktop-pasted', (e) => e.ok === true && sameNames31(e.pasted, [namePaste31]), { since: tF, timeoutMs: 8000 });
               const landedF = pastedF ? fs.existsSync(path.join(userDesktop31, namePaste31)) : false;
-              const inPoolF = pastedF && await waitEvent('desktop-rendered', (e) => e.t >= tF && (e.names || []).includes(namePaste31), 8000);
+              const inPoolF = pastedF && await tape.wait('desktop-rendered', (e) => (e.names || []).includes(namePaste31), { since: tF, timeoutMs: 8000 });
               clickedF && pastedF && landedF && inPoolF
                 ? rep.pass(`Ctrl+V 粘贴（desktop/paste）：via=keyboard + desktop-pasted ok=true pasted=[${namePaste31}]，文件落桌面根且入池`)
                 : rep.fail(`Ctrl+V 存证异常：clicked=${JSON.stringify(clickedF)} pasted=${JSON.stringify(pastedF)} disk=${landedF} pool=${!!inPoolF}`);
@@ -4650,7 +4571,7 @@ async function runSegments() {
           const rG = await settledRect31(nameCopy31);
           const tG = Date.now();
           const okG = rG && await clickItem31(rG, 'Esc 定序-点选');
-          const selG = okG && await waitEvent('desktop-selected', (e) => e.t >= tG && e.name === nameCopy31, 4000);
+          const selG = okG && await tape.wait('desktop-selected', (e) => e.name === nameCopy31, { since: tG, timeoutMs: 4000 });
           if (!selG) {
             rep.fail('Esc 定序用例点选失败');
           } else {
@@ -4659,21 +4580,21 @@ async function runSegments() {
               rep.fail(`Esc 定序右键前置失败：${hitG.why}`);
             } else {
               w32.clickPhys(ptOf31(rG).x, ptOf31(rG).y, 'right');
-              const menuG = await waitEvent('desktop-menu-opened', (e) => e.t >= tG, 4000);
+              const menuG = await tape.wait('desktop-menu-opened', undefined, { since: tG, timeoutMs: 4000 });
               if (!menuG) {
                 rep.fail('Esc 定序用例右键未弹单项菜单（desktop-menu-opened 未见）');
               } else {
                 const tEsc1 = Date.now();
                 tapKey31(VK_ESCAPE);
-                const closed1 = await waitEvent('desktop-menu-closed', (e) => e.t >= tEsc1 && e.reason === 'esc', 4000);
+                const closed1 = await tape.wait('desktop-menu-closed', (e) => e.reason === 'esc', { since: tEsc1, timeoutMs: 4000 });
                 const leakClr1 = closed1 ? leaked31('desktop-selection-cleared', tEsc1) : null;
-                const leakOff1 = closed1 ? readEvents().some((e) => e.type === 'keyboard-mode-off' && e.t >= tEsc1) : null;
+                const leakOff1 = closed1 ? tape.latest('keyboard-mode-off', undefined, { since: tEsc1 }) !== null : null;
                 closed1 && leakClr1 === false && leakOff1 === false
                   ? rep.pass('Esc 第一层（硬断言⑤）：菜单开着只关菜单（desktop-menu-closed reason=esc），选区不清、keyboard-mode 不还原（无 cleared / 无 off 泄漏）')
                   : rep.fail(`Esc 第一层断言未过：closed=${JSON.stringify(closed1)} clearedLeak=${leakClr1} offLeak=${leakOff1}`);
                 const tEsc2 = Date.now();
                 tapKey31(VK_ESCAPE);
-                const clr2 = await waitEvent('desktop-selection-cleared', (e) => e.t >= tEsc2, 4000);
+                const clr2 = await tape.wait('desktop-selection-cleared', undefined, { since: tEsc2, timeoutMs: 4000 });
                 const off2 = clr2 && await nextKeyboardMode31(tEsc2, 'keyboard-mode-off');
                 clr2 && off2 && off2.ok
                   ? rep.pass('Esc 第二层（硬断言⑥）：菜单已关 Esc 清空选区（desktop-selection-cleared）并同相还原 keyboard-mode-off')
@@ -4691,7 +4612,7 @@ async function runSegments() {
           const rH = await settledRect31(nameCopy31);
           const tH = Date.now();
           const okH = rH && await clickItem31(rH, '浮层优先-点选');
-          const selH = okH && await waitEvent('desktop-selected', (e) => e.t >= tH && e.name === nameCopy31, 4000);
+          const selH = okH && await tape.wait('desktop-selected', (e) => e.name === nameCopy31, { since: tH, timeoutMs: 4000 });
           const zoneH = selH ? latestSearchZone31() : null;
           if (!selH || !zoneH) {
             rep.fail(`浮层优先用例前置失败：sel=${!!selH} searchZone=${!!zoneH}`);
@@ -4702,8 +4623,8 @@ async function runSegments() {
               rep.fail(`浮层优先搜索激活前置失败：${hitH.why}`);
             } else {
               w32.clickPhys(ptH.x, ptH.y, 'left');
-              const actH = await waitEvent('search-activated', (e) => e.t >= tH, 4000);
-              const onCountH = actH ? readEvents().filter((e) => e.type === 'keyboard-mode-on' && e.t >= selH.t && e.t <= actH.t).length : -1;
+              const actH = await tape.wait('search-activated', undefined, { since: tH, timeoutMs: 4000 });
+              const onCountH = actH ? tape.all('keyboard-mode-on', (e) => e.t <= actH.t, { since: selH.t }).length : -1;
               actH && onCountH === 1
                 ? rep.pass('浮层开不重发 keyboard-mode-on（硬断言⑦）：search-activated 且 [selected, activated] 内 on 计数=1（选区生唯一一次）')
                 : rep.fail(`浮层重发断言未过：act=${JSON.stringify(actH)} onCount=${onCountH}（期望 1）`);
@@ -4719,15 +4640,15 @@ async function runSegments() {
                   : rep.fail(`浮层优先断言未过：leakA=${leakA} leakV=${leakV} searchAlive=${searchAlive}`);
                 const tEscH = Date.now();
                 tapKey31(VK_ESCAPE);
-                const deactH = await waitEvent('search-deactivated', (e) => e.t >= tEscH && e.reason === 'esc', 4000);
+                const deactH = await tape.wait('search-deactivated', (e) => e.reason === 'esc', { since: tEscH, timeoutMs: 4000 });
                 const leakClrH = deactH ? leaked31('desktop-selection-cleared', tEscH) : null;
-                const leakOffH = deactH ? readEvents().some((e) => e.type === 'keyboard-mode-off' && e.t >= tEscH) : null;
+                const leakOffH = deactH ? tape.latest('keyboard-mode-off', undefined, { since: tEscH }) !== null : null;
                 deactH && leakClrH === false && leakOffH === false
                   ? rep.pass('Esc 归浮层（硬断言⑨）：search-deactivated reason=esc，选区保持、keyboard-mode 保持 on（浮层关而选区非空不互相踩）')
                   : rep.fail(`Esc 浮层定序断言未过：deact=${JSON.stringify(deactH)} clearedLeak=${leakClrH} offLeak=${leakOffH}`);
                 const tEndH = Date.now();
                 const blanked = await blankClear31('浮层优先清场');
-                const clrH = blanked && await waitEvent('desktop-selection-cleared', (e) => e.t >= tEndH, 4000);
+                const clrH = blanked && await tape.wait('desktop-selection-cleared', undefined, { since: tEndH, timeoutMs: 4000 });
                 const offH = clrH && await nextKeyboardMode31(tEndH, 'keyboard-mode-off');
                 clrH && offH && offH.ok
                   ? rep.pass('浮层关后清选区：灭相同相（硬断言）keyboard-mode-off——门控收官归零')
@@ -4784,7 +4705,7 @@ async function runSegments() {
       let searchZone = null;
 
       const latestSearchZone = () => {
-        const evts = readEvents().filter((e) => e.type === 'hotzones' && (e.rects || []).some((r) => r.id === 'search-card'));
+        const evts = tape.all('hotzones', (e) => (e.rects || []).some((r) => r.id === 'search-card'));
         const last = evts[evts.length - 1];
         return last ? (last.rects || []).find((r) => r.id === 'search-card') || null : null;
       };
@@ -4834,7 +4755,7 @@ async function runSegments() {
           await sleep(350);
           const t0 = Date.now();
           w32.clickPhys(cx, cy, 'left');
-          const act = await waitEvent('search-activated', (e) => e.t >= t0, 2500);
+          const act = await tape.wait('search-activated', undefined, { since: t0, timeoutMs: 2500 });
           if (act && foregroundIsPanel()) return true;
         }
         return false;
@@ -4851,7 +4772,7 @@ async function runSegments() {
       const pasteAwaitResults = async () => {
         const t0 = Date.now();
         await paste(word);
-        return await waitEvent('search-results-rendered', (e) => e.t >= t0 && (e.count ?? 0) >= 1, 20000);
+        return await tape.wait('search-results-rendered', (e) => (e.count ?? 0) >= 1, { since: t0, timeoutMs: 20000 });
       };
       const waitWindow = async (pred, timeoutMs = 15000) => {
         const deadline = Date.now() + timeoutMs;
@@ -4878,7 +4799,7 @@ async function runSegments() {
           : rep.fail('Listary 引擎离线或索引 90s 未就绪（搜索链路探针不可信，确认 Listary 在运行后重跑）');
         if (!indexed) return;
 
-        await waitStable('desktop-rendered', 1200, 8000);
+        await tape.waitStable('desktop-rendered', 1200, 8000);
         currentRect = w32.rectOf(hwnd);
         searchZone = latestSearchZone();
         if (!searchZone) {
@@ -4896,7 +4817,7 @@ async function runSegments() {
           : rep.fail('搜索面板未激活或键盘焦点未落入面板进程（前台门校验 3 次失败）');
         if (!okAct) return;
         // 工单02 键盘模式：mode-on 存证 + 前台=面板 + 键盘模式期间面板仍在全部普通窗之下
-        const kbOn = await waitEvent('keyboard-mode-on', (e) => e.t >= tAct0, 3000);
+        const kbOn = await tape.wait('keyboard-mode-on', undefined, { since: tAct0, timeoutMs: 3000 });
         const belowOn = panelBelowAllNormal();
         kbOn && belowOn.ok
           ? rep.pass(`键盘模式开启：keyboard-mode-on 存证；键盘焦点在手（前台=面板）且面板仍在全部普通窗之下（${belowOn.detail}）——键盘模式也钉底`)
@@ -4957,7 +4878,7 @@ async function runSegments() {
           return;
         }
         await paste('readme');
-        const multiRow = await waitEvent('search-results-rendered', (e) => (e.count ?? 0) >= 3, 20000);
+        const multiRow = await tape.wait('search-results-rendered', (e) => (e.count ?? 0) >= 3, { timeoutMs: 20000 });
         if (!multiRow) {
           rep.fail('常用词未出多行结果（↑/↓ 选择不可测）');
           return;
@@ -4966,18 +4887,18 @@ async function runSegments() {
         w32.tapKeys([VK_DOWN]);
         await sleep(180);
         w32.tapKeys([VK_DOWN]);
-        const selEvt = await waitEvent('search-selection-moved', (e) => e.t >= tSel && e.index === 2, 4000);
+        const selEvt = await tape.wait('search-selection-moved', (e) => e.index === 2, { since: tSel, timeoutMs: 4000 });
         selEvt
           ? rep.pass('↑/↓ 选择：两击 DOWN 选中第 3 行（index=2 存证）')
           : rep.fail('↓ 选择未生效（search-selection-moved index=2 未见）');
         tSel = Date.now();
         w32.tapKeys([VK_ESCAPE]);
-        const escEvt = await waitEvent('search-deactivated', (e) => e.t >= tSel && e.reason === 'esc', 5000);
+        const escEvt = await tape.wait('search-deactivated', (e) => e.reason === 'esc', { since: tSel, timeoutMs: 5000 });
         escEvt
           ? rep.pass('ESC 退回待机态（search-deactivated reason=esc：输入清空、结果收起）')
           : rep.fail('ESC 未退回待机态');
         // 工单02 键盘模式退出：mode-off 存证 + 恢复不可聚焦样式 + 面板仍钉底
-        const kbOff = await waitEvent('keyboard-mode-off', (e) => e.t >= tSel, 3000);
+        const kbOff = await tape.wait('keyboard-mode-off', undefined, { since: tSel, timeoutMs: 3000 });
         const belowOff = panelBelowAllNormal();
         const exOff = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
         kbOff && belowOff.ok && (exOff & w32.WS_EX_NOACTIVATE)
@@ -4995,19 +4916,20 @@ async function runSegments() {
         w32.moveMousePhys(safePt.x, safePt.y);
         await sleep(400); // 热区轮询 25ms，留足恢复穿透
         w32.clickPhys(safePt.x, safePt.y, 'left');
-        const blurEvt = await waitEvent('search-deactivated', (e) => e.t >= tSel && e.reason === 'blur', 6000);
+        const blurEvt = await tape.wait('search-deactivated', (e) => e.reason === 'blur', { since: tSel, timeoutMs: 6000 });
         blurEvt
           ? rep.pass('失焦退回待机态（点击桌面后前台翻转，输入框 blur → 收层）')
           : rep.fail('失焦未退回待机态');
 
         // —— ENGINE OFFLINE（假端口注入：config.search.port 指必死端口 → 重启面板）——
-        await stopPanel();
         // 工单50：最小覆写同样带 taskbar.enabled=false——缺段回落默认开启会藏掉原生
         // 任务栏，而探针面板随后被 /F 清杀（无还原路径），P8 托盘扫描将对着隐藏态空扫
+        // 覆写 config 在重发之前完成（句柄的 relaunch＝强退→重发，覆写须先落盘）
         fs.writeFileSync(configPathS, JSON.stringify({ search: { port: await freePort() }, taskbar: { enabled: false } }, null, 2) + '\n');
         const tOff = Date.now();
-        child = launchPanel();
-        const hwndOff = await waitPanelWindow(20000, tOff);
+        const rlOff = await handle.relaunch({ sinceMs: tOff });
+        child = rlOff.child;
+        const hwndOff = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (!hwndOff) throw new Error('离线探针重启后面板窗口未出现');
         hwnd = hwndOff;
         panelPid = win32.threadIdOf(hwndOff).pid;
@@ -5019,7 +4941,7 @@ async function runSegments() {
         } else {
           tSel = Date.now();
           await paste(word);
-          const offEvt = await waitEvent('search-offline-shown', (e) => e.t >= tSel, 20000);
+          const offEvt = await tape.wait('search-offline-shown', undefined, { since: tSel, timeoutMs: 20000 });
           offEvt
             ? rep.pass('引擎不可达显示 ENGINE OFFLINE（假端口连接失败 → offline 态 → 徽标；内核 3s 静默重试在场）')
             : rep.fail('假端口注入后未出现 ENGINE OFFLINE（search-offline-shown 未见）');
@@ -5036,10 +4958,10 @@ async function runSegments() {
         // 面板拉回正常态（离线探针停在假端口配置）：还原 config + 重启
         if (configBackupS === null) { try { fs.unlinkSync(configPathS); } catch { /* 尽力 */ } }
         else { try { fs.writeFileSync(configPathS, configBackupS); } catch { /* 尽力 */ } }
-        await stopPanel();
         const tRelaunch = Date.now();
-        child = launchPanel();
-        const hwndR = await waitPanelWindow(20000, tRelaunch);
+        const rlR = await handle.relaunch({ sinceMs: tRelaunch });
+        child = rlR.child;
+        const hwndR = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (hwndR) {
           hwnd = hwndR;
           panelPid = win32.threadIdOf(hwndR).pid;
@@ -5068,14 +4990,14 @@ async function runSegments() {
         const bz = latestZoneOf('settings-btn');
         if (!bz) return null;
         await occludedClickAt(ptOfZoneAt(rect08, bz), '设置入口');
-        const opened = await waitEvent('settings-opened', (e) => e.t >= t0, 3000);
+        const opened = await tape.wait('settings-opened', undefined, { since: t0, timeoutMs: 3000 });
         if (opened) await sleep(350); // 浮层热区声明落地
         return opened;
       };
       const closeOverlayEsc = async () => {
         const t0 = Date.now();
         w32.tapKeys([VK_ESCAPE]);
-        return await waitEvent('settings-closed', (e) => e.t >= t0 && e.reason === 'esc', 3000);
+        return await tape.wait('settings-closed', (e) => e.reason === 'esc', { since: t0, timeoutMs: 3000 });
       };
       const dragSliderTo = async (slider, frac) => {
         // 从滑杆中心按到目标分位（thumb 几何忽略——断言走事件终值，不猜落点）
@@ -5120,7 +5042,7 @@ async function runSegments() {
           ? rep.pass(`设置浮层：入口点击开启（settings-opened 存证），浮层矩形进热区 ${Math.round(overlayZone.w)}x${Math.round(overlayZone.h)}（可交互）`)
           : rep.fail(`设置浮层开启失败（opened=${JSON.stringify(opened0)}，热区=${JSON.stringify(overlayZone)}）`);
         if (opened0) {
-          const kbOn08 = await waitEvent('keyboard-mode-on', (e) => e.t >= tOpen0, 3000);
+          const kbOn08 = await tape.wait('keyboard-mode-on', undefined, { since: tOpen0, timeoutMs: 3000 });
           const fg08 = w32.GetForegroundWindow();
           const fgIsPanel08 = !!fg08 && w32.threadIdOf(fg08).pid === panelPid;
           kbOn08 && fgIsPanel08
@@ -5166,7 +5088,7 @@ async function runSegments() {
           // 工单02 关层恢复：keyboard-mode-off 存证 + 面板恢复不可聚焦样式
           // （off 事件先于 settings-closed 落盘，过滤起点取按 ESC 前的墙钟）
           if (escEvt) {
-            const kbOff08 = await waitEvent('keyboard-mode-off', (e) => e.t >= tEsc0, 3000);
+            const kbOff08 = await tape.wait('keyboard-mode-off', undefined, { since: tEsc0, timeoutMs: 3000 });
             const ex08 = w32.GetWindowLongW(hwnd, w32.GWL_EXSTYLE);
             kbOff08 && (ex08 & w32.WS_EX_NOACTIVATE)
               ? rep.pass(`关层恢复不可聚焦：keyboard-mode-off 存证，WS_EX_NOACTIVATE 回归（EXSTYLE=0x${(ex08 >>> 0).toString(16)}）`)
@@ -5180,7 +5102,7 @@ async function runSegments() {
           if (opened1 && clockZone) {
             const tBlur = Date.now();
             await occludedClickAt(ptOfZoneAt(rect08, clockZone), '时钟卡');
-            const blurEvt = await waitEvent('settings-closed', (e) => e.t >= tBlur && e.reason === 'blur', 3000);
+            const blurEvt = await tape.wait('settings-closed', (e) => e.reason === 'blur', { since: tBlur, timeoutMs: 3000 });
             blurEvt
               ? rep.pass('失焦关闭：焦点移出浮层（点时钟卡）即收层（reason=blur 存证）')
               : rep.fail('失焦未关闭设置浮层（settings-closed reason=blur 未到）');
@@ -5196,17 +5118,17 @@ async function runSegments() {
             const persist = dragConsistent(tDrag3, (v) => v >= 70);
             await closeOverlayEsc();
             if (persist.ok) {
-              await stopPanel();
               const tRelaunch = Date.now();
-              child = launchPanel();
-              const hwnd8 = await waitPanelWindow(20000, tRelaunch);
+              const rl8 = await handle.relaunch({ sinceMs: tRelaunch });
+              child = rl8.child;
+              const hwnd8 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
               if (!hwnd8) {
                 rep.fail('重启保持探针：面板重启后窗口未出现');
               } else {
                 hwnd = hwnd8;
                 panelPid = win32.threadIdOf(hwnd8).pid;
                 rect08 = w32.rectOf(hwnd8);
-                const appliedPersist = await waitEvent('settings-opacity-applied', (e) => e.t >= tRelaunch && Math.abs(e.value - pctOf(persist.cfg)) <= 1, 8000);
+                const appliedPersist = await tape.wait('settings-opacity-applied', (e) => Math.abs(e.value - pctOf(persist.cfg)) <= 1, { since: tRelaunch, timeoutMs: 8000 });
                 appliedPersist
                   ? rep.pass(`重启保持：config ${persist.cfg} 回灌渲染层（boot applied ${appliedPersist.value}%，滑杆与底色同值）`)
                   : rep.fail(`重启后渲染层未回灌 config 值（期望 ~${pctOf(persist.cfg)}%，applied 未到）`);
@@ -5243,7 +5165,7 @@ async function runSegments() {
         const bz = latestZoneOf('settings-btn');
         if (!bz) return null;
         await occludedClickAt(ptOfZoneAt(rect101, bz), '设置入口');
-        const opened = await waitEvent('settings-opened', (e) => e.t >= t0, 3000);
+        const opened = await tape.wait('settings-opened', undefined, { since: t0, timeoutMs: 3000 });
         if (opened) await sleep(350); // 浮层热区声明落地
         return opened;
       };
@@ -5253,7 +5175,7 @@ async function runSegments() {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
           await sleep(300);
-          const last = readEvents().filter((e) => e.type === 'hotzones' && e.t >= sinceMs).pop();
+          const last = tape.latest('hotzones', undefined, { since: sinceMs });
           const has = Boolean(last && (last.rects || []).some((r) => r.id === 'search-card'));
           if (last && has === present) return true;
         }
@@ -5276,7 +5198,7 @@ async function runSegments() {
         if (!searchRow0) { rep.fail('停用探针前置失败：settings-opened 无 search 开关行'); return; }
         const tDisable = Date.now();
         await occludedClickAt(ptOfZoneAt(rect101, searchRow0.rect), '搜索卡开关');
-        const setOff = await waitEvent('settings-card-set', (e) => e.t >= tDisable && e.id === 'search' && e.enabled === false, 6000);
+        const setOff = await tape.wait('settings-card-set', (e) => e.id === 'search' && e.enabled === false, { since: tDisable, timeoutMs: 6000 });
         const goneZone = setOff ? await waitHotzone101(tDisable, false) : false;
         const cfgOff = readDisabled101();
         setOff && goneZone && Array.isArray(cfgOff) && cfgOff.includes('search')
@@ -5286,10 +5208,10 @@ async function runSegments() {
         fullShot('101-search-disabled');
 
         // c. 重启保留：停用集在 config → 重启面板 → 新代次热区表仍无 search-card
-        await stopPanel();
         const tRelaunch101 = Date.now();
-        child = launchPanel();
-        const hwndT = await waitPanelWindow(20000, tRelaunch101);
+        const rlT = await handle.relaunch({ sinceMs: tRelaunch101 });
+        child = rlT.child;
+        const hwndT = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (!hwndT) { rep.fail('开关段重启后面板窗口未出现'); return; }
         hwnd = hwndT;
         panelPid = win32.threadIdOf(hwndT).pid;
@@ -5311,7 +5233,7 @@ async function runSegments() {
           : rep.fail('重启后 search 开关行勾选态异常（期望 OFF）');
         const tEnable = Date.now();
         await occludedClickAt(ptOfZoneAt(rect101, searchRow1.rect), '搜索卡开关');
-        const setOn = await waitEvent('settings-card-set', (e) => e.t >= tEnable && e.id === 'search' && e.enabled === true, 6000);
+        const setOn = await tape.wait('settings-card-set', (e) => e.id === 'search' && e.enabled === true, { since: tEnable, timeoutMs: 6000 });
         const backZone = setOn ? await waitHotzone101(tEnable, true) : false;
         const cfgOn = readDisabled101();
         setOn && backZone && Array.isArray(cfgOn) && !cfgOn.includes('search')
@@ -5323,10 +5245,10 @@ async function runSegments() {
         w32.moveMousePhys(safePt.x, safePt.y);
         // 收尾恢复全启用现场：还原 config + 重启（后续段与用户拿到的机器都必须是默认配置）
         restoreConfigB(configBackup101);
-        await stopPanel();
         const tFinal101 = Date.now();
-        child = launchPanel();
-        const hwndF = await waitPanelWindow(20000, tFinal101);
+        const rlF = await handle.relaunch({ sinceMs: tFinal101 });
+        child = rlF.child;
+        const hwndF = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (hwndF) {
           hwnd = hwndF;
           panelPid = win32.threadIdOf(hwndF).pid;
@@ -5340,16 +5262,19 @@ async function runSegments() {
     rep.beginSegment('P6');
     const configBackup = backupConfigB();
     try {
-      await stopPanel();
+      await handle.stop();
       // 工单50：几何探针也要带上 taskbar.enabled=false——最小覆写会丢 taskbar 段回落
       // 默认开启，条带隐藏原生任务栏后 P8 托盘识别色扫描（Shell_TrayWnd 矩形）全灭
       fs.writeFileSync(CONFIG_FILE_B, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 }, taskbar: { enabled: false } }, null, 2) + '\n');
-      // P1-P5.5 的存证先留档再重置（waitEvent 要等新 boot）；此前直接 unlink 把
+      // P1-P5.5 的存证先留档再重置（磁带要等新 boot）；此前直接 unlink 把
       // P5.5 期事件抹掉，复位探针排障无据可查（三轮实测痛点）
       try { fs.copyFileSync(EVENTS_FILE, path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl')); } catch { /* 尽力留档 */ }
-      try { fs.unlinkSync(EVENTS_FILE); } catch { /* 重置存证，waitEvent 才能等到新 boot */ }
-      child = launchPanel();
-      const hwnd2 = await waitPanelWindow(20000);
+      try { fs.unlinkSync(EVENTS_FILE); } catch { /* 重置存证，磁带才能等到新 boot */ }
+      const launchedP6 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+      child = launchedP6.child;
+      // since 门用句柄缺省（发射时点）——裁决 14：上一步刚把事件文件物理清空，
+      // 旧 boot 不存在，「无门」与「since=发射时点」接到的是同一条 boot
+      const hwnd2 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!hwnd2) throw new Error(`重启后未见面板窗口\nstderr:\n${stderrTail}`);
       const r2 = w32.rectOf(hwnd2);
       panelPid = w32.threadIdOf(hwnd2).pid;
@@ -5376,12 +5301,16 @@ async function runSegments() {
         (h) => w32.className(h) === 'Chrome_WidgetWin_1' && w32.threadIdOf(h).pid === panelPid).length;
       const chromeBefore = chromeOfPanel();
       const t0 = Date.now();
-      const child2 = spawn(process.execPath, ['.'], {
-        cwd: APP_ROOT,
-        env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
-        stdio: ['ignore', 'pipe', 'pipe'],
+      // 二次拉起不是面板生命周期（被拒实例自己退）——用独立探针句柄发射：
+      // 形态与首启不同（无 DECK_LAG_SENTINEL、无 DECK_CDP_PORT）由 launch 参数表达，
+      // 且不占用主句柄的 child/panelPid/hwnd 记账（否则主面板的存活与强退判据被顶掉）。
+      const probeHandle = createPanelHandle({
+        execPath: process.execPath,
+        appRoot: APP_ROOT,
+        eventLogPath: EVENTS_FILE,
+        archivePath: path.join(__dirname, 'evidence', '03-panel-handle-child.log'),
       });
-      child2.stdout.on('data', () => {}); // 工单132：stdout 管道必须排空（同 launchPanel 注）
+      const { child: child2 } = probeHandle.launch({ mode: 'full', stdio: 'drain' });
       let exited = null;
       child2.once('exit', (code) => { exited = { code, at: Date.now() }; });
       const deadline = Date.now() + 15000;
@@ -5395,7 +5324,7 @@ async function runSegments() {
       } else {
         rep.fail(`单实例守卫：二次拉起退出异常（elapsed=${elapsed}ms code=${exited.code}，工单要求「立即」）`);
       }
-      readEvents().some((e) => e.type === 'single-instance-refused')
+      tape.latest('single-instance-refused') !== null
         ? rep.pass('单实例守卫：被拒实例自报 single-instance-refused 存证')
         : rep.fail('单实例守卫：无 single-instance-refused 存证');
       const chromeAfter = chromeOfPanel();
@@ -5436,10 +5365,10 @@ async function runSegments() {
         let amber = scanAmberInTray('area');
         if (!amber) {
           rep.note('提升后可见区未发现识别色，重启面板让 explorer 按注册表重挂图标');
-          await stopPanel();
           const t0 = Date.now();
-          child = launchPanel();
-          hwnd = await waitPanelWindow(20000, t0);
+          const rl8b = await handle.relaunch({ sinceMs: t0 });
+          child = rl8b.child;
+          hwnd = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
           if (!hwnd) throw new Error('P8 重启后未见面板窗口');
           panelPid = w32.threadIdOf(hwnd).pid;
           // 显示模式切换后 explorer 重挂托盘图标可能迟滞（工单04 实测）：8s 内轮询重扫
@@ -5492,13 +5421,13 @@ async function runSegments() {
         await captureFast(rect1, '03-wind-immune');
         rep.note('Win+D 后实拍：面板仍在原位（对照窗已收起）；内容级断言见最小化实拍之后的比对');
         // ① 守望器进场存证（工单07）：遮罩守望在 Progman 压顶后 1s 内 engage
-        const coverEngaged = await waitEvent('cover-engaged', (e) => e.t >= tWind, 4000);
+        const coverEngaged = await tape.wait('cover-engaged', undefined, { since: tWind, timeoutMs: 4000 });
         coverEngaged
           ? rep.pass('桌面遮罩守望进场：cover-engaged 已存证（Progman 压顶 → 面板临时 TOPMOST）')
           : rep.fail('桌面遮罩守望未进场（4s 内无 cover-engaged，Progman 压顶期面板处于壁纸之下）');
       } else {
         // 若未来 Windows 行为变化或面板失去工具窗豁免：防抖恢复机制接管
-        const windMin = await waitEvent('wind-minimized', null, 6000);
+        const windMin = await tape.wait('wind-minimized', null, { timeoutMs: 6000 });
         rep.note(`面板亦被 Win+D 最小化（存证 ${JSON.stringify(windMin)}），等待防抖自动恢复`);
       }
       // —— 防抖自动恢复真机演练：SW_MINIMIZE 收起面板 → 1.5s 防抖 → 自动恢复原位并重钉 ——
@@ -5507,7 +5436,7 @@ async function runSegments() {
       // SC_MINIMIZE（PostMessage 永不阻塞）：健康面板泵到消息即最小化（与点击标题栏
       // 最小化同语义）；停摆面板收不到 → wind-minimized 事件门 6s 超时判 FAIL——
       // 电池挂死形态消失，失败照常带证入账。
-      const windMinPromise = waitEvent('wind-minimized', null, 6000);
+      const windMinPromise = tape.wait('wind-minimized', null, { timeoutMs: 6000 });
       w32.PostMessageW(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
       const windMin = await windMinPromise;
       await sleep(400);
@@ -5530,7 +5459,7 @@ async function runSegments() {
             : rep.fail(`Win+D 后面板内容不可见（像素级）：与最小化实拍均值差仅 ${meanDiff.toFixed(1)}/255（<8，屏幕只剩壁纸——工单07 退化形态）`);
         }
       }
-      const windRestored = await waitEvent('wind-restored', null, 10000);
+      const windRestored = await tape.wait('wind-restored', null, { timeoutMs: 10000 });
       await sleep(600);
       const rect2 = w32.rectOf(hwnd);
       const tol = 24; // frameless 隐形边框（探针01-E 同 P6 容差）
@@ -5611,14 +5540,14 @@ async function runSegments() {
           const deadline = Date.now() + 10000;
           while (Date.now() < deadline) {
             await sleep(200);
-            if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+            if (!handle.alive() && !w32.IsWindow(hwnd)) return true;
           }
           return false;
         })();
         dead
           ? rep.pass(`退出闭环：窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - t0}ms）`)
-          : rep.fail(`退出闭环未达成（窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
-        readEvents().some((e) => e.type === 'quit')
+          : rep.fail(`退出闭环未达成（窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${handle.alive()}）`);
+        tape.latest('quit') !== null
           ? rep.pass('退出管道经 before-quit 存证（quit，托盘随之 destroy）')
           : rep.fail('无 quit 存证');
         await sleep(1500);
@@ -5640,8 +5569,11 @@ async function runSegments() {
     rep.beginSegment('P10E');
     {
       const t0e = Date.now();
-      child = launchPanel();
-      hwnd = await waitPanelWindow(20000, t0e);
+      // since 门用句柄缺省（发射时点）——裁决 14：t0e 早于发射时点，而 boot 存证的 t
+      // 必然晚于发射时点（面板是发射后才起、才落 boot）→ 两门接到的是同一条 boot
+      const launchedE = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+      child = launchedE.child;
+      hwnd = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!hwnd) throw new Error('P10E 重启后未见面板窗口');
       panelPid = w32.threadIdOf(hwnd).pid;
       await sleep(2500); // boot + 热区声明落地（settings-btn 进声明，06/08 同等待口径）
@@ -5650,27 +5582,27 @@ async function runSegments() {
         rep.fail('P10E：settings-btn 未进热区（无法开浮层点退出，工单83 用例未跑）');
       } else {
         await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), bzE), '设置入口');
-        const openedE = await waitEvent('settings-opened', (e) => e.t >= t0e, 3000);
+        const openedE = await tape.wait('settings-opened', undefined, { since: t0e, timeoutMs: 3000 });
         await sleep(350); // 浮层热区声明落地（settings-exit 随开层进声明）
         const ezE = latestZoneOf('settings-exit');
         if (!openedE || !ezE) {
           rep.fail(`P10E：设置浮层未开或退出按钮未进热区（opened=${JSON.stringify(openedE)}，exit=${JSON.stringify(ezE)}）`);
         } else {
           await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), ezE), '退出面板按钮');
-          const clickedE = await waitEvent('settings-exit-clicked', (e) => e.t >= t0e, 3000);
+          const clickedE = await tape.wait('settings-exit-clicked', undefined, { since: t0e, timeoutMs: 3000 });
           const tExitE = Date.now();
           const deadE = await (async () => {
             const deadline = Date.now() + 10000;
             while (Date.now() < deadline) {
               await sleep(200);
-              if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+              if (!handle.alive() && !w32.IsWindow(hwnd)) return true;
             }
             return false;
           })();
           deadE
             ? rep.pass(`退出面板按钮闭环：settings-exit-clicked → app/quit → 窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - tExitE}ms）`)
-            : rep.fail(`退出面板按钮未达成完整退出（clicked=${JSON.stringify(clickedE)}，窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
-          readEvents().some((e) => e.type === 'quit' && e.t >= t0e)
+            : rep.fail(`退出面板按钮未达成完整退出（clicked=${JSON.stringify(clickedE)}，窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${handle.alive()}）`);
+          tape.latest('quit', undefined, { since: t0e }) !== null
             ? rep.pass('退出按钮走 before-quit 同一收敛（quit 存证在档，桌面图标/原生任务栏/托盘随之还原）')
             : rep.fail('退出按钮无 quit 存证（未走 before-quit 收敛）');
         }
@@ -5753,11 +5685,10 @@ async function runSegments() {
             + `${hit && hit !== hwnd ? `(${w32.className(hit)} pid=${w32.threadIdOf(hit).pid}，非面板→被遮挡)` : ''}`);
           const tAttempt = Date.now();
           await occludedClickAt(pt, `会话行(${PROBE_TAG})`);
-          const res = await waitEvent('session-focus-result',
-            (e) => e.t >= Math.max(t0, tAttempt) && e.tool === 'qoder', 6000);
+          const res = await tape.wait('session-focus-result', (e) => e.tool === 'qoder', { since: Math.max(t0, tAttempt), timeoutMs: 6000 });
           if (res) return res;
           // 没等到探针行回音：大概率点中了重排后的他人行（异槽回音）——如实记录并重试
-          const foreign = lastEvent('session-focus-result', (e) => e.t >= tAttempt, 0);
+          const foreign = lastEvent('session-focus-result', undefined, tAttempt);
           rep.note(`${why} 第 ${attempt}/3 次点击未收到探针行回音`
             + `（${foreign ? `点中异槽行 tool=${foreign.tool}${foreign.id ? ' id=' + foreign.id : ''}` : '无任何回音'}）`
             + `——会话列表活跃重排竞态，取新矩形重试`);
@@ -5766,7 +5697,7 @@ async function runSegments() {
       };
       /**
        * 以指定 tools 映射重启面板，等首拍含探针行的会话列表就绪。
-       * 常规 launchPanel()（外层守卫形态）：P9 排在电池最后一段，
+       * 常规面板发射（外层守卫形态）：P9 排在电池最后一段，
        * 重启面板不会再扰动前面任何探针的窗口/图标状态机。
        * 位置约束（两轮实证）：P9 必须排在最后——它要为改 config 而重启面板，
        * 放在中间会连带搅乱 P5「杀进程还原」的图标状态机（确定性失败）。
@@ -5775,14 +5706,13 @@ async function runSegments() {
         let cfg = {};
         try { cfg = JSON.parse(fs.readFileSync(CONFIG_FILE_B, 'utf8')); } catch { cfg = {}; }
         cfg.tools = { ...(cfg.tools || {}), ...toolsPatch };
-        await stopPanel();
         fs.writeFileSync(CONFIG_FILE_B, JSON.stringify(cfg, null, 2) + '\n');
         const t = Date.now();
-        child = launchPanel();
-        const h = await waitPanelWindow(20000, t);
+        const rl13 = await handle.relaunch({ sinceMs: t });
+        child = rl13.child;
+        const h = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (h) { hwnd = h; panelPid = win32.threadIdOf(h).pid; }
-        const ready = await waitEvent('sessions-rendered',
-          (e) => e.t >= t && e.rows && e.rows.some((r) => r.project === PROBE_TAG), 15000);
+        const ready = await tape.wait('sessions-rendered', (e) => e.rows && e.rows.some((r) => r.project === PROBE_TAG), { since: t, timeoutMs: 15000 });
         return { hwnd: h, ready };
       };
       try {
@@ -5897,7 +5827,7 @@ async function runSegments() {
         if (clockZone) {
           const tAlive = Date.now();
           await occludedClickAt(ptOfZoneAt(w32.rectOf(hwnd), clockZone), '时钟卡');
-          alive = await waitEvent('clock-card-clicked', (e) => e.t >= tAlive, 4000);
+          alive = await tape.wait('clock-card-clicked', undefined, { since: tAlive, timeoutMs: 4000 });
         }
         resDeg && resDeg.action === 'degraded' && !resDeg.ok && alive
           ? rep.pass(`会话行直达·静默降级：失效目标返回 degraded（reason=${resDeg.error}）且面板未崩（降级后仍可交互：时钟卡点击存证到达）`)
@@ -5919,7 +5849,7 @@ async function runSegments() {
       const pluginsDir = path.join(userDataDir, 'plugins');
       const sampleSrc = path.join(APP_ROOT, 'samples', 'hello-plugin');
       const dest = path.join(pluginsDir, 'hello');
-      const bootCount = () => readEvents().filter((e) => e.type === 'boot').length;
+      const bootCount = () => tape.all('boot').length;
       try {
         // 0. 内置卡自举：五个桌面组件必须**经插件契约**装载（不是面板自己画的）。
         //    工单99 日历成包、工单100 搜索面板成包，内置清单随之扩到五张
@@ -5932,7 +5862,7 @@ async function runSegments() {
         // 观感一致性的机器可查部分：五张卡都进了热区声明（都在场、都在点击穿透模型里），
         // 且时钟卡矩形与 renderer/index.html 的 CARD_DIP 逐项相等。像素级观感仍按既有
         // 惯例人工核验截图（spec：界面视觉对齐不设自动化缝）。
-        const cardZones = new Map(((readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [])
+        const cardZones = new Map(((tape.latest('hotzones', undefined, { since }) || {}).rects || [])
           .filter((r) => builtinIds.includes(`${r.id}`.replace('-card', '')))
           .map((r) => [r.id, r]));
         const zonesOk = builtinIds.every((id) => cardZones.has(`${id}-card`));
@@ -5951,7 +5881,7 @@ async function runSegments() {
         // 0.5 Qoder 状态块退役（工单03）：热区声明按 id 找 qoder-card 应缺席，
         //     会话卡加高补位——top 152 不动、高 348→522（吞 16px 间隙 + 158px 状态块槽）。
         //     硬件卡随工单59 一并退役，其 top 690 原槽位不再有卡片。
-        const zoneRects = (readEvents().filter((e) => e.type === 'hotzones' && e.t >= since).pop() || {}).rects || [];
+        const zoneRects = (tape.latest('hotzones', undefined, { since }) || {}).rects || [];
         const qoderGone = !zoneRects.some((r) => r.id === 'qoder-card');
         const sz = zoneRects.find((r) => r.id === 'sessions-card');
         const fillOk = Boolean(sz) && sz.y === 152 && sz.h === 522;
@@ -5975,9 +5905,9 @@ async function runSegments() {
         rep.note(`桌面组件探针：样例插件已放入 ${dest}（本段不重启面板，boot 存证基线 ${boots0} 条）`);
 
         // ① 主进程认到插件并把前端入口投递给渲染层（plugins/changed → plugin-mounted）
-        const mounted = await waitEvent('plugin-mounted', (e) => e.id === 'hello' && e.t >= t0, 15000);
+        const mounted = await tape.wait('plugin-mounted', (e) => e.id === 'hello', { since: t0, timeoutMs: 15000 });
         // ② 插件模块自身跑起来（deck-plugin:// 动态 import 成功 → mount 被调）
-        const ran = await waitEvent('hello-mounted', (e) => e.t >= t0, 8000);
+        const ran = await tape.wait('hello-mounted', undefined, { since: t0, timeoutMs: 8000 });
         // ③ 卡片进入热区：插件组件与面板卡片同一套点击穿透模型，不是画上去的死图
         let zone = null;
         for (let i = 0; i < 20 && !zone; i++) { await sleep(300); zone = latestZoneOf('hello-card'); }
@@ -6006,7 +5936,7 @@ async function runSegments() {
         const cardFile = path.join(dest, 'card.js');
         fs.writeFileSync(cardFile,
           fs.readFileSync(cardFile, 'utf8').replace('EXTERNAL PLUGIN OK', 'EXTERNAL PLUGIN RELOADED'), 'utf8');
-        const reloaded = await waitEvent('plugin-mounted', (e) => e.id === 'hello' && e.t >= tReload, 15000);
+        const reloaded = await tape.wait('plugin-mounted', (e) => e.id === 'hello', { since: tReload, timeoutMs: 15000 });
         reloaded
           ? rep.pass('桌面组件·运行时重载：改插件自身资产后即时重载生效（未重启面板，入口代号变化即换 URL 绕开 ESM 模块缓存）')
           : rep.fail('桌面组件·重载未过：改 card.js 后 15s 内未再次收到 plugin-mounted');
@@ -6017,7 +5947,7 @@ async function runSegments() {
         let gone = false;
         for (let i = 0; i < 25 && !gone; i++) {
           await sleep(300);
-          const last = readEvents().filter((e) => e.type === 'hotzones' && e.t >= tUnload).pop();
+          const last = tape.latest('hotzones', undefined, { since: tUnload });
           gone = Boolean(last && !(last.rects || []).some((r) => r.id === 'hello-card'));
         }
         gone
@@ -6030,7 +5960,7 @@ async function runSegments() {
         for (const name of ['plugin.json', 'card.js']) {
           fs.copyFileSync(path.join(sampleSrc, name), path.join(dest, name));
         }
-        const back = await waitEvent('plugin-mounted', (e) => e.id === 'hello' && e.t >= tReinstall, 15000);
+        const back = await tape.wait('plugin-mounted', (e) => e.id === 'hello', { since: tReinstall, timeoutMs: 15000 });
         let backZone = null;
         for (let i = 0; i < 20 && !backZone; i++) { await sleep(300); backZone = latestZoneOf('hello-card'); }
         const boots2 = bootCount();
@@ -6059,7 +5989,7 @@ async function runSegments() {
         pre6 = fs.readFileSync(path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl'), 'utf8')
           .split('\n').filter(Boolean).map((l) => JSON.parse(l));
       } catch { /* 首轮无留档（P6 未跑过的范围段轮）——当代照查 */ }
-      const cur = readEvents();
+      const cur = tape.all();
 
       // ① 武装在证：sentinel-armed 只有接活性心跳的面板窗会发（任务栏条带不接）
       const armedCur = cur.some((e) => e.type === 'sentinel-armed');
@@ -6088,8 +6018,8 @@ async function runSegments() {
       rep.note(`渲染层失能注入（CDP Runtime.evaluate 忙环）：${injected}`);
 
       // 静默档：活性静默越过 5s 阈值即报一条（recovered=true——注入前心跳一直在流）。
-      // 注入后必须重读事件文件：上面 readEvents() 是注入前快照，忙环期间的存证不在里面。
-      const curAfter = readEvents();
+      // 注入后必须重读事件文件：上面 tape.all() 是注入前快照，忙环期间的存证不在里面。
+      const curAfter = tape.all();
       const quietRec = curAfter.filter((e) => e.type === 'renderer-stall' && e.t >= injectT0).pop();
       quietRec && quietRec.recovered === true
         ? rep.pass(`注入静默档发射：renderer-stall quietMs=${quietRec.quietMs} recovered=${quietRec.recovered}（活性静默越过 5s 阈值）`)
@@ -6102,13 +6032,13 @@ async function runSegments() {
         : rep.fail(`注入失能档发射异常：${JSON.stringify(frozenRecs)}（期望恰一条）`);
 
       // 闭合：忙环结束后的首个心跳闭合 episode，frozenMs ≥ 忙环时长（恢复在账 = 自愈可读）
-      const unfrozenRec = await waitEvent('renderer-unfrozen', (e) => e.t >= injectT0, 10000);
+      const unfrozenRec = await tape.wait('renderer-unfrozen', undefined, { since: injectT0, timeoutMs: 10000 });
       unfrozenRec && unfrozenRec.frozenMs >= 12000
         ? rep.pass(`失能 episode 闭合：renderer-unfrozen frozenMs=${unfrozenRec.frozenMs}（忙环结束首个心跳闭合）`)
         : rep.fail(`失能 episode 未闭合：${JSON.stringify(unfrozenRec || null)}（忙环结束后 10s 内应见恢复闭合）`);
 
       // 收紧：本轮注入窗口内三档各恰一条（多发/漏发都算接线病）
-      const win = readEvents().filter((e) => (e.type === 'renderer-stall' || e.type === 'renderer-frozen' || e.type === 'renderer-unfrozen') && e.t >= injectT0);
+      const win = tape.all(undefined, (e) => e.type === 'renderer-stall' || e.type === 'renderer-frozen' || e.type === 'renderer-unfrozen', { since: injectT0 });
       win.length === 3
         ? rep.pass('注入窗口记账收紧：静默/失能/闭合三档各恰一条，无多发无漏发')
         : rep.fail(`注入窗口记账异常：${JSON.stringify(win.map((e) => ({ type: e.type, quietMs: e.quietMs, frozenMs: e.frozenMs })))}（期望恰三条）`);
@@ -6133,7 +6063,7 @@ async function runSegments() {
       });
       rep.note(`死因取证：panelPid=${panelPid} 存活=${alive}；stderr 尾=${(stderrTail || '(空)').slice(-1500).replace(/\s+/g, ' ')}`);
       rep.note(`死因取证·顶层窗全景（${wins.length}）：${wins.join(' | ')}`);
-      const lastEvt = readEvents().slice(-1)[0];
+      const lastEvt = tape.all().slice(-1)[0];
       rep.note(`死因取证·最后一条存证：${lastEvt ? `${lastEvt.type} @${lastEvt.t}` : '(无)'}`);
     } catch (diagErr) {
       rep.note(`死因取证自身失败：${diagErr && diagErr.message}`);
@@ -6163,7 +6093,7 @@ async function runSegments() {
     deckProbeFiles = [];
     // 工单112：收尾清场换面板控制模块——强退后验证消失；「需重启清障」只入账不中止
     // （清场不掩盖真结局），随后窗枚举核验无任何遗留面板本体窗（双面板级联的末道闸）。
-    const cleared = await stopPanel();
+    const cleared = await handle.stop();
     if (cleared && cleared.gone === false) {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill');
     }
@@ -6177,6 +6107,9 @@ async function runSegments() {
         ? rep.note('清场核验：无遗留面板本体窗')
         : rep.exclude(`清场核验：仍有 ${leftover.length} 扇面板本体窗在场（pid=${leftover.map((c) => c.pid).join(', ')}）——需重启清障`, '收尾清场后面板窗仍存在', 'panel-leftover');
     } catch (e) { rep.note(`清场核验·窗枚举异常: ${e && e.message}`); }
+    // 工单209/裁决 10：archive 形态的证据档 fd 由电池侧关闭（句柄的 archive 形态按缺省语义不 close）
+    for (const fd of archiveFds) { try { fs.closeSync(fd); } catch { /* 尽力 */ } }
+    archiveFds.length = 0;
     // 工单05 清场核验：面板被 /F 清杀时守卫无还原路径（还原依赖存活），图标若仍隐藏则走
     // --icon-restore 自救通道回到电池前状态（电池不得改变用户原生偏好）
     try {
