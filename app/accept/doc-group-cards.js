@@ -34,11 +34,18 @@ const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
+// 工单212：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（本电池档：母票 #201 决策 8 的枚举漏列本电池，编排台账 §8 裁决 1
+// 「保真优先于枚举」——传 6000 即 8000→6000 的行为变更）
+const { createEventTape } = require('./lib/event-tape');
 
 const BATTERY_ID = '166-doc-group-cards';
 const APP_ROOT = path.resolve(__dirname, '..');
 const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
-const EVIDENCE_FILE = path.join(__dirname, 'evidence', '166-doc-group-cards-events.jsonl');
+// 工单212：事件文件常量名归一——原名 EVIDENCE_FILE，其余七块电池一律叫 EVENTS_FILE；
+// **路径字面不变**（仍是 166-doc-group-cards-events.jsonl），本刀只统一变量名
+const EVENTS_FILE = path.join(__dirname, 'evidence', '166-doc-group-cards-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const PLUGIN_ROOT = path.join(os.tmpdir(), 'deck187-plugins');
 const STAGING = path.join(os.tmpdir(), 'deck187-staging');
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
@@ -78,23 +85,9 @@ function userDesktop() {
 // ---------------------------------------------------------------------------
 // 事件流 / CDP
 // ---------------------------------------------------------------------------
-function readEvents() {
-  try {
-    return fs.readFileSync(EVIDENCE_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    if (Date.now() >= deadline) return null;
-    await sleep(60);
-  }
-}
+// 工单212：正典 readEvents / waitEvent 整体退役——事件观测归事件磁带（app/accept/lib/event-tape）。
+// 磁带 wait 取「首个」匹配拍（正典 .find() 口径，编排台账 §8 裁决 2）；latest 取「最新一拍」
+// （正典 .filter().pop() 口径）。时间门由 since 参数统一承担（e.t >= since）。
 
 async function cdpEval(expression, timeoutMs = 8000) {
   const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
@@ -349,7 +342,7 @@ function launchPanel() {
   const fd = fs.openSync(path.join(__dirname, 'evidence', '166-panel-child.log'), 'a');
   return spawn(process.execPath, ['.', '--panel-accept'], {
     cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVIDENCE_FILE, DECK_CDP_PORT: String(CDP_PORT) },
+    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT) },
     stdio: ['ignore', fd, fd],
   });
 }
@@ -360,9 +353,9 @@ function killPanel() {
 }
 
 async function startPanel(reason) {
-  fs.writeFileSync(EVIDENCE_FILE, '', 'utf8');
+  fs.writeFileSync(EVENTS_FILE, '', 'utf8');
   child = launchPanel();
-  const boot = await waitEvent('boot', null, 20000);
+  const boot = await tape.wait('boot', null, { timeoutMs: 20000 });
   if (!boot) throw new Error(`面板子进程未上报 boot 事件（${reason}）`);
   panelPid = boot.pid;
   const hwnd = await until(() => {
@@ -577,7 +570,7 @@ async function openGroupMenuAt(cardId) {
     await clickAt({ x: c.x + 8, y: c.y + c.h / 2 }, 'right');
     const menu = await until(() => cdpEval(EXPR.menu), 4000, 150);
     if (menu) {
-      const ev = await waitEvent('doc-group-cards-menu-opened', (e) => e.cardId === cardId, 3000);
+      const ev = await tape.wait('doc-group-cards-menu-opened', (e) => e.cardId === cardId, { timeoutMs: 3000 });
       if (attempt > 1 && repRef) repRef.note(`组卡菜单开层第 2 次才成（${cardId}）：注入失手一次，如实记账`);
       return { menu, ev, retries: attempt };
     }
@@ -585,10 +578,8 @@ async function openGroupMenuAt(cardId) {
   return { menu: null, ev: null, retries: 2 };
 }
 
-const lastHotzones = () => {
-  const all = readEvents().filter((e) => e.type === 'hotzones');
-  return all.length ? all[all.length - 1] : null;
-};
+// 工单212：末拍口径（正典 readEvents().filter(...).pop()）→ 磁带 latest
+const lastHotzones = () => tape.latest('hotzones');
 const rectEq = (a, b, tol = 1) => !!a && !!b && Math.abs(a.x - b.x) <= tol && Math.abs(a.y - b.y) <= tol
   && Math.abs(a.w - b.w) <= tol && Math.abs(a.h - b.h) <= tol;
 
@@ -681,7 +672,7 @@ async function main() {
     // ===== P179 · 工单179 装载接管文档区 / 整排几何 / 24×24 残留（问A 定案）========
     rep.beginSegment('P179');
     {
-      const mounted = await waitEvent('doc-group-cards-mounted', null, 6000);
+      const mounted = await tape.wait('doc-group-cards-mounted', null, { timeoutMs: 6000 });
       const mount = await cdpEval(EXPR.pluginMounted);
       const zone = await cdpEval(EXPR.docZone);
       mount && mount.container && mount.style && mounted
@@ -909,7 +900,7 @@ async function main() {
       const cur = await cardProbe('dgc-txt');
       const tLaunch = Date.now();
       await doubleClickAt(centerOf(cur.cells[0]));
-      const evLaunch = await waitEvent('doc-group-cards-launch', (e) => e.t >= tLaunch - 500, 8000);
+      const evLaunch = await tape.wait('doc-group-cards-launch', undefined, { since: tLaunch - 500, timeoutMs: 8000 });
       evLaunch && evLaunch.path && desktopHas(desktop, path.basename(evLaunch.path))
         ? rep.pass(`双击启动成立：存证 ${path.basename(evLaunch.path)}（${evLaunch.name}），文件确在桌面扫描池内`)
         : rep.fail(`双击启动异常：event=${JSON.stringify(evLaunch)}`);
@@ -923,7 +914,7 @@ async function main() {
       const t0 = Date.now();
       await clickAt(centerOf(c.cells[0]), 'right');
       const menu = await until(() => cdpEval(EXPR.menu), 6000, 150);
-      const evOpen = await waitEvent('doc-group-cards-menu-opened', (e) => e.t >= t0, 4000);
+      const evOpen = await tape.wait('doc-group-cards-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
       const readonlyFive = ['open', 'open-location', 'copy-path', 'copy', 'cut'];
       const ids = menu ? menu.rows.map((r) => r.id) : [];
       menu && readonlyFive.every((r) => ids.includes(r))
@@ -939,7 +930,7 @@ async function main() {
         : rep.fail(`开层未让出全窗热区：rects=${JSON.stringify((hzOpen && hzOpen.rects || []).map((r) => r.id))}`);
       const vp = await cdpEval(EXPR.viewport);
       await clickAt({ x: vp.w - 12, y: vp.h - 12 });
-      const closedOutside = await waitEvent('doc-group-cards-menu-closed', (e) => e.t >= t0, 4000);
+      const closedOutside = await tape.wait('doc-group-cards-menu-closed', undefined, { since: t0, timeoutMs: 4000 });
       rep.note(`菜单外点击收场：closed=${!!closedOutside}`);
       // Esc 收场（工单182 的一半）
       const c2 = await cardProbe('dgc-pdf');
@@ -947,7 +938,7 @@ async function main() {
       await clickAt(centerOf(c2.cells[1]), 'right');
       await until(() => cdpEval(EXPR.menu), 5000, 150);
       win32.tapKeys([0x1B]);
-      const closedEsc = await waitEvent('doc-group-cards-menu-closed', (e) => e.t >= t1, 4000);
+      const closedEsc = await tape.wait('doc-group-cards-menu-closed', undefined, { since: t1, timeoutMs: 4000 });
       closedEsc
         ? rep.pass(`菜单外点击与 Esc 都收场：两次开层分别由屏外一击与 Esc 收掉（存证族在档）`)
         : rep.fail(`收场异常：外击=${!!closedOutside} Esc=${!!closedEsc}`);
@@ -982,7 +973,7 @@ async function main() {
         const mr = await until(() => cdpEval(EXPR.menu), 6000, 150);
         await clickAt(rowPoint(mr, 'rename'));
         const ed = await until(() => cdpEval(EXPR.rename), 6000, 150);
-        const evRen = await waitEvent('doc-group-cards-rename-opened', (e) => e.t >= tRen, 4000);
+        const evRen = await tape.wait('doc-group-cards-rename-opened', undefined, { since: tRen, timeoutMs: 4000 });
         ed && evRen
           ? rep.pass(`RENAME 带内联编辑器：输入框在场（草稿「${ed.value}」，扩展名之前的部分已预选），改名走内核 desktop/rename 一对一契约`)
           : rep.fail(`RENAME 编辑器异常：editor=${!!ed} event=${!!evRen}`);
@@ -994,7 +985,7 @@ async function main() {
           win32.tapKeys([0x0D]);
           const wantName = `${newStem}.txt`;
           const renamed = await until(() => desktopHas(desktop, wantName), 10000, 300);
-          const closed = await waitEvent('doc-group-cards-rename-closed', (e) => e.t >= tRen, 4000);
+          const closed = await tape.wait('doc-group-cards-rename-closed', undefined, { since: tRen, timeoutMs: 4000 });
           renamed && closed
             ? rep.pass(`RENAME 提交成立：${path.basename(renameCell.path)} → ${wantName}（真实改名，扫描池随 watch 更新）`)
             : rep.fail(`RENAME 提交异常：期望 ${wantName} 存在=${!!renamed} 关闭存证=${!!closed}（实况 ${JSON.stringify(desktopList(desktop).filter((n) => n.includes('ren'))) }）`);
@@ -1013,7 +1004,7 @@ async function main() {
         const m2 = await until(() => cdpEval(EXPR.menu), 6000, 150);
         await clickAt(rowPoint(m2, 'delete'));
         const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150);
-        const evConfirm = await waitEvent('doc-group-cards-confirm-opened', (e) => e.t >= tDel, 4000);
+        const evConfirm = await tape.wait('doc-group-cards-confirm-opened', undefined, { since: tDel, timeoutMs: 4000 });
         cf && evConfirm
           ? rep.pass(`DELETE 带确认层：确认框在场（文案「${String(cf.text).slice(0, 40)}」），不确认不动磁盘`)
           : rep.fail(`DELETE 确认层异常：confirm=${!!cf} event=${!!evConfirm}`);
@@ -1063,7 +1054,7 @@ async function main() {
       const c = await cardProbe('dgc-pdf');
       await clickAt(centerOf(c.multi));
       const on = await until(async () => { const x = await cardProbe('dgc-pdf'); return x && x.multiOn ? x : null; }, 4000, 120);
-      const evMulti = await waitEvent('doc-group-cards-multi-toggled', null, 3000);
+      const evMulti = await tape.wait('doc-group-cards-multi-toggled', null, { timeoutMs: 3000 });
       const other = await cardProbe('dgc-zip');
       on && evMulti && !other.multiOn
         ? rep.pass(`逐卡多选开关：dgc-multi 点亮（.dgc-multi-on）+ 存证在档，另一张卡的开关不受影响（逐卡独立）`)
@@ -1138,7 +1129,7 @@ async function main() {
       // ENTER 整批启动
       const tEnt = Date.now();
       win32.tapKeys([0x0D]);
-      const evSel = await waitEvent('doc-group-cards-launch-selection', (e) => e.t >= tEnt - 300, 8000);
+      const evSel = await tape.wait('doc-group-cards-launch-selection', undefined, { since: tEnt - 300, timeoutMs: 8000 });
       evSel && Array.isArray(evSel.paths) && evSel.paths.length === hitCount
         ? rep.pass(`ENTER 整批启动：一次回车发出 ${evSel.paths.length} 条（${evSel.paths.map((p) => path.basename(p)).join(', ')}），与选区同数`)
         : rep.fail(`ENTER 批量启动异常：event=${JSON.stringify(evSel && { n: evSel.paths && evSel.paths.length })} 选区=${hitCount}`);
@@ -1192,7 +1183,7 @@ async function main() {
           : rep.fail(`PASTE 行可用性异常：${JSON.stringify(pasteRow)}`);
         if (menu && menu.rows.length === 1) {
           await clickAt({ x: menu.rect.x + menu.rect.w / 2, y: menu.rect.y + menu.rect.h / 2, w: 2, h: 2 });
-          const routed = await waitEvent('doc-group-cards-paste-routed', (e) => e.t >= tP, 10000);
+          const routed = await tape.wait('doc-group-cards-paste-routed', undefined, { since: tP, timeoutMs: 10000 });
           const landed = await until(() => desktopHas(desktop, 's1.txt'), 10000, 250);
           const tempCard = await until(async () => {
             const cards = await cdpEval(EXPR.cards);
@@ -1233,7 +1224,7 @@ async function main() {
             await clickAt({ x: temp.x + 8, y: temp.y + temp.h / 2 }, 'right');
             const tGm = Date.now();
             const gm = await until(() => cdpEval(EXPR.menu), 6000, 150);
-            const evGm = await waitEvent('doc-group-cards-menu-opened', (e) => e.t >= tGm, 4000);
+            const evGm = await tape.wait('doc-group-cards-menu-opened', undefined, { since: tGm, timeoutMs: 4000 });
             const storeNow = (() => { try { return JSON.parse(fs.readFileSync(cfgFile, 'utf8')); } catch { return null; } })();
             rep.note(`临时卡开层存证：cardId=${JSON.stringify(evGm && evGm.cardId)} rows=${JSON.stringify(evGm && evGm.rows)}｜磁盘组定义 temps=${JSON.stringify(storeNow && storeNow.groups ? storeNow.groups.temps : null)}`);
             const dis = gm && gm.rows.find((r) => r.id === 'dissolve');
@@ -1313,7 +1304,7 @@ async function main() {
         if (ngIdx >= 0) {
           await clickAt({ x: gm.rect.x + gm.rect.w / 2, y: gm.rect.y + (ngIdx + 0.5) * (gm.rect.h / rows.length), w: 2, h: 2 });
           const box = await until(() => cdpEval(EXPR.types), 6000, 150);
-          const evTypes = await waitEvent('doc-group-cards-types-opened', (e) => e.t >= tNg, 4000);
+          const evTypes = await tape.wait('doc-group-cards-types-opened', undefined, { since: tNg, timeoutMs: 4000 });
           box && evTypes
             ? rep.pass(`NEW GROUP 开勾选浮层：#dgc-types 在场（起名框默认值「${box.name}」，类型清单 ${box.rows.length} 行按桌面上真实存在的扩展名逐个列），一个字节都还没落库`)
             : rep.fail(`勾选浮层异常：box=${!!box} event=${!!evTypes}`);
@@ -1344,7 +1335,7 @@ async function main() {
               win32.tapKeys([0x0D]);
               viaEnter = true;
             }
-            const saved = await waitEvent('doc-group-cards-groups-saved', (e) => e.t >= tNg, 6000);            const custom = await until(async () => {
+            const saved = await tape.wait('doc-group-cards-groups-saved', undefined, { since: tNg, timeoutMs: 6000 });            const custom = await until(async () => {
               const cards = await cdpEval(EXPR.cards);
               return cards.find((c) => /^dgc-c\d+$/.test(c.id)) || null;
             }, 6000, 250);
@@ -1384,7 +1375,7 @@ async function main() {
                 if (box4 && box4.ok) await clickAt(centerOf(box4.ok));
                 // 存证取 SAVE **之后**那一发 groups-saved（带 t 门槛，否则会捡到粘贴那次更早的）
                 const tSave = Date.now();
-                const savedEdit = await waitEvent('doc-group-cards-groups-saved', (e) => e.t >= tSave, 4000);
+                const savedEdit = await tape.wait('doc-group-cards-groups-saved', undefined, { since: tSave, timeoutMs: 4000 });
                 // 事件行把载荷平铺在顶层（没有 payload 子对象），故去掉 t/type 只留判读字段
                 const savedEditView = savedEdit ? JSON.stringify({ ...savedEdit, t: undefined, type: undefined }) : '(无)';
                 const pdfBack = await until(async () => { const c = await cardProbe('dgc-pdf'); return c && c.cellCount >= 3; }, 6000, 250);
@@ -1409,7 +1400,7 @@ async function main() {
               const cards = await cdpEval(EXPR.cards);
               return cards.find((c) => /^dgc-c\d+$/.test(c.id)) || null;
             }, 12000, 400);
-            const loaded = await waitEvent('doc-group-cards-groups-loaded', null, 6000);
+            const loaded = await tape.wait('doc-group-cards-groups-loaded', null, { timeoutMs: 6000 });
             const pdfAfter = await cardProbe('dgc-pdf');
             restored && loaded && defsBefore
               ? rep.pass(`组定义持久化：面板重启后自定义卡 ${restored.id} 原样回来（groups-loaded 存证在档），归属仍按定义算（固有 PDF 卡 ${pdfAfter ? pdfAfter.cells : '?'} 格）`)
