@@ -16,7 +16,7 @@ const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { cdpPortFor } = require('./lib/registry');
-const { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
+const { createPanelHandle, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
 const { createEventTape } = require('./lib/event-tape');
 const { judgeTrayMachineState, DND_MARKER } = require('./lib/tray-machine-state');
 
@@ -25,6 +25,19 @@ const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
 // 工单208：事件观测收口到磁带（app/accept/lib/event-tape）——主电池走 6000 缺省档
 // （母票 #201 决策 8：主电池 waitEvent 缺省档正是 6000；显式传 timeoutMs 的调用点逐字保留）。
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 6000 });
+
+// 工单209：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场与两套存活谓词收口到句柄。archive 档按电池注入专属档名（编排裁决 10：
+// 缺省是八块电池共用的共享档，混批会让红轮归因变难）；archive 形态的证据档 fd 由
+// 电池侧持有并在清场时关闭（裁决 10：句柄的 archive 形态按缺省语义不 close，长跑漏 fd）。
+const archiveFds = [];
+const handle = createPanelHandle({
+  execPath: process.execPath,
+  appRoot: APP_ROOT,
+  eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '03-panel-handle-child.log'),
+  openArchive: (file) => { const fd = fs.openSync(file, 'a'); archiveFds.push(fd); return fd; },
+});
 
 const WM_CLOSE = 0x0010;
 const VK_LWIN = 0x5b, VK_B = 0x42, VK_D = 0x44, VK_DOWN = 0x28, VK_UP = 0x26, VK_RETURN = 0x0d, VK_ESCAPE = 0x1b;
@@ -558,8 +571,8 @@ async function ensurePanelHit(pt, hwnd) {
       // 评审修正（P0）：heal 返回 false = 重启失败（新窗未现，面板已死）——绝不能走
       // onPanelHealthy 闭窗（「重启验证健康」是假话）也不能对死 hwnd 返回 ok:true 继续
       // 本段；窗保持开启，其后失败全数环境降责（FAIL-ENV 而非 FAIL-CODE）。
-      const live = panelLiveness(hwnd);
-      if (live.startsWith('主线程假死')) {
+      // 判据位用句柄的 WM_NULL 探活谓词（panelLiveness 留电池层作诊断文案源——裁决 13）
+      if (!handle.responsive()) {
         const healed = healHungPanel ? await healHungPanel() : false;
         if (healed) return { ok: false, why: '落点命中面板但主线程假死→已重启面板，本段跳过' };
         return { ok: false, why: '面板假死且重启失败，后续段无面板可用' };
@@ -571,8 +584,8 @@ async function ensurePanelHit(pt, hwnd) {
     if (CLEAR_DESKTOP_SKIP.has(cls)) {
       // 工单112：命中桌面层也可能是面板停摆退到了桌面层之下——先探活再下「残留」结论，
       // 别把二次停摆说成 show desktop 残留（工单110 现场发现的漏检点）。
-      const live = panelLiveness(hwnd);
-      if (live.startsWith('主线程假死')) {
+      // 判据位用句柄的 WM_NULL 探活谓词（panelLiveness 留电池层作诊断文案源——裁决 13）
+      if (!handle.responsive()) {
         const healed = healHungPanel ? await healHungPanel() : false;
         if (healed) return { ok: false, why: '面板主线程假死→已重启面板，本段跳过' };
       }
@@ -607,8 +620,8 @@ async function ensurePanelHit(pt, hwnd) {
     const pid = win32.threadIdOf(stuck).pid;
     who = `${cls}（pid=${pid} ${win32.exeNameOfWindow(stuck) || win32.exeOfPid(pid) || '?'}｜${ghostIdentity(pid)}）`;
   } catch { /* 窗已销毁：类名够用 */ }
-  const live = panelLiveness(hwnd);
-  if (live.startsWith('主线程假死')) {
+  const live = panelLiveness(hwnd); // 文案仍用 panelLiveness（裁决 13）
+  if (!handle.responsive()) {
     const healed = healHungPanel ? await healHungPanel() : false;
     if (healed) return { ok: false, why: '面板主线程假死→已重启面板，本段跳过' };
   }
@@ -642,35 +655,6 @@ function liveTopDocRect() {
   const last = tape.latest('desktop-rendered');
   return ((last && last.rects) || []).filter((r) => r.zone === 'doc' && r.rect)
     .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0] || null;
-}
-async function waitPanelWindow(timeoutMs, sinceMs = 0) {
-  // 面板自报 pid（boot 事件）：spawn 的 child.pid 在 Electron 父进程下不等于
-  // 面板真实主进程 pid（实测），以面板自报为准。sinceMs 之后的 boot 才算数——
-  // 电池中途重启面板时事件文件里已有旧 boot（P6 重置过、P10 未重置）。
-  const deadline = Date.now() + timeoutMs;
-  let boot = null;
-  while (Date.now() < deadline) {
-    boot = tape.latest('boot', undefined, { since: sinceMs });
-    if (boot) break;
-    await sleep(60);
-  }
-  if (!boot) { console.log('[battery] 未收到 boot 存证'); return null; }
-  const pid = boot.pid;
-  const winDeadline = Date.now() + timeoutMs;
-  while (Date.now() < winDeadline) {
-    const hwnd = win32.topLevelWindows().find(
-      // 工单49 起面板进程有了第二个 Chrome 窗（DECK-TASKBAR 条带）：按标题甄别面板本体
-      (h) => win32.threadIdOf(h).pid === pid && win32.className(h) === 'Chrome_WidgetWin_1'
-        && windowTitle(h) === 'AGENT DECK');
-    if (hwnd) return hwnd;
-    await sleep(200);
-  }
-  const dump = win32.topLevelWindows()
-    .filter((h) => win32.className(h).startsWith('Chrome'))
-    .slice(0, 12)
-    .map((h) => `0x${h.toString(16)} pid=${win32.threadIdOf(h).pid} cls=${win32.className(h)}`);
-  console.log(`[battery] boot.pid=${pid} 的窗口未找到。controller.pid=${process.pid} 可见 Chrome 窗:`, dump.join(' | '));
-  return null;
 }
 // —— 工单07 搜索并入：accept_search 电池（scripts/ 版已随 Tk 窗退役）的探针件 ——
 
@@ -856,38 +840,26 @@ async function runSegments() {
   // 管道而无人读时，64KB 管道 ~11s 写满，主线程下一次同步写永久阻塞：这就是 #107 全系
   // 「主进程假死」的真机形态（minidump + 排空对照实证，工单132 第一阶段，
   // docs/audit/2026-10-09-t132-stall-duel-experiment.md）。排空是控制器侧的结构防御。
-  const launchPanel = () => {
-    const c = spawn(process.execPath, ['.'], {
-      cwd: APP_ROOT,
-      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_LAG_SENTINEL: '1', DECK_CDP_PORT: String(CDP_PORT) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    c.stdout.on('data', () => {}); // 排空即全部：管道永不满，面板永不因 stdout 阻塞
-    return c;
-  };
-
-  // 工单112：强退序列换面板控制模块（seam②）——优雅终止 → 整树强杀 → 有界等待并
-  // **验证进程确实消失**。现状缺的正是验证这一环：taskkill /F 后不确认消失就放行重启，
-  // 停摆面板存活 → 新面板被单实例守卫拒收 → 缓存互锁/托盘竞争成片失真。验证消失后
-  // 放行重启，验证失败就不让污染继续（决策→后果的接线在调用方：heal 中止后续段，清场入账）。
-  const panelControl = createPanelControl();
-  const stopPanel = async () => {
-    if (!child && !panelPid) return { gone: true, graceful: true, forced: false, pidsLeft: [], outcome: 'idle' };
-    const res = await panelControl.stop({ pids: [child && child.pid, panelPid].filter(Boolean), child });
-    child = null;
-    panelPid = null;
-    return res;
-  };
+  //
+  // 工单209：发射/就绪/重启/清场四段样板归面板句柄——handle.launch({ mode:'full',
+  // cdpPort, lagSentinel:true, stdio:'drain' }) 逐字复现上记发射配置（DECK_EVENT_LOG /
+  // DECK_LAG_SENTINEL / DECK_CDP_PORT ＋ stdout 排空）；handle.waitWindow({ title,
+  // cls:'Chrome_WidgetWin_1', timeoutMs }) 复现「等 boot 自报 pid → 按 pid＋类名＋标题
+  // 寻就绪窗」；handle.stop() 沿用工单112 的验证强退序列（优雅终止 → 整树强杀 → 有界
+  // 等待并验证消失，outcome 四档语义不变）。
   try {
     // —— P1 启动面板（子进程，存证事件落盘）——
     rep.beginSegment('P1');
-    child = launchPanel();
+    // since 门用句柄缺省（发射时点）——裁决 14：事件文件在电池启动时已被 unlink，
+    // 文件里只剩新面板的 boot，「since=0」与「since=发射时点」接到的是同一条 boot
+    const launchedP1 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+    child = launchedP1.child;
     child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-    let hwnd = await waitPanelWindow(20000);
+    let hwnd = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
     if (!hwnd) throw new Error(`20s 内未见面板窗口\nstderr:\n${stderrTail}`);
     panelPid = win32.threadIdOf(hwnd).pid;
     // 假死自愈接线（钩子在 ensurePanelHit 里按需回调）：先取证再重启，交还新 hwnd。
-    // hwnd/child/panelPid 都是本函数词法变量，闭包内赋值对后续段可见。
+    // hwnd/child/panelPid 仍是本函数词法变量（句柄另有一份记账），闭包内赋值对后续段可见。
     healHungPanel = async () => {
       const stallDetectedAt = Date.now();
       const dump = hungForensics(hwnd);
@@ -911,18 +883,19 @@ async function runSegments() {
       } else {
         rep.note('有界唤醒窗 8s 无迟到 main-lag（终末冻结形态：主线程未再泵消息，spans sidecar 尾部即卡点签名）');
       }
-      const stopped = await stopPanel();
-      if (!stopped.gone) {
+      // sinceMs 必给：事件文件里还留着上一实例的 boot（回溯 1.5s；句柄取末条 boot——裁决 4）
+      const rl = await handle.relaunch({ sinceMs: Date.now() - 1500 });
+      if (!rl.gone) {
         // 工单112：强退后仍存活 = 需重启清障——入环境降责账并**中止后续段**（借主
         // try/catch 汇流：异常落在停摆排除窗内自动环境降责，轮末 verdict=FAIL-ENV）。
         // 被污染的轮次（双面板并存）不再产出误导性 verdict。
-        rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障，后续段中止`, '面板强退序列未能终结面板进程（#107 遗留进程形态）', 'panel-forcekill');
+        rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${rl.pidsLeft.join(', ')}）——需重启清障，后续段中止`, '面板强退序列未能终结面板进程（#107 遗留进程形态）', 'panel-forcekill');
         // 中止机制 = 这个 throw 借主 try/catch 汇流；异常文本自带「需重启清障」定责语。
         throw new Error('面板强退失败：需重启清障——后续段中止');
       }
-      child = launchPanel();
+      child = rl.child;
       child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-      const nh = await waitPanelWindow(20000, Date.now() - 1500); // sinceMs 必给：事件文件里还留着上一实例的 boot
+      const nh = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!nh) { rep.fail('假死自愈：重启后面板窗口未现，后续段无面板可用'); return false; }
       hwnd = nh;
       panelPid = win32.threadIdOf(nh).pid;
@@ -1667,10 +1640,13 @@ async function runSegments() {
       rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
 
       // 后续探针继续：重新拉起面板（完整守卫链——此刻图标可见，守卫将再次隐藏）。
-      // sinceMs 必传：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）
-      const relaunchT0 = Date.now();
-      child = launchPanel();
-      const hwnd3 = await waitPanelWindow(20000, relaunchT0);
+      // 时间下限必给：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）。
+      // 面板已被上面的 taskkill /F 定点清掉（外层守卫要活着还原原生图标）——此处只发射不重退：
+      // 走句柄的 relaunch 会整树强杀（/T）把守卫一起带走 → 图标不还原 → 本段判死。
+      // since 门用句柄缺省（发射时点）：原 relaunchT0 就取在发射前那一瞬，与缺省门等价。
+      const launched3 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+      child = launched3.child;
+      const hwnd3 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!hwnd3) throw new Error(`P5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
       hwnd = hwnd3;
       panelPid = w32.threadIdOf(hwnd3).pid;
@@ -1798,10 +1774,10 @@ async function runSegments() {
 
           // 重启面板：摆位持久化（layout.json）。拖拽未执行时跳过（重启只为验证持久化）。
           if (hitDrag.ok) {
-          await stopPanel();
           const rt0 = Date.now();
-          child = launchPanel();
-          const hwnd4 = await waitPanelWindow(20000, rt0);
+          const rl4 = await handle.relaunch({ sinceMs: rt0 });
+          child = rl4.child;
+          const hwnd4 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
           if (!hwnd4) throw new Error(`P5.5 重启后未见面板窗口\nstderr:\n${stderrTail}`);
           hwnd = hwnd4;
           panelPid = w32.threadIdOf(hwnd4).pid;
@@ -4946,13 +4922,14 @@ async function runSegments() {
           : rep.fail('失焦未退回待机态');
 
         // —— ENGINE OFFLINE（假端口注入：config.search.port 指必死端口 → 重启面板）——
-        await stopPanel();
         // 工单50：最小覆写同样带 taskbar.enabled=false——缺段回落默认开启会藏掉原生
         // 任务栏，而探针面板随后被 /F 清杀（无还原路径），P8 托盘扫描将对着隐藏态空扫
+        // 覆写 config 在重发之前完成（句柄的 relaunch＝强退→重发，覆写须先落盘）
         fs.writeFileSync(configPathS, JSON.stringify({ search: { port: await freePort() }, taskbar: { enabled: false } }, null, 2) + '\n');
         const tOff = Date.now();
-        child = launchPanel();
-        const hwndOff = await waitPanelWindow(20000, tOff);
+        const rlOff = await handle.relaunch({ sinceMs: tOff });
+        child = rlOff.child;
+        const hwndOff = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (!hwndOff) throw new Error('离线探针重启后面板窗口未出现');
         hwnd = hwndOff;
         panelPid = win32.threadIdOf(hwndOff).pid;
@@ -4981,10 +4958,10 @@ async function runSegments() {
         // 面板拉回正常态（离线探针停在假端口配置）：还原 config + 重启
         if (configBackupS === null) { try { fs.unlinkSync(configPathS); } catch { /* 尽力 */ } }
         else { try { fs.writeFileSync(configPathS, configBackupS); } catch { /* 尽力 */ } }
-        await stopPanel();
         const tRelaunch = Date.now();
-        child = launchPanel();
-        const hwndR = await waitPanelWindow(20000, tRelaunch);
+        const rlR = await handle.relaunch({ sinceMs: tRelaunch });
+        child = rlR.child;
+        const hwndR = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (hwndR) {
           hwnd = hwndR;
           panelPid = win32.threadIdOf(hwndR).pid;
@@ -5141,10 +5118,10 @@ async function runSegments() {
             const persist = dragConsistent(tDrag3, (v) => v >= 70);
             await closeOverlayEsc();
             if (persist.ok) {
-              await stopPanel();
               const tRelaunch = Date.now();
-              child = launchPanel();
-              const hwnd8 = await waitPanelWindow(20000, tRelaunch);
+              const rl8 = await handle.relaunch({ sinceMs: tRelaunch });
+              child = rl8.child;
+              const hwnd8 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
               if (!hwnd8) {
                 rep.fail('重启保持探针：面板重启后窗口未出现');
               } else {
@@ -5231,10 +5208,10 @@ async function runSegments() {
         fullShot('101-search-disabled');
 
         // c. 重启保留：停用集在 config → 重启面板 → 新代次热区表仍无 search-card
-        await stopPanel();
         const tRelaunch101 = Date.now();
-        child = launchPanel();
-        const hwndT = await waitPanelWindow(20000, tRelaunch101);
+        const rlT = await handle.relaunch({ sinceMs: tRelaunch101 });
+        child = rlT.child;
+        const hwndT = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (!hwndT) { rep.fail('开关段重启后面板窗口未出现'); return; }
         hwnd = hwndT;
         panelPid = win32.threadIdOf(hwndT).pid;
@@ -5268,10 +5245,10 @@ async function runSegments() {
         w32.moveMousePhys(safePt.x, safePt.y);
         // 收尾恢复全启用现场：还原 config + 重启（后续段与用户拿到的机器都必须是默认配置）
         restoreConfigB(configBackup101);
-        await stopPanel();
         const tFinal101 = Date.now();
-        child = launchPanel();
-        const hwndF = await waitPanelWindow(20000, tFinal101);
+        const rlF = await handle.relaunch({ sinceMs: tFinal101 });
+        child = rlF.child;
+        const hwndF = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (hwndF) {
           hwnd = hwndF;
           panelPid = win32.threadIdOf(hwndF).pid;
@@ -5285,16 +5262,19 @@ async function runSegments() {
     rep.beginSegment('P6');
     const configBackup = backupConfigB();
     try {
-      await stopPanel();
+      await handle.stop();
       // 工单50：几何探针也要带上 taskbar.enabled=false——最小覆写会丢 taskbar 段回落
       // 默认开启，条带隐藏原生任务栏后 P8 托盘识别色扫描（Shell_TrayWnd 矩形）全灭
       fs.writeFileSync(CONFIG_FILE_B, JSON.stringify({ panel: { x: 60, y: 60, width: 1100, height: 800 }, taskbar: { enabled: false } }, null, 2) + '\n');
-      // P1-P5.5 的存证先留档再重置（waitEvent 要等新 boot）；此前直接 unlink 把
+      // P1-P5.5 的存证先留档再重置（磁带要等新 boot）；此前直接 unlink 把
       // P5.5 期事件抹掉，复位探针排障无据可查（三轮实测痛点）
       try { fs.copyFileSync(EVENTS_FILE, path.join(__dirname, 'evidence', '03-runtime-events-preP6.jsonl')); } catch { /* 尽力留档 */ }
-      try { fs.unlinkSync(EVENTS_FILE); } catch { /* 重置存证，waitEvent 才能等到新 boot */ }
-      child = launchPanel();
-      const hwnd2 = await waitPanelWindow(20000);
+      try { fs.unlinkSync(EVENTS_FILE); } catch { /* 重置存证，磁带才能等到新 boot */ }
+      const launchedP6 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+      child = launchedP6.child;
+      // since 门用句柄缺省（发射时点）——裁决 14：上一步刚把事件文件物理清空，
+      // 旧 boot 不存在，「无门」与「since=发射时点」接到的是同一条 boot
+      const hwnd2 = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!hwnd2) throw new Error(`重启后未见面板窗口\nstderr:\n${stderrTail}`);
       const r2 = w32.rectOf(hwnd2);
       panelPid = w32.threadIdOf(hwnd2).pid;
@@ -5321,12 +5301,16 @@ async function runSegments() {
         (h) => w32.className(h) === 'Chrome_WidgetWin_1' && w32.threadIdOf(h).pid === panelPid).length;
       const chromeBefore = chromeOfPanel();
       const t0 = Date.now();
-      const child2 = spawn(process.execPath, ['.'], {
-        cwd: APP_ROOT,
-        env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
-        stdio: ['ignore', 'pipe', 'pipe'],
+      // 二次拉起不是面板生命周期（被拒实例自己退）——用独立探针句柄发射：
+      // 形态与首启不同（无 DECK_LAG_SENTINEL、无 DECK_CDP_PORT）由 launch 参数表达，
+      // 且不占用主句柄的 child/panelPid/hwnd 记账（否则主面板的存活与强退判据被顶掉）。
+      const probeHandle = createPanelHandle({
+        execPath: process.execPath,
+        appRoot: APP_ROOT,
+        eventLogPath: EVENTS_FILE,
+        archivePath: path.join(__dirname, 'evidence', '03-panel-handle-child.log'),
       });
-      child2.stdout.on('data', () => {}); // 工单132：stdout 管道必须排空（同 launchPanel 注）
+      const { child: child2 } = probeHandle.launch({ mode: 'full', stdio: 'drain' });
       let exited = null;
       child2.once('exit', (code) => { exited = { code, at: Date.now() }; });
       const deadline = Date.now() + 15000;
@@ -5381,10 +5365,10 @@ async function runSegments() {
         let amber = scanAmberInTray('area');
         if (!amber) {
           rep.note('提升后可见区未发现识别色，重启面板让 explorer 按注册表重挂图标');
-          await stopPanel();
           const t0 = Date.now();
-          child = launchPanel();
-          hwnd = await waitPanelWindow(20000, t0);
+          const rl8b = await handle.relaunch({ sinceMs: t0 });
+          child = rl8b.child;
+          hwnd = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
           if (!hwnd) throw new Error('P8 重启后未见面板窗口');
           panelPid = w32.threadIdOf(hwnd).pid;
           // 显示模式切换后 explorer 重挂托盘图标可能迟滞（工单04 实测）：8s 内轮询重扫
@@ -5556,13 +5540,13 @@ async function runSegments() {
           const deadline = Date.now() + 10000;
           while (Date.now() < deadline) {
             await sleep(200);
-            if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+            if (!handle.alive() && !w32.IsWindow(hwnd)) return true;
           }
           return false;
         })();
         dead
           ? rep.pass(`退出闭环：窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - t0}ms）`)
-          : rep.fail(`退出闭环未达成（窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
+          : rep.fail(`退出闭环未达成（窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${handle.alive()}）`);
         tape.latest('quit') !== null
           ? rep.pass('退出管道经 before-quit 存证（quit，托盘随之 destroy）')
           : rep.fail('无 quit 存证');
@@ -5585,8 +5569,11 @@ async function runSegments() {
     rep.beginSegment('P10E');
     {
       const t0e = Date.now();
-      child = launchPanel();
-      hwnd = await waitPanelWindow(20000, t0e);
+      // since 门用句柄缺省（发射时点）——裁决 14：t0e 早于发射时点，而 boot 存证的 t
+      // 必然晚于发射时点（面板是发射后才起、才落 boot）→ 两门接到的是同一条 boot
+      const launchedE = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
+      child = launchedE.child;
+      hwnd = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
       if (!hwnd) throw new Error('P10E 重启后未见面板窗口');
       panelPid = w32.threadIdOf(hwnd).pid;
       await sleep(2500); // boot + 热区声明落地（settings-btn 进声明，06/08 同等待口径）
@@ -5608,13 +5595,13 @@ async function runSegments() {
             const deadline = Date.now() + 10000;
             while (Date.now() < deadline) {
               await sleep(200);
-              if (!isAlive(panelPid) && !w32.IsWindow(hwnd)) return true;
+              if (!handle.alive() && !w32.IsWindow(hwnd)) return true;
             }
             return false;
           })();
           deadE
             ? rep.pass(`退出面板按钮闭环：settings-exit-clicked → app/quit → 窗口销毁、主进程（pid=${panelPid}）退出（耗时 ${Date.now() - tExitE}ms）`)
-            : rep.fail(`退出面板按钮未达成完整退出（clicked=${JSON.stringify(clickedE)}，窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${isAlive(panelPid)}）`);
+            : rep.fail(`退出面板按钮未达成完整退出（clicked=${JSON.stringify(clickedE)}，窗口销毁=${!w32.IsWindow(hwnd)}，pid=${panelPid} 存活=${handle.alive()}）`);
           tape.latest('quit', undefined, { since: t0e }) !== null
             ? rep.pass('退出按钮走 before-quit 同一收敛（quit 存证在档，桌面图标/原生任务栏/托盘随之还原）')
             : rep.fail('退出按钮无 quit 存证（未走 before-quit 收敛）');
@@ -5710,7 +5697,7 @@ async function runSegments() {
       };
       /**
        * 以指定 tools 映射重启面板，等首拍含探针行的会话列表就绪。
-       * 常规 launchPanel()（外层守卫形态）：P9 排在电池最后一段，
+       * 常规面板发射（外层守卫形态）：P9 排在电池最后一段，
        * 重启面板不会再扰动前面任何探针的窗口/图标状态机。
        * 位置约束（两轮实证）：P9 必须排在最后——它要为改 config 而重启面板，
        * 放在中间会连带搅乱 P5「杀进程还原」的图标状态机（确定性失败）。
@@ -5719,11 +5706,11 @@ async function runSegments() {
         let cfg = {};
         try { cfg = JSON.parse(fs.readFileSync(CONFIG_FILE_B, 'utf8')); } catch { cfg = {}; }
         cfg.tools = { ...(cfg.tools || {}), ...toolsPatch };
-        await stopPanel();
         fs.writeFileSync(CONFIG_FILE_B, JSON.stringify(cfg, null, 2) + '\n');
         const t = Date.now();
-        child = launchPanel();
-        const h = await waitPanelWindow(20000, t);
+        const rl13 = await handle.relaunch({ sinceMs: t });
+        child = rl13.child;
+        const h = await handle.waitWindow({ title: 'AGENT DECK', cls: 'Chrome_WidgetWin_1', timeoutMs: 20000 });
         if (h) { hwnd = h; panelPid = win32.threadIdOf(h).pid; }
         const ready = await tape.wait('sessions-rendered', (e) => e.rows && e.rows.some((r) => r.project === PROBE_TAG), { since: t, timeoutMs: 15000 });
         return { hwnd: h, ready };
@@ -6106,7 +6093,7 @@ async function runSegments() {
     deckProbeFiles = [];
     // 工单112：收尾清场换面板控制模块——强退后验证消失；「需重启清障」只入账不中止
     // （清场不掩盖真结局），随后窗枚举核验无任何遗留面板本体窗（双面板级联的末道闸）。
-    const cleared = await stopPanel();
+    const cleared = await handle.stop();
     if (cleared && cleared.gone === false) {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill');
     }
@@ -6120,6 +6107,9 @@ async function runSegments() {
         ? rep.note('清场核验：无遗留面板本体窗')
         : rep.exclude(`清场核验：仍有 ${leftover.length} 扇面板本体窗在场（pid=${leftover.map((c) => c.pid).join(', ')}）——需重启清障`, '收尾清场后面板窗仍存在', 'panel-leftover');
     } catch (e) { rep.note(`清场核验·窗枚举异常: ${e && e.message}`); }
+    // 工单209/裁决 10：archive 形态的证据档 fd 由电池侧关闭（句柄的 archive 形态按缺省语义不 close）
+    for (const fd of archiveFds) { try { fs.closeSync(fd); } catch { /* 尽力 */ } }
+    archiveFds.length = 0;
     // 工单05 清场核验：面板被 /F 清杀时守卫无还原路径（还原依赖存活），图标若仍隐藏则走
     // --icon-restore 自救通道回到电池前状态（电池不得改变用户原生偏好）
     try {
