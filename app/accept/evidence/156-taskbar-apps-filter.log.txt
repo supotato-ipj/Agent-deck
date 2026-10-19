@@ -1,0 +1,11 @@
+# accept 156-taskbar-apps-filter — 2026-10-11T15:37:39.067Z
+[15:37:39.787] NOTE  面板 pid=71492
+[15:37:46.924] NOTE  垃圾窗探针: exit=null diag=ok h1=22220512 h2=662142 h3=924338 pid=12608 psver=5.1.26100.9549
+[15:37:46.926] NOTE  垃圾窗探针取证: [{"hwnd":924338,"title":"Deck156OwnedProbe","toolWindow":false,"appWindow":false,"owned":true},{"hwnd":22220512,"title":"","toolWindow":false,"appWindow":false,"owned":false},{"hwnd":662142,"title":"Deck156ToolProbe","toolWindow":true,"appWindow":false,"owned":false}]
+[15:37:46.928] NOTE  notepad 探针: hwnd=70784844 title=*无标题 - Notepad 起于 2954ms 前
+[15:37:46.930] SEG   ▶ P1 垃圾窗不上栏：探针在场取证（notepad 主窗+空标题/工具窗/有属主弹窗）+ 栏面名单裁决（notepad 收、powershell 拒、running 条目全有标题）｜工单156｜失效面=事件存证+系统状态
+[15:37:46.932] PASS  P1(a) 探针在场属实：notepad 主窗 + 空标题窗(22220512) + 工具窗(662142) + 有属主无 APPWINDOW 窗(924338)
+[15:37:47.642] NOTE  栏面名单: running=5 条 [ShellExperienceHost.exe(有题), Notepad.exe(有题), ZCode.exe(有题), explorer.exe(有题), wps.exe(有题)]
+[15:37:47.644] PASS  P1(b) 过滤裁决：notepad 收、powershell 三扇垃圾窗拒、running 条目全部有标题（5 条）
+[15:37:49.511] NOTE  清场核验：原生任务栏可见
+[15:37:49.514] ===== 156-taskbar-apps-filter VERDICT: PASS (pass=2 fail=0) =====

@@ -1,0 +1,94 @@
+{
+  "startedAt": "2026-09-29T17:55:45.951Z",
+  "rounds": [
+    {
+      "i": 0,
+      "ch": "a",
+      "click": true,
+      "clickNoActivate": true,
+      "focusGot": true,
+      "charLanded": true,
+      "pinnedBelowWhileFocused": true,
+      "ok": true,
+      "refHadFg": true,
+      "fgAfterClick": "ref",
+      "domValue": "a"
+    },
+    {
+      "i": 1,
+      "ch": "b",
+      "click": true,
+      "clickNoActivate": true,
+      "focusGot": true,
+      "charLanded": true,
+      "pinnedBelowWhileFocused": true,
+      "ok": true,
+      "refHadFg": true,
+      "fgAfterClick": "ref",
+      "domValue": "ab"
+    },
+    {
+      "i": 2,
+      "ch": "c",
+      "click": true,
+      "clickNoActivate": true,
+      "focusGot": true,
+      "charLanded": true,
+      "pinnedBelowWhileFocused": true,
+      "ok": true,
+      "refHadFg": true,
+      "fgAfterClick": "ref",
+      "domValue": "abc"
+    },
+    {
+      "i": 3,
+      "ch": "d",
+      "click": true,
+      "clickNoActivate": true,
+      "focusGot": true,
+      "charLanded": true,
+      "pinnedBelowWhileFocused": true,
+      "ok": true,
+      "refHadFg": true,
+      "fgAfterClick": "ref",
+      "domValue": "abcd"
+    },
+    {
+      "i": 4,
+      "ch": "e",
+      "click": true,
+      "clickNoActivate": true,
+      "focusGot": true,
+      "charLanded": true,
+      "pinnedBelowWhileFocused": true,
+      "ok": true,
+      "refHadFg": true,
+      "fgAfterClick": "ref",
+      "domValue": "abcde"
+    },
+    {
+      "i": 5,
+      "ch": "f",
+      "click": true,
+      "clickNoActivate": true,
+      "focusGot": true,
+      "charLanded": true,
+      "pinnedBelowWhileFocused": true,
+      "ok": true,
+      "refHadFg": true,
+      "fgAfterClick": "ref",
+      "domValue": "abcdef"
+    }
+  ],
+  "pass": true,
+  "summary": "focus 命中 6/6，点击不激活 6/6，整轮通过 6/6 —— 闸门通过",
+  "log": [
+    "[round 0] {\"i\":0,\"ch\":\"a\",\"click\":true,\"clickNoActivate\":true,\"focusGot\":true,\"charLanded\":true,\"pinnedBelowWhileFocused\":true,\"ok\":true,\"refHadFg\":true,\"fgAfterClick\":\"ref\",\"domValue\":\"a\"}",
+    "[round 1] {\"i\":1,\"ch\":\"b\",\"click\":true,\"clickNoActivate\":true,\"focusGot\":true,\"charLanded\":true,\"pinnedBelowWhileFocused\":true,\"ok\":true,\"refHadFg\":true,\"fgAfterClick\":\"ref\",\"domValue\":\"ab\"}",
+    "[round 2] {\"i\":2,\"ch\":\"c\",\"click\":true,\"clickNoActivate\":true,\"focusGot\":true,\"charLanded\":true,\"pinnedBelowWhileFocused\":true,\"ok\":true,\"refHadFg\":true,\"fgAfterClick\":\"ref\",\"domValue\":\"abc\"}",
+    "[round 3] {\"i\":3,\"ch\":\"d\",\"click\":true,\"clickNoActivate\":true,\"focusGot\":true,\"charLanded\":true,\"pinnedBelowWhileFocused\":true,\"ok\":true,\"refHadFg\":true,\"fgAfterClick\":\"ref\",\"domValue\":\"abcd\"}",
+    "[round 4] {\"i\":4,\"ch\":\"e\",\"click\":true,\"clickNoActivate\":true,\"focusGot\":true,\"charLanded\":true,\"pinnedBelowWhileFocused\":true,\"ok\":true,\"refHadFg\":true,\"fgAfterClick\":\"ref\",\"domValue\":\"abcde\"}",
+    "[round 5] {\"i\":5,\"ch\":\"f\",\"click\":true,\"clickNoActivate\":true,\"focusGot\":true,\"charLanded\":true,\"pinnedBelowWhileFocused\":true,\"ok\":true,\"refHadFg\":true,\"fgAfterClick\":\"ref\",\"domValue\":\"abcdef\"}",
+    "focus 命中 6/6，点击不激活 6/6，整轮通过 6/6 —— 闸门通过"
+  ]
+}

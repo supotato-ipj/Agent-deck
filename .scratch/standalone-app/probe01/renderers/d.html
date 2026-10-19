@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<body style="margin:0;background:transparent;">
+  <div style="position:absolute;left:40px;top:40px;width:300px;height:120px;background:rgba(20,26,34,0.96);border:1px solid #456;box-sizing:border-box;">
+    <input id="in" style="position:absolute;left:10px;top:10px;width:270px;height:40px;font:24px monospace;color:#fff;background:#000;border:1px solid #789;" />
+    <div style="position:absolute;left:10px;top:70px;color:#9ab;font:12px monospace;">PROBE-D INPUT</div>
+  </div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  const inp = document.getElementById('in');
+  inp.addEventListener('focus', () => ipcRenderer.send('d:dom', { type: 'focus' }));
+  inp.addEventListener('blur', () => ipcRenderer.send('d:dom', { type: 'blur' }));
+  inp.addEventListener('input', () => ipcRenderer.send('d:dom', { type: 'value', value: inp.value }));
+  window.addEventListener('mousedown', e => ipcRenderer.send('d:dom', { type: 'mousedown', x: e.clientX, y: e.clientY }));
+  for (const ev of ['compositionstart', 'compositionupdate', 'compositionend']) {
+    inp.addEventListener(ev, e => ipcRenderer.send('d:dom', { type: ev, data: e.data }));
+  }
+  window.focusInput = () => { inp.focus(); return document.activeElement === inp; };
+</script>

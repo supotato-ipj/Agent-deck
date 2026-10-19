@@ -1,0 +1,19 @@
+# probe01 diag_z — 2026-09-26T15:09:59.433Z
+[15:09:59.434] NOTE  可见顶层窗口数: 45（自顶向下）
+[15:09:59.436] #0 hwnd=0x40c48 class=Windows.Internal.Shell.TabProxyWindow TOPMOST=true
+[15:09:59.436] #1 hwnd=0x270a3e class=Windows.Internal.Shell.TabProxyWindow TOPMOST=true
+[15:09:59.436] #2 hwnd=0x502bc class=Windows.Internal.Shell.TabProxyWindow TOPMOST=true
+[15:09:59.437] #3 hwnd=0x20d3c class=Windows.Internal.Shell.TabProxyWindow TOPMOST=true
+[15:09:59.437] #4 hwnd=0x30a5c class=Windows.Internal.Shell.TabProxyWindow TOPMOST=true
+[15:09:59.437] #5 hwnd=0x10502 class=Windows.UI.Core.CoreWindow TOPMOST=true
+[15:09:59.437] #6 hwnd=0x20506 class=ApplicationFrameWindow TOPMOST=true
+[15:09:59.437] #7 hwnd=0x104ea class=Windows.UI.Core.CoreWindow TOPMOST=true
+[15:09:59.437] #8 hwnd=0x104ee class=ApplicationFrameWindow TOPMOST=true
+[15:09:59.438] #9 hwnd=0x104d2 class=Windows.UI.Core.CoreWindow TOPMOST=true
+[15:09:59.438] #10 hwnd=0x104d8 class=ApplicationFrameWindow TOPMOST=true
+[15:09:59.438] #11 hwnd=0x104ac class=Windows.UI.Core.CoreWindow TOPMOST=true
+[15:09:59.438] pOnly_200_520 → 0x10c04 class=Chrome_RenderWidgetHostHWND
+[15:09:59.438] nOnly_1360_760 → 0x10c04 class=Chrome_RenderWidgetHostHWND
+[15:09:59.438] input_530_620 → 0x10c04 class=Chrome_RenderWidgetHostHWND
+[15:09:59.439] 桌面点_1120_600 → 0x10c04 class=Chrome_RenderWidgetHostHWND
+[15:09:59.439] ===== diag_z VERDICT: DONE (pass=0 fail=0) =====

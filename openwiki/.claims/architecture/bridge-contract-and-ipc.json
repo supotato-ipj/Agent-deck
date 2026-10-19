@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:ba9d1a1e7239c05d90cd29f675fd7e47262ae629e23d9e54f6faa435a0b3a521",
+  "claims": [
+    {
+      "id": "claim_ca129a9f61594e32be315d0f9bb3d7cb",
+      "statement": "app/src/shared/contract.ts is the single declared API shape between the kernel and the renderer, carrying the PanelSnapshot section shape, the BridgeMethods request/response map, the BridgeEvents payload map and the HotzoneRect type; its stated discipline is that later work extends those maps rather than opening new IPC channels.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/shared/contract.ts#L1-L7",
+          "version": "repo-lines-v1:sha256:8df166df900f0a00a8ccb655267ae40dcd1fe2e1288fdf20f64e647159597c80:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTVmODA3NjI3YmQwNjAzYTZkMjZjOTliNWFlMjQ3NGUwNTEwODRhMDBkNDU5ZTVmMjM1MTliN2Y2NTdlNjg4ZiJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L191-L280",
+          "version": "repo-lines-v1:sha256:5a9fce273ca466cd524947f78d45e809b1ad68af2145f639e432b5298afd45ee:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0ODliMjk5OWM4ZjcxOGQ2ZDk2NzBkMTE4ZWZjZThjYTVmYzRkMGM1ZWY2MDA3ZjFmMDhkYzQ0ZjY4NTY2NDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFlMjU4YWNlOTRkZjU5OTU2ZGZmYzcwMzUzZGY1MzcyOGIyNDdkNjJlOWI0NDI4ODkzZTQyZTM4Y2Q5OGNiNmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ba10a9d29cd84f25a4ca775b41453695",
+      "statement": "BridgeService.snapshot() is the only place a PanelSnapshot is assembled: the clock, sessions, hardware and desktop sections come from the panelData port, weather and layout are BridgeService constructor options fixed at kernel construction, settings comes from SettingsService.state() and plugins from PluginHostService.info().",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L85-L92",
+          "version": "repo-lines-v1:sha256:743622c67ea2c8103ca3931dfedac72fee653e5d0fe72e59dac5d14e0df8aadd:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmE4MTg2ZGM1MGJlMGY1MGM4ZTc5ZDMzMWEyOTc3ODk3Mjk4ZjU3MmEzY2M3MzRjYThmNjFmYTQ0ZWY4MjYxYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRlOTVjMjE0NWRkNzkzMDM0NjQ1NWZjNmUzZDNkYWU2OTM1OGM0N2EzNzIxMWU2ZjQ2NDcwNWFlMTc2ZmExOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGFlNjljNmQ3YzZkNjBjZTYyZmQ3ZDkyMzE0NDNlNTdhZTgzYWZkYmU2ZjA2N2M2NTg5ZGQ3YTk2NGEyZjI1MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODJmZDc4NWUwZTRjZjg3MTAyNmNlNTc4NGRkZjM4NGExNzQwNTMzMjIwNzg0NzJjNWQ2N2YwZDYyYWE3MDNkOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L22-L48",
+          "version": "repo-lines-v1:sha256:aa2405778c8e1150bfdd7d8a82201ee057997beb83e37e1a52bbe9fc7ba9565b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliZmY2NmE0MTI3YzJiZjgyZWY4OWY1ZDlmNjFiN2U0NzU2NTA4MTEzMjI5N2Q5ZGJkY2NkOTMxMjk4ZGMwMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzNTg0MzZjNGQ5YjVjYzQ1NThlNWY3NDM5YzYwMmFmOGQ1ZmQ2YjZmNWMyNDcwYmZkNjNiZDkyMDFiYzFiMjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMGE2MGY5Njg1YjM4ZWE4NmMwZGY0YzYyODU3MzI2ZjkwM2NmODI5NGMzMzhiMDc1NmNmODA1YmNmZDkzOTEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L10-L23",
+          "version": "repo-lines-v1:sha256:2cedf8571d8999da43c2bbda1f573e8a5480055862864c668dfd6373e751c38d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhYjc1MDQ2ZDVjZTE0ZjNlYTZiYjdiNjExZTc5ZGFmYjA2M2QxNWJhYTU5NTUxZTc4NjE4NzBhOTRjYmU3YjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzNDVjMjliMmNlODdjNzkwZDkxMGQyNTJlY2FlZDk0NGFkZmFkYTM4YWZlOWUyNWFjZWE4NmIzNWRkNmIzOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4ZWY5ZGE0MDlmMjNjN2RlYTExMzNjZGFiN2JlMWNkY2NkNmU1ZDI2Njk4Y2Q3OGFkMTM1NmIxODg2NjcyNzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_85491eefa3d54730a50bc55cc6fe4fbb",
+      "statement": "BridgeMethods enumerates the complete callable vocabulary of 11 methods with typed request and response bodies, each payload being an identifier or primitive (key, name, path, tool, query string, opacity) rather than a resolved action target.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/shared/contract.ts#L217-L252",
+          "version": "repo-lines-v1:sha256:8ecdf8e2ed0781d393c8e57492e0adad79f6a201f34912d99d2daa94cfa1973a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMTA0NzU4Y2FmODQyNmRiZTQyOTdmMWI1NGU0ZjQwMDUzMTYwMTJjZWE0MTUyNTE4OGRjYzBkMjFmYWM3ZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3NzliN2E4NzdkNzk1MDRiMjcwZjEyYjJlOTRkY2M5MjU3OWZlZTViNjY0NzY4YjA5ODZhY2FjYmI3ZDZjYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUyNzgyZGZmZDRlMzI0NzQ5ZmQxZTkwY2VlYmFhYTlhYThlZTFkMTY1OTcyMDkyYmNjYWQ1YTBhODZmMmQ1NDQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a92e1b1f75484bbd82988592473f450a",
+      "statement": "BridgeEvents enumerates the complete pushed vocabulary of five events, and three of them are deduplicated at the emitting service (search/state only on a derived-state change, settings/changed only on an actual clamped change, plugins/changed only when the serialized listing changes) so the page can treat them as change notifications.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L157-L164",
+          "version": "repo-lines-v1:sha256:3c2ba2c209b1168636fdb963076922114bbc13f504cd65f341b178e3507deba5:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTJkNzZhN2YzM2Q0ZDViZDU2N2EzMjg0YjFlZGNkZGQ2YmU4ZWM0YTEyNWM1OTNmNWFiOWNiNTI4ZWM2NjUzNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ1MmNiYjM5OTI1MzA2OGEyNTE2NTZhOTViZWJjZGJhMjc2MTk5NTYyYjhiNDE1MTEwMjQwMWM0N2ZiMDVhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmJhZGU1OGU0MjI1ZGUzZWJjODkyNDYyYzAxNTM1YTdjNDkwMjgwOGY1ODZlN2EwNDZkNGZmYjllMTg4MTkxZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGMxMWI2N2Q2YzM4NDRmZTE0MWE3NjBlODM1NmU5NmQ1NjUxZjExM2I1NmZhNWFlZDZlY2MzNWVmNTYzMzNjYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L158-L163",
+          "version": "repo-lines-v1:sha256:dad57c32fad9fb6eabf233fd04720fb41431108bd14ddb8c1a15ee76bde4b95f:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTFkYzY5ODYwYWYwMWU0NDE1ODE4MGJjMTQ3YzM3ZjQxOWFiMmQ5NzIxNzIwZjhlMTY4MDk3NzFlYzk1MmE4NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODk2MjNhOTRmMDhiMjQ4ODQwNDIyMGQyMmY5NjkzZGVmNjk0NzNmODg0MGRhZmUwODQ1N2I0NTNlZThhZDNjZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDE2MTdiNTNkMDYxZmQ2YTViMGUyNTY2OWFhNmU5NjVjZDRkZTJmNGMzMDVmNTg4ODU3MDFlZGM0M2RjNGE5MCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/settings.ts#L39-L52",
+          "version": "repo-lines-v1:sha256:00a545653387c9bb6dcefbf0543cfa92923f70f82a62632b6f49bac4f1c9d66b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0NzMwMzk1NjQyZjFmMzYxNTBhODVhNmNhZWMzYmFiNmNkMDlhNTlhYjZkNWYzZGU1ODFjYTM1MGUzZGU3MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdkOTEzYmE4ZDU1YmEyZGQ0OTM2NDQ2NDg5OTllMjM1Y2Y5ZTBhYWU5MWM1ODVkMjdlMWJlMTU2MmI4MWUzOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L254-L268",
+          "version": "repo-lines-v1:sha256:04c05a4ad3567c0fe4fd207e253d0a99222a1c76543386d1233009e28ba1c354:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhN2Y3ZTdmNmMyYTAzOTljODdiYjNkMzk0Mzk5MTUwNDA5NzIzNGY1NzFmYzZjM2VlNDg1NzIzNmNjOTUzYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE0MWViNjcyZjhmZTc5MmJhY2Y3ZDEwMThmZWExOGIzYjk3MzgzNTc3YWMzODczOTYxYjNkZjg5NjRiMjhkYjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ce57e4d3038b4a7d93f4b3796cf371be",
+      "statement": "The cordis Events augmentation in cordis.d.ts re-declares the same event names for the kernel side and adds the main-process-internal dataplane/snapshot event, so the emitter-side and renderer-side declarations must be kept aligned by hand.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L14-L29",
+          "version": "repo-lines-v1:sha256:7f7a910a043acdec655e978ccbba7c829a163f77d86fad6f527dcea29086b09b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MjQ3NjEwODMyMDFhOTg1YzI1NzQzYTU0Yzg4Y2U1NzQwOWQzNGY2YmQ5OTcwMmRjOWQ4ZWJmOTA0NjUxYmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljM2I4OTM1YzZiZWNiMjZhNTg5YzlmMmQ5MDM2NDU4ODRlOTQ5OTM1NjNhZTU1NzRiMGJiMzEwMzFmNDE5YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3M2YyNjQxM2M5OTQxYTA1NGZmZDNkMjY4MGIyNTU5YWFjZjBiOTlmZWQyNGFmYzNjY2M4ZjBkZTZlNzYyZjEifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L254-L268",
+          "version": "repo-lines-v1:sha256:04c05a4ad3567c0fe4fd207e253d0a99222a1c76543386d1233009e28ba1c354:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhN2Y3ZTdmNmMyYTAzOTljODdiYjNkMzk0Mzk5MTUwNDA5NzIzNGY1NzFmYzZjM2VlNDg1NzIzNmNjOTUzYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE0MWViNjcyZjhmZTc5MmJhY2Y3ZDEwMThmZWExOGIzYjk3MzgzNTc3YWMzODczOTYxYjNkZjg5NjRiMjhkYjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b55e658363f14909a5f1f879a7e130aa",
+      "statement": "The preload exposes exactly window.deck.bridge.invoke, window.deck.bridge.on and the three window.deck.host functions through contextBridge while the page runs with contextIsolation, sandbox and no node integration, and a source-level test asserts the preload uses no filesystem API: the renderer's only privileged surface is an IPC forwarder.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L31-L36",
+          "version": "repo-lines-v1:sha256:82b76a8d6812c042ed1f8129c6515c7e6f169e7800c58537c3223168901d1f82:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODRjOGJiZDA5OWU1MzhlMGQ1NmY1YWE0N2RmMGRmNzMyMTFhOTgxYjExMzVmNzMxOTRjMDI3MjI2ZTZlNzU2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg3NGYwNTUyZTg2ZjM3MmNmMjczNGU5ODFhMzRlZTNkZDVlODI1NzdlNzc2ZDc1YmQ3ZDQzYTkzNGU2NDdjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWExYzJmNjU5ZmI3YzNjN2U1NmM0N2M1ODQ5MmMwOWNiYTQwNWE3NjYwZTU2NDA2YTdjYzFlY2I1NGJlZTgyMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzUyMDY0NTFhNzAzMzI2MzI0NDIwZTlkOGJmYTlhZDY5YzBmMzM5ZDNiYWYwZTQzMjU5Mzg2OThhMDJiMzlmMiJ9"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L8-L31",
+          "version": "repo-lines-v1:sha256:5fd34a4d0f634c689d421d94f709e0b9ef56038c625533bd0a095579dc6b616b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlMGI3ZmZkYmYwYjg3NGMwNGQ5OTViODgxNTg5MWJhOTQ4MmEwZGY2ZjRhNzUxZTc0N2I2NmMzMzcxZGExZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxYWMxMTk3MDAyOWM0YWE3Y2M2MDcyZTJiNGE5OTMxZDc3MTdlOGY2MTFjYWIxMjA2N2IyZGVmNTEwOGZhNzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L529-L534",
+          "version": "repo-lines-v1:sha256:e072125d5c18d22525bcf2e77d1e3a8bdaabea629028683b43f6ff3f6cd8aa43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk1MGE5Y2MwZGRmZmVhMmYzN2ZiOTI3NmNiY2ZkNzFiNzBjYTM4MzAwZDRjYjJkNjEzZWJlNzI3NmE0YzEyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDcxOTAwOWZhMDdlNWY3Mzg2ZDJkNWMxMjcxODkxNWM3ODdmMjU3YjE4N2RlMzVmNzQ4OTE5MDNjY2ZlNDY3NCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_53ed1bbc87324a89ac27667ba65cc35a",
+      "statement": "An invoke travels renderer deck.bridge.invoke to ipcRenderer.invoke on deck:bridge-invoke, is handled by the ipcMain.handle registered in wireBridgeIpc (once at boot, before the page URL is loaded) and dispatched by the BridgeService.invoke switch, which validates no business rules itself.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L113-L114",
+          "version": "repo-lines-v1:sha256:7b6dd7e858209eb186a02a2502299320c6234f185dc15f6f52c538a65b84fcd4:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjI0YmVhYjU1YzJhNDU2MmVjNmNiNTEyMjhjYjRiNGJjYTUzZTNkMjJkYzk3ZDgxYTNiYmY3YTUxOGQ0ZjkxNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZjZTM3MDFkMDdmNTk5MDZiMDk5MmU1ZjA5M2VlZTVjZDYwMDNlMThhZjFjNTlmYjAwODgzM2FkNmRiMTQyNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWUzZmE2YjIwODc0MWNlZGNlZWMwZmE3Y2U1OGY1MDY2M2FlMDRhYTc3ZDdkZGVkZjg5ZTY3NWNmNWE1MzMyZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGFiZGQwNmVkNGQ4MmU2ZTNlM2JmOGNiZGMyYzA3YTJlOTdhZTYxYjMwYTEzYTg1NTVmMThiM2QwNjhlNDQ0YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L38-L48",
+          "version": "repo-lines-v1:sha256:abd818a100b715c6321b14a4701c368ab28702e273742793927b49640e18e00c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5Y2UzMTE0N2RjZDQ2ZDk4M2E3YjIwNmYxMWNiY2Y0ODhhYmM1MWVkZWRiYTA1NDE3ZWZkNjM3MzY2MTc1MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU3Y2NmNDgzYzBmYmM2NWFmOGY4YTkyMGQ1NWZmODFmN2IwMmFlYTk1M2JjZmUwOTc2ZWUwMDEwZTg4ZjFlZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyZmIyNWQ3YzkzMWQyNjBmODYzOWU5NTZiYWI1N2MzZjRmYmRjNTY2Y2UxOWMzNjM5MzhiZTJmNDFiMzM0MmYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L50-L91",
+          "version": "repo-lines-v1:sha256:cac2869a0dffee5aa062abbce7c1c146ebbb9ec9da89cad4834eef36c0cb9b8e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzYTY2NDkyM2M4MTFjNGQ2NTljNTBjYTllODNlY2I4NmIwNzczMDZjMGQ4ZjMxMTE3OTIwYjc5YjQ2MzljZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlNDk4ZmNkYTgwYjI0ODg1MDFlNjBmMjM0ZmMwNTMxNjQ3NGRmNGFkYzI4OWRlMzk5NWYxNmFjYWY0Y2ZjZGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c59bd71fc00f40e6812cc572319c9a09",
+      "statement": "PanelDataPort is the seam with two interchangeable implementations: the in-process LocalPanelDataService drives the collection services directly, while the production DataplaneService keeps Electron main-process APIs (icon extraction, shell open) in the main process and sends only desktop/move and desktop/reset-layout to the data-plane child over utilityProcess RPC.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane-protocol.ts#L27-L38",
+          "version": "repo-lines-v1:sha256:35ea301bc1a0c0dfd81365894ba64e76696584c045ec4109dd30d19fb98859a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NTMwMmI3MWMwMmYyYjhjNTdmYzc4NjI5OTdjYTM3NTBmMDNiYmQ0OGQ5NDMxMDg2NWQ0MWFlOGYzZDFhN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1ZGE1M2MzYzRiZWJiMGU0M2RjNDgzMzczZjE1ZDRiZTRmYjVhMDM2NDM1YjUwZTk5NTZkMDMxMDc2ZTVlMWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiNDA0ZDI0NGEwZjZkOGU5N2EzNDZkMDIxNjc1ZWFkMjRmZjY2OWJhZDY3YzliOThhZTMxZWY2YjQxMTY3OWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxYmIwYjBkNjdkNTA2ZmFjZGZjZDBlNjQ5ZjBlZDk1MTRmNzI4NjE2YjM3N2I1N2U3Njk4YWU0ZTc3YTkxMmMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L161-L181",
+          "version": "repo-lines-v1:sha256:7da4448eb5c51e3f0486ac43ce9dcb3a79fa8712c66ec712ce8b5f099d049cc1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwZTBjZGRkOGE3NWZmYjY5ZjgyZGJmNGFkZWMzMzUxYjcwY2E3MGVlZTkyYTE2MmI5MzUzOGMyNDMzYzU4OGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0NGNlZDgxYTJjZWI3MjRlMzZjZDA3ZmZjZGIyODJiYTM2NTgxYWRjZTliMjQxMzRlOGJhYmE3ZWY0MmNkYmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L10-L23",
+          "version": "repo-lines-v1:sha256:2cedf8571d8999da43c2bbda1f573e8a5480055862864c668dfd6373e751c38d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhYjc1MDQ2ZDVjZTE0ZjNlYTZiYjdiNjExZTc5ZGFmYjA2M2QxNWJhYTU5NTUxZTc4NjE4NzBhOTRjYmU3YjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzNDVjMjliMmNlODdjNzkwZDkxMGQyNTJlY2FlZDk0NGFkZmFkYTM4YWZlOWUyNWFjZWE4NmIzNWRkNmIzOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4ZWY5ZGE0MDlmMjNjN2RlYTExMzNjZGFiN2JlMWNkY2NkNmU1ZDI2Njk4Y2Q3OGFkMTM1NmIxODg2NjcyNzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c9002f3b7f1941228bfc612b3390ca7a",
+      "statement": "The transport wraps every invoke in an ok/error envelope ({ok:true,result} or {ok:false,error:{message}}) because IPC does not serialise Error faithfully, and the preload re-creates a plain Error from the message only, so error text is the entire error taxonomy available to the page.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L39-L48",
+          "version": "repo-lines-v1:sha256:42a11a5b480a898960a828d40904081bef2238b167538cdd69ea967686322726:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwY2ExMDU1OTYyOTIyMmEyOTQ4YzJkZDc4NWNjODMxOGU1Y2NjYzNkZGNlZTdhYzgyMTI3MmM2YmNmZWQ2OTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxMzViNGRjMWM2ZTEyNzk0MjFkZjc1NmUzNDFlNzE4OWY1MzM4MDUyZWY1NmFjN2U2Zjc0ZTg4MTIwYmEzMzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyZmIyNWQ3YzkzMWQyNjBmODYzOWU5NTZiYWI1N2MzZjRmYmRjNTY2Y2UxOWMzNjM5MzhiZTJmNDFiMzM0MmYifQ"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L10-L14",
+          "version": "repo-lines-v1:sha256:5e6a2307df6f6868d2b2547e23939013572620567a949fbfc195ed5c078f8354:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWMxNjAyM2EyYjM0NzE4M2NlMTk0NjBjMTg5MGRmNWEzZjFmYjY3NjEzY2Y1NGY3MjNlNzA0MjYyYzI5ZTY4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDczMTgzOTk5YzAwYzBiZjQzZDQ5ZjJmYzQxZmQzNzI1MmIyNGVjMTkzMDA5NDRkYTg0YTEyMmNmNzJiNDQ0MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjJjZGNmOGQyMWUxMzU2ODdjZTczNWFjNDY2ZjMyNjZhZjg1MDE3YWE2ZjU2NmUzMTdmYWVkNTM3NDg5NmE2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTRlODY1MGFiOTc4MmM4YWNjYjVmMDNjNTg3YmMzMDJhNzAxNjJhNWRhMDljNWVhYjQ5ZmM1MThkNzI3MWFkOSJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L371-L383",
+          "version": "repo-lines-v1:sha256:f0a0d4b8b7babec7c678f31b2c1ef552542c03e195a85ec4370edc263bac8810:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4NmViMzAwZjNmMzJiN2QxODA1YWJjYTg0OGUzYWVmM2JkZDkzNDFjYmNmMzg2OTJhZGYyZDlhZTA5ODg1ZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4ZjMxZTAzZWM2ZDc4OTQ4NWQ1NjI1NjM2MmFjMzc4NWMyNWFjMWQ2YmI5YzBhNjRkMzgwMGNkZjIyNTgzMWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_768f0e28ff4842d2b84b392e6d358fe7",
+      "statement": "BridgeError is defined in services/bridge.ts, thrown by the dispatch switch's default branch for an unknown method, and reused by SettingsService for a contract-violating opacity payload; it reaches the page only as a message string, and the offline tests assert on those message fragments.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L8-L14",
+          "version": "repo-lines-v1:sha256:c59489b389e265a180c67bd38212ca16e416df486c04d9b4dccd53a7ad30b975:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTEyYzgyN2M4NWZiZGI0Yzc3Y2NmNDM3ZTQwMjg2MWQ1NjdhNzVhNWU0ZjJjMTg2NzNkOTEzOWQ5NGQ2YTRiOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzc4MjdiMmE2NzE3NmI0MjBhOGM2ZTA3YzljNGNiMDE4Mjg5NjM2ZjQ3NGIzNjI5MGE3NDg3MzAzZDhkMzk4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2QyMGY1ZjlkOWE1MWYyOGVhMGNmZTRiZjIyZDJmMDdlOGQwYTJmOTAyMzA3Mzk1MzkyMTY1MWYxYmU4NmMyZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L88-L90",
+          "version": "repo-lines-v1:sha256:4e1620fd90a810bfb30ace6b71f21a0ef88f70d411a726fdcef494cbcc27c024:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDI3ZGU0MGEyYjE5ZDBmZDczOWM1ZDFiMDc3N2Y5YmRkNDEwOWE3NzNmMWU4OTI1YjIyYzhhZjE2MTgwNmYzMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzJjYjE1NmVlNGM3NWQ3ZjJkODFkMGRkZGRhZTk1YjJhNWM4ZjFmNjBlMTQxNDhhNjhjODg1MGNmODNiMjYwMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDg0MWNkMTkyZTQ4NmYzMjVmMGVkMTgxZjgxNWNmOTU5MjBlNGNjN2I3ODRkYzI0ODYzMDQ1NjZjNGFkYjAzZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/settings.ts#L39-L43",
+          "version": "repo-lines-v1:sha256:7ef120b03846113acaa13f83a772818385508b808e6a9f38c655691eb315a74b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTQ3MzAzOTU2NDJmMWYzNjE1MGE4NWE2Y2FlYzNiYWI2Y2QwOWE1OWFiNmQ1ZjNkZTU4MWNhMzUwZTNkZTcxZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FjOTNmZTQwNmQ1MGIwNWNiZTk1YzNkNDBjYTc1Y2NiY2M1YzQ5ODRkNGIyZTJiN2E2MGIyOGY4ODFhNmY0NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2Q5MTNiYThkNTViYTJkZDQ5MzY0NDY0ODk5OWUyMzVjZjllMGFhZTkxYzU4NWQyN2UxYmUxNTYyYjgxZTM5MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDYzOTk1YjM5ODJhZTFlMTNmNzhhYjUzYjJkODNlYzZhZTE5NTdhZjM2NDY5MDZkN2ViZDBiNjE3Zjg5YjkwMiJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L100-L108",
+          "version": "repo-lines-v1:sha256:9ffb22cb5873135b2ce7029f1959e92db97556941cf6048c75acceb51c263e5b:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkOGEwYjI3MTI5ZDIyOGFhODkzMGU5NjNiNWE3ZDg2ZDUyNzZjYmYwOWFlNjA1NDFiN2M5NTIyODdkYjgwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTRlN2FjZWQyMGEzMTQ1NjcxNTE5NjM0ODU4MzY0MmExMTVlMTMyMjFiNTAyMDVhOTc0MzdhMjNmZjUzNTNlNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_dbfdbb179bb74911ba270704ba7131f6",
+      "statement": "Method outcomes are split between in-band failures that resolve with ok:false (desktop/launch outside the item pool, desktop/move with an invalid anchor, search/action outside the last result set, session/focus degraded) and rejections (unknown method, contract-violating payload, missing data-plane child), with the guardrails enforced in the port implementations and services rather than in panel-ipc.ts or the bridge switch.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L165-L181",
+          "version": "repo-lines-v1:sha256:a589af00a73e7595634b6c48cd7b085e3364bcb34db5282e7f37f3f9b7594c09:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4Mzg5MDI1OGJjOTQ0OTM4NmE2NjBkZmJhODY5MTA3MTZhMDdkMWU2MzMwNjRhNTNhYjkzNDc2OGY0MDEzNTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0YmI4NDc5MmMzMjljNjFhNjk3MzlkYWExMTJjYTBkYzhjNDFlMWM1OWVmNzNkZmQ2ZGNiZmNjYzAxNjU3OTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L150-L178",
+          "version": "repo-lines-v1:sha256:43701175730e7155e6582edda993d8cfb0c30ec326eaf33a514f049b7e02a9a5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YjE3ZmZhMDg3OTI3MWZmMDRkZmY3MDdjM2M0NGQwZTk5MjZiYWYyYWQ3MTE4YWZjMmFjZGI4MWQ4YTM4MmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0YmI4NDc5MmMzMjljNjFhNjk3MzlkYWExMTJjYTBkYzhjNDFlMWM1OWVmNzNkZmQ2ZGNiZmNjYzAxNjU3OTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyNTFiYzk0NWQ3ZGQ4MjY0MDU3OGM1ZTRlYmRmMjlhZGNlZGEzOTY5NjY4NGMzNzlkYTA0NjdhNGE5YzA4NzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L62-L90",
+          "version": "repo-lines-v1:sha256:36d5db09c164631335a09e549bf278f23c08d25df4f8395c98ea325f0130802d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyYTZkYzBiNWYxNDY5MzU1NGZlMWYzOTU4OWVkYjVhNjAwZWI2NzM5OGY5YWFjMzI0NzdhZjNiNTA3ZDAxZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExMjVlZTMxNzBiZWFkYWFkMjY0ZDYxZmE4NmNhMzBkZWFkZTI0N2M4OThjZTQ3YmFkOGNkM2YxZmVjNzY3ZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY5OWVjNzFkODNhMzE0ZTFiMGNmYTlmM2E3NTdhNjgyZjAzOWRlYjljZWFhOTI0YzE5ZmY5OGEzYWJlZDVmNDYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L135-L146",
+          "version": "repo-lines-v1:sha256:27a8895b5186bad4eb0f0f8372b1adf6a213edd8c6145bb5907f59924dfd7b3e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxYzQ1OTk3MjM5YWI1MGI4NTJiMGQ5N2E5MjA1Yjg3ZTE3MjA2Zjc0NzZiN2FmY2YyNmRlYzZiZWNiZTJkZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0MjMwY2JhZTdlNzVhOWIwNjU5Nzg4MjYxNDMxNjNkNzc5NWNjMjA5ZGQzYWVlMzQyOTMwNmE5NWVmODQ0ZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4M2Y0NjExOWQ0NDAwNDgxNDA0N2VhMDg2Y2VjMmRlZGQ2N2FhMWRiNGJjYWJiNWY4YTJiYTMzOWY3ZmY1NDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_76de57efc4f1436caed4f0c81cfd8f6b",
+      "statement": "Forwarded events all travel as a single name-tagged channel message ('deck:bridge-event', name, payload): a FORWARDED_EVENTS whitelist in panel-ipc.ts decides what leaves the kernel, the preload registers one ipcRenderer listener per on() call and filters by name, returns an unsubscribe closure, and the main process releases its subscriptions when the window closes while guarding sends against a destroyed window.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L30-L54",
+          "version": "repo-lines-v1:sha256:3be410d4480e7e841c76d1bd8bc6be00aeffd665efa8a9bbe383c056066cbaaf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlMWZkYjFjNWFjNTE5ZWVkYWFkZGUyNjQ5ZTk4MGNiNWMzY2EwOWUxMWEzYjNhNmI0YTgxMGQwZGJiNWQ4MjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlY2JhMjAxZTE2ZDdjZjUzNWNkOWM5OTAxMWZlZjU0MGVmYzM3NWM5ODg3MmU5NmQyYWI3YjYzMTYwMWFiYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmMzEwNjE4OTdlOWU3YWY2YmI4ZjE1NWEyMWZmMmY5MjE0NWFmMGEzYjEzNmM0YjEwMTE0ODExY2FlZTgxYmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcwNTk3NGFlN2QyYTc4OTI2YTUwNTUyZWNmMTliNDBjNjhkNzQwMDBhZmQxODJjZjU0YTAxODMwODkxNDllMzkifQ"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L15-L21",
+          "version": "repo-lines-v1:sha256:5b25b9a44cb0c7661f7062cafcbc76e772fc6523b6ce71c14186aca7cac98a2b:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmE0OWI3MWQ2YjMyOTQxYjQzMTE3YTJjYmIxZTJlN2MxZmNlNGM4OTc1ODliMTA5ZDBiY2I4MTgyNjU3NWFmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg3NGYwNTUyZTg2ZjM3MmNmMjczNGU5ODFhMzRlZTNkZDVlODI1NzdlNzc2ZDc1YmQ3ZDQzYTkzNGU2NDdjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDBjMzYzYjExOGI2MGUwYzRmM2Y2ZjZiMWQ5MDczZmJhMjRkNDAxY2JkOGUzMmRmOGY2YmY2MmFiZjJmYTE0OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWQ4YmZmYjAyNGMwMTc4NmFiMGE1NTRkMTkwMzBiOTc5Y2MyYmViZDg0NDEzOWNiNWViNzI3MDUxYWY4ZTI3NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9e29c49f6ed6457a9db0bc2ef06b9efe",
+      "statement": "panel/changed is driven in production by the data-plane arrival signal (each child snapshot triggers BridgeService.push on the child's 1-second cadence), whereas the in-process assembly used by offline tests installs a 1-second timer calling BridgeService.tick(); the page requests panel/snapshot once for its initial render and then relies on the event instead of polling.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/kernel.ts#L85-L89",
+          "version": "repo-lines-v1:sha256:5c507e3a4fcd93dbabb2f7036c390237e1af59be6efd77c4c33a311af2f9926d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYzMjZiZTdjZDkxYjQyN2JjZDE3ZDViYTYxMWQ4ZWI1YTdjZmM5ODRiNmVkMjJjMDJjOTNmOTc2MmNlNmZmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGJhZTI5Nzc5MmVjMGU5MzE2MWI3Mjc0NGU1NzcxMmQ3YTgwYmQ3NTViYzg0ZGU0NmJiZGYyOWE3ODliMjJiNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTc1MDZmOGFjMDI2ZmVhZGQ0M2JlZjVlZjFkZjQwMmZkNGM4YmJjYWNiNWExY2M0NDk0MWZjOWU2NDc1MmVlOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L25-L35",
+          "version": "repo-lines-v1:sha256:a990d52b7eee192316c5dca90d06fee00028a655eae530aff03f0233b05de76c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjMmVlNTA1MzVjNzk2MjRmYWEwMmQ5YmE4NzEwZDYzYzY3ODRjODk5ZmI2NWIwZTM4OGU0NmQ2ODQxYjk4ZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcxOGY1MDhjMjZiNjE1MTAyNzc5ZTc0ZGNiMjI4M2Y4ZWUyYTFkYzJmNTk1M2FhNjk2ZTBhYmE1YzU1MDVhMzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYmI0ODhjNDIwMzQ3ZjgyZjg2MzU4MjY4MDUxODJiMjJkOGU5MDA2NTg4MTdmY2RhNWM1ZTMzMTgwN2JiZDEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L98-L107",
+          "version": "repo-lines-v1:sha256:67b94e18967862adcafab746ee2c00d4f3ee3db3dae6be3ec82cf3548cbf1f63:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkNzNmMDhlYWQ2MmUyOGQzYzJiMzE5MmQ3ZmUyYjBiMWZlODdhMWE0YTVkY2U3NTc5ODdhYjlkNTVlZDlmNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1NGMwZWU2OTc3NGNiNjEzZjExNTQ0NzFlNWVlMGRjYjJkOGU1ZjEzY2QxODJlOTI4ZmM4N2FjYWNlMzYyNjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L765-L768",
+          "version": "repo-lines-v1:sha256:8823468127ebc54cc14f9e04424015c02928069140f925726fa6d6be5b654e2b:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJhYTc3ZTMzNjJkZTU0ZTQ2Mzk4YjY0ODhkZDY5ZjNkMDJmMDhhMWRjNWI5NTI1MjZkMDQ0M2M5ODQwYmQ2OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTg1OTA1Mzk5ZWNiZDA0MmE3ZDU5OGU3MjU4YjM4YjFiZTE0MjNmMTgzM2U4NjRlNGE2ZDc1MDg4NDcxYzc2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjY4MjU2MDRmZDNiOTg5ZGExNTk5OTA0MTc4NWNiNTUzZWQ4YjMzYjA1YmY4ZjdlMDRmYTdjNDZhODE2YTAwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWY0YjZhYjI0NGUwMWJhNTRmYzhlZjVkZDgzMDQyYTA5YzNhNzk4MWZjMjBhZTRjZjM5ZWRkOWMxOGY2MTVhNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_8c6b110075344f8a9963fff775f23d76",
+      "statement": "The window-host namespace is three fire-and-forget ipcRenderer.send channels (deck:host-set-hotzones, deck:host-keyboard-mode, deck:host-notify) handled by ipcMain.on with no envelope, no contract typing and no event map; hotzones keep the click-through panel interactive through a 25 ms GetCursorPos poll with a two-poll leave confirmation and a 500 ms re-pin throttle, and keyboard mode temporarily makes the never-activatable window focusable and re-pins it on both transitions.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L20-L69",
+          "version": "repo-lines-v1:sha256:4f1d2421afe4c733c56e93bc3933b541b3c815010b894136adffa23af75ea12c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkODdmYzhhYThjYmU3MzU1NjliZDUzYmIwZTVhNzFhNWNiYzM3NTQxN2MwNjMxMzNlNmQ4YzFlMGMwYjI5NWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5ODg1YWI1OWQ2Y2M1YzYxYTM2ZDU0MGFiYzhkYjRkZGRlZTkzNTRiMjc2NzJlYjRjZmJmYzg4NjNiNDdiY2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L57-L83",
+          "version": "repo-lines-v1:sha256:aa9b2c89ced685c3de97532e859f31afe79676a7206a558381514f53e7df364a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxNjQ3OWI3NWIzNmI5M2NmNjU3NjI3NDJlYTE5MDkxOGRkMzAxOTNlZmYyZWQ5MTg4YTczMjU0ZWU5OTVlN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMDA5ZTFhZGNkMDQ2YjNmMTExOGNiMDdkMzBjYWRlOGI3ZmM4NWU0NGQzYzIwMWM5NzUyMTkwMzkxYjRlM2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L42-L42",
+          "version": "repo-lines-v1:sha256:98d51babfcfddd22d6b4cd05b26e52c46d34a11ecdfa90cde77f866c47ab489c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDY5ODIxZDg2YzQzZTNkNWQ0YWVhZjYwN2FhZTJhM2Y2OWMwM2U0Y2VkZTEzMTdmY2JkMTlkZGU0NDZjOWI1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWM2M2NlOWM4MWUwZDA4ODM3ZTRkZTU5MGY1NzY0NWYzNGJlMDZmMmY4MzJjMmQ2ZGJjZjNjNzQyZWFjYzdlMyJ9"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L23-L30",
+          "version": "repo-lines-v1:sha256:732d87c56b32734cec9a3b85aaccb91c61a7402186c7c398e6b4b7f30d7db25d:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjYxYTkxZWMyOTg5NjAxNjczYTM5YjMyODYzZGQ1MTAxYmJkMTkyZmFiZjMwMDNhYzliZTA4ZjAyMzM3ODUxMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFiYWIzYjg5ODAzNWI3Mzk3YzA3Y2MxNjNkYjVjZjVlOTdkOTVkMDlkYTlmMTZiOWRlNzgzZGE0OWU0YzVjYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b6cc461b7a63421a8230383cf9e8f873",
+      "statement": "The renderer pairs the host channel with the keyboard-dependent bridge flows: it calls setKeyboardMode(true) before search/activate and before opening the settings overlay, and setKeyboardMode(false) when they close, so a host-channel failure would not fail any BridgeMethods call but would make those calls unreachable.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L392-L417",
+          "version": "repo-lines-v1:sha256:85318f61f2e4992c4e8fa02b29f95614d0c23262edb010b7f5f69bd50389d5d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyN2FjZDU2YzMzZjA1MTg2YmRlYjhhODNlODc1YzlmYWE0NTMwZTIxMjhiZDAxMjgwMGZkY2JlODYyNjdkOTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkZDg0NTNlMDgzMjYwNzA1YThmYzNmODVkYmU0YzNlNjI3MjU1NGIyNDQ5MjBlNWJiN2MzMzQ1MjkzMDBlNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYTMzYTg3M2IyOWYyMTQ1MjI0MzlmOWM2YmI1M2JmNDc3MWQ3ODJkNGRjNDM2NzI3MGIxN2Q5OTYxMjBjZmYifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L595-L612",
+          "version": "repo-lines-v1:sha256:9dcba5d9971b517aee99661075a54e00d0fd0575cbf53420db2e243b985a4332:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OTA5NWYyYWE0OGRjNDIzOGJiNTE4OTM0Mjg4ZmYyOWQyMzA1NzcwMjA0YzQzZDU0Y2NiYWZmMjhlMWYyOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNjJhODc0M2IwYTBhODZmMjRiMGU3MDc0N2IxMzZhM2Y0YzczZTc0NTU0YTg4ZDcwNDMxNTM2ODBmZjQzMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiNTdjYjNhZDQ5ZWJkZGVmZTkzNTBiZmNhZmMxNDg2YjJmMWRlYWViNTIyZTEwOGFmMWQ2MDIzMjVlYWFkNzQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b14f6782beb14af08a2686e96eada3ab",
+      "statement": "DECK_EVENT_LOG enables fileEventLog, a best-effort JSONL recorder in the main process that captures hotzone declarations, keyboard-mode transitions and renderer notify events; the real-machine acceptance battery launches the panel with that variable set and asserts on those records to prove hotzone delivery and focus acquisition/release.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1312-L1320",
+          "version": "repo-lines-v1:sha256:b9768d00d2def7002e61934d8a90e6efd0f1e2880617336ff1c089ead89bb7ed:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGI3NzYxMTlkYmIxMTM4ZTE3ZDFlMzRhMDVkM2MwZGIzMzg3M2JlYjM5MjU5MGJhZDI2YjAyNTZhMGNhYzY4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUyZmYwMDJiOGFlZjU0YTI5ZjkyODdmZjBjYWQ0N2E3MjU0ZjFkMTc0YjM4OWU4ZjQ1YjE1ZWY0M2EzMTMxNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjUxMmViNWU1YmNkZGE5MTY4OGM2NDk5N2QxYzQyZDlhMWFkNDM1MWJjODIxNTdmYWNkYWJlZWE1ODA2MjMzMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWIwYjE1MWMyODc4ZjQxODk3ZWIxZTExY2E4MWNlYzU1ZGYxNzMxZDZkNzBlMjU5YjFkNTUwN2FmM2I5MzRiMCJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L500-L500",
+          "version": "repo-lines-v1:sha256:98c4a3fd628a12572c9ea2aa6b7be8c4529223e977d867c7836939cd70ebcc65:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThjNGEzZmQ2MjhhMTI1NzJjOWVhMmFhNmI3YmU4YzQ1MjkyMjNlOTc3ZDg2N2M3ODM2OTM5Y2Q3MGViY2M2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThjNGEzZmQ2MjhhMTI1NzJjOWVhMmFhNmI3YmU4YzQ1MjkyMjNlOTc3ZDg2N2M3ODM2OTM5Y2Q3MGViY2M2NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjg2NDIwYjMyZGYwODBjYjFmYTEwYWEyMzQyZGRjYTJhYWM1M2Q5MzkxMGZmYjVmYjUxN2UwNjQ4MjkyY2JlNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzY0NjM5MDY3NDNkYTY3YTRhNWY5OTY1Yzg4MjhiZjE0MTk1MDkyYzc1NTRmZmEyMTkxMzFjMzdmYzMwNTNlNyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e09898116b92432f9d939f6a6dc6f4fa",
+      "statement": "Adding a kernel capability requires extending a contract map, adding the BridgeService dispatch case with the real rule in the owning service or port, adding any new event name to FORWARDED_EVENTS and declaring its payload in both cordis Events and BridgeEvents, and registering a new snapshot section in PLUGIN_CAPABILITIES — never adding an IPC channel.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/cordis.d.ts#L14-L29",
+          "version": "repo-lines-v1:sha256:7f7a910a043acdec655e978ccbba7c829a163f77d86fad6f527dcea29086b09b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MjQ3NjEwODMyMDFhOTg1YzI1NzQzYTU0Yzg4Y2U1NzQwOWQzNGY2YmQ5OTcwMmRjOWQ4ZWJmOTA0NjUxYmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljM2I4OTM1YzZiZWNiMjZhNTg5YzlmMmQ5MDM2NDU4ODRlOTQ5OTM1NjNhZTU1NzRiMGJiMzEwMzFmNDE5YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3M2YyNjQxM2M5OTQxYTA1NGZmZDNkMjY4MGIyNTU5YWFjZjBiOTlmZWQyNGFmYzNjY2M4ZjBkZTZlNzYyZjEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L30-L36",
+          "version": "repo-lines-v1:sha256:d007bc0fca8d97b4c4dc19e5eb67c2be0a540904033e77c244a68dd585664ef2:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2UxZmRiMWM1YWM1MTllZWRhYWRkZTI2NDllOTgwY2I1YzNjYTA5ZTExYTNiM2E2YjRhODEwZDBkYmI1ZDgyMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmQzYjZjNWI5NDQyMmE3YzA0ZjAwOTMzODFiZjhkMTcwN2U2ZWNjYTZmNzg3MzIxYTY3OTRlYTNkZjE2NDUyZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGYzMTA2MTg5N2U5ZTdhZjZiYjhmMTU1YTIxZmYyZjkyMTQ1YWYwYTNiMTM2YzRiMTAxMTQ4MTFjYWVlODFiYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjEyMGUzMGUwMDAyZjI3Y2RmMWM2MTJkYWM3YjMzMTE5YTA4MGExOTY0ZmE2MzBiNDhhMzgwYWJhNDE5YWE3NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L16-L21",
+          "version": "repo-lines-v1:sha256:ef6416ce0baa40c8da905295f522ff6cf13595af616b21ba9eed4a0289666ed8:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzE4ZjUwOGMyNmI2MTUxMDI3NzllNzRkY2IyMjgzZjhlZTJhMWRjMmY1OTUzYWE2OTZlMGFiYTVjNTUwNWEzMSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L1-L7",
+          "version": "repo-lines-v1:sha256:8df166df900f0a00a8ccb655267ae40dcd1fe2e1288fdf20f64e647159597c80:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTVmODA3NjI3YmQwNjAzYTZkMjZjOTliNWFlMjQ3NGUwNTEwODRhMDBkNDU5ZTVmMjM1MTliN2Y2NTdlNjg4ZiJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L134-L148",
+          "version": "repo-lines-v1:sha256:fead959f2c02f3d5b2855603265732da6717e209113ac625b3bebc8a67f86b8f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2MGMwNWMxZmJmMDRkZGZmMTNmYzk2MTk2YzNmNTY3ZTNkOTNjZDE1YWIzYmEyYWI3YWRmNDg0MDdiZTZlNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwN2ExZWIwZThhYjkyMWI3MDVjOTYxYjJkYTkxNzMzNGE4OWI2NWNkM2E0ZWViNzg0ODYzMzljMzdhNTA0NWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3ZmE4NDU0ZTQ1MGY2MzZlMjIxOTU1ZmY1NDMxY2Q5OWFkMTRlZjVmYWIwZTQ0ODY2ZWM0YTIxNTdiY2YxN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyMTc4NTI2OTk1MDI5ZWE0Y2VmZWRkMWJlZDIyZmZkNmU2YjE2YWYzY2QwMTBjNTkyNGE5ODFjN2MxMDE5MWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e6f17565d5674b81a23407f28d42c2b7",
+      "statement": "Plugin capability names are exactly the snapshot section names, but the trimming happens in the renderer (viewFor copies only the declared sections into the plugin view), and the plugin host context exposes notify and invoke without any event subscription, so plugins are push-driven only through their trimmed snapshot view.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L27-L39",
+          "version": "repo-lines-v1:sha256:d1211257b71f48972d5c27f75ba1c62561be8ff48d6624904e48ee4d9c692f8d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5NTQ1NjFjOTg0OGIwMWVkNjAxNTg2MDI3MTQ4M2I2NTNlYTQ5YzYxNTAyNzY5MWZiZDIzMWMxNDJiMTQxZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1MDA1ZDQ1ZjBjNzY4MWE4ZjQ3N2MyNWNmZGRlMDYzZWEyZGIyYWUyNjYwMDcyNDMxMzY4YWVjYTMyM2Y5YTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhZDg1N2EzMzg4NTBhNDE1NGNkM2FjNTYwYzFlM2QzZmQ0YjIzMWVhMDU4ZDliOTE5ZDA0NTc1ODZlMzJhOGYifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L87-L105",
+          "version": "repo-lines-v1:sha256:03c94daba22bce938b6b96c3fa0ead450acab528ad6527a6a375bb8b62da9336:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1MWFlMDcwMjg0YzM2YmNkNzA3OTBkODU5YzJlZmQ2YzE0OTYzNGE4YzAxYWY3NTgwMDQyZDBmMWRiMDFkNDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxY2YyNDYwNjI4NzIxM2U4OTRjZmUyODhmMzk1YjQ2YzE3N2U3NTVlZGFjODdjY2ZhYTVmMTcxOGExM2IwYTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4MWQ0Nzk3ZDhkMDRhNDNmMTM3MGY4Y2M0ZGU0YjUyNTI5MjM1YWU1ZGEzNzg2NzVmNWNhY2RlNGQxMDQwMDMifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L134-L148",
+          "version": "repo-lines-v1:sha256:fead959f2c02f3d5b2855603265732da6717e209113ac625b3bebc8a67f86b8f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2MGMwNWMxZmJmMDRkZGZmMTNmYzk2MTk2YzNmNTY3ZTNkOTNjZDE1YWIzYmEyYWI3YWRmNDg0MDdiZTZlNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwN2ExZWIwZThhYjkyMWI3MDVjOTYxYjJkYTkxNzMzNGE4OWI2NWNkM2E0ZWViNzg0ODYzMzljMzdhNTA0NWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3ZmE4NDU0ZTQ1MGY2MzZlMjIxOTU1ZmY1NDMxY2Q5OWFkMTRlZjVmYWIwZTQ0ODY2ZWM0YTIxNTdiY2YxN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyMTc4NTI2OTk1MDI5ZWE0Y2VmZWRkMWJlZDIyZmZkNmU2YjE2YWYzY2QwMTBjNTkyNGE5ODFjN2MxMDE5MWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6c4775eb8d13480e800f3f907ddda911",
+      "statement": "When the data-plane child is absent or has just exited, desktop/move and desktop/reset-layout reject (becoming ok:false envelopes at the page) and panel/snapshot still answers from the last known snapshot with degraded defaults, while the pushed panel/changed stream stops until a child snapshot arrives again.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L32-L35",
+          "version": "repo-lines-v1:sha256:199d673f0643520bbee6e42b76eb9c1e2ec405cc34848b7da8b9cf9c9cb29159:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjEyZjUzYmYyYTMyYzVmMmUyMDMzNjFiOTc0MWY5ZTczYTMxYjNiM2Q5ZGRlNTFkMjVlNTBlNGQxNDM3MTBhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWIwYjhjODlhZTEzMTQ1ZGE5NGFlODRmMTg0MDE4MDE5ZDZkYTliMWM3NzAzODYzOTEyY2I1MzNhMWIxNzExYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiYjQ4OGM0MjAzNDdmODJmODYzNTgyNjgwNTE4MmIyMmQ4ZTkwMDY1ODgxN2ZjZGE1YzVlMzMxODA3YmJkMSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L138-L159",
+          "version": "repo-lines-v1:sha256:a5865702157f96b1e335216b1cfd93e2902eeedcbcbcd0d6a9312385bf372db2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5ODQ3OTVkNWU4YzE1NWY3YmNlNGMyMTRiMmFhNGRjMjVkODE0MTkyZGYyN2EyNmVlZmE3MDhmMjIzMTlkZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhiNTZiZWFjMWY2ZWM4NzQ5ZWJiNzI1OWY5MDM0ZjYxOGUyOTRmMTQzYTQwZWIwNDkzNTlhMTU3NWJhMjk0YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRiODdhN2FkY2IxNzVlZjA0NTkxYmQyNzM2ODQyNWZhZTgyMjgxMWM3YWVhNTQ5NWNlZDNhYzA5YzEyMjU1YmYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L78-L134",
+          "version": "repo-lines-v1:sha256:275e90ce1d9b1ae873e89da2c262c1490719a79d24548234c7005db5ffd97199:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZmE0MDg3OThmMmY5YTQxYzQ1OGZjMGMwZjk0YzE0YWQ2YmZkMzFhMWU3OGRiNzUyY2M1NDRhYjM0MDc5NjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhOTBhOWZhOTczZDlhZGM2YTllYzNiMmI2YjU3NzUxYzU5ZjNiZTAwN2M1ZTVkYTdmY2QyZmZiOWNlMWI2YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhiNTZiZWFjMWY2ZWM4NzQ5ZWJiNzI1OWY5MDM0ZjYxOGUyOTRmMTQzYTQwZWIwNDkzNTlhMTU3NWJhMjk0YzMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2c6a91ca60024f62ae75ffc38df46d29",
+      "statement": "Closing the panel window releases the event subscriptions but leaves the deck:bridge-invoke handler registered for the process lifetime, so the transport assumes exactly one panel window wired once at boot.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L113-L114",
+          "version": "repo-lines-v1:sha256:7b6dd7e858209eb186a02a2502299320c6234f185dc15f6f52c538a65b84fcd4:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjI0YmVhYjU1YzJhNDU2MmVjNmNiNTEyMjhjYjRiNGJjYTUzZTNkMjJkYzk3ZDgxYTNiYmY3YTUxOGQ0ZjkxNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZjZTM3MDFkMDdmNTk5MDZiMDk5MmU1ZjA5M2VlZTVjZDYwMDNlMThhZjFjNTlmYjAwODgzM2FkNmRiMTQyNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWUzZmE2YjIwODc0MWNlZGNlZWMwZmE3Y2U1OGY1MDY2M2FlMDRhYTc3ZDdkZGVkZjg5ZTY3NWNmNWE1MzMyZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGFiZGQwNmVkNGQ4MmU2ZTNlM2JmOGNiZGMyYzA3YTJlOTdhZTYxYjMwYTEzYTg1NTVmMThiM2QwNjhlNDQ0YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L38-L55",
+          "version": "repo-lines-v1:sha256:a9990b5d9022239fba54e57fb042ce602f53ac8a8b993c9ced2ef20e1d0c00d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5Y2UzMTE0N2RjZDQ2ZDk4M2E3YjIwNmYxMWNiY2Y0ODhhYmM1MWVkZWRiYTA1NDE3ZWZkNjM3MzY2MTc1MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU3Y2NmNDgzYzBmYmM2NWFmOGY4YTkyMGQ1NWZmODFmN2IwMmFlYTk1M2JjZmUwOTc2ZWUwMDEwZTg4ZjFlZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzNTg1ZTFhM2I3MjRjNWM3ZjM1Y2Y2ZmQwYjM1MjZiNmE3MTU4MGNjZmUzMjdjMTQyNWFhMTJhYjgzZTdhNDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ad985bdb35fb4a8297dffc0be6ffa3d6",
+      "statement": "The offline contract suite (app/tests/contract.spec.ts) drives createKernel in process without Electron and pins snapshot shape, subscribe/unsubscribe delivery, unknown-method rejection, desktop and search guardrails, settings clamping with rejection of non-finite opacity, session focus outcomes, plugins section and plugins/changed, plus source guards on the preload and renderer; nothing in vitest loads panel-ipc.ts, the preload runtime or HotzoneTracker, so the envelope, the preload unwrap, the event channel and the host namespace are covered by the real-machine acceptance battery instead.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L500-L500",
+          "version": "repo-lines-v1:sha256:98c4a3fd628a12572c9ea2aa6b7be8c4529223e977d867c7836939cd70ebcc65:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThjNGEzZmQ2MjhhMTI1NzJjOWVhMmFhNmI3YmU4YzQ1MjkyMjNlOTc3ZDg2N2M3ODM2OTM5Y2Q3MGViY2M2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThjNGEzZmQ2MjhhMTI1NzJjOWVhMmFhNmI3YmU4YzQ1MjkyMjNlOTc3ZDg2N2M3ODM2OTM5Y2Q3MGViY2M2NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjg2NDIwYjMyZGYwODBjYjFmYTEwYWEyMzQyZGRjYTJhYWM1M2Q5MzkxMGZmYjVmYjUxN2UwNjQ4MjkyY2JlNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzY0NjM5MDY3NDNkYTY3YTRhNWY5OTY1Yzg4MjhiZjE0MTk1MDkyYzc1NTRmZmEyMTkxMzFjMzdmYzMwNTNlNyJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L111-L246",
+          "version": "repo-lines-v1:sha256:f139d58922f073a8f77df590fc8e41b03763e54a3c4812f313720baf4819bc22:eyJzZWxlY3RlZExpbmVDb3VudCI6MTM2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI1ZWY0NGNiOTllNTExY2E0Y2EzYTdlM2NhNTVmNTNiYzEyZTdhMTMyYTlhNDZkODE2NTNhMWFkZGQxZDM0OTQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxMGE4ZjYwZmUzYzUwYjBjZjUzNDcyMjExM2ZlOTBkNzM0MTQzODdjZTkyZTU5NzhjODJjYmQ4MDFjYzA1MDBkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlOWUyMDJjNWIwZGNiODM0NGRjNTkxZDkwMzUwMjIwNmZkOTE3ZjRmZjdiNzJiOTM2NTU0ZTU3M2I1OTM4YjgwIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0NjRlMzlmY2UyNDAxNmVkYzRhODI5M2U3YzA4ZWYwYTAyZDVhMGQ5MGE1NThlZWI4OTEzZGQwMDY0ODQwYTc5In0"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L12-L12",
+          "version": "repo-lines-v1:sha256:4d1810bfc290ddcad1aa7baadd673560847114e323e2aff419899de56879e46c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGQxODEwYmZjMjkwZGRjYWQxYWE3YmFhZGQ2NzM1NjA4NDcxMTRlMzIzZTJhZmY0MTk4OTlkZTU2ODc5ZTQ2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGQxODEwYmZjMjkwZGRjYWQxYWE3YmFhZGQ2NzM1NjA4NDcxMTRlMzIzZTJhZmY0MTk4OTlkZTU2ODc5ZTQ2YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWZiMTRlYjQ5NjY5YzJmNWMxOTE3YzM3MWQ0YjY2NzE2YThiNTVjOTZiNmFkZWJlNDY2NzUyZTAzMzEwZmVhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjgxYjVjZDI4ZDYwOGEwNzRmZjkxYzdhOTk4NjMzMmY0MWE3MTI3NjhiNGUxODhmY2U4NjE5ZDM0ZjE0ZmQ4MSJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L248-L326",
+          "version": "repo-lines-v1:sha256:d294c47fde0f6077ac66fe67713bf86bfa823b27a221ff6db4a8141f59c6c8f2:eyJzZWxlY3RlZExpbmVDb3VudCI6NzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3YjhiMTlmOTJlODg4M2VjOGUwNmQzNGRmNjQzZGU4M2UxYzYxZTM5ZDI1ZmY3YmY2YjQyMWFiOGVjOGQyNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2YWI0ZThlMjY2NTgxNTFkZmEzMzk5YTk2NmYzOGIyMzNmYmM0YWE2YWIwNWM2ODI3YmQ4ODc3MWViMDM0NWEifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L443-L535",
+          "version": "repo-lines-v1:sha256:34f0501bf2080e8e45f1b70ee0157ffdefbe8482a4a9292b7627dd67ead820ca:eyJzZWxlY3RlZExpbmVDb3VudCI6OTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3ZGE3YjExZWIwNWEyZGFhYTIxNDE2MzExM2U0MWZlZTZhMzc1ZTA2M2E3MWYyMjQzZmM1YjA3MzllZWRlNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3ODJlMzYxNWIzNmMzZTBlYjI0NDdhYzlhZTJiODg2MWJjNjU1NjU2MzdhOTU5ZTlmNzBlYmM3ZjY2YThjZGYifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L68-L109",
+          "version": "repo-lines-v1:sha256:4e6110f793de660c88c230a712192b6db5f6cd0b4c8f7f20a6fd7aea99cfb4e9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4MTM3MzQyMTMzODgwOTg1ZWYwYjAxZDcyOGRiMmNlOGQwNzYyMjY4NTNiNjI3NTAwOTc4YjhlNThiZWUxYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4M2NjZDM1MTU1ZDVkODFkNThkMTE0YzM0YTM2ZjdkMTk4MDQwNGUxOWU3ZTgxMjVmYmRhOGEzZDYwYzY0NzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyNDdiYTUzNWE5NDYxM2E2NjA5NTNjOGYxY2QzZTJkZTVjY2Y2MTUwMzNiMGQxODkxYWFmYjA0Yjk4ZTRmYTMifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DECK-TASKBAR</title>
+<style>
+  /* 任务栏条带（工单49/52/54/55）：整页透明，唯 pill 承接点击（热区声明只报 pill 矩形） */
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    user-select: none;
+    cursor: default;
+  }
+  /* 应用组 pill（工单52：手钉+运行中应用合并）：屏幕中心线锚定漂浮（工单190）——落位归渲染层
+   * taskbar.ts positionAppsPill（appsPillLeft：centerX=屏幕水平中心线，带外按 [开始组右缘,
+   * 右组左缘] 夹取不压邻居），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制） */
+  #pill-apps {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    column-gap: 2px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+  /* 格位与图标尺寸（工单158）：条带 48→64px，应用图标 22→32px、格位 32→44px——
+   * 观感不小于原生任务栏；渲染层容量常量（taskbar.ts CELL_W）与这里的 44+2 同源 */
+  .tb-app {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .tb-app:hover { background: rgba(255, 255, 255, 0.10); }
+  .tb-app img { width: 32px; height: 32px; }
+  /* 拖拽（工单57）：可拖源半透明，落点左侧亮条——落点反馈用形状不用颜色堆叠 */
+  .tb-app.dragging, .tb-rec.dragging { opacity: 0.4; }
+  .tb-drop-before { box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.85); }
+  /* 运行态叠加（工单52：已手钉应用运行时不新增图标，只在原图标下叠指示条） */
+  .tb-app.running::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.85);
+  }
+  /* 应用组溢出（工单58）：⋯ 钮与浮层条目同在应用组 pill 内横排——条带窗只有 64px 高，
+   * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
+   * 热区按展开后的矩形重声明。 */
+  .tb-overflow {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #d6d6d6;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    padding-bottom: 10px; /* ⋯ 视觉居中（字形的点偏基线下） */
+  }
+  .tb-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-apps-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 6px 2px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  /* 胶囊外观（开始组与右组共用 .pill；#pill-start / #right-pill 只管各自的钉靠位置） */
+  .pill {
+    display: flex;
+    align-items: center;
+    column-gap: 4px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+  /* 开始组 pill：钉条带左缘（工单159 布局重排——居中时代随布局反转退役），漂浮胶囊
+   * （组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。两系统按钮全隐藏时整组不渲染
+   * （hidden——工单54 边界；推荐位已拆出 #pill-recs 独立容器，两组显隐解耦，工单192）。
+   * 工单158 挤撞守卫迁移（clampStartPillWidth）：极端拥挤时 pill 收窄到右组左缘前，
+   * 整体裁剪（overflow hidden）——系统钮（.tb-btn）flex:none 永不裁切
+   * （工单158 P5 真机红回归钉的守卫三件套保留；推荐位图标格已随工单192 拆出本 pill）。 */
+  #pill-start {
+    position: fixed;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    box-sizing: border-box; /* 工单158：收窄档以整盒（含内衬边框）计，余裕带不被吃掉 */
+    min-width: 0;
+    overflow: hidden;
+  }
+  #pill-start[hidden] { display: none; }
+  /* 推荐组 pill（工单192 独立拆出）：栖开始组右侧、应用组左侧的独立漂浮胶囊，间隙与
+   * 样式与开始组同族（.pill 胶囊外观 + GROUP_GAP 组间距）。横向落位归渲染层
+   * （positionRecPill：开始组右缘+组间距，开始组不渲染时退条带左缘内衬）；显隐独立——
+   * 按推荐位有无（recommendations 非空才渲染），与开始组的系统按钮显隐解耦。
+   * 极端拥挤的让位面与 #pill-start 同族：maxWidth 收窄到右组左缘前整体裁剪
+   * （overflow hidden）——图标格定宽不吃文字收缩档（clampRecPillWidth，工单158 守卫语义随拆出随迁）。 */
+  #pill-recs {
+    position: fixed;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    box-sizing: border-box;
+    min-width: 0;
+    overflow: hidden;
+  }
+  #pill-recs[hidden] { display: none; }
+  /* 右组 pill（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟；钉右端、给细条让位 */
+  #right-pill {
+    position: fixed;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .tb-btn {
+    flex: none; /* 工单158 挤撞回正：pill 收窄时系统按钮永不裁切（让位给 .tb-rec） */
+    padding: 7px 16px;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: #d6d6d6;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝。
+   * 工单158 挤撞回正：右组密度回调（7/12→6/10）——托盘 24px 升档已让右组宽出
+   * 约 430px（26 枚×+8px 图标 + 字号），格 padding 回紧凑档延缓挤入中组 */
+  .tb-cell {
+    display: flex;
+    align-items: center;
+    column-gap: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: #d6d6d6;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tb-cell:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  .tb-cell:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 摘要编辑态（工单55，右键进入）：五项全呈现，未勾选置灰供勾回 */
+  .tb-seg.off { opacity: 0.35; }
+  #hw-summary.editing { outline: 1px dashed rgba(255, 255, 255, 0.35); }
+  /* 托盘图标格（工单56；尺寸升档工单158）：平铺在摘要与音量格之间，统一按 24px 显示
+   * （16→24 观感不小于原生任务栏）。16px 原生源挂 .tb-tray-px 走最近邻放大保持锐利，
+   * 32px 源降采样到 24 用默认平滑插值——挂靠判据 = taskbar-view trayIconPixelated */
+  .tb-tray-icon { padding: 5px 2px; } /* 工单158：密度紧凑档（格 28px），延缓右组左侵 */
+  .tb-tray-icon img { display: block; width: 24px; height: 24px; }
+  .tb-tray-px { image-rendering: pixelated; }
+  /* 托盘溢出「⋯」钮（工单162）：与应用组 ⋯（.tb-overflow）同格位观感；左键请求宿主
+   * 在鼠标位置开托盘溢出菜单浮层（自绘竖排面板，独立浮层窗承载），右键开档位菜单 */
+  .tb-tray-overflow {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #d6d6d6;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding-bottom: 6px; /* ⋯ 视觉居中（字形的点偏基线下） */
+  }
+  .tb-tray-overflow:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+  /* 显示桌面细条（工单55）：钉屏幕最右端、撑满条带高度，对齐 Win11 右下角肌肉记忆 */
+  #show-desktop {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border-left: 1px solid rgba(255, 255, 255, 0.20);
+    cursor: pointer;
+  }
+  #show-desktop:hover { background: rgba(255, 255, 255, 0.22); }
+  #show-desktop:active { background: rgba(255, 255, 255, 0.35); }
+  /* 推荐位（工单54；工单160 图标化；工单192 独立容器化栖 #pill-recs）：使用频次自动
+   * 填充、上限 5——只呈现应用图标（无名称文字，显示名即时进出 tooltip），与应用组图标
+   * 同观感（格位 44、图标 32，工单158 尺寸基）。左键启动、右键三行菜单、拖拽换位/升
+   * 手钉（工单160）。极端拥挤的让位面收敛为 pill maxWidth 收窄整体裁剪
+   * （#pill-recs overflow hidden）——图标格定宽不吃文字收缩档。 */
+  .tb-rec {
+    flex: none;
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .tb-rec:hover { background: rgba(255, 255, 255, 0.10); }
+  .tb-rec img { width: 32px; height: 32px; }
+  /* 首字母占位（工单160 推荐位复用工单156 口径）：无图标键条目不出空白格——与图标
+   * 同尺寸位、居中单字，样式与应用组占位同一世界观 */
+  .tb-app-letter, .tb-rec-letter {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.85);
+    user-select: none;
+  }
+  /* 工单196（ADR-0013）：pill 内横排菜单样式整体退役——全部右键菜单与多窗选窗
+     迁入弹窗浮层窗（taskbar-menu.html，配色世界观在彼处承载），条带内不再有菜单行。 */
+
+  /* 拖拽失败可见反馈（工单195）：服务层拒返不静默——条带内 toast 逐字透出错误文案，
+   * 居中悬浮于应用组 pill 之上，5s 兜底自收（渲染层 taskbar.ts showDragError 独家读写，
+   * 整树重渲不触碰——body 直挂节点不随 pill 重建）。 */
+  #drag-toast {
+    position: fixed;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
+    max-width: 60%;
+    padding: 5px 14px;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: #ffd9d9;
+    background: rgba(60, 10, 10, 0.88);
+    border: 1px solid rgba(255, 120, 120, 0.55);
+    border-radius: 999px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 9;
+    display: none;
+  }
+  #drag-toast[data-on="1"] { display: block; }
+</style>
+</head>
+<body>
+<div id="drag-toast" aria-live="polite"></div>
+<div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
+<div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
+<div id="pill-recs" class="pill" role="toolbar" aria-label="任务栏推荐组"></div>
+<div id="right-pill" class="pill" role="toolbar" aria-label="任务栏右组"></div>
+<div id="show-desktop" role="button" aria-label="显示桌面"></div>
+<script type="module" src="./taskbar.js"></script>
+</body>
+</html>

@@ -1,0 +1,550 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b90b83547a614a91468a7bd0ff4eceb42a5fde94e069c1ded21c69eff3a52e8c",
+  "claims": [
+    {
+      "id": "claim_e2c509e847ce400895af8ea657fbb33a",
+      "statement": "`electron . --accept` is dispatched before any single-instance logic in the main entry, so the acceptance battery neither takes nor needs the lock and can run beside a resident panel; the mode installs an empty `window-all-closed` handler and requires `accept/battery.js` inside the same Electron app context, and `npm run accept` runs the build first so the controller and every panel it spawns share one `dist`.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L7-L14",
+          "version": "repo-lines-v1:sha256:1e9fd7b33eebbe125ac44b9ff81c5a5f3f8cf390ac5a9d995a444f0de57a69e1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg0MDY5ODRiZGVmY2EzNGRkNmJjOTAwMjdmMWQxMWFiY2IxNzAzNGM1MjVjOWE1Y2VmYTFkODRmY2NkODFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGI1NThjNTRhNmY1MTE4NjhkMDY5ZmIxYzhlMjgxZGY2NGFhOGUwMzQ2MjFkYzY2MmE2ZDMyODBmZDk5ZTE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDhmMDhjMTYyZjg2MDdlZTAzMzZhY2M5YTdhMjgxNzllZThhMGI1NWJjMDNkZGFjNzUwNDRmOGZjMTRhN2YxNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L235-L247",
+          "version": "repo-lines-v1:sha256:73a5f07497f0d2d15896d8b47ea02b86869f889a5dea46545f6d5988dba3d15c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkNDNjNWJmYjFmODYwMjMxYWM5YjZiYzEwZDRmMTljY2M1NzQxODZhZTM1NmUwOTI3OGMwZDNmNDk2MjZjMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwN2M0NTFhNmVkMWI4MDkxZDBjYmZjN2QzOTk1N2U4YTdhYjQ3NDMyYzI1MWRkZDhjNDdlYWIxMjkxOTRhMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJlZGY5ZGIyYTE4ZDM5Y2MzZDUxNjYxMmY2Nzc4YmFhYzA5YmRiMTY0NGY3OTdlMjVkNDBjZDVlOGQ5YTM4Y2UifQ"
+        },
+        {
+          "resource": "repo://app/tsconfig.typecheck.json#L7-L7",
+          "version": "repo-lines-v1:sha256:dabcb2b48cf02f1fb542b30397958732e18e2c74a82678050621da0ddb36e46b:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGFiY2IyYjQ4Y2YwMmYxZmI1NDJiMzAzOTc5NTg3MzJlMThlMmM3NGE4MjY3ODA1MDYyMWRhMGRkYjM2ZTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGFiY2IyYjQ4Y2YwMmYxZmI1NDJiMzAzOTc5NTg3MzJlMThlMmM3NGE4MjY3ODA1MDYyMWRhMGRkYjM2ZTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjk1MDI1ZGQ1YWE1ZmVkNGU3ZmExNzcwMDZmMTI0Y2ZlODg0ZTZlMjQ4ZmIyY2Y5NzcwYjQ0ZGI0NTc2YWU2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ed1bb2ab387548249501c6c59ae5a216",
+      "statement": "The battery is a controller, not a panel: `launchPanel()` spawns `process.execPath` with `['.']` (the default guard entry, which hides native icons and then spawns the panel) and `DECK_EVENT_LOG` pointing at the evidence JSONL, so the panel's real pid is taken from its own `boot` evidence record rather than from `child.pid`, and `stopPanel()` escalates from killing the child to `taskkill /PID <pid> /T /F`.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1-L8",
+          "version": "repo-lines-v1:sha256:9517a7153c9be628711cfd08913825aeb29a88a6d19268fb1d567cd42c3bc24f:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDVhZTY1YjBhM2Y2OWIwMmU0ZDVjMTA1NGRhMGU5YjIzOTBmMjUwMTE2YzQ2YmM1YWE2MDA1ZDFiYTA4NTg4ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRkZDQzNmEwNWZjZWQ0MjllNGM3OTJhNjFhYTk5NjkyYWIyYjRjN2UzMGI3YTM2NTg5YjI5NjkxMzYxOGU0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmQ5NGVhZDYyYjI1OGFlNGY4ODVhNDRmYTRlYThhMTVkMmNiNjYwNGNjNDQyNTMyY2QwY2IzMzY3NGU5Yzk2NiJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L355-L381",
+          "version": "repo-lines-v1:sha256:922b7a547df43c52a3fb4a506eefd5bd079daf54fccecd45d5827f735f0d181f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExYzUxOGY1ZDM5OGRhYWVhZjg5MWY1N2U0ZmRjMGM3ZWQ0NGMwMGZhMTM0Yjk0MzQzMDJlMjEwOWQxYWM1ZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQwMDAwNDZlMzY2YzU5NDdhYTFkZGRiMDVjNTIyYjZmODE1NzU0NDEwZWQ1NWNhOTJlOGNmNWVhNGZlNGY0YmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIzYzFkMWI3MmE0ZmMxMDYwMzRmMzkxNmIzM2QxMGRiMDk5OTRhYWU0YjFhYTI4ZDIwYTI1MzAzNDc3YWZlMWIifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L498-L521",
+          "version": "repo-lines-v1:sha256:12d12001f7a1042b1788b06d55e50c781ecf52b024d52967f18f69586e7d8590:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmNjA3MDk0NDBjMGE5MTQxZmM3OTRiZjZkZjY2MGQ5OTUxYTY4OWU2OWI0Mjc3ZmMxZWQxZDFmMDA4ZjNjYmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzZmI5M2VjY2ZhYzExNmZjN2Q4OGQ3OTk1ZGRkOTJiOTdiMmEyZDQ5YjMxZDM5NmU2ZWEyYjFhZmFlOGQ4MGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2ZGIwNTVkZmNjM2VmNWU3ZjFkNTY2ZjA2ZjVhMjI5MWRjOGJjZmY2YjRlNjQ1MzliYjY3Mzg3MGYzMjdlNjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMwZTEwZTUyZmM5Zjg1YzRiMDcyY2ZlMDdhYmJlNGYxZGUyNzUzNjE3MWE3MjhhMWNmNzg2YmY2NWExNjVlZjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b4817f250eb14fce83e8d17dc068f9ea",
+      "statement": "Because the event file and the panel DOM survive restarts, every post-restart assertion carries a time lower bound (`sinceMs`, `lastBootMs()`, or a wall-clock start) and hotzone rectangles are re-read from a `hotzones` record of the current generation; `waitStable()` exists because dock ranking is recomputed asynchronously about a second after boot, so first-painted rectangles can point at items that have since moved.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L337-L353",
+          "version": "repo-lines-v1:sha256:7bdf34bb164d5e3d3f124f3cf333d7e0e7bc5ea03914ae2717cbde2ebaae5184:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0ZDRkMjc2ZjUwNjg4ZWRhN2YwMGY0YmM1MDE3ZmZkNTU3OTZlYmE1NjhlMGM5YjY5ZTViODYwYmJiYjAzNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRjY2I3NmE5Njc1ZTY2OWJjODAxZTIxOTc2OWQxMTZlNWYyZDhkZGI4ZjdhZjBkNmNiMzg2MzhiODY2YTliYzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1M2ZjN2I5NWQxMzkxMTE3MTY0NzhhZDFhODM2ODhlMmI5ZjAzZTJjN2E3ODM5N2I3NmZjMzZhMzUyN2ZmZmUifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L383-L395",
+          "version": "repo-lines-v1:sha256:30ab8a3752d54aa78e9fc1b390301427141a1d10cf2c1564a2f1ca1af08b90b0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxYWQzZWEwZGY5MzE0NjRlNzIzM2ViYTFjN2EyOGJmYmZjMWIxYmY4MTJmMmI4NTc4NWVmZjYyMjUwMmFlYmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQwMDAwNDZlMzY2YzU5NDdhYTFkZGRiMDVjNTIyYjZmODE1NzU0NDEwZWQ1NWNhOTJlOGNmNWVhNGZlNGY0YmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1YmQ3MzNjYTUwODI2YmY1ZDdmNTM1Y2U2NDk5NzU2YjJkYjA1OTMwNjFkZTkyMjAyNzMyNTRjZjA5YWE0OTAifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L533-L551",
+          "version": "repo-lines-v1:sha256:02648bfc90df5daf80ee2d27b2c635154dd817f9ff97ba9245420a4b268d56d7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhiMWVlNmFlNWM1YTUyYmUyMjBkY2VlM2E5ODNhMmFiOGI3NjQ1YzQ1NWE3ZjhlOWFkZmZlZjYyNzlkZTJkYWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzNGYwMzU2MTk4MDkyYTgxMDFmMTE3MGIwMDcxMDZhYzIzZDQ5OTNkNjM0ZjljOGE5Y2Q5NDk1MGJmNjNiZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0NjlmY2UzMDQ2OGNkM2U3Y2E4ZmVlYjkyNjY1ODNmZmQ4ZDk5MWQ5Mjk1NGQ1OWE0MGZlYWE3ZmU1OTk3MTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3ZjExYjY0YTZhYjVlMGNjZDViNTM0YjE1YzBkMmQ1MmRiOWVkNzg0ZWY1ZjdkZGRiZjkwNDZkZGU3ODgzMWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9b94e44ecf0a488087cf8924789505b6",
+      "statement": "Transparency is proven against a backdrop the battery supplies itself: a frameless controller-owned `BrowserWindow` loading an 80 px conic checkerboard is pushed to `HWND_BOTTOM` under the panel, sample points that survive a `WindowFromPoint` filter are counted, and PASS needs at least 500 valid points with more than 90 % checker-colour hits (tolerance 30), with one ESC-then-re-shoot retry for `TOPMOST` shell flyouts.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L590-L610",
+          "version": "repo-lines-v1:sha256:2331d13be7ba9484dddcace8c15c7c86772b90fd79a56e0d2506940f7654cc11:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4NzljZjkyMDgzNDdhODZhOWRhOGFmMDEyOWNjNTBhNmI4NzQ2Y2JkMTc3MTBjNjc1N2QyMmExZTNiY2VkZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwMGM2NTUzNDUwMGUxOTg2ZDFhMDY1NWE2NDk1ZDEyNWRkOTg0OGFhY2Y2YWViZTg4OWZiYzljZjc4NDcxZGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmY2YzYTgwZDE4Mzc0NGM0YzZhOWExM2Y1Nzk3ZjYyYzYxYmE5Y2Y3YmU0ZDVmYWQxNTA2YmJkZjQ1YmU2NDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxM2EzMWNjZmVjMTgzMGU4NTBjYmM4NjQ4MzkzNzM3ZDhhNmY2NWNkMDdhYzQyY2M4ODdkY2U5YjFiNzZmODQifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L624-L666",
+          "version": "repo-lines-v1:sha256:1860ea0ab3f041a0fb9f89369737b2b05eb9ff1cd1e3c752b5835318557dd3ef:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZmM4NzhmYWU0YmU4NjYzYmMzNDViNjhiMTQ3YjkwNGQ5NzQ5NjliZmZkNzY4MDkzNGU3NjRmZWEzZDBmMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5YTA5ZTQ1NzE0ZmVkMzM3NzI1MDc3M2QxZTVhZmUxMDIyZTJhZjZjZjYyOTA0YzIzNTlkODU4NGQxZWE1OTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkNjgyNTUxNmI2OWNlZWM5ZjE2OWYwNjZhMTlhYmU0NzRjYWQ3MDY0MjQ3NzMwN2MzYjhlZTkwZjMyNTRkNTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyZTA4YjVkOTEzOTI3OWQ5MjhmMDQwNDA0ODk3ZDI4ZmViZmI5MjUyNjIzZTliYjhkMDc4ZjRmMjhhNjIyZDUifQ"
+        },
+        {
+          "resource": "repo://app/accept/lib/checker.html#L1-L5",
+          "version": "repo-lines-v1:sha256:ed183ebb72d77fda34ce91ed89e214b154c76ffea5b3854d389ff31d143fe27b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjAzM2VkMGRlMjg1YjBmMjdhZTc1MTRkYTZkM2JhNmJjNDQzYmQxM2FiNGEzMmRkOTg4NTRjODQxNTRjYTRjZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2IyZDkxNzQ0NWFkYWU3ODMyNGNmMjFmZWNmMjliOTU4MTg5NGVmYjEyY2I1MWZmYTI2MjljNDI4NWIwNzcyYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e1229287e3294c6bb7fd27cff96c0401",
+      "statement": "The same transparency screenshot carries a solid-text assertion: more than 30 near-white pixels inside the clock card's rectangle must be found, which is meaningful because the opacity slider only moves the card background alpha while text colours stay literal.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L667-L670",
+          "version": "repo-lines-v1:sha256:250443308d5f3c65001609bbab321a9dd09230d7efecbe7ce449ac5723d58d2f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGY1MzlhYjBlZGJiOGZmODMxN2ZlMTVjODkzMDM0Y2VlOTgyNWZhMWI4NjE0NDQxMmVjODA5NmVmYWNkZjgzOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQyNGQzY2MxZWI1YmM2Y2ZlYzg3ZGM0MTU3Nzg2NjY3YzNjODdhM2RhNjZjMzMyYjI2OGNlZDY4YTlmZjQ0NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2Q2M2FhODZhMmRkZDhmNWM5OTY3MGY0OTgxYTA5NTY3YTdiYzM2NTRhNWUxZDMzOGRhMTkzZTEzMzhkZTFhNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjg5ZTAxNmFkMzgyMGMyNWRiZWI1MjRmOGM3NmI2YzUyZjMxM2JkMThhMjRiMjczMDA3MTIyZmRmMmQ3MWQ4NCJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L88-L103",
+          "version": "repo-lines-v1:sha256:53177499a13ce900ed14c5b7e26b8e1b03527e365ede0c62356ac57ed1615a1c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4YjU5MTI5MmZiYTk0ODEyY2Y1ZmU0MzRjZjgxYWMyYzViZTY4MjVkNjY2ZjE0NGVkMjU0NDlkZWM2ZjUzODQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUwZmMyODFlZjZlOGU2NmEyNmY3Mzc1YzAwMDg1M2EyNjEwNmY2ZmQwM2EwZWVkMTdlZWUzM2ZmYWYyZTU4ZTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNjOGVlOWM4MjJjYjY5ZTY5MGE1NGU5Mzc2ODZhMzVlMDAzYTliMjYzZjQ1YTljNDdjNmJmNzljMDk2ZWZmNDEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L19-L21",
+          "version": "repo-lines-v1:sha256:32ec0ec14638f0a2d1f8fa3412668d658d9ae3b13f3181de5f383fda0b229faa:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzgyNTRkOTUyY2RhOTE0NmZlYzVjNzE4YjdjOTc1NmMyZDVhZjM1M2YyYTRkNjkxODAyN2E4NDNlZTc0OTVjYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZiYTk4MTg1NzE4MTdlZWZjYzhiZGY0ZGE2MjIyMjJmYWFmOWJiNDBjMzlmNWQxNTMxOTJmZjgzYzYwMTkzNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjYwMDE5NWIxNDA2NjYwM2VmN2IyMzVlYTBmMDdjZDliZDViNDlhMTkxMmRkMjA3Mjk3MWY5ZWYyYTQyNTZhMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2E0NDg5OTczZDcxYTc1MjU2MmQ3M2RlZWEyNTY2YmM3YTRhMWFmNzQ2NWIwOGNmNWVlY2VhMzUwZDc5ZjI1MiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_25f7d1968a054a58aebac0b7e9a4c732",
+      "statement": "Default pass-through is asserted from both the window style and real input: the extended style must contain `WS_EX_TRANSPARENT | WS_EX_LAYERED`, a left click at an empty DIP point must turn the foreground into a desktop class, and a right click must surface the desktop context menu (including the Win11 WASDK host class `XamlExplorerHost…`).",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L717-L741",
+          "version": "repo-lines-v1:sha256:fb968493299b2a4ba2840cd425f8718f0d40c8cbdd07d9ff5c8366b27ae32a19:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwNDIzYzY5ZGFhYzVhOWE2MmFlNWJjYzdhMTA1MzUyMmNlNmFjOTFlNDU4YjE3NDBlMWEwYTU3ZjhlZmZhZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4ODI2YTI5NmNkNTc3MWVlMDY2MjM0ZTJhMDI2ZDFjNzU3ZTY4ZGJjZTQ5YmFjYzlhYjVhZGYxM2ZmZWY4YTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5MzdmYjA3OGMyODFhN2I5NDNhZTNhNzE2YmNjNjNjYjRlZWQ2ZGNiY2E3NTZkNTc2ODNiMWNlMjA4ODUzNjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhNTczNmQyZjhmMzc3MzljYmVlODk3ZDgzYjI2YTI4ODc2NDhjNTM0NTAxMDk4NjUxZjUzODk5YTk2Nzg2ODYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e2eea18ae83f49bebf9ecbea48a5bde9",
+      "statement": "Hotzone routing is asserted with a real ordinary window as the control: entry into the clock-card hotzone must clear `WS_EX_TRANSPARENT`, a click there must not raise the panel or steal foreground (still below the control, `WS_EX_NOACTIVATE` intact) while still delivering `clock-card-clicked`, leaving must restore transparent, and the panel must remain below the control in the top-down window enumeration.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L743-L822",
+          "version": "repo-lines-v1:sha256:238db569c423f06fb4f84c28ec17423f5abd96b19faf981e6dd1da0c5fd2f749:eyJzZWxlY3RlZExpbmVDb3VudCI6ODAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2NzNlYjUxM2Q4ODRmZjIwMjkwZGQzYjBmZTE1N2ZjZGJhYWZkZmFiMjAxMGNjYWE1Yjc4MTVmNTFjMmRjODciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhOTFlMWQ4ZTE3MGZjZTBjMDk4NTE0ZWRiZGZkYTA5NGI3Y2QzZjMwYTgxYzFlMjdmODA3N2IwNzkxYzExMzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQwZTAyYWFiZGVhMWFkNTljMGYwYjY5ZmFhMDNkNDgzZDAwNTM3NDkwNjU1YzMwYjBkZTFjNDc4NzRlNGVhYzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI2Mzk5ZjczODA2MjBjODAwYTRlNThkMzkwZTE0N2E4ODk3ODYwMzUzZTBlZGUxZTllYTQ3ODZmMDg5NGIzZWIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L4-L6",
+          "version": "repo-lines-v1:sha256:824b25335f2d8d4ac5757e01b877f837a45907645f64aa335596b5ffcf333741:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDAzNTM3NWY4MmJjMzdiYTE5MTJlYTQxN2E4YTcxOGFkY2U5Y2RkNzQwOGY2YzgwZjk0YmE4ODlhZGQxYzJjYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThjNGE4MGRlMjY1NjZiNzE1NGU0NWIxMzRhNzc4MmU4ZmFmNDMzZDQ0N2NjZmZiYTQxZDJjY2FmMzVlNTdiNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWQ0NzkzNTVjY2I5Y2RlMzQ2ZTA1ZTdjZjQzN2E5YzNjNGRiYmVhOWRkNjk3NWQ0NDM3YWJlZjlhMjYyNmMxYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODc5ZjZiZjhiZmZjNWE5ZDYyMmQ0MmViNzVlNWQ5M2MyY2UwZDZmNGY3YzViMzAwMDlkNmUyYTIxNzc1NWRkZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f9d8412194040b3a4345e6775a2ae08",
+      "statement": "Carried desktop items are verified against an independent scan: a PowerShell enumeration of the user desktop plus `CommonDesktopDirectory` (Hidden/System filtered, UTF-8 forced) must equal the panel's reported item set with same-named common items shadowed by user items, and native icons must be invisible (`SysListView32` fact, re-implemented in the harness) while the panel runs.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L212-L227",
+          "version": "repo-lines-v1:sha256:d507afa2950cd6aa8a90f08898459ec6caed2627a769a5aaab7df5b77dc049e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5ZjVlYTFkMmJmMDlkYTU4MjY5NmVjNWNkYmU4MWU4MzQ0ZGZlYzEyOTRmNzUwYTQ5ZjBkYmNmOTVkNTIzYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdhNjkzMzFiYzdmY2RhNDhhODkyMjdkODE0ODQ1MGRmZGU5OWNhMzU1YTJmNzczNDZhMzBiY2YyNGFhYTY5ZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE2ZDg0OTkxMDFhZTRhMmFmODYwYzdjMmU0M2NlYmMyNTBlNjgxZTFmODE1YjkwOTkyZDQ4OWI5NWE0N2MyMmEifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L826-L849",
+          "version": "repo-lines-v1:sha256:d9471550964cc3fedc4bd49df54628b426aa953d63b6688a0a05c2312d4e9e54:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5ZTk3Y2VjOWUwOWZiNDM5ZDY2NWRiYjUxN2YyNGQ3N2VhNDQ1ODIzY2M0NDAyMDJiMDkxMGJiM2NjYjM0MjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMDYyODQ3MmI4NTFjNjM2M2UwOWZjNWU2NWJlYzk2ODdhZWJiODFjNWIwMDQ4MjZhMDI4OGRlNTk5ZmMwMjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2Mzk5ZjczODA2MjBjODAwYTRlNThkMzkwZTE0N2E4ODk3ODYwMzUzZTBlZGUxZTllYTQ3ODZmMDg5NGIzZWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0ZDE2MzYwZGUwNmIwMWUzYzI4ODc0N2I2YWQyM2QxNWI5ZWQyZWRlNTM4ZjE1MzE5NGZkNWNmMzYxMjAzMTcifQ"
+        },
+        {
+          "resource": "repo://app/accept/lib/win32.js#L95-L118",
+          "version": "repo-lines-v1:sha256:831d6648fd8d1a1ae2844d0309eb7f00fddc321a586100f836ff38393afe3e8a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRmMWIyNThkMjhmNWI1ZDBmYzU0MTEzNWMxZWJjNzYyMTdmMTQyMTFkYzgzN2Q3MDkzMDM3MTQ4ZGI3NmUzZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFjY2M1ODdkYWQ2OGJmNDEwMTdkOWNmYWJmNDdjYWY3ODU0YzRhMDVlYjZmYjVjODNiM2JmZDQ3OGUyNGJiYmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1NGIzODc0NDA4MmZhNWRhMTVjNzU3Zjg0MDgzNTE1MTkwZTg5YWU2NGRhZjE3NDc4ZGU3NzRjZWM4MmI5NDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8c85829a28fb432ebb68303569146db8",
+      "statement": "Two shortcut fixtures cover the icon path: the battery creates lnks to different executables (`notepad.exe`, `System32\\charmap.exe`), builds an in-process kernel from `dist/main/kernel.js` with all timers disabled and isolated layout-store and usage directories, and requires `desktop/icon` to return different `data:image/…` data URLs for them — a regression to the byte-identical generic `.lnk` icon fails here.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L920-L990",
+          "version": "repo-lines-v1:sha256:6795873ec5cd16dcc69781f1a12e13b4db119f374dca922cbb4715ef0c11bf07:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ZWM1OGQyMzE1MDExOTBjNTY4ZGZmZWMwNTQ4MDFjM2U4ZTMzYTZmMDhmNTE4YjVkYjA4NzNiZTBmYmM3NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMTIzNmYyYWVhMWNlNDJmYTJiMGNjYjI3ODMyYzc4ZjVkOGMxYzE5MjM4YTI0MDkyMjEwNjYzZDUzOWVkNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4MGQ1Y2Y4MzZjZjY4ODVjYmY4OWM5MzYzOGU0ZjlmZDNiYjM2MDU4NTY4NzljNjc3YmQ0MjMwMTY5NTYxYjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjNTM4MWEwNmVjNjAzNjY3YjYyYzg5NTdmYjhiYjZiYmJiZjYwMjZiYjQ4NjA1YzliNjNiMjQ5MTg4NDA5YzkifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L944-L973",
+          "version": "repo-lines-v1:sha256:bd59f470cfb351d8dcaaa878a05ea3f297d19280489992bb8960de9d946da48a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhYTAyZTRhZGNmMjdlZjM1OTFkMTJmYjJkM2EyNDZlOTZlMTA3MDI1ZDgwM2MzNzNlY2ZlMmE2NDM0NDg2YjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1MmZmNmNhNzU1Y2YzMTRjMzAxMjI5NGQ4MTVlMzAxYmFmZWVhOWI3ZTY2ZWFhOWE1NjY3NmRlOTJlYWZlYmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQwNGU1YTRiYjRlNGZmNTg1ODQ5NjZiOTZkMThmOWY3ZjIzYjQyNzdlMWRiYTQ2OTE0MTQzNDM2ZmUzYmExNDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ1Mzg5Y2Q3YTQyOWNiM2UzYzNlMjVhMTI3NGY2MzM3ZmE1OTM5ODExOTlhMDZjNWRmYmM5ZTIxMmMzY2ViMjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_eb98f5179cef42ab95d4cfcbe2ed2621",
+      "statement": "A double-click launch probe is asserted behaviourally: a uniquely named shortcut whose target writes a marker file must appear in the 1 Hz rescan, produce `desktop-launched` with `ok: true` after two clicks inside `GetDoubleClickTime`, and its target must write the marker file within 10 s; deleting the shortcut must remove the item from the render.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L229-L247",
+          "version": "repo-lines-v1:sha256:6ee351b8d97627b354ed909c3c13e0d4b7fb739516439998c6411531cc992037:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2MjA3ZWMzN2ZkOTE0MzEyNGQ4ZDM1NjVjMjgwYTA3Y2E3NGI0MTE4NzFmN2E0MDVlZDBjZDk4MTRhMGIwMzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5ZTZlZGYxYzM0ZjU5YzI0ZGM0NjNkY2ZhNzZhMmE1MjBlOTZlNTJiMjY1MWYxZWZmOGE5NzI0OTljMjZkODQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRhZmViYjY5YTEzODU4YmNlYzgxZjdjZTY0N2MyM2ZjNjI4YzZkNGI2MGRiNjA2ZTczN2RjZmUwMDNkODI1YzMifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L875-L918",
+          "version": "repo-lines-v1:sha256:ab8e88c60f92c9b4e8cb13cad5a80ed1c6dfeeeb6e7f6a5b8075720912b6feb0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5NTc3Nzk2YmIzZDdhOTA2YzE4OGM3NTAyZWRiMTI1ZGQ0MGZmNjFjYzg5N2Q5ZWZhYzljZTVlMjVmZTY2NzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0OGZjOTk4MTc5MjRmYTEzYTEwMjY0ODNlY2M2YjlhYjBhM2JjZWM0ZTNjMmUwYTkzZTI3YzdhN2U0Y2RjMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlN2E0MWJhYzQ1MWRjNDkxMzMxMjczZGNkODQwODZhOTIwZjNmNWI5N2RjYzY4NGQzYTdhYzVjZjZhZTcwNDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzNjlkMTQ4N2M0NWYzOTI1ZjAxNTY0ZWI3NDJkNzAyNmYwMjA3Y2M0MDdmNTU0M2NhNzkyODQxMWY5ZWE2MDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c8a6e10a6a014c08a6bfe9f84e4ad392",
+      "statement": "The icon-hide crash path is exercised by force: `taskkill /F` on the panel pid must be followed by native desktop icons becoming visible again within 6 s together with an `icons-restored` record whose reason is `panel-exit` and the guard's exit, after which the battery launches a fresh panel generation with an explicit time lower bound so the old `boot` record cannot be reused.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L992-L1021",
+          "version": "repo-lines-v1:sha256:687367d4930082230f0473157750ca662ada8518500efa94ea13205546606e71:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNGQ1ODY1MGZlZWU5NTU5MmYyYTczZjUzNzhlMzU5ZWI3MDgzOTg5NDliYTkyNTI4ODNiOWVhYTQzYzg1MDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwNzRjMDgzNjcyMDY5MmE3ODg2Njg1ZmE0MjViYzI1OWUzN2JkYTZmNTM5MTU4ZDE3OGQ4ZmRhYTRkZmY3MmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjMjczODE5MTFjNGJkNjY0ZTkzNDdjODY0NGFkNWRiNjhjNmRiMGUxN2M3ZGY4MDMyZjE3NTAyYzAyMjI4OTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2YzE0NDUzMzJlMzA3ODBmMmEyOGM1YTE3OWU1NGI1OGI1MGJmNjRlYzM2ODA1MWZlZDM1ZjczN2JjOGIwNWQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L219-L233",
+          "version": "repo-lines-v1:sha256:8df486a5aecb992848cbeffce7a21ae438ac37c2ba1ec550bdf962ea853e01dd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3ZjAwOTRlOThkYTY0NDliMDU2YzNkNGI4NzA5YzFkNmQyYjZkYWIyZDMzYmQ1N2M3NGVkMDJhZmNhOTQ5ODkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcyZmQ4OWUyNzBkMzg1NmRiZGY2Y2E4NjQ3ZWM5ZGViMTdmNTMxZmRhODBmZWM2ZWYyYWM5MjFhNmYwOTYyMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkZjU3M2U4YzMyODI2OTRmNDNlY2NjZGYyMDJmMzVlNmJmNjkzYTI0MjNkNTNmOTQ1ZjcyNDRkYTI2YjU1MzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bbebd2c947a64692bfdd90308b70f896",
+      "statement": "Arrangement assertions are behavioural: the seeded pinned item must occupy `dock[0]` with `source: 'pinned'` and no other entry may be pinned; new `.docx`/`.pdf` files must group as `office`/`pdf` and disappear when deleted; a real `SendInput` drag must yield `desktop-moved` with `ok: true`, a reordered `desktop-rendered`, and the same order after a panel restart; and the settings overlay's reset must clear all `placed` entries while keeping the pinned one first.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1028-L1064",
+          "version": "repo-lines-v1:sha256:51780a7797732c67f5372fe1b2bfdd1aae631edb7b87990ede81c0c2220c4acf:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwN2I1OTJmOGU5ZDdlZmM0YmRiNDY4ZjNmNDMyNjZiZDAxYWNhNGY0N2U3NjA0NjIxODdjOWZhODY4N2Q4NzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2MjQ0N2VlZmYxM2FiMTBlOGYwOWZmMjFlZmQ3ZDJiMWNmZWFjYTZmNjMzYzJiMzQyYjZkZTYzMmY0MTRkODIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyN2E3ZjI2YjM2NmQ3YWE4MmY0ZDNmNDNmNWEyZDQxNDUyODRlMjkwNGQwNTkyMWNlZGQwYTVmOTJlZjgzMjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzNmMwN2JkOThkYTc5ZTFjYjA5YjY3NzM4NGM1YTUxOGU0ZmM2MzdmMjBjYjQ5YjdhMzcwZGU0NDk2YzExZjMifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1066-L1127",
+          "version": "repo-lines-v1:sha256:ade798c8d4e8f39ca12d38d60f53dac6da02d3a836262391cf406590a7802972:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5MTQ0ZmZmZDdiZTA0M2MzYWUzNjAyNzMyNjg4ZjJmNmNkZDEzODg3MGJmYzM4ZTQ0OTZjZjc5OTZiM2FmMDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlY2IzYWNkOGEwZTIyZmNlODkxYjMzYTU0MzRkZjdkOGI0NDY1OGI2YWI3ZGIyNzBmZWJiNDZjN2NkYTc5OGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0NWE5MzNmYjkyOTQ4ZDNmNWY2MTliNzNiODhjNWNmYzg4NzhiZWQzMjQxNjAwNDI4NjMxYjZhZDU5NzhlYzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4ZmQ2YjE5MTkyYTA2NjE3N2EzMjc5ZDU1ZmU2YzUyNDQxMTViMmIyMDNlYTNiZGFlZTMxZDdmM2Y5N2ZiNzcifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1129-L1175",
+          "version": "repo-lines-v1:sha256:b887d51b684d63cac2b993f478564ae285fc2a4aae718c6827fbea5aec875b6b:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhOGJmOWUzNzgyZDY2ZTdkOGEwYTBhYjZiZGNmODk3MDFiZTRjMGRlNTUwMGQzNTQ2NjI5MjBlN2E5YTBkMTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlMWE5NjQ3NmE1ZWRkMDc3Mjg1YzBmZDY4MTA1OTRmY2NhNjUxOTQ1YzE2MzIzNTRiN2E4NTcwOTM1MTEyYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhOWU3MGIxYzg0MjEwNGU5ODYxNzM3MWE2NDYzNDEzODcwMTE3YjFjYmI4ODRkZDdlNGIyMTZhYjA0ZmQxNzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4d421428d99741799d02f0e95199aae7",
+      "statement": "The search section is gated on the environment: it first proves Listary is live with its own HTTP client against `127.0.0.1:<port>/api/v1/search` (a freshly created probe file must rank first, 90 s budget) and returns early after a failure if that pre-check does not pass, so no UI assertion in the section can be reported green without a working engine.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1279-L1292",
+          "version": "repo-lines-v1:sha256:dd9eec8ff54285a980b5439397dbee05be87300fc4e6851b31f1c0a7286248e3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1YTEzYzYyM2ZhOTJhMjAwNWExYTk1NjM5NTEyMjk4M2YxZTJiYmZlZGQ4YzkwYjQ4OGZmNTdlYjQwYmRhZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhYWFkNDllNDJjOTEwMjVhNzM1Nzg3ZGNkM2E5ZmY3MWExMjMxZTNiNzc2ZjBhNmU3YjYxYjY0OTlhY2VmY2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwZGU3Y2Q3YmJjNDYwZmJkOWY4YTY5NjY4ZTdmYjE4MGIyM2VkZTEwZDQzODFmY2I2NTY0ODQ3YjFlZjgzM2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5ZTVkZjg2ODdiZDBhZTJhNjBmNjk2NWY3YzEwMTYwZjliNjA3NjliYzYyOTRmYzlhMDFmNjdmODE1NWZlNjEifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L411-L439",
+          "version": "repo-lines-v1:sha256:c528d6342f03bd95c676a029b0954aba5a8992b05bf99ebacc8c09377798b59c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1YTQ0YzQ4OWNhMDdmNGExZmUxMGMwNmM2NzdhOWYxYjA2MWRlZjA0MzdjMjA1ZjAyNjI3ZWY1NjVhMDc3ZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkZmJkZTM3NDUwZGJhNzNjYTQyMDNkNzUzZWNjNjBjNWQ2MmYyNDUyMTMyOWJlOTRkN2Q4ZTI2ZmE5ZDVlMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2ZTVlZjZmNWZjODBjM2VmNGUzZDQ2ZTU1ZjU1NTE2MWFkNDdmY2FkOTM2YWIwMjM3NTgwNGY0ZWY3MDQ2YTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0a94a87c444f4fa5bc02e718adfef755",
+      "statement": "The search UI chain asserts activation through a hotzone click plus a hard foreground gate (three attempts, foreground must belong to the panel pid), `keyboard-mode-on` with the panel still below every normal window, pasted `Ctrl+V` input producing `search-results-rendered`, `Enter` opening a window whose title contains the probe token, `Ctrl+Enter` producing a `CabinetWClass` window, `↑`/`↓` selection as `search-selection-moved index: 2`, `ESC` and desktop-click deactivation with reasons `esc` and `blur`, and the engine-offline badge reproduced through a dead loopback port written into `config.json`.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1221-L1268",
+          "version": "repo-lines-v1:sha256:8928065395eb8e1bad97822012b6fc36c7de192c20481b39628a73c6672e202e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4ZGQ1Njk3MDRlZTRlODVkNTUxOTVkNzE1ZjIyZTJkNTIzOWUwYjIwYjQwOWJiZGVkMzlmNmEyNTRmZTM3YzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODI3ZGM2NzRiOGE3MWFmOWMxNjRiN2VkMWFmNTQ5ODI5NGZlYzZhNTcyMjQ0ZWU2OWU5ODhhMGE5YjA5MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM5Y2ExZDc4OTJlN2Q5ZGQ0Y2JiNDZmNTE1ZWExYzc2Y2YyYmEyNjI1N2NmYzA1NDFkMDY5Y2I0Yzc4ZmU1MTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5NTkzNTcyNzk2ZTQyM2FhOGI0MDNkMmI4ZDA4N2FmZWEzZmZjMjcwYTU0YmJhYWViZjU4MTY0NjYxN2IyOGUifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1325-L1414",
+          "version": "repo-lines-v1:sha256:8f7088a6cd15606243488cff6656a5e06de0f2f47bc82eb0a31babd2c1aa65d0:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiN2U5MTU0ODBjODYxMDkwNTMzYzI3NmQyOTkwMmU0N2FlMjdhZmI1Y2VjMDBmMTA4YzgzMTA5ODk3MzQ5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjNzNmMzIzOTVmNDI5MDg1MDUxMmFjNDkyOTQ4YTI0NTNmNGJmNmNjOGJhMzkxMjJlZTMyN2M3MDU0Y2Y0ZjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIzMmVmYzliYmJjMTNlMDE3NjZhNzYzYjdkNGZiMGRlYTJjN2VkYmQyY2QxM2E0NTU0NjhmZDc4YTdiMzI3OWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjODIwYzQ3MmI3ODdhMzJkNjcwNGQ3NTYzZTAyNTI0MTE4YTFkNjM3ZDY1MDc3MjY5ODA0ZmMxNWVkMjkwY2EifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1416-L1438",
+          "version": "repo-lines-v1:sha256:1f5d983279565a591934a8e4a08bd142440fc1961fd5c1c889e8e9d358d63eb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmZjRkOTFkOTgzYmI5YzVkOTVjNWMyZmE4Y2I5MzYyOWJlNmZkOWIyM2VlZGJiMDM0NzcwMmU5NTU5MTRjMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyNTFiZmFiY2ZiNmQ4OWZkOWY0ZTNiN2JjNGExNzRmZDkwYzk5ODE4NmU0ZmRlMmM4ZmEzNGU2ZDVjMjkzYWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2MGE0NjIzZjczNDE1NzU4MzcyYzU2MTQ2MmQwZDNlMWExYmM4NjQxN2U4YjY4YmU3MGY4NjkxZTY3NGU1MmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRiMTAzNTBmYTBjNTU5MGY3YTU3YTEwODdmNDk4NjY2MGU4ODcxYjRhMmNkY2Q4N2FhNzM0Mzg3ODFmOTQ2OWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3cfe7b9edc004d52b62e62f88f5de0af",
+      "statement": "The settings overlay is asserted end to end: opening via the `settings-btn` hotzone must record `settings-opened` (with the slider rectangle and current value) and put `settings-card` into the hotzones while raising `keyboard-mode-on` with the panel as foreground; the initial slider value must equal `config.appearance.cardOpacity`, and a real slider drag must keep the renderer input, the kernel set, the applied value and the persisted config within 1 % of each other.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1490-L1541",
+          "version": "repo-lines-v1:sha256:eac48f08b8c8ae4ad293cf7d5a46a86ff1086aa852f889dce27f6e1a3cc6e187:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxNDkwYTI3MTRjYThiZDFiYTM1ZDY3ZDBjOGIxZjA5ZTZlYWRmZDgwOWI0ODRhNDU5NGQwNGUyYjJjY2QzMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczYjZjNDQ2NjhiYzFkZmQzMmViZjg0ZGZiZGFiYTMxYjUxYzZlMDE2NGFjMmE4M2JlNjY2MzUyMjIwZjE3MDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzMWM1OGU4YjAzNDVhZTMwZDUwNzQwYjJjNjQ4NjQzM2UwMzUxY2E0MmU5ZmE1MzgwOGNmNzAzZGE0NDQ5ZTEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L392-L406",
+          "version": "repo-lines-v1:sha256:948cf543b361c7e92a462fcd3deb1b47eecb14170994271d53bbe8a5e36afd0e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyN2FjZDU2YzMzZjA1MTg2YmRlYjhhODNlODc1YzlmYWE0NTMwZTIxMjhiZDAxMjgwMGZkY2JlODYyNjdkOTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkZDg0NTNlMDgzMjYwNzA1YThmYzNmODVkYmU0YzNlNjI3MjU1NGIyNDQ5MjBlNWJiN2MzMzQ1MjkzMDBlNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYzE3ODY4NGMzNTkxYWNiYmNmZmRkYjViNWEwZjk4NjlmZTBiMDEzMDUwY2Q4MGE2ZjRlZTJhNDRlNmIyYzMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1081f1e695824511aa1c67dbae30e448",
+      "statement": "Closing and persistence of the settings overlay are asserted separately: `ESC` must record `settings-closed` with reason `esc` plus `keyboard-mode-off` and the return of `WS_EX_NOACTIVATE`, clicking the clock card must record reason `blur`, and after a drag plus a panel restart a boot-time `settings-opacity-applied` within 1 % of the persisted config must appear.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1571-L1630",
+          "version": "repo-lines-v1:sha256:45c547d7b818ce35cdd878d4914b746124876a01b142c2bfd3419c9eaee0146f:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmNjVjNzc5MjVhYWEyMGI1N2JlNmZlYjY0Y2NiZGYzMTkwOGU2NWMwYzRlODczYmE4ZjVlNWVkYjQ3NmQ0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRmZWU5NTdlODJhY2IyZDQ5NWYwMTNiYmIxNGM2NDU1N2JjNzlkMDAxMjQ1MDQwNDlhODRjMzM0MTkzZTRiOGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc1MTNhNDRiNDMxNjkwYjEzYWE3ZTgyOWFhMWY4OWIzMzZhNmNmYjAyZWVkZGQ2ZmFjZTlmMmNhZGU2NDMxMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1NTE5ZmRkMGYxNzgyYzA4ZGI3MjUwYWNjMTgwMTNiYmViYmE4YTU2YzBhY2U0OGU5MTgyODg4MzljOGIzOWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4e1de501cdb9450c9b194f521f9c3cf0",
+      "statement": "The `config.panel` geometry phase overwrites `config.json` with a fixed rectangle, archives the event file to `03-runtime-events-preP6.jsonl` and deletes it so the next `boot` is unambiguous, then requires the relaunched window to match DIP × scale factor within 24 physical pixels; this cut is why the final `03-runtime-events.jsonl` covers only the post-P6 portion of a run.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1639-L1665",
+          "version": "repo-lines-v1:sha256:6926ec4916d28e8ad01bba3fdbcbcd1c962180deb3ee6c8330a82573952d964b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkM2UzZTk0MmE0NzFkOWM2MzliZGQ5NTE5ZGQ0NzE1NDhlMmMzYzcyMjZhZmE4MjA1YmFiYmQ1YjMxNDBlNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiOTQ2M2VmN2JhZjI0M2FhODIxYmU2YTVmNmVkZGJhNDAxN2E2M2VjOWIwYjZjNjYwMThhMjhkNjM3NjcxMTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4Y2Y4MGU1MTJmYWNlNjU5Y2RlOWFlMTBjMzBjNmU4ZGZkZjAxMjcxOTc0MDk3MDkzMWYyYjE4NTMyOTA1ODgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4983439c75e14e0096bb59616088b6c3",
+      "statement": "Single-instance admission is asserted observably: a second `electron .` launch must exit with code 0 in under 3 s, the event log must contain `single-instance-refused`, and the original panel window must still exist with an unchanged count of `Chrome_WidgetWin_1` top-level windows.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1667-L1696",
+          "version": "repo-lines-v1:sha256:05f4e41bd4646ad7d96eef14ed426863d71894a79ef5ad3e6ccf5ba74135828b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwOTMyNTA5YmIwYWIyYjg1OWEwZmVkNzJlYTBmNGQ3MWJiNzliMDEwM2ZlZmUwZDMyNzQyOTA2YjJiOTk0Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlMjlhNTZhM2M2MjBjZTFmYTU3NTk5NWFhMWRiYjFiZWZiNTgxYzBjYjYyYWRkYzM1N2QwZGFmYzIzZThlYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRkMmYyNGRmOTg2NzU2ZDAzYjEyNTU1N2FlOWFkMTk5NzQxNmVjOWVmNDAzNjZiYTdmMmU4NTFiMjVhZGNmYzIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L183-L199",
+          "version": "repo-lines-v1:sha256:32253a98fe58ad44eed24b993e7d95b779e86b23528b4e8755cfdf5a8689ce43:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlMjFmOGI1NzgxYzUwMDU4NmE1MDdjMzg4YzFhNjZhYWY1ZTA1YWNmZGRjODQ2NjkyMWYxYmU5Y2ZjNmVhNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4ZjgzZWNlZDllNDYwM2JmYWUyODA0N2UwNjk0YTgxMjc0Zjc3ZTJhZjU2ODk2YjI4NzBhMDFiNWJiNmVjYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5OTYzMDY0YjBiZGNmNDYyYmJiMjQ2NDhlZGJiOGVmOTk4Njg5YTIwZTIzNjJjZmM2ODRjNzRhYjJkZTdjOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxZjVlY2ZmYzhjZTg3NTI0MWFhYzdiYmU4ZDMxYjhlOTIwYmI4NTQ1NGUyZDliMmMxMTVhNDQ1MmUxNTQwYTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c66de367b7ad4664b2ce336c21e5b426",
+      "statement": "Tray registration is checked against the registry fact source rather than the app: `HKCU:\\Control Panel\\NotifyIconSettings` must contain an entry whose `ExecutablePath` equals `process.execPath`, and visibility is checked by promoting the entry (`IsPromoted = 1`, previous value remembered for restore) and locating the amber `#f5a623` icon in the `Shell_TrayWnd` strip by connected-cluster analysis, with a panel restart and an 8 s rescan when nothing is found and a hit count above the pre-run baseline required for PASS.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L105-L158",
+          "version": "repo-lines-v1:sha256:7a3db2673fea99cc81fa880493063c6a5b6f9653645fa565a11e6549f72ec1e9:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5OGRkMWI2ZjUyYWU5ZjZkMmFjZTY3ZjY0ZTM2ODRhOWU4ZjQxNzIxMjg5YTAxN2QyMjk3NzM5YTk4NjI0MTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1NWM0NDZjYjYyZTIyMDZhMzEwNTBjODk5NjA5MmM0M2E5ZjQ4MGNmNjRjYTdkNTBhN2I1NTI4NDFmYmQ5NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1ZTFiMDUzZjRhNDZhNDMyZDEwYzI3YjMzZWZjMDI3M2YxYWZjZWU2OWMwYzcyODdiOTQ1MmVlOGQyMmYyMTMifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L160-L210",
+          "version": "repo-lines-v1:sha256:afe42a31a7ce94d24533fb375b93653d5e94cf013e722448ad72f86b05560772:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzNDMwMGE3MTJkYjY2OWYwYmYwZDc4YTE5Yzc1MDYyN2FlMjhhM2NlZGU2ODM0MTRjN2VmYWU4N2Y5ZmU5OTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNWNmNmY4NzVlZDQxNzg3MDFjOTdkYzZkNzJmODEzZGJjMDY5MWZlNTg3Nzc4NjkwZDIwNDA1ZjJkYmU4NTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZjA0NThiY2E5OGE3NWI0MGY1YjE0NTRlNDRiNWE2YWMwNWM5YjU4YmIzOTlmNzhkZTdjNzE5YzE3YzA0ODcifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1698-L1738",
+          "version": "repo-lines-v1:sha256:241ef0f0dccd4d76d641a45ea29bc60f6b28f31e5c4052e37c85ce197c46c2d9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0YmI1OWMwOWFkODI1ZDcyYjBjOTZiY2VkYTI3NGE1YzM1ZDEzZDFkZWFlMjliNzc5MjQwMDVhZGFiNjVlZjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4NDIzOGQ0YjE1NTQwZDk3ODQ5NjU3MWFhNDYzZWIzZmIyOGE4MDAyNDg2ZTdjOWJlYzk2ZWVhNzIyNjg4NWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwNmFiOTBhNDQ2ODMxZDllNjA3ZDlkMzVhOGQwOWM5OTljY2I5NTVlMzg1ZTA4ZjdkMDNhNDgxY2RiM2JiN2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a18af34a166942afbc26f418919785b8",
+      "statement": "The tray exit is closed through the shared teardown path: `Win+B` plus a UIA focus walk must find a focused tray element whose name contains `AGENT DECK`, and a posted `WM_CLOSE` must end in the panel pid dying within 10 s, a `quit` record from `before-quit`, and the amber count returning to the baseline — while the human right-click menu itself stays a manual check because injected context menus do not reach Electron tray icons on Win11 26200.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1800-L1851",
+          "version": "repo-lines-v1:sha256:f298e12d351bc414bd32f1766208cf84471401b7d0d49d711d8d7ac2a35dcd62:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmZjljZGI2NDBkZjJkYmQ4ZDkwOGUwYTMwMGNhYTFmY2VjODgwYmVjMWVmYjJkZjNlNjgyMjIwZDY2ODQzZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyNThkNDk5ZTc0YWViMDI2MTZhNmNkOWM0YTBjYjk4NmRjYjYyZmYzZjdhOWMyOGI2MWQwODA5ZDE1YmYzNjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2ZGZmNGNmNDgxYzQyODI4NDdlMDIyYjcxZmZjNDE4MTYyYjUzMzU0M2EyY2NhNTE4NTMzYjBkMWE4NDg3MWMifQ"
+        },
+        {
+          "resource": "repo://app/accept/lib/uia-focus.ps1#L1-L16",
+          "version": "repo-lines-v1:sha256:46f8c8c4c28158f5e097933509b2bd931a3d7e5c069a304e4f318ffcc5262e92:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxYmViMjc3OWYwZTM5NDI2NGMwMTcyODQ3ZDE0M2YwMDk4MDk0NTBhOWNkMDgyYTI0MzZiMTVjN2M2NzMzOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlOTA2YTc1M2NkNTMyZTVkZGU1YmMwYmZmYzE0NGRhNGUzYzZhYjMwYTBhN2RlMjgzYzQ4OGY2MjA1MTE2MTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L139-L143",
+          "version": "repo-lines-v1:sha256:f1a7108c5ad443283c7e4842c4eb2177f8978bb6dd65f973a45154e57ed74491:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUxZTRjZGEzYmU0NGNjODNkMTNlZGNlNmU5MjkxYmNlMWE0OWEwYzY3YmQyYTQyYzY1NGYxYTgzM2Q0ZTNlMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWUwM2QxNDJjNWE4ODk3YjZjYmE4YzFhMTEwZjVkMmNkMjJhYjdmYWQzNDI0NmU1NGRlY2VkNzcwNGQ1YjE5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTNlZWI1OWMzYjFjMzZiZTc5NDUxMWM4ODk4ZTQwODc3MDI4NzhmMGE2NzQ1M2YxOTlhOTNiYjg1NGFkNTFiYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5251477b88a045688f5968e6ff1e511b",
+      "statement": "The Win+D phase requires its control window to be found minimised before any conclusion is drawn, expects the panel to be exempt (it is a `WS_EX_TOOLWINDOW`/`skipTaskbar` window) while recording the panel's own `wind-minimized` as the alternative, and then drives `SW_MINIMIZE` to assert `wind-minimized` with `IsIconic` true, `wind-restored` about 1.5 s later, the original rectangle within 24 px, and the restored control window again covering the panel (re-pin effective).",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1740-L1798",
+          "version": "repo-lines-v1:sha256:475aaf01138af9b31c6c48275dcc3e7dcffd699a85e692026d003dce36ddd182:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViNjc4YTRjODM0MDk2M2Q1OGJjZWVhMWIwYzAyNjcwOGIxMWY3MmI1ZDU4NTFhMWVkMDQxODNjNDJiN2ZiOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNhMjkzYmJlZDNhMDdkY2ExNWMwNDNhOTIyM2U4ODliMDFkZmNjNmE1ODc4M2MwODljMWNkYzkxNTFmYjRjOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiMDM3MDUxMzY4OTUwZmZmZTY3ZTY4ZTc2NzFmOWQzYmRiMzNjNTdhMDcxNGExZTNhZGQxZmZmMzI0N2M5NjQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/wind-restore.ts#L8-L9",
+          "version": "repo-lines-v1:sha256:c5fe174ac9593904784485f95ac9e11c53241693f89bef374b61fdf9e379a961:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmNmYWIxMmZiZTQ5NWI0NGRjNTkwMzhlYmJjYzM1OWUxMzA3YWUxY2NhMzE3YjI1NTc2NGUxOTIzMzA2NjM2MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ2NjU5MTY2MWRiYmM2NTU3Nzg5MmQ5ODE2ZDg1MmM0Y2U2YjE0YmNhODA1ZmYwMmY4MjFhNzgxNzU0ZmU5MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNkMDkyNDk0OTBiNDlmNmZjYzk4NDQ1M2RlZDBkZmE2YjhiMjM3YjI3NmE3ZTNiYzE1OTRlMWM5MDI1YmE1OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2U3MDNkYTYxMmM5YzgwMGMyYjkzNDlhYzA2ZWMwMDk4YWU5YTU4Y2U5ZjUwYjFmZWZhZDQyMmExYjhiNjhiMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a4c68a96205b4e51a0191ee14e7cbbc4",
+      "statement": "Session-row direct access is tested with a substitute process and a seeded session because the real tools must not be disturbed: `config.tools.qoder` is repointed at `charmap.exe`, a probe session is written under `~/.qoder-cn/projects/DECK-PROBE-09/` with a fresh mtime so it enters the active pool, probe windows are identified by the executable that owns them rather than by class name, and the section self-skips instead of touching user processes when the probe program is already running.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1853-L1899",
+          "version": "repo-lines-v1:sha256:82fcfa01d7a44d6fe19419862c485f41af8afd086cd01b80b521fb2329949f50:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxY2YzZGRkMjM2OThkYzkxMWJjMTI4NjFmYWI2NDI4NzczYTI1ZmZkMWRhZTk0ZTIwNTJhYmUyNWYyYTBkZTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzYzVkNWUzMzg5YmFhNTE5MGNkY2FlZDM1MDYxODM2MTlhM2Q0NWUxZDYwNzMyODBmYjZkZTAzN2E0NzY5OWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNhMjkzYmJlZDNhMDdkY2ExNWMwNDNhOTIyM2U4ODliMDFkZmNjNmE1ODc4M2MwODljMWNkYzkxNTFmYjRjOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3NDg4MzRiMzE4NmZkMzViZjQwYTEwYzRmZTQwMDk3NmI0YjE3Mzc1NGI5ZTYzNzY4YjQ5NTVkM2U2ZWQxNzYifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1941-L1959",
+          "version": "repo-lines-v1:sha256:9574a6e28477407502bc5507097f92bac9592b61d316857b4e9a33e55d8864d7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1YTEzYzYyM2ZhOTJhMjAwNWExYTk1NjM5NTEyMjk4M2YxZTJiYmZlZGQ4YzkwYjQ4OGZmNTdlYjQwYmRhZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkNzc4ZWIxZTVmNWViNGQ2YjUyZjlkNGZjMGVlZTI2YjAzOTA0Y2JkZjE2YTgwMmE5N2YyYmQyZDMyYjQ0YmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2MzMwMjEwMzdlMTYyOGFmNjExZjQ0ZmNhZWZkN2IwODVhN2Y2YjJkMGFkODM1NTg1MzVmMTFlODVlNTU5YjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyM2MyZDQ4NzU4MWZhMmQ0ZTNhM2FkMGFkZTNhZjI2OWRmYTAyNzFkYTRiNjlhMTA4Y2U0YTZlM2Q1ZjZmYzgifQ"
+        },
+        {
+          "resource": "repo://app/accept/lib/win32.js#L63-L93",
+          "version": "repo-lines-v1:sha256:689e06d3437056253ea1189cb982ad0d695bd5818d05fc1c2b5b1ce5d8947bfb:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0MTM3MjRhMWQ1MWE4Mzc2ZWU0NTg0ODZjMDcwYjcxMDY2ZWUzNmIwMTk3NmJjYjY3MWM3NzIwMzM0NGFiNTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhiZWJmYjU4ZjhmZTE4ZDczNGMyYzI3NzIzNjZkZjFlNDBmZTgxM2VhNTM2ZWRlYjcxMjkxZmIxNTcyNzgzYjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFlMjYyZmFhNzU2YjY5YTdjOTU3NjViMGI4YmYzYzkyYjBmOGIwNWQzNjNjODdkN2FjNTQyZDA2NjY1NmRlNTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_349f695332d2472cba76b2a43e98c0e8",
+      "statement": "The session-row section asserts three distinct outcomes with diagnostics: a click on a session row must return `action: 'launched'` with a new window owned by the probe executable when the tool is not running, `action: 'focused'` with the same window restored and its pid in the foreground when it is, and `action: 'degraded'` with `ok: false` when the mapping is blanked — after which a clock-card click must still succeed, proving the panel survived. It also performs the feature's one read-only check that every explicitly configured `config.tools.*.launch` target exists on the machine, and it is placed second to last because it restarts the panel with a patched config.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1896-L1919",
+          "version": "repo-lines-v1:sha256:8fd8f55ffcff6097bcb2af83e0f9e8b99a3ec91599459a0aaf9638a7e3b9238f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZGQ1NWFjZDM0MTRiNmM1Mjg4OWEwMTMxZDdjZmE0Y2Y5Zjc3ZDY1NTQ4MmNjZDhkNmMzZmM4Nzg2NDdmZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODI3ZGM2NzRiOGE3MWFmOWMxNjRiN2VkMWFmNTQ5ODI5NGZlYzZhNTcyMjQ0ZWU2OWU5ODhhMGE5YjA5MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmYzE5MmM2MGE0Y2Q3NTQ5MzAzMzVkMWE4NTg4YTA4ZWYyMDRjMTg1NjRhMjIyMTExZDhkNDEyYzRjODc2MTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlYmE5MzU1OTljN2Q5OTY5N2JkYmY0N2YwOTMzYmNiOGNmNzEwYzVlYmFlNThjYTU3N2Q0M2Y1OGU3NWQyNGEifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1961-L1980",
+          "version": "repo-lines-v1:sha256:5f10773e00fd9a523e0d36dfd4fb183702aaf1135894d407fa10f1a98f7005bf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmNjY1NjFlNDI0YjEyMDA3ZDQ5NTBmNmViZDMzYWZmNWI3ODczYjE2NGEwZmJjZTFiZDI4NmEwM2ZjNGZlMjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyNTFiZmFiY2ZiNmQ4OWZkOWY0ZTNiN2JjNGExNzRmZDkwYzk5ODE4NmU0ZmRlMmM4ZmEzNGU2ZDVjMjkzYWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1OGYxMGUxODk4YTRjMGNiZTUwMTE1MTUzNWFkZDlhYjU3NDE0NTY3YWQ4MTljMmFjOGU5NWZlN2Q0ZTBkM2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQyNDgyMDE0MTczOWMzODY0YTc4MDNlOTZlZjdkNzQ0ZWM2NGNjMWU4ODY3ODZiZjY5ZDYzYzhkNDY0NGJhM2YifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1984-L2057",
+          "version": "repo-lines-v1:sha256:bde7d65679fb8ae4db56d443781982d065580f421ec8707f322b98e79cbf10c3:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliODI1NjJiNTIxNDYwMzcwMmRlNGQ1YmQwYzkwOTFkODVjMzRhNzk3NGM2OGUwOWY2MTlmNGI0NTI5OThkMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1NWY3YWM3ODljODk4NjMyYmE2ODRiZGIzNzQ5YTMwMTdjYjUzMmM1NTAyNWY1NmI1M2YyOWU4M2E2MDhiYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQyNDgyMDE0MTczOWMzODY0YTc4MDNlOTZlZjdkNzQ0ZWM2NGNjMWU4ODY3ODZiZjY5ZDYzYzhkNDY0NGJhM2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzMjBkMjYyNTg5OWQwNzM3NWNiZWQ3MTZhOThjNzJhMDJhMTUxNGZmMTIwNmE1MTQwNjUyNjUzY2VmMDAzN2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_20cf3ffe7ee74bd88bd2dc97d1209551",
+      "statement": "The plugin phase proves the built-in cards go through the plugin contract: each of `clock`, `weather`, `sessions`, `hardware` must have a `plugin-mounted` record and a `*-card` hotzone in the current generation, the `clock-card` rectangle must equal the battery's `CARD_DIP` constant, and the retired Qoder status card must be absent while `sessions-card` occupies top 152 / height 522.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2076-L2112",
+          "version": "repo-lines-v1:sha256:bb3d3eb67e64e2b1c09c6b72310cd4f396f8d34ef8d1f836acc6275da40c77b9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3NGMyMjBhMzQyNTA4NTczNTgyODczMmJjNmEwOGJhMzJhNjk1ZDRlYzY2YTZjZWEyNmU0ZmZkZDAxZjFhY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5NjQ4ZDliYWEzOTk4MDRmYzNjNzIyYWQ5YTg0YjdmNGQ5ZDEyMmMxMGU3MDEyZTc0MTMzYjk4Y2EyNDY0NTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmZjllMzJlNDVjYzYyNzFhNWY1MzRmZTc4ZTcxODMyMGE0ZWUwODFhNjM2NDg4N2NiNzIwMjIzNmQzOTU1MmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJiMTNiYzBmNzk3OTVkYTMyMjI3ZGJmYWQ4NWU3ODA5MzQ2NjM3YjJiMjc3Y2EwZThhMmY4ZGQ4ZjUxNmE3MGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_55d29f8f438447538e8f057c3a76b8b6",
+      "statement": "Hot-plug is asserted without a restart and without trusting a self-report: copying `samples/hello-plugin` into `<userData>/plugins/hello` must yield `plugin-mounted hello`, `hello-mounted` (the module actually ran) and a `hello-card` hotzone; editing `card.js` must re-mount it; removing the directory must drop the card from the hotzones; re-adding it must bring it back — with the count of `boot` records unchanged across all four steps.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2065-L2074",
+          "version": "repo-lines-v1:sha256:5d93fd3600ee894c08810188e4432407b762636dace1692505ec7e7bc5e46492:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4OTU0MGQ1MmFiY2ZkZDI2Zjk4NzNkYmNiZmNiNDhmODg2MTVlMjk4YTlkNzljYmI2ODI4YmY5ZDRiZTZjYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5MzhkZmEwMmRkMWE3YzYyMGIzNDA3MjNjOTA1N2IxNzAzNmQ5ZjMyZTM3YWE5ZjA1Y2RkZjRmMDVkM2M4NDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1NTJkYWIyNzk0MDg4M2U1MTdiMjMxOTI1MTVlNzZlMWJiNDg0YWJiMGQxODEzMjNhZDY5MTYzYmJhYzc4NmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjNWY2NDkwN2Q0YjQxOTNjYzdmY2IzMTg1YzdjOTI1ZDQzN2RiOTg1YzZlY2UzYmM1ZDNjYjg3ZjFmNmE5NDEifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L2127-L2196",
+          "version": "repo-lines-v1:sha256:44dcf7b8925fe7fa8bd83028a87e6a9aac2b206d3b530a196b7a7691fcbfde29:eyJzZWxlY3RlZExpbmVDb3VudCI6NzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxYzViNjA2ODY1NWU2NDQ3MzM4NDM3MjljOGFjNzJiYjA1Y2FkYzBmNmNkZWZiNDlmZGMxNGFmZDZkNWE3ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1OTNkYzk3NzJmMjhlMzA1NTc3MWY3NDNmNTlhMGVlZDY2MzBkZmZiODIwOTkxN2IzY2U1NTZiZWM3OGY1ZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhZjc1Y2NiOTI1ZjI4NTNiMDIzMDk1NjVmMDdhNzU3Y2ViNjdmNzg5M2U1MDhjZGU4NGQ2OGJmZTRhZmM3NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkYjk2ZDljM2E0MzFjODYwNmM3NjUyYWRmMTIxOGZjMWQ0MGQ0YjEyNTA3ZGQ4Njk3ZTY2MzhmOTMzMWFhODUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0b17862b210f4398ae7548e2e642245f",
+      "statement": "Verdict and exit-code semantics: `Report` writes one timestamped `PASS`/`FAIL`/`NOTE` line per assertion into `app/accept/evidence/<name>.log.txt` and ends with a verdict line carrying the pass and fail counts; the process exits 0 on pass, 1 on any failure, and 2 on an unhandled crash — an exception thrown inside `main()` is recorded as a failure instead, so it yields exit 1.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2197-L2199",
+          "version": "repo-lines-v1:sha256:0db96d9c3a431c8606c7652adf1218fc1d40d4b12507dd8697e6638f9331aa85:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQ2MjhhNTQ5OGQxYmJkZTkyMGVjNjk5MDMzNTcyZTU4ZjBlNWI2NGIzOGY1MDI1NGRlOTBkN2FkNWI1YWIwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmFkNDY4ZDYwMjVlZDUwMzZhNzg1ZDA5MzM1MGM2YzM0MDY3ZjAxYWE3M2IwZjgxZDlmZGRiYzlmYmY1NjljZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzMxMTAwMWJiN2NlMGJkYjcwYmRjNjhkY2NlNWQ5MzNiMmZiNTc1ZGYzOGVjYmQ4ZWI5N2VkMDcyM2MwMzNjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjAyNWJmNTgwZTU4OGQzOGUzMTdkNjI0MDE3OWVjMGFmMzY1NjA4MjQzMmUxNTI4ZjRiNWVlOTU2YTU5NzJhOSJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L2247-L2255",
+          "version": "repo-lines-v1:sha256:1969b20f5c8d5f021c5da05a3fa58393a0cb31aca1908226a9393281676e4f34:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTRiMTU2NDA4ZDBmMzJhNDVmMGI4YWE0ZWI5YmNlMDFjZjcxODk1ZTg2MWJlYzcxYjE5NmI0NzliYzY2ZTQ2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZlMTFhNzEyYjhjNzNjMDk3ZThhMWYwYWNiYTljNDIyNjE1YzNiOWVlNzdmN2E3MGIxNmFkZjExOTcxM2UwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFiZTYzY2U2NWRlZTAwOGM3NDZlYWY0ZDYyNDRmOThkMjBhMjA5YjM2MGE5OTkzYzA3ZjhlZTMxM2IzMzI3MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/lib/report.js#L8-L31",
+          "version": "repo-lines-v1:sha256:b2030350dfcb7428fdf800625507b2979533c81321d79bb1d6f283ddf4b292d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmMDlhNWZkOGYwMDQ0YWIzNzE1YWZkNDUxNmMwZGMxYzg3Yjk0NTU2OTFhZDkwZmU4OWQ5MDM5OWZhZWViYTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzZGJmM2RlYWI5OTkyZjRjZmQzZTNkMDkxYTBkMTZmOWU3NjllNDA1ZDFhMWYxNTE5NzcxOTcyOGYxYmE3NWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4NWQ2MWQwZjVhNzAxMTI5YmVlZGIzMTI5NmM1ZGFmZmFjZDFkNzJhOTU0MGE5ZTEyNjFhMmYwODFlZTZjOTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_551ec27c15c04ef29ce3d9d44d906edd",
+      "statement": "Runtime events are the machine-readable half of the evidence: `DECK_EVENT_LOG` turns each spawned main process into a JSONL recorder appending `{t, type, …}` lines through `fileEventLog`, the battery filters those records by type and time to gate assertions, and it truncates the file at run start so the first `boot` is unambiguous.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L466-L468",
+          "version": "repo-lines-v1:sha256:7e2d51015dd1d00245a483d0cbd76d8b6e7596f598c774ae070ca0f252da60c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODU0YTc4NWI2NjhjOGY2MDA2NTJiMTUxYWE5MTQ2Nzg0YjdlYjgwOTgxMjlhODcyMDQ2OTdmMjhiZjQzMDQ1OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzVjNjgwYWQ5YzBmZmRkZjJjNDdlNDcxZjYyYzcyMzI0ZWE1NGQ2ODE0MTEwODk1Zjg2ZDRmNDM1ZmNmNDRiYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTc4ZWU1ODIyN2UzMzJiNzFiOWE3NjQ2NDc4NWM5MjZiYWE5NTdkOTJiNDA3NGU5ZWFhYTRjZWNkZTBlMzgwNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_543ecc5030f44a65b56d8f2369de0da7",
+      "statement": "Screenshots are DPI-correct physical-pixel captures: `capture(rect, name)` invokes `lib/capture.ps1`, which declares `SetProcessDPIAware()` before `CopyFromScreen`, and all pixel analysis is done by re-reading those PNGs through Electron's `nativeImage.toBitmap()` (BGRA).",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L52-L64",
+          "version": "repo-lines-v1:sha256:9cbe1bd362ad5d301287e344ffa0994170ce1dbc873fa5efe12921663db68bc4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMzZlNmY1YmNkMDU1MzhjZWFkYzA1MmEwNDA4N2JhZDNhNTM4MjEwMzFhMDk5NTQyYmUxY2M3NDEzZGEyZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmZDE0NjE4MTZjM2M0MjcwNjNlM2Y4YWRjZjM0ODdiOWMzMzc4ZjdmNTU0MTc1YmIzNDMzYzliMmQyYTVhMWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjMWUxODMzNzBmZmIxMWY1NWJhYTVhMmIxZTVmZDUyOTgzZThmZjczODk0ZjJiZjA2N2E2MTRhZmJlOGRhNDMifQ"
+        },
+        {
+          "resource": "repo://app/accept/lib/capture.ps1#L1-L20",
+          "version": "repo-lines-v1:sha256:38f2508fa841accea1d747086fc22df96b0699950db818b815210f4d38060191:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMTI1YmYyY2IxMTE2NmU2YWRiYWI3MTZmYzE5N2RhMDA5YjFhYTVmZDM4NmRiZDZhMjM4NGM2ODcxMDE4NTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxZGY2NjFhMTEwNDM4NDhhZmMzMjhiMTIzYjhjMDE0MmE2YmI0ZjM1MmRmN2QzYWY4ZDNkNWIwMTM2ZThmMzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8ef6ba0379f14dc39a3b7a1242c0f419",
+      "statement": "The battery keeps its own DIP copy of the renderer's layout geometry (`CARD_DIP`, `LEFT_CARDS_DIP`, `RIGHT_CARDS_DIP`, `SEARCH_CARD_DIP`, `DOC_ZONE_RIGHT_DIP`, `DOCK_STRIP_DIP`) and computes every click and screenshot rectangle as `panelRect + round(DIP × scaleFactor)`, so a card moved in `index.html` without the matching constant turns probes into clicks on pass-through space or assertions over the wrong pixels; the only runtime cross-check is the plugin phase's exact comparison of the `clock-card` hotzone rectangle with `CARD_DIP`, and `SEARCH_CARD_DIP` is declared but never read.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2089-L2099",
+          "version": "repo-lines-v1:sha256:4cd5baa99d32a50cbe5b591fdc0a3d86dc0ea4f951725885bdfb052b2964cca5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhMzM4YWIxYjJjNjlkMWIxZTIyZDJhMTY5N2IxMGM4NzgyZmRmYzM4MzMyYzliMTI4NDYyYTkzNGFlNTI3NzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyZGU5YjA0ODU2YTcwNDE5ODcwYjkxYjM3MDJhYjE2Yzc3YjU2MDQzNzYxZDQ2ZmRlOTJlOGU3NzllMzlkMjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhiNzVmOThjMzYyZTFhOTJhYzg5OTk2NTAxMjQ0NTU1M2IwYTYwMTg4NjI4ZDJiMTk2ZmIxYjdkNzAwMzg2ODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhlMDZmNWQ0ZmJmZjI2NzkyYTQxNjczMWU1YmY5ZjhlMzllNjY1YmZjMTkyMzQxMmFjMzdjNjI2YzFkNmUxYmYifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L27-L38",
+          "version": "repo-lines-v1:sha256:cabbea872a9aca7dbe2621f7c08370c574febbed212b0124cff25329be61d489:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ZGQ3OWNiZjE2OWI4ZmQxNGQzNDE0MzU0ZWZjMDgxZDYwNDRlN2VlMzZmOTk0ODlkNWU0ZTFkNjlkMzZiMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiNDRlZGM5NDM2MGZjZTM2Mjk5MmU4ODg3NmNmMzRkMzc1OTdkMmIzMGVlMmM4YjhmOTAyOTk5YTUwZmFmNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyMmQ2Y2IzMjJmNjcyMTU4OGNkY2VmNWJkMzQ0MmVhNDliMGViNmZiMmUyNTBjY2FmODU2NjM2NzJjMjhjZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3N2UwOTRiNDQ0YWIyOTY2ZjQyZDg5ODAzNmVhNTA5MmY2MjU3ZDQ0MTY4ZmNmYzMyOWI4YjQ3MjE1MmI5ZjAifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L243-L247",
+          "version": "repo-lines-v1:sha256:aaa1b19a8ce5d55bd308c0173088b2506a1ded3ca4e1050037700932ae932bbe:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzE1NTUxMGFjMGFhODllODA0ZDYxNGI0MjZmZTVkMjZlYWM4ODA5ZjlkYzNlNjFjMGRjYjZhMzAyMDRiNjFhMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg2MzE2YjM2MjI1ZDk4NjcxODY0M2MwNjU2MDU5ZGRmYjA0MmE4MzdhZTRjZjc3NDI1OGZkZmE2NWZiNzk4NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjhlOTExOWM0MDcyOWRmNmNlMDgyY2ZkNjIwOWQ0NzJjZTA4MDJhYzk3ZDFlMzBlM2I5MWFiMzk0YjljNWJjMyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L42-L49",
+          "version": "repo-lines-v1:sha256:5fdfe49da36b382a6719db949df9e52f293fd969377dd979643554d1d20617b4:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2M3OTkzOTFiMzIwZTM4MTVhNTcxMjM4MDFiN2FjMGYwZTE0MjRjZDFmZjYyZTRhYmY2YjQ0ZDY0YTZhYmE1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWRlNTNiYjI2MjJjMTI2YzNjY2M5MTQ3NWUwNTI1M2MwNmI0YzMxMzk1OGM1ZDkzM2IxY2M1ZjY4ZWFhMzczNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDE5MWUxYjBiMDY1MjQ3MzAxMDhmNGUwMTNiMTZhOGU2ZDhjMTJhMWRlNjZhZjIyYzQyMzdjZTM1YTEzODgzMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b2672c08bea54eccabd215c83c579887",
+      "statement": "The battery mutates machine state and must put it back: teardown restores the promoted tray registry value, the battery's own Notepad window, the search probe directory once its handle is released, `layout.json` (restored from backup or deleted when it did not exist), the windows minimised by `clearDesktop`, and the saved cursor, and it falls back to `electron . --icon-restore` when a forced kill left the icons hidden although they were visible before the run.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2197-L2244",
+          "version": "repo-lines-v1:sha256:bd7b60cb1d2f1c622e2d7de76bdc4016317703adfa43f5168dfb395db28c7812:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NjI4YTU0OThkMWJiZGU5MjBlYzY5OTAzMzU3MmU1OGYwZTViNjRiMzhmNTAyNTRkZTkwZDdhZDViNWFiMGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1NjM2M2MxYWZjNGY3ZWM1OWZkZWEwMTMyYWE5ZjY2Y2EwYzE1ODVjNTY4YjkwMjNhYzcxMDE2ZTMwZmVlMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczMTEwMDFiYjdjZTBiZGI3MGJkYzY4ZGNjZTVkOTMzYjJmYjU3NWRmMzhlY2JkOGViOTdlZDA3MjNjMDMzY2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwNjY4M2YxNjA3YjQ0ODRmZGY2NjNjZjJmOTlkMGQ3MWE2ZjE5MDk2YzAzNjU4MzAyNTlhMTAwOTVhNGM1YmQifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L487-L502",
+          "version": "repo-lines-v1:sha256:05ff1ff83a59b74062a9cd6ff55c22d1f243c479326347f6c58db1982a4ae929:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwMTU2ZDlkMGIyMWNkOWY1NmJkOWYyYWZhOTI0YmViZWQwNjU2MDlmZTg5NTE5NTNlYjE2MjNiYTEwYmU4MjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwOGI2OWIxMjMxZTc1MDMzNWQ5ZGQxZjc5ZDc4NmVjOGQzMjEzZTQ2MDRmMzRhMGExMmRjZTRjMDM0ZTBlYTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmZDI5NWRjMDAxMGM2Mjc0MjEwZjE2MDI3OTMwZDU2ZjM1NDFmOGJmNWRjYzE1Zjg1MDIyNTJjNGUwZTE2ZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5NGQ3MDAzNzNiNzRkMjJlYWM4ODQ2ZmJjMTViZDczZmU5YzVkMDUxMTk3YWRmYTE3ODMzOGVjOWE5ZTk4MjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_91e629cdb4bd4a778b4cbb8b09e12986",
+      "statement": "Interrupting a run is operationally hazardous: the battery rewrites `app/config.json` several times (panel geometry, a dead search port, a probe tool mapping), seeds `layout.json` in the real `userData`, writes the tray's `IsPromoted` value, minimises every non-topmost ordinary window and creates desktop fixtures, and a Ctrl+C or taskkill skips the `finally` blocks that undo it — leaving a patched config, a seeded layout store or hidden desktop icons behind.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L120-L126",
+          "version": "repo-lines-v1:sha256:11d29fa910a9b218992f65a26b860225da17952b688cb382b30ab416f22c3008:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Y5ZDgwNGNiMDA4NDhlZjFhZmIwNjRkZmY3NTBlZjAxMzFkNzYxOTU5MGFlZjcyMDUwOTVhOWEyMDZjY2Q3OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjhlODcxMjc3OTVkODlhMzE5ZjQzODUxNjlmOWFmZWU0OGI1ZTBiMGIyMTU5NTcxMDZkMDRkYWMyY2FhOTFmOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTRkNDM1N2M3NzEzZWVlMzU4MzkyNGYxZDZhZmRhNGEwZGY5YjdkYzc3ZGI1Zjk4ZGI2MWNkMWUyN2VmOGRjMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1416-L1420",
+          "version": "repo-lines-v1:sha256:97429e06da7ca0884570af150626fac4d1fa1ab61453fa6f0a7aff7845b21742:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmZmNGQ5MWQ5ODNiYjljNWQ5NWM1YzJmYThjYjkzNjI5YmU2ZmQ5YjIzZWVkYmIwMzQ3NzAyZTk1NTkxNGMyNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDE0ZjgyNDc5MTEwOGFlYjJlYjRlYmZkMGE2NzlmNDE1NTNjZTAwOTE2NzRjNDcwYjExNmYzZTU3MzVhOGM1ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzYwYTQ2MjNmNzM0MTU3NTgzNzJjNTYxNDYyZDBkM2UxYTFiYzg2NDE3ZThiNjhiZTcwZjg2OTFlNjc0ZTUyYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTYwOWQxZTRjMDE5YzBiNTdjMDhkMzRhMGRlNmY1MmQzNGU0MmM2ZTkzZWQzMWNmNDQ3YTVlYzdmMjgyZjUxZCJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1927-L1932",
+          "version": "repo-lines-v1:sha256:ae7aa2595a7153d0fc8b6e384ab6aaece478f2d174e35f6c6ddd15fa5d255c72:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWI1MDM2MTRlM2FlM2JmOWI1YzNlZWMyZTRmZDVjMWQ2MGJjYzY5MTQyYmVjZDExMjIzOTgxNmE0NDI1YTZhZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzcyNjAzYzQyZDFhZDU4ODhiNWMwNzE2YmY5ZmFiYzcxOTI3NzY1ZGQ0NDA1ZmY2OWY0MGRhOGI4NmU4NWYyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjQzZDM4Yjc2NmNmZGE3NDU2OTYyZThjMWFkYzcyNzJhMGEyODZmMmMyM2Q0MWM5YzUxMTVhOGU0NDMzZjg1NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDhhMWQyZTM2NDRjMGEzZjQwYjY5NTIwMzE5MjY0M2QzMjBlMjljMDJlZTUwZjZiMjhhNWVlYzM2NWQ2NTM5ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_433086af11514d05b6a8e7bd27fdf60e",
+      "statement": "Several acceptance items are explicitly not automated: visual alignment is reviewed by a human from the screenshots (the built-in-card assertion says so in its own PASS text), no battery assertion covers the Startup autostart entry so a genuine reboot check stays manual, and weather depends on the network so a fetch failure is downgraded to a note.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/standalone-app/issues/11-retire-legacy.md#L9-L14",
+          "version": "repo-lines-v1:sha256:1070b7c9c1ea3d981acdab1d79d921883f16358a8be0a4944a40e52de2a0766b:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDUxODVmZTM3YjVmNDg0YjQ0NjBhYTZkNzlkMGM5ZTZhZmNkMmY3ODZiODM4MmY3NTViNTg4MTZiNzUxYTkwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQ3MDgwYzgxM2E4MGYzNzgxZWM1M2I2ODYyMzYyZGFhZjQ0NjFlY2JjMGY3OGVjODcwYjNjODg3Mzg2ZTk3NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOThlMjIwNGEzZjljMDJlOWU0NDg2MzI0OGQxZGQxMzhkMTAxYTRiNDQzYTZmMjNmMDkyNDQ2YjY1NWVkZDkzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjkwYmZmYzY3MWEwZThhODczMzNjNThiODRjNGY1ZmY2MzM3MDY2M2E5NDkyMzRkY2ZiNDZjNmJmM2Y3NWU2YSJ9"
+        },
+        {
+          "resource": "repo://README.md#L101-L105",
+          "version": "repo-lines-v1:sha256:6950445e5f7cc57d5207a74639c4f96859cb4a943b9624ddd7bcf6223aa5cf20:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2E3MDliYTAxZjQ2ZjMxMmRkODcwNTcwYjM1YjhmMDFlNGNjNjI2NmViMzZhZTg2ZTQ1M2I0Yzc0OWJmNmUwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzZlMzExM2JiYTMwNGIyYmNjMjk3ZjA5ZTBjMTQ1NzhlMjBiOWQ2NWUwN2Y4ZjZhOTBmZTI3MTUxNTBkYjgyNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWQzYWE1YjlhODA3ZjdlODZkN2UzODE3NTI2NTlkMzk3Mjc4MDA2OGRiODM1Y2M4M2ZlOTAwZDBlNjFmZGE3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGZlMzkzNTMwNzQ0N2UwOTUzZTg5ZWJkNjAzYWZmZmVjYWViYmRmMDFmOWIxNmY4ZDljYzFkMjkwODM4ZWU3NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L2082-L2095",
+          "version": "repo-lines-v1:sha256:0a6464a5d8302064c2765e53366e2e13af1a789d8ed89eb1a4e2bbc37293fb2c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0OGVhNzBiNzJjN2I5YTZhZjNhYjMzZTY3M2U2MWMyMmExYTVkNjJkNjQxMzUzZTVmMTMwZTE4NmUxMTFkY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczYjgyZTUwMWE3NDM5YTFjMTY2MDg5YTkzMjc2MDJiNDllM2M3MjIzYjQ2ZDBhMjU3M2NmNDZlMDA1MDI1NWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNkYzQzNmMxNWJkMzVhNDJiMThhN2IwNDU3M2YwOTRhYzA4NzAwZTM5MTEyZDZhYjU0MGQzOTA4ZWMxZDAwZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiZmJhMjlhOTM1ZDJlZGE0OWEzNzQ5M2EzNmYyNGI5N2FjMWE0ZWMxOWI0NGEzMjYxZjk0NWIxMDUyOWRjNzgifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L690-L698",
+          "version": "repo-lines-v1:sha256:b84b43a61e9eacbca8b4357ca3243c025e607fdfbeaaab78b0028b8a795be3e2:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzY2ZTQ5NjljMzEzODkwMWFjNTFiYzE1ODI1OTVkMTNjZmMyNDQ5Njk1NWY4YzRkZTk2ODMwYWE3MDY0ZTg4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUxMjM2ZjJhZWExY2U0MmZhMmIwY2NiMjc4MzJjNzhmNWQ4YzFjMTkyMzhhMjQwOTIyMTA2NjNkNTM5ZWQ2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmRmMzE4M2U4MWQ0ZDc4ZTM0MWExZTFmMTRhYmZlNzQ2NTQ0NTYzNmZhYTA4NzYxMzk0YThiN2MyZDVlODdjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTRhNjk5ZmFiZmQwZDQ2YWQ5NTEwNmYwYjMwOTUwOWM0MzJhYTFmY2MwOTM0MDg2YmNhODY5ZDk5ZTViMGIxOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ff4c15dc4dfa463f93a332d98696afe1",
+      "statement": "Occlusion degrades the harness rather than the product, and the recorded run demonstrates it: the checked-in `03-battery.log.txt` ends with `VERDICT: FAIL (pass=79 fail=2)`, whose two failures are a probe-fixture timeout (the probe shortcut's target never wrote its marker file) and the read-only tools-mapping check reporting that `config.tools.kimicode`'s launch target is missing on that machine, while earlier rounds were attributed to a Chromium window covering the sampling band and another raising itself over the desktop.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/standalone-app/issues/11-retire-legacy.md#L53-L62",
+          "version": "repo-lines-v1:sha256:4acac64e3b96ae3f50ff7c511f703a243cc0cbe37e308f4f9af1af26c48159b0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjOTAzZmYyODlmMjMyOGZkMjBkYzk3M2RlNjBjZTQ2YzYyNjZhNWMyOTNiMDFhNDliMzNkOTY4ZTVkZjA0ODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkZTc1ZWUxMDgxMDllYmEwNjc1MjcxZGI0Njg0NGU1ZTgwZTY3ZTlkMWYyYWYzY2IyYWEzODZiOWMwYTdmYmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY5YTI4OTNhMWRiYmUwZjFlNjZkZjk0YzRjYzJjYTFlMTUyMWIzMzg4M2ZmYjQxMzIzNjEwZWNmODJjNGI1YjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NmJhOTdlYzhiODgxYzFmMTU5NTg2ZjNlMzk2ZGU3MGExNTgwZDk4N2ZiNzY1ZTVmYmYzYTUwMDgxNWVhMzAifQ"
+        },
+        {
+          "resource": "repo://app/accept/evidence/03-battery.log.txt#L114-L114",
+          "version": "repo-lines-v1:sha256:56173ec788c49a92cb38ba109d3afe03247dfedf721493a665b86a3da380afa0:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYxNzNlYzc4OGM0OWE5MmNiMzhiYTEwOWQzYWZlMDMyNDdkZmVkZjcyMTQ5M2E2NjViODZhM2RhMzgwYWZhMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYxNzNlYzc4OGM0OWE5MmNiMzhiYTEwOWQzYWZlMDMyNDdkZmVkZjcyMTQ5M2E2NjViODZhM2RhMzgwYWZhMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTUwZmNiMTU2NjlkZWQwYjVhMGU5MDcwNWM5NTNlYWQ5M2UyYzE4ZmM1YzcwZjk1ZWQxNmMyMDUzYjc4OWJiZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/evidence/03-battery.log.txt#L40-L40",
+          "version": "repo-lines-v1:sha256:45152dc69f8d4d739207f92513f1f664706335179e470977027dbac80fa1abab:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDUxNTJkYzY5ZjhkNGQ3MzkyMDdmOTI1MTNmMWY2NjQ3MDYzMzUxNzllNDcwOTc3MDI3ZGJhYzgwZmExYWJhYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDUxNTJkYzY5ZjhkNGQ3MzkyMDdmOTI1MTNmMWY2NjQ3MDYzMzUxNzllNDcwOTc3MDI3ZGJhYzgwZmExYWJhYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2M0NWU0OTM5YzVhYjI2MGRhZmVhNWM3YTU1NjNkZDAwYjgzNzZkNDJmNDM0YzdmY2FmNjVhOTZiNjkzZGJmMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzhmNWQ4ODgzM2FkYmUwYTNhYzUyZTFkMDUxMDg4OTYzZjM4YjcwZWQ4YjYzYTdhOWRhNmFiMjI4YzYzY2FjNCJ9"
+        },
+        {
+          "resource": "repo://app/accept/evidence/03-battery.log.txt#L95-L95",
+          "version": "repo-lines-v1:sha256:957f14c247bbc38003bc92382dcd984594541d6a0683dcb4fe5ac1c8bcdf4946:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTU3ZjE0YzI0N2JiYzM4MDAzYmM5MjM4MmRjZDk4NDU5NDU0MWQ2YTA2ODNkY2I0ZmU1YWMxYzhiY2RmNDk0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTU3ZjE0YzI0N2JiYzM4MDAzYmM5MjM4MmRjZDk4NDU5NDU0MWQ2YTA2ODNkY2I0ZmU1YWMxYzhiY2RmNDk0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzE0NDJhNDlhMmVjMGQzZTdmMzUwZDFjMWFjOWVkYmYzMWI2MDVjNzY5ZjdjYzMxMWZlMDFhY2U5ODhjNjM4MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjdjZjViMTFhODE1NWJiNGMxZGY1OTU0OTU0NTU0NGFlZjY1ZjA3NzQ5ZTM2NjYzMWNjY2ZlZGZlOTdjYzgwYiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_16ec79de135c4c26aaa15c76e4a681eb",
+      "statement": "Evidence is written into the repository working tree at `app/accept/evidence/`, which `.gitignore` does not exclude (it ignores `app/node_modules/`, `app/dist/` and `app/config.json`), so a battery run shows up as working-tree changes beside the recorded reference round whose screenshots, verdict log and event files other pages cite.",
+      "evidence": [
+        {
+          "resource": "repo://.gitignore#L18-L22",
+          "version": "repo-lines-v1:sha256:f24982870360863c24285567ec1fd5b44978d81865a75540f3dc928bcc660d19:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGU1NjUzZjM5ZjVkOGRiMGNhMTMxYzcwYmI2MzM5YTQwNGUwOGZjZGNlNGQ5YjMwMTZhZTA1OWVjZTg1ZGExNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTgwNDU3MDBhZGJkNTBjMjAwODcxOGE4ZjgwODUwYWEwOWE1NmI4ZTg4MDgxMTMyZTlkZDRmY2NhZmYzMTY3MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmJjZGE0YzRkMWVhMzFmY2I0ZmU4ZWQ1NmNhMWU0YzAzYzUwZDE4NWU0ZmJkZTNhYjU1NzNhMjk0MDM0ZTQ4OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/lib/report.js#L5-L6",
+          "version": "repo-lines-v1:sha256:a63fd21244f7fd8a09cbda6038d27fa669f2836558e06a4d15f8d47390d78e38:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmQzOWNjZTliYzFiZTExMmFjNWZhYjE4ZjFlOWI1NmY3OGM4YzcyZjUyZGNiMjhkMDNmOWQwMTIzYjZjOWViMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Q1ODNkMzhkNWU4ODg4ZGNhZGMyYTA3NWNiNTlkZGZkODJiZWYwMjgzMmMxZWQ2MmQyM2E3NzZiYTgwMzgwZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjA5YzNhYmU5YWEyZTI0YzdmZjRiM2M1NzYxMWZhMTQ0M2E5NmRjMWQwNDVjYzE2MTBjOTg3NzM2ZWFlOTdkNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWViMzk0OWYyYTVhMjlhYjk5NDE1ZTI0YmIxMGExMzYwYTM2MmIxYWY1MmU3OWQ3MGYxNDliYzRkZDIyMTUzNSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

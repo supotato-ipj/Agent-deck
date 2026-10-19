@@ -1,0 +1,7 @@
+# 终末冻结线程态取证（t=2026-10-08T17:30:35.555Z pid=19220）
+19220 electron.exe cpu=4.6875s �߳�=Wait/UserRequestx44 Wait/EventPairLowx13 Wait/Unknownx8
+6736 electron.exe cpu=1.359375s �߳�=Wait/UserRequestx68 Wait/EventPairLowx5
+7672 electron.exe cpu=0.1875s �߳�=Wait/EventPairLowx12 Wait/UserRequestx12
+6496 electron.exe cpu=3.59375s �߳�=Wait/EventPairLowx12 Wait/UserRequestx10 Wait/Unknownx3
+24148 electron.exe cpu=0.28125s �߳�=Wait/UserRequestx11 Wait/EventPairLowx4
+25796 electron.exe cpu=0.28125s �߳�=Wait/UserRequestx15 Wait/EventPairLowx4

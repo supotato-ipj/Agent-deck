@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AGENT DECK</title>
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    user-select: none;
+    cursor: default;
+  }
+  /* 卡片底色透明度（工单08 全局滑杆）：只有底色 alpha 走变量，文字颜色全部
+   * 实色字面量——「底色随时可调、文字始终实色清晰」是结构性保证。 */
+  :root { --card-alpha: 0.55; }
+  /* 卡片底盘（Personal OS 卡片网格；固定尺寸保证热区矩形稳定） */
+  .card {
+    position: fixed;
+    box-sizing: border-box;
+    padding: 18px 20px;
+    background: rgba(0, 0, 0, var(--card-alpha));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    color: #9aa0a6;
+  }
+  .card .dim { color: #9aa0a6; }
+  .card .bright { color: #fff; }
+
+  /* ---- 左列：时钟 / 天气 / 日历 ---- */
+  #clock-card {
+    left: 48px;
+    top: 48px;
+    width: 320px;
+    height: 176px;
+    padding: 26px 28px;
+    cursor: pointer;
+  }
+  #clock-time {
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    color: #fff;
+  }
+  #clock-date {
+    margin-top: 16px;
+    font-size: 14px;
+    letter-spacing: 0.3em;
+    color: #9aa0a6;
+  }
+  #weather-card { left: 48px; top: 248px; width: 320px; height: 170px; }
+  #weather-temp {
+    font-size: 40px;
+    line-height: 1.1;
+    color: #fff;
+  }
+  #weather-desc { margin-top: 4px; font-size: 13px; color: #d6d6d6; }
+  #weather-detail { margin-top: 12px; font-size: 12px; color: #9aa0a6; }
+  #calendar-card { left: 48px; top: 442px; width: 320px; height: 292px; }
+  #cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    row-gap: 6px;
+    font-size: 13px;
+    text-align: center;
+    color: #6b7075;
+  }
+  #cal-grid .head { color: #9aa0a6; font-size: 11px; }
+  #cal-grid .day { color: #d6d6d6; }
+  #cal-grid .day.other { color: #4a4f54; }
+  #cal-grid .day.today {
+    color: #fff;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+  }
+  #cal-title { margin-bottom: 10px; font-size: 13px; color: #d6d6d6; }
+
+  /* ---- 右列：搜索面板（07）→ 会话列表 / 硬件（Qoder 状态块随工单03 退役，会话卡加高补位） ---- */
+  /* 搜索面板（工单07，GLOSSARY.md「搜索面板」）：右窄栏待机位——待机态 SEARCH 头 +
+   * CLICK TO SEARCH_ 提示融入卡片视觉；点击转活动态（原生输入框，中文输入法可输入），
+   * 结果区向下展开临时盖住会话卡（旧 Tk 面板「活动态盖壁纸内容」惯例的平移）；
+   * ESC/失焦退回待机。卡片高度随内容自动展开（热区矩形随之重声明）。 */
+  #search-card {
+    right: 48px;
+    top: 48px;
+    width: 420px;
+    height: auto;
+    z-index: 5;
+    cursor: pointer;
+  }
+  #search-card h2 { margin-bottom: 10px; }
+  #search-row { position: relative; height: 30px; }
+  #search-hint {
+    font-size: 13px;
+    line-height: 30px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+  }
+  #search-input {
+    display: none;
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: #d6d6d6;
+    caret-color: #fff;
+  }
+  #search-placeholder {
+    position: absolute;
+    inset: 0;
+    display: none; /* 只在活动态空输入时显示（待机态显示 hint，两者叠置会重影） */
+    font-size: 13px;
+    line-height: 30px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+    pointer-events: none;
+  }
+  #search-sep { height: 1px; background: rgba(255, 255, 255, 0.16); margin-top: 8px; }
+  #search-results { display: none; }
+  .qrow {
+    display: flex;
+    justify-content: space-between;
+    column-gap: 12px;
+    height: 24px;
+    font-size: 12px;
+    line-height: 24px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .qrow .qname { color: #fff; overflow: hidden; }
+  .qrow .qpath { color: #6b7075; }
+  .qrow.sel { background: #d6d6d6; }
+  .qrow.sel .qname, .qrow.sel .qpath { color: #000; }
+  #search-total {
+    margin-top: 4px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+  }
+  #search-empty {
+    margin-top: 8px;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: #6b7075;
+  }
+  /* ENGINE OFFLINE 徽标（旧 Tk 反白样式平移） */
+  #search-offline {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 8px;
+    font-size: 12px;
+    background: #d6d6d6;
+    color: #000;
+  }
+
+  /* 工单03 起 Qoder 状态块退役：会话卡吞掉原状态块槽位（top 152 不动，
+   * 高 348 → 522 = 原 348 + 16px 间隙 + 158px 状态块槽），可见会话行约翻倍；
+   * 硬件卡位置零改动（top 690 不动，与 152 + 522 + 16 = 690 对齐）。 */
+  #sessions-card { right: 48px; top: 152px; width: 420px; height: 522px; }
+  #sessions-head-count { float: right; letter-spacing: 0.2em; }
+  #session-rows { overflow: hidden; }
+  .srow {
+    display: grid;
+    grid-template-columns: 3ch 7ch 1fr 9ch;
+    column-gap: 1.2ch;
+    align-items: baseline;
+    height: 26px;
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .srow:hover { background: rgba(255, 255, 255, 0.06); }
+  .srow .tag, .srow .state, .srow .tasks { color: #9aa0a6; }
+  .srow .state.run, .srow .state.confirm { color: #fff; font-weight: 700; }
+  .srow .name { color: #d6d6d6; overflow: hidden; text-overflow: ellipsis; }
+  .srow .tasks { text-align: right; }
+  #sessions-standby { font-size: 13px; letter-spacing: 0.2em; color: #6b7075; }
+
+  /* ---- 工单05 桌面承载：文档区分组列（自绘桌面项；dock 应用区随工单59 退役） ---- */
+  .zone { position: fixed; z-index: 1; }
+  .ditem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 2px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .ditem .icon { width: 40px; height: 40px; }
+  .ditem .glyph {
+    width: 40px; height: 40px;
+    line-height: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: #d6d6d6;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+  }
+  .ditem .label {
+    margin-top: 6px;
+    max-width: 72px;
+    font-size: 11px;
+    color: #d6d6d6;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ditem:hover { background: rgba(255, 255, 255, 0.10); }
+  .ditem.sel { background: rgba(255, 255, 255, 0.18); outline: 1px solid rgba(255, 255, 255, 0.5); }
+
+  /* 原地重命名输入框（工单28）：标签原位变身——同字号同宽（继承各分区的条目宽），
+   * 深底细边（同世界观）；编辑期间键盘模式临时开启（trash 确认层同款通道）。 */
+  .ditem .rename-input {
+    margin-top: 6px;
+    max-width: 72px;
+    width: 72px;
+    font: inherit;
+    font-size: 11px;
+    color: #eaeaea;
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+    padding: 0 2px;
+    text-align: center;
+    outline: none;
+  }
+  .doc-group .ditem .rename-input { max-width: 92px; width: 92px; }
+
+  /* 文档区（工单06 编排接管）：左列卡片与画面中部之间的条带。条目按文档组聚合——
+   * 每组一个带极小标签的列流块（组内自上而下、满 docMaxRows 折本组右侧相邻列，
+   * Python zones 先例的组语义平移），组间留空隙。几何（原点/最大宽度/折行数）随
+   * config 下发，渲染层经 layout 配置应用（见 main.ts）。max-width 兜底裁剪
+   * （溢出条目仍在扫描池中，属「一个不漏」的可见上限，非承载上限）。 */
+  #doc-zone {
+    left: 408px;
+    top: 48px;
+    max-width: 640px;
+  }
+  #doc-zone .zlabel {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: #6b7075;
+    margin: 2px 0 6px;
+  }
+  #doc-groups { display: flex; align-items: flex-start; column-gap: 18px; overflow: hidden; }
+  .doc-group { display: flex; flex-direction: column; }
+  .doc-group .glabel {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: #4a4f54;
+    margin-bottom: 6px;
+    white-space: nowrap;
+  }
+  .doc-group .ggrid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(8, auto);
+    grid-auto-columns: 100px;
+    column-gap: 4px;
+    align-content: start;
+  }
+  .doc-group .ditem { width: 100px; }
+  .doc-group .ditem .label { max-width: 92px; }
+
+
+  /* 拖拽跟随幽灵（工单06 摆位；工单22 批量加「N 项」徽标）：源条目半透明，幽灵贴光标 */
+  .ditem.dragging { opacity: 0.35; }
+  #drag-ghost {
+    position: fixed;
+    z-index: 99;
+    pointer-events: none;
+    opacity: 0.85;
+    padding: 6px 2px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.6);
+  }
+  #drag-ghost .label { margin-top: 6px; max-width: 92px; font-size: 11px; color: #d6d6d6; text-align: center; }
+  /* 批量拖拽徽标：反白小胶囊压在条目名下，一眼可数（N = 实际拖动条数） */
+  #drag-ghost .badge {
+    margin: 4px auto 0;
+    display: table;
+    padding: 1px 7px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: #0e1114;
+    background: rgba(255, 255, 255, 0.88);
+    border-radius: 7px;
+  }
+
+  /* 框选矩形（工单21）：半透明填充 + 细边，不接指针事件（命中判定走几何相交） */
+  #marquee-rect {
+    position: fixed;
+    z-index: 98;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+  }
+
+  /* 上下文菜单（工单23）：shell 由 context-menu 插件承载（#ctx-menu 为约定 id），
+   * 视觉同一世界观——近实色深底细边、文字实色、无阴影、8px 圆角（同 #settings-reset）。
+   * 行悬停反白灰底；开层期间面板热区换全窗（见 main.ts declareHotZones）。 */
+  #ctx-menu {
+    position: fixed;
+    z-index: 100;
+    min-width: 170px;
+    padding: 4px 0;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+  }
+  #ctx-menu .ctx-item {
+    padding: 7px 16px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: #d6d6d6;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  #ctx-menu .ctx-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  /* 置灰行（工单30【粘贴】按剪贴板实况）：弱化不反白、指针不变手（点了没反应归归约器挡，
+   * 这里只是观感） */
+  #ctx-menu .ctx-item-disabled { color: #62686d; }
+  #ctx-menu .ctx-item-disabled:hover { background: transparent; color: #62686d; cursor: default; }
+
+  /* 设置入口（工单08）：右下角极小文字按钮，位置沿用 06 恢复按钮的经验值——
+   * bottom: 64 让开任务栏带（电池实测右下角是通知横幅/系统浮层的高发遮挡位，
+   * 抬高留出余量）。入口按钮是控制件而非信息卡，底色不随滑杆。 */
+  #settings-btn {
+    position: fixed;
+    right: 48px;
+    bottom: 64px;
+    z-index: 1;
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #settings-btn:hover { color: #d6d6d6; }
+
+  /* 设置浮层（工单08）：卡片式浮层压在右下角控件带之上；class="card" 使底色
+   * 随全局透明度滑杆、矩形自动进热区。透明度行 = 标签 + 滑杆 + 数值；
+   * 任务栏逃生开关行（工单50）= 标签 + 勾选框 + 状态；
+   * 恢复出厂布局动作本体属 06，这里接入口。 */
+  #settings-card {
+    right: 48px;
+    bottom: 106px;
+    width: 300px;
+    height: auto;
+    z-index: 6;
+    display: none;
+    cursor: default;
+  }
+  #settings-card h2 { margin-bottom: 12px; }
+  .set-row {
+    display: flex;
+    align-items: center;
+    column-gap: 10px;
+  }
+  #settings-taskbar-row { margin-top: 10px; }
+  .set-row .set-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #9aa0a6;
+  }
+  #opacity-slider {
+    flex: 1;
+    min-width: 0;
+    height: 18px;
+    accent-color: #d6d6d6;
+    cursor: pointer;
+  }
+  #opacity-value {
+    font-size: 11px;
+    color: #fff;
+    min-width: 4ch;
+    text-align: right;
+  }
+  #taskbar-toggle,
+  #settings-cards-list .card-toggle {
+    flex: 1;
+    min-width: 0;
+    height: 14px;
+    accent-color: #d6d6d6;
+    cursor: pointer;
+  }
+  #taskbar-toggle-state,
+  #settings-cards-list .card-toggle-state {
+    font-size: 11px;
+    color: #fff;
+    min-width: 3ch;
+    text-align: right;
+  }
+  /* 卡片显隐开关列表（工单101）：行形状同任务栏逃生开关行；名单可能随用户插件增长，
+     包名超长按省略号截断（id 兜底显示，不停用包的名字只在快照在场时可得） */
+  #settings-cards-block { margin-top: 10px; }
+  #settings-cards-list {
+    display: flex;
+    flex-direction: column;
+    row-gap: 6px;
+    margin-top: 6px;
+  }
+  #settings-cards-list .set-label {
+    overflow: hidden;
+    max-width: 168px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  #settings-reset {
+    margin-top: 14px;
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #settings-reset:hover { color: #d6d6d6; }
+  /* 退出面板（工单83）：与设置项视觉隔离的底部独立动作区；hover 暖色提示这是破坏性动作 */
+  #settings-exit {
+    margin-top: 10px;
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #settings-exit:hover { color: #e0a87a; }
+
+  /* 删除确认层（工单27）：多选【删除全部】先弹的自绘轻量确认——列出条数、确认/取消
+   * 两钮。卡片同世界观（class="card" 底色随全局透明度）；开层期间热区换全窗（同菜单），
+   * 点外部 = 取消、Esc = 取消（键盘模式临时开启，同设置浮层先例）。 */
+  #trash-confirm {
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    width: 300px;
+    height: auto;
+    z-index: 90;
+    display: none;
+    cursor: default;
+  }
+  #trash-confirm h2 { margin-bottom: 12px; }
+  #trash-confirm-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #d6d6d6;
+    white-space: pre-line;
+    max-height: 180px;
+    overflow: auto;
+  }
+  #trash-confirm-actions {
+    margin-top: 14px;
+    display: flex;
+    column-gap: 10px;
+  }
+  #trash-confirm-actions button {
+    flex: 1;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #trash-confirm-actions button:hover { color: #d6d6d6; }
+  #trash-confirm-ok { color: #fff; }
+
+  /* 删除失败提示（工单27 AC「菜单层有可见提示」）：权限/占用失败如实上浮的瞬态条，
+   * 纯展示不接交互（无热区，点击穿透），数秒自隐。 */
+  #trash-notice {
+    position: fixed;
+    bottom: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 101;
+    max-width: 640px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: #d6d6d6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- 桌面组件自工单10 起是内置插件包（时钟/天气/会话列表 + 日历随工单99、搜索面板随工单100 成包；
+     Qoder 状态卡随工单03 退役）：卡片元素由各插件在 mount 时自建
+     （id 与样式表一一对应，观感不变），此处只留桌面承载区与设置浮层。 -->
+
+<div class="zone" id="doc-zone"><div class="zlabel">DOCS</div><div id="doc-groups"></div></div>
+
+<div class="card" id="settings-card" tabindex="-1">
+  <h2>SETTINGS</h2>
+  <div id="settings-opacity-row" class="set-row">
+    <span class="set-label">CARD OPACITY</span>
+    <input id="opacity-slider" type="range" min="0" max="100" step="1" aria-label="卡片底色透明度">
+    <span id="opacity-value">055%</span>
+  </div>
+  <div id="settings-taskbar-row" class="set-row">
+    <span class="set-label">TASKBAR</span>
+    <input id="taskbar-toggle" type="checkbox" aria-label="自绘任务栏接管（关闭即还原原生任务栏）">
+    <span id="taskbar-toggle-state">ON</span>
+  </div>
+  <!-- 卡片显隐开关（工单101）：行由 main.ts 从快照插件清单 + 停用集动态装配
+       （全部已发现插件包，含上下文菜单 shell；设置浮层自身是内核 DOM 不在列）。
+       停用 = 插件包从清单剔除（卡片与热区随之消失），包文件不动；开关回弹即恢复。 -->
+  <div id="settings-cards-block">
+    <div class="set-row"><span class="set-label">CARDS</span></div>
+    <div id="settings-cards-list"></div>
+  </div>
+  <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
+  <div id="settings-exit" role="button">&#9211; EXIT PANEL</div>
+</div>
+
+<div class="card" id="trash-confirm" tabindex="-1">
+  <h2>DELETE</h2>
+  <div id="trash-confirm-text">DELETE 0 ITEMS?</div>
+  <div id="trash-confirm-actions">
+    <button id="trash-confirm-ok" role="button">DELETE</button>
+    <button id="trash-confirm-cancel" role="button">CANCEL</button>
+  </div>
+</div>
+
+<div id="trash-notice"></div>
+
+<div id="settings-btn" role="button">&#9881; SETTINGS</div>
+
+<!-- 渲染层入口（工单10 起为原生 ESM）：页面本身经 deck-plugin:// 协议加载，
+     插件资产同源同协议，动态 import 即加载通道（02 注记 4 的 supersede）。 -->
+<script type="module" src="./main.js"></script>
+</body>
+</html>

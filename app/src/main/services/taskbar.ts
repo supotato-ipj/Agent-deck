@@ -1,0 +1,886 @@
+import { Service } from 'cordis'
+import type { Context, Inject } from 'cordis'
+import fs from 'node:fs'
+import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
+import { TASKBAR_METRIC_KEYS } from '../../shared/contract'
+import { defaultTaskbar, saveConfig } from '../config'
+import type { AppConfig } from '../config'
+import { BridgeError } from './bridge'
+import { decideAppClick } from '../taskbar/interactions'
+import { normalizeExe, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
+import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
+import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
+import type { TrayWireEvent } from '../trayhost/protocol'
+import { excludeEntry, loadTaskbarStore, migrateLegacyPinned, moveInOrder, parseLegacyPinnedNames, pinEntry, reorderPinned, restoreEntry, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
+import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
+import { composeVisibleRecommendations } from '../taskbar/plan'
+import { RECOMMENDATION_LIMIT } from '../taskbar/plan'
+import type { TaskbarWindowInfo } from '../taskbar/windows'
+import { iconKeyOf } from '../desktop/scan'
+import { readStoreText, writeStoreText } from '../desktop/adapter'
+import { userDataPath } from '../paths'
+
+export interface TaskbarServiceOptions {
+  /** 初始开关（config.json taskbar.enabled 下发；缺省 = 默认开启） */
+  enabled?: boolean
+  /** 开始组系统按钮隐藏名单初值（config.json taskbar.hiddenButtons 下发，工单54） */
+  hiddenButtons?: TaskbarButtonId[]
+  /** 硬件摘要勾选子集（config.json taskbar.metrics 下发；缺省 = 五项全选，工单55） */
+  metrics?: TaskbarMetric[]
+  /** 托盘溢出档位（config.json taskbar.trayOverflowLimit 下发；缺省 = 5 枚，工单162） */
+  trayOverflowLimit?: TaskbarTrayOverflowLimit
+  /** config.json 绝对路径（缺省 = 不落盘，仅内存态——离线测试省配置桩） */
+  file?: string
+  /** 已加载的 config（可变引用：写开关即整份回写该对象，settings 先例） */
+  config?: AppConfig
+  /** 栏布局存储文件（工单52；默认 userData/taskbar-layout.json） */
+  storeFile?: string
+  /** 旧桌面摆位存储（默认 userData/layout.json）。只读——只取其手钉名单迁进栏应用组，工单59 后 desktop 只编排文档区 */
+  legacyLayoutFile?: string
+  /** 依赖缝：真源缺省延迟绑定（离线测试注入假源后不触 FFI/Electron） */
+  deps?: {
+    /** 按键合成真源（缺省延迟绑定 taskbar/syskeys） */
+    sendSystemKeys?: (action: TaskbarSystemAction) => boolean
+    /**
+     * 推荐组推荐位来源（工单54）：数据面快照推导（fuseScores 链路的产物），
+     * 缺省空名单——离线测试注假源或经内核 panelData 装配。
+     */
+    recommendations?: () => TaskbarRecommendation[]
+    /** 运行中窗口枚举（工单52/53；缺省延迟绑定 taskbar/windows；标题仅内存即时读取，ADR-0007 书面口子）。
+     * 工单53 起携带 hwnd/pid（点击三态与关闭/选窗的窗口寻址依据）。 */
+    listWindows?: () => TaskbarWindowInfo[]
+    /** 自家 exe（其窗口不上栏；默认 process.execPath） */
+    ownExe?: string
+    /** 迁移解析用的桌面项池（缺省经数据面端口取最新快照条目） */
+    desktopItems?: () => MigrationItem[]
+    /** lnk 目标解析（缺省延迟绑定 desktop/adapter 的 Electron 真源） */
+    resolveShortcutTarget?: (lnkPath: string) => string | null
+    /** 存储读写（缺省 desktop/adapter 的 fs 真源——tmp+rename 原子写单一出处） */
+    readStoreText?: (file: string) => string | null
+    writeStoreText?: (file: string, text: string) => void
+    /** 仅运行条目的图标键（缺省 statSync mtime 组 iconKeyOf；入参为归一后的 exe） */
+    iconKeyForPath?: (exe: string) => string | null
+    /** 前台窗口 hwnd（工单53 三态裁决的「已前台」判据；缺省延迟绑定 taskbar/windows） */
+    foregroundHwnd?: () => number
+    /** 窗口置前（工单53；含最小化还原；缺省延迟绑定 taskbar/windows） */
+    activateWindow?: (hwnd: number) => boolean
+    /** 窗口最小化（工单53；缺省延迟绑定 taskbar/windows） */
+    minimizeWindow?: (hwnd: number) => boolean
+    /** 窗口关闭（WM_CLOSE 投递；工单53；缺省延迟绑定 taskbar/windows） */
+    closeWindow?: (hwnd: number) => boolean
+    /** exe 启动（工单53 未运行启动/中键新实例；缺省延迟绑定 desktop/adapter 的 shellOpen，'' 即成功） */
+    launchExe?: (exe: string) => Promise<string>
+    /** 打开文件位置（工单53；缺省延迟绑定 desktop/adapter 的 explorerReveal，fire-and-forget） */
+    revealExe?: (exe: string) => void
+    /** 运行中应用置前（工单58；缺省延迟绑定 taskbar/windows。返回 false = 前台锁拒收） */
+    focusExeWindow?: (exe: string) => boolean
+    /** 托盘点击回放（工单56；缺省 = 无宿主，离线测试注入假源）。返回 false = 请求没送出去 */
+    replayTrayClick?: (key: string, button: TaskbarTrayButton) => boolean
+  }
+}
+
+const SYSTEM_ACTIONS: readonly TaskbarSystemAction[] = ['start-menu', 'task-view', 'notification-center', 'quick-settings', 'toggle-desktop']
+
+/** 开始组系统按钮合法 id（与 config.ts 的持久化校验同源口径） */
+const BUTTON_IDS: readonly TaskbarButtonId[] = ['start', 'tasks']
+
+/** 拖拽组别合法值（工单57） */
+const DRAG_GROUPS: readonly TaskbarDragGroup[] = ['apps', 'recs']
+
+/** 托盘溢出档位合法值（工单162；与 config.ts TRAY_OVERFLOW_LIMITS 同源核对） */
+const TRAY_OVERFLOW_LIMITS: readonly TaskbarTrayOverflowLimit[] = [3, 5, 8, 'all']
+
+/** 推荐位名单逐条比对（name+path 都变才算变——显示名同拍变化也该触发重渲；
+ * 工单160 起图标键与 exe 身份同列——富化解析升级/图标键翻新同拍重渲） */
+function sameRecommendations(a: readonly TaskbarRecommendation[], b: readonly TaskbarRecommendation[]): boolean {
+  return a.length === b.length && a.every((r, i) =>
+    r.name === b[i].name && r.display === b[i].display && r.path === b[i].path
+    && r.iconKey === b[i].iconKey && r.exe === b[i].exe)
+}
+
+/** 非空字符串身份护栏（工单154 评审收口：activate/drag/rec 五动作等七处同形守卫合一）：
+ * 违反即抛 BridgeError；消息整串由调用方给定（各入口措辞不一——点分/斜杠路径、有无
+ * 空格——逐字保持），正常返回即保证 value 为非空字符串。 */
+function requireNonEmptyId(value: unknown, message: string): asserts value is string {
+  if (typeof value !== 'string' || !value) throw new BridgeError(message)
+}
+
+interface TaskbarDeps {
+  sendSystemKeys: (action: TaskbarSystemAction) => boolean
+  recommendations: () => TaskbarRecommendation[]
+  listWindows: () => TaskbarWindowInfo[]
+  ownExe: string
+  desktopItems: () => MigrationItem[]
+  resolveShortcutTarget: (lnkPath: string) => string | null
+  readStoreText: (file: string) => string | null
+  writeStoreText: (file: string, text: string) => void
+  iconKeyForPath: (exe: string) => string | null
+  foregroundHwnd: () => number
+  activateWindow: (hwnd: number) => boolean
+  minimizeWindow: (hwnd: number) => boolean
+  closeWindow: (hwnd: number) => boolean
+  launchExe: (exe: string) => Promise<string>
+  revealExe: (exe: string) => void
+  focusExeWindow: (exe: string) => boolean
+  replayTrayClick: (key: string, button: TaskbarTrayButton) => boolean
+}
+
+/**
+ * 任务栏插件（工单49/52/54/55，ADR-0007）：体系第一种非卡片形态的 cordis 主进程插件。
+ * 本服务只管状态与动作——开关、系统按钮显隐（工单54）与硬件摘要勾选（工单55）
+ * 三者走 config.json 持久化 + taskbar/changed 回推；系统动作合成（开始菜单/任务
+ * 视图/通知中心/快速设置/显示桌面）；推荐位名单（工单54：从数据面链路拉取，
+ * 变化即回推，推荐位是瞬态不落盘）；应用组编排（工单52：refresh 一轮 = 迁移就位 →
+ * 窗口枚举 → planAppsGroup 纯函数编排 → 内容变化即推 taskbar/changed）。
+ * 置顶窗口的创建/销毁是效果层，由生产装配（taskbar/window.ts 控制器）订阅
+ * taskbar/changed 驱动，本服务不引 electron，离线契约测试经 createKernel 直装直测。
+ * 隐私：窗口标题只活在内存态与桥事件载荷里（tooltip 即时呈现），落盘的栏布局
+ * 存储只有 exe 身份与展示元数据——标题永不持久化（ADR-0002 红线的书面口子口径）。
+ */
+export class TaskbarService extends Service {
+  // desktop 声明为可选依赖（工单132）：生产装配（panel-kernel + DataplaneService）不在
+  // 主进程注册 desktop 服务，而推荐位每拍解析 lnk 时默认兜底要读 ctx.desktop——cordis
+  // 对「访问了未声明属性」每次都落一条带全栈的 [W] 告警（~1.2KB/条 × 每拍每条目），
+  // 生产面板以 ~6KB/s 刷 stdout：验收控制器把面板 stdout 接成管道且不排空时，64KB
+  // 管道 ~11s 写满、主线程下一次同步写永久阻塞——#107 全系停摆的真机根因（minidump
+  // 实证 + 排空对照实验，工单132 第一阶段）。声明为 { required: false } 即抑制告警，
+  // 缺席时照旧走 Electron 兜底，服务照常启动。
+  static inject: Inject = { panelData: { required: true }, desktop: { required: false } }
+
+  private readonly file: string | null
+  private readonly appConfig: AppConfig | null
+  private readonly storeFile: string
+  private readonly legacyLayoutFile: string
+  private readonly deps: TaskbarDeps
+  private current: TaskbarState
+  private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [], excluded: [] }
+  /** 最近一枚窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；仅内存——标题同拍进出，永不持久化） */
+  private lastWindows: TaskbarWindowInfo[] = []
+  /** 会话运行序（工单189，ADR-0013 应用组统一序列）：未钉运行应用的位次账本（归一 exe 键），
+   * 仅内存、不落盘、无时间戳——面板重启归零重引导（首拍按首见序建立），运行应用重启回最右 */
+  private runOrder: string[] = []
+  /** 迁移/装载一次性闸门：栏布局读入（或迁移落盘）成功才置位，写失败下拍重试 */
+  private layoutReady = false
+  /** 托盘图标像素缓存（工单56：iconKey → 像素字节；随名单增删按需剪枝，仅内存不落盘） */
+  private readonly trayPixels = new Map<string, TaskbarTrayPixels>()
+  /** 托盘条目身份键 → 图标属主窗口 hwnd（工单194：右键回放让位的 pid 解析依据。
+   * 托盘事件流携带 hwnd 但契约面 TaskbarTrayEntry 不外发——此处随名单维护影子账，
+   * 仅内存不落盘，禁用即清（与 trayPixels 同纪律）。 */
+  private readonly trayHwnds = new Map<string, string>()
+
+  constructor(ctx: Context, options: TaskbarServiceOptions = {}) {
+    super(ctx, 'taskbar')
+    this.file = options.file ?? null
+    this.appConfig = options.config ?? null
+    this.storeFile = options.storeFile ?? userDataPath('taskbar-layout.json')
+    this.legacyLayoutFile = options.legacyLayoutFile ?? userDataPath('layout.json')
+    this.deps = {
+      sendSystemKeys: options.deps?.sendSystemKeys
+        ?? ((action) => (require('../taskbar/syskeys') as typeof import('../taskbar/syskeys')).sendSystemAction(action)),
+      recommendations: options.deps?.recommendations ?? (() => []),
+      listWindows: options.deps?.listWindows
+        ?? (() => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeTaskbarWindows()),
+      ownExe: options.deps?.ownExe ?? process.execPath,
+      desktopItems: options.deps?.desktopItems ?? (() => this.ctx.panelData.desktop().items),
+      resolveShortcutTarget: options.deps?.resolveShortcutTarget
+        // 桌面服务在场时走它（同进程直连，无模块加载）；不在场则走 desktop/adapter
+        // 的惰性绑定。cordis 未注册属性的读取**会落一条带全栈的 [W] 告警**（工单59
+        // 时代以为 try 住就静默了——不抛但告警照刷屏，工单132 实证这就是停摆根因的
+        // 喂料端；告警的真正抑制在上方的 static inject 可选声明，这里的 try 只兜读异常）。
+        ?? ((p: string) => {
+          try {
+            const desktop = (this.ctx as unknown as { desktop?: { readShortcutTarget?: (lnk: string) => string | null } }).desktop
+            if (desktop?.readShortcutTarget) return desktop.readShortcutTarget(p)
+          } catch { /* 读取异常兜底：落 Electron 兜底 */ }
+          return (require('../desktop/adapter') as typeof import('../desktop/adapter')).electronShortcutTarget(p)
+        }),
+      readStoreText: options.deps?.readStoreText ?? readStoreText,
+      writeStoreText: options.deps?.writeStoreText ?? writeStoreText,
+      iconKeyForPath: options.deps?.iconKeyForPath ?? ((exe) => {
+        try {
+          return iconKeyOf(exe, fs.statSync(exe).mtimeMs)
+        } catch {
+          return null // 竞态退出/权限缺席：无图标源，渲染层按无图降级
+        }
+      }),
+      foregroundHwnd: options.deps?.foregroundHwnd
+        ?? (() => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeForegroundHwnd()),
+      activateWindow: options.deps?.activateWindow
+        ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeActivateWindow(h)),
+      minimizeWindow: options.deps?.minimizeWindow
+        ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeMinimizeWindow(h)),
+      closeWindow: options.deps?.closeWindow
+        ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeCloseWindow(h)),
+      launchExe: options.deps?.launchExe
+        ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).shellOpen(exe)),
+      revealExe: options.deps?.revealExe
+        ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).explorerReveal(exe)),
+      focusExeWindow: options.deps?.focusExeWindow
+        ?? ((exe) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeFocusExeWindow(exe)),
+      // 托盘回放真源在数据面子进程的托盘宿主（Win32 同处），本进程只转发请求；
+      // 生产装配经 panel-kernel 注入，离线内核无宿主时按「送不出去」回报。
+      replayTrayClick: options.deps?.replayTrayClick ?? (() => false),
+    }
+    const fallback = defaultTaskbar()
+    this.current = {
+      enabled: options.enabled ?? fallback.enabled,
+      hiddenButtons: [...(options.hiddenButtons ?? fallback.hiddenButtons)],
+      metrics: [...(options.metrics ?? fallback.metrics)],
+      trayOverflowLimit: options.trayOverflowLimit ?? fallback.trayOverflowLimit,
+      recommendations: [],
+      excluded: [],
+      apps: [],
+      tray: [],
+    }
+    // 推荐位即时刷新（工单54）：数据面每拍快照即重拉一次，变化才回推（1Hz 拉取 ×
+    // 逐条 diff——名单稳定时零事件零重渲）。离线内核无 dataplane/snapshot，契约测试
+    // 手动驱动 refreshRecommendations（手动驱动采集轮同款纪律）。
+    this.ctx.on('dataplane/snapshot', () => this.refreshRecommendations())
+    // 托盘入栏（工单56）：数据面托盘宿主的规范化事件流逐条进名单编排，变化才回推。
+    this.ctx.on('dataplane/tray-event', (event) => this.onTrayEvent(event))
+  }
+
+  state(): TaskbarState {
+    return {
+      ...this.current,
+      hiddenButtons: [...this.current.hiddenButtons],
+      metrics: [...this.current.metrics],
+      recommendations: [...this.current.recommendations],
+      // 移除名单从栏布局存储投影（落盘真源单点——store 段随 ensureLayout/commitStore 流转，
+      // current 不另持副本；装载前的空名单 = 未排除任何应用的语义）
+      excluded: this.store.excluded.map((e) => ({ ...e })),
+      apps: [...this.current.apps],
+      tray: [...this.current.tray],
+    }
+  }
+
+  /** 整份回写 config.json 的 taskbar 段（enabled + hiddenButtons + metrics 同段共写；
+   * recommendations 是瞬态不落盘，应用组条目是运行态、永不进 config）并同步可变引用 */
+  private persist(next: TaskbarState): void {
+    if (!this.appConfig || !this.file) return
+    const taskbar = {
+      enabled: next.enabled,
+      hiddenButtons: [...next.hiddenButtons],
+      metrics: [...next.metrics],
+      trayOverflowLimit: next.trayOverflowLimit,
+    }
+    saveConfig(this.file, { ...this.appConfig, taskbar })
+    this.appConfig.taskbar = taskbar
+  }
+
+  /** 持久化 + 提交内存态 + 回推的三段收口（setEnabled/setButtonHidden/setMetrics 共用，
+   * settings 同款顺序：先写盘后提交内存态——写失败即抛，三者一致）。 */
+  private commit(next: TaskbarState): TaskbarState {
+    this.persist(next)
+    this.current = { ...next, hiddenButtons: [...next.hiddenButtons], metrics: [...next.metrics] }
+    this.ctx.emit('taskbar/changed', this.state())
+    return this.state()
+  }
+
+  /** 开关：同值幂等空转（不重写盘、不重推事件）。只动 enabled 位，显隐与勾选子集原样。
+   * 禁用即清托盘名单与像素缓存（#153）：宿主随事件交还，名单是已交还图标的死账——
+   * 不清则重启用瞬间陈旧条目先于事件流上栏（名单语义 = 收编在场的图标，禁用态为零）。 */
+  setEnabled(enabled: boolean): TaskbarState {
+    if (typeof enabled !== 'boolean') {
+      throw new BridgeError(`taskbar.enabled 须为布尔值，收到 ${String(enabled)}`)
+    }
+    if (enabled === this.current.enabled) return this.state()
+    if (!enabled) {
+      this.current = { ...this.current, tray: [] }
+      this.trayPixels.clear()
+      this.trayHwnds.clear()
+    }
+    return this.commit({ ...this.current, enabled })
+  }
+
+  /** 开始组系统按钮显隐（工单54）：右键菜单动作落点。同态幂等空转；未知 id 抛
+   * BridgeError（契约违规不静默吞掉）。 */
+  setButtonHidden(id: TaskbarButtonId, hidden: boolean): TaskbarState {
+    if (!BUTTON_IDS.includes(id)) {
+      throw new BridgeError(`未知任务栏按钮: ${String(id)}`)
+    }
+    if (typeof hidden !== 'boolean') {
+      throw new BridgeError(`taskbar.set-button-hidden.hidden 须为布尔值，收到 ${String(hidden)}`)
+    }
+    const has = this.current.hiddenButtons.includes(id)
+    if (hidden === has) return this.state()
+    const hiddenButtons = hidden
+      ? [...this.current.hiddenButtons, id]
+      : this.current.hiddenButtons.filter((b) => b !== id)
+    return this.commit({ ...this.current, hiddenButtons })
+  }
+
+  /** 硬件摘要勾选（工单55）：metrics 为勾选子集，按规范序归一去重后持久化；
+   * 未知指标名是契约违规，抛 BridgeError（不静默吞掉）；同值幂等空转。 */
+  setMetrics(metrics: TaskbarMetric[]): TaskbarState {
+    if (!Array.isArray(metrics) || metrics.some((m) => !(TASKBAR_METRIC_KEYS as readonly string[]).includes(m as string))) {
+      throw new BridgeError(`taskbar.metrics 须为已知指标子集（${TASKBAR_METRIC_KEYS.join('/')}），收到 ${JSON.stringify(metrics)}`)
+    }
+    const normalized = TASKBAR_METRIC_KEYS.filter((k) => metrics.includes(k))
+    if (normalized.length === this.current.metrics.length && normalized.every((k, i) => k === this.current.metrics[i])) {
+      return this.state()
+    }
+    return this.commit({ ...this.current, metrics: normalized })
+  }
+
+  /**
+   * 托盘溢出档位（工单162）：档位菜单挂点（「⋯」右键/右组空白处右键）的落点。档位外
+   * 取值抛 BridgeError（契约违规不静默吞掉）；同值幂等空转（不重写盘、不重推事件）。
+   * 持久化 + 提交 + 回推走 commit 三段收口（setMetrics 同款）——渲染层重拆名单，
+   * 上调即图标回栏、「⋯」消失，下调即尾部图标进溢出。
+   */
+  setTrayOverflowLimit(limit: TaskbarTrayOverflowLimit): TaskbarState {
+    if (!(TRAY_OVERFLOW_LIMITS as readonly unknown[]).includes(limit)) {
+      throw new BridgeError(`taskbar.trayOverflowLimit 须为合法档位（3/5/8/all），收到 ${String(limit)}`)
+    }
+    if (limit === this.current.trayOverflowLimit) return this.state()
+    return this.commit({ ...this.current, trayOverflowLimit: limit })
+  }
+
+  /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed。
+   * 名单经可见性管线（工单57，工单161 合成收口）：手钉条目不占推荐位 + 持久排除滤除 +
+   * 用户显式序压过分数序，截断在滤除后（递补）。装载闸（工单161）：拉取先于裁决——
+   * 排除/手钉滤除读的是存储段，装载未就绪时读默认空段会静默放行被移除条目（重启后
+   * 首个 get-state 就撞这条路径），故在此挂 ensureLayout（一次性闸，与 refresh 同款）。 */
+  refreshRecommendations(): void {
+    this.ensureLayout()
+    let next: TaskbarRecommendation[]
+    try {
+      next = this.visibleRecommendations()
+    } catch {
+      return // 来源未就绪（数据面首拍前）按上次名单继续持有
+    }
+    if (sameRecommendations(this.current.recommendations, next)) return
+    this.current = { ...this.current, recommendations: [...next] }
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /**
+   * 栏上拖拽落位（工单57）：组内换位（应用组手钉段内 / 推荐组推荐位内）与跨组拖拽
+   * （推荐→应用 = 升为手钉，应用→推荐 = 解除手钉回推荐池）。裁决全部进 layout-store 纯函数，
+   * 本方法只做校验、编排与持久化：先落盘再提交内存态（setEnabled 同款顺序——写失败
+   * 即抛，盘/内存/事件三者一致），同态幂等空转不重写不重推。
+   */
+  dragDrop(drop: TaskbarDragDrop): { ok: boolean; error?: string } {
+    if (typeof drop !== 'object' || drop === null || !DRAG_GROUPS.includes(drop.from) || !DRAG_GROUPS.includes(drop.to)) {
+      throw new BridgeError(`未知任务栏拖拽组: ${String((drop as TaskbarDragDrop | null)?.from)} → ${String((drop as TaskbarDragDrop | null)?.to)}`)
+    }
+    requireNonEmptyId(drop.id, `任务栏拖拽条目身份须为非空字符串，收到 ${String(drop.id)}`)
+    if (drop.before !== null && typeof drop.before !== 'string') {
+      throw new BridgeError(`任务栏拖拽落点须为字符串或 null，收到 ${String(drop.before)}`)
+    }
+    if (!this.current.enabled) return { ok: false, error: '任务栏已禁用，栏面不可拖拽' }
+    this.ensureLayout()
+    if (drop.from === 'apps' && drop.to === 'apps') {
+      const key = normalizeExe(drop.id)
+      // 手钉条目：拖位写栏布局存储（重启记住，工单57 既有落盘语义）
+      if (this.store.pinned.some((p) => normalizeExe(p.exe) === key)) {
+        const next = reorderPinned(this.store, drop.id, drop.before)
+        if (next === this.store) return { ok: true } // 自落点幂等：不重写盘、不重推
+        this.commitStore(next)
+        return { ok: true }
+      }
+      // 工单195 断点①全条目接线：未钉运行条目可拖——拖位落会话运行序（仅内存不落盘，
+      // 面板重启回默认序）。before 指向手钉段身份时运行段首位钳取（两段模型，紧随手钉段）。
+      const nextOrder = reorderRunOrder(this.runOrder, drop.id, drop.before)
+      if (nextOrder === this.runOrder) {
+        // 同一引用 = 空转：自落点幂等 → ok:true 不重推；身份不在会话序（栏外/已退场
+        // 陈旧键）→ ok:false 有可见反馈，不静默吞掉
+        return this.runOrder.includes(key)
+          ? { ok: true }
+          : { ok: false, error: '拖拽条目不在当前应用组（栏外身份或已退场）' }
+      }
+      this.runOrder = nextOrder
+      this.recompose() // 会话序变化 → 重编排回推一帧（不落盘——运行位次是会话态）
+      return { ok: true }
+    }
+    if (drop.from === 'recs' && drop.to === 'recs') {
+      let visible: TaskbarRecommendation[]
+      try {
+        visible = this.visibleRecommendations()
+      } catch {
+        return { ok: false, error: '推荐位来源未就绪，稍后再试' }
+      }
+      const names = visible.map((r) => r.name)
+      if (!names.includes(drop.id)) return { ok: false, error: '拖拽条目不在推荐组推荐位（名单外名字）' }
+      const ordered = moveInOrder(names, drop.id, drop.before)
+      if (ordered.length === names.length && ordered.every((n, i) => n === names[i])) return { ok: true } // 幂等空转
+      this.commitStore({ ...this.store, recommended: ordered })
+      return { ok: true }
+    }
+    if (drop.from === 'recs' && drop.to === 'apps') {
+      // 中→左 升手钉（工单160 在新组位落地既有语义）：推荐位条目（id = 桌面项 name）
+      // 连同展示元数据（label/iconKey 取自富化后的条目）升进手钉段；落点语义与手钉段
+      // 内换位一致（before = 排在该 exe 之前，null = 手钉段末尾）。recommended 名单
+      // 不动——钉不销毁摆（解除手钉时旧位次随之复活）。
+      let visible: TaskbarRecommendation[]
+      try {
+        visible = this.visibleRecommendations()
+      } catch {
+        return { ok: false, error: '推荐位来源未就绪，稍后再试' }
+      }
+      const entry = visible.find((r) => r.name === drop.id)
+      if (!entry) return { ok: false, error: '拖拽条目不在推荐组推荐位（名单外名字）' }
+      this.ensureLayout()
+      this.commitStore(pinEntry(this.store, { exe: entry.exe, label: entry.display, iconKey: entry.iconKey }, drop.before))
+      return { ok: true }
+    }
+    if (drop.from === 'apps' && drop.to === 'recs') {
+      // 左→中 解除手钉回池（工单160 在新组位落地既有语义）：手钉段按归一身份移除，
+      // 条目随同帧推荐位管线回池（recompose 一次重排一次回推）。落点 before 不吃进
+      // recommended 名单——回池位次按既有显式序/分数序（钉不销毁摆纪律）；仅运行
+      // 条目（非手钉）是运行态不可摆位 → ok:false。
+      this.ensureLayout()
+      const next = unpinEntry(this.store, drop.id)
+      if (next === this.store) return { ok: false, error: '仅手钉条目可解除手钉回推荐池（仅运行条目是运行态）' }
+      // 工单189 解除手钉原地转运行（set-app-pinned 解除臂同款）：目标在运行时键插回
+      // 会话运行序首位，条目原地转为运行图标——先落账再 commitStore（重编排即刻可用）
+      if (this.windowsOf(drop.id).length > 0) this.runOrder = promoteRunToFront(this.runOrder, normalizeExe(drop.id))
+      this.commitStore(next)
+      return { ok: true }
+    }
+    throw new BridgeError(`不支持的任务栏拖拽组合: ${drop.from} → ${drop.to}`)
+  }
+
+  /**
+   * 应用组一个编排轮（工单52；生产由内核 1Hz 定时器驱动——应用启动/退出 1–2 秒内
+   * 反映到应用组；离线契约测试手动驱动）。禁用态空转：栏窗已销，不枚举窗口。
+   * 迁移随首轮就位：栏布局存储缺位时把旧桌面 layout.json 的手钉名单迁入（顺序保持），
+   * 落盘成功才算迁移完成。
+   */
+  refresh(): void {
+    if (!this.current.enabled) return
+    this.ensureLayout()
+    let windows: TaskbarWindowInfo[]
+    try {
+      // 工单156 过滤判据（shouldShowOnTaskbar 纯函数）：cloaked/工具窗/有属主无
+      // APPWINDOW/空标题/自家的窗口不上栏——枚举薄壳只采集特征，裁决全在判据内
+      windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
+    } catch (err) {
+      // 枚举失败沿用上一轮（desktop 扫描同款纪律：慢半拍优于瞬时空白）
+      console.warn(`deck-taskbar: 本轮窗口枚举失败，沿用上一轮应用组：${err instanceof Error ? err.message : err}`)
+      return
+    }
+    this.lastWindows = windows
+    // 工单189：编排一拍走 planAppsSequence（默认规则落位＋手工序合并）——会话运行序
+    // 先行回存再判内容变化（序推进与可见序列是两本账，摘除陈旧键不改可见序也须落账）
+    const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+    this.runOrder = plan.runOrder
+    if (JSON.stringify(plan.apps) === JSON.stringify(this.current.apps)) return
+    this.current = { ...this.current, apps: plan.apps }
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /** 系统动作：合成按键触发原生系统 UI。合成被拒（UIPI 等）回报 ok:false 而非抛——
+   * 渲染层点击语义不需 try/catch；未知动作是契约违规，抛 BridgeError。 */
+  systemAction(action: TaskbarSystemAction): { ok: boolean; error?: string } {
+    if (!SYSTEM_ACTIONS.includes(action)) {
+      throw new BridgeError(`未知任务栏系统动作: ${String(action)}`)
+    }
+    try {
+      return { ok: this.deps.sendSystemKeys(action) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /**
+   * 托盘事件进栏（工单56）：名单推进走 taskbar/tray-plan 纯函数（部分更新语义、删除摘除、
+   * 其余空转），像素入缓存——名单未变即零事件零重渲（收编节奏可达数十条/秒，逐条回推会
+   * 拖垮渲染层）。剪枝按在场名单的 iconKey 集合，退场图标的像素随即释放（仅内存）。
+   */
+  onTrayEvent(event: TrayWireEvent): void {
+    // 影子 hwnd 账（工单194）先于名单变化早退维护：同名条目换了属主窗口（应用重启、
+    // guid 键不变 hwnd 换新）时名单可能零变化，账却必须跟上最新 hwnd。
+    if (event.kind === 'delete') this.trayHwnds.delete(event.key)
+    else if (event.kind === 'add' || event.kind === 'update') this.trayHwnds.set(event.key, event.hwnd)
+    const next = applyTrayEvent(this.current.tray, event)
+    if (sameTrayIcons(this.current.tray, next)) return
+    const iconKey = trayIconKeyOf(event)
+    if (iconKey && event.icon) this.trayPixels.set(iconKey, event.icon)
+    this.current = { ...this.current, tray: [...next] }
+    const live = new Set(next.map((i) => i.iconKey).filter((k): k is string => k !== null))
+    for (const k of [...this.trayPixels.keys()]) if (!live.has(k)) this.trayPixels.delete(k)
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /** 托盘条目像素（工单56 契约 taskbar/tray-icon）：按条目身份取字节；未知键/无像素 → null */
+  trayIconOf(key: string): TaskbarTrayPixels | null {
+    const entry = this.current.tray.find((i) => i.key === key)
+    if (!entry?.iconKey) return null
+    return this.trayPixels.get(entry.iconKey) ?? null
+  }
+
+  /**
+   * 托盘图标点击回放（工单56）：key 护栏 = 必须在当前栏内名单（应用退场与点击同帧的竞态
+   * 走普通失败，不抛）；负载合成与投递在数据面托盘宿主（Win32 真源同处），本方法只做
+   * 护栏与转发。
+   * 右键回放先发让位起拍事件（工单194）：条带是置顶带，应用菜单诞生在普通带压不过——
+   * 效果层（taskbar/window.ts 控制器）收到事件即把条带临时降非置顶。必须在转发回放
+   * **之前**同步发出：菜单在应用处理回调后才诞生，让位先落位才有「菜单生在让位后」
+   * 的 z 序保证（cordis emit 同步派发，同轮内先于 PostMessage 链）。
+   */
+  trayClick(key: string, button: TaskbarTrayButton): { ok: boolean; error?: string } {
+    if (!this.current.tray.some((i) => i.key === key)) return { ok: false, error: '托盘图标不在栏内名单' }
+    if (button === 'right') {
+      this.ctx.emit('taskbar/tray-replay-begin', { key, button, hwnd: this.trayHwnds.get(key) ?? null })
+    }
+    try {
+      return this.deps.replayTrayClick(key, button)
+        ? { ok: true }
+        : { ok: false, error: '托盘宿主不在场（数据面子进程未就绪）' }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /**
+   * 应用组应用图标点击（工单58，栏内与溢出浮层共用）：exe 身份必须在当前应用组栏面上
+   * （desktop/launch 池护栏同款——栏外身份 ok:false 不启动不置前，竞态退场走同一路径）；
+   * 运行中置前、未运行启动（action = 内核裁决），执行失败 ok:false + error 不抛。
+   * 空/非字符串 exe 是契约违规，抛 BridgeError。
+   */
+  async activateApp(exe: string): Promise<{ ok: boolean; action: TaskbarActivateAction | null; error?: string }> {
+    requireNonEmptyId(exe, `taskbar.activate-app.exe 须为非空字符串，收到 ${String(exe)}`)
+    const key = normalizeExe(exe)
+    const hit = this.current.apps.find((e) => normalizeExe(e.exe) === key)
+    if (!hit) return { ok: false, action: null, error: '栏外身份不启动' }
+    if (hit.running) {
+      try {
+        return this.deps.focusExeWindow(hit.exe)
+          ? { ok: true, action: 'focused' }
+          : { ok: false, action: 'focused', error: '置前被系统拒收（前台锁）' }
+      } catch (err) {
+        return { ok: false, action: 'focused', error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    try {
+      const err = await this.deps.launchExe(hit.exe)
+      return err ? { ok: false, action: 'launched', error: err } : { ok: true, action: 'launched' }
+    } catch (err) {
+      return { ok: false, action: 'launched', error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /** 测试观察缝：当前栏布局存储内容（工单52；工单161 起含移除名单段） */
+  storeForTest(): TaskbarLayoutStore {
+    return {
+      version: 1,
+      pinned: [...this.store.pinned],
+      recommended: [...this.store.recommended],
+      excluded: this.store.excluded.map((e) => ({ ...e })),
+    }
+  }
+
+  /** 应用组条目按 exe 身份归一匹配（点击/右键动作的统一寻址口） */
+  private appEntry(exe: string): TaskbarAppEntry | undefined {
+    const key = normalizeExe(exe)
+    return this.current.apps.find((e) => normalizeExe(e.exe) === key)
+  }
+
+  /** 该 exe 的当拍窗口快照（裁决与关闭的寻址集；含 hwnd，标题仅内存） */
+  private windowsOf(exe: string): TaskbarWindowInfo[] {
+    const key = normalizeExe(exe)
+    return this.lastWindows.filter((w) => normalizeExe(w.exe) === key)
+  }
+
+  /**
+   * 左键点击（工单53）：裁决在纯函数 decideAppClick——未运行（无窗口）→ 启动 exe；
+   * 单窗口未前台 → 置前；单窗口已前台 → 最小化；多窗口 → 返回带标题清单（窗口效果
+   * 留给渲染层选窗后的 taskbar/activate-window）。exe 护栏 = 必须在当前应用组条目内，
+   * 否则 ok:false（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   */
+  async appClick(exe: string): Promise<{ ok: boolean; action: TaskbarAppClickAction | null; windows?: TaskbarWindowRef[]; error?: string }> {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, action: null, error: '应用不在任务栏应用组' }
+    let fg = 0
+    try {
+      fg = this.deps.foregroundHwnd()
+    } catch {
+      fg = 0 // 前台不可判按「不在前台」处理（置前是安全方向）
+    }
+    const decision = decideAppClick(this.windowsOf(entry.exe), fg)
+    switch (decision.kind) {
+      case 'launch': {
+        const err = await this.deps.launchExe(entry.exe)
+        return err ? { ok: false, action: null, error: err } : { ok: true, action: 'launched' }
+      }
+      case 'activate':
+        return { ok: this.deps.activateWindow(decision.hwnd), action: 'activated' }
+      case 'minimize':
+        return { ok: this.deps.minimizeWindow(decision.hwnd), action: 'minimized' }
+      case 'pick':
+        return { ok: true, action: 'window-list', windows: decision.windows }
+    }
+  }
+
+  /** 应用组窗口清单查询（工单196 选窗浮层行源）：只读，app-click 的 windowsOf 同一
+   * 当拍枚举（不执行任何窗口效果）。exe 护栏同 app-click（应用组外身份 ok:false 空清单）。 */
+  appWindows(exe: string): { ok: boolean; windows: TaskbarWindowRef[] } {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, windows: [] }
+    return { ok: true, windows: this.windowsOf(entry.exe).map((w) => ({ hwnd: w.hwnd, title: w.title })) }
+  }
+
+  /** 多窗口列表选窗（工单53）：hwnd 必须在当拍窗口快照内且归属应用组某 exe——
+   * 不置前任意义外的窗口（名单外/已销毁 hwnd 回报 ok:false 不抛）。 */
+  activateWindowByHwnd(hwnd: number): { ok: boolean; error?: string } {
+    const hit = this.lastWindows.find((w) => w.hwnd === hwnd)
+    if (!hit || !this.appEntry(hit.exe)) return { ok: false, error: '窗口不在任务栏应用组' }
+    return { ok: this.deps.activateWindow(hwnd) }
+  }
+
+  /** 中键新实例（工单53）：恒启动 exe（应用组护栏同 appClick） */
+  async appNewInstance(exe: string): Promise<{ ok: boolean; error?: string }> {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, error: '应用不在任务栏应用组' }
+    const err = await this.deps.launchExe(entry.exe)
+    return err ? { ok: false, error: err } : { ok: true }
+  }
+
+  /**
+   * 右键菜单「手钉/解除手钉」（工单53）：手钉 = exe 身份连同展示元数据（label/iconKey
+   * 取自当前应用组条目——窗口标题永不进落盘面）追加进手钉清单；解除 = 按归一身份移除。
+   * 先写盘后重编排回推（setEnabled 同款顺序：写失败即抛，盘/内存/事件三者一致）；
+   * 同态幂等空转。手钉目标必须在当前应用组（展示元数据来源），未知 exe 抛 BridgeError。
+   */
+  setAppPinned(exe: string, pinned: boolean): TaskbarState {
+    if (typeof pinned !== 'boolean') {
+      throw new BridgeError(`taskbar.set-app-pinned.pinned 须为布尔值，收到 ${String(pinned)}`)
+    }
+    this.ensureLayout()
+    const key = normalizeExe(exe)
+    const idx = this.store.pinned.findIndex((p) => normalizeExe(p.exe) === key)
+    if (pinned === idx >= 0) return this.state() // 同态幂等
+    if (pinned) {
+      const entry = this.appEntry(exe)
+      if (!entry) throw new BridgeError(`未知任务栏应用组应用: ${String(exe)}`)
+      this.store = { ...this.store, pinned: [...this.store.pinned, { exe: entry.exe, label: entry.label, iconKey: entry.iconKey }] }
+    } else {
+      this.store = { ...this.store, pinned: this.store.pinned.filter((_, i) => i !== idx) }
+      // 工单189 解除手钉原地转运行：目标在运行时其键插回会话运行序首位——运行段紧随
+      // 手钉段，键落首位即条目停在原位次（不按新面孔跳最右）；未运行则键本不在序，无操作。
+      if (this.windowsOf(exe).length > 0) this.runOrder = promoteRunToFront(this.runOrder, key)
+    }
+    this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
+    this.refresh() // 手钉段迁移即时上栏（变化才回推 taskbar/changed）
+    return this.state()
+  }
+
+  /** 右键菜单「关闭窗口」（工单53）：向该 exe 的全部应用组窗口投递 WM_CLOSE（多窗口
+   * 一并关，Win11「关闭所有窗口」语义）。无可关窗口/未知 exe 按普通失败回报。 */
+  closeWindowFor(exe: string): { ok: boolean; closed: number; error?: string } {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, closed: 0, error: '应用不在任务栏应用组' }
+    const wins = this.windowsOf(entry.exe)
+    if (wins.length === 0) return { ok: false, closed: 0, error: '应用没有可关闭的窗口' }
+    let closed = 0
+    for (const w of wins) if (this.deps.closeWindow(w.hwnd)) closed++
+    return { ok: closed > 0, closed }
+  }
+
+  /** 右键菜单「打开文件位置」（工单53）：explorer /select,<exe>（fire-and-forget；
+   * 应用组护栏同 appClick）。 */
+  revealApp(exe: string): { ok: boolean; error?: string } {
+    const entry = this.appEntry(exe)
+    if (!entry) return { ok: false, error: '应用不在任务栏应用组' }
+    this.deps.revealExe(entry.exe)
+    return { ok: true }
+  }
+
+  /** 推荐组条目按 exe 身份归一匹配（工单160 推荐位三动作的统一寻址口） */
+  private recEntry(exe: string): TaskbarRecommendation | undefined {
+    const key = normalizeExe(exe)
+    return this.current.recommendations.find((r) => normalizeExe(r.exe) === key)
+  }
+
+  /**
+   * 推荐组条目左键启动（工单160）：富化后的 exe 身份必须在当前推荐组条目内（归一
+   * 匹配，栏外 ok:false——推荐位随快照刷新进出的帧间竞态按普通失败回报），启动经
+   * 既有 shell 打开通道（launchExe = desktop/adapter shellOpen，应用组启动同款）。
+   * 空/非字符串 exe 是契约违规，抛 BridgeError。
+   */
+  async recClick(exe: string): Promise<{ ok: boolean; error?: string }> {
+    requireNonEmptyId(exe, `taskbar.rec-click.exe 须为非空字符串，收到 ${String(exe)}`)
+    const entry = this.recEntry(exe)
+    if (!entry) return { ok: false, error: '栏外身份不启动' }
+    try {
+      const err = await this.deps.launchExe(entry.exe)
+      return err ? { ok: false, error: err } : { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /**
+   * 推荐组条目「手钉到任务栏」（工单160）：exe 身份连同展示元数据（label=显示名、
+   * iconKey=条目图标键）追加进手钉清单，先落盘再提交内存态（commitStore 三段收口：
+   * 写失败即抛，盘/内存/事件三者一致）——重编排即时生效，该应用从推荐组消失（可见性
+   * 管线）、出现在应用组手钉段，回推一帧 taskbar/changed。同态幂等空转；推荐位名单外
+   * 身份抛 BridgeError（契约违规——元数据来源必须在当前推荐位，set-app-pinned 同款口径）。
+   */
+  recPin(exe: string): TaskbarState {
+    requireNonEmptyId(exe, `taskbar.rec-pin.exe 须为非空字符串，收到 ${String(exe)}`)
+    const key = normalizeExe(exe)
+    if (this.store.pinned.some((p) => normalizeExe(p.exe) === key)) return this.state() // 同态幂等
+    const entry = this.recEntry(exe)
+    if (!entry) throw new BridgeError(`未知推荐组条目（手钉目标必须在当前推荐位）: ${String(exe)}`)
+    this.ensureLayout()
+    this.commitStore(pinEntry(this.store, { exe: entry.exe, label: entry.display, iconKey: entry.iconKey }, null))
+    return this.state()
+  }
+
+  /**
+   * 推荐组条目「打开文件位置」（工单160）：explorer /select,<exe>（fire-and-forget）；
+   * exe 护栏同 rec-click（栏外身份 ok:false 不抛）。空/非字符串 exe 是契约违规，
+   * 抛 BridgeError。
+   */
+  recReveal(exe: string): { ok: boolean; error?: string } {
+    requireNonEmptyId(exe, `taskbar/rec-reveal.exe 须为非空字符串，收到 ${String(exe)}`)
+    const entry = this.recEntry(exe)
+    if (!entry) return { ok: false, error: '栏外条目不定位' }
+    this.deps.revealExe(entry.exe)
+    return { ok: true }
+  }
+
+  /**
+   * 推荐组条目「从推荐栏移除」（工单161）：exe 身份连同展示元数据（label=显示名、
+   * iconKey=条目图标键）进栏布局存储持久排除名单，先落盘再提交内存态（commitStore
+   * 三段收口：写失败即抛，盘/内存/事件三者一致）——重编排即时生效，该应用从推荐组消失
+   * （可见性管线第三条滤除线），空位由候选池后续名次递补（候选池按池上限进服务、截断在
+   * 滤除后），回推一帧 taskbar/changed。持久排除重启记住；恢复入口 = 推荐组空白处右键
+   * 的恢复菜单（recRestore）。同态幂等空转；推荐位名单外身份抛 BridgeError（契约违规
+   * ——展示元数据来源必须在当前推荐位，rec-pin 同款口径）。
+   */
+  recRemove(exe: string): TaskbarState {
+    requireNonEmptyId(exe, `taskbar/rec-remove.exe 须为非空字符串，收到 ${String(exe)}`)
+    const key = normalizeExe(exe)
+    if (this.store.excluded.some((e) => normalizeExe(e.exe) === key)) return this.state() // 同态幂等
+    const entry = this.recEntry(exe)
+    if (!entry) throw new BridgeError(`未知推荐组条目（移除目标必须在当前推荐位）: ${String(exe)}`)
+    this.ensureLayout()
+    this.commitStore(excludeEntry(this.store, { exe: entry.exe, label: entry.display, iconKey: entry.iconKey }))
+    return this.state()
+  }
+
+  /**
+   * 从推荐栏移除名单恢复（工单161）：exe 身份（归一匹配）移出持久排除名单，先落盘再提交
+   * 内存态（commitStore 三段收口）——条目随同帧推荐位管线回池（按既有显式序/分数序，
+   * 「陈旧名留位」纪律下旧位次随之复活），回推一帧 taskbar/changed。不在名单 → 幂等空转
+   * 原样返回（菜单行与状态之间的帧间竞态按空转呈现，不抛）。
+   */
+  recRestore(exe: string): TaskbarState {
+    requireNonEmptyId(exe, `taskbar/rec-restore.exe 须为非空字符串，收到 ${String(exe)}`)
+    this.ensureLayout()
+    const next = restoreEntry(this.store, exe)
+    if (next === this.store) return this.state() // 幂等空转
+    this.commitStore(next)
+    return this.state()
+  }
+
+  /**
+   * 栏布局装载/迁移（工单52，一次性）：存储在场即读入（自愈解析）；缺位则首跑迁移——
+   * 旧桌面 layout.json 的手钉名单经桌面项池解析为 exe 身份（顺序保持）落盘为栏布局。
+   * 迁移源只读（工单59 后旧存储不再被写）；写失败不置位，下一拍重试（迁移不丢手钉）。
+   */
+  private ensureLayout(): void {
+    if (this.layoutReady) return
+    const text = this.deps.readStoreText(this.storeFile)
+    if (text !== null) {
+      this.store = loadTaskbarStore(text)
+      this.layoutReady = true
+      return
+    }
+    const pinned: TaskbarPinnedEntry[] = migrateLegacyPinned(
+      parseLegacyPinnedNames(this.deps.readStoreText(this.legacyLayoutFile)),
+      this.deps.desktopItems(),
+      this.deps.resolveShortcutTarget,
+    )
+    this.store = { version: 1, pinned, recommended: [], excluded: [] }
+    try {
+      this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(this.store))
+      this.layoutReady = true
+    } catch (err) {
+      console.warn(`deck-taskbar: 栏布局迁移落盘失败（下一拍重试）：${err instanceof Error ? err.message : err}`)
+    }
+  }
+
+  /**
+   * 拖拽落位的存储提交（工单57）：先落盘（写失败即抛——盘/内存/事件三者一致，
+   * setEnabled 同款顺序）再换内存引用并整态重排回推一帧。
+   */
+  private commitStore(next: TaskbarLayoutStore): void {
+    this.deps.writeStoreText(this.storeFile, serializeTaskbarStore(next))
+    this.store = next
+    this.recompose()
+  }
+
+  /**
+   * 落位后的整态重排（工单57）：应用组重编排 + 推荐位可见性管线，两路各自容错
+   * （窗口枚举/推荐位来源失败沿用上一轮对应段，不拖垮另半），收尾统一回推一帧
+   * taskbar/changed——一次拖拽一帧，渲染层一次重渲到位。
+   */
+  private recompose(): void {
+    try {
+      // 工单189：重排轮与 refresh 同一编排口径（planAppsSequence + 会话运行序回存，
+      // 垃圾窗不进应用组的过滤判据在 shouldShowOnTaskbar 不变）
+      const windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
+      const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+      this.runOrder = plan.runOrder
+      this.current = { ...this.current, apps: plan.apps }
+    } catch { /* 枚举失败沿用上一轮应用组（refresh 同款纪律） */ }
+    try {
+      this.current = { ...this.current, recommendations: this.visibleRecommendations() }
+    } catch { /* 来源未就绪沿用上一轮推荐位（refreshRecommendations 同款纪律） */ }
+    this.ctx.emit('taskbar/changed', this.state())
+  }
+
+  /**
+   * 推荐位可见性管线（工单57，工单161 合成收口）：候选池 → 手钉条目滤除（推荐→应用升手钉
+   * 后不占推荐组位；解除手钉即随下拍管线回池）→ 移除名单滤除（持久排除不上推荐位）→
+   * 用户显式序套用（序内按名单次、序外保持分数序）→ 上限截断（滤除后收口——手钉/移除腾出
+   * 的空位由候选池后续名次递补，上限仍 5）。三条滤除线正交：手钉与移除判重都以 exe 身份
+   * （快捷方式经 resolve 取目标，迁移同款解析）；池外名字（解析不出 = 池缩竞态）以条目
+   * 路径为兜底身份参与判重（宁可按路径多滤一次，不让无法解析的身份绕过排除面）。截断
+   * 前提 = 候选池宽于可见上限进管线（工单161 起数据面按 RECOMMENDATION_POOL_LIMIT 产池）。
+   * 工单160 富化：条目 exe 身份在本层升级——数据面快照携带的暂定身份（条目路径）经
+   * 同款解析替换为快捷方式目标（解析不出/池外 = 暂定值兜底），左键启动/手钉/打开
+   * 位置三动作自此以富化后的 exe 统一寻址。
+   */
+  private visibleRecommendations(): TaskbarRecommendation[] {
+    const pinnedNorm = new Set(this.store.pinned.map((p) => normalizeExe(p.exe)))
+    const excludedNorm = new Set(this.store.excluded.map((e) => normalizeExe(e.exe)))
+    const enriched: TaskbarRecommendation[] = []
+    for (const r of this.deps.recommendations()) {
+      const exe = this.resolveItemExe(r.name) // 原文身份；判重按归一比较
+      enriched.push({ ...r, exe: exe ?? r.path })
+    }
+    return composeVisibleRecommendations(enriched, {
+      pinnedNorm,
+      excludedNorm,
+      order: this.store.recommended,
+      limit: RECOMMENDATION_LIMIT,
+    })
+  }
+
+  /** 桌面项 name → exe 身份（原文大小写，迁移同款解析；比较方自行归一。池外/解析不出 → null = 无法判重） */
+  private resolveItemExe(name: string): string | null {
+    const item = this.deps.desktopItems().find((i) => i.name === name)
+    if (!item) return null
+    if (item.kind !== 'shortcut') return item.path
+    try {
+      return this.deps.resolveShortcutTarget(item.path) ?? item.path
+    } catch {
+      // 解析器不可用（离线内核未注入快捷方式解析）→ 退回以快捷方式路径判重，
+      // 宁可同一应用在两处各判一次，也不让推荐位整段因单点失败清空
+      return item.path
+    }
+  }
+
+  /** 插件卸载路径（cordis 生命周期）：运行期卸载后不会再有 taskbar/changed——
+   * 以 enabled:false 终态补发一帧，效果层（窗口控制器）经既有「禁用即销窗」
+   * 路径销窗，窗口不残留（工单49 code-review 补缺）。 */
+  protected stop(): void {
+    this.ctx.emit('taskbar/changed', { ...this.current, enabled: false })
+  }
+}
