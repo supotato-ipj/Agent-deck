@@ -219,4 +219,299 @@ function classifyTrayMachineState(probes = {}) {
   return [];
 }
 
-module.exports = { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };
+// —— 面板句柄（工单206，spec #202 决策1–6、12）——
+// 面板生命周期的唯一原语面：发射（launch）→ 就绪（waitWindow）→ 重启（relaunch）
+// → 清场（stop）→ 两套存活谓词（alive/responsive）。八块电池的「拉起样板 12 份、
+// 重启样板 13 份、存活判据三套分散」由此收口。
+//
+// 状态所有权（#202 决策2）：发射子进程、面板自报 pid、主窗句柄、发射时点四件归句柄，
+// 电池里的可变闭包总线随之消失。since 门默认＝上次发射时点（句柄记账）——
+// 「忘给 sinceMs 致旧 boot 混入」那个坑由结构堵死，显式传值仍可覆盖（迁移期保持显式）。
+//
+// 三条纪律：
+//   ① 强退序列沿用既有 createPanelControl（决策/后果分离、outcome 语义不变）；
+//      本模块只做接线与状态记账，不记账、不抛、不重启。
+//   ② heal 编排（停摆检出→排除窗→重启→健康闭窗）留电池层——生命周期模块不被报告记账依赖污染。
+//   ③ 落点命中即健康那套属交互时序域，不归本模块（留给后续交互底座候选）。
+//
+// 零 koffi 零 Report 依赖：窗口枚举/探活/时钟全经注入，注入式单测不碰真机；
+// 真机默认实现走惰性 require（与既有模块同款形态——模块加载不拉原生模块）。
+
+/** 发射形态 → 进程参数（#202 决策3：mode 只有 full/accept 两值） */
+const PANEL_MODE_ARGS = {
+  full: ['.'],
+  accept: ['.', '--panel-accept'],
+};
+/** stdio 三形态（#202 决策4）：ignore=无管道 / drain=管道且排空 / archive=落证据档 */
+const PANEL_STDIO_MODES = ['ignore', 'drain', 'archive'];
+/** boot 存证轮询间隔（与既有 waitPanelWindow 的 60ms 同口径） */
+const BOOT_POLL_MS = 60;
+/** 就绪窗轮询间隔（与既有 waitPanelWindow 的 200ms 同口径） */
+const WINDOW_POLL_MS = 200;
+/** waitWindow 缺省超时（与既有 waitPanelWindow 的 20s 同口径） */
+const DEFAULT_WAIT_WINDOW_MS = 20000;
+/** WM_NULL 探活超时（与既有 battery.panelLiveness 的 2000ms 同口径） */
+const PROBE_TIMEOUT_MS = 2000;
+/** stderr 尾部长度（与既有 battery.js 的 4000 字符同口径） */
+const STDERR_TAIL_CHARS = 4000;
+
+/** 事件档读取缺省实现：JSONL 逐行解析（与既有 battery.js 的 readEvents 同形） */
+function readEventLog(file) {
+  if (!file) return [];
+  try {
+    return require('fs').readFileSync(file, 'utf8').split('\n').filter(Boolean)
+      .map((line) => { try { return JSON.parse(line); } catch { return null; } })
+      .filter(Boolean);
+  } catch { return []; }
+}
+
+/** 窗标题缺省实现（win32.js 未导出标题读数；与 battery.js 的 windowTitle 同款 koffi 缓冲形态） */
+function defaultWindowTitle(hwnd) {
+  const user32 = require('koffi').load('user32.dll');
+  const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+  const buf = Buffer.alloc(1024);
+  const n = GetWindowTextW(hwnd, buf, 512);
+  if (n <= 0) return '';
+  let s = '';
+  for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
+  return s;
+}
+
+/** WM_NULL 探活缺省实现：窗还在 + 主线程在超时内应声（与既有 panelLiveness 同款口径）。
+ *  结果指针必须给真缓冲：传 null 时 user32 可能不解引用而直接判失败，活着的面板会被误报假死。 */
+function defaultResponsiveProbe(hwnd, timeoutMs) {
+  const win32 = require('./win32');
+  const h = Number(hwnd);
+  if (!win32.IsWindow(h)) return false;
+  try {
+    const out = Buffer.alloc(16);
+    return Boolean(win32.SendMessageTimeoutW(h, 0, 0, 0, 0x0002, timeoutMs, out));
+  } catch { return false; }
+}
+
+/**
+ * 面板句柄工厂（#202 决策3 的接口全集）。
+ * @param {object} [deps] 注入接口（全部可缺省走真机实现）：
+ *   spawn(cmd, args, opts) → child     发射器（缺省 child_process.spawn）
+ *   execPath / appRoot / baseEnv        被拉起的可执行文件、工作目录、基础环境变量
+ *   eventLogPath / readEvents()         事件档路径与读法（boot 自报 pid 的来源）
+ *   isAlive(pid) / gracefulKill(child) / forceKillTree(pid) / sleep(ms) / now()  同面板控制模块
+ *   topLevelWindows() / windowPid(h) / windowTitle(h) / windowClass(h) / isWindowVisible(h)  窗枚举与甄别
+ *   responsiveProbe(h, timeoutMs)       WM_NULL 探活
+ *   openArchive(file) / archivePath     stdio=archive 的证据档去处
+ *   log(msg)                            日志出口（缺省 console.log）
+ * @returns {{launch: Function, waitWindow: Function, relaunch: Function, stop: Function, alive: Function, responsive: Function}}
+ */
+function createPanelHandle(deps = {}) {
+  const spawnFn = deps.spawn || ((cmd, args, opts) => require('child_process').spawn(cmd, args, opts));
+  const execPath = deps.execPath || process.execPath;
+  const appRoot = deps.appRoot || require('path').resolve(__dirname, '..', '..');
+  const baseEnv = deps.baseEnv || process.env;
+  const eventLogPath = deps.eventLogPath || '';
+  const readEvents = deps.readEvents || (() => readEventLog(eventLogPath));
+  const now = deps.now || (() => Date.now());
+  const sleep = deps.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const isAlive = deps.isAlive || defaultIsAlive;
+  const gracefulKill = deps.gracefulKill || ((child) => { try { if (child) child.kill(); } catch { /* 尽力 */ } });
+  const forceKillTree = deps.forceKillTree || ((pid) => {
+    require('child_process').spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+  });
+  const topLevelWindows = deps.topLevelWindows || (() => require('./win32').topLevelWindows());
+  const windowPid = deps.windowPid || ((h) => require('./win32').threadIdOf(h).pid);
+  const windowTitle = deps.windowTitle || defaultWindowTitle;
+  const windowClass = deps.windowClass || ((h) => require('./win32').className(h));
+  const isWindowVisible = deps.isWindowVisible || ((h) => require('./win32').IsWindowVisible(h));
+  const responsiveProbe = deps.responsiveProbe || defaultResponsiveProbe;
+  const openArchive = deps.openArchive || ((file) => require('fs').openSync(file, 'a'));
+  const archivePath = deps.archivePath || require('path').join(appRoot, 'accept', 'evidence', 'panel-handle-child.log');
+  const log = deps.log || ((msg) => console.log(msg));
+
+  // 强退序列复用既有面板控制模块（决策/后果分离、outcome 语义不变）
+  const control = createPanelControl({ isAlive, gracefulKill, forceKillTree, sleep, now });
+
+  // 句柄自持的四件状态（+ 末次发射配置与 stderr 尾，供 relaunch 复用与早亡留证）
+  const state = {
+    child: null,
+    panelPid: null,
+    hwnd: null,
+    launchedAt: 0,
+    sinceGate: 0,
+    lastCfg: null,
+    stderrTail: '',
+  };
+
+  /** 最新一条「本代次」的 boot 存证：since 门之后、自报 pid 可用的那一条 */
+  function latestBoot(sinceMs) {
+    const hits = (readEvents() || []).filter((e) => e && e.type === 'boot'
+      && Number(e.t) >= Number(sinceMs) && Number(e.pid) > 0);
+    return hits.length ? hits[hits.length - 1] : null;
+  }
+
+  /** 按 pid + 标题 + 可见性甄别就绪窗（各电池传各自标题：面板本体／任务栏条带／浮层窗） */
+  function findWindowByTitle(pid, title) {
+    const wins = topLevelWindows() || [];
+    for (const h of wins) {
+      if (Number(windowPid(h)) !== Number(pid)) continue;
+      if (title && windowTitle(h) !== title) continue;
+      if (!isWindowVisible(h)) continue;
+      return h;
+    }
+    return null;
+  }
+
+  /** 就绪判据失败时的诊断转储：可见 Chrome 窗一览（红轮定位能力不降级） */
+  function dumpChromeWindows(pid, title) {
+    let rows = [];
+    try {
+      rows = (topLevelWindows() || []).slice(0, 12).map((h) => ({
+        hwnd: h, pid: windowPid(h), cls: windowClass(h), title: windowTitle(h),
+      }));
+    } catch { rows = []; }
+    const chrome = rows.filter((r) => String(r.cls || '').startsWith('Chrome'));
+    const text = chrome.map((r) => `0x${Number(r.hwnd).toString(16)} pid=${r.pid} cls=${r.cls}`).join(' | ');
+    log(`[panel-handle] pid=${pid} 的窗口「${title}」未找到。controller.pid=${process.pid} 可见 Chrome 窗: ${text}`);
+  }
+
+  /** 排空纪律的结构保证（工单132 根因：管道无人读 → 64KB 写满 → 主线程同步写永久阻塞） */
+  function attachDrain(child) {
+    if (child && child.stdout && typeof child.stdout.on === 'function') {
+      child.stdout.on('data', () => {}); // 排空即全部：管道永不满，面板永不因 stdout 阻塞
+    }
+    if (child && child.stderr && typeof child.stderr.on === 'function') {
+      child.stderr.on('data', (chunk) => { // stderr 同排空，另截留尾部供早亡取证
+        state.stderrTail = (state.stderrTail + String(chunk)).slice(-STDERR_TAIL_CHARS);
+      });
+    }
+  }
+
+  /**
+   * 发射面板（配置差异全进参数；stdio 三形态单点化）。
+   * @param {{mode: 'full'|'accept', cdpPort?: number|string, lagSentinel?: boolean, stdio?: 'ignore'|'drain'|'archive', extraEnv?: object}} cfg
+   * @returns {{child: object, launchedAt: number, stderrTail: () => string}}
+   */
+  function launch(cfg = {}) {
+    const mode = cfg.mode || 'full';
+    const args = PANEL_MODE_ARGS[mode];
+    if (!args) throw new Error(`面板句柄：未知发射形态 mode=${mode}（只认 full/accept）`);
+    const stdio = cfg.stdio || 'ignore';
+    if (!PANEL_STDIO_MODES.includes(stdio)) {
+      throw new Error(`面板句柄：未知 stdio 形态 ${stdio}（只认 ignore/drain/archive）`);
+    }
+
+    const env = { ...baseEnv };
+    if (eventLogPath) env.DECK_EVENT_LOG = eventLogPath;
+    if (cfg.cdpPort !== undefined && cfg.cdpPort !== null && cfg.cdpPort !== '') env.DECK_CDP_PORT = String(cfg.cdpPort);
+    if (cfg.lagSentinel) env.DECK_LAG_SENTINEL = '1';
+    for (const [k, v] of Object.entries(cfg.extraEnv || {})) env[k] = v;
+
+    const spawnOpts = { cwd: appRoot, env };
+    if (stdio === 'ignore') spawnOpts.stdio = 'ignore';
+    else if (stdio === 'drain') spawnOpts.stdio = ['ignore', 'pipe', 'pipe'];
+    else {
+      const fd = openArchive(archivePath);
+      spawnOpts.stdio = ['ignore', fd, fd];
+    }
+
+    // 发射时点先记账后 spawn：面板 boot 存证的 t 必晚于此刻，since 门才有意义
+    const launchedAt = now();
+    const child = spawnFn(execPath, args, spawnOpts);
+    state.child = child;
+    state.launchedAt = launchedAt;
+    state.sinceGate = launchedAt; // since 门默认＝本次发射时点
+    state.panelPid = null;
+    state.hwnd = null;
+    state.stderrTail = '';
+    state.lastCfg = { ...cfg };
+    if (stdio === 'drain') attachDrain(child);
+    return { child, launchedAt, stderrTail: () => state.stderrTail };
+  }
+
+  /**
+   * 就绪判据（与生成分离）：先等本代次 boot 自报 pid，再按 pid + 标题找就绪窗。
+   * 找不到窗时落可见 Chrome 窗诊断转储。
+   * @param {{title: string, timeoutMs?: number}} req
+   * @returns {Promise<object|null>} 就绪窗句柄；超时返回 null
+   */
+  async function waitWindow(req = {}) {
+    const title = req.title || '';
+    const timeoutMs = posInt(req.timeoutMs, DEFAULT_WAIT_WINDOW_MS);
+    const gate = state.sinceGate;
+
+    // 1) boot 自报 pid：句柄解析（spawn 的 child.pid 在 Electron 父进程下不可靠——既有教训单点承载）
+    const bootDeadline = now() + timeoutMs;
+    let boot = null;
+    while (now() < bootDeadline) {
+      boot = latestBoot(gate);
+      if (boot) break;
+      await sleep(BOOT_POLL_MS);
+    }
+    if (!boot) {
+      log(`[panel-handle] 未收到 boot 存证（since=${gate}）——面板未起来，或事件档路径与面板侧不一致`);
+      return null;
+    }
+    state.panelPid = boot.pid;
+
+    // 2) 按 pid + 标题甄别就绪窗
+    const winDeadline = now() + timeoutMs;
+    while (now() < winDeadline) {
+      const hwnd = findWindowByTitle(boot.pid, title);
+      if (hwnd) { state.hwnd = hwnd; return hwnd; }
+      await sleep(WINDOW_POLL_MS);
+    }
+
+    // 3) 超时：诊断转储（与既有 waitPanelWindow 的 dump 同款信息量）
+    dumpChromeWindows(boot.pid, title);
+    return null;
+  }
+
+  /**
+   * 重启样板归一：强退 → 重发。强退失败（需重启清障）即中止信号——不重发，
+   * 由调用方入环境降责账并中止后续段（句柄不记账不抛）。
+   * @param {{sinceMs?: number}} [req] since 门显式覆盖（缺省＝新发射时点）
+   * @returns {Promise<object>} 强退决策 + 是否真重发
+   */
+  async function relaunch(req = {}) {
+    const stopped = await stop();
+    if (!stopped.gone) {
+      return { ...stopped, launched: false, child: state.child, launchedAt: state.launchedAt };
+    }
+    const receipt = launch(state.lastCfg || { mode: 'full' });
+    if (req.sinceMs !== undefined && req.sinceMs !== null) state.sinceGate = Number(req.sinceMs);
+    return { ...stopped, launched: true, child: receipt.child, launchedAt: receipt.launchedAt };
+  }
+
+  /**
+   * 验证强退（沿用面板控制模块的强退序列：优雅终止→整树强杀→有界等待并验证消失）。
+   * idle 短路语义保留；outcome 语义不变（'idle' | 'graceful-gone' | 'forced-gone' | 'restart-clear-required'）。
+   * @returns {Promise<object>} 只返回决策，不记账、不重启、不抛
+   */
+  async function stop() {
+    const child = state.child;
+    const pids = [child && child.pid, state.panelPid].filter(Boolean);
+    if (!child && !state.panelPid) {
+      return { gone: true, graceful: true, forced: false, pidsLeft: [], outcome: 'idle' };
+    }
+    const res = await control.stop({ pids, child });
+    state.child = null;
+    state.panelPid = null;
+    state.hwnd = null;
+    return res;
+  }
+
+  /** 进程存在谓词（自报 pid 缺位时回落发射子进程 pid） */
+  function alive() {
+    const pid = state.panelPid || (state.child && state.child.pid);
+    if (!pid) return false;
+    return Boolean(isAlive(pid));
+  }
+
+  /** WM_NULL 探活谓词（主窗句柄缺位时无从探活） */
+  function responsive() {
+    if (!state.hwnd) return false;
+    try { return Boolean(responsiveProbe(state.hwnd, PROBE_TIMEOUT_MS)); } catch { return false; }
+  }
+
+  return { launch, waitWindow, relaunch, stop, alive, responsive };
+}
+
+module.exports = { createPanelControl, createPanelHandle, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES, DEFAULT_GRACE_MS, DEFAULT_VERIFY_MS, DEFAULT_POLL_MS };
