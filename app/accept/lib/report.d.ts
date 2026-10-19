@@ -40,6 +40,16 @@ export declare interface ManifestPathArea {
   wires?: string
 }
 
+/** 必须存在的文件级例外规则台账条目（工单220） */
+export declare interface ManifestRequiredFileRule {
+  /** 仓库相对路径（文件级规则：末段带扩展名） */
+  path: string
+  /** 域标签（须落在清单 areas 封闭词表内，且与映射表同条规则一致） */
+  area: string
+  /** 缺省=该路径由电池自身代码决定接线；'*'=共享验收基建（全部电池接线） */
+  wires?: string
+}
+
 export declare interface ManifestBattery {
   id: string
   title: string
@@ -74,6 +84,8 @@ export declare interface AcceptManifest {
   sourceRoots?: string[]
   /** 声明式 path→area 映射表（工单204） */
   pathAreas?: ManifestPathArea[]
+  /** 必须存在的文件级例外规则台账（工单220）：文件级规则不得被静默删/改域 */
+  requiredFileRules?: ManifestRequiredFileRule[]
   batteries: ManifestBattery[]
 }
 
