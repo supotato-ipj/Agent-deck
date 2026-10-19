@@ -29,7 +29,7 @@ const { app, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawn, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
@@ -38,6 +38,9 @@ const { cdpPortFor } = require('./lib/registry');
 // 超时档 8000（本电池档：母票 #201 决策 8 的枚举漏列本电池，编排台账 §8 裁决 1
 // 「保真优先于枚举」——传 6000 即 8000→6000 的行为变更）
 const { createEventTape } = require('./lib/event-tape');
+// 工单212：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const BATTERY_ID = '166-doc-group-cards';
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -46,6 +49,19 @@ const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 // **路径字面不变**（仍是 166-doc-group-cards-events.jsonl），本刀只统一变量名
 const EVENTS_FILE = path.join(__dirname, 'evidence', '166-doc-group-cards-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单212：证据档 fd 账（裁决 10 第②条：句柄的 archive 形态**不 close** fd，长跑会漏 fd——
+// 由电池侧在清场时关闭）。本电池是**唯一**用 archive 形态的电池（落档变体）。
+const archiveFds = [];
+// 工单212：句柄装配——发射形态 accept（['.','--panel-accept'] ＋ CDP 端口）；事件档 EVENTS_FILE
+// （boot 自报 pid 的来源）；证据档**按电池注入专属档名**（裁决 10 第①条：缺省是八块电池共用的
+// 同一文件，混批会让红轮归因变难）——本电池的档名与路径字面保持 166-panel-child.log 不变
+const handle = createPanelHandle({
+  execPath: process.execPath,
+  appRoot: APP_ROOT,
+  eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '166-panel-child.log'),
+  openArchive: (file) => { const fd = fs.openSync(file, 'a'); archiveFds.push(fd); return fd; },
+});
 const PLUGIN_ROOT = path.join(os.tmpdir(), 'deck187-plugins');
 const STAGING = path.join(os.tmpdir(), 'deck187-staging');
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
@@ -332,37 +348,23 @@ async function captureRect(cssRect, name) {
 }
 
 // ---------------------------------------------------------------------------
-// 面板子进程
+// 面板子进程（工单212：发射/就绪/清场归面板句柄）
 // ---------------------------------------------------------------------------
 let panelPid = 0;
-let child = null;
-function launchPanel() {
-  // 子进程 stdout/stderr 落证据档：面板早亡时（如 bootPanel 抛错）本控制器拿不到任何栈，
-  // 那正是首轮定位不到原因的原因——stderr 必须留证（工单49 同款纪律）。
-  const fd = fs.openSync(path.join(__dirname, 'evidence', '166-panel-child.log'), 'a');
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT) },
-    stdio: ['ignore', fd, fd],
-  });
-}
-function killPanel() {
-  if (panelPid) spawnSync('taskkill', ['/PID', String(panelPid), '/T', '/F'], { stdio: 'ignore' });
-  if (child) { try { child.kill(); } catch { /* 已退出 */ } }
-  panelPid = 0; child = null; panelMap = null;
-}
 
 async function startPanel(reason) {
   fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-  child = launchPanel();
+  // 工单212：发射归面板句柄——mode='accept'（['.','--panel-accept'] 绕单实例锁，与常驻面板共存）
+  // ＋ CDP 端口；stdio='archive'（落档变体）：子进程 stdout/stderr 落证据档，面板早亡时
+  // （如 bootPanel 抛错）本控制器拿不到任何栈，那正是首轮定位不到原因的原因——stderr 必须留证
+  // （工单49 同款纪律）。archivePath 注入**本电池专属**档名，路径字面不变（仍是
+  // evidence/166-panel-child.log，裁决 10 第①条）。
+  handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'archive' });
   const boot = await tape.wait('boot', null, { timeoutMs: 20000 });
   if (!boot) throw new Error(`面板子进程未上报 boot 事件（${reason}）`);
   panelPid = boot.pid;
-  const hwnd = await until(() => {
-    const h = win32.topLevelWindows().find((x) => win32.threadIdOf(x).pid === panelPid
-      && win32.IsWindowVisible(x) && titleOf(x) === PANEL_TITLE);
-    return h || null;
-  }, 15000, 200);
+  // 工单212：就绪寻窗归面板句柄（pid＋标题＋可见性；cls 缺省不做类名过滤——与正典同形）
+  const hwnd = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 15000 });
   if (!hwnd) {
     const seen = win32.topLevelWindows().filter((x) => win32.threadIdOf(x).pid === panelPid)
       .map((x) => `hwnd=${x} title=${JSON.stringify(titleOf(x))} cls=${win32.className(x)} vis=${win32.IsWindowVisible(x)}`);
@@ -373,6 +375,24 @@ async function startPanel(reason) {
   // 插件装载是热加载链（fs.watch 300ms 去抖 → rescan → import），等挂载事件而不是死等
   await until(() => cdpEval(EXPR.pluginMounted).then((v) => v && v.container), 15000, 250);
   return hwnd;
+}
+
+/**
+ * 验证强退（工单212，#202 决策 8 授权的唯一有意行为变更）：句柄 stop() 沿用工单112 的强退序列
+ * （优雅终止 → 整树强杀 → 有界等待并**验证消失**）。**gone=false ＝「需重启清障」中止信号**：
+ * 入环境降责账并中止后续段（throw 借电池的 try/catch 汇流，不吞）。
+ * 原实现是无验证 killPanel（taskkill /T /F 后不验消失就放行重启）——停摆面板残留会撞
+ * 单实例守卫，本刀起补上「验证消失」这一环。
+ */
+async function stopPanelOrAbort(rep) {
+  const stopped = await handle.stop();
+  panelPid = 0; panelMap = null; // 面板身份与几何缓存随面板一起作废（原 killPanel 的同一处置）
+  if (!stopped.gone) {
+    rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障`,
+      '面板强退序列未能终结面板进程', 'panel-forcekill');
+    throw new Error('面板强退失败：需重启清障——后续段中止');
+  }
+  return stopped;
 }
 
 // ---------------------------------------------------------------------------
@@ -652,7 +672,10 @@ async function main() {
       // 自愈面：坏 JSON 视同空对象 + warning 如实回报，且插件仍装载（面板不崩、桌面不空白）
       fs.writeFileSync(cfgFile, '{ this is not json', 'utf8');
       rep.note('已把 doc-group-cards.json 写成坏 JSON，重启面板验自愈面');
-      killPanel();
+      // 工单212：定点杀归句柄验证强退（gone=false 即中止信号）；不走向柄 relaunch——
+      // 本电池的重拉点是「定点杀 → 沉降 → 发射」形态，且**旧 boot 清除靠事件档截断**而非
+      // since 门，relaunch 的 sinceMs（只能在停止前取值）会把门提前到旧实例 boot 之前
+      await stopPanelOrAbort(rep);
       hwnd = await startPanel('坏 JSON 重启');
       const healed = await cdpEval(`window.deck.bridge.invoke('plugin-config/get', { id: 'doc-group-cards' })`);
       const mountedAgain = await cdpEval(EXPR.pluginMounted);
@@ -1394,7 +1417,8 @@ async function main() {
 
             // 持久化：重启面板后自定义卡连同勾选原样回来（definition 存内核 plugin-config）
             const defsBefore = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
-            killPanel();
+            // 工单212：定点杀归句柄验证强退（gone=false 即中止信号）；不走 relaunch（同上）
+            await stopPanelOrAbort(rep);
             hwnd = await startPanel('组定义重启');
             const restored = await until(async () => {
               const cards = await cdpEval(EXPR.cards);
@@ -1443,7 +1467,19 @@ async function main() {
     rep.fail(`电池异常: ${(err && err.stack) || err}`);
   } finally {
     // 清场纪律（同 49/156）：不留无系统入口的桌面、不留落物、不动共享插件根
-    try { if (panelPid) killPanel(); } catch { /* 尽力 */ }
+    // 工单212：收尾清场归句柄**验证强退**——gone=false 只入环境降责账、**不中止**
+    // （清场不掩盖真结局；中止会拦住 finish() → 控制器不退 → 验收槽租约挂死）
+    try {
+      const cleared = await handle.stop();
+      panelPid = 0; panelMap = null;
+      if (cleared && cleared.gone === false) {
+        rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+          '清场后仍有面板进程存活', 'panel-forcekill');
+      }
+    } catch { /* 尽力 */ }
+    // 工单212：证据档 fd 由电池侧关闭（裁决 10 第②条：句柄的 archive 形态不 close fd，
+    // 本电池每轮起面板开一次档、三轮共三只 fd，不关则长跑会漏 fd）
+    for (const fd of archiveFds.splice(0)) { try { fs.closeSync(fd); } catch { /* 尽力 */ } }
     for (const h of minimizedForRestore.reverse()) {
       try { if (win32.IsWindow(h)) win32.ShowWindow(h, 9); } catch { /* 尽力还原 */ }
     }
