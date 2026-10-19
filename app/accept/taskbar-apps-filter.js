@@ -20,9 +20,13 @@ const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
+// 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
+const { createEventTape } = require('./lib/event-tape');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '156-taskbar-apps-filter-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('156-taskbar-apps-filter');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -61,24 +65,6 @@ function ownerOf(hwnd) {
 /** 按 pid 收该进程的可见顶层窗（探针窗按宿主进程圈定，不按类名全机扫） */
 function visibleWindowsOfPid(pid) {
   return win32.topLevelWindows().filter((h) => win32.threadIdOf(h).pid === pid);
-}
-
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
 }
 
 function findWindowByPidTitle(pid, title) {
@@ -154,7 +140,7 @@ async function main() {
 
     // —— 拉起面板子进程（任务栏启用态）——
     child = launchPanel();
-    const boot = await waitEvent('boot', null, 15000);
+    const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
     rep.note(`面板 pid=${panelPid}`);

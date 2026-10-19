@@ -20,9 +20,13 @@ const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig } = require('./lib/battery-config');
+// 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
+const { createEventTape } = require('./lib/event-tape');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '51-taskbar-appbar-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
@@ -95,24 +99,6 @@ function primaryPhys() {
     height: Math.round(d.bounds.height * d.scaleFactor),
     scale: d.scaleFactor,
   };
-}
-
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
 }
 
 async function waitWindow(pid, title, timeoutMs = 10000) {
@@ -201,13 +187,13 @@ async function runSegments() {
     // —— P1：AppBar 占位生效 ——
     rep.beginSegment('P1');
     child = launchPanelAccept();
-    const boot = await waitEvent('boot', null, 20000);
+    const boot = await tape.wait('boot', null, { timeoutMs: 20000 });
     if (!boot) throw new Error('P1 面板未上报 boot');
     panelPid = boot.pid;
     const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
     if (!tbHwnd) throw new Error('P1 任务栏条带窗未出现');
-    const regEv = await waitEvent('taskbar-appbar-registered', null, 5000);
-    const setposEv = await waitEvent('taskbar-appbar-setpos', (e) => e.reason === 'create', 5000);
+    const regEv = await tape.wait('taskbar-appbar-registered', null, { timeoutMs: 5000 });
+    const setposEv = await tape.wait('taskbar-appbar-setpos', (e) => e.reason === 'create', { timeoutMs: 5000 });
     // 工作区收缩有生效时延，轮询到期望值
     const phys0 = primaryPhys();
     const expectBottom0 = phys0.height - Math.round(TASKBAR_HEIGHT_DIP * phys0.scale);
@@ -253,8 +239,8 @@ async function runSegments() {
       } else {
         modeSwitched = true;
         await sleep(1500); // 等显示器重同步 + display-metrics-changed 投递
-        const reposEv = await waitEvent('taskbar-appbar-setpos',
-          (e) => e.t >= sinceP3 && e.reason === 'display-metrics-changed', 8000);
+        const reposEv = await tape.wait('taskbar-appbar-setpos',
+          (e) => e.reason === 'display-metrics-changed', { since: sinceP3, timeoutMs: 8000 });
         const phys1 = primaryPhys();
         const expectBottom1 = phys1.height - Math.round(TASKBAR_HEIGHT_DIP * phys1.scale);
         const waMs1 = await waitMs(() => {
@@ -297,7 +283,7 @@ async function runSegments() {
     const fgMs = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(fsWin), 4000);
     if (fgMs < 0) rep.note(`P4 前台强制未达（fg=${Number(win32.GetForegroundWindow())} fsHwnd=${hwndOf(fsWin)}），让位判定以前台事实为准`);
     const hideMs = await waitMs(() => !win32.IsWindowVisible(tbHwnd), 5000);
-    const yieldEv = await waitEvent('taskbar-yield', (e) => e.t >= sinceP4, 3000);
+    const yieldEv = await tape.wait('taskbar-yield', undefined, { since: sinceP4, timeoutMs: 3000 });
     if (hideMs >= 0 && yieldEv) {
       rep.pass(`P4a 全屏让位：前台全屏参照窗 ${fgMs}ms 落位前台后 ${hideMs}ms 条带隐藏（taskbar-yield 存证 + 视图事实）`);
     } else {
@@ -307,7 +293,7 @@ async function runSegments() {
     fsWin.destroy();
     refWins.pop();
     const liftMs = await waitMs(() => win32.IsWindowVisible(tbHwnd), 5000);
-    const liftedEv = await waitEvent('taskbar-yield-lifted', (e) => e.t >= t0, 3000);
+    const liftedEv = await tape.wait('taskbar-yield-lifted', undefined, { since: t0, timeoutMs: 3000 });
     if (liftMs >= 0 && liftMs <= 1000 && liftedEv) {
       rep.pass(`P4b 退出全屏恢复：${liftMs}ms 内条带恢复（≤1 秒口径，taskbar-yield-lifted 存证）`);
     } else {
@@ -320,7 +306,7 @@ async function runSegments() {
     const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 8000);
     if (!panelHwnd) throw new Error('P5 面板主窗未找到');
     win32.PostMessageW(panelHwnd, WM_CLOSE, 0, 0);
-    const removeEv = await waitEvent('taskbar-appbar-removed', (e) => e.t >= sinceP5, 8000);
+    const removeEv = await tape.wait('taskbar-appbar-removed', undefined, { since: sinceP5, timeoutMs: 8000 });
     // 归还判据 = 回到开跑前基线（原生任务栏还原后自身占底边一档，不是满屏）
     const restoreMs = await waitMs(() => {
       const wa = workArea();

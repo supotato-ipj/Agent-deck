@@ -23,9 +23,13 @@ const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
+// 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
+const { createEventTape } = require('./lib/event-tape');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '50-taskbar-carry-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('50-taskbar-carry');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -63,24 +67,6 @@ function isTopmost(hwnd) {
 
 function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
-}
-
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
 }
 
 async function waitWindow(pid, title, timeoutMs = 10000) {
@@ -194,13 +180,13 @@ async function runSegments() {
     // A1 接管开启 → 原生任务栏隐藏，条带落屏底
     rep.beginSegment('A1');
     child = launchGuardChain();
-    const boot1 = await waitEvent('boot', null, 20000);
+    const boot1 = await tape.wait('boot', null, { timeoutMs: 20000 });
     if (!boot1) throw new Error('A1 守卫链面板未上报 boot');
     panelPid = boot1.pid;
     rep.note(`A1 守卫 pid=${child.pid} 面板 pid=${panelPid}`);
     const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
     if (!tbHwnd) throw new Error('A1 任务栏条带窗未出现');
-    const hiddenEv = await waitEvent('taskbar-hidden', null, 5000);
+    const hiddenEv = await tape.wait('taskbar-hidden', null, { timeoutMs: 5000 });
     const nativeGone = await waitNativeVisible(false, 5000);
     // 条带几何：净空归零 → 底边 = 屏底（49 P1 同款物理↔DIP 换算）
     const dip = screen.getPrimaryDisplay().bounds;
@@ -223,7 +209,7 @@ async function runSegments() {
     win32.PostMessageW(panelHwnd, WM_CLOSE, 0, 0);
     const guardExited = await waitExit(child, 15000);
     const restoredA2 = await waitNativeVisible(true, 8000);
-    const restoredEvA2 = await waitEvent('taskbar-restored', (e) => e.t >= sinceA2, 5000);
+    const restoredEvA2 = await tape.wait('taskbar-restored', undefined, { since: sinceA2, timeoutMs: 5000 });
     if (guardExited && restoredA2 && restoredEvA2) {
       rep.pass(`A2 正常退出路径：原生任务栏还原（reason=${restoredEvA2.reason}，守卫随退=${guardExited}）`);
     } else {
@@ -235,7 +221,7 @@ async function runSegments() {
     rep.beginSegment('A3');
     const sinceA3 = Date.now();
     child = launchGuardChain();
-    const boot3 = await waitEvent('boot', (e) => e.t >= sinceA3, 20000);
+    const boot3 = await tape.wait('boot', undefined, { since: sinceA3, timeoutMs: 20000 });
     if (!boot3) throw new Error('A3 守卫链面板未上报 boot');
     panelPid = boot3.pid;
     if (!(await waitWindow(panelPid, TASKBAR_TITLE, 12000))) throw new Error('A3 条带窗未出现');
@@ -243,7 +229,7 @@ async function runSegments() {
     killTree(panelPid); // 模拟崩溃/强杀：面板整树死，守卫存活
     const guardExited3 = await waitExit(child, 15000);
     const restoredA3 = await waitNativeVisible(true, 8000);
-    const restoredEvA3 = await waitEvent('taskbar-restored', (e) => e.t >= sinceA3 && e.reason === 'panel-exit', 5000);
+    const restoredEvA3 = await tape.wait('taskbar-restored', (e) => e.reason === 'panel-exit', { since: sinceA3, timeoutMs: 5000 });
     if (restoredA3 && restoredEvA3) {
       rep.pass(`A3 崩溃路径：面板被 taskkill /F 后守卫还原原生任务栏（reason=panel-exit，守卫随退=${guardExited3}）`);
     } else {
@@ -256,11 +242,11 @@ async function runSegments() {
     rep.beginSegment('A4');
     const sinceA4 = Date.now();
     child = launchGuardChain();
-    const boot4 = await waitEvent('boot', (e) => e.t >= sinceA4, 20000);
+    const boot4 = await tape.wait('boot', undefined, { since: sinceA4, timeoutMs: 20000 });
     if (!boot4) throw new Error('A4 守卫链面板未上报 boot');
     panelPid = boot4.pid;
     const guardPid4 = child.pid;
-    const watchEv = await waitEvent('restore-watch-spawned', (e) => e.t >= sinceA4, 5000);
+    const watchEv = await tape.wait('restore-watch-spawned', undefined, { since: sinceA4, timeoutMs: 5000 });
     const watchPid = watchEv ? watchEv.pid : 0;
     if (!(await waitWindow(panelPid, TASKBAR_TITLE, 12000))) throw new Error('A4 条带窗未出现');
     if (!(await waitNativeVisible(false, 5000))) throw new Error('A4 原生任务栏未被隐藏（前置不成立）');
@@ -269,7 +255,7 @@ async function runSegments() {
     spawnSync('taskkill', ['/PID', String(guardPid4), '/F'], { stdio: 'ignore' });
     killTree(panelPid);
     const restoredA4 = await waitNativeVisible(true, 10000);
-    const restoredEvA4 = await waitEvent('taskbar-restored', (e) => e.t >= sinceA4 && e.reason === 'guard-dead', 8000);
+    const restoredEvA4 = await tape.wait('taskbar-restored', (e) => e.reason === 'guard-dead', { since: sinceA4, timeoutMs: 8000 });
     let watchDead = false;
     for (let i = 0; i < 50 && !watchDead && watchPid; i++) { await sleep(200); watchDead = !pidAlive(watchPid); }
     if (restoredA4 && restoredEvA4 && watchPid && watchDead) {
@@ -282,7 +268,7 @@ async function runSegments() {
     // —— 阶段B：逃生开关真机链路（--panel-accept + CDP 驱动设置浮层真实 DOM）——
     const sinceB = Date.now();
     child = launchPanelAccept();
-    const bootB = await waitEvent('boot', (e) => e.t >= sinceB, 20000);
+    const bootB = await tape.wait('boot', undefined, { since: sinceB, timeoutMs: 20000 });
     if (!bootB) throw new Error('B 验收面板未上报 boot');
     panelPid = bootB.pid;
     if (!(await waitWindow(panelPid, TASKBAR_TITLE, 12000))) throw new Error('B 条带窗未出现');
@@ -291,12 +277,12 @@ async function runSegments() {
     // B1 设置浮层关开关（真实 DOM 点击链：settings-btn → taskbar-toggle）→ 原生即还原
     rep.beginSegment('B1');
     await cdpEval(`document.getElementById('settings-btn').click()`);
-    const openedEv = await waitEvent('settings-opened', (e) => e.t >= sinceB, 5000);
+    const openedEv = await tape.wait('settings-opened', undefined, { since: sinceB, timeoutMs: 5000 });
     if (!openedEv) throw new Error('B1 设置浮层未开（settings-opened 存证缺失）');
     if (!openedEv.taskbarToggle) throw new Error('B1 开层存证缺 taskbarToggle 矩形（渲染层未上报）');
     const toggleState = await cdpEval(`document.getElementById('taskbar-toggle').checked`);
     await cdpEval(`document.getElementById('taskbar-toggle').click()`);
-    const setEvOff = await waitEvent('settings-taskbar-set', (e) => e.t >= sinceB && e.enabled === false, 6000);
+    const setEvOff = await tape.wait('settings-taskbar-set', (e) => e.enabled === false, { since: sinceB, timeoutMs: 6000 });
     const nativeBackB1 = await waitNativeVisible(true, 8000);
     const diskOff = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
     let stripGoneB1 = false;
@@ -310,7 +296,7 @@ async function runSegments() {
     // B2 再开 → 原生再隐、条带回来（开关双向可用，非一次性自救）
     rep.beginSegment('B2');
     await cdpEval(`document.getElementById('taskbar-toggle').click()`);
-    const setEvOn = await waitEvent('settings-taskbar-set', (e) => e.t >= sinceB && e.enabled === true, 6000);
+    const setEvOn = await tape.wait('settings-taskbar-set', (e) => e.enabled === true, { since: sinceB, timeoutMs: 6000 });
     const nativeGoneB2 = await waitNativeVisible(false, 8000);
     const tbBackB2 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
     if (setEvOn && nativeGoneB2 && tbBackB2) {
