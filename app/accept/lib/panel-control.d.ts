@@ -82,7 +82,9 @@ export declare interface PanelWaitWindowRequest {
   timeoutMs?: number
 }
 
-/** 句柄自持状态（#202 决策2：四件状态归句柄，电池里的可变闭包总线随之消失） */
+/** 句柄自持状态（#202 决策2：身份四件——发射子进程/面板自报 pid/主窗句柄/发射时点——归句柄，
+ *  电池里的可变闭包总线随之消失）；本接口逐成员对应 panel-control.js 运行时持有的 state，
+ *  含四件之外的三项记账成员（since 门/末次发射配置快照/stderr 尾）。 */
 export declare interface PanelHandleState {
   /** 发射子进程 */
   child: unknown | null
@@ -92,6 +94,13 @@ export declare interface PanelHandleState {
   hwnd: unknown | null
   /** 发射时点（since 门记账） */
   launchedAt: number
+  /** since 门当前值（发射时点即门；relaunch 传 sinceMs 时显式覆盖） */
+  sinceGate: number
+  /** 末次发射配置快照（relaunch 逐字复现首发配置用；未发射过为 null） */
+  lastCfg: PanelLaunchConfig | null
+  /** stderr 尾（drain 形态下由句柄截留，尾部只留末 4000 字符，供早亡取证；非 drain 形态为空串）。
+   *  与 PanelLaunchReceipt.stderrTail() 分工：那里是「取尾」的取值函数，这里是持有字段。 */
+  stderrTail: string
 }
 
 /** 句柄 stop 的决策（outcome 比面板控制模块多一档 idle 短路） */
