@@ -234,6 +234,22 @@ function classifyTrayMachineState(probes = {}) {
 //   ② heal 编排（停摆检出→排除窗→重启→健康闭窗）留电池层——生命周期模块不被报告记账依赖污染。
 //   ③ 落点命中即健康那套属交互时序域，不归本模块（留给后续交互底座候选）。
 //
+// 就绪判据的三道承重件（工单206 独立审计必改项——各缺一道就会「拿错窗/拿旧窗」）：
+//   ① boot 取本代次**最后**一条（.pop 口径，与 battery.js waitPanelWindow 同款）——
+//      主电池 heal 路径故意把 since 门回溯 1.5 秒（battery.js「sinceMs 必给：事件文件里
+//      还留着上一实例的 boot」），回溯门下同窗内可能同时存在「旧实例迟到的 boot」与
+//      「新实例的 boot」：取首个会选中旧 boot → 拿旧 pid 寻窗 → 误报「重启后面板窗口未现」。
+//      另有一族正典（通用事件等待 waitEvent('boot', pred) 取**首个**）——那族判据不用于寻窗；
+//      两族并存不是笔误，勿「顺手统一」。
+//   ② 标题是必填判据：空串/纯空白/缺省标题**不退化**为「任一可见窗即面板本体窗」（面板进程里
+//      同在任务栏条带、菜单浮层窗——拿错窗＝把副窗当面板本体窗）。缺省时按「找不到窗」同形处置：
+//      落可见 Chrome 窗诊断转储 + 立即返回 null（不抛——「不记账不抛」纪律不变，判负由调用方读）。
+//   ③ 可见性是判据之一：不可见窗不认作就绪窗。
+//
+// 证据档分名（接线时按电池注入）：stdio=archive 的缺省去处是**单一共享文件**
+// accept/evidence/panel-handle-child.log——八块电池共用会混批、红轮归因变难。
+// 缺省值不改（保持既有语义），接线时用 deps.archivePath 注入各电池专属档名。
+//
 // 零 koffi 零 Report 依赖：窗口枚举/探活/时钟全经注入，注入式单测不碰真机；
 // 真机默认实现走惰性 require（与既有模块同款形态——模块加载不拉原生模块）。
 
@@ -347,12 +363,16 @@ function createPanelHandle(deps = {}) {
     return hits.length ? hits[hits.length - 1] : null;
   }
 
-  /** 按 pid + 标题 + 可见性甄别就绪窗（各电池传各自标题：面板本体／任务栏条带／浮层窗） */
-  function findWindowByTitle(pid, title) {
+  /** 按 pid + 标题 + 类名 + 可见性甄别就绪窗（各电池传各自标题：面板本体／任务栏条带／浮层窗）。
+   *  标题是必填判据，但**闸门只有一处**（waitWindow 入口）——这里不重复设防：
+   *  设防点单一才测得到（重复设防会留下测不到的旁路，空标题照样从旁路漏成「任一可见窗」）。
+   *  cls 缺省不做类名过滤（纯增量——不传 cls 时行为与原先逐字一致）。 */
+  function findWindowByTitle(pid, title, cls) {
     const wins = topLevelWindows() || [];
     for (const h of wins) {
       if (Number(windowPid(h)) !== Number(pid)) continue;
       if (title && windowTitle(h) !== title) continue;
+      if (cls && windowClass(h) !== cls) continue;
       if (!isWindowVisible(h)) continue;
       return h;
     }
@@ -369,7 +389,7 @@ function createPanelHandle(deps = {}) {
     } catch { rows = []; }
     const chrome = rows.filter((r) => String(r.cls || '').startsWith('Chrome'));
     const text = chrome.map((r) => `0x${Number(r.hwnd).toString(16)} pid=${r.pid} cls=${r.cls}`).join(' | ');
-    log(`[panel-handle] pid=${pid} 的窗口「${title}」未找到。controller.pid=${process.pid} 可见 Chrome 窗: ${text}`);
+    log(`[panel-handle] pid=${pid == null ? '未知' : pid} 的窗口「${title}」未找到。controller.pid=${process.pid} 可见 Chrome 窗: ${text}`);
   }
 
   /** 排空纪律的结构保证（工单132 根因：管道无人读 → 64KB 写满 → 主线程同步写永久阻塞） */
@@ -421,21 +441,44 @@ function createPanelHandle(deps = {}) {
     state.panelPid = null;
     state.hwnd = null;
     state.stderrTail = '';
-    state.lastCfg = { ...cfg };
+    // 末次发射配置快照：relaunch 逐字复现首发配置（extraEnv 一并快照——调用方事后改自己的
+    // 对象不该改写重发配置）。「relaunch 静默退回 full 形态」会去撞单实例守卫，
+    // 「新面板被拒收」正是母票要斩的形态——故配置保真由结构保证，不靠调用方记性。
+    state.lastCfg = { ...cfg, extraEnv: cfg.extraEnv ? { ...cfg.extraEnv } : undefined };
     if (stdio === 'drain') attachDrain(child);
     return { child, launchedAt, stderrTail: () => state.stderrTail };
   }
 
   /**
-   * 就绪判据（与生成分离）：先等本代次 boot 自报 pid，再按 pid + 标题找就绪窗。
+   * 就绪判据（与生成分离）：先等本代次 boot 自报 pid，再按 pid + 标题（＋可选类名）找就绪窗。
    * 找不到窗时落可见 Chrome 窗诊断转储。
-   * @param {{title: string, timeoutMs?: number}} req
-   * @returns {Promise<object|null>} 就绪窗句柄；超时返回 null
+   *
+   * 标题是就绪判据的**必填**件：空串/纯空白/缺省标题不退化为「任一可见窗即面板本体窗」（面板进程里
+   * 同在任务栏条带、菜单浮层窗——拿错窗＝把副窗当面板本体窗）。缺省时按「找不到窗」同形处置：
+   * 落可见 Chrome 窗诊断转储 + 立即返回 null（不抛：模块「不记账不抛」纪律不变，判负由调用方读）。
+   * 标题按**原值**参与匹配（既有语义逐字不动）；「空白」只在闸门处判负（trim 后为空）。
+   *
+   * @param {{title: string, cls?: string, timeoutMs?: number}} req
+   *   title：就绪窗标题（必填；空串/纯空白/缺省 → 判负返回 null）
+   *   cls：可选类名过滤（缺省不做类名过滤——主电池现行判据的 Chrome_WidgetWin_1 一道）
+   *   timeoutMs：超时 ms（缺省 20000）
+   * @returns {Promise<object|null>} 就绪窗句柄；判负/超时返回 null
    */
   async function waitWindow(req = {}) {
-    const title = req.title || '';
+    // 标题用**原值**参与匹配（既有语义逐字不动：调用方给什么就拿什么去比）；
+    // 空白/缺省标题在闸门处判负——判负口径是「trim 后为空」，不改变任何非空标题的匹配结果。
+    const title = typeof req.title === 'string' ? req.title : '';
+    const cls = typeof req.cls === 'string' && req.cls ? req.cls : null;
     const timeoutMs = posInt(req.timeoutMs, DEFAULT_WAIT_WINDOW_MS);
     const gate = state.sinceGate;
+
+    // 标题缺省/空白＝判据失准：按「找不到窗」同形处置——落诊断转储 + 立即返回 null
+    // （不退化为「任一可见窗即面板本体窗」；不进轮询——判据已失准，等超时也只是白等）
+    if (!title.trim()) {
+      log('[panel-handle] waitWindow 缺省就绪窗标题——就绪判据失准（不退化为「任一可见窗即面板本体窗」），按找不到窗处置');
+      dumpChromeWindows(state.panelPid, '(未指定)');
+      return null;
+    }
 
     // 1) boot 自报 pid：句柄解析（spawn 的 child.pid 在 Electron 父进程下不可靠——既有教训单点承载）
     const bootDeadline = now() + timeoutMs;
@@ -454,7 +497,7 @@ function createPanelHandle(deps = {}) {
     // 2) 按 pid + 标题甄别就绪窗
     const winDeadline = now() + timeoutMs;
     while (now() < winDeadline) {
-      const hwnd = findWindowByTitle(boot.pid, title);
+      const hwnd = findWindowByTitle(boot.pid, title, cls);
       if (hwnd) { state.hwnd = hwnd; return hwnd; }
       await sleep(WINDOW_POLL_MS);
     }

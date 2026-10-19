@@ -69,8 +69,15 @@ export declare interface PanelLaunchConfig {
 }
 
 export declare interface PanelWaitWindowRequest {
-  /** 就绪窗标题（面板本体 AGENT DECK / 任务栏条带 DECK-TASKBAR / 浮层窗） */
+  /**
+   * 就绪窗标题（面板本体 AGENT DECK / 任务栏条带 DECK-TASKBAR / 浮层窗）。
+   * 必填判据：传空串/纯空白/undefined 时**不退化**为「任一可见窗即面板本体窗」——
+   * 按「找不到窗」同形处置：落可见 Chrome 窗诊断转储 + 立即返回 null（不抛）。
+   * 标题按原值参与匹配（既有语义不动）；「空白」只在闸门处判负（trim 后为空）。
+   */
   title: string
+  /** 可选类名过滤（缺省不做类名过滤；主电池现行判据的 Chrome_WidgetWin_1 一道） */
+  cls?: string
   /** 超时 ms（缺省 20000） */
   timeoutMs?: number
 }
