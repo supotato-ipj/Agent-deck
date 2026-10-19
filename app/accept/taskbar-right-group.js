@@ -24,9 +24,22 @@ const { Report } = require('./lib/report');
 // 抽为单点维护后四电池同一契约（缺位读不抛、缺位落桩、三态还原）
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
+// 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
+const { createEventTape } = require('./lib/event-tape');
+// 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '55-taskbar-right-group-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单211：句柄装配——发射形态 accept（['.','--panel-accept'] ＋ CDP 端口）；证据档按电池
+// 注入专属档名（裁决 10：缺省是八块电池共用的同一文件，混批会让红轮归因变难）
+const handle = createPanelHandle({
+  execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '55-taskbar-right-group-panel-handle-child.log'),
+});
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('55-taskbar-right-group');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -37,52 +50,8 @@ const { nativeTaskbarVisible, ensureNativeTaskbarVisible } = win32;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function findWindow(pid, title) {
-  for (const h of win32.topLevelWindows()) {
-    if (win32.threadIdOf(h).pid === pid && titleOf(h) === title) return h;
-  }
-  return null;
-}
-
 const koffi = win32.koffi;
 const user32 = koffi.load('user32.dll');
-const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
-
-function titleOf(hwnd) {
-  const buf = Buffer.alloc(512);
-  const n = GetWindowTextW(hwnd, buf, 256);
-  let s = '';
-  for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
-  return s;
-}
-
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
-}
-
-async function waitWindow(pid, title, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const h = findWindow(pid, title);
-    if (h) return h;
-    await sleep(120);
-  }
-  return null;
-}
 
 /** 按归属 exe basename 等窗口在台（探针类无标题/多窗口的进程用） */
 async function waitWindowByExe(exe, timeoutMs = 8000) {
@@ -136,14 +105,6 @@ async function dismissFlyout() {
   return false;
 }
 
-function launchPanel() {
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT) },
-    stdio: 'ignore',
-  });
-}
-
 /** CDP 在指定标题的页里执行表达式并取回值（任务栏页与面板页同属面板子进程的 targets） */
 async function cdpEval(pageTitle, expression) {
   const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
@@ -179,9 +140,21 @@ async function convergeAt(pt, tbHwnd) {
   return false;
 }
 
-function killTree(child, panelPid) {
-  if (panelPid) spawnSync('taskkill', ['/PID', String(panelPid), '/T', '/F'], { stdio: 'ignore' });
-  try { child.kill(); } catch { /* 已退出 */ }
+/**
+ * 验证强退（工单211，#202 决策 8）：句柄 stop() 沿用工单112 的强退序列
+ * （优雅终止 → 整树强杀 → 有界等待并验证消失）。**gone=false ＝「需重启清障」中止信号**：
+ * 入环境降责账并中止后续段（throw 借电池的 try/catch 汇流，不吞）。
+ * 原实现是无验证 killTree（taskkill /T /F 后不验消失就放行重启）——停摆面板残留会撞
+ * 单实例守卫，本刀起补上「验证消失」这一环。
+ */
+async function stopPanelOrAbort(rep) {
+  const stopped = await handle.stop();
+  if (!stopped.gone) {
+    rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障`,
+      '面板强退序列未能终结面板进程', 'panel-forcekill');
+    throw new Error('面板强退失败：需重启清障——后续段中止');
+  }
+  return stopped;
 }
 
 // 任务栏页摘要格读式（工单123 引入）：仅 P6 消费（即时收敛 + 重拉两读）——hw-summary
@@ -253,16 +226,15 @@ function makeOverflowProbe() {
   return { frames, hwnd, pump, waitFrame, destroy };
 }
 
-/** 最新一条命中事件（waitEvent 取首条；溢出几何/浮层开合要看「当前态」——从尾部扫） */
-function lastEvent(type, pred) {
-  const all = readEvents().filter((e) => e.type === type && (!pred || pred(e)));
-  return all.length ? all[all.length - 1] : null;
-}
-
-async function waitLastEvent(type, pred, timeoutMs = 8000) {
+/**
+ * 最新一条命中事件（waitEvent 取首条；溢出几何/浮层开合要看「当前态」——从尾部扫）。
+ * 工单210：事件源归磁带——tape.latest 是正典 readEvents().filter().pop() 的「末拍」口径，
+ * 与 tape.wait 的「首个」口径**刻意并存**（裁决 2：不许一律用 latest / 不许一律用 wait）。
+ */
+async function waitLastEvent(type, pred, timeoutMs = 8000, queryOptions) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const hit = lastEvent(type, pred);
+    const hit = tape.latest(type, pred, queryOptions);
     if (hit) return hit;
     await sleep(60);
   }
@@ -271,7 +243,6 @@ async function waitLastEvent(type, pred, timeoutMs = 8000) {
 
 async function main() {
   const rep = new Report('55-taskbar-right-group');
-  let child = null;
   let panelPid = 0;
   let notepad = null;
   let probe162 = null; // P7 探针（工单162）：finally 兜底拆除（段内异常也不漏窗漏类漏图标）
@@ -287,13 +258,14 @@ async function main() {
     patchTaskbar({ enabled: true, metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] });
 
     // —— 拉起面板子进程（任务栏启用态）——
-    child = launchPanel();
-    const boot = await waitEvent('boot', null, 15000);
+    // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept'] ＋ CDP 端口）
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
     rep.note(`面板 pid=${panelPid}`);
 
-    const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('任务栏窗口未出现');
     const tbRect = win32.rectOf(tbHwnd);
     const dip = screen.getPrimaryDisplay().bounds;
@@ -304,9 +276,9 @@ async function main() {
     });
 
     // 等右组渲染就绪 + 首个 1Hz 数据帧（摘要数值就位）
-    const ready = await waitEvent('taskbar-ready', (e) => e.rightPill && e.sliver, 10000);
+    const ready = await tape.wait('taskbar-ready', (e) => e.rightPill && e.sliver, { timeoutMs: 10000 });
     if (!ready) throw new Error('taskbar-ready 存证缺失右组矩形（无法取点击坐标）');
-    const statusEv = await waitEvent('taskbar-right-status', (e) => e.values && e.values.cpu, 10000);
+    const statusEv = await tape.wait('taskbar-right-status', (e) => e.values && e.values.cpu, { timeoutMs: 10000 });
     if (!statusEv) throw new Error('taskbar-right-status 存证缺失（右组 1Hz 数据帧未到达）');
     const cellOf = (id) => {
       const c = ready.rightCells.find((x) => x.id === id);
@@ -340,7 +312,7 @@ async function main() {
     const convP3 = await convergeAt(clockPt, tbHwnd);
     rep.note(`P3 点击前收敛=${convP3}`);
     win32.clickPhys(clockPt.x, clockPt.y, 'left');
-    const evP3 = await waitEvent('taskbar-action-result', (e) => e.action === 'notification-center' && e.t >= Date.now() - 6000, 5000);
+    const evP3 = await tape.wait('taskbar-action-result', (e) => e.action === 'notification-center' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
     const fgP3 = await waitForeground((i) => isNotificationCenter(i) && (!beforeP3 || i.hwnd !== beforeP3.hwnd), 6000);
     if (convP3 && evP3 && evP3.ok && fgP3) {
       rep.pass(`P3 时钟格弹出原生通知中心（前台 ${fgP3.exe} / ${fgP3.cls}）`);
@@ -358,7 +330,7 @@ async function main() {
     const convP4 = await convergeAt(volPt, tbHwnd);
     rep.note(`P4 点击前收敛=${convP4}`);
     win32.clickPhys(volPt.x, volPt.y, 'left');
-    const evP4 = await waitEvent('taskbar-action-result', (e) => e.action === 'quick-settings' && e.t >= Date.now() - 6000, 5000);
+    const evP4 = await tape.wait('taskbar-action-result', (e) => e.action === 'quick-settings' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
     const fgP4 = await waitForeground((i) => isQuickSettings(i) && (!beforeP4 || i.hwnd !== beforeP4.hwnd), 6000);
     if (convP4 && evP4 && evP4.ok && fgP4) {
       rep.pass(`P4 音量格弹出原生快速设置（前台 ${fgP4.exe} / ${fgP4.cls}）`);
@@ -390,13 +362,13 @@ async function main() {
       const convP5 = await convergeAt(sliverPt, tbHwnd);
       rep.note(`P5 点击前收敛=${convP5}`);
       win32.clickPhys(sliverPt.x, sliverPt.y, 'left');
-      evP5a = await waitEvent('taskbar-action-result', (e) => e.action === 'toggle-desktop' && e.t >= Date.now() - 6000, 5000);
+      evP5a = await tape.wait('taskbar-action-result', (e) => e.action === 'toggle-desktop' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
       p5min = await waitForeground(isDesktop, 6000);
       await sleep(400);
       // 再点一次：Win+D 反 toggle 还原 notepad 前台（对齐 Win11 右下角肌肉记忆）
       await convergeAt(sliverPt, tbHwnd);
       win32.clickPhys(sliverPt.x, sliverPt.y, 'left');
-      evP5b = await waitEvent('taskbar-action-result', (e) => e.action === 'toggle-desktop' && e.t >= Date.now() - 4000, 5000);
+      evP5b = await tape.wait('taskbar-action-result', (e) => e.action === 'toggle-desktop' && e.t >= Date.now() - 4000, { timeoutMs: 5000 });
       p5restore = await waitForeground((i) => i.exe === 'notepad', 6000);
     }
     if (fgNote && p5min && p5restore && evP5a && evP5a.ok && evP5b && evP5b.ok) {
@@ -416,17 +388,16 @@ async function main() {
     const live6 = /CPU/.test(String(sumText6)) && /RAM/.test(String(sumText6))
       && !/GPU/.test(String(sumText6)) && !/DL/.test(String(sumText6)) && !/UP/.test(String(sumText6));
     // 重拉面板（重启保持判据）
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     panelPid = 0;
     await sleep(1200);
     const since6 = Date.now();
-    child = launchPanel();
-    const boot6 = await waitEvent('boot', (e) => e.t >= since6, 15000);
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    const boot6 = await tape.wait('boot', undefined, { since: since6, timeoutMs: 15000 });
     if (!boot6) throw new Error('P6 重拉面板子进程未上报 boot');
     panelPid = boot6.pid;
-    await waitWindow(panelPid, TASKBAR_TITLE, 12000);
-    const ready6 = await waitEvent('taskbar-ready', (e) => e.t >= since6 && e.rightCells, 10000);
+    await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
+    const ready6 = await tape.wait('taskbar-ready', (e) => e.rightCells, { since: since6, timeoutMs: 10000 });
     const ids6 = ready6 ? ready6.rightCells.map((c) => c.id) : [];
     const sumText6b = ready6 ? await cdpEval(TASKBAR_TITLE, READ_SUMMARY_EXPR) : '';
     const persist6 = /CPU/.test(String(sumText6b)) && /RAM/.test(String(sumText6b)) && !/GPU/.test(String(sumText6b));
@@ -442,7 +413,7 @@ async function main() {
     rep.beginSegment('P7');
     const t7 = Date.now();
     // P6 重拉了面板：旧条带窗句柄已死（convergeAt 对死 hwnd 轮询必超时），重取现任窗
-    const tbHwnd7 = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd7 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd7) throw new Error('P7 条带窗未出现');
     const conv = (pt) => convergeAt(pt, tbHwnd7);
     const {
@@ -478,7 +449,7 @@ async function main() {
     const armFail7 = (name, detail) => rep.fail(`P7[${name}] ${detail}`);
 
     // 前置数据：最新几何（⋯ 矩形在此）
-    const geo7 = await waitLastEvent('taskbar-geometry', (e) => e.t >= t7 && e.trayOverflow, 8000);
+    const geo7 = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, { since: t7 });
     if (!geo7) {
       armFail7('几何', 'taskbar-geometry 无 trayOverflow 矩形（⋯ 未渲染或存证缺字段）');
     } else {
@@ -505,8 +476,9 @@ async function main() {
         win32.clickPhys(morePt.x, morePt.y, 'left');
         await sleep(700);
         const boundsOf = () => {
-          const os = readEvents().filter((e) => e.t >= since
-            && (e.type === 'taskbar-tray-overflow-opened' || e.type === 'taskbar-tray-overflow-resized'));
+          const os = tape.all(undefined,
+            (e) => e.type === 'taskbar-tray-overflow-opened' || e.type === 'taskbar-tray-overflow-resized',
+            { since });
           return os.length ? os[os.length - 1] : null;
         };
         let opened = null;
@@ -516,7 +488,7 @@ async function main() {
           if (opened) break;
           await sleep(80);
         }
-        const ready = await waitLastEvent('taskbar-tray-overflow-ready', (e) => e.t >= since && Array.isArray(e.rows) && e.rows.length > 0, 4000);
+        const ready = await waitLastEvent('taskbar-tray-overflow-ready', (e) => Array.isArray(e.rows) && e.rows.length > 0, 4000, { since });
         let rows = ready ? ready.rows : null;
         let viewH = ready ? Number(ready.h) || 0 : 0;
         if (!rows) {
@@ -540,7 +512,7 @@ async function main() {
 
       // 臂2：点「⋯」浮层随鼠标弹出（独立浮层窗 DECK-TRAY-OVERFLOW 在场、行数 = 名单-5）
       const pop2 = await openPopup('臂2开层');
-      const popWin2 = pop2.opened ? await waitWindow(panelPid, 'DECK-TRAY-OVERFLOW', 3000) : null;
+      const popWin2 = pop2.opened ? await handle.waitWindow({ title: 'DECK-TRAY-OVERFLOW', timeoutMs: 3000 }) : null;
       // 机器图标有进出（churn 是常态）：开层后重读名单对账，行数 = 现任名单 - 5
       let roster2 = roster7;
       for (let i = 0; i < 5 && pop2.rows && pop2.rows.length !== roster2.length - 5; i++) {
@@ -563,10 +535,10 @@ async function main() {
         probe162.frames.length = 0;
         const pt3 = rowPt(pop2, idx3);
         win32.clickPhys(pt3.x, pt3.y, 'left');
-        const click3 = await waitEvent('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === key3 && e.button === 'left' && e.t >= Date.now() - 6000, 5000);
-        const result3 = await waitEvent('taskbar-tray-click-result', (e) => e.surface === 'overflow' && e.key === key3 && e.ok && e.t >= Date.now() - 6000, 5000);
+        const click3 = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === key3 && e.button === 'left' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+        const result3 = await tape.wait('taskbar-tray-click-result', (e) => e.surface === 'overflow' && e.key === key3 && e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         const frame3 = await probe162.waitFrame((f) => f.msg === PROBE_CB && f.wp === uid3 && f.lp === 0x0202);
-        const closed3 = await waitEvent('taskbar-tray-overflow-closed', (e) => e.reason === 'row' && e.t >= Date.now() - 6000, 5000);
+        const closed3 = await tape.wait('taskbar-tray-overflow-closed', (e) => e.reason === 'row' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         if (click3 && result3 && frame3 && closed3) {
           rep.pass(`臂3 行左键默认动作（key=${key3}）：同回放分发收帧 wp=${frame3.wp}/lp=0x${frame3.lp.toString(16)}、行点即收`);
         } else {
@@ -585,7 +557,7 @@ async function main() {
         probe162.frames.length = 0;
         const pt4 = rowPt(pop4, idx4);
         win32.clickPhys(pt4.x, pt4.y, 'right');
-        const click4 = await waitEvent('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === key4 && e.button === 'right' && e.t >= Date.now() - 6000, 5000);
+        const click4 = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === key4 && e.button === 'right' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         const frame4 = await probe162.waitFrame((f) => f.msg === PROBE_CB && f.wp === uid4 && f.lp === 0x0205);
         if (click4 && frame4) {
           rep.pass(`臂4 行右键自带菜单（key=${key4}）：同回放分发右键收帧 lp=0x${frame4.lp.toString(16)}`);
@@ -615,7 +587,7 @@ async function main() {
             ? { x: Math.round((dip.x + dip.width / 2) * scale), y: Math.round((dip.y + dip.height / 2) * scale) }
             : center7;
           win32.clickPhys(pt5.x, pt5.y, 'left');
-          const closed5 = await waitEvent('taskbar-tray-overflow-closed', (e) => e.reason === 'blur' && e.t >= Date.now() - 6000, 5000);
+          const closed5 = await tape.wait('taskbar-tray-overflow-closed', (e) => e.reason === 'blur' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
           if (closed5) {
             rep.pass('臂5 点面板外即收起（浮层 blur 收层）');
           } else {
@@ -633,13 +605,13 @@ async function main() {
       // 两路配对取行点击坐标——勿用 settle 静态几何（49 族 6fab89d 教训同源）。窗常驻事件
       // 跨臂累积，以开层拍 since 为下界。落盘与栏面收敛断言口径不变（system-state 面）。
       const tierPopup7 = (since) => {
-        const os = readEvents().filter((e) => e.t >= since
-          && (e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized'));
+        const os = tape.all(undefined,
+          (e) => e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized', { since });
         // ready 行几何：本开层拍有新回报用新拍；缺席（show 重开不触发页重回报——页只在
         // boot/changed 回报）回退最近一拍——档位面行集静态（四行恒列，✓ 前缀不修行高，
         // 行几何跨开拍不变），坐标算术稳定
-        let rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && e.t >= since && Array.isArray(e.rows));
-        if (!rd.length) rd = readEvents().filter((e) => e.type === 'taskbar-tier-menu-ready' && Array.isArray(e.rows));
+        let rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows), { since });
+        if (!rd.length) rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows));
         return os.length && rd.length
           ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
           : null;
@@ -674,7 +646,7 @@ async function main() {
           win32.moveMousePhys(pt.x, pt.y);
           await sleep(250);
           win32.clickPhys(pt.x, pt.y, 'left');
-          const ev = await waitEvent('taskbar-tray-overflow-limit-result', (e) => e.limit === limitVal && e.ok && e.t >= Date.now() - 5000, 5000);
+          const ev = await tape.wait('taskbar-tray-overflow-limit-result', (e) => e.limit === limitVal && e.ok && e.t >= Date.now() - 5000, { timeoutMs: 5000 });
           if (ev) return ev;
         }
         return null;
@@ -690,7 +662,7 @@ async function main() {
         const limitEv = await clickTierRowVerify7(pop6.since, 'tier-3', 3);
         await sleep(800); // 重拆 + 几何重报一拍
         const disk6b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        const geo6b = lastEvent('taskbar-geometry', (e) => e.t >= pop6.since && e.trayIcons);
+        const geo6b = tape.latest('taskbar-geometry', (e) => e.trayIcons, { since: pop6.since });
         arm6 = !!limitEv && disk6b.taskbar?.trayOverflowLimit === 3
           && geo6b && geo6b.trayIcons.length === 3 && !!geo6b.trayOverflow;
         detail6 += ` 回执=${JSON.stringify(limitEv)} 落盘=${disk6b.taskbar?.trayOverflowLimit} 栏内=${geo6b ? geo6b.trayIcons.length : 'n/a'} ⋯=${geo6b ? !!geo6b.trayOverflow : 'n/a'}`;
@@ -704,7 +676,7 @@ async function main() {
       // 臂7：档位菜单挂点二（右组空白处右键）→ 选全部：⋯ 消失、栏内 = 名单（工单196
       // 迁浮层窗锚点，行点击 = DECK-TASKBAR-TIER-MENU ready 行集）
       const blankPtOf7 = () => {
-        const rp7 = lastEvent('taskbar-geometry', (e) => e.rightPill);
+        const rp7 = tape.latest('taskbar-geometry', (e) => e.rightPill);
         return toPhys(rp7.rightPill.x + 4, rp7.rightPill.y + rp7.rightPill.h / 2);
       };
       const blankPt = blankPtOf7();
@@ -717,7 +689,7 @@ async function main() {
         const limitEv = await clickTierRowVerify7(pop7.since, 'tier-all', 'all');
         await sleep(800);
         const disk7b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        const geo7b = lastEvent('taskbar-geometry', (e) => e.t >= pop7.since && e.trayIcons);
+        const geo7b = tape.latest('taskbar-geometry', (e) => e.trayIcons, { since: pop7.since });
         roster7 = await rosterKeys();
         arm7 = !!limitEv && disk7b.taskbar?.trayOverflowLimit === 'all'
           && geo7b && geo7b.trayIcons.length === roster7.length && geo7b.trayOverflow === null;
@@ -738,14 +710,14 @@ async function main() {
       for (let round = 0; round < 14; round++) {
         roster7 = await rosterKeys();
         // 名单churn（机器图标进出）与渲染推帧之间有时序差：不一致时沉降 600ms 重读两拍再判
-        let g = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+        let g = tape.latest('taskbar-geometry', (e) => e.trayIcons, { since: Date.now() - 6000 });
         let wantBar = Math.min(roster7.length, 5);
         let wantMore = roster7.length > 5;
         for (let settle = 0; settle < 2 && g
           && (g.trayIcons.length !== wantBar || !!g.trayOverflow !== wantMore); settle++) {
           await sleep(600);
           roster7 = await rosterKeys();
-          g = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+          g = tape.latest('taskbar-geometry', (e) => e.trayIcons, { since: Date.now() - 6000 });
           wantBar = Math.min(roster7.length, 5);
           wantMore = roster7.length > 5;
         }
@@ -763,7 +735,7 @@ async function main() {
         await sleep(900);
       }
       roster7 = await rosterKeys();
-      const g8 = lastEvent('taskbar-geometry', (e) => e.t >= Date.now() - 6000 && e.trayIcons);
+      const g8 = tape.latest('taskbar-geometry', (e) => e.trayIcons, { since: Date.now() - 6000 });
       if (fell) {
         rep.pass(`臂8 数量回落自动回栏（栏内=min(名单,5) 逐拍成立）${sawFallback && g8 ? `、「⋯」在名单回落到 5 时消失（终态栏内 ${g8.trayIcons.length} ⋯=${!!g8.trayOverflow}）` : `；机器图标 ${roster7.length} 枚 ≥ 档位 5，⋯ 消失正例已由臂7 全部档实证`}`);
       } else {
@@ -784,7 +756,13 @@ async function main() {
     if (probe162) probe162.destroy();
     if (spawnedP7) spawnSync('taskkill', ['/PID', String(spawnedP7.pid), '/T', '/F'], { stdio: 'ignore' });
     if (notepad) spawnSync('taskkill', ['/PID', String(notepad.pid), '/T', '/F'], { stdio: 'ignore' });
-    killTree(child, panelPid);
+    // 工单211：收尾清场归句柄验证强退——gone=false 只入环境降责账、**不中止**
+    // （清场不掩盖真结局；中止会拦住 finish() → 控制器不退 → 验收槽租约挂死）
+    const cleared = await handle.stop();
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+        '清场后仍有面板进程存活', 'panel-forcekill');
+    }
     // config 三态还原（工单124）：原本无文件则删掉电池落的最小桩（worktree 首跑场景）
     restoreConfig(originalConfig);
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生

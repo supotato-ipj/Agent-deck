@@ -73,9 +73,22 @@ const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
+// 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
+const { createEventTape } = require('./lib/event-tape');
+// 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '49-taskbar-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单211：句柄装配——发射形态 accept（['.','--panel-accept']，绕单实例锁）；证据档按
+// 电池注入专属档名（裁决 10：缺省是八块电池共用的同一文件，混批会让红轮归因变难）
+const handle = createPanelHandle({
+  execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '49-taskbar-panel-handle-child.log'),
+});
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
@@ -116,28 +129,13 @@ function isTopmost(hwnd) {
   return (win32.GetWindowLongW(hwnd, win32.GWL_EXSTYLE) & win32.WS_EX_TOPMOST) !== 0;
 }
 
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
-}
-
-/** 最新一帧几何存证（渲染层在 pill/按钮/推荐位/应用组矩形变化时补发 taskbar-geometry） */
-function latestGeometry(fallback) {
-  const evs = readEvents().filter((e) => e.type === 'taskbar-geometry');
-  return evs.length ? evs[evs.length - 1] : fallback;
+/**
+ * 最新一帧几何存证（渲染层在 pill/按钮/推荐位/应用组矩形变化时补发 taskbar-geometry）
+ * 工单210：事件源归磁带——tape.latest 是正典 readEvents().filter(...).pop() 的「末拍」口径。
+ * queryOptions 可选（工单210：静态下界门归磁带 since 参数，见各调用点）。
+ */
+function latestGeometry(fallback, queryOptions) {
+  return tape.latest('taskbar-geometry', undefined, queryOptions) || fallback;
 }
 
 /** 等几何安静窗口再取点击坐标：推荐位随 1Hz 数据面快照后到位会推开始组 pill 移位，
@@ -159,9 +157,9 @@ async function waitGeometrySettled(fallback, timeoutMs = 9000) {
 // taskbar-wins-menu / taskbar-app-menu）。窗常驻（hide 不销）事件流跨段累积——所有取数
 // 必须以开层拍 since 为下界，防上一段同族浮层的旧帧串门。
 const popupAnchored = (family) => (since) => {
-  const os = readEvents().filter((e) => e.t >= since
-    && (e.type === `${family}-opened` || e.type === `${family}-resized`));
-  const rd = readEvents().filter((e) => e.type === `${family}-ready` && e.t >= since && Array.isArray(e.rows));
+  const os = tape.all(undefined,
+    (e) => e.type === `${family}-opened` || e.type === `${family}-resized`, { since });
+  const rd = tape.all(`${family}-ready`, (e) => Array.isArray(e.rows), { since });
   return os.length && rd.length
     ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
     : null;
@@ -204,21 +202,11 @@ const clickPopupRowVerify = async (family, since, rowId, evidenceType, evidenceP
     win32.moveMousePhys(pt.x, pt.y);
     await sleep(250);
     win32.clickPhys(pt.x, pt.y, 'left');
-    const ev = await waitEvent(evidenceType, evidencePred, 3000);
+    const ev = await tape.wait(evidenceType, evidencePred, { timeoutMs: 3000 });
     if (ev) return ev;
   }
   return null;
 };
-
-async function waitWindow(pid, title, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const h = findWindow(pid, title);
-    if (h) return h;
-    await sleep(120);
-  }
-  return null;
-}
 
 /** 开始菜单是否占据前台（DWM cloak 会让 IsWindowVisible 撒谎，只能以前台判定） */
 function shellMenuForeground() {
@@ -244,7 +232,7 @@ async function dismissShellMenu() {
 async function clickWithEvidence(pt, actionType, rep) {
   for (let attempt = 0; attempt < 2; attempt++) {
     win32.clickPhys(pt.x, pt.y, 'left');
-    const ev = await waitEvent('taskbar-action', (e) => e.action === actionType && e.t >= Date.now() - 6000, 3000);
+    const ev = await tape.wait('taskbar-action', (e) => e.action === actionType && e.t >= Date.now() - 6000, { timeoutMs: 3000 });
     if (ev) return ev;
     rep.note(`${actionType} 第 ${attempt + 1} 次点击无回执，重试`);
     await sleep(500);
@@ -266,14 +254,6 @@ async function waitForeground(pred, timeoutMs = 6000) {
     await sleep(100);
   }
   return null;
-}
-
-function launchPanel(extraEnv = {}) {
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_CDP_PORT: String(CDP_PORT), ...extraEnv },
-    stdio: 'ignore',
-  });
 }
 
 /** CDP 驱动面板渲染层（运行时桥动作的真机通道）：在指定标题的页执行表达式并取回值
@@ -303,10 +283,21 @@ async function cdpEval(expression, pageTitle = PANEL_TITLE) {
   }
 }
 
-function killTree(child, panelPid) {
-  // 面板真实主进程 pid 以 boot 自报为准（spawn 的 child.pid 在 Electron 父进程下不可靠——battery 先例）
-  if (panelPid) spawnSync('taskkill', ['/PID', String(panelPid), '/T', '/F'], { stdio: 'ignore' });
-  try { child.kill(); } catch { /* 已退出 */ }
+/**
+ * 验证强退（工单211，#202 决策 8）：句柄 stop() 沿用工单112 的强退序列
+ * （优雅终止 → 整树强杀 → 有界等待并验证消失）。**gone=false ＝「需重启清障」中止信号**：
+ * 入环境降责账并中止后续段（throw 借电池的 try/catch 汇流，不吞）。
+ * 原实现是无验证 killTree（taskkill /T /F 后不验消失就放行重启）——停摆面板残留会撞
+ * 单实例守卫，本刀起补上「验证消失」这一环。
+ */
+async function stopPanelOrAbort(rep) {
+  const stopped = await handle.stop();
+  if (!stopped.gone) {
+    rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${stopped.pidsLeft.join(', ')}）——需重启清障`,
+      '面板强退序列未能终结面板进程', 'panel-forcekill');
+    throw new Error('面板强退失败：需重启清障——后续段中止');
+  }
+  return stopped;
 }
 
 // —— 残留任务视图清场（49 实测）——
@@ -636,7 +627,6 @@ function cleanupP18Probes(p18) {
 
 async function main() {
   const rep = new Report('49-taskbar');
-  let child = null;
   let panelPid = 0;
   let probe164 = null; // P14 探针（#164）：finally 兜底拆除（段内异常也不漏窗漏类）
   let p16 = null; // P16 推荐组探针（#160）：面板启动前种入（usage 只在服务构造时读盘），finally 兜底清理
@@ -661,13 +651,15 @@ async function main() {
     if (p18) rep.note(`P18 探针已备：${p18.probes.map((p) => p.img).join(' / ')}`);
 
     // —— 拉起面板子进程（任务栏启用态）——
-    child = launchPanel();
-    const boot = await waitEvent('boot', null, 15000);
+    // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept']，绕单实例锁；
+    // 发射配置逐字保真——relaunch 的 lastCfg 快照也据此复现，退化成 full 会撞单实例守卫）
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
     rep.note(`面板 pid=${panelPid}`);
 
-    const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('P1 任务栏窗口未出现');
 
     // P1 置顶 + 底部通栏几何（rectOf 回 {left,top,right,bottom} 物理像素，宽高换算后归一 DIP）。
@@ -695,8 +687,8 @@ async function main() {
 
     // P2 面板本体钉底不受影响
     rep.beginSegment('P2');
-    const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 10000);
-    const pinEvidence = await waitEvent('pin', null, 8000);
+    const panelHwnd = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 10000 });
+    const pinEvidence = await tape.wait('pin', null, { timeoutMs: 8000 });
     if (panelHwnd && !isTopmost(panelHwnd) && pinEvidence) {
       rep.pass('P2 面板本体在场、非置顶、钉底存证在流');
     } else {
@@ -704,7 +696,7 @@ async function main() {
     }
 
     // pill 与按钮矩形（渲染层 ready 存证，CSS px 相对客户区）
-    const ready = await waitEvent('taskbar-ready', (e) => e.startPill && e.buttons, 10000);
+    const ready = await tape.wait('taskbar-ready', (e) => e.startPill && e.buttons, { timeoutMs: 10000 });
     if (!ready) throw new Error('taskbar-ready 存证缺失（无法取 pill 点击坐标）');
     // 几何稳定帧：推荐位后到位会推 pill 移位，点击坐标一律取 settle 后的最新几何
     const geom = await waitGeometrySettled(ready);
@@ -770,8 +762,8 @@ async function main() {
     const before = foregroundInfo();
     const startPt = btnOf('start');
     win32.clickPhys(startPt.x, startPt.y, 'left');
-    const actionEv = await waitEvent('taskbar-action', (e) => e.action === 'start-menu', 5000);
-    const resultEv = await waitEvent('taskbar-action-result', (e) => e.action === 'start-menu', 5000);
+    const actionEv = await tape.wait('taskbar-action', (e) => e.action === 'start-menu', { timeoutMs: 5000 });
+    const resultEv = await tape.wait('taskbar-action-result', (e) => e.action === 'start-menu', { timeoutMs: 5000 });
     const startFg = await waitForeground(isStartMenu, 6000);
     if (actionEv && resultEv && resultEv.ok && startFg && (!before || before.hwnd !== startFg.hwnd)) {
       rep.pass(`P4 开始按钮弹出原生开始菜单（前台 ${startFg.exe} / ${startFg.cls}）`);
@@ -813,7 +805,7 @@ async function main() {
     const isTaskView = (i) => i.exe === 'explorer' && i.cls !== 'Progman' && i.cls !== 'WorkerW'
       && (!beforeTv || i.hwnd !== beforeTv.hwnd);
     const actionEv2 = await clickWithEvidence(tasksPt, 'task-view', rep);
-    const resultEv2 = await waitEvent('taskbar-action-result', (e) => e.action === 'task-view', 5000);
+    const resultEv2 = await tape.wait('taskbar-action-result', (e) => e.action === 'task-view', { timeoutMs: 5000 });
     const tvFg = await waitForeground(isTaskView, 6000);
     if (actionEv2 && resultEv2 && resultEv2.ok && tvFg) {
       rep.pass(`P5 TaskView 按钮弹出原生任务视图（前台 ${tvFg.exe} / ${tvFg.cls}）`);
@@ -845,7 +837,7 @@ async function main() {
     // P7 运行时重新启用 → 窗口恢复（仍置顶）
     rep.beginSegment('P7');
     const r7 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const tbBackLive = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbBackLive = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     if (r7 && r7.enabled === true && tbBackLive && isTopmost(tbBackLive)) {
       rep.pass('P7 运行时重新启用：任务栏窗口恢复（仍置顶）');
     } else {
@@ -855,17 +847,16 @@ async function main() {
     // P8 启动态禁用（config 门禁）：禁用配置下拉起 → 窗口不建，面板照常
     rep.beginSegment('P8');
     patchTaskbar({ enabled: false });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const since8 = Date.now(); // boot 事件按时间戳门禁——存证文件跨阶段累积，旧 boot 会误配
-    child = launchPanel();
-    const boot2 = await waitEvent('boot', (e) => e.t >= since8, 15000);
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    const boot2 = await tape.wait('boot', undefined, { since: since8, timeoutMs: 15000 });
     if (!boot2) throw new Error('P8 禁用态面板子进程未上报 boot');
     panelPid = boot2.pid;
     await sleep(2500); // 给窗口创建留出时间（应不发生）
     const tbGone = !findWindow(panelPid, TASKBAR_TITLE);
-    const panelUp = await waitWindow(panelPid, PANEL_TITLE, 10000);
+    const panelUp = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 10000 });
     if (tbGone && panelUp) {
       rep.pass('P8 启动态禁用：任务栏窗口不建，面板本体照常');
     } else {
@@ -875,15 +866,14 @@ async function main() {
     // P9 启动态恢复启用 → 窗口回来
     rep.beginSegment('P9');
     patchTaskbar({ enabled: true });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const since9 = Date.now();
-    child = launchPanel();
-    const boot3 = await waitEvent('boot', (e) => e.t >= since9, 15000);
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    const boot3 = await tape.wait('boot', undefined, { since: since9, timeoutMs: 15000 });
     if (!boot3) throw new Error('P9 启用态面板子进程未上报 boot');
     panelPid = boot3.pid;
-    const tbBack = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbBack = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (tbBack && isTopmost(tbBack)) {
       rep.pass('P9 启动态重新启用后任务栏窗口恢复（仍置顶）');
     } else {
@@ -899,7 +889,7 @@ async function main() {
     //   挂 .tb-tray-px（image-rendering: pixelated），≥24px 不得挂——像素未到齐的图标
     //   只断 24px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
     rep.beginSegment('P13');
-    const tbH13 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const tbH13 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     let notepad13 = null;
     try {
       // 栏上无应用格时铺一枚探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
@@ -1089,8 +1079,8 @@ async function main() {
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: true })`);
       for (let i = 0; i < 30 && !gHide; i++) {
         await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceHide15b && cand.startPill && cand.startPill.w < wA - 4) gHide = cand;
+        const cand = latestGeometry(null, { since: sinceHide15b });
+        if (cand && cand.startPill && cand.startPill.w < wA - 4) gHide = cand;
       }
       await sleep(1300);
       if (gHide) gHide = latestGeometry(null);
@@ -1100,8 +1090,8 @@ async function main() {
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false })`);
       for (let i = 0; i < 30 && !gShow; i++) {
         await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceShow15b && cand.startPill && cand.startPill.w > wA - 4) gShow = cand;
+        const cand = latestGeometry(null, { since: sinceShow15b });
+        if (cand && cand.startPill && cand.startPill.w > wA - 4) gShow = cand;
       }
       await sleep(1300);
       if (gShow) gShow = latestGeometry(null);
@@ -1148,8 +1138,8 @@ async function main() {
       let gTier = null;
       for (let i = 0; i < 30 && !gTier; i++) {
         await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceTier15b && cand.rightPill && Math.abs(cand.rightPill.x - rp0) > 8) gTier = cand;
+        const cand = latestGeometry(null, { since: sinceTier15b });
+        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) > 8) gTier = cand;
       }
       await sleep(1300);
       if (gTier) gTier = latestGeometry(null);
@@ -1159,8 +1149,8 @@ async function main() {
       let gTierBack = null;
       for (let i = 0; i < 30 && !gTierBack; i++) {
         await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceTierBack && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8) gTierBack = cand;
+        const cand = latestGeometry(null, { since: sinceTierBack });
+        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8) gTierBack = cand;
       }
       await sleep(1300);
       if (gTierBack) gTierBack = latestGeometry(null);
@@ -1174,8 +1164,8 @@ async function main() {
       const sinceGrow15b = Date.now();
       for (let i = 0; i < 40 && !gGrow; i++) {
         await sleep(250);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceGrow15b && cand.apps && cand.apps.length > (gA.apps || []).length
+        const cand = latestGeometry(null, { since: sinceGrow15b });
+        if (cand && cand.apps && cand.apps.length > (gA.apps || []).length
           && cand.appsPill.w > wBefore + 20) gGrow = cand;
       }
       await sleep(1300);
@@ -1304,8 +1294,8 @@ async function main() {
         const notepadHwndsBefore16 = new Set(win32.topLevelWindows()
           .filter((h) => win32.className(h) === 'ConsoleWindowClass'));
         win32.clickPhys(clickPt16.x, clickPt16.y, 'left');
-        const clickEv16 = await waitEvent('taskbar-rec-click', (e) => e.name === pA16.name, 5000);
-        const clickOk16 = await waitEvent('taskbar-rec-click-result', (e) => e.name === pA16.name && e.ok, 5000);
+        const clickEv16 = await tape.wait('taskbar-rec-click', (e) => e.name === pA16.name, { timeoutMs: 5000 });
+        const clickOk16 = await tape.wait('taskbar-rec-click-result', (e) => e.name === pA16.name && e.ok, { timeoutMs: 5000 });
         const imgName16 = 'deck-p16-cmd.exe';
         let procUp16 = false;
         let copyHwnd16 = null;
@@ -1377,7 +1367,7 @@ async function main() {
             }
             await sleep(140);
             win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
-            await waitEvent('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'recs' && e.id === pE16.name && e.before === pC16.name, 6000);
+            await tape.wait('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'recs' && e.id === pE16.name && e.before === pC16.name, { timeoutMs: 6000 });
             for (let i = 0; i < 30 && !dragOrder16; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
@@ -1413,7 +1403,7 @@ async function main() {
             win32.moveMousePhys(ptApps.x, ptApps.y);
             await sleep(200);
             win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
-            await waitEvent('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'apps' && e.id === pD16.name, 6000);
+            await tape.wait('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'apps' && e.id === pD16.name, { timeoutMs: 6000 });
             for (let i = 0; i < 30 && !cross16; i++) {
               await sleep(200);
               const cand = latestGeometry(null);
@@ -1443,9 +1433,9 @@ async function main() {
           const APP_MENU_TITLE = 'DECK-TASKBAR-MENU';
           const APP_MENU_LABELS = { pin: '手钉到任务栏', unpin: '解除手钉', close: '关闭窗口', reveal: '打开文件位置' };
           const popupSince16 = (since) => {
-            const os = readEvents().filter((e) => e.t >= since
-              && (e.type === 'taskbar-app-menu-opened' || e.type === 'taskbar-app-menu-resized'));
-            const rd = readEvents().filter((e) => e.type === 'taskbar-app-menu-ready' && e.t >= since && Array.isArray(e.rows));
+            const os = tape.all(undefined,
+              (e) => e.type === 'taskbar-app-menu-opened' || e.type === 'taskbar-app-menu-resized', { since });
+            const rd = tape.all('taskbar-app-menu-ready', (e) => Array.isArray(e.rows), { since });
             return os.length && rd.length ? { bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 } : null;
           };
           let gU = await waitGeometrySettled(cross16 || gD);
@@ -1496,9 +1486,9 @@ async function main() {
                 win32.moveMousePhys(up.x, up.y);
                 await sleep(250);
                 win32.clickPhys(up.x, up.y, 'left');
-                const ev16 = await waitEvent('taskbar-app-menu-action', (e) => e.action === 'unpin' && norm16(e.exe || '') === norm16(pD16.exe), 3000);
+                const ev16 = await tape.wait('taskbar-app-menu-action', (e) => e.action === 'unpin' && norm16(e.exe || '') === norm16(pD16.exe), { timeoutMs: 3000 });
                 if (!ev16) continue;
-                rowClose16 = await waitEvent('taskbar-app-menu-closed', (e) => e.reason === 'row' && e.t >= Date.now() - 6000, 5000); // 行点即收（随 pass 行一并呈报）
+                rowClose16 = await tape.wait('taskbar-app-menu-closed', (e) => e.reason === 'row' && e.t >= Date.now() - 6000, { timeoutMs: 5000 }); // 行点即收（随 pass 行一并呈报）
                 for (let i = 0; i < 30 && !repool16; i++) {
                   await sleep(200);
                   const cand = latestGeometry(null);
@@ -1540,7 +1530,7 @@ async function main() {
               win32.moveMousePhys(cp.x, cp.y);
               await sleep(250);
               win32.clickPhys(cp.x, cp.y, 'left');
-              outsideClose16 = await waitEvent('taskbar-app-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= Date.now() - 6000, 5000);
+              outsideClose16 = await tape.wait('taskbar-app-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
             }
           }
           // 打开文件位置（推荐位 C）：右键 → 点 reveal 行（工单196 迁浮层窗锚点）→
@@ -1553,7 +1543,7 @@ async function main() {
           const popR = ptR ? await rightClickPopupVerify(() => recPt16(latestGeometry(null), pC16.name), REC_MENU_FAMILY16, 3) : null;
             if (popR) {
               reveal16 = await clickPopupRowVerify(REC_MENU_FAMILY16, popR.since, 'reveal', 'taskbar-rec-menu-action', (e) => e.name === pC16.name && e.action === 'reveal', scale);
-              await waitEvent('taskbar-rec-menu-result', (e) => e.name === pC16.name && e.action === 'reveal', 5000);
+              await tape.wait('taskbar-rec-menu-result', (e) => e.name === pC16.name && e.action === 'reveal', { timeoutMs: 5000 });
               const dirName = path.basename(p16.tmpDir);
               for (let i = 0; i < 24 && !expHwnd16; i++) {
                 await sleep(250);
@@ -1711,15 +1701,14 @@ async function main() {
         await sleep(600); // 落盘+重排一帧
         const stBefore17 = await state17();
         const diskOk17 = !!(stBefore17 && Array.isArray(stBefore17.excluded) && stBefore17.excluded.some((e) => norm17(e.exe) === norm17(pF17.exe)));
-        killTree(child, panelPid);
-        child = null;
+        await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
         await sleep(1200);
         const since17 = Date.now();
-        child = launchPanel();
-        const boot17 = await waitEvent('boot', (e) => e.t >= since17, 15000);
+        handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+        const boot17 = await tape.wait('boot', undefined, { since: since17, timeoutMs: 15000 });
         if (boot17) {
           panelPid = boot17.pid;
-          await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+          await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
         }
         let reboot17 = null;
         for (let i = 0; i < 40 && !reboot17; i++) {
@@ -1823,8 +1812,8 @@ async function main() {
       let decoupled19 = null;
       for (let i = 0; i < 30 && !decoupled19; i++) {
         await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceHide19 && cand.startPill && cand.startPill.w === 0
+        const cand = latestGeometry(null, { since: sinceHide19 });
+        if (cand && cand.startPill && cand.startPill.w === 0
           && cand.recPill && cand.recPill.w > 0 && recNames19(cand).length === names19.length) decoupled19 = cand;
       }
       const domHide19 = decoupled19 ? await cdpEval(`(() => {
@@ -1849,8 +1838,8 @@ async function main() {
       let reshown19 = null;
       for (let i = 0; i < 30 && !reshown19; i++) {
         await sleep(200);
-        const cand = latestGeometry(null);
-        if (cand && cand.t >= sinceShow19 && cand.startPill && cand.startPill.w > 0
+        const cand = latestGeometry(null, { since: sinceShow19 });
+        if (cand && cand.startPill && cand.startPill.w > 0
           && cand.recPill && cand.recPill.w > 0) reshown19 = cand;
       }
       if (hideOk19 && reshown19) {
@@ -1893,8 +1882,8 @@ async function main() {
         if (!recs19.length) {
           for (let i = 0; i < 30 && !emptied19; i++) {
             await sleep(200);
-            const cand = latestGeometry(null);
-            if (cand && cand.t >= sinceRemove19 && recNames19(cand).length === 0
+            const cand = latestGeometry(null, { since: sinceRemove19 });
+            if (cand && recNames19(cand).length === 0
               && cand.recPill && cand.recPill.w === 0 && cand.startPill && cand.startPill.w > 0) emptied19 = cand;
           }
           break;
@@ -1981,7 +1970,7 @@ async function main() {
     const burstEnd = Date.now();
     // 竞态窗内合法事件序：destroyed(旧,disabled) → removed(旧,destroy 路径) → created(新)
     // → registered(新)；registered(新) 之后再冒 removed 即乱序注销（迟到 closed 误注销新窗占位）
-    const evsBurst = readEvents().filter((e) => e.t >= sinceP10 && e.t <= burstEnd);
+    const evsBurst = tape.all(undefined, (e) => e.t <= burstEnd, { since: sinceP10 });
     const regsBurst = evsBurst.filter((e) => e.type === 'taskbar-appbar-registered');
     const lastRegT = regsBurst.length ? regsBurst[regsBurst.length - 1].t : 0;
     const spuriousRemoved = evsBurst.filter((e) => e.type === 'taskbar-appbar-removed' && e.t > lastRegT);
@@ -1994,8 +1983,8 @@ async function main() {
     }
     // 再启用：恰一扇 + 仍置顶 + 新窗占位存证在场
     const r10on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const tbFinal = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
-    const regFinal = await waitEvent('taskbar-appbar-registered', (e) => e.t > burstEnd, 8000);
+    const tbFinal = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
+    const regFinal = await tape.wait('taskbar-appbar-registered', (e) => e.t > burstEnd, { timeoutMs: 8000 });
     if (burst && burst.first === false && burst.second === true
       && stripsAfterBurst.length === 1 && spuriousRemoved.length === 0
       && stripGone && r10off && r10off.enabled === false
@@ -2011,22 +2000,22 @@ async function main() {
     // 主进程在同一 JS 任务内连发两次 setEnabled（destroy/create 零事件循环轮转，
     // 旧窗 closed 确定性迟到），这才是缺陷①的完整触发形态。断言面与 (a) 同款。
     patchTaskbar({ enabled: true });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const sinceBurst = Date.now();
-    child = launchPanel({ DECK_TASKBAR_BURST: '1' });
-    const bootBurst = await waitEvent('boot', (e) => e.t >= sinceBurst, 15000);
+    // 工单211：extraEnv 整包透传（连发触发器 DECK_TASKBAR_BURST=1 不能丢）
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: { DECK_TASKBAR_BURST: '1' } });
+    const bootBurst = await tape.wait('boot', undefined, { since: sinceBurst, timeoutMs: 15000 });
     if (!bootBurst) throw new Error('P10(b) 连发面板子进程未上报 boot');
     panelPid = bootBurst.pid;
-    const burstDone = await waitEvent('taskbar-burst-done', (e) => e.t >= sinceBurst, 20000);
+    const burstDone = await tape.wait('taskbar-burst-done', undefined, { since: sinceBurst, timeoutMs: 20000 });
     await sleep(1500); // 竞态窗：迟到 closed 充分落地
     const stripsBurst = [];
     for (const h of win32.topLevelWindows()) {
       if (titleOf(h) === TASKBAR_TITLE && win32.threadIdOf(h).pid === panelPid) stripsBurst.push(h);
     }
     const burstEnd2 = Date.now();
-    const evsInProc = readEvents().filter((e) => e.t >= sinceBurst && e.t <= burstEnd2);
+    const evsInProc = tape.all(undefined, (e) => e.t <= burstEnd2, { since: sinceBurst });
     const regsInProc = evsInProc.filter((e) => e.type === 'taskbar-appbar-registered');
     const lastRegT2 = regsInProc.length ? regsInProc[regsInProc.length - 1].t : 0;
     const spuriousRemoved2 = evsInProc.filter((e) => e.type === 'taskbar-appbar-removed' && e.t > lastRegT2);
@@ -2038,8 +2027,8 @@ async function main() {
       stripGone2 = !findWindow(panelPid, TASKBAR_TITLE);
     }
     const rOn2 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const tbFinal2 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
-    const regFinal2 = await waitEvent('taskbar-appbar-registered', (e) => e.t > burstEnd2, 8000);
+    const tbFinal2 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
+    const regFinal2 = await tape.wait('taskbar-appbar-registered', (e) => e.t > burstEnd2, { timeoutMs: 8000 });
     if (burstDone && stripsBurst.length === 1 && spuriousRemoved2.length === 0
       && stripGone2 && rOff2 && rOff2.enabled === false
       && rOn2 && rOn2.enabled === true && tbFinal2 && isTopmost(tbFinal2) && regFinal2) {
@@ -2077,7 +2066,7 @@ async function main() {
     // 禁用 → 交还（红轮预期红：stop 死代码无存证、竞争窗残留即图标被扣的死账形态）
     const t11off = Date.now();
     const r11off = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
-    const stopEv = await waitEvent('tray-host-stopped', (e) => e.t >= t11off, 8000);
+    const stopEv = await tape.wait('tray-host-stopped', undefined, { since: t11off, timeoutMs: 8000 });
     await sleep(500);
     const hostsOff = ourTrayHosts();
     if (r11off && r11off.enabled === false && stopEv && hostsOff.length === 0) {
@@ -2089,8 +2078,8 @@ async function main() {
     // 状态满帧太长（断言失败时刷屏），再启用断言只回显 enabled 位。
     const t11on = Date.now();
     const r11on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
-    const readyEv = await waitEvent('tray-host-ready', (e) => e.t >= t11on, 8000);
-    const stripBack11 = await waitWindow(panelPid, TASKBAR_TITLE, 8000);
+    const readyEv = await tape.wait('tray-host-ready', undefined, { since: t11on, timeoutMs: 8000 });
+    const stripBack11 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     let rosterLen = 0;
     for (let i = 0; i < 12 && rosterLen === 0; i++) {
       await sleep(700);
@@ -2112,7 +2101,7 @@ async function main() {
     // 二次禁用（停→起→停整周期：类注销对称性的真机实证——重启后的宿主必须还能停）
     const t11off2 = Date.now();
     await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
-    const stopEv2 = await waitEvent('tray-host-stopped', (e) => e.t >= t11off2, 8000);
+    const stopEv2 = await tape.wait('tray-host-stopped', undefined, { since: t11off2, timeoutMs: 8000 });
     await sleep(500);
     if (stopEv2 && ourTrayHosts().length === 0) {
       rep.pass('P11 二次禁用（重启后停）：竞争窗再次归零');
@@ -2131,9 +2120,9 @@ async function main() {
     } else {
       const t12kill = Date.now();
       spawnSync('taskkill', ['/PID', String(dpPid), '/F'], { stdio: 'ignore' });
-      const respawn = await waitEvent('dataplane-spawn', (e) => e.t >= t12kill && e.reason === 'restart', 15000);
+      const respawn = await tape.wait('dataplane-spawn', (e) => e.reason === 'restart', { since: t12kill, timeoutMs: 15000 });
       await sleep(2500);
-      const hostRevived = readEvents().some((e) => e.type === 'tray-host-ready' && e.t >= t12kill);
+      const hostRevived = tape.latest('tray-host-ready', undefined, { since: t12kill }) !== null;
       if (respawn && !hostRevived && ourTrayHosts().length === 0) {
         rep.pass('P12(a) 禁用态数据面重启：宿主不复活（respawn 按期望态重算，竞争窗仍归零）');
       } else {
@@ -2142,16 +2131,15 @@ async function main() {
     }
     // (b) 启态禁用：config 门禁下拉起，宿主不起
     patchTaskbar({ enabled: false });
-    killTree(child, panelPid);
-    child = null;
+    await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
     await sleep(1200);
     const since12 = Date.now();
-    child = launchPanel();
-    const boot12 = await waitEvent('boot', (e) => e.t >= since12, 15000);
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    const boot12 = await tape.wait('boot', undefined, { since: since12, timeoutMs: 15000 });
     if (!boot12) throw new Error('P12(b) 禁用态面板子进程未上报 boot');
     panelPid = boot12.pid;
     await sleep(3000); // 宿主若要起，init 即起（等数据面就绪线即过）
-    const hostBooted = readEvents().some((e) => e.type === 'tray-host-ready' && e.t >= since12);
+    const hostBooted = tape.latest('tray-host-ready', undefined, { since: since12 }) !== null;
     if (!hostBooted && ourTrayHosts().length === 0) {
       rep.pass('P12(b) 启态禁用：托盘宿主不建（不偷图标），面板照常');
     } else {
@@ -2170,15 +2158,15 @@ async function main() {
     const t13on = Date.now();
     // P12(b) 重拉的面板渲染页可能尚未就位 CDP（boot 存证早于渲染页加载，红轮实证
     // /json 列表还无 AGENT DECK 目标）——先等面板窗在场，再重试取页（各 500ms 一拍）
-    await waitWindow(panelPid, PANEL_TITLE, 10000);
+    await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 10000 });
     let r13on = null;
     for (let i = 0; i < 20 && !(r13on && r13on.enabled === true); i++) {
       try { r13on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`); }
       catch { /* 渲染页未就位——下一拍重试 */ }
       if (!(r13on && r13on.enabled === true)) await sleep(500);
     }
-    const strip13 = await waitWindow(panelPid, TASKBAR_TITLE, 10000);
-    const hostReady13 = await waitEvent('tray-host-ready', (e) => e.t >= t13on, 10000);
+    const strip13 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 10000 });
+    const hostReady13 = await tape.wait('tray-host-ready', undefined, { since: t13on, timeoutMs: 10000 });
     let roster13 = 0;
     for (let i = 0; i < 12 && roster13 === 0; i++) {
       await sleep(700);
@@ -2244,7 +2232,7 @@ async function main() {
         const t = Date.now();
         probe164.frames.length = 0;
         await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key0)}, button: 'right' })`);
-        const ev = await waitEvent('tray-replay', (e) => e.key === key0 && e.t >= t, 6000);
+        const ev = await tape.wait('tray-replay', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
         const frame = await probe164.waitFrame((f) => f.msg === CB_V0);
         const ok = ev && ev.posted === true && ev.version === 0
           && ev.wparam === PROBE_UID_V0 && ev.lparam === WM_RBUTTONUP_T
@@ -2286,9 +2274,9 @@ async function main() {
           win32.SetCursorPos(sx, sy); // 条带默认鼠标穿透：热区 25ms 轮询命中才开门
           await sleep(400);
           win32.clickPhys(sx, sy, 'left');
-          clickEv = await waitEvent('taskbar-tray-click', (e) => e.key === key0 && e.t >= t, 6000);
+          clickEv = await tape.wait('taskbar-tray-click', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
           if (clickEv) {
-            ev = await waitEvent('tray-replay', (e) => e.key === key0 && e.t >= t, 6000);
+            ev = await tape.wait('tray-replay', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
             frame = await probe164.waitFrame((f) => f.msg === CB_V0);
           } else {
             await waitGeometrySettled(latestGeometry(null), 9000); // 漂移重试前再等安静
@@ -2322,7 +2310,7 @@ async function main() {
           win32.SetCursorPos(anchor.x, anchor.y); // v4 锚点 = 宿主回放瞬间的 GetCursorPos
           await sleep(150);
           await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key4)}, button: ${JSON.stringify(button)} })`);
-          const ev = await waitEvent('tray-replay', (e) => e.key === key4 && e.t >= t, 6000);
+          const ev = await tape.wait('tray-replay', (e) => e.key === key4, { since: t, timeoutMs: 6000 });
           const frame = await probe164.waitFrame((f) => f.msg === CB_V4);
           const ok = ev && ev.posted === true && ev.version === 4
             && ev.wparam === mkLparam(anchor.x, anchor.y) && ev.lparam === mkLpV4(event)
@@ -2730,8 +2718,9 @@ static class Probe {
       const WINS_MENU_FAMILY21 = 'taskbar-wins-menu';
       // 开层证据 = opened/resized（show 重开不触发页重回报 ready——页只在 boot 与
       // changed 回报，行内容由载页常活自养；行几何另由 ready 锚点配对，见①）
-      const popOpen21 = (since) => readEvents().some((e) => e.t >= since
-        && (e.type === 'taskbar-wins-menu-opened' || e.type === 'taskbar-wins-menu-resized'));
+      const popOpen21 = (since) => tape.latest(undefined,
+        (e) => e.type === 'taskbar-wins-menu-opened' || e.type === 'taskbar-wins-menu-resized',
+        { since }) !== null;
       const clickIconOpen21 = async () => {
         // 左键图标 → 浮层开层（三试：到靶停拍后点击，等开层存证）
         for (let attempt21 = 0; attempt21 < 3; attempt21++) {
@@ -2762,7 +2751,7 @@ static class Probe {
             + ` 窗就位=${winsUp21} 进程=${procCount21}`);
         } else {
           const pop21 = await clickIconOpen21();
-          const popWin21 = pop21 ? await waitWindow(panelPid, 'DECK-TASKBAR-WINS-MENU', 3000) : null;
+          const popWin21 = pop21 ? await handle.waitWindow({ title: 'DECK-TASKBAR-WINS-MENU', timeoutMs: 3000 }) : null;
           // 行几何锚点（create 路径页 boot 即报 ready；行集/行坐标据此断言与取点击点）
           let popReady21 = null;
           if (pop21) {
@@ -2792,7 +2781,7 @@ static class Probe {
               await sleep(250);
               fgOk21 = Number(win32.GetForegroundWindow()) === Number(row21.id);
             }
-            closedRow21 = await waitEvent('taskbar-wins-menu-closed', (e) => e.reason === 'row' && e.t >= popReady21.since, 5000);
+            closedRow21 = await tape.wait('taskbar-wins-menu-closed', (e) => e.reason === 'row', { since: popReady21.since, timeoutMs: 5000 });
           }
           if (pick21 && fgOk21 && closedRow21) {
             rep.pass(`P21② 选窗聚焦端到端：行点存证（exe/hwnd 身份核对）→ 目标探针窗真前台（hwnd=${pick21.hwnd}）、行点即收（reason=row）`);
@@ -2811,7 +2800,7 @@ static class Probe {
               win32.moveMousePhys(cp21.x, cp21.y);
               await sleep(250);
               win32.clickPhys(cp21.x, cp21.y, 'left');
-              outside21 = await waitEvent('taskbar-wins-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur') && e.t >= pop21b.since, 5000);
+              outside21 = await tape.wait('taskbar-wins-menu-closed', (e) => (e.reason === 'strip-click' || e.reason === 'blur'), { since: pop21b.since, timeoutMs: 5000 });
             }
           }
           if (outside21) {
@@ -2985,8 +2974,7 @@ static class Probe {
       // 偶发新实例 boot 后主进程/渲染层停滞，不烧 20s 等死实例）。
       const restartPanel20 = async (tag) => {
         const oldPid = panelPid;
-        killTree(child, panelPid);
-        child = null;
+        await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
         for (let i = 0; i < 50 && oldPid; i++) {
           const r = spawnSync('tasklist', ['/FI', `PID eq ${oldPid}`, '/NH'], { encoding: 'utf8' });
           if (!(r.stdout || '').includes(String(oldPid))) break;
@@ -2994,18 +2982,17 @@ static class Probe {
         }
         await sleep(1200);
         const since = Date.now();
-        child = launchPanel();
-        const boot = await waitEvent('boot', (e) => e.t >= since, 15000);
+        handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+        const boot = await tape.wait('boot', undefined, { since, timeoutMs: 15000 });
         if (boot) {
           panelPid = boot.pid;
-          await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+          await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
         }
-        let ready = boot ? await waitEvent('taskbar-ready', (e) => e.t >= since, 15000) : null;
+        let ready = boot ? await tape.wait('taskbar-ready', undefined, { since, timeoutMs: 15000 }) : null;
         if (boot && !ready) {
           rep.note(`P20 ${tag} 首拉实例未就绪（taskbar-ready 15s 未出场）——二次重启兜底`);
           const pid2 = panelPid;
-          killTree(child, panelPid);
-          child = null;
+          await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
           for (let i = 0; i < 50 && pid2; i++) {
             const r = spawnSync('tasklist', ['/FI', `PID eq ${pid2}`, '/NH'], { encoding: 'utf8' });
             if (!(r.stdout || '').includes(String(pid2))) break;
@@ -3013,13 +3000,13 @@ static class Probe {
           }
           await sleep(1200);
           const since2 = Date.now();
-          child = launchPanel();
-          const boot2 = await waitEvent('boot', (e) => e.t >= since2, 15000);
+          handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+          const boot2 = await tape.wait('boot', undefined, { since: since2, timeoutMs: 15000 });
           if (boot2) {
             panelPid = boot2.pid;
-            await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+            await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
           }
-          ready = boot2 ? await waitEvent('taskbar-ready', (e) => e.t >= since2, 15000) : null;
+          ready = boot2 ? await tape.wait('taskbar-ready', undefined, { since: since2, timeoutMs: 15000 }) : null;
         }
         return { boot, ready };
       };
@@ -3061,7 +3048,7 @@ static class Probe {
                 // 往返，目标集保证与现值不同=真推帧）→ 复核 token。
                 // 冻结生效：帧被合挂、节点不重建 → token 犹在；冻结缺失：整树重建 →
                 // .dragging 换人/消失 → OLE 会话中止（drag-drop 存证缺失）。
-                const startB = await waitEvent('taskbar-drag-start', (e) => e.group === 'apps' && norm20(e.id) === norm20(q1.exe), 3000);
+                const startB = await tape.wait('taskbar-drag-start', (e) => e.group === 'apps' && norm20(e.id) === norm20(q1.exe), { timeoutMs: 3000 });
                 startB20 = !!startB;
                 if (!startB) { token20 = 'no-drag-start'; return; }
                 token20 = await cdpEval(`(() => {
@@ -3082,9 +3069,9 @@ static class Probe {
                   return el.__deckP20 === 42 ? 'same-node' : 'rebuilt';
                 })()`, TASKBAR_TITLE);
               }).catch(() => {});
-              dragB = await waitEvent('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q1.exe) && norm20(e.before) === norm20(q3.exe), 6000);
+              dragB = await tape.wait('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q1.exe) && norm20(e.before) === norm20(q3.exe), { timeoutMs: 6000 });
               if (dragB) {
-                const okB = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragB.t, 6000);
+                const okB = await tape.wait('taskbar-drag-result', (e) => e.ok === true, { since: dragB.t, timeoutMs: 6000 });
                 if (okB) dragB.ok20 = true;
                 orderB = await waitSeq20((st) => {
                   const seg = segSplit20(st);
@@ -3099,7 +3086,7 @@ static class Probe {
               if (srcB2 && dstB2) {
                 const t0B2 = Date.now();
                 oleDrag20(srcB2, dstB2, null).catch(() => {});
-                await waitEvent('taskbar-drag-drop', (e) => e.t >= t0B2 && e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
+                await tape.wait('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), { since: t0B2, timeoutMs: 6000 });
                 orderB = await waitSeq20((st) => {
                   const seg = segSplit20(st);
                   return seg.running.indexOf(norm20(q3.exe)) >= 0 && seg.running.indexOf(norm20(q1.exe)) >= 0
@@ -3157,9 +3144,9 @@ static class Probe {
             let orderA = null;
             if (srcA && dstA) {
               oleDrag20(srcA, dstA, null).catch(() => {});
-              dragA = await waitEvent('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), 6000);
+              dragA = await tape.wait('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'apps' && norm20(e.id) === norm20(q3.exe) && norm20(e.before) === norm20(q1.exe), { timeoutMs: 6000 });
               if (dragA) {
-                const okA = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragA.t, 6000);
+                const okA = await tape.wait('taskbar-drag-result', (e) => e.ok === true, { since: dragA.t, timeoutMs: 6000 });
                 orderA = await waitSeq20((st) => {
                   const seg = segSplit20(st);
                   return seg.pinned.indexOf(norm20(q2.exe)) >= 0 && seg.pinned.indexOf(norm20(q2.exe)) < seg.pinned.indexOf(norm20(q3.exe));
@@ -3208,14 +3195,14 @@ static class Probe {
               win32.moveMousePhys(dstC.x, dstC.y);
               await sleep(200);
               win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
-              const startC = await waitEvent('taskbar-drag-start', (e) => e.group === 'recs' && e.id === recNameC, 6000);
-              dragC = await waitEvent('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'apps' && e.id === recNameC && norm20(e.before) === norm20(q1.exe), 6000);
+              const startC = await tape.wait('taskbar-drag-start', (e) => e.group === 'recs' && e.id === recNameC, { timeoutMs: 6000 });
+              dragC = await tape.wait('taskbar-drag-drop', (e) => e.from === 'recs' && e.to === 'apps' && e.id === recNameC && norm20(e.before) === norm20(q1.exe), { timeoutMs: 6000 });
               if (dragC) {
-                const okC = await waitEvent('taskbar-drag-result', (e) => e.ok === true && e.t >= dragC.t, 6000);
+                const okC = await tape.wait('taskbar-drag-result', (e) => e.ok === true, { since: dragC.t, timeoutMs: 6000 });
                 if (okC) dragC.ok20 = true;
                 // 拖拽窗口（drag-start→drag-drop 存证 t 区间）无 hotzone-leave：持门生效的直接存证
                 if (startC) {
-                  const leavesC = readEvents().filter((e) => e.type === 'taskbar-hotzone-leave' && e.t >= startC.t && e.t <= dragC.t);
+                  const leavesC = tape.all('taskbar-hotzone-leave', (e) => e.t <= dragC.t, { since: startC.t });
                   if (leavesC.length > 0) dragC.leaves20 = leavesC.length;
                 }
               }
@@ -3245,9 +3232,9 @@ static class Probe {
             if (srcE && dstE) {
               const t0E = Date.now();
               oleDrag20(srcE, dstE, null).catch(() => {});
-              dragE = await waitEvent('taskbar-drag-drop', (e) => e.t >= t0E && e.from === 'apps' && e.to === 'recs' && norm20(e.id) === norm20(q1.exe), 6000);
+              dragE = await tape.wait('taskbar-drag-drop', (e) => e.from === 'apps' && e.to === 'recs' && norm20(e.id) === norm20(q1.exe), { since: t0E, timeoutMs: 6000 });
               if (dragE) {
-                resultE = await waitEvent('taskbar-drag-result', (e) => e.ok === false && e.t >= dragE.t, 6000);
+                resultE = await tape.wait('taskbar-drag-result', (e) => e.ok === false, { since: dragE.t, timeoutMs: 6000 });
                 // toast 5s 自收：drag-result 后即时取 DOM（dataset.on=1 且文案前缀）
                 try {
                   toastE = await cdpEval(`(() => {
@@ -3313,7 +3300,13 @@ static class Probe {
   } finally {
     if (probe164) { try { probe164.destroy(); } catch { /* 尽力 */ } }
     cleanupP18Probes(p18); // P18 痕迹摘除（进程/目录/栏布局存储手钉残留）
-    killTree(child, panelPid);
+    // 工单211：收尾清场归句柄验证强退——gone=false 只入环境降责账、**不中止**
+    // （清场不掩盖真结局；中止会拦住 finish() → 控制器不退 → 验收槽租约挂死）
+    const cleared = await handle.stop();
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+        '清场后仍有面板进程存活', 'panel-forcekill');
+    }
     cleanupRecsProbes(p16); // P16 痕迹三处摘除（面板已杀，落盘清理不再被回写）
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     // 工单50 清场：本电池无守卫兜底（--panel-accept 直跑），面板被 /F 清杀时原生

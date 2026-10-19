@@ -15,14 +15,26 @@
 const { app, screen, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig } = require('./lib/battery-config');
+// 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
+const { createEventTape } = require('./lib/event-tape');
+// 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '51-taskbar-appbar-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
+// 工单211：句柄装配——发射形态 accept（['.','--panel-accept']；本电池不注入 CDP 端口，
+// 与现行 spawn 的 env 逐字同形）；证据档按电池注入专属档名（裁决 10）
+const handle = createPanelHandle({
+  execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '51-taskbar-appbar-panel-handle-child.log'),
+});
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
@@ -45,21 +57,6 @@ const ChangeDisplaySettingsW = user32.func('int32 __stdcall ChangeDisplaySetting
 const { nativeTaskbarVisible, ensureNativeTaskbarVisible } = win32;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function titleOf(hwnd) {
-  const buf = Buffer.alloc(512);
-  const n = GetWindowTextW(hwnd, buf, 256);
-  let s = '';
-  for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
-  return s;
-}
-
-function findWindow(pid, title) {
-  for (const h of win32.topLevelWindows()) {
-    if (win32.threadIdOf(h).pid === pid && titleOf(h) === title) return h;
-  }
-  return null;
-}
 
 function hwndOf(win) {
   const v = koffi.decode(win.getNativeWindowHandle(), 'uintptr_t');
@@ -97,34 +94,6 @@ function primaryPhys() {
   };
 }
 
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
-}
-
-async function waitWindow(pid, title, timeoutMs = 10000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const h = findWindow(pid, title);
-    if (h) return h;
-    await sleep(120);
-  }
-  return null;
-}
-
 /** 等谓词成立，返回达成时刻距起点的毫秒；超时返回 -1 */
 async function waitMs(pred, timeoutMs) {
   const t0 = Date.now();
@@ -159,20 +128,11 @@ function setDisplayMode(buf) {
   return ChangeDisplaySettingsW(buf, 0) === DISP_CHANGE_SUCCESSFUL;
 }
 
-function launchPanelAccept() {
-  return spawn(process.execPath, ['.', '--panel-accept'], {
-    cwd: APP_ROOT,
-    env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE },
-    stdio: 'ignore',
-  });
-}
-
 /** 电池主体（工单214 导出归一：原 main 改名 runSegments，导出面收归 main） */
 async function runSegments() {
   const rep = new Report('51-taskbar-appbar');
   const originalConfig = readConfigRaw();
   const originalMode = currentDisplayMode();
-  let child = null;
   let panelPid = 0;
   let modeSwitched = false;
   const refWins = [];
@@ -200,14 +160,15 @@ async function runSegments() {
 
     // —— P1：AppBar 占位生效 ——
     rep.beginSegment('P1');
-    child = launchPanelAccept();
-    const boot = await waitEvent('boot', null, 20000);
+    // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept']，本电池不带 CDP 端口）
+    handle.launch({ mode: 'accept', stdio: 'ignore' });
+    const boot = await tape.wait('boot', null, { timeoutMs: 20000 });
     if (!boot) throw new Error('P1 面板未上报 boot');
     panelPid = boot.pid;
-    const tbHwnd = await waitWindow(panelPid, TASKBAR_TITLE, 12000);
+    const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('P1 任务栏条带窗未出现');
-    const regEv = await waitEvent('taskbar-appbar-registered', null, 5000);
-    const setposEv = await waitEvent('taskbar-appbar-setpos', (e) => e.reason === 'create', 5000);
+    const regEv = await tape.wait('taskbar-appbar-registered', null, { timeoutMs: 5000 });
+    const setposEv = await tape.wait('taskbar-appbar-setpos', (e) => e.reason === 'create', { timeoutMs: 5000 });
     // 工作区收缩有生效时延，轮询到期望值
     const phys0 = primaryPhys();
     const expectBottom0 = phys0.height - Math.round(TASKBAR_HEIGHT_DIP * phys0.scale);
@@ -253,8 +214,8 @@ async function runSegments() {
       } else {
         modeSwitched = true;
         await sleep(1500); // 等显示器重同步 + display-metrics-changed 投递
-        const reposEv = await waitEvent('taskbar-appbar-setpos',
-          (e) => e.t >= sinceP3 && e.reason === 'display-metrics-changed', 8000);
+        const reposEv = await tape.wait('taskbar-appbar-setpos',
+          (e) => e.reason === 'display-metrics-changed', { since: sinceP3, timeoutMs: 8000 });
         const phys1 = primaryPhys();
         const expectBottom1 = phys1.height - Math.round(TASKBAR_HEIGHT_DIP * phys1.scale);
         const waMs1 = await waitMs(() => {
@@ -297,7 +258,7 @@ async function runSegments() {
     const fgMs = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(fsWin), 4000);
     if (fgMs < 0) rep.note(`P4 前台强制未达（fg=${Number(win32.GetForegroundWindow())} fsHwnd=${hwndOf(fsWin)}），让位判定以前台事实为准`);
     const hideMs = await waitMs(() => !win32.IsWindowVisible(tbHwnd), 5000);
-    const yieldEv = await waitEvent('taskbar-yield', (e) => e.t >= sinceP4, 3000);
+    const yieldEv = await tape.wait('taskbar-yield', undefined, { since: sinceP4, timeoutMs: 3000 });
     if (hideMs >= 0 && yieldEv) {
       rep.pass(`P4a 全屏让位：前台全屏参照窗 ${fgMs}ms 落位前台后 ${hideMs}ms 条带隐藏（taskbar-yield 存证 + 视图事实）`);
     } else {
@@ -307,7 +268,7 @@ async function runSegments() {
     fsWin.destroy();
     refWins.pop();
     const liftMs = await waitMs(() => win32.IsWindowVisible(tbHwnd), 5000);
-    const liftedEv = await waitEvent('taskbar-yield-lifted', (e) => e.t >= t0, 3000);
+    const liftedEv = await tape.wait('taskbar-yield-lifted', undefined, { since: t0, timeoutMs: 3000 });
     if (liftMs >= 0 && liftMs <= 1000 && liftedEv) {
       rep.pass(`P4b 退出全屏恢复：${liftMs}ms 内条带恢复（≤1 秒口径，taskbar-yield-lifted 存证）`);
     } else {
@@ -317,10 +278,10 @@ async function runSegments() {
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
     rep.beginSegment('P5');
     const sinceP5 = Date.now();
-    const panelHwnd = await waitWindow(panelPid, PANEL_TITLE, 8000);
+    const panelHwnd = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 8000 });
     if (!panelHwnd) throw new Error('P5 面板主窗未找到');
     win32.PostMessageW(panelHwnd, WM_CLOSE, 0, 0);
-    const removeEv = await waitEvent('taskbar-appbar-removed', (e) => e.t >= sinceP5, 8000);
+    const removeEv = await tape.wait('taskbar-appbar-removed', undefined, { since: sinceP5, timeoutMs: 8000 });
     // 归还判据 = 回到开跑前基线（原生任务栏还原后自身占底边一档，不是满屏）
     const restoreMs = await waitMs(() => {
       const wa = workArea();
@@ -332,7 +293,6 @@ async function runSegments() {
     } else {
       rep.fail(`P5 removed存证=${!!removeEv} 归还时延=${restoreMs}ms 工作区=${JSON.stringify(waEnd)} 基线=${JSON.stringify(waBaseline)}`);
     }
-    child = null; // 面板已正常退出
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
@@ -340,8 +300,13 @@ async function runSegments() {
     // 还原分辨率 → --icon-restore 自救 → 还原 config。
     try {
       for (const w of refWins) { try { if (!w.isDestroyed()) w.destroy(); } catch { /* 尽力 */ } }
-      try { if (panelPid) spawn('taskkill', ['/PID', String(panelPid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 尽力 */ }
-      try { child && child.kill(); } catch { /* 尽力 */ }
+      // 工单211：面板清场归句柄**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失；
+      // gone=false 只入环境降责账、**不中止**——清场段抛错会拦住 finish() → 控制器不退）
+      const cleared = await handle.stop();
+      if (cleared && cleared.gone === false) {
+        rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+          '清场后仍有面板进程存活', 'panel-forcekill');
+      }
       await sleep(800);
       if (modeSwitched) {
         try { if (setDisplayMode(originalMode)) rep.note('清场：分辨率已还原'); } catch { /* 尽力 */ }
