@@ -29,23 +29,57 @@ const RENDERER_ROOT = path.join(__dirname, '../renderer')
  * 排在前 = 同 id 先到先得（用户插件顶不掉内置组件；想改内置就另起 id 或改本仓库）。
  */
 const BUILTIN_CARDS_ROOT = path.join(RENDERER_ROOT, 'cards')
-const ACCEPT_MODE = process.argv.includes('--accept')
-const ACCEPT_TRAY_MODE = process.argv.includes('--accept-tray')
-const ACCEPT_TASKBAR_MODE = process.argv.includes('--accept-taskbar')
-/** 任务栏显隐验收（工单50）：控制器身份跑 accept/taskbar-carry.js */
-const ACCEPT_TASKBAR_CARRY_MODE = process.argv.includes('--accept-taskbar-carry')
-/** 任务栏右组验收（工单55）：控制器身份跑 accept/taskbar-right-group.js */
-const ACCEPT_TASKBAR_RIGHT_GROUP_MODE = process.argv.includes('--accept-taskbar-right-group')
-/** 任务栏 AppBar 占位 + 全屏让位验收（工单51）：控制器身份跑 accept/taskbar-appbar.js */
-const ACCEPT_TASKBAR_APPBAR_MODE = process.argv.includes('--accept-taskbar-appbar')
-/** 任务栏应用组枚举过滤验收（工单156）：控制器身份跑 accept/taskbar-apps-filter.js */
-const ACCEPT_TASKBAR_APPS_FILTER_MODE = process.argv.includes('--accept-taskbar-apps-filter')
-/** 桌面文档组卡验收（工单187 / spec166 收官）：控制器身份跑 accept/doc-group-cards.js，
- * 插件只装进私有根（--root），共享插件根 %APPDATA%\agent-deck-panel\plugins 全程不落东西 */
-const ACCEPT_DOC_GROUP_CARDS_MODE = process.argv.includes('--accept-doc-group-cards')
-/** 工单132 第一阶段对照实验（stall-duel）：控制器身份跑 accept/experiments/stall-duel.js，
- * 面板以 --panel-accept 子进程拉起。取证工具非验收段，一律经 accept-guard 托管。 */
-const ACCEPT_STALL_DUEL_MODE = process.argv.includes('--accept-stall-duel')
+const ACCEPT_DIR = path.join(app.getAppPath(), 'accept')
+
+/**
+ * 电池接入表（工单214，spec #203 决策 1/2/5/6）——段级清单的**电池级条目**是电池接线的
+ * 唯一登记处：flag（控制器身份旗标）/ entry（电池模块路径）/ hintBar（验收提示条挂条条件）/
+ * cdpPort（CDP 端口）/ kind（'experiment' = 取证工具，段级治理豁免）。
+ *
+ * 运行端读表统一分发：表内 flag 匹配 argv → require(entry)()；单实例豁免（任意控制器模式即豁免）
+ * 与挂条条件一并由表派生——手维护布尔式（九连 if 与挂条超长条件行）随之退役。
+ * 面板侧被测物模式（--panel/--panel-accept/--tray-spike）不表化，保留既在判别。
+ *
+ * 行为变更申报（工单214，非纯机械替换）：master 的面板模式单实例守卫布尔式**漏列
+ * ACCEPT_DOC_GROUP_CARDS_MODE**——dgc 控制器会落到 requestSingleInstanceLock() 那一支并
+ * **真的持有单实例锁**（其余八块控制器都被该布尔式豁免）。本刀起九个控制器**一律不持锁**：
+ * 与母票 #203 决策 6「单实例豁免由表派生（任意控制器模式即豁免）」、AGENTS.md「控制器进程
+ * 绕开单实例锁」以及 dgc 电池自身设计（其面板以 --panel-accept 绕锁子进程拉起、与常驻面板共存）
+ * 三处口径一致。代价：轮中面板互斥不再由控制器持锁提供，改由 accept-guard 轮前清场
+ * ＋ 主电池 preflight 的 double-panel 类承担（dgc 无双面板检测，取窗走 pid＋可见＋标题三重甄别）。
+ */
+interface BatteryRegistryEntry {
+  id: string
+  flag: string
+  entry: string
+  hintBar: boolean
+  cdpPort: number | null
+  kind: string | null
+}
+
+/**
+ * 接入表读取器（app/accept/lib/registry.js）。此处是**模块顶层** require——普通启动路径
+ * （不开验收）也会读一次表（读不到即空表，控制器不识别、走面板路径）。
+ * 仓内无 asar 打包配置（accept/ 与 dist/ 平级在应用目录下），现状无实际风险；仅作稳健性备注。
+ */
+const registryLib = require(path.join(ACCEPT_DIR, 'lib', 'registry.js'))
+const BATTERY_REGISTRY: BatteryRegistryEntry[] = registryLib.loadRegistry()
+
+/** 控制器身份匹配（表派生）：表内 flag 命中 argv → 该条目；未命中即非控制器身份 */
+function matchControllerEntry(argv: string[]): BatteryRegistryEntry | null {
+  for (const e of BATTERY_REGISTRY) {
+    if (argv.includes(e.flag)) return e
+  }
+  return null
+}
+
+/** 本进程的控制器条目（表派生；表空或旗标未命中即 null → 走面板路径） */
+const CONTROLLER_ENTRY = matchControllerEntry(process.argv)
+/**
+ * 任意控制器模式即豁免单实例守卫（表派生）。
+ * 口径变更见上注：master 上 dgc 控制器因守卫布尔式漏列而**仍会持锁**，本刀起与其余八块一致。
+ */
+const IS_CONTROLLER_MODE = CONTROLLER_ENTRY !== null
 const PANEL_MODE = process.argv.includes('--panel')
 /** 验收专用面板子进程（工单49）：完整面板但绕开单实例锁，与常驻面板共存 */
 const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
@@ -310,7 +344,7 @@ if (RESTORE_MODE) {
   forceShowIcons(log)
   forceShowNativeTaskbar(log)
   app.exit(0)
-} else if (!ACCEPT_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !ACCEPT_TASKBAR_APPS_FILTER_MODE && !ACCEPT_DOC_GROUP_CARDS_MODE && !ACCEPT_STALL_DUEL_MODE && !PANEL_ACCEPT_MODE) {
+} else if (!IS_CONTROLLER_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
   // taskkill /T 只清向下子树——杀面板进程（含崩溃/强杀）杀不到守卫，图标还原链路始终
@@ -368,7 +402,7 @@ if (RESTORE_MODE) {
       app.exit(code ?? 0)
     })
   }
-} else if (!ACCEPT_MODE && !TRAY_SPIKE_MODE && !ACCEPT_TRAY_MODE && !ACCEPT_TASKBAR_MODE && !ACCEPT_TASKBAR_CARRY_MODE && !ACCEPT_TASKBAR_RIGHT_GROUP_MODE && !ACCEPT_TASKBAR_APPBAR_MODE && !ACCEPT_TASKBAR_APPS_FILTER_MODE && !ACCEPT_STALL_DUEL_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
+} else if (!IS_CONTROLLER_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
   fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
@@ -386,74 +420,20 @@ if (RESTORE_MODE) {
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
   app.commandLine.appendSwitch('disable-renderer-backgrounding')
   void app.whenReady().then(() => {
-    // 工单86 验收提示条：控制器身份的全部验收模式统一挂条——琥珀药丸驻留屏幕上中部安全带，
-    // 提示用户暂勿键鼠操作；随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、
-    // docs/adr/0008-accept-hint-bar.md）。覆盖面（工单213 起共九项）：主/托盘/任务栏/任务栏
-    // 显隐/任务栏右组/任务栏 AppBar/任务栏应用组枚举过滤/桌面文档组卡八块电池 + stall-duel
-    // 对照实验。--panel-accept/--tray-spike 子进程是被测物，不挂。
-    // 过渡说明（工单213 / spec #203 决策 4）：本条件是手维护布尔式，电池接入表（#214）落地后
-    // 挂条条件改由表派生、本条件行随之删除——本补丁只止血，不背技术债。
-    if (ACCEPT_MODE || ACCEPT_TRAY_MODE || ACCEPT_TASKBAR_MODE || ACCEPT_TASKBAR_CARRY_MODE || ACCEPT_TASKBAR_RIGHT_GROUP_MODE || ACCEPT_TASKBAR_APPBAR_MODE || ACCEPT_TASKBAR_APPS_FILTER_MODE || ACCEPT_DOC_GROUP_CARDS_MODE || ACCEPT_STALL_DUEL_MODE) {
-      require(path.join(app.getAppPath(), 'accept', 'lib', 'hint-bar.js')).showAcceptHintBar()
+    // 工单86 验收提示条：控制器身份挂条——琥珀药丸驻留屏幕上中部安全带，提示用户暂勿键鼠操作；
+    // 随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、docs/adr/0008-accept-hint-bar.md）。
+    // 工单214（spec #203 决策 4/6）：挂条条件改由电池接入表派生——命中条目的 hintBar 为真即挂条；
+    // 八块电池 + stall-duel 对照实验共九项在表内逐条登记（--panel-accept/--tray-spike 是被测物
+    // 子进程，不表化、不挂条）。形态与三条硬约束不动（ADR-0008 域）。
+    if (registryLib.hintBarRequired(CONTROLLER_ENTRY)) {
+      require(path.join(ACCEPT_DIR, 'lib', 'hint-bar.js')).showAcceptHintBar()
     }
-    if (ACCEPT_MODE) {
-      // 验收电池：同一 Electron 应用上下文内以控制器身份运行（复用 nativeImage 截屏比对）。
-      // 空处理器压掉「窗口全关默认退出」——电池自己管理生命周期（参照窗关掉后还要继续跑）。
+    if (CONTROLLER_ENTRY) {
+      // 通用分发（工单214）：表内 flag 匹配 argv → require(entry)()。
+      // 空处理器压掉「窗口全关默认退出」——电池自己管理生命周期（参照窗关掉后还要继续跑）；
+      // 处理器由本分发统一注册一次（原先每块电池各注册一遍）。
       app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'battery.js'))()
-      return
-    }
-    if (ACCEPT_TRAY_MODE) {
-      // 托盘 spike 验收（工单48）：控制器身份跑 accept/tray-spike.js，面板以 --tray-spike 子进程拉起。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'tray-spike.js'))()
-      return
-    }
-    if (ACCEPT_TASKBAR_MODE) {
-      // 任务栏验收（工单49）：控制器身份跑 accept/taskbar.js，面板以 --panel-accept 子进程拉起。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'taskbar.js'))()
-      return
-    }
-    if (ACCEPT_TASKBAR_CARRY_MODE) {
-      // 任务栏显隐验收（工单50）：控制器身份跑 accept/taskbar-carry.js，全程真机链路
-      // （守卫链默认入口 + --panel-accept 混合，见电池文件头）。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'taskbar-carry.js'))()
-      return
-    }
-    if (ACCEPT_TASKBAR_RIGHT_GROUP_MODE) {
-      // 任务栏右组验收（工单55）：控制器身份跑 accept/taskbar-right-group.js，面板以
-      // --panel-accept 子进程拉起。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'taskbar-right-group.js'))()
-      return
-    }
-    if (ACCEPT_TASKBAR_APPBAR_MODE) {
-      // 任务栏 AppBar 占位 + 全屏让位验收（工单51）：控制器身份跑 accept/taskbar-appbar.js，
-      // 面板以 --panel-accept 子进程拉起；最大化/全屏参照窗由控制器自开（见电池文件头）。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'taskbar-appbar.js'))()
-      return
-    }
-    if (ACCEPT_TASKBAR_APPS_FILTER_MODE) {
-      // 任务栏应用组枚举过滤验收（工单156）：控制器身份跑 accept/taskbar-apps-filter.js，
-      // 面板以 --panel-accept 子进程拉起；垃圾窗/正常窗探针由控制器自开（见电池文件头）。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'taskbar-apps-filter.js'))()
-      return
-    }
-    if (ACCEPT_DOC_GROUP_CARDS_MODE) {
-      // 桌面文档组卡验收（工单187 / spec166 收官）：控制器身份跑 accept/doc-group-cards.js，
-      // 面板以 --panel-accept 子进程拉起；插件由电池装进私有根，共享插件根保持空（见电池文件头）。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'doc-group-cards.js'))()
-      return
-    }
-    if (ACCEPT_STALL_DUEL_MODE) {
-      // 工单132 第一阶段对照实验（取证工具非验收段）：单轮一进程，退出码 0=轮完成 3=机器脏。
-      app.on('window-all-closed', () => {})
-      require(path.join(app.getAppPath(), 'accept', 'experiments', 'stall-duel.js'))()
+      require(registryLib.modulePathFor(CONTROLLER_ENTRY.entry))()
       return
     }
     bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {

@@ -15,6 +15,7 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
+const { cdpPortFor } = require('./lib/registry');
 const { createPanelControl, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
 const { judgeTrayMachineState, DND_MARKER } = require('./lib/tray-machine-state');
 
@@ -43,7 +44,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 工单91 P12：渲染层活性取证经 CDP（忙环把渲染层主线程钉死 N 秒，验哨兵失能档发射/闭合）。
 // 面板侧由 DECK_CDP_PORT 环境变量开 remote-debugging-port（--panel/--panel-accept 均认）。
-const CDP_PORT = 9223;
+// 工单214：端口自电池接入表取（app/accept/manifest.json 的 cdpPort 字段）——端口分配不再靠
+// 电池文件里的注释接力（「9223-9225 已被占用」那类），全表唯一由 CI 校验器把守。
+const CDP_PORT = cdpPortFor('03-battery');
 const PANEL_TITLE = 'AGENT DECK';
 
 /** CDP Runtime.evaluate（同 accept/taskbar.js 通道；timeoutMs 可调——忙环表达式本身要跑到 N 秒后才回包） */
@@ -800,7 +803,8 @@ function clipboardSet(text) {
   try { psRun(`Set-Clipboard -Value '${String(text).replace(/'/g, "''")}'`); } catch { /* 尽力 */ }
 }
 
-async function main() {
+/** 电池主体（工单214 导出归一：原 main 改名 runSegments，导出面收归 main） */
+async function runSegments() {
   // 工单110/115：--accept-scope 显式声明本次验收的 spec 范围段（如 npm run accept -- --accept-scope P6,P8）。
   // 段号进 verdict 行与报告账目；构造期对清单硬交叉校验——未知段号即抛（不烧真机轮）。
   const acceptScope = parseAcceptScope(process.argv);
@@ -6212,16 +6216,25 @@ async function main() {
     restoreDesktop();
     try { w32.SetCursorPos(savedCursor.x, savedCursor.y); } catch { /* 尽力 */ }
   }
-  return rep.verdict();
+  const verdict = rep.verdict();
+  // 工单110 三态退出码：PASS=0 / FAIL-CODE=1 / FAIL-ENV=2（guard 与自动化按此分辨结局）
+  // 工单214 导出归一：原 whenReady wrapper 的收尾移入主体——机械等价（300ms 延迟退出照旧）。
+  process.exitCode = verdict.exitCode;
+  setTimeout(() => app.exit(verdict.exitCode), 300);
+  return verdict;
 }
 
-module.exports = function battery() {
-  app.whenReady().then(() => main().then((v) => {
-    // 工单110 三态退出码：PASS=0 / FAIL-CODE=1 / FAIL-ENV=2（guard 与自动化按此分辨结局）
-    process.exitCode = v.exitCode;
-    setTimeout(() => app.exit(v.exitCode), 300);
-  })).catch((e) => {
+/**
+ * 导出归一（工单214，spec #203 决策 6）：控制器已在 whenReady 内调起 → 直接导出 main
+ * （消双重 whenReady 包装）；崩溃兜底在此收口，机械等价于原 wrapper 的 catch。
+ */
+async function main() {
+  try {
+    return await runSegments();
+  } catch (e) {
     console.error('BATTERY CRASH:', e && e.stack || e);
     app.exit(2);
-  });
-};
+  }
+}
+
+module.exports = main;
