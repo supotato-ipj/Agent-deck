@@ -253,10 +253,14 @@ function classifyTrayMachineState(probes = {}) {
 // 零 koffi 零 Report 依赖：窗口枚举/探活/时钟全经注入，注入式单测不碰真机；
 // 真机默认实现走惰性 require（与既有模块同款形态——模块加载不拉原生模块）。
 
-/** 发射形态 → 进程参数（#202 决策3：mode 只有 full/accept 两值） */
+/** 发射形态 → 进程参数（#202 决策3：mode 只有 full/accept 两值；
+ *  编排台账 §8 裁决 3：**扩枚举加 'tray-spike'**——母票的枚举漏了第五种发射形态
+ *  （48-tray-spike 的 ['.','--tray-spike']，env 带 DECK_TRAY_CORPUS）。纯增量：
+ *  既有两形态的参数逐字不变，六方法面不动，不加 extraArgs 键。 */
 const PANEL_MODE_ARGS = {
   full: ['.'],
   accept: ['.', '--panel-accept'],
+  'tray-spike': ['.', '--tray-spike'],
 };
 /** stdio 三形态（#202 决策4）：ignore=无管道 / drain=管道且排空 / archive=落证据档 */
 const PANEL_STDIO_MODES = ['ignore', 'drain', 'archive'];
@@ -406,13 +410,13 @@ function createPanelHandle(deps = {}) {
 
   /**
    * 发射面板（配置差异全进参数；stdio 三形态单点化）。
-   * @param {{mode: 'full'|'accept', cdpPort?: number|string, lagSentinel?: boolean, stdio?: 'ignore'|'drain'|'archive', extraEnv?: object}} cfg
+   * @param {{mode: 'full'|'accept'|'tray-spike', cdpPort?: number|string, lagSentinel?: boolean, stdio?: 'ignore'|'drain'|'archive', extraEnv?: object}} cfg
    * @returns {{child: object, launchedAt: number, stderrTail: () => string}}
    */
   function launch(cfg = {}) {
     const mode = cfg.mode || 'full';
     const args = PANEL_MODE_ARGS[mode];
-    if (!args) throw new Error(`面板句柄：未知发射形态 mode=${mode}（只认 full/accept）`);
+    if (!args) throw new Error(`面板句柄：未知发射形态 mode=${mode}（只认 full/accept/tray-spike）`);
     const stdio = cfg.stdio || 'ignore';
     if (!PANEL_STDIO_MODES.includes(stdio)) {
       throw new Error(`面板句柄：未知 stdio 形态 ${stdio}（只认 ignore/drain/archive）`);

@@ -11,13 +11,29 @@
 const { app, BrowserWindow, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
+// 工单212：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
+// 超时档 6000（母票 #201 决策 8 原文列举的 tray-spike 档）
+const { createEventTape } = require('./lib/event-tape');
+// 工单212：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
+// 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
+const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '48-runtime-events.jsonl');
+const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 6000 });
+// 工单212：句柄装配——发射形态 tray-spike（['.','--tray-spike']，编排台账 §8 裁决 3 扩枚举）；
+// 事件档 EVENTS_FILE（boot 自报 pid 的来源）；证据档按电池注入专属档名（裁决 10 第①条）——
+// 本电池走 stdio=drain 形态，不产生需 close 的 fd
+const handle = createPanelHandle({
+  execPath: process.execPath,
+  appRoot: APP_ROOT,
+  eventLogPath: EVENTS_FILE,
+  archivePath: path.join(__dirname, 'evidence', '48-tray-spike-panel-handle-child.log'),
+});
 const CORPUS_FILE = path.join(__dirname, 'evidence', '48-tray-corpus.jsonl');
 const AMBER = [245, 166, 35]; // 面板托盘图标识别色（tray.ts #f5a623）
 const SPIKE_TITLE = 'TRAY-SPIKE-ACCEPT';
@@ -54,23 +70,9 @@ function colorHits(pngPath, rgb, tol = 20) {
   return hit;
 }
 
-function readEvents() {
-  try {
-    return fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean).map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function waitEvent(type, pred, timeoutMs = 6000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const hit = readEvents().find((e) => e.type === type && (!pred || pred(e)));
-    if (hit) return hit;
-    await sleep(60);
-  }
-  return null;
-}
+// 工单212：正典 readEvents / waitEvent 整体退役——事件观测归事件磁带（app/accept/lib/event-tape）。
+// 磁带 wait 取「首个」匹配拍（正典 .find() 口径，编排台账 §8 裁决 2）；latest 取「最新一拍」
+// （正典 .filter().pop() 口径）；all 裸读全量（正典 .filter() 列表口径）。
 
 // 窗口标题（battery.js 同款 koffi 缓冲形态）
 const koffi = require('koffi');
@@ -180,40 +182,38 @@ async function main() {
     rep.fail('互斥侦察失败：未找到 explorer 的 Shell_TrayWnd（存在 RetroBar/Seelen 类竞争者时本验收不可判）');
   }
 
-  let child = null;
   let probeWin = null;
   const cleanup = async () => {
     try { probeWin && probeWin.destroy(); } catch { /* 尽力 */ }
-    if (child) {
-      try { child.kill(); } catch { /* 尽力 */ }
-      await sleep(600);
-      try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* 尽力 */ }
-      child = null;
-    }
+    // 工单212：清场归面板句柄**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）；
+    // 原实现是无验证 taskkill（/T /F 后不验消失就广播 TaskbarCreated）——面板残留会占着
+    // 竞争窗位，「交还真托盘」这条断言本就靠面板真的死掉才成立
+    const cleared = await handle.stop();
     // 交还真托盘：我方窗口随进程死亡消失，广播 TaskbarCreated 让响应的应用重新注册回 explorer
     broadcastTaskbarCreated();
     await sleep(2500);
+    return cleared;
   };
 
   try {
     // —— P0 拉起 spike 面板 ——
     rep.beginSegment('P0');
-    child = spawn(process.execPath, ['.', '--tray-spike'], {
-      cwd: APP_ROOT,
-      env: { ...process.env, DECK_EVENT_LOG: EVENTS_FILE, DECK_TRAY_CORPUS: CORPUS_FILE },
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // 工单212：发射归面板句柄——mode='tray-spike'（['.','--tray-spike']，编排台账 §8 裁决 3
+    // 扩 mode 枚举）；stdio='drain'（工单132：stdout 管道必须排空，同主电池根因修复）；
+    // 托盘语料库路径经 extraEnv **逐字**保住（DECK_TRAY_CORPUS）；事件档由句柄注入
+    const receipt = handle.launch({
+      mode: 'tray-spike',
+      stdio: 'drain',
+      extraEnv: { DECK_TRAY_CORPUS: CORPUS_FILE },
     });
-    let stderrTail = '';
-    child.stderr.on('data', (d) => { stderrTail = (stderrTail + d).slice(-4000); });
-    child.stdout.on('data', () => {}); // 工单132：stdout 管道必须排空（同主电池根因修复）
 
-    const ready = await waitEvent('tray-host-ready', null, 25000);
-    if (!ready) throw new Error(`25s 内未见 tray-host-ready\nstderr:\n${stderrTail}`);
+    const ready = await tape.wait('tray-host-ready', null, { timeoutMs: 25000 });
+    if (!ready) throw new Error(`25s 内未见 tray-host-ready\nstderr:\n${receipt.stderrTail()}`);
     rep.pass(`托盘宿主上线：竞争窗口 hwnd=0x${Number(ready.hwnd).toString(16)}，接管前真托盘=0x${Number(ready.realTrayHwnd).toString(16)}`);
 
     // —— P1 投递竞争：置顶重申持续赢下 FindWindow ——
     rep.beginSegment('P1');
-    const win1 = await waitEvent('tray-competition', (e) => e.win === true, 8000);
+    const win1 = await tape.wait('tray-competition', (e) => e.win === true, { timeoutMs: 8000 });
     win1
       ? rep.pass('投递竞争：FindWindow(Shell_TrayWnd) 命中我方竞争窗口（置顶重申生效）')
       : rep.fail('投递竞争：未见 tray-competition win=true 存证');
@@ -236,14 +236,14 @@ async function main() {
     okAdd && addMs < 500
       ? rep.pass(`泵延迟无感知：探针 NIM_ADD 返回 true，同步耗时 ${addMs}ms（<500ms，调用方无挂起）`)
       : rep.fail(`泵延迟异常：NIM_ADD ok=${okAdd} 耗时 ${addMs}ms`);
-    const delivered = await waitEvent('tray-event', (e) => e.kind === 'add' && Number(e.hwnd) === probeHwnd, 6000);
+    const delivered = await tape.wait('tray-event', (e) => e.kind === 'add' && Number(e.hwnd) === probeHwnd, { timeoutMs: 6000 });
     delivered
       ? rep.pass(`投递改道实证：探针 NIM_ADD 到达我方宿主（key=${delivered.key} tooltip=${JSON.stringify(delivered.tooltip)}）而非系统托盘`)
       : rep.fail('探针 NIM_ADD 未到达我方宿主（投递未赢下）');
     const t1 = Date.now();
     const okDel = ShellNotifyIconW(NIM_DELETE, nid);
     const delMs = Date.now() - t1;
-    const deleted = await waitEvent('tray-event', (e) => e.kind === 'delete' && Number(e.hwnd) === probeHwnd, 6000);
+    const deleted = await tape.wait('tray-event', (e) => e.kind === 'delete' && Number(e.hwnd) === probeHwnd, { timeoutMs: 6000 });
     okDel && delMs < 500 && deleted
       ? rep.pass(`探针 NIM_DELETE 同样快速送达（${delMs}ms）`)
       : rep.fail(`NIM_DELETE 异常：ok=${okDel} 耗时=${delMs}ms 事件=${JSON.stringify(deleted)}`);
@@ -251,13 +251,14 @@ async function main() {
     // —— P3 真实托盘图标渲染：面板自身琥珀托盘图标（Electron 真 Shell_NotifyIcon 调用方）为基准真值 ——
     // Electron 的注册是 add(空) → modify(icon) → modify(tip) 三条独立调用，按 key 聚合断言。
     rep.beginSegment('P3');
-    const ownTip = await waitEvent('tray-event', (e) => e.tooltip === 'AGENT DECK 独立面板', 20000);
+    const ownTip = await tape.wait('tray-event', (e) => e.tooltip === 'AGENT DECK 独立面板', { timeoutMs: 20000 });
     const ownKey = ownTip && ownTip.key;
-    const ownIconEvt = ownKey && readEvents().find((e) => e.type === 'tray-event' && e.key === ownKey && e.hasIcon);
+    // 工单212：首个匹配拍口径（正典 .find()）→ 磁带 all(...)[0]（不可用 latest）
+    const ownIconEvt = ownKey && (tape.all('tray-event', (e) => e.key === ownKey && e.hasIcon)[0] || null);
     ownKey && ownIconEvt
       ? rep.pass(`真实图标流量：面板自身托盘图标（key=${ownKey}）带像素到达（${ownIconEvt.w}x${ownIconEvt.h}），tooltip 同键更新`)
       : rep.fail(`未收齐面板自身托盘图标事件（tip=${JSON.stringify(ownTip)} icon=${JSON.stringify(ownIconEvt)}）`);
-    const others = readEvents().filter((e) => e.type === 'tray-event' && e.kind === 'add' && e.tooltip !== 'AGENT DECK 独立面板');
+    const others = tape.all('tray-event', (e) => e.kind === 'add' && e.tooltip !== 'AGENT DECK 独立面板');
     const otherKeys = [...new Set(others.map((e) => e.key))];
     rep.note(`TaskbarCreated 收编存量：其余 add 事件 ${others.length} 条 / 图标 ${otherKeys.length} 个：${otherKeys.slice(0, 8).map((k) => {
       const ev = others.find((e) => e.key === k);
@@ -266,7 +267,7 @@ async function main() {
 
     // —— P3b 验收页像素正确：spike 窗截图应有琥珀簇（非占位图）——
     rep.beginSegment('P3b');
-    const boot = readEvents().filter((e) => e.type === 'boot').pop();
+    const boot = tape.latest('boot');
     const panelPid = boot && boot.pid;
     let spikeHwnd = null;
     const winDeadline = Date.now() + 8000;
@@ -289,9 +290,9 @@ async function main() {
       // —— P3c 第三方像素正确：取一条第三方带像素事件的主色真值（宿主提取图标本体的量化众数），
       // 页面应渲染出同色簇——渲染像素与提取像素互为印证。只取饱和色（避开页面底色/灰图标的假命中）——
       rep.beginSegment('P3c');
-      const tp = readEvents().find((e) =>
-        e.type === 'tray-event' && e.hasIcon && Array.isArray(e.dom) && e.key !== ownKey &&
-        Math.max(...e.dom) - Math.min(...e.dom) > 40);
+      const tp = tape.all('tray-event', (e) =>
+        e.hasIcon && Array.isArray(e.dom) && e.key !== ownKey &&
+        Math.max(...e.dom) - Math.min(...e.dom) > 40)[0] || null;
       if (!tp) {
         rep.fail('无带饱和主色真值的第三方图标事件可断言');
       } else {
@@ -334,7 +335,14 @@ async function main() {
 
     // —— P6 交还：杀面板 → 广播 → 真托盘回归 explorer ——
     rep.beginSegment('P6');
-    await cleanup();
+    const cleared = await cleanup();
+    // 工单212：gone=false ＝「需重启清障」中止信号（#202 决策 8 的中止语义）——入环境降责账
+    // 并中止后续段（throw 借电池的 try/catch 汇流，不吞）
+    if (cleared && cleared.gone === false) {
+      rep.exclude(`面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
+        '面板强退序列未能终结面板进程', 'panel-forcekill');
+      throw new Error('面板强退失败：需重启清障——后续段中止');
+    }
     const trayAfter = realTrayHwnd();
     trayAfter
       ? rep.pass(`交还真托盘：面板退出后 explorer 托盘在场（0x${trayAfter.toString(16)}），TaskbarCreated 已广播`)
