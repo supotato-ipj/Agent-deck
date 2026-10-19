@@ -48,6 +48,126 @@ export declare function createPanelControl(deps?: PanelControlDeps): {
   isAlive(pid: number): boolean
 }
 
+// —— 面板句柄（工单206，spec #202 决策3）——
+
+/** 发射形态：full=全量面板（守卫链同形），accept=验收面板（--panel-accept 绕开单实例锁） */
+export type PanelLaunchMode = 'full' | 'accept'
+/** stdio 三形态：ignore=无管道 / drain=管道且排空（工单132 正解） / archive=落证据档 */
+export type PanelStdioMode = 'ignore' | 'drain' | 'archive'
+
+export declare interface PanelLaunchConfig {
+  /** 发射形态 */
+  mode: PanelLaunchMode
+  /** CDP 调试端口（注入 DECK_CDP_PORT） */
+  cdpPort?: number | string
+  /** 滞后哨兵开关（注入 DECK_LAG_SENTINEL=1，工单117） */
+  lagSentinel?: boolean
+  /** stdio 形态（缺省 ignore） */
+  stdio?: PanelStdioMode
+  /** 追加环境变量（盖在 baseEnv 之上） */
+  extraEnv?: Record<string, string | undefined>
+}
+
+export declare interface PanelWaitWindowRequest {
+  /**
+   * 就绪窗标题（面板本体 AGENT DECK / 任务栏条带 DECK-TASKBAR / 浮层窗）。
+   * 必填判据：传空串/纯空白/undefined 时**不退化**为「任一可见窗即面板本体窗」——
+   * 按「找不到窗」同形处置：落可见 Chrome 窗诊断转储 + 立即返回 null（不抛）。
+   * 标题按原值参与匹配（既有语义不动）；「空白」只在闸门处判负（trim 后为空）。
+   */
+  title: string
+  /** 可选类名过滤（缺省不做类名过滤；主电池现行判据的 Chrome_WidgetWin_1 一道） */
+  cls?: string
+  /** 超时 ms（缺省 20000） */
+  timeoutMs?: number
+}
+
+/** 句柄自持状态（#202 决策2：身份四件——发射子进程/面板自报 pid/主窗句柄/发射时点——归句柄，
+ *  电池里的可变闭包总线随之消失）；本接口逐成员对应 panel-control.js 运行时持有的 state，
+ *  含四件之外的三项记账成员（since 门/末次发射配置快照/stderr 尾）。 */
+export declare interface PanelHandleState {
+  /** 发射子进程 */
+  child: unknown | null
+  /** 面板自报 pid（boot 存证；spawn 的 child.pid 在 Electron 父进程下不可靠） */
+  panelPid: number | null
+  /** 主窗句柄 */
+  hwnd: unknown | null
+  /** 发射时点（since 门记账） */
+  launchedAt: number
+  /** since 门当前值（发射时点即门；relaunch 传 sinceMs 时显式覆盖） */
+  sinceGate: number
+  /** 末次发射配置快照（relaunch 逐字复现首发配置用；未发射过为 null） */
+  lastCfg: PanelLaunchConfig | null
+  /** stderr 尾（drain 形态下由句柄截留，尾部只留末 4000 字符，供早亡取证；非 drain 形态为空串）。
+   *  与 PanelLaunchReceipt.stderrTail() 分工：那里是「取尾」的取值函数，这里是持有字段。 */
+  stderrTail: string
+}
+
+/** 句柄 stop 的决策（outcome 比面板控制模块多一档 idle 短路） */
+export declare interface PanelHandleStopResult extends PanelStopResult {
+  outcome: PanelStopResult['outcome'] | 'idle'
+}
+
+/** relaunch 的决策（强退决策 + 是否真重发） */
+export declare interface PanelRelaunchResult extends PanelHandleStopResult {
+  /** 是否真的重发（强退失败=中止信号，为 false） */
+  launched: boolean
+  /** 重发后的子进程（未重发时为 null） */
+  child: unknown | null
+  /** 重发后的发射时点 */
+  launchedAt: number
+}
+
+/** launch 的回执（发射子进程 + 发射时点 + stderr 尾（早亡留证）） */
+export declare interface PanelLaunchReceipt {
+  child: unknown
+  launchedAt: number
+  /** stderr 尾部（drain 形态下由句柄截留，缺省空串） */
+  stderrTail(): string
+}
+
+export declare interface PanelHandleDeps extends PanelControlDeps {
+  /** 发射器（缺省 child_process.spawn） */
+  spawn?: (cmd: string, args: string[], opts: { cwd: string; env: Record<string, string | undefined>; stdio: unknown }) => unknown
+  /** 被拉起的可执行文件路径（缺省 process.execPath） */
+  execPath?: string
+  /** 工作目录（缺省 app 根） */
+  appRoot?: string
+  /** 基础环境变量（缺省 process.env） */
+  baseEnv?: Record<string, string | undefined>
+  /** 事件档路径（注入 DECK_EVENT_LOG；boot 自报 pid 的来源） */
+  eventLogPath?: string
+  /** 事件档读取（缺省读 eventLogPath 的 JSONL） */
+  readEvents?: () => Array<{ type?: string; t?: number; pid?: number }>
+  /** 顶层窗枚举（缺省 win32.topLevelWindows） */
+  topLevelWindows?: () => unknown[]
+  /** 窗归属 pid */
+  windowPid?: (hwnd: unknown) => number
+  /** 窗标题 */
+  windowTitle?: (hwnd: unknown) => string
+  /** 窗类名（诊断转储用） */
+  windowClass?: (hwnd: unknown) => string
+  /** 窗可见性 */
+  isWindowVisible?: (hwnd: unknown) => boolean
+  /** WM_NULL 探活（缺省真机实现：IsWindow + SendMessageTimeoutW） */
+  responsiveProbe?: (hwnd: unknown, timeoutMs: number) => boolean
+  /** 证据档打开（缺省 fs.openSync(file,'a')） */
+  openArchive?: (file: string) => number
+  /** 证据档路径（stdio=archive 时的落盘去处） */
+  archivePath?: string
+  /** 日志出口（缺省 console.log） */
+  log?: (msg: string) => void
+}
+
+export declare function createPanelHandle(deps?: PanelHandleDeps): {
+  launch(cfg: PanelLaunchConfig): PanelLaunchReceipt
+  waitWindow(req: PanelWaitWindowRequest): Promise<unknown | null>
+  relaunch(req?: { sinceMs?: number }): Promise<PanelRelaunchResult>
+  stop(): Promise<PanelHandleStopResult>
+  alive(): boolean
+  responsive(): boolean
+}
+
 export declare interface ClassifiedWindow {
   cls: string
   title: string
