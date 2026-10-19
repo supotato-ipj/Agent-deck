@@ -1,0 +1,6 @@
+[0] pin ret=true panelAboveRef=false fgIsPanel=false
+[1] activated panelAboveRef=true fgIsPanel=true
+[2] repin-while-fg ret=true panelAboveRef=false fgIsPanel=true
+[3] ref-refocused panelAboveRef=false fgIsRef=true
+[4] focus-handler repin ret=true panelAboveRef(immediate)=false
+[4] plan-A settled panelAboveRef=false fgIsPanel=true

@@ -1,0 +1,70 @@
+{
+  "arm": "still",
+  "round": 1,
+  "tag": "1a",
+  "wind": false,
+  "startedAt": 1791480605800,
+  "activeSeconds": 29,
+  "panel": {
+    "pid": 19220,
+    "stopOutcome": "graceful-gone"
+  },
+  "probeCount": 53,
+  "stalls": [
+    {
+      "onsetMs": 1791480624508,
+      "endMs": 1791480651219,
+      "durationMs": 26711,
+      "terminal": true,
+      "probes": 26,
+      "onsetIso": "2026-10-08T17:30:24.508Z"
+    }
+  ],
+  "mainLag": [],
+  "rendererStalls": [
+    {
+      "t": 1791480617312,
+      "quietMs": 5210,
+      "recovered": true
+    }
+  ],
+  "kbTransitions": [],
+  "cdpEvalCount": 25,
+  "cdpErrors": [
+    {
+      "t": 1791480626516,
+      "message": "This operation was aborted"
+    },
+    {
+      "t": 1791480633550,
+      "message": "This operation was aborted"
+    }
+  ],
+  "coupling": {
+    "total": 1,
+    "withinWindow": 1,
+    "fraction": 1,
+    "medianAbsDeltaMs": 624
+  },
+  "windCoupling": {
+    "total": 1,
+    "withinWindow": 0,
+    "fraction": 0,
+    "medianAbsDeltaMs": null
+  },
+  "order": [
+    {
+      "onset": 1791480624508,
+      "order": "renderer-first",
+      "deltaMs": -12406
+    }
+  ],
+  "labels": [],
+  "terminalSpan": null,
+  "files": {
+    "eventsFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-still\\panel-events.jsonl",
+    "spansFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-still\\panel-events.jsonl.spans.jsonl",
+    "harnessLog": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-still\\harness-log.jsonl",
+    "probesFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-still\\probes.jsonl"
+  }
+}

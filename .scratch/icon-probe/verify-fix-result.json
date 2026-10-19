@@ -1,0 +1,39 @@
+{
+ "electron": "44.4.3",
+ "cases": {
+  "A_notepad": {
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\deck-verify-fix-HJCTXs\\A.lnk",
+   "null": false,
+   "len": 5514,
+   "md5": "aabef7f6ab",
+   "ms": 231
+  },
+  "B_charmap": {
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\deck-verify-fix-HJCTXs\\B.lnk",
+   "null": false,
+   "len": 4210,
+   "md5": "e84ef0f284",
+   "ms": 120
+  },
+  "C_iconloc": {
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\deck-verify-fix-HJCTXs\\C.lnk",
+   "null": false,
+   "len": 4210,
+   "md5": "e84ef0f284",
+   "ms": 158
+  },
+  "D_deadlink": {
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\deck-verify-fix-HJCTXs\\D.lnk",
+   "null": false,
+   "len": 766,
+   "md5": "6f75900799",
+   "ms": 230
+  }
+ },
+ "assertions": {
+  "A≠B（不同快捷方式图标互不相等——修法核心）": true,
+  "C=B（声明的图标定位优先于目标）": true,
+  "A、B、C 均非空（真图标而非 null）": true,
+  "D 非空（死链回落通用图标）且≠A": true
+ }
+}

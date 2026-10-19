@@ -1,0 +1,8 @@
+{
+  "id": "sessions",
+  "name": "SESSIONS",
+  "version": "1.0.0",
+  "entry": "./card.js",
+  "capabilities": ["sessions"],
+  "order": 30
+}

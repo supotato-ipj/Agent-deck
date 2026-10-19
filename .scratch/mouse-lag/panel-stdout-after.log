@@ -1,0 +1,731 @@
+
+Debugger listening on ws://127.0.0.1:9229/f2127270-198c-46e2-96f8-df93736c5722
+For help, see: https://nodejs.org/learn/getting-started/debugging
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+Debugger attached.
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+Debugger ending on ws://127.0.0.1:9229/f2127270-198c-46e2-96f8-df93736c5722
+For help, see: https://nodejs.org/learn/getting-started/debugging
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)
+[W] app Error: property bridge is not registered, declare it as `inject` to suppress this warning
+        at DataplaneService.onMessage (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:86:22)
+        at ForkUtilityProcess.<anonymous> (D:\test-folder\wallpaperengine-research--mouse-lag\app\dist\main\services\dataplane.js:60:48)
+        at ForkUtilityProcess.emit (node:events:514:28)
+        at UtilityProcess.emit (node:electron/js2c/browser_init:1:90903)

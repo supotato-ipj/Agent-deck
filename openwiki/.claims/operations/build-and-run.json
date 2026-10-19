@@ -1,0 +1,558 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d7b303c311db5636b9cb7cb68a6c83b6a1a265c49c6520510431766c62c5c5fa",
+  "claims": [
+    {
+      "id": "claim_3f0cf3c18f2c4b8b9858f878e0f4cf29",
+      "statement": "The whole build is one script chain - `tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs` - and the `dev`, `dev:panel` and `accept` scripts each run that build before starting Electron, so no launch path can start against a stale `dist`; `typecheck` and `test` are the only scripts that need no build.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L7-L14",
+          "version": "repo-lines-v1:sha256:1e9fd7b33eebbe125ac44b9ff81c5a5f3f8cf390ac5a9d995a444f0de57a69e1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg0MDY5ODRiZGVmY2EzNGRkNmJjOTAwMjdmMWQxMWFiY2IxNzAzNGM1MjVjOWE1Y2VmYTFkODRmY2NkODFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGI1NThjNTRhNmY1MTE4NjhkMDY5ZmIxYzhlMjgxZGY2NGFhOGUwMzQ2MjFkYzY2MmE2ZDMyODBmZDk5ZTE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDhmMDhjMTYyZjg2MDdlZTAzMzZhY2M5YTdhMjgxNzllZThhMGI1NWJjMDNkZGFjNzUwNDRmOGZjMTRhN2YxNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c51685f45a614763a60e110aab6c35a6",
+      "statement": "The repository has no packaging or installer step: the application is run from the checkout as `electron .` with `dist/` as the only build product, which is why `main` points at a compiled file and every runnable path starts with a build.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L11-L19",
+          "version": "repo-lines-v1:sha256:86f237ab8c0771bc65f84dc4dd4fca574af8cbaec56869a186ae8942580b0bac:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWVmOTY1ZDdjYTIyN2UxODUwNDg0YWYwYzRmNTVjMjhiOTk3ODc0ZmE5ZDVhYzM1ZGU3MWRmNTAwM2Q5MDJjZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2VjNTY4ZWFkZGNjNDg0MDI2ZjFlMzJhZjIyYzc1ZjM4NTM2MmNmMmM1YzFkZDk2OGMwNTkyZjU3MTk1ODMzMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzQxZWE5YzE1MTlmNjI4N2ZiZGE1NDQyMDFhYjNjOGZjM2ExMWZjODA1YzIzYjRmMTM1NjM1ODA5ZmM1ZmJlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDlmMWE5NDAwNzk3ZTQ3ZWIwYzE5NTEyM2Y3MWM0YTQyNjA0NmJjZjE4YmYzZmY0MGY5MzExOGY5Y2IzMDA1NyJ9"
+        },
+        {
+          "resource": "repo://app/package.json#L1-L14",
+          "version": "repo-lines-v1:sha256:9bbc546c0c398d3f0187a5896a53d6e6600adb06d43ed9d0525294be6e06e609:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzZWFlN2U2YTRkM2M3MWJjYzk2MzI4YzUxOWZiYTI5NDFlZTQ4Njk2OGE2ZDYzMjJmYjA4Y2ViNDRlM2VmZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYzk0OTg1NTI2YzFjNTdlZjAwYzAwZDNmNGRjOTA2MTU2NzdhMGEzNmE4Yjc5NWRmZjlhZmZkNTBmZTlmNTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZjA4YzE2MmY4NjA3ZWUwMzM2YWNjOWE3YTI4MTc5ZWU4YTBiNTViYzAzZGRhYzc1MDQ0ZjhmYzE0YTdmMTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_729a698fe11048a7b6c3d1be0dbb16a2",
+      "statement": "The build uses no bundler: the renderer was moved (ticket 10, route b) to native ES modules loaded through the custom `deck-plugin://` scheme, so plain `tsc` output is directly runnable and relative specifiers keep their `.js` suffix; the earlier Vite plan never landed.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/standalone-app/issues/02-panel-tracer.md#L55-L56",
+          "version": "repo-lines-v1:sha256:dc4474473f02e85b32c1854ed53faf98f2b6fccfd1e9660b2a4f2d6781b7f04f:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTE0MDU0OTg0OWEzNjJmOTdhOTk0M2I2ZDE1ZGFjMjExY2Y1ODE4YzFmNzY1YjMzOTRlZmVlOWJiNDQ3MmYyMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY3ZGViMzIzMTM5MmVhMzYzZDE4NjY5MzQ4YTM2ZjAxZWIzODdiZDFiOGExYmJkZTYyYTFmYzhjODRiZjZjNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjM5ZGMxMDZhYTU4M2Y0MGM2YzhhM2I0ODQ1ZWI5OTY1ZDE5MDI0NDhmMGZlZThkODU0ZTRmMzdhY2E1NmZiNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmQ4MTZkOWJmNjg1MTIxZDhlODI2MjgyZjUwNTc2ZjYzNTZkOGZlMzJhOThlZDFhYTIzNWMwNGEyODM4Zjc1MyJ9"
+        },
+        {
+          "resource": "repo://.scratch/standalone-app/spec.md#L90-L90",
+          "version": "repo-lines-v1:sha256:cd9a27fd90e8872c79a44ed533b531c09f5bb3385fe1b2cf9fcbbb29c5689ef3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2Q5YTI3ZmQ5MGU4ODcyYzc5YTQ0ZWQ1MzNiNTMxYzA5ZjViYjMzODVmZTFiMmNmOWZjYmJiMjljNTY4OWVmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2Q5YTI3ZmQ5MGU4ODcyYzc5YTQ0ZWQ1MzNiNTMxYzA5ZjViYjMzODVmZTFiMmNmOWZjYmJiMjljNTY4OWVmMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjg0YjNkNGFmZDMyNzMxODkwMDQ3YjcwOTdhYmRhYmViZDFlYmRlODA3MGEzZjA3YWUzYjg1Y2M2ZDFhNzhhMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDUwZjBkYWY0NmEyMTcxZTdjYWJkNGNmZGRhYmE2Y2VlMTZlODhmMjJiMmM2M2Y1ODI2YzEyOWIzY2RjMzI3NiJ9"
+        },
+        {
+          "resource": "repo://app/package.json#L8-L8",
+          "version": "repo-lines-v1:sha256:0cb218dea2271ee714ad663f9a3a07b82205d876625c01208561dff1b7ea54b2:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNiMjE4ZGVhMjI3MWVlNzE0YWQ2NjNmOWEzYTA3YjgyMjA1ZDg3NjYyNWMwMTIwODU2MWRmZjFiN2VhNTRiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNiMjE4ZGVhMjI3MWVlNzE0YWQ2NjNmOWEzYTA3YjgyMjA1ZDg3NjYyNWMwMTIwODU2MWRmZjFiN2VhNTRiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDg2OWMyYTM0M2U2YjM0ZGNmZmRiNGZmYzc1OGMyN2I4Yjk4YTNmYzIyZDY4NjcwNzNmZDhiYTdlZjNkNTI4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGM0YjkxZDMwZmE5MmFkYjI5M2RiMDRlMDI1MGI0MmZiMDE5YjY1ZTZhZDgxNmM3OWM3ZTU3MzE4MTU3NTAyNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_da20d40ae1d14ae6b439ba4e84a502e1",
+      "statement": "`tsconfig.json` compiles `src/main`, `src/preload` and `src/shared` as CommonJS (`module: commonjs`, `target: es2022`) into `dist` with `rootDir: src` and `strict`; it is the Electron main-process side that runs under Node's CommonJS loader, and it excludes the renderer and the tests.",
+      "evidence": [
+        {
+          "resource": "repo://app/tsconfig.json#L1-L16",
+          "version": "repo-lines-v1:sha256:916b73a3af1986be49fa5421ca06f1f140f4b0dd309b5f7bc233f01fff7ea93c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzZWFlN2U2YTRkM2M3MWJjYzk2MzI4YzUxOWZiYTI5NDFlZTQ4Njk2OGE2ZDYzMjJmYjA4Y2ViNDRlM2VmZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_69a8e2a2bd5444d98098ffdfc142536e",
+      "statement": "`tsconfig.renderer.json` covers `src/renderer` and `src/shared` with `module: es2022` because the renderer never runs under Node: the page is loaded as `deck-plugin://app/index.html` and starts from `<script type=\"module\" src=\"./main.js\">`, and card entries are dynamically imported through the same scheme.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L15-L34",
+          "version": "repo-lines-v1:sha256:66773ff45b8db139eba57ec8652844351dc907d782dc7eaf84310ad439601f18:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNmQ0NDkzYTQ4MDYyNzFhNWRhNjBhNzkyY2RhNmMzMGE5M2YwNzg4OWYxOGEyODdjNjI5NzE5NWE1YjYwMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1OTE3MjFmYzAwNjMyNjdlNTYzYzNjYjNmOWVlOTAyMmI2NzAwZjNlMTE3NWUwOTcyZTYwNDEzZGZmYTc3ZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjNDk0ZDg0NDczMzcyODgzMjAxMmNlY2FkMGI4OGIzYmVkMTZlMTQ1OTBkMzkzZDFjNzRmODEyMWQ5NWIzNWUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L413-L415",
+          "version": "repo-lines-v1:sha256:b19203246edf2776439eaa2cbddac02f0c3ed01de755cffc6b21a623970e79aa:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjkyZDZhNTdmOGE0MzAwOTZlYzVkMmUzZTc3MTc3Zjg5ODg1OTAzMWJiOGViNzhkMDkwMTY5ODZhODIzY2FlNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTI1NGM4MjNkMDExZGMzZDQxM2IzZGY2MzU5MmM5YjUwZWY0MTBlZTE3ZmNhMzMxYTMyZTcxZThjYjM3YTAxYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzM2Y2UzMGQyNTEyOTU5NGViNDc4M2NlM2E0NGIzYjc2YTg3ODI5OTBjOTQwY2I1MTE2NTk3MDFhOWMyNjYwYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTRkMzQ4OGE3YTVmMmIyMjVlMDEwZWVmZGZhZWU1ODc1NWVhZTc1OThlYzlkOWZlZjNmNTcwY2ZjNTFmOTc4OCJ9"
+        },
+        {
+          "resource": "repo://app/tsconfig.renderer.json#L1-L16",
+          "version": "repo-lines-v1:sha256:5c95428770db1bc603ffae811743b606d74a46d7a65125767580a664caea74da:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzZWFlN2U2YTRkM2M3MWJjYzk2MzI4YzUxOWZiYTI5NDFlZTQ4Njk2OGE2ZDYzMjJmYjA4Y2ViNDRlM2VmZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_46cefc42fa0548f4b25f93c40117caac",
+      "statement": "Serving the renderer as ES modules depends on two protocol facts: the `deck-plugin` scheme must be registered as privileged (`standard`, `secure`) before app ready, and the asset handler delivers only a MIME whitelist in which `.js`/`.mjs` map to `text/javascript` - anything else is answered 404 and the module fails to load.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/plugins/assets.ts#L24-L39",
+          "version": "repo-lines-v1:sha256:7697fbceb7f1a5cb9f75e7f5b77f0b2dbb0abae387cb4c1f5756b9d20f7fa4d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNWM4YTlhNWNjYTA5ZTFhZjYyMTliNWU3ODQ4YTJlNGIxMWMyNDRjNWZkMjdkNjQ2M2JiZTU5N2JhZDczM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhlYjQwOTVkODMzMDY1NWE5ZjE2NDRhN2ZiNTU0ZGNjYzFiZWU3YzRhMDA5MWY4N2UyZWY5YjM2YjhiOGUzOGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlODE5NWJiNDE1MzFlYzk4NjdjOTQ2YjUzNjNmYjRkNDQ1M2M1ZTMzYzg0OGQwNzUzZjQ2MWVlNDMwOGQwMjAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L15-L28",
+          "version": "repo-lines-v1:sha256:d433bf81c9bc1a1641c70ee21dff09c4c214799bd2437eee7c7c4861bd8cd105:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNmQ0NDkzYTQ4MDYyNzFhNWRhNjBhNzkyY2RhNmMzMGE5M2YwNzg4OWYxOGEyODdjNjI5NzE5NWE1YjYwMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4Y2E2OGM1ODU2YTg4Y2NkOTdhZmFlNzM1NjVmY2U1ZmM1YmIwMGM4YWQxYzEyOGUyZDRhZTAxOTc3NDY3NjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1OTE3MjFmYzAwNjMyNjdlNTYzYzNjYjNmOWVlOTAyMmI2NzAwZjNlMTE3NWUwOTcyZTYwNDEzZGZmYTc3ZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0MmE4NDViNzYyYjRlMWYyNTdiYTNiOWQ1ZDIwODBjMTE5MWUyYzVhMWEzYjc4YTc4MzNmYjVjOWFlMTlmNjEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L40-L58",
+          "version": "repo-lines-v1:sha256:5fa42f5e250ab47be9eb3899205fa9f6809542299c3d2ccfc5340bc862d955b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MTczNDYyMDJmODg2MTYxMjYwM2U2YWQyYzQyOTRjNGNiOTIyZGUzZDFkYTJhMGY3ODFhYzk5ZWFlZjQ0MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5NTU4NGU5ZGE0MzdlZGUzZTMzNDdkMGQxNWIzNGI0OWRjODM3MDliYzA4N2YyNDU5MTQ1OTk4NjU5MmNhNTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_497d14a64599436ea182049dcea18b80",
+      "statement": "Because `tsc` emits relative specifiers verbatim, renderer sources and card manifests must name their siblings with an explicit `.js` extension (`./plugins.js`, `./format.js`, `entry: \"./card.js\"`), unlike the extensionless imports in the CommonJS main process.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/cards/clock/plugin.json#L1-L8",
+          "version": "repo-lines-v1:sha256:478363819a0fdc6892e64ca6fab5b9841c5e38c173d3fddef477451b949fabc0:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODNlYWU3ZTZhNGQzYzcxYmNjOTYzMjhjNTE5ZmJhMjk0MWVlNDg2OTY4YTZkNjMyMmZiMDhjZWI0NGUzZWZkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L1-L7",
+          "version": "repo-lines-v1:sha256:adabc810154c7546e4fa86f432ea60d15811c7289c22b9d61a2a372841017e20:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGM4MjljNGE0MjMzODA4YmY1YmZjYmQyZjY2OGU4MDU4N2E0Y2I2NGEyOTU0NDgwZjU0OTkyMWY2YmMxMTdmNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTkxZDQxYzIyMmQ1OTgzODY5OTk0N2Y3ZmZjMDIxOTc2ODFiOGQ0MWZlZmU1ZGQ4NGU5NDkyZjhlODA1ZjBhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmM2OGJlZmNhZTcxMGIyNDViMmE2ZDcwNTVhOTg0ZjA0Y2JkYmFiNDBmMDI5NjNlNjM2NzljY2M5MDBhODkwYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a292d8bfd03a4fbe99dfa8feef547c3e",
+      "statement": "`src/shared` is included by both build projects and both write into `dist`, so `dist/shared/contract.js` is emitted twice and the renderer project (run second) leaves the ES-module form on disk; the main process nevertheless consumes that same file as a value through the single non-type import of the contract, `PLUGIN_CAPABILITIES` in `plugins/manifest.ts`, making the order of the two `tsc` invocations load-bearing.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L8-L8",
+          "version": "repo-lines-v1:sha256:0cb218dea2271ee714ad663f9a3a07b82205d876625c01208561dff1b7ea54b2:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNiMjE4ZGVhMjI3MWVlNzE0YWQ2NjNmOWEzYTA3YjgyMjA1ZDg3NjYyNWMwMTIwODU2MWRmZjFiN2VhNTRiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNiMjE4ZGVhMjI3MWVlNzE0YWQ2NjNmOWEzYTA3YjgyMjA1ZDg3NjYyNWMwMTIwODU2MWRmZjFiN2VhNTRiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDg2OWMyYTM0M2U2YjM0ZGNmZmRiNGZmYzc1OGMyN2I4Yjk4YTNmYzIyZDY4NjcwNzNmZDhiYTdlZjNkNTI4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGM0YjkxZDMwZmE5MmFkYjI5M2RiMDRlMDI1MGI0MmZiMDE5YjY1ZTZhZDgxNmM3OWM3ZTU3MzE4MTU3NTAyNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L3-L14",
+          "version": "repo-lines-v1:sha256:b38e2b6f26da97d19567ef1f3385ee0e5af72bb9101962e50a23a691f50ba917:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1Yjg2MTE1NjlmZWZiNTRmMDYxYTY3OGJmMzM3MzQ1ZDYwMTc0M2IxMjQ1MzgyMjg4ZGQwNzA0MDg3YTFjYjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkNDZiNWEyYTU0ZWY5ZjY4MDhiYmE0ZmE3YTg3MjAzYmRiZTJmODU0OWMxZGMwMDhjZjVmOGFkMzI5NzM1OGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlZjdiOWE0OWM2Zjg0YzBiOWRmNjQwMTk3OWUyOTYxNWJjZjM2YjAwZTQ5OWE1Yjk3ODAwOTE3N2I3ZTc3N2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxZTEyZGYxZjk2MjZiNzQ5ZWM0Yjk3NjBkNTgxMjMxNjNiYzVlMzdjMzM0MTNiZjkyMDQwMWQwMjFhNGJlNDYifQ"
+        },
+        {
+          "resource": "repo://app/tsconfig.json#L15-L15",
+          "version": "repo-lines-v1:sha256:06bc278c3b24b7ae43162802b4d9e01dba8415301ac49316d53ff5c890ddac79:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDZiYzI3OGMzYjI0YjdhZTQzMTYyODAyYjRkOWUwMWRiYTg0MTUzMDFhYzQ5MzE2ZDUzZmY1Yzg5MGRkYWM3OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDZiYzI3OGMzYjI0YjdhZTQzMTYyODAyYjRkOWUwMWRiYTg0MTUzMDFhYzQ5MzE2ZDUzZmY1Yzg5MGRkYWM3OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTc4ODQwMzMyZjY2NjA3YTgxY2M1ZTU5N2QwYzRmNmE2MDEwZmY0Y2E0NTQwNmZkMTY2YzM5ZGU2M2E1MjMwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/tsconfig.renderer.json#L15-L15",
+          "version": "repo-lines-v1:sha256:01b3c6fe7c7e2a942201fb31ea125e1cecdef478353552860e21836559485c29:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiM2M2ZmU3YzdlMmE5NDIyMDFmYjMxZWExMjVlMWNlY2RlZjQ3ODM1MzU1Mjg2MGUyMTgzNjU1OTQ4NWMyOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiM2M2ZmU3YzdlMmE5NDIyMDFmYjMxZWExMjVlMWNlY2RlZjQ3ODM1MzU1Mjg2MGUyMTgzNjU1OTQ4NWMyOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTc4ODQwMzMyZjY2NjA3YTgxY2M1ZTU5N2QwYzRmNmE2MDEwZmY0Y2E0NTQwNmZkMTY2YzM5ZGU2M2E1MjMwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_335fe7b0d2084856abf2d402eaf29ef3",
+      "statement": "`tsconfig.typecheck.json` extends the main config with `noEmit: true` and `rootDir: \".\"`, and includes `src/**/*.ts` plus `tests/**/*.ts`; since neither build project compiles the tests, it is the only program that type-checks the renderer and the offline suite together.",
+      "evidence": [
+        {
+          "resource": "repo://app/tsconfig.typecheck.json#L1-L8",
+          "version": "repo-lines-v1:sha256:b027c05acd9a0d958b83d3683f9a54391e5590516fd645bda67a922a6a5c341b:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODNlYWU3ZTZhNGQzYzcxYmNjOTYzMjhjNTE5ZmJhMjk0MWVlNDg2OTY4YTZkNjMyMmZiMDhjZWI0NGUzZWZkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b768db32bf340c8aa861cfcc1cd4291",
+      "statement": "`scripts/copy-assets.mjs` copies exactly the assets `tsc` cannot emit: `src/renderer/index.html`, each `src/renderer/cards/<id>/plugin.json`, `src/main/icon-restore-watch.cjs` and `src/main/autostart.ps1`.",
+      "evidence": [
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L5-L28",
+          "version": "repo-lines-v1:sha256:660b57250971f1adf3655a4f7a141db3445beec61ef0c23f407cc8bf3f5cdf1f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZTg2ODUzYWU3YzlhZjE5YzhmNjc3YWQwYzdjMTU0ZmQ1MWVmMWY0Mjc2NzA2MDViZTkwZmJhYTNiM2Y4YTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1MjYwODdiZWQ5Yzg4Mzk0ZmNhMTAyM2RmM2ZiYzRiNDkxMjQ1ZjA5MmJkNGE4YTliYTU4MDM2NjQ2YjlmNzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0OTRiY2RiN2Y0YmJkOTRiYTVjY2I3NzkxYTViNDM0OTBiODIxYjk2YmEyOWQ5MWM4N2RmN2ExYmVmZTk2MjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7138eca7baeb45fb9be0e5b1de08a028",
+      "statement": "The copied non-TypeScript helpers are load-bearing siblings of compiled modules: `icon-restore-watch.cjs` requires `./icon-carry.js` from the same directory, and the compiled autostart module runs `powershell.exe -File path.join(__dirname, 'autostart.ps1')`, which is why the copy step targets `dist/main`.",
+      "evidence": [
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L20-L28",
+          "version": "repo-lines-v1:sha256:b6562152aecb79a17849a155c3cad2320df5b12d21e7fd9609b2dddeddf9cf01:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQ3OTY5NTVhMTgwMGY0NTc2MTMxMDFkNjNmZjc3MDczYTY1MmUwZmFjODcxODcxODYyODNiNzgzN2FiODVlNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjUyNjA4N2JlZDljODgzOTRmY2ExMDIzZGYzZmJjNGI0OTEyNDVmMDkyYmQ0YThhOWJhNTgwMzY2NDZiOWY3NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2FmZDdjZjhmODlhYmMxNWIxNThiYTNiODZkNmM5MmI4NmI0NDFkNjU1NThhYWNhMjQxNmRjOTY4NGQ0ZDUxNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L123-L137",
+          "version": "repo-lines-v1:sha256:cc2f23f2c8336a87c94e5bc6ccbda7d594e0080b9ce55c9bf7c7687b4c9d065a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiMDE5ODVkODFjNzc4NTE3YjY1OTU1ZmEwNDcxMTcxNmQ0YjJkM2VmNmY2ZWNkMWQ0MzkwMDFhMDZiMjAwMWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYzU0MzkyNjQwZGYwNDA0MThjNWYzYjdmNTBjZWQ1MTU3MWJiNWEyZjEwYTAxZTViOWQ1OGJjNDlkNmVmNmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk0YjM0ODdiM2M0NmRmYTcxODNjMWQwMmEwYjc4MzlhMjg3YzgwNjRlODM5NTkzYmIzMmEzMzA2N2IzMDFiZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIzMDQ3ZDlhZDFjMTU0MTIwZTQ0NzRlMGRjZmNlOWIyNWMwOGRlMWQ5MGNhMmM4ODhiMzcwMDcyYjlmYTQ1MWUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/icon-restore-watch.cjs#L10-L14",
+          "version": "repo-lines-v1:sha256:62b3e39a0dc4d7871fc89e7d24f1a5c8d3b0c87564e8e0d0a7c2642484bfebe4:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjZjNTQ4NjQ2MmE3N2M4M2Y4OWFmMTAyZTgwZWY5NGYyYjIxMGQxZjE3MzU1ZDhkZjlkZGQwYjFmOTQ5YjdkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTJlMzY2YmI5ZTUxYTAyOGJiZWE2NjM3YmIwZmJiOWVmYzZkODQ0NGU5ZDJlMGM0YmM4NjY1OTJkMTQwN2EyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODhkODNlMWRiNGUxNzY1ODQxYzQwOGViMTRlNzM2MmI4ZDJhMmU3YWFiOGMxYzc5N2E2OTExODBhNTY2NmJhZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTVlMTAxNjkzYTU3ZjY3YzAwYzMxZDlhMjUyMDk2OWRhYWM4YzYyNGJlZTA1MDc0NjIwNDYzMTcwYjU1NTlmMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_65f548fd0d544798b62f5d578ef2822d",
+      "statement": "A card directory without a `plugin.json` is not mountable: the manifest is copied rather than compiled, and the plugin host reads a directory with a missing or invalid manifest as an `error` entry under a sanitized fallback id rather than instantiating it.",
+      "evidence": [
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L10-L19",
+          "version": "repo-lines-v1:sha256:9a8982d914fdeda27da8acf84dbafcf02bc5eef1851e83a9109bb1a85a85884c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0YzY2NjhmMGM4N2MzOTIzYjdhZmJiNzQ4Mjk0ZWQ5ZTMwMWNkNTA0MmE2ZTNlNDI2ZGZkOTFjZThkZGNiMjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0MjQ0NjFiODYzYTEzMmM2NDBlMzA2MzY4MDFiOWY5Nzk1Zjc1MzUyM2U2NTU1N2UwY2FmMzg1MDIyNmUxN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZGRmYjcxMTIyZDNjZTcwMGMyYTNiZjYxNTdkMzM2MzY5NDllYTQxZGNhYTM1NDExZmFlZTViZDlkOTFiYjIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/manifest.ts#L71-L79",
+          "version": "repo-lines-v1:sha256:976208996ee227979dae562301628783ada5adec25b71331f57b45c12c9cc329:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjhlNjQ1YzQ0ZDYyMGE0NDUyYmM4NzkyZjc0ZDNhNmQ3NjFmZjBlMTZhOTIwYWM5NGY1YTQ1ZmRiMDdhMTY5OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2U4YTQ4NDkwNjM5NDZiYWZhN2Q2YTQzYWFkMmMyNTU3OGMzZDZhMDZiYzVmY2E0MzM3Y2VmODljMjQwMGE2MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjFjNjRhYjhmMDI1MzBjNzlmMDUzZTA3MDU3OTY5OGZmODMzMTVjZDc5NzZjMTNhZGVjMGY0M2JmYjk1MTQ0MSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L185-L219",
+          "version": "repo-lines-v1:sha256:1be5a95a799dc325e46f023791e90747e1611d978ed4e711b5fe7383b31b895e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5ZWNmZTA0MDA1YWJmZGU1ZDExYTA3MTU3YmJiODVlZmI0NDc0OTRiYTQyNDc5MmE4ODEwZDFmZGNjZTc2YjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzMDQwOTM0NTkzZGVmMmNiNTNiNTdhYTJkYTdjYjQ5ZTFhNTI3NTAxNjk2OTk3ZjZjZDVlMmYxZDRlNzUxMzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY5YjgyODQ1NDBmYWVjYjUzNDFkMDdlYTVjNjBlMWMzOTcxMDE5Zjg4NGI1MTlmMjBlMTJmOTA5NmU4NWVhYTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3b928936ee73471bbaee7fe73426ac49",
+      "statement": "Nothing in the build removes files from `dist` - `tsc` only emits, the copy script only writes, and `dist` is gitignored - so a deleted or renamed card leaves its previous `card.js` and `plugin.json` under `dist/renderer/cards`, where the built-in plugin root still discovers and mounts it; deleting `app/dist` by hand is the only cleanup path.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L8-L8",
+          "version": "repo-lines-v1:sha256:0cb218dea2271ee714ad663f9a3a07b82205d876625c01208561dff1b7ea54b2:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNiMjE4ZGVhMjI3MWVlNzE0YWQ2NjNmOWEzYTA3YjgyMjA1ZDg3NjYyNWMwMTIwODU2MWRmZjFiN2VhNTRiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGNiMjE4ZGVhMjI3MWVlNzE0YWQ2NjNmOWEzYTA3YjgyMjA1ZDg3NjYyNWMwMTIwODU2MWRmZjFiN2VhNTRiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDg2OWMyYTM0M2U2YjM0ZGNmZmRiNGZmYzc1OGMyN2I4Yjk4YTNmYzIyZDY4NjcwNzNmZDhiYTdlZjNkNTI4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGM0YjkxZDMwZmE5MmFkYjI5M2RiMDRlMDI1MGI0MmZiMDE5YjY1ZTZhZDgxNmM3OWM3ZTU3MzE4MTU3NTAyNCJ9"
+        },
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L5-L28",
+          "version": "repo-lines-v1:sha256:660b57250971f1adf3655a4f7a141db3445beec61ef0c23f407cc8bf3f5cdf1f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZTg2ODUzYWU3YzlhZjE5YzhmNjc3YWQwYzdjMTU0ZmQ1MWVmMWY0Mjc2NzA2MDViZTkwZmJhYTNiM2Y4YTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1MjYwODdiZWQ5Yzg4Mzk0ZmNhMTAyM2RmM2ZiYzRiNDkxMjQ1ZjA5MmJkNGE4YTliYTU4MDM2NjQ2YjlmNzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0OTRiY2RiN2Y0YmJkOTRiYTVjY2I3NzkxYTViNDM0OTBiODIxYjk2YmEyOWQ5MWM4N2RmN2ExYmVmZTk2MjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L19-L26",
+          "version": "repo-lines-v1:sha256:07ee3f568dcf237edfa680e45fd73e3041b706f4130b5462117263ee33bac9ee:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUxNzY4M2YxN2I2OWYxN2QxYjQwODUyMTdmOTQzY2QxOTg2OTNjZmRhN2ZmNWViMWViNWU2MDU2ZDc1ZmVlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDAzZTY1MDNkMDU0NjJiZTJiYTYxYjNjY2M2NTdmMjg1NzQzMzM1NDBkYjQ4ZjllYjI4ZjMzMjhiNjU2ZjExOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDNjZmUxNWE4NGU1ZTMwNzgyODE0MjEyOTM1M2FhZTBmN2Y4ZmY2MGE2OTU0Y2Y5MGZhZTdlMWFjN2RkYTM5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZThmMzRjMjdlZjU3MTVlNDk3N2U4MjMwZDU2MzRhNWRkZGIzOGU4ZDlmOWM4OGU3ZjBmYWU5YTkzZDgxMTVjYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/service.ts#L134-L165",
+          "version": "repo-lines-v1:sha256:c229972a8e8c230c3d3e45b2ad63f7925f1587c1b4ea653e72226c881236578a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ODIzMjE2YTY3YTI1Y2I0MmUwNjcwNWJhN2IyMDlkMjZjZWY4NDZlNWYxNjA3N2M1YTQ3NWMwMmE5NDIwNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2Mzg1YzEyZGRmNjcyMGVmNzc2NDk5NDkwMjk3ZTlhZTZkMWUzZTkyZTkzMzc4NjMwOWJkMWFiZjRlY2M4M2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4YmMxNzk1MWFhYzg2OWFhMjgwYTBiNDJjMGI5NDU1MDU0OWM2NWJmYWVmMjIyYzY0ODcyZjY5YTQ2ZjFkMWMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/watch.ts#L51-L69",
+          "version": "repo-lines-v1:sha256:ffb144607485ef4ad2d664cb6e04bdcaa716e4fb98c905b7f894b9cc62f11a40:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlZjU1OWI5MzFmZDk2YjkyODEyOWQ4NjE3MmVlMzRiNWE0NmI4YzQ2NjZkZjE0MzQ0NjI5NDM1YTA2YzZhYTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8911014f7e7842e5a008fbecfa77c6ab",
+      "statement": "Electron's entry point is `dist/main/index.js`, and the renderer is delivered from `dist/renderer` as the protocol root (`RENDERER_ROOT` is `__dirname/../renderer`, its `cards/` subdirectory is the built-in plugin root, and the page URL is `deck-plugin://app/index.html`), so launching without a fresh build leaves the panel with nothing to load.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L6-L6",
+          "version": "repo-lines-v1:sha256:b13c0866fb9c28c2b7e3629feb2aa029cb43d7ea647e917640eee1ec28ee707a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjEzYzA4NjZmYjljMjhjMmI3ZTM2MjlmZWIyYWEwMjljYjQzZDdlYTY0N2U5MTc2NDBlZWUxZWMyOGVlNzA3YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjEzYzA4NjZmYjljMjhjMmI3ZTM2MjlmZWIyYWEwMjljYjQzZDdlYTY0N2U5MTc2NDBlZWUxZWMyOGVlNzA3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzk0NGNjNzRiY2EwZTcyY2VjMmVjNGYxNmFhZmU4ZjYzZDZjM2RlN2E2ZmYxMDYwNTc4NjFlMTgzMDdlNDFlMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDgxZTE5ZjFiNTFmNTg3NjQyNWExZGZmMTY3ZDBhZGM3NTAwN2Y4ZjdmN2Y2YzliOGJhMWEzNGJkZTFhY2U1YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L19-L26",
+          "version": "repo-lines-v1:sha256:07ee3f568dcf237edfa680e45fd73e3041b706f4130b5462117263ee33bac9ee:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUxNzY4M2YxN2I2OWYxN2QxYjQwODUyMTdmOTQzY2QxOTg2OTNjZmRhN2ZmNWViMWViNWU2MDU2ZDc1ZmVlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDAzZTY1MDNkMDU0NjJiZTJiYTYxYjNjY2M2NTdmMjg1NzQzMzM1NDBkYjQ4ZjllYjI4ZjMzMjhiNjU2ZjExOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDNjZmUxNWE4NGU1ZTMwNzgyODE0MjEyOTM1M2FhZTBmN2Y4ZmY2MGE2OTU0Y2Y5MGZhZTdlMWFjN2RkYTM5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZThmMzRjMjdlZjU3MTVlNDk3N2U4MjMwZDU2MzRhNWRkZGIzOGU4ZDlmOWM4OGU3ZjBmYWU5YTkzZDgxMTVjYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L31-L34",
+          "version": "repo-lines-v1:sha256:17631c62afced61fa663308e6f9f7b90dec28e5ec81a7e67f0e072b1e4565589:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk5MjY2YmU5MDZjYjNlMzdmMmZlM2I3NDkyY2UyOThkOTBmNzAzMzg0ZDE3YmIyMmQzY2EwNTFiZjA2Njc0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzNkYTlhOWUxZjJjOGZhYjZmMWEwMGYwNDM0ZDA0OTM0ODIyMDA2MjgwMTkxZmNhODgzY2M4MzYyNDkwNWY0ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmM0OTRkODQ0NzMzNzI4ODMyMDEyY2VjYWQwYjg4YjNiZWQxNmUxNDU5MGQzOTNkMWM3NGY4MTIxZDk1YjM1ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_71711d45967f437086de1c4dd58ff61c",
+      "statement": "Other runtime paths are resolved relative to `dist/main`: the panel preload is `__dirname/../preload/index.js`, the data-plane worker module is `__dirname/dataplane.js` (forked with `utilityProcess.fork`), and the restore watcher is spawned from `__dirname/icon-restore-watch.cjs`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L209-L218",
+          "version": "repo-lines-v1:sha256:bad0fdca13339f9c56d2d21fc3a8e82114565c1037c8537e80b4774559bd361a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2MTlhN2ZhZTBiOGJlODUwYTM2YWM3NjUzNWIxMmNhZWM0NDRiYTcxYzgzZWUyM2Y4YzY4MzM3MGJmMGZiZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5MmYwNTIxOTc3ZThmOTdjY2E5YWZkNzU1NmI2OGFmMjdlYTYwZGE3MzViMjExYjY4NmMyN2QyMGRkNTRlNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYzU2MmJlZDcwYTMwNTcwOTc4NTRhYWJmMzZmNWI3ZDAzODgwNWI5NDU3MGY5MjZmYjgwYzZhMTJjNTUxMmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L93-L104",
+          "version": "repo-lines-v1:sha256:9bc516ef148c68927654c0d04b759a1d7f3b752c2d42e5e8a0e0f95c8e8ab5fc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3NzgwOTNlZmE2MDYyNWM4OWIxZmUzOGRmMDBkMTIyOGIwNjEzNDlkNDZlMzZiMjZiYjU0ZGNlYTU3YTgzMDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4NzRmMDU1MmU4NmYzNzJjZjI3MzRlOTgxYTM0ZWUzZGQ1ZTgyNTc3ZTc3NmQ3NWJkN2Q0M2E5MzRlNjQ3Y2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5Y2FjODMxNTVmZTUyZDE3YzFlZmM3Yjg0MzE2NjM0MDA4NjY3YjE5YzFmNjA2NTM1MDQ1YzNiZTA3NTM3MTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NmNjZmNhY2JmOTQ1Njc2NWM0MjE3NDhjYTdkYmY4YmRiM2Q0OGZhYjJlMWE3ZmVmZTJhMjZmYmU2YjdjNjMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L31-L36",
+          "version": "repo-lines-v1:sha256:82b76a8d6812c042ed1f8129c6515c7e6f169e7800c58537c3223168901d1f82:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODRjOGJiZDA5OWU1MzhlMGQ1NmY1YWE0N2RmMGRmNzMyMTFhOTgxYjExMzVmNzMxOTRjMDI3MjI2ZTZlNzU2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg3NGYwNTUyZTg2ZjM3MmNmMjczNGU5ODFhMzRlZTNkZDVlODI1NzdlNzc2ZDc1YmQ3ZDQzYTkzNGU2NDdjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWExYzJmNjU5ZmI3YzNjN2U1NmM0N2M1ODQ5MmMwOWNiYTQwNWE3NjYwZTU2NDA2YTdjYzFlY2I1NGJlZTgyMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzUyMDY0NTFhNzAzMzI2MzI0NDIwZTlkOGJmYTlhZDY5YzBmMzM5ZDNiYWYwZTQzMjU5Mzg2OThhMDJiMzlmMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L67-L71",
+          "version": "repo-lines-v1:sha256:e2ff05bd6ade91aae6b3554455116ac8d97402d9d8c7ece87100faf3ab450deb:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjNiYTNkYzAzNDUzYWY0Mjg5MmFlMjdhMDdhYmQ5NDgxOWQ3NzNjMGIxNDBjNjYwNTM2ZjEwMmY2NTIxYTJhYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjJhNzQxMzliZWYzMDUzNWViMWUzYzVhY2VmOTdjMTE4NzkxYmI1M2RhMTUyMWU4NTA4YmZiNTE1MGY3ZTU4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmQ3NzE5NmY0MjJjYWYxODBmYTdhMDUwNmU3ZjQzNDRmMGUwZWI2YTk3MGE0MDYxMWJkOTc0MjQxNjlhMDM1MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a0b9d68b92e42e2ba2fae0b7f6d11b7",
+      "statement": "Runtime mode is selected purely by `process.argv` at the top of `index.ts`: `--icon-restore` is a one-shot restore that exits without touching the instance lock, `--panel` boots the panel window, `--accept` runs the acceptance battery inside the same Electron app context with an empty `window-all-closed` handler, and no flag at all runs the outer supervisor.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L176-L252",
+          "version": "repo-lines-v1:sha256:06842d638ab5144548535b3ee5a793151a0406008de0dbce2ee1de94c40447c2:eyJzZWxlY3RlZExpbmVDb3VudCI6NzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjMGZiY2ExNDUwZDhhNjcxMDczNDFjOGJkZDI5Nzc1Mjk3NTY1MzZhOWEzMWQ3M2EyZjllOTBiN2ZlNTA3MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzNzNjMDMzZjUxMmMwYzc5NmRjZjljMTkwODcyNTVkMzhmNTRmMGI4ZGM2MWFjY2Q4OWVhMjUzNzI0MzRhYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L27-L32",
+          "version": "repo-lines-v1:sha256:740496343a4ab8ed2e515689f775adf481135b58bf61c521c9482e5882ba6453:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI3OWEzZDEzYTIyYzk3ODc0ODU0MzVkYTdmZTcyNGE4YjVmZmFmNDM3MjBmMTA1MWNlZTllZGZlYTcyMzAzOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTllYzhkY2ZjODQ0ODNiMDZjNThkZmU1ZjlhOTMxOWMyYjdkYjg4MDhiY2IzOTAyMDRkOWNhMWY2NjExMWRkNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWY5ODE3Y2QyM2RkMDZlYzczZGQ2MGQzMWQyNzY0MWZkNTliODFhZGI4NmMxMWExZWJjM2VhYTdhNDE1MmE5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTk4OTFkZTQwNDg2ZDlhNzY4ZWMzZjYxNzFhMzlkMGYxZjA3ODIzOTM0M2YyOTg2Y2E1ZTFjNzE0OGMwZDM5OCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a95869c372a945b3a31ed03b8d380f2e",
+      "statement": "The single-instance rule is a deliberate lock handoff: the supervisor requests the lock, releases it before spawning the panel child (a residual lock would make the fresh panel look like a second instance), and the `--panel` child takes it again and holds it for its whole life; a refused launch logs `single-instance-refused` and exits 0 in under 3 s while the running process receives `second-instance` and re-shows the panel.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1667-L1696",
+          "version": "repo-lines-v1:sha256:05f4e41bd4646ad7d96eef14ed426863d71894a79ef5ad3e6ccf5ba74135828b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwOTMyNTA5YmIwYWIyYjg1OWEwZmVkNzJlYTBmNGQ3MWJiNzliMDEwM2ZlZmUwZDMyNzQyOTA2YjJiOTk0Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlMjlhNTZhM2M2MjBjZTFmYTU3NTk5NWFhMWRiYjFiZWZiNTgxYzBjYjYyYWRkYzM1N2QwZGFmYzIzZThlYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRkMmYyNGRmOTg2NzU2ZDAzYjEyNTU1N2FlOWFkMTk5NzQxNmVjOWVmNDAzNjZiYTdmMmU4NTFiMjVhZGNmYzIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L173-L173",
+          "version": "repo-lines-v1:sha256:04d62d3c1ce75711c03e8cfb2e68577a43f41a69aec9c0289909785ea809aa06:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRkNjJkM2MxY2U3NTcxMWMwM2U4Y2ZiMmU2ODU3N2E0M2Y0MWE2OWFlYzljMDI4OTkwOTc4NWVhODA5YWEwNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRkNjJkM2MxY2U3NTcxMWMwM2U4Y2ZiMmU2ODU3N2E0M2Y0MWE2OWFlYzljMDI4OTkwOTc4NWVhODA5YWEwNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzNmYzIyMzBlZjI1ZTYzOTY1ZjEzYzVmYjU0OTMyN2ExMmEyNGQ0MzRiMDI1NWM2M2ViZjk4NDhmODNjM2FhMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODM0ZjY2NTgyOGI0MzE3OTdlYmM5NjVhNGM3MzkyNjdlYWY0Y2NlNTg4Y2YwZDBhMTE3OTM1NGVkNjk1MTEyZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L183-L199",
+          "version": "repo-lines-v1:sha256:32253a98fe58ad44eed24b993e7d95b779e86b23528b4e8755cfdf5a8689ce43:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlMjFmOGI1NzgxYzUwMDU4NmE1MDdjMzg4YzFhNjZhYWY1ZTA1YWNmZGRjODQ2NjkyMWYxYmU5Y2ZjNmVhNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4ZjgzZWNlZDllNDYwM2JmYWUyODA0N2UwNjk0YTgxMjc0Zjc3ZTJhZjU2ODk2YjI4NzBhMDFiNWJiNmVjYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5OTYzMDY0YjBiZGNmNDYyYmJiMjQ2NDhlZGJiOGVmOTk4Njg5YTIwZTIzNjJjZmM2ODRjNzRhYjJkZTdjOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxZjVlY2ZmYzhjZTg3NTI0MWFhYzdiYmU4ZDMxYjhlOTIwYmI4NTQ1NGUyZDliMmMxMTVhNDQ1MmUxNTQwYTIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L235-L239",
+          "version": "repo-lines-v1:sha256:71e955d7d0c5c0fae11c200d4053a61615bc000f042d6349a91ae311f2f4f551:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Q0M2M1YmZiMWY4NjAyMzFhYzliNmJjMTBkNGYxOWNjYzU3NDE4NmFlMzU2ZTA5Mjc4YzBkM2Y0OTYyNmMwZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTI2MzA3MGIxNmVhN2IyNWZhYTQ2ZTBlODM0M2IyNWQ1NWY1NzViY2ViMDJlODY3MjVmN2M2M2Q2Y2Q2YjYwNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDA3YzQ1MWE2ZWQxYjgwOTFkMGNiZmM3ZDM5OTU3ZThhN2FiNDc0MzJjMjUxZGRkOGM0N2VhYjEyOTE5NGEzNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjNhNDBlOThmNWU5ZjY0MDU3MDFjMmY0ZGQ5Yzc0NDdhMGJjODk5YjRiMmMyYzEwYzIzYWY1N2I1MDlhMTQ1MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5caa2b7a0057448c9139e33a10df9af2",
+      "statement": "`--accept` bypasses the single-instance lock by construction, because both lock branches in the entry dispatch are guarded by `!ACCEPT_MODE`; that is what lets real-machine acceptance run while a panel is already resident.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L5-L9",
+          "version": "repo-lines-v1:sha256:e1c61e8db50099c2f2e999e5063755b87baf9d705289c2d04c2132cd35dbc64f:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk3MGExNjZlZTM1NTEwZDg2MWI1NWZlYjFmMzU5NDc2NTY0MTA4MDE5Y2ZlYTM3MmQzM2E3ZmIzNzFjZWUwZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjZjZjVkNThiY2Q2NjkyN2Q2MjY2ZjU0MDNiMDM1YTljZTJjNDc5NTRmMDg2MzhjZTdlNjE2YjA2Y2NlN2JhMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTgxZjJkZjg2Y2NhNzJkNWRmNzc3OWFjMTVmODgwZTQ1YTAyYmI0OWY2ZGIwMjUwYWZmNDY1MGY3MmE2NmI5OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjMxY2Y0ODRlNGI2YWUwMzUyYjBlYTZmZTVlNWRjZGY3YTBkZDA4ZGI4OGU5OGFjZGYwNGFkMDRmMTliOWQ2NCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L183-L239",
+          "version": "repo-lines-v1:sha256:c65d8598fc7ac42d2be977eb2c181f4409ba7f6877bb1725f3ac556bd6aed34a:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlMjFmOGI1NzgxYzUwMDU4NmE1MDdjMzg4YzFhNjZhYWY1ZTA1YWNmZGRjODQ2NjkyMWYxYmU5Y2ZjNmVhNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyNjMwNzBiMTZlYTdiMjVmYWE0NmUwZTgzNDNiMjVkNTVmNTc1YmNlYjAyZTg2NzI1ZjdjNjNkNmNkNmI2MDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5OTYzMDY0YjBiZGNmNDYyYmJiMjQ2NDhlZGJiOGVmOTk4Njg5YTIwZTIzNjJjZmM2ODRjNzRhYjJkZTdjOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIzYTQwZTk4ZjVlOWY2NDA1NzAxYzJmNGRkOWM3NDQ3YTBiYzg5OWI0YjJjMmMxMGMyM2FmNTdiNTA5YTE0NTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8415572cecd54455b2217028cb8507a0",
+      "statement": "`bootPanel()` runs in a fixed order - load or generate config, apply the autostart decision, migrate the legacy usage log, start the kernel, await the first data-plane snapshot, install the protocol handler, create the window, wire bridge and host IPC, create the tray, then load the page - and the first-snapshot wait is capped at 15 s so a broken data plane cannot block the desktop.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L34-L113",
+          "version": "repo-lines-v1:sha256:468f3051d13d0358d743f33f20b89d332d06013e42fc069e6d041fb0a206e55b:eyJzZWxlY3RlZExpbmVDb3VudCI6ODAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2NjlkYTg1N2M2ZDY3YmY0NTlhZTczMTM5MDFhNWM5ODgwNTM1ZTI1ZTg5ZWU4ZjA0NjQ5ZmY0NGZkYmQ1ZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyNGJlYWI1NWMyYTQ1NjJlYzZjYjUxMjI4Y2I0YjRiY2E1M2UzZDIyZGM5N2Q4MWEzYmJmN2E1MThkNGY5MTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzY2Y2OGEwZTdkYzk3ZGQ0ZGVhMjA1ZmZmOWIyMTJkMWM1MTgxOWFmM2QwZmVhMmY2OTEyZTJiODQ3NWM1NWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViNTllMWZjMjYwYzZmZWEzNTczMTg2NzZmNzYzMzE4NTYxMWY3Zjg2ZWQ5NjE3ODg3YzY2YzA5MDJjYzE5OGYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L11-L64",
+          "version": "repo-lines-v1:sha256:3763d69b48a0bcd3a37feaa1d61de513c4ea29fb7f7c054e6bec5fcc20a10c1c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4MDNlZmE2ZmI4ZTg2ZmY4NDg3NDNlOTI4NDQwOWNmOWY1YTNjNzYxMjE3MTlmZDQ3NmU1NjM3ZTNkOWJkOGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmODM3OTNiMWE4ODM0ZmVkNjliZDRjNzkxYzYzMDk5M2MxZTU2NGViMDNmYTllZTdmMDc5MmZhNGM1YjgyNDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4ZmFiZjQ4MjdlNTVmOWNkNmU3OTM4N2FlZjE0YTRiZWQ0YzhiZGQyMjljNDY5ZTQ1YTYyMjMxNGFhZDRiZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1MGI4MDU4OGJjNWIwZjA4YjA4NTRkZWQ5Y2Q2M2RjNmU0ZDkxY2ZlNWJkOTlmOWRmODdhZDNmY2ViMTdmYzkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L48-L65",
+          "version": "repo-lines-v1:sha256:bce5d06a02084f6b3928a5db1fd4b0454de6fddae56ef7e27bbf2c6f50249b1a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlYTVhNjQ4YzVmMzQ0MzY0NzNlYzgwNWM3MzM5Njc0NDJmODMwZWQyNzFjNTljMTliY2RmMGVjOWFmMTJhNmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzNDEzNjY3ODg4MzJjYWM4YmZlYTcxNjliM2U5OTFkMDJkNzY2MzA2N2ZkZTkyZGY2YmQ1ODFmYzA3NzMyNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE2ZjEzMTliZjY1ZDllMjZjODFhNWNlZDlhMjAxZmZkZWM5YTU1NWRlNWEwZjNhMjhlZTNhOTE4OTQ4ODYwZjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b1c6523c7cd741d6844defe13a2d15a6",
+      "statement": "The first run generates `app/config.json` next to `package.json` (`CONFIG_FILE` is `app.getAppPath()/config.json`), seeded from the current display geometry; invalid fields fall back to defaults with a warning instead of being silently accepted.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L21-L21",
+          "version": "repo-lines-v1:sha256:f91f4bb22319aa65691c2c0fa45870cb744dc7e7197ff3f7cbdf4f886a195c2c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjkxZjRiYjIyMzE5YWE2NTY5MWMyYzBmYTQ1ODcwY2I3NDRkYzdlNzE5N2ZmM2Y3Y2JkZjRmODg2YTE5NWMyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjkxZjRiYjIyMzE5YWE2NTY5MWMyYzBmYTQ1ODcwY2I3NDRkYzdlNzE5N2ZmM2Y3Y2JkZjRmODg2YTE5NWMyYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjFhOGNkODMwYTZmYTRlNDczODNjMjQyOTk0MjgwZTNmMjgyYTFmOWVhNTliMTUyMjU1YWRmYWIyYjQwYWZmMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDcxYWFmMDEzYjU2MTY1NDM5YTcxZDUwMDgxMjg5NTc0Y2EwZjE1N2U2OTA3MDJjN2FiMTU2MDU2MjJmMDU2MiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L117-L138",
+          "version": "repo-lines-v1:sha256:e01b01baeb0a7b7e80019cc1e0ddbc831bdb960377622bb8fd71343dcb34bbcf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiOTgxY2E1OGUwM2NmZTdlYTE5YjY4NTdmYjEwMjc0MTZhZGVmZGZhZWRlZjBlYmI4ODZlOGVhMDIwYzQxZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4MWVkNTlmY2FkMjlmOWQ1ZWVkYmI5ODdiODE4ZWIwOWMyZDljNzczMTJmYTc0YTEzYzQyYTk2MDdiMzVhZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1ZDc3NjcxYzVkMTUxMmYxNThlNDEwNDc3ZjIwZTlmNTE0NTJiZTljNDE0MjNlOTliNzQ2NmFkYzRmYzU3YmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L19-L19",
+          "version": "repo-lines-v1:sha256:6517683f17b69f17d1b4085217f943cd198693cfda7ff5eb1eb5e6056d75feeb:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUxNzY4M2YxN2I2OWYxN2QxYjQwODUyMTdmOTQzY2QxOTg2OTNjZmRhN2ZmNWViMWViNWU2MDU2ZDc1ZmVlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUxNzY4M2YxN2I2OWYxN2QxYjQwODUyMTdmOTQzY2QxOTg2OTNjZmRhN2ZmNWViMWViNWU2MDU2ZDc1ZmVlYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDNjZmUxNWE4NGU1ZTMwNzgyODE0MjEyOTM1M2FhZTBmN2Y4ZmY2MGE2OTU0Y2Y5MGZhZTdlMWFjN2RkYTM5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmNmZGI1YzcwYWQ5MDc5NmVhMDYxODhlZTY4MzVhMTA1Mzg5NTQyYzQxZDdjNmJkNmNiZTY0MjkyZmI4OTZkNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L36-L49",
+          "version": "repo-lines-v1:sha256:ba36d3950f5fbaaaaf17a23929865b810ab10877eae5ed2ff430b06f51afd17c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0MmJmMzRkYWZlMzhlODBhMzQ0ZGIyMDBiOWIzYzg1YjVkZmFmMTEwZDRmNjE2ZTZiMjQ4ZGIyZDQyZjJlMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmZjc4ZjIyYmMzZWU1YTRiYjI3ZTMxNzllNTI4YzgyYzY2OWIxNjJmOTExMzcxMjFkMzkzNGI5NDA2NGVkYzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5ODkxZGU0MDQ4NmQ5YTc2OGVjM2Y2MTcxYTM5ZDBmMWYwNzgyMzkzNDNmMjk4NmNhNWUxYzcxNDhjMGQzOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlZjgxODc4ZDgxNDljODJhZjkzMmJhNWZmZGY2Mzc0NjMzNTZjZmNhYWJmYjJkY2MzZDgxNDA4MzAxNWY2NTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_09a0bcd8fde54407940559f952ff8452",
+      "statement": "Runtime state (the placement store `layout.json`, the usage log directory) lives under Electron's `userData` rather than the code directory, and `userDataPath()` falls back to `LOCALAPPDATA/agent-deck-panel` when Electron is unavailable.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L67-L104",
+          "version": "repo-lines-v1:sha256:fd238bf8ea620cb612d432478a04b435f27e5949b795b01ddb09ab3ffd2fb04d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyZjRlNDJjODI1ZmE5MmIxYjkwYThiYTgwMzRlNTcyM2ZlOWE3Yzc0M2YyMzQ1N2U2ZGRlMDAzZjYwYTA0NzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4NzRmMDU1MmU4NmYzNzJjZjI3MzRlOTgxYTM0ZWUzZGQ1ZTgyNTc3ZTc3NmQ3NWJkN2Q0M2E5MzRlNjQ3Y2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0MzJmOGRhMzZmMTkzNjQ3MzZjOGRjOTkyNmZiMTkzZmU0OGQ0NWZkMzEwZmUxODM3ZDJkMjUzMDY3ZmUzYmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NmNjZmNhY2JmOTQ1Njc2NWM0MjE3NDhjYTdkYmY4YmRiM2Q0OGZhYjJlMWE3ZmVmZTJhMjZmYmU2YjdjNjMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/paths.ts#L1-L14",
+          "version": "repo-lines-v1:sha256:a21666cbd2940266b452b72e6df349e209ffc15e4c68ee67e6386f0bbe45d388:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhN2UxZmFkYTM0M2M1NzY0ZDRlMjczYzc1YWFjMzI4OTQ3NmEyY2UyMDFiYTM4YjgwODcwMjc5NTBiODRmZjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c6bacbbcf02744f88584ae3df55f5d14",
+      "statement": "`DECK_EVENT_LOG` turns the main process into a best-effort JSONL evidence recorder (`fileEventLog`, appending `{t, ...event}` per line and swallowing write failures); it is unset in normal development runs and set to `accept/evidence/03-runtime-events.jsonl` by the acceptance battery for the panel processes it spawns.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L19-L20",
+          "version": "repo-lines-v1:sha256:3b2e26c5fe0fff6dbe1dd9e5d87deb24e8fb5a2a35c52775831e4a2a76c44b4a:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTE4NzJmZTk0OTEwNDZkY2I1MzhkZTQwMjY0ZTM5NDg0OTdjZWE0ZjgyYjQ3NGI4Mzc0M2FkMzlmNmVjYTI3OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWI1N2UwYjFmZDdiMDAwNDVkMDgwZDQ1MzU3MmIzZmFkZDczOWFmNjdlMTI3ZGI5N2M3ZDE2ZjQ5ZmMwNTNmNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGRjYmRlYjg1YWRkNzczMjI4N2I1OGE3OWE0MTM4YjNiMTVjMmZjNTgxNGNlNTg0YmI3ZWZjMmZjNWI0MmNjZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTBiODAzYmY5OTRlNTQzZjM1MzRiZTlkNjU1MDM5YjU3ZjQzMjZmODhlYTc5ZDYyZWYzOTA5NjYzM2E1ZmRhMyJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L498-L502",
+          "version": "repo-lines-v1:sha256:04443693f2e5a7f0a1b43ab6592b04c6936312703b2f597838642e968a9e9bf8:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGY2MDcwOTQ0MGMwYTkxNDFmYzc5NGJmNmRmNjYwZDk5NTFhNjg5ZTY5YjQyNzdmYzFlZDFkMWYwMDhmM2NiYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA4YjY5YjEyMzFlNzUwMzM1ZDlkZDFmNzlkNzg2ZWM4ZDMyMTNlNDYwNGYzNGEwYTEyZGNlNGMwMzRlMGVhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTZkYjA1NWRmY2MzZWY1ZTdmMWQ1NjZmMDZmNWEyMjkxZGM4YmNmZjZiNGU2NDUzOWJiNjczODcwZjMyN2U2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjk0ZDcwMDM3M2I3NGQyMmVhYzg4NDZmYmMxNWJkNzNmZTljNWQwNTExOTdhZGZhMTc4MzM4ZWM5YTllOTgyOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1d5167f83f1245449b18059d20865227",
+      "statement": "Normal teardown is the tray menu item `退出面板` (`app.quit()`), after which the supervisor restores the desktop icons and exits; the panel itself has no window chrome and no taskbar entry to quit from.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L139-L143",
+          "version": "repo-lines-v1:sha256:f1a7108c5ad443283c7e4842c4eb2177f8978bb6dd65f973a45154e57ed74491:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUxZTRjZGEzYmU0NGNjODNkMTNlZGNlNmU5MjkxYmNlMWE0OWEwYzY3YmQyYTQyYzY1NGYxYTgzM2Q0ZTNlMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWUwM2QxNDJjNWE4ODk3YjZjYmE4YzFhMTEwZjVkMmNkMjJhYjdmYWQzNDI0NmU1NGRlY2VkNzcwNGQ1YjE5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTNlZWI1OWMzYjFjMzZiZTc5NDUxMWM4ODk4ZTQwODc3MDI4NzhmMGE2NzQ1M2YxOTlhOTNiYjg1NGFkNTFiYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L16-L37",
+          "version": "repo-lines-v1:sha256:a6238470280eaaeb7c3dbc476601348f7e872071f8ef307000f61e6f159f3d0b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzZGUyYTJkMzNkYzlkMTRjZjMzOGQ0MTFhNWQyZTNjYjU3MzJmZDkwYjgzMTQwNmRjZDYzMDhmMzlmYTYzNTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE4NzkyYTYwNDI0M2FhYzM2OWFjNThhODJjOGQ1N2UyMjA3YzNlNzRiMTUyZmRmNGJmYWFlMDc4OTQ5ZjUwMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0ZTJmOGIzMGQ3ZGM2MDU3YzZmMzRlMDU5YWY3ODY3MWE1MmRlMGVjMzE1YWExZjlmNTA0NGZmOGU2MWY3ZDYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/tray.ts#L35-L43",
+          "version": "repo-lines-v1:sha256:11ca026abb783c9d3b1efc7fa4660a3e75d0e6a1a270740dc113fc508ded3375:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTA2NGNjOTU5ODA2M2Q3MDk2MzA0NjZjMzExMjBlNmY4NTI1ZGM1YTM4NGZlYjE3MTc5ZjUzOGZjYzQ4OTM2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjQzZmJiYWEwNzhlZGI3YTk2YTRkOThlZmZkMmYwMzZkNmI4ZDJlYjAzOTkwMmJjYmRjMDljNDZlMTE2NmJkZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d46b36593d4b47e686ceef2d4e683103",
+      "statement": "A console kill (Ctrl+C, Ctrl+Break, closing the terminal) takes the supervisor and panel down together before any in-process restore hook can run, which is why the supervisor spawns the detached `icon-restore-watch.cjs` after hiding the icons, and why `npx electron . --icon-restore` is the documented self-help path.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L120-L126",
+          "version": "repo-lines-v1:sha256:11d29fa910a9b218992f65a26b860225da17952b688cb382b30ab416f22c3008:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Y5ZDgwNGNiMDA4NDhlZjFhZmIwNjRkZmY3NTBlZjAxMzFkNzYxOTU5MGFlZjcyMDUwOTVhOWEyMDZjY2Q3OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjhlODcxMjc3OTVkODlhMzE5ZjQzODUxNjlmOWFmZWU0OGI1ZTBiMGIyMTU5NTcxMDZkMDRkYWMyY2FhOTFmOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTRkNDM1N2M3NzEzZWVlMzU4MzkyNGYxZDZhZmRhNGEwZGY5YjdkYzc3ZGI1Zjk4ZGI2MWNkMWUyN2VmOGRjMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/icon-restore-watch.cjs#L1-L9",
+          "version": "repo-lines-v1:sha256:59afedcc3dd6a7fc039c3dddd0570ace1671e531f43692583c2251f1c601bd46:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODY4NmVmYWMyOGZhZjA3M2I0YTgwMGE0ODYxMzU2ZWQ3ZDYwMWUzNzI5OTRlMmE2NTljMGE2MTU2NDA0ODRjNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmRiYWVmOTcwNjJkODIwY2EzMjU3NmY1NGM5NjdiNmNkMDA3NTEyNmRmYjAzMzk2ODU3YmMzYzg5N2RjMTkwNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzc1YTI1ZDM5ZDJiZWJiYTQwNjIzYjA0NWE4ZmM2ZGQ3NTg0ZmVjMzI1YWM1NjJiM2EwZjUyOWQyZTlhYjQwNiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L200-L218",
+          "version": "repo-lines-v1:sha256:148916a02dfef8309267c24dea83d909f039b1c586a0841d43d49bebac608164:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjYmFlNDk5ZTU0NmNiZTA2ZTI5OTk5NDA5NjlkNzgxMDFjNDMxYTI2ZDJiZjcwMjlmYTYwZWNmNGI2MmI3MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlhZGZiYTg3YWQ3NGM2Y2QxMGY5YmVkODE0ZDIwNjgzZDQxMzc1ZmVlZmY1N2QwOTAyZTIxY2VjMGUxMGI4ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYzU2MmJlZDcwYTMwNTcwOTc4NTRhYWJmMzZmNWI3ZDAzODgwNWI5NDU3MGY5MjZmYjgwYzZhMTJjNTUxMmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a0e339964983493986c4be088487df38",
+      "statement": "The acceptance battery is a controller that spawns its own panels as `electron .` (the supervisor entry, so the whole spawn chain is under test) from the app root with `DECK_EVENT_LOG` set, and drives them through its own Win32 bindings instead of imported production modules.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1-L18",
+          "version": "repo-lines-v1:sha256:f3ea770cd7a2413fa124ed3607048fd25976cb9212e1dfa4f87528a1671d8056:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1YWU2NWIwYTNmNjliMDJlNGQ1YzEwNTRkYTBlOWIyMzkwZjI1MDExNmM0NmJjNWFhNjAwNWQxYmEwODU4OGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3NDUwODRlOTRkNjljODRhZGZiYmYxMzZhMmRkNDZmZTJjNzg3YjRmYjA3YmQ0NmIxNDE0Yjk0MzEwNGQ2NmQifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L498-L502",
+          "version": "repo-lines-v1:sha256:04443693f2e5a7f0a1b43ab6592b04c6936312703b2f597838642e968a9e9bf8:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGY2MDcwOTQ0MGMwYTkxNDFmYzc5NGJmNmRmNjYwZDk5NTFhNjg5ZTY5YjQyNzdmYzFlZDFkMWYwMDhmM2NiYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA4YjY5YjEyMzFlNzUwMzM1ZDlkZDFmNzlkNzg2ZWM4ZDMyMTNlNDYwNGYzNGEwYTEyZGNlNGMwMzRlMGVhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTZkYjA1NWRmY2MzZWY1ZTdmMWQ1NjZmMDZmNWEyMjkxZGM4YmNmZjZiNGU2NDUzOWJiNjczODcwZjMyN2U2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjk0ZDcwMDM3M2I3NGQyMmVhYzg4NDZmYmMxNWJkNzNmZTljNWQwNTExOTdhZGZhMTc4MzM4ZWM5YTllOTgyOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5ac2a13db8a1471c91591333262a2a06",
+      "statement": "`npm run accept` is not sandboxed: the battery hides and restores the native desktop icons (falling back to `--icon-restore` at teardown after killing the panel tree), backs up and restores `app/config.json` and the placement store in `userData`, injects real cursor movement and clicks, and writes its verdict log and screenshots into `app/accept/evidence/`; its process exit code is the verdict (0 pass, 1 fail, 2 crash).",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1416-L1437",
+          "version": "repo-lines-v1:sha256:92fa5990f726aee3a9e57edfcc661ec8bc0c12a0d69c71308458a8addc00e2f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmZjRkOTFkOTgzYmI5YzVkOTVjNWMyZmE4Y2I5MzYyOWJlNmZkOWIyM2VlZGJiMDM0NzcwMmU5NTU5MTRjMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3OWE5ODI3NTZmZGRhZGY0NTYwMDA5YzQwY2Y5MGJkMDk5N2M5MzhmZDMyZjc0MDA4MjA1NGI3NmE4ODUzOTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2MGE0NjIzZjczNDE1NzU4MzcyYzU2MTQ2MmQwZDNlMWExYmM4NjQxN2U4YjY4YmU3MGY4NjkxZTY3NGU1MmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjZWY1N2ZkZWY0MDY5ZmY1ZWYyYWM5ZTAzNWNjOGM0NDI5ZWI0YTU1MTBkODE0MzZhMWNkMzZlYTIxZjIyMGEifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L2199-L2244",
+          "version": "repo-lines-v1:sha256:6d8bcf03541647f3e619728ba945a564801e0033b8a290f428263f04277ddb46:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhZDQ2OGQ2MDI1ZWQ1MDM2YTc4NWQwOTMzNTBjNmMzNDA2N2YwMWFhNzNiMGY4MWQ5ZmRkYmM5ZmJmNTY5Y2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1NjM2M2MxYWZjNGY3ZWM1OWZkZWEwMTMyYWE5ZjY2Y2EwYzE1ODVjNTY4YjkwMjNhYzcxMDE2ZTMwZmVlMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA2MTNhOGExNWUxMDNlOTQxMGY3YmNhYWI0Y2ZlNWRiODExZmE3YWFkZjAyOWFkMjI0YWNjNTExZWRkNWI3Y2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwNjY4M2YxNjA3YjQ0ODRmZGY2NjNjZjJmOTlkMGQ3MWE2ZjE5MDk2YzAzNjU4MzAyNTlhMTAwOTVhNGM1YmQifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L2247-L2255",
+          "version": "repo-lines-v1:sha256:1969b20f5c8d5f021c5da05a3fa58393a0cb31aca1908226a9393281676e4f34:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTRiMTU2NDA4ZDBmMzJhNDVmMGI4YWE0ZWI5YmNlMDFjZjcxODk1ZTg2MWJlYzcxYjE5NmI0NzliYzY2ZTQ2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZlMTFhNzEyYjhjNzNjMDk3ZThhMWYwYWNiYTljNDIyNjE1YzNiOWVlNzdmN2E3MGIxNmFkZjExOTcxM2UwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFiZTYzY2U2NWRlZTAwOGM3NDZlYWY0ZDYyNDRmOThkMjBhMjA5YjM2MGE5OTkzYzA3ZjhlZTMxM2IzMzI3MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L462-L505",
+          "version": "repo-lines-v1:sha256:bb4480020a1b69e5b399b63e1dbb515b516b041bae4f3f023dc4c72038204a3f:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwOTkwMDc1Y2VmNTFjM2I5ZTU2NmViOWFkN2I4Y2ZhOTE1OTA2NzAyNDM4MzUwODFiNDUyMDY1NmUxNmVjODQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiN2JjN2M1NTAzODczZjFjZjM1YzQ2YWI2MDI3MzViYWQ4MmNiNjVkMTMwYTQxYjc0ZjUwNjE3NTZhMTRhNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzMmZkMWQ5NTRhYzg5NDMyZTEzM2Q4NmVjMDE5YTNjNjZhMzAzZDg4ZmQzY2JhYjlmNTIyZjEwY2M2YmU5NDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU5NzRiODVhNjE1OGQ4NmQ0NmMxMDJhNzBlNmNjNDRlZjk0OTRiMTFlYTJmZmE4ZjQ1OGY2OGIwNGQ4ZmEzODYifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L561-L566",
+          "version": "repo-lines-v1:sha256:74441d512ed70f67913be36b9f3309714d8ddfa2de9bca5ba96fcd3291402fc6:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzQ5YzZiNWZhMDg1YjJhMmFkMjdmOWNhZmUyMjRiYTM4MWQ3NDUyZWY2NzE2MTFhMTYxMDEwYWQ1ZmRjYzZmNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWNlZTViZjliZTZkZWNkNDI3OTNhZTNmZjMxNGUzNTU1Nzk2M2I3YThjN2NhMmZjMmI3OGE0YmJmZmQ2OWIwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmMzOGQ2MGIyZWY1NzcwMmViZmI0NDEzYzBjMGVkYzAxOGQyNTIxYjA2NDdjODFmMWUyMTMwNDFjNjhiNjc5MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTExZjJkYmY2MzE0NzA4OTIwZTIyZDhiYWFjMmZkMGNkYTg2ZWM0ZGIyN2EyOGRkMjAxZmEzYjRjMzFjOTQ0OCJ9"
+        },
+        {
+          "resource": "repo://app/accept/lib/report.js#L5-L31",
+          "version": "repo-lines-v1:sha256:f433d5402a728b5e72dd7eb2d2b23ecd32c26971cb4c00659669eb0a2b623da2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkMzljY2U5YmMxYmUxMTJhYzVmYWIxOGYxZTliNTZmNzhjOGM3MmY1MmRjYjI4ZDAzZjlkMDEyM2I2YzllYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwOWMzYWJlOWFhMmUyNGM3ZmY0YjNjNTc2MTFmYTE0NDNhOTZkYzFkMDQ1Y2MxNjEwYzk4NzczNmVhZTk3ZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4NWQ2MWQwZjVhNzAxMTI5YmVlZGIzMTI5NmM1ZGFmZmFjZDFkNzJhOTU0MGE5ZTEyNjFhMmYwODFlZTZjOTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8275a47338064131910f2ff4e97c881f",
+      "statement": "The acceptance battery is hand-written plain JavaScript (`accept/battery.js` and `accept/lib/*`) that no project compiles and that `tsconfig.typecheck.json`'s `src`/`tests` include does not cover; `--accept` simply `require`s it at runtime, so its only verification is the run itself.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L239-L247",
+          "version": "repo-lines-v1:sha256:3ea123abb03b6a4a1d45848328b46de04dff9aa2e38b35bed5200b099577b159:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTI2MzA3MGIxNmVhN2IyNWZhYTQ2ZTBlODM0M2IyNWQ1NWY1NzViY2ViMDJlODY3MjVmN2M2M2Q2Y2Q2YjYwNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTJjMGI0MDQzMGRiNmNhYmMzZjY3ZGQxYmQxZjA2NDY1NDg1OWM3YzlhN2FhNGFlM2ZkZGU3NGMxYjMzYmZjNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVkZjlkYjJhMThkMzljYzNkNTE2NjEyZjY3NzhiYWFjMDliZGIxNjQ0Zjc5N2UyNWQ0MGNkNWU4ZDlhMzhjZSJ9"
+        },
+        {
+          "resource": "repo://app/tsconfig.typecheck.json#L1-L8",
+          "version": "repo-lines-v1:sha256:b027c05acd9a0d958b83d3683f9a54391e5590516fd645bda67a922a6a5c341b:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODNlYWU3ZTZhNGQzYzcxYmNjOTYzMjhjNTE5ZmJhMjk0MWVlNDg2OTY4YTZkNjMyMmZiMDhjZWI0NGUzZWZkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a2fa305eb49a4e228a3c2681c0e5aece",
+      "statement": "`npm test` runs `vitest run` with no configuration file against TypeScript sources imported directly from `src`, so the offline suite needs neither a build nor Electron; it also contains source-level guards that read repository files and fail when a boundary is crossed (the renderer and preload must not reach for `node:fs`, the search chain must not touch the usage log or hard-code URLs).",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L10-L10",
+          "version": "repo-lines-v1:sha256:d8d66f79e965b0913a764970557a9d0db8cfec844172b4fd58c34b8f8c2f81f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDhkNjZmNzllOTY1YjA5MTNhNzY0OTcwNTU3YTlkMGRiOGNmZWM4NDQxNzJiNGZkNThjMzRiOGY4YzJmODFmOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDhkNjZmNzllOTY1YjA5MTNhNzY0OTcwNTU3YTlkMGRiOGNmZWM4NDQxNzJiNGZkNThjMzRiOGY4YzJmODFmOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDgxZTE5ZjFiNTFmNTg3NjQyNWExZGZmMTY3ZDBhZGM3NTAwN2Y4ZjdmN2Y2YzliOGJhMWEzNGJkZTFhY2U1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWRhYjliMTA1NWUwY2U1YmE2OTVmOWE2MTE4NGQyZjBhODliYWQxMDA1OTQyNWU0Y2I0NDZjZDVjNmNmMjI4NiJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L1-L10",
+          "version": "repo-lines-v1:sha256:ad0c1f1faa3591723ab34a8d6c61f463ac1a05552025cba5a31d2a050d35d271:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExZTEyOGY4NzgxOTdjNmMyYjZlZjAzYjEzYmEyMzRmYzk4NTEyNmU2YjFjYjhlMDkzNGUyNmEyMzVmNjM5ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlNTVhYzk5YmViYzk5N2E4YzFhN2RiZjM2YzEyOGE1MDAyOTJiNzA3MDZjYTE2NDllYjZjN2NkN2RmNzY3ODIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2MDllZDk1NTc0MGU4MDI0MGM5NDczYjE4MzM5NjNkNDI0NzIxYmQyMzA3NmRmZmFlYWJjOGE2Yjg0ZjhjODQifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L529-L534",
+          "version": "repo-lines-v1:sha256:e072125d5c18d22525bcf2e77d1e3a8bdaabea629028683b43f6ff3f6cd8aa43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk1MGE5Y2MwZGRmZmVhMmYzN2ZiOTI3NmNiY2ZkNzFiNzBjYTM4MzAwZDRjYjJkNjEzZWJlNzI3NmE0YzEyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDcxOTAwOWZhMDdlNWY3Mzg2ZDJkNWMxMjcxODkxNWM3ODdmMjU3YjE4N2RlMzVmNzQ4OTE5MDNjY2ZlNDY3NCJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L595-L609",
+          "version": "repo-lines-v1:sha256:3a6f40673e864a33b069040fbfd792c6926a1e1c3c9913eb7703e49d8701fd4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0OTEwOGQ4ODM5ZmMzNzVhMjdjMDY5YjJhNmY4MzBmNGM2ZTdkMTE4Yzc0Y2UyOTAxN2QyN2Q0ZDUzZWQ1YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlNTY3ZWQyZjBjNTBmNzZmN2VmZWRiYjQwNmJjNmYyNDU2MzA3Njk3MmFhZWJmMTMyZjc1MjU4YzBkYzE2YjAifQ"
+        },
+        {
+          "resource": "repo://app/tests/wind-restore.spec.ts#L1-L3",
+          "version": "repo-lines-v1:sha256:e4d7a6ac2117cce79d2819e4f14aa26eaa04e2e6178e5f149034e1037920fd8f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzUxYWMwN2U4YzUyZmVhNGNiMjY2ZGE5MzY3OGQ0YmQ5ZWFmN2QxOGJiZDIzNGU4NmM5Nzc4YWI4YjBmNjc0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2U3OTNhZmQ3MjdlZjYyOWU2MTFhMTBjYWMwMmMwODIzMDZjNjNlYjEzOTUyMWNlY2U5ZjNjZWY3OWYxYmNjMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d398d70cb69f4eef961dec43bacf6526",
+      "statement": "There is no watch or hot-reload mode: every launch script builds once and then starts Electron, nothing reloads the page when `dist` changes, so a source edit costs a full rebuild plus a relaunch - while protocol responses are served `cache-control: no-store`, so a relaunch always serves the freshly built assets.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L7-L14",
+          "version": "repo-lines-v1:sha256:1e9fd7b33eebbe125ac44b9ff81c5a5f3f8cf390ac5a9d995a444f0de57a69e1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg0MDY5ODRiZGVmY2EzNGRkNmJjOTAwMjdmMWQxMWFiY2IxNzAzNGM1MjVjOWE1Y2VmYTFkODRmY2NkODFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGI1NThjNTRhNmY1MTE4NjhkMDY5ZmIxYzhlMjgxZGY2NGFhOGUwMzQ2MjFkYzY2MmE2ZDMyODBmZDk5ZTE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDhmMDhjMTYyZjg2MDdlZTAzMzZhY2M5YTdhMjgxNzllZThhMGI1NWJjMDNkZGFjNzUwNDRmOGZjMTRhN2YxNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L40-L58",
+          "version": "repo-lines-v1:sha256:5fa42f5e250ab47be9eb3899205fa9f6809542299c3d2ccfc5340bc862d955b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MTczNDYyMDJmODg2MTYxMjYwM2U2YWQyYzQyOTRjNGNiOTIyZGUzZDFkYTJhMGY3ODFhYzk5ZWFlZjQ0MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc5NTU4NGU5ZGE0MzdlZGUzZTMzNDdkMGQxNWIzNGI0OWRjODM3MDliYzA4N2YyNDU5MTQ1OTk4NjU5MmNhNTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8d5bf11101bd4071badfdc234d5715ab",
+      "statement": "The application and its acceptance harness are Windows-only: the Win32 layer loads `user32.dll` through koffi, autostart shells out to `powershell.exe`, and the harness captures screenshots with a DPI-aware PowerShell script.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/lib/capture.ps1#L1-L19",
+          "version": "repo-lines-v1:sha256:a5e0739bd1ca73cdc16e97a369a4696474a3a2d56116ce8accdb5e89c1e821a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiMTI1YmYyY2IxMTE2NmU2YWRiYWI3MTZmYzE5N2RhMDA5YjFhYTVmZDM4NmRiZDZhMjM4NGM2ODcxMDE4NTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzMzM2MDJjNTFlMzI3YmI5NDE1NzBiNjI4NzhmNzhlZDM5ZjYwNzcyM2Y3OWI1MDI3MjI0M2ZkMTI5OGIyYzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkxZGY2NjFhMTEwNDM4NDhhZmMzMjhiMTIzYjhjMDE0MmE2YmI0ZjM1MmRmN2QzYWY4ZDNkNWIwMTM2ZThmMzAifQ"
+        },
+        {
+          "resource": "repo://app/package.json#L15-L24",
+          "version": "repo-lines-v1:sha256:7ae5a8d2d9ee8f983c6cf3f79f25cdd083e75e8786ce68d5b59064c909c6d688:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwMTEzZWMxYzA1ZmMyY2JhODdkNmJkODg0ODQ5ZjQwMzcwNjA5ODc1MWE0OTkxMzE3MjZkYTI0Y2EzNzJjMzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4OTI0ZmYxMmQ0NWQ2YjY5Njg5ZDEzZjkzNzZjMDFlNjExNjI5MmNiMmUyMDRjMTVkOGNkYzgwOTc1MzNiOGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L131-L137",
+          "version": "repo-lines-v1:sha256:bb1858164030b0f1c9cdddfb9bdd32c77334dbcbe7c6f7c5501a3fcc0c7a66c0:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBiNWU1NDE0ZjYwMTk1YjkyNDJiY2YyNzc0ZTA5YWRkZGY2MWE0YmYxNmUyY2U4ODE5MTA1ZDQ1NTZiMzA3YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFjNTQzOTI2NDBkZjA0MDQxOGM1ZjNiN2Y1MGNlZDUxNTcxYmI1YTJmMTBhMDFlNWI5ZDU4YmM0OWQ2ZWY2ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDFiYWIzM2RkM2FkODFmMzdmNTY3Yzk0Njk5YzY5NzlkYjYzMzcxM2Y2OWNiYjJjZWQzNWJkODJiYzYwYzExZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjMwNDdkOWFkMWMxNTQxMjBlNDQ3NGUwZGNmY2U5YjI1YzA4ZGUxZDkwY2EyYzg4OGIzNzAwNzJiOWZhNDUxZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/win32.ts#L1-L7",
+          "version": "repo-lines-v1:sha256:9ad23adfe7a48ec76d4a53ec2bfd0e81003c103be844477a29ee05472f62ef30:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY1ZWY1YTRlNDJkNDBiMmNlYTlhNjQzMzgxODBkNzk2NWMwYmQ4ODkyMjYyYjFmMDc0Mjc2MWRhMjQ4MjA3NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdkMzgxNmMwM2MyODZjYWU0ZTQwMTM3NjJlM2EwM2RmOGZlMmIyMmU5MWU1OTg0OGU5NjE5NjgxNmNiZDQ5ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDFmNTQ2MmM4M2RkNjhhMGNhM2ExNjU4MWQ4NGVlYzE2NGU3MGZhMjBhNzgzM2E0ODg4ZWVkYmJmNjA5MDAyNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_960e827c82c448fda55d0b9c1dac94e3",
+      "statement": "The repository's parallel-development rule is one main checkout on `master` (the machine's autostart points at that checkout's `app/`) plus `feat/<slug>` worktrees under `D:\\local_works\\agent-deck-wt\\<slug>`, and because the panel is single-instance parallel worktrees must not each keep a resident panel - real-machine verification uses `npm run accept`, whose acceptance mode bypasses the lock and can coexist with a running panel.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L5-L9",
+          "version": "repo-lines-v1:sha256:e1c61e8db50099c2f2e999e5063755b87baf9d705289c2d04c2132cd35dbc64f:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk3MGExNjZlZTM1NTEwZDg2MWI1NWZlYjFmMzU5NDc2NTY0MTA4MDE5Y2ZlYTM3MmQzM2E3ZmIzNzFjZWUwZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjZjZjVkNThiY2Q2NjkyN2Q2MjY2ZjU0MDNiMDM1YTljZTJjNDc5NTRmMDg2MzhjZTdlNjE2YjA2Y2NlN2JhMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTgxZjJkZjg2Y2NhNzJkNWRmNzc3OWFjMTVmODgwZTQ1YTAyYmI0OWY2ZGIwMjUwYWZmNDY1MGY3MmE2NmI5OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjMxY2Y0ODRlNGI2YWUwMzUyYjBlYTZmZTVlNWRjZGY3YTBkZDA4ZGI4OGU5OGFjZGYwNGFkMDRmMTliOWQ2NCJ9"
+        },
+        {
+          "resource": "repo://README.md#L73-L81",
+          "version": "repo-lines-v1:sha256:a1528252bacdd679833f35b3a2682131953dee4f1cfc8866cf7ebaed434caf53:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjhiYTEzMzllZGUyZGViN2M4OTVlYmIyNTg2ZWE0M2QzZGM4NzUwYmU5OGJkYjM3NGU1NGNjYWI1NDNkN2FkMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGMzMjJlZmZjNjk4NDdlOWZhY2VjZDZjNzE4ZjBiZjdjYmMyNzFiZTAxZTJlMmE4NjdhMmIyMzNhYjVlYTViYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjMwZDY2ZmIyZjk4ODM0Yzg4MTRmNmEyMjExMjU5YTJjMDFkYjViM2QwNTFlNWEwZGQzMDcxYWM1ZDczM2Q3ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmU0NGQyYmViNjEwMjhiYjFkYmJlYjIzNjBkZTc2YjdmMDRlYTYwZTNlYmM0YjBlNGNmMDNlM2UyYmUyYmUxZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_df956284960044ebad7189600e22306d",
+      "statement": "Deleting a remote branch requires explicit user confirmation beforehand, and without it branches in the gh repository that the user did not check out themselves must not be deleted; local `git branch -d` is unrestricted.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L11-L13",
+          "version": "repo-lines-v1:sha256:4feef59a607b51ff16601b906092cba7111c7283505ebde7ed3b6daccadb76ab:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmNhNTU3MzMyZmU3YjYzZTY0ZDIwNzNhZTFhODVjZWFkYjRjMjM1YjZhYjFjNWQyMzQwZTgxMjdhYTdmNzk1NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmM0MWNkODYzZjU3NWVmNTQxODdiMTk5ZDFiMzA3YjIzZmE2MjMyZmJhMDQ2YTM2NzM0NDhiMjJjMDE3ZTNiOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWE5MTczYzMzYTllMWQxNjEwY2EzM2JlOTZhZDUzNmE4OGM1Y2Y0ZjVjODNhNjQyY2FmYTBmODYzNTVlNzA2ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmVlNGRlMTA3ZjAxOTFlNTQ3OWI5Y2U2YTlmMTE1ZDQ5NmZiYzZiOTk5NmY3ODdlODNkZWZhY2NiMmVmZDdmOCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}
