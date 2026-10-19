@@ -24,6 +24,26 @@ export declare function matchPathArea(path: string, pathAreas: PathAreaRule[] | 
 /** 域标签封闭词表：清单 areas 键集 */
 export declare function areaVocabulary(manifest: unknown): Set<string>
 
+/** 文件级例外规则识别（工单220）：path 末段带扩展名＝文件级规则 */
+export declare function isFileLevelRulePath(path: string): boolean
+
+/** 必须存在的文件级例外规则台账条目（工单220） */
+export declare interface RequiredFileRule {
+  /** 仓库相对路径（文件级规则） */
+  path: string
+  /** 域标签（须与映射表同条规则一致） */
+  area: string
+  /** 缺省=该路径由电池自身代码决定接线；'*'=共享验收基建 */
+  wires?: string
+}
+
+/**
+ * 文件级例外规则白名单校验（工单220，spec #201 A 链 P1 机制补强）：三道——
+ * 白名单条目在映射表在场且域一致、映射表里的文件级规则都登记在案、白名单整份缺位判红。
+ * 返回错误列表（空数组＝判绿）。
+ */
+export declare function validateRequiredFileRules(manifest: unknown): string[]
+
 export declare interface ManifestCheckRequest {
   manifest: unknown
   /** batteryId → 源码全文；缺某电池判红（登记处指向的电池必须可扫描） */
