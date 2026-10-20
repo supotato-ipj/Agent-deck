@@ -4,6 +4,8 @@
 
 一个独立 Electron 常驻窗口浮于桌面壁纸之上，背景透明、默认鼠标穿透，仅在交互热区内接收点击。隐藏原生桌面图标并接管其承载职责，壁纸退为背景层。
 
+![AGENT DECK 面板预览：壁纸之上的时钟、搜索与会话卡片，TXT/DOCX/XLSX 文档组卡，底部自绘任务栏（开始组、应用组、硬件摘要与系统托盘）](docs/assets/panel-preview.webp)
+
 底座决策见 [ADR-0004](docs/adr/0004-electron-cordis-standalone-panel.md)：Electron 窗口宿主 + cordis 插件内核 + 原生 ESM 前端（tsc 直出，无打包器），TypeScript 全栈。
 
 > Python 数据服务、看门狗、Tk 搜索窗与 zones Win32 挪真图标链路均已退役（工单11），本仓库不再向 Python 侧添加任何功能。
