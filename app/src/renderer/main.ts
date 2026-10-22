@@ -12,6 +12,7 @@ import type { KeyboardActionType, KeyboardGateEvent, KeyboardGateState } from '.
 import { pasteableWithinTimeout } from './pasteable-query.js'
 import { zoneHotzoneContains, zoneHotzoneRect } from './zone-hotzone.js'
 import type { ZoneBox } from './zone-hotzone.js'
+import { dispatchMaximizeRetract } from './taskbar-view.js'
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T
@@ -1221,6 +1222,8 @@ const settingsReset = el('settings-reset')
 const settingsExit = el('settings-exit')
 const taskbarToggle = el('taskbar-toggle') as HTMLInputElement
 const taskbarToggleState = el('taskbar-toggle-state')
+const maximizeRetractToggle = el('maximize-retract-toggle') as HTMLInputElement
+const maximizeRetractToggleState = el('maximize-retract-toggle-state')
 const settingsCardsList = el('settings-cards-list')
 let settingsOpen = false
 let appliedOpacity: number | null = null
@@ -1318,6 +1321,13 @@ function applyTaskbarEnabled(enabled: boolean): void {
   taskbarToggleState.textContent = enabled ? 'ON' : 'OFF'
 }
 
+/** 最大化收栏开关（工单239）：勾选态 reconcile——开层拉取、切换回执、taskbar/changed
+ * 回推三路共用，幂等（同 applyTaskbarEnabled 形态）。开关关 = 最大化窗不收栏、栏常驻。 */
+function applyMaximizeRetract(enabled: boolean): void {
+  maximizeRetractToggle.checked = enabled
+  maximizeRetractToggleState.textContent = enabled ? 'ON' : 'OFF'
+}
+
 type SettingsCloseReason = 'esc' | 'blur' | 'toggle'
 
 function openSettings(): void {
@@ -1329,7 +1339,10 @@ function openSettings(): void {
   settingsCard.focus()
   // 逃生开关与内核态对齐（工单50）：每次开层拉一手真值，不等回推
   void window.deck.bridge.invoke('taskbar/get-state', null).then(
-    (s) => applyTaskbarEnabled(s.enabled),
+    (s) => {
+      applyTaskbarEnabled(s.enabled)
+      applyMaximizeRetract(s.maximizeRetract)
+    },
     () => { /* 拉取失败保持现状，回推会补齐 */ },
   )
   // 滑杆/开关矩形随开层存证（电池按它们定位拖拽/点击落点，desktop-rendered rects 同法）。
@@ -1337,6 +1350,7 @@ function openSettings(): void {
   // 列表在浮层隐藏期间也持续 reconcile，此处矩形按已显示布局取（display 先行恢复）。
   const sr = opacitySlider.getBoundingClientRect()
   const tr = taskbarToggle.getBoundingClientRect()
+  const mr = maximizeRetractToggle.getBoundingClientRect()
   const cards = Array.from(settingsCardsList.querySelectorAll<HTMLInputElement>('input.card-toggle')).map((input) => {
     const r = input.getBoundingClientRect()
     return { id: input.dataset['cardId'] ?? '', enabled: input.checked, rect: { x: r.left, y: r.top, w: r.width, h: r.height } }
@@ -1344,6 +1358,7 @@ function openSettings(): void {
   notify('settings-opened', {
     slider: { x: sr.left, y: sr.top, w: sr.width, h: sr.height },
     taskbarToggle: { x: tr.left, y: tr.top, w: tr.width, h: tr.height },
+    maximizeRetractToggle: { x: mr.left, y: mr.top, w: mr.width, h: mr.height },
     cards,
     value: appliedOpacity == null ? null : Math.round(appliedOpacity * 100),
   })
@@ -1371,9 +1386,9 @@ settingsBtn.addEventListener('click', () => {
 })
 
 settingsCard.addEventListener('mousedown', (e) => {
-  // 滑杆/逃生开关/卡片开关（工单101）要收焦点（拖拽/键盘切换中渲染层不抢位）；
+  // 滑杆/逃生开关/最大化收栏开关/卡片开关（工单101）要收焦点（拖拽/键盘切换中渲染层不抢位）；
   // 其余区域保焦点，点击不触发失焦关层
-  if (e.target !== opacitySlider && e.target !== taskbarToggle
+  if (e.target !== opacitySlider && e.target !== taskbarToggle && e.target !== maximizeRetractToggle
     && !(e.target instanceof HTMLInputElement && e.target.classList.contains('card-toggle'))) {
     e.preventDefault()
   }
@@ -1418,6 +1433,23 @@ taskbarToggle.addEventListener('change', () => {
   )
 })
 
+// 最大化收栏开关切换（工单239）：先存证意图，再经内核落盘生效（即时生效，不必重启面板）；
+// 失败回滚勾选态（内核未变）。开关语义 = 前台窗口真最大化时任务栏自动收栏。
+maximizeRetractToggle.addEventListener('change', () => {
+  const enabled = maximizeRetractToggle.checked
+  notify('settings-maximize-retract-toggle', { enabled })
+  void dispatchMaximizeRetract(window.deck.bridge, enabled).then(
+    (s) => {
+      applyMaximizeRetract(s.maximizeRetract)
+      notify('settings-maximize-retract-set', { enabled: s.maximizeRetract })
+    },
+    (err: unknown) => {
+      applyMaximizeRetract(!enabled)
+      notify('settings-maximize-retract-failed', { message: String(err) })
+    },
+  )
+})
+
 /** 恢复出厂布局（06 契约复用）：设置浮层入口与上下文菜单（工单23）共用同一链路与存证名 */
 function resetLayout(from: 'settings' | 'ctx-menu'): void {
   notify('desktop-reset-clicked', { from })
@@ -1446,7 +1478,10 @@ settingsExit.addEventListener('click', () => exitPanel())
 
 window.deck.bridge.on('settings/changed', (s) => renderSettings(s))
 // 逃生开关状态回推（工单50）：他端切换（如条带侧动作、插件卸载终态帧）即时对齐勾选态
-window.deck.bridge.on('taskbar/changed', (s) => applyTaskbarEnabled(s.enabled))
+window.deck.bridge.on('taskbar/changed', (s) => {
+  applyTaskbarEnabled(s.enabled)
+  applyMaximizeRetract(s.maximizeRetract)
+})
 
 // ---- 键盘全局编排（工单31，ADR-0006 收官）：window keydown 捕获段优先级编排——
 // 浮层（既有自处理保持不动：浮层开着时本段对一切按键不拦不抢先，事件落到浮层聚焦

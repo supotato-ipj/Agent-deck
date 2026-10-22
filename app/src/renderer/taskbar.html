@@ -19,7 +19,10 @@
   }
   /* 应用组 pill（工单52：手钉+运行中应用合并）：屏幕中心线锚定漂浮（工单190）——落位归渲染层
    * taskbar.ts positionAppsPill（appsPillLeft：centerX=屏幕水平中心线，带外按 [开始组右缘,
-   * 右组左缘] 夹取不压邻居），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制） */
+   * 右组左缘] 夹取不压邻居），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制）。
+   * 工单238：栏高 48 DIP 下本组撑满全高（height:100% + border-box——高度不再由内容撑出），
+   * 竖向内距归零（格 44 + 边框 2 = 46 ≤ 48，内容不再顶出条带窗）；横向内距 8+8 不动
+   * （应用组容量算式 PILL_PAD_X=16 同源）；圆角 999px 胶囊改 8px 圆角矩形，材质照旧 */
   #pill-apps {
     position: absolute;
     left: 8px;
@@ -28,13 +31,17 @@
     display: flex;
     align-items: center;
     column-gap: 2px;
-    padding: 6px 8px;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0 8px;
     background: rgba(0, 0, 0, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 999px;
+    border-radius: 8px;
   }
   /* 格位与图标尺寸（工单158）：条带 48→64px，应用图标 22→32px、格位 32→44px——
-   * 观感不小于原生任务栏；渲染层容量常量（taskbar.ts CELL_W）与这里的 44+2 同源 */
+   * 观感不小于原生任务栏；渲染层容量常量（taskbar.ts CELL_W）与这里的 44+2 同源。
+   * 工单238：条带随新排版回归 48 DIP（图标/格位档位本身属图标票 #240——本票不动，
+   * 44 格 + 2 边框 = 46 ≤ 48，撑满 48 高不溢出） */
   .tb-app {
     position: relative;
     width: 44px;
@@ -62,7 +69,7 @@
     border-radius: 1px;
     background: rgba(255, 255, 255, 0.85);
   }
-  /* 应用组溢出（工单58）：⋯ 钮与浮层条目同在应用组 pill 内横排——条带窗只有 64px 高，
+  /* 应用组溢出（工单58）：⋯ 钮与浮层条目同在应用组 pill 内横排——条带窗只有 48px 高，
    * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
    * 热区按展开后的矩形重声明。 */
   .tb-overflow {
@@ -85,22 +92,29 @@
     margin: 6px 2px;
     background: rgba(255, 255, 255, 0.14);
   }
-  /* 胶囊外观（开始组与右组共用 .pill；#pill-start / #right-pill 只管各自的钉靠位置） */
+  /* 栏分组外观（开始组/推荐组/右组共用 .pill；#pill-start / #pill-recs / #right-pill 只管各自的
+   * 钉靠位置）——工单238：撑满 48 高（height:100% + border-box，高度不再由内容撑出）、
+   * 竖向内距归零（内容在 48 内垂直居中）、圆角 999px 胶囊改 8px 圆角矩形，材质照旧
+   * （半透明黑底 + 1px 半透明白边——改版只动形状不动质感）；组间纯缝隙，勿加分隔线 */
   .pill {
     display: flex;
     align-items: center;
     column-gap: 4px;
-    padding: 6px 8px;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0 8px;
     background: rgba(0, 0, 0, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 999px;
+    border-radius: 8px;
   }
-  /* 开始组 pill：钉条带左缘（工单159 布局重排——居中时代随布局反转退役），漂浮胶囊
-   * （组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。两系统按钮全隐藏时整组不渲染
+  /* 开始组 pill：钉条带左缘（工单159 布局重排——居中时代随布局反转退役），漂浮圆角矩形
+   * （工单238：8px 圆角矩形 + 撑满 48 高；组间缝隙露壁纸/下方窗口——条带其余区域恒穿透）。
+   * 两系统按钮全隐藏时整组不渲染
    * （hidden——工单54 边界；推荐位已拆出 #pill-recs 独立容器，两组显隐解耦，工单192）。
    * 工单158 挤撞守卫迁移（clampStartPillWidth）：极端拥挤时 pill 收窄到右组左缘前，
    * 整体裁剪（overflow hidden）——系统钮（.tb-btn）flex:none 永不裁切
-   * （工单158 P5 真机红回归钉的守卫三件套保留；推荐位图标格已随工单192 拆出本 pill）。 */
+   * （工单158 P5 真机红回归钉的守卫三件套保留；推荐位图标格已随工单192 拆出本 pill）。
+   * 收窄只动 maxWidth、绝不改高度（高度由 .pill 的 height:100% 声明式撑满 48）。 */
   #pill-start {
     position: fixed;
     left: 8px;
@@ -111,8 +125,8 @@
     overflow: hidden;
   }
   #pill-start[hidden] { display: none; }
-  /* 推荐组 pill（工单192 独立拆出）：栖开始组右侧、应用组左侧的独立漂浮胶囊，间隙与
-   * 样式与开始组同族（.pill 胶囊外观 + GROUP_GAP 组间距）。横向落位归渲染层
+  /* 推荐组 pill（工单192 独立拆出）：栖开始组右侧、应用组左侧的独立漂浮圆角矩形，间隙与
+   * 样式与开始组同族（.pill 外观 + GROUP_GAP 组间距）。横向落位归渲染层
    * （positionRecPill：开始组右缘+组间距，开始组不渲染时退条带左缘内衬）；显隐独立——
    * 按推荐位有无（recommendations 非空才渲染），与开始组的系统按钮显隐解耦。
    * 极端拥挤的让位面与 #pill-start 同族：maxWidth 收窄到右组左缘前整体裁剪

@@ -209,7 +209,9 @@ export interface TaskbarExcludedEntry {
  * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
  * apps（工单52）= 应用组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
  * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）；
- * trayOverflowLimit（工单162）= 托盘溢出档位（config 任务栏段持久化，重启保持）。 */
+ * trayOverflowLimit（工单162）= 托盘溢出档位（config 任务栏段持久化，重启保持）。
+ * maximizeRetract（工单239）= 最大化收栏开关（前台窗口真最大化时任务栏自动收栏；默认开，
+ * 关掉即回到「最大化窗不收栏、栏常驻」的旧行为；config 任务栏段持久化，重启保持）。 */
 export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
@@ -219,6 +221,7 @@ export interface TaskbarState {
   apps: TaskbarAppEntry[]
   tray: TaskbarTrayEntry[]
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  maximizeRetract: boolean
 }
 
 /** 托盘按钮（工单56）：左键 = 应用默认动作（启动/置前由图标所属应用自决），右键 = 上下文菜单 */
@@ -623,6 +626,12 @@ export interface BridgeMethods {
    * 名单：上调即图标回栏、「⋯」消失）。同态幂等空转；档位外取值抛 BridgeError（契约违规）。
    */
   'taskbar/set-tray-overflow-limit': { request: { limit: TaskbarTrayOverflowLimit }; response: TaskbarState }
+  /**
+   * 最大化收栏开关（工单239）：设置浮层切换即生效（不必重启面板），整份回写
+   * config.json taskbar.maximizeRetract，回推 taskbar/changed（渲染层对齐勾选态）。
+   * 同态幂等空转；非布尔值抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-maximize-retract': { request: { enabled: boolean }; response: TaskbarState }
   /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
   'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
   /**
