@@ -18,7 +18,9 @@ import { setTopmost, hwndOf } from '../win32'
 import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
 import { ABN_POSCHANGED, appBarCallbackMessage, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
 import type { AppBarRect } from './appbar'
-import { probeForegroundWindow, shouldYieldToFullscreen } from './yield'
+import { probeForegroundWindow } from './yield'
+import { planBarTransition, resolveBarMode } from './retract'
+import type { BarMode } from './retract'
 import { TrayYieldMachine, TRAY_YIELD_POLL_MS } from './tray-yield'
 import type { TrayYieldDecision, TrayYieldRestoreReason } from './tray-yield'
 import { startTrayOverflowHost } from './overflow'
@@ -28,7 +30,7 @@ import { startBlankMenuHost } from './blank-menu'
 import { startTierMenuHost } from './tier-menu'
 import { startWinsMenuHost } from './wins-menu'
 import type { MenuHost } from './menu-host'
-import type { PhysRect } from './yield'
+import type { ForegroundProbe, PhysRect } from './yield'
 
 /** 任务栏窗口标题：验收控制器按 pid + 标题寻窗（TRAY_SPIKE_TITLE 先例） */
 export const TASKBAR_TITLE = 'DECK-TASKBAR'
@@ -141,7 +143,17 @@ interface TaskbarSession {
   tracker: HotzoneTracker | null
   appBarHwnd: number | null
   yieldTimer: NodeJS.Timeout | null
-  yielded: boolean
+  /**
+   * 当前三态档位（工单241）：visible = 栏面常驻；maximize-retract = 最大化收栏
+   * （占位已释放、栏面退场、唤出条在场）；fullscreen-yield = 全屏让位（整窗退场）。
+   * 裁决归纯函数 resolveBarMode（shared/retract），本层只执行动作。
+   */
+  mode: BarMode
+  /**
+   * 降级档标记（AppBar 注册失败）——降级档下收栏整体禁用（与全屏让位同待遇）：
+   * 没有占位就没有「释放占位」这回事，且降级档下最大化窗本就覆盖全屏。
+   */
+  appBarDegraded: boolean
   keepalive: NodeJS.Timeout
   /** 最近一次协商落定的 DIP 目标几何（工单158 回正守卫用；未协商过 = null） */
   negotiated: { x: number; y: number; width: number; height: number } | null
@@ -274,7 +286,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const stopYieldPoll = (s: TaskbarSession) => {
     if (s.yieldTimer) clearInterval(s.yieldTimer)
     s.yieldTimer = null
-    s.yielded = false
+    s.mode = 'visible' // 档位归零（窗在场期间的状态切换——会话账随窗生灭，不另立一套）
   }
 
   /** 协商矩形（物理）→ 条带窗 DIP 几何（差异 >1 DIP 才动，避免与系统微调来回震荡） */
@@ -316,6 +328,95 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     applyNegotiated(s, negotiateAppBarPos(s.appBarHwnd, stripPhysRect(), log, reason))
   }
 
+  /**
+   * 置顶重申（ADR-0007 已知风险 + 工单194 托盘让位闸门）：条带是 WS_EX_TOPMOST 带，
+   * 置顶重申有三处（500ms keepalive、热区离开、全屏让位恢复拍）——重申点把条带抢回
+   * 置顶带，应用右键菜单就又被压回条带之下，修复等于白做（工单194 票面验收第二条款）。
+   * → 闸门置位期间一律跳过并落存证。
+   *
+   * **收栏态不改这条**（工单241）：收栏态条带窗仍须压在最大化窗之上（唤出条贴屏底、
+   * 可见、可点），置顶重申与收栏共存。收栏**不另起第二套置顶抑制机制**——两套抑制
+   * 互踩会让 z 序断言 flaky（票面取证第 2 条）。
+   */
+  const assertTop = (s: TaskbarSession, reason: string): void => {
+    if (trayYield) {
+      log?.append({ type: 'taskbar-topmost-suppressed', reason })
+      return
+    }
+    if (!s.win.isDestroyed()) setTopmost(hwndOf(s.win), true)
+  }
+
+  /**
+   * 三态迁移的执行器（工单241）：**档位裁决归纯函数**（resolveBarMode 判档、
+   * planBarTransition 判动作），本函数只做效果层动作——浮层收拢 / 工作区占位注销与
+   * 重注册 / 整窗显隐 / 档位下发 / 存证。
+   *
+   * 收栏（maximize-retract，栏给窗让位）：
+   * - 注销 AppBar → 工作区占位释放 → 最大化窗铺满整屏；
+   * - 自绘浮层一律关闭（不留无锚孤儿浮层，用户故事 29）；
+   * - 条带窗**不隐藏**（承载形态 = 栏窗复用，工单241 修正 E3 裁决）：唤出条贴屏底、
+   *   在最大化窗之上、命中区可点；弹出的组就落在同一条 48px 带内 → **不改变最大化窗尺寸**
+   *   （占位已随收栏释放，弹组不重注册占位）；
+   * - 档位下发给渲染层：栏面（各组 pill）退场，唤出条由工单242 在同一条带内画。
+   *
+   * 恢复（回 visible）：重注册 AppBar → 重协商 → 占位恢复（最大化窗回缩 48px——
+   * 平台惯常过渡，spec 用户故事 25 明示接受）。
+   */
+  const applyBarMode = (s: TaskbarSession, next: BarMode, probe: ForegroundProbe | null): void => {
+    const prev = s.mode
+    if (prev === next) return
+    const plan = planBarTransition(prev, next)
+    s.mode = next
+    const w = s.win
+    const reason = prev === 'maximize-retract' ? 'retract-lifted'
+      : prev === 'fullscreen-yield' ? 'fullscreen-yield-lifted'
+        : next === 'maximize-retract' ? 'retract'
+          : next === 'fullscreen-yield' ? 'fullscreen-yield'
+            : 'bar-mode'
+    // ① 浮层收拢：单遍历清单（popupHosts 六面自绘浮层的唯一登记处）——与全屏让位同口径
+    if (plan.closePopups) for (const h of popupHosts) h.close('yield')
+    // ② 工作区占位：收栏释放（注销 AppBar）；其余态占位必须生效（已占位空转，未占位则重注册 + 重协商）
+    let appBar: 'removed' | 'registered' | 'register-failed' | 'kept' = 'kept'
+    if (plan.releaseAppBar && s.appBarHwnd !== null) {
+      removeAppBar(s.appBarHwnd, log)
+      s.appBarHwnd = null
+      appBar = 'removed'
+    } else if (plan.claimAppBar && s.appBarHwnd === null) {
+      if (s.appBarDegraded) {
+        appBar = 'kept' // 降级档：注册失败过一次不再重试（收栏整体禁用，与让位同待遇）
+      } else if (registerAppBar(hwndOf(w), stripPhysRect(), log)) {
+        s.appBarHwnd = hwndOf(w)
+        // 重协商：占位矩形重算（释放态下的协商矩形不是条带矩形——先注册再协商，
+        // 不在「未注册」态协商，避免把整屏当条带矩形写回窗口）
+        renegotiate(reason)
+        appBar = 'registered'
+      } else {
+        s.appBarDegraded = true
+        appBar = 'register-failed'
+      }
+    }
+    // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
+    if (plan.hideWindow) {
+      w.hide()
+    } else if (plan.showWindow) {
+      w.showInactive()
+      assertTop(s, reason)
+    }
+    // ④ 档位下发渲染层（栏面退场/复现）
+    ctx.emit('taskbar/bar-mode', { mode: next, reason })
+    // ⑤ 存证：模式、旧→新、前台窗身份、AppBar 注销/重注册结果
+    const foreground = probe
+      ? { hwnd: probe.hwnd, pid: probe.pid, className: probe.className, zoomed: probe.zoomed }
+      : null
+    for (const type of plan.evidence) log?.append({ type, mode: next, from: prev, foreground, appBar })
+  }
+
+  /** 档位下发渲染层（条带渲染层据此让栏面退场/复现；唤出条几何由渲染层自算） */
+  const pushBarMode = (s: TaskbarSession, reason: string): void => {
+    if (s.win.isDestroyed()) return
+    ctx.emit('taskbar/bar-mode', { mode: s.mode, reason })
+  }
+
   const destroy = (reason: string) => {
     // 还原先于会话判空：hidNative 账独立于窗存续（窗被外部先销/建窗半途抛错
     // 都不能把「我藏的原生任务栏」赖成孤儿账——code-review 工单50 收口）
@@ -331,7 +432,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // 会话全账就地清（keepalive 不再依赖 closed 收尾）：先摘控制器引用再动手，
     // closed 无论同步落地还是迟到，撞见的都是「已退位的会话」。
     stopYieldPoll(s)
-    if (s.appBarHwnd !== null) removeAppBar(s.appBarHwnd, log)
+    if (s.appBarHwnd !== null) {
+      removeAppBar(s.appBarHwnd, log)
+      s.appBarHwnd = null // 账目归零（工单241 顺手理直：注销即清字段，不留陈旧句柄）
+    }
     clearInterval(s.keepalive)
     s.tracker?.dispose()
     for (const h of popupHosts) h.dispose() // 条带销毁即收浮层（禁用/退役路径都在此收敛，工单162/193/196）
@@ -362,29 +466,24 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // （那条赛道无解——其层级高于普通 TOPMOST 且 explorer 主动防守）；工单50 隐藏原生
     // 任务栏后竞争面进一步收窄。keepalive 500ms + 热区离开重申只守一般性置顶争夺
     // （其他 always-on-top 窗口、shell 事件扰动）。
-    // 托盘让位闸门（工单194）：置位期间重申一律跳过并落存证——重申点把条带抢回
-    // 置顶带，应用菜单就又被压回条带之下，修复等于白做（票面验收第二条款）。
-    const assertTop = (reason: string) => {
-      if (trayYield) {
-        log?.append({ type: 'taskbar-topmost-suppressed', reason })
-        return
-      }
-      if (!w.isDestroyed()) setTopmost(hwndOf(w), true)
-    }
+    // 托盘让位闸门（工单194）与三态机（工单241）共用 assertTop 一处闸门。
     const s: TaskbarSession = {
       win: w,
       tracker: null,
       appBarHwnd: null,
       yieldTimer: null,
-      yielded: false,
+      mode: 'visible',
+      appBarDegraded: false,
       negotiated: null,
       keepalive: null as unknown as NodeJS.Timeout,
     }
     session = s
     // 置顶维持 + 几何回正（工单158 起同一拍：置顶重申与协商带回正都是壳侧扰动兜底）
+    // 收栏态下这两个动作都不与收栏打架：条带窗几何不变（唤出条贴屏底要靠它），
+    // 置顶重申正是唤出条压在最大化窗之上所需（托盘让位闸门仍照旧抑制）。
     s.keepalive = setInterval(() => {
       if (w.isDestroyed()) return
-      assertTop('keepalive')
+      assertTop(s, 'keepalive')
       reassertGeometry(s, 'keepalive')
     }, 500)
     // 工单51 AppBar 工作区占位：注册 → 协商 → 按协商矩形重排窗口（renegotiate 在
@@ -397,23 +496,27 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       w.hookWindowMessage(appBarCallbackMessage(), (wParam) => {
         if (Number(wParam.readUInt32LE(0)) === ABN_POSCHANGED) renegotiate('abn-poschanged')
       })
-      // 全屏让位轮询（仅 AppBar 生效档）：前台全屏即 hide，退出即 showInactive 复位顶
-      // （复位顶同样吃让位闸门——全屏恢复拍是票面点名的第三处重申点）
+      // 三态轮询（工单241）：与全屏让位共用 250ms 节奏（YIELD_POLL_MS）。档位裁决归
+      // 纯函数 resolveBarMode——真最大化优先（→ 收栏档，再受「开关关断」与「降级档禁用」
+      // 两道闸门约束），否则矩形覆盖全屏 → 让位档，其余常驻；本层**不自己判两态关系**
+      // （工单237 修正 A1/E2：真最大化窗永不落让位档，否则收栏刚生效就被翻掉、唤出条回不来）。
+      // 轮询只在 AppBar 注册成功档内：降级档自然「无轮询 ⇒ 无收栏」（与让位同构）。
       s.yieldTimer = setInterval(() => {
         if (w.isDestroyed()) return
-        const hit = shouldYieldToFullscreen(probeForegroundWindow(), primaryPhysRect(), process.pid)
-        if (hit && !s.yielded) {
-          s.yielded = true
-          for (const h of popupHosts) h.close('yield') // 全屏让位：浮层不悬置在已隐藏的条带之上（工单162/193/196）
-          w.hide()
-          log?.append({ type: 'taskbar-yield' })
-        } else if (!hit && s.yielded) {
-          s.yielded = false
-          w.showInactive()
-          assertTop('fullscreen-yield-lifted')
-          log?.append({ type: 'taskbar-yield-lifted' })
-        }
+        const probe = probeForegroundWindow()
+        const mode = resolveBarMode({
+          probe,
+          screen: primaryPhysRect(),
+          ownPid: process.pid,
+          retractEnabled: ctx.taskbar.state().maximizeRetract, // 工单239 开关（默认开，关则永不为收栏档）
+          appBarDegraded: s.appBarDegraded,
+        })
+        applyBarMode(s, mode, probe)
       }, YIELD_POLL_MS)
+    } else {
+      // 降级档（工单50/51）：注册被拒 → 不占工作区、也让位。收栏整体禁用（同待遇——
+      // 没有占位就没有「释放占位」这回事，且降级档下最大化窗本就覆盖全屏）。
+      s.appBarDegraded = true
     }
     // 热区离开重申置顶：热区交互（点击）会顶起 z 序归属变化（探针01-C 同机制），
     // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。让位闸门置位期间跳过
@@ -431,8 +534,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       onTransition: (hot) => log?.append({ type: hot ? 'taskbar-hotzone-enter' : 'taskbar-hotzone-leave' }),
     })
     // 任务栏窗只收自己关心的事件（面板事件不进条带渲染层）：
-    // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）
-    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status'])
+    // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）；
+    // bar-mode = 三态下发（工单241：栏面退场/复现——唤出条几何由渲染层自算）
+    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode'])
     wireHostIpc(w, s.tracker, log, {
       // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶
       pin: (v) => {
@@ -443,6 +547,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         setTopmost(hwndOf(v), true)
       },
       onNotify: (type, payload) => {
+        // 渲染层就绪握手（工单241）：条带页加载期可能错过早先的档位下发（订阅晚于首推）
+        // ——收到 taskbar-ready 即补发当前档位，渲染层据此对齐栏面显隐。
+        if (type === 'taskbar-ready') pushBarMode(s, 'ready')
         // 「⋯」开层/条带点击收层请求（工单162）+ 应用组菜单开层/收层请求（工单193）+
         // 其余四菜单面开层/收层请求（工单196）——各宿主包装层只认自家 notify 名，
         // 域外类型静默跳过（双宿主转发箭头形态：新宿主在箭头体内并列追加一行自家
@@ -457,7 +564,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     })
     w.once('ready-to-show', () => {
       w.showInactive()
-      assertTop('shown')
+      assertTop(s, 'shown')
       // show 拍挪移的即拍回正（工单158）：取证显示 showInactive 会触发壳侧把窗挪到
       // 协商带上方，等 keepalive 首拍最多闪 500ms——此处同步补一记
       reassertGeometry(s, 'shown')
@@ -487,12 +594,17 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   // 主屏几何变化（换分辨率/DPI/换主屏）即重排条带；窗口不在场（禁用态）无事可做。
-  // AppBar 生效档走重协商（占位与栏同矩形重算），降级档维持净空几何重排。
+  // AppBar 生效档走重协商（占位与栏同矩形重算）；降级档/收栏态无占位可协商——按视图事实
+  // 重排并同步回正目标（否则 500ms 回正守卫会拿旧矩形把窗口拽回去，来回拉扯）。
   const onDisplayMetrics = () => {
     const s = session
     if (!s || s.win.isDestroyed()) return
     if (s.appBarHwnd !== null) renegotiate('display-metrics-changed')
-    else s.win.setBounds(stripBounds())
+    else {
+      const bounds = stripBounds()
+      s.win.setBounds(bounds)
+      s.negotiated = bounds
+    }
   }
 
   if (ctx.taskbar.state().enabled) create()

@@ -19,7 +19,7 @@
 import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
-import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
+import type { HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
 const pillRecs = document.getElementById('pill-recs') as HTMLElement
@@ -74,6 +74,52 @@ let dragResized = false
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
 
+/**
+ * 栏三态（工单241 主进程编排下发）：visible = 栏面常驻；maximize-retract = **最大化收栏**
+ * （栏面退场、唤出条待命——唤出条本体由工单242 落）；fullscreen-yield = 全屏让位
+ * （整窗退场，渲染层无事——窗口已隐藏）。
+ *
+ * 收栏态的栏面退场由 body[data-bar-mode] 的 CSS 承担（重渲不丢、不与视图模型的
+ * 组显隐打架）；热区在收栏态清空（栏面不在场，无可点之物——唤出条命中区由工单242
+ * 沿同一热区通路声明）。
+ */
+let barMode: TaskbarBarModeState['mode'] = 'visible'
+
+/** 栏三态落地：栏面显隐（CSS 属性位）+ 重排。幂等——同档位重复下发空转。 */
+function applyBarMode(next: TaskbarBarModeState['mode']): void {
+  if (barMode === next) return
+  barMode = next
+  document.body.dataset.barMode = next
+  // 重排：收栏态栏面退场量不到宽度（应用组落位按 offsetWidth 算），复现时必须按可见
+  // 几何重算落位——否则复现的栏面位置是收栏态的残值。render 内含热区与几何帧重声明。
+  if (current) requestRender(current)
+}
+
+/**
+ * 各组 pill 矩形缓存（工单241 裁决 (b)：唤出条几何在渲染层算——pill 矩形只有渲染层量得到，
+ * 主进程控制器从不回读 taskbar-geometry 帧）。
+ *
+ * 收栏后栏面退场、pill 量不到矩形——**收栏前最后一帧**的各组横向区间即唤出条镜像的来源
+ * （原型同款 groupRectsCache 口径）。缓存形状 = `planSummonStrips` 的输入形状
+ * （{group, x, width}；x 为客户区左缘、width 为组宽——条带窗通栏，客户区 x 即屏幕 x）。
+ */
+let summonPillCache: Array<{ group: string; x: number; width: number }> = []
+
+/** 缓存各组 pill 矩形（只收在场组——与热区声明同口径：组不在场不出条） */
+function cacheSummonPills(state: TaskbarState): void {
+  // 收栏态：栏面退场量不到矩形——保留收栏前最后一帧的缓存，不覆写
+  if (barMode === 'maximize-retract') return
+  const vm = taskbarViewModel(state)
+  const m = measure()
+  const pills: Array<{ group: string; x: number; width: number }> = []
+  if (vm.visible) pills.push({ group: 'start', x: m.startPill.x, width: m.startPill.w })
+  if (vm.recsVisible) pills.push({ group: 'recs', x: m.recPill.x, width: m.recPill.w })
+  if (vm.apps.length > 0) pills.push({ group: 'apps', x: m.appsPill.x, width: m.appsPill.w })
+  pills.push({ group: 'right', x: m.rightPill.x, width: m.rightPill.w })
+  pills.push({ group: 'showdesk', x: m.sliver.x, width: m.sliver.w })
+  summonPillCache = pills
+}
+
 interface Rect { id: string; x: number; y: number; w: number; h: number }
 
 function rectOf(el: HTMLElement, id: string): Rect {
@@ -114,6 +160,12 @@ function declareHotZones(state: TaskbarState): void {
     window.deck.host.setHotZones([])
     return
   }
+  // 收栏态（工单241）：栏面退场，无可点之物——热区清空（唤出条命中区由工单242 沿同一
+  // 热区通路声明，不与栏面热区混在一张单子里）
+  if (barMode === 'maximize-retract') {
+    window.deck.host.setHotZones([])
+    return
+  }
   const vm = taskbarViewModel(state)
   const m = measure()
   const zones = [m.rightPill, m.sliver]
@@ -129,6 +181,9 @@ let lastGeometryJson = ''
 /** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/应用组/右组矩形任一变化即补发一帧——
  * 推荐位随数据面快照后到位会推推荐组/开始组 pill 移位，电池按 settle 后的最新帧取坐标 */
 function notifyGeometry(): void {
+  // 收栏态（工单241）：栏面不在场（各组 pill 全部退场），几何帧无内容可报——不发。
+  // 避免验收侧读到全零矩形误判「栏跑位」；栏面复现时按常态几何再发一帧。
+  if (barMode === 'maximize-retract') return
   const m = measure()
   const payload: Record<string, unknown> = {
     startPill: m.startPill,
@@ -687,6 +742,7 @@ function render(state: TaskbarState): void {
   clampRecPillWidth()
   renderApps(vm.apps)
   declareHotZones(state)
+  cacheSummonPills(state)
   notifyGeometry()
 }
 
@@ -817,6 +873,9 @@ function boot(): void {
       window.deck.host.notify('taskbar-boot-error', { stage: 'render', message: String(err), stack: (err as Error)?.stack ?? '' })
       return
     }
+    // 三态下发（工单241）：主进程裁决后推当前档位——栏面退场/复现（唤出条待命）。
+    // 订阅先于 ready 上报：主进程收到 taskbar-ready 即补发当前档位（握手补发不漏首推）。
+    window.deck.bridge.on('taskbar/bar-mode', (p) => applyBarMode(p.mode))
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, startPill: m.startPill, recPill: m.recPill, buttons: m.buttons, recommendations: m.recommendations,
