@@ -40,8 +40,8 @@
     cursor: pointer;
   }
   .ov-row:hover { background: rgba(255, 255, 255, 0.10); }
-  .ov-row img { width: 20px; height: 20px; display: block; }
-  .ov-px { image-rendering: pixelated; } /* 16px 原生源最近邻放大（条带同判据） */
+  .ov-row img { width: 16px; height: 16px; display: block; } /* 工单240：与条带托盘同档 16px 原生直渲 */
+  .ov-px { image-rendering: pixelated; } /* 源小于显示档才挂（判据同条带 trayIconPixelated；16px 源 1:1 直渲不挂） */
   .ov-label {
     font-size: 13px;
     color: #d6d6d6;
