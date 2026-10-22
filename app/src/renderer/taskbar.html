@@ -273,6 +273,19 @@
     display: none;
   }
   #drag-toast[data-on="1"] { display: block; }
+
+  /* 收栏态（工单241 最大化收栏）：栏面退场——各组 pill 与显示桌面细条全部隐去，
+   * 唤出条由工单242 在同一条带内画（贴屏底、3px 视觉 / 9px 命中区）。
+   * 承载形态 = 栏窗复用（条带窗不隐藏）：唤出条与弹出的组都落在这条 48px 带内——
+   * 弹出的组叠加在最大化窗之上且不改变其尺寸（工作区占位已随收栏释放）。
+   * 用属性位而非 JS 显隐：整树重渲（taskbar/changed、拖拽补渲）不丢收栏态。 */
+  body[data-bar-mode="maximize-retract"] #pill-start,
+  body[data-bar-mode="maximize-retract"] #pill-recs,
+  body[data-bar-mode="maximize-retract"] #pill-apps,
+  body[data-bar-mode="maximize-retract"] #right-pill,
+  body[data-bar-mode="maximize-retract"] #show-desktop {
+    display: none;
+  }
 </style>
 </head>
 <body>

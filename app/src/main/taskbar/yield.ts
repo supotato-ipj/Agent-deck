@@ -39,6 +39,8 @@ interface Bound {
   getWindowRect: KoffiFunc
   getClassNameW: KoffiFunc
   getWindowThreadProcessId: KoffiFunc
+  /** 真最大化判据（工单241）：单次 user32 调用、语义精确——不用矩形覆盖法（手拉铺满误触发） */
+  isZoomed: KoffiFunc
 }
 
 let bound: Bound | null = null
@@ -53,6 +55,7 @@ function bind(): Bound {
     getWindowRect: user32.func('bool __stdcall GetWindowRect(uintptr_t hWnd, _Out_ TASKBAR_YIELD_RECT *r)'),
     getClassNameW: user32.func('int __stdcall GetClassNameW(uintptr_t hWnd, uint16 *buf, int nMax)'),
     getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, _Out_ uint32 *pid)'),
+    isZoomed: user32.func('bool __stdcall IsZoomed(uintptr_t hWnd)'),
   }
   return bound
 }
@@ -60,9 +63,12 @@ function bind(): Bound {
 /**
  * 前台窗探针：句柄缺位/矩形读取失败返回 null（视同不让位——还原是安全方向）。
  *
- * zoomed 恒为 false：真最大化的 IsZoomed 绑定属收栏探针的职责（工单241 负责接真值），
- * 工单237 不动 FFI。真值到位前收栏档恒不触发——宁缺勿误（spec #236「宁可遗漏，不用
- * 矩形法误触发」的同款口径：手拉铺满的窗与真最大化窗都不得被误判）。
+ * zoomed = **真最大化**（Win32 IsZoomed 族，工单241 接真值）：单次 user32 调用、语义精确。
+ * 不用矩形覆盖法——手拉四角铺满的窗不触发收栏（spec #236 用户故事 26「宁可遗漏，不用
+ * 矩形法误触发」）；也不用 WS_MAXIMIZE 样式位——Win11 贴靠（snap）窗的语义与之不一致。
+ * 已知边界：少数自绘边框应用最大化不上 IsZoomed 样式 ⇒ 这类窗**不触发**收栏（spec 明示接受）。
+ *
+ * 探针只供事实，不判两态关系——档位归 shared/retract 的 resolveBarMode（单一裁决）。
  */
 export function probeForegroundWindow(): ForegroundProbe | null {
   const b = bind()
@@ -76,5 +82,5 @@ export function probeForegroundWindow(): ForegroundProbe | null {
   for (let i = 0; i < n; i++) className += String.fromCharCode(buf.readUInt16LE(i * 2))
   const pidBuf = Buffer.alloc(4)
   b.getWindowThreadProcessId(hwnd, pidBuf)
-  return { hwnd, pid: pidBuf.readUInt32LE(0), className, rect, zoomed: false }
+  return { hwnd, pid: pidBuf.readUInt32LE(0), className, rect, zoomed: Boolean(b.isZoomed(hwnd)) }
 }
