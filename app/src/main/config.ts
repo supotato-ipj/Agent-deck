@@ -36,12 +36,15 @@ export interface AppConfig {
 /** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失。
  * hiddenButtons（工单54）：开始组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
  * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。
- * trayOverflowLimit（工单162）：托盘溢出档位（通知区域默认可见数，3/5/8/全部；重启保持）。 */
+ * trayOverflowLimit（工单162）：托盘溢出档位（通知区域默认可见数，3/5/8/全部；重启保持）。
+ * maximizeRetract（工单239）：最大化收栏开关（前台窗口真最大化时任务栏自动收栏；默认开，
+ * 关掉即回到「最大化窗不收栏、栏常驻」的旧行为；重启保持）。 */
 export interface TaskbarConfig {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
   metrics: TaskbarMetric[]
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  maximizeRetract: boolean
 }
 
 /**
@@ -197,9 +200,10 @@ export function defaultAutostart(): AutostartConfig {
 /** 默认任务栏：启用（接管形态即默认体验——开启即隐藏原生任务栏，逃生开关与
  * guard + watchdog 三路径还原（工单50）在场，默认开让行为可见且可逆）；
  * 系统按钮默认全显示（隐藏是用户经右键菜单的主动收窄，工单54）；
- * 硬件摘要五项默认全选（工单55） */
+ * 硬件摘要五项默认全选（工单55）；
+ * 最大化收栏默认开（工单239：默认开以便随时切回旧行为——用户故事30） */
 export function defaultTaskbar(): TaskbarConfig {
-  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5 }
+  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5, maximizeRetract: true }
 }
 
 /** 开始组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
@@ -256,6 +260,11 @@ function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[])
     } else {
       warnings.push(`config.taskbar.trayOverflowLimit 不是合法档位（3/5/8/all），已回退默认值 ${fallback.trayOverflowLimit}`)
     }
+  }
+  const maximizeRetract = section.maximizeRetract
+  if (maximizeRetract !== undefined) {
+    if (typeof maximizeRetract === 'boolean') out.maximizeRetract = maximizeRetract
+    else warnings.push(`config.taskbar.maximizeRetract 不是布尔值，已回退默认值 ${fallback.maximizeRetract}`)
   }
   return out
 }

@@ -319,6 +319,19 @@ export async function dispatchTrayOverflowLimit(
   return bridge.invoke('taskbar/set-tray-overflow-limit', { limit })
 }
 
+/**
+ * 最大化收栏开关分发（工单239）：设置浮层勾选态 → 桥（taskbar/set-maximize-retract），
+ * 校验与持久化在内核；回执 = 最新任务栏状态（含新开关值）。
+ * 入参来自复选框 checked（天然布尔），故本层不做形状校验——契约违规由内核闸门抛
+ * BridgeError（setMaximizeRetract 同款口径）。
+ */
+export async function dispatchMaximizeRetract(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  enabled: boolean,
+): Promise<TaskbarState> {
+  return bridge.invoke('taskbar/set-maximize-retract', { enabled })
+}
+
 // —— 工单53 应用组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——
 
 /** 应用组应用右键菜单动作（工单53）：手钉/解除手钉、关闭窗口、打开文件位置 */
