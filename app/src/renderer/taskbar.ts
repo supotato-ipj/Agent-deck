@@ -565,7 +565,7 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
 
 /** 应用组渲染（工单52/58/159）：手钉+运行中合并条目按容量拆分——容量按空带两侧边界
  * 裁决（appsSlotsFor——闭合形态恒在带内，不与邻组重叠）；栏内满员即出 ⋯ 钮，浮层开着时
- * 尾部条目横排进 pill（条带窗只有 64px 高（工单158），竖排浮层出不了窗口矩形，54 右键
+ * 尾部条目横排进 pill（条带窗只有 48px 高（工单238），竖排浮层出不了窗口矩形，54 右键
  * 菜单同款先例）；数量回落浮层自动收、图标回栏。装配完就地居中落位（positionAppsPill
  * ——开合/增删后的结构性重渲即回正）。空组整组不渲染（display:none） */
 function renderApps(entries: TaskbarAppViewEntry[]): void {
@@ -627,7 +627,7 @@ function render(state: TaskbarState): void {
   }
   // 菜单行不再渲染进任何 pill（工单196，ADR-0013 全家迁通路）：应用组图标菜单（工单193
   // 首迁）、推荐条目三行、空白右键（系统显隐+恢复段）、托盘档位、多窗选窗五行全在
-  // 浮层窗 DECK-TASKBAR-*-MENU 竖排呈现——条带 64px 高从此不约束菜单形态；开层/收层
+  // 浮层窗 DECK-TASKBAR-*-MENU 竖排呈现——条带 48px 高从此不约束菜单形态；开层/收层
   // 走 taskbar-*-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts（域适配器）。
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
