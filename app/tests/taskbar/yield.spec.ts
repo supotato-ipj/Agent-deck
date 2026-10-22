@@ -9,8 +9,10 @@ import type { ForegroundProbe, PhysRect } from '../../src/main/taskbar/yield'
 const SCREEN: PhysRect = { left: 0, top: 0, right: 1920, bottom: 1080 }
 const OWN_PID = 1000
 
+/** zoomed = 是否真最大化（IsZoomed 族）：探针形状已搬进 shared/retract（工单237 单一来源），
+ *  让位判定不看该位——真值由收栏探针喂（工单241），此处恒 false 只为满足形状契约。 */
 function probe(over: Partial<ForegroundProbe> = {}): ForegroundProbe {
-  return { hwnd: 42, pid: 2000, className: 'GameWindow', rect: { ...SCREEN }, ...over }
+  return { hwnd: 42, pid: 2000, className: 'GameWindow', rect: { ...SCREEN }, zoomed: false, ...over }
 }
 
 describe('shouldYieldToFullscreen（全屏让位判定）', () => {
