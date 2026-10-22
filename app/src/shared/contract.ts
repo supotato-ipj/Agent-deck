@@ -6,10 +6,31 @@
  * 但与 bridge 共用同一对 IPC 通道与同一个 window.deck 命名空间。
  */
 
+import type { BarMode } from './retract'
+
 /** 时钟状态：ISO 字符串 + 纪元毫秒（渲染层以 epochMs 走时） */
 export interface ClockState {
   iso: string
   epochMs: number
+}
+
+/**
+ * 任务栏三态下发（工单241 最大化收栏编排）：主进程裁决后把「当前档位」推给条带渲染层。
+ *
+ * 档位语义（spec #236 状态机）：
+ * - visible：栏面常驻可见，工作区占位生效（现状）；
+ * - maximize-retract：**最大化收栏**——占位已释放（最大化窗铺满整屏），栏面退场，
+ *   唤出条在场（同一条带内，贴屏底、在最大化窗之上）；
+ * - fullscreen-yield：**全屏让位**——整窗退场，唤出条也不出现。
+ *
+ * 几何不在本载荷里——唤出条几何由渲染层自算（工单241 裁决 (b)：pill 矩形只有渲染层量得到，
+ * 主进程不回读 taskbar-geometry 帧）。
+ */
+export interface TaskbarBarModeState {
+  /** 当前档位 */
+  mode: BarMode
+  /** 迁移原因（存证用：retract / retract-lifted / fullscreen-yield / fullscreen-yield-lifted / ready） */
+  reason: string
 }
 
 /** 会话四态（RUN/CONFIRM/DONE/IDLE）；string 交集保留字面量提示同时不锁死未知态 */
@@ -681,6 +702,11 @@ export interface BridgeEvents {
   'taskbar/changed': TaskbarState
   /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（与 panel/changed 同源同拍） */
   'taskbar/status': TaskbarStatus
+  /**
+   * 工单241 任务栏三态：主进程收栏编排裁决后下发（条带渲染层据此让栏面退场/复现）。
+   * 只下发档位事实，不下发矩形——唤出条几何由渲染层自算（pill 矩形只有渲染层量得到）。
+   */
+  'taskbar/bar-mode': TaskbarBarModeState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

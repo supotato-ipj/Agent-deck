@@ -375,3 +375,73 @@ export function reduceSummonSequence(
 export function summonedGroups(state: SummonState): string[] {
   return Object.keys(state.groups).filter((g) => state.groups[g].popped)
 }
+
+/* ================================================================
+ * 五、planBarTransition：三态迁移的动作计划（工单241）
+ * ================================================================ */
+
+/** 三态迁移落下的存证事件名（与既有 taskbar-yield / taskbar-yield-lifted 同族） */
+export type BarEvidenceEvent =
+  | 'taskbar-yield'
+  | 'taskbar-yield-lifted'
+  | 'taskbar-retract'
+  | 'taskbar-retract-lifted'
+
+/**
+ * 一次三态迁移的动作计划（纯函数产出，效果层照单执行）。
+ *
+ * 字段语义（工单241 的裁决，勿改口径）：
+ * - releaseAppBar：注销 AppBar —— 释放工作区占位，最大化窗铺满整屏（**只在收栏态**为真）；
+ * - claimAppBar：工作区占位必须生效 —— 已占位则空转，未占位则重注册 + 重协商（占位恢复）；
+ * - hideWindow：整窗退场（隐藏）—— 只在全屏让位态（栏窗复用的收栏态不隐藏，唤出条要贴屏底可见）；
+ * - showWindow：整窗复现 —— 从全屏让位态出来时；
+ * - closePopups：关闭全部自绘浮层（不留无锚孤儿浮层）；
+ * - evidence：本次迁移应落的存证事件，顺序 = 落盘顺序（先退出旧态、再进入新态）。
+ */
+export interface BarTransitionPlan {
+  releaseAppBar: boolean
+  claimAppBar: boolean
+  hideWindow: boolean
+  showWindow: boolean
+  closePopups: boolean
+  evidence: BarEvidenceEvent[]
+}
+
+/**
+ * 三态迁移的动作计划（纯函数）：旧态 → 新态 → 该做哪些动作。
+ *
+ * 三条不变量（工单241 修正 E1/E3/E4 的落点）：
+ * ① **占位只在收栏态释放**：其余两态占位必须生效——全屏让位态沿用既有语义（占位不断、
+ *    只藏条带窗），收栏态才注销 AppBar 交还整屏；
+ * ② **整窗只在让位态退场**：收栏态条带窗仍在场（承载形态 = 栏窗复用——唤出条贴屏底、
+ *    在最大化窗之上、命中区可点，弹出的组就落在同一条 48px 带内）；
+ * ③ **同态迁移零动作**：250ms 轮询每拍都过一次，重复落账会刷爆存证流。
+ *
+ * 本函数**不重判档位**——档位归 resolveBarMode（真最大化优先）。收栏态因占位已释放而
+ * 让最大化窗「看起来」覆盖整屏，那是副作用不是档位变化（修正 E4：不得因此翻成让位态）。
+ */
+export function planBarTransition(prev: BarMode, next: BarMode): BarTransitionPlan {
+  const plan: BarTransitionPlan = {
+    releaseAppBar: false,
+    claimAppBar: false,
+    hideWindow: false,
+    showWindow: false,
+    closePopups: false,
+    evidence: [],
+  }
+  if (prev === next) return plan
+  // ① 工作区占位：收栏态释放，其余两态占位必须生效
+  if (next === 'maximize-retract') plan.releaseAppBar = true
+  else plan.claimAppBar = true
+  // ② 整窗显隐：让位态退场（唤出条也不出现），其余态条带窗在场
+  if (next === 'fullscreen-yield') plan.hideWindow = true
+  if (prev === 'fullscreen-yield') plan.showWindow = true
+  // ③ 浮层收拢：收栏与让位两态都不留无锚孤儿浮层（用户故事 29）
+  if (next === 'maximize-retract' || next === 'fullscreen-yield') plan.closePopups = true
+  // 存证：两族各按「进入/退出」落一条（退出旧态在前、进入新态在后）
+  if (prev === 'fullscreen-yield') plan.evidence.push('taskbar-yield-lifted')
+  if (prev === 'maximize-retract') plan.evidence.push('taskbar-retract-lifted')
+  if (next === 'fullscreen-yield') plan.evidence.push('taskbar-yield')
+  if (next === 'maximize-retract') plan.evidence.push('taskbar-retract')
+  return plan
+}
