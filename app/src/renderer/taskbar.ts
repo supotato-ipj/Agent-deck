@@ -245,12 +245,14 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
 
 /** 托盘图标像素缓存（工单56：身份键 → dataURL；仅内存，与桌面图标缓存同款纪律——
  * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费）。px = 源尺寸小于显示档
- * （工单158：16px 原生源）需挂最近邻放大档保持锐利——重渲直接复用，不再重判。 */
+ * （工单240：档 16px，源更小时才需最近邻放大保持锐利——16px 源 1:1 直渲不挂）
+ * ——重渲直接复用，不再重判。 */
 const trayIconUrls = new Map<string, { url: string; px: boolean }>()
 
 /** 托盘图标格（工单56）：像素按需取（缓存命中即贴），左键/右键各自回放到所属应用。
- * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单158：图标统一按 24px
- * 显示——16px 原生源挂 .tb-tray-px 最近邻放大保持锐利，32px 源降采样平滑插值
+ * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单240：图标统一按 16px
+ * 原生直渲（源图本就 16px——不放大不拉伸，1:1 直渲），更小的源才挂 .tb-tray-px
+ * 最近邻放大；32px 源降采样平滑插值
  * （挂靠判据 = taskbar-view trayIconPixelated 纯函数，离线单测钉住）。 */
 function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   const el = document.createElement('div')
@@ -614,6 +616,9 @@ function render(state: TaskbarState): void {
     el.className = 'tb-btn'
     el.dataset.id = b.id
     el.textContent = b.label
+    // 工单240：开始组图标化（字面即图标）——可见名退到 title/aria-label
+    el.title = b.title
+    el.setAttribute('aria-label', b.title)
     el.addEventListener('click', () => {
       window.deck.host.notify('taskbar-action', { action: b.action })
       void dispatchTaskbarButton(window.deck.bridge, b.id)
