@@ -450,7 +450,7 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, maximizeRetract: true })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -503,12 +503,50 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
   })
 })
 
+describe('config.taskbar 最大化收栏开关（工单239）', () => {
+  it('默认开（缺该键取默认 true——用户故事30：默认开以便随时切回旧行为）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: true } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.maximizeRetract).toBe(true)
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('显式 false 生效（关掉即最大化窗不收栏、栏常驻）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { maximizeRetract: false } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.maximizeRetract).toBe(false)
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('非布尔值回退默认（开）并告警（不静默吞掉用户笔误）', () => {
+    for (const bad of ['off', 0, 1, null, [], {}]) {
+      const file = tmpFile()
+      fs.writeFileSync(file, JSON.stringify({ taskbar: { maximizeRetract: bad } }))
+      const r = loadConfig(file, FALLBACK)
+      expect(r.config.taskbar.maximizeRetract).toBe(true)
+      expect(r.warnings.some((w) => w.includes('config.taskbar.maximizeRetract'))).toBe(true)
+    }
+  })
+
+  it('只改该键不影响同段其他键（逐键独立合并，不整体回退）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { maximizeRetract: false, enabled: true, trayOverflowLimit: 8 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.maximizeRetract).toBe(false)
+    expect(r.config.taskbar.enabled).toBe(true)
+    expect(r.config.taskbar.trayOverflowLimit).toBe(8)
+    expect(r.warnings).toHaveLength(0)
+  })
+})
+
 describe('config.taskbar 系统按钮显隐（工单54）', () => {
   it('hiddenButtons 合法名单生效（重启保持的持久化口径）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, maximizeRetract: true })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -516,7 +554,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5 })
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, maximizeRetract: true })
     expect(r.warnings).toHaveLength(0)
   })
 
