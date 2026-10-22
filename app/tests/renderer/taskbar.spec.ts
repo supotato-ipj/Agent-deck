@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -14,7 +14,7 @@ import type { HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, Task
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, maximizeRetract: true, ...over }
 }
 
 const RECS = [
@@ -65,6 +65,11 @@ function fakeBridge(s: TaskbarState) {
       if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
       // 工单162 托盘溢出档位
       if (method === 'taskbar/set-tray-overflow-limit') return Promise.resolve(s as never)
+      // 工单239 最大化收栏开关
+      if (method === 'taskbar/set-maximize-retract') {
+        const { enabled } = payload as { enabled: boolean }
+        return Promise.resolve({ ...s, maximizeRetract: enabled } as never)
+      }
       if (method === 'taskbar/tray-icon') {
         const { key } = payload as { key: string }
         const hit = s.tray.find((t) => t.key === key)
@@ -810,5 +815,22 @@ describe('弹窗菜单行推导（工单196，四枚面行推导）', () => {
       { id: '102', label: '（无标题窗口）' },
     ])
     expect(taskbarWinsMenuPopupRows([])).toBeNull()
+  })
+})
+
+describe('最大化收栏开关（工单239，fake bridge 驱动）', () => {
+  it('开关分发：经 taskbar/set-maximize-retract 到桥，回执带回新开关值', async () => {
+    const b = fakeBridge(state())
+    await expect(dispatchMaximizeRetract(b.bridge, false)).resolves.toEqual({ ...state(), maximizeRetract: false })
+    await expect(dispatchMaximizeRetract(b.bridge, true)).resolves.toEqual({ ...state(), maximizeRetract: true })
+    expect(b.calls.filter((c) => c.method === 'taskbar/set-maximize-retract')).toEqual([
+      { method: 'taskbar/set-maximize-retract', payload: { enabled: false } },
+      { method: 'taskbar/set-maximize-retract', payload: { enabled: true } },
+    ])
+  })
+
+  it('开关状态随任务栏态透出：默认开（缺键的旧快照按开处理）', () => {
+    expect(state().maximizeRetract).toBe(true)
+    expect(state({ maximizeRetract: false }).maximizeRetract).toBe(false)
   })
 })

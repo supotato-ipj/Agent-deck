@@ -29,6 +29,8 @@ export interface TaskbarServiceOptions {
   metrics?: TaskbarMetric[]
   /** 托盘溢出档位（config.json taskbar.trayOverflowLimit 下发；缺省 = 5 枚，工单162） */
   trayOverflowLimit?: TaskbarTrayOverflowLimit
+  /** 最大化收栏开关（config.json taskbar.maximizeRetract 下发；缺省 = 开，工单239） */
+  maximizeRetract?: boolean
   /** config.json 绝对路径（缺省 = 不落盘，仅内存态——离线测试省配置桩） */
   file?: string
   /** 已加载的 config（可变引用：写开关即整份回写该对象，settings 先例） */
@@ -227,6 +229,7 @@ export class TaskbarService extends Service {
       hiddenButtons: [...(options.hiddenButtons ?? fallback.hiddenButtons)],
       metrics: [...(options.metrics ?? fallback.metrics)],
       trayOverflowLimit: options.trayOverflowLimit ?? fallback.trayOverflowLimit,
+      maximizeRetract: options.maximizeRetract ?? fallback.maximizeRetract,
       recommendations: [],
       excluded: [],
       apps: [],
@@ -255,7 +258,9 @@ export class TaskbarService extends Service {
   }
 
   /** 整份回写 config.json 的 taskbar 段（enabled + hiddenButtons + metrics 同段共写；
-   * recommendations 是瞬态不落盘，应用组条目是运行态、永不进 config）并同步可变引用 */
+   * recommendations 是瞬态不落盘，应用组条目是运行态、永不进 config）并同步可变引用。
+   * 整段重写——taskbar 段的每个持久化键都必须在此列全（漏一个即每次写盘被抹掉：
+   * 设置浮层存了、切一次别的设置就没了）。 */
   private persist(next: TaskbarState): void {
     if (!this.appConfig || !this.file) return
     const taskbar = {
@@ -263,6 +268,7 @@ export class TaskbarService extends Service {
       hiddenButtons: [...next.hiddenButtons],
       metrics: [...next.metrics],
       trayOverflowLimit: next.trayOverflowLimit,
+      maximizeRetract: next.maximizeRetract,
     }
     saveConfig(this.file, { ...this.appConfig, taskbar })
     this.appConfig.taskbar = taskbar
@@ -335,6 +341,20 @@ export class TaskbarService extends Service {
     }
     if (limit === this.current.trayOverflowLimit) return this.state()
     return this.commit({ ...this.current, trayOverflowLimit: limit })
+  }
+
+  /**
+   * 最大化收栏开关（工单239）：设置浮层切换即生效（不必重启面板），关掉即回到
+   * 「最大化窗不收栏、栏常驻」的旧行为。非布尔值抛 BridgeError（契约违规不静默吞掉）；
+   * 同值幂等空转（不重写盘、不重推事件）。持久化 + 提交 + 回推走 commit 三段收口
+   * （setTrayOverflowLimit 同款）——先写盘后提交内存态，写失败即抛。
+   */
+  setMaximizeRetract(enabled: boolean): TaskbarState {
+    if (typeof enabled !== 'boolean') {
+      throw new BridgeError(`taskbar.maximizeRetract 须为布尔值，收到 ${String(enabled)}`)
+    }
+    if (enabled === this.current.maximizeRetract) return this.state()
+    return this.commit({ ...this.current, maximizeRetract: enabled })
   }
 
   /** 推荐位重拉（工单54）：数据面快照驱动 / 契约测试手动驱动；变化才回推 taskbar/changed。
