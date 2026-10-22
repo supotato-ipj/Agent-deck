@@ -296,20 +296,75 @@
 
   /* 收栏态（工单241 最大化收栏）：栏面退场——各组 pill 与显示桌面细条全部隐去，
    * 唤出条由工单242 在同一条带内画（贴屏底、3px 视觉 / 9px 命中区）。
-   * 承载形态 = 栏窗复用（条带窗不隐藏）：唤出条与弹出的组都落在这条 48px 带内——
-   * 弹出的组叠加在最大化窗之上且不改变其尺寸（工作区占位已随收栏释放）。
-   * 用属性位而非 JS 显隐：整树重渲（taskbar/changed、拖拽补渲）不丢收栏态。 */
-  body[data-bar-mode="maximize-retract"] #pill-start,
-  body[data-bar-mode="maximize-retract"] #pill-recs,
-  body[data-bar-mode="maximize-retract"] #pill-apps,
-  body[data-bar-mode="maximize-retract"] #right-pill,
-  body[data-bar-mode="maximize-retract"] #show-desktop {
+   * 承载形态 = 栏窗复用（条带窗不隐藏）：唤出条与被唤出的组都落在这条 48px 带内——
+   * 唤出的组叠加在最大化窗之上且不改变其尺寸（工作区占位已随收栏释放）。
+   * 用属性位而非 JS 显隐：整树重渲（taskbar/changed、拖拽补渲）不丢收栏态。
+   * 被唤出的组带 .summon-popped 类复现（其余组保持退场）。 */
+  body[data-bar-mode="maximize-retract"] #pill-start:not(.summon-popped),
+  body[data-bar-mode="maximize-retract"] #pill-recs:not(.summon-popped),
+  body[data-bar-mode="maximize-retract"] #pill-apps:not(.summon-popped),
+  body[data-bar-mode="maximize-retract"] #right-pill:not(.summon-popped),
+  body[data-bar-mode="maximize-retract"] #show-desktop:not(.summon-popped) {
     display: none;
+  }
+  /* 被唤出的组复现（工单242）：140ms 上滑淡入由渲染层走 Web Animations API 施加
+   * （条带页样式表是平铺规则集，@keyframes 的嵌套块过不了工单238 的样式表守卫）；
+   * 收起**瞬时**——类一撤即 display:none，无淡出/位移过渡（本片 CSS 不挂任何过渡声明）。 */
+  body[data-bar-mode="maximize-retract"] #pill-start.summon-popped,
+  body[data-bar-mode="maximize-retract"] #pill-recs.summon-popped,
+  body[data-bar-mode="maximize-retract"] #pill-apps.summon-popped,
+  body[data-bar-mode="maximize-retract"] #right-pill.summon-popped {
+    display: flex;
+    z-index: 2;
+  }
+  body[data-bar-mode="maximize-retract"] #show-desktop.summon-popped {
+    display: block;
+    z-index: 2;
+  }
+
+  /* 唤出条（工单242）：收栏态下逐组一条窄横条——视觉 3px 贴屏底、命中区 9px
+   * （两个口径分离：好摸不碍眼，用户故事 14）。材质与 pill 同款（半透明黑底 +
+   * 1px 半透明白边）。条只画在有 pill 的组的横向区间上——组间空隙不出条
+   * （用户故事 15）；显示桌面细条在最右端独立一条（用户故事 31）。
+   * 高度是定值口径（9px / 3px，与 shared/retract 的 SUMMON_STRIP_HIT_HEIGHT /
+   * SUMMON_STRIP_VISUAL_HEIGHT 同源），归样式表所有——渲染层只写横向几何。 */
+  #summon-strips {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 9px;            /* 命中区高度；视觉条在条元素内只占底部 3px */
+    z-index: 1;
+    pointer-events: none;    /* 容器不吃点；条元素自己吃（命中区口径） */
+  }
+  .tb-summon-strip {
+    position: absolute;
+    bottom: 0;
+    height: 9px;            /* 命中区高度（视觉条在条元素内只占底部 3px） */
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .tb-summon-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;            /* 视觉条高度：贴屏幕底边 */
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 2px;
+  }
+  /* 悬停延迟反馈：亮条——只是预告（快速扫过不误触发，弹出仍等 150ms） */
+  .tb-summon-strip.hover .tb-summon-bar {
+    background: rgba(255, 255, 255, 0.38);
+    border-color: rgba(255, 255, 255, 0.55);
   }
 </style>
 </head>
 <body>
 <div id="drag-toast" aria-live="polite"></div>
+<div id="summon-strips" role="group" aria-label="任务栏唤出条"></div>
 <div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
 <div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
 <div id="pill-recs" class="pill" role="toolbar" aria-label="任务栏推荐组"></div>

@@ -44,6 +44,7 @@ export function startMenuHost(options: {
     ctx: options.ctx,
     log: options.log,
     title: options.title,
+    family: options.family,
     events: {
       opened: `${options.family}-opened`,
       resized: `${options.family}-resized`,

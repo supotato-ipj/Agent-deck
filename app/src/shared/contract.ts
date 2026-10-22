@@ -707,6 +707,18 @@ export interface BridgeEvents {
    * 只下发档位事实，不下发矩形——唤出条几何由渲染层自算（pill 矩形只有渲染层量得到）。
    */
   'taskbar/bar-mode': TaskbarBarModeState
+  /**
+   * 工单242 唤出条指针对账：主进程 HotzoneTracker 25ms 光标轮询按光标坐标 hit-test 后
+   * 报出「光标此刻落在哪个热区」（id = 热区矩形声明时的 id；null = 不在任何热区）。
+   * 唤出交互的悬停态**只认这条事实**——不得以浏览器 enter/leave 事件序列为准（原型振荡教训）。
+   * 只在命中区变化时下发（不等距拍发）。
+   */
+  'taskbar/cursor-zone': { id: string | null }
+  /**
+   * 工单242 浮层钉组：自绘浮层开合事实（family = 存证事件家族前缀，如 taskbar-tray-overflow）。
+   * 条带渲染层据此钉住所属组（浮层在场只钉所属组，其余组照常收）。
+   */
+  'taskbar/popup-state': { family: string; open: boolean }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string
