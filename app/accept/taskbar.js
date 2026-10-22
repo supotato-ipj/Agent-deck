@@ -93,7 +93,7 @@ const handle = createPanelHandle({
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
+const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 起 48）
 const VK_ESC = 0x1b;
 
 const koffi = win32.koffi;

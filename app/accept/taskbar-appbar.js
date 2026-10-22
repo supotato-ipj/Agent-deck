@@ -2,14 +2,24 @@
 // 工单51 任务栏 AppBar 工作区占位 + 全屏让位验收：控制器以 --accept-taskbar-appbar
 // 身份运行，拉起 --panel-accept 面板子进程（绕单实例锁），逐项验收：
 //   P1 AppBar 占位生效：taskbar-appbar-registered 存证 + SPI_GETWORKAREA 底边
-//      = 屏底 - 64DIP（物理像素口径；工单158 栏高升档），条带几何与占位同矩形
+//      = 屏底 - 48DIP（物理像素口径；工单238 栏高回归 48），条带几何与占位同矩形
 //   P2 最大化让位：控制器自开参照窗 maximize → 底边停在栏上方不被遮挡
+//      （工单244 改段：参照窗**不占前台**——前台真最大化窗会触发工单241 的
+//        「最大化收栏」（方向相反）；中性前台 holder 把前台挪开，占位语义不变）
 //   P3 分辨率变化重算：切到另一受支持分辨率 → taskbar-appbar-setpos
 //      （reason=display-metrics-changed）存证 + 条带与工作区随新分辨率重算 → 还原
 //   P4 全屏让位：控制器自开全屏参照窗并置前台 → 条带隐藏（taskbar-yield 存证 +
 //      视图事实）；销毁全屏窗 → 1 秒内恢复（taskbar-yield-lifted 存证 + 时延断言）
 //   P5 卸载归还：面板正常退出（WM_CLOSE）→ AppBar 注销（taskbar-appbar-removed
 //      存证）+ 工作区归还全屏
+//   P6 最大化收栏（工单244）：前台真最大化窗 → 注销 AppBar（taskbar-retract 存证
+//      appBar=removed）→ SPI_GETWORKAREA 还回整屏、最大化窗铺满整屏；解除最大化
+//      → 重注册（taskbar-retract-lifted 存证 appBar=registered）→ 工作区回缩 48
+//   P7 三态优先级（工单244）：全屏让位压过收栏（全屏态条带整窗退场 + 占位回缩，
+//      收栏被压住）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落）
+//   P8 降级档禁用（工单244）：AppBar 注册失败 ⇒ 收栏整体禁用——降级档在场则断
+//      「无占位 + 无收栏让位存证 + 条带在场」三后果；健康档则断收栏存证的 appBar
+//      字段（removed/registered ⇒ 占位在场才谈得上收栏；降级档恒为 kept）
 // 运行：npm run accept:taskbar-appbar（= electron . --accept-taskbar-appbar）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（真机分辨率切换与前台注入，互斥）。
 const { app, screen, BrowserWindow } = require('electron');
@@ -37,7 +47,7 @@ const handle = createPanelHandle({
 });
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
+const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 起 48）
 const WM_CLOSE = 0x0010;
 const SPI_GETWORKAREA = 0x0030;
 const ENUM_CURRENT_SETTINGS = -1;
@@ -186,12 +196,29 @@ async function runSegments() {
     }
 
     // —— P2：最大化让位（参照窗 maximize → 底边停在栏上方）——
+    // 工单244 改段（理由见 PR 描述）：工单241「最大化收栏」落地后，**前台**真最大化窗
+    // 会触发收栏（栏给窗让位：注销 AppBar → 占位释放 → 最大化窗铺满整屏），与本段测的
+    // 旧语义「最大化让位」（窗给栏让位：占位收缩 → 窗底边停在栏上沿）方向相反。本段
+    // 断言逐字不改，但要成立必须让参照窗**不占前台**——否则被测的是收栏语义而非让位
+    // 语义。故控制器自建一枚中性前台 holder 把前台从参照窗挪开：占位仍生效 ⇒ 参照窗
+    // （即便非前台）照样被工作区约束在栏上沿，测量对象与旧语义一致。
     rep.beginSegment('P2');
+    const neutralWin = new BrowserWindow({ width: 240, height: 160, title: 'DECK-ACCEPT-NEUTRAL', backgroundColor: '#101010' });
+    refWins.push(neutralWin);
+    await neutralWin.loadURL('about:blank');
     const maxWin = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-MAX', backgroundColor: '#203040' });
     refWins.push(maxWin);
     await maxWin.loadURL('about:blank');
     maxWin.maximize();
     await sleep(1200); // 等最大化落定
+    forceForeground(hwndOf(neutralWin)); // 前台挪离参照窗（否则触发工单241 收栏，方向相反）
+    await sleep(500); // 等 250ms 轮询过一拍
+    // 占位回稳（若收栏已触发过，此等待把它等回来）——测量前占位必须生效
+    const expectBottom2 = phys0.height - Math.round(TASKBAR_HEIGHT_DIP * phys0.scale);
+    await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - expectBottom2) <= 2;
+    }, 5000);
     const maxRect = win32.rectOf(hwndOf(maxWin));
     const stripTop = win32.rectOf(tbHwnd).top;
     const waP2 = workArea();
@@ -199,7 +226,7 @@ async function runSegments() {
     if (maxOk && waP2 && Math.abs(maxRect.bottom - waP2.bottom) <= 8) {
       rep.pass(`P2 最大化让位：参照窗底边 ${maxRect.bottom} 停在栏上沿 ${stripTop}（屏底 ${phys0.height}，未被遮挡）`);
     } else {
-      rep.fail(`P2 参照窗=${JSON.stringify(maxRect)} 栏上沿=${stripTop} 工作区底=${waP2 && waP2.bottom} 屏高=${phys0.height}`);
+      rep.fail(`P2 参照窗=${JSON.stringify(maxRect)} 栏上沿=${stripTop} 工作区底=${waP2 && waP2.bottom} 屏高=${phys0.height} 前台=${Number(win32.GetForegroundWindow())}`);
     }
 
     // —— P3：分辨率变化重算（切到另一受支持模式 → setpos 存证 + 几何重算 → 还原）——
@@ -273,6 +300,154 @@ async function runSegments() {
       rep.pass(`P4b 退出全屏恢复：${liftMs}ms 内条带恢复（≤1 秒口径，taskbar-yield-lifted 存证）`);
     } else {
       rep.fail(`P4b 恢复时延=${liftMs}ms lifted存证=${!!liftedEv} 条带可见=${win32.IsWindowVisible(tbHwnd)}`);
+    }
+
+    // —— P6：最大化收栏（工单244 新增）：收栏注销 AppBar → 工作区还回整屏；
+    //        恢复重注册 → 工作区回缩 48 ——
+    // 术语：「收栏」= 栏给窗让位（与 P2 的「最大化让位」= 窗给栏让位方向相反，两词不混用）。
+    rep.beginSegment('P6');
+    const phys6 = primaryPhys();
+    const expectBottom6 = phys6.height - Math.round(TASKBAR_HEIGHT_DIP * phys6.scale);
+    const retractWin = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-RETRACT', backgroundColor: '#203040' });
+    refWins.push(retractWin);
+    await retractWin.loadURL('about:blank');
+    retractWin.maximize();
+    await sleep(800);
+    const sinceP6 = Date.now();
+    forceForeground(hwndOf(retractWin)); // 前台锁下 focus() 静默失败，必须走强制链入
+    const fgMs6 = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(retractWin), 4000);
+    // 收栏存证：mode=maximize-retract 且 appBar=removed（占位确实被注销）
+    const retractEv6 = await tape.wait('taskbar-retract',
+      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceP6, timeoutMs: 6000 });
+    // 工作区还回整屏（占位释放 ⇒ 最大化窗铺满整屏）
+    const releasedMs6 = await waitMs(() => {
+      const wa = workArea();
+      return wa && wa.bottom >= phys6.height - 2;
+    }, 5000);
+    const waReleased6 = workArea();
+    const fullRect6 = win32.rectOf(hwndOf(retractWin));
+    // 恢复：解除最大化（前台不再是真最大化窗）→ 重注册 AppBar → 工作区回缩 48
+    const t6 = Date.now();
+    retractWin.unmaximize();
+    const liftedEv6 = await tape.wait('taskbar-retract-lifted',
+      (e) => e.mode === 'visible' && e.appBar === 'registered', { since: t6, timeoutMs: 6000 });
+    const restoredMs6 = await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - expectBottom6) <= 2;
+    }, 5000);
+    const waRestored6 = workArea();
+    if (retractEv6 && releasedMs6 >= 0 && liftedEv6 && restoredMs6 >= 0
+      && fullRect6 && fullRect6.bottom >= phys6.height - 8) {
+      rep.pass(`P6 最大化收栏：前台真最大化窗 ${fgMs6}ms 落位后注销 AppBar（taskbar-retract 存证 appBar=${retractEv6.appBar}），`
+        + `工作区还回整屏（底边 ${waReleased6.bottom}/屏高 ${phys6.height}）、最大化窗铺满整屏（底边 ${fullRect6.bottom}）；`
+        + `解除最大化后重注册（taskbar-retract-lifted 存证 appBar=${liftedEv6.appBar}），工作区回缩 ${TASKBAR_HEIGHT_DIP}（底边 ${waRestored6.bottom}/期望 ${expectBottom6}）`);
+    } else {
+      rep.fail(`P6 收栏存证=${!!retractEv6} 释放时延=${releasedMs6}ms 工作区=${JSON.stringify(waReleased6)} 屏高=${phys6.height} 满屏底=${fullRect6 && fullRect6.bottom} `
+        + `恢复存证=${!!liftedEv6} 回缩时延=${restoredMs6}ms 工作区=${JSON.stringify(waRestored6)} 期望底=${expectBottom6}`);
+    }
+
+    // —— P7：三态优先级（工单244 新增）：全屏让位压过收栏；退出全屏回到最大化窗时
+    //        收栏态自动回来 ——
+    rep.beginSegment('P7');
+    // 前置：回到收栏态（最大化参照窗在前台）
+    retractWin.maximize();
+    await sleep(700);
+    const sinceP7 = Date.now();
+    forceForeground(hwndOf(retractWin));
+    const retractEv7 = await tape.wait('taskbar-retract',
+      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceP7, timeoutMs: 6000 });
+    // 全屏让位压过收栏：前台切到全屏参照窗 → 条带整窗退场 + 占位回缩（收栏被压住）
+    const sinceFs7 = Date.now();
+    const fsWin7 = new BrowserWindow({ fullscreen: true, frame: false, title: 'DECK-ACCEPT-FS7', backgroundColor: '#101820' });
+    refWins.push(fsWin7);
+    await fsWin7.loadURL('about:blank');
+    fsWin7.show();
+    fsWin7.focus();
+    forceForeground(hwndOf(fsWin7));
+    const fgMs7 = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(fsWin7), 4000);
+    const hideMs7 = await waitMs(() => !win32.IsWindowVisible(tbHwnd), 5000);
+    const yieldEv7 = await tape.wait('taskbar-yield',
+      (e) => e.mode === 'fullscreen-yield', { since: sinceFs7, timeoutMs: 5000 });
+    // 全屏态下占位必须回缩（让位态占位生效）⇒ 收栏态被压住的机器可观测口径
+    const occMs7 = await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - expectBottom6) <= 2;
+    }, 5000);
+    const waYield7 = workArea();
+    // 全屏期间不得有收栏存证（收栏被全屏压住）——取「全屏窗销毁前」的窗口快照
+    const t7 = Date.now();
+    const retractInFull7 = tape.all('taskbar-retract', (e) => e.mode === 'maximize-retract', { since: sinceFs7 })
+      .filter((e) => e.t < t7);
+    // 退出全屏 → 回到最大化窗 → 收栏态自动回来
+    fsWin7.destroy();
+    refWins.pop();
+    forceForeground(hwndOf(retractWin)); // 回到最大化参照窗（前台）
+    const showMs7 = await waitMs(() => win32.IsWindowVisible(tbHwnd), 5000);
+    const retractEv7b = await tape.wait('taskbar-retract',
+      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: t7, timeoutMs: 6000 });
+    const relMs7 = await waitMs(() => {
+      const wa = workArea();
+      return wa && wa.bottom >= phys6.height - 2;
+    }, 5000);
+    const waRetract7 = workArea();
+    if (retractEv7 && yieldEv7 && hideMs7 >= 0 && occMs7 >= 0 && retractInFull7.length === 0
+      && retractEv7b && showMs7 >= 0 && relMs7 >= 0) {
+      rep.pass(`P7 三态优先级：收栏态在前台全屏窗 ${fgMs7}ms 落位后 ${hideMs7}ms 被全屏让位压过`
+        + `（taskbar-yield 存证、条带整窗退场、占位回缩至底边 ${waYield7.bottom}、全屏期间收栏存证 0 条）；`
+        + `退出全屏回到最大化窗后 ${relMs7 >= 0 ? '收栏态自动回来' : '收栏态未回来'}`
+        + `（taskbar-retract 再落 appBar=${retractEv7b && retractEv7b.appBar}、条带 ${showMs7}ms 复现、工作区还回整屏底边 ${waRetract7.bottom}）`);
+    } else {
+      rep.fail(`P7 收栏存证=${!!retractEv7} yield存证=${!!yieldEv7} 隐藏时延=${hideMs7}ms 占位回缩时延=${occMs7}ms 工作区=${JSON.stringify(waYield7)} `
+        + `全屏期间收栏存证=${retractInFull7.length} 条 回程收栏存证=${!!retractEv7b} 条带复现=${showMs7}ms 释放时延=${relMs7}ms 工作区=${JSON.stringify(waRetract7)}`);
+    }
+
+    // P7 收尾：面板回常驻（解除最大化 + 前台挪开）——P5「卸载归还」段要求 AppBar 在场
+    // （收栏态下占位已注销，退出时不会有 taskbar-appbar-removed 存证）
+    retractWin.unmaximize();
+    forceForeground(hwndOf(neutralWin));
+    await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - expectBottom6) <= 2;
+    }, 5000);
+
+    // —— P8：降级档禁用（工单244 新增）：AppBar 注册失败 ⇒ 收栏整体禁用 ——
+    // 降级档的机器可观测锚点 = 面板报「AppBar 注册失败」（taskbar-appbar-register-failed）。
+    // 该前提由系统 AppBar 服务是否拒绝注册决定——真机无法从外部让系统拒绝（面板走的是
+    // 同一条 SHAppBarMessage(ABM_NEW) 通路，产品侧无外部注入点），故本段立「条件式
+    // 不变量」：降级档在场 ⇒ 断三后果（无占位 / 无收栏与让位存证 / 条带在场）；
+    // 降级档不在场（注册成功，本机常态）⇒ 断收栏存证的 appBar 字段（removed/registered
+    // ⇒ 占位在场才谈得上收栏；降级档下该字段恒为 kept——占位不在场 ⇒ 无从释放），
+    // 即「降级档禁用」的可观测反面：收栏整体依赖占位在场。
+    rep.beginSegment('P8');
+    const regEv8 = tape.latest('taskbar-appbar-registered', undefined, {});
+    const failEv8 = tape.latest('taskbar-appbar-register-failed', undefined, {});
+    if (failEv8) {
+      // 降级档在场：断三后果
+      const retractAll8 = tape.all('taskbar-retract', undefined, {});
+      const yieldAll8 = tape.all('taskbar-yield', undefined, {});
+      const wa8 = workArea();
+      const noOcc8 = !!wa8 && wa8.bottom >= phys6.height - 2; // 无工作区占位
+      const noEv8 = retractAll8.length === 0 && yieldAll8.length === 0; // 收栏与让位整体禁用
+      const stripAlive8 = win32.IsWindowVisible(tbHwnd); // 降级档只禁收栏，不禁栏本身
+      if (noOcc8 && noEv8 && stripAlive8) {
+        rep.pass(`P8 降级档禁用：AppBar 注册失败存证在流 ⇒ 无工作区占位（底边 ${wa8.bottom}/屏高 ${phys6.height}）、`
+          + `无收栏与让位存证（retract ${retractAll8.length} 条 / yield ${yieldAll8.length} 条）、条带窗在场可见（收栏整体禁用）`);
+      } else {
+        rep.fail(`P8 降级档在场但后果不符：无占位=${noOcc8} 无收栏让位存证=${noEv8} 条带在场=${stripAlive8} 工作区=${JSON.stringify(wa8)}`);
+      }
+    } else {
+      // 健康档（注册成功）：断收栏存证的 appBar 字段——占位在场才谈得上收栏/恢复
+      const retractAll8 = tape.all('taskbar-retract', (e) => e.mode === 'maximize-retract');
+      const liftedAll8 = tape.all('taskbar-retract-lifted', (e) => e.mode === 'visible');
+      const removedOk8 = retractAll8.length > 0 && retractAll8.every((e) => e.appBar === 'removed');
+      const registeredOk8 = liftedAll8.length > 0 && liftedAll8.every((e) => e.appBar === 'registered');
+      if (regEv8 && removedOk8 && registeredOk8) {
+        rep.pass(`P8 降级档禁用（健康档对照）：AppBar 注册成功（非降级档，降级档在本机不可复现——系统不拒绝注册）；`
+          + `收栏存证 ${retractAll8.length} 条 appBar 全为 removed（占位释放到位）、恢复存证 ${liftedAll8.length} 条 appBar 全为 registered`
+          + `（占位重注册到位）——降级档下该字段恒为 kept（占位不在场 ⇒ 无从释放），故收栏整体依赖占位在场`);
+      } else {
+        rep.fail(`P8 注册存证=${!!regEv8} 收栏存证=${JSON.stringify(retractAll8.map((e) => e.appBar))} 恢复存证=${JSON.stringify(liftedAll8.map((e) => e.appBar))}`);
+      }
     }
 
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
