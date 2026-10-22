@@ -3,33 +3,15 @@
 // 判定是纯谓词 shouldYieldToFullscreen（单测见 tests/taskbar/yield.spec.ts）；
 // FFI 前台探针 lazy-bind（syskeys.ts 先例：模块加载不触 FFI，纯谓词测试不引 koffi）。
 // 让位动作（条带 hide/show）由 taskbar/window.ts 控制器轮询驱动。
+//
+// 探针形状（PhysRect / ForegroundProbe）、桌面宿主排除名单与覆盖判定已搬进
+// shared/retract（收栏决策纯函数域模块，工单237）——单一来源，不许各抄一份；
+// 此处转出形状保持主进程侧引用路径不变（apps-plan.ts 转出 shared/overflow 的同款先例）。
 
-/** 物理像素矩形（GetWindowRect / 屏物理尺寸口径，非 DIP） */
-export interface PhysRect {
-  left: number
-  top: number
-  right: number
-  bottom: number
-}
+import { coversScreenRect, DESKTOP_HOST_CLASSES } from '../../shared/retract'
+import type { ForegroundProbe, PhysRect } from '../../shared/retract'
 
-/** 前台窗探针快照（FFI 采集，喂给纯谓词） */
-export interface ForegroundProbe {
-  hwnd: number
-  pid: number
-  className: string
-  rect: PhysRect
-}
-
-/** 覆盖判定容差（px）：边框/圆角让全屏矩形与屏矩形有 1–2px 出入 */
-const COVER_TOLERANCE = 2
-
-/** 永不触发让位的桌面宿主类：桌面本体与原生任务栏的矩形常态即全屏/通栏 */
-const DESKTOP_HOST_CLASSES: readonly string[] = [
-  'Progman',
-  'WorkerW',
-  'Shell_TrayWnd',
-  'Shell_SecondaryTrayWnd',
-]
+export type { ForegroundProbe, PhysRect } from '../../shared/retract'
 
 /**
  * 全屏让位判定：前台窗完整覆盖给定屏矩形（容差内）、非自家进程（面板本体被点击
@@ -45,11 +27,7 @@ export function shouldYieldToFullscreen(
   if (!probe) return false
   if (probe.pid === ownPid) return false
   if (DESKTOP_HOST_CLASSES.includes(probe.className)) return false
-  const r = probe.rect
-  return r.left <= screen.left + COVER_TOLERANCE
-    && r.top <= screen.top + COVER_TOLERANCE
-    && r.right >= screen.right - COVER_TOLERANCE
-    && r.bottom >= screen.bottom - COVER_TOLERANCE
+  return coversScreenRect(probe.rect, screen)
 }
 
 interface KoffiFunc {
@@ -79,7 +57,13 @@ function bind(): Bound {
   return bound
 }
 
-/** 前台窗探针：句柄缺位/矩形读取失败返回 null（视同不让位——还原是安全方向） */
+/**
+ * 前台窗探针：句柄缺位/矩形读取失败返回 null（视同不让位——还原是安全方向）。
+ *
+ * zoomed 恒为 false：真最大化的 IsZoomed 绑定属收栏探针的职责（工单241 负责接真值），
+ * 工单237 不动 FFI。真值到位前收栏档恒不触发——宁缺勿误（spec #236「宁可遗漏，不用
+ * 矩形法误触发」的同款口径：手拉铺满的窗与真最大化窗都不得被误判）。
+ */
 export function probeForegroundWindow(): ForegroundProbe | null {
   const b = bind()
   const hwnd = Number(b.getForegroundWindow())
@@ -92,5 +76,5 @@ export function probeForegroundWindow(): ForegroundProbe | null {
   for (let i = 0; i < n; i++) className += String.fromCharCode(buf.readUInt16LE(i * 2))
   const pidBuf = Buffer.alloc(4)
   b.getWindowThreadProcessId(hwnd, pidBuf)
-  return { hwnd, pid: pidBuf.readUInt32LE(0), className, rect }
+  return { hwnd, pid: pidBuf.readUInt32LE(0), className, rect, zoomed: false }
 }
