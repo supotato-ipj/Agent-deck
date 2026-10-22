@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -536,6 +536,96 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
     // 工单160 图标化后推荐位不再吃文字收缩档（.tb-rec 定宽图标格）：极端拥挤的让位面
     // 收敛为 pill maxWidth 收窄整体裁剪（overflow hidden），系统钮 flex:none 优先权不变
     expect(ruleOf('.tb-rec'), '推荐位图标格定宽（不吃收缩）').toContain('width: 44px')
+  })
+})
+
+describe('栏高 48 与栏分组几何/材质改版（工单238：48 DIP 回归、撑满 48、8px 圆角、纯缝隙）', () => {
+  // 工单238（spec #236）：栏高 64→48 DIP（带新排版的回归——64 是工单158 从 48 升上来的），
+  // 各栏分组 pill 一律撑满 48 高、圆角 999px 胶囊改 8px 圆角矩形、材质照旧、组间纯缝隙。
+  // 守卫面 = 渲染层样式声明 + 主进程栏高常量（CSS 具体写法是本仓既有守卫形态：工单158
+  // 同款「栏高与图标尺寸」块已在钉；圆角的像素级渲染属视觉面，不在离线断言内）。
+  const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
+  const windowSrc = fs.readFileSync(path.resolve(__dirname, '../../src/main/taskbar/window.ts'), 'utf8')
+  const rendererSrc = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/taskbar.ts'), 'utf8')
+
+  function ruleOf(sel: string): string {
+    const i = css!.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    const body = css!.slice(i)
+    return body.slice(0, body.indexOf('}'))
+  }
+
+  it('栏高常量 = 48 DIP（源码守卫：window.ts 是 Electron 效果层，离线测试不加载）', () => {
+    expect(windowSrc).toMatch(/export const TASKBAR_HEIGHT = 48\b/)
+    expect(windowSrc, '不得残留 64 的栏高').not.toMatch(/TASKBAR_HEIGHT = 64\b/)
+  })
+
+  it('条带窗几何与 AppBar 提议矩形同源于该常量（高度不各写死一份）', () => {
+    expect(windowSrc, '条带窗几何（stripBounds）取常量').toContain('height: TASKBAR_HEIGHT')
+    expect(windowSrc, 'AppBar 提议矩形（stripPhysRect）取常量').toContain('Math.round(TASKBAR_HEIGHT * d.scaleFactor)')
+    expect(windowSrc, '降级净空口径独立（原生任务栏高度，非本栏高）').toContain('TASKBAR_BOTTOM_CLEARANCE = 48')
+  })
+
+  it('四个分组 pill 一律声明撑满条带高（height:100% + border-box 盒模型——高度不再由内容撑出）', () => {
+    // .pill 覆盖开始组/推荐组/右组（三个容器都挂 class="pill"），#pill-apps 自带一条
+    for (const sel of ['#pill-apps', '.pill']) {
+      const rule = ruleOf(sel)
+      expect(rule, `${sel} 必须声明高度（撑满栏高，不靠内容撑）`).toContain('height: 100%')
+      expect(rule, `${sel} 盒模型含内衬边框（否则 100% 会溢出条带窗）`).toContain('box-sizing: border-box')
+    }
+  })
+
+  it('显示桌面细条撑满条带高（既有 height:100% 写法随栏高落到 48）', () => {
+    expect(ruleOf('#show-desktop')).toContain('height: 100%')
+  })
+
+  it('分组 pill 圆角 = 8px 圆角矩形（999px 胶囊退役）', () => {
+    for (const sel of ['#pill-apps', '.pill']) {
+      expect(ruleOf(sel), `${sel} 圆角`).toContain('border-radius: 8px')
+      expect(ruleOf(sel), `${sel} 不得残留 999px 胶囊`).not.toContain('border-radius: 999px')
+    }
+  })
+
+  it('材质不变：半透明黑底 + 1px 半透明白边（改版只动形状不动质感）', () => {
+    for (const sel of ['#pill-apps', '.pill']) {
+      const rule = ruleOf(sel)
+      expect(rule, `${sel} 底色`).toContain('background: rgba(0, 0, 0, 0.55)')
+      expect(rule, `${sel} 边框`).toContain('border: 1px solid rgba(255, 255, 255, 0.14)')
+    }
+  })
+
+  it('内距重排：竖向内距归零（格 44 + 边框 2 = 46 ≤ 48，内容不再顶出条带窗），横向内距不动', () => {
+    for (const sel of ['#pill-apps', '.pill']) {
+      expect(ruleOf(sel), `${sel} 竖向内距归零（48 内不溢出）`).toContain('padding: 0 8px')
+    }
+    // 横向内距 8+8 未动 → 应用组容量算式的派生常量不变（挤撞守卫算式随之不变）
+    expect(PILL_PAD_X).toBe(16)
+    expect(CELL_W).toBe(46)
+  })
+
+  it('组间纯缝隙：组间距常量 8 不变，组 pill 不引入分隔线/分隔边框', () => {
+    expect(GROUP_GAP).toBe(8)
+    for (const sel of ['#pill-apps', '.pill']) {
+      expect(ruleOf(sel), `${sel} 不得引入组间分隔线`).not.toMatch(/border-left|border-right|box-shadow/)
+    }
+  })
+
+  it('挤撞守卫只收窄宽度、绝不改高度（收窄档仍撑满 48 高）', () => {
+    expect(rendererSrc, '渲染层不得按内容写 pill 高度').not.toMatch(/\.style\.height\s*=/)
+    // 四道守卫（clampStartPillWidth / clampRecPillWidth / positionRecPill / positionAppsPill）
+    // 写的都是 maxWidth / left——横向收窄，不触高度
+    expect(rendererSrc.match(/\.style\.maxWidth\s*=/g)?.length ?? 0).toBeGreaterThanOrEqual(2)
+  })
+
+  it('几何存证帧字段形状不变（下游唤出条票按既有字段取用，不加不减）', () => {
+    const i = rendererSrc.indexOf('function notifyGeometry')
+    expect(i, 'notifyGeometry 在场').toBeGreaterThanOrEqual(0)
+    const block = rendererSrc.slice(i, i + 1200)
+    for (const key of ['startPill', 'recPill', 'buttons', 'recommendations', 'appsPill', 'apps', 'overflow',
+      'rightPill', 'rightCells', 'trayIcons', 'trayOverflow', 'sliver']) {
+      expect(block, `存证帧字段 ${key}`).toContain(`${key}:`)
+    }
   })
 })
 
