@@ -15,6 +15,7 @@ export {
   SUMMON_STRIP_VISUAL_HEIGHT,
   coversScreenRect,
   initialSummonState,
+  planBarTransition,
   planSummonStrips,
   reduceSummon,
   reduceSummonSequence,
@@ -22,8 +23,10 @@ export {
   summonedGroups,
 } from '../../shared/retract'
 export type {
+  BarEvidenceEvent,
   BarMode,
   BarModeInput,
+  BarTransitionPlan,
   ForegroundProbe,
   PhysRect,
   SummonEvent,
