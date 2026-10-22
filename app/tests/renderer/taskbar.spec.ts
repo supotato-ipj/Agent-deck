@@ -300,7 +300,10 @@ describe('任务栏右组（工单55，fake bridge 驱动）', () => {
   })
 
   it('源码级守卫：任务栏渲染层只做类型级 import（协议资产根只有 dist/renderer，运行时值导入会 404）', () => {
-    for (const rel of ['src/renderer/taskbar.ts', 'src/renderer/taskbar-view.ts']) {
+    // 工单242 起渲染层新增 taskbar-summon.ts（唤出条纯逻辑）——同受本守卫约束。
+    // 注：shared/retract 是**值**模块（工单237 的收栏决策域模块），渲染层可运行时 import
+    // （shared/overflow 同款先例）；本守卫只管 shared/contract 这张纯类型契约面。
+    for (const rel of ['src/renderer/taskbar.ts', 'src/renderer/taskbar-view.ts', 'src/renderer/taskbar-summon.ts']) {
       const src = fs.readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')
       const runtime = src.split('\n').filter((l) => /^import\s+\{/.test(l) && l.includes('shared/contract'))
       expect(runtime, `${rel} 不得运行时 import shared/contract`).toEqual([])

@@ -11,6 +11,14 @@ export interface HotzoneHooks {
   onLeave?: () => void
   /** 穿透状态切换（供存证日志） */
   onTransition?: (hot: boolean) => void
+  /**
+   * 工单242 唤出条指针对账：光标落在哪个热区（id = 矩形声明时的 id；null = 不在任何热区）。
+   *
+   * 这是**按光标坐标 hit-test 的结论**——与穿透判定同一次轮询、同一份光标坐标，
+   * 故悬停态与穿透态永不各判一次。只在命中区**变化**时触发（不等距拍发）。
+   * 拖拽会话持门期（holdCount > 0）轮询提前返回 → 不触发（拖拽期不做唤出交互）。
+   */
+  onZone?: (id: string | null) => void
 }
 
 /**
@@ -26,6 +34,8 @@ export class HotzoneTracker {
    * 成对上行（嵌套安全用计数），持门期 poll 跳过离场判定、穿透恒开。跨组/缝隙松手
    * 不丢（断点③：~60% 跨 pill 场景 drop 随 25ms 轮询关门丢失，2026-10-14 取证在案）。 */
   private holdCount = 0
+  /** 当前命中的热区 id（工单242：按光标坐标 hit-test 的结论，供唤出条指针对账） */
+  private zoneId: string | null = null
   private readonly timer: NodeJS.Timeout
   private disposed = false
 
@@ -35,6 +45,13 @@ export class HotzoneTracker {
 
   setRects(rects: HotzoneRect[]): void {
     this.rects = rects
+  }
+
+  /** 命中区变化时上报（工单242 对账通路）：只在真变了才发——等距拍发会把渲染层淹掉 */
+  private setZone(id: string | null): void {
+    if (this.zoneId === id) return
+    this.zoneId = id
+    this.hooks.onZone?.(id)
   }
 
   /** 拖拽会话持门（工单195）：on=true 计数 +1 并立即开门（拖拽起手时窗必在穿透态——
@@ -76,10 +93,13 @@ export class HotzoneTracker {
     const bounds = this.win.getBounds()
     const px = cursor.x - bounds.x
     const py = cursor.y - bounds.y
-    const hit = this.rects.some(r =>
+    const hit = this.rects.find(r =>
       px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)
     if (hit) {
       this.missCount = 0
+      // 工单242：命中区 id 与穿透判定同拍同源（同一份光标坐标、同一遍 hit-test）——
+      // 唤出条的悬停态据此对账，不另开坐标源
+      this.setZone(hit.id)
       if (!this.hot) {
         this.hot = true
         panelLabels.run('hotzone-toggle', () => this.win.setIgnoreMouseEvents(false))
@@ -90,6 +110,7 @@ export class HotzoneTracker {
     this.missCount += 1
     if (this.hot && this.missCount >= LEAVE_CONFIRM_POLLS) {
       this.hot = false
+      this.setZone(null)
       panelLabels.run('hotzone-toggle', () => this.win.setIgnoreMouseEvents(true))
       this.hooks.onLeave?.()
       this.hooks.onTransition?.(false)

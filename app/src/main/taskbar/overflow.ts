@@ -41,6 +41,7 @@ export function startTrayOverflowHost(options: { ctx: Context; log: EventLog | n
     ctx,
     log,
     title: TRAY_OVERFLOW_TITLE,
+    family: 'taskbar-tray-overflow',
     events: { opened: 'taskbar-tray-overflow-opened', resized: 'taskbar-tray-overflow-resized', closed: 'taskbar-tray-overflow-closed' },
     readyEvent: 'taskbar-tray-overflow-ready',
     closeEvent: 'taskbar-tray-overflow-close',
