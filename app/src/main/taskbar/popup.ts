@@ -33,6 +33,11 @@ export interface PopupMenuCarrierOptions {
   log: EventLog | null
   /** 浮层窗标题：验收控制器按 pid + 标题寻窗（TASKBAR_TITLE 先例） */
   title: string
+  /**
+   * 浮层家族前缀（工单242 钉组用）：条带渲染层据此把「浮层在场」映射到**所属组**
+   * （如托盘溢出菜单钉右组）——家族名与存证事件族同源（events.opened = `${family}-opened`）。
+   */
+  family: string
   /** 存证事件名（域前缀各自持有，不混用）：开层/在场重定窗/收层 */
   events: { opened: string; resized: string; closed: string }
   /** 载页内容实测回报的 notify 名（载体消费：定窗锚光标弹出） */
@@ -87,6 +92,8 @@ export function startPopupMenuCarrier(options: PopupMenuCarrierOptions): PopupMe
     if (!w || w.isDestroyed() || !w.isVisible()) return
     w.hide()
     log?.append({ type: options.events.closed, reason })
+    // 工单242 钉组：浮层离场事实下发条带渲染层——所属组解除钉住（否则该组永不收起）
+    ctx.emit('taskbar/popup-state', { family: options.family, open: false })
   }
 
   /** 锚点 + 内容尺寸 → 工作区夹取定窗（popup-plan clampPopupBounds）；隐藏态即弹出
@@ -107,6 +114,8 @@ export function startPopupMenuCarrier(options: PopupMenuCarrierOptions): PopupMe
     if (!w.isVisible()) {
       w.show() // 取焦：blur 收「点面板外」的前提（原生菜单在场持前台同语义）
       log?.append({ type: options.events.opened, bounds: w.getBounds(), rows: cache.rows })
+      // 工单242 钉组：浮层在场事实下发条带渲染层——所属组被钉住（其余组照常收）
+      ctx.emit('taskbar/popup-state', { family: options.family, open: true })
     } else {
       log?.append({ type: options.events.resized, bounds: w.getBounds(), rows: cache.rows })
     }
