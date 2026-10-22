@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -492,7 +492,7 @@ describe('任务栏页面样式完整性（真机事故回归）', () => {
   })
 })
 
-describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托盘 24px）', () => {
+describe('栏高与图标尺寸（工单158 基线 + 工单240 档位统一：图标 24px/格 36px、托盘 16px）', () => {
   const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
   const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
 
@@ -505,30 +505,37 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
     return body.slice(0, body.indexOf('}'))
   }
 
-  it('应用组图标格位 44px、图标 32px（CSS 落位——观感不小于原生任务栏）', () => {
+  it('应用组图标格位 36px、图标 24px（工单240：与 Win11 原生栏图标同档）', () => {
     const cell = ruleOf('.tb-app')
-    expect(cell).toContain('width: 44px')
-    expect(cell).toContain('height: 44px')
+    expect(cell).toContain('width: 36px')
+    expect(cell).toContain('height: 36px')
     const icon = ruleOf('.tb-app img')
-    expect(icon).toContain('width: 32px')
-    expect(icon).toContain('height: 32px')
+    expect(icon).toContain('width: 24px')
+    expect(icon).toContain('height: 24px')
   })
 
-  it('托盘图标 24px：16px 原生源走最近邻放大档（.tb-tray-px），32px 源按 24 平滑显示', () => {
+  it('应用组溢出钮 ⋯ 同档 36px 格（工单240：与应用图标同格位观感）', () => {
+    const ov = ruleOf('.tb-overflow')
+    expect(ov).toContain('width: 36px')
+    expect(ov).toContain('height: 36px')
+    expect(ov, '⋯ 字号随小格下调（与托盘 ⋯ 钮同档）').toContain('font-size: 13px')
+  })
+
+  it('托盘图标 16px 原生直渲：基础档不挂 pixelated（16px 源 1:1），放大档规则仍在（源更小时才用）', () => {
     const base = ruleOf('.tb-tray-icon img')
-    expect(base).toContain('width: 24px')
-    expect(base).toContain('height: 24px')
-    expect(base, '基础档不得带 pixelated（32px 源缩到 24 需平滑插值）').not.toContain('image-rendering')
+    expect(base).toContain('width: 16px')
+    expect(base).toContain('height: 16px')
+    expect(base, '基础档不得带 pixelated（16px 源 1:1 直渲不放大）').not.toContain('image-rendering')
     const px = ruleOf('.tb-tray-px')
     expect(px, '最近邻放大档必须存在且只挂 image-rendering: pixelated').toContain('image-rendering: pixelated')
   })
 
-  it('托盘放大判据（纯函数）：源小于 24px 需最近邻放大档；≥24px 不需要', () => {
-    expect(TASKBAR_TRAY_ICON_PX).toBe(24)
-    expect(trayIconPixelated(16)).toBe(true) // 16px 原生源放大到 24：最近邻保持锐利
-    expect(trayIconPixelated(20)).toBe(true) // 非常用尺寸但小于显示档同规则
-    expect(trayIconPixelated(24)).toBe(false) // 原生匹配：1:1 无缩放
-    expect(trayIconPixelated(32)).toBe(false) // 32px 源降采样到 24：平滑插值
+  it('托盘放大判据（纯函数）：显示档 16px 时 16px 源 1:1 不挂放大档，源更小才挂', () => {
+    expect(TASKBAR_TRAY_ICON_PX).toBe(16)
+    expect(trayIconPixelated(16)).toBe(false) // 源与显示档等大：1:1 直渲，不挂放大档
+    expect(trayIconPixelated(12)).toBe(true) // 源小于显示档：最近邻放大保持锐利
+    expect(trayIconPixelated(20)).toBe(false) // 源大于显示档：降采样走平滑插值
+    expect(trayIconPixelated(32)).toBe(false) // 32px 源降采样到 16：平滑插值
   })
 
   it('挤撞回正守卫（49 电池 P5 真机红回归钉）：开始组可收窄裁推荐位、系统钮永不裁切', () => {
@@ -540,7 +547,7 @@ describe('栏高与图标尺寸（工单158：48→64、应用图标 32px、托�
     expect(ruleOf('.tb-btn'), '系统钮 flex:none——收窄时永不裁切（被裁即 P5 重演）').toContain('flex: none')
     // 工单160 图标化后推荐位不再吃文字收缩档（.tb-rec 定宽图标格）：极端拥挤的让位面
     // 收敛为 pill maxWidth 收窄整体裁剪（overflow hidden），系统钮 flex:none 优先权不变
-    expect(ruleOf('.tb-rec'), '推荐位图标格定宽（不吃收缩）').toContain('width: 44px')
+    expect(ruleOf('.tb-rec'), '推荐位图标格定宽（不吃收缩）').toContain('width: 36px')
   })
 })
 
@@ -600,13 +607,14 @@ describe('栏高 48 与栏分组几何/材质改版（工单238：48 DIP 回归�
     }
   })
 
-  it('内距重排：竖向内距归零（格 44 + 边框 2 = 46 ≤ 48，内容不再顶出条带窗），横向内距不动', () => {
+  it('内距重排：竖向内距归零（格 36 + 边框 2 = 38 ≤ 48，内容不再顶出条带窗），横向内距不动', () => {
     for (const sel of ['#pill-apps', '.pill']) {
       expect(ruleOf(sel), `${sel} 竖向内距归零（48 内不溢出）`).toContain('padding: 0 8px')
     }
-    // 横向内距 8+8 未动 → 应用组容量算式的派生常量不变（挤撞守卫算式随之不变）
+    // 横向内距 8+8 未动 → 应用组容量算式的派生常量只随工单240 的图标格档位变
+    // （格位 44 → 36，格距 = 格宽 + 组内 column-gap 2 = 38；PILL_PAD_X 与格距无关，不动）
     expect(PILL_PAD_X).toBe(16)
-    expect(CELL_W).toBe(46)
+    expect(CELL_W).toBe(38)
   })
 
   it('组间纯缝隙：组间距常量 8 不变，组 pill 不引入分隔线/分隔边框', () => {
@@ -631,6 +639,81 @@ describe('栏高 48 与栏分组几何/材质改版（工单238：48 DIP 回归�
       'rightPill', 'rightCells', 'trayIcons', 'trayOverflow', 'sliver']) {
       expect(block, `存证帧字段 ${key}`).toContain(`${key}:`)
     }
+  })
+})
+
+describe('图标与字形档位统一（工单240，spec #236 几何常量表右半边：24px 图标 / 36px 格 / 托盘 16px / 右组字号 11）', () => {
+  const html240 = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css240 = /<style>([\s\S]*?)<\/style>/.exec(html240)?.[1] ?? ''
+  const htmlOv240 = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar-overflow.html'), 'utf8')
+  const cssOv240 = /<style>([\s\S]*?)<\/style>/.exec(htmlOv240)?.[1] ?? ''
+  const rendererSrc240 = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/taskbar.ts'), 'utf8')
+  const windowSrc240 = fs.readFileSync(path.resolve(__dirname, '../../src/main/taskbar/window.ts'), 'utf8')
+
+  function rule240(sel: string): string {
+    const i = css240.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    return css240.slice(i, css240.indexOf('}', i))
+  }
+  function ruleOv240(sel: string): string {
+    const i = cssOv240.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    return cssOv240.slice(i, cssOv240.indexOf('}', i))
+  }
+
+  it('开始组同档（工单240 裁决：字形当图标）——按钮格 36×36、字形 24px、名称退 tooltip', () => {
+    const btn = rule240('.tb-btn')
+    expect(btn, '开始组按钮格与应用/推荐组同档 36px').toContain('width: 36px')
+    expect(btn).toContain('height: 36px')
+    expect(btn, '字形放大到 24px 当图标').toContain('font-size: 24px')
+    expect(btn, '图标格不再退化成圆形胶囊（999px 在 36 格里即正圆——随图标格族 10px）')
+      .not.toContain('border-radius: 999px')
+    // 字面即图标：可见文字退到 title/aria-label（可访问名不丢）
+    expect(TASKBAR_BUTTONS.map((b) => b.label)).toEqual(['⊞', '▦'])
+    expect(TASKBAR_BUTTONS.map((b) => b.title)).toEqual(['开始', '任务视图'])
+    expect(rendererSrc240, '渲染层把名称接到 title（图标化后可见名退 tooltip）').toMatch(/el\.title = b\.title/)
+  })
+
+  it('无图标首字母占位同档 24px（工单240：占位与图标同尺寸位——同观感不另起一档）', () => {
+    const letter = rule240('.tb-app-letter, .tb-rec-letter')
+    expect(letter).toContain('width: 24px')
+    expect(letter).toContain('height: 24px')
+  })
+
+  it('托盘格盒显式 28×28（工单240 覆盖审计 D2）：不靠 padding 撑格盒、16px 图标居中', () => {
+    const tray = rule240('.tb-tray-icon')
+    expect(tray, '热区格盒显式给死 28×28（点击手感不随字形缩小）').toContain('width: 28px')
+    expect(tray).toContain('height: 28px')
+    expect(tray, '旧档靠 padding 撑格盒（5px 2px + 24 图标 = 34 格高）——新档不再靠撑')
+      .not.toContain('padding: 5px')
+    expect(tray, '16px 图标在 28 格里水平居中').toContain('justify-content: center')
+  })
+
+  it('右组字号 11 紧凑排版（工单240）：五项指标盒高装进 48 DIP 栏高、不裁切', () => {
+    const cell = rule240('.tb-cell')
+    expect(cell).toContain('font-size: 11px')
+    // 盒高算式（数值取自 CSS 声明，参照系 = 主进程栏高常量）：右组最高格 = max(
+    // .tb-cell 上下内距 + 11px 行高, 托盘格盒 28)；加 pill 边框 2 须 ≤ 栏高 48
+    const bar = Number(/TASKBAR_HEIGHT = (\d+)/.exec(windowSrc240)?.[1])
+    const pad = Number(/padding: (\d+)px/.exec(cell)?.[1] ?? '0')
+    const font = Number(/font-size: (\d+)px/.exec(cell)?.[1] ?? '0')
+    const trayBox = Number(/height: (\d+)px/.exec(rule240('.tb-tray-icon'))?.[1] ?? '0')
+    const tallest = Math.max(pad * 2 + Math.ceil(font * 1.2), trayBox)
+    expect(bar, '栏高常量 = 48 DIP（工单238 落地值）').toBe(48)
+    expect(tallest + 2, '右组最高格 + pill 边框须装进 48 DIP 栏高').toBeLessThanOrEqual(48)
+  })
+
+  it('托盘溢出菜单行图标 16px（工单240：栏内栏外观感一致）', () => {
+    const row = ruleOv240('.ov-row img')
+    expect(row).toContain('width: 16px')
+    expect(row).toContain('height: 16px')
+  })
+
+  it('注释同步（工单240 覆盖审计 D4）：旧的「16px 最近邻放大 / 托盘 24px 升档」说法不得残留', () => {
+    // 档位改了，注释留着即失真（后来人按注释改回旧档）
+    expect(css240, '条带页不得残留「托盘 24px」说法').not.toContain('托盘 24px')
+    expect(rendererSrc240, '渲染层不得残留「16px 原生源挂 .tb-tray-px 最近邻放大」说法')
+      .not.toContain('16px 原生源挂 .tb-tray-px 最近邻放大')
   })
 })
 
@@ -698,8 +781,8 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
   })
 
   it('应用组容量两侧化（纯函数）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位）；窄带/零宽带 0 格', () => {
-    // 常态宽带：1992−8=1984 内容宽，−16 内衬 = 1968 → 42 格（1968/46=42.78 保守取整）
-    expect(appsSlotsFor({ lo: 8, hi: 1992 })).toBe(42)
+    // 常态宽带：1992−8=1984 内容宽，−16 内衬 = 1968 → 51 格（1968/38=51.79 保守取整）
+    expect(appsSlotsFor({ lo: 8, hi: 1992 })).toBe(51)
     // 窄带容不下一格：0
     expect(appsSlotsFor({ lo: 8, hi: 50 })).toBe(0)
     // 零宽带（异常态）：0
@@ -808,14 +891,14 @@ describe('推荐组交互（工单160，fake bridge 驱动）', () => {
     expect(appIconFallbackText({ label: '', exe: 'C:\\Apps\\Beta.exe' })).toBe('B')
   })
 
-  it('推荐位图标格 CSS（图标化形态）：格位 44px/图标 32px 与应用组同观感，无文字截断形态残留', () => {
+  it('推荐位图标格 CSS（图标化形态）：格位 36px/图标 24px 与应用组同观感，无文字截断形态残留', () => {
     const rec = ruleOf160('.tb-rec')
-    expect(rec).toContain('width: 44px')
-    expect(rec).toContain('height: 44px')
+    expect(rec).toContain('width: 36px')
+    expect(rec).toContain('height: 36px')
     expect(rec, '图标格不再收缩让位（文字 ellipsis 形态随图标化退役）').not.toContain('text-overflow')
     const img = ruleOf160('.tb-rec img')
-    expect(img).toContain('width: 32px')
-    expect(img).toContain('height: 32px')
+    expect(img).toContain('width: 24px')
+    expect(img).toContain('height: 24px')
     expect(ruleOf160('.tb-rec-letter'), '无图标键条目首字母占位不出空白格').toContain('font-size')
   })
 })
