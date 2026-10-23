@@ -617,4 +617,21 @@ describe('收栏决策模块的单一来源（工单237 修正 A2/A4）', () => 
     const yieldSrc = readFileSync(path.resolve(APP_ROOT, 'app/src/main/taskbar/yield.ts'), 'utf8')
     expect(yieldSrc).not.toMatch(/COVER_TOLERANCE\s*=\s*\d/)
   })
+
+  it('退役谓词 shouldYieldToFullscreen：生产代码不得再 import（工单249 守卫）', () => {
+    const hits: string[] = []
+    for (const rel of tsFiles(path.resolve(APP_ROOT, 'app/src'))) {
+      const text = readFileSync(path.resolve(APP_ROOT, rel), 'utf8')
+      // 判据取 import 语句形态——注释里的散文提及（说明它为何退役）不算引用
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+      if (/import[^\n]*\bshouldYieldToFullscreen\b/.test(code)) hits.push(rel)
+    }
+    expect(hits).toEqual([])
+  })
+
+  it('退役谓词的头注释显式标注「已退役」并写明档位归属（档位归 resolveBarMode）', () => {
+    const yieldSrc = readFileSync(path.resolve(APP_ROOT, 'app/src/main/taskbar/yield.ts'), 'utf8')
+    expect(yieldSrc).toMatch(/已退役/)
+    expect(yieldSrc).toMatch(/resolveBarMode/)
+  })
 })
