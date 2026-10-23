@@ -103,6 +103,14 @@ function applyBarMode(next: TaskbarBarModeState['mode']): void {
   cursorZone = null
   poppedSig = ''
   hoverSig = ''
+  // 唤出态归零要与 DOM **同拍**（工单249）：只清签名会留下「签名说没弹出、DOM 还带着
+  // .summon-popped」的残态——下次 applySummonView 的早退逻辑（签名没变就不碰 DOM）
+  // 于是跳过 toggle，残态再也抹不掉：下次进收栏态时该组 pill 整组复现，却不在热区集内
+  // （看得见、点不着）。clearPoppedClasses 与上面两行同拍落地，不许分拍。
+  clearPoppedClasses()
+  // 唤出条几何存证帧的去重签名（工单249）：档位一变就清空——几何未变（栏布局没动）
+  // 时再次进收栏态也**要再发一帧**，否则验收侧「等收栏后的新帧」会超时。
+  lastSummonStripsJson = ''
   // 重排：收栏态栏面退场量不到宽度（应用组落位按 offsetWidth 算），复现时必须按可见
   // 几何重算落位——否则复现的栏面位置是收栏态的残值。render 内含热区与几何帧重声明。
   if (current) requestRender(current)
@@ -153,6 +161,20 @@ const SUMMON_GROUP_LABEL: Record<string, string> = {
   apps: '应用组',
   right: '右组',
   showdesk: '显示桌面',
+}
+
+/**
+ * 撤掉全部组的 .summon-popped（唤出态归零的 DOM 那一半）。
+ *
+ * 与 poppedSig 归零**同拍**调用（applyBarMode 内，两行紧邻）：两者分拍就留下残态——
+ * 签名已清、DOM 还带着类，下次 applySummonView 的早退逻辑（签名没变就不碰 DOM）
+ * 跳过 toggle，残态再也抹不掉：收栏态里该组 pill 整组可见、却不在热区集内。
+ *
+ * 与 applySummonView 里的 toggle 循环是同一件事的两面：那边按「弹出的组」逐组置位，
+ * 这边按「唤出态归零」整体清场——两者合起来保证「签名说没弹出」与「DOM 没带类」恒等。
+ */
+function clearPoppedClasses(): void {
+  for (const el of Object.values(SUMMON_GROUP_ELEMENT)) el.classList.remove('summon-popped')
 }
 
 /** 唤出交互状态（归约体在 shared/retract 的 reduceSummon——本层只喂事件与对账事实） */
