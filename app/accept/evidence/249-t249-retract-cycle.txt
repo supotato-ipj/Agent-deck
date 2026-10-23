@@ -1,0 +1,15 @@
+工单249 真机取证探针（t249-retract-cycle-probe.js）——最大化收栏循环 × 唤出态归零
+运行时刻：2026-10-23T01:21:39.990Z
+事件档：C:\Users\ANW~1\AppData\Local\Temp\t249-retract-cycle-events.jsonl
+
+面板 pid=82932 条带窗 hwnd=14487048
+探针窗 hwnd=1576688 已最大化
+① 进收栏态：taskbar-retract @1792718495470
+② 悬停 right 组唤出条 @(2252,1436)：right-pill.className="pill summon-popped"
+③ 取消最大化：taskbar-retract-lifted @1792718497115
+④ 再进收栏态：taskbar-retract @1792718498329
+⑤ 收栏态各组 class：[{"id":"pill-start","cls":"pill"},{"id":"pill-recs","cls":"pill"},{"id":"pill-apps","cls":""},{"id":"right-pill","cls":"pill"},{"id":"show-desktop","cls":""}]
+⑥ taskbar-summon-strips 帧：全程 2 帧 / 第二轮 1 帧
+F1 ✅ 收栏态栏面无未唤出的组残留（.summon-popped 已归零）
+F2 ✅ 第二次进收栏态再发了 1 帧 taskbar-summon-strips（等帧不得超时）
+退出码 0（F1/F2 全过）
