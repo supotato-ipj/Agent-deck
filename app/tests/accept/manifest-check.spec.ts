@@ -303,9 +303,9 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     const r = validateManifest({ manifest, sources, sourceTree })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
-    // 94 段全部有归属域：段级或电池级至少一处登记
+    // 98 段全部有归属域：段级或电池级至少一处登记（工单243 增四段唤出条交互段：94 → 98）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(94)
+    expect(total).toBe(98)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
