@@ -16,8 +16,8 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
-import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import type { AppsBand, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
 import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
@@ -130,6 +130,10 @@ let summonPillCache: Array<{ group: string; x: number; width: number }> = []
 function cacheSummonPills(state: TaskbarState): void {
   // 收栏态：栏面退场量不到矩形——保留收栏前最后一帧的缓存，不覆写
   if (barMode === 'maximize-retract') return
+  // 让位态（工单253）：整窗退场（隐藏）⇒ 同样量不到矩形。缓存是收栏态布局的**唯一来源**
+  // （空带两侧边界与唤出条几何都取它）——被零值覆写会让「全屏退出回到最大化窗」
+  // （spec 用户故事 28）这条接力路径上的唤出条与已唤出的组全废（条宽 0、组容量 0）。
+  if (barMode === 'fullscreen-yield') return
   const vm = taskbarViewModel(state)
   const m = measure()
   const pills: Array<{ group: string; x: number; width: number }> = []
@@ -596,40 +600,83 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   return el
 }
 
+/**
+ * 栏面是否在场（工单253）：收栏态（maximize-retract）**栏面退场**——各组 pill 与显示桌面
+ * 细条全部 display:none（只剩被唤出的组复现）。
+ *
+ * 退场邻组的几何对当前布局**无意义**（实测宽度 0）：挤撞守卫若照量，会把已唤出的组按 0 宽
+ * 裁剪（开始/推荐组被裁成 18px 空壳、应用组只剩「⋯」溢出钮 ⇒ 应用图标与推荐条目点不到，
+ * 工单243 真机取证）。收栏态的处置：**布局冻结在收栏那一刻**——挤撞守卫与落位都不重算
+ * （已唤出的组沿用收栏前的几何），唤出条镜像的也是同一份收栏前矩形 ⇒ 条与组同宽同位
+ * （用户故事 13「位置记忆不打架」）。
+ */
+function barSurfaceOnStage(): boolean {
+  return barMode !== 'maximize-retract'
+}
+
 /** 开始组钉条带左缘（工单159 布局重排）：位置由 CSS（#pill-start left:8px）钉死——旧
  * positionStartPill 的屏幕居中 + [应用组右缘, 右组左缘] 夹取随布局反转退役。唯一守卫 =
  * 极端拥挤（26+ 托盘右组宽出）时 maxWidth 收窄到右组左缘前——系统钮 flex:none 永不裁切
  * （工单158 P5 真机红回归钉的守卫保留；推荐位图标格已随工单192 拆出，让位面迁 clampRecPillWidth）。
  * 只在结构性重渲落位：右组 1Hz 指标文本宽度抖动（±45px）不传导（applyStatus 不动 pill），
- * 电池的 settle 几何因此跨拍稳定。 */
+ * 电池的 settle 几何因此跨拍稳定。
+ *
+ * 工单253：收栏态栏面退场 ⇒ 右组量不到（宽度 0）⇒ 守卫不跑（退场邻组不参与裁剪），
+ * 已唤出的组沿用收栏前的收窄结果。 */
 function clampStartPillWidth(): void {
   if (pillStart.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：退场邻组不参与裁剪（守卫不按 0 宽裁已唤出的组）
   const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - APPS_INSET
   pillStart.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
 /** 推荐组落位（工单192 独立拆出）：开始组右缘+组间距（开始组整组不渲染时退条带左缘内衬
  * ——两组显隐解耦后推荐组可独自在场）。内容装配完同步落位——无中间帧闪烁；推荐组不渲染
- * （无推荐位）不落位 */
+ * （无推荐位）不落位。
+ *
+ * 工单253：收栏态不落位（栏面退场、开始组量不到，落位会漂到条带左缘）——沿用收栏前的
+ * 落位（唤出条镜像同一份矩形 ⇒ 条与组同位）。 */
 function positionRecPill(): void {
   if (pillRecs.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
   const left = pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP
   pillRecs.style.left = `${Math.round(left)}px`
 }
 
 /** 推荐组拥挤守卫（工单158 守卫语义随工单192 拆出随迁）：极端拥挤（26+ 托盘右组宽出）
  * 时 maxWidth 收窄到右组左缘前——推荐位图标格随 pill 整体裁剪（定宽格不吃文字收缩档，
- * overflow hidden），与 clampStartPillWidth 同族。 */
+ * overflow hidden），与 clampStartPillWidth 同族。
+ *
+ * 工单253：收栏态不跑（退场的右组量不到 ⇒ 收窄值是 0 ⇒ 推荐位被裁成空壳、点不到）。 */
 function clampRecPillWidth(): void {
   if (pillRecs.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：退场邻组不参与裁剪
   const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - pillRecs.getBoundingClientRect().left
   pillRecs.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
+/** 收栏前缓存的各组 pill 区间（收栏态的布局来源——与唤出条镜像的**同一份**矩形） */
+function cachedSpan(group: string): GroupPillSpan | undefined {
+  const p = summonPillCache.find((r) => r.group === group)
+  return p ? { x: p.x, width: p.width } : undefined
+}
+
 /** 应用组空带（工单159，工单192 左邻随推荐组拆出随迁）：[左邻组右缘, 右组左缘] —— 居中
  * 参照系与两侧容量边界同源。左邻按推荐组优先（appsBandLeft 纯函数裁决：推荐组在场取其
- * 右缘，缺席回退开始组右缘，都不在场退条带左缘内衬） */
+ * 右缘，缺席回退开始组右缘，都不在场退条带左缘内衬）
+ *
+ * 工单253：收栏态栏面退场、活邻组量不到（实测宽度 0）⇒ 常态口径算出的空带是零宽带（容量
+ * 0 格 ⇒ 应用条目全被塞进「⋯」溢出，组被压成 54px 的溢出钮）。收栏态改取**收栏前缓存的
+ * 区间**（唤出条镜像的同一份）⇒ 容量与收栏前一致，已唤出的组拿到可点击的宽度。 */
 function currentAppsBand(): AppsBand {
+  if (!barSurfaceOnStage()) {
+    // 收栏态：两侧边界取收栏前缓存（退场邻组不参与裁剪；右组缺位 ⇒ 右界不设限）
+    return appsBandFromSpans({
+      start: cachedSpan('start'),
+      recs: cachedSpan('recs'),
+      right: cachedSpan('right'),
+    })
+  }
   return appsBand(
     appsBandLeft(
       pillRecs.hidden ? null : pillRecs.getBoundingClientRect().right,
@@ -643,9 +690,12 @@ function currentAppsBand(): AppsBand {
  * 不随开始组/推荐组/右组宽度漂移，推荐增删/托盘档位切换后结构性重渲自动回正；带外夹取
  * 维持现状、带宽不足钉带左缘）。锚点取 innerWidth/2：条带窗横跨主屏全宽且窗 x = 屏 x
  * （stripBounds 通栏口径，降级净空只让纵向），视口中线即屏幕水平中心线。pill 宽度按
- * offsetWidth 实测（border-box，含内衬边框），内容装配完同步落位——无中间帧闪烁 */
+ * offsetWidth 实测（border-box，含内衬边框），内容装配完同步落位——无中间帧闪烁
+ *
+ * 工单253：收栏态不落位（沿用收栏前的落位——与唤出条镜像的矩形同位）。 */
 function positionAppsPill(band: AppsBand): void {
   if (pillApps.style.display === 'none') return
+  if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
   pillApps.style.left = `${appsPillLeft(band, pillApps.offsetWidth, window.innerWidth / 2)}px`
 }
 

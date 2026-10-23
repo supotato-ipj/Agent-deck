@@ -224,6 +224,9 @@ export function startPopupMenuCarrier(options: PopupMenuCarrierOptions): PopupMe
     dispose() {
       const w = win
       win = null
+      // 工单253：销窗即「浮层不在场」——所属组解除钉住、档位裁决的「自家浮层在场」位归零
+      // （浮层在场时前台探针看到自家进程 ⇒ 收栏档保持；浮层没了就不该再钉着档位）
+      ctx.emit('taskbar/popup-state', { family: options.family, open: false })
       if (!w || w.isDestroyed()) return
       w.destroy()
       log?.append({ type: options.events.closed, reason: 'dispose' })

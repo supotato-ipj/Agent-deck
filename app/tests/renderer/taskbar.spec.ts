@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -814,6 +814,32 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
     expect(appsPillLeft({ lo: 100, hi: 500 }, 450, 300)).toBe(100)
     // 零宽带（异常态）：钉带左缘（等下一拍）
     expect(appsPillLeft({ lo: 2408, hi: 2408 }, 46, 1204)).toBe(2408)
+  })
+
+  it('收栏态空带（纯函数，工单253）：由收栏前缓存的各组区间反推——退场邻组不参与裁剪', () => {
+    // 收栏态栏面退场、邻组实测宽度为 0 ⇒ 空带两侧边界取**收栏前最后一帧**的区间
+    // （唤出条镜像的同一份）——已唤出的应用组因此不被压成零宽、条目不被全塞进「⋯」。
+    // 左邻=推荐组右缘 336（+组间距 8）→ 344；右界=右组左缘 1600（−组间距 8）→ 1592
+    expect(appsBandFromSpans({
+      start: { x: 8, width: 120 },
+      recs: { x: 136, width: 200 },
+      right: { x: 1600, width: 280 },
+    })).toEqual({ lo: 344, hi: 1592 })
+    // 推荐组不在场 ⇒ 左邻回退开始组右缘 128（+8）→ 136
+    expect(appsBandFromSpans({
+      start: { x: 8, width: 120 },
+      right: { x: 1600, width: 280 },
+    })).toEqual({ lo: 136, hi: 1592 })
+    // 两个左邻都不在场 ⇒ 左界退条带左缘内衬 8
+    expect(appsBandFromSpans({ right: { x: 1600, width: 280 } })).toEqual({ lo: 8, hi: 1592 })
+    // 右组不在场（缓存缺位）⇒ 右界不设限：容量放开，不裁剪
+    expect(appsBandFromSpans({ start: { x: 8, width: 120 } })).toEqual({ lo: 136, hi: Number.POSITIVE_INFINITY })
+  })
+
+  it('收栏态空带与常态空带同口径（纯函数，工单253）：同一份区间 ⇒ 同一条带', () => {
+    // 常态口径（量活邻组）与收栏态口径（量收栏前缓存）给同一组区间 ⇒ 同一条带
+    const spans = { start: { x: 8, width: 120 }, recs: { x: 136, width: 200 }, right: { x: 1600, width: 280 } }
+    expect(appsBandFromSpans(spans)).toEqual(appsBand(appsBandLeft(336, 128), 1600))
   })
 })
 
