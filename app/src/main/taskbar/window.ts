@@ -274,6 +274,25 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     trayOverflow, appMenuPopup, recMenuPopup, blankMenuPopup, tierMenuPopup, winsMenuPopup,
   ]
 
+  /**
+   * 自家自绘浮层在场的家族集合（工单253）。
+   *
+   * 六面浮层开层即取前台（focusable: true + show 取焦——blur 收「点面板外」的前提）⇒
+   * 主进程的前景探针看到的是**自家进程** ⇒ 档位裁决按「自家进程」这一族处理。若一律
+   * 判 visible，收栏档会被浮层开层当场翻掉：栏面复现、唤出态被工单249 的 F1 同拍清空
+   * ⇒「浮层在场只钉住所属组、离场不塌」（spec #236 用户故事 21）在真机上不可观测
+   * （存证实测：taskbar-tier-menu-opened → taskbar-retract-lifted 仅隔 99ms）。
+   *
+   * 在场事实取载体的开合事件（taskbar/popup-state——六面同一通道、载体是唯一收口）：
+   * 裁决据此把「自家浮层夺前台」（档位保持）与「面板本体被点成前台」（仍判 visible，
+   * 既有语义不变）分清。
+   */
+  const openOverlayFamilies = new Set<string>()
+  const offPopupState = ctx.on('taskbar/popup-state', (p) => {
+    if (p.open) openOverlayFamilies.add(p.family)
+    else openOverlayFamilies.delete(p.family)
+  })
+
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
   // （不上 PanelDataPort：本地装配无宿主概念，缺席即静默跳过）。
@@ -514,6 +533,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
           ownPid: process.pid,
           retractEnabled: ctx.taskbar.state().maximizeRetract, // 工单239 开关（默认开，关则永不为收栏档）
           appBarDegraded: s.appBarDegraded,
+          prevMode: s.mode, // 工单253：自家浮层夺前台时沿用当前档位（不翻收栏档）
+          ownOverlayPresent: openOverlayFamilies.size > 0, // 工单253：自家浮层在场（与「面板本体被点」分清）
         })
         applyBarMode(s, mode, probe)
       }, YIELD_POLL_MS)
@@ -637,6 +658,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       screen.removeListener('display-metrics-changed', onDisplayMetrics)
       offChanged()
       offTrayBegin()
+      offPopupState() // 工单253：退订浮层在场订阅（不留悬挂监听）
       destroy('dispose')
     },
   }
