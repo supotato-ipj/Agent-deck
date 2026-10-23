@@ -975,6 +975,45 @@
           "estSeconds": 3
         },
         {
+          "seg": "P6",
+          "ticket": 244,
+          "title": "最大化收栏：前台真最大化窗 → 注销 AppBar（taskbar-retract appBar=removed + taskbar-appbar-removed 存证）→ 占位释放；解除最大化 → 重注册（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 占位恢复",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P7",
+          "ticket": 244,
+          "title": "三态优先级：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P8",
+          "ticket": 244,
+          "title": "降级档禁用：AppBar 注册失败 ⇒ 收栏整体禁用（降级档在场则断「无占位 + 无收栏让位存证 + 条带在场」三后果；健康档则断收栏存证 appBar 字段 removed/registered——占位在场才谈得上收栏）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 1,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
           "seg": "P5",
           "ticket": 51,
           "title": "卸载归还：面板退出即注销 AppBar、工作区回基线",
@@ -1061,6 +1100,20 @@
             "event-evidence"
           ],
           "estSeconds": 25
+        },
+        {
+          "seg": "P8",
+          "ticket": 244,
+          "title": "图标档位：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 托盘溢出菜单行图标 16px + 行高 30（CDP computed style 与 taskbar-geometry 存证帧两路互证）",
+          "surfaces": [
+            "pixel",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar",
+            "taskbar.menu"
+          ]
         }
       ],
       "areas": [
