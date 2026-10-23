@@ -86,6 +86,17 @@ export interface BarModeInput {
   retractEnabled: boolean
   /** 降级档标记（AppBar 注册失败）——降级档下收栏整体禁用（与全屏让位同待遇） */
   appBarDegraded: boolean
+  /**
+   * 当前档位（工单253）——「保持」裁决的返回值：自家浮层夺前台时沿用它、不做迁移。
+   * 缺省 = 'visible'（旧调用方不传即旧口径）。
+   */
+  prevMode?: BarMode
+  /**
+   * 自家自绘浮层在场（六面：托盘溢出/档位/应用组菜单/多窗选窗/推荐条目/空白菜单）——
+   * 工单253：浮层开层即取前台 ⇒ 前台探针看到的是**自家进程**。此位为真时，
+   * 「自家进程成前台」不再按「面板本体被点了」处理，而是**保持当前档位**。
+   */
+  ownOverlayPresent?: boolean
 }
 
 /**
@@ -99,11 +110,24 @@ export interface BarModeInput {
  * 全屏让位翻掉，栏隐藏且没有唤出条，收栏功能等于没做。既有实现下最大化窗从不触发全屏
  * 让位（AppBar 占着 48px，矩形不满足覆盖），这条排除把全屏让位的既有语义保住。
  * 真最大化窗因此**永不**落 fullscreen-yield：闸门没过时落 visible，不落让位。
+ *
+ * 「自家进程成前台」这一支分两说（工单253）：
+ * - 自家自绘浮层在场（浮层开层即取前台）⇒ **保持当前档位**，不做迁移。理由：浮层是收栏
+ *   态某个组的延伸（托盘溢出/档位菜单属右组等），翻档等于当场解除收栏并清空唤出态
+ *   （唤出态的清理由工单249 的 F1 同拍落地）⇒「浮层在场只钉住所属组、离场不塌」
+ *   （spec #236 用户故事 21）在真机上根本不可观测（浮层一开档位就走了）。
+ * - 自家浮层不在场 ⇒ 面板本体被点成前台 ⇒ visible（既有语义不变：不收自己的栏）。
  */
 export function resolveBarMode(input: BarModeInput): BarMode {
   const { probe, screen, ownPid, retractEnabled, appBarDegraded } = input
+  const prevMode = input.prevMode ?? 'visible'
+  const ownOverlayPresent = input.ownOverlayPresent ?? false
   if (!probe) return 'visible'
-  if (probe.pid === ownPid) return 'visible'
+  if (probe.pid === ownPid) {
+    // 自家浮层夺前台 ⇒ 档位保持（收栏档不被翻掉；工单253）
+    if (ownOverlayPresent) return prevMode
+    return 'visible'
+  }
   if (DESKTOP_HOST_CLASSES.includes(probe.className)) return 'visible'
   // ① 真最大化 → 收栏档（开关关断 / 降级档禁用两道闸门）
   if (probe.zoomed) {

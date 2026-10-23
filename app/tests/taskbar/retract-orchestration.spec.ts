@@ -211,6 +211,22 @@ describe('控制器接线（工单241 三态机；效果层离线不可测，以
     const machine = code.slice(code.indexOf('applyBarMode'), code.indexOf('applyBarMode') + 3000)
     expect(machine).not.toMatch(/setBounds|setPosition/)
   })
+
+  it('自家浮层夺前台不翻收栏档（工单253）：在场事实喂进裁决，且带上当前档位', () => {
+    // 在场事实取六面浮层的开合事件（同一通道 taskbar/popup-state——载体是唯一收口）
+    expect(code).toMatch(/ctx\.on\('taskbar\/popup-state'/)
+    // 裁决输入带「自家浮层在场」与「当前档位」两个位（纯函数侧据此判「保持」）
+    expect(code).toMatch(/ownOverlayPresent:\s*openOverlayFamilies\.size > 0/)
+    expect(code).toMatch(/prevMode:\s*s\.mode/)
+  })
+
+  it('浮层在场集合随浮层收层/销窗清账（工单253：不在场的浮层不得钉住档位）', () => {
+    // 载体收层与销窗都发「浮层不在场」事实（popup.ts 是六面唯一收口）
+    const popup = srcOf('app/src/main/taskbar/popup.ts')
+    expect(popup).toMatch(/taskbar\/popup-state'[^)]*open: false/)
+    // 控制器退场时退订该订阅（不留悬挂监听）
+    expect(code).toMatch(/offPopupState\(\)/)
+  })
 })
 
 describe('三态下发契约（工单241：主进程 → 条带渲染层）', () => {
