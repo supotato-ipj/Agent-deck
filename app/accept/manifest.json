@@ -977,12 +977,12 @@
         {
           "seg": "P6",
           "ticket": 244,
-          "title": "最大化收栏：前台真最大化窗 → 注销 AppBar（taskbar-retract 存证 appBar=removed）→ SPI_GETWORKAREA 还回整屏、最大化窗铺满整屏；解除最大化 → 重注册（taskbar-retract-lifted appBar=registered）→ 工作区回缩 48",
+          "title": "最大化收栏：前台真最大化窗 → 注销 AppBar（taskbar-retract appBar=removed + taskbar-appbar-removed 存证）→ 占位释放；解除最大化 → 重注册（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 占位恢复",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8,
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]
@@ -990,12 +990,12 @@
         {
           "seg": "P7",
           "ticket": 244,
-          "title": "三态优先级：全屏让位压过收栏（全屏态条带整窗退场 + 占位回缩 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落、工作区还回整屏）",
+          "title": "三态优先级：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 10,
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]
@@ -1008,7 +1008,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 3,
+          "estSeconds": 1,
           "areas": [
             "taskbar"
           ]
@@ -1109,7 +1109,7 @@
             "pixel",
             "event-evidence"
           ],
-          "estSeconds": 8,
+          "estSeconds": 4,
           "areas": [
             "taskbar",
             "taskbar.menu"

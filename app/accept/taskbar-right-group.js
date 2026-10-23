@@ -784,8 +784,10 @@ async function main() {
       if (probe8Keys.length && probe8Keys.every((k) => r8.includes(k))) break;
       await sleep(400);
     }
+    // 几何帧（格盒矩形）：渲染层只在**栏面几何变化**时重发（payload 未变即不发）——
+    // 探针枚数增加不改变栏面（默认档 5 可见），故取「最新一帧」而不设时间门。
     const geo8 = await waitLastEvent('taskbar-geometry',
-      (e) => e.trayIcons && e.trayIcons.length > 0 && e.trayOverflow, 8000, { since: since8 });
+      (e) => e.trayIcons && e.trayIcons.length > 0 && e.trayOverflow, 8000, {});
     // 托盘图标显示档（CDP computed style）+ 1:1 直渲判据（源 < 16px 才挂 pixelated）
     let sizes8 = null;
     for (let i = 0; i < 10; i++) {
