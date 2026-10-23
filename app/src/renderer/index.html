@@ -379,7 +379,8 @@
     align-items: center;
     column-gap: 10px;
   }
-  #settings-taskbar-row { margin-top: 10px; }
+  #settings-taskbar-row,
+  #settings-maximize-retract-row { margin-top: 10px; }
   .set-row .set-label {
     font-size: 10px;
     letter-spacing: 0.2em;
@@ -399,6 +400,7 @@
     text-align: right;
   }
   #taskbar-toggle,
+  #maximize-retract-toggle,
   #settings-cards-list .card-toggle {
     flex: 1;
     min-width: 0;
@@ -407,6 +409,7 @@
     cursor: pointer;
   }
   #taskbar-toggle-state,
+  #maximize-retract-toggle-state,
   #settings-cards-list .card-toggle-state {
     font-size: 11px;
     color: #fff;
@@ -540,6 +543,14 @@
     <span class="set-label">TASKBAR</span>
     <input id="taskbar-toggle" type="checkbox" aria-label="自绘任务栏接管（关闭即还原原生任务栏）">
     <span id="taskbar-toggle-state">ON</span>
+  </div>
+  <!-- 最大化收栏开关（工单239）：与「接管原生任务栏」语义不同，独立成行——
+       前台窗口真最大化时任务栏自动收栏；默认开，关掉即回到「最大化窗不收栏、栏常驻」
+       的旧行为（工单158 之前的栏高 64/48 常驻语义）。切换即时生效，不必重启面板。 -->
+  <div id="settings-maximize-retract-row" class="set-row">
+    <span class="set-label">MAX RETRACT</span>
+    <input id="maximize-retract-toggle" type="checkbox" aria-label="最大化收栏（前台窗口真最大化时任务栏自动收栏）">
+    <span id="maximize-retract-toggle-state">ON</span>
   </div>
   <!-- 卡片显隐开关（工单101）：行由 main.ts 从快照插件清单 + 停用集动态装配
        （全部已发现插件包，含上下文菜单 shell；设置浮层自身是内核 DOM 不在列）。

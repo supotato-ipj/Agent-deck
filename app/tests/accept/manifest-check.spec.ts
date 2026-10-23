@@ -303,9 +303,11 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     const r = validateManifest({ manifest, sources, sourceTree })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
-    // 94 段全部有归属域：段级或电池级至少一处登记
+    // 102 段全部有归属域：段级或电池级至少一处登记
+    // （94 → 98：工单244 增段——51 电池 +P6/P7/P8、55 电池 +P8；98 → 102：工单243 增段
+    //   ——49 电池 +P22/P23/P24/P25 唤出条交互段）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(94)
+    expect(total).toBe(102)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -372,11 +374,11 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：34 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：35 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(34)
-    expect(manifest.requiredFileRules!.length).toBe(34)
+    expect(fileRules.length).toBe(35)
+    expect(manifest.requiredFileRules!.length).toBe(35)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

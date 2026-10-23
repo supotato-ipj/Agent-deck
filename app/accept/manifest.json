@@ -604,8 +604,8 @@
       "cdpPort": 9228,
       "kind": null,
       "budgetSeconds": 240,
-      "lastMeasuredSeconds": 168,
-      "lastMeasuredAt": "2026-10-15",
+      "lastMeasuredSeconds": 185,
+      "lastMeasuredAt": "2026-10-23",
       "segments": [
         {
           "seg": "P1",
@@ -729,23 +729,23 @@
         },
         {
           "seg": "P13",
-          "ticket": 158,
-          "title": "栏高与图标尺寸（48→64DIP、应用图标 32px/格位 44px、托盘 24px+最近邻放大档）：CDP computed style 与几何存证互证",
+          "ticket": 247,
+          "title": "栏高与图标尺寸（工单238/240 落地值：条带 48DIP、应用组图标 24px/格位 36×36、托盘 16px 原生直渲+源<16px 最近邻放大档）：CDP computed style 与几何存证互证",
           "surfaces": [
             "pixel",
             "event-evidence"
           ],
-          "estSeconds": 8
+          "estSeconds": 3
         },
         {
           "seg": "P15",
-          "ticket": 159,
-          "title": "栏分组布局重排：开始组钉左/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
+          "ticket": 247,
+          "title": "栏分组布局重排：开始组钉左+撑满栏高 48DIP（工单238 栏高口径）/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
           "surfaces": [
             "event-evidence",
             "pixel"
           ],
-          "estSeconds": 5
+          "estSeconds": 3
         },
         {
           "seg": "P15B",
@@ -759,13 +759,13 @@
         },
         {
           "seg": "P16",
-          "ticket": 160,
-          "title": "推荐组交互主体：图标化上限5（.tb-rec 图标格）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁；③右键三行随工单196 迁浮层窗 DECK-TASKBAR-REC-MENU，横排退役断言扩全条带）",
+          "ticket": 247,
+          "title": "推荐组交互主体：图标化上限5（.tb-rec 36×36 图标格，工单240 格位档位）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁；③右键三行随工单196 迁浮层窗 DECK-TASKBAR-REC-MENU，横排退役断言扩全条带）",
           "surfaces": [
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 30
+          "estSeconds": 24
         },
         {
           "seg": "P17",
@@ -775,7 +775,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 30
+          "estSeconds": 19
         },
         {
           "seg": "P19",
@@ -815,7 +815,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 20
+          "estSeconds": 5
         },
         {
           "seg": "P20",
@@ -827,6 +827,64 @@
             "system-state"
           ],
           "estSeconds": 35
+        },
+        {
+          "seg": "P22",
+          "ticket": 243,
+          "title": "唤出条悬停 150ms 弹出（用户故事 16）：快速扫过（停留 60ms < 150ms）命中条带但不得误触发；停驻悬停后弹出且弹出时刻 ≥ 移动后 150ms（机器时刻戳取热区声明）；栏面退场（非弹出组 display:none）+ 弹出组复现在 48px 带内且叠在最大化窗之上（命中测试落在条带窗）；段前置含「建真最大化参照窗 → 进收栏档」",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar",
+            "taskbar.menu"
+          ]
+        },
+        {
+          "seg": "P23",
+          "ticket": 243,
+          "title": "唤出条点击立即弹出（用户故事 17，不吃 150ms 悬停延迟）：点击→弹出 < 150ms，且弹出时刻早于热区开门时刻+150ms——悬停路径结构上不可能这么早（悬停起算点 ≥ 开门时刻），故只能是点击路径；DOM .summon-popped 在场",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 1,
+          "areas": [
+            "taskbar",
+            "taskbar.menu"
+          ]
+        },
+        {
+          "seg": "P24",
+          "ticket": 243,
+          "title": "唤出条 400ms 宽限（用户故事 20）：指针压在已弹出 pill 上时保持弹出（宽限作废）；鼠标离开后 150ms 仍弹出（宽限未到，非瞬时塌）；塌陷于离开后 ≥350ms（400ms 宽限减去离开检测滞后，机器时刻戳取热区声明）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 2,
+          "areas": [
+            "taskbar",
+            "taskbar.menu"
+          ]
+        },
+        {
+          "seg": "P25",
+          "ticket": 243,
+          "title": "唤出条按组独立 + 浮层在场（用户故事 19/21）：两组同存（唤出热区声明同时含两组 pill 命中区——弹一组不影响另一组）；非所属组按自己的宽限收起而另一组仍在场（其余组照常收）；所属组开出自绘浮层且开层那一拍所属组仍在弹出态（「钉住后离场不塌」真机不可观测：自绘浮层夺前台⇒收栏档被档位迁移打断，缺口留证见交付报告）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 3,
+          "areas": [
+            "taskbar",
+            "taskbar.menu"
+          ]
         }
       ],
       "areas": [
@@ -848,13 +906,13 @@
       "segments": [
         {
           "seg": "A1",
-          "ticket": 50,
-          "title": "接管开启：原生任务栏隐藏 + 条带落屏底",
+          "ticket": 247,
+          "title": "接管开启：原生任务栏隐藏 + 条带落屏底（条带高 48DIP，工单238 栏高口径）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 6
+          "estSeconds": 4
         },
         {
           "seg": "A2",
@@ -975,6 +1033,45 @@
           "estSeconds": 3
         },
         {
+          "seg": "P6",
+          "ticket": 244,
+          "title": "最大化收栏：前台真最大化窗 → 注销 AppBar（taskbar-retract appBar=removed + taskbar-appbar-removed 存证）→ 占位释放；解除最大化 → 重注册（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 占位恢复",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P7",
+          "ticket": 244,
+          "title": "三态优先级：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P8",
+          "ticket": 244,
+          "title": "降级档禁用：AppBar 注册失败 ⇒ 收栏整体禁用（降级档在场则断「无占位 + 无收栏让位存证 + 条带在场」三后果；健康档则断收栏存证 appBar 字段 removed/registered——占位在场才谈得上收栏）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 1,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
           "seg": "P5",
           "ticket": 51,
           "title": "卸载归还：面板退出即注销 AppBar、工作区回基线",
@@ -1061,6 +1158,20 @@
             "event-evidence"
           ],
           "estSeconds": 25
+        },
+        {
+          "seg": "P8",
+          "ticket": 244,
+          "title": "图标档位：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 托盘溢出菜单行图标 16px + 行高 30（CDP computed style 与 taskbar-geometry 存证帧两路互证）",
+          "surfaces": [
+            "pixel",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
+          "areas": [
+            "taskbar",
+            "taskbar.menu"
+          ]
         }
       ],
       "areas": [
@@ -1490,6 +1601,10 @@
       "area": "taskbar"
     },
     {
+      "path": "app/src/shared/retract.ts",
+      "area": "taskbar"
+    },
+    {
       "path": "app/accept",
       "area": "accept"
     },
@@ -1538,6 +1653,7 @@
     { "path": "app/src/renderer/tray-pixels.ts", "area": "taskbar" },
     { "path": "app/src/renderer/zone-hotzone.ts", "area": "hotzone" },
     { "path": "app/src/shared/overflow.ts", "area": "taskbar" },
+    { "path": "app/src/shared/retract.ts", "area": "taskbar" },
     { "path": "app/accept/manifest.json", "area": "accept", "wires": "*" }
   ]
 }

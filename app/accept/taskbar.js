@@ -22,10 +22,10 @@
 //      重启用即收编（宿主重建 + 名单回填），停→起→停整周期（类注销对称性）
 //   P12 宿主守恒（#153）：禁用态数据面强杀重启不复活宿主（respawn 按期望态）、
 //      启态禁用（config 门禁）不建宿主
-//   P13 栏高与图标尺寸（工单158）：条带 48→64DIP；应用组图标 32px/格位 44px；
-//      托盘图标 24px（16px 源最近邻放大档、32px 源平滑降采样）——CDP computed
-//      style 与几何存证帧互证；应用格位用 notepad 探针（栏上无应用时 1Hz 编排轮
-//      1–2s 内上栏）
+//   P13 栏高与图标尺寸（工单247 改写口径；工单238 栏高 48DIP + 工单240 图标档位）：条带
+//      48DIP；应用组图标 24px/格位 36×36；托盘图标 16px 原生直渲（源 <16px 才算最近邻
+//      放大档、≥16px 不挂 pixelated）——CDP computed style 与几何存证帧互证；应用格位
+//      用 notepad 探针（栏上无应用时 1Hz 编排轮 1–2s 内上栏）
 //   P15 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
 //      带内落位（不与邻组重叠）、右组与细条位置不变——几何存证帧与 CDP computed style
 //      互证；居中语义随工单190 移交 P15B（原「空带居中+随带回正」断言退役）
@@ -37,7 +37,7 @@
 //   出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）→ 点行选窗存证+
 //   前台对账+行点即收 → 点外即收（时钟格转达 strip-click）
 //   P16 推荐组交互主体（工单160）：五条 usage 种子探针确定性占满推荐位（先于面板种入
-//      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 44 格/32 图标
+//      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 36 格/24 图标
 //      img/首字母占位，无显示名文本残留）、左键启动（真点击→rec-click 存证→cmd 副本
 //      真进程出场；notepad 副本弃用见 seedRecsProbes 注）、右键三行菜单（手钉到任务栏/从推荐栏移除/打开文件位置，工单161）+手钉
 //      即时迁移（推荐组消失
@@ -64,7 +64,7 @@
 //      运行序段=会话态不落盘；q3 钉入后只在手钉段，两半各配一次重启）。
 //      探针复用 P18 的 csc WinForms 副本×3。
 // 运行：npm run accept:taskbar（= electron . --accept-taskbar）。
-const { app, screen } = require('electron');
+const { app, screen, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
@@ -93,7 +93,7 @@ const handle = createPanelHandle({
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
+const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 栏高回归 48 DIP）
 const VK_ESC = 0x1b;
 
 const koffi = win32.koffi;
@@ -102,6 +102,9 @@ const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd,
 // 按类名走 Z 序枚举（nativeTrayWnd 同法）：Shell_TrayWnd 竞争窗是 0×0 隐藏窗，
 // topLevelWindows() 只收可见窗永远看不见它（红轮实证枚举=0 而宿主在场收编 23 条）
 const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)');
+// 工单243：真最大化判据（与主进程 shared/retract 的 IsZoomed 真值口径同源）——
+// 验收侧自建参照窗要自己确认「真进 zoomed 态」，否则收栏档不会触发（工单241 的档位裁决）。
+const IsZoomedFn = user32.func('bool __stdcall IsZoomed(uintptr_t hWnd)');
 
 // 原生任务栏视图事实/兜底还原（工单50：本电池的面板会真实隐藏原生任务栏；
 // 判据共用 accept/lib/win32.js 导出，四电池单点维护）
@@ -283,6 +286,50 @@ async function cdpEval(expression, pageTitle = PANEL_TITLE) {
   }
 }
 
+// —— 唤出条交互面（工单243）——
+// 热区 id 编码与渲染层同款（app/src/renderer/taskbar-summon.ts 的 stripZoneId/pillZoneId）：
+//   summon:strip:<组> = 唤出条命中区（9px）；summon:pill:<组> = 已弹出 pill 的命中区。
+// 收栏态下条带窗声明的热区只有这两族（常态栏面声明的是 pill-start/pill-apps 那些 id，
+// 面板窗声明的是卡片/拖拽那些 id）⇒ 用「含 summon: 前缀」把条带窗收栏态的声明摘出来。
+const SUMMON_PILL_PREFIX = 'summon:pill:';
+
+/** 热区声明事件里「已弹出的组」集合（summon:pill:<组> 的组名，保序去重） */
+function summonedGroupsIn(rects) {
+  const out = [];
+  for (const r of (rects || [])) {
+    const id = String((r && r.id) || '');
+    if (!id.startsWith(SUMMON_PILL_PREFIX)) continue;
+    const g = id.slice(SUMMON_PILL_PREFIX.length);
+    if (!out.includes(g)) out.push(g);
+  }
+  return out;
+}
+
+/** 是不是条带窗收栏态的唤出热区声明（含 summon:* 热区 id 的那一条） */
+function isSummonHotzones(ev) {
+  return Array.isArray(ev && ev.rects)
+    && ev.rects.some((r) => String((r && r.id) || '').startsWith('summon:'));
+}
+
+/** 控制器进程 BrowserWindow 的原生句柄（koffi 解码——Electron 的 handle 是 BigInt 缓冲） */
+function hwndOf(win) {
+  const v = koffi.decode(win.getNativeWindowHandle(), 'uintptr_t');
+  return typeof v === 'bigint' ? Number(v) : v;
+}
+
+/** 强制前台（前台锁下 focus() 会静默失败）：AttachThreadInput 链到当前前台线程再 SetForegroundWindow */
+function forceForeground(hwnd) {
+  const fg = Number(win32.GetForegroundWindow());
+  const curTid = win32.GetCurrentThreadId();
+  const fgTid = fg ? win32.threadIdOf(fg).tid : 0;
+  if (fgTid && fgTid !== curTid) win32.AttachThreadInput(curTid, fgTid, true);
+  try {
+    win32.SetForegroundWindow(hwnd);
+    win32.BringWindowToTop(hwnd);
+  } finally {
+    if (fgTid && fgTid !== curTid) win32.AttachThreadInput(curTid, fgTid, false);
+  }
+}
 /**
  * 验证强退（工单211，#202 决策 8）：句柄 stop() 沿用工单112 的强退序列
  * （优雅终止 → 整树强杀 → 有界等待并验证消失）。**gone=false ＝「需重启清障」中止信号**：
@@ -880,35 +927,25 @@ async function main() {
       rep.fail(`P9 任务栏窗恢复=${!!tbBack}`);
     }
 
-    // P13 栏高与图标尺寸（工单158）：条带 64DIP + 应用组图标 32px/格位 44px + 托盘 24px。
+    // P13 栏高与图标尺寸（工单247 改写口径；工单238 栏高 48DIP + 工单240 图标档位）：
+    //   条带 48DIP + 应用组图标 24px/格位 36×36 + 托盘图标 16px。
     //   读数两路互证：(1) 任务栏页 CDP computed style（CSS px——浏览器层落的尺寸事实）；
     //   (2) taskbar-geometry 存证帧（渲染层量出的矩形，电池既有点击坐标来源）。
     //   应用格位若栏上暂无应用，spawn notepad 探针（运行中应用经 1Hz 编排轮 1–2s 上栏）；
     //   托盘名单收编后面板自家图标恒在栏（#153 链路，P11 同款确定性来源）。
-    //   最近邻放大档交叉核验：已装载像素的托盘图标（naturalWidth>0）源尺寸 <24px 必须
-    //   挂 .tb-tray-px（image-rendering: pixelated），≥24px 不得挂——像素未到齐的图标
-    //   只断 24px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
+    //   最近邻放大档交叉核验：已装载像素的托盘图标（naturalWidth>0）源尺寸 <16px 必须
+    //   挂 .tb-tray-px（image-rendering: pixelated），≥16px 不得挂——16px 源与显示档等大
+    //   = 1:1 原生直渲不挂（工单240 档位），32px 源降采样走平滑插值；像素未到齐的图标
+    //   只断 16px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
     rep.beginSegment('P13');
     const tbH13 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     let notepad13 = null;
     try {
-      // 栏上无应用格时铺一枚探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
-      let geom13 = latestGeometry(null);
-      if (!geom13 || !geom13.apps || geom13.apps.length === 0) {
-        notepad13 = spawn('notepad.exe', [], { stdio: 'ignore' });
-        const deadline13 = Date.now() + 12000;
-        while (Date.now() < deadline13) {
-          geom13 = latestGeometry(null);
-          if (geom13 && geom13.apps && geom13.apps.length > 0) break;
-          await sleep(300);
-        }
-      }
-      // 条带窗口高度（物理像素 → DIP，P1 同口径；本段自带一份证据不依赖 P1 现场）
-      const rect13 = tbH13 ? win32.rectOf(tbH13) : null;
-      const dip13 = screen.getPrimaryDisplay().bounds;
-      const scale13 = rect13 ? (rect13.right - rect13.left) / dip13.width : 0;
-      const heightDip13 = rect13 ? (rect13.bottom - rect13.top) / scale13 : 0;
-      // 等托盘像素到齐（自家图标 dataURL 装载后 naturalWidth>0；5s 内未到齐走软核验）
+      // 应用格位若栏上暂无应用，spawn notepad 探针（运行中应用经 1Hz 编排轮 1–2s 上栏）
+      // 工单247：判据从「几何存证帧有无 apps」改为「CDP 读数里 .tb-app 在不在场」——
+      // 磁带里留着 P9 重启前那个面板实例的残帧（apps 非空），拿它判「栏上有无应用」会在
+      // 新面板刚起、应用组尚未渲染时误判为「有应用」而跳过探针，随后 CDP 读数拿到 null
+      // （真机轮实证：旧口径在同一现场同样挂——不是口径改错，是段内等错了对象）。
       const probe13 = async () => cdpEval(`(() => {
         const cell = document.querySelector('.tb-app');
         const icon = document.querySelector('.tb-app img');
@@ -920,33 +957,46 @@ async function main() {
           tray: tray.map((t) => ({ w: cs(t, 'width'), h: cs(t, 'height'), nat: t.naturalWidth, px: t.classList.contains('tb-tray-px'), rendering: cs(t, 'imageRendering') })),
         };
       })()`, TASKBAR_TITLE);
+      // 条带窗口高度（物理像素 → DIP，P1 同口径；本段自带一份证据不依赖 P1 现场）
+      const rect13 = tbH13 ? win32.rectOf(tbH13) : null;
+      const dip13 = screen.getPrimaryDisplay().bounds;
+      const scale13 = rect13 ? (rect13.right - rect13.left) / dip13.width : 0;
+      const heightDip13 = rect13 ? (rect13.bottom - rect13.top) / scale13 : 0;
+      // 等被测对象在场：应用格（格位/图标尺寸的断言对象）+ 托盘像素（放大档核验对象）
+      // ——托盘像素未到齐走软核验（loaded13 为空时跳过放大档断言），应用格必须到场
+      // （整轮上限 12s：与 notepad 探针 1Hz 编排轮上栏的等待同量级）
       let sizes13 = null;
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 24; i++) {
         sizes13 = await probe13();
-        if (sizes13.tray.some((t) => t.nat > 0)) break;
+        const trayReady13 = sizes13.tray.some((t) => t.nat > 0);
+        if (sizes13.cell && trayReady13) break;
+        // 栏上确无应用格 → 铺一枚 notepad 探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
+        if (!sizes13.cell && !notepad13 && i >= 2) {
+          notepad13 = spawn('notepad.exe', [], { stdio: 'ignore' });
+        }
         await sleep(500);
       }
       const stripOk13 = Math.abs(heightDip13 - TASKBAR_HEIGHT_DIP) <= 2;
-      const cellOk13 = sizes13.cell && sizes13.cell.w === '44px' && sizes13.cell.h === '44px';
-      const iconOk13 = sizes13.icon && sizes13.icon.w === '32px' && sizes13.icon.h === '32px';
+      const cellOk13 = sizes13.cell && sizes13.cell.w === '36px' && sizes13.cell.h === '36px';
+      const iconOk13 = sizes13.icon && sizes13.icon.w === '24px' && sizes13.icon.h === '24px';
       const trayLen13 = sizes13.tray.length;
-      const traySizeOk13 = trayLen13 > 0 && sizes13.tray.every((t) => t.w === '24px' && t.h === '24px');
+      const traySizeOk13 = trayLen13 > 0 && sizes13.tray.every((t) => t.w === '16px' && t.h === '16px');
       const loaded13 = sizes13.tray.filter((t) => t.nat > 0);
-      const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 24) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
-      // 几何存证互证：应用格位 h≈44（cell）；托盘格 h≈34（24 图标 + 5+5 padding——
-      // 工单158 挤撞回正的密度紧凑档，托盘格 padding 7→5 延缓右组左侵开始组）
+      const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 16) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
+      // 几何存证互证：应用格位 h≈36（.tb-app 定宽格 36×36）；托盘格 h≈28
+      // （.tb-tray-icon 格盒 28×28——16px 图标居中，热区 28 不随字形缩小）
       const geo13 = latestGeometry(null);
-      const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 44) <= 2);
-      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 34) <= 2);
+      const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 36) <= 2);
+      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 28) <= 2);
       if (stripOk13 && cellOk13 && iconOk13 && traySizeOk13 && geoAppsOk13 && geoTrayOk13
         && (loaded13.length === 0 || trayPxOk13)) {
-        rep.pass(`P13 栏高与图标尺寸：条带 ${Math.round(heightDip13)}DIP；应用格位 44px/图标 32px；`
-          + `托盘 ${trayLen13} 枚均 24px（已装载 ${loaded13.length} 枚放大档核验`
+        rep.pass(`P13 栏高与图标尺寸：条带 ${Math.round(heightDip13)}DIP；应用格位 36×36/图标 24px；`
+          + `托盘 ${trayLen13} 枚均 16px（已装载 ${loaded13.length} 枚放大档核验`
           + `${loaded13.length === 0 ? '未及（像素未到齐，软核验跳过）' : trayPxOk13 ? '通过' : '不符'}）`
           + `；几何存证互证（格位 h=${geo13.apps[0].h.toFixed(1)}、托盘格 h=${geo13.trayIcons[0].h.toFixed(1)}）`);
       } else {
         rep.fail(`P13 条带=${Math.round(heightDip13)}DIP 格位=${JSON.stringify(sizes13.cell)} 图标=${JSON.stringify(sizes13.icon)}`
-          + ` 托盘=${trayLen13} 枚尺寸全24=${traySizeOk13} 放大档核验=${trayPxOk13}（装载 ${loaded13.length}）`
+          + ` 托盘=${trayLen13} 枚尺寸全16=${traySizeOk13} 放大档核验=${trayPxOk13}（装载 ${loaded13.length}）`
           + ` 几何互证(格位=${geoAppsOk13}/托盘=${geoTrayOk13}) 几何帧=${JSON.stringify(geo13 && { apps: geo13.apps, trayIcons: geo13.trayIcons })}`);
       }
     } finally {
@@ -962,6 +1012,9 @@ async function main() {
     //   推荐位界内——原「空带中点居中 + 随带回正」断言随功能变更退役（P15B 接班）。
     //   推荐位界内断言重定界到 #pill-recs（量测出处随迁、字段语义不变）。应用格空时
     //   notepad 探针（同 P13）。
+    //   工单247 栏高口径随动：开始组 pill 撑满栏高 48（工单238，height:100% 声明式），
+    //   钉左/竖向居中中线随栏高常量 64→48（中线 32→24）；组间纯缝隙 GROUP_GAP 仍 8、
+    //   右组右缘仍 dip.width-14、细条右缘仍 dip.width——按现值核，未随栏高变动。
     rep.beginSegment('P15');
     let notepad14 = null;
     try {
@@ -998,8 +1051,13 @@ async function main() {
         };
       })()`, TASKBAR_TITLE);
       const b0 = bandOf(g0);
+      // 工单247 栏高口径随动：开始组 pill 由「内容撑出的 ~44」改「声明的 48 全高」
+      // （.pill height:100% + border-box，工单238 撑满栏高）——旧口径下 pill 高度由内容
+      // 撑出、与栏高无恒等关系，钉不住；新口径下「撑满栏高」是工单238 的落地事实，
+      // 故在竖向居中（中线 = TASKBAR_HEIGHT_DIP/2 = 24）之外另钉 h ≈ 栏高。
       const startOk14 = Math.abs(g0.startPill.x - 8) <= 2
-        && Math.abs(g0.startPill.y + g0.startPill.h / 2 - TASKBAR_HEIGHT_DIP / 2) <= 2;
+        && Math.abs(g0.startPill.y + g0.startPill.h / 2 - TASKBAR_HEIGHT_DIP / 2) <= 2
+        && Math.abs(g0.startPill.h - TASKBAR_HEIGHT_DIP) <= 2;
       const cssOk14 = css14.startLeft === '8px' && css14.appsInlineLeft !== '' && css14.appsDisplay !== 'none';
       const noOverlap14 = g0.appsPill.x >= b0.lo - 0.5 && g0.appsPill.x + g0.appsPill.w <= b0.hi + 0.5;
       const dip14 = screen.getPrimaryDisplay().bounds;
@@ -1016,7 +1074,7 @@ async function main() {
           && recPill14.x >= g0.startPill.x + g0.startPill.w + GAP15 - 0.5
           && recs14.every((r) => r.x >= recPill14.x - 0.5 && r.x + r.w <= recPill14.x + recPill14.w + 0.5);
       if (startOk14 && cssOk14 && noOverlap14 && rightOk14 && recsOk14) {
-        rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
+        rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}，撑满栏高 h=${g0.startPill.h.toFixed(1)}）、`
           + `应用组带内落位（带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]，居中语义见 P15B）、`
           + `不与邻组重叠、右组+细条钉右不变${recs14.length
             ? `、推荐位 ${recs14.length} 枚独立 pill 界内（pill @${recPill14.x.toFixed(0)}，与开始组间隙 ${(recPill14.x - g0.startPill.x - g0.startPill.w).toFixed(0)}px）`
@@ -1264,12 +1322,21 @@ async function main() {
         rep.fail(`P16 探针未占满推荐位（12s 内五条夹具未同帧在场——usage 种子/桌面扫描链路断，`
           + `或机器真实条目分压过种子）：几何=${JSON.stringify(latestGeometry(null) && recNames16(latestGeometry(null)))}`);
       } else {
-        const dom16 = await domRecs16();
+        // 工单247：等推荐格在 DOM 里真正布局出尺寸（几何帧说 5 枚在场 ≠ 此刻 DOM 量得到
+        // 宽高——推荐组 pill 未渲染时格子量得 0×0，尺寸断言读到假阴性。真机轮实证：旧口径
+        // 在同一现场同样挂——不是口径改错，是读数时机早于布局）。
+        let dom16 = await domRecs16();
+        const domDeadline16 = Date.now() + 8000;
+        while (Date.now() < domDeadline16
+          && !(dom16.length === 5 && dom16.every((c) => c.w > 0 && c.h > 0))) {
+          await sleep(400);
+          dom16 = await domRecs16();
+        }
         const countOk16 = recNames16(g16).length === 5;
         // 第 6/7 名不出现（工单161 强断言：F/G 在候选池里，滤除后截断才不可见）
         const fillersHidden16 = (p16.extras || []).every((f) => !recNames16(g16).includes(f.name));
         const iconizedOk16 = dom16.length === 5 && dom16.every((c) => (c.img || c.letter) && !c.ownText
-          && Math.abs(c.w - 44) <= 2 && Math.abs(c.h - 44) <= 2);
+          && Math.abs(c.w - 36) <= 2 && Math.abs(c.h - 36) <= 2);
         // tooltip = 扫描显示名（文件名去扩展——图标化后名称的唯一即时呈现位；种子侧的
         // display 字段是打分键不进条目，条目 display 由桌面扫描派生）
         const tooltipOk16 = dom16.every((c) => {
@@ -1277,7 +1344,7 @@ async function main() {
           return hit && c.title === scanDisplay16(hit.name);
         });
         if (countOk16 && fillersHidden16 && iconizedOk16 && tooltipOk16) {
-          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 44×44 图标格`
+          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 36×36 图标格`
             + `（img ${dom16.filter((c) => c.img).length}/占位 ${dom16.filter((c) => c.letter).length}），无显示名文本残留，扫描显示名即时进 tooltip`);
         } else {
           rep.fail(`P16 图标化断言：count=${countOk16}(${recNames16(g16).length}) fillersHidden=${fillersHidden16} iconized=${iconizedOk16}`
@@ -3295,6 +3362,439 @@ static class Probe {
         }
       }
     }
+    // ================================================================
+    // 唤出条交互（工单243，spec #236 用户故事 16/17/19/20/21）
+    // 五条语义的真机输入注入面：悬停 150ms 弹出 / 点击立即弹出 / 离开 400ms 宽限 /
+    // 按组独立 / 浮层钉组。纯逻辑（150/400/夹取/归约/振荡回归）已在
+    // app/tests/taskbar/retract.spec.ts 与 app/tests/renderer/taskbar-summon.spec.ts
+    // 覆盖——本段只留真机交互面（增段三条件之二：单测能覆盖的不进电池）。
+    //
+    // 前置：控制器自开一枚**真最大化**参照窗并置于前台 ⇒ 主进程判 maximize-retract
+    //（工单241 的 IsZoomed 真值口径；「栏给窗让位」：栏面退场、唤出条在同一条 48px 带内）。
+    // 收栏态不发 taskbar-geometry（工单241 既定）⇒ 唤出条几何取 **taskbar-summon-strips**
+    // 存证（工单242 新增：逐组一条；x/width = 镜像 pill 横向区间，top/height = 命中区 9px）。
+    //
+    // 时序纪律（票面「⚠️ 时序陷阱」）：收敛轮询间隔 250ms > 悬停延迟 150ms ⇒ 悬停延迟
+    // 必在第一次收敛轮询期间触发。故断言不按「移过去再等 150ms」的直觉写：
+    //   ① 悬停：判据 = 弹出时刻 ≥ 移动时刻 + 150ms（容忍 250ms 收敛粒度）；
+    //   ② 快速扫过：停留 < 150ms 掠过条带 ⇒ 命中但不得弹出（故事 16 的另一半）；
+    //   ③ 点击：判据 = 弹出时刻 < 移动时刻 + 150ms——悬停路径在结构上不可能这么早
+    //      （悬停弹出必在移动后 ≥150ms），故只能是点击路径（不吃 150ms 延迟）；
+    //   ④ 400ms 宽限：起点是「鼠标离开」的时刻（不是最后一次检测到在 pill 上）——
+    //      判据 = 离开后 150ms 仍弹出（宽限未到，不是瞬时塌）＋ 塌陷时刻 − 离开时刻
+    //      ≥ 350ms（400ms 宽限减去 ≤50ms 的离开检测滞后）。
+    // ================================================================
+    const tbHwndS = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 10000 });
+    const tbRectS = tbHwndS ? win32.rectOf(tbHwndS) : null;
+    const dipS = screen.getPrimaryDisplay().bounds;
+    const scaleS = tbRectS ? (tbRectS.right - tbRectS.left) / dipS.width : 1;
+    // CSS px（条带窗客户区原点）→ 物理像素（主屏原点恒 (0,0)）
+    const toPhysS = (cssX, cssY) => (tbRectS
+      ? { x: Math.round(tbRectS.left + cssX * scaleS), y: Math.round(tbRectS.top + cssY * scaleS) }
+      : { x: 0, y: 0 });
+    // 中性点：屏幕中上部（悬在参照窗上，不在我方任何热区上——条带窗与面板窗都不声明此处的热区）
+    const neutralS = { x: Math.round((dipS.width / 2) * scaleS), y: Math.round((dipS.height / 4) * scaleS) };
+    const parkS = async (ms = 250) => { win32.moveMousePhys(neutralS.x, neutralS.y); await sleep(ms); };
+
+    // 渲染层 DOM 读式（工单243）：栏面退场 = 非弹出组 display:none（收栏态 CSS 口径）；
+    // 弹出的组 = 带 .summon-popped 类（复现在同一条 48px 带内）；应用图标矩形供浮层臂取点。
+    const SUMMON_DOM_EXPR = `(() => {
+      const ids = { start: 'pill-start', recs: 'pill-recs', apps: 'pill-apps', right: 'right-pill', showdesk: 'show-desktop' };
+      const out = { barMode: document.body.dataset.barMode || '', innerHeight: window.innerHeight, groups: {}, appIcons: [], recIcons: [], detail: {} };
+      for (const g of Object.keys(ids)) {
+        const el = document.getElementById(ids[g]);
+        if (!el) { out.groups[g] = null; continue; }
+        const r = el.getBoundingClientRect();
+        out.groups[g] = {
+          popped: el.classList.contains('summon-popped'),
+          display: getComputedStyle(el).display,
+          rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+        };
+      }
+      for (const el of document.querySelectorAll('#pill-apps .tb-app')) {
+        const r = el.getBoundingClientRect();
+        out.appIcons.push({ exe: el.dataset.exe || '', x: r.x, y: r.y, w: r.width, h: r.height });
+      }
+      for (const el of document.querySelectorAll('#pill-recs .tb-rec')) {
+        const r = el.getBoundingClientRect();
+        out.recIcons.push({ name: el.dataset.name || '', x: r.x, y: r.y, w: r.width, h: r.height });
+      }
+      // 收栏态诊断：各组的展示形态与条目数（浮层臂取挂点用——挂点必须可点）
+      out.detail = {
+        appsInline: document.getElementById('pill-apps') ? document.getElementById('pill-apps').style.display : null,
+        appsChildCount: document.getElementById('pill-apps') ? document.getElementById('pill-apps').childElementCount : 0,
+        overflowBtn: (() => { const el = document.querySelector('#pill-apps .tb-overflow'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })(),
+        recsChildCount: document.getElementById('pill-recs') ? document.getElementById('pill-recs').childElementCount : 0,
+        rightChildCount: document.getElementById('right-pill') ? document.getElementById('right-pill').childElementCount : 0,
+        // 右组空白处（托盘档位菜单挂点：右组 pill 内、且不在任何格/托盘图标上的点）
+        // —— 工单256：挂点必须**可命中**。
+        // 旧口径从 pill 的左上角 (r.x+2, r.y+2) 起扫：那是 pill 内边距的 2px 薄片
+        // （贴条带窗上沿），实测该点的右键**开不出浮层**（浮层开层=false ⇒ 段红）。
+        // 改法：① 候选行先取**组的中线**（竖直居中带，远离窗口上沿）；
+        //      ② 命中判据加**净空边距**（点周围 CLEAR px 内不落在任何子格/托盘图标上，
+        //         免得点贴着某个子元素、被它的处理器吃掉）；
+        //      ③ 扫不到就返回 null —— 段会**明确失败并报「无空白挂点」**，不静默点空。
+        rightBlank: (() => {
+          const pill = document.getElementById('right-pill');
+          if (!pill) return null;
+          const r = pill.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) return null;
+          const kids = [...pill.querySelectorAll('.tb-cell, .tb-tray-icon, .tb-tray-overflow')].map((el) => el.getBoundingClientRect());
+          const CLEAR = 4;
+          const free = (x, y) => !kids.some((k) => x >= k.left - CLEAR && x <= k.right + CLEAR && y >= k.top - CLEAR && y <= k.bottom + CLEAR);
+          const rows = [r.y + r.height / 2, r.y + r.height * 0.25, r.y + r.height * 0.75];
+          for (const y of rows) {
+            if (y < r.top || y > r.bottom) continue;
+            for (let x = r.x + 2; x < r.right - 2; x += 2) {
+              if (free(x, y)) return { x, y, w: 1, h: 1 };
+            }
+          }
+          return null;
+        })(),
+      };
+      return out;
+    })()`;
+    const readSummonDom = async () => { try { return await cdpEval(SUMMON_DOM_EXPR, TASKBAR_TITLE); } catch { return null; } };
+    // 弹出判定两路互证：DOM（渲染层此刻的类）与热区声明（主进程落的热区矩形——机器侧时刻戳自带）
+    const domPopped = (dom, group) => !!(dom && dom.groups && dom.groups[group] && dom.groups[group].popped);
+    // 等「该组弹出」：热区声明里出现 summon:pill:<组>（条带窗收栏态的声明）
+    const waitSummonPop = async (group, since, timeoutMs = 3000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const ev = tape.latest('hotzones', (e) => isSummonHotzones(e) && summonedGroupsIn(e.rects).includes(group), { since });
+        if (ev) return ev;
+        await sleep(40);
+      }
+      return null;
+    };
+    // 等「该组收起」：弹出之后第一条不再含 summon:pill:<组> 的唤出热区声明
+    const waitSummonGone = async (group, since, timeoutMs = 3000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const evs = tape.all('hotzones', (e) => isSummonHotzones(e), { since });
+        for (const ev of evs) if (!summonedGroupsIn(ev.rects).includes(group)) return ev;
+        await sleep(40);
+      }
+      return null;
+    };
+    // 确保某组当前不是弹出态（光标停到中性点，等它按宽限收完）——判据取「最新一条唤出
+    // 热区声明里没有该组」（不是「有没有含该组的事件」——那是历史帧，会误判成还在弹）
+    const ensureCollapsed = async (group, timeoutMs = 2500) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const evs = tape.all('hotzones', (e) => isSummonHotzones(e), {});
+        const last = evs.length ? evs[evs.length - 1] : null;
+        if (!last || !summonedGroupsIn(last.rects).includes(group)) return true;
+        win32.moveMousePhys(neutralS.x, neutralS.y);
+        await sleep(150);
+      }
+      return false;
+    };
+
+    // 参照窗 = 控制器自开的真最大化窗（工单241 的 IsZoomed 真值口径：真最大化 ⇒ 收栏档）
+    // 前置建法（工单243 实测校准）：Electron 的 maximize() + 强制前台**偶发几十秒才生效**
+    // （前台锁 + zoomed 态落定双慢），验收槽白等 37–47s ⇒ 改为「原生 API 直上 + 逐拍核验」：
+    //   ① ShowWindow(SW_MAXIMIZE) 直接给 zoomed 态（不等 Electron 往返）；
+    //   ② SetForegroundWindow + BringWindowToTop（AttachThreadInput 链到前台线程）；
+    //   ③ 逐拍核验「前台窗是它 + IsZoomed 为真」——不赌时序，前台锁下不生效就重试。
+    const refS = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-SUMMON', backgroundColor: '#203040' });
+    let stripsS = [];
+    let groupsS = [];
+    rep.beginSegment('P22'); // 前置（建参照窗 → 进收栏档）计入本段
+    try {
+      await refS.loadURL('about:blank');
+      refS.show();
+      const refHwnd = hwndOf(refS);
+      let refReady = false;
+      for (let i = 0; i < 60 && !refReady; i++) {
+        win32.ShowWindow(refHwnd, 3 /* SW_MAXIMIZE */);
+        win32.BringWindowToTop(refHwnd);
+        forceForeground(refHwnd);
+        await sleep(100);
+        refReady = Number(win32.GetForegroundWindow()) === refHwnd && IsZoomedFn(refHwnd);
+      }
+      const sinceS = Date.now(); // 存证时间门下界：必须早于收栏档迁移（否则收栏存证落在门外）
+      const retractEvS = await tape.wait('taskbar-retract', (e) => e.mode === 'maximize-retract', { since: sinceS, timeoutMs: 8000 });
+      const stripsEvS = await tape.wait('taskbar-summon-strips', (e) => Array.isArray(e.strips) && e.strips.length > 0, { since: sinceS, timeoutMs: 8000 });
+      stripsS = stripsEvS ? stripsEvS.strips : [];
+      groupsS = stripsS.map((s) => s.group);
+      // 当前档位以渲染层 DOM 读式为准（存证可能被后续迁移刷掉——档位是「此刻」的态）
+      const modeDomS = await readSummonDom();
+      const inRetract = !!(modeDomS && modeDomS.barMode === 'maximize-retract');
+      rep.note(`唤出条前置：参照窗 hwnd=${refHwnd} 前台+IsZoomed=${refReady} 收栏存证=${!!retractEvS}（appBar=${retractEvS && retractEvS.appBar}）`
+        + `当前档位=${modeDomS && modeDomS.barMode} 条数=${stripsS.length} 组=[${groupsS.join(',')}]`);
+      const stripOf = (g) => stripsS.find((s) => s.group === g) || null;
+      const stripPt = (s) => toPhysS(s.x + s.width / 2, s.top + s.height / 2);
+
+      // —— P22 悬停 150ms 弹出该组 + 快速扫过不误触发（用户故事 16）——
+      // （段起笔已在本段前置之前——「建参照窗 → 进收栏档」计入本段账目）
+      if (!retractEvS || !inRetract || stripsS.length === 0) {
+        rep.fail(`P22 前置缺失：收栏存证=${!!retractEvS} 当前档位=${modeDomS && modeDomS.barMode} 唤出条几何存证条数=${stripsS.length}（未进收栏档或条几何未落）`);
+      } else {
+        const target = stripOf('start') || stripsS[0];
+        const pt = stripPt(target);
+        // ① 快速扫过：停留 60ms（< 150ms 悬停延迟）掠过条带 ⇒ 命中条带但不得误触发
+        await parkS();
+        const sweepAt = Date.now();
+        win32.moveMousePhys(pt.x, pt.y);
+        await sleep(60);
+        win32.moveMousePhys(neutralS.x, neutralS.y);
+        const sweepHit = await tape.wait('taskbar-hotzone-enter', null, { since: sweepAt, timeoutMs: 1500 });
+        await sleep(700); // 越过 150ms 悬停窗口——若误触发此刻已可见
+        const sweepDom = await readSummonDom();
+        const sweptPopped = domPopped(sweepDom, target.group);
+        // ② 悬停：停在条带上不动 ⇒ 该组弹出（弹出时刻 ≥ 移动时刻 + 150ms）
+        const hoverAt = Date.now();
+        win32.moveMousePhys(pt.x, pt.y);
+        const popEv = await waitSummonPop(target.group, hoverAt, 3000);
+        const popLatency = popEv ? popEv.t - hoverAt : null;
+        const hoverDom = await readSummonDom();
+        const popped = domPopped(hoverDom, target.group);
+        // ③ 光标移到已弹出的 pill 上（保持弹出；同时给 z 序命中测试一个「条带窗已开门」的光标位）
+        const pillRect22 = popEv ? (popEv.rects || []).find((r) => r.id === `${SUMMON_PILL_PREFIX}${target.group}`) : null;
+        if (pillRect22) {
+          const p22 = toPhysS(pillRect22.x + pillRect22.w / 2, pillRect22.y + pillRect22.h / 2);
+          win32.moveMousePhys(p22.x, p22.y);
+          await sleep(200);
+        }
+        const dom22 = await readSummonDom();
+        // ④ 栏面退场 / 弹出组在最大化窗之上（票面 §6 断言面缺口处置：c 两路并用）
+        //   - DOM 路：非弹出组 display:none（栏面退场）、弹出组复现在 48px 带内；
+        //   - z 序路：命中测试落在条带窗上（最大化窗铺满整屏，命中它即说明条带窗在其之上）。
+        const otherGroups = groupsS.filter((g) => g !== target.group);
+        const barRetreatOk = !!(dom22 && dom22.barMode === 'maximize-retract'
+          && otherGroups.every((g) => dom22.groups[g] && dom22.groups[g].display === 'none'));
+        const poppedRect = dom22 && dom22.groups[target.group] ? dom22.groups[target.group].rect : null;
+        const inBandOk = !!(poppedRect && poppedRect.h > 0 && dom22
+          && Math.abs(poppedRect.y + poppedRect.h - dom22.innerHeight) <= 2);
+        const zOrderHit = poppedRect
+          ? win32.windowFromPointRoot(toPhysS(poppedRect.x + poppedRect.w / 2, poppedRect.y + poppedRect.h / 2))
+          : 0;
+        const aboveMaxWin = zOrderHit === tbHwndS;
+        if (sweepHit && !sweptPopped && popEv && popLatency >= 150 && popped
+          && barRetreatOk && inBandOk && aboveMaxWin) {
+          rep.pass(`P22 悬停 150ms 弹出：快速扫过（停留 60ms < 150ms）命中条带（hotzone-enter 存证 t=+${sweepHit.t - sweepAt}ms）但未误触发；`
+            + `停驻悬停后弹出（延迟 ${popLatency}ms ≥ 150ms，机器时刻戳取热区声明）；`
+            + `栏面退场（非弹出组 display:none）、弹出组复现在 ${dom22 && Math.round(dom22.innerHeight)}px 带内、命中测试落在条带窗上（在最大化窗之上）`);
+        } else {
+          rep.fail(`P22 快速扫过未误触发=${!sweptPopped}（命中存证=${!!sweepHit}）悬停弹出=${!!popEv} 延迟=${popLatency}ms（须 ≥150）DOM弹出=${popped} `
+            + `栏面退场=${barRetreatOk} 带内=${inBandOk} 在最大化窗之上=${aboveMaxWin}（命中=${zOrderHit} 条带窗=${tbHwndS}）`
+            + ` 组=${target.group} DOM=${JSON.stringify(dom22 && dom22.groups)}`);
+        }
+      }
+
+      // —— P23 点击立即弹出（不吃 150ms 悬停延迟）（用户故事 17）——
+      rep.beginSegment('P23');
+      // 目标组：'recs'（条带左侧，避开屏底中央的面板窗——点击面须落在条带窗上）
+      const target23 = stripOf('recs') || stripOf('start') || stripsS[0];
+      if (!target23 || !retractEvS || !inRetract) {
+        rep.fail(`P23 前置缺失：收栏存证=${!!retractEvS} 当前档位=${modeDomS && modeDomS.barMode} 目标组=${target23 && target23.group}`);
+      } else {
+        const pt23 = stripPt(target23);
+        let attempt = null;
+        for (let i = 0; i < 2 && !attempt; i++) {
+          await parkS(300); // 清场：光标离开所有热区（条带窗恢复穿透）——保证开门存证是本次新事件
+          await ensureCollapsed(target23.group);
+          const moveAt = Date.now();
+          win32.moveMousePhys(pt23.x, pt23.y);
+          await sleep(50); // 等条带窗因命中热区而开门（25ms 光标轮询 + 一拍余量）
+          const clickAt = Date.now();
+          win32.clickPhys(pt23.x, pt23.y, 'left');
+          const popEv23 = await waitSummonPop(target23.group, moveAt, 2000);
+          const hotEnter = await tape.wait('taskbar-hotzone-enter', null, { since: moveAt, timeoutMs: 1200 });
+          const latClick = popEv23 ? popEv23.t - clickAt : null;
+          const latMove = popEv23 ? popEv23.t - moveAt : null;
+          // 判据两条同时成立才算「点击立即弹出」：
+          //  ① 点击→弹出 < 150ms：点击路径不吃悬停延迟（悬停必等满 150ms）；
+          //  ② 弹出时刻 < 热区开门存证时刻 + 150ms：**悬停路径在结构上不可能这么早**
+          //     （悬停起算点 ≥ 开门时刻 ⇒ 悬停弹出必在开门后 150ms）——这一条把
+          //     「悬停弹出」与「点击弹出」在机器时刻戳上彻底分开。
+          const beforeHover = !!(popEv23 && hotEnter && popEv23.t < hotEnter.t + 150);
+          const dom23 = await readSummonDom();
+          const popped23 = domPopped(dom23, target23.group);
+          if (hotEnter && popEv23 && latClick >= 0 && latClick < 150 && beforeHover && popped23) {
+            attempt = { ok: true, latClick, latMove, popAt: popEv23.t, hotAt: hotEnter.t, clickAt, moveAt };
+          } else {
+            rep.note(`P23 第 ${i + 1} 次点击未达判据（点击→弹出=${latClick}ms 须 <150；弹出早于悬停=${beforeHover} `
+              + `开门存证=${!!hotEnter} 弹出存证=${!!popEv23} DOM弹出=${popped23}）——重试一次`);
+          }
+        }
+        if (attempt && attempt.ok) {
+          rep.pass(`P23 点击立即弹出：条带点击后 ${attempt.latClick}ms 弹出（< 150ms 悬停延迟）；`
+            + `弹出时刻（t=${attempt.popAt}）早于热区开门时刻+150ms（开门 t=${attempt.hotAt}）——悬停路径结构上不可能这么早，故只能是点击路径；`
+            + `DOM .summon-popped 在场`);
+        } else {
+          rep.fail(`P23 点击即弹未达成（两试皆未达判据）——点击→弹出须 <150ms 且弹出须早于开门+150ms`);
+        }
+      }
+
+      // —— P24 离开已弹出的组后 400ms 宽限才收起（用户故事 20）——
+      rep.beginSegment('P24');
+      const target24 = stripOf('start') || stripsS[0];
+      if (!target24 || !retractEvS || !inRetract) {
+        rep.fail(`P24 前置缺失：收栏存证=${!!retractEvS} 当前档位=${modeDomS && modeDomS.barMode} 目标组=${target24 && target24.group}`);
+      } else {
+        await parkS(350);
+        await ensureCollapsed(target24.group);
+        const pt24 = stripPt(target24);
+        const moveAt24 = Date.now();
+        win32.moveMousePhys(pt24.x, pt24.y);
+        const popEv24 = await waitSummonPop(target24.group, moveAt24, 3000);
+        const pillRect = popEv24 ? (popEv24.rects || []).find((r) => r.id === `${SUMMON_PILL_PREFIX}${target24.group}`) : null;
+        // ① 光标移到已弹出的 pill 上 ⇒ 宽限作废（静止指针压住 pill 时该组保持弹出）
+        let onPillKept = false;
+        if (pillRect) {
+          const pillPt = toPhysS(pillRect.x + pillRect.w / 2, pillRect.y + pillRect.h / 2);
+          win32.moveMousePhys(pillPt.x, pillPt.y);
+          await sleep(300);
+          onPillKept = domPopped(await readSummonDom(), target24.group);
+        }
+        // ② 离开（鼠标离开该组）⇒ 宽限起算（起点是「离开」的时刻，不是最后一次检测到在 pill 上）
+        const leaveAt = Date.now();
+        win32.moveMousePhys(neutralS.x, neutralS.y);
+        // ③ 离开后 150ms：仍弹出（宽限未到——不是瞬时塌）
+        await sleep(150);
+        const midKept = domPopped(await readSummonDom(), target24.group);
+        // ④ 塌陷：热区声明不再含该组；塌陷时刻 − 离开时刻 ≥ 350ms（400ms 宽限减检测滞后）
+        const goneEv24 = popEv24 ? await waitSummonGone(target24.group, popEv24.t, 3000) : null;
+        const collapseLat = goneEv24 ? goneEv24.t - leaveAt : null;
+        if (popEv24 && pillRect && onPillKept && midKept && goneEv24
+          && collapseLat >= 350 && collapseLat <= 2000) {
+          rep.pass(`P24 400ms 宽限：指针压在弹出 pill 上时保持弹出（宽限作废）；离开后 150ms 仍弹出（宽限未到）；`
+            + `塌陷于离开后 ${collapseLat}ms（≥350ms——400ms 宽限减去离开检测滞后；机器时刻戳取热区声明）`);
+        } else {
+          rep.fail(`P24 宽限语义未达成：弹出存证=${!!popEv24} pill矩形=${!!pillRect} 压pill保持=${onPillKept} 离开后150ms仍弹出=${midKept} `
+            + `塌陷存证=${!!goneEv24} 塌陷延迟=${collapseLat}ms（须 350..2000）组=${target24.group}`);
+        }
+      }
+
+      // —— P25 按组独立（用户故事 19）+ 浮层钉组（用户故事 21）——
+      rep.beginSegment('P25');
+      const groupA = stripOf('start') || stripsS[0];       // A 组（独立性与「其余组照常收」的被观察组）
+      // B 组 = 浮层所属组：托盘档位菜单（taskbar-tier-menu）属右组，且右组空白处是六面里
+      // 唯一在收栏态仍可点的挂点（应用组条目被容量夹取塞进「⋯」溢出、推荐组 pill 被挤成
+      // 18px 零宽——实测口径，见 detail 诊断）
+      const groupB = stripOf('right') || null;
+      if (!groupA || !groupB || groupA.group === groupB.group || !retractEvS || !inRetract) {
+        rep.fail(`P25 前置缺失：收栏存证=${!!retractEvS} 当前档位=${modeDomS && modeDomS.barMode} A=${groupA && groupA.group} B=${groupB && groupB.group}`);
+      } else {
+        await parkS(400);
+        await ensureCollapsed(groupA.group);
+        await ensureCollapsed(groupB.group);
+        // 浮层家族 → 所属组（#242 的六面映射——同一套口径，断言与实现对齐）
+        const OWNER_BY_FAMILY = {
+          'taskbar-app-menu': 'apps', 'taskbar-wins-menu': 'apps',
+          'taskbar-rec-menu': 'recs', 'taskbar-blank-menu': 'start',
+          'taskbar-tier-menu': 'right', 'taskbar-tray-overflow': 'right',
+        };
+        // 弹一组并把光标停在该组的弹出 pill 上（保持弹出）——条带随弹出退场，指针原地即
+        // 「离开该组」，不落 pill 上则该组宽限立刻起算（400ms 后自收）
+        const popGroup = async (g) => {
+          const s = stripOf(g);
+          if (!s) return null;
+          const pt = stripPt(s);
+          const at = Date.now();
+          win32.moveMousePhys(pt.x, pt.y);
+          const ev = await waitSummonPop(g, at, 2500);
+          const pill = ev ? (ev.rects || []).find((r) => r.id === `${SUMMON_PILL_PREFIX}${g}`) : null;
+          if (pill) {
+            const p = toPhysS(pill.x + pill.w / 2, pill.y + pill.h / 2);
+            win32.moveMousePhys(p.x, p.y);
+            await sleep(120);
+          }
+          return { ev, at };
+        };
+        // ① 弹 A（开始组）→ 光标停在 A 的弹出 pill 上
+        const popA = await popGroup(groupA.group);
+        // ② 弹 B（右组）⇒ 此刻 A 仍在弹出（弹一组不影响另一组——用户故事 19）
+        const popB = await popGroup(groupB.group);
+        // ③ 浮层挂点 = 右组空白处（托盘档位菜单挂点）——光标移上去（既保 B 弹出，又是右键靶）
+        const domMount = await readSummonDom();
+        const blank = domMount && domMount.detail ? domMount.detail.rightBlank : null;
+        if (blank) {
+          const bPt = toPhysS(blank.x, blank.y);
+          win32.moveMousePhys(bPt.x, bPt.y);
+          await sleep(150);
+        }
+        // ④ 多组同存：唤出热区声明里同时含 A 与 B 的 pill 命中区（机器时刻戳自带——
+        //    用存证判「同时在场」，不用 DOM 读式：DOM 读式赶不上两组的宽限窗口）
+        const sinceBoth = popB ? popB.at : Date.now();
+        const bothEv = (tape.all('hotzones', (e) => isSummonHotzones(e)
+          && summonedGroupsIn(e.rects).includes(groupA.group)
+          && summonedGroupsIn(e.rects).includes(groupB.group), { since: sinceBoth })[0]) || null;
+        const bothPopped = !!bothEv;
+        // ④ A 走自己的宽限收起（其余组照常收——不被别的组的在场牵连）：bothEv 之后第一条
+        //    不再含 A 的唤出热区声明，仍含 B ⇒ B 未被牵连
+        let goneAEv = null;
+        if (bothEv) {
+          const deadline = Date.now() + 2500;
+          while (Date.now() < deadline && !goneAEv) {
+            const evs = tape.all('hotzones', (e) => isSummonHotzones(e), { since: bothEv.t });
+            goneAEv = evs.find((e) => !summonedGroupsIn(e.rects).includes(groupA.group)) || null;
+            if (!goneAEv) await sleep(40);
+          }
+        }
+        const aGone = !!goneAEv;
+        const bStill = !!(goneAEv && summonedGroupsIn(goneAEv.rects).includes(groupB.group));
+        // ⑤ 浮层臂：右组空白处右键 → 托盘档位浮层（taskbar-tier-menu，属右组）。
+        //    可断言面：浮层开层存证在场 + **开层那一拍所属组仍在场**（开层前最新一条唤出
+        //    热区声明含该组的 pill 命中区）——即「浮层在场 ⇒ 所属组在弹出态」。
+        //    「钉住后离场不塌」在真机上不可观测：自绘浮层自带焦点夺前台 ⇒ 栏退回收栏档
+        //    （档位迁移清空唤出态），缺口留证见交付报告（本段只记，不当断言）。
+        let overlayOpen = false;
+        let ownerInPlace = false;
+        let domPin = null;
+        const ownerGroup = OWNER_BY_FAMILY['taskbar-tier-menu'];
+        const mount = blank ? { pt: blank, family: 'taskbar-tier-menu' } : null;
+        if (!mount) {
+          rep.note(`P25 浮层臂前置缺失：弹出的右组无空白挂点（rightBlank=null）——浮层臂不成立`);
+        } else {
+          // 工单256：「开层那一拍所属组仍在场」的证据必须在**开层前**取。
+          // 旧口径在开层 + 800ms 等待之后才读「最新一条唤出热区声明」——那期间浮层夺前台
+          // 会让收栏档被迁移清空（F1 的 clearPoppedClasses 同拍落地），声明随之退场，
+          // 于是「所属组在场」恒读到 false（段红）。改成**开层前**快照。
+          const summonEvBeforeOverlay = tape.latest('hotzones', (e) => isSummonHotzones(e), {});
+          const mPt = toPhysS(mount.pt.x, mount.pt.y);
+          win32.moveMousePhys(mPt.x, mPt.y);
+          await sleep(150); // 到靶停拍（热区开门 + 指针落位）
+          const sinceOverlay = Date.now();
+          win32.clickPhys(mPt.x, mPt.y, 'right');
+          const openEv = await tape.wait(`${mount.family}-opened`, null, { since: sinceOverlay, timeoutMs: 6000 });
+          overlayOpen = !!openEv;
+          if (openEv) {
+            // 开层那一拍所属组仍在场（机器侧记录：开层前最新一条唤出热区声明含该组 pill
+            // 命中区——不用 since 门：所属组的声明是它弹出那一拍落的，早于开层）
+            ownerInPlace = !!(summonEvBeforeOverlay && summonedGroupsIn(summonEvBeforeOverlay.rects).includes(ownerGroup));
+            // 指针离场：不钉则所属组 400ms 后自收、钉住则不塌——真机上不可观测（浮层夺
+            // 前台 ⇒ 收栏档被档位迁移打断），此处留证档位迁移事实
+            win32.moveMousePhys(neutralS.x, neutralS.y);
+            await sleep(800);
+            domPin = await readSummonDom();
+            const lifted = await tape.wait('taskbar-retract-lifted', null, { since: openEv.t, timeoutMs: 800 });
+            if (lifted) {
+              rep.note(`P25 钉组缺口见证：浮层开层后栏退回收栏档（taskbar-retract-lifted appBar=${lifted.appBar}）——`
+                + `自绘浮层自带焦点夺前台 ⇒ 唤出态被档位迁移清空，「钉住后离场不塌」在真机上不可观测（缺口见交付报告）`);
+            }
+          }
+        }
+        if (popA && popA.ev && popB && popB.ev && bothPopped && aGone && bStill && overlayOpen && ownerInPlace) {
+          rep.pass(`P25 按组独立 + 浮层在场：唤出热区声明里 ${groupA.group} 与 ${groupB.group} 同时在场（弹一组不影响另一组——多组可同时在场）；`
+            + `${groupA.group} 按自己的宽限收起而 ${groupB.group} 仍被声明在场（其余组照常收）；`
+            + `${ownerGroup} 组开出自绘浮层（${mount.family}）且开层那一拍所属组仍在弹出态（浮层在场 ⇒ 所属组在场）`);
+        } else {
+          rep.fail(`P25 未达成：A弹出=${!!(popA && popA.ev)} B弹出=${!!(popB && popB.ev)} 两组同存=${bothPopped} `
+            + `A已收=${aGone} B仍在=${bStill} 浮层开层=${overlayOpen}（family=${mount && mount.family} 所属组=${ownerGroup}）所属组在场=${ownerInPlace} `
+            + `DOM档位=${domPin && domPin.barMode} 详情=${JSON.stringify(domMount && domMount.detail)} `
+            + `组矩形=${JSON.stringify(domMount && Object.fromEntries(Object.entries(domMount.groups).map(([k, v]) => [k, v && v.rect])))}`);
+        }
+      }
+    } finally {
+      // 清场：浮层在场会抢前台（自带焦点）——点参照窗把焦点收回，再销参照窗
+      try { if (!refS.isDestroyed()) { win32.clickPhys(neutralS.x, neutralS.y, 'left'); await sleep(200); } } catch { /* 尽力 */ }
+      try { if (!refS.isDestroyed()) refS.destroy(); } catch { /* 尽力 */ }
+      await sleep(400);
+    }
+
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {

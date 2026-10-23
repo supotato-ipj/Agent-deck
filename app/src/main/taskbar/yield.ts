@@ -1,41 +1,23 @@
 // 全屏让位（工单51，ADR-0007「工作区」决策）：检测到前台应用全屏（游戏、视频、演示）
 // 时任务栏条带自动隐藏，退出全屏即恢复。
-// 判定是纯谓词 shouldYieldToFullscreen（单测见 tests/taskbar/yield.spec.ts）；
-// FFI 前台探针 lazy-bind（syskeys.ts 先例：模块加载不触 FFI，纯谓词测试不引 koffi）。
-// 让位动作（条带 hide/show）由 taskbar/window.ts 控制器轮询驱动。
+// 判定谓词 shouldYieldToFullscreen **已退役**（工单249）：档位归 shared/retract 的
+// resolveBarMode（单一裁决）；它只按矩形覆盖判、不排除真最大化窗，接回主进程即重引入
+// 「两态互咬」。覆盖判定语义（容差/原点偏移）改由 shared/retract 的 coversScreenRect
+// 钉住（单测见 tests/taskbar/retract.spec.ts）。FFI 前台探针 lazy-bind（syskeys.ts 先例：
+// 模块加载不触 FFI，纯谓词测试不引 koffi）；让位动作由 taskbar/window.ts 控制器轮询驱动。
+// 探针形状、桌面宿主排除名单与覆盖判定已搬进 shared/retract（工单237）——单一来源，
+// 不许各抄一份；此处转出形状保持主进程侧引用路径不变（apps-plan.ts 同款先例）。
 
-/** 物理像素矩形（GetWindowRect / 屏物理尺寸口径，非 DIP） */
-export interface PhysRect {
-  left: number
-  top: number
-  right: number
-  bottom: number
-}
+import { coversScreenRect, DESKTOP_HOST_CLASSES } from '../../shared/retract'
+import type { ForegroundProbe, PhysRect } from '../../shared/retract'
 
-/** 前台窗探针快照（FFI 采集，喂给纯谓词） */
-export interface ForegroundProbe {
-  hwnd: number
-  pid: number
-  className: string
-  rect: PhysRect
-}
-
-/** 覆盖判定容差（px）：边框/圆角让全屏矩形与屏矩形有 1–2px 出入 */
-const COVER_TOLERANCE = 2
-
-/** 永不触发让位的桌面宿主类：桌面本体与原生任务栏的矩形常态即全屏/通栏 */
-const DESKTOP_HOST_CLASSES: readonly string[] = [
-  'Progman',
-  'WorkerW',
-  'Shell_TrayWnd',
-  'Shell_SecondaryTrayWnd',
-]
+export type { ForegroundProbe, PhysRect } from '../../shared/retract'
 
 /**
- * 全屏让位判定：前台窗完整覆盖给定屏矩形（容差内）、非自家进程（面板本体被点击
- * 成前台时矩形即全屏）、非桌面宿主类。最大化窗在 AppBar 占位生效后底边停在栏上方，
- * 天然不满足覆盖——AppBar 注册失败的降级档由调用方整段关掉让位（最大化窗会
- * 覆盖全屏造成误判）。
+ * **已退役**（工单249）：档位归 shared/retract 的 resolveBarMode（单一裁决）。最大化窗
+ * 在 AppBar 占位生效后底边停在栏上方，天然不满足覆盖（AppBar 注册失败的降级档由调用方
+ * 整段关掉让位）。**但它只按矩形覆盖判、不排除真最大化窗**——正是工单237 修正 A1 要防
+ * 的那条：接回主进程即重引入「两态互咬」。保留导出只为覆盖判定语义仍有单测可依。
  */
 export function shouldYieldToFullscreen(
   probe: ForegroundProbe | null,
@@ -45,11 +27,7 @@ export function shouldYieldToFullscreen(
   if (!probe) return false
   if (probe.pid === ownPid) return false
   if (DESKTOP_HOST_CLASSES.includes(probe.className)) return false
-  const r = probe.rect
-  return r.left <= screen.left + COVER_TOLERANCE
-    && r.top <= screen.top + COVER_TOLERANCE
-    && r.right >= screen.right - COVER_TOLERANCE
-    && r.bottom >= screen.bottom - COVER_TOLERANCE
+  return coversScreenRect(probe.rect, screen)
 }
 
 interface KoffiFunc {
@@ -61,6 +39,8 @@ interface Bound {
   getWindowRect: KoffiFunc
   getClassNameW: KoffiFunc
   getWindowThreadProcessId: KoffiFunc
+  /** 真最大化判据（工单241）：单次 user32 调用、语义精确——不用矩形覆盖法（手拉铺满误触发） */
+  isZoomed: KoffiFunc
 }
 
 let bound: Bound | null = null
@@ -75,11 +55,21 @@ function bind(): Bound {
     getWindowRect: user32.func('bool __stdcall GetWindowRect(uintptr_t hWnd, _Out_ TASKBAR_YIELD_RECT *r)'),
     getClassNameW: user32.func('int __stdcall GetClassNameW(uintptr_t hWnd, uint16 *buf, int nMax)'),
     getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, _Out_ uint32 *pid)'),
+    isZoomed: user32.func('bool __stdcall IsZoomed(uintptr_t hWnd)'),
   }
   return bound
 }
 
-/** 前台窗探针：句柄缺位/矩形读取失败返回 null（视同不让位——还原是安全方向） */
+/**
+ * 前台窗探针：句柄缺位/矩形读取失败返回 null（视同不让位——还原是安全方向）。
+ *
+ * zoomed = **真最大化**（Win32 IsZoomed 族，工单241 接真值）：单次 user32 调用、语义精确。
+ * 不用矩形覆盖法——手拉四角铺满的窗不触发收栏（spec #236 用户故事 26「宁可遗漏，不用
+ * 矩形法误触发」）；也不用 WS_MAXIMIZE 样式位——Win11 贴靠（snap）窗的语义与之不一致。
+ * 已知边界：少数自绘边框应用最大化不上 IsZoomed 样式 ⇒ 这类窗**不触发**收栏（spec 明示接受）。
+ *
+ * 探针只供事实，不判两态关系——档位归 shared/retract 的 resolveBarMode（单一裁决）。
+ */
 export function probeForegroundWindow(): ForegroundProbe | null {
   const b = bind()
   const hwnd = Number(b.getForegroundWindow())
@@ -92,5 +82,5 @@ export function probeForegroundWindow(): ForegroundProbe | null {
   for (let i = 0; i < n; i++) className += String.fromCharCode(buf.readUInt16LE(i * 2))
   const pidBuf = Buffer.alloc(4)
   b.getWindowThreadProcessId(hwnd, pidBuf)
-  return { hwnd, pid: pidBuf.readUInt32LE(0), className, rect }
+  return { hwnd, pid: pidBuf.readUInt32LE(0), className, rect, zoomed: Boolean(b.isZoomed(hwnd)) }
 }

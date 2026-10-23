@@ -13,6 +13,8 @@
 //     （工单196：档位两挂点臂6/7 断言锚点迁浮层窗 DECK-TASKBAR-TIER-MENU，落盘/收敛口径不变）/
 //      点「⋯」浮层随鼠标弹出（独立浮层窗）/行左键右键同回放分发（探针窗收帧）/点面板
 //      外即收（blur）/档位两挂点（「⋯」右键+右组空白右键）选档落盘/数量回落自动回栏
+//   P8 图标档位（工单244）：托盘图标 16px（1:1 直渲）+ 托盘格盒 28×28 +
+//      溢出菜单行图标 16px + 行高 30（CDP computed style 与几何存证帧两路互证）
 // 运行：npm run accept:taskbar-right-group（= electron . --accept-taskbar-right-group）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -493,13 +495,14 @@ async function main() {
         let viewH = ready ? Number(ready.h) || 0 : 0;
         if (!rows) {
           // 兜底：页面 ready 随名单 churn 才重报，无 churn 窗口内可能缺席——直接从内核
-          // 现取名单按行几何推（同一态：浮层行 = 名单去前 limit 的尾段，行高 34/内衬 6
-          // 与浮层页 CSS 同源），key 实时、坐标算术稳定
+          // 现取名单按行几何推（同一态：浮层行 = 名单去前 limit 的尾段，行高 30/内衬 6
+          // 与浮层页 CSS 同源——工单240：16px 图标 + 上下各 7 内衬 = 30），key 实时、
+          // 坐标算术稳定
           const st = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
           const limit = st && st.trayOverflowLimit === 'all' ? st.tray.length : (st?.trayOverflowLimit ?? 5);
           const tail = (st?.tray || []).slice(limit);
-          rows = tail.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 6 + 34 * i, h: 34 }));
-          viewH = rows.length * 34 + 12;
+          rows = tail.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 6 + 30 * i, h: 30 }));
+          viewH = rows.length * 30 + 12;
         }
         if (note) rep.note(`${note}: ${opened ? `rows=${rows ? rows.length : 'n/a'} bounds=${JSON.stringify(opened.bounds)}` : '未开'}`);
         return { opened, rows, viewH };
@@ -749,6 +752,104 @@ async function main() {
           flags: 0, callbackMessage: 0, hicon: 0, uVersion: 0 });
         ShellNotifyIconW7(NIM_DELETE, nidDel);
       }
+    }
+
+    // —— P8：托盘与溢出菜单行图标档位（工单244 新增）：托盘图标 16px（1:1 直渲）
+    //        + 托盘格盒 28×28 + 溢出菜单行图标 16px + 行高 30 ——
+    // 断言形态照 49 电池 P13 的两路互证：CDP computed style（渲染层真实尺寸，单测断不到）
+    // ＋ taskbar-geometry 存证帧（格盒矩形）。溢出菜单行在浮层页（DECK-TRAY-OVERFLOW）
+    // 里读，行高取 ready 存证的行矩形。
+    // 探针：溢出行需要「名单 > 5」才有行——机器自身图标数不定，自注册 6 枚探针把名单量
+    // 钉到确定性（P7 同款机制，探针窗复用 P7 的实例）。
+    rep.beginSegment('P8');
+    const since8 = Date.now();
+    const uids8 = Array.from({ length: 6 }, (_, i) => 0x2440001 + i);
+    const hicon8 = Number(LoadIconW7(0, 32512));
+    const probe8Keys = [];
+    for (const uid of uids8) {
+      const nid8 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
+        flags: NIF_MESSAGE | NIF_ICON | NIF_TIP, callbackMessage: PROBE_CB, hicon: hicon8,
+        tooltip: `DECK244-P${uid}`, uVersion: 0 });
+      if (ShellNotifyIconW7(NIM_ADD, nid8)) probe8Keys.push(`${probe162.hwnd}:${uid}`);
+    }
+    rep.note(`P8 探针在册 ${probe8Keys.length}/${uids8.length}`);
+    // 名单收编（面板把系统托盘图标收进栏内）→ 几何帧到位（栏内托盘格 + ⋯ 钮）
+    const roster8 = async () => {
+      const st = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+      return (st && Array.isArray(st.tray)) ? st.tray.map((x) => x.key) : [];
+    };
+    let r8 = [];
+    for (let i = 0; i < 20; i++) {
+      r8 = await roster8();
+      if (probe8Keys.length && probe8Keys.every((k) => r8.includes(k))) break;
+      await sleep(400);
+    }
+    // 几何帧（格盒矩形）：渲染层只在**栏面几何变化**时重发（payload 未变即不发）——
+    // 探针枚数增加不改变栏面（默认档 5 可见），故取「最新一帧」而不设时间门。
+    const geo8 = await waitLastEvent('taskbar-geometry',
+      (e) => e.trayIcons && e.trayIcons.length > 0 && e.trayOverflow, 8000, {});
+    // 托盘图标显示档（CDP computed style）+ 1:1 直渲判据（源 < 16px 才挂 pixelated）
+    let sizes8 = null;
+    for (let i = 0; i < 10; i++) {
+      sizes8 = await cdpEval(TASKBAR_TITLE, `(() => {
+        const tray = [...document.querySelectorAll('.tb-tray-icon img')];
+        const cs = (el, p) => (el ? getComputedStyle(el)[p] : null);
+        return tray.map((t) => ({ w: cs(t,'width'), h: cs(t,'height'), nat: t.naturalWidth,
+          px: t.classList.contains('tb-tray-px'), rendering: cs(t,'imageRendering') }));
+      })()`);
+      if (sizes8 && sizes8.length && sizes8.some((t) => t.nat > 0)) break;
+      await sleep(400);
+    }
+    const traySizeOk8 = !!sizes8 && sizes8.length > 0 && sizes8.every((t) => t.w === '16px' && t.h === '16px');
+    const loaded8 = (sizes8 || []).filter((t) => t.nat > 0);
+    const pxOk8 = loaded8.every((t) => t.px === (t.nat < 16) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
+    const geoTrayOk8 = !!(geo8 && geo8.trayIcons && geo8.trayIcons.length > 0
+      && Math.abs(geo8.trayIcons[0].w - 28) <= 2 && Math.abs(geo8.trayIcons[0].h - 28) <= 2);
+    // 溢出菜单行图标（16px）+ 行高（30）：开层后从浮层页读 computed style，行几何取 ready 存证
+    let rowSize8 = null;
+    let rowH8 = null;
+    let popupOk8 = false;
+    let conv8 = null;
+    const more8 = geo8 && geo8.trayOverflow;
+    if (more8) {
+      const pt8 = toPhys(more8.x + more8.w / 2, more8.y + more8.h / 2);
+      conv8 = await convergeAt(pt8, tbHwnd7);
+      win32.clickPhys(pt8.x, pt8.y, 'left');
+      await sleep(700); // 沉降拍（红轮实证：show 后 ~100ms 内落点的点击整帧丢失）
+      const ready8 = await waitLastEvent('taskbar-tray-overflow-ready',
+        (e) => Array.isArray(e.rows) && e.rows.length > 0, 5000, { since: since8 });
+      if (ready8) {
+        rowH8 = ready8.rows.map((r) => r.h);
+        rowSize8 = await cdpEval('DECK-TRAY-OVERFLOW', `(() => {
+          const imgs = [...document.querySelectorAll('.ov-row img')];
+          const cs = (el, p) => (el ? getComputedStyle(el)[p] : null);
+          return imgs.map((t) => ({ w: cs(t,'width'), h: cs(t,'height'), nat: t.naturalWidth }));
+        })()`);
+        popupOk8 = true;
+      }
+      rep.note(`P8 浮层开层 收敛=${conv8} 行高=${JSON.stringify(rowH8)}`);
+    }
+    const rowSizeOk8 = !!rowSize8 && rowSize8.length > 0 && rowSize8.every((t) => t.w === '16px' && t.h === '16px');
+    const rowHOk8 = !!rowH8 && rowH8.length > 0 && rowH8.every((h) => Math.abs(h - 30) <= 1);
+    if (traySizeOk8 && pxOk8 && geoTrayOk8 && popupOk8 && rowSizeOk8 && rowHOk8) {
+      rep.pass(`P8 图标档位：托盘图标 ${sizes8.length} 枚均 16px（1:1 直渲判据：${loaded8.length ? (pxOk8 ? '通过' : '不符') : '未及（像素未到齐，软核验跳过）'}）、`
+        + `托盘格盒 ${geo8.trayIcons[0].w}×${geo8.trayIcons[0].h}（期望 28×28）、`
+        + `溢出菜单行图标 ${rowSize8.length} 枚均 16px、行高 ${JSON.stringify(rowH8)}（期望 30）`);
+    } else {
+      rep.fail(`P8 托盘尺寸=${JSON.stringify(sizes8)} 直渲判据=${pxOk8} 格盒=${JSON.stringify(geo8 && geo8.trayIcons && geo8.trayIcons[0])} `
+        + `行图标=${JSON.stringify(rowSize8)} 行高=${JSON.stringify(rowH8)} 开层=${popupOk8}`);
+    }
+    // 收层：点浮层外（blur 收层）——不给用户留残留浮层
+    if (popupOk8) {
+      const center8 = { x: Math.round((dip.x + dip.width / 2) * scale), y: Math.round((dip.y + dip.height / 2) * scale) };
+      win32.clickPhys(center8.x, center8.y, 'left');
+      await waitLastEvent('taskbar-tray-overflow-closed', undefined, 3000, { since: since8 });
+    }
+    // 探针拆除（异常路径 finally 兜底）
+    for (const uid of uids8) {
+      const nidDel8 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
+        flags: 0, callbackMessage: 0, hicon: 0, uVersion: 0 });
+      ShellNotifyIconW7(NIM_DELETE, nidDel8);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
