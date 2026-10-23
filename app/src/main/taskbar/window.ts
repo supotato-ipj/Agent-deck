@@ -532,11 +532,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         }
       },
       onTransition: (hot) => log?.append({ type: hot ? 'taskbar-hotzone-enter' : 'taskbar-hotzone-leave' }),
+      // 工单242 指针对账：热区跟踪器按光标坐标 hit-test 的结论下发条带渲染层——
+      // 唤出条的悬停态只认这条事实（不采信浏览器 enter/leave 事件序列，原型振荡教训）
+      onZone: (id) => ctx.emit('taskbar/cursor-zone', { id }),
     })
     // 任务栏窗只收自己关心的事件（面板事件不进条带渲染层）：
     // changed = 启停/勾选状态；status = 右组 1Hz 时钟 + 硬件仪表帧（工单55）；
-    // bar-mode = 三态下发（工单241：栏面退场/复现——唤出条几何由渲染层自算）
-    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode'])
+    // bar-mode = 三态下发（工单241：栏面退场/复现——唤出条几何由渲染层自算）；
+    // cursor-zone = 光标落在哪个热区（工单242：唤出条指针对账的唯一事实来源）；
+    // popup-state = 自绘浮层开合（工单242：浮层在场钉住所属组）
+    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state'])
     wireHostIpc(w, s.tracker, log, {
       // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶
       pin: (v) => {

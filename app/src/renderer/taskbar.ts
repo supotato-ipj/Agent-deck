@@ -19,6 +19,10 @@
 import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
+import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
+import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
+import { initialSummonState, summonedGroups } from '../shared/retract.js'
+import type { SummonState } from '../shared/retract.js'
 import type { HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
@@ -26,6 +30,8 @@ const pillRecs = document.getElementById('pill-recs') as HTMLElement
 const pillApps = document.getElementById('pill-apps') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
 const sliver = document.getElementById('show-desktop') as HTMLElement
+/** 唤出条层（工单242）：收栏态下逐组一条窄横条的宿主（条元素挂在它下面） */
+const summonLayer = document.getElementById('summon-strips') as HTMLElement | null
 
 // 换位拖拽（工单57）是本窗唯一的原生拖拽语义，且只长在 .tb-app/.tb-rec 上（makeDraggable）。
 // 别处的 img（托盘图标、推荐位图标）默认可拖：一起手就起 OLE 会话，会话收不掉时满屏 Ghost
@@ -90,6 +96,13 @@ function applyBarMode(next: TaskbarBarModeState['mode']): void {
   if (barMode === next) return
   barMode = next
   document.body.dataset.barMode = next
+  // 唤出态随档位归零（工单242）：进收栏态重置（各组唤出条待命），出收栏态清空
+  // （栏面复现，没有"弹出的组"这回事）。光标锚点一并作废——档位一变，热区集合全换，
+  // 下一拍光标轮询自会报新的命中区。
+  summonState = initialSummonState(next === 'maximize-retract' ? summonPillCache.map((p) => p.group) : [])
+  cursorZone = null
+  poppedSig = ''
+  hoverSig = ''
   // 重排：收栏态栏面退场量不到宽度（应用组落位按 offsetWidth 算），复现时必须按可见
   // 几何重算落位——否则复现的栏面位置是收栏态的残值。render 内含热区与几何帧重声明。
   if (current) requestRender(current)
@@ -118,6 +131,218 @@ function cacheSummonPills(state: TaskbarState): void {
   pills.push({ group: 'right', x: m.rightPill.x, width: m.rightPill.w })
   pills.push({ group: 'showdesk', x: m.sliver.x, width: m.sliver.w })
   summonPillCache = pills
+}
+
+/* ================================================================
+ * 唤出条（工单242，spec #236 用户故事 12–22、24、31–33）
+ * ================================================================ */
+
+/** 组 → 栏面元素（被唤出时该元素复现；未唤出时退场） */
+const SUMMON_GROUP_ELEMENT: Record<string, HTMLElement> = {
+  start: pillStart,
+  recs: pillRecs,
+  apps: pillApps,
+  right: rightPill,
+  showdesk: sliver,
+}
+
+/** 组的可读名（唤出条 title——不靠图标猜是哪一组） */
+const SUMMON_GROUP_LABEL: Record<string, string> = {
+  start: '开始组',
+  recs: '推荐组',
+  apps: '应用组',
+  right: '右组',
+  showdesk: '显示桌面',
+}
+
+/** 唤出交互状态（归约体在 shared/retract 的 reduceSummon——本层只喂事件与对账事实） */
+let summonState: SummonState = initialSummonState([])
+/** 当前唤出条几何（收栏态：由收栏前缓存的各组 pill 矩形算出） */
+let summonStrips: SummonStripGeometry[] = []
+/**
+ * 光标此刻落在哪个热区——**唤出悬停态的唯一事实来源**。
+ * 主进程 HotzoneTracker 25ms 光标轮询按光标坐标 hit-test 后下发（taskbar/cursor-zone）。
+ * 不用浏览器 enter/leave 事件序列（原型教训：静止指针会「弹出→收→弹」振荡）。
+ */
+let cursorZone: string | null = null
+/** 已落到 DOM 的视图签名（弹出的组 / 悬停的条）——没变就不碰 DOM */
+let poppedSig = ''
+let hoverSig = ''
+
+/** 对账拍间隔（ms）：与主进程 HotzoneTracker 的 25ms 光标轮询同频 */
+const SUMMON_TICK_MS = 25
+
+/**
+ * 唤出条几何：收栏前缓存的各组 pill 矩形 → 逐组一条（镜像 pill 横向区间与宽度）。
+ * 屏幕底边 = 条带窗客户区底边（条带窗通栏且贴屏底）——故取 innerHeight。
+ */
+function planSummonStripsNow(): SummonStripGeometry[] {
+  return planSummonGeometry(summonPillCache, window.innerHeight)
+}
+
+/** 唤出条元素：视觉条 3px 贴屏底，命中区 9px 垫在条元素上（两个口径分离） */
+function makeSummonStripEl(group: string): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'tb-summon-strip'
+  el.dataset.group = group
+  el.title = `唤出${SUMMON_GROUP_LABEL[group] ?? group}`
+  const bar = document.createElement('div')
+  bar.className = 'tb-summon-bar'
+  el.appendChild(bar)
+  el.addEventListener('click', () => {
+    if (barMode !== 'maximize-retract') return
+    const now = Date.now()
+    // 点击即证据：指针此刻在这条上——顺手把对账锚点拨正（不等光标轮询那一拍）
+    cursorZone = stripZoneId(group)
+    summonState = clickStrip(summonState, group, now)
+    applySummonView()
+  })
+  return el
+}
+
+/**
+ * 条 DOM 与几何 1:1 跟随（组增删即增删条；相叠已被 planSummonGeometry 夹取过）。
+ *
+ * 只写**横向**几何（左缘 + 宽度）：条的高度是定值口径（命中区 9px / 视觉条 3px），
+ * 归样式表所有——与「挤撞守卫只收窄宽度、绝不改高度」同一纪律（工单238）。
+ */
+function syncSummonStrips(strips: SummonStripGeometry[]): void {
+  const layer = summonLayer
+  if (!layer) return
+  const seen = new Set<string>()
+  for (const s of strips) {
+    seen.add(s.group)
+    let el = layer.querySelector<HTMLElement>(`.tb-summon-strip[data-group="${s.group}"]`)
+    if (!el) {
+      el = makeSummonStripEl(s.group)
+      layer.appendChild(el)
+    }
+    el.style.left = `${Math.round(s.x)}px`
+    el.style.width = `${Math.round(s.width)}px`
+  }
+  for (const el of [...layer.querySelectorAll<HTMLElement>('.tb-summon-strip')]) {
+    if (!seen.has(el.dataset.group ?? '')) el.remove()
+  }
+}
+
+/**
+ * 唤出上滑淡入（140ms，进有方向感）：走 Web Animations API 而非 CSS @keyframes——
+ * 条带页样式表是平铺规则集（工单238 的样式表守卫不容块内嵌套开括号）。
+ * 收起**瞬时**：动画只管进，退场时元素直接退场，无退场动画。
+ */
+function animateSummonRise(group: string, el: HTMLElement): void {
+  el.animate(summonRiseKeyframes(SUMMON_SHIFTED_GROUPS.includes(group)), {
+    duration: SUMMON_RISE_MS,
+    easing: 'ease-out',
+  })
+}
+
+/** 已唤出组的 pill 矩形（收栏态下唤出的组复现在同一条 48px 带内——不改变最大化窗尺寸） */
+function poppedPillRects(): Record<string, SummonRect> {
+  const out: Record<string, SummonRect> = {}
+  for (const group of summonedGroups(summonState)) {
+    const el = SUMMON_GROUP_ELEMENT[group]
+    if (!el) continue
+    const r = el.getBoundingClientRect()
+    if (r.width <= 0 || r.height <= 0) continue
+    out[group] = { x: r.x, y: r.y, w: r.width, h: r.height }
+  }
+  return out
+}
+
+/**
+ * 唤出态落到 DOM：唤出的组复现（140ms 上滑淡入）、已唤出组的条隐藏（条与 pill 同位，
+ * 露出会闪）、悬停中的条亮起（延迟反馈）。
+ *
+ * 返回「唤出的组是否变了」——变了才要重声明热区（该组的命中区从条换成 pill）。
+ */
+function applySummonView(): boolean {
+  const popped = summonedGroups(summonState).slice().sort()
+  const hover = Object.entries(summonState.groups)
+    .filter(([, g]) => g.onStrip)
+    .map(([k]) => k)
+    .sort()
+  const nextPopped = popped.join(',')
+  const nextHover = hover.join(',')
+  const poppedChanged = nextPopped !== poppedSig
+  if (!poppedChanged && nextHover === hoverSig) return false
+  const before = poppedSig ? poppedSig.split(',') : []
+  poppedSig = nextPopped
+  hoverSig = nextHover
+  // 唤出的组复现（其余组保持退场）
+  for (const [group, el] of Object.entries(SUMMON_GROUP_ELEMENT)) {
+    el.classList.toggle('summon-popped', popped.includes(group))
+  }
+  // 新唤出的组走 140ms 上滑淡入（重渲不重放——只有「新唤出」这一拍才放）
+  for (const group of popped) {
+    if (before.includes(group)) continue
+    const el = SUMMON_GROUP_ELEMENT[group]
+    if (el) animateSummonRise(group, el)
+  }
+  // 条：已唤出组的条隐藏；悬停中的条亮起（亮条只是预告，弹出仍等 150ms）
+  for (const el of summonLayer?.querySelectorAll<HTMLElement>('.tb-summon-strip') ?? []) {
+    const group = el.dataset.group ?? ''
+    const g = summonState.groups[group]
+    el.style.display = g && !g.stripVisible ? 'none' : ''
+    el.classList.toggle('hover', hover.includes(group))
+  }
+  // 唤出的组换了 → 命中区换了（该组的条退场、pill 顶上）——热区必须重声明，
+  // 否则条带窗的热区仍指向已退场的条，弹出组的上半截点不动。
+  if (poppedChanged && current) declareHotZones(current)
+  return poppedChanged
+}
+
+/** 唤出条渲染（收栏态）：几何重算 + 条 DOM 同步 + 唤出态落 DOM */
+function renderSummon(): void {
+  if (barMode !== 'maximize-retract') {
+    summonStrips = []
+    if (summonLayer) summonLayer.textContent = ''
+    applySummonView()
+    return
+  }
+  summonStrips = planSummonStripsNow()
+  syncSummonStrips(summonStrips)
+  notifySummonStrips(summonStrips)
+  applySummonView()
+}
+
+/**
+ * 唤出条几何存证（工单242）：验收侧据此断言「逐组一条、镜像 pill 横向区间、
+ * 组间空隙不出条、显示桌面细条在最右端独立一条」。
+ *
+ * 与 taskbar-geometry 同款纪律：几何未变不重复刷事件流。事件名与既有的
+ * taskbar-retract / taskbar-yield 同族（taskbar-<名>）。
+ */
+let lastSummonStripsJson = ''
+function notifySummonStrips(strips: SummonStripGeometry[]): void {
+  const payload = {
+    strips: strips.map((s) => ({
+      group: s.group,
+      x: s.x,
+      width: s.width,
+      top: s.hitTop,
+      height: s.hitHeight,
+      visualTop: s.visualTop,
+      visualHeight: s.visualHeight,
+    })),
+  }
+  const json = JSON.stringify(payload)
+  if (json === lastSummonStripsJson) return
+  lastSummonStripsJson = json
+  window.deck.host.notify('taskbar-summon-strips', payload)
+}
+
+/**
+ * 唤出对账拍（25ms，与主进程光标轮询同频）：按光标坐标校正悬停态 + 推进逻辑时钟
+ * （到点的悬停弹出、到点的宽限收起）。**不采信浏览器 enter/leave 事件序列**。
+ */
+function summonTick(): void {
+  if (barMode !== 'maximize-retract') return
+  if (dragSource) return // 拖拽会话持门期（工单195）：热区轮询暂停，对账一并暂停
+  const now = Date.now()
+  summonState = reconcilePointer(summonState, cursorZone, now)
+  summonState = tickSummon(summonState, now)
+  applySummonView() // 唤出的组变了 → 命中区跟着重声明（在本函数内收口）
 }
 
 interface Rect { id: string; x: number; y: number; w: number; h: number }
@@ -160,10 +385,11 @@ function declareHotZones(state: TaskbarState): void {
     window.deck.host.setHotZones([])
     return
   }
-  // 收栏态（工单241）：栏面退场，无可点之物——热区清空（唤出条命中区由工单242 沿同一
-  // 热区通路声明，不与栏面热区混在一张单子里）
+  // 收栏态（工单241/242）：栏面退场；热区 = 唤出条命中区 + 已唤出 pill 的命中区
+  // （沿用同一热区通路：declareHotZones → setHotZones → preload → 主进程 tracker；
+  //  id 编码供主进程按光标坐标 hit-test 后回报，渲染层据此对账悬停态）
   if (barMode === 'maximize-retract') {
-    window.deck.host.setHotZones([])
+    window.deck.host.setHotZones(summonHotZones(summonState, summonStrips, poppedPillRects()))
     return
   }
   const vm = taskbarViewModel(state)
@@ -741,6 +967,7 @@ function render(state: TaskbarState): void {
   positionRecPill()
   clampRecPillWidth()
   renderApps(vm.apps)
+  renderSummon() // 唤出条（工单242）：收栏态下逐组一条（几何重算 + 条 DOM + 唤出态）
   declareHotZones(state)
   cacheSummonPills(state)
   notifyGeometry()
@@ -876,6 +1103,19 @@ function boot(): void {
     // 三态下发（工单241）：主进程裁决后推当前档位——栏面退场/复现（唤出条待命）。
     // 订阅先于 ready 上报：主进程收到 taskbar-ready 即补发当前档位（握手补发不漏首推）。
     window.deck.bridge.on('taskbar/bar-mode', (p) => applyBarMode(p.mode))
+    // 唤出条指针对账（工单242）：主进程 25ms 光标轮询按光标坐标 hit-test 的结论——
+    // 悬停态只认这条事实（**不采信浏览器 enter/leave 事件序列**，原型振荡教训）。
+    window.deck.bridge.on('taskbar/cursor-zone', (p) => {
+      cursorZone = p.id
+    })
+    // 自绘浮层在场 → 钉住所属组（托盘溢出菜单钉右组，其余组照常收）；离场 → 解除钉住。
+    window.deck.bridge.on('taskbar/popup-state', (p) => {
+      if (barMode !== 'maximize-retract') return
+      summonState = applyOverlayState(summonState, p.family, p.open, Date.now())
+      applySummonView()
+    })
+    // 对账拍：25ms 一拍，与主进程光标轮询同频（校正悬停态 + 推进逻辑时钟）
+    setInterval(() => summonTick(), SUMMON_TICK_MS)
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, startPill: m.startPill, recPill: m.recPill, buttons: m.buttons, recommendations: m.recommendations,
