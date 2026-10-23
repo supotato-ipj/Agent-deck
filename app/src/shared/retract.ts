@@ -57,8 +57,8 @@ export const DESKTOP_HOST_CLASSES: readonly string[] = [
 
 /**
  * 前台窗是否完整覆盖给定屏矩形（容差内）——全屏让位与收栏共用一份覆盖判定。
- * 收栏会注销 AppBar 释放工作区占位，故「覆盖」本身不足以判全屏：真最大化窗在收栏后
- * 同样覆盖整屏，由调用方用 zoomed 位把两态分开（见 resolveBarMode）。
+ * 收栏会注销我方 AppBar 占位登记，故「覆盖」本身不足以判全屏：一旦工作区是整屏（原生保留带
+ * 已被释放的机器上），真最大化窗同样覆盖整屏，由调用方用 zoomed 位把两态分开（见 resolveBarMode）。
  */
 export function coversScreenRect(rect: PhysRect, screen: PhysRect): boolean {
   return rect.left <= screen.left + COVER_TOLERANCE
@@ -94,10 +94,10 @@ export interface BarModeInput {
  * ② 非真最大化的全屏覆盖窗（游戏 / 视频这类全屏应用通常不上 IsZoomed 态）→ 全屏让位；
  * ③ 其余 → 常驻可见。
  *
- * ① 先于 ② 是「两态不互咬」的闸门（工单237 修正 A1）：收栏注销 AppBar 释放工作区占位后，
- * 最大化窗的矩形**正好覆盖整屏**——若按矩形覆盖判全屏，收栏刚生效就被优先级最高的
- * 全屏让位翻掉，栏隐藏且没有唤出条，收栏功能等于没做。既有实现下最大化窗从不触发全屏
- * 让位（AppBar 占着 48px，矩形不满足覆盖），这条排除把全屏让位的既有语义保住。
+ * ① 先于 ② 是「两态不互咬」的闸门（工单237 修正 A1）：收栏注销我方 AppBar 占位登记后，若
+ * 工作区是整屏（原生保留带已被释放的机器上，见工单250 取证），真最大化窗的矩形就**正好
+ * 覆盖整屏**——若按矩形覆盖判全屏，收栏刚生效就被优先级最高的全屏让位翻掉，栏隐藏且没有
+ * 唤出条，收栏功能等于没做。这条排除把全屏让位的既有语义保住。
  * 真最大化窗因此**永不**落 fullscreen-yield：闸门没过时落 visible，不落让位。
  */
 export function resolveBarMode(input: BarModeInput): BarMode {
@@ -421,7 +421,7 @@ export interface BarTransitionPlan {
  *    在最大化窗之上、命中区可点，弹出的组就落在同一条 48px 带内）；
  * ③ **同态迁移零动作**：250ms 轮询每拍都过一次，重复落账会刷爆存证流。
  *
- * 本函数**不重判档位**——档位归 resolveBarMode（真最大化优先）。收栏态因占位已释放而
+ * 本函数**不重判档位**——档位归 resolveBarMode（真最大化优先）。收栏态因占位登记被注销而
  * 让最大化窗「看起来」覆盖整屏，那是副作用不是档位变化（修正 E4：不得因此翻成让位态）。
  */
 export function planBarTransition(prev: BarMode, next: BarMode): BarTransitionPlan {
