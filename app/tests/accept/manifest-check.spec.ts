@@ -373,11 +373,11 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：34 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：35 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(34)
-    expect(manifest.requiredFileRules!.length).toBe(34)
+    expect(fileRules.length).toBe(35)
+    expect(manifest.requiredFileRules!.length).toBe(35)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

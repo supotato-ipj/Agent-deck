@@ -1543,6 +1543,10 @@
       "area": "taskbar"
     },
     {
+      "path": "app/src/shared/retract.ts",
+      "area": "taskbar"
+    },
+    {
       "path": "app/accept",
       "area": "accept"
     },
@@ -1591,6 +1595,7 @@
     { "path": "app/src/renderer/tray-pixels.ts", "area": "taskbar" },
     { "path": "app/src/renderer/zone-hotzone.ts", "area": "hotzone" },
     { "path": "app/src/shared/overflow.ts", "area": "taskbar" },
+    { "path": "app/src/shared/retract.ts", "area": "taskbar" },
     { "path": "app/accept/manifest.json", "area": "accept", "wires": "*" }
   ]
 }
