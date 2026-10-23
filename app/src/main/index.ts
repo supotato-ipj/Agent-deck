@@ -209,6 +209,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       hiddenButtons: config.taskbar.hiddenButtons,
       metrics: config.taskbar.metrics,
       trayOverflowLimit: config.taskbar.trayOverflowLimit,
+      // 最大化收栏开关（工单239）：随 config 下发，默认开；设置浮层切换经
+      // taskbar/set-maximize-retract 即时生效
+      maximizeRetract: config.taskbar.maximizeRetract,
       file: CONFIG_FILE,
       config,
     },

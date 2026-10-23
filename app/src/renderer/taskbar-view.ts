@@ -11,16 +11,22 @@ export interface TaskbarBridge {
   on<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void
 }
 
-/** 开始组系统按钮（工单49：开始 + TaskView） */
+/** 开始组系统按钮（工单49：开始 + TaskView）
+ * 工单240 裁决（spec #236「开始组 24px 图标 / 36px 格」在文字按钮上的落法）：
+ * 字形当图标——label 只留字面（⊞ / ▦，24px 显示于 36px 格里），可见文字退到
+ * title/aria-label（图标化后名字不再占格，可访问名不丢）。 */
 export interface TaskbarButtonSpec {
   id: TaskbarButtonId
+  /** 按钮面字面（= 图标位）：24px 字形居中于 36px 格 */
   label: string
+  /** 可见名（悬停提示 + 无障碍名）：文字按钮退役后名字只在此 */
+  title: string
   action: TaskbarSystemAction
 }
 
 export const TASKBAR_BUTTONS: readonly TaskbarButtonSpec[] = [
-  { id: 'start', label: '⊞ START', action: 'start-menu' },
-  { id: 'tasks', label: '▦ TASK VIEW', action: 'task-view' },
+  { id: 'start', label: '⊞', title: '开始', action: 'start-menu' },
+  { id: 'tasks', label: '▦', title: '任务视图', action: 'task-view' },
 ] as const
 
 /** 右组动作格（工单55）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、点击触发原生
@@ -229,14 +235,16 @@ export async function dispatchTaskbarVisibility(
 
 // —— 工单56 托盘入栏：像素取字节 + 点击回放分发 ——
 
-/** 托盘图标显示档（工单158：16→24px，观感不小于原生任务栏的 24px 托盘图标） */
-export const TASKBAR_TRAY_ICON_PX = 24
+/** 托盘图标显示档（工单240：24 → 16px 原生直渲——源图本就是 16px，
+ * 拉到 24 是最近邻放大，又大又糊；16px 1:1 直渲与 Win11 通知区域一致） */
+export const TASKBAR_TRAY_ICON_PX = 16
 
 /**
- * 托盘图标最近邻放大判据（工单158 纯函数）：源尺寸小于显示档（典型 16px 原生源）
+ * 托盘图标最近邻放大判据（纯函数）：源尺寸小于显示档（典型 12px 源，档 16px）
  * 需挂 .tb-tray-px（image-rendering: pixelated）做最近邻放大保持锐利——平滑插值会把
- * 16px 小图标糊成一团；源 ≥ 显示档（典型 32px 源降采样到 24）相反，平滑插值才干净，
- * 最近邻降采样会丢像素出毛边。挂靠 class 的裁决在渲染层 makeTrayEl，本函数只判尺寸。
+ * 小图标糊成一团；源 ≥ 显示档相反：典型 16px 源与档等大 = 1:1 原生直渲（不挂、
+ * 不缩放、不拉伸），32px 源降采样到 16 走平滑插值（最近邻降采样会丢像素出毛边）。
+ * 挂靠 class 的裁决在渲染层 makeTrayEl，本函数只判尺寸。
  */
 export function trayIconPixelated(naturalWidth: number): boolean {
   return Number.isFinite(naturalWidth) && naturalWidth > 0 && naturalWidth < TASKBAR_TRAY_ICON_PX
@@ -317,6 +325,19 @@ export async function dispatchTrayOverflowLimit(
 ): Promise<TaskbarState | null> {
   if (!(TRAY_OVERFLOW_TIERS as ReadonlyArray<{ limit: TaskbarTrayOverflowLimit }>).some((t) => t.limit === limit)) return null
   return bridge.invoke('taskbar/set-tray-overflow-limit', { limit })
+}
+
+/**
+ * 最大化收栏开关分发（工单239）：设置浮层勾选态 → 桥（taskbar/set-maximize-retract），
+ * 校验与持久化在内核；回执 = 最新任务栏状态（含新开关值）。
+ * 入参来自复选框 checked（天然布尔），故本层不做形状校验——契约违规由内核闸门抛
+ * BridgeError（setMaximizeRetract 同款口径）。
+ */
+export async function dispatchMaximizeRetract(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  enabled: boolean,
+): Promise<TaskbarState> {
+  return bridge.invoke('taskbar/set-maximize-retract', { enabled })
 }
 
 // —— 工单53 应用组交互：点击三态/中键新实例/多窗口选窗/右键菜单动作 ——
@@ -558,11 +579,11 @@ export function splitAppsOverflow(
 // 居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，DOM 侧（taskbar.ts）
 // 只做矩形实测与落位。
 
-/** 应用组几何常量（与 taskbar.html CSS 同源：pill 内衬 8+8、图标格 44+2 间距、组间距 8、
- * 条带左缘内衬 8——工单158 尺寸基）。格数宁保守不少让——多留缝也不与邻组重叠。 */
+/** 应用组几何常量（与 taskbar.html CSS 同源：pill 内衬 8+8、图标格 36+2 间距、组间距 8、
+ * 条带左缘内衬 8——工单240 尺寸基）。格数宁保守不少让——多留缝也不与邻组重叠。 */
 export const APPS_INSET = 8
 export const PILL_PAD_X = 16
-export const CELL_W = 46
+export const CELL_W = 38
 export const GROUP_GAP = 8
 
 /** 应用组空带：[lo, hi] = [左邻组右缘（含组间距）, 右组左缘（含组间距）]——
@@ -583,6 +604,39 @@ export function appsBand(leftRight: number | null, rightLeft: number): AppsBand 
   const lo = leftRight === null ? APPS_INSET : leftRight + GROUP_GAP
   const hi = Math.max(rightLeft - GROUP_GAP, lo)
   return { lo, hi }
+}
+
+/** 一组 pill 的横向区间（左缘 + 宽度；与唤出条镜像的矩形同口径） */
+export interface GroupPillSpan {
+  /** pill 左缘（客户区坐标） */
+  x: number
+  /** pill 宽度 */
+  width: number
+}
+
+/**
+ * 应用组空带（收栏态口径，工单253）：由**收栏前缓存的各组区间**反推。
+ *
+ * 收栏态栏面退场（各组 pill display:none）⇒ 活邻组实测宽度是 0 ⇒ 常态口径算出的空带是
+ * 零宽带（容量 0 格 ⇒ 条目全被塞进「⋯」溢出；已唤出的组另被挤撞守卫按 0 宽裁成空壳 ⇒
+ * 点不到）。本函数改用收栏前最后一帧的区间（唤出条镜像的**同一份**）⇒ 容量与落位与收栏前
+ * 一致：已唤出的组拿到可点击的宽度，条与组的横向区间同源（位置记忆不打架）。
+ *
+ * 边界口径与常态 appsBand 逐字一致：左邻按推荐组优先、缺席回退开始组，都缺席退条带左缘
+ * 内衬；右界 = 右组左缘 − 组间距（右组缺位 ⇒ 不设限：容量放开，不裁剪）。
+ */
+export function appsBandFromSpans(spans: {
+  /** 开始组区间（缺位 = 该组不在场） */
+  start?: GroupPillSpan
+  /** 推荐组区间（缺位 = 该组不在场） */
+  recs?: GroupPillSpan
+  /** 右组区间（缺位 = 缓存缺位 ⇒ 右界不设限） */
+  right?: GroupPillSpan
+}): AppsBand {
+  const recsRight = spans.recs ? spans.recs.x + spans.recs.width : null
+  const startRight = spans.start ? spans.start.x + spans.start.width : null
+  const rightLeft = spans.right ? spans.right.x : Number.POSITIVE_INFINITY
+  return appsBand(appsBandLeft(recsRight, startRight), rightLeft)
 }
 
 /** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。

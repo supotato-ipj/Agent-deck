@@ -16,16 +16,22 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
-import type { AppsBand, TaskbarAppViewEntry } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import type { AppsBand, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
-import type { HardwareGauges, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
+import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
+import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
+import { initialSummonState, summonedGroups } from '../shared/retract.js'
+import type { SummonState } from '../shared/retract.js'
+import type { HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
 const pillRecs = document.getElementById('pill-recs') as HTMLElement
 const pillApps = document.getElementById('pill-apps') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
 const sliver = document.getElementById('show-desktop') as HTMLElement
+/** 唤出条层（工单242）：收栏态下逐组一条窄横条的宿主（条元素挂在它下面） */
+const summonLayer = document.getElementById('summon-strips') as HTMLElement | null
 
 // 换位拖拽（工单57）是本窗唯一的原生拖拽语义，且只长在 .tb-app/.tb-rec 上（makeDraggable）。
 // 别处的 img（托盘图标、推荐位图标）默认可拖：一起手就起 OLE 会话，会话收不掉时满屏 Ghost
@@ -74,6 +80,297 @@ let dragResized = false
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
 
+/**
+ * 栏三态（工单241 主进程编排下发）：visible = 栏面常驻；maximize-retract = **最大化收栏**
+ * （栏面退场、唤出条待命——唤出条本体由工单242 落）；fullscreen-yield = 全屏让位
+ * （整窗退场，渲染层无事——窗口已隐藏）。
+ *
+ * 收栏态的栏面退场由 body[data-bar-mode] 的 CSS 承担（重渲不丢、不与视图模型的
+ * 组显隐打架）；热区在收栏态清空（栏面不在场，无可点之物——唤出条命中区由工单242
+ * 沿同一热区通路声明）。
+ */
+let barMode: TaskbarBarModeState['mode'] = 'visible'
+
+/** 栏三态落地：栏面显隐（CSS 属性位）+ 重排。幂等——同档位重复下发空转。 */
+function applyBarMode(next: TaskbarBarModeState['mode']): void {
+  if (barMode === next) return
+  barMode = next
+  document.body.dataset.barMode = next
+  // 唤出态随档位归零（工单242）：进收栏态重置（各组唤出条待命），出收栏态清空
+  // （栏面复现，没有"弹出的组"这回事）。光标锚点一并作废——档位一变，热区集合全换，
+  // 下一拍光标轮询自会报新的命中区。
+  summonState = initialSummonState(next === 'maximize-retract' ? summonPillCache.map((p) => p.group) : [])
+  cursorZone = null
+  poppedSig = ''
+  hoverSig = ''
+  // 唤出态归零要与 DOM **同拍**（工单249）：只清签名会留下「签名说没弹出、DOM 还带着
+  // .summon-popped」的残态——下次 applySummonView 的早退逻辑（签名没变就不碰 DOM）
+  // 于是跳过 toggle，残态再也抹不掉：下次进收栏态时该组 pill 整组复现，却不在热区集内
+  // （看得见、点不着）。clearPoppedClasses 与上面两行同拍落地，不许分拍。
+  clearPoppedClasses()
+  // 唤出条几何存证帧的去重签名（工单249）：档位一变就清空——几何未变（栏布局没动）
+  // 时再次进收栏态也**要再发一帧**，否则验收侧「等收栏后的新帧」会超时。
+  lastSummonStripsJson = ''
+  // 重排：收栏态栏面退场量不到宽度（应用组落位按 offsetWidth 算），复现时必须按可见
+  // 几何重算落位——否则复现的栏面位置是收栏态的残值。render 内含热区与几何帧重声明。
+  if (current) requestRender(current)
+}
+
+/**
+ * 各组 pill 矩形缓存（工单241 裁决 (b)：唤出条几何在渲染层算——pill 矩形只有渲染层量得到，
+ * 主进程控制器从不回读 taskbar-geometry 帧）。
+ *
+ * 收栏后栏面退场、pill 量不到矩形——**收栏前最后一帧**的各组横向区间即唤出条镜像的来源
+ * （原型同款 groupRectsCache 口径）。缓存形状 = `planSummonStrips` 的输入形状
+ * （{group, x, width}；x 为客户区左缘、width 为组宽——条带窗通栏，客户区 x 即屏幕 x）。
+ */
+let summonPillCache: Array<{ group: string; x: number; width: number }> = []
+
+/** 缓存各组 pill 矩形（只收在场组——与热区声明同口径：组不在场不出条） */
+function cacheSummonPills(state: TaskbarState): void {
+  // 收栏态：栏面退场量不到矩形——保留收栏前最后一帧的缓存，不覆写
+  if (barMode === 'maximize-retract') return
+  // 让位态（工单253）：整窗退场（隐藏）⇒ 同样量不到矩形。缓存是收栏态布局的**唯一来源**
+  // （空带两侧边界与唤出条几何都取它）——被零值覆写会让「全屏退出回到最大化窗」
+  // （spec 用户故事 28）这条接力路径上的唤出条与已唤出的组全废（条宽 0、组容量 0）。
+  if (barMode === 'fullscreen-yield') return
+  const vm = taskbarViewModel(state)
+  const m = measure()
+  const pills: Array<{ group: string; x: number; width: number }> = []
+  if (vm.visible) pills.push({ group: 'start', x: m.startPill.x, width: m.startPill.w })
+  if (vm.recsVisible) pills.push({ group: 'recs', x: m.recPill.x, width: m.recPill.w })
+  if (vm.apps.length > 0) pills.push({ group: 'apps', x: m.appsPill.x, width: m.appsPill.w })
+  pills.push({ group: 'right', x: m.rightPill.x, width: m.rightPill.w })
+  pills.push({ group: 'showdesk', x: m.sliver.x, width: m.sliver.w })
+  summonPillCache = pills
+}
+
+/* ================================================================
+ * 唤出条（工单242，spec #236 用户故事 12–22、24、31–33）
+ * ================================================================ */
+
+/** 组 → 栏面元素（被唤出时该元素复现；未唤出时退场） */
+const SUMMON_GROUP_ELEMENT: Record<string, HTMLElement> = {
+  start: pillStart,
+  recs: pillRecs,
+  apps: pillApps,
+  right: rightPill,
+  showdesk: sliver,
+}
+
+/** 组的可读名（唤出条 title——不靠图标猜是哪一组） */
+const SUMMON_GROUP_LABEL: Record<string, string> = {
+  start: '开始组',
+  recs: '推荐组',
+  apps: '应用组',
+  right: '右组',
+  showdesk: '显示桌面',
+}
+
+/**
+ * 撤掉全部组的 .summon-popped（唤出态归零的 DOM 那一半）。
+ *
+ * 与 poppedSig 归零**同拍**调用（applyBarMode 内，两行紧邻）：两者分拍就留下残态——
+ * 签名已清、DOM 还带着类，下次 applySummonView 的早退逻辑（签名没变就不碰 DOM）
+ * 跳过 toggle，残态再也抹不掉：收栏态里该组 pill 整组可见、却不在热区集内。
+ *
+ * 与 applySummonView 里的 toggle 循环是同一件事的两面：那边按「弹出的组」逐组置位，
+ * 这边按「唤出态归零」整体清场——两者合起来保证「签名说没弹出」与「DOM 没带类」恒等。
+ */
+function clearPoppedClasses(): void {
+  for (const el of Object.values(SUMMON_GROUP_ELEMENT)) el.classList.remove('summon-popped')
+}
+
+/** 唤出交互状态（归约体在 shared/retract 的 reduceSummon——本层只喂事件与对账事实） */
+let summonState: SummonState = initialSummonState([])
+/** 当前唤出条几何（收栏态：由收栏前缓存的各组 pill 矩形算出） */
+let summonStrips: SummonStripGeometry[] = []
+/**
+ * 光标此刻落在哪个热区——**唤出悬停态的唯一事实来源**。
+ * 主进程 HotzoneTracker 25ms 光标轮询按光标坐标 hit-test 后下发（taskbar/cursor-zone）。
+ * 不用浏览器 enter/leave 事件序列（原型教训：静止指针会「弹出→收→弹」振荡）。
+ */
+let cursorZone: string | null = null
+/** 已落到 DOM 的视图签名（弹出的组 / 悬停的条）——没变就不碰 DOM */
+let poppedSig = ''
+let hoverSig = ''
+
+/** 对账拍间隔（ms）：与主进程 HotzoneTracker 的 25ms 光标轮询同频 */
+const SUMMON_TICK_MS = 25
+
+/**
+ * 唤出条几何：收栏前缓存的各组 pill 矩形 → 逐组一条（镜像 pill 横向区间与宽度）。
+ * 屏幕底边 = 条带窗客户区底边（条带窗通栏且贴屏底）——故取 innerHeight。
+ */
+function planSummonStripsNow(): SummonStripGeometry[] {
+  return planSummonGeometry(summonPillCache, window.innerHeight)
+}
+
+/** 唤出条元素：视觉条 3px 贴屏底，命中区 9px 垫在条元素上（两个口径分离） */
+function makeSummonStripEl(group: string): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'tb-summon-strip'
+  el.dataset.group = group
+  el.title = `唤出${SUMMON_GROUP_LABEL[group] ?? group}`
+  const bar = document.createElement('div')
+  bar.className = 'tb-summon-bar'
+  el.appendChild(bar)
+  el.addEventListener('click', () => {
+    if (barMode !== 'maximize-retract') return
+    const now = Date.now()
+    // 点击即证据：指针此刻在这条上——顺手把对账锚点拨正（不等光标轮询那一拍）
+    cursorZone = stripZoneId(group)
+    summonState = clickStrip(summonState, group, now)
+    applySummonView()
+  })
+  return el
+}
+
+/**
+ * 条 DOM 与几何 1:1 跟随（组增删即增删条；相叠已被 planSummonGeometry 夹取过）。
+ *
+ * 只写**横向**几何（左缘 + 宽度）：条的高度是定值口径（命中区 9px / 视觉条 3px），
+ * 归样式表所有——与「挤撞守卫只收窄宽度、绝不改高度」同一纪律（工单238）。
+ */
+function syncSummonStrips(strips: SummonStripGeometry[]): void {
+  const layer = summonLayer
+  if (!layer) return
+  const seen = new Set<string>()
+  for (const s of strips) {
+    seen.add(s.group)
+    let el = layer.querySelector<HTMLElement>(`.tb-summon-strip[data-group="${s.group}"]`)
+    if (!el) {
+      el = makeSummonStripEl(s.group)
+      layer.appendChild(el)
+    }
+    el.style.left = `${Math.round(s.x)}px`
+    el.style.width = `${Math.round(s.width)}px`
+  }
+  for (const el of [...layer.querySelectorAll<HTMLElement>('.tb-summon-strip')]) {
+    if (!seen.has(el.dataset.group ?? '')) el.remove()
+  }
+}
+
+/**
+ * 唤出上滑淡入（140ms，进有方向感）：走 Web Animations API 而非 CSS @keyframes——
+ * 条带页样式表是平铺规则集（工单238 的样式表守卫不容块内嵌套开括号）。
+ * 收起**瞬时**：动画只管进，退场时元素直接退场，无退场动画。
+ */
+function animateSummonRise(group: string, el: HTMLElement): void {
+  el.animate(summonRiseKeyframes(SUMMON_SHIFTED_GROUPS.includes(group)), {
+    duration: SUMMON_RISE_MS,
+    easing: 'ease-out',
+  })
+}
+
+/** 已唤出组的 pill 矩形（收栏态下唤出的组复现在同一条 48px 带内——不改变最大化窗尺寸） */
+function poppedPillRects(): Record<string, SummonRect> {
+  const out: Record<string, SummonRect> = {}
+  for (const group of summonedGroups(summonState)) {
+    const el = SUMMON_GROUP_ELEMENT[group]
+    if (!el) continue
+    const r = el.getBoundingClientRect()
+    if (r.width <= 0 || r.height <= 0) continue
+    out[group] = { x: r.x, y: r.y, w: r.width, h: r.height }
+  }
+  return out
+}
+
+/**
+ * 唤出态落到 DOM：唤出的组复现（140ms 上滑淡入）、已唤出组的条隐藏（条与 pill 同位，
+ * 露出会闪）、悬停中的条亮起（延迟反馈）。
+ *
+ * 返回「唤出的组是否变了」——变了才要重声明热区（该组的命中区从条换成 pill）。
+ */
+function applySummonView(): boolean {
+  const popped = summonedGroups(summonState).slice().sort()
+  const hover = Object.entries(summonState.groups)
+    .filter(([, g]) => g.onStrip)
+    .map(([k]) => k)
+    .sort()
+  const nextPopped = popped.join(',')
+  const nextHover = hover.join(',')
+  const poppedChanged = nextPopped !== poppedSig
+  if (!poppedChanged && nextHover === hoverSig) return false
+  const before = poppedSig ? poppedSig.split(',') : []
+  poppedSig = nextPopped
+  hoverSig = nextHover
+  // 唤出的组复现（其余组保持退场）
+  for (const [group, el] of Object.entries(SUMMON_GROUP_ELEMENT)) {
+    el.classList.toggle('summon-popped', popped.includes(group))
+  }
+  // 新唤出的组走 140ms 上滑淡入（重渲不重放——只有「新唤出」这一拍才放）
+  for (const group of popped) {
+    if (before.includes(group)) continue
+    const el = SUMMON_GROUP_ELEMENT[group]
+    if (el) animateSummonRise(group, el)
+  }
+  // 条：已唤出组的条隐藏；悬停中的条亮起（亮条只是预告，弹出仍等 150ms）
+  for (const el of summonLayer?.querySelectorAll<HTMLElement>('.tb-summon-strip') ?? []) {
+    const group = el.dataset.group ?? ''
+    const g = summonState.groups[group]
+    el.style.display = g && !g.stripVisible ? 'none' : ''
+    el.classList.toggle('hover', hover.includes(group))
+  }
+  // 唤出的组换了 → 命中区换了（该组的条退场、pill 顶上）——热区必须重声明，
+  // 否则条带窗的热区仍指向已退场的条，弹出组的上半截点不动。
+  if (poppedChanged && current) declareHotZones(current)
+  return poppedChanged
+}
+
+/** 唤出条渲染（收栏态）：几何重算 + 条 DOM 同步 + 唤出态落 DOM */
+function renderSummon(): void {
+  if (barMode !== 'maximize-retract') {
+    summonStrips = []
+    if (summonLayer) summonLayer.textContent = ''
+    applySummonView()
+    return
+  }
+  summonStrips = planSummonStripsNow()
+  syncSummonStrips(summonStrips)
+  notifySummonStrips(summonStrips)
+  applySummonView()
+}
+
+/**
+ * 唤出条几何存证（工单242）：验收侧据此断言「逐组一条、镜像 pill 横向区间、
+ * 组间空隙不出条、显示桌面细条在最右端独立一条」。
+ *
+ * 与 taskbar-geometry 同款纪律：几何未变不重复刷事件流。事件名与既有的
+ * taskbar-retract / taskbar-yield 同族（taskbar-<名>）。
+ */
+let lastSummonStripsJson = ''
+function notifySummonStrips(strips: SummonStripGeometry[]): void {
+  const payload = {
+    strips: strips.map((s) => ({
+      group: s.group,
+      x: s.x,
+      width: s.width,
+      top: s.hitTop,
+      height: s.hitHeight,
+      visualTop: s.visualTop,
+      visualHeight: s.visualHeight,
+    })),
+  }
+  const json = JSON.stringify(payload)
+  if (json === lastSummonStripsJson) return
+  lastSummonStripsJson = json
+  window.deck.host.notify('taskbar-summon-strips', payload)
+}
+
+/**
+ * 唤出对账拍（25ms，与主进程光标轮询同频）：按光标坐标校正悬停态 + 推进逻辑时钟
+ * （到点的悬停弹出、到点的宽限收起）。**不采信浏览器 enter/leave 事件序列**。
+ */
+function summonTick(): void {
+  if (barMode !== 'maximize-retract') return
+  if (dragSource) return // 拖拽会话持门期（工单195）：热区轮询暂停，对账一并暂停
+  const now = Date.now()
+  summonState = reconcilePointer(summonState, cursorZone, now)
+  summonState = tickSummon(summonState, now)
+  applySummonView() // 唤出的组变了 → 命中区跟着重声明（在本函数内收口）
+}
+
 interface Rect { id: string; x: number; y: number; w: number; h: number }
 
 function rectOf(el: HTMLElement, id: string): Rect {
@@ -114,6 +411,13 @@ function declareHotZones(state: TaskbarState): void {
     window.deck.host.setHotZones([])
     return
   }
+  // 收栏态（工单241/242）：栏面退场；热区 = 唤出条命中区 + 已唤出 pill 的命中区
+  // （沿用同一热区通路：declareHotZones → setHotZones → preload → 主进程 tracker；
+  //  id 编码供主进程按光标坐标 hit-test 后回报，渲染层据此对账悬停态）
+  if (barMode === 'maximize-retract') {
+    window.deck.host.setHotZones(summonHotZones(summonState, summonStrips, poppedPillRects()))
+    return
+  }
   const vm = taskbarViewModel(state)
   const m = measure()
   const zones = [m.rightPill, m.sliver]
@@ -129,6 +433,9 @@ let lastGeometryJson = ''
 /** 几何存证（验收电池点击坐标来源）：pill/按钮/推荐位/应用组/右组矩形任一变化即补发一帧——
  * 推荐位随数据面快照后到位会推推荐组/开始组 pill 移位，电池按 settle 后的最新帧取坐标 */
 function notifyGeometry(): void {
+  // 收栏态（工单241）：栏面不在场（各组 pill 全部退场），几何帧无内容可报——不发。
+  // 避免验收侧读到全零矩形误判「栏跑位」；栏面复现时按常态几何再发一帧。
+  if (barMode === 'maximize-retract') return
   const m = measure()
   const payload: Record<string, unknown> = {
     startPill: m.startPill,
@@ -245,12 +552,14 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
 
 /** 托盘图标像素缓存（工单56：身份键 → dataURL；仅内存，与桌面图标缓存同款纪律——
  * 同一图标每次状态帧都被重渲，重复 canvas 编码是纯浪费）。px = 源尺寸小于显示档
- * （工单158：16px 原生源）需挂最近邻放大档保持锐利——重渲直接复用，不再重判。 */
+ * （工单240：档 16px，源更小时才需最近邻放大保持锐利——16px 源 1:1 直渲不挂）
+ * ——重渲直接复用，不再重判。 */
 const trayIconUrls = new Map<string, { url: string; px: boolean }>()
 
 /** 托盘图标格（工单56）：像素按需取（缓存命中即贴），左键/右键各自回放到所属应用。
- * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单158：图标统一按 24px
- * 显示——16px 原生源挂 .tb-tray-px 最近邻放大保持锐利，32px 源降采样平滑插值
+ * 回填前核对元素仍代表同一身份（重渲后旧回填不贴错位）。工单240：图标统一按 16px
+ * 原生直渲（源图本就 16px——不放大不拉伸，1:1 直渲），更小的源才挂 .tb-tray-px
+ * 最近邻放大；32px 源降采样平滑插值
  * （挂靠判据 = taskbar-view trayIconPixelated 纯函数，离线单测钉住）。 */
 function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   const el = document.createElement('div')
@@ -291,40 +600,83 @@ function makeTrayEl(entry: TaskbarTrayEntry): HTMLElement {
   return el
 }
 
+/**
+ * 栏面是否在场（工单253）：收栏态（maximize-retract）**栏面退场**——各组 pill 与显示桌面
+ * 细条全部 display:none（只剩被唤出的组复现）。
+ *
+ * 退场邻组的几何对当前布局**无意义**（实测宽度 0）：挤撞守卫若照量，会把已唤出的组按 0 宽
+ * 裁剪（开始/推荐组被裁成 18px 空壳、应用组只剩「⋯」溢出钮 ⇒ 应用图标与推荐条目点不到，
+ * 工单243 真机取证）。收栏态的处置：**布局冻结在收栏那一刻**——挤撞守卫与落位都不重算
+ * （已唤出的组沿用收栏前的几何），唤出条镜像的也是同一份收栏前矩形 ⇒ 条与组同宽同位
+ * （用户故事 13「位置记忆不打架」）。
+ */
+function barSurfaceOnStage(): boolean {
+  return barMode !== 'maximize-retract'
+}
+
 /** 开始组钉条带左缘（工单159 布局重排）：位置由 CSS（#pill-start left:8px）钉死——旧
  * positionStartPill 的屏幕居中 + [应用组右缘, 右组左缘] 夹取随布局反转退役。唯一守卫 =
  * 极端拥挤（26+ 托盘右组宽出）时 maxWidth 收窄到右组左缘前——系统钮 flex:none 永不裁切
  * （工单158 P5 真机红回归钉的守卫保留；推荐位图标格已随工单192 拆出，让位面迁 clampRecPillWidth）。
  * 只在结构性重渲落位：右组 1Hz 指标文本宽度抖动（±45px）不传导（applyStatus 不动 pill），
- * 电池的 settle 几何因此跨拍稳定。 */
+ * 电池的 settle 几何因此跨拍稳定。
+ *
+ * 工单253：收栏态栏面退场 ⇒ 右组量不到（宽度 0）⇒ 守卫不跑（退场邻组不参与裁剪），
+ * 已唤出的组沿用收栏前的收窄结果。 */
 function clampStartPillWidth(): void {
   if (pillStart.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：退场邻组不参与裁剪（守卫不按 0 宽裁已唤出的组）
   const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - APPS_INSET
   pillStart.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
 /** 推荐组落位（工单192 独立拆出）：开始组右缘+组间距（开始组整组不渲染时退条带左缘内衬
  * ——两组显隐解耦后推荐组可独自在场）。内容装配完同步落位——无中间帧闪烁；推荐组不渲染
- * （无推荐位）不落位 */
+ * （无推荐位）不落位。
+ *
+ * 工单253：收栏态不落位（栏面退场、开始组量不到，落位会漂到条带左缘）——沿用收栏前的
+ * 落位（唤出条镜像同一份矩形 ⇒ 条与组同位）。 */
 function positionRecPill(): void {
   if (pillRecs.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
   const left = pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP
   pillRecs.style.left = `${Math.round(left)}px`
 }
 
 /** 推荐组拥挤守卫（工单158 守卫语义随工单192 拆出随迁）：极端拥挤（26+ 托盘右组宽出）
  * 时 maxWidth 收窄到右组左缘前——推荐位图标格随 pill 整体裁剪（定宽格不吃文字收缩档，
- * overflow hidden），与 clampStartPillWidth 同族。 */
+ * overflow hidden），与 clampStartPillWidth 同族。
+ *
+ * 工单253：收栏态不跑（退场的右组量不到 ⇒ 收窄值是 0 ⇒ 推荐位被裁成空壳、点不到）。 */
 function clampRecPillWidth(): void {
   if (pillRecs.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：退场邻组不参与裁剪
   const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - pillRecs.getBoundingClientRect().left
   pillRecs.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
+/** 收栏前缓存的各组 pill 区间（收栏态的布局来源——与唤出条镜像的**同一份**矩形） */
+function cachedSpan(group: string): GroupPillSpan | undefined {
+  const p = summonPillCache.find((r) => r.group === group)
+  return p ? { x: p.x, width: p.width } : undefined
+}
+
 /** 应用组空带（工单159，工单192 左邻随推荐组拆出随迁）：[左邻组右缘, 右组左缘] —— 居中
  * 参照系与两侧容量边界同源。左邻按推荐组优先（appsBandLeft 纯函数裁决：推荐组在场取其
- * 右缘，缺席回退开始组右缘，都不在场退条带左缘内衬） */
+ * 右缘，缺席回退开始组右缘，都不在场退条带左缘内衬）
+ *
+ * 工单253：收栏态栏面退场、活邻组量不到（实测宽度 0）⇒ 常态口径算出的空带是零宽带（容量
+ * 0 格 ⇒ 应用条目全被塞进「⋯」溢出，组被压成 54px 的溢出钮）。收栏态改取**收栏前缓存的
+ * 区间**（唤出条镜像的同一份）⇒ 容量与收栏前一致，已唤出的组拿到可点击的宽度。 */
 function currentAppsBand(): AppsBand {
+  if (!barSurfaceOnStage()) {
+    // 收栏态：两侧边界取收栏前缓存（退场邻组不参与裁剪；右组缺位 ⇒ 右界不设限）
+    return appsBandFromSpans({
+      start: cachedSpan('start'),
+      recs: cachedSpan('recs'),
+      right: cachedSpan('right'),
+    })
+  }
   return appsBand(
     appsBandLeft(
       pillRecs.hidden ? null : pillRecs.getBoundingClientRect().right,
@@ -338,9 +690,12 @@ function currentAppsBand(): AppsBand {
  * 不随开始组/推荐组/右组宽度漂移，推荐增删/托盘档位切换后结构性重渲自动回正；带外夹取
  * 维持现状、带宽不足钉带左缘）。锚点取 innerWidth/2：条带窗横跨主屏全宽且窗 x = 屏 x
  * （stripBounds 通栏口径，降级净空只让纵向），视口中线即屏幕水平中心线。pill 宽度按
- * offsetWidth 实测（border-box，含内衬边框），内容装配完同步落位——无中间帧闪烁 */
+ * offsetWidth 实测（border-box，含内衬边框），内容装配完同步落位——无中间帧闪烁
+ *
+ * 工单253：收栏态不落位（沿用收栏前的落位——与唤出条镜像的矩形同位）。 */
 function positionAppsPill(band: AppsBand): void {
   if (pillApps.style.display === 'none') return
+  if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
   pillApps.style.left = `${appsPillLeft(band, pillApps.offsetWidth, window.innerWidth / 2)}px`
 }
 
@@ -565,7 +920,7 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
 
 /** 应用组渲染（工单52/58/159）：手钉+运行中合并条目按容量拆分——容量按空带两侧边界
  * 裁决（appsSlotsFor——闭合形态恒在带内，不与邻组重叠）；栏内满员即出 ⋯ 钮，浮层开着时
- * 尾部条目横排进 pill（条带窗只有 64px 高（工单158），竖排浮层出不了窗口矩形，54 右键
+ * 尾部条目横排进 pill（条带窗只有 48px 高（工单238），竖排浮层出不了窗口矩形，54 右键
  * 菜单同款先例）；数量回落浮层自动收、图标回栏。装配完就地居中落位（positionAppsPill
  * ——开合/增删后的结构性重渲即回正）。空组整组不渲染（display:none） */
 function renderApps(entries: TaskbarAppViewEntry[]): void {
@@ -614,6 +969,9 @@ function render(state: TaskbarState): void {
     el.className = 'tb-btn'
     el.dataset.id = b.id
     el.textContent = b.label
+    // 工单240：开始组图标化（字面即图标）——可见名退到 title/aria-label
+    el.title = b.title
+    el.setAttribute('aria-label', b.title)
     el.addEventListener('click', () => {
       window.deck.host.notify('taskbar-action', { action: b.action })
       void dispatchTaskbarButton(window.deck.bridge, b.id)
@@ -627,7 +985,7 @@ function render(state: TaskbarState): void {
   }
   // 菜单行不再渲染进任何 pill（工单196，ADR-0013 全家迁通路）：应用组图标菜单（工单193
   // 首迁）、推荐条目三行、空白右键（系统显隐+恢复段）、托盘档位、多窗选窗五行全在
-  // 浮层窗 DECK-TASKBAR-*-MENU 竖排呈现——条带 64px 高从此不约束菜单形态；开层/收层
+  // 浮层窗 DECK-TASKBAR-*-MENU 竖排呈现——条带 48px 高从此不约束菜单形态；开层/收层
   // 走 taskbar-*-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts（域适配器）。
   // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
@@ -681,7 +1039,9 @@ function render(state: TaskbarState): void {
   positionRecPill()
   clampRecPillWidth()
   renderApps(vm.apps)
+  renderSummon() // 唤出条（工单242）：收栏态下逐组一条（几何重算 + 条 DOM + 唤出态）
   declareHotZones(state)
+  cacheSummonPills(state)
   notifyGeometry()
 }
 
@@ -812,6 +1172,22 @@ function boot(): void {
       window.deck.host.notify('taskbar-boot-error', { stage: 'render', message: String(err), stack: (err as Error)?.stack ?? '' })
       return
     }
+    // 三态下发（工单241）：主进程裁决后推当前档位——栏面退场/复现（唤出条待命）。
+    // 订阅先于 ready 上报：主进程收到 taskbar-ready 即补发当前档位（握手补发不漏首推）。
+    window.deck.bridge.on('taskbar/bar-mode', (p) => applyBarMode(p.mode))
+    // 唤出条指针对账（工单242）：主进程 25ms 光标轮询按光标坐标 hit-test 的结论——
+    // 悬停态只认这条事实（**不采信浏览器 enter/leave 事件序列**，原型振荡教训）。
+    window.deck.bridge.on('taskbar/cursor-zone', (p) => {
+      cursorZone = p.id
+    })
+    // 自绘浮层在场 → 钉住所属组（托盘溢出菜单钉右组，其余组照常收）；离场 → 解除钉住。
+    window.deck.bridge.on('taskbar/popup-state', (p) => {
+      if (barMode !== 'maximize-retract') return
+      summonState = applyOverlayState(summonState, p.family, p.open, Date.now())
+      applySummonView()
+    })
+    // 对账拍：25ms 一拍，与主进程光标轮询同频（校正悬停态 + 推进逻辑时钟）
+    setInterval(() => summonTick(), SUMMON_TICK_MS)
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
       enabled: state.enabled, startPill: m.startPill, recPill: m.recPill, buttons: m.buttons, recommendations: m.recommendations,

@@ -6,10 +6,31 @@
  * 但与 bridge 共用同一对 IPC 通道与同一个 window.deck 命名空间。
  */
 
+import type { BarMode } from './retract'
+
 /** 时钟状态：ISO 字符串 + 纪元毫秒（渲染层以 epochMs 走时） */
 export interface ClockState {
   iso: string
   epochMs: number
+}
+
+/**
+ * 任务栏三态下发（工单241 最大化收栏编排）：主进程裁决后把「当前档位」推给条带渲染层。
+ *
+ * 档位语义（spec #236 状态机）：
+ * - visible：栏面常驻可见，工作区占位生效（现状）；
+ * - maximize-retract：**最大化收栏**——**注销我方 AppBar 占位登记**（系统工作区数值**不变**——原生任务栏
+ *   那 48px 保留带由 shell 自算、不在 AppBar 登记表内，Win32 侧无法释放；工单250 取证），栏面退场、唤出条在场；
+ * - fullscreen-yield：**全屏让位**——整窗退场，唤出条也不出现。
+ *
+ * 几何不在本载荷里——唤出条几何由渲染层自算（工单241 裁决 (b)：pill 矩形只有渲染层量得到，
+ * 主进程不回读 taskbar-geometry 帧）。
+ */
+export interface TaskbarBarModeState {
+  /** 当前档位 */
+  mode: BarMode
+  /** 迁移原因（存证用：retract / retract-lifted / fullscreen-yield / fullscreen-yield-lifted / ready） */
+  reason: string
 }
 
 /** 会话四态（RUN/CONFIRM/DONE/IDLE）；string 交集保留字面量提示同时不锁死未知态 */
@@ -209,7 +230,9 @@ export interface TaskbarExcludedEntry {
  * metrics（工单55）= 右组硬件摘要勾选子集（config.json taskbar 段持久化，重启保持）；
  * apps（工单52）= 应用组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
  * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）；
- * trayOverflowLimit（工单162）= 托盘溢出档位（config 任务栏段持久化，重启保持）。 */
+ * trayOverflowLimit（工单162）= 托盘溢出档位（config 任务栏段持久化，重启保持）。
+ * maximizeRetract（工单239）= 最大化收栏开关（前台窗口真最大化时任务栏自动收栏；默认开，
+ * 关掉即回到「最大化窗不收栏、栏常驻」的旧行为；config 任务栏段持久化，重启保持）。 */
 export interface TaskbarState {
   enabled: boolean
   hiddenButtons: TaskbarButtonId[]
@@ -219,6 +242,7 @@ export interface TaskbarState {
   apps: TaskbarAppEntry[]
   tray: TaskbarTrayEntry[]
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  maximizeRetract: boolean
 }
 
 /** 托盘按钮（工单56）：左键 = 应用默认动作（启动/置前由图标所属应用自决），右键 = 上下文菜单 */
@@ -623,6 +647,12 @@ export interface BridgeMethods {
    * 名单：上调即图标回栏、「⋯」消失）。同态幂等空转；档位外取值抛 BridgeError（契约违规）。
    */
   'taskbar/set-tray-overflow-limit': { request: { limit: TaskbarTrayOverflowLimit }; response: TaskbarState }
+  /**
+   * 最大化收栏开关（工单239）：设置浮层切换即生效（不必重启面板），整份回写
+   * config.json taskbar.maximizeRetract，回推 taskbar/changed（渲染层对齐勾选态）。
+   * 同态幂等空转；非布尔值抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-maximize-retract': { request: { enabled: boolean }; response: TaskbarState }
   /** 托盘图标像素（工单56）：按条目身份取像素字节（渲染层本地转 dataURL 并缓存）；null = 未知键或无像素 */
   'taskbar/tray-icon': { request: { key: string }; response: { icon: TaskbarTrayPixels | null } }
   /**
@@ -672,6 +702,23 @@ export interface BridgeEvents {
   'taskbar/changed': TaskbarState
   /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（与 panel/changed 同源同拍） */
   'taskbar/status': TaskbarStatus
+  /**
+   * 工单241 任务栏三态：主进程收栏编排裁决后下发（条带渲染层据此让栏面退场/复现）。
+   * 只下发档位事实，不下发矩形——唤出条几何由渲染层自算（pill 矩形只有渲染层量得到）。
+   */
+  'taskbar/bar-mode': TaskbarBarModeState
+  /**
+   * 工单242 唤出条指针对账：主进程 HotzoneTracker 25ms 光标轮询按光标坐标 hit-test 后
+   * 报出「光标此刻落在哪个热区」（id = 热区矩形声明时的 id；null = 不在任何热区）。
+   * 唤出交互的悬停态**只认这条事实**——不得以浏览器 enter/leave 事件序列为准（原型振荡教训）。
+   * 只在命中区变化时下发（不等距拍发）。
+   */
+  'taskbar/cursor-zone': { id: string | null }
+  /**
+   * 工单242 浮层钉组：自绘浮层开合事实（family = 存证事件家族前缀，如 taskbar-tray-overflow）。
+   * 条带渲染层据此钉住所属组（浮层在场只钉所属组，其余组照常收）。
+   */
+  'taskbar/popup-state': { family: string; open: boolean }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string
