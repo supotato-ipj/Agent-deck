@@ -3427,15 +3427,26 @@ static class Probe {
         recsChildCount: document.getElementById('pill-recs') ? document.getElementById('pill-recs').childElementCount : 0,
         rightChildCount: document.getElementById('right-pill') ? document.getElementById('right-pill').childElementCount : 0,
         // 右组空白处（托盘档位菜单挂点：右组 pill 内、且不在任何格/托盘图标上的点）
+        // —— 工单256：挂点必须**可命中**。
+        // 旧口径从 pill 的左上角 (r.x+2, r.y+2) 起扫：那是 pill 内边距的 2px 薄片
+        // （贴条带窗上沿），实测该点的右键**开不出浮层**（浮层开层=false ⇒ 段红）。
+        // 改法：① 候选行先取**组的中线**（竖直居中带，远离窗口上沿）；
+        //      ② 命中判据加**净空边距**（点周围 CLEAR px 内不落在任何子格/托盘图标上，
+        //         免得点贴着某个子元素、被它的处理器吃掉）；
+        //      ③ 扫不到就返回 null —— 段会**明确失败并报「无空白挂点」**，不静默点空。
         rightBlank: (() => {
           const pill = document.getElementById('right-pill');
           if (!pill) return null;
           const r = pill.getBoundingClientRect();
           if (r.width <= 0 || r.height <= 0) return null;
           const kids = [...pill.querySelectorAll('.tb-cell, .tb-tray-icon, .tb-tray-overflow')].map((el) => el.getBoundingClientRect());
-          for (let x = r.x + 2; x < r.right - 2; x += 4) {
-            for (let y = r.y + 2; y < r.bottom - 2; y += 4) {
-              if (!kids.some((k) => x >= k.left && x <= k.right && y >= k.top && y <= k.bottom)) return { x, y, w: 1, h: 1 };
+          const CLEAR = 4;
+          const free = (x, y) => !kids.some((k) => x >= k.left - CLEAR && x <= k.right + CLEAR && y >= k.top - CLEAR && y <= k.bottom + CLEAR);
+          const rows = [r.y + r.height / 2, r.y + r.height * 0.25, r.y + r.height * 0.75];
+          for (const y of rows) {
+            if (y < r.top || y > r.bottom) continue;
+            for (let x = r.x + 2; x < r.right - 2; x += 2) {
+              if (free(x, y)) return { x, y, w: 1, h: 1 };
             }
           }
           return null;
@@ -3738,6 +3749,11 @@ static class Probe {
         if (!mount) {
           rep.note(`P25 浮层臂前置缺失：弹出的右组无空白挂点（rightBlank=null）——浮层臂不成立`);
         } else {
+          // 工单256：「开层那一拍所属组仍在场」的证据必须在**开层前**取。
+          // 旧口径在开层 + 800ms 等待之后才读「最新一条唤出热区声明」——那期间浮层夺前台
+          // 会让收栏档被迁移清空（F1 的 clearPoppedClasses 同拍落地），声明随之退场，
+          // 于是「所属组在场」恒读到 false（段红）。改成**开层前**快照。
+          const summonEvBeforeOverlay = tape.latest('hotzones', (e) => isSummonHotzones(e), {});
           const mPt = toPhysS(mount.pt.x, mount.pt.y);
           win32.moveMousePhys(mPt.x, mPt.y);
           await sleep(150); // 到靶停拍（热区开门 + 指针落位）
@@ -3746,10 +3762,9 @@ static class Probe {
           const openEv = await tape.wait(`${mount.family}-opened`, null, { since: sinceOverlay, timeoutMs: 6000 });
           overlayOpen = !!openEv;
           if (openEv) {
-            // 开层那一拍所属组仍在场（机器侧记录：**最新一条唤出热区声明**含该组 pill
+            // 开层那一拍所属组仍在场（机器侧记录：开层前最新一条唤出热区声明含该组 pill
             // 命中区——不用 since 门：所属组的声明是它弹出那一拍落的，早于开层）
-            const lastBefore = tape.latest('hotzones', (e) => isSummonHotzones(e), {});
-            ownerInPlace = !!(lastBefore && summonedGroupsIn(lastBefore.rects).includes(ownerGroup));
+            ownerInPlace = !!(summonEvBeforeOverlay && summonedGroupsIn(summonEvBeforeOverlay.rects).includes(ownerGroup));
             // 指针离场：不钉则所属组 400ms 后自收、钉住则不塌——真机上不可观测（浮层夺
             // 前台 ⇒ 收栏档被档位迁移打断），此处留证档位迁移事实
             win32.moveMousePhys(neutralS.x, neutralS.y);
