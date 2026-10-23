@@ -105,6 +105,44 @@ describe('resolveBarMode 三态裁决', () => {
     expect(resolveBarMode({ ...baseInput, probe: probe({ pid: OWN_PID, zoomed: true }) })).toBe('visible')
   })
 
+  it('自家浮层夺前台 ⇒ 当前档位保持（工单253：收栏档不被翻掉）', () => {
+    // 自绘浮层开层即取前台 ⇒ 前台探针看到的是**自家进程**。若按「自家进程 → visible」
+    // 翻档，收栏档当场解除：栏面复现、唤出态被工单249 的 F1 同拍清空 ⇒「浮层在场只钉住所属组」
+    // 在真机上不可观测（浮层一开档位就走了）。浮层在场 ⇒ 沿用当前档位，不做迁移。
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probe({ pid: OWN_PID }),
+      prevMode: 'maximize-retract',
+      ownOverlayPresent: true,
+    })).toBe('maximize-retract')
+  })
+
+  it('自家浮层夺前台 ⇒ 常驻档也保持（不是凭空收栏；工单253）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probe({ pid: OWN_PID }),
+      prevMode: 'visible',
+      ownOverlayPresent: true,
+    })).toBe('visible')
+  })
+
+  it('面板本体被点成前台（自家浮层不在场）⇒ 仍 visible（既有语义不变，工单253）', () => {
+    // 与上一条的分清点：自家进程成前台**且**自家浮层不在场 ⇒ 面板本体被点了 ⇒ visible
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probe({ pid: OWN_PID, zoomed: true }),
+      prevMode: 'maximize-retract',
+      ownOverlayPresent: false,
+    })).toBe('visible')
+  })
+
+  it('自家浮层不在场时，缺省输入的裁决与既有语义逐字一致（工单253：新增输入位不改变旧口径）', () => {
+    // 既有调用方（不传 prevMode / ownOverlayPresent）⇒ 自家进程仍判 visible
+    expect(resolveBarMode({ ...baseInput, probe: probe({ pid: OWN_PID }) })).toBe('visible')
+    expect(resolveBarMode({ ...baseInput, probe: probeOf('maximized') })).toBe('maximize-retract')
+    expect(resolveBarMode({ ...baseInput, probe: probeOf('fullscreen') })).toBe('fullscreen-yield')
+  })
+
   it.each(['Progman', 'WorkerW', 'Shell_TrayWnd', 'Shell_SecondaryTrayWnd'])(
     '桌面宿主类 %s（矩形常态即通栏）→ visible', (className) => {
       expect(resolveBarMode({ ...baseInput, probe: probe({ className, zoomed: true }) })).toBe('visible')
