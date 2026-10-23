@@ -52,7 +52,8 @@ ADR-0007 立的决策是「注册 AppBar 占住工作区底边，最大化窗口
    - 对外措辞口径：**判据没变，变的只是「哪些窗进入判据」**。
 
 7. **唤出条的承载窗口形态：栏窗复用。** 收栏态**条带窗不隐藏**（`planBarTransition` 的 `hideWindow` 只在全屏让位态为真，`app/src/shared/retract.ts:437`）。唤出条在同一条 48px 带内贴屏底绘制、在最大化窗之上、命中区可点；弹出的组落在同一条带内 ⇒ **不改变最大化窗的尺寸**（占位已随收栏释放，弹组不重注册占位）。
-   - 几何来源：**渲染层自算**（(b) 方案）——pill 矩形只有渲染层量得到（`measure()`，`app/src/renderer/taskbar.ts:133`），主进程**不回读** `taskbar-geometry` 帧；主进程只下发档位（`taskbar/bar-mode` 事件，载荷 `TaskbarBarModeState { mode, reason }`，`app/src/shared/contract.ts:29`）。渲染层在收栏前缓存最后一帧 pill 矩形（`cacheSummonPills` 在收栏态直接 return、不覆写，`app/src/renderer/taskbar.ts:109-121`）。
+   - 几何来源：**渲染层自算**（(b) 方案）——pill 矩形只有渲染层量得到（`app/src/renderer/taskbar.ts` 的 `measure()`），主进程**不回读** `taskbar-geometry` 帧；主进程只下发档位（`taskbar/bar-mode` 事件，载荷 `TaskbarBarModeState { mode, reason }`，`app/src/shared/contract.ts:29`）。渲染层在收栏前缓存最后一帧 pill 矩形（`app/src/renderer/taskbar.ts` 的 `cacheSummonPills`——收栏态直接 return、不覆写）。
+   - **引用口径（本 ADR 指向渲染层的两处一律用函数名、不钉 `file:line`）**：行号随渲染层增删行而漂——#242 给渲染层加 200+ 行就把本节的旧行号挤走过一次（工单249 修这两处时又移了一回）。函数名是稳定锚点，读者按名检索即可；**不得**把这两处改回行号（下一张票加几行就又失准）。
    - 置顶纪律：收栏态不改置顶纪律——条带窗仍须压在最大化窗之上（唤出条贴屏底、可见、可点），置顶重申与收栏共存，收栏不另起第二套置顶抑制机制（`app/src/main/taskbar/window.ts:336-340`）。
 
 8. **收栏触发瞬间关闭全部自绘浮层。** 复用 `popupHosts` 单一清单（`app/src/main/taskbar/window.ts:273`，六面自绘浮层的唯一登记处），`close('yield')` 与全屏让位**同口径**。理由：栏面退场后浮层无锚——留孤儿浮层压在最大化窗之上，既无交互入口又挡内容（spec 用户故事 29）。新增菜单面只在清单追加一行，不再两处平行展开防漏。

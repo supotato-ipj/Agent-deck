@@ -10,9 +10,23 @@
 // （v1 仅主屏——Shell_SecondaryTrayWnd 副屏栏不动，与 ADR-0007 多屏 Out of Scope 一致）。
 import koffi from 'koffi'
 import type { EventLog } from '../panel-ipc'
+import { planRestore } from './native-restore'
 
 const SW_HIDE = 0
 const SW_SHOW = 5
+
+/**
+ * 待决的还原重试（工单248）：新一次隐藏到场即作废上一次待决的还原。
+ * 「只还原我藏的那次」的账在 window.ts（hidNative），本处只保证**旧的那次**重试
+ * 不会在新隐藏之后把原生任务栏翻回来（快速开关切换时的分叉账）。
+ */
+let pendingRestoreCancel: (() => void) | null = null
+
+/** 作废待决的还原重试（新的隐藏真的藏住了才作废——账没换人就不赖账） */
+function cancelPendingRestore(): void {
+  pendingRestoreCancel?.()
+  pendingRestoreCancel = null
+}
 
 /** Win32 标准弹出菜单窗类名（user32 内部菜单窗口，右键菜单的标准形态） */
 export const MENU_WINDOW_CLASS = '#32768'
@@ -92,22 +106,68 @@ export function hideNativeTaskbar(log: EventLog | null): boolean {
   ShowWindow(hwnd, SW_HIDE)
   const ok = !IsWindowVisible(hwnd)
   log?.append({ type: ok ? 'taskbar-hidden' : 'taskbar-hide-failed', visibleAfter: nativeTaskbarVisible() })
+  // 隐藏成功 = 本次确由我藏 → 作废上一次待决的还原重试（工单248）：旧重试不得在新隐藏
+  // 之后把原生任务栏翻回来。隐藏**未**成功则保留待决还原——上一次藏的那次还欠着还原，
+  // 账不许赖掉（否则原生任务栏停在隐藏态且无人认领）。
+  if (ok) cancelPendingRestore()
   return ok
 }
 
-/** 还原（条带窗销毁路径）：仅当此刻确为隐藏态才翻回；调用方保证「本次由我隐藏」才调。
- * 成败判定同 hide 的视图事实纪律（ShowWindow 返回值不可信）。 */
+/**
+ * 还原（条带窗销毁路径）：仅当此刻确为隐藏态才翻回；调用方保证「本次由我隐藏」才调。
+ * 成败判定同 hide 的视图事实纪律（ShowWindow 返回值不可信）。
+ *
+ * 工单248：Shell_TrayWnd **瞬时缺位**不等于永久放弃——原生任务栏一旦留在隐藏态，
+ * 用户就永久失去系统入口（逃生开关反而成单向阀）。缺位/翻回不生效时按退避重试
+ * （有限次，终局有界，裁决见 taskbar/native-restore.ts），终局仍不成才落降级存证。
+ * 重试是**异步**的：条带销毁不被还原拖住（销窗流程同拍照常落地）。
+ * 存证两路都有：翻回成功 → taskbar-restored；终局放弃 → taskbar-restore-skipped
+ * （窗口始终缺位）/ taskbar-restore-failed（句柄在却不翻回），载荷加 attempts 记拍数。
+ */
 export function showNativeTaskbar(log: EventLog | null, reason: string): void {
-  const hwnd = nativeTrayWnd()
-  if (!hwnd) {
-    // explorer 已死：它重启会自建可见任务栏，无还原义务，记一笔降级
-    log?.append({ type: 'taskbar-restore-skipped', reason, note: 'not-found' })
-    return
+  /** 排下一拍重试（退避有界；unref：不因待决重试吊住进程退出） */
+  const schedule = (delayMs: number, next: number): void => {
+    cancelPendingRestore()
+    let cancelled = false
+    const cancel = (): void => { cancelled = true }
+    pendingRestoreCancel = cancel
+    const timer = setTimeout(() => {
+      if (pendingRestoreCancel === cancel) pendingRestoreCancel = null
+      if (cancelled) return
+      run(next)
+    }, delayMs)
+    timer.unref?.()
   }
-  if (IsWindowVisible(hwnd)) return // 已可见（用户/系统先一步翻回）：静默，不抢功
-  ShowWindow(hwnd, SW_SHOW)
-  const ok = Boolean(IsWindowVisible(hwnd))
-  log?.append({ type: ok ? 'taskbar-restored' : 'taskbar-restore-failed', reason, visibleAfter: nativeTaskbarVisible() })
+
+  const run = (attempt: number): void => {
+    const hwnd = nativeTrayWnd()
+    if (!hwnd) {
+      // 瞬时缺位：一次失手不作数——退避重试（每拍重新枚举，避开陈旧 hWndChildAfter）
+      const d = planRestore(attempt, 'not-found')
+      if (d.action === 'retry') {
+        schedule(d.delayMs, d.attempt)
+        return
+      }
+      // 终局：窗口始终缺位（explorer 已死/未归位）——它重启会自建可见任务栏，降级记一笔
+      log?.append({ type: 'taskbar-restore-skipped', reason, note: 'not-found', attempts: d.attempt })
+      return
+    }
+    if (IsWindowVisible(hwnd)) return // 已可见（用户/系统先一步翻回）：静默，不抢功
+    ShowWindow(hwnd, SW_SHOW)
+    if (IsWindowVisible(hwnd)) {
+      log?.append({ type: 'taskbar-restored', reason, visibleAfter: true, attempts: attempt })
+      return
+    }
+    // 句柄在但翻回不生效（翻回动作可能落在 explorer 重建中的窗口上）：同样可重试
+    const d = planRestore(attempt, 'still-hidden')
+    if (d.action === 'retry') {
+      schedule(d.delayMs, d.attempt)
+      return
+    }
+    log?.append({ type: 'taskbar-restore-failed', reason, visibleAfter: nativeTaskbarVisible(), attempts: d.attempt })
+  }
+
+  run(1)
 }
 
 /**
