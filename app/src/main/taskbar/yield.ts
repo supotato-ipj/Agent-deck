@@ -3,10 +3,10 @@
 // 判定谓词 shouldYieldToFullscreen **已退役**（工单249）：档位归 shared/retract 的
 // resolveBarMode（单一裁决）；它只按矩形覆盖判、不排除真最大化窗，接回主进程即重引入
 // 「两态互咬」。覆盖判定语义（容差/原点偏移）改由 shared/retract 的 coversScreenRect
-// 钉住（单测见 tests/taskbar/retract.spec.ts）。FFI 前台探针 lazy-bind（syskeys.ts
-// 先例：模块加载不触 FFI，纯谓词测试不引 koffi）；让位动作（条带 hide/show）由
-// taskbar/window.ts 控制器轮询驱动。探针形状（PhysRect / ForegroundProbe）、桌面宿主
-// 排除名单与覆盖判定已搬进 shared/retract（工单237）——单一来源，不许各抄一份。
+// 钉住（单测见 tests/taskbar/retract.spec.ts）。FFI 前台探针 lazy-bind（syskeys.ts 先例：
+// 模块加载不触 FFI，纯谓词测试不引 koffi）；让位动作由 taskbar/window.ts 控制器轮询驱动。
+// 探针形状、桌面宿主排除名单与覆盖判定已搬进 shared/retract（工单237）——单一来源，
+// 不许各抄一份；此处转出形状保持主进程侧引用路径不变（apps-plan.ts 同款先例）。
 
 import { coversScreenRect, DESKTOP_HOST_CLASSES } from '../../shared/retract'
 import type { ForegroundProbe, PhysRect } from '../../shared/retract'
