@@ -1,12 +1,12 @@
 // 全屏让位（工单51，ADR-0007「工作区」决策）：检测到前台应用全屏（游戏、视频、演示）
 // 时任务栏条带自动隐藏，退出全屏即恢复。
-// 判定是纯谓词 shouldYieldToFullscreen（单测见 tests/taskbar/yield.spec.ts）；
-// FFI 前台探针 lazy-bind（syskeys.ts 先例：模块加载不触 FFI，纯谓词测试不引 koffi）。
-// 让位动作（条带 hide/show）由 taskbar/window.ts 控制器轮询驱动。
-//
-// 探针形状（PhysRect / ForegroundProbe）、桌面宿主排除名单与覆盖判定已搬进
-// shared/retract（收栏决策纯函数域模块，工单237）——单一来源，不许各抄一份；
-// 此处转出形状保持主进程侧引用路径不变（apps-plan.ts 转出 shared/overflow 的同款先例）。
+// 判定谓词 shouldYieldToFullscreen **已退役**（工单249）：档位归 shared/retract 的
+// resolveBarMode（单一裁决）；它只按矩形覆盖判、不排除真最大化窗，接回主进程即重引入
+// 「两态互咬」。覆盖判定语义（容差/原点偏移）改由 shared/retract 的 coversScreenRect
+// 钉住（单测见 tests/taskbar/retract.spec.ts）。FFI 前台探针 lazy-bind（syskeys.ts
+// 先例：模块加载不触 FFI，纯谓词测试不引 koffi）；让位动作（条带 hide/show）由
+// taskbar/window.ts 控制器轮询驱动。探针形状（PhysRect / ForegroundProbe）、桌面宿主
+// 排除名单与覆盖判定已搬进 shared/retract（工单237）——单一来源，不许各抄一份。
 
 import { coversScreenRect, DESKTOP_HOST_CLASSES } from '../../shared/retract'
 import type { ForegroundProbe, PhysRect } from '../../shared/retract'
@@ -14,10 +14,10 @@ import type { ForegroundProbe, PhysRect } from '../../shared/retract'
 export type { ForegroundProbe, PhysRect } from '../../shared/retract'
 
 /**
- * 全屏让位判定：前台窗完整覆盖给定屏矩形（容差内）、非自家进程（面板本体被点击
- * 成前台时矩形即全屏）、非桌面宿主类。最大化窗在 AppBar 占位生效后底边停在栏上方，
- * 天然不满足覆盖——AppBar 注册失败的降级档由调用方整段关掉让位（最大化窗会
- * 覆盖全屏造成误判）。
+ * **已退役**（工单249）：档位归 shared/retract 的 resolveBarMode（单一裁决）。最大化窗
+ * 在 AppBar 占位生效后底边停在栏上方，天然不满足覆盖（AppBar 注册失败的降级档由调用方
+ * 整段关掉让位）。**但它只按矩形覆盖判、不排除真最大化窗**——正是工单237 修正 A1 要防
+ * 的那条：接回主进程即重引入「两态互咬」。保留导出只为覆盖判定语义仍有单测可依。
  */
 export function shouldYieldToFullscreen(
   probe: ForegroundProbe | null,
