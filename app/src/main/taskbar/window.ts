@@ -352,7 +352,11 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
    * 重注册 / 整窗显隐 / 档位下发 / 存证。
    *
    * 收栏（maximize-retract，栏给窗让位）：
-   * - 注销 AppBar → 工作区占位释放 → 最大化窗铺满整屏；
+   * - 注销 AppBar → **我方那份**占位登记释放；
+   *   ⚠️ 工单250 实测更正：系统工作区**不随之变化**——原生任务栏那 48px 保留带由 shell
+   *   自算、不在 AppBar 登记表里（对原生 Shell_TrayWnd 发 ABM_REMOVE/空矩形 ABM_SETPOS
+   *   均无效）⇒ 最大化窗底边仍停在 1392，「铺满整屏」在本机不发生（产品级缺口，见
+   *   docs/audit/2026-10-23-t250-native-taskbar-reserved-band.md）。
    * - 自绘浮层一律关闭（不留无锚孤儿浮层，用户故事 29）；
    * - 条带窗**不隐藏**（承载形态 = 栏窗复用，工单241 修正 E3 裁决）：唤出条贴屏底、
    *   在最大化窗之上、命中区可点；弹出的组就落在同一条 48px 带内 → **不改变最大化窗尺寸**
