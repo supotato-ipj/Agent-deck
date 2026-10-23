@@ -606,6 +606,39 @@ export function appsBand(leftRight: number | null, rightLeft: number): AppsBand 
   return { lo, hi }
 }
 
+/** 一组 pill 的横向区间（左缘 + 宽度；与唤出条镜像的矩形同口径） */
+export interface GroupPillSpan {
+  /** pill 左缘（客户区坐标） */
+  x: number
+  /** pill 宽度 */
+  width: number
+}
+
+/**
+ * 应用组空带（收栏态口径，工单253）：由**收栏前缓存的各组区间**反推。
+ *
+ * 收栏态栏面退场（各组 pill display:none）⇒ 活邻组实测宽度是 0 ⇒ 常态口径算出的空带是
+ * 零宽带（容量 0 格 ⇒ 条目全被塞进「⋯」溢出；已唤出的组另被挤撞守卫按 0 宽裁成空壳 ⇒
+ * 点不到）。本函数改用收栏前最后一帧的区间（唤出条镜像的**同一份**）⇒ 容量与落位与收栏前
+ * 一致：已唤出的组拿到可点击的宽度，条与组的横向区间同源（位置记忆不打架）。
+ *
+ * 边界口径与常态 appsBand 逐字一致：左邻按推荐组优先、缺席回退开始组，都缺席退条带左缘
+ * 内衬；右界 = 右组左缘 − 组间距（右组缺位 ⇒ 不设限：容量放开，不裁剪）。
+ */
+export function appsBandFromSpans(spans: {
+  /** 开始组区间（缺位 = 该组不在场） */
+  start?: GroupPillSpan
+  /** 推荐组区间（缺位 = 该组不在场） */
+  recs?: GroupPillSpan
+  /** 右组区间（缺位 = 缓存缺位 ⇒ 右界不设限） */
+  right?: GroupPillSpan
+}): AppsBand {
+  const recsRight = spans.recs ? spans.recs.x + spans.recs.width : null
+  const startRight = spans.start ? spans.start.x + spans.start.width : null
+  const rightLeft = spans.right ? spans.right.x : Number.POSITIVE_INFINITY
+  return appsBand(appsBandLeft(recsRight, startRight), rightLeft)
+}
+
 /** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。
  * 中心锚定（工单190）不改容量口径——格数仍受两侧邻组约束（不越界压邻居），邻居变宽
  * 挤的是容量（格数变少、溢出 ⋯ 兜底），不是居中位 */

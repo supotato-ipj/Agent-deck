@@ -26,6 +26,22 @@ export type StubEvent = {
 
 export type Listener = (ev: StubEvent) => void
 
+/**
+ * 桩里的实测矩形（DOMRect 同款：x/y/width/height + left/right/top/bottom）。
+ * 挤撞守卫读的是 .left/.right（工单158 口径）——只给 x/width 会让守卫算成 NaN、
+ * 整道守卫静默失效，故两套字段同源给出。
+ */
+export interface StubRect {
+  x: number
+  y: number
+  width: number
+  height: number
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
 /** 组 pill 的桩内矩形（x/宽 与 taskbar.html 的落位口径同形；条带窗通栏 1920×48） */
 const RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
   'pill-start': { x: 8, y: 0, w: 120, h: 48 },
@@ -35,6 +51,9 @@ const RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
   'show-desktop': { x: 1912, y: 0, w: 8, h: 48 },
   'summon-strips': { x: 0, y: 39, w: 1920, h: 9 },
 }
+
+/** 组 pill 的宿主 id（收栏态栏面退场的就是这五个——taskbar.html 的 CSS 口径） */
+const GROUP_PILL_IDS = new Set(['pill-start', 'pill-recs', 'pill-apps', 'right-pill', 'show-desktop'])
 
 /** 只认本仓实际用到的选择器形态：tag / .class / #id / [attr] / [attr="v"] / 组合与后代 */
 function readAttr(el: StubElement, name: string): string | undefined {
@@ -118,6 +137,8 @@ export class StubElement {
   draggable = false
   className = ''
   tagName: string
+  /** 所属文档的 body（收栏态栏面退场的判据来源：body[data-bar-mode]，真 DOM 同款） */
+  body: StubElement | null = null
   private text = ''
   private rect = { x: 0, y: 0, w: 0, h: 0 }
   private listeners = new Map<string, Listener[]>()
@@ -136,7 +157,7 @@ export class StubElement {
   }
 
   get offsetWidth(): number {
-    return this.rect.w
+    return this.effectiveWidth()
   }
 
   get classList() {
@@ -164,9 +185,50 @@ export class StubElement {
     }
   }
 
+  /**
+   * 栏面退场（真 DOM 同款，工单243 取证口径）：收栏态（body[data-bar-mode="maximize-retract"]）
+   * 下**未唤出**的组 pill 是 display:none ⇒ 实测矩形全零（宽 0）——这正是工单253 缺陷一的
+   * 机制：挤撞守卫量到的邻组宽度是 0，把已唤出的组按 0 宽裁剪。被唤出的组（带
+   * .summon-popped）复现，矩形照旧。让位态（fullscreen-yield）整窗隐藏 ⇒ 一切元素零矩形。
+   */
+  withdrawn(): boolean {
+    const mode = this.body?.dataset.barMode
+    // 让位态：整窗退场（隐藏）——窗内一切元素实测矩形全零
+    if (mode === 'fullscreen-yield') return true
+    if (mode !== 'maximize-retract') return false
+    if (!GROUP_PILL_IDS.has(this.id)) return false
+    return !this.classList.contains('summon-popped')
+  }
+
+  /** 桩里的实测宽度：退场组为 0；其余受 max-width 收窄（挤撞守卫只动 maxWidth） */
+  private effectiveWidth(): number {
+    if (this.withdrawn()) return 0
+    if (this.parent?.withdrawn()) return 0
+    let w = this.rect.w
+    const max = this.style.maxWidth
+    if (max && max.endsWith('px')) {
+      const limit = Number.parseFloat(max)
+      if (Number.isFinite(limit)) w = Math.min(w, limit)
+    }
+    return w
+  }
+
   /** 桩里的实测矩形（按 id 给真布局数；动态节点给默认格位） */
-  getBoundingClientRect(): { x: number; y: number; width: number; height: number } {
-    return { x: this.rect.x, y: this.rect.y, width: this.rect.w, height: this.rect.h }
+  getBoundingClientRect(): StubRect {
+    const w = this.effectiveWidth()
+    if (w <= 0) return { x: 0, y: 0, width: 0, height: 0, left: 0, right: 0, top: 0, bottom: 0 }
+    const h = this.rect.h
+    return {
+      x: this.rect.x,
+      y: this.rect.y,
+      width: w,
+      height: h,
+      // DOMRect 同款：left/right/top/bottom 与 x/y/width/height 同源（挤撞守卫读的是 .left/.right）
+      left: this.rect.x,
+      right: this.rect.x + w,
+      top: this.rect.y,
+      bottom: this.rect.y + h,
+    }
   }
 
   setRect(rect: { x: number; y: number; w: number; h: number }): void {
@@ -291,6 +353,7 @@ export function installTaskbarDomStub(options: { state: TaskbarState }): Taskbar
   }
 
   const body = new StubElement('body')
+  for (const el of elements.values()) el.body = body
   const notifies: Array<{ name: string; payload: unknown }> = []
   const zones: unknown[] = []
   const listeners = new Map<string, Array<(payload: unknown) => void>>()
@@ -299,7 +362,11 @@ export function installTaskbarDomStub(options: { state: TaskbarState }): Taskbar
 
   const doc = {
     body,
-    createElement: (tag: string) => new StubElement(tag),
+    createElement: (tag: string) => {
+      const el = new StubElement(tag)
+      el.body = body
+      return el
+    },
     getElementById: (id: string) => elements.get(id) ?? null,
     addEventListener: () => { /* 渲染入口在 document 上挂的监听不参与本桩的断言 */ },
     querySelectorAll: (selector: string) => body.querySelectorAll(selector),
