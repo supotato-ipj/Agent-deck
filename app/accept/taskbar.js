@@ -22,10 +22,10 @@
 //      重启用即收编（宿主重建 + 名单回填），停→起→停整周期（类注销对称性）
 //   P12 宿主守恒（#153）：禁用态数据面强杀重启不复活宿主（respawn 按期望态）、
 //      启态禁用（config 门禁）不建宿主
-//   P13 栏高与图标尺寸（工单158）：条带 48→64DIP；应用组图标 32px/格位 44px；
-//      托盘图标 24px（16px 源最近邻放大档、32px 源平滑降采样）——CDP computed
-//      style 与几何存证帧互证；应用格位用 notepad 探针（栏上无应用时 1Hz 编排轮
-//      1–2s 内上栏）
+//   P13 栏高与图标尺寸（工单247 改写口径；工单238 栏高 48DIP + 工单240 图标档位）：条带
+//      48DIP；应用组图标 24px/格位 36×36；托盘图标 16px 原生直渲（源 <16px 才算最近邻
+//      放大档、≥16px 不挂 pixelated）——CDP computed style 与几何存证帧互证；应用格位
+//      用 notepad 探针（栏上无应用时 1Hz 编排轮 1–2s 内上栏）
 //   P15 栏分组布局重排（工单159）：开始组钉条带左缘、应用组在 [开始组右缘, 右组左缘]
 //      带内落位（不与邻组重叠）、右组与细条位置不变——几何存证帧与 CDP computed style
 //      互证；居中语义随工单190 移交 P15B（原「空带居中+随带回正」断言退役）
@@ -37,7 +37,7 @@
 //   出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）→ 点行选窗存证+
 //   前台对账+行点即收 → 点外即收（时钟格转达 strip-click）
 //   P16 推荐组交互主体（工单160）：五条 usage 种子探针确定性占满推荐位（先于面板种入
-//      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 44 格/32 图标
+//      ——usage 打分只在服务构造时读盘），真机六臂——图标化上限5（.tb-rec 36 格/24 图标
 //      img/首字母占位，无显示名文本残留）、左键启动（真点击→rec-click 存证→cmd 副本
 //      真进程出场；notepad 副本弃用见 seedRecsProbes 注）、右键三行菜单（手钉到任务栏/从推荐栏移除/打开文件位置，工单161）+手钉
 //      即时迁移（推荐组消失
@@ -93,7 +93,7 @@ const handle = createPanelHandle({
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
+const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 栏高回归 48 DIP）
 const VK_ESC = 0x1b;
 
 const koffi = win32.koffi;
@@ -880,35 +880,25 @@ async function main() {
       rep.fail(`P9 任务栏窗恢复=${!!tbBack}`);
     }
 
-    // P13 栏高与图标尺寸（工单158）：条带 64DIP + 应用组图标 32px/格位 44px + 托盘 24px。
+    // P13 栏高与图标尺寸（工单247 改写口径；工单238 栏高 48DIP + 工单240 图标档位）：
+    //   条带 48DIP + 应用组图标 24px/格位 36×36 + 托盘图标 16px。
     //   读数两路互证：(1) 任务栏页 CDP computed style（CSS px——浏览器层落的尺寸事实）；
     //   (2) taskbar-geometry 存证帧（渲染层量出的矩形，电池既有点击坐标来源）。
     //   应用格位若栏上暂无应用，spawn notepad 探针（运行中应用经 1Hz 编排轮 1–2s 上栏）；
     //   托盘名单收编后面板自家图标恒在栏（#153 链路，P11 同款确定性来源）。
-    //   最近邻放大档交叉核验：已装载像素的托盘图标（naturalWidth>0）源尺寸 <24px 必须
-    //   挂 .tb-tray-px（image-rendering: pixelated），≥24px 不得挂——像素未到齐的图标
-    //   只断 24px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
+    //   最近邻放大档交叉核验：已装载像素的托盘图标（naturalWidth>0）源尺寸 <16px 必须
+    //   挂 .tb-tray-px（image-rendering: pixelated），≥16px 不得挂——16px 源与显示档等大
+    //   = 1:1 原生直渲不挂（工单240 档位），32px 源降采样走平滑插值；像素未到齐的图标
+    //   只断 16px 显示尺寸（像素链路另有 tray 族电池收口，不在本段重复设卡）。
     rep.beginSegment('P13');
     const tbH13 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
     let notepad13 = null;
     try {
-      // 栏上无应用格时铺一枚探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
-      let geom13 = latestGeometry(null);
-      if (!geom13 || !geom13.apps || geom13.apps.length === 0) {
-        notepad13 = spawn('notepad.exe', [], { stdio: 'ignore' });
-        const deadline13 = Date.now() + 12000;
-        while (Date.now() < deadline13) {
-          geom13 = latestGeometry(null);
-          if (geom13 && geom13.apps && geom13.apps.length > 0) break;
-          await sleep(300);
-        }
-      }
-      // 条带窗口高度（物理像素 → DIP，P1 同口径；本段自带一份证据不依赖 P1 现场）
-      const rect13 = tbH13 ? win32.rectOf(tbH13) : null;
-      const dip13 = screen.getPrimaryDisplay().bounds;
-      const scale13 = rect13 ? (rect13.right - rect13.left) / dip13.width : 0;
-      const heightDip13 = rect13 ? (rect13.bottom - rect13.top) / scale13 : 0;
-      // 等托盘像素到齐（自家图标 dataURL 装载后 naturalWidth>0；5s 内未到齐走软核验）
+      // 应用格位若栏上暂无应用，spawn notepad 探针（运行中应用经 1Hz 编排轮 1–2s 上栏）
+      // 工单247：判据从「几何存证帧有无 apps」改为「CDP 读数里 .tb-app 在不在场」——
+      // 磁带里留着 P9 重启前那个面板实例的残帧（apps 非空），拿它判「栏上有无应用」会在
+      // 新面板刚起、应用组尚未渲染时误判为「有应用」而跳过探针，随后 CDP 读数拿到 null
+      // （真机轮实证：旧口径在同一现场同样挂——不是口径改错，是段内等错了对象）。
       const probe13 = async () => cdpEval(`(() => {
         const cell = document.querySelector('.tb-app');
         const icon = document.querySelector('.tb-app img');
@@ -920,33 +910,46 @@ async function main() {
           tray: tray.map((t) => ({ w: cs(t, 'width'), h: cs(t, 'height'), nat: t.naturalWidth, px: t.classList.contains('tb-tray-px'), rendering: cs(t, 'imageRendering') })),
         };
       })()`, TASKBAR_TITLE);
+      // 条带窗口高度（物理像素 → DIP，P1 同口径；本段自带一份证据不依赖 P1 现场）
+      const rect13 = tbH13 ? win32.rectOf(tbH13) : null;
+      const dip13 = screen.getPrimaryDisplay().bounds;
+      const scale13 = rect13 ? (rect13.right - rect13.left) / dip13.width : 0;
+      const heightDip13 = rect13 ? (rect13.bottom - rect13.top) / scale13 : 0;
+      // 等被测对象在场：应用格（格位/图标尺寸的断言对象）+ 托盘像素（放大档核验对象）
+      // ——托盘像素未到齐走软核验（loaded13 为空时跳过放大档断言），应用格必须到场
+      // （整轮上限 12s：与 notepad 探针 1Hz 编排轮上栏的等待同量级）
       let sizes13 = null;
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 24; i++) {
         sizes13 = await probe13();
-        if (sizes13.tray.some((t) => t.nat > 0)) break;
+        const trayReady13 = sizes13.tray.some((t) => t.nat > 0);
+        if (sizes13.cell && trayReady13) break;
+        // 栏上确无应用格 → 铺一枚 notepad 探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
+        if (!sizes13.cell && !notepad13 && i >= 2) {
+          notepad13 = spawn('notepad.exe', [], { stdio: 'ignore' });
+        }
         await sleep(500);
       }
       const stripOk13 = Math.abs(heightDip13 - TASKBAR_HEIGHT_DIP) <= 2;
-      const cellOk13 = sizes13.cell && sizes13.cell.w === '44px' && sizes13.cell.h === '44px';
-      const iconOk13 = sizes13.icon && sizes13.icon.w === '32px' && sizes13.icon.h === '32px';
+      const cellOk13 = sizes13.cell && sizes13.cell.w === '36px' && sizes13.cell.h === '36px';
+      const iconOk13 = sizes13.icon && sizes13.icon.w === '24px' && sizes13.icon.h === '24px';
       const trayLen13 = sizes13.tray.length;
-      const traySizeOk13 = trayLen13 > 0 && sizes13.tray.every((t) => t.w === '24px' && t.h === '24px');
+      const traySizeOk13 = trayLen13 > 0 && sizes13.tray.every((t) => t.w === '16px' && t.h === '16px');
       const loaded13 = sizes13.tray.filter((t) => t.nat > 0);
-      const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 24) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
-      // 几何存证互证：应用格位 h≈44（cell）；托盘格 h≈34（24 图标 + 5+5 padding——
-      // 工单158 挤撞回正的密度紧凑档，托盘格 padding 7→5 延缓右组左侵开始组）
+      const trayPxOk13 = loaded13.every((t) => t.px === (t.nat < 16) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
+      // 几何存证互证：应用格位 h≈36（.tb-app 定宽格 36×36）；托盘格 h≈28
+      // （.tb-tray-icon 格盒 28×28——16px 图标居中，热区 28 不随字形缩小）
       const geo13 = latestGeometry(null);
-      const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 44) <= 2);
-      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 34) <= 2);
+      const geoAppsOk13 = !!(geo13 && geo13.apps && geo13.apps.length > 0 && Math.abs(geo13.apps[0].h - 36) <= 2);
+      const geoTrayOk13 = !!(geo13 && geo13.trayIcons && geo13.trayIcons.length > 0 && Math.abs(geo13.trayIcons[0].h - 28) <= 2);
       if (stripOk13 && cellOk13 && iconOk13 && traySizeOk13 && geoAppsOk13 && geoTrayOk13
         && (loaded13.length === 0 || trayPxOk13)) {
-        rep.pass(`P13 栏高与图标尺寸：条带 ${Math.round(heightDip13)}DIP；应用格位 44px/图标 32px；`
-          + `托盘 ${trayLen13} 枚均 24px（已装载 ${loaded13.length} 枚放大档核验`
+        rep.pass(`P13 栏高与图标尺寸：条带 ${Math.round(heightDip13)}DIP；应用格位 36×36/图标 24px；`
+          + `托盘 ${trayLen13} 枚均 16px（已装载 ${loaded13.length} 枚放大档核验`
           + `${loaded13.length === 0 ? '未及（像素未到齐，软核验跳过）' : trayPxOk13 ? '通过' : '不符'}）`
           + `；几何存证互证（格位 h=${geo13.apps[0].h.toFixed(1)}、托盘格 h=${geo13.trayIcons[0].h.toFixed(1)}）`);
       } else {
         rep.fail(`P13 条带=${Math.round(heightDip13)}DIP 格位=${JSON.stringify(sizes13.cell)} 图标=${JSON.stringify(sizes13.icon)}`
-          + ` 托盘=${trayLen13} 枚尺寸全24=${traySizeOk13} 放大档核验=${trayPxOk13}（装载 ${loaded13.length}）`
+          + ` 托盘=${trayLen13} 枚尺寸全16=${traySizeOk13} 放大档核验=${trayPxOk13}（装载 ${loaded13.length}）`
           + ` 几何互证(格位=${geoAppsOk13}/托盘=${geoTrayOk13}) 几何帧=${JSON.stringify(geo13 && { apps: geo13.apps, trayIcons: geo13.trayIcons })}`);
       }
     } finally {
@@ -962,6 +965,9 @@ async function main() {
     //   推荐位界内——原「空带中点居中 + 随带回正」断言随功能变更退役（P15B 接班）。
     //   推荐位界内断言重定界到 #pill-recs（量测出处随迁、字段语义不变）。应用格空时
     //   notepad 探针（同 P13）。
+    //   工单247 栏高口径随动：开始组 pill 撑满栏高 48（工单238，height:100% 声明式），
+    //   钉左/竖向居中中线随栏高常量 64→48（中线 32→24）；组间纯缝隙 GROUP_GAP 仍 8、
+    //   右组右缘仍 dip.width-14、细条右缘仍 dip.width——按现值核，未随栏高变动。
     rep.beginSegment('P15');
     let notepad14 = null;
     try {
@@ -998,8 +1004,13 @@ async function main() {
         };
       })()`, TASKBAR_TITLE);
       const b0 = bandOf(g0);
+      // 工单247 栏高口径随动：开始组 pill 由「内容撑出的 ~44」改「声明的 48 全高」
+      // （.pill height:100% + border-box，工单238 撑满栏高）——旧口径下 pill 高度由内容
+      // 撑出、与栏高无恒等关系，钉不住；新口径下「撑满栏高」是工单238 的落地事实，
+      // 故在竖向居中（中线 = TASKBAR_HEIGHT_DIP/2 = 24）之外另钉 h ≈ 栏高。
       const startOk14 = Math.abs(g0.startPill.x - 8) <= 2
-        && Math.abs(g0.startPill.y + g0.startPill.h / 2 - TASKBAR_HEIGHT_DIP / 2) <= 2;
+        && Math.abs(g0.startPill.y + g0.startPill.h / 2 - TASKBAR_HEIGHT_DIP / 2) <= 2
+        && Math.abs(g0.startPill.h - TASKBAR_HEIGHT_DIP) <= 2;
       const cssOk14 = css14.startLeft === '8px' && css14.appsInlineLeft !== '' && css14.appsDisplay !== 'none';
       const noOverlap14 = g0.appsPill.x >= b0.lo - 0.5 && g0.appsPill.x + g0.appsPill.w <= b0.hi + 0.5;
       const dip14 = screen.getPrimaryDisplay().bounds;
@@ -1016,7 +1027,7 @@ async function main() {
           && recPill14.x >= g0.startPill.x + g0.startPill.w + GAP15 - 0.5
           && recs14.every((r) => r.x >= recPill14.x - 0.5 && r.x + r.w <= recPill14.x + recPill14.w + 0.5);
       if (startOk14 && cssOk14 && noOverlap14 && rightOk14 && recsOk14) {
-        rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}）、`
+        rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}，撑满栏高 h=${g0.startPill.h.toFixed(1)}）、`
           + `应用组带内落位（带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]，居中语义见 P15B）、`
           + `不与邻组重叠、右组+细条钉右不变${recs14.length
             ? `、推荐位 ${recs14.length} 枚独立 pill 界内（pill @${recPill14.x.toFixed(0)}，与开始组间隙 ${(recPill14.x - g0.startPill.x - g0.startPill.w).toFixed(0)}px）`
@@ -1264,12 +1275,21 @@ async function main() {
         rep.fail(`P16 探针未占满推荐位（12s 内五条夹具未同帧在场——usage 种子/桌面扫描链路断，`
           + `或机器真实条目分压过种子）：几何=${JSON.stringify(latestGeometry(null) && recNames16(latestGeometry(null)))}`);
       } else {
-        const dom16 = await domRecs16();
+        // 工单247：等推荐格在 DOM 里真正布局出尺寸（几何帧说 5 枚在场 ≠ 此刻 DOM 量得到
+        // 宽高——推荐组 pill 未渲染时格子量得 0×0，尺寸断言读到假阴性。真机轮实证：旧口径
+        // 在同一现场同样挂——不是口径改错，是读数时机早于布局）。
+        let dom16 = await domRecs16();
+        const domDeadline16 = Date.now() + 8000;
+        while (Date.now() < domDeadline16
+          && !(dom16.length === 5 && dom16.every((c) => c.w > 0 && c.h > 0))) {
+          await sleep(400);
+          dom16 = await domRecs16();
+        }
         const countOk16 = recNames16(g16).length === 5;
         // 第 6/7 名不出现（工单161 强断言：F/G 在候选池里，滤除后截断才不可见）
         const fillersHidden16 = (p16.extras || []).every((f) => !recNames16(g16).includes(f.name));
         const iconizedOk16 = dom16.length === 5 && dom16.every((c) => (c.img || c.letter) && !c.ownText
-          && Math.abs(c.w - 44) <= 2 && Math.abs(c.h - 44) <= 2);
+          && Math.abs(c.w - 36) <= 2 && Math.abs(c.h - 36) <= 2);
         // tooltip = 扫描显示名（文件名去扩展——图标化后名称的唯一即时呈现位；种子侧的
         // display 字段是打分键不进条目，条目 display 由桌面扫描派生）
         const tooltipOk16 = dom16.every((c) => {
@@ -1277,7 +1297,7 @@ async function main() {
           return hit && c.title === scanDisplay16(hit.name);
         });
         if (countOk16 && fillersHidden16 && iconizedOk16 && tooltipOk16) {
-          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 44×44 图标格`
+          rep.pass(`P16 推荐组图标化+上限5：探针恰满 5 枚（第 6/7 名 F/G 在池不可见）；每格 36×36 图标格`
             + `（img ${dom16.filter((c) => c.img).length}/占位 ${dom16.filter((c) => c.letter).length}），无显示名文本残留，扫描显示名即时进 tooltip`);
         } else {
           rep.fail(`P16 图标化断言：count=${countOk16}(${recNames16(g16).length}) fillersHidden=${fillersHidden16} iconized=${iconizedOk16}`

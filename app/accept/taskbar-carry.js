@@ -44,7 +44,7 @@ const handle = createPanelHandle({
 const CDP_PORT = cdpPortFor('50-taskbar-carry');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
-const TASKBAR_HEIGHT_DIP = 64; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单158 起 64）
+const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 栏高回归 48 DIP）
 const WM_CLOSE = 0x0010;
 
 const koffi = win32.koffi;
@@ -175,6 +175,8 @@ async function runSegments() {
     const hiddenEv = await tape.wait('taskbar-hidden', null, { timeoutMs: 5000 });
     const nativeGone = await waitNativeVisible(false, 5000);
     // 条带几何：净空归零 → 底边 = 屏底（49 P1 同款物理↔DIP 换算）
+    // 工单247 栏高口径随动：条带高 = 48DIP（工单238 栏高回归 48，src/main/taskbar/window.ts
+    // TASKBAR_HEIGHT）——旧口径 64 是工单158 从 48 升上来的，本票随新排版回归 Win11 原生 48。
     const dip = screen.getPrimaryDisplay().bounds;
     const rect = win32.rectOf(tbHwnd);
     const scale = (rect.right - rect.left) / dip.width;
@@ -182,7 +184,7 @@ async function runSegments() {
     const bottomDip = rect.bottom / scale;
     const geomOk = Math.abs(heightDip - TASKBAR_HEIGHT_DIP) <= 2 && Math.abs(bottomDip - dip.height) <= 2;
     if (hiddenEv && nativeGone && geomOk && isTopmost(tbHwnd)) {
-      rep.pass(`A1 接管开启：原生任务栏隐藏（taskbar-hidden 存证 + 视图事实），条带落屏底（底边 DIP ${Math.round(bottomDip)}/${dip.height}）`);
+      rep.pass(`A1 接管开启：原生任务栏隐藏（taskbar-hidden 存证 + 视图事实），条带落屏底（条带高 ${Math.round(heightDip)}DIP，底边 DIP ${Math.round(bottomDip)}/${dip.height}）`);
     } else {
       rep.fail(`A1 隐藏存证=${!!hiddenEv} 视图已隐=${nativeGone} 几何=${JSON.stringify({ heightDip, bottomDip, dip: dip.height })} 置顶=${isTopmost(tbHwnd)}`);
     }
