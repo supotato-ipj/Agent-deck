@@ -5,6 +5,17 @@
 // 手段是 SHAppBarMessage（shell32，Win95→Win11 未变的承重墙）：消息送达 explorer
 // 的 AppBar 服务，不依赖 Shell_TrayWnd 窗口可见性——原生任务栏已被工单50 隐藏
 // （ShowWindow 视图态切换），AppBar 语义不受影响。
+//
+// **工单250 实测更正（2026-10-23，本机 Win11 2560×1440）**：系统工作区 = 屏幕矩形 −
+// （**AppBar 登记表内各条保留区的并集** ∪ **shell 自算的原生任务栏保留带**）。第二项
+// **不在 AppBar 登记表里**——对原生 Shell_TrayWnd 句柄发 ABM_REMOVE / 空矩形
+// ABM_SETPOS，工作区底边纹丝不动（仍 1392）；ABM_GETTASKBARPOS 返回空矩形、
+// ABM_GETAUTOHIDEBAR(底边) 与 ABM_GETAUTOHIDEBAREX(原生句柄) 均返回 0 ⇒ 原生任务栏
+// 在本版 Windows 上**不是 AppBar 登记项**，它的 48px 保留带由 shell 自己算、只由 shell
+// 自己放（自动隐藏 / StuckRects3）。
+// ⇒ 后果（**产品级缺口，非测试问题**）：本模块注销的只是**我方这一份**登记；原生那条
+// 仍在 ⇒ 收栏态的工作区底边与常驻态同值 ⇒ 「最大化窗铺满整屏」在本机不发生。
+// 取证与出路清单见 docs/audit/2026-10-23-t250-native-taskbar-reserved-band.md。
 import koffi from 'koffi'
 import type { EventLog } from '../panel-ipc'
 
@@ -65,7 +76,9 @@ export function registerAppBar(hwnd: number, rc: AppBarRect, log: EventLog | nul
   return ok
 }
 
-/** 注销 AppBar（条带窗销毁前调用）：工作区归还全屏。静默——销毁路径不为存证造分支。 */
+/** 注销 AppBar（条带窗销毁前调用）：**我方这份**占位登记归还。静默——销毁路径不为存证造分支。
+ *  ⚠️ 不等于「工作区归还全屏」：原生任务栏那 48px 保留带由 shell 自算、不在 AppBar
+ *  登记表里（工单250 实测，见模块头注释）⇒ 注销后系统工作区底边不变。 */
 export function removeAppBar(hwnd: number, log: EventLog | null): void {
   SHAppBarMessage(ABM_REMOVE, appBarData(hwnd, { left: 0, top: 0, right: 0, bottom: 0 }))
   log?.append({ type: 'taskbar-appbar-removed', hwnd })
