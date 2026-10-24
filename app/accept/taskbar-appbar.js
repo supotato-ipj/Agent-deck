@@ -1161,6 +1161,145 @@ async function runSegments() {
     await waitMs(wsBarOk12, 5000);
     }
 
+    // —— P14：全屏让位与分屏会话解耦（工单271 新增）——
+    // 断言面（票面验收判据的真机观测；「栏面被全屏覆盖」与「分屏会话结束」在存证流上可分）：
+    //   ① 分屏后台建立：Snap 参照窗（powershell WinForms，P11 同款）→ 会话存证 + 收栏
+    //      （工作区屏底、上下贴边）；
+    //   ② 全屏进入：前台全屏参照窗 → 整条栏隐藏（唤出条也不出）+ taskbar-yield 且
+    //      appBar=kept（占位保持释放、托管不中断——无会话旧路径此字段是 registered）
+    //      + 零 retract-lifted + 工作区保持屏底（覆盖期 5+ 拍观察窗首尾一致）+ 后台
+    //      Snap 窗矩形逐字不变（不因工作区反复恢复改尺寸）；
+    //   ③ 覆盖期间结束会话：关 Snap 宿主 → taskbar-snap-session(active=false) + 零
+    //      retract-lifted + 工作区仍屏底（理由消失不当场复原——档位冻结让位）；
+    //   ④ 退出全屏（会话已结束、无其他收栏理由）→ 按既有路径恢复常驻：yield-lifted +
+    //      retract-lifted(appBar=registered) + 工作区回一栏高；
+    //   ⑤ 最大化临时覆盖：重建分屏会话 → 真最大化参照窗抢前台 → 分屏收栏保持（零新
+    //      retract/零 yield——zoomed 与会话同档幂等）+ 条带窗在场（栏窗复用）+ 工作区
+    //      屏底 + Snap 窗矩形不变；解除最大化 → 分屏收栏直接恢复（零 lift——不先复原
+    //      再收栏）；收尾清场（残留成员会拖住会话翻 P5/P9/P10）。
+    rep.beginSegment('P14');
+    await waitMs(wsBarOk12, 5000);
+    await sweepAlienSnaps();
+    const r14 = { bgSession: false, cover: false, endInCover: false, restoreAfter: false, maxCover: false };
+    const diag14 = [];
+    const s14a = await spawnSnapPs('DECK-ACCEPT-SNAP-E1');
+    if (!s14a.hwnd) {
+      rep.fail('P14 Snap 参照窗未出现（powershell WinForms 宿主 10s 内无可见顶层窗——环境异常）');
+    } else {
+      // ① 分屏后台建立（前台钉中性 holder——会话是后台事实）。贴边按等待式判
+      // （R1 定谳：工作区落定先于 Snap 自动重排完成——一次性采样撞时延误判）
+      const since14 = Date.now();
+      const snapOk14 = await chordUntil(s14a.hwnd, VK_LEFT, true);
+      forceForeground(hwndOf(neutralWin));
+      const sess14 = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: since14, timeoutMs: 6000 });
+      const waBg14 = await waitMs(wsBottomOk12, 5000);
+      const edgeBg14 = await waitMs(() => edgesFullOk(win32.rectOf(s14a.hwnd)), 5000);
+      const rectBg14 = win32.rectOf(s14a.hwnd);
+      r14.bgSession = !!(snapOk14 && sess14) && waBg14 >= 0 && edgeBg14 >= 0;
+      if (!r14.bgSession) diag14.push(`后台会话=${r14.bgSession}（和弦=${snapOk14} 会话存证=${!!sess14} 屏底=${waBg14}ms 贴边=${edgeBg14}ms ${JSON.stringify(rectBg14)}）`);
+      // ② 全屏进入（覆盖分屏收栏的栏面）+ ③ 覆盖期间结束会话
+      if (r14.bgSession) {
+        const sinceFs14 = Date.now();
+        const fsWin14 = new BrowserWindow({ fullscreen: true, frame: false, title: 'DECK-ACCEPT-FS14', backgroundColor: '#101820' });
+        refWins.push(fsWin14);
+        await fsWin14.loadURL('about:blank');
+        fsWin14.show();
+        fsWin14.focus();
+        forceForeground(hwndOf(fsWin14));
+        const fgMs14 = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(fsWin14), 4000);
+        const hideMs14 = await waitMs(() => !win32.IsWindowVisible(tbHwnd), 5000);
+        // 解耦关键判据：覆盖迁移的 appBar=kept（占位保持释放）——无会话旧路径是 registered
+        const yieldEv14 = await tape.wait('taskbar-yield',
+          (e) => e.appBar === 'kept', { since: sinceFs14, timeoutMs: 5000 });
+        await sleep(1300); // 5+ 个 250ms 轮询拍：覆盖期工作区稳定性观察窗
+        const liftInFs14 = tape.all('taskbar-retract-lifted', undefined, { since: sinceFs14 }).length;
+        const waCover14 = workArea();
+        const rectCover14 = win32.rectOf(s14a.hwnd);
+        const coverOk14 = fgMs14 >= 0 && hideMs14 >= 0 && !!yieldEv14
+          && !!waCover14 && Math.abs(waCover14.bottom - phys12.height) <= 2
+          && sameRect12(rectCover14, rectBg14);
+        // ③ 覆盖期间结束会话（关宿主核验退场——残留成员会把会话拖住，R2 定谳纪律）
+        await closeSnapHosts(s14a);
+        const endEv14 = await tape.wait('taskbar-snap-session',
+          (e) => e.active === false, { since: sinceFs14, timeoutMs: 6000 });
+        const liftOnEnd14 = tape.all('taskbar-retract-lifted', undefined, { since: sinceFs14 }).length;
+        const waEndCover14 = workArea();
+        r14.cover = coverOk14 && liftInFs14 === 0;
+        r14.endInCover = !!endEv14 && liftOnEnd14 === 0
+          && !!waEndCover14 && Math.abs(waEndCover14.bottom - phys12.height) <= 2;
+        if (!r14.cover) diag14.push(`覆盖=${r14.cover}（前台=${fgMs14}ms 隐藏=${hideMs14}ms yield appBar=kept=${!!yieldEv14} 覆盖期lift=${liftInFs14} 工作区=${waCover14 && waCover14.bottom}/${phys12.height} Snap矩形不变=${sameRect12(rectCover14, rectBg14)}）`);
+        if (!r14.endInCover) diag14.push(`覆盖期结束=${r14.endInCover}（结束存证=${!!endEv14} lift累计=${liftOnEnd14} 工作区=${waEndCover14 && waEndCover14.bottom}/${phys12.height}）`);
+        // ④ 退出全屏 → 既有路径恢复常驻（会话已结束、无其他收栏理由）
+        const tLift14 = Date.now();
+        fsWin14.destroy();
+        refWins.pop();
+        forceForeground(hwndOf(neutralWin));
+        const ylEv14 = await tape.wait('taskbar-yield-lifted', undefined, { since: tLift14, timeoutMs: 5000 });
+        const rlEv14 = await tape.wait('taskbar-retract-lifted',
+          (e) => e.appBar === 'registered', { since: tLift14, timeoutMs: 6000 });
+        const waRest14 = await waitMs(wsBarOk12, 6000);
+        r14.restoreAfter = !!ylEv14 && !!rlEv14 && waRest14 >= 0;
+        if (!r14.restoreAfter) diag14.push(`退出恢复=${r14.restoreAfter}（yield-lifted=${!!ylEv14} retract-lifted(registered)=${!!rlEv14} 工作区复原=${waRest14}ms）`);
+      }
+      // E1 收尾（无论②③④成败——残留成员会把会话拖住污染⑤与 P5/P9/P10，R2 定谳纪律）：
+      // 关宿主核验退场 → 清扫外来 Snap → 等会话结束、工作区复原（⑤的出发态必须干净）
+      await closeSnapHosts(s14a);
+      await sweepAlienSnaps();
+      const preWa14b = await waitMs(wsBarOk12, 5000);
+      if (preWa14b < 0) diag14.push(`⑤前置：E1 收尾后工作区未复原（会话可能被残留成员拖住）`);
+      // ⑤ 最大化临时覆盖后台分屏布局（不结束会话；两理由同档幂等）
+      const s14b = await spawnSnapPs('DECK-ACCEPT-SNAP-E2');
+      if (!s14b.hwnd) {
+        diag14.push('⑤ Snap 参照窗未出现（环境异常）');
+      } else {
+        const sinceMax14 = Date.now();
+        const snapOk14b = await chordUntil(s14b.hwnd, VK_LEFT, true);
+        forceForeground(hwndOf(neutralWin));
+        const sess14b = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: sinceMax14, timeoutMs: 6000 });
+        const waBg14b = await waitMs(wsBottomOk12, 5000);
+        const rectBg14b = win32.rectOf(s14b.hwnd);
+        const maxWin14 = new BrowserWindow({ width: 900, height: 600, title: 'DECK-ACCEPT-MAX-14', backgroundColor: '#101010' });
+        refWins.push(maxWin14);
+        await maxWin14.loadURL('about:blank');
+        // 时间门在会话建起、收栏落定之后：只计「最大化覆盖期间」的新生存证
+        const tMaxCov14 = Date.now();
+        maxWin14.maximize();
+        forceForeground(hwndOf(maxWin14));
+        const fgMax14 = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(maxWin14), 4000);
+        await sleep(1500); // 6+ 个轮询拍：最大化覆盖观察窗
+        const noNewEv14 = tape.all('taskbar-retract', undefined, { since: tMaxCov14 }).length === 0
+          && tape.all('taskbar-yield', undefined, { since: tMaxCov14 }).length === 0
+          && tape.all('taskbar-retract-lifted', undefined, { since: tMaxCov14 }).length === 0;
+        const stripAlive14 = win32.IsWindowVisible(tbHwnd); // 收栏态条带窗在场（栏窗复用承载唤出条）
+        const waMax14 = workArea();
+        const rectMax14 = win32.rectOf(s14b.hwnd);
+        // 解除最大化 → 分屏收栏直接恢复（零 lift/零新 retract——同档幂等，不先复原再收栏）
+        maxWin14.unmaximize();
+        forceForeground(hwndOf(neutralWin));
+        await sleep(1200);
+        const noLiftAfter14 = tape.all('taskbar-retract-lifted', undefined, { since: sinceMax14 }).length === 0;
+        const waBack14 = workArea();
+        r14.maxCover = snapOk14b && !!sess14b && waBg14b >= 0 && edgesFullOk(rectBg14b) && fgMax14 >= 0
+          && noNewEv14 && stripAlive14 && !!waMax14 && Math.abs(waMax14.bottom - phys12.height) <= 2
+          && sameRect12(rectMax14, rectBg14b) && noLiftAfter14
+          && !!waBack14 && Math.abs(waBack14.bottom - phys12.height) <= 2;
+        if (!r14.maxCover) diag14.push(`最大化覆盖=${r14.maxCover}（和弦=${snapOk14b} 会话=${!!sess14b} 屏底=${waBg14b}ms 前台=${fgMax14 >= 0} 零新存证=${noNewEv14} 条带在场=${stripAlive14} 工作区=${waMax14 && waMax14.bottom}/${phys12.height} Snap矩形不变=${sameRect12(rectMax14, rectBg14b)} 解除后零lift=${noLiftAfter14} 解除后屏底=${waBack14 && waBack14.bottom}/${phys12.height}）`);
+        maxWin14.destroy();
+        await closeSnapHosts(s14b);
+        await sweepAlienSnaps();
+        await waitMs(wsBarOk12, 5000); // P5 出发态：会话结束、工作区复原到位
+      }
+    }
+    if (r14.bgSession && r14.cover && r14.endInCover && r14.restoreAfter && r14.maxCover) {
+      rep.pass(`P14 全屏让位与分屏会话解耦：分屏后台收栏（会话存证在流、工作区屏底）；全屏进入整条栏隐藏且 taskbar-yield appBar=kept`
+        + `（占位保持释放、托管不中断——覆盖期零 retract-lifted）、工作区保持屏底、后台 Snap 窗矩形逐字不变；`
+        + `覆盖期间结束会话（active=false）零 lift、工作区仍屏底（理由消失不当场复原）；`
+        + `退出全屏按既有路径恢复常驻（yield-lifted + retract-lifted appBar=registered、工作区回一栏高）；`
+        + `最大化临时覆盖不结束分屏会话（零新存证、条带在场、工作区屏底、Snap 矩形不变），解除后分屏收栏直接恢复（幂等零迁移）`);
+    } else {
+      rep.fail(`P14 解耦未全绿：${JSON.stringify(r14)}；${diag14.join('；')}`);
+    }
+
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
     rep.beginSegment('P5');
     const sinceP5 = Date.now();
