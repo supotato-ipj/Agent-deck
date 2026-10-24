@@ -811,7 +811,10 @@ async function runSegments() {
     };
     // 目标宽度自适应 Snap（工单270 三分之一/三分之二布局）：Win+Z 打开 Snap Layouts
     // 浮出 → 数字键选布局 → 数字键选分区（微软文档键盘通道）。布局编号随版本排列
-    // 不同——候选组合逐试，IsWindowArranged+实测宽度命中即停（有界，不赌编号次序）
+    // 不同——候选组合逐试，IsWindowArranged+实测宽度命中即停（有界，不赌编号次序）。
+    // R3 定谳的坑：多分区布局落位后 Windows 弹 Snap Assist（建议其他窗补位）——后续
+    // 候选的键击会被它吃掉、把**无关窗口**（用户在用窗口）Snap 进邻位（磁带 members=3
+    // 实证）。防线：每次落位后立刻 ESC 收掉 Assist，再做核验
     const snapZoneByWidth = async (hwnd, targetW, tol, candidates) => {
       for (const [lk, zk] of candidates) {
         forceForeground(hwnd);
@@ -824,12 +827,26 @@ async function runSegments() {
         await sleep(350);
         win32.send([win32.keyInput(zk, win32.KEYDOWN)]);
         win32.send([win32.keyInput(zk, win32.KEYUP)]);
-        await sleep(600);
+        await sleep(350);
+        // 收掉可能弹出的 Snap Assist（ESC 不影响已落位的窗）——不吃后续候选的键击
+        win32.send([win32.keyInput(0x1b /* ESC */, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(0x1b, win32.KEYUP)]);
+        await sleep(350);
         if (!Boolean(IsWindowArrangedFn(hwnd))) continue;
         const r = win32.rectOf(hwnd);
         if (r && Math.abs((r.right - r.left) - targetW) <= tol) return true;
       }
       return false;
+    };
+    // 外来 Snap 清扫（R3 定谳加固）：Win+Z Assist 可能已把无关窗口 Snap 进位（成员残留
+    // 拖住会话）——按前置清场同款纪律 SW_MINIMIZE（可逆：用户点任务栏图标即原样回
+    // Snap 态），只在确有残留时才动
+    const sweepAlienSnaps = async () => {
+      const aliens = liveSnapWindows();
+      if (!aliens.length) return 0;
+      for (const h of aliens) win32.ShowWindow(h, 6 /* SW_MINIMIZE */);
+      await waitMs(() => liveSnapWindows().length === 0, 3000);
+      return aliens.length;
     };
 
     // —— P12：分屏会话集合生命周期与代表性布局（工单270 新增）——
@@ -989,12 +1006,14 @@ async function runSegments() {
       thirdsDetail = `1/3定位=${b1Ok} 2/3互补=${b2Ok} 会话=${!!bSess12} 屏底=${bWa12}ms `
         + `宽=${b1r ? Math.round(b1r.right - b1r.left) : '?'}/${b2r ? Math.round(b2r.right - b2r.left) : '?'}/3=${Math.round(thirdW)} 贴边=${bEdges}`;
       if (!r12.thirds) diag12.push(`1/3+2/3=${r12.thirds}（${thirdsDetail}）`);
-      // B 相收尾（R2 定谳加固）：关宿主**核验退场**（残留即强杀）→ 会话必须结束、
-      // 工作区复原——残留 Snap 成员会把会话拖住，P13/P5/P9/P10 全被翻（R2 级联根因）
+      // B 相收尾（R2/R3 定谳加固）：关宿主**核验退场**（残留即强杀）→ 清扫外来 Snap
+      // （Win+Z Assist 可能已把无关窗口 Snap 进位，磁带 members=3 实证）→ 会话必须
+      // 结束、工作区复原——残留成员会把会话拖住，P13/P5/P9/P10 全被翻
       await closeSnapHosts(b1, b2);
+      const aliensB = await sweepAlienSnaps();
       const bCleanWa = await waitMs(wsBarOk12, 5000);
       r12.bClean = bCleanWa >= 0;
-      if (!r12.bClean) diag12.push(`B收尾=${r12.bClean}（关宿主后会话未结束/工作区未复原=${bCleanWa}ms——成员残留）`);
+      if (!r12.bClean) diag12.push(`B收尾=${r12.bClean}（外来清扫=${aliensB} 关宿主后会话未结束/工作区未复原=${bCleanWa}ms——成员残留）`);
     }
     if (r12.dual && r12.fgStable && r12.minOne && r12.minLast && r12.rebuild && r12.unsnapEnd && r12.thirds && r12.bClean) {
       rep.pass(`P12 分屏会话集合生命周期与代表性布局：左右双窗统一进分屏收栏（会话+注销收栏存证在流、工作区屏底、两窗上下贴边）；`
@@ -1019,6 +1038,7 @@ async function runSegments() {
     //      保持屏底——不先恢复再收栏）；解除最大化 → 最后理由消失，单次复原。
     rep.beginSegment('P13');
     await waitMs(wsBarOk12, 5000);
+    await sweepAlienSnaps(); // 防御性清场（B 相收尾已扫，此处兜底——外来 Snap 会占住会话让四角建不起）
     const r13 = { corners: false, dkEnd: false, dkBack: false, reasonHeld: false, reasonLift: false };
     const diag13 = [];
     const cornerTitles = ['DECK-ACCEPT-SNAP-C1', 'DECK-ACCEPT-SNAP-C2', 'DECK-ACCEPT-SNAP-C3', 'DECK-ACCEPT-SNAP-C4'];
@@ -1134,9 +1154,10 @@ async function runSegments() {
     } else {
       rep.fail(`P13 桌面隔离/理由接续未全绿：${JSON.stringify(r13)}；${diag13.join('；')}`);
     }
-    // P13 收尾（R2 定谳加固——无论断言成败都执行）：关四角宿主并核验退场（残留即强杀）
-    // → 等会话结束、工作区复原；残留 Snap 成员会把会话拖住，P5/P9/P10 全被翻
+    // P13 收尾（R2/R3 定谳加固——无论断言成败都执行）：关四角宿主并核验退场（残留即
+    // 强杀）→ 清扫外来 Snap → 等会话结束、工作区复原；残留成员会把会话拖住翻掉 P5/P9/P10
     await closeSnapHosts(...cw);
+    await sweepAlienSnaps();
     await waitMs(wsBarOk12, 5000);
     }
 

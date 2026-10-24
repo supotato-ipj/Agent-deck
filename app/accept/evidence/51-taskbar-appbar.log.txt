@@ -1,32 +1,33 @@
-# accept 51-taskbar-appbar — 2026-10-24T13:21:48.796Z
-[13:21:49.328] SEG   ▶ P1 AppBar 占位生效：registered/setpos 存证 + 工作区收缩 + 条带贴屏底｜工单51｜失效面=系统状态+事件存证
-[13:21:54.816] PASS  P1 AppBar 占位生效：工作区底边 1392/1440（让出 48px ≈ 48DIP×1），条带底边 1440 贴屏底
-[13:21:54.818] SEG   ▶ P2 最大化让位：参照窗底边停在栏上沿｜工单51｜失效面=系统状态
-[13:21:56.896] PASS  P2 最大化让位：参照窗底边 1400 停在栏上沿 1392（屏底 1440，未被遮挡）
-[13:21:56.898] SEG   ▶ P3 分辨率变化重算：display-metrics-changed setpos + 几何随新分辨率 → 还原｜工单51｜失效面=系统状态+事件存证
-[13:22:09.047] FAIL  P3 setpos存证=true 工作区={"left":0,"top":0,"right":640,"bottom":432} 期望=1392 条带={"left":0,"top":432,"right":640,"bottom":480} 物理={"width":2560,"height":1440,"scale":1} 目标=640x480
-[13:22:11.086] NOTE  P3 分辨率已还原
-[13:22:11.087] SEG   ▶ P4 全屏让位：前台全屏参照窗 → 条带隐藏；退出 1 秒内恢复｜工单51｜失效面=系统状态+事件存证
-[13:22:11.953] PASS  P4a 全屏让位：前台全屏参照窗 0ms 落位前台后 0ms 条带隐藏（taskbar-yield 存证 + 视图事实）
-[13:22:12.309] PASS  P4b 退出全屏恢复：201ms 内条带恢复（≤1 秒口径，taskbar-yield-lifted 存证）
-[13:22:12.311] SEG   ▶ P6 最大化收栏（工单260 改段不变式）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 复原（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 工作区回一栏高｜工单244｜失效面=系统状态+事件存证
-[13:22:12.314] NOTE  P6 口径（工单260 改段）：收栏置位 ABS_AUTOHIDE（原生栏托管）后 shell 释放原生任务栏 48px 保留带，工作区底边 1392→1440=屏底（spike 实测）——旧断言「收栏态底边 ≥ 屏底−48」退役，新不变式「底边 = 屏底（±2）」+ 参照窗铺满整屏（±8 装饰边）；恢复态断言不变（回一栏高）。
-[13:22:13.755] PASS  P6 最大化收栏：前台真最大化窗 0ms 落位后注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract 存证 appBar=removed + taskbar-appbar-removed 存证）→ 占位与原生保留带双释放：工作区底边 1440/1440 = 屏底（±2，2ms 到位）、参照窗底边 1448 铺满整屏（0ms 重排到底）；解除最大化后重注册 + 复原（taskbar-retract-lifted 存证 appBar=registered + taskbar-appbar-registered 存证）→ 工作区回一栏高 1392（期望 1392，1ms 收敛）
-[13:22:13.756] SEG   ▶ P7 三态优先级（工单260 随动不变式）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 复原置位→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）｜工单244｜失效面=系统状态+事件存证
-[13:22:15.586] PASS  P7 三态优先级：收栏态在前台全屏窗 0ms 落位后 1ms 被全屏让位压过（taskbar-yield 存证、条带整窗退场、占位恢复 appBar-registered 存证在流、工作区底边 1392 回一栏高、全屏期间收栏存证 0 条）；退出全屏回到最大化窗后收栏态自动回来（taskbar-retract 再落 appBar=removed + taskbar-appbar-removed、条带 330ms 复现、工作区底边 1440 回屏底）
-[13:22:15.773] SEG   ▶ P8 降级档禁用：AppBar 注册失败 ⇒ 收栏整体禁用（降级档在场则断「无占位 + 无收栏让位存证 + 条带在场」三后果；健康档则断收栏存证 appBar 字段 removed/registered——占位在场才谈得上收栏）｜工单244｜失效面=系统状态+事件存证
-[13:22:15.777] PASS  P8 降级档禁用（健康档对照）：AppBar 注册成功（非降级档，降级档在本机不可复现——系统不拒绝注册）；收栏存证 4 条 appBar 全为 removed（占位释放到位）、恢复存证 3 条 appBar 全为 registered（占位重注册到位）——降级档下该字段恒为 kept（占位不在场 ⇒ 无从释放），故收栏整体依赖占位在场
-[13:22:15.779] SEG   ▶ P11 分屏收栏单窗最小闭环（工单269）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）｜工单269｜失效面=系统状态+事件存证+输入注入
-[13:22:22.113] PASS  P11 分屏收栏单窗闭环：Win+Left 真 Snap（IsWindowArranged 直读互证）→ 会话存证在流 + 收栏（taskbar-retract appBar=removed）→ 工作区底边 1440/1440 = 屏底（±2，0ms 到位；前台=中性 holder，后台事实成立）；Snap 窗上下贴边 [0,1447]（自动重排，#268 定谳零改窗）；唤出条 start@x=8w=94 悬停弹出（summon:pill 热区声明在流）且 Snap 窗矩形逐字不变；Win+Down 解除 → 会话结束存证 + taskbar-retract-lifted appBar=registered → 工作区回一栏高 1392（4ms 收敛）；伪分屏阴性：同款半屏几何（arranged=false）3+ 拍零收栏/零会话存证、工作区 1392 不动（矩形不是身份）
-[13:22:22.114] SEG   ▶ P12 分屏会话集合生命周期与代表性布局（工单270）：左右双窗与三分之一加三分之二统一进入分屏收栏并上下贴边（同一真 Snap 判定，无布局专用分支）；普通前台轮换不打断（Snap 窗矩形逐字不变、工作区保持屏底）；最小化其一仍维持、最后一个最小化才结束（cause=minimized 可区分存证）且恢复即按当前事实重建；最后一个解除结束（cause=unsnapped）并复原｜工单270｜失效面=系统状态+事件存证+输入注入
-[13:23:07.684] FAIL  P12 集合生命周期/布局未全绿：{"dual":true,"fgStable":true,"minOne":false,"minLast":true,"rebuild":true,"unsnapEnd":false,"thirds":true}；解除结束=false（其一解除=true 其一维持=true 最后解除=true 结束存证=false lift=true 复原=0ms）；重Snap=false 屏底=-1ms；最小化其一=false（iconic=true 零结束=true 零lift=true 屏底=false a1矩形不变=false）
-[13:23:07.686] SEG   ▶ P13 虚拟桌面切换隔离与收栏理由接续（工单270）：四角布局统一判定进分屏收栏（四象限贴边）；Win+Ctrl+D 切新桌面→会话结束（cause=desktop-switched）+工作区复原，Ctrl+Win+Left 回原桌面按该桌面实际布局重建；真最大化前台期间关闭全部 Snap 窗→会话结束（cause=closed + retractHeldByZoomed=true、零 retract-lifted、工作区保持屏底——不先恢复再收栏），解除最大化才单次复原｜工单270｜失效面=系统状态+事件存证+输入注入
-[13:23:25.342] FAIL  P13 桌面隔离/理由接续未全绿：{"corners":false,"dkEnd":false,"dkBack":false,"reasonHeld":false,"reasonLift":false}；四角=false（和弦=true 会话=false 屏底=1ms 象限=true [{"left":-7,"top":0,"right":1287,"bottom":727},{"left":1273,"top":0,"right":2567,"bottom":727},{"left":-7,"top":720,"right":1287,"bottom":1447},{"left":1273,"top":720,"right":2567,"bottom":1447}]）
-[13:23:25.344] SEG   ▶ P5 卸载归还：面板退出即注销 AppBar、工作区回基线｜工单51｜失效面=面板存活+系统状态+事件存证
-[13:23:33.362] FAIL  P5 removed存证=false 归还时延=1ms 工作区={"left":0,"top":0,"right":2560,"bottom":1440} 基线={"left":0,"top":0,"right":2560,"bottom":1440}
-[13:23:33.364] SEG   ▶ P9 收栏态退出双复原：重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器独立读数为主——置位态 WS_VISIBLE 位使面板侧存证静默）｜工单260｜失效面=面板存活+系统状态+事件存证
-[13:23:47.673] FAIL  P9 收栏存证=false 置位存证=false 到屏底=0ms 复原存证={"t":1792848227642,"type":"taskbar-autohide-restored","reason":"dispose","state":1,"attempts":1} 状态复原=4ms 工作区复原=0ms 原生可见=true 状态现值=1/1 工作区基线=1440
-[13:23:47.675] SEG   ▶ P10 收栏态原生栏重申轮询（段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤25s（新 explorer 约 15s 不接受窗，看门狗逐拍重试）→工作区回屏底）；非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）｜工单262｜失效面=系统状态+事件存证
-[13:23:59.340] FAIL  P10 前置失败：进收栏未成立（收栏存证=false 到屏底=0ms 拍前工作区=1440/1440）
-[13:24:09.157] NOTE  清场核验：原生任务栏可见
-[13:24:09.160] ===== 51-taskbar-appbar VERDICT: FAIL (pass=8 fail=6) =====
+# accept 51-taskbar-appbar — 2026-10-24T13:34:06.982Z
+[13:34:07.573] NOTE  P 前置清场：桌面有他方真 Snap 窗 3 扇，已 SW_MINIMIZE（最小化 Snap 窗不建会话；用户点任务栏图标即原样回 Snap 态）
+[13:34:07.577] SEG   ▶ P1 AppBar 占位生效：registered/setpos 存证 + 工作区收缩 + 条带贴屏底｜工单51｜失效面=系统状态+事件存证
+[13:34:11.994] PASS  P1 AppBar 占位生效：工作区底边 1392/1440（让出 48px ≈ 48DIP×1），条带底边 1440 贴屏底
+[13:34:11.996] SEG   ▶ P2 最大化让位：参照窗底边停在栏上沿｜工单51｜失效面=系统状态
+[13:34:13.928] PASS  P2 最大化让位：参照窗底边 1400 停在栏上沿 1392（屏底 1440，未被遮挡）
+[13:34:13.930] SEG   ▶ P3 分辨率变化重算：display-metrics-changed setpos + 几何随新分辨率 → 还原｜工单51｜失效面=系统状态+事件存证
+[13:34:15.886] PASS  P3 分辨率变化重算：640x480 下工作区底 432、条带底 480 随新分辨率重算（setpos 存证在流）
+[13:34:17.940] NOTE  P3 分辨率已还原
+[13:34:17.942] SEG   ▶ P4 全屏让位：前台全屏参照窗 → 条带隐藏；退出 1 秒内恢复｜工单51｜失效面=系统状态+事件存证
+[13:34:19.043] PASS  P4a 全屏让位：前台全屏参照窗 0ms 落位前台后 0ms 条带隐藏（taskbar-yield 存证 + 视图事实）
+[13:34:19.260] PASS  P4b 退出全屏恢复：130ms 内条带恢复（≤1 秒口径，taskbar-yield-lifted 存证）
+[13:34:19.261] SEG   ▶ P6 最大化收栏（工单260 改段不变式）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 复原（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 工作区回一栏高｜工单244｜失效面=系统状态+事件存证
+[13:34:19.262] NOTE  P6 口径（工单260 改段）：收栏置位 ABS_AUTOHIDE（原生栏托管）后 shell 释放原生任务栏 48px 保留带，工作区底边 1392→1440=屏底（spike 实测）——旧断言「收栏态底边 ≥ 屏底−48」退役，新不变式「底边 = 屏底（±2）」+ 参照窗铺满整屏（±8 装饰边）；恢复态断言不变（回一栏高）。
+[13:34:20.865] PASS  P6 最大化收栏：前台真最大化窗 1ms 落位后注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract 存证 appBar=removed + taskbar-appbar-removed 存证）→ 占位与原生保留带双释放：工作区底边 1440/1440 = 屏底（±2，0ms 到位）、参照窗底边 1448 铺满整屏（0ms 重排到底）；解除最大化后重注册 + 复原（taskbar-retract-lifted 存证 appBar=registered + taskbar-appbar-registered 存证）→ 工作区回一栏高 1392（期望 1392，2ms 收敛）
+[13:34:20.866] SEG   ▶ P7 三态优先级（工单260 随动不变式）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 复原置位→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）｜工单244｜失效面=系统状态+事件存证
+[13:34:22.920] PASS  P7 三态优先级：收栏态在前台全屏窗 0ms 落位后 513ms 被全屏让位压过（taskbar-yield 存证、条带整窗退场、占位恢复 appBar-registered 存证在流、工作区底边 1392 回一栏高、全屏期间收栏存证 0 条）；退出全屏回到最大化窗后收栏态自动回来（taskbar-retract 再落 appBar=removed + taskbar-appbar-removed、条带 404ms 复现、工作区底边 1440 回屏底）
+[13:34:23.476] SEG   ▶ P8 降级档禁用：AppBar 注册失败 ⇒ 收栏整体禁用（降级档在场则断「无占位 + 无收栏让位存证 + 条带在场」三后果；健康档则断收栏存证 appBar 字段 removed/registered——占位在场才谈得上收栏）｜工单244｜失效面=系统状态+事件存证
+[13:34:23.502] PASS  P8 降级档禁用（健康档对照）：AppBar 注册成功（非降级档，降级档在本机不可复现——系统不拒绝注册）；收栏存证 4 条 appBar 全为 removed（占位释放到位）、恢复存证 3 条 appBar 全为 registered（占位重注册到位）——降级档下该字段恒为 kept（占位不在场 ⇒ 无从释放），故收栏整体依赖占位在场
+[13:34:23.503] SEG   ▶ P11 分屏收栏单窗最小闭环（工单269）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）｜工单269｜失效面=系统状态+事件存证+输入注入
+[13:34:29.397] PASS  P11 分屏收栏单窗闭环：Win+Left 真 Snap（IsWindowArranged 直读互证）→ 会话存证在流 + 收栏（taskbar-retract appBar=removed）→ 工作区底边 1440/1440 = 屏底（±2，1ms 到位；前台=中性 holder，后台事实成立）；Snap 窗上下贴边 [0,1447]（自动重排，#268 定谳零改窗）；唤出条 start@x=8w=94 悬停弹出（summon:pill 热区声明在流）且 Snap 窗矩形逐字不变；Win+Down 解除 → 会话结束存证 + taskbar-retract-lifted appBar=registered → 工作区回一栏高 1392（0ms 收敛）；伪分屏阴性：同款半屏几何（arranged=false）3+ 拍零收栏/零会话存证、工作区 1392 不动（矩形不是身份）
+[13:34:29.398] SEG   ▶ P12 分屏会话集合生命周期与代表性布局（工单270）：左右双窗与三分之一加三分之二统一进入分屏收栏并上下贴边（同一真 Snap 判定，无布局专用分支）；普通前台轮换不打断（Snap 窗矩形逐字不变、工作区保持屏底）；最小化其一仍维持、最后一个最小化才结束（cause=minimized 可区分存证）且恢复即按当前事实重建；最后一个解除结束（cause=unsnapped）并复原｜工单270｜失效面=系统状态+事件存证+输入注入
+[13:35:06.354] FAIL  P12 集合生命周期/布局未全绿：{"dual":true,"fgStable":true,"minOne":true,"minLast":true,"rebuild":true,"unsnapEnd":true,"thirds":true,"bClean":false}；B收尾=false（关宿主后会话未结束/工作区未复原=-1ms——成员残留）
+[13:35:06.355] SEG   ▶ P13 虚拟桌面切换隔离与收栏理由接续（工单270）：四角布局统一判定进分屏收栏（四象限贴边）；Win+Ctrl+D 切新桌面→会话结束（cause=desktop-switched）+工作区复原，Ctrl+Win+Left 回原桌面按该桌面实际布局重建；真最大化前台期间关闭全部 Snap 窗→会话结束（cause=closed + retractHeldByZoomed=true、零 retract-lifted、工作区保持屏底——不先恢复再收栏），解除最大化才单次复原｜工单270｜失效面=系统状态+事件存证+输入注入
+[13:35:24.061] FAIL  P13 桌面隔离/理由接续未全绿：{"corners":false,"dkEnd":false,"dkBack":false,"reasonHeld":false,"reasonLift":false}；四角=false（和弦=true 会话=false 屏底=1ms 象限=true [{"left":-7,"top":0,"right":1287,"bottom":727},{"left":1273,"top":0,"right":2567,"bottom":727},{"left":-7,"top":720,"right":1287,"bottom":1447},{"left":1273,"top":720,"right":2567,"bottom":1447}]）
+[13:35:31.672] SEG   ▶ P5 卸载归还：面板退出即注销 AppBar、工作区回基线｜工单51｜失效面=面板存活+系统状态+事件存证
+[13:35:39.695] FAIL  P5 removed存证=false 归还时延=0ms 工作区={"left":0,"top":0,"right":2560,"bottom":1440} 基线={"left":0,"top":0,"right":2560,"bottom":1440}
+[13:35:39.697] SEG   ▶ P9 收栏态退出双复原：重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器独立读数为主——置位态 WS_VISIBLE 位使面板侧存证静默）｜工单260｜失效面=面板存活+系统状态+事件存证
+[13:35:54.328] FAIL  P9 收栏存证=false 置位存证=false 到屏底=0ms 复原存证={"t":1792848954297,"type":"taskbar-autohide-restored","reason":"dispose","state":1,"attempts":1} 状态复原=5ms 工作区复原=0ms 原生可见=true 状态现值=1/1 工作区基线=1440
+[13:35:54.329] SEG   ▶ P10 收栏态原生栏重申轮询（段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤25s（新 explorer 约 15s 不接受窗，看门狗逐拍重试）→工作区回屏底）；非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）｜工单262｜失效面=系统状态+事件存证
+[13:36:05.334] FAIL  P10 前置失败：进收栏未成立（收栏存证=false 到屏底=0ms 拍前工作区=1440/1440）
+[13:36:14.827] NOTE  清场核验：原生任务栏可见
+[13:36:14.830] ===== 51-taskbar-appbar VERDICT: FAIL (pass=9 fail=5) =====
