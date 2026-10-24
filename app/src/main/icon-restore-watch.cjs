@@ -14,6 +14,7 @@
 const koffi = require('koffi')
 const { restoreIfHidden, iconsVisible } = require('./icon-carry.js')
 const { restoreNativeTaskbarIfHidden } = require('./taskbar/native.js')
+const { restoreAppBarStateFromLedger } = require('./taskbar/appbar-ledger.js')
 
 const guardPid = parseInt(process.argv[2], 10)
 const SYNCHRONIZE = 0x00100000
@@ -41,18 +42,30 @@ if (handle) {
   WaitForSingleObject(handle, INFINITE)
   CloseHandle(handle)
 }
-try {
-  // 幂等：正常退出路径守卫已还原图标（iconsVisible=true），这里不动；
-  // 死路径（控制台信号同杀）图标仍隐藏，按视图事实翻回。
-  if (!iconsVisible()) restoreIfHidden(null, 'guard-dead')
-} catch {
-  // 尽力：还原失败不阻断自退（无家可归的守护不该成为常驻残留）
-}
-try {
-  // 工单50：原生任务栏同一兜底（restoreNativeTaskbarIfHidden 自带视图事实判据，
-  // 可见即静默空转）；存证走本进程自建日志（DECK_EVENT_LOG 在场时）。
-  restoreNativeTaskbarIfHidden(log, 'guard-dead')
-} catch {
-  // 尽力：同上
-}
-process.exit(0)
+;(async () => {
+  // 工单261（还原账全路径扩展）：appbar 落盘账复原**先行**（顺序即行为）——收栏置位态
+  // explorer 翻开 Shell_TrayWnd 的 WS_VISIBLE 位（spike 附记「窗口显示位」≠「视觉在场」），
+  // 后行会被「已可见」骗过下方可见性判据；先卸置位，可见性兜底才做真工作并落存证。
+  // 复原目标从落盘账读（本守护不持面板内存账）；缺账静默（absent 不为常态路径造噪声），
+  // 有账按退避表重试（有限次、终局有界 <3s），走完才进图标/可见性兜底与自退。
+  try {
+    await restoreAppBarStateFromLedger(log, 'guard-dead')
+  } catch {
+    // 尽力：账复原失败不阻断图标/可见性兜底与自退（无家可归的守护不该成为常驻残留）
+  }
+  try {
+    // 幂等：正常退出路径守卫已还原图标（iconsVisible=true），这里不动；
+    // 死路径（控制台信号同杀）图标仍隐藏，按视图事实翻回。
+    if (!iconsVisible()) restoreIfHidden(null, 'guard-dead')
+  } catch {
+    // 尽力：还原失败不阻断自退（无家可归的守护不该成为常驻残留）
+  }
+  try {
+    // 工单50：原生任务栏同一兜底（restoreNativeTaskbarIfHidden 自带视图事实判据，
+    // 可见即静默空转）；存证走本进程自建日志（DECK_EVENT_LOG 在场时）。
+    restoreNativeTaskbarIfHidden(log, 'guard-dead')
+  } catch {
+    // 尽力：同上
+  }
+  process.exit(0)
+})()
