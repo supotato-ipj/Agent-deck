@@ -32,8 +32,10 @@ export interface NativeWatchProbe {
   hwnd: number
   /** 视图事实：IsWindowVisible（「窗口显示位」口径，见模块头注） */
   visible: boolean
-  /** appbar 状态读回含 ABS_AUTOHIDE（置位在场的系统侧事实） */
-  autoHideOn: boolean
+  /** appbar 状态读回含 ABS_AUTOHIDE（置位在场的系统侧事实）。**窗口缺位拍可不采**
+   *  （缺省 = 未采）——机器在 hwnd=0 的间隙拍不读此字段，效果层借此跳过对死亡/重启中
+   *  shell 的状态读（实测：对新起 explorer 的 SHAppBarMessage 会阻塞秒级，间隙拍白等）。 */
+  autoHideOn?: boolean
 }
 
 /** 重挂归因（优先级 rebuild > visible > autohide-lost——报最重的因） */

@@ -1002,7 +1002,7 @@
       "hintBar": true,
       "cdpPort": null,
       "kind": null,
-      "budgetSeconds": 60,
+      "budgetSeconds": 180,
       "lastMeasuredSeconds": 24,
       "lastMeasuredAt": "2026-10-08",
       "segments": [
@@ -1112,12 +1112,12 @@
         {
           "seg": "P10",
           "ticket": 262,
-          "title": "收栏态原生栏重申轮询：可见性翻转压回（SW_SHOW 注入 → reason=visible 重申 + 压回不可见）；explorer 重启重挂（Stop-Process explorer + AutoRestartShell 归位 → 新 Shell_TrayWnd → reason=rebuild 重申 + 重挂双落：原生栏不可见/工作区底边回屏底/AUTOHIDE 位在读回，新窗首见到重挂 ≤2.5s）；非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）",
+          "title": "收栏态原生栏重申轮询（段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤25s（新 explorer 约 15s 不接受窗，看门狗逐拍重试）→工作区回屏底）；非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 14,
+          "estSeconds": 36,
           "areas": [
             "taskbar"
           ]
