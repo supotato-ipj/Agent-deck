@@ -901,8 +901,8 @@
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 31,
-      "lastMeasuredAt": "2026-10-07",
+      "lastMeasuredSeconds": 37,
+      "lastMeasuredAt": "2026-10-24",
       "segments": [
         {
           "seg": "A1",
