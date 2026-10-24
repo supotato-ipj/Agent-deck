@@ -27,11 +27,16 @@
 //      → 收栏态下 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器
 //      独立读数为主——置位态 explorer 翻开 Shell_TrayWnd 的 WS_VISIBLE 位，面板侧
 //      showNativeTaskbar 走「已可见静默」不发存证，可见性不依赖面板自证）
+//   P10 收栏态原生栏重申轮询（工单262）：可见性翻转压回（SW_SHOW 注入 → reason=visible
+//      重申 + 压回）；explorer 重启重挂（Stop-Process explorer + AutoRestartShell 归位 →
+//      reason=rebuild 重申 + 重挂双落：不可见/工作区回屏底/AUTOHIDE 位）；非收栏态休止
+//      （退收栏后翻开原生栏 2.6s 零重申存证且保持可见）
 // 运行：npm run accept:taskbar-appbar（= electron . --accept-taskbar-appbar）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（真机分辨率切换与前台注入，互斥）。
 const { app, screen, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawnSync, spawn } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
@@ -506,6 +511,130 @@ async function runSegments() {
           + `（占位重注册到位）——降级档下该字段恒为 kept（占位不在场 ⇒ 无从释放），故收栏整体依赖占位在场`);
       } else {
         rep.fail(`P8 注册存证=${!!regEv8} 收栏存证=${JSON.stringify(retractAll8.map((e) => e.appBar))} 恢复存证=${JSON.stringify(liftedAll8.map((e) => e.appBar))}`);
+      }
+    }
+
+    // —— P10：收栏态原生栏重申轮询（工单262 新增）：explorer 重启 → 1–2s 重挂 ——
+    // 三拍断言（票面验收标准 1/2/3 各一拍；裁决逻辑在 native-watch.ts 纯机器单测钉住，
+    // 本段只验 FFI 效果面——真机行为存证，章法增段三条件之 1/2）：
+    //   拍 A 可见性翻转压回（标准 2）：控制器 SW_SHOW 翻开原生栏（模拟他方翻开/Win 键
+    //      闪现形态——spike 观察项 6：SW_HIDE+置位态按 Win 0 帧不闪现，翻转以显式 SW_SHOW
+    //      注入）→ 重申轮询 reason=visible 命中 + 压回不可见（1s 轮询拍 + 容差内）；
+    //   拍 B explorer 重启重挂（标准 1）：Stop-Process explorer（Winlogon AutoRestartShell
+    //      归位，10s 未归自起 explorer.exe 兜底）→ 新 Shell_TrayWnd（可见 + 置位按注册表
+    //      原态复活——spike：SETSTATE 不回写注册表）→ 重申轮询 reason=rebuild 命中 +
+    //      重挂双落（原生栏不可见、工作区底边回屏底、AUTOHIDE 位在读回里）——从新窗首见
+    //      到重挂存证 ≤2.5s（1s 轮询拍 + 容差）；
+    //   拍 C 非收栏态休止（标准 3）：解除最大化退收栏后 SW_SHOW 原生栏 → 2.6s（2+ 轮询拍）
+    //      内零重申存证且原生栏保持可见（休止 = 不轮询，控制器不代压）。
+    rep.beginSegment('P10');
+    // 前置：进收栏（参照窗仍自 P7 收尾在场；先还原再最大化，时序确定）
+    retractWin.unmaximize();
+    await sleep(400);
+    const sinceP10 = Date.now();
+    retractWin.maximize();
+    await sleep(600);
+    forceForeground(hwndOf(retractWin));
+    const retractEv10 = await tape.wait('taskbar-retract',
+      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceP10, timeoutMs: 6000 });
+    const retractWa10 = await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - phys6.height) <= 2;
+    }, 5000);
+    if (!retractEv10 || retractWa10 < 0) {
+      rep.fail(`P10 前置失败：进收栏未成立（收栏存证=${!!retractEv10} 到屏底=${retractWa10}ms）`);
+    } else {
+      // —— 拍 A：可见性翻转压回 ——
+      const hwndA = win32.nativeTrayHwnd();
+      if (!hwndA) {
+        rep.fail('P10 拍 A 出发态异常：收栏态下找不到 explorer 的 Shell_TrayWnd');
+      } else {
+        const bitBeforeA = win32.IsWindowVisible(hwndA); // 诊断：置位态 explorer 可能已翻开显示位（spike 附记，非确定）
+        const tA = Date.now();
+        win32.ShowWindow(hwndA, 5 /* SW_SHOW */);
+        const reassertA = await tape.wait('taskbar-native-reassert',
+          (e) => e.reason === 'visible', { since: tA, timeoutMs: 4000 });
+        const hiddenA = await waitMs(() => !win32.nativeTaskbarVisible(), 4000);
+        const latencyA = reassertA ? reassertA.t - tA : -1;
+        if (reassertA && hiddenA >= 0 && latencyA <= 2500) {
+          rep.pass(`P10a 可见性翻转压回：SW_SHOW 翻开后 ${latencyA}ms 重申命中（reason=visible）`
+            + `→ 压回不可见（${hiddenA}ms 到位；翻前显示位=${bitBeforeA}——置位态该位非确定，压回按位口径）`);
+        } else {
+          rep.fail(`P10a 重申存证=${!!reassertA}（时延=${latencyA}ms） 压回不可见=${hiddenA >= 0}ms 翻前显示位=${bitBeforeA}`);
+        }
+      }
+
+      // —— 拍 B：explorer 重启重挂 ——
+      const hwndBefore = win32.nativeTrayHwnd();
+      const tKill = Date.now();
+      spawnSync('powershell.exe',
+        ['-NoProfile', '-Command', 'Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue'],
+        { encoding: 'utf8', timeout: 15000, windowsHide: true });
+      forceForeground(hwndOf(retractWin)); // 前台钉住最大化参照窗（前台漂移会合法翻档，先钉住）
+      const goneB = await waitMs(() => win32.nativeTrayHwnd() === 0, 8000);
+      // 等 explorer 归位（AutoRestartShell 常规 1–3s；10s 未归自起兜底，20s 上限）
+      let spawnedExplorer = false;
+      let firstSeenAt = 0;
+      let hwndAfter = 0;
+      const tWaitB = Date.now();
+      for (;;) {
+        hwndAfter = win32.nativeTrayHwnd();
+        if (hwndAfter) { firstSeenAt = Date.now(); break; }
+        if (Date.now() - tWaitB > 10000 && !spawnedExplorer) {
+          spawn('explorer.exe', [], { detached: true, stdio: 'ignore' }).unref();
+          spawnedExplorer = true;
+          rep.note('P10 AutoRestartShell 未归位，已自起 explorer.exe 兜底');
+        }
+        if (Date.now() - tWaitB > 20000) break;
+        await sleep(150);
+      }
+      forceForeground(hwndOf(retractWin)); // 新 shell 起后前台再钉一次（窗口激活可能被重启搅动）
+      if (!goneB || !firstSeenAt) {
+        rep.fail(`P10b explorer 重启未成立：旧窗退场=${goneB >= 0}ms 新窗归位=${firstSeenAt ? '是' : '否（20s 上限）'}`
+          + `（自起兜底=${spawnedExplorer}）——环境异常，本拍不可判`);
+      } else {
+        // 重挂存证：rebuild 归因（新窗句柄变了；纯机器 rebuild 裁决另有单测，此处验效果面）
+        const reassertB = await tape.wait('taskbar-native-reassert',
+          (e) => e.reason === 'rebuild', { since: tKill, timeoutMs: 12000 });
+        const latencyB = reassertB ? reassertB.t - firstSeenAt : -1;
+        // 结果三件（控制器独立读数）：原生栏不可见 + 工作区底边回屏底 + AUTOHIDE 位在读回
+        const hiddenB = await waitMs(() => !win32.nativeTaskbarVisible(), 6000);
+        const waB = await waitMs(() => {
+          const wa = workArea();
+          return wa && Math.abs(wa.bottom - phys6.height) <= 2;
+        }, 8000);
+        const stateB = appbarState();
+        const autohideB = (stateB & 0x1) !== 0;
+        if (reassertB && latencyB >= 0 && latencyB <= 2500 && hiddenB >= 0 && waB >= 0 && autohideB) {
+          rep.pass(`P10b explorer 重启重挂：旧窗 ${hwndBefore} → 新窗 ${hwndAfter}（${firstSeenAt - tKill}ms 归位）`
+            + `→ ${latencyB}ms 重申命中（reason=rebuild，1s 轮询拍 + 容差 ≤2.5s）；`
+            + `重挂双落：原生栏不可见（${hiddenB}ms）、工作区底边 ${workArea().bottom}/${phys6.height} 回屏底（${waB}ms）、appbarState=${stateB} 含 AUTOHIDE`);
+        } else {
+          rep.fail(`P10b 重申存证=${!!reassertB}（时延=${latencyB}ms） 不可见=${hiddenB >= 0}ms 工作区到屏底=${waB}ms `
+            + `appbarState=${stateB}（AUTOHIDE=${autohideB}） 新窗=${hwndAfter} 归位=${firstSeenAt - tKill}ms 自起兜底=${spawnedExplorer}`);
+        }
+      }
+
+      // —— 拍 C：非收栏态休止 ——
+      const tLift = Date.now();
+      retractWin.unmaximize();
+      forceForeground(hwndOf(neutralWin));
+      const lifted10 = await tape.wait('taskbar-retract-lifted',
+        (e) => e.mode === 'visible' && e.appBar === 'registered', { since: tLift, timeoutMs: 6000 });
+      if (!lifted10) {
+        rep.fail(`P10c 前置失败：退收栏未成立（收栏态残留将污染休止判读）`);
+      } else {
+        const tC = Date.now();
+        win32.ShowWindow(win32.nativeTrayHwnd(), 5 /* SW_SHOW */); // 非收栏态翻开原生栏（休止 = 无人代压）
+        await sleep(2600); // 2+ 轮询拍：休止若被打破，1s 拍内必有重申存证
+        const reassertC = tape.all('taskbar-native-reassert', undefined, { since: tC });
+        const stillVisibleC = win32.nativeTaskbarVisible();
+        if (reassertC.length === 0 && stillVisibleC) {
+          rep.pass('P10c 非收栏态休止：退收栏后翻开原生栏，2.6s（2+ 轮询拍）内零重申存证且保持可见'
+            + '（不轮询——系统行为与现状一致，压回不代劳）');
+        } else {
+          rep.fail(`P10c 休止被打破：重申存证 ${reassertC.length} 条（2.6s 窗内） 原生栏保持可见=${stillVisibleC}`);
+        }
       }
     }
 
