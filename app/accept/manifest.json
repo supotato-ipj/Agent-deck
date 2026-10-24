@@ -1003,7 +1003,7 @@
       "cdpPort": null,
       "kind": null,
       "budgetSeconds": 180,
-      "lastMeasuredSeconds": 139,
+      "lastMeasuredSeconds": 119,
       "lastMeasuredAt": "2026-10-24",
       "segments": [
         {
@@ -1160,6 +1160,20 @@
             "input-injection"
           ],
           "estSeconds": 18,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P14",
+          "ticket": 271,
+          "title": "全屏让位与分屏会话解耦（工单271）：分屏后台收栏上全屏进入→整条栏隐藏且 taskbar-yield appBar=kept（占位保持释放、原生栏托管不中断——零 retract-lifted）、工作区保持屏底、后台 Snap 窗矩形逐字不变；覆盖期间结束会话（active=false）零 lift、工作区仍屏底（理由消失不当场复原）；退出全屏按既有路径恢复常驻（yield-lifted + retract-lifted appBar=registered、工作区回一栏高）；最大化临时覆盖不结束分屏会话（零新存证、条带在场、Snap 矩形不变），解除后分屏收栏直接恢复（幂等零迁移）",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 15,
           "areas": [
             "taskbar"
           ]
