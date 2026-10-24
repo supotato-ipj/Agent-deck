@@ -115,6 +115,16 @@ function titleOf(b: Bound, hwnd: number): string | null {
 }
 
 /**
+ * 窗口标题即时读取的公开缝（工单269）：分屏会话成员资格复用现有合格过滤
+ * （shouldShowOnTaskbar 需空标题判据），但**标题读取的隐私口子仍收在本模块**
+ * （ADR-0007 唯一例外——tests/usage/log.spec.ts 的 TITLE_READ_ALLOWLIST 钉此边界），
+ * 调用方（taskbar/snap.ts）不直读标题。仅内存即时使用、永不持久化，同款纪律。
+ */
+export function nativeWindowTitle(hwnd: number): string | null {
+  return titleOf(bind(), hwnd)
+}
+
+/**
  * 窗口特征采集（工单156 薄壳职责）：EXSTYLE 的工具窗/APPWINDOW 位、GW_OWNER 属主、
  * DWMWA_CLOAKED（挂起/其他桌面）。单点取失败按「未采集到该拒绝位」回报（判据缺省
  * 通过的兼容口径），不抛不重试。
