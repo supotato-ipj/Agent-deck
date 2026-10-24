@@ -33,13 +33,17 @@ import { ABS_AUTOHIDE, retractAutoHideState } from './retract'
  *  状态是会话级事实，与哪扇条带窗现任无关（同 hidNative 的控制器级口径）。 */
 let engaged: { previous: number } | null = null
 
-/** 待决的复原重试：新一次置位到场即作废上一次待决的复原——旧重试不得在新置位之后
- *  把状态翻回去（快速退收栏/再收栏的分叉账；同 native.ts 的 pendingRestoreCancel 纪律）。 */
-let pendingRestoreCancel: (() => void) | null = null
+/** 待决的复原重试：携带账面 previous（尚未复原完成的用户原状态）。新一次置位到场即
+ *  作废上一次待决的复原——旧重试不得在新置位之后把状态翻回去（快速退收栏/再收栏的
+ *  分叉账；同 native.ts 的 pendingRestoreCancel 纪律）。且复原退避窗内的**再置位**记账
+ *  必须取这里的 previous 而非当前读回——退避窗内读回可能是尚未复原成功的置位态，
+ *  拿它记账 = 账目投毒（用户原状态永久丢失，此后复原/守卫/守护会把用户任务栏翻成
+ *  自动隐藏）。 */
+let pendingRestore: { previous: number; cancel: () => void } | null = null
 
 function cancelPendingRestore(): void {
-  pendingRestoreCancel?.()
-  pendingRestoreCancel = null
+  pendingRestore?.cancel()
+  pendingRestore = null
 }
 
 /** 置位是否在场（「本次由我置位」的账面事实；未置位 = 无复原义务） */
@@ -54,7 +58,11 @@ export function retractAutoHideEngaged(): boolean {
  */
 export function engageRetractAutoHide(log: EventLog | null): void {
   if (engaged !== null) return
-  const previous = getAppBarState()
+  // 复原退避在途的再置位（P7 两跳路径/禁用即重启用）：原状态是 pendingRestore 账面的
+  // previous（复原义务尚未履行完，账不许投毒）——不得取当前读回，那可能是尚未复原
+  // 成功的置位态。无待决复原时才读现值（此刻系统状态 = 用户原状态）。
+  const pending = pendingRestore
+  const previous = pending !== null ? pending.previous : getAppBarState()
   setAppBarState(retractAutoHideState(previous))
   const state = getAppBarState()
   if ((state & ABS_AUTOHIDE) !== 0) {
@@ -115,9 +123,9 @@ export function restoreRetractAutoHide(log: EventLog | null, reason: string): vo
     cancelPendingRestore()
     let cancelled = false
     const cancel = (): void => { cancelled = true }
-    pendingRestoreCancel = cancel
+    pendingRestore = { previous, cancel }
     const timer = setTimeout(() => {
-      if (pendingRestoreCancel === cancel) pendingRestoreCancel = null
+      if (pendingRestore?.cancel === cancel) pendingRestore = null
       if (cancelled) return
       run(next)
     }, delayMs)

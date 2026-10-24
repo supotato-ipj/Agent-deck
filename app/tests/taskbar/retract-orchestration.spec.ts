@@ -346,6 +346,15 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     // destroy 内的复原先于会话判空（与 hidNative 还原同一位置纪律——账不随窗生灭）
     const m = code.match(/const destroy = \(reason: string\) => \{[\s\S]{0,600}?restoreRetractAutoHide\(log, reason\)/)
     expect(m).toBeTruthy()
+    // appbar 复原**先于可见性复原**（顺序即行为，与守卫/守护径同源——restore-ledger-wiring
+    // 的钉序理由）：置位态下 WS_VISIBLE 位可被 explorer 翻开，可见性判据会被「已可见」
+    // 骗成静默；先卸置位，可见性复原才做真工作（51 电池 P9 的面板侧径）
+    const d = code.slice(code.indexOf('const destroy'))
+    const iAppbar = d.indexOf('restoreRetractAutoHide(log, reason)')
+    const iShow = d.indexOf('showNativeTaskbar(log, reason)')
+    expect(iAppbar).toBeGreaterThanOrEqual(0)
+    expect(iShow).toBeGreaterThanOrEqual(0)
+    expect(iAppbar).toBeLessThan(iShow)
   })
 
   it('置位/复原的 RAII 实现单一实现住在 appbar-autohide.ts（记账 + 读回验证 + 退避复原）', () => {
