@@ -901,8 +901,8 @@
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 31,
-      "lastMeasuredAt": "2026-10-07",
+      "lastMeasuredSeconds": 33,
+      "lastMeasuredAt": "2026-10-24",
       "segments": [
         {
           "seg": "A1",
@@ -1002,9 +1002,9 @@
       "hintBar": true,
       "cdpPort": null,
       "kind": null,
-      "budgetSeconds": 180,
-      "lastMeasuredSeconds": 24,
-      "lastMeasuredAt": "2026-10-08",
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 45,
+      "lastMeasuredAt": "2026-10-24",
       "segments": [
         {
           "seg": "P1",
@@ -1117,7 +1117,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 36,
+          "estSeconds": 14,
           "areas": [
             "taskbar"
           ]
