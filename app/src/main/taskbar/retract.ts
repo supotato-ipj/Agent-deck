@@ -23,12 +23,14 @@ export {
   reduceSummonSequence,
   resolveBarMode,
   retractAutoHideState,
+  retractReasonHeld,
   summonedGroups,
 } from '../../shared/retract'
 export type {
   BarEvidenceEvent,
   BarMode,
   BarModeInput,
+  BarTransitionContext,
   BarTransitionPlan,
   ForegroundProbe,
   PhysRect,

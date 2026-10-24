@@ -22,6 +22,7 @@ import {
   reduceSummon,
   reduceSummonSequence,
   resolveBarMode,
+  retractReasonHeld,
   summonedGroups,
 } from '../../src/shared/retract'
 import type {
@@ -955,5 +956,51 @@ describe('收栏决策模块的单一来源（工单237 修正 A2/A4）', () => 
     const yieldSrc = readFileSync(path.resolve(APP_ROOT, 'app/src/main/taskbar/yield.ts'), 'utf8')
     expect(yieldSrc).toMatch(/已退役/)
     expect(yieldSrc).toMatch(/resolveBarMode/)
+  })
+})
+
+/* ================================================================
+ * retractReasonHeld：工作区收栏理由持有（工单271，spec #267）
+ * ================================================================ */
+
+describe('retractReasonHeld 工作区收栏理由持有（工单271）', () => {
+  it('分屏会话存续 + 过闸 → 持有（会话是后台事实，与前台是谁无关）', () => {
+    for (const kind of ['missing', 'own', 'desktop-host', 'normal', 'fullscreen'] as const) {
+      expect(retractReasonHeld({ ...baseInput, probe: probeOf(kind), snapSessionActive: true }),
+        `${kind} + 会话`).toBe(true)
+    }
+  })
+
+  it('全屏覆盖 + 会话存续 → 持有——resolveBarMode 同输入落让位档（②支掩蔽），理由维度独立可见（解耦的落点）', () => {
+    const input = { ...baseInput, probe: probeOf('fullscreen'), snapSessionActive: true }
+    expect(resolveBarMode(input)).toBe('fullscreen-yield')
+    expect(retractReasonHeld(input)).toBe(true)
+  })
+
+  it('真最大化前台 → 持有（zoomed 理由）；探针缺位 / 自家进程 / 桌面宿主且无会话 → 不持有', () => {
+    expect(retractReasonHeld({ ...baseInput, probe: probeOf('maximized') })).toBe(true)
+    expect(retractReasonHeld({ ...baseInput, probe: null })).toBe(false)
+    expect(retractReasonHeld({ ...baseInput, probe: probe({ pid: OWN_PID }) })).toBe(false)
+    expect(retractReasonHeld({ ...baseInput, probe: probe({ className: 'Progman' }) })).toBe(false)
+  })
+
+  it('两道闸门：开关关 / 降级档 → 不持有（会话与真最大化同受闸）', () => {
+    expect(retractReasonHeld({ ...baseInput, retractEnabled: false, probe: probeOf('maximized'), snapSessionActive: true })).toBe(false)
+    expect(retractReasonHeld({ ...baseInput, appBarDegraded: true, probe: probeOf('maximized'), snapSessionActive: true })).toBe(false)
+  })
+
+  it('与 resolveBarMode 收栏档一致：非全屏探针下两者同真同假（分歧仅发生在全屏掩蔽拍——held 独立可见的价值）', () => {
+    const kinds: ProbeKind[] = ['missing', 'own', 'desktop-host', 'normal', 'maximized', 'maximized-covering']
+    for (const kind of kinds) {
+      for (const retractEnabled of [true, false]) {
+        for (const snapSessionActive of [false, true]) {
+          const input = { ...baseInput, probe: probeOf(kind), retractEnabled, snapSessionActive }
+          expect(
+            retractReasonHeld(input) === (resolveBarMode(input) === 'maximize-retract'),
+            `${kind} 开关=${retractEnabled} 会话=${snapSessionActive}`,
+          ).toBe(true)
+        }
+      }
+    }
   })
 })

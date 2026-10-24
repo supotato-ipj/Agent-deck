@@ -128,6 +128,113 @@ describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
   })
 })
 
+describe('全屏让位与分屏会话解耦（工单271，spec #267）：工作区收栏理由 × 栏面呈现', () => {
+  /** 迁移上下文的简写（工单271 第三参：工作区账面 + 理由仍持有） */
+  const ctx271 = (workspaceRetracted: boolean, retractHeld: boolean) => ({ workspaceRetracted, retractHeld })
+
+  it('收栏 → 全屏让位（分屏会话仍持有理由）：只改栏面——占位保持释放、托管不中断（零 claim/restore），存证仅 yield 族（无 retract-lifted）', () => {
+    const plan = planBarTransition('maximize-retract', 'fullscreen-yield', ctx271(true, true))
+    expect(plan.releaseAppBar).toBe(false)
+    expect(plan.claimAppBar).toBe(false)
+    expect(plan.engageAutoHide).toBe(false)
+    expect(plan.restoreAutoHide).toBe(false)
+    expect(plan.hideWindow).toBe(true)
+    expect(plan.closePopups).toBe(true)
+    // 「栏面被全屏覆盖」与「分屏会话结束」在存证流上可分：覆盖只落 yield、不落 retract-lifted
+    expect(plan.evidence).toEqual(['taskbar-yield'])
+  })
+
+  it('全屏让位 → 收栏（工作区仍在收栏账上，退出覆盖会话仍存续）：只改栏面——不重复释放/置位（幂等），存证仅 yield-lifted', () => {
+    const plan = planBarTransition('fullscreen-yield', 'maximize-retract', ctx271(true, true))
+    expect(plan.releaseAppBar).toBe(false)
+    expect(plan.claimAppBar).toBe(false)
+    expect(plan.engageAutoHide).toBe(false)
+    expect(plan.restoreAutoHide).toBe(false)
+    expect(plan.showWindow).toBe(true)
+    expect(plan.evidence).toEqual(['taskbar-yield-lifted'])
+  })
+
+  it('全屏让位 → 常驻（覆盖期间会话已结束、无其他理由）：按既有路径复原——重注册占位 + 复原置位 + retract-lifted 存证', () => {
+    const plan = planBarTransition('fullscreen-yield', 'visible', ctx271(true, false))
+    expect(plan.claimAppBar).toBe(true)
+    expect(plan.restoreAutoHide).toBe(true)
+    expect(plan.showWindow).toBe(true)
+    expect(plan.evidence).toEqual(['taskbar-yield-lifted', 'taskbar-retract-lifted'])
+  })
+
+  it('常驻 → 收栏（会话理由建立，账面未收）：照常释放 + 置位——与最大化理由同效果层（理由维度不改变进收栏的动作）', () => {
+    const plan = planBarTransition('visible', 'maximize-retract', ctx271(false, true))
+    expect(plan.releaseAppBar).toBe(true)
+    expect(plan.engageAutoHide).toBe(true)
+    expect(plan.evidence).toEqual(['taskbar-retract'])
+  })
+
+  it('全屏让位（占位生效中，无会话进入的覆盖）→ 收栏（覆盖期间会话建立后退出全屏）：此刻才释放占位 + 置位（工作区账面驱动，非档位推断）', () => {
+    const plan = planBarTransition('fullscreen-yield', 'maximize-retract', ctx271(false, true))
+    expect(plan.releaseAppBar).toBe(true)
+    expect(plan.engageAutoHide).toBe(true)
+    expect(plan.showWindow).toBe(true)
+    expect(plan.evidence).toEqual(['taskbar-yield-lifted', 'taskbar-retract'])
+  })
+
+  it('同态冻结：覆盖期间理由消失或重建（yield→yield）零动作——工作区复原只发生在退出覆盖的既有路径（不反复复原）', () => {
+    for (const retractHeld of [false, true]) {
+      const plan = planBarTransition('fullscreen-yield', 'fullscreen-yield', ctx271(true, retractHeld))
+      expect(plan).toEqual({
+        releaseAppBar: false, engageAutoHide: false, restoreAutoHide: false, claimAppBar: false,
+        hideWindow: false, showWindow: false, closePopups: false, evidence: [],
+      })
+    }
+  })
+
+  it('无会话旧口径逐字不变：缺省输入与显式一致上下文在全部 3×3 迁移上等价（既有 P6/P7 语义不回归）', () => {
+    // 一致上下文：收栏档态账面必在收（不变量①——占位只在收栏态释放，效果层产不出
+    // 「mode=收栏 而账面=未收」的组合）；其余档账面未收、理由不持有。
+    for (const prev of MODES) {
+      for (const next of MODES) {
+        const consistent = ctx271(prev === 'maximize-retract', false)
+        expect(planBarTransition(prev, next, consistent), `${prev}→${next}`)
+          .toEqual(planBarTransition(prev, next))
+      }
+    }
+  })
+
+  it('组合矩阵不变量（mode × 工作区账面 × 理由持有）：置位与释放严格成对；retract 族存证随工作区面、yield 族随栏面；覆盖不触发工作区复原', () => {
+    for (const prev of MODES) {
+      for (const next of MODES) {
+        for (const workspaceRetracted of [false, true]) {
+          for (const retractHeld of [false, true]) {
+            // 矛盾上下文跳过（收栏档态账面必在收——不变量①，效果层产不出该组合）
+            if (prev === 'maximize-retract' && !workspaceRetracted) continue
+            const plan = planBarTransition(prev, next, ctx271(workspaceRetracted, retractHeld))
+            const tag = `${prev}→${next} 账=${workspaceRetracted} 理由=${retractHeld}`
+            // 置位/释放成对（同一次工作区交割，不留半套动作）
+            expect(plan.engageAutoHide, tag).toBe(plan.releaseAppBar)
+            // retract 族存证 = 工作区面交割；yield 族 = 栏面交割（与会话无关）
+            const wsReleased = plan.evidence.includes('taskbar-retract')
+            const wsRestored = plan.evidence.includes('taskbar-retract-lifted')
+            expect(plan.releaseAppBar, tag).toBe(wsReleased)
+            expect(plan.restoreAutoHide, tag).toBe(wsRestored)
+            expect(plan.evidence.includes('taskbar-yield'), tag).toBe(next === 'fullscreen-yield' && prev !== next)
+            expect(plan.evidence.includes('taskbar-yield-lifted'), tag).toBe(prev === 'fullscreen-yield' && prev !== next)
+            // 全屏覆盖只改栏面：收栏进覆盖且理由仍持有 ⇒ 绝不 claim/restore（P6 的反面钉死）
+            if (prev === 'maximize-retract' && next === 'fullscreen-yield' && retractHeld) {
+              expect(plan.claimAppBar, tag).toBe(false)
+              expect(plan.restoreAutoHide, tag).toBe(false)
+            }
+            // 复原只发自工作区账面在收的情况（账面未收时零复原）；占位重注册只在
+            // 真实迁移到非收栏态时提（同态零动作是既有不变量）
+            if (!workspaceRetracted) {
+              expect(plan.restoreAutoHide, tag).toBe(false)
+              expect(plan.claimAppBar, tag).toBe(prev !== next && next !== 'maximize-retract')
+            }
+          }
+        }
+      }
+    }
+  })
+})
+
 describe('原生栏托管（工单260，spec #258）：收栏置位 ABS_AUTOHIDE 的迁移计划', () => {
   it('进入收栏：置位原生栏自动隐藏（engageAutoHide）——与注销占位同拍、与唤出条同生命周期', () => {
     for (const prev of ['visible', 'fullscreen-yield'] as BarMode[]) {
@@ -398,8 +505,8 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
   const NATIVE = 'app/src/main/taskbar/native.ts'
   const code = codeOf(CTRL)
 
-  it('轮询起止随三态迁移：进收栏起表、离收栏休止（非收栏态不轮询——票面验收标准第三条）', () => {
-    expect(code).toMatch(/if \(next === 'maximize-retract'\) startNativeWatch\(s\)/)
+  it('轮询起止随工作区收栏账面（工单271 改段）：账在即值守（含分屏会话持有的全屏覆盖期间——explorer 重启/置位丢失在覆盖下也须重挂，否则保留带复活顶起后台 Snap 窗），账清即休止（非收栏理由态不轮询——票面验收标准第三款的工单271 精化）', () => {
+    expect(code).toMatch(/if \(s\.workspaceRetracted\) startNativeWatch\(s\)/)
     expect(code).toMatch(/else stopNativeWatch\(s\)/)
     // 起表在置位之后：重申机器以「刚置位过的当拍事实」立基线（首拍不误报）
     const m = code.match(/if \(plan\.engageAutoHide\) engageRetractAutoHide\(log\)[\s\S]{0,500}?startNativeWatch/)
@@ -455,8 +562,8 @@ describe('分屏会话接线（工单269，spec #267；效果层离线不可测�
 
   it('会话事实喂进三态裁决：控制器在收栏轮询接缝上调分屏探针并传 snapSessionActive（spec 决策 3）', () => {
     expect(code).toMatch(/snapSessionActive:\s*snap\.active/)
-    // 探针调用与轮询同缝（resolveBarMode 输入装配段内），主屏会话按显示器参数裁决
-    const m = code.match(/const snap = [^\n]*\n[\s\S]{0,600}?resolveBarMode\(\{/)
+    // 探针调用与轮询同缝（barInput 装配段内——工单271 起档位与理由持有同源消费），主屏会话按显示器参数裁决
+    const m = code.match(/const snap = [^\n]*\n[\s\S]{0,800}?resolveBarMode\(barInput\)/)
     expect(m).toBeTruthy()
     // 工单270：控制器收成员集合（snapSessionMembers，会话=成员非空），不再只折布尔
     expect(code).toMatch(/snapSessionMembers\(/)
@@ -544,5 +651,53 @@ describe('分屏会话集合生命周期接线（工单270，spec #267；效果�
     expect(snapCode).toMatch(/track:\s*readonly number\[\]/)
     expect(snapCode).toMatch(/DWM_CLOAKED_SHELL/)
     expect(snapCode).toMatch(/cloakedShell/)
+  })
+})
+
+describe('全屏让位与分屏会话解耦接线（工单271，spec #267；效果层离线不可测，以源码级守卫钉住）', () => {
+  const CTRL = 'app/src/main/taskbar/window.ts'
+  const FWD = 'app/src/main/taskbar/retract.ts'
+  const code = codeOf(CTRL)
+
+  it('理由持有裁决单一实现住在 shared/retract.ts（retractReasonHeld），主进程侧经转发导出（同工单237 纪律）', () => {
+    const hits: string[] = []
+    for (const rel of SRC_FILES) {
+      if (/export\s+function\s+retractReasonHeld\b/.test(srcOf(rel))) hits.push(rel)
+    }
+    expect(hits).toEqual(['app/src/shared/retract.ts'])
+    expect(srcOf(FWD)).toMatch(/\bretractReasonHeld\b/)
+    // 控制器不自算理由（pid/类名/zoomed 组合裁决不进效果层）
+    expect(code).toMatch(/retractReasonHeld\(/)
+    // 不自己拿真最大化位做裁决（只允许进存证载荷——同工单241 组的判据形态）
+    expect(code).not.toMatch(/if\s*\(\s*probe\.zoomed/)
+    expect(code).not.toMatch(/probe\.zoomed\s*===/)
+  })
+
+  it('同缝装配：裁决输入对象装配一次，resolveBarMode 与 retractReasonHeld 同源消费（不另采一套事实）', () => {
+    const m = code.match(/const barInput = \{[\s\S]{0,700}?resolveBarMode\(barInput\)[\s\S]{0,200}?retractReasonHeld\(barInput\)/)
+    expect(m).toBeTruthy()
+    // 工单269/253 既有输入位逐字保留（改装配不丢位）
+    expect(code).toMatch(/snapSessionActive:\s*snap\.active/)
+    expect(code).toMatch(/prevMode:\s*s\.mode/)
+    expect(code).toMatch(/ownOverlayPresent:\s*openOverlayFamilies\.size > 0/)
+  })
+
+  it('迁移计划带解耦上下文：applyBarMode 以账面 + 理由持有调 planBarTransition（两参旧调用不得残留）', () => {
+    expect(code).toMatch(/planBarTransition\(\s*prev,\s*next,\s*\{[\s\S]{0,200}?\}\s*\)/)
+    expect(code).not.toMatch(/planBarTransition\(\s*prev,\s*next\s*\)/)
+    expect(code).toMatch(/workspaceRetracted:\s*s\.workspaceRetracted/)
+    expect(code).toMatch(/retractHeld/)
+  })
+
+  it('工作区账面是会话字段：建账 false、随迁移逐笔推进、轮询停摆即清账（不从档位反推）', () => {
+    expect(code).toMatch(/workspaceRetracted: false/)
+    expect(code).toMatch(/s\.workspaceRetracted = next === 'maximize-retract'/)
+    // stopYieldPoll（destroy/closed 共用）清账——账随轮询生灭，不悬空
+    const m = code.match(/const stopYieldPoll = \(s: TaskbarSession\) => \{[\s\S]{0,400}?\}/)
+    expect(m?.[0]).toMatch(/workspaceRetracted = false/)
+  })
+
+  it('重申轮询一拍守门随账面：覆盖期间（档位=让位、账在）值守不空转', () => {
+    expect(code).toMatch(/const pollNativeWatch = \(\): void => \{[\s\S]{0,600}?!s\.workspaceRetracted/)
   })
 })
