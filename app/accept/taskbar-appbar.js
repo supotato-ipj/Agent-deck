@@ -173,6 +173,15 @@ async function runSegments() {
 
     // —— P1：AppBar 占位生效 ——
     rep.beginSegment('P1');
+    // 工单260 起常驻态断言需要受控前台：环境里真最大化的前台窗（如常驻开发工具）会
+    // 合法触发收栏置位 ABS_AUTOHIDE（工作区底边到屏底），P1 的「底边=屏高−48」从此只在
+    // 非收栏前台成立——把 P2 的中性前台 holder 前移到开测前立起，钉住前台不被环境夺走
+    // （旧 P1 无前台控制：#260 前收栏不动工作区数值，故当时无害；R2 实测 ZCode 最大化
+    // 前台使 P1 红段，磁带 taskbar-autohide-set/restore 成对干净——产品行为正确，电池缺受控）。
+    const neutralWin = new BrowserWindow({ width: 240, height: 160, title: 'DECK-ACCEPT-NEUTRAL', backgroundColor: '#101010' });
+    refWins.push(neutralWin);
+    await neutralWin.loadURL('about:blank');
+    forceForeground(hwndOf(neutralWin));
     // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept']，本电池不带 CDP 端口）
     handle.launch({ mode: 'accept', stdio: 'ignore' });
     const boot = await tape.wait('boot', null, { timeoutMs: 20000 });
@@ -180,6 +189,7 @@ async function runSegments() {
     panelPid = boot.pid;
     const tbHwnd = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
     if (!tbHwnd) throw new Error('P1 任务栏条带窗未出现');
+    forceForeground(hwndOf(neutralWin)); // 再钉一次：boot 等待期间环境可能夺回前台（最大化窗会翻收栏档）;
     const regEv = await tape.wait('taskbar-appbar-registered', null, { timeoutMs: 5000 });
     const setposEv = await tape.wait('taskbar-appbar-setpos', (e) => e.reason === 'create', { timeoutMs: 5000 });
     // 工作区收缩有生效时延，轮询到期望值
@@ -206,9 +216,7 @@ async function runSegments() {
     // 语义。故控制器自建一枚中性前台 holder 把前台从参照窗挪开：占位仍生效 ⇒ 参照窗
     // （即便非前台）照样被工作区约束在栏上沿，测量对象与旧语义一致。
     rep.beginSegment('P2');
-    const neutralWin = new BrowserWindow({ width: 240, height: 160, title: 'DECK-ACCEPT-NEUTRAL', backgroundColor: '#101010' });
-    refWins.push(neutralWin);
-    await neutralWin.loadURL('about:blank');
+    // 中性前台 holder 已在 P1 前立起（工单260 前移，见 P1 段注）——本段只建最大化参照窗
     const maxWin = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-MAX', backgroundColor: '#203040' });
     refWins.push(maxWin);
     await maxWin.loadURL('about:blank');
