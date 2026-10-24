@@ -38,6 +38,18 @@
 //      工单268 定谳——面板零改窗）；唤出条悬停弹出且 Snap 窗矩形逐字不变；Win+Down 解除
 //      → 会话结束 + 重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性
 //      （2+ 轮询拍零收栏/零会话存证、工作区不动——矩形不得成为身份兜底）
+//   P12 分屏会话集合生命周期与代表性布局（工单270）：左右双窗统一进入分屏收栏并上下
+//      贴边；普通前台切换不打断（矩形逐字不变、工作区保持屏底）；标题栏拖拽真解除
+//      其一仍维持、最后一个解除结束（cause=unsnapped）并复原（Win+Down 在本机是
+//      **最小化**语义，R1/R2 磁带实证，不用于解除）；重 Snap 后最小化其一仍维持、
+//      最后一个最小化结束（cause=minimized 存证）且恢复即按当前事实重建；三分之一加
+//      三分之二布局经 Win+Z 布局浮出数字键通道定位，同一真 Snap 判定收栏贴边；收尾
+//      关宿主核验退场（残留成员会拖住会话——R2 级联根因）
+//   P13 虚拟桌面切换隔离与收栏理由接续（工单270）：四角布局统一判定；Win+Ctrl+D 切到
+//      新桌面 → 会话结束（cause=desktop-switched）+ 工作区复原；切回原桌面按该桌面实际
+//      布局重建会话；真最大化前台期间关闭全部 Snap 窗 → 会话结束（cause=closed +
+//      retractHeldByZoomed=true、无 retract-lifted、工作区保持屏底——理由接续不先恢复
+//      再收栏），解除最大化才单次复原
 // 运行：npm run accept:taskbar-appbar（= electron . --accept-taskbar-appbar）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（真机分辨率切换与前台注入，互斥）。
 const { app, screen, BrowserWindow } = require('electron');
@@ -720,6 +732,434 @@ async function runSegments() {
     }
     // P11 收尾：Win+Down 已解除；参照窗由 FormClosed/Exit 退出，进程兜底强杀在 finally
     if (snapHwnd11) win32.PostMessageW(snapHwnd11, WM_CLOSE, 0, 0);
+
+    // —— P12/P13 公共器具（工单270）——
+    const phys12 = primaryPhys();
+    const expectBottom12 = phys12.height - Math.round(TASKBAR_HEIGHT_DIP * phys12.scale);
+    const wsBottomOk12 = () => { const wa = workArea(); return !!wa && Math.abs(wa.bottom - phys12.height) <= 2; };
+    const wsBarOk12 = () => { const wa = workArea(); return !!wa && Math.abs(wa.bottom - expectBottom12) <= 2; };
+    /** 全屏上下贴边判据（DWM 7px 不可见边容差，P11/P6 同口径） */
+    const edgesFullOk = (r) => !!r && r.top >= -10 && r.top <= 8 && r.bottom >= phys12.height - 10 && r.bottom <= phys12.height + 8;
+    const sameRect12 = (a, b) => !!a && !!b && a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom;
+    // Snap 参照窗宿主（P11 同款：powershell WinForms 普通顶层窗——exe 不同于面板/电池，
+    // 不被 shouldShowOnTaskbar 自家排除；FormClosed 即进程退出，finally 兜底强杀）
+    const spawnSnapPs = async (title) => {
+      const psScript = [
+        'Add-Type -AssemblyName System.Windows.Forms',
+        "$f = New-Object System.Windows.Forms.Form",
+        `$f.Text = '${title}'`,
+        '$f.Width = 900; $f.Height = 700',
+        '$f.Add_FormClosed({ [Environment]::Exit(0) })',
+        '[System.Windows.Forms.Application]::Run($f)',
+      ].join('; ');
+      const proc = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', psScript], { stdio: 'ignore' });
+      extProcs.push(proc);
+      const deadline = Date.now() + 10000;
+      while (Date.now() < deadline) {
+        if (proc.exitCode !== null) return { proc, hwnd: 0 };
+        const h = win32.findWindowByPid(proc.pid);
+        if (h) return { proc, hwnd: h };
+        await sleep(120);
+      }
+      return { proc, hwnd: 0 };
+    };
+    // 多修饰键和弦（Ctrl+Win+D / Ctrl+Win+Left / Ctrl+Win+F4——虚拟桌面操作是全局的，
+    // 不需要目标窗前台）
+    const VK_CONTROL = 0x11, VK_UP = 0x26, VK_RIGHT = 0x27;
+    const chordMods = (mods, vk) => {
+      for (const m of mods) win32.send([win32.keyInput(m, win32.KEYDOWN)]);
+      win32.send([win32.keyInput(vk, win32.KEYDOWN)]);
+      win32.send([win32.keyInput(vk, win32.KEYUP)]);
+      for (let i = mods.length - 1; i >= 0; i--) win32.send([win32.keyInput(mods[i], win32.KEYUP)]);
+    };
+    // 真解除（工单270）：标题栏拖拽解 Snap——Win+Down 在本机对 Snap 窗是**最小化**语义
+    // （R1/R2 磁带 cause=minimized 实证），不能当解除用；拖离后浮定（arranged=false 且非
+    // iconic），拖点落屏中央不靠边（不触发边沿 Snap）
+    const dragUnsnap = async (hwnd) => {
+      for (let i = 0; i < 5; i++) {
+        const r = win32.rectOf(hwnd);
+        if (!r) return false;
+        const sx = Math.round((r.left + r.right) / 2);
+        const sy = Math.round(r.top + 20); // 标题带
+        win32.moveMousePhys(sx, sy);
+        await sleep(120);
+        win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+        win32.moveMousePhys(sx + 40, sy + 20);
+        await sleep(60);
+        win32.moveMousePhys(sx + 80, sy + 40);
+        await sleep(60);
+        win32.moveMousePhys(sx + 120, sy + 60);
+        await sleep(150);
+        win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+        await sleep(450);
+        if (!Boolean(IsWindowArrangedFn(hwnd)) && !win32.IsIconic(hwnd)) return true;
+      }
+      return false;
+    };
+    // 宿主收尾（R2 定谳的加固）：WM_CLOSE 后核验窗口/进程真退场，残留即进程强杀——
+    // 残留 Snap 成员会把会话拖住，P5/P9/P10 全被翻（R2 级联红的根因）
+    const closeSnapHosts = async (...hosts) => {
+      for (const h of hosts) if (h && h.hwnd) win32.PostMessageW(h.hwnd, WM_CLOSE, 0, 0);
+      await waitMs(() => hosts.every((h) => !h || !h.hwnd
+        || !win32.IsWindow(h.hwnd) || h.proc.exitCode !== null), 4000);
+      for (const h of hosts) {
+        if (h && h.proc && h.proc.exitCode === null && h.hwnd && win32.IsWindow(h.hwnd)) {
+          try { h.proc.kill('SIGKILL'); } catch { /* finally 兜底再杀 */ }
+        }
+      }
+      await sleep(300);
+    };
+    // 目标宽度自适应 Snap（工单270 三分之一/三分之二布局）：Win+Z 打开 Snap Layouts
+    // 浮出 → 数字键选布局 → 数字键选分区（微软文档键盘通道）。布局编号随版本排列
+    // 不同——候选组合逐试，IsWindowArranged+实测宽度命中即停（有界，不赌编号次序）。
+    // R3 定谳的坑：多分区布局落位后 Windows 弹 Snap Assist（建议其他窗补位）——后续
+    // 候选的键击会被它吃掉、把**无关窗口**（用户在用窗口）Snap 进邻位（磁带 members=3
+    // 实证）。防线：每次落位后立刻 ESC 收掉 Assist，再做核验
+    const snapZoneByWidth = async (hwnd, targetW, tol, candidates) => {
+      for (const [lk, zk] of candidates) {
+        forceForeground(hwnd);
+        await sleep(150);
+        if (Number(win32.GetForegroundWindow()) !== hwnd) continue;
+        chord11(0x5a /* Z：Win+Z 打开布局浮出 */);
+        await sleep(700);
+        win32.send([win32.keyInput(lk, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(lk, win32.KEYUP)]);
+        await sleep(350);
+        win32.send([win32.keyInput(zk, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(zk, win32.KEYUP)]);
+        await sleep(350);
+        // 收掉可能弹出的 Snap Assist（ESC 不影响已落位的窗）——不吃后续候选的键击
+        win32.send([win32.keyInput(0x1b /* ESC */, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(0x1b, win32.KEYUP)]);
+        await sleep(350);
+        if (!Boolean(IsWindowArrangedFn(hwnd))) continue;
+        const r = win32.rectOf(hwnd);
+        if (r && Math.abs((r.right - r.left) - targetW) <= tol) return true;
+      }
+      return false;
+    };
+    // 外来 Snap 清扫（R3 定谳加固）：Win+Z Assist 可能已把无关窗口 Snap 进位（成员残留
+    // 拖住会话）——按前置清场同款纪律 SW_MINIMIZE（可逆：用户点任务栏图标即原样回
+    // Snap 态），只在确有残留时才动
+    const sweepAlienSnaps = async () => {
+      const aliens = liveSnapWindows();
+      if (!aliens.length) return 0;
+      for (const h of aliens) win32.ShowWindow(h, 6 /* SW_MINIMIZE */);
+      await waitMs(() => liveSnapWindows().length === 0, 3000);
+      return aliens.length;
+    };
+
+    // —— P12：分屏会话集合生命周期与代表性布局（工单270 新增）——
+    // 断言面（票面验收判据的真机观测）：
+    //   ① 左右双窗统一判定：两窗各 Win+Left/Right → 会话+收栏+工作区屏底+两窗上下贴边；
+    //   ② 普通前台切换不打断：中性 holder/Snap 窗轮换前台 1.3s（5+ 拍）零会话结束、零
+    //      retract-lifted、工作区保持屏底、两 Snap 窗矩形逐字不变（不反复变化）；
+    //   ③ 解除集合生命周期（标题栏拖拽真解除——Win+Down 在本机是**最小化**语义，R1/R2
+    //      磁带 cause=minimized 实证）：解除其一 → 会话由剩余成员维持；解除最后一个
+    //      → 会话结束（cause=unsnapped 可区分存证）+ 复原；
+    //   ④⑤ 最小化集合生命周期：重 Snap 后最小化其一 → 会话维持（a1 矩形不变）；最小化
+    //      其一（剩余维持拍）→ 最后一个最小化 → 会话结束（cause=minimized）+ 复原；
+    //   ⑥ 恢复最后一个 → 按当前事实重建会话；
+    //   ⑦ 三分之一加三分之二：Win+Z 布局浮出数字键通道定位 1/3 宽 + 互补 2/3 →
+    //      同一判定进分屏收栏贴边；收尾关宿主后会话必须结束、工作区复原（防成员
+    //      残留拖住会话——R2 级联根因）。
+    rep.beginSegment('P12');
+    await waitMs(wsBarOk12, 5000); // 出发态回常驻（P11 收尾已复原，此处等占位生效档落定）
+    const r12 = {
+      dual: false, fgStable: false, minOne: false, minLast: false, rebuild: false, unsnapEnd: false, thirds: false, bClean: false,
+    };
+    const diag12 = [];
+    const a1 = await spawnSnapPs('DECK-ACCEPT-SNAP-A1');
+    const a2 = await spawnSnapPs('DECK-ACCEPT-SNAP-A2');
+    if (!a1.hwnd || !a2.hwnd) {
+      rep.fail(`P12 Snap 参照窗未出现（a1=${!!a1.hwnd} a2=${!!a2.hwnd}——powershell WinForms 宿主 10s 内无可见顶层窗，环境异常）`);
+    } else {
+    // ① 左右双窗
+    const sinceDual = Date.now();
+    const dualChord = await chordUntil(a1.hwnd, VK_LEFT, true) && await chordUntil(a2.hwnd, VK_RIGHT, true);
+    forceForeground(hwndOf(neutralWin));
+    if (!dualChord) diag12.push('和弦建 Snap 失败');
+    const sessEv12 = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: sinceDual, timeoutMs: 6000 });
+    const retractEv12 = await tape.wait('taskbar-retract',
+      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceDual, timeoutMs: 6000 });
+    const waDual12 = await waitMs(wsBottomOk12, 5000);
+    const rects12 = [a1.hwnd, a2.hwnd].map((h) => win32.rectOf(h));
+    const dualEdges = rects12.every(edgesFullOk);
+    r12.dual = !!(dualChord && sessEv12 && retractEv12) && waDual12 >= 0 && dualEdges;
+    if (!r12.dual) diag12.push(`双窗=${r12.dual}（和弦=${dualChord} 会话=${!!sessEv12} 收栏=${!!retractEv12} 屏底=${waDual12}ms 贴边=${dualEdges} ${JSON.stringify(rects12)}）`);
+    // ② 普通前台切换不打断（后台 Snap 窗与工作区不反复变化）
+    const sinceFg12 = Date.now();
+    forceForeground(hwndOf(neutralWin));
+    await sleep(400);
+    forceForeground(a2.hwnd); // Snap 窗自己成前台（普通前台切换的另一形态）
+    await sleep(400);
+    forceForeground(hwndOf(neutralWin));
+    await sleep(1300); // 5+ 个 250ms 轮询拍
+    const noLift12 = tape.all('taskbar-retract-lifted', undefined, { since: sinceFg12 }).length === 0;
+    const noEnd12 = tape.all('taskbar-snap-session', (e) => e.active === false, { since: sinceFg12 }).length === 0;
+    const rectsAfterFg = [a1.hwnd, a2.hwnd].map((h) => win32.rectOf(h));
+    const rectStable12 = rectsAfterFg.every((r, i) => sameRect12(r, rects12[i]));
+    r12.fgStable = noLift12 && noEnd12 && wsBottomOk12() && rectStable12;
+    if (!r12.fgStable) diag12.push(`前台稳定=${r12.fgStable}（零lift=${noLift12} 零结束=${noEnd12} 屏底=${wsBottomOk12()} 矩形不变=${rectStable12}）`);
+    // ③ 解除集合生命周期（标题栏拖拽真解除——Win+Down 在本机是**最小化**语义，R1/R2
+    //    磁带 cause=minimized 实证）：解除其一（a2）→ 会话由 a1 维持；解除最后一个
+    //    （a1）→ 结束（cause=unsnapped）+ 复原
+    const tUnsnapA = Date.now();
+    const unsnapOneOk = await dragUnsnap(a2.hwnd);
+    await sleep(1200);
+    const unsnapOneHeld = tape.all('taskbar-snap-session', (e) => e.active === false, { since: tUnsnapA }).length === 0
+      && tape.all('taskbar-retract-lifted', undefined, { since: tUnsnapA }).length === 0 && wsBottomOk12();
+    const unsnapLastOk = await dragUnsnap(a1.hwnd);
+    forceForeground(hwndOf(neutralWin));
+    const unEndEv12 = await tape.wait('taskbar-snap-session',
+      (e) => e.active === false && e.cause === 'unsnapped', { since: tUnsnapA, timeoutMs: 6000 });
+    const unLiftEv12 = await tape.wait('taskbar-retract-lifted',
+      (e) => e.appBar === 'registered', { since: tUnsnapA, timeoutMs: 6000 });
+    const unWa12 = await waitMs(wsBarOk12, 5000);
+    r12.unsnapEnd = !!(unsnapOneOk && unsnapOneHeld && unsnapLastOk && unEndEv12 && unLiftEv12) && unWa12 >= 0;
+    if (!r12.unsnapEnd) diag12.push(`解除结束=${r12.unsnapEnd}（其一拖解除=${unsnapOneOk} 其一维持=${unsnapOneHeld} 最后拖解除=${unsnapLastOk} 结束存证=${!!unEndEv12} lift=${!!unLiftEv12} 复原=${unWa12}ms）`);
+    // ④ 重 Snap 双窗（最小化集合生命周期相位从新鲜 Snap 出发）
+    const tResnap = Date.now();
+    const resnapOk = await chordUntil(a1.hwnd, VK_LEFT, true) && await chordUntil(a2.hwnd, VK_RIGHT, true);
+    forceForeground(hwndOf(neutralWin));
+    const resnapWa = await waitMs(wsBottomOk12, 5000);
+    if (!resnapOk || resnapWa < 0) diag12.push(`重Snap=${resnapOk} 屏底=${resnapWa}ms`);
+    // ⑤ 最小化其一（a2）→ 会话由 a1 维持
+    const tMin1 = Date.now();
+    win32.ShowWindow(a2.hwnd, 6 /* SW_MINIMIZE */);
+    const iconicA2 = await waitMs(() => win32.IsIconic(a2.hwnd), 3000);
+    await sleep(1300);
+    const minOneNoEnd = tape.all('taskbar-snap-session', (e) => e.active === false, { since: tMin1 }).length === 0;
+    const minOneNoLift = tape.all('taskbar-retract-lifted', undefined, { since: tMin1 }).length === 0;
+    const a1RectAfterMin = win32.rectOf(a1.hwnd);
+    r12.minOne = iconicA2 >= 0 && minOneNoEnd && minOneNoLift && wsBottomOk12() && sameRect12(a1RectAfterMin, rects12[0]);
+    if (!r12.minOne) diag12.push(`最小化其一=${r12.minOne}（iconic=${iconicA2 >= 0} 零结束=${minOneNoEnd} 零lift=${minOneNoLift} 屏底=${wsBottomOk12()} a1矩形不变=${sameRect12(a1RectAfterMin, rects12[0])}）`);
+    // 恢复 a2（会话持续，不打断）
+    win32.ShowWindow(a2.hwnd, 9 /* SW_RESTORE */);
+    await sleep(800);
+    // ⑥ 最小化最后一个：先 a1（a2 维持拍）→ 再 a2（结束拍，cause=minimized）
+    const tMin2 = Date.now();
+    win32.ShowWindow(a1.hwnd, 6);
+    await waitMs(() => win32.IsIconic(a1.hwnd), 3000);
+    await sleep(1200);
+    const heldA2 = tape.all('taskbar-snap-session', (e) => e.active === false, { since: tMin2 }).length === 0 && wsBottomOk12();
+    win32.ShowWindow(a2.hwnd, 6);
+    await waitMs(() => win32.IsIconic(a2.hwnd), 3000);
+    const minEndEv12 = await tape.wait('taskbar-snap-session',
+      (e) => e.active === false && e.cause === 'minimized', { since: tMin2, timeoutMs: 6000 });
+    const minLiftEv12 = await tape.wait('taskbar-retract-lifted',
+      (e) => e.appBar === 'registered', { since: tMin2, timeoutMs: 6000 });
+    const minWa12 = await waitMs(wsBarOk12, 5000);
+    r12.minLast = heldA2 && !!minEndEv12 && !!minLiftEv12 && minWa12 >= 0;
+    if (!r12.minLast) diag12.push(`最后最小化=${r12.minLast}（a2维持=${heldA2} 结束存证=${!!minEndEv12} lift=${!!minLiftEv12} 复原=${minWa12}ms）`);
+    // ⑦ 恢复最后一个（a1）→ 按当前事实重建会话
+    const tRebuild = Date.now();
+    win32.ShowWindow(a1.hwnd, 9);
+    const rebuildEv12 = await tape.wait('taskbar-snap-session',
+      (e) => e.active === true, { since: tRebuild, timeoutMs: 6000 });
+    const rebuildWa12 = await waitMs(wsBottomOk12, 5000);
+    r12.rebuild = !!rebuildEv12 && rebuildWa12 >= 0;
+    if (!r12.rebuild) diag12.push(`重建=${r12.rebuild}（存证=${!!rebuildEv12} 屏底=${rebuildWa12}ms）`);
+    // A 相收尾：a1 恢复后仍是成员、a2 最小化非成员——关宿主并核验退场（会话随 a1
+    // 关闭结束，落一条 cause=closed 事件在 B 相 since 门之前，不与 B 相断言互踩）
+    await closeSnapHosts(a1, a2);
+    // ⑧ 三分之一加三分之二（统一真 Snap 判定，无布局专用分支）：Win+Z 布局浮出的
+    //    数字键通道（微软文档）自适应定位 1/3 宽；互补 2/3 先试 Win+Right 补位、
+    //    不中再走 Win+Z 分区
+    const b1 = await spawnSnapPs('DECK-ACCEPT-SNAP-B1');
+    const b2 = await spawnSnapPs('DECK-ACCEPT-SNAP-B2');
+    const thirdW = phys12.width / 3;
+    const tolW = phys12.width * 0.05;
+    // 数字键 VK：'1'..'6' = 0x31..0x36；布局编号随版本排列不同——候选组合逐试
+    const NUM = (n) => 0x30 + n;
+    let thirdsDetail = '';
+    if (!b1.hwnd || !b2.hwnd) {
+      diag12.push(`1/3 参照窗未出现（b1=${!!b1.hwnd} b2=${!!b2.hwnd}——环境异常）`);
+    } else {
+      const sinceB = Date.now();
+      const b1Ok = await snapZoneByWidth(b1.hwnd, thirdW, tolW, [
+        [NUM(2), NUM(1)], [NUM(3), NUM(1)], [NUM(4), NUM(1)], [NUM(5), NUM(1)], [NUM(6), NUM(1)],
+        [NUM(2), NUM(3)], [NUM(3), NUM(3)], [NUM(6), NUM(3)],
+      ]);
+      // b2 互补 2/3：先 Win+Right（另一侧被占时的补位），不中再走 Win+Z 分区
+      let b2Ok = false;
+      if (b1Ok) {
+        b2Ok = await chordUntil(b2.hwnd, VK_RIGHT, true);
+        const r = win32.rectOf(b2.hwnd);
+        if (!(r && Math.abs((r.right - r.left) - 2 * thirdW) <= tolW)) b2Ok = false;
+      }
+      if (b1Ok && !b2Ok) {
+        b2Ok = await snapZoneByWidth(b2.hwnd, 2 * thirdW, tolW, [
+          [NUM(2), NUM(2)], [NUM(3), NUM(2)], [NUM(4), NUM(2)], [NUM(5), NUM(2)], [NUM(6), NUM(2)],
+        ]);
+      }
+      forceForeground(hwndOf(neutralWin));
+      const bSess12 = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: sinceB, timeoutMs: 6000 });
+      const bWa12 = await waitMs(wsBottomOk12, 5000);
+      const b1r = win32.rectOf(b1.hwnd);
+      const b2r = win32.rectOf(b2.hwnd);
+      const widthsOk = !!b1r && !!b2r
+        && Math.abs((b1r.right - b1r.left) - thirdW) <= tolW
+        && Math.abs((b2r.right - b2r.left) - 2 * thirdW) <= tolW;
+      const bEdges = [b1r, b2r].every(edgesFullOk);
+      r12.thirds = !!(b1Ok && b2Ok && bSess12) && bWa12 >= 0 && widthsOk && bEdges;
+      thirdsDetail = `1/3定位=${b1Ok} 2/3互补=${b2Ok} 会话=${!!bSess12} 屏底=${bWa12}ms `
+        + `宽=${b1r ? Math.round(b1r.right - b1r.left) : '?'}/${b2r ? Math.round(b2r.right - b2r.left) : '?'}/3=${Math.round(thirdW)} 贴边=${bEdges}`;
+      if (!r12.thirds) diag12.push(`1/3+2/3=${r12.thirds}（${thirdsDetail}）`);
+      // B 相收尾（R2/R3 定谳加固）：关宿主**核验退场**（残留即强杀）→ 清扫外来 Snap
+      // （Win+Z Assist 可能已把无关窗口 Snap 进位，磁带 members=3 实证）→ 会话必须
+      // 结束、工作区复原——残留成员会把会话拖住，P13/P5/P9/P10 全被翻
+      await closeSnapHosts(b1, b2);
+      const aliensB = await sweepAlienSnaps();
+      const bCleanWa = await waitMs(wsBarOk12, 5000);
+      r12.bClean = bCleanWa >= 0;
+      if (!r12.bClean) diag12.push(`B收尾=${r12.bClean}（外来清扫=${aliensB} 关宿主后会话未结束/工作区未复原=${bCleanWa}ms——成员残留）`);
+    }
+    if (r12.dual && r12.fgStable && r12.minOne && r12.minLast && r12.rebuild && r12.unsnapEnd && r12.thirds && r12.bClean) {
+      rep.pass(`P12 分屏会话集合生命周期与代表性布局：左右双窗统一进分屏收栏（会话+注销收栏存证在流、工作区屏底、两窗上下贴边）；`
+        + `普通前台轮换 5+ 拍零会话结束/零复原、Snap 窗矩形逐字不变；`
+        + `拖拽真解除其一仍维持、最后一个解除结束（cause=unsnapped）→ 复原；重 Snap 后最小化其一仍维持（a1 矩形不变）、`
+        + `最后一个最小化结束（cause=minimized）→ 复原；恢复即按当前事实重建；`
+        + `1/3+2/3 布局经同一判定收栏贴边（${thirdsDetail}）；收尾关宿主后会话结束、工作区复原`);
+    } else {
+      rep.fail(`P12 集合生命周期/布局未全绿：${JSON.stringify(r12)}；${diag12.join('；')}`);
+    }
+    }
+
+    // —— P13：虚拟桌面切换隔离与收栏理由接续（工单270 新增）——
+    // 断言面：
+    //   ① 四角布局统一判定（4 窗 Win+Left/Right × Win+Up/Down）→ 会话+收栏+四象限贴边；
+    //   ② 桌面切换隔离：Win+Ctrl+D 建新桌面并切过去 → 会话结束（cause=desktop-switched
+    //      可区分存证）+ 工作区复原（其他虚拟桌面的 cloaked Snap 窗不影响当前工作区）；
+    //      Ctrl+Win+Left 回原桌面 → 按该桌面实际布局重建会话（工作区回屏底）；
+    //      桌面清理：回新桌面 Win+Ctrl+F4 关掉，回原桌面（不留残留桌面）；
+    //   ③ 收栏理由接续：真最大化前台 + 会话 → 逐窗关闭（前三窗关闭维持）→ 最后一窗关闭
+    //      → 会话结束（cause=closed + retractHeldByZoomed=true、无 retract-lifted、工作区
+    //      保持屏底——不先恢复再收栏）；解除最大化 → 最后理由消失，单次复原。
+    rep.beginSegment('P13');
+    await waitMs(wsBarOk12, 5000);
+    await sweepAlienSnaps(); // 防御性清场（B 相收尾已扫，此处兜底——外来 Snap 会占住会话让四角建不起）
+    const r13 = { corners: false, dkEnd: false, dkBack: false, reasonHeld: false, reasonLift: false };
+    const diag13 = [];
+    const cornerTitles = ['DECK-ACCEPT-SNAP-C1', 'DECK-ACCEPT-SNAP-C2', 'DECK-ACCEPT-SNAP-C3', 'DECK-ACCEPT-SNAP-C4'];
+    const cornerProcs = cornerTitles.map((t) => spawnSnapPs(t)); // 并发起进程，逐个等句柄
+    const cw = [];
+    for (const p of cornerProcs) cw.push(await p);
+    const hw = cw.map((x) => x.hwnd);
+    if (hw.some((h) => !h)) {
+      rep.fail(`P13 四角参照窗未出现（${hw.map((h) => !!h).join(',')}——环境异常）`);
+    } else {
+    // ① 四角：Left/Right 定列 + Up/Down 定行
+    const sinceC = Date.now();
+    const chords13 = [
+      [VK_LEFT, VK_UP], [VK_RIGHT, VK_UP], [VK_LEFT, VK_DOWN], [VK_RIGHT, VK_DOWN],
+    ];
+    let cornerChordOk = true;
+    for (let i = 0; i < 4; i++) {
+      const ok = await chordUntil(hw[i], chords13[i][0], true) && await chordUntil(hw[i], chords13[i][1], true);
+      if (!ok) cornerChordOk = false;
+    }
+    forceForeground(hwndOf(neutralWin));
+    const cSess13 = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: sinceC, timeoutMs: 6000 });
+    const cWa13 = await waitMs(wsBottomOk12, 5000);
+    const cr = hw.map((h) => win32.rectOf(h));
+    const W13 = phys12.width, H13 = phys12.height, MID = 14;
+    const quadOk = cr.every((r) => !!r)
+      && cr[0].left >= -10 && cr[0].left <= 8 && Math.abs(cr[0].right - W13 / 2) <= MID && cr[0].top >= -10 && cr[0].top <= 8 && Math.abs(cr[0].bottom - H13 / 2) <= MID
+      && Math.abs(cr[1].left - W13 / 2) <= MID && cr[1].right >= W13 - 8 && cr[1].right <= W13 + 10 && cr[1].top >= -10 && cr[1].top <= 8 && Math.abs(cr[1].bottom - H13 / 2) <= MID
+      && cr[2].left >= -10 && cr[2].left <= 8 && Math.abs(cr[2].right - W13 / 2) <= MID && Math.abs(cr[2].top - H13 / 2) <= MID && cr[2].bottom >= H13 - 10 && cr[2].bottom <= H13 + 8
+      && Math.abs(cr[3].left - W13 / 2) <= MID && cr[3].right >= W13 - 8 && cr[3].right <= W13 + 10 && Math.abs(cr[3].top - H13 / 2) <= MID && cr[3].bottom >= H13 - 10 && cr[3].bottom <= H13 + 8;
+    r13.corners = cornerChordOk && !!cSess13 && cWa13 >= 0 && quadOk;
+    if (!r13.corners) diag13.push(`四角=${r13.corners}（和弦=${cornerChordOk} 会话=${!!cSess13} 屏底=${cWa13}ms 象限=${quadOk} ${JSON.stringify(cr)}）`);
+    // ② 桌面切换隔离 + 重建 + 清理（只在四角建起后做——四角窗是「原桌面布局」的标记）
+    if (r13.corners) {
+      const tDk = Date.now();
+      chordMods([VK_LWIN, VK_CONTROL], 0x44 /* D：建新桌面并切过去 */);
+      const dkEndEv13 = await tape.wait('taskbar-snap-session',
+        (e) => e.active === false && e.cause === 'desktop-switched', { since: tDk, timeoutMs: 8000 });
+      const dkWa13 = await waitMs(wsBarOk12, 6000);
+      r13.dkEnd = !!dkEndEv13 && dkWa13 >= 0;
+      if (!r13.dkEnd) diag13.push(`桌面结束=${r13.dkEnd}（存证=${!!dkEndEv13} 复原=${dkWa13}ms）`);
+      // 回原桌面：Ctrl+Win+Left 循环直到四角窗 C1 非 cloak（标记窗可见=回到原桌面）
+      let backPresses = 0;
+      let atHome = false;
+      for (let i = 0; i < 12; i++) {
+        chordMods([VK_LWIN, VK_CONTROL], VK_LEFT);
+        backPresses += 1;
+        await sleep(600);
+        if (!win32.isCloaked(hw[0])) { atHome = true; break; }
+      }
+      const dkReWa13 = atHome ? await waitMs(wsBottomOk12, 6000) : -1;
+      const lastSess13 = atHome ? tape.latest('taskbar-snap-session', () => true, {}) : null;
+      r13.dkBack = atHome && dkReWa13 >= 0 && !!(lastSess13 && lastSess13.active === true);
+      if (!r13.dkBack) diag13.push(`回桌重建=${r13.dkBack}（到家=${atHome} 按数=${backPresses} 屏底=${dkReWa13}ms 末次会话存证=${lastSess13 ? lastSess13.active : '无'}）`);
+      // 桌面清理：Right×backPresses 回我们建的新桌面（C1 又 cloak）→ Win+Ctrl+F4 关掉 → 回原桌面
+      try {
+        if (atHome) {
+          for (let i = 0; i < backPresses; i++) {
+            chordMods([VK_LWIN, VK_CONTROL], VK_RIGHT);
+            await sleep(500);
+          }
+          if (win32.isCloaked(hw[0])) {
+            chordMods([VK_LWIN, VK_CONTROL], 0x73 /* F4：关闭当前（我们建的空）桌面 */);
+            await sleep(700);
+          }
+          for (let i = 0; i < 12 && win32.isCloaked(hw[0]); i++) {
+            chordMods([VK_LWIN, VK_CONTROL], VK_LEFT);
+            await sleep(600);
+          }
+        }
+      } catch { /* 清理尽力而为——残留空桌面不构成断言面 */ }
+    }
+    // ③ 收栏理由接续：真最大化前台在场时结束会话——收栏由 zoomed 接续（不先恢复再收栏）
+    if (r13.corners) {
+      const maxWin13 = new BrowserWindow({ width: 900, height: 600, title: 'DECK-ACCEPT-MAX-13', backgroundColor: '#101010' });
+      refWins.push(maxWin13);
+      await maxWin13.loadURL('about:blank');
+      maxWin13.maximize();
+      forceForeground(hwndOf(maxWin13));
+      const fg13 = await waitMs(() => Number(win32.GetForegroundWindow()) === hwndOf(maxWin13), 4000);
+      await sleep(1000); // 等轮询拍吃进「zoomed+会话并存」（同档零迁移）
+      const tClose13 = Date.now();
+      // 前三窗逐个关闭：会话由剩余成员维持（工作区保持屏底）
+      for (const h of [hw[0], hw[1], hw[2]]) {
+        win32.PostMessageW(h, WM_CLOSE, 0, 0);
+        await sleep(900);
+      }
+      const midHeld13 = wsBottomOk12();
+      // 最后一窗关闭：会话结束（cause=closed）+ retractHeldByZoomed（zoomed 接续持有收栏档）
+      win32.PostMessageW(hw[3], WM_CLOSE, 0, 0);
+      const endEv13 = await tape.wait('taskbar-snap-session',
+        (e) => e.active === false && e.cause === 'closed' && e.retractHeldByZoomed === true, { since: tClose13, timeoutMs: 6000 });
+      const noLift13 = tape.all('taskbar-retract-lifted', undefined, { since: tClose13 }).length === 0;
+      const noRe13 = tape.all('taskbar-retract', undefined, { since: tClose13 }).length === 0;
+      const wsHeld13 = wsBottomOk12();
+      r13.reasonHeld = fg13 >= 0 && midHeld13 && !!endEv13 && noLift13 && noRe13 && wsHeld13;
+      if (!r13.reasonHeld) diag13.push(`理由接续持有=${r13.reasonHeld}（前台=${fg13 >= 0} 三关后屏底=${midHeld13} 结束存证=${!!endEv13} 零lift=${noLift13} 零re-收栏=${noRe13} 屏底保持=${wsHeld13}）`);
+      // 解除最大化 → 最后理由消失 → 单次复原
+      const tUnmax13 = Date.now();
+      maxWin13.unmaximize();
+      const liftEv13 = await tape.wait('taskbar-retract-lifted',
+        (e) => e.appBar === 'registered', { since: tUnmax13, timeoutMs: 6000 });
+      const liftWa13 = await waitMs(wsBarOk12, 5000);
+      r13.reasonLift = !!liftEv13 && liftWa13 >= 0;
+      if (!r13.reasonLift) diag13.push(`最后复原=${r13.reasonLift}（lift存证=${!!liftEv13} 复原=${liftWa13}ms）`);
+      maxWin13.destroy();
+    }
+    if (r13.corners && r13.dkEnd && r13.dkBack && r13.reasonHeld && r13.reasonLift) {
+      rep.pass(`P13 虚拟桌面切换隔离与收栏理由接续：四角布局统一进分屏收栏（四象限贴边、工作区屏底）；`
+        + `Win+Ctrl+D 切新桌面 → 会话结束（cause=desktop-switched）+ 工作区复原；Ctrl+Win+Left 回原桌面 → 按该桌面布局重建（工作区回屏底）；桌面已清理；`
+        + `真最大化前台期间逐窗关闭 → 会话结束（cause=closed + retractHeldByZoomed=true）且零 retract-lifted、工作区保持屏底（不先恢复再收栏）；`
+        + `解除最大化 → 最后理由消失单次复原`);
+    } else {
+      rep.fail(`P13 桌面隔离/理由接续未全绿：${JSON.stringify(r13)}；${diag13.join('；')}`);
+    }
+    // P13 收尾（R2/R3 定谳加固——无论断言成败都执行）：关四角宿主并核验退场（残留即
+    // 强杀）→ 清扫外来 Snap → 等会话结束、工作区复原；残留成员会把会话拖住翻掉 P5/P9/P10
+    await closeSnapHosts(...cw);
+    await sweepAlienSnaps();
+    await waitMs(wsBarOk12, 5000);
+    }
 
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
     rep.beginSegment('P5');
