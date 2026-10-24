@@ -64,3 +64,32 @@ export function planRestore(attempt: number, outcome: RestoreAttemptOutcome): Re
   if (next > RESTORE_MAX_ATTEMPTS) return { action: 'done', outcome: terminal, attempt: current }
   return { action: 'retry', delayMs: RESTORE_RETRY_BACKOFF_MS[current - 1], attempt: next }
 }
+
+/* ================================================================
+ * appbar 状态复原的兜底裁决（工单260 原生栏托管：还原路径①扩展）
+ * ================================================================ */
+
+/**
+ * 一拍 appbar 状态复原尝试的结果（读回事实裁决，效果层喂入）：
+ * - restored：ABM_SETSTATE 后读回与原状态相等——复原到位；
+ * - mismatch：读回仍不一致（explorer 忙/重建窗口竞态等）——可重试。
+ */
+export type AppBarStateRestoreOutcome = 'restored' | 'mismatch'
+
+/** appbar 状态复原的裁决（与可见性复原同一张退避表、同形决策面） */
+export type AppBarStateRestoreDecision =
+  | { action: 'retry'; delayMs: number; attempt: number }
+  | { action: 'done'; outcome: 'restored' | 'failed'; attempt: number }
+
+/**
+ * 一拍之后的裁决（工单260）：读回一致即终局；不一致按退避表重试（有限次、终局有界
+ * ——与可见性复原共享节奏，两笔账同拍推进不各走各的表）；退避表走完 = 终局失败。
+ * attempt 从 1 起，返回值里的 attempt 是**下一拍**的拍号（retry 时）。
+ */
+export function planAppBarStateRestore(attempt: number, outcome: AppBarStateRestoreOutcome): AppBarStateRestoreDecision {
+  if (outcome === 'restored') return { action: 'done', outcome: 'restored', attempt }
+  const current = attempt < 1 ? 1 : attempt
+  const next = current + 1
+  if (next > RESTORE_MAX_ATTEMPTS) return { action: 'done', outcome: 'failed', attempt: current }
+  return { action: 'retry', delayMs: RESTORE_RETRY_BACKOFF_MS[current - 1], attempt: next }
+}
