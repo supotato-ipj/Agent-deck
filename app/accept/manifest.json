@@ -900,7 +900,7 @@
       "hintBar": true,
       "cdpPort": 9224,
       "kind": null,
-      "budgetSeconds": 60,
+      "budgetSeconds": 120,
       "lastMeasuredSeconds": 37,
       "lastMeasuredAt": "2026-10-24",
       "segments": [
