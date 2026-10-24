@@ -1002,9 +1002,9 @@
       "hintBar": true,
       "cdpPort": null,
       "kind": null,
-      "budgetSeconds": 120,
-      "lastMeasuredSeconds": 45,
-      "lastMeasuredAt": "2026-10-24",
+      "budgetSeconds": 180,
+      "lastMeasuredSeconds": 128,
+      "lastMeasuredAt": "2026-10-25",
       "segments": [
         {
           "seg": "P1",
@@ -1118,6 +1118,62 @@
             "event-evidence"
           ],
           "estSeconds": 14,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P11",
+          "ticket": 269,
+          "title": "分屏收栏单窗最小闭环（工单269）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 8,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P12",
+          "ticket": 270,
+          "title": "分屏会话集合生命周期与代表性布局（工单270）：左右双窗与三分之一加三分之二统一进入分屏收栏并上下贴边（同一真 Snap 判定，无布局专用分支）；普通前台轮换不打断（Snap 窗矩形逐字不变、工作区保持屏底）；最小化其一仍维持、最后一个最小化才结束（cause=minimized 可区分存证）且恢复即按当前事实重建；最后一个解除结束（cause=unsnapped）并复原",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 32,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P13",
+          "ticket": 270,
+          "title": "虚拟桌面切换隔离与收栏理由接续（工单270）：四角布局统一判定进分屏收栏（四象限贴边）；Win+Ctrl+D 切新桌面→会话结束（cause=desktop-switched）+工作区复原，Ctrl+Win+Left 回原桌面按该桌面实际布局重建；真最大化前台期间关闭全部 Snap 窗→会话结束（cause=closed + retractHeldByZoomed=true、零 retract-lifted、工作区保持屏底——不先恢复再收栏），解除最大化才单次复原",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 18,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P14",
+          "ticket": 271,
+          "title": "全屏让位与分屏会话解耦（工单271）：分屏后台收栏上全屏进入→整条栏隐藏且 taskbar-yield appBar=kept（占位保持释放、原生栏托管不中断——零 retract-lifted）、工作区保持屏底、后台 Snap 窗矩形逐字不变；覆盖期会话存续退出全屏→仅 yield-lifted、分屏唤出条直接回归（条带回场、零 retract 族、工作区仍屏底、Snap 矩形不变），重进全屏 appBar=kept 幂等（工单271 评审收口，判据 3 前半）；覆盖期间结束会话（active=false）零 lift、工作区仍屏底（理由消失不当场复原）；退出全屏按既有路径恢复常驻（yield-lifted + retract-lifted appBar=registered、工作区回一栏高）；最大化临时覆盖不结束分屏会话（零新存证、条带在场、Snap 矩形不变），解除后分屏收栏直接恢复（幂等零迁移）",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 20,
           "areas": [
             "taskbar"
           ]
