@@ -917,35 +917,35 @@
         {
           "seg": "A2",
           "ticket": 50,
-          "title": "正常退出（WM_CLOSE）：原生任务栏还原、守卫随退",
+          "title": "正常退出（WM_CLOSE，收栏置位态出发）：原生任务栏还原 + appbar 状态复原（工单261 路径① dispose 还账/守卫接手）",
           "surfaces": [
             "panel-alive",
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 5
+          "estSeconds": 8
         },
         {
           "seg": "A3",
           "ticket": 50,
-          "title": "崩溃路径（taskkill 面板树守卫存活）：panel-exit 还原",
+          "title": "崩溃路径（taskkill 面板树守卫存活，置位态出发）：panel-exit 双兜底——可见性 SW_SHOW + appbar 落盘账复原（工单261 路径②）",
           "surfaces": [
             "panel-alive",
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 5
+          "estSeconds": 8
         },
         {
           "seg": "A4",
           "ticket": 50,
-          "title": "进程被杀路径（守卫+面板同杀）：还原守护 guard-dead 翻回后自退",
+          "title": "进程被杀路径（守卫+面板同杀，置位态出发）：还原守护 guard-dead 双兜底 + 自退（工单261 路径③ appbar 落盘账）",
           "surfaces": [
             "panel-alive",
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 6
+          "estSeconds": 9
         },
         {
           "seg": "B1",
@@ -978,7 +978,7 @@
         {
           "seg": "C2",
           "ticket": 260,
-          "title": "maximizeRetract=off 不置位：全电池 config 钉 off——置位事件零条（taskbar-autohide-* 全零）+ 退出后 appbar 状态 = 开跑前基线（控制器独立读数）",
+          "title": "maximizeRetract=off 不置位（工单261 收口 B 相位口径）：B 相位起置位事件零条 + 退出后 appbar 状态 = 开跑前基线（控制器独立读数）",
           "surfaces": [
             "system-state",
             "event-evidence"
