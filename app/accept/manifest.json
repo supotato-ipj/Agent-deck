@@ -837,7 +837,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 4,
+          "estSeconds": 7,
           "areas": [
             "taskbar",
             "taskbar.menu"
@@ -880,7 +880,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 3,
+          "estSeconds": 8,
           "areas": [
             "taskbar",
             "taskbar.menu"
@@ -1156,7 +1156,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 2
+          "estSeconds": 6
         },
         {
           "seg": "P4",
@@ -1176,7 +1176,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 4
+          "estSeconds": 7
         },
         {
           "seg": "P6",
