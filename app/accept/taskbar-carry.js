@@ -11,7 +11,9 @@
 //   阶段B（--panel-accept + CDP，逃生开关真机链路）：
 //     B1 设置浮层关开关 → 原生任务栏即还原、条带销毁、config 落盘
 //     B2 再开 → 原生任务栏再隐、条带回来
-//   阶段C 偏好不扰：全程比对 StuckRects3 Settings（自动隐藏等任务栏偏好）字节不变。
+//   阶段C 偏好不扰（工单260 措辞收口）：首末两点比对 StuckRects3 Settings（自动隐藏等
+//      任务栏偏好）——断言「面板生命周期结束后字节复原」（C1 纪律口径，spec #258：
+//      实现本为首末两点比对，措辞与实现对齐）。
 // 运行：npm run accept:taskbar-carry（= electron . --accept-taskbar-carry）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（守卫链抢单实例锁，与常驻面板互斥）。
 const { app, screen } = require('electron');
@@ -323,13 +325,15 @@ async function runSegments() {
       await sleep(500);
       try { ensureNativeTaskbarVisible(); } catch { /* 兜底中的兜底也不许抛 */ }
       try { restoreConfig(originalConfig); } catch { /* 尽力（三态还原，工单124：缺位来、缺位去） */ }
-      // C1 偏好不扰（工单50）：清场收尾时比对用户既有任务栏偏好字节不变
+      // C1 偏好不扰（工单50；工单260 措辞收口）：清场收尾时首末两点比对用户既有任务栏
+      // 偏好——断言「面板生命周期结束后字节复原」（收栏置位 ABS_AUTOHIDE 不回写注册表，
+      // spike 取证 StuckRects3 三点全等，docs/audit/2026-10-24-t257-autohide-setstate-probe.md）
       rep.beginSegment('C1');
       const prefsAfter = stuckRectsSettings();
       if (prefsAfter === prefsBefore) {
-        rep.pass('C1 用户既有任务栏偏好未被改写（StuckRects3 Settings 全程字节不变）');
+        rep.pass('C1 用户任务栏偏好退出后字节复原（StuckRects3 Settings 首末两点一致——「面板生命周期结束后字节复原」口径）');
       } else {
-        rep.fail(`C1 任务栏偏好被扰动：before=${JSON.stringify(prefsBefore)} after=${JSON.stringify(prefsAfter)}`);
+        rep.fail(`C1 任务栏偏好未被复原：before=${JSON.stringify(prefsBefore)} after=${JSON.stringify(prefsAfter)}`);
       }
       try {
         (await waitNativeVisible(true, 5000))

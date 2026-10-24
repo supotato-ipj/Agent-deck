@@ -969,7 +969,7 @@
         {
           "seg": "C1",
           "ticket": 50,
-          "title": "偏好不扰：StuckRects3 Settings 全程字节不变",
+          "title": "偏好不扰（工单260 措辞收口）：StuckRects3 Settings 面板生命周期结束后字节复原（首末两点比对，与实现对齐）",
           "surfaces": [
             "system-state"
           ],
@@ -1035,12 +1035,12 @@
         {
           "seg": "P6",
           "ticket": 244,
-          "title": "最大化收栏：前台真最大化窗 → 注销 AppBar（taskbar-retract appBar=removed + taskbar-appbar-removed 存证）→ 占位释放；解除最大化 → 重注册（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 占位恢复",
+          "title": "最大化收栏（工单260 改段不变式）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 复原（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 工作区回一栏高",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 4,
+          "estSeconds": 8,
           "areas": [
             "taskbar"
           ]
@@ -1048,12 +1048,12 @@
         {
           "seg": "P7",
           "ticket": 244,
-          "title": "三态优先级：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed）",
+          "title": "三态优先级（工单260 随动不变式）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 复原置位→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 4,
+          "estSeconds": 8,
           "areas": [
             "taskbar"
           ]
