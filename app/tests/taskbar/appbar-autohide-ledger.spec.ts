@@ -122,4 +122,26 @@ describe('appbar 还原账：路径① 面板侧接线（工单261）', () => {
     expect(existsSync(ledgerFileOf(dir))).toBe(false)
     expect(events.find((e) => e.type === 'taskbar-autohide-restored')).toMatchObject({ attempts: 2 })
   })
+
+  it('复原退避在途再置位 → 账不投毒：previous 仍是用户原状态（非未复原的置位态），旧重试作废', async () => {
+    vi.useFakeTimers()
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    ff.state = 0x2 // 用户原状态：ALWAYSONTOP（无自动隐藏位）
+    m.engageRetractAutoHide(log as never) // 置位 → 0x3，账 { previous: 2 }
+    ff.ignoreSets = 1 // 复原第一拍 SETSTATE 落空 → 读回仍 0x3 → 排退避重试（在途）
+    m.restoreRetractAutoHide(log as never, 'dispose')
+    // 退避窗内快速再收栏：此刻系统态 0x3（尚未复原成功）——记账必须仍取账面 0x2
+    m.engageRetractAutoHide(log as never)
+    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 2 })
+    expect(events.filter((e) => e.type === 'taskbar-autohide-set').map((e) => e.previous)).toEqual([2, 2])
+    expect(m.retractAutoHideEngaged()).toBe(true)
+    // 旧复原重试必须已作废：退避表走完也不得把新置位翻回去（0x3 保持、无 restored 存证）
+    await vi.runAllTimersAsync()
+    expect(events.find((e) => e.type === 'taskbar-autohide-restored')).toBeUndefined()
+    expect(ff.state).toBe(0x3)
+    // 终局复原照账面 0x2 兑付（用户原状态未因再置位丢失）
+    m.restoreRetractAutoHide(log as never, 'dispose')
+    expect(events.find((e) => e.type === 'taskbar-autohide-restored')).toMatchObject({ state: 0x2 })
+  })
 })

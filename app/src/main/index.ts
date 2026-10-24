@@ -415,8 +415,14 @@ if (RESTORE_MODE) {
     })
     child.on('exit', (code) => {
       // 面板退出（含崩溃/强杀——taskkill /T 杀不到父级守卫）：等 appbar 账退避走完
-      // 再随面板退出码退场（工单261；50 电池 A3 的 panel-exit 径）。
-      void restoreCarry('panel-exit').then(() => {
+      // 再随面板退出码退场（工单261；50 电池 A3 的 panel-exit 径）。finally 兜底与其余
+      // 两径对齐：restoreCarry 一旦 reject（清账 rmSync 遇 Windows 文件锁、FFI 抛错），
+      // app.exit 也必须执行——否则守卫变僵尸进程吊住不放、还原守护（盯守卫 pid）永不
+      // 触发；拒绝落存证，不无声。
+      void restoreCarry('panel-exit').then(
+        undefined,
+        (err) => { log?.append({ type: 'carry-restore-failed', reason: 'panel-exit', message: String(err) }) },
+      ).finally(() => {
         log?.append({ type: 'carry-exit', code: code ?? 0 })
         app.exit(code ?? 0)
       })

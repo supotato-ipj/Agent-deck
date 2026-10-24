@@ -511,15 +511,19 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const destroy = (reason: string) => {
     // 原生栏重申轮询停表（工单262）：拆场先停观察再动复原账——重申不得在拆场中途再压一笔
     if (session) stopNativeWatch(session)
+    // 原生栏托管复原（工单260，还原路径①）：收栏态下退出（禁用/退役/dispose）也要还
+    // appbar 状态账——RAII 账与窗现任无关，退避重试异步推进不拖住销窗；未置位则静默。
+    // **先于可见性复原**（顺序即行为，与守卫/守护径同源——restore-ledger-wiring 的钉序
+    // 理由）：置位态下 explorer 可翻开 Shell_TrayWnd 的 WS_VISIBLE 位（「窗口显示位」
+    // ≠「视觉在场」），可见性判据会被「已可见」骗成静默；先卸置位，可见性复原才做真工作
+    // （51 电池 P9 的面板侧径）。
+    restoreRetractAutoHide(log, reason)
     // 还原先于会话判空：hidNative 账独立于窗存续（窗被外部先销/建窗半途抛错
     // 都不能把「我藏的原生任务栏」赖成孤儿账——code-review 工单50 收口）
     if (hidNative) {
       hidNative = false
       showNativeTaskbar(log, reason)
     }
-    // 原生栏托管复原（工单260，还原路径①）：收栏态下退出（禁用/退役/dispose）也要还
-    // appbar 状态账——RAII 账与窗现任无关，退避重试异步推进不拖住销窗；未置位则静默。
-    restoreRetractAutoHide(log, reason)
     // 托盘让位闸门随控制器收摊（工单194）：侦测定时器随窗灭，不让位账悬空
     endTrayYield('session-gone', null)
     const s = session
