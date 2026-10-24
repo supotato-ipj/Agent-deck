@@ -319,11 +319,14 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     s.mode = 'visible' // 档位归零（窗在场期间的状态切换——会话账随窗生灭，不另立一套）
   }
 
-  /** 原生栏一拍观察采齐（工单262）：句柄/可见性走 native.ts 单一来源，置位走读回事实 */
-  const nativeWatchProbe = (): NativeWatchProbe => ({
-    ...nativeTaskbarView(),
-    autoHideOn: (getAppBarState() & ABS_AUTOHIDE) !== 0,
-  })
+  /** 原生栏一拍观察采齐（工单262）：句柄/可见性走 native.ts 单一来源，置位走读回事实。
+   *  窗口缺位拍跳过状态读——机器不读该字段，也不对死亡/重启中的 shell 发状态查询
+   *  （51 电池 P10 实测：对新起 explorer 的 SHAppBarMessage 阻塞秒级，间隙拍白等）。 */
+  const nativeWatchProbe = (): NativeWatchProbe => {
+    const view = nativeTaskbarView()
+    if (view.hwnd === 0) return { ...view, autoHideOn: undefined }
+    return { ...view, autoHideOn: (getAppBarState() & ABS_AUTOHIDE) !== 0 }
+  }
 
   /**
    * 原生栏重申轮询一拍（工单262）：观察喂机器、照单执行重挂、归因落存证。
