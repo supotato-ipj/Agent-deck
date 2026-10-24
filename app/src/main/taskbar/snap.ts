@@ -296,9 +296,13 @@ function traitsOf(b: Bound, hwnd: number): { toolWindow: boolean; owned: boolean
 
 /**
  * 采集一拍真 Snap 候选事实（链式枚举，不用 EnumWindows 回调——windows.ts 同款纪律）。
- * 成本口径：逐窗只付 IsWindowVisible + IsWindowArranged 两次廉价 user32 调用；身份与
- * 特征采集（OpenProcess/exe/标题/cloaked）只对 arranged=true 的窗付（Snap 窗常态 0–4 枚）。
- * 识别不可用 ⇒ 零事实 + available=false（调用方据此只关分屏收栏并落诊断）。
+ * 成本口径（量测在案，docs/audit/2026-10-25-t267-snap-probe-beat-cost.md，t267 实测）：
+ * 逐窗只付 IsWindowVisible + IsWindowArranged 两次 user32 调用——本机常态一拍 0.374ms
+ * （495 扫描窗/17 可见窗，40 拍均值，占 250ms 轮询间隔 0.15%），MAX_WINDOWS=2048 护栏
+ * 外推 ≤5ms/拍（~2% 间隔，与评审给的 ~1.6% CPU 量级同数量级）；身份与特征采集
+ * （OpenProcess/exe/标题/cloaked，实测 58.4µs/窗）只对 arranged=true 或追踪集内的窗付
+ * （Snap 窗常态 0–4 枚，整拍增量 ≤0.25ms）。识别不可用 ⇒ 零事实 + available=false
+ * （调用方据此只关分屏收栏并落诊断）。
  *
  * 成员追踪集（工单270）：track 里的句柄（上一拍合格成员）即便已解除 Snap 也照采全量
  * 事实——结束因果分类要看它们的去向（最小化/解除/换桌面仍在列，已关闭才从枚举消失）；

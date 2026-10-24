@@ -22,6 +22,8 @@ import {
   reduceSummon,
   reduceSummonSequence,
   resolveBarMode,
+  retractGateDisqualified,
+  retractHeldByZoomed,
   retractReasonHeld,
   summonedGroups,
 } from '../../src/shared/retract'
@@ -492,6 +494,7 @@ describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序
     expect(planBarTransition('maximize-retract', 'maximize-retract')).toEqual({
       releaseAppBar: false, engageAutoHide: false, restoreAutoHide: false,
       claimAppBar: false, hideWindow: false, showWindow: false, closePopups: false, evidence: [],
+      targetWorkspaceRetracted: true, // 同态 = 账面原样保持（收栏档在账）
     })
     const r = runTicks([
       { zoomed: true, session: true },
@@ -1002,5 +1005,65 @@ describe('retractReasonHeld 工作区收栏理由持有（工单271）', () => {
         }
       }
     }
+  })
+})
+
+/* ================================================================
+ * retractGateDisqualified / retractHeldByZoomed（工单271 评审收口②⑤）
+ * ================================================================ */
+
+describe('retractGateDisqualified 两道闸门失格谓词（工单271 评审收口②）', () => {
+  it('开关关或降级档任一即失格；两道全开不失格（与 retractReasonHeld 闸门支同源）', () => {
+    expect(retractGateDisqualified({ retractEnabled: true, appBarDegraded: false })).toBe(false)
+    expect(retractGateDisqualified({ retractEnabled: false, appBarDegraded: false })).toBe(true)
+    expect(retractGateDisqualified({ retractEnabled: true, appBarDegraded: true })).toBe(true)
+    expect(retractGateDisqualified({ retractEnabled: false, appBarDegraded: true })).toBe(true)
+  })
+
+  it('与 retractReasonHeld 的分野：闸门失格与理由自然消失在理由维度同为 false——本谓词是把「失格」从「自然消失」里分出来的裁决面', () => {
+    // 闸门失格：held=false 且 gate 失格 ⇒ 同态让位拍交割（用户故事 27）
+    const gated = { ...baseInput, retractEnabled: false, probe: probeOf('fullscreen'), snapSessionActive: true }
+    expect(retractReasonHeld(gated)).toBe(false)
+    expect(retractGateDisqualified(gated)).toBe(true)
+    // 理由自然消失（会话结束）：held=false 且 gate 未失格 ⇒ 同态让位拍维持冻结（P14③）
+    const natural = { ...baseInput, retractEnabled: true, probe: probeOf('fullscreen'), snapSessionActive: false }
+    expect(retractReasonHeld(natural)).toBe(false)
+    expect(retractGateDisqualified(natural)).toBe(false)
+  })
+})
+
+describe('retractHeldByZoomed zoomed 分量谓词（工单271 评审收口⑤）', () => {
+  it('真最大化前台在场（过闸、非自家、非桌面宿主）→ true——会话结束拍的「zoomed 接续」判据', () => {
+    expect(retractHeldByZoomed({ ...baseInput, probe: probeOf('maximized') })).toBe(true)
+    expect(retractHeldByZoomed({ ...baseInput, probe: probeOf('maximized'), snapSessionActive: true })).toBe(true)
+  })
+
+  it('自家进程前台（浮层夺前台的 prevMode 保持拍）→ false——「无理由持有」不再误记为 zoomed 接续', () => {
+    // 工单253 场景：浮层开层取前台，档位按 prevMode 保持收栏；probe 是自家进程 ⇒ 非.zoomed 接续
+    expect(retractHeldByZoomed({
+      ...baseInput,
+      probe: probe({ pid: OWN_PID, zoomed: true }),
+      prevMode: 'maximize-retract',
+      ownOverlayPresent: true,
+    })).toBe(false)
+  })
+
+  it('桌面宿主 / 探针缺位 / 普通窗 → false（排除族与 retractReasonHeld 的 zoomed 支同族）', () => {
+    expect(retractHeldByZoomed({ ...baseInput, probe: probe({ className: 'Progman', zoomed: true }) })).toBe(false)
+    expect(retractHeldByZoomed({ ...baseInput, probe: null })).toBe(false)
+    expect(retractHeldByZoomed({ ...baseInput, probe: probeOf('normal') })).toBe(false)
+  })
+
+  it('两道闸门失格 → false（没有任何理由在持有时不记接续）', () => {
+    expect(retractHeldByZoomed({ ...baseInput, retractEnabled: false, probe: probeOf('maximized') })).toBe(false)
+    expect(retractHeldByZoomed({ ...baseInput, appBarDegraded: true, probe: probeOf('maximized') })).toBe(false)
+  })
+
+  it('会话理由接续拍（无 zoomed）→ false——zoomed 分量与分屏会话分量可分（不冒充）', () => {
+    expect(retractHeldByZoomed({
+      ...baseInput,
+      probe: probeOf('normal'),
+      snapSessionActive: true,
+    })).toBe(false)
   })
 })
