@@ -14,6 +14,11 @@ function inElectronRuntime(): boolean {
 
 /** userData 下的子路径（如 layout.json、usage/） */
 export function userDataPath(...segments: string[]): string {
+  // 兜底走 LOCALAPPDATA（工单06 离线纪律：内核级单测的默认落点必须是无人使用的隔离
+  // 目录——Electron 真 userData 是 %APPDATA%\agent-deck-panel，与本机常驻面板共享，
+  // 离线测试读写它会互相污染，工单261 实证：contract.spec 的默认 store 读到真面板
+  // taskbar-layout.json 的电池残留）。还原守护（ELECTRON_RUN_AS_NODE）需要与真
+  // userData 同址的推导路径，由 appbar-ledger 自带专用解析，不走本兜底。
   const fallback = () => path.join(process.env.LOCALAPPDATA ?? process.cwd(), 'agent-deck-panel', ...segments)
   if (!inElectronRuntime()) return fallback()
   try {

@@ -16,6 +16,7 @@ import { attachLagSentinel, panelLabels } from './lag-sentinel'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
 import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/native'
+import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { userDataPath } from './paths'
@@ -342,11 +343,17 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
 if (RESTORE_MODE) {
   // 一次性恢复入口（--icon-restore）：确保原生图标与原生任务栏可见。电池清场兜底
   // 与用户自救通道（工单50 起任务栏同通道）；不抢单实例锁（面板可能在跑，恢复与其互不影响）。
+  // 工单261（还原账全路径扩展）：appbar 落盘账同通道消费——置位态滞留（守护双兜底均
+  // 失败的 freak 现场）时用户有自救出口。appbar 复原先于 forceShowNativeTaskbar：
+  // 置位态翻开 Shell_TrayWnd 的 WS_VISIBLE 位（spike 附记「窗口显示位」≠「视觉在场」），
+  // 后行会被「已可见」骗过；先卸置位，可见性兜底才做真工作。异步退避有界（<3s），走完再退场。
   const log = fileEventLog(process.env.DECK_EVENT_LOG)
   log?.append({ type: 'carry-boot', pid: process.pid, mode: 'restore' })
   forceShowIcons(log)
-  forceShowNativeTaskbar(log)
-  app.exit(0)
+  void restoreAppBarStateFromLedger(log, 'force').finally(() => {
+    forceShowNativeTaskbar(log)
+    app.exit(0)
+  })
 } else if (!IS_CONTROLLER_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
@@ -363,14 +370,22 @@ if (RESTORE_MODE) {
     const carry = new IconCarry(log)
     log?.append({ type: 'carry-boot', pid: process.pid, mode: 'carry' })
     carry.begin()
-    // 还原双兜底（工单50）：图标走 IconCarry（「本次由我隐藏」标记 + 视图事实），
-    // 原生任务栏走视图事实兜底（隐藏动作在面板侧任务栏窗控制器，守卫查不到它的
-    // 内存标记——隐藏态才翻回，可见绝不动）。两路幂等，多出口共用。
-    const restoreCarry = (reason: string) => {
+    // 还原三兜底（工单50 图标/可见性；工单261 appbar 落盘账）：
+    // - appbar 账复原**先行**（顺序即行为）：收栏置位态 explorer 翻开 Shell_TrayWnd 的
+    //   WS_VISIBLE 位（spike 附记「窗口显示位」≠「视觉在场」），后行会被「已可见」骗过
+    //   可见性判据；先卸置位，可见性兜底才做真工作并落 taskbar-restored 存证。
+    // - 账复原是异步退避（有限次、终局有界 <3s）——调用方等它走完再 app.exit
+    //   （否则退避定时器随进程蒸发，账白记）。
+    const restoreCarry = async (reason: string) => {
+      await restoreAppBarStateFromLedger(log, reason)
       carry.restore(reason)
       restoreNativeTaskbarIfHidden(log, reason)
     }
-    app.on('before-quit', () => restoreCarry('outer-quit'))
+    app.on('before-quit', (e) => {
+      // outer-quit 径等账走完再退场：preventDefault 挡默认退出序列，退避终局后显式 exit
+      e.preventDefault()
+      void restoreCarry('outer-quit').finally(() => app.exit(0))
+    })
     // 控制台信号缝隙（2026-09-28，09 票人工核验时踩到）：Ctrl+C / Ctrl+Break / 关终端窗由
     // conhost 同发守卫与面板，Electron 主进程在 Windows 下 process.on('SIGINT'|'SIGBREAK')
     // 不触发（真机实证：CTRL_BREAK 经 GenerateConsoleCtrlEvent 送达后整树死亡、Node 信号
@@ -396,13 +411,15 @@ if (RESTORE_MODE) {
     })
     child.on('error', (err) => {
       console.error('[deck] 面板拉起失败:', err)
-      restoreCarry('panel-spawn-failed')
-      app.exit(1)
+      void restoreCarry('panel-spawn-failed').finally(() => app.exit(1))
     })
     child.on('exit', (code) => {
-      restoreCarry('panel-exit')
-      log?.append({ type: 'carry-exit', code: code ?? 0 })
-      app.exit(code ?? 0)
+      // 面板退出（含崩溃/强杀——taskkill /T 杀不到父级守卫）：等 appbar 账退避走完
+      // 再随面板退出码退场（工单261；50 电池 A3 的 panel-exit 径）。
+      void restoreCarry('panel-exit').then(() => {
+        log?.append({ type: 'carry-exit', code: code ?? 0 })
+        app.exit(code ?? 0)
+      })
     })
   }
 } else if (!IS_CONTROLLER_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
