@@ -355,13 +355,15 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(src).toMatch(/retractAutoHideState\(/) // 目标值来自纯函数（不自算位运算）
     expect(src).toMatch(/planAppBarStateRestore\(/) // 退避裁决走 native-restore 纯函数
     expect(src).toMatch(/getAppBarState\(\)/) // 读回验证以视图事实为准
-    // 兜底复原单点：setAppBarState 的调用点全仓只在 appbar-autohide.ts（appbar.ts 只出定义）
+    // setAppBarState 调用点闭集（工单261 扩）：路径① RAII（appbar-autohide）+ 路径②③
+    // 落盘账复原（appbar-ledger——守卫/守护从账读复原目标，票面「还原账全路径扩展」）。
+    // 闭集之外零调用：SETSTATE 是系统级状态写，不许第三处自行动笔。
     const callers: string[] = []
     for (const rel of SRC_FILES) {
       const c = codeOf(rel).replace(/export function setAppBarState\([^)]*\): void \{/, '')
       if (/setAppBarState\(/.test(c)) callers.push(rel)
     }
-    expect(callers).toEqual([AUTOHIDE])
+    expect(callers.sort()).toEqual([AUTOHIDE, 'app/src/main/taskbar/appbar-ledger.ts'].sort())
   })
 
   it('koffi 绑定：ABM_GETSTATE/ABM_SETSTATE 常量与封装在 appbar.ts（shellapi 官方值 4/10）', () => {
