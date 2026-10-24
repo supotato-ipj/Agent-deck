@@ -1003,7 +1003,7 @@
       "cdpPort": null,
       "kind": null,
       "budgetSeconds": 180,
-      "lastMeasuredSeconds": 55,
+      "lastMeasuredSeconds": 139,
       "lastMeasuredAt": "2026-10-24",
       "segments": [
         {
@@ -1145,7 +1145,7 @@
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 30,
+          "estSeconds": 32,
           "areas": [
             "taskbar"
           ]
@@ -1159,7 +1159,7 @@
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 30,
+          "estSeconds": 18,
           "areas": [
             "taskbar"
           ]
