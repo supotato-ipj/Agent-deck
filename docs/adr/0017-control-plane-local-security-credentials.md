@@ -79,3 +79,11 @@ Status: accepted
 ## 补记（票 #74 决完后，2026-10-24）
 
 Consequences 中《对话窗驱动后端 agent 的接入协议》的两项要求已由 ADR-0018 履行：会话结束与进程退出通知凭证登记处；宿主重拉后原会话只能聊天，恢复管理必须新建管理型会话。
+
+## 补记（票 #73 决完后，2026-10-25）
+
+Consequences 中《agent 写入插件包的契约与 capability 授予》的要求已由 ADR-0019 履行：
+
+- 插件包进入**每包独立、由主进程登记的执行上下文**；`tier` 与 `pluginId` 只从通道绑定推导，`host.view`（快照段）、`host.config`（私有状态）与 invoke 窄面都在这个绑定上裁剪，manifest 与调用参数不能自报。
+- 投放型插件包拿**投放窄面**（4 段 + `taskbar/get-state` + 自身 `host.config`）；内核档插件包拿**受信内部桥**（母集减 `app/quit`）。`plugin-config` 的命名空间隔离由约定式收成强制式。
+- 写完成语义按本 ADR 兑现：install/update 的「成功」是有界激活成功；失败回滚，`result_unknown` 不重放；每次写带 `opId`，闸门/提案/审计沿用本 ADR。
