@@ -97,14 +97,29 @@ export interface BarModeInput {
    * 「自家进程成前台」不再按「面板本体被点了」处理，而是**保持当前档位**。
    */
   ownOverlayPresent?: boolean
+  /**
+   * 分屏会话在本栏所在屏（首版=主屏）活跃的事实（工单269，spec #267）：当前虚拟桌面
+   * 上存在任一合格、非最小化的真 Snap 窗（IsWindowArranged 公共 API 判真，矩形永不
+   * 提升身份）。会话是**后台事实**——与前台是谁无关，普通窗口/最大化/全屏获得前台
+   * 均不结束会话。采集与成员裁决在 main/taskbar/snap.ts（探针边界），本输入只收裁决
+   * 结果。缺省 false = 旧口径（无会话，行为逐字不变）。
+   */
+  snapSessionActive?: boolean
 }
 
 /**
  * 三态裁决（优先级从高到低）：
- * ① 真最大化窗（zoom 位）→ 最大化收栏，再受「开关关断」与「降级档禁用」两道闸门约束；
- * ② 非真最大化的全屏覆盖窗（游戏 / 视频这类全屏应用通常不上 IsZoomed 态）→ 全屏让位；
+ * ① 真最大化窗（zoom 位）**或分屏会话**（后台事实）→ 最大化收栏，再受「开关关断」与
+ *    「降级档禁用」两道闸门约束——工单269 起工作区收栏理由 = zoomed ∨ 分屏会话
+ *    （spec #267 决策 5：两种理由同档同效果层，不复制第二套系统状态所有权逻辑）；
+ * ② 非真最大化的全屏覆盖窗（游戏 / 视频这类全屏应用通常不上 IsZoomed 态）→ 全屏让位
+ *    （压过会话收栏的**栏面呈现**；会话事实不因此结束——退出全屏即回分屏收栏。
+ *    全屏覆盖存续期间的工作区归属精化属 #271）；
  * ③ 其余 → 常驻可见。
  *
+ * 会话支（工单269）：会话存续时无论前台是普通窗、桌面宿主、自家进程还是探针缺位，
+ * 档位都是收栏（普通前台切换不打断，spec 用户故事 8/9）；两理由并存（zoomed ∧ 会话）
+ * 同落收栏档、不叠加动作；会话结束但前台仍真最大化时保持收栏（理由接续，用户故事 21）。
  * ① 先于 ② 是「两态不互咬」的闸门（工单237 修正 A1）：收栏注销我方 AppBar 占位登记后，若
  * 工作区是整屏（原生保留带已被释放的机器上，见工单250 取证），真最大化窗的矩形就**正好
  * 覆盖整屏**——若按矩形覆盖判全屏，收栏刚生效就被优先级最高的全屏让位翻掉，栏隐藏且没有
@@ -116,25 +131,37 @@ export interface BarModeInput {
  *   态某个组的延伸（托盘溢出/档位菜单属右组等），翻档等于当场解除收栏并清空唤出态
  *   （唤出态的清理由工单249 的 F1 同拍落地）⇒「浮层在场只钉住所属组、离场不塌」
  *   （spec #236 用户故事 21）在真机上根本不可观测（浮层一开档位就走了）。
- * - 自家浮层不在场 ⇒ 面板本体被点成前台 ⇒ visible（既有语义不变：不收自己的栏）。
+ * - 自家浮层不在场 ⇒ 面板本体被点成前台 ⇒ 会话存续时仍收栏（会话不随前台翻脸，
+ *   工单269），无会话时 visible（既有语义不变：不收自己的栏）。
  */
 export function resolveBarMode(input: BarModeInput): BarMode {
   const { probe, screen, ownPid, retractEnabled, appBarDegraded } = input
   const prevMode = input.prevMode ?? 'visible'
   const ownOverlayPresent = input.ownOverlayPresent ?? false
-  if (!probe) return 'visible'
+  const snapSessionActive = input.snapSessionActive ?? false
+  // 分屏会话与真最大化同属工作区收栏理由，同受两道闸门（共用开关 + 降级档禁用）
+  const retractBySession = snapSessionActive && retractEnabled && !appBarDegraded
+  if (!probe) return retractBySession ? 'maximize-retract' : 'visible'
   if (probe.pid === ownPid) {
     // 自家浮层夺前台 ⇒ 档位保持（收栏档不被翻掉；工单253）
     if (ownOverlayPresent) return prevMode
-    return 'visible'
+    // 会话存续：面板本体被点不结束会话（后台事实，工单269）
+    return retractBySession ? 'maximize-retract' : 'visible'
   }
-  if (DESKTOP_HOST_CLASSES.includes(probe.className)) return 'visible'
+  if (DESKTOP_HOST_CLASSES.includes(probe.className)) {
+    // 点桌面不结束会话（工单269）；无会话时维持既有 visible（桌面宿主矩形常态即通栏）
+    return retractBySession ? 'maximize-retract' : 'visible'
+  }
   // ① 真最大化 → 收栏档（开关关断 / 降级档禁用两道闸门）
   if (probe.zoomed) {
     return retractEnabled && !appBarDegraded ? 'maximize-retract' : 'visible'
   }
   // ② 非真最大化的全屏覆盖窗 → 全屏让位（优先级高于收栏，收栏不得翻它）
   if (coversScreenRect(probe.rect, screen)) return 'fullscreen-yield'
+  // ①′ 分屏会话（后台事实）→ 收栏档——普通前台切换不打断会话（工单269，两道闸门同管）
+  if (snapSessionActive) {
+    return retractEnabled && !appBarDegraded ? 'maximize-retract' : 'visible'
+  }
   // ③ 其余 → 常驻可见
   return 'visible'
 }

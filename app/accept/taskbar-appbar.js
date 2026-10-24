@@ -32,6 +32,12 @@
 //      explorer + AutoRestartShell 归位 → 新 Shell_TrayWnd → reason=rebuild 重申 + 隐藏及时
 //      ≤4s + 置位终态 ≤25s（新 explorer 约 15s 不接受窗，逐拍重试）→ 工作区回屏底）；
 //      非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）
+//   P11 分屏收栏单窗最小闭环（工单269）：Win+Left 键盘合成建立真 Snap（IsWindowArranged
+//      直读互证）→ 会话存证 taskbar-snap-session(active) + 收栏（注销+置位：工作区=屏底±2）
+//      且前台钉中性 holder（后台事实，普通前台不打断）；Snap 窗上下贴边（Windows 自动重排，
+//      工单268 定谳——面板零改窗）；唤出条悬停弹出且 Snap 窗矩形逐字不变；Win+Down 解除
+//      → 会话结束 + 重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性
+//      （2+ 轮询拍零收栏/零会话存证、工作区不动——矩形不得成为身份兜底）
 // 运行：npm run accept:taskbar-appbar（= electron . --accept-taskbar-appbar）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（真机分辨率切换与前台注入，互斥）。
 const { app, screen, BrowserWindow } = require('electron');
@@ -73,6 +79,8 @@ const OFF_PELS_HEIGHT = 176;
 const koffi = win32.koffi;
 const user32 = koffi.load('user32.dll');
 const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+// 工单269 分屏收栏：真 Snap 判据直读（验收侧第三档直绑先例——电池自绑自证）
+const IsWindowArrangedFn = user32.func('bool __stdcall IsWindowArranged(uintptr_t hWnd)');
 const SystemParametersInfoW = user32.func('bool __stdcall SystemParametersInfoW(uint32 uiAction, uint32 uiParam, _Out_ RECT *pvParam, uint32 fWinIni)');
 const EnumDisplaySettingsW = user32.func('bool __stdcall EnumDisplaySettingsW(void *lpszDeviceName, int32 iModeNum, void *lpDevMode)');
 const ChangeDisplaySettingsW = user32.func('int32 __stdcall ChangeDisplaySettingsW(void *lpDevMode, uint32 dwFlags)');
@@ -174,6 +182,28 @@ async function runSegments() {
     await sleep(500);
     if (!nativeTaskbarVisible()) {
       throw new Error('开跑前原生任务栏已隐藏（他方现场，等待+兜底后仍未还原）——先人工核查再跑');
+    }
+    // 工单269 起分屏收栏上真机：桌面若有他方真 Snap 布局（分屏会话是**后台事实**，与
+    // 前台无关），面板合法进收栏档，P1/P2/P6/P7/P9/P10/P11 的常驻态与收栏触发断言会被
+    // 翻掉。开跑前先清场：枚举真 Snap 窗（IsWindowArranged 直读）→ SW_MINIMIZE（最小化
+    // 的 Snap 窗不建会话——用户点任务栏图标即原样回 Snap 态，可逆不打扰布局）；清不掉
+    // 的残留报环境现场 fail-fast（与「原生任务栏已隐藏」同款纪律）。
+    const ownPid11 = process.pid;
+    const liveSnapWindows = () => win32.topLevelWindows().filter((h) => {
+      try {
+        return Boolean(IsWindowArrangedFn(h)) && !win32.IsIconic(h) && win32.threadIdOf(h).pid !== ownPid11;
+      } catch { return false; }
+    });
+    let preSnaps = liveSnapWindows();
+    if (preSnaps.length) {
+      for (const h of preSnaps) win32.ShowWindow(h, 6 /* SW_MINIMIZE */);
+      await waitMs(() => liveSnapWindows().length === 0, 4000);
+      const left11 = liveSnapWindows();
+      if (left11.length) {
+        throw new Error(`开跑前桌面有 ${left11.length} 扇无法最小化的真 Snap 窗（他方现场，最小化清场后仍在）`
+          + '——分屏会话会合法触发收栏，本电池无从断言常驻态，先人工清理再跑');
+      }
+      rep.note(`P 前置清场：桌面有他方真 Snap 窗 ${preSnaps.length} 扇，已 SW_MINIMIZE（最小化 Snap 窗不建会话；用户点任务栏图标即原样回 Snap 态）`);
     }
     // 工作区基线（原生任务栏可见、我方未占位的出发态）：P5 归还断言对标它——
     // 可见的原生任务栏自身就占底边一档，「归还」= 回到基线而非满屏。
@@ -512,6 +542,155 @@ async function runSegments() {
           + `（占位重注册到位）——降级档下该字段恒为 kept（占位不在场 ⇒ 无从释放），故收栏整体依赖占位在场`);
       } else {
         rep.fail(`P8 注册存证=${!!regEv8} 收栏存证=${JSON.stringify(retractAll8.map((e) => e.appBar))} 恢复存证=${JSON.stringify(liftedAll8.map((e) => e.appBar))}`);
+      }
+    }
+
+    // —— P11：分屏收栏单窗最小闭环（工单269 新增）——
+    // 断言面（票面验收判据的真机观测；条件性补齐路径按 #268 定谳不存在——面板零改窗）：
+    //   ① 单窗进入：Win+Left 键盘合成（系统通道，#268 探针同款）建立真 Snap（电池侧
+    //      IsWindowArranged 直读互证）→ 会话存证 taskbar-snap-session(active=true) +
+    //      收栏存证 taskbar-retract（appBar=removed）→ 工作区底边=屏底±2（占位与原生
+    //      保留带双释放，与 P6 同一不变式——分屏收栏复用同一效果层）；
+    //   ② 后台事实：前台钉在中性 holder（普通前台切换不打断会话，spec 用户故事 8/9）；
+    //   ③ 上下贴边：Snap 窗顶≈屏顶、底≈屏底（Windows 自动重排贴新工作区——工单268
+    //      三轮定谳；DWM 7px 不可见边容差同 P6 装饰边口径）；
+    //   ④ 唤出：taskbar-summon-strips 存证 + 悬停弹出该组（hotzones 里 summon:pill:*）
+    //      且弹出前后 Snap 窗矩形逐字不变（唤出不改窗尺寸）；
+    //   ⑤ 解除恢复：Win+Down 解除 → IsWindowArranged=false + 会话存证(active=false) +
+    //      taskbar-retract-lifted(appBar=registered) → 工作区回一栏高（占位+置位双复原）；
+    //   ⑥ 伪分屏阴性：SetWindowPos 摆出半屏几何（非 Snap）→ 3+ 轮询拍零收栏存证、
+    //      零会话存证、工作区不动（矩形不得成为身份兜底）。
+    rep.beginSegment('P11');
+    const phys11 = primaryPhys();
+    const expectBottom11 = phys11.height - Math.round(TASKBAR_HEIGHT_DIP * phys11.scale);
+    // 出发态回常驻（P8 只读不断态；此处等占位生效档落定再开测）
+    await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - expectBottom11) <= 2;
+    }, 5000);
+    // 键盘和弦：LWIN 压下 → 方向 tap → LWIN 抬起（Win+Left 建 Snap / Win+Down 解除）
+    const VK_LWIN = 0x5b, VK_LEFT = 0x25, VK_DOWN = 0x28;
+    const chord11 = (vk) => {
+      win32.send([win32.keyInput(VK_LWIN, win32.KEYDOWN)]);
+      win32.send([win32.keyInput(vk, win32.KEYDOWN)]);
+      win32.send([win32.keyInput(vk, win32.KEYUP)]);
+      win32.send([win32.keyInput(VK_LWIN, win32.KEYUP)]);
+    };
+    // 前台强制 + 和弦 + 逐拍核验（前台锁下合成和弦只对前台窗生效——不赌时序，失败重试）
+    const chordUntil = async (hwnd, vk, wantArranged) => {
+      for (let i = 0; i < 5; i++) {
+        forceForeground(hwnd);
+        await sleep(150);
+        if (Number(win32.GetForegroundWindow()) !== hwnd) continue;
+        chord11(vk);
+        await sleep(400);
+        if (Boolean(IsWindowArrangedFn(hwnd)) === wantArranged) return true;
+      }
+      return false;
+    };
+    const snapWin = new BrowserWindow({ width: 900, height: 700, title: 'DECK-ACCEPT-SNAP', backgroundColor: '#203040' });
+    refWins.push(snapWin);
+    await snapWin.loadURL('about:blank');
+    const snapHwnd11 = hwndOf(snapWin);
+    const since11 = Date.now(); // 时间门在触发动作（Snap 和弦）之前
+    const snapped11 = await chordUntil(snapHwnd11, VK_LEFT, true);
+    if (!snapped11) {
+      rep.fail('P11 Snap 建立失败：Win+Left 合成 5 次后 IsWindowArranged 恒 false（环境注入异常——和弦只对前台窗生效，见磁带前台读数）');
+    } else {
+      // ② 后台事实：前台钉中性 holder——会话与收栏都必须在「前台不是 Snap 窗」时成立
+      forceForeground(hwndOf(neutralWin));
+      const sessionEv11 = await tape.wait('taskbar-snap-session',
+        (e) => e.active === true, { since: since11, timeoutMs: 6000 });
+      const retractEv11 = await tape.wait('taskbar-retract',
+        (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: since11, timeoutMs: 6000 });
+      const waMs11 = await waitMs(() => {
+        const wa = workArea();
+        return wa && Math.abs(wa.bottom - phys11.height) <= 2;
+      }, 5000);
+      const waRetract11 = workArea();
+      // ③ 上下贴边：自动重排（#268：窗底=屏底+7px DWM 边、顶=-7px——容差 [-10,+8])
+      const edgeMs11 = await waitMs(() => {
+        const r = win32.rectOf(snapHwnd11);
+        return r && r.top >= -10 && r.top <= 8 && r.bottom >= phys11.height - 10 && r.bottom <= phys11.height + 8;
+      }, 5000);
+      const snapRect11 = win32.rectOf(snapHwnd11);
+      // ④ 唤出：条几何存证 → 悬停弹出该组 → Snap 窗矩形逐字不变。
+      //    条几何存证按 JSON 去重（renderer/taskbar.ts notifySummonStrips）——与前一轮
+      //    收栏（P6/P7）pill 几何一致时**不发新条**（49 电池 P22 前置容忍同款）：
+      //    since 门等不到就回取最近一条几何做悬停落点；「条此刻在场」由弹出断言
+      //    （summon:pill 热区声明是本段新鲜事实）互证。
+      let stripsEv11 = await tape.wait('taskbar-summon-strips',
+        (e) => Array.isArray(e.strips) && e.strips.length > 0, { since: since11, timeoutMs: 3000 });
+      if (!stripsEv11) {
+        stripsEv11 = tape.latest('taskbar-summon-strips',
+          (e) => Array.isArray(e.strips) && e.strips.length > 0, {});
+      }
+      let popOk11 = false;
+      let rectStable11 = false;
+      let stripInfo11 = '无条几何存证';
+      if (stripsEv11) {
+        const strip11 = stripsEv11.strips.find((s) => s.group === 'start') || stripsEv11.strips[0];
+        stripInfo11 = `${strip11.group}@x=${Math.round(strip11.x)}w=${Math.round(strip11.width)}`;
+        const tbRect11 = win32.rectOf(tbHwnd);
+        const pt11 = {
+          x: Math.round(tbRect11.left + (strip11.x + strip11.width / 2) * phys11.scale),
+          y: Math.round(tbRect11.top + (strip11.top + strip11.height / 2) * phys11.scale),
+        };
+        const rectBefore11 = win32.rectOf(snapHwnd11);
+        win32.moveMousePhys(pt11.x, pt11.y);
+        const popDeadline11 = Date.now() + 4000;
+        while (Date.now() < popDeadline11) {
+          const evs = tape.all('hotzones',
+            (e) => Array.isArray(e.rects) && e.rects.some((r) => String(r.id || '').startsWith('summon:pill:')),
+            { since: since11 });
+          if (evs.length) { popOk11 = true; break; }
+          await sleep(50);
+        }
+        const rectAfter11 = win32.rectOf(snapHwnd11);
+        rectStable11 = !!(rectBefore11 && rectAfter11 && rectAfter11.left === rectBefore11.left
+          && rectAfter11.top === rectBefore11.top && rectAfter11.right === rectBefore11.right
+          && rectAfter11.bottom === rectBefore11.bottom);
+        // 光标回中性点（越过 400ms 宽限再解除——弹出组收干净，不与下一拍断言互踩）
+        win32.moveMousePhys(Math.round(phys11.width / 2), Math.round(phys11.height / 4));
+        await sleep(700);
+      }
+      // ⑤ 解除恢复：Win+Down → 真 Snap 消失 + 会话结束 + 占位/置位双复原
+      const tUnsnap11 = Date.now();
+      const unsnapped11 = await chordUntil(snapHwnd11, VK_DOWN, false);
+      forceForeground(hwndOf(neutralWin));
+      const sessionEnd11 = await tape.wait('taskbar-snap-session',
+        (e) => e.active === false, { since: tUnsnap11, timeoutMs: 6000 });
+      const liftedEv11 = await tape.wait('taskbar-retract-lifted',
+        (e) => e.appBar === 'registered', { since: tUnsnap11, timeoutMs: 6000 });
+      const restoreMs11 = await waitMs(() => {
+        const wa = workArea();
+        return wa && Math.abs(wa.bottom - expectBottom11) <= 2;
+      }, 5000);
+      const waRestored11 = workArea();
+      // ⑥ 伪分屏阴性：同款半屏几何（SetWindowPos，非 Snap）→ 3+ 拍零收栏/零会话、工作区不动
+      const fakeAt11 = Date.now();
+      win32.SetWindowPos(snapHwnd11, 0, 0, 0, Math.round(phys11.width / 2), expectBottom11, 0x0004 /* SWP_NOZORDER */);
+      await sleep(900); // 3+ 个 250ms 轮询拍
+      const retractAfterFake11 = tape.all('taskbar-retract', undefined, { since: fakeAt11 });
+      const sessionAfterFake11 = tape.all('taskbar-snap-session', (e) => e.active === true, { since: fakeAt11 });
+      const waFake11 = workArea();
+      const fakeRect11 = win32.rectOf(snapHwnd11);
+      const negativeOk11 = retractAfterFake11.length === 0 && sessionAfterFake11.length === 0
+        && !!waFake11 && Math.abs(waFake11.bottom - expectBottom11) <= 2;
+      const arrangedFake11 = Boolean(IsWindowArrangedFn(snapHwnd11));
+      if (sessionEv11 && retractEv11 && waMs11 >= 0 && edgeMs11 >= 0 && popOk11 && rectStable11
+        && unsnapped11 && sessionEnd11 && liftedEv11 && restoreMs11 >= 0 && negativeOk11 && !arrangedFake11) {
+        rep.pass(`P11 分屏收栏单窗闭环：Win+Left 真 Snap（IsWindowArranged 直读互证）→ 会话存证在流 + 收栏（taskbar-retract appBar=removed）`
+          + `→ 工作区底边 ${waRetract11.bottom}/${phys11.height} = 屏底（±2，${waMs11}ms 到位；前台=中性 holder，后台事实成立）；`
+          + `Snap 窗上下贴边 [${snapRect11.top},${snapRect11.bottom}]（自动重排，#${268} 定谳零改窗）；`
+          + `唤出条 ${stripInfo11} 悬停弹出（summon:pill 热区声明在流）且 Snap 窗矩形逐字不变；`
+          + `Win+Down 解除 → 会话结束存证 + taskbar-retract-lifted appBar=registered → 工作区回一栏高 ${waRestored11.bottom}（${restoreMs11}ms 收敛）；`
+          + `伪分屏阴性：同款半屏几何（arranged=${arrangedFake11}）3+ 拍零收栏/零会话存证、工作区 ${waFake11.bottom} 不动（矩形不是身份）`);
+      } else {
+        rep.fail(`P11 会话存证=${!!sessionEv11} 收栏存证=${!!retractEv11} 工作区到屏底=${waMs11}ms（${waRetract11 && waRetract11.bottom}/${phys11.height}） `
+          + `贴边=${edgeMs11}ms（矩形=${JSON.stringify(snapRect11)}） 唤出弹出=${popOk11} 尺寸不变=${rectStable11}（条=${stripInfo11}） `
+          + `解除=${unsnapped11} 会话结束存证=${!!sessionEnd11} 恢复存证=${!!liftedEv11} 工作区复原=${restoreMs11}ms（${waRestored11 && waRestored11.bottom}/${expectBottom11}） `
+          + `伪分屏阴性=${negativeOk11}（几何=${JSON.stringify(fakeRect11)} arranged=${arrangedFake11} 收栏存证=${retractAfterFake11.length} 会话存证=${sessionAfterFake11.length} 工作区=${waFake11 && waFake11.bottom}）`);
       }
     }
 
