@@ -362,15 +362,25 @@ async function runSegments() {
     const t6 = Date.now();
     retractWin.unmaximize();
     forceForeground(hwndOf(neutralWin));
+    // 退收栏存证（工单260 起容忍两跳路径）：收栏态最大化窗铺满整屏（底边 1448），解最大化
+    // 动画期 250ms 轮询可能拍到「zoomed=false + 矩形仍全屏」→ 合法走 retract→yield→visible
+    // 两跳（R3 磁带实证：retract-lifted mode=fullscreen-yield + yield-lifted mode=visible，
+    // 中间 yield 态占位重注册/复原置位照做）；直达路径 retract-lifted 直接带 mode=visible。
+    // 谓词只放宽「终点 visible 的到达方式」，断言面不降：退收栏必带 appBar=registered。
     const liftedEv6 = await tape.wait('taskbar-retract-lifted',
-      (e) => e.mode === 'visible' && e.appBar === 'registered', { since: t6, timeoutMs: 6000 });
+      (e) => e.appBar === 'registered', { since: t6, timeoutMs: 6000 });
+    let settledVisible6 = !!liftedEv6 && liftedEv6.mode === 'visible';
+    if (liftedEv6 && liftedEv6.mode !== 'visible') {
+      const ylEv6 = await tape.wait('taskbar-yield-lifted', undefined, { since: t6, timeoutMs: 6000 });
+      settledVisible6 = !!ylEv6 && ylEv6.mode === 'visible';
+    }
     const regEv6 = await tape.wait('taskbar-appbar-registered', undefined, { since: t6, timeoutMs: 3000 });
     const restoreMs6 = await waitMs(() => {
       const wa = workArea();
       return wa && Math.abs(wa.bottom - expectBottom6) <= 2;
     }, 5000);
     const waRestored6 = workArea();
-    const workAreaOk6 = waMs6 >= 0 && flushMs6 >= 0 && restoreMs6 >= 0
+    const workAreaOk6 = waMs6 >= 0 && flushMs6 >= 0 && restoreMs6 >= 0 && settledVisible6
       && !!waRetract6 && Math.abs(waRetract6.bottom - phys6.height) <= 2
       && !!waRestored6 && Math.abs(waRestored6.bottom - expectBottom6) <= 2;
     if (retractEv6 && removedEv6 && liftedEv6 && regEv6 && workAreaOk6) {
@@ -380,7 +390,7 @@ async function runSegments() {
         + `解除最大化后重注册 + 复原（taskbar-retract-lifted 存证 appBar=${liftedEv6.appBar} + taskbar-appbar-registered 存证）`
         + `→ 工作区回一栏高 ${waRestored6.bottom}（期望 ${expectBottom6}，${restoreMs6}ms 收敛）`);
     } else {
-      rep.fail(`P6 收栏存证=${!!retractEv6} 注销存证=${!!removedEv6} 恢复存证=${!!liftedEv6} 重注册存证=${!!regEv6} `
+      rep.fail(`P6 收栏存证=${!!retractEv6} 注销存证=${!!removedEv6} 恢复存证=${!!liftedEv6}（终点visible=${settledVisible6}） 重注册存证=${!!regEv6} `
         + `工作区收栏态=${JSON.stringify(waRetract6)}/屏底=${phys6.height}（到屏底=${waMs6}ms） 参照窗=${JSON.stringify(refRect6)}（贴底=${flushMs6}ms） `
         + `恢复态=${JSON.stringify(waRestored6)} 期望底=${expectBottom6}（收敛=${restoreMs6}ms）`);
     }
