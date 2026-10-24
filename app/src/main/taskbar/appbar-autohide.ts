@@ -13,15 +13,19 @@
 //
 // 复原走还原路径①（退避重试）：读回不一致按 native-restore 的同一张退避表重试
 // （有限次、终局有界），异步推进不拖住条带销毁/退收栏；timer unref 不吊住进程退出。
-// 死路径兜底（守卫 before-quit / guard-dead 守护）不在此票——它们不持面板内存账，
-// 归还原账扩展票（spec #258 的落盘记账）。本模块与 native.ts 的可见性账各自独立
-// （ShowWindow 与 appbar 状态是两个系统事实），互不代偿。
+// 工单261（还原账全路径扩展）：置位生效即**记账落盘**（appbar-ledger，userData/
+// appbar-ledger.json）——守卫（before-quit/panel-exit）与 guard-dead 还原守护不持
+// 面板内存账，落盘账是它们的复原目标来源；复原到位/终局失败即**清账**（不留陈旧账
+// 误导守护），退避中途进程死亡则账留盘上由下一层接力（50 电池 A3/A4 现场由验真机）。
+// 本模块与 native.ts 的可见性账各自独立（ShowWindow 与 appbar 状态是两个系统事实），
+// 互不代偿。
 //
 // 效果层（FFI 效果面，离线不可测）：接缝由真机验收 50/51 电池覆盖（工作区数值与
 // StuckRects3 字节是外部可观测面）；同 tray-yield/native 口径——纯逻辑进单测
 // （retractAutoHideState / planAppBarStateRestore），效果层进验收。
 import type { EventLog } from '../panel-ipc'
 import { getAppBarState, setAppBarState } from './appbar'
+import { clearAppBarLedger, writeAppBarLedger } from './appbar-ledger'
 import { planAppBarStateRestore } from './native-restore'
 import { ABS_AUTOHIDE, retractAutoHideState } from './retract'
 
@@ -58,6 +62,13 @@ export function engageRetractAutoHide(log: EventLog | null): void {
     // 置位生效 = 本次确由我置 → 作废上一次待决的复原重试（账换人了，旧账不赖新账）
     cancelPendingRestore()
     log?.append({ type: 'taskbar-autohide-set', previous, state })
+    // 落盘记账（工单261）：置位生效 = 本次确由我置 → 守卫/守护的复原目标入账。
+    // 尽力语义：盘写不进（权限/磁盘满）不破置位流程——路径①（内存账）仍在，失败存证可见。
+    try {
+      writeAppBarLedger(previous, log)
+    } catch (err) {
+      log?.append({ type: 'taskbar-autohide-ledger-write-failed', message: String(err) })
+    }
     return
   }
   log?.append({ type: 'taskbar-autohide-set-failed', previous, state })
@@ -93,6 +104,7 @@ export function restoreRetractAutoHide(log: EventLog | null, reason: string): vo
     setAppBarState(previous)
     const state = getAppBarState()
     if (state === previous) {
+      clearAppBarLedger() // 复原到位：清账（义务履行完毕，不留陈旧账误导守护）
       log?.append({ type: 'taskbar-autohide-restored', reason, state, attempts: attempt })
       return
     }
@@ -101,6 +113,7 @@ export function restoreRetractAutoHide(log: EventLog | null, reason: string): vo
       schedule(d.delayMs, d.attempt)
       return
     }
+    clearAppBarLedger() // 终局失败：清账（与内存账同判 discharged；账尽力后不留在盘上误导后续会话）
     log?.append({ type: 'taskbar-autohide-restore-failed', reason, state, attempts: d.attempt })
   }
 
