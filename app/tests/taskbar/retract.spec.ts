@@ -17,6 +17,7 @@ import {
   SUMMON_STRIP_MIN_WIDTH,
   SUMMON_STRIP_VISUAL_HEIGHT,
   initialSummonState,
+  planBarTransition,
   planSummonStrips,
   reduceSummon,
   reduceSummonSequence,
@@ -388,6 +389,128 @@ describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 �
     expect(Object.keys(SNAP_MODE_TABLE).sort()).toEqual([
       'desktop-host', 'fullscreen', 'maximized', 'maximized-covering', 'missing', 'normal', 'own',
     ])
+  })
+})
+
+/* ================================================================
+ * 收栏理由接续（工单270，spec #267 决策 5/用户故事 21）：zoomed × 分屏会话
+ * 两类收栏理由的组合时序——只在最后一个理由消失后复原，效果动作幂等。
+ * 一拍 = { zoomed, session }；逐拍过 resolveBarMode（prevMode=上一拍档位）→
+ * 档位变化时过 planBarTransition——与 window.ts 三态轮询的生产链路同构。
+ * ================================================================ */
+
+describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序）', () => {
+  interface Tick { zoomed: boolean; session: boolean }
+
+  /** 逐拍推进（与生产同构），收全部档位迁移与其动作计划 */
+  const runTicks = (ticks: readonly Tick[]) => {
+    let mode: BarMode = 'visible'
+    const transitions: { from: BarMode; to: BarMode; plan: ReturnType<typeof planBarTransition> }[] = []
+    for (const t of ticks) {
+      const next = resolveBarMode({
+        ...baseInput,
+        probe: t.zoomed ? probeOf('maximized') : probeOf('normal'),
+        prevMode: mode,
+        snapSessionActive: t.session,
+      })
+      if (next !== mode) {
+        transitions.push({ from: mode, to: next, plan: planBarTransition(mode, next) })
+        mode = next
+      }
+    }
+    return { finalMode: mode, transitions }
+  }
+
+  it('先后建立：会话先建收栏，最大化理由加入 → 档位不动、零多余动作（两理由同档不叠加）', () => {
+    const r = runTicks([
+      { zoomed: false, session: true },
+      { zoomed: true, session: true },
+    ])
+    expect(r.finalMode).toBe('maximize-retract')
+    expect(r.transitions).toHaveLength(1)
+    expect(r.transitions[0]).toMatchObject({ from: 'visible', to: 'maximize-retract' })
+  })
+
+  it('先后结束（最大化先消失）：会话接续持有收栏，会话再消失才复原——复原仅一次', () => {
+    const r = runTicks([
+      { zoomed: true, session: true },
+      { zoomed: false, session: true },
+      { zoomed: false, session: false },
+    ])
+    expect(r.transitions.map((t) => `${t.from}->${t.to}`)).toEqual([
+      'visible->maximize-retract',
+      'maximize-retract->visible',
+    ])
+    // 中间拍（zoomed 消失、会话在场）零迁移——工作区不先恢复再收栏
+    expect(r.transitions[1].plan.claimAppBar).toBe(true)
+    expect(r.transitions[1].plan.restoreAutoHide).toBe(true)
+    expect(r.transitions[1].plan.evidence).toEqual(['taskbar-retract-lifted'])
+  })
+
+  it('先后结束（会话先消失）：真最大化接续持有收栏（不先恢复再收栏），最大化再消失才复原', () => {
+    const r = runTicks([
+      { zoomed: true, session: true },
+      { zoomed: true, session: false },
+      { zoomed: false, session: false },
+    ])
+    expect(r.transitions.map((t) => `${t.from}->${t.to}`)).toEqual([
+      'visible->maximize-retract',
+      'maximize-retract->visible',
+    ])
+  })
+
+  it('同时结束：两理由同拍消失 → 单次复原（无中间可见态、无双重复原动作）', () => {
+    const r = runTicks([
+      { zoomed: true, session: true },
+      { zoomed: false, session: false },
+    ])
+    expect(r.transitions.map((t) => `${t.from}->${t.to}`)).toEqual([
+      'visible->maximize-retract',
+      'maximize-retract->visible',
+    ])
+    expect(r.transitions).toHaveLength(2)
+  })
+
+  it('理由交叉起落（最大化收栏上建会话、最大化消失、会话消失）：全程收栏、起止各一次动作', () => {
+    const r = runTicks([
+      { zoomed: true, session: false },
+      { zoomed: true, session: true },
+      { zoomed: false, session: true },
+      { zoomed: false, session: false },
+    ])
+    expect(r.transitions.map((t) => `${t.from}->${t.to}`)).toEqual([
+      'visible->maximize-retract',
+      'maximize-retract->visible',
+    ])
+    // 存证账：全程一次 taskbar-retract + 一次 taskbar-retract-lifted（无反复）
+    const evidence = r.transitions.flatMap((t) => t.plan.evidence)
+    expect(evidence).toEqual(['taskbar-retract', 'taskbar-retract-lifted'])
+  })
+
+  it('幂等：同理由组合连续多拍 → 迁移仅首次，后续拍零动作（planBarTransition 同态空计划）', () => {
+    expect(planBarTransition('maximize-retract', 'maximize-retract')).toEqual({
+      releaseAppBar: false, engageAutoHide: false, restoreAutoHide: false,
+      claimAppBar: false, hideWindow: false, showWindow: false, closePopups: false, evidence: [],
+    })
+    const r = runTicks([
+      { zoomed: true, session: true },
+      { zoomed: true, session: true },
+      { zoomed: true, session: true },
+      { zoomed: true, session: true },
+    ])
+    expect(r.transitions).toHaveLength(1)
+  })
+
+  it('接续期间零多余注销/重注册：中间拍不产生任何 AppBar 或托管动作（无状态反复）', () => {
+    const r = runTicks([
+      { zoomed: true, session: true },
+      { zoomed: true, session: false }, // 会话结束、zoomed 接续——中间拍
+      { zoomed: false, session: false }, // 最后理由消失——复原拍
+    ])
+    expect(r.transitions).toHaveLength(2)
+    expect(r.transitions[0].plan.releaseAppBar).toBe(true) // 进入收栏：注销一次
+    expect(r.transitions[1].plan.claimAppBar).toBe(true) // 退出收栏：重注册一次
+    // 中间没有第二条迁移——不存在「先注销再重注册再注销」的反复
   })
 })
 

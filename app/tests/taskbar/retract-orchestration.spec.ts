@@ -458,7 +458,8 @@ describe('分屏会话接线（工单269，spec #267；效果层离线不可测�
     // 探针调用与轮询同缝（resolveBarMode 输入装配段内），主屏会话按显示器参数裁决
     const m = code.match(/const snap = [^\n]*\n[\s\S]{0,600}?resolveBarMode\(\{/)
     expect(m).toBeTruthy()
-    expect(code).toMatch(/resolveSnapSession\(/)
+    // 工单270：控制器收成员集合（snapSessionMembers，会话=成员非空），不再只折布尔
+    expect(code).toMatch(/snapSessionMembers\(/)
     expect(code).toMatch(/primaryPhysRect\(\)/)
   })
 
@@ -503,5 +504,45 @@ describe('分屏会话接线（工单269，spec #267；效果层离线不可测�
       if (/export function (isSnapSessionMember|resolveSnapSession)\b/.test(srcOf(rel))) hits.push(rel)
     }
     expect(hits).toEqual([SNAP])
+  })
+})
+
+describe('分屏会话集合生命周期接线（工单270，spec #267；效果层离线不可测，以源码级守卫钉住）', () => {
+  const CTRL = 'app/src/main/taskbar/window.ts'
+  const SNAP = 'app/src/main/taskbar/snap.ts'
+  const code = codeOf(CTRL)
+  const snapCode = codeOf(SNAP)
+
+  it('探针带成员追踪集：上一拍合格成员句柄喂回探针（最小化/解除的前成员照采事实，去向可分类）', () => {
+    // 追踪集账本随拍更新——集合生命周期的「成员」而非「一次判定」是账面口径
+    expect(code).toMatch(/probeSnapWindows\(snapMemberHwnds\)/)
+    expect(code).toMatch(/snapMemberHwnds\s*=/)
+  })
+
+  it('会话结束因果分类单一实现住在 snap.ts，控制器只调用不另判', () => {
+    const hits: string[] = []
+    for (const rel of SRC_FILES) {
+      if (/export function classifySnapSessionEnd\b/.test(srcOf(rel))) hits.push(rel)
+    }
+    expect(hits).toEqual([SNAP])
+    expect(code).toMatch(/classifySnapSessionEnd\(/)
+  })
+
+  it('会话翻转存证带结束因果与理由接续（spec 决策 14 可观测）：cause / retractHeldByZoomed 字段落进 taskbar-snap-session', () => {
+    expect(code).toMatch(/cause:\s*snap\.flip\.cause/)
+    expect(code).toMatch(/retractHeldByZoomed:\s*mode === 'maximize-retract'/)
+    // 存证落在档位裁决之后（理由接续读得到当拍档位）
+    const iSnapProbe = code.indexOf('const snap = pollSnapSession()')
+    const iResolve = code.indexOf('const mode = resolveBarMode(')
+    const iSnapLog = code.indexOf("'taskbar-snap-session'")
+    expect(iSnapProbe).toBeGreaterThanOrEqual(0)
+    expect(iResolve).toBeGreaterThan(iSnapProbe)
+    expect(iSnapLog).toBeGreaterThan(iResolve)
+  })
+
+  it('探针采集面扩展：追踪集参数 + cloak 分位（SHELL 位 = 其他虚拟桌面）', () => {
+    expect(snapCode).toMatch(/track:\s*readonly number\[\]/)
+    expect(snapCode).toMatch(/DWM_CLOAKED_SHELL/)
+    expect(snapCode).toMatch(/cloakedShell/)
   })
 })
