@@ -974,6 +974,19 @@
             "system-state"
           ],
           "estSeconds": 1
+        },
+        {
+          "seg": "C2",
+          "ticket": 260,
+          "title": "maximizeRetract=off 不置位：全电池 config 钉 off——置位事件零条（taskbar-autohide-* 全零）+ 退出后 appbar 状态 = 开跑前基线（控制器独立读数）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 1,
+          "areas": [
+            "taskbar"
+          ]
         }
       ],
       "areas": [
@@ -1081,6 +1094,20 @@
             "event-evidence"
           ],
           "estSeconds": 12
+        },
+        {
+          "seg": "P9",
+          "ticket": 260,
+          "title": "收栏态退出双复原：重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器独立读数为主——置位态 WS_VISIBLE 位使面板侧存证静默）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 10,
+          "areas": [
+            "taskbar"
+          ]
         }
       ],
       "areas": [
