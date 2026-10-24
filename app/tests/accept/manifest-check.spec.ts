@@ -303,14 +303,15 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     const r = validateManifest({ manifest, sources, sourceTree })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
-    // 106 段全部有归属域：段级或电池级至少一处登记
+    // 108 段全部有归属域：段级或电池级至少一处登记
     // （94 → 98：工单244 增段——51 电池 +P6/P7/P8、55 电池 +P8；98 → 102：工单243 增段
     //   ——49 电池 +P22/P23/P24/P25 唤出条交互段；102 → 104：工单260 增段——51 电池 +P9
     //   收栏态退出双复原、50 电池 +C2 maximizeRetract=off 不置位；104 → 105：工单262
     //   增段——51 电池 +P10 收栏态原生栏重申轮询；105 → 106：工单269 增段——51 电池
-    //   +P11 分屏收栏单窗最小闭环）
+    //   +P11 分屏收栏单窗最小闭环；106 → 108：工单270 增段——51 电池 +P12 分屏会话
+    //   集合生命周期与代表性布局、+P13 虚拟桌面切换隔离与收栏理由接续）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(106)
+    expect(total).toBe(108)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
