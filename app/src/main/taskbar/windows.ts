@@ -5,7 +5,12 @@
 // 收/拒裁决全在 apps-plan 的 shouldShowOnTaskbar 纯函数，本层不载裁决。
 // 隐私（ADR-0007 对 ADR-0002 的书面口子，仅限任务栏链路）：标题仅内存即时读取，
 // 供栏上 tooltip 与多窗口列表即时显示——永不写使用日志、永不落任何持久化。
-// 离线测试不加载本模块（服务依赖缝注入假源后从不 require）。
+// 加载不变式（工单271 评审收口④措辞更正）：「离线测试不加载本模块」已不成立——
+// taskbar/snap.ts 复用本模块的 nativeWindowTitle 缝（标题读取隐私口子仍收在此处），
+// snap.spec.ts 经 snap.ts 传递加载本模块；**仅加载不 bind**——bind() 惰性（首调才触
+// FFI，syskeys.ts/yield.ts 先例），离线纯函数测试照旧零 FFI 实害。FFI 面（Bound 表）
+// 仍只服务运行时；与 snap.ts 的双写面（pidOf/exeOfPid、MAX_WINDOWS）由
+// retract-orchestration.spec.ts 的双写防漂移守卫钉住。
 import { normalizeExe } from './apps-plan'
 import type { TaskbarWindowInput, TaskbarWindowTraits } from './apps-plan'
 
@@ -112,6 +117,16 @@ function titleOf(b: Bound, hwnd: number): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * 窗口标题即时读取的公开缝（工单269）：分屏会话成员资格复用现有合格过滤
+ * （shouldShowOnTaskbar 需空标题判据），但**标题读取的隐私口子仍收在本模块**
+ * （ADR-0007 唯一例外——tests/usage/log.spec.ts 的 TITLE_READ_ALLOWLIST 钉此边界），
+ * 调用方（taskbar/snap.ts）不直读标题。仅内存即时使用、永不持久化，同款纪律。
+ */
+export function nativeWindowTitle(hwnd: number): string | null {
+  return titleOf(bind(), hwnd)
 }
 
 /**

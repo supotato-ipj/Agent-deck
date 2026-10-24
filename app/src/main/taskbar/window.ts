@@ -20,7 +20,9 @@ import { ABN_POSCHANGED, appBarCallbackMessage, getAppBarState, negotiateAppBarP
 import type { AppBarRect } from './appbar'
 import { engageRetractAutoHide, reassertRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
-import { ABS_AUTOHIDE, planBarTransition, resolveBarMode } from './retract'
+import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './snap'
+import type { SnapSessionEndCause, SnapWindowFact } from './snap'
+import { ABS_AUTOHIDE, planBarTransition, resolveBarMode, retractGateDisqualified, retractHeldByZoomed, retractReasonHeld } from './retract'
 import type { BarMode } from './retract'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
 import type { NativeWatchProbe } from './native-watch'
@@ -152,6 +154,15 @@ interface TaskbarSession {
    * 裁决归纯函数 resolveBarMode（shared/retract），本层只执行动作。
    */
   mode: BarMode
+  /**
+   * 工作区收栏账面（工单271，spec #267）：true = 我方 AppBar 占位已注销、原生栏托管
+   * 已置位（收栏效果**在账**）——效果层逐笔维护的事实账，不从档位反推。工单271 起
+   * 工作区收栏理由（zoomed ∨ 分屏会话）与栏面呈现解耦：分屏会话存续的全屏让位期间
+   * 档位是 fullscreen-yield（栏面整窗退场、无唤出条）而账面仍在收（占位保持释放、
+   * 托管不中断、不复原工作区）——重申轮询的值守与原生栏账本都以此账为准，档位不再
+   * 是托管在场与否的判据。
+   */
+  workspaceRetracted: boolean
   /**
    * 原生栏重申轮询账（工单262，spec #258）：收栏态期间低频轮询（1s 拍）检测
    * Shell_TrayWnd 重建（explorer 重启/热插拔）或可见性翻转/置位丢失，命中即重挂
@@ -304,6 +315,65 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     else openOverlayFamilies.delete(p.family)
   })
 
+  // —— 分屏会话探针账（工单269，spec #267；工单270 扩集合生命周期与结束因果）——
+  // 会话是后台事实（真 Snap 窗存续即活跃，与前台是谁无关）；采集与成员裁决在
+  // main/taskbar/snap.ts（IsWindowArranged 公共 API，矩形永不提升身份）。首版实际接管
+  // 范围 = 主屏（primaryPhysRect），会话按显示器参数隔离裁决、不引入全局判定。
+  // 工单270：账面从「一次布尔判定」扩为**成员集合**——上一拍合格成员句柄喂回探针
+  // （最小化/解除/换桌面的前成员照采事实），会话结束时按前成员去向分类因果
+  // （最小化/关闭/解除/虚拟桌面切换，classifySnapSessionEnd）落进翻转存证；
+  // 翻转存证在档位裁决**之后**落盘（调用方），收栏理由接续（会话结束但 zoomed
+  // 仍持有收栏档）一并落进同一条——真机可判「会话因何结束、栏为何仍收」（spec 决策 14）。
+  let snapSessionLedger: { active: boolean; available: boolean } | null = null
+  /** 上一拍合格成员句柄（探针追踪集——结束因果分类的事实源；失败拍清空） */
+  let snapMemberHwnds: number[] = []
+  const pollSnapSession = (): {
+    active: boolean
+    available: boolean
+    flip: null | { cause?: SnapSessionEndCause; members: number }
+  } => {
+    let windows: readonly SnapWindowFact[] = []
+    let available = true
+    let probeFailed = false
+    try {
+      const probed = probeSnapWindows(snapMemberHwnds)
+      available = probed.available
+      windows = probed.windows
+    } catch {
+      // 探针一拍失败按「无会话」处理（还原是安全方向，与前台探针缺位同纪律）；
+      // 失败拍无从分类去向（不误报「关闭」）——cause=unknown。
+      // 两层失败语义（工单271 评审收口，取舍在案 ADR-0015 修订记取舍记录④）：
+      // - bind 层失败（koffi/dll 加载抛错）同样落「识别不可用」（available=false，
+      //   spec 决策 11 诊断口径）——不得把 bind 级失败记成 available:true 存证；
+      // - 采集层单拍抖动（逐窗 FFI 竞态 / 虚拟桌面 cloak 动画同拍命中）⇒ 本拍按
+      //   「无会话」全交割（拆会话 + claim/restore 复原，下一拍按当拍事实重建收栏）——
+      //   这是「还原是安全方向 + 用户故事 37 即时性」压过抖动成本的在案取舍，收敛
+      //   手段（一拍确认驻留 / 逐窗单点 try/catch）本票未取（前者改恢复时延口径，
+      //   后者把「缺席=关闭」的结束因果归真性降级为误报源），出现实测抖动损害再议。
+      probeFailed = true
+      available = false
+    }
+    const display = primaryPhysRect()
+    const members = available ? snapSessionMembers(windows, display, process.execPath) : []
+    const result = { active: members.length > 0, available }
+    let flip: { cause?: SnapSessionEndCause; members: number } | null = null
+    if (!snapSessionLedger
+      || snapSessionLedger.active !== result.active
+      || snapSessionLedger.available !== result.available) {
+      flip = { members: members.length }
+      if (snapSessionLedger?.active && !result.active) {
+        // 会话结束：按前成员当拍去向分类（探针失败拍/识别不可用拍无从分类 → unknown，
+        // 不误报「关闭」）；建立/可用性翻转不带 cause
+        flip.cause = probeFailed || !result.available
+          ? 'unknown'
+          : classifySnapSessionEnd(snapMemberHwnds, windows, display)
+      }
+      snapSessionLedger = { ...result }
+    }
+    snapMemberHwnds = probeFailed ? [] : members.map((m) => m.hwnd)
+    return { ...result, flip }
+  }
+
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
   // （不上 PanelDataPort：本地装配无宿主概念，缺席即静默跳过）。
@@ -317,6 +387,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     if (s.yieldTimer) clearInterval(s.yieldTimer)
     s.yieldTimer = null
     s.mode = 'visible' // 档位归零（窗在场期间的状态切换——会话账随窗生灭，不另立一套）
+    s.workspaceRetracted = false // 工作区收栏账同清（工单271：账随轮询生灭，不悬空）
   }
 
   /** 原生栏一拍观察采齐（工单262）：句柄/可见性走 native.ts 单一来源，置位走读回事实。
@@ -334,7 +405,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
    */
   const pollNativeWatch = (): void => {
     const s = session
-    if (!s || s.win.isDestroyed() || s.mode !== 'maximize-retract') return
+    // 守门随工作区收栏账（工单271）：分屏会话持有的全屏覆盖期间档位是让位、账仍在——
+    // 值守不空转（explorer 重启/置位丢失在覆盖下也要重挂，否则保留带复活顶起后台 Snap 窗）
+    if (!s || s.win.isDestroyed() || !s.workspaceRetracted) return
     const probe = nativeWatchProbe()
     const decision = s.nativeWatch?.machine.poll(probe)
     if (!decision || decision.action === 'none') return
@@ -443,17 +516,33 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
    * 恢复（回 visible）：重注册 AppBar → 重协商 → 占位恢复（最大化窗回缩 48px——
    * 平台惯常过渡，spec 用户故事 25 明示接受）。
    */
-  const applyBarMode = (s: TaskbarSession, next: BarMode, probe: ForegroundProbe | null): void => {
+  const applyBarMode = (s: TaskbarSession, next: BarMode, probe: ForegroundProbe | null, retractHeld: boolean, gateDisqualified: boolean): void => {
     const prev = s.mode
-    if (prev === next) return
-    const plan = planBarTransition(prev, next)
+    // 迁移计划带解耦上下文（工单271）：工作区账面 + 理由持有 + 闸门失格——全屏让位
+    // 只拥有栏面呈现，占位/托管是否交割由工作区面裁决（分屏会话存续的覆盖期间保持
+    // 释放与置位；覆盖期间闸门失格则工作区面当场交割，见同态零动作的唯一例外）。
+    const plan = planBarTransition(prev, next, {
+      workspaceRetracted: s.workspaceRetracted,
+      retractHeld,
+      gateDisqualified,
+    })
+    // 同态零动作（不变量③）：计划零存证零交割才早退——真实 3×3 迁移恒带存证（纯函数
+    // 侧矩阵钉死），闸门失格的同态交割拍携带 retract-lifted，不得早退（用户故事 27）。
+    if (prev === next && plan.evidence.length === 0) return
     s.mode = next
+    // 工作区收栏账面以计划产出**原样落账**（工单271 评审收口①单一所有权）：账面推进
+    // 的唯一公式住在 planBarTransition（wantRetracted → plan.targetWorkspaceRetracted），
+    // 效果层不再有第二份写法——分屏会话持有的全屏让位期间账保持（理由仍持有）、覆盖
+    // 期间闸门失格的同态拍账清（闸门交割）。账面是效果层逐笔维护的事实账，后续值守/
+    // 证据都以它为准。
+    s.workspaceRetracted = plan.targetWorkspaceRetracted
     const w = s.win
-    const reason = prev === 'maximize-retract' ? 'retract-lifted'
-      : prev === 'fullscreen-yield' ? 'fullscreen-yield-lifted'
-        : next === 'maximize-retract' ? 'retract'
-          : next === 'fullscreen-yield' ? 'fullscreen-yield'
-            : 'bar-mode'
+    const reason = prev === next ? 'retract-gate-disqualified'
+      : prev === 'maximize-retract' ? 'retract-lifted'
+        : prev === 'fullscreen-yield' ? 'fullscreen-yield-lifted'
+          : next === 'maximize-retract' ? 'retract'
+            : next === 'fullscreen-yield' ? 'fullscreen-yield'
+              : 'bar-mode'
     // ① 浮层收拢：单遍历清单（popupHosts 六面自绘浮层的唯一登记处）——与全屏让位同口径
     if (plan.closePopups) for (const h of popupHosts) h.close('yield')
     // ② 工作区占位：收栏释放（注销 AppBar）；其余态占位必须生效（已占位空转，未占位则重注册 + 重协商）
@@ -481,10 +570,11 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // appbar-autohide 模块，与哪扇条带窗现任无关；退避复原不拖住迁移）。
     if (plan.engageAutoHide) engageRetractAutoHide(log)
     if (plan.restoreAutoHide) restoreRetractAutoHide(log, reason)
-    // ②′′ 原生栏重申轮询（工单262）：与置位同生命周期——进收栏起表（1s 低频拍，检测
-    // Shell_TrayWnd 重建/可见性翻转/置位丢失，命中即重挂 SW_HIDE 与置位；与「发现可见
-    // 即再压」同一只轮询，不做键盘拦截），离收栏休止（非收栏态系统行为与现状一致）。
-    if (next === 'maximize-retract') startNativeWatch(s)
+    // ②′′ 原生栏重申轮询（工单262；工单271 起值守随工作区收栏账而非档位）：账在即起表
+    // （1s 低频拍——含分屏会话持有的全屏让位期间：explorer 重启/可见性翻转/置位丢失在
+    // 覆盖下也须重挂，否则保留带复活顶起后台 Snap 窗），账清即休止（非收栏理由时段
+    // 系统行为与现状一致）。
+    if (s.workspaceRetracted) startNativeWatch(s)
     else stopNativeWatch(s)
     // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
     if (plan.hideWindow) {
@@ -493,8 +583,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       w.showInactive()
       assertTop(s, reason)
     }
-    // ④ 档位下发渲染层（栏面退场/复现）
-    ctx.emit('taskbar/bar-mode', { mode: next, reason })
+    // ④ 档位下发渲染层（栏面退场/复现）——只在真实档位迁移拍下发；同态闸门交割拍
+    // 栏面不动（渲染层已持有该档位），重复下发只刷事件（渲染层只消费 mode 值）
+    if (prev !== next) ctx.emit('taskbar/bar-mode', { mode: next, reason })
     // ⑤ 存证：模式、旧→新、前台窗身份、AppBar 注销/重注册结果
     const foreground = probe
       ? { hwnd: probe.hwnd, pid: probe.pid, className: probe.className, zoomed: probe.zoomed }
@@ -573,6 +664,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       appBarHwnd: null,
       yieldTimer: null,
       mode: 'visible',
+      workspaceRetracted: false, // 工作区收栏账（工单271）：效果层逐笔维护，不从档位反推
       nativeWatch: null,
       appBarDegraded: false,
       negotiated: null,
@@ -605,16 +697,42 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       s.yieldTimer = setInterval(() => {
         if (w.isDestroyed()) return
         const probe = probeForegroundWindow()
-        const mode = resolveBarMode({
+        // 分屏会话探针（工单269/270）：与三态裁决同一接缝（spec 决策 3——持续重查，
+        // 不缓存一次判定）；识别不可用 ⇒ 恒无会话（分屏收栏关闭，最大化/全屏不受影响）
+        const snap = pollSnapSession()
+        // 裁决输入装配一次（工单271）：resolveBarMode（档位=栏面呈现）与 retractReasonHeld
+        // （工作区收栏理由持有）同源消费同一份事实——全屏覆盖 + 会话存续时档位落让位
+        // （②支掩蔽）而 held 独立为真，正是「栏面让位、工作区不让」的裁决缝。
+        const barInput = {
           probe,
           screen: primaryPhysRect(),
           ownPid: process.pid,
-          retractEnabled: ctx.taskbar.state().maximizeRetract, // 工单239 开关（默认开，关则永不为收栏档）
+          retractEnabled: ctx.taskbar.state().maximizeRetract, // 工单239 开关（默认开，关则永不为收栏档；工单269 起分屏收栏共用）
           appBarDegraded: s.appBarDegraded,
           prevMode: s.mode, // 工单253：自家浮层夺前台时沿用当前档位（不翻收栏档）
           ownOverlayPresent: openOverlayFamilies.size > 0, // 工单253：自家浮层在场（与「面板本体被点」分清）
-        })
-        applyBarMode(s, mode, probe)
+          snapSessionActive: snap.active, // 工单269：主屏分屏会话事实（后台理由，与 zoomed 同档同闸门）
+        }
+        const mode = resolveBarMode(barInput)
+        const retractHeld = retractReasonHeld(barInput)
+        // 会话事实翻转存证（工单269/270）：落点在档位裁决之后——会话结束但档位仍收栏
+        // （zoomed 理由接续）在同一条存证里可判；只在事实变化时落（同拍幂等，不刷屏）。
+        // members = 当拍合格成员数（多窗集合的规模可观测——建立/结束存证可判会话由几窗维持）
+        // retractHeldByZoomed = retractReasonHeld 的 zoomed 分量（工单271 评审收口⑤）：
+        // 浮层夺前台的 prevMode 保持拍（probe 是自家进程）与会话理由接续拍不再误记为 zoomed。
+        if (snap.flip) {
+          log?.append({
+            type: 'taskbar-snap-session',
+            active: snap.active,
+            available: snap.available,
+            members: snap.flip.members,
+            ...(snap.flip.cause !== undefined ? {
+              cause: snap.flip.cause,
+              retractHeldByZoomed: retractHeldByZoomed(barInput),
+            } : {}),
+          })
+        }
+        applyBarMode(s, mode, probe, retractHeld, retractGateDisqualified(barInput))
       }, YIELD_POLL_MS)
     } else {
       // 降级档（工单50/51）：注册被拒 → 不占工作区、也让位。收栏整体禁用（同待遇——
