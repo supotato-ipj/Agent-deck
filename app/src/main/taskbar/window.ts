@@ -20,6 +20,7 @@ import { ABN_POSCHANGED, appBarCallbackMessage, getAppBarState, negotiateAppBarP
 import type { AppBarRect } from './appbar'
 import { engageRetractAutoHide, reassertRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
+import { probeSnapWindows, resolveSnapSession } from './snap'
 import { ABS_AUTOHIDE, planBarTransition, resolveBarMode } from './retract'
 import type { BarMode } from './retract'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
@@ -303,6 +304,34 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     if (p.open) openOverlayFamilies.add(p.family)
     else openOverlayFamilies.delete(p.family)
   })
+
+  // —— 分屏会话探针账（工单269，spec #267）——
+  // 会话是后台事实（真 Snap 窗存续即活跃，与前台是谁无关）；采集与成员裁决在
+  // main/taskbar/snap.ts（IsWindowArranged 公共 API，矩形永不提升身份）。事实翻转
+  // 落存证 taskbar-snap-session（active/available 两字段——会话建立/结束与「识别
+  // 不可用」的严格降级诊断都在这一族里可观测，spec 决策 11/14）。首版实际接管
+  // 范围 = 主屏（primaryPhysRect），会话按显示器参数隔离裁决、不引入全局判定。
+  let snapSessionLedger: { active: boolean; available: boolean } | null = null
+  const pollSnapSession = (): { active: boolean; available: boolean } => {
+    let result: { active: boolean; available: boolean }
+    try {
+      const probed = probeSnapWindows()
+      result = {
+        active: probed.available && resolveSnapSession(probed.windows, primaryPhysRect(), process.execPath),
+        available: probed.available,
+      }
+    } catch {
+      // 探针一拍失败按「无会话」处理（还原是安全方向，与前台探针缺位同纪律）
+      result = { active: false, available: true }
+    }
+    if (!snapSessionLedger
+      || snapSessionLedger.active !== result.active
+      || snapSessionLedger.available !== result.available) {
+      snapSessionLedger = { active: result.active, available: result.available }
+      log?.append({ type: 'taskbar-snap-session', active: result.active, available: result.available })
+    }
+    return result
+  }
 
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
   // + 广播 TaskbarCreated 交还真托盘）。panel-kernel replayTrayClick 同款鸭子类型直调
@@ -605,14 +634,18 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       s.yieldTimer = setInterval(() => {
         if (w.isDestroyed()) return
         const probe = probeForegroundWindow()
+        // 分屏会话探针（工单269）：与三态裁决同一接缝（spec 决策 3——持续重查，不缓存
+        // 一次判定）；识别不可用 ⇒ 恒无会话（分屏收栏关闭，最大化/全屏不受影响）
+        const snap = pollSnapSession()
         const mode = resolveBarMode({
           probe,
           screen: primaryPhysRect(),
           ownPid: process.pid,
-          retractEnabled: ctx.taskbar.state().maximizeRetract, // 工单239 开关（默认开，关则永不为收栏档）
+          retractEnabled: ctx.taskbar.state().maximizeRetract, // 工单239 开关（默认开，关则永不为收栏档；工单269 起分屏收栏共用）
           appBarDegraded: s.appBarDegraded,
           prevMode: s.mode, // 工单253：自家浮层夺前台时沿用当前档位（不翻收栏档）
           ownOverlayPresent: openOverlayFamilies.size > 0, // 工单253：自家浮层在场（与「面板本体被点」分清）
+          snapSessionActive: snap.active, // 工单269：主屏分屏会话事实（后台理由，与 zoomed 同档同闸门）
         })
         applyBarMode(s, mode, probe)
       }, YIELD_POLL_MS)

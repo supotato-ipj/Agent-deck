@@ -544,12 +544,13 @@
     <input id="taskbar-toggle" type="checkbox" aria-label="自绘任务栏接管（关闭即还原原生任务栏）">
     <span id="taskbar-toggle-state">ON</span>
   </div>
-  <!-- 最大化收栏开关（工单239）：与「接管原生任务栏」语义不同，独立成行——
-       前台窗口真最大化时任务栏自动收栏；默认开，关掉即回到「最大化窗不收栏、栏常驻」
-       的旧行为（工单158 之前的栏高 64/48 常驻语义）。切换即时生效，不必重启面板。 -->
+  <!-- 最大化收栏开关（工单239；工单269 起文案覆盖分屏）：与「接管原生任务栏」语义不同，
+       独立成行——前台窗口真最大化**或分屏会话存续**时任务栏自动收栏（最大化或分屏时收栏，
+       spec #267 用户故事 26/决策 12）；默认开，关掉即回到「不收栏、栏常驻」的旧行为
+       （工单158 之前的栏高 64/48 常驻语义）。切换即时生效，不必重启面板。 -->
   <div id="settings-maximize-retract-row" class="set-row">
     <span class="set-label">MAX RETRACT</span>
-    <input id="maximize-retract-toggle" type="checkbox" aria-label="最大化收栏（前台窗口真最大化时任务栏自动收栏）">
+    <input id="maximize-retract-toggle" type="checkbox" aria-label="最大化或分屏时收栏（前台窗口真最大化或 Win11 分屏会话存续时任务栏自动收栏）">
     <span id="maximize-retract-toggle-state">ON</span>
   </div>
   <!-- 卡片显隐开关（工单101）：行由 main.ts 从快照插件清单 + 停用集动态装配

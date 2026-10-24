@@ -231,6 +231,167 @@ describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 =
 })
 
 /* ================================================================
+ * resolveBarMode：分屏会话输入（工单269，spec #267）
+ * ================================================================ */
+
+describe('resolveBarMode 分屏会话裁决（工单269）', () => {
+  it('单个合格 Snap 窗建立的会话（后台事实）→ 收栏：前台是普通窗也收（普通前台切换不打断，用户故事 8/9）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('normal'),
+      snapSessionActive: true,
+    })).toBe('maximize-retract')
+  })
+
+  it('前台探针缺位 + 会话存续 → 仍收栏（会话独立于前台，不随探针缺位翻脸）', () => {
+    expect(resolveBarMode({ ...baseInput, probe: null, snapSessionActive: true })).toBe('maximize-retract')
+  })
+
+  it('桌面宿主成前台 + 会话存续 → 仍收栏（点桌面不结束会话）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probe({ className: 'Progman' }),
+      snapSessionActive: true,
+    })).toBe('maximize-retract')
+  })
+
+  it('自家进程成前台（浮层不在场）+ 会话存续 → 仍收栏（面板本体被点不翻会话的栏）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probe({ pid: OWN_PID }),
+      prevMode: 'maximize-retract',
+      ownOverlayPresent: false,
+      snapSessionActive: true,
+    })).toBe('maximize-retract')
+  })
+
+  it('自家浮层夺前台 + 会话存续 → 档位保持（工单253 既有语义不因会话输入改变）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probe({ pid: OWN_PID }),
+      prevMode: 'visible',
+      ownOverlayPresent: true,
+      snapSessionActive: true,
+    })).toBe('visible')
+  })
+
+  it('全屏让位压过会话收栏的栏面呈现：覆盖主屏的全屏前台 → fullscreen-yield（最小闭环语义；#271 再精化工作区归属）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('fullscreen'),
+      snapSessionActive: true,
+    })).toBe('fullscreen-yield')
+  })
+
+  it('全屏 + 会话 + 开关关 → 仍 fullscreen-yield（让位不受闸门，既有口径不因会话输入改变）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('fullscreen'),
+      retractEnabled: false,
+      snapSessionActive: true,
+    })).toBe('fullscreen-yield')
+  })
+
+  it('真最大化 + 会话并存 → 收栏（两理由同档，不叠加动作）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('maximized'),
+      snapSessionActive: true,
+    })).toBe('maximize-retract')
+  })
+
+  it('共用开关关 → 分屏收栏禁用（沿用 taskbar.maximizeRetract，不新增配置）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('normal'),
+      retractEnabled: false,
+      snapSessionActive: true,
+    })).toBe('visible')
+  })
+
+  it('AppBar 降级档 → 分屏收栏禁用（降级档不建立分屏收栏）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('normal'),
+      appBarDegraded: true,
+      snapSessionActive: true,
+    })).toBe('visible')
+  })
+
+  it('会话结束 + 普通前台 → 及时恢复 visible（最后一个 Snap 窗解除即回栏）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('normal'),
+      snapSessionActive: false,
+    })).toBe('visible')
+  })
+
+  it('收栏理由接续：会话结束但前台仍真最大化 → 保持收栏（不先恢复再收栏，用户故事 21）', () => {
+    expect(resolveBarMode({
+      ...baseInput,
+      probe: probeOf('maximized'),
+      snapSessionActive: false,
+    })).toBe('maximize-retract')
+  })
+
+  it('缺省输入（不传 snapSessionActive）与旧口径逐字一致（新增输入位不改变旧行为）', () => {
+    expect(resolveBarMode({ ...baseInput, probe: probeOf('normal') })).toBe('visible')
+    expect(resolveBarMode({ ...baseInput, probe: probeOf('maximized') })).toBe('maximize-retract')
+    expect(resolveBarMode({ ...baseInput, probe: null })).toBe('visible')
+  })
+})
+
+describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 × 分屏会话 = 7 × 2 × 2 × 2）', () => {
+  // 会话在场列：除全屏覆盖形态外一律「开且未降级才收栏」；全屏覆盖仍压收栏（栏面呈现）
+  const SNAP_MODE_TABLE: Record<ProbeKind, readonly [BarMode, BarMode, BarMode, BarMode]> = {
+    missing: ['maximize-retract', 'visible', 'visible', 'visible'],
+    own: ['maximize-retract', 'visible', 'visible', 'visible'],
+    'desktop-host': ['maximize-retract', 'visible', 'visible', 'visible'],
+    normal: ['maximize-retract', 'visible', 'visible', 'visible'],
+    maximized: ['maximize-retract', 'visible', 'visible', 'visible'],
+    'maximized-covering': ['maximize-retract', 'visible', 'visible', 'visible'],
+    fullscreen: ['fullscreen-yield', 'fullscreen-yield', 'fullscreen-yield', 'fullscreen-yield'],
+  }
+
+  it('逐格命中真值表（含会话缺席列 = 旧表逐字不变）', () => {
+    const kinds: ProbeKind[] = ['missing', 'own', 'desktop-host', 'normal', 'maximized', 'maximized-covering', 'fullscreen']
+    const mismatches: string[] = []
+    let checked = 0
+
+    for (const kind of kinds) {
+      for (const retractEnabled of [true, false]) {
+        for (const appBarDegraded of [true, false]) {
+          for (const snapSessionActive of [false, true]) {
+            // 列序：开关开·未降级 / 开关开·降级 / 开关关·未降级 / 开关关·降级
+            const col = (retractEnabled ? 0 : 2) + (appBarDegraded ? 1 : 0)
+            const table = snapSessionActive ? SNAP_MODE_TABLE : MODE_TABLE
+            const want = table[kind][col]
+            const got = resolveBarMode({
+              ...baseInput, probe: probeOf(kind), retractEnabled, appBarDegraded, snapSessionActive,
+            })
+            checked += 1
+            if (got !== want) {
+              mismatches.push(
+                `${kind} 开关=${retractEnabled} 降级=${appBarDegraded} 会话=${snapSessionActive} → ${got}（期望 ${want}）`,
+              )
+            }
+          }
+        }
+      }
+    }
+
+    expect(checked).toBe(56)
+    expect(mismatches).toEqual([])
+  })
+
+  it('会话真值表覆盖齐七种探针形态（守卫表自身不漏格）', () => {
+    expect(Object.keys(SNAP_MODE_TABLE).sort()).toEqual([
+      'desktop-host', 'fullscreen', 'maximized', 'maximized-covering', 'missing', 'normal', 'own',
+    ])
+  })
+})
+
+/* ================================================================
  * planSummonStrips：唤出条几何规划
  * ================================================================ */
 
