@@ -15,13 +15,15 @@ import type { EventLog } from '../panel-ipc'
 import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import { taskbarUrl } from '../plugins/protocol'
 import { setTopmost, hwndOf } from '../win32'
-import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
-import { ABN_POSCHANGED, appBarCallbackMessage, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
+import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
+import { ABN_POSCHANGED, appBarCallbackMessage, getAppBarState, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
 import type { AppBarRect } from './appbar'
-import { engageRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
+import { engageRetractAutoHide, reassertRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
-import { planBarTransition, resolveBarMode } from './retract'
+import { ABS_AUTOHIDE, planBarTransition, resolveBarMode } from './retract'
 import type { BarMode } from './retract'
+import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
+import type { NativeWatchProbe } from './native-watch'
 import { TrayYieldMachine, TRAY_YIELD_POLL_MS } from './tray-yield'
 import type { TrayYieldDecision, TrayYieldRestoreReason } from './tray-yield'
 import { startTrayOverflowHost } from './overflow'
@@ -150,6 +152,14 @@ interface TaskbarSession {
    * 裁决归纯函数 resolveBarMode（shared/retract），本层只执行动作。
    */
   mode: BarMode
+  /**
+   * 原生栏重申轮询账（工单262，spec #258）：收栏态期间低频轮询（1s 拍）检测
+   * Shell_TrayWnd 重建（explorer 重启/热插拔）或可见性翻转/置位丢失，命中即重挂
+   * SW_HIDE 与 ABS_AUTOHIDE 置位（与「发现可见即再压」同一只轮询，不做键盘拦截）。
+   * 非收栏态停表休止——起/停随三态迁移（applyBarMode），裁决归纯机器
+   * native-watch.ts 的 NativeReassertMachine。
+   */
+  nativeWatch: { machine: NativeReassertMachine; timer: NodeJS.Timeout } | null
   /**
    * 降级档标记（AppBar 注册失败）——降级档下收栏整体禁用（与全屏让位同待遇）：
    * 没有占位就没有「释放占位」这回事，且降级档下最大化窗本就覆盖全屏。
@@ -309,6 +319,50 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     s.mode = 'visible' // 档位归零（窗在场期间的状态切换——会话账随窗生灭，不另立一套）
   }
 
+  /** 原生栏一拍观察采齐（工单262）：句柄/可见性走 native.ts 单一来源，置位走读回事实 */
+  const nativeWatchProbe = (): NativeWatchProbe => ({
+    ...nativeTaskbarView(),
+    autoHideOn: (getAppBarState() & ABS_AUTOHIDE) !== 0,
+  })
+
+  /**
+   * 原生栏重申轮询一拍（工单262）：观察喂机器、照单执行重挂、归因落存证。
+   * 休止后残留拍不动作（档位守门——stopNativeWatch 已清 interval，此处兜底竞态）。
+   */
+  const pollNativeWatch = (): void => {
+    const s = session
+    if (!s || s.win.isDestroyed() || s.mode !== 'maximize-retract') return
+    const probe = nativeWatchProbe()
+    const decision = s.nativeWatch?.machine.poll(probe)
+    if (!decision || decision.action === 'none') return
+    if (decision.hide) hideNativeTaskbar(log)
+    if (decision.engage) reassertRetractAutoHide(log)
+    log?.append({
+      type: 'taskbar-native-reassert',
+      reason: decision.reason,
+      hwnd: probe.hwnd,
+      visible: probe.visible,
+      autoHideOn: probe.autoHideOn,
+    })
+  }
+
+  /** 起表（进收栏）：以「刚置位过的当拍事实」立基线——首拍不误报重建/翻转 */
+  const startNativeWatch = (s: TaskbarSession): void => {
+    if (s.nativeWatch) return // 已在场（幂等——迁移执行器只在档位变更时调）
+    const machine = new NativeReassertMachine()
+    machine.begin(nativeWatchProbe())
+    const timer = setInterval(pollNativeWatch, NATIVE_WATCH_POLL_MS)
+    s.nativeWatch = { machine, timer }
+  }
+
+  /** 停表（离收栏/拆场）：清 interval + 机器回未武装态（非收栏态轮询休止） */
+  const stopNativeWatch = (s: TaskbarSession): void => {
+    if (!s.nativeWatch) return
+    clearInterval(s.nativeWatch.timer)
+    s.nativeWatch.machine.reset()
+    s.nativeWatch = null
+  }
+
   /** 协商矩形（物理）→ 条带窗 DIP 几何（差异 >1 DIP 才动，避免与系统微调来回震荡） */
   const applyNegotiated = (s: TaskbarSession, rc: AppBarRect) => {
     if (s.win.isDestroyed()) return
@@ -424,6 +478,11 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // appbar-autohide 模块，与哪扇条带窗现任无关；退避复原不拖住迁移）。
     if (plan.engageAutoHide) engageRetractAutoHide(log)
     if (plan.restoreAutoHide) restoreRetractAutoHide(log, reason)
+    // ②′′ 原生栏重申轮询（工单262）：与置位同生命周期——进收栏起表（1s 低频拍，检测
+    // Shell_TrayWnd 重建/可见性翻转/置位丢失，命中即重挂 SW_HIDE 与置位；与「发现可见
+    // 即再压」同一只轮询，不做键盘拦截），离收栏休止（非收栏态系统行为与现状一致）。
+    if (next === 'maximize-retract') startNativeWatch(s)
+    else stopNativeWatch(s)
     // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
     if (plan.hideWindow) {
       w.hide()
@@ -447,6 +506,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   const destroy = (reason: string) => {
+    // 原生栏重申轮询停表（工单262）：拆场先停观察再动复原账——重申不得在拆场中途再压一笔
+    if (session) stopNativeWatch(session)
     // 还原先于会话判空：hidNative 账独立于窗存续（窗被外部先销/建窗半途抛错
     // 都不能把「我藏的原生任务栏」赖成孤儿账——code-review 工单50 收口）
     if (hidNative) {
@@ -505,6 +566,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       appBarHwnd: null,
       yieldTimer: null,
       mode: 'visible',
+      nativeWatch: null,
       appBarDegraded: false,
       negotiated: null,
       keepalive: null as unknown as NodeJS.Timeout,
@@ -618,6 +680,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       // 撞不上现任共享账，新窗的占位/热区/让位轮询不被动。
       if (session !== s) return
       stopYieldPoll(s)
+      // 原生栏重申轮询同停（工单262）：外部先销窗路径不留悬空 interval
+      stopNativeWatch(s)
       // 外部先销窗路径（close 管线）：让位侦测一并收摊（destroy 路径已在先清过也无害）
       endTrayYield('session-gone', null)
       if (s.appBarHwnd !== null) {

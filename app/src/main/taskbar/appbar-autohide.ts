@@ -64,6 +64,30 @@ export function engageRetractAutoHide(log: EventLog | null): void {
 }
 
 /**
+ * 重申置位（工单262 原生栏重申轮询的重挂动作）：explorer 重启/可见性翻转后把
+ * ABS_AUTOHIDE 再压回去——**账不动**：原状态记账（engaged.previous）不变、复原义务
+ * 照旧，目标值仍从账面 previous 派生（explorer 重启按注册表原态复活 ⇒ previous
+ * 恰是注册表里用户原态，账面无需也不许换）。无账（入场置位曾失败/未走过）时按
+ * 完整置位走（恢复路径：记账照 engage 纪律）。成败以读回事实为准；读回仍缺位
+ * 只落失败存证、**不退避**——重申由轮询的下一拍天然重试（每拍独立判重挂，不叠加
+ * 退避账）。存证两路：taskbar-autohide-reattached / taskbar-autohide-reattach-failed。
+ */
+export function reassertRetractAutoHide(log: EventLog | null): void {
+  if (engaged === null) {
+    engageRetractAutoHide(log) // 无账：按完整置位走（记账照 engage 纪律）
+    return
+  }
+  const previous = engaged.previous
+  setAppBarState(retractAutoHideState(previous))
+  const state = getAppBarState()
+  if ((state & ABS_AUTOHIDE) !== 0) {
+    log?.append({ type: 'taskbar-autohide-reattached', previous, state })
+    return
+  }
+  log?.append({ type: 'taskbar-autohide-reattach-failed', previous, state })
+}
+
+/**
  * 退出收栏 / 条带销毁（面板退出、禁用、退役——还原路径①）：复原原 appbar 状态。
  * 退避重试（有限次、终局有界，与可见性复原同表）：读回不一致按表重试，每拍重新
  * SETSTATE；重试是异步的（退收栏迁移与销窗流程不被拖住），timer unref（不吊住进程
