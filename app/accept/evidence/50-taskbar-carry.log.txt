@@ -1,16 +1,20 @@
-# accept 50-taskbar-carry — 2026-10-24T04:49:27.623Z
-[04:49:27.800] SEG   ▶ A1 接管开启：原生任务栏隐藏 + 条带落屏底（条带高 48DIP，工单238 栏高口径）｜工单247｜失效面=系统状态+事件存证
-[04:49:29.469] NOTE  A1 守卫 pid=86460 面板 pid=72984
-[04:49:39.095] FAIL  A1 隐藏存证=true 视图已隐=false 几何={"heightDip":48,"bottomDip":1440,"dip":1440} 置顶=true
-[04:49:39.097] SEG   ▶ A2 正常退出（WM_CLOSE）：原生任务栏还原、守卫随退｜工单50｜失效面=面板存活+系统状态+事件存证
-[04:49:39.864] PASS  A2 正常退出路径：原生任务栏还原（reason=panel-exit，守卫随退=true）
-[04:49:39.867] SEG   ▶ A3 崩溃路径（taskkill 面板树守卫存活）：panel-exit 还原｜工单50｜失效面=面板存活+系统状态+事件存证
-[04:49:50.439] FAIL  电池异常: Error: A3 原生任务栏未被隐藏（前置不成立）
-    at runSegments (D:\test-folder\wallpaperengine-research--spec258-t2\app\accept\taskbar-carry.js:229:56)
-    at async main (D:\test-folder\wallpaperengine-research--spec258-t2\app\accept\taskbar-carry.js:383:5)
-[04:49:59.644] SEG   ▶ C1 偏好不扰（工单260 措辞收口）：StuckRects3 Settings 面板生命周期结束后字节复原（首末两点比对，与实现对齐）｜工单50｜失效面=系统状态
-[04:49:59.737] PASS  C1 用户任务栏偏好退出后字节复原（StuckRects3 Settings 首末两点一致——「面板生命周期结束后字节复原」口径）
-[04:49:59.739] SEG   ▶ C2 maximizeRetract=off 不置位：全电池 config 钉 off——置位事件零条（taskbar-autohide-* 全零）+ 退出后 appbar 状态 = 开跑前基线（控制器独立读数）｜工单260｜失效面=系统状态+事件存证
-[04:49:59.743] PASS  C2 maximizeRetract=off 不置位：全程置位事件零条（set/restored 全零）、退出后 appbar 状态 1 = 开跑前基线 1（控制器独立读数）
-[04:49:59.747] NOTE  清场核验：原生任务栏可见
-[04:49:59.749] ===== 50-taskbar-carry VERDICT: FAIL (pass=3 fail=2) =====
+# accept 50-taskbar-carry — 2026-10-24T06:02:21.466Z
+[06:02:21.609] SEG   ▶ A1 接管开启：原生任务栏隐藏 + 条带落屏底（条带高 48DIP，工单238 栏高口径）｜工单247｜失效面=系统状态+事件存证
+[06:02:23.044] NOTE  A1 守卫 pid=89972 面板 pid=50652
+[06:02:26.369] PASS  A1 接管开启：原生任务栏隐藏（taskbar-hidden 存证 + 视图事实），条带落屏底（条带高 48DIP，底边 DIP 1440/1440）
+[06:02:26.371] SEG   ▶ A2 正常退出（WM_CLOSE）：原生任务栏还原、守卫随退｜工单50｜失效面=面板存活+系统状态+事件存证
+[06:02:27.682] PASS  A2 正常退出路径：原生任务栏还原（reason=dispose，守卫随退=true）
+[06:02:27.684] SEG   ▶ A3 崩溃路径（taskkill 面板树守卫存活）：panel-exit 还原｜工单50｜失效面=面板存活+系统状态+事件存证
+[06:02:33.309] PASS  A3 崩溃路径：面板被 taskkill /F 后守卫还原原生任务栏（reason=panel-exit，守卫随退=true）
+[06:02:33.312] SEG   ▶ A4 进程被杀路径（守卫+面板同杀）：还原守护 guard-dead 翻回后自退｜工单50｜失效面=面板存活+系统状态+事件存证
+[06:02:39.801] PASS  A4 进程被杀路径：守卫+面板同杀后还原守护以 guard-dead 翻回原生任务栏（守护 pid=19556 已自退）
+[06:02:43.827] SEG   ▶ B1 逃生开关关闭（设置浮层真实 DOM 链）：原生即还原/条带销毁/config 落盘｜工单50｜失效面=系统状态+事件存证
+[06:02:44.596] PASS  B1 逃生开关关闭：原生任务栏即还原、条带销毁、config 落盘（自救通道成立）
+[06:02:44.598] SEG   ▶ B2 逃生开关再开：原生再隐、条带回来（双向可用）｜工单50｜失效面=系统状态
+[06:02:45.186] PASS  B2 逃生开关再开：原生任务栏再隐、条带恢复（开关双向可用）
+[06:02:54.019] SEG   ▶ C1 偏好不扰（工单260 措辞收口）：StuckRects3 Settings 面板生命周期结束后字节复原（首末两点比对，与实现对齐）｜工单50｜失效面=系统状态
+[06:02:54.100] PASS  C1 用户任务栏偏好退出后字节复原（StuckRects3 Settings 首末两点一致——「面板生命周期结束后字节复原」口径）
+[06:02:54.102] SEG   ▶ C2 maximizeRetract=off 不置位：全电池 config 钉 off——置位事件零条（taskbar-autohide-* 全零）+ 退出后 appbar 状态 = 开跑前基线（控制器独立读数）｜工单260｜失效面=系统状态+事件存证
+[06:02:54.107] PASS  C2 maximizeRetract=off 不置位：全程置位事件零条（set/restored 全零）、退出后 appbar 状态 0 = 开跑前基线 0（控制器独立读数）
+[06:02:54.110] NOTE  清场核验：原生任务栏可见
+[06:02:54.112] ===== 50-taskbar-carry VERDICT: PASS (pass=8 fail=0) =====
