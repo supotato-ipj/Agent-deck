@@ -1186,15 +1186,17 @@ async function runSegments() {
     if (!s14a.hwnd) {
       rep.fail('P14 Snap 参照窗未出现（powershell WinForms 宿主 10s 内无可见顶层窗——环境异常）');
     } else {
-      // ① 分屏后台建立（前台钉中性 holder——会话是后台事实）
+      // ① 分屏后台建立（前台钉中性 holder——会话是后台事实）。贴边按等待式判
+      // （R1 定谳：工作区落定先于 Snap 自动重排完成——一次性采样撞时延误判）
       const since14 = Date.now();
       const snapOk14 = await chordUntil(s14a.hwnd, VK_LEFT, true);
       forceForeground(hwndOf(neutralWin));
       const sess14 = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: since14, timeoutMs: 6000 });
       const waBg14 = await waitMs(wsBottomOk12, 5000);
+      const edgeBg14 = await waitMs(() => edgesFullOk(win32.rectOf(s14a.hwnd)), 5000);
       const rectBg14 = win32.rectOf(s14a.hwnd);
-      r14.bgSession = !!(snapOk14 && sess14) && waBg14 >= 0 && edgesFullOk(rectBg14);
-      if (!r14.bgSession) diag14.push(`后台会话=${r14.bgSession}（和弦=${snapOk14} 会话存证=${!!sess14} 屏底=${waBg14}ms 贴边=${edgesFullOk(rectBg14)}）`);
+      r14.bgSession = !!(snapOk14 && sess14) && waBg14 >= 0 && edgeBg14 >= 0;
+      if (!r14.bgSession) diag14.push(`后台会话=${r14.bgSession}（和弦=${snapOk14} 会话存证=${!!sess14} 屏底=${waBg14}ms 贴边=${edgeBg14}ms ${JSON.stringify(rectBg14)}）`);
       // ② 全屏进入（覆盖分屏收栏的栏面）+ ③ 覆盖期间结束会话
       if (r14.bgSession) {
         const sinceFs14 = Date.now();
@@ -1239,6 +1241,12 @@ async function runSegments() {
         r14.restoreAfter = !!ylEv14 && !!rlEv14 && waRest14 >= 0;
         if (!r14.restoreAfter) diag14.push(`退出恢复=${r14.restoreAfter}（yield-lifted=${!!ylEv14} retract-lifted(registered)=${!!rlEv14} 工作区复原=${waRest14}ms）`);
       }
+      // E1 收尾（无论②③④成败——残留成员会把会话拖住污染⑤与 P5/P9/P10，R2 定谳纪律）：
+      // 关宿主核验退场 → 清扫外来 Snap → 等会话结束、工作区复原（⑤的出发态必须干净）
+      await closeSnapHosts(s14a);
+      await sweepAlienSnaps();
+      const preWa14b = await waitMs(wsBarOk12, 5000);
+      if (preWa14b < 0) diag14.push(`⑤前置：E1 收尾后工作区未复原（会话可能被残留成员拖住）`);
       // ⑤ 最大化临时覆盖后台分屏布局（不结束会话；两理由同档幂等）
       const s14b = await spawnSnapPs('DECK-ACCEPT-SNAP-E2');
       if (!s14b.hwnd) {
@@ -1279,6 +1287,7 @@ async function runSegments() {
         maxWin14.destroy();
         await closeSnapHosts(s14b);
         await sweepAlienSnaps();
+        await waitMs(wsBarOk12, 5000); // P5 出发态：会话结束、工作区复原到位
       }
     }
     if (r14.bgSession && r14.cover && r14.endInCover && r14.restoreAfter && r14.maxCover) {
