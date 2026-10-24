@@ -321,7 +321,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const pollSnapSession = (): {
     active: boolean
     available: boolean
-    flip: null | { cause?: SnapSessionEndCause }
+    flip: null | { cause?: SnapSessionEndCause; members: number }
   } => {
     let windows: readonly SnapWindowFact[] = []
     let available = true
@@ -338,11 +338,11 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     const display = primaryPhysRect()
     const members = available ? snapSessionMembers(windows, display, process.execPath) : []
     const result = { active: members.length > 0, available }
-    let flip: { cause?: SnapSessionEndCause } | null = null
+    let flip: { cause?: SnapSessionEndCause; members: number } | null = null
     if (!snapSessionLedger
       || snapSessionLedger.active !== result.active
       || snapSessionLedger.available !== result.available) {
-      flip = {}
+      flip = { members: members.length }
       if (snapSessionLedger?.active && !result.active) {
         // 会话结束：按前成员当拍去向分类（探针失败拍/识别不可用拍无从分类 → unknown，
         // 不误报「关闭」）；建立/可用性翻转不带 cause
@@ -671,12 +671,14 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
           snapSessionActive: snap.active, // 工单269：主屏分屏会话事实（后台理由，与 zoomed 同档同闸门）
         })
         // 会话事实翻转存证（工单269/270）：落点在档位裁决之后——会话结束但档位仍收栏
-        // （zoomed 理由接续）在同一条存证里可判；只在事实变化时落（同拍幂等，不刷屏）
+        // （zoomed 理由接续）在同一条存证里可判；只在事实变化时落（同拍幂等，不刷屏）。
+        // members = 当拍合格成员数（多窗集合的规模可观测——建立/结束存证可判会话由几窗维持）
         if (snap.flip) {
           log?.append({
             type: 'taskbar-snap-session',
             active: snap.active,
             available: snap.available,
+            members: snap.flip.members,
             ...(snap.flip.cause !== undefined ? {
               cause: snap.flip.cause,
               retractHeldByZoomed: mode === 'maximize-retract',

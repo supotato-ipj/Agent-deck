@@ -39,11 +39,12 @@
 //      → 会话结束 + 重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性
 //      （2+ 轮询拍零收栏/零会话存证、工作区不动——矩形不得成为身份兜底）
 //   P12 分屏会话集合生命周期与代表性布局（工单270）：左右双窗统一进入分屏收栏并上下
-//      贴边；普通前台切换不打断（矩形逐字不变、工作区保持屏底）；解除其一仍维持、最后
-//      一个解除结束（cause=unsnapped）并复原（解除相在新近 Snap 窗上做——Win+Down 对
-//      自最小化恢复的 Snap 窗有最小化歧义，R1 实测）；重 Snap 后最小化其一仍维持、最后
-//      一个最小化结束（cause=minimized 存证）且恢复即按当前事实重建；三分之一加三分之
-//      二布局经 Win+Z 布局浮出数字键通道定位，同一真 Snap 判定收栏贴边（无布局专用分支）
+//      贴边；普通前台切换不打断（矩形逐字不变、工作区保持屏底）；标题栏拖拽真解除
+//      其一仍维持、最后一个解除结束（cause=unsnapped）并复原（Win+Down 在本机是
+//      **最小化**语义，R1/R2 磁带实证，不用于解除）；重 Snap 后最小化其一仍维持、
+//      最后一个最小化结束（cause=minimized 存证）且恢复即按当前事实重建；三分之一加
+//      三分之二布局经 Win+Z 布局浮出数字键通道定位，同一真 Snap 判定收栏贴边；收尾
+//      关宿主核验退场（残留成员会拖住会话——R2 级联根因）
 //   P13 虚拟桌面切换隔离与收栏理由接续（工单270）：四角布局统一判定；Win+Ctrl+D 切到
 //      新桌面 → 会话结束（cause=desktop-switched）+ 工作区复原；切回原桌面按该桌面实际
 //      布局重建会话；真最大化前台期间关闭全部 Snap 窗 → 会话结束（cause=closed +
@@ -771,6 +772,43 @@ async function runSegments() {
       win32.send([win32.keyInput(vk, win32.KEYUP)]);
       for (let i = mods.length - 1; i >= 0; i--) win32.send([win32.keyInput(mods[i], win32.KEYUP)]);
     };
+    // 真解除（工单270）：标题栏拖拽解 Snap——Win+Down 在本机对 Snap 窗是**最小化**语义
+    // （R1/R2 磁带 cause=minimized 实证），不能当解除用；拖离后浮定（arranged=false 且非
+    // iconic），拖点落屏中央不靠边（不触发边沿 Snap）
+    const dragUnsnap = async (hwnd) => {
+      for (let i = 0; i < 5; i++) {
+        const r = win32.rectOf(hwnd);
+        if (!r) return false;
+        const sx = Math.round((r.left + r.right) / 2);
+        const sy = Math.round(r.top + 20); // 标题带
+        win32.moveMousePhys(sx, sy);
+        await sleep(120);
+        win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+        win32.moveMousePhys(sx + 40, sy + 20);
+        await sleep(60);
+        win32.moveMousePhys(sx + 80, sy + 40);
+        await sleep(60);
+        win32.moveMousePhys(sx + 120, sy + 60);
+        await sleep(150);
+        win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+        await sleep(450);
+        if (!Boolean(IsWindowArrangedFn(hwnd)) && !win32.IsIconic(hwnd)) return true;
+      }
+      return false;
+    };
+    // 宿主收尾（R2 定谳的加固）：WM_CLOSE 后核验窗口/进程真退场，残留即进程强杀——
+    // 残留 Snap 成员会把会话拖住，P5/P9/P10 全被翻（R2 级联红的根因）
+    const closeSnapHosts = async (...hosts) => {
+      for (const h of hosts) if (h && h.hwnd) win32.PostMessageW(h.hwnd, WM_CLOSE, 0, 0);
+      await waitMs(() => hosts.every((h) => !h || !h.hwnd
+        || !win32.IsWindow(h.hwnd) || h.proc.exitCode !== null), 4000);
+      for (const h of hosts) {
+        if (h && h.proc && h.proc.exitCode === null && h.hwnd && win32.IsWindow(h.hwnd)) {
+          try { h.proc.kill('SIGKILL'); } catch { /* finally 兜底再杀 */ }
+        }
+      }
+      await sleep(300);
+    };
     // 目标宽度自适应 Snap（工单270 三分之一/三分之二布局）：Win+Z 打开 Snap Layouts
     // 浮出 → 数字键选布局 → 数字键选分区（微软文档键盘通道）。布局编号随版本排列
     // 不同——候选组合逐试，IsWindowArranged+实测宽度命中即停（有界，不赌编号次序）
@@ -799,18 +837,19 @@ async function runSegments() {
     //   ① 左右双窗统一判定：两窗各 Win+Left/Right → 会话+收栏+工作区屏底+两窗上下贴边；
     //   ② 普通前台切换不打断：中性 holder/Snap 窗轮换前台 1.3s（5+ 拍）零会话结束、零
     //      retract-lifted、工作区保持屏底、两 Snap 窗矩形逐字不变（不反复变化）；
-    //   ③ 解除集合生命周期（在**新近 Snap** 的窗上——Win+Down 对自最小化恢复回来的
-    //      Snap 窗有最小化歧义，R1 实测）：解除其一 → 会话由剩余成员维持；解除最后一
-    //      个 → 会话结束（cause=unsnapped 可区分存证）+ 复原；
+    //   ③ 解除集合生命周期（标题栏拖拽真解除——Win+Down 在本机是**最小化**语义，R1/R2
+    //      磁带 cause=minimized 实证）：解除其一 → 会话由剩余成员维持；解除最后一个
+    //      → 会话结束（cause=unsnapped 可区分存证）+ 复原；
     //   ④⑤ 最小化集合生命周期：重 Snap 后最小化其一 → 会话维持（a1 矩形不变）；最小化
     //      其一（剩余维持拍）→ 最后一个最小化 → 会话结束（cause=minimized）+ 复原；
     //   ⑥ 恢复最后一个 → 按当前事实重建会话；
     //   ⑦ 三分之一加三分之二：Win+Z 布局浮出数字键通道定位 1/3 宽 + 互补 2/3 →
-    //      同一判定进分屏收栏贴边。
+    //      同一判定进分屏收栏贴边；收尾关宿主后会话必须结束、工作区复原（防成员
+    //      残留拖住会话——R2 级联根因）。
     rep.beginSegment('P12');
     await waitMs(wsBarOk12, 5000); // 出发态回常驻（P11 收尾已复原，此处等占位生效档落定）
     const r12 = {
-      dual: false, fgStable: false, minOne: false, minLast: false, rebuild: false, unsnapEnd: false, thirds: false,
+      dual: false, fgStable: false, minOne: false, minLast: false, rebuild: false, unsnapEnd: false, thirds: false, bClean: false,
     };
     const diag12 = [];
     const a1 = await spawnSnapPs('DECK-ACCEPT-SNAP-A1');
@@ -845,15 +884,15 @@ async function runSegments() {
     const rectStable12 = rectsAfterFg.every((r, i) => sameRect12(r, rects12[i]));
     r12.fgStable = noLift12 && noEnd12 && wsBottomOk12() && rectStable12;
     if (!r12.fgStable) diag12.push(`前台稳定=${r12.fgStable}（零lift=${noLift12} 零结束=${noEnd12} 屏底=${wsBottomOk12()} 矩形不变=${rectStable12}）`);
-    // ③ 最后解除（在**新近 Snap** 的窗上做——Win+Down 对「自最小化恢复回来的 Snap 窗」
-    //    语义有最小化歧义（R1 实测），本相先用两枚新 Snap 窗验解除因果，再重 Snap 验最小化）：
-    //    解除其一（a2）→ 会话由 a1 维持；解除最后一个（a1）→ 结束（cause=unsnapped）+ 复原
+    // ③ 解除集合生命周期（标题栏拖拽真解除——Win+Down 在本机是**最小化**语义，R1/R2
+    //    磁带 cause=minimized 实证）：解除其一（a2）→ 会话由 a1 维持；解除最后一个
+    //    （a1）→ 结束（cause=unsnapped）+ 复原
     const tUnsnapA = Date.now();
-    const unsnapOneOk = await chordUntil(a2.hwnd, VK_DOWN, false);
+    const unsnapOneOk = await dragUnsnap(a2.hwnd);
     await sleep(1200);
     const unsnapOneHeld = tape.all('taskbar-snap-session', (e) => e.active === false, { since: tUnsnapA }).length === 0
       && tape.all('taskbar-retract-lifted', undefined, { since: tUnsnapA }).length === 0 && wsBottomOk12();
-    const unsnapLastOk = await chordUntil(a1.hwnd, VK_DOWN, false);
+    const unsnapLastOk = await dragUnsnap(a1.hwnd);
     forceForeground(hwndOf(neutralWin));
     const unEndEv12 = await tape.wait('taskbar-snap-session',
       (e) => e.active === false && e.cause === 'unsnapped', { since: tUnsnapA, timeoutMs: 6000 });
@@ -861,7 +900,7 @@ async function runSegments() {
       (e) => e.appBar === 'registered', { since: tUnsnapA, timeoutMs: 6000 });
     const unWa12 = await waitMs(wsBarOk12, 5000);
     r12.unsnapEnd = !!(unsnapOneOk && unsnapOneHeld && unsnapLastOk && unEndEv12 && unLiftEv12) && unWa12 >= 0;
-    if (!r12.unsnapEnd) diag12.push(`解除结束=${r12.unsnapEnd}（其一解除=${unsnapOneOk} 其一维持=${unsnapOneHeld} 最后解除=${unsnapLastOk} 结束存证=${!!unEndEv12} lift=${!!unLiftEv12} 复原=${unWa12}ms）`);
+    if (!r12.unsnapEnd) diag12.push(`解除结束=${r12.unsnapEnd}（其一拖解除=${unsnapOneOk} 其一维持=${unsnapOneHeld} 最后拖解除=${unsnapLastOk} 结束存证=${!!unEndEv12} lift=${!!unLiftEv12} 复原=${unWa12}ms）`);
     // ④ 重 Snap 双窗（最小化集合生命周期相位从新鲜 Snap 出发）
     const tResnap = Date.now();
     const resnapOk = await chordUntil(a1.hwnd, VK_LEFT, true) && await chordUntil(a2.hwnd, VK_RIGHT, true);
@@ -904,11 +943,9 @@ async function runSegments() {
     const rebuildWa12 = await waitMs(wsBottomOk12, 5000);
     r12.rebuild = !!rebuildEv12 && rebuildWa12 >= 0;
     if (!r12.rebuild) diag12.push(`重建=${r12.rebuild}（存证=${!!rebuildEv12} 屏底=${rebuildWa12}ms）`);
-    // A 相收尾：a1 恢复后仍是成员、a2 最小化非成员——关掉两宿主（会话随 a1 关闭结束，
-    // 落一条 cause=closed 事件在 B 相 since 门之前，不与 B 相断言互踩）
-    win32.PostMessageW(a1.hwnd, WM_CLOSE, 0, 0);
-    win32.PostMessageW(a2.hwnd, WM_CLOSE, 0, 0);
-    await sleep(500);
+    // A 相收尾：a1 恢复后仍是成员、a2 最小化非成员——关宿主并核验退场（会话随 a1
+    // 关闭结束，落一条 cause=closed 事件在 B 相 since 门之前，不与 B 相断言互踩）
+    await closeSnapHosts(a1, a2);
     // ⑧ 三分之一加三分之二（统一真 Snap 判定，无布局专用分支）：Win+Z 布局浮出的
     //    数字键通道（微软文档）自适应定位 1/3 宽；互补 2/3 先试 Win+Right 补位、
     //    不中再走 Win+Z 分区
@@ -952,17 +989,19 @@ async function runSegments() {
       thirdsDetail = `1/3定位=${b1Ok} 2/3互补=${b2Ok} 会话=${!!bSess12} 屏底=${bWa12}ms `
         + `宽=${b1r ? Math.round(b1r.right - b1r.left) : '?'}/${b2r ? Math.round(b2r.right - b2r.left) : '?'}/3=${Math.round(thirdW)} 贴边=${bEdges}`;
       if (!r12.thirds) diag12.push(`1/3+2/3=${r12.thirds}（${thirdsDetail}）`);
-      // B 相收尾：关宿主（会话随之结束、工作区复原——留给 P13 从常驻出发）
-      win32.PostMessageW(b1.hwnd, WM_CLOSE, 0, 0);
-      win32.PostMessageW(b2.hwnd, WM_CLOSE, 0, 0);
-      await waitMs(wsBarOk12, 5000);
+      // B 相收尾（R2 定谳加固）：关宿主**核验退场**（残留即强杀）→ 会话必须结束、
+      // 工作区复原——残留 Snap 成员会把会话拖住，P13/P5/P9/P10 全被翻（R2 级联根因）
+      await closeSnapHosts(b1, b2);
+      const bCleanWa = await waitMs(wsBarOk12, 5000);
+      r12.bClean = bCleanWa >= 0;
+      if (!r12.bClean) diag12.push(`B收尾=${r12.bClean}（关宿主后会话未结束/工作区未复原=${bCleanWa}ms——成员残留）`);
     }
-    if (r12.dual && r12.fgStable && r12.minOne && r12.minLast && r12.rebuild && r12.unsnapEnd && r12.thirds) {
+    if (r12.dual && r12.fgStable && r12.minOne && r12.minLast && r12.rebuild && r12.unsnapEnd && r12.thirds && r12.bClean) {
       rep.pass(`P12 分屏会话集合生命周期与代表性布局：左右双窗统一进分屏收栏（会话+注销收栏存证在流、工作区屏底、两窗上下贴边）；`
         + `普通前台轮换 5+ 拍零会话结束/零复原、Snap 窗矩形逐字不变；`
-        + `解除其一仍维持、最后一个解除结束（cause=unsnapped）→ 复原；重 Snap 后最小化其一仍维持（a1 矩形不变）、`
+        + `拖拽真解除其一仍维持、最后一个解除结束（cause=unsnapped）→ 复原；重 Snap 后最小化其一仍维持（a1 矩形不变）、`
         + `最后一个最小化结束（cause=minimized）→ 复原；恢复即按当前事实重建；`
-        + `1/3+2/3 布局经同一判定收栏贴边（${thirdsDetail}）`);
+        + `1/3+2/3 布局经同一判定收栏贴边（${thirdsDetail}）；收尾关宿主后会话结束、工作区复原`);
     } else {
       rep.fail(`P12 集合生命周期/布局未全绿：${JSON.stringify(r12)}；${diag12.join('；')}`);
     }
@@ -1095,7 +1134,10 @@ async function runSegments() {
     } else {
       rep.fail(`P13 桌面隔离/理由接续未全绿：${JSON.stringify(r13)}；${diag13.join('；')}`);
     }
-    // P13 收尾：四角宿主已关（理由接续相位）；进程兜底强杀在 finally
+    // P13 收尾（R2 定谳加固——无论断言成败都执行）：关四角宿主并核验退场（残留即强杀）
+    // → 等会话结束、工作区复原；残留 Snap 成员会把会话拖住，P5/P9/P10 全被翻
+    await closeSnapHosts(...cw);
+    await waitMs(wsBarOk12, 5000);
     }
 
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
