@@ -164,9 +164,11 @@ async function runSegments() {
   const rep = new Report('51-taskbar-appbar');
   const originalConfig = readConfigRaw();
   const originalMode = currentDisplayMode();
-  let panelPid = 0;
-  let modeSwitched = false;
-  const refWins = [];
+    let panelPid = 0;
+    let modeSwitched = false;
+    const refWins = [];
+    // 外部宿主进程（工单269 P11 的 powershell WinForms Snap 参照窗）：finally 强杀兜底
+    const extProcs = [];
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
     app.exit(v.fails === 0 ? 0 : 1);
@@ -588,11 +590,33 @@ async function runSegments() {
       }
       return false;
     };
-    const snapWin = new BrowserWindow({ width: 900, height: 700, title: 'DECK-ACCEPT-SNAP', backgroundColor: '#203040' });
-    refWins.push(snapWin);
-    await snapWin.loadURL('about:blank');
-    const snapHwnd11 = hwndOf(snapWin);
+    // Snap 参照窗：分屏会话成员资格按 exe 归一排除自家（shouldShowOnTaskbar 既有口径，
+    // R1 实证：电池与面板子进程同用 electron.exe ⇒ 电池自建窗被判「自家」不建会话）——
+    // 换宿主进程开窗：powershell.exe 起一枚 WinForms 普通顶层窗（exe 不同、可被系统 Snap）。
+    const psScript11 = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$f = New-Object System.Windows.Forms.Form",
+      "$f.Text = 'DECK-ACCEPT-SNAP-PS'",
+      "$f.Width = 900; $f.Height = 700",
+      "$f.Add_FormClosed({ [Environment]::Exit(0) })",
+      "[System.Windows.Forms.Application]::Run($f)",
+    ].join('; ');
+    const snapPs11 = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', psScript11], { stdio: 'ignore' });
+    extProcs.push(snapPs11);
+    const snapHwnd11 = await (async () => {
+      const deadline = Date.now() + 10000;
+      while (Date.now() < deadline) {
+        if (snapPs11.exitCode !== null) return 0;
+        const h = win32.findWindowByPid(snapPs11.pid);
+        if (h) return h;
+        await sleep(120);
+      }
+      return 0;
+    })();
     const since11 = Date.now(); // 时间门在触发动作（Snap 和弦）之前
+    if (!snapHwnd11) {
+      rep.fail('P11 Snap 参照窗未出现（powershell WinForms 宿主 10s 内无可见顶层窗——环境异常）');
+    } else {
     const snapped11 = await chordUntil(snapHwnd11, VK_LEFT, true);
     if (!snapped11) {
       rep.fail('P11 Snap 建立失败：Win+Left 合成 5 次后 IsWindowArranged 恒 false（环境注入异常——和弦只对前台窗生效，见磁带前台读数）');
@@ -693,6 +717,9 @@ async function runSegments() {
           + `伪分屏阴性=${negativeOk11}（几何=${JSON.stringify(fakeRect11)} arranged=${arrangedFake11} 收栏存证=${retractAfterFake11.length} 会话存证=${sessionAfterFake11.length} 工作区=${waFake11 && waFake11.bottom}）`);
       }
     }
+    }
+    // P11 收尾：Win+Down 已解除；参照窗由 FormClosed/Exit 退出，进程兜底强杀在 finally
+    if (snapHwnd11) win32.PostMessageW(snapHwnd11, WM_CLOSE, 0, 0);
 
     // —— P5：卸载归还（面板正常退出 → AppBar 注销 + 工作区归还全屏）——
     rep.beginSegment('P5');
@@ -914,6 +941,7 @@ async function runSegments() {
     // 还原分辨率 → --icon-restore 自救 → 还原 config。
     try {
       for (const w of refWins) { try { if (!w.isDestroyed()) w.destroy(); } catch { /* 尽力 */ } }
+      for (const p of extProcs) { try { p.kill(); } catch { /* 尽力 */ } }
       // 工单211：面板清场归句柄**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失；
       // gone=false 只入环境降责账、**不中止**——清场段抛错会拦住 finish() → 控制器不退）
       const cleared = await handle.stop();
