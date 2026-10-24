@@ -166,6 +166,30 @@ export function resolveBarMode(input: BarModeInput): BarMode {
   return 'visible'
 }
 
+/**
+ * 工作区收栏理由是否**仍持有**（工单271，spec #267）：zoomed ∨ 分屏会话，过「共用
+ * 开关 + 降级禁用」两道闸门。与 `resolveBarMode` 同输入族、单一裁决住在同一模块——
+ * 分歧点恰是解耦的价值：全屏覆盖 + 会话存续时 `resolveBarMode` 落让位档（②支掩蔽
+ * 理由），本函数独立可见「工作区收栏理由仍在」，迁移计划据此保持占位释放与原生栏
+ * 托管、不复原工作区（栏面让位、工作区不让）。
+ *
+ * 与收栏档的一致性（效果层用途的前提）：非全屏掩蔽拍上，本函数为真 ⇔ resolveBarMode
+ * 落 maximize-retract（单测逐格钉住）；自家浮层夺前台的「档位保持」拍不参与（该拍
+ * 档位不变，held 无从消费）。全屏让位只拥有栏面呈现——它对工作区面没有发言权。
+ */
+export function retractReasonHeld(input: BarModeInput): boolean {
+  // 两道闸门（与 resolveBarMode 收栏支同源）：开关关 / 降级档 ⇒ 理由整体失格
+  if (!input.retractEnabled || input.appBarDegraded) return false
+  // 分屏会话是后台事实——与前台是谁（含探针缺位、自家进程、桌面宿主、全屏覆盖）无关
+  if (input.snapSessionActive ?? false) return true
+  const probe = input.probe
+  if (!probe) return false
+  // zoomed 理由与 resolveBarMode ①支同排除族：自家进程、桌面宿主类不算
+  if (probe.pid === input.ownPid) return false
+  if (DESKTOP_HOST_CLASSES.includes(probe.className)) return false
+  return probe.zoomed
+}
+
 /* ================================================================
  * 三、planSummonStrips：唤出条几何规划
  * ================================================================ */
@@ -490,11 +514,40 @@ export interface BarTransitionPlan {
 }
 
 /**
+ * 三态迁移的裁决上下文（工单271，spec #267）：把**工作区收栏理由**（谁拥有工作区
+ * 交割）与**栏面呈现**（bar 窗以什么形态在场）两个维度显式喂给迁移计划——全屏让位
+ * 只拥有栏面呈现；分屏会话存续时全屏覆盖不附带工作区复原。
+ */
+export interface BarTransitionContext {
+  /**
+   * 迁移前的工作区收栏账面：true = 我方 AppBar 占位已注销、原生栏托管已置位
+   * （收栏效果在账——效果层 applyBarMode 逐笔维护的同名字账）。缺省按旧口径从
+   * prev 档位推断（prev 为收栏态即视为在账）——两参调用与旧实现逐字等价。
+   */
+  workspaceRetracted?: boolean
+  /**
+   * 迁移当拍工作区收栏理由**仍持有**（分屏会话存续且过「共用开关 + 降级禁用」两道
+   * 闸门——zoomed 理由与全屏让位互斥，永不随 yield 迁移持有）。只在收栏 → 全屏让位
+   * 这条迁移上参与裁决：真 ⇒ 占位保持释放、托管不中断（栏面让位、工作区不让）。
+   * 缺省 false = 无会话旧口径。
+   */
+  retractHeld?: boolean
+}
+
+/**
  * 三态迁移的动作计划（纯函数）：旧态 → 新态 → 该做哪些动作。
  *
- * 三条不变量（工单241 修正 E1/E3/E4 的落点）：
- * ① **占位只在收栏态释放**：其余两态占位必须生效——全屏让位态沿用既有语义（占位不断、
- *    只藏条带窗），收栏态才注销 AppBar 交还整屏；
+ * 两个平面（工单271 解耦）：
+ * - **工作区面**（谁拥有工作区交割）：收栏理由（zoomed ∨ 分屏会话）持有 ⇒ 我方
+ *   AppBar 占位注销 + 原生栏托管置位；理由消失 ⇒ 重注册占位 + 复原置位。交割只在
+ *   账面与目标不一致时发生（同拍幂等——不因栏面来回反复交割）；
+ * - **栏面**：visible 常驻 / 收栏唤出（条带窗在场承载唤出条）/ 全屏让位（整窗退场，
+ *   唤出条也不出现）。
+ *
+ * 三条不变量（工单241 修正 E1/E3/E4 的落点，工单271 随解耦精化措辞）：
+ * ① **占位只在收栏账上释放**：工作区面交到收栏时注销、交离时重注册——全屏让位
+ *    态若无收栏理由持有，占位必须生效（既有语义）；分屏会话存续的全屏覆盖期间
+ *    占位保持释放（工单271 例外）；
  * ② **整窗只在让位态退场**：收栏态条带窗仍在场（承载形态 = 栏窗复用——唤出条贴屏底、
  *    在最大化窗之上、命中区可点，弹出的组就落在同一条 48px 带内）；
  * ③ **同态迁移零动作**：250ms 轮询每拍都过一次，重复落账会刷爆存证流。
@@ -502,7 +555,11 @@ export interface BarTransitionPlan {
  * 本函数**不重判档位**——档位归 resolveBarMode（真最大化优先）。收栏态因占位登记被注销而
  * 让最大化窗「看起来」覆盖整屏，那是副作用不是档位变化（修正 E4：不得因此翻成让位态）。
  */
-export function planBarTransition(prev: BarMode, next: BarMode): BarTransitionPlan {
+export function planBarTransition(
+  prev: BarMode,
+  next: BarMode,
+  context?: BarTransitionContext,
+): BarTransitionPlan {
   const plan: BarTransitionPlan = {
     releaseAppBar: false,
     engageAutoHide: false,
@@ -514,21 +571,29 @@ export function planBarTransition(prev: BarMode, next: BarMode): BarTransitionPl
     evidence: [],
   }
   if (prev === next) return plan
-  // ① 工作区占位：收栏态释放，其余两态占位必须生效；原生栏托管同拍（工单260）——
-  //    置位只在进入收栏、复原只在退出收栏（与占位释放/重注册同一迁移沿）
-  if (next === 'maximize-retract') plan.releaseAppBar = true
-  else plan.claimAppBar = true
-  plan.engageAutoHide = next === 'maximize-retract'
-  plan.restoreAutoHide = prev === 'maximize-retract'
+  // 工作区面裁决（工单271）：账面（迁移前）→ 目标（迁移后），只在两值不一致时交割。
+  // 缺省上下文 = 无会话旧口径：账面从 prev 档位推断、理由不持有——与两参旧实现逐字等价。
+  const retractHeld = context?.retractHeld ?? false
+  const wasRetracted = context?.workspaceRetracted ?? (prev === 'maximize-retract')
+  const wantRetracted = next === 'maximize-retract'
+    // 收栏 → 全屏让位：理由仍持有 ⇒ 工作区保持收栏账（只改栏面）；否则交离（既有语义）
+    || (next === 'fullscreen-yield' && prev === 'maximize-retract' && retractHeld)
+  // ① 工作区占位交割：进账注销 + 托管置位（严格同拍——只注销不置位则保留带不释放）；
+  //    离账重注册 + 复原置位。目标与账面一致时零交割（幂等）。
+  plan.releaseAppBar = plan.engageAutoHide = wantRetracted && !wasRetracted
+  plan.claimAppBar = !wantRetracted
+  plan.restoreAutoHide = wasRetracted && !wantRetracted
   // ② 整窗显隐：让位态退场（唤出条也不出现），其余态条带窗在场
   if (next === 'fullscreen-yield') plan.hideWindow = true
   if (prev === 'fullscreen-yield') plan.showWindow = true
   // ③ 浮层收拢：收栏与让位两态都不留无锚孤儿浮层（用户故事 29）
   if (next === 'maximize-retract' || next === 'fullscreen-yield') plan.closePopups = true
-  // 存证：两族各按「进入/退出」落一条（退出旧态在前、进入新态在后）
+  // 存证（工单271 起 retract 族随**工作区面**交割、yield 族随**栏面**交割——「栏面被
+  // 全屏覆盖」与「分屏会话结束」在存证流上可分）：两族各按「退出旧态在前、进入新态
+  // 在后」落一条。
   if (prev === 'fullscreen-yield') plan.evidence.push('taskbar-yield-lifted')
-  if (prev === 'maximize-retract') plan.evidence.push('taskbar-retract-lifted')
+  if (wasRetracted && !wantRetracted) plan.evidence.push('taskbar-retract-lifted')
   if (next === 'fullscreen-yield') plan.evidence.push('taskbar-yield')
-  if (next === 'maximize-retract') plan.evidence.push('taskbar-retract')
+  if (wantRetracted && !wasRetracted) plan.evidence.push('taskbar-retract')
   return plan
 }
