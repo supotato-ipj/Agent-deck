@@ -18,6 +18,7 @@ import { setTopmost, hwndOf } from '../win32'
 import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
 import { ABN_POSCHANGED, appBarCallbackMessage, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
 import type { AppBarRect } from './appbar'
+import { engageRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
 import { planBarTransition, resolveBarMode } from './retract'
 import type { BarMode } from './retract'
@@ -418,6 +419,11 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         appBar = 'register-failed'
       }
     }
+    // ②′ 原生栏托管（工单260）：与占位段同拍——进入收栏置位 ABS_AUTOHIDE（shell 由此
+    // 释放原生保留带，最大化窗铺满整屏）、退出收栏复原原状态（thide RAII 账在
+    // appbar-autohide 模块，与哪扇条带窗现任无关；退避复原不拖住迁移）。
+    if (plan.engageAutoHide) engageRetractAutoHide(log)
+    if (plan.restoreAutoHide) restoreRetractAutoHide(log, reason)
     // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
     if (plan.hideWindow) {
       w.hide()
@@ -447,6 +453,9 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       hidNative = false
       showNativeTaskbar(log, reason)
     }
+    // 原生栏托管复原（工单260，还原路径①）：收栏态下退出（禁用/退役/dispose）也要还
+    // appbar 状态账——RAII 账与窗现任无关，退避重试异步推进不拖住销窗；未置位则静默。
+    restoreRetractAutoHide(log, reason)
     // 托盘让位闸门随控制器收摊（工单194）：侦测定时器随窗灭，不让位账悬空
     endTrayYield('session-gone', null)
     const s = session

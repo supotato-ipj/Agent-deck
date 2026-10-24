@@ -6,6 +6,8 @@
 // 主进程侧只做转发导出、**不另写一份实现**（工单237 修正 A2）。
 // 先例：apps-plan.ts / tray-plan.ts 转出 shared/overflow 的同款做法。
 export {
+  ABS_ALWAYSONTOP,
+  ABS_AUTOHIDE,
   COVER_TOLERANCE,
   DESKTOP_HOST_CLASSES,
   SUMMON_GRACE_MS,
@@ -20,6 +22,7 @@ export {
   reduceSummon,
   reduceSummonSequence,
   resolveBarMode,
+  retractAutoHideState,
   summonedGroups,
 } from '../../shared/retract'
 export type {

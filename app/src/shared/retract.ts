@@ -404,6 +404,22 @@ export function summonedGroups(state: SummonState): string[] {
  * 五、planBarTransition：三态迁移的动作计划（工单241）
  * ================================================================ */
 
+/** 原生任务栏 appbar 状态位（Win32 shellapi，探针同款常量）：自动隐藏 */
+export const ABS_AUTOHIDE = 0x1
+/** 原生任务栏 appbar 状态位（Win32 shellapi，探针同款常量）：始终置顶 */
+export const ABS_ALWAYSONTOP = 0x2
+
+/**
+ * 收栏置位的目标 appbar 状态（工单260 原生栏托管，thide RAII 蓝本）：保留用户的
+ * ALWAYSONTOP 位、加 ABS_AUTOHIDE——shell 在自动隐藏态释放原生任务栏 48px 保留带
+ * （spike 取证 docs/audit/2026-10-24-t257-autohide-setstate-probe.md：工作区底边
+ * 1392→1440=屏底）。用户本已开启自动隐藏时本函数是无操作（结果不变），记账与复原
+ * 照走、不特判。
+ */
+export function retractAutoHideState(previous: number): number {
+  return (previous & ABS_ALWAYSONTOP) | ABS_AUTOHIDE
+}
+
 /** 三态迁移落下的存证事件名（与既有 taskbar-yield / taskbar-yield-lifted 同族） */
 export type BarEvidenceEvent =
   | 'taskbar-yield'
@@ -420,6 +436,15 @@ export type BarEvidenceEvent =
  *   不在 AppBar 登记表里）⇒ 「最大化窗铺满整屏」在本机不发生——本字段的语义是
  *   「占位**登记**释放」，不是「工作区归还整屏」。取证见
  *   docs/audit/2026-10-23-t250-native-taskbar-reserved-band.md；
+ * - engageAutoHide：置位原生栏自动隐藏（工单260 原生栏托管）——进入收栏时记原 appbar
+ *   状态后置 ABS_AUTOHIDE（保留 ALWAYSONTOP 位，thide RAII 蓝本），shell 由此释放
+ *   原生任务栏 48px 保留带（spike 取证：工作区底边 1392→1440，
+ *   docs/audit/2026-10-24-t257-autohide-setstate-probe.md）——与 releaseAppBar 严格
+ *   同拍（只注销占位不置位 ⇒ 保留带不释放，铺满整屏不发生）；仅收栏态为真，
+ *   非收栏时段系统行为与现状一致；
+ * - restoreAutoHide：复原原生栏自动隐藏（工单260）——旧态为收栏即为真（解除最大化、
+ *   被全屏压过两路都算退出收栏）；复原原状态，用户已开自动隐藏时置位本就是无操作、
+ *   复原照走（不特判）；
  * - claimAppBar：工作区占位必须生效 —— 已占位则空转，未占位则重注册 + 重协商（占位恢复）；
  * - hideWindow：整窗退场（隐藏）—— 只在全屏让位态（栏窗复用的收栏态不隐藏，唤出条要贴屏底可见）；
  * - showWindow：整窗复现 —— 从全屏让位态出来时；
@@ -428,6 +453,8 @@ export type BarEvidenceEvent =
  */
 export interface BarTransitionPlan {
   releaseAppBar: boolean
+  engageAutoHide: boolean
+  restoreAutoHide: boolean
   claimAppBar: boolean
   hideWindow: boolean
   showWindow: boolean
@@ -451,6 +478,8 @@ export interface BarTransitionPlan {
 export function planBarTransition(prev: BarMode, next: BarMode): BarTransitionPlan {
   const plan: BarTransitionPlan = {
     releaseAppBar: false,
+    engageAutoHide: false,
+    restoreAutoHide: false,
     claimAppBar: false,
     hideWindow: false,
     showWindow: false,
@@ -458,9 +487,12 @@ export function planBarTransition(prev: BarMode, next: BarMode): BarTransitionPl
     evidence: [],
   }
   if (prev === next) return plan
-  // ① 工作区占位：收栏态释放，其余两态占位必须生效
+  // ① 工作区占位：收栏态释放，其余两态占位必须生效；原生栏托管同拍（工单260）——
+  //    置位只在进入收栏、复原只在退出收栏（与占位释放/重注册同一迁移沿）
   if (next === 'maximize-retract') plan.releaseAppBar = true
   else plan.claimAppBar = true
+  plan.engageAutoHide = next === 'maximize-retract'
+  plan.restoreAutoHide = prev === 'maximize-retract'
   // ② 整窗显隐：让位态退场（唤出条也不出现），其余态条带窗在场
   if (next === 'fullscreen-yield') plan.hideWindow = true
   if (prev === 'fullscreen-yield') plan.showWindow = true
