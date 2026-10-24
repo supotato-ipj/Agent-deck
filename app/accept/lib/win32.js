@@ -62,6 +62,18 @@ const GetWindow = user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uin
 const PostMessageW = user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wp, intptr_t lp)');
 const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)');
 const IsIconic = user32.func('bool __stdcall IsIconic(uintptr_t hWnd)');
+// 工单260 原生栏托管：原生任务栏 appbar 状态读数（ABM_GETSTATE=4）——控制器侧独立判据
+// （不依赖面板自证）。void* + 手拼 48 字节 APPBARDATA（不注册具名 struct，#153 撞名教训；
+// x64 布局 = cbSize4+pad4+hWnd8+uCallback4+uEdge4+rc16+lParam8，GETSTATE 只认 cbSize）。
+const shell32 = koffi.load('shell32.dll');
+const SHAppBarMessage = shell32.func('uintptr_t __stdcall SHAppBarMessage(uint32 dwMessage, void *pData)');
+const APPBARDATA_SIZE = 48;
+/** 原生任务栏 appbar 状态位（&0x3 掩码内：0x1=ABS_AUTOHIDE 0x2=ABS_ALWAYSONTOP） */
+function appbarState() {
+  const buf = Buffer.alloc(APPBARDATA_SIZE);
+  buf.writeUInt32LE(APPBARDATA_SIZE, 0);
+  return Number(SHAppBarMessage(0x4, buf)) & 0x3;
+}
 // 工单05 桌面承载：DefView/SysListView32 探针（探测逻辑与 src/main/icon-carry.ts 互链不互引——
 // 电池不得 import 生产代码）。WM_COMMAND=0x0111 与 0x7402 为 explorer「查看→显示桌面图标」命令。
 const SendMessageTimeoutW = user32.func('bool __stdcall SendMessageTimeoutW(uintptr_t, uint32, uintptr_t, intptr_t, uint32, uint32, void *)');
@@ -343,7 +355,7 @@ module.exports = {
   SetLayeredWindowAttributes,
   GetWindowLongW, WindowFromPoint, IsWindow, IsWindowVisible, PostMessageW, AttachThreadInput,
   FindWindowExW, IsIconic, findDefView, desktopIconsVisible, SendMessageTimeoutW,
-  nativeTrayHwnd, nativeTaskbarVisible, ensureNativeTaskbarVisible,
+  nativeTrayHwnd, nativeTaskbarVisible, ensureNativeTaskbarVisible, appbarState,
   exeOfPid, exeNameOfWindow, isCloaked,
   GetCurrentThreadId, GetKeyboardLayout, SetCursorPos, SetWindowLongW, sendUnicode,
   ShowWindow,

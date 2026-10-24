@@ -23,6 +23,10 @@ const ABM_NEW = 0
 const ABM_REMOVE = 1
 const ABM_SETPOS = 2
 const ABM_QUERYPOS = 3
+// ⚠️ SETPOS/QUERYPOS 两值与 shellapi 官方头相反（官方 QUERYPOS=2/SETPOS=3）——已知缺陷
+// 独立票 #251 在案，本仓不动（避免与既有协商行为混变量；工单260 只新增下列两个官方值）。
+const ABM_GETSTATE = 4
+const ABM_SETSTATE = 10
 const ABE_BOTTOM = 3
 /** ABN_POSCHANGED：系统通知工作区重协商（其他 AppBar 变动等），经回调消息送达 */
 export const ABN_POSCHANGED = 1
@@ -96,4 +100,36 @@ export function negotiateAppBarPos(hwnd: number, want: AppBarRect, log: EventLog
   const rc = { left: Number(data.rc.left), top: Number(data.rc.top), right: Number(data.rc.right), bottom: Number(data.rc.bottom) }
   log?.append({ type: 'taskbar-appbar-setpos', reason, rc })
   return rc
+}
+
+/* ================================================================
+ * 原生任务栏 appbar 状态读写（工单260 原生栏托管）：ABM_GETSTATE/ABM_SETSTATE。
+ * 两消息都不需 hWnd/矩形（任务栏状态是会话级事实），SETSTATE 的目标位走 lParam。
+ * 状态位常量（ABS_AUTOHIDE/ABS_ALWAYSONTOP）与置位值函数在纯函数域
+ * （shared/retract 的 retractAutoHideState），RAII 记账与退避复原在
+ * taskbar/appbar-autohide.ts——本处只做最薄 FFI 面（探针同款调用形态，
+ * docs/audit/2026-10-24-t257-autohide-setstate-probe.md）。
+ * ================================================================ */
+
+/** GETSTATE/SETSTATE 共用的最小 APPBARDATA（hWnd/回调/边/矩形全零，lParam 携带状态位） */
+function appBarStateData(lParam: number) {
+  return {
+    cbSize: koffi.sizeof(APPBARDATA) as number,
+    hWnd: 0,
+    uCallbackMessage: 0,
+    uEdge: 0,
+    rc: { left: 0, top: 0, right: 0, bottom: 0 },
+    lParam,
+  }
+}
+
+/** 读原生任务栏 appbar 状态位（返回值取 ABS_* 掩码内的位；spike 基线 0、置位后 1） */
+export function getAppBarState(): number {
+  return Number(SHAppBarMessage(ABM_GETSTATE, appBarStateData(0))) & 0x3
+}
+
+/** 写原生任务栏 appbar 状态位（ABS_AUTOHIDE/ABS_ALWAYSONTOP 组合）。成败由调用方以
+ *  GETSTATE 读回事实裁决（同 ShowWindow 返回值不可信的纪律——SETSTATE 无返回语义）。 */
+export function setAppBarState(state: number): void {
+  SHAppBarMessage(ABM_SETSTATE, appBarStateData(state))
 }
