@@ -379,3 +379,59 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(fwd).toMatch(/\bABS_ALWAYSONTOP\b/)
   })
 })
+
+describe('原生栏重申轮询接线（工单262，spec #258；效果层离线不可测，以源码级守卫钉住）', () => {
+  const CTRL = 'app/src/main/taskbar/window.ts'
+  const AUTOHIDE = 'app/src/main/taskbar/appbar-autohide.ts'
+  const WATCH = 'app/src/main/taskbar/native-watch.ts'
+  const NATIVE = 'app/src/main/taskbar/native.ts'
+  const code = codeOf(CTRL)
+
+  it('轮询起止随三态迁移：进收栏起表、离收栏休止（非收栏态不轮询——票面验收标准第三条）', () => {
+    expect(code).toMatch(/if \(next === 'maximize-retract'\) startNativeWatch\(s\)/)
+    expect(code).toMatch(/else stopNativeWatch\(s\)/)
+    // 起表在置位之后：重申机器以「刚置位过的当拍事实」立基线（首拍不误报）
+    const m = code.match(/if \(plan\.engageAutoHide\) engageRetractAutoHide\(log\)[\s\S]{0,500}?startNativeWatch/)
+    expect(m).toBeTruthy()
+  })
+
+  it('销窗路径（destroy）停表：收栏态下禁用/退役/退出不悬空轮询（同 hidNative 复原的位置纪律）', () => {
+    const m = code.match(/const destroy = \(reason: string\) => \{[\s\S]{0,600}?stopNativeWatch/)
+    expect(m).toBeTruthy()
+  })
+
+  it('外部先销窗路径（closed）同样停表（迟到的 interval 不许悬空——同 stopYieldPoll 位置纪律）', () => {
+    const m = code.match(/stopYieldPoll\(s\)[\s\S]{0,300}?stopNativeWatch\(s\)/)
+    expect(m).toBeTruthy()
+  })
+
+  it('一拍裁决照单执行：hide → hideNativeTaskbar、engage → reassertRetractAutoHide、归因落 taskbar-native-reassert 存证', () => {
+    expect(code).toMatch(/if \(decision\.hide\) hideNativeTaskbar\(log\)/)
+    expect(code).toMatch(/if \(decision\.engage\) reassertRetractAutoHide\(log\)/)
+    expect(code).toMatch(/'taskbar-native-reassert'/)
+  })
+
+  it('轮询节奏单一常量（NATIVE_WATCH_POLL_MS，票面 1–2s 低频档；纯值在 native-watch.ts）', () => {
+    expect(code).toMatch(/setInterval\(pollNativeWatch, NATIVE_WATCH_POLL_MS\)/)
+    expect(srcOf(WATCH)).toMatch(/export const NATIVE_WATCH_POLL_MS = 1000/)
+  })
+
+  it('重申置位住在 appbar-autohide.ts：账不动（不新记 previous、不复位 engaged），无账按完整置位走', () => {
+    const src = codeOf(AUTOHIDE)
+    expect(src).toMatch(/export function reassertRetractAutoHide\(/)
+    expect(src).toMatch(/retractAutoHideState\(previous\)/) // 目标值仍从账面 previous 派生
+    expect(src).toMatch(/engageRetractAutoHide\(log\)/) // 无账（入场置位失败）的恢复路径
+  })
+
+  it('观察面一次采齐：句柄+可见性走 native.ts 单一来源（nativeTaskbarView），置位读回走 getAppBarState', () => {
+    expect(codeOf(NATIVE)).toMatch(/export function nativeTaskbarView\(/)
+    expect(code).toMatch(/nativeTaskbarView\(\)/)
+    expect(code).toMatch(/getAppBarState\(\)/)
+  })
+
+  it('裁决归 NativeReassertMachine 单一实现（控制器不自判重建/翻转——观察喂机器、照单执行）', () => {
+    expect(code).toMatch(/new NativeReassertMachine\(\)/)
+    expect(code).toMatch(/\.machine\.poll\(/)
+    expect(code).not.toMatch(/IsWindowVisible/) // FFI 不进控制器（观察收口 native.ts）
+  })
+})
