@@ -14,8 +14,16 @@
 //   阶段C 偏好不扰（工单260 措辞收口）：首末两点比对 StuckRects3 Settings（自动隐藏等
 //      任务栏偏好）——断言「面板生命周期结束后字节复原」（C1 纪律口径，spec #258：
 //      实现本为首末两点比对，措辞与实现对齐）。
+//   C2 maximizeRetract=off 不置位（工单260）：A/B 相位全程收栏开关关闭（config 钉死）——
+//      断言零置位事件（taskbar-autohide-* 零条）+ 退出后 appbar 状态 = 开跑前基线
+//      （控制器独立读数，不依赖面板自证）。
 // 运行：npm run accept:taskbar-carry（= electron . --accept-taskbar-carry）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（守卫链抢单实例锁，与常驻面板互斥）。
+// 工单260 起本电池 config 钉 taskbar.maximizeRetract=false：A 相位测可见性还原路径，与
+// 收栏正交——但收栏置位 ABS_AUTOHIDE 后 explorer 会把 Shell_TrayWnd 的 WS_VISIBLE 位
+// 翻开（spike 附记：「窗口显示位」≠「视觉在场」），使「隐藏/还原」断言在收栏态不可
+// 判读（R1 实测：环境最大化前台合法触发收栏，A2 存证被「已可见静默」短路、A3 前置
+// 永不成立）。走产品逃生开关钉住非收栏态，既保 A/B 相位语义，又真机覆盖 off 口径。
 const { app, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -56,7 +64,7 @@ const GetWindowTextW = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd,
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 原生任务栏视图事实/兜底还原共用 accept/lib/win32.js 导出（评审收口：四电池同一判据单点维护）
-const { nativeTaskbarVisible, ensureNativeTaskbarVisible } = win32;
+const { nativeTaskbarVisible, ensureNativeTaskbarVisible, appbarState } = win32;
 
 function titleOf(hwnd) {
   const buf = Buffer.alloc(512);
@@ -149,6 +157,7 @@ async function runSegments() {
   const rep = new Report('50-taskbar-carry');
   const originalConfig = readConfigRaw();
   const prefsBefore = stuckRectsSettings();
+  const appbarBaseline = appbarState(); // C2 基线（工单260：off 口径下全程应恒等此值）
   let child = null;   // 当前阶段子进程（守卫链或 --panel-accept）
   let panelPid = 0;   // 面板真实主进程 pid（boot 自报）
   const finish = () => {
@@ -158,7 +167,9 @@ async function runSegments() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    patchTaskbar({ enabled: true });
+    // 工单260：maximizeRetract 钉 off——A/B 相位保持非收栏态（可见性还原路径的语义前提，
+    // 见文件头注），C2 段据此断「off 不置位」
+    patchTaskbar({ enabled: true, maximizeRetract: false });
     if (!nativeTaskbarVisible()) {
       throw new Error('开跑前原生任务栏已隐藏（他方现场）——先还原再跑，电池不从脏现场出发');
     }
@@ -334,6 +345,21 @@ async function runSegments() {
         rep.pass('C1 用户任务栏偏好退出后字节复原（StuckRects3 Settings 首末两点一致——「面板生命周期结束后字节复原」口径）');
       } else {
         rep.fail(`C1 任务栏偏好未被复原：before=${JSON.stringify(prefsBefore)} after=${JSON.stringify(prefsAfter)}`);
+      }
+      // C2 maximizeRetract=off 不置位（工单260）：全电池 config 钉 off（见文件头注）——
+      // 收栏整体关闭 ⇒ 置位面零动作。断言两路外部可观测：①事件面零置位（taskbar-autohide-*
+      // 全程零条——off 下即便环境前台最大化也不置位）；②系统面 appbar 状态退出后 = 开跑前
+      // 基线（控制器独立读数，不依赖面板自证）。
+      rep.beginSegment('C2');
+      const autohideEvents = tape.all('taskbar-autohide-set', undefined, {})
+        .concat(tape.all('taskbar-autohide-set-failed', undefined, {})
+          , tape.all('taskbar-autohide-restored', undefined, {})
+          , tape.all('taskbar-autohide-restore-failed', undefined, {}));
+      const stateAfter = appbarState();
+      if (autohideEvents.length === 0 && stateAfter === appbarBaseline) {
+        rep.pass(`C2 maximizeRetract=off 不置位：全程置位事件零条（set/restored 全零）、退出后 appbar 状态 ${stateAfter} = 开跑前基线 ${appbarBaseline}（控制器独立读数）`);
+      } else {
+        rep.fail(`C2 off 口径被破：置位事件 ${autohideEvents.length} 条（off 下应恒零） appbar 状态=${stateAfter} 基线=${appbarBaseline}`);
       }
       try {
         (await waitNativeVisible(true, 5000))

@@ -23,6 +23,10 @@
 //   P8 降级档禁用（工单244）：AppBar 注册失败 ⇒ 收栏整体禁用——降级档在场则断
 //      「无占位 + 无收栏让位存证 + 条带在场」三后果；健康档则断收栏存证的 appBar
 //      字段（removed/registered ⇒ 占位在场才谈得上收栏；降级档恒为 kept）
+//   P9 收栏态退出双复原（工单260）：重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）
+//      → 收栏态下 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器
+//      独立读数为主——置位态 explorer 翻开 Shell_TrayWnd 的 WS_VISIBLE 位，面板侧
+//      showNativeTaskbar 走「已可见静默」不发存证，可见性不依赖面板自证）
 // 运行：npm run accept:taskbar-appbar（= electron . --accept-taskbar-appbar）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（真机分辨率切换与前台注入，互斥）。
 const { app, screen, BrowserWindow } = require('electron');
@@ -67,7 +71,7 @@ const SystemParametersInfoW = user32.func('bool __stdcall SystemParametersInfoW(
 const EnumDisplaySettingsW = user32.func('bool __stdcall EnumDisplaySettingsW(void *lpszDeviceName, int32 iModeNum, void *lpDevMode)');
 const ChangeDisplaySettingsW = user32.func('int32 __stdcall ChangeDisplaySettingsW(void *lpDevMode, uint32 dwFlags)');
 
-const { nativeTaskbarVisible, ensureNativeTaskbarVisible } = win32;
+const { nativeTaskbarVisible, ensureNativeTaskbarVisible, appbarState } = win32;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -522,6 +526,53 @@ async function runSegments() {
       rep.pass(`P5 卸载归还：面板退出即注销 AppBar（存证在流），工作区归还基线（底边 ${waEnd.bottom}/基线 ${waBaseline.bottom}）`);
     } else {
       rep.fail(`P5 removed存证=${!!removeEv} 归还时延=${restoreMs}ms 工作区=${JSON.stringify(waEnd)} 基线=${JSON.stringify(waBaseline)}`);
+    }
+
+    // —— P9：收栏态面板正常退出 → 可见性与 appbar 状态双复原（工单260 新增，还原路径①）——
+    // P5 验的是常驻态退出的占位归还；本段验 #260 验收标准「面板正常退出 → 双复原」的
+    // 收栏态形态。判读注意（R1 取证）：置位态 explorer 翻开 Shell_TrayWnd 的 WS_VISIBLE 位
+    // （「窗口显示位」≠「视觉在场」，spike 附记），面板侧 showNativeTaskbar 会走「已可见
+    // 静默」不发 taskbar-restored——可见性以退出后的控制器独立视图事实为准。
+    rep.beginSegment('P9');
+    handle.launch({ mode: 'accept', stdio: 'ignore' });
+    const boot9 = await tape.wait('boot', null, { timeoutMs: 20000 });
+    if (!boot9) throw new Error('P9 面板未上报 boot');
+    panelPid = boot9.pid;
+    if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('P9 条带窗未出现');
+    forceForeground(hwndOf(neutralWin)); // 出发态回常驻（P9 的收栏须由参照窗前台真最大化触发）
+    const state9 = appbarState();
+    const sinceP9 = Date.now();
+    retractWin.maximize();
+    await sleep(600);
+    forceForeground(hwndOf(retractWin));
+    const retractEv9 = await tape.wait('taskbar-retract',
+      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceP9, timeoutMs: 6000 });
+    const setEv9 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceP9, timeoutMs: 3000 });
+    const retractWa9 = await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - phys6.height) <= 2;
+    }, 5000);
+    // 收栏态下正常退出（WM_CLOSE 主窗 → app.quit → dispose：置位复原走路径①）
+    const t9 = Date.now();
+    const panelHwnd9 = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 8000 });
+    if (!panelHwnd9) throw new Error('P9 面板主窗未找到');
+    win32.PostMessageW(panelHwnd9, WM_CLOSE, 0, 0);
+    const restoredEv9 = await tape.wait('taskbar-autohide-restored',
+      (e) => e.reason === 'dispose', { since: t9, timeoutMs: 8000 });
+    // 双复原断言（控制器独立读数）：appbar 状态回出发值 + 工作区回基线 + 原生栏可见
+    const stateOk9 = await waitMs(() => appbarState() === state9, 8000);
+    const waOk9 = await waitMs(() => {
+      const wa = workArea();
+      return wa && Math.abs(wa.bottom - waBaseline.bottom) <= 2;
+    }, 8000);
+    const nativeOk9 = await waitMs(() => nativeTaskbarVisible(), 8000);
+    if (retractEv9 && setEv9 && retractWa9 >= 0 && restoredEv9 && stateOk9 >= 0 && waOk9 >= 0 && nativeOk9 >= 0) {
+      rep.pass(`P9 收栏态退出双复原：收栏（taskbar-retract + taskbar-autohide-set previous=${setEv9.previous}）工作区到屏底 ${phys6.height}；`
+        + `收栏态 WM_CLOSE 退出 → taskbar-autohide-restored reason=dispose（attempts=${restoredEv9.attempts}，路径①）；`
+        + `控制器独立读数三复原：appbar 状态回 ${appbarState()}（出发 ${state9}）、工作区回基线 ${waBaseline.bottom}、原生栏可见`);
+    } else {
+      rep.fail(`P9 收栏存证=${!!retractEv9} 置位存证=${!!setEv9} 到屏底=${retractWa9}ms 复原存证=${JSON.stringify(restoredEv9)} `
+        + `状态复原=${stateOk9}ms 工作区复原=${waOk9}ms 原生可见=${nativeOk9 >= 0} 状态现值=${appbarState()}/${state9} 工作区基线=${waBaseline.bottom}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
