@@ -3,9 +3,16 @@
 // FFI 采集（probeSnapWindows）离线不加载（lazy-bind 纪律，yield.ts / windows.ts 先例）。
 // 断言面：arranged / minimized / cloaked / 普通手拉几何窗 / 自家与桌面宿主排除 /
 // 按显示器隔离 / 识别不可用严格降级（不猜矩形）。
+// 工单270 追加：成员集合（snapSessionMembers——代表性布局统一判定）/ 结束因果分类
+// （classifySnapSessionEnd——会话结束可区分存证的纯裁决面）。
 import { describe, expect, it } from 'vitest'
-import { isSnapSessionMember, resolveSnapSession } from '../../src/main/taskbar/snap'
-import type { SnapWindowFact } from '../../src/main/taskbar/snap'
+import {
+  classifySnapSessionEnd,
+  isSnapSessionMember,
+  resolveSnapSession,
+  snapSessionMembers,
+} from '../../src/main/taskbar/snap'
+import type { SnapSessionEndCause, SnapWindowFact } from '../../src/main/taskbar/snap'
 import type { PhysRect } from '../../src/shared/retract'
 
 /** 主屏物理矩形（2560×1440 @ 原点 0,0，与探针同坐标系） */
@@ -28,6 +35,7 @@ function snapWin(over: Partial<SnapWindowFact> = {}): SnapWindowFact {
     arranged: true,
     visible: true,
     cloaked: false,
+    cloakedShell: false,
     toolWindow: false,
     owned: false,
     appWindow: false,
@@ -55,6 +63,12 @@ describe('isSnapSessionMember 成员资格（工单269 纯裁决）', () => {
 
   it('其他虚拟桌面（cloaked）→ 非成员（当前虚拟桌面会话不含其他桌面布局）', () => {
     expect(isSnapSessionMember(snapWin({ cloaked: true }), PRIMARY, OWN_EXE)).toBe(false)
+  })
+
+  it('SHELL 位 cloak（其他虚拟桌面的分位事实，工单270）→ 非成员（当前桌面隔离口径不因分位采集放宽）', () => {
+    // cloakedShell=true 蕴含 cloaked=true（SHELL 位是 cloak 值的一分位）；分位采集只为
+    // 结束因果分类服务，成员资格仍按「任何 cloak 即拒」的既有口径
+    expect(isSnapSessionMember(snapWin({ cloaked: true, cloakedShell: true }), PRIMARY, OWN_EXE)).toBe(false)
   })
 
   it('工具窗 / 有属主无 APPWINDOW / 空标题 → 非成员（沿用现有合格顶层窗口过滤）', () => {
@@ -130,5 +144,157 @@ describe('resolveSnapSession 会话裁决（工单269 纯裁决）', () => {
     ]
     expect(resolveSnapSession(secondarySnaps, PRIMARY, OWN_EXE)).toBe(false)
     expect(resolveSnapSession(secondarySnaps, SECONDARY, OWN_EXE)).toBe(true)
+  })
+})
+
+/* ================================================================
+ * 工单270：成员集合（代表性布局统一判定）与结束因果分类（可区分存证）
+ * ================================================================ */
+
+/** 主屏 2560×1440 的代表性 Snap 布局事实族（含 DWM 7px 不可见边口径，#268 实测形态） */
+function layoutFacts(layout: 'dual' | 'corners' | 'three-col' | 'one-third-two-thirds'): SnapWindowFact[] {
+  const W = 2560, H = 1440, E = 7 // E = DWM 不可见边外扩
+  switch (layout) {
+    case 'dual': // 左右各半
+      return [
+        snapWin({ hwnd: 11, rect: { left: -E, top: -E, right: W / 2 + E, bottom: H + E } }),
+        snapWin({ hwnd: 12, rect: { left: W / 2 - E, top: -E, right: W + E, bottom: H + E } }),
+      ]
+    case 'corners': // 四角（上下半 × 左右半）
+      return [
+        snapWin({ hwnd: 21, rect: { left: -E, top: -E, right: W / 2 + E, bottom: H / 2 + E } }),
+        snapWin({ hwnd: 22, rect: { left: W / 2 - E, top: -E, right: W + E, bottom: H / 2 + E } }),
+        snapWin({ hwnd: 23, rect: { left: -E, top: H / 2 - E, right: W / 2 + E, bottom: H + E } }),
+        snapWin({ hwnd: 24, rect: { left: W / 2 - E, top: H / 2 - E, right: W + E, bottom: H + E } }),
+      ]
+    case 'three-col': // 三栏（各三分之一）
+      return [
+        snapWin({ hwnd: 31, rect: { left: -E, top: -E, right: W / 3 + E, bottom: H + E } }),
+        snapWin({ hwnd: 32, rect: { left: W / 3 - E, top: -E, right: (2 * W) / 3 + E, bottom: H + E } }),
+        snapWin({ hwnd: 33, rect: { left: (2 * W) / 3 - E, top: -E, right: W + E, bottom: H + E } }),
+      ]
+    case 'one-third-two-thirds': // 三分之一 + 三分之二
+      return [
+        snapWin({ hwnd: 41, rect: { left: -E, top: -E, right: W / 3 + E, bottom: H + E } }),
+        snapWin({ hwnd: 42, rect: { left: W / 3 - E, top: -E, right: W + E, bottom: H + E } }),
+      ]
+  }
+}
+
+describe('snapSessionMembers 成员集合（工单270：多窗 Snap 集合生命周期）', () => {
+  it.each(['dual', 'corners', 'three-col', 'one-third-two-thirds'] as const)(
+    '代表性布局 %s：全部合格真 Snap 窗都是成员、会话活跃（同一判定，无布局专用分支）',
+    (layout) => {
+      const facts = layoutFacts(layout)
+      const members = snapSessionMembers(facts, PRIMARY, OWN_EXE)
+      expect(members.map((m) => m.hwnd)).toEqual(facts.map((f) => f.hwnd))
+      expect(resolveSnapSession(facts, PRIMARY, OWN_EXE)).toBe(true)
+    },
+  )
+
+  it('最小化其中一个 Snap 窗 → 该成员出列、其余维持会话（集合生命周期：其一最小化不结束）', () => {
+    const facts = layoutFacts('dual')
+    const after = facts.map((f) => (f.hwnd === 12 ? { ...f, iconic: true } : f))
+    const members = snapSessionMembers(after, PRIMARY, OWN_EXE)
+    expect(members.map((m) => m.hwnd)).toEqual([11])
+    expect(resolveSnapSession(after, PRIMARY, OWN_EXE)).toBe(true)
+  })
+
+  it('其中一个 Snap 窗关闭（从事实集消失）→ 其余维持会话', () => {
+    const after = layoutFacts('dual').filter((f) => f.hwnd !== 12)
+    expect(snapSessionMembers(after, PRIMARY, OWN_EXE).map((m) => m.hwnd)).toEqual([11])
+    expect(resolveSnapSession(after, PRIMARY, OWN_EXE)).toBe(true)
+  })
+
+  it('最后一个 Snap 窗最小化 → 空成员集、会话结束（最后一个才结束）', () => {
+    const after = layoutFacts('dual').map((f) => ({ ...f, iconic: true }))
+    expect(snapSessionMembers(after, PRIMARY, OWN_EXE)).toEqual([])
+    expect(resolveSnapSession(after, PRIMARY, OWN_EXE)).toBe(false)
+  })
+
+  it('多窗混合其他桌面/手拉几何：只数合格成员，其余各归各位（统一判定不改口径）', () => {
+    const facts = [
+      ...layoutFacts('one-third-two-thirds'),
+      snapWin({ hwnd: 51, cloaked: true, cloakedShell: true, rect: { left: 2560, top: -7, right: 3833, bottom: 1447 } }), // 其他桌面 Snap
+      snapWin({ hwnd: 52, arranged: false }), // 手拉半屏几何
+      snapWin({ hwnd: 53, iconic: true }), // 最小化 Snap
+    ]
+    expect(snapSessionMembers(facts, PRIMARY, OWN_EXE).map((m) => m.hwnd)).toEqual([41, 42])
+  })
+
+  it('识别不可用（available=false 语义：arranged 全缺位）→ 零成员（严格降级不猜）', () => {
+    const facts = layoutFacts('dual').map((f) => ({ ...f, arranged: null }))
+    expect(snapSessionMembers(facts, PRIMARY, OWN_EXE)).toEqual([])
+    expect(resolveSnapSession(facts, PRIMARY, OWN_EXE)).toBe(false)
+  })
+})
+
+describe('classifySnapSessionEnd 结束因果分类（工单270：可区分存证的纯裁决）', () => {
+  it('前成员仍在列但已最小化（iconic）→ minimized', () => {
+    const prev = layoutFacts('dual')
+    const cur = prev.map((f) => (f.hwnd === 12 ? { ...f, iconic: true } : f))
+    // 11 也最小化（最后一个 Snap 最小化即会话结束——两枚同拍最小化是常态路径）
+    const curAll = cur.map((f) => (f.hwnd === 11 ? { ...f, iconic: true } : f))
+    expect(classifySnapSessionEnd(prev.map((f) => f.hwnd), curAll, PRIMARY)).toBe('minimized')
+  })
+
+  it('前成员从事实集消失（已关闭）→ closed', () => {
+    const prev = layoutFacts('dual')
+    const cur = prev.filter((f) => f.hwnd !== 12)
+    expect(classifySnapSessionEnd([12], cur, PRIMARY)).toBe('closed')
+  })
+
+  it('前成员仍在列但 arranged=false（解除 Snap）→ unsnapped', () => {
+    const prev = layoutFacts('dual')
+    const cur = prev.map((f) => (f.hwnd === 12 ? { ...f, arranged: false } : f))
+    expect(classifySnapSessionEnd([12], cur, PRIMARY)).toBe('unsnapped')
+  })
+
+  it('前成员 cloakedShell（切到其他虚拟桌面）→ desktop-switched', () => {
+    const prev = layoutFacts('dual')
+    const cur = prev.map((f) => ({ ...f, cloaked: true, cloakedShell: true }))
+    expect(classifySnapSessionEnd(prev.map((f) => f.hwnd), cur, PRIMARY)).toBe('desktop-switched')
+  })
+
+  it('前成员 app 位 cloak（应用自 cloak，非虚拟桌面）→ unknown（不误报桌面切换）', () => {
+    const prev = layoutFacts('dual')
+    const cur = prev.map((f) => (f.hwnd === 12 ? { ...f, cloaked: true, cloakedShell: false } : f))
+    expect(classifySnapSessionEnd([12], cur, PRIMARY)).toBe('unknown')
+  })
+
+  it('前成员仍 arranged、非最小化、非 cloak，但已落在目标显示器外 → left-display（换屏不误报解除）', () => {
+    const cur = [snapWin({ hwnd: 12, rect: { left: 2560, top: -7, right: 3833, bottom: 1447 } })]
+    expect(classifySnapSessionEnd([12], cur, PRIMARY)).toBe('left-display')
+  })
+
+  it('虚拟桌面切换全家福压过最小化（整组同拍消失时按最能解释集合去向的因归类）', () => {
+    const prev = layoutFacts('dual')
+    const cur = prev.map((f) => (f.hwnd === 12 ? { ...f, iconic: true, cloaked: true, cloakedShell: true } : { ...f, cloaked: true, cloakedShell: true }))
+    expect(classifySnapSessionEnd(prev.map((f) => f.hwnd), cur, PRIMARY)).toBe('desktop-switched')
+  })
+
+  it('混合去向优先级：desktop-switched > minimized > unsnapped > left-display > closed', () => {
+    // 最小化 + 解除同拍 → minimized
+    expect(classifySnapSessionEnd([1, 2], [
+      snapWin({ hwnd: 1, iconic: true }),
+      snapWin({ hwnd: 2, arranged: false }),
+    ], PRIMARY)).toBe('minimized')
+    // 解除 + 关闭同拍 → unsnapped
+    expect(classifySnapSessionEnd([1, 2], [
+      snapWin({ hwnd: 1, arranged: false }),
+    ], PRIMARY)).toBe('unsnapped')
+    // 解除 + 换屏同拍 → unsnapped（用户动作压过几何去向）
+    expect(classifySnapSessionEnd([1, 2], [
+      snapWin({ hwnd: 1, arranged: false }),
+      snapWin({ hwnd: 2, rect: { left: 2560, top: -7, right: 3833, bottom: 1447 } }),
+    ], PRIMARY)).toBe('unsnapped')
+    // 换屏 + 关闭同拍 → left-display
+    expect(classifySnapSessionEnd([1, 2], [
+      snapWin({ hwnd: 1, rect: { left: 2560, top: -7, right: 3833, bottom: 1447 } }),
+    ], PRIMARY)).toBe('left-display')
+  })
+
+  it('空追踪集 → unknown（无可归因成员——账守卫，不抛）', () => {
+    expect(classifySnapSessionEnd([], [], PRIMARY)).toBe('unknown')
   })
 })

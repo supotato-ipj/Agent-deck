@@ -20,7 +20,8 @@ import { ABN_POSCHANGED, appBarCallbackMessage, getAppBarState, negotiateAppBarP
 import type { AppBarRect } from './appbar'
 import { engageRetractAutoHide, reassertRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
-import { probeSnapWindows, resolveSnapSession } from './snap'
+import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './snap'
+import type { SnapSessionEndCause, SnapWindowFact } from './snap'
 import { ABS_AUTOHIDE, planBarTransition, resolveBarMode } from './retract'
 import type { BarMode } from './retract'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
@@ -305,32 +306,54 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     else openOverlayFamilies.delete(p.family)
   })
 
-  // —— 分屏会话探针账（工单269，spec #267）——
+  // —— 分屏会话探针账（工单269，spec #267；工单270 扩集合生命周期与结束因果）——
   // 会话是后台事实（真 Snap 窗存续即活跃，与前台是谁无关）；采集与成员裁决在
-  // main/taskbar/snap.ts（IsWindowArranged 公共 API，矩形永不提升身份）。事实翻转
-  // 落存证 taskbar-snap-session（active/available 两字段——会话建立/结束与「识别
-  // 不可用」的严格降级诊断都在这一族里可观测，spec 决策 11/14）。首版实际接管
+  // main/taskbar/snap.ts（IsWindowArranged 公共 API，矩形永不提升身份）。首版实际接管
   // 范围 = 主屏（primaryPhysRect），会话按显示器参数隔离裁决、不引入全局判定。
+  // 工单270：账面从「一次布尔判定」扩为**成员集合**——上一拍合格成员句柄喂回探针
+  // （最小化/解除/换桌面的前成员照采事实），会话结束时按前成员去向分类因果
+  // （最小化/关闭/解除/虚拟桌面切换，classifySnapSessionEnd）落进翻转存证；
+  // 翻转存证在档位裁决**之后**落盘（调用方），收栏理由接续（会话结束但 zoomed
+  // 仍持有收栏档）一并落进同一条——真机可判「会话因何结束、栏为何仍收」（spec 决策 14）。
   let snapSessionLedger: { active: boolean; available: boolean } | null = null
-  const pollSnapSession = (): { active: boolean; available: boolean } => {
-    let result: { active: boolean; available: boolean }
+  /** 上一拍合格成员句柄（探针追踪集——结束因果分类的事实源；失败拍清空） */
+  let snapMemberHwnds: number[] = []
+  const pollSnapSession = (): {
+    active: boolean
+    available: boolean
+    flip: null | { cause?: SnapSessionEndCause }
+  } => {
+    let windows: readonly SnapWindowFact[] = []
+    let available = true
+    let probeFailed = false
     try {
-      const probed = probeSnapWindows()
-      result = {
-        active: probed.available && resolveSnapSession(probed.windows, primaryPhysRect(), process.execPath),
-        available: probed.available,
-      }
+      const probed = probeSnapWindows(snapMemberHwnds)
+      available = probed.available
+      windows = probed.windows
     } catch {
-      // 探针一拍失败按「无会话」处理（还原是安全方向，与前台探针缺位同纪律）
-      result = { active: false, available: true }
+      // 探针一拍失败按「无会话」处理（还原是安全方向，与前台探针缺位同纪律）；
+      // 失败拍无从分类去向（不误报「关闭」）——cause=unknown
+      probeFailed = true
     }
+    const display = primaryPhysRect()
+    const members = available ? snapSessionMembers(windows, display, process.execPath) : []
+    const result = { active: members.length > 0, available }
+    let flip: { cause?: SnapSessionEndCause } | null = null
     if (!snapSessionLedger
       || snapSessionLedger.active !== result.active
       || snapSessionLedger.available !== result.available) {
-      snapSessionLedger = { active: result.active, available: result.available }
-      log?.append({ type: 'taskbar-snap-session', active: result.active, available: result.available })
+      flip = {}
+      if (snapSessionLedger?.active && !result.active) {
+        // 会话结束：按前成员当拍去向分类（探针失败拍/识别不可用拍无从分类 → unknown，
+        // 不误报「关闭」）；建立/可用性翻转不带 cause
+        flip.cause = probeFailed || !result.available
+          ? 'unknown'
+          : classifySnapSessionEnd(snapMemberHwnds, windows, display)
+      }
+      snapSessionLedger = { ...result }
     }
-    return result
+    snapMemberHwnds = probeFailed ? [] : members.map((m) => m.hwnd)
+    return { ...result, flip }
   }
 
   // 托盘宿主启停（#153 交还链路）：随条带生灭——启用即起（收编）、禁用即停（拆竞争窗
@@ -634,8 +657,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       s.yieldTimer = setInterval(() => {
         if (w.isDestroyed()) return
         const probe = probeForegroundWindow()
-        // 分屏会话探针（工单269）：与三态裁决同一接缝（spec 决策 3——持续重查，不缓存
-        // 一次判定）；识别不可用 ⇒ 恒无会话（分屏收栏关闭，最大化/全屏不受影响）
+        // 分屏会话探针（工单269/270）：与三态裁决同一接缝（spec 决策 3——持续重查，
+        // 不缓存一次判定）；识别不可用 ⇒ 恒无会话（分屏收栏关闭，最大化/全屏不受影响）
         const snap = pollSnapSession()
         const mode = resolveBarMode({
           probe,
@@ -647,6 +670,19 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
           ownOverlayPresent: openOverlayFamilies.size > 0, // 工单253：自家浮层在场（与「面板本体被点」分清）
           snapSessionActive: snap.active, // 工单269：主屏分屏会话事实（后台理由，与 zoomed 同档同闸门）
         })
+        // 会话事实翻转存证（工单269/270）：落点在档位裁决之后——会话结束但档位仍收栏
+        // （zoomed 理由接续）在同一条存证里可判；只在事实变化时落（同拍幂等，不刷屏）
+        if (snap.flip) {
+          log?.append({
+            type: 'taskbar-snap-session',
+            active: snap.active,
+            available: snap.available,
+            ...(snap.flip.cause !== undefined ? {
+              cause: snap.flip.cause,
+              retractHeldByZoomed: mode === 'maximize-retract',
+            } : {}),
+          })
+        }
         applyBarMode(s, mode, probe)
       }, YIELD_POLL_MS)
     } else {
