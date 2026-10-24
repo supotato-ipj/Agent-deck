@@ -1053,7 +1053,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8,
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]
@@ -1066,7 +1066,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8,
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]
@@ -1104,7 +1104,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 10,
+          "estSeconds": 8,
           "areas": [
             "taskbar"
           ]
