@@ -39,10 +39,11 @@
 //      → 会话结束 + 重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性
 //      （2+ 轮询拍零收栏/零会话存证、工作区不动——矩形不得成为身份兜底）
 //   P12 分屏会话集合生命周期与代表性布局（工单270）：左右双窗统一进入分屏收栏并上下
-//      贴边；普通前台切换不打断（矩形逐字不变、工作区保持屏底）；最小化其一仍维持、
-//      最后一个最小化才结束（cause=minimized 存证）且恢复即按当前事实重建；最后一个
-//      解除结束（cause=unsnapped）；三分之一加三分之二布局经同一真 Snap 判定收栏贴边
-//      （Win+Left 连按自适应定位 1/3 宽，无布局专用分支）
+//      贴边；普通前台切换不打断（矩形逐字不变、工作区保持屏底）；解除其一仍维持、最后
+//      一个解除结束（cause=unsnapped）并复原（解除相在新近 Snap 窗上做——Win+Down 对
+//      自最小化恢复的 Snap 窗有最小化歧义，R1 实测）；重 Snap 后最小化其一仍维持、最后
+//      一个最小化结束（cause=minimized 存证）且恢复即按当前事实重建；三分之一加三分之
+//      二布局经 Win+Z 布局浮出数字键通道定位，同一真 Snap 判定收栏贴边（无布局专用分支）
 //   P13 虚拟桌面切换隔离与收栏理由接续（工单270）：四角布局统一判定；Win+Ctrl+D 切到
 //      新桌面 → 会话结束（cause=desktop-switched）+ 工作区复原；切回原桌面按该桌面实际
 //      布局重建会话；真最大化前台期间关闭全部 Snap 窗 → 会话结束（cause=closed +
@@ -770,15 +771,22 @@ async function runSegments() {
       win32.send([win32.keyInput(vk, win32.KEYUP)]);
       for (let i = mods.length - 1; i >= 0; i--) win32.send([win32.keyInput(mods[i], win32.KEYUP)]);
     };
-    // 目标宽度自适应 Snap（工单270 三分之一布局）：Win11 连按 Win+Left/Right 在
-    // 半屏/三分位之间循环——逐按实测矩形宽度，命中目标即停（有界重试，不赌循环次序）
-    const snapToWidth = async (hwnd, vk, targetW, tol) => {
-      for (let i = 0; i < 6; i++) {
+    // 目标宽度自适应 Snap（工单270 三分之一/三分之二布局）：Win+Z 打开 Snap Layouts
+    // 浮出 → 数字键选布局 → 数字键选分区（微软文档键盘通道）。布局编号随版本排列
+    // 不同——候选组合逐试，IsWindowArranged+实测宽度命中即停（有界，不赌编号次序）
+    const snapZoneByWidth = async (hwnd, targetW, tol, candidates) => {
+      for (const [lk, zk] of candidates) {
         forceForeground(hwnd);
         await sleep(150);
         if (Number(win32.GetForegroundWindow()) !== hwnd) continue;
-        chord11(vk);
-        await sleep(420);
+        chord11(0x5a /* Z：Win+Z 打开布局浮出 */);
+        await sleep(700);
+        win32.send([win32.keyInput(lk, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(lk, win32.KEYUP)]);
+        await sleep(350);
+        win32.send([win32.keyInput(zk, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(zk, win32.KEYUP)]);
+        await sleep(600);
         if (!Boolean(IsWindowArrangedFn(hwnd))) continue;
         const r = win32.rectOf(hwnd);
         if (r && Math.abs((r.right - r.left) - targetW) <= tol) return true;
@@ -791,11 +799,14 @@ async function runSegments() {
     //   ① 左右双窗统一判定：两窗各 Win+Left/Right → 会话+收栏+工作区屏底+两窗上下贴边；
     //   ② 普通前台切换不打断：中性 holder/Snap 窗轮换前台 1.3s（5+ 拍）零会话结束、零
     //      retract-lifted、工作区保持屏底、两 Snap 窗矩形逐字不变（不反复变化）；
-    //   ③ 最小化集合生命周期：最小化其一 → 会话维持（剩余成员持有）；恢复其一；最小化
-    //      其一（剩余维持拍）→ 最后一个最小化 → 会话结束（cause=minimized 可区分存证）
-    //      + 复原；恢复最后一个 → 按当前事实重建会话；
-    //   ④ 最后一个解除：Win+Down → 会话结束（cause=unsnapped）+ 复原；
-    //   ⑤ 三分之一加三分之二：1/3 宽自适应定位 + 互补 2/3 → 同一判定进分屏收栏贴边。
+    //   ③ 解除集合生命周期（在**新近 Snap** 的窗上——Win+Down 对自最小化恢复回来的
+    //      Snap 窗有最小化歧义，R1 实测）：解除其一 → 会话由剩余成员维持；解除最后一
+    //      个 → 会话结束（cause=unsnapped 可区分存证）+ 复原；
+    //   ④⑤ 最小化集合生命周期：重 Snap 后最小化其一 → 会话维持（a1 矩形不变）；最小化
+    //      其一（剩余维持拍）→ 最后一个最小化 → 会话结束（cause=minimized）+ 复原；
+    //   ⑥ 恢复最后一个 → 按当前事实重建会话；
+    //   ⑦ 三分之一加三分之二：Win+Z 布局浮出数字键通道定位 1/3 宽 + 互补 2/3 →
+    //      同一判定进分屏收栏贴边。
     rep.beginSegment('P12');
     await waitMs(wsBarOk12, 5000); // 出发态回常驻（P11 收尾已复原，此处等占位生效档落定）
     const r12 = {
@@ -834,7 +845,30 @@ async function runSegments() {
     const rectStable12 = rectsAfterFg.every((r, i) => sameRect12(r, rects12[i]));
     r12.fgStable = noLift12 && noEnd12 && wsBottomOk12() && rectStable12;
     if (!r12.fgStable) diag12.push(`前台稳定=${r12.fgStable}（零lift=${noLift12} 零结束=${noEnd12} 屏底=${wsBottomOk12()} 矩形不变=${rectStable12}）`);
-    // ③ 最小化其一（a2）→ 会话由 a1 维持
+    // ③ 最后解除（在**新近 Snap** 的窗上做——Win+Down 对「自最小化恢复回来的 Snap 窗」
+    //    语义有最小化歧义（R1 实测），本相先用两枚新 Snap 窗验解除因果，再重 Snap 验最小化）：
+    //    解除其一（a2）→ 会话由 a1 维持；解除最后一个（a1）→ 结束（cause=unsnapped）+ 复原
+    const tUnsnapA = Date.now();
+    const unsnapOneOk = await chordUntil(a2.hwnd, VK_DOWN, false);
+    await sleep(1200);
+    const unsnapOneHeld = tape.all('taskbar-snap-session', (e) => e.active === false, { since: tUnsnapA }).length === 0
+      && tape.all('taskbar-retract-lifted', undefined, { since: tUnsnapA }).length === 0 && wsBottomOk12();
+    const unsnapLastOk = await chordUntil(a1.hwnd, VK_DOWN, false);
+    forceForeground(hwndOf(neutralWin));
+    const unEndEv12 = await tape.wait('taskbar-snap-session',
+      (e) => e.active === false && e.cause === 'unsnapped', { since: tUnsnapA, timeoutMs: 6000 });
+    const unLiftEv12 = await tape.wait('taskbar-retract-lifted',
+      (e) => e.appBar === 'registered', { since: tUnsnapA, timeoutMs: 6000 });
+    const unWa12 = await waitMs(wsBarOk12, 5000);
+    r12.unsnapEnd = !!(unsnapOneOk && unsnapOneHeld && unsnapLastOk && unEndEv12 && unLiftEv12) && unWa12 >= 0;
+    if (!r12.unsnapEnd) diag12.push(`解除结束=${r12.unsnapEnd}（其一解除=${unsnapOneOk} 其一维持=${unsnapOneHeld} 最后解除=${unsnapLastOk} 结束存证=${!!unEndEv12} lift=${!!unLiftEv12} 复原=${unWa12}ms）`);
+    // ④ 重 Snap 双窗（最小化集合生命周期相位从新鲜 Snap 出发）
+    const tResnap = Date.now();
+    const resnapOk = await chordUntil(a1.hwnd, VK_LEFT, true) && await chordUntil(a2.hwnd, VK_RIGHT, true);
+    forceForeground(hwndOf(neutralWin));
+    const resnapWa = await waitMs(wsBottomOk12, 5000);
+    if (!resnapOk || resnapWa < 0) diag12.push(`重Snap=${resnapOk} 屏底=${resnapWa}ms`);
+    // ⑤ 最小化其一（a2）→ 会话由 a1 维持
     const tMin1 = Date.now();
     win32.ShowWindow(a2.hwnd, 6 /* SW_MINIMIZE */);
     const iconicA2 = await waitMs(() => win32.IsIconic(a2.hwnd), 3000);
@@ -847,7 +881,7 @@ async function runSegments() {
     // 恢复 a2（会话持续，不打断）
     win32.ShowWindow(a2.hwnd, 9 /* SW_RESTORE */);
     await sleep(800);
-    // 最小化最后一个：先 a1（a2 维持拍）→ 再 a2（结束拍，cause=minimized）
+    // ⑥ 最小化最后一个：先 a1（a2 维持拍）→ 再 a2（结束拍，cause=minimized）
     const tMin2 = Date.now();
     win32.ShowWindow(a1.hwnd, 6);
     await waitMs(() => win32.IsIconic(a1.hwnd), 3000);
@@ -862,7 +896,7 @@ async function runSegments() {
     const minWa12 = await waitMs(wsBarOk12, 5000);
     r12.minLast = heldA2 && !!minEndEv12 && !!minLiftEv12 && minWa12 >= 0;
     if (!r12.minLast) diag12.push(`最后最小化=${r12.minLast}（a2维持=${heldA2} 结束存证=${!!minEndEv12} lift=${!!minLiftEv12} 复原=${minWa12}ms）`);
-    // 恢复最后一个（a1）→ 按当前事实重建会话
+    // ⑦ 恢复最后一个（a1）→ 按当前事实重建会话
     const tRebuild = Date.now();
     win32.ShowWindow(a1.hwnd, 9);
     const rebuildEv12 = await tape.wait('taskbar-snap-session',
@@ -870,33 +904,41 @@ async function runSegments() {
     const rebuildWa12 = await waitMs(wsBottomOk12, 5000);
     r12.rebuild = !!rebuildEv12 && rebuildWa12 >= 0;
     if (!r12.rebuild) diag12.push(`重建=${r12.rebuild}（存证=${!!rebuildEv12} 屏底=${rebuildWa12}ms）`);
-    // ④ 最后一个解除（a1 Win+Down；a2 已最小化非成员）→ 会话结束 cause=unsnapped
-    const tUnsnap12 = Date.now();
-    const unsnapped12 = await chordUntil(a1.hwnd, VK_DOWN, false);
-    forceForeground(hwndOf(neutralWin));
-    const unEndEv12 = await tape.wait('taskbar-snap-session',
-      (e) => e.active === false && e.cause === 'unsnapped', { since: tUnsnap12, timeoutMs: 6000 });
-    const unLiftEv12 = await tape.wait('taskbar-retract-lifted',
-      (e) => e.appBar === 'registered', { since: tUnsnap12, timeoutMs: 6000 });
-    const unWa12 = await waitMs(wsBarOk12, 5000);
-    r12.unsnapEnd = !!(unsnapped12 && unEndEv12 && unLiftEv12) && unWa12 >= 0;
-    if (!r12.unsnapEnd) diag12.push(`解除结束=${r12.unsnapEnd}（解除=${unsnapped12} 存证=${!!unEndEv12} lift=${!!unLiftEv12} 复原=${unWa12}ms）`);
-    // A 相收尾：a1 已解除、a2 最小化——关掉两宿主（无成员，零会话噪声）
+    // A 相收尾：a1 恢复后仍是成员、a2 最小化非成员——关掉两宿主（会话随 a1 关闭结束，
+    // 落一条 cause=closed 事件在 B 相 since 门之前，不与 B 相断言互踩）
     win32.PostMessageW(a1.hwnd, WM_CLOSE, 0, 0);
     win32.PostMessageW(a2.hwnd, WM_CLOSE, 0, 0);
     await sleep(500);
-    // ⑤ 三分之一加三分之二（统一真 Snap 判定，无布局专用分支）
+    // ⑧ 三分之一加三分之二（统一真 Snap 判定，无布局专用分支）：Win+Z 布局浮出的
+    //    数字键通道（微软文档）自适应定位 1/3 宽；互补 2/3 先试 Win+Right 补位、
+    //    不中再走 Win+Z 分区
     const b1 = await spawnSnapPs('DECK-ACCEPT-SNAP-B1');
     const b2 = await spawnSnapPs('DECK-ACCEPT-SNAP-B2');
     const thirdW = phys12.width / 3;
     const tolW = phys12.width * 0.05;
+    // 数字键 VK：'1'..'6' = 0x31..0x36；布局编号随版本排列不同——候选组合逐试
+    const NUM = (n) => 0x30 + n;
     let thirdsDetail = '';
     if (!b1.hwnd || !b2.hwnd) {
       diag12.push(`1/3 参照窗未出现（b1=${!!b1.hwnd} b2=${!!b2.hwnd}——环境异常）`);
     } else {
       const sinceB = Date.now();
-      const b1Ok = await snapToWidth(b1.hwnd, VK_LEFT, thirdW, tolW);
-      const b2Ok = b1Ok && await chordUntil(b2.hwnd, VK_RIGHT, true);
+      const b1Ok = await snapZoneByWidth(b1.hwnd, thirdW, tolW, [
+        [NUM(2), NUM(1)], [NUM(3), NUM(1)], [NUM(4), NUM(1)], [NUM(5), NUM(1)], [NUM(6), NUM(1)],
+        [NUM(2), NUM(3)], [NUM(3), NUM(3)], [NUM(6), NUM(3)],
+      ]);
+      // b2 互补 2/3：先 Win+Right（另一侧被占时的补位），不中再走 Win+Z 分区
+      let b2Ok = false;
+      if (b1Ok) {
+        b2Ok = await chordUntil(b2.hwnd, VK_RIGHT, true);
+        const r = win32.rectOf(b2.hwnd);
+        if (!(r && Math.abs((r.right - r.left) - 2 * thirdW) <= tolW)) b2Ok = false;
+      }
+      if (b1Ok && !b2Ok) {
+        b2Ok = await snapZoneByWidth(b2.hwnd, 2 * thirdW, tolW, [
+          [NUM(2), NUM(2)], [NUM(3), NUM(2)], [NUM(4), NUM(2)], [NUM(5), NUM(2)], [NUM(6), NUM(2)],
+        ]);
+      }
       forceForeground(hwndOf(neutralWin));
       const bSess12 = await tape.wait('taskbar-snap-session', (e) => e.active === true, { since: sinceB, timeoutMs: 6000 });
       const bWa12 = await waitMs(wsBottomOk12, 5000);
@@ -918,8 +960,9 @@ async function runSegments() {
     if (r12.dual && r12.fgStable && r12.minOne && r12.minLast && r12.rebuild && r12.unsnapEnd && r12.thirds) {
       rep.pass(`P12 分屏会话集合生命周期与代表性布局：左右双窗统一进分屏收栏（会话+注销收栏存证在流、工作区屏底、两窗上下贴边）；`
         + `普通前台轮换 5+ 拍零会话结束/零复原、Snap 窗矩形逐字不变；`
-        + `最小化其一仍维持（a1 矩形不变）、最后一个最小化结束（cause=minimized）→ 复原；恢复即按当前事实重建；`
-        + `最后一个解除结束（cause=unsnapped）→ 复原；1/3+2/3 布局经同一判定收栏贴边（${thirdsDetail}）`);
+        + `解除其一仍维持、最后一个解除结束（cause=unsnapped）→ 复原；重 Snap 后最小化其一仍维持（a1 矩形不变）、`
+        + `最后一个最小化结束（cause=minimized）→ 复原；恢复即按当前事实重建；`
+        + `1/3+2/3 布局经同一判定收栏贴边（${thirdsDetail}）`);
     } else {
       rep.fail(`P12 集合生命周期/布局未全绿：${JSON.stringify(r12)}；${diag12.join('；')}`);
     }
