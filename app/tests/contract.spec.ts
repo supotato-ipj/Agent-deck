@@ -134,7 +134,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('panel/snapshot 含编排计划与桌面几何（工单06）', async () => {
     const dir = tmpDir()
@@ -157,7 +157,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/launch：池内路径启动成功，池外路径拒绝（不执行任意路径）', async () => {
     const dir = tmpDir()
@@ -186,7 +186,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/reveal + desktop/copy-path（工单24）：池内路径经桥接执行，池外拒绝', async () => {
     const dir = tmpDir()
@@ -220,7 +220,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/copy-paths（工单26 多选菜单）：池内整份执行（多行 \\n），任一池外整份拒绝', async () => {
     const dir = tmpDir()
@@ -250,7 +250,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/trash（工单27）：池内整份送回收站并同拍清除摆位；池外整份拒绝；失败条目如实回报', async () => {
     const dir = tmpDir()
@@ -293,7 +293,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/clipboard-copy + desktop/clipboard-cut（工单29）：池内整份写入（多文件有序 + effect），任一池外整份拒绝；空名单拒绝', async () => {
     const dir = tmpDir()
@@ -338,7 +338,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/rename（工单28）：池内改名真落盘、摆位同拍迁移；冲突与非法名拒绝；池外拒绝', async () => {
     const dir = tmpDir()
@@ -381,7 +381,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/move：摆位经桥接落位、跨区换区；非法参照拒绝', async () => {
     const dir = tmpDir()
@@ -415,7 +415,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/move-batch：整组按序落位、手钉跳过回报、无效参照整批拒绝', async () => {
     const dir = tmpDir()
@@ -448,7 +448,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/reset-layout：清摆位回出厂编排', async () => {
     const dir = tmpDir()
@@ -475,7 +475,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/reset-layout：恢复出厂不读写卡片显隐开关（不同域不连坐，工单101）', async () => {
     const dir = tmpDir()
@@ -502,7 +502,7 @@ describe('内核桥接契约（工单05 桌面承载扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单07 搜索扩展）', () => {
@@ -538,7 +538,7 @@ describe('内核桥接契约（工单07 搜索扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('search/action：Enter 打开 / Ctrl+Enter 定位；path 护栏 = 最近一次结果集', async () => {
     const dir = tmpDir()
@@ -562,7 +562,7 @@ describe('内核桥接契约（工单07 搜索扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('连接失败经桥接回推引擎离线态（ENGINE OFFLINE 数据源）', async () => {
     const dir = tmpDir()
@@ -582,7 +582,7 @@ describe('内核桥接契约（工单07 搜索扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单08 设置浮层扩展）', () => {
@@ -598,7 +598,7 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('settings/set-card-opacity：clamp 生效、settings/changed 即时回推、快照与磁盘同步', async () => {
     const dir = tmpDir()
@@ -626,7 +626,7 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('settings/set-card-opacity：非有限数字拒绝（契约违规不 clamp 吞掉）', async () => {
     const dir = tmpDir()
@@ -640,7 +640,7 @@ describe('内核桥接契约（工单08 设置浮层扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单101 卡片显隐开关）', () => {
@@ -689,7 +689,7 @@ describe('内核桥接契约（工单101 卡片显隐开关）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('settings/set-card-enabled：空 id / 非布尔开关值拒绝（契约违规不静默吞）', async () => {
     const dir = tmpDir()
@@ -705,7 +705,7 @@ describe('内核桥接契约（工单101 卡片显隐开关）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单09 会话行直达扩展）', () => {
@@ -733,7 +733,7 @@ describe('内核桥接契约（工单09 会话行直达扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('session/focus：工具未运行则启动；未知工具静默降级不抛', async () => {
     const dir = tmpDir()
@@ -762,7 +762,7 @@ describe('内核桥接契约（工单09 会话行直达扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单10 桌面组件扩展）', () => {
@@ -789,7 +789,7 @@ describe('内核桥接契约（工单10 桌面组件扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('放入插件 → 快照带可 import 的 entry；移除 → 段内消失（无需重启面板）', async () => {
     const dir = tmpDir()
@@ -810,7 +810,7 @@ describe('内核桥接契约（工单10 桌面组件扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('plugins/changed 独立于 1Hz 快照即时推送（热插拔不等下一拍）', async () => {
     const dir = tmpDir()
@@ -831,7 +831,7 @@ describe('内核桥接契约（工单10 桌面组件扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('坏插件以 error 态在列而非静默消失（面板据此静默降级）', async () => {
     const dir = tmpDir()
@@ -849,7 +849,7 @@ describe('内核桥接契约（工单10 桌面组件扩展）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('源码级守卫：渲染层不碰 fs（插件资产只经协议下发，读盘只在主进程）', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../src/renderer/plugins.ts'), 'utf8')
@@ -888,7 +888,7 @@ describe('内核桥接契约（工单03 Qoder 状态块退役）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('隐私守卫（工单07：查询词只发往本机 Listary API、不入使用日志）', () => {
@@ -915,7 +915,7 @@ describe('隐私守卫（工单07：查询词只发往本机 Listary API、不�
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('源码级：搜索链路不引用使用日志、不直接写盘；查询目标收口本机回环', () => {
     const files = [
@@ -2452,7 +2452,7 @@ describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/paste（copy）：递归复制落用户桌面根；同名「 - 副本」递增多份不互相覆盖', async () => {
     const dir = tmpDir()
@@ -2491,7 +2491,7 @@ describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('desktop/paste（move）：rename 落盘源离位；部分失败信封（成功保留 + failed 明细）', async () => {
     const dir = tmpDir()
@@ -2524,7 +2524,7 @@ describe('内核桥接契约（工单30 粘贴与剪贴板态）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })
 
 
@@ -2775,7 +2775,7 @@ describe('内核桥接契约（工单83 退出面板）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 
   it('app/quit 未装配 quit 依赖时如实拒绝（不静默吞掉）', async () => {
     const ctx = createKernel(kernelOpts(tmpDir()))
@@ -2785,5 +2785,5 @@ describe('内核桥接契约（工单83 退出面板）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000)
 })

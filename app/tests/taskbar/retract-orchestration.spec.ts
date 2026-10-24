@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { planBarTransition } from '../../src/shared/retract'
+import { planBarTransition, retractAutoHideState, ABS_AUTOHIDE, ABS_ALWAYSONTOP } from '../../src/shared/retract'
 import type { BarMode } from '../../src/shared/retract'
 
 const MODES: BarMode[] = ['visible', 'maximize-retract', 'fullscreen-yield']
@@ -96,6 +96,8 @@ describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
       const plan = planBarTransition(mode, mode)
       expect(plan).toEqual({
         releaseAppBar: false,
+        engageAutoHide: false,
+        restoreAutoHide: false,
         claimAppBar: false,
         hideWindow: false,
         showWindow: false,
@@ -124,8 +126,72 @@ describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
       }
     }
   })
+})
 
-  it('迁移计划只有一份实现（单一纯模块口径，同工单237：主进程侧只做转发导出）', () => {
+describe('原生栏托管（工单260，spec #258）：收栏置位 ABS_AUTOHIDE 的迁移计划', () => {
+  it('进入收栏：置位原生栏自动隐藏（engageAutoHide）——与注销占位同拍、与唤出条同生命周期', () => {
+    for (const prev of ['visible', 'fullscreen-yield'] as BarMode[]) {
+      const plan = planBarTransition(prev, 'maximize-retract')
+      expect(plan.engageAutoHide, `${prev} → maximize-retract`).toBe(true)
+      expect(plan.restoreAutoHide, `${prev} → maximize-retract`).toBe(false)
+    }
+  })
+
+  it('退出收栏：复原原生栏自动隐藏（restoreAutoHide）——解除最大化和被全屏压过两路都算退', () => {
+    for (const next of ['visible', 'fullscreen-yield'] as BarMode[]) {
+      const plan = planBarTransition('maximize-retract', next)
+      expect(plan.restoreAutoHide, `maximize-retract → ${next}`).toBe(true)
+      expect(plan.engageAutoHide, `maximize-retract → ${next}`).toBe(false)
+    }
+  })
+
+  it('非收栏迁移不碰自动隐藏（仅收栏态置位，非收栏时段系统行为与现状一致）', () => {
+    const a = planBarTransition('visible', 'fullscreen-yield')
+    const b = planBarTransition('fullscreen-yield', 'visible')
+    expect(a.engageAutoHide || a.restoreAutoHide).toBe(false)
+    expect(b.engageAutoHide || b.restoreAutoHide).toBe(false)
+  })
+
+  it('同态零动作含自动隐藏（250ms 每拍轮询不重复置位/复原）', () => {
+    for (const mode of MODES) {
+      const plan = planBarTransition(mode, mode)
+      expect(plan.engageAutoHide).toBe(false)
+      expect(plan.restoreAutoHide).toBe(false)
+    }
+  })
+
+  it('不变量：置位恰在进入收栏、复原恰在退出收栏——与占位注销严格同拍（释放占位不释放保留带＝白做）', () => {
+    for (const prev of MODES) {
+      for (const next of MODES) {
+        if (prev === next) continue
+        const plan = planBarTransition(prev, next)
+        expect(plan.engageAutoHide, `${prev} → ${next}`).toBe(next === 'maximize-retract')
+        expect(plan.restoreAutoHide, `${prev} → ${next}`).toBe(prev === 'maximize-retract')
+        expect(plan.engageAutoHide, `${prev} → ${next}`).toBe(plan.releaseAppBar)
+      }
+    }
+  })
+})
+
+describe('收栏置位的目标 appbar 状态（工单260 值函数，thide RAII 蓝本）', () => {
+  it('保留用户的 ALWAYSONTOP 位、加 ABS_AUTOHIDE（spike 基线 state 0 → 置 1：1392→1440 的实测序列）', () => {
+    expect(retractAutoHideState(0)).toBe(ABS_AUTOHIDE)
+    expect(retractAutoHideState(ABS_ALWAYSONTOP)).toBe(ABS_AUTOHIDE | ABS_ALWAYSONTOP)
+  })
+
+  it('用户本已开启自动隐藏：置位为无操作（结果不变——记账照走、复原照走，逻辑不特判）', () => {
+    expect(retractAutoHideState(ABS_AUTOHIDE)).toBe(ABS_AUTOHIDE)
+    expect(retractAutoHideState(ABS_AUTOHIDE | ABS_ALWAYSONTOP)).toBe(ABS_AUTOHIDE | ABS_ALWAYSONTOP)
+  })
+
+  it('ABS_* 常量与 Win32 shellapi 对齐（探针同款：AUTOHIDE=0x1 ALWAYSONTOP=0x2）', () => {
+    expect(ABS_AUTOHIDE).toBe(0x1)
+    expect(ABS_ALWAYSONTOP).toBe(0x2)
+  })
+})
+
+describe('迁移计划只有一份实现（单一纯模块口径，同工单237：主进程侧只做转发导出）', () => {
+  it('实现本体在 shared/retract.ts，别处零出现', () => {
     const hits: string[] = []
     for (const rel of SRC_FILES) {
       if (/export\s+function\s+planBarTransition\b/.test(srcOf(rel))) hits.push(rel)
@@ -258,5 +324,125 @@ describe('三态下发契约（工单241：主进程 → 条带渲染层）', ()
     }
     // 收栏态不得覆写缓存（栏面退场量不到矩形——缓存要留收栏前最后一帧）
     expect(renderer).toMatch(/if \(barMode === 'maximize-retract'\) return/)
+  })
+})
+
+describe('原生栏托管接线（工单260；效果层离线不可测，以源码级守卫钉住）', () => {
+  const CTRL = 'app/src/main/taskbar/window.ts'
+  const AUTOHIDE = 'app/src/main/taskbar/appbar-autohide.ts'
+  const APPBAR = 'app/src/main/taskbar/appbar.ts'
+  const code = codeOf(CTRL)
+
+  it('置位/复原随迁移计划执行：applyBarMode 认 plan.engageAutoHide / plan.restoreAutoHide，不自判收栏', () => {
+    expect(code).toMatch(/if \(plan\.engageAutoHide\)/)
+    expect(code).toMatch(/if \(plan\.restoreAutoHide\)/)
+    // 置位与注销占位同段（releaseAppBar 的同拍纪律——engage/restore 两钩子都在占位段内）
+    const m = code.match(/if \(plan\.releaseAppBar[\s\S]{0,1200}?if \(plan\.restoreAutoHide\)/)
+    expect(m).toBeTruthy()
+  })
+
+  it('销窗路径（destroy）也复原：面板退出/禁用在收栏态时账不悬空（还原路径①扩展）', () => {
+    expect(code).toMatch(/restoreRetractAutoHide\(log, reason\)/)
+    // destroy 内的复原先于会话判空（与 hidNative 还原同一位置纪律——账不随窗生灭）
+    const m = code.match(/const destroy = \(reason: string\) => \{[\s\S]{0,600}?restoreRetractAutoHide\(log, reason\)/)
+    expect(m).toBeTruthy()
+    // appbar 复原**先于可见性复原**（顺序即行为，与守卫/守护径同源——restore-ledger-wiring
+    // 的钉序理由）：置位态下 WS_VISIBLE 位可被 explorer 翻开，可见性判据会被「已可见」
+    // 骗成静默；先卸置位，可见性复原才做真工作（51 电池 P9 的面板侧径）
+    const d = code.slice(code.indexOf('const destroy'))
+    const iAppbar = d.indexOf('restoreRetractAutoHide(log, reason)')
+    const iShow = d.indexOf('showNativeTaskbar(log, reason)')
+    expect(iAppbar).toBeGreaterThanOrEqual(0)
+    expect(iShow).toBeGreaterThanOrEqual(0)
+    expect(iAppbar).toBeLessThan(iShow)
+  })
+
+  it('置位/复原的 RAII 实现单一实现住在 appbar-autohide.ts（记账 + 读回验证 + 退避复原）', () => {
+    const src = codeOf(AUTOHIDE)
+    expect(src).toMatch(/export function engageRetractAutoHide\(/)
+    expect(src).toMatch(/export function restoreRetractAutoHide\(/)
+    expect(src).toMatch(/retractAutoHideState\(/) // 目标值来自纯函数（不自算位运算）
+    expect(src).toMatch(/planAppBarStateRestore\(/) // 退避裁决走 native-restore 纯函数
+    expect(src).toMatch(/getAppBarState\(\)/) // 读回验证以视图事实为准
+    // setAppBarState 调用点闭集（工单261 扩）：路径① RAII（appbar-autohide）+ 路径②③
+    // 落盘账复原（appbar-ledger——守卫/守护从账读复原目标，票面「还原账全路径扩展」）。
+    // 闭集之外零调用：SETSTATE 是系统级状态写，不许第三处自行动笔。
+    const callers: string[] = []
+    for (const rel of SRC_FILES) {
+      const c = codeOf(rel).replace(/export function setAppBarState\([^)]*\): void \{/, '')
+      if (/setAppBarState\(/.test(c)) callers.push(rel)
+    }
+    expect(callers.sort()).toEqual([AUTOHIDE, 'app/src/main/taskbar/appbar-ledger.ts'].sort())
+  })
+
+  it('koffi 绑定：ABM_GETSTATE/ABM_SETSTATE 常量与封装在 appbar.ts（shellapi 官方值 4/10）', () => {
+    const src = codeOf(APPBAR)
+    expect(src).toMatch(/ABM_GETSTATE = 4/)
+    expect(src).toMatch(/ABM_SETSTATE = 10/)
+    expect(src).toMatch(/export function getAppBarState\(\)/)
+    expect(src).toMatch(/export function setAppBarState\(/)
+  })
+
+  it('置位值函数经主进程侧转发导出（单一实现纪律，同工单237）', () => {
+    const fwd = srcOf('app/src/main/taskbar/retract.ts')
+    expect(fwd).toMatch(/\bretractAutoHideState\b/)
+    expect(fwd).toMatch(/\bABS_AUTOHIDE\b/)
+    expect(fwd).toMatch(/\bABS_ALWAYSONTOP\b/)
+  })
+})
+
+describe('原生栏重申轮询接线（工单262，spec #258；效果层离线不可测，以源码级守卫钉住）', () => {
+  const CTRL = 'app/src/main/taskbar/window.ts'
+  const AUTOHIDE = 'app/src/main/taskbar/appbar-autohide.ts'
+  const WATCH = 'app/src/main/taskbar/native-watch.ts'
+  const NATIVE = 'app/src/main/taskbar/native.ts'
+  const code = codeOf(CTRL)
+
+  it('轮询起止随三态迁移：进收栏起表、离收栏休止（非收栏态不轮询——票面验收标准第三条）', () => {
+    expect(code).toMatch(/if \(next === 'maximize-retract'\) startNativeWatch\(s\)/)
+    expect(code).toMatch(/else stopNativeWatch\(s\)/)
+    // 起表在置位之后：重申机器以「刚置位过的当拍事实」立基线（首拍不误报）
+    const m = code.match(/if \(plan\.engageAutoHide\) engageRetractAutoHide\(log\)[\s\S]{0,500}?startNativeWatch/)
+    expect(m).toBeTruthy()
+  })
+
+  it('销窗路径（destroy）停表：收栏态下禁用/退役/退出不悬空轮询（同 hidNative 复原的位置纪律）', () => {
+    const m = code.match(/const destroy = \(reason: string\) => \{[\s\S]{0,600}?stopNativeWatch/)
+    expect(m).toBeTruthy()
+  })
+
+  it('外部先销窗路径（closed）同样停表（迟到的 interval 不许悬空——同 stopYieldPoll 位置纪律）', () => {
+    const m = code.match(/stopYieldPoll\(s\)[\s\S]{0,300}?stopNativeWatch\(s\)/)
+    expect(m).toBeTruthy()
+  })
+
+  it('一拍裁决照单执行：hide → hideNativeTaskbar、engage → reassertRetractAutoHide、归因落 taskbar-native-reassert 存证', () => {
+    expect(code).toMatch(/if \(decision\.hide\) hideNativeTaskbar\(log\)/)
+    expect(code).toMatch(/if \(decision\.engage\) reassertRetractAutoHide\(log\)/)
+    expect(code).toMatch(/'taskbar-native-reassert'/)
+  })
+
+  it('轮询节奏单一常量（NATIVE_WATCH_POLL_MS，票面 1–2s 低频档；纯值在 native-watch.ts）', () => {
+    expect(code).toMatch(/setInterval\(pollNativeWatch, NATIVE_WATCH_POLL_MS\)/)
+    expect(srcOf(WATCH)).toMatch(/export const NATIVE_WATCH_POLL_MS = 1000/)
+  })
+
+  it('重申置位住在 appbar-autohide.ts：账不动（不新记 previous、不复位 engaged），无账按完整置位走', () => {
+    const src = codeOf(AUTOHIDE)
+    expect(src).toMatch(/export function reassertRetractAutoHide\(/)
+    expect(src).toMatch(/retractAutoHideState\(previous\)/) // 目标值仍从账面 previous 派生
+    expect(src).toMatch(/engageRetractAutoHide\(log\)/) // 无账（入场置位失败）的恢复路径
+  })
+
+  it('观察面一次采齐：句柄+可见性走 native.ts 单一来源（nativeTaskbarView），置位读回走 getAppBarState', () => {
+    expect(codeOf(NATIVE)).toMatch(/export function nativeTaskbarView\(/)
+    expect(code).toMatch(/nativeTaskbarView\(\)/)
+    expect(code).toMatch(/getAppBarState\(\)/)
+  })
+
+  it('裁决归 NativeReassertMachine 单一实现（控制器不自判重建/翻转——观察喂机器、照单执行）', () => {
+    expect(code).toMatch(/new NativeReassertMachine\(\)/)
+    expect(code).toMatch(/\.machine\.poll\(/)
+    expect(code).not.toMatch(/IsWindowVisible/) // FFI 不进控制器（观察收口 native.ts）
   })
 })
