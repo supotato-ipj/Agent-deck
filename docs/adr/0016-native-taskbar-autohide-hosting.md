@@ -17,7 +17,7 @@ Status: accepted
    - **koffi 绑定**：`ABM_GETSTATE(4)` / `ABM_SETSTATE(10)` 官方值与最薄封装（`app/src/main/taskbar/appbar.ts:28-29,127-134`，探针同款形态）；`APPBARDATA.lParam` 携带状态位，结构不变。#251（SETPOS/QUERYPOS 常量写反）保持独立缺陷票不并入。
    - **用户本已开启系统自动隐藏**：置位为无操作（`retractAutoHideState` 结果不变）、记账照走、复原照走，逻辑不特判。
 2. **C1 纪律口径修正：「全程字节不变」→「面板生命周期结束后字节复原」。** 50-taskbar-carry 的 C1 段实现本就是 `StuckRects3\Settings` 的**首末两点比对**，旧措辞「全程字节不变」与实现对不齐；收口为「面板生命周期结束后字节复原」（措辞落点 `app/accept/taskbar-carry.js:340-345`）。spike 判据 3 实测 `ABM_SETSTATE` 置位/复原**不回写注册表**（三点全等），该口径在原生栏托管下天然满足——用户任务栏偏好不被永久改写（spec #258 用户故事 8）。
-3. **不新增还原路径：复原走既有还原账。** 已落地的是**还原路径①**（面板侧退避重试）：读回不一致按 native-restore 的同一张退避表重试（有限次、终局有界，timer unref 不吊住进程退出；裁决函数 `planAppBarStateRestore`，`app/src/main/taskbar/native-restore.ts:89`，与可见性复原同表同形决策面）；收栏态下面板退出/禁用/退役经 `destroy` 同路复原（`app/src/main/taskbar/window.ts:458`，51 电池 P9 断言）。**未落地**（spec #258 后续票，按建成事实记）：死路径②③（外层守卫 before-quit、guard-dead 守护）所需的原状态**落盘记账**与对应复原归 #261；explorer 重启/显示器热插拔的看门狗重挂（SW_HIDE + 收栏态置位）归 #262。
+3. **不新增还原路径：复原走既有还原账。** 已落地的是**还原路径①**（面板侧退避重试）：读回不一致按 native-restore 的同一张退避表重试（有限次、终局有界，timer unref 不吊住进程退出；裁决函数 `planAppBarStateRestore`，`app/src/main/taskbar/native-restore.ts:89`，与可见性复原同表同形决策面）；收栏态下面板退出/禁用/退役经 `destroy` 同路复原（`app/src/main/taskbar/window.ts:458`，51 电池 P9 断言）。死路径兜底与重建对抗**已随本分支落地**（2026-10-24 按本 ADR 文末自立规矩原地回改本节，按建成事实记）：死路径②③（外层守卫 before-quit/panel-exit、guard-dead 还原守护）所需的原状态**落盘记账**（`app/src/main/taskbar/appbar-ledger.ts`——置位生效即 fsync 落盘，复原到位/终局失败即清账，守卫/守护经 `restoreAppBarStateFromLedger` 消费）归 #261（727b429）；explorer 重启/显示器热插拔的重挂（压回 SW_HIDE + 重申收栏态置位）由**原生栏重申轮询**承担（`app/src/main/taskbar/native-watch.ts`，收栏态 1s 低频拍；票面措辞「看门狗」按 GLOSSARY 退役词条规避改称）归 #262（ec8f4b0）。
 4. **开关与降级：托管与收栏整体同开关。** 降级档（AppBar 注册失败）与 `taskbar.maximizeRetract=off` 下 `resolveBarMode` 两道闸门永不进收栏档 ⇒ 不置位（ADR-0015 决策 3 同款待遇）；全屏让位期间不收栏故不置位（全屏态优先级最高）。50 电池 C2 段断言 off 不置位（`app/accept/taskbar-carry.js:349-353`，config 全程钉 `maximizeRetract=false`）。
 5. **两笔账各自独立：可见性账（SW_HIDE）与 appbar 状态账（SETSTATE）。** `ShowWindow` 与 appbar 状态是两个系统事实，模块各自记账、各自复原、互不代偿（`appbar-autohide.ts` 模块头注纪律）；原生栏在托管期间维持既有 SW_HIDE 不可见，spike 观察项 6 证 Win 键不闪现。
 6. **多屏边界：系统级状态、只承诺主屏。** `ABM_SETSTATE` 是系统级状态、主副屏同生效；本期只承诺主屏工作区释放，副屏 `Shell_SecondaryTrayWnd` 不 SW_HIDE、维持现状（spike 单屏无观察对象，副屏副作用留实施期多屏验收面，spec #258 用户故事 14）。
@@ -38,4 +38,4 @@ Status: accepted
 - 领域语言：GLOSSARY 入册「原生栏托管」（_Avoid_: 自动隐藏、任务栏隐藏），「最大化收栏」「工作区占位」词条的交叉引用同步收口；ADR-0015 文末补记的「待用户裁决」标记按本裁决摘除（本 ADR 即其裁决记录）。
 - spec #236 正文不改——承诺口径维持原文，本决策是兑现手段而非改写承诺（工单252 补记既定边界维持）。
 - 与 ADR-0015 的关系：不推翻其收栏过渡语义（占位登记释放 ↔ 重注册重协商）；本 ADR 只补上其补记留下的「保留带谁来放」这一环。其决策 2/4/6 与备选否决中以「释放占位 ⇒ 最大化窗铺满整屏」为前提的表述，随本决策落地恢复为本机现状（收栏态）。
-- 死路径兜底（#261）与看门狗（#262）落地时，本 ADR 决策 3 的「未落地」注记随之更新，届时须回改本节而非另开口径。
+- 死路径兜底（#261，727b429）与重申轮询（#262，ec8f4b0——票面措辞「看门狗」按 GLOSSARY 退役词条规避改称「原生栏重申轮询」）已随本分支落地；本 ADR 决策 3 的「未落地」注记已按本节自立规矩于 2026-10-24 **原地回改**（未另开口径）。
