@@ -137,3 +137,15 @@ ADR-0009 定了控制面的**形状**（`BridgeMethods` 的投影、`BridgeServi
 
 - **顺带：ADR-0014 写的「四类客体都有落点之后」是错的，是五类。** `plugin-config/get` / `plugin-config/set` 已在契约里，投放型插件包经它持有**用户可见的持久状态**，而 ADR-0014 自陈其命名空间隔离「约定式、不是强制式——`invoke` 全表透传、`id` 由调用方自证」。那次被推迟的「整体动作」就是 **#73** 的射程，本 ADR 不新增第五列。
 
+## 补记（2026-10-25，#73 决完后）
+
+ADR-0019 收口了本 ADR 留给《agent 写入插件包的契约与 capability 授予》的缺口。只登记口径，不改本 ADR 的档位模型：
+
+- **插件包格按方法细化**：`install` / `update` / `uninstall` 仍为后端 `W✓`（待装载区、逐次确认；install/update 不做会话级豁免）；`settings/set-card-enabled` 作为持久停用改为 `W`（可逆、不引入代码）；外部档收窄为只给 `plugins/list`；投放档在 `plugins/*` 全 `—`。用户仍可把整格再关小。详见 ADR-0019 的宽严矩阵修订。
+- **内核档插件包的宿主面不是本 ADR 的内核列**：内核列是 agent 面向控制面的投影；内核档插件包（内置卡与迁移后的 `doc-group-cards`）拿的是**受信内部桥**（`BridgeMethods` 母集减 `app/quit`）。「面板外的世界」排除的是控制面/agent 面，不是第一方插件包的宿主面。投放型插件包拿**投放窄面**（`host.view` 4 段 + `taskbar/get-state` + 自身 `host.config`）。
+- **`plugin-config` 不是第五类客体**：它是插件私有状态，经主进程绑定 id 的 `host.config` 访问；agent 侧不投影，内核 UI/验收电池保留内核档桥方法。`plugin-config` 的命名空间隔离由 ADR-0017 的每包执行上下文收成强制式。
+- **`doc-group-cards` 的档位更正**：它是第一方包，ADR-0019 起迁到随面板发布的第一方包根（内核档），不再是投放型插件包；本 ADR 的投放列不再适用于它。它的 `desktop` 段与 10 个方法在内核档宿主面内。
+- **`14 个 taskbar/*` 那条雾**：投放窄面已把它们排除；它们是否属于「面板外的世界」、以及内核插件层的收栏档位/闸门，另由 #66 的两张新票承接，本 ADR 不改判。
+
+事实性引用：本 ADR 的 27 法是开工时口径；「四类客体」不变——`plugin-config` 不是第五类。ADR-0019 复核时 `origin/master` 的 `BridgeMethods` 为 48 法，且插件包类方法一个都还不存在。
+
