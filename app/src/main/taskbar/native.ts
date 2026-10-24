@@ -87,6 +87,17 @@ export function nativeTaskbarVisible(): boolean {
 }
 
 /**
+ * 原生任务栏一拍观察（工单262 原生栏重申轮询）：句柄与可见性一次采齐（同一次
+ * 枚举——重申轮询每秒一拍，不重复走属主排查游标）。注意「可见」是窗口显示位口径
+ * （IsWindowVisible），置位态下 explorer 可能翻开该位而窗口本体滑出屏（spike 附记，
+ * 见 native-watch.ts 模块头注）——重申轮询把该位当翻转压回是安全方向。
+ */
+export function nativeTaskbarView(): { hwnd: number; visible: boolean } {
+  const hwnd = nativeTrayWnd()
+  return { hwnd, visible: Boolean(hwnd && IsWindowVisible(hwnd)) }
+}
+
+/**
  * 隐藏原生任务栏（条带窗创建路径）。幂等：已隐藏/句柄缺位 = 未动作，返回 false——
  * 调用方（窗口控制器）据返回值记账「本次由我隐藏」，只还原自己藏的那次。
  * 成败以调用后视图事实为准，绝不信 ShowWindow 返回值：文档口径它返回的是「调用前
