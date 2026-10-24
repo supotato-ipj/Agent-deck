@@ -446,3 +446,62 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
     expect(code).not.toMatch(/IsWindowVisible/) // FFI 不进控制器（观察收口 native.ts）
   })
 })
+
+describe('分屏会话接线（工单269，spec #267；效果层离线不可测，以源码级守卫钉住）', () => {
+  const CTRL = 'app/src/main/taskbar/window.ts'
+  const SNAP = 'app/src/main/taskbar/snap.ts'
+  const code = codeOf(CTRL)
+  const snapCode = codeOf(SNAP)
+
+  it('会话事实喂进三态裁决：控制器在收栏轮询接缝上调分屏探针并传 snapSessionActive（spec 决策 3）', () => {
+    expect(code).toMatch(/snapSessionActive:\s*snap\.active/)
+    // 探针调用与轮询同缝（resolveBarMode 输入装配段内），主屏会话按显示器参数裁决
+    const m = code.match(/const snap = [^\n]*\n[\s\S]{0,600}?resolveBarMode\(\{/)
+    expect(m).toBeTruthy()
+    expect(code).toMatch(/resolveSnapSession\(/)
+    expect(code).toMatch(/primaryPhysRect\(\)/)
+  })
+
+  it('会话事实翻转落存证（可观测分屏会话建立/结束，spec 用户故事 42）：名 taskbar-snap-session', () => {
+    expect(code).toMatch(/'taskbar-snap-session'/)
+    // 只在事实变化时落（每 250ms 拍不刷屏——同 plan.evidence 的幂等纪律）：账本比对后写
+    expect(code).toMatch(/snapSessionLedger/)
+  })
+
+  it('探针失败按「无会话」处理（还原是安全方向）：分屏探针包 try/catch，异常不拦轮询', () => {
+    const m = snapCode.match(/try\s*\{[\s\S]{0,400}?catch/)
+    expect(m).toBeTruthy()
+    expect(code).toMatch(/pollSnapSession/)
+  })
+
+  it('真 Snap 探针绑定 user32 的 IsWindowArranged（公共 API），模块加载不触 FFI（lazy-bind 先例）', () => {
+    expect(snapCode).toMatch(/IsWindowArranged/)
+    // lazy-bind：koffi 只在 bind() 内 require（yield.ts / windows.ts 同款），顶层零 FFI
+    const top = snapCode.slice(0, snapCode.indexOf('function bind('))
+    expect(top).not.toMatch(/koffi\.load|require\('koffi'\)/)
+    expect(snapCode).toMatch(/require\('koffi'\)/)
+  })
+
+  it('识别不可用严格降级（spec 决策 11）：IsWindowArranged 声明期抛错被 try/catch 收编为不可用事实', () => {
+    // 声明包 try/catch——缺失符号同步抛错（域笔记实机实证），失败置空走「无会话」
+    const m = snapCode.match(/try\s*\{[^}]*IsWindowArranged[^}]*\}\s*catch/)
+    expect(m).toBeTruthy()
+  })
+
+  it('无补齐路径（工单268 定谳：Windows 自动重排）——分屏模块与控制器不调任何窗口移动/改窗接口', () => {
+    for (const banned of [/SetWindowPos/, /MoveWindow/, /ShowWindow\(/]) {
+      expect(snapCode.match(banned), `snap.ts 含 ${banned}`).toBeNull()
+    }
+    // 控制器新增的分屏段（pollSnapSession 定义）不含改窗调用
+    const seg = code.slice(code.indexOf('pollSnapSession'), code.indexOf('pollSnapSession') + 900)
+    expect(seg).not.toMatch(/SetWindowPos|MoveWindow|setBounds/)
+  })
+
+  it('成员资格裁决单一实现住在 snap.ts（对齐 planBarTransition 的单一实现纪律）', () => {
+    const hits: string[] = []
+    for (const rel of SRC_FILES) {
+      if (/export function (isSnapSessionMember|resolveSnapSession)\b/.test(srcOf(rel))) hits.push(rel)
+    }
+    expect(hits).toEqual([SNAP])
+  })
+})

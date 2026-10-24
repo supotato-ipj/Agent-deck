@@ -1003,7 +1003,7 @@
       "cdpPort": null,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 45,
+      "lastMeasuredSeconds": 55,
       "lastMeasuredAt": "2026-10-24",
       "segments": [
         {
@@ -1118,6 +1118,20 @@
             "event-evidence"
           ],
           "estSeconds": 14,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P11",
+          "ticket": 269,
+          "title": "分屏收栏单窗最小闭环（工单269）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）；SetWindowPos 半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 8,
           "areas": [
             "taskbar"
           ]
