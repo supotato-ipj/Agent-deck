@@ -3514,8 +3514,19 @@ static class Probe {
         refReady = Number(win32.GetForegroundWindow()) === refHwnd && IsZoomedFn(refHwnd);
       }
       const sinceS = Date.now(); // 存证时间门下界：必须早于收栏档迁移（否则收栏存证落在门外）
-      const retractEvS = await tape.wait('taskbar-retract', (e) => e.mode === 'maximize-retract', { since: sinceS, timeoutMs: 8000 });
-      const stripsEvS = await tape.wait('taskbar-summon-strips', (e) => Array.isArray(e.strips) && e.strips.length > 0, { since: sinceS, timeoutMs: 8000 });
+      let retractEvS = await tape.wait('taskbar-retract', (e) => e.mode === 'maximize-retract', { since: sinceS, timeoutMs: 8000 });
+      let stripsEvS = await tape.wait('taskbar-summon-strips', (e) => Array.isArray(e.strips) && e.strips.length > 0, { since: sinceS, timeoutMs: 8000 });
+      // 前置容忍（终检复验轮实证）：用户会话已有最大化前台窗时，栏在 sinceS 之前**已**
+      // 进收栏档——since 门等不到新事件（P22–P25 整族级联红）。回取 sinceS 之前最近一条
+      // 收栏/条几何存证，且档位以 DOM 读式（此刻仍 maximize-retract）互证；DOM 不在
+      // 收栏档则维持缺失（不许拿陈旧档位充数）。
+      const modeDomPre = await readSummonDom();
+      if (!retractEvS && modeDomPre && modeDomPre.barMode === 'maximize-retract') {
+        retractEvS = tape.latest('taskbar-retract', (e) => e.mode === 'maximize-retract', {});
+      }
+      if (!stripsEvS && retractEvS) {
+        stripsEvS = tape.latest('taskbar-summon-strips', (e) => Array.isArray(e.strips) && e.strips.length > 0, {});
+      }
       stripsS = stripsEvS ? stripsEvS.strips : [];
       groupsS = stripsS.map((s) => s.group);
       // 当前档位以渲染层 DOM 读式为准（存证可能被后续迁移刷掉——档位是「此刻」的态）
@@ -3534,15 +3545,25 @@ static class Probe {
         const target = stripOf('start') || stripsS[0];
         const pt = stripPt(target);
         // ① 快速扫过：停留 60ms（< 150ms 悬停延迟）掠过条带 ⇒ 命中条带但不得误触发
-        await parkS();
-        const sweepAt = Date.now();
-        win32.moveMousePhys(pt.x, pt.y);
-        await sleep(60);
-        win32.moveMousePhys(neutralS.x, neutralS.y);
-        const sweepHit = await tape.wait('taskbar-hotzone-enter', null, { since: sweepAt, timeoutMs: 1500 });
-        await sleep(700); // 越过 150ms 悬停窗口——若误触发此刻已可见
-        const sweepDom = await readSummonDom();
-        const sweptPopped = domPopped(sweepDom, target.group);
+        //    终检 R2 复盘：25ms 热区轮询在 CPU 峰值下可整窗错过 60ms 穿越（磁带无
+        //    taskbar-hotzone-enter）⇒ 命中存证缺失、负断言无从证伪（产品两路全对：
+        //    未误触发 + 悬停弹出 209ms）。有界重扫：存证缺失即重扫，**每次重扫独立
+        //    断言不得误触发**；至多 3 次仍无命中存证才判红——断言与 60ms 停留值不放宽。
+        let sweepHit = null;
+        let sweepHitAt = 0;
+        let sweptPopped = false;
+        for (let sweep = 0; sweep < 3 && !sweepHit && !sweptPopped; sweep++) {
+          await parkS();
+          const sweepAt = Date.now();
+          win32.moveMousePhys(pt.x, pt.y);
+          await sleep(60);
+          win32.moveMousePhys(neutralS.x, neutralS.y);
+          sweepHit = await tape.wait('taskbar-hotzone-enter', null, { since: sweepAt, timeoutMs: 1500 });
+          if (sweepHit) sweepHitAt = sweepAt;
+          await sleep(700); // 越过 150ms 悬停窗口——若误触发此刻已可见
+          const sweepDom = await readSummonDom();
+          sweptPopped = domPopped(sweepDom, target.group);
+        }
         // ② 悬停：停在条带上不动 ⇒ 该组弹出（弹出时刻 ≥ 移动时刻 + 150ms）
         const hoverAt = Date.now();
         win32.moveMousePhys(pt.x, pt.y);
@@ -3573,7 +3594,7 @@ static class Probe {
         const aboveMaxWin = zOrderHit === tbHwndS;
         if (sweepHit && !sweptPopped && popEv && popLatency >= 150 && popped
           && barRetreatOk && inBandOk && aboveMaxWin) {
-          rep.pass(`P22 悬停 150ms 弹出：快速扫过（停留 60ms < 150ms）命中条带（hotzone-enter 存证 t=+${sweepHit.t - sweepAt}ms）但未误触发；`
+          rep.pass(`P22 悬停 150ms 弹出：快速扫过（停留 60ms < 150ms）命中条带（hotzone-enter 存证 t=+${sweepHit.t - sweepHitAt}ms）但未误触发；`
             + `停驻悬停后弹出（延迟 ${popLatency}ms ≥ 150ms，机器时刻戳取热区声明）；`
             + `栏面退场（非弹出组 display:none）、弹出组复现在 ${dom22 && Math.round(dom22.innerHeight)}px 带内、命中测试落在条带窗上（在最大化窗之上）`);
         } else {
@@ -3741,25 +3762,42 @@ static class Probe {
         //    热区声明含该组的 pill 命中区）——即「浮层在场 ⇒ 所属组在弹出态」。
         //    「钉住后离场不塌」在真机上不可观测：自绘浮层自带焦点夺前台 ⇒ 栏退回收栏档
         //    （档位迁移清空唤出态），缺口留证见交付报告（本段只记，不当断言）。
+        //    终检 R2 复盘：右 pill 右锚定、左缘随 1Hz 摘要文本宽与托盘内容漂移（实测
+        //    热区 698→478px，DOM 刮样到点击间靶已漂出热区——右键穿层而过，磁带无任何
+        //    menu 事件佐证）。改法：**现刮现点**——每轮重新弹出 B、重刮 rightBlank、移靶
+        //    后以 hotzone-enter（开门存证）为右键闸门；enter 缺失即靶漂移，重刮重试，
+        //    至多 3 轮。断言不放宽（开层/所属组在场判据原样）。
+        //    开门闸门（复验轮修正）：taskbar-hotzone-enter 是**边沿**事件——光标从弹出
+        //    pill 内移到同 pill 的空白处不离开热区集，enter 不复触发（复验轮实证：三轮
+        //    全被闸门误吞、一次右键未发）。改用命中测试直读：该点的窗口是条带窗 = 门开
+        //    （穿透已摘）；不是 = 靶已漂出当前热区（门关）——同 55 电池 convergeAt 判据。
         let overlayOpen = false;
         let ownerInPlace = false;
         let domPin = null;
+        let openEv = null;
         const ownerGroup = OWNER_BY_FAMILY['taskbar-tier-menu'];
-        const mount = blank ? { pt: blank, family: 'taskbar-tier-menu' } : null;
-        if (!mount) {
-          rep.note(`P25 浮层臂前置缺失：弹出的右组无空白挂点（rightBlank=null）——浮层臂不成立`);
-        } else {
-          // 工单256：「开层那一拍所属组仍在场」的证据必须在**开层前**取。
-          // 旧口径在开层 + 800ms 等待之后才读「最新一条唤出热区声明」——那期间浮层夺前台
-          // 会让收栏档被迁移清空（F1 的 clearPoppedClasses 同拍落地），声明随之退场，
-          // 于是「所属组在场」恒读到 false（段红）。改成**开层前**快照。
-          const summonEvBeforeOverlay = tape.latest('hotzones', (e) => isSummonHotzones(e), {});
-          const mPt = toPhysS(mount.pt.x, mount.pt.y);
+        const family = 'taskbar-tier-menu';
+        for (let attempt = 0; attempt < 3 && !overlayOpen; attempt++) {
+          await popGroup(groupB.group); // 每轮重弹 B：③ 的旧刮样移靶可能已让 B 按宽限自收（幂等——已弹则照单走）
+          const domTry = await readSummonDom();
+          const blankTry = domTry && domTry.detail ? domTry.detail.rightBlank : null;
+          if (!blankTry) {
+            rep.note(`P25 浮层臂前置缺失：弹出的右组无空白挂点（rightBlank=null）——浮层臂不成立`);
+            break;
+          }
+          const mPt = toPhysS(blankTry.x, blankTry.y);
           win32.moveMousePhys(mPt.x, mPt.y);
-          await sleep(150); // 到靶停拍（热区开门 + 指针落位）
-          const sinceOverlay = Date.now();
+          let doorOpen = false;
+          for (let gate = 0; gate < 12 && !doorOpen; gate++) {
+            await sleep(100);
+            doorOpen = win32.windowFromPointRoot(mPt) === tbHwndS;
+          }
+          if (!doorOpen) continue; // 门未开 = 靶已漂出当前热区：重刮重试（不点空）
+          // 工单256：「开层那一拍所属组仍在场」的证据必须在**开层前**取。
+          const summonEvBeforeOverlay = tape.latest('hotzones', (e) => isSummonHotzones(e), {});
           win32.clickPhys(mPt.x, mPt.y, 'right');
-          const openEv = await tape.wait(`${mount.family}-opened`, null, { since: sinceOverlay, timeoutMs: 6000 });
+          const sinceOverlay = Date.now();
+          openEv = await tape.wait(`${family}-opened`, null, { since: sinceOverlay, timeoutMs: 6000 });
           overlayOpen = !!openEv;
           if (openEv) {
             // 开层那一拍所属组仍在场（机器侧记录：开层前最新一条唤出热区声明含该组 pill
@@ -3777,13 +3815,14 @@ static class Probe {
             }
           }
         }
+        const mount = overlayOpen ? { family } : null;
         if (popA && popA.ev && popB && popB.ev && bothPopped && aGone && bStill && overlayOpen && ownerInPlace) {
           rep.pass(`P25 按组独立 + 浮层在场：唤出热区声明里 ${groupA.group} 与 ${groupB.group} 同时在场（弹一组不影响另一组——多组可同时在场）；`
             + `${groupA.group} 按自己的宽限收起而 ${groupB.group} 仍被声明在场（其余组照常收）；`
             + `${ownerGroup} 组开出自绘浮层（${mount.family}）且开层那一拍所属组仍在弹出态（浮层在场 ⇒ 所属组在场）`);
         } else {
           rep.fail(`P25 未达成：A弹出=${!!(popA && popA.ev)} B弹出=${!!(popB && popB.ev)} 两组同存=${bothPopped} `
-            + `A已收=${aGone} B仍在=${bStill} 浮层开层=${overlayOpen}（family=${mount && mount.family} 所属组=${ownerGroup}）所属组在场=${ownerInPlace} `
+            + `A已收=${aGone} B仍在=${bStill} 浮层开层=${overlayOpen}（family=${family} 所属组=${ownerGroup}）所属组在场=${ownerInPlace} `
             + `DOM档位=${domPin && domPin.barMode} 详情=${JSON.stringify(domMount && domMount.detail)} `
             + `组矩形=${JSON.stringify(domMount && Object.fromEntries(Object.entries(domMount.groups).map(([k, v]) => [k, v && v.rect])))}`);
         }

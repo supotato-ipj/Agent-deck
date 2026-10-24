@@ -308,14 +308,26 @@ async function main() {
 
     // —— 系统动作三格（P3/P4/P5）：点击前统一收敛 z 序/热区 ——
     // P3 时钟格 → 原生通知中心（Win+N）
+    // 终检 R2 复盘：合成回执 ok 而 6s 无前台——通知中心以非激活态开出（前台锁：用户
+    // 会话活跃输入下 shell 浮层可不夺前台；Esc 能收起=true 佐证浮层在场，产品已履约）。
+    // 有界重试：dismiss 后重点一次，前台判据原样不放宽；两径其一成立即过。
     rep.beginSegment('P3');
     const beforeP3 = foregroundInfo();
     const clockPt = cellOf('clock');
-    const convP3 = await convergeAt(clockPt, tbHwnd);
+    let convP3 = false;
+    let evP3 = null;
+    let fgP3 = null;
+    for (let attempt = 0; attempt < 2 && !fgP3; attempt++) {
+      convP3 = await convergeAt(clockPt, tbHwnd);
+      if (!convP3) break;
+      if (attempt > 0) rep.note(`P3 第 ${attempt + 1} 次尝试（上次回执 ok 而前台未收敛——前台锁/非激活开出，dismiss 后重试）`);
+      win32.clickPhys(clockPt.x, clockPt.y, 'left');
+      const ev = await tape.wait('taskbar-action-result', (e) => e.action === 'notification-center' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      if (ev) evP3 = ev;
+      fgP3 = await waitForeground((i) => isNotificationCenter(i) && (!beforeP3 || i.hwnd !== beforeP3.hwnd), 6000);
+      if (!fgP3) { await dismissFlyout(); await sleep(600); }
+    }
     rep.note(`P3 点击前收敛=${convP3}`);
-    win32.clickPhys(clockPt.x, clockPt.y, 'left');
-    const evP3 = await tape.wait('taskbar-action-result', (e) => e.action === 'notification-center' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
-    const fgP3 = await waitForeground((i) => isNotificationCenter(i) && (!beforeP3 || i.hwnd !== beforeP3.hwnd), 6000);
     if (convP3 && evP3 && evP3.ok && fgP3) {
       rep.pass(`P3 时钟格弹出原生通知中心（前台 ${fgP3.exe} / ${fgP3.cls}）`);
     } else {
@@ -353,6 +365,15 @@ async function main() {
     if (noteHwnd) {
       win32.SetForegroundWindow(noteHwnd);
       await sleep(300);
+    }
+    // 终检 R2 复盘：SetForegroundWindow 受前台锁阻（用户会话活跃输入时后台进程不可夺
+    // 前台——实测 8s 等不到，探针前台=false 即段红）。兜底走探针窗自身的最小化→还原：
+    // 还原是窗口操作级激活（不经前台锁），且只动自家探针窗、不向用户会话注入键鼠。
+    if (noteHwnd && !(await waitForeground((i) => i.exe === 'notepad', 1200))) {
+      win32.ShowWindow(noteHwnd, 6 /* SW_MINIMIZE */);
+      await sleep(250);
+      win32.ShowWindow(noteHwnd, 9 /* SW_RESTORE */);
+      await sleep(400);
     }
     const fgNote = await waitForeground((i) => i.exe === 'notepad', 8000);
     const sliverPt = toPhys(sliver.x + sliver.w / 2, sliver.y + sliver.h / 2);
