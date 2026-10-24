@@ -18,7 +18,7 @@ Status: accepted
    - **用户本已开启系统自动隐藏**：置位为无操作（`retractAutoHideState` 结果不变）、记账照走、复原照走，逻辑不特判。
 2. **C1 纪律口径修正：「全程字节不变」→「面板生命周期结束后字节复原」。** 50-taskbar-carry 的 C1 段实现本就是 `StuckRects3\Settings` 的**首末两点比对**，旧措辞「全程字节不变」与实现对不齐；收口为「面板生命周期结束后字节复原」（措辞落点 `app/accept/taskbar-carry.js:340-345`）。spike 判据 3 实测 `ABM_SETSTATE` 置位/复原**不回写注册表**（三点全等），该口径在原生栏托管下天然满足——用户任务栏偏好不被永久改写（spec #258 用户故事 8）。
 3. **不新增还原路径：复原走既有还原账。** 已落地的是**还原路径①**（面板侧退避重试）：读回不一致按 native-restore 的同一张退避表重试（有限次、终局有界，timer unref 不吊住进程退出；裁决函数 `planAppBarStateRestore`，`app/src/main/taskbar/native-restore.ts:89`，与可见性复原同表同形决策面）；收栏态下面板退出/禁用/退役经 `destroy` 同路复原（`app/src/main/taskbar/window.ts:458`，51 电池 P9 断言）。死路径兜底与重建对抗**已随本分支落地**（2026-10-24 按本 ADR 文末自立规矩原地回改本节，按建成事实记）：死路径②③（外层守卫 before-quit/panel-exit、guard-dead 还原守护）所需的原状态**落盘记账**（`app/src/main/taskbar/appbar-ledger.ts`——置位生效即 fsync 落盘，复原到位/终局失败即清账，守卫/守护经 `restoreAppBarStateFromLedger` 消费）归 #261（727b429）；explorer 重启/显示器热插拔的重挂（压回 SW_HIDE + 重申收栏态置位）由**原生栏重申轮询**承担（`app/src/main/taskbar/native-watch.ts`，收栏态 1s 低频拍；票面措辞「看门狗」按 GLOSSARY 退役词条规避改称）归 #262（ec8f4b0）。
-4. **开关与降级：托管与收栏整体同开关。** 降级档（AppBar 注册失败）与 `taskbar.maximizeRetract=off` 下 `resolveBarMode` 两道闸门永不进收栏档 ⇒ 不置位（ADR-0015 决策 3 同款待遇）；全屏让位期间不收栏故不置位（全屏态优先级最高）。50 电池 C2 段断言 off 不置位（`app/accept/taskbar-carry.js:349-353`，config 全程钉 `maximizeRetract=false`）。
+4. **开关与降级：托管与收栏整体同开关。** 降级档（AppBar 注册失败）与 `taskbar.maximizeRetract=off` 下 `resolveBarMode` 两道闸门永不进收栏档 ⇒ 不置位（ADR-0015 决策 3 同款待遇）；全屏让位期间不收栏故不置位（全屏态优先级最高）——**例外（工单271）**：分屏会话存续的全屏让位期间**托管不中断**（占位保持释放、置位不复原、重申轮询值守随工作区收栏账持续重挂），退出覆盖后分屏收栏直接恢复；无分屏会话时本句逐字不变。50 电池 C2 段断言 off 不置位（`app/accept/taskbar-carry.js:349-353`，config 全程钉 `maximizeRetract=false`）。
 5. **两笔账各自独立：可见性账（SW_HIDE）与 appbar 状态账（SETSTATE）。** `ShowWindow` 与 appbar 状态是两个系统事实，模块各自记账、各自复原、互不代偿（`appbar-autohide.ts` 模块头注纪律）；原生栏在托管期间维持既有 SW_HIDE 不可见，spike 观察项 6 证 Win 键不闪现。
 6. **多屏边界：系统级状态、只承诺主屏。** `ABM_SETSTATE` 是系统级状态、主副屏同生效；本期只承诺主屏工作区释放，副屏 `Shell_SecondaryTrayWnd` 不 SW_HIDE、维持现状（spike 单屏无观察对象，副屏副作用留实施期多屏验收面，spec #258 用户故事 14）。
 
@@ -39,3 +39,11 @@ Status: accepted
 - spec #236 正文不改——承诺口径维持原文，本决策是兑现手段而非改写承诺（工单252 补记既定边界维持）。
 - 与 ADR-0015 的关系：不推翻其收栏过渡语义（占位登记释放 ↔ 重注册重协商）；本 ADR 只补上其补记留下的「保留带谁来放」这一环。其决策 2/4/6 与备选否决中以「释放占位 ⇒ 最大化窗铺满整屏」为前提的表述，随本决策落地恢复为本机现状（收栏态）。
 - 死路径兜底（#261，727b429）与重申轮询（#262，ec8f4b0——票面措辞「看门狗」按 GLOSSARY 退役词条规避改称「原生栏重申轮询」）已随本分支落地；本 ADR 决策 3 的「未落地」注记已按本节自立规矩于 2026-10-24 **原地回改**（未另开口径）。
+
+## 修订记（工单271，2026-10-24：分屏会话存续的全屏让位期间托管不中断）
+
+**修订对象**：本 ADR 决策 4 的旧绝对表述「全屏让位期间不收栏故不置位（全屏态优先级最高）」——它隐含「让位 ⇒ 置位复原」，对分屏收栏不成立。spec #267 裁决：分屏会话拥有**工作区收栏理由**、全屏让位只拥有**栏面呈现**；分屏会话存续的全屏让位期间，托管随工作区收栏账**延续**（置位不复原、重申轮询继续值守——覆盖期间 explorer 重启/置位丢失也须重挂，否则原生保留带复活、后台 Snap 窗被顶起变尺寸，违反工单271 验收判据）。条件边界：仅「分屏会话存续且过共用开关/降级两道闸门」时适用；无分屏会话时旧句逐字不变（50 电池 C1/C2、51 电池 P6/P7/P9/P10 不回归）。
+
+**机制落点**：值守判据从「档位 = maximize-retract」改为「工作区收栏账 `workspaceRetracted` 在账」（效果层 `app/src/main/taskbar/window.ts` 逐笔维护；裁决上下文与理由持有归 `app/src/shared/retract.ts` 的 `BarTransitionContext` / `retractReasonHeld`）。置位/复原的交割时机不变——仍与占位注销/重注册严格同拍（工单260 语义未动），只是「占位注销状态」不再等价于「档位在收栏」。
+
+**取舍记录**：覆盖期间值守多跑 1s 低频观察拍（覆盖下可见性/置位读数正常即零动作），成本可忽略；账面跨覆盖延续使 RAII 账（engaged.previous）生命周期覆盖全屏让位期——复原目标仍是用户的原 appbar 状态，不受覆盖进出影响。
