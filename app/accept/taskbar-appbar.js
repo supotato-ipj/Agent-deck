@@ -343,14 +343,24 @@ async function runSegments() {
       const wa = workArea();
       return wa && Math.abs(wa.bottom - expectBottom2) <= 2;
     }, 5000);
+    // 工单293 改段（测量时点，判据不变）：AppBar 重协商后壳侧会异步把条带窗**上移一身高**
+    // （工单158 已证的壳行为：协商 rc 恒正确、挪的是窗口本体；keepalive ≤500ms 回正，
+    // 挪移一触发一拍、纠正后不复发）。P2 的测量点紧跟收栏进出过渡（P2 的最大化/还原
+    // 本身就是迁移触发器），单点采样落在壳侧挪移窗内的概率高——轮询等条带贴底回稳再断言，
+    // 量的是「参照窗底边停在栏上沿」的占位不变式，不是壳侧挪移瞬态（R9/R10 磁带：面板
+    // 侧协商/复核/回正几何全对，挪窗的是壳）。
+    const stripSettledMs = await waitMs(() => {
+      const r = win32.rectOf(tbHwnd);
+      return r && Math.abs(r.bottom - phys0.height) <= 2;
+    }, 3000);
     const maxRect = win32.rectOf(hwndOf(maxWin));
     const stripTop = win32.rectOf(tbHwnd).top;
     const waP2 = workArea();
     const maxOk = maxRect && Math.abs(maxRect.bottom - stripTop) <= 8 && maxRect.bottom < phys0.height - 8;
     if (maxOk && waP2 && Math.abs(maxRect.bottom - waP2.bottom) <= 8) {
-      rep.pass(`P2 最大化让位：参照窗底边 ${maxRect.bottom} 停在栏上沿 ${stripTop}（屏底 ${phys0.height}，未被遮挡）`);
+      rep.pass(`P2 最大化让位：参照窗底边 ${maxRect.bottom} 停在栏上沿 ${stripTop}（屏底 ${phys0.height}，未被遮挡；条带贴底回稳 ${stripSettledMs}ms）`);
     } else {
-      rep.fail(`P2 参照窗=${JSON.stringify(maxRect)} 栏上沿=${stripTop} 工作区底=${waP2 && waP2.bottom} 屏高=${phys0.height} 前台=${Number(win32.GetForegroundWindow())}`);
+      rep.fail(`P2 参照窗=${JSON.stringify(maxRect)} 栏上沿=${stripTop} 工作区底=${waP2 && waP2.bottom} 屏高=${phys0.height} 前台=${Number(win32.GetForegroundWindow())} 条带贴底回稳=${stripSettledMs}ms`);
     }
 
     // —— P3：分辨率变化重算（切到另一受支持模式 → setpos 存证 + 几何重算 → 还原）——
