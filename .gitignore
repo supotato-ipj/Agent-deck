@@ -5,7 +5,8 @@ __pycache__/
 archive/wallpaper-assets/backup/original/.history/
 
 # 一次性验证产物
-.scratch/*.png
+# 证据分级入库（spec #281）：.scratch 下任意层级的截图 PNG 只留本地作审计件，不进版本历史
+.scratch/**/*.png
 .scratch/*.js
 .venv/
 
@@ -30,3 +31,6 @@ app/config.json
 
 # 电池整轮 stdout（调试产物；判决与证据在 03-battery.log.txt 与 03-runtime-events*.jsonl）
 app/accept/evidence/accept-stdout.log
+
+# 证据分级入库（spec #281）：验收截图等像素证据只留运行机器本地，文本审计链（verdict/段账/jsonl/log）照旧随轮入库
+app/accept/evidence/**/*.png
