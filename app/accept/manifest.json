@@ -978,7 +978,7 @@
         {
           "seg": "C2",
           "ticket": 260,
-          "title": "maximizeRetract=off 不置位（工单261 收口 B 相位口径）：B 相位起置位事件零条 + 退出后 appbar 状态 = 开跑前基线（控制器独立读数）",
+          "title": "maximizeRetract=off 不置位（工单293 全接管期改段：off 只关收栏档——收栏置位事件零条；接管清位与禁用/退出退场复原 reason=disabled/force 是设计行为应当发生；退出后 appbar 读回=开跑前基线）",
           "surfaces": [
             "system-state",
             "event-evidence"

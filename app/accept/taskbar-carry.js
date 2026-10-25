@@ -451,21 +451,29 @@ async function runSegments() {
       } else {
         rep.fail(`C1 任务栏偏好未被复原：before=${JSON.stringify(prefsBefore)} after=${JSON.stringify(prefsAfter)}`);
       }
-      // C2 maximizeRetract=off 不置位（工单260；工单261 收口 B 相位口径）：A 相位改真置位
-      // 形态（A2/A3/A4 断言 appbar 复原——置位事件在 A 相位是**被测行为**），本段 off
-      // 口径收口到 B 相位起（config 钉 off）——B 相位置位事件零条（taskbar-autohide-*
-      // 全零：off 下即便环境前台最大化也不置位）+ 退出后 appbar 状态 = 开跑前基线
-      // （控制器独立读数，不依赖面板自证）。
+      // C2 maximizeRetract=off 不置位（工单260；工单261 收口 B 相位口径；工单293 全接管期
+      // 改段）：A 相位改真置位形态（A2/A3/A4 断言 appbar 复原——置位事件在 A 相位是**被测
+      // 行为**），本段 off 口径收口到 B 相位起（config 钉 off）。工单293/spec #292 把托管
+      // 扩为**全接管期**后，off 只关收栏档：接管建立（takeover/cleared——普通档清位）与
+      // 退场复原（restored，reason=disabled/force——禁用/退出把用户原值还回去，spec 用户
+      // 故事 12/#293 AC6）照走且**应当发生**（旧口径「taskbar-autohide-* 全零」会把
+      // 「禁用即复原」这一设计行为误判成破口）。不变式收窄为：收栏置位零条（set/set-failed
+      // 零——off 下即便前台最大化也不置位）+ restored 只许退场复原两径 + 退出后 appbar
+      // 状态 = 开跑前基线（控制器独立读数，不依赖面板自证）。
       rep.beginSegment('C2');
-      const autohideEvents = tape.all('taskbar-autohide-set', undefined, { since: sinceOff })
-        .concat(tape.all('taskbar-autohide-set-failed', undefined, { since: sinceOff })
-          , tape.all('taskbar-autohide-restored', undefined, { since: sinceOff })
-          , tape.all('taskbar-autohide-restore-failed', undefined, { since: sinceOff }));
+      const setEvents = tape.all('taskbar-autohide-set', undefined, { since: sinceOff })
+        .concat(tape.all('taskbar-autohide-set-failed', undefined, { since: sinceOff }));
+      const restoredEvents = tape.all('taskbar-autohide-restored', undefined, { since: sinceOff });
+      const restoredOk = restoredEvents.every((e) => e.reason === 'disabled' || e.reason === 'force');
       const stateAfter = appbarState();
-      if (autohideEvents.length === 0 && stateAfter === appbarBaseline) {
-        rep.pass(`C2 maximizeRetract=off 不置位（B 相位起）：置位事件零条（set/restored 全零）＋退出后 appbar 状态 ${stateAfter} = 开跑前基线 ${appbarBaseline}（控制器独立读数）`);
+      if (setEvents.length === 0 && restoredOk && stateAfter === appbarBaseline) {
+        rep.pass(`C2 maximizeRetract=off 不置位（B 相位起；工单293 全接管期口径）：收栏置位事件零条＋退场复原 ${restoredEvents.length} 条全为禁用/守卫径`
+          + `（reason=${restoredEvents.map((e) => e.reason).join('/') || '无'}——off 下接管清位照走、禁用/退出复原用户原值是设计行为）`
+          + `＋退出后 appbar 状态 ${stateAfter} = 开跑前基线 ${appbarBaseline}（控制器独立读数）`);
       } else {
-        rep.fail(`C2 off 口径被破：B 相位起置位事件 ${autohideEvents.length} 条（off 下应恒零） appbar 状态=${stateAfter} 基线=${appbarBaseline}`);
+        rep.fail(`C2 off 口径被破：收栏置位事件 ${setEvents.length} 条（off 下应恒零） `
+          + `退场复原 reason 异常 ${restoredEvents.filter((e) => e.reason !== 'disabled' && e.reason !== 'force').length} 条 `
+          + `appbar 状态=${stateAfter} 基线=${appbarBaseline}`);
       }
       try {
         (await waitNativeVisible(true, 5000))
