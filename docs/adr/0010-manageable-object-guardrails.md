@@ -177,3 +177,15 @@ ADR-0022 收口了缺口二。只登记口径，不改本 ADR 的档位模型：
 
 详见 ADR-0022（`docs/adr/0022-taskbar-external-and-bar-layout.md`）。
 
+## 补记（2026-10-25，#282 决完后）
+
+ADR-0023 收口了本 ADR 留给后续票的「段内字段级裁剪」在任务栏读面上的落点。只登记口径，不改本 ADR 的档位模型：
+
+- **三份命名形状**：`TaskbarState`（内核 UI / 内核档插件包受信内部桥，完整）、`TaskbarStateManaged`（后端 / 外部，保留 `exe` / `name` 寻址与策略字段）、`TaskbarStateDisplay`（投放窄面，展示态）。
+- **不是任意字段级裁剪**：本 ADR 否掉的是「同一方法按档任意减字段」；ADR-0023 用三个命名固定形状替代，消费者可预测。
+- **覆盖所有出口**：所有返回 `TaskbarState` 的控制面方法（含写响应）与未来事件同档同形。
+- **`desktop` 段开关不联动**：任务栏身份归任务栏行，用户按「档 × 客体」格收紧。
+- **读侧投影名单不变**：`taskbar/get-state` 仍是「只读 3」之一；变的只是非内核档的响应形状。
+
+详见 ADR-0023（`docs/adr/0023-taskbar-nonkernel-read-shapes.md`）。
+

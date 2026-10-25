@@ -305,3 +305,13 @@ userData/autonomy/activity-YYYYMMDD.jsonl
 - 风险与缓解：目标键在改名/移动后换键（v1 接受，提案会 stale）；本地文件工具可绕过目标键（协作性边界，已写明）；活动日志体积（90 天 + 日文件滚动）；提案刷屏（5 条待批 + 7 天过期 + 24 小时拒绝冷却）；用户对不透明目标困惑（批准 UI 必须解析真实名称）；插件待装载区占用（提案过期清理）。
 - 验证：纯决策文档与词汇变更，无运行时代码；`git diff --check` 通过、PR CI 通过；不跑真机验收电池（没有运行时行为可验）。
 - **后续票**：[非内核档 taskbar/get-state 的脱敏边界（窗口标题与托盘提示）](https://github.com/supotato-ipj/Agent-deck/issues/282) 承接 backend/external/投放档的 title/tooltip/exe/path 字段集，不在本 ADR 内顺手改。
+
+## 补记（2026-10-25，#282 决完后）
+
+ADR-0023 收口了「后端/外部/投放的脱敏边界由后续票 #282 承接」：
+
+- **自主管理读面不变**：继续用 `taskbar/autonomy-state`，看不到完整的 `taskbar/get-state`，也不在 managed / display 两形状内。
+- `taskbar/get-state` 的完整响应仍只给内核 UI 与内核档插件包受信内部桥；非内核三面由 ADR-0023 的三份形状覆盖。
+- 目标键、活动日志与提案口径均不变。
+
+详见 ADR-0023。
