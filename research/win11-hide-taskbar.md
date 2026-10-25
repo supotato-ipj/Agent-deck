@@ -561,6 +561,7 @@ NuGet 官方 catalog 与包内 nuspec 均把 ManagedShell 0.0.358 对应到 comm
 - `ShellFolder(watchChanges:true)` 在文件系统路径上使用 `FileSystemWatcher`，不是通用 `SHChangeNotifyRegister`；虚拟命名空间不因此获得监听。`Files.CollectionChanged` 不等于有序、无损日志，且库未接 `Error`、没有公开 rescan。v2 只在受控 fixture 上验证，并以独立 overflow/重同步兜底；其他根明确不宣称监听能力（[ShellFolder.cs](https://github.com/cairoshell/ManagedShell/blob/b4521b2cbc94a71f74a17ebdf86cd58ba145a331/src/ManagedShell.ShellFolders/ShellFolder.cs)、[FileSystemWatcher.Error](https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.error?view=net-8.0)）。
 - `AllowAsync=false` 是同步图标提取；`ExtraLargeIcon` 对应 48 点乘进程 DPI 缓存，不是每窗口/每显示器动态 DPI。位图实际尺寸仍须逐个核验（[ShellItem.cs](https://github.com/cairoshell/ManagedShell/blob/b4521b2cbc94a71f74a17ebdf86cd58ba145a331/src/ManagedShell.ShellFolders/ShellItem.cs)、[IconHelper.cs](https://github.com/cairoshell/ManagedShell/blob/b4521b2cbc94a71f74a17ebdf86cd58ba145a331/src/ManagedShell.Common/Helpers/IconHelper.cs)）。
 - 菜单回调第三参是 `allFolders`；返回 `true` 抑制库的 `InvokeCommand`，`false` 继续执行。包装丢弃原生 `InvokeCommand` 的 HRESULT，故 v2 在回调前拦截非白名单动词，同时要求独立可观测效果，不拿 `menu-invoked` 当成功（[ShellItemContextMenu.cs](https://github.com/cairoshell/ManagedShell/blob/b4521b2cbc94a71f74a17ebdf86cd58ba145a331/src/ManagedShell.ShellFolders/ShellItemContextMenu.cs)、[IContextMenu.InvokeCommand](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-icontextmenu-invokecommand)）。
+- **调用方窗口不是菜单宿主**：`ShellItemContextMenu` 不接受外部窗口当弹窗宿主——`ShowMenu` 内部自建 `NativeWindow`（`ManagedShell.Common.SupportingClasses.NativeWindowEx`，其 `CreateHandle` 只调基类、不设 `CreateParams`，即一扇未置 `WS_VISIBLE` 的隐藏顶层窗），把它的 `Handle` 交给 `TrackPopupMenuEx(menu, 0x100, x, y, 该句柄, 0)`，返回后 `DestroyHandle`；构造参数里的 `IntPtr` 只进 `SetupContextMenu`/`GetUIObjectOf`，该类型也没有保存 hwnd 的字段。整段无 `SetForegroundWindow`、无 `PostMessage(WM_NULL)`。以上由本机 0.0.358 net48 程序集元数据与 `ShowMenu` 的 87 字节 IL 复核（该包不含源码，未做反编译等价证明）。实测推论：Win11 上弹窗的 `GetWindow(menuHwnd, GW_OWNER)` 为 0（弹窗无 owner 句柄），且 `SetForegroundWindow(面板窗)` 对取消路径无效——**「调用方窗口即菜单 owner」这个前提是错的**，取消能否成立取决于取前台的是哪扇窗、在哪个线程。
 - 所查枚举、图标、监听和菜单 API 均无请求级取消。超时终止专用侧车并建立新代次只是隔离兜底，不撤销已经发生的 `open/properties` 副作用，也不保证外部窗口同步消失；必须另查进程与窗口事实（[ComTaskScheduler.cs](https://github.com/cairoshell/ManagedShell/blob/b4521b2cbc94a71f74a17ebdf86cd58ba145a331/src/ManagedShell.Interop/ComTaskScheduler.cs)、[TerminateProcess](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess)）。
 
 ### 15.4 v2 核心矩阵实测
@@ -579,7 +580,9 @@ NuGet 官方 catalog 与包内 nuspec 均把 ManagedShell 0.0.358 对应到 comm
 
 已验证的用户可见行为：
 
-- 原生 Shell 菜单可打开；owner 临时激活并读回成功，取消后原前台 HWND 恢复，原型主窗随后恢复不可聚焦。直接激活菜单窗、`window.focus()` 前置焦点、菜单外点击/Esc 都不是可靠取消路径；本轮取消由主进程发 `close-native-ui` 控制命令、侧车 STA 同线程 `EndMenu()` 完成。**用户自行按 Esc/点菜单外取消仍是未通过/未宣称项**，不能把控制关闭冒充该交互。
+- 原生 Shell 菜单可打开，**用户取消路径本机已打通**（此前唯一交互 no-go）：Esc 与点菜单外都能关掉菜单、不触发动词回调，并把前台还给菜单前的原 HWND。机理：由持菜单的 STA 线程持一枚常驻 1×1 屏外可见 tool 窗作**菜单宿主窗**，弹菜单前取前台并读回裁决（取不到前台即 `foreground_unavailable`、宁可不弹），菜单返回后投 `WM_NULL`、再把前台还给原窗；Electron 只发 `AllowSetForegroundWindow(sidecarPid)`，面板窗全程不进前台（原「切 focusable + focus()」的抢前台舞蹈已删除）。判据与实测：连开连关 5 轮（Esc×3、点菜单外×2）逐轮验证菜单关闭、`verb-selected` 计数不变、菜单请求回执到达、前台复原、菜单期内前台从未是面板窗；`close-native-ui` 退为崩溃/退出/超时清理，不再冒充取消证据。`open`/`properties`/拒绝动词三段同轮仍全 PASS。证据：GUI 报告 `menu.cancel_by_user_gesture`、截图 `sidecar-v2-menu-cancel.png`。
+- 取消路径的残余观测（不改 PASS 判读，但留账）：菜单弹出瞬间 `GetForegroundWindow()` 偶发读数为 0（5 枚菜单里 2 枚），未影响取消；从宿主持有前台到菜单弹出实测 0.7–2.0s（含 shell 构建动词集），与本轮的启动首帧目标无关；`TrackPopupMenuEx` 的弹窗无 owner 句柄（见 §15.3）。
+- 驱动侧曾把两处自身缺陷误记成产品失败，已修并留账：① 用窗口扫描（`GetTopWindow` 链）检测菜单会与菜单建立竞态，改以侧车 `menu-popup` 事件为唯一检测源；② 上一枚菜单未回执就再次请求会被 `activeMenu` 守门拒绝，改为每轮取消后等 `menu-return` 回执再开下一轮。
 - `open` 通过真实菜单首项执行受控 `.cmd`，产生独立 marker 文件；新应用随后取得前台被记为预期启动效果，不算菜单焦点泄漏。`properties` 观察到真实 `#32770` 属性窗并关闭。拒绝项在菜单尾部定位真实 `Delete`，侧车回调阻断，文件保留。
 - 菜单打开时杀侧车：菜单消失，下一次 list 建新代次并返回 fixture 项，渲染层清空旧 DOM 后重渲染成功。菜单打开时关闭 Electron 两扇窗：应用、菜单与侧车均退出，无原型进程/菜单/已跟踪对话框残留。
 
@@ -589,4 +592,4 @@ NuGet 官方 catalog 与包内 nuspec 均把 ManagedShell 0.0.358 对应到 comm
 - 图标抽查 16 个文件系统对象：5 个双方均为 48×48，可逐像素比较（1 个全等，其余平均通道差 ≤0.11、变化像素 ≤7.3%）；11 个基线返回 32×32 而侧车为 48×48，标为不可比。所有侧车图标均为非空、有 alpha 像素。
 - 工作集/私有内存：Electron 主进程约 146.5MB / 62.7MB，侧车约 84.8MB / 25.0MB；共享宿主下不是隔离基线进程对照。本轮不设毫秒阈值，不据此宣称性能优劣。
 - 清理事实：`electronRunning=false`、原型菜单残留 0、已跟踪对话框残留 0；生产面板实验后从主检出恢复。未改 `app/src`、正式验收电池或 Git 历史。
-- 仍保持 UNKNOWN/未验证：用户 Esc/点外取消、菜单辅助键盘导航、非 100% DPI、多屏、ARM64、其他 Windows 版本、登录 shell、启动首帧与长期恢复。结论只限本机本轮原型。
+- 仍保持 UNKNOWN/未验证：菜单辅助键盘导航、非 100% DPI、多屏、ARM64、其他 Windows 版本、登录 shell、启动首帧与长期恢复。结论只限本机本轮原型。
