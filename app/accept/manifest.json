@@ -901,8 +901,8 @@
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 37,
-      "lastMeasuredAt": "2026-10-24",
+      "lastMeasuredSeconds": 66,
+      "lastMeasuredAt": "2026-10-26",
       "segments": [
         {
           "seg": "A1",
@@ -956,7 +956,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 7
+          "estSeconds": 9
         },
         {
           "seg": "A6",
@@ -1775,40 +1775,146 @@
     }
   ],
   "requiredFileRules": [
-    { "path": "app/src/main/config.ts", "area": "config" },
-    { "path": "app/src/main/desktop-cover.ts", "area": "desktop" },
-    { "path": "app/src/main/hotzone.ts", "area": "hotzone" },
-    { "path": "app/src/main/icon-carry.ts", "area": "desktop" },
-    { "path": "app/src/main/icon-restore-watch.cjs", "area": "desktop" },
-    { "path": "app/src/main/lag-sentinel.ts", "area": "render" },
-    { "path": "app/src/main/paths.ts", "area": "config" },
-    { "path": "app/src/main/render-sentinel-sampler.ts", "area": "render" },
-    { "path": "app/src/main/render-sentinel.ts", "area": "render" },
-    { "path": "app/src/main/tray.ts", "area": "tray" },
-    { "path": "app/src/main/services/clock.ts", "area": "cards" },
-    { "path": "app/src/main/services/desktop.ts", "area": "desktop" },
-    { "path": "app/src/main/services/focus.ts", "area": "sessions" },
-    { "path": "app/src/main/services/hardware.ts", "area": "taskbar" },
-    { "path": "app/src/main/services/plugin-config.ts", "area": "plugins" },
-    { "path": "app/src/main/services/search.ts", "area": "search" },
-    { "path": "app/src/main/services/sessions.ts", "area": "sessions" },
-    { "path": "app/src/main/services/settings.ts", "area": "settings" },
-    { "path": "app/src/main/services/taskbar.ts", "area": "taskbar" },
-    { "path": "app/src/main/services/usage.ts", "area": "taskbar" },
-    { "path": "app/src/main/taskbar/app-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/blank-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/menu-host.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/rec-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/tier-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/wins-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/renderer/pasteable-query.ts", "area": "cards" },
-    { "path": "app/src/renderer/plugin-tiers.ts", "area": "plugins" },
-    { "path": "app/src/renderer/plugins.ts", "area": "plugins" },
-    { "path": "app/src/renderer/selection.ts", "area": "desktop" },
-    { "path": "app/src/renderer/tray-pixels.ts", "area": "taskbar" },
-    { "path": "app/src/renderer/zone-hotzone.ts", "area": "hotzone" },
-    { "path": "app/src/shared/overflow.ts", "area": "taskbar" },
-    { "path": "app/src/shared/retract.ts", "area": "taskbar" },
-    { "path": "app/accept/manifest.json", "area": "accept", "wires": "*" }
+    {
+      "path": "app/src/main/config.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/desktop-cover.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/main/icon-carry.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/icon-restore-watch.cjs",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/lag-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/paths.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/render-sentinel-sampler.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/render-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/tray.ts",
+      "area": "tray"
+    },
+    {
+      "path": "app/src/main/services/clock.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/main/services/desktop.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/services/focus.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/hardware.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/plugin-config.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/services/search.ts",
+      "area": "search"
+    },
+    {
+      "path": "app/src/main/services/sessions.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/settings.ts",
+      "area": "settings"
+    },
+    {
+      "path": "app/src/main/services/taskbar.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/usage.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/taskbar/app-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/blank-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/menu-host.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/rec-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/tier-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/wins-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/renderer/pasteable-query.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/plugin-tiers.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/plugins.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/selection.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/renderer/tray-pixels.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/renderer/zone-hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/shared/overflow.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/shared/retract.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/accept/manifest.json",
+      "area": "accept",
+      "wires": "*"
+    }
   ]
 }
