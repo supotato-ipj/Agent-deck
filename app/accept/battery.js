@@ -3567,11 +3567,8 @@ async function runSegments() {
         const ptOf28 = (r) => ({ x: rect28.left + Math.round((r.rect.x + r.rect.w / 2) * f), y: rect28.top + Math.round((r.rect.y + r.rect.h / 2) * f) });
         // 落点现取（工单59 真机首跑教训）：摆位/选中/改名都改使用频次，名序随后台落定重排
         // （工单05，~1s 内动），一次 settle 抓的矩形隔几秒再点就点空（右键点错条目 = 假败）。
-        // 三条探针各处现取；settledXX 仍作 settle 屏障 + 几何齐全门禁
-        const ptItem28 = (name) => {
-          const r = liveItemRect(name);
-          return r ? ptOf28(r) : null;
-        };
+        // #149 起右键/拖拽原语按名进、清场完成后重取矩形（见各原语）；settledXX 仍作
+        // settle 屏障 + 几何齐全门禁
         // 清空选区的分区空白落点（文档区顶排条目上沿之上 6px）：同上，临点现取
         let blankDip28 = null;
         let ptBlank28 = null;
@@ -3582,14 +3579,37 @@ async function runSegments() {
           ptBlank28 = { x: rect28.left + Math.round(blankDip28.x * f), y: rect28.top + Math.round(blankDip28.y * f) };
           return true;
         };
-        const rightClick28 = async (pt, label) => {
-          if (!pt) { rep.fail(`${label}前置失败：落点取矩形失败（条目不在最新渲染里）`); return null; }
-          const hit = await ensurePanelHit(pt, hwnd);
+        // #149 落点—身份竞态：ensurePanelHit 清场等待（净轮 ≥400ms，遮挡多轮更长）期间
+        // 名序可重排（工单05），进清场前取好的坐标届时点在别的条目上（勿扰判决轮实证：
+        // 点错条目时 desktop-selected 发在实际目标上、rename 也正常开层——下游 started=null
+        // 假败淹没真相）。故右键按目标名进：清场完成后重取矩形再点；重取坐标有变时做一次
+        // 即时 root 命中复核（零 sleep，清场刚做完只兜「新坐标恰被外部窗压上」），不中才补
+        // 一轮完整清场。开层后右键单选身份判决前移：单选≠目标当场指名竞态；选区已是目标
+        // 时渲染层不补发 desktop-selected（itemMenuPlan 仅 switchTo 才发），「未见」不判竞态，
+        // 由含 rename 行断言兜底。失败消息全收敛在本函数内（调用方不重复记账）。
+        const rightClick28 = async (name, label) => {
+          const r0 = liveItemRect(name);
+          if (!r0) { rep.fail(`${label}前置失败：目标 ${name} 不在最新渲染里（无矩形）`); return null; }
+          const pt0 = ptOf28(r0);
+          const hit = await ensurePanelHit(pt0, hwnd);
           if (!hit.ok) { rep.fail(`${label}前置失败：${hit.why}`); return null; }
+          const r1 = liveItemRect(name);
+          if (!r1) { rep.fail(`${label}前置失败：清场后目标 ${name} 矩形消失（重排进行中？）`); return null; }
+          const pt = ptOf28(r1);
+          if ((pt.x !== pt0.x || pt.y !== pt0.y) && Number(w32.windowFromPointRoot(pt)) !== Number(hwnd)) {
+            const rehit = await ensurePanelHit(pt, hwnd);
+            if (!rehit.ok) { rep.fail(`${label}前置失败（重取落点被遮挡）：${rehit.why}`); return null; }
+          }
           const t0 = Date.now();
           w32.clickPhys(pt.x, pt.y, 'right');
           const opened = await tape.wait('desktop-menu-opened', undefined, { since: t0, timeoutMs: 4000 });
-          return opened ? { t0, opened } : null;
+          if (!opened) { rep.fail(`${label}未弹单项菜单（desktop-menu-opened 未见）`); return null; }
+          const sel = tape.all('desktop-selected', undefined, { since: t0 }).pop();
+          if (sel && sel.name !== name) {
+            rep.fail(`${label}落点—身份竞态（#149）：期望右键 ${name}，实际选中 ${sel.name}（清场等待窗内名序重排，菜单属实际选中项）`);
+            return null;
+          }
+          return { t0, opened };
         };
         const clickRow28 = (rows, id) => {
           const row = (rows || []).find((r) => r.id === id);
@@ -3623,11 +3643,19 @@ async function runSegments() {
           }
           return { swapped: false, docs: null };
         };
-        // 真拖拽摆位原语（06/21/22/27 同款）
-        const dragPlace28 = async (from, to, name) => {
-          if (!from || !to) { rep.fail(`摆位拖拽取矩形失败（${name} 不在最新渲染里）`); return false; }
-          const hit = await ensurePanelHit(from, hwnd);
+        // 真拖拽摆位原语（06/21/22/27 同款）；#149 同修：起笔矩形清场完成后重取——清场
+        // 等待窗内名序可重排，旧起点会抓错条目（desktop-moved 按 fromName 判身份兜底）
+        const dragPlace28 = async (fromName, toName) => {
+          const r0 = liveItemRect(fromName);
+          const t0r = liveItemRect(toName);
+          if (!r0 || !t0r) { rep.fail(`摆位拖拽取矩形失败（${!r0 ? fromName : toName} 不在最新渲染里）`); return false; }
+          const hit = await ensurePanelHit(ptOf28(r0), hwnd);
           if (!hit.ok) { rep.fail(`摆位拖拽前置失败：${hit.why}`); return false; }
+          const fromR = liveItemRect(fromName);
+          const toR = liveItemRect(toName);
+          if (!fromR || !toR) { rep.fail(`摆位拖拽清场后矩形消失（${!fromR ? fromName : toName}，重排进行中？）`); return false; }
+          const from = ptOf28(fromR);
+          const to = ptOf28(toR);
           const t0 = Date.now();
           w32.send([w32.mouseInput(0, 0, w32.LEFTDOWN)]);
           const steps = 16;
@@ -3638,19 +3666,17 @@ async function runSegments() {
           await sleep(140);
           w32.send([w32.mouseInput(0, 0, w32.LEFTUP)]);
           w32.moveMousePhys(safePt.x, safePt.y);
-          const moved = await tape.wait('desktop-moved', (e) => e.name === name && e.ok === true, { since: t0, timeoutMs: 6000 });
+          const moved = await tape.wait('desktop-moved', (e) => e.name === fromName && e.ok === true, { since: t0, timeoutMs: 6000 });
           return !!moved;
         };
 
         // a. 前置真拖拽造显式摆位（给「摆位同拍迁移」造靶子）→ RENAME → 直注新主名 + Enter
         {
-          const ptA0 = ptItem28(nameA28);
-          const ptC0 = ptItem28(nameC28);
-          if (!ptC0) {
+          if (!liveItemRect(nameC28)) {
             rep.fail('重命名用例前置摆位参照缺失（冲突占位无矩形）');
             return;
           }
-          const placedA = await dragPlace28(ptA0, ptC0, nameA28);
+          const placedA = await dragPlace28(nameA28, nameC28);
           const placeDisk = placedA ? await (async () => {
             const deadline = Date.now() + 5000;
             while (Date.now() < deadline) {
@@ -3671,16 +3697,16 @@ async function runSegments() {
             rep.fail('重命名用例摆位后探针矩形缺失');
             return;
           }
-          const sessRen = await rightClick28(ptItem28(nameA28), '改名-右键');
-          if (!sessRen) {
-            rep.fail('改名右键未弹单项菜单（desktop-menu-opened 未见）');
-            return;
-          }
+          const sessRen = await rightClick28(nameA28, '改名-右键');
+          if (!sessRen) return;
           (sessRen.opened.items || []).includes('rename')
             ? rep.pass(`单项菜单含【重命名】行（条目集=[${(sessRen.opened.items || []).join(', ')}]，工单28 第六行）`)
             : rep.fail(`单项菜单缺 rename 行：${JSON.stringify(sessRen.opened.items)}`);
           const tRen = clickRow28(sessRen.opened.rows, 'rename');
           const started = tRen && await tape.wait('desktop-rename-started', (e) => e.name === nameA28 && e.input && e.input.w > 0, { since: tRen, timeoutMs: 4000 });
+          // #149 三方身份：失败时留期望目标/右键实际选中/实际开层者，不再只剩 started=null 谜语
+          const selRen = tape.all('desktop-selected', undefined, { since: sessRen.t0 }).pop() || null;
+          const startedAny = tRen ? (tape.all('desktop-rename-started', undefined, { since: tRen }).pop() || null) : null;
           // 工单31 起键盘模式归一仲裁：on 沿属选区生（右键切换单选那拍已取得，P5.17 硬断言①），
           // 编辑器开层共用同态不重发——这里断言 started 时刻键盘模式在 on 态 + 键盘焦点到手
           const lastKb28 = (tape.all(undefined, (e) => e.type === 'keyboard-mode-on' || e.type === 'keyboard-mode-off').pop() || {}).type || null;
@@ -3688,7 +3714,7 @@ async function runSegments() {
           const fgOk = started && await waitForeground28();
           started && kbOn && fgOk
             ? rep.pass(`标签原地变输入框：desktop-rename-started（输入框 ${started.input.w}x${started.input.h} 随开编辑存证）、keyboard-mode on 在手（选区生沿取得，编辑器共用单通道同态）、键盘焦点到手`)
-            : rep.fail(`重命名编辑器开层异常：started=${JSON.stringify(started)} kbOn=${!!kbOn}(last=${lastKb28}) fg=${fgOk}`);
+            : rep.fail(`重命名编辑器开层异常：started=${JSON.stringify(started)} 期望=${nameA28} 右键实际选中=${selRen ? selRen.name : '未见'} 实际开层=${startedAny ? startedAny.name : '未见'} kbOn=${!!kbOn}(last=${lastKb28}) fg=${started ? fgOk : '未取'}`);
           safeShot('28-rename-editor');
           // 预选主名段：直注即整段替换（扩展名 .txt 留在输入框里），Enter 确认
           if (!started || !fgOk) return;
@@ -3720,15 +3746,13 @@ async function runSegments() {
             rep.fail('取消用例探针矩形缺失（改名后新名未承载？）');
             return;
           }
-          const sessEsc = await rightClick28(ptItem28(nameB28), '取消-右键');
-          if (!sessEsc) {
-            rep.fail('取消右键未弹单项菜单（desktop-menu-opened 未见）');
-            return;
-          }
+          const sessEsc = await rightClick28(nameB28, '取消-右键');
+          if (!sessEsc) return;
           const tEscRow = clickRow28(sessEsc.opened.rows, 'rename');
           const started2 = tEscRow && await tape.wait('desktop-rename-started', (e) => e.name === nameB28, { since: tEscRow, timeoutMs: 4000 });
           if (!started2 || !(await waitForeground28())) {
-            rep.fail(`取消用例编辑器未就绪：started=${JSON.stringify(started2)}`);
+            const started2Any = tEscRow ? (tape.all('desktop-rename-started', undefined, { since: tEscRow }).pop() || null) : null;
+            rep.fail(`取消用例编辑器未就绪：started=${JSON.stringify(started2)} 实际开层=${started2Any ? started2Any.name : '未见'}（期望 ${nameB28}） fg=${started2 ? '超时' : '未取'}`);
             return;
           }
           await sleep(300); // 焦点落定缓冲
@@ -3772,15 +3796,13 @@ async function runSegments() {
             rep.fail('冲突用例探针矩形缺失');
             return;
           }
-          const sessC = await rightClick28(ptItem28(nameB28), '冲突-右键');
-          if (!sessC) {
-            rep.fail('冲突右键未弹单项菜单（desktop-menu-opened 未见）');
-            return;
-          }
+          const sessC = await rightClick28(nameB28, '冲突-右键');
+          if (!sessC) return;
           const tConf = clickRow28(sessC.opened.rows, 'rename');
           const started3 = tConf && await tape.wait('desktop-rename-started', (e) => e.name === nameB28, { since: tConf, timeoutMs: 4000 });
           if (!started3 || !(await waitForeground28())) {
-            rep.fail(`冲突用例编辑器未就绪：started=${JSON.stringify(started3)}`);
+            const started3Any = tConf ? (tape.all('desktop-rename-started', undefined, { since: tConf }).pop() || null) : null;
+            rep.fail(`冲突用例编辑器未就绪：started=${JSON.stringify(started3)} 实际开层=${started3Any ? started3Any.name : '未见'}（期望 ${nameB28}） fg=${started3 ? '超时' : '未取'}`);
             return;
           }
           await sleep(300); // 焦点落定缓冲
