@@ -4,7 +4,7 @@
 //
 // 一段绑定一工单（docs/agents/battery-governance.md 增段三条件之三）：九张票各一段；工单179 的
 // 失败面有「装载接管」与「卸载交还」两头，按主电池 P9/P9B 的同款拆段记法落成 P179 与 P179B
-// 两段（段号电池内唯一），两段同归工单179。
+// 两段（段号电池内唯一），两段同归工单179；工单200 起添 P200 一段（空临时组卡留屏，裁决 A）。
 // 增段条件对照：① 真机行为存证——卡面几何、菜单开层、输入注入、剪贴板落盘、系统热区矩形均为
 // 单测够不到的面（纯模块那侧已由 tests/plugins/doc-group-cards-*.spec.ts 穷举）；② 单测能覆盖
 // 的不进——分组/几何/交互/归属/菜单态/路由/写操作裁决都在纯模块里，本池只钉「真机接上了没有」；
@@ -1433,6 +1433,95 @@ async function main() {
             } // 自定义卡在场的正常路径到此为止
           }
         }
+      }
+    }
+
+    // ===== P200 · 工单200 空临时组卡留屏（0 格出卡 / 无 +0 徽标 / 交互不抛 / 菜单两行在）=====
+    rep.beginSegment('P200');
+    {
+      await collapseAll(); // 段首收排：淡出卡 pointer-events:none，不收就会吃掉本段后续点击
+      // 前置正是本票的触发路径：P185 落下的那张临时卡（成员 q1.txt 还在屏上），把它认领的文件
+      // 从磁盘删光——裁决 A（2026-10-24）下它必须 0 格留屏，而不是整张退场把定义变成孤儿。
+      // 顺带把 q1.txt 这份无前缀落物清掉（removeFixtures 的粘贴落物正则容忍它已不在）。
+      const tempBefore = await until(async () => {
+        const cards = await cdpEval(EXPR.cards);
+        return cards.find((c) => /^dgc-t\d+$/.test(c.id)) || null;
+      }, 6000, 250);
+      if (!tempBefore) {
+        rep.fail(`P200 前置：全表没有临时卡（P185 应落下一张带 q1.txt 的临时卡），无从验「删光留屏」`);
+      } else {
+        fs.rmSync(path.join(desktop, 'q1.txt'), { force: true });
+        // 快照 1Hz + watch 300ms 去抖：删档到卡面空格要等两拍
+        const emptied = await until(async () => {
+          const c = (await cdpEval(EXPR.cards)).find((x) => x.id === tempBefore.id);
+          return c && c.cells === 0 ? c : null;
+        }, 12000, 300);
+        const table = await cdpEval(EXPR.cards);
+        const ids = table.map((c) => c.id);
+        const idUnique = new Set(ids).size === ids.length;
+        const titleOk = !!emptied && /^临时 .+ · 0$/.test(emptied.title || '');
+        const noBadge = !!emptied && emptied.more === null; // 无溢出不建节点 → .dgc-more 不存在
+        emptied && titleOk && noBadge && idUnique
+          ? rep.pass(`空临时卡留屏：${tempBefore.id} 认领的文件删光后仍出卡（卡面「${emptied.title}」），无「+0」徽标（.dgc-more 节点不存在），id 全表唯一（${ids.length} 张）——工单200 裁决 A`)
+          : rep.fail(`空临时卡留屏异常：emptied=${JSON.stringify(emptied)} titleOk=${titleOk} noBadge=${noBadge} idUnique=${idUnique} 全表=${JSON.stringify(ids)} 页内错误=${JSON.stringify(await pageErrors())}`);
+
+        // 0 格卡上读几何的交互一个不炸：展开 → 多选开关 → 框选拖拽 → ENTER（选区恒空不启动）
+        await clickAt({ x: emptied.x + 8, y: emptied.y + emptied.h / 2 });
+        const up = await until(async () => { const c = await cardProbe(tempBefore.id); return c && c.expanded ? c : null; }, 5000, 120);
+        const errsBefore = (await pageErrors()).length;
+        if (!up) {
+          rep.fail(`空临时卡展开异常：0 格卡点空白不展开（几何应照读），页内错误=${JSON.stringify(await pageErrors())}`);
+        } else {
+          // 多选开关紧挨着拖拽临点现开（P184 的教训：中间隔一拍整排重画会清掉交互态）
+          const up2 = await cardProbe(tempBefore.id);
+          await clickAt(centerOf(up2.multi));
+          await until(async () => { const c = await cardProbe(tempBefore.id); return c && c.multiOn; }, 4000, 120);
+          // 框选：0 格卡的内容区整片空白，起笔收笔都在网格盒内
+          const up3 = await cardProbe(tempBefore.id);
+          const startCss = { x: up3.grid.x + 12, y: up3.grid.y + up3.grid.h - 16 };
+          const endCss = { x: up3.grid.x + up3.grid.w * 0.6, y: up3.grid.y + 12 };
+          const a = toPhys(startCss); const b = toPhys(endCss);
+          await ensureHit(a);
+          await settleAt(a);
+          win32.send([mouseBtn(win32.LEFTDOWN)]);
+          const steps = 8;
+          for (let i = 1; i <= steps; i++) {
+            win32.moveMousePhys(Math.round(a.x + (b.x - a.x) * i / steps), Math.round(a.y + (b.y - a.y) * i / steps));
+            await sleep(60);
+          }
+          const duringMarquee = await cardProbe(tempBefore.id);
+          win32.send([mouseBtn(win32.LEFTUP)]);
+          await sleep(300);
+          const afterDrag = await cardProbe(tempBefore.id);
+          // ENTER：0 格卡选区恒空 → 不发 launch（等一拍确认真没发），也不抛
+          const tEnt = Date.now();
+          win32.tapKeys([0x0D]);
+          const evLaunch = await tape.wait('doc-group-cards-launch-selection', undefined, { since: tEnt - 300, timeoutMs: 2500 });
+          const errsAfter = (await pageErrors()).length;
+          duringMarquee && duringMarquee.marquee && afterDrag && !afterDrag.marquee && evLaunch === null && errsAfter === errsBefore
+            ? rep.pass(`0 格临时卡交互不炸：展开/多选开关/框选（拖拽带在场、松手即撤）/ENTER（选区恒空、无 launch 存证）全程页内错误 ${errsBefore}→${errsAfter} 条`)
+            : rep.fail(`0 格临时卡交互异常：拖拽带=${JSON.stringify(duringMarquee && duringMarquee.marquee)} 松手残留=${JSON.stringify(afterDrag && afterDrag.marquee)} launch=${JSON.stringify(evLaunch && { n: evLaunch.paths && evLaunch.paths.length })} 页内错误 ${errsBefore}→${errsAfter}（${JSON.stringify(await pageErrors())}）`);
+          // 收排复原：点空白折回（后续段在折叠态起跑）
+          await clickAt({ x: up3.x + 8, y: up3.y + up3.h / 2 });
+          await until(async () => { const c = await cardProbe(tempBefore.id); return c && !c.expanded; }, 4000, 120);
+        }
+
+        // 固有层反向断言：本票一个字没动「空组不占卡」——全表此刻不许有 0 格的固有卡
+        const builtinEmpties = (await cdpEval(EXPR.cards)).filter((c) => !/^dgc-[ct]\d+$/.test(c.id) && c.cells === 0);
+        builtinEmpties.length === 0
+          ? rep.pass(`固有层反向断言：全表没有 0 格的固有卡（「空组不占卡」只对固有组成立的纪律一字未动）`)
+          : rep.fail(`固有层反向断言异常：出现了 0 格固有卡 ${JSON.stringify(builtinEmpties.map((c) => c.id))}`);
+
+        // 菜单两条出路仍在：空临时卡上右键，四行齐（EDIT TYPES / DISSOLVE 挂手改得动的卡，工单185 起）
+        const e2 = await cardProbe(tempBefore.id);
+        await clickAt({ x: e2.x + 8, y: e2.y + e2.h / 2 }, 'right');
+        const gm = await until(() => cdpEval(EXPR.menu), 6000, 150);
+        const rows = gm ? gm.rows.map((r) => r.id) : [];
+        const two = rows.includes('edit-types') && rows.includes('dissolve');
+        gm && two
+          ? rep.pass(`空临时卡菜单两行在：${rows.join(' / ')}（EDIT TYPES / DISSOLVE 两条出路可达，isHandEditableKind 覆盖 temp 不回归）`)
+          : rep.fail(`空临时卡菜单异常：menu=${!!gm} rows=${JSON.stringify(rows)}`);
+        await closeMenu();
       }
     }
 

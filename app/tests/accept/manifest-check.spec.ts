@@ -310,9 +310,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     //   增段——51 电池 +P10 收栏态原生栏重申轮询；105 → 106：工单269 增段——51 电池
     //   +P11 分屏收栏单窗最小闭环；106 → 108：工单270 增段——51 电池 +P12 分屏会话
     //   集合生命周期与代表性布局、+P13 虚拟桌面切换隔离与收栏理由接续；108 → 109：
-    //   工单271 增段——51 电池 +P14 全屏让位与分屏会话解耦）
+    //   工单271 增段——51 电池 +P14 全屏让位与分屏会话解耦；109 → 110：工单200 增段
+    //   ——166 电池 +P200 空临时组卡留屏）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(109)
+    expect(total).toBe(110)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
