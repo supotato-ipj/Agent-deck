@@ -894,15 +894,15 @@
     },
     {
       "id": "50-taskbar-carry",
-      "title": "任务栏显隐还原（工单50）：守卫链三还原路径 + 逃生开关 + 偏好不扰",
+      "title": "任务栏显隐还原（工单50）：守卫链三还原路径（收栏/普通双相位，工单296 补普通态出发）+ 逃生开关 + 偏好不扰",
       "entry": "app/accept/taskbar-carry.js",
       "flag": "--accept-taskbar-carry",
       "hintBar": true,
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 37,
-      "lastMeasuredAt": "2026-10-24",
+      "lastMeasuredSeconds": 66,
+      "lastMeasuredAt": "2026-10-26",
       "segments": [
         {
           "seg": "A1",
@@ -946,6 +946,39 @@
             "event-evidence"
           ],
           "estSeconds": 9
+        },
+        {
+          "seg": "A5",
+          "ticket": 296,
+          "title": "正常退出（WM_CLOSE，普通态出发）：appbar 读回复原基线 + 原生任务栏还原（工单296 全接管期退场复原，读回事实裁决）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 9
+        },
+        {
+          "seg": "A6",
+          "ticket": 296,
+          "title": "崩溃路径（taskkill 面板树守卫存活，普通态出发）：panel-exit 从落盘账复原 + 读回基线（账记于普通态接管建立拍）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 7
+        },
+        {
+          "seg": "A7",
+          "ticket": 296,
+          "title": "进程被杀路径（守卫+面板同杀，普通态出发）：还原守护 guard-dead 从落盘账复原 + 自退（账记于普通态接管建立拍）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 8
         },
         {
           "seg": "B1",
@@ -1742,40 +1775,146 @@
     }
   ],
   "requiredFileRules": [
-    { "path": "app/src/main/config.ts", "area": "config" },
-    { "path": "app/src/main/desktop-cover.ts", "area": "desktop" },
-    { "path": "app/src/main/hotzone.ts", "area": "hotzone" },
-    { "path": "app/src/main/icon-carry.ts", "area": "desktop" },
-    { "path": "app/src/main/icon-restore-watch.cjs", "area": "desktop" },
-    { "path": "app/src/main/lag-sentinel.ts", "area": "render" },
-    { "path": "app/src/main/paths.ts", "area": "config" },
-    { "path": "app/src/main/render-sentinel-sampler.ts", "area": "render" },
-    { "path": "app/src/main/render-sentinel.ts", "area": "render" },
-    { "path": "app/src/main/tray.ts", "area": "tray" },
-    { "path": "app/src/main/services/clock.ts", "area": "cards" },
-    { "path": "app/src/main/services/desktop.ts", "area": "desktop" },
-    { "path": "app/src/main/services/focus.ts", "area": "sessions" },
-    { "path": "app/src/main/services/hardware.ts", "area": "taskbar" },
-    { "path": "app/src/main/services/plugin-config.ts", "area": "plugins" },
-    { "path": "app/src/main/services/search.ts", "area": "search" },
-    { "path": "app/src/main/services/sessions.ts", "area": "sessions" },
-    { "path": "app/src/main/services/settings.ts", "area": "settings" },
-    { "path": "app/src/main/services/taskbar.ts", "area": "taskbar" },
-    { "path": "app/src/main/services/usage.ts", "area": "taskbar" },
-    { "path": "app/src/main/taskbar/app-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/blank-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/menu-host.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/rec-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/tier-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/wins-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/renderer/pasteable-query.ts", "area": "cards" },
-    { "path": "app/src/renderer/plugin-tiers.ts", "area": "plugins" },
-    { "path": "app/src/renderer/plugins.ts", "area": "plugins" },
-    { "path": "app/src/renderer/selection.ts", "area": "desktop" },
-    { "path": "app/src/renderer/tray-pixels.ts", "area": "taskbar" },
-    { "path": "app/src/renderer/zone-hotzone.ts", "area": "hotzone" },
-    { "path": "app/src/shared/overflow.ts", "area": "taskbar" },
-    { "path": "app/src/shared/retract.ts", "area": "taskbar" },
-    { "path": "app/accept/manifest.json", "area": "accept", "wires": "*" }
+    {
+      "path": "app/src/main/config.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/desktop-cover.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/main/icon-carry.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/icon-restore-watch.cjs",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/lag-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/paths.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/render-sentinel-sampler.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/render-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/tray.ts",
+      "area": "tray"
+    },
+    {
+      "path": "app/src/main/services/clock.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/main/services/desktop.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/services/focus.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/hardware.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/plugin-config.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/services/search.ts",
+      "area": "search"
+    },
+    {
+      "path": "app/src/main/services/sessions.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/settings.ts",
+      "area": "settings"
+    },
+    {
+      "path": "app/src/main/services/taskbar.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/usage.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/taskbar/app-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/blank-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/menu-host.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/rec-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/tier-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/wins-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/renderer/pasteable-query.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/plugin-tiers.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/plugins.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/selection.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/renderer/tray-pixels.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/renderer/zone-hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/shared/overflow.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/shared/retract.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/accept/manifest.json",
+      "area": "accept",
+      "wires": "*"
+    }
   ]
 }
