@@ -27,6 +27,8 @@ ADR-0009 定了控制面的**形状**（`BridgeMethods` 的投影、`BridgeServi
 | **内核插件层** | W（免确，**串 + 原子性照常**） | W✓ 确 + 串 | W✓ 确 + 串 | R | 提案（批准即「用户显式发起」） |
 | **只读快照与事件** | 8 段 | 8 段 | 7 段（无 `weather`；`desktop` 用户可单段关） | 4 段（clock / hardware / layout / settings） | 8 段（**必须经控制面**） |
 
+2026-10-25 #276 起，本表「内核插件层」行的四条持久策略开关（收栏、系统按钮显隐、硬件摘要勾选、托盘溢出档位）拆为独立的「内核插件·策略」子行；本行现指生命周期写（`set-enabled` / `system-action`）。详见文末补记与 ADR-0021。
+
 **config 两组的划分**：观感与检索 = 卡片透明度 / 面板几何 / 天气经纬度 / 搜索引擎选择；信任根与持久化 = 五工具映射（会话扫描根）/ `plugins.dir`（插件根）/ 自启项（Startup 的 `.lnk`）/ 护栏配置（用户的收紧设置本身）。
 
 **单调性**：每个客体列上开放级随「内核 > 后端 > 外部 > 投放」单调不增。后端档与外部档在布局列、内核插件层列同为 `W✓`，二者的宽严差由**会话级授权**体现（见下）。单调是刻意选的：它让 Q「用户可再关小」表达为「把切点往左移」，并给出一个可审计的不变量——外部档能做的，后端档一定能做。
@@ -131,7 +133,7 @@ ADR-0009 定了控制面的**形状**（`BridgeMethods` 的投影、`BridgeServi
 
 - **事实更正（已在原处就地加注）**：「前提校正」第 3 条关于目标形态所在分支的记法不成立，详见该处注记。同一条错因也让本 ADR 记的「27 法」过期——`origin/master` 的 `BridgeMethods` 现为 **48** 个。**在本仓的工单节奏下，行号与计数都是长期负债；引用请重数，别信本 ADR 的任何数字。**
 
-- **缺口一：「内核插件层」这一列低估了自己的客体范围。** 本 ADR 把它建模成「禁用 / 启用」两个动作（外加 `taskbar/get-state` 读与 `taskbar/system-action` 例外），理由是「内核插件没有任何运行期卸载路径，禁用与卸载是两件事」。这个理由仍成立，但**接管程度不是一个布尔位**：`taskbar/set-maximize-retract` 已在契约里，对应 ADR-0015 的**最大化收栏**；同族另有 `taskbar/set-button-hidden`、`taskbar/set-metrics`、`taskbar/set-tray-overflow-limit` 三个可管理开关。**本 ADR 不为这一族改判档位**，只登记一条风险：收栏是**由前台窗口状态自动驱动的高频态**，若按 `W✓ 确` 逐次挂确认闸门，闸门会被打成噪声、进而被用户整体关掉，反而削弱其余格子的护栏。该格怎么开留给后续（其语义前提「完成信号」已并入 #70）。
+- **缺口一：「内核插件层」这一列低估了自己的客体范围。** 本 ADR 把它建模成「禁用 / 启用」两个动作（外加 `taskbar/get-state` 读与 `taskbar/system-action` 例外），理由是「内核插件没有任何运行期卸载路径，禁用与卸载是两件事」。这个理由仍成立，但**接管程度不是一个布尔位**：`taskbar/set-maximize-retract` 已在契约里，对应 ADR-0015 的**最大化收栏**；同族另有 `taskbar/set-button-hidden`、`taskbar/set-metrics`、`taskbar/set-tray-overflow-limit` 三个可管理开关。**本 ADR 不为这一族改判档位**，只登记一条风险：收栏是**由前台窗口状态自动驱动的高频态**，若按 `W✓ 确` 逐次挂确认闸门，闸门会被打成噪声、进而被用户整体关掉，反而削弱其余格子的护栏。该格怎么开留给后续（其语义前提「完成信号」已并入 #70）。（2026-10-25 #276 已收口：四法拆为「内核插件·策略」子行；`taskbar/set-maximize-retract` 是持久策略开关而非收栏态写，自动收栏不经过控制面，前述噪声前提是范畴错误。详见 ADR-0021 与文末补记。）
 
 - **缺口二：14 个 `taskbar/*` 方法不在「面板外的世界」的排除名单里。** 本 ADR 排除那一类时列举的是 12 个方法（`desktop/launch`、`desktop/reveal`、`desktop/copy-path`、`desktop/copy-paths`、`desktop/clipboard-copy`、`desktop/clipboard-cut`、`desktop/clipboard-state`、`desktop/trash`、`desktop/rename`、`desktop/paste`、`search/action`、`session/focus`），判据是「动的是用户文件系统、剪贴板、外部进程，blast radius 超出面板自身」。**按同一条判据，下列 14 个同样越界，只因当时 `taskbar/*` 还只有两三个方法而漏数**：`app-click`、`activate-window`、`app-windows`、`app-new-instance`、`set-app-pinned`、`close-window`、`reveal-app`、`rec-click`、`rec-pin`、`rec-remove`、`rec-restore`、`rec-reveal`、`activate-app`、`tray-click`。它们操作的是**别的应用的窗口、启动与托盘图标回放**，其中 `close-window`、`app-new-instance`、`rec-remove` 的不可逆性与 `desktop/trash` 同级。**形式上它们今天落在「内核插件层」列、可按 `W✓` 开放；按语义判据它们应落入被排除的那一类。** 本补记不擅自改判（改判等于重开 charting 时定到最宽的 Q3 边界），已登记为地图 #66 的 Not yet specified。
 
@@ -148,4 +150,17 @@ ADR-0019 收口了本 ADR 留给《agent 写入插件包的契约与 capability 
 - **`14 个 taskbar/*` 那条雾**：投放窄面已把它们排除；它们是否属于「面板外的世界」、以及内核插件层的收栏档位/闸门，另由 #66 的两张新票承接，本 ADR 不改判。
 
 事实性引用：本 ADR 的 27 法是开工时口径；「四类客体」不变——`plugin-config` 不是第五类。ADR-0019 复核时 `origin/master` 的 `BridgeMethods` 为 48 法，且插件包类方法一个都还不存在。
+
+## 补记（2026-10-25，#276 决完后）
+
+ADR-0021 收口了缺口一，并更正缺口一的噪声前提。只登记口径，不改本 ADR 的档位模型：
+
+- **噪声前提更正**：`taskbar/set-maximize-retract` 是持久策略开关（`{enabled}` → `config.json` 的 `taskbar.maximizeRetract`），不是收栏态写；`BarMode` 由前台窗口状态自动裁决并施加，控制面没有写态方法，自动收栏/还原不经过确认闸门。进入闸门的只有显式策略切换，频率与收栏次数无关。
+- **策略子行**：四条持久策略开关（`set-maximize-retract` / `set-button-hidden` / `set-metrics` / `set-tray-overflow-limit`）从本 ADR 的「内核插件层」行拆出为**「内核插件·策略」子行**：内核 `W` / 后端 `W✓` 逐次确认（可请求本格会话级授权）/ 外部 `W✓` 逐次确认（无会话级）/ 投放 `—`（写；`taskbar/get-state` 读面按 ADR-0019 另计）/ 自主管理提案；四条都是同步配置写，不挂串行化；回滚点与审计照常。
+- **生命周期行不动**：`set-enabled` / `system-action` 留在原「内核插件层」行，格位、串行化与原子性契约不变；本补记不重开 #72 对 `set-enabled` 的档位判断。
+- **拆子行的理由**：本 ADR 的会话级授权按「档 × 客体」格生效；若四法与 `set-enabled` 同格，后端一次会话级批准会覆盖关任务栏。策略子行给策略写独立的作用域；同时把「串行化」从策略行去掉（对同步配置写是空转）。
+- **读侧不改**：`taskbar/get-state` 仍只给 `TaskbarState` 的策略字段，不给当前 `BarMode`；非内核档的 `title` / `tooltip` / `exe` / `path` 脱敏仍归 #282。
+- **#277 的边界**：ADR-0021 只给出「策略写 vs 自动驱动的态（非控制面对象）」，没有「策略写 vs 视图态写」二分；14 个 `taskbar/*` 方法不是策略开关，不能借策略子行开口，应按 ADR-0010 的「面板外的世界」判据另裁。
+
+详见 ADR-0021（`docs/adr/0021-taskbar-policy-switches.md`）。
 
