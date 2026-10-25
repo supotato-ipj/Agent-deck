@@ -17,6 +17,7 @@ export {
   SUMMON_STRIP_VISUAL_HEIGHT,
   coversScreenRect,
   initialSummonState,
+  normalBarAutoHideState,
   planBarTransition,
   planSummonStrips,
   reduceSummon,

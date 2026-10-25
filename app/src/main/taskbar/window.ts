@@ -18,7 +18,7 @@ import { setTopmost, hwndOf } from '../win32'
 import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
 import { ABN_POSCHANGED, appBarCallbackMessage, getAppBarState, negotiateAppBarPos, registerAppBar, removeAppBar } from './appbar'
 import type { AppBarRect } from './appbar'
-import { engageRetractAutoHide, reassertRetractAutoHide, restoreRetractAutoHide } from './appbar-autohide'
+import { clearRetractAutoHide, engageTakeoverAutoHide, enterRetractAutoHide, reassertTakeoverAutoHide, restoreTakeoverAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
 import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './snap'
 import type { SnapSessionEndCause, SnapWindowFact } from './snap'
@@ -405,20 +405,22 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
    */
   const pollNativeWatch = (): void => {
     const s = session
-    // 守门随工作区收栏账（工单271）：分屏会话持有的全屏覆盖期间档位是让位、账仍在——
-    // 值守不空转（explorer 重启/置位丢失在覆盖下也要重挂，否则保留带复活顶起后台 Snap 窗）
-    if (!s || s.win.isDestroyed() || !s.workspaceRetracted) return
+    if (!s || s.win.isDestroyed()) return
     const probe = nativeWatchProbe()
-    const decision = s.nativeWatch?.machine.poll(probe)
+    // 目标档位随工作区收栏账（工单271）：账面在 = 收栏态目标（置位），账清 = 普通栏态
+    // 目标（清位）——值守覆盖全接管期（ADR-0016 双缺陷复审 Q1/Q2）：普通态的清位同样
+    // 会被 explorer 重启按注册表原值冲掉，所以不只是收栏期才值守。
+    const decision = s.nativeWatch?.machine.poll(probe, s.workspaceRetracted ? 'autohide-on' : 'autohide-off')
     if (!decision || decision.action === 'none') return
     if (decision.hide) hideNativeTaskbar(log)
-    if (decision.engage) reassertRetractAutoHide(log)
+    if (decision.autoHide !== null) reassertTakeoverAutoHide(log)
     log?.append({
       type: 'taskbar-native-reassert',
       reason: decision.reason,
       hwnd: probe.hwnd,
       visible: probe.visible,
       autoHideOn: probe.autoHideOn,
+      autoHide: decision.autoHide,
     })
   }
 
@@ -468,6 +470,32 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       s.win.setBounds(t)
       log?.append({ type: 'taskbar-geometry-reasserted', reason, from: cur, to: t })
     }
+  }
+
+  /**
+   * 收栏过渡后的宿主矩形复核（ADR-0016 双缺陷复审决策 4）：收栏过渡会让壳侧把条带宿主
+   * 抬高一个原生栏身高（48px），渲染层的唤出条按宿主矩形自算定位 ⇒ 五组唤出条整体偏离
+   * 屏底。判据取**宿主矩形底边 vs 屏底**（stripPhysRect 是单点来源，不读渲染层的
+   * window.innerHeight 相对值），偏离 >1 DIP 即回正并留证。
+   */
+  const verifyStripBottom = (s: TaskbarSession, reason: string): void => {
+    if (s.win.isDestroyed()) return
+    const phys = stripPhysRect()
+    const dip = screen.screenToDipRect(s.win, {
+      x: phys.left,
+      y: phys.top,
+      width: phys.right - phys.left,
+      height: phys.bottom - phys.top,
+    })
+    const cur = s.win.getBounds()
+    const offBottom = Math.abs((cur.y + cur.height) - (dip.y + dip.height))
+    if (offBottom > 1 || Math.abs(cur.y - dip.y) > 1) {
+      s.negotiated = dip
+      s.win.setBounds(dip)
+      log?.append({ type: 'taskbar-host-rect-corrected', reason, from: cur, to: dip })
+      return
+    }
+    log?.append({ type: 'taskbar-host-rect-verified', reason, rect: cur })
   }
 
   /** 占位重协商（建窗后初次、ABN_POSCHANGED、display-metrics-changed 三入口同路）；
@@ -565,17 +593,20 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
         appBar = 'register-failed'
       }
     }
-    // ②′ 原生栏托管（工单260）：与占位段同拍——进入收栏置位 ABS_AUTOHIDE（shell 由此
-    // 释放原生保留带，最大化窗铺满整屏）、退出收栏复原原状态（thide RAII 账在
-    // appbar-autohide 模块，与哪扇条带窗现任无关；退避复原不拖住迁移）。
-    if (plan.engageAutoHide) engageRetractAutoHide(log)
-    if (plan.restoreAutoHide) restoreRetractAutoHide(log, reason)
-    // ②′′ 原生栏重申轮询（工单262；工单271 起值守随工作区收栏账而非档位）：账在即起表
-    // （1s 低频拍——含分屏会话持有的全屏让位期间：explorer 重启/可见性翻转/置位丢失在
-    // 覆盖下也须重挂，否则保留带复活顶起后台 Snap 窗），账清即休止（非收栏理由时段
-    // 系统行为与现状一致）。
-    if (s.workspaceRetracted) startNativeWatch(s)
-    else stopNativeWatch(s)
+    // ②′ 原生栏托管（工单260；ADR-0016 双缺陷复审 2026-10-25 扩为全接管期，Q1/Q2）：
+    // 与占位段同拍——进入收栏时**先预隐藏**原生栏再置位 ABS_AUTOHIDE（shell 由此释放
+    // 原生保留带，最大化窗铺满整屏）；退出收栏回**普通栏态的清位目标**（不是用户原值，
+    // 原值只在退场复原）。raii 账在 appbar-autohide 模块，与哪扇条带窗现任无关。
+    if (plan.engageAutoHide) {
+      // 收栏过渡前预隐藏（复审对照：普通态弹出后进入收栏，条带宿主可被抬高 48px、五组
+      // 唤出条随之偏离屏底；唯一新增「最大化前 SW_HIDE」的对照里唤出条全部贴回 1440）
+      hidNative = hideNativeTaskbar(log) || hidNative
+      enterRetractAutoHide(log)
+    }
+    if (plan.clearAutoHide) clearRetractAutoHide(log, reason)
+    // ②′′ 收栏过渡后的宿主矩形复核（复审决策 4：几何不变量另行守住——不得把
+    // window.innerHeight 的相对正确当成宿主矩形正确）
+    if (plan.engageAutoHide) verifyStripBottom(s, 'retract-enter')
     // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
     if (plan.hideWindow) {
       w.hide()
@@ -602,13 +633,13 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   const destroy = (reason: string) => {
     // 原生栏重申轮询停表（工单262）：拆场先停观察再动复原账——重申不得在拆场中途再压一笔
     if (session) stopNativeWatch(session)
-    // 原生栏托管复原（工单260，还原路径①）：收栏态下退出（禁用/退役/dispose）也要还
-    // appbar 状态账——RAII 账与窗现任无关，退避重试异步推进不拖住销窗；未置位则静默。
-    // **先于可见性复原**（顺序即行为，与守卫/守护径同源——restore-ledger-wiring 的钉序
-    // 理由）：置位态下 explorer 可翻开 Shell_TrayWnd 的 WS_VISIBLE 位（「窗口显示位」
+    // 原生栏托管复原（工单260；ADR-0016 双缺陷复审扩为全接管期）：禁用/退役/dispose 与
+    // 正常退出都要把**用户接管前原值**还回去——RAII 账与窗现任无关，退避重试异步推进不拖住
+    // 销窗；未接管则静默。**先于可见性复原**（顺序即行为，与守卫/守护径同源——restore-ledger-wiring
+    // 的钉序理由）：置位态下 explorer 可翻开 Shell_TrayWnd 的 WS_VISIBLE 位（「窗口显示位」
     // ≠「视觉在场」），可见性判据会被「已可见」骗成静默；先卸置位，可见性复原才做真工作
     // （51 电池 P9 的面板侧径）。
-    restoreRetractAutoHide(log, reason)
+    restoreTakeoverAutoHide(log, reason)
     // 还原先于会话判空：hidNative 账独立于窗存续（窗被外部先销/建窗半途抛错
     // 都不能把「我藏的原生任务栏」赖成孤儿账——code-review 工单50 收口）
     if (hidNative) {
@@ -671,6 +702,11 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       keepalive: null as unknown as NodeJS.Timeout,
     }
     session = s
+    // 全接管期原生栏托管（ADR-0016 双缺陷复审 Q1/Q2）：接管建立即记用户原状态、落盘记账、
+    // 压到普通栏态的清位目标；重申轮询同时起表——普通态的清位同样会被 explorer 重启按
+    // 注册表原值冲掉，值守不再只在收栏期（工作区收栏账只决定重申的**目标档位**）。
+    engageTakeoverAutoHide(log)
+    startNativeWatch(s)
     // 置顶维持 + 几何回正（工单158 起同一拍：置顶重申与协商带回正都是壳侧扰动兜底）
     // 收栏态下这两个动作都不与收栏打架：条带窗几何不变（唤出条贴屏底要靠它），
     // 置顶重申正是唤出条压在最大化窗之上所需（托盘让位闸门仍照旧抑制）。
