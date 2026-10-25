@@ -321,7 +321,7 @@ describe('原生栏托管（工单260，spec #258）：收栏置位 ABS_AUTOHIDE
     }
   })
 
-  it('非收栏迁移不碰自动隐藏（仅收栏态置位，非收栏时段系统行为与现状一致）', () => {
+  it('非收栏两态间迁移不碰自动隐藏（置位恰在进收栏、清位恰在退收栏——普通↔让位零置位/清位动作；工单294 退役措辞清扫：旧题「非收栏时段系统行为与现状一致」随清位接管作废——普通栏态本身持清位账；断言面不变）', () => {
     const a = planBarTransition('visible', 'fullscreen-yield')
     const b = planBarTransition('fullscreen-yield', 'visible')
     expect(a.engageAutoHide || a.clearAutoHide).toBe(false)
