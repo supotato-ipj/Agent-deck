@@ -508,7 +508,8 @@ export function resolveOwner(ext, store) {
  *
  * **「空组不占卡」只对固有扩展组卡成立（工单187 裁决①）**：一条被全部文件领走而空掉的固有组
  * 不出卡，那条纪律是为「规则生成、桌面上此刻没文件的类型不糊屏」而设的（spec166 用户故事 #7）。
- * 自定义卡是用户建的持久对象，空卡**照样出卡（0 格）**，理由见下面 push 自定义卡那一段的注释。
+ * 自定义卡与临时卡都是持久定义的对象（前者用户手建、后者粘贴落地），空卡**照样出卡（0 格）**
+ * （工单187 裁决①、工单200 裁决 A），理由见下面两段 push 注释。
  *
  * **三层优先级在这里是结构，不是注释**（工单186 票面点名要验的那条推导）：
  * 临时卡的成员（`names` 里那批粘贴落地的文件名）在**分桶之前**就被摘走，故
@@ -575,11 +576,15 @@ export function buildCards(items, store, order = EXT_GROUP_ORDER) {
     // 屏上就再没有 EDIT TYPES（勾回类型）与 DISSOLVE（解散）这两条出路，用户界面上**不可恢复**
     // （造一张什么类型都没勾的卡、或在 EDIT TYPES 里把勾全取消，皆可走到这一步）。
     // 固有组那一条「空组不占卡」一个字没动：它是规则生成的卡，出不出卡由桌面上的文件决定。
+    // 临时层当初留着同一个形状的洞，工单200 裁决 A 起同款改掉——见下方 push 临时卡那一段。
     if (bucket) cards.push({ id: group.id, label: group.name, tier: TIER_CUSTOM, items: bucket })
   }
   for (const card of base.temps) {
     const bucket = tempBuckets.get(card.id)
-    if (bucket && bucket.length) cards.push({ id: card.id, label: card.name, tier: TIER_TEMP, items: bucket })
+    // 工单200 裁决 A：空临时卡与空自定义卡同款**照样出卡（0 格）**——上一行那个与自定义层同形的
+    // 不可恢复洞（认领的文件删光卡就整张退场，屏上再没有 EDIT TYPES / DISSOLVE 出口，定义成孤儿）
+    // 不许在第二层重演；出路照旧由用户显式走（DISSOLVE，或再贴新一批）。固有层不在此列。
+    if (bucket) cards.push({ id: card.id, label: card.name, tier: TIER_TEMP, items: bucket })
   }
   for (const group of groupByExtension(rest, order)) {
     cards.push({ id: group.id, label: group.label, tier: TIER_BUILTIN, items: group.items })
