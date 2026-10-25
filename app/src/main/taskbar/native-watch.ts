@@ -38,14 +38,18 @@ export interface NativeWatchProbe {
   autoHideOn?: boolean
 }
 
-/** 重挂归因（优先级 rebuild > visible > autohide-lost——报最重的因） */
-export type NativeWatchReason = 'rebuild' | 'visible' | 'autohide-lost'
+/** 重挂归因（优先级 rebuild > visible > autohide-mismatch——报最重的因） */
+export type NativeWatchReason = 'rebuild' | 'visible' | 'autohide-mismatch'
 
-/** 一拍决策：none = 清净不动作；reattach = 重挂（hide/engage 由观察事实派生，
- *  效果层照单执行——已隐不重复压、置位在场不重复置） */
+/** 一拍的目标档位（ADR-0016 双缺陷复审 Q1/Q2：托管扩为全接管期，普通栏态清位同样是
+ *  值守面——explorer 重启会把用户原值按注册表复活，普通态也得压回清位目标） */
+export type NativeWatchWant = 'autohide-on' | 'autohide-off'
+
+/** 一拍决策：none = 清净不动作；reattach = 重挂（hide / autoHide 由观察事实派生，
+ *  效果层照单执行——已隐不重复压、目标已在位不重复置） */
 export type NativeWatchDecision =
   | { action: 'none' }
-  | { action: 'reattach'; reason: NativeWatchReason; hide: boolean; engage: boolean }
+  | { action: 'reattach'; reason: NativeWatchReason; hide: boolean; autoHide: 'engage' | 'clear' | null }
 
 /**
  * 原生栏重申状态机：持有「上拍见过的原生栏句柄」这一份账。
@@ -68,10 +72,11 @@ export class NativeReassertMachine {
   /**
    * 一拍裁决。重挂两样动作由事实派生：
    * - hide ⟸ 可见（含重建后的新窗——explorer 重建的新窗必可见；已隐则不重复压）；
-   * - engage ⟸ 置位缺位（含重建后按注册表原态复活的窗——spike：SETSTATE 不回写
-   *   注册表，explorer 重启后置位必然丢失；置位在场则不重复置）。
+   * - autoHide ⟸ 目标档位与读回不符：目标「置位」（收栏态）而读回缺 AUTOHIDE → engage；
+   *   目标「清位」（普通栏态）而读回带 AUTOHIDE → clear（explorer 重启按注册表原态
+   *   复活，普通态的清位同样会被冲掉——这就是值守扩到全接管期的理由）。
    */
-  poll(probe: NativeWatchProbe): NativeWatchDecision {
+  poll(probe: NativeWatchProbe, want: NativeWatchWant): NativeWatchDecision {
     if (!this.armed) {
       this.begin(probe) // 防御路径（正常流程 begin 先行）：重立基线不动作
       return { action: 'none' }
@@ -82,14 +87,17 @@ export class NativeReassertMachine {
     }
     const rebuild = probe.hwnd !== this.lastHwnd
     const hide = probe.visible
-    const engage = !probe.autoHideOn
+    const on = probe.autoHideOn === true
+    const autoHide = want === 'autohide-on'
+      ? (on ? null : 'engage' as const)
+      : (on ? 'clear' as const : null)
     this.lastHwnd = probe.hwnd
-    if (!rebuild && !hide && !engage) return { action: 'none' }
+    if (!rebuild && !hide && autoHide === null) return { action: 'none' }
     return {
       action: 'reattach',
-      reason: rebuild ? 'rebuild' : hide ? 'visible' : 'autohide-lost',
+      reason: rebuild ? 'rebuild' : hide ? 'visible' : 'autohide-mismatch',
       hide,
-      engage,
+      autoHide,
     }
   }
 

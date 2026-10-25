@@ -446,7 +446,7 @@ describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序
     ])
     // 中间拍（zoomed 消失、会话在场）零迁移——工作区不先恢复再收栏
     expect(r.transitions[1].plan.claimAppBar).toBe(true)
-    expect(r.transitions[1].plan.restoreAutoHide).toBe(true)
+    expect(r.transitions[1].plan.clearAutoHide).toBe(true)
     expect(r.transitions[1].plan.evidence).toEqual(['taskbar-retract-lifted'])
   })
 
@@ -492,7 +492,7 @@ describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序
 
   it('幂等：同理由组合连续多拍 → 迁移仅首次，后续拍零动作（planBarTransition 同态空计划）', () => {
     expect(planBarTransition('maximize-retract', 'maximize-retract')).toEqual({
-      releaseAppBar: false, engageAutoHide: false, restoreAutoHide: false,
+      releaseAppBar: false, engageAutoHide: false, clearAutoHide: false,
       claimAppBar: false, hideWindow: false, showWindow: false, closePopups: false, evidence: [],
       targetWorkspaceRetracted: true, // 同态 = 账面原样保持（收栏档在账）
     })

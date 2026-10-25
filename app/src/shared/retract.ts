@@ -499,6 +499,20 @@ export function retractAutoHideState(previous: number): number {
   return (previous & ABS_ALWAYSONTOP) | ABS_AUTOHIDE
 }
 
+/**
+ * 普通栏态的清位目标（ADR-0016 修订记 2026-10-25 双缺陷复审 Q1=A）：清 AUTO_HIDE
+ * 位、保留 ALWAYSONTOP——与 `retractAutoHideState` 是同一份用户原状态派生的两个目标。
+ *
+ * 为何要清：自动隐藏协议本身就是唤出通路（底边悬停、Win 键、通知按 Win11 语义都能
+ * 把屏外的原生栏拉出来）；只要用户原本开着自动隐藏，屏外装夹态仍会被叫出来。清位
+ * 把「自动隐藏协议」整体关掉，原生栏只剩 SW_HIDE 一条可见性账。
+ *
+ * 只取 ALWAYSONTOP 位 = 清 AUTOHIDE（GETSTATE 读回域仅 0..3，无其他位需要保留）。
+ */
+export function normalBarAutoHideState(userState: number): number {
+  return userState & ABS_ALWAYSONTOP
+}
+
 /** 三态迁移落下的存证事件名（与既有 taskbar-yield / taskbar-yield-lifted 同族） */
 export type BarEvidenceEvent =
   | 'taskbar-yield'
@@ -519,11 +533,12 @@ export type BarEvidenceEvent =
  *   状态后置 ABS_AUTOHIDE（保留 ALWAYSONTOP 位，thide RAII 蓝本），shell 由此释放
  *   原生任务栏 48px 保留带（spike 取证：工作区底边 1392→1440，
  *   docs/audit/2026-10-24-t257-autohide-setstate-probe.md）——与 releaseAppBar 严格
- *   同拍（只注销占位不置位 ⇒ 保留带不释放，铺满整屏不发生）；仅收栏态为真，
- *   非收栏时段系统行为与现状一致；
- * - restoreAutoHide：复原原生栏自动隐藏（工单260）——旧态为收栏即为真（解除最大化、
- *   被全屏压过两路都算退出收栏）；复原原状态，用户已开自动隐藏时置位本就是无操作、
- *   复原照走（不特判）；
+ *   同拍（只注销占位不置位 ⇒ 保留带不释放，铺满整屏不发生）；仅收栏态为真
+ *   （普通栏态的托管清位随**接管**建立，见 appbar-autohide 的 engageTakeoverAutoHide）；
+ * - clearAutoHide：退回普通栏态的清位目标（ADR-0016 双缺陷复审 Q1/Q2）——旧态为收栏
+ *   即为真（解除最大化、被全屏压过两路都算退出收栏）；目标**不是**用户原值，而是
+ *   normalBarAutoHideState(userState)（清 AUTOHIDE、留 ALWAYSONTOP）；用户原值只在
+ *   退场（禁用/退出/死路径）复原；
  * - claimAppBar：工作区占位必须生效 —— 已占位则空转，未占位则重注册 + 重协商（占位恢复）；
  * - hideWindow：整窗退场（隐藏）—— 只在全屏让位态（栏窗复用的收栏态不隐藏，唤出条要贴屏底可见）；
  * - showWindow：整窗复现 —— 从全屏让位态出来时；
@@ -537,7 +552,7 @@ export type BarEvidenceEvent =
 export interface BarTransitionPlan {
   releaseAppBar: boolean
   engageAutoHide: boolean
-  restoreAutoHide: boolean
+  clearAutoHide: boolean
   claimAppBar: boolean
   hideWindow: boolean
   showWindow: boolean
@@ -610,7 +625,7 @@ export function planBarTransition(
   const plan: BarTransitionPlan = {
     releaseAppBar: false,
     engageAutoHide: false,
-    restoreAutoHide: false,
+    clearAutoHide: false,
     claimAppBar: false,
     hideWindow: false,
     showWindow: false,
@@ -630,7 +645,7 @@ export function planBarTransition(
     // 闸门失格产不出——resolveBarMode 两道闸门后不落收栏档）。
     if (next === 'fullscreen-yield' && wasRetracted && (context?.gateDisqualified ?? false)) {
       plan.claimAppBar = true
-      plan.restoreAutoHide = true
+      plan.clearAutoHide = true
       plan.targetWorkspaceRetracted = false
       plan.evidence.push('taskbar-retract-lifted')
     }
@@ -648,7 +663,7 @@ export function planBarTransition(
   //    离账重注册 + 复原置位。目标与账面一致时零交割（幂等）。
   plan.releaseAppBar = plan.engageAutoHide = wantRetracted && !wasRetracted
   plan.claimAppBar = !wantRetracted
-  plan.restoreAutoHide = wasRetracted && !wantRetracted
+  plan.clearAutoHide = wasRetracted && !wantRetracted
   // ② 整窗显隐：让位态退场（唤出条也不出现），其余态条带窗在场
   if (next === 'fullscreen-yield') plan.hideWindow = true
   if (prev === 'fullscreen-yield') plan.showWindow = true
