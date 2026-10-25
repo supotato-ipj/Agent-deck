@@ -164,3 +164,16 @@ ADR-0021 收口了缺口一，并更正缺口一的噪声前提。只登记口�
 
 详见 ADR-0021（`docs/adr/0021-taskbar-policy-switches.md`）。
 
+## 补记（2026-10-25，#277 决完后）
+
+ADR-0022 收口了缺口二。只登记口径，不改本 ADR 的档位模型：
+
+- **缺口二的方法不是一类。** 4 个栏布局写（`set-app-pinned` / `rec-pin` / `rec-remove` / `rec-restore`）只写 `userData/taskbar-layout.json`，属面板自身状态，不是「面板外的世界」；另 10 个（`app-click` / `activate-window` / `app-windows` / `app-new-instance` / `close-window` / `reveal-app` / `rec-click` / `rec-reveal` / `activate-app` / `tray-click`）操作别的应用窗口、启动与托盘回放，按本 ADR 判据**全档不投影**。
+- **同族漏数第五法。** `taskbar/drag-drop` 写同一份 `taskbar-layout.json`，并能在推荐组↔应用组之间手钉/解除手钉、重排两组；它不在原 14 名单里，但必须与上述 4 个同进退，否则可绕过新子行。
+- **不可逆性说法更正。** 缺口二里「`close-window`、`app-new-instance`、`rec-remove` 的不可逆性与 `desktop/trash` 同级」不准确：`rec-remove` 有 `rec-restore`，可逆；`app-new-instance` 是外部进程启动，不是数据损坏；真正会丢未保存工作的是 `close-window`。判据仍是「碰不碰用户文件系统 / 剪贴板 / 外部进程」，不是「可不可逆」。
+- **栏布局子行**：5 法拆为「内核插件·栏布局」子行：内核 `W` / 后端 `W✓ 确 + 预`（可请求本子行会话级）/ 外部 `W✓ 确 + 预`（无会话级）/ 投放 `—` / 自主管理提案；不挂串行化；同值空转不进闸门；回滚点与审计照常。
+- **三面边界**：控制面不投影 ≠ 受信内部桥/内核 UI 不能调；内核档插件包的受信内部桥仍含这 15 法。
+- **#282 约束**：5 法以 `exe` / `name` 寻址；#282 的非内核 `taskbar/get-state` 必须保留可寻址身份（推荐保留 `exe` / `name`，剥 `title` / `tooltip`），否则 5 法失效或需改不透明键。
+
+详见 ADR-0022（`docs/adr/0022-taskbar-external-and-bar-layout.md`）。
+
