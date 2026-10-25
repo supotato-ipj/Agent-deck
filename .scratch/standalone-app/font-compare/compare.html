@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TERMINAL 02 — 字体选型对比 / Font Comparison</title>
+<!-- MiSans Regular（分片 webfont，本地） -->
+<link rel="stylesheet" href="fonts/misans/MiSans-Regular.css">
+<!-- HarmonyOS Sans SC Regular（分片 webfont，本地） -->
+<link rel="stylesheet" href="fonts/harmonyos/Regular.css">
+<style>
+  /* ============ 本地 @font-face（离线可用） ============ */
+  @font-face {
+    font-family: 'Share Tech Mono';
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url('fonts/share-tech-mono-latin-400-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url('fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal; font-weight: 700; font-display: block;
+    src: url('fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url('fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal; font-weight: 600; font-display: block;
+    src: url('fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Alibaba PuHuiTi 3.0';
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url('fonts/puhuiti/AlibabaPuHuiTi-3-55-Regular.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Alimama ShuHeiTi';
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url('fonts/shuhei/AlimamaShuHeiTi-Bold.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Noto Sans SC Local';
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url('fonts/noto-sans-sc-chinese-simplified-400-normal.woff2') format('woff2'),
+         url('fonts/noto-sans-sc-latin-400-normal.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Noto Sans SC Local';
+    font-style: normal; font-weight: 700; font-display: block;
+    src: url('fonts/noto-sans-sc-chinese-simplified-700-normal.woff2') format('woff2'),
+         url('fonts/noto-sans-sc-latin-700-normal.woff2') format('woff2');
+  }
+
+  /* ============ 主题 ============ */
+  :root {
+    --bg: #0b0f14;
+    --panel: #0e141c;
+    --panel-edge: #1b2836;
+    --ink: #c7d4e0;
+    --ink-dim: #6f8296;
+    --cyan: #4fd8c9;
+    --amber: #ffb454;
+    --green: #8fd460;
+    --grid: rgba(79, 216, 201, 0.05);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 28px),
+      repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 28px),
+      var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', 'MiSans', monospace;
+    padding: 40px 48px 64px;
+  }
+  .page-head { border: 1px solid var(--panel-edge); background: var(--panel); padding: 22px 26px; margin-bottom: 36px; position: relative; }
+  .page-head::before { content: ''; position: absolute; top: -1px; left: -1px; width: 14px; height: 14px; border-top: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
+  .page-head::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 14px; height: 14px; border-bottom: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
+  .page-head h1 { font-family: 'Share Tech Mono', monospace; font-size: 26px; letter-spacing: 4px; color: var(--cyan); font-weight: 400; }
+  .page-head h1 .amber { color: var(--amber); }
+  .page-head p { margin-top: 10px; font-size: 13px; color: var(--ink-dim); letter-spacing: 1px; line-height: 1.7; }
+  .group-title {
+    font-family: 'Share Tech Mono', monospace; font-size: 15px; letter-spacing: 3px;
+    color: var(--amber); margin: 34px 0 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .group-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--panel-edge), transparent); }
+
+  /* ============ 字体卡片 ============ */
+  .card {
+    border: 1px solid var(--panel-edge); background: var(--panel);
+    margin-bottom: 22px; padding: 18px 24px 22px; position: relative;
+  }
+  .card-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; border-bottom: 1px dashed var(--panel-edge); padding-bottom: 12px; }
+  .card-head .idx { font-family: 'Share Tech Mono', monospace; color: var(--amber); font-size: 14px; letter-spacing: 2px; }
+  .card-head h2 { font-size: 17px; font-weight: 600; color: #e8f0f7; letter-spacing: 1px; }
+  .card-head .zh-name { font-size: 14px; color: var(--ink-dim); }
+  .card-head .meta { margin-left: auto; font-size: 11.5px; color: var(--ink-dim); letter-spacing: 0.5px; text-align: right; line-height: 1.6; }
+  .card-head .meta .lic { color: var(--green); }
+
+  .sample { font-size: 24px; line-height: 1.55; margin-top: 10px; white-space: pre-wrap; }
+  .sample.small-note { font-size: 12px; color: var(--ink-dim); font-family: 'IBM Plex Mono', 'MiSans', monospace; letter-spacing: 1px; }
+  .lbl { display: inline-block; font-family: 'IBM Plex Mono', 'MiSans', monospace; font-size: 11px; letter-spacing: 2px; color: var(--cyan); border: 1px solid rgba(79,216,201,.35); padding: 1px 8px; margin-right: 10px; vertical-align: 2px; }
+  .lbl.pair { color: var(--amber); border-color: rgba(255,180,84,.4); }
+
+  .latin { letter-spacing: 1.5px; color: #dbe7f2; }
+  .latin .sep { color: var(--ink-dim); }
+  .digits { color: var(--amber); letter-spacing: 1px; }
+  .digits .unit { color: var(--ink-dim); }
+  .cjk { color: #cfe0d8; }
+  .cjk .zones { color: var(--cyan); }
+
+  /* 各字体家族指定 */
+  .f-stm   { font-family: 'Share Tech Mono', 'MiSans', 'Noto Sans SC Local', monospace; }
+  .f-jbm   { font-family: 'JetBrains Mono', 'MiSans', 'Noto Sans SC Local', monospace; }
+  .f-ipm   { font-family: 'IBM Plex Mono', 'MiSans', 'Noto Sans SC Local', monospace; }
+  .f-mis   { font-family: 'MiSans', monospace; }
+  .f-hos   { font-family: 'HarmonyOS Sans SC', monospace; }
+  .f-pht   { font-family: 'Alibaba PuHuiTi 3.0', monospace; }
+  .f-sht   { font-family: 'Alimama ShuHeiTi', monospace; }
+  .f-noto  { font-family: 'Noto Sans SC Local', monospace; }
+  /* 混合配对：拉丁/数字用 Share Tech Mono，中文回退到各 CJK 字体 */
+  .pair-mis  { font-family: 'Share Tech Mono', 'MiSans', monospace; }
+  .pair-hos  { font-family: 'Share Tech Mono', 'HarmonyOS Sans SC', monospace; }
+  .pair-pht  { font-family: 'Share Tech Mono', 'Alibaba PuHuiTi 3.0', monospace; }
+  .pair-sht  { font-family: 'Share Tech Mono', 'Alimama ShuHeiTi', monospace; }
+  .pair-noto { font-family: 'Share Tech Mono', 'Noto Sans SC Local', monospace; }
+
+  .w700 { font-weight: 700; }
+  .w600 { font-weight: 600; }
+
+  footer { margin-top: 40px; font-size: 12px; color: var(--ink-dim); letter-spacing: 1px; line-height: 1.8; border-top: 1px solid var(--panel-edge); padding-top: 16px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>TERMINAL 02 <span class="amber">// FONT SELECT</span></h1>
+  <p>壁纸仪表盘字体选型对比 · 候选字体均为可免费商用授权 · 深色底 #0b0f14 · 青色/琥珀色点缀 · 所有字体经本地 @font-face 加载，页面可离线打开。<br>
+  每个卡片三行样张：(a) 拉丁标签 (b) 数字/数据 (c) 中文界面文案。CJK 卡片第二行为实际混排方案：拉丁与数字走 Share Tech Mono，中文走该字体。</p>
+</header>
+
+<div class="group-title">GROUP A — LATIN MONO（拉丁等宽候选，中文由系统回退渲染）</div>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">A1</span><h2>Share Tech Mono</h2><span class="zh-name">仅 400</span>
+    <span class="meta"><span class="lic">SIL OFL 1.1</span> · woff2 13.5 KB<br>cdn.jsdelivr.net/npm/@fontsource/share-tech-mono</span>
+  </div>
+  <div class="sample latin f-stm"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-stm"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-stm"><span class="lbl">CJK↩回退</span>会话与任务状态：当前任务正在运行，预计还需三分钟　应用区 文档区 搜索面板 天气 世界时钟</div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">A2</span><h2>JetBrains Mono</h2><span class="zh-name">400 / 700</span>
+    <span class="meta"><span class="lic">SIL OFL 1.1</span> · woff2 21.2 + 21.9 KB<br>cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono</span>
+  </div>
+  <div class="sample latin f-jbm"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-jbm"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-jbm w700"><span class="lbl">CJK↩回退·700</span>会话与任务状态：当前任务正在运行，预计还需三分钟　应用区 文档区 搜索面板 天气 世界时钟</div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">A3</span><h2>IBM Plex Mono</h2><span class="zh-name">400 / 600</span>
+    <span class="meta"><span class="lic">SIL OFL 1.1</span> · woff2 14.7 + 15.6 KB<br>cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono</span>
+  </div>
+  <div class="sample latin f-ipm"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-ipm w600"><span class="lbl">DIGIT·600</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-ipm"><span class="lbl">CJK↩回退</span>会话与任务状态：当前任务正在运行，预计还需三分钟　应用区 文档区 搜索面板 天气 世界时钟</div>
+</section>
+
+<div class="group-title">GROUP B — CJK（中文字体候选；第一块为整块同字体，第二块为 Share Tech Mono 混排配对）</div>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">B1</span><h2>MiSans <span class="zh-name">小米 MiSans Regular</span></h2>
+    <span class="meta"><span class="lic">小米官方免费商用</span> · woff2 分片 56 块合计 2.1 MB<br>cdn.jsdelivr.net/npm/misans@5.0.0 (lib/Normal/MiSans-Regular)</span>
+  </div>
+  <div class="sample latin f-mis"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-mis"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-mis"><span class="lbl">CJK</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+  <div class="sample latin pair-mis"><span class="lbl pair">PAIR</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits pair-mis"><span class="lbl pair">PAIR</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk pair-mis"><span class="lbl pair">PAIR</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">B2</span><h2>HarmonyOS Sans SC <span class="zh-name">华为 HarmonyOS Sans 简体</span></h2>
+    <span class="meta"><span class="lic">华为官方免费商用</span> · woff2 分片 82 块合计 4.9 MB<br>cdn.jsdelivr.net/npm/harmonyos-sans-sc-webfont-splitted@1.1.0</span>
+  </div>
+  <div class="sample latin f-hos"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-hos"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-hos"><span class="lbl">CJK</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+  <div class="sample latin pair-hos"><span class="lbl pair">PAIR</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits pair-hos"><span class="lbl pair">PAIR</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk pair-hos"><span class="lbl pair">PAIR</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">B3</span><h2>Alibaba PuHuiTi 3.0 <span class="zh-name">阿里巴巴普惠体 3.0 · 55 Regular</span></h2>
+    <span class="meta"><span class="lic">阿里官方免费商用</span> · ttf 8.5 MB（整包未子集化）<br>cdn.jsdelivr.net/npm/@fontpkg/alibaba-pu-hui-ti-3-0@3.1.2<br><span style="color:#e06c75">注：puhuiti.oss-cn-hangzhou.aliyuncs.com 直链 403，改用 npm 镜像</span></span>
+  </div>
+  <div class="sample latin f-pht"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-pht"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-pht"><span class="lbl">CJK</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+  <div class="sample latin pair-pht"><span class="lbl pair">PAIR</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits pair-pht"><span class="lbl pair">PAIR</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk pair-pht"><span class="lbl pair">PAIR</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">B4</span><h2>Alimama ShuHeiTi <span class="zh-name">阿里妈妈数黑体 · Bold（官方仅此字重）</span></h2>
+    <span class="meta"><span class="lic">阿里妈妈官方免费商用</span> · ttf 1.36 MB<br>cdn.jsdelivr.net/npm/@fontpkg/alimama-shu-hei-ti@1.0.5<br><span style="color:#e06c75">注：aliyun/alicdn 直链不可用，改用 npm 镜像</span></span>
+  </div>
+  <div class="sample latin f-sht"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-sht"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-sht"><span class="lbl">CJK</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+  <div class="sample latin pair-sht"><span class="lbl pair">PAIR</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits pair-sht"><span class="lbl pair">PAIR</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk pair-sht"><span class="lbl pair">PAIR</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <span class="idx">B5</span><h2>Noto Sans SC <span class="zh-name">Google Noto 思源黑体（简体子集）</span></h2>
+    <span class="meta"><span class="lic">SIL OFL 1.1</span> · woff2 400/700 简体子集 1.14 + 1.17 MB<br>cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0</span>
+  </div>
+  <div class="sample latin f-noto"><span class="lbl">LATIN</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits f-noto"><span class="lbl">DIGIT</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk f-noto"><span class="lbl">CJK</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+  <div class="sample latin pair-noto"><span class="lbl pair">PAIR</span>PERSONAL OS — SESSION MONITOR<span class="sep">　·　</span>QODER RUNNING 2/5 TASKS</div>
+  <div class="sample digits pair-noto"><span class="lbl pair">PAIR</span>17:03   44   37   15   0   98.2%   192.168.1.7</div>
+  <div class="sample cjk pair-noto"><span class="lbl pair">PAIR</span>会话与任务状态：当前任务正在运行，预计还需三分钟　<span class="zones">应用区 文档区 搜索面板 天气 世界时钟</span></div>
+</section>
+
+<footer>
+  生成日期 2026-09-25 · agent-deck TERMINAL 02 字体选型样张 · 背景色 #0b0f14 / 青色 #4fd8c9 / 琥珀 #ffb454 / 绿 #8fd460<br>
+  提示：B 组每张卡片上半部分为「整块同字体」，下半部分（PAIR 标签）为「拉丁+数字 Share Tech Mono / 中文该字体」的实际混排效果，与壁纸最终形态一致。
+</footer>
+
+</body>
+</html>

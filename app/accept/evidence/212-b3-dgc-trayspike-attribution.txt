@@ -1,0 +1,193 @@
+工单 #212（合刀批3 · doc-group-cards ＋ tray-spike 磁带＋句柄一次迁完）——接线轮归因记录
+分支：feat/spec201-b3-dgc-trayspike　｜　guard 身份：mcode-b3　｜　相位：accept-sprint　｜　日期：2026-10-20
+
+═══════════════════════════════════════════════════════════════════════
+一、轮次账本（guard 托管，真机轮）
+═══════════════════════════════════════════════════════════════════════
+
+  电池                 轮次  代码          verdict                 红段
+  166-doc-group-cards  轮1   迁移后        PASS (pass=47 fail=0 excluded=0)   —（基线 47/0/0，段级三元组逐段全同）
+  166-doc-group-cards  轮2   迁移后        PASS (pass=47 fail=0 excluded=0)   —（同上；★入库轮）
+  48-tray-spike        轮1   迁移后        FAIL (pass=8  fail=2)               P2 NIM_DELETE（514ms）＋ P4 capture 失败 ← 见 §九
+  48-tray-spike        轮2   迁移后        FAIL (pass=11 fail=1)               P2 NIM_DELETE（22ms）＝基线红
+  48-tray-spike        轮3   迁移后        FAIL (pass=11 fail=1)               P2 NIM_DELETE（375ms）＝基线红（★入库轮）
+  48-tray-spike   基线判别轮  迁移前基线    FAIL (pass=11 fail=1)               P2 NIM_DELETE（400ms）＝基线红
+
+  基线（迁移前，HEAD=548e94c 的轮次账本）：
+    166-doc-group-cards  PASS (pass=47 fail=0 excluded=0)
+    48-tray-spike        FAIL (pass=11 fail=1)　既知红＝P2「NIM_DELETE 异常：ok=false 耗时=20ms 事件=null」（#48 家族，机器态存量）
+
+  入库证据：app/accept/evidence/166-doc-group-cards.log.txt（166 轮2）＋ 48-tray-spike.log.txt（48 轮3）。
+  实拍 PNG（48-spike-page.png / 48-real-tray-strip.png）与事件档（166-doc-group-cards-events.jsonl /
+  48-runtime-events.jsonl / 48-tray-corpus.jsonl / 166-panel-child.log）**已剥离还原**，
+  不入库——章法「不接受与断言无关的证据漂移」＋先例 PR #218/#223/#225/#227/#229。
+
+═══════════════════════════════════════════════════════════════════════
+二、段级绿红形对照（判「零行为变更」用）
+═══════════════════════════════════════════════════════════════════════
+
+  166-doc-group-cards：基线 10 段与本轮 10 段的 pass/fail/excl **三元组逐段完全相同**
+    P178 4/0/0 ｜ P179 6/0/0 ｜ P180 8/0/0 ｜ P181 5/0/0 ｜ P182 4/0/0
+    P183 6/0/0 ｜ P184 5/0/0 ｜ P186 1/0/0 ｜ P185 6/0/0 ｜ P179B 2/0/0
+    基线红段 ＝ {}　本轮红段 ＝ {}　→ 零行为变更成立。
+
+  48-tray-spike：基线红断言集合 ＝ 本轮红断言集合 ＝ { P2: 「NIM_DELETE 异常：ok=false 耗时=…ms 事件=null」 }
+    （P2 段 pass=2 fail=1；其余 9 段 PRE/P0/P1/P3/P3b/P3c/P4/P5/P6 全绿）
+    → 红集合一致，零行为变更成立。
+
+  段账目耗时（166）：基线合计 123.2s → 本轮 106.3s（**未变慢**）。
+    磁带带 (size, mtime) 解析缓存，而正典 waitEvent 每 60ms 重读全档 —— 缓存收益覆盖了
+    句柄三处 stop() 各加的 ≥800ms 宽限（+2.4s）。
+
+═══════════════════════════════════════════════════════════════════════
+三、地雷 1（issue #217）——dgc 的 for(;;) 多读一次：实测结果
+═══════════════════════════════════════════════════════════════════════
+
+  口径：dgc 正典 waitEvent 是 for(;;) 形态（读 → 判 deadline → 睡 60ms），比磁带的
+  while (Date.now() < deadline) 口径**多读一次** → 落在最后 60ms 窗口内到达的事件，
+  dgc 接得到、磁带接不到 → 绿段可能变红段。
+
+  处置（#217 口径，照办）：磁带是「一份正典」（while 是 7 块里 6 块的形态）→ **磁带不改**；
+  批3 落地必须**实测 dgc 全轮**，红了即回归（不接受「概率性」解释）。
+
+  实测：**两轮全绿**（轮1、轮2 均 PASS 47/0/0），段级三元组与基线逐段相同，零红段、零 EXENV。
+        → 该 60ms 窗口在本刀**未落地为红段**。
+
+  裕度核对（逐点）：dgc 的 18 个 waitEvent 超时档全为 ≥3000ms
+    （3000×2：menu-opened(cardId 谓词) 与 multi-toggled；4000×9；6000×3；8000×2；10000×1；20000×1）。
+    单点命中该窗口的概率上界 ＝ 60/3000 ＝ 2%；且只有「事件恰好在超时前最后 60ms 才到」
+    时才咬——那种情形本身已近失败线。实测两轮 0 红。
+
+  结论：**不记 issue**（红了才记；实测未红）。磁带口径不动，`while` 保持正典形态。
+
+═══════════════════════════════════════════════════════════════════════
+四、boot 选取口径变更（首个 → 最后一个）：本刀两块的惰性论证
+═══════════════════════════════════════════════════════════════════════
+
+  变更来源：句柄 waitWindow 内部按缺省门取本代次**最后一个** boot（编排台账 §8 裁决 4）。
+  dgc 与 tray-spike 的现行 waitEvent('boot', …) 取**首个**。本票未申报即成立 → PR 描述单列一节。
+
+  惰性论证（逐块）：
+  - 166-doc-group-cards：startPanel 每次发射前**物理截断**事件档
+    （`fs.writeFileSync(EVENTS_FILE, '', 'utf8')`），且截断发生在 `handle.launch()` **之前**、
+    旧面板已被强退 → 每次代次的档里只有本代次那一条 boot
+    → 句柄缺省门（＝本次发射时点）下 **首个 ≡ 末个** → 本电池上该变更**惰性**（可证等价）。
+  - 48-tray-spike：句柄六方法面里**只有 waitWindow 会查 boot**（latestBoot）；
+    tray-spike 全程**不调** waitWindow（自己在 P3b 用 `tape.latest('boot')` 取面板 pid 寻窗）
+    → 句柄侧根本不做 boot 查找 → 本电池上该变更**惰性**。
+
+  方向：变更方向**更安全**（句柄缺省门＝本次发射时点，结构性堵死旧 boot 混入）。
+  处置：申报而不回退（裁决 4 明写「取最后一个是承重的，不可改回首个」）。
+
+═══════════════════════════════════════════════════════════════════════
+五、两处「无验证 killTree → 验证强退」的处置与时序风险核对
+═══════════════════════════════════════════════════════════════════════
+
+  母票 #202 决策 8 授权（批2 已覆盖 taskbar 族五块那几处；**全仓共 7 处，本票这 2 处**）：
+    ① 166-doc-group-cards 的 killPanel（内联 taskkill /PID panelPid /T /F ＋ child.kill()，不验消失）
+    ② 48-tray-spike 的内联 taskkill（child.kill() ＋ sleep(600) ＋ taskkill /T /F，不验消失）
+  两者同刀升级为 `handle.stop()`（工单112 的强退序列：优雅终止 → 整树强杀 → 有界等待并**验证消失**）。
+
+  时序风险核对：
+  ① 清场变慢上限：单次 stop() 最坏 ＝ 800ms 宽限 ＋ 5000ms 验证窗 ≈ **5.8s**（原：dgc 毫秒级、
+     tray-spike ≈600ms）。本轮 dgc 3 次（两处段内定点杀 ＋ 轮末清场）、tray-spike 1 次，
+     **实测全部 gone=true 秒退**，未触发变慢；段账目耗时反降（见 §二）。
+  ② restart-clear-required 中止路径（gone=false 时）：
+     - dgc 段内两处定点杀（stopPanelOrAbort）→ rep.exclude(归因 panel-forcekill) ＋ throw 中止后续段
+       （由电池 try/catch 汇流，不吞）；**轮末清场只入账不中止**——清场抛错会拦住 finish()
+       → 控制器不退 → 验收槽租约挂死。
+     - tray-spike P6 → rep.exclude ＋ throw 中止后续段（P6 是末段，中止不吞尾段）。
+  ③ **进程树口径的差异（如实申报）**：原实现**总是**先做 taskkill /T /F 整树硬杀；句柄序列**先**
+     优雅终止（child.kill），只有宽限窗内仍存活才升级到整树强杀。故 child.kill() 成功
+     （浏览器主进程已死）时，句柄**不再**下发 /T 整树强杀——Electron 的渲染/GPU 子进程靠
+     「浏览器主进程已死 → IPC 通道断 → 自行退出」收敛，不再有 taskkill /T 兜底。
+     - 实测核销：三轮跑完查进程表，**无残留 electron 进程**（只剩 msedgewebview2 的
+       SearchHost/TickTick，与本仓无关）。
+     - 受影响判据面（逐条核）：dgc 依赖面板**窗口**消失（浏览器主进程 → 窗随之消失）与
+       CDP 端口释放（浏览器主进程持有 → 随之释放）；tray-spike P6「交还真托盘」判的是
+       **explorer 的** Shell_TrayWnd（按属主 pid 过滤），我方竞争窗在浏览器主进程 → 随进程消失。
+       实测三轮 P6 全绿。
+  ④ 证据档 fd（裁决 10 第②条）：句柄的 archive 形态**不 close** fd；dgc 注入 openArchive 记账、
+     轮末 close（本轮 3 只 fd：三次起面板各开一只）。这是**资源卫生**项，不涉断言面。
+
+═══════════════════════════════════════════════════════════════════════
+六、事件文件常量名归一（工单212 正文明写）：逐处对照
+═══════════════════════════════════════════════════════════════════════
+
+  文件路径字面**不变**（仍是 app/accept/evidence/166-doc-group-cards-events.jsonl），只统一变量名。
+
+    位置                          迁移前            迁移后
+    常量定义（第 50 行）          EVIDENCE_FILE     EVENTS_FILE
+    正典 readEvents 的读档         EVIDENCE_FILE     EVENTS_FILE（该函数本刀整体退役，读档归磁带）
+    发射的 DECK_EVENT_LOG（句柄装配 eventLogPath，第 61 行）
+                                    EVIDENCE_FILE     EVENTS_FILE
+    startPanel 的事件档截断（第 356 行）
+                                    EVIDENCE_FILE     EVENTS_FILE
+
+  ⚠️ 截断那处是 dgc 的「旧 boot 清除」机制（map 坑 8：**绝对不能漏**，漏了就踩旧 boot 混入的坑）——
+    已随常量改名一并核到。归一后与另外七块电池同名（EVENTS_FILE），符合母票 #201 决策 12。
+
+═══════════════════════════════════════════════════════════════════════
+七、裁决 3 —— mode 枚举增项 'tray-spike'
+═══════════════════════════════════════════════════════════════════════
+
+  背景：母票 #202 决策 3 的 mode:'full'|'accept' 枚举**漏了第五种发射形态**
+  （tray-spike.js 的 ['.','--tray-spike']，env 带 DECK_TRAY_CORPUS）。编排台账 §8 裁决 3：
+  **批3 扩 mode 枚举加 'tray-spike'**（纯增量，不改既有 mode 语义，不动六方法面，
+  **不加 extraArgs 键**，不让 tray-spike 不进句柄）。
+
+  改法（三处，缺一不可）：
+    app/accept/lib/panel-control.js
+      · PANEL_MODE_ARGS 增项：'tray-spike': ['.', '--tray-spike']
+      · launch 的 JSDoc @param mode 类型：'full'|'accept' → 'full'|'accept'|'tray-spike'
+      · 未知形态的报错文案：只认 full/accept → 只认 full/accept/tray-spike
+    app/accept/lib/panel-control.d.ts
+      · export type PanelLaunchMode = 'full' | 'accept' → | 'tray-spike'
+    app/tests/accept/panel-control.spec.ts
+      · 补两条用例（新枚举的参数形态 ＋ 扩枚举不改既有两形态的参数）
+
+  单测（先红后绿，TDD）：改前 48 例中新增 2 例**转红**（「面板句柄：未知发射形态 mode=tray-spike
+  （只认 full/accept）」）→ 改实现后 50/50 全绿。
+
+  PR 描述正文（草案）：
+  「**mode 枚举增项 'tray-spike'**（编排台账 §8 裁决 3 授权，母票正文不改，按 #215/#221 口径记录）：
+  母票 #202 决策 3 的 'full'|'accept' 枚举漏了第五种发射形态——48-tray-spike 的
+  ['.','--tray-spike']（env 带 DECK_TRAY_CORPUS）。本刀**纯增量**扩 PANEL_MODE_ARGS 加
+  'tray-spike'（参数 ['.','--tray-spike']），既有两形态的参数逐字不变（新增用例钉住），
+  句柄六方法面不动，不加 extraArgs 键，母票正文不改。」
+
+═══════════════════════════════════════════════════════════════════════
+八、PR 描述正文（草案）—— boot 选取口径变更
+═══════════════════════════════════════════════════════════════════════
+
+  「**boot 选取口径变更（首个 → 最后一个）**（编排台账 §8 裁决 4 第 3 条要求单列申报）：
+  dgc 与 tray-spike 现行 waitEvent('boot', …) 取**首个** boot；迁到句柄后 waitWindow 内部按
+  缺省门取本代次**最后一个** boot。方向**更安全**（句柄缺省门＝本次发射时点，结构性堵死旧 boot
+  混入）。本刀在两块电池上**均惰性**——可证等价：
+   - dgc：startPanel 每次发射前**物理截断**事件档，截断在发射之前、旧面板已被强退
+     → 每代次档里只有本代次那一条 boot → 首个 ≡ 末个；
+   - tray-spike：句柄六方法面里只有 waitWindow 会查 boot，而 tray-spike 全程不调 waitWindow
+     （自己在 P3b 用 tape.latest('boot') 取面板 pid 寻窗）→ 句柄侧根本不做 boot 查找。
+  裁决 4 明写「取最后一个是承重的，不可改回首个」→ 申报而不回退。」
+
+═══════════════════════════════════════════════════════════════════════
+九、遗留与既知项（本刀**不**顺手改，按决策 11 只记不改）
+═══════════════════════════════════════════════════════════════════════
+
+  ① 48-tray-spike 轮1 的 P4 红「capture 失败: 」（GDI 屏摄通道超时 61s 致 spawnSync 抛）：
+     **一次性环境事件**，非本刀引入。证据链：
+       · 同一轮里控制器侧的**同步** Shell_NotifyIconW(NIM_DELETE) 耗时 **514ms**（正常 20–22ms，
+         阈值 500ms）——同一台机器当时在变慢，与本刀的磁带/句柄改造无因果通路；
+       · 该 capture 路径（capture() → lib/capture.ps1 的 Add-Type C# 编译 ＋ GDI CopyFromScreen）
+         **本刀一字未动**；
+       · 章法 flaky 流程「重试」步：轮2 迁移后 FAIL 11/1（红集合＝基线）、轮3 迁移后 FAIL 11/1
+         （红集合＝基线）、**基线判别轮（迁移前代码）FAIL 11/1**（红集合＝基线）——
+         基线与迁移后在该时段红集合逐条同形；
+       · 处置：**环境降责**（一次性屏摄通道卡顿），非回归。迁移后累计 3 轮中 2 轮红集合与基线
+         逐条同形、1 轮多一条一次性环境红。
+  ② 166-doc-group-cards 的 4 条「截图通道异常（Electron 屏摄 conversion failure）」NOTE：
+     **基线轮同样有**（19:48/19:50 轮各 3＋1 条），非本刀引入；且该 NOTE 不影响断言
+     （电池自带「截图通道异常…不影响断言」纪律）。
+  ③ 既知红：48-tray-spike 的 P2「NIM_DELETE 异常」（#48 家族机器态存量），迁移前后同形。
+  ④ 本刀**未**动：app/src/main/index.ts、app/accept/battery.js、taskbar 族五块（批1/批2 的域）、
+     app/accept/experiments/ 存量、段级清单 app/accept/manifest.json、任何断言阈值与等待时长。

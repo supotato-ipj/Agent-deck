@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:43f8a1bfdfbce7334a981ca9824e74718555d5faba5a5954af1fa0591ede9b98",
+  "claims": [
+    {
+      "id": "claim_09313b9b19674134a09e64b70c13b52c",
+      "statement": "The application selects one of four run modes from process.argv at module load: the default entry is the windowless outer guard, `--panel` is the panel main process, `--accept` is the acceptance battery controller, and `--icon-restore` is a one-shot icon-restore entry whose branch runs before any single-instance logic.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L45-L54",
+          "version": "repo-lines-v1:sha256:f7fa0f9e69977030587284761f5bed4492ae1a7e35b69167c04a7e593dddbafe:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5M2QwYmI4MDdjYmU5MzkxZGQ5NGQ3Zjg0ZWU1MTliNjdjYjJhYjIxZTllOGFiYWRmOTlkY2NmOTliYmM1NzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjZjdjMDM2MTQwYjM5N2ViZGI3NGQ4N2E0ZTc1ZWExZTJiNjNlNTY2MjQ0YWFhMzY2NzNiYjc0NzllZDNhZjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzMWZhODNjYzM0MGEyMjIxODVlZDJjYjZkZmJlYzZlMzViNWVlM2ZhZmNjOTI5ODIzYTZmNWVmNjE3NGIxYWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMzOGExNjM0NDA2NzZkMDkwMGQ5ODk2ZmM0NzlmZTBmZmNlZTE1ZDA1Mjk0OTdhZjRiNmJiNWVjOTFkMTAwNWUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L176-L183",
+          "version": "repo-lines-v1:sha256:661db65234351b60e2f5c9623cd4798a88e6d252a4131dbe4b5fe8f4379d766e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MwZmJjYTE0NTBkOGE2NzEwNzM0MWM4YmRkMjk3NzUyOTc1NjUzNmE5YTMxZDczYTJmOWU5MGI3ZmU1MDcxYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUyMWY4YjU3ODFjNTAwNTg2YTUwN2MzODhjMWE2NmFhZjVlMDVhY2ZkZGM4NDY2OTIxZjFiZTljZmM2ZWE1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjM3M2MwMzNmNTEyYzBjNzk2ZGNmOWMxOTA4NzI1NWQzOGY1NGYwYjhkYzYxYWNjZDg5ZWEyNTM3MjQzNGFjMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2JjMWZmNjkyNTEyN2QzYmM2NjkxMDU2ZDQ1NDFjNzkxNTllNGNkZDZjYzQyNmI5NmI5MWQ1YzY5NDg3YWNiYyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L239-L247",
+          "version": "repo-lines-v1:sha256:3ea123abb03b6a4a1d45848328b46de04dff9aa2e38b35bed5200b099577b159:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTI2MzA3MGIxNmVhN2IyNWZhYTQ2ZTBlODM0M2IyNWQ1NWY1NzViY2ViMDJlODY3MjVmN2M2M2Q2Y2Q2YjYwNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTJjMGI0MDQzMGRiNmNhYmMzZjY3ZGQxYmQxZjA2NDY1NDg1OWM3YzlhN2FhNGFlM2ZkZGU3NGMxYjMzYmZjNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVkZjlkYjJhMThkMzljYzNkNTE2NjEyZjY3NzhiYWFjMDliZGIxNjQ0Zjc5N2UyNWQ0MGNkNWU4ZDlhMzhjZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L27-L29",
+          "version": "repo-lines-v1:sha256:e8f34c27ef5715e4977e8230d5634a5dddb38e8d9f9c88e7f0fae9a93d8115ca:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI3OWEzZDEzYTIyYzk3ODc0ODU0MzVkYTdmZTcyNGE4YjVmZmFmNDM3MjBmMTA1MWNlZTllZGZlYTcyMzAzOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjAyMzRmYThmMjcyZDMyMzA5Zjc0MDIxZTA3NDc0OWQxYjNkN2U3MWJjMTNlNTk4MzM3ZTQ5ODE2YmFmZjc0ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWY5ODE3Y2QyM2RkMDZlYzczZGQ2MGQzMWQyNzY0MWZkNTliODFhZGI4NmMxMWExZWJjM2VhYTdhNDE1MmE5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmRkOGM3NjY2ZjFlYWY0ZjgwMTFjMmI3MzQzMWRjY2Q3ZjgwODQ1OTk4MmNkMzQ2MmQ2MzQwZTM1N2JkYmJiMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_8cd13d1443e34fe786b62f67aa77eed9",
+      "statement": "Two dispatch steps are hard pre-`app.whenReady()` constraints: `registerPluginScheme()` must run before ready because Electron requires privileged scheme registration at that point, and the guard's `app.disableHardwareAcceleration()` is pre-ready-only because the guard opens no window and must not carry a GPU process.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L193-L194",
+          "version": "repo-lines-v1:sha256:d2aa7fcf9835edd7179788f54b86679623d67811f88da715bd695c0e20f4a4e3:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFmMTI2ODMzYTAxMWZmNjRmZDU4YzIzMDk0MjlhNTMxNWYxN2UxOGIzYjhlMmQyMmJmMGI5ODY3NjMwYjgzMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjRhZDNmNTFlOWYxNzE2ZjUxN2I3YWM0OGRkNzZlZTQ0YzM3MDkwYTQxMzM0YzE5ODM5ZWU4OTZkNzRkZjZmMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWU2MDgwYTY4NzI3ODEwOTc1YWU5YTZjMjNhMmFkNTE1ZmY1MTc1NTkxMzY1NGFiZDA4MGM4MjU4ZDFjNzNhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmIyNWQ3MTdmZmVkZDk0ZTU4NDU0NWU3MjAyYzEwMzY5ZWQyMmI2OTAwOTIyMDdkNmY3ZGI0NTc3OWI4MmY5NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L31-L33",
+          "version": "repo-lines-v1:sha256:a3cf68a0e7dc97dd4dea205fff9b212d1c51819af3d0fea2f6912e2b8475c55d:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGZiZGQ1YjYyY2Q2MTg4MjIwYmEwMjYxZDk5Mjk0MGI2M2M2NWYwNTE4Y2E5N2E2MWE2MDg5N2JiODVlNzg1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzBjOTU0ZGFkNmRhMmUwZWVlY2Q5YTk0MzU4YWU3ODQ0ZTUwZGI0ZmNlYzY1MmU1YTU2MzI1YWE1N2JlNzU5NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGYzOGQ1MjBlZGRiNDM0ZjgyNTQ0N2E3MGU1ODIzZDhhOWE0NTVjZWEzMzg0YmQ5MmU5M2U0ZWU3ZjhkY2VhYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L10-L13",
+          "version": "repo-lines-v1:sha256:4fc224fcc8f21ff71072f68307fd370a020a0c2e33c3b47678636135c7a5dd5a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk0YjY2ZmQyZGQ0N2I3M2E1ODhiZDYxZTFjMGNmODY0ODcwNWU0NGY2ZGY2N2YxMmUxNzEyYjg4ZjZiNzE2ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2Y4NmI0NDVlMmMyY2M5NjNjYjAxZjVmY2U0YzRkOWJmZWExYjZmYjgxY2FmMjdjYzBhYTFjZDM4ZmFiZWQ2NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjhkZTVlOGEzZDE0MjA2YzZhMGE4YTE5ODJhMzcxZjM1NjQ4YzA5NDlkNDlkMmZiMjc3NDkzMjI4OTM3M2I4MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7927d9457a3e438aa049402231ccdf80",
+      "statement": "In `--accept` mode the process takes no single-instance lock, replaces the default window-all-closed quit with an empty handler so the controller outlives its own windows, and runs `accept/battery.js` inside the same Electron app context so the battery can spawn real guard/panel processes while remaining a controller.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L498-L502",
+          "version": "repo-lines-v1:sha256:04443693f2e5a7f0a1b43ab6592b04c6936312703b2f597838642e968a9e9bf8:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGY2MDcwOTQ0MGMwYTkxNDFmYzc5NGJmNmRmNjYwZDk5NTFhNjg5ZTY5YjQyNzdmYzFlZDFkMWYwMDhmM2NiYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA4YjY5YjEyMzFlNzUwMzM1ZDlkZDFmNzlkNzg2ZWM4ZDMyMTNlNDYwNGYzNGEwYTEyZGNlNGMwMzRlMGVhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTZkYjA1NWRmY2MzZWY1ZTdmMWQ1NjZmMDZmNWEyMjkxZGM4YmNmZjZiNGU2NDUzOWJiNjczODcwZjMyN2U2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjk0ZDcwMDM3M2I3NGQyMmVhYzg4NDZmYmMxNWJkNzNmZTljNWQwNTExOTdhZGZhMTc4MzM4ZWM5YTllOTgyOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L235-L247",
+          "version": "repo-lines-v1:sha256:73a5f07497f0d2d15896d8b47ea02b86869f889a5dea46545f6d5988dba3d15c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkNDNjNWJmYjFmODYwMjMxYWM5YjZiYzEwZDRmMTljY2M1NzQxODZhZTM1NmUwOTI3OGMwZDNmNDk2MjZjMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwN2M0NTFhNmVkMWI4MDkxZDBjYmZjN2QzOTk1N2U4YTdhYjQ3NDMyYzI1MWRkZDhjNDdlYWIxMjkxOTRhMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJlZGY5ZGIyYTE4ZDM5Y2MzZDUxNjYxMmY2Nzc4YmFhYzA5YmRiMTY0NGY3OTdlMjVkNDBjZDVlOGQ5YTM4Y2UifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1708ab423e30463290fe534e3dba8cbf",
+      "statement": "Single-instance admission is a two-lock handoff: the guard requests the lock first and logs `single-instance-refused` then quits when refused, but it releases the lock before spawning so a still-shutting-down previous instance cannot be mistaken for a second launch; the panel child re-acquires the lock and holds it until exit, so at most one panel is on screen even during the release window.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L184-L199",
+          "version": "repo-lines-v1:sha256:b3eaef224d3a0f059e06cff2f95c2520d120101d84f11edcbc15a582e764c890:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1OGJmNmQ0ZmJiMDQ3Y2Q2N2U5YmJmZTlmMmY0NTFmNDQzMmQ2ZDA5NjYyZmJkMDRjNWU4OWY0MjdhZWMwMzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4ZjgzZWNlZDllNDYwM2JmYWUyODA0N2UwNjk0YTgxMjc0Zjc3ZTJhZjU2ODk2YjI4NzBhMDFiNWJiNmVjYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2MWU0NDMwNzliMDAyMjQxMjc2MTM1MWE4YzM1MjQyOGNjZjEzNmE2NjQxYmM5NjgzMmJjMzE2MDQ0ODQyNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxZjVlY2ZmYzhjZTg3NTI0MWFhYzdiYmU4ZDMxYjhlOTIwYmI4NTQ1NGUyZDliMmMxMTVhNDQ1MmUxNTQwYTIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L235-L239",
+          "version": "repo-lines-v1:sha256:71e955d7d0c5c0fae11c200d4053a61615bc000f042d6349a91ae311f2f4f551:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Q0M2M1YmZiMWY4NjAyMzFhYzliNmJjMTBkNGYxOWNjYzU3NDE4NmFlMzU2ZTA5Mjc4YzBkM2Y0OTYyNmMwZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTI2MzA3MGIxNmVhN2IyNWZhYTQ2ZTBlODM0M2IyNWQ1NWY1NzViY2ViMDJlODY3MjVmN2M2M2Q2Y2Q2YjYwNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDA3YzQ1MWE2ZWQxYjgwOTFkMGNiZmM3ZDM5OTU3ZThhN2FiNDc0MzJjMjUxZGRkOGM0N2VhYjEyOTE5NGEzNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjNhNDBlOThmNWU5ZjY0MDU3MDFjMmY0ZGQ5Yzc0NDdhMGJjODk5YjRiMmMyYzEwYzIzYWY1N2I1MDlhMTQ1MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1d05911c177948d4979a986d156904c5",
+      "statement": "The guard is deliberately the parent of the panel process: `taskkill /T` clears only the downward subtree, so killing or crashing the panel cannot reach the guard and the process that hid the desktop icons survives to restore them; because the restore duty lives in the guard rather than the panel, `npm run dev:panel` can run `electron . --panel` directly with no icon hiding and no restore.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L11-L13",
+          "version": "repo-lines-v1:sha256:adab9b1055e0ce5ba695f9a61184d2f0a89bad10059425e4cb446cd5c6cf2286:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2U4YzVhODkwMjdjYzEyOGMyYTc5MWQyOTYxY2ZkZjMwMzlmYjZjODY1M2Q1ZWE5MmViMTcyMGRmNzJiZTA1YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTJiMDc0MWQ0NWZhNGMzNDQzN2Y0NTc2YTI2YTgyZThhMGExMDRiYjBmMmM4YmQzNjA5YzQ2OTdjMTBjYjI3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODUwOTU3Y2QxMTRhMDIwZjFkZDcwMGVmOTQ1ZTNkYzQ1NDJjYjM1N2JmMTgyYWZhY2YxY2Q4MDhjNmRmZmQ5NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGJjZjVhYTRmMTc4MWU5ZWIwZDJmYTg1MGI2N2M0Y2RjZWNjOGFkYTFiYTA5ZmUzMmEzZmRlOWI2MzY5ZGU2YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L183-L199",
+          "version": "repo-lines-v1:sha256:32253a98fe58ad44eed24b993e7d95b779e86b23528b4e8755cfdf5a8689ce43:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlMjFmOGI1NzgxYzUwMDU4NmE1MDdjMzg4YzFhNjZhYWY1ZTA1YWNmZGRjODQ2NjkyMWYxYmU5Y2ZjNmVhNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4ZjgzZWNlZDllNDYwM2JmYWUyODA0N2UwNjk0YTgxMjc0Zjc3ZTJhZjU2ODk2YjI4NzBhMDFiNWJiNmVjYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5OTYzMDY0YjBiZGNmNDYyYmJiMjQ2NDhlZGJiOGVmOTk4Njg5YTIwZTIzNjJjZmM2ODRjNzRhYjJkZTdjOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxZjVlY2ZmYzhjZTg3NTI0MWFhYzdiYmU4ZDMxYjhlOTIwYmI4NTQ1NGUyZDliMmMxMTVhNDQ1MmUxNTQwYTIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L229-L233",
+          "version": "repo-lines-v1:sha256:ca9d9d2ed1bfe8d1f77a556b3326ef18dab975030b4539561707c08d5aba0082:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjg3N2I5ZTk1NzFlNTY0NjVkMGIzOTRmY2U3ODBjYzY3YWMwMzM0ZTY5N2JjOGZlMTA2Njk5OWRiZDcyMDc5NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDVmZjc2NjM4OTljZDU4MmFmZWEwODQ5OGEzOTc5MjUxZTlmYzNkMjg4NjA5Y2YyZDhmMTQ2NjVjZGI0MmUzZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWRmNTczZThjMzI4MjY5NGY0M2VjY2NkZjIwMmYzNWU2YmY2OTNhMjQyM2Q1M2Y5NDVmNzI0NGRhMjZiNTUzMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f7fe6c53f85499fb2aba9a48990a03a",
+      "statement": "The guard spawns its child as `spawn(process.execPath, [app.getAppPath(), '--panel'], { cwd: app.getAppPath(), env: process.env, stdio: 'inherit' })`, so the panel inherits the guard's environment (including `DECK_EVENT_LOG`) and its console, and is launched by the same Electron binary that booted the guard.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L219-L223",
+          "version": "repo-lines-v1:sha256:491d44d6a8c32750a80626155f8f919eba3992b1a865d6a6280af128a3e6e28b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODdmMDA5NGU5OGRhNjQ0OWIwNTZjM2Q0Yjg3MDljMWQ2ZDJiNmRhYjJkMzNiZDU3Yzc0ZWQwMmFmY2E5NDk4OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzJmZDg5ZTI3MGQzODU2ZGJkZjZjYTg2NDdlYzlkZWIxN2Y1MzFmZGE4MGZlYzZlZjJhYzkyMWE2ZjA5NjIzNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmFmMDQwZDA0YWEwNzU1ZGZmM2Y1MmY4NDViNjk4MTcyMDBkYzQyOTdmZDI1MTljN2E1NmIyZWNlOTE5ZGU5YSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cbd2513164fd41228e44c8ab444f440c",
+      "statement": "Both guard terminal paths restore the native icons before ending the guard: a spawn error restores with reason `panel-spawn-failed` and exits 1, while child exit restores with reason `panel-exit` and then calls `app.exit(code)` with the child's exit code — the explicit restore being necessary because `app.exit` skips the normal quit sequence.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L224-L233",
+          "version": "repo-lines-v1:sha256:d9ff1992577047f39ac80430a1b8bcf5fcf6d7376a652f080c10d832ed0ee8c7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxYjY5YzUwZTVkMTY5NDMwNGI0NjViNGZkNjFkMGI1MjY2NTMyZjM0Nzc3ZmZhNTkzOGU4ODFiNjM5MzM5OTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0ZTEwYjM3YmNlZmM0M2NhODZlYjk0ZjRlN2VjNjg4MWRjYjAyMjY1NGIwZjA1MTNhYjY3NWFmYmM3MjI2ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkZjU3M2U4YzMyODI2OTRmNDNlY2NjZGYyMDJmMzVlNmJmNjkzYTI0MjNkNTNmOTQ1ZjcyNDRkYTI2YjU1MzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_626151908a414a278f07636f7bf23c66",
+      "statement": "The detached restore watcher is spawned by the guard only when the guard actually hid the icons (`carry.didHide()`), with `detached: true`, `stdio: 'ignore'` and `ELECTRON_RUN_AS_NODE=1`, and is `unref()`ed so it neither holds the guard open nor can be reached by the console signal that kills guard and panel together.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-restore-watch.cjs#L1-L9",
+          "version": "repo-lines-v1:sha256:59afedcc3dd6a7fc039c3dddd0570ace1671e531f43692583c2251f1c601bd46:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODY4NmVmYWMyOGZhZjA3M2I0YTgwMGE0ODYxMzU2ZWQ3ZDYwMWUzNzI5OTRlMmE2NTljMGE2MTU2NDA0ODRjNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmRiYWVmOTcwNjJkODIwY2EzMjU3NmY1NGM5NjdiNmNkMDA3NTEyNmRmYjAzMzk2ODU3YmMzYzg5N2RjMTkwNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzc1YTI1ZDM5ZDJiZWJiYTQwNjIzYjA0NWE4ZmM2ZGQ3NTg0ZmVjMzI1YWM1NjJiM2EwZjUyOWQyZTlhYjQwNiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L200-L218",
+          "version": "repo-lines-v1:sha256:148916a02dfef8309267c24dea83d909f039b1c586a0841d43d49bebac608164:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjYmFlNDk5ZTU0NmNiZTA2ZTI5OTk5NDA5NjlkNzgxMDFjNDMxYTI2ZDJiZjcwMjlmYTYwZWNmNGI2MmI3MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlhZGZiYTg3YWQ3NGM2Y2QxMGY5YmVkODE0ZDIwNjgzZDQxMzc1ZmVlZmY1N2QwOTAyZTIxY2VjMGUxMGI4ZDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYzU2MmJlZDcwYTMwNTcwOTc4NTRhYWJmMzZmNWI3ZDAzODgwNWI5NDU3MGY5MjZmYjgwYzZhMTJjNTUxMmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0daa589fb3294893b858fd7f9bc8bac7",
+      "statement": "`bootPanel()` boots in a fixed order — evidence log, config load, autostart, legacy usage-log migration, kernel start, then window — and the window is only created after `await kernel.panelData.whenReady`, i.e. after the data plane's first snapshot, with a 15 s timeout that lets the panel start with an empty data plane rather than not at all.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L34-L109",
+          "version": "repo-lines-v1:sha256:5f35697fc2b0199cf9a29734988dec382d3fc70af52951d1365c7a83e41e5b6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2NjlkYTg1N2M2ZDY3YmY0NTlhZTczMTM5MDFhNWM5ODgwNTM1ZTI1ZTg5ZWU4ZjA0NjQ5ZmY0NGZkYmQ1ZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyZGRlNDA1ODAxMmFkMTg3MTYxNmEyNDE2N2YwZjM3MmEyNmU2MGNlNjg0ODU2MzFmODA3NGI3ZmY0MDYwY2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzY2Y2OGEwZTdkYzk3ZGQ0ZGVhMjA1ZmZmOWIyMTJkMWM1MTgxOWFmM2QwZmVhMmY2OTEyZTJiODQ3NWM1NWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlM2ZhNmIyMDg3NDFjZWRjZWVjMGZhN2NlNThmNTA2NjNhZTA0YWE3N2Q3ZGRlZGY4OWU2NzVjZjVhNTMzMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L11-L12",
+          "version": "repo-lines-v1:sha256:56efca2371643882b9f8b01d771c0fe2f99964b7431ed035dca993e0eaf61220:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzgwM2VmYTZmYjhlODZmZjg0ODc0M2U5Mjg0NDA5Y2Y5ZjVhM2M3NjEyMTcxOWZkNDc2ZTU2MzdlM2Q5YmQ4ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODI3YTAwMTQwZjM5OWVhZjU4MDQwZmZhYjIzMTY2MTM0OGY3YTIzMDg3OWFmYWMyNjYyYzk4MzhiMTBlYTFiNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjhmYWJmNDgyN2U1NWY5Y2Q2ZTc5Mzg3YWVmMTRhNGJlZDRjOGJkZDIyOWM0NjllNDVhNjIyMzE0YWFkNGJmMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjA3YTliZTQxY2Y3ODQyZmM3ZmU1ZWExYmM0Y2VjN2MxMWUwYTYwM2RjMjhlMzFkOWE3MjcxMTNmYjM1OTEyMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L57-L64",
+          "version": "repo-lines-v1:sha256:2fd87871220ec3f44c72315ad0edfc0c9fa578d7227e98c7bfdc4805e85b446e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWExNmQ3NDU1MzhhNGU3ZGIwMGUyYjQ4MDg0OWViZmVjZTBhMjI3ZWVkYjA1NDdhODRhYTc4YmZkNWVlNjVlMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmY4Mzc5M2IxYTg4MzRmZWQ2OWJkNGM3OTFjNjMwOTkzYzFlNTY0ZWIwM2ZhOWVlN2YwNzkyZmE0YzViODI0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjE3ZjM3YWM4MWFhMjRiN2JiOTVkNmExNTE0ODg4NjA0MjQ4MGNkOTZlY2Y0YzliNDNmMzRhYWIwYzUxMWJlNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTUwYjgwNTg4YmM1YjBmMDhiMDg1NGRlZDljZDYzZGM2ZTRkOTFjZmU1YmQ5OWY5ZGY4N2FkM2ZjZWIxN2ZjOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_0b1af62e067d41aaa702ea661688d8a1",
+      "statement": "The panel window is created with `show: false`, `frame: false`, `transparent: true`, `backgroundColor: '#00000000'`, `hasShadow: false`, `resizable: false` and `movable: false`, plus a sandboxed preload-only renderer (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`), and geometry taken from `config.panel`, which defaults to the primary display's bounds.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L101-L104",
+          "version": "repo-lines-v1:sha256:fe1922ee62186b18a67cb34150bda60e44de2bd36faa762601ff52773595fe83:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODI4YWY5ZTE4ZDUwZjU3ZWE3YjAxMTI1Zjg1ODUyYjc4YmJkMzM2YjhlNTdlYmUwNmM0ZTg5MDJiOGI2MjBiNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODI3MjBhOWViNTczZGM4YzQ0YjNkNGQ3M2Y5OTYyZmI5NTc5MThmNmU5ZDVhM2JhMzdhOTA1NTgxYjQ1M2NkYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzEyZWUwNGQ2MjllMWMyMTc1ZTUyYjc0ZWM5ODM0Nzg0ZTBkNTI3MjcyMGIzNDk3OTIxYTNiZDg3MjlmYTNlMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L16-L43",
+          "version": "repo-lines-v1:sha256:accf7a0ba7d3468dae43b24a24ae879c89f192444d8bf47ccb2dc7d6b9461ea0:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzZGUyYTJkMzNkYzlkMTRjZjMzOGQ0MTFhNWQyZTNjYjU3MzJmZDkwYjgzMTQwNmRjZDYzMDhmMzlmYTYzNTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjOTU2N2U3ZmQ3MjM2ZGMxNjkzZDc1YjE3NmRlMjdiM2Y0OTk1Y2FlZDFhYTkzMzdkNzE5ZjYyMDIwOWFkNTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE4NzkyYTYwNDI0M2FhYzM2OWFjNThhODJjOGQ1N2UyMjA3YzNlNzRiMTUyZmRmNGJmYWFlMDc4OTQ5ZjUwMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3202cc2935b144f5beb244d228a38cb2",
+      "statement": "`focusable: false` (Windows `WS_EX_NOACTIVATE`) means the panel can never activate — a click neither raises it nor steals the keyboard from the user's working window — and `skipTaskbar: true` removes the taskbar button and makes Win11's ToggleDesktop exempt the panel from Win+D, so the debounce restorer is a safety net rather than the primary defense.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1740-L1762",
+          "version": "repo-lines-v1:sha256:849d192dbfea52abb5b12d2f092f4d05cdcf6ecb71551bdadb43f3a7841ec0a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViNjc4YTRjODM0MDk2M2Q1OGJjZWVhMWIwYzAyNjcwOGIxMWY3MmI1ZDU4NTFhMWVkMDQxODNjNDJiN2ZiOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4MzczOGY1YjI1N2U4NTBhZGZmZDhkZjJmNzAxYjE1ZjFjNWM0ZTViZWE3YTU5MGQ5NDRmMDEyNjMyYzIyNDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNhMjkzYmJlZDNhMDdkY2ExNWMwNDNhOTIyM2U4ODliMDFkZmNjNmE1ODc4M2MwODljMWNkYzkxNTFmYjRjOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM1ZDk3YTVkNWQ0ZDliNGI1OTBiNmQ1NjJiZDQzMjk2Nzc1YmRiZDczMWViMmMyMGNjMmZiZGFhY2I4YTQxNWYifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L788-L790",
+          "version": "repo-lines-v1:sha256:fcd40277aa4bfab6c6ad5b663125d5e0aa7353fda833b53b7326cbecebba5865:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGVjZjkzMmY3MDA0NmZlMTYwMDFkOGUxYzc5MDJmMmRhN2FhNDZmMDg0ZWY2YTdmMDIxNDUwYTgxNDkwYWU2MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDE1MmViM2MwYmQ4ZDA1N2E4ZGUyMTJkM2E4NjFlYTcyNjI5Mjc0OTE1MzcyM2JlMzU1NmU3OGM3N2U0MWJjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjRjMGQ4MTQ2NTIxM2UyMGUxOTJiM2ZmMjI1OTdkYzZlOTgwODBjN2E5MDNmY2UzMTg4MGFhOWE4OGQ3YzI5ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDQwZjY2NGNmMTJmNTZmZTgzNWVjZTkxMTA2Zjc2NmY3YmQ4NTMyYzAxZDFkNmExZTZkNjZhZGJhMmNlZTJhNiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L9-L30",
+          "version": "repo-lines-v1:sha256:c7de5aadf8e917e596248ce27c26c13d663c4338672fd50c96de115981e74ec1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyOWE4YmRjYzUxZTg0YmQ5MTkyYzEyNjViMTU2ZDdiMTQ5MzVjMTZhZWJjNDI0NzM4OTZiZDUyNjQ1ZThmYzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzNTMzMGYxMDYwMWFhZmFhZWQ2ZjBmM2ZlNmQ5ZmQ3Yzk4NzM1NWZhZGNjNjVlZmM2ZTdjM2I2NDM3MDJiMTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2YzM0ODkyNzZjMWM4NjZkMTliOWIzMTgwOTE4NDMwZWZiOWNlNWEzZTk0MGVlZTM1NzExODY3MDkxZjc2ZjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3cf66606b8fc4df5a53dd7da1c17d798",
+      "statement": "The panel becomes visible exclusively through `win.showInactive()`: once at startup from the `ready-to-show` handler (registered before `win.loadURL(panelUrl())`) and thereafter on every recall, so showing the panel never takes focus.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L116-L122",
+          "version": "repo-lines-v1:sha256:add1eea3873b6a81290ca20967207c9a2ef3c2c4b2a9194f3e9bc65c287b7748:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRmZjdhZWM5ZmU1MDFlYjQ2M2YwNTcwNzJiOWJkOWQyYzUwYmY3NGM4OGY5N2U2NmU2MGU4MTA4ZDM3N2ZlOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzJlYWFjNmRmZThiZWRiOWVlNDYyNDk4OGFiMjE1ZDk1MTgyODkwMDc2MTlmOTRhMDBiMWQ1MTQxZWU0NGIxYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWVkMjI0NWVkOGI4ODI0Yzg1ZTQzMzk4ZTM0OTAyYjk5YTYzZjUzZGY4ZjY3YmE3YjUyNTQwOTE1MTc5NWVlOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L145-L147",
+          "version": "repo-lines-v1:sha256:b520644eac643c43e2200522091cb774465a4406dbce4acbf4356e1f0b36aee6:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjIxODY4MzVhZDQwNTI4MWIyZDgxOWE5MGRhOGEyMjNkMTAzNGRkMDZlMWU2NWY2OTkxZGFhNTg4YmU1YmVkNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FlY2M5MDA0Y2M3NjMyZDgzMGM5MTBmYjFjMzY4YmRkNWMyZTRmMGRjYTFiMTExMzU2ZmNhNGMwZDhiNzRmZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODU1YzZlYTVmMTI2ZWRhMDkxZGMxYTkzODdjYzliY2UwYmY0MGE3MmUyNGE4NDQ0OTdlMjIzMzkwYjU4MTY2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODU3NDg3NmI0ZDZkZTBjYWIxNjViM2EyYmU5OGM1NjkwOWVhN2Q1OGViMzAyMTdmNGEyZDljYmM5YTlkYzdlNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L170-L171",
+          "version": "repo-lines-v1:sha256:26a886d379c1c7ead609c93c490ee13cb7dc13e3cde3c28b1706c440e0690ea2:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjQyNmE3MjMxMWE4ZWIzNjUxNWVkOTE4M2IxOWNjNTE1ZGYzOTQ5YTg2NmM0ZTYzZTllMDRmMzcwNzhkOGY0ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2JjNmEyMmIyNjBmN2RlZWVlNjE4Njc4MzVmNDc5MjA3ZDQ0NzIzZGZlMGRkYTYwNWM1MTM4Mzc3ZmQyZjQ2ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2Y2M2IxNWM5YmY2NzY5Y2MwMzA0MGUxZDNlNGE5NmMxYmEwNDJjYTUzYzdjOGVmMThkYWFmNGMzNjY4OTdjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGQ4ZWY3NzgxN2I1YmU3N2IyOGU4NjAyN2QzNWI0Yjc1NTM5NzFjMDdmYjI2NDJmN2IwMTBlZmMwY2M1Mjc0ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3ab08256bd1c4248a5477ded0be8eada",
+      "statement": "ADR-0005's red line is that the window-host thread holds no system-level input hook: `setIgnoreMouseEvents(true)` is called without `forward`, because forwarding makes Electron install a global `WH_MOUSE_LL` low-level mouse hook on the main thread that every system mouse event must wait on, and hover highlight is driven by real events only after pass-through has been lifted.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L38-L42",
+          "version": "repo-lines-v1:sha256:384f1da5d8fcb701a468fc7ac71d1343cc9774a6736e6231eeb4663156fdcd9b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjQxY2NiYWRlMWRlNDBlNGE0NjNiMDlkZmJjYWZiZTk5YmY0MDM2NjA4Mjk2MDZjMjQ5YTgzNGQ1OTRkMWRkZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGY3YWI3Y2FiYzZiYzA5YTgyYjE4YzBjZmI3Y2MwZTAwYThkY2I4Yjc0MTkwM2JkOWRjYjQ2MTFlMDBmMzNhOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWM2M2NlOWM4MWUwZDA4ODM3ZTRkZTU5MGY1NzY0NWYzNGJlMDZmMmY4MzJjMmQ2ZGJjZjNjNzQyZWFjYzdlMyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0005-no-input-hooks-dataplane-utility-process.md#L19-L19",
+          "version": "repo-lines-v1:sha256:c67404a6b45702866c650854a4bbc1adaa3b78c470a2c2e5800665479b0b1bec:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzY3NDA0YTZiNDU3MDI4NjZjNjUwODU0YTRiYmMxYWRhYTNiNzhjNDcwYTJjMmU1ODAwNjY1NDc5YjBiMWJlYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzY3NDA0YTZiNDU3MDI4NjZjNjUwODU0YTRiYmMxYWRhYTNiNzhjNDcwYTJjMmU1ODAwNjY1NDc5YjBiMWJlYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODVjNjdlNjUyODYwZWIzMDk3ZDlkZDBhMjgxZjgyNjZlZDU0MDdjYWZjZGI4YTQ5NTZlZTQyMjc0NTM3NDlkMSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0005-no-input-hooks-dataplane-utility-process.md#L5-L7",
+          "version": "repo-lines-v1:sha256:1aaa96afa88f48e7eb8275707515a32765dd140ea28187dd451335925b117288:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmVlNTNlOTYxM2NlZTMzNjMzMmYyOGVjNjU2NDU2MWZjY2I5M2I5NWMxNWI1ZTlhNzllMjk3ZTVkNTU5MjM5OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2RiYzQ4ZjhlZGFkODI2NDQ3NzQwMTJmNWU0N2ZlYTNlNWFjYzY4YTEyM2Y5OTliZmI1MDllMDRmZDgzOGY3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2UwMWZlMjhhYzQxNWNkZDIyN2Q0NWMyZTYyZmVlYjIyZTE5YzBlOGE1NjUzOTFlNTllZjAwY2ZjNDk0NDJmYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_12a160deb81949d0a6b817e431bcd86d",
+      "statement": "Interactivity is declared by the renderer and enforced by the main process: `window.deck.host.setHotZones(rects)` sends `{ id, x, y, w, h }` rectangles relative to the client area's top-left in CSS px (= DIP) over the fire-and-forget `deck:host-set-hotzones` channel to `HotzoneTracker.setRects()`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L58-L62",
+          "version": "repo-lines-v1:sha256:289ac0fa3c77e9765b4fdbefaa6819df10a829f57d54824ab22ccdc79e8a2a4e:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTM2ZWE4YmMyODYxMTkyYmJjNWYyYzhjYTg3MWYzNGEwYmJlMGY1NTVhMDU0OGRjY2IwN2ViZjMxMGUzMzZkYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzA1OTc0YWU3ZDJhNzg5MjZhNTA1NTJlY2YxOWI0MGM2OGQ3NDAwMGFmZDE4MmNmNTRhMDE4MzA4OTE0OWUzOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDY2Y2JlYTkyOGUxNGJlMWQ1N2VmYWI0NDc2OGM5OWY5YjlmOWExNmMxZDQ2MTkwM2ZiY2ZmYjc4MDlhODJhZSJ9"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L23-L30",
+          "version": "repo-lines-v1:sha256:732d87c56b32734cec9a3b85aaccb91c61a7402186c7c398e6b4b7f30d7db25d:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjYxYTkxZWMyOTg5NjAxNjczYTM5YjMyODYzZGQ1MTAxYmJkMTkyZmFiZjMwMDNhYzliZTA4ZjAyMzM3ODUxMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFiYWIzYjg5ODAzNWI3Mzk3YzA3Y2MxNjNkYjVjZjVlOTdkOTVkMDlkYTlmMTZiOWRlNzgzZGE0OWU0YzVjYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L273-L280",
+          "version": "repo-lines-v1:sha256:e826ce9e4494c21240b93b1ee5ea36a08e15bc380a007f4833240456b5e5cc28:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTlmY2Y1Nzc1YzUxMjJiNWQ1NDc5ZmYwN2E3NTI1MDFmMzljNzQ5YjBlY2Q1NWIyOTU0ZDVmZjI3YjEwYjhhYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjI4NDg1NDM0MTI3MTM3OGM0NDRmYjUxYTViYWNkNGZmZmQ1OTNkNGI2Y2NhYmU2ZmFhNDNhOTk4NmFkZTZmMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ae46c9c9901d478ab7536558f6129581",
+      "statement": "`HotzoneTracker` polls every 25 ms: it converts `screen.getCursorScreenPoint()` into window-relative coordinates by subtracting `win.getBounds()`, calls `setIgnoreMouseEvents(false)` on the entering edge when any declared rectangle contains the point, and restores pass-through only after two consecutive misses (`LEAVE_CONFIRM_POLLS = 2`), disposing itself when the window is destroyed.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L4-L6",
+          "version": "repo-lines-v1:sha256:824b25335f2d8d4ac5757e01b877f837a45907645f64aa335596b5ffcf333741:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDAzNTM3NWY4MmJjMzdiYTE5MTJlYTQxN2E4YTcxOGFkY2U5Y2RkNzQwOGY2YzgwZjk0YmE4ODlhZGQxYzJjYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThjNGE4MGRlMjY1NjZiNzE1NGU0NWIxMzRhNzc4MmU4ZmFmNDMzZDQ0N2NjZmZiYTQxZDJjY2FmMzVlNTdiNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWQ0NzkzNTVjY2I5Y2RlMzQ2ZTA1ZTdjZjQzN2E5YzNjNGRiYmVhOWRkNjk3NWQ0NDM3YWJlZjlhMjYyNmMxYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODc5ZjZiZjhiZmZjNWE5ZDYyMmQ0MmViNzVlNWQ5M2MyY2UwZDZmNGY3YzViMzAwMDlkNmUyYTIxNzc1NWRkZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L41-L69",
+          "version": "repo-lines-v1:sha256:7f8fd470d512b2ae8f3eb9bb99b27b163dd6ed290f5bd27b631826f7acb8e1cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwNWQxM2U1MDRiNTcwNGZiZmE3NzQ2MDgzZGZlODhiZTExZGFiOTgzZThlMzVjODNjYTFiOTZkZGNlNDEzNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwNzgzOTllZmE2OThhNjFlMGU2M2QxOTMzNGRjMjgyNWE5MmNiYTRiM2U4MzA4ZmMxNzRiZDM1MGQzN2NiMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_50ef63c2002d4f26917d78dc86f8eefb",
+      "statement": "The hotzone leave hook re-pins the window to the bottom but is throttled to at most one call per 500 ms, because each `SetWindowPos(..., HWND_BOTTOM, ...)` makes Windows re-evaluate the whole z-order and boundary jitter must not become a z-order storm.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L124-L136",
+          "version": "repo-lines-v1:sha256:69a830e734c083c87d4b94a87eb3fd47e3ca410a1f825d626366a1cff3a6252f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4OTdkNjQ1MTIwOTgyZTQwMjkwYzBhYjgwMGYwODllNzNhOTA4YWJlOTkxZGM3N2FjOWQ0NTE3Mjg5NTE1OGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwZDQyYzI5ZmI4YWVlMzMyNjQ4ZjE0Yjc0MDQ1ODZjZDBkNjk0Y2ZiMDg0MGYyMjlhYWEzZTI4Yjg4YjNhZjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNkYTg0NDcyZWVkYzcwYWYzNTY2MWMxMzhkNjhkZWIxNWRjZWRmN2E5YWExYzNiMTFiNmQyZTUxYWUzMTgwOTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_462611ec3c5a419b9273d2159a72b981",
+      "statement": "The renderer declares one hotzone per `.card`, one per desktop zone, and one each for the settings button and the overlay's reset button, filters out zero-area rectangles, and derives a zone rectangle from the union of its item boxes plus a 10 px margin intersected with the visible container — so an empty zone produces no rectangle and therefore no click dead zone.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L712-L753",
+          "version": "repo-lines-v1:sha256:7ce11c74f3980f30d452d6dd3dc4112ef1c6aba71339a74100d1f816be4d0a3b:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3YzdmNTNhOTA4OTk3MThhYzZkNTU2NjRjYjY4ODk2M2YxYmM4NjMxYTM2MTBkZjU3ZDVmYWVjZjBlOWYxZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3NzAwZGExODA5YmFkMjIyMjI0OTcwOGJlODY5YjNiYmUwZDdkMzU3NGY4MzEyM2Y0ZTg0YTIyY2FlYzgzODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYzIxMjc0MmI1NjI5ZTUxMzc2YTU0M2Y0ZTZmYTU5ZTM0ZTc0YWI5NmI2NjY2Y2VmMzAyOWIyMTZiZmNhZjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_071578ccd76f4d3fbae30a93dff13dc1",
+      "statement": "Hotzones are re-declared whenever the layout can have moved: after every snapshot render, on `plugins/changed`, on settings open/close, on search activate/deactivate, and once `document.fonts.ready` resolves, which is why a plugin card becomes clickable by carrying the shared `card` class and an id on its own element.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L392-L417",
+          "version": "repo-lines-v1:sha256:85318f61f2e4992c4e8fa02b29f95614d0c23262edb010b7f5f69bd50389d5d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyN2FjZDU2YzMzZjA1MTg2YmRlYjhhODNlODc1YzlmYWE0NTMwZTIxMjhiZDAxMjgwMGZkY2JlODYyNjdkOTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkZDg0NTNlMDgzMjYwNzA1YThmYzNmODVkYmU0YzNlNjI3MjU1NGIyNDQ5MjBlNWJiN2MzMzQ1MjkzMDBlNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYTMzYTg3M2IyOWYyMTQ1MjI0MzlmOWM2YmI1M2JmNDc3MWQ3ODJkNGRjNDM2NzI3MGIxN2Q5OTYxMjBjZmYifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L595-L635",
+          "version": "repo-lines-v1:sha256:ce5ee6c191ea4d4243f1fe35c5b7306bdaf1c1520963b36d39d5daf312598bb4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OTA5NWYyYWE0OGRjNDIzOGJiNTE4OTM0Mjg4ZmYyOWQyMzA1NzcwMjA0YzQzZDU0Y2NiYWZmMjhlMWYyOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNjJhODc0M2IwYTBhODZmMjRiMGU3MDc0N2IxMzZhM2Y0YzczZTc0NTU0YTg4ZDcwNDMxNTM2ODBmZjQzMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhNTZiNTRlZmQ3MWMwNjBmYjgyZjFlYjYwMjdjOTUwOTNiOTBkMDIyOTE3OGQ2NmJhMTI3OWFjMTYyY2E5YWUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L756-L771",
+          "version": "repo-lines-v1:sha256:654a4cec92e33bbbdc378f5268ad0e4fd5f9a280e5ee2fdb62b2ab5741b4e035:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3NDQ5YWJjMmIzNmRlZjZlMmRlNzUzNzM4MWRjOWNlNzdiMTk3MzUwMDNmMGYzY2M2MGMyZDkyZjU4MThiNzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2NjkyNTRkOGUyM2E1Y2Y3MDkxNGI0NjEyYzk5ZTU0MTAyNmE5MjcyMzc5MDVmNWFjYTU1YjRhZDNmYTA3NDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlM2ZmODk5MDE4YzU1ZWEzOWJjOGI5Zjg5MGQ3NTFhNThiZWM0NjUzZGY5NThmNWU1YmVmZmI0YjFjMTVlYjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_683204cd8a8840a9b6d0b03f170236df",
+      "statement": "Bottom pinning is a koffi FFI call into `user32.dll`: `SetWindowPos(hwndOf(win), HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER)`, with the HWND obtained by decoding `win.getNativeWindowHandle()` as `uintptr_t`, because Electron has no native always-at-the-bottom level.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/win32.ts#L6-L25",
+          "version": "repo-lines-v1:sha256:3b2bb19db9bfda55f16d97b239b8f8a4e9e87d202ee4872d09f523ebcea6b920:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlNDk2OGI1M2NhMjU0YzkzMWM4ZDMzNGI1M2VhNDEyNmQ1N2JlYzU1YTFkMDFlMTBiZTUzMDM5Zjg4ZWY3N2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ1MmMyZmVhYmVhZGI5NjZmMThiMGZhNGI5ZmIxNDAyMjk5Y2ExZTRlNjU5NTAwZWM2MWNiZTczZDkwYjMzMjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9724551d973644eeb9b0ba35c98d39f9",
+      "statement": "The bottom is re-asserted at window start (`ready-to-show`, reason `startup`), on every recall (reason `show-<recall reason>`), on hotzone leave (reason `hotzone-leave`), on stray `focus` events (reason `focus-fallback`), and on both keyboard-mode switches; only a successful pin is written to the evidence log because the log append sits inside `if (pinToBottom(win))`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L118-L122",
+          "version": "repo-lines-v1:sha256:2d453d83347539ecb84fb58438e58023af8b3066132784c23bb733ff935cf193:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGE2ZDYxNDk3ZGY0NmViZDA4NmRjMTM5NjdiNzE5OGFhODRjZDI5ZTkyMjViM2M5NzRmODgzZDk3OTA3MzQ2MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGFiZGQwNmVkNGQ4MmU2ZTNlM2JmOGNiZGMyYzA3YTJlOTdhZTYxYjMwYTEzYTg1NTVmMThiM2QwNjhlNDQ0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWVkMjI0NWVkOGI4ODI0Yzg1ZTQzMzk4ZTM0OTAyYjk5YTYzZjUzZGY4ZjY3YmE3YjUyNTQwOTE1MTc5NWVlOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L145-L169",
+          "version": "repo-lines-v1:sha256:4ba7c1dc42191017b5328358ae55da5ca97fabd3b4f8825e883549296675b7e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMTg2ODM1YWQ0MDUyODFiMmQ4MTlhOTBkYThhMjIzZDEwMzRkZDA2ZTFlNjVmNjk5MWRhYTU4OGJlNWJlZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1NWM2ZWE1ZjEyNmVkYTA5MWRjMWE5Mzg3Y2M5YmNlMGJmNDBhNzJlMjRhODQ0NDk3ZTIyMzM5MGI1ODE2NjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczZmMyMjMwZWYyNWU2Mzk2NWYxM2M1ZmI1NDkzMjdhMTJhMjRkNDM0YjAyNTVjNjNlYmY5ODQ4ZjgzYzNhYTIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L70-L81",
+          "version": "repo-lines-v1:sha256:c0fe5a6e1ca109bbaaab3b7887f6657a463dcc0c5e07f205094fc0b939afa5b0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1NDY0YTYzZTkzYTgzM2Y2MDNjMmU3MGY5YzU3MmZkZjcxNThlNzkxMTFlOTJhMTIzODQzZjE3MGI2MmIxNDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3ZWEyNDA0ZTJhNTU1M2JkN2Q3NDM0YjJjMGZmNjZkZjU5MGFjYjNhMGZjNDlmMWU3NjZmMDA4OTYyYzg5M2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhZDViOTc5OGM4NzZhZDhiYzc2ZGQ4ZTY2YTU1OWE2NmMzZDkyNGExZDI3NjA1MDgzZDI0NjRiZWNiNmQ0MGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f668c33ca6cf46d4bb9ea3ac11125d37",
+      "statement": "ADR-0004 fixes the stacking order as background layer < panel < ordinary windows, so the panel sits above the user's wallpaper and below every ordinary window — including while keyboard mode has made it the foreground window.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1221-L1236",
+          "version": "repo-lines-v1:sha256:5883c7eb2b7f6b332d0994102a6732c6fb94106fff34a87b05606bbd25fb3661:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4ZGQ1Njk3MDRlZTRlODVkNTUxOTVkNzE1ZjIyZTJkNTIzOWUwYjIwYjQwOWJiZGVkMzlmNmEyNTRmZTM3YzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODI3ZGM2NzRiOGE3MWFmOWMxNjRiN2VkMWFmNTQ5ODI5NGZlYzZhNTcyMjQ0ZWU2OWU5ODhhMGE5YjA5MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM5Y2ExZDc4OTJlN2Q5ZGQ0Y2JiNDZmNTE1ZWExYzc2Y2YyYmEyNjI1N2NmYzA1NDFkMDY5Y2I0Yzc4ZmU1MTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0NGM5YmNhMmM4YzY1NGQyZjNiYjUwOTBmNWI0YmViNDYwYzZmYTYxZjU0NGNjMjJkYzdlZGY5MWJlNWRlMTkifQ"
+        },
+        {
+          "resource": "repo://docs/adr/0004-electron-cordis-standalone-panel.md#L8-L8",
+          "version": "repo-lines-v1:sha256:719484dd00bf2183a51ef780050613aabc0a4aa1afba09cf756efdf34e2f4f53:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE5NDg0ZGQwMGJmMjE4M2E1MWVmNzgwMDUwNjEzYWFiYzBhNGFhMWFmYmEwOWNmNzU2ZWZkZjM0ZTJmNGY1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE5NDg0ZGQwMGJmMjE4M2E1MWVmNzgwMDUwNjEzYWFiYzBhNGFhMWFmYmEwOWNmNzU2ZWZkZjM0ZTJmNGY1MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTIyZTk2NjExMWU2ZTc3NWZhNmQzMzY5Mjg4OTliZGZkMDBlYTBlZmIwMmY0NWZjOTQ0ZjQxYzFiNDM5NGM4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e317398f4d6b4c179dac521edb979253",
+      "statement": "Keyboard mode is one host-channel switch: on performs `win.setFocusable(true)` then `win.focus()` then `pinToBottom(win)`, off performs `win.setFocusable(false)` then `pinToBottom(win)`, each writing a `keyboard-mode-on` / `keyboard-mode-off` evidence event, and a destroyed window is ignored.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L66-L82",
+          "version": "repo-lines-v1:sha256:d5239b03c33a88723c86fef14b90a192b7755dd2a5c5a438833eeed35a74e534:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxODFjZDMwZjcyMTA5ODQzM2E0YzEyMjc1MjAzZWVkNTdlODY4YzFkMTU5YzFlZDU0ZjYwNjgwN2IwM2Q1ODkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2NmNiZWE5MjhlMTRiZTFkNTdlZmFiNDQ3NjhjOTlmOWI5ZjlhMTZjMWQ0NjE5MDNmYmNmZmI3ODA5YTgyYWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_40ee5cbf76cb46dc8bb00e36a38e3e82",
+      "statement": "Turning keyboard mode off deliberately does not restore focus to the previously focused window (the same semantics as clicking the real desktop), and both the search overlay and the settings overlay drive the switch as on/off pairs from the renderer, with the off call guarded by the overlay's own open flag.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L66-L69",
+          "version": "repo-lines-v1:sha256:cd300f7de8f50dbf7a699339f3ce4f994c56b6cfb13d68d09dff3912f8c53139:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDE4MWNkMzBmNzIxMDk4NDMzYTRjMTIyNzUyMDNlZWQ1N2U4NjhjMWQxNTljMWVkNTRmNjA2ODA3YjAzZDU4OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWY2MzJiYjRlMjExNDUyZjMwNWE3OTdiMzNmNWU3YzJjNWZmNTY4NTk4ODIwYzc5YWRjZmQ3ZGRmODUxMGQ3MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDY2Y2JlYTkyOGUxNGJlMWQ1N2VmYWI0NDc2OGM5OWY5YjlmOWExNmMxZDQ2MTkwM2ZiY2ZmYjc4MDlhODJhZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTE3YTVlOGMyZDIxZDFkNzk3OGM0NjdhNTc3NzNkNGVhZWVkMGU3ZTgxOWViMzBhNTE3YmFjMTI2NzFlN2Y2YiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L390-L417",
+          "version": "repo-lines-v1:sha256:bd431feadd433fb5f4ce4ff394726dfba77ef46471672adbf185297b212ee080:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmMjhiMmM1YTlhYTUyM2E5NmRlZDg5NmEwNmFiNWQ3YzViYzg1YTdiYTVlN2ZlZDNiYmNhYmJlNjAxNjc4NWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU4ODQ0OTNlMjljOGY5NzAyMDMxMmQ3NmFlNWQ0YzgyYTZhNGQxYmVjNWE1M2YxZmU1OGNlYmVlOGY3YzU5NmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYTMzYTg3M2IyOWYyMTQ1MjI0MzlmOWM2YmI1M2JmNDc3MWQ3ODJkNGRjNDM2NzI3MGIxN2Q5OTYxMjBjZmYifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L595-L635",
+          "version": "repo-lines-v1:sha256:ce5ee6c191ea4d4243f1fe35c5b7306bdaf1c1520963b36d39d5daf312598bb4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OTA5NWYyYWE0OGRjNDIzOGJiNTE4OTM0Mjg4ZmYyOWQyMzA1NzcwMjA0YzQzZDU0Y2NiYWZmMjhlMWYyOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNjJhODc0M2IwYTBhODZmMjRiMGU3MDc0N2IxMzZhM2Y0YzczZTc0NTU0YTg4ZDcwNDMxNTM2ODBmZjQzMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhNTZiNTRlZmQ3MWMwNjBmYjgyZjFlYjYwMjdjOTUwOTNiOTBkMDIyOTE3OGQ2NmJhMTI3OWFjMTYyY2E5YWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_becccf7dcb254dc587f7db3a1f14bba7",
+      "statement": "All recall paths converge on one implementation, `showPanel(reason)` = restore if minimized or hidden via `showInactive()` → re-pin → log `panel-shown` with the reason; the three callers are tray click (`tray-click`), `app.on('second-instance')` registered in the lock-holding panel process (`second-instance`), and the Win+D restorer's expiry (`wind-restore`).",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L116-L122",
+          "version": "repo-lines-v1:sha256:add1eea3873b6a81290ca20967207c9a2ef3c2c4b2a9194f3e9bc65c287b7748:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRmZjdhZWM5ZmU1MDFlYjQ2M2YwNTcwNzJiOWJkOWQyYzUwYmY3NGM4OGY5N2U2NmU2MGU4MTA4ZDM3N2ZlOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzJlYWFjNmRmZThiZWRiOWVlNDYyNDk4OGFiMjE1ZDk1MTgyODkwMDc2MTlmOTRhMDBiMWQ1MTQxZWU0NGIxYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWVkMjI0NWVkOGI4ODI0Yzg1ZTQzMzk4ZTM0OTAyYjk5YTYzZjUzZGY4ZjY3YmE3YjUyNTQwOTE1MTc5NWVlOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L139-L139",
+          "version": "repo-lines-v1:sha256:fe1e4cda3be44cc83d13edce6e9291bce1a49a0c67bd2a42c654f1a833d4e3e1:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUxZTRjZGEzYmU0NGNjODNkMTNlZGNlNmU5MjkxYmNlMWE0OWEwYzY3YmQyYTQyYzY1NGYxYTgzM2Q0ZTNlMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUxZTRjZGEzYmU0NGNjODNkMTNlZGNlNmU5MjkxYmNlMWE0OWEwYzY3YmQyYTQyYzY1NGYxYTgzM2Q0ZTNlMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWUwM2QxNDJjNWE4ODk3YjZjYmE4YzFhMTEwZjVkMmNkMjJhYjdmYWQzNDI0NmU1NGRlY2VkNzcwNGQ1YjE5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2ViNjIxODQzMmY2ZjYzNDBhMWFlYTM2NjBhY2YwYTQwMmVkMGZiMWY3ODU4NWRlMzZjMjY5M2RlNjgxNzIwOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L152-L161",
+          "version": "repo-lines-v1:sha256:58e8f446e000c471efd93a9aae0f4f462c4f5f120dd7ac019dd9f318c7efd255:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhY2U4MDk2ODE2MzlmNzBiODk5YzFlMmMyZGY0ZTY2NDE4OWVkYTQzYjliZjRiZDBmYTIxN2NmNjg5N2RkNDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MjIwNGM2NWY1MDJkYzE2NDU0YjYyNDA4NTZhOWFiN2FkZTAwM2E4ZTlmODYzMzNlYzBiN2M5ZTQwOTQ5MWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0M2EzYzViYTkzODBjMDc3MzI2NDM4YzE4ZmZiODk3Njk4Mzk4ZDI5MjIzMDRmYWE2YjZmOWNkZTliNmY4ZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyMjc3ZmFhOWQwNjAyYzU4OTUyN2RhY2MyYjc4ZTAxM2M3Yjc4MjlhM2JiOWZiNmY0ZDYyODVlY2I0Y2FjYTQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L173-L173",
+          "version": "repo-lines-v1:sha256:04d62d3c1ce75711c03e8cfb2e68577a43f41a69aec9c0289909785ea809aa06:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRkNjJkM2MxY2U3NTcxMWMwM2U4Y2ZiMmU2ODU3N2E0M2Y0MWE2OWFlYzljMDI4OTkwOTc4NWVhODA5YWEwNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRkNjJkM2MxY2U3NTcxMWMwM2U4Y2ZiMmU2ODU3N2E0M2Y0MWE2OWFlYzljMDI4OTkwOTc4NWVhODA5YWEwNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzNmYzIyMzBlZjI1ZTYzOTY1ZjEzYzVmYjU0OTMyN2ExMmEyNGQ0MzRiMDI1NWM2M2ViZjk4NDhmODNjM2FhMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODM0ZjY2NTgyOGI0MzE3OTdlYmM5NjVhNGM3MzkyNjdlYWY0Y2NlNTg4Y2YwZDBhMTE3OTM1NGVkNjk1MTEyZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4d0ffa6262d2485587fe6450980fa2c2",
+      "statement": "The tray icon is drawn programmatically as a 32 px BGRA bitmap (dark background plus four amber `#f5a623` squares) so no binary asset ships, its left click recalls the panel, its context menu's `退出面板` item quits, and it is destroyed in `before-quit` so the icon cannot outlive the process.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L139-L143",
+          "version": "repo-lines-v1:sha256:f1a7108c5ad443283c7e4842c4eb2177f8978bb6dd65f973a45154e57ed74491:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUxZTRjZGEzYmU0NGNjODNkMTNlZGNlNmU5MjkxYmNlMWE0OWEwYzY3YmQyYTQyYzY1NGYxYTgzM2Q0ZTNlMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWUwM2QxNDJjNWE4ODk3YjZjYmE4YzFhMTEwZjVkMmNkMjJhYjdmYWQzNDI0NmU1NGRlY2VkNzcwNGQ1YjE5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTNlZWI1OWMzYjFjMzZiZTc5NDUxMWM4ODk4ZTQwODc3MDI4NzhmMGE2NzQ1M2YxOTlhOTNiYjg1NGFkNTFiYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/tray.ts#L12-L42",
+          "version": "repo-lines-v1:sha256:2a925ef51f80bab2ce8b121a9c8bc4f86ce9795f9af443fc8a7a30cf295d2c41:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MWY0NzdmZTYwNWIzMDAyMzI3MDc1ZDJjNDZmZTQ4YWNjNmNlYjA2MWYyOGJlYTQzZTg1MjcwNDgwNjRkY2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3NmZmNjIwMWFlNTFmNWM0ZmQ4YzY1ZGU0ZDk3MGY0YWFlOTQxZDI1NmRjYjRmZTBjOThmZTJiMDY2OTgxMjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MTIxM2Y5YjE2Y2Y3MDZiNzE3ZGRkMTc1NGI2Y2QxMzYyMGQ2YjdkMTIwM2U0ZGM1ZThmODM1MDdkM2I4MjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1ad52771544f42b2956bcd7b3e97dcc7",
+      "statement": "`WinDRestorer` polls its injected down-predicate every 250 ms and starts a 1500 ms debounce timer on the first hit of an episode; repeated hits during one episode do not restart the timer, leaving the down state cancels the episode, restore fires only if the predicate still reports down at expiry (passing the measured `afterMs`), and `dispose()` clears both the interval and the pending timer.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L148-L164",
+          "version": "repo-lines-v1:sha256:6b556452d19057311ae3ce283e9a034c1a9f929cb87c7fbe92e4b01efd8baf4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMDdiZjRjNDg1MDEwOWRjNGIzODZkOGMwOWFhMjdhZDczM2NiMTRlNzRhZjRlYTg2Njg2MTI3MTllNzc5OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMjA3MmJkZGIwZjM3MzQ3YzYwOTU3M2U4ZGIzNTdkOGQ4NTc5NjdlOWYwMTZiMjJhMmFhZTZhNDM5Mzk4OTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1MjA2NDRlYWM2NDNjNDNlMjIwMDUyMjA5MWNiNzc0NDY1YTQ0MDZkYmNlNGFjYmY0MzU2ZTFmMGIzNmFlZTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc0YTk5ZDY4ZjBkN2VlMTk5YWRlMWIyNjFiMjJkMjQ2MWU3ZTBkZjUzZWFjNWJmMmIwMzZhN2QyODdmYjMxMWYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/wind-restore.ts#L8-L69",
+          "version": "repo-lines-v1:sha256:f406ff8087031d5e35bf90a69ebe0737dc7b806acce3741b5afa874e2a94d25a:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjZmFiMTJmYmU0OTViNDRkYzU5MDM4ZWJiY2MzNTllMTMwN2FlMWNjYTMxN2IyNTU3NjRlMTkyMzMwNjYzNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMzZDA5MjQ5NDkwYjQ5ZjZmY2M5ODQ0NTNkZWQwZGZhNmI4YjIzN2IyNzZhN2UzYmMxNTk0ZTFjOTAyNWJhNTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/wind-restore.spec.ts#L1-L88",
+          "version": "repo-lines-v1:sha256:7fe84767c498ed0a52a9a324b5ffdab25aaf4b2e23c3518b128beb2b0d893b6c:eyJzZWxlY3RlZExpbmVDb3VudCI6ODgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1MWFjMDdlOGM1MmZlYTRjYjI2NmRhOTM2NzhkNGJkOWVhZjdkMThiYmQyMzRlODZjOTc3OGFiOGIwZjY3NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_31023bc6adbe4a9ea7ec1bbccfa291f3",
+      "statement": "The production Win+D predicate watches `win.isMinimized()` only and never returns `'hidden'`; `!isVisible` is deliberately not watched because hidden is the legitimate pre-show state and any future hide-the-panel feature must not be overridden by the restorer.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L148-L151",
+          "version": "repo-lines-v1:sha256:ddf939b9af9b995d2fae802a7fb2d0bdbbddff7158cb09c0141a3e7608811634:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmEwN2JmNGM0ODUwMTA5ZGM0YjM4NmQ4YzA5YWEyN2FkNzMzY2IxNGU3NGFmNGVhODY2ODYxMjcxOWU3Nzk4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmJkMWRmMWM5ODZlNDIzOWVkNGJjNjcyNGE5M2IzN2YwODlkZmI1ZjMzYTlkNmJhNjM1Mjg0ZGQzNzg3NjdjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjUyMDY0NGVhYzY0M2M0M2UyMjAwNTIyMDkxY2I3NzQ0NjVhNDQwNmRiY2U0YWNiZjQzNTZlMWYwYjM2YWVlNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2ZjM2IyYTY5NzJkZWU1NzMyNTQ3MjUwZWFjMDc5NWQ3NTAzYzFkYTM5NDE0MmVkMjQ1MjczMjVkMmM3N2NiMyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/wind-restore.ts#L18-L19",
+          "version": "repo-lines-v1:sha256:ad4b5300186c2ab4d361a6ea126909f049458135de7ed3e62cbd0041c49caf6f:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2NiOGQ3MzMzOTgyYWE4ZTJhZjA0ZDZjMTgxOWRhMWVlODVhNjMwMjdlYjQ0N2YxMTcyZDdiOTQzZTQyOThlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTg0OGE0ZjYzOTE5YmQyNjQxOTJmZDA4MWFjODc0NTVmOWFmMTJiZDVmMjk0OTlmMjU3NTkyZDNhMzhlYjQwOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODAwMzU2MjQ3ZjFiZDA0MzY1NTU1ZWQyYzgwMjZhMDliOWY5Y2ViMjBjMjQ2ZjRkZmUzYjA3ZjQyNWFjMzk4NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWE3MGRkNGE3NzIyZmVhMzljMzNmNWM5NGI1ZTZlNjdiNGI3MzY4YWIxODExNzU3YTVmYzI3Mjc1MTBjNDViMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f693ebdfd4c749b8a1e695e3edd95bd2",
+      "statement": "Quit teardown is explicit: `win.on('closed')` disposes the hotzone tracker and the Win+D restorer, `window-all-closed` calls `app.quit()`, `before-quit` logs `quit` and destroys the tray, and the panel's exit code then reaches the guard, which restores the native icons and exits with that same code — the panel never restores icons itself.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L140-L143",
+          "version": "repo-lines-v1:sha256:d42dfdb4f06fa37c1bb82a032358d18ad2c12fea59c39f66615551d4d17179dd:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmM1NDY4NmQ3ZDFmYWRiMTVhZTYxMmUxYjhlNGZmMTc2MzRlZDk3NjdkNGM3M2RjMTg2NTc1NmYzODRhZmQyZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2RhODQ0NzJlZWRjNzBhZjM1NjYxYzEzOGQ2OGRlYjE1ZGNlZGY3YTlhYTFjM2IxMWI2ZDJlNTFhZTMxODA5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTNlZWI1OWMzYjFjMzZiZTc5NDUxMWM4ODk4ZTQwODc3MDI4NzhmMGE2NzQ1M2YxOTlhOTNiYjg1NGFkNTFiYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L162-L172",
+          "version": "repo-lines-v1:sha256:7e00f2fc193647669188703e85ffdc79eb89c5fb27ed093c0a5f75d15d612df8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMDQ4NDdjZDJmZTYxZjUxZDg3ODgxZjM1NDkwMjRiNWY1MzJjM2U1YmRkOWNmZTJhODFhMmQ3NzhhYzkzMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5Y2EyMjY0YmY1NDY4ZmE2ZDI4MWIxMmJmMzRkN2RmYjRmNDIxNGZhOWU5ZGM0NTc5YzM3Y2M4NmE2NTc5NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyYTdkYzI0OWExNjY1ZGI5M2IzYzZlYzQxZjVjODE5ODM0ODY0MTgwMGNmODEwN2M1MTIzOGJjMjVhMGQyMjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNzNjMDMzZjUxMmMwYzc5NmRjZjljMTkwODcyNTVkMzhmNTRmMGI4ZGM2MWFjY2Q4OWVhMjUzNzI0MzRhYzEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L229-L233",
+          "version": "repo-lines-v1:sha256:ca9d9d2ed1bfe8d1f77a556b3326ef18dab975030b4539561707c08d5aba0082:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjg3N2I5ZTk1NzFlNTY0NjVkMGIzOTRmY2U3ODBjYzY3YWMwMzM0ZTY5N2JjOGZlMTA2Njk5OWRiZDcyMDc5NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDVmZjc2NjM4OTljZDU4MmFmZWEwODQ5OGEzOTc5MjUxZTlmYzNkMjg4NjA5Y2YyZDhmMTQ2NjVjZGI0MmUzZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWRmNTczZThjMzI4MjY5NGY0M2VjY2NkZjIwMmYzNWU2YmY2OTNhMjQyM2Q1M2Y5NDVmNzI0NGRhMjZiNTUzMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_8b5c008c81e64ac5ba8a8981e37c16e7",
+      "statement": "`config.panel` is read once per boot and applied to the window, and because the window is neither movable nor resizable a geometry change requires a panel restart; illegal field values fall back to the default per field with a warning rather than silently.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1640-L1662",
+          "version": "repo-lines-v1:sha256:8779996b490b2e74c25367ad04bb15c33fe6b1fc347f43b0bae843cfa7140ca6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NjFkMzFjODBkOTI1YTRmMDdmZDBmMDUzMWY4ZDlkNzU0MDc3ZmE3MGU4ZTM1ZDFhNzcwNGJlODY2OTM2ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlNGE2ZjYxN2I0YjZkMzJkZTBiMmIwMWUyYmE5YjkwOGJhOTI3NGIzZmI2NjE0YzFlZDBmZmRkODUwNjRkZjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmMGQxMWQ3MWJjYzlkODkwODFjYTQ3OTVhODZkMWI3OGJhODU5OTA1YzQ0YTAyMGQzMDE4OTRjZjkzMmMwMTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU4YWJhM2M3MzVmMDU5YjkxMzllNzVmMmZhN2M2N2I0ODM0NmRmNGI0NGMyZDY5NzE2MDVmNzRlOTdjZGJmZWUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L117-L138",
+          "version": "repo-lines-v1:sha256:e01b01baeb0a7b7e80019cc1e0ddbc831bdb960377622bb8fd71343dcb34bbcf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiOTgxY2E1OGUwM2NmZTdlYTE5YjY4NTdmYjEwMjc0MTZhZGVmZGZhZWRlZjBlYmI4ODZlOGVhMDIwYzQxZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4MWVkNTlmY2FkMjlmOWQ1ZWVkYmI5ODdiODE4ZWIwOWMyZDljNzczMTJmYTc0YTEzYzQyYTk2MDdiMzVhZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1ZDc3NjcxYzVkMTUxMmYxNThlNDEwNDc3ZjIwZTlmNTE0NTJiZTljNDE0MjNlOTliNzQ2NmFkYzRmYzU3YmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L37-L46",
+          "version": "repo-lines-v1:sha256:8ca04e8d51e84399cf644fbdac3493a064bc82e1d07a75c74b936fa3a7575ac1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2MmVlMGVhNmE1YzUxZDc2MWYwYzE1OTg3NDA1NTg4M2U4NjE2NmYzNWQwMTllZGUyNTkwMGI2Y2Y3NTBmNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2YTg1Y2U1MzAxZjNjOWU2OWM2YjE0ZWE1ZDI2ZDM2MjIzMDU5ZmRjZTQ0NDYxYWJkNDJmNDc3YTc3OTVmMWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhmMzhkNTIwZWRkYjQzNGY4MjU0NDdhNzBlNTgyM2Q4YTlhNDU1Y2VhMzM4NGJkOTJlOTNlNGVlN2Y4ZGNlYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJlZWMzM2E4NDA3NmJmN2I1ZTM4YzVmOGNkMjFlNDkxZjg0NDFkMTM0NTk2NzNhYjhhZTVhYmY2Nzc1YzQ5M2YifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b1cfe7dd9c0432d8cd02843a279b077",
+      "statement": "The window host's behaviour is observable only when `DECK_EVENT_LOG` is set, because `fileEventLog` returns null otherwise; the events it records for this area are `boot`, `pin` (with reason `startup`, `show-*`, `hotzone-leave` or `focus-fallback`), `panel-shown`, `hotzones`, `hotzone-enter`/`hotzone-leave`, `keyboard-mode-on`/`keyboard-mode-off`, `wind-minimized`/`wind-restored`, `single-instance-refused` and `quit`.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/evidence/03-runtime-events.jsonl#L1-L8",
+          "version": "repo-lines-v1:sha256:208377e07562e4b63908befbc5b1b33ede6b46a700fce43e37c8bfd435d2bc48:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzZlMzQwNTY3MmQ1MTJkMWQzYmI2OGNiMGVlYzFiZmFiNDc1YmNhMTI4NWEzNzI5ZGVhZDBjYTkwYTAwNjQwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzYxYmQ4M2JmYTJiMjIwNmY1ZGFiZjUzNDY0MWVmNjIxOWEwODc0OTBkMzMxYjNiMGMwYTRhY2VhZTAwYjc3NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODBiNTU0OTlkMDU1MGJkY2JkNmM0NmYwMDE0ZWJmMzhmM2Y0ZWUxODRlMzQwZmU4Y2NmMjJmNTg4MjY5YjM3NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L120-L120",
+          "version": "repo-lines-v1:sha256:cd0a962a5d56963ff2a6d3052e1c9e590a90728f2fd4fd24344dac3848f820e7:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2QwYTk2MmE1ZDU2OTYzZmYyYTZkMzA1MmUxYzllNTkwYTkwNzI4ZjJmZDRmZDI0MzQ0ZGFjMzg0OGY4MjBlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2QwYTk2MmE1ZDU2OTYzZmYyYTZkMzA1MmUxYzllNTkwYTkwNzI4ZjJmZDRmZDI0MzQ0ZGFjMzg0OGY4MjBlNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWNjZGUwMDU5ODNkZWFjOGY4MzZlYTBkMmFhYjIyZmFlYWQxYzU4ZmVlNjNhN2Q5ODRhNGYzODY2NjI4OWM4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjBkNDJjMjlmYjhhZWUzMzI2NDhmMTRiNzQwNDU4NmNkMGQ2OTRjZmIwODQwZjIyOWFhYTNlMjhiODhiM2FmOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L135-L135",
+          "version": "repo-lines-v1:sha256:46ea0ce67db2b03bc472c9a56c504733accb34a44a33fa0643e8665f1590f932:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZlYTBjZTY3ZGIyYjAzYmM0NzJjOWE1NmM1MDQ3MzNhY2NiMzRhNDRhMzNmYTA2NDNlODY2NWYxNTkwZjkzMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZlYTBjZTY3ZGIyYjAzYmM0NzJjOWE1NmM1MDQ3MzNhY2NiMzRhNDRhMzNmYTA2NDNlODY2NWYxNTkwZjkzMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTk3YmVjNWVhN2JmNmY1YTM1Mjc3YTlhZDViZmY1OTEwMjM5NjVkYWM0ZTJkN2RhNTAwMTczNjNlZTVkZTIwYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWUwM2QxNDJjNWE4ODk3YjZjYmE4YzFhMTEwZjVkMmNkMjJhYjdmYWQzNDI0NmU1NGRlY2VkNzcwNGQ1YjE5YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L156-L159",
+          "version": "repo-lines-v1:sha256:3c3a650c9e60e488bf87b066f109b0b10fec192cffe7a89defdc16c63d034dd5:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQxZGJmNzg0M2UzNGFjMzU5MGM1NzlhNWIyOTMwMWVlYWY5ZWZiNWI4ZjZmMmFiODExN2U2MzBlZWQ3YTgzOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDUzN2UwZTUyMTA4ZmFmYTNkYWZjMWMwNWY0YjhjNjQzMTVmNjg3MDczODZkZjE1OTUyNjk4MDU3NTAzNDU4OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGQyZTM3ZDY3NTNhMWYxMjIzMDczMjdhZTYxMTU5YjE5NThkMjA3ODg5ODc0MjdlNmZhMWEwYmRiYmY3NTlkYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzBiNGNmYzhkZGY4ZGEwNGU0MjM0MzMxNTFhYWRiMjBmNGRjZTEwMTFhMjU2NmQyNzQ3NzYyMjRhOTE3ZjZjYyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L49-L49",
+          "version": "repo-lines-v1:sha256:5ff78f22bc3ee5a4bb27e3179e528c82c669b162f91137121d3934b94064edc3:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZmNzhmMjJiYzNlZTVhNGJiMjdlMzE3OWU1MjhjODJjNjY5YjE2MmY5MTEzNzEyMWQzOTM0Yjk0MDY0ZWRjMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWZmNzhmMjJiYzNlZTVhNGJiMjdlMzE3OWU1MjhjODJjNjY5YjE2MmY5MTEzNzEyMWQzOTM0Yjk0MDY0ZWRjMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGUzNzg4NzcyYmMwNDAwZTE3MjE3YjNhNTY1MTQ5YWQxNWUyNGRkOWUzZGYwODQ0NTcyMTZjNjRmZmU5Y2FiNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGVmODE4NzhkODE0OWM4MmFmOTMyYmE1ZmZkZjYzNzQ2MzM1NmNmY2FhYmZiMmRjYzNkODE0MDgzMDE1ZjY1NCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c1e3ea94c1014e97bfd9697f3c1bdee5",
+      "statement": "`app/tests/wind-restore.spec.ts` is the only offline unit test in this area, driving `WinDRestorer` with injected predicate/hooks and fake timers (including `Date`, because the episode start is wall-clock) to pin single-`onMinimized`-per-episode, no-early-restore, restore-at-expiry with `afterMs`, cancellation on state clear, no timer reset on repeated hits, and silence after `dispose()`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/wind-restore.ts#L21-L41",
+          "version": "repo-lines-v1:sha256:1fb7762e6a8d86c58b14e1ef5dc5097f29d6113253da20827264fc1787024f62:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3YTg4NzI4ODY5YzBmMDJiMzkyOWFkZTVkNjY0NDRhMmZjYzc0ZmUwMmE1YjEyMjQ3ZjQwYjE0NjBkYjU1NTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0YzEwNjcxYmNlMDg2ZGQ3OGMxZjhjODdlOWQ2N2IxOGMwMzdmNWFmYTE5N2I4ODljYzYwNGNlOWVlMWNlMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxZDcxZDVhZDNkZWY1YjFiNDMxMjBkYzBkNWY4MjVmZGE5MTc3NDY0MTAxOGVkMzg5YTA3NzY4YmRkMTBkOTMifQ"
+        },
+        {
+          "resource": "repo://app/tests/wind-restore.spec.ts#L1-L88",
+          "version": "repo-lines-v1:sha256:7fe84767c498ed0a52a9a324b5ffdab25aaf4b2e23c3518b128beb2b0d893b6c:eyJzZWxlY3RlZExpbmVDb3VudCI6ODgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1MWFjMDdlOGM1MmZlYTRjYjI2NmRhOTM2NzhkNGJkOWVhZjdkMThiYmQyMzRlODZjOTc3OGFiOGIwZjY3NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1d8311192bcd4d0fa04d8452c77097ec",
+      "statement": "Window behaviour has no offline test by design and is verified by the real-machine acceptance battery, which asserts window state rather than module behaviour: `WS_EX_TRANSPARENT | WS_EX_LAYERED` plus clicks reaching the desktop, a hotzone style flip in both directions, a click that neither raises nor activates the panel, panel index below the notepad, second-launch refusal, tray registration and amber-pixel visibility, Win+D immunity plus `SW_MINIMIZE` debounce restore, and keyboard-mode on/off for both overlays.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1304-L1316",
+          "version": "repo-lines-v1:sha256:e63e9eb96866375e18b14225c239de3759d793c446be10c6335a33864ce2019e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NmY1MDNiZGM5ODhlNWFkNDNhZWM5Yzc4Y2YzNDA3NjViYjBlNmZjYmY5MWFkMmJmZTU1MjMyYmNjOGZjMjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllMDc4YmExYWRlMDc3MGM4MGRhZTlhNzliYWVkMGFmNmFmNjkzYWJmNDJhYjBmYjcyZmEzZTFhZDIwMDFlZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0MTEwNjEwOGQ3ZDIwMWRjMTEwN2I0OTQ4NWZjMWUwYjRlOTFmZjU4YmY2NzY4YWJiNzM1ZTI3OGFhY2RjNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQyYmI0ZTc3ODgyZDVkOTVlMGRhNDE4NzdlZTkzM2EzNzNhZWUzMzliMWY3ZTFlMTBjZTNlZWQzZDE4NWViNmEifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1533-L1541",
+          "version": "repo-lines-v1:sha256:8e799dd80cb4925953aaaf022ea0f00d0d4af3320e39a59d9ba69f2cf4a9e901:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGI3ZjRkZTM4YWE4NmE2MjhmYWQ3NmI0ZjQxMDViNWUwN2ViZGU4NmJjYTZkNTg4MmNhODc1Y2I5YjQ3NGVmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmIxYjk3MDRjZDU4ZjVjZGQxNDVkZWE4ZDM3OGQ1ZTdjNGFlZTI4Mzc1OWQyY2I2ZDZmMDFjMzI2MmU5ZDA2OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDMxYzU4ZThiMDM0NWFlMzBkNTA3NDBiMmM2NDg2NDMzZTAzNTFjYTQyZTlmYTUzODA4Y2Y3MDNkYTQ0NDllMSJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1667-L1738",
+          "version": "repo-lines-v1:sha256:6456a51aa28c66cabba2c6199e13f73c68854344ba604cddb59af596a290b5bf:eyJzZWxlY3RlZExpbmVDb3VudCI6NzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwOTMyNTA5YmIwYWIyYjg1OWEwZmVkNzJlYTBmNGQ3MWJiNzliMDEwM2ZlZmUwZDMyNzQyOTA2YjJiOTk0Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlMjlhNTZhM2M2MjBjZTFmYTU3NTk5NWFhMWRiYjFiZWZiNTgxYzBjYjYyYWRkYzM1N2QwZGFmYzIzZThlYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwNmFiOTBhNDQ2ODMxZDllNjA3ZDlkMzVhOGQwOWM5OTljY2I5NTVlMzg1ZTA4ZjdkMDNhNDgxY2RiM2JiN2EifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1740-L1798",
+          "version": "repo-lines-v1:sha256:475aaf01138af9b31c6c48275dcc3e7dcffd699a85e692026d003dce36ddd182:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViNjc4YTRjODM0MDk2M2Q1OGJjZWVhMWIwYzAyNjcwOGIxMWY3MmI1ZDU4NTFhMWVkMDQxODNjNDJiN2ZiOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNhMjkzYmJlZDNhMDdkY2ExNWMwNDNhOTIyM2U4ODliMDFkZmNjNmE1ODc4M2MwODljMWNkYzkxNTFmYjRjOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiMDM3MDUxMzY4OTUwZmZmZTY3ZTY4ZTc2NzFmOWQzYmRiMzNjNTdhMDcxNGExZTNhZGQxZmZmMzI0N2M5NjQifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L717-L822",
+          "version": "repo-lines-v1:sha256:d0f09396a77874ba96b822b4c763b2028c312b26ec5a8fe71e66aaab71f67793:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2MDQyM2M2OWRhYWM1YTlhNjJhZTViY2M3YTEwNTM1MjJjZTZhYzkxZTQ1OGIxNzQwZTFhMGE1N2Y4ZWZmYWVkIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyYTkxZTFkOGUxNzBmY2UwYzA5ODUxNGVkYmRmZGEwOTRiN2NkM2YzMGE4MWMxZTI3ZjgwNzdiMDc5MWMxMTM4IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlOTM3ZmIwNzhjMjgxYTdiOTQzYWUzYTcxNmJjYzYzY2I0ZWVkNmRjYmNhNzU2ZDU3NjgzYjFjZTIwODg1MzY0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyNjM5OWY3MzgwNjIwYzgwMGE0ZTU4ZDM5MGUxNDdhODg5Nzg2MDM1M2UwZWRlMWU5ZWE0Nzg2ZjA4OTRiM2ViIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_c87dd4666cd0415597ba0940c3e9006d",
+      "statement": "The battery drives the production entry chain rather than production modules: it spawns `electron .` (the guard, so the whole spawn chain including icon carry is under test) with `DECK_EVENT_LOG` pointed at `accept/evidence/03-runtime-events.jsonl`, and uses its own `accept/lib/win32.js` helpers for window probing and for the `WM_CLOSE` exit-pipeline check.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1-L8",
+          "version": "repo-lines-v1:sha256:9517a7153c9be628711cfd08913825aeb29a88a6d19268fb1d567cd42c3bc24f:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDVhZTY1YjBhM2Y2OWIwMmU0ZDVjMTA1NGRhMGU5YjIzOTBmMjUwMTE2YzQ2YmM1YWE2MDA1ZDFiYTA4NTg4ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRkZDQzNmEwNWZjZWQ0MjllNGM3OTJhNjFhYTk5NjkyYWIyYjRjN2UzMGI3YTM2NTg5YjI5NjkxMzYxOGU0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmQ5NGVhZDYyYjI1OGFlNGY4ODVhNDRmYTRlYThhMTVkMmNiNjYwNGNjNDQyNTMyY2QwY2IzMzY3NGU5Yzk2NiJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1800-L1851",
+          "version": "repo-lines-v1:sha256:f298e12d351bc414bd32f1766208cf84471401b7d0d49d711d8d7ac2a35dcd62:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmZjljZGI2NDBkZjJkYmQ4ZDkwOGUwYTMwMGNhYTFmY2VjODgwYmVjMWVmYjJkZjNlNjgyMjIwZDY2ODQzZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyNThkNDk5ZTc0YWViMDI2MTZhNmNkOWM0YTBjYjk4NmRjYjYyZmYzZjdhOWMyOGI2MWQwODA5ZDE1YmYzNjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2ZGZmNGNmNDgxYzQyODI4NDdlMDIyYjcxZmZjNDE4MTYyYjUzMzU0M2EyY2NhNTE4NTMzYjBkMWE4NDg3MWMifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L498-L502",
+          "version": "repo-lines-v1:sha256:04443693f2e5a7f0a1b43ab6592b04c6936312703b2f597838642e968a9e9bf8:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGY2MDcwOTQ0MGMwYTkxNDFmYzc5NGJmNmRmNjYwZDk5NTFhNjg5ZTY5YjQyNzdmYzFlZDFkMWYwMDhmM2NiYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA4YjY5YjEyMzFlNzUwMzM1ZDlkZDFmNzlkNzg2ZWM4ZDMyMTNlNDYwNGYzNGEwYTEyZGNlNGMwMzRlMGVhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTZkYjA1NWRmY2MzZWY1ZTdmMWQ1NjZmMDZmNWEyMjkxZGM4YmNmZjZiNGU2NDUzOWJiNjczODcwZjMyN2U2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjk0ZDcwMDM3M2I3NGQyMmVhYzg4NDZmYmMxNWJkNzNmZTljNWQwNTExOTdhZGZhMTc4MzM4ZWM5YTllOTgyOCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

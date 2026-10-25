@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DECK-TASKBAR-MENU</title>
+<style>
+  /* 通用竖排弹窗菜单页（工单193）：整页透明，唯菜单面板承接点击。配色与托盘溢出浮层
+   * （taskbar-overflow.html）同一世界观（深底细边、文字实色、hover 反白灰底）——不新造
+   * 形态。行 = 纯文本（应用组菜单无图标；勾选前缀等属条目集自身文本）。 */
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    user-select: none;
+    cursor: default;
+  }
+  #menu-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 220px;
+    max-height: 560px; /* 超长名单滚动（query maxH 随工作区下发时覆盖此缺省） */
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 6px;
+    background: rgba(24, 24, 28, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+  }
+  .m-row {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #d6d6d6;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .m-row:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
+</style>
+</head>
+<body>
+<div id="menu-panel" role="menu" aria-label="任务栏弹窗菜单"></div>
+<script type="module" src="./taskbar-menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/b71e50ca-53f5-4ca1-9443-caf24640f37a
+[deck] 面板启动失败: TypeError: Cannot read properties of undefined (reading 'subscribe')
+    at D:\test-folder\wallpaperengine-research--spec166-t187\app\dist\main\panel-ipc.js:56:46
+    at Array.map (<anonymous>)
+    at wireBridgeIpc (D:\test-folder\wallpaperengine-research--spec166-t187\app\dist\main\panel-ipc.js:56:25)
+    at bootPanel (D:\test-folder\wallpaperengine-research--spec166-t187\app\dist\main\index.js:222:35)
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/5f8c6ab0-3fe4-4155-9f8b-bd6b8cd0ed82
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e3955e63-d054-49f5-b631-352d46567f39
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/cdb2444a-bb50-49b4-a72f-0f6215f5ec2f
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/2123b3a1-4477-48ea-9f2a-b433b418a89c
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/979c6293-4180-4294-bd0d-65d4a6e1d1d5
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/607a1e6b-0d07-46f8-93eb-3ecae55a3baf
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/88c47e1b-1fdc-4300-9950-028fa62a7beb
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/c609d715-0bf3-462e-a9cd-62e75717099a
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/0f1a4042-059e-4606-8436-2bf2734fa8e6
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/d13d2e24-1a93-4389-8501-b2727660941f
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/db59f46b-77d0-4df3-aa09-72a186c17e9c
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/efdfbf28-3cda-4ae0-adc2-ad4d3691865c
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f5bfcf13-353f-479d-98c6-166d0b9c5f49
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e99eac53-21bc-4639-bec7-d500ac901d4f
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/4c0acdae-2b3f-4f56-bbb9-c395abb418e0
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f9546613-216c-4f8b-8ec4-c89161a9b30d
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/956ff497-550c-46c2-8a5e-55ba67969ac9
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/6f62e0c7-afb9-421a-ba4f-8fb6b96ed279
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/5771417c-5fe8-450e-a315-0f47cfe50879
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/26b233e8-667f-4976-8e7e-eb71db21dee9
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/20d7c0c0-571e-4520-93c9-e74a59971561
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/66faa9a4-cc6e-4f48-8d93-09f903903b1b
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/822401e6-5dd4-45c0-b344-391041683b47
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f187500b-44f9-4fc3-808c-28750adde388
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/bf895430-bebc-4717-b6a7-bfe682cb182c
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/3cc00349-9f85-4dcd-b223-0a57be3597fd
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/4ce55a81-e403-4881-947a-81704f831cda
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/dbcd7a40-2e2f-4bea-9a54-27038e0918f7
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/3097b5d6-9352-426f-8d63-c249d3938f2b
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f4c6e4d6-8868-4b74-a7d9-7827cad65679
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/7c102748-a5db-4e70-aec5-56b02813ca62
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/308d88bb-861a-4e88-8523-a6dfd36dca50
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/caf87816-c8c2-478e-90af-38c9a9594069
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/6e4f876e-d788-4633-8497-b025c698a6a8
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/feae1e9e-5ee0-4950-b45b-3d5ce689dd9a
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/46bba143-61cc-41a7-848a-da3b4993cb31
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/a675f194-cfa1-4aac-ad1a-efea69b8d563
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/1b76058e-e03d-4afd-ae83-2909d4536562
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/b90dd7a8-7e97-4e4a-876a-7ba9a89bf3c3
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/060470bc-564b-4d25-9fe4-d462c373a87c
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/93e8cb76-206a-4391-b05d-029d42694c91
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/dcf5ee2c-dbda-4d73-9053-a8e8da0f2d77
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/ab355e4b-7764-4677-9b5b-970debc5d719
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/5ee5e07f-0866-49fb-b8e0-9e470180e39a
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f4b114e7-3057-4bff-a713-f504673a3b0c
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/0c9b2744-1566-4582-bf6d-ff18aa9cc54f
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/3f5e008d-9a00-4573-b3ef-a5165e7ef496
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/b4440428-d85f-46ef-befd-2e718e4922e9
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/2534902a-aea1-4451-b7a5-ee5438046d54
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/ccf071d7-565e-4ffa-b313-6052f3b428b3
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/a3ccbde4-3f0d-4b26-a658-19239d2b3cba
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/3958bfd2-820f-4d20-89f7-6c7e4dd9db24
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/5b3c0cef-627e-4b15-97e0-ea12c7beabd7
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/c2046838-c905-468f-9b26-a85c4c1c5811
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/88609d7d-2529-4e3d-805c-b48aff9c15c1
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/54b5d315-89f9-419c-a296-693f2182c5bd
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/af5b548b-3f8e-4ecf-9a3e-aac1145de93b
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e0f26a8d-ad81-4b5c-b316-1d6f5e5b9bbc
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/5fdbcbf0-730d-4618-a89c-f3cb957741e5
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/bdef2577-cc14-43d6-ac22-853840bedb3a
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/fc6680a3-a0d8-44f1-93eb-1b0c71a83d8f
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/ee96d149-bf29-4e20-a359-0e452d93e0d4
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/2b84b168-955a-4b96-8c8a-e6c89713e37f
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e17d7353-39f0-4d3a-9b9a-2a00494587d3
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/a1ae8efd-e173-4feb-a8e1-a013e5ec1255
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/0aa0020e-0e05-476e-b70d-f392e7f6834e
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/4519df51-f8e9-4b88-966f-0458fee89b21
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f429c985-f16d-4640-9d35-beef333dc1b2

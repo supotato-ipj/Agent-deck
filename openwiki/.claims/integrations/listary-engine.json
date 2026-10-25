@@ -1,0 +1,450 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:f2e2ebfa414b18bcf4b00a5e683fe2e3653ba2c98ad38be7cc5103ad656e7b85",
+  "claims": [
+    {
+      "id": "claim_f7ef83cfd0824759a56f4d4c2762e7ba",
+      "statement": "`app/src/main/search/client.ts` is the repository's only production client of Listary's local HTTP API — its `listarySearch` is the single I/O entry point and it is imported only by `services/search.ts` — while every other export (the constants, `Debouncer`, `buildRequest`, `parseResponse`, `classifyFailure`, `backoffDelay` in `search/engine.ts`) is dependency-free pure logic that imports nothing but a type, so the whole link except its transport is offline-testable.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/client.ts#L1-L24",
+          "version": "repo-lines-v1:sha256:a045acba2226419ba9e8dae86da98773df3112f90b00afb275dda33182b31856:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzOWJhN2UyZDQwYzU0OTRkYjI5M2M3MjQxOTEyNmEzMjNmZDBhNzY5Mzg1YzcwMWIyNTA3MjIyN2EyMTM1ZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRmZWRjYjM2NDAzMzUzYmVmNTkzZTZmZTc4YjM4ZTI2OWI1ZjZjYjUxMGNlZmUzMTM0YWUxYWE2ODEyMGUyYjQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L1-L8",
+          "version": "repo-lines-v1:sha256:62ec928b0b96c569974c6d4f505b31f19a9174627710ac971dbc3fe65c6776e8:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzJjOWU1NmI5NGYwMTJkNDVkYTYxY2VlZTY2YWIzNGM1MGRhZGY3YzMzYzBhNGFmMjZhZWViODMzNzUwZjhhNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2I2ZTI2ZjI5NGVjZjRiYjg0NWVmNDgwZTkxNTUwYjZjM2YwZGNjYzkzOTdiODkwN2Q1MTRmZmQyMDgwNTYyMyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L14-L15",
+          "version": "repo-lines-v1:sha256:969ddb6505d5db29d3f6df4b29aafde348b179532d5bf58e89485bf55ec95e1d:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGQwYTc1OTJhNTVjZGQwMDY4NGMwMmQzNDJhOTE5MzQ1YWI4OTNiYzI4Nzg4NDYyNGIxY2JkNTlkZTBkMzlhZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA5Njk0NmEyZDU4NWU0NTAyOTkyZTAwNWRmY2EzMTU2MDRkYTc4OWI3YTVhMzY3MmRkNGVmZjYyZGQ3MzM3MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTM5OTdjYzQzM2YyOTI3YmUxMjExZDI3YzVhYWMwYjI2MmRjOTBkODVhMDA2ODlhYzhjYmE1ZmQ3NTI2OTI3YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmJjOTJkZjlkZmUxNjc4N2I3ZDlkYWJiNDhiYmNmYTZlNWYzMTc3MzM2MTQyZjgxZWE1OWU2OWRkMjgxZjg3MyJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L1-L18",
+          "version": "repo-lines-v1:sha256:8c02901d67f130cf1d2157cb57addacbfeb2daad27d0aeb18dc2aa3be2ce8629:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMTQ5N2YyNGYwMjIzOWNjNDg3ZmQ1ZWYyMDU0MzI5Y2ZkOGQzNjUyNWViZDg0ZmY4YWNiOTE1ZTJiNzgzMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiYjk0YTcxM2Y3MjViOTNjZDQwOTY5ZjQ1ODY1ZjYzODliYjQ2YjRkMzY2YTQ3ZDI3ZDJiNjk0NmFmMThmODgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0f442cb4718c41498408d2958706d855",
+      "statement": "The engine's wire contract is `POST /api/v1/search` on the loopback host `BASE_HOST = '127.0.0.1'` and port `BASE_PORT = 38431`, with `Content-Type: application/json`, `Content-Length` and `Connection: close`, and a JSON body of `query`, `limit` and `offset`; a success is an `ok` flag plus `data.results[]` rows (upstream `path`, `name`, `type`, `size_bytes`, `modified_at`, `score`) and `data.total`, and the only error codes the client knows are `SEARCH_UNAVAILABLE` and `TOO_MANY_REQUESTS`.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L47-L52",
+          "version": "repo-lines-v1:sha256:b4aeeaf1c45d20cf2bbb0f68c23641b554c0a4c56e33df46e53300202a92af5e:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2ZjZmYzNkMGVlNjc4NzI4NmU5YWZmMDQ2M2JhOWUwZjc4ZmE1NDE0ZDU1NDAxMjNmZTc2Njc3YTE5YmMxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWVmODMxOTA2MzA3ZmFjMjBmZTI1NDk4MGVhNjc3YWUyYjNlMzQyZTFjZGQ5YzBmM2ExOWMzNzgzMDE2YTUzZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzZjMDkyMmE3MzBiMzJiODg2N2ZlZGIzMTM0YzhmN2ZlNzZkYzRkMTA3MDhjN2UyODE4MzY2OWU4ZWUzNzlhYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2UxMzkwYzVhZTQ1NTgzZjI0NmUzMWFmZTRlODMxODE1YWExZDdjYjlkZjllODVjNzc0OGVkMDYwZTBkNGM4YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/client.ts#L22-L37",
+          "version": "repo-lines-v1:sha256:29783be10958d09dd97a6e8dbea1754b6f8cfbb8407c065ae2ae037074a86afb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlZThlNmQ5YWQ1NzMyYTI5MTI5MGU3NmQyZTAzYTViYmJkYzk5NjI2YzYxZjAxMDc1ZDZkOTg1ZTkwOTY1ZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU3YjdlZGY4MDRmMzJkMDNkOThmZTExZTliOWJkNGY2NWM2ZmFjMjdjNzU4MjEyNzkxZGJmYmE0ZGY1ZDQ1MGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmMjU0YzA4ZGRlMjE0MGUzN2NlYTEwYzNjNDI0OWNlNTM4YTY5YTFmMzQ3YTBjN2UzNTcwOGRiOTE2MDNhYWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzYTBjZGJmN2NhNjVhYzIzNzY3OTRiYjk3YTlhYzE2MDkxMjczNzFiODRlYWM2ODQ0ZTIwNDQyYWRjNTk3YjAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L10-L21",
+          "version": "repo-lines-v1:sha256:7d09e8443d91a4d38b86afb7f683a65cc6c44af84e57ffad0e2dc122e164f727:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3ZGU2OTU2YmNjMjJjZWE3MGMxYjE0ZGJiZGViNDU4MmUwYjMyNGI1OTRmNDBmYjk3ZTVkYzhlYmZmNjg1NGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3YzcwNmE2YmI0MWNjMDU4OTk3MTBlYzQyNzE4ZGJjYWY1NjEwNDk5ZTE1YjIwYTVhZjE4OWRkZGE2MDcwNWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2YjY3MWJmZTFkMTIwMDY1NWYzNzBlMzYwYjg2ZDllOGJkZjdlYzljODY3ODBjZjVhNjAxODk2MDNkOTVjNDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE0M2QxMWI4YjNlNGM2ZTIxNDU4MGE2N2ZlOTQxZGJmMTZkMGFiNzdiMTEwOTg0YzMxZWRmYTQ4NDI5ZmEwNTMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L74-L76",
+          "version": "repo-lines-v1:sha256:513c42206f8ab1e93c7e7d8755a082bc381eee81e5c19237b24cb360fdde71fd:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTM4YTYyMjAwMWQ5MjE2MjhiZjAxMjRkZjRjYWM2ZWVjNTA5MTZjOTE2OTg3Y2ZhZTA0MzBkMzkwOTNjMjIxNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjEzODQ4OGI0YjY5MDUxZTEyMjMyOWJhNjYwYTdjMzVlYTIyNjM5YzM1Mzk1NWYwZjEyYWEzZDYxNWM0MzkzNyJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L88-L102",
+          "version": "repo-lines-v1:sha256:910ff5eed5b8c01f5c4984bbc5bafadfb0243ebd44af624bb847af3d9514b6da:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiODZlZjkxNzBlNDU3NjViNWRjMjQzNTlhMGQ1ZjQ0MDI3MmYyOTAwNmY0NTY0ZTQ0OTc5NjY2NTQ0YTFiMjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlMzYxZmIwMDYzODAzOTU0ZTRkYTMyYzdjZjQxMzU1NWFlNDBjMGQ4ZGEzNGE4NDNkNDFhMGVhMmZkNjQ4MjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3ddeb189c9eb406dac42d59a0ebb5028",
+      "statement": "`buildRequest` emits only `query`, `limit` and `offset`, so the integration never uses the optional `search_in`, `types` or `extensions` filters declared by Listary's in-app API dialog — results are not scoped to a directory, restricted to folders, or filtered by extension — and the dialog's default `limit` of 10 with a ceiling of 100 is not what the client sends: it sends `DEFAULT_LIMIT = 8`, while `offset` is only a pass-through that the service always calls with 0.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L47-L52",
+          "version": "repo-lines-v1:sha256:b4aeeaf1c45d20cf2bbb0f68c23641b554c0a4c56e33df46e53300202a92af5e:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2ZjZmYzNkMGVlNjc4NzI4NmU5YWZmMDQ2M2JhOWUwZjc4ZmE1NDE0ZDU1NDAxMjNmZTc2Njc3YTE5YmMxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWVmODMxOTA2MzA3ZmFjMjBmZTI1NDk4MGVhNjc3YWUyYjNlMzQyZTFjZGQ5YzBmM2ExOWMzNzgzMDE2YTUzZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzZjMDkyMmE3MzBiMzJiODg2N2ZlZGIzMTM0YzhmN2ZlNzZkYzRkMTA3MDhjN2UyODE4MzY2OWU4ZWUzNzlhYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2UxMzkwYzVhZTQ1NTgzZjI0NmUzMWFmZTRlODMxODE1YWExZDdjYjlkZjllODVjNzc0OGVkMDYwZTBkNGM4YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L11-L11",
+          "version": "repo-lines-v1:sha256:ec6b7015e08feaf7cee65c1a3b7d0b132302d7913a89b97c0973d843e3457cb2:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWM2YjcwMTVlMDhmZWFmN2NlZTY1YzFhM2I3ZDBiMTMyMzAyZDc5MTNhODliOTdjMDk3M2Q4NDNlMzQ1N2NiMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWM2YjcwMTVlMDhmZWFmN2NlZTY1YzFhM2I3ZDBiMTMyMzAyZDc5MTNhODliOTdjMDk3M2Q4NDNlMzQ1N2NiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFiYzM1YWVmYmI1M2Y0ZTc3MWQyMThmYTkzYzQ5ZTA5MjE2MzFlNzFkYjc3MGI4ZDQ0OWYwYzJmYzgwOGE4MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjI2NzNjNDRkZDA2Y2NiYTY5ZDRlNzkyMTk2M2YyNWFmN2EzNjFjYWNjOGZhMzBlNzM0MjExZTQ5NGZmZDA2YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L74-L76",
+          "version": "repo-lines-v1:sha256:513c42206f8ab1e93c7e7d8755a082bc381eee81e5c19237b24cb360fdde71fd:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTM4YTYyMjAwMWQ5MjE2MjhiZjAxMjRkZjRjYWM2ZWVjNTA5MTZjOTE2OTg3Y2ZhZTA0MzBkMzkwOTNjMjIxNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjEzODQ4OGI0YjY5MDUxZTEyMjMyOWJhNjYwYTdjMzVlYTIyNjM5YzM1Mzk1NWYwZjEyYWEzZDYxNWM0MzkzNyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L170-L178",
+          "version": "repo-lines-v1:sha256:58de48e8ed5c11dba7a54cb50f853c7fd213310bf9eb9ca57deb0285dbedbf03:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODdkNWNiMmI0MWQ5NjkwNDYyMjdkNjU4NzAyZDY5YzJkZDdiZGZmMTllMGYzOGU0NGIwZjk2YWU4OGE1N2NmZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzkzOTJhNWQwZTkwNjA4YThkYjc0ZGU1NDIwMjBlYWRjZjgwYzY1MWZkNDkzMzkwYzEyZWM3OGEwYjFmMzdhMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmRlNDY1ODM1YmMxOThmMDMzZDdlYjFkNjkzZmNiZTcxOTIzYzM0N2FlMDgxMGIyYTFmNmQxYzIxYTQ3NjM4ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWZlZTkwMmMzNDgxMWE1MTU0NDg2MjI0YzQwM2ViNzM4OGNkN2E4NmI0YmE5OWFjMzc0MjEzMzJlYjJlYjhkNiJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L88-L102",
+          "version": "repo-lines-v1:sha256:910ff5eed5b8c01f5c4984bbc5bafadfb0243ebd44af624bb847af3d9514b6da:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiODZlZjkxNzBlNDU3NjViNWRjMjQzNTlhMGQ1ZjQ0MDI3MmYyOTAwNmY0NTY0ZTQ0OTc5NjY2NTQ0YTFiMjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlMzYxZmIwMDYzODAzOTU0ZTRkYTMyYzdjZjQxMzU1NWFlNDBjMGQ4ZGEzNGE4NDNkNDFhMGVhMmZkNjQ4MjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_11ae435a92fd41a9b07fb91a5096a8b0",
+      "statement": "`parseResponse` reads only `data.results` and `data.total` (ignoring `data.query`, `data.offset`, `data.limit` and `data.count`), coerces each row into a `SearchResultItem` with stringified fields and `''`/`0`/`'file'` defaults, skips rows that are not objects, treats a missing, null or non-object `data` as an ok model with `total=0` and no items, and deliberately does not enforce `limit` locally — twelve rows for `limit=8` remain twelve, with truncation left to the renderer's `SEARCH_LIMIT = 8` slice.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L87-L107",
+          "version": "repo-lines-v1:sha256:acc3fa834fddcb493bd2ed5f342e7f74926ad46dc4a69f92923d7d8dea7ebe32:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxZjNmNWUzNTQ5YWY0ZGU4YWVkOGVhODkxMWJlMjcyMWQ5M2ZlYjZlYzkzOGE0NTdlMjU1M2VjZTQwOTJiZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5YzlmMDNmMDEzZGM4ZTVhYzBiMzgyZjQyZjVhOWM2ZjM0NDMxZDQwMzk2NmE2N2U3MjlhOTdlZGQ2YmM4YjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NzE1M2EyM2JmYzQ2YzYwNDE2YTgwNzZkZTNkODY0ZTJiZmM1ZjQxOTliODRmOGRiMDc5NDczMzc2YTU3NTMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L532-L534",
+          "version": "repo-lines-v1:sha256:2bbaeec179d3d9f8eaa63372429a8fd6ba059044a82e7bc7b7d232cf3bcfcc80:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWJlY2U4MjBhYWIwNjg1ZTM2NjJjYzZkNjFhZTk4MjIwZDA3MzY2NDFiYTZiZjg2N2U1OGE0ZDQyNzNjYzk5YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjljODZkMTM4NTBjMmY2M2UwMzA1ZDliZWI2ZDg3ZTg5Yzc2YWMyZTg3MjZhYjkzNmVjZjc5MzE2MjViM2FiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGQyM2YwZTg1NzQyZDhlODJmMmU5ZjkxMDBjNmQzM2E5M2RmODMyOWUzMTMzZDFmOGI1MjA5OTIxZTNlZTJlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2M3YTE4Njc4M2FkODUyYjUyOWQ0NTY1YzMyNmQxODczMTNhZThlNTdjNzBkYjViZGNlOTRiMzFmYzUwYzQwMCJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L204-L212",
+          "version": "repo-lines-v1:sha256:e7efadd4d81e8ec39b60b35cb2458e002d33cdc472f9407882b008feeb78f3bd:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjliMDM1ODZiZTYzMTUzOTY3MjNlOWIwNTdiMWQ2MjU3NDA1ZGNjNWU1MWU0ZTg4ZDU0YzlmMzVlMjk1OTVkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjgwNGE4NmUyNGQzYzQwZGI3ZWZjN2FhZjE4ZjQ4MTEwMTE1MDIwNDE4ZThmMjcxN2EwM2JiNWI3NjRmOWQ0NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2FiMTk3NTM4YzkxNDUzZjg5MzBkMTAxODliYzA2YTQ1Y2ZmMGY4NjcxNzQ0OTg4YzBhMTIzZDA4ODQxNTNiNSJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L104-L143",
+          "version": "repo-lines-v1:sha256:10b12eadafac5409ecef3e1e73eb4212400b7c46ee4dc157ab45d351f662a272:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjZGVkNWUzYzM4YjAyNzI2ZWM0ZGVlMzhkMzZhMWM2MTkxZTJiYTNjOWEyYzBkMTNhNDc3ZjU1OGI5YzYxYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwODJhY2RjOWZmYTM0ZjNlOWUwNzFjZDk3ZDRiMzIwZDIzNDI2MzViMWQyZGFkNzEzZDliODVhNmQ1ZTQ5YzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a91808e7e8184c1c97b3fa76d06a6247",
+      "statement": "`parseResponse` ignores the `ok` flag and inspects only `data`, so an error payload such as `{\"ok\": false, \"error\": \"TOO_MANY_REQUESTS\"}` parses into an ordinary empty success model; a caller must run `classifyFailure` first or it will present a throttled or failing engine as `NO RESULTS` / `TOTAL 0`, which is why `SearchService.onPayload` classifies before it parses.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L98-L107",
+          "version": "repo-lines-v1:sha256:517782d91ef6d8a13bb1a811697638175b78111cf9b02c861a664820a00b9d20:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5ZTE2MDQ5MGExMjdmZTgzYjcwMDJiOTkxMDcxYzFmMGVjNDVmMmY1NjU4NjVhYTA4N2EyNTc2ZWZiNDEyZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE0MmVhNzI2NTFmNmRhMWUyYTUyMWI3MDBiMmViZDdjMjQ0NGY2MjU5N2RhYWJmNWE4ODI3MmNiYWM4ZTlkMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NzE1M2EyM2JmYzQ2YzYwNDE2YTgwNzZkZTNkODY0ZTJiZmM1ZjQxOTliODRmOGRiMDc5NDczMzc2YTU3NTMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L181-L190",
+          "version": "repo-lines-v1:sha256:0f5190593a7d48e1ad47390f25d77db24c4f6855664930dfd21fe1d074381407:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3N2FhNjFlMDM3MTUxMzVlNGI1NTUzZjBiNDg2NmM1YWFlZjcyYjAxN2QyMTllYmE2MjRkMjA5NzY5NTc1ZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzMzE1NWUzNDFjOTZjODhkODg3MDViMTMzMWNlMWQ4NzUyZDUxNDgyY2MxMTc5ODY1ZjZkZTQ4YThlMDdiNjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2MTFiNjU4N2E4ZWRhZGM2NzU1ZDU3NjIyNmVmOTJjYjM0Njg0OWI2NGNjYWE5YzgyYzQ3N2VjN2ExZGQ4NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjZGI1ZmVmMjRiNTI1ZWU3ZjY0MDM4ZmY3MjQwYjk5MTc1ZmUyMzE1MmEyMzBhY2UxMjQ0MDg1NGMwMWMwNTkifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L536-L540",
+          "version": "repo-lines-v1:sha256:874ce3dff71d137dc98cbba1ed43ef0d5635cbd2c8db0b8e3734fcbd41496e51:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODFhOGFkN2M5Njg0YjA4YWJjZDZmMzU3OWM3YTcwYzI1OWU0MzM1ODgxYTg4NmQ4NTcwOWNjYWVkOWZkNDYyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTlhYTFlOWJkMjAxMGZkNjUwNTA2MzY5NzIxYzVkMzE4MjJjYzY1ZDhkMTA4MjYyOTUyZWIxNjQwZWNjOTFmNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDVjNmY1NGEyYjFkN2Y4ODUxNjUxZTMyZDhlMWJjM2ZjNzcxYTQxOWFmNTMyYmM4NjJiMDg3MjE2N2FmODVkNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWM4YTYxOWUxODFlOTYwNDM3MzQzMTQ1Y2EyNDA5ZmJiYTk5NjcxMDNhNjNmMDI2NjQ2ZmJlODI4NGM5NDNhOCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L559-L562",
+          "version": "repo-lines-v1:sha256:dfbf9dc8d516b170f9c97c1ffc5a0ded5335b9338522de6875bea39ffbd1ac52:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2NkNmQxNTUyY2IwZDFlZTQxODRhOWQ4ODllNDg4OWYzMWQ3ZGMzZGJjYzMwY2VmN2RhMGVhNzBjODBhMGJhYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjk5NTI5OGJiY2NlYzkwNmUwNmQ3MzlmOWYyMDI3MzMzZmE0YzgxMjk5NTAyZjhjNmQ5ODM0N2JiZmJlM2VhYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjI3YWVhNGJkY2MzN2Y4ZGU1MmMzY2Q1Y2Q5YjNhYzE3MDAwMTY5N2VjYzc5MTRlMDU1YzJlY2U5YmM5ZWM2ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmE0NzY2Yjc2NWVkZDk4ZTkyZDE3ZjYxNmU1YTdlOGYyMTQxYTkwZDI5ODVjYzhiZWQ3MzA1OTZmYTFjODdlYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_50aa7d87e40d4b39b32572db8f351ef4",
+      "statement": "`classifyFailure` is the single decision point mapping failures to three kinds: an `ok` payload gives `null`; a `ListaryNetworkError` or an error payload whose string is `SEARCH_UNAVAILABLE` gives `offline`; `TOO_MANY_REQUESTS` gives `rate_limited`; and every other error code or thrown value — including the `SyntaxError` the client rejects a non-JSON body with — gives `error`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/client.ts#L41-L54",
+          "version": "repo-lines-v1:sha256:9f56e9c6f43a3be6c3c358e3e7f725e72d6ffdc1d178610adc47ec7a69b5ed19:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkOWFiMzFhMzU1Y2Y4ZDczMjY4M2I4MmFkNDZmZGExN2MwZDMxNWQ3Yjg2YzdkYzJjYWFlN2I0NjkzZThkZDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzYTBjZGJmN2NhNjVhYzIzNzY3OTRiYjk3YTlhYzE2MDkxMjczNzFiODRlYWM2ODQ0ZTIwNDQyYWRjNTk3YjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkZmE1NTFlYTk2NDVhMmM1NzE5NDA0NTdmZDY0NDUzNjdlMzgxN2I5ODY4ZTU1ZjgwZWRiZGZiYTFmYzEwNzAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L109-L124",
+          "version": "repo-lines-v1:sha256:4a9abfb12064e5589682dfb56d23e352948beb1568ec6d6583c78eb20c038c42:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViMjgxNjVmYWYzZDJmZDc1ZTY0ZDM5Y2FmODRkNWE4ZGE1ZjFkOWMxOTU1NjMzNjUxNjBiNzU2NjI1ZWEwMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4NWE5YjU4MTIxNmFiNmE4ZmM2OWFlN2RmNjJhNzNmNTQ2ZmFiZWY2NzlhZWE3ODE4ZmFhZmZhZGZmNzdjYTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2NTE3MGFlMmM4ZTkzNjE3NTNhMGRjZmU3OGZjYjA0ZmQ1M2IzZTk4MzQ5MjRiNjIxZTNjY2I2MWE1ZDU3ODQifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L104-L120",
+          "version": "repo-lines-v1:sha256:a2def2da487622ab5ea5bf46d667beb7ed8ecb864dff8390a672f64b8eaead19:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjMGIzYTIwNTQ5ZmViOTRlNzRlZDY5MmQ1NWE3NmM3NzhlNzgyYzdlMjJlMDFlMzc0NzA4ZTUxNGIwNjk4MzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxOTc3YmExOWRjZjdkMDQxZjc5YjA4OTdkOTFkYTQwZmFmZTQ3ODc3MWUwZTJhOWZlNGJlYWUzNGM2NWZlMjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0ZjYzZWNjNDkyZTcwNzBmOTI4ZWQ4ZGM0NmE2Nzk4ZDQ0ZmVhZGYxYmNkNWQzOTIzZWE4MjgxNzA2NzMxYTIifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L145-L170",
+          "version": "repo-lines-v1:sha256:c84ea0ea78dc52e4dc49ca761e1c6eea8f2eb280eceb4fcde35867eb2e60553b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNzUzMTE3ZDU5MzdiYjc5OTYxM2NjNTVhMTljMjc0NmEzMGZkYTlhYmM0YTRlN2UwODA1ZmNkYzcyNzlhODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YjM1OTViZWNhZDgzZThlOGQ4YzE0MjEwZWVjN2Q4YTA3ZTE1MzRkODM1MzA4NDczOTJlMzdkMmI2OGEyOTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7b7726db166e4204998c739656a390d6",
+      "statement": "`offline` is deliberately narrow — transport failure plus the explicit `SEARCH_UNAVAILABLE` code only — so that a reachable but misbehaving engine (invalid JSON, unknown error code) is classified `error`: it never shows the `ENGINE OFFLINE` badge, never schedules an automatic retry, and waits for the next input instead, because an online-but-broken engine must not masquerade as an absent one.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L111-L123",
+          "version": "repo-lines-v1:sha256:5215dc1daa64b5a0908b881bd3732e2940b2888ce7bedb4518b356997286fb78:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkNjIzZTkxZjAyODEyNGQ2MDdlOGQ1NTY5NjA2NDM0YmM0NTdhOTgyYzM1OWZkYmNjYzRiODg3MTY0YzVmNGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlOGI0OWNmNDQ1ODQzNWFjMzk1ZjY3Y2IwN2IzNmM4NTNiNTc5MTlmZmIyYzUzZDhhMDdlN2FjYTRhZDRlYjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2NzE1M2EyM2JmYzQ2YzYwNDE2YTgwNzZkZTNkODY0ZTJiZmM1ZjQxOTliODRmOGRiMDc5NDczMzc2YTU3NTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4MTEwMjM2NWU4YjBjOGZlMmU5ZjA1NTE3N2IwY2Q5YjRlMjk2MWUxY2VjYWQ2ZmZjNjNlNWMyYzZmYWMwMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L195-L207",
+          "version": "repo-lines-v1:sha256:049bf84803e009501a9b7a21dab99b3a478e8b939a229c1c60a333099fec719b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5YjFhMTJhN2RmM2E2YzBiZTliZWJkN2RiODUwYjRhYjBiOWVmMTY1ZWM1NTZiOTgwMDE4MGM5MDk4ZTY2OGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyMDAzOTQ2MmY2Y2ZmZTkyZTYwNGM2N2MwMDQ3OTc4YTYxYTNmNGI5MDFlODhmNzcyMmRhOGVjZGE2Njc3YzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliNWI5NjM1ZTVmMDEyOGZlOGZjMWRiZTg3ZWVjZmQzZGQ3OGJlMDMxNzVmNWEyY2EwMDZjMGZlYjhiMmY5YjQifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L113-L120",
+          "version": "repo-lines-v1:sha256:777051a670703a6c3c48b8ee561042765fe95b733d51e1b8e36a12b2fddf1e3f:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQ5ZTVjZGUwYmYxNjMxODY2YWEwNDVhOTdmY2VhOTg0MmRlYjMyOWFjODdmYTJlZmJhNzI0Mjc0YTQ4ODExYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTM2NGFmNGRiN2ZmYjRhNjdjNzM2NDdkYmRlMGY1YzMyNDM4NDM0M2QzYmVjNjdiMzEwNzBjMjkwZjQyNjNkOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDRmNjNlY2M0OTJlNzA3MGY5MjhlZDhkYzQ2YTY3OThkNDRmZWFkZjFiY2Q1ZDM5MjNlYTgyODE3MDY3MzFhMiJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L145-L170",
+          "version": "repo-lines-v1:sha256:c84ea0ea78dc52e4dc49ca761e1c6eea8f2eb280eceb4fcde35867eb2e60553b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNzUzMTE3ZDU5MzdiYjc5OTYxM2NjNTVhMTljMjc0NmEzMGZkYTlhYmM0YTRlN2UwODA1ZmNkYzcyNzlhODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YjM1OTViZWNhZDgzZThlOGQ4YzE0MjEwZWVjN2Q4YTA3ZTE1MzRkODM1MzA4NDczOTJlMzdkMmI2OGEyOTAifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/service.spec.ts#L248-L264",
+          "version": "repo-lines-v1:sha256:9e7f9e375c2207e9e6aef3c6da83163a47fadc15dea3661a43206c838f2dc03e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlMGU1YWJhYmYyZDkzNmY3MWY5MGFhMWMxOWEwOWY1NjFiYmI0OWFmYTU2ZjM3Y2EzMjZjZTNiYzhjNWU1YzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwNjE4NWY3NjU3MjdiMjdhMDAwOTc1YTYwYjY3YmEzOWEyMDllZGE4MTU5Mzg5M2JmYmUzMDcxYTA2YWIyMDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxN2I4ZjBiOTA2YmZjMTkyZmEyMWM5Y2I2YzA1OTU4MzM1ZWI2OTkzMjliNTQzNDNjYzVjZGU3NmI4YTA4NDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a18e488d520a46dbb14b2e6209860245",
+      "statement": "Because Listary's API has no keep-alive, `listarySearch` builds a fresh request with `agent: false` and `Connection: close` on every call, reads the whole response body, and passes `HTTP_TIMEOUT_MS = 3000` as the connect/read timeout; there is no connection pool, production never overrides the timeout, and the per-call `ListaryEndpoint.timeoutMs` field exists so tests can use a short one.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/client.ts#L16-L37",
+          "version": "repo-lines-v1:sha256:7170c44eeebadb73aaa03b5867818464832572ad1e8fdbce2e4706b2073935df:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkMGNlYzg5Y2I0NWNlYzY1NjFiNWY3NWQyY2UyMTJhZWUzYzJiMGM4MmU2NjkzZTMwMGMxODFkMDA3ZmNhMTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU3YjdlZGY4MDRmMzJkMDNkOThmZTExZTliOWJkNGY2NWM2ZmFjMjdjNzU4MjEyNzkxZGJmYmE0ZGY1ZDQ1MGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlOWRiODZjMTlkMDM4NjJkNzliZDk0ZDNlNmM5NDMwNjBlZDdkYzFiYTYxMzZkMWViMDNjNTk4NjkxYjQ3NjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzYTBjZGJmN2NhNjVhYzIzNzY3OTRiYjk3YTlhYzE2MDkxMjczNzFiODRlYWM2ODQ0ZTIwNDQyYWRjNTk3YjAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L18-L18",
+          "version": "repo-lines-v1:sha256:005c7836e477089e09756e9b7b2526cda8c6d63085a0a6b177cc8d15225d0f0d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDA1Yzc4MzZlNDc3MDg5ZTA5NzU2ZTliN2IyNTI2Y2RhOGM2ZDYzMDg1YTBhNmIxNzdjYzhkMTUyMjVkMGYwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDA1Yzc4MzZlNDc3MDg5ZTA5NzU2ZTliN2IyNTI2Y2RhOGM2ZDYzMDg1YTBhNmIxNzdjYzhkMTUyMjVkMGYwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOThlYWUzYzE4MWE2NTMyMTUxNDdlNTQ1ZTUxZDc0YjU0NTE5MmIyMTQ4YTdkNTlmZTY1MmYyMDgxMzA0NmNiYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTJkMTVhMWM3MDllZDkzNDIyOTg0MTA5MTA4NDg1ZmE0ZjU0Mjg2MTUxM2UwZGY2MjU3MzZmNGIzNmQ2MjNmOSJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L108-L111",
+          "version": "repo-lines-v1:sha256:f50b1ee59e922f2c3567bdfde473e4065cdf07254508ebfd8074869a3c8e4223:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmU4MTJmYzUzZWQ5ZDI0ZTAwZGIzNTYyZDRkN2ZiZjc4YWFjZDk3ODJjNWRkOGQyMTVjOWU0ODEwYWFkNjViMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTY0N2JiNWM4ZDUwN2Y2YmMwYzFhZTAzMDU3NGIxNTk1NDcyNWRiZjc0MWQyYzVlNzQ4NmVkMzhjY2RiZjBkMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGZjMjVjYjc4ZjQ5YWRjZTFjMWNhNzcwZWYyZGIyNDI2NzUyOGVlMWJmZGM5NWRkYmMxZDI5NDZlODcyYzc0NyJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L122-L126",
+          "version": "repo-lines-v1:sha256:899edf8d9cedac7c51d8da3a5c12e835211c5c164468fbd0b241db7a81f51bf4:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA1MTZlMGM0N2QxM2Q0YjY3ODlhMzQyYmI3ZGY4YmJiZmVjNmZkYmVmMmQxY2UzODc4NjgxMGM4YTAxZWY2OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTJiYjA3MGZiNDJhNThlNDgxOTE1NTgyOWE4MGQyOThlNTA4MjJjYzU5MzJjYjJlY2U4YjZmYTQzZDQ2OTA4ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L55-L56",
+          "version": "repo-lines-v1:sha256:a5be700905006c6dc75539aa900536cc9d1297e5310f2fd879aa7c560019390b:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDJjMzFlMWQ3ZDIwOGUwOTc5MmM4ZjI1ZDgxODg3MmE5NGZlNGMwN2Q0YjlmN2M1MDc5OTAzYzA0MmE2YzExMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2RmNWJjNmEwZjk5Y2UyYTQzNTUxZmM2OWE4MTllMTRlMmUxZjFkYzUwYzkxMzJmMzMxNmU2NjUzMjM5MjRlYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTdkODQ2M2MyZmFjZjAwMTdmNGZmNDkwYjUwZTQ1OTZlZTYwYjZlMzM4YjU4MTZhZDhhZjQ1MjY5NTBjOGZlZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a3a1453e997343f7be02fd219f0f171c",
+      "statement": "`listarySearch` never inspects the HTTP status code: the response chunks are concatenated, decoded as `utf8` and passed to `JSON.parse`, a non-JSON body rejects with a plain `SyntaxError` that is classified `error` rather than `offline`, and valid JSON that is not an object is handed to the caller unchanged instead of being treated as an empty result.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/client.ts#L38-L48",
+          "version": "repo-lines-v1:sha256:a1bf39c1118bd95e293bd7ca58196caf18182bde98d23b7f6fa0ca91ce2c5559:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmNjkwYjhhZDllNDI4MzljZDdmYjFjN2VjMGYzNGIyMTM0MGI2NmQxYjgzOTIyNDYyMmUzNjM3YTY1ODNhZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4ZTcyYzExMDg4OWE3ZGJmZWVmMjFjMTM3YzBjMWNhMjNhYThhODFlZWI5ZjhhMDY4NzAxZjU2ZWQzZWZhYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4NmQwNDkzZGNiNDdmMjM1OGFjOWQwODNhODU2ZjJhYmViN2ZmOTFmMzc5ZTUwNjJiZmFjNDk5ZmZlNDEzN2MifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L92-L107",
+          "version": "repo-lines-v1:sha256:f04a1a552934c066f2743fd8a32fc3ac3e6850e68bbefd24b8a158cee45c0c28:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0M2U3ZDIzYzVmZDJkZDQ4OTVkZDlkZTUxMWYxZGQwNmIyZTI4NzRiYzM4NDhkZWU0ODg3MGRjM2QwOGU4ZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyMzlkMGFmYzU2MGZjZjk4NGUyNzY3ZTIzN2VhYjRkYTJhZTU5NzExZjMwNDc0N2ZhYzZkODk5NTQ5YmE4MjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NzE1M2EyM2JmYzQ2YzYwNDE2YTgwNzZkZTNkODY0ZTJiZmM1ZjQxOTliODRmOGRiMDc5NDczMzc2YTU3NTMifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L127-L130",
+          "version": "repo-lines-v1:sha256:53ddc7ce708784b12bc7f2a1b70160133b0977a8d0dd704c06f15ad92d84a411:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDE0MzJkYWFlMjJmMDliMzVmYjRkNmYxYTExNTIzMmMzOGRmN2JlM2RlOWMyODAyMzIzZWRlYzc5NjMxZDk3YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTc0OGI5MWExNGU4OGI2M2Q4MTI5NWRiY2I0MjY2M2YzZjMyNTk1MTU2MjMyZTA2NDQxNTg5ZjM1YzViMDM4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGM5OTAzMDllOTk5MjEwZWY2MzNmY2VlNTAyZjdhM2EyNGI2MTZjODhjM2E4OGVlOWZlYzY4NjIyYWQ3ZmQ4NyJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L166-L169",
+          "version": "repo-lines-v1:sha256:7afc21fdfc805b19b8cd5ed98d47b524d0cc96b9fd6528162dc0abc5cc573f78:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2UzOTg5ODUwYjYyMWY2Y2JjM2MzZmY4Mjk0YmNlZDAzMGM3YjMwZGQxYmQxYTJkZTU1ZjU3ZWQyNzY2NGFlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWE2ZjJmODM4ZTFkNmFiZjUwNmRhYjFiZWIxMzZkMzIwOGQwMDI5MTQ5NmMxMDVmYzNlOTM1MmEwNTRkMmZlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGJiMWM1YmM5MGNmZGZjYjc1OTFlMDYzMTY3MDczOWFlNGE5ZjAzNGUxNGRjMTg1ZmYzZmEzNzI2MjYyNTcyNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_903f174cf9aa48e39cb900f59f9af9a3",
+      "statement": "The API's loopback-only listener on `127.0.0.1` with no CORS support makes a main-process client the only structurally possible caller — a browser context or the panel's renderer page could never reach the endpoint — which is why the query leaves the process as a loopback POST and no write endpoint was added for search; ADR-0003's related conclusion that the search panel had to be a service-owned native window was superseded by ADR-0004, which moved the search surface into the panel's own HTML overlay while keeping the caller-side constraint.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L51-L51",
+          "version": "repo-lines-v1:sha256:0aa2bd911ad9209a5603d31715d8124245a1599570f16bb98584c482b7b5b4b7:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFhMmJkOTExYWQ5MjA5YTU2MDNkMzE3MTVkODEyNDI0NWExNTk5NTcwZjE2YmI5ODU4NGM0ODJiN2I1YjRiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFhMmJkOTExYWQ5MjA5YTU2MDNkMzE3MTVkODEyNDI0NWExNTk5NTcwZjE2YmI5ODU4NGM0ODJiN2I1YjRiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWMxOTFiZmQzNmJiNzJhMDRiODQ2YzQyYzI1ODRkZjdkZDIwMDcwZjkwYmEzMzFlMzVkNGVhMTc2MDcxYjk5NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDBiOTc2YmNiOTdhMTE5ZjE4ZjRhYjA5OThkNjU1NTliZGE5YTIwN2RiYjAxOWYzMjYwYzFmYzMzY2Q5MjgwNiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/client.ts#L26-L28",
+          "version": "repo-lines-v1:sha256:74792770a9b626dd26b63fedd4b42df1e728a1a6d4562e424a96c5c4e28f6e39:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGI4MjA2YmVlYTUwMDkxOTFjOTZiODg2N2UwNDkzZTFiZTAzNDhjN2I4Y2MyNzAzZjk1ODQ1ZDRmNWFhZjJiNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzdhYmVkYjJjZmViOWI5NTAzYWU3NjI5ODA2Y2EyZjk2ZGIxOGJkMWUyMDJiYWFiZDUzZjkzMWUxOWQ0NzI1NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODlhMzI4NWZiMTdmOWFkNWQ1NjQyYmU3ZmVjZWI2OWU0ZGRhYjQ4YjRmNGUxZWIxNzNkMWIyOTUzODJjMTdhMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDQxZmQ0NGU1OTJlZWQwNTkyM2M3OWNmNDRkYmIxMmNjOGZhNGVmYmMyODcxNWI2ZDUwMzlkZmRiZGJjNzc1OCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L15-L17",
+          "version": "repo-lines-v1:sha256:98eae3c181a653215147e545e51d74b545192b2148a7d59fe652f20813046cbc:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjMyNWY0ZDNlMTM2NGY3MGIwNDgyNGEyMzA5OTI3ODUzZTQ5Mjk0MjNjNzg2YTA0MzllYjk1MjgyZmViZmEyMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmFmNGEzNzdiODE3M2FjMTYyMDg3MzE2YTRiMTdiZDM0NDYzM2YxZmU0NzJmMDljOWIxNDIxMGI5YjI3YWFhNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjI2NzNjNDRkZDA2Y2NiYTY5ZDRlNzkyMTk2M2YyNWFmN2EzNjFjYWNjOGZhMzBlNzM0MjExZTQ5NGZmZDA2YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzQwZDNkODQxNDg2ODY2YzNhYTRkOWYxOTI5YWFhYTdlNDY3ZWIwODQwMGNhNTJlMmE3NWIwMjM1NGU0MmVlYyJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-search-panel-service-window.md#L2-L7",
+          "version": "repo-lines-v1:sha256:f88f2ed49d1d646ff927a0850189691aec5935bbca2cc51a5a5f7c138d66b554:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ1NWI1ZTJmOWE2YmE0NDQ2MTExMTgzMzA0OTM4NTMyOTU0NjlmNzk4YjY4ZDE1YjFhY2FkMjU5MGM4NDQwOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2U1YmMxMzEyN2IxZTI1ODQxMjJkYjlmM2RkZjVlZGE4YjE2ZjYwYWVjYTU2MmI2MDAyNWFlYjI4MjgwMDVjMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjEsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzljNzg0NzhjOTcxODdiZWZkZjBmM2FkYjdiYWRjNTAxODNjZDAyOWJjZWEzNTliZTc2NmRkY2EwZDUwODBmZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0004-electron-cordis-standalone-panel.md#L18-L20",
+          "version": "repo-lines-v1:sha256:3a2bc19ec1ed08cfafab7845ee6826ba571092bfa38913c0a6e5336983eec07c:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU5MzRkYjRkZDI3NjhhZmM4OWNhZGZiNDgyNTU1ZDA4MTZjZTNiZTlhYTY2MGJlMDY4MTBiOGViNjZiN2UwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA1OWQ3MzhiMmEwMTU0NjI1MTBiYWZhOTdmYjNlNjBkZmVhMmEwNzQxYTY4MDQ4NDRiZTcxMWY2MGNmNzFmNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDYwZTQzZjA0NWYzN2Y1MzhkYjAyNGEwMTY2MTFjNTE2NDc4MzQxMWY3NzJlM2Q2YTM3N2JhYTlhNzE5YTJhNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTk4NDBlNWUxZmY4ODkxYjliZTY5MWM1ZWRkYzc0YWI1NzczOTFkYzk2MmU4ZDBmZTFkNjQyZjVhZTQzMmNkOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bd0cec97256a4de98a226c49f0dfab18",
+      "statement": "Retry arithmetic lives in the engine while retry policy lives in the service: `backoffDelay(attempt) = min(500 * 2 ** (attempt - 1), MAX_BACKOFF_MS)` with `MAX_BACKOFF_MS = 5000` yields `500, 1000, 2000, 4000, 5000, 5000, …` milliseconds and `OFFLINE_RETRY_MS = 3000` is the flat offline cadence, while the service owns the attempt counter and the single pending-retry deadline, resolved by its 50 ms pump, and re-sends through `Debouncer.feedDue` so a retry bypasses the debounce window and clears same-word dedup.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L12-L13",
+          "version": "repo-lines-v1:sha256:874db668ceea8ec6c2e6db73cd761ac359695b7e5ad9330bca9e22e645a01817:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTNiOTJlZDlmZGE1YjcyZGI5MzFjMDZjZWE1YjNlMDVkNjUyMzYzZGVlNTZmOWYyM2RjZGEyNTc1ZTJmYjlmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGRiMWRmZGQzZDg2OTY2Y2JiZTExMzUyM2JjYmI0NzlmYTQxZmMyYTBkN2I0NGJlY2ZjMTE3ZGY3ZTE3NjhlYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2I2ZTI2ZjI5NGVjZjRiYjg0NWVmNDgwZTkxNTUwYjZjM2YwZGNjYzkzOTdiODkwN2Q1MTRmZmQyMDgwNTYyMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmVjZDBkOGI5NDZjNjhlYzUyZmFmYTA4ZTNmMzQyMDg0ODdmY2RmMGZjYjdiNzQyYTI3OTc1ZGM0MGE4NDJjMCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L126-L129",
+          "version": "repo-lines-v1:sha256:2d7c17e90010d4f88fe438ec144ab2b85478383a8a70d4d2acc892eb8c751779:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYwZjViNmIzMjlmZWNkMzc5ZjVjZjdhMmVkMjQxY2FkNWQyNGM2YmU5ZGZjOWQ5YjQ5MjUwNDg3NzE0ZDE2ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTc0MDRiMTg3NTUwNzIzODRiZGI4ZTMzNzI3YTAyNmY1M2NmZDVlZTYyYWE3ZjNhZjRmZDYzOGU2YzFhMGRiNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L56-L61",
+          "version": "repo-lines-v1:sha256:283b2cd3c7d2939a6372e15dd28aef82139e05cc1bec0c37bc8d1e65819f0adc:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmE5MzY1ZDFjZGE5NDkxOGIzOGMyNmE2OTRiYmFmYWEwYzQwY2I5YTJlMWQxNjgzZjdkYzMyMDJjOTQ4MjIxNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGI4NzUxYzI5YzNhOWE5YTFjZDU3N2MzNjI1NzY3ODhjMjE5MWQxNzhlZWFlZWRkMjQ1MGMyYWVhOGNiMmQzNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjU5YmI5ODljMjdmNzlhOGVmYzQyYjYwZTI1OWYxN2NmOGQ4YWFiMTk3NjM0ZjQ3NzVlNTk4N2QyYTg3ZTQ0YSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L124-L133",
+          "version": "repo-lines-v1:sha256:61048348bf25646f0b62c1d8f2447dea30af8c4aee056ce90f1bfb869a3a9cf6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1MWY4NmIxODZhMjg2ZTQyMTBkMWJkM2FiMDcxYjQ0MzY1ZTcyNzYyMDkyZWZhOGQ0MGVlNmEzYzA2MDA2ZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcyMTY1NzFlNzQxMjdlNWRmNWUzMTQ2N2I1Y2JmMDViNDg1YjY1NmMyMDk5Y2JjYzc0YjZjMzljNjlkMTFjYzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwMmMzYzMyY2UwODQ1NDE2ZjdkZmE5NmY4MGU4ZGM4YWMyY2E2MTQ4OTNkZTdhOGU3ZTE1M2Y3ODA5YmMzNjYifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/service.spec.ts#L174-L246",
+          "version": "repo-lines-v1:sha256:e223479fcdf8e116eaebfbec6d462851b3d15e3753cba794c2757209d23a901c:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0NWI4MmMxODQyYjUwY2JiMTAyZDMzZDhmZWM4MWNjMzI1MjcwNTIyZTExNzk5YTQ1MTQ0YWU2NDhmNzVlYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwNjE4NWY3NjU3MjdiMjdhMDAwOTc1YTYwYjY3YmEzOWEyMDllZGE4MTU5Mzg5M2JmYmUzMDcxYTA2YWIyMDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkNjkyMTJlNTBhZTVlNTEyZTRhMTRhNTRjNTI4ODQ5YTg2MjdlMGM3M2Y3NzAwOGU0ODQxOWM1NzQ5MmIzNDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_be634b7c2b7f494abd1d93b8f6f8a334",
+      "statement": "`config.search.port` is the only endpoint override: it is validated as an integer in `1..65535` with `BASE_PORT = 38431` as the default (a non-integer or out-of-range value warns and falls back), reaches the kernel at assembly as `search: { port }`, and is captured when `SearchService` is constructed, so changing it requires restarting the panel; pointing it at a dead port is how the acceptance battery reproduces the offline engine path on a machine where Listary is running, producing the `ENGINE OFFLINE` badge and a recorded 3 s silent retry.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1416-L1437",
+          "version": "repo-lines-v1:sha256:92fa5990f726aee3a9e57edfcc661ec8bc0c12a0d69c71308458a8addc00e2f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmZjRkOTFkOTgzYmI5YzVkOTVjNWMyZmE4Y2I5MzYyOWJlNmZkOWIyM2VlZGJiMDM0NzcwMmU5NTU5MTRjMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3OWE5ODI3NTZmZGRhZGY0NTYwMDA5YzQwY2Y5MGJkMDk5N2M5MzhmZDMyZjc0MDA4MjA1NGI3NmE4ODUzOTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2MGE0NjIzZjczNDE1NzU4MzcyYzU2MTQ2MmQwZDNlMWExYmM4NjQxN2U4YjY4YmU3MGY4NjkxZTY3NGU1MmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjZWY1N2ZkZWY0MDY5ZmY1ZWYyYWM5ZTAzNWNjOGM0NDI5ZWI0YTU1MTBkODE0MzZhMWNkMzZlYTIxZjIyMGEifQ"
+        },
+        {
+          "resource": "repo://app/accept/evidence/03-battery.log.txt#L66-L66",
+          "version": "repo-lines-v1:sha256:14ce44cd3fa5c7ed3e40337b707b77426ea385bafeba90399cc535060af179b5:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTRjZTQ0Y2QzZmE1YzdlZDNlNDAzMzdiNzA3Yjc3NDI2ZWEzODViYWZlYmE5MDM5OWNjNTM1MDYwYWYxNzliNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTRjZTQ0Y2QzZmE1YzdlZDNlNDAzMzdiNzA3Yjc3NDI2ZWEzODViYWZlYmE5MDM5OWNjNTM1MDYwYWYxNzliNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWE1NDI5OGY5MDQ2OTUzYzJjODIxOGE1ZWVlNjVhZTYxZTNkYzhjMzNiNTY3YTBlYjAzMTZlOWU0OTE2NzY4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODZkZjI5YzkzZDAzODhmYmM5MDg4MTY5ZWMwNDk5ZjIxZjAwZTY3MjM0YmRjM2UyZTRlY2M1MGE0NDA5YzAwOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L150-L153",
+          "version": "repo-lines-v1:sha256:a6e63ad6e6c254a9ba1191f043df77a18a6138f74b47454f24f35943ff93e4af:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODYxMGVmZjg1NDBmZmI0N2MwOTdhMTEwMjU4M2Q5ZDU4N2RjMmYxNTAxYWYzZTM2YTg3N2Y2ODZmOWVhNTIxNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDBiZGU0NGM1N2UxOTIyYjIwMTYwYmEwMmUxMzQyYWIwYmUyZWIzMWYxOTVmZTdlMDQ4OTk5ZGQ3MjA0ZmMzNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmUwZDMxYTA4ODg4NTIwOTIyZDI2ZjU3MjczMWZlOWEwMWMyNDE4ODZlOTVmOWI5ZWJhNGViMjU0ZDkwNmZkNCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L334-L347",
+          "version": "repo-lines-v1:sha256:6a01ab854bb2679ef93a1ab04e78d55253741b415fd63096535206838e1e1056:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjNzhlN2MwNTY2NmYxMTlkZTM0YzdiMzZiOTJmMjgwMDFlNTM1NmVkNjM5MGIxYWY5NTQ0MmYzNzQyOGJhYjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4MTU1ZjViMDA1YTNiMWExMjM3NzA1MjhlZjEyNjJmNzgyNmZiY2U1MjUxMzY2MWM2YTNkNGQ3Y2JkZDEyNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhkY2RlYjM4ZWM3ODVmNjhlNDI0MGQzNGIzNDVkYzI2ZWVjYzY4YWMzMjQwM2U4ZjRiMGYwNTlhYzMyNzcyMTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L85-L90",
+          "version": "repo-lines-v1:sha256:371f3541c2aa73288323358b962d81b7c56915127fb4fac2c953a0467543ca9c:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmE4MTg2ZGM1MGJlMGY1MGM4ZTc5ZDMzMWEyOTc3ODk3Mjk4ZjU3MmEzY2M3MzRjYThmNjFmYTQ0ZWY4MjYxYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWNkY2VjZjJkNTFhNzQyY2IzODQxNzYxZjE2ZWFmMzAxMDQxYWQwMzU4ZTdjOGU3NDJjY2RmNjJkMWJmNDNmOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGFlNjljNmQ3YzZkNjBjZTYyZmQ3ZDkyMzE0NDNlNTdhZTgzYWZkYmU2ZjA2N2M2NTg5ZGQ3YTk2NGEyZjI1MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjkyYTRkNmQzMmYxNjMzY2MxZDBmNDRiMWI3NWYxMzUxMmEyN2IwZDlhODllMGFmMmI4YmU3MzgwMDA1YzVkOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L74-L84",
+          "version": "repo-lines-v1:sha256:8b66b983cf369e5c7c69175bce195e64bc958ac2494743c2dceac8901120bc44:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0NjUwZDU3NTFkMmUyNGYxNjI1YTgyNDc4ZDEzNTVkYmRjMzU2ODNhZWFkM2UxZTQ3ZmE5NDgyOWFlN2U2NjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk0MDQ0ODE2M2U1YWQxYWQ0YWEzYTNmMjM5OTVmOGVmYTVkMmNkMTMxYjJmZGEwZjdlODllYmE4ZjU3ODFjN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwNjZkMjRiMTg3NTMwYzhjNTIzNzY2YjAzMzMyZTE2ZDQxMGE1MzMyYWNmZTU2NWU3NTczMmU3NTg1NTcxYTgifQ"
+        },
+        {
+          "resource": "repo://app/tests/config.spec.ts#L129-L167",
+          "version": "repo-lines-v1:sha256:185ad72a3e65540a20915a84e5946c58e36275365859c0d7cef8d28eef91fe59:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyOTZmMzI3NjdkMjg3NGJmZjJmNTAzY2VlMDk2NDk2M2M0ODc4NzQ3MDkxYWE5NTliODdhMTVlNjI0YWFlOGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1NjgwNzQxZTAzY2FmMDU4Y2ZmZTk1ZWE0ODY1YjE3ZTE1YzQ4M2Q1MzExYzQ2NjRjNTY1MGRjMGMxN2VlOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyMmM3YzNjZGFhY2YzNDY0NTlhOWI3MDFmYWI3YzhmZmIxY2FjOWZkYmI3NWZiNTQ4NjFlOTdjOThmNjA4OGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_790d5fc2a0154bf8bcdc44c4c08d48f5",
+      "statement": "The unit tests keep the real API out of the process but not the transport: `tests/search/engine.spec.ts` asserts the pure layer (debounce window, request construction with `offset`, response parsing, the classification table, the backoff curve), while `tests/search/client.spec.ts` starts a `node:http` fake API on `127.0.0.1` and runs the real client against it — offset body, empty and error payloads, connection refused, a forced 120 ms timeout, a non-JSON body, and the no-keep-alive behaviour — so the wire layer is covered in-process, and no test ever contacts the real Listary engine.",
+      "evidence": [
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L1-L33",
+          "version": "repo-lines-v1:sha256:78a49b709189f1952de2c4d96198cefcf59aee6675a15bb74ac606c908ad917a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5NzA1ZDlhMjhkODhiYjZjZWQ0NGRjOGY0NDgyZTMyNGQ0MWVjOThiYzZmYmQ4MmU0OGNlYWNjNTQ4NTAzODcifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/client.spec.ts#L57-L126",
+          "version": "repo-lines-v1:sha256:d6e2f92ddab97ca1752137fae57c7fbbd2dcc74265b1bd4683f06d5d4261afa9:eyJzZWxlY3RlZExpbmVDb3VudCI6NzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1Nzk0ZDVkZGJkNGVjMTg4M2Y1MDc1NjBkYzczODFiMWVhNmYyZWQ3M2ViMDdlNjcwYjI2YjhlNDA5MGNhODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4ZDdhNjc0YmZjZjI1MTU0MTVkYmYzMWU1YTU1YWVjMTQ2ZjNkOTY3NmMwZmMyNGZlY2VjNzZlYzE5NmQ2OWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L1-L18",
+          "version": "repo-lines-v1:sha256:8c02901d67f130cf1d2157cb57addacbfeb2daad27d0aeb18dc2aa3be2ce8629:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMTQ5N2YyNGYwMjIzOWNjNDg3ZmQ1ZWYyMDU0MzI5Y2ZkOGQzNjUyNWViZDg0ZmY4YWNiOTE1ZTJiNzgzMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiYjk0YTcxM2Y3MjViOTNjZDQwOTY5ZjQ1ODY1ZjYzODliYjQ2YjRkMzY2YTQ3ZDI3ZDJiNjk0NmFmMThmODgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d6d7427e878444208242674ee09b70cc",
+      "statement": "The historical source of the contract is Listary 7's in-app `Options → HTTP API` dialog, transcribed into `.scratch/listary-search/spec.md`, which `engine.ts` still cites as its contract reference; the discovery probes behind that transcription read only structural configuration (truncating any long value to a length plus a four-character prefix, never reading license or history data, and never storing a value long enough to be one) and Listary-owned listening sockets, and confirm the live endpoint by posting benign queries and printing `ok`, `data.total`, `data.count` and per-item `type`/`name`/`score`/`path`.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/probe_v7api_discover.ps1#L1-L61",
+          "version": "repo-lines-v1:sha256:0f6a339e4da9675c9c353716d10d5a0fe031d1234301841e6cb3d0b6ba610c57:eyJzZWxlY3RlZExpbmVDb3VudCI6NjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjMWUwOGQyYzY3ZWIyYzUyZjhlZGNhYTkyNzE4NDdmYzg2MGFlYzZiZDZiODJmMDUwYTIwNmZmOTIwOGFlZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://.scratch/listary-search/probe_v7api_live.ps1#L1-L24",
+          "version": "repo-lines-v1:sha256:030bbc1a6e4ce38dca1308753abe0ae2f4a01371205862f4625e4e806b3e839a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkODFiMjNhNWY4YTY2ZTc0NGUzY2NiZjVmZGFkYTFmNjZmMWJmZmM4NWY5ZTYxMjMwNzZlOGQ2OTBiYTcwYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMjM1ZGUwZWNlYmIzYWQ4MTIwN2U5NDhmYWJiMTM3ZTRiOTIzNGVjMDhhOWYwYmU0NDgyZWZjMzQ4MDc2NzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L47-L52",
+          "version": "repo-lines-v1:sha256:b4aeeaf1c45d20cf2bbb0f68c23641b554c0a4c56e33df46e53300202a92af5e:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2ZjZmYzNkMGVlNjc4NzI4NmU5YWZmMDQ2M2JhOWUwZjc4ZmE1NDE0ZDU1NDAxMjNmZTc2Njc3YTE5YmMxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWVmODMxOTA2MzA3ZmFjMjBmZTI1NDk4MGVhNjc3YWUyYjNlMzQyZTFjZGQ5YzBmM2ExOWMzNzgzMDE2YTUzZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzZjMDkyMmE3MzBiMzJiODg2N2ZlZGIzMTM0YzhmN2ZlNzZkYzRkMTA3MDhjN2UyODE4MzY2OWU4ZWUzNzlhYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2UxMzkwYzVhZTQ1NTgzZjI0NmUzMWFmZTRlODMxODE1YWExZDdjYjlkZjllODVjNzc0OGVkMDYwZTBkNGM4YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L1-L7",
+          "version": "repo-lines-v1:sha256:c9e270cb45686a71e9fc6dcdbe47a98cd7da78d1bc6c0d3b197d5ad8d43633fa:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDFiYzM1YWVmYmI1M2Y0ZTc3MWQyMThmYTkzYzQ5ZTA5MjE2MzFlNzFkYjc3MGI4ZDQ0OWYwYzJmYzgwOGE4MiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1bc5b2323e7a49b183728d1280852a08",
+      "statement": "Listary 7 is beta and the port and response shape may change in a release, and nothing in this repository detects that at load time — a moved port degrades into `offline`, while renamed response fields degrade silently into defaulted or empty results; the implemented acceptance battery's own independent direct probe (`engineProbeFirst`, a second implementation of the request body that only passes when the freshly created probe file ranks first in `data.results`) is the practical detector.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L76-L80",
+          "version": "repo-lines-v1:sha256:99c4345678a5062e570aed8ca7ff475d605240f590de5277111d380e6979ee6a:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI1ZDQwMTJiZDcyZWMxYjBhYjRjNTU0NDEwNzBkYzUyOWFlYjQ0MmExNWNmOWM1MTQ2YWZiYjQ3ZjM3MjhlMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMThiYmQzNTk0ODNjN2ZlNGU4OTI0OTRhYzU5YTg5YmFmMGQ5ZWJjMDQyMDdkN2M5YmE0NjQyOTE1NDc1OGY3MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmFhZDQ5ZWMzYTAwMTI5ZjJiNmE3ZWYyN2E1ZThlM2Y0OGY3MjIwNDM3Zjk0ODUyMzkyM2QyODc1MjAyOWFjYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzdkYmM1NzRmZTI3Y2JhOTYyYTE3MmM0ODI2ODllZDU5YTE0MjQ0MDJmNTZhNzYxOWVjMjFmYjZlNjBiMzJlZCJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L411-L439",
+          "version": "repo-lines-v1:sha256:c528d6342f03bd95c676a029b0954aba5a8992b05bf99ebacc8c09377798b59c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1YTQ0YzQ4OWNhMDdmNGExZmUxMGMwNmM2NzdhOWYxYjA2MWRlZjA0MzdjMjA1ZjAyNjI3ZWY1NjVhMDc3ZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkZmJkZTM3NDUwZGJhNzNjYTQyMDNkNzUzZWNjNjBjNWQ2MmYyNDUyMTMyOWJlOTRkN2Q4ZTI2ZmE5ZDVlMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2ZTVlZjZmNWZjODBjM2VmNGUzZDQ2ZTU1ZjU1NTE2MWFkNDdmY2FkOTM2YWIwMjM3NTgwNGY0ZWY3MDQ2YTAifQ"
+        },
+        {
+          "resource": "repo://app/accept/evidence/03-battery.log.txt#L55-L55",
+          "version": "repo-lines-v1:sha256:060ea72ce8c1a96a302a3bf55f37a8e67155421ea81017e9eca72fceb8a82bb9:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDYwZWE3MmNlOGMxYTk2YTMwMmEzYmY1NWYzN2E4ZTY3MTU1NDIxZWE4MTAxN2U5ZWNhNzJmY2ViOGE4MmJiOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDYwZWE3MmNlOGMxYTk2YTMwMmEzYmY1NWYzN2E4ZTY3MTU1NDIxZWE4MTAxN2U5ZWNhNzJmY2ViOGE4MmJiOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzg3MDNjYTljNGMxZWM5NTIxZGQzYWE4YThlYmNhMTk2NzE2M2ZmZDE2ZmYyMjM1YjM0NmY3MmFiOTE2NThmNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWFmNmY2NzAyN2JmMGM2NmI3MTAwZDFhNGIyYTllYWQzYjFmYmU4NjE4Mjc3ODY5ZmY0ODYxNDNmMmE3MDFkZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_632e1dab225e42edb355ba548fb7baa6",
+      "statement": "The V6 route to query prefilling was ruled out before this integration was chosen: V6's `-search` command line opens a window with the query unfilled and V6 exposes no API at all, which is why the V7 local HTTP API is the only supported integration surface rather than just the newest one.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/listary-search/probe_search.ps1#L1-L20",
+          "version": "repo-lines-v1:sha256:7542e0ad2fb047f02c538b81087b7baa1d648d5ab3caa75a425958294e051793:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmMjg1OWE4ZjA3YzdjODRkYTViMmE2OWNkYWI4ZjAwYmUyNDE2ZDkwZjAwNTZkNzE4MDYyNmNiOTRmY2YwMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhNTZmNDhlYzdiNzNkMzViMWNlOTA3MjE0ZjE0Yjg1OTNkZGZmNDIzM2ZhYTE3NDQxNmJlMWJiNWI2YzhkYWIifQ"
+        },
+        {
+          "resource": "repo://.scratch/listary-search/spec.md#L76-L80",
+          "version": "repo-lines-v1:sha256:99c4345678a5062e570aed8ca7ff475d605240f590de5277111d380e6979ee6a:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI1ZDQwMTJiZDcyZWMxYjBhYjRjNTU0NDEwNzBkYzUyOWFlYjQ0MmExNWNmOWM1MTQ2YWZiYjQ3ZjM3MjhlMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMThiYmQzNTk0ODNjN2ZlNGU4OTI0OTRhYzU5YTg5YmFmMGQ5ZWJjMDQyMDdkN2M5YmE0NjQyOTE1NDc1OGY3MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmFhZDQ5ZWMzYTAwMTI5ZjJiNmE3ZWYyN2E1ZThlM2Y0OGY3MjIwNDM3Zjk0ODUyMzkyM2QyODc1MjAyOWFjYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzdkYmM1NzRmZTI3Y2JhOTYyYTE3MmM0ODI2ODllZDU5YTE0MjQ0MDJmNTZhNzYxOWVjMjFmYjZlNjBiMzJlZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c5934aa5ff284c1098125cdfcec2f8c7",
+      "statement": "`ListaryNetworkError` is the transport-failure normalisation for the whole link: the client wraps every socket error (using `err.code` when present and the message otherwise) and its own timeout into that class, and `classifyFailure` keys `offline` on the class rather than re-inspecting Node error codes at each call site, so every other thrown value is `error`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/client.ts#L49-L54",
+          "version": "repo-lines-v1:sha256:6afe63f14a27f5ec8cfa64d10df5bca81b38462b3ca9d56e89e70cd588def4d2:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTdjZDkwNjdmZTllNzI4YmU2NzYyODc5NWU0ZWRkNWY2ZTRlNmRmY2ZmOTJjOWI1NjNlMjZmZDNmNjQ1OTE5NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2RhMTQzMDNlYTViNTRkZDE3ZTAyZDg5NGJiNDIyZWEzYmEyMDllZDJiZDcwOWQ1YTE2ODA5ZmQ1ZmU1NTMzYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGRmYTU1MWVhOTY0NWEyYzU3MTk0MDQ1N2ZkNjQ0NTM2N2UzODE3Yjk4NjhlNTVmODBlZGJkZmJhMWZjMTA3MCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L23-L29",
+          "version": "repo-lines-v1:sha256:7f54defa55dd4ebe4cf894c819363c6a369000974fea2a7227128f6086722b77:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmU1NDUxNjBkMzJiYjMyZDY1ZGU3MjVjOGE2MTRiZDA2MTIzYjJkZWMxOTAwMDhmMzdlNmZlNzc0NmE4MzM2MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjc4MWJjMDcxM2VhMzQxODI4MGQ1Njc2NzNlNDc0MDJiODdhZjhkNDAxN2VjYWUwZWY4N2M3Y2Q5NjY1NzRkOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2M1NGY2NTJlYThmMTZhZjlkMWQ0YmNiNzc2MDdhODM1NWFlM2Q0MDQzZGE3MWVkMzIzZDdhOGE2NzkzYjZjNSJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L145-L170",
+          "version": "repo-lines-v1:sha256:c84ea0ea78dc52e4dc49ca761e1c6eea8f2eb280eceb4fcde35867eb2e60553b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNzUzMTE3ZDU5MzdiYjc5OTYxM2NjNTVhMTljMjc0NmEzMGZkYTlhYmM0YTRlN2UwODA1ZmNkYzcyNzlhODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YjM1OTViZWNhZDgzZThlOGQ4YzE0MjEwZWVjN2Q4YTA3ZTE1MzRkODM1MzA4NDczOTJlMzdkMmI2OGEyOTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7fcac088de394308b8b0b169fb7913f8",
+      "statement": "`SearchResultItem` is the integration boundary's data model: `parseResponse` maps the API's `snake_case` row fields into the camel-case `SearchResultItem` declared in the shared bridge contract, and that model is what crosses to the renderer in the `search/results` payload of `total` plus `items`, so a field change in either direction has to be made in both the parser and the contract type.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L97-L106",
+          "version": "repo-lines-v1:sha256:e9792e493b04cb1f41048892543729e13085c92680d44fdd9b4d4b8f22d460c1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkYTAwODFjYTgxNzU0MWEyYjU2MDI4YjQyYzkxYTU1MzVlOGFlY2Q5NWZmZjE1MzVmMmM2YTQ0YmQwOGMyZmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0OGNmMjViODk3ODAxYzBiODdkYmVkNTRhMzczMzI5ZWY3OGEyYTk1Yzk4MmY2ZGY5ZTJhM2FmNzZjOWVmMGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlZjAzMTgzNjJjYzY2MGI3ODY2YzE3NGM1MTc3YTRkN2Q4ZWFlZjUyMWJkNmY4NGQwNmYxNGFkMTVjYmI4ZTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1NzkyYTM2MTBiMjNmYzA1MWIwNzYxM2ZjMTg3MDljN2M0NjkxOGE1MDk1ZTk2Y2NjY2Y0YzI0ZmM2NjczZTMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/search.ts#L188-L190",
+          "version": "repo-lines-v1:sha256:da8c57c6115aecac274f004f8d1ecf6d2c601ab5971e8e9fa48ad31c4ab481e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYwNTU5ZDJmYmE4MTE3OGE3YWRkM2IyMWJiMGExY2I4NGRiMjJhYWE3YzU5NTZlYWJiOTcyMmExZGMwOWM1YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDMzMTU1ZTM0MWM5NmM4OGQ4ODcwNWIxMzMxY2UxZDg3NTJkNTE0ODJjYzExNzk4NjVmNmRlNDhhOGUwN2I2NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDVlNTNkYThkOTkwYjc1N2NhNmQ1MTIxMGE4MWZiODhmZDhiZTRlNDBmY2RjMDgxMWU4NWVmMTRhZDVkODFkYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2NkYjVmZWYyNGI1MjVlZTdmNjQwMzhmZjcyNDBiOTkxNzVmZTIzMTUyYTIzMGFjZTEyNDQwODU0YzAxYzA1OSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L204-L212",
+          "version": "repo-lines-v1:sha256:e7efadd4d81e8ec39b60b35cb2458e002d33cdc472f9407882b008feeb78f3bd:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjliMDM1ODZiZTYzMTUzOTY3MjNlOWIwNTdiMWQ2MjU3NDA1ZGNjNWU1MWU0ZTg4ZDU0YzlmMzVlMjk1OTVkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjgwNGE4NmUyNGQzYzQwZGI3ZWZjN2FhZjE4ZjQ4MTEwMTE1MDIwNDE4ZThmMjcxN2EwM2JiNWI3NjRmOWQ0NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2FiMTk3NTM4YzkxNDUzZjg5MzBkMTAxODliYzA2YTQ1Y2ZmMGY4NjcxNzQ0OTg4YzBhMTIzZDA4ODQxNTNiNSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L259-L260",
+          "version": "repo-lines-v1:sha256:e2b548121d81c8dca19c67cb479f29d566419036cea42c6fae8b25004591e41f:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGM3YmJiNDQwZGJjNWFhYWU3OWM0NjQ4Y2I1MjkwZWNjOTk3Zjg2MWFlZjBkYTk1MTYzODM3NDY0ZTgwZTljNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGZmZmZlYWVkYWM3Yjk4ZjVlMjMzMTU4Njc0NTExODMyM2U3Y2JiMzA3MTAxZjA4ZDQ4NTkzY2NmYjliNGNlYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGY2N2RlNmMwNDFhYWY2MGFmMzI1MzczYjZiNmVkMTMwMTU5MDMyNmU0NjMzYjNlNzg3NjUxNWVkOTI1YzEwMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDg4MmI4ZjFmZTJiNjk2Yzg3ZTY0Yzg4MzhmZTEyMWNhNGJjN2U2MDRhMDgwYThiYzRiZTUyY2E1ZDJhNTk5YiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_fba75e9407fa4b9c9f78390ff426dfee",
+      "statement": "A source-level guard in `tests/contract.spec.ts` pins the loopback target to the engine constants and keeps query text out of storage: the three search files may not reference the usage log, may not call `writeFileSync` or `appendFileSync`, may not contain a hard-coded `http(s)://` URL, and `client.ts` must reference `BASE_HOST`.",
+      "evidence": [
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L595-L609",
+          "version": "repo-lines-v1:sha256:3a6f40673e864a33b069040fbfd792c6926a1e1c3c9913eb7703e49d8701fd4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0OTEwOGQ4ODM5ZmMzNzVhMjdjMDY5YjJhNmY4MzBmNGM2ZTdkMTE4Yzc0Y2UyOTAxN2QyN2Q0ZDUzZWQ1YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlNTY3ZWQyZjBjNTBmNzZmN2VmZWRiYjQwNmJjNmYyNDU2MzA3Njk3MmFhZWJmMTMyZjc1MjU4YzBkYzE2YjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bf457e5125004e21a7aad6479c03f9da",
+      "statement": "`ERR_UNAVAILABLE` and `ERR_RATE_LIMITED` in `engine.ts` are wire-level identifiers rather than display strings: `classifyFailure` compares the payload's `error` against them, so renaming a constant silently reclassifies that engine answer into `error` even though the server's output is unchanged.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L114-L123",
+          "version": "repo-lines-v1:sha256:e69fa42531776230ce1736a93cca86fe5b5ffc83f63d4b17d3718ffdd2405dd7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0ODE5NmIwZTQ4Njk3Y2I5ODRkMjE3MmQxNTc0ZTc1MDc2MWI2ODVmZDg5NjRhNzQyNDY2ZmIyZmIyY2U3ZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlOGI0OWNmNDQ1ODQzNWFjMzk1ZjY3Y2IwN2IzNmM4NTNiNTc5MTlmZmIyYzUzZDhhMDdlN2FjYTRhZDRlYjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlZGI1YTIzOWE0M2I3NDE4NTUyMzVhYzYyNzk4YTgwM2NkNmRjYzg1NDQwZDU3NzlmOWUyZWVhN2JjYWM1ZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4MTEwMjM2NWU4YjBjOGZlMmU5ZjA1NTE3N2IwY2Q5YjRlMjk2MWUxY2VjYWQ2ZmZjNjNlNWMyYzZmYWMwMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/search/engine.ts#L20-L21",
+          "version": "repo-lines-v1:sha256:53b943d3199824efd6c9284cf3150b2ed5aa6e4e59efc211305d46eaee98b011:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjllYzY4MzhkN2QwYjgyYjY3NDcwYWE2MzNiYTY4Nzc0ZGNkMTFmMjU5MzE0YjEzNWEzMjc1ZDMxYmEzMDFiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjdjNzA2YTZiYjQxY2MwNTg5OTcxMGVjNDI3MThkYmNhZjU2MTA0OTllMTViMjBhNWFmMTg5ZGRkYTYwNzA1ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTdkNmM1NzMwNGVhYWM2M2I4MDM2ZmFjMGM3N2ZlNTA4Yzk4ZmNjZGNkZmMwZGMzNjIxZTU5NmUxOTk4MjBmNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTQzZDExYjhiM2U0YzZlMjE0NTgwYTY3ZmU5NDFkYmYxNmQwYWI3N2IxMTA5ODRjMzFlZGZhNDg0MjlmYTA1MyJ9"
+        },
+        {
+          "resource": "repo://app/tests/search/engine.spec.ts#L145-L170",
+          "version": "repo-lines-v1:sha256:c84ea0ea78dc52e4dc49ca761e1c6eea8f2eb280eceb4fcde35867eb2e60553b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNzUzMTE3ZDU5MzdiYjc5OTYxM2NjNTVhMTljMjc0NmEzMGZkYTlhYmM0YTRlN2UwODA1ZmNkYzcyNzlhODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YjM1OTViZWNhZDgzZThlOGQ4YzE0MjEwZWVjN2Q4YTA3ZTE1MzRkODM1MzA4NDczOTJlMzdkMmI2OGEyOTAifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

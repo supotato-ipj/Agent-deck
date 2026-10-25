@@ -1,0 +1,185 @@
+{
+ "tmp": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2",
+ "out": [
+  {
+   "label": "kimi-target-exe",
+   "size": "normal",
+   "file": "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "5ffd6ffa21",
+   "pngBytes": 538
+  },
+  {
+   "label": "kimi-target-exe",
+   "size": "large",
+   "file": "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "5ffd6ffa21",
+   "pngBytes": 538
+  },
+  {
+   "label": "wechat-target-exe",
+   "size": "normal",
+   "file": "C:\\Program Files\\Tencent\\Weixin\\Weixin.exe",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "fb6e8c30e1",
+   "pngBytes": 1221
+  },
+  {
+   "label": "wechat-target-exe",
+   "size": "large",
+   "file": "C:\\Program Files\\Tencent\\Weixin\\Weixin.exe",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "48x48",
+   "md5": "734516ded8",
+   "pngBytes": 1839
+  },
+  {
+   "label": "qoder-ico-file",
+   "size": "normal",
+   "file": "C:\\Users\\An W\\AppData\\Roaming\\com.qodercn.app.stable\\application-icons\\085bc5beb88e5f4c8445c735578f2a41393eac205cb979d76df98b600ebbdd4b.ico",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "aa10d67666",
+   "pngBytes": 281
+  },
+  {
+   "label": "qoder-ico-file",
+   "size": "large",
+   "file": "C:\\Users\\An W\\AppData\\Roaming\\com.qodercn.app.stable\\application-icons\\085bc5beb88e5f4c8445c735578f2a41393eac205cb979d76df98b600ebbdd4b.ico",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "aa10d67666",
+   "pngBytes": 281
+  },
+  {
+   "label": "notepad-exe",
+   "size": "normal",
+   "file": "C:\\Windows\\notepad.exe",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "4737dea839",
+   "pngBytes": 2282
+  },
+  {
+   "label": "notepad-exe",
+   "size": "large",
+   "file": "C:\\Windows\\notepad.exe",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "48x48",
+   "md5": "a16bbdc036",
+   "pngBytes": 4118
+  },
+  {
+   "label": "kimi-lnk-original",
+   "size": "normal",
+   "file": "C:\\Users\\An W\\Desktop\\Kimi.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "kimi-lnk-original",
+   "size": "large",
+   "file": "C:\\Users\\An W\\Desktop\\Kimi.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "kimi-lnk-tmpcopy",
+   "size": "normal",
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2\\Kimi-copy.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "kimi-lnk-tmpcopy",
+   "size": "large",
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2\\Kimi-copy.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "wechat-lnk-tmpcopy",
+   "size": "normal",
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2\\WeChat-copy.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "wechat-lnk-tmpcopy",
+   "size": "large",
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2\\WeChat-copy.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "fresh-notepad-lnk",
+   "size": "normal",
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2\\fresh-notepad.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "fresh-notepad-lnk",
+   "size": "large",
+   "file": "C:\\Users\\ANW~1\\AppData\\Local\\Temp\\iconprobe2\\fresh-notepad.lnk",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "320b85c05c",
+   "pngBytes": 557
+  },
+  {
+   "label": "plain-txt",
+   "size": "normal",
+   "file": "D:\\test-folder\\wallpaperengine-research--bugfix\\.scratch\\icon-probe\\probe-result.json",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "8314ac0b4a",
+   "pngBytes": 719
+  },
+  {
+   "label": "plain-txt",
+   "size": "large",
+   "file": "D:\\test-folder\\wallpaperengine-research--bugfix\\.scratch\\icon-probe\\probe-result.json",
+   "exists": true,
+   "isEmpty": false,
+   "dim": "32x32",
+   "md5": "8314ac0b4a",
+   "pngBytes": 719
+  }
+ ]
+}

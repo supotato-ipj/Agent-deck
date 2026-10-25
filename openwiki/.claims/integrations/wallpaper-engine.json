@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:9e9e18a030c8e34758a01b29727b346f8c1f7b6cbd89e29c36c7210c9833d9d3",
+  "claims": [
+    {
+      "id": "claim_1d31412dd8b04926ba744787882e79e3",
+      "statement": "A platform constraint shapes the whole architecture: a desktop web wallpaper receives no clicks and no keyboard focus (the desktop icon layer consumes mouse input, and the only official web keyboard channel would require hiding desktop icons), so every interactive capability is a window owned by the data service instead of wallpaper markup.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0001-win32-icon-manipulation.md#L3-L3",
+          "version": "repo-lines-v1:sha256:06ab7541cd346412ec3d2577d54eb8888fc6d5424ac95e6b9fec2603feac2b95:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDZhYjc1NDFjZDM0NjQxMmVjM2QyNTc3ZDU0ZWI4ODg4ZmM2ZDU0MjRhYzk1ZTZiOWZlYzI2MDNmZWFjMmI5NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDZhYjc1NDFjZDM0NjQxMmVjM2QyNTc3ZDU0ZWI4ODg4ZmM2ZDU0MjRhYzk1ZTZiOWZlYzI2MDNmZWFjMmI5NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2ViYjkwMzAzZjIwYWZmYzE2ZDJjZTE4NzI1NjlhMmY1ODNjOWJjODJmOWE2OWJiZTM4NmRhZTFiMTRjYmFiNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-search-panel-service-window.md#L3-L11",
+          "version": "repo-lines-v1:sha256:53c6ca22f7bc60cf4082b169a2a92a47fb574a08089a25c7e4b76afd9e9fcf26:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2U1YmMxMzEyN2IxZTI1ODQxMjJkYjlmM2RkZjVlZGE4YjE2ZjYwYWVjYTU2MmI2MDAyNWFlYjI4MjgwMDVjMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzVkZDc0ZmM1YTkxMjQxN2I1MGY2MWIxMTA5MDVhNGMwY2E3NGU5ZTNmYzZjMjA5ZjEwMzVhNjJmNDJkMjBiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTliYzhmZjlkYjg0OTdlM2VmOTNiYjM0OTQzZWJhMjNiMDBlYWNiMzE3Yzc3ODNmZTVmNDI5OWFhOTliMjgwYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d0121c6dd2f14fdb995fbe0b9b4f974e",
+      "statement": "Because interaction never goes through the wallpaper page, the service's HTTP API stays GET-only with a permissive CORS header and no unauthenticated write channel exists; this is named as ADR-0001's main side benefit and adding a mutating route would remove it.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0001-win32-icon-manipulation.md#L11-L14",
+          "version": "repo-lines-v1:sha256:6f4ecd1720e2ab27e48fb279ac732590a8422e9e2d4b59246d182764be8a1caf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU5MzRkYjRkZDI3NjhhZmM4OWNhZGZiNDgyNTU1ZDA4MTZjZTNiZTlhYTY2MGJlMDY4MTBiOGViNjZiN2UwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDdhMjc1YmJiODM3NGI3ZmY3NzZjMjFiZDllZWViZGM2NmJiNzllNTM0YzhlY2IyNzRlYzdjZTliOWM5MzMxNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmZiMWVkMDY5OGE3MWI0OTg1NTBjMzExZGI4YTI2ZTcyZjBmZmMxNWU1YmUzZTI5OWQ2M2E2ZWIzOWZiM2Y4OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2U2MmE0ZWQ3ZmI0NTAxMTc1ODA1NzM5YzJiMDJhYTJmYzQ0OGE5NDk4ZTE0ZWUyYmI4NWEyOTZmNjJhMTA2OSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-search-panel-service-window.md#L15-L17",
+          "version": "repo-lines-v1:sha256:19f1060cd30cf4f48b23823e49c747f7de02fb243b55b89eb8773af0a2bd676f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGY5NmZmMTBkN2Y5YmZmYjg1YWFiMTI2ODM5MjEwMTVmNjI2N2MzMmY3YzIwMDRiMDViNzk1Njk2ZTU4YzVjZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTU3MjQ4NzgyNzgzN2MwYWQwZTk2MWJmOWNmN2Y5MjQ5OWQxZWNhNjc2ZDJkZWFjMzdhNTZiMmFlNWFiNDdmYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzNlNjg1NDQ5NDJiNzA4OWQ2NzcwNTQ5Y2Q2MWFjNmYyMjgxNWEzYWIwNTdmYmNhNDdjNTJkZWY0ODdjMDZkZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f7657b3fb5e8476aad47c29c42fb2ba9",
+      "statement": "Wallpaper Engine suspends the wallpaper page's timers while the desktop is occluded by a window, so polling and history curves pause and resume with desktop visibility; this behaviour is accepted rather than worked around.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/qoder-deck/spec.md#L61-L61",
+          "version": "repo-lines-v1:sha256:3e2f2dffd78a77492a5ac7efce98c9a36ba4b38965b76aed901b4de6afd740d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2UyZjJkZmZkNzhhNzc0OTJhNWFjN2VmY2U5OGM5YTM2YmE0YjM4OTY1Yjc2YWVkOTAxYjRkZTZhZmQ3NDBkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2UyZjJkZmZkNzhhNzc0OTJhNWFjN2VmY2U5OGM5YTM2YmE0YjM4OTY1Yjc2YWVkOTAxYjRkZTZhZmQ3NDBkNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWJiMzY5MGE5Njk4OGIzZGZiZGQ1MDc0ODY5N2VkYjE3NzQzNWU4YWYzZmE2NzJjMmYxNWI5ZjNkZWQzYjQ4ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmZmMzU5ZTQxZjkyY2JmNzgzYjU1MWYyNjk3YjViYmI0MWYzMDEyNTgyYTI4ODQyOGFlYTYwNWIzM2FlYWZjZCJ9"
+        },
+        {
+          "resource": "repo://.scratch/terminal02-qoder-status/issues/02-hardware-slice.md#L20-L21",
+          "version": "repo-lines-v1:sha256:3b82dc6ac4aa78399525e75999f9d8a92d298c64e9a026924f991c294b6a17e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU3ZjZkNWU3OTU0Yjg4NzU4MjU5NzJmYTA1OWFkNDljMzkyYzlmZGE1MWNlZGMzNDdjNzliNTRmOGNmYzdjNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2EzNGJjMDEzYzk5M2FiNjZkNjNmYjVkZGE5YzY3MGU1YjFmZmYzNWE5ZmFlODVjNjdjMmRlNTNjZWEyNGZhZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTJhNGEwZDEzZDA4MDRmNzFmYWQ5ZmRhNTZlYjFhNWQ4MDEzNWMyYjVlNTU2ODc1NmJkODI2OTAxNmNlOTA2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b38a8fcae7a8464fbd71b7a6d769a2c6",
+      "statement": "The wallpaper is now only the background layer: nothing in the repository builds, deploys, patches, reloads or queries it, and the window stack is background layer at the bottom, the standalone panel above it, and normal windows above the panel. The panel is a transparent, frameless, never-activatable window that calls setIgnoreMouseEvents(true) by default so clicks miss-and-fall-through to the wallpaper and desktop, and it is re-pinned with SetWindowPos(HWND_BOTTOM) because Electron has no native z-order setting for 'above the wallpaper, below every normal window'.",
+      "evidence": [
+        {
+          "resource": "repo://CONTEXT.md#L99-L109",
+          "version": "repo-lines-v1:sha256:24b0ca8ff18fdb85b8446a908165c9c26a19296aa8fb437cea17273e5cb6cc62:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwODU4ODIxNzVlMTFiOTY5ZWI2MjJlOTQ1YzA0YjJmMGE2ZTM5MGQ3NDYyZWYwYTA1YzkyYTBjNTVlMzI1YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjYmY1MTI2ZmFiZmFhYzNhNDgxOWIzYzI0ZTYxYTg3MzQ1YzNlZTUwNzAxMGVjZWFmNjljZjliMzIzNDdiODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRhYWVjZTcyMjkyN2QzNmMyMmI3NTExYmJiY2E4NDJkZGY1YTU5MzkxZTkyMzBkZjBhODY0YjYwNTNkYWRkYjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUwYTM3NzBmNDczM2QwOTE0ZjI1MzFjOWQyNzkyMDIyNjFjOTY3MmU1MWJiZGI4YmM1YTJlNTJjZDdiOTJkOWIifQ"
+        },
+        {
+          "resource": "repo://README.md#L5-L5",
+          "version": "repo-lines-v1:sha256:9dcde3148a3016fc6003678375ff47b5bef39ac08b9f4faf86be166fcdadb02a:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWRjZGUzMTQ4YTMwMTZmYzYwMDM2NzgzNzVmZjQ3YjViZWYzOWFjMDhiOWY0ZmFmODZiZTE2NmZjZGFkYjAyYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWRjZGUzMTQ4YTMwMTZmYzYwMDM2NzgzNzVmZjQ3YjViZWYzOWFjMDhiOWY0ZmFmODZiZTE2NmZjZGFkYjAyYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTc3NzNjNzA2OWEwYmRhM2JlZjhkYzU5OTQwNmQ0NjVkYTFjZWNiYmQ2M2UxNWNlODk5ZDBiMGZkNjNmNmI5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDY5Nzk3ZGYzMDNjN2ViMjNhNDlhMjYyMTY5MzlkNmQ0NTIwNTU2ZDA3YWZmN2E5YTQxODk5Mzg4OTU2ZDdlZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L9-L43",
+          "version": "repo-lines-v1:sha256:31a36a2c6c23783093fdb8d0e2625013c653cdf15aa85a23f0a0dc074571e583:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjOTU2N2U3ZmQ3MjM2ZGMxNjkzZDc1YjE3NmRlMjdiM2Y0OTk1Y2FlZDFhYTkzMzdkNzE5ZjYyMDIwOWFkNTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzNTMzMGYxMDYwMWFhZmFhZWQ2ZjBmM2ZlNmQ5ZmQ3Yzk4NzM1NWZhZGNjNjVlZmM2ZTdjM2I2NDM3MDJiMTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/win32.ts#L20-L25",
+          "version": "repo-lines-v1:sha256:3ec5b4b232f9f072e017aac21a6b78484e4489396b1a6e9af194378cbbe8c657:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZhMmQyZjAxMDI1N2Y4YTk5ODZmZjQ4NDMwODhiNzBjOWMxNWQ0MzE1OTM0Yzc4MmY4ZDI5MjkwNzI2Mjk5ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzhmMjdiNWYzMDY3OWFiNWIzMTg0ODNhMWNkMjcwZmIxNDQ2YmFjMDZiZmFlZGYxOTJjODYxNDJhNDYzODdkNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0004-electron-cordis-standalone-panel.md#L8-L8",
+          "version": "repo-lines-v1:sha256:719484dd00bf2183a51ef780050613aabc0a4aa1afba09cf756efdf34e2f4f53:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE5NDg0ZGQwMGJmMjE4M2E1MWVmNzgwMDUwNjEzYWFiYzBhNGFhMWFmYmEwOWNmNzU2ZWZkZjM0ZTJmNGY1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE5NDg0ZGQwMGJmMjE4M2E1MWVmNzgwMDUwNjEzYWFiYzBhNGFhMWFmYmEwOWNmNzU2ZWZkZjM0ZTJmNGY1MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTIyZTk2NjExMWU2ZTc3NWZhNmQzMzY5Mjg4OTliZGZkMDBlYTBlZmIwMmY0NWZjOTQ0ZjQxYzFiNDM5NGM4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5f890d378ddf4393886bd4151db4cc01",
+      "statement": "The only Wallpaper Engine-aware behaviour left in the code is the desktop-icon host lookup: because a dynamic-wallpaper host such as Wallpaper Engine reparents SHELLDLL_DefView under WorkerW, findDefView() probes the Progman child first and then enumerates top-level windows for a WorkerW that owns a SHELLDLL_DefView, so the panel's icon hide/restore works with either a system wallpaper or a Wallpaper Engine mount and no Wallpaper Engine process, project or setting is ever read.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L35-L52",
+          "version": "repo-lines-v1:sha256:6e77f744dd41956413a4d50f5085dfabf38788033bc82e56cb206b6ae8de0a82:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjNDI1NzMxZTAwYmZlOTIzMTIyN2QxNTA5YTM4NjA0M2MyMTgwMzg3MmFkZTRkOThlZjZhNjhiYTVkM2IwNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkMjYzMzM4M2NlZGFjYzY5YzVkNDBhODUzYjEzMjI1YzI1MTEzNDkzZmNjODM5NTE0YTQxM2FmMDdiMzZhN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyZmQ5YzI0NDIzYWEzZjY2ZmE3NjQxNjYzYWQ2ZTZjOTMwZDgyNDM3NjQ1M2M5Y2U5NDBhNzRlNDMwMGU3NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7692d290a3154f78b37d0c69e97315bb",
+      "statement": "On 2026-09-29 the Wallpaper Engine era was retired: the Python data service server.py with its loopback HTTP contracts, the watchdog that started it only while a Wallpaper Engine process ran, the Tk search overlay window, the Win32 real-desktop-icon arrangement chain, and the three Wallpaper Engine scripts (the DECK deployer scripts/deploy_deck.py, the patch replay scripts/apply_patch.py and the interactive rollback scripts/restore_original.py) were all removed, leaving no HTTP service and no Python in the repository; their capabilities moved into the cordis kernel services of the Electron app.",
+      "evidence": [
+        {
+          "resource": "repo://.scratch/terminal02-qoder-status/issues/01-backup-patch-infra.md#L16-L16",
+          "version": "repo-lines-v1:sha256:abd00ee874633d56115a1869a1f5cfe75f0a8163360b8646349e952a85e7a80d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWJkMDBlZTg3NDYzM2Q1NjExNWExODY5YTFmNWNmZTc1ZjBhODE2MzM2MGI4NjQ2MzQ5ZTk1MmE4NWU3YTgwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWJkMDBlZTg3NDYzM2Q1NjExNWExODY5YTFmNWNmZTc1ZjBhODE2MzM2MGI4NjQ2MzQ5ZTk1MmE4NWU3YTgwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjkwYmZmYzY3MWEwZThhODczMzNjNThiODRjNGY1ZmY2MzM3MDY2M2E5NDkyMzRkY2ZiNDZjNmJmM2Y3NWU2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://CONTEXT.md#L125-L131",
+          "version": "repo-lines-v1:sha256:2980e9af06d7f9e54a562b9fe9fab2aa8cdd28cbdaa1f87367f98700fb8c8f95:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTU1MzRmY2QwMGFkMDYxMGFhNTkyZjVlMzQ2Njk5NjczMDIzODRjZDc5YWZmNmJkOTY5Y2QxNDcxN2RlMWRkYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTJkM2E5ZWRiZjM4NTNmYzAzMzkwMWY4MzUyNjA5M2I5YzUxOTliOTBiM2MyYzEyMDI5MTM2MjEwNTkzYTEwZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjVmZTAyM2QzYjVmMzljMTNjNmViN2I3NWQyZjIzZDY4MzBmODg4ZThlZTgyNTUxNzU5OGM2MmM4MmFmYTk1NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmYzZmNiOTZkYWQxZmQzMDk5NzczN2NiOTFjYjUwMmY4ZTM2YmQ1NDQxZjliNDY4MDA3YTI4ZmY4YjFmNzg1MCJ9"
+        },
+        {
+          "resource": "repo://README.md#L9-L9",
+          "version": "repo-lines-v1:sha256:16e92edcf10f032c4311fafdba088da73dd4c48df69e2869ca75d5e5117bb4f0:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZlOTJlZGNmMTBmMDMyYzQzMTFmYWZkYmEwODhkYTczZGQ0YzQ4ZGY2OWUyODY5Y2E3NWQ1ZTUxMTdiYjRmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZlOTJlZGNmMTBmMDMyYzQzMTFmYWZkYmEwODhkYTczZGQ0YzQ4ZGY2OWUyODY5Y2E3NWQ1ZTUxMTdiYjRmMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDY5Nzk3ZGYzMDNjN2ViMjNhNDlhMjYyMTY5MzlkNmQ0NTIwNTU2ZDA3YWZmN2E5YTQxODk5Mzg4OTU2ZDdlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODA4ZDk4OWFjZjZhNmNmODEzOTllY2QzNjE3NGFlYzYwNmE5M2MzZGU4NmVmOTJhOThmN2E1ZDI1M2M3NGQ5YyJ9"
+        },
+        {
+          "resource": "repo://archive/README.md#L3-L13",
+          "version": "repo-lines-v1:sha256:268e6478014213775682de3986af3a992aceca74f37f877191f9c4fbe2bc68ab:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2MDg0YmQyMGFiNzUwNTljZTFhYjc3Y2JjNTUxNDdhZGU1NDUyM2FjODM5OTc2NzMxMjJjN2Q1MmYzNDk5YWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MmViMzI4YzBlZjY0YmFhYmU4ZmM5MWNmMGU1N2E0MGQyOTZlZGU1Y2FiOWY5Zjk3MjYwNTM1NWE0MzQ1ZWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4ZDI0MjhkZWM3MWZjYWNjZTQyNzk3NDY0MWJiZGZiMjE0MDlhMmYzYWNkN2M5OWI1NmU1MzcxZjgxMzlmMGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4ZDk0ZjMyMGVjN2NmODVmYjZkODU0ZjMzZTk1MzY3MGM2N2RkNjdlMmFlMWUyNDNkZjgyNWU5MDdmM2Q5ZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f3b980274e00425e88506edbf15c5900",
+      "statement": "ADR-0001 (arranging real desktop icons through Win32 because a web wallpaper receives no clicks) and ADR-0003 (the search panel must be a service-owned native window) are marked superseded by ADR-0004, which replaces their shared 'web wallpaper host' premise with an Electron panel window whose declared hot zones receive clicks and keyboard; their reasoning is kept because it explains why the platform boundary moved.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L109-L116",
+          "version": "repo-lines-v1:sha256:795a97385703d2cb162f725199d442a049023326cc9fa8c77c75bbd0216f34c1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGEwZGMyNTI4MWVmMTE0MWY1YjFiNjg3NDAyYTE0Y2NmNDBjM2YzMjkxZmQ0ZTdkMDVjYjkxODg1N2ExOGFkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDM0ZTRhNjdlYjU0ZDYzYmVkYzlhOWQ4YTQ2Yjk0OWY3N2ZmOWFkZWUxMGE4YTJhMWFjZGU2M2QwMWYyNDZlNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGZlMzkzNTMwNzQ0N2UwOTUzZTg5ZWJkNjAzYWZmZmVjYWViYmRmMDFmOWIxNmY4ZDljYzFkMjkwODM4ZWU3NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTRkNDM1N2M3NzEzZWVlMzU4MzkyNGYxZDZhZmRhNGEwZGY5YjdkYzc3ZGI1Zjk4ZGI2MWNkMWUyN2VmOGRjMSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0001-win32-icon-manipulation.md#L1-L3",
+          "version": "repo-lines-v1:sha256:c3af1757a79245006dfb2f7a013c5da44f78acb49fc632cc1c026734e9065d9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzljNzg0NzhjOTcxODdiZWZkZjBmM2FkYjdiYWRjNTAxODNjZDAyOWJjZWEzNTliZTc2NmRkY2EwZDUwODBmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzljNzg0NzhjOTcxODdiZWZkZjBmM2FkYjdiYWRjNTAxODNjZDAyOWJjZWEzNTliZTc2NmRkY2EwZDUwODBmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWQ3N2FlMDY0ZWYzYmM2MmRmMjQ0YzY2ZTcyMmM0ZDA3MDEzYjA3N2FkNzU4YzVlYjM2OWUxYjI1ODZmZGYzOSJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0003-search-panel-service-window.md#L1-L3",
+          "version": "repo-lines-v1:sha256:c3af1757a79245006dfb2f7a013c5da44f78acb49fc632cc1c026734e9065d9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzljNzg0NzhjOTcxODdiZWZkZjBmM2FkYjdiYWRjNTAxODNjZDAyOWJjZWEzNTliZTc2NmRkY2EwZDUwODBmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzljNzg0NzhjOTcxODdiZWZkZjBmM2FkYjdiYWRjNTAxODNjZDAyOWJjZWEzNTliZTc2NmRkY2EwZDUwODBmZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTk4NGY5NTA3NTRjYTEzODQwZDZiNmZlZWQyODIyOTkzZmYzY2Y1ZDEwZDYzNDcwODNjNTlmYjBkNzRhOGFhNCJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0004-electron-cordis-standalone-panel.md#L18-L20",
+          "version": "repo-lines-v1:sha256:3a2bc19ec1ed08cfafab7845ee6826ba571092bfa38913c0a6e5336983eec07c:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmU5MzRkYjRkZDI3NjhhZmM4OWNhZGZiNDgyNTU1ZDA4MTZjZTNiZTlhYTY2MGJlMDY4MTBiOGViNjZiN2UwOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA1OWQ3MzhiMmEwMTU0NjI1MTBiYWZhOTdmYjNlNjBkZmVhMmEwNzQxYTY4MDQ4NDRiZTcxMWY2MGNmNzFmNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDYwZTQzZjA0NWYzN2Y1MzhkYjAyNGEwMTY2MTFjNTE2NDc4MzQxMWY3NzJlM2Q2YTM3N2JhYTlhNzE5YTJhNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTk4NDBlNWUxZmY4ODkxYjliZTY5MWM1ZWRkYzc0YWI1NzczOTFkYzk2MmU4ZDBmZTFkNjQyZjVhZTQzMmNkOCJ9"
+        },
+        {
+          "resource": "repo://docs/adr/0004-electron-cordis-standalone-panel.md#L6-L8",
+          "version": "repo-lines-v1:sha256:d8e9d455648c2772579b89f4654c09d6446c866113101a0e202a94af7735cad6:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTI1NWFlMjhhOTNhOGUyMmVmNWUzMWU2NDkwYzEyYjgxMTQyYmU0ZDRlMWJkMmRlMjEwNzJjOTBmNDNkYmM4YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzE5NDg0ZGQwMGJmMjE4M2E1MWVmNzgwMDUwNjEzYWFiYzBhNGFhMWFmYmEwOWNmNzU2ZWZkZjM0ZTJmNGY1MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWRjY2U4NjE3NTRlYzY5YTAzZWUzYWIyOGZlMjAwNmVlOTcxMjgwZDFiYTgxMWJmODU5ZDc1ZjQ0NjU0Y2QxYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGE5ZWY5ZGYxZGZkNzg5NWZjZjBmZjIwMzQ2NGQ1OTIyNmRkODI0Y2NjMDkzM2MxYTE4M2M5ZjliNTk0OGUxZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_78410e0b44c44b1eb76c9399bb046374",
+      "statement": "archive/wallpaper-assets/ is a read-only freeze dated 2026-09-29 holding the three retired wallpaper trees — deck/ (source of the self-built AGENT DECK wallpaper that the deploy script pushed into Wallpaper Engine), patched/ (the TERMINAL 02 customization) and backup/original/ (the pristine upstream project used for rollback) — moved in unchanged from the former top-level deck/, patched/ and backup/ directories.",
+      "evidence": [
+        {
+          "resource": "repo://archive/README.md#L29-L32",
+          "version": "repo-lines-v1:sha256:67066e39629ad2680f0637cdc58c47fd2cbd075864fbfb797db14a3f9d1701bd:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWFjMmU2YjBiMGE1MjBkMmMyNDc2ZmRiMWFmMDkyMGVkNmQyYjczZjY2YThjMGQzNWE1NWI0Y2E0YTQ1NTAzMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDYwNWQwY2RjYzYxZGMwYjRiNjdiOWRlYjBlMTdmZWFkOWYzODQ4MWE0MjU4MDE0MDZlYTM4NjQ1ODYzMzk1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWE4MjQ2NTQ2OGE0OTc4YmI0MWQ4YTUyZWQxOTIzNDVhNWZiMGJjN2FhYWZhYmFhZjgyMDMyNjU5YzIzNzNhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://archive/README.md#L9-L13",
+          "version": "repo-lines-v1:sha256:50b0387b3415ccd648587cb791f30cb6f894928d527ad1d6d1e843519f0b3510:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTI3MzY1NGVjN2FmYWE3MTA1MWQ1MTIwN2U5YTE5MDIyMjE2MDcwMzIwZTEyNmVhYTNmNmJkNmEyYmMyNWVlYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODcyZWIzMjhjMGVmNjRiYWFiZThmYzkxY2YwZTU3YTQwZDI5NmVkZTVjYWI5ZjlmOTcyNjA1MzU1YTQzNDVlZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGJlMmU4MWMxZjg0MDRjNWI0ZTBhMWRjYjVmZGE2MzVkZmFhZjU0OGM5NjdiNmM2Njc5MjA1ZWY2OTEzMmU3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjhkOTRmMzIwZWM3Y2Y4NWZiNmQ4NTRmMzNlOTUzNjcwYzY3ZGQ2N2UyYWUxZTI0M2RmODI1ZTkwN2YzZDllZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb23932ba6ea43eb9f20907b2f5f5afa",
+      "statement": "The archive exists for provenance, not recovery (the commercial Decima Mono font, preview.gif and the original performance.layout.js could otherwise only be fetched again by re-downloading the Workshop item), and it is a dependency of nothing: it must not be modified, new work must not reference its fonts or assets, and deleting it is acceptable because git history retains it; the deck font binaries and the upstream editor's .history/ were never versioned anyway, while the renderer uses its own system monospace stack.",
+      "evidence": [
+        {
+          "resource": "repo://.gitignore#L4-L16",
+          "version": "repo-lines-v1:sha256:cd772041a87e054cfd871e0a9cf02e4e89c66bb1857407e0b16a9b6bded8a92c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZDI1NDgyOWJhNzA4MWE1NGE3NDNlMmUwYjZiNzQ3ODU0ZmE4NTllMmIwZGViYWYxMGE1ZDY1NTA2Nzk5NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzNzZlYjYyZGEzODUyMTFlNGVlZjk5ZWU2OWRjODBkNzI0OGU4ZDMzZDIwMjQ0OTFhNGM2NDZhNjZkOWMwMmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlNmRkODkxMmRiN2JlZjZhOTQ3MjQ2ZjI1ZmI4ZTJmMTZlMmQ5ZTdhNTI0NzljNDAyOTVhZGRmNWYyYjhkYWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVhYzEyMmNhMjJhMTFjNDYzMzc1NjljMWYwMjJjYWJhNmRkNzE4Y2NhZmI1NjVjYmU5YmM1MDFhMmFiNGNhZDkifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L14-L18",
+          "version": "repo-lines-v1:sha256:9c92d01aeb9f90fb349909305f9e987bc6ae05caca1e0b86f4293e3e8e7dd319:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmEyYmM1MjE5MmJlMjA3Y2Q2ZjQzZTU0NWE0MDNiOTc2NWQ4MTczOTQyZmE4ZWUyNWQwNjhhNjg4NzFmMjc2ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTQ1ODAxOGRjNDc4OTA0ZmE1NDhjYWFlYWEzZTM3ZWRmMjY0MWI5YTBlZTJhNTExNDg5NDc0NzFkOTIwNGFlMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzJlYzBlYzE0NjM4ZjBhMmQxZjhmYTM0MTI2NjhkNjU4ZDlhZTNiMTNmMzE4MWRlNWYzODNmZGEwYjIyOWZhYSJ9"
+        },
+        {
+          "resource": "repo://archive/README.md#L15-L27",
+          "version": "repo-lines-v1:sha256:7341af9fc14c17a02745a80b693c9114f559738401a7ca34b1ff40c9a02dd34b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhjNjNmNDYwNDY1NjA0NjhmYTkyNzFjNDE0ZDJkOTRkMWZiMDdlY2Q3OTQwNjkzZjI4OGIxNTFhOTM4NDMzNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjYWZhY2Q1MDQ5MTY4MjEzY2U4Njk4ZTJkMjAzMDU0NjI2ZDBiMTQ2OGMxMTk5ZWUzNzRjZjRiOTM4NGFhZGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5ZWEzMmQyYTc1OWQ5MWM1MmU3NmVhNjVhNzJjYzNhYmMyMzk1OGQ1ZjFkYjQxYmMzNWM0YmU3ZTgwZmY1M2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3YmY4ZThmYjkzZmIwZjU0NmFiYTZhMDQ2MDYyMzkxMmFjZThmOTlmZjZiZjc2OGYyMjE0NTIzYTUwZjA3MGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7e94a04d0fbc477e8cd4a2452d97e68f",
+      "statement": "Two retired-era artifacts are still recognised by name in current code so the machine cleans up after itself: the Python watchdog's Startup shortcut qoder-deck-server-watchdog.lnk is deleted on every application run regardless of production identity, and the retired service's usage log under %LOCALAPPDATA%\\qoder-deck\\usage is copied once into the panel's userData — idempotently, only files inside the retention window, leaving the legacy directory in place — so the dock's usage-frequency ranking keeps its history.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L75-L81",
+          "version": "repo-lines-v1:sha256:215578b21ccd2eee796e1ffa560d876d718c01fe18619e9e61419a33357d9171:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjM1YjdjYTc2YTBmNGM2NzJmN2M3OGJkMTMwMzg1NmY1ZWVkMTk5NDI5NmE5ZTk1ZTcwOGVjNTlhMjMxYTcyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGMzMjJlZmZjNjk4NDdlOWZhY2VjZDZjNzE4ZjBiZjdjYmMyNzFiZTAxZTJlMmE4NjdhMmIyMzNhYjVlYTViYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWMzYmNmZTlmOGRiNWYxN2JiNDA1MThlMjMwYWI4ODJjZGUyMGExOGZiYTc4NDBlOWM5NGMxNzQ4Y2NjZTMwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmU0NGQyYmViNjEwMjhiYjFkYmJlYjIzNjBkZTc2YjdmMDRlYTYwZTNlYmM0YjBlNGNmMDNlM2UyYmUyYmUxZCJ9"
+        },
+        {
+          "resource": "repo://README.md#L83-L90",
+          "version": "repo-lines-v1:sha256:4eefc73d4868178baa7989eb5bf19e1fa4357e0d823b0ee37d0b8c5da9d2afcf:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2M3ODcyYmFjNjI2ZDQyNTNiMzEwNzUyMGJjYjU4NjRhNjFlZTkxMjM3MmJjYzhmOThmZGUyNjg4YTE4ZTVkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWI5OWE5MDg2ZWY0ZTE1NWE1ZTU2ZjBlYWJkNGM3ZTUyNmMyZmU2NjU5OTlhMTM2ODE0NGIxOTI4MWI3NzQ0MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTFjMGQzNjdhOTdlOGEzY2YwMTExZTg0YjEyNzVhZDU1NDQ5NjU2NGM4OGE4OTU0NDJlMzBjY2YzYjJiNmJlZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTcyMjhhYTRjNzA5ODE0MTQyMDkyNDI0MjdmMjRiOTM2YWJiMDhmZmY0YjdlMTdjMDRlODFkODEwMGZiYmRiMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L24-L28",
+          "version": "repo-lines-v1:sha256:007286de54250dff5e9cc7dbb8e71b9a61feac355cf3b52f2b64f7a5b8d95b9e:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTgyYWM0MTAwNTcyNWIxNzljMjc1ZjZkYmE0YTYwMGEyOTdhMmQ4OTJkNGViYTdhODI5NWRmYjRiMjAzZTcwNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViNDhjMGU4MThmMzNlMDJmYzgzNjllN2RlNDgxZmIxNWE1MGFhOTUxOWQzNmFmMDYyMWU5NDM1NzUxNmIxZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTkyMWJhMDAwYjI5NTUzNzBjNjIwNjEwZDU3NjZmM2YyYzkyZTJmODYzZGNhOGFiYzA1ODY1N2RiMWJkNjZiZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmFjZjViNjBjNGY1ZDA0NmUxMmUzMTU5OTU2NzA5ZDc2MjAxMTUwOWJjNDczNzE5NDE5ZjNjM2JjNDk3MTU1NyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/usage/migrate.ts#L16-L48",
+          "version": "repo-lines-v1:sha256:a7e52c391d860594b44ca37c7b8494f9cf70e3b83c0361f3b4a787360fb78acb:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkZmQ3M2RmNGMwNmY0YWY1N2E1NzAxNzMxODZkYjQwNDkyMmEyMDFmOGZmNTllMmRjNDljZjc0MzdjOWUwM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwYmEyYWQ2ZmE3NWEzZDIzNzk3MjQ3MDIzYTBmMjg1ZWRjZTJlMzAxMTVjZjYyYjIyY2JiNTg0NTllYjBlYzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExMmVkYTZkOWYyNTA0NWVjMGMyZWVkYTUyYTA3OWEyMjBhYjM5OTFiZjQ4ZTY3MzFhZGMwMzI0M2FkZGRhMDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4NzczMzI4ZjMwOTkyZDAxNDc1ZWI1NTY5NTZlODU2ZjBiYmY2ODY0N2YyZWZmNGVmY2YzYWFkNTZkZWRiNTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e9725d6399744209bbc464e0bf5a196f",
+      "statement": "Retired Wallpaper Engine vocabulary survives in exactly two places: the 'retired words' section of CONTEXT.md, which dates each retirement (数据服务, 看门狗, 搜索浮层窗, 信息模块, HUD 模式, 座舱环抱, 仪表俯倾, 鼠标指示器, 头部视差), and the historical .scratch tickets (terminal02-qoder-status, qoder-deck, terminal02-hud-perspective, listary-search), which remain the only carriers of the old project names and contracts such as TERMINAL 02, patched/, GET /performance and GET /deck.",
+      "evidence": [
+        {
+          "resource": "repo://CONTEXT.md#L119-L160",
+          "version": "repo-lines-v1:sha256:c06dfda848c3a7288be77d5b93bec6c1f7866d69384f819036953fc4b6e02b56:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ3YmI1MWQ2ZmFjYWJjZDgwZDc5ZmYxMWUwMGZiNGFmNjVhMDlhZThjYjRjOTQ0MmE0MzVmZGFkOWExOTM0MjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljYjlhYzI2ZmZiNDM5NGZiZDVlMGQ2OGY5OTUwMjE2OWE2YTFmM2EyMTZjY2I1YjEzOWNkNjQ1ZTNkZTg3YjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0N2JlM2ZkZTJkMjJjNTFiYjM2MzMwNDc4MDE4ZjQ2ZmRjZjZhNThkNTE4MzgzNDVlYmIyYTNhYTRhYWY2ZDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://archive/README.md#L29-L32",
+          "version": "repo-lines-v1:sha256:67066e39629ad2680f0637cdc58c47fd2cbd075864fbfb797db14a3f9d1701bd:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWFjMmU2YjBiMGE1MjBkMmMyNDc2ZmRiMWFmMDkyMGVkNmQyYjczZjY2YThjMGQzNWE1NWI0Y2E0YTQ1NTAzMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDYwNWQwY2RjYzYxZGMwYjRiNjdiOWRlYjBlMTdmZWFkOWYzODQ4MWE0MjU4MDE0MDZlYTM4NjQ1ODYzMzk1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWE4MjQ2NTQ2OGE0OTc4YmI0MWQ4YTUyZWQxOTIzNDVhNWZiMGJjN2FhYWZhYmFhZjgyMDMyNjU5YzIzNzNhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d439b4e167e94d66af8b226c7c046733",
+      "statement": "The wallpaper is never asserted on even in acceptance testing: the battery proves the panel's transparency by sampling its transparent zone and requiring that the checker window beneath shows through (sample points filtered with WindowFromPoint so occluded points are not counted), and the 02-on-wallpaper screenshot is kept as a visual record only because a dynamic wallpaper differs frame by frame and carries no pixel assertion.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L634-L674",
+          "version": "repo-lines-v1:sha256:02bb33966fa902e312df91893af3a9862df5fdb646311c9d4d6f518439c472b3:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2NWU4MDQwN2I2NWJmZDRkMjMxZjg1YjUxOTYwMmUxZGM2NDIyMmQ1NDc3YTE4ZmI1MGJjMmNhNTE3YTlkZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NzUzYTgyNjExN2IxOTRjZGI1ZjcxY2I1M2M0ZGFjZGZiNDI2MDFjYTY1YTc4OGU5YTk2NzEzZjM4YTMwYWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2MWQ4YTY2OTdmZDJmY2ExZTk5ZDllZDc5NjlkNGNkYzgyNDZjNjkzODFhN2VhZWRmMzkwYWYzZTc5YzVjNGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVhY2YwODQ3Y2NhNTBiOWE5NDNjYjJiOWFhZDVmYWEyOTE2ODAwNDU5ZTBjYjk4Y2NmMzc5M2FkYjc1OWRmMGIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

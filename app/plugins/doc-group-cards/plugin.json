@@ -1,0 +1,8 @@
+{
+  "id": "doc-group-cards",
+  "name": "DOC GROUPS",
+  "version": "0.1.0",
+  "entry": "./card.js",
+  "capabilities": ["desktop"],
+  "order": 70
+}

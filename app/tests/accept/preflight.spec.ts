@@ -1,0 +1,130 @@
+// preflight 环境体检分类（工单113，spec #109 seam② 同模块扩展）：注入假探测结果断言
+// 五类污染源各产出正确警示条目、无污染账目干净。分类是纯函数——真机探测的合理性归电池。
+import { describe, expect, it } from 'vitest'
+import { classifyPreflight, classifyUserWindowActivity, PREFLIGHT_OWN_TITLES } from '../../accept/lib/panel-control'
+
+describe('preflight 四类污染源分类（注入假探测结果）', () => {
+  it('③ 遗留面板进程：恰一扇面板本体窗 → leftover-panel；镜像不可查询附提权嫌疑', () => {
+    const entries = classifyPreflight({ panelWindows: [{ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 3900, exeQueryable: false }] })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].kind).toBe('leftover-panel')
+    expect(entries[0].detail).toContain('pid=3900')
+    expect(entries[0].detail).toContain('提权')
+  })
+
+  it('④ 双面板并存：≥2 扇面板本体窗 → double-panel（不并报 leftover）', () => {
+    const entries = classifyPreflight({
+      panelWindows: [
+        { cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 3900 },
+        { cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 4101 },
+      ],
+    })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].kind).toBe('double-panel')
+    expect(entries[0].detail).toContain('pid=3900, 4101')
+  })
+
+  it('② dwm 幽灵窗：Ghost 类在场 → dwm-ghost（每扇一条）', () => {
+    const entries = classifyPreflight({ ghostWindows: [{ cls: 'Ghost', pid: 940 }, { cls: 'Ghost', pid: 77 }] })
+    expect(entries.map((e) => e.kind)).toEqual(['dwm-ghost', 'dwm-ghost'])
+    expect(entries[0].detail).toContain('pid=940')
+  })
+
+  it('① 全屏覆盖层候选：壳层外全屏可见窗 → fullscreen-overlay', () => {
+    const entries = classifyPreflight({ fullscreenForeign: [{ cls: 'Windows.UI.Core.CoreWindow', pid: 20592, title: '' }] })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].kind).toBe('fullscreen-overlay')
+    expect(entries[0].detail).toContain('cls=Windows.UI.Core.CoreWindow')
+  })
+
+  it('无污染：三路探针全空 → 空数组（账目干净）', () => {
+    expect(classifyPreflight({ panelWindows: [], ghostWindows: [], fullscreenForeign: [] })).toEqual([])
+  })
+
+  it('混合在场：四类齐发各产条目；空 probes 缺省不抛', () => {
+    const mixed = classifyPreflight({
+      panelWindows: [{ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1 }, { cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 2 }],
+      ghostWindows: [{ cls: 'Ghost', pid: 940 }],
+      fullscreenForeign: [{ cls: 'X', pid: 3 }],
+    })
+    expect(mixed.map((e) => e.kind)).toEqual(['double-panel', 'dwm-ghost', 'fullscreen-overlay'])
+    expect(classifyPreflight()).toEqual([])
+  })
+})
+
+describe('preflight 第五类：用户窗口活跃度（工单34 方向3，输入=probes.rows 快照行，与 classifyPreflight 同缝收整个 probes）', () => {
+  const row = (over: object = {}) => ({
+    cls: 'Notepad', title: '无标题 - 记事本', pid: 5000, selfPid: 1000,
+    visible: true, cloaked: false, foreground: false, ...over,
+  })
+
+  it('检出：前台是可见的普通用户应用窗 → user-window-activity，detail 指认 cls/pid', () => {
+    const entries = classifyUserWindowActivity({ rows: [row({ foreground: true }), row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1000 })] })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].kind).toBe('user-window-activity')
+    expect(entries[0].detail).toContain('cls=Notepad')
+    expect(entries[0].detail).toContain('pid=5000')
+  })
+
+  it('未检出：前台是壳层桌面宿主/任务栏（用户停在桌面，无应用活动）', () => {
+    for (const cls of ['Progman', 'WorkerW', 'Shell_TrayWnd', 'SHELLDLL_DefView', 'SysListView32']) {
+      expect(classifyUserWindowActivity({ rows: [row({ cls, title: '', foreground: true })] })).toEqual([])
+    }
+  })
+
+  it('未检出：前台是电池自家窗（selfPid 命中或 OWN_TITLES 命中）——自家现场不算用户活动', () => {
+    expect(PREFLIGHT_OWN_TITLES).toContain('AGENT DECK')
+    expect(classifyUserWindowActivity({ rows: [row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK', pid: 1000, foreground: true })] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ cls: 'Chrome_WidgetWin_1', title: 'AGENT DECK ACCEPT HINT', pid: 1000, foreground: true })] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ pid: 1000, foreground: true })] })).toEqual([])
+  })
+
+  it('未检出：前台 cloaked（不可见合成）或不可见', () => {
+    expect(classifyUserWindowActivity({ rows: [row({ foreground: true, cloaked: true })] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [row({ foreground: true, visible: false })] })).toEqual([])
+  })
+
+  it('未检出：快照无前台行 / 空快照 / probes 无 rows / 缺省不抛', () => {
+    expect(classifyUserWindowActivity({ rows: [row()] })).toEqual([])
+    expect(classifyUserWindowActivity({ rows: [] })).toEqual([])
+    expect(classifyUserWindowActivity({})).toEqual([])
+    expect(classifyUserWindowActivity()).toEqual([])
+  })
+
+  it('未检出：Ghost 前台（OLE 幽灵归既有 dwm-ghost 类，不重复入账）', () => {
+    expect(classifyUserWindowActivity({ rows: [row({ cls: 'Ghost', title: '', pid: 940, foreground: true })] })).toEqual([])
+  })
+})
+
+// 第六类：托盘机器态（工单141，spec #145）——预告型警示（不拒跑、不进三路计数）。
+// 记账决定归 tray-machine-state.spec.ts 的严口径判定矩阵；这里只断言预告条目形态。
+import { classifyTrayMachineState } from '../../accept/lib/panel-control'
+
+describe('preflight 第六类：托盘机器态预告（注入假注册表事实）', () => {
+  it('无条目 → 预告建档时序 + 严口径提示', () => {
+    const entries = classifyTrayMachineState({ trayMachine: { exe: 'D:\wt\electron.exe', entryExists: false, promoted: null } })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].kind).toBe('tray-machine-state')
+    expect(entries[0].detail).toContain('无本电池 exe 条目')
+    expect(entries[0].detail).toContain('建档时序')
+    expect(entries[0].detail).toContain('tray-add 存证')
+  })
+
+  it('条目在场但提升位未置/未设 → 预告溢出层默认 + P8 自行提升', () => {
+    for (const promoted of [0, null]) {
+      const entries = classifyTrayMachineState({ trayMachine: { exe: 'D:\wt\electron.exe', entryExists: true, promoted } })
+      expect(entries).toHaveLength(1)
+      expect(entries[0].detail).toContain('提升位未置')
+      expect(entries[0].detail).toContain('溢出层')
+    }
+  })
+
+  it('条目在场且已提升 → 无预警（健康预告面）', () => {
+    expect(classifyTrayMachineState({ trayMachine: { exe: 'D:\wt\electron.exe', entryExists: true, promoted: 1 } })).toEqual([])
+  })
+
+  it('probes 无 trayMachine（注册表读失败）→ 空账目不炸', () => {
+    expect(classifyTrayMachineState({})).toEqual([])
+    expect(classifyTrayMachineState({ trayMachine: null })).toEqual([])
+  })
+})

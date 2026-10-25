@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:68f9bdf71285e6bae8e3b906d625e383f603fd4bd263ee491df4f0880ff91725",
+  "claims": [
+    {
+      "id": "claim_5cdf210543c24638bfa1770d662e20c8",
+      "statement": "Clicking a session row reaches the kernel through the single bridge method `session/focus`, whose request carries only the scanner-derived tool name and whose response carries `{ ok, action, error?, hwnd? }`; the outcome travels only in that response, with no corresponding push event and nothing in `panel/changed` reflecting it.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L84-L87",
+          "version": "repo-lines-v1:sha256:00626eebafcb832ec8f6826e8c70e5d0de01c9adefc4e05b7326ce22296a8863:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDk0ZjI2NTM4MGZiMTc4NTdlM2Q3MjNlNjFlNmUyZTBiMjEyZjZiZjQ4ZjE2ZmM2NmUyZTEwNjM3YzY3OWU0YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUxMjM2ZjJhZWExY2U0MmZhMmIwY2NiMjc4MzJjNzhmNWQ4YzFjMTkyMzhhMjQwOTIyMTA2NjNkNTM5ZWQ2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGRlZDEwNDhkOTNhZjUzYmRjZmEyM2UxNzJlZWRkNmY4ZWM5YzI2ZTEzZWVhNTdmMTBlOTdjNGM4MzI4YTc0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGUxNjIwZmQ5MGE4MTBiZmIzMGFjZTZiNzFmMjFhMGVmODhmNzBkNDExYTcyNmZkY2VmNDk0Y2JjYzI3YzAyNCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L14-L24",
+          "version": "repo-lines-v1:sha256:7d2e9d88b342724ef99283747285bcb2b99fa34af35c29a90ef15ceeae9b30ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NmNmN2Y4MGU5Njc2MjU3ZGIwOGQ0OGVlYWQzMGIwMzFiNWE3OGYyMzkyMDMxMWQxYTc5ZjYwZjg4ZWUzMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4ODg0NjQwNmQ4ZGVmZGU1Y2U4YjZiMDQ0MjBjNDdiODcyNGIzZWY3NTNmMGE4ZDI4MzE4YmU1OTZmMjZkNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4ODRiY2M3ZGNkNWM5Y2JiZGYyZDBlYjA2NmY2Mjc3NmIzMzlmZjE1YTdmNjk5NmY0NDhjZGZmYTk4MDRiMjQifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L244-L251",
+          "version": "repo-lines-v1:sha256:33faa9ffea17b1822913f0a99c12d5195d9d94e36304e2885c28aed83caa9d9f:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGYzNWQ5ODY2MTY3NjMzZmViOGE1YTBhZGI0ZTJmOGVlNDhhOTVmODJiZWRmNzIwODVkYzgzOTdmNzI0NjUwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzFkMjUzMzliYjY1YmMzOTgyN2Y4N2QzNmU5NmQ1Y2IzNjg3YWY5N2QxMzE0ZTA0NjhlNWQwYmMyOTNhNTMwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGRlMjJkOTg5NTBhYzc5MTQzYjczYjg2YTFiYmU3NDY5YmYwNzUwYzYxNGE0MTA1YmI0NTlhYWE0OGI1OGU0OSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b25176f04e7b4acc8d0bf7f546d82bec",
+      "statement": "Using the tool name as a map key is the arbitrary-path defence: `FocusService.focusTool` resolves it only when it is an own property of the loaded tool map, so unknown names, path-shaped payloads (`C:\\Windows\\System32\\cmd.exe`, `../../evil.exe`) and prototype members (`toString`, `constructor`, `valueOf`) never become an execution target and degrade instead.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L61-L66",
+          "version": "repo-lines-v1:sha256:2fd29d73a46990f6955b86cf0ef5f39d747bc6d6357407f10d23095187245fcd:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzRkNTVhMmQ1NjcwN2RkODYxOTdjNjU4MTI0MzZlM2RlZDRjYThhNDk5OWVhYTkxOTVmMTM0MGJmZmMyNWQ4NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmM3MzQzZWMxYWYzYjljYzA1Y2RhZTAzYzc4YjMxZGI0YmExZDZmNmJmZDgxZTgwMDE3OGExZjE3NTgxODllMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg1MDhiNmNiMDU4OWFiYTc1MDMyMDJkZTJjOGY4N2VkOWIxOWNkNTg2NTNmZDAxYTNlNjc1ZTNhYjdiNTk2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGEzZjdhZDllMWVkZjk3MDY0Yjg2ZTkzYmU3MmEwMjU0NmIwOWNiZDQ2NTEwYmRkNjZhYmM4M2VlYTEwZjY3NiJ9"
+        },
+        {
+          "resource": "repo://app/tests/focus/plan.spec.ts#L70-L92",
+          "version": "repo-lines-v1:sha256:f066a69d53aa1b92d8c80d696e7fcde18e8ac6b4a277931db77fbd04f57ec546:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmYmIzYmFmYWY2NWEwYTU4ZDE3MmFmYmNiMmU2MjhkOGU2ZWJkMjM3ZGRmZjliMWQ3NGQyNWE2MjNlMGJmMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMzk2OGZjODMxZThhMWM1NjY5NTYyNzU0YmYxOTA2NmVmZDllNGRhMjQyNzk0NmI3ZTk1MWRhYTFkOTUxMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmNjdhNWZmZjc2NmM4MzQ5MTc5NzFkZmFiMzRiNjdkNjI5MjkwYjY5YjExODIwYjM3MzA4NTM2NWVjY2EwMzgifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/service.spec.ts#L131-L155",
+          "version": "repo-lines-v1:sha256:beee86f2ba5e0aae6008c8e5870bc1b269142a1301ddee53023f3b857edf2ee8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjM2Q3YTUwNDIzMGNmMjFiYmE1OWYyMGY0MWU5OTlmNDkxYWZkZGJkOWExM2VjMzQ0Y2EzZTU5MjM2ODg3ZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMDQ3YTlhMTQwZmExMmRkZDRjZDQwYWViZTFhYzExMDI2ZDVkMWE1ZTUzN2E2YjMxMzRmMzdjMzhhNzRkNWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_680ec1e945944ccca989bdb4909d5b2b",
+      "statement": "`planFocus(raw, windows)` is a pure decision kernel returning an exhaustive three-state result — `focus` with hwnd and pid, `launch` with the configured exe, or `degrade` with a reason — so the caller has no fallback branch to forget; unknown tools, malformed mappings and a blank launch target all degrade rather than throw.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L19-L23",
+          "version": "repo-lines-v1:sha256:38b0db289ded19eef818c046c42350daba0f5bf70859f7dac6102331d94c25e2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjQ3M2NhYTJhNTJlNzhkNWFmYmE0M2YzM2JjOTNlMDhmZjJhYjA0NjQyOGYzNDI4ZDczZWZlMjlkODVhYTI3ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjczZTdkOTgwNGZiMWVlNDM4ZGRlZDQ4ZTFlYTRiYzJiOWUxNGVkMmZkZWFmMzY5ZGNlODEyYzA5MjM1ZTM0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDRkMzEwMTkwMzE2MDEwMjFlNjlmZWVhZGQ4NWYwYWZiMzdhMDVjZWUxZjk4NzhhNjU1MjMyYzc3Y2IzMTU1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTRjM2QyYTlhNDcyMzAwNjFhYmNlNWQxZmRjMTYyNDM3YTdiMDNlMDhmZDBlNDBmYjZlMmIwZDgxNzhjYmVlYSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L77-L85",
+          "version": "repo-lines-v1:sha256:156060473e798084fad18e7703b6e76af3ee8c62de56abd6ca020068ef982956:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTg5ZWQwN2YyZjMyOWUwZmFiNmJkOWYwMjc5OTVmOWIyNjNjOTEwMTZmZmZmY2ExY2ViMWQ0N2ExYTViZjEyZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjc1OTlhNDFiZWU3ZjI2NWUyYTAxNDM0YzJjNjI1NDYzNTYyN2I3NDJiMDNiNGEwNTI0YWUxZGVkNmQ1ZTc0MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTlhYWI5NDc2ZTJiZGQ4MjU5NDExN2Q0YjNhM2EyZGFhNjliN2M2OTA5NGY2ZjA2NmM2OTNkYWE3M2JhMWNlNiJ9"
+        },
+        {
+          "resource": "repo://app/tests/focus/plan.spec.ts#L14-L33",
+          "version": "repo-lines-v1:sha256:631a2cf32f458c6b82788e34fda51648438bda8dd2ca0076a5e811484872b45c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmZWRhYzljYjljYTdkOWNhOWY5MWUyMTgxODZmNmY2OTEzODY4NDhkZTI5NjFlZTA5NzViNGJhMjkzNTUzZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxN2JmYTgxMjkzNWI5OTJmNGJlNTcxNWUwMWRlYmFjYmNmNTRjOTZjNzkyMWZhNWEyNzdmNDAzZjgyZGJkNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlMjJkNjZkNTM2ODkwM2JhZjlkMjQzY2MwOGMxOWNiYzhkYzRhMjIzMjRmYTZkNzA4NTg1ZGI4ZDYxYjI5MjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c010c8784c344483b16c1dbf4a34c8b4",
+      "statement": "`asToolTarget` is the second guard on the tool map: it accepts only a non-null object with a string `launch` and an array of strings in `processes`, which converts a prototype-chain hit or a malformed config entry into the same silent degrade instead of a `TypeError` thrown from `target.processes.map`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L49-L65",
+          "version": "repo-lines-v1:sha256:5f46e376436144465555f7b84ddc4e5d9dd4832828edd2863bdae24f7304ebff:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2YWEyMzA1MGE0ODYyMjNhNDE2MTMwYzQ5MDlmODkyNzQzNmJkMzMxMDkyM2E4ZDdmYzY1ZDc4NTUxNzhjZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzNjM3YmNhNmUxZjBlYzQ5MTRhN2UzNjRkNTFhODdkNTE1NmZhYjk1NjM3NDAyNjc5ZWNjNmE4MjRjNjk0MWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmNzk3MDNjOGNiZTM2YzVhNTVmODcwNzM5NzMwZjM1YzUwZTAxMTdjNmQ3ODJjMThjYmVlMTRjNTAyNjE1Y2EifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/plan.spec.ts#L79-L84",
+          "version": "repo-lines-v1:sha256:656a6065925e7e2668dbc04c971b442438947638bd9ea4ea3bd720459d951901:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzU4YWM0NTljMTg5MjA0OTk4YzAzYmJiMmQ0ZWU2ZTYxODFhYTJkY2U4MzllZWViM2FjMTk5OWJkODMzODc4YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODNmMGE4ODIwYTNjMGFlYmJhNTQxMmYzYzg2Y2YzZWU3N2JhMWU2YmM3YmQ4Y2Y4ZDIwYTQ3Y2M4NTFiOWZiNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_53a60567916744999a6e0b05488c6488",
+      "statement": "Window selection ranks visible non-minimized windows (score 2) above visible minimized ones (score 1), skips invisible windows entirely (score -1, so a tray-resident tool goes down the launch path), resolves ties by enumeration order (topmost z-order first), and matches by exact equality of the normalised image name against `target.processes` with no prefix or fuzzy matching.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L25-L52",
+          "version": "repo-lines-v1:sha256:21667820a04eaaea4f6d2b5360e8e0055134602a621d2782336e0cc2c86c0ec1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0YzMzODgyNmUyOGZiNzk0MTMxYzA5NjAwYWUzMjU3N2ViYmNkZjUwZjFhOTM2NDljOWIxYjYzZWIxZTRhM2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY1MmE5ZmQ1MDViNjg5YzI0OTNmNzNkMTFiZWRkOWQwNzllNGU4MzFmNjI4YjczYzZkZDUzMmNjNThhODIxOGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4NmI5MTFjNmMwMjBjMWIzOTNjOTVlYWNiMjEzMzk5MWRkNDQzNmNiYmU4ZmI4NjhiZjBkZjg4MzQ2YTE5NjEifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/plan.spec.ts#L40-L68",
+          "version": "repo-lines-v1:sha256:5f70a60a4fa1820a56089952bbccd357c48944b9d8676b601a152cfe9a10d152:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkZGU4OGZmNTAwMTdiZTUzODhhNTg5Y2E0YzQ3NTQzNzFhZjYwYjJjZjQwYTVjOTJiZWIxMWQyMjllY2Y4YjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMzk2OGZjODMxZThhMWM1NjY5NTYyNzU0YmYxOTA2NmVmZDllNGRhMjQyNzk0NmI3ZTk1MWRhYTFkOTUxMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4MDcyZDRjZjNjNjdkYjZhOWQ1MTZiYmRlNzZmOGExNjZkOTUxOGI4NWU5NjIxMDU2YjQwMWE5ZjRjYzVlOTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_42b085e50200468ba5ce16ee7d034f8d",
+      "statement": "`normalizeProcessName` in `config.ts` (basename, lowercase, strip `.exe`) is the single implementation of process-name normalisation, applied both at config load by `mergeTools` (normalising and de-duplicating user-supplied `processes` strings) and at match time in `pickWindow`; `focus/plan.ts` imports it rather than re-implementing it because two copies would drift.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L262-L270",
+          "version": "repo-lines-v1:sha256:4cfbb797fe97c1c061e3e5e6709947dcffe37d6f77cda136d8d9ae866864bc91:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODI5YzIzYjVkN2RiOTc4ZmNiNDJiNjA3ZDFmM2U4NDIxZjk3NDMxZGFjNGIwZjVlNzViYWM1YjExMDg3ZjRiMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQxOWE2ZGNjMDRlMjEzYTNjN2E3N2E0NTZiMDFlNzZkMWVmNzhjZDAwYmJlYzFkOGY4MTQ1OGZlOTNlZGM1NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWM1MWM5MTZmMjNiMGVhMTMyNmY0NjNkNDQyNmRjYjE1ZTA3MDUyMDY2NTMzNzIyZmFiODc4NTM4NWVhODIzMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGIxOTU4NThhZThhMDY5NTEyOWIyY2RkOTU4NWRkMDQyNmNlODA0MmZkYzAyMDFkYzhjZDM2YTdjZTAyYmFmZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L75-L82",
+          "version": "repo-lines-v1:sha256:053e081a01066f45bb6cde9290d1b666127d61384921c4802589139adb66c0f6:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3NWNjOTVhNDg0NWRkYTY5ZTNjN2Q2NjZiY2YxNDk1ZmIwYmMwMzEzYzIyNDg5ZDQ4NjYxNzFiYTE0MzIxMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTU2ZjBkMDc4ZmIyMWIxMDA3MWZjYzhkOTEwMzBjYzU1ZTUwNjZhYmM1ZmQzYTJjODRkMTIzMWMzMDg5ODI4YiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L31-L52",
+          "version": "repo-lines-v1:sha256:e5b8edb445a34e21379433662a3af91f3328311c6d50176c2ee75a3b39368998:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiZDVhOTkwZTMzMTkxNzkzYjgyOThmNGJmOTRhMTZiNjk0M2FhYzFiNDMxMjMzMDUwZTBhZWVjZjI4ZDczNDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxNmE1MzI2ZWNkNWRjMWYxNzYzYjhkN2NjY2VlMmEyNzBmNzgzOWYxMTU5NzQxNDliMjhlZDA2YzQxMDY5ZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4NmI5MTFjNmMwMjBjMWIzOTNjOTVlYWNiMjEzMzk5MWRkNDQzNmNiYmU4ZmI4NjhiZjBkZjg4MzQ2YTE5NjEifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/plan.spec.ts#L95-L100",
+          "version": "repo-lines-v1:sha256:9f7263bd25649338f6b1e8eb6c8f649815b4ebbf833f5a1796cf2f8145da4992:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzFlMjZiNjY0NGYxZmVjOWJiN2UyYTJmNzlkZDA3ZjY4NzJiOTZiYzc4ZjNiNWIxZTA3YmVmYmU0MjkzMDYwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTllMjAyYzViMGRjYjgzNDRkYzU5MWQ5MDM1MDIyMDZmZDkxN2Y0ZmY3YjcyYjkzNjU1NGU1NzNiNTkzOGI4MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2YxMTdhOWVlOGI4ZjdiNTQ1MzI4ZDQzNDdlMTE1YjU4MTIxYzEyY2FkNDUxNDkxMTU2ZWY5N2IyOWMwYjMwNSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7947c1a314cd4f56aafd37835abad251",
+      "statement": "`%VAR%` expansion is a service-level concern applied immediately before launching, using the injected `env` (production `process.env`): `planFocus` returns the configured launch string unexpanded, unknown placeholders are left verbatim, and the production adapter launches via `shell.openPath` with ShellExecute semantics (so a single-instance app is raised rather than duplicated).",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/focus/adapter.ts#L121-L124",
+          "version": "repo-lines-v1:sha256:5c3979dfbe335c384729528c92a324346cfd2374f5dd65e3e7b2f1bf7d66ab57:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQ3ZjJmZWRiZjg0YmY5YjdlMzBlNjJjMGE5ODVhYzkwODYwY2UwZTQzOWI0OGYxMmZjNWUwMjc0NzM3MjQyNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDE3N2JlYzU1MzdjOTdmNGE4NmQ4YjA4N2UwMjJkYWJkZDdiYWE2ZTFkM2UxNDY1MDJiNWNmZDc0MmEwMWNiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L82-L90",
+          "version": "repo-lines-v1:sha256:5b3b118ac06f39b033f2a5707793cc27ecf1603c639f3e44e6958f47d070ba5f:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjk3N2QyYjhiMjBkYmZmMmM1NDRlZGJiNmMwYWI2ODM3ZTg2Y2Q3NTQ4YWM1YjgwZDA3ZDQ3YWRjZDNlZGJiNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWI4ZGQwNTZkOGZlZWUzY2Q0MThjNmJmNzY3ZTY1OGQ1MTBiYTBiZjkyOWY4YWNjZjM4ZjI5MmRlN2VjZmZhZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L83-L86",
+          "version": "repo-lines-v1:sha256:4bf991e5e5ee2c6bdd96affb9435909fcfc4955f00bd3d1d039053dda9835808:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzcyMDg4ZWI2NjFmNzg3NTIzNDBhY2NiY2JjN2UzMTIwZmRiZGIxMzhmMDZjOTdmNDE3MGFhMmQwMmZmMWM1NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTZkM2M2ZjI5ZDdjNWU5NTcwZWQ5ZmQzNDlkM2ZmZmRiMWJhMWU4OWYyODlkNDY4NzFhMjNmZjMzMGViODZkYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmMzYzAyOTJmNDk0N2IxNzUzOTI2NDAyNGZiYjlhNjU1ZWEzNTAyYjJjODI3MDFmMzZhMTViZWM0MmU0ZTk5NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDNlNjNlMmI1YWU1YjIyZGRkZTkzODA1OTc4NjAwNjg3YTE3NmU4OWZiZDM5YmMwZTUwMjQ5N2JjOTAzN2I0MSJ9"
+        },
+        {
+          "resource": "repo://app/tests/focus/service.spec.ts#L55-L63",
+          "version": "repo-lines-v1:sha256:460e5fdc4f267898c38a5f28165f0df83694fa8aa4f29c6ba63c3635300aa3d3:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWQyMTRmZGIzZTY4Njg1NGRiMTdmZjc5NmMyMzc0OTY4NWIxZWU5ZDRlYTYxNjNkOWFhMGZlYWE0YTQ3MGJjYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGYxOWM4ZjVhNmQ3M2UxMzY2MDdlMGJmMmVlMjcwNTQwNjEwMjRlOWJjNjc1ZDBhODg3Mjc2NGI5NWYzY2MzYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c144010ec90146ddbf241e09aeeaa974",
+      "statement": "A window-enumeration failure is non-fatal: `FocusService.focusTool` catches `listWindows()` throwing, logs a `deck-focus: 窗口枚举失败，降级为仅启动` warning and continues with an empty snapshot, so a tool that is not running can still be launched from the same click.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L66-L73",
+          "version": "repo-lines-v1:sha256:ebab3ad36387728f693dce58dd4aadb3155e73aa736fd4cb544e7f28e7f66ce3:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmM3MzQzZWMxYWYzYjljYzA1Y2RhZTAzYzc4YjMxZGI0YmExZDZmNmJmZDgxZTgwMDE3OGExZjE3NTgxODllMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2RkYjg2ZjVhZGM5MmUzZDU2ZTk1YTRjYjRhZjIwNGE3NTNhYWNmZjc0ZWNlZDZiMDYzYzc1OThmMjI4YTYxMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWI1NmU1ZGE4ODc1YmFhNDdlNDRiZWQ1NzU2ODg2NGVlMGIyZDAyYWUxNDY3MmVmODZkM2VmMGRjZmZmMzFmZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzE4ZWMzODI5MzRiM2M2NTQ1MDk2OWJlMjUxYjg2NTk3MGJiZTJkNGNkNTU4ZWRjNDZlNjY2ZDlmN2FhZjQ4YSJ9"
+        },
+        {
+          "resource": "repo://app/tests/focus/service.spec.ts#L110-L129",
+          "version": "repo-lines-v1:sha256:f6f4092ae348cfe045e9eff64e2cba0aafda63b7b3f00ddf718a427f569234ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkNmMzYzkwMDFiMTI5NDlhNDdlYTI1ODIxYzM4OTg5NjEzMmVhMzA0NzhlYmY0M2QzZDM5M2I4OWFmMDhhMDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1ZDQzYjZmOTAxNDlmYTI4NzdmN2Y2MjVmYzAxMjYwYjNiODA3NjFiYmEwNGY2ODdmZGQ1MmM4M2JjODUzMzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_dc449435a6a54717ad9c0c9834dc7969",
+      "statement": "Each native outcome has its own degrade branch inside `focusTool`: a `false` return from the focus adapter (the foreground lock refusing `SetForegroundWindow`) becomes `系统拒绝置前该窗口（前台锁）`, a thrown focus error becomes `置前异常：…`, a non-empty `shell.openPath` error string is passed through verbatim as the reason, and a rejecting launch becomes `启动失败：…`; `ok` is true only for the `focused` and `launched` actions.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/focus/adapter.ts#L105-L119",
+          "version": "repo-lines-v1:sha256:2ff29f27a34cba8cf8149c5caf768579861458c977830be06777200aa4b3973d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4MTU1ZjViMDA1YTNiMWExMjM3NzA1MjhlZjEyNjJmNzgyNmZiY2U1MjUxMzY2MWM2YTNkNGQ3Y2JkZDEyNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVkOGM4NjEyOWViOWZlOTMxNjkzZmUzMmUzMGQyOTQyYTIxOGIzZjI0Mzg5MjcxMmVhYTMxOWQzYzE1NjNkZmEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L74-L89",
+          "version": "repo-lines-v1:sha256:eeaca51410ff543777ebe45da124c7adb9904f0d7390f2db5ddb8d03d6141273:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJiNzRmOTU3ZWNjNmM2N2IxMzk3ZmUzOTQ3N2JiNjg4NjI2OGMwYTRiYTk5M2QyNzZkYjgxYjQxOTc0MjJmZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhNDFmZWQzNTY1ZGM1MDI4YWNjOThjZmRkM2I4NDAzMDU4MzAyZmU0ZGY4NDMyZGJkNWViYzYzNWRiYTY1Y2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyNDk4ZTFmODM3ZWMxNjljNTA3MTVjOTUzY2M1ZGZjMzNiZTcyZWM2NTZkYTEzOWQ1N2VjNmIxZDExM2E0MjMifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/service.spec.ts#L88-L108",
+          "version": "repo-lines-v1:sha256:64e1f2df8fd61c4561b0355685dbddff4652808aea8f95e4e3ad5a0beb82e4da:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0Y2U5ZWQyODgyYjlhMzE2NGQ0NThiMjMzNWJlNzIyODUzYzgwNzg4ZThjNTMzOTc0ZWNlNzU1ZDMzOGYzOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzMTlhY2MyZGM1ZGFiMWJhOWYwOTcyMjBmY2UwODEzOGJkZThkODQ3Mjg2NzFiOGMxMTcwODdlOGM5YjQ3MWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d6ef6b2283ef4610a4cceda09cd3d558",
+      "statement": "Silent degradation is deliberate for this workflow: the service's boundary comment and the card's header both state that clicking a session row is a light interaction, so a failure must not break the panel, pop a dialog or interrupt the desktop; the renderer therefore never branches on the result beyond recording it and has no error UI, retry or toast.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L37-L45",
+          "version": "repo-lines-v1:sha256:1c9a0e8d8f9116cd768c783618d3295094a1c470cd2846b2d7a8f8351250c6a7:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTA5ZDljMGQ0Y2I5YjQxMTYwMmMwMmM0MjRmY2NlMzVkMmZkODM3MDljNmI2ODY0NTk2NmM0ZWIxZTg3MTk5MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGQxNTU4ZWYwMDdkMDU1ZDdhOWNmYjRlZjAwZDRhZjAxNjIzN2ZhYTYyNjAzZDVmM2VlNmEyZjcwMTNiM2U2OSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L1-L3",
+          "version": "repo-lines-v1:sha256:cf80f399da1037583d4357bfce3284fc691737b79551c1192f76fd00264cd395:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdlOTczMTk0YTE4Yjk3Y2U2ZjYwMmYxZjI5NWMxYWNhNDg2NjlhYjNkYmYzNjFlN2U5MjM4MWY2OWQ0MWM5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTZmNjAzYzAwMDljZjZlMzBiNDNkNjNlMjkxYjlhYTU2ZTI3N2Q3YmVhNGY0YmVhM2I3Yzk5ZmY2YjE3NjU4NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2I1OTZiMGRmOWU0YTE1N2U4NjE1NmU0MzRmOTJmOWI1ZWZhMDYwMDEzYTNmMTUxODYzMTY0MTY1NTZiMTE0YyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L14-L24",
+          "version": "repo-lines-v1:sha256:7d2e9d88b342724ef99283747285bcb2b99fa34af35c29a90ef15ceeae9b30ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NmNmN2Y4MGU5Njc2MjU3ZGIwOGQ0OGVlYWQzMGIwMzFiNWE3OGYyMzkyMDMxMWQxYTc5ZjYwZjg4ZWUzMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4ODg0NjQwNmQ4ZGVmZGU1Y2U4YjZiMDQ0MjBjNDdiODcyNGIzZWY3NTNmMGE4ZDI4MzE4YmU1OTZmMjZkNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4ODRiY2M3ZGNkNWM5Y2JiZGYyZDBlYjA2NmY2Mjc3NmIzMzlmZjE1YTdmNjk5NmY0NDhjZGZmYTk4MDRiMjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d3904d5391a844af9640a87a44823173",
+      "statement": "Because failures are invisible on screen, the observability of this path is entirely evidence records: the card emits `session-focus-clicked { tool, id }` before the call and `session-focus-result { tool, id, ok, action, error, hwnd }` after it — with `error` and `hwnd` explicitly null when absent and `hwnd` recorded as a decimal handle — plus `session-focus-failed { tool, id, message }` on a rejection; the main process appends each to the JSONL event log when `DECK_EVENT_LOG` is set.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L63-L65",
+          "version": "repo-lines-v1:sha256:466cbea928e14be1d57efab44768c99f9b9f9a16c1d461903fbcffb7809a82ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGU0MGY2OTkwM2Q0MGZlOWE3NWQ3MTk1MWQ3ZmJjMWRiNWU0MWFhZjkyOTNjZDc4OTkyNTYwOWFlMjE0ZTczNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWU0ZDk2NTMzOGYwZDczMDEzNzY3ZTY2NDI5YjJhYThkYjE2NTBjM2MwZDFiNmJjYmYwOTE3NWNlZDM4N2QyNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTkzZGNiYzgwNjk3MTI5YzAzOTM4OTA2YjJhNzUyMTZlY2Q5OTY0MDk5ZGI2NmJjMDI3NjNjZDVjYjI1ZjZmYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L14-L24",
+          "version": "repo-lines-v1:sha256:7d2e9d88b342724ef99283747285bcb2b99fa34af35c29a90ef15ceeae9b30ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc0NmNmN2Y4MGU5Njc2MjU3ZGIwOGQ0OGVlYWQzMGIwMzFiNWE3OGYyMzkyMDMxMWQxYTc5ZjYwZjg4ZWUzMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA4ODg0NjQwNmQ4ZGVmZGU1Y2U4YjZiMDQ0MjBjNDdiODcyNGIzZWY3NTNmMGE4ZDI4MzE4YmU1OTZmMjZkNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4ODRiY2M3ZGNkNWM5Y2JiZGYyZDBlYjA2NmY2Mjc3NmIzMzlmZjE1YTdmNjk5NmY0NDhjZGZmYTk4MDRiMjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_88494f9689604591853d1b4904c1034c",
+      "statement": "In-band degradation is a resolved response rather than a rejection: `session/focus` with an unknown tool resolves to `{ ok: false, action: 'degraded' }` and the panel still answers other methods afterwards, which is why the renderer needs no try/catch; only transport-level failures (the ok/error envelope in `panel-ipc.ts` rethrown by the preload bridge) reject the promise.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L38-L48",
+          "version": "repo-lines-v1:sha256:abd818a100b715c6321b14a4701c368ab28702e273742793927b49640e18e00c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5Y2UzMTE0N2RjZDQ2ZDk4M2E3YjIwNmYxMWNiY2Y0ODhhYmM1MWVkZWRiYTA1NDE3ZWZkNjM3MzY2MTc1MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU3Y2NmNDgzYzBmYmM2NWFmOGY4YTkyMGQ1NWZmODFmN2IwMmFlYTk1M2JjZmUwOTc2ZWUwMDEwZTg4ZjFlZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyZmIyNWQ3YzkzMWQyNjBmODYzOWU5NTZiYWI1N2MzZjRmYmRjNTY2Y2UxOWMzNjM5MzhiZTJmNDFiMzM0MmYifQ"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L10-L14",
+          "version": "repo-lines-v1:sha256:5e6a2307df6f6868d2b2547e23939013572620567a949fbfc195ed5c078f8354:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWMxNjAyM2EyYjM0NzE4M2NlMTk0NjBjMTg5MGRmNWEzZjFmYjY3NjEzY2Y1NGY3MjNlNzA0MjYyYzI5ZTY4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDczMTgzOTk5YzAwYzBiZjQzZDQ5ZjJmYzQxZmQzNzI1MmIyNGVjMTkzMDA5NDRkYTg0YTEyMmNmNzJiNDQ0MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjJjZGNmOGQyMWUxMzU2ODdjZTczNWFjNDY2ZjMyNjZhZjg1MDE3YWE2ZjU2NmUzMTdmYWVkNTM3NDg5NmE2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTRlODY1MGFiOTc4MmM4YWNjYjVmMDNjNTg3YmMzMDJhNzAxNjJhNWRhMDljNWVhYjQ5ZmM1MThkNzI3MWFkOSJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L413-L440",
+          "version": "repo-lines-v1:sha256:a83f9620a3e8b92e6df0579121039809e01e7d61e92a58b5ca4dd9cdfdb850a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjBmYTFhOGQzZDBjMzM0OWJlM2FkNWNkY2E3MGQyOGE1MTU4YmNhNzBkNTI0Zjc1MmY5M2M1MTZlZDQ4NjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3ZjA3YzJkMzZiNDU5N2YyM2RjOGM2NDdiYWM5MzM3YTdiNWU5NzU5ZThmMjNhNDAxMzVlMDAyMzVmYjg4ZjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b02c0cdf0451449190e722eb6022ed85",
+      "statement": "The Windows adapter is the only FFI owner on this path: it binds `user32.dll`/`kernel32.dll` lazily and memoizes inside the first call (so injected fake sources never load native code), enumerates top-level windows with the `GetTopWindow`/`GetWindow(GW_HWNDNEXT)` chain under a 2048-iteration guard rather than an `EnumWindows` callback, and its candidate shape (`hwnd`, `pid`, exe basename, `visible`, `minimized`) deliberately carries no window title, matching the privacy boundary that only the owning process's image name is read.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/focus/adapter.ts#L31-L52",
+          "version": "repo-lines-v1:sha256:be65b8e683a85142c4cacfa9df79b7811b62a9557b04a2f6232a920fe76653cb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlNTc4YWU3MmVjNzY1NzJiZjg4NzJlNDYyNDVjZDFiNGFlZDc0YmUzZDg4YzU0N2I1YTNiZGFmZjhlYzZiYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzZWYzMjcxYWJhNDA2MDE3NDI3ZGIxMzJjMzZmZDVlZDczY2NhNTM5MWMxOWVhOTQ2MjU2MmY3NDFjM2Y0N2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkM2EzNThiOTJhNzQ5ZTAzZTJlMmYwNWVmMjUwODNlODA1ZmUwYjVkYWVjY2M0OGJhM2Q4YWMwMDY2M2FlYTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/focus/adapter.ts#L76-L103",
+          "version": "repo-lines-v1:sha256:21158361faa52af9ef262f49228e0d5dc487c5feea756e2b41f97de7cc53da00:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1Zjg4NmE0NjBhZGU3ZGU2NzFmYThlZThhYTJiZGE1ZDQ0NjJiMjFmNjA2OTkxNDIxYTYwNWZkM2I0YTIyYWIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/focus/plan.ts#L9-L17",
+          "version": "repo-lines-v1:sha256:cb93ba7e5435e54c0926b36a8dbd501e7abb454d3ca873aedc3c714c0c7ebfc5:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZWYzNGJhNWEwN2QzODk3ZDVhMzU4YzFiNzk1MDljYjY2OWY2YTljMzk1N2EyZmExODk1NzYzMzE3NzQ0YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzBkOGU3N2I3MmRmZTViMGFkMGQ3ZGFiMjExY2Y0NzNmMDRjOGQ2ZWUxOTgxZjA4ODRmNjUwZDU3YzhjNWRjZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2Q5ODlmMDQ5NjYzM2JmNmNjZGJjMDVhMWM0YTc0ZjFhMzhlODllMDQ4MmQ0ZWQ4MjVhNzEyYWQ0ZDljNDQ5ZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3959f915ba4b496f82c788a61d275a10",
+      "statement": "Rows are only clickable where the page declares a hotzone: the panel window is click-through (`setIgnoreMouseEvents(true)`) except inside declared rectangles, and `declareHotZones()` declares one rectangle per `.card` element, so `#sessions-card` is the addressable region and rows need no rectangles of their own; separately, `sessions.slice(0, 9)` means a session beyond the ninth has no DOM row to click at all.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L42-L42",
+          "version": "repo-lines-v1:sha256:98d51babfcfddd22d6b4cd05b26e52c46d34a11ecdfa90cde77f866c47ab489c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDY5ODIxZDg2YzQzZTNkNWQ0YWVhZjYwN2FhZTJhM2Y2OWMwM2U0Y2VkZTEzMTdmY2JkMTlkZGU0NDZjOWI1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWM2M2NlOWM4MWUwZDA4ODM3ZTRkZTU5MGY1NzY0NWYzNGJlMDZmMmY4MzJjMmQ2ZGJjZjNjNzQyZWFjYzdlMyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L26-L47",
+          "version": "repo-lines-v1:sha256:5da8350ad42a1c78cfd026c19881494fb924764182acb5d210e77827aa65b9a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNTM2ZTNjMzY4OGZlMzBiMWVlYWJiZDExOGU0ZWM2MzBjMjU5MmQ2NGJhYThjMjhkMjcyMzcyOWQ5ZDllYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4ZGZmYTFmNTkyYWZlM2NkNDg0MWQwNzg5MTBhODIyNjc4YThiNDRjZThlYTc3ZjE5NjY2ODVmYzc2MWZkNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1MzlmMGJmNDU5ZWNjMGZlYWE0YmQwOGZjY2U5NGE0MDhhNzAzMzYyOTQ5OTM5NTY5ZTBmNGRmYzdlY2VkMjQifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L738-L754",
+          "version": "repo-lines-v1:sha256:04ecfc28110cfd8895910471cc9abf1336575ef321dde039665cd05cb50b5f28:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmOWFjOTE2Nzc2YzJlYzI5ZDZiM2I1Njg4NDEzZTBmMmVmNmEzZTg4NWM3YjkzNWIwYzVkNWM2YWRjZGY2N2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0YjNmNjAzOWZkOWU0OWExYzBjYmEyMjhlMjQ1YjI1ODM4ZjMwMWNjMzJhZmFhNTU5ZDRjN2MzZWE1NmE5YjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5MTk2ZDUzMWI3OGFmYWE2ZTJiMGRhMDc0YTIwMDUyYWZiZDUwNzU1OGJiYzk1YmZiNzE4MWZhMWMyNWZiMTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_55d70a84188b4c4094b74be8927b817d",
+      "statement": "The card publishes `sessions-rendered { n, count, rows }` on the first three renders after mount, carrying each row's `tool`, `project` and client rectangle; this is how the acceptance battery locates a specific session row to click without any accessibility API, and how it distinguishes \"row not found\" from \"click never arrived\".",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1896-L1919",
+          "version": "repo-lines-v1:sha256:8fd8f55ffcff6097bcb2af83e0f9e8b99a3ec91599459a0aaf9638a7e3b9238f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZGQ1NWFjZDM0MTRiNmM1Mjg4OWEwMTMxZDdjZmE0Y2Y5Zjc3ZDY1NTQ4MmNjZDhkNmMzZmM4Nzg2NDdmZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODI3ZGM2NzRiOGE3MWFmOWMxNjRiN2VkMWFmNTQ5ODI5NGZlYzZhNTcyMjQ0ZWU2OWU5ODhhMGE5YjA5MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmYzE5MmM2MGE0Y2Q3NTQ5MzAzMzVkMWE4NTg4YTA4ZWYyMDRjMTg1NjRhMjIyMTExZDhkNDEyYzRjODc2MTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlYmE5MzU1OTljN2Q5OTY5N2JkYmY0N2YwOTMzYmNiOGNmNzEwYzVlYmFlNThjYTU3N2Q0M2Y1OGU3NWQyNGEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L48-L62",
+          "version": "repo-lines-v1:sha256:d723ced3ec2e93695ee3e6b5360549ab3bd923fda1b61dcab64d3b76ebb131bc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3ZTMxMjJkMjY5MjE2MDIyZjE0YWI3MGUzZmJiNmU0OTMyNmI2ZDhjOGMxY2MwMWMxYzVkNzNkOTIzYjczOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYyMTg3MTlmZGI0ZTI0MzA1YzRmZWE1YTlkYjg4NGE1ZDVhYTQ0OTRiNDU3NDE3NzNhZWIwNGI3NmVjZDNjYWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzMjY2YjhlY2E5NTc5MmE1YTEyOTY0MWQzMjM5M2ZlZWQ3NDcxYjQwMTBiYmQyMTNkMWMyNWE4MTc3NWIyNTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_546569bbf40b4774b23a1e5714f58d53",
+      "statement": "`config.tools` is the entire configuration surface of this workflow — per tool a `launch` path (with `%VAR%` placeholders) and `processes` image names to match; the map is loaded once at boot (`loadConfig` on `app.getAppPath()/config.json`, then handed to the kernel as `focus: { tools: config.tools }`), so changing it requires a panel restart, and because the settings slider persists by rewriting the whole config file from the same in-memory object, a hand edit made while the panel runs can be overwritten by the next opacity change.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1927-L1940",
+          "version": "repo-lines-v1:sha256:880536a8b5d6f5721f36cb5fbf973644031c3de5d8442edb6c5449e8fefc325c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiNTAzNjE0ZTNhZTNiZjliNWMzZWVjMmU0ZmQ1YzFkNjBiY2M2OTE0MmJlY2QxMTIyMzk4MTZhNDQyNWE2YWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODI3ZGM2NzRiOGE3MWFmOWMxNjRiN2VkMWFmNTQ5ODI5NGZlYzZhNTcyMjQ0ZWU2OWU5ODhhMGE5YjA5MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI0M2QzOGI3NjZjZmRhNzQ1Njk2MmU4YzFhZGM3MjcyYTBhMjg2ZjJjMjNkNDFjOWM1MTE1YThlNDQzM2Y4NTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzZDgxMTM1OWRjNDM3ODQ0N2I2ODVlOWVmNmE2OTgyNDgyM2I0Y2NhYmIwNzhlZjYzNmZiNjZjMGRiNjMzMjcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L60-L73",
+          "version": "repo-lines-v1:sha256:5b97f06567959bcd70994ab8b4e744a63d88fe5c9b83d5047bf94a12e11d64e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNjVjZjJmNzEyNjdiMTllYWJkZmM2Y2JlMjgyMWEyYzEzYTI2NGUzN2IwNTk0YjVhZGU1ODBiYjk4ZmRkY2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhlYjQwOTVkODMzMDY1NWE5ZjE2NDRhN2ZiNTU0ZGNjYzFiZWU3YzRhMDA5MWY4N2UyZWY5YjM2YjhiOGUzOGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYTU3NTc1MDk5Mjg3Yjk4YmU3Y2UxYjJlM2EyMzRlNTEyNzhkNWQ2OTE4NDYxYmQ0YWU3N2U0YTU4YTYzZTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L19-L19",
+          "version": "repo-lines-v1:sha256:6517683f17b69f17d1b4085217f943cd198693cfda7ff5eb1eb5e6056d75feeb:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUxNzY4M2YxN2I2OWYxN2QxYjQwODUyMTdmOTQzY2QxOTg2OTNjZmRhN2ZmNWViMWViNWU2MDU2ZDc1ZmVlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjUxNzY4M2YxN2I2OWYxN2QxYjQwODUyMTdmOTQzY2QxOTg2OTNjZmRhN2ZmNWViMWViNWU2MDU2ZDc1ZmVlYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDNjZmUxNWE4NGU1ZTMwNzgyODE0MjEyOTM1M2FhZTBmN2Y4ZmY2MGE2OTU0Y2Y5MGZhZTdlMWFjN2RkYTM5OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmNmZGI1YzcwYWQ5MDc5NmVhMDYxODhlZTY4MzVhMTA1Mzg5NTQyYzQxZDdjNmJkNmNiZTY0MjkyZmI4OTZkNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L46-L90",
+          "version": "repo-lines-v1:sha256:2545129ab98ef3b3bc811a4de423f577e98809ffa11adc45bf0813336b5e6dce:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2YTg1Y2U1MzAxZjNjOWU2OWM2YjE0ZWE1ZDI2ZDM2MjIzMDU5ZmRjZTQ0NDYxYWJkNDJmNDc3YTc3OTVmMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjZGNlY2YyZDUxYTc0MmNiMzg0MTc2MWYxNmVhZjMwMTA0MWFkMDM1OGU3YzhlNzQyY2NkZjYyZDFiZjQzZjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmMjljMTllNThmZTFiMGEyNzM4MDBmZDdjOGJjNjQ5ZDQxZWI3MWE2YjE3YmI1N2ZjMTgxNDAwODBkYmYxZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5MmE0ZDZkMzJmMTYzM2NjMWQwZjQ0YjFiNzVmMTM1MTJhMjdiMGQ5YTg5ZTBhZjJiOGJlNzM4MDAwNWM1ZDgifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/settings.ts#L45-L50",
+          "version": "repo-lines-v1:sha256:9ea1009d11a54e3b957e65de1ed73e1b7a3296b8d95808389dc9dbf8b16f8b6f:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRiZGFhNzEyZTc5NDNiNTVjNzBhZGM0YjZkZDkzNWMyZDI2ZDIzNDJjMjJlOWRiNTQ2N2Y4YWZhNWM2NzExMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTIxZWFmMTg1ODE1OTliMWJlYjljNzFjODg4ZDM1OGFhMGE1MWRhMzhiOWZlMWZhYzJkOGM3ZWJmZjhjYWIwOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGNkNzViMmQ1MzBjNjVmNWY2YjllMjU3NjljNmVkNDY2MmNlOGJiYjdkM2M1NmIwYTcyYTk2OTA4ZWU1ZmE3NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWYyZWUxNDcxNzE4YTAzNjIzZTMyNGIzNTZlNzk1ODljMzJhNGQxYTg1OTdjN2I5ZDA3ZDBjNGJmYmFkYTE0MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc315e4dcef84897bde402da84742e61",
+      "statement": "A missing or partial `tools` section is tolerated rather than fatal: `mergeTools` starts from `defaultTools()` and overlays the file field by field with warnings, and `FocusService` falls back to the same `defaultTools()` when constructed without a `tools` option, so a config-less boot does not degrade every click; `processes` entries list both launcher and application image names because those can differ for the same tool.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L205-L237",
+          "version": "repo-lines-v1:sha256:683d2fec19769b4b601d42397506223eef2a2490ec29a82d2fa516051119586d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4MTU1ZjViMDA1YTNiMWExMjM3NzA1MjhlZjEyNjJmNzgyNmZiY2U1MjUxMzY2MWM2YTNkNGQ3Y2JkZDEyNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjMmYxNDA3YTQ3YzE1MTNmODQ0NDI2MjJhMTQ0MTViMzYxNmM1MTYzMjA1NTZiNzY4ZWM0ZjQ5ODRkNzU4OGYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L239-L274",
+          "version": "repo-lines-v1:sha256:f60f1e2452b9438b6b692f22394a1f5d2b5f19b62ebe51b73cec25fa956a02c1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzNTFkMzEzYzY1M2RkOWJmZDJlYTA3NGRkMjNhYzNmYTVkZGE5MTY0NDJmMTVhZGE2N2Q1NWJhOGU1ZjFkZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5MzY3ZWQxYWU5MjZiZGYxNTU4MjQzZGRlOWRlMzdiNjUyYmVjZTRhNDg5MDE4MThkYzFkNzEwOGY0NDE5MzgifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L50-L59",
+          "version": "repo-lines-v1:sha256:2f2de1ce415831986db9a4b12cdba0c9d25872e2a4de141d9e045e3baa10352b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwYTJjOWZmYWU5MjFkYjViODY3ZWRhMzliM2RjODljNTA4OTBlOTI5MTEyMjdlZDNkYzEyMGQyNzRlYWNiNmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzMDU1N2I4YzI4YzM5MTE3MWRhNDFmZTA4MTU5OTUxMjlkZjM0ZWE0YWY3MWRmN2Q3N2YxNDY0NDczMTRkMDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1MDVmYjFlYmM3ZjFlYjBjZDEwYTJhZjZiOWJhZGQ1ZjY0NzZkOTFhYzg3ZWNiODcwYWQ2Y2Q1MjM3ZDdkY2QifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/service.spec.ts#L157-L166",
+          "version": "repo-lines-v1:sha256:5f99737c19c89f84ac5e61787b7acd86b856b3d0099045ebd78adc3d5d8b6d81:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkMmJkM2RjNmE3OTM2NGFlMGRjYzVmYjRkYzM1YTFlOGMyOTg1MGJhOTgzOTBhNTVmNDg2NmJiNzcxMzM3YzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7b9d0a904f024ed9a943d699450afa22",
+      "statement": "The routing key `SessionInfo.tool` couples two independently defined maps — the scanner keys and the `config.tools` keys are the same five names and nothing cross-references them — so a rename on one side surfaces only as an unmapped two-letter tag (`??`) plus a degraded click.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L214-L237",
+          "version": "repo-lines-v1:sha256:67b45bd259f7f4be69e9d935d865c9ea68dd4929118588d7d7dca989f4f834d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjYzBjOTg4MTc0OGUyNzgzODdiYmYwNTYzODQ0ODA0MGUzMDhmOGI3MTQzYjg0MTRmZDlhNTU3ZWU1ZjVlZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU0ODYyMDQ3OTJmNWMyZWYzMTQ5ZmI3MjdjYzVlMmIzZjAwNWFkYzBkYWMzNmMzNjcxMDkyMTM1YjJlMDJlNzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjMmYxNDA3YTQ3YzE1MTNmODQ0NDI2MjJhMTQ0MTViMzYxNmM1MTYzMjA1NTZiNzY4ZWM0ZjQ5ODRkNzU4OGYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/scanners/index.ts#L22-L39",
+          "version": "repo-lines-v1:sha256:2993f2960a9973842a3a6a5cfa39bcbd6a267fc8e6abcab152bbad92e26ffe1d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhNWQ1OWU3MzliYzA1M2IzMjdjNjJmODE1ZGQ5ZWNhZmQ1OWRmODQzMTQxMjEwZTM0MWM3YzAyYzBmMjYxYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzYWMyZWY0MDJmNjBhN2IwNjZjMWM1OWQ3OGU4NjIwY2UzNzZkNzQxMjczYjgyZDg1ZWYwZTQ0YzcxZGE5MDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0OTE5YzBkMjYzMmVkMTZkYTMzOTlmZmUyYmVkYjk0NGU1MGI0MzllYjNkMGIxNGMyYzMxOGQ1MzM3YWUxNzMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L7-L7",
+          "version": "repo-lines-v1:sha256:440f08afc5d287c1f0b474b34837391b5e559b5b85062d449c504e76838d3294:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDQwZjA4YWZjNWQyODdjMWYwYjQ3NGIzNDgzNzM5MWI1ZTU1OWI1Yjg1MDYyZDQ0OWM1MDRlNzY4MzhkMzI5NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDQwZjA4YWZjNWQyODdjMWYwYjQ3NGIzNDgzNzM5MWI1ZTU1OWI1Yjg1MDYyZDQ0OWM1MDRlNzY4MzhkMzI5NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2I1OTZiMGRmOWU0YTE1N2U4NjE1NmU0MzRmOTJmOWI1ZWZhMDYwMDEzYTNmMTUxODYzMTY0MTY1NTZiMTE0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWJiZTA4MDdjOTcwY2Q2ZmNmY2JiMTFiZDQ3YjAyZGYxNzc2Yzc5NzYxOGM0M2I5OTBhNDFiOWMxNjhlZmQ0NCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_058aea27c205435c8d3accfbdbe52498",
+      "statement": "`FocusDeps` (`listWindows`, `focusWindow`, `launch`, `env`) is the injection seam that lets both the unit suite and the bridge contract suite drive the whole focus/launch/degrade state machine without FFI or real tools, and `toolsForTest()` is the observation seam exposing the effective tool map.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L19-L35",
+          "version": "repo-lines-v1:sha256:013bb44500e2798b6f03c6a296ec21b26e4e3895a34eed28044fedd13e308240:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiNzVjODVkOThhOWY1OGMzMjc0MWQ2N2U5ODI4MTQwNDhiOWMxNjcyYzBjZjA5OWQyNDExNWIxZmUxMzNkMzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwZWI3NjhkYjQ4OGM0YTE5NjBmZmJhODAyZDc1ZTVkZmJmNTc4NGQwOWMyMmRkYWM4MDc4YWM5OTc4N2U3MTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFlNDg5Y2QzZDI4Y2Q1ZmE1MDQxMTI0MzBhNWY2ZDNiYmFjZGI4ZjY4MmE3ZjYxNTQxNjZiZjYwOGE5NTY1ZTYifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/focus.ts#L92-L95",
+          "version": "repo-lines-v1:sha256:a11da747118f98c7b4c64e610c012ee700ffc9e647333afb66e218cdc2e9535e:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTMyOTU0M2FlY2U1NTJkYWI3ZjliMDJkODU4YTQyMDlkM2YwMGU0ODI2MjVlMTIwYzA1N2VjZmFjOTUxN2MwYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTg1MDhiNmNiMDU4OWFiYTc1MDMyMDJkZTJjOGY4N2VkOWIxOWNkNTg2NTNmZDAxYTNlNjc1ZTNhYjdiNTk2NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTAxZmYwOTlmMGI4ZjY4MzM4ZDE4ZjQ2NWExNmE2Y2Y0ZTQ2YTIwODViMWNmOGZjNDM0OGY5MGZlYzA1NmY5NiJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L386-L411",
+          "version": "repo-lines-v1:sha256:56af632c848454c6f87bed83cc882210a39d791abc33433f79a74816248c6c6c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlNjM0ZmI0Nzg4YzFhOTA0NzAzNjc0ZDllMGM3MzJkZDhlM2E2OGU2MGI5YTUyMDY1MDQwODI4ZmZiZTliYmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhYzMzOTk0ZmQ1Zjc2ZjYyZjMxNzdjZThmY2E1NjNiMzc4ZmIwODcyYmFjZDdmZGYwOTAyOGYxNGUyODZkMWYifQ"
+        },
+        {
+          "resource": "repo://app/tests/focus/service.spec.ts#L14-L39",
+          "version": "repo-lines-v1:sha256:d7d01b55ad155d7d698a76d2c8adafcd2d84dee778845860893a36f1a0370d24:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMjA2NmQ5NGQxMjVkOGJlZmM5MzZhYTU0MzJhZjk1Zjk5MDNiODhkMzQwYjJlZDk4N2I5YWUxNWM1MDVlMDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2YWUyNzJlYWNkNTc1Y2U3YWY4YjIwMjQxMzI3MTQwNmNlMzQxY2UzNzc4NTVjNWEyZDZlMGQ2YzgwN2UwODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ4MDNhMDJmYWFkNWRlOTljOWJkMGYxYmEyOTA3NDA4Njg5MDk2MTBjNjAyZGEzYzBkZTY0YTFlMGRhZTBiY2YifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

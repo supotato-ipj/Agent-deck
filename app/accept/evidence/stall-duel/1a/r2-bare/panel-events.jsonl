@@ -1,0 +1,33 @@
+{"t":1791481062038,"type":"boot","pid":34272}
+{"t":1791481063275,"type":"autostart-applied","link":"C:\\Users\\An W\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\AGENT DECK.lnk","action":"keep","reason":"live-other-location","applied":true}
+{"t":1791481063309,"type":"dataplane-spawn","reason":"boot"}
+{"t":1791481063751,"type":"tray-competition","why":"start","win":true}
+{"t":1791481063758,"type":"tray-host-ready","hwnd":592892,"realTrayHwnd":65876,"taskbarCreatedMsg":49339}
+{"t":1791481064455,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481064470,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"doc-zone","x":384,"y":24,"w":148,"h":437},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481064472,"type":"desktop-rendered","n":1,"fingerprint":"ab3727a2-f5bde8bf","apps":12,"docs":5,"names":["CCEED.lnk","cscec portal.lnk","Kimi Code.lnk","Kimi.lnk","Legavis.lnk","MiniMax Code.lnk","Obsidian.lnk","Qoder CN.lnk","QQ音乐.lnk","WeChat.lnk","ZCode.lnk","迅雷.lnk","个人简历.docx","任务-职责映射草案_20260901.xlsx","王安的简历.docx","王金胜案子花的钱.xlsx","集团巡视整改问题汇总-法律部20260804(1).docx"],"sel":[],"docEntries":[{"name":"任务-职责映射草案_20260901.xlsx","group":"office","rank":0,"col":0,"row":0},{"name":"个人简历.docx","group":"office","rank":1,"col":0,"row":1},{"name":"集团巡视整改问题汇总-法律部20260804(1).docx","group":"office","rank":2,"col":0,"row":2},{"name":"王安的简历.docx","group":"office","rank":3,"col":0,"row":3},{"name":"王金胜案子花的钱.xlsx","group":"office","rank":4,"col":0,"row":4}],"rects":[{"name":"CCEED.lnk","zone":"app","rect":null},{"name":"cscec portal.lnk","zone":"app","rect":null},{"name":"Kimi Code.lnk","zone":"app","rect":null},{"name":"Kimi.lnk","zone":"app","rect":null},{"name":"Legavis.lnk","zone":"app","rect":null},{"name":"MiniMax Code.lnk","zone":"app","rect":null},{"name":"Obsidian.lnk","zone":"app","rect":null},{"name":"Qoder CN.lnk","zone":"app","rect":null},{"name":"QQ音乐.lnk","zone":"app","rect":null},{"name":"WeChat.lnk","zone":"app","rect":null},{"name":"ZCode.lnk","zone":"app","rect":null},{"name":"迅雷.lnk","zone":"app","rect":null},{"name":"个人简历.docx","zone":"doc","rect":{"x":408,"y":153,"w":104,"h":71}},{"name":"任务-职责映射草案_20260901.xlsx","zone":"doc","rect":{"x":408,"y":82,"w":104,"h":71}},{"name":"王安的简历.docx","zone":"doc","rect":{"x":408,"y":295,"w":104,"h":71}},{"name":"王金胜案子花的钱.xlsx","zone":"doc","rect":{"x":408,"y":366,"w":104,"h":71}},{"name":"集团巡视整改问题汇总-法律部20260804(1).docx","zone":"doc","rect":{"x":408,"y":224,"w":104,"h":71}}]}
+{"t":1791481064473,"type":"settings-opacity-applied","value":55}
+{"t":1791481064479,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"doc-zone","x":384,"y":24,"w":148,"h":437},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481064489,"type":"pin","reason":"startup"}
+{"t":1791481064494,"type":"sessions-rendered","n":1,"count":0,"rows":[]}
+{"t":1791481064495,"type":"plugin-mounted","id":"sessions","name":"SESSIONS","capabilities":["sessions"]}
+{"t":1791481064498,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"sessions-card","x":2092,"y":152,"w":420,"h":522},{"id":"doc-zone","x":384,"y":24,"w":148,"h":437},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481064500,"type":"clock-rendered","n":1,"epochMs":1791481063752}
+{"t":1791481064502,"type":"plugin-mounted","id":"clock","name":"CLOCK","capabilities":["clock"]}
+{"t":1791481064503,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"sessions-card","x":2092,"y":152,"w":420,"h":522},{"id":"clock-card","x":48,"y":48,"w":320,"h":176},{"id":"doc-zone","x":384,"y":24,"w":148,"h":437},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481064505,"type":"plugin-mounted","id":"weather","name":"WEATHER","capabilities":["weather"]}
+{"t":1791481064506,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"sessions-card","x":2092,"y":152,"w":420,"h":522},{"id":"clock-card","x":48,"y":48,"w":320,"h":176},{"id":"weather-card","x":48,"y":248,"w":320,"h":170},{"id":"doc-zone","x":384,"y":24,"w":148,"h":437},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481064510,"type":"plugin-mounted","id":"context-menu","name":"MENU","capabilities":[]}
+{"t":1791481064512,"type":"hotzones","rects":[{"id":"calendar-card","x":48,"y":442,"w":320,"h":292},{"id":"search-card","x":2092,"y":48,"w":420,"h":100},{"id":"sessions-card","x":2092,"y":152,"w":420,"h":522},{"id":"clock-card","x":48,"y":48,"w":320,"h":176},{"id":"weather-card","x":48,"y":248,"w":320,"h":170},{"id":"doc-zone","x":384,"y":24,"w":148,"h":437},{"id":"settings-btn","x":2403.828125,"y":1300,"w":108.171875,"h":28}]}
+{"t":1791481065038,"type":"clock-rendered","n":2,"epochMs":1791481064846}
+{"t":1791481065040,"type":"sessions-rendered","n":2,"count":1,"rows":[{"tool":"zcode","project":"wallpaperengine-research","rect":{"x":2113,"y":194,"w":378,"h":26}}]}
+{"t":1791481065898,"type":"tray-competition","why":"keepalive","win":true}
+{"t":1791481065900,"type":"clock-rendered","n":3,"epochMs":1791481065875}
+{"t":1791481065902,"type":"sessions-rendered","n":3,"count":1,"rows":[{"tool":"zcode","project":"wallpaperengine-research","rect":{"x":2113,"y":194,"w":378,"h":26}}]}
+{"t":1791481066819,"type":"weather-rendered","code":0,"temp":18}
+{"t":1791481067911,"type":"tray-competition","why":"keepalive","win":true}
+{"t":1791481069962,"type":"tray-competition","why":"keepalive","win":true}
+{"t":1791481071855,"type":"renderer-stall","quietMs":5036,"recovered":true,"crashed":false,"pid":18944}
+{"t":1791481071950,"type":"tray-competition","why":"keepalive","win":true}
+{"t":1791481073977,"type":"tray-competition","why":"keepalive","win":true}
+{"t":1791481076017,"type":"tray-competition","why":"keepalive","win":true}
