@@ -458,12 +458,19 @@ async function runSegments() {
     //      最大化窗 8px 装饰边，spike 判据 2 同容差）；
     //   ④ 恢复：taskbar-retract-lifted（mode=visible，appBar=registered）+ taskbar-appbar-registered
     //      + 工作区回一栏高（重注册占位 + 退回清位目标，两笔账同拍收敛——工单293 清位口径：
-    //      读回无 AUTOHIDE 位，不是用户原值，原值只在退场复原）。
+    //      读回无 AUTOHIDE 位，不是用户原值，原值只在退场复原）；
+    //   ⑤ 读回与可见帧（工单294，spec #292「进收栏置位、退收栏回落清位目标；读回状态与
+    //      目标一致，无可见帧」）：进收栏补置位存证 taskbar-autohide-set + 读回含 AUTOHIDE
+    //      位（进收栏方向的读回=置位目标——此前只有工作区间接面，读回事实面缺席）；退收栏
+    //      清位落定后原生栏显示位 2s 采样窗零可见拍（P15 同款 150ms 口径）。收栏**期中**
+    //      的可见性不走显示位判读（autohide「滑出屏」态的窗口位标记非确定，native-watch
+    //      头注 spike 附记）——收栏期以「工作区底边=屏底」为主判据（spec 判读边界原文）。
     rep.beginSegment('P6');
-    rep.note(`P6 口径（工单260 改段；工单293 清位口径改段）：收栏置位 ABS_AUTOHIDE（原生栏托管）后 shell 释放原生任务栏 48px 保留带，`
+    rep.note(`P6 口径（工单260 改段；工单293 清位口径改段；工单294 读回与可见帧补面）：收栏置位 ABS_AUTOHIDE（原生栏托管）后 shell 释放原生任务栏 48px 保留带，`
       + `工作区底边 1392→1440=屏底（spike 实测）——旧断言「收栏态底边 ≥ 屏底−48」退役，`
       + `新不变式「底边 = 屏底（±2）」+ 参照窗铺满整屏（±8 装饰边）；恢复态断言不变（回一栏高），`
-      + `并新增清位口径断言：退收栏读回无 AUTOHIDE 位（退回清位目标，非用户原值）。`);
+      + `清位口径断言：退收栏读回无 AUTOHIDE 位（退回清位目标，非用户原值）；`
+      + `工单294 补面：进收栏读回含 AUTOHIDE 位（taskbar-autohide-set 存证）、退收栏清位落定后原生栏 2s 采样窗零可见帧。`);
     const phys6 = primaryPhys();
     const expectBottom6 = phys6.height - Math.round(TASKBAR_HEIGHT_DIP * phys6.scale);
     const retractWin = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-RETRACT', backgroundColor: '#203040' });
@@ -478,6 +485,11 @@ async function runSegments() {
     const retractEv6 = await tape.wait('taskbar-retract',
       (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceP6, timeoutMs: 6000 });
     const removedEv6 = await tape.wait('taskbar-appbar-removed', undefined, { since: sinceP6, timeoutMs: 3000 });
+    // 置位读回（工单294，spec #292「读回状态与目标一致」的进收栏方向）：置位存证
+    // taskbar-autohide-set（收栏置位沿用既有 set/-set-failed 原义）+ 读回含 AUTOHIDE 位
+    // ——以系统读回事实为准，不只看「发过请求」（用户故事 14 同口径）
+    const setEv6 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceP6, timeoutMs: 3000 });
+    const setReadMs6 = await waitMs(() => (appbarState() & 0x1) === 1, 4000);
     // 工作区不变式（工单260）：轮询到屏底（±2）——置位生效（保留带释放）有生效时延
     const waMs6 = await waitMs(() => {
       const wa = workArea();
@@ -516,20 +528,37 @@ async function runSegments() {
     // 清位口径不变式（工单293 改段）：退收栏回**普通栏态清位目标**——读回无 AUTOHIDE 位
     // （不是用户原值：原值只在退场复原；本断言与用户原值无关，对任意 ALWAYSONTOP 组合恒成立）
     const clearedOk6 = await waitMs(() => (appbarState() & 0x1) === 0, 4000);
+    // 退收栏零可见帧（工单294，spec #292「无可见帧」的退收栏方向）：清位落定后原生栏
+    // 显示位 2s 采样窗零可见拍（P15 同款口径：150ms 采样，显示位在场即「可见帧」）——
+    // 普通栏态下清位已关停自动隐藏协议这条唤出通路（P15 三路径禁现同因），面板仍持
+    // SW_HIDE 账，原生栏必须保持不可见。收栏期中的显示位不作判读（置位态的窗口位标记
+    // 非确定，native-watch 头注 spike 附记），收栏期可见性主判据=工作区底边=屏底（② 已断）。
+    const hiddenAt6 = Date.now();
+    let leakFrames6 = false;
+    while (Date.now() - hiddenAt6 < 2000) {
+      if (nativeTaskbarVisible()) { leakFrames6 = true; break; }
+      await sleep(150);
+    }
+    const hiddenMs6 = Date.now() - hiddenAt6;
     const workAreaOk6 = waMs6 >= 0 && flushMs6 >= 0 && restoreMs6 >= 0 && clearedOk6 >= 0 && settledVisible6
+      && setEv6 !== null && setReadMs6 >= 0 && !leakFrames6
       && !!waRetract6 && Math.abs(waRetract6.bottom - phys6.height) <= 2
       && !!waRestored6 && Math.abs(waRestored6.bottom - expectBottom6) <= 2;
     if (retractEv6 && removedEv6 && liftedEv6 && regEv6 && workAreaOk6) {
       rep.pass(`P6 最大化收栏：前台真最大化窗 ${fgMs6}ms 落位后注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract 存证 appBar=${retractEv6.appBar} + taskbar-appbar-removed 存证）`
         + `→ 占位与原生保留带双释放：工作区底边 ${waRetract6.bottom}/${phys6.height} = 屏底（±2，${waMs6}ms 到位）、`
-        + `参照窗底边 ${refRect6.bottom} 铺满整屏（${flushMs6}ms 重排到底）；`
+        + `参照窗底边 ${refRect6.bottom} 铺满整屏（${flushMs6}ms 重排到底）`
+        + `（工单294 读回面：置位存证在流、读回含 AUTOHIDE 位 ${setReadMs6}ms 落定——进收栏读回=置位目标）；`
         + `解除最大化后重注册 + 退回清位目标（taskbar-retract-lifted 存证 appBar=${liftedEv6.appBar} + taskbar-appbar-registered 存证，`
         + `读回 appbar=0x${appbarState()} 无 AUTOHIDE 位、${clearedOk6}ms 落定——清位目标非用户原值，原值只在退场复原）`
-        + `→ 工作区回一栏高 ${waRestored6.bottom}（期望 ${expectBottom6}，${restoreMs6}ms 收敛）`);
+        + `→ 工作区回一栏高 ${waRestored6.bottom}（期望 ${expectBottom6}，${restoreMs6}ms 收敛）；`
+        + `退收栏零可见帧：清位落定后原生栏 ${hiddenMs6}ms 采样窗零可见拍（工单294，150ms 口径）`);
     } else {
       rep.fail(`P6 收栏存证=${!!retractEv6} 注销存证=${!!removedEv6} 恢复存证=${!!liftedEv6}（终点visible=${settledVisible6}） 重注册存证=${!!regEv6} `
+        + `置位存证=${!!setEv6} 置位读回=${setReadMs6}ms（现值 0x${appbarState()}） `
         + `工作区收栏态=${JSON.stringify(waRetract6)}/屏底=${phys6.height}（到屏底=${waMs6}ms） 参照窗=${JSON.stringify(refRect6)}（贴底=${flushMs6}ms） `
-        + `恢复态=${JSON.stringify(waRestored6)} 期望底=${expectBottom6}（收敛=${restoreMs6}ms） 清位读回无AUTOHIDE=${clearedOk6 >= 0}（现值 0x${appbarState()}）`);
+        + `恢复态=${JSON.stringify(waRestored6)} 期望底=${expectBottom6}（收敛=${restoreMs6}ms） 清位读回无AUTOHIDE=${clearedOk6 >= 0}（现值 0x${appbarState()}） `
+        + `退收栏零可见帧=${!leakFrames6}（观察 ${hiddenMs6}ms）`);
     }
 
     // —— P7：三态优先级（工单244 新增；工单260 随动不变式）：全屏让位压过收栏；退出全屏
