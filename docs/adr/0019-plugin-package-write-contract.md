@@ -144,3 +144,14 @@ ADR-0010 的「插件包 后端 W✓ 确 + 待装载、外部 R、投放 —」�
 - **验收电池与安装脚本要跟着迁移**：`doc-group-cards` 不再用 `install-plugin.mjs` 拷进用户根；电池改为指向第一方包根（或临时根），`install-plugin.mjs --uninstall` 标注为开发者专用硬删。控制面的 `uninstall` 用 `shell.trashItem`。
 - **审计与提案**：每次写带 `opId`；gate 超时转提案时保留待装载区副本到提案过期；批准按哈希提交同一份字节，记自主管理档并引用提案 id。回滚/结果未知沿用 ADR-0017，不重放。
 - **地图 #66**：本票清掉「插件代码从哪来」的雾；`14 个 taskbar/*` 那条雾在 #73 这一侧已清（它们不在投放窄面），剩下的「收栏档位/闸门」与「14 个方法是否属面板外」另开两张票承接。ADR-0010 的插件包格补记、ADR-0014 与 ADR-0017 的补记随本 PR 落盘。
+
+## 补记（2026-10-25，#282 决完后）
+
+ADR-0023 定投放窄面的 `taskbar/get-state` 响应形状：
+
+- 投放拿到 `TaskbarStateDisplay`：五项策略字段 + `recommendations[{display}]` + `apps[{label, pinned, running}]`。
+- 不含 `apps[].title`、`excluded`、`name` / `exe` / `path` / `iconKey` 与整个 `tray`。
+- 这是对现有「投放拿完整响应」的有意收窄，不做兼容 shim（与本 ADR 既有「档位绑定、破坏性变更」口径一致）。
+- 投放窄面的方法集不变（`host.view` 4 段 + `taskbar/get-state` + 自身 `host.config`）；只是读响应变窄。
+
+详见 ADR-0023。

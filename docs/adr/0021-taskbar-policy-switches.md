@@ -98,3 +98,13 @@ ADR-0010 的「内核插件层」一行把任务栏的接管程度建模成「�
 - **#282**：本 ADR 只动写侧归类，不动 `taskbar/get-state` 的非内核档脱敏；`title` / `tooltip` / `exe` / `path` 仍由 #282 收口。
 - **实施输入**（控制面尚未落代码）：新增策略子行的投影与格位、四条策略写的确认闸门/会话级授权/回滚点/审计、同值空转短路、读-改-写配置；这些是后续实施票的输入，本 ADR 不产代码。`set-enabled` 的生命周期实现、串行与原子性仍按 ADR-0010 既有口径。
 - **验证**：纯决策与词汇变更，无运行时代码；`git diff --check` 与 PR CI 通过即可，不跑真机验收电池（没有运行时行为可验）。
+
+## 补记（2026-10-25，#282 决完后）
+
+ADR-0023 定非内核档 `taskbar/get-state` 的读形状，策略字段全保留：
+
+- `TaskbarStateManaged` 与 `TaskbarStateDisplay` 均保留 `enabled` / `hiddenButtons` / `metrics` / `trayOverflowLimit` / `maximizeRetract`；`BarMode` 仍不进任何形状。
+- 四条策略写的响应也按调用方档位的形状返回，不再返回完整 `TaskbarState`。
+- 策略子行的写侧格位、闸门与审计不变；本补记不重开 #276。
+
+详见 ADR-0023。
