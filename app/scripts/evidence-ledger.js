@@ -3,8 +3,9 @@
 /**
  * 证据分类账 CLI（spec #281）——测出 git 历史里 blob 的构成与指定基线以来的增量，供任意时点复测。
  *
- * 分层：聚合逻辑全在纯核 `scripts/lib/ledger-core.js`（零依赖纯函数，有单测）；
- * 本壳只做 git 交互（rev-list --objects ＋ cat-file --batch-check）与人读表渲染。
+ * 分层：原始行解析与聚合全在纯核 `scripts/lib/ledger-core.js`（零依赖纯函数，有单测）；
+ * 本壳只做 spawn git（rev-list --objects ＋ cat-file --batch-check，stdout 原始行原样喂核）
+ * 与人读表渲染。
  *
  * 口径：同一 path 的多版本 blob 是多行（历代重拍累积正是要量化的东西，不按 path 去重）；
  * 只取 blob（tree/commit 行剔除）；无扩展名 blob 归 `(无扩展名)` 桶；二级目录＝路径前两级。
@@ -19,7 +20,7 @@
 
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { aggregate } = require('./lib/ledger-core.js');
+const { aggregate, parseRevListObjects, parseBatchCheck } = require('./lib/ledger-core.js');
 
 const APP_DIR = path.resolve(__dirname, '..');
 
@@ -55,37 +56,16 @@ function repoRoot() {
   return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 }
 
-/** rev-list --objects 行集 → [{path, size}]（只留 blob；多版本同 path 多行是特性） */
+/** spawn git 两段、原始行喂核 → [{path, size}]（解析/剔除全在纯核；多版本同 path 多行是特性） */
 function collectBlobRows(root, revArgs) {
   const git = (args, opts) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts });
 
   const objectsOut = git(['rev-list', '--objects', ...revArgs]);
-  const pathsBySha = new Map();
-  const shas = [];
-  for (const line of String(objectsOut).split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const sp = trimmed.indexOf(' ');
-    const sha = sp < 0 ? trimmed : trimmed.slice(0, sp);
-    const p = sp < 0 ? '' : trimmed.slice(sp + 1).trim();
-    if (!pathsBySha.has(sha)) shas.push(sha);
-    pathsBySha.set(sha, p);
-  }
+  const { shas, pathsBySha } = parseRevListObjects(objectsOut);
   if (!shas.length) return [];
 
-  // cat-file --batch-check：<sha> <type> <size>（missing 行剔除）
   const checkOut = git(['cat-file', '--batch-check'], { input: shas.join('\n') + '\n' });
-  const rows = [];
-  for (const line of String(checkOut).split(/\r?\n/)) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 3) continue;
-    const [sha, type, size] = parts;
-    if (type !== 'blob') continue;
-    const sizeNum = Number(size);
-    if (!Number.isFinite(sizeNum) || sizeNum < 0) continue;
-    rows.push({ path: pathsBySha.get(sha) || '', size: sizeNum });
-  }
-  return rows;
+  return parseBatchCheck(checkOut, pathsBySha);
 }
 
 /** 人读字节量：B/KB/MB/GB（2 位小数） */
