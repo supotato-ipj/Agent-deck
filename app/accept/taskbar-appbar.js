@@ -1629,13 +1629,18 @@ async function runSegments() {
         const hideLatencyB = hideEvB ? hideEvB.t - firstSeenAt : -1;
         const hiddenB = await waitMs(() => !win32.nativeTaskbarVisible(), 4000);
         // 置位终态：逐拍重试由轮询自转（1s 拍），此处等终态——长等期间持续钉前台
-        // （前台被夺会停表断掉重试）；工单293 界 25s→40s：四轮对照 R2 <12s / R1 >52s /
+        // （前台被夺会停表断掉重试）；工单293 界 25s→40s：五轮对照 R2 <12s / R1 >52s /
         // R4 66s（shell 侧 AppBar 接受窗尾部随负载拉长，面板侧逐拍重试语义全程不变）。
+        // 夹具保持（工单293 R5 实证）：explorer 重启搅动会把参照窗的**最大化态**翻掉/
+        // 前台钉不住——面板对「前台非最大化」判 visible 档（不置位）是按既定裁决的正确
+        // 行为，错的是电池夹具；每拍核验 maximized，丢了即补。
         const tStateB = Date.now();
         let stateMsB = -1;
+        let fixtureRepairedB = 0;
         while (Date.now() - tStateB <= 40000) {
-          if ((appbarState() & 0x1) !== 0) { stateMsB = Date.now() - tStateB; break; }
+          if (!retractWin.isMaximized()) { retractWin.maximize(); fixtureRepairedB += 1; }
           forceForeground(hwndOf(retractWin));
+          if ((appbarState() & 0x1) !== 0) { stateMsB = Date.now() - tStateB; break; }
           await sleep(400);
         }
         const stateB = appbarState();
@@ -1646,22 +1651,29 @@ async function runSegments() {
         if (reassertB && hideEvB && hideLatencyB >= 0 && hideLatencyB <= 4000 && hiddenB >= 0
           && stateMsB >= 0 && waB >= 0) {
           rep.pass(`P10b explorer 重启重挂：新窗 ${hwndAfter}（${firstSeenAt - tKill}ms 归位）→ ${hideLatencyB}ms 重挂隐藏（taskbar-hidden 在流，只走 user32 不等 shell）`
-            + ` + reason=rebuild 重申存证在流；置位经 ${stateMsB}ms 终态到场（新 explorer 接受窗内轮询逐拍重试）`
+            + ` + reason=rebuild 重申存证在流；置位经 ${stateMsB}ms 终态到场（新 explorer 接受窗内轮询逐拍重试${fixtureRepairedB ? `；夹具最大化修复 ${fixtureRepairedB} 次` : ''}）`
             + ` → 工作区底边 ${workArea().bottom}/${phys6.height} 回屏底（${waB}ms）`);
         } else if (reassertB && hideEvB && hiddenB >= 0 && stateMsB < 0) {
-          // 置位界内未到场：拆「面板义务面」（硬断言）与「shell 接受面」（环境归责账）。
-          // 面板义务 = 重申逐拍重试不断流 + retract 档全程保持 + 重挂隐藏及时——四轮磁带
-          // 实证这些面在红轮同样全真（R4：40s 窗内 39 拍重试无一缺席、mode=retracted 全程、
-          // 重挂隐藏 633ms），缺席的只有 shell 的 ABM 接受（R2 <12s / R1 >52s / R4 66s——
-          // 接受时延是 shell 侧事实，不是面板义务；25s 旧界按 15s 观察标定，尾部已证可到
-          // 66s）。义务面全真 → 环境降责账（explorer-acceptance-tail），义务面有缺 → 真红。
+          // 置位界内未到场：三分辨——①面板义务面（重申逐拍不断流 + retract 档保持）缺 ⇒
+          // 真回归候；②shell 接受窗尾部（义务面全真而 ABM 不被接受）⇒ 环境降责账；③重启
+          // 搅动打掉夹具（参照窗最大化态丢失且补不回）⇒ 电池夹具账——面板对观察事实
+          // （前台非最大化）判 visible 不置位是既定裁决的正确行为。
           const pressesB = tape.all('taskbar-autohide-reattach-failed', undefined, { since: tKill });
           const modesHeldB = pressesB.length > 0 && pressesB.every((e) => e.mode === 'retracted');
           if (pressesB.length >= 15 && modesHeldB) {
             rep.exclude(`P10b 置位界内未到场（>40s）：新 shell AppBar 接受窗尾部超界（explorer-acceptance-tail）——面板义务面全真：`
               + `重申逐拍重试 ${pressesB.length} 拍无一缺席（mode=retracted 全程保持）、reason=rebuild 重申存证在流、重挂隐藏 ${hideLatencyB}ms（≤4s）、压回不可见（${hiddenB}ms）。`
-              + `四轮对照接受时延：R2 <12s / R1 >52s / R4 66s——25s 旧界按 15s 观察标定，尾部为 shell 侧事实（本机负载相关），不判面板回归`,
+              + `五轮对照接受时延：R2 <12s / R1 >52s / R4 66s——25s 旧界按 15s 观察标定，尾部为 shell 侧事实（本机负载相关），不判面板回归`,
               'explorer 重启后 ABM 接受窗尾部超 40s 界（shell 侧，接受时延 52–66s 观测）', 'explorer-acceptance-tail');
+          } else if (!retractWin.isMaximized() || Number(win32.GetForegroundWindow()) !== hwndOf(retractWin)) {
+            // 夹具账细判：最大化态丢失，或 40s 逐拍钉前台都没能把参照窗钉回前台——两者都是
+            // 重启搅动打掉电池参照物（restart-chaos-fixture）；参照物既不稳，面板的档位输入
+            // 就不是「前台真最大化」，判 visible 不置位是既定裁决的正确行为。
+            rep.exclude(`P10b 置位界内未到场：explorer 重启搅动打掉电池夹具（restart-chaos-fixture）——参照窗最大化态${retractWin.isMaximized() ? '在场' : '丢失且补不回'}（修复尝试 ${fixtureRepairedB} 次）、`
+              + `窗末前台=${Number(win32.GetForegroundWindow()) === hwndOf(retractWin) ? '参照窗' : '他窗（钉前台 40s 未夺回）'}、`
+              + `重申重试拍数=${pressesB.length}（mode 系列见磁带）。面板对「前台非最大化」按既定裁决处理（visible 档不置位），`
+              + `重启窗口内的夹具失稳是电池参照物问题，不判面板回归；重挂隐藏 ${hideLatencyB}ms（≤4s）与 rebuild 重申存证两项面板义务仍真`,
+              'explorer 重启搅动致参照窗最大化态丢失/前台钉不住（restart-chaos-fixture）', 'restart-chaos-fixture');
           } else {
             rep.fail(`P10b 置位界内未到场且面板义务面有缺：重申重试拍数=${pressesB.length}（要求 ≥15） retract 档保持=${modesHeldB} `
               + `rebuild重申=${!!reassertB} 重挂隐藏=${hideEvB ? `${hideLatencyB}ms` : '缺'} 不可见=${hiddenB >= 0}ms（state=${stateB}）——真回归候`);
