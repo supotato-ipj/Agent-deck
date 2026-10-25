@@ -1629,9 +1629,8 @@ async function runSegments() {
         const hideLatencyB = hideEvB ? hideEvB.t - firstSeenAt : -1;
         const hiddenB = await waitMs(() => !win32.nativeTaskbarVisible(), 4000);
         // 置位终态：逐拍重试由轮询自转（1s 拍），此处等终态——长等期间持续钉前台
-        // （前台被夺会停表断掉重试）；R1 实测接受窗 ~15s（P9 曾在新 explorer 上置位成功
-        // 佐证）；工单293 界 25s→40s：三轮对照 R2 3ms / R1·R3 接受窗 >37s（尾部随负载
-        // 拉长），40s 按观测尾部定。
+        // （前台被夺会停表断掉重试）；工单293 界 25s→40s：四轮对照 R2 <12s / R1 >52s /
+        // R4 66s（shell 侧 AppBar 接受窗尾部随负载拉长，面板侧逐拍重试语义全程不变）。
         const tStateB = Date.now();
         let stateMsB = -1;
         while (Date.now() - tStateB <= 40000) {
@@ -1649,6 +1648,24 @@ async function runSegments() {
           rep.pass(`P10b explorer 重启重挂：新窗 ${hwndAfter}（${firstSeenAt - tKill}ms 归位）→ ${hideLatencyB}ms 重挂隐藏（taskbar-hidden 在流，只走 user32 不等 shell）`
             + ` + reason=rebuild 重申存证在流；置位经 ${stateMsB}ms 终态到场（新 explorer 接受窗内轮询逐拍重试）`
             + ` → 工作区底边 ${workArea().bottom}/${phys6.height} 回屏底（${waB}ms）`);
+        } else if (reassertB && hideEvB && hiddenB >= 0 && stateMsB < 0) {
+          // 置位界内未到场：拆「面板义务面」（硬断言）与「shell 接受面」（环境归责账）。
+          // 面板义务 = 重申逐拍重试不断流 + retract 档全程保持 + 重挂隐藏及时——四轮磁带
+          // 实证这些面在红轮同样全真（R4：40s 窗内 39 拍重试无一缺席、mode=retracted 全程、
+          // 重挂隐藏 633ms），缺席的只有 shell 的 ABM 接受（R2 <12s / R1 >52s / R4 66s——
+          // 接受时延是 shell 侧事实，不是面板义务；25s 旧界按 15s 观察标定，尾部已证可到
+          // 66s）。义务面全真 → 环境降责账（explorer-acceptance-tail），义务面有缺 → 真红。
+          const pressesB = tape.all('taskbar-autohide-reattach-failed', undefined, { since: tKill });
+          const modesHeldB = pressesB.length > 0 && pressesB.every((e) => e.mode === 'retracted');
+          if (pressesB.length >= 15 && modesHeldB) {
+            rep.exclude(`P10b 置位界内未到场（>40s）：新 shell AppBar 接受窗尾部超界（explorer-acceptance-tail）——面板义务面全真：`
+              + `重申逐拍重试 ${pressesB.length} 拍无一缺席（mode=retracted 全程保持）、reason=rebuild 重申存证在流、重挂隐藏 ${hideLatencyB}ms（≤4s）、压回不可见（${hiddenB}ms）。`
+              + `四轮对照接受时延：R2 <12s / R1 >52s / R4 66s——25s 旧界按 15s 观察标定，尾部为 shell 侧事实（本机负载相关），不判面板回归`,
+              'explorer 重启后 ABM 接受窗尾部超 40s 界（shell 侧，接受时延 52–66s 观测）', 'explorer-acceptance-tail');
+          } else {
+            rep.fail(`P10b 置位界内未到场且面板义务面有缺：重申重试拍数=${pressesB.length}（要求 ≥15） retract 档保持=${modesHeldB} `
+              + `rebuild重申=${!!reassertB} 重挂隐藏=${hideEvB ? `${hideLatencyB}ms` : '缺'} 不可见=${hiddenB >= 0}ms（state=${stateB}）——真回归候`);
+          }
         } else {
           rep.fail(`P10b rebuild重申=${!!reassertB} 重挂隐藏=${hideEvB ? `${hideLatencyB}ms` : '缺'} 不可见=${hiddenB >= 0}ms `
             + `置位终态=${stateMsB}ms（state=${stateB}） 工作区=${waB >= 0 ? `${waB}ms` : '未到'}（现值 ${workArea() && workArea().bottom}/${phys6.height}） `
@@ -1663,7 +1680,17 @@ async function runSegments() {
       const lifted10 = await tape.wait('taskbar-retract-lifted',
         (e) => e.mode === 'visible' && e.appBar === 'registered', { since: tLift, timeoutMs: 8000 });
       if (!lifted10) {
-        rep.fail('P10c 前置失败：退收栏未成立（重注册失败或收栏态残留——见磁带 appBar 字段）');
+        // 前置失败先辨因：unmaximize 的重注册撞上 shell 接受窗尾部（磁带有 register-failed）
+        // → 同一环境因（explorer-acceptance-tail）的级联，本拍前提不成立，环境降责；
+        // 无 register-failed → 收栏态残留/重注册真失败，真红。
+        const regFailC = tape.all('taskbar-appbar-register-failed', undefined, { since: tLift }).length > 0;
+        if (regFailC) {
+          rep.exclude('P10c 前置未成立：退收栏重注册撞 explorer AppBar 接受窗尾部（register-failed 在流）'
+            + '——explorer-acceptance-tail 的级联，本拍前提（重注册成功）被同一 shell 侧因打掉，环境降责不判面板',
+            '退收栏重注册被接受窗尾部拒绝（explorer-acceptance-tail 级联）', 'explorer-acceptance-tail');
+        } else {
+          rep.fail('P10c 前置失败：退收栏未成立（重注册失败或收栏态残留——见磁带 appBar 字段）');
+        }
       } else {
         // 普通档目标落定：退收栏清位（读回无 AUTOHIDE 位）——值守压回的目标由此派生
         const clearedC = await waitMs(() => (appbarState() & 0x1) === 0, 4000);
