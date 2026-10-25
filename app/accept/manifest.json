@@ -1117,7 +1117,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 20,
+          "estSeconds": 28,
           "areas": [
             "taskbar"
           ]
@@ -1188,7 +1188,7 @@
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 35,
+          "estSeconds": 30,
           "areas": [
             "taskbar"
           ]
