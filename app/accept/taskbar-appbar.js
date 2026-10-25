@@ -1553,6 +1553,8 @@ async function runSegments() {
     //      已随清位关闭，但 ShowWindow 注入的显示位翻转仍归轮询摁住）——轮询不再随收栏
     //      起停，起表随接管建立（create）、停表随拆场（destroy）。
     rep.beginSegment('P10');
+    // 拍间状态（拍 B → 拍 C 级联判读用）：降级档是否在拍 B 窗口内到场（重注册被拒）。
+    const p10Beat = { degradedAt: 0 };
     // 重拉面板（P9 已关）：前台先钉中性 holder（boot 期不进收栏），就绪后交给最大化
     // 参照窗（P9 尾它仍最大化——直接夺前台即进收栏，不走最大化动画的空前台拍）。
     forceForeground(hwndOf(neutralWin));
@@ -1666,6 +1668,7 @@ async function runSegments() {
           // 面板行为全程符合设计。这是 explorer-acceptance-tail 的级联形态，同为 shell 侧。
           const degradedB = tape.all('taskbar-appbar-register-failed', undefined, { since: tKill }).length > 0
             && tape.all('taskbar-retract-lifted', (e) => e.appBar === 'register-failed', { since: tKill }).length > 0;
+          if (degradedB) p10Beat.degradedAt = Date.now();
           if (pressesB.length >= 15 && modesHeldB) {
             rep.exclude(`P10b 置位界内未到场（>40s）：新 shell AppBar 接受窗尾部超界（explorer-acceptance-tail）——面板义务面全真：`
               + `重申逐拍重试 ${pressesB.length} 拍无一缺席（mode=retracted 全程保持）、reason=rebuild 重申存证在流、重挂隐藏 ${hideLatencyB}ms（≤4s）、压回不可见（${hiddenB}ms）。`
@@ -1704,13 +1707,15 @@ async function runSegments() {
         (e) => e.mode === 'visible' && e.appBar === 'registered', { since: tLift, timeoutMs: 8000 });
       if (!lifted10) {
         // 前置失败先辨因：unmaximize 的重注册撞上 shell 接受窗尾部（磁带有 register-failed）
+        // 或拍 B 窗口内已降级（p10Beat.degradedAt——降级档恒 visible，同态零动作无 lifted 存证）
         // → 同一环境因（explorer-acceptance-tail）的级联，本拍前提不成立，环境降责；
-        // 无 register-failed → 收栏态残留/重注册真失败，真红。
-        const regFailC = tape.all('taskbar-appbar-register-failed', undefined, { since: tLift }).length > 0;
+        // 都不是 → 收栏态残留/重注册真失败，真红。
+        const regFailC = tape.all('taskbar-appbar-register-failed', undefined, { since: tLift }).length > 0
+          || p10Beat.degradedAt > 0;
         if (regFailC) {
-          rep.exclude('P10c 前置未成立：退收栏重注册撞 explorer AppBar 接受窗尾部（register-failed 在流）'
-            + '——explorer-acceptance-tail 的级联，本拍前提（重注册成功）被同一 shell 侧因打掉，环境降责不判面板',
-            '退收栏重注册被接受窗尾部拒绝（explorer-acceptance-tail 级联）', 'explorer-acceptance-tail');
+          rep.exclude(`P10c 前置未成立：${p10Beat.degradedAt > 0 ? '拍 B 窗口内已入降级档（explorer-acceptance-tail 级联），降级闸门下恒 visible、unmaximize 同态零动作无 lifted 存证' : '退收栏重注册撞 explorer AppBar 接受窗尾部（register-failed 在流）'}`
+            + '——本拍前提（重注册成功且档位可迁移）被同一 shell 侧因打掉，环境降责不判面板',
+            '退收栏前提被接受窗尾部/降级档级联打掉（explorer-acceptance-tail 级联）', 'explorer-acceptance-tail');
         } else {
           rep.fail('P10c 前置失败：退收栏未成立（重注册失败或收栏态残留——见磁带 appBar 字段）');
         }
