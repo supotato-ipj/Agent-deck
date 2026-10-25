@@ -22,7 +22,7 @@ import { clearRetractAutoHide, engageTakeoverAutoHide, enterRetractAutoHide, rea
 import { probeForegroundWindow } from './yield'
 import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './snap'
 import type { SnapSessionEndCause, SnapWindowFact } from './snap'
-import { ABS_AUTOHIDE, planBarTransition, resolveBarMode, retractGateDisqualified, retractHeldByZoomed, retractReasonHeld } from './retract'
+import { ABS_AUTOHIDE, planBarTransition, recheckStripHostRect, resolveBarMode, retractGateDisqualified, retractHeldByZoomed, retractReasonHeld } from './retract'
 import type { BarMode } from './retract'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
 import type { NativeWatchProbe } from './native-watch'
@@ -492,10 +492,12 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   /**
-   * 收栏过渡后的宿主矩形复核（ADR-0016 双缺陷复审决策 4）：收栏过渡会让壳侧把条带宿主
-   * 抬高一个原生栏身高（48px），渲染层的唤出条按宿主矩形自算定位 ⇒ 五组唤出条整体偏离
-   * 屏底。判据取**宿主矩形底边 vs 屏底**（stripPhysRect 是单点来源，不读渲染层的
-   * window.innerHeight 相对值），偏离 >1 DIP 即回正并留证。
+   * 收栏过渡后的宿主矩形复核（ADR-0016 双缺陷复审决策 4；工单295 判据抽纯函数）：收栏过渡
+   * 会让壳侧把条带宿主抬高一个原生栏身高（48px），渲染层的唤出条按宿主矩形自算定位 ⇒
+   * 五组唤出条整体偏离屏底。判据取**宿主矩形底边 vs 屏底**（stripPhysRect 是单点来源，
+   * 不读渲染层的 window.innerHeight 相对值），偏离 >1 DIP 即回正并留证——偏离判定与
+   * 回正决策住 recheckStripHostRect（shared/retract 单一实现，离线可测），本效果层只做
+   * 取矩形、动作与存证。
    */
   const verifyStripBottom = (s: TaskbarSession, reason: string): void => {
     if (s.win.isDestroyed()) return
@@ -506,15 +508,14 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       width: phys.right - phys.left,
       height: phys.bottom - phys.top,
     })
-    const cur = s.win.getBounds()
-    const offBottom = Math.abs((cur.y + cur.height) - (dip.y + dip.height))
-    if (offBottom > 1 || Math.abs(cur.y - dip.y) > 1) {
-      s.negotiated = dip
-      s.win.setBounds(dip)
-      log?.append({ type: 'taskbar-host-rect-corrected', reason, from: cur, to: dip })
+    const v = recheckStripHostRect(s.win.getBounds(), dip)
+    if (v.verdict === 'corrected') {
+      s.negotiated = v.rect
+      s.win.setBounds(v.rect)
+      log?.append({ type: 'taskbar-host-rect-corrected', reason, from: v.from, to: v.rect, bottomDeviationDip: v.bottomDeviationDip })
       return
     }
-    log?.append({ type: 'taskbar-host-rect-verified', reason, rect: cur })
+    log?.append({ type: 'taskbar-host-rect-verified', reason, rect: v.rect })
   }
 
   /** 占位重协商（建窗后初次、ABN_POSCHANGED、display-metrics-changed 三入口同路）；

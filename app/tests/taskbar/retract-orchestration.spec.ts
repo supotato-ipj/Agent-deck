@@ -545,6 +545,33 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(m).toBeTruthy()
   })
 
+  it('applyBarMode 接线顺序 = 预隐藏 → 置位 → 复核（工单295，spec #292 几何决策原文）：进收栏先再压一次原生栏隐藏（「最大化前 SW_HIDE」对照的效应，t257 spike）再置位 ABS_AUTOHIDE——两动作同在 engageAutoHide 分支内且隐藏在前', () => {
+    const m = code.match(/if \(plan\.engageAutoHide\) \{[\s\S]{0,400}?enterRetractAutoHide\(log\)[\s\S]{0,200}?\}/)
+    expect(m).toBeTruthy()
+    const branch = m?.[0] ?? ''
+    expect(branch).toMatch(/hideNativeTaskbar\(log\)/)
+    expect(branch.indexOf('hideNativeTaskbar(log)')).toBeLessThan(branch.indexOf('enterRetractAutoHide(log)'))
+    // 复核殿后：enter 复核在置位分支之后（同拍但序在后——过渡完成才核矩形）
+    const iEnter = code.indexOf("verifyStripBottom(s, 'retract-enter')")
+    expect(iEnter).toBeGreaterThan(code.indexOf('enterRetractAutoHide(log)'))
+  })
+
+  it('宿主矩形复核的判据走纯函数 recheckStripHostRect（工单295，单一实现纪律）：verifyStripBottom 效果层只做取矩形/动作/存证，偏离判定与回正决策住在 shared/retract——防内联副本漂移回「自算判据」', () => {
+    const sb = code.match(/const verifyStripBottom = \(s: TaskbarSession, reason: string\): void => \{[\s\S]{0,900}?\n  \}/)
+    expect(sb).toBeTruthy()
+    expect(sb?.[0]).toMatch(/recheckStripHostRect\(/)
+    // 存证族不变：偏离落 corrected（带 from/to）、未偏离落 verified（带 rect）
+    expect(sb?.[0]).toMatch(/taskbar-host-rect-corrected/)
+    expect(sb?.[0]).toMatch(/taskbar-host-rect-verified/)
+    // 效果层不自写第二份偏离公式（±1 判据只有纯函数一份）
+    expect(sb?.[0]).not.toMatch(/offBottom/)
+  })
+
+  it('复核判据纯函数经主进程侧转发导出（单一实现纪律，同工单237/293）', () => {
+    const fwd = srcOf('app/src/main/taskbar/retract.ts')
+    expect(fwd).toMatch(/\brecheckStripHostRect\b/)
+  })
+
   it('条带净空不锚视图位（工单293 改段）：stripBounds 净空由调用方给定，降级档账面（appBarDegraded）才给 48——视图位瞬态（收栏置位翻开 WS_VISIBLE）不得写几何账', () => {
     const src = codeOf(CTRL)
     // stripBounds 本体不再读 nativeTaskbarVisible（视图位 → 几何账的通路已剪断）

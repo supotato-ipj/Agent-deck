@@ -678,3 +678,63 @@ export function planBarTransition(
   if (wantRetracted && !wasRetracted) plan.evidence.push('taskbar-retract')
   return plan
 }
+
+/* ================================================================
+ * 六、recheckStripHostRect：收栏过渡后的宿主矩形复核（工单295，spec #292）
+ * ================================================================ */
+
+/** 条带窗 DIP 矩形（Electron getBounds 同形；CSS px = DIP） */
+export interface StripHostRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 宿主矩形复核的容差（DIP，spec #292 判据原文「底边 vs 屏底 ±1 DIP」） */
+export const HOST_RECT_TOLERANCE_DIP = 1
+
+/** 一次宿主矩形复核的裁定（纯产出，效果层照单动作与存证） */
+export interface HostRectRecheckVerdict {
+  /** verified = 界内不动作；corrected = 偏离超容差须回正 */
+  verdict: 'verified' | 'corrected'
+  /** 现矩形（存证 from——corrected 时是回正前的旧几何） */
+  from: StripHostRect
+  /** 生效矩形：verified = 现矩形；corrected = 回正目标（期望矩形） */
+  rect: StripHostRect
+  /** 底边偏离（DIP，绝对值）——「唤出条贴屏底」不变量的量化读数 */
+  bottomDeviationDip: number
+  /** 上缘偏离（DIP，绝对值）——底边贴底而窗高被改的形态由它兜住 */
+  topDeviationDip: number
+}
+
+/**
+ * 宿主矩形复核判据（工单295，spec #292 几何决策）：条带宿主矩形底边 vs 期望矩形底边
+ * （期望矩形由 stripPhysRect 屏底锚定，效果层换算 DIP 后喂入），偏离 >容差（±1 DIP）
+ * 即判 corrected、回正目标 = 期望矩形；界内判 verified、不动作。
+ *
+ * - 判据域是 **DIP**（换算由效果层经 screen.screenToDipRect 完成，本函数只裁 DIP 差）
+ *   ——150% 下 1 物理px = 0.667 DIP 界内、2 物理px = 1.333 DIP 出界，判读不随缩放漂移；
+ * - 两矩形**各取自己的底边/上缘**（不假设定高）：壳侧把窗抬高一个原生栏身高（48px，
+ *   真机 R7/R8 实证）与把窗改矮（底边缩进）两种形态都逃不掉；
+ * - 渲染层的唤出条落点（视口 innerHeight 相对值）**不在输入里**——不得把相对正确
+ *   当成宿主矩形正确（spec #292 存证/判据分界原文）。
+ */
+export function recheckStripHostRect(
+  current: StripHostRect,
+  expected: StripHostRect,
+  toleranceDip: number = HOST_RECT_TOLERANCE_DIP,
+): HostRectRecheckVerdict {
+  const bottomDeviationDip = Math.abs(
+    (current.y + current.height) - (expected.y + expected.height),
+  )
+  const topDeviationDip = Math.abs(current.y - expected.y)
+  const deviates = bottomDeviationDip > toleranceDip || topDeviationDip > toleranceDip
+  return {
+    verdict: deviates ? 'corrected' : 'verified',
+    from: current,
+    rect: deviates ? expected : current,
+    bottomDeviationDip,
+    topDeviationDip,
+  }
+}
