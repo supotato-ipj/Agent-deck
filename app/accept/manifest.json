@@ -1048,7 +1048,7 @@
         {
           "seg": "P6",
           "ticket": 244,
-          "title": "最大化收栏（工单260 改段不变式；工单293 清位口径改段）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 退回清位目标（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered + 读回无 AUTOHIDE 位——清位目标非用户原值，原值只在退场复原）→ 工作区回一栏高",
+          "title": "最大化收栏（工单260 改段不变式；工单293 清位口径改段；工单294 读回与可见帧补面）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8、taskbar-autohide-set 存证+读回含 AUTOHIDE 位——进收栏读回=置位目标）；解除最大化 → 重注册 + 退回清位目标（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered + 读回无 AUTOHIDE 位——清位目标非用户原值，原值只在退场复原）→ 工作区回一栏高；清位落定后原生栏 2s 采样窗零可见帧",
           "surfaces": [
             "system-state",
             "event-evidence"
