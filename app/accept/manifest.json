@@ -1000,7 +1000,7 @@
       "entry": "app/accept/taskbar-appbar.js",
       "flag": "--accept-taskbar-appbar",
       "hintBar": true,
-      "cdpPort": null,
+      "cdpPort": 9229,
       "kind": null,
       "budgetSeconds": 180,
       "lastMeasuredSeconds": 128,
@@ -1048,7 +1048,7 @@
         {
           "seg": "P6",
           "ticket": 244,
-          "title": "最大化收栏（工单260 改段不变式）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 复原（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 工作区回一栏高",
+          "title": "最大化收栏（工单260 改段不变式；工单293 清位口径改段）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 退回清位目标（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered + 读回无 AUTOHIDE 位——清位目标非用户原值，原值只在退场复原）→ 工作区回一栏高",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1061,7 +1061,7 @@
         {
           "seg": "P7",
           "ticket": 244,
-          "title": "三态优先级（工单260 随动不变式）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 复原置位→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）",
+          "title": "三态优先级（工单260 随动不变式；工单293 清位口径改段）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 清位（读回无 AUTOHIDE 位）→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1098,13 +1098,13 @@
         {
           "seg": "P9",
           "ticket": 260,
-          "title": "收栏态退出双复原：重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器独立读数为主——置位态 WS_VISIBLE 位使面板侧存证静默）",
+          "title": "面板正常退出双复原（工单260；工单293 扩「普通态也不复活」）：臂 A 重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；原值以接管建立前读回为准——接管后读回是清位目标）；臂 B 普通档（仍接管）：接管清位生效（takeover/cleared 存证 + 读回无 AUTOHIDE）+ 静置原生栏不复活（3s）+ WM_CLOSE 退出 → appbar 读回复原为接管前原值 + 落盘账清 + 原生栏可见",
           "surfaces": [
             "panel-alive",
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8,
+          "estSeconds": 18,
           "areas": [
             "taskbar"
           ]
@@ -1112,7 +1112,7 @@
         {
           "seg": "P10",
           "ticket": 262,
-          "title": "收栏态原生栏重申轮询（段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤25s（新 explorer 约 15s 不接受窗，看门狗逐拍重试）→工作区回屏底）；非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）",
+          "title": "全接管期原生栏重申轮询（工单262；工单293 判据改段——值守从收栏期扩为全接管期；段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤25s（新 explorer 约 15s 不接受窗，轮询逐拍重试）→工作区回屏底）；普通档仍值守（退收栏清位落定后翻开原生栏→1s 拍内 reason=visible 重申+压回——旧「非收栏态休止」判据随全接管期退役）",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1174,6 +1174,21 @@
             "input-injection"
           ],
           "estSeconds": 20,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P15",
+          "ticket": 293,
+          "title": "普通态清位与三路径禁现（工单293，spec #292）：受控原值（自动隐藏 ON）下重拉面板 → 接管建立记账（taskbar-autohide-takeover userState=受控原值、账在盘——崩溃后守卫/守护的复原目标）+ 清位（taskbar-autohide-cleared + 读回无 AUTOHIDE——用户本已开自动隐藏时的有动作清位）；底边悬停 3.5s 零可见帧；Win 键零可见帧；通知路径如实记「未观察」；禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled + appbar 读回=接管前原值 + 落盘账清 + 原生栏可见位还原",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 22,
           "areas": [
             "taskbar"
           ]
