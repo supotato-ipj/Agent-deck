@@ -804,11 +804,26 @@ async function runSegments() {
   // 全程以 taskbar.enabled=false 运行（任务栏显隐有 49/50 专电池），清场还原原文。
   const CONFIG_FILE_MAIN = path.join(APP_ROOT, 'config.json');
   const configBackupMain = fs.existsSync(CONFIG_FILE_MAIN) ? fs.readFileSync(CONFIG_FILE_MAIN, 'utf8') : null;
+  // #278：外部插件目录重定向至空 tmp——userData/plugins 里装着接管内置文档区的插件
+  // （实证：doc-group-cards 把 #doc-zone display:none 换成自绘组卡，P5 族 12 段全红
+  // 五轮含基线 master；面板插件根=[内置 cards, config.plugins.dir || userData/plugins]，
+  // 内置卡不受影响，P5.9/P8T 照常）。与 166 电池同款隔离手法；P11 的 hello 探针改写入
+  // 本目录（面板只盯这里），清场随 config 还原一并删除。
+  const pluginsDirIsolated = fs.mkdtempSync(path.join(os.tmpdir(), 'deck03-plugins-'));
+  let sidestepped = [];
+  try {
+    const userPlugins = path.join(app.getPath('userData'), 'plugins');
+    sidestepped = fs.readdirSync(userPlugins).filter((n) => {
+      try { return fs.statSync(path.join(userPlugins, n)).isDirectory(); } catch { return false; }
+    });
+  } catch { /* 无外部插件目录 */ }
   {
     const cfg = configBackupMain ? JSON.parse(configBackupMain) : {};
     cfg.taskbar = { ...(cfg.taskbar ?? {}), enabled: false };
+    cfg.plugins = { ...(cfg.plugins ?? {}), dir: pluginsDirIsolated };
     fs.writeFileSync(CONFIG_FILE_MAIN, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-    rep.note('已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）');
+    rep.note(`已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）`);
+    rep.note(`已重定向外部插件目录至空 tmp（#278 隔离接管型插件；被旁置目录：[${sidestepped.join(', ') || '无'}]，清场还原原文）`);
   }
 
   const savedCursor = w32.cursor();
@@ -5846,7 +5861,9 @@ async function runSegments() {
     // 「没重启」由 boot 存证条数不变来证，不靠自述。
     rep.beginSegment('P11');
     await (async () => {
-      const pluginsDir = path.join(userDataDir, 'plugins');
+      // #278：hello 探针改写入 preflight 重定向的隔离目录——面板插件根只盯 config.plugins.dir
+      // （userData/plugins 已被旁置），写错目录「放入即识别」必假败
+      const pluginsDir = pluginsDirIsolated;
       const sampleSrc = path.join(APP_ROOT, 'samples', 'hello-plugin');
       const dest = path.join(pluginsDir, 'hello');
       const bootCount = () => tape.all('boot').length;
@@ -6140,6 +6157,8 @@ async function runSegments() {
       else { fs.writeFileSync(CONFIG_FILE_MAIN, configBackupMain); }
       rep.note('config.json 已还原电池前原文');
     } catch (e) { rep.note(`config 清场异常: ${e && e.message || e}`); }
+    // #278 清场：删隔离插件目录（hello 探针残留随 tmp 根一并回收，用户插件目录全程未被电池触碰）
+    try { fs.rmSync(pluginsDirIsolated, { recursive: true, force: true }); } catch { /* 尽力 */ }
     // 工单06 清场：还原摆位存储到电池前状态（种子只服务断言，不得改变用户真实摆位）
     try {
       if (layoutBackup === null) fs.unlinkSync(layoutFile);
