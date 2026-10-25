@@ -170,10 +170,11 @@ interface TaskbarSession {
    */
   workspaceRetracted: boolean
   /**
-   * 原生栏重申轮询账（工单262，spec #258）：收栏态期间低频轮询（1s 拍）检测
-   * Shell_TrayWnd 重建（explorer 重启/热插拔）或可见性翻转/置位丢失，命中即重挂
-   * SW_HIDE 与 ABS_AUTOHIDE 置位（与「发现可见即再压」同一只轮询，不做键盘拦截）。
-   * 非收栏态停表休止——起/停随三态迁移（applyBarMode），裁决归纯机器
+   * 原生栏重申轮询账（工单262，spec #258；工单293 扩为全接管期）：接管存续期间低频
+   * 轮询（1s 拍）检测 Shell_TrayWnd 重建（explorer 重启/热插拔）或可见性翻转/置位丢失，
+   * 命中即重挂 SW_HIDE 与目标档位（与「发现可见即再压」同一只轮询，不做键盘拦截）。
+   * 起表随接管建立（create）、停表随拆场（destroy/closed），**不随三态迁移起停**；
+   * 每拍目标由工作区收栏账（本账 workspaceRetracted）派生。裁决归纯机器
    * native-watch.ts 的 NativeReassertMachine。
    */
   nativeWatch: { machine: NativeReassertMachine; timer: NodeJS.Timeout } | null
@@ -430,7 +431,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     })
   }
 
-  /** 起表（进收栏）：以「刚置位过的当拍事实」立基线——首拍不误报重建/翻转 */
+  /** 起表（接管建立，create 一处）：以「当拍事实」立基线——首拍不误报重建/翻转。
+   *  全接管期值守（工单293 扩）：不随普通↔收栏迁移起停（工单294 注记同步建成事实）。 */
   const startNativeWatch = (s: TaskbarSession): void => {
     if (s.nativeWatch) return // 已在场（幂等——迁移执行器只在档位变更时调）
     const machine = new NativeReassertMachine()
@@ -439,7 +441,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     s.nativeWatch = { machine, timer }
   }
 
-  /** 停表（离收栏/拆场）：清 interval + 机器回未武装态（非收栏态轮询休止） */
+  /** 停表（拆场：destroy / 外部先销窗 closed 两径）：清 interval + 机器回未武装态
+   *  （全接管期口径下唯一停表点是拆场——普通↔收栏迁移不停表，工单294 注记同步） */
   const stopNativeWatch = (s: TaskbarSession): void => {
     if (!s.nativeWatch) return
     clearInterval(s.nativeWatch.timer)
