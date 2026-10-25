@@ -749,3 +749,74 @@ describe('工单187 裁决①：空的自定义卡留在屏上（可编辑、可
   })
 })
 
+// ---------------------------------------------------------------------------
+// 工单200 裁决 A 的接线。裁决本身在 ownership.spec.ts，这里钉的是它在 card.js 里真的落到
+// DOM 上了吗：空临时卡出不出屏、卡面写什么、菜单两行在不在、0 格卡上那几处交互读几何炸不炸。
+// ---------------------------------------------------------------------------
+
+/** 造已存在的临时卡（粘贴落地的持久定义；names 是这一批的桌面文件名） */
+function seedTempCards(temps: Array<Record<string, unknown>>, nextSeq = temps.length + 1): void {
+  persisted = { [STORE_KEY]: { version: 1, nextSeq, groups: [], temps } }
+}
+
+/** 一张**空**的临时卡：名单里那批文件一个都不在桌面上（被全删之后的形状，工单200 的触发路径） */
+const EMPTY_TEMP = { id: 'dgc-t1', name: '临时 10-24 21:04 01', seq: 1, createdAtMs: 1710000000000, names: ['已删.zip'] }
+
+describe('工单200 裁决 A：空临时组卡留在屏上（可解散、菜单两行在），空掉的固有组仍不出卡', () => {
+  it('0 格的临时卡照样出卡：卡面是卡名 + 「· 0」，**没有**「+0」徽标，id 全表唯一', async () => {
+    seedTempCards([EMPTY_TEMP])
+    plugin.mount(h.host)
+    await flush()
+
+    // 名单引不到任何桌面文件（桌面上只有 docx×2 + pdf）→ dgc-t1 是张 0 格卡，但它在屏上
+    expect(cards().map((c) => c.id)).toEqual(['dgc-t1', 'dgc-docx', 'dgc-pdf'])
+    expect(membersOf('dgc-t1')).toEqual([])
+    expect(labelsOf('dgc-t1')).toBe('临时 10-24 21:04 01 · 0')
+    // 「+N」徽标只在确有溢出时渲染：0 格卡上一个徽标都不该有（更不许出现「+0」）
+    expect(walk(cardById('dgc-t1')).filter((n) => n.classList.contains(MORE_CLASS))).toEqual([])
+    // 固有层反向断言：「空组不占卡」只对固有组成立，本票一个字没动（桌面上此刻没有 .zip）
+    expect(cards().every((c) => c.id === 'dgc-t1' || membersOf(c.id).length > 0)).toBe(true)
+  })
+
+  it('0 格临时卡上那几处**要读几何**的交互一个都不炸：多选开关、框选拖拽、ENTER', async () => {
+    seedTempCards([EMPTY_TEMP])
+    plugin.mount(h.host)
+    await flush()
+
+    // 多选开关：点得动，且翻的是自己那张卡（0 格卡照样能进多选态）
+    expect(() => multiSwitchOf('dgc-t1').dispatch('click', multiSwitchOf('dgc-t1'))).not.toThrow()
+    expect(multiSwitchOf('dgc-t1').classList.contains(MULTI_ON_CLASS)).toBe(true)
+
+    // 框选：从内容区空白起笔拖到别处再松手（0 格卡上拖得起来、拖完即撤，且一格都选不中）
+    const origin = gridOf('dgc-t1').getBoundingClientRect()
+    expect(() => {
+      gridOf('dgc-t1').dispatch('mousedown', gridOf('dgc-t1'), { clientX: origin.left + 2, clientY: origin.top + 2 })
+      win.dispatch('mousemove', dom.body, { clientX: origin.left + 120, clientY: origin.top + 60 })
+    }).not.toThrow()
+    expect(walk(dom.body).filter((n) => n.classList.contains(MARQUEE_CLASS))).toHaveLength(1)
+    win.dispatch('mouseup', dom.body, { clientX: origin.left + 120, clientY: origin.top + 60 })
+    expect(walk(dom.body).filter((n) => n.classList.contains(MARQUEE_CLASS))).toEqual([])
+    expect(cellsOf('dgc-t1')).toEqual([])
+
+    // ENTER：选区恒空 → 什么都不启动，也不抛
+    expect(() => win.dispatch('keydown', dom.body, { key: 'Enter' })).not.toThrow()
+    expect(h.invokes.filter((c) => c.method === 'desktop/launch')).toEqual([])
+  })
+
+  it('裁决 A 要保住的正是那两条出路：空临时卡上 EDIT TYPES 与 DISSOLVE 两行仍在，DISSOLVE 确认层可达', async () => {
+    seedTempCards([EMPTY_TEMP])
+    plugin.mount(h.host)
+    await flush()
+
+    // 菜单开在 0 格临时卡上，四行齐全——两行出口没有被拿走（isHandEditableKind 对 temp 为 true）
+    await rightClickBlank(cardById('dgc-t1'))
+    expect(menuRows().map((r) => r.dataset.row)).toEqual(['paste', 'new-group', 'edit-types', 'dissolve'])
+
+    // 走 DISSOLVE：确认层开、文案指名道姓（空批次也有名字可点；这是它的唯一退场方式，必须可达）
+    await rightClickBlank(cardById('dgc-t1'))
+    rowById('dissolve').dispatch('click')
+    await flush()
+    expect(byId(CONFIRM_TEXT_ID)!.textContent).toContain('临时 10-24 21:04 01')
+  })
+})
+
