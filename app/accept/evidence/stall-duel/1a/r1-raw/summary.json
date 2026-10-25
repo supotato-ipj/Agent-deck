@@ -1,0 +1,61 @@
+{
+  "arm": "raw",
+  "round": 1,
+  "tag": "1a",
+  "wind": false,
+  "startedAt": 1791480450430,
+  "activeSeconds": 27,
+  "panel": {
+    "pid": 28048,
+    "stopOutcome": "graceful-gone"
+  },
+  "probeCount": 51,
+  "stalls": [
+    {
+      "onsetMs": 1791480468147,
+      "endMs": 1791480493917,
+      "durationMs": 25770,
+      "terminal": true,
+      "probes": 26,
+      "onsetIso": "2026-10-08T17:27:48.147Z"
+    }
+  ],
+  "mainLag": [],
+  "rendererStalls": [
+    {
+      "t": 1791480461894,
+      "quietMs": 5178,
+      "recovered": true
+    }
+  ],
+  "kbTransitions": [],
+  "cdpEvalCount": 0,
+  "cdpErrors": [],
+  "coupling": {
+    "total": 1,
+    "withinWindow": 0,
+    "fraction": 0,
+    "medianAbsDeltaMs": null
+  },
+  "windCoupling": {
+    "total": 1,
+    "withinWindow": 0,
+    "fraction": 0,
+    "medianAbsDeltaMs": null
+  },
+  "order": [
+    {
+      "onset": 1791480468147,
+      "order": "renderer-first",
+      "deltaMs": -11431
+    }
+  ],
+  "labels": [],
+  "terminalSpan": null,
+  "files": {
+    "eventsFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-raw\\panel-events.jsonl",
+    "spansFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-raw\\panel-events.jsonl.spans.jsonl",
+    "harnessLog": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-raw\\harness-log.jsonl",
+    "probesFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-raw\\probes.jsonl"
+  }
+}

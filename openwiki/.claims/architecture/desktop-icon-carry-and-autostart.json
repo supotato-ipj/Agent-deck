@@ -1,0 +1,446 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:0311a3a23727522d47167bcad7764f0a12b1274d108de20757cdfee9eb0935b9",
+  "claims": [
+    {
+      "id": "claim_f7f86ee1512d44ca8e257b654c62d849",
+      "statement": "Icon carry belongs exclusively to the outer guard process: the guard hides the native icons before spawning the `--panel` child and restores them when that child dies, while the panel process never touches desktop icons, so a killed panel (including a forced kill, since `taskkill /T` only clears the downward subtree) leaves the restore chain intact.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L80-L121",
+          "version": "repo-lines-v1:sha256:3f05ed842e4da98a9ef05175a0a05e70282d90e4a2065b3b17dba1e1a7ca1d85:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmMDllZjU3NzViNWI1ZDcxZjY2NzllZmIyZmZhNTVmZDllM2M5N2NiYTgzMzRlMjc0Mjk0NmM5ZTI4NTc2ZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkMzhkOWRiZGI0ZDIwYzc2MzMzODE1M2M1NTQ0ZjFiOTlhMzdlM2YxYTRkOWI0ODU5MmM2MDkwMmU1MGE4MDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3YzY0OTM0NGRhM2ZmNTU2ZmU0MWQwNzM5MjgzM2JhZDUxNGFmNzYyMmZiMmI5NGVkZjMyNjI4MGM0N2RiYjcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L183-L234",
+          "version": "repo-lines-v1:sha256:a0c32004058b60a925f385cd82914f2c8f34da5be98d5318f6c5cd2c72f89fd7:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlMjFmOGI1NzgxYzUwMDU4NmE1MDdjMzg4YzFhNjZhYWY1ZTA1YWNmZGRjODQ2NjkyMWYxYmU5Y2ZjNmVhNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5OTYzMDY0YjBiZGNmNDYyYmJiMjQ2NDhlZGJiOGVmOTk4Njg5YTIwZTIzNjJjZmM2ODRjNzRhYjJkZTdjOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMTI3MGUwOWUzZjI5OGNiMDE3MDIwM2QyZDUyZDE3MTI2ZTBmYWNmNGNiM2QyY2M0YTMyZjU1YzIwZTFiNDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8e66dc66bd4046118fd18bf0c32837f3",
+      "statement": "Startup-link maintenance runs inside the panel process's `bootPanel()` during boot rather than in the guard, so the process that raises the panel is also the one that writes or deletes `AGENT DECK.lnk`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L187-L241",
+          "version": "repo-lines-v1:sha256:721d37292911590dd6059cc107e29b5069b952f0b79b959d4cbccc57b4f99dd4:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhZTM5NmM0ZjIwMDZlMjY3N2RhMGRmMmRkZWQ4ZDQ1OTk1MGQ4YTUxZGZmNjBmNmE5NDI4YWQwYjIxZTNmZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhMTJmYjc3MzQ3YjdiMjJjNzgxMGI0ZjY3MTllMzI1OTExOTY3YjUwMzQwNTg4NGY4MjA3ZjQ3ZDcyOWNlYWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2NDI5ZDYzMmUzMGJlNjZmOGJmODlmMGQyNWY2NzA1YjY2ZGEzZTUwNzM1NTc1MDU0MzY3NWQ0NDUyNmM2ZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L34-L65",
+          "version": "repo-lines-v1:sha256:f06b16cfe6edeed5546f723b31c56f971b62ca5e8aac7ea58a5cee16779a76f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2NjlkYTg1N2M2ZDY3YmY0NTlhZTczMTM5MDFhNWM5ODgwNTM1ZTI1ZTg5ZWU4ZjA0NjQ5ZmY0NGZkYmQ1ZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzY2Y2OGEwZTdkYzk3ZGQ0ZGVhMjA1ZmZmOWIyMTJkMWM1MTgxOWFmM2QwZmVhMmY2OTEyZTJiODQ3NWM1NWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjMDgxNGUzZDY2OTQyNWYyN2E5ZDA1ODVjZmM0YThlMGJmMTU2YWM4NTYyMDVkMWQ5NzRmMjZmYjU5NmM0MmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d7d44316344645beb43d784bc6b0cda5",
+      "statement": "Native desktop icons are hidden by sending `WM_COMMAND` (`0x0111`) with `0x7402` to the `SHELLDLL_DefView` window — the same command explorer's View > Show desktop icons issues — through `SendMessageTimeoutW` with `SMTO_ABORTIFHUNG` and a 3000 ms budget; explorer then writes the resulting state back into the `HideIcons` value under `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L12-L25",
+          "version": "repo-lines-v1:sha256:3bd5dc09b330342a5b10d3015d61a16b0dfcc370c2a5be808c4cf8e58549716b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwMWE2ZjhkNWNhOTNjNjUwODkyYWZjMGUxNDVkYWMyZmVmNWI5ODU2ODBkN2IyMjRjZTAxNGFjNmUxMGYwM2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3OTk2YmE3M2ExZjA1YjEwNTM4YzNjMWI3ZTcwODJkMmFkZGM1NTRhYjhjM2Q0ZmMzZjlkNGVhMWNlMDBkNmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhOTUwMmQ3YjU5YWZjOWZiYzEwZjA5NjVkMTQ1ZTY0YzFhMjg3Mjg1ZjQ4M2M5NjQ3MmMzZWRhNjNkODIzNjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1N2NiZmVlYzk5MjlkM2ZkMTUyNTFkNjViYTMwZmFkZTRiY2UwZTQ5MjlmMjBjMjkyMDMyZjFhNzRhNjBiYzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L73-L78",
+          "version": "repo-lines-v1:sha256:6a9bbbc4944178424a0737b200d54de63c1967ed79b9c3f076afdc8b37d39d11:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTU5ZTFiZWJmMDI4YTk2MTFmNmYyNTM3MzBmNzJjOWY5NDZlNDY3MDliYzc3MDUxZDAxY2U4ZmJlMzdiYjljMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTE4NWIwNTVkZDM1MmQzOTdhOTUwMjM4YzYyZGVmZDEzMjBiYTk5ODhmNjcwNWVjMDUxYWY5ZTQ1ZDk1ZjMwZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDM3OWM5OWVjMzRiZGJlZTM3OGFlYjZiYjFlNDgyMjY3ZDJiYTcyYWYyMmZlNjg1NTcyZDliMzg2M2UyYTZmMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9272db920e964613ac2ae27d26e8a755",
+      "statement": "`findDefView()` looks for the `SHELLDLL_DefView` child of `Progman` first and otherwise enumerates top-level windows (bounded at 2048 iterations) for a `WorkerW` host, because a dynamic-wallpaper host such as Wallpaper Engine reparents DefView under `WorkerW`; the icon list is the `SysListView32` child of that host.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L35-L58",
+          "version": "repo-lines-v1:sha256:0522e180dc57f5e1216cb657eecbc0d4fd258c42f29c250df1d8adea4e5788e1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjNDI1NzMxZTAwYmZlOTIzMTIyN2QxNTA5YTM4NjA0M2MyMTgwMzg3MmFkZTRkOThlZjZhNjhiYTVkM2IwNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkMjYzMzM4M2NlZGFjYzY5YzVkNDBhODUzYjEzMjI1YzI1MTEzNDkzZmNjODM5NTE0YTQxM2FmMDdiMzZhN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0ODUwZGI0Mjc1ZmQ5YjQyYjQ5Y2ZiNzViNTAxM2RhNGVjYzgyNGU0ZmM3YzcxYjYyYTI0ZGZjMDc1NjZlZDUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0ed4bbd3b5854e9b93388e92d25f898e",
+      "statement": "Two separate observations drive the carry: `iconsVisible()` reads `IsWindowVisible` on the desktop `SysListView32` (the view fact, the sole authority for whether a toggle is needed at restore time), while `prefHidden()` queries the `HideIcons` registry value (the user's persistent preference, which decides whether this run may hide icons at all and is only recorded afterwards).",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L60-L78",
+          "version": "repo-lines-v1:sha256:6aee52b7938efaa06d3f0a93a93bdbc9f409c7a5fc67ec4abfc2e73dfca06b60:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1MzQyNjM5YWRhZDMzMTBkOTY1MDJlZTJhMWU3M2E5MjAyOWNiMWVjNDk1M2Q2ODA2MmNiZmY1NWFkOTNiNjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3M2UyNmNlOThiZjE2ZTZiYjgwOTMxMTkwNGU5MGI1MTFkNjM4ZThmYjYzNjNjOGY2NzZlNzVlYzU1MjczNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzNzljOTllYzM0YmRiZWUzNzhhZWI2YmIxZTQ4MjI2N2QyYmE3MmFmMjJmZTY4NTU3MmQ5YjM4NjNlMmE2ZjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_529f5a33cdf545628a00350415a31227",
+      "statement": "`IconCarry.begin()` hides icons only when the user does not already prefer them hidden, records one of `icons-hidden` / `icons-already-hidden` / `icons-hide-failed` together with the preference and the post-toggle view state, and a hide failure such as an unreachable `SHELLDLL_DefView` never blocks the panel from being raised — the run degrades to a visible two-desktop state that is recorded in evidence.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L88-L100",
+          "version": "repo-lines-v1:sha256:5a7712e47666df2e570b0965763196970f33e39983b322fd9746522a9c85988c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwMjc4NjgxZWE3ZjQ2ZWE3NDJjMmU5NGE4ZGU0MzZmMDYyM2QwYWY2MWE1MGNjNDZhMjcxNWQyYWU3MjJlMDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3M2U4MTUxMDAwNzc3NjJmZDc1MWFmNGZhNjYwMDg0MDY0NWJmMDZlN2U4YjZjOWNkMTFlYWY0ZGJkMWNjNTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhMDU1NTc1ZjdhZmYyMDQ0YzIxN2VjZDMyODcwZWZkYTdlYjM2OWJlMTIyNWRhNzRmNjlmYTBjMGY5MGM2ZDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_011f260406c643c4884c9a01a466922a",
+      "statement": "`IconCarry.restore(reason)` is idempotent via a `settled` flag and flips the state back only when this run hid the icons and the view is still hidden, so a user who re-shows the native icons while the panel is running is never overridden.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L102-L116",
+          "version": "repo-lines-v1:sha256:8a4bc3628f18cac57bd85d166db9f1e9e45090a2adbb462fa17caf82bc7d6f7e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExY2Q4NDcwMGQ5MTUxODIyYWZiY2VjOTJkOWQ2ZjllZjk5ZTIyNDc1NmEwMTI2ODVkNmNhYzFmZWY0MjdiNmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2NDQ4YTE3OWRlMGYxZDg1MTY0NmU1Njc2MWU5NmEyYTdlMTkxM2U0M2MyYWM3MDkzNjVjYjI4ZWNiMmI1OTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_63c0c506c96a4e66a260367eacb5c753",
+      "statement": "`restoreIfHidden()` deliberately drops the \"this run hid them\" marker and decides on the view fact alone, because it runs after the guard is dead when that marker is unknowable; a visible list view is never toggled.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L124-L135",
+          "version": "repo-lines-v1:sha256:a7c743ae8bc75aab5636f97160f00c2ce8727228afd46fd6346eea4934a10dcb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwOWUxYWFjMjAwZDc1NDc5MjhlYjMxYTc5YWU1MTgxMTQwMjRjOTgzNGJiYTAxNTIyZTlhNDM5MTJlMTc5OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczYjUyY2U1YWRhMjE3NGY3MzIxNjU5MzA0NTVlOGY1NjUyOTJjYzhlMGFhNjBhNGFjMjQzZmQxZGY0NzU5MzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f7b609286c1b4bfaaf620f5ad014bdbf",
+      "statement": "The invariant behind every restore path is that the application must never leave an empty desktop: ADR-0004 records restoring the native desktop icons after a crash as a consequence of choosing the Electron panel, and both the ownership-gated and the view-fact-gated restore exist to satisfy it.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L102-L135",
+          "version": "repo-lines-v1:sha256:a9e7cd1b12eb2e06a7bd1ff0c13ebf01ba6039cb6009b546ed744174232bf0e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExY2Q4NDcwMGQ5MTUxODIyYWZiY2VjOTJkOWQ2ZjllZjk5ZTIyNDc1NmEwMTI2ODVkNmNhYzFmZWY0MjdiNmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczYjUyY2U1YWRhMjE3NGY3MzIxNjU5MzA0NTVlOGY1NjUyOTJjYzhlMGFhNjBhNGFjMjQzZmQxZGY0NzU5MzcifQ"
+        },
+        {
+          "resource": "repo://docs/adr/0004-electron-cordis-standalone-panel.md#L20-L24",
+          "version": "repo-lines-v1:sha256:2c1b5e4591281a4495cc8ee4d8b66a921eecb22951e4e364839d465a61f5d498:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjA1OWQ3MzhiMmEwMTU0NjI1MTBiYWZhOTdmYjNlNjBkZmVhMmEwNzQxYTY4MDQ4NDRiZTcxMWY2MGNmNzFmNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmMxZDkxYWMwN2ZmODZlNTg2ZDZjZDdkNTlhNTEzMTFmODMwNDI3NTFhZmQ3YmIyZTdmYTI5ZjE5NDk4YTQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmZjYzBiZGJkMWUyZDNmMzAxZDhhYTM4YTQxZmFiZjM4N2ZlMzY1NzE2OWQwNGJlYzcxY2VlMWRhMTdlOTU5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzEzMDE1YjFiYmZlOTA4MGExMmQwN2VkZTRiZjg2MzBiYzc5ODgxMWUxNWYxMjY3NmQ1YzU3NTEyMTMyMmFhMyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_68b48f41ae0e4a0597a25ac3397089ff",
+      "statement": "The guard restores icons through three in-process paths — `panel-exit` when the panel child exits (called before `app.exit(code)`, which does not run the normal quit sequence), `panel-spawn-failed` when the child cannot be spawned, and `outer-quit` on the guard's `before-quit` event — all routed through the idempotent, ownership-gated `IconCarry.restore`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L199-L199",
+          "version": "repo-lines-v1:sha256:f8f83eced9e4603bfae28047e0694a81274f77e2af56896b2870a01b5bb6ecb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjhmODNlY2VkOWU0NjAzYmZhZTI4MDQ3ZTA2OTRhODEyNzRmNzdlMmFmNTY4OTZiMjg3MGEwMWI1YmI2ZWNiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjhmODNlY2VkOWU0NjAzYmZhZTI4MDQ3ZTA2OTRhODEyNzRmNzdlMmFmNTY4OTZiMjg3MGEwMWI1YmI2ZWNiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmIyZTlkMGQ0YTBlMDk1YjhhZDk0NGNjYmZkYjcyMWEwZjNhY2I5MmFlNmIxZTg4MDZmYTdiZDAwMTQwN2YzMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjFmNWVjZmZjOGNlODc1MjQxYWFjN2JiZThkMzFiOGU5MjBiYjg1NDU0ZTJkOWIyYzExNWE0NDUyZTE1NDBhMiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L224-L233",
+          "version": "repo-lines-v1:sha256:d9ff1992577047f39ac80430a1b8bcf5fcf6d7376a652f080c10d832ed0ee8c7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxYjY5YzUwZTVkMTY5NDMwNGI0NjViNGZkNjFkMGI1MjY2NTMyZjM0Nzc3ZmZhNTkzOGU4ODFiNjM5MzM5OTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0ZTEwYjM3YmNlZmM0M2NhODZlYjk0ZjRlN2VjNjg4MWRjYjAyMjY1NGIwZjA1MTNhYjY3NWFmYmM3MjI2ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkZjU3M2U4YzMyODI2OTRmNDNlY2NjZGYyMDJmMzVlNmJmNjkzYTI0MjNkNTNmOTQ1ZjcyNDRkYTI2YjU1MzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a503215f362e4a01b6a66351368730c6",
+      "statement": "When, and only when, this run actually hid the icons (`carry.didHide()`), the guard spawns `icon-restore-watch.cjs` before the panel child with `detached: true`, `stdio: 'ignore'`, `ELECTRON_RUN_AS_NODE=1` and `unref()`, giving the watcher no console to receive signals from and taking it out of the Chromium kill-on-close job; a spawn failure is logged as `restore-watch-spawn-failed` and the watcher's pid as `restore-watch-spawned`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L209-L218",
+          "version": "repo-lines-v1:sha256:bad0fdca13339f9c56d2d21fc3a8e82114565c1037c8537e80b4774559bd361a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2MTlhN2ZhZTBiOGJlODUwYTM2YWM3NjUzNWIxMmNhZWM0NDRiYTcxYzgzZWUyM2Y4YzY4MzM3MGJmMGZiZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5MmYwNTIxOTc3ZThmOTdjY2E5YWZkNzU1NmI2OGFmMjdlYTYwZGE3MzViMjExYjY4NmMyN2QyMGRkNTRlNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYzU2MmJlZDcwYTMwNTcwOTc4NTRhYWJmMzZmNWI3ZDAzODgwNWI5NDU3MGY5MjZmYjgwYzZhMTJjNTUxMmQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3769693cba5746af912c76c7c34db67e",
+      "statement": "The restore watcher opens the guard's process object with `SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION` and blocks in `WaitForSingleObject(handle, INFINITE)` — waiting on the handle rather than polling the pid makes pid reuse harmless, and an open failure counts as \"guard is dead\" — then, if the icons are still hidden, calls `restoreIfHidden(null, 'guard-dead')` and always exits 0; the `null` log means the watcher's restore produces no evidence-log event.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-restore-watch.cjs#L14-L38",
+          "version": "repo-lines-v1:sha256:b24eb75a22de97812ae08946528a2dfb6833d9bb278d9d55814cf8125505574f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyZTM2NmJiOWU1MWEwMjhiYmVhNjYzN2JiMGZiYjllZmM2ZDg0NDRlOWQyZTBjNGJjODY2NTkyZDE0MDdhMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxNDI1NzlmNDE5YThlYWEzYzhhOGRiODM3YTk2OGI5NTFkYTJlMzZjMzU2OTVmYjQzMzZiMTA1ZTk5ZTllMzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYxY2MxM2JkNmYyMjk5YWI4YmZmYjlkOWM2YTI3NDdkYmM0OWQyOGNmMTI3YjdmNWQyMjYxYjY1NGJkMzAwZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2305598203cf4e77a08e5679e31f755a",
+      "statement": "`electron . --icon-restore` guarantees the icons are visible in one shot: that mode branch runs before any single-instance logic (so it needs no lock and works while a panel is running), calls `forceShowIcons` and exits 0; `forceShowIcons` toggles only when the `HideIcons` registry preference says hidden — the opposite key from the guard-side restore paths, which use the view fact.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L137-L141",
+          "version": "repo-lines-v1:sha256:378eaa77ab6221de4d7ab6df756b519e7dcec88509a83ec7ecfbe9b169e15dd9:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGFiZWUzZmMzNTk5MmQxZmI0MGI1NDc1NjhkOWJmYjg2YzBhNzc4NzkwNGIwNGY2ZDkzZmE1NjJjOTA2OWI4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY2OWU5NWFhOTY5NjcxYmEzYTQ1OTlhMzdjYTNjNWUxZWQzYjBiYmEyYTUzNjgwYzJlYmNmOWI3MGI2MjYxYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2EzMDdhYjMxNGY1ZTA1MmViMWQzNzhjOTUyZWZhNTVlMWEwMjNhNDg0YTY4NmY5YjMxZjhhZmU2NzM2OWMzMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L176-L182",
+          "version": "repo-lines-v1:sha256:022933d8c00cf9f8b7ee287a919c71dc8755a5cf434f16dacf5106c1b7cf1498:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2MwZmJjYTE0NTBkOGE2NzEwNzM0MWM4YmRkMjk3NzUyOTc1NjUzNmE5YTMxZDczYTJmOWU5MGI3ZmU1MDcxYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZiNTljZDI2ZTIwNThhMjY4Mzk3ZTMxNjhiOWIxNTAyMDE5MGYzMDRlNzNhNzE1MzViNGJiZDk5OGU3YzRjZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjM3M2MwMzNmNTEyYzBjNzk2ZGNmOWMxOTA4NzI1NWQzOGY1NGYwYjhkYzYxYWNjZDg5ZWEyNTM3MjQzNGFjMSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDkyNTM1YzQxZDRhOTU2ZjI5OGRlOTMwODhiMGQ0YzcxZDVlNDU4NTIxZWMyNTBlYmNkNzk5YjhiMjQ2NDZiMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_0f74fe013bed41f28c6c8d75228812db",
+      "statement": "The desired Startup shortcut points at `process.execPath` with the quoted app directory as its only argument and the app directory as working directory, so a Startup boot takes the default entry — the outer guard — rather than `--panel` or `--accept`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L80-L86",
+          "version": "repo-lines-v1:sha256:2b5d3d6aa77bf6979cf1dfce6b2c8e3f699ca1e824403a4e271af5135d111e74:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2VjNzMxZDQ3NDE2YWQ3MzFhY2U1YjhlZTZkZWNjNzE0MzNmYzM1NWRlZmMxZjk2NGEzNWUxNTU2NmMyZjE4NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmYxNDMwOGMwNDhkY2M0YTM3YzJmNDcwNmZkMTU5OGVkMmU4NTA1YTkwOGJhNDk2ZDEzMjEzNmYxOWU5NDE2MSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L183-L189",
+          "version": "repo-lines-v1:sha256:218542c6d265f63127669268c4a3f2fa9107bdf4b7ef353c11a5bfa9443c0876:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmUyMWY4YjU3ODFjNTAwNTg2YTUwN2MzODhjMWE2NmFhZjVlMDVhY2ZkZGM4NDY2OTIxZjFiZTljZmM2ZWE1OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDg1ZjU5ZWM3NmE3NTVjNDM1MDQ5NGE1ZjBlN2IxYmUwNmNmNjE3MTZjMWI1YzhmODY2YjA1M2Y1ZDg5YmNiNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDk5NjMwNjRiMGJkY2Y0NjJiYmIyNDY0OGVkYmI4ZWY5OTg2ODlhMjBlMjM2MmNmYzY4NGM3NGFiMmRlN2M5ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWU2MDgwYTY4NzI3ODEwOTc1YWU5YTZjMjNhMmFkNTE1ZmY1MTc1NTkxMzY1NGFiZDA4MGM4MjU4ZDFjNzNhYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_09dbf1a524834b21a1c2b53e6b385abe",
+      "statement": "The autostart link lives at `%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\AGENT DECK.lnk`; `startupDir()` throws when `APPDATA` is unset instead of guessing a path, and the caller degrades that throw into a warning plus an `autostart-failed` event rather than failing the boot.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L61-L74",
+          "version": "repo-lines-v1:sha256:c7f86366971e07ef876975856f66f00885994e96625adae05162092cdb42cb31:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2MmVlOGI4ZGYxZjhmOTkxMTZiOTQ4YzM2ZWZlYTk4ZmZiNGNkNDU4OWQwNjA2NjgxNTNiZTQ5ZWIwMDUyOTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4ZGZmYTFmNTkyYWZlM2NkNDg0MWQwNzg5MTBhODIyNjc4YThiNDRjZThlYTc3ZjE5NjY2ODVmYzc2MWZkNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmZTNlMjY4MmU0YjM4NDFkYzM1OWUzZmFhMGNmMzhmNzJiMmJkZDY2OGQ2YTYzOTY0MGZhOGZlNjA1ZGI0MWMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L54-L65",
+          "version": "repo-lines-v1:sha256:3265113b3c15c6973bf7f7073dd895bb352b792c8e2037db1221b773059e7e99:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMjYyMGU1N2UzZmUzOWJkNGI3NTk1YzM2OWJiNDhmYWU0OThkMjc2OWE4N2UzNTQ5N2E1MjVlNjk1Y2U0NmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3MDc5NGRlMjcxMGNmNGE5ZTA2NzM0YjMwMjExMWVlOWZiMGU1NGM3OWE4NGIyMmYxOGQwYmY3Y2Q5ZTBiNjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjMDgxNGUzZDY2OTQyNWYyN2E5ZDA1ODVjZmM0YThlMGJmMTU2YWM4NTYyMDVkMWQ5NzRmMjZmYjU5NmM0MmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e8e363de3bcb4a959e6521cb41a4a3e2",
+      "statement": "The Startup folder is used instead of a `Run` registry key because it is the mechanism the previous stack already used and because the entry stays recognizable both in Task Manager > Startup and in the Startup folder.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L1-L19",
+          "version": "repo-lines-v1:sha256:ce44191e1da5f5541b8308bcff1a106b253c0457d5f66d74e01f2774b5824d53:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhYjM2ODhkNzUzNzRiNTlhOTJiMDBmMDQ0NWFlYzE5YWQyMWZkNWFjNjJlOGVhZjdiM2Y3ZGFhNTMwOTVjZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlMWI1ZjZhODZmNmQzM2RkZGI1MWQyZWMwMDY0NWNkMTViNTEwZTRiNmZiMjhhMGEwMjc4MmNlMjk1ODQxZDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhN2FmNjcxYzdmMjg2MjQ2NTVjN2U2OGUzMjkxNTk4YjgyYTlkNDBlZGU4Y2UyMmY0N2Y0ZDA4OWVjNmE4ZDkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1dd3fa432ee54993aaad10e53aed55c3",
+      "statement": "Whether an existing link already matches is decided by target and arguments only (working directory is written but never compared), after de-quoting the arguments and lowercasing the target with forward slashes folded to backslashes; production-run path comparison additionally tolerates a trailing separator, so a declared and a running app directory differing by one `\\` count as the same place.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L36-L59",
+          "version": "repo-lines-v1:sha256:3ad6425873913ad7a6e7b50ac66dd13aefc54ad82b0f42794c0bcc56e1b263e3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyYmRjMjBiYWIxZDZmMTM3ZGExMGUwOWQ3NDFiMWZjZDE0OTRlNjRjMzM1Y2ZmNDY2MTE1NDE2ZWQwMDczZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljNjA0YjIxNDRlMTI0ZTg2MDFjM2JjMjFjZDljZDE2ZGQ4MWUwZDk0YjNlYjQ3ZWY0YjQxN2YzZjM2Mzk1YjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmNWRkMmNlZDk1YmY5OWFkNDYwNzBiM2Q5YTQ2Yjk4OTcwMDE2NzJmZTZmYmVlN2I2YjIxYTUwNjhjYmMwODQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L95-L100",
+          "version": "repo-lines-v1:sha256:5b73d9a2912530c9f31603c80ce02978bdf16dcfc8de6ba03899f55f16b0e634:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjkxNmZjZjlhZWU4NTIyNGE3MzQ1MDRlNGJjNzA1Y2MwNjg4MTdlYzgyZWZjODIzYzU2ZmIwNjgwMjdlMmI1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTc2MGZjNDY4YWMyZTI2NjM3MWY5ODZhODUzZWQzOTZmNzlkYzk5NzI0NjUxZmQyOWU0NTM2MzVkOTI4NWU1ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGI3NWYzMjQ5ZDQwNGZlMWM4YjM1MTIxODYwYTg4NjZhMmIwNzkzOTQxMWE4ZTJhMTY1NDYxNzQwODhkOWFjZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_332a3122b82546708e3f801716be387c",
+      "statement": "`decideAutostart` resolves to `remove` when autostart is disabled and a link exists, `disabled` when disabled with no link, `keep`/`existing-matches` on an exact match, `keep`/`live-other-location` when the existing link differs but its target still exists, `create` with `dead-target` or `missing` when a non-matching or absent link may be claimed, and `skip`/`not-production-run` otherwise.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L102-L121",
+          "version": "repo-lines-v1:sha256:01e2d957c7f4febd071ef161c4909cd7e0f167880303531d78d095757b6ad945:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1YmQ4ZTJhZGIzYzE3MmI3NjkwNTU3MmZhMDE5YWIwNGU0ZmUxODI0ZWNhMTY0MmNmMDVkMDExZDA3ZjY4ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg4OTVjMDhlMWZkZDBhNTM2YmFkOTEzM2NiYjU4Y2E5OGNiOWEyNDk1NmY3NzE3MjJkY2VkZTYyOWEwZDE2ZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NGQ3N2UyMzEzZTQ3ZDE0NDNhMDMyZDliMjk4Yzk0Zjg4MWM5YjA0ZTY3YmQzODMyMTliOWZhNjNmNDRlMzgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3c0f3a6a73e744288d7c8b0cc0c92bae",
+      "statement": "The right to create or take over the Startup entry (`mayClaim`) is granted only when `config.autostart.appDir` is non-empty and normalizes to the running app directory; the empty default therefore means a run never claims the machine-level entry, which is what stops a development worktree from pointing the machine's boot at a directory that is deleted when the worktree is torn down.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L95-L100",
+          "version": "repo-lines-v1:sha256:5b73d9a2912530c9f31603c80ce02978bdf16dcfc8de6ba03899f55f16b0e634:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjkxNmZjZjlhZWU4NTIyNGE3MzQ1MDRlNGJjNzA1Y2MwNjg4MTdlYzgyZWZjODIzYzU2ZmIwNjgwMjdlMmI1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTc2MGZjNDY4YWMyZTI2NjM3MWY5ODZhODUzZWQzOTZmNzlkYzk5NzI0NjUxZmQyOWU0NTM2MzVkOTI4NWU1ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGI3NWYzMjQ5ZDQwNGZlMWM4YjM1MTIxODYwYTg4NjZhMmIwNzkzOTQxMWE4ZTJhMTY1NDYxNzQwODhkOWFjZiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/config.ts#L38-L48",
+          "version": "repo-lines-v1:sha256:8f4edc0859d8d0a6e4751664d4add264a3ac5060f47bde18c614ca22b1bd06ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3MDk4NDc5N2FiNjEyNWUwM2ExZmQ0OTQ5MmRjM2U5ODc0MTJkODMzM2E2ZmQ1OTBmOTA1ZWMzMjE1MDI1MTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhZjQ4NjYyNTQ0YzU0ZjM0ZGFhYjFiODMxOTJjMTdiNmNjNDE4YmY5ZGU3N2NkOTE5ZTk3MWJkNjI4MGUwYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5ZjQ2OTM1YjFjNzNmNDJmNzVlNjdhMWMxOTFmZmUzYTY2ZjExNzFiYzhhZjc1ZmZlYzIxZWZlNTU4ODBjMzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a03499cb53ff46f5893997ad6a979f52",
+      "statement": "Legacy retirement is unconditional and precedes the main decision: every name in `LEGACY_STARTUP_LINK_NAMES` (currently `qoder-deck-server-watchdog.lnk`) found in the Startup folder is deleted and reported in `autostart-legacy-removed`, matched by name rather than by target path, even when autostart is disabled or the run is not a production run.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L202-L209",
+          "version": "repo-lines-v1:sha256:f041605aa2fcc61ac4c4471f18d9aeef2d92e8c71ff64c44be1a96f7219dcec6:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGUwODgwNzg1OGE2YjMyODFiNTEwYjAzOGQyNjhlZjNiYjUxMjg3OWQyNmRmOGI2M2VkNjNhZjJhODEyNjZiNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWM2OWVjYTc3ZjY4MjYyYzRjYjE2YWMyODg2OGNhM2Y0YWZkNGNiMWQyY2ZlOGM4OGJmNTlhYjgyZTBjYTRlMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZThiMjVkM2U0OWUxNWVlZGNhMDZhNWRjNzVkMzZhOWI4ZmI4M2Q5NDNmZmFiYWMxMmJhMTkyZjhiMzQ0YWIzNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTUxNDBjNDgwNTExZDFhYTczZGFiYzBjNTg4YzM1YWUzMDE4NWQ4MmQ0NTM0NjM5NGNhYjEyODBiNWIyZmFiZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L27-L28",
+          "version": "repo-lines-v1:sha256:cef0dafc7adc84dfd7e4f1ab69ea61c3be8d79db5610274c496169b6f37c4d9a:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWY5ZTVhMTMwMzU3MDU1NTRmYjY3ZGVjY2Q1ODFhMWY1NGMyZjVlMmU0ZmJiNDdjNjcwNDkyMTQ5OWMxODg5ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGViNDhjMGU4MThmMzNlMDJmYzgzNjllN2RlNDgxZmIxNWE1MGFhOTUxOWQzNmFmMDYyMWU5NDM1NzUxNmIxZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWU3OTBlMjhlNjc5Y2JiNjdlYTQwZWE1Nzc3NDdiOGRhZTNhNmFmMmJmYWZhZTU0NjQwMGZiOGQ1MTI0OWNiYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmFjZjViNjBjNGY1ZDA0NmUxMmUzMTU5OTU2NzA5ZDc2MjAxMTUwOWJjNDczNzE5NDE5ZjNjM2JjNDk3MTU1NyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ef397da984314c2180a0cc15b06ec301",
+      "statement": "`applyAutostart` logs `autostart-read-failed` and proceeds with `existing = null` when reading the link throws, so in a production run an unreadable-but-present link is treated as missing and rewritten; `applied` is true for the no-write actions (`keep`, `disabled`, `skip`) and only after a successful create/remove, a write exception downgrades it to `applied: false` with `autostart-write-failed`, and the caller wraps the whole call so autostart never blocks the boot.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L211-L241",
+          "version": "repo-lines-v1:sha256:05d416938b2f70ece634043bd108f064da31a2a5e4f64b59759efadda6110183:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxZmRkZDg4MGEwZTcwYjhiZDQ5MmQxYWM4N2I3YzlkMDExODI4NjY0MTEyODFiOWQ0NzUxNjIxNGQwZDQ5OWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhMTJmYjc3MzQ3YjdiMjJjNzgxMGI0ZjY3MTllMzI1OTExOTY3YjUwMzQwNTg4NGY4MjA3ZjQ3ZDcyOWNlYWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4ZTcyM2U1YTkwNDFlMjAwZDIwOTBjZjY5ZjBmOTRjZDM4ZTE2MTVkYjA4OTQ0N2I3ODZiZTFhMmJiOWJkYWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L54-L65",
+          "version": "repo-lines-v1:sha256:3265113b3c15c6973bf7f7073dd895bb352b792c8e2037db1221b773059e7e99:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMjYyMGU1N2UzZmUzOWJkNGI3NTk1YzM2OWJiNDhmYWU0OThkMjc2OWE4N2UzNTQ5N2E1MjVlNjk1Y2U0NmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3MDc5NGRlMjcxMGNmNGE5ZTA2NzM0YjMwMjExMWVlOWZiMGU1NGM3OWE4NGIyMmYxOGQwYmY3Y2Q5ZTBiNjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjMDgxNGUzZDY2OTQyNWYyN2E5ZDA1ODVjZmM0YThlMGJmMTU2YWM4NTYyMDVkMWQ5NzRmMjZmYjU5NmM0MmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_04cf7a047cf8461dab560a82a508bdf1",
+      "statement": "Shortcut read and write go through `src/main/autostart.ps1`, a standalone script invoked with `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File` and explicit named parameters (avoiding argument re-parsing through `cmd`, because the app directory routinely contains spaces); only read mode reports absence so write mode can create a missing link, output is a single compressed JSON line, and a non-zero exit is surfaced by `readShortcut()` as a thrown error rather than as \"the shortcut does not exist\".",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ps1#L18-L58",
+          "version": "repo-lines-v1:sha256:d5d8a8e792d921a0fed6db4d4ef89fe21787567a1511406f41c02eb4af3304bd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkZmFmMjQ4MmE3YWZkMmFjYjcyZmNkOGI3M2Q4MDJjZDYzODZkMTM2NWJkYmY0ZGUzMDk3NTQ3MTVjOTI5ZmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2MDE0MTc2YThkN2E0MjNkZGMwNTM3NjBhMDk3Mjk5NGI0YzRlMmE0MzA4ZjY4NWRjNmQwMTg0YzliMzU3ZTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY0ODA3NmFlZDJjMWY1Y2UwOGI0ZWI2MDc5ZmIyOGVmZTdhN2Q4MzQzOGE2MmQ1NjQ4YjVkOGVkNjk3M2E3YjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L131-L158",
+          "version": "repo-lines-v1:sha256:b9487ff46ce1380909843da26787b3d73a64284c628e5687924c9debca11ef7c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYjVlNTQxNGY2MDE5NWI5MjQyYmNmMjc3NGUwOWFkZGRmNjFhNGJmMTZlMmNlODgxOTEwNWQ0NTU2YjMwN2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQxYmFiMzNkZDNhZDgxZjM3ZjU2N2M5NDY5OWM2OTc5ZGI2MzM3MTNmNjljYmIyY2VkMzViZDgyYmM2MGMxMWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0NzNiMWFjZjI4Njg2NTJmYzYzNmZhYmFhMTM5MDMzMjEwYjI5MDdiZTM2YjNkM2ZkYjE4YTdhZTNhMDE3OTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e53c2d62900e463691dc0d89d170f9c0",
+      "statement": "Shortcut deletion is deliberately implemented in Node (`fs.rmSync` with `force`, best-effort) instead of in the PowerShell helper, and no COM delete branch exists in the script.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ps1#L1-L3",
+          "version": "repo-lines-v1:sha256:91300865605e1fda9ad6019204ef2da3a94991b4941468d4f389d95d38a6d285:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmE1Yzc2YWFlMGIwNDRhMjA0NDQ0ZTc2NGEzZmJhOGU4MGI5YjVkODdkNWVkMmI2ODYzODhkMjQzYzk4ZDU2OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzQzNWZkZmU5OTNiZTM4MWE3ZTY3OWQxMmM3M2MyMWY2ZWY1ZTdjNjJhZTg1MzIyYzQ5YjZjZjg0NGYwMTAxMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzkzYzQ1YjliMTkzYmE0YTYzYzMwMmEzMTMzYmY0MGZmZTMxZTJkZWJhZGMxYmFjMmMzZDgyMGNmMjE1NjljNyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L166-L172",
+          "version": "repo-lines-v1:sha256:ced27de26a7c41d2f0892eb6e8ca9f0ad6199c8428ee7e016494e7018733ace0:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjk1YWNiYTE5YjlmOGQ4NTRlNmVlMWU3YmRiMWNjODBiOGI5YmE0MDk0ZmI5Mzk5YWMyZjk5MWIxMGRkY2FiMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTgxNjEwZjY5YjM1ZGI4OTlhNmY0NmEyNzBjYzVlY2IzZmM5NWI4YTk3ZjgxZWYwNmRiY2Q0NjMzNDg1MGFjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzc5Nzg3OTFhYzUyZjQ2OWM2M2JiOGQzZTI1YTNjNDAyNDIyOGZlNjk3MGU1MGYyNTQwNWEyNjM3MGExOTkyMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b5407ea4e8db45b8bba399683a5c4594",
+      "statement": "`autostart.ps1` must stay pure ASCII (as must the acceptance helpers `capture.ps1` and `uia-focus.ps1`), because Windows PowerShell 5.1 reads a BOM-less script using the system ANSI code page and UTF-8 comments become mojibake that breaks parsing outright; the decision rationale is therefore kept in `autostart.ts` rather than in the script.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/lib/uia-focus.ps1#L1-L4",
+          "version": "repo-lines-v1:sha256:b526c6836f388904b9827e43469fe6d3085a78d2aa94cc7eda5d4ed57e4328eb:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjFiZWIyNzc5ZjBlMzk0MjY0YzAxNzI4NDdkMTQzZjAwOTgwOTQ1MGE5Y2QwODJhMjQzNmIxNWM3YzY3MzM5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTRmNjlkYmRhZGRhN2VkODI3NWQ1YzIzYjU4YWUzODFmNTM4OTRiM2QyMWY4MGNjMWUyMjg4N2VhMzM4MjRkZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWRkNjg5MjYwOGM3NGM1ODkwM2M5OTAyOTE5NzQ4MmVkMDg3YWUxMTI3YjA4YjJhYmQ4ZThhMGNmMTQ1NDM4MyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ps1#L10-L13",
+          "version": "repo-lines-v1:sha256:0190751e92f503c92f7cf9887a5cd425fd1b0dde9c2cf3cca2166b23cda5e83e:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTRjN2FkYTA4ZTNlMmQ0NzM1ZGYxMzllZjlkMmMzOTliMjA0ZDY3MTBjNzFlZWU2N2NhY2IzZmFhZjZlYWU0YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmQ1ZDdmMzU4YTNjNzgxNzcwMTBjNzhhNmFlYWE1NmVkNzI3OTBlZDhiN2IxY2NiY2NhZWE3ODQ5NTVkZmQ0ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGE0YTY2ZWNmZjAwODA0MjNmZDU5NTA3ODRjYTVhNzFjYzI2OTFjYjZlZWU2ZmM5OWE2MmM5ZWY2NGM3MTBjYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTkwYWZlY2YzNzhlNGM5NzZjMDc5NDczMGFkYjZjMDg0NTY4ZDQzNTA0MGIzNTQwOTQ5ZGFmNzUyNzQxMWY0MyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L16-L19",
+          "version": "repo-lines-v1:sha256:6f103e26d15d5d3fc0a395569ba7cd26bbd89f9365d2edd9440fc11dd745be3b:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWViYTJiNDg3MzE2YWQxZDc2YjY4OTQ1M2MyY2UwMjRjMDk0YmIzODcwN2I4MTg3YzhkMWQ4OTRlYWJmMzlkNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGUxYjVmNmE4NmY2ZDMzZGRkYjUxZDJlYzAwNjQ1Y2QxNWI1MTBlNGI2ZmIyOGEwYTAyNzgyY2UyOTU4NDFkOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTdlNWVkNzU5MzdjNWMyZGY4YjY3YTI4YTgwNGVjNjBjNzcwNmYzOGZjM2M0YjVlZmNhZGFjMzEzYWYyMjU0ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE3YWY2NzFjN2YyODYyNDY1NWM3ZTY4ZTMyOTE1OThiODJhOWQ0MGVkZThjZTIyZjQ3ZjRkMDg5ZWM2YThkOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_93dd16a5e7d7426dbca1ec05b4aa0845",
+      "statement": "Both `autostart.ps1` and `icon-restore-watch.cjs` are outside the `tsc` build and are copied into `dist/main` by `scripts/copy-assets.mjs`, landing next to the compiled code that resolves them through `__dirname`.",
+      "evidence": [
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L20-L28",
+          "version": "repo-lines-v1:sha256:b6562152aecb79a17849a155c3cad2320df5b12d21e7fd9609b2dddeddf9cf01:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQ3OTY5NTVhMTgwMGY0NTc2MTMxMDFkNjNmZjc3MDczYTY1MmUwZmFjODcxODcxODYyODNiNzgzN2FiODVlNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjUyNjA4N2JlZDljODgzOTRmY2ExMDIzZGYzZmJjNGI0OTEyNDVmMDkyYmQ0YThhOWJhNTgwMzY2NDZiOWY3NSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2FmZDdjZjhmODlhYmMxNWIxNThiYTNiODZkNmM5MmI4NmI0NDFkNjU1NThhYWNhMjQxNmRjOTY4NGQ0ZDUxNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/autostart.ts#L123-L123",
+          "version": "repo-lines-v1:sha256:bb01985d81c778517b65955fa04711716d4b2d3ef6f6ecd1d439001a06b2001d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmIwMTk4NWQ4MWM3Nzg1MTdiNjU5NTVmYTA0NzExNzE2ZDRiMmQzZWY2ZjZlY2QxZDQzOTAwMWEwNmIyMDAxZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmIwMTk4NWQ4MWM3Nzg1MTdiNjU5NTVmYTA0NzExNzE2ZDRiMmQzZWY2ZjZlY2QxZDQzOTAwMWEwNmIyMDAxZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTRiMzQ4N2IzYzQ2ZGZhNzE4M2MxZDAyYTBiNzgzOWEyODdjODA2NGU4Mzk1OTNiYjMyYTMzMDY3YjMwMWJlZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDQ0MDMzYzZkZGE5ZDJlNjZjNjExYjM0YTc1NWQwNjQ4NWY1ZWYzYTliNWFiOWY0ZWVhOWE1ZjFkMzMyZWNmZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9407036226e94c0386e2448b230be29b",
+      "statement": "`bootPanel()` fixes the start-up order as: event log, config load (defaults merged with warnings, and a default config.json written when none exists), `applyAutostart`, legacy usage-log migration, then kernel start and `panelData.whenReady`; migration must precede the collector so a same-day file cannot receive records in the wrong order, and both machine-level duties fail soft.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/index.ts#L34-L109",
+          "version": "repo-lines-v1:sha256:5f35697fc2b0199cf9a29734988dec382d3fc70af52951d1365c7a83e41e5b6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2NjlkYTg1N2M2ZDY3YmY0NTlhZTczMTM5MDFhNWM5ODgwNTM1ZTI1ZTg5ZWU4ZjA0NjQ5ZmY0NGZkYmQ1ZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyZGRlNDA1ODAxMmFkMTg3MTYxNmEyNDE2N2YwZjM3MmEyNmU2MGNlNjg0ODU2MzFmODA3NGI3ZmY0MDYwY2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzY2Y2OGEwZTdkYzk3ZGQ0ZGVhMjA1ZmZmOWIyMTJkMWM1MTgxOWFmM2QwZmVhMmY2OTEyZTJiODQ3NWM1NWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlM2ZhNmIyMDg3NDFjZWRjZWVjMGZhN2NlNThmNTA2NjNhZTA0YWE3N2Q3ZGRlZGY4OWU2NzVjZjVhNTMzMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/usage/migrate.ts#L1-L11",
+          "version": "repo-lines-v1:sha256:3659a3d2ca4ac73f6adcb56ab46ec53bbd2a8e34c5083d227cb48cde2c20ba1d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxMzZmYzkxMTdmYmVhNzYwMDVhODJkMjBhN2E5NzhiMDdjOGRjMTI0YTIzOTc3ZjgyYmVjNGI0MmUxNGYyNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjNzIwY2JkNGNkNTk5MjcwODQ5NWM5NjM5Yjc0MTY4MzQ1YTczMTk4NmRkYjg2Y2YzYmY5YjdlZjIwNDZkODciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzYmZjYmI5MWY0M2Q2OTI5ZWI1OTMzMmRjOGMzNzk4YTZiMGJmNTNjNDE3NDNkMTNkNWEwYTk4MmI2MTM4YjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ecdb7a3013c144cd893bc1deb5e55f54",
+      "statement": "Autostart is applied once per panel process start from `config.json` — `enabled` defaults to true and `appDir` to the empty string, both trimmed and merged with warnings for illegal values — so changing either value takes effect on the next start and no runtime toggle exists.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L166-L189",
+          "version": "repo-lines-v1:sha256:5b487c1dde78fc3289050faa6845338452489a6ac16300f5270eee33555380dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjN2NmZDI1ZWU2ZTVmZDk0NTdhZWZiM2U1YzRmNzI0NTM0ZDE5NTQ1NGIwMGYxYTMxZTlkNjI1YWUwMzRkYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhNTk3ZjU0MmFiNmE3MWEyODhkYzM1MjU5ZTg4NjA4M2RmMDA1MDIxMmZiZjQxMTAyZDdhOWQ5YzE2OTViZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIzY2Y4MDgxNTYyNTdhM2MzZDk3NTY5YjQxYTY4N2U0MGUyOTU4YmQ3MTk1MmZjODAxMTBiMWY3YTI3Nzk4NmMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L54-L61",
+          "version": "repo-lines-v1:sha256:bb33d1701e566310f62e81ed3dbc5fc37fdf1040f03f8fb9a767ffcbdc3f3450:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDAyNjIwZTU3ZTNmZTM5YmQ0Yjc1OTVjMzY5YmI0OGZhZTQ5OGQyNzY5YTg3ZTM1NDk3YTUyNWU2OTVjZTQ2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTFiNjE5NTk5ZDNiNDY5MDI0NmM1NTZiNzdkN2E0Njc4MGYyMGRjNGRhZTFhMzUwMDgzODhhMDU5YTQ3ZTRhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzcwNzk0ZGUyNzEwY2Y0YTllMDY3MzRiMzAyMTExZWU5ZmIwZTU0Yzc5YTg0YjIyZjE4ZDBiZjdjZDllMGI2MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmI2MzIxYTE1NmI5ZDIxYTllMWFjZjFjZDBmYzZhYjhkNTQyNzA1MzkzMmQ2ZmYxZjdiYzNiNDdjZWJlODE1ZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_910f96b9eff54fd7bae5e6771a3ad4b9",
+      "statement": "Every carry and autostart event is dropped unless `DECK_EVENT_LOG` is set, since `fileEventLog` returns `null` otherwise and the normal dev scripts do not set it, so this machinery is observable only in an acceptance run or an equivalent hand-launched run.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L7-L14",
+          "version": "repo-lines-v1:sha256:1e9fd7b33eebbe125ac44b9ff81c5a5f3f8cf390ac5a9d995a444f0de57a69e1:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg0MDY5ODRiZGVmY2EzNGRkNmJjOTAwMjdmMWQxMWFiY2IxNzAzNGM1MjVjOWE1Y2VmYTFkODRmY2NkODFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGI1NThjNTRhNmY1MTE4NjhkMDY5ZmIxYzhlMjgxZGY2NGFhOGUwMzQ2MjFkYzY2MmE2ZDMyODBmZDk5ZTE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDhmMDhjMTYyZjg2MDdlZTAzMzZhY2M5YTdhMjgxNzllZThhMGI1NWJjMDNkZGFjNzUwNDRmOGZjMTRhN2YxNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5fc82e8c8b8f4823b24cfd7cf0a912dc",
+      "statement": "The recorded vocabulary of this area is `carry-boot` (mode `carry` or `restore`), `icons-hidden` / `icons-already-hidden` / `icons-hide-failed`, `icons-restored` / `icons-restore-failed` with a `reason`, `carry-exit`, `restore-watch-spawned` / `restore-watch-spawn-failed`, `autostart-applied` with link, action, reason and applied, `autostart-legacy-removed`, `autostart-read-failed` / `autostart-write-failed`, and `autostart-failed`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/autostart.ts#L240-L240",
+          "version": "repo-lines-v1:sha256:a788c4ae0fd38d6ca074708fe30d6cbb445cf6c0203fc26296c13c74e0982120:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTc4OGM0YWUwZmQzOGQ2Y2EwNzQ3MDhmZTMwZDZjYmI0NDVjZjZjMDIwM2ZjMjYyOTZjMTNjNzRlMDk4MjEyMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTc4OGM0YWUwZmQzOGQ2Y2EwNzQ3MDhmZTMwZDZjYmI0NDVjZjZjMDIwM2ZjMjYyOTZjMTNjNzRlMDk4MjEyMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmU5ZWM0ZGUyZjNhNmYwZDFhNWYyZGY4MDdmOTcxZmFjZGNhZTZiYzEwODRhYWIxN2ViNmQzZDg2MmZjZmU2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTk5N2VmM2ViMDU0NGE4Y2VlY2QzZjlmYzdlOTViZWNmYzI2NzQ4NmE5MzFhY2EwMjk2MTg2ZDU3NWU4ZWZkYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/icon-carry.ts#L91-L115",
+          "version": "repo-lines-v1:sha256:f45ddbd17ac71912824da3fb347f659a117e63486307505970954d93ef5c22d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZWIzNmViN2NlM2NkM2RhYjg1NzRjMjkxN2E0NTQ2MzRmMDJmNzM2NGQ4NWI2ZGQ5NTM0NjY5MDA4NmMxZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2OThmNDM3OTBiMGIxOGIyNDJjZThkNmUyNTFiNTMyOGRjOWUzNjMxNDVkZGVhMmUyNjU1ZDYxYTNiMTIwOGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExMjAzMDRlM2E1MTJjZDFkOTU2M2RmOThiMmIwMGIzMTdlMjI1Yzg4NWQ0MDliODIxMGM0ZWJjMzQ1ZmJkOTAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L180-L197",
+          "version": "repo-lines-v1:sha256:ba7b7c60a0c8dd9c23e5db21653cff296d4ea450b8e8388a3d35aa113630525f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyYTI5NzU2NTMyNjk3NDhhZDMyMDdkMjA5OTQ2NjNlZDQwOWIxYmY3ZDNhYmE0ZGE4ZTVmMTdlOWFhYzk4YzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyYThjNDg3Y2EzZGRiMmM2ODI2ZDkyZTUzZGJhOTgwNzEwNTY3MTkxN2UwZDM2MzgzNzFhZTIxNTM5M2Q5OTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4YzFkZmY2ZjA0MDNkZDUwYzFmZDhmMDM0MDNiYzI1NjNkYmUyOWRjYzcyYThlMTgxODYzNWEwNzJhZDE1ZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlOTg4NTAwNDU2YWEzZTg4NzhjOWQ3OTM1N2I1MjY2YzdiOTk3M2E4YTU3NWQ3MDhhNDgxOWVjNWY5ZTZlYmMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L63-L64",
+          "version": "repo-lines-v1:sha256:2cdfee3cba5678ddbafced5fc0645e62b888edf3b1431460ad4e587c8d6c77c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmRjMzYxZTZkMjM2ZWY4ZTBjNzRkOWUwNzI0NTJkNGYxY2Q2YmIzMTcxMGY3YTNhMWRmMDI4ZTFhZWU3M2U5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjMzZWZmZWViM2VmOGI3N2FiMDBmM2JmMTA2NmM5ZTI4ZWE1YmJjZTRjYWExOWIxYjE2MjIyOWUxYWYyNjJhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWFkNzA3Njc4NDgyMmNmMGZkZDFkOTlmYTU5M2I5ZDM5NmM3ZTllOThiYzc1NmMzNWM5ZDg4ZGVhMzlkYTAzNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjIyOThmOTI0MDI5YzUxZTQxNTZhZTA4NjIyMjRiNGNjMWQ2MDg0OGU1ZWNiMmU1ZDE1MGJiNzMzOWViNWNjMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b5cce27a2aad4b8aa89d3ca366457900",
+      "statement": "`app/tests/autostart.spec.ts` splits a pure-logic seam (path derivation, argument quoting, `sameShortcut`, the whole decision table, `isProductionRun`) from a `.lnk` adapter seam that is skipped off Windows and uses a temporary Startup directory with the real `WScript.Shell` COM round-trip under a 15 s timeout; the tests pin legacy removal even in a development run, the no-hijack rule for both live and dead links, idempotence on a second run, and the disabled-removes-the-link rule.",
+      "evidence": [
+        {
+          "resource": "repo://app/tests/autostart.spec.ts#L1-L8",
+          "version": "repo-lines-v1:sha256:d6bb468b24030669da68c1bf6d1c628dc6da9cf6c4b3408c86eaf80e96190ba4:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjYzZDIwZDE4NWJiMDU0MzQ0M2M3Y2M5MjNmYTkwMzUxOTFjMWFiYjU0MTBkNWUwZjU2MDc2OWYwNDk4Y2Q3YyJ9"
+        },
+        {
+          "resource": "repo://app/tests/autostart.spec.ts#L157-L245",
+          "version": "repo-lines-v1:sha256:34458e6e3da07b70e05b1fc6e60b12f9dd367deb7c32d32c39ea98f126b6221f:eyJzZWxlY3RlZExpbmVDb3VudCI6ODksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMDVkNGQzY2JiZmNlZDNjM2FiMDQxOTYyNDE3MDNlMTY5ZjdhYTcxM2MwMDdmYTIwMWUyZTMxYjBiMWJlOWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0YTIyYjRiYzU5YTRjOTE2ZDc5OWNmMDhjNzZiYTcyYzU5ODI0MjBiZjBjZWE2NWM3ZWY2MDFhYTdkMjdjYmEifQ"
+        },
+        {
+          "resource": "repo://app/tests/autostart.spec.ts#L89-L155",
+          "version": "repo-lines-v1:sha256:141a0a1a59300b6adcadcab10a1b2985e6c2624912dc15747f00b40aa36a8e1e:eyJzZWxlY3RlZExpbmVDb3VudCI6NjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5YWRlMTJmZTZiMmI2MDEyNzI3ZDQxZGFjODNiODJlZjlhNTFiMTBiZjY3YmRiYTY0ZTIxMDUyOTE2YjdiNTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU5ZTIwMmM1YjBkY2I4MzQ0ZGM1OTFkOTAzNTAyMjA2ZmQ5MTdmNGZmN2I3MmI5MzY1NTRlNTczYjU5MzhiODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1NzRlYmJkNTY2Y2RkNDg1YjM5ODhjNTMwMTgyOGRjNWJkOThkNjdhZDg5YzQwNmIwYzQ5MGFlNTA5YjdiMDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_45a951badcc24a168d8c55b145393442",
+      "statement": "Icon carry has no offline unit test because it is Win32-dependent end to end; the acceptance battery instead asserts real state — `SysListView32` invisible while the panel runs, restoration plus guard exit after a `taskkill /F` of the panel with `icons-restored` (reason `panel-exit`) as the recorded proof, and a `--icon-restore` fallback in teardown after the whole process tree is killed — and it re-implements the DefView probe in `accept/lib/win32.js` rather than importing production code.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2220-L2234",
+          "version": "repo-lines-v1:sha256:d61e4de524eddb23fda1ff78d5f405c0ce695ee75a1b5764ff8d140576061008:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4YTA4MGU1MjNiOWM1NTFhMGUyMDUwZDc0NmRhZTkxYzA2YWRhZTE3NmM4OTMzMzY3NTA2MTQ1YjcxNzAyOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1ZTU3YTRlNmFiODA0Zjc5ZmI0OThlY2ZkYTQzNjYyODdkMDgyZTY3NmMzMjdlNmUxZDViMmNiMDg1MDVmYWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5YmY4NGQzNjkxNTFkNTA3MjhiMTU2NzhkNWZjZWNmNDNhNTYxMmU1YWRhOTdkZDVjMmNlMTQ1N2JmYTY3NTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0MTAxYWY0ODY5MDE2MGM0MDI3YzdmYjU2OTRjMTIxYmE3YTRkZGNmOTQ2ZDgzMzg5Zjg1MWRiYWJlZTlmY2IifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L844-L849",
+          "version": "repo-lines-v1:sha256:cdf2d54796e8e5bfa6a9bf7aac6156acea40451aa4b94896963d8b50a709983b:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjlmNmJhM2M4OTE3ODI1N2FhNTUzOTZiMDY1ZjYzMTM3YWUzOGE2NjEzYjZmZGMyYmJhZWVlNjhmNjAyZjJlNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2YwNjI4NDcyYjg1MWM2MzYzZTA5ZmM1ZTY1YmVjOTY4N2FlYmI4MWM1YjAwNDgyNmEwMjg4ZGU1OTlmYzAyOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzcyZjUxN2U2Mjk2ZjI0Mzc4MTNjMGU5ZGRkYzFiNDllNjE3Y2ViYmI1ZmRkN2FhYTg1OWQyMzhkZDdiZDAyYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjRkMTYzNjBkZTA2YjAxZTNjMjg4NzQ3YjZhZDIzZDE1YjllZDJlZGU1MzhmMTUzMTk0ZmQ1Y2YzNjEyMDMxNyJ9"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L992-L1010",
+          "version": "repo-lines-v1:sha256:d45173c864c5628ddde0034d3c0e24b8b0af009632699bb86992490b1a5515d4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNGQ1ODY1MGZlZWU5NTU5MmYyYTczZjUzNzhlMzU5ZWI3MDgzOTg5NDliYTkyNTI4ODNiOWVhYTQzYzg1MDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmNWFmZDI1NmZmZTkyZjMzMGVhMjA4YWMxYjQyY2NlNGY1ODRlNDY5YWI3NTZmYjYzZTk4MDMxNmU5YjM2ZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjMjczODE5MTFjNGJkNjY0ZTkzNDdjODY0NGFkNWRiNjhjNmRiMGUxN2M3ZGY4MDMyZjE3NTAyYzAyMjI4OTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlZDZmZTk4MzE2Nzc2YzY3Mzk2ZDRjYmYzMWVlNjJmYjRkMWM3NGVkNmJlMDEwOWQ3NmMyM2JkNTZlM2RhN2QifQ"
+        },
+        {
+          "resource": "repo://app/accept/lib/win32.js#L63-L65",
+          "version": "repo-lines-v1:sha256:ae4a9a1d54fa31c3da38132805a209b11f20e4854de8d1e28c1b91ca70999a6b:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQxMzcyNGExZDUxYTgzNzZlZTQ1ODQ4NmMwNzBiNzEwNjZlZTM2YjAxOTc2YmNiNjcxYzc3MjAzMzQ0YWI1MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDMzOTBlMGJlYmFkYWNiY2I4Yjc0ZGNkNzg4YTIwMjViYTJkNjQwN2FiMjAzMTBkMzhlNTRhN2RlZjQ1NjQwYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGJlYmZiNThmOGZlMThkNzM0YzJjMjc3MjM2NmRmMWU0MGZlODEzZWE1MzZlZGViNzEyOTFmYjE1NzI3ODNiMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2M2MDU1ZDVkYzc0YjY3MDE0YTA3YTcxYmQ0NWFiMmI4MGVkZTQzOGEzOWUyYTkxMjhjZDQ4NzZkYmFjZWQ1MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7ab215658a244c19b43650a319057a8f",
+      "statement": "The acceptance battery contains no autostart assertion, so a genuine reboot check of the Startup entry is a manual verification step; the recorded acceptance run shows the expected non-claiming outcome (`keep`, reason `live-other-location`) because it ran from a working tree that does not match the declared `appDir`.",
+      "evidence": [
+        {
+          "resource": "repo://README.md#L101-L105",
+          "version": "repo-lines-v1:sha256:6950445e5f7cc57d5207a74639c4f96859cb4a943b9624ddd7bcf6223aa5cf20:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2E3MDliYTAxZjQ2ZjMxMmRkODcwNTcwYjM1YjhmMDFlNGNjNjI2NmViMzZhZTg2ZTQ1M2I0Yzc0OWJmNmUwYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzZlMzExM2JiYTMwNGIyYmNjMjk3ZjA5ZTBjMTQ1NzhlMjBiOWQ2NWUwN2Y4ZjZhOTBmZTI3MTUxNTBkYjgyNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWQzYWE1YjlhODA3ZjdlODZkN2UzODE3NTI2NTlkMzk3Mjc4MDA2OGRiODM1Y2M4M2ZlOTAwZDBlNjFmZGE3ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGZlMzkzNTMwNzQ0N2UwOTUzZTg5ZWJkNjAzYWZmZmVjYWViYmRmMDFmOWIxNmY4ZDljYzFkMjkwODM4ZWU3NSJ9"
+        },
+        {
+          "resource": "repo://app/accept/evidence/03-runtime-events.jsonl#L5-L5",
+          "version": "repo-lines-v1:sha256:579285549cb63eae123d4fa36c5a416f4c43e5e371a6466345c7b10b9d695f1e:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTc5Mjg1NTQ5Y2I2M2VhZTEyM2Q0ZmEzNmM1YTQxNmY0YzQzZTVlMzcxYTY0NjYzNDVjN2IxMGI5ZDY5NWYxZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTc5Mjg1NTQ5Y2I2M2VhZTEyM2Q0ZmEzNmM1YTQxNmY0YzQzZTVlMzcxYTY0NjYzNDVjN2IxMGI5ZDY5NWYxZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGNlNTYwOWNkZWI4YWE4NzJkZTNhNjRhYjIxZGE5M2E2NTQxYjY3NzdmMmUyODI3Y2MxMTk3YWYyNDFiNjQwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWQ4ZGIxOGNkY2FhZTlkNjZiZTlhYmIwM2M4Nzg1ZDEyYWEyOTVjZDQyZDczYjZmMDhkYTMwZTI0YzFmODhjMSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

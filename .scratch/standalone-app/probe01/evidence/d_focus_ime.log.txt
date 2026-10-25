@@ -1,0 +1,21 @@
+# probe01 d_focus_ime — 2026-09-26T15:19:44.778Z
+[15:19:44.779] NOTE  screen: phys 3120x2080 @ factor 2
+[15:19:46.693] NOTE  panel hwnd=0x4109e rect(phys)=160,480 1040x840
+[15:19:47.616] NOTE  普通应用窗: notepad hwnd=0x210a2 @(500,700) 900x550
+[15:19:48.347] PASS  场景就位：记事本在面板之上，面板已钉扎底部
+[15:19:48.676] PASS  低 z 序窗口可强制前台：Electron win.focus()
+[15:19:48.986] PASS  重钉后面板保持前台且回到普通窗之下（前台与 z 序独立，可共存）
+[15:19:48.991] PASS  输入框经渲染层 JS 获得焦点（窗口保持底部钉扎）
+[15:19:49.201] NOTE  ASCII 测试前 IME open=false
+[15:19:49.711] PASS  底部前台窗口输入框收到 ASCII 键入: "deck01"
+[15:19:49.711] NOTE  键入过程中面板保持底部 + 前台（钉扎未被输入破坏）
+[15:19:50.999] NOTE  键盘布局 langid=0x804
+[15:19:51.000] NOTE  Imm32 状态: {"available":true,"gotContext":true,"open":false}
+[15:19:51.211] NOTE  ImmSetOpenStatus(TRUE) 后 open=true
+[15:19:52.132] NOTE  键入 nihao 后: compositionstart=true, GCS_COMPSTR="", 输入值="deck01ni'ha'o"
+[15:19:53.941] 空格上屏后输入值: "deck01你哈尔"
+[15:19:53.942] PASS  中文输入法合成上屏：输入框收到 IME 提交的汉字（拼音 composition 事件 + 上屏值均实证）
+[15:19:53.942] NOTE  composition 类事件总数: 8（候选次序因输入法个性化可能不同，以上屏值实证为准）
+[15:19:55.954] NOTE  NOACTIVATE 点击输入区: 前台 记事本→其他，面板收到 mousedown=true，重叠点仍=记事本:false
+[15:19:55.954] NOTE  WS_EX_NOACTIVATE 行为与预期不符，02 仍按「交互后重钉」设计
+[15:19:55.955] ===== d_focus_ime VERDICT: DONE (pass=6 fail=0) =====

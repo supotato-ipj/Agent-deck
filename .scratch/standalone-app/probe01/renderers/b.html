@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<body style="margin:0;background:transparent;">
+  <div id="hot" style="position:absolute;left:40px;top:40px;width:300px;height:180px;background:rgba(31,111,67,0.92);border:1px solid #9fd5b8;box-sizing:border-box;">
+    <div style="color:#fff;font:bold 18px monospace;padding:8px;">HOT ZONE</div>
+  </div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  const hot = document.getElementById('hot');
+  ipcRenderer.send('b:dom', { type: 'zone', x: hot.offsetLeft, y: hot.offsetTop, w: hot.offsetWidth, h: hot.offsetHeight });
+  for (const ev of ['mousedown', 'mouseup', 'click', 'contextmenu']) {
+    window.addEventListener(ev, e => {
+      ipcRenderer.send('b:dom', { type: ev, x: e.clientX, y: e.clientY, button: e.button });
+    });
+  }
+  // 穿透态 forward 转发验证用：只上报计数，避免刷爆事件数组
+  let moves = 0;
+  window.addEventListener('mousemove', () => {
+    if (++moves % 25 === 1) ipcRenderer.send('b:dom', { type: 'mousemove-forward', count: moves });
+  });
+</script>

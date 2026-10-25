@@ -1,0 +1,95 @@
+工单214（spec #203）电池接入表 —— 两块 guard 托管冒烟轮的轮次账本与红段归因
+
+一、轮次（accept-guard 托管，全程无裸跑；持锁身份 mcode-reg，用途 accept-sprint）
+
+| 轮 | 命令 | verdict | 账本 |
+|---|---|---|---|
+| R1 | `npm run accept`（主电池，走通用分发通路） | FAIL-CODE 175/3 | `app/accept/evidence/03-battery.log.txt` |
+| R2 | `npm run accept:doc-group-cards`（走挂条窗） | PASS 47/0 | `app/accept/evidence/166-doc-group-cards.log.txt` |
+| B1 | `npm run accept:doc-group-cards`（**基线对照**：本刀改动暂存、同款轮） | PASS 47/0 | 见本文件 §三（无仓内 artifact） |
+
+轮次时间：R1 2026-10-20 03:31:43 → 03:40:22；R2 03:48:10 → 03:50:40；B1 03:53:28 → 03:55:50。
+护栏用法一致：`node D:\test-folder\.accept-guard\guard.mjs hold --as mcode-reg --purpose accept-sprint -- npm run accept`。
+
+二、主电池红段逐条归因（R1 = FAIL-CODE 175/3，红段三处：P5.14 ×1 ＋ P7S ×2）
+
+1. **P7S「Enter 未打开探针文件窗口」／「重新激活失败（reveal 链不可测）」** —— 与仓内最近一轮
+   健康基线（`201-a2-full-calibration.log.txt`，verdict FAIL-CODE 178/4，归因见 issue #219）的
+   失败语**逐字相同** → **既知环境红**（shell 打开链／再激活链的有界等待），与本刀改动面零交集。
+2. **P5.14「重命名编辑器开层异常：started=null kbOn=false(last=keyboard-mode-on) fg=null」** ——
+   与 issue #149 记述的签名**逐字相同**（#149 跨 ≥5 轮取证，勿扰＋通知积压、渲染层失能、面板崩溃
+   三族假设均已排除，状态 needs-triage）→ **#149 既有家族**，非本刀引入。
+3. 基线轮的红段 **P9**（Win+D 取样早于防抖恢复窗）／**P11**（插件卸载沉降超 8s）本轮未复现（环境项，
+   按 #219 判读为环境扰动，未定责为回归）。
+
+**耦合判读**（章法「耦合漏报反馈流程」②）：本刀 diff 命中域 = {`accept`（app/accept/\*\*）、
+`panel.core`（app/src/main/index.ts）}；红段 P5.14 `areas=[desktop]`、P7S `areas=[search,cards]`
+—— 与 diff 域**交集为空** → 判**耦合漏报，不判回归**。未动任何断言阈值与等待行（章法红线）。
+
+三、dgc 轮次与「双面板致其点击落空」假设的核验（编排者提出，优先核）
+
+假设：master 的面板模式单实例守卫布尔式**漏列** `ACCEPT_DOC_GROUP_CARDS_MODE` → dgc 控制器会落到
+`requestSingleInstanceLock()` 那一支并**真的持锁**；表派生后九个控制器一律不持锁 → 轮中常驻面板
+可被拉起 → 双面板并存 → 点击/高亮断言落到另一面板。
+
+**核验结论：假设不成立（双面板未发生），两红判 flaky。** 依据四条：
+
+1. **重试即绿**：同分支第二轮（R2）P181 两段全绿，整轮 PASS 47/0（与 #213 基线计数一致）→
+   章法 flaky 流程 ①「重试，确认不是单次抖动」成立。
+2. **基线判别**：本刀改动暂存后同款轮（B1）PASS 47/0 —— 基线绿、分支重试亦绿，
+   不存在「基线绿而分支挂」的真回归形态（章法 flaky 流程 ②）。
+3. **窗枚举取证**：R2 轮内每 ~6s 采一次顶层窗快照（`win32.topLevelWindows` ＋ 标题/类名/矩形），
+   **全程只有一扇「AGENT DECK」面板本体窗**（前一代 pid 23604 退出后为 pid 100920）＋ 控制器的
+   「AGENT DECK ACCEPT HINT」提示条窗（360×39 @ (1100,8)）——**无常驻面板、无双面板并存**。
+   另：两轮 03 主电池的 preflight（`classifyPreflight` 的 `double-panel`／`leftover-panel` 类）
+   **均未报该类**（只报 user-window-activity 与 tray-machine-state）。
+4. **点击通道存活**：R1 内 P181 段失败点之后的同段点击断言（空白处折叠↔展开往复幂等、
+   徽标与空白同一裁决、双击启动成立）**全部 PASS**；轮内「面板坐标映射」账目恒为
+   2560×1392（被测面板本体，非他窗）——dgc 取面板窗走 pid＋可见＋标题三重甄别，异窗不参与。
+
+**残留风险（如实登记）**：dgc 电池**无双面板检测**（`double-panel` 类只有主电池调用），
+故「轮中常驻面板被拉起」这一形态在 dgc 轮内无自动告警；本轮由 guard 轮前清场
+（hold 拿槽即清各检出面板进程）＋ 上述窗枚举取证兜住。风险面随 §四①的语义变更同在，登记备查。
+
+四、行为变更申报（两处，均非纯机械替换，PR 描述须单列）
+
+① **单实例守卫豁免口径统一（dgc 原持锁 → 九个控制器一律不持锁）**
+   - 改前：master 的第二道守卫布尔式漏列 `ACCEPT_DOC_GROUP_CARDS_MODE` → dgc 控制器落到
+     `app.requestSingleInstanceLock()` 并**真的持有单实例锁**；其余八块控制器被该布尔式豁免。
+   - 改后：`IS_CONTROLLER_MODE` 由电池接入表派生（任意控制器模式即豁免）→ **九个控制器一律不持锁**。
+   - 取舍理由：母票 #203 决策 6 要求「单实例豁免由表派生（任意控制器模式即豁免）」；
+     AGENTS.md 明写「控制器进程绕开单实例锁」；dgc 电池文件头自陈其面板以 `--panel-accept`
+     **绕开单实例锁、与常驻面板共存**——master 上 dgc 控制器抢锁与该电池自身设计相悖，
+     属手维护布尔式的历史遗漏（#203 要消灭的「记得改清单」型缺陷），非刻意互斥。
+   - 代价：轮中面板互斥不再由控制器持锁提供，改由 accept-guard 轮前清场 ＋ 主电池 preflight
+     的 `double-panel` 类承担（dgc 轮无双面板检测，见 §三残留风险）。
+   - 验收口径：母票 #203 决策 9 / 工单 #214 正文的「分发改造纯 require 等价」应改述为
+     「require 等价 ＋ 守卫豁免口径统一」——已在上游工单正文更正（母票 #203 正文按 #215 口径不改）。
+
+② **49-taskbar 的 CDP 端口 9223 → 9228**
+   - 撞号真实存在：master 里 `battery.js`（03-battery）与 `taskbar.js`（49-taskbar）**同占 9223**；
+     旧注释链自证失真（「9223-9226 已被 battery/49/50/55/156 占用」——5 个名字只占 4 个端口）。
+   - 唯一性收编（表内 `cdpPort` 全表唯一）后，49-taskbar 顺延至 9228；其余五块电池端口原样
+     （03=9223 / 50=9224 / 55=9225 / 156=9226 / 166=9227），stall-duel 实验条目 9333。
+   - 端口核验：全仓 grep 无 9228 占用；`experiments/` 里的 9223/9227/9229 皆在表外（见 §五②）。
+   - 母票 #214 只授权「9223-9227 五端口入表」，而**实际有六块电池用 CDP**（外加实验条目 9333）
+     → 按 issue #215 口径（母票正文不改）以本节与 PR 描述申报。
+
+五、形态偏离与后续登记（不改母票正文，按 #215 口径登记备查）
+
+① **`entry` 路径形态**：母票 #214 写「entry 相对 accept 目录的模块路径」；本实现沿用仓内既有
+   `entry` 语义——**仓库根相对**（`app/accept/battery.js`）。校验器（entry 文件存在）与运行端
+   （`registry.modulePathFor`）口径一致 ✓，但措辞与母票不符，按 #215 口径记录。
+② **表外端口残余（既有、本次不修）**：`experiments/tray-replay-forensics.js` 的 9227 与
+   166-doc-group-cards 的 9227 重叠；`experiments/taskbar-defects-forensics.js` 的 9223 与
+   03-battery 的 9223 重叠。取证工具不在接入表内，登记为后续项。
+③ **模块顶层读表**：`src/main/index.ts` 在模块顶层 `require(accept/lib/registry.js)`，普通启动
+   路径亦依赖该文件存在（读不到即空表 → 控制器不识别、走面板路径）。仓内无 asar 打包配置
+   （accept/ 与 dist/ 平级在应用目录下），现状无实际风险，仅作稳健性备注。
+
+六、证据入库口径
+
+本刀**一行断言未动** → 按章法「改段」一节「evidence/ 随对应改动更新，不接受与断言无关的证据漂移」，
+两轮顺带重拍的 60 余张实拍 PNG、事件档与 spans sidecar（约 315MB）**已剥离**（还原到 origin/master，
+先例见 PR #218 的 `365ccb1`；issue #199 正在收口 PNG 进 git）。仓内只留**两份轮次账本**
+（`03-battery.log.txt` / `166-doc-group-cards.log.txt`）＋ 本归因记录。

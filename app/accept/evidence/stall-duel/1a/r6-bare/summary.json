@@ -1,0 +1,47 @@
+{
+  "arm": "bare",
+  "round": 6,
+  "tag": "1a",
+  "wind": false,
+  "taskbar": "off",
+  "startedAt": 1791482518935,
+  "activeSeconds": 240,
+  "panel": {
+    "pid": 26408,
+    "stopOutcome": "graceful-gone"
+  },
+  "probeCount": 1,
+  "stalls": [],
+  "mainLag": [],
+  "rendererStalls": [
+    {
+      "t": 1791482529321,
+      "quietMs": 5122,
+      "recovered": true
+    }
+  ],
+  "kbTransitions": [],
+  "cdpEvalCount": 0,
+  "cdpErrors": [],
+  "coupling": {
+    "total": 0,
+    "withinWindow": 0,
+    "fraction": 0,
+    "medianAbsDeltaMs": null
+  },
+  "windCoupling": {
+    "total": 0,
+    "withinWindow": 0,
+    "fraction": 0,
+    "medianAbsDeltaMs": null
+  },
+  "order": [],
+  "labels": [],
+  "terminalSpan": null,
+  "files": {
+    "eventsFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r6-bare\\panel-events.jsonl",
+    "spansFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r6-bare\\panel-events.jsonl.spans.jsonl",
+    "harnessLog": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r6-bare\\harness-log.jsonl",
+    "probesFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r6-bare\\probes.jsonl"
+  }
+}

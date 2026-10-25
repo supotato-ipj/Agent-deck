@@ -1,0 +1,78 @@
+工单213（spec #203 实施决策 4）hint-bar 补挂四模式 —— doc-group-cards 冒烟轮取证与红轮定责
+
+取证方式：accept-guard 托管轮（node D:\test-folder\.accept-guard\guard.mjs hold --as mcode
+--purpose accept-sprint -- npm run accept:doc-group-cards），全程无裸跑；每轮轮前清各检出面板
+进程、轮末自动释放验收槽。
+
+一、终轮（健康轮，本票取证轮）—— 证据：213-doc-group-cards.log.txt / 213-doc-group-cards-events.jsonl
+
+  轮次时间：2026-10-19 18:21:58 → 18:23:50
+  轮次条件：轮前把本会话的 Agent UI 窗（MiniMax Code）最小化、轮中只取一次窗快照，全程安静
+            （安静轮的定义，见下表「干扰面」列）
+  结论：166-doc-group-cards VERDICT: PASS (pass=47 fail=0 excluded=0) → 退出码 0
+  段账目：P178 / P179 / P180 / P181 / P182 / P183 / P184 / P186 / P185 / P179B 共 10 段，逐段 fail=0
+        （与 2026-10-16 的 spec166 收官健康轮 47/0 计数一致）
+
+  三件事逐条取证：
+  ① 提示条在场 —— 213-hint-bar-windows.txt（轮内一次性顶层窗快照）：
+       {"cls":"Chrome_WidgetWin_1","title":"AGENT DECK ACCEPT HINT","pid":25384,"visible":true,
+        "rect":{"left":1100,"top":8,"right":1460,"bottom":47}}
+     控制器进程自有顶层窗，类名 Chrome_WidgetWin_1（与面板同款类名），标题刻意异名
+     AGENT DECK ACCEPT HINT，矩形 360×39 @ (1100,8) —— 屏幕上中部安全带位。
+     像素旁证：213-hint-bar.png（轮内裁切，琥珀药丸「真机验收进行中 · 请勿操作键鼠」），
+     形态与既有证据 app/accept/evidence/05-icons-hidden.png（主电池轮次）顶部的药丸一致。
+  ② 断言全绿 —— 47/0，10 段全绿（详见 213-doc-group-cards.log.txt 段账目）。
+  ③ 面板几何映射不误认提示条窗 —— 三条互证：
+       · 同一份窗快照里，提示条窗（pid 25384，控制器）与面板本体窗
+         {"cls":"Chrome_WidgetWin_1","title":"AGENT DECK","pid":32904,"visible":true,
+          "rect":{"left":0,"top":0,"right":2560,"bottom":1392}}（pid 32904，面板子进程）分属两个
+         进程、两个标题、两个尺寸——几何映射没有「按 pid+类名找窗」的可乘之机；
+       · 电池取面板窗走的是 pid+可见+标题三重甄别（accept/doc-group-cards.js startPanel：
+         win32.topLevelWindows().find(x => threadIdOf(x).pid === panelPid && IsWindowVisible(x)
+         && titleOf(x) === 'AGENT DECK')），提示条窗标题既不等于 'AGENT DECK' 又不在面板 pid 上；
+       · 轮内三处「面板坐标映射」账目均为 窗矩形={"left":0,"top":0,"right":2560,"bottom":1392}
+         视口={"w":2560,"h":1392} scale=1.0000 —— 映射取的是 2560×1392 的面板本体，
+         不是 360×39 的提示条窗。
+       · 旁证：同一份快照的前景窗是 Shell_TrayWnd（无人抢键盘），本会话 Agent UI 窗当时已
+         最小化（rect 左上角在 -32000 屏外）——该轮不存在「用户在场」干扰。
+
+二、红轮与基线判别（flaky 流程：重试 → 基线判别 → 定责留痕）
+
+  基线 commit = 92aa8d6（= 本票 HEAD 的父提交，无本票改动；对照方式：暂存本票源码改动后
+  同款 guard 托管轮跑同一块电池，轮毕原样恢复）。
+
+  轮次    挂条   干扰面                    结果
+  B1      无     常规（轮中每 1.5s 轮询探针） PASS 41/0
+  B2      无     安静轮（Agent UI 窗最小化， PASS 3/1 —— 启动期「面板窗矩形/视口取不到：
+                轮中只取一次样）                 rect={"left":0,"top":0,"right":2560,"bottom":1392}
+                                             inner=null」（面板页 CDP 视口未就绪）
+  R1      有     常规                       FAIL 45/2 —— P182「收场异常：外击=true Esc=false」
+                                             + P183「固有卡组卡菜单异常：[]」（级联：上段菜单
+                                             未收场，全窗遮罩吃掉后续右击）
+  R2      有     常规                       FAIL 12/4 —— P180「展开态异常：几何2x4x=null
+                                             重新居中=null」+ 电池异常崩溃
+  R3      有     安静轮                     FAIL 45/2 —— P179B「卸载交还异常：unmounted=false
+                                             zone=null」（插件热卸载时序）
+  R4      有     安静轮                     PASS 47/0（终轮，本票取证轮）
+
+  判读与定责：**环境降责（flaky，非本票回归）**。理由三条：
+   1. 基线 B2（无提示条）同样红，且红在启动期「视口取不到」——与「顶上多一条 360×39 的
+      alwaysOnTop 覆盖层」无因果关系。
+   2. 四个红轮的红点各不相同且互不相干（菜单 Esc / 卡片展开 / 插件热卸载 / 面板页就绪），
+      形态是「时序敏感断言在负载下偶发」，不是「某条覆盖层稳定破坏某类断言」。
+   3. 提示条不抢焦点：独立探针（用仓库真实 accept/lib/hint-bar.js 挂条，前后读前景窗）
+      实测 FG_BEFORE=FG_AFTER=Chrome_WidgetWin_1「MiniMax Code」，SAME_FG=true
+      ——ADR-0008 第二条硬约束（不抢焦点）在挂条后依然成立，R1 的 Esc 失败因此归因于
+      桌面在场干扰（本会话的 Agent UI 窗当时既在前台又盖住面板卡片区，注入的 Esc 落到它
+      身上），而非提示条。
+  对照佐证：安静轮 + 把本会话 Agent UI 窗最小化后，同一块电池可复现健康轮（终轮 R4 47/0）。
+  处置：按环境降责记账，不动断言阈值、不动等待行（章法红线），本票不改电池任何断言。
+
+三、本票改动面（不背技术债的过渡止血）
+
+  · app/src/main/index.ts：挂条条件补四模式 + 注释更新（覆盖面与过渡性质如实写明）。
+  · app/accept/lib/hint-bar.js：仅头注一行措辞随覆盖面更新（形态与三条硬约束一字未动）。
+  · app/tests/accept/hint-bar-gate.spec.ts：新增静态守卫（挂条条件覆盖全部 --accept* 控制器
+    模式；--panel-accept/--tray-spike 被测物子进程不进条件）。
+  · 电池文件（accept/doc-group-cards.js 等）、accept/manifest.json、accept/lib/panel-control.js：
+    一行未动。

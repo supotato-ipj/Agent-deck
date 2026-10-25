@@ -1,0 +1,65 @@
+工单220（spec #201 A 链）段耦合登记数据修正 ＋ 文件级规则白名单校验 —— 强制全量校准轮的轮次账本与红段归因
+
+一、轮次（accept-guard 托管，全程无裸跑；持锁身份 mcode-a，用途 accept-sprint）
+
+| 轮 | 命令 | verdict | 账本 |
+|---|---|---|---|
+| R1 | `npm run accept`（主电池，03） | **FAIL-CODE 174/4** | `app/accept/evidence/220-r1-full-calibration.log.txt`、`app/accept/evidence/220-r1-03-battery.log.txt` |
+| R2 | `npm run accept`（**重试轮**，章法 flaky 流程①） | **FAIL-CODE 175/3** | `app/accept/evidence/220-full-calibration.log.txt`（＋ `.err.txt`）、`app/accept/evidence/03-battery.log.txt` |
+
+护栏用法一致：`node D:\test-folder\.accept-guard\guard.mjs hold --as mcode-a --purpose accept-sprint -- npm run accept`。
+轮次时间：R1 2026-10-20 04:32:15 → 04:40:18；R2 2026-10-20 04:43:54 → 04:52:03。
+
+触发依据：#201 决策 5① —— **段级 schema／areas 词表变更的 PR 强制全量校准轮**。本票改的正是段级
+`areas` 与 `path→area` 映射表（词表本身未增删域），故必跑。
+
+二、03 主电池红段逐条归因
+
+**对照基线**＝仓内 `app/accept/evidence/03-battery.log.txt` 的最近一轮（工单 #214 落地后的
+`FAIL-CODE 175/3`，红段＝P5.14 ×1 ＋ P7S ×2，归因见 issue #219）。本票落地后该基线更新为 **R2 的 175/3**。
+
+| 红段 | R1 | R2 | 基线 175/3 | 判读 |
+|---|---|---|---|---|
+| P5.14「重命名编辑器开层异常：started=null kbOn=false(last=keyboard-mode-on) fg=null」 | 红 | 红 | 红（**逐字相同**） | **既知家族**：签名与 issue #149 记述逐字相同（#149 跨 ≥5 轮取证，勿扰＋通知积压、渲染层失能、面板崩溃三族假设均已排除）→ #149 家族，非本刀引入 |
+| P7S「Enter 未打开探针文件窗口」 | 红 | 红 | 红（**逐字相同**） | **既知环境红**：shell 打开链／再激活链的有界等待（归因见 #219） |
+| P7S「重新激活失败（reveal 链不可测）」 | 红 | 红 | 红（**逐字相同**） | **既知环境红**：同上 |
+| P4「时钟卡未证实内核推送（clock-rendered 存证 4 条）」 | 红（段账目 P4 pass=7 fail=1） | **绿**（P4 pass=8 fail=0） | 绿 | **单轮抖动**（见下 §三） |
+
+**耦合判读**（章法「耦合漏报反馈流程」②）：本刀 diff 命中域＝`accept`（app/accept/\*\*）；红段
+P5.14 `areas=[desktop]`、P7S `areas=[search,cards]`、P4 `areas=[hotzone,panel.core]` —— 与 diff 域
+**交集为空** → 判**耦合漏报／既知环境红，不判回归**。未动任何断言、等待行、阈值（章法红线）。
+
+三、R1 新红「P4 时钟卡未证实内核推送」的定责（章法 flaky 流程①→②）
+
+1. **断言形态**（`app/accept/battery.js:1351-1354`，本刀未动；该断言物理上落在 **P4** 执行窗内，
+   段起笔 `beginSegment('P4.5')` 在其之后，故段账目记在 P4 名下——R1 账目 `P4 pass=7 fail=1` 即此）：
+   取事件文件里全部 `clock-rendered` 存证，要求 `renders.length >= 2 && renders[1].epochMs > renders[0].epochMs`
+   ——即**前两条**存证的 epoch 必须严格递增。R1 读到 4 条（前半条 `length >= 2` 成立），故失败的是后半条
+   （前两条的 `epochMs` 未严格递增）。
+2. **重试即绿（流程①）**：R2 同款轮 P4 判绿（`pass=8 fail=0`），该断言失败语逐字变为「时钟卡数据经桥接
+   契约自内核而来并持续走时（3 次渲染，epoch 递增）」→ **单轮抖动成立**，非本刀引入的稳定缺陷。
+3. **机制面无交集**：本刀 diff **零运行期代码**——只动 `app/accept/manifest.json`（登记数据）、
+   `app/accept/lib/manifest-check.js`（静态校验器）、两份 `.d.ts`、单测与章法文档；`app/src/**` 与
+   `app/accept/*.js`（电池本体）**一字未动**。段级 `areas` 只被选择器 CLI 消费，电池运行期不读，
+   故登记变更在机制上不可能影响时钟卡的渲染存证。
+4. **环境佐证**：R1 的 preflight 记「前台为用户应用窗（cls=CASCADIA_HOSTING_WINDOW_CLASS，pwsh.exe）
+   ——发起时刻机器有用户活动迹象，轮中抬窗风险在案」；P4 段正处在「记事本盖住面板」的抬窗时窗内。
+5. **定责**：**环境降责**（单轮抖动 ＋ 机器有人活动 ＋ 改动面零交集）。按流程②无需另跑基线对照轮——
+   R2 已在本分支同款轮复现基线形（175/3 逐字同签）。
+
+四、结论
+
+- 本刀**未引入任何新红**；两轮合计出现的红段全部落在既知家族（P5.14＝#149、P7S×2＝#219 既知环境红）
+  或已定责的单轮抖动（P4 时钟卡 epoch 递增断言，R1 一次、R2 不复现）。
+- R2 verdict `FAIL-CODE 175/3`，与对照基线 `175/3` **完全同形**（三处红段失败语逐字相同）→ 本刀对
+  真机行为**零影响**。
+- 仓内基线更新为 R2 的 175/3（`app/accept/evidence/03-battery.log.txt`）。
+- 证据漂移按章法剥离：本轮重写的 60 个实拍 PNG ＋ 3 个事件磁带 jsonl（含 9.9MB spans）**一律不入库**
+  （章法「不接受与断言无关的证据漂移」；先例 PR #218 剥离 65 个／~330MB、PR #223 剥离 60 个／~315MB）。
+  **本票一行断言都没改**，入库的只有轮次账本（log/err ＋ 两轮主电池账）＋ 本归因记录。
+
+五、母票出入记录（按 #215 口径，母票正文不改）
+
+母票 #201 决策 1 说 taskbar 族是「单域」，实现是 `taskbar` + `taskbar.menu` **双域**——域词表把
+`taskbar.menu` 独立成域（菜单浮层与条带本体确是两片代码），可接受；但决策 1 的措辞与实现不符。
+按 #215 先例**另开记录票**，本处只记事实、不改契约。

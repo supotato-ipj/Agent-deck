@@ -1,0 +1,588 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:2b8aa14579aa3dd46f64615343868c97062315b875148516a7aaf65e820c5cd6",
+  "claims": [
+    {
+      "id": "claim_748d55f9bf7147ddbc3ae654c4f26d25",
+      "statement": "The Win32 coordinate-writing executor that earlier revisions of this page documented (zones_orchestrate.py, desktop_layout.py, zones_watcher.py, desktop_icons.py — LVM_SETITEMPOSITION writes, name-keyed layout snapshots, the mkdir arrange lock and the drift watcher) is retired: the README records that the Python data service, watchdog, Tk search window, zones Win32 real-icon chain and the three Wallpaper Engine deploy scripts were retired together, and CONTEXT.md keeps the retired vocabulary (drift correction, layout snapshot) together with the reason they went — the panel draws the desktop itself.",
+      "evidence": [
+        {
+          "resource": "repo://CONTEXT.md#L119-L142",
+          "version": "repo-lines-v1:sha256:7e31251d91af2625e6a05ceb31e37ead5ae3b8f4b5315360e41dc0b7774f56d5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ3YmI1MWQ2ZmFjYWJjZDgwZDc5ZmYxMWUwMGZiNGFmNjVhMDlhZThjYjRjOTQ0MmE0MzVmZGFkOWExOTM0MjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0N2JlM2ZkZTJkMjJjNTFiYjM2MzMwNDc4MDE4ZjQ2ZmRjZjZhNThkNTE4MzgzNDVlYmIyYTNhYTRhYWY2ZDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxYWE2MTMzN2U2Yzc5NWY2ODBjMjA5YTQzNjE1NzA1ODY0ODZlYWViNGQ3OTE0YWNmMjk0MjJlZGJiMzk0OWUifQ"
+        },
+        {
+          "resource": "repo://README.md#L9-L9",
+          "version": "repo-lines-v1:sha256:16e92edcf10f032c4311fafdba088da73dd4c48df69e2869ca75d5e5117bb4f0:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZlOTJlZGNmMTBmMDMyYzQzMTFmYWZkYmEwODhkYTczZGQ0YzQ4ZGY2OWUyODY5Y2E3NWQ1ZTUxMTdiYjRmMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZlOTJlZGNmMTBmMDMyYzQzMTFmYWZkYmEwODhkYTczZGQ0YzQ4ZGY2OWUyODY5Y2E3NWQ1ZTUxMTdiYjRmMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDY5Nzk3ZGYzMDNjN2ViMjNhNDlhMjYyMTY5MzlkNmQ0NTIwNTU2ZDA3YWZmN2E5YTQxODk5Mzg4OTU2ZDdlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODA4ZDk4OWFjZjZhNmNmODEzOTllY2QzNjE3NGFlYzYwNmE5M2MzZGU4NmVmOTJhOThmN2E1ZDI1M2M3NGQ5YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d9e318231efd464ba0b9912643459cba",
+      "statement": "Desktop carry's renderer-facing surface is exactly four kernel bridge methods — desktop/icon, desktop/launch, desktop/move and desktop/reset-layout — declared in the shared contract and dispatched by BridgeService to the PanelDataPort, so the renderer code is identical against the in-process and data-plane assemblies.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/bridge.ts#L50-L67",
+          "version": "repo-lines-v1:sha256:afe979eca85fedc3a0b9a324060309d8283373983010be294154301497a9764d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzYTY2NDkyM2M4MTFjNGQ2NTljNTBjYTllODNlY2I4NmIwNzczMDZjMGQ4ZjMxMTE3OTIwYjc5YjQ2MzljZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhMGNjZDdkMjZjOTYyMTJhNzkxYTk0ODE3MGFjMTE3ZDNhZTUzNzY0N2Q4N2FlODE1Yjg1MDNhMzc2N2VkMzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0Njc0ZjE2NGMzNjIyMGMzZWRmM2ZjMThhMWU0ZWY4YTE2OGMwMjFiZDFlMWJjM2Q3YWRlYzg3MWVmNWU1YmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L10-L23",
+          "version": "repo-lines-v1:sha256:2cedf8571d8999da43c2bbda1f573e8a5480055862864c668dfd6373e751c38d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhYjc1MDQ2ZDVjZTE0ZjNlYTZiYjdiNjExZTc5ZGFmYjA2M2QxNWJhYTU5NTUxZTc4NjE4NzBhOTRjYmU3YjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzNDVjMjliMmNlODdjNzkwZDkxMGQyNTJlY2FlZDk0NGFkZmFkYTM4YWZlOWUyNWFjZWE4NmIzNWRkNmIzOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4ZWY5ZGE0MDlmMjNjN2RlYTExMzNjZGFiN2JlMWNkY2NkNmU1ZDI2Njk4Y2Q3OGFkMTM1NmIxODg2NjcyNzkifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L217-L231",
+          "version": "repo-lines-v1:sha256:06853b2f39df35025a1ac3484d066a74ca0d1b4d3e8295945f7f7d71cb95a4b3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMTA0NzU4Y2FmODQyNmRiZTQyOTdmMWI1NGU0ZjQwMDUzMTYwMTJjZWE0MTUyNTE4OGRjYzBkMjFmYWM3ZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhZmFlYmFhNDY1Y2MzYWMwNmU3ZWUzZTUwMWUwMjIyM2QxZjkxMGU2MGE3ZjVlN2U4NzQxYzFjYzRmOTA0MDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3NzliN2E4NzdkNzk1MDRiMjcwZjEyYjJlOTRkY2M5MjU3OWZlZTViNjY0NzY4YjA5ODZhY2FjYmI3ZDZjYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg2ZjRmNjQwYzI3ZWJkMTBhZWZlNjgwNDdiM2M3NjEzMmJkNGUxODA2NzY4YWE4MTUzZGMzZDUwNDExZDU4M2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f0288837ba4f4ca0af8575ce353352f6",
+      "statement": "DesktopService is the single owner of the desktop item pool, plan, fingerprint and placement store: refresh() is the only recompute point and always runs collectDesktopItems → applyZoneOverrides → planDesktop → fingerprint → icon preheat, so every trigger converges to the same pipeline and no second plan path exists.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L67-L90",
+          "version": "repo-lines-v1:sha256:21bd54045dccfb518126304c19322845dbbc84474a1dcb14a9cc6927bfb4e4cd:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMwYWFiMDRjNTE2NmI3OWNhNzk2YWI0Yjk3ZTJiNDgzOTQ1NmQ1NGM1NTYzOWRkMDE3YzRhYzZjM2Y5YjI1OTcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L112-L124",
+          "version": "repo-lines-v1:sha256:4f803d838fdfabf9200c4e3c2285866533b6f409bd28e5d28df1352cb722fe42:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5ZGFjYzBjYWE1NjYxZDNmNTYwYThmM2E3YTIxYzg2MDJmMGYxZWZiYWMwZDFlMWIxMDYzNTA0ZDc1YmE2NGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2MDk2MTUwZjI3MDEzZDFlZmE5ZDhmNmQ0ZDU2MjE4NzM4YjY0NmI1YjQzOTEwM2MzNTJkZGY0NTQ2NzVlNDIifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L95-L110",
+          "version": "repo-lines-v1:sha256:7dc134f5b3c9c8c6608a9eac503963752233c712f77d86873621df5e295a4b45:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkMzE5NDZhYjVmNGEyNGI0ZGNjMWM1YWVhNWJmOWNmMWVlYTFlY2JiZmQ3OTRlNzEzMWE3MzM5YzVkYjM0MWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNDA2ODY1MGIxZWFmNjU5N2IxNjQyMTVmYjVmYzY5MzExZjExMjA2ODY2NzNlOTQ2MWIyZWE2NTQ2YjhlNDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2ZWUwNDFhNDMwOTRkNGNlMDZkOWY1ZTE5MTQ2ZjM1MzVmZjQ4NDI0OThiNzg2NzEzN2RlNjMyYWRhYjFkZTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb9a9071d5dd4fb08f139a4290991c85",
+      "statement": "Refresh is driven by exactly three triggers: a scan inside the DesktopService constructor (the outer guard has already hidden the native icons, so waiting for the first tick would leave about a second of empty desktop before the dock paints), the 1 Hz tick (LocalPanelDataService.refresh in the in-process assembly, the dataplane kernel tick in production), and the fs.watch settle callback wired into the constructor.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/watch.ts#L13-L49",
+          "version": "repo-lines-v1:sha256:1a99858664f1b58e0c3d01e0bea0a90849945124d8033cfdab954083ac72526b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1YTBlOWRjZTY2MWZmMzljODJmYWZiNTQwNjAxZDcxZTdlNjQ2MDFiOWIxYTA3MWJhMTAwMzZjNDE3YmQ5M2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L143-L151",
+          "version": "repo-lines-v1:sha256:b56465da1ad33e406da1e1382246793405267d1b8be4f5317369fd0326c3e731:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYzMjZiZTdjZDkxYjQyN2JjZDE3ZDViYTYxMWQ4ZWI1YTdjZmM5ODRiNmVkMjJjMDJjOTNmOTc2MmNlNmZmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2MwNWNiM2YxZTkxNTExYzM2OTJhMmI5NzllNjlhY2M4YWJjYzE2NDBhMjA5NWFkZTczNDdjNGU1MDIwNDVhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTc1MDZmOGFjMDI2ZmVhZGQ0M2JlZjVlZjFkZjQwMmZkNGM4YmJjYWNiNWExY2M0NDk0MWZjOWU2NDc1MmVlOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L88-L92",
+          "version": "repo-lines-v1:sha256:3c8eaad14b39a9b5ed392e2fbae8ce915e1c9b2cfc0f447b00d404952635962c:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGJhMjUyZDQxOTNjOGE1NGYwYzBmMTMwMDVkNjRlOGQ5NmYyYTUxY2Y4MzRkZDBmYjA1OTQzZWIwZTM3MDMzYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjMzOGYwZTQyM2Q5MGYxMDkxYmZhYTkxZTZiMWVkYTY2MzVhYjFiM2E0ZDg5ZDNmMzg2ZDZmMDBkODQ4MThkOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzMyNDVjYTY3NDg2MDU2ZGI5ZjU0MGMwODU1NjFlNzc4MjBlYWZhN2M3NGYwZTQ1M2Y1N2JkN2JjODIxMWQ5NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjg5YjVjODQ4OTk2ZGIyOTM5MDVmMWQ0NmEyY2ZjMjAxYTgwNzBmZTE4Y2NkNTUxNTJkOGY1NzdlZDE4OTdjZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L51-L54",
+          "version": "repo-lines-v1:sha256:fba244587db3304c80eaebd4d11dd5f2ba2220cdec742e4a73fd813f9a871791:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTJjYWM0NDYwMjAzNGMyOTBjMGJkYjk1MjRjMWZiYWNkZjA2ZjFiOGRjZWZhNzEwMWY4ZjllNTliYTk0ZDExYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFkMTI5OWRhM2JhYjJiZWM2NDdiZTFlMDExNmI3ZjVmOGIwNTc1NjUxYzBlN2RkZTY3ZTZmOGNjMDM5NTdjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDdmMGRlM2NjMjVkM2I1ZGVkOWIzNjgwNTljNzhlMzFmNmE5OGY0ZTgzOTI4YmYyZTc5YjQ5ZjM5MTI1OGNiNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf495fa4e4fd4fcda3bee61446504c71",
+      "statement": "A failed scan round is contained rather than blanking the desktop: refresh's catch logs `deck-desktop: 本轮扫描失败，沿用上一轮条目` and leaves the previous items, plan and fingerprint in place, deliberately unlike the sessions service, which replaces its list with an empty table on failure to avoid showing zombie sessions; the offline test asserts that state() is byte-for-byte the previous round's when listDir throws.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L46-L52",
+          "version": "repo-lines-v1:sha256:53b1cd524a0d1a7aea2994d2de92c1f217c701fa23138393bcc9ef091e8fcebb:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDVkNWFiYWNhMjI2ODBhZTk1MzM2NzAwZGY3NjYzNjE5N2E3Y2I2YzAwNGY0Y2Q3OWFjMWIxZmQyZjBhYzRhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRiNTQ0YTU4ODYzNDM1MGMxOTE2OWE4MjQzYjUzMWJmMzA5NWViNTdjOGZiMDNlNDQ4MzY5NDNmMDgxNjg4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmZhMTFmZTYyMGEwOWQ1MjkyZjg2ZDY4MDcyOTExY2U4MGFhMTQ0N2E4NzYwZjUyZTBlYTAyODQxOGQ1MDU4NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTI3NjZhNjVhNzlhZDJmNWFiOWU1ZDI3NWVmMTNmMzZiODZlOWQ4NDQwMjAwNWY3OWFlYjA2Y2Q3M2E4ZDJlNyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L95-L110",
+          "version": "repo-lines-v1:sha256:7dc134f5b3c9c8c6608a9eac503963752233c712f77d86873621df5e295a4b45:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkMzE5NDZhYjVmNGEyNGI0ZGNjMWM1YWVhNWJmOWNmMWVlYTFlY2JiZmQ3OTRlNzEzMWE3MzM5YzVkYjM0MWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEwNDA2ODY1MGIxZWFmNjU5N2IxNjQyMTVmYjVmYzY5MzExZjExMjA2ODY2NzNlOTQ2MWIyZWE2NTQ2YjhlNDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2ZWUwNDFhNDMwOTRkNGNlMDZkOWY1ZTE5MTQ2ZjM1MzVmZjQ4NDI0OThiNzg2NzEzN2RlNjMyYWRhYjFkZTgifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/sessions.ts#L21-L29",
+          "version": "repo-lines-v1:sha256:22e35abcdbe3f107db1d96a5aa3f49b86fad8615c00aa0f521166bf3f7b7750c:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTk0OWUyOWFhODM3OTQ5MWM3MTAyODk2YmYyZjlhMjEzOWQ2ZGQ3Njk0MGExY2IxMjY0ZGY2ZGFlMGI5NmQyMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmUzNzFiYWVkNGE0MjBmZjFkOWI4NThhZmU1YmZjNTI2NTlmNjM2NGM0ZWMyOTQzNWVlMmMwNjNlOWUwMWU1MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGQ2MzNkMTBmYTA2OGE3YTY5M2FmZTA3NDI2OGEyMGMxMTM0MTQ3MTRkZDFkYTU2MmQyM2MzNzgzMDNlNDRmMSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L95-L106",
+          "version": "repo-lines-v1:sha256:9d01e2ab1ea81b543ac47b9bc545cf90684d952d30af57df868c3dd74be68fc0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiNWZjMmM1OGU0NGIyZjg3MjljZjEzMGU0ZmJhYjgxYWQ4NzEwZWYwM2Q5ZDUxNWU4NmJkMjg4ZTQ3OWViNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmNmI2ZTRmYmE2OWVmMjQyODIzZjAzZjAyMzU2OGU1NDE1NTc2NDMwOTkwZjdiZWIxYWQwMDE2Y2E5ZTg4MTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7f9990b8db5e4b6880f8c741fcf27515",
+      "statement": "The failure catch protects the round, not each assignment: this.items is replaced before planDesktop runs, so a throw inside planning leaves a fresh item pool paired with the previous plan and an unchanged fingerprint, which the renderer's fingerprint diff then hides by keeping the previous DOM.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L96-L106",
+          "version": "repo-lines-v1:sha256:883da8a8c38a27a439f9091e43778d9c448835e9b1222a31e1141c9ccfe96551:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyY2FjNDQ2MDIwMzRjMjkwYzBiZGI5NTI0YzFmYmFjZGYwNmYxYjhkY2VmYTcxMDFmOGY5ZTU5YmE5NGQxMWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMTIzNmYyYWVhMWNlNDJmYTJiMGNjYjI3ODMyYzc4ZjVkOGMxYzE5MjM4YTI0MDkyMjEwNjYzZDUzOWVkNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4OWI1Yzg0ODk5NmRiMjkzOTA1ZjFkNDZhMmNmYzIwMWE4MDcwZmUxOGNjZDU1MTUyZDhmNTc3ZWQxODk3Y2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyNmM3MmE1NTg0YjdjM2JkMTQ2YzZjOTk2YWU5NWVkN2ZkMzU4MDJlNzU5YjU2ZTllZGExYzU2YWI0ZjQ4ZmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b4f8cec10df4f5d9a988e275f1d111a",
+      "statement": "Explicit placements are applied as zone overrides before planning rather than as an overlay on the finished plan: a name in the store's dock list is forced to zone 'app' and a name in docs to zone 'doc', so a cross-zone drag changes which plan segment the item competes in and is also what move()'s anchor-zone check compares against; a hand-edited store listing one name in both lists resolves as 'app' because the dock set is tested first.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L122-L137",
+          "version": "repo-lines-v1:sha256:b5d8e2c2fc8358f6ffc16dd4f6af9d49931e08edc492c17a29cc0dea796e7ab4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1ZDJmOTNiNzQ1Y2MwMWU4OGRiZGQ5NzEwYjljYTI4OTdmNDZiMzEyMGJjZTNjMTQ3NGMwMWE0MjM1ODAyN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L203-L210",
+          "version": "repo-lines-v1:sha256:9ca3f301a6d798a12fdb24dbf9e44280931c88b962672666a4d9e985ba14dbe3:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGFkNTRhMmE1MzNlNDUwMGZmZTY5NmM4NzdmOGY1N2Y2YTg2OTA4Njg4ZmVmMWUwMWI0ODA3NzA2MGUxZjdkZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_566445dde23a4334887367daabce5166",
+      "statement": "move(name, zone, beforeName) refuses rather than silently failing: the name must be in the current pool, a pinned name may not be moved inside the app zone (its slot comes from the pinned list, so the drag would bounce back, while dragging a pinned item out of the app zone is allowed), and a non-null anchor must exist in the pool, belong to the target zone and not be the dragged name; every rejection returns {ok:false, error} and writes nothing.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L159-L178",
+          "version": "repo-lines-v1:sha256:97279c0e8d1bd7b6a41a926dbbbdd5b7606dad07f48bcf44e776db7f98a8fc22:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3Y2M5MzljYjFmODU1YzhhNTAxM2FmYjQ4ZWExOWY5OTE4OTNjZmQ4YWE1NTY2NTkxMTYzMDg4ZjVmY2MxOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxOGI4Zjc3OWUwZDQ3ZmZhNmM0MDFhZjA3NzRhYjI5MWYwZDA3MTBiNjBiMmQyZjM3NTcwNTdhMDYwYTNiNmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyNTFiYzk0NWQ3ZGQ4MjY0MDU3OGM1ZTRlYmRmMjlhZGNlZGEzOTY5NjY4NGMzNzlkYTA0NjdhNGE5YzA4NzMifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L235-L246",
+          "version": "repo-lines-v1:sha256:de91463b0aea1ea07fa5b8cff079ba0780c05c06145cad9abdf5852403c3f10a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyYmQ4Y2ZiNDhhMzRkODI2MDBhNzczNjVkNDVkNTc5MGM4Y2Y4YTQyYmYxZjk2ZjMzN2Y5OGI2NTllNjJjODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3OTZkMjM3OGM3Zjg4ODlhNmVhMDRhYTQ1Y2RjNWU5NGUzMTk2MjE0NmZkNDI5YTAzYWRiOWM2YTA4NGI3ZmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8e20fcdd6aa240ef91cb7a9f36b0cf52",
+      "statement": "A successful move rewrites the store through moveItem — the name is removed from both placement lists and inserted before the anchor, or appended when beforeName is null, leaving pinned untouched so a name lives in at most one list — then persists and calls refresh, so the new order is already part of the state returned by the same call.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L48-L71",
+          "version": "repo-lines-v1:sha256:56dd84771a7365f582bb1fe16538a7743a80dd04fe90eb472eaa229b9e7a9cc6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2YjA1MjcwYzMzY2M0YTFjOWQ1MTY2MTZlZDE1ZmIwYWQ0OGUxMWM3Y2M1YzYxMTVjMjdlZGZhZWQ5MDg3YWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmOTQzYjgyNmRkN2I0Zjk3NDUyYzI0YTVmYWIxZTRmNjkxNDBjMzRkZjYyZDZjMjM2ZjcwYmI4MzUzZDZmNTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L174-L177",
+          "version": "repo-lines-v1:sha256:3c9cec8d9854e28364506a52e59591d7d039550289c65af090dd4f8d5da7c30f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjc5YTBhNTkyOGE1Y2JhMTU2ZmYyNDQzNmRhNGE4ZTY1OGU4NjNiMDBiOTNmMjg1ZmVlOGM3Yzk1Y2NmMDdmZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGM1NzM1M2FhMTM3YTk1MjM1ZWMzYTA2NGUxZmU1ZTA5Yzc1YzQ3NTBmMDU0ZGU0MjMxMzViMzcyZTIwZWM1NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWNiMDMxNDhlNzM2NmZlNzc0NmJhY2EyNTA5YjFhNmEyMjg1YjYxMzYxN2YxZjUyN2I1OTZkZTRjOGY5MGExMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDg4NzEwM2ZlNDA2ZmZlNDcwM2IyOGViM2QyMTJmYTczNzE5NzQxYjdiZWFhYWZhODE2ZDNiNzg5MDM2MmFmMCJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L194-L219",
+          "version": "repo-lines-v1:sha256:d7fdc7747eba38a1e8e2fa01e2d92971e8e769c005e4b7c0a10c93803b4a98e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMjIyZjZlZjlhOTk5NDU4Y2M4Njg3ZmM5NTM0ODc1ZDIxOGZjYmRjMDdkYzY5NmNiMjY3NDA3ODcwNzBjZDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5ZmNlNTM1OTVhMDUwYjk0MjI4MjEyYWU1MWM5YTNkMjU0ZjQ2MjY1ZGE0ZjZkYTExZGE3NzdkZmM3MjQzMmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_75fa6f706b804900b40bbe796dfe220d",
+      "statement": "The placement store is userData/layout.json (LOCALAPPDATA with a fallback when Electron is unavailable); reads return null for a missing file, and writes are an atomic replace that creates the parent directory, writes `<file>.tmp` and renames it over the target, so a crash mid-write cannot truncate the previous layout.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L112-L126",
+          "version": "repo-lines-v1:sha256:9c56726a32dd3b53a6c105c84e71605bee84592cc46d6bb180a4d995620e1baa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ODdmNGRmZWVhNTNiMzQ1OGEwNjJmNDg4OGU2Y2E2N2U1MzQ5NGQxNjkwMTQyN2VjNjRhMzZmYmQwMTI5YmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlOGQ3ZGEzMjBkMTU3ODkxZTQ3MzE3YWY2M2Y3MjU5OWE4MmJkZDk0OTg4YjhmOGZjZWFhNDhhNWZmN2JlN2QifQ"
+        },
+        {
+          "resource": "repo://app/src/main/paths.ts#L6-L13",
+          "version": "repo-lines-v1:sha256:c16e760bde49b79b94356df2ef0a6a8c60ed5c3a49f7a817a3ba386cb2db1ad6:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzcwNTgyMmZmMzJkNTYwMzRlMTAyODBjYTRjMDg2MjIyYWIzYjY0YWY1ZjljN2MzOTM4YzI1MzdlNWE1YzFlNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmQ2NTViMjVlYTZjOGVkYjgyNWRiMzVkZDgxNjQwNDIzNjE0OTkyMDYwNDc5YWIzN2MxZjBjYmEyNWU0NmExNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L70-L70",
+          "version": "repo-lines-v1:sha256:7248578a22a29a6fc51b7508701c76614c9f155f35d057879a93f0d903a89a6f:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI0ODU3OGEyMmEyOWE2ZmM1MWI3NTA4NzAxYzc2NjE0YzlmMTU1ZjM1ZDA1Nzg3OWE5M2YwZDkwM2E4OWE2ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI0ODU3OGEyMmEyOWE2ZmM1MWI3NTA4NzAxYzc2NjE0YzlmMTU1ZjM1ZDA1Nzg3OWE5M2YwZDkwM2E4OWE2ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWFkNmM0YzNjZTJiZjZhMzhkM2IxYWFlYmFhZjVlOTI1NTBjNWZkMDQwMjg0ZWNjNzExMzRjODI4NWZiYjc4ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzBlNWQ2ZWVhMjk3OGRiY2IxMjlkMzNiYzM0NjQ4NzBhMTI5ZDMyMzY4MjM0MzMxZjlmNzNiZTI4OGIzMTU1MiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9f8e7498300841dbbc23849682169be6",
+      "statement": "A failing persist is warned about and otherwise ignored: the arrangement produced by the same call stays live in memory for the session, and only durability is lost.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L194-L200",
+          "version": "repo-lines-v1:sha256:181f543a56b65176f08cb7870d013d1db117fba4e227498f8f30f6fa5c172e2d:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODBjNzhmZTEzNDdmZjIzZGE3MjRkNDM1YTE3MjMyN2E1YzVmY2RkYmQ3OGM5YzAyZWNjZWJmZGVhOTU2MDU2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWQ3OTg5ZTJhMWIyOWE2NzM4ZDUxNjI4NDgwMzI4N2RhY2FkYWMzOWYwNTQxNTBjZjNhOTA3ZTgyNjc4NzAwNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGFmYjAwYjZhMzNiYTUxYzEwYzNjZTBmZDZkMjA1YTdjZWI4NzcxNGE5YzQxYjQwMjI4YzRmZDk3YjY1NmViYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4ad1d9580584456591e631b07f21aeda",
+      "statement": "loadStore is total: a missing file, malformed JSON, a non-object root and wrong-typed list fields all resolve to the factory state {version:1, pinned:[], dock:[], docs:[]} instead of throwing, so a hand-edited or corrupt store degrades to the factory arrangement rather than breaking boot.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L19-L46",
+          "version": "repo-lines-v1:sha256:92a3ae578bdd47da696726ce133174130b5e9388d7ac76ba2aab8a5721f17d7d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyOGIyMTdiZGQwNTdiNDc3YmU1ZTdlMzhjYjRlM2E5MTU5NDA2YzI0NWRkYjUzNzU0YzRhODMxZmFmOGUyNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzZjJmMDYzMjkzZmNhMGJhMjU1MzViODU0ODk5MGFjNGVhZTcwMzA4MmU0MzM1YzI3OTVmYjk2MzAxNWRiMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZDcyM2YwNWFjYzllMWM2OGQ3ZTMxMjhlNjRmMDg2OWIzZDZjZWFmOGI3MThhOTNmYTg5ZjJkOWJlNzY4ZTgifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/layout-store.spec.ts#L7-L23",
+          "version": "repo-lines-v1:sha256:f886624c5c6bfe2cf1360dd3f32980b10c802e2353d5fde66c411fdfdff66f2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmNTE5MDY0YTU5MjlkMGFjNTRiOWIwMzVmYjJhOTdhMzgwZTdhNTdlZWNlYjY0ZThjYzdmMWFhYWUyNWZjZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZDk5YmYwM2RiMDA4ZWQxYTVmZjlhYWJjYTMxZTFmMmI0Mjc5MGUzMWNjMDhlN2Y2Yzk1YzAwYTFhM2FlOGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczOGI2MTQ3ZDdkYzkxZGRjOWY5M2Y2MzcwMmI1MzcyNzg5OGM3YzM2NzgwZjg3MzU3ZTcwNzA2Y2I4YmI1NDEifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L273-L282",
+          "version": "repo-lines-v1:sha256:2334675223033ee3813c298b75e5ff04836d67fc730b33bbc92fc5b866166101:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzYmRhMTRhYzM0NTNhMzNjNzY0ODMxY2NjNmExZTkzOWExYjMzZTFiYzZiNzZiMWJjODI3NjVhNTYzOGM3NmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRmMWZmNWRlYzIwMDgwYzFjNzNmMWZmYmExODRiNDhkNTRiNjQ5NzdlNDgxZmQ1ZmFjYTVkNDc5ZmVlY2M3MjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_afe4d085b58a4b898d3663620478fb13",
+      "statement": "The store's placement lists may contain names that are no longer on the desktop: they are preserved verbatim — moveItem will insert a name it has never seen — and filtered only when the plan is built, so a deleted-and-restored file returns to its recorded position.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L1-L6",
+          "version": "repo-lines-v1:sha256:334b249a670e6b2cd79b55341095dc0ca3ff7900718722c014884ed444d78d62:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjU0OTBkODE4M2ExOWI1YzEyNjU0YmQ2NDMzMGYyMGQ1NjQ5Y2E5NGQxMjE0MTk2ZTMxOWIwMTJjZTlhZDk5ZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViNzAyNTc1OTNkYTA2ZjY4MmEzZGRkYTU0YTlkMjYwZDRmYzUxNGY2NDUyMzdmNWNhNzRiMDhmOGRhNjFhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzY0NGU3NmE4ZGZhNzkxMTE5MzNmZDI4ZTE5NjgxNzczYzY2MzQ4NDZiZDViZjk5M2YzODI3ZjBkMDk0MDgzMyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L48-L71",
+          "version": "repo-lines-v1:sha256:56dd84771a7365f582bb1fe16538a7743a80dd04fe90eb472eaa229b9e7a9cc6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU2YjA1MjcwYzMzY2M0YTFjOWQ1MTY2MTZlZDE1ZmIwYWQ0OGUxMWM3Y2M1YzYxMTVjMjdlZGZhZWQ5MDg3YWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmOTQzYjgyNmRkN2I0Zjk3NDUyYzI0YTVmYWIxZTRmNjkxNDBjMzRkZjYyZDZjMjM2ZjcwYmI4MzUzZDZmNTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L98-L107",
+          "version": "repo-lines-v1:sha256:1a9fdee4c7a4ae9b75641f00c73d1ac0e60461cefa090cd73cb99a30eaf6dfd4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0YTYwNjVhNTlkNjQ3MDNlZDRkYzlhM2Q3YzY0ZjEyM2U0YTI3ODhkN2JkM2FhYzA2ZmI3ODdkYTVkYTdkYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliMDQ5NmJiZmJlMDhjMjQyZjQwZjJiNjkwZTFiYzYzZTk1M2MzZTVjY2RiNWJiMjhlNTYzNDg2YWIyMjBhOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYmI2YWYxNmY2YTdlNWQ1ZTk2ZWI1YjIzZmQ5MTEyMDU0MGVjZDhjZTE2MTI0NTZjYzFmYTY5NWExZDA1MTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_208aea53b4c44dc9b5ed9b78d0168f62",
+      "statement": "resetLayout() clears both explicit placement lists, returns cleared = dock.length + docs.length, keeps the pinned list because a pin is user intent rather than layout, persists and re-plans.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/layout-store.ts#L73-L76",
+          "version": "repo-lines-v1:sha256:eaab28d7dd3cab66f19e5a9d9ada123e47a6218068d253f49ac7e2cd2878b554:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDVmMTRjMjYxYTA5MzJjMzU3ZTllYzM4OTZhNWM4OGE3NDIxOGI0MDJiOTliZDJhZmQwZDUyNTJkYTc5M2VkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGEwZjdhOTk0ZTc3MzUwNGY3NzQwYTYxYjcyYWJhNWU2MjA5NzVkZWNhMmUyNGJjNDQxNGVkMjMzMzQyNmE3YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L180-L187",
+          "version": "repo-lines-v1:sha256:d8a0a3ed304c50590300ceb1991c4924cd945bcceca5f2b32c0fad481530cae2:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTNhYTc0NmZkYmYzYWRlNGFkYzE4MWM5OWZkZGE3OGFkNzZmYjBmN2ZjZDhiZjIwMzNjZmU2NDBmZmNkNGEwNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWJhMTQwMDkwMTk0ZTM4NzMwMjI0ZWZmNTk2NmFhOTRjNjc2OTEzZmI4NjBhYWRlNzYxMjQ4MTlhMThkMTFhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTBjM2RlMmI2NTk5ZjVkYzVhZDdjNTVhNjczZWM5YTA5MDQ4OGJjYjQ0MzUxY2EyMjM1NTc5N2Q5NGQ2ZDRlNSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L248-L271",
+          "version": "repo-lines-v1:sha256:5d75ebefcd4c0436a03f3c6a4eaa143c3124eb0c1e240e4387ab798237610026:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1MmQyZmY5MDc5ZGNmODlhNzhiMDA1ZWU0MTJhZjE0ZTdhNTdkMGMyZjZlOTYwNmVlZTEwOGQ1MWI0MDQ3ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliNDYyODBkYTZmOGY5ZmQwMWMwMjE4MmMwMTAzZDc2NDg3NmYxODQ0YWRiN2EzYTNiYTQ1OWIwODlhNjM0ZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_21051d9b3b524ee8b4b1a4293e06ce30",
+      "statement": "Every refresh assembles the scoring input itself: it maps the pool to ScoreItem records (display, kind, path and, for shortcuts, a resolved target) and asks the injected iconScores for a display-name-keyed score map; the kernel wires that seam to the usage service and degrades to an empty map when usage is absent, which leaves the recommended dock segment in stable name order instead of failing.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/plan.ts#L92-L120",
+          "version": "repo-lines-v1:sha256:ffd77fa148b56154a135286a2e405ddd333e0aa158f463e30a4d8878c8ceac06:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhYWEwMjM0YmQxYjlmM2I2ZjI1MmJlNTcxMzY5OGJiYzY2MzgyOGM2OWJkNGYwZjlkZDhmNjU4ZDhhNzYyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MjAzMmM5NTExM2EwYjAzZWEwZjI3MGViNDlhZmYyYWE4ZTk2NzlmNWE4N2NlNzU2YTllMGFjYTk2MzMzMzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY4YzM0YTg3NjhhNTZlZTg1NTY2ZDRmNGI4MjNmZTFlYWI1YzI0NDA1YTc2NTQ3MDhhOGIwY2I5NmZkNjhiOGMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L68-L76",
+          "version": "repo-lines-v1:sha256:e3b0d0f16269390548fb32560cc2b282ccc8649ad67d9e168cf29ad15733834d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjM0MjQ4YjBmNDZjNWY5Yjc5YjliZWQwMzEzZDY1MGYxMWZlNGY4NDM2YWZkYWYzZDZiNDVmZTA4ZmUwZTc5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2M2Y2YyNjIzM2EwNmM4ZmM5MjVmNTJlYmUyYWNlZmMxMTAwMmM2MGEwOWY3MzM2NjJkM2VjYjNhNWFiZDc1ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGZkMjg1Mjg0NDU3NWVhNzRiOWY4ODMzYWIyYzhkYjEzZmFkMTBhZTdkYjMzZTY5ZjhjODNmOGRkYWM3NDMwMSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L112-L124",
+          "version": "repo-lines-v1:sha256:4f803d838fdfabf9200c4e3c2285866533b6f409bd28e5d28df1352cb722fe42:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5ZGFjYzBjYWE1NjYxZDNmNTYwYThmM2E3YTIxYzg2MDJmMGYxZWZiYWMwZDFlMWIxMDYzNTA0ZDc1YmE2NGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2MDk2MTUwZjI3MDEzZDFlZmE5ZDhmNmQ0ZDU2MjE4NzM4YjY0NmI1YjQzOTEwM2MzNTJkZGY0NTQ2NzVlNDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0f1d561290254cc09c77e949b1ba3d69",
+      "statement": "Shortcut targets are resolved lazily once per iconKey and cached for the lifetime of the service, so a rewritten .lnk (new mtime, new key) is re-resolved while an untouched one is never asked again; every failure including a thrown resolver degrades to null, and no resolution is attempted at all for non-shortcut items.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L126-L137",
+          "version": "repo-lines-v1:sha256:f21a49eb53a726c4b642fb2b41e8bbe817f3dd02b9a998ab38ec528c3b98d0c0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1MDdkY2RlZGRkNzFlZDVmMzgyNzNiNTY1ODAyNDhlYzk5MjU2YzA5NzQ3MjYxNDI4YTk2ZGRhNjExYzk4OWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYTJhMGViNGZlNzNiZjRiZDBkNmM3ODg4YjU3MTVkMzBlMTI5ZTMyN2I0ZDBkZjg3ZTBiYTY2NjJhY2MyNjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0MzhjMWIwNWY4NTVkYWExY2MzZjFlMDAyZDJkOTI5ZDVmMTBiY2Q4MjQ2YjAwNWU0Nzk0MTIwMTMxNDVlMjAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L60-L61",
+          "version": "repo-lines-v1:sha256:18ef4baabf976783ef4c5d894af7b6269d616fa73f7a673c94221407131dc31e:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDliOGY5MjU2OTY0MDVjZGEyYWQ3MmY3ZTc0M2FkM2I3NmNkMDNiNmRhZTNkNGI4NWVmNjYzMTU3YWY3ZDg2NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTYwNzZmMmMwNWQyZjQyNjRmYzJlOGZlNjM2MWRmNmMzYTk1MTllY2ZiOGFmZTI4NTMxZGU5ZDFjZTY0YmY0MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmFiZTRjNDU5YmNlODUzYTQwZDk4NjVhYzZiY2E2MWI5NjJlYTdlNjNiNGMwOWFjZmQ5MTkyNTAyZjEyMTU1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ5MmZmYzhiNzNjNmI1NzY5YTY4OGJhNTA4YzQ5YWU4NTNiNmZlNTY4YzMxODEwYTViM2U5YjU5NDNlM2I4OSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1510b0338c114918b5774fd2bb617d26",
+      "statement": "IconCache guarantees one extraction per key at a time (concurrent fetches share the in-flight Promise), caches every resolved value, and retries failures: each rejection increments a per-key attempt counter, nothing is cached below the cap (default maxAttempts = 3) so the next refresh retries, and at the cap the key caches null and needsWork() reports no work — which is what stops a poison key from being re-extracted every tick.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/icons.ts#L25-L72",
+          "version": "repo-lines-v1:sha256:694ae906abc835b9014a0682148ae8004eec914a847357fe78baf4cca83945ed:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlYTU0ZTVmYWI2ZDk0NDAwZjdhOTExY2ZlNmM0MmQ3MGY0NGI1ZDNkMDA0ZDQ2MGNmMTkyZTJhZmM4ZTUzNTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4NDVhZDc4NTIxZjViYWVlYTU0MzMxNzcxOTBjYzM4MjczNTI0OWMwMmJkNGUxZjM1YTM2OTFkYjA3Y2MwNWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/icons.spec.ts#L16-L43",
+          "version": "repo-lines-v1:sha256:150e1e31769702ade9ff6de21f71f66824164e7e640a3757bb747dcfe6b1aa55:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmNTNlMjEwNWI0OTNkMGUxMzgwNTY0OWU2NDhjZDAyZDgwNDI2OWRiNjRhNjc0YzRlNTkwNzJlNjI4YTM2OTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4OTAyZTRhMThiYWRiNDcyMmI5MzFhMzgzOTk2NjA5Njk2MmQ2YzI1MmIwOGQ2OTM1N2I0MTY2YjUyZDI5ZTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRkOWE4ZDg0MDMxNWI5YTJmNTk4ZGY0NGE1YTkyZWJjMGE3YTY5YzY2NjNkYTJlMmU1Zjg1YWFhYjA4ZTU1ZDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f065bc0f98b42ba8b861b9b959d64ad",
+      "statement": "A null from the extractor counts as a legitimate resolved value (an item with no icon) rather than a failure, and a synchronous throw from the extractor is converted into a rejection inside the cache's promise chain so it is counted against the attempt cap instead of escaping to the caller.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/icons.ts#L46-L68",
+          "version": "repo-lines-v1:sha256:a38842f21d7c292b9bf579b100c85173aa9de8f0d88be68190c0ec7e8eb2c11e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJiOGVmZjlhYjgyNGU3OGQ5NGRkNjcxMjY4ZDA2MjY1OWIwODhlOTdlYmQ5NTI1MDNkNWRlY2MwYjRmMTQ5NTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhOWY4YzJiYzdhMTQxYTAyMmFmM2ZlYjhhYjUwMDhlYzI1NzU3ZWYyNGFjZDA0OWY1MDg5YTc0YjdjOWFlODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzYTcwMjg1NzhlNjE5OGVmNjMwY2ZjZjhkODFlY2M0Yzc2ZGJmODU2M2Y2Y2UzZDQwZjRjMTUzNzY3OWVjMDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlZjRiNTlmNjdjYTJjZjcyZDk0MjhkNTAzNjBiMzU4Yzc5NTVjNjFjNGQ0NDQ5NzA5NjZjNGNhOGI5YzY1NjUifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/icons.spec.ts#L45-L58",
+          "version": "repo-lines-v1:sha256:c098dbe0d6bfbd272b7fa99813cc1c8bdd31867e13415a57b7f3cbe5c6916216:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0MzQ5NDc2NGZmNGM4MGY1MzI3MTU5YzBjMzI0ZDg1ZWJmZTEzNmUwYTEzZGY5ODJmMzRmOTUyNjE3YzI4NjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3Mjg4NmJlMjQyZmY3NDQyNGQyM2UyYzI5ZTY2MDA4YTdkYWE5ZTA3YmUyODQyYTMwYjU1ZDdlZWYwOTNhYzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4ZjkxZjhhZTlhMzA2OTc1NjQzNzNiNmE3YzQ1MDIzMDU0YWNiZThjODQ3YzRjOWQ0N2VkOWQ4YmQ4MTJiMjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_174f9cbfb42b4ea4931653c284777e34",
+      "statement": "For .lnk entries the adapter does not extract the shortcut itself: it reads the shortcut with shell.readShortcutLink and extracts from the file the pure shortcutIconSource decision selects — the declared icon location if that file exists, otherwise the resolved target if it exists, otherwise null — falling back to extracting the .lnk itself when parsing fails or the decision yields nothing, which is the byte-identical generic-icon appearance dead links keep.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L64-L85",
+          "version": "repo-lines-v1:sha256:21f42148497b0e9f6ce56adbb0afd457145f4fe87312bbe6c651b1968ddfd5c7:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxZTcwNzAwYWRlZDZmNWJjOGExNzdjNmZjZTU0OWVkNDYzZjY3M2RkMWJkN2NkOGI1NmU0OTUxM2U5ZjgyMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMwYWQwY2EzODI0ZDA4NjRmNjkxOTdmZjE2ZTlkMzU2NWE5OWEyMmU5ZDBmMzBmYjc3NjAwYzExYTA1NjFhNTkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/icons.ts#L7-L23",
+          "version": "repo-lines-v1:sha256:98461d2f5f62e803776f7a0a2d1eb700aa0f353e1a0ca4a573a66ddbb5eee364:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlNTg2OTdjYmZhOTllNjQ5ODRmOWY0OTkzNmI1ZTA3YzJjZDkwZTY4YjgwZGNlNTQyNDIyMDAwMzk1NmQzODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlNjdiNDE3MDkwYzRjZGZhZmRlNTJiYTZhOGU3YTUxZDUwYjZlNDRjMjM1ODQ2ZGVlNzMxZjkwNTM3YjQ4NzAifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/icons.spec.ts#L70-L99",
+          "version": "repo-lines-v1:sha256:eec238646ddd4609fab1ff480b1090759cf4186b5983bc540be0387949f44bac:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4Mzk3YzI2ZmU0ZjcwZjkzZDJhNWVkMzE3NWYxY2ZjZTZkN2ZhYzBlNjRmMDQ1NjA2NDBiNTQ0NWFmMGJhN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExNjMwNzVlYTdmMDYwNTM3ODZmMWRmMDUyMjBhNTVjNWNjZDg0YTQ5YjVhZGJlNWQ5Yzk5NGM1OGM3Y2ZlYTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_254590e28709476d8747b9f35487d44b",
+      "statement": "Icon keys have the shared format `path|mtimeMs` (safe because `|` cannot appear in a Windows filename) and refresh preheats only keys where needsWork() is true; lookups are forgiving in the other direction because pathOfIconKey reverse-splits the key, so a key minted by an earlier scan still extracts from the right path — and the service returns null without consulting anything when the icon face is switched off.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/scan.ts#L20-L28",
+          "version": "repo-lines-v1:sha256:fdce4dec5a3a4391d7dda72d2612b1919a1a12bbc3075604dc15ac786a5392d1:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ZhZmE2NmNkM2Q5NGI4OWU0Zjg5Y2MxMWM2ODJjNWMxMzA2OGMxYTljMDZlNDQ2YjVkZGM1MTMzMTNlNjdmMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTkyYWM4YjhhOWUyNzRlNmIxYTM2N2FkMzBiYjk2YmVkZmYwZDg5MDI1MmVmNmJkNGY4ZmM4MjQ0ZGM0ZWNhZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGM2NjFkNDE0NzA2MTU1NGNmNGMyYzY1ODQyMzVkYTI1Nzg3NmM4ODNiY2EwMTM2MzAwMjc4YTA3MjZlY2NlNyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L102-L106",
+          "version": "repo-lines-v1:sha256:03bcfde30fec5b6df4af2ad2627b53db38b27f2f9ace9e61e41a4806a04a2f7f:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjg0NDljNGFlNDRjOGU0MmNlOTI5ZWYyMmZlZDQ4ZDIyNTY3NjllODc4NGEwNTVjOTc0YzgyYjAxMTMzYTY4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUxMjM2ZjJhZWExY2U0MmZhMmIwY2NiMjc4MzJjNzhmNWQ4YzFjMTkyMzhhMjQwOTIyMTA2NjNkNTM5ZWQ2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjdjNmU1ZTE5NDBhOTczNjZiZDUwMmRhNGQ1MTFkYTFlZjc5NTM5NzEzZDQ1MmQ2ZDg5YzViODQ3Y2NiODE5NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTI2YzcyYTU1ODRiN2MzYmQxNDZjNmM5OTZhZTk1ZWQ3ZmQzNTgwMmU3NTliNTZlOWVkYTFjNTZhYjRmNDhmYyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L143-L148",
+          "version": "repo-lines-v1:sha256:742e6ec73eaab95c2d0f5b232663523f29656dc8851fb2fdd707072603bccb2e:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRjNDU4NDFjYTkwYzhmZGM3MWJjYmI0NDYyZjdmOWViNTdhYzMxODAxNjQ5MmUyZTc4MTRlMmQ0MzdiMWMzZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzZjMTk0NzFiMmY5YmUyZWE2ZWUwMjE5MTdjM2UwOGZlMDRiMjdmMDJiYmM2ZGQ4NTQwNDVlYzVjZmExNTc4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzk1Y2FhNGZhOWZhM2I2NDZjOGYzNjkzYWMyOTVhZjgyNTg3NzBlZmJhNDAyY2ZkNWY1NzQwNTE4M2NkMzBlMiJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L142-L152",
+          "version": "repo-lines-v1:sha256:3ee1bce9a7cbea0ad54790edd676d5c92397b44e2f97dadbcafb01ccaf460fbf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzYWIwM2NlN2Y5ZWY1MDFkZTg3ZjZlYjNlNGVhZjgzNWExNDYzNjYxYzc5ODE0MDAyODZmNDY4NWQwY2ZkYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY5ZGQxZmRiY2M2NzhlNjkwMTkzMTNkZGFiOTQ1ZWE4ZjEyNmY4NGVlM2U3ZTk4ZDMwOWY0ZmEzZDhlNzNjMDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e6716f88cedd42aaafe7380be4db8a17",
+      "statement": "launch(path) is the only path that starts a desktop item and it validates before acting: a path outside the current item pool is rejected with `桌面项不在当前扫描池内` and never reaches the injected open, while the string returned by open is surfaced as the error and '' means success — so the renderer cannot ask the kernel to execute an arbitrary path.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L150-L157",
+          "version": "repo-lines-v1:sha256:7f054ec09d3a12ab1299e060b98adf27fdb6d96b02f443a94f24e5427b88ecc8:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDhiMTdmZmEwODc5MjcxZmYwNGRmZjcwN2MzYzQ0ZDBlOTkyNmJhZjJhZDcxMThhZmMyYWNkYjgxZDhhMzgyZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTRiYjg0NzkyYzMyOWM2MWE2OTczOWRhYTExMmNhMGRjOGM0MWUxYzU5ZWY3M2RmZDZkY2JmY2NjMDE2NTc5MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTgxYTRkNWE1YzViNDlmNjcyZTM2MzZjYTQ2NWRjMTgwZjFmZjI4NzU2YmIzYWNhNjY1MDJkN2I1NmEzNjI0NSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L222-L223",
+          "version": "repo-lines-v1:sha256:de70ae8fc2706dfc2522ecab2eb480a04b5ea06919087a1bab58746934194462:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDcyZTFjZWIxNDYyNmYzNjM0MjM4MDBjNTU5ZTFhODEyZWE0N2M3ODg5YTEzMmI3NzUxM2EwZWY1MjVkNmYxYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmIzMDNiYjljMmM0YzlhNWQ5YTIzNzAyMjkzZDZjODI3ZWU4MGE3YTdkNGRhYjE4ZGViZmUwYjExZjI2ZmIyMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzk0NDEyOGY5NjZkMjJmMDI4NTdhMmNmYmVlNTc0NGU1ZmYwZTc0YzFjZjQwYmVlZmVkYzJjZmEwZDM1N2U4MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTkzODY2N2QzOGM5OWUyMzNjZmIwNDZmYTM3NzU1YTYwZWU5ZjlhMGZjYWNkYWViNmU5NjExYjMxOWRmYzdkOSJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L122-L140",
+          "version": "repo-lines-v1:sha256:63fb41727912401268605998df07893aa3f834cdfd3892dfa9749f2ba7bc5d21:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmNjljZTI4NGFkODU4NWRiNTEyZGU5NWQ4YTIyMzI4N2U5YTk1YjM1OTg3NzdiZmJiZjFjYmI4ZTJiMTgxYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MGE3ZmNkYmU4NmVkMGIwODBkOTJmZWNlYzhlZjM5ZDQ5ODA1YzRjZjQwYjEwODk0M2QwZTRmZmZkZWU4YTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMwYzcxMGE3MmFmNWMyYjc2NmZlZjdhNjFhZmVlMzBiY2Q2ODE0MThjOGM3MTMzODQ5NTJhYjE5NWVjZjFhNzgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_de7afa2669704646a35df7c6034aa3af",
+      "statement": "watchDesktopRoots installs a non-persistent fs.watch on both desktop roots and re-arms one settle timer (settleMs, default 300 ms) on every event from either root, invoking the callback once when the directories have gone quiet, so a copy-in storm becomes one refresh; the callback deliberately ignores the event type because the item-pool set arithmetic and fingerprint that follow decide what actually changed.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/watch.ts#L13-L49",
+          "version": "repo-lines-v1:sha256:1a99858664f1b58e0c3d01e0bea0a90849945124d8033cfdab954083ac72526b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1YTBlOWRjZTY2MWZmMzljODJmYWZiNTQwNjAxZDcxZTdlNjQ2MDFiOWIxYTA3MWJhMTAwMzZjNDE3YmQ5M2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/watch.spec.ts#L29-L52",
+          "version": "repo-lines-v1:sha256:b5eb0209ddc0b77bacc4da8c3f1376484c463f5b92e1d4410134b01c6fe2ca09:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0ZGZkODkwNzdjNzZkNjZjNGY1ZjczMTBiZTUwODZhZWUyNTQ2ZDNlOTQ3NjdiMGVhNjg2NDQ5ZDQ3ZDNmZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyODMxODg0NzNiNzQ0NzdmMTZkZDE2NWY1NmI2NWEzYzBlYjVjOWUwOWMyMTRmNGQxYjljZTk1MGQyMTUzMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlMzk5OTc1ZDE2MTU1MDE4MmYxOWE1ZDZhMTYzNGVlMmE1NmJmYWIyOGFkMDQ2MWQ5MjYzYmRmYWVmNTIxOGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_de7a70dd98c041939dcc966f7dc1653a",
+      "statement": "Watching is best-effort by construction: an absent or unwatchable directory is skipped without throwing, a watcher error silently ends listening, and the 1 Hz rescan is the backstop so losing the watcher costs only latency; the returned stop function clears the timer and closes the watchers, and the service registers it on the cordis context's dispose so a restarted kernel does not stack watchers.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/watch.ts#L32-L48",
+          "version": "repo-lines-v1:sha256:66a9b77ba34134a963c004ed300818ab2cd88593c92187a496f6cdd471f94a74:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyM2UyODg3ZGRiYTRjYTY4MTVkZmJhYzU1MTg2ODBiZTM2YWI5ZGU1N2IwMWIxNGFhMThmMjhjNmRjY2ZkNWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdjYTdkZDE4ZmNiMWRhZWJjZmRmYmExNTFkZDU1YWE2YjQ0M2MyYjg2ZWFjMjNiYzFjMGU0YzgxNWYxM2IzN2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L88-L89",
+          "version": "repo-lines-v1:sha256:4317bb42c28d0687bf2c27e2d04aa768b79e1cb841f2bc8e9ba9f96348cfa4f0:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGJhMjUyZDQxOTNjOGE1NGYwYzBmMTMwMDVkNjRlOGQ5NmYyYTUxY2Y4MzRkZDBmYjA1OTQzZWIwZTM3MDMzYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzgyYTAzMWZmNjBhMTM5MjVhZmFiZDhkYWM1NTRhYmNmOGYzMzc4OGVmYTFjNjY1ZDBkZDM1ZWI1NTI5NWVmZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzMyNDVjYTY3NDg2MDU2ZGI5ZjU0MGMwODU1NjFlNzc4MjBlYWZhN2M3NGYwZTQ1M2Y1N2JkN2JjODIxMWQ5NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzAyZTFmN2ZjM2Q2NTRhN2QyNjQ1M2M1MTgyZmY3MTZhYjUyZGVkY2JmYzZlYzExNTNhMzkxZGYxM2U3MjI3NiJ9"
+        },
+        {
+          "resource": "repo://app/tests/desktop/watch.spec.ts#L54-L68",
+          "version": "repo-lines-v1:sha256:c1a2d83d1029087f18a450dfd8ced4ae8b0fe92a64bb1fe599e89fd194f5d905:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmMWNmNGIwOWYyNmQ4NDU5MTdmZDhjOTE5N2Q3MGRlZTU2ZjQ4ZTIyNzVjYmQzODY0YTc4MTVhNmJjNmFmZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzMjFkYzAwYTVmMzNmMjIxMjJmMGJjMWM1ZTJlZGMxZTJlNWE1MGQ5MDRlMTBhZjI1MmY4ZWI5YjQ1YjQyMTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7b142be8fb0d47fd9bbd714ec0c0356f",
+      "statement": "Every real-world source in the adapter is resolved lazily inside the function that needs it (koffi on the first attribute read, electron per call), which is what lets the desktop tests run offline with a fully fake dependency bundle and never load either module; the module header records the corollary that require('electron') under plain Node returns a path string, so those calls would raise TypeError and must stay unreachable behind injection or be contained by their caller.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L1-L4",
+          "version": "repo-lines-v1:sha256:65e1edac31ec3b727b5682bce6e3c158911ef617204b3ab039df0d1b06497b03:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzdhZDc1M2VlZTEzN2U3NjkwZTVjNTc1NDAwZDJmZmM5ZjQ2OTlkOWFiMzlkYjliMmQyODAwODI4NmRhOGIzZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2EyNDg1OGJjNzQyMzM5NDBjMTE0MzAxMTUyZTIwNjE0ZDkyNmY4NGY3OGU1ZDRiZWE0ZDI3MTYwYTYxYmEzYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjYzZDIwZDE4NWJiMDU0MzQ0M2M3Y2M5MjNmYTkwMzUxOTFjMWFiYjU0MTBkNWUwZjU2MDc2OWYwNDk4Y2Q3YyJ9"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L16-L28",
+          "version": "repo-lines-v1:sha256:0a96d6b7c38d93af45d03c6d159541beaaf69183e251064b4c999b9bb0837325:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMGU1NWYzZTVmYWY1YmYzNDY4NWQ1NWQxNTZiNTE4MzJhMzE5YWFmMTY1YTkwYWRlZTkwZjEwMzFlNjg4MTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkNGU4ODZkMWVhMjNlOWQ1MTQ0MGU3YmJkODMyM2I4NGRhZWNmNTY2NmFiODUxMWE3ZWY3MGEzMTQzYmFiMzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM1YjFlNjI1MDY0ZmUyYTIyZGQ5MmY0MmNjN2RlOTYwMmIwN2MwNWRjNDdkNGQ3NTMwNzFhZjkxNjY2MzAxZWQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L52-L62",
+          "version": "repo-lines-v1:sha256:452f918020105cb1c8df3b41e06b5a8b5b5eb400ddd1c5c897c441cde8e5dd01:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkYzFhNjQ3ODA5MzVkOTcwMjZhYWFiZTdjY2M1ZGM2ZmExMzQ5OWI4YjM1YmU3NThkODVjYjZhNGNiZDMwZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5YjNmMjNhYTY2MWQ1ZWE1OTgyZjkxMzExOGRjYzA5ZWE3ZDZkNzEzNDgyYzhhMTAyNGJmY2UxYWY1NDRlOGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzNDM0MWYzOWY3YmMwZWYwMWY1OTBkMTZlYTBmZmRmZGQ2YWZjNjhiMmEyMjM4NTBiZWIzZjA5NmY4NjAyZTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_789944bff638433f9661333cce8077f2",
+      "statement": "The icon face is deliberately tri-state in the dependency bundle: leaving extractIcon undefined binds the Electron extractor, while passing null disables icons entirely — the choice the data-plane child makes — and every other seam defaults to its real adapter when not injected.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L44-L53",
+          "version": "repo-lines-v1:sha256:ab7b2f372f8b1812cc5a5d9a13d7be934435b7738c6ec568088aa8f927024c80:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczOTkyNmJmMzY1ZThkODM3MTU0YmNjYTNlZjg0NzRjMTMzZGNlZWE2ZWMwZGY0MjhlNGU1YWYyNjQ3MWMyYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ1MzdlMGU1MjEwOGZhZmEzZGFmYzFjMDVmNGI4YzY0MzE1ZjY4NzA3Mzg2ZGYxNTk1MjY5ODA1NzUwMzQ1ODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZmNjAwMDQwMGRmYzZiNTA5ZWY4NGNhNjE4NTNlOGRkZGRjOTM0NjZlOTE5MDlkYzNiN2U0NDE0ZTc4NzkyZTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5MmUwYzlhMDU5ZjJjZjU0NGQ3YTAzMzE5OTZmMDVmM2YxZGMzYmFkNTA3YjlhZGJhMDIxMmQwZGYxYjlmMDEifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L15-L35",
+          "version": "repo-lines-v1:sha256:a6185a1eefe3d1f2dde5f624e21cd99fd68c73434bb54a56e2d3073287d21670:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzMzkyMTdjYmI0N2NmY2E5N2I5YTIzNzA0ZTA4MjRkMWZjZDlmODExNGI4NTEyN2VmMTg0YWVlN2VhZjM1M2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmZDY4OTY2NDJjMjI5ZDIyMTFmYTI5MjIzZTc0OTEwZTBmZmM1Mjc5ZDQ0MzBiZDU1ZDUwNDEzNzFjOWI1NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmY2M3ZGEyMGVhNTVmNDllOTE4MzY2OTExZmVjMzEwOTEwYmNiZTkwMmI4MjFlMGM1ODY0YmNlNDU4NmJmZjQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L73-L86",
+          "version": "repo-lines-v1:sha256:8ef9cedc580b33ab010c01bc26779ad27592ecad411af86ecc0d39d3fd9c2bbc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5MjBjZWQzYzcyMzk5MTU1Yjk5NjkxODk1YzE0YmVlZjJhMDllYzE3ZDg1ODU0NTI5ODZmYzVkOWY2YjAyYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0MzI1MjVmYmM2YjQyZTJmZTdiOTE0NGM4M2I3MTFiZjA1ZTA3M2VhNjExYWU1ZjZiZjYyYzIwYTNiOGQyMGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYjQ3OGZmYTk4MmZlMTljNGY5MTUyMDA4MTg3NzZmYjhkMmMyMWQ2YzVlNmIwYjY5OTJlMzJmMWYyMTZmNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4OGI0YTE1Mzk2OGI4Y2YyZDNjODcyMzg5NTlkMzQ5MWU4OWQ3ZmEzMTk2MzlmOTQ0NjdlMWZmN2VmYjliOTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_368cc1103f6e4559aa63a73a22661874",
+      "statement": "The same DesktopService class runs in two assemblies behind the PanelDataPort: the in-process one (LocalPanelDataService, assembled by createKernel for the panel process and for tests) calls the cordis desktop service directly and is immediately ready, while the production one runs DesktopService and the usage service inside the utilityProcess child (createDataplaneKernel) and exposes only desktop/move and desktop/reset-layout as RPC methods, so the bridge never learns which transport it is talking to.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane-protocol.ts#L27-L38",
+          "version": "repo-lines-v1:sha256:35ea301bc1a0c0dfd81365894ba64e76696584c045ec4109dd30d19fb98859a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NTMwMmI3MWMwMmYyYjhjNTdmYzc4NjI5OTdjYTM3NTBmMDNiYmQ0OGQ5NDMxMDg2NWQ0MWFlOGYzZDFhN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1ZGE1M2MzYzRiZWJiMGU0M2RjNDgzMzczZjE1ZDRiZTRmYjVhMDM2NDM1YjUwZTk5NTZkMDMxMDc2ZTVlMWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiNDA0ZDI0NGEwZjZkOGU5N2EzNDZkMDIxNjc1ZWFkMjRmZjY2OWJhZDY3YzliOThhZTMxZWY2YjQxMTY3OWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxYmIwYjBkNjdkNTA2ZmFjZGZjZDBlNjQ5ZjBlZDk1MTRmNzI4NjE2YjM3N2I1N2U3Njk4YWU0ZTc3YTkxMmMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L65-L88",
+          "version": "repo-lines-v1:sha256:615372dc1b3b7c4b85acb6c0e1035a7e9f71d8b5e2a2a9b4fe1e392a38c0a234:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0NDFhMDIzYjIyNTVmNjMzZDQyY2IyYWEzOTEyYTcwZDY3NjkzMWQxNDcxZTk2YWJhYTliYzg4NWQzZjExZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjYWZhOWUwNTAzMDM5ZWY2NDkxMzhiYjMwMWI4MDZiNDJiZTc5MmQyMTk3YTEzYTIxNGM4MGQyNDYzOTM4YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhZDViOTc5OGM4NzZhZDhiYzc2ZGQ4ZTY2YTU1OWE2NmMzZDkyNGExZDI3NjA1MDgzZDI0NjRiZWNiNmQ0MGMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/kernel.ts#L124-L165",
+          "version": "repo-lines-v1:sha256:52eee4d7eb9ac32ecbf977b238e008321b4b793100127f6838fadc916ba5c1b2:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5NTQyMzZjMjY3Y2U0MjlmNDg2NWU2ZTU3NzExYWU2OTBjNGU4ZjFiYWQyN2VjZWQyZWU0OGMxMzk0NGIzMWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkN2RlZmYxYTRkMmQ3OWNkZmIyYTYwNjA2ODBhNjM1Yjk2MTA3Y2E5OTQ0NzVmNGQ0NTJmNzE1YTlmMjdlMTQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/panel-data.ts#L25-L70",
+          "version": "repo-lines-v1:sha256:b75e33211d3ab548f9a4a12ec1722353bb9389d12d07e16a7503bc41706ab06f:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyZjQ0ZjA3NDNjMWU1NTA5OWRhNWI0N2FiZTcxODhkODdmYWYyNDA2ZGMwNWRlYzA1MzMxZmI4N2Q0NWFhZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0NDZlNmQzYmQzMzFhYTVmNWM4ZWIzZGRlZmFmMmU1NmE0MGI4YjcxY2NlNjMxODc0MDNkOTFjYzgwODU2ZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_caf36a26936249608d5e5c9ba5f0870e",
+      "statement": "In the data-plane assembly the Electron-only parts of desktop carry stay in the main process: icon extraction uses its own IconCache, lnk target resolution is answered from a main-process cache, and launch validates the path against the latest snapshot's item pool before calling shell.openPath itself — so the renderer sees identical behaviour although the pool, the plan and the store live in the child.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L161-L181",
+          "version": "repo-lines-v1:sha256:7da4448eb5c51e3f0486ac43ce9dcb3a79fa8712c66ec712ce8b5f099d049cc1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwZTBjZGRkOGE3NWZmYjY5ZjgyZGJmNGFkZWMzMzUxYjcwY2E3MGVlZTkyYTE2MmI5MzUzOGMyNDMzYzU4OGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0NGNlZDgxYTJjZWI3MjRlMzZjZDA3ZmZjZGIyODJiYTM2NTgxYWRjZTliMjQxMzRlOGJhYmE3ZWY0MmNkYmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L24-L34",
+          "version": "repo-lines-v1:sha256:c7f08626dc869fa33ab040685a37bda372c3d2957d94ad0e9225b49032480d64:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVkYjU0NGE1ODg2MzQzNTBjMTkxNjlhODI0M2I1MzFiZjMwOTVlYjU3YzhmYjAzZTQ0ODM2OTQzZjA4MTY4ODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4ZGFiYzk5MGU2Y2Y0OWI2YzExNDVmNzU0ZmMzNTBlMDQ3OGY4ZjM1ZTBlODBlMTY2ZDBhOTA1MWRiMTdiZDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhMGFiYWM0NTE0NmU1NGVmNjBkZTYwZWQ5OGM5NTBiYzhhM2Q3YmU2YjBmMjNhNTE4YTYwNTAyYWNmYTc3OWQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L90-L115",
+          "version": "repo-lines-v1:sha256:c7c5cb27a878fda0f4b4c82f6ec98b905ee4c500d14611072552f8db2becc823:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NGQ2MTg5YjRlMzk1NDdkYjIzMWM0MWFjZmU0MGU1ZGI4NGI4NmU0M2RlM2U0NmRjNGVkMWM0ZWQyNmExYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4NTY1ZjQ5YTA5ZjM0YmVkYWVlMGMwMDY1N2FlOTNjNTY4NjljZDAxOWM4NzdhNmY4NTU4MzU0MzVlNzFkYTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhmMjJmZDAwYjUyNTg2ZGY0Y2E2MWFmODA2ZWQ2YmViYmU3MmU2NzQ4YTk2YjA2YzQ4NGQ2ZTM0OTIwODY0OWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_65e07958647b4974b511d2c41eeac183",
+      "statement": "Because the child has no Electron API, all Electron-resolved paths travel in its init message: the desktop roots (app.getPath('desktop'), which is what follows a OneDrive redirection, plus the PUBLIC desktop), the absolute layout.json path, docMaxRows from config.desktop (validated as an integer 1..32, default 8) and the usage directory; the child in turn sets extractIcon to null and an open that throws `desktop/launch 由面板主进程执行`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/config.ts#L321-L324",
+          "version": "repo-lines-v1:sha256:1c619873c143e8352f5f7f83040828b4e867a07b09be0fc85950f8b24f7bfde7:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDE1YTdkMDYxOTE3Zjg5Yzg1MjhkY2ZiNGM5OWY0MTBlOWUyM2RhZWM2MDI5MWUxYTViNGI0MzhiMGE1MDM5MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGEzOWQwYWNjZmJjNDBjMGUwNDg4OWFiZGQwZmVkMzE1ZDMwNWVhMmI5Zjk5MzY4Y2ZkOWFkNDMwZTk0NjdkNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGFjOTQ2MzcyZTk1YWY4YzYzYzY2MTVhNjE2ZjJhNWFmZDc3YzkzN2Q5OTY2MDZiYTNlMTdkMjg2YmUzZjQ5NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmQ5MzFjZjdkMjc4MDJiMTVlZGQzNDNkNWEyZWU2ZTk0YzlhYmJiNzM2YTU1ODE3OTMwNmYyOWY5OTE4YTFmOCJ9"
+        },
+        {
+          "resource": "repo://app/src/main/dataplane-protocol.ts#L15-L25",
+          "version": "repo-lines-v1:sha256:f89e532e0962b6fe566a82beea60a7835d6f5b37268f9ee7b8167cbe23b06e31:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxN2I5NTY1NDYxZWMzYzYxMjU5ZTcyY2UxNTZjMDAzMmUyY2NjOWEyMTkxYTkyNDJlMGI3NDkxYzYzMWRiZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZmOWUxMGY1MGFhYjM4NGIyY2EzYzU1OGJmOWYzZmFiMTMwMzQ3NWE5MWYyOTdhYTIwMTZjMDE3MjA4ZGE3OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjOGRhNjhjYjM3NDE1ZGRhMzI3MDRiZTFmMmM1MjAwMWQ0ZmIyZjVjNWNiZWJmYzhmNjJkZDFiZjI4MzRiMmQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L36-L58",
+          "version": "repo-lines-v1:sha256:234ce1af6642dcc123e51df92d569746e86f61689724070afb8500bff38737f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhMGVmZmQxODYxYmFiOTc1YzhlNGQ1NWFmYWYwYTA2ZTVkZDFkNmNlODJhOGMwYWY3NDg0MzBiMzlkNGRiZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkMDgyNDhhZTNkMDA2YjI1YTBkMjAwN2EzMTkyNWY4YWNhZGI3Y2VlMTdmMWZjYjQ3YzAyZjczY2I3ZDdhMDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhMzZmYWNjNmQzMTg3OWNjMWYwZTE2NTM4NDMyMTMyM2ExZjRiMDkzMmVkZGE5N2EzMWMzYTZiZjE3YTdlOTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZTdmYTZhN2Y5MzRjZDMzMjFkMzEzNjI5ZmM1YzA0OWY5ZmNhYjQ0NGViNDYzYWVhZDRhZmFkNzQzY2U3YzMifQ"
+        },
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L51-L62",
+          "version": "repo-lines-v1:sha256:54ee067e4f5d761d98857744feaf6a3fce42f5bfb5fb384593ef653f4e8f1771:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzN2ZhYTg5OTgyYWJkZjc4NTE0NGQ3MThmZjRkYjA2ODBiNzIxOTEyMjM5MDU4YjJmNWQ2ODE0OTg3OGQyOWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4MTU1ZjViMDA1YTNiMWExMjM3NzA1MjhlZjEyNjJmNzgyNmZiY2U1MjUxMzY2MWM2YTNkNGQ3Y2JkZDEyNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzNDM0MWYzOWY3YmMwZWYwMWY1OTBkMTZlYTBmZmRmZGQ2YWZjNjhiMmEyMjM4NTBiZWIzZjA5NmY4NjAyZTcifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L95-L104",
+          "version": "repo-lines-v1:sha256:d3bc344d8a17bd7e15221646cc1205219dd526297ab85d6b745f1fbe5f2a514d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlZGMwMmUyMmQxNTQwZjEzNmE3MmJmMDBmMjNmY2IyNTRlMjY2MDNlYzRlMjk5MzM1ODIzNzUyMDM1YzA0ZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4NzRmMDU1MmU4NmYzNzJjZjI3MzRlOTgxYTM0ZWUzZGQ1ZTgyNTc3ZTc3NmQ3NWJkN2Q0M2E5MzRlNjQ3Y2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFiMDk5MzU5ODBlOTE3NmM3YWE4NzA1YzNiMGU1ZDJmODU4NTcyYTgwM2ZmNWE5ZWQ4YWJkZDU0MzQ5NmJjNWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NmNjZmNhY2JmOTQ1Njc2NWM0MjE3NDhjYTdkYmY4YmRiM2Q0OGZhYjJlMWE3ZmVmZTJhMjZmYmU2YjdjNjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_82377eaec0bf45d3a0518873228612b2",
+      "statement": "Inside the child, shortcut resolution goes through ProxyShortcutResolver: a cached answer (including a cached null) is returned immediately, an unseen path is queued and answered null for the current round, the queue is flushed on the next setImmediate with in-flight de-duplication, and the reply is cached in both processes — so a first-round null means scoring without a target for one tick, the same convergence shape as a late cold-start prior, and no path is ever asked twice.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/dataplane-protocol.ts#L46-L87",
+          "version": "repo-lines-v1:sha256:23de0180b833faee4d9aae9d059780e55f93c78c61942c9bef4d21aa7b88e750:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZiYmNjZWFmMTVlZTYwODIxNjY4ZDdjYjA5ZDhjYzdjMjkxNTgyYzY2OGEwODRlZjg1ZjI2MDI4MTZjMDgyOWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/dataplane.ts#L30-L32",
+          "version": "repo-lines-v1:sha256:66d26dd02e54626557db129d4e3686b0cf5ae209d1980ddcc729715f9138d45a:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGZiODQ0YTdhOWMzYTBmNDFiMGUwNDBhYWE0NjlmZWNjODdjODJkMTdlZTU1MGZiNjI2ODVjOTBiYWQyYzcwOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmNkMTU3NTM4NGQ1ZjNiOTYwZjBhNDUyMjkxOWI3MDE4ZDQwZDdiM2RjYmEwZDYxYWY4ZDJkZjU5ZTgyNzk0YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGEzNmZhY2M2ZDMxODc5Y2MxZjBlMTY1Mzg0MzIxMzIzYTFmNGIwOTMyZWRkYTk3YTMxYzNhNmJmMTdhN2U5OSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L101-L107",
+          "version": "repo-lines-v1:sha256:a8bed7a90fcbc03bd7622b916a340c3beabd22d00f50597ca544caec1fc1df91:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjAxMDBiOGVjODgxMjMyMmRiOWYyN2FlZjU2MzI3YWY2NTIwZjQxMjRkMTZhMzAwNGMyNGRlOWY1MTZlOTlhMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjc2MDY3MjFhNzE2ZjI2YzJlNDIwODY0NGIwNzVkNzkxODZlZDljYTQ4NzlkN2RmMDEyYjU1NDNkMTVlMjBjOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGEwZmE4M2FkODAzZGI1NmIzMWMwZTZhNDYwMWFiNmEyYWJkNWY4YTVkNjE5ZTkxZDU1ODRlNTgzNzkwMmU3ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDFiMGFiOTE3Y2Q0ZDIzZGI0OTQyNGVlN2EyZDNlNTY2NTNjYzQ2MDA2ZDBiZjZiYzY4NjNkY2I2YzEzY2M0MSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c00065c7eb64404d93abb4008eda2378",
+      "statement": "The data plane treats a child crash as restartable state rather than data loss: exit rejects every pending request and respawns with 1 s→30 s exponential backoff because placements and the usage log are on disk and converge after a restart, while the main process waits for the first snapshot only up to a 15 s ready timeout and then lets the panel start with an empty desktop segment instead of blocking the desktop.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L24-L34",
+          "version": "repo-lines-v1:sha256:c7f08626dc869fa33ab040685a37bda372c3d2957d94ad0e9225b49032480d64:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVkYjU0NGE1ODg2MzQzNTBjMTkxNjlhODI0M2I1MzFiZjMwOTVlYjU3YzhmYjAzZTQ0ODM2OTQzZjA4MTY4ODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4ZGFiYzk5MGU2Y2Y0OWI2YzExNDVmNzU0ZmMzNTBlMDQ3OGY4ZjM1ZTBlODBlMTY2ZDBhOTA1MWRiMTdiZDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBhMGFiYWM0NTE0NmU1NGVmNjBkZTYwZWQ5OGM5NTBiYzhhM2Q3YmU2YjBmMjNhNTE4YTYwNTAyYWNmYTc3OWQifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L56-L64",
+          "version": "repo-lines-v1:sha256:93fa3ddfe9e0a401d28e739fc860febbaf1d60a964a603e99b4d09af576e3c0f:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmY2ODNmNTU5NjkzNjAzMGI5MjJlNTg4NDZiZjc3ZGVjYWE2NjRkMjhmNDQ4MDE2YzZiZjY0YjMzMzBlNGRmNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmY4Mzc5M2IxYTg4MzRmZWQ2OWJkNGM3OTFjNjMwOTkzYzFlNTY0ZWIwM2ZhOWVlN2YwNzkyZmE0YzViODI0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2YWJkOWM2ZTgwZDQ1NGFmNDhlNDQ0ODEwMWIyZjRkM2I1Y2EzMmVjMzY2OGUwNjVjMzEwYjMzY2RjNzRlZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTUwYjgwNTg4YmM1YjBmMDhiMDg1NGRlZDljZDYzZGM2ZTRkOTFjZmU1YmQ5OWY5ZGY4N2FkM2ZjZWIxN2ZjOSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L78-L88",
+          "version": "repo-lines-v1:sha256:caaf73eb3f7d2bf91dc106c99a678c613ed6750e309dc2de03f3174ca8baf9cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwZmE0MDg3OThmMmY5YTQxYzQ1OGZjMGMwZjk0YzE0YWQ2YmZkMzFhMWU3OGRiNzUyY2M1NDRhYjM0MDc5NjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhOTBhOWZhOTczZDlhZGM2YTllYzNiMmI2YjU3NzUxYzU5ZjNiZTAwN2M1ZTVkYTdmY2QyZmZiOWNlMWI2YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4ODJiMGE0MTIwODI4YThiNTc3MzAyYjg1ODFkOWY4NThhN2Q2ZDVlYzYyZjQ3NTFiMWNhOTQzNTk1NjQ1ZDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e77368ce86b947ac8b316779069aa9bb",
+      "statement": "The main process preheats icons from every data-plane snapshot (fetch for each item whose key needsWork), which is why the child can run with no icon face at all: the child's item pool is exactly the list of keys the main-process IconCache is asked about.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/services/dataplane.ts#L90-L100",
+          "version": "repo-lines-v1:sha256:b412b348997258f8e017ddb76b349fc31d9eab2f3ea9ca073df57f82d5565f4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2NGQ2MTg5YjRlMzk1NDdkYjIzMWM0MWFjZmU0MGU1ZGI4NGI4NmU0M2RlM2U0NmRjNGVkMWM0ZWQyNmExYzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3Y2Y1NzAyZDZmMzkzMzExZGY2YjUxMzcxZGI1NjJiMjE0Yzk5ZGM1ZTg2ODQ2OWU1YWYxY2JmNmMyODk2MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4NTY1ZjQ5YTA5ZjM0YmVkYWVlMGMwMDY1N2FlOTNjNTY4NjljZDAxOWM4NzdhNmY4NTU4MzU0MzVlNzFkYTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyMmQyZDlhYWZjMGExN2VmZGE1ZjkxN2E4MmU1ZTc3NWMzZTE2ZTI2ZWRlZDAxNmU5ZDg4ZTlhYzRhNDJiMDkifQ"
+        },
+        {
+          "resource": "repo://app/src/main/services/desktop.ts#L143-L148",
+          "version": "repo-lines-v1:sha256:742e6ec73eaab95c2d0f5b232663523f29656dc8851fb2fdd707072603bccb2e:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGRjNDU4NDFjYTkwYzhmZGM3MWJjYmI0NDYyZjdmOWViNTdhYzMxODAxNjQ5MmUyZTc4MTRlMmQ0MzdiMWMzZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzZjMTk0NzFiMmY5YmUyZWE2ZWUwMjE5MTdjM2UwOGZlMDRiMjdmMDJiYmM2ZGQ4NTQwNDVlYzVjZmExNTc4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzk1Y2FhNGZhOWZhM2I2NDZjOGYzNjkzYWMyOTVhZjgyNTg3NzBlZmJhNDAyY2ZkNWY1NzQwNTE4M2NkMzBlMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5bdf48ebf6694d88a8a8d11f6d7d728b",
+      "statement": "Desktop carry's test coverage splits along the injection seam: vitest with a fully fake dependency bundle covers the service state machine, placements, the store and the icon cache, a real-fs integration test covers the watcher, the bridge and data-plane contracts are exercised through ctx.bridge.invoke and createDataplaneKernel, while explorer-adjacent behaviour is left to the acceptance battery — which drives a real pointer drag and asserts the reorder survives a panel restart, and asserts that two shortcut fixtures to different executables yield different icon data URLs.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1066-L1127",
+          "version": "repo-lines-v1:sha256:ade798c8d4e8f39ca12d38d60f53dac6da02d3a836262391cf406590a7802972:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5MTQ0ZmZmZDdiZTA0M2MzYWUzNjAyNzMyNjg4ZjJmNmNkZDEzODg3MGJmYzM4ZTQ0OTZjZjc5OTZiM2FmMDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlY2IzYWNkOGEwZTIyZmNlODkxYjMzYTU0MzRkZjdkOGI0NDY1OGI2YWI3ZGIyNzBmZWJiNDZjN2NkYTc5OGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0NWE5MzNmYjkyOTQ4ZDNmNWY2MTliNzNiODhjNWNmYzg4NzhiZWQzMjQxNjAwNDI4NjMxYjZhZDU5NzhlYzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4ZmQ2YjE5MTkyYTA2NjE3N2EzMjc5ZDU1ZmU2YzUyNDQxMTViMmIyMDNlYTNiZGFlZTMxZDdmM2Y5N2ZiNzcifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L920-L990",
+          "version": "repo-lines-v1:sha256:6795873ec5cd16dcc69781f1a12e13b4db119f374dca922cbb4715ef0c11bf07:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5ZWM1OGQyMzE1MDExOTBjNTY4ZGZmZWMwNTQ4MDFjM2U4ZTMzYTZmMDhmNTE4YjVkYjA4NzNiZTBmYmM3NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMTIzNmYyYWVhMWNlNDJmYTJiMGNjYjI3ODMyYzc4ZjVkOGMxYzE5MjM4YTI0MDkyMjEwNjYzZDUzOWVkNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4MGQ1Y2Y4MzZjZjY4ODVjYmY4OWM5MzYzOGU0ZjlmZDNiYjM2MDU4NTY4NzljNjc3YmQ0MjMwMTY5NTYxYjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjNTM4MWEwNmVjNjAzNjY3YjYyYzg5NTdmYjhiYjZiYmJiZjYwMjZiYjQ4NjA1YzliNjNiMjQ5MTg4NDA5YzkifQ"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L111-L246",
+          "version": "repo-lines-v1:sha256:f139d58922f073a8f77df590fc8e41b03763e54a3c4812f313720baf4819bc22:eyJzZWxlY3RlZExpbmVDb3VudCI6MTM2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI1ZWY0NGNiOTllNTExY2E0Y2EzYTdlM2NhNTVmNTNiYzEyZTdhMTMyYTlhNDZkODE2NTNhMWFkZGQxZDM0OTQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxMGE4ZjYwZmUzYzUwYjBjZjUzNDcyMjExM2ZlOTBkNzM0MTQzODdjZTkyZTU5NzhjODJjYmQ4MDFjYzA1MDBkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlOWUyMDJjNWIwZGNiODM0NGRjNTkxZDkwMzUwMjIwNmZkOTE3ZjRmZjdiNzJiOTM2NTU0ZTU3M2I1OTM4YjgwIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0NjRlMzlmY2UyNDAxNmVkYzRhODI5M2U3YzA4ZWYwYTAyZDVhMGQ5MGE1NThlZWI4OTEzZGQwMDY0ODQwYTc5In0"
+        },
+        {
+          "resource": "repo://app/tests/dataplane-kernel.spec.ts#L45-L122",
+          "version": "repo-lines-v1:sha256:b3298f5912fecd603daed90bbe6ece3a1dc611491115eb7423935c622296cc38:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiYWVlYzBhZjBkODhhZDIyNDJjYzgwODczODVlYjI0OGY2ODRkNjQwMjc2MzE2MGU1NGRmZDY2NzVmNzNhYzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/service.spec.ts#L73-L153",
+          "version": "repo-lines-v1:sha256:cbf8d10d567926cb495ed6cf94047fecc544c9841a481baf8f18aec6f7e66e53:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhNmVkOTRiZTZmMWNhYTgyNmFjNTNiNTk3ZGYwNmU3ZTQyOWMxNWJmZjBjZDVjZGU1ZjFkOTIwNzY1ZmY4ZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyZDhiN2Q5N2VlMjUwZDVlMTNlNTJkOGM4ZDIxMjYyODg1NDZiMWEyZjhiNDFlNGNjYTU5NzMyYjU3OWUyZmEifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/watch.spec.ts#L29-L68",
+          "version": "repo-lines-v1:sha256:7edba3dd97a7484c5f268d5fd8935b851557d942f61e4c4a6e402cd59b06bc82:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0ZGZkODkwNzdjNzZkNjZjNGY1ZjczMTBiZTUwODZhZWUyNTQ2ZDNlOTQ3NjdiMGVhNjg2NDQ5ZDQ3ZDNmZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyODMxODg0NzNiNzQ0NzdmMTZkZDE2NWY1NmI2NWEzYzBlYjVjOWUwOWMyMTRmNGQxYjljZTk1MGQyMTUzMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0d5f2d149dfc46f2ac2fe90c6baea99e",
+      "statement": "Directory listing is defaultListDir: readdirSync with withFileTypes plus statSync for isDirectory/mtimeMs, and a lazy koffi GetFileAttributesW for the hidden/system flags; an entry that vanishes between listing and stat is skipped so the next round converges, and an attribute read that returns INVALID_FILE_ATTRIBUTES marks the entry visible rather than dropping it.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/desktop/adapter.ts#L30-L49",
+          "version": "repo-lines-v1:sha256:4cf10ee7a461320d3618f913b68e94a5a910d32c2c095634a5ed480ace990035:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwZDRjN2QwMjRkMDQwNGEwNzgyMjUyOTc2MTYyYmIyMzgzMzk0NTMwOWJkMzc0MWFmMTA2NTdhZTliM2Q1MDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzZWZjZmU4YTgwMjJkODZiNGU3ODY3MWY3ZDlhYWYyZmExMzE1ZWNiYmViODI2NWE4OGVhNTMyZDkzYzM0NmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlMTY2YzBkYjU0YzZhMDNhZWJmNTE3NzBhMjIxNWZlOTM2YTk2MjFiZTg1NWE2NTE1MDA4MjI0ZDEwNzU5OWYifQ"
+        },
+        {
+          "resource": "repo://app/tests/desktop/adapter.spec.ts#L24-L34",
+          "version": "repo-lines-v1:sha256:cf897923e47aecff6e8e290cff671b5d1866f0f642df6350160c1a504aaa36a4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjODkzN2IwMzViYjdiZWE1ZGZmODVmNjE3N2RhM2VjNzBkZjA5OWI3NjYzMjk1ODE2MzRmNmVhMWZlMWJhMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwMWQyZmRlYjc4ZjQ1NTk0ZWNlNTg3YTM4Y2E3MzZmNWM2M2RmYzE2NGQ1YWEzZTViNDEyNWFiZTJlN2Y0Y2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

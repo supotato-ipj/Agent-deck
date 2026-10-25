@@ -1,0 +1,656 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:64937eaa248117e4a6eb410ac06eade80dceea9bd9fa9e4d9ab2c9302d49e0de",
+  "claims": [
+    {
+      "id": "claim_ec5acf1eb5a84b0482583c9dc8f40bfb",
+      "statement": "The panel page is delivered as native ESM through the privileged `deck-plugin://` scheme rather than from a bundler: `registerPluginScheme()` runs before app-ready (standard, secure, stream, CORS-enabled), `panelUrl()` returns `deck-plugin://app/index.html`, and `installPluginProtocol({appRoot, host})` resolves host `app` to `dist/renderer` and each plugin id to its own directory, answering 404 for an unknown host, a path escaping the root or a MIME outside the whitelist. The build is `tsc -p tsconfig.json` plus `tsc -p tsconfig.renderer.json` plus an asset-copy script, and the page's module graph is `main.js` → `plugins.js` → `format.js`.",
+      "evidence": [
+        {
+          "resource": "repo://app/package.json#L7-L9",
+          "version": "repo-lines-v1:sha256:481e19f1b51f5876425a1dff167d0adc75007f8f7f7f6c9b8ba1a34bde1ace5c:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTg0MDY5ODRiZGVmY2EzNGRkNmJjOTAwMjdmMWQxMWFiY2IxNzAzNGM1MjVjOWE1Y2VmYTFkODRmY2NkODFkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTlhZGI1ZjdiNGQ4ZmJkOWYzMDc4MmNhYzk2NmI0YTk2NmY3N2FiMDdmNDFkMGY3M2Q0ODBiZjhjYjc1NWY1MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGI1NThjNTRhNmY1MTE4NjhkMDY5ZmIxYzhlMjgxZGY2NGFhOGUwMzQ2MjFkYzY2MmE2ZDMyODBmZDk5ZTE3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTY5OTA4OWQzNWRjMDhjMTQ0NDA3ZjZmZjg2N2IzMTkwM2I4Mjk1YTgxYjZmMDU0NGU3NjBlYTlhNTZhYWRmMCJ9"
+        },
+        {
+          "resource": "repo://app/scripts/copy-assets.mjs#L5-L9",
+          "version": "repo-lines-v1:sha256:e609bde85ce8d0a6c3a8f93b3d29ebc3c2f5d03af4447cb531dfc44880ba1d9b:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzVlODY4NTNhZTdjOWFmMTljOGY2NzdhZDBjN2MxNTRmZDUxZWYxZjQyNzY3MDYwNWJlOTBmYmFhM2IzZjhhNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmE0OGJiYjUwNjYwNzVjMTg5Y2JiMzc4OTI1MTg3ZjNiMGViN2FiNTAyN2Y1ODhmZTg2N2Q3MjVjYWU0YzY3ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzQ5NGJjZGI3ZjRiYmQ5NGJhNWNjYjc3OTFhNWI0MzQ5MGI4MjFiOTZiYTI5ZDkxYzg3ZGY3YTFiZWZlOTYyMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDQ5MDc2ZTZkYmUyN2Q0ODY4OWE0ZDgzNmU4YzVmY2E3NmJhZDgyZTBjNDJmNTU5ZWMzYTIzMzA2MmY0ODRlYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L170-L171",
+          "version": "repo-lines-v1:sha256:26a886d379c1c7ead609c93c490ee13cb7dc13e3cde3c28b1706c440e0690ea2:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjQyNmE3MjMxMWE4ZWIzNjUxNWVkOTE4M2IxOWNjNTE1ZGYzOTQ5YTg2NmM0ZTYzZTllMDRmMzcwNzhkOGY0ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2JjNmEyMmIyNjBmN2RlZWVlNjE4Njc4MzVmNDc5MjA3ZDQ0NzIzZGZlMGRkYTYwNWM1MTM4Mzc3ZmQyZjQ2ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2Y2M2IxNWM5YmY2NzY5Y2MwMzA0MGUxZDNlNGE5NmMxYmEwNDJjYTUzYzdjOGVmMThkYWFmNGMzNjY4OTdjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGQ4ZWY3NzgxN2I1YmU3N2IyOGU4NjAyN2QzNWI0Yjc1NTM5NzFjMDdmYjI2NDJmN2IwMTBlZmMwY2M1Mjc0ZSJ9"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/assets.ts#L12-L39",
+          "version": "repo-lines-v1:sha256:3906f86ec0d61212b77bf31ede38f72c0457a5e6abb14cbec5e5f0851dd52ddb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3NGNlZjNkMDI3ZjIwZWQ4YjczMTA4OWU3ZmIxNzFhMmJjZjk5NjU3ZDFiNWMyMDA5YmZiY2E2ZjE3MGJmNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0MjMxZGE5NzVmYzdkNDQ2MWRkYjU1NGY1ZTZhMzhjYjk1OTMzMWU0NDRmOTBkOWJmZDBhMzRjODgyOWM1YWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJlODE5NWJiNDE1MzFlYzk4NjdjOTQ2YjUzNjNmYjRkNDQ1M2M1ZTMzYzg0OGQwNzUzZjQ2MWVlNDMwOGQwMjAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/plugins/protocol.ts#L15-L58",
+          "version": "repo-lines-v1:sha256:93c7468e780c95e14af6e59cc80b6a8e9bff15e08f0e07f58bff8fba9bec0a40:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNmQ0NDkzYTQ4MDYyNzFhNWRhNjBhNzkyY2RhNmMzMGE5M2YwNzg4OWYxOGEyODdjNjI5NzE5NWE1YjYwMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1OTE3MjFmYzAwNjMyNjdlNTYzYzNjYjNmOWVlOTAyMmI2NzAwZjNlMTE3NWUwOTcyZTYwNDEzZGZmYTc3ZDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L413-L415",
+          "version": "repo-lines-v1:sha256:b19203246edf2776439eaa2cbddac02f0c3ed01de755cffc6b21a623970e79aa:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjkyZDZhNTdmOGE0MzAwOTZlYzVkMmUzZTc3MTc3Zjg5ODg1OTAzMWJiOGViNzhkMDkwMTY5ODZhODIzY2FlNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTI1NGM4MjNkMDExZGMzZDQxM2IzZGY2MzU5MmM5YjUwZWY0MTBlZTE3ZmNhMzMxYTMyZTcxZThjYjM3YTAxYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzM2Y2UzMGQyNTEyOTU5NGViNDc4M2NlM2E0NGIzYjc2YTg3ODI5OTBjOTQwY2I1MTE2NTk3MDFhOWMyNjYwYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTRkMzQ4OGE3YTVmMmIyMjVlMDEwZWVmZGZhZWU1ODc1NWVhZTc1OThlYzlkOWZlZjNmNTcwY2ZjNTFmOTc4OCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_58ab4275c94347f4b30b0d4bc0851b80",
+      "statement": "The page's runtime imports are only its own sibling modules; contract types (`PanelSnapshot`, `DesktopItem`, `HotzoneRect`, `SettingsState`, …) reach it as ambient globals declared in `global.d.ts` via `import(...)` type syntax, so no `shared/contract.js` is loaded at runtime. Irrespective of the file's legacy wording, the page is an ES module, and it has no filesystem reach: the window runs with `contextIsolation`, `sandbox` and `nodeIntegration: false`, `window.deck` (bridge + host) is the only privileged surface, and an offline source guard asserts that the renderer never imports `node:fs` and that the preload never reads a file.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L31-L42",
+          "version": "repo-lines-v1:sha256:44c81898fec74659c230ac8cf0d35ad82da7dbea8cb0f6504c0915e534c612c1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0YzhiYmQwOTllNTM4ZTBkNTZmNWFhNDdkZjBkZjczMjExYTk4MWIxMTM1ZjczMTk0YzAyNzIyNmU2ZTc1NjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4ZDUxYmFiZmNmZGRkMjJkNmI0Y2QwNWIyNmU1MmM0NmQzNGExMWVjZGZhOTBjZGU3N2Y4NjZjNDdhYjQ4OWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlhMWMyZjY1OWZiN2MzYzdlNTZjNDdjNTg0OTJjMDljYmE0MDVhNzY2MGU1NjQwNmE3Y2MxZWNiNTRiZWU4MjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljNjNjZTljODFlMGQwODgzN2U0ZGU1OTBmNTc2NDVmMzRiZTA2ZjJmODMyYzJkNmRiY2YzYzc0MmVhY2M3ZTMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/global.d.ts#L9-L41",
+          "version": "repo-lines-v1:sha256:a6d85bf4fa9d5f25f48cab6f0bc201d89c156c8d7a95edc2819a64b3f0a2b605:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1MGJjOTJmMWUzY2YyNzk3ZDhjMWI4MzA2MDU4OGRiYTIxMDVkMGQ4NzA2OTFjZGQ0ZDJlYTNmZDY3MjI0OGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwN2QyOTczY2NmNmI2MjQ0YzQ5MmJmMmNlN2Y0Yjc5YzEwZDg4NGY1YzAzNjkxNDNhZDg2ZjFjYTQyMzNkNTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzOWZhNmQ3Mzc2YmNkN2E2NzhlOGVkZTIxMDUzOTZjODU5YjUzZGJkMzM1NzEyNjE4NDVhYTdkY2EyNWY4ZTUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L5-L7",
+          "version": "repo-lines-v1:sha256:8c689122109b16c02f6be8d2e7bec41b4950a838ada48144839c04f38726a0dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmRkZjEyNDg1ZWYxODczZGE5YTdiY2U5ZGNjMjI1YjRmOTIyYjNkZWM2ZGU5NGUxMDlkMTIyZWVkZjhjMzdiMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTkxZDQxYzIyMmQ1OTgzODY5OTk0N2Y3ZmZjMDIxOTc2ODFiOGQ0MWZlZmU1ZGQ4NGU5NDkyZjhlODA1ZjBhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWZiMWVhNTY3ZWE0OThlYjQ2ZDllNWFkMDQ5YjgxMGI3ZTUwNDMyZmY0MTcyZWQxNjYzMDBkYjkyMzBkMGM2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmM2OGJlZmNhZTcxMGIyNDViMmE2ZDcwNTVhOTg0ZjA0Y2JkYmFiNDBmMDI5NjNlNjM2NzljY2M5MDBhODkwYyJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L529-L534",
+          "version": "repo-lines-v1:sha256:e072125d5c18d22525bcf2e77d1e3a8bdaabea629028683b43f6ff3f6cd8aa43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk1MGE5Y2MwZGRmZmVhMmYzN2ZiOTI3NmNiY2ZkNzFiNzBjYTM4MzAwZDRjYjJkNjEzZWJlNzI3NmE0YzEyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDcxOTAwOWZhMDdlNWY3Mzg2ZDJkNWMxMjcxODkxNWM3ODdmMjU3YjE4N2RlMzVmNzQ4OTE5MDNjY2ZlNDY3NCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_ca53f1f914774cf2b93302476b0c93b4",
+      "statement": "The page's layout is fixed-position geometry in DIP, with every interactive element's rectangle hand-written in the stylesheet; the window is created `resizable: false` and `movable: false`, so those rectangles stay stable and the file contains no resize handling or re-measurement other than DOM-change and font-readiness triggers.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L24-L27",
+          "version": "repo-lines-v1:sha256:0f63ee182969ae5505cc8841fc964bd39fb6f73486aa1d703f5d05a6ed18f9ba:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjRmYWU4Zjk4MWQwNDIzMmQ2YmE0N2IwYTA5MjMzYzc2MDgxMWYyNGYxNzAwYjhjNjQzNjkzMjdmMDEwNDQ0MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTVhN2I5MTU4NDhmYjJiNGY4NTM5MjBiM2NhNzcyMGZhY2Q3YjNmMzFjMTc2YzAxZTZiMTlkZGI0YTAwYTRkNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjJjNWIxOTQxZTYxZjYxNGRmNjUyMWM3NzZjZWZjZGM5M2VhYmEzNTk2MWY1NjA4MWYxN2FlODg4YzhlMDJlZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWExYzJmNjU5ZmI3YzNjN2U1NmM0N2M1ODQ5MmMwOWNiYTQwNWE3NjYwZTU2NDA2YTdjYzFlY2I1NGJlZTgyMCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L23-L30",
+          "version": "repo-lines-v1:sha256:fdfe1b6f9c20b3e8fb2d86481cbc9781ca3dc81f9b680446f50a196dee169f1a:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjc0YjdlMmZiZThlZTZiMmVhMjdmZTZkZDEwNWNkODlhMGI3YTBkMjAwODgwOTMxODliYjBlYmZiMDBjMGEzYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2Y1NjZlZjRmMDdmYTU5MWI0ODNlZjk0ZTNiMjQ3NzA3MzIzM2FmZjI4ZTA1ODJjZjMyZDE5MDIwY2QwYzE0ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTZkMWFjZTViZWJmMjkwNTlmY2JjYjQ1YmM3NDBhODMwOGM5Y2RmZDY4NmQ2NWMyODQ0NjI2NjU5MGY1NmQxYyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L42-L49",
+          "version": "repo-lines-v1:sha256:5fdfe49da36b382a6719db949df9e52f293fd969377dd979643554d1d20617b4:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2M3OTkzOTFiMzIwZTM4MTVhNTcxMjM4MDFiN2FjMGYwZTE0MjRjZDFmZjYyZTRhYmY2YjQ0ZDY0YTZhYmE1MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWRlNTNiYjI2MjJjMTI2YzNjY2M5MTQ3NWUwNTI1M2MwNmI0YzMxMzk1OGM1ZDkzM2IxY2M1ZjY4ZWFhMzczNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDE5MWUxYjBiMDY1MjQ3MzAxMDhmNGUwMTNiMTZhOGU2ZDhjMTJhMWRlNjZhZjIyYzQyMzdjZTM1YTEzODgzMiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L770-L771",
+          "version": "repo-lines-v1:sha256:8849b7d6e70dae0e97407050319c19e4392ac242848754d16c4d192c4ffc1564:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzdhMDFmOGY4ZWRjMzg0MWY3NzlmYmU1MTM5MTc5MTk4YTM0MWQxZWI1M2M1ODRiMGE5MzA0ZTA5YTQ2ZmQ5NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTY2OTI1NGQ4ZTIzYTVjZjcwOTE0YjQ2MTJjOTllNTQxMDI2YTkyNzIzNzkwNWY1YWNhNTViNGFkM2ZhMDc0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjE0MDAyYjM3OTkxOTRhMDJlZThiMzllM2NjODY1NjM2ZjcxMWY4NjQxOTJiMmJlZGU4ZjNjM2UzMTA4MzZmYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_337ba92555de4da68f0dbbea5c3eb60e",
+      "statement": "Ownership of the visible surface is split: the host markup defines only the calendar card, the search card, the two carry zones and the settings overlay, while the clock, weather, sessions and hardware cards are appended by their plugins at mount time with `class=\"card\"` and an id and are styled by the host stylesheet's id rules. Because hotzones are derived from `class=\"card\"` elements, a card plugin that omits the class or the id still renders but becomes a click-through region.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/cards/sessions/card.ts#L66-L80",
+          "version": "repo-lines-v1:sha256:0e4e1677871441d87b4a7b51a03857d909d5b694a08f411f9531b52fc6698e22:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4ZGNiMWE4OWI0ZGE0YmE0YWU1OTc1MWE0Yjg2N2ZjMWZiMDkxZGU1MTE4ZGJjMDBmNDAxYTVlM2JjNDhiMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYzk0OTg1NTI2YzFjNTdlZjAwYzAwZDNmNGRjOTA2MTU2NzdhMGEzNmE4Yjc5NWRmZjlhZmZkNTBmZTlmNTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzMjY2YjhlY2E5NTc5MmE1YTEyOTY0MWQzMjM5M2ZlZWQ3NDcxYjQwMTBiYmQyMTNkMWMyNWE4MTc3NWIyNTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzN2I2ODM5MzQ2OWQ3YWY5YWY0Nzg1MWY2MDhkMWY5YmFkMWQ0OGE0NmQwNzBhZmFhZTY3YmZhZDU3M2RiOWEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L375-L411",
+          "version": "repo-lines-v1:sha256:9ec2af0138d64928993dbbd3a50c7f48758a8118e95c89ff1422832b7fb72a99:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4MWNhNTdiMjllZmE0OTk3ZDY0MzQ3YmJmOGY2ZmVjMjIzMGY0MDExZjE5NTFlYTI5MmMzYzhkZTViYWYzNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxYWIxNjdkYzU0YTliMDFlYmFhOTkxYTczZDdlNWM0ODFiM2ExOTQwMjBiYmI3OWQxYmJmMjk4NzMxZjNhZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0MzU1YzkyNWRmYWY4YTUyYTczZTU5MjI0YTc2OTVmZTk4MWMwMjVkODgyYTFlNzAwOGM2YjM2MDljZmI1NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1ZTQ0YTAyODdkNDJmZDJjYmQ3NTQ5MzY3ZmIxMzlhNDVmNDUxMzNlMTY1NjBkM2JkYTViYTliYTRjZDc5MDcifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L738-L753",
+          "version": "repo-lines-v1:sha256:d0ca0ecd707cfc0dd2e94569637eb00bcc7389ffd9af82d8d89e703588e81d6e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmOWFjOTE2Nzc2YzJlYzI5ZDZiM2I1Njg4NDEzZTBmMmVmNmEzZTg4NWM3YjkzNWIwYzVkNWM2YWRjZGY2N2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3NzAwZGExODA5YmFkMjIyMjI0OTcwOGJlODY5YjNiYmUwZDdkMzU3NGY4MzEyM2Y0ZTg0YTIyY2FlYzgzODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI0YjNmNjAzOWZkOWU0OWExYzBjYmEyMjhlMjQ1YjI1ODM4ZjMwMWNjMzJhZmFhNTU5ZDRjN2MzZWE1NmE5YjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYzIxMjc0MmI1NjI5ZTUxMzc2YTU0M2Y0ZTZmYTU5ZTM0ZTc0YWI5NmI2NjY2Y2VmMzAyOWIyMTZiZmNhZjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d0f776970b72466dbbcd2936c32fd206",
+      "statement": "`--card-alpha` is the only appearance state: it is set on `document.documentElement` and consumed solely by the background colors of `.card` and `#dock-zone`, with every text color written as a literal so the backdrop is adjustable while the text stays solid. It is written by `applyCardAlpha`, which clamps to 0..1, formats the variable to three decimals, renders a zero-padded percentage label, and deliberately does not write the slider position while the slider holds focus.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/index.html#L19-L30",
+          "version": "repo-lines-v1:sha256:f6c889072e6f1005216cae9425c548fa1456066df9a7cdf64dcca7ec6ca9c47e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4MjU0ZDk1MmNkYTkxNDZmZWM1YzcxOGI3Yzk3NTZjMmQ1YWYzNTNmMmE0ZDY5MTgwMjdhODQzZWU3NDk1Y2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI2MDAxOTViMTQwNjY2MDNlZjdiMjM1ZWEwZjA3Y2Q5YmQ1YjQ5YTE5MTJkZDIwNzI5NzFmOWVmMmE0MjU2YTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ZDFhY2U1YmViZjI5MDU5ZmNiY2I0NWJjNzQwYTgzMDhjOWNkZmQ2ODZkNjVjMjg0NDYyNjY1OTBmNTZkMWMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L274-L290",
+          "version": "repo-lines-v1:sha256:a2987c4b75fa8e81a1078512a17708a9bba390cfc88e033ba2b2470b12b96819:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExM2IyYjgwMzNmNjhmNDI4Y2UxNmM2NWU1MmNiOGQwNzM0YTlhMzI3MTUzOWM3NjgxZjgxOGNjZGRmMWQyZWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1ZjE0NWM4ZTM3ZmVlZDQ5ZjIwYmNlNzlmOTRkNTcxMTU0NTg3MmI3NDE0N2QwMzA2MjZhZGQ5Yjg5YWEzYzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyNDJiNTBiYzM2NDlkZjQxM2U0NDBmMGMwMjMzMmU5YTdjOWJlM2NlNTRiYTRkZDE1OGQwNDVjNmMwOWIyNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1ZTBkMzVlYWM1NDliMmI2OGM0Y2E0YmRhOWMyMmUzZmMzMzNkZTUwNjRhMTM5MmNhYTIxOThkMmQxYzRkYWMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L372-L384",
+          "version": "repo-lines-v1:sha256:be893dd0c149fe9b3180987b68a8d147e60db900ca607a361b126ac3128f31ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkYTlmZGRlOGZiMTBjMzc2NmFiNzM5MTE4ZjUxNDQ3ZDQ2MzRjN2ViYTZiODNiYmMxNzFiMmNhNWYzMmQzMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MWNiYjEwZjQ3MzM5YjIzODNhNTIzMGNlZTc0YTdhOGYxYjQzZDhjZGVlOTFhZmIyNGE0N2FjOTYyY2MxNDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY3YjRlMWRlOTA1MDFiYzZhOTA0ZTU1YzZkZjM0MWZiMWY3YTIyNmU4YzdiOTJkYjkxMzhiYTRjZGExM2VjNGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f3b24d80be2a477ab9de1e63611b2eb7",
+      "statement": "A snapshot reaches the page by exactly two paths: one `panel/snapshot` invoke issued at module scope on load (a failure is recorded as `snapshot-error` and the page renders nothing until a push arrives) and the pushed `panel/changed` event, which drives `render()`; `render()` fans out to `renderDesktop`, `renderSettings`, `syncPlugins` and the month-guarded calendar, and retains the last snapshot solely so a `plugins/changed` push can be applied without re-asking the kernel.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L686-L710",
+          "version": "repo-lines-v1:sha256:e538b40713f39a89b49c07fd7f1ffbf91464a2d3ef72c25733b42b710e27c395:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlNDg5OTI3ZjNmMGM1YzUzZDJmNTZmOWIwN2FlZjI0ZmM4OWE0NmQyMmJkMThhNDU2NzZmNTUwNmUwMzc4MWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlMDc5MmU5Njk2OTNjZWU0YjI3Yzc0MmJmNzliNGM0MmM3YjY1YzY1NzFhMTJiMGNkY2Q3ZmRmMzU4MGIzZjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNhZmZmOTNmNGZmNDA2NjQ1OWRlMDExMDU0Zjg4NzQ2MGU2M2U0MjM4N2JkOThjMmQ3ZDQ4NDdlYmEyNjRkMDQifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L756-L763",
+          "version": "repo-lines-v1:sha256:a63ef52b08de7238d87f926ab1356b0c6a2bdd08efbc0fd49d278d9e7bdc8087:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTc0NDlhYmMyYjM2ZGVmNmUyZGU3NTM3MzgxZGM5Y2U3N2IxOTczNTAwM2YwZjNjYzYwYzJkOTJmNTgxOGI3MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmUzZmY4OTkwMThjNTVlYTM5YmM4YjlmODkwZDc1MWE1OGJlYzQ2NTNkZjk1OGY1ZTViZWZmYjRiMWMxNWViOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWNjOTkxMDNjNmZhMzkyMjkyNTYzNzNhYmEzZDZhYjQyZThlNTg4OTQ4NjhlYTMwYTIwY2ExYmQ3NzM0NGUxNCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L765-L768",
+          "version": "repo-lines-v1:sha256:8823468127ebc54cc14f9e04424015c02928069140f925726fa6d6be5b654e2b:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJhYTc3ZTMzNjJkZTU0ZTQ2Mzk4YjY0ODhkZDY5ZjNkMDJmMDhhMWRjNWI5NTI1MjZkMDQ0M2M5ODQwYmQ2OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTg1OTA1Mzk5ZWNiZDA0MmE3ZDU5OGU3MjU4YjM4YjFiZTE0MjNmMTgzM2U4NjRlNGE2ZDc1MDg4NDcxYzc2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjY4MjU2MDRmZDNiOTg5ZGExNTk5OTA0MTc4NWNiNTUzZWQ4YjMzYjA1YmY4ZjdlMDRmYTdjNDZhODE2YTAwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWY0YjZhYjI0NGUwMWJhNTRmYzhlZjVkZDgzMDQyYTA5YzNhNzk4MWZjMjBhZTRjZjM5ZWRkOWMxOGY2MTVhNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_dadc7793aa9441319f67000b1147b954",
+      "statement": "The render loop is three independently guarded diffs: the layout is compared by its JSON string and only then written to the doc-zone origin/max width, the dock max width and every group grid's `grid-template-rows`; the desktop is compared by the data plane's concatenated item-and-plan fingerprint and `renderDesktop` returns before any DOM work while it is unchanged; and plugin components are guarded inside the plugin runtime by the entry URL and by the JSON of the capability-trimmed view.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L283-L299",
+          "version": "repo-lines-v1:sha256:03873fcf38c7e9bf51158f9331125bbe13998116300378b8fd2f9bba234c06e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkYThiZDFmOTBhNGE3MzkwNmJhZWFlZjY2ZDJlYmNiNmRiZWRiOGQ4ZTI4MjI5YmNjYjYzMjM1NjUwMGFkODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhODYyODdiOTM5YzAwYTQzNjhhNWMyNzQ3OTVjZGNlYjE2ZDEzMDE5Y2E3NzE5ZTBjZTFhM2ZiOGVkZTRjNzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMGYxYzI0YzI4ZWE1Y2JlYTM4MzA5OWRmMTUxYWQxZDk4YWQ4MjljYjhhYjMxOTRiNGZlZDUwZmViZDM2NjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2MmE4ODVjZWYwZDI1ZTY5ZTU1NDM5ZGQ4NWMzMzlkNzk3MWYyMTE3MWZjMTNiNzg5NTQyOTFkNjk0ZjhmZGUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/plugins.ts#L169-L196",
+          "version": "repo-lines-v1:sha256:5766498bd944d6dcc7508faadf3281524c21de83a2de29422670b7e53f4dc9d3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1MzliOTg0YzQwMjJmNGNiYzk2M2Q0NWQxNTU4OGI0MjI2N2QxNTE2OTE5YmFjM2IxZThjZDE2OTdiNWMzZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZDhiY2JiYWFjMGI0ZWQwZDk2YWEzOTBkODc0Y2Q1MzdiOTIyMmQxYmU2N2FkMzU4ZjFjZWM1MDA2OTdmNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkNDc2YTQ0NmJkNzUwMjY1ZTUxNjlmZTExYWVkNTU5MTkzNDQ4MzhlZWI2Y2E3NDVjZjk5MTAzZDE3ODcxMWIifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L112-L117",
+          "version": "repo-lines-v1:sha256:df8308f59b6e85e49eb1234136cfd144ce03c98ca17e9f3a504e349a3da8c391:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODRkZjBhZGRhNWY4YzM2Yjc1M2ZkMzY3NWNmMGFjZmQ4NGUwZjdmZGE2ODZmZjVkYmE2ZTA3YTU4NzBiMjRkNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzk1ZDE0NTQ0NjUxNWVkM2MwZGZjNzhlNjIyNDk0YTFlOTkxOWVkYmE1MjUxZjZkMGMwYWUwZDczOTNiNGU3MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNThhODdlZDQyZWJjZGNiZmRlMzc2NGEzYzEwZDhmZjU4ZTFlYjkzYjUyYWVkNWM5MGE1N2Y0ZDkwYzc5ZWM2ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_df5e19809e0a4c1da2daad7ea8757a2f",
+      "statement": "The calendar's diff guard keys on the clock's month (not the day): `renderCalendar` is invoked only when the month differs from the last rendered one, so a day rollover inside the same month does not rebuild the grid and the `today` marker updates only when the month flips or the page restarts.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L26-L51",
+          "version": "repo-lines-v1:sha256:b0777f6961aea1a2b4e683d8b79f33852191158e245175d5408557f30154cea3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjYThkOTMzN2E2ODg5NjMxYzlhNjY3NTU2OTI4MmQ0YjMyNmU0YTZlMWUyMjNkZDMxOGVkNzNjNGFhY2M5YTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5N2UwZDIyYjU5YjA5ODljNjUzY2E2ZmVjMzJmMDkyYjZlOGRiNWJjOWIwNWE4ZmIzYjNiMjUyZWJlMzBjMjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRmNWI4YzEzYTM2MmVlNmZlN2UwYWFiZDYxYTRmMzU2YjU4NzA0ZjRkOTFjYmEyODZkODFjMjVmNTViN2IxYTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIzODczMDQzZmE4ZmUzNTVmYzhjMTJkOWFmNTNmMDkyMWQ1ODc0MjhmNGM2MzAxY2UyYjgyOWEzNWUwMDI2ZTQifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L705-L709",
+          "version": "repo-lines-v1:sha256:d0bf1e42186c56cf6f2ecdacc3e94c1167e879bb62a64781dabd9ca7fee0f8ae:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDNiMWRjNTkwZGY4MDY0MjYxZmYwMWE0NmQ3YThiMTZiNTU1YmEwZmIyZTRiMDc1ZmMyNmI0MzczOTYxMDNlMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWUxMWFkYjA5NjNkNWZmOGVmMzM1MjczZWVmMzRjMDcwY2IwMDdmYmI2MzdiY2Q2YmY3N2NlMDFmNjBiMzUxOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTg5NGNmNmVlMDgzZGRhMDJlZWU4NjEwOTEyYmZiNGFkZGVlOTUzYzcxODJiYmJhYjZmMjAzNWQzODIzMGUyZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bbe88d3236fd47e6b0da5b65a245802a",
+      "statement": "Every desktop rebuild notifies `desktop-rendered` with a monotonic counter, the fingerprint, item names, the dock entries including `source`, the document entries and a `getBoundingClientRect` rectangle per item (or `null` for an item with no DOM node); the acceptance battery uses those rectangles as physical click and drag coordinates and uses the dock entry sources to verify the pinned-first rule, so the payload is part of the test contract.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1026-L1038",
+          "version": "repo-lines-v1:sha256:561606a233c0255e2e5da032988053b9815e9d210cc0a3cf1617d1ee30b2cc3b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzNDllYmE3NzhiYTdhZTZmNDFmOTAxNzViMDM0MjM2ZDIzYjcxYWNiZDBkMWY5YTk3YmNhOWY4M2VmYzcwNjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMTIzNmYyYWVhMWNlNDJmYTJiMGNjYjI3ODMyYzc4ZjVkOGMxYzE5MjM4YTI0MDkyMjEwNjYzZDUzOWVkNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhYWI0YzE5YjZkNmNiZjQ2MzkxOTAyYzAzYTc0ODYwMGM5ZmMxMjFmMTlmZDE4MzgyNTJmYzZlYzdkNjhhOTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJjM2M5ODNkMGQ1YTk0YjhmNGI3NmQ4ZDE5MGU2M2VmN2QyMjcyODI4ODA4MTE4ZDNkYTcxYmI4YmEwZjJiODkifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1068-L1095",
+          "version": "repo-lines-v1:sha256:8ffa81afef66c56014e5f7afcd612a058c0df6b0d928c43445bceebbdb131813:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2ZWU3ZDUxZTAxZWRkYWRlZjI1OGIyNmVjZDc2ZTA3YTY4MzBlYmFjMjVlMjYxZWJhZjhhOTZkODAyZjI2ZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhN2FlODM2MWI0OTMwMzYyZDI2OGZmNWI4OGIwZTNiMmY0Yzg2Nzk2NjVkMmE2YWRlZWQxOTBhMjExZGUxZTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNmMwN2JkOThkYTc5ZTFjYjA5YjY3NzM4NGM1YTUxOGU0ZmM2MzdmMjBjYjQ5YjdhMzcwZGU0NDk2YzExZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3MDk3NzI2OGEzMDRhOGYxNmIwYjFjODZhNTUyZDk0YjMyZjNiM2Q5NTM4MzRiNzlmMzA2MGU5MWE2NTNkMmEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L337-L353",
+          "version": "repo-lines-v1:sha256:574cedf6949852204fdabd250d3fbdff244c6bb334802ca8b42314889cfad1e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5YmNjMmIwZjQyYmRjZWFkNTZkN2RlOWMxNjg0ZGYxZmNhMzkwMzk3NGY0MDBlMTAxMWRkMWQzMzZhOWExNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxNGUzYWQ4MDY0ZDE5YWMzY2Q5OWUzN2FkNTQ2ZTc1M2RkY2RkYjEyNWZiYTcxYjIyNzhjMzJhZjAxYzU2OTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5NGYwMmM4NTFmNzU0NzcwY2IxMTBhOTA0MTE0YzkzODU4M2M1YWI4ZDQ0YWM0YjRjNmYyNmNkMzAzYzJlNGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8c15bd9939b44ad6924ac06e3c76044d",
+      "statement": "Dock rendering appends items in `plan.dock` order and then appends any pool item whose zone is `app` but which is absent from the plan, so a plan/pool disagreement cannot silently drop a carried item; `source` is never rendered, only reported in evidence.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L300-L313",
+          "version": "repo-lines-v1:sha256:6a5ba64fc78686465ce1983cbff61da0927921b3709f61a9b09c490a2f4224e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4NTY4MDVkZGZiNDQyZGQxNTY0Yjg5NjdmMGNlNGE4MzA2YzNlNjgwNjQ5MWJkNTM4NmJhNTNmYTZjZjk3YWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1MTNlNTExYzExMDdjOTUzMzAwNjI5YjFkNjBhZjM0MWQ4YjcwN2UxMjAzNDIzYjdiOTBhYjY3YmM2YWIwNGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmM2EyMzE0ZTBkMmU5ZDY5NWRkMmY1YjYxY2EyZmRiNDI3Nzk2ZTZmZmQ5MDQ4MjM0YjA3ZmZlMmRhNjk4YmMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2def491f0c8e4ec2aced3aabb8472206",
+      "statement": "Document-zone rendering emits one labelled block per non-empty group in the hard-coded `GROUP_ORDER` (`folders`, `office`, `pdf`, `image`, `archive`, `other`) with `GROUP_LABELS` supplying the header text, and appends entries in `plan.docs` order within each block; the visible columns come from CSS (`grid-auto-flow: column`, `grid-template-rows: repeat(docMaxRows, auto)`, `grid-auto-columns: 100px`), so `DesktopDocEntry.col`/`.row` are carried for evidence and fingerprinting rather than read by the renderer.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/index.html#L263-L272",
+          "version": "repo-lines-v1:sha256:1a804d26e97355642a9868692c3a7c34e7321b5568c32a8d618c2c6596e26b83:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0NzQ3NGVhMmU1OTI0NmU2NzE4NDhiMzMwN2JmMjRmNDVlM2Y1YWQ3N2QxYzFlZGQ4MjZjMTUyZDQ5NTg1ODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljNjhjMmM2OTZmOTM4MGU4MzE4NDJjOWJlMzJlZDFkN2IzY2JkODhhODhkN2E2YTYyZTFlNjAzNGI3ODRmOTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA1YThiZmE2NDlmMDhiMTVlMmQzZGJlZDRlNDg2NzllMDg2N2E0NGQ2NmJmZTMwMTNhNjMzMWQxMjczM2FjZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzZTdkNzQ5YmVkY2ZiYTc2YWFmZDkzM2IzYTUxNzZjZWFkMThmZDliYThkZDg2MDJiZDVmMTAwZWY5MTdlNTgifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L314-L333",
+          "version": "repo-lines-v1:sha256:9be67632facfdbdd352e344370255768e22c42352724281da351aca6f7479d63:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YzAwZWQ2YWQzOWYxOGExYTVkMjFjYmZiNjBlYzcxMWJmMzk5NmQ1OWFjYWU3ZjRiMzg5NzZmOWEzMjhkMDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYTZhNWJmZmE0ZmI2ZTAwMTRjNzYxZjhhZmE2NTEyM2JhYTIyOWZjYTZiZGFlMjE1NGE3YWVkMjc2M2M5YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxNGUzYWQ4MDY0ZDE5YWMzY2Q5OWUzN2FkNTQ2ZTc1M2RkY2RkYjEyNWZiYTcxYjIyNzhjMzJhZjAxYzU2OTkifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L62-L65",
+          "version": "repo-lines-v1:sha256:479661457f52e35f35677dc2c18457529fb4e1e624b2ab9a1882f5fdfa193220:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDdmNTEyYmZmOTgwMTc4ZDc4NWZlNzdhZjNmYjc4MjJiZWIzMDgwYTk5OGQ2ZGM0M2QwZjNmYzQ3ZDk1MTA0NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzk0Nzg0NjE2OWQwMWE1NTRhNjkxZDA4MjNiNjFkMmQ4Y2Y1ZmY3YTdiODc5MWVhMzY5MGE2MDRhYjI0NjY2YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTYwMTg1MGMyZjIxZjNmYzQyMGJiY2YyMjNlNGJhZDMxMjgzNjllNTYyNjNlM2RhYzk2MjMzNGEwYjgwZTYyZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6c9eb8c83e3747e48ec9c9a0fa774a9c",
+      "statement": "Desktop icons are fetched lazily through `desktop/icon` and cached in a page-lifetime `Map<string, string>` keyed by `iconKey` (which contains the mtime); a `null` answer replaces the `<img>` with a `DIR`/`URL`/`DOC` glyph and is never retried, because retry and backoff belong to the kernel.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L82-L108",
+          "version": "repo-lines-v1:sha256:522368fa90971e9ba222e2e46c1348c3aa2959e584b0433082a282c7b74fe3a3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMDEwOGNhY2I5YTU1MTFjZDlkYWFkNTA0Mzg5Y2RkNzMwMmY0MmM4NDM5NTU5ZjM0ZTQ4MTQ1ZmRkNmZjNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlNTFmOWZjMzg0NTQyNTM1MDkyZDVmNDY1NTNmZjhmMjEwYWYxMzUzYjFmZGJhNzc1Y2Y1MmY2NGY3OWYxZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzNWViZTBiNzI2NzgzNjg0MGU1M2FkYzdkYmE2YWI5MmE5NzYyMThkOWI1M2E2MmNkMWMyMjA0ZTIyZmY0ZWQifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L219-L222",
+          "version": "repo-lines-v1:sha256:7b519a15ac45c1edc3ef776060727ad43124489071c78a647b1173975ca70662:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzcwYzQ4Zjk1MDFlZjFkNjUzODZmY2YwOGEzZDZhMmQwNGUyOTJlMzQ0YzUxNTZhMjNmOTFlOWU1MDk2YjExYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDcyZTFjZWIxNDYyNmYzNjM0MjM4MDBjNTU5ZTFhODEyZWE0N2M3ODg5YTEzMmI3NzUxM2EwZWY1MjVkNmYxYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjY1NDBlNzFhNGY5MDdhYmVlNzM3OTIyNTAyYzUxMDQ3NTc2YjQ2YzdkMjZlZGQ3OTY5MmRiMDkxZDFjOTQwMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjAzYzcyNjFmYzY3MTUxZGQ3MjlhZGNkMzYwOGExNmQ0NzQ3MjVjOWM5ZTMwMzIyYjRhYjMzM2EyZmQ4Mzk2ZSJ9"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L78-L83",
+          "version": "repo-lines-v1:sha256:145895e9c459d6b861d1630f92203af0cae9ba04b5c52558455f074bfb401316:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTQzYjI4ODMwMzZjZTdiMzlhYTJmODU4OTMyZjVhMTgzMjM3MmYwZDUyM2UzYzI4ZmFhZjg5YmE3YmE4MjYyZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTZhM2YyZDcyMTQ2M2FkNzhmMmQzY2ZkMDRlYzMwZTU1YzM2YzNmNWNhN2IwYTM5MWJiMmQ1ZWIwNTVjYjczNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjYyNjUwNjc1ZWE5YjA2MzBmNTg5NjYwYTc0OTljYTY0MmEyYWI4ZDAyYTJkMjI3MTA2ZGEwYTRhYmRkMDMxNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6d4801f960f444c4831c6d9a948ea195",
+      "statement": "Item interaction is click-to-select plus double-click-to-launch: a click sets `selectedName`, re-marks `.sel` across all `.ditem` elements and records `desktop-selected`; a double click records `desktop-launch-clicked` and calls `desktop/launch`, whose outcome becomes `desktop-launched`, `desktop-launch-rejected` or `desktop-launch-failed`. Selection is dropped when the item leaves the pool, and both handlers bail out while a drag has just finished.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L114-L132",
+          "version": "repo-lines-v1:sha256:d5aea87d74023cd05465dfaeeff689afca7f4ffd7406c00733ed72d02562ddfa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwM2U3OTZjNzRiNWIyZjQzNDFiZDk3ZDI5ZWNiMGNkMWMxYmJkYzk3NjE1ZDNhN2M2YWJkNmMyODE2NjNjYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ1NGI2ZGZiZmVhNzNhMjVlMGMzMTViYzUxYjEwMGEyMmNjYTk2OTEzOWU4MmZkMzE3MzE1OGU2MjIxZmYzNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkMWYzMTE4MzNmNWQ4NDA2MTAwZWZhOTcyYTk3ZjUzMDViYzEzY2IwMjRiNDJmMzc2OGI0N2FmMzY3NmJhM2YifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L334-L335",
+          "version": "repo-lines-v1:sha256:45239198f3624f7cd262b70c717073a8d2a3e1303e4dd7db9787bc2bf945d6f7:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzM4NmE1YmJkOWY3YmNjYTdmMjVhNmI0N2IwOGJjMzMyNDJjODgwMjYyOTdkM2RhMDEyYmM5ZDQ4YWViZmY4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzMzNDU1OTE3MGE5M2Q2YmMxZDU1MmEyZGEwMjc0YWE2ZGJiMzkxODVkYmZiMDY2MTgzNjExNmMyMTQ0NDZhNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWFiZTZiYTM2ZDBhMWQ1OTZlZjZlYzU0NDFhNTRkZGQzNTFiOTk4ZWQzZDJlZmU5YWUxMTc0NTZiZDJhMjJjNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzVmYzk4YmU2OGFlOGVmN2JiZDdkNDk3NzRlY2Y2ODIyOTk4ZDYzYzFmZjgyZTgyYmMzZmU3NDJhMTdjMmY5NiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L76-L80",
+          "version": "repo-lines-v1:sha256:7823caa0f836d61f48f9acc366bee4eb67982510aba4ce88a5f1b86250a710ae:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDcxZDJlZTg5YWVlNzEyOWNkYTA0OWY2NDY0MTdjN2VhZGY4OTMyZWE4NWU3MzUwOTVhYzI1Nzc0YTJmOTkzNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjRjNTEwYTI1MDFlNjM1NmY2Y2U5ZDI0MDg1YjQ2MzNlM2YyZWQ2MmRiNGFlNWJmOTdkNTMwN2VmNDczM2E5ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjQwZjU3YjlhNTRjNDdiMTlmNzljZGM2YTM3NGJkNTY5ZTQwOGY2ZjcwNGQzNjJkMDBjMzBlOTJmNjRmMjZlZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a1c2ffbbbb8a455da7d3891cdd268f69",
+      "statement": "Layout placement is hand-rolled on pointer events rather than HTML5 drag-and-drop, because synthesized input cannot drive an OLE drag and the page needs \"before whom\" semantics: one module-level `dragState` is shared by all items, arming on a left-button `pointerdown` with best-effort `setPointerCapture`, and a 6 px Euclidean threshold turns the gesture into an active drag that creates a follower ghost and dims the source item.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/index.html#L292-L303",
+          "version": "repo-lines-v1:sha256:dc3e082e2eb7dc274fe92910df6dcbcdac9a322e73f88ddd256aa8968d4d9368:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhOThmZTgxMDEwNDYzOWI3OGU3MGY3ODU3MjFmYTA3MmYwMzFjMjIzOWE3M2Q5YzQ5NzNhOTJjYWY2YjY1NDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyOGYyZThjNGY0N2FmNmJhZjIyNjZiNDE5MmNhMDQ0ZDA5ZDYyYjY4OTg3MDE4YzIxNmYwYTdjY2ZlZjk0ODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg4ZDdhNzFiMzk3MGM1N2ZhMWYwNDRjODQ4NjBjZWNhN2MzNzQ4ZmNlYmZiMzRhNmIyY2FkNDZiZTc4NDI2YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMzkxMTg3MWI3ZTQ2ZmUxNzBiZGU1Nzk1N2UwNDhmNTFjMmY2ZjZiNDUzY2E0YWIxYmUwNzMwYjk0NmU3ZGEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L134-L153",
+          "version": "repo-lines-v1:sha256:c67aeea2c6eb3f70afa1ff6f79b32ded98a25501e02ef98b77d982f716fa102f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1MmE3NWVjMDUwOGYxNjQxOGZlOTYwOTY2NWUzYmVhNTBmYjE3MmY5MzA1YmQ5ZWY2NDNmYTM5MzFkZWJiODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjZTQ1ZWI5NWQ4Njk1YmMzNWVlNmFmMDM3NjFkZGY2N2RiYWU0M2E1ZDA0ZTc0ZjRhMmFjOGJiZWYyMjY0ZmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyMDE3MzI3NDZjYTk3N2JkNjAxYzJjY2QxMjU3NTgzMDJkMTRmMmIxMDE3YjViNjdjOWFjZTc0YzFjZmQxNjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3YzdiMTBjMGNiZjczZDk5ODZmYjY1YTI2YzQ3MWM1MmJhZDdhNzkzZWIxZjE4YTVjMDMwZTUxNDdlNGUyMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L181-L215",
+          "version": "repo-lines-v1:sha256:bf3818eb3998eb27c54d684ea3fc85c49ba1da6cb1621199a860ac85ac416e03:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNkMDZhMWI4OGIzYmI3MjVkOTNkNTgyNjQwYzMxYjAyNDQzODQ3NTVmNzZkNDNiOTQ1YjhlODM4MzRiMDUxOTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5Yzc1NmE4OWIxZDE3M2NjYWRjZGY0NmNkZTJkY2E1NTk0MTVmOGU1NWVjZWE2OWM5NjkyMzE3MjNmZmY0Y2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMwMjkxYWQ1NGYwNGZhMTkzM2QwYTQzYTczMzkxOGY4MDg0Yzk5ZDdlYmRkODE5ODc2N2Y0N2I0YmE1ODk3MzMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cee0e1d806ae4e5e916409b6bc1e985a",
+      "statement": "While a drag is active the page replaces the whole hotzone list with one full-window rectangle `{id: 'drag'}`, because a cross-zone drag passes over gaps between declared rectangles and a mid-gesture return to click-through would break the pointer stream and kill the drag; `endDrag` restores the ordinary list by calling `declareHotZones()`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L201-L202",
+          "version": "repo-lines-v1:sha256:1142638b4c2a318c6520ef1e21e658ea273dd719fcb5d18c3e4c0a80a2a9c635:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzQyODdkNGI5ZGYyNjE5ODM1N2E5MTAzYzE5ZGE5YTM3MzIzYzdlYjA3YmNjYjg3YTMyMDYzNWQzYTRhYjZmNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGUyNzA5ZTA0ZTM0ZWExNDFiMzJmNDkxZDAyOWQ1YjgzMTYxNGY3ZWJmMTgyNGYzMzM4ZWI3M2E5ZDEzY2YyNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjg1ZmM3N2UyYzdiYTA2MTVkNzJjNWUwODMyMTJlZTQwMWY5MjQ1Yjc1Y2I4YzM4MTQ2ZmE1NjhkODRmZjMyNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTU0ZWJjN2MxMGQ2MmY3M2Y4YWUzZGY5NDliZTg5NjMyOGY2ODU4ZDNiMjYzNDI1ZGRjYTU2MmY5ZjIyODM2ZSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L265-L279",
+          "version": "repo-lines-v1:sha256:9ba173c512d769f42dcc64c5d1f6fe6c639408d478f89f847a5e178d60bf993b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhN2I2NmFmMjI3ZWZhZDI4MDY3OTMzMzdmNjMyYjJlYjY3NGJhNDQ1ZWVkOGNmMmNhZmU5NGEwOGZiZTJlN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkNGNkYTIyZmI3ZDkwZTc3YTYzYWY3MmIxNWNiODU1NjYzNTY4MTkwMGQ3YzU5ZDRhYTA4YjgwZDJjYWVjNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllMGYxYzI0YzI4ZWE1Y2JlYTM4MzA5OWRmMTUxYWQxZDk4YWQ4MjljYjhhYjMxOTRiNGZlZDUwZmViZDM2NjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5ee2a56258164e2b8a1b05ebfabdcfde",
+      "statement": "Drop resolution uses `document.elementFromPoint` for two separate questions — `zoneOfContainer` walks the ancestor chain to classify the pointer as `app` or `doc`, and `itemUnder` finds the closest `.ditem` excluding the dragged item — and a pointer over neither zone clears the target so the gesture ends without a write. Commit is one `desktop/move` call with `{name, zone, beforeName}` (covering both reordering and a cross-zone move), skipped entirely when the target equals the item's current next sibling, and recorded as `desktop-move-clicked` plus `desktop-moved` / `desktop-move-rejected` / `desktop-move-failed`.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L155-L179",
+          "version": "repo-lines-v1:sha256:79e5e2f5257c3b1e7f6b73777ef0b8af31706967e5b870915f6cc2a0ef2c3f69:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlOTJhNDY5M2U1NWQ3YTc2YjcwMWUyOTJjZmQzNTVlZTlmNzE5YTRhNWJkMmU1MjQ1N2RiYjRmYzUzYTkyNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBiM2NhMWU5MmNiZjMwNjE2ZDBiNTcyMmEzODVkYTkxZTlkYjIzN2ZjYTMzZGMwZGE3ZTI5YmRjMjc0Zjc0NGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiMTM4YjljMjYzN2E0YjdiM2ZkYzUzNWVmOTY2OTY3ZDE1YWUzYjMxNTlkMzVmOGFhOGZiM2E1MmIzMWI1NjkifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L208-L242",
+          "version": "repo-lines-v1:sha256:23daa93848dde7a4144c122da25a1deaad8b9061a00ac7923b9bfef36c8de957:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ZDI4ZjdjOGVhZDliMDYyODcwMGE2NzllN2MzYTY2MjRkZjAyYjkyNGIxOWVjNjc2MjQ0YjVkMmQzZDA1MmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhmNzBmMzk0YzgwOGRjZTkwNWFhZmUxZjM1ZWQzNjU5MGQ0N2YwZjY2NjA1ZGM4NDFlMGZlZGZjZGQzNTViZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjliY2NjMDcyYWQ3NDZmODRjNGRjODIxYTg0OWYwODAwNzFjMGU0MTkzMDlhNTFlOTI5ZmVjOWQ3MDNhOTZmNjYifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L224-L228",
+          "version": "repo-lines-v1:sha256:7dc570969e9092e0a9ca9675abc6b1424a1358ff3f1d076ea5d5fd2d355871e3:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDA4NGFlZDgxZTQxOWQ5OTk3NWQ2MWZlM2ViMjg3MjBhNjk2MDhlMGIwNTQ3MmYwMGIzYWM4NDQ3MzQyZGFjNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzFiZDA2NGY2OGQwNzI5ZDZjMTU3NjllNjUyYjYwOWI2YWIyZTZmYzYyNmRhMjIxNDNmZGZlZmU2Zjc0YWY2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWUwN2QxZWM5NjJhNzMzYTdiYjVhMDdkYWM4OGEzZjNlODE4YjAzZTdlMmQ3NzBmNjk5MzhiMmFiZWQ3MjRiOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7e45ddf2f95244b0bdaf10642a791d79",
+      "statement": "`endDrag` tears the gesture down on every exit path (ghost removed, `.dragging` and `.drop-before` cleared, state reset, hotzones re-declared) and releases the `suppressed` flag on a `setTimeout(0)`, because the browser still delivers one `click` after `pointerup` and that trailing click must not be read as a selection.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L114-L121",
+          "version": "repo-lines-v1:sha256:e758d4193d7199299b8e573cd970c61a212047dc832148eaaa6df9a479ba7e37:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzAzZTc5NmM3NGI1YjJmNDM0MWJkOTdkMjllY2IwY2QxYzFiYmRjOTc2MTVkM2E3YzZhYmQ2YzI4MTY2M2NhZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWZkODJmZjliODc4MGJhODgxZTc1NjVmMjNmZjg3YTgyZWE1ZWE4NGU5NTA0YzM0MTRkNThjM2U5ZTY1ZTg1MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDU0YjZkZmJmZWE3M2EyNWUwYzMxNWJjNTFiMTAwYTIyY2NhOTY5MTM5ZTgyZmQzMTczMTU4ZTYyMjFmZjM2MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTZjYTI2NDFiMmFlNTE1N2EzN2M5OTkyMTI4NWYwOWI0MGZlMmM4YzMxNzZkNzUzOTg1YjQzMzFjOTU2ZGIxNSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L265-L279",
+          "version": "repo-lines-v1:sha256:9ba173c512d769f42dcc64c5d1f6fe6c639408d478f89f847a5e178d60bf993b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhN2I2NmFmMjI3ZWZhZDI4MDY3OTMzMzdmNjMyYjJlYjY3NGJhNDQ1ZWVkOGNmMmNhZmU5NGEwOGZiZTJlN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkNGNkYTIyZmI3ZDkwZTc3YTYzYWY3MmIxNWNiODU1NjYzNTY4MTkwMGQ3YzU5ZDRhYTA4YjgwZDJjYWVjNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllMGYxYzI0YzI4ZWE1Y2JlYTM4MzA5OWRmMTUxYWQxZDk4YWQ4MjljYjhhYjMxOTRiNGZlZDUwZmViZDM2NjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e11f8a45d20b42e8ba98c25792b88af2",
+      "statement": "The settings overlay is toggled by a fixed button and holds the backdrop-opacity slider and the factory-layout reset entry; opening calls `setKeyboardMode(true)` before showing the card, focuses the card itself and records `settings-opened` with the slider rectangle and the current percentage, while closing is a single function with `esc`, `blur` or `toggle` as the recorded reason and always calls `setKeyboardMode(false)`. The slider rectangle and value in that record are what let the acceptance battery drive a real slider drag and assert that the slider starts at the persisted config value.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1521-L1547",
+          "version": "repo-lines-v1:sha256:7a8b9cc53aed036a0198cae1e4654e490248a76a48e54c7ae0d99db3f653a7d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1YTEzYzYyM2ZhOTJhMjAwNWExYTk1NjM5NTEyMjk4M2YxZTJiYmZlZGQ4YzkwYjQ4OGZmNTdlYjQwYmRhZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MjU5ZWRlZDc4Y2ZlMWJlNWJkMGJmNjI2NmM0OTNlZjNiOTg2YjI2MDZmNDY2NTAyNTk5OGNmYjA1YTZmYWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3OThkYTEwZGEzOWI2MWNjM2JlZjAyZDhiMjUxOWU4MDFjYjVkMzk5Njg1NmRiMWNlMTBmNDRkZjQ2ZDMyMWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMyZGQ3M2FlNDM1NDYwM2IwZTkyMGM2OWU3NTE0NzUyZWQ1N2I2ZmU1MzIxNzIyODE5MGFjM2FhYjAyMTViNDYifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/index.html#L401-L409",
+          "version": "repo-lines-v1:sha256:6efc20049287de4618aa3830131aa3f64ffb2836303adc8a71f5fe271a0348b0:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDExNGVhYWQxYTgwM2MzMjY0Y2ViMjNhYTQ1MWNhMzgyOTIzN2I5M2FiMmJjMTRhNWNmMzNjMWQzMzdlZjgzNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDE2ZjQzZDhjNzRlYmExNjAxYmYwZWZjZjk1MTc2MDQ4NGJiYjMxZDhmMjAwNjk1YzMyYTJlNzY3YTliYzEyYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzc3NmQ1M2VkY2M1YTljZTAwNDQwNjIxNjg4YzY0NDRhZDgyZmUyNDg2YzNlMTMzYThmZTY3MTY5YmYxNjE5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzM2Y2UzMGQyNTEyOTU5NGViNDc4M2NlM2E0NGIzYjc2YTg3ODI5OTBjOTQwY2I1MTE2NTk3MDFhOWMyNjYwYSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L390-L417",
+          "version": "repo-lines-v1:sha256:bd431feadd433fb5f4ce4ff394726dfba77ef46471672adbf185297b212ee080:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmMjhiMmM1YTlhYTUyM2E5NmRlZDg5NmEwNmFiNWQ3YzViYzg1YTdiYTVlN2ZlZDNiYmNhYmJlNjAxNjc4NWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU4ODQ0OTNlMjljOGY5NzAyMDMxMmQ3NmFlNWQ0YzgyYTZhNGQxYmVjNWE1M2YxZmU1OGNlYmVlOGY3YzU5NmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmYTMzYTg3M2IyOWYyMTQ1MjI0MzlmOWM2YmI1M2JmNDc3MWQ3ODJkNGRjNDM2NzI3MGIxN2Q5OTYxMjBjZmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ad3183935c744cfcbd6a776fe49d5612",
+      "statement": "Three focus details keep the overlay usable on a window that is normally non-focusable: the settings button's `mousedown` is cancelled so clicking it never steals focus and triggers the overlay's own `focusout`; inside the card `mousedown` is cancelled everywhere except on the slider, which needs focus; and `focusout` closes the overlay only when the new focus target is not contained by the card, which is also why \"clicking outside\" cannot reach the renderer at all — those pixels are click-through.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L419-L444",
+          "version": "repo-lines-v1:sha256:6be9f1e696702b066bb44bb018d543f7f867e11b8259a3f6a5ff0de1db1f127a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5NWVjNTUxZTI2NDQ2ZmMyMDBlMmY5ZTYwYmQ4NDcyYjA2ODg4NmRiOTRiZDJmYWVlNTNhODM0OGYzZGMwNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYjJjMjU3MDQyMmFjNTk5NjIyNTZlYjVkYTdhOTg1YmU5MWI4MjI2NWViNGUxZmUwMWQzYzNiMzQ4MDAxMmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmZjk4NGJiZmVmODc1NjZlYjU4YWZjZWUyZDA5MTU2MjI3MjE4YTZlMjUwNzJhYzllNzVhMzY0MWI4MzczZDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e81211f1c3bf43388d3f84dcf3731353",
+      "statement": "Opacity has three write paths into one idempotent function: the slider's `input` handler applies locally first for immediate feedback and then invokes `settings/set-card-opacity` (recording `settings-opacity-set` or `settings-opacity-failed`), the `settings/changed` push and every snapshot both call `applyCardAlpha`, and `applyCardAlpha` records `settings-opacity-applied` only when the value actually changed — which is what makes the slider, the kernel response, the applied CSS variable and the persisted config agree, including across a restart where the boot render produces the applied record.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1508-L1519",
+          "version": "repo-lines-v1:sha256:1873fea98656af326d8ea0ca884240c8bcd8078fcf8a6cf1dbc3d997dfc37faa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjZmQyZTRkNTBiYTI2ZjBjY2IyODgzNGY3YmY3NDcyZTJhNjY3NTdhOGJhODdiMjk0NDAzMDVhYjBkM2NjYTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODI3ZGM2NzRiOGE3MWFmOWMxNjRiN2VkMWFmNTQ5ODI5NGZlYzZhNTcyMjQ0ZWU2OWU5ODhhMGE5YjA5MzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3MzMzOWJjMjUxMGY5MzA0NDhkMzk4NzQyNWRlYjZhOTA5YWZhN2E5ODRhZTFmMzVhYjFhOWU4OTBlNTViZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiZDliMDE3NjBjMTBkZGY3MzFhMDU2OTZmMzhjNjVmMzk0OWMwOWE0Y2QxMjc2M2VkZTNmYjU4YTZhNmI2ZTcifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L1601-L1623",
+          "version": "repo-lines-v1:sha256:edbe94afdbe5b3243f473b0a1600d3e17e13e58ee010282acbd7228e0b5b1972:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYjk4MzdmMTQzMWViOGMyOGNhODQ2ZDU3ZDU0YmE0NzM3MTJjYWI0YzE4OWYwYjYzY2Y4M2NjOTM3YTNjYTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhNzZhYjI3YjNlZWNhM2RlZWRkYjI1ZjVkZTlkOWE3MDk3ZGZiZDk3ZmFmM2NhNzUyNDQ2N2RkNjI1ZTJjMzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2ZTQzNmE5ZTY1YTg2YjZmNDdmZjhjMWFkNTA5NzIxMjRiNDAzMzRkZWUzMzFmMGViNTgxNGYyY2FiMDE2YWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2ZWNiOWVjYWE2NGI1MjczNTQ1ODEzNDA1YTljZjZkNjQ3NDFlZDcyMjU2MjE5MDUwNjJjNmQxNGEwZDdjYWIifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L372-L384",
+          "version": "repo-lines-v1:sha256:be893dd0c149fe9b3180987b68a8d147e60db900ca607a361b126ac3128f31ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkYTlmZGRlOGZiMTBjMzc2NmFiNzM5MTE4ZjUxNDQ3ZDQ2MzRjN2ViYTZiODNiYmMxNzFiMmNhNWYzMmQzMjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI4MWNiYjEwZjQ3MzM5YjIzODNhNTIzMGNlZTc0YTdhOGYxYjQzZDhjZGVlOTFhZmIyNGE0N2FjOTYyY2MxNDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY3YjRlMWRlOTA1MDFiYzZhOTA0ZTU1YzZkZjM0MWZiMWY3YTIyNmU4YzdiOTJkYjkxMzhiYTRjZGExM2VjNGMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L446-L464",
+          "version": "repo-lines-v1:sha256:af55413ec9f5b5480c8e4878b225c94eea5755a6de96db6799eb51024fb9910a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1MDVhZGQwOGZkMTk4YTQyMmEyNDI4ZmNhNDYzNTQ0Njc4Y2FiZjA3NGE4N2I3ZDcxZjY1ZDc2MDg1ODM0NmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyNDAwMGI0N2QzZjNkN2QwMjYzY2EyNDg2ZDlmOGZjMDAzODI3Njg5ZjhlMDNjNGNkNDgzMjdhYTE4NWJhMzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkY2RiMWQ3ZGQ1YTY4MzJjYTNmMTBiZmYwMzNmZDBhYzcyMDlkYzMwMjIxNGE0ZTA3MzZkNDc4YTNlODQzYTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyNDFjY2QyZWI5OGMzZmMyMmZmYTBjNzQ4ZWU3MWE1MjliZDc0Yzk0Yjk4ZTA3Yjk2NzIyMjE3MWRlMThiNzgifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L242-L243",
+          "version": "repo-lines-v1:sha256:7b4c47e610911a384ece3fd56ae0d8f0d025456b01fd1951c4c06db0ee9a5e41:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGVmMTExMjQyZDIxNmI3Yzk3MTViOTg4NDVlMjQyOWI4YWRlZjZmZDNjYTJjMjYzZWNhNmJmNzRiMmMxN2Q0MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDBhMDgwOTc0MjA1Zjk1YzRkYzlhMDBiYmJkODY3NDFjZmFiZjMwOTJmNmY1MGUyMWRlNzc3ZDQ5MmNlMDgwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzlkMmViNTIwMjE2YWVlZjUzNTY5YmZlMzkxZDRlZTdlMTA2NmZjNzU0ZTQyODJjYzY5OGMyNGEwNTJjYWNkMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGIxZjEzZDU5MjFlNWY3N2U0MjBlZWExODg5M2U3Y2M3MTkyMzg0YTZmZDhmNDQ4MjFkMDY3OGI2Y2M3NmM1NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_f5158228c9a84c68897c3997bf518f9f",
+      "statement": "The overlay's reset entry is only an entry point: it records `desktop-reset-clicked`, invokes `desktop/reset-layout`, and reports `desktop-layout-reset` with the number of cleared placements (or `desktop-reset-failed`), while the actual factory arrangement is produced by the desktop store.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1132-L1146",
+          "version": "repo-lines-v1:sha256:01f21b1478bf1ae2f70299a67bef4d758344d6bbaabfc1c39afac79c1cfd82f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjMmQ5YjEyYmVjNzdiYjE3YmU2ZDk2MDQ1NTgyNGM0NjM5ZTc5YjY3NDZlMTAzMTEzMjQwYjljODJkMTVhYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiODU4NzJhMTkxNDBkMTk4ZGJkOTE4MzkzOGMwOGE2MmRhYjFhNWJlNzM1MzI3NDQxYjNmNjU0YzRjYTA0MWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1ZmVlMzExMTgxYzk0MTdkZWQ4NGIzZDgxMzBlZDRmMWEwYjE0MDVjNTAwYTNjOWI3YzE2M2VhZGI0NjA1NjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhkMjIwMjE0MTcxNjUyYzcxNTU5NzE1NzBjNDVhNmI2MzVkYzEzYjYwZTViMGNmNzc4MmM4YzZiOTg4ZmQwMzEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L456-L462",
+          "version": "repo-lines-v1:sha256:63d279f9fd6107c5c82d0c9c541c1756b642d194bcaa949b14b3fe2b16f009aa:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTJiMDM3Zjg3NmExMWE4MTk2ZjNhZmVlNTg1ODM1ODI1ZDY2MDUwNDVmNjY5YjBlYjBlOTI3N2YzZGMzNDA4MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzlkMDU5ZTY3Y2ZhM2QyNzVlNjA1ZGFlMzg5MjYxZTY5YzM5NmViNDM2ODZiYjk4NGI1Y2VlNDAyNWVkMjNjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGVkYTI1YTQ4YjEwZTkyNmM1NTE5NmUyMjVkNDAwYThhZjJkMGQwNmZmNDcyN2JlZjNlNjFkMTIwYWQ5ODczZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_82086f4811a7459ca006813ff8db3c9b",
+      "statement": "The search card mirrors only part of the kernel's `SearchUiState`: the page keeps a local `searchActive` boolean that gates activation, input feeding and result acceptance (a late `search/results` arriving after deactivation is dropped rather than painted), only `search/state: offline` is acted on (swapping the results box for the `ENGINE OFFLINE` badge and recording `search-offline-shown`), `active` needs no handling because the next results event redraws the rows, and `idle` is handled purely by the local transition.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L482-L485",
+          "version": "repo-lines-v1:sha256:3e82c1e2eae76d7ac9ee154a152a7d2e583bf51ac04aad2bc88a9f18847c28f1:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2U4MWRkNzcyMWZjZjI2MTRlY2ExMzU4NWU5YTViMDJiMTM3YjM1OTZhMjg5NDg2ZjYzYzdiNjAxOWZhM2I4OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWJhNGVhNDE0YjI1MmJmM2NlYmI3N2ZjMWFlOTg1ZWRhZmVhYmUyODdmOTQ0NzI0ZWU4ZjUyZjM5MzQ3Mjg0ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2M1OTIxMjc4NmIzNDBmMjE0MzU4MDJhMDYyMzhmNTYyZTJjNTY1MjI0ODlkZjMzMjEyNGVhZGY0MWVkMDdlNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDlhNTY4MDgxNDU0MTc5ZmNkYmY3YTBiZjE2YmRiNDk5ZjM4NWQ1MGMyOWRmNTM5YjAyZWQ5YTFhOTdjMDQ4ZSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L670-L684",
+          "version": "repo-lines-v1:sha256:236dd5063f9c8fd7c0d79f19d6dfb4f64981901742da4076e362ecbf1cf53f56:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNjYwMzgwMTNlODQ4YTc3YjI2NGIyYTlmZjAxNzhlNDBlMzkxNmRhY2Q0YjM4MzY3MzJiYTg0ZmMzOWEwOWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNkMzUxZDE3MGU0ZTY4Mzg2OWRjNmUzYmU0ODkxMjk2ZjViMjBjYzBjYjE2MTUxZTdmNjQ5Y2FjMDNmOGM4NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMyMTNkYTczMmFmZGM0NWI5NDBiYzg0MWViNzk5MjkwMjE3N2NiZjdkZDQ5ZDM3OTU5NmI5NmE5OTAxNTQ4NGUifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L214-L215",
+          "version": "repo-lines-v1:sha256:33b660249094d86e8464821024bdbbf5f9946e5ee67c1e9dda71a9e4dea33ac8:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzkwNmIwYjk5MTFjYTYxOWU5NDNhNjdkMTNjYmQ1NThlZTQwYmVmZTQyYTY5YjViMGQzZGI0ODc1MGRjYTUyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjRhODQyZmMxN2FhZDAwYjhiM2UwYTU0ZjdmZDA3MDhlYTgyNjQyZDI1N2ZkMTkwM2I2MTBlNzM4ZGUxNTExZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjJhZmM5YzkyMTc4Y2RmYzZmYjkyYmFkNTMwZTM4NmUxMmY4YTk2M2QwYmVlZTRlZDFhYmM4M2I1N2FkNWU4NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjY1NDBlNzFhNGY5MDdhYmVlNzM3OTIyNTAyYzUxMDQ3NTc2YjQ2YzdkMjZlZGQ3OTY5MmRiMDkxZDFjOTQwMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_abf5c8dbcd3649929644f3c107678788",
+      "statement": "Search activation requests keyboard mode and focuses the native `<input>` from JavaScript (the probe-verified reason IME composition works), activating while already active only re-focuses and never clears the query, and deactivation has three reasons — `esc`, `blur`, `action` — funnelling into one teardown that turns keyboard mode off, invokes `search/deactivate`, clears and hides the input, restores the hint, clears results and records `search-deactivated` with the reason. A `searchDeactivating` flag, released on a `setTimeout(0)`, stops the programmatic blur from re-entering the teardown.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/index.html#L387-L396",
+          "version": "repo-lines-v1:sha256:f306994cea983baafb54677cdd3193de5b8d6e47deea1041b9e10ce88cb6a058:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3N2YyZWYyNGY0OTk3ZjFlMGYwNjI0YWQyMzI0MWZmYzkyOTRhODk5NmU4ZjlhMjM5Mzc0NWVkYTJhOGUxYjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNmY0M2Q4Yzc0ZWJhMTYwMWJmMGVmY2Y5NTE3NjA0ODRiYmIzMWQ4ZjIwMDY5NWMzMmEyZTc2N2E5YmMxMmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3MjNlYmFhZTQ1YzFiNmRmNDJlMWRmMDlkNDRiZTY1MDQxMmI5NTdlYTNmZTQ5OWFlMGZiOGRhYTllOWY5ODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiNmNhNmVjYWNhOGIzYTI3YTg0ZjgwMDI0YmMxMDExMDkxNzU5MWQwMzY2MjEwNzcxMTZmZWE1M2NhNWI0MDUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L595-L635",
+          "version": "repo-lines-v1:sha256:ce5ee6c191ea4d4243f1fe35c5b7306bdaf1c1520963b36d39d5daf312598bb4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OTA5NWYyYWE0OGRjNDIzOGJiNTE4OTM0Mjg4ZmYyOWQyMzA1NzcwMjA0YzQzZDU0Y2NiYWZmMjhlMWYyOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNjJhODc0M2IwYTBhODZmMjRiMGU3MDc0N2IxMzZhM2Y0YzczZTc0NTU0YTg4ZDcwNDMxNTM2ODBmZjQzMDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhNTZiNTRlZmQ3MWMwNjBmYjgyZjFlYjYwMjdjOTUwOTNiOTBkMDIyOTE3OGQ2NmJhMTI3OWFjMTYyY2E5YWUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L665-L668",
+          "version": "repo-lines-v1:sha256:e435f8faa7b34287eff4ca00fd2b93c4bd1aba18a7dfc63f4c8676fd354beaec:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjdhMjU3NTk3MGEwZWE2NWNkYWRlYjkyMjIxZWRmYzg2ZGRiMmZkZDkzNzA2ZmVhY2M5OTMyNDBjNDhjMTQ0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDAwN2FhZDBhN2NhZjAzZWRlNjdkMjU0MTliZGRjMTA1NDJmYzFiYWM2NzM4ZjA0Yzk0Yjg2OTFhYjEzNTlmNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTcwM2RhNGRhM2I4ZTkyMTk1MzlkMTQ4Y2EwYTUzOWNlM2QwZDY5MGQzYWRmN2NjMWYxNGY3NDQ0ZWVmMDUzNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4a9ade8c442c4391bd4f526d2d6c71fc",
+      "statement": "Search result rendering is capped at 8 rows plus a `NO RESULTS` placeholder and a `TOTAL n` footer; each row splits the path at its last separator into a name and a parent directory using the drive-root rule (`C:\\` rather than `C:`), elides the name from the right (26 chars) and the parent from the left (24 chars), and a new result set resets the selection to the first row, with `searchMove` clamping at both ends instead of wrapping and recording each move as `search-selection-moved` with the index.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L479-L530",
+          "version": "repo-lines-v1:sha256:7e8f2f0aa6db962fa418b704cd381941b72596f80a79556d65b26f745aac0988:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmZWI4YjkyNzRiYmUwMTAzYmU0ZGUwYTZlZGY2Y2RhM2M0OGYzNjY2NGVkMDE3YWVlNDhlNDJhZTkxYmVkODMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlYjU1ZjkzMWEzM2Y5MjAxMzExMWNhY2ExMTE0MTFhYjEwZmY5NjFiOGQ4Mjk1MzgzMGJiZDFiNzY5MDU2YmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllNmNkNTM0NTEyMzYzZmM0ZjUwNzkzMDZkNGEzOWVlMjZiNTI3Y2YwN2MwZmJiZTEyNGRkN2U0MWE0NTYxNzMifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L532-L566",
+          "version": "repo-lines-v1:sha256:386bae05dc6d9d6a19cc62757e22a15e346434d9a5e78d938101d5ff477da247:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiZWNlODIwYWFiMDY4NWUzNjYyY2M2ZDYxYWU5ODIyMGQwNzM2NjQxYmE2YmY4NjdlNThhNGQ0MjczY2M5OWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRkMjNmMGU4NTc0MmQ4ZTgyZjJlOWY5MTAwYzZkMzNhOTNkZjgzMjllMzEzM2QxZjhiNTIwOTkyMWUzZWUyZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ2NDg1MjVmZmViMmZjMmY3OGIzNTAwN2MwNTc5NjY1ZWRkYjM2MmE2MGRlY2MxNDU1YjEyMGZjYzg1NzgzMTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_aadf2e0040524ecf8f58724526897b76",
+      "statement": "Search key handling is a direct port of the previous Tk implementation: `ArrowUp`/`ArrowDown` move the clamped selection and are `preventDefault`ed so the caret does not move, `Enter` opens, `Ctrl+Enter` reveals in Explorer, `Escape` deactivates, every other key is left untouched, and result rows cancel `mousedown` so a click does not steal the input's focus and collapse the card before the action lands; a completed action deactivates the card in the same tick.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L504-L510",
+          "version": "repo-lines-v1:sha256:899216045856a039224b971e75741dee99117656f5df404a6758017d3b4f75e6:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTc3Mjg0ZDBjOTFkZTFiMDg0YTAwYjgxZTg2OGViOTBlMDMyOWNlNjU1ZGIxODc2NDAwNGM3NzhhNzFhZTc0MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjc4MWU0YjBkY2VkMTQwOWNlN2RhOTdmMzEzZjg1ZjJlNTQyZTExY2ZhOWZhOTM1ZDEzNjNmNWU5ZDI0MWRlNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzVhYmJlYTBhNDdhZWQ4YTc1ZTI5NTJiYzNlNjI2OWFhZWVkZTQ5MTBiZjI3NmUyNTM2NzcwNjExOTM5ZjIzMiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L551-L555",
+          "version": "repo-lines-v1:sha256:911f6733eb31ce37ab167edbff215d8088aae6862f3a4c3172870a2e9ddcd735:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI0NmIwYWQ4NTJhZjQ4YmQwYjYyZDE3MzU2ZmQ4NWY5NTk3MWJjZGQxNGZjODlmNGU1YTFiYmE0ZDM0ZTY2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTNjYzhlNTc5MzU1NTUzNmEyY2E1MTllMGViNTFkYTI1NzQ5ZDBlODdlNGUwMGIwY2I0ZTRlZmJhZWY3ZGI4ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWU2OGMwN2U2Y2JjYjdkMjc0MWUzYWU4NmM1NGNjODY0MmQ1M2Y1ZTIxZDU0YjlmZmZlZTE0NTRiMWY5MWE0ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjI3YWVhNGJkY2MzN2Y4ZGU1MmMzY2Q1Y2Q5YjNhYzE3MDAwMTY5N2VjYzc5MTRlMDU1YzJlY2U5YmM5ZWM2ZSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L580-L593",
+          "version": "repo-lines-v1:sha256:f8b42b5b8f5835b46cec0e1b2f41488ba061b79e9ec8dbd63f26a2a5791b8d87:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjMTJmYTk3OTNmN2Q1ZGMzNTg4NDQyMmIzYzkyODE1YWY1NzRkMmYwNTUwMDJmYzNhMDY4MDk3ODhmODk2YzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYjJjMjU3MDQyMmFjNTk5NjIyNTZlYjVkYTdhOTg1YmU5MWI4MjI2NWViNGUxZmUwMWQzYzNiMzQ4MDAxMmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU5NDNkYmQ3MDczZDc1YWU0ZmRjYjE2ZTM0ZWFiNTUyNTZkZGQyZDYxNmUyNGE4OGVhNzVjNDMyMGQ0Mzg5ZTgifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L651-L663",
+          "version": "repo-lines-v1:sha256:796fafb60e573ed2055abbdf8496d072b55b0ffde0655989ffa83d1155ca653b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyMjI2NDQ1MTFiZmVhNDY5YTg0MGM3NzFhYTMwMTQyNWFiNTlkZGUwM2I3NzNlMjZiY2E3MDhhMjEwMWRjZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkNzYzMWYzNDNmMDU3OTY2YmFjYTk0NTNiZjNmNTRiMzIwYmNmN2NiNjY4YjU4NmQzMWE0MjZjMDcxZjM1M2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZlNDhmMmJlNDBkZmMyZjJlMjQzM2UwOWE0YjU0MWFjNzdmM2E4ZmUxMzUyMjFkMTM2NDA1Y2Q4NGY0NzdjYjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2b94fc775e0347d1a497f4197202856d",
+      "statement": "This file never puts query text into evidence: records carry only lengths — `qlen` on `search-action` and `search-results-rendered` — while the query itself travels only inside the `search/query` bridge call and resolved paths only inside `search/action`; the acceptance battery's own assertion text states that the evidence carries the length and not the query word.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L1317-L1320",
+          "version": "repo-lines-v1:sha256:97477cde3db23fd715594c7fa5985ccf7fcf0e0d6ccb97e16401c7d839770e38:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDVmMmQxOWQzMzgwNzQzODIzYWJhYTU4NGZlNmU3OWJmZjg0MmE0ZjlhM2UzNDk4NmM1YTMxMDBjNjQzOGNkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZWUyZmYwMDJiOGFlZjU0YTI5ZjkyODdmZjBjYWQ0N2E3MjU0ZjFkMTc0YjM4OWU4ZjQ1YjE1ZWY0M2EzMTMxNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWQ5OTVkZGJlYTQyNGY1NWJkOGQ1MmZiZmNlOTQzZDRiZjVkMzhjOWE5NDg4ZDMwZWNjYTczYzViMzY1MDU4ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWIwYjE1MWMyODc4ZjQxODk3ZWIxZTExY2E4MWNlYzU1ZGYxNzMxZDZkNzBlMjU5YjFkNTUwN2FmM2I5MzRiMCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L15-L19",
+          "version": "repo-lines-v1:sha256:16724dfdb3fe00ada650e5cfcdca3d0bb91e5cdc1afd8fd7b1c285a80e1d75a2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjc3MmNmZTI5MjBkZDU4M2MzZjM0ZTQyYTQ4MTRlMjhiMWZhNWY3ZDM3MWVkNzQ1ZDdhMmRlMTM5OWUxMWZlMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzdiYTQ3OTM3ZjY3ZmM4MTk2NTQ3OGRhYWRlMDQwOGMxNjY2YWI0ZmQwYzEwMzFjMGFkZTgyMWY0ZmUwMmYxOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzUzY2E3MDc2ZDIyYThkZjEyY2I4M2ZiNjNlYjAyZThhOGZiNTQwOGQyNDlmOWJlYjBjMzVhMzk0Y2RiYmMyZCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L466-L472",
+          "version": "repo-lines-v1:sha256:e90a3eaa2cb250d1e8651642f208769df97e5cf3c83f3e4b3331939cf7f7a276:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzk3YTU3NmM0Y2UzMDc5MmI0YTJiY2FiNmE4NmVhYjE3NDM0NmI3NzgxZDliMWQzMzU4NDVjMWMyYzU1NzAxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmU4YmQyMWY3YTRmN2RlNzdiMjg5OGViYjEyZGQ3MWNlMjk4ZDcwNGM0NGQ5OTAxZjNmMmUxZTQzMGUxMzg2NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGVkYTI1YTQ4YjEwZTkyNmM1NTE5NmUyMjVkNDAwYThhZjJkMGQwNmZmNDcyN2JlZjNlNjFkMTIwYWQ5ODczZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTY5NDViYmY4MTdjMzgxZjMyMzJhMWI3ZGI5MDdhNDk4OTlmODMyYTY3ZDAxMzZmZGM5ZjcwY2E4YTg5NDczMCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L580-L592",
+          "version": "repo-lines-v1:sha256:5aa058a0213efb1b8fb03c22e05d4bdc2c4a25eadc77efd133edfc26a620c544:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjMTJmYTk3OTNmN2Q1ZGMzNTg4NDQyMmIzYzkyODE1YWY1NzRkMmYwNTUwMDJmYzNhMDY4MDk3ODhmODk2YzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlYmE3ZDI5OWI4Zjk4NzBmZjM0M2U4NTdiNDY5ZmRlM2YwMGNkZTJmOWUzZTk0MGNkNzFjM2M3MjhjYmY0NzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYjJjMjU3MDQyMmFjNTk5NjIyNTZlYjVkYTdhOTg1YmU5MWI4MjI2NWViNGUxZmUwMWQzYzNiMzQ4MDAxMmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3NzE4MjM2NDNmOTFmNTJiODM3MTYwMTJlYTkyOGJlM2NiOTY5ZmU0NDc3NDJhNGFhOWU3YmE0Y2I2NWI5NzQifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L673-L675",
+          "version": "repo-lines-v1:sha256:6ee8171d35721654aa685623777372c5da11c2e9268b2db5e829c5d9755e789f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTdmYzViYzkzN2JmYjc4MWYyN2EyZTczNDM2OTcyMjk1ZDNhZDViODA0OGMzMmE4MmQ1ZTVmN2FlYzNhNjM2YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTM4MDEyNTMyYTJiN2I5NGM4NjM3ZmIyOGQzODAxMWY4NmM1YzY3Y2M1ZWI5OWM0NTNmYmVhYjQ1YzUxZGQzOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjFiMDYyMTJiMzUxNzNhYTcwNjQzMjhjOGIxMTBmMjQ4MzhkODI5NWViYzk4OGY5NjgxZjY5YzM2YTI1ZWMwNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bf493849add747e499d9f3c5743496dc",
+      "statement": "`declareHotZones` rebuilds the entire rectangle list on each call: every element with class `card` contributes one rectangle keyed by its element id; the dock and document zones contribute synthesized rectangles computed as the union bounding box of their `.ditem` children, inflated by 10 px and intersected with the container's own box (so an empty zone contributes nothing, the strip's padding is included, and an item clipped by `overflow: hidden` cannot claim clicks); `settings-btn` and `settings-reset` are added explicitly by their measured rectangles; and any rectangle with zero width or height is filtered out.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/index.html#L238-L254",
+          "version": "repo-lines-v1:sha256:b2eabea4644691b8558c2f830fbc0adb5fc81345a70bb8f7062e4f5e3b21ab7b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhODY4YTI0M2MzZjY0ZDk0ZDg0ZTNjMTc0NjBiNTI5ZTY4MjhhNTcwZjZjNWQyYzNlYTFiMDZhNGNkOTdiMzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkZGNhZDY2OWZmM2FkN2FjNTg0Y2Y0NzA4NmM0MGQxMTE5YmU0OWFiM2ExMjVlNTVmZDE5ZmNhZTA2MDMxMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyYTA1ZWE4ZjA3NjJkY2RkODYyYzI4NDU5ZDE3NjQ1OWE0OThiZDkyNDVkZDVlMGNjNmZjNjA4ZDVmYmFkMTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxNjg5ZTFjYTZlNzM2YWMwNDc5MGU3ZTZkODBiNTJhYWYxYWEzMTM5MGQ3OTNjZDk3ZDRhNmFjZGZlZmZmMmUifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L712-L754",
+          "version": "repo-lines-v1:sha256:81d1712c5f55c8aa944f9601a34f347f4862cf57567791f0b6632aceb0f282ad:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3YzdmNTNhOTA4OTk3MThhYzZkNTU2NjRjYjY4ODk2M2YxYmM4NjMxYTM2MTBkZjU3ZDVmYWVjZjBlOWYxZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5MTk2ZDUzMWI3OGFmYWE2ZTJiMGRhMDc0YTIwMDUyYWZiZDUwNzU1OGJiYzk1YmZiNzE4MWZhMWMyNWZiMTAifQ"
+        },
+        {
+          "resource": "repo://app/src/shared/contract.ts#L273-L280",
+          "version": "repo-lines-v1:sha256:e826ce9e4494c21240b93b1ee5ea36a08e15bc380a007f4833240456b5e5cc28:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTlmY2Y1Nzc1YzUxMjJiNWQ1NDc5ZmYwN2E3NTI1MDFmMzljNzQ5YjBlY2Q1NWIyOTU0ZDVmZjI3YjEwYjhhYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjI4NDg1NDM0MTI3MTM3OGM0NDRmYjUxYTViYWNkNGZmZmQ1OTNkNGI2Y2NhYmU2ZmFhNDNhOTk4NmFkZTZmMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_23cffb82c8f341b78ad13f115883a8e9",
+      "statement": "Hotzone declarations run on every point where rectangles can move or appear: the end of `endDrag`, every desktop rebuild, settings open and close, search activate/deactivate/results-render/offline-render, a `plugins/changed` push, the plugin runtime's `onDomChanged` after a mount or unmount, one unconditional call at the end of the module, and again when `document.fonts.ready` resolves, because a font swap can reflow labels after the first measurement.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L276-L276",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmEwZTYwZjNmN2ExYzZmZGE2YmVlZDBlZTljZWE5MThhOWJmNzllYWI0ZjlmODIyOTIyMjU4MjYyMDExY2QzZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGQxMzkwMTk0MTc1ZDY4YzQ3ZmI5ZTFlZGIyYjgxZDg1MmNkZTg3Y2NkN2UyMDQ3MGMxMDk1MGM5ZDdlNjljMyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L336-L336",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODk4YWZlYzEyNzUzNWZlYmRjMWJlNDU0MDA1OTgwNTI0M2Q0NjQwOGZlYWYzZjQ0MjdiNGQwYjc3MmQ4OTExNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTJjMjcyZjdkMjc1Y2VlNjc5MmI3ZjhjMGE4Y2NiMDYzMDdmZTIyYWNhZmUwZDJhNjFlODI5NGQ0Y2I5OTk4OCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L405-L405",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzZlYmYzN2E1ODRkZmRlZjUwOTA1N2VlMDMyMzFiMjdlYTYyMzcwOGFjYmVlZGMxNTlmYzJiNGJkNzdmNjI3YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjhjMzhhZGM0ZTJmNzQ2YmQxZTU1NjBkMjZiODU5OWVkNjk4YmE4YTM1OTlhYTAxNDBkMTJhMTVlNGRhMzQyOSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L416-L416",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTE5YTVlMjBkNWQxMzQ0ODY2MzQ3MzNlZTQxNDRjNGQ4NjNkNTYwY2Y1OGUwMjRiNDE2MzZiMDQzNDQyNjAzOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzZkMGUyNDhkODA1NTNlMzg1OGM4MDQ3NGRkNjMzZjY2ZDk2MGEwNWRhZDNkNTU1NzBjZDVkZWQ4ZGVlNzg1OSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L565-L565",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzg0NGMzZjIxYzUxYjUwZmZjNzMyZTYwODE2M2FkOGU5MDMxMmQyNWM5Zjg5MWI4YjEyOTUyMDE1YTI4NDMzYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzFhYTBkZjU4MDEzZTUwYWM1M2MzZjcyNDk1ZDY4MzA4NjNlNWE3MWY1NDI5MzY2NGI3YTAyYWZjYThkZjk5MyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L577-L577",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDZlZWJhMGVjZGEyN2JmNmVhOGEyODFlZmNjZWY1MjM0ZDNlOTE5OGRjZGU0YjAzYWM1NmRiMGU2YTM5ZDRjZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTYyMTkzNTRkNDFkMmFjNDBjMGQwZmUwNmExMTdmZWQ5Nzc3ZDRkOWFhYjdhZWMwNWUxNjFjMzllYjI5ZTVlMSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L611-L611",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGI0MTFlYjExNmM5NDY1YWJlZGRlOWFmOTNmZjNjYjQ4NzJmYWQ4MmFmYjAxY2EyN2ZhNzcxY2I2ZmUyZjQwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjM3OWIyNjQ5YzU3Y2Q3M2JiNDhjZWY4MDY3ZDM0YjZlMDU1ZWJiNTIyNzg4NTRmZDI4ZWU4NmVlZTg3M2U4YiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L634-L634",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjc0OWQxNzc0MzAyZjAyMDVmYWY4YmRjMGFhYzRkNzMwOTk0OTdmMjQ5ZmExOTVjZjFkNjFiNTM5MWNlYjM2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWFiMzc1ZjdmMDgyY2Q4ZTI1M2Y2OTIxZDMzMTNjYjA2ZTYzN2U5NWQ2YzMzYTMwYWUzNTVlZGExNmExZGI4MyJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L688-L693",
+          "version": "repo-lines-v1:sha256:c7021c1616afec284354b370a600a0bed0f75f9bca0827b652ea2da271823a35:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDk4MGFhMjAxZmNjYjZkNTVmMzUzMWJlY2NjZTFjYmFkOTUxMTBjMzBiZGQ1Zjg4MzZiZGNmMzBhODg5N2E3YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzIxM2RhNzMyYWZkYzQ1Yjk0MGJjODQxZWI3OTkyOTAyMTc3Y2JmN2RkNDlkMzc5NTk2Yjk2YTk5MDE1NDg0ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTIyYmFhNmMxZTY1YTFmNmUxMWNiMGE5YjFkNTlhNmE0NDQ5OTUxNTk1ZjQzZmJjYTM2NmM0MGI4ZGM3ZDQyNSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L762-L762",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTMxNzNjOGZhZTJmZjExMWQ1N2U4MDdiNjk5MGEzYWE3OTMxNDE2OTA4ZDljN2I4MDFlNWZjOTI2MDQ2YmZlNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzI3OTg3Mzg1ODY4YzhhZjgwMGM5Mzk2YzY2NDk2NjlmNDgyMTZkNzRlOTU2Y2Y3OTk4MmMyMDYzM2QyZTBhOCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L770-L771",
+          "version": "repo-lines-v1:sha256:8849b7d6e70dae0e97407050319c19e4392ac242848754d16c4d192c4ffc1564:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzdhMDFmOGY4ZWRjMzg0MWY3NzlmYmU1MTM5MTc5MTk4YTM0MWQxZWI1M2M1ODRiMGE5MzA0ZTA5YTQ2ZmQ5NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTY2OTI1NGQ4ZTIzYTVjZjcwOTE0YjQ2MTJjOTllNTQxMDI2YTkyNzIzNzkwNWY1YWNhNTViNGFkM2ZhMDc0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjE0MDAyYjM3OTkxOTRhMDJlZThiMzllM2NjODY1NjM2ZjcxMWY4NjQxOTJiMmJlZGU4ZjNjM2UzMTA4MzZmYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a3fef673248646cb9d29a28f5a5b4c54",
+      "statement": "Re-declaration follows those triggers rather than geometry generally: a snapshot whose layout section changed while the desktop fingerprint did not returns early from `renderDesktop` before the hotzone call, so the clickable geometry catches up on the next declaration trigger instead of on that snapshot — which is why a new interactive element must either be created with the `card` class and an id before a declaration runs, or be followed by an explicit `declareHotZones()` call.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L296-L299",
+          "version": "repo-lines-v1:sha256:8951ffd18ff4b593e24884300998803a64fd97b2c9f00e2a2cd67ebbd3ef2cbf:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjdmNTFhY2Y0MzM0ZGY2ZDgwYWYxYmEzNTNhN2U2OTFmZTMyMDNlZDIwZmU3M2Y2Y2EwOTIwOTA5MmQ4OTIxMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmE4NjI4N2I5MzljMDBhNDM2OGE1YzI3NDc5NWNkY2ViMTZkMTMwMTljYTc3MTllMGNlMWEzZmI4ZWRlNGM3OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjYyYTg4NWNlZjBkMjVlNjllNTU0MzlkZDg1YzMzOWQ3OTcxZjIxMTcxZmMxM2I3ODk1NDI5MWQ2OTRmOGZkZSJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L336-L336",
+          "version": "repo-lines-v1:sha256:725f2e829999467cc628fee95b98d9e28f6d7d8751d8ac086e7e61ca202ff411:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzI1ZjJlODI5OTk5NDY3Y2M2MjhmZWU5NWI5OGQ5ZTI4ZjZkN2Q4NzUxZDhhYzA4NmU3ZTYxY2EyMDJmZjQxMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODk4YWZlYzEyNzUzNWZlYmRjMWJlNDU0MDA1OTgwNTI0M2Q0NjQwOGZlYWYzZjQ0MjdiNGQwYjc3MmQ4OTExNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTJjMjcyZjdkMjc1Y2VlNjc5MmI3ZjhjMGE4Y2NiMDYzMDdmZTIyYWNhZmUwZDJhNjFlODI5NGQ0Y2I5OTk4OCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L712-L754",
+          "version": "repo-lines-v1:sha256:81d1712c5f55c8aa944f9601a34f347f4862cf57567791f0b6632aceb0f282ad:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3YzdmNTNhOTA4OTk3MThhYzZkNTU2NjRjYjY4ODk2M2YxYmM4NjMxYTM2MTBkZjU3ZDVmYWVjZjBlOWYxZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5MTk2ZDUzMWI3OGFmYWE2ZTJiMGRhMDc0YTIwMDUyYWZiZDUwNzU1OGJiYzk1YmZiNzE4MWZhMWMyNWZiMTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_29987e47297b4317bd01341014679eb9",
+      "statement": "The failure mode of a wrong rectangle is silent: `setHotZones` is fire-and-forget with no response, so a missing or misplaced rectangle simply means the main process's cursor poll never lifts click-through there and the interaction falls through to the desktop (or another window), while an oversized rectangle creates a region that swallows desktop clicks without showing a control. This is why the acceptance battery asserts declared rectangles by id in the `hotzones` evidence record, including one belonging to a plugin hot-plugged at runtime.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L2127-L2151",
+          "version": "repo-lines-v1:sha256:61106223516284804114f4b5836a4f5b5862087a6d4356bbc5db0a95e7614ad5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxYzViNjA2ODY1NWU2NDQ3MzM4NDM3MjljOGFjNzJiYjA1Y2FkYzBmNmNkZWZiNDlmZGMxNGFmZDZkNWE3ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkOTc2NWIxMjczMTE1N2E1YzZjNTMxODI5OGIyODdiOWVhMmQ0OWYxYzE2MDcyZDcyYmNmOGFlNzE3MDdiOTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhZjc1Y2NiOTI1ZjI4NTNiMDIzMDk1NjVmMDdhNzU3Y2ViNjdmNzg5M2U1MDhjZGU4NGQ2OGJmZTRhZmM3NTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4ZjYxMThjZWNmZjA3Y2JmYWE0M2QyOTdjZTVhMWZkNTQxYzdlMDM4OWQ1Yjk3MGUxOWJkMWI4ZWMxOGFhMjMifQ"
+        },
+        {
+          "resource": "repo://app/accept/battery.js#L743-L750",
+          "version": "repo-lines-v1:sha256:07beb6346fdfad1d1c0f2f4da1d406b216b02fb373218ad5f4e107eae20b7b6e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjY3M2ViNTEzZDg4NGZmMjAyOTBkZDNiMGZlMTU3ZmNkYmFhZmRmYWIyMDEwY2NhYTViNzgxNWY1MWMyZGM4NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQzMDdhOGMxMzRjYjU1MmZlOGY5NGMzYzYwYTI2ZTYxMzA4OTQ0OTU2NDMwODcyNmJlNDIxMjJiYmMzNGNkMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDBlMDJhYWJkZWExYWQ1OWMwZjBiNjlmYWEwM2Q0ODNkMDA1Mzc0OTA2NTVjMzBiMGRlMWM0Nzg3NGU0ZWFjNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODNmOTkwNWJlZjNkY2FhMzAwY2QyMmQ5NThhYTg0YzdiOTllODI3MDU1N2FmOGM3ZTRkYmIzODJmODExZDFlYiJ9"
+        },
+        {
+          "resource": "repo://app/src/main/hotzone.ts#L41-L69",
+          "version": "repo-lines-v1:sha256:7f8fd470d512b2ae8f3eb9bb99b27b163dd6ed290f5bd27b631826f7acb8e1cc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwNWQxM2U1MDRiNTcwNGZiZmE3NzQ2MDgzZGZlODhiZTExZGFiOTgzZThlMzVjODNjYTFiOTZkZGNlNDEzNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwNzgzOTllZmE2OThhNjFlMGU2M2QxOTMzNGRjMjgyNWE5MmNiYTRiM2U4MzA4ZmMxNzRiZDM1MGQzN2NiMzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-window.ts#L42-L42",
+          "version": "repo-lines-v1:sha256:98d51babfcfddd22d6b4cd05b26e52c46d34a11ecdfa90cde77f866c47ab489c:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOThkNTFiYWJmY2ZkZGQyMmQ2YjRjZDA1YjI2ZTUyYzQ2ZDM0YTExZWNkZmE5MGNkZTc3Zjg2NmM0N2FiNDg5YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDY5ODIxZDg2YzQzZTNkNWQ0YWVhZjYwN2FhZTJhM2Y2OWMwM2U0Y2VkZTEzMTdmY2JkMTlkZGU0NDZjOWI1YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOWM2M2NlOWM4MWUwZDA4ODM3ZTRkZTU5MGY1NzY0NWYzNGJlMDZmMmY4MzJjMmQ2ZGJjZjNjNzQyZWFjYzdlMyJ9"
+        },
+        {
+          "resource": "repo://app/src/preload/index.ts#L23-L30",
+          "version": "repo-lines-v1:sha256:732d87c56b32734cec9a3b85aaccb91c61a7402186c7c398e6b4b7f30d7db25d:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjYxYTkxZWMyOTg5NjAxNjczYTM5YjMyODYzZGQ1MTAxYmJkMTkyZmFiZjMwMDNhYzliZTA4ZjAyMzM3ODUxMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjBjOTQ5ODU1MjZjMWM1N2VmMDBjMDBkM2Y0ZGM5MDYxNTY3N2EwYTM2YThiNzk1ZGZmOWFmZmQ1MGZlOWY1OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDFiYWIzYjg5ODAzNWI3Mzk3YzA3Y2MxNjNkYjVjZjVlOTdkOTVkMDlkYTlmMTZiOWRlNzgzZGE0OWU0YzVjYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_873bdf32a5414d1dbd8fcafdef336660",
+      "statement": "Evidence is one fire-and-forget channel: `notify` sends `deck:host-notify`, which the main process appends as a JSONL line prefixed with a wall-clock `t` when `DECK_EVENT_LOG` is set. This file's records are the contract the acceptance battery keys on — `desktop-rendered` (including per-item rects), `desktop-selected`, the `desktop-launch-*` and `desktop-move-*` families, the `settings-opened`/`settings-closed` pair with a `reason`, the four `settings-opacity-*` records, the `search-*` records, `plugins-changed` and `snapshot-error` — while `hotzones`, `keyboard-mode-on` and `keyboard-mode-off` are written by the main process and card-level records come from the plugins over the same channel.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L57-L82",
+          "version": "repo-lines-v1:sha256:8710cfa62de97c1652c6a2c4ece7ecb6cf5ffba34790b580a360c08c802c4425:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxNjQ3OWI3NWIzNmI5M2NmNjU3NjI3NDJlYTE5MDkxOGRkMzAxOTNlZmYyZWQ5MTg4YTczMjU0ZWU5OTVlN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjllMDA5ZTFhZGNkMDQ2YjNmMTExOGNiMDdkMzBjYWRlOGI3ZmM4NWU0NGQzYzIwMWM5NzUyMTkwMzkxYjRlM2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        },
+        {
+          "resource": "repo://app/src/main/panel-ipc.ts#L9-L24",
+          "version": "repo-lines-v1:sha256:05dcb2b29f9a78fad0ee6b63a9c41e8e22b8dc659da6cda8ed311e5006aed274:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGUyMGQ3OTViYmEzZDM5ZGQyNDY2NGEwY2NmNGY0Y2YwMzdlNjVkOWZkNDkwZWJjMGU4ODg5ZTQzYmE4NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3Mjg2YTI5YmY3NzA4N2RkYWM2ZGEyYjlkZWM5ZGJmNWZmYjg4OGI2ZDA4ZTljMWFmYTgyNTMzYjdlMWQ0OTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMWU3MDBjZGMzZjBiNzczOWUxYmM3NDMwZDI2MTNkMzcxMWY2OGEzOWZlNDA0ZWQ3OTJjMzJmMTc2MWMzZWEifQ"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L15-L19",
+          "version": "repo-lines-v1:sha256:16724dfdb3fe00ada650e5cfcdca3d0bb91e5cdc1afd8fd7b1c285a80e1d75a2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjc3MmNmZTI5MjBkZDU4M2MzZjM0ZTQyYTQ4MTRlMjhiMWZhNWY3ZDM3MWVkNzQ1ZDdhMmRlMTM5OWUxMWZlMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzdiYTQ3OTM3ZjY3ZmM4MTk2NTQ3OGRhYWRlMDQwOGMxNjY2YWI0ZmQwYzEwMzFjMGFkZTgyMWY0ZmUwMmYxOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzUzY2E3MDc2ZDIyYThkZjEyY2I4M2ZiNjNlYjAyZThhOGZiNTQwOGQyNDlmOWJlYjBjMzVhMzk0Y2RiYmMyZCJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L337-L353",
+          "version": "repo-lines-v1:sha256:574cedf6949852204fdabd250d3fbdff244c6bb334802ca8b42314889cfad1e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5YmNjMmIwZjQyYmRjZWFkNTZkN2RlOWMxNjg0ZGYxZmNhMzkwMzk3NGY0MDBlMTAxMWRkMWQzMzZhOWExNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiYjY1YzQyODhjZjc5ZTdkZTRlNjk0NWQzODdkY2ViZjhiYTUwOTE5ODVkZWMxYTI3M2YzYzVmNTdhYzBjNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxNGUzYWQ4MDY0ZDE5YWMzY2Q5OWUzN2FkNTQ2ZTc1M2RkY2RkYjEyNWZiYTcxYjIyNzhjMzJhZjAxYzU2OTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5NGYwMmM4NTFmNzU0NzcwY2IxMTBhOTA0MTE0YzkzODU4M2M1YWI4ZDQ0YWM0YjRjNmYyNmNkMzAzYzJlNGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b7401e40f8604e4ba252698221702473",
+      "statement": "No bridge failure in this file escalates: launch, move, reset, opacity-write and search-action rejections are turned into evidence records instead of dialogs or exceptions, icon failures fall back to a glyph, and abandoned search responses are discarded, matching the stated policy that a panel of cards must not fight the desktop for attention.",
+      "evidence": [
+        {
+          "resource": "repo://app/src/renderer/main.ts#L585-L591",
+          "version": "repo-lines-v1:sha256:1da27099d065eead7b5af7398b561d6be94beb793f7ab9191003f767577a699a:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTRkMzI3MGU1Yjc1NTBhODNkOWJkYmIzMjg2NGUzM2M3OTVmNTI5MGVjOWU2MzJjMWFiZjhhYWFmMzlmMTllOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzEzNDUxODAxMDViMGM2NmE3N2RhZDUxYmIzNzkwMWEzNzMyYzk2NTRiYTRkZTM5ODFmODFlMTgxNzUyNDhiZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTA5NGM1NTVjMzRiYmI4MzY3NjMyNjE2MjAwNzQ5NTA5Y2RhYmUyMDNkMDFiMWIyOGU0YjMwNzlmMzdhYThlYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODM2MmE4NzQzYjBhMGE4NmYyNGIwZTcwNzQ3YjEzNmEzZjRjNzNlNzQ1NTRhODhkNzA0MzE1MzY4MGZmNDMwNiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L765-L767",
+          "version": "repo-lines-v1:sha256:7c27c07da97d639b05e731f0de2ea18833ceb4c69309b7338956ad38a0438748:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWJhYTc3ZTMzNjJkZTU0ZTQ2Mzk4YjY0ODhkZDY5ZjNkMDJmMDhhMWRjNWI5NTI1MjZkMDQ0M2M5ODQwYmQ2OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjY4MjU2MDRmZDNiOTg5ZGExNTk5OTA0MTc4NWNiNTUzZWQ4YjMzYjA1YmY4ZjdlMDRmYTdjNDZhODE2YTAwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjZiNzE5MzZjNjFmYjIwZTE5YzBmMzkwMjU4NDY5ZjQzMmRkMzUzNzdkZjMxMGY2NTg4ZGRmODJhZTQ3YWI1MiJ9"
+        },
+        {
+          "resource": "repo://app/src/renderer/main.ts#L82-L96",
+          "version": "repo-lines-v1:sha256:eec129be75b3b58f4c57c30b683335fbbd0139f0a2217730b7f1adee552732b8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMDEwOGNhY2I5YTU1MTFjZDlkYWFkNTA0Mzg5Y2RkNzMwMmY0MmM4NDM5NTU5ZjM0ZTQ4MTQ1ZmRkNmZjNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExMTY2Yjc1ZGUzMjEzNTYzOTFlNGUyYmM4MzBhZjI0NzEwNDNmNzM1ODNlZDQxOGZhYzdlM2FhYTkxNTczMzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1dd7652ff1c143a9bdf6a0b6f3785b18",
+      "statement": "There is no offline test for `main.ts`: `vitest` never loads the page, the preload runtime or the hotzone tracker, and the offline suite only touches this area indirectly — a source-level guard that keeps `node:fs` out of the renderer runtime and the preload, and a config test that pins the default desktop geometry (doc-zone origin, `docMaxRows`, dock max width) the page applies. The rest is verified on a real machine by `npm run accept`, whose DIP constants mirror the stylesheet (clock card 48/48/320×176, the search card's 420 width, the document strip's 1056 right edge, the dock's 110 px bottom band), so moving a card in the stylesheet without the matching battery constant turns probe clicks into misses.",
+      "evidence": [
+        {
+          "resource": "repo://app/accept/battery.js#L27-L38",
+          "version": "repo-lines-v1:sha256:cabbea872a9aca7dbe2621f7c08370c574febbed212b0124cff25329be61d489:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ZGQ3OWNiZjE2OWI4ZmQxNGQzNDE0MzU0ZWZjMDgxZDYwNDRlN2VlMzZmOTk0ODlkNWU0ZTFkNjlkMzZiMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiNDRlZGM5NDM2MGZjZTM2Mjk5MmU4ODg3NmNmMzRkMzc1OTdkMmIzMGVlMmM4YjhmOTAyOTk5YTUwZmFmNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyMmQ2Y2IzMjJmNjcyMTU4OGNkY2VmNWJkMzQ0MmVhNDliMGViNmZiMmUyNTBjY2FmODU2NjM2NzJjMjhjZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3N2UwOTRiNDQ0YWIyOTY2ZjQyZDg5ODAzNmVhNTA5MmY2MjU3ZDQ0MTY4ZmNmYzMyOWI4YjQ3MjE1MmI5ZjAifQ"
+        },
+        {
+          "resource": "repo://app/src/main/index.ts#L241-L246",
+          "version": "repo-lines-v1:sha256:136ed79bfd0f0322be67e9d668775a7ae4c06a03cfde73205c38c9b6f920dd7d:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmE2MGIyNGQ3ZTI0NGEzNjA5MTA1MzE5ZjJlZmQ3Y2M5YzFlZThkMDlmZTIxNThiYzQ4NTY0NDBjMGEwMDk1YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmVhMjg5M2VjNDM3ZWRiN2E5ZGFkZTdmMDM1NjU2YTY4ZWQ1ZTVjZDkyYjg5MGI0OWRmYzRkOTZiZDEzZmU1MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjYwMTZkZGFjMTc5ODM0ZDhjNjMwMWZjYzZkMjM4YTUzMjQ2OWEzOGZkYjA2ZGQ4MTQ1ZGY5NDFhMDJlNjQxNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzEwYzU3ZDg3NTA1OGJiY2E5M2RiYzMyMGRkMDgzMmVlNWRkNDZkYjc5YzhmNGQzNTY3YzFhNjEyNGYxMDI4NCJ9"
+        },
+        {
+          "resource": "repo://app/tests/config.spec.ts#L78-L85",
+          "version": "repo-lines-v1:sha256:7ce4be958f2b1fb8b016c11b6884c8ed9ab1df68a11bcd61dc2b4709f5abfa4e:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzI2NDkyMWRhNjVkNmRkZWY4OTAzNGY4YmZkYjA0NmNhMjdjZGUyN2RhNzliYzg4ZDg0YTRjNGM3ZDcwNmExZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTllMjAyYzViMGRjYjgzNDRkYzU5MWQ5MDM1MDIyMDZmZDkxN2Y0ZmY3YjcyYjkzNjU1NGU1NzNiNTkzOGI4MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDRhNDkwZjI1OWIwZjNmZmU1MTJhNWJjMjA3OWFlMTM1Y2IxYTY0Mzc2Y2M5NWM2YmE2ZmVjMDYzMTkxNmVkYyJ9"
+        },
+        {
+          "resource": "repo://app/tests/contract.spec.ts#L529-L534",
+          "version": "repo-lines-v1:sha256:e072125d5c18d22525bcf2e77d1e3a8bdaabea629028683b43f6ff3f6cd8aa43:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk1MGE5Y2MwZGRmZmVhMmYzN2ZiOTI3NmNiY2ZkNzFiNzBjYTM4MzAwZDRjYjJkNjEzZWJlNzI3NmE0YzEyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JiNjVjNDI4OGNmNzllN2RlNGU2OTQ1ZDM4N2RjZWJmOGJhNTA5MTk4NWRlYzFhMjczZjNjNWY1N2FjMGM2MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjUwYTdmY2RiZTg2ZWQwYjA4MGQ5MmZlY2VjOGVmMzlkNDk4MDVjNGNmNDBiMTA4OTQzZDBlNGZmZmRlZThhNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDcxOTAwOWZhMDdlNWY3Mzg2ZDJkNWMxMjcxODkxNWM3ODdmMjU3YjE4N2RlMzVmNzQ4OTE5MDNjY2ZlNDY3NCJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-25T07:24:20.996Z"
+  }
+}

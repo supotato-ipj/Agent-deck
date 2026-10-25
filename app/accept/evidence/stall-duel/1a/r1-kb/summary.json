@@ -1,0 +1,179 @@
+{
+  "arm": "kb",
+  "round": 1,
+  "tag": "1a",
+  "wind": false,
+  "startedAt": 1791479850500,
+  "activeSeconds": 240,
+  "panel": {
+    "pid": 32904,
+    "stopOutcome": "graceful-gone"
+  },
+  "probeCount": 425,
+  "stalls": [
+    {
+      "onsetMs": 1791479868546,
+      "endMs": 1791479870546,
+      "durationMs": 2000,
+      "terminal": false,
+      "probes": 1,
+      "onsetIso": "2026-10-08T17:17:48.546Z"
+    },
+    {
+      "onsetMs": 1791479870550,
+      "endMs": 1791479872550,
+      "durationMs": 2000,
+      "terminal": false,
+      "probes": 1,
+      "onsetIso": "2026-10-08T17:17:50.550Z"
+    },
+    {
+      "onsetMs": 1791479872556,
+      "endMs": 1791479874556,
+      "durationMs": 2000,
+      "terminal": false,
+      "probes": 1,
+      "onsetIso": "2026-10-08T17:17:52.556Z"
+    },
+    {
+      "onsetMs": 1791479875071,
+      "endMs": 1791480080399,
+      "durationMs": 205328,
+      "terminal": true,
+      "probes": 398,
+      "onsetIso": "2026-10-08T17:17:55.071Z"
+    }
+  ],
+  "mainLag": [],
+  "rendererStalls": [],
+  "kbTransitions": [
+    {
+      "t": 1791479856098,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479856439,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479857101,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479857684,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479858317,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479858927,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479859563,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479860207,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479860833,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479861466,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479862100,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479862678,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479863321,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479863953,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479864592,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479865198,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479865835,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479866454,
+      "kind": "keyboard-mode-off"
+    },
+    {
+      "t": 1791479867091,
+      "kind": "keyboard-mode-on"
+    },
+    {
+      "t": 1791479867730,
+      "kind": "keyboard-mode-off"
+    }
+  ],
+  "cdpEvalCount": 21,
+  "cdpErrors": [
+    {
+      "t": 1791479868374,
+      "message": "fetch failed"
+    }
+  ],
+  "coupling": {
+    "total": 4,
+    "withinWindow": 1,
+    "fraction": 0.25,
+    "medianAbsDeltaMs": 4826
+  },
+  "windCoupling": {
+    "total": 4,
+    "withinWindow": 0,
+    "fraction": 0,
+    "medianAbsDeltaMs": null
+  },
+  "order": [
+    {
+      "onset": 1791479868546,
+      "order": "isolated",
+      "deltaMs": null
+    },
+    {
+      "onset": 1791479870550,
+      "order": "isolated",
+      "deltaMs": null
+    },
+    {
+      "onset": 1791479872556,
+      "order": "isolated",
+      "deltaMs": null
+    },
+    {
+      "onset": 1791479875071,
+      "order": "isolated",
+      "deltaMs": null
+    }
+  ],
+  "labels": [],
+  "terminalSpan": null,
+  "files": {
+    "eventsFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-kb\\panel-events.jsonl",
+    "spansFile": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-kb\\panel-events.jsonl.spans.jsonl",
+    "harnessLog": "D:\\test-folder\\wallpaperengine-research--fix132-stall\\app\\accept\\evidence\\stall-duel\\1a\\r1-kb\\harness-log.jsonl"
+  }
+}

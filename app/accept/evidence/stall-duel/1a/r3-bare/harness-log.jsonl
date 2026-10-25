@@ -1,0 +1,8 @@
+{"t":1791481483984,"type":"config-override","taskbar":false}
+{"t":1791481483984,"type":"round-start","arm":"bare","round":3,"seconds":240,"wind":false,"screen":{"factor":1,"phys":{"w":2560,"h":1440}},"bootUptimeS":0}
+{"t":1791481487171,"type":"panel-ready","pid":31776,"hwnd":3148914}
+{"t":1791481487172,"type":"hotzones-seen","rect":{"left":0,"top":0,"right":2560,"bottom":1392}}
+{"t":1791481727183,"type":"drive-end","activeMs":240000,"frozen":false,"reason":"deadline"}
+{"t":1791481727183,"type":"terminal-freeze-detected"}
+{"t":1791481727716,"type":"freeze-dump-ok"}
+{"t":1791481728521,"type":"panel-stop","outcome":"graceful-gone","pidsLeft":[]}
