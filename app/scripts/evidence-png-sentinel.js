@@ -11,6 +11,10 @@
  * 按路径前缀计数：前缀 `app/accept/` 或 `.scratch/` 且后缀 `.png` 的跟踪文件必须为 0。
  * `archive/wallpaper-assets` 下 2 张上游壁纸像素资产非证据，不在证据口径内。
  *
+ * 前缀口径**故意宽于** `.gitignore` 的忽略根（`app/accept/evidence/**`）：哨兵罩住 `app/accept/`
+ * 整树，防未来证据截图落到 evidence/ 之外逃过门禁。合法非证据 PNG 若确需落 `app/accept/` 树，
+ * 先过分类账盘点（章法守则）再调整哨兵口径。
+ *
  * 用法（任意目录，仓库根直跑或 app/ 下皆可——脚本用 `git rev-parse --show-toplevel` 自定根，
  * 不依赖 cwd；CI 里 checkout 之后、Install dependencies 之前挂载，零依赖快失败）：
  *   node app/scripts/evidence-png-sentinel.js
