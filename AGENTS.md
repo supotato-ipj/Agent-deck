@@ -5,6 +5,7 @@
 ## 分支与 Worktree 布局（平行开发）
 
 - **master**：GitHub 上的集成分支，受 ruleset 保护——改动一律走 `feat/<slug>` / `fix/<slug>` 分支 + PR（CI 绿才可合并），不直接推送。
+- **历史保留窗（2026-10-25 用户拍板）**：master 历史只保 7 天滚动窗，更老的历史定期钝切丢弃——个人原型期不需要更老的审计链。切根 recipe：边界嫁接（`git replace --graft <窗口内最老提交>`）＋树过滤（剥 `app/accept/`、`.scratch/` 下 `*.png` blob，防树引用残留）＋ force-push（ruleset `master-integration-gate` 经 API 临时 `enforcement=disabled`，秒级窗口后原样恢复）。切根会让保留提交全部换 SHA，issue/评论里的旧 SHA 引用随切失效（已知并接受）。切根后并流纪律见 worktree-workflow。
 - **主检出**：`D:\test-folder\wallpaperengine-research`，常驻本地 `master` 分支（每次合流后 `git pull --ff-only` 快进到 origin/master）。**开机自启指向主检出的 `app/`**——worktree 会被清理，自启项不指向它。
 - **worktree**：`D:\test-folder\wallpaperengine-research--<slug>`。面板是**单实例**（二次拉起自动退出），并行 worktree 不要各拉一个常驻面板；真机验收用 `npm run accept`（控制器进程绕开单实例锁，但全量电池拉起的真面板子进程仍抢锁——一律走下节调度协议）。
 - 开工/收尾的完整流程（建树、自检、PR、验收快进、清理）见 `docs/agents/worktree-workflow.md`。
