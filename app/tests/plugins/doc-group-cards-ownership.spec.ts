@@ -37,6 +37,8 @@ import {
   type CustomGroupDef,
   type GroupStore,
 } from '../../plugins/doc-group-cards/ownership'
+import { isHandEditableKind, KIND_TEMP } from '../../plugins/doc-group-cards/menu'
+import { moreLabelOf } from '../../plugins/doc-group-cards/geometry'
 import type { GroupableItem } from '../../plugins/doc-group-cards/grouping'
 
 // ---------------------------------------------------------------------------
@@ -290,10 +292,11 @@ describe('三层归属：自定义卡命中 / 冲突先建先得 / 领走的不�
     // 路由裁决里根本没有 temps 这一层：没有自定义卡领走时一律落固有组
     expect(resolveOwner('.docx', store)).toMatchObject({ tier: TIER_BUILTIN })
     const cards = buildCards([file('a.docx')], store)
-    // 工单187 裁决①起，自定义卡即便空着也出卡（0 格），临时卡空着不出（它是粘贴的产物，
-    // 不属于本次裁决的范围）；本用例要钉的那条——a.docx 既不进自定义卡也不进临时卡——一字未动
+    // 工单187 裁决①起，自定义卡即便空着也出卡（0 格）；工单200 裁决 A 起临时卡同款——0 格也照样
+    // 出卡。本用例要钉的那条——a.docx 既不进自定义卡也不进临时卡——一字未动
     expect(cards.map((c) => [c.id, c.tier, c.items.length])).toEqual([
       ['dgc-c1', TIER_CUSTOM, 0],
+      ['dgc-t2', TIER_TEMP, 0],
       ['dgc-docx', TIER_BUILTIN, 1],
     ])
     expect(membersOf(cards, 'dgc-c1')).toEqual([])
@@ -542,6 +545,7 @@ describe('F4：改名之后临时卡的成员名跟过去', () => {
   it('端到端：改名前那一份**认不出**这个文件（它静默回落固有组卡），改完名跟过去就认得了', () => {
     const items: GroupableItem[] = [file('杂 - 副本.zip')]
     // 改名前的组定义：名单里还是旧名 → 改过名的文件不在任何人名下 → 回落固有 zip 组卡
+    // （工单200 裁决 A 起，那张认不出的临时卡本身照样 0 格出卡；这里钉的是「认不出」这半边）
     const orphan = buildCards(items, withTemp)
     expect(orphan.some((c) => c.tier === TIER_TEMP && c.items.length > 0)).toBe(false)
     expect(orphan.some((c) => c.tier === TIER_BUILTIN && c.items.length === 1)).toBe(true)
@@ -550,5 +554,59 @@ describe('F4：改名之后临时卡的成员名跟过去', () => {
     const after = buildCards(items, moved)
     expect(after.find((c) => c.id === 'dgc-t1')!.items.map((i) => i.name)).toEqual(['杂 - 副本.zip'])
     expect(after.some((c) => c.tier === TIER_BUILTIN && c.items.length > 0)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单200 裁决 A：空临时组卡留屏——与工单187 裁决①同形的第二层
+// ---------------------------------------------------------------------------
+
+describe('工单200 裁决 A：空临时组卡照样出卡（0 格），固有层仍守「空组不占卡」', () => {
+  /** 一张名单引不到任何桌面文件的临时卡（认领的文件被全删之后的形状） */
+  const orphanTemp = normalizeStore({
+    version: 1,
+    nextSeq: 2,
+    groups: [],
+    temps: [{ id: 'dgc-t1', name: '临时 10-24 21:04 01', seq: 1, createdAtMs: 1710000000000, names: ['已删.zip'] }],
+  })
+
+  it('认领的文件删光后卡**仍出卡**（0 格、id 唯一、卡面显示卡名）——定义不再是孤儿', () => {
+    const cards = buildCards([file('a.docx')], orphanTemp)
+    // 临时段排在固有段之前（创建序），0 格卡照常占位；屏上有卡，EDIT TYPES / DISSOLVE 就回得去
+    expect(cards.map((c) => [c.id, c.label, c.tier, c.items.length])).toEqual([
+      ['dgc-t1', '临时 10-24 21:04 01', TIER_TEMP, 0],
+      ['dgc-docx', 'DOCX', TIER_BUILTIN, 1],
+    ])
+    const ids = cards.map((c) => c.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    // 定义还在 store 里，重启（落库读回）后仍算得出同一张 0 格卡
+    expect(roundTrip(orphanTemp).temps.map((t) => t.id)).toEqual(['dgc-t1'])
+  })
+
+  it('从来没有成员的空批次（names=[]）一样出卡；固有层反向断言：桌面此刻没有文件的固有组**不出卡**', () => {
+    const empty = allocateTempCard(emptyStore(), 1710000000000).store
+    const cards = buildCards([file('a.docx')], empty)
+    expect(cards.map((c) => [c.id, c.tier, c.items.length])).toEqual([
+      ['dgc-t1', TIER_TEMP, 0],
+      ['dgc-docx', TIER_BUILTIN, 1],
+    ])
+    // 「空组不占卡」只对固有组成立，本票一个字没动：桌面上此刻没有 .zip → 不出 ZIP 卡
+    expect(cards.some((c) => c.tier === TIER_BUILTIN && c.items.length === 0)).toBe(false)
+  })
+
+  it('唯一化兜底对 0 格临时卡同样生效（空卡也占一个 id，撞名照旧被顶开）', () => {
+    // '.t1' 净化后正是 dgc-t1 —— 与 0 格临时卡正面相撞，与工单187 对自定义卡验的那条同款
+    const cards = buildCards([file('x.t1')], orphanTemp)
+    const ids = cards.map((c) => c.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(cards.find((c) => c.tier === TIER_TEMP)!.id).toBe('dgc-t1')
+    expect(ids).toContain('dgc-t1-2')
+  })
+
+  it('0 格临时卡的两条出路不回归：isHandEditableKind 对 KIND_TEMP 仍为 true（EDIT TYPES / DISSOLVE 挂它），+0 徽标仍不出现', () => {
+    // 出口判据自工单185 起在 menu 侧，本票只断言不回归
+    expect(isHandEditableKind(KIND_TEMP)).toBe(true)
+    // 「+N」徽标只在确有溢出时渲染（geometry.moreLabelOf）：0 格没有溢出 → 空串，调用方不建节点
+    expect(moreLabelOf(0)).toBe('')
   })
 })

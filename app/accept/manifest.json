@@ -1416,6 +1416,17 @@
             "pixel"
           ],
           "estSeconds": 30
+        },
+        {
+          "seg": "P200",
+          "ticket": 200,
+          "title": "空临时组卡留屏（2026-10-24 裁决 A）：认领文件删光后 0 格仍出卡（id 唯一、卡面「临时 … · 0」）/ 无「+0」徽标（无溢出不建节点）/ 展开·多选开关·框选·ENTER 读 0 格几何不抛且空选区不发 launch / 固有层反向断言：全表无 0 格固有卡（「空组不占卡」一字未动）/ 空临时卡菜单四行齐（EDIT TYPES·DISSOLVE 两行在）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 15
         }
       ],
       "areas": [
