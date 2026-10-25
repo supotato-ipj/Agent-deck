@@ -545,6 +545,19 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(m).toBeTruthy()
   })
 
+  it('条带净空不锚视图位（工单293 改段）：stripBounds 净空由调用方给定，降级档账面（appBarDegraded）才给 48——视图位瞬态（收栏置位翻开 WS_VISIBLE）不得写几何账', () => {
+    const src = codeOf(CTRL)
+    // stripBounds 本体不再读 nativeTaskbarVisible（视图位 → 几何账的通路已剪断）
+    const sb = src.match(/function stripBounds\([\s\S]{0,400}?\n\}/)
+    expect(sb).toBeTruthy()
+    expect(sb?.[0]).not.toMatch(/nativeTaskbarVisible/)
+    // 净空动作收口在控制器 helper（两处降级落点共用；helper 落协商账，keepalive 契约不变）
+    expect(src).toMatch(/const applyDegradedClearance = \(s: TaskbarSession\): void => \{[\s\S]{0,300}?stripBounds\(TASKBAR_BOTTOM_CLEARANCE\)/)
+    expect(src.match(/applyDegradedClearance\(s\)/g)?.length).toBe(2)
+    // display-metrics 重排按账面净空（降级 48 / 健康 0）
+    expect(src).toMatch(/stripBounds\(s\.appBarDegraded \? TASKBAR_BOTTOM_CLEARANCE : 0\)/)
+  })
+
   it('销窗路径（destroy）也复原：面板退出/禁用在收栏态时账不悬空（还原路径①扩展）', () => {
     expect(code).toMatch(/restoreTakeoverAutoHide\(log, reason\)/)
     // destroy 内的复原先于会话判空（与 hidNative 还原同一位置纪律——账不随窗生灭）

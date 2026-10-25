@@ -66,11 +66,17 @@ function primaryPhysRect(): PhysRect {
   }
 }
 
-/** 主屏底部通栏几何（v1 仅主屏，ADR-0007 Out of Scope）。净空按视图事实：
- * 原生任务栏已隐藏（常态）落屏底，仍可见（隐藏失败降级）让出其上沿。 */
-function stripBounds(): { x: number; y: number; width: number; height: number } {
+/** 主屏底部通栏几何（v1 仅主屏，ADR-0007 Out of Scope）。净空**只在降级档**给：
+ * 原生任务栏隐藏失败（句柄缺位等）让出其上沿；健康档恒贴屏底。
+ * ⚠️ 工单293 改段：净空判据从「视图事实 nativeTaskbarVisible()」改为**调用方给的
+ * 降级档标记**——视图位是瞬态（收栏置位会翻开 explorer 的 WS_VISIBLE 位，「显示位」
+ * ≠视觉在场，spike 附记），把几何锚在它上面会让 display-metrics/ABN 协商在收栏过渡
+ * 窗口期写出「带 48 净空」的矩形并粘在协商账里（真机 R7-R9 实证：条带停在
+ * [屏底−96, 屏底−48] 一整段、keepalive 反而按住不放，51 电池 P2 同签名红）。
+ * 健康档下原生栏的可见位翻不翻都不动条带——可见性账（ShowWindow）与几何账本就互不代偿。 */
+function stripBounds(clearanceDip = 0): { x: number; y: number; width: number; height: number } {
   const d = screen.getPrimaryDisplay().bounds
-  const clearance = nativeTaskbarVisible() ? TASKBAR_BOTTOM_CLEARANCE : 0
+  const clearance = clearanceDip
   return {
     x: d.x,
     y: d.y + d.height - TASKBAR_HEIGHT - clearance,
@@ -441,6 +447,16 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     s.nativeWatch = null
   }
 
+  /** 净空降级（工单293 改段）：注册失败即把条带上移一身高、协商账同步落降级矩形——
+   *  净空不再锚视图位（transient，见 stripBounds 注），锚降级账面；keepalive 从此按
+   *  降级矩形回正。create 侧降级档与 applyBarMode 的 claim 失格两路共用。 */
+  const applyDegradedClearance = (s: TaskbarSession): void => {
+    if (s.win.isDestroyed()) return
+    const bounds = stripBounds(TASKBAR_BOTTOM_CLEARANCE)
+    s.win.setBounds(bounds)
+    s.negotiated = bounds
+  }
+
   /** 协商矩形（物理）→ 条带窗 DIP 几何（差异 >1 DIP 才动，避免与系统微调来回震荡） */
   const applyNegotiated = (s: TaskbarSession, rc: AppBarRect) => {
     if (s.win.isDestroyed()) return
@@ -591,6 +607,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       } else {
         s.appBarDegraded = true
         appBar = 'register-failed'
+        applyDegradedClearance(s) // 净空降级（工单293 改段）：几何动作收口在控制器 helper——档位迁移器不自写窗口几何（既有守卫同款纪律）
       }
     }
     // ②′ 原生栏托管（工单260；ADR-0016 双缺陷复审 2026-10-25 扩为全接管期，Q1/Q2）：
@@ -676,8 +693,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // 宿主先起（#153）：收编广播尽早落地，图标随条带就位（boot 启用态由 init 先建，
     // 此处幂等 no-op）
     setTray(true)
-    // 先隐原生再建窗（工单50）：stripBounds 按视图事实取净空——隐藏成功落屏底，
-    // 失败（句柄缺位等）降级让出原生任务栏上沿，49 实证的同矩形 z 序竞争不进场。
+    // 先隐原生再建窗（工单50）：条带**恒 born 贴屏底**（工单293 改段——净空不再锚
+    // 视图位，见 stripBounds 注）；注册失败才由降级档分支把条带上移一身高。
+    // 49 实证的同矩形 z 序竞争（原生栏在场时）由「先隐原生 + 健康档贴屏底」规避，
+    // 隐藏失败（句柄缺位等）走降级档净空，竞争面同样不进场。
     hidNative = hideNativeTaskbar(log)
     let w: BrowserWindow
     try {
@@ -780,6 +799,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       // 降级档（工单50/51）：注册被拒 → 不占工作区、也让位。收栏整体禁用（同待遇——
       // 没有占位就没有「释放占位」这回事，且降级档下最大化窗本就覆盖全屏）。
       s.appBarDegraded = true
+      applyDegradedClearance(s) // 净空降级（工单293 改段）：净空锚降级账面，不锚视图位
     }
     // 热区离开重申置顶：热区交互（点击）会顶起 z 序归属变化（探针01-C 同机制），
     // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。让位闸门置位期间跳过
@@ -864,14 +884,15 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   // 主屏几何变化（换分辨率/DPI/换主屏）即重排条带；窗口不在场（禁用态）无事可做。
-  // AppBar 生效档走重协商（占位与栏同矩形重算）；降级档/收栏态无占位可协商——按视图事实
-  // 重排并同步回正目标（否则 500ms 回正守卫会拿旧矩形把窗口拽回去，来回拉扯）。
+  // AppBar 生效档走重协商（占位与栏同矩形重算）；降级档按**账面净空**重排（工单293 改段：
+  // 不再锚视图位——收栏置位翻开的 WS_VISIBLE 位是瞬态，健康档恒贴屏底），并同步回正目标
+  // （否则 500ms 回正守卫会拿旧矩形把窗口拽回去，来回拉扯）。
   const onDisplayMetrics = () => {
     const s = session
     if (!s || s.win.isDestroyed()) return
     if (s.appBarHwnd !== null) renegotiate('display-metrics-changed')
     else {
-      const bounds = stripBounds()
+      const bounds = stripBounds(s.appBarDegraded ? TASKBAR_BOTTOM_CLEARANCE : 0)
       s.win.setBounds(bounds)
       s.negotiated = bounds
     }
