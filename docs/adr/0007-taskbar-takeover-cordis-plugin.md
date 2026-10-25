@@ -120,3 +120,13 @@ Status: accepted
 - `GLOSSARY.md`「栏分组」词条按新口径改写（默认组序：开始组、推荐组、应用组、右组；开始组不参与拖拽）；「左组/中组」「左组溢出浮层」随更名入对应词条 `_Avoid_` 退役名单；「手钉」「推荐位」「应用区」等词条的组挂靠随之改写；新增「推荐组」词条（命名避开被 Windows 原生溢出层语境占用的「通知溢出」）。
 - 代码标识随之更名：拖拽组别枚举 `TaskbarDragGroup` `left|mid → apps|recs`（开始组不参与拖拽）；任务栏渲染层 DOM id `pill-left → pill-apps`、`pill → pill-start`；编排模块 `taskbar/left-plan.ts → taskbar/apps-plan.ts`（`planLeftGroup → planAppsGroup`、`planLeftOverflow → planAppsOverflow`）；契约面 `TaskbarLeftEntry → TaskbarAppEntry`、`TaskbarState.left → apps`；几何/热区存证字段 `pill → startPill`、`leftPill → appsPill`。测试与验收电池的引用面同步改，全库活代码无旧名残留。
 - 本 ADR 早前补记与 `docs/audit/` 下时点审计报告里的「中组/左组」是当时事实的记录，按工单94 更名先例（「只改名字与存证字段，不改结论」）原样保留——旧名到新名的映射以本补记为准。
+
+## 补记（2026-10-25，#282 决完后）
+
+ADR-0023 把窗口标题与托盘提示的口子收紧到内核面：
+
+- `apps[].title` 与 `tray[].tooltip` 只出现在内核 UI / 内核档插件包受信内部桥的完整 `TaskbarState`；后端 / 外部 / 投放的脱敏态一律不含。
+- 本 ADR 的「仅内存即时显示、永不落盘」不变；本补记只是把「谁能看见」也限定在内核面。
+- 托盘条目整体不进入非内核形状；`tray-click` 仍全档不投影，`tray-icon` 是内核 UI 读侧方法、尚未进控制面（均见 ADR-0022）。
+
+详见 ADR-0023。

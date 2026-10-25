@@ -118,3 +118,14 @@ ADR-0010 排除「面板外的世界」时只列了 12 个方法，其补记「�
 - **实施输入**（控制面尚未落代码）：5 法的投影与格位、确认闸门/会话级授权/dry-run/回滚点/审计、同值空转短路、`drag-drop` 的 dry-run 响应形态；10 法的「不存在」投影与 unknown tool 错误。本 ADR 不产代码。
 - **内核 UI 与受信内部桥不变**：15 法仍在 `BridgeMethods`；任务栏渲染层直调、内核档插件包受信内部桥都不受影响。控制面「不投影」只是 agent 面的缺席。
 - **验证**：纯决策与词汇变更，无运行时代码；`git diff --check` 与 PR CI 通过即可，不跑真机验收电池（没有运行时行为可验）。
+
+## 补记（2026-10-25，#282 决完后）
+
+ADR-0023 兑现了本 ADR 留给 #282 的寻址键约束：
+
+- `TaskbarStateManaged` 保留 `recommendations[].name` / `exe`、`excluded[].exe`、`apps[].exe`；5 个栏布局写的签名不变，不引入 `targetKey`。
+- `TaskbarStateDisplay` 不含 `exe` / `name`；投放档本来就没有 5 个栏布局写，故不影响寻址面。
+- `title` / `tooltip` / `path` / `iconKey` / 整个 `tray` 对非内核档剥离。
+- `desktop` 段开关不与任务栏身份联动；任务栏行仍可被用户整格收紧。
+
+详见 ADR-0023。
