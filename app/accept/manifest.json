@@ -1081,7 +1081,7 @@
         {
           "seg": "P6",
           "ticket": 244,
-          "title": "最大化收栏（工单260 改段不变式；工单293 清位口径改段；工单294 读回与可见帧补面）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8、taskbar-autohide-set 存证+读回含 AUTOHIDE 位——进收栏读回=置位目标）；解除最大化 → 重注册 + 退回清位目标（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered + 读回无 AUTOHIDE 位——清位目标非用户原值，原值只在退场复原）→ 工作区回一栏高；清位落定后原生栏 2s 采样窗零可见帧",
+          "title": "最大化收栏（工单260 改段不变式；工单293 清位口径改段；工单294 读回与可见帧补面；工单295 宿主矩形复核补面）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8、taskbar-autohide-set 存证+读回含 AUTOHIDE 位——进收栏读回=置位目标）+ 预隐藏在先（隐藏族存证 ≤ 置位存证）+ 过渡后宿主矩形复核存证（taskbar-host-rect-verified/corrected reason=retract-enter、宿主底边 vs 屏底 ±1 DIP 独立测量、五组唤出条落点只入存证）；解除最大化 → 重注册 + 退回清位目标（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered + 读回无 AUTOHIDE 位——清位目标非用户原值，原值只在退场复原）→ 工作区回一栏高 + exit 复核存证（reason=retract-exit、宿主回贴屏底）；清位落定后原生栏 2s 采样窗零可见帧",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1158,7 +1158,7 @@
         {
           "seg": "P11",
           "ticket": 269,
-          "title": "分屏收栏单窗最小闭环（工单269）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）",
+          "title": "分屏收栏单窗最小闭环（工单269；工单295 宿主矩形复核补面）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）+ 宿主矩形复核存证（taskbar-host-rect-verified/corrected reason=retract-enter、宿主底边 vs 屏底 ±1 DIP 独立测量、五组唤出条落点只入存证）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）+ exit 复核存证（reason=retract-exit、宿主回贴屏底）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）",
           "surfaces": [
             "system-state",
             "event-evidence",

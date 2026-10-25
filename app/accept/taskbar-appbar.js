@@ -12,12 +12,16 @@
 //      视图事实）；销毁全屏窗 → 1 秒内恢复（taskbar-yield-lifted 存证 + 时延断言）
 //   P5 卸载归还：面板正常退出（WM_CLOSE）→ AppBar 注销（taskbar-appbar-removed
 //      存证）+ 工作区归还基线
-//   P6 最大化收栏（工单244；工单260 改段不变式；工单293 清位口径改段）：前台真最大化窗 →
-//      注销 AppBar（taskbar-retract 存证 appBar=removed + taskbar-appbar-removed 存证）+
-//      置位 ABS_AUTOHIDE（原生栏托管）→ 占位与原生保留带双释放，工作区底边 = 屏底（±2）、
-//      参照窗铺满整屏；解除最大化 → 重注册（taskbar-retract-lifted appBar=registered
-//      + taskbar-appbar-registered）+ **退回清位目标**（读回无 AUTOHIDE 位——不是用户
-//      原值，原值只在退场复原）→ 占位恢复（底边回一栏高）
+//   P6 最大化收栏（工单244；工单260 改段不变式；工单293 清位口径改段；工单295 宿主矩形
+//      复核补面）：前台真最大化窗 → 注销 AppBar（taskbar-retract 存证 appBar=removed +
+//      taskbar-appbar-removed 存证）+ 置位 ABS_AUTOHIDE（原生栏托管）→ 占位与原生保留带
+//      双释放，工作区底边 = 屏底（±2）、参照窗铺满整屏；进收栏**预隐藏在先**（隐藏族存证
+//      先于置位存证——「最大化前 SW_HIDE」对照效应）+ 过渡后宿主矩形复核存证
+//      （taskbar-host-rect-verified/corrected，reason=retract-enter；宿主底边 vs 屏底
+//      ±1 DIP 独立测量；渲染层五组唤出条落点只入存证）；解除最大化 → 重注册
+//      （taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）+
+//      **退回清位目标**（读回无 AUTOHIDE 位——不是用户原值，原值只在退场复原）→
+//      占位恢复（底边回一栏高）+ 退收栏复核存证（reason=retract-exit、宿主回贴屏底）
 //   P7 三态优先级（工单244；工单260 随动不变式；工单293 清位口径改段）：全屏让位压过收栏
 //      （全屏态条带整窗退场 + 占位恢复 + 清位（AUTOHIDE 位退场）+ 全屏期间无收栏存证）；
 //      退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落，底边回屏底）
@@ -43,12 +47,15 @@
 //      禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled
 //      + appbar 读回=接管前原值 + 落盘账清 + 原生栏还原在场（AUTOHIDE 原值下显示位由
 //      explorer 停靠策略自主——「显示位 ≠ 视觉在场」口径）
-//   P11 分屏收栏单窗最小闭环（工单269）：Win+Left 键盘合成建立真 Snap（IsWindowArranged
-//      直读互证）→ 会话存证 taskbar-snap-session(active) + 收栏（注销+置位：工作区=屏底±2）
-//      且前台钉中性 holder（后台事实，普通前台不打断）；Snap 窗上下贴边（Windows 自动重排，
-//      工单268 定谳——面板零改窗）；唤出条悬停弹出且 Snap 窗矩形逐字不变；Win+Down 解除
-//      → 会话结束 + 重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性
-//      （3+ 轮询拍零收栏/零会话存证、工作区不动——矩形不得成为身份兜底）
+//   P11 分屏收栏单窗最小闭环（工单269；工单295 宿主矩形复核补面）：Win+Left 键盘合成建立真
+//      Snap（IsWindowArranged 直读互证）→ 会话存证 taskbar-snap-session(active) + 收栏
+//      （注销+置位：工作区=屏底±2）+ 宿主矩形复核存证（reason=retract-enter，宿主底边 vs
+//      屏底 ±1 DIP 独立测量；五组唤出条落点只入存证）且前台钉中性 holder（后台事实，普通
+//      前台不打断）；Snap 窗上下贴边（Windows 自动重排，工单268 定谳——面板零改窗）；
+//      唤出条悬停弹出且 Snap 窗矩形逐字不变；Win+Down 解除 → 会话结束 + 重注册复原
+//      （工作区回一栏高）+ 退收栏复核存证（reason=retract-exit、宿主回贴屏底）；
+//      SetWindowPos 摆半屏几何伪分屏阴性（3+ 轮询拍零收栏/零会话存证、工作区不动——矩形
+//      不得成为身份兜底）
 //   P12 分屏会话集合生命周期与代表性布局（工单270）：左右双窗统一进入分屏收栏并上下
 //      贴边；普通前台切换不打断（矩形逐字不变、工作区保持屏底）；标题栏拖拽真解除
 //      其一仍维持、最后一个解除结束（cause=unsnapped）并复原（Win+Down 在本机是
@@ -466,11 +473,13 @@ async function runSegments() {
     //      的可见性不走显示位判读（autohide「滑出屏」态的窗口位标记非确定，native-watch
     //      头注 spike 附记）——收栏期以「工作区底边=屏底」为主判据（spec 判读边界原文）。
     rep.beginSegment('P6');
-    rep.note(`P6 口径（工单260 改段；工单293 清位口径改段；工单294 读回与可见帧补面）：收栏置位 ABS_AUTOHIDE（原生栏托管）后 shell 释放原生任务栏 48px 保留带，`
+    rep.note(`P6 口径（工单260 改段；工单293 清位口径改段；工单294 读回与可见帧补面；工单295 宿主矩形复核补面）：收栏置位 ABS_AUTOHIDE（原生栏托管）后 shell 释放原生任务栏 48px 保留带，`
       + `工作区底边 1392→1440=屏底（spike 实测）——旧断言「收栏态底边 ≥ 屏底−48」退役，`
       + `新不变式「底边 = 屏底（±2）」+ 参照窗铺满整屏（±8 装饰边）；恢复态断言不变（回一栏高），`
       + `清位口径断言：退收栏读回无 AUTOHIDE 位（退回清位目标，非用户原值）；`
-      + `工单294 补面：进收栏读回含 AUTOHIDE 位（taskbar-autohide-set 存证）、退收栏清位落定后原生栏 2s 采样窗零可见帧。`);
+      + `工单294 补面：进收栏读回含 AUTOHIDE 位（taskbar-autohide-set 存证）、退收栏清位落定后原生栏 2s 采样窗零可见帧；`
+      + `工单295 补面：进收栏预隐藏在先（隐藏族存证 ≤ 置位存证）、过渡后宿主矩形复核存证（verified/corrected 二取一，reason=retract-enter/exit）、`
+      + `宿主窗底边 vs 屏底 ±1 DIP 独立测量、五组唤出条落点只入存证（绝对落点=宿主顶+视觉条底，不作判据）。`);
     const phys6 = primaryPhys();
     const expectBottom6 = phys6.height - Math.round(TASKBAR_HEIGHT_DIP * phys6.scale);
     const retractWin = new BrowserWindow({ width: 800, height: 600, title: 'DECK-ACCEPT-RETRACT', backgroundColor: '#203040' });
@@ -490,6 +499,19 @@ async function runSegments() {
     // ——以系统读回事实为准，不只看「发过请求」（用户故事 14 同口径）
     const setEv6 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceP6, timeoutMs: 3000 });
     const setReadMs6 = await waitMs(() => (appbarState() & 0x1) === 1, 4000);
+    // 预隐藏在先（工单295，spec #292「进收栏前先再压一次原生栏隐藏」）：隐藏族存证先于
+    // 置位存证。「最大化前 SW_HIDE」对照的效应（t257 spike）由此可观测——健康档下原生栏
+    // 自 create 起已隐藏，预隐藏幂等落 taskbar-already-hidden；曾被唤出过则落
+    // taskbar-hidden（真压了一次）。两事件与置位同拍写盘（applyBarMode ②′→②′′同块），
+    // 非阻塞 latest 直取（零墙钟，失败路径也不吃超时）。
+    const preHideEv6 = tape.latest('taskbar-already-hidden', undefined, { since: sinceP6 })
+      || tape.latest('taskbar-hidden', undefined, { since: sinceP6 });
+    const preHideOrderOk6 = !!preHideEv6 && !!setEv6 && preHideEv6.t <= setEv6.t;
+    // 过渡后宿主矩形复核（工单295，spec #292 AC2）：verified（界内）/corrected（偏离
+    // >1 DIP 即回正）二取一在流，reason=retract-enter。证据与置位同拍落盘，短超时只兜
+    // 文件读竞态。
+    let hostEv6 = await tape.wait('taskbar-host-rect-verified', (e) => e.reason === 'retract-enter', { since: sinceP6, timeoutMs: 3000 });
+    if (!hostEv6) hostEv6 = await tape.wait('taskbar-host-rect-corrected', (e) => e.reason === 'retract-enter', { since: sinceP6, timeoutMs: 1000 });
     // 工作区不变式（工单260）：轮询到屏底（±2）——置位生效（保留带释放）有生效时延
     const waMs6 = await waitMs(() => {
       const wa = workArea();
@@ -503,6 +525,29 @@ async function runSegments() {
     }, 5000);
     const waRetract6 = workArea();
     const refRect6 = win32.rectOf(retractHwnd6);
+    // 宿主底边独立测量（工单295）：判据 = 条带宿主窗（win32 外矩形）底边 vs 物理屏底
+    // ±1 DIP——电池侧自己量，不以渲染层落点为判据（落点只入存证，spec #292 存证/判据
+    // 分界原文）。容差 = 1 DIP 的物理px + 1px DIP↔phys 舍入；缺陷签名是抬高一身高
+    // （48px），2px 容差无歧义。
+    const hostTol6 = Math.round(phys6.scale) + 1;
+    const tbRectRetract6 = win32.rectOf(tbHwnd);
+    const hostBottomOff6 = tbRectRetract6 ? Math.abs(tbRectRetract6.bottom - phys6.height) : -1;
+    const hostBottomOk6 = hostBottomOff6 >= 0 && hostBottomOff6 <= hostTol6;
+    // 五组唤出条存证（工单295）：落点证据入流（逐组一组），绝对落点 = 宿主顶 + 视觉条底
+    // （client CSS px）×scale——随宿主矩形同源，只入存证面（pass 消息留读数），判据在
+    // 上行的宿主底边独立测量。P11 同款容忍：几何与上一收栏轮一致时渲染层按 JSON 去重
+    // 不发新条，wait 不到回取最近一条。
+    let stripsEv6 = await tape.wait('taskbar-summon-strips',
+      (e) => Array.isArray(e.strips) && e.strips.length > 0, { since: sinceP6, timeoutMs: 3000 });
+    if (!stripsEv6) {
+      stripsEv6 = tape.latest('taskbar-summon-strips',
+        (e) => Array.isArray(e.strips) && e.strips.length > 0, {});
+    }
+    const SUMMON_GROUPS_ALL6 = ['start', 'recs', 'apps', 'right', 'showdesk'];
+    const fiveStripsOk6 = !!stripsEv6 && SUMMON_GROUPS_ALL6.every((g) => stripsEv6.strips.some((s) => s.group === g));
+    const stripBottoms6 = stripsEv6
+      ? stripsEv6.strips.map((s) => Math.round((tbRectRetract6 ? tbRectRetract6.top : 0) + (s.visualTop + s.visualHeight) * phys6.scale))
+      : [];
     // 恢复：解除最大化（前台不再是真最大化窗）→ 重注册 AppBar + 复原置位 → 栏面复现
     const t6 = Date.now();
     retractWin.unmaximize();
@@ -528,6 +573,14 @@ async function runSegments() {
     // 清位口径不变式（工单293 改段）：退收栏回**普通栏态清位目标**——读回无 AUTOHIDE 位
     // （不是用户原值：原值只在退场复原；本断言与用户原值无关，对任意 ALWAYSONTOP 组合恒成立）
     const clearedOk6 = await waitMs(() => (appbarState() & 0x1) === 0, 4000);
+    // 退收栏复核（工单295，spec #292 用户故事 9「恢复后自绘栏不漂移」）：exit 复核存证
+    // （reason=retract-exit，verified/corrected 二取一）+ 宿主底边回贴屏底（±1 DIP 独立
+    // 测量）——与 enter 同判据（工单293 落的双复核在此可观测）。
+    let hostExitEv6 = await tape.wait('taskbar-host-rect-verified', (e) => e.reason === 'retract-exit', { since: t6, timeoutMs: 3000 });
+    if (!hostExitEv6) hostExitEv6 = await tape.wait('taskbar-host-rect-corrected', (e) => e.reason === 'retract-exit', { since: t6, timeoutMs: 1000 });
+    const tbRectRestored6 = win32.rectOf(tbHwnd);
+    const hostRestoredOff6 = tbRectRestored6 ? Math.abs(tbRectRestored6.bottom - phys6.height) : -1;
+    const hostRestoredOk6 = hostRestoredOff6 >= 0 && hostRestoredOff6 <= hostTol6;
     // 退收栏零可见帧（工单294，spec #292「无可见帧」的退收栏方向）：清位落定后原生栏
     // 显示位 2s 采样窗零可见拍（P15 同款口径：150ms 采样，显示位在场即「可见帧」）——
     // 普通栏态下清位已关停自动隐藏协议这条唤出通路（P15 三路径禁现同因），面板仍持
@@ -544,21 +597,34 @@ async function runSegments() {
       && setEv6 !== null && setReadMs6 >= 0 && !leakFrames6
       && !!waRetract6 && Math.abs(waRetract6.bottom - phys6.height) <= 2
       && !!waRestored6 && Math.abs(waRestored6.bottom - expectBottom6) <= 2;
-    if (retractEv6 && removedEv6 && liftedEv6 && regEv6 && workAreaOk6) {
+    // 工单295 断言面：预隐藏在先 + enter/exit 复核存证 + 宿主底边两相位贴屏底 ±1 DIP
+    // + 五组条存证齐（落点本身只入存证面）
+    const hostRectOk6 = preHideOrderOk6 && !!hostEv6 && !!hostExitEv6
+      && hostBottomOk6 && hostRestoredOk6 && fiveStripsOk6;
+    if (retractEv6 && removedEv6 && liftedEv6 && regEv6 && workAreaOk6 && hostRectOk6) {
       rep.pass(`P6 最大化收栏：前台真最大化窗 ${fgMs6}ms 落位后注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract 存证 appBar=${retractEv6.appBar} + taskbar-appbar-removed 存证）`
         + `→ 占位与原生保留带双释放：工作区底边 ${waRetract6.bottom}/${phys6.height} = 屏底（±2，${waMs6}ms 到位）、`
         + `参照窗底边 ${refRect6.bottom} 铺满整屏（${flushMs6}ms 重排到底）`
         + `（工单294 读回面：置位存证在流、读回含 AUTOHIDE 位 ${setReadMs6}ms 落定——进收栏读回=置位目标）；`
+        + `（工单295 几何面：预隐藏在先——隐藏族存证 ${preHideEv6 ? preHideEv6.type : '缺'} ≤ 置位存证，`
+        + `enter 复核 ${hostEv6 ? hostEv6.type : '缺'} + 宿主底边 ${tbRectRetract6 ? tbRectRetract6.bottom : '?'}/${phys6.height}（偏 ${hostBottomOff6}px ≤ ${hostTol6}px = ±1 DIP），`
+        + `五组唤出条存证齐（${stripsEv6 ? stripsEv6.strips.length : 0} 条，绝对落点底 ${stripBottoms6.join('/')}——只入存证不作判据）；`
         + `解除最大化后重注册 + 退回清位目标（taskbar-retract-lifted 存证 appBar=${liftedEv6.appBar} + taskbar-appbar-registered 存证，`
         + `读回 appbar=0x${appbarState()} 无 AUTOHIDE 位、${clearedOk6}ms 落定——清位目标非用户原值，原值只在退场复原）`
-        + `→ 工作区回一栏高 ${waRestored6.bottom}（期望 ${expectBottom6}，${restoreMs6}ms 收敛）；`
+        + `→ 工作区回一栏高 ${waRestored6.bottom}（期望 ${expectBottom6}，${restoreMs6}ms 收敛）+ exit 复核 ${hostExitEv6 ? hostExitEv6.type : '缺'}`
+        + ` + 宿主回贴屏底 ${tbRectRestored6 ? tbRectRestored6.bottom : '?'}/${phys6.height}（偏 ${hostRestoredOff6}px）；`
         + `退收栏零可见帧：清位落定后原生栏 ${hiddenMs6}ms 采样窗零可见拍（工单294，150ms 口径）`);
     } else {
       rep.fail(`P6 收栏存证=${!!retractEv6} 注销存证=${!!removedEv6} 恢复存证=${!!liftedEv6}（终点visible=${settledVisible6}） 重注册存证=${!!regEv6} `
         + `置位存证=${!!setEv6} 置位读回=${setReadMs6}ms（现值 0x${appbarState()}） `
         + `工作区收栏态=${JSON.stringify(waRetract6)}/屏底=${phys6.height}（到屏底=${waMs6}ms） 参照窗=${JSON.stringify(refRect6)}（贴底=${flushMs6}ms） `
         + `恢复态=${JSON.stringify(waRestored6)} 期望底=${expectBottom6}（收敛=${restoreMs6}ms） 清位读回无AUTOHIDE=${clearedOk6 >= 0}（现值 0x${appbarState()}） `
-        + `退收栏零可见帧=${!leakFrames6}（观察 ${hiddenMs6}ms）`);
+        + `退收栏零可见帧=${!leakFrames6}（观察 ${hiddenMs6}ms） `
+        + `（工单295 几何面：预隐藏在先=${preHideOrderOk6}（隐藏族=${preHideEv6 ? preHideEv6.type : '缺'}@${preHideEv6 ? preHideEv6.t : '-'} 置位@${setEv6 ? setEv6.t : '-'}） `
+        + `enter复核=${hostEv6 ? hostEv6.type : '缺'} exit复核=${hostExitEv6 ? hostExitEv6.type : '缺'} `
+        + `宿主底边收栏=${tbRectRetract6 ? tbRectRetract6.bottom : '?'}/${phys6.height}（偏 ${hostBottomOff6}px 界=${hostTol6}px） `
+        + `宿主底边恢复=${tbRectRestored6 ? tbRectRestored6.bottom : '?'}/${phys6.height}（偏 ${hostRestoredOff6}px） `
+        + `五组条存证=${fiveStripsOk6}（${stripsEv6 ? JSON.stringify(stripsEv6.strips.map((s) => s.group)) : '无存证'}）`);
     }
 
     // —— P7：三态优先级（工单244 新增；工单260 随动不变式）：全屏让位压过收栏；退出全屏
@@ -805,6 +871,20 @@ async function runSegments() {
         win32.moveMousePhys(Math.round(phys11.width / 2), Math.round(phys11.height / 4));
         await sleep(700);
       }
+      // 宿主矩形复核（工单295，spec #292 AC2/AC3）：进收栏复核存证二取一（reason=
+      // retract-enter）+ 宿主底边 vs 物理屏底 ±1 DIP 独立测量（判据——电池自量 win32
+      // 外矩形，不以渲染层落点为判据）；五组条存证齐、绝对落点（宿主顶+视觉条底×scale）
+      // 只入存证面。P6 同口径。
+      let hostEnterEv11 = await tape.wait('taskbar-host-rect-verified', (e) => e.reason === 'retract-enter', { since: since11, timeoutMs: 3000 });
+      if (!hostEnterEv11) hostEnterEv11 = await tape.wait('taskbar-host-rect-corrected', (e) => e.reason === 'retract-enter', { since: since11, timeoutMs: 1000 });
+      const hostTol11 = Math.round(phys11.scale) + 1;
+      const tbRectRetract11 = win32.rectOf(tbHwnd);
+      const hostBottomOff11 = tbRectRetract11 ? Math.abs(tbRectRetract11.bottom - phys11.height) : -1;
+      const hostBottomOk11 = hostBottomOff11 >= 0 && hostBottomOff11 <= hostTol11;
+      const fiveStripsOk11 = !!stripsEv11 && ['start', 'recs', 'apps', 'right', 'showdesk'].every((g) => stripsEv11.strips.some((s) => s.group === g));
+      const stripBottoms11 = stripsEv11
+        ? stripsEv11.strips.map((s) => Math.round((tbRectRetract11 ? tbRectRetract11.top : 0) + (s.visualTop + s.visualHeight) * phys11.scale))
+        : [];
       // ⑤ 解除恢复：Win+Down → 真 Snap 消失 + 会话结束 + 占位/置位双复原
       const tUnsnap11 = Date.now();
       const unsnapped11 = await chordUntil(snapHwnd11, VK_DOWN, false);
@@ -818,6 +898,13 @@ async function runSegments() {
         return wa && Math.abs(wa.bottom - expectBottom11) <= 2;
       }, 5000);
       const waRestored11 = workArea();
+      // 退收栏复核（工单295，spec #292 用户故事 9）：exit 复核存证（reason=retract-exit，
+      // verified/corrected 二取一）+ 宿主回贴屏底 ±1 DIP（与 enter 同判据）
+      let hostExitEv11 = await tape.wait('taskbar-host-rect-verified', (e) => e.reason === 'retract-exit', { since: tUnsnap11, timeoutMs: 3000 });
+      if (!hostExitEv11) hostExitEv11 = await tape.wait('taskbar-host-rect-corrected', (e) => e.reason === 'retract-exit', { since: tUnsnap11, timeoutMs: 1000 });
+      const tbRectRestored11 = win32.rectOf(tbHwnd);
+      const hostRestoredOff11 = tbRectRestored11 ? Math.abs(tbRectRestored11.bottom - phys11.height) : -1;
+      const hostRestoredOk11 = hostRestoredOff11 >= 0 && hostRestoredOff11 <= hostTol11;
       // ⑥ 伪分屏阴性：同款半屏几何（SetWindowPos，非 Snap）→ 3+ 拍零收栏/零会话、工作区不动
       const fakeAt11 = Date.now();
       win32.SetWindowPos(snapHwnd11, 0, 0, 0, Math.round(phys11.width / 2), expectBottom11, 0x0004 /* SWP_NOZORDER */);
@@ -829,19 +916,27 @@ async function runSegments() {
       const negativeOk11 = retractAfterFake11.length === 0 && sessionAfterFake11.length === 0
         && !!waFake11 && Math.abs(waFake11.bottom - expectBottom11) <= 2;
       const arrangedFake11 = Boolean(IsWindowArrangedFn(snapHwnd11));
+      const hostRectOk11 = !!hostEnterEv11 && hostBottomOk11 && fiveStripsOk11 && !!hostExitEv11 && hostRestoredOk11;
       if (sessionEv11 && retractEv11 && waMs11 >= 0 && edgeMs11 >= 0 && popOk11 && rectStable11
-        && unsnapped11 && sessionEnd11 && liftedEv11 && restoreMs11 >= 0 && negativeOk11 && !arrangedFake11) {
+        && unsnapped11 && sessionEnd11 && liftedEv11 && restoreMs11 >= 0 && negativeOk11 && !arrangedFake11
+        && hostRectOk11) {
         rep.pass(`P11 分屏收栏单窗闭环：Win+Left 真 Snap（IsWindowArranged 直读互证）→ 会话存证在流 + 收栏（taskbar-retract appBar=removed）`
           + `→ 工作区底边 ${waRetract11.bottom}/${phys11.height} = 屏底（±2，${waMs11}ms 到位；前台=中性 holder，后台事实成立）；`
           + `Snap 窗上下贴边 [${snapRect11.top},${snapRect11.bottom}]（自动重排，#${268} 定谳零改窗）；`
           + `唤出条 ${stripInfo11} 悬停弹出（summon:pill 热区声明在流）且 Snap 窗矩形逐字不变；`
-          + `Win+Down 解除 → 会话结束存证 + taskbar-retract-lifted appBar=registered → 工作区回一栏高 ${waRestored11.bottom}（${restoreMs11}ms 收敛）；`
+          + `（工单295 几何面：enter 复核 ${hostEnterEv11 ? hostEnterEv11.type : '缺'} + 宿主底边 ${tbRectRetract11 ? tbRectRetract11.bottom : '?'}/${phys11.height}（偏 ${hostBottomOff11}px ≤ ${hostTol11}px = ±1 DIP）`
+          + `+ 五组条存证齐（${stripsEv11 ? stripsEv11.strips.length : 0} 条，绝对落点底 ${stripBottoms11.join('/')}——只入存证不作判据）；`
+          + `Win+Down 解除 → 会话结束存证 + taskbar-retract-lifted appBar=registered → 工作区回一栏高 ${waRestored11.bottom}（${restoreMs11}ms 收敛）`
+          + `+ exit 复核 ${hostExitEv11 ? hostExitEv11.type : '缺'} + 宿主回贴屏底 ${tbRectRestored11 ? tbRectRestored11.bottom : '?'}/${phys11.height}（偏 ${hostRestoredOff11}px）；`
           + `伪分屏阴性：同款半屏几何（arranged=${arrangedFake11}）3+ 拍零收栏/零会话存证、工作区 ${waFake11.bottom} 不动（矩形不是身份）`);
       } else {
         rep.fail(`P11 会话存证=${!!sessionEv11} 收栏存证=${!!retractEv11} 工作区到屏底=${waMs11}ms（${waRetract11 && waRetract11.bottom}/${phys11.height}） `
           + `贴边=${edgeMs11}ms（矩形=${JSON.stringify(snapRect11)}） 唤出弹出=${popOk11} 尺寸不变=${rectStable11}（条=${stripInfo11}） `
           + `解除=${unsnapped11} 会话结束存证=${!!sessionEnd11} 恢复存证=${!!liftedEv11} 工作区复原=${restoreMs11}ms（${waRestored11 && waRestored11.bottom}/${expectBottom11}） `
-          + `伪分屏阴性=${negativeOk11}（几何=${JSON.stringify(fakeRect11)} arranged=${arrangedFake11} 收栏存证=${retractAfterFake11.length} 会话存证=${sessionAfterFake11.length} 工作区=${waFake11 && waFake11.bottom}）`);
+          + `伪分屏阴性=${negativeOk11}（几何=${JSON.stringify(fakeRect11)} arranged=${arrangedFake11} 收栏存证=${retractAfterFake11.length} 会话存证=${sessionAfterFake11.length} 工作区=${waFake11 && waFake11.bottom}） `
+          + `（工单295 几何面：enter复核=${hostEnterEv11 ? hostEnterEv11.type : '缺'} exit复核=${hostExitEv11 ? hostExitEv11.type : '缺'} `
+          + `宿主底边收栏=${tbRectRetract11 ? tbRectRetract11.bottom : '?'}/${phys11.height}（偏 ${hostBottomOff11}px 界=${hostTol11}px） `
+          + `宿主底边恢复=${tbRectRestored11 ? tbRectRestored11.bottom : '?'}/${phys11.height}（偏 ${hostRestoredOff11}px） 五组条存证=${fiveStripsOk11}）`);
       }
     }
     }
