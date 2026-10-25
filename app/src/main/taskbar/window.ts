@@ -22,7 +22,7 @@ import { clearRetractAutoHide, engageTakeoverAutoHide, enterRetractAutoHide, rea
 import { probeForegroundWindow } from './yield'
 import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './snap'
 import type { SnapSessionEndCause, SnapWindowFact } from './snap'
-import { ABS_AUTOHIDE, planBarTransition, recheckStripHostRect, resolveBarMode, retractGateDisqualified, retractHeldByZoomed, retractReasonHeld } from './retract'
+import { ABS_AUTOHIDE, HOST_RECT_SETTLE_BEAT_MS, HOST_RECT_SETTLE_TIMEOUT_MS, planBarTransition, recheckStripHostRect, resolveBarMode, retractGateDisqualified, retractHeldByZoomed, retractReasonHeld, stepHostRectSettle } from './retract'
 import type { BarMode } from './retract'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
 import type { NativeWatchProbe } from './native-watch'
@@ -420,7 +420,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     const decision = s.nativeWatch?.machine.poll(probe, s.workspaceRetracted ? 'autohide-on' : 'autohide-off')
     if (!decision || decision.action === 'none') return
     if (decision.hide) hideNativeTaskbar(log)
-    if (decision.autoHide !== null) reassertTakeoverAutoHide(log)
+    // 重申的写入目标与机器裁决同源同拍（工单292 评审修复轮 F2 两账等价收口）：同一拍从
+    // 同一份工作区收栏账取 want 传给执行面——执行面不再自持第二份档位账（旧实现写目标
+    // 派生自 appbar 账面 mode，与机器的 want 账可分叉，分叉拍判 clear 却写置位）。
+    if (decision.autoHide !== null) reassertTakeoverAutoHide(log, s.workspaceRetracted)
     log?.append({
       type: 'taskbar-native-reassert',
       reason: decision.reason,
@@ -492,30 +495,50 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   /**
-   * 收栏过渡后的宿主矩形复核（ADR-0016 双缺陷复审决策 4；工单295 判据抽纯函数）：收栏过渡
-   * 会让壳侧把条带宿主抬高一个原生栏身高（48px），渲染层的唤出条按宿主矩形自算定位 ⇒
-   * 五组唤出条整体偏离屏底。判据取**宿主矩形底边 vs 屏底**（stripPhysRect 是单点来源，
-   * 不读渲染层的 window.innerHeight 相对值），偏离 >1 DIP 即回正并留证——偏离判定与
-   * 回正决策住 recheckStripHostRect（shared/retract 单一实现，离线可测），本效果层只做
-   * 取矩形、动作与存证。
+   * 收栏过渡后的宿主矩形复核（ADR-0016 双缺陷复审决策 4；工单295 判据抽纯函数；工单292
+   * 评审修复轮 F1 改等回稳）：收栏过渡会让壳侧把条带宿主抬高一个原生栏身高（48px），渲染层
+   * 的唤出条按宿主矩形自算定位 ⇒ 五组唤出条整体偏离屏底。判据取**宿主矩形底边 vs 屏底**
+   * （stripPhysRect 是单点来源，不读渲染层的 window.innerHeight 相对值），偏离 >1 DIP 即回正
+   * 并留证——偏离判定与回正决策住 recheckStripHostRect、拍子推进住 stepHostRectSettle
+   * （shared/retract 单一实现，离线可测），本效果层只做取矩形、动作、存证与排拍。
+   *
+   * **等回稳纪律**（评审 Spec 轴 c1，对齐 03aed5a 电池侧同款）：置位/清位后的壳侧挪移窗内
+   * （AppBar 重协商后壳把条带挪「协商带上移一身高」、keepalive ≤500ms 回正，工单158 既证）
+   * 同拍单点复核可能落在挪移**前**而记 verified、漏掉随后偏离（终态实际靠 keepalive 兜底而
+   * 非 spec 点名的「过渡完成后复核」）——改有界轮询：连续 HOST_RECT_SETTLE_BEATS 拍界内才落
+   * verified；任一拍偏离即当场回正落 corrected、复核即止（纠正语义同旧单点，#158 取证纠正后
+   * 不复发）；等满 HOST_RECT_SETTLE_TIMEOUT_MS 仍未回稳按末拍裁定收尾（存证契约：每次复核
+   * 恰落一条 verified/corrected）。异步排拍不拖 applyBarMode 同拍——终态以存证流为准。
    */
   const verifyStripBottom = (s: TaskbarSession, reason: string): void => {
     if (s.win.isDestroyed()) return
-    const phys = stripPhysRect()
-    const dip = screen.screenToDipRect(s.win, {
-      x: phys.left,
-      y: phys.top,
-      width: phys.right - phys.left,
-      height: phys.bottom - phys.top,
-    })
-    const v = recheckStripHostRect(s.win.getBounds(), dip)
-    if (v.verdict === 'corrected') {
-      s.negotiated = v.rect
-      s.win.setBounds(v.rect)
-      log?.append({ type: 'taskbar-host-rect-corrected', reason, from: v.from, to: v.rect, bottomDeviationDip: v.bottomDeviationDip })
-      return
+    let stableBeats = 0
+    const started = Date.now()
+    const beat = (): void => {
+      if (s.win.isDestroyed()) return
+      const phys = stripPhysRect()
+      const dip = screen.screenToDipRect(s.win, {
+        x: phys.left,
+        y: phys.top,
+        width: phys.right - phys.left,
+        height: phys.bottom - phys.top,
+      })
+      const v = recheckStripHostRect(s.win.getBounds(), dip)
+      const step = stepHostRectSettle(stableBeats, v)
+      if (step.action === 'correct') {
+        s.negotiated = v.rect
+        s.win.setBounds(v.rect)
+        log?.append({ type: 'taskbar-host-rect-corrected', reason, from: v.from, to: v.rect, bottomDeviationDip: v.bottomDeviationDip })
+        return
+      }
+      if (step.action === 'settle' || Date.now() - started >= HOST_RECT_SETTLE_TIMEOUT_MS) {
+        log?.append({ type: 'taskbar-host-rect-verified', reason, rect: v.rect })
+        return
+      }
+      stableBeats = step.stableBeats
+      setTimeout(beat, HOST_RECT_SETTLE_BEAT_MS)
     }
-    log?.append({ type: 'taskbar-host-rect-verified', reason, rect: v.rect })
+    beat()
   }
 
   /** 占位重协商（建窗后初次、ABN_POSCHANGED、display-metrics-changed 三入口同路）；
@@ -626,13 +649,15 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     }
     if (plan.clearAutoHide) clearRetractAutoHide(log, reason)
     // ②′′ 收栏过渡后的宿主矩形复核（复审决策 4：几何不变量另行守住——不得把
-    // window.innerHeight 的相对正确当成宿主矩形正确）
+    // window.innerHeight 的相对正确当成宿主矩形正确）。复核本体是有界轮询等回稳
+    // （工单292 评审修复轮 F1：壳侧挪移窗内同拍单点会落在挪移前，见 verifyStripBottom 注），
+    // 但发起时点仍在置位/清位同拍、殿后于两动作——接线顺序语义不变。
     if (plan.engageAutoHide) verifyStripBottom(s, 'retract-enter')
     // ②′′′ 退出收栏同样复核（spec #292 用户故事 9「恢复后自绘栏干净回到屏底，不发生位置
     // 漂移」；真机 R7/R8 实证的漂移形态）：置位/清位会把 explorer 的 Shell_TrayWnd
     // WS_VISIBLE 位翻开（「显示位」翻转是既证行为），若 ABN 协商落在该窗口期，QUERYPOS
     // 会被原生保留带剪掉一身高（协商矩形 [屏底−96, 屏底−48]）⇒ 协商账带着错矩形、keepalive
-    // 回正守卫反而把窗按住——进收栏有复核（上 行），退收栏同判据补一发，偏离即当场回正留证。
+    // 回正守卫反而把窗按住——上一行进收栏有复核，退收栏同判据补一发，偏离即当场回正留证。
     if (plan.clearAutoHide) verifyStripBottom(s, 'retract-exit')
     // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
     if (plan.hideWindow) {
