@@ -1660,11 +1660,22 @@ async function runSegments() {
           // （前台非最大化）判 visible 不置位是既定裁决的正确行为。
           const pressesB = tape.all('taskbar-autohide-reattach-failed', undefined, { since: tKill });
           const modesHeldB = pressesB.length > 0 && pressesB.every((e) => e.mode === 'retracted');
+          // 降级级联辨（工单293 出证轮 R7 实证）：重建拍上档位漂 visible（合法）+ 重注册被
+          // shell 拒（register-failed 在流）⇒ 按工单50/51 既有语义进**降级档**（注册失败一次
+          // 不再重试）——此后 resolveBarMode 恒 visible（降级闸门）、置位断言在结构上不可达，
+          // 面板行为全程符合设计。这是 explorer-acceptance-tail 的级联形态，同为 shell 侧。
+          const degradedB = tape.all('taskbar-appbar-register-failed', undefined, { since: tKill }).length > 0
+            && tape.all('taskbar-retract-lifted', (e) => e.appBar === 'register-failed', { since: tKill }).length > 0;
           if (pressesB.length >= 15 && modesHeldB) {
             rep.exclude(`P10b 置位界内未到场（>40s）：新 shell AppBar 接受窗尾部超界（explorer-acceptance-tail）——面板义务面全真：`
               + `重申逐拍重试 ${pressesB.length} 拍无一缺席（mode=retracted 全程保持）、reason=rebuild 重申存证在流、重挂隐藏 ${hideLatencyB}ms（≤4s）、压回不可见（${hiddenB}ms）。`
               + `五轮对照接受时延：R2 <12s / R1 >52s / R4 66s——25s 旧界按 15s 观察标定，尾部为 shell 侧事实（本机负载相关），不判面板回归`,
               'explorer 重启后 ABM 接受窗尾部超 40s 界（shell 侧，接受时延 52–66s 观测）', 'explorer-acceptance-tail');
+          } else if (degradedB) {
+            rep.exclude(`P10b 置位界内未到场：explorer AppBar 接受窗尾部打掉重注册 → 降级档级联（explorer-acceptance-tail 级联）——重建拍上档位漂 visible（合法迁移）后重注册被拒（register-failed + retract-lifted appBar=register-failed 在流），`
+              + `按工单50/51 既有语义（注册失败一次不再重试）进降级档：resolveBarMode 恒 visible（降级闸门），置位断言结构上不可达。`
+              + `面板义务面仍真：reason=rebuild 重申存证在流、首次重申拍照发（reattach-failed mode=retracted）、重挂隐藏 ${hideLatencyB}ms（≤4s）、压回不可见（${hiddenB}ms）——shell 接受窗尾部是唯一缺席面，不判面板回归`,
+              '重建拍重注册撞接受窗尾部 → 降级档级联（explorer-acceptance-tail 级联）', 'explorer-acceptance-tail');
           } else if (!retractWin.isMaximized() || Number(win32.GetForegroundWindow()) !== hwndOf(retractWin)) {
             // 夹具账细判：最大化态丢失，或 40s 逐拍钉前台都没能把参照窗钉回前台——两者都是
             // 重启搅动打掉电池参照物（restart-chaos-fixture）；参照物既不稳，面板的档位输入
