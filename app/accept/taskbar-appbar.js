@@ -41,7 +41,8 @@
 //      taskbar-autohide-cleared + 读回无 AUTOHIDE——用户本已开自动隐藏时这是**有动作**的
 //      清位）；三路径禁现：底边悬停 3.5s 无可见帧、Win 键无可见帧、通知路径如实记「未观察」；
 //      禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled
-//      + appbar 读回=接管前原值 + 落盘账清 + 原生栏可见位还原
+//      + appbar 读回=接管前原值 + 落盘账清 + 原生栏还原在场（AUTOHIDE 原值下显示位由
+//      explorer 停靠策略自主——「显示位 ≠ 视觉在场」口径）
 //   P11 分屏收栏单窗最小闭环（工单269）：Win+Left 键盘合成建立真 Snap（IsWindowArranged
 //      直读互证）→ 会话存证 taskbar-snap-session(active) + 收栏（注销+置位：工作区=屏底±2）
 //      且前台钉中性 holder（后台事实，普通前台不打断）；Snap 窗上下贴边（Windows 自动重排，
@@ -357,21 +358,29 @@ async function runSegments() {
     const alt = alternateDisplayMode(originalMode);
     if (!alt) {
       rep.fail('P3 找不到与当前不同的受支持分辨率（本机显示模式枚举异常）');
-    } else {
-      const sinceP3 = Date.now();
-      if (!setDisplayMode(alt.buf)) {
-        rep.fail(`P3 ChangeDisplaySettingsW 切到 ${alt.width}x${alt.height} 被拒`);
       } else {
-        modeSwitched = true;
-        await sleep(1500); // 等显示器重同步 + display-metrics-changed 投递
-        const reposEv = await tape.wait('taskbar-appbar-setpos',
-          (e) => e.reason === 'display-metrics-changed', { since: sinceP3, timeoutMs: 8000 });
-        const phys1 = primaryPhys();
-        const expectBottom1 = phys1.height - Math.round(TASKBAR_HEIGHT_DIP * phys1.scale);
+        const sinceP3 = Date.now();
+        if (!setDisplayMode(alt.buf)) {
+          rep.fail(`P3 ChangeDisplaySettingsW 切到 ${alt.width}x${alt.height} 被拒`);
+        } else {
+          modeSwitched = true;
+          await sleep(1500); // 等显示器重同步 + display-metrics-changed 投递
+          const reposEv = await tape.wait('taskbar-appbar-setpos',
+            (e) => e.reason === 'display-metrics-changed', { since: sinceP3, timeoutMs: 8000 });
+          // 工单293 改段（期望值随当拍重采样）：显示模式切换后 SPI_GETWORKAREA 即时反映新模，
+        // Electron screen.getPrimaryDisplay 的缓存传播时延可 >6.5s 且负载相关（2026-10-26
+        // 两轮对照：18:13 轮 1.5s 内到位判绿；18:21 轮 workArea 已到 640x480（工作区底 432）、
+        // 条带底 480，而 primaryPhys 缓存仍报 1440 ⇒ 一次性采样的期望 1392 与当拍 432 永不
+        // 相等，5s 轮询恒红）。旧写法量的是「缓存传播速度」而非段意「几何随新分辨率重算」——
+        // 逐拍以当拍物理尺寸重算期望（判据不变：底边=新模屏高−48、条带贴新模屏底），
+        // 「模式确实切到位且稳住」改在等待完成后新鲜采样断言。
         const waMs1 = await waitMs(() => {
+          const p = primaryPhys();
+          if (p.height !== alt.height) return false;
           const wa = workArea();
-          return wa && wa.bottom === expectBottom1;
-        }, 5000);
+          return wa && wa.bottom === p.height - Math.round(TASKBAR_HEIGHT_DIP * p.scale);
+        }, 8000);
+        const phys1 = primaryPhys();
         const waAfter = workArea();
         const stripAfter = await waitMs(() => {
           const r = win32.rectOf(tbHwnd);
@@ -381,7 +390,7 @@ async function runSegments() {
         if (reposEv && waMs1 >= 0 && stripAfter >= 0 && phys1.height === alt.height) {
           rep.pass(`P3 分辨率变化重算：${alt.width}x${alt.height} 下工作区底 ${waAfter.bottom}、条带底 ${stripRect1.bottom} 随新分辨率重算（setpos 存证在流）`);
         } else {
-          rep.fail(`P3 setpos存证=${!!reposEv} 工作区=${JSON.stringify(waAfter)} 期望=${expectBottom1} 条带=${JSON.stringify(stripRect1)} 物理=${JSON.stringify(phys1)} 目标=${alt.width}x${alt.height}`);
+          rep.fail(`P3 setpos存证=${!!reposEv} 工作区=${JSON.stringify(waAfter)} 当拍物理=${JSON.stringify(primaryPhys())} 目标=${alt.width}x${alt.height} 条带=${JSON.stringify(stripRect1)}`);
         }
         if (setDisplayMode(originalMode)) {
           modeSwitched = false;
@@ -1533,8 +1542,10 @@ async function runSegments() {
     //      10s 未归自起 explorer.exe 兜底）→ 新 Shell_TrayWnd → reason=rebuild 重申 +
     //      重挂。⚠️ R1 实测：新起 explorer 约 15s 内不接受 ABM_SETSTATE/ABM_NEW（轮询
     //      逐拍重试全部落 failed，过了接受窗一发即中）——隐藏按「及时」断言（≤4s，重挂的
-    //      隐藏动作只走 user32 不等 shell），置位按「终态」断言（≤25s 内 AUTOHIDE 位在场
-    //      + 工作区回屏底；轮询拍 1s 属设计参数，由单测钉在 1–2s 档）；
+    //      隐藏动作只走 user32 不等 shell），置位按「终态」断言（≤40s 内 AUTOHIDE 位在场
+    //      + 工作区回屏底；轮询拍 1s 属设计参数，由单测钉在 1–2s 档）。工单293 界 25s→40s
+    //      校准（三轮对照：R2 接受 3ms；R1/R3 接受窗 >37s——接受窗尾部随系统负载拉长，
+    //      40s 界按观测尾部定，轮询逐拍重试语义不变）；
     //   拍 C 普通档仍值守（工单293 改段——旧「非收栏态休止」判据退役）：退收栏（普通档、
     //      仍接管）清位落定后翻开原生栏 → 1s 拍内 reason=visible 重申 + 压回不可见。
     //      旧判据「2.6s 零重申存证且保持可见」与全接管期值守直接矛盾：普通档的清位同样
@@ -1619,10 +1630,11 @@ async function runSegments() {
         const hiddenB = await waitMs(() => !win32.nativeTaskbarVisible(), 4000);
         // 置位终态：逐拍重试由轮询自转（1s 拍），此处等终态——长等期间持续钉前台
         // （前台被夺会停表断掉重试）；R1 实测接受窗 ~15s（P9 曾在新 explorer 上置位成功
-        // 佐证），界 25s。
+        // 佐证）；工单293 界 25s→40s：三轮对照 R2 3ms / R1·R3 接受窗 >37s（尾部随负载
+        // 拉长），40s 按观测尾部定。
         const tStateB = Date.now();
         let stateMsB = -1;
-        while (Date.now() - tStateB <= 25000) {
+        while (Date.now() - tStateB <= 40000) {
           if ((appbarState() & 0x1) !== 0) { stateMsB = Date.now() - tStateB; break; }
           forceForeground(hwndOf(retractWin));
           await sleep(400);
@@ -1764,19 +1776,27 @@ async function runSegments() {
         : null;
       const backOk15 = await waitMs(() => appbarState() === user15, 8000);
       const ledgerGone15 = await waitMs(() => !fs.existsSync(ledgerFile15), 4000);
-      const nativeOk15 = await waitMs(() => nativeTaskbarVisible(), 8000); // 原值 AUTOHIDE=ON → 显示位在场（隐藏待唤出）
+      // 可见性还原判读（工单293 三轮校准）：受控原值带 AUTOHIDE ⇒ 还原后的原生栏是
+      // 「隐藏待唤出」的停靠表示，WS_VISIBLE 位是否在场由 explorer 停靠策略决定（「显示位
+      // ≠ 视觉在场」既有口径；实证：R1 233ms/R2 2ms 位在场，R3 8s 全窗位不在场而 appbar
+      // 读回复原、restored 存证、账清俱真——位不是还原义务的可观测面）。断言取：Shell_TrayWnd
+      // 在场 ∧（显示位在场 ∨ 还原态带 AUTOHIDE 位）——原值不带 AUTOHIDE 时仍硬断言显示位。
+      const trayOk15 = await waitMs(() => {
+        if (!win32.nativeTrayHwnd()) return false;
+        return win32.nativeTaskbarVisible() || (appbarState() & 0x1) === 1;
+      }, 8000);
       if (takeEv15 && clearEv15 && cleared15 >= 0 && ledgerOn15 && !hoverLeak15 && !winLeak15
-        && restoredEv15 && backOk15 >= 0 && ledgerGone15 >= 0 && nativeOk15 >= 0) {
+        && restoredEv15 && backOk15 >= 0 && ledgerGone15 >= 0 && trayOk15 >= 0) {
         rep.pass(`P15 普通态清位与三路径禁现：受控原值 0x${user15}（自动隐藏 ON）下接管建立记账（takeover userState=${takeEv15.userState}，账在盘=${ledgerOn15}）`
           + `+ 清位生效（cleared 存证、读回 0x${appbarState()} 无 AUTOHIDE、${cleared15}ms 落定——用户本已开自动隐藏时的有动作清位）；`
           + `底边悬停 ${hoverMs15}ms 全窗零可见帧、Win 键 ${winMs15}ms 零可见帧（通知路径未观察，如实登记）；`
           + `禁用任务栏 → restored reason=disabled（attempts=${restoredEv15.attempts}）+ appbar 读回复原 0x${user15}（${backOk15}ms）`
-          + `+ 落盘账清 + 原生栏可见位还原（${nativeOk15}ms）`);
+          + `+ 落盘账清 + 原生栏还原在场（${trayOk15}ms；显示位=${win32.nativeTaskbarVisible()}——AUTOHIDE 原值下 explorer 停靠位自主）`);
       } else {
         rep.fail(`P15 接管存证=${!!takeEv15} 清位存证=${!!clearEv15} 清位落定=${cleared15}ms 账在盘=${ledgerOn15} `
           + `底边悬停泄漏=${hoverLeak15}（观察 ${hoverMs15}ms） Win键泄漏=${winLeak15}（观察 ${winMs15}ms） `
           + `禁用驱动=${disabled15} 复原存证=${JSON.stringify(restoredEv15)} 读回复原=${backOk15}ms（现值 0x${appbarState()}/受控原值 0x${user15}） `
-          + `账清=${ledgerGone15 >= 0} 原生可见位还原=${nativeOk15 >= 0}`);
+          + `账清=${ledgerGone15 >= 0} 原生栏还原在场=${trayOk15 >= 0}（hwnd=${win32.nativeTrayHwnd()} 显示位=${win32.nativeTaskbarVisible()}）`);
       }
     }
     // P15 收尾：appbar 状态还原为全电池出发值（实验扰动不留给用户）；面板已禁用态由
