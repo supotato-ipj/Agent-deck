@@ -139,19 +139,28 @@ export function clearRetractAutoHide(log: EventLog | null, reason: string): void
 }
 
 /**
- * 重申当前目标（原生栏重申轮询的重挂动作，工单262）：explorer 重启/可见性翻转后把
- * **当前档位**的目标压回去——账不动（userState 不变、复原义务照旧，目标恒从账派生；
- * explorer 重启按注册表原态复活 ⇒ userState 恰是注册表里用户原态，账面无需也不许换）。
- * 无账（接管建立曾失败/未走过）时按完整接管走。成败以读回事实为准；读回仍不符只落
- * 失败存证、**不退避**——重申由轮询的下一拍天然重试。
+ * 重申当前目标（原生栏重申轮询的重挂动作，工单262）：把**当拍 want**（调用方从工作区
+ * 收栏账取的目标档位——与机器裁决同源同拍，工单292 评审修复轮 F2 两账等价收口）压回去。
+ * 账不动（userState 不变、复原义务照旧）；账面档位与 want 分叉时以 want 为准写目标并把
+ * 账面档位对齐——分叉的实形态：closed 径收栏中被外部销窗时 stopYieldPoll 清工作区账而
+ * RAII 账 mode 留 retracted，新会话账清后旧实现照账面档位写会与机器裁决反向（机器判
+ * clear 却执行置位）。explorer 重启按注册表原态复活 ⇒ userState 恰是注册表里用户原态，
+ * 账面无需也不许换。无账（接管建立曾失败/未走过）时按完整接管走。成败以读回事实为准；
+ * 读回仍不符只落失败存证、**不退避**——重申由轮询的下一拍天然重试。
  */
-export function reassertTakeoverAutoHide(log: EventLog | null): void {
+export function reassertTakeoverAutoHide(log: EventLog | null, retracted: boolean): void {
   if (engaged === null) {
     engageTakeoverAutoHide(log)
+    if (!retracted) return // engage 已把普通档目标压到位（账面 mode 与 want 一致）
+    enterRetractAutoHide(log) // want=收栏档：engage 只压了普通档目标，补置位（mode 随 enter 落账）
     return
   }
   const e = engaged
-  const retracted = e.mode === 'retracted'
+  // 两账等价（F2）：写入目标从当拍 want 派生、账面档位跟随对齐——目标档位的唯一所有权
+  // 在工作区收栏账（ADR-0016 Q1/Q2 口径「工作区收栏账只决定重申的目标档位」的执行面收口；
+  // 不对齐则后续 enter/clear 的幂等早退会按错档空转：mode=retracted 时 enter 静默返回，
+  // 收栏置位就丢了）。
+  e.mode = retracted ? 'retracted' : 'normal'
   const state = writeAndRead(retracted ? retractAutoHideState(e.userState) : normalBarAutoHideState(e.userState))
   const ok = retracted ? (state & ABS_AUTOHIDE) !== 0 : (state & ABS_AUTOHIDE) === 0
   log?.append({

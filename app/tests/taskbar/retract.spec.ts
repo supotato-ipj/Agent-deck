@@ -11,12 +11,16 @@ import path from 'node:path'
 import {
   COVER_TOLERANCE,
   DESKTOP_HOST_CLASSES,
+  HOST_RECT_SETTLE_BEATS,
+  HOST_RECT_SETTLE_BEAT_MS,
+  HOST_RECT_SETTLE_TIMEOUT_MS,
   SUMMON_GRACE_MS,
   SUMMON_HOVER_DELAY_MS,
   SUMMON_STRIP_HIT_HEIGHT,
   SUMMON_STRIP_MIN_WIDTH,
   SUMMON_STRIP_VISUAL_HEIGHT,
   initialSummonState,
+  stepHostRectSettle,
   planBarTransition,
   planSummonStrips,
   recheckStripHostRect,
@@ -32,6 +36,7 @@ import type {
   BarMode,
   BarModeInput,
   ForegroundProbe,
+  HostRectRecheckVerdict,
   PhysRect,
   SummonEvent,
   SummonEventType,
@@ -1146,5 +1151,51 @@ describe('recheckStripHostRect 宿主矩形复核判据（工单295，spec #292�
   it('容差可调：toleranceDip=2 时 1.5 DIP 偏离 → verified（宽限档位为上游留口径，判据域不变）', () => {
     const v = recheckStripHostRect({ ...expected, y: expected.y - 1.5 }, expected, 2)
     expect(v.verdict).toBe('verified')
+  })
+})
+
+/* ================================================================
+ * stepHostRectSettle：复核等回稳的拍子推进（工单292 评审修复轮 F1，spec #292）
+ * 纪律 = 连续读稳达标才落 verified、任一拍超界即纠正（03aed5a 电池侧等回稳同款）——
+ * 壳侧挪移窗（AppBar 重协商后壳把条带抬一身高、keepalive ≤500ms 回正，工单158 既证）
+ * 内的同拍单点复核可能落在挪移前而记 verified、漏掉随后偏离（评审 Spec 轴 c1）。
+ * ================================================================ */
+describe('stepHostRectSettle 复核等回稳拍子推进（工单292 评审修复轮 F1，spec #292）', () => {
+  const rect = { x: 0, y: 1392, width: 2560, height: 48 }
+  const verified = (dip = 0): HostRectRecheckVerdict => ({ verdict: 'verified', from: rect, rect, bottomDeviationDip: dip, topDeviationDip: dip })
+  const corrected = (dip = 48): HostRectRecheckVerdict => ({ verdict: 'corrected', from: rect, rect, bottomDeviationDip: dip, topDeviationDip: 0 })
+
+  it('常量：连续 3 拍 × 250ms 拍距 = 自首拍 500ms 读稳窗（跨壳侧挪移窗 ≤500ms，工单158）；有界上限 5s（同 03aed5a 电池侧纪律）', () => {
+    expect(HOST_RECT_SETTLE_BEATS).toBe(3)
+    expect(HOST_RECT_SETTLE_BEAT_MS).toBe(250)
+    expect(HOST_RECT_SETTLE_TIMEOUT_MS).toBe(5000)
+  })
+
+  it('首拍界内 → keep-waiting（不因单拍界内即判回稳——挪移窗可能未走完，评审 c1 的缺陷拍）', () => {
+    expect(stepHostRectSettle(0, verified())).toEqual({ action: 'keep-waiting', stableBeats: 1 })
+  })
+
+  it('连续读稳达标（累计第 HOST_RECT_SETTLE_BEATS 拍界内）→ settle，效果层落 verified', () => {
+    expect(stepHostRectSettle(1, verified())).toEqual({ action: 'keep-waiting', stableBeats: 2 })
+    expect(stepHostRectSettle(2, verified())).toEqual({ action: 'settle' })
+  })
+
+  it('任一拍超界 → correct（立即回正，不等回稳窗走完——纠正语义与旧单点复核一致）', () => {
+    expect(stepHostRectSettle(0, corrected())).toEqual({ action: 'correct' })
+    expect(stepHostRectSettle(2, corrected(1.5))).toEqual({ action: 'correct' })
+  })
+
+  it('时序全画：界内两拍后挪移砸中 → 纠正（计数清零重来）→ 再连续三拍界内 → settle——「连续」语义由效果层纠正后清零兑现', () => {
+    let beats = 0
+    expect(stepHostRectSettle(beats, verified())).toEqual({ action: 'keep-waiting', stableBeats: 1 })
+    beats = 1
+    expect(stepHostRectSettle(beats, verified())).toEqual({ action: 'keep-waiting', stableBeats: 2 })
+    beats = 2
+    // 挪移落在第三拍：超界即纠正（效果层纠正后计数清零、复核即止——旧单点纠正语义）
+    expect(stepHostRectSettle(beats, corrected())).toEqual({ action: 'correct' })
+    // （纠正即止，无后续拍；若复核再次发起则从零起算）
+    expect(stepHostRectSettle(0, verified())).toEqual({ action: 'keep-waiting', stableBeats: 1 })
+    expect(stepHostRectSettle(1, verified())).toEqual({ action: 'keep-waiting', stableBeats: 2 })
+    expect(stepHostRectSettle(2, verified())).toEqual({ action: 'settle' })
   })
 })

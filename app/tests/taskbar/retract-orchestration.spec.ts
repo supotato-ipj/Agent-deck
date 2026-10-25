@@ -556,10 +556,11 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(iEnter).toBeGreaterThan(code.indexOf('enterRetractAutoHide(log)'))
   })
 
-  it('宿主矩形复核的判据走纯函数 recheckStripHostRect（工单295，单一实现纪律）：verifyStripBottom 效果层只做取矩形/动作/存证，偏离判定与回正决策住在 shared/retract——防内联副本漂移回「自算判据」', () => {
-    const sb = code.match(/const verifyStripBottom = \(s: TaskbarSession, reason: string\): void => \{[\s\S]{0,900}?\n  \}/)
+  it('宿主矩形复核的判据走纯函数 recheckStripHostRect（工单295，单一实现纪律）：verifyStripBottom 效果层只做取矩形/动作/存证，偏离判定与回正决策住在 shared/retract——防内联副本漂移回「自算判据」；等回稳拍子推进同样归纯函数（工单292 评审修复轮 F1）', () => {
+    const sb = code.match(/const verifyStripBottom = \(s: TaskbarSession, reason: string\): void => \{[\s\S]{0,2400}?\n  \}/)
     expect(sb).toBeTruthy()
     expect(sb?.[0]).toMatch(/recheckStripHostRect\(/)
+    expect(sb?.[0]).toMatch(/stepHostRectSettle\(/)
     // 存证族不变：偏离落 corrected（带 from/to）、未偏离落 verified（带 rect）
     expect(sb?.[0]).toMatch(/taskbar-host-rect-corrected/)
     expect(sb?.[0]).toMatch(/taskbar-host-rect-verified/)
@@ -567,9 +568,21 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(sb?.[0]).not.toMatch(/offBottom/)
   })
 
+  it('复核等回稳有界轮询（工单292 评审修复轮 F1，同 03aed5a 电池侧纪律）：拍参数单一常量住 shared/retract，效果层不自定拍数/拍距/上限', () => {
+    expect(code).toMatch(/stepHostRectSettle\(stableBeats, v\)/)
+    expect(code).toMatch(/setTimeout\(beat, HOST_RECT_SETTLE_BEAT_MS\)/)
+    expect(code).not.toMatch(/setTimeout\(beat, \d/) // 拍距不经字面量（单一常量纪律）
+    const shared = srcOf('app/src/shared/retract.ts')
+    expect(shared).toMatch(/export const HOST_RECT_SETTLE_BEATS = 3/)
+    expect(shared).toMatch(/export const HOST_RECT_SETTLE_BEAT_MS = 250/)
+    expect(shared).toMatch(/export const HOST_RECT_SETTLE_TIMEOUT_MS = 5000/)
+  })
+
   it('复核判据纯函数经主进程侧转发导出（单一实现纪律，同工单237/293）', () => {
     const fwd = srcOf('app/src/main/taskbar/retract.ts')
     expect(fwd).toMatch(/\brecheckStripHostRect\b/)
+    expect(fwd).toMatch(/\bstepHostRectSettle\b/)
+    expect(fwd).toMatch(/\bHOST_RECT_SETTLE_BEATS\b/)
   })
 
   it('条带净空不锚视图位（工单293 改段）：stripBounds 净空由调用方给定，降级档账面（appBarDegraded）才给 48——视图位瞬态（收栏置位翻开 WS_VISIBLE）不得写几何账', () => {
@@ -661,9 +674,15 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
     expect(m).toBeTruthy()
   })
 
-  it('一拍裁决照单执行：hide → hideNativeTaskbar、autoHide 非空 → reassertTakeoverAutoHide、归因落 taskbar-native-reassert 存证', () => {
+  it('一拍裁决照单执行：hide → hideNativeTaskbar、autoHide 非空 → reassertTakeoverAutoHide、归因落 taskbar-native-reassert 存证；重申写入目标与机器裁决同源同拍（工单292 评审修复轮 F2 两账等价接线）', () => {
     expect(code).toMatch(/if \(decision\.hide\) hideNativeTaskbar\(log\)/)
-    expect(code).toMatch(/if \(decision\.autoHide !== null\) reassertTakeoverAutoHide\(log\)/)
+    // F2：执行面不自持第二份档位账——重申的写入目标传当拍 want（与机器 poll 同一拍、
+    // 同一份工作区收栏账取，同源同段代码）
+    expect(code).toMatch(/if \(decision\.autoHide !== null\) reassertTakeoverAutoHide\(log, s\.workspaceRetracted\)/)
+    const pollLine = code.indexOf("s.nativeWatch?.machine.poll(probe, s.workspaceRetracted ? 'autohide-on' : 'autohide-off')")
+    const reassertLine = code.indexOf('reassertTakeoverAutoHide(log, s.workspaceRetracted)')
+    expect(pollLine).toBeGreaterThanOrEqual(0)
+    expect(reassertLine).toBeGreaterThan(pollLine)
     // 目标档位随工作区收栏账（在账 = 置位、账清 = 清位）
     expect(code).toMatch(/s\.workspaceRetracted \? 'autohide-on' : 'autohide-off'/)
     expect(code).toMatch(/'taskbar-native-reassert'/)
@@ -674,12 +693,13 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
     expect(srcOf(WATCH)).toMatch(/export const NATIVE_WATCH_POLL_MS = 1000/)
   })
 
-  it('重申住在 appbar-autohide.ts：账不动（不新记 userState），两档目标都从账面派生，无账按完整接管走', () => {
+  it('重申住在 appbar-autohide.ts：账不动（不新记 userState），写入目标随调用方 want 派生并把账面档位对齐（工单292 评审修复轮 F2 两账等价收口），无账按完整接管走', () => {
     const src = codeOf(AUTOHIDE)
-    expect(src).toMatch(/export function reassertTakeoverAutoHide\(/)
-    // 目标值仍从账面 userState 派生（置位档 / 清位档两条都由纯函数给出）
-    expect(src).toMatch(/retractAutoHideState\(e\.userState\)/)
-    expect(src).toMatch(/normalBarAutoHideState\(e\.userState\)/)
+    expect(src).toMatch(/export function reassertTakeoverAutoHide\(\s*log: EventLog \| null,\s*retracted: boolean\s*\)/)
+    // 目标值仍从账面 userState 派生（置位档 / 清位档两条都由纯函数给出），档位由 want 入参裁决
+    expect(src).toMatch(/retracted \? retractAutoHideState\(e\.userState\) : normalBarAutoHideState\(e\.userState\)/)
+    // 分叉拍账面档位以 want 为准回写对齐（不对齐则后续 enter/clear 幂等早退按错档空转）
+    expect(src).toMatch(/e\.mode = retracted \? 'retracted' : 'normal'/)
     expect(src).toMatch(/engageTakeoverAutoHide\(log\)/) // 无账的恢复路径
   })
 

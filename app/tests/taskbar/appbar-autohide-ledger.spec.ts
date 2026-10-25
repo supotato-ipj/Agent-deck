@@ -111,20 +111,63 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     expect(events.filter((e) => e.type === 'taskbar-autohide-cleared')).toHaveLength(2)
   })
 
-  it('重申按当前档位压回：普通档清位、收栏档置位', async () => {
+  it('重申目标随当拍 want 压回（工单292 评审修复轮 F2 两账等价收口）：want=普通档清位、want=收栏档置位', async () => {
     ff.state = 0x3
     const m = await importModule()
     const { events, log } = tapeLog()
     m.engageTakeoverAutoHide(log as never)
     ff.state = 0x3 // explorer 重启：注册表原值复活，清位被冲掉
-    m.reassertTakeoverAutoHide(log as never)
+    m.reassertTakeoverAutoHide(log as never, false)
     expect(ff.state).toBe(0x2)
     expect(events.find((e) => e.type === 'taskbar-autohide-reattached')).toMatchObject({ mode: 'normal', previous: 3 })
     m.enterRetractAutoHide(log as never)
     ff.state = 0x2 // 置位丢失
-    m.reassertTakeoverAutoHide(log as never)
+    m.reassertTakeoverAutoHide(log as never, true)
     expect(ff.state).toBe(0x3)
     expect(events.filter((e) => e.type === 'taskbar-autohide-reattached').map((e) => e.mode)).toEqual(['normal', 'retracted'])
+  })
+
+  it('两账分叉以当拍 want 为准并回写对齐（工单292 评审修复轮 F2）：账面收栏档 × want=普通档——机器判 clear 必须执行清位（实分叉形态：closed 径收栏中销窗，RAII 账 mode 留 retracted 而新会话工作区账清）', async () => {
+    ff.state = 0x3
+    const m = await importModule()
+    const { log } = tapeLog()
+    m.engageTakeoverAutoHide(log as never)
+    m.enterRetractAutoHide(log as never)
+    expect(m.takeoverAutoHideMode()).toBe('retracted')
+    expect(ff.state).toBe(0x3)
+    // 分叉拍：工作区收栏账已清（want=普通档）而账面档位还是收栏——重申写普通档目标
+    m.reassertTakeoverAutoHide(log as never, false)
+    expect(ff.state).toBe(0x2)
+    // 账面档位回写对齐：后续 enter 不再被「已在收栏档」幂等早退吞掉（否则收栏置位丢失）
+    expect(m.takeoverAutoHideMode()).toBe('normal')
+  })
+
+  it('两账分叉反向同判（工单292 评审修复轮 F2）：账面普通档 × want=收栏档——机器判 engage 必须执行置位（评审原述方向：判 engage 却执行清位的分叉形态）', async () => {
+    ff.state = 0x2
+    const m = await importModule()
+    const { log } = tapeLog()
+    m.engageTakeoverAutoHide(log as never)
+    expect(m.takeoverAutoHideMode()).toBe('normal')
+    expect(ff.state).toBe(0x2)
+    m.reassertTakeoverAutoHide(log as never, true)
+    expect(ff.state).toBe(0x3)
+    expect(m.takeoverAutoHideMode()).toBe('retracted')
+  })
+
+  it('无账重申按完整接管走（want=收栏档：engage 压普通档后补置位，mode 落收栏档）', async () => {
+    ff.state = 0x3
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    m.reassertTakeoverAutoHide(log as never, true)
+    expect(ff.state).toBe(0x3) // 终态=置位目标
+    expect(m.takeoverAutoHideEngaged()).toBe(true)
+    expect(m.takeoverAutoHideMode()).toBe('retracted')
+    expect(events.map((e) => e.type)).toEqual([
+      'taskbar-autohide-ledger-written',
+      'taskbar-autohide-takeover',
+      'taskbar-autohide-cleared',
+      'taskbar-autohide-set',
+    ])
   })
 
   it('退场复原用户原值 → 清账 + restored 存证；再复原（未接管）静默空转', async () => {

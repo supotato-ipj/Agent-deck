@@ -10,6 +10,9 @@ export {
   ABS_AUTOHIDE,
   COVER_TOLERANCE,
   DESKTOP_HOST_CLASSES,
+  HOST_RECT_SETTLE_BEATS,
+  HOST_RECT_SETTLE_BEAT_MS,
+  HOST_RECT_SETTLE_TIMEOUT_MS,
   SUMMON_GRACE_MS,
   SUMMON_HOVER_DELAY_MS,
   SUMMON_STRIP_HIT_HEIGHT,
@@ -28,6 +31,7 @@ export {
   retractGateDisqualified,
   retractHeldByZoomed,
   retractReasonHeld,
+  stepHostRectSettle,
   summonedGroups,
 } from '../../shared/retract'
 export type {
@@ -38,6 +42,7 @@ export type {
   BarTransitionPlan,
   ForegroundProbe,
   HostRectRecheckVerdict,
+  HostRectSettleStep,
   PhysRect,
   StripHostRect,
   SummonEvent,

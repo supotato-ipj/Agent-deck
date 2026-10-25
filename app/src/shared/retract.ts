@@ -738,3 +738,46 @@ export function recheckStripHostRect(
     topDeviationDip,
   }
 }
+
+/* ================================================================
+ * 七、stepHostRectSettle：复核等回稳的拍子推进（工单292 评审修复轮 F1，spec #292）
+ * ================================================================ */
+
+/**
+ * 等回稳拍子推进（工单292 评审修复轮 F1）：宿主矩形复核的**时点纪律**——置位/清位后的
+ * 壳侧挪移窗内（AppBar 重协商后壳把条带挪「协商带上移一身高」、keepalive ≤500ms 回正，
+ * 工单158 既证），同拍单点复核可能落在挪移**前**而记 verified、漏掉随后偏离（评审 Spec
+ * 轴 c1；#295 的 03aed5a 已把电池侧测量点改轮询等回稳，本函数把同一纪律搬进产品侧判据）。
+ * 判据：**连续读稳达标才落 verified，任一拍超界即纠正**——效果层每拍复核后调本函数照单
+ * 动作（纯逻辑离线可测，判据不住效果层）。
+ */
+
+/** 连续读稳达标拍数：3 拍 × 250ms 拍距 = 自首拍 500ms 读稳窗——跨壳侧挪移窗
+ *  （keepalive ≤500ms 回正，工单158）；单点/双拍界内都可能落在挪移前（缺陷拍）。 */
+export const HOST_RECT_SETTLE_BEATS = 3
+
+/** 拍距（ms）：250ms——与三态轮询同档；过疏拖存证落地、过密与壳侧节拍同频 */
+export const HOST_RECT_SETTLE_BEAT_MS = 250
+
+/** 有界上限（ms）：同 03aed5a 电池侧等回稳纪律的 5s 预算——效果层超限按末拍裁定收尾
+ *  （存证契约：每次复核恰落一条 verified/corrected，不无限陪跑） */
+export const HOST_RECT_SETTLE_TIMEOUT_MS = 5000
+
+/** 一次拍子推进的指令（效果层照单动作）：
+ *  - correct：本拍超界——回正 + 落 corrected，复核即止（纠正语义同旧单点，#158 取证
+ *    「纠正后不复发」；效果层若因后续过渡再发起复核则从零起算）；
+ *  - settle：连续读稳达标——落 verified，复核即止；
+ *  - keep-waiting：界内但未达标——排下一拍再读（携带累计稳定拍数）。 */
+export type HostRectSettleStep =
+  | { action: 'correct' }
+  | { action: 'settle' }
+  | { action: 'keep-waiting'; stableBeats: number }
+
+export function stepHostRectSettle(
+  stableBeats: number,
+  verdict: HostRectRecheckVerdict,
+): HostRectSettleStep {
+  if (verdict.verdict === 'corrected') return { action: 'correct' }
+  const next = stableBeats + 1
+  return next >= HOST_RECT_SETTLE_BEATS ? { action: 'settle' } : { action: 'keep-waiting', stableBeats: next }
+}
