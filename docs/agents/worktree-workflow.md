@@ -33,6 +33,8 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
 
 ## 收尾
 
+> **切根后并流纪律（2026-10-25 起）**：master 历史按 7 天滚动窗定期钝切（force-push，见 `AGENTS.md`「历史保留窗」）。切根后，一切基于旧链的分支**并流前必须先 rebase 到新 master**——merge 会把旧链对象整链带回，把已切掉的历史重新撑爆。在途 worktree 分支平时不动，各自并流时 rebase（冲突按工单语义解）。
+
 1. **真机验收**：分支上自检全绿后，在 worktree 里 `npm run accept`。验收模式绕开单实例锁，可与在跑面板共存。完成判据：验收电池通过。**注意**：全量电池拉起的真面板子进程仍会抢单实例锁，且本机多个检出共享同一验收槽——一律经 accept-guard 托管，禁止裸跑，协议见 `AGENTS.md` 的「真机验收调度协议（accept-guard）」一节。
 2. **PR 合流**：push `feat/<slug>` 并 `gh pr create`。master 受 ruleset 保护，改动一律经 PR，CI（test.yml）绿后合并。完成判据：PR 合入 origin/master。
 
