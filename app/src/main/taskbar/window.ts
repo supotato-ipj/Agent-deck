@@ -607,6 +607,12 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // ②′′ 收栏过渡后的宿主矩形复核（复审决策 4：几何不变量另行守住——不得把
     // window.innerHeight 的相对正确当成宿主矩形正确）
     if (plan.engageAutoHide) verifyStripBottom(s, 'retract-enter')
+    // ②′′′ 退出收栏同样复核（spec #292 用户故事 9「恢复后自绘栏干净回到屏底，不发生位置
+    // 漂移」；真机 R7/R8 实证的漂移形态）：置位/清位会把 explorer 的 Shell_TrayWnd
+    // WS_VISIBLE 位翻开（「显示位」翻转是既证行为），若 ABN 协商落在该窗口期，QUERYPOS
+    // 会被原生保留带剪掉一身高（协商矩形 [屏底−96, 屏底−48]）⇒ 协商账带着错矩形、keepalive
+    // 回正守卫反而把窗按住——进收栏有复核（上 行），退收栏同判据补一发，偏离即当场回正留证。
+    if (plan.clearAutoHide) verifyStripBottom(s, 'retract-exit')
     // ③ 整窗显隐：让位态整窗退场（唤出条也不出现）；收栏态条带窗在场（承载唤出条）
     if (plan.hideWindow) {
       w.hide()

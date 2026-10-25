@@ -537,6 +537,14 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(m).toBeTruthy()
   })
 
+  it('进出收栏两过渡都带宿主矩形复核（工单293，spec #292 用户故事 9：恢复后自绘栏不漂移）——enter 与 exit 同判据（stripPhysRect 底边 vs 屏底），exit 复核钉在 clearAutoHide 之后（先清位还原带、再核矩形）', () => {
+    expect(code).toMatch(/if \(plan\.engageAutoHide\) verifyStripBottom\(s, 'retract-enter'\)/)
+    expect(code).toMatch(/if \(plan\.clearAutoHide\) verifyStripBottom\(s, 'retract-exit'\)/)
+    // exit 复核在 clearRetractAutoHide 之后（band 已还原才核得住「贴屏底」）
+    const m = code.match(/if \(plan\.clearAutoHide\) clearRetractAutoHide\(log, reason\)[\s\S]{0,600}?if \(plan\.clearAutoHide\) verifyStripBottom\(s, 'retract-exit'\)/)
+    expect(m).toBeTruthy()
+  })
+
   it('销窗路径（destroy）也复原：面板退出/禁用在收栏态时账不悬空（还原路径①扩展）', () => {
     expect(code).toMatch(/restoreTakeoverAutoHide\(log, reason\)/)
     // destroy 内的复原先于会话判空（与 hidNative 还原同一位置纪律——账不随窗生灭）
