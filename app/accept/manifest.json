@@ -1112,7 +1112,7 @@
         {
           "seg": "P10",
           "ticket": 262,
-          "title": "全接管期原生栏重申轮询（工单262；工单293 判据改段——值守从收栏期扩为全接管期；段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤40s（新 explorer 接受窗尾部随负载拉长，三轮对照 3ms/>37s，轮询逐拍重试）→工作区回屏底）；普通档仍值守（退收栏清位落定后翻开原生栏→1s 拍内 reason=visible 重申+压回——旧「非收栏态休止」判据随全接管期退役）",
+          "title": "全接管期原生栏重申轮询（工单262；工单293 判据改段——值守从收栏期扩为全接管期；段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤40s（面板义务面=逐拍重试不断流+retract 档保持，硬断言；shell 接受窗尾部超界时环境降责账 explorer-acceptance-tail——四轮对照接受时延 <12s/52s+/66s，面板侧语义全程不变）→工作区回屏底）；普通档仍值守（退收栏清位落定后翻开原生栏→1s 拍内 reason=visible 重申+压回——旧「非收栏态休止」判据随全接管期退役）",
           "surfaces": [
             "system-state",
             "event-evidence"
