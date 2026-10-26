@@ -43,7 +43,8 @@
 //   P15 普通态清位与三路径禁现（工单293 新增，spec #292）：受控原值（自动隐藏 ON）下重拉
 //      面板 → 接管建立记账（taskbar-autohide-takeover userState=受控原值）+ 清位（
 //      taskbar-autohide-cleared + 读回无 AUTOHIDE——用户本已开自动隐藏时这是**有动作**的
-//      清位）；三路径禁现：底边悬停 3.5s 无可见帧、Win 键无可见帧、通知路径如实记「未观察」；
+//      清位）；三路径禁现：底边悬停 3.5s 无可见帧、Win 键无可见帧、通知路径证据单列（工单292
+//      F3 审计 docs/audit/2026-10-26-spec292-notification-center-path.md）；
 //      禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled
 //      + appbar 读回=接管前原值 + 落盘账清 + 原生栏还原在场（AUTOHIDE 原值下显示位由
 //      explorer 停靠策略自主——「显示位 ≠ 视觉在场」口径）
@@ -1899,7 +1900,8 @@ async function runSegments() {
     //      的复原目标（票面 AC 1，账在盘上由断言 ⑤ 的「账清」反证其在场纪律）；
     //   ② 底边悬停 3.5s 无可见帧（AC 5 路径一）：清位关闭了自动隐藏协议本身，悬停唤不出；
     //   ③ Win 键无可见帧（AC 5 路径二）：同上——两路径均以控制器独立视图事实采样；
-    //   ④ 通知路径只记「未观察」不谎报（AC 5 路径三——spec Out of Scope 如实登记）；
+    //   ④ 通知路径证据单列不作断言（AC 5 路径三——工单292 F3 探针轮在证，审计
+    //      docs/audit/2026-10-26-spec292-notification-center-path.md；环境稳定性风险探针留痕）；
     //   ⑤ 禁用任务栏（CDP 驱动真实渲染层 taskbar/set-enabled）→ taskbar-autohide-restored
     //      reason=disabled + appbar 读回=接管前原值（AC 6）+ 落盘账清 + 原生栏可见位还原。
     // 判读口径：「可见帧」= Shell_TrayWnd 的 IsWindowVisible 显示位（「显示位 ≠ 视觉在场」
@@ -1963,8 +1965,10 @@ async function runSegments() {
       win32.send([win32.keyInput(0x1b, win32.KEYUP)]);
       await sleep(400);
       forceForeground(hwndOf(neutralWin));
-      // ④ 通知路径：本机无可重复触发手段——只记「未观察」，不谎报（spec Out of Scope）
-      rep.note('P15 通知路径：未观察（本机无可重复触发的通知手段——spec Out of Scope 如实登记，本段不作该路径的阳性/阴性断言）');
+      // ④ 通知路径：证据单列（工单292 F3 探针轮在证——接管+清位在场下 Win+N 开通知中心、
+      //    150ms 采样原生栏零可见帧）；本段仍不作该路径的断言——通知中心 UI 自动化有环境
+      //    稳定性风险（探针四轮迭代留痕），spec 只要证据单列不要断言段
+      rep.note('P15 通知路径：证据单列 docs/audit/2026-10-26-spec292-notification-center-path.md（工单292 F3 探针轮：面板接管+清位在场下 Win+N 开通知中心、150ms 采样原生栏零可见帧；本段仍不作该路径的阳性/阴性断言——通知中心 UI 自动化有环境稳定性风险）');
       // ⑤ 禁用复原：CDP 驱动 taskbar/set-enabled(false) → destroy('disabled') → 路径①复原
       const tDis15 = Date.now();
       let disabled15 = false;
@@ -1992,7 +1996,7 @@ async function runSegments() {
         && restoredEv15 && backOk15 >= 0 && ledgerGone15 >= 0 && trayOk15 >= 0) {
         rep.pass(`P15 普通态清位与三路径禁现：受控原值 0x${user15}（自动隐藏 ON）下接管建立记账（takeover userState=${takeEv15.userState}，账在盘=${ledgerOn15}）`
           + `+ 清位生效（cleared 存证、读回 0x${appbarState()} 无 AUTOHIDE、${cleared15}ms 落定——用户本已开自动隐藏时的有动作清位）；`
-          + `底边悬停 ${hoverMs15}ms 全窗零可见帧、Win 键 ${winMs15}ms 零可见帧（通知路径未观察，如实登记）；`
+          + `底边悬停 ${hoverMs15}ms 全窗零可见帧、Win 键 ${winMs15}ms 零可见帧（通知路径证据单列：docs/audit/2026-10-26-spec292-notification-center-path.md）；`
           + `禁用任务栏 → restored reason=disabled（attempts=${restoredEv15.attempts}）+ appbar 读回复原 0x${user15}（${backOk15}ms）`
           + `+ 落盘账清 + 原生栏还原在场（${trayOk15}ms；显示位=${win32.nativeTaskbarVisible()}——AUTOHIDE 原值下 explorer 停靠位自主）`);
       } else {
