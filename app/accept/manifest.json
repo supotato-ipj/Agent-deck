@@ -1214,7 +1214,7 @@
         {
           "seg": "P15",
           "ticket": 293,
-          "title": "普通态清位与三路径禁现（工单293，spec #292）：受控原值（自动隐藏 ON）下重拉面板 → 接管建立记账（taskbar-autohide-takeover userState=受控原值、账在盘——崩溃后守卫/守护的复原目标）+ 清位（taskbar-autohide-cleared + 读回无 AUTOHIDE——用户本已开自动隐藏时的有动作清位）；底边悬停 3.5s 零可见帧；Win 键零可见帧；通知路径如实记「未观察」；禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled + appbar 读回=接管前原值 + 落盘账清 + 原生栏可见位还原",
+          "title": "普通态清位与三路径禁现（工单293，spec #292）：受控原值（自动隐藏 ON）下重拉面板 → 接管建立记账（taskbar-autohide-takeover userState=受控原值、账在盘——崩溃后守卫/守护的复原目标）+ 清位（taskbar-autohide-cleared + 读回无 AUTOHIDE——用户本已开自动隐藏时的有动作清位）；底边悬停 3.5s 零可见帧；Win 键零可见帧；通知路径证据单列（工单292 F3 审计 docs/audit/2026-10-26-spec292-notification-center-path.md）；禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled + appbar 读回=接管前原值 + 落盘账清 + 原生栏可见位还原",
           "surfaces": [
             "panel-alive",
             "system-state",
