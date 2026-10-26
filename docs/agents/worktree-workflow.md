@@ -48,4 +48,4 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
 
    裸 `gh` 直连常被重置；裸 `git` 不是必然失败（`git ls-remote` 直连实测可用），但别把「有时能直连」当成有代理兜底。push 卡住时先确认自己设了代理或设了超时，别空等。
 3. **master 快进**：主检出执行 `git checkout master && git pull --ff-only`。主检出的 `app/` 是开机自启目标，每次合流后都要快进保持最新。完成判据：`git rev-parse master origin/master` 输出相等。
-4. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。删除**远端**分支前必须先取得用户明确确认。
+4. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。远端分支由仓库的「合并后自动删除」接管（PR 合并即清），清理清单**不含远端分支项**，也不要提议删除已合并 PR 的远端分支；删未合并在途分支的保护规则见 AGENTS.md 远端分支纪律。
