@@ -499,6 +499,20 @@ export function retractAutoHideState(previous: number): number {
   return (previous & ABS_ALWAYSONTOP) | ABS_AUTOHIDE
 }
 
+/**
+ * 普通栏态的清位目标（ADR-0016 修订记 2026-10-25 双缺陷复审 Q1=A）：清 AUTO_HIDE
+ * 位、保留 ALWAYSONTOP——与 `retractAutoHideState` 是同一份用户原状态派生的两个目标。
+ *
+ * 为何要清：自动隐藏协议本身就是唤出通路（底边悬停、Win 键、通知按 Win11 语义都能
+ * 把屏外的原生栏拉出来）；只要用户原本开着自动隐藏，屏外装夹态仍会被叫出来。清位
+ * 把「自动隐藏协议」整体关掉，原生栏只剩 SW_HIDE 一条可见性账。
+ *
+ * 只取 ALWAYSONTOP 位 = 清 AUTOHIDE（GETSTATE 读回域仅 0..3，无其他位需要保留）。
+ */
+export function normalBarAutoHideState(userState: number): number {
+  return userState & ABS_ALWAYSONTOP
+}
+
 /** 三态迁移落下的存证事件名（与既有 taskbar-yield / taskbar-yield-lifted 同族） */
 export type BarEvidenceEvent =
   | 'taskbar-yield'
@@ -519,11 +533,12 @@ export type BarEvidenceEvent =
  *   状态后置 ABS_AUTOHIDE（保留 ALWAYSONTOP 位，thide RAII 蓝本），shell 由此释放
  *   原生任务栏 48px 保留带（spike 取证：工作区底边 1392→1440，
  *   docs/audit/2026-10-24-t257-autohide-setstate-probe.md）——与 releaseAppBar 严格
- *   同拍（只注销占位不置位 ⇒ 保留带不释放，铺满整屏不发生）；仅收栏态为真，
- *   非收栏时段系统行为与现状一致；
- * - restoreAutoHide：复原原生栏自动隐藏（工单260）——旧态为收栏即为真（解除最大化、
- *   被全屏压过两路都算退出收栏）；复原原状态，用户已开自动隐藏时置位本就是无操作、
- *   复原照走（不特判）；
+ *   同拍（只注销占位不置位 ⇒ 保留带不释放，铺满整屏不发生）；仅收栏态为真
+ *   （普通栏态的托管清位随**接管**建立，见 appbar-autohide 的 engageTakeoverAutoHide）；
+ * - clearAutoHide：退回普通栏态的清位目标（ADR-0016 双缺陷复审 Q1/Q2）——旧态为收栏
+ *   即为真（解除最大化、被全屏压过两路都算退出收栏）；目标**不是**用户原值，而是
+ *   normalBarAutoHideState(userState)（清 AUTOHIDE、留 ALWAYSONTOP）；用户原值只在
+ *   退场（禁用/退出/死路径）复原；
  * - claimAppBar：工作区占位必须生效 —— 已占位则空转，未占位则重注册 + 重协商（占位恢复）；
  * - hideWindow：整窗退场（隐藏）—— 只在全屏让位态（栏窗复用的收栏态不隐藏，唤出条要贴屏底可见）；
  * - showWindow：整窗复现 —— 从全屏让位态出来时；
@@ -537,7 +552,7 @@ export type BarEvidenceEvent =
 export interface BarTransitionPlan {
   releaseAppBar: boolean
   engageAutoHide: boolean
-  restoreAutoHide: boolean
+  clearAutoHide: boolean
   claimAppBar: boolean
   hideWindow: boolean
   showWindow: boolean
@@ -610,7 +625,7 @@ export function planBarTransition(
   const plan: BarTransitionPlan = {
     releaseAppBar: false,
     engageAutoHide: false,
-    restoreAutoHide: false,
+    clearAutoHide: false,
     claimAppBar: false,
     hideWindow: false,
     showWindow: false,
@@ -630,7 +645,7 @@ export function planBarTransition(
     // 闸门失格产不出——resolveBarMode 两道闸门后不落收栏档）。
     if (next === 'fullscreen-yield' && wasRetracted && (context?.gateDisqualified ?? false)) {
       plan.claimAppBar = true
-      plan.restoreAutoHide = true
+      plan.clearAutoHide = true
       plan.targetWorkspaceRetracted = false
       plan.evidence.push('taskbar-retract-lifted')
     }
@@ -648,7 +663,7 @@ export function planBarTransition(
   //    离账重注册 + 复原置位。目标与账面一致时零交割（幂等）。
   plan.releaseAppBar = plan.engageAutoHide = wantRetracted && !wasRetracted
   plan.claimAppBar = !wantRetracted
-  plan.restoreAutoHide = wasRetracted && !wantRetracted
+  plan.clearAutoHide = wasRetracted && !wantRetracted
   // ② 整窗显隐：让位态退场（唤出条也不出现），其余态条带窗在场
   if (next === 'fullscreen-yield') plan.hideWindow = true
   if (prev === 'fullscreen-yield') plan.showWindow = true
@@ -662,4 +677,107 @@ export function planBarTransition(
   if (next === 'fullscreen-yield') plan.evidence.push('taskbar-yield')
   if (wantRetracted && !wasRetracted) plan.evidence.push('taskbar-retract')
   return plan
+}
+
+/* ================================================================
+ * 六、recheckStripHostRect：收栏过渡后的宿主矩形复核（工单295，spec #292）
+ * ================================================================ */
+
+/** 条带窗 DIP 矩形（Electron getBounds 同形；CSS px = DIP） */
+export interface StripHostRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 宿主矩形复核的容差（DIP，spec #292 判据原文「底边 vs 屏底 ±1 DIP」） */
+export const HOST_RECT_TOLERANCE_DIP = 1
+
+/** 一次宿主矩形复核的裁定（纯产出，效果层照单动作与存证） */
+export interface HostRectRecheckVerdict {
+  /** verified = 界内不动作；corrected = 偏离超容差须回正 */
+  verdict: 'verified' | 'corrected'
+  /** 现矩形（存证 from——corrected 时是回正前的旧几何） */
+  from: StripHostRect
+  /** 生效矩形：verified = 现矩形；corrected = 回正目标（期望矩形） */
+  rect: StripHostRect
+  /** 底边偏离（DIP，绝对值）——「唤出条贴屏底」不变量的量化读数 */
+  bottomDeviationDip: number
+  /** 上缘偏离（DIP，绝对值）——底边贴底而窗高被改的形态由它兜住 */
+  topDeviationDip: number
+}
+
+/**
+ * 宿主矩形复核判据（工单295，spec #292 几何决策）：条带宿主矩形底边 vs 期望矩形底边
+ * （期望矩形由 stripPhysRect 屏底锚定，效果层换算 DIP 后喂入），偏离 >容差（±1 DIP）
+ * 即判 corrected、回正目标 = 期望矩形；界内判 verified、不动作。
+ *
+ * - 判据域是 **DIP**（换算由效果层经 screen.screenToDipRect 完成，本函数只裁 DIP 差）
+ *   ——150% 下 1 物理px = 0.667 DIP 界内、2 物理px = 1.333 DIP 出界，判读不随缩放漂移；
+ * - 两矩形**各取自己的底边/上缘**（不假设定高）：壳侧把窗抬高一个原生栏身高（48px，
+ *   真机 R7/R8 实证）与把窗改矮（底边缩进）两种形态都逃不掉；
+ * - 渲染层的唤出条落点（视口 innerHeight 相对值）**不在输入里**——不得把相对正确
+ *   当成宿主矩形正确（spec #292 存证/判据分界原文）。
+ */
+export function recheckStripHostRect(
+  current: StripHostRect,
+  expected: StripHostRect,
+  toleranceDip: number = HOST_RECT_TOLERANCE_DIP,
+): HostRectRecheckVerdict {
+  const bottomDeviationDip = Math.abs(
+    (current.y + current.height) - (expected.y + expected.height),
+  )
+  const topDeviationDip = Math.abs(current.y - expected.y)
+  const deviates = bottomDeviationDip > toleranceDip || topDeviationDip > toleranceDip
+  return {
+    verdict: deviates ? 'corrected' : 'verified',
+    from: current,
+    rect: deviates ? expected : current,
+    bottomDeviationDip,
+    topDeviationDip,
+  }
+}
+
+/* ================================================================
+ * 七、stepHostRectSettle：复核等回稳的拍子推进（工单292 评审修复轮 F1，spec #292）
+ * ================================================================ */
+
+/**
+ * 等回稳拍子推进（工单292 评审修复轮 F1）：宿主矩形复核的**时点纪律**——置位/清位后的
+ * 壳侧挪移窗内（AppBar 重协商后壳把条带挪「协商带上移一身高」、keepalive ≤500ms 回正，
+ * 工单158 既证），同拍单点复核可能落在挪移**前**而记 verified、漏掉随后偏离（评审 Spec
+ * 轴 c1；#295 的 03aed5a 已把电池侧测量点改轮询等回稳，本函数把同一纪律搬进产品侧判据）。
+ * 判据：**连续读稳达标才落 verified，任一拍超界即纠正**——效果层每拍复核后调本函数照单
+ * 动作（纯逻辑离线可测，判据不住效果层）。
+ */
+
+/** 连续读稳达标拍数：3 拍 × 250ms 拍距 = 自首拍 500ms 读稳窗——跨壳侧挪移窗
+ *  （keepalive ≤500ms 回正，工单158）；单点/双拍界内都可能落在挪移前（缺陷拍）。 */
+export const HOST_RECT_SETTLE_BEATS = 3
+
+/** 拍距（ms）：250ms——与三态轮询同档；过疏拖存证落地、过密与壳侧节拍同频 */
+export const HOST_RECT_SETTLE_BEAT_MS = 250
+
+/** 有界上限（ms）：同 03aed5a 电池侧等回稳纪律的 5s 预算——效果层超限按末拍裁定收尾
+ *  （存证契约：每次复核恰落一条 verified/corrected，不无限陪跑） */
+export const HOST_RECT_SETTLE_TIMEOUT_MS = 5000
+
+/** 一次拍子推进的指令（效果层照单动作）：
+ *  - correct：本拍超界——回正 + 落 corrected，复核即止（纠正语义同旧单点，#158 取证
+ *    「纠正后不复发」；效果层若因后续过渡再发起复核则从零起算）；
+ *  - settle：连续读稳达标——落 verified，复核即止；
+ *  - keep-waiting：界内但未达标——排下一拍再读（携带累计稳定拍数）。 */
+export type HostRectSettleStep =
+  | { action: 'correct' }
+  | { action: 'settle' }
+  | { action: 'keep-waiting'; stableBeats: number }
+
+export function stepHostRectSettle(
+  stableBeats: number,
+  verdict: HostRectRecheckVerdict,
+): HostRectSettleStep {
+  if (verdict.verdict === 'corrected') return { action: 'correct' }
+  const next = stableBeats + 1
+  return next >= HOST_RECT_SETTLE_BEATS ? { action: 'settle' } : { action: 'keep-waiting', stableBeats: next }
 }
