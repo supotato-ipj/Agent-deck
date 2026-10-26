@@ -32,7 +32,7 @@ Status: accepted
 
 ## Consequences
 
-- 实现落点（工单260，最小闭环）：FFI 面 `getAppBarState` / `setAppBarState`（`app/src/main/taskbar/appbar.ts`）；纯函数域 `ABS_AUTOHIDE` / `ABS_ALWAYSONTOP` / `retractAutoHideState` 与 `planBarTransition` 两旗帜（`app/src/shared/retract.ts`，单测覆盖 `app/tests/taskbar/retract-orchestration.spec.ts`）；效果层 RAII 账本 `engageRetractAutoHide` / `restoreRetractAutoHide`（`app/src/main/taskbar/appbar-autohide.ts`）；挂点 `applyBarMode` / `destroy`（`app/src/main/taskbar/window.ts`）；退避裁决 `planAppBarStateRestore`（`app/src/main/taskbar/native-restore.ts`）。
+- 实现落点（工单260，最小闭环）：FFI 面 `getAppBarState` / `setAppBarState`（`app/src/main/taskbar/appbar.ts`）；纯函数域 `ABS_AUTOHIDE` / `ABS_ALWAYSONTOP` / `retractAutoHideState` 与 `planBarTransition` 两旗帜（`app/src/shared/retract.ts`，单测覆盖 `app/tests/taskbar/retract-orchestration.spec.ts`）；效果层 RAII 账本 `engageRetractAutoHide` / `restoreRetractAutoHide`（`app/src/main/taskbar/appbar-autohide.ts`；函数名后随全接管期改组——`*Retract*` → `*Takeover*` 并新增 enter/clear 两动作，现名见文末修订记落地状态）；挂点 `applyBarMode` / `destroy`（`app/src/main/taskbar/window.ts`）；退避裁决 `planAppBarStateRestore`（`app/src/main/taskbar/native-restore.ts`）。
 - 存证族新增 `taskbar-autohide-set` / `taskbar-autohide-set-failed` / `taskbar-autohide-restored` / `taskbar-autohide-restore-failed`（`app/src/main/taskbar/appbar-autohide.ts`）——与既有 `taskbar-yield` 族同款纪律：notify 名保持则事件断言可存活，不得静默改名。
 - 验收电池按章法（ADR-0011、`docs/agents/battery-governance.md`）动断言：**51 电池 P6/P7 改段**（收栏态不变式改写「工作区底边 = 屏底 ±2」+ 参照窗铺满整屏 ±8——旧「底边 ≥ 屏底−48」是保留带被认定不可释放时代的口径，spike 取证背书改段）＋ **新增 P9**（收栏态面板正常退出 → 可见性与 appbar 状态双复原，路径①）；**50 电池 C1 措辞收口**「面板生命周期结束后字节复原」＋ **新增 C2**（maximizeRetract=off 不置位）。
 - 领域语言：GLOSSARY 入册「原生栏托管」（_Avoid_: 自动隐藏、任务栏隐藏），「最大化收栏」「工作区占位」词条的交叉引用同步收口；ADR-0015 文末补记的「待用户裁决」标记按本裁决摘除（本 ADR 即其裁决记录）。
@@ -47,3 +47,14 @@ Status: accepted
 **机制落点**：值守判据从「档位 = maximize-retract」改为「工作区收栏账 `workspaceRetracted` 在账」（效果层 `app/src/main/taskbar/window.ts` 逐笔维护；裁决上下文与理由持有归 `app/src/shared/retract.ts` 的 `BarTransitionContext` / `retractReasonHeld`）。置位/复原的交割时机不变——仍与占位注销/重注册严格同拍（工单260 语义未动），只是「占位注销状态」不再等价于「档位在收栏」。
 
 **取舍记录**：覆盖期间值守多跑 1s 低频观察拍（覆盖下可见性/置位读数正常即零动作），成本可忽略；账面跨覆盖延续使 RAII 账（engaged.previous）生命周期覆盖全屏让位期——复原目标仍是用户的原 appbar 状态，不受覆盖进出影响。
+
+## 修订记（工单293，2026-10-26：托管扩为全接管期——双缺陷复审 Q1/Q2 落地，按建成事实记）
+
+**裁决与修订对象**（spec #292，ADR-0016 修订记 2026-10-25 双缺陷复审 Q1=A / Q2=A）：托管从「收栏态临时置位、与收栏同生命周期」扩为**全接管期**——条带窗创建即建立接管（记用户原状态一次 → 落盘记账 → 压当前档位目标态），条带窗销毁才退场写回原值。修订决策 1 的「与收栏同生命周期」、决策 3 的「置位生效才记账」（改为**接管建立即记账**——清位已动系统状态，复原义务自接管开始成立）、决策 4 的「off/降级档下不置位」（收窄为**只关收栏档**：普通档的清位与值守照走，50 电池 C2 口径同步收窄——收栏置位零条 + restored 仅退场复原两径）。旗标改名：`restoreAutoHide` → `clearAutoHide`（旧「复原用户原值」语义作废，新语义「退回清位目标」；用户原值只在退场复原）；新增纯函数 `normalBarAutoHideState`（清位目标：清 AUTOHIDE、留 ALWAYSONTOP），与 `retractAutoHideState` 同源派生（GLOSSARY 新增**清位**词条）。重申轮询扩为全接管期（起表随接管建立、停表随拆场；目标档位由工作区收栏账派生 `autohide-on|off`；归因 `autohide-lost` → `autohide-mismatch`）；新增存证 `taskbar-autohide-takeover` / `-cleared` / `-clear-failed`（既有族保留原义）。
+
+**落地状态：已实施、真机出证**（2026-10-26，本节按建成事实原地回改；工单294/296/295 并流后终态）：
+- 单账/清位/收栏置位/重申机器/接线：`app/src/main/taskbar/appbar-autohide.ts`（engage/enter/clear/reassert/restore 五动作 + 单账——收栏置位 `enterRetractAutoHide`、退收栏回落 `clearRetractAutoHide` 与清位同走一份账，普通↔收栏只换目标、不重记原值（工单294）+ 退避窗防投毒）、`app/src/shared/retract.ts`（三目标态纯函数 `normalBarAutoHideState` / `retractAutoHideState`）、`app/src/main/taskbar/native-watch.ts`（两档目标）、`app/src/main/taskbar/window.ts`（create 接管即起表、destroy 先状态后可见性）。离线 2302/2302 绿（四票终态）。
+- 真机：51 电池 accept-sprint 出证轮 **PASS 17/0**（P6/P7 清位口径改段读回无 AUTOHIDE 位 + P6 进收栏读回含 AUTOHIDE 位、退收栏清位落定后 2s×150ms 采样窗零可见拍（工单294 读回双面）、P9 扩臂 B 普通态退出双复原、P10 判据改全接管期值守 + 拍 B 义务面/接受面拆分（shell ABM 接受窗尾部 52–66s 观测入环境账 explorer-acceptance-tail，面板义务面逐拍重试不断流）、**新增 P15 普通态清位与三路径禁现**——底边悬停 3.5s/Win 键零可见帧、通知路径如实记未观察、禁用后读回复原）；50 电池 **PASS 11/0**（A2/A3/A4 收栏态退场复原不回归 + A5/A6/A7 普通态出发三径——复原义务覆盖全接管期（工单296）、C1 字节复原、C2 收窄口径绿）。
+- 几何（决策 4 域）：进出收栏双复核（`retract-enter` / `retract-exit` 宿主矩形复核）；条带净空改锚**降级账面**（`applyDegradedClearance`，视图位瞬态不再写几何账）——真机实证收栏置位翻开的 WS_VISIBLE 位会经 display-metrics/ABN 通路把协商账带偏一身高（R7-R10 磁带），健康档条带恒贴屏底；复核判据后抽纯函数 `recheckStripHostRect`（底边 vs 物理屏底 ±1 DIP、DIP 域语义，离线 9 例）、applyBarMode 接线顺序钉「预隐藏 → 置位 → 复核」、51 电池 P6/P11 挂 enter/exit 双相位复核断言（出证轮四相位全 verified、宿主底边偏 0px、五组唤出条存证落点贴屏底）（工单295）。
+
+**取舍记录**：全接管期使清位/值守在普通档常开（每秒一拍观察 + 收栏进出各一次 SETSTATE，常态零动作成本可忽略）；清位本身是对用户自动隐藏偏好的**运行期**改写（退场按账复原，C1 字节口径不受影响——SETSTATE 不回写注册表，spike 既证）。

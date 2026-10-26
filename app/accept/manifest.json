@@ -894,15 +894,15 @@
     },
     {
       "id": "50-taskbar-carry",
-      "title": "任务栏显隐还原（工单50）：守卫链三还原路径 + 逃生开关 + 偏好不扰",
+      "title": "任务栏显隐还原（工单50）：守卫链三还原路径（收栏/普通双相位，工单296 补普通态出发）+ 逃生开关 + 偏好不扰",
       "entry": "app/accept/taskbar-carry.js",
       "flag": "--accept-taskbar-carry",
       "hintBar": true,
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 37,
-      "lastMeasuredAt": "2026-10-24",
+      "lastMeasuredSeconds": 66,
+      "lastMeasuredAt": "2026-10-26",
       "segments": [
         {
           "seg": "A1",
@@ -948,6 +948,39 @@
           "estSeconds": 9
         },
         {
+          "seg": "A5",
+          "ticket": 296,
+          "title": "正常退出（WM_CLOSE，普通态出发）：appbar 读回复原基线 + 原生任务栏还原（工单296 全接管期退场复原，读回事实裁决）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 9
+        },
+        {
+          "seg": "A6",
+          "ticket": 296,
+          "title": "崩溃路径（taskkill 面板树守卫存活，普通态出发）：panel-exit 从落盘账复原 + 读回基线（账记于普通态接管建立拍）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 7
+        },
+        {
+          "seg": "A7",
+          "ticket": 296,
+          "title": "进程被杀路径（守卫+面板同杀，普通态出发）：还原守护 guard-dead 从落盘账复原 + 自退（账记于普通态接管建立拍）",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 8
+        },
+        {
           "seg": "B1",
           "ticket": 50,
           "title": "逃生开关关闭（设置浮层真实 DOM 链）：原生即还原/条带销毁/config 落盘",
@@ -978,7 +1011,7 @@
         {
           "seg": "C2",
           "ticket": 260,
-          "title": "maximizeRetract=off 不置位（工单261 收口 B 相位口径）：B 相位起置位事件零条 + 退出后 appbar 状态 = 开跑前基线（控制器独立读数）",
+          "title": "maximizeRetract=off 不置位（工单293 全接管期改段：off 只关收栏档——收栏置位事件零条；接管清位与禁用/退出退场复原 reason=disabled/force 是设计行为应当发生；退出后 appbar 读回=开跑前基线）",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1000,7 +1033,7 @@
       "entry": "app/accept/taskbar-appbar.js",
       "flag": "--accept-taskbar-appbar",
       "hintBar": true,
-      "cdpPort": null,
+      "cdpPort": 9229,
       "kind": null,
       "budgetSeconds": 180,
       "lastMeasuredSeconds": 128,
@@ -1019,7 +1052,7 @@
         {
           "seg": "P2",
           "ticket": 51,
-          "title": "最大化让位：参照窗底边停在栏上沿",
+          "title": "最大化让位：参照窗底边停在栏上沿（工单293 改测量时点：AppBar 重协商后壳侧异步挪条带一身高、keepalive ≤500ms 回正——工单158 已证壳行为；改轮询等条带贴底回稳再断言，占位判据不变）",
           "surfaces": [
             "system-state"
           ],
@@ -1048,7 +1081,7 @@
         {
           "seg": "P6",
           "ticket": 244,
-          "title": "最大化收栏（工单260 改段不变式）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8）；解除最大化 → 重注册 + 复原（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered）→ 工作区回一栏高",
+          "title": "最大化收栏（工单260 改段不变式；工单293 清位口径改段；工单294 读回与可见帧补面；工单295 宿主矩形复核补面）：前台真最大化窗 → 注销 AppBar + 置位 ABS_AUTOHIDE（taskbar-retract appBar=removed + taskbar-appbar-removed）→ 占位与原生保留带双释放（工作区底边=屏底±2、参照窗铺满整屏±8、taskbar-autohide-set 存证+读回含 AUTOHIDE 位——进收栏读回=置位目标）+ 预隐藏在先（隐藏族存证 ≤ 置位存证）+ 过渡后宿主矩形复核存证（taskbar-host-rect-verified/corrected reason=retract-enter、宿主底边 vs 屏底 ±1 DIP 独立测量、五组唤出条落点只入存证）；解除最大化 → 重注册 + 退回清位目标（taskbar-retract-lifted appBar=registered + taskbar-appbar-registered + 读回无 AUTOHIDE 位——清位目标非用户原值，原值只在退场复原）→ 工作区回一栏高 + exit 复核存证（reason=retract-exit、宿主回贴屏底）；清位落定后原生栏 2s 采样窗零可见帧",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1061,7 +1094,7 @@
         {
           "seg": "P7",
           "ticket": 244,
-          "title": "三态优先级（工单260 随动不变式）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 复原置位→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）",
+          "title": "三态优先级（工单260 随动不变式；工单293 清位口径改段）：全屏让位压过收栏（全屏态条带整窗退场 + 占位恢复 + 清位（读回无 AUTOHIDE 位）→工作区回一栏高 + 全屏期间无收栏存证）；退出全屏回到最大化窗 → 收栏态自动回来（taskbar-retract 再落 + taskbar-appbar-removed + 工作区回屏底）",
           "surfaces": [
             "system-state",
             "event-evidence"
@@ -1093,18 +1126,18 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 12
+          "estSeconds": 6
         },
         {
           "seg": "P9",
           "ticket": 260,
-          "title": "收栏态退出双复原：重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；控制器独立读数为主——置位态 WS_VISIBLE 位使面板侧存证静默）",
+          "title": "面板正常退出双复原（工单260；工单293 扩「普通态也不复活」）：臂 A 重拉面板进收栏（置位 ABS_AUTOHIDE、工作区到屏底）→ 收栏态 WM_CLOSE 正常退出 → 可见性与 appbar 状态双复原（还原路径①；原值以接管建立前读回为准——接管后读回是清位目标）；臂 B 普通档（仍接管）：接管清位生效（takeover/cleared 存证 + 读回无 AUTOHIDE）+ 静置原生栏不复活（3s）+ WM_CLOSE 退出 → appbar 读回复原为接管前原值 + 落盘账清 + 原生栏可见",
           "surfaces": [
             "panel-alive",
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8,
+          "estSeconds": 18,
           "areas": [
             "taskbar"
           ]
@@ -1112,12 +1145,12 @@
         {
           "seg": "P10",
           "ticket": 262,
-          "title": "收栏态原生栏重申轮询（段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤25s（新 explorer 约 15s 不接受窗，看门狗逐拍重试）→工作区回屏底）；非收栏态休止（退收栏后翻开原生栏 2.6s 零重申存证且保持可见）",
+          "title": "全接管期原生栏重申轮询（工单262；工单293 判据改段——值守从收栏期扩为全接管期；段位垫底——explorer 重启断基线）：可见性翻转压回（SW_SHOWNOACTIVATE 注入→reason=visible 重申+压回不可见）；explorer 重启重挂（Stop-Process explorer+AutoRestartShell 归位→新 Shell_TrayWnd→reason=rebuild 重申+隐藏及时≤4s+置位终态≤40s（面板义务面=逐拍重试不断流+retract 档保持，硬断言；shell 接受窗尾部超界时环境降责账 explorer-acceptance-tail——四轮对照接受时延 <12s/52s+/66s，面板侧语义全程不变）→工作区回屏底）；普通档仍值守（退收栏清位落定后翻开原生栏→1s 拍内 reason=visible 重申+压回——旧「非收栏态休止」判据随全接管期退役）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 14,
+          "estSeconds": 28,
           "areas": [
             "taskbar"
           ]
@@ -1125,7 +1158,7 @@
         {
           "seg": "P11",
           "ticket": 269,
-          "title": "分屏收栏单窗最小闭环（工单269）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）",
+          "title": "分屏收栏单窗最小闭环（工单269；工单295 宿主矩形复核补面）：Win+Left 合成真 Snap（IsWindowArranged 直读互证）→会话存证 taskbar-snap-session+收栏（appBar=removed、工作区=屏底±2；前台=中性 holder 后台事实）+ 宿主矩形复核存证（taskbar-host-rect-verified/corrected reason=retract-enter、宿主底边 vs 屏底 ±1 DIP 独立测量、五组唤出条落点只入存证）；Snap 窗上下贴边（Windows 自动重排，#268 定谳零改窗）；唤出条悬停弹出且 Snap 窗矩形不变；Win+Down 解除→会话结束+重注册复原（工作区回一栏高）+ exit 复核存证（reason=retract-exit、宿主回贴屏底）；SetWindowPos 摆半屏几何伪分屏阴性（3+ 拍零收栏/零会话存证、工作区不动）",
           "surfaces": [
             "system-state",
             "event-evidence",
@@ -1145,7 +1178,7 @@
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 32,
+          "estSeconds": 28,
           "areas": [
             "taskbar"
           ]
@@ -1174,6 +1207,21 @@
             "input-injection"
           ],
           "estSeconds": 20,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P15",
+          "ticket": 293,
+          "title": "普通态清位与三路径禁现（工单293，spec #292）：受控原值（自动隐藏 ON）下重拉面板 → 接管建立记账（taskbar-autohide-takeover userState=受控原值、账在盘——崩溃后守卫/守护的复原目标）+ 清位（taskbar-autohide-cleared + 读回无 AUTOHIDE——用户本已开自动隐藏时的有动作清位）；底边悬停 3.5s 零可见帧；Win 键零可见帧；通知路径证据单列（工单292 F3 审计 docs/audit/2026-10-26-spec292-notification-center-path.md）；禁用任务栏（CDP 驱动 taskbar/set-enabled）→ taskbar-autohide-restored reason=disabled + appbar 读回=接管前原值 + 落盘账清 + 原生栏可见位还原",
+          "surfaces": [
+            "panel-alive",
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 30,
           "areas": [
             "taskbar"
           ]
@@ -1727,40 +1775,146 @@
     }
   ],
   "requiredFileRules": [
-    { "path": "app/src/main/config.ts", "area": "config" },
-    { "path": "app/src/main/desktop-cover.ts", "area": "desktop" },
-    { "path": "app/src/main/hotzone.ts", "area": "hotzone" },
-    { "path": "app/src/main/icon-carry.ts", "area": "desktop" },
-    { "path": "app/src/main/icon-restore-watch.cjs", "area": "desktop" },
-    { "path": "app/src/main/lag-sentinel.ts", "area": "render" },
-    { "path": "app/src/main/paths.ts", "area": "config" },
-    { "path": "app/src/main/render-sentinel-sampler.ts", "area": "render" },
-    { "path": "app/src/main/render-sentinel.ts", "area": "render" },
-    { "path": "app/src/main/tray.ts", "area": "tray" },
-    { "path": "app/src/main/services/clock.ts", "area": "cards" },
-    { "path": "app/src/main/services/desktop.ts", "area": "desktop" },
-    { "path": "app/src/main/services/focus.ts", "area": "sessions" },
-    { "path": "app/src/main/services/hardware.ts", "area": "taskbar" },
-    { "path": "app/src/main/services/plugin-config.ts", "area": "plugins" },
-    { "path": "app/src/main/services/search.ts", "area": "search" },
-    { "path": "app/src/main/services/sessions.ts", "area": "sessions" },
-    { "path": "app/src/main/services/settings.ts", "area": "settings" },
-    { "path": "app/src/main/services/taskbar.ts", "area": "taskbar" },
-    { "path": "app/src/main/services/usage.ts", "area": "taskbar" },
-    { "path": "app/src/main/taskbar/app-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/blank-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/menu-host.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/rec-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/tier-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/main/taskbar/wins-menu.ts", "area": "taskbar.menu" },
-    { "path": "app/src/renderer/pasteable-query.ts", "area": "cards" },
-    { "path": "app/src/renderer/plugin-tiers.ts", "area": "plugins" },
-    { "path": "app/src/renderer/plugins.ts", "area": "plugins" },
-    { "path": "app/src/renderer/selection.ts", "area": "desktop" },
-    { "path": "app/src/renderer/tray-pixels.ts", "area": "taskbar" },
-    { "path": "app/src/renderer/zone-hotzone.ts", "area": "hotzone" },
-    { "path": "app/src/shared/overflow.ts", "area": "taskbar" },
-    { "path": "app/src/shared/retract.ts", "area": "taskbar" },
-    { "path": "app/accept/manifest.json", "area": "accept", "wires": "*" }
+    {
+      "path": "app/src/main/config.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/desktop-cover.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/main/icon-carry.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/icon-restore-watch.cjs",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/lag-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/paths.ts",
+      "area": "config"
+    },
+    {
+      "path": "app/src/main/render-sentinel-sampler.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/render-sentinel.ts",
+      "area": "render"
+    },
+    {
+      "path": "app/src/main/tray.ts",
+      "area": "tray"
+    },
+    {
+      "path": "app/src/main/services/clock.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/main/services/desktop.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/main/services/focus.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/hardware.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/plugin-config.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/services/search.ts",
+      "area": "search"
+    },
+    {
+      "path": "app/src/main/services/sessions.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/services/settings.ts",
+      "area": "settings"
+    },
+    {
+      "path": "app/src/main/services/taskbar.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/services/usage.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/main/taskbar/app-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/blank-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/menu-host.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/rec-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/tier-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/main/taskbar/wins-menu.ts",
+      "area": "taskbar.menu"
+    },
+    {
+      "path": "app/src/renderer/pasteable-query.ts",
+      "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/plugin-tiers.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/plugins.ts",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/renderer/selection.ts",
+      "area": "desktop"
+    },
+    {
+      "path": "app/src/renderer/tray-pixels.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/renderer/zone-hotzone.ts",
+      "area": "hotzone"
+    },
+    {
+      "path": "app/src/shared/overflow.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/src/shared/retract.ts",
+      "area": "taskbar"
+    },
+    {
+      "path": "app/accept/manifest.json",
+      "area": "accept",
+      "wires": "*"
+    }
   ]
 }

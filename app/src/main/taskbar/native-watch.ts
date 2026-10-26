@@ -1,7 +1,10 @@
-// 原生栏重申轮询（工单262，spec #258 原生栏托管）：收栏态期间低频轮询，检测
-// Shell_TrayWnd 窗口重建（explorer 重启/崩溃、显示器热插拔）或可见性翻转 / 置位
-// 丢失，命中即重挂——压回 SW_HIDE 与重申 ABS_AUTOHIDE 置位（原生栏不复活、闪现
-// 即压回）。非收栏态轮询休止（效果层 taskbar/window.ts 按三态迁移起/停定时器）。
+// 原生栏重申轮询（工单262，spec #258 原生栏托管；工单293 ADR-0016 双缺陷复审 Q1/Q2
+// 扩为**全接管期**）：接管存续期间低频轮询，检测 Shell_TrayWnd 窗口重建（explorer 重启/
+// 崩溃、显示器热插拔）或可见性翻转 / 置位丢失，命中即重挂——压回 SW_HIDE 与重申目标
+// 档位（原生栏不复活、闪现即压回）。起表随接管建立（条带窗 create）、停表随拆场
+// （destroy/closed）——**不随普通↔收栏迁移起停**；每拍目标由工作区收栏账派生（在账=
+// 置位、账清=清位，见 NativeWatchWant）。（工单294 注记同步：旧头注「收栏态期间轮询/
+// 非收栏态休止」是工单262 旧口径，与 #293 建成的接线不符，本注记按建成事实回改。）
 // 与「发现可见即再压」是同一只轮询：重建、翻开、置位丢失三因都归它，不做键盘
 // 拦截（Win 键唤出路径不拦——spike 观察项 6：SW_HIDE + 置位态按 Win 0 帧不闪现，
 // docs/audit/2026-10-24-t257-autohide-setstate-probe.md）。
@@ -38,14 +41,18 @@ export interface NativeWatchProbe {
   autoHideOn?: boolean
 }
 
-/** 重挂归因（优先级 rebuild > visible > autohide-lost——报最重的因） */
-export type NativeWatchReason = 'rebuild' | 'visible' | 'autohide-lost'
+/** 重挂归因（优先级 rebuild > visible > autohide-mismatch——报最重的因） */
+export type NativeWatchReason = 'rebuild' | 'visible' | 'autohide-mismatch'
 
-/** 一拍决策：none = 清净不动作；reattach = 重挂（hide/engage 由观察事实派生，
- *  效果层照单执行——已隐不重复压、置位在场不重复置） */
+/** 一拍的目标档位（ADR-0016 双缺陷复审 Q1/Q2：托管扩为全接管期，普通栏态清位同样是
+ *  值守面——explorer 重启会把用户原值按注册表复活，普通态也得压回清位目标） */
+export type NativeWatchWant = 'autohide-on' | 'autohide-off'
+
+/** 一拍决策：none = 清净不动作；reattach = 重挂（hide / autoHide 由观察事实派生，
+ *  效果层照单执行——已隐不重复压、目标已在位不重复置） */
 export type NativeWatchDecision =
   | { action: 'none' }
-  | { action: 'reattach'; reason: NativeWatchReason; hide: boolean; engage: boolean }
+  | { action: 'reattach'; reason: NativeWatchReason; hide: boolean; autoHide: 'engage' | 'clear' | null }
 
 /**
  * 原生栏重申状态机：持有「上拍见过的原生栏句柄」这一份账。
@@ -68,10 +75,11 @@ export class NativeReassertMachine {
   /**
    * 一拍裁决。重挂两样动作由事实派生：
    * - hide ⟸ 可见（含重建后的新窗——explorer 重建的新窗必可见；已隐则不重复压）；
-   * - engage ⟸ 置位缺位（含重建后按注册表原态复活的窗——spike：SETSTATE 不回写
-   *   注册表，explorer 重启后置位必然丢失；置位在场则不重复置）。
+   * - autoHide ⟸ 目标档位与读回不符：目标「置位」（收栏态）而读回缺 AUTOHIDE → engage；
+   *   目标「清位」（普通栏态）而读回带 AUTOHIDE → clear（explorer 重启按注册表原态
+   *   复活，普通态的清位同样会被冲掉——这就是值守扩到全接管期的理由）。
    */
-  poll(probe: NativeWatchProbe): NativeWatchDecision {
+  poll(probe: NativeWatchProbe, want: NativeWatchWant): NativeWatchDecision {
     if (!this.armed) {
       this.begin(probe) // 防御路径（正常流程 begin 先行）：重立基线不动作
       return { action: 'none' }
@@ -82,18 +90,22 @@ export class NativeReassertMachine {
     }
     const rebuild = probe.hwnd !== this.lastHwnd
     const hide = probe.visible
-    const engage = !probe.autoHideOn
+    const on = probe.autoHideOn === true
+    const autoHide = want === 'autohide-on'
+      ? (on ? null : 'engage' as const)
+      : (on ? 'clear' as const : null)
     this.lastHwnd = probe.hwnd
-    if (!rebuild && !hide && !engage) return { action: 'none' }
+    if (!rebuild && !hide && autoHide === null) return { action: 'none' }
     return {
       action: 'reattach',
-      reason: rebuild ? 'rebuild' : hide ? 'visible' : 'autohide-lost',
+      reason: rebuild ? 'rebuild' : hide ? 'visible' : 'autohide-mismatch',
       hide,
-      engage,
+      autoHide,
     }
   }
 
-  /** 退收栏/销窗：回未武装态（非收栏态轮询休止——效果层停表后残留一拍也不再动作） */
+  /** 拆场（destroy/closed 两径）：回未武装态（全接管期口径下停表只随拆场——效果层停表
+   *  后残留一拍也不再动作；普通↔收栏迁移不停表，工单294 注记同步建成事实） */
   reset(): void {
     this.armed = false
     this.lastHwnd = 0
