@@ -3,7 +3,7 @@
 // 拉起 --panel-accept 面板子进程（绕开单实例锁，与常驻面板共存）。
 //
 // 一段绑定一工单（docs/agents/battery-governance.md 增段三条件之三）：九张票各一段；工单179 的
-// 失败面有「装载接管」与「卸载交还」两头，按主电池 P9/P9B 的同款拆段记法落成 P179 与 P179B
+// 失败面有「装载接管」与「停用交还」两头，按主电池 P9/P9B 的同款拆段记法落成 P179 与 P179B
 // 两段（段号电池内唯一），两段同归工单179；工单200 起添 P200 一段（空临时组卡留屏，裁决 A）。
 // 增段条件对照：① 真机行为存证——卡面几何、菜单开层、输入注入、剪贴板落盘、系统热区矩形均为
 // 单测够不到的面（纯模块那侧已由 tests/plugins/doc-group-cards-*.spec.ts 穷举）；② 单测能覆盖
@@ -1525,13 +1525,13 @@ async function main() {
       }
     }
 
-    // ===== P179B · 工单179 卸载交还（接管与交还是一族失败面，拆段记法同主电池 P9/P9B）===
+    // ===== P179B · 工单179 停用交还（接管与交还是一族失败面，拆段记法同主电池 P9/P9B）===
     rep.beginSegment('P179B');
     {
       const cfgRaw = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null;
       rep.note(`轮末自定义卡定义文件字节数=${cfgRaw ? Buffer.byteLength(cfgRaw, 'utf8') : 0}（持久化面见 P185 段）`);
-      fs.rmSync(path.join(PLUGIN_ROOT, 'doc-group-cards'), { recursive: true, force: true });
-      rep.note('已删私有根里的插件目录（= 投放型的撤回方式：删目录即完全撤回）');
+      await cdpEval(`window.deck.bridge.invoke('settings/set-card-enabled', { id: 'doc-group-cards', enabled: false })`);
+      rep.note('经设置停用第一方组卡（ADR-0019：可停用，不因用户根副本删除而卸载）');
       const unmounted = await until(async () => {
         const m = await cdpEval(EXPR.pluginMounted);
         return m && !m.container;
@@ -1544,11 +1544,19 @@ async function main() {
       const hz = lastHotzones();
       const band = hz && (hz.rects || []).find((r) => r.id === 'doc-zone');
       unmounted && zone && cards.length === 0
-        ? rep.pass(`卸载交还：插件容器退场，内核文档区原样还原（display=${JSON.stringify(zone.display)}，${zone.ditem} 个 .ditem 回到可见面），组卡一张不剩`)
-        : rep.fail(`卸载交还异常：unmounted=${!!unmounted} zone=${JSON.stringify(zone)} 残留组卡=${cards.length}`);
+        ? rep.pass(`停用交还：插件容器退场，内核文档区原样还原（display=${JSON.stringify(zone.display)}，${zone.ditem} 个 .ditem 回到可见面），组卡一张不剩`)
+        : rep.fail(`停用交还异常：unmounted=${!!unmounted} zone=${JSON.stringify(zone)} 残留组卡=${cards.length}`);
       zone && zone.w > 0 && band && band.w > 24
         ? rep.pass(`残留热区随之退场：文档区恢复可见后 doc-zone 热区回到真实分区矩形（${band.x},${band.y},${band.w},${band.h}），24×24 那圈只剩插件装载期间存在——这正是本条选择「记录并接受」而非「改内核」的实际代价（代价窗口 = 插件在装期间）`)
-        : rep.fail(`卸载后热区异常：zone=${JSON.stringify(zone)} band=${JSON.stringify(band)}`);
+        : rep.fail(`停用后热区异常：zone=${JSON.stringify(zone)} band=${JSON.stringify(band)}`);
+      await cdpEval(`window.deck.bridge.invoke('settings/set-card-enabled', { id: 'doc-group-cards', enabled: true })`);
+      const remounted = await until(async () => {
+        const m = await cdpEval(EXPR.pluginMounted);
+        return m && m.container && m.style;
+      }, 15000, 250);
+      remounted
+        ? rep.pass('重新启用：第一方组卡恢复装载，内核文档区重新由组卡接管')
+        : rep.fail('重新启用后组卡未恢复装载');
       // 还原插件私有状态原文件（内核落点是共享 userData，电池不留痕）
       rep.note(`插件私有状态：轮末还原为${cfgBackup ? '备份原文' : '缺位删除'}（${cfgFile}）`);
     }
