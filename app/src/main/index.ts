@@ -19,17 +19,13 @@ import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/
 import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
+import { productionPluginRoots } from './plugins/roots'
 import { userDataPath } from './paths'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 const CONFIG_FILE = path.join(app.getAppPath(), 'config.json')
 /** 渲染层资产根（dist/renderer）：经 deck-plugin:// 协议交付，工单10 起与插件资产同源 */
 const RENDERER_ROOT = path.join(__dirname, '../renderer')
-/**
- * 内置桌面组件根（工单10）：五个内置信息卡即第一批桌面组件，与用户插件同一套契约。
- * 排在前 = 同 id 先到先得（用户插件顶不掉内置组件；想改内置就另起 id 或改本仓库）。
- */
-const BUILTIN_CARDS_ROOT = path.join(RENDERER_ROOT, 'cards')
 const ACCEPT_DIR = path.join(app.getAppPath(), 'accept')
 
 /**
@@ -216,11 +212,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       file: CONFIG_FILE,
       config,
     },
-    // 桌面组件（工单10）：内置五卡 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）。
+    // 桌面组件：内置卡 + 第一方包根 + 用户插件目录（缺省 userData/plugins；config.plugins.dir 可改）。
     // 停用集（工单101）：读 config.plugins.disabled 的活引用——settings/set-card-enabled
     // 改写 config 后经 settings/cards-changed 触发重扫，清单随即剔除/恢复，无需重建宿主。
     plugins: {
-      roots: [BUILTIN_CARDS_ROOT, config.plugins.dir || userDataPath('plugins')],
+      roots: productionPluginRoots({
+        appRoot: app.getAppPath(),
+        rendererRoot: RENDERER_ROOT,
+        userRoot: config.plugins.dir || userDataPath('plugins'),
+      }),
       disabledIds: () => config.plugins.disabled,
     },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
