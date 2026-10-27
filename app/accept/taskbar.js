@@ -531,13 +531,10 @@ function seedRecsProbes(rep) {
       return { name, display: `DeckP16${tag}`, exe: target };
     });
     for (const p of [...probes, ...extras]) createShortcutLnkP16(path.join(desktopRoot, p.name), p.exe);
-    // 种子事件的 exe 身份走 byStem 通道（第二轮红轮取证）：面板子进程的 lnk 目标解析是
-    // 异步代理（ProxyShortcutResolver 首轮 null 即被 targets 缓存），.exe 分数键经
-    // byTarget 永远映射不上；真实条目的分全靠 UserAssist 先验里「盘上不存在的 .lnk
-    // 路径」走 mapScoresToItems 的 stem 兜底。种子对齐同一条通道：exe = 合成的不存在
-    // .lnk 路径，文件名 stem = 夹具显示名（byStem 键 = display 小写）——与解析缓存、
-    // 目标形态、盘上存在性全部解耦。（本地装配的直连解析器不经此路，取证实验
-    // recs-seed-forensics.js 已实证打分链路本体无误。）
+    // 种子事件的 exe 身份走 byStem 通道：以「盘上不存在的 .lnk 路径」按显示名对齐，
+    // 不依赖 ProxyShortcutResolver 异步就位的拍差，夹具分数因此确定。真实 .exe 记录
+    // 则在目标解析成功后经 byTarget 映射（工单302）；两条通道同属 mapScoresToItems。
+    // 种子 = 合成的不存在 .lnk 路径，文件名 stem = 夹具显示名（byStem 键 = display 小写）。
     for (const p of [...probes, ...extras]) p.seedExe = path.join('C:\\deck-p16-usage-seed', String(t), p.name);
     // usage 打分种子：按天 JSONL 追加（appendEvent 同款记录形态 {ts, exe}，UTC 日）。
     // 打分键 = seedExe（byStem 通道，见上）；p.exe（解析目标）留给 evidence 归一与
@@ -1970,7 +1967,9 @@ async function main() {
         })()`, TASKBAR_TITLE);
         await sleep(400); // 一移除一拍：changed 回推/几何帧到位再取下一轮名单
       }
-      // 回池复原（rec-restore 全数移除账；excluded 清空 = 复原干净，不给后续段留账）
+      const domEmpty19 = emptied19 ? await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE) : null;
+      // 回池复原（rec-restore 全数移除账；excluded 清空 = 复原干净，不给后续段留账；
+      // display 的空池事实必须在回池前采样，回池后正确的可见态是 flex 而非 none）
       await cdpEval(`(async () => {
         for (const exe of ${JSON.stringify(seenRemove19)}) {
           await window.deck.bridge.invoke('taskbar/rec-restore', { exe });
@@ -1986,7 +1985,6 @@ async function main() {
       const stClean19 = await state19();
       const clean19 = !!(stClean19 && Array.isArray(stClean19.excluded) && stClean19.excluded.length === 0);
       if (emptied19) {
-        const domEmpty19 = await cdpEval(`getComputedStyle(document.getElementById('pill-recs')).display`, TASKBAR_TITLE);
         if (domEmpty19 === 'none' && repool19 && clean19) {
           rep.pass(`P19 显隐解耦反向：候选池竭（移除 ${seenRemove19.length} 枚）→ 推荐组不渲染（display:none、`
             + `recPill 矩形归零、recommendations []），开始组在场不受牵连；rec-restore 回池复原`

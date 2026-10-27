@@ -6,9 +6,9 @@
  *
  * 这份桩只实现 app/src/renderer/taskbar.ts 真正用到的那几个面：getElementById /
  * createElement / classList / style / dataset / querySelector(All) / appendChild /
- * textContent / getBoundingClientRect / offsetWidth / animate / addEventListener。
+ * textContent / replaceWith / getBoundingClientRect / offsetWidth / animate / addEventListener。
  * 它证明的不是「DOM 怎么工作」（那是规范，这里只做最小近似），而是**渲染入口的接线**：
- * 档位循环后 .summon-popped 残态是否被抹掉、唤出条几何存证帧是否再发一帧。
+ * 档位循环后 .summon-popped 残态是否被抹掉、唤出条几何存证帧是否再发一帧、图标失败如何降级。
  *
  * 桩里的矩形按**真实布局**给数（组 pill 的横向区间与 taskbar-view 的口径同形）：
  * 收栏前缓存的 pill 矩形是唤出条几何的来源，桩给不出数就整条唤出条链路无从测。
@@ -246,6 +246,16 @@ export class StubElement {
     if (!p) return
     const i = p.children.indexOf(this)
     if (i >= 0) p.children.splice(i, 1)
+    this.parent = null
+  }
+
+  replaceWith(node: StubElement): void {
+    const p = this.parent
+    if (!p) return
+    const i = p.children.indexOf(this)
+    if (i < 0) return
+    node.parent = p
+    p.children[i] = node
     this.parent = null
   }
 
