@@ -1,11 +1,11 @@
-# accept 156-taskbar-apps-filter — 2026-10-26T17:56:00.372Z
-[17:56:01.392] NOTE  面板 pid=66008
-[17:56:07.941] NOTE  垃圾窗探针: exit=null diag=ok h1=852844 h2=10687052 h3=791208 pid=71196 psver=5.1.26100.9711
-[17:56:07.944] NOTE  垃圾窗探针取证: [{"hwnd":791208,"title":"Deck156OwnedProbe","toolWindow":false,"appWindow":false,"owned":true},{"hwnd":852844,"title":"","toolWindow":false,"appWindow":false,"owned":false},{"hwnd":10687052,"title":"Deck156ToolProbe","toolWindow":true,"appWindow":false,"owned":false}]
-[17:56:07.946] NOTE  notepad 探针: hwnd=3477284 title=无标题 - Notepad 起于 1986ms 前
-[17:56:07.949] SEG   ▶ P1 垃圾窗不上栏：探针在场取证（notepad 主窗+空标题/工具窗/有属主弹窗）+ 栏面名单裁决（notepad 收、powershell 拒、running 条目全有标题）｜工单156｜失效面=事件存证+系统状态
-[17:56:07.951] PASS  P1(a) 探针在场属实：notepad 主窗 + 空标题窗(852844) + 工具窗(10687052) + 有属主无 APPWINDOW 窗(791208)
-[17:56:08.629] NOTE  栏面名单: running=7 条 [ZCode.exe(有题), Kimi.exe(有题), msedge.exe(有题), Kimi Code.exe(有题), Notepad.exe(有题), Qoder CN.exe(有题), TickTick.exe(有题)]
-[17:56:08.630] PASS  P1(b) 过滤裁决：notepad 收、powershell 三扇垃圾窗拒、running 条目全部有标题（7 条）
-[17:56:10.228] NOTE  清场核验：原生任务栏可见
-[17:56:10.230] ===== 156-taskbar-apps-filter VERDICT: PASS (pass=2 fail=0) =====
+# accept 156-taskbar-apps-filter — 2026-10-27T14:08:26.800Z
+[14:08:27.745] NOTE  面板 pid=91660
+[14:08:35.885] NOTE  垃圾窗探针: exit=null diag=ok h1=7408676 h2=131940 h3=131942 pid=81860 psver=5.1.26100.9711
+[14:08:35.887] NOTE  垃圾窗探针取证: [{"hwnd":131942,"title":"Deck156OwnedProbe","toolWindow":false,"appWindow":false,"owned":true},{"hwnd":7408676,"title":"","toolWindow":false,"appWindow":false,"owned":false},{"hwnd":131940,"title":"Deck156ToolProbe","toolWindow":true,"appWindow":false,"owned":false}]
+[14:08:35.889] NOTE  notepad 探针: hwnd=1903070 title=无标题 - Notepad 起于 2595ms 前
+[14:08:35.891] SEG   ▶ P1 垃圾窗不上栏：探针在场取证（notepad 主窗+空标题/工具窗/有属主弹窗）+ 栏面名单裁决（notepad 收、powershell 拒、running 条目全有标题）｜工单156｜失效面=事件存证+系统状态
+[14:08:35.893] PASS  P1(a) 探针在场属实：notepad 主窗 + 空标题窗(7408676) + 工具窗(131940) + 有属主无 APPWINDOW 窗(131942)
+[14:08:36.662] NOTE  栏面名单: running=2 条 [Kimi Code.exe(有题), Notepad.exe(有题)]
+[14:08:36.664] PASS  P1(b) 过滤裁决：notepad 收、powershell 三扇垃圾窗拒、running 条目全部有标题（2 条）
+[14:08:38.692] NOTE  清场核验：原生任务栏可见
+[14:08:38.695] ===== 156-taskbar-apps-filter VERDICT: PASS (pass=2 fail=0) =====
