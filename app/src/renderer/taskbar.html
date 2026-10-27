@@ -148,9 +148,7 @@
     top: 50%;
     transform: translateY(-50%);
   }
-  /* 开始组系统钮（工单240 裁决：字形当图标）——字面 24px 当图标、格位 36×36
-   * （与应用/推荐组同档，spec #236 几何常量表「开始组」一栏）；可见文字退到
-   * title/aria-label（图标化后名字不再占格，可见名不丢）。
+  /* 开始组系统钮：24px 内联 SVG 居中于 36×36 格，名称保留在 title/aria-label。
    * 圆角随图标格同族 10px（999px 胶囊在 36 格里退化成正圆，图标格读作方块） */
   .tb-btn {
     flex: none; /* 工单158 挤撞回正：pill 收窄时系统按钮永不裁切（让位给 .tb-rec） */
@@ -159,17 +157,24 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    box-sizing: border-box; /* 底垫计入 36 格内（content-box 会让整格变 38 高） */
-    padding: 0 0 2px; /* ⊞/▦ 属数学/几何符号族，墨迹偏基线侧——2px 底垫微调 */
-    font-size: 24px;
-    line-height: 1;
+    box-sizing: border-box;
+    padding: 0;
     color: #d6d6d6;
     border-radius: 10px;
     cursor: pointer;
-    white-space: nowrap;
   }
+  .tb-system-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+    shape-rendering: crispEdges;
+  }
+  .tb-btn[data-id="start"] { color: #00a4ef; }
   .tb-btn:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-btn:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  .tb-btn[data-id="start"]:hover { color: #48bdf4; }
+  .tb-btn[data-id="start"]:active { color: #008dcc; }
+  .tb-btn[data-id="tasks"]:active { color: #b0b0b0; }
   /* 右组单元格（工单55）：摘要/音量/时钟同形同号字体；摘要段间留窄缝。
    * 工单240：字号 12 → 11（右组紧凑排版——48px 栏高内五项指标仍可读）。
    * 圆角 999px 保留（文本芯片格：CPU/GPU/RAM/速率一串读作一枚胶囊，与图标格族分开）。
