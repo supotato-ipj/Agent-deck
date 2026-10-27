@@ -343,3 +343,41 @@ DevTools listening on ws://127.0.0.1:9227/devtools/browser/472ab04d-42e2-47d2-8a
 [8008:1025/213611.622:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 [8008:1025/213611.622:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
 [8008:1025/213611.624:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/10d69f04-0e47-4fa8-896a-ce88a8f9716e
+[49788:1027/015753.347:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[49788:1027/015753.347:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[49788:1027/015753.347:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[49788:1027/015753.508:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[49788:1027/015753.508:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[49788:1027/015753.508:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[49788:1027/015753.508:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[49788:1027/015753.520:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[49788:1027/015753.521:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/033482b7-43f9-408b-b35d-26c76d4d1165
+[75852:1027/015759.451:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[75852:1027/015759.451:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[75852:1027/015759.451:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[75852:1027/015759.611:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[75852:1027/015759.611:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[75852:1027/015759.611:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[75852:1027/015759.611:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[75852:1027/015759.611:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[75852:1027/015759.612:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/a4c70b08-1490-45bf-8664-3332e4299a34
+[98040:1027/015957.318:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[98040:1027/015957.318:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[98040:1027/015957.319:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[98040:1027/015957.479:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[98040:1027/015957.479:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[98040:1027/015957.481:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[98040:1027/015957.481:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[98040:1027/015957.481:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[98040:1027/015957.481:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
