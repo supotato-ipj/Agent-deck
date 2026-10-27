@@ -11,23 +11,24 @@ export interface TaskbarBridge {
   on<K extends BridgeEventName>(event: K, listener: (payload: BridgeEvents[K]) => void): () => void
 }
 
-/** 开始组系统按钮（工单49：开始 + TaskView）
- * 工单240 裁决（spec #236「开始组 24px 图标 / 36px 格」在文字按钮上的落法）：
- * 字形当图标——label 只留字面（⊞ / ▦，24px 显示于 36px 格里），可见文字退到
- * title/aria-label（图标化后名字不再占格，可访问名不丢）。 */
+/** 开始组系统按钮（工单49：开始 + TaskView）：24px 内联 SVG 居中于 36px 格，
+ * 可见名只保留在 title/aria-label，点击仍按 id 分发系统动作。 */
 export interface TaskbarButtonSpec {
   id: TaskbarButtonId
-  /** 按钮面字面（= 图标位）：24px 字形居中于 36px 格 */
-  label: string
-  /** 可见名（悬停提示 + 无障碍名）：文字按钮退役后名字只在此 */
+  /** 可见名（悬停提示 + 无障碍名） */
   title: string
   action: TaskbarSystemAction
 }
 
 export const TASKBAR_BUTTONS: readonly TaskbarButtonSpec[] = [
-  { id: 'start', label: '⊞', title: '开始', action: 'start-menu' },
-  { id: 'tasks', label: '▦', title: '任务视图', action: 'task-view' },
+  { id: 'start', title: '开始', action: 'start-menu' },
+  { id: 'tasks', title: '任务视图', action: 'task-view' },
 ] as const
+
+export const TASKBAR_BUTTON_ICONS: Readonly<Record<TaskbarButtonId, string>> = {
+  start: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1 1h10v10H1zM13 1h10v10H13zM1 13h10v10H1zM13 13h10v10H13z"/></svg>',
+  tasks: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M1 2h22v20H1V2Zm2 2v16h18V4H3Z"/><path fill="currentColor" d="M7 4h3v16H7z"/></svg>',
+}
 
 /** 右组动作格（工单55）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、点击触发原生
  * 快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；显示桌面
