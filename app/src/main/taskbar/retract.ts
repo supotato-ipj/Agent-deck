@@ -1,4 +1,5 @@
-// 收栏决策纯函数域模块的主进程侧转发导出（工单237，spec #236）。
+// 收栏决策纯函数域模块的主进程侧转发导出（工单237，spec #236；工单308 M1 导出面随
+// 接口收紧同步）。
 //
 // 实现本体住在 shared/retract.ts：收栏态横跨主进程与渲染层两端——三态裁决与前台探针在
 // 主进程，唤出条几何（pill 矩形只有渲染层量得到）与唤出交互在渲染层。渲染层引用主进程
@@ -10,9 +11,6 @@ export {
   ABS_AUTOHIDE,
   COVER_TOLERANCE,
   DESKTOP_HOST_CLASSES,
-  HOST_RECT_SETTLE_BEATS,
-  HOST_RECT_SETTLE_BEAT_MS,
-  HOST_RECT_SETTLE_TIMEOUT_MS,
   SUMMON_GRACE_MS,
   SUMMON_HOVER_DELAY_MS,
   SUMMON_STRIP_HIT_HEIGHT,
@@ -20,31 +18,22 @@ export {
   SUMMON_STRIP_VISUAL_HEIGHT,
   coversScreenRect,
   initialSummonState,
-  normalBarAutoHideState,
   planBarTransition,
   planSummonStrips,
-  recheckStripHostRect,
   reduceSummon,
   reduceSummonSequence,
   resolveBarMode,
   retractAutoHideState,
-  retractGateDisqualified,
   retractHeldByZoomed,
-  retractReasonHeld,
-  stepHostRectSettle,
   summonedGroups,
 } from '../../shared/retract'
 export type {
   BarEvidenceEvent,
   BarMode,
   BarModeInput,
-  BarTransitionContext,
   BarTransitionPlan,
   ForegroundProbe,
-  HostRectRecheckVerdict,
-  HostRectSettleStep,
   PhysRect,
-  StripHostRect,
   SummonEvent,
   SummonEventType,
   SummonGroupState,
