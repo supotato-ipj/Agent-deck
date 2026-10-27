@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -664,16 +664,32 @@ describe('图标与字形档位统一（工单240，spec #236 几何常量表右
     return cssOv240.slice(i, cssOv240.indexOf('}', i))
   }
 
-  it('开始组同档（工单240 裁决：字形当图标）——按钮格 36×36、字形 24px、名称退 tooltip', () => {
+  it('开始组同档：稳重款 24px 内联 SVG 居中于 36×36 格，名称退 tooltip', () => {
     const btn = rule240('.tb-btn')
+    const icon = rule240('.tb-system-icon')
     expect(btn, '开始组按钮格与应用/推荐组同档 36px').toContain('width: 36px')
     expect(btn).toContain('height: 36px')
-    expect(btn, '字形放大到 24px 当图标').toContain('font-size: 24px')
+    expect(btn, 'SVG 不继承旧字形的基线补偿').toContain('padding: 0')
+    expect(icon, 'SVG 与应用/推荐组同为 24px').toContain('width: 24px')
+    expect(icon).toContain('height: 24px')
     expect(btn, '图标格不再退化成圆形胶囊（999px 在 36 格里即正圆——随图标格族 10px）')
       .not.toContain('border-radius: 999px')
-    // 字面即图标：可见文字退到 title/aria-label（可访问名不丢）
-    expect(TASKBAR_BUTTONS.map((b) => b.label)).toEqual(['⊞', '▦'])
     expect(TASKBAR_BUTTONS.map((b) => b.title)).toEqual(['开始', '任务视图'])
+    expect(Object.keys(TASKBAR_BUTTON_ICONS)).toEqual(['start', 'tasks'])
+    for (const svg of Object.values(TASKBAR_BUTTON_ICONS)) {
+      expect(svg).toContain('viewBox="0 0 24 24"')
+      expect(svg).toContain('aria-hidden="true"')
+      expect(svg).toContain('fill="currentColor"')
+    }
+    expect(TASKBAR_BUTTON_ICONS.start, '稳重款：22px 平面直角四窗格')
+      .toContain('M1 1h10v10H1zM13 1h10v10H13zM1 13h10v10H1zM13 13h10v10H13z')
+    expect(TASKBAR_BUTTON_ICONS.tasks, '稳重款：22×20 窗框与加粗侧栏').toContain('M1 2h22v20H1V2Z')
+    expect(TASKBAR_BUTTON_ICONS.tasks).toContain('M7 4h3v16H7z')
+    expect(css240).toContain('.tb-btn[data-id="start"] { color: #00a4ef; }')
+    expect(css240).toContain('.tb-btn[data-id="start"]:hover { color: #48bdf4; }')
+    expect(css240).toContain('.tb-btn[data-id="start"]:active { color: #008dcc; }')
+    expect(css240).toContain('.tb-btn[data-id="tasks"]:active { color: #b0b0b0; }')
+    expect(rendererSrc240, '渲染层按按钮 id 注入对应 SVG').toMatch(/el\.innerHTML = TASKBAR_BUTTON_ICONS\[b\.id\]/)
     expect(rendererSrc240, '渲染层把名称接到 title（图标化后可见名退 tooltip）').toMatch(/el\.title = b\.title/)
   })
 

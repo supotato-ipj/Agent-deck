@@ -1,26 +1,26 @@
-# accept 48-tray-spike — 2026-10-19T22:43:51.025Z
-[22:43:51.034] NOTE  已临时置 taskbar.enabled=false（托盘 spike 需现役真托盘在场，清场还原）
-[22:43:51.039] SEG   ▶ PRE 互斥侦察基线（Shell_TrayWnd 属主 explorer，第三方托管冲突不可判）｜工单48｜失效面=系统状态
-[22:43:52.015] PASS  互斥侦察：现役 Shell_TrayWnd 属主是 explorer（0x10192）——无第三方托盘托管冲突
-[22:43:52.017] SEG   ▶ P0 拉起 spike 面板（托盘宿主上线）｜工单48｜失效面=面板存活+事件存证
-[22:43:54.603] PASS  托盘宿主上线：竞争窗口 hwnd=0x481110，接管前真托盘=0x10192
-[22:43:54.605] SEG   ▶ P1 投递竞争：FindWindow 命中我方竞争窗口｜工单48｜失效面=事件存证
-[22:43:54.608] PASS  投递竞争：FindWindow(Shell_TrayWnd) 命中我方竞争窗口（置顶重申生效）
-[22:43:54.610] SEG   ▶ P2 泵延迟无感知：NIM_ADD/NIM_DELETE 同步快回 + 改道实证｜工单48｜失效面=系统状态+事件存证
-[22:43:54.734] PASS  泵延迟无感知：探针 NIM_ADD 返回 true，同步耗时 63ms（<500ms，调用方无挂起）
-[22:43:55.427] PASS  投递改道实证：探针 NIM_ADD 到达我方宿主（key=8261216:3552856065 tooltip="DECK-SPIKE-PROBE"）而非系统托盘
-[22:44:01.853] FAIL  NIM_DELETE 异常：ok=false 耗时=375ms 事件=null
-[22:44:01.855] SEG   ▶ P3 真实图标流量：面板自身托盘图标带像素到达（按 key 聚合）｜工单48｜失效面=事件存证
-[22:44:01.857] PASS  真实图标流量：面板自身托盘图标（key=4657630:3）带像素到达（32x32），tooltip 同键更新
-[22:44:01.859] NOTE  TaskbarCreated 收编存量：其余 add 事件 21 条 / 图标 21 个："Listary"、"PowerToys v0.96.1"、"联想电脑管家"、"Shadowsocks 4.4.1.0\n系统代理已启用：PAC 模式\nfastnote.supotato.com:443"、"滴答清单"、"OneDrive - Personal\r\nBacked up and synced"、"Safely Remove Hardware and Eject Media"、"Legion Zone"
-[22:44:01.861] SEG   ▶ P3b 验收页像素正确：spike 页琥珀簇（PrintWindow 直拍）｜工单48｜失效面=像素
-[22:44:03.427] PASS  验收页像素正确：spike 页内琥珀像素 80 个（真图标渲染，非占位图；实拍 48-spike-page.png）
-[22:44:03.429] SEG   ▶ P3c 第三方图标像素正确：提取主色与页面渲染互证｜工单48｜失效面=像素
-[22:44:03.441] PASS  第三方图标像素正确："联想电脑管家" 主色 rgb(47,141,251) 页面命中 233 像素（真值来自宿主提取的图标本体）
-[22:44:03.442] SEG   ▶ P4 投递改道旁证：真托盘条带无琥珀（<40 噪声阈值）｜工单48｜失效面=像素
-[22:44:05.684] PASS  投递改道旁证：真托盘条带琥珀像素 9 个（<40 噪声阈值，面板图标未落入系统托盘）
-[22:44:05.686] SEG   ▶ P5 字节语料固化：corpus JSONL 可解析、含 NIM_ADD 负载｜工单48｜失效面=事件存证
-[22:44:05.690] PASS  字节语料固化：46 条负载落盘（NIM_ADD 21 条，hex 长度与 cbData 钩稽一致）
-[22:44:05.692] SEG   ▶ P6 交还：面板退出广播 TaskbarCreated，真托盘回归 explorer｜工单48｜失效面=系统状态+面板存活
-[22:44:09.926] PASS  交还真托盘：面板退出后 explorer 托盘在场（0x10192），TaskbarCreated 已广播
-[22:44:09.930] ===== 48-tray-spike VERDICT: FAIL (pass=11 fail=1) =====
+# accept 48-tray-spike — 2026-10-26T16:35:09.763Z
+[16:35:09.772] NOTE  已临时置 taskbar.enabled=false（托盘 spike 需现役真托盘在场，清场还原）
+[16:35:09.776] SEG   ▶ PRE 互斥侦察基线（Shell_TrayWnd 属主 explorer，第三方托管冲突不可判）｜工单48｜失效面=系统状态
+[16:35:11.438] PASS  互斥侦察：现役 Shell_TrayWnd 属主是 explorer（0x301a6）——无第三方托盘托管冲突
+[16:35:11.440] SEG   ▶ P0 拉起 spike 面板（托盘宿主上线）｜工单48｜失效面=面板存活+事件存证
+[16:35:14.830] PASS  托盘宿主上线：竞争窗口 hwnd=0x750bbe，接管前真托盘=0x301a6
+[16:35:14.833] SEG   ▶ P1 投递竞争：FindWindow 命中我方竞争窗口｜工单48｜失效面=事件存证
+[16:35:14.835] PASS  投递竞争：FindWindow(Shell_TrayWnd) 命中我方竞争窗口（置顶重申生效）
+[16:35:14.838] SEG   ▶ P2 泵延迟无感知：NIM_ADD/NIM_DELETE 同步快回 + 改道实证｜工单48｜失效面=系统状态+事件存证
+[16:35:14.977] PASS  泵延迟无感知：探针 NIM_ADD 返回 true，同步耗时 53ms（<500ms，调用方无挂起）
+[16:35:15.981] PASS  投递改道实证：探针 NIM_ADD 到达我方宿主（key=8457990:3552856065 tooltip="DECK-SPIKE-PROBE"）而非系统托盘
+[16:35:16.719] PASS  探针 NIM_DELETE 同样快速送达（72ms）
+[16:35:16.721] SEG   ▶ P3 真实图标流量：面板自身托盘图标带像素到达（按 key 聚合）｜工单48｜失效面=事件存证
+[16:35:16.724] PASS  真实图标流量：面板自身托盘图标（key=1642282:3）带像素到达（32x32），tooltip 同键更新
+[16:35:16.728] NOTE  TaskbarCreated 收编存量：其余 add 事件 23 条 / 图标 23 个："Listary"、"联想电脑管家"、"PowerToys v0.96.1"、"Shadowsocks 4.4.1.0\n系统代理已启用：PAC 模式\nfastnote.supotato.com:443"、"滴答清单"、"OneDrive - Personal\r\nBacked up and synced"、"Safely Remove Hardware and Eject Media"、""
+[16:35:16.731] SEG   ▶ P3b 验收页像素正确：spike 页琥珀簇（PrintWindow 直拍）｜工单48｜失效面=像素
+[16:35:18.299] PASS  验收页像素正确：spike 页内琥珀像素 120 个（真图标渲染，非占位图；实拍 48-spike-page.png）
+[16:35:18.301] SEG   ▶ P3c 第三方图标像素正确：提取主色与页面渲染互证｜工单48｜失效面=像素
+[16:35:18.313] PASS  第三方图标像素正确："联想电脑管家" 主色 rgb(47,141,251) 页面命中 205 像素（真值来自宿主提取的图标本体）
+[16:35:18.315] SEG   ▶ P4 投递改道旁证：真托盘条带无琥珀（<40 噪声阈值）｜工单48｜失效面=像素
+[16:35:21.716] PASS  投递改道旁证：真托盘条带琥珀像素 0 个（<40 噪声阈值，面板图标未落入系统托盘）
+[16:35:21.718] SEG   ▶ P5 字节语料固化：corpus JSONL 可解析、含 NIM_ADD 负载｜工单48｜失效面=事件存证
+[16:35:21.722] PASS  字节语料固化：52 条负载落盘（NIM_ADD 23 条，hex 长度与 cbData 钩稽一致）
+[16:35:21.724] SEG   ▶ P6 交还：面板退出广播 TaskbarCreated，真托盘回归 explorer｜工单48｜失效面=系统状态+面板存活
+[16:35:26.308] PASS  交还真托盘：面板退出后 explorer 托盘在场（0x301a6），TaskbarCreated 已广播
+[16:35:26.312] ===== 48-tray-spike VERDICT: PASS (pass=12 fail=0) =====

@@ -804,11 +804,10 @@ async function runSegments() {
   // 全程以 taskbar.enabled=false 运行（任务栏显隐有 49/50 专电池），清场还原原文。
   const CONFIG_FILE_MAIN = path.join(APP_ROOT, 'config.json');
   const configBackupMain = fs.existsSync(CONFIG_FILE_MAIN) ? fs.readFileSync(CONFIG_FILE_MAIN, 'utf8') : null;
-  // #278：外部插件目录重定向至空 tmp——userData/plugins 里装着接管内置文档区的插件
+  // #278：外部插件目录重定向至空 tmp，并停用第一方组卡——接管内置文档区的插件
   // （实证：doc-group-cards 把 #doc-zone display:none 换成自绘组卡，P5 族 12 段全红
-  // 五轮含基线 master；面板插件根=[内置 cards, config.plugins.dir || userData/plugins]，
-  // 内置卡不受影响，P5.9/P8T 照常）。与 166 电池同款隔离手法；P11 的 hello 探针改写入
-  // 本目录（面板只盯这里），清场随 config 还原一并删除。
+  // 五轮含基线 master；内置卡不受影响，P5.9/P8T 照常）。组卡交互由 166 专电池覆盖；
+  // P11 的 hello 探针改写入本目录（面板只盯这里），清场随 config 还原一并删除。
   const pluginsDirIsolated = fs.mkdtempSync(path.join(os.tmpdir(), 'deck03-plugins-'));
   let sidestepped = [];
   try {
@@ -820,10 +819,14 @@ async function runSegments() {
   {
     const cfg = configBackupMain ? JSON.parse(configBackupMain) : {};
     cfg.taskbar = { ...(cfg.taskbar ?? {}), enabled: false };
-    cfg.plugins = { ...(cfg.plugins ?? {}), dir: pluginsDirIsolated };
+    cfg.plugins = {
+      ...(cfg.plugins ?? {}),
+      dir: pluginsDirIsolated,
+      disabled: [...new Set([...(cfg.plugins?.disabled ?? []), 'doc-group-cards'])],
+    };
     fs.writeFileSync(CONFIG_FILE_MAIN, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
     rep.note(`已临时置 taskbar.enabled=false（主电池依赖原生任务栏在场，清场还原）`);
-    rep.note(`已重定向外部插件目录至空 tmp（#278 隔离接管型插件；被旁置目录：[${sidestepped.join(', ') || '无'}]，清场还原原文）`);
+    rep.note(`已重定向外部插件目录至空 tmp 并停用第一方组卡（#278 隔离接管型插件；被旁置目录：[${sidestepped.join(', ') || '无'}]，清场还原原文）`);
   }
 
   const savedCursor = w32.cursor();
@@ -5189,7 +5192,7 @@ async function runSegments() {
     // （点击穿透落回背景层）→ 重启面板停用集保留 → 启用原位回归。全程事件门判定 +
     // 截图存证；整段裹 withControlWindowClear（落点在右下设置浮层，对照记事本要让位）。
     // finally 还原 config + 重启：P7 搜索段虽在本段之前已跑，后续段（P6/P11 等）仍假设
-    // 默认全启用，开关残留一律清场（spec 风险注记：电池假设默认全启用配置）。——
+    // 段前开关状态，开关残留一律清场（spec 风险注记：电池假设段前配置）。——
     rep.beginSegment('P8T');
     await withControlWindowClear(async () => {
       const configBackup101 = backupConfigB();
@@ -5280,7 +5283,7 @@ async function runSegments() {
         fullShot('101-search-re-enabled');
       } finally {
         w32.moveMousePhys(safePt.x, safePt.y);
-        // 收尾恢复全启用现场：还原 config + 重启（后续段与用户拿到的机器都必须是默认配置）
+        // 收尾还原段前开关现场：还原 config + 重启（后续段与用户拿到的机器都必须恢复段前配置）
         restoreConfigB(configBackup101);
         const tFinal101 = Date.now();
         const rlF = await handle.relaunch({ sinceMs: tFinal101 });
