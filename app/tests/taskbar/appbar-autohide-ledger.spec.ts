@@ -1,8 +1,10 @@
-// 面板侧还原路径① 的落盘接线（工单261，spec #258；ADR-0016 修订记 2026-10-25 双缺陷复审
-// Q1/Q2 把托管扩为全接管期后，本文件改钉**全接管期单账**的纪律）：
-//   - 接管建立即记账落盘（清位已改系统状态，复原义务自接管开始成立）；
-//   - 普通↔收栏切换只换目标，不重记用户原状态（中间态绝不是用户原值）；
-//   - 清位失败不中止接管：账仍在盘、档位照走、交重申轮询重试；
+// 面板侧还原路径① 的落盘接线（工单261，spec #258；工单308 M1 覆盖式普通档改钉
+// **恒置位单账**的纪律）：接管建立即**置位**（SET retractAutoHideState——保留
+// ALWAYSONTOP、加 ABS_AUTOHIDE，取代旧「接管即清位」）并记账落盘，此后**整个托管期
+// 零 appbar 状态写入**（运行期无 enter/clear 中间态——旧普通↔收栏切换语义随 M1 退役）；
+//   - 接管建立即记账落盘（previous=用户原状态，复原义务自接管开始成立）；
+//   - 置位失败不中止接管：账仍在盘、交重申轮询下一拍重试；
+//   - 重申恒置位：explorer 重启按注册表复活原值 / 置位丢失，轮询一律压回置位目标；
 //   - 退场复原到位 → 清账；终局失败 → 清账；退避中途进程死亡 → 账仍在盘（守卫/守护接力）；
 //   - 退避窗内再接管 → 取账面原状态记账，不取当前读回（防账目投毒）。
 // FFI 面（getAppBarState/setAppBarState）mock 在模块边界（appbar.ts 是效果层公开面，
@@ -37,7 +39,7 @@ function tapeLog(): Append {
 
 const ledgerFileOf = (dir: string): string => path.join(dir, 'agent-deck-panel', 'appbar-ledger.json')
 
-describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1/Q2 口径）', () => {
+describe('appbar 还原账：M1 恒置位单账（工单261 落盘接线；工单308 置位语义）', () => {
   let dir: string
   const realAppdata = process.env.APPDATA
 
@@ -58,114 +60,104 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     return import('../../src/main/taskbar/appbar-autohide')
   }
 
-  it('接管建立即记账落盘（previous=用户原状态）+ 清位存证；重复接管幂等不重记', async () => {
+  it('接管建立即置位（retractAutoHideState：留 ALWAYSONTOP、加 AUTOHIDE）+ 记账落盘；重复接管幂等不重记', async () => {
     const m = await importModule()
     const { events, log } = tapeLog()
-    ff.state = 0x3 // 用户原状态：自动隐藏 + 置顶
+    ff.state = 0x2 // 用户原状态：仅置顶（spike 基线 0 的有顶变体——置位对它是有动作的）
     m.engageTakeoverAutoHide(log as never)
     const file = ledgerFileOf(dir)
     expect(existsSync(file)).toBe(true)
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ previous: 3 })
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ previous: 2 })
     expect(events.map((e) => e.type)).toEqual([
       'taskbar-autohide-ledger-written',
       'taskbar-autohide-takeover',
-      'taskbar-autohide-cleared',
+      'taskbar-autohide-set',
     ])
-    // 清位目标：清 AUTOHIDE、留 ALWAYSONTOP
-    expect(ff.state).toBe(0x2)
-    // 幂等：已接管 = 未动作（不重记、不重复清位）
+    // 置位目标：留 ALWAYSONTOP、加 ABS_AUTOHIDE（M1：不再是清位目标 0x2）
+    expect(ff.state).toBe(0x3)
+    // 幂等：已接管 = 未动作（不重记、不重复置位）
     m.engageTakeoverAutoHide(log as never)
     expect(events).toHaveLength(3)
     expect(m.takeoverAutoHideEngaged()).toBe(true)
-    expect(m.takeoverAutoHideMode()).toBe('normal')
   })
 
-  it('清位未生效 → 不中止接管：账仍在盘（义务成立）、档位照走、落 clear-failed', async () => {
+  it('用户原值=0（未开自动隐藏）：接管置位是**有动作**的写（0→0x1）——M1 行为变化的核心面', async () => {
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    ff.state = 0
+    m.engageTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x1)
+    expect(events.find((e) => e.type === 'taskbar-autohide-takeover')).toMatchObject({ userState: 0, state: 0x1 })
+    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 0 })
+  })
+
+  it('用户本已开自动隐藏：置位是无操作写入（结果不变、记账与复原照走，不特判）', async () => {
+    const m = await importModule()
+    const { events, log } = tapeLog()
     ff.state = 0x3
-    ff.ignoreSets = 1 // SETSTATE 落空：读回仍 0x3
-    const m = await importModule()
-    const { events, log } = tapeLog()
     m.engageTakeoverAutoHide(log as never)
-    expect(events.map((e) => e.type)).toContain('taskbar-autohide-clear-failed')
-    // 义务自接管开始成立：账必须已落盘（否则崩溃后用户任务栏永久停在中间态）
-    expect(existsSync(ledgerFileOf(dir))).toBe(true)
-    expect(m.takeoverAutoHideEngaged()).toBe(true)
-    expect(m.takeoverAutoHideMode()).toBe('normal')
-  })
-
-  it('普通↔收栏切换只换目标、不重记原状态；退收栏回清位目标而非原值', async () => {
-    ff.state = 0x3 // 用户原状态：自动隐藏 + 置顶
-    const m = await importModule()
-    const { events, log } = tapeLog()
-    m.engageTakeoverAutoHide(log as never)
-    expect(ff.state).toBe(0x2) // 清位
-    m.enterRetractAutoHide(log as never)
-    expect(ff.state).toBe(0x3) // 收栏置位
-    expect(m.takeoverAutoHideMode()).toBe('retracted')
-    m.clearRetractAutoHide(log as never, 'retract-lifted')
-    expect(ff.state).toBe(0x2) // 回清位目标，**不是**原值 0x3
-    expect(m.takeoverAutoHideMode()).toBe('normal')
-    // 账全程只有一份、且仍是用户原状态
-    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 3 })
-    expect(events.filter((e) => e.type === 'taskbar-autohide-takeover')).toHaveLength(1)
-    expect(events.filter((e) => e.type === 'taskbar-autohide-cleared')).toHaveLength(2)
-  })
-
-  it('重申目标随当拍 want 压回（工单292 评审修复轮 F2 两账等价收口）：want=普通档清位、want=收栏档置位', async () => {
-    ff.state = 0x3
-    const m = await importModule()
-    const { events, log } = tapeLog()
-    m.engageTakeoverAutoHide(log as never)
-    ff.state = 0x3 // explorer 重启：注册表原值复活，清位被冲掉
-    m.reassertTakeoverAutoHide(log as never, false)
-    expect(ff.state).toBe(0x2)
-    expect(events.find((e) => e.type === 'taskbar-autohide-reattached')).toMatchObject({ mode: 'normal', previous: 3 })
-    m.enterRetractAutoHide(log as never)
-    ff.state = 0x2 // 置位丢失
-    m.reassertTakeoverAutoHide(log as never, true)
     expect(ff.state).toBe(0x3)
-    expect(events.filter((e) => e.type === 'taskbar-autohide-reattached').map((e) => e.mode)).toEqual(['normal', 'retracted'])
-  })
-
-  it('两账分叉以当拍 want 为准并回写对齐（工单292 评审修复轮 F2）：账面收栏档 × want=普通档——机器判 clear 必须执行清位（实分叉形态：closed 径收栏中销窗，RAII 账 mode 留 retracted 而新会话工作区账清）', async () => {
-    ff.state = 0x3
-    const m = await importModule()
-    const { log } = tapeLog()
-    m.engageTakeoverAutoHide(log as never)
-    m.enterRetractAutoHide(log as never)
-    expect(m.takeoverAutoHideMode()).toBe('retracted')
-    expect(ff.state).toBe(0x3)
-    // 分叉拍：工作区收栏账已清（want=普通档）而账面档位还是收栏——重申写普通档目标
-    m.reassertTakeoverAutoHide(log as never, false)
-    expect(ff.state).toBe(0x2)
-    // 账面档位回写对齐：后续 enter 不再被「已在收栏档」幂等早退吞掉（否则收栏置位丢失）
-    expect(m.takeoverAutoHideMode()).toBe('normal')
-  })
-
-  it('两账分叉反向同判（工单292 评审修复轮 F2）：账面普通档 × want=收栏档——机器判 engage 必须执行置位（评审原述方向：判 engage 却执行清位的分叉形态）', async () => {
-    ff.state = 0x2
-    const m = await importModule()
-    const { log } = tapeLog()
-    m.engageTakeoverAutoHide(log as never)
-    expect(m.takeoverAutoHideMode()).toBe('normal')
-    expect(ff.state).toBe(0x2)
-    m.reassertTakeoverAutoHide(log as never, true)
-    expect(ff.state).toBe(0x3)
-    expect(m.takeoverAutoHideMode()).toBe('retracted')
-  })
-
-  it('无账重申按完整接管走（want=收栏档：engage 压普通档后补置位，mode 落收栏档）', async () => {
-    ff.state = 0x3
-    const m = await importModule()
-    const { events, log } = tapeLog()
-    m.reassertTakeoverAutoHide(log as never, true)
-    expect(ff.state).toBe(0x3) // 终态=置位目标
-    expect(m.takeoverAutoHideEngaged()).toBe(true)
-    expect(m.takeoverAutoHideMode()).toBe('retracted')
     expect(events.map((e) => e.type)).toEqual([
       'taskbar-autohide-ledger-written',
       'taskbar-autohide-takeover',
-      'taskbar-autohide-cleared',
+      'taskbar-autohide-set',
+    ])
+    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 3 })
+  })
+
+  it('置位未生效 → 不中止接管：账仍在盘（义务成立）、落 set-failed', async () => {
+    ff.state = 0x2
+    ff.ignoreSets = 1 // SETSTATE 落空：读回仍 0x2
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    m.engageTakeoverAutoHide(log as never)
+    expect(events.map((e) => e.type)).toContain('taskbar-autohide-set-failed')
+    // 义务自接管开始成立：账必须已落盘（否则崩溃后用户任务栏永久停在中间态）
+    expect(existsSync(ledgerFileOf(dir))).toBe(true)
+    expect(m.takeoverAutoHideEngaged()).toBe(true)
+  })
+
+  it('重申恒置位（M1：托管期目标态唯一）：置位被冲掉/丢失即压回置位目标，账不重记', async () => {
+    ff.state = 0x2
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    m.engageTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x3)
+    ff.state = 0x2 // explorer 重启：注册表原值复活，置位被冲掉
+    m.reassertTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x3)
+    expect(events.find((e) => e.type === 'taskbar-autohide-reattached')).toMatchObject({ previous: 2 })
+    // 同貌拍再重申：幂等写（目标已在位仍是等值写、存证照落）——值守语义不变
+    m.reassertTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x3)
+    expect(events.filter((e) => e.type === 'taskbar-autohide-reattached')).toHaveLength(2)
+    // 账全程只有一份、且仍是用户原状态（不因重申换账）
+    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 2 })
+    expect(events.filter((e) => e.type === 'taskbar-autohide-takeover')).toHaveLength(1)
+  })
+
+  it('重申读回不符只落失败存证、不退避（重试归轮询下一拍）', async () => {
+    ff.state = 0x2
+    ff.ignoreSets = 2 // engage 与重申两拍 SETSTATE 都落空：读回仍 0x2（M1 下重申与建立同目标，两拍各写一次）
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    m.engageTakeoverAutoHide(log as never) // engage 的置位被吞（ignoreSets=1）
+    expect(events.map((e) => e.type)).toContain('taskbar-autohide-set-failed')
+    m.reassertTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x2)
+    expect(events.find((e) => e.type === 'taskbar-autohide-reattach-failed')).toMatchObject({ previous: 2 })
+  })
+
+  it('无账重申按完整接管走（engage 置位一次到位）', async () => {
+    ff.state = 0x2
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    m.reassertTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x3) // 终态=置位目标
+    expect(m.takeoverAutoHideEngaged()).toBe(true)
+    expect(events.map((e) => e.type)).toEqual([
+      'taskbar-autohide-ledger-written',
+      'taskbar-autohide-takeover',
       'taskbar-autohide-set',
     ])
   })
@@ -186,12 +178,24 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     expect(m.takeoverAutoHideEngaged()).toBe(false)
   })
 
+  it('用户原值=0（未开自动隐藏）的退场：置位后被复原回 0——托管期置位不遗留（M1 口径收窄的退场面）', async () => {
+    ff.state = 0
+    const m = await importModule()
+    const { events, log } = tapeLog()
+    m.engageTakeoverAutoHide(log as never)
+    expect(ff.state).toBe(0x1) // 托管期恒置位
+    m.restoreTakeoverAutoHide(log as never, 'disabled')
+    expect(ff.state).toBe(0) // 读回复原 = 接管前原值
+    expect(events.find((e) => e.type === 'taskbar-autohide-restored')).toMatchObject({ reason: 'disabled', state: 0, attempts: 1 })
+  })
+
   it('复原退避中途进程死亡 → 账仍在盘上（守卫/守护接力）；退避走完终局 → 清账 + 失败存证', async () => {
     vi.useFakeTimers()
     ff.state = 0x3
     const m = await importModule()
     const { events, log } = tapeLog()
     m.engageTakeoverAutoHide(log as never)
+    ff.state = 0x0 // M1 前提补齐：engage 置位后读回漂成中间态（explorer 忙/竞态现场）——否则复原首拍读回即等原值、退避不可达
     ff.ignoreSets = Number.MAX_SAFE_INTEGER // 此后 SETSTATE 恒落空（explorer 死现场）
     m.restoreTakeoverAutoHide(log as never, 'dispose')
     // 第一拍失败已排下退避重试：此刻「进程死亡」= 定时器随进程蒸发，账必须仍在盘上
@@ -207,6 +211,7 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     const m = await importModule()
     const { events, log } = tapeLog()
     m.engageTakeoverAutoHide(log as never)
+    ff.state = 0x0 // M1 前提补齐：读回漂成中间态（同上——第一拍落空才可判退避）
     ff.ignoreSets = 1 // 第一拍落空，第二拍到
     m.restoreTakeoverAutoHide(log as never, 'dispose')
     await vi.runAllTimersAsync()
@@ -214,15 +219,14 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     expect(events.find((e) => e.type === 'taskbar-autohide-restored')).toMatchObject({ attempts: 2 })
   })
 
-  it('普通态出发路径①退场（禁用 disabled / 正常退出 dispose）：读回复原用户原值、清账、存证按 reason 透传（工单296：复原义务不随档位缩水）', async () => {
+  it('接管后未进收栏直接退场（disabled / dispose）：读回复原用户原值、清账、存证按 reason 透传（工单296：复原义务不随档位缩水）', async () => {
     for (const reason of ['disabled', 'dispose']) {
       ff.state = 0x3
       vi.resetModules()
       const m = await importModule()
       const { events, log } = tapeLog()
-      m.engageTakeoverAutoHide(log as never) // 普通栏态建立接管（清位在场），全程不进收栏
-      expect(ff.state).toBe(0x2)
-      expect(m.takeoverAutoHideMode()).toBe('normal')
+      m.engageTakeoverAutoHide(log as never) // M1：置位对已开用户是无操作写入
+      expect(ff.state).toBe(0x3)
       m.restoreTakeoverAutoHide(log as never, reason)
       expect(ff.state).toBe(0x3) // 读回复原 = 接管前原值（成败以读回事实裁决）
       expect(existsSync(ledgerFileOf(dir))).toBe(false)
@@ -230,43 +234,43 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     }
   })
 
-  it('普通态退场与收栏态退场共用同一份账、同一套义务（工单296）：两档位出发的退场复原同读回、同清账、同存证形态', async () => {
-    // 普通态出发：engage（清位）→ 直接退场
+  it('两条退场路径共用同一份账、同一套义务（工单296 随 M1 收敛为单一出发态）：两幕的退场复原同读回、同清账、同存证形态', async () => {
+    // 第一幕：engage（置位）→ 直接退场
     ff.state = 0x3
     const m = await importModule()
-    const normal = tapeLog()
-    m.engageTakeoverAutoHide(normal.log as never)
+    const first = tapeLog()
+    m.engageTakeoverAutoHide(first.log as never)
     expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 3 })
-    m.restoreTakeoverAutoHide(normal.log as never, 'dispose')
-    // 收栏态出发：engage → 进收栏（置位）→ 退场
+    m.restoreTakeoverAutoHide(first.log as never, 'dispose')
+    // 第二幕：engage → 重申压回（M1 托管期唯一动作族）→ 退场
     vi.resetModules()
     ff.state = 0x3
     const m2 = await importModule()
-    const retracted = tapeLog()
-    m2.engageTakeoverAutoHide(retracted.log as never)
-    m2.enterRetractAutoHide(retracted.log as never)
-    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 3 }) // 同一份账：置位不重记
-    m2.restoreTakeoverAutoHide(retracted.log as never, 'dispose')
+    const second = tapeLog()
+    m2.engageTakeoverAutoHide(second.log as never)
+    m2.reassertTakeoverAutoHide(second.log as never)
+    expect(JSON.parse(readFileSync(ledgerFileOf(dir), 'utf8'))).toMatchObject({ previous: 3 }) // 同一份账：重申不重记
+    m2.restoreTakeoverAutoHide(second.log as never, 'dispose')
     // 两幕的义务兑现完全同形：读回同到原值、attempts 同拍、账同清（盘上只剩一个终点）
-    const normEv = normal.events.find((e) => e.type === 'taskbar-autohide-restored')
-    const retrEv = retracted.events.find((e) => e.type === 'taskbar-autohide-restored')
-    expect(normEv).toMatchObject({ reason: 'dispose', state: 3, attempts: 1 })
-    expect(retrEv).toMatchObject(normEv!)
+    const firstEv = first.events.find((e) => e.type === 'taskbar-autohide-restored')
+    const secondEv = second.events.find((e) => e.type === 'taskbar-autohide-restored')
+    expect(firstEv).toMatchObject({ reason: 'dispose', state: 3, attempts: 1 })
+    expect(secondEv).toMatchObject(firstEv!)
     expect(existsSync(ledgerFileOf(dir))).toBe(false)
   })
 
-  it('死路径消费同一份落盘账（工单296）：普通态接管的账由守卫/守护径（panel-exit / guard-dead）从盘上还原并清账——复原目标只认账不认读回', async () => {
+  it('死路径消费同一份落盘账（工单296）：接管的账由守卫/守护径（panel-exit / guard-dead）从盘上还原并清账——复原目标只认账不认读回', async () => {
     const ledger = await import('../../src/main/taskbar/appbar-ledger')
     for (const reason of ['panel-exit', 'guard-dead']) {
       vi.resetModules()
       ff.state = 0x3
       const m = await importModule()
       const { log } = tapeLog()
-      m.engageTakeoverAutoHide(log as never) // 普通态接管：清位 + 账落盘（previous=3）
-      expect(ff.state).toBe(0x2)
+      m.engageTakeoverAutoHide(log as never) // 接管：置位 + 账落盘（previous=3）
+      expect(ff.state).toBe(0x3)
       expect(existsSync(ledgerFileOf(dir))).toBe(true)
       // 面板崩溃/被强杀：路径①（内存账退避复原）随进程蒸发——不调 restoreTakeoverAutoHide；
-      // 守卫/守护到场时系统读回停在清位残留态（≠原值），复原目标只能来自账
+      // 守卫/守护到场时系统读回停在中间残留态（≠原值），复原目标只能来自账
       ff.state = 0x0
       const verdict = await ledger.restoreAppBarStateFromLedger(null, reason)
       expect(verdict).toBe('restored')
@@ -280,8 +284,8 @@ describe('appbar 还原账：全接管期单账（工单261；双缺陷复审 Q1
     ff.state = 0x2 // 用户原状态：ALWAYSONTOP（无自动隐藏位）
     const m = await importModule()
     const { events, log } = tapeLog()
-    m.engageTakeoverAutoHide(log as never) // 账 { previous: 2 }、清位后仍 0x2
-    m.enterRetractAutoHide(log as never) // 置位 → 0x3
+    m.engageTakeoverAutoHide(log as never) // 账 { previous: 2 }、置位后 0x3
+    expect(ff.state).toBe(0x3)
     ff.ignoreSets = 1 // 复原第一拍 SETSTATE 落空 → 读回仍 0x3 → 排退避重试（在途）
     m.restoreTakeoverAutoHide(log as never, 'dispose')
     // 退避窗内快速再接管：此刻系统态 0x3（尚未复原成功）——记账必须仍取账面 0x2

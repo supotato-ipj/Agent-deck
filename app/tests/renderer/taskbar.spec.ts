@@ -576,10 +576,10 @@ describe('栏高 48 与栏分组几何/材质改版（工单238：48 DIP 回归�
     expect(windowSrc, '不得残留 64 的栏高').not.toMatch(/TASKBAR_HEIGHT = 64\b/)
   })
 
-  it('条带窗几何与 AppBar 提议矩形同源于该常量（高度不各写死一份）', () => {
+  it('条带窗几何单源于栏高常量（高度不写死第二份；M1：AppBar 提议矩形与降级净空随占位链退役）', () => {
     expect(windowSrc, '条带窗几何（stripBounds）取常量').toContain('height: TASKBAR_HEIGHT')
-    expect(windowSrc, 'AppBar 提议矩形（stripPhysRect）取常量').toContain('Math.round(TASKBAR_HEIGHT * d.scaleFactor)')
-    expect(windowSrc, '降级净空口径独立（原生任务栏高度，非本栏高）').toContain('TASKBAR_BOTTOM_CLEARANCE = 48')
+    expect(windowSrc, '不得残留 AppBar 提议矩形（stripPhysRect——占位链已退役）').not.toContain('stripPhysRect')
+    expect(windowSrc, '不得残留降级净空（净空机制随降级档退役，恒贴屏底）').not.toContain('TASKBAR_BOTTOM_CLEARANCE')
   })
 
   it('四个分组 pill 一律声明撑满条带高（height:100% + border-box 盒模型——高度不再由内容撑出）', () => {

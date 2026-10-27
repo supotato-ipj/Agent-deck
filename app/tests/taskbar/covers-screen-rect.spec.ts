@@ -53,7 +53,6 @@ describe('coversScreenRect 覆盖判定（覆盖语义的真正归属处）', ()
       screen: SCREEN,
       ownPid: OWN_PID,
       retractEnabled: true,
-      appBarDegraded: false,
     })).toBe('maximize-retract')
     // 同矩形但非真最大化（手拉铺满）⇒ 让位档
     expect(resolveBarMode({
@@ -61,7 +60,6 @@ describe('coversScreenRect 覆盖判定（覆盖语义的真正归属处）', ()
       screen: SCREEN,
       ownPid: OWN_PID,
       retractEnabled: true,
-      appBarDegraded: false,
     })).toBe('fullscreen-yield')
   })
 })
