@@ -85,8 +85,8 @@ export class DesktopService extends Service {
   private readonly storeFile: string
   private readonly docMaxRows: number
   private store: LayoutStore
-  /** lnk 目标缓存（键 = iconKey，mtime 变更即重解析） */
-  private readonly targets = new Map<string, string | null>()
+  /** lnk 成功目标缓存（键 = iconKey，mtime 变更即重解析；暂空或失败留下拍下再试） */
+  private readonly targets = new Map<string, string>()
   private items: DesktopItem[] = []
   private plan: DesktopPlan = { docs: [] }
   private fingerprint = ''
@@ -174,7 +174,7 @@ export class DesktopService extends Service {
       } catch {
         target = null
       }
-      this.targets.set(item.iconKey, target)
+      if (target) this.targets.set(item.iconKey, target)
     }
     return this.targets.get(item.iconKey) ?? null
   }

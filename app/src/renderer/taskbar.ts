@@ -534,9 +534,12 @@ function relayCloseAllPopups(keepTrayOverflow: boolean): void {
 }
 
 /** 应用组图标装载（工单52）：缓存命中即贴；未命中经 desktop/icon 契约提取（内核侧按
- * iconKey 反解路径）。回填前核对元素仍代表同一图标键（重渲染后旧回填不贴错位）。 */
-function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
+ * iconKey 反解路径）。提取失败可换成调用方的占位元素；回填前核对元素仍代表同一图标键。 */
+function applyIcon(img: HTMLImageElement, iconKey: string | null, fallback?: () => HTMLElement): void {
   if (!iconKey) return
+  const missing = () => {
+    if (fallback && img.dataset.iconKey === iconKey) img.replaceWith(fallback())
+  }
   const cached = iconCache.get(iconKey)
   if (cached) {
     img.src = cached
@@ -544,10 +547,13 @@ function applyIcon(img: HTMLImageElement, iconKey: string | null): void {
   }
   void window.deck.bridge.invoke('desktop/icon', { key: iconKey }).then((r) => {
     const dataUrl = r?.dataUrl
-    if (!dataUrl) return
+    if (!dataUrl) {
+      missing()
+      return
+    }
     iconCache.set(iconKey, dataUrl)
     if (img.dataset.iconKey === iconKey) img.src = dataUrl
-  })
+  }, missing)
 }
 
 /** 托盘图标像素缓存（工单56：身份键 → dataURL；仅内存，与桌面图标缓存同款纪律——
@@ -877,7 +883,7 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
 
 /** 推荐组条目元素（工单160 图标化）：只呈现应用图标（无名称文字，显示名即时进出
  * tooltip），图标经 desktop/icon 契约同款管线（iconKey → dataURL 本地缓存，应用组
- * applyIcon 同源）；无图标键条目首字母占位（工单156 appIconFallbackText 复用）。
+ * applyIcon 同源）；无图标键或提取失败均以首字母占位（工单156 appIconFallbackText 复用）。
  * 左键启动经 taskbar/rec-click（exe 身份寻址）；右键三行菜单（手钉/移除/打开位置，工单161）；
  * 拖拽宿主 .tb-rec 本身（组内换位 / 拖应用组升手钉，工单57 内核已接线）。 */
 function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
@@ -886,19 +892,21 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   el.dataset.name = rec.name // 几何存证与拖拽挂点按桌面项 name（既有口径）
   el.dataset.exe = rec.exe // 交互挂点（点击/右键按富化 exe 身份分发）
   el.title = rec.display
+  const fallback = () => {
+    const fb = document.createElement('div')
+    fb.className = 'tb-rec-letter'
+    fb.textContent = appIconFallbackText({ label: rec.display, exe: rec.exe })
+    return fb
+  }
   if (rec.iconKey) {
     const img = document.createElement('img')
     img.draggable = false // 拖拽宿主是 .tb-rec 本身：图标默认可拖会把手势截成原生图片拖拽
     img.dataset.iconKey = rec.iconKey
     img.alt = rec.display
     el.appendChild(img)
-    applyIcon(img, rec.iconKey)
+    applyIcon(img, rec.iconKey, fallback)
   } else {
-    // 无图标键条目首字母占位（工单156 同款），不出空白格
-    const fb = document.createElement('div')
-    fb.className = 'tb-rec-letter'
-    fb.textContent = appIconFallbackText({ label: rec.display, exe: rec.exe })
-    el.appendChild(fb)
+    el.appendChild(fallback())
   }
   makeDraggable(el, 'recs', rec.name) // 推荐位可拖：组内换位 / 拖应用组升手钉
   el.addEventListener('click', () => {
