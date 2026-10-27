@@ -1892,6 +1892,49 @@ describe('内核桥接契约（工单54 开始组系统按钮显隐）', () => {
       await ctx.stop()
     }
   }, 30_000)
+
+  it('taskbar 推荐位：快捷方式首轮未解析不锁死，下拍目标就位后 exe 启动记录进推荐（工单302）', async () => {
+    const dir = tmpDir()
+    fs.writeFileSync(path.join(dir, 'user', 'Alpha.lnk'), 'stub')
+    const exe = 'C:\\apps\\Alpha.exe'
+    let resolved = false
+    let running = new Map<number, string>()
+    const t = taskbarOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      ...t.opts,
+      desktop: desktopOpts(dir, {
+        deps: {
+          extractIcon: async () => null,
+          open: async () => '',
+          readShortcutTarget: () => resolved ? exe : null,
+        },
+      }),
+      usage: {
+        dir: path.join(dir, 'usage'),
+        deps: {
+          runningPidExes: () => running,
+          foregroundExe: () => null,
+          readPrior: async () => new Map(),
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      const now = Date.now()
+      ctx.usage!.collect(now)
+      running = new Map([[1, exe]])
+      ctx.usage!.collect(now)
+      expect((await ctx.bridge.invoke('taskbar/get-state', null)).recommendations).toEqual([])
+
+      resolved = true
+      ctx.desktop!.refresh()
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.recommendations.map((r) => r.name)).toEqual(['Alpha.lnk'])
+      expect(state.recommendations[0].exe).toBe(exe)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
 })
 
 describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () => {
@@ -2082,11 +2125,9 @@ describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () =
   it('中→中：推荐位组内换位即时生效并落盘显式序；分数序后续变化不顶掉用户序', async () => {
     const dir = tmpDir()
     const t = dragOpts(dir)
-    t.env.recommendations = [
-      { name: 'A.lnk', display: '甲', path: 'C:\\Desktop\\A.lnk', iconKey: 'A.lnk|0', exe: 'C:\\Desktop\\A.lnk' },
-      { name: 'B.lnk', display: '乙', path: 'C:\\Desktop\\B.lnk', iconKey: 'B.lnk|0', exe: 'C:\\Desktop\\B.lnk' },
-      { name: 'C.lnk', display: '丙', path: 'C:\\Desktop\\C.lnk', iconKey: 'C.lnk|0', exe: 'C:\\Desktop\\C.lnk' },
-    ]
+    seedRec(t, 'A.lnk', '甲', 'C:\\Apps\\A.exe')
+    seedRec(t, 'B.lnk', '乙', 'C:\\Apps\\B.exe')
+    seedRec(t, 'C.lnk', '丙', 'C:\\Apps\\C.exe')
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
     try {
@@ -2113,7 +2154,7 @@ describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () =
   it('中→中：名单外名字回报 ok:false（状态与落盘不变）', async () => {
     const dir = tmpDir()
     const t = dragOpts(dir)
-    t.env.recommendations = [{ name: 'A.lnk', display: '甲', path: 'C:\\Desktop\\A.lnk', iconKey: 'A.lnk|0', exe: 'C:\\Desktop\\A.lnk' }]
+    seedRec(t, 'A.lnk', '甲', 'C:\\Apps\\A.exe')
     const ctx = createKernel(kernelOpts(dir, t.opts))
     await ctx.start()
     try {
@@ -2139,6 +2180,29 @@ describe('内核桥接契约（工单57 拖拽编辑与布局持久化）', () =
     t.env.targets.set(lnkPath, target)
     t.env.recommendations.push({ name, display, path: lnkPath, iconKey: `${name}|0`, exe: lnkPath })
   }
+
+  it('推荐位：空目标失效入口不占位，有效候选递补且已手钉应用不重复（工单302）', async () => {
+    const dir = tmpDir()
+    const t = dragOpts(dir)
+    const validExe = 'D:\\Apps\\DeepSeek Harness.exe'
+    seedRec(t, 'ZCode.lnk', 'ZCode', '')
+    seedRec(t, 'DeepSeek Harness.lnk', 'DeepSeek Harness', validExe)
+    fs.writeFileSync(t.opts.taskbar.storeFile, JSON.stringify({
+      version: 1,
+      pinned: [{ exe: 'C:\\Program Files\\ZCode\\ZCode.exe', label: 'ZCode', iconKey: null }],
+      recommended: [],
+      excluded: [],
+    }))
+    const ctx = createKernel(kernelOpts(dir, t.opts))
+    await ctx.start()
+    try {
+      const state = await ctx.bridge.invoke('taskbar/get-state', null)
+      expect(state.recommendations.map((r) => r.name)).toEqual(['DeepSeek Harness.lnk'])
+      expect(state.recommendations[0].exe).toBe(validExe)
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
 
   it('taskbar/rec-click：左键启动经既有 shell 打开通道，以富化后的 exe 身份寻址（归一匹配）', async () => {
     const dir = tmpDir()

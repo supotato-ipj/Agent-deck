@@ -856,16 +856,14 @@ export class TaskbarService extends Service {
   }
 
   /**
-   * 推荐位可见性管线（工单57，工单161 合成收口）：候选池 → 手钉条目滤除（推荐→应用升手钉
-   * 后不占推荐组位；解除手钉即随下拍管线回池）→ 移除名单滤除（持久排除不上推荐位）→
-   * 用户显式序套用（序内按名单次、序外保持分数序）→ 上限截断（滤除后收口——手钉/移除腾出
-   * 的空位由候选池后续名次递补，上限仍 5）。三条滤除线正交：手钉与移除判重都以 exe 身份
-   * （快捷方式经 resolve 取目标，迁移同款解析）；池外名字（解析不出 = 池缩竞态）以条目
-   * 路径为兜底身份参与判重（宁可按路径多滤一次，不让无法解析的身份绕过排除面）。截断
-   * 前提 = 候选池宽于可见上限进管线（工单161 起数据面按 RECOMMENDATION_POOL_LIMIT 产池）。
+   * 推荐位可见性管线（工单57，工单161 合成收口）：候选池 → 无目标/池外入口滤除（解析
+   * 暂未完成也不占位，下拍重评）→ 手钉条目滤除（推荐→应用升手钉后不占推荐组位；解除手钉
+   * 即随下拍管线回池）→ 移除名单滤除（持久排除不上推荐位）→ 用户显式序套用（序内按名单次、
+   * 序外保持分数序）→ 上限截断（滤除后收口——手钉/移除腾出的空位由候选池后续名次递补，
+   * 上限仍 5）。手钉与移除判重都以 exe 身份（快捷方式经 resolve 取目标，迁移同款解析）。
+   * 截断前提 = 候选池宽于可见上限进管线（工单161 起数据面按 RECOMMENDATION_POOL_LIMIT 产池）。
    * 工单160 富化：条目 exe 身份在本层升级——数据面快照携带的暂定身份（条目路径）经
-   * 同款解析替换为快捷方式目标（解析不出/池外 = 暂定值兜底），左键启动/手钉/打开
-   * 位置三动作自此以富化后的 exe 统一寻址。
+   * 同款解析替换为快捷方式目标，左键启动/手钉/打开位置三动作自此以富化后的 exe 统一寻址。
    */
   private visibleRecommendations(): TaskbarRecommendation[] {
     const pinnedNorm = new Set(this.store.pinned.map((p) => normalizeExe(p.exe)))
@@ -873,7 +871,7 @@ export class TaskbarService extends Service {
     const enriched: TaskbarRecommendation[] = []
     for (const r of this.deps.recommendations()) {
       const exe = this.resolveItemExe(r.name) // 原文身份；判重按归一比较
-      enriched.push({ ...r, exe: exe ?? r.path })
+      if (exe) enriched.push({ ...r, exe })
     }
     return composeVisibleRecommendations(enriched, {
       pinnedNorm,
@@ -889,11 +887,9 @@ export class TaskbarService extends Service {
     if (!item) return null
     if (item.kind !== 'shortcut') return item.path
     try {
-      return this.deps.resolveShortcutTarget(item.path) ?? item.path
+      return this.deps.resolveShortcutTarget(item.path) || null
     } catch {
-      // 解析器不可用（离线内核未注入快捷方式解析）→ 退回以快捷方式路径判重，
-      // 宁可同一应用在两处各判一次，也不让推荐位整段因单点失败清空
-      return item.path
+      return null
     }
   }
 
