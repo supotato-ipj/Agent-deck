@@ -1565,13 +1565,13 @@
         {
           "seg": "P6",
           "ticket": 310,
-          "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区",
+          "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区；极端小面板两张手定位夹取后相撞无空位 → 停靠首个可用位并落 placement-overlap-accepted 诊断（不静默重叠）",
           "surfaces": [
             "input-injection",
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 15,
+          "estSeconds": 25,
           "areas": [
             "cards",
             "desktop",
@@ -1587,7 +1587,7 @@
         "desktop",
         "config"
       ],
-      "lastMeasuredSeconds": 53,
+      "lastMeasuredSeconds": 67,
       "lastMeasuredAt": "2026-10-28"
     },
     {

@@ -252,6 +252,8 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
   let disposed = false
   let generatedSeq = 0
   let lastDraggedId: string | null = null
+  /** 下一拍是否对手定位做相撞消解（启动与面板尺寸变化；内容增长不触发，#317/#318） */
+  let resolveHand = true
   const rejectedNotice = new Set<string>()
 
   const viewport = () => ({ w: window.innerWidth, h: window.innerHeight })
@@ -489,20 +491,37 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       const all = [...next.values()]
       const reserved = new Set<string>()
       const occupied: Box[] = []
-      // 手定位先占：用户摆过的卡位置最优先，不被默认位挤走
+      const resolve = resolveHand
+      resolveHand = false
+      // 手定位先占：用户摆过的卡位置最优先，不被默认位挤走。
+      // 相撞消解只在启动与面板尺寸变化时做——文档区内容增长等尺寸变化造成的相交是**接受**的
+      // （spec #317/#318：不把任何一张已摆好的卡自动推开）。
       for (const st of all) {
         if (!st.hand) continue
         let slot = st.baseSlot
         let box = boxOfSlot(slot, st.baseSize, area)
-        if (occupied.some((o) => intersects(o, box))) {
+        // 相撞消解：面板尺寸变化轮统一做；此外任何一张手定位在本次夹取中**被改动**
+        // （如启动时越界、面板缩小后出界）也要做——插件异步挂载会分多拍到达，
+        // 不能只靠第一拍的 resolveHand 旗标（真机实证：300×300 下第二张到得晚、旗标已消费）。
+        const stored = handCards[st.id]
+        const clampChanged = !!stored && (stored.col !== slot.col || stored.row !== slot.row)
+        if ((resolve || clampChanged) && occupied.some((o) => intersects(o, box))) {
           const free = nearestFreeSlot(slot, st.baseSize, occupied, area)
-          if (!free) { st.rejected = true; continue }
-          slot = free
-          st.baseSlot = slot
-          st.slot = slot
-          st.rect = boxOfSlot(slot, st.baseSize, area)
-          box = st.rect
-          deps.notify('placement-clamped', { id: st.id, reason: 'collision' })
+          if (free) {
+            slot = free
+            st.baseSlot = slot
+            st.slot = slot
+            st.rect = boxOfSlot(slot, st.baseSize, area)
+            box = st.rect
+            deps.notify('placement-clamped', { id: st.id, reason: 'collision' })
+          } else {
+            // 仍无位：停靠首个可用位并落诊断，不静默重叠（#318）
+            st.baseSlot = { col: 0, row: 0 }
+            st.slot = st.baseSlot
+            st.rect = boxOfSlot(st.baseSlot, st.baseSize, area)
+            box = st.rect
+            deps.notify('placement-overlap-accepted', { id: st.id, reason: 'no-space' })
+          }
         }
         occupied.push(box)
         reserved.add(st.id)
@@ -513,7 +532,10 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
           if (reserved.has(st.id) || st.hand) continue
           if (st.group !== pass) continue
           const preferred = st.baseSlot
-          const free = nearestFreeSlot(preferred, st.baseSize, occupied, area)
+          // 文档区内容增长（宽度封顶、高度随内容）不触发自动避让：非尺寸变化轮固定在默认位，
+          // 压到别家就接受相交（#317）。面板尺寸变化轮才按常规夹取/找空位（#318）。
+          const keepDoc = st.id === 'doc-zone' && !resolve
+          const free = keepDoc ? preferred : nearestFreeSlot(preferred, st.baseSize, occupied, area)
           if (!free) {
             st.rejected = true
             if (!rejectedNotice.has(st.id)) {
@@ -912,7 +934,8 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
   function onResize(): void {
     area = usableAreaOf(window.innerWidth, window.innerHeight)
     updateOverlays()
-    // 分辨率/面板尺寸变化：手定位保留并夹取进可用区；相撞的卡挪最近空位
+    // 分辨率/面板尺寸变化：手定位保留并夹取进可用区；相撞的卡挪最近空位（#318）
+    resolveHand = true
     schedule()
     deps.notify('placement-viewport', { area: { ...area } })
   }
