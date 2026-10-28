@@ -1014,6 +1014,11 @@ async function runSegments() {
     })();
     w32.SetWindowPos(checkerHwnd, w32.HWND_BOTTOM, 0, 0, 0, 0,
       w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+    // 工单310：面板钉底与 HWND_BOTTOM 可能把参照窗排到面板之前（整窗遮住面板，
+    // 截图只剩棋盘）。先明确排成「面板在上、参照窗紧贴其下」，截图前再重申一次。
+    const checkerBelowPanel = () => w32.SetWindowPos(checkerHwnd, hwnd, 0, 0, 0, 0,
+      w32.SWP_NOMOVE | w32.SWP_NOSIZE | w32.SWP_NOACTIVATE | w32.SWP_NOOWNERZORDER);
+    checkerBelowPanel();
     // 清场后又被用户恢复的普通窗会盖住取样带（工单04 实拍：运行中被恢复的视频窗）
     // ——截图前对非本电池/非面板的普通窗再做一轮最小化，不碰参照窗与桌面层
     for (const h of w32.topLevelWindows()) {
@@ -1122,6 +1127,8 @@ async function runSegments() {
     const clockPainted = await tape.wait('clock-rendered', null, { timeoutMs: 8000 });
     if (clockPainted) await sleep(700);
     else rep.note('P2 像素取证前未见 clock-rendered（时钟内容未渲染）——whitePixels 失败时先看此证');
+    checkerBelowPanel();
+    await sleep(200);
     const shot = capture(rect, '02-transparent-on-checker');
     let chk = checkerHitRateAtPoints(shot, probePoints);
     if (chk.rate <= 0.9 && probePoints.length >= 500) {

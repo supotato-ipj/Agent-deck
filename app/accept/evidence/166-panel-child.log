@@ -758,3 +758,46 @@ deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得�
 [17880:1028/172543.503:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
 deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/cc729af5-ff57-48c7-978c-718041a1177a
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[16236:1028/202200.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[16236:1028/202200.443:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[16236:1028/202200.445:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[16236:1028/202200.582:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[16236:1028/202200.582:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[16236:1028/202200.601:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[16236:1028/202200.601:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[16236:1028/202200.601:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[16236:1028/202200.601:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e327c774-19b7-4c50-bddb-0bdde0a3fd20
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[66912:1028/202205.436:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[66912:1028/202205.436:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[66912:1028/202205.436:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[66912:1028/202205.588:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[66912:1028/202205.588:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[66912:1028/202205.588:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[66912:1028/202205.588:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[66912:1028/202205.588:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[66912:1028/202205.588:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/3d26e307-f518-49b7-8e3f-256ceac676ec
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[16652:1028/202335.143:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[16652:1028/202335.143:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[16652:1028/202335.143:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[16652:1028/202335.300:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[16652:1028/202335.300:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[16652:1028/202335.300:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[16652:1028/202335.300:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[16652:1028/202335.300:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[16652:1028/202335.300:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
