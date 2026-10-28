@@ -214,6 +214,28 @@ async function waitMs(pred, timeoutMs) {
   return -1;
 }
 
+/** 托管期 appbar 状态拍动计数（M1 主不变式的磁带读数）：since 起状态写入族存证条数
+ *  （set/-set-failed/reattached/-reattach-failed——建立/退场/重申之外的任何写入都算拍动）。
+ *  P6/P14/P16 三段同式，收口一处防漂移。 */
+function countAutohideFlaps(since) {
+  return tape.all('taskbar-autohide-set', undefined, { since }).length
+    + tape.all('taskbar-autohide-set-failed', undefined, { since }).length
+    + tape.all('taskbar-autohide-reattached', undefined, { since }).length
+    + tape.all('taskbar-autohide-reattach-failed', undefined, { since }).length;
+}
+
+/** 退收栏「终点 visible」的两跳容忍等待（R3 磁带实证：解最大化动画期 250ms 轮询合法走
+ *  retract→yield→visible 两跳）：retract-lifted 落下后若 mode 非 visible，续等 yield-lifted；
+ *  拿到 visible 终点（直达或两跳）返回该事件，否则 null。P6/P7 收尾/P10c/P11/P16 同式。 */
+async function waitSettledVisible(since, timeoutMs) {
+  const lifted = await tape.wait('taskbar-retract-lifted', undefined, { since, timeoutMs });
+  if (lifted && lifted.mode !== 'visible') {
+    const yl = await tape.wait('taskbar-yield-lifted', undefined, { since, timeoutMs });
+    return yl && yl.mode === 'visible' ? yl : null;
+  }
+  return lifted || null;
+}
+
 /** 当前主屏模式快照（ENUM_CURRENT_SETTINGS，完整 DEVMODE 原文供还原） */
 function currentDisplayMode() {
   const buf = Buffer.alloc(DEVMODE_SIZE);
@@ -470,11 +492,7 @@ async function runSegments() {
     const fiveStripsOk6 = !!stripsEv6 && SUMMON_GROUPS_ALL6.every((g) => stripsEv6.strips.some((s) => s.group === g));
     const stripAlive6 = win32.IsWindowVisible(tbHwnd); // 栏窗复用：收栏态条带窗在场（承载唤出条）
     // 零 appbar 拍动（M1 主不变式）：sinceP6 起状态写入族存证零条
-    const flapCount6 = () => tape.all('taskbar-autohide-set', undefined, { since: sinceP6 }).length
-      + tape.all('taskbar-autohide-set-failed', undefined, { since: sinceP6 }).length
-      + tape.all('taskbar-autohide-reattached', undefined, { since: sinceP6 }).length
-      + tape.all('taskbar-autohide-reattach-failed', undefined, { since: sinceP6 }).length;
-    const flapEvents6 = flapCount6();
+    const flapEvents6 = countAutohideFlaps(sinceP6);
     // 工作区恒屏底（M1 托管期不变式）+ 读回恒置位
     const waRetract6 = workArea();
     const wsOk6 = !!waRetract6 && Math.abs(waRetract6.bottom - phys6.height) <= 2;
@@ -486,14 +504,10 @@ async function runSegments() {
     // 退收栏存证（既有两跳容忍）：解最大化动画期 250ms 轮询可能拍到「zoomed=false + 矩形
     // 仍全屏」→ 合法走 retract→yield→visible 两跳（R3 磁带实证）；谓词只放宽「终点
     // visible 的到达方式」，断言面不降。
-    const liftedEv6 = await tape.wait('taskbar-retract-lifted', undefined, { since: t6, timeoutMs: 6000 });
-    let settledVisible6 = !!liftedEv6 && liftedEv6.mode === 'visible';
-    if (liftedEv6 && liftedEv6.mode !== 'visible') {
-      const ylEv6 = await tape.wait('taskbar-yield-lifted', undefined, { since: t6, timeoutMs: 6000 });
-      settledVisible6 = !!ylEv6 && ylEv6.mode === 'visible';
-    }
+    const liftedEv6 = await waitSettledVisible(t6, 6000);
+    const settledVisible6 = !!liftedEv6;
     const stripBack6 = win32.IsWindowVisible(tbHwnd); // 覆盖式常驻：条带复现
-    const flapAfter6 = flapCount6();
+    const flapAfter6 = countAutohideFlaps(sinceP6);
     // 退收栏零可见帧：原生栏显示位 2s 采样窗零可见拍（150ms 采样，P15 同口径）
     const hiddenAt6 = Date.now();
     let leakFrames6 = false;
@@ -577,11 +591,7 @@ async function runSegments() {
     const t7end = Date.now();
     retractWin.unmaximize();
     forceForeground(hwndOf(neutralWin));
-    let backEv7 = await tape.wait('taskbar-retract-lifted', undefined, { since: t7end, timeoutMs: 5000 });
-    if (backEv7 && backEv7.mode !== 'visible') {
-      const ylBack7 = await tape.wait('taskbar-yield-lifted', undefined, { since: t7end, timeoutMs: 5000 });
-      backEv7 = ylBack7 && ylBack7.mode === 'visible' ? ylBack7 : null;
-    }
+    const backEv7 = await waitSettledVisible(t7end, 5000);
     if (!backEv7) rep.note('P7 收尾：面板未回常驻（收栏态残留）——P5 的退场复原段将受影响');
 
     // —— P11：分屏收栏单窗最小闭环（工单269 新增）——
@@ -724,11 +734,7 @@ async function runSegments() {
       forceForeground(hwndOf(neutralWin));
       const sessionEnd11 = await tape.wait('taskbar-snap-session',
         (e) => e.active === false, { since: tUnsnap11, timeoutMs: 6000 });
-      let liftedEv11 = await tape.wait('taskbar-retract-lifted', undefined, { since: tUnsnap11, timeoutMs: 6000 });
-      if (liftedEv11 && liftedEv11.mode !== 'visible') {
-        const yl11 = await tape.wait('taskbar-yield-lifted', undefined, { since: tUnsnap11, timeoutMs: 6000 });
-        liftedEv11 = yl11 && yl11.mode === 'visible' ? yl11 : null;
-      }
+      const liftedEv11 = await waitSettledVisible(tUnsnap11, 6000);
       const stripBack11 = win32.IsWindowVisible(tbHwnd); // 栏面回常驻（覆盖式承载）
       const waRestored11 = workArea();
       const wsStable11 = !!waRestored11 && Math.abs(waRestored11.bottom - phys11.height) <= 2;
@@ -1124,10 +1130,20 @@ async function runSegments() {
         await sleep(600);
         if (!win32.isCloaked(hw[0])) { atHome = true; break; }
       }
-      const dkReWa13 = atHome ? await waitMs(wsBottomOk12, 6000) : -1;
-      const lastSess13 = atHome ? tape.latest('taskbar-snap-session', () => true, {}) : null;
-      r13.dkBack = atHome && dkReWa13 >= 0 && !!(lastSess13 && lastSess13.active === true);
-      if (!r13.dkBack) diag13.push(`回桌重建=${r13.dkBack}（到家=${atHome} 按数=${backPresses} 屏底=${dkReWa13}ms 末次会话存证=${lastSess13 ? lastSess13.active : '无'}）`);
+      // 重建判据（工单308 改写）：M1 下工作区恒屏底、旧「工作区回屏底」等待不再提供落定
+      // 窗（0ms 空转会让重建存证没落地就被读走——出证轮实证）。改认「dkEnd 之后的最新
+      // active=true 存证」——到家循环的 600ms 采样睡眠里重建事件可能已落（时间门在环后
+      // 会漏读，二轮实证），先回看、缺席再兜 8s 等待。
+      const tHome13 = Date.now();
+      const tDkEnd13 = dkEndEv13 ? dkEndEv13.t : 0;
+      let dkReSess13 = tape.latest('taskbar-snap-session',
+        (e) => e.active === true && e.t > tDkEnd13, {});
+      if (!dkReSess13 && atHome) {
+        dkReSess13 = await tape.wait('taskbar-snap-session',
+          (e) => e.active === true, { since: tHome13, timeoutMs: 8000 });
+      }
+      r13.dkBack = atHome && !!dkReSess13;
+      if (!r13.dkBack) diag13.push(`回桌重建=${r13.dkBack}（到家=${atHome} 按数=${backPresses} 重建存证=${JSON.stringify(dkReSess13)}）`);
       // 桌面清理：Right×backPresses 回我们建的新桌面（C1 又 cloak）→ Win+Ctrl+F4 关掉 → 回原桌面
       try {
         if (atHome) {
@@ -1254,10 +1270,6 @@ async function runSegments() {
         const yieldEv14 = await tape.wait('taskbar-yield',
           (e) => e.mode === 'fullscreen-yield', { since: sinceFs14, timeoutMs: 5000 });
         await sleep(1300); // 5+ 个 250ms 轮询拍：覆盖期工作区稳定性观察窗
-        const flapCount14 = (since) => tape.all('taskbar-autohide-set', undefined, { since }).length
-          + tape.all('taskbar-autohide-set-failed', undefined, { since }).length
-          + tape.all('taskbar-autohide-reattached', undefined, { since }).length
-          + tape.all('taskbar-autohide-reattach-failed', undefined, { since }).length;
         const liftInFs14 = tape.all('taskbar-retract-lifted', undefined, { since: sinceFs14 }).length;
         const waCover14 = workArea();
         const rectCover14 = win32.rectOf(s14a.hwnd);
@@ -1280,10 +1292,10 @@ async function runSegments() {
         const waExit14 = workArea();
         const rectExit14 = win32.rectOf(s14a.hwnd);
         const barBack14 = win32.IsWindowVisible(tbHwnd); // 收栏态条带窗回场（栏窗复用承载唤出条）
-        r14.exitAlive = !!ylExit14 && !!reEntryEv14 && liftExit14 === 0 && flapCount14(tExit14) === 0
+        r14.exitAlive = !!ylExit14 && !!reEntryEv14 && liftExit14 === 0 && countAutohideFlaps(tExit14) === 0
           && barBack14 && !!waExit14 && Math.abs(waExit14.bottom - phys12.height) <= 2
           && sameRect12(rectExit14, rectCover14);
-        if (!r14.exitAlive) diag14.push(`覆盖期存续退出=${r14.exitAlive}（yield-lifted=${!!ylExit14} retract再落=${!!reEntryEv14} retract-lifted=${liftExit14} 拍动=${flapCount14(tExit14)} 条带回场=${barBack14} 工作区=${waExit14 && waExit14.bottom}/${phys12.height} Snap矩形不变=${sameRect12(rectExit14, rectCover14)}）`);
+        if (!r14.exitAlive) diag14.push(`覆盖期存续退出=${r14.exitAlive}（yield-lifted=${!!ylExit14} retract再落=${!!reEntryEv14} retract-lifted=${liftExit14} 拍动=${countAutohideFlaps(tExit14)} 条带回场=${barBack14} 工作区=${waExit14 && waExit14.bottom}/${phys12.height} Snap矩形不变=${sameRect12(rectExit14, rectCover14)}）`);
         // ③ 重进全屏（覆盖重新压上——会话仍存续；复验解耦的进入侧幂等）
         const fsWin14b = new BrowserWindow({ fullscreen: true, frame: false, title: 'DECK-ACCEPT-FS14B', backgroundColor: '#101820' });
         refWins.push(fsWin14b);
@@ -1307,10 +1319,10 @@ async function runSegments() {
           (e) => e.active === false, { since: sinceFs14, timeoutMs: 6000 });
         const liftOnEnd14 = tape.all('taskbar-retract-lifted', undefined, { since: tCover3_14 }).length;
         const waEndCover14 = workArea();
-        r14.cover = coverOk14 && liftInFs14 === 1 && flapCount14(sinceFs14) === 0;
+        r14.cover = coverOk14 && liftInFs14 === 1 && countAutohideFlaps(sinceFs14) === 0;
         r14.endInCover = !!endEv14 && liftOnEnd14 === 0
           && !!waEndCover14 && Math.abs(waEndCover14.bottom - phys12.height) <= 2;
-        if (!r14.cover) diag14.push(`覆盖=${r14.cover}（前台=${fgMs14}ms 隐藏=${hideMs14}ms yield=${!!yieldEv14} 覆盖期lift=${liftInFs14}（M1 期望恰 1——栏面离收栏） 拍动=${flapCount14(sinceFs14)} 工作区=${waCover14 && waCover14.bottom}/${phys12.height} Snap矩形不变=${sameRect12(rectCover14, rectBg14)}）`);
+        if (!r14.cover) diag14.push(`覆盖=${r14.cover}（前台=${fgMs14}ms 隐藏=${hideMs14}ms yield=${!!yieldEv14} 覆盖期lift=${liftInFs14}（M1 期望恰 1——栏面离收栏） 拍动=${countAutohideFlaps(sinceFs14)} 工作区=${waCover14 && waCover14.bottom}/${phys12.height} Snap矩形不变=${sameRect12(rectCover14, rectBg14)}）`);
         if (!r14.endInCover) diag14.push(`覆盖期结束=${r14.endInCover}（结束存证=${!!endEv14} 结束拍lift=${liftOnEnd14} 工作区=${waEndCover14 && waEndCover14.bottom}/${phys12.height}）`);
         // ④ 退出全屏 → 恢复常驻（会话已结束、无其他收栏理由；M1：栏面 yield→visible，
         // 证据只有 yield-lifted——栏面从未在收栏档，无 retract-lifted）
@@ -1321,8 +1333,8 @@ async function runSegments() {
         const ylEv14 = await tape.wait('taskbar-yield-lifted', undefined, { since: tLift14, timeoutMs: 5000 });
         const stripBack14 = win32.IsWindowVisible(tbHwnd); // 覆盖式常驻：条带复现
         const waRest14 = await waitMs(wsBottomOk12, 6000); // M1：工作区恒屏底
-        r14.restoreAfter = !!ylEv14 && stripBack14 && waRest14 >= 0 && flapCount14(tLift14) === 0;
-        if (!r14.restoreAfter) diag14.push(`退出恢复=${r14.restoreAfter}（yield-lifted=${!!ylEv14} 条带复现=${stripBack14} 工作区=${waRest14}ms 拍动=${flapCount14(tLift14)}）`);
+        r14.restoreAfter = !!ylEv14 && stripBack14 && waRest14 >= 0 && countAutohideFlaps(tLift14) === 0;
+        if (!r14.restoreAfter) diag14.push(`退出恢复=${r14.restoreAfter}（yield-lifted=${!!ylEv14} 条带复现=${stripBack14} 工作区=${waRest14}ms 拍动=${countAutohideFlaps(tLift14)}）`);
       }
       // E1 收尾（无论②③④成败——残留成员会把会话拖住污染⑤与 P5/P9/P10，R2 定谳纪律）：
       // 关宿主核验退场 → 清扫外来 Snap → 等会话结束、工作区复原（⑤的出发态必须干净）
@@ -1661,11 +1673,7 @@ async function runSegments() {
       const tLift = Date.now();
       retractWin.unmaximize();
       forceForeground(hwndOf(neutralWin));
-      let lifted10 = await tape.wait('taskbar-retract-lifted', undefined, { since: tLift, timeoutMs: 3000 });
-      if (lifted10 && lifted10.mode !== 'visible') {
-        const yl10 = await tape.wait('taskbar-yield-lifted', undefined, { since: tLift, timeoutMs: 5000 });
-        lifted10 = yl10 && yl10.mode === 'visible' ? yl10 : null;
-      }
+      const lifted10 = await waitSettledVisible(tLift, 5000);
       if (!lifted10) {
         // 前提辨析（工单308 L2 验证轮实证）：M1 下托管状态与档位解耦——拍 B 的夹具修复
         // 循环里前台丢失拍可能已合法把档位翻回 visible（置位状态位不受影响、P10b 照常
@@ -1691,12 +1699,14 @@ async function runSegments() {
           const hiddenC = await waitMs(() => !win32.nativeTaskbarVisible(), 4000);
           const latencyC = reassertC ? reassertC.t - tC : -1;
           // 普通档目标落定：M1 恒置位——读回仍含 AUTOHIDE 位（旧「清位落定」前置随清位退役）。
-          // 环境级联辨（工单308 首轮实证）：拍 B 的 explorer AppBar 接受窗尾部未闭合时，
-          // 新 shell 仍不接受 ABM_SETSTATE——恒置位读回在结构上不可达（重申命中+压回两项
-          // 义务面全真），同因环境降责不判面板。
+          // 环境级联辨（工单308 出证轮两形态）：拍 B 的 explorer AppBar 接受窗尾部未闭合
+          // 时新 shell 不接受 ABM_SETSTATE——恒置位读回结构上不可达；且 shell 接受面不稳
+          // 会跨拍到拍 C（P10b 过了位又丢的形态）。判据取磁带事实：tKill（explorer 被杀）
+          // 起出现过任一 reattach-failed = 重申写被拒过 = 接受面不稳，同因环境降责；零失败
+          // 而读回丢位 = 重申轮询没在压 = 真回归候。
           const autoOnC = await waitMs(() => (appbarState() & 0x1) === 1, 4000);
           const tailOpen = p10Beat.tailAt > 0
-            && tape.all('taskbar-autohide-reattach-failed', undefined, { since: p10Beat.tailAt - 1000 }).length > 0;
+            || tape.all('taskbar-autohide-reattach-failed', undefined, { since: tKill }).length > 0;
           if (reassertC && hiddenC >= 0 && latencyC <= 2500 && autoOnC >= 0) {
             rep.pass(`P10c 普通档仍值守（全接管期）：退收栏落定（读回恒含 AUTOHIDE 位 ${autoOnC}ms——M1 目标态唯一）后翻开原生栏，`
               + `${latencyC}ms 重申命中（reason=visible）→ 压回不可见（${hiddenC}ms 到位）`
@@ -1886,27 +1896,19 @@ async function runSegments() {
       const stripRect16 = win32.rectOf(tbHwnd16);
       const stripOk16 = stripRect16 && Math.abs(stripRect16.bottom - phys16.height) <= 2;
       // ③ 零拍动（takeover/set 之外零状态族存证）
-      const flapCount16 = (since) => tape.all('taskbar-autohide-set', undefined, { since }).length
-        + tape.all('taskbar-autohide-set-failed', undefined, { since }).length
-        + tape.all('taskbar-autohide-reattached', undefined, { since }).length
-        + tape.all('taskbar-autohide-reattach-failed', undefined, { since }).length;
-      const flap16 = flapCount16(since16);
+      const flap16 = countAutohideFlaps(since16);
       // ④ 档位循环：前台切最大化窗 → 收栏档；切回普通窗 → 栏回常驻
       const sinceCyc16 = Date.now();
       forceForeground(hwndOf(maxWin16));
       const retractEv16 = await tape.wait('taskbar-retract',
         (e) => e.mode === 'maximize-retract', { since: sinceCyc16, timeoutMs: 6000 });
       forceForeground(hwndOf(stealWin16));
-      let liftEv16 = await tape.wait('taskbar-retract-lifted', undefined, { since: sinceCyc16, timeoutMs: 6000 });
-      if (liftEv16 && liftEv16.mode !== 'visible') {
-        const yl16 = await tape.wait('taskbar-yield-lifted', undefined, { since: sinceCyc16, timeoutMs: 6000 });
-        liftEv16 = yl16 && yl16.mode === 'visible' ? yl16 : null;
-      }
+      const liftEv16 = await waitSettledVisible(sinceCyc16, 6000);
       const endRect16 = win32.rectOf(hwndOf(maxWin16));
       const cycStable16 = !!endRect16 && !!baseRect16 && endRect16.left === baseRect16.left
         && endRect16.top === baseRect16.top && endRect16.right === baseRect16.right
         && endRect16.bottom === baseRect16.bottom;
-      const flapCyc16 = flapCount16(sinceCyc16);
+      const flapCyc16 = countAutohideFlaps(sinceCyc16);
       if (takeEv16 && setEv16 && fg16 >= 0 && rectStable16 && autoSteady16 && stripOk16 && flap16 === 0
         && retractEv16 && liftEv16 && cycStable16 && flapCyc16 === 0) {
         rep.pass(`P16 覆盖式主诉：后台最大化窗（底边基线 ${baseRect16 ? baseRect16.bottom : '?'}）+ 普通窗 ${fg16}ms 夺前台`
