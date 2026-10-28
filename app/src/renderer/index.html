@@ -38,12 +38,12 @@
   .card .dim { color: #9aa0a6; }
   .card .bright { color: #fff; }
 
-  /* ---- 左列：时钟 / 天气 / 日历 ---- */
+  /* ---- 左列：时钟 / 天气 / 日历（工单310 尺寸量化到 20px 整数倍） ---- */
   #clock-card {
-    left: 48px;
-    top: 48px;
+    left: 40px;
+    top: 40px;
     width: 320px;
-    height: 176px;
+    height: 180px;
     padding: 26px 28px;
     cursor: pointer;
   }
@@ -59,7 +59,7 @@
     letter-spacing: 0.3em;
     color: #9aa0a6;
   }
-  #weather-card { left: 48px; top: 248px; width: 320px; height: 170px; }
+  #weather-card { left: 40px; top: 240px; width: 320px; height: 180px; }
   #weather-temp {
     font-size: 40px;
     line-height: 1.1;
@@ -67,7 +67,7 @@
   }
   #weather-desc { margin-top: 4px; font-size: 13px; color: #d6d6d6; }
   #weather-detail { margin-top: 12px; font-size: 12px; color: #9aa0a6; }
-  #calendar-card { left: 48px; top: 442px; width: 320px; height: 292px; }
+  #calendar-card { left: 40px; top: 440px; width: 320px; height: 300px; }
   #cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -93,8 +93,8 @@
    * 结果区向下展开临时盖住会话卡（旧 Tk 面板「活动态盖壁纸内容」惯例的平移）；
    * ESC/失焦退回待机。卡片高度随内容自动展开（热区矩形随之重声明）。 */
   #search-card {
-    right: 48px;
-    top: 48px;
+    right: 40px;
+    top: 40px;
     width: 420px;
     height: auto;
     z-index: 5;
@@ -174,7 +174,7 @@
   /* 工单03 起 Qoder 状态块退役：会话卡吞掉原状态块槽位（top 152 不动，
    * 高 348 → 522 = 原 348 + 16px 间隙 + 158px 状态块槽），可见会话行约翻倍；
    * 硬件卡位置零改动（top 690 不动，与 152 + 522 + 16 = 690 对齐）。 */
-  #sessions-card { right: 48px; top: 152px; width: 420px; height: 522px; }
+  #sessions-card { right: 40px; top: 160px; width: 420px; height: 520px; }
   #sessions-head-count { float: right; letter-spacing: 0.2em; }
   #session-rows { overflow: hidden; }
   .srow {
@@ -522,6 +522,43 @@
     border-radius: 8px;
     display: none;
   }
+  /* ---- 摆位模式（工单310，ADR-0024）：点阵网格只在长按成立后浮现，平时不打扰壁纸。
+   * 网格铺满可用区（与 placement.ts 的 AREA_MARGIN/TASKBAR_BAND 同源几何由 JS 写死内联）；
+   * 预览盒绿=可落、红=冲突；被拖起的卡片有抬起反馈（缩放/阴影/描边），松手吸附 180ms。 */
+  #placement-grid {
+    position: fixed;
+    z-index: 90;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.30) 1px, transparent 1.2px);
+    background-size: 20px 20px;
+  }
+  #placement-grid.on { opacity: 1; }
+  #placement-preview {
+    position: fixed;
+    z-index: 91;
+    pointer-events: none;
+    display: none;
+    border: 1px solid rgba(126, 217, 87, 0.9);
+    background: rgba(126, 217, 87, 0.14);
+    border-radius: 12px;
+  }
+  #placement-preview.bad {
+    border-color: rgba(255, 92, 92, 0.92);
+    background: rgba(255, 92, 92, 0.16);
+  }
+  .card.placement-lifted {
+    z-index: 92;
+    transform: scale(1.03);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+    outline: 1px solid rgba(255, 255, 255, 0.6);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+    cursor: grabbing;
+  }
+  .card.placement-settling { z-index: 92; }
+  .card.placement-rejected { display: none !important; }
+
 </style>
 </head>
 <body>

@@ -83,6 +83,24 @@ export interface PluginRuntimeDeps {
 }
 
 const mounted = new Map<string, Mounted>()
+/**
+ * 在途装载登记（工单310）：id → 正在 import 的入口 URL。
+ *
+ * 1Hz 快照会在 import 落地前再次 `syncPlugins`；只看 `mounted` 会以为插件没装、再发一次
+ * `mountOne`，两个 import 同代令牌都判旧不判重 → **同一插件装出两张卡**（真机实证：放入
+ * 新插件的下一拍即双卡、热区表出现两条同 id）。登记在途入口把「同一入口只飞一次」钉死；
+ * 换代（entry 变）仍放行新装载。
+ */
+const inFlight = new Map<string, string>()
+
+/** 发起一次装载（在途去重；无论成败落地即销账） */
+function startMount(info: PluginInfo, snap: PanelSnapshot, deps: PluginRuntimeDeps): void {
+  if (inFlight.get(info.id) === info.entry) return
+  inFlight.set(info.id, info.entry)
+  void mountOne(info, snap, deps).finally(() => {
+    if (inFlight.get(info.id) === info.entry) inFlight.delete(info.id)
+  })
+}
 
 /**
  * 插件键盘档记账（工单100）：id → 该插件在持的档名集。请求/释放去重在此，
@@ -174,9 +192,10 @@ function hostOf(info: PluginInfo, container: HTMLElement, view: PluginView, deps
 function unmountOne(id: string, deps: PluginRuntimeDeps): void {
   const entry = mounted.get(id)
   // 卸载即给该 id 换代（并清失败记账）：在途 import 回来时令牌已旧，不得复活组件；
-  // 重装时也给一次干净机会
+  // 重装时也给一次干净机会。在途登记一并作废——下一次装载必须重新起飞。
   generations.set(id, (generations.get(id) ?? 0) + 1)
   failed.delete(id)
+  inFlight.delete(id)
   if (!entry) return
   mounted.delete(id)
   try {
@@ -245,13 +264,13 @@ export function syncPlugins(list: PluginInfo[], snap: PanelSnapshot, deps: Plugi
     const entry = mounted.get(info.id)
     const key = JSON.stringify(viewFor(info, snap))
     if (!entry) {
-      void mountOne(info, snap, deps)
+      startMount(info, snap, deps)
       continue
     }
     // 换代（资产变化 → 新 revision → entry URL 变）即重挂：ESM 模块缓存只能靠换 URL 绕开
     if (info.entry !== entry.entryUrl) {
       unmountOne(info.id, deps)
-      void mountOne(info, snap, deps)
+      startMount(info, snap, deps)
       continue
     }
     if (key === entry.viewKey) continue

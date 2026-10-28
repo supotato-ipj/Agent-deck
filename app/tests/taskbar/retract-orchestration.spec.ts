@@ -44,9 +44,15 @@ const SRC_FILES = tsFiles(path.resolve(REPO_ROOT, 'app/src'))
 function srcOf(rel: string): string {
   return readFileSync(path.resolve(REPO_ROOT, rel), 'utf8')
 }
-/** 去注释的源码（散文提及不算用法） */
+/** 去注释的源码（散文提及不算用法）；读盘/剥注释按文件缓存——多个守卫逐文件扫全树，
+ *  并行跑全量时重复读盘会把 5s 默认超时烧掉（工单310 增文件后真机轮实证） */
+const CODE_CACHE = new Map<string, string>()
 function codeOf(rel: string): string {
-  return srcOf(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const hit = CODE_CACHE.get(rel)
+  if (hit !== undefined) return hit
+  const code = srcOf(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  CODE_CACHE.set(rel, code)
+  return code
 }
 
 describe('三态迁移的栏面动作计划（工单241 纯函数缝；工单308 M1 收敛为栏面计划）', () => {

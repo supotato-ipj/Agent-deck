@@ -161,10 +161,10 @@ describe('仓库清单自一致性（app/accept/manifest.json，schema 定稿的
   /** 工单214：experiment 条目（取证工具）段级治理豁免——无段/无预算，不参与段级断言 */
   const cellBatteries = () => manifest!.batteries.filter((b) => b.kind !== 'experiment')
 
-  it('清单可加载且八块电池 ＋ 一条 experiment 条目全部登记', () => {
+  it('清单可加载且九块电池 ＋ 一条 experiment 条目全部登记', () => {
     expect(manifest).not.toBeNull()
     expect(manifest!.batteries.map((b) => b.id).sort()).toEqual(
-      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter', '166-doc-group-cards', '132-stall-duel'].sort(),
+      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter', '166-doc-group-cards', '310-placement', '132-stall-duel'].sort(),
     )
   })
 

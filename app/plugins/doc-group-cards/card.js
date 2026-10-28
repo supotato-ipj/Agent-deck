@@ -202,6 +202,8 @@ export const STYLE_ID = 'dgc-style'
 const CARD_CSS_BASE = `
 .${CARD_CLASS} {
   cursor: pointer;
+  /* 工单310：宿主把卡框量化到 320×240（原内容布局按 244 设计），溢出 4px 由卡框裁掉 */
+  overflow: hidden;
 }
 .${CARD_CLASS} .dgc-head {
   height: ${HEAD_H}px;
@@ -593,6 +595,8 @@ function newOverlay(id, cssClass, zIndex) {
   overlay.id = id
   // class='card' 是热区扫掠唯一的通用入口，不挂则整屏仍穿透
   overlay.className = `card ${cssClass}`
+  // 临时浮层豁免（工单310，ADR-0024）：全屏挡板是浮层外壳，不登记摆位、不占位
+  overlay.dataset.placementExempt = ''
   overlay.style.left = '0px'
   overlay.style.top = '0px'
   overlay.style.width = `${window.innerWidth}px`
@@ -1911,9 +1915,18 @@ function layoutRow(expandedId = expandedCardIdOf(cardState)) {
     width: window.innerWidth,
     height: window.innerHeight,
   }, expandedId)
+  // 工单310（ADR-0024）：面板宿主持有摆位时，插件不再写位置/尺寸——只把自算的结果发布为
+  // data-placement-auto-*（宿主默认位来源）。宿主独占内联 left/top/width/height，
+  // 避免「插件每秒重写 244/976 → 宿主改回 240/980」的抖动（卡框逐像素断言会红）。
+  const hostOwned = document.documentElement?.dataset?.placementHost === 'grid'
   for (const box of boxes) {
     const card = cardNodes.get(box.id)
     if (!card) continue
+    if (hostOwned) {
+      card.dataset.placementAutoLeft = String(box.left)
+      card.dataset.placementAutoTop = String(box.top)
+      continue
+    }
     card.style.width = `${box.width}px`
     card.style.height = `${box.height}px`
     card.style.left = `${box.left}px`
@@ -2016,6 +2029,8 @@ function draw(host, groups) {
     const card = document.createElement('div')
     card.className = `card ${CARD_CLASS}`
     card.id = group.id
+    // 摆位身份（工单310）：插件卡默认登记，身份优先取 data-card-id；命名空间防与内核卡撞名
+    card.dataset.cardId = `${PLUGIN_ID}:${group.id}`
     const grid = document.createElement('div')
     grid.className = 'dgc-grid'
     for (const item of group.items) grid.appendChild(buildCell(host, item, card))

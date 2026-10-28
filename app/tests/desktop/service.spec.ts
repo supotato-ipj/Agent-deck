@@ -286,26 +286,26 @@ describe('DesktopService（工单05 扫描与启动）', () => {
 })
 
 describe('DesktopService（工单27 删除与删除全部）', () => {
-  const seededStore = JSON.stringify({ version: 1, docs: ['n.docx', 'p.docx'] })
+  const seededStore = JSON.stringify({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} })
 
   it('trash：池内整份逐项送回收站（依赖束），摆位名单同拍清除并落盘 + 即时重编排', async () => {
     const w = fakeWorld(
       [entry('p.docx', { mtimeMs: 100 }), entry('a.lnk'), entry('n.docx', { mtimeMs: 300 })],
       [],
-      { store: JSON.stringify({ version: 1, docs: ['p.docx', 'n.docx'] }) },
+      { store: JSON.stringify({ version: 2, docs: ['p.docx', 'n.docx'], cards: {} }) },
     )
     await w.ctx.start()
     try {
       const pathOf = (name: string) => w.svc.state().items.find((i) => i.name === name)!.path
       // 摆位先行：删除前名单在场（显式段序 p 在 n 前，与 mtime 序相反）
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['p.docx', 'n.docx'] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['p.docx', 'n.docx'], cards: {} })
       const r = await w.svc.trash([pathOf('a.lnk'), pathOf('p.docx'), pathOf('n.docx')])
       expect(r).toEqual({ ok: true, trashed: ['a.lnk', 'p.docx', 'n.docx'], failed: [] })
       expect(w.trash).toHaveBeenCalledTimes(3)
       expect(w.trash).toHaveBeenNthCalledWith(1, pathOf('a.lnk'))
       // 名单同拍清空（防同名复活莫名归位），落盘一次
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: [] })
-      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, docs: [] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: [], cards: {} })
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 2, docs: [], cards: {} })
       expect(w.written).toHaveLength(1)
       // 即时重编排：显式摆位段消失（fake listDir 文件仍在场，编排退归类段新在上）
       expect(w.svc.state().plan.docs.map((d) => d.name)).toEqual(['n.docx', 'p.docx'])
@@ -318,7 +318,7 @@ describe('DesktopService（工单27 删除与删除全部）', () => {
     const w = fakeWorld(
       [entry('p.docx', { mtimeMs: 100 }), entry('n.docx', { mtimeMs: 100 })],
       [],
-      { store: JSON.stringify({ version: 1, docs: ['n.docx', 'p.docx'] }) },
+      { store: JSON.stringify({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} }) },
     )
     await w.ctx.start()
     try {
@@ -327,7 +327,7 @@ describe('DesktopService（工单27 删除与删除全部）', () => {
       const r = await w.svc.trash([pathOf('p.docx'), pathOf('n.docx')])
       expect(r).toEqual({ ok: false, trashed: ['p.docx'], failed: ['n.docx'], error: 'n.docx：拒绝访问。' })
       // 成功者摆位清除、失败者保留（文件还在盘上，位不能丢）
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['n.docx'] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['n.docx'], cards: {} })
       expect(w.written).toHaveLength(1)
     } finally {
       await w.ctx.stop()
@@ -349,7 +349,7 @@ describe('DesktopService（工单27 删除与删除全部）', () => {
         ok: false, trashed: [], failed: ['a.lnk'],
         error: 'a.lnk：另一个程序正在使用此文件，进程无法访问。',
       })
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['n.docx', 'p.docx'] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} })
       expect(w.written).toHaveLength(0)
     } finally {
       await w.ctx.stop()
@@ -425,7 +425,7 @@ describe('DesktopService（工单29 文件剪贴板写向）', () => {
 })
 
 describe('DesktopService（工单28 原地重命名）', () => {
-  const seededStore = JSON.stringify({ version: 1, docs: ['n.docx', 'p.docx'] })
+  const seededStore = JSON.stringify({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} })
 
   it('rename：file 改名落依赖（旧路径→新路径）、摆位同拍迁移三名单之一并落盘 + 即时重编排', async () => {
     const w = fakeWorld(
@@ -440,7 +440,7 @@ describe('DesktopService（工单28 原地重命名）', () => {
       expect(w.rename).toHaveBeenCalledTimes(1)
       expect(w.rename).toHaveBeenCalledWith('C:\\u\\n.docx', 'C:\\u\\report.docx')
       // 摆位同拍迁移：docs 名单里的 n.docx 原位换成 report.docx
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['report.docx', 'p.docx'] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['report.docx', 'p.docx'], cards: {} })
       expect(w.written).toHaveLength(1)
       // 即时重编排：假盘面已同步改名，新名以显式摆位身份回位（位置不丢）
       expect(w.svc.state().plan.docs.some((d) => d.name === 'report.docx')).toBe(true)
@@ -459,7 +459,7 @@ describe('DesktopService（工单28 原地重命名）', () => {
     try {
       expect(await w.svc.rename('Kimi Code.lnk', 'Kimi')).toEqual({ ok: true, to: 'Kimi.lnk' })
       expect(w.rename).toHaveBeenCalledWith('C:\\u\\Kimi Code.lnk', 'C:\\u\\Kimi.lnk')
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['n.docx', 'p.docx'] }) // 无关摆位原样
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} }) // 无关摆位原样
     } finally {
       await w.ctx.stop()
     }
@@ -492,7 +492,7 @@ describe('DesktopService（工单28 原地重命名）', () => {
       expect(await w.svc.rename('n.docx', 'b.lnk')).toEqual({ ok: false, error: '目标名已存在：b.lnk' })
       expect(w.rename).not.toHaveBeenCalled()
       expect(w.written).toHaveLength(0)
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['n.docx', 'p.docx'] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} })
     } finally {
       await w.ctx.stop()
     }
@@ -524,7 +524,7 @@ describe('DesktopService（工单28 原地重命名）', () => {
         ok: false, error: '另一个程序正在使用此文件，进程无法访问。',
       })
       expect(w.written).toHaveLength(0)
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: ['n.docx', 'p.docx'] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: ['n.docx', 'p.docx'], cards: {} })
     } finally {
       await w.ctx.stop()
     }
@@ -549,7 +549,7 @@ describe('DesktopService（工单28 原地重命名）', () => {
     )
     await w2.ctx.start()
     try {
-      expect(w2.svc.storeForTest()).toEqual({ version: 1, docs: ['n.docx', 'renamed.docx'] })
+      expect(w2.svc.storeForTest()).toEqual({ version: 2, docs: ['n.docx', 'renamed.docx'], cards: {} })
     } finally {
       await w2.ctx.stop()
     }
@@ -587,7 +587,7 @@ describe('DesktopService（工单06 编排与摆位）', () => {
       expect(r).toEqual({ ok: true })
       expect(w.svc.state().plan.docs.map((d) => d.name)).toEqual(['c.docx', 'b.docx', 'a.docx'])
       expect(w.written).toHaveLength(1)
-      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, docs: ['c.docx'] })
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 2, docs: ['c.docx'], cards: {} })
     } finally {
       await w.ctx.stop()
     }
@@ -638,7 +638,7 @@ describe('DesktopService（工单06 编排与摆位）', () => {
       [entry('cold.lnk'), entry('hot.lnk')],
       [],
       {
-        store: JSON.stringify({ version: 1, docs: ['cold.lnk'] }),
+        store: JSON.stringify({ version: 2, docs: ['cold.lnk'], cards: {} }),
         scores: () => new Map([['hot', 9], ['cold', 1]]),
       },
     )
@@ -648,7 +648,7 @@ describe('DesktopService（工单06 编排与摆位）', () => {
       const r = w.svc.resetLayout()
       expect(r).toEqual({ ok: true, cleared: 1 })
       expect(w.svc.state().plan.docs).toEqual([])
-      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, docs: [] })
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 2, docs: [], cards: {} })
     } finally {
       await w.ctx.stop()
     }
@@ -659,7 +659,7 @@ describe('DesktopService（工单06 编排与摆位）', () => {
     await w.ctx.start()
     try {
       expect(w.svc.state().plan.docs.map((d) => d.name)).toEqual(['a.docx'])
-      expect(w.svc.storeForTest()).toEqual({ version: 1, docs: [] })
+      expect(w.svc.storeForTest()).toEqual({ version: 2, docs: [], cards: {} })
     } finally {
       await w.ctx.stop()
     }
@@ -726,7 +726,7 @@ describe('DesktopService（工单22 批量拖拽摆位）', () => {
       expect(r).toEqual({ ok: true, moved: ['d.docx', 'b.docx'], skipped: [] })
       expect(w.svc.state().plan.docs.map((d) => d.name)).toEqual(['d.docx', 'b.docx', 'c.docx', 'a.docx'])
       expect(w.written).toHaveLength(1)
-      expect(JSON.parse(w.storeText!)).toEqual({ version: 1, docs: ['d.docx', 'b.docx'] })
+      expect(JSON.parse(w.storeText!)).toEqual({ version: 2, docs: ['d.docx', 'b.docx'], cards: {} })
     } finally {
       await w.ctx.stop()
     }
@@ -829,7 +829,7 @@ describe('DesktopService（工单30 粘贴与剪贴板态）', () => {
     const w = fakeWorld(
       [entry('a.lnk')],
       [],
-      { store: JSON.stringify({ version: 1, docs: ['a.txt'] }) },
+      { store: JSON.stringify({ version: 2, docs: ['a.txt'], cards: {} }) },
     )
     w.setSrc([entry('b.txt'), entry('docs', { isDirectory: true })])
     w.setClipboard({ paths: ['C:\\s\\b.txt', 'C:\\s\\docs'], effect: 'copy' })
