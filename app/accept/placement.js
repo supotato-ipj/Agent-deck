@@ -701,6 +701,28 @@ async function main() {
         ? rep.pass('被拒的会话卡不占屏不占地（不是静默叠卡，也不会把已摆好的卡自动搬走）')
         : rep.fail(`被拒卡仍在屏上占位：${JSON.stringify(sessionCard)}`);
 
+      // 极端小面板（300×300，可用区 220×156）：两张手定位都大于可用区、夹取后同点相撞，
+      // 无任何空位 → 停靠首个可用位 (0,0) 并落 placement-overlap-accepted 诊断（#318：
+      // 不静默重叠；已有卡不被自动搬走，只有被夹到同一处的这一对如实告警）。
+      writeLayout({ version: 2, docs: [], cards: {
+        'clock-card': { col: 100, row: 60 },
+        'weather-card': { col: 101, row: 61 },
+      } });
+      patchConfig((cfg) => { cfg.panel = { x: 0, y: 0, width: 300, height: 300 }; });
+      const tTiny = Date.now();
+      await relaunchPanel();
+      const dockedEvt = await tape.wait('placement-overlap-accepted',
+        (e) => e.id === 'weather-card' && e.reason === 'no-space', { since: tTiny, timeoutMs: 8000 });
+      const tinyCards = await cdpEval(EXPR.cards);
+      const tinyClock = tinyCards.find((c) => c.id === 'clock-card');
+      const tinyWeather = tinyCards.find((c) => c.id === 'weather-card');
+      const docked = tinyClock && tinyWeather
+        && tinyClock.x === MARGIN && tinyClock.y === MARGIN
+        && tinyWeather.x === MARGIN && tinyWeather.y === MARGIN;
+      dockedEvt && docked
+        ? rep.pass(`面板缩到 300×300 且两张手定位都大于可用区：夹取后相撞、无空位 → 停靠首个可用位 (${MARGIN},${MARGIN}) 并落 placement-overlap-accepted 诊断（不静默重叠）`)
+        : rep.fail(`无空位停靠异常：event=${JSON.stringify(dockedEvt)} clock=${JSON.stringify(tinyClock && { x: tinyClock.x, y: tinyClock.y })} weather=${JSON.stringify(tinyWeather && { x: tinyWeather.x, y: tinyWeather.y })}`);
+
       // 还原：配置与版面回原样，面板重启一次收干净
       writeLayout(layoutRaw ? JSON.parse(layoutRaw) : { version: 2, docs: [], cards: {} });
       restoreConfig(configRaw);
