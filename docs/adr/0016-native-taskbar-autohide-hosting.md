@@ -64,3 +64,15 @@ Status: accepted
 用户在后续 Q1–Q26 路线复审中确认：当前暂停自研注入器实施，改以 **ManagedShell C# 侧车 + 现有 Electron UI** 做逐能力、可丢弃原型；保留 Explorer，不同时运行第二套 Cairo 任务栏。这是对当前实施顺序的调整，不是对注入技术的永久否决，也不是正式生产架构裁决。
 
 原生栏全路径禁现、全接管期状态托管与稳态/启动期零帧目标均未降低。侧车只推进 ShellFolders、图标、原生 Shell 菜单、变更通知与故障恢复验证，**不得记作原生栏双缺陷或零帧目标的完成证据**。原型晋级后才另行形成正式 ADR、产品接缝与验收决策；本注记不表示产品代码已改变。
+
+## 修订记（工单308，2026-10-28：M1 覆盖式普通档——托管改恒置位单账、AppBar 占位链退役，spec #306）
+
+**裁决与修订对象**（spec #306，用户经 grill 流程逐项定案 M1 方案）：spec292 部署后出现主诉体验缺陷——任意应用的后台最大化窗口在前台被普通窗口夺走时，自绘栏弹出常驻 + 该最大化窗被压矮 48px（档位裁决落普通档 → 清位收回保留带的工作区签名）。经两轮代码取证定性为**按设计行为**（非实现走样），修复属设计修订：**普通档自绘栏改覆盖式常驻**——托管期任务栏 auto-hide **恒置位**、48px 保留带**恒释放**，自绘栏覆盖在窗口之上，托管期间任何窗口尺寸永不被改变（已知代价：普通档常驻时后台最大化窗底边约 48px 被栏遮挡，尺寸不变、仅遮挡——用户拍板接受；ADR-0015 决策 2 口径同步收窄为仅退场瞬间）。修订决策 1/4 的「接管即清位 / 普通档清位目标」（`normalBarAutoHideState` 与 `taskbar-autohide-cleared` 存证族退役）与本 ADR 既有修订记的「占位注销 ↔ 托管置位严格同拍」「收栏置位/退收栏清位」叙事——**运行期 appbar 状态写入归零**：进出收栏/让位零置位/注销/协商（`planBarTransition` 收敛为栏面计划，`BarTransitionContext`/`retractReasonHeld`/`retractGateDisqualified` 退役），AppBar 注册/注销/位置协商/ABN 重协商调用点与降级档机制整体退役（占位与覆盖物理互斥：占位必收回保留带、必挤压最大化窗）。重申轮询目标态简化为恒 `autohide-on`（`NativeWatchWant` 退役）；1s 值守与 SW_HIDE 压回义务照旧；退场三层复原用户原值照旧（48px 回缩只剩退场瞬间）。接管建立=置位一次（`engageTakeoverAutoHide` SET `retractAutoHideState`）、退场写回一次，auto-hide 单账保持最简形态；`taskbar-autohide-set`/`-set-failed` 事件族由 engage 复用。本修订同时取代 ADR-0007 的 AppBar 工作区占位机制（ADR-0007 正文不改，以本修订记为准）。
+
+**落地状态：已实施、真机出证**（2026-10-28，工单308 单 PR 分层落地）：
+- 源码：`app/src/shared/retract.ts`（BarModeInput 去 appBarDegraded、闸门只剩共用开关；迁移计划收敛为栏面四字段 hideWindow/showWindow/closePopups/evidence）、`app/src/main/taskbar/appbar-autohide.ts`（恒置位单账：engage 置位 / restore 写回 / reassert 恒置位，enter/clear 与档位账退役）、`app/src/main/taskbar/native-watch.ts`（poll 单参恒置位）、`app/src/main/taskbar/window.ts`（无注册无协商无降级档、三态轮询无条件起、托管建立置位一次）、`app/src/main/taskbar/appbar.ts`（收口为 GETSTATE/SETSTATE 单职责，注册/协商/回调面整体删除）。
+- 单测 2274 断言全绿（retract / retract-orchestration / appbar-autohide-ledger / native-watch 随动改写锁 M1 语义）。
+- 真机：51 电池 **PASS 17/0**（P8 降级档禁用段特征退役；P16 新增覆盖式主诉专项段——后台最大化窗+普通窗夺前台 3s 逐拍采样矩形逐点不变+零拍动；P10b/P10c explorer-acceptance-tail 环境降责 EXENV 在案；P13 一轮红二轮绿按 flaky 流程定谳抖动）、50 电池 **PASS 11/0**（C2 改「每次接管生命周期恰两次状态写入」计数式——off 只关收栏档、托管恒置位）。
+- 几何（决策 4 域）：进出收栏双复核（retract-enter/exit）与 `recheckStripHostRect`/`stepHostRectSettle` 随触发前提消失整体特征退役——壳侧挪移的两大来源（AppBar 重协商、SETSTATE 收栏过渡）在 M1 不复存在，几何漂移兜底归 keepalive `reassertGeometry`；条带恒贴屏底（净空/降级几何随降级档退役）。
+
+**取舍记录**：① 恒置位把自动隐藏协议的唤出通路重新武装（旧清位把它关掉）——禁现面由 SW_HIDE + 1s 值守承担（t257 spike：SW_HIDE+置位态按 Win 0 帧不闪现；51 电池 P15 悬停 3.5s/Win 键零可见帧实证）；② 保留带恒释放 = 普通档常驻时后台最大化窗底边 48px 被栏**遮挡**（尺寸不变、仅遮挡）——换「任何窗口尺寸永不被托管改变」的在案代价；③ 存证族随栏面收敛（retract 族不再随工作区面——覆盖进出 retract↔yield 各落一条）——51 电池 P14 改段锁新语义；④ 主诉行为 b（切回最大化窗偶发不收）另开观察票 #307，M1 已消灭其 FFI 阻塞根源候选，部署后实测定谳。

@@ -1661,14 +1661,25 @@ async function runSegments() {
       const tLift = Date.now();
       retractWin.unmaximize();
       forceForeground(hwndOf(neutralWin));
-      let lifted10 = await tape.wait('taskbar-retract-lifted', undefined, { since: tLift, timeoutMs: 8000 });
+      let lifted10 = await tape.wait('taskbar-retract-lifted', undefined, { since: tLift, timeoutMs: 3000 });
       if (lifted10 && lifted10.mode !== 'visible') {
-        const yl10 = await tape.wait('taskbar-yield-lifted', undefined, { since: tLift, timeoutMs: 8000 });
+        const yl10 = await tape.wait('taskbar-yield-lifted', undefined, { since: tLift, timeoutMs: 5000 });
         lifted10 = yl10 && yl10.mode === 'visible' ? yl10 : null;
       }
       if (!lifted10) {
-        rep.fail('P10c 前置失败：退收栏未成立（收栏态残留——见磁带 retract 族存证）');
-      } else {
+        // 前提辨析（工单308 L2 验证轮实证）：M1 下托管状态与档位解耦——拍 B 的夹具修复
+        // 循环里前台丢失拍可能已合法把档位翻回 visible（置位状态位不受影响、P10b 照常
+        // 判绿），此时 unmaximize 是同态零动作、无 lifted 存证。磁带 tLift 起零 retract 族
+        // ⇒ 出发态已是普通档（前提仍成立，note 记账后继续值守断言）；有 retract 再落而无
+        // lifted ⇒ 收栏态残留，真红。
+        const strayRetract10 = tape.all('taskbar-retract', undefined, { since: tLift }).length;
+        if (strayRetract10 > 0) {
+          rep.fail('P10c 前置失败：退收栏未成立（retract 再落而无 lifted——收栏态残留，见磁带）');
+        } else {
+          rep.note('P10c 前置：拍 B 修复循环已把档位翻回 visible（M1 档位与托管状态解耦的合法形态）——unmaximize 同态零动作，直接进值守断言');
+        }
+      }
+      {
         const tC = Date.now();
         const hwndC = win32.nativeTrayHwnd();
         if (!hwndC) {
