@@ -1521,13 +1521,13 @@
         {
           "seg": "P3",
           "ticket": 310,
-          "title": "手定位持久化与恢复出厂：拖拽落盘 v2 形状（docs 保留 + cards 格点）、重启回原位、恢复出厂同时清空手定位与文档名单",
+          "title": "手定位持久化与恢复出厂：两张卡拖拽落盘 v2 形状（docs 保留 + cards 格点）、重启双卡回原位、恢复出厂同时清空手定位与文档名单",
           "surfaces": [
             "system-state",
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 9,
+          "estSeconds": 11,
           "areas": [
             "cards",
             "config",
@@ -1551,12 +1551,12 @@
         {
           "seg": "P5",
           "ticket": 310,
-          "title": "搜索面板活动态方向：待机按 420×100 占位，活动态优先向下、下方空间不足向上且始终留在可用区",
+          "title": "搜索面板活动态方向：待机按 420×100 占位，活动态优先向下、下方空间不足向上且始终留在可用区；活动态长按不触发摆位",
           "surfaces": [
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 7,
+          "estSeconds": 8,
           "areas": [
             "cards",
             "search"
@@ -1565,13 +1565,13 @@
         {
           "seg": "P6",
           "ticket": 310,
-          "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区",
+          "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区；极端小面板两张手定位夹取后相撞无空位 → 停靠首个可用位并落 placement-overlap-accepted 诊断（不静默重叠）",
           "surfaces": [
             "input-injection",
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 15,
+          "estSeconds": 48,
           "areas": [
             "cards",
             "desktop",
@@ -1587,7 +1587,7 @@
         "desktop",
         "config"
       ],
-      "lastMeasuredSeconds": 53,
+      "lastMeasuredSeconds": 92,
       "lastMeasuredAt": "2026-10-28"
     },
     {
@@ -1832,7 +1832,7 @@
     },
     {
       "path": "app/src/renderer/placement.ts",
-      "area": "hotzone"
+      "area": "cards"
     },
     {
       "path": "app/src/renderer/plugin-tiers.ts",
@@ -1996,7 +1996,7 @@
     },
     {
       "path": "app/src/renderer/placement.ts",
-      "area": "hotzone"
+      "area": "cards"
     },
     {
       "path": "app/src/renderer/plugin-tiers.ts",

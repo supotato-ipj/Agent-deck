@@ -18,7 +18,8 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const win32 = require('./lib/win32');
-const { Report } = require('./lib/report');const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
+const { Report } = require('./lib/report');
+const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
 const { createEventTape } = require('./lib/event-tape');
 const { createPanelHandle } = require('./lib/panel-control');
@@ -288,24 +289,25 @@ async function launchPanel() {
   await waitReady(0);
 }
 
-async function waitReady(since) {
+async function waitReady(since, requireSessions = true) {
   const boot = await tape.wait('boot', null, { since, timeoutMs: 15000 });
   if (!boot) throw new Error('面板子进程未上报 boot 事件');
   panelPid = boot.pid;
   const rendered = await tape.wait('placement-rendered',
-    (e) => (e.cards || []).some((c) => c.id === 'clock-card') && (e.cards || []).some((c) => c.id === 'sessions-card'),
+    (e) => (e.cards || []).some((c) => c.id === 'clock-card')
+      && (!requireSessions || (e.cards || []).some((c) => c.id === 'sessions-card')),
     { since, timeoutMs: 15000 });
   if (!rendered) throw new Error('placement-rendered 未报出时钟/会话卡（摆位宿主未就位）');
   await refreshGeo();
   return rendered;
 }
 
-async function relaunchPanel() {
+async function relaunchPanel(requireSessions = true) {
   await clearCovering();
   const t = Date.now();
   const r = await handle.relaunch({ sinceMs: t });
   if (!r.launched) throw new Error('面板重启失败');
-  await waitReady(t);
+  await waitReady(t, requireSessions);
   await sleep(800);
 }
 
@@ -331,8 +333,9 @@ async function main() {
   const finish = () => {
     if (finished) return;
     finished = true;
-    const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
-    app.exit(v.fails === 0 ? 0 : 1);
+    // 三态判决（不传 explicit）：段账目/排除账随证据文件落盘，estSeconds 才有 took= 佐证
+    const v = rep.verdict();
+    app.exit(v.exitCode);
   };
 
   try {
@@ -493,38 +496,58 @@ async function main() {
 
     // ------------------ P3 持久化与恢复出厂 ------------------
     rep.beginSegment('P3');
-    segmentNote(rep, 'layout.json v2 形状 / 重启回原位 / 恢复出厂双清');
+    segmentNote(rep, 'layout.json v2 形状 / 两张手定位重启回原位 / 恢复出厂双清');
     {
+      // #314：至少两张卡的手定位都要跨重启——时钟已在 P2 落位，这里再拖天气到右移 400。
+      const weather0 = (await cdpEval(EXPR.cards)).find((c) => c.id === 'weather-card');
+      if (!weather0) throw new Error('P3 前置缺失：天气卡不在场');
+      const tWeather = Date.now();
+      await dragBy(centerOf(weather0), 400, 0, { steps: 8 });
+      const placedWeather = await tape.wait('placement-placed', (e) => e.id === 'weather-card', { since: tWeather, timeoutMs: 4000 });
+      await sleep(400);
       const store = readLayout();
       const placement = tape.latest('placement-rendered');
       const clockCard = placement && (placement.cards || []).find((c) => c.id === 'clock-card');
+      const weatherCard = placement && (placement.cards || []).find((c) => c.id === 'weather-card');
       const v2 = store && store.version === 2 && Array.isArray(store.docs) && store.cards && typeof store.cards === 'object';
-      const slotOk = v2 && clockCard && store.cards['clock-card']
-        && store.cards['clock-card'].col === clockCard.base.col && store.cards['clock-card'].row === clockCard.base.row;
+      const slotOk = v2 && clockCard && weatherCard && placedWeather
+        && store.cards['clock-card'] && store.cards['weather-card']
+        && store.cards['clock-card'].col === clockCard.base.col && store.cards['clock-card'].row === clockCard.base.row
+        && store.cards['weather-card'].col === weatherCard.base.col && store.cards['weather-card'].row === weatherCard.base.row;
       v2 && slotOk
-        ? rep.pass(`layout.json 升版 v2：docs 保留（${store.docs.length} 项）+ cards.clock-card=${JSON.stringify(store.cards['clock-card'])}（与渲染格点互证）`)
+        ? rep.pass(`layout.json 升版 v2：docs 保留（${store.docs.length} 项）+ 两张手定位 cards.clock-card=${JSON.stringify(store.cards['clock-card'])}、cards.weather-card=${JSON.stringify(store.cards['weather-card'])}（与渲染格点互证）`)
         : rep.fail(`layout v2 形状不符：${JSON.stringify(store && { version: store.version, docs: store.docs, cards: store.cards })}`);
 
-      const before = (await (async () => { await sleep(500); return cdpEval(EXPR.cards); })()).find((c) => c.id === 'clock-card');
+      const beforeCards = await (async () => { await sleep(500); return cdpEval(EXPR.cards); })();
+      const beforeClock = beforeCards.find((c) => c.id === 'clock-card');
+      const beforeWeather = beforeCards.find((c) => c.id === 'weather-card');
       const sinceRestart = Date.now();
       await relaunchPanel();
-      const after = (await cdpEval(EXPR.cards)).find((c) => c.id === 'clock-card');
-      const persisted = after && before && Math.abs(after.x - before.x) <= 1 && Math.abs(after.y - before.y) <= 1;
+      const afterCards = await cdpEval(EXPR.cards);
+      const afterClock = afterCards.find((c) => c.id === 'clock-card');
+      const afterWeather = afterCards.find((c) => c.id === 'weather-card');
+      const persisted = afterClock && beforeClock && afterWeather && beforeWeather
+        && Math.abs(afterClock.x - beforeClock.x) <= 1 && Math.abs(afterClock.y - beforeClock.y) <= 1
+        && Math.abs(afterWeather.x - beforeWeather.x) <= 1 && Math.abs(afterWeather.y - beforeWeather.y) <= 1;
       persisted
-        ? rep.pass(`重启面板后手定位保持：时钟卡 ${before.x},${before.y} → ${after.x},${after.y}`)
-        : rep.fail(`重启后手定位丢失：${JSON.stringify(before)} → ${JSON.stringify(after)}`);
+        ? rep.pass(`重启面板后两张手定位都保持：时钟 ${beforeClock.x},${beforeClock.y} → ${afterClock.x},${afterClock.y}；天气 ${beforeWeather.x},${beforeWeather.y} → ${afterWeather.x},${afterWeather.y}`)
+        : rep.fail(`重启后手定位丢失：${JSON.stringify({ clock: afterClock && [afterClock.x, afterClock.y], weather: afterWeather && [afterWeather.x, afterWeather.y] })}`);
       const restartEvt = tape.latest('placement-rendered', null, { since: sinceRestart });
       restartEvt && rep.note(`重启后 placement-rendered 已复发（${restartEvt.cards.length} 张卡）`);
 
       const reset = await resetLayoutViaBridge();
+      await sleep(700); // 恢复出厂回执后等一拍快照重排（清手定位 → 默认位）
       const storeAfter = readLayout();
-      const clockAfter = (await cdpEval(EXPR.cards)).find((c) => c.id === 'clock-card');
+      const afterReset = await cdpEval(EXPR.cards);
+      const clockAfter = afterReset.find((c) => c.id === 'clock-card');
+      const weatherAfter = afterReset.find((c) => c.id === 'weather-card');
       const clearedBoth = reset && reset.ok && storeAfter && storeAfter.version === 2
         && Object.keys(storeAfter.cards || {}).length === 0 && (storeAfter.docs || []).length === 0;
-      const defaultBack = clockAfter && clockAfter.x === MARGIN && clockAfter.y === MARGIN;
+      const defaultBack = clockAfter && clockAfter.x === MARGIN && clockAfter.y === MARGIN
+        && weatherAfter && weatherAfter.x === MARGIN && weatherAfter.y === 240;
       clearedBoth && defaultBack
-        ? rep.pass(`恢复出厂同时清空手定位与文档名单（cleared=${reset.cleared}），时钟卡回默认位 (${clockAfter.x},${clockAfter.y})`)
-        : rep.fail(`恢复出厂异常：reset=${JSON.stringify(reset)} store=${JSON.stringify(storeAfter && { docs: storeAfter.docs, cards: storeAfter.cards })} clock=${JSON.stringify(clockAfter && { x: clockAfter.x, y: clockAfter.y })}`);
+        ? rep.pass(`恢复出厂同时清空手定位与文档名单（cleared=${reset.cleared}），时钟回 (${clockAfter.x},${clockAfter.y})、天气回 (${weatherAfter.x},${weatherAfter.y})`)
+        : rep.fail(`恢复出厂异常：reset=${JSON.stringify(reset)} store=${JSON.stringify(storeAfter && { docs: storeAfter.docs, cards: storeAfter.cards })} clock=${JSON.stringify(clockAfter && { x: clockAfter.x, y: clockAfter.y })} weather=${JSON.stringify(weatherAfter && { x: weatherAfter.x, y: weatherAfter.y })}`);
     }
 
     // ------------------ P4 组卡冻结 / 原位展开 / 默认登记 ------------------
@@ -547,6 +570,7 @@ async function main() {
       const tFreeze = Date.now();
       await dragBy(centerOf(clock), 40, 20, { steps: 6 });
       const frozen = await tape.wait('placement-frozen', null, { since: tFreeze, timeoutMs: 4000 });
+      await sleep(500); // 冻结事件与落位动画/重排落定后再取基准
       frozen && Array.isArray(frozen.ids) && frozen.ids.length >= groups.length
         ? rep.pass(`首次成功摆位即冻结组卡默认位（placement-frozen ids=${frozen.ids.join(', ')}）`)
         : rep.fail(`组卡冻结未发生：${JSON.stringify(frozen)}`);
@@ -643,6 +667,17 @@ async function main() {
       activatedDown && down && inside
         ? rep.pass(`活动态优先向下展开：direction=down，内容高 ${activeDown.h}，卡底 ${Math.round(activeDown.y + activeDown.h)} 留在可用区内`)
         : rep.fail(`向下展开异常：activated=${!!activatedDown} down=${JSON.stringify(down)} rect=${JSON.stringify(activeDown && { y: activeDown.y, h: activeDown.h })}`);
+      // #317：活动态不启动长按摆位（输入时误触不拖卡）
+      const tBlock = Date.now();
+      await pointerDown(centerOf(activeDown));
+      await sleep(560);
+      pointerUp();
+      await sleep(300);
+      const activeBlocked = !tape.latest('placement-mode-entered', null, { since: tBlock });
+      const stillActive = (await cdpEval(EXPR.cards)).find((c) => c.id === 'search-card');
+      activeBlocked && stillActive && stillActive.search === 'active'
+        ? rep.pass('搜索活动态长按不触发摆位：560ms 按压后无 placement-mode-entered，面板仍在活动态')
+        : rep.fail(`活动态长按未拦住：blocked=${activeBlocked} state=${JSON.stringify(stillActive && stillActive.search)}`);
       // 退待机（DOM 键事件走输入框自己的 keydown）
       await cdpEval(`document.getElementById('search-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`);
       const deactivated = await tape.wait('search-deactivated', null, { since: tDown, timeoutMs: 3000 });
@@ -680,7 +715,7 @@ async function main() {
       // 手定位写一个越界格点，小面板重启后应夹取到右上角
       writeLayout({ version: 2, docs: [], cards: { 'clock-card': { col: 100, row: 60 } } });
       patchConfig((cfg) => { cfg.panel = { x: 0, y: 0, width: 700, height: 520 }; });
-      await relaunchPanel();
+      await relaunchPanel(false);
       const vp = await cdpEval(EXPR.viewport);
       const area = { x: MARGIN, y: MARGIN, w: vp.w - 2 * MARGIN, h: vp.h - 2 * MARGIN - BAND };
       const clock = (await cdpEval(EXPR.cards)).find((c) => c.id === 'clock-card');
@@ -701,10 +736,81 @@ async function main() {
         ? rep.pass('被拒的会话卡不占屏不占地（不是静默叠卡，也不会把已摆好的卡自动搬走）')
         : rep.fail(`被拒卡仍在屏上占位：${JSON.stringify(sessionCard)}`);
 
+      // 极端小面板（300×300，可用区 220×156）：两张手定位都大于可用区、夹取后同点相撞，
+      // 无任何空位 → 停靠首个可用位 (0,0) 并落 placement-overlap-accepted 诊断（#318：
+      // 不静默重叠；已有卡不被自动搬走，只有被夹到同一处的这一对如实告警）。
+      writeLayout({ version: 2, docs: [], cards: {
+        'clock-card': { col: 100, row: 60 },
+        'weather-card': { col: 101, row: 61 },
+      } });
+      patchConfig((cfg) => { cfg.panel = { x: 0, y: 0, width: 300, height: 300 }; });
+      const tTiny = Date.now();
+      await relaunchPanel(false);
+      const dockedEvt = await tape.wait('placement-overlap-accepted',
+        (e) => e.id === 'weather-card' && e.reason === 'no-space', { since: tTiny, timeoutMs: 8000 });
+      const tinyCards = await cdpEval(EXPR.cards);
+      const tinyClock = tinyCards.find((c) => c.id === 'clock-card');
+      const tinyWeather = tinyCards.find((c) => c.id === 'weather-card');
+      const docked = tinyClock && tinyWeather
+        && tinyClock.x === MARGIN && tinyClock.y === MARGIN
+        && tinyWeather.x === MARGIN && tinyWeather.y === MARGIN;
+      dockedEvt && docked
+        ? rep.pass(`面板缩到 300×300 且两张手定位都大于可用区：夹取后相撞、无空位 → 停靠首个可用位 (${MARGIN},${MARGIN}) 并落 placement-overlap-accepted 诊断（不静默重叠）`)
+        : rep.fail(`无空位停靠异常：event=${JSON.stringify(dockedEvt)} clock=${JSON.stringify(tinyClock && { x: tinyClock.x, y: tinyClock.y })} weather=${JSON.stringify(tinyWeather && { x: tinyWeather.x, y: tinyWeather.y })}`);
+
+      // #317 文档区：停用组卡后文档区可见、可拖；手定位在组卡启停间保留。
+      // 再灌入一批 docx 让文档区内容变高，验证内容增长只接受相交、不把文档区/别卡自动推开。
+      writeLayout({ version: 2, docs: [], cards: {} });
+      patchConfig((cfg) => {
+        cfg.panel = { x: 0, y: 0, width: 2560, height: 1440 };
+        cfg.plugins.disabled = [...new Set([...(cfg.plugins.disabled || []), 'doc-group-cards'])];
+      });
+      await relaunchPanel(false);
+      const doc0 = await until(async () => (await cdpEval(EXPR.cards)).find((c) => c.id === 'doc-zone'), 8000, 200);
+      if (!doc0) throw new Error('P6 文档区前置缺失：停用组卡后 doc-zone 不在场');
+      // 起笔压在 DOCS 标签带（分区 DOM 面，非条目）：长按归属文档区，不落进条目点击
+      const docGrab = { x: doc0.x + 8, y: doc0.y + 4 };
+      const tDoc = Date.now();
+      await dragBy(docGrab, 300, 200, { steps: 10 });
+      const docPlaced = await tape.wait('placement-placed', (e) => e.id === 'doc-zone', { since: tDoc, timeoutMs: 4000 });
+      await sleep(400);
+      const docMoved = (await cdpEval(EXPR.cards)).find((c) => c.id === 'doc-zone');
+      const docSlot = readLayout() && readLayout().cards && readLayout().cards['doc-zone'];
+      docPlaced && docMoved && docSlot
+        ? rep.pass(`文档区可拖并落盘：doc-zone 拖到 (${docMoved.x},${docMoved.y})，layout cards.doc-zone=${JSON.stringify(docSlot)}`)
+        : rep.fail(`文档区拖动异常：placed=${JSON.stringify(docPlaced)} rect=${JSON.stringify(docMoved && { x: docMoved.x, y: docMoved.y })} slot=${JSON.stringify(docSlot)}`);
+      const heightBefore = docMoved ? docMoved.h : 0;
+      makeFixtures(Array.from({ length: 40 }, (_, i) => `grow-${String(i).padStart(2, '0')}.docx`));
+      const grown = await until(async () => {
+        const d = (await cdpEval(EXPR.cards)).find((c) => c.id === 'doc-zone');
+        return d && d.h > heightBefore + 20 ? d : null;
+      }, 10000, 300);
+      const growthKept = grown && docMoved && grown.x === docMoved.x && grown.y === docMoved.y;
+      growthKept
+        ? rep.pass(`文档区内容增长（高 ${Math.round(heightBefore)}→${Math.round(grown.h)}）不自动位移：仍在 (${grown.x},${grown.y})，相交只接受`)
+        : rep.fail(`文档区内容增长被自动推开：before=${JSON.stringify(docMoved && { x: docMoved.x, y: docMoved.y, h: heightBefore })} after=${JSON.stringify(grown && { x: grown.x, y: grown.y, h: grown.h })}`);
+      removeFixtures();
+      await sleep(800);
+      // 组卡在装时文档区隐藏且不占位；再停用后回到手定位（条目保留语义）
+      patchConfig((cfg) => {
+        cfg.plugins.disabled = (cfg.plugins.disabled || []).filter((id) => id !== 'doc-group-cards');
+      });
+      await relaunchPanel(false);
+      const hiddenWhileGroup = await until(async () => !(await cdpEval(EXPR.cards)).some((c) => c.id === 'doc-zone'), 10000, 250);
+      patchConfig((cfg) => {
+        cfg.plugins.disabled = [...new Set([...(cfg.plugins.disabled || []), 'doc-group-cards'])];
+      });
+      await relaunchPanel(false);
+      const docBack = await until(async () => (await cdpEval(EXPR.cards)).find((c) => c.id === 'doc-zone'), 8000, 200);
+      const backOk = hiddenWhileGroup && docBack && docMoved && docBack.x === docMoved.x && docBack.y === docMoved.y;
+      backOk
+        ? rep.pass(`组卡在装时文档区隐藏且不占位；再停用后回到停用前手定位 (${docBack.x},${docBack.y})`)
+        : rep.fail(`文档区启停保留异常：hidden=${hiddenWhileGroup} back=${JSON.stringify(docBack && { x: docBack.x, y: docBack.y })} expect=${JSON.stringify(docMoved && { x: docMoved.x, y: docMoved.y })}`);
+
       // 还原：配置与版面回原样，面板重启一次收干净
       writeLayout(layoutRaw ? JSON.parse(layoutRaw) : { version: 2, docs: [], cards: {} });
       restoreConfig(configRaw);
-      await relaunchPanel();
+      await relaunchPanel(false);
       const restored = (await cdpEval(EXPR.cards)).find((c) => c.id === 'clock-card');
       restored && restored.x % GRID === 0 && restored.y % GRID === 0
         ? rep.pass(`还原本机配置与版面后面板正常起落（时钟卡 ${restored.x},${restored.y}）`)
