@@ -1,45 +1,27 @@
-// AppBar 工作区占位（工单51，ADR-0007「工作区」决策）：任务栏窗口注册为 AppBar
-// 占住主屏底边，系统工作区收缩——最大化窗口底边停在栏上方不被遮挡；DPI/分辨率
-// 变化经 ABM_QUERYPOS+ABM_SETPOS 重协商。
-// 薄效果层（无分支，真机验收覆盖，不进单测——工单46 Testing Decisions）。
+// 原生任务栏 appbar 状态读写（工单260 原生栏托管；工单308 M1 单职责收口）：
+// ABM_GETSTATE/ABM_SETSTATE 两消息的最薄 FFI 面（探针同款调用形态，
+// docs/audit/2026-10-24-t257-autohide-setstate-probe.md）——托管建立置位、重申压回、
+// 读回裁决与三层复原全部消费这一对消息（效果层 RAII 账在 appbar-autohide.ts，落盘账
+// 复原在 appbar-ledger.ts，置位值函数 retractAutoHideState 在 shared/retract）。
+//
 // 手段是 SHAppBarMessage（shell32，Win95→Win11 未变的承重墙）：消息送达 explorer
 // 的 AppBar 服务，不依赖 Shell_TrayWnd 窗口可见性——原生任务栏已被工单50 隐藏
 // （ShowWindow 视图态切换），AppBar 语义不受影响。
 //
-// **工单250 实测更正（2026-10-23，本机 Win11 2560×1440）**：系统工作区 = 屏幕矩形 −
-// （**AppBar 登记表内各条保留区的并集** ∪ **shell 自算的原生任务栏保留带**）。第二项
-// **不在 AppBar 登记表里**——对原生 Shell_TrayWnd 句柄发 ABM_REMOVE / 空矩形
-// ABM_SETPOS，工作区底边纹丝不动（仍 1392）；ABM_GETTASKBARPOS 返回空矩形、
-// ABM_GETAUTOHIDEBAR(底边) 与 ABM_GETAUTOHIDEBAREX(原生句柄) 均返回 0 ⇒ 原生任务栏
-// 在本版 Windows 上**不是 AppBar 登记项**，它的 48px 保留带由 shell 自己算、只由 shell
-// 自己放（自动隐藏 / StuckRects3）。
-// ⇒ 后果（**产品级缺口，非测试问题**）：本模块注销的只是**我方这一份**登记；原生那条
-// 仍在 ⇒ 收栏态的工作区底边与常驻态同值 ⇒ 「最大化窗铺满整屏」在本机不发生。
-// 取证与出路清单见 docs/audit/2026-10-23-t250-native-taskbar-reserved-band.md。
+// **工单308 M1（spec #306）占位链退役**：本模块原兼营 AppBar 工作区占位（工单51，ADR-0007：
+// ABM_NEW 注册 / ABM_REMOVE 注销 / ABM_QUERYPOS+ABM_SETPOS 协商 / ABN_POSCHANGED 回调重
+// 协商）——覆盖式普通档与占位物理互斥（占位必收回保留带、必挤压最大化窗，spec #306 主诉），
+// 整条注册/协商/回调面随 M1 退役（历史取证 docs/audit/2026-10-23-t250-native-taskbar-
+// reserved-band.md，语义沿革见 ADR-0015/0016），本处只留状态读写。
+//
+// 薄效果层（无分支，真机验收覆盖，不进单测——工单46 Testing Decisions）。
 import koffi from 'koffi'
-import type { EventLog } from '../panel-ipc'
 
-const ABM_NEW = 0
-const ABM_REMOVE = 1
-const ABM_SETPOS = 2
-const ABM_QUERYPOS = 3
-// ⚠️ SETPOS/QUERYPOS 两值与 shellapi 官方头相反（官方 QUERYPOS=2/SETPOS=3）——已知缺陷
-// 独立票 #251 在案，本仓不动（避免与既有协商行为混变量；工单260 只新增下列两个官方值）。
 const ABM_GETSTATE = 4
 const ABM_SETSTATE = 10
-const ABE_BOTTOM = 3
-/** ABN_POSCHANGED：系统通知工作区重协商（其他 AppBar 变动等），经回调消息送达 */
-export const ABN_POSCHANGED = 1
 
-/** 物理像素矩形（SHAppBarMessage 与 GetWindowRect 同为物理口径） */
-export interface AppBarRect {
-  left: number
-  top: number
-  right: number
-  bottom: number
-}
-
-const RECT = koffi.struct('TASKBAR_APPBAR_RECT', { left: 'long', top: 'long', right: 'long', bottom: 'long' })
+/** 物理像素矩形（SHAppBarMessage 物理口径；仅作 APPBARDATA 布局占位——状态读写不携矩形） */
+const APPBAR_RECT = koffi.struct('TASKBAR_APPBAR_RECT', { left: 'long', top: 'long', right: 'long', bottom: 'long' })
 // APPBARDATA：x64 = 48B（cbSize 4 + pad 4 + hWnd 8 + uCallbackMessage 4 + uEdge 4 + rc 16 + lParam 8）
 const APPBARDATA = koffi.struct('TASKBAR_APPBARDATA', {
   cbSize: 'uint32',
@@ -51,65 +33,7 @@ const APPBARDATA = koffi.struct('TASKBAR_APPBARDATA', {
 })
 
 const shell32 = koffi.load('shell32.dll')
-const user32 = koffi.load('user32.dll')
 const SHAppBarMessage = shell32.func('uintptr_t __stdcall SHAppBarMessage(uint32 dwMessage, TASKBAR_APPBARDATA *pData)')
-const RegisterWindowMessageW = user32.func('uint32 __stdcall RegisterWindowMessageW(const char16_t *lpString)')
-
-/** AppBar 通知回调消息号（RegisterWindowMessage 全系统一致，进程内缓存） */
-let callbackMessage = 0
-export function appBarCallbackMessage(): number {
-  if (!callbackMessage) callbackMessage = Number(RegisterWindowMessageW('AppBarMessage'))
-  return callbackMessage
-}
-
-function appBarData(hwnd: number, rc: AppBarRect) {
-  return {
-    cbSize: koffi.sizeof(APPBARDATA) as number,
-    hWnd: hwnd,
-    uCallbackMessage: appBarCallbackMessage(),
-    uEdge: ABE_BOTTOM,
-    rc,
-    lParam: 0,
-  }
-}
-
-/** 注册 AppBar（条带窗创建后调用）。返回 false = 系统拒绝，调用方走降级档。 */
-export function registerAppBar(hwnd: number, rc: AppBarRect, log: EventLog | null): boolean {
-  const ok = Boolean(SHAppBarMessage(ABM_NEW, appBarData(hwnd, rc)))
-  log?.append({ type: ok ? 'taskbar-appbar-registered' : 'taskbar-appbar-register-failed', hwnd })
-  return ok
-}
-
-/** 注销 AppBar（条带窗销毁前调用）：**我方这份**占位登记归还。静默——销毁路径不为存证造分支。
- *  ⚠️ 不等于「工作区归还全屏」：原生任务栏那 48px 保留带由 shell 自算、不在 AppBar
- *  登记表里（工单250 实测，见模块头注释）⇒ 注销后系统工作区底边不变。 */
-export function removeAppBar(hwnd: number, log: EventLog | null): void {
-  SHAppBarMessage(ABM_REMOVE, appBarData(hwnd, { left: 0, top: 0, right: 0, bottom: 0 }))
-  log?.append({ type: 'taskbar-appbar-removed', hwnd })
-}
-
-/**
- * 协商占位（建窗后初次、ABN_POSCHANGED、display-metrics-changed 三入口同一函数）：
- * ABM_QUERYPOS 让系统按当前工作区裁剪提议矩形，ABM_SETPOS 提交生效。返回协商后
- * 矩形（物理像素）——调用方据它重排窗口，栏与占位严格同矩形。
- */
-export function negotiateAppBarPos(hwnd: number, want: AppBarRect, log: EventLog | null, reason: string): AppBarRect {
-  const data = appBarData(hwnd, { ...want })
-  SHAppBarMessage(ABM_QUERYPOS, data) // 系统按当前工作区裁剪提议矩形（全宽化、避让其他 AppBar）
-  SHAppBarMessage(ABM_SETPOS, data)
-  const rc = { left: Number(data.rc.left), top: Number(data.rc.top), right: Number(data.rc.right), bottom: Number(data.rc.bottom) }
-  log?.append({ type: 'taskbar-appbar-setpos', reason, rc })
-  return rc
-}
-
-/* ================================================================
- * 原生任务栏 appbar 状态读写（工单260 原生栏托管）：ABM_GETSTATE/ABM_SETSTATE。
- * 两消息都不需 hWnd/矩形（任务栏状态是会话级事实），SETSTATE 的目标位走 lParam。
- * 状态位常量（ABS_AUTOHIDE/ABS_ALWAYSONTOP）与置位值函数在纯函数域
- * （shared/retract 的 retractAutoHideState），RAII 记账与退避复原在
- * taskbar/appbar-autohide.ts——本处只做最薄 FFI 面（探针同款调用形态，
- * docs/audit/2026-10-24-t257-autohide-setstate-probe.md）。
- * ================================================================ */
 
 /** GETSTATE/SETSTATE 共用的最小 APPBARDATA（hWnd/回调/边/矩形全零，lParam 携带状态位） */
 function appBarStateData(lParam: number) {
