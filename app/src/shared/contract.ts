@@ -122,11 +122,20 @@ export interface DesktopPlan {
   docs: DesktopDocEntry[]
 }
 
-/** 桌面承载状态：条目池 + 编排计划 + 指纹（渲染层按指纹 diff，1Hz 快照不重建 DOM） */
+/** 桌面组件格点（工单310，ADR-0024）：网格坐标从可用区原点（四周留白内沿）起算，
+ * 每格 20px；存格点不存像素——分辨率变化时关系不变，夹取在渲染层落地。 */
+export interface CardSlot {
+  col: number
+  row: number
+}
+
+/** 桌面承载状态：条目池 + 编排计划 + 指纹（渲染层按指纹 diff，1Hz 快照不重建 DOM）。
+ * 工单310 扩 cards：桌面组件手定位格点表（只含用户拖过的卡；未在此的走默认位表）。 */
 export interface DesktopState {
   fingerprint: string
   items: DesktopItem[]
   plan: DesktopPlan
+  cards: Record<string, CardSlot>
 }
 
 /** 桌面承载几何（工单06，config.json 下发；渲染层应用到分区容器） */
@@ -501,8 +510,18 @@ export interface BridgeMethods {
     request: { names: string[]; zone: DesktopZone; beforeName: string | null }
     response: { ok: boolean; moved: string[]; skipped: string[]; error?: string }
   }
-  /** 恢复出厂布局：清除全部显式摆位，回到归类分组的出厂编排 */
+  /** 恢复出厂布局：清除全部显式摆位（文档名单 + 卡片手定位），回到出厂版面 */
   'desktop/reset-layout': { request: null; response: { ok: boolean; cleared: number } }
+  /**
+   * 桌面组件手定位写入（工单310，ADR-0024）：摆位落点经宿主网格裁决定格后落盘。
+   * id 是宿主登记身份（data-card-id → DOM id → 生成序号）；col/row 为可用区格点。
+   * 只增改该卡条目，其余卡片与文档名单原样；返回最新手定位全表（渲染层本地已先更新，
+   * 回执用于对账）。
+   */
+  'desktop/set-card-slot': {
+    request: { id: string; col: number; row: number }
+    response: { ok: boolean; cards: Record<string, CardSlot>; error?: string }
+  }
   /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */
   'search/activate': { request: null; response: { state: SearchUiState } }
   /** 输入喂给引擎链路（内核防抖 ~200ms 后直连 Listary；结果/离线经事件回推） */

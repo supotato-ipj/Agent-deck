@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { ClockState, DesktopState, DesktopZone, HardwareState, SessionInfo, TaskbarRecommendation } from '../../shared/contract'
+import type { CardSlot, ClockState, DesktopState, DesktopZone, HardwareState, SessionInfo, TaskbarRecommendation } from '../../shared/contract'
 import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from '../taskbar/plan'
 
 /**
@@ -42,6 +42,8 @@ export interface PanelDataPort {
   move(name: string, zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; error?: string }>
   moveBatch(names: readonly string[], zone: DesktopZone, beforeName: string | null): Promise<{ ok: boolean; moved: string[]; skipped: string[]; error?: string }>
   resetLayout(): Promise<{ ok: boolean; cleared: number }>
+  /** 桌面组件手定位写入（工单310）：格点表落盘并回最新全表 */
+  setCardSlot(id: string, col: number, row: number): Promise<{ ok: boolean; cards: Record<string, CardSlot>; error?: string }>
 }
 
 /** 本地数据面（进程内装配）：直连 cordis 采集服务。内核测试与契约缝用。 */
@@ -136,5 +138,9 @@ export class LocalPanelDataService extends Service implements PanelDataPort {
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {
     return Promise.resolve(this.ctx.desktop.resetLayout())
+  }
+
+  setCardSlot(id: string, col: number, row: number): Promise<{ ok: boolean; cards: Record<string, CardSlot>; error?: string }> {
+    return Promise.resolve(this.ctx.desktop.setCardSlot(id, col, row))
   }
 }

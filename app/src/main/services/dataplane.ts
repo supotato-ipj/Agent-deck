@@ -1,7 +1,7 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { ClockState, DesktopState, DesktopZone, HardwareState, TaskbarRecommendation } from '../../shared/contract'
+import type { CardSlot, ClockState, DesktopState, DesktopZone, HardwareState, TaskbarRecommendation } from '../../shared/contract'
 import type { PanelDataPort } from './panel-data'
 import type { DataplaneInit, DataplaneMessage, DataplaneMethod, DataplaneSnapshot } from '../dataplane-protocol'
 import type { TrayClickButton, TrayWireEvent } from '../trayhost/protocol'
@@ -207,7 +207,7 @@ export class DataplaneService extends Service implements PanelDataPort {
   }
 
   desktop(): DesktopState {
-    return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { docs: [] } }
+    return this.latest?.desktop ?? { fingerprint: '', items: [], plan: { docs: [] }, cards: {} }
   }
 
   /** 任务栏推荐位（工单54）：子进程随快照算好携带（分数跨进程不过桥——名单即产物） */
@@ -313,5 +313,9 @@ export class DataplaneService extends Service implements PanelDataPort {
 
   resetLayout(): Promise<{ ok: boolean; cleared: number }> {
     return this.call('desktop/reset-layout', null) as Promise<{ ok: boolean; cleared: number }>
+  }
+
+  setCardSlot(id: string, col: number, row: number): Promise<{ ok: boolean; cards: Record<string, CardSlot>; error?: string }> {
+    return this.call('desktop/set-card-slot', { id, col, row }) as Promise<{ ok: boolean; cards: Record<string, CardSlot>; error?: string }>
   }
 }
