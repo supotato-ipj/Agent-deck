@@ -104,6 +104,10 @@ export class BridgeService extends Service {
       }
       case 'desktop/reset-layout':
         return await this.ctx.panelData.resetLayout() as BridgeMethods[M]['response']
+      case 'desktop/set-card-slot': {
+        const { id, col, row } = payload as { id: string; col: number; row: number }
+        return await this.ctx.panelData.setCardSlot(String(id ?? ''), Number(col), Number(row)) as BridgeMethods[M]['response']
+      }
       case 'search/activate':
         return { state: this.ctx.search.activate() } as BridgeMethods[M]['response']
       case 'search/query': {

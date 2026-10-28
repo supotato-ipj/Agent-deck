@@ -45,14 +45,13 @@ const VK_CONTROL = 0x11, VK_V = 0x56, VK_A = 0x41, VK_C = 0x43, VK_X = 0x58, VK_
 const NOTIFY_ICON_SETTINGS = 'HKCU:\\Control Panel\\NotifyIconSettings';
 // 托盘图标的程序化识别色（tray.ts 琥珀 #f5a623 → RGB）
 const AMBER = [245, 166, 35];
-// 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP）
-const CARD_DIP = { x: 48, y: 48, w: 320, h: 176 }
-const LEFT_CARDS_DIP = { x: 48, y: 48, w: 320, h: 686 }   // 时钟+天气+日历（至 734）
-// 右列自 07 起顶部是搜索面板（SEARCH 卡 ~89 高 + 会话（工单03 起加高吞掉 Qoder 状态块槽），
-// 底缘至 674——工单59 硬件卡退役，其显示职责由任务栏硬件摘要承接）
-const RIGHT_CARDS_DIP = { right: 48, y: 48, w: 420, h: 626 }
-// 搜索卡几何（与 src/renderer/index.html #search-card 一致；results 展开随事件重取）
-const SEARCH_CARD_DIP = { right: 48, y: 48, w: 420, h: 89 }
+// 卡片几何须与 src/renderer/index.html 的 .card 布局保持一致（DIP；工单310 量化到 20px 整数倍）
+const CARD_DIP = { x: 40, y: 40, w: 320, h: 180 }
+const LEFT_CARDS_DIP = { x: 40, y: 40, w: 320, h: 700 }   // 时钟+天气+日历（工单310 默认位至 740）
+// 右列自 07 起顶部是搜索面板（待机 420×100）与会话卡（420×520 @ y160，底缘 680）
+const RIGHT_CARDS_DIP = { right: 40, y: 40, w: 420, h: 640 }
+// 搜索卡几何（与 src/renderer/index.html #search-card 一致的待机尺寸；活动态随内容重取）
+const SEARCH_CARD_DIP = { right: 40, y: 40, w: 420, h: 100 }
 // 工单05 桌面承载分区几何（与 renderer/index.html #doc-zone 一致）：
 // 文档区 x408 起、max-width 640（满 8 行折右列的列流布局，透明带取样按最宽取 1056）。
 // 工单59：dock 条随应用区一并退役，面板只剩文档区一处承载，底部不再有要避让的常驻条。
@@ -1114,6 +1113,15 @@ async function runSegments() {
       }).join('、') || '（带上已无覆盖窗——有效点不足为取样带几何异常）'
       : '';
     rep.note(`透明区采样点 ${probePoints.length} 个命中参照窗（清场重试 ${retries} 轮；其余被用户窗遮挡的点不计）`);
+    // 工单310：卡片由插件异步挂载且由摆位宿主定位（默认 40,40 320×180）。像素断言前等到
+    // clock-card 进热区那一拍，避免「插件未挂完就截屏」把空区当成文字不足（基线首轮实证 0/14400）。
+    const clockHot = await tape.wait('hotzones', (e) => (e.rects || []).some((r) => r.id === 'clock-card'), { timeoutMs: 8000 });
+    if (!clockHot) rep.note('P2 像素取证前未见 clock-card 热区（卡未挂完/未定位）——whitePixels 失败时先看此证');
+    // 热区只证明 DOM 在位；像素断言还要等内容渲染与合成落帧（真机实证：热区已在、截图仍是
+    // 全透明棋盘——插件数据首拍与桌面合成各有延迟）。等首帧时钟内容 + 一拍合成再截。
+    const clockPainted = await tape.wait('clock-rendered', null, { timeoutMs: 8000 });
+    if (clockPainted) await sleep(700);
+    else rep.note('P2 像素取证前未见 clock-rendered（时钟内容未渲染）——whitePixels 失败时先看此证');
     const shot = capture(rect, '02-transparent-on-checker');
     let chk = checkerHitRateAtPoints(shot, probePoints);
     if (chk.rate <= 0.9 && probePoints.length >= 500) {
@@ -1130,7 +1138,12 @@ async function runSegments() {
       : rep.fail(probePoints.length < 500
         ? `参照窗采样带被用户窗遮挡：清场重试 ${retries} 轮后有效采样点仅 ${probePoints.length}（<500），透明断言如实 FAIL；遮挡源：${occlusionWho}`
         : `透明区未透出参照窗（命中率 ${(chk.rate * 100).toFixed(1)}%）`);
-    const wp = whitePixels(shot, localCard);
+    let wp = whitePixels(shot, localCard);
+    if (wp.hit <= 30) {
+      // 合成迟到的第二拍（桌面合成与首帧内容各有延迟；一次空拍不代表文字不实色）
+      await sleep(900);
+      wp = whitePixels(capture(rect, '02-transparent-on-checker-retry'), localCard);
+    }
     const cardRootLeft = cardCovering();
     if (cardRootLeft) rep.note(`时钟卡区清场 ${retries} 轮后仍被压（root=${w32.className(cardRootLeft)}）——whitePixels 不足时先看此证`);
     wp.hit > 30
@@ -1804,6 +1817,12 @@ async function runSegments() {
           persisted
             ? rep.pass(`重启面板后位置保持：${dragged} 仍在 ${anchor} 之前（layout.json 持久化）`)
             : rep.fail('重启后摆位未保持（layout.json 未生效）');
+          // 工单310：布局存储升版 v2——文档项顺序语义不变，卡片手定位表并列（docs 仍是数组）
+          const diskLayout = (() => { try { return JSON.parse(fs.readFileSync(layoutFile, 'utf8')); } catch { return null; } })();
+          diskLayout && diskLayout.version === 2 && Array.isArray(diskLayout.docs)
+            && diskLayout.cards && typeof diskLayout.cards === 'object' && !Array.isArray(diskLayout.cards)
+            ? rep.pass(`layout.json 升版 v2：docs 有序名单 ${diskLayout.docs.length} 项、cards 手定位表 ${Object.keys(diskLayout.cards).length} 条（旧版按空表自愈读入）`)
+            : rep.fail(`layout.json 非 v2 形状：${JSON.stringify(diskLayout && { version: diskLayout.version, docs: Array.isArray(diskLayout.docs), cards: diskLayout.cards })}`);
           docShot('06-drag-persisted', rectN);
           } else {
             rep.note('重启面板持久化断言随拖拽前置失败一并跳过');
@@ -5921,17 +5940,17 @@ async function runSegments() {
             + `时钟卡矩形 ${geomOk ? '一致' : `不符（实得 ${JSON.stringify(cardZones.get('clock-card') || null)}）`}`);
 
         // 0.5 Qoder 状态块退役（工单03）：热区声明按 id 找 qoder-card 应缺席，
-        //     会话卡加高补位——top 152 不动、高 348→522（吞 16px 间隙 + 158px 状态块槽）。
+        //     会话卡加高补位——工单310 默认位量化后 top 160 / 高 520（右列 40/160 网格锚点）。
         //     硬件卡随工单59 一并退役，其 top 690 原槽位不再有卡片。
         const zoneRects = (tape.latest('hotzones', undefined, { since }) || {}).rects || [];
         const qoderGone = !zoneRects.some((r) => r.id === 'qoder-card');
         const sz = zoneRects.find((r) => r.id === 'sessions-card');
-        const fillOk = Boolean(sz) && sz.y === 152 && sz.h === 522;
+        const fillOk = Boolean(sz) && sz.y === 160 && sz.h === 520;
         qoderGone && fillOk
           ? rep.pass(`Qoder 状态块退役：qoder-card 不在任何热区声明里，会话卡加高补位到位`
             + `（top ${sz.y}、高 ${sz.h}，覆盖原状态块槽位 152..674）`)
           : rep.fail(`Qoder 状态块退役探针未过：qoder-card ${qoderGone ? '已缺席' : '仍在热区声明'}，`
-            + `sessions-card 矩形 ${JSON.stringify(sz || null)}（期望 top 152 / 高 522）`);
+            + `sessions-card 矩形 ${JSON.stringify(sz || null)}（期望 top 160 / 高 520）`);
 
         if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
         if (lastEvent('plugin-mounted', (e) => e.id === 'hello', since)) {

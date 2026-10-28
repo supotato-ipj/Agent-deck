@@ -1481,6 +1481,116 @@
       "scope": true
     },
     {
+      "id": "310-placement",
+      "title": "桌面组件摆位（工单310）：长按拖拽 + 20px 网格吸附 + 手定位持久化 + 组卡冻结/原位展开 + 搜索活动态方向 + 无空位拒绝与尺寸夹取",
+      "entry": "app/accept/placement.js",
+      "flag": "--accept-placement",
+      "hintBar": true,
+      "cdpPort": 9230,
+      "kind": null,
+      "budgetSeconds": 120,
+      "segments": [
+        {
+          "seg": "P1",
+          "ticket": 310,
+          "title": "长按进入与取消：400ms 成立、长按前 >6px 取消、Esc/失焦取消、长按成立后抑制点击、点阵网格只出现在可用区",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 9,
+          "areas": [
+            "cards",
+            "hotzone"
+          ]
+        },
+        {
+          "seg": "P2",
+          "ticket": 310,
+          "title": "网格吸附与冲突反馈：拖拽跟手、绿/红落点、松手吸附 20px 格点、冲突回弹、拖拽期全窗热区",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 8,
+          "areas": [
+            "cards",
+            "hotzone"
+          ]
+        },
+        {
+          "seg": "P3",
+          "ticket": 310,
+          "title": "手定位持久化与恢复出厂：拖拽落盘 v2 形状（docs 保留 + cards 格点）、重启回原位、恢复出厂同时清空手定位与文档名单",
+          "surfaces": [
+            "system-state",
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 9,
+          "areas": [
+            "cards",
+            "config",
+            "desktop"
+          ]
+        },
+        {
+          "seg": "P4",
+          "ticket": 310,
+          "title": "组卡默认位冻结与原位展开 + 插件卡默认登记：首次摆位冻结组卡默认位、新建/解散不挪旧卡、展开保中心+夹取、邻卡淡出、展开卡仍可拖、热区重申报",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 9,
+          "areas": [
+            "cards",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "P5",
+          "ticket": 310,
+          "title": "搜索面板活动态方向：待机按 420×100 占位，活动态优先向下、下方空间不足向上且始终留在可用区",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 7,
+          "areas": [
+            "cards",
+            "search"
+          ]
+        },
+        {
+          "seg": "P6",
+          "ticket": 310,
+          "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 15,
+          "areas": [
+            "cards",
+            "desktop",
+            "config"
+          ]
+        }
+      ],
+      "areas": [
+        "cards",
+        "hotzone",
+        "plugins",
+        "search",
+        "desktop",
+        "config"
+      ],
+      "lastMeasuredSeconds": 53,
+      "lastMeasuredAt": "2026-10-28"
+    },
+    {
       "id": "132-stall-duel",
       "title": "工单132 第一阶段对照实验（stall-duel）：卡顿归因取证工具——experiment 身份，段级治理豁免",
       "entry": "app/accept/experiments/stall-duel.js",
@@ -1721,6 +1831,10 @@
       "area": "cards"
     },
     {
+      "path": "app/src/renderer/placement.ts",
+      "area": "hotzone"
+    },
+    {
       "path": "app/src/renderer/plugin-tiers.ts",
       "area": "plugins"
     },
@@ -1879,6 +1993,10 @@
     {
       "path": "app/src/renderer/pasteable-query.ts",
       "area": "cards"
+    },
+    {
+      "path": "app/src/renderer/placement.ts",
+      "area": "hotzone"
     },
     {
       "path": "app/src/renderer/plugin-tiers.ts",

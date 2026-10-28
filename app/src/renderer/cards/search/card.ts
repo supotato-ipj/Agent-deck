@@ -142,6 +142,8 @@ function searchActivate(): void {
     return
   }
   searchActive = true
+  // 摆位宿主据此识别活动态（工单310）：活动态不参与长按、高度由内容定、优先向下展开
+  searchCard.dataset.placementSearch = 'active'
   // 键盘档开（工单100 通用 API，宿主单点仲裁）：面板永不激活，这里临时取得键盘焦点再聚焦输入框
   host.holdKeyboardTier(SEARCH_TIER)
   searchHint.style.display = 'none'
@@ -162,6 +164,7 @@ function searchDeactivate(reason: SearchDeactivateReason): void {
   if (!searchActive) return
   searchDeactivating = true
   searchActive = false
+  searchCard.dataset.placementSearch = 'idle'
   // 键盘档关（工单100 通用 API，宿主单点仲裁）：恢复不可聚焦+钉底。窗口随之失活会再触发一次
   // input blur，由 searchDeactivating 护栏与上方 searchActive 早退双保险拦住，不会打架。
   // 选区仍非空则仲裁保持 on。
@@ -189,6 +192,7 @@ export default {
     const card = document.createElement('div')
     card.className = 'card'
     card.id = 'search-card'
+    card.dataset.placementSearch = 'idle'
     // 结构与改造前 index.html 的宿主 DOM 一致（id 与样式表一一对应，观感不变；热区通用扫掠
     // 按 .card + id 自动声明，热区标识仍是 search-card）
     card.innerHTML =

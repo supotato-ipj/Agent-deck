@@ -1,11 +1,11 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import path from 'node:path'
-import type { DesktopItem, DesktopPlan, DesktopState, DesktopZone } from '../../shared/contract'
+import type { CardSlot, DesktopItem, DesktopPlan, DesktopState, DesktopZone } from '../../shared/contract'
 import { collectDesktopItems, desktopFingerprint, pathOfIconKey, planFingerprint } from '../desktop/scan'
 import type { DesktopDirEntry, DesktopRoots } from '../desktop/scan'
 import { planDesktop } from '../desktop/plan'
-import { forgetItems, loadStore, moveItem, renameItemInStore, resetFactory, serializeStore, type LayoutStore } from '../desktop/layout-store'
+import { forgetItems, loadStore, moveItem, renameItemInStore, resetFactory, serializeStore, setCardSlot, type LayoutStore } from '../desktop/layout-store'
 import { fileNameError, renameTarget } from '../desktop/filename'
 import { watchDesktopRoots } from '../desktop/watch'
 import { IconCache, type IconExtractor } from '../desktop/icons'
@@ -180,7 +180,7 @@ export class DesktopService extends Service {
   }
 
   state(): DesktopState {
-    return { fingerprint: this.fingerprint, items: this.items, plan: this.plan }
+    return { fingerprint: this.fingerprint, items: this.items, plan: this.plan, cards: { ...this.store.cards } }
   }
 
   /** 图标（经内核契约 desktop/icon）：缓存命中即回，未知键按缓存键反解路径提取。
@@ -464,18 +464,32 @@ export class DesktopService extends Service {
     return null
   }
 
-  /** 恢复出厂布局：清除全部显式摆位（即时重编排）。返回清除的摆位数。 */
+  /** 恢复出厂布局：清除全部显式摆位（文档名单 + 卡片手定位，工单310 起同进同退；
+   * 即时重编排）。返回清除的条目数（文档项 + 手定位卡）。 */
   resetLayout(): { ok: boolean; cleared: number } {
-    const cleared = this.store.docs.length
+    const cleared = this.store.docs.length + Object.keys(this.store.cards).length
     this.store = resetFactory(this.store)
     this.persist()
     this.refresh()
     return { ok: true, cleared }
   }
 
+  /** 桌面组件手定位写入（工单310，ADR-0024）：id 由渲染层宿主登记（data-card-id →
+   * DOM id → 生成序号），col/row 为可用区格点。只增改该卡条目，其余卡片与文档名单
+   * 原样；落盘后回最新全表供渲染层对账。 */
+  setCardSlot(id: string, col: number, row: number): { ok: boolean; cards: Record<string, CardSlot>; error?: string } {
+    if (typeof id !== 'string' || !id) return { ok: false, cards: { ...this.store.cards }, error: '卡片 id 为空' }
+    if (!Number.isInteger(col) || !Number.isInteger(row) || col < 0 || row < 0) {
+      return { ok: false, cards: { ...this.store.cards }, error: '格点坐标非法' }
+    }
+    this.store = setCardSlot(this.store, id, col, row)
+    this.persist()
+    return { ok: true, cards: { ...this.store.cards } }
+  }
+
   /** 测试观察缝：当前存储内容 */
   storeForTest(): LayoutStore {
-    return { version: 1, docs: [...this.store.docs] }
+    return { version: 2, docs: [...this.store.docs], cards: { ...this.store.cards } }
   }
 
   private persist(): void {
