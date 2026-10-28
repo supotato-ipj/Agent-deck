@@ -1,7 +1,10 @@
-// 收栏决策纯函数域模块（工单237，spec #236 用户故事 34）：最大化收栏的全部决策逻辑
-// 集中在这一份模块——三态裁决（resolveBarMode）、唤出条几何规划（planSummonStrips）、
-// 唤出交互归约（reduceSummon）。纯函数缝：探针快照/几何/事件序列由调用方采好，
-// 本模块只裁决，零 FFI、零全局时钟、零 DOM。
+// 收栏决策纯函数域模块（工单237，spec #236 用户故事 34；工单308 M1 覆盖式普通档收紧）：
+// 最大化收栏的全部决策逻辑集中在这一份模块——三态裁决（resolveBarMode）、唤出条几何规划
+// （planSummonStrips）、唤出交互归约（reduceSummon）、栏面迁移计划（planBarTransition）。
+// 纯函数缝：探针快照/几何/事件序列由调用方采好，本模块只裁决，零 FFI、零全局时钟、零 DOM。
+// M1（工单308，spec #306）收紧面：降级闸门（appBarDegraded）随 AppBar 占位链退役、
+// retractReasonHeld/retractGateDisqualified/normalBarAutoHideState 退役、迁移计划收敛为
+// 栏面计划（hideWindow/showWindow/closePopups/evidence）、宿主矩形复核族随复核机制退役。
 // 先例同构：shared/overflow 的 planAppsOverflow（几何裁决）、main/taskbar/yield 的
 // shouldYieldToFullscreen（覆盖判定谓词）、main/taskbar/tray-yield 的 TrayYieldMachine
 // （now 显式传参的注入式状态机）、main/render-sentinel 的 silenceVerdict（组合穷举真值表）。
@@ -11,32 +14,24 @@ import path from 'node:path'
 import {
   COVER_TOLERANCE,
   DESKTOP_HOST_CLASSES,
-  HOST_RECT_SETTLE_BEATS,
-  HOST_RECT_SETTLE_BEAT_MS,
-  HOST_RECT_SETTLE_TIMEOUT_MS,
   SUMMON_GRACE_MS,
   SUMMON_HOVER_DELAY_MS,
   SUMMON_STRIP_HIT_HEIGHT,
   SUMMON_STRIP_MIN_WIDTH,
   SUMMON_STRIP_VISUAL_HEIGHT,
   initialSummonState,
-  stepHostRectSettle,
   planBarTransition,
   planSummonStrips,
-  recheckStripHostRect,
   reduceSummon,
   reduceSummonSequence,
   resolveBarMode,
-  retractGateDisqualified,
   retractHeldByZoomed,
-  retractReasonHeld,
   summonedGroups,
 } from '../../src/shared/retract'
 import type {
   BarMode,
   BarModeInput,
   ForegroundProbe,
-  HostRectRecheckVerdict,
   PhysRect,
   SummonEvent,
   SummonEventType,
@@ -59,7 +54,6 @@ const baseInput: BarModeInput = {
   screen: SCREEN,
   ownPid: OWN_PID,
   retractEnabled: true,
-  appBarDegraded: false,
 }
 
 /* ================================================================
@@ -67,26 +61,26 @@ const baseInput: BarModeInput = {
  * ================================================================ */
 
 /**
- * 探针形态 →（开关 × 降级档）→ 期望档位。**表是数据**，不重述实现的分支次序——
+ * 探针形态 →（开关）→ 期望档位。**表是数据**，不重述实现的分支次序——
  * 写成与实现同形的 if 链，穷举只能查出「实现与自身不符」，查不出「实现与矩阵不符」。
- * 列序：[开关开·未降级, 开关开·降级, 开关关·未降级, 开关关·降级]
+ * 列序：[开关开, 开关关]。M1（工单308）：降级格随 AppBar 占位链退役，闸门只剩开关。
  */
 type ProbeKind = 'missing' | 'own' | 'desktop-host' | 'normal' | 'maximized' | 'maximized-covering' | 'fullscreen'
 
-const MODE_TABLE: Record<ProbeKind, readonly [BarMode, BarMode, BarMode, BarMode]> = {
+const MODE_TABLE: Record<ProbeKind, readonly [BarMode, BarMode]> = {
   // 探针缺位 / 自家进程 / 桌面宿主类 / 普通窗 → 一律 visible
-  missing: ['visible', 'visible', 'visible', 'visible'],
-  own: ['visible', 'visible', 'visible', 'visible'],
-  'desktop-host': ['visible', 'visible', 'visible', 'visible'],
-  normal: ['visible', 'visible', 'visible', 'visible'],
-  // 真最大化窗 → 开关开且未降级才收栏；真最大化窗**永不**判全屏让位（工单237 修正 A1）
-  maximized: ['maximize-retract', 'visible', 'visible', 'visible'],
-  'maximized-covering': ['maximize-retract', 'visible', 'visible', 'visible'],
-  // 真全屏窗（覆盖主屏且不上 IsZoomed）→ 全屏让位压收栏，与开关/降级档无关
-  fullscreen: ['fullscreen-yield', 'fullscreen-yield', 'fullscreen-yield', 'fullscreen-yield'],
+  missing: ['visible', 'visible'],
+  own: ['visible', 'visible'],
+  'desktop-host': ['visible', 'visible'],
+  normal: ['visible', 'visible'],
+  // 真最大化窗 → 开关开才收栏；真最大化窗**永不**判全屏让位（工单237 修正 A1）
+  maximized: ['maximize-retract', 'visible'],
+  'maximized-covering': ['maximize-retract', 'visible'],
+  // 真全屏窗（覆盖主屏且不上 IsZoomed）→ 全屏让位压收栏，与开关无关
+  fullscreen: ['fullscreen-yield', 'fullscreen-yield'],
 }
 
-/** 各探针形态的快照（'maximized' = AppBar 占位生效、底边停在栏上方；'maximized-covering' = 收栏后铺满整屏） */
+/** 各探针形态的快照（'maximized' = 窗口铺满除栏外的屏面；'maximized-covering' = 矩形含整屏） */
 function probeOf(kind: ProbeKind): ForegroundProbe | null {
   switch (kind) {
     case 'missing':
@@ -163,37 +157,28 @@ describe('resolveBarMode 三态裁决', () => {
     expect(resolveBarMode({ ...baseInput, probe: probeOf('maximized') })).toBe('maximize-retract')
   })
 
-  it('收栏开关关 → 永不为 maximize-retract', () => {
+  it('收栏开关关 → 永不为 maximize-retract（M1 唯一闸门：降级格随 AppBar 占位链退役）', () => {
     expect(resolveBarMode({ ...baseInput, retractEnabled: false, probe: probeOf('maximized') })).toBe('visible')
   })
 
-  it('降级档（AppBar 注册失败）→ 永不为 maximize-retract', () => {
-    expect(resolveBarMode({ ...baseInput, appBarDegraded: true, probe: probeOf('maximized') })).toBe('visible')
-  })
-
-  it('全屏让位压收栏：覆盖主屏的真全屏窗 → fullscreen-yield（收栏不得翻它）', () => {
-    expect(resolveBarMode({ ...baseInput, probe: probeOf('fullscreen') })).toBe('fullscreen-yield')
-  })
-
-  it('全屏让位与开关/降级档无关：开关开着、降级档下仍是 fullscreen-yield', () => {
-    expect(resolveBarMode({ ...baseInput, retractEnabled: true, appBarDegraded: true, probe: probeOf('fullscreen') }))
+  it('全屏让位与开关无关：开关关着仍是 fullscreen-yield（让位档不受闸门）', () => {
+    expect(resolveBarMode({ ...baseInput, retractEnabled: false, probe: probeOf('fullscreen') }))
       .toBe('fullscreen-yield')
   })
 
-  it('两态不互咬（工单237 修正 A1）：收栏后最大化窗铺满整屏（覆盖主屏）仍判收栏，不被翻成全屏让位', () => {
-    // 收栏注销 AppBar → 最大化窗底边落到屏底 → 矩形覆盖成立。若按覆盖判全屏，
-    // 收栏刚生效就被翻成让位、唤出条再也回不来（spec #236 取证补记 B.2 同一论断）。
+  it('两态不互咬（工单237 修正 A1）：最大化窗矩形覆盖整屏仍判收栏，不被翻成全屏让位', () => {
+    // M1 语境：无占位机制，前台真最大化窗的矩形本就可能覆盖整屏（覆盖式普通档下
+    // 自绘栏叠在窗口之上）。若按覆盖判全屏，收栏刚生效就被翻成让位、唤出条再也回不来
+    // （spec #236 取证补记 B.2 同一论断）。
     expect(resolveBarMode({ ...baseInput, probe: probeOf('maximized-covering') })).toBe('maximize-retract')
   })
 
   it('真最大化窗永不判全屏让位（zoomed 优先于覆盖判定——全屏让位分支排除真最大化窗）', () => {
-    // 无论开关/降级档怎么配，zoomed 窗都不落 fullscreen-yield
+    // 开关怎么配，zoomed 窗都不落 fullscreen-yield
     for (const retractEnabled of [true, false]) {
-      for (const appBarDegraded of [true, false]) {
-        expect(resolveBarMode({
-          ...baseInput, retractEnabled, appBarDegraded, probe: probe({ zoomed: true }),
-        })).not.toBe('fullscreen-yield')
-      }
+      expect(resolveBarMode({
+        ...baseInput, retractEnabled, probe: probe({ zoomed: true }),
+      })).not.toBe('fullscreen-yield')
     }
   })
 
@@ -206,7 +191,7 @@ describe('resolveBarMode 三态裁决', () => {
   })
 })
 
-describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 = 7 × 2 × 2）', () => {
+describe('resolveBarMode 全组合穷举（探针形态 × 开关 = 7 × 2）', () => {
   it('逐格命中真值表', () => {
     const kinds: ProbeKind[] = ['missing', 'own', 'desktop-host', 'normal', 'maximized', 'maximized-covering', 'fullscreen']
     const mismatches: string[] = []
@@ -214,22 +199,19 @@ describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 =
 
     for (const kind of kinds) {
       for (const retractEnabled of [true, false]) {
-        for (const appBarDegraded of [true, false]) {
-          // 列序：开关开·未降级 / 开关开·降级 / 开关关·未降级 / 开关关·降级
-          const col = (retractEnabled ? 0 : 2) + (appBarDegraded ? 1 : 0)
-          const want = MODE_TABLE[kind][col]
-          const got = resolveBarMode({ ...baseInput, probe: probeOf(kind), retractEnabled, appBarDegraded })
-          checked += 1
-          if (got !== want) {
-            mismatches.push(
-              `${kind} 开关=${retractEnabled} 降级=${appBarDegraded} → ${got}（期望 ${want}）`,
-            )
-          }
+        // 列序：开关开 / 开关关
+        const want = MODE_TABLE[kind][retractEnabled ? 0 : 1]
+        const got = resolveBarMode({ ...baseInput, probe: probeOf(kind), retractEnabled })
+        checked += 1
+        if (got !== want) {
+          mismatches.push(
+            `${kind} 开关=${retractEnabled} → ${got}（期望 ${want}）`,
+          )
         }
       }
     }
 
-    expect(checked).toBe(28)
+    expect(checked).toBe(14)
     expect(mismatches).toEqual([])
   })
 
@@ -319,15 +301,6 @@ describe('resolveBarMode 分屏会话裁决（工单269）', () => {
     })).toBe('visible')
   })
 
-  it('AppBar 降级档 → 分屏收栏禁用（降级档不建立分屏收栏）', () => {
-    expect(resolveBarMode({
-      ...baseInput,
-      probe: probeOf('normal'),
-      appBarDegraded: true,
-      snapSessionActive: true,
-    })).toBe('visible')
-  })
-
   it('会话结束 + 普通前台 → 及时恢复 visible（最后一个 Snap 窗解除即回栏）', () => {
     expect(resolveBarMode({
       ...baseInput,
@@ -351,16 +324,16 @@ describe('resolveBarMode 分屏会话裁决（工单269）', () => {
   })
 })
 
-describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 × 分屏会话 = 7 × 2 × 2 × 2）', () => {
-  // 会话在场列：除全屏覆盖形态外一律「开且未降级才收栏」；全屏覆盖仍压收栏（栏面呈现）
-  const SNAP_MODE_TABLE: Record<ProbeKind, readonly [BarMode, BarMode, BarMode, BarMode]> = {
-    missing: ['maximize-retract', 'visible', 'visible', 'visible'],
-    own: ['maximize-retract', 'visible', 'visible', 'visible'],
-    'desktop-host': ['maximize-retract', 'visible', 'visible', 'visible'],
-    normal: ['maximize-retract', 'visible', 'visible', 'visible'],
-    maximized: ['maximize-retract', 'visible', 'visible', 'visible'],
-    'maximized-covering': ['maximize-retract', 'visible', 'visible', 'visible'],
-    fullscreen: ['fullscreen-yield', 'fullscreen-yield', 'fullscreen-yield', 'fullscreen-yield'],
+describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 分屏会话 = 7 × 2 × 2）', () => {
+  // 会话在场列：除全屏覆盖形态外一律「开关开才收栏」；全屏覆盖仍压收栏（栏面呈现）
+  const SNAP_MODE_TABLE: Record<ProbeKind, readonly [BarMode, BarMode]> = {
+    missing: ['maximize-retract', 'visible'],
+    own: ['maximize-retract', 'visible'],
+    'desktop-host': ['maximize-retract', 'visible'],
+    normal: ['maximize-retract', 'visible'],
+    maximized: ['maximize-retract', 'visible'],
+    'maximized-covering': ['maximize-retract', 'visible'],
+    fullscreen: ['fullscreen-yield', 'fullscreen-yield'],
   }
 
   it('逐格命中真值表（含会话缺席列 = 旧表逐字不变）', () => {
@@ -370,27 +343,24 @@ describe('resolveBarMode 全组合穷举（探针形态 × 开关 × 降级档 �
 
     for (const kind of kinds) {
       for (const retractEnabled of [true, false]) {
-        for (const appBarDegraded of [true, false]) {
-          for (const snapSessionActive of [false, true]) {
-            // 列序：开关开·未降级 / 开关开·降级 / 开关关·未降级 / 开关关·降级
-            const col = (retractEnabled ? 0 : 2) + (appBarDegraded ? 1 : 0)
-            const table = snapSessionActive ? SNAP_MODE_TABLE : MODE_TABLE
-            const want = table[kind][col]
-            const got = resolveBarMode({
-              ...baseInput, probe: probeOf(kind), retractEnabled, appBarDegraded, snapSessionActive,
-            })
-            checked += 1
-            if (got !== want) {
-              mismatches.push(
-                `${kind} 开关=${retractEnabled} 降级=${appBarDegraded} 会话=${snapSessionActive} → ${got}（期望 ${want}）`,
-              )
-            }
+        for (const snapSessionActive of [false, true]) {
+          // 列序：开关开 / 开关关
+          const table = snapSessionActive ? SNAP_MODE_TABLE : MODE_TABLE
+          const want = table[kind][retractEnabled ? 0 : 1]
+          const got = resolveBarMode({
+            ...baseInput, probe: probeOf(kind), retractEnabled, snapSessionActive,
+          })
+          checked += 1
+          if (got !== want) {
+            mismatches.push(
+              `${kind} 开关=${retractEnabled} 会话=${snapSessionActive} → ${got}（期望 ${want}）`,
+            )
           }
         }
       }
     }
 
-    expect(checked).toBe(56)
+    expect(checked).toBe(28)
     expect(mismatches).toEqual([])
   })
 
@@ -450,9 +420,7 @@ describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序
       'visible->maximize-retract',
       'maximize-retract->visible',
     ])
-    // 中间拍（zoomed 消失、会话在场）零迁移——工作区不先恢复再收栏
-    expect(r.transitions[1].plan.claimAppBar).toBe(true)
-    expect(r.transitions[1].plan.clearAutoHide).toBe(true)
+    // 中间拍（zoomed 消失、会话在场）零迁移——不先恢复再收栏
     expect(r.transitions[1].plan.evidence).toEqual(['taskbar-retract-lifted'])
   })
 
@@ -498,9 +466,7 @@ describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序
 
   it('幂等：同理由组合连续多拍 → 迁移仅首次，后续拍零动作（planBarTransition 同态空计划）', () => {
     expect(planBarTransition('maximize-retract', 'maximize-retract')).toEqual({
-      releaseAppBar: false, engageAutoHide: false, clearAutoHide: false,
-      claimAppBar: false, hideWindow: false, showWindow: false, closePopups: false, evidence: [],
-      targetWorkspaceRetracted: true, // 同态 = 账面原样保持（收栏档在账）
+      hideWindow: false, showWindow: false, closePopups: false, evidence: [],
     })
     const r = runTicks([
       { zoomed: true, session: true },
@@ -511,16 +477,16 @@ describe('收栏理由接续（工单270：最大化 × 分屏会话组合时序
     expect(r.transitions).toHaveLength(1)
   })
 
-  it('接续期间零多余注销/重注册：中间拍不产生任何 AppBar 或托管动作（无状态反复）', () => {
+  it('接续期间零多余迁移：中间拍不产生任何存证或栏面动作（无状态反复）', () => {
     const r = runTicks([
       { zoomed: true, session: true },
       { zoomed: true, session: false }, // 会话结束、zoomed 接续——中间拍
       { zoomed: false, session: false }, // 最后理由消失——复原拍
     ])
     expect(r.transitions).toHaveLength(2)
-    expect(r.transitions[0].plan.releaseAppBar).toBe(true) // 进入收栏：注销一次
-    expect(r.transitions[1].plan.claimAppBar).toBe(true) // 退出收栏：重注册一次
-    // 中间没有第二条迁移——不存在「先注销再重注册再注销」的反复
+    expect(r.transitions[0].plan.evidence).toEqual(['taskbar-retract']) // 进入收栏：栏面退场一次
+    expect(r.transitions[1].plan.evidence).toEqual(['taskbar-retract-lifted']) // 退出收栏：栏面复现一次
+    // 中间没有第二条迁移——不存在「先退场再复现再退场」的反复
   })
 })
 
@@ -969,77 +935,11 @@ describe('收栏决策模块的单一来源（工单237 修正 A2/A4）', () => 
 })
 
 /* ================================================================
- * retractReasonHeld：工作区收栏理由持有（工单271，spec #267）
+ * retractHeldByZoomed（工单271 评审收口⑤；M1 去降级闸——降级格随占位链退役）
  * ================================================================ */
 
-describe('retractReasonHeld 工作区收栏理由持有（工单271）', () => {
-  it('分屏会话存续 + 过闸 → 持有（会话是后台事实，与前台是谁无关）', () => {
-    for (const kind of ['missing', 'own', 'desktop-host', 'normal', 'fullscreen'] as const) {
-      expect(retractReasonHeld({ ...baseInput, probe: probeOf(kind), snapSessionActive: true }),
-        `${kind} + 会话`).toBe(true)
-    }
-  })
-
-  it('全屏覆盖 + 会话存续 → 持有——resolveBarMode 同输入落让位档（②支掩蔽），理由维度独立可见（解耦的落点）', () => {
-    const input = { ...baseInput, probe: probeOf('fullscreen'), snapSessionActive: true }
-    expect(resolveBarMode(input)).toBe('fullscreen-yield')
-    expect(retractReasonHeld(input)).toBe(true)
-  })
-
-  it('真最大化前台 → 持有（zoomed 理由）；探针缺位 / 自家进程 / 桌面宿主且无会话 → 不持有', () => {
-    expect(retractReasonHeld({ ...baseInput, probe: probeOf('maximized') })).toBe(true)
-    expect(retractReasonHeld({ ...baseInput, probe: null })).toBe(false)
-    expect(retractReasonHeld({ ...baseInput, probe: probe({ pid: OWN_PID }) })).toBe(false)
-    expect(retractReasonHeld({ ...baseInput, probe: probe({ className: 'Progman' }) })).toBe(false)
-  })
-
-  it('两道闸门：开关关 / 降级档 → 不持有（会话与真最大化同受闸）', () => {
-    expect(retractReasonHeld({ ...baseInput, retractEnabled: false, probe: probeOf('maximized'), snapSessionActive: true })).toBe(false)
-    expect(retractReasonHeld({ ...baseInput, appBarDegraded: true, probe: probeOf('maximized'), snapSessionActive: true })).toBe(false)
-  })
-
-  it('与 resolveBarMode 收栏档一致：非全屏探针下两者同真同假（分歧仅发生在全屏掩蔽拍——held 独立可见的价值）', () => {
-    const kinds: ProbeKind[] = ['missing', 'own', 'desktop-host', 'normal', 'maximized', 'maximized-covering']
-    for (const kind of kinds) {
-      for (const retractEnabled of [true, false]) {
-        for (const snapSessionActive of [false, true]) {
-          const input = { ...baseInput, probe: probeOf(kind), retractEnabled, snapSessionActive }
-          expect(
-            retractReasonHeld(input) === (resolveBarMode(input) === 'maximize-retract'),
-            `${kind} 开关=${retractEnabled} 会话=${snapSessionActive}`,
-          ).toBe(true)
-        }
-      }
-    }
-  })
-})
-
-/* ================================================================
- * retractGateDisqualified / retractHeldByZoomed（工单271 评审收口②⑤）
- * ================================================================ */
-
-describe('retractGateDisqualified 两道闸门失格谓词（工单271 评审收口②）', () => {
-  it('开关关或降级档任一即失格；两道全开不失格（与 retractReasonHeld 闸门支同源）', () => {
-    expect(retractGateDisqualified({ retractEnabled: true, appBarDegraded: false })).toBe(false)
-    expect(retractGateDisqualified({ retractEnabled: false, appBarDegraded: false })).toBe(true)
-    expect(retractGateDisqualified({ retractEnabled: true, appBarDegraded: true })).toBe(true)
-    expect(retractGateDisqualified({ retractEnabled: false, appBarDegraded: true })).toBe(true)
-  })
-
-  it('与 retractReasonHeld 的分野：闸门失格与理由自然消失在理由维度同为 false——本谓词是把「失格」从「自然消失」里分出来的裁决面', () => {
-    // 闸门失格：held=false 且 gate 失格 ⇒ 同态让位拍交割（用户故事 27）
-    const gated = { ...baseInput, retractEnabled: false, probe: probeOf('fullscreen'), snapSessionActive: true }
-    expect(retractReasonHeld(gated)).toBe(false)
-    expect(retractGateDisqualified(gated)).toBe(true)
-    // 理由自然消失（会话结束）：held=false 且 gate 未失格 ⇒ 同态让位拍维持冻结（P14③）
-    const natural = { ...baseInput, retractEnabled: true, probe: probeOf('fullscreen'), snapSessionActive: false }
-    expect(retractReasonHeld(natural)).toBe(false)
-    expect(retractGateDisqualified(natural)).toBe(false)
-  })
-})
-
-describe('retractHeldByZoomed zoomed 分量谓词（工单271 评审收口⑤）', () => {
-  it('真最大化前台在场（过闸、非自家、非桌面宿主）→ true——会话结束拍的「zoomed 接续」判据', () => {
+describe('retractHeldByZoomed zoomed 分量谓词（工单271 评审收口⑤；M1 收紧）', () => {
+  it('真最大化前台在场（过开关闸、非自家、非桌面宿主）→ true——会话结束拍的「zoomed 接续」判据', () => {
     expect(retractHeldByZoomed({ ...baseInput, probe: probeOf('maximized') })).toBe(true)
     expect(retractHeldByZoomed({ ...baseInput, probe: probeOf('maximized'), snapSessionActive: true })).toBe(true)
   })
@@ -1054,15 +954,14 @@ describe('retractHeldByZoomed zoomed 分量谓词（工单271 评审收口⑤）
     })).toBe(false)
   })
 
-  it('桌面宿主 / 探针缺位 / 普通窗 → false（排除族与 retractReasonHeld 的 zoomed 支同族）', () => {
+  it('桌面宿主 / 探针缺位 / 普通窗 → false（排除族同 zoomed 支）', () => {
     expect(retractHeldByZoomed({ ...baseInput, probe: probe({ className: 'Progman', zoomed: true }) })).toBe(false)
     expect(retractHeldByZoomed({ ...baseInput, probe: null })).toBe(false)
     expect(retractHeldByZoomed({ ...baseInput, probe: probeOf('normal') })).toBe(false)
   })
 
-  it('两道闸门失格 → false（没有任何理由在持有时不记接续）', () => {
+  it('共用开关关 → false（M1 唯一闸门：降级格退役，没有任何理由在持有时不记接续）', () => {
     expect(retractHeldByZoomed({ ...baseInput, retractEnabled: false, probe: probeOf('maximized') })).toBe(false)
-    expect(retractHeldByZoomed({ ...baseInput, appBarDegraded: true, probe: probeOf('maximized') })).toBe(false)
   })
 
   it('会话理由接续拍（无 zoomed）→ false——zoomed 分量与分屏会话分量可分（不冒充）', () => {
@@ -1074,128 +973,8 @@ describe('retractHeldByZoomed zoomed 分量谓词（工单271 评审收口⑤）
   })
 })
 
-/* ================================================================
- * recheckStripHostRect：收栏过渡后的宿主矩形复核（工单295，spec #292）
- * 判据 = 条带宿主矩形底边 vs 期望矩形底边（±1 DIP）；偏离即回正。
- * 两矩形各取自己的底边/上缘（不假设定高）；偏离以 DIP 计（渲染层落点不入判据）。
- * ================================================================ */
-describe('recheckStripHostRect 宿主矩形复核判据（工单295，spec #292）', () => {
-  /** 期望矩形：屏底锚定通栏条带（2560×1440 @100%，条带高 48 DIP——stripPhysRect 的 DIP 像） */
-  const expected = { x: 0, y: 1392, width: 2560, height: 48 }
-
-  it('重合矩形 → verified，回正目标 = 现矩形（不动作）', () => {
-    const v = recheckStripHostRect({ ...expected }, expected)
-    expect(v.verdict).toBe('verified')
-    expect(v.rect).toEqual({ ...expected })
-    expect(v.bottomDeviationDip).toBe(0)
-    expect(v.topDeviationDip).toBe(0)
-  })
-
-  it('底边偏离恰好 1 DIP → verified（±1 DIP 界内，含边界值本身）', () => {
-    const v = recheckStripHostRect({ ...expected, y: expected.y - 1 }, expected)
-    expect(v.verdict).toBe('verified')
-    expect(v.bottomDeviationDip).toBe(1)
-  })
-
-  it('底边偏离 1.5 DIP → corrected，回正目标 = 期望矩形（票面：偏离 >1 DIP 即回正）', () => {
-    const cur = { ...expected, y: expected.y - 1.5 }
-    const v = recheckStripHostRect(cur, expected)
-    expect(v.verdict).toBe('corrected')
-    expect(v.rect).toEqual(expected)
-    expect(v.from).toEqual(cur)
-    expect(v.bottomDeviationDip).toBeCloseTo(1.5)
-  })
-
-  it('缺陷形态：宿主被壳侧抬高一个原生栏身高（48 DIP）→ corrected——唤出条整体偏高 48px 的根因态', () => {
-    const cur = { ...expected, y: expected.y - 48 } // [屏底−96, 屏底−48]，真机 R7/R8 实证形态
-    const v = recheckStripHostRect(cur, expected)
-    expect(v.verdict).toBe('corrected')
-    expect(v.rect).toEqual(expected)
-    expect(v.bottomDeviationDip).toBe(48)
-  })
-
-  it('宿主越过屏底（底边超出）→ corrected——负向偏离同判（绝对值）', () => {
-    const cur = { ...expected, y: expected.y + 3 }
-    const v = recheckStripHostRect(cur, expected)
-    expect(v.verdict).toBe('corrected')
-    expect(v.bottomDeviationDip).toBe(3)
-  })
-
-  it('双矩形各取底边/上缘：底边贴底但上缘偏 3 DIP（现矩形更高）→ corrected', () => {
-    const cur = { x: 0, y: expected.y - 3, width: 2560, height: 51 } // 底边重合、上缘高 3
-    const v = recheckStripHostRect(cur, expected)
-    expect(v.verdict).toBe('corrected')
-    expect(v.bottomDeviationDip).toBe(0)
-    expect(v.topDeviationDip).toBe(3)
-  })
-
-  it('双矩形各取底边/上缘：上缘贴齐但底边偏 2 DIP（现矩形更矮）→ corrected——定高假设判不出这态', () => {
-    const cur = { x: 0, y: expected.y, width: 2560, height: 46 }
-    const v = recheckStripHostRect(cur, expected)
-    expect(v.verdict).toBe('corrected')
-    expect(v.topDeviationDip).toBe(0)
-    expect(v.bottomDeviationDip).toBe(2)
-  })
-
-  it('判据以 DIP 计不以物理像素计（150% scale）：1 物理px=0.667 DIP → verified、2 物理px=1.333 DIP → corrected', () => {
-    // 期望矩形取屏底 960 DIP（1440 物理px @1.5）上方的 48 DIP 条带
-    const exp15 = { x: 0, y: 912, width: 1707, height: 48 }
-    const onePhysPx = recheckStripHostRect({ ...exp15, y: exp15.y - 1 / 1.5 }, exp15)
-    expect(onePhysPx.verdict).toBe('verified')
-    expect(onePhysPx.bottomDeviationDip).toBeCloseTo(0.667, 2)
-    const twoPhysPx = recheckStripHostRect({ ...exp15, y: exp15.y - 2 / 1.5 }, exp15)
-    expect(twoPhysPx.verdict).toBe('corrected')
-    expect(twoPhysPx.bottomDeviationDip).toBeCloseTo(1.333, 2)
-  })
-
-  it('容差可调：toleranceDip=2 时 1.5 DIP 偏离 → verified（宽限档位为上游留口径，判据域不变）', () => {
-    const v = recheckStripHostRect({ ...expected, y: expected.y - 1.5 }, expected, 2)
-    expect(v.verdict).toBe('verified')
-  })
-})
-
-/* ================================================================
- * stepHostRectSettle：复核等回稳的拍子推进（工单292 评审修复轮 F1，spec #292）
- * 纪律 = 连续读稳达标才落 verified、任一拍超界即纠正（03aed5a 电池侧等回稳同款）——
- * 壳侧挪移窗（AppBar 重协商后壳把条带抬一身高、keepalive ≤500ms 回正，工单158 既证）
- * 内的同拍单点复核可能落在挪移前而记 verified、漏掉随后偏离（评审 Spec 轴 c1）。
- * ================================================================ */
-describe('stepHostRectSettle 复核等回稳拍子推进（工单292 评审修复轮 F1，spec #292）', () => {
-  const rect = { x: 0, y: 1392, width: 2560, height: 48 }
-  const verified = (dip = 0): HostRectRecheckVerdict => ({ verdict: 'verified', from: rect, rect, bottomDeviationDip: dip, topDeviationDip: dip })
-  const corrected = (dip = 48): HostRectRecheckVerdict => ({ verdict: 'corrected', from: rect, rect, bottomDeviationDip: dip, topDeviationDip: 0 })
-
-  it('常量：连续 3 拍 × 250ms 拍距 = 自首拍 500ms 读稳窗（跨壳侧挪移窗 ≤500ms，工单158）；有界上限 5s（同 03aed5a 电池侧纪律）', () => {
-    expect(HOST_RECT_SETTLE_BEATS).toBe(3)
-    expect(HOST_RECT_SETTLE_BEAT_MS).toBe(250)
-    expect(HOST_RECT_SETTLE_TIMEOUT_MS).toBe(5000)
-  })
-
-  it('首拍界内 → keep-waiting（不因单拍界内即判回稳——挪移窗可能未走完，评审 c1 的缺陷拍）', () => {
-    expect(stepHostRectSettle(0, verified())).toEqual({ action: 'keep-waiting', stableBeats: 1 })
-  })
-
-  it('连续读稳达标（累计第 HOST_RECT_SETTLE_BEATS 拍界内）→ settle，效果层落 verified', () => {
-    expect(stepHostRectSettle(1, verified())).toEqual({ action: 'keep-waiting', stableBeats: 2 })
-    expect(stepHostRectSettle(2, verified())).toEqual({ action: 'settle' })
-  })
-
-  it('任一拍超界 → correct（立即回正，不等回稳窗走完——纠正语义与旧单点复核一致）', () => {
-    expect(stepHostRectSettle(0, corrected())).toEqual({ action: 'correct' })
-    expect(stepHostRectSettle(2, corrected(1.5))).toEqual({ action: 'correct' })
-  })
-
-  it('时序全画：界内两拍后挪移砸中 → 纠正（计数清零重来）→ 再连续三拍界内 → settle——「连续」语义由效果层纠正后清零兑现', () => {
-    let beats = 0
-    expect(stepHostRectSettle(beats, verified())).toEqual({ action: 'keep-waiting', stableBeats: 1 })
-    beats = 1
-    expect(stepHostRectSettle(beats, verified())).toEqual({ action: 'keep-waiting', stableBeats: 2 })
-    beats = 2
-    // 挪移落在第三拍：超界即纠正（效果层纠正后计数清零、复核即止——旧单点纠正语义）
-    expect(stepHostRectSettle(beats, corrected())).toEqual({ action: 'correct' })
-    // （纠正即止，无后续拍；若复核再次发起则从零起算）
-    expect(stepHostRectSettle(0, verified())).toEqual({ action: 'keep-waiting', stableBeats: 1 })
-    expect(stepHostRectSettle(1, verified())).toEqual({ action: 'keep-waiting', stableBeats: 2 })
-    expect(stepHostRectSettle(2, verified())).toEqual({ action: 'settle' })
-  })
-})
+// M1（工单308）退役注记：recheckStripHostRect / stepHostRectSettle / HOST_RECT_* 与
+// 它们的用例随「收栏过渡后的宿主矩形复核」机制整体特征退役——复核的触发前提（收栏
+// 置位/清位的壳侧挪移 + AppBar 重协商）在 M1 全部消失（托管期零 appbar 拍动、无
+// 重协商），几何漂移兜底归 keepalive reassertGeometry（500ms 回正守卫）。退役理由在
+// PR 描述给全；相邻收回证据面见 51 电池 P6/P11 改段。

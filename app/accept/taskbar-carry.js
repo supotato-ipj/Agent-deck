@@ -1,13 +1,14 @@
 'use strict';
-// 工单50 任务栏显隐验收（原生任务栏隐藏/还原 + 逃生开关）→ 工单261 还原账全路径扩展：
-// 控制器以 --accept-taskbar-carry 身份运行，分三阶段覆盖三条还原路径（可见性 + appbar
-// 状态双复原）、逃生开关与偏好不扰：
-//   阶段A（守卫链默认入口 spawn '.'，真 guard + watchdog 全链路；工单261 起每段在
-//         **收栏置位态**下出发——中性 holder 前台钉住防环境最大化搅局（51 电池 P1 同款），
-//         段内参照 holder 真最大化触发收栏置位 ABS_AUTOHIDE（原状态入还原账落盘）：
+// 工单50 任务栏显隐验收（原生任务栏隐藏/还原 + 逃生开关）→ 工单261 还原账全路径扩展；
+// 工单308 M1 覆盖式普通档改写（spec #306）：控制器以 --accept-taskbar-carry 身份运行，
+// 分三阶段覆盖三条还原路径（可见性 + appbar 状态双复原）、逃生开关与偏好不扰。
+// M1 语义基座：接管建立=置位一次（takeover+set）、托管期恒置位、运行期零 appbar 状态
+// 写入（旧普通↔收栏切换的 enter/clear 中间态退役）、退场写回用户原值一次。
+//   阶段A（守卫链默认入口 spawn '.'，真 guard + watchdog 全链路；中性 holder 前台钉住
+//         防环境最大化搅局——51 电池 P1 同款）：
 //     A1 接管开启 → 原生任务栏隐藏（taskbar-hidden 存证 + Shell_TrayWnd 不可见），
-//        条带落屏底（净空归零，49 的让位净空仅剩降级档）——置位尚未发生（holder 非最大化）
-//     A2 正常退出（WM_CLOSE 面板主窗）→ 原生任务栏还原 + appbar 状态复原
+//        条带落屏底覆盖式常驻——置位随接管建立即发生（M1 恒置位；holder 非最大化只影响档位）
+//     A2 正常退出（WM_CLOSE 面板主窗，收栏档出发）→ 原生任务栏还原 + appbar 状态复原
 //        （路径①：面板 dispose 还账清账；可见性以退出后的控制器独立视图事实为准
 //        ——置位后 WS_VISIBLE 位被翻开且退出置位不回落，可见性复原由 appbar 复原
 //        本身达成、taskbar-restored 事件确证静默，R1 轮磁带 + spike 附记 + P9 判读）
@@ -16,28 +17,29 @@
 //     A4 进程被杀路径（守卫 + 面板先后强杀，控制台信号同杀的等价现场）→
 //        还原守护（icon-restore-watch）以 guard-dead 双兜底（appbar 从落盘账复原）
 //        后自退
-//     A5/A6/A7 普通态出发的对应轮（工单296，spec #292 退场复原扩全接管期）：与
-//        A2/A3/A4 同构的三条路径（正常退出/崩溃/强杀），出发态改**普通栏态**——
-//        接管建立即清位（takeover/cleared 存证 + 读回无 AUTOHIDE 位 + 零置位事件），
+//     A5/A6/A7 普通档出发的对应轮（工单296，spec #292 退场复原扩全接管期；工单308 M1
+//        置位口径改写）：与 A2/A3/A4 同构的三条路径（正常退出/崩溃/强杀），出发态改
+//        **普通档**——接管建立即置位（takeover/set 存证 + 读回含 AUTOHIDE 位 + 零收栏档），
 //        不进收栏；退场复原一律以系统读回事实裁决（appbarState() === 基线）。
-//        收栏态出发的既有语义（A2-A4）逐字保留；普通态的禁用径由 B1（off 口径
-//        destroy('disabled')）+ C2（restored 仅 disabled/force 径）把关。
+//        普通档的禁用径由 B1（off 口径 destroy('disabled')）+ C2（restored 仅
+//        disabled/force 径）把关。
 //   阶段B（--panel-accept + CDP，逃生开关真机链路；config 钉 maximizeRetract=off——
-//         B 相位回非收栏语义，非收栏口径由 C2 段把关）：
+//         M1 下 off 只关收栏档，托管恒置位照走，off 口径由 C2 段把关）：
 //     B1 设置浮层关开关 → 原生任务栏即还原、条带销毁、config 落盘
 //     B2 再开 → 原生任务栏再隐、条带回来
 //   阶段C 偏好不扰（工单260 措辞收口）：首末两点比对 StuckRects3 Settings（自动隐藏等
 //      任务栏偏好）——断言「面板生命周期结束后字节复原」（C1 纪律口径，spec #258：
 //      实现本为首末两点比对，措辞与实现对齐）。
-//   C2 maximizeRetract=off 不置位（工单260；工单261 收口 B 相位口径）：A 相位已改真置位
-//      形态（A2/A3/A4 断言 appbar 复原），本段的 off 口径断言收口到 B 相位起——B 相位
-//      置位事件零条（taskbar-autohide-* 零条）+ 退出后 appbar 状态 = 开跑前基线
-//      （控制器独立读数，不依赖面板自证）。
+//   C2 off 口径（工单260；工单293 全接管期改段；工单308 M1 改写）：off 只关收栏档、
+//      托管恒置位照走——B 相位两次接管生命周期（B1 开、B2 再开）每次恰**两次状态写入**
+//      （建立置位一次 set + 退场复原一次 restored），运行期零其他写入（无 enter/clear/
+//      reattach 中间态——M1 恒置位单账）+ 退出后 appbar 状态 = 开跑前基线（控制器独立
+//      读数，不依赖面板自证）。
 // 运行：npm run accept:taskbar-carry（= electron . --accept-taskbar-carry）。
 // 与其他验收同一铁律：必须经 accept-guard 托管（守卫链抢单实例锁，与常驻面板互斥）。
 // 置位态判读注意（R1 取证 + spike 附记）：置位后 explorer 翻开 Shell_TrayWnd 的
 // WS_VISIBLE 位（「窗口显示位」≠「视觉在场」）——A2/A3/A4 在置位态出发，可见性断言以
-// **存证事件**（SW_SHOW 真做了工作）与**退出后的控制器独立视图事实**为准；收栏置位/
+// **存证事件**（SW_SHOW 真做了工作）与**退出后的控制器独立视图事实**为准；托管置位/
 // 复原本身不改注册表（spike：StuckRects3 三点全等），C1 字节复原不受 A 相位置位影响。
 const { app, screen, BrowserWindow } = require('electron');
 const path = require('path');
@@ -259,17 +261,16 @@ async function runSegments() {
 
     // A2 正常退出（WM_CLOSE 面板主窗 → app.quit）→ 原生任务栏还原 + appbar 状态复原
     rep.beginSegment('A2');
-    // 工单261 置位形态出发：holder 真最大化 + 前台 → 面板进收栏、置位 ABS_AUTOHIDE
-    // （原状态入还原账落盘，A3/A4 的守卫/守护靠它读复原目标）。触发链 51 P6/P9 同款。
+    // M1 置位形态出发：holder 真最大化 + 前台 → 面板进收栏档（收栏拍零 appbar 写入——
+    // 置位只在接管建立拍，A1 boot 已落，原状态入还原账，A3/A4 的守卫/守护靠它读复原目标）。
     const sinceA2 = Date.now();
     holder.maximize();
     await sleep(600); // 等最大化落定
     forceForeground(hwndOf(holder));
     const retractEvA2 = await tape.wait('taskbar-retract',
-      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceA2, timeoutMs: 6000 });
-    const setEvA2 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceA2, timeoutMs: 3000 });
+      (e) => e.mode === 'maximize-retract', { since: sinceA2, timeoutMs: 6000 });
     const engagedA2 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
-    if (!retractEvA2 || !setEvA2 || engagedA2 < 0) throw new Error('A2 收栏置位未达成（前置不成立）');
+    if (!retractEvA2 || engagedA2 < 0) throw new Error('A2 收栏档未达成（前置不成立）');
     const panelHwnd = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 8000 });
     if (!panelHwnd) throw new Error('A2 面板主窗未找到');
     win32.PostMessageW(panelHwnd, WM_CLOSE, 0, 0);
@@ -289,7 +290,7 @@ async function runSegments() {
         + `＋appbar 状态复原（reason=${autohideEvA2.reason}，attempts=${autohideEvA2.attempts}，读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数）`);
     } else {
       rep.fail(`A2 守卫退=${guardExited} 视图还原=${restoredA2} `
-        + `appbar复原=${appbarOkA2}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA2)} 置位=${!!setEvA2}`);
+        + `appbar复原=${appbarOkA2}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA2)}`);
     }
     child = null;
 
@@ -302,14 +303,13 @@ async function runSegments() {
     if (!boot3) throw new Error('A3 守卫链面板未上报 boot');
     panelPid = boot3.pid;
     if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A3 条带窗未出现');
-    // 工单261 置位形态前置：置位态下 explorer 翻开 Shell_TrayWnd 的 WS_VISIBLE 位，旧
-    // 「原生任务栏未被隐藏」前置不可判读（R1 取证）——改以收栏/置位存证 + AUTOHIDE 位
-    // 读数（控制器独立）为前置。holder 最大化前台在建条带后即触发收栏置位。
+    // 工单261 置位形态前置（M1 口径）：置位态下 explorer 翻开 Shell_TrayWnd 的 WS_VISIBLE
+    // 位，旧「原生任务栏未被隐藏」前置不可判读（R1 取证）——改以收栏档存证 + AUTOHIDE 位
+    // 读数（控制器独立）为前置。收栏拍零 appbar 写入——置位在 boot 拍已落。
     const retractEvA3 = await tape.wait('taskbar-retract',
-      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceA3, timeoutMs: 6000 });
-    const setEvA3 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceA3, timeoutMs: 3000 });
+      (e) => e.mode === 'maximize-retract', { since: sinceA3, timeoutMs: 6000 });
     const engagedA3 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
-    if (!retractEvA3 || !setEvA3 || engagedA3 < 0) throw new Error('A3 收栏置位未达成（前置不成立）');
+    if (!retractEvA3 || engagedA3 < 0) throw new Error('A3 收栏档未达成（前置不成立）');
     killTree(panelPid); // 模拟崩溃/强杀：面板整树死，守卫存活（**不迁句柄**——见 killTree 注）
     const guardExited3 = await waitExit(child, 15000);
     const restoredA3 = await waitNativeVisible(true, 8000); // 可见性以控制器独立视图事实为准（置位形态，R1/P9 判读）
@@ -323,7 +323,7 @@ async function runSegments() {
         + ` reason=panel-exit attempts=${autohideEvA3.attempts}，读数 ${appbarState()}＝基线 ${appbarBaseline}，守卫随退=${guardExited3}）`);
     } else {
       rep.fail(`A3 视图还原=${restoredA3} `
-        + `appbar复原=${appbarOkA3}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA3)} 守卫退=${guardExited3} 置位=${!!setEvA3}`);
+        + `appbar复原=${appbarOkA3}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA3)} 守卫退=${guardExited3}`);
     }
     child = null;
 
@@ -342,10 +342,9 @@ async function runSegments() {
     if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A4 条带窗未出现');
     // 工单261 置位形态前置（同 A3：置位态 WS_VISIBLE 位被翻开，改以存证 + 位读数为前置）
     const retractEvA4 = await tape.wait('taskbar-retract',
-      (e) => e.mode === 'maximize-retract' && e.appBar === 'removed', { since: sinceA4, timeoutMs: 6000 });
-    const setEvA4 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceA4, timeoutMs: 3000 });
+      (e) => e.mode === 'maximize-retract', { since: sinceA4, timeoutMs: 6000 });
     const engagedA4 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
-    if (!retractEvA4 || !setEvA4 || engagedA4 < 0) throw new Error('A4 收栏置位未达成（前置不成立）');
+    if (!retractEvA4 || engagedA4 < 0) throw new Error('A4 收栏档未达成（前置不成立）');
     // 先杀守卫（不带 /T：守护是守卫的子进程，/T 会把它一起带走——守护的存活前提
     // 正是「控制台信号只同杀有控制台的进程」，这里用不带 /T 复刻该现场），再杀面板树。
     spawnSync('taskkill', ['/PID', String(guardPid4), '/F'], { stdio: 'ignore' });
@@ -371,7 +370,7 @@ async function runSegments() {
     } else {
       rep.fail(`A4 视图还原=${restoredA4} `
         + `appbar复原=${appbarOkA4}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA4)} `
-        + `守护 pid=${watchPid} 自退=${watchDead} 置位=${!!setEvA4}`);
+        + `守护 pid=${watchPid} 自退=${watchDead}`);
     }
     child = null;
 
@@ -393,13 +392,14 @@ async function runSegments() {
     if (!boot5) throw new Error('A5 守卫链面板未上报 boot');
     panelPid = boot5.pid;
     if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A5 条带窗未出现');
-    // 普通态前置：接管建立即清位（存证 + 读回位事实），且零置位事件（未进收栏）
-    const clearedEvA5 = await tape.wait('taskbar-autohide-cleared',
-      (e) => e.reason === 'takeover', { since: sinceA5, timeoutMs: 5000 });
-    const clearedReadA5 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) === 0, 5000);
-    const straySetsA5 = tape.all('taskbar-autohide-set', undefined, { since: sinceA5 });
-    if (!clearedEvA5 || clearedReadA5 < 0 || straySetsA5.length > 0) {
-      throw new Error(`A5 普通态前置不成立（清位存证=${!!clearedEvA5} 读回=${appbarState()} 杂置位=${straySetsA5.length}）`);
+    // 普通档前置（M1 置位口径）：接管建立即置位（takeover+set 存证 + 读回含 AUTOHIDE 位），
+    // 且零收栏档（holder 非最大化前台——retract 存证零条）
+    const takeEvA5 = await tape.wait('taskbar-autohide-takeover', undefined, { since: sinceA5, timeoutMs: 5000 });
+    const setEvA5 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceA5, timeoutMs: 5000 });
+    const engagedA5 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
+    const straysA5 = tape.all('taskbar-retract', undefined, { since: sinceA5 });
+    if (!takeEvA5 || !setEvA5 || engagedA5 < 0 || straysA5.length > 0) {
+      throw new Error(`A5 普通档前置不成立（接管=${!!takeEvA5} 置位=${!!setEvA5} 读回=${appbarState()} 收栏档=${straysA5.length}）`);
     }
     const panelHwndA5 = await handle.waitWindow({ title: PANEL_TITLE, timeoutMs: 8000 });
     if (!panelHwndA5) throw new Error('A5 面板主窗未找到');
@@ -410,12 +410,12 @@ async function runSegments() {
     const autohideEvA5 = await tape.wait('taskbar-autohide-restored',
       (e) => e.reason === 'dispose' || e.reason === 'panel-exit', { since: sinceA5, timeoutMs: 8000 });
     if (guardExitedA5 && restoredA5 && appbarOkA5 >= 0 && autohideEvA5) {
-      rep.pass(`A5 正常退出路径（普通态出发）：appbar 读回复原（reason=${autohideEvA5.reason}，attempts=${autohideEvA5.attempts}，`
-        + `读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数；出发清位读数 ${clearedEvA5.state}）`
-        + `＋原生任务栏还原（视图事实，守卫随退=${guardExitedA5}）——全接管期退场复原不随档位缩水（spec #292）`);
+      rep.pass(`A5 正常退出路径（普通档出发）：appbar 读回复原（reason=${autohideEvA5.reason}，attempts=${autohideEvA5.attempts}，`
+        + `读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数；出发置位读数 userState=${takeEvA5.userState}）`
+        + `＋原生任务栏还原（视图事实，守卫随退=${guardExitedA5}）——退场复原不随档位缩水（spec #292/#306）`);
     } else {
       rep.fail(`A5 守卫退=${guardExitedA5} 视图还原=${restoredA5} appbar复原=${appbarOkA5}ms 状态=${appbarState()}/${appbarBaseline} `
-        + `autohide存证=${JSON.stringify(autohideEvA5)} 清位存证=${JSON.stringify(clearedEvA5)}`);
+        + `autohide存证=${JSON.stringify(autohideEvA5)} 接管存证=${JSON.stringify(takeEvA5)}`);
     }
     child = null;
 
@@ -427,12 +427,12 @@ async function runSegments() {
     if (!boot6) throw new Error('A6 守卫链面板未上报 boot');
     panelPid = boot6.pid;
     if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A6 条带窗未出现');
-    const clearedEvA6 = await tape.wait('taskbar-autohide-cleared',
-      (e) => e.reason === 'takeover', { since: sinceA6, timeoutMs: 5000 });
-    const clearedReadA6 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) === 0, 5000);
-    const straySetsA6 = tape.all('taskbar-autohide-set', undefined, { since: sinceA6 });
-    if (!clearedEvA6 || clearedReadA6 < 0 || straySetsA6.length > 0) {
-      throw new Error(`A6 普通态前置不成立（清位存证=${!!clearedEvA6} 读回=${appbarState()} 杂置位=${straySetsA6.length}）`);
+    const takeEvA6 = await tape.wait('taskbar-autohide-takeover', undefined, { since: sinceA6, timeoutMs: 5000 });
+    const setEvA6 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceA6, timeoutMs: 5000 });
+    const engagedA6 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
+    const straysA6 = tape.all('taskbar-retract', undefined, { since: sinceA6 });
+    if (!takeEvA6 || !setEvA6 || engagedA6 < 0 || straysA6.length > 0) {
+      throw new Error(`A6 普通档前置不成立（接管=${!!takeEvA6} 置位=${!!setEvA6} 读回=${appbarState()} 收栏档=${straysA6.length}）`);
     }
     killTree(panelPid);
     const guardExitedA6 = await waitExit(child, 15000);
@@ -446,7 +446,7 @@ async function runSegments() {
         + `＋原生任务栏还原（视图事实，守卫随退=${guardExitedA6}）`);
     } else {
       rep.fail(`A6 视图还原=${restoredA6} appbar复原=${appbarOkA6}ms 状态=${appbarState()}/${appbarBaseline} `
-        + `autohide存证=${JSON.stringify(autohideEvA6)} 守卫退=${guardExitedA6} 清位存证=${JSON.stringify(clearedEvA6)}`);
+        + `autohide存证=${JSON.stringify(autohideEvA6)} 守卫退=${guardExitedA6} 接管存证=${JSON.stringify(takeEvA6)}`);
     }
     child = null;
 
@@ -462,12 +462,12 @@ async function runSegments() {
     const watchEv7 = await tape.wait('restore-watch-spawned', undefined, { since: sinceA7, timeoutMs: 5000 });
     const watchPid7 = watchEv7 ? watchEv7.pid : 0;
     if (!(await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 }))) throw new Error('A7 条带窗未出现');
-    const clearedEvA7 = await tape.wait('taskbar-autohide-cleared',
-      (e) => e.reason === 'takeover', { since: sinceA7, timeoutMs: 5000 });
-    const clearedReadA7 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) === 0, 5000);
-    const straySetsA7 = tape.all('taskbar-autohide-set', undefined, { since: sinceA7 });
-    if (!clearedEvA7 || clearedReadA7 < 0 || straySetsA7.length > 0) {
-      throw new Error(`A7 普通态前置不成立（清位存证=${!!clearedEvA7} 读回=${appbarState()} 杂置位=${straySetsA7.length}）`);
+    const takeEvA7 = await tape.wait('taskbar-autohide-takeover', undefined, { since: sinceA7, timeoutMs: 5000 });
+    const setEvA7 = await tape.wait('taskbar-autohide-set', undefined, { since: sinceA7, timeoutMs: 5000 });
+    const engagedA7 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
+    const straysA7 = tape.all('taskbar-retract', undefined, { since: sinceA7 });
+    if (!takeEvA7 || !setEvA7 || engagedA7 < 0 || straysA7.length > 0) {
+      throw new Error(`A7 普通档前置不成立（接管=${!!takeEvA7} 置位=${!!setEvA7} 读回=${appbarState()} 收栏档=${straysA7.length}）`);
     }
     // 同 A4：先杀守卫（不带 /T——守护是守卫子进程，/T 会把它一起带走），再强退面板树
     spawnSync('taskkill', ['/PID', String(guardPid7), '/F'], { stdio: 'ignore' });
@@ -488,12 +488,12 @@ async function runSegments() {
         + `读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数；账记于普通态接管建立拍；守护 pid=${watchPid7} 已自退）`);
     } else {
       rep.fail(`A7 视图还原=${restoredA7} appbar复原=${appbarOkA7}ms 状态=${appbarState()}/${appbarBaseline} `
-        + `autohide存证=${JSON.stringify(autohideEvA7)} 守护 pid=${watchPid7} 自退=${watchDead7} 清位存证=${JSON.stringify(clearedEvA7)}`);
+        + `autohide存证=${JSON.stringify(autohideEvA7)} 守护 pid=${watchPid7} 自退=${watchDead7} 接管存证=${JSON.stringify(takeEvA7)}`);
     }
     child = null;
 
-    // A 相位收尾（工单261）：holder 退出最大化、钉回非收栏前台；B 相位钉 maximizeRetract
-    // =off——回非收栏语义（B1/B2 的隐藏/还原断言在非置位态才可判读），off 口径由 C2 把关。
+    // A 相位收尾（工单261）：holder 退出最大化、钉回普通档前台；B 相位钉 maximizeRetract
+    // =off——M1 下 off 只关收栏档（托管恒置位照走），off 口径由 C2 把关。
     holder.unmaximize();
     forceForeground(hwndOf(holder));
     sinceOff = Date.now(); // C2 的 off 口径时间门：B 相位起的置位事件应恒零
@@ -574,29 +574,32 @@ async function runSegments() {
       } else {
         rep.fail(`C1 任务栏偏好未被复原：before=${JSON.stringify(prefsBefore)} after=${JSON.stringify(prefsAfter)}`);
       }
-      // C2 maximizeRetract=off 不置位（工单260；工单261 收口 B 相位口径；工单293 全接管期
-      // 改段）：A 相位改真置位形态（A2/A3/A4 断言 appbar 复原——置位事件在 A 相位是**被测
-      // 行为**），本段 off 口径收口到 B 相位起（config 钉 off）。工单293/spec #292 把托管
-      // 扩为**全接管期**后，off 只关收栏档：接管建立（takeover/cleared——普通档清位）与
-      // 退场复原（restored，reason=disabled/force——禁用/退出把用户原值还回去，spec 用户
-      // 故事 12/#293 AC6）照走且**应当发生**（旧口径「taskbar-autohide-* 全零」会把
-      // 「禁用即复原」这一设计行为误判成破口）。不变式收窄为：收栏置位零条（set/set-failed
-      // 零——off 下即便前台最大化也不置位）+ restored 只许退场复原两径 + 退出后 appbar
-      // 状态 = 开跑前基线（控制器独立读数，不依赖面板自证）。
+      // C2 off 口径（工单260；工单293 全接管期改段；工单308 M1 改写，spec #306）：M1 下
+      // off 只关收栏档、托管恒置位照走——「接管期全程仅建立/退场两次状态写入」的计数式
+      // 断言：B 相位两次接管生命周期（B1 boot 开、B2 再开），每次恰**两次写入**（建立置位
+      // 一次 set + 退场复原一次 restored——B1 禁用径 reason=disabled、收尾自救径
+      // reason=force），运行期零其他写入（无 set-failed/reattach 中间态——恒置位单账，
+      // 旧「收栏置位零条」判据随「off=清位」语义退役）；退出后 appbar 状态 = 开跑前基线
+      // （控制器独立读数，不依赖面板自证）。
       rep.beginSegment('C2');
-      const setEvents = tape.all('taskbar-autohide-set', undefined, { since: sinceOff })
-        .concat(tape.all('taskbar-autohide-set-failed', undefined, { since: sinceOff }));
+      const setEvents = tape.all('taskbar-autohide-set', undefined, { since: sinceOff });
       const restoredEvents = tape.all('taskbar-autohide-restored', undefined, { since: sinceOff });
-      const restoredOk = restoredEvents.every((e) => e.reason === 'disabled' || e.reason === 'force');
+      const otherWrites = tape.all('taskbar-autohide-set-failed', undefined, { since: sinceOff }).length
+        + tape.all('taskbar-autohide-reattached', undefined, { since: sinceOff }).length
+        + tape.all('taskbar-autohide-reattach-failed', undefined, { since: sinceOff }).length;
+      const restoredOk = restoredEvents.length >= 2
+        && restoredEvents.every((e) => e.reason === 'disabled' || e.reason === 'force');
       const stateAfter = appbarState();
-      if (setEvents.length === 0 && restoredOk && stateAfter === appbarBaseline) {
-        rep.pass(`C2 maximizeRetract=off 不置位（B 相位起；工单293 全接管期口径）：收栏置位事件零条＋退场复原 ${restoredEvents.length} 条全为禁用/守卫径`
-          + `（reason=${restoredEvents.map((e) => e.reason).join('/') || '无'}——off 下接管清位照走、禁用/退出复原用户原值是设计行为）`
+      if (setEvents.length === 2 && restoredOk && otherWrites === 0 && stateAfter === appbarBaseline) {
+        rep.pass(`C2 off 口径（M1：off 只关收栏档，托管恒置位）：B 相位两次接管生命周期各恰两次状态写入——`
+          + `建立置位 set ${setEvents.length} 次（B1 boot + B2 再开各一）＋退场复原 ${restoredEvents.length} 条全为禁用/自救径`
+          + `（reason=${restoredEvents.map((e) => e.reason).join('/') || '无'}——禁用/退出把用户原值还回去是设计行为）、`
+          + `运行期其他写入（set-failed/reattach 族）${otherWrites} 条（恒置位单账无中间态）`
           + `＋退出后 appbar 状态 ${stateAfter} = 开跑前基线 ${appbarBaseline}（控制器独立读数）`);
       } else {
-        rep.fail(`C2 off 口径被破：收栏置位事件 ${setEvents.length} 条（off 下应恒零） `
-          + `退场复原 reason 异常 ${restoredEvents.filter((e) => e.reason !== 'disabled' && e.reason !== 'force').length} 条 `
-          + `appbar 状态=${stateAfter} 基线=${appbarBaseline}`);
+        rep.fail(`C2 off 口径被破（M1 计数式）：建立置位 set ${setEvents.length} 条（期望恰 2——两次接管各一） `
+          + `退场复原 ${restoredEvents.length} 条（期望 ≥2）reason 异常 ${restoredEvents.filter((e) => e.reason !== 'disabled' && e.reason !== 'force').length} 条 `
+          + `其他写入 ${otherWrites} 条（期望 0） appbar 状态=${stateAfter} 基线=${appbarBaseline}`);
       }
       try {
         (await waitNativeVisible(true, 5000))

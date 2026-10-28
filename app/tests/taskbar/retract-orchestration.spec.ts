@@ -1,5 +1,15 @@
-// 最大化收栏主进程编排（工单241，spec #236）：三态机接线 + 真最大化探针 + AppBar
-// 注销/重注册配对 + 浮层收拢 + 存证命名族。
+// 最大化收栏主进程编排（工单241，spec #236；工单308 M1 覆盖式普通档改钉）：三态机接线
+// + 真最大化探针 + 栏面迁移计划 + 浮层收拢 + 存证命名族。
+//
+// M1（工单308，spec #306）钉面变化：
+//   - 迁移计划收敛为**栏面计划**（hideWindow/showWindow/closePopups/evidence）——工作区
+//     占位面（releaseAppBar/claimAppBar/targetWorkspaceRetracted）、解耦上下文
+//     （BarTransitionContext/retractHeld/gateDisqualified）与 appbar 动作字段全部退役；
+//   - 控制器无 AppBar 注册/注销/协商调用点（create 无注册、三态轮询无条件起、
+//     destroy/closed 无注销）；托管建立=置位一次、运行期零 appbar 拍动；
+//   - 宿主矩形复核（verifyStripBottom/复核纯函数族）随触发前提消失整体特征退役，
+//     几何漂移兜底归 keepalive reassertGeometry；
+//   - 重申轮询目标态恒 autohide-on（want 退役）、reassertTakeoverAutoHide 单参恒置位。
 //
 // 接缝（本票离线可测的两处公开边界）：
 //   ① 纯函数缝：shared/retract.ts 的 planBarTransition（旧态 → 新态 → 动作计划）。
@@ -8,11 +18,12 @@
 //   ② 契约缝：shared/contract.ts 的 taskbar/bar-mode 桥接事件（下发三态给条带渲染层）。
 //
 // 术语（GLOSSARY #246 入册）：最大化收栏 / 唤出条 / 最大化让位 / 托盘右键让位。
-// 「最大化让位」= 窗给栏让位（51 电池 P2 段语境）；「最大化收栏」= 栏给窗让位——方向相反，勿混。
+// M1 下「最大化让位」（窗给栏让位）语义随占位退役——普通档自绘栏覆盖式常驻，窗尺寸
+// 永不被改变；「最大化收栏」（栏给窗让位）= 栏面退场出唤出条，进出零 appbar 动作。
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { planBarTransition, retractAutoHideState, normalBarAutoHideState, ABS_AUTOHIDE, ABS_ALWAYSONTOP } from '../../src/shared/retract'
+import { ABS_ALWAYSONTOP, ABS_AUTOHIDE, planBarTransition, retractAutoHideState } from '../../src/shared/retract'
 import type { BarMode } from '../../src/shared/retract'
 
 const MODES: BarMode[] = ['visible', 'maximize-retract', 'fullscreen-yield']
@@ -38,23 +49,20 @@ function codeOf(rel: string): string {
   return srcOf(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 }
 
-describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
-  it('常驻 → 收栏：释放工作区占位（注销 AppBar）+ 收拢浮层；条带窗不隐藏（承载形态 = 栏窗复用）', () => {
+describe('三态迁移的栏面动作计划（工单241 纯函数缝；工单308 M1 收敛为栏面计划）', () => {
+  it('常驻 → 收栏：收拢浮层；条带窗不隐藏（承载形态 = 栏窗复用）；存证 taskbar-retract', () => {
     const plan = planBarTransition('visible', 'maximize-retract')
-    expect(plan.releaseAppBar).toBe(true)
-    expect(plan.claimAppBar).toBe(false)
     expect(plan.closePopups).toBe(true)
     expect(plan.hideWindow).toBe(false)
     expect(plan.showWindow).toBe(false)
     expect(plan.evidence).toEqual(['taskbar-retract'])
   })
 
-  it('收栏 → 常驻：重注册 AppBar（占位恢复）+ 重协商；不重复隐藏窗；存证 taskbar-retract-lifted', () => {
+  it('收栏 → 常驻：栏面复现（条带窗既不隐也不显——恒在场）；存证 taskbar-retract-lifted', () => {
     const plan = planBarTransition('maximize-retract', 'visible')
-    expect(plan.claimAppBar).toBe(true)
-    expect(plan.releaseAppBar).toBe(false)
     expect(plan.hideWindow).toBe(false)
     expect(plan.showWindow).toBe(false)
+    expect(plan.closePopups).toBe(false)
     expect(plan.evidence).toEqual(['taskbar-retract-lifted'])
   })
 
@@ -63,8 +71,6 @@ describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
     expect(plan.hideWindow).toBe(true)
     expect(plan.showWindow).toBe(false)
     expect(plan.closePopups).toBe(true)
-    expect(plan.releaseAppBar).toBe(false)
-    expect(plan.claimAppBar).toBe(true)
     expect(plan.evidence).toEqual(['taskbar-yield'])
   })
 
@@ -75,19 +81,17 @@ describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
     expect(plan.evidence).toEqual(['taskbar-yield-lifted'])
   })
 
-  it('全屏让位 → 收栏：窗复现 + 释放占位；两族存证各一条（先退出旧态、再进入新态）', () => {
+  it('全屏让位 → 收栏：窗复现 + 收拢浮层；两族存证各一条（先退出旧态、再进入新态）', () => {
     const plan = planBarTransition('fullscreen-yield', 'maximize-retract')
     expect(plan.showWindow).toBe(true)
-    expect(plan.releaseAppBar).toBe(true)
     expect(plan.closePopups).toBe(true)
     expect(plan.evidence).toEqual(['taskbar-yield-lifted', 'taskbar-retract'])
   })
 
-  it('收栏 → 全屏让位：整窗退场 + 占位恢复（让位态占位生效，既有语义不变）', () => {
+  it('收栏 → 全屏让位：整窗退场 + 收拢浮层；先 retract-lifted（退出旧态）再 yield（进入新态）', () => {
     const plan = planBarTransition('maximize-retract', 'fullscreen-yield')
     expect(plan.hideWindow).toBe(true)
-    expect(plan.claimAppBar).toBe(true)
-    expect(plan.releaseAppBar).toBe(false)
+    expect(plan.closePopups).toBe(true)
     expect(plan.evidence).toEqual(['taskbar-retract-lifted', 'taskbar-yield'])
   })
 
@@ -95,267 +99,74 @@ describe('三态迁移的动作计划（工单241 纯函数缝）', () => {
     for (const mode of MODES) {
       const plan = planBarTransition(mode, mode)
       expect(plan).toEqual({
-        releaseAppBar: false,
-        engageAutoHide: false,
-        clearAutoHide: false,
-        claimAppBar: false,
         hideWindow: false,
         showWindow: false,
         closePopups: false,
         evidence: [],
-        // 账面目标 = 迁移前账面（缺省从档位推断：收栏档在账，其余未收）
-        targetWorkspaceRetracted: mode === 'maximize-retract',
       })
     }
   })
 
-  it('E4 粘性：收栏态不因「占位已释放→最大化窗覆盖整屏」的副作用而翻成让位（真最大化优先，归 resolveBarMode）', () => {
-    // 迁移计划自身不重判档位：收栏 → 收栏恒零动作（不重复注销/重注册 AppBar）
-    const plan = planBarTransition('maximize-retract', 'maximize-retract')
-    expect(plan.releaseAppBar).toBe(false)
-    expect(plan.claimAppBar).toBe(false)
-    expect(plan.evidence).toEqual([])
-  })
-
-  it('不变量：工作区占位只在收栏态释放（其余两态占位必须生效），任一迁移恰有一侧为真', () => {
+  it('M1 计划形状收敛：计划只有栏面四字段——无任何 appbar/工作区字段（占位链退役后计划不再承载动作）', () => {
     for (const prev of MODES) {
       for (const next of MODES) {
         const plan = planBarTransition(prev, next)
-        if (prev === next) continue
-        expect(plan.releaseAppBar, `${prev} → ${next}`).toBe(next === 'maximize-retract')
-        expect(plan.claimAppBar, `${prev} → ${next}`).toBe(next !== 'maximize-retract')
-        expect(plan.releaseAppBar !== plan.claimAppBar, `${prev} → ${next}`).toBe(true)
+        expect(Object.keys(plan).sort(),
+          `${prev} → ${next}`).toEqual(['closePopups', 'evidence', 'hideWindow', 'showWindow'])
+      }
+    }
+  })
+
+  it('E4 粘性：收栏态不因「窗口矩形恰好覆盖整屏」的副作用而翻成让位（真最大化优先，归 resolveBarMode）', () => {
+    // 迁移计划自身不重判档位：收栏 → 收栏恒零动作
+    const plan = planBarTransition('maximize-retract', 'maximize-retract')
+    expect(plan.hideWindow).toBe(false)
+    expect(plan.showWindow).toBe(false)
+    expect(plan.evidence).toEqual([])
+  })
+
+  it('不变量（6 格真实迁移矩阵）：hideWindow ⟺ next=让位、showWindow ⟺ prev=让位、closePopups ⟺ next≠常驻；evidence 按族随栏面迁移', () => {
+    for (const prev of MODES) {
+      for (const next of MODES) {
+        if (prev === next) continue // 同态零动作已单钉（上一组）——本组钉真实迁移的不变量
+        const plan = planBarTransition(prev, next)
+        const tag = `${prev} → ${next}`
+        expect(plan.hideWindow, tag).toBe(next === 'fullscreen-yield')
+        expect(plan.showWindow, tag).toBe(prev === 'fullscreen-yield')
+        expect(plan.closePopups, tag).toBe(next !== 'visible')
+        // 存证族（同态零存证已单钉）：retract 族随收栏栏面、yield 族随让位栏面；
+        // 顺序恒「退出旧态在前、进入新态在后」
+        expect(plan.evidence.includes('taskbar-retract'), tag).toBe(next === 'maximize-retract' && prev !== next)
+        expect(plan.evidence.includes('taskbar-retract-lifted'), tag).toBe(prev === 'maximize-retract' && prev !== next)
+        expect(plan.evidence.includes('taskbar-yield'), tag).toBe(next === 'fullscreen-yield' && prev !== next)
+        expect(plan.evidence.includes('taskbar-yield-lifted'), tag).toBe(prev === 'fullscreen-yield' && prev !== next)
+        expect(plan.evidence.length, tag).toBeLessThanOrEqual(2)
+        const liftIdx = plan.evidence.findIndex((e) => e.endsWith('-lifted'))
+        const enterIdx = plan.evidence.findIndex((e) => !e.endsWith('-lifted') && (e === 'taskbar-retract' || e === 'taskbar-yield'))
+        if (liftIdx >= 0 && enterIdx >= 0) expect(liftIdx, `${tag} 先退出旧态`).toBeLessThan(enterIdx)
       }
     }
   })
 })
 
-describe('全屏让位与分屏会话解耦（工单271，spec #267）：工作区收栏理由 × 栏面呈现', () => {
-  /** 迁移上下文的简写（工单271 第三参：工作区账面 + 理由仍持有） */
-  const ctx271 = (workspaceRetracted: boolean, retractHeld: boolean) => ({ workspaceRetracted, retractHeld })
-
-  it('收栏 → 全屏让位（分屏会话仍持有理由）：只改栏面——占位保持释放、托管不中断（零 claim/restore），存证仅 yield 族（无 retract-lifted）', () => {
-    const plan = planBarTransition('maximize-retract', 'fullscreen-yield', ctx271(true, true))
-    expect(plan.releaseAppBar).toBe(false)
-    expect(plan.claimAppBar).toBe(false)
-    expect(plan.engageAutoHide).toBe(false)
-    expect(plan.clearAutoHide).toBe(false)
-    expect(plan.hideWindow).toBe(true)
-    expect(plan.closePopups).toBe(true)
-    // 「栏面被全屏覆盖」与「分屏会话结束」在存证流上可分：覆盖只落 yield、不落 retract-lifted
-    expect(plan.evidence).toEqual(['taskbar-yield'])
-  })
-
-  it('全屏让位 → 收栏（工作区仍在收栏账上，退出覆盖会话仍存续）：只改栏面——不重复释放/置位（幂等），存证仅 yield-lifted', () => {
-    const plan = planBarTransition('fullscreen-yield', 'maximize-retract', ctx271(true, true))
-    expect(plan.releaseAppBar).toBe(false)
-    expect(plan.claimAppBar).toBe(false)
-    expect(plan.engageAutoHide).toBe(false)
-    expect(plan.clearAutoHide).toBe(false)
-    expect(plan.showWindow).toBe(true)
-    expect(plan.evidence).toEqual(['taskbar-yield-lifted'])
-  })
-
-  it('全屏让位 → 常驻（覆盖期间会话已结束、无其他理由）：按既有路径复原——重注册占位 + 复原置位 + retract-lifted 存证', () => {
-    const plan = planBarTransition('fullscreen-yield', 'visible', ctx271(true, false))
-    expect(plan.claimAppBar).toBe(true)
-    expect(plan.clearAutoHide).toBe(true)
-    expect(plan.showWindow).toBe(true)
-    expect(plan.evidence).toEqual(['taskbar-yield-lifted', 'taskbar-retract-lifted'])
-  })
-
-  it('常驻 → 收栏（会话理由建立，账面未收）：照常释放 + 置位——与最大化理由同效果层（理由维度不改变进收栏的动作）', () => {
-    const plan = planBarTransition('visible', 'maximize-retract', ctx271(false, true))
-    expect(plan.releaseAppBar).toBe(true)
-    expect(plan.engageAutoHide).toBe(true)
-    expect(plan.evidence).toEqual(['taskbar-retract'])
-  })
-
-  it('全屏让位（占位生效中，无会话进入的覆盖）→ 收栏（覆盖期间会话建立后退出全屏）：此刻才释放占位 + 置位（工作区账面驱动，非档位推断）', () => {
-    const plan = planBarTransition('fullscreen-yield', 'maximize-retract', ctx271(false, true))
-    expect(plan.releaseAppBar).toBe(true)
-    expect(plan.engageAutoHide).toBe(true)
-    expect(plan.showWindow).toBe(true)
-    expect(plan.evidence).toEqual(['taskbar-yield-lifted', 'taskbar-retract'])
-  })
-
-  it('同态冻结：覆盖期间理由消失或重建（yield→yield）零动作——工作区复原只发生在退出覆盖的既有路径（不反复复原）', () => {
-    for (const retractHeld of [false, true]) {
-      const plan = planBarTransition('fullscreen-yield', 'fullscreen-yield', ctx271(true, retractHeld))
-      expect(plan).toEqual({
-        releaseAppBar: false, engageAutoHide: false, clearAutoHide: false, claimAppBar: false,
-        hideWindow: false, showWindow: false, closePopups: false, evidence: [],
-        // 冻结 = 账面原样保持（闸门失格的交割例外见下一组——本组理由自然消失不交割）
-        targetWorkspaceRetracted: true,
-      })
-    }
-  })
-
-  it('无会话旧口径逐字不变：缺省输入与显式一致上下文在全部 3×3 迁移上等价（既有 P6/P7 语义不回归）', () => {
-    // 一致上下文：收栏档态账面必在收（不变量①——占位只在收栏态释放，效果层产不出
-    // 「mode=收栏 而账面=未收」的组合）；其余档账面未收、理由不持有。
+describe('M1 托管期零拍动（工单308，spec #306）：迁移计划与 appbar 托管解耦', () => {
+  it('进出收栏/让位的任何迁移都不携带 appbar 动作——托管建立=置位一次（engage）、运行期零写入由形状穷举钉住', () => {
+    // 旧计划的 engageAutoHide/clearAutoHide/releaseAppBar/claimAppBar 已随接口退役：
+    // 上组「计划只有栏面四字段」即形状穷举；本组补一行可读断言（防御字段回潮）
     for (const prev of MODES) {
       for (const next of MODES) {
-        const consistent = ctx271(prev === 'maximize-retract', false)
-        expect(planBarTransition(prev, next, consistent), `${prev}→${next}`)
-          .toEqual(planBarTransition(prev, next))
-      }
-    }
-  })
-
-  it('组合矩阵不变量（mode × 工作区账面 × 理由持有）：置位与释放严格成对；retract 族存证随工作区面、yield 族随栏面；覆盖不触发工作区复原', () => {
-    for (const prev of MODES) {
-      for (const next of MODES) {
-        for (const workspaceRetracted of [false, true]) {
-          for (const retractHeld of [false, true]) {
-            // 矛盾上下文跳过（收栏档态账面必在收——不变量①，效果层产不出该组合）
-            if (prev === 'maximize-retract' && !workspaceRetracted) continue
-            const plan = planBarTransition(prev, next, ctx271(workspaceRetracted, retractHeld))
-            const tag = `${prev}→${next} 账=${workspaceRetracted} 理由=${retractHeld}`
-            // 账面目标单一公式（工单271 评审收口①）：迁移拍 target = wantRetracted
-            // （收栏档，或让位档上收栏→让位的理由接续）——效果层原样落账的唯一来源
-            if (prev !== next) {
-              expect(plan.targetWorkspaceRetracted, tag).toBe(
-                next === 'maximize-retract'
-                  || (next === 'fullscreen-yield' && prev === 'maximize-retract' && retractHeld),
-              )
-            }
-            // 置位/释放成对（同一次工作区交割，不留半套动作）
-            expect(plan.engageAutoHide, tag).toBe(plan.releaseAppBar)
-            // retract 族存证 = 工作区面交割；yield 族 = 栏面交割（与会话无关）
-            const wsReleased = plan.evidence.includes('taskbar-retract')
-            const wsRestored = plan.evidence.includes('taskbar-retract-lifted')
-            expect(plan.releaseAppBar, tag).toBe(wsReleased)
-            expect(plan.clearAutoHide, tag).toBe(wsRestored)
-            expect(plan.evidence.includes('taskbar-yield'), tag).toBe(next === 'fullscreen-yield' && prev !== next)
-            expect(plan.evidence.includes('taskbar-yield-lifted'), tag).toBe(prev === 'fullscreen-yield' && prev !== next)
-            // 全屏覆盖只改栏面：收栏进覆盖且理由仍持有 ⇒ 绝不 claim/restore（P6 的反面钉死）
-            if (prev === 'maximize-retract' && next === 'fullscreen-yield' && retractHeld) {
-              expect(plan.claimAppBar, tag).toBe(false)
-              expect(plan.clearAutoHide, tag).toBe(false)
-            }
-            // 复原只发自工作区账面在收的情况（账面未收时零复原）；占位重注册只在
-            // 真实迁移到非收栏态时提（同态零动作是既有不变量）
-            if (!workspaceRetracted) {
-              expect(plan.clearAutoHide, tag).toBe(false)
-              expect(plan.claimAppBar, tag).toBe(prev !== next && next !== 'maximize-retract')
-            }
-          }
+        const plan = planBarTransition(prev, next) as unknown as Record<string, unknown>
+        for (const banned of ['releaseAppBar', 'claimAppBar', 'engageAutoHide', 'clearAutoHide', 'targetWorkspaceRetracted']) {
+          expect(banned in plan, `${prev}→${next} 不得携带 ${banned}`).toBe(false)
         }
       }
     }
   })
-})
 
-describe('同态让位拍的闸门失格交割（工单271 评审收口②，spec #267 用户故事 27）', () => {
-  /** 上下文简写：账面 + 理由持有 + 闸门失格（gateDisqualified 由调用方经 retractGateDisqualified 采出） */
-  const ctxGate = (workspaceRetracted: boolean, retractHeld: boolean, gateDisqualified: boolean) =>
-    ({ workspaceRetracted, retractHeld, gateDisqualified })
-
-  it('覆盖期间关共用开关（账在收、闸门失格）：工作区面当场交割——claim+restore+retract-lifted、账面清、零栏面动作', () => {
-    // 让位档不受开关闸（既有口径）⇒ 档位同态冻结在让位；但用户故事 27 要求关开关后
-    // 工作区立即恢复——交割只发生在工作区面（占位重注册 + 托管复原），栏面显隐/浮层零动作
-    const plan = planBarTransition('fullscreen-yield', 'fullscreen-yield', ctxGate(true, false, true))
-    expect(plan.claimAppBar).toBe(true)
-    expect(plan.clearAutoHide).toBe(true)
-    expect(plan.releaseAppBar).toBe(false)
-    expect(plan.engageAutoHide).toBe(false)
-    expect(plan.hideWindow).toBe(false)
-    expect(plan.showWindow).toBe(false)
-    expect(plan.closePopups).toBe(false)
-    expect(plan.evidence).toEqual(['taskbar-retract-lifted'])
-    expect(plan.targetWorkspaceRetracted).toBe(false)
-  })
-
-  it('降级档失格同待遇（两道闸门任一即交割；理由持有位不参与本裁决）', () => {
-    const plan = planBarTransition('fullscreen-yield', 'fullscreen-yield', ctxGate(true, true, true))
-    expect(plan.claimAppBar).toBe(true)
-    expect(plan.clearAutoHide).toBe(true)
-    expect(plan.evidence).toEqual(['taskbar-retract-lifted'])
-    expect(plan.targetWorkspaceRetracted).toBe(false)
-  })
-
-  it('账面未收的同态失格拍零动作（无账可交——不重复交割）', () => {
-    const plan = planBarTransition('fullscreen-yield', 'fullscreen-yield', ctxGate(false, false, true))
-    expect(plan).toEqual({
-      releaseAppBar: false, engageAutoHide: false, clearAutoHide: false, claimAppBar: false,
-      hideWindow: false, showWindow: false, closePopups: false, evidence: [],
-      targetWorkspaceRetracted: false,
-    })
-  })
-
-  it('收栏档同态撞闸门失格不交割（resolveBarMode 两道闸门后产不出收栏档——范围钉在 fullscreen-yield）', () => {
-    const plan = planBarTransition('maximize-retract', 'maximize-retract', ctxGate(true, true, true))
-    expect(plan.claimAppBar).toBe(false)
-    expect(plan.clearAutoHide).toBe(false)
-    expect(plan.evidence).toEqual([])
-    expect(plan.targetWorkspaceRetracted).toBe(true)
-  })
-
-  it('交割后的退出覆盖拍幂等：账已清（target=false）→ 再遇闸门失格同态拍零动作；退出覆盖走既有路径单次复原', () => {
-    // 同态失格拍（账已清）→ 零动作
-    const again = planBarTransition('fullscreen-yield', 'fullscreen-yield', ctxGate(false, false, true))
-    expect(again.evidence).toEqual([])
-    // 退出覆盖（会话已结束、账已清）：既有复原路径——claim 空转（已注册）、restore 不重复
-    const exit = planBarTransition('fullscreen-yield', 'visible', ctxGate(false, false, false))
-    expect(exit.clearAutoHide).toBe(false)
-    expect(exit.showWindow).toBe(true)
-    expect(exit.evidence).toEqual(['taskbar-yield-lifted'])
-  })
-})
-
-describe('原生栏托管（工单260，spec #258）：收栏置位 ABS_AUTOHIDE 的迁移计划', () => {
-  it('进入收栏：置位原生栏自动隐藏（engageAutoHide）——与注销占位同拍、与唤出条同生命周期', () => {
-    for (const prev of ['visible', 'fullscreen-yield'] as BarMode[]) {
-      const plan = planBarTransition(prev, 'maximize-retract')
-      expect(plan.engageAutoHide, `${prev} → maximize-retract`).toBe(true)
-      expect(plan.clearAutoHide, `${prev} → maximize-retract`).toBe(false)
-    }
-  })
-
-  it('退出收栏：复原原生栏自动隐藏（clearAutoHide）——解除最大化和被全屏压过两路都算退', () => {
-    for (const next of ['visible', 'fullscreen-yield'] as BarMode[]) {
-      const plan = planBarTransition('maximize-retract', next)
-      expect(plan.clearAutoHide, `maximize-retract → ${next}`).toBe(true)
-      expect(plan.engageAutoHide, `maximize-retract → ${next}`).toBe(false)
-    }
-  })
-
-  it('非收栏两态间迁移不碰自动隐藏（置位恰在进收栏、清位恰在退收栏——普通↔让位零置位/清位动作；工单294 退役措辞清扫：旧题「非收栏时段系统行为与现状一致」随清位接管作废——普通栏态本身持清位账；断言面不变）', () => {
-    const a = planBarTransition('visible', 'fullscreen-yield')
-    const b = planBarTransition('fullscreen-yield', 'visible')
-    expect(a.engageAutoHide || a.clearAutoHide).toBe(false)
-    expect(b.engageAutoHide || b.clearAutoHide).toBe(false)
-  })
-
-  it('同态零动作含自动隐藏（250ms 每拍轮询不重复置位/复原）', () => {
-    for (const mode of MODES) {
-      const plan = planBarTransition(mode, mode)
-      expect(plan.engageAutoHide).toBe(false)
-      expect(plan.clearAutoHide).toBe(false)
-    }
-  })
-
-  it('不变量：置位恰在进入收栏、复原恰在退出收栏——与占位注销严格同拍（释放占位不释放保留带＝白做）', () => {
-    for (const prev of MODES) {
-      for (const next of MODES) {
-        if (prev === next) continue
-        const plan = planBarTransition(prev, next)
-        expect(plan.engageAutoHide, `${prev} → ${next}`).toBe(next === 'maximize-retract')
-        expect(plan.clearAutoHide, `${prev} → ${next}`).toBe(prev === 'maximize-retract')
-        expect(plan.engageAutoHide, `${prev} → ${next}`).toBe(plan.releaseAppBar)
-      }
-    }
-  })
-})
-
-describe('收栏置位的目标 appbar 状态（工单260 值函数，thide RAII 蓝本）', () => {
-  it('保留用户的 ALWAYSONTOP 位、加 ABS_AUTOHIDE（spike 基线 state 0 → 置 1：1392→1440 的实测序列）', () => {
+  it('收栏置位的目标 appbar 状态（接管建立/重申的唯一目标，值函数保留）：保留 ALWAYSONTOP、加 ABS_AUTOHIDE', () => {
     expect(retractAutoHideState(0)).toBe(ABS_AUTOHIDE)
     expect(retractAutoHideState(ABS_ALWAYSONTOP)).toBe(ABS_AUTOHIDE | ABS_ALWAYSONTOP)
-  })
-
-  it('用户本已开启自动隐藏：置位为无操作（结果不变——记账照走、复原照走，逻辑不特判）', () => {
+    // 用户本已开启自动隐藏：置位为无操作（结果不变——记账照走、复原照走，逻辑不特判）
     expect(retractAutoHideState(ABS_AUTOHIDE)).toBe(ABS_AUTOHIDE)
     expect(retractAutoHideState(ABS_AUTOHIDE | ABS_ALWAYSONTOP)).toBe(ABS_AUTOHIDE | ABS_ALWAYSONTOP)
   })
@@ -364,25 +175,9 @@ describe('收栏置位的目标 appbar 状态（工单260 值函数，thide RAII
     expect(ABS_AUTOHIDE).toBe(0x1)
     expect(ABS_ALWAYSONTOP).toBe(0x2)
   })
-})
 
-describe('普通栏态的清位目标（ADR-0016 双缺陷复审 Q1=A 值函数）', () => {
-  it('清 AUTOHIDE、保留 ALWAYSONTOP——与收栏置位同一份用户原状态派生的另一目标', () => {
-    expect(normalBarAutoHideState(0)).toBe(0)
-    expect(normalBarAutoHideState(ABS_ALWAYSONTOP)).toBe(ABS_ALWAYSONTOP)
-    expect(normalBarAutoHideState(ABS_AUTOHIDE)).toBe(0)
-    expect(normalBarAutoHideState(ABS_AUTOHIDE | ABS_ALWAYSONTOP)).toBe(ABS_ALWAYSONTOP)
-  })
-
-  it('与收栏置位互逆：两目标只差 AUTOHIDE 一位（切换不产生第三种状态）', () => {
-    for (const user of [0, ABS_AUTOHIDE, ABS_ALWAYSONTOP, ABS_AUTOHIDE | ABS_ALWAYSONTOP]) {
-      expect(retractAutoHideState(user) ^ normalBarAutoHideState(user)).toBe(ABS_AUTOHIDE)
-    }
-  })
-
-  it('用户本已开着自动隐藏：清位是**有动作**的（与收栏置位的「无操作」相反，不特判）', () => {
-    expect(normalBarAutoHideState(ABS_AUTOHIDE)).toBe(0)
-    expect(normalBarAutoHideState(ABS_AUTOHIDE | ABS_ALWAYSONTOP)).toBe(ABS_ALWAYSONTOP)
+  it('普通栏态清位目标值函数已退役（normalBarAutoHideState 不复存在于纯模块）', () => {
+    expect(srcOf('app/src/shared/retract.ts')).not.toMatch(/normalBarAutoHideState/)
   })
 })
 
@@ -427,7 +222,7 @@ describe('真最大化探针（工单241：IsZoomed 族真最大化样式）', (
   })
 })
 
-describe('控制器接线（工单241 三态机；效果层离线不可测，以源码级守卫钉住）', () => {
+describe('控制器接线（工单241 三态机；工单308 M1 改钉；效果层离线不可测，以源码级守卫钉住）', () => {
   const CTRL = 'app/src/main/taskbar/window.ts'
   const ctrl = srcOf(CTRL)
   const code = codeOf(CTRL)
@@ -440,10 +235,23 @@ describe('控制器接线（工单241 三态机；效果层离线不可测，以
     expect(code).not.toMatch(/probe\.zoomed\s*===/)
   })
 
-  it('收栏动作成对：释放占位注销 AppBar + 恢复时重注册并重协商', () => {
-    expect(code).toMatch(/removeAppBar\(/)
-    expect(code).toMatch(/registerAppBar\(/)
-    expect(code).toMatch(/renegotiate\(/)
+  it('M1 占位链退役：registerAppBar/removeAppBar/negotiateAppBarPos/appBarCallbackMessage/ABN_POSCHANGED 在 app/src 零调用点（appbar.ts 定义体保留至 L2 清场）', () => {
+    for (const sym of ['registerAppBar', 'removeAppBar', 'negotiateAppBarPos', 'appBarCallbackMessage', 'ABN_POSCHANGED']) {
+      const hits: string[] = []
+      for (const rel of SRC_FILES) {
+        if (rel === 'app/src/main/taskbar/appbar.ts') continue // 定义体（FFI 面保留，L2 退役）
+        if (new RegExp(`\\b${sym}\\b`).test(codeOf(rel))) hits.push(rel)
+      }
+      expect(hits, `${sym} 调用点必须为空`).toEqual([])
+    }
+    // 控制器不再 import 任何 AppBar 注册面
+    expect(code).not.toMatch(/registerAppBar|removeAppBar|negotiateAppBarPos|appBarCallbackMessage|ABN_POSCHANGED/)
+  })
+
+  it('三态轮询无条件起（M1：不再寄居 AppBar 注册成功支内——create 即建轮询）', () => {
+    // 轮询装配在 create 内、且不再有任何 registerAppBar 条件分支包裹
+    expect(code).toMatch(/s\.yieldTimer = setInterval/)
+    expect(code).not.toMatch(/if \(registerAppBar/)
   })
 
   it('浮层收拢走单一清单（popupHosts 单遍历——不另起一份浮层名单）', () => {
@@ -458,20 +266,46 @@ describe('控制器接线（工单241 三态机；效果层离线不可测，以
     expect(code).toMatch(/for \(const type of plan\.evidence\)/)
   })
 
+  it('存证 payload 收紧（M1）：retract/yield 族事件不再携带 appBar 占位维度', () => {
+    // 存证循环只剩 mode/from/foreground 三维
+    expect(code).toMatch(/for \(const type of plan\.evidence\) log\?\.append\(\{ type, mode: next, from: prev, foreground \}\)/)
+    expect(code).not.toMatch(/appBar:/)
+  })
+
   it('轮询与全屏让位共用 250ms 节奏（单一 YIELD_POLL_MS，只有一处轮询用它）', () => {
     expect(code).toMatch(/const YIELD_POLL_MS = 250/)
     expect(code.match(/\bYIELD_POLL_MS\b/g)?.length ?? 0).toBe(2) // 定义 + 轮询一处（TRAY_YIELD_POLL_MS 是另一档）
   })
 
-  it('降级档禁用收栏：注册失败置降级位，裁决输入取该位', () => {
-    expect(code).toMatch(/appBarDegraded = true/)
-    expect(code).toMatch(/appBarDegraded: s\.appBarDegraded/)
+  it('降级档机制退役（M1）：appBarDegraded 与净空常量在 app/src 零残留', () => {
+    expect(code).not.toMatch(/appBarDegraded/)
+    for (const rel of SRC_FILES) {
+      expect(codeOf(rel).includes('TASKBAR_BOTTOM_CLEARANCE'), `${rel} 残留净空常量`).toBe(false)
+    }
   })
 
-  it('收栏态不动条带几何（唤出条要贴屏底；条带矩形与协商矩形保持同位，回正守卫不打架）', () => {
-    // 档位迁移只做「占位 / 显隐 / 浮层 / 下发」四类动作，不碰窗口位置
+  it('条带恒贴屏底（M1 覆盖式常驻）：stripBounds 无净空参数', () => {
+    const sb = code.match(/function stripBounds\(\)[^{]*\{[\s\S]{0,400}?\n\}/)
+    expect(sb).toBeTruthy()
+    // 无 clearance 入参与减法（净空机制随降级档退役）
+    expect(sb?.[0]).not.toMatch(/clearance/)
+  })
+
+  it('收栏态不动条带几何（唤出条要贴屏底；条带矩形与回正目标保持同位，守卫不打架）', () => {
+    // 档位迁移只做「显隐 / 浮层 / 下发」三类动作，不碰窗口位置
     const machine = code.slice(code.indexOf('applyBarMode'), code.indexOf('applyBarMode') + 3000)
     expect(machine).not.toMatch(/setBounds|setPosition/)
+  })
+
+  it('同态零动作（不变量③）：applyBarMode 同态拍直接早退——M1 无工作区交割例外', () => {
+    expect(code).toMatch(/if \(prev === next\) return/)
+  })
+
+  it('迁移计划两参消费（M1：解耦上下文退役）——旧三参形态与工作区账不得残留', () => {
+    expect(code).toMatch(/planBarTransition\(\s*prev,\s*next\s*\)/)
+    expect(code).not.toMatch(/planBarTransition\(\s*prev,\s*next,/)
+    expect(code).not.toMatch(/workspaceRetracted/)
+    expect(code).not.toMatch(/gateDisqualified/)
   })
 
   it('自家浮层夺前台不翻收栏档（工单253）：在场事实喂进裁决，且带上当前档位', () => {
@@ -523,82 +357,45 @@ describe('三态下发契约（工单241：主进程 → 条带渲染层）', ()
   })
 })
 
-describe('原生栏托管接线（工单260；效果层离线不可测，以源码级守卫钉住）', () => {
+describe('原生栏托管接线（工单260 起步；工单308 M1 恒置位改钉；效果层离线不可测，以源码级守卫钉住）', () => {
   const CTRL = 'app/src/main/taskbar/window.ts'
   const AUTOHIDE = 'app/src/main/taskbar/appbar-autohide.ts'
   const APPBAR = 'app/src/main/taskbar/appbar.ts'
   const code = codeOf(CTRL)
 
-  it('置位/复原随迁移计划执行：applyBarMode 认 plan.engageAutoHide / plan.clearAutoHide，不自判收栏', () => {
-    expect(code).toMatch(/if \(plan\.engageAutoHide\)/)
-    expect(code).toMatch(/if \(plan\.clearAutoHide\)/)
-    // 置位与注销占位同段（releaseAppBar 的同拍纪律——engage/restore 两钩子都在占位段内）
-    const m = code.match(/if \(plan\.releaseAppBar[\s\S]{0,1200}?if \(plan\.clearAutoHide\)/)
+  it('applyBarMode 零 appbar 动作（M1）：进出收栏无置位/清位/注销/重注册调用——托管期零拍动的编排面', () => {
+    expect(code).not.toMatch(/enterRetractAutoHide|clearRetractAutoHide|engageAutoHide|clearAutoHide/)
+    // 托管动作只剩 create 的建立与 destroy 的退场两处
+    expect(code.match(/engageTakeoverAutoHide\(/g)?.length ?? 0).toBe(1)
+    expect(code.match(/restoreTakeoverAutoHide\(/g)?.length ?? 0).toBe(1)
+  })
+
+  it('宿主矩形复核机制整体特征退役（工单308 M1）：verifyStripBottom 与复核纯函数族零残留，几何漂移兜底归 keepalive reassertGeometry', () => {
+    for (const rel of SRC_FILES) {
+      const c = codeOf(rel)
+      expect(c.includes('verifyStripBottom'), `${rel} 残留 verifyStripBottom`).toBe(false)
+      expect(c.includes('recheckStripHostRect'), `${rel} 残留复核判据`).toBe(false)
+      expect(c.includes('stepHostRectSettle'), `${rel} 残留拍子推进`).toBe(false)
+      expect(c.includes('HOST_RECT_'), `${rel} 残留拍常量`).toBe(false)
+    }
+    // keepalive 回正守卫保留（M1 下兜几何漂移的唯一几何账）
+    expect(code).toMatch(/reassertGeometry\(s, 'keepalive'\)/)
+    expect(code).toMatch(/reassertGeometry\(s, 'shown'\)/)
+  })
+
+  it('回正目标单一来源（M1）：negotiated 由 stripBounds() 建账（create 与 display-metrics 两处），无协商/降级写账路径', () => {
+    expect(code.match(/s\.negotiated = stripBounds\(\)/g)?.length).toBe(2)
+    expect(code).not.toMatch(/applyNegotiated|applyDegradedClearance|renegotiate\(/)
+  })
+
+  it('display-metrics 无条件重排（M1）：改分辨率即重排条带到新屏底、刷新回正目标', () => {
+    const m = code.match(/const onDisplayMetrics = \(\) => \{[\s\S]{0,500}?\n  \}/)
     expect(m).toBeTruthy()
+    expect(m?.[0]).toMatch(/stripBounds\(\)/)
+    expect(m?.[0]).toMatch(/setBounds\(bounds\)/)
   })
 
-  it('进出收栏两过渡都带宿主矩形复核（工单293，spec #292 用户故事 9：恢复后自绘栏不漂移）——enter 与 exit 同判据（stripPhysRect 底边 vs 屏底），exit 复核钉在 clearAutoHide 之后（先清位还原带、再核矩形）', () => {
-    expect(code).toMatch(/if \(plan\.engageAutoHide\) verifyStripBottom\(s, 'retract-enter'\)/)
-    expect(code).toMatch(/if \(plan\.clearAutoHide\) verifyStripBottom\(s, 'retract-exit'\)/)
-    // exit 复核在 clearRetractAutoHide 之后（band 已还原才核得住「贴屏底」）
-    const m = code.match(/if \(plan\.clearAutoHide\) clearRetractAutoHide\(log, reason\)[\s\S]{0,600}?if \(plan\.clearAutoHide\) verifyStripBottom\(s, 'retract-exit'\)/)
-    expect(m).toBeTruthy()
-  })
-
-  it('applyBarMode 接线顺序 = 预隐藏 → 置位 → 复核（工单295，spec #292 几何决策原文）：进收栏先再压一次原生栏隐藏（「最大化前 SW_HIDE」对照的效应，t257 spike）再置位 ABS_AUTOHIDE——两动作同在 engageAutoHide 分支内且隐藏在前', () => {
-    const m = code.match(/if \(plan\.engageAutoHide\) \{[\s\S]{0,400}?enterRetractAutoHide\(log\)[\s\S]{0,200}?\}/)
-    expect(m).toBeTruthy()
-    const branch = m?.[0] ?? ''
-    expect(branch).toMatch(/hideNativeTaskbar\(log\)/)
-    expect(branch.indexOf('hideNativeTaskbar(log)')).toBeLessThan(branch.indexOf('enterRetractAutoHide(log)'))
-    // 复核殿后：enter 复核在置位分支之后（同拍但序在后——过渡完成才核矩形）
-    const iEnter = code.indexOf("verifyStripBottom(s, 'retract-enter')")
-    expect(iEnter).toBeGreaterThan(code.indexOf('enterRetractAutoHide(log)'))
-  })
-
-  it('宿主矩形复核的判据走纯函数 recheckStripHostRect（工单295，单一实现纪律）：verifyStripBottom 效果层只做取矩形/动作/存证，偏离判定与回正决策住在 shared/retract——防内联副本漂移回「自算判据」；等回稳拍子推进同样归纯函数（工单292 评审修复轮 F1）', () => {
-    const sb = code.match(/const verifyStripBottom = \(s: TaskbarSession, reason: string\): void => \{[\s\S]{0,2400}?\n  \}/)
-    expect(sb).toBeTruthy()
-    expect(sb?.[0]).toMatch(/recheckStripHostRect\(/)
-    expect(sb?.[0]).toMatch(/stepHostRectSettle\(/)
-    // 存证族不变：偏离落 corrected（带 from/to）、未偏离落 verified（带 rect）
-    expect(sb?.[0]).toMatch(/taskbar-host-rect-corrected/)
-    expect(sb?.[0]).toMatch(/taskbar-host-rect-verified/)
-    // 效果层不自写第二份偏离公式（±1 判据只有纯函数一份）
-    expect(sb?.[0]).not.toMatch(/offBottom/)
-  })
-
-  it('复核等回稳有界轮询（工单292 评审修复轮 F1，同 03aed5a 电池侧纪律）：拍参数单一常量住 shared/retract，效果层不自定拍数/拍距/上限', () => {
-    expect(code).toMatch(/stepHostRectSettle\(stableBeats, v\)/)
-    expect(code).toMatch(/setTimeout\(beat, HOST_RECT_SETTLE_BEAT_MS\)/)
-    expect(code).not.toMatch(/setTimeout\(beat, \d/) // 拍距不经字面量（单一常量纪律）
-    const shared = srcOf('app/src/shared/retract.ts')
-    expect(shared).toMatch(/export const HOST_RECT_SETTLE_BEATS = 3/)
-    expect(shared).toMatch(/export const HOST_RECT_SETTLE_BEAT_MS = 250/)
-    expect(shared).toMatch(/export const HOST_RECT_SETTLE_TIMEOUT_MS = 5000/)
-  })
-
-  it('复核判据纯函数经主进程侧转发导出（单一实现纪律，同工单237/293）', () => {
-    const fwd = srcOf('app/src/main/taskbar/retract.ts')
-    expect(fwd).toMatch(/\brecheckStripHostRect\b/)
-    expect(fwd).toMatch(/\bstepHostRectSettle\b/)
-    expect(fwd).toMatch(/\bHOST_RECT_SETTLE_BEATS\b/)
-  })
-
-  it('条带净空不锚视图位（工单293 改段）：stripBounds 净空由调用方给定，降级档账面（appBarDegraded）才给 48——视图位瞬态（收栏置位翻开 WS_VISIBLE）不得写几何账', () => {
-    const src = codeOf(CTRL)
-    // stripBounds 本体不再读 nativeTaskbarVisible（视图位 → 几何账的通路已剪断）
-    const sb = src.match(/function stripBounds\([\s\S]{0,400}?\n\}/)
-    expect(sb).toBeTruthy()
-    expect(sb?.[0]).not.toMatch(/nativeTaskbarVisible/)
-    // 净空动作收口在控制器 helper（两处降级落点共用；helper 落协商账，keepalive 契约不变）
-    expect(src).toMatch(/const applyDegradedClearance = \(s: TaskbarSession\): void => \{[\s\S]{0,300}?stripBounds\(TASKBAR_BOTTOM_CLEARANCE\)/)
-    expect(src.match(/applyDegradedClearance\(s\)/g)?.length).toBe(2)
-    // display-metrics 重排按账面净空（降级 48 / 健康 0）
-    expect(src).toMatch(/stripBounds\(s\.appBarDegraded \? TASKBAR_BOTTOM_CLEARANCE : 0\)/)
-  })
-
-  it('销窗路径（destroy）也复原：面板退出/禁用在收栏态时账不悬空（还原路径①扩展）', () => {
+  it('销窗路径（destroy）也复原：面板退出/禁用都把用户原值还回去（还原路径①扩展）', () => {
     expect(code).toMatch(/restoreTakeoverAutoHide\(log, reason\)/)
     // destroy 内的复原先于会话判空（与 hidNative 还原同一位置纪律——账不随窗生灭）
     const m = code.match(/const destroy = \(reason: string\) => \{[\s\S]{0,600}?restoreTakeoverAutoHide\(log, reason\)/)
@@ -612,6 +409,10 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
     expect(iAppbar).toBeGreaterThanOrEqual(0)
     expect(iShow).toBeGreaterThanOrEqual(0)
     expect(iAppbar).toBeLessThan(iShow)
+  })
+
+  it('注销调用点退役（M1）：destroy/closed 无 removeAppBar（占位登记不复存在）', () => {
+    expect(code).not.toMatch(/removeAppBar/)
   })
 
   it('置位/复原的 RAII 实现单一实现住在 appbar-autohide.ts（记账 + 读回验证 + 退避复原）', () => {
@@ -648,15 +449,15 @@ describe('原生栏托管接线（工单260；效果层离线不可测，以源�
   })
 })
 
-describe('原生栏重申轮询接线（工单262，spec #258；效果层离线不可测，以源码级守卫钉住）', () => {
+describe('原生栏重申轮询接线（工单262，spec #258；工单308 M1 目标态恒置位改钉；效果层离线不可测，以源码级守卫钉住）', () => {
   const CTRL = 'app/src/main/taskbar/window.ts'
   const AUTOHIDE = 'app/src/main/taskbar/appbar-autohide.ts'
   const WATCH = 'app/src/main/taskbar/native-watch.ts'
   const NATIVE = 'app/src/main/taskbar/native.ts'
   const code = codeOf(CTRL)
 
-  it('值守起止随接管生灭（双缺陷复审 Q1/Q2 改段）：create 即建接管并起表、destroy 停表；档位迁移不再起停轮询（普通态的清位同样会被 explorer 重启冲掉）', () => {
-    // 起表与建立接管同处（create），先建接管再起表：重申机器以「刚清位过的当拍事实」立基线
+  it('值守起止随接管生灭（双缺陷复审 Q1/Q2 改段）：create 即建接管并起表、destroy 停表；M1 下轮询与档位迁移彻底无关（无工作区账可派生 want）', () => {
+    // 起表与建立接管同处（create），先建接管再起表：重申机器以「刚置位过的当拍事实」立基线
     const m = code.match(/engageTakeoverAutoHide\(log\)\s*startNativeWatch\(s\)/)
     expect(m).toBeTruthy()
     // 档位迁移里不得再起停轮询（旧「随工作区收栏账起停」语义作废）
@@ -664,7 +465,7 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
     expect(code).not.toMatch(/else stopNativeWatch\(s\)/)
   })
 
-  it('销窗路径（destroy）停表：收栏态下禁用/退役/退出不悬空轮询（同 hidNative 复原的位置纪律）', () => {
+  it('销窗路径（destroy）停表：禁用/退役/退出不悬空轮询（同 hidNative 复原的位置纪律）', () => {
     const m = code.match(/const destroy = \(reason: string\) => \{[\s\S]{0,600}?stopNativeWatch/)
     expect(m).toBeTruthy()
   })
@@ -674,17 +475,17 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
     expect(m).toBeTruthy()
   })
 
-  it('一拍裁决照单执行：hide → hideNativeTaskbar、autoHide 非空 → reassertTakeoverAutoHide、归因落 taskbar-native-reassert 存证；重申写入目标与机器裁决同源同拍（工单292 评审修复轮 F2 两账等价接线）', () => {
+  it('一拍裁决照单执行（M1 单参）：hide → hideNativeTaskbar、autoHide 非空 → reassertTakeoverAutoHide（恒置位）、归因落 taskbar-native-reassert 存证', () => {
     expect(code).toMatch(/if \(decision\.hide\) hideNativeTaskbar\(log\)/)
-    // F2：执行面不自持第二份档位账——重申的写入目标传当拍 want（与机器 poll 同一拍、
-    // 同一份工作区收栏账取，同源同段代码）
-    expect(code).toMatch(/if \(decision\.autoHide !== null\) reassertTakeoverAutoHide\(log, s\.workspaceRetracted\)/)
-    const pollLine = code.indexOf("s.nativeWatch?.machine.poll(probe, s.workspaceRetracted ? 'autohide-on' : 'autohide-off')")
-    const reassertLine = code.indexOf('reassertTakeoverAutoHide(log, s.workspaceRetracted)')
-    expect(pollLine).toBeGreaterThanOrEqual(0)
-    expect(reassertLine).toBeGreaterThan(pollLine)
-    // 目标档位随工作区收栏账（在账 = 置位、账清 = 清位）
-    expect(code).toMatch(/s\.workspaceRetracted \? 'autohide-on' : 'autohide-off'/)
+    // M1：执行面无第二份档位账——重申恒置位，目标态唯一
+    expect(code).toMatch(/if \(decision\.autoHide !== null\) reassertTakeoverAutoHide\(log\)/)
+    expect(code).not.toMatch(/reassertTakeoverAutoHide\(log,/)
+    // 目标态恒 autohide-on：机器 poll 单参（want 随接口退役），'autohide-off' 全 src 零残留
+    expect(code).toMatch(/machine\.poll\(probe\)/)
+    for (const rel of SRC_FILES) {
+      expect(codeOf(rel).includes('autohide-off'), `${rel} 残留 autohide-off 支`).toBe(false)
+      expect(codeOf(rel).includes('NativeWatchWant'), `${rel} 残留 NativeWatchWant`).toBe(false)
+    }
     expect(code).toMatch(/'taskbar-native-reassert'/)
   })
 
@@ -693,14 +494,24 @@ describe('原生栏重申轮询接线（工单262，spec #258；效果层离线�
     expect(srcOf(WATCH)).toMatch(/export const NATIVE_WATCH_POLL_MS = 1000/)
   })
 
-  it('重申住在 appbar-autohide.ts：账不动（不新记 userState），写入目标随调用方 want 派生并把账面档位对齐（工单292 评审修复轮 F2 两账等价收口），无账按完整接管走', () => {
+  it('重申住在 appbar-autohide.ts（M1 恒置位形态）：账不动（不新记 userState）、写入目标恒 retractAutoHideState、无档位字段', () => {
     const src = codeOf(AUTOHIDE)
-    expect(src).toMatch(/export function reassertTakeoverAutoHide\(\s*log: EventLog \| null,\s*retracted: boolean\s*\)/)
-    // 目标值仍从账面 userState 派生（置位档 / 清位档两条都由纯函数给出），档位由 want 入参裁决
-    expect(src).toMatch(/retracted \? retractAutoHideState\(e\.userState\) : normalBarAutoHideState\(e\.userState\)/)
-    // 分叉拍账面档位以 want 为准回写对齐（不对齐则后续 enter/clear 幂等早退按错档空转）
-    expect(src).toMatch(/e\.mode = retracted \? 'retracted' : 'normal'/)
+    expect(src).toMatch(/export function reassertTakeoverAutoHide\(\s*log: EventLog \| null,\s*\)/)
+    // 目标值恒从账面 userState 派生（置位目标唯一）
+    expect(src).toMatch(/writeAndRead\(retractAutoHideState\(e\.userState\)\)/)
     expect(src).toMatch(/engageTakeoverAutoHide\(log\)/) // 无账的恢复路径
+    // M1 收紧：无 enter/clear、无档位账、无清位目标
+    expect(src).not.toMatch(/enterRetractAutoHide|clearRetractAutoHide|TakeoverAutoHideMode|normalBarAutoHideState/)
+    expect(src).not.toMatch(/e\.mode/)
+  })
+
+  it('engage 置位形态（M1 行为变化核心）：接管建立压 retractAutoHideState 目标，读回裁决落 set/-set-failed（复用收栏置位事件族——50 电池 A 相位前置与 51 电池谓词最小改写）', () => {
+    const src = codeOf(AUTOHIDE)
+    expect(src).toMatch(/writeAndRead\(retractAutoHideState\(userState\)\)/)
+    expect(src).toMatch(/'taskbar-autohide-set'/)
+    expect(src).toMatch(/'taskbar-autohide-set-failed'/)
+    // 旧「接管即清位」事件形态零残留
+    expect(src).not.toMatch(/taskbar-autohide-cleared|taskbar-autohide-clear-failed/)
   })
 
   it('观察面一次采齐：句柄+可见性走 native.ts 单一来源（nativeTaskbarView），置位读回走 getAppBarState', () => {
@@ -724,7 +535,7 @@ describe('分屏会话接线（工单269，spec #267；效果层离线不可测�
 
   it('会话事实喂进三态裁决：控制器在收栏轮询接缝上调分屏探针并传 snapSessionActive（spec 决策 3）', () => {
     expect(code).toMatch(/snapSessionActive:\s*snap\.active/)
-    // 探针调用与轮询同缝（barInput 装配段内——工单271 起档位与理由持有同源消费），主屏会话按显示器参数裁决
+    // 探针调用与轮询同缝（barInput 装配段内），主屏会话按显示器参数裁决
     const m = code.match(/const snap = [^\n]*\n[\s\S]{0,800}?resolveBarMode\(barInput\)/)
     expect(m).toBeTruthy()
     // 工单270：控制器收成员集合（snapSessionMembers，会话=成员非空），不再只折布尔
@@ -799,8 +610,7 @@ describe('分屏会话集合生命周期接线（工单270，spec #267；效果�
 
   it('会话翻转存证带结束因果与理由接续（spec 决策 14 可观测）：cause / retractHeldByZoomed 字段落进 taskbar-snap-session', () => {
     expect(code).toMatch(/cause:\s*snap\.flip\.cause/)
-    // retractHeldByZoomed 取 retractReasonHeld 的 zoomed 分量（工单271 评审收口⑤）——
-    // 不再取 mode === 'maximize-retract'（浮层 prevMode 保持拍会把「无理由持有」误记成 zoomed 接续）
+    // retractHeldByZoomed 是收栏理由三谓词族在 M1 的唯一幸存者（zoomed 分量存证用）
     expect(code).toMatch(/retractHeldByZoomed:\s*retractHeldByZoomed\(barInput\)/)
     expect(code).not.toMatch(/retractHeldByZoomed:\s*mode\s*===/)
     // 存证落在档位裁决之后（理由接续读得到当拍档位）
@@ -848,67 +658,38 @@ describe('枚举/FFI 面双写防漂移守卫（工单271 评审收口④：单�
   })
 })
 
-describe('全屏让位与分屏会话解耦接线（工单271，spec #267；效果层离线不可测，以源码级守卫钉住）', () => {
+describe('收栏理由谓词族 M1 收口（工单271 解耦的退役面 + 保留面，工单308）', () => {
   const CTRL = 'app/src/main/taskbar/window.ts'
   const FWD = 'app/src/main/taskbar/retract.ts'
   const code = codeOf(CTRL)
 
-  it('理由持有裁决单一实现住在 shared/retract.ts（retractReasonHeld / retractGateDisqualified / retractHeldByZoomed），主进程侧经转发导出（同工单237 纪律）', () => {
+  it('zoomed 分量裁决单一实现住在 shared/retract.ts（retractHeldByZoomed），主进程侧经转发导出；工作区面两谓词（retractReasonHeld/retractGateDisqualified）全 src 零残留', () => {
     const hits: string[] = []
     for (const rel of SRC_FILES) {
       if (/export\s+function\s+(retractReasonHeld|retractGateDisqualified|retractHeldByZoomed)\b/.test(srcOf(rel))) hits.push(rel)
     }
     expect(hits).toEqual(['app/src/shared/retract.ts'])
-    expect(srcOf(FWD)).toMatch(/\bretractReasonHeld\b/)
-    expect(srcOf(FWD)).toMatch(/\bretractGateDisqualified\b/)
+    for (const rel of SRC_FILES) {
+      const c = codeOf(rel)
+      expect(c.includes('retractReasonHeld'), `${rel} 残留 retractReasonHeld`).toBe(false)
+      expect(c.includes('retractGateDisqualified'), `${rel} 残留 retractGateDisqualified`).toBe(false)
+    }
     expect(srcOf(FWD)).toMatch(/\bretractHeldByZoomed\b/)
-    // 控制器不自算理由（pid/类名/zoomed 组合裁决不进效果层）
-    expect(code).toMatch(/retractReasonHeld\(/)
+    // 控制器不自算理由（pid/类名/zoomed 组合裁决不进效果层）——只经谓词取分屏存证分量
+    expect(code).toMatch(/retractHeldByZoomed\(barInput\)/)
     // 不自己拿真最大化位做裁决（只允许进存证载荷——同工单241 组的判据形态）
     expect(code).not.toMatch(/if\s*\(\s*probe\.zoomed/)
     expect(code).not.toMatch(/probe\.zoomed\s*===/)
   })
 
-  it('同缝装配：裁决输入对象装配一次，resolveBarMode 与 retractReasonHeld 同源消费（不另采一套事实）', () => {
-    const m = code.match(/const barInput = \{[\s\S]{0,700}?resolveBarMode\(barInput\)[\s\S]{0,200}?retractReasonHeld\(barInput\)/)
+  it('同缝装配：裁决输入对象装配一次，resolveBarMode 单点消费（工作区理由的同源消费随工作区面退役）', () => {
+    const m = code.match(/const barInput = \{[\s\S]{0,700}?resolveBarMode\(barInput\)/)
     expect(m).toBeTruthy()
     // 工单269/253 既有输入位逐字保留（改装配不丢位）
     expect(code).toMatch(/snapSessionActive:\s*snap\.active/)
     expect(code).toMatch(/prevMode:\s*s\.mode/)
     expect(code).toMatch(/ownOverlayPresent:\s*openOverlayFamilies\.size > 0/)
-  })
-
-  it('迁移计划带解耦上下文：applyBarMode 以账面 + 理由持有 + 闸门失格调 planBarTransition（两参旧调用不得残留）', () => {
-    expect(code).toMatch(/planBarTransition\(\s*prev,\s*next,\s*\{[\s\S]{0,200}?\}\s*\)/)
-    expect(code).not.toMatch(/planBarTransition\(\s*prev,\s*next\s*\)/)
-    expect(code).toMatch(/workspaceRetracted:\s*s\.workspaceRetracted/)
-    expect(code).toMatch(/retractHeld/)
-    // 闸门失格位进计划上下文（同态让位拍交割的裁决输入——工单271 评审收口②）
-    expect(code).toMatch(/gateDisqualified/)
-    expect(code).toMatch(/retractGateDisqualified\(barInput\)/)
-  })
-
-  it('工作区账面是会话字段：建账 false、随迁移以计划产出原样落账、轮询停摆即清账（单一所有权）', () => {
-    expect(code).toMatch(/workspaceRetracted: false/)
-    // 账面推进的唯一落账式：plan.targetWorkspaceRetracted 原样落账（工单271 评审收口①）
-    expect(code).toMatch(/s\.workspaceRetracted = plan\.targetWorkspaceRetracted/)
-    // 效果层无第二份推进公式（旧写法「= next === 'maximize-retract' || …」不得残留——
-    // 该公式与纯函数 wantRetracted 的 fullscreen-yield 子句不同形，漂移可静默通过全部离线测试）
-    expect(code).not.toMatch(/s\.workspaceRetracted\s*=\s*next\b/)
-    // 单一公式钉在纯函数本体（wantRetracted 的两支全在守卫射程内）
-    const planSrc = srcOf('app/src/shared/retract.ts')
-    expect(planSrc).toMatch(/const wantRetracted = next === 'maximize-retract'/)
-    expect(planSrc).toMatch(/\|\| \(next === 'fullscreen-yield' && prev === 'maximize-retract' && retractHeld\)/)
-    // 同态早退认计划（零存证零交割才退——闸门失格的同态交割拍带 retract-lifted 不得早退）
-    expect(code).toMatch(/if \(prev === next && plan\.evidence\.length === 0\) return/)
-    // stopYieldPoll（destroy/closed 共用）清账——账随轮询生灭，不悬空
-    const m = code.match(/const stopYieldPoll = \(s: TaskbarSession\) => \{[\s\S]{0,400}?\}/)
-    expect(m?.[0]).toMatch(/workspaceRetracted = false/)
-  })
-
-  it('重申轮询守门：拆场即返回（档位不再作为守门——普通档同样值守，目标由工作区收栏账派生）', () => {
-    expect(code).toMatch(/const pollNativeWatch = \(\): void => \{[\s\S]{0,400}?if \(!s \|\| s\.win\.isDestroyed\(\)\) return/)
-    // 旧「非收栏账不值守」的守门必须已撤（否则普通态清位被 explorer 冲掉后无人压回）
-    expect(code).not.toMatch(/!s\.workspaceRetracted\) return/)
+    // M1：降级位不再是裁决输入（占位链退役）
+    expect(code).not.toMatch(/appBarDegraded/)
   })
 })
