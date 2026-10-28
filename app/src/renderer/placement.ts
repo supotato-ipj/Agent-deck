@@ -84,6 +84,21 @@ export function boxOfSlot(slot: CardSlot, size: { w: number; h: number }, area: 
   return { x: area.x + slot.col * GRID_PX, y: area.y + slot.row * GRID_PX, w: size.w, h: size.h }
 }
 
+/** 组卡展开态：以折叠位中心放大到 640×980，越界夹取进可用区（临时模态，不写存储） */
+export function expandedBoxOf(slot: CardSlot, area: Box): Box {
+  const base = boxOfSlot(slot, GROUP_COLLAPSED, area)
+  const centered = {
+    x: base.x + (GROUP_COLLAPSED.w - GROUP_EXPANDED.w) / 2,
+    y: base.y + (GROUP_COLLAPSED.h - GROUP_EXPANDED.h) / 2,
+  }
+  return {
+    x: Math.min(Math.max(area.x, centered.x), area.x + Math.max(0, area.w - GROUP_EXPANDED.w)),
+    y: Math.min(Math.max(area.y, centered.y), area.y + Math.max(0, area.h - GROUP_EXPANDED.h)),
+    w: GROUP_EXPANDED.w,
+    h: GROUP_EXPANDED.h,
+  }
+}
+
 /** 格点夹取进可用区（分辨率缩小后手定位保留、裁回可用范围） */
 export function clampSlot(slot: CardSlot, size: { w: number; h: number }, area: Box): CardSlot {
   const maxCol = Math.max(0, Math.floor((area.w - size.w) / GRID_PX))
@@ -222,13 +237,11 @@ export interface PlacementHost {
   sync(input: PlacementSyncInput): void
   /** 手势进行中（热区保持全窗） */
   dragging(): boolean
-  /** 摆位模式中（热区 id） */
-  activeHotzoneId(): string | null
   /** 长按计时中且按在文档区上（body 级框选让位：长按拖文档区不触发框选） */
   armedOnDocZone(): boolean
   /** 恢复出厂：清掉冻结的组卡默认位 */
   resetFrozen(): void
-  /** 落位后重算（插件展开/收起、搜索态切换由 MutationObserver 自动触发） */
+  /** 落位后重算（插件展开/收起、搜索态切换、尺寸变化经显式信号/ResizeObserver 触发） */
   refresh(): void
 }
 
@@ -250,8 +263,11 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
   let scheduled = false
   let lastRenderedKey = ''
   let disposed = false
+  let resizeObserver: ResizeObserver | null = null
   let generatedSeq = 0
   let lastDraggedId: string | null = null
+  /** 下一拍是否对手定位做相撞消解（启动与面板尺寸变化；内容增长不触发，#317/#318） */
+  let resolveHand = true
   const rejectedNotice = new Set<string>()
 
   const viewport = () => ({ w: window.innerWidth, h: window.innerHeight })
@@ -316,7 +332,6 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
     for (const el of nodes) {
       if (EXEMPT_IDS.has(el.id)) continue
       if (el.dataset.placementExempt !== undefined) continue
-      if (el.id === 'settings-card' || el.id === 'trash-confirm') continue
       const r = el.getBoundingClientRect()
       if (r.width < 1 || r.height < 1) continue // 隐藏浮层/收起卡不登记、不占位
       let id = el.dataset.cardId ?? ''
@@ -330,6 +345,9 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
         }
       }
       out.push({ id, el, group: isGroupCard(el) })
+      // 尺寸跟踪（#315）：插件重排/内容变化改的是元素框，ResizeObserver 立即补一拍；
+      // 宿主自己写尺寸不会再触发（值未变），不会形成观察-回写回环。
+      observeSize(el)
     }
     return out
   }
@@ -489,20 +507,37 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       const all = [...next.values()]
       const reserved = new Set<string>()
       const occupied: Box[] = []
-      // 手定位先占：用户摆过的卡位置最优先，不被默认位挤走
+      const resolve = resolveHand
+      resolveHand = false
+      // 手定位先占：用户摆过的卡位置最优先，不被默认位挤走。
+      // 相撞消解只在启动与面板尺寸变化时做——文档区内容增长等尺寸变化造成的相交是**接受**的
+      // （spec #317/#318：不把任何一张已摆好的卡自动推开）。
       for (const st of all) {
         if (!st.hand) continue
         let slot = st.baseSlot
         let box = boxOfSlot(slot, st.baseSize, area)
-        if (occupied.some((o) => intersects(o, box))) {
+        // 相撞消解：面板尺寸变化轮统一做；此外任何一张手定位在本次夹取中**被改动**
+        // （如启动时越界、面板缩小后出界）也要做——插件异步挂载会分多拍到达，
+        // 不能只靠第一拍的 resolveHand 旗标（真机实证：300×300 下第二张到得晚、旗标已消费）。
+        const stored = handCards[st.id]
+        const clampChanged = !!stored && (stored.col !== slot.col || stored.row !== slot.row)
+        if ((resolve || clampChanged) && occupied.some((o) => intersects(o, box))) {
           const free = nearestFreeSlot(slot, st.baseSize, occupied, area)
-          if (!free) { st.rejected = true; continue }
-          slot = free
-          st.baseSlot = slot
-          st.slot = slot
-          st.rect = boxOfSlot(slot, st.baseSize, area)
-          box = st.rect
-          deps.notify('placement-clamped', { id: st.id, reason: 'collision' })
+          if (free) {
+            slot = free
+            st.baseSlot = slot
+            st.slot = slot
+            st.rect = boxOfSlot(slot, st.baseSize, area)
+            box = st.rect
+            deps.notify('placement-clamped', { id: st.id, reason: 'collision' })
+          } else {
+            // 仍无位：停靠首个可用位并落诊断，不静默重叠（#318）
+            st.baseSlot = { col: 0, row: 0 }
+            st.slot = st.baseSlot
+            st.rect = boxOfSlot(st.baseSlot, st.baseSize, area)
+            box = st.rect
+            deps.notify('placement-overlap-accepted', { id: st.id, reason: 'no-space' })
+          }
         }
         occupied.push(box)
         reserved.add(st.id)
@@ -513,8 +548,22 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
           if (reserved.has(st.id) || st.hand) continue
           if (st.group !== pass) continue
           const preferred = st.baseSlot
-          const free = nearestFreeSlot(preferred, st.baseSize, occupied, area)
+          // 文档区内容增长（宽度封顶、高度随内容）不触发自动避让：非尺寸变化轮固定在默认位，
+          // 压到别家就接受相交（#317）。面板尺寸变化轮才按常规夹取/找空位（#318）。
+          const keepDoc = st.id === 'doc-zone' && !resolve
+          const free = keepDoc ? preferred : nearestFreeSlot(preferred, st.baseSize, occupied, area)
           if (!free) {
+            // #318：尺寸变化轮里的既有卡（上一拍在场）无空位 → 停靠首个可用位并落诊断，
+            // 不静默重叠也不丢失；新建卡仍按「无空位拒绝创建」处理。
+            if (resolve && prev.has(st.id)) {
+              st.baseSlot = { col: 0, row: 0 }
+              st.slot = st.baseSlot
+              st.rect = boxOfSlot(st.baseSlot, st.baseSize, area)
+              deps.notify('placement-overlap-accepted', { id: st.id, reason: 'no-space' })
+              occupied.push(st.rect)
+              reserved.add(st.id)
+              continue
+            }
             st.rejected = true
             if (!rejectedNotice.has(st.id)) {
               rejectedNotice.add(st.id)
@@ -548,20 +597,19 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
         let box = boxOfSlot(st.baseSlot, st.baseSize, area)
         if (st.expanded) {
           // 展开是临时模态：不写手定位，保中心放大、越界夹取
+          box = expandedBoxOf(st.baseSlot, area)
+          const base = boxOfSlot(st.baseSlot, st.baseSize, area)
           const centered = {
-            x: box.x + (GROUP_COLLAPSED.w - GROUP_EXPANDED.w) / 2,
-            y: box.y + (GROUP_COLLAPSED.h - GROUP_EXPANDED.h) / 2,
+            x: base.x + (GROUP_COLLAPSED.w - GROUP_EXPANDED.w) / 2,
+            y: base.y + (GROUP_COLLAPSED.h - GROUP_EXPANDED.h) / 2,
           }
-          const clampedX = Math.min(Math.max(area.x, centered.x), area.x + Math.max(0, area.w - GROUP_EXPANDED.w))
-          const clampedY = Math.min(Math.max(area.y, centered.y), area.y + Math.max(0, area.h - GROUP_EXPANDED.h))
-          box = { x: clampedX, y: clampedY, w: GROUP_EXPANDED.w, h: GROUP_EXPANDED.h }
           st.size = { ...GROUP_EXPANDED }
           st.rect = box
           st.slot = st.baseSlot
           apply(st.el, box, st.size, st)
           if (!prev.get(st.id)?.expanded) {
             deps.notify('placement-expanded', {
-              id: st.id, clamped: clampedX !== centered.x || clampedY !== centered.y,
+              id: st.id, clamped: box.x !== centered.x || box.y !== centered.y,
               rect: { x: box.x, y: box.y, w: box.w, h: box.h },
             })
           }
@@ -635,6 +683,11 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       if (disposed) return
       sync({ cards: currentHandSnapshot(), docZone: docZoneCfg })
     })
+  }
+
+  /** 尺寸变化的即时侦听（#315）：同一元素重复 observe 幂等。 */
+  function observeSize(el: HTMLElement): void {
+    resizeObserver?.observe(el)
   }
 
   function currentHandSnapshot(): Record<string, CardSlot> {
@@ -719,18 +772,7 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
 
   /** 视觉落位盒：组卡展开态按基准格点推「保中心 + 夹取」后的矩形；其余按格点尺寸 */
   function visualBoxOf(st: CardState, slot: CardSlot): Box {
-    if (!st.expanded) return boxOfSlot(slot, st.baseSize, area)
-    const base = boxOfSlot(slot, st.baseSize, area)
-    const centered = {
-      x: base.x + (GROUP_COLLAPSED.w - GROUP_EXPANDED.w) / 2,
-      y: base.y + (GROUP_COLLAPSED.h - GROUP_EXPANDED.h) / 2,
-    }
-    return {
-      x: Math.min(Math.max(area.x, centered.x), area.x + Math.max(0, area.w - GROUP_EXPANDED.w)),
-      y: Math.min(Math.max(area.y, centered.y), area.y + Math.max(0, area.h - GROUP_EXPANDED.h)),
-      w: GROUP_EXPANDED.w,
-      h: GROUP_EXPANDED.h,
-    }
+    return st.expanded ? expandedBoxOf(slot, area) : boxOfSlot(slot, st.baseSize, area)
   }
 
   function settle(success: boolean, reason: 'placed' | 'rebound' | 'cancel' | 'zero'): void {
@@ -912,7 +954,8 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
   function onResize(): void {
     area = usableAreaOf(window.innerWidth, window.innerHeight)
     updateOverlays()
-    // 分辨率/面板尺寸变化：手定位保留并夹取进可用区；相撞的卡挪最近空位
+    // 分辨率/面板尺寸变化：手定位保留并夹取进可用区；相撞的卡挪最近空位（#318）
+    resolveHand = true
     schedule()
     deps.notify('placement-viewport', { area: { ...area } })
   }
@@ -923,6 +966,9 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
     // 是「同步 → 写 DOM → 再同步」空转的典型成因（真机首轮实证：渲染层被钉死）。
     // 插件卡据此知道自己不是位置的所有者（doc-group-cards 的布局计算改走 data-placement-auto-*）。
     document.documentElement.dataset.placementHost = 'grid'
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => schedule())
+    }
     window.addEventListener('resize', onResize)
     window.addEventListener('blur', onBlur)
     document.addEventListener('pointerdown', onPointerDownCapture, true)
@@ -939,7 +985,6 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
   return {
     sync,
     dragging: () => press?.mode === 'drag',
-    activeHotzoneId: () => (press?.mode === 'drag' ? 'placement' : null),
     armedOnDocZone: () => press !== null && press.id === 'doc-zone',
     resetFrozen() {
       frozen = false
@@ -950,6 +995,8 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
     refresh: () => sync({ cards: currentHandSnapshot(), docZone: docZoneCfg }),
     dispose() {
       disposed = true
+      resizeObserver?.disconnect()
+      resizeObserver = null
       window.removeEventListener('resize', onResize)
       window.removeEventListener('blur', onBlur)
       document.removeEventListener('pointerdown', onPointerDownCapture, true)
