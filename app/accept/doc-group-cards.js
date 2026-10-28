@@ -143,8 +143,8 @@ const EXPR = {
     return { display: z.style.display, w: r.width, h: r.height, ditem: z.querySelectorAll('.ditem').length,
       visible: getComputedStyle(z).display !== 'none' }; })()`,
   pluginMounted: `(() => {
-    const c = document.querySelector('.deck-plugin[data-plugin-id="doc-group-cards"]');
-    return { container: !!c, style: !!document.getElementById('dgc-style'),
+    const cs = document.querySelectorAll('.deck-plugin[data-plugin-id="doc-group-cards"]');
+    return { container: cs.length > 0, count: cs.length, style: !!document.getElementById('dgc-style'),
       pluginConfig: !!(window.deck && window.deck.bridge) }; })()`,
   hotzoneCard: (id) => `(() => { const r = document.getElementById(${JSON.stringify(id)});
     if (!r) return null; const b = r.getBoundingClientRect();
@@ -598,6 +598,22 @@ async function openGroupMenuAt(cardId) {
   return { menu: null, ev: null, retries: 2 };
 }
 
+/** 开文件菜单（图标格右键）：工单310 宿主持有位置后，重命名等写操作会触发整排重画
+ *  （卡节点换代）；旧坐标/旧节点上的一击会整笔落空。故每次现量现点，未开层再等一拍重试。 */
+async function openCellMenuAt(cardId, fileName) {
+  await closeMenu();
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const c = await cardProbe(cardId);
+    const cell = c && c.cells.find((x) => path.basename(x.path) === fileName);
+    if (!cell) return { menu: null, attempt };
+    await clickAt(centerOf(cell), 'right');
+    const menu = await until(() => cdpEval(EXPR.menu), 4000, 150);
+    if (menu) return { menu, attempt };
+    await sleep(900); // 让整排重建落定后再试
+  }
+  return { menu: null, attempt: 2 };
+}
+
 // 工单212：末拍口径（正典 readEvents().filter(...).pop()）→ 磁带 latest
 const lastHotzones = () => tape.latest('hotzones');
 const rectEq = (a, b, tol = 1) => !!a && !!b && Math.abs(a.x - b.x) <= tol && Math.abs(a.y - b.y) <= tol
@@ -724,17 +740,18 @@ async function main() {
       const centerOff = Math.abs(rowCenter - vp.w / 2);
       const ids = cards.map((c) => c.id);
       const uniq = new Set(ids).size === ids.length;
-      const yOk = cards.every((c) => Math.abs((c.y + c.h / 2) - vp.h / 2) <= 1);
+      const yOk = cards.every((c) => Math.abs((c.y + c.h / 2) - vp.h / 2) <= 24);
       const orderOk = ids.every((id, i) => i === 0 || cards[i - 1].x <= cards[i].x);
+      const gridAligned = cards.every((c) => c.x % 20 === 0 && c.y % 20 === 0);
       const txtCard = cards.find((c) => c.id === 'dgc-txt');
       const pdfCard = cards.find((c) => c.id === 'dgc-pdf');
       const zipCard = cards.find((c) => c.id === 'dgc-zip');
       cards.length >= 3 && txtCard && pdfCard && zipCard
         ? rep.pass(`整排在场：${cards.length} 张卡（${ids.join(', ')}），卡 id 全表唯一=${uniq}`)
         : rep.fail(`整排异常：ids=${JSON.stringify(ids)} txt=${!!txtCard} pdf=${!!pdfCard} zip=${!!zipCard}`);
-      centerOff <= 1 && yOk && orderOk && uniq
-        ? rep.pass(`整排几何：水平居中偏差 ${centerOff.toFixed(2)}px（≤1），逐卡垂直居中偏差 ≤1，左到右序递增，id 唯一`)
-        : rep.fail(`整排几何：居中偏差=${centerOff.toFixed(2)} 垂直居中=${yOk} 序递增=${orderOk} id唯一=${uniq}`);
+      centerOff <= 24 && yOk && orderOk && uniq && gridAligned
+        ? rep.pass(`整排几何（工单310 宿主持有位置）：水平居中偏差 ${centerOff.toFixed(2)}px（≤24，20px 格点量化残差），逐卡垂直居中偏差 ≤24，四边对齐 20px 格线，左到右序递增，id 唯一`)
+        : rep.fail(`整排几何：居中偏差=${centerOff.toFixed(2)} 垂直居中=${yOk} 格点对齐=${gridAligned} 序递增=${orderOk} id唯一=${uniq}`);
       // 组序稳定：表内扩展名按 EXT_GROUP_ORDER、表外统一按字母序兜底（grouping.js sortGroupKeys 同款排法）
       const order = fs.readFileSync(path.join(APP_ROOT, 'plugins', 'doc-group-cards', 'grouping.js'), 'utf8');
       const table = (order.match(/EXT_GROUP_ORDER\s*=\s*\[([\s\S]*?)\]/) || [])[1] || '';
@@ -771,18 +788,18 @@ async function main() {
         : rep.fail(`+N 徽标异常：徽标=${JSON.stringify(c0 && c0.moreText)} 期望=${JSON.stringify(expectBadge)}`);
       await captureRect(c0, '187-p180-collapsed');
 
-      // 展开：2 倍宽 4 倍高 + 其余卡淡出 + 按自身高度重新垂直居中 + 热区立刻重申报
+      // 展开（工单310 起宿主持有位置）：640×980 保折叠位中心放大（越界夹取）+ 其余卡淡出 + 热区立刻重申报
       const txtCardBlank = c0 ? { x: c0.x + 8, y: c0.y + c0.h / 2 } : null; // 卡内 20px 内边距条 = 空白处
       await clickAt(txtCardBlank);
       const c1 = await until(async () => { const c = await cardProbe('dgc-txt'); return c && c.expanded ? c : null; }, 5000, 120);
-      const vp = await cdpEval(EXPR.viewport);
       const others = (await cdpEval(EXPR.cards)).filter((c) => c.id !== 'dgc-txt');
-      const geoOk = c1 && Math.abs(c1.w - c0.w * 2) <= 1 && Math.abs(c1.h - c0.h * 4) <= 1;
-      const recenter = c1 && Math.abs((c1.y + c1.h / 2) - vp.h / 2) <= 1;
+      const geoOk = c1 && c1.w === 640 && c1.h === 980;
+      const centerKept = c1 && Math.abs((c1.x + c1.w / 2) - (c0.x + c0.w / 2)) <= 1
+        && Math.abs((c1.y + c1.h / 2) - (c0.y + c0.h / 2)) <= 1;
       const fadedOk = others.length > 0 && others.every((c) => c.faded);
-      geoOk && recenter && fadedOk
-        ? rep.pass(`展开态 2×/4×：${Math.round(c0.w)}×${Math.round(c0.h)} → ${Math.round(c1.w)}×${Math.round(c1.h)}，垂直重新居中偏差 ${Math.abs((c1.y + c1.h / 2) - vp.h / 2).toFixed(2)}px，其余 ${others.length} 张卡淡出`)
-        : rep.fail(`展开态异常：几何2x4x=${geoOk} 重新居中=${recenter}（偏差 ${c1 ? Math.abs((c1.y + c1.h / 2) - vp.h / 2).toFixed(2) : 'n/a'}）其余淡出=${fadedOk}`);
+      geoOk && centerKept && fadedOk
+        ? rep.pass(`展开态 640×980（2×宽 / 约4×高）：${Math.round(c0.w)}×${Math.round(c0.h)} → ${Math.round(c1.w)}×${Math.round(c1.h)}，保折叠位中心放大（偏差 ${Math.abs((c1.x + c1.w / 2) - (c0.x + c0.w / 2)).toFixed(2)}/${Math.abs((c1.y + c1.h / 2) - (c0.y + c0.h / 2)).toFixed(2)}px），其余 ${others.length} 张卡淡出`)
+        : rep.fail(`展开态异常：几何 640×980=${geoOk}（实得 ${c1 && c1.w}×${c1 && c1.h}）保中心=${centerKept} 其余淡出=${fadedOk}`);
       const otherId = others.length ? others[0].id : '';
       const pdfProbe = otherId ? await cdpEval(cardExpr(otherId)) : null;
       pdfProbe && pdfProbe.faded && Number(pdfProbe.opacity) <= 0.1 && pdfProbe.pointerEvents === 'none'
@@ -793,6 +810,7 @@ async function main() {
       rectEq(hzCard, c1, 1.5)
         ? rep.pass(`热区重申报：展开后最新热区矩形与 DOM 矩形互证一致（${JSON.stringify(hzCard)}）——新露出的那圈立即可点`)
         : rep.fail(`热区未跟上：热区=${JSON.stringify(hzCard)} DOM=${JSON.stringify(c1 && { x: c1.x, y: c1.y, w: c1.w, h: c1.h })}`);
+      const vp = await cdpEval(EXPR.viewport);
       await captureRect({ x: c1.x, y: Math.max(0, c1.y), w: c1.w, h: Math.min(c1.h, vp.h - c1.y) }, '187-p180-expanded');
 
       // 新露出的第 7 格（折叠态被裁掉、展开态可见）立刻可点 → 高亮出现
@@ -877,6 +895,7 @@ async function main() {
     // ===== P181 · 工单181 卡级交互（高亮不改形状 / 空白切折叠 / 徽标同裁决 / 双击启动）=
     rep.beginSegment('P181');
     {
+      await rowStable(); // 工单310：宿主位置在 1Hz 对齐；点前等整排稳定（坐标与卡框同拍）
       await ensureCollapsed('dgc-txt'); // 折叠切换顺带清高亮，段首拿回干净起点
       const before = await cardProbe('dgc-txt');
       const cell0 = before && before.cells[0];
@@ -1020,35 +1039,36 @@ async function main() {
       // DELETE：确认层 → 取消不动 → 再开 → 确认真删
       const delName = `${DESKTOP_PREFIX}del1.txt`;
       if (desktopHas(desktop, delName)) {
-        const cc = await cardProbe('dgc-txt');
-        const target = cc.cells.find((x) => path.basename(x.path) === delName);
+        // 工单310：宿主持有位置后整排会在 1Hz 快照/重绘间对齐；点前等排稳，右键现量现点
+        await rowStable();
         const tDel = Date.now();
-        await clickAt(centerOf(target), 'right');
-        const m2 = await until(() => cdpEval(EXPR.menu), 6000, 150);
-        await clickAt(rowPoint(m2, 'delete'));
+        const firstMenu = await openCellMenuAt('dgc-txt', delName);
+        if (!firstMenu.menu) {
+          rep.fail(`DELETE 前置失败：文件菜单两次均未开（卡 ${delName} 未命中/整排仍在重画）`);
+        } else {
+        await clickAt(rowPoint(firstMenu.menu, 'delete'));
         const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150);
         const evConfirm = await tape.wait('doc-group-cards-confirm-opened', undefined, { since: tDel, timeoutMs: 4000 });
         cf && evConfirm
           ? rep.pass(`DELETE 带确认层：确认框在场（文案「${String(cf.text).slice(0, 40)}」），不确认不动磁盘`)
-          : rep.fail(`DELETE 确认层异常：confirm=${!!cf} event=${!!evConfirm}`);
+          : rep.fail(`DELETE 确认层异常：confirm=${!!cf} event=${!!evConfirm}（菜单开层=${!!firstMenu.menu} 第 ${firstMenu.attempt} 次）`);
         if (cf && cf.cancel) {
           await clickAt(centerOf(cf.cancel));
           await sleep(600);
           rep.note(`取消分支：文件仍在原处=${desktopHas(desktop, delName)}`);
         }
         // 再来一次，这次确认
-        const cc2 = await cardProbe('dgc-txt');
-        const target2 = cc2.cells.find((x) => path.basename(x.path) === delName);
-        if (target2) {
-          await clickAt(centerOf(target2), 'right');
-          const m3 = await until(() => cdpEval(EXPR.menu), 6000, 150);
-          await clickAt(rowPoint(m3, 'delete'));
+        await rowStable();
+        const secondMenu = await openCellMenuAt('dgc-txt', delName);
+        if (secondMenu.menu) {
+          await clickAt(rowPoint(secondMenu.menu, 'delete'));
           const cf2 = await until(() => cdpEval(EXPR.confirm), 6000, 150);
           if (cf2 && cf2.ok) await clickAt(centerOf(cf2.ok));
           const gone = await until(() => !desktopHas(desktop, delName), 8000, 200);
           gone
             ? rep.pass(`DELETE 确认后真删：${delName} 已不在桌面（desktop/trash 既有契约，回收站直进）`)
             : rep.fail(`DELETE 确认后未删：${delName} 仍在桌面`);
+        }
         }
       } else {
         rep.fail('DELETE 用例夹具缺失：找不到 ' + delName);
@@ -1174,6 +1194,7 @@ async function main() {
         return null;
       }, 8000, 200);
       const tM = Date.now();
+      await rowStable(); // 工单310：宿主位置在 1Hz 对齐，右键前等整排稳定
       const selNow = await cardProbe('dgc-pdf');
       await clickAt(centerOf(selNow.cells[0]), 'right');
       const mm = await until(() => cdpEval(EXPR.menu), 6000, 150);
@@ -1545,7 +1566,7 @@ async function main() {
       const band = hz && (hz.rects || []).find((r) => r.id === 'doc-zone');
       unmounted && zone && cards.length === 0
         ? rep.pass(`停用交还：插件容器退场，内核文档区原样还原（display=${JSON.stringify(zone.display)}，${zone.ditem} 个 .ditem 回到可见面），组卡一张不剩`)
-        : rep.fail(`停用交还异常：unmounted=${!!unmounted} zone=${JSON.stringify(zone)} 残留组卡=${cards.length}`);
+        : rep.fail(`停用交还异常：unmounted=${!!unmounted} zone=${JSON.stringify(zone)} 残留组卡=${cards.length} mounted=${JSON.stringify(await cdpEval(EXPR.pluginMounted))} zoneRaw=${JSON.stringify(await cdpEval(EXPR.docZone))} errors=${JSON.stringify(await pageErrors())}`);
       zone && zone.w > 0 && band && band.w > 24
         ? rep.pass(`残留热区随之退场：文档区恢复可见后 doc-zone 热区回到真实分区矩形（${band.x},${band.y},${band.w},${band.h}），24×24 那圈只剩插件装载期间存在——这正是本条选择「记录并接受」而非「改内核」的实际代价（代价窗口 = 插件在装期间）`)
         : rep.fail(`停用后热区异常：zone=${JSON.stringify(zone)} band=${JSON.stringify(band)}`);

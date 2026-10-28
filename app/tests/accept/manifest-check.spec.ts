@@ -313,9 +313,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     //   工单271 增段——51 电池 +P14 全屏让位与分屏会话解耦；109 → 110：工单200 增段
     //   ——166 电池 +P200 空临时组卡留屏；110 → 111：工单293 增段——51 电池 +P15
     //   普通态清位与三路径禁现；111 → 114：工单296 增段——50 电池 +A5/A6/A7 普通态
-    //   出发的退场复原对应轮（正常退出/崩溃/强杀）
+    //   出发的退场复原对应轮（正常退出/崩溃/强杀）；114 → 120：工单310 新电池 +P1..P6
+    //   （宿主摆位：长按/吸附/持久化/组卡冻结展开/搜索方向/无空位拒绝）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(114)
+    expect(total).toBe(120)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -382,11 +383,11 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：35 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：36 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(35)
-    expect(manifest.requiredFileRules!.length).toBe(35)
+    expect(fileRules.length).toBe(36)
+    expect(manifest.requiredFileRules!.length).toBe(36)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

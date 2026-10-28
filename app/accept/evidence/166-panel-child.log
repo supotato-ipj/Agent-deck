@@ -428,3 +428,333 @@ deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得�
 [62400:1027/003101.145:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
 deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/93e98215-5b7f-48e1-b041-1b0da62c8503
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[75864:1028/155759.003:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[75864:1028/155759.003:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[75864:1028/155759.004:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[75864:1028/155759.180:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[75864:1028/155759.180:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[75864:1028/155759.180:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[75864:1028/155759.180:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[75864:1028/155759.181:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[75864:1028/155759.181:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/bf636018-b91c-44fd-8adf-0cf8aecc84b3
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[100748:1028/155804.505:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[100748:1028/155804.505:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[100748:1028/155804.505:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[100748:1028/155804.709:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[100748:1028/155804.709:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[100748:1028/155804.709:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[100748:1028/155804.709:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[100748:1028/155804.709:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[100748:1028/155804.709:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e34cf069-a2ce-4852-a9b6-0e832d39896d
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[74704:1028/155903.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[74704:1028/155903.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[74704:1028/155903.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[74704:1028/155903.584:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[74704:1028/155903.584:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[74704:1028/155903.584:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[74704:1028/155903.584:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[74704:1028/155903.585:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[74704:1028/155903.585:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/e7912aa1-d078-4d99-aa95-00b8872c43b9
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[99940:1028/155908.461:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[99940:1028/155908.463:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[99940:1028/155908.464:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[99940:1028/155908.609:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[99940:1028/155908.609:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[99940:1028/155908.613:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[99940:1028/155908.613:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[99940:1028/155908.613:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[99940:1028/155908.613:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/137f2bf6-d890-454a-b1c7-dcfcd76e5d41
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[65324:1028/160138.982:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[65324:1028/160138.984:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[65324:1028/160138.984:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[65324:1028/160139.187:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[65324:1028/160139.187:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[65324:1028/160139.187:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[65324:1028/160139.187:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[65324:1028/160139.187:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[65324:1028/160139.187:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/397d9caf-26d5-4493-a010-068053044e1d
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[47220:1028/160458.862:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[47220:1028/160458.862:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[47220:1028/160458.862:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[47220:1028/160459.072:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[47220:1028/160459.072:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[47220:1028/160459.072:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[47220:1028/160459.072:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[47220:1028/160459.072:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[47220:1028/160459.072:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/50207595-0462-4328-b109-8469ace85138
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[87404:1028/160504.728:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[87404:1028/160504.729:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[87404:1028/160504.730:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[87404:1028/160504.895:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[87404:1028/160504.895:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[87404:1028/160504.896:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[87404:1028/160504.896:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[87404:1028/160504.896:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[87404:1028/160504.896:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/4332cd78-3a40-475d-b51b-d7c5c0faa57b
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[72080:1028/160828.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[72080:1028/160828.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[72080:1028/160828.441:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[72080:1028/160828.604:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[72080:1028/160828.604:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[72080:1028/160828.604:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[72080:1028/160828.604:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[72080:1028/160828.604:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[72080:1028/160828.604:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f08ed790-c5fe-4884-a558-aa71381c4919
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[90164:1028/160834.062:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[90164:1028/160834.063:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[90164:1028/160834.063:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[90164:1028/160834.211:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[90164:1028/160834.211:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[90164:1028/160834.215:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[90164:1028/160834.215:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[90164:1028/160834.215:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[90164:1028/160834.215:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/ce360f48-04af-4361-8ec5-dbb480734732
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[4928:1028/161238.977:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[4928:1028/161238.977:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[4928:1028/161238.977:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[4928:1028/161239.115:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[4928:1028/161239.115:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[4928:1028/161239.115:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[4928:1028/161239.115:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[4928:1028/161239.116:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[4928:1028/161239.116:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/566e78b5-5e99-4bf7-9164-6a9c2b7ea9c7
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[102832:1028/161244.382:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[102832:1028/161244.382:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[102832:1028/161244.382:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[102832:1028/161244.598:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[102832:1028/161244.598:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[102832:1028/161244.598:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[102832:1028/161244.598:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[102832:1028/161244.598:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[102832:1028/161244.598:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/4516b6db-5618-4008-854d-3e2b11c427c4
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[14356:1028/161739.881:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[14356:1028/161739.882:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[14356:1028/161739.882:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[14356:1028/161740.078:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[14356:1028/161740.078:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[14356:1028/161740.082:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[14356:1028/161740.082:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[14356:1028/161740.082:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[14356:1028/161740.082:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/4af59511-ebdb-49e5-9627-0a83282cf792
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[84340:1028/161745.765:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[84340:1028/161745.765:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[84340:1028/161745.765:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[84340:1028/161745.929:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[84340:1028/161745.929:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[84340:1028/161745.929:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[84340:1028/161745.929:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[84340:1028/161745.929:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[84340:1028/161745.929:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/0e124129-7146-4fc2-be1b-3d2a2436918f
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[60192:1028/161927.999:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60192:1028/161928.002:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60192:1028/161928.002:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60192:1028/161928.189:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60192:1028/161928.190:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[60192:1028/161928.190:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60192:1028/161928.190:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[60192:1028/161928.190:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60192:1028/161928.190:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/bb52c8e0-63b8-45be-a967-8b151b43c1a9
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[36144:1028/162332.318:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[36144:1028/162332.318:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[36144:1028/162332.318:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[36144:1028/162332.819:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[36144:1028/162332.820:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[36144:1028/162332.820:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[36144:1028/162332.820:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[36144:1028/162332.820:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[36144:1028/162332.820:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/2aac9258-26af-490a-b0cc-34ffeeb0629b
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[11876:1028/162339.026:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[11876:1028/162339.026:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[11876:1028/162339.026:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[11876:1028/162339.221:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[11876:1028/162339.221:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[11876:1028/162339.221:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[11876:1028/162339.221:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[11876:1028/162339.221:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[11876:1028/162339.221:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/c3c4ffca-ddbc-41e4-98f4-ab70783c3b37
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[41904:1028/162547.523:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41904:1028/162547.527:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41904:1028/162547.527:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41904:1028/162547.672:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41904:1028/162547.672:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41904:1028/162547.678:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41904:1028/162547.678:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41904:1028/162547.678:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41904:1028/162547.678:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/7698d309-b57d-4131-aac2-02d83f435e65
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[39852:1028/171923.097:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[39852:1028/171923.098:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[39852:1028/171923.097:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: The operation completed successfully. (0x0)
+[39852:1028/171923.356:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[39852:1028/171923.356:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[39852:1028/171923.356:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[39852:1028/171923.356:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[39852:1028/171923.356:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[39852:1028/171923.356:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/cdf5eec8-19bd-477a-8bc4-33702594f4f3
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[32356:1028/171928.998:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[32356:1028/171929.000:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[32356:1028/171929.006:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[32356:1028/171929.286:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[32356:1028/171929.286:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[32356:1028/171929.292:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[32356:1028/171929.292:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[32356:1028/171929.300:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[32356:1028/171929.300:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f84de242-aed7-4c47-bf9c-81e130bdf622
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[84484:1028/172110.159:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[84484:1028/172110.160:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[84484:1028/172110.160:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[84484:1028/172110.302:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[84484:1028/172110.302:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[84484:1028/172110.302:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[84484:1028/172110.302:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[84484:1028/172110.302:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[84484:1028/172110.302:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/65976a83-584f-4317-99eb-804abb369b9f
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[26476:1028/172406.845:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[26476:1028/172406.846:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[26476:1028/172406.846:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[26476:1028/172407.056:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[26476:1028/172407.056:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[26476:1028/172407.056:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[26476:1028/172407.056:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[26476:1028/172407.056:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[26476:1028/172407.056:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/f0c1d949-2ca4-434d-8065-e57de8d2cdd8
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[20236:1028/172412.584:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[20236:1028/172412.585:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[20236:1028/172412.585:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[20236:1028/172412.779:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[20236:1028/172412.780:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[20236:1028/172412.780:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[20236:1028/172412.780:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[20236:1028/172412.780:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[20236:1028/172412.780:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+deck-plugin-config: plugin-config 文件不是合法 JSON，已视同空对象
+
+
+DevTools listening on ws://127.0.0.1:9227/devtools/browser/73b8ef50-dc08-4bac-aaa7-0da87a5bd8ef
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+[17880:1028/172543.310:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17880:1028/172543.310:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17880:1028/172543.310:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17880:1028/172543.496:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17880:1028/172543.496:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[17880:1028/172543.497:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17880:1028/172543.497:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[17880:1028/172543.503:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17880:1028/172543.503:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
+deck-plugins: 插件 id 重复（doc-group-cards），按扫描根先到先得，忽略 C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards
