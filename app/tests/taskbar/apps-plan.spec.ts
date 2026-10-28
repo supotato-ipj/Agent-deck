@@ -301,6 +301,12 @@ describe('窗口过滤判据（工单156）：枚举特征 → 收/拒（后台�
     expect(shouldShowOnTaskbar({ ...main, exe: '' }, OWN)).toBe(false)
   })
 
+  it('开始菜单与搜索 Shell 宿主：拒（系统浮层不是用户运行应用）', () => {
+    expect(shouldShowOnTaskbar({ ...main, exe: 'C:\\Windows\\SystemApps\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\\StartMenuExperienceHost.exe' }, OWN)).toBe(false)
+    expect(shouldShowOnTaskbar({ ...main, exe: 'C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\SearchHost.exe' }, OWN)).toBe(false)
+    expect(shouldShowOnTaskbar({ ...main, exe: 'C:\\Windows\\SystemApps\\Microsoft.WindowsCalculator_8wekyb3d8bbwe\\CalculatorApp.exe' }, OWN)).toBe(true)
+  })
+
   it('特征位缺省 = 未采集到拒绝位按通过（离线旧 fake 源兼容口径；生产枚举壳恒给全量特征）', () => {
     expect(shouldShowOnTaskbar({ exe: 'C:\\Apps\\A.exe', title: '甲' }, OWN)).toBe(true)
   })
