@@ -4,6 +4,7 @@
 // 渲染层向宿主声明交互热区（各卡片矩形）；字体就绪后再声明一次，免字体换挡挪动矩形。
 import { syncPlugins } from './plugins.js'
 import type { PluginRuntimeDeps } from './plugins.js'
+import { createPlacement } from './placement.js'
 import { pad3 } from './format.js'
 import { EMPTY_SELECTION, itemMenuPlan, keyboardOpenTargets, launchListOf, nextSelection } from './selection.js'
 import type { SelectionEvent, SelectionModel } from './selection.js'
@@ -551,6 +552,7 @@ document.body.addEventListener('pointerdown', (e) => {
 })
 document.body.addEventListener('pointermove', (e) => {
   if (marqueeState.pointerId !== e.pointerId) return
+  if (placement.armedOnDocZone()) return // 长按拖文档区（工单310）：这一笔归摆位，不启动框选
   if (!marqueeState.active) {
     if (Math.hypot(e.clientX - marqueeState.startX, e.clientY - marqueeState.startY) < DRAG_THRESHOLD_PX) return
     marqueeState.active = true
@@ -1454,7 +1456,14 @@ maximizeRetractToggle.addEventListener('change', () => {
 function resetLayout(from: 'settings' | 'ctx-menu'): void {
   notify('desktop-reset-clicked', { from })
   void window.deck.bridge.invoke('desktop/reset-layout', null).then(
-    (r) => notify('desktop-layout-reset', { ok: r.ok, cleared: r.cleared }),
+    (r) => {
+      notify('desktop-layout-reset', { ok: r.ok, cleared: r.cleared })
+      // 恢复出厂同拍清空组卡冻结的默认位（工单310）：下一拍快照带回空手定位表
+      if (r.ok) {
+        placement.resetFrozen()
+        placement.refresh()
+      }
+    },
     (err: unknown) => notify('desktop-reset-failed', { message: String(err) }),
   )
 }
@@ -1536,6 +1545,15 @@ window.addEventListener('keydown', (e) => {
 
 // ---- 总渲染（快照到达即刷新全部卡片 + 桌面组件） ----
 
+/** 桌面组件摆位宿主（工单310，ADR-0024）：网格、占用、默认位与长按手势全在此处；
+ * 插件挂载/重绘后由 onDomChanged 触发重排，快照到达时喂手定位表与文档区原点。 */
+const placement = createPlacement({
+  notify,
+  invoke: (method, payload) => window.deck.bridge.invoke(method, payload),
+  declareHotZones: () => declareHotZones(),
+  notice: showNotice,
+})
+
 /** 插件运行时的宿主依赖：存证与桥接沿用面板同一条通道，DOM 变了重声明热区 */
 const pluginDeps: PluginRuntimeDeps = {
   notify,
@@ -1549,7 +1567,12 @@ const pluginDeps: PluginRuntimeDeps = {
       ? { type: 'tier-acquired', name: `plugin:${id}:${tier}` }
       : { type: 'tier-released', name: `plugin:${id}:${tier}` },
   ),
-  onDomChanged: declareHotZones,
+  onDomChanged: () => {
+    // 先让摆位宿主把插件新画的卡片放到格点，再按最终矩形申报热区——顺序反了会申报
+    // 插件未定位时的 (0,0) 旧矩形，重绘后同几何的卡整块点不动（真机实证）。
+    placement.refresh()
+    declareHotZones()
+  },
 }
 
 /** 最近一拍快照：插件清单变化时复用（渲染层只保留这一份，不另建缓存） */
@@ -1562,6 +1585,8 @@ function render(snap: PanelSnapshot): void {
   // 桌面组件（工单10 起）：全由插件自己渲染（时钟/天气/会话列表 + 日历随工单99 成包），
   // 宿主只负责把清单与裁剪后的视图喂过去。
   syncPlugins(snap.plugins, snap, pluginDeps)
+  // 摆位（工单310）：手定位表随 desktop 段下发；文档区原点来自 config layout。
+  placement.sync({ cards: snap.desktop.cards, docZone: snap.layout.docZone })
 }
 
 // ---- 热区声明（全部卡片 + 桌面承载区） ----
@@ -1580,6 +1605,13 @@ function zoneHotzoneRectOf(zone: HTMLElement): ZoneBox | null {
 }
 
 function declareHotZones(): void {
+  // 摆位模式（工单310）与既有手势/浮层同规：拖拽期间全窗热区，指针流出卡片也续接
+  if (placement.dragging()) {
+    window.deck.host.setHotZones([{
+      id: 'placement', x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
+    }])
+    return
+  }
   // 手势进行中（拖拽摆位/框选）、菜单开层（工单23）或删除确认开层（工单27）保持全窗
   // 热区：1Hz 快照重建会走到这里重声明常规热区，若中途覆写回小矩形，指针恰在分区包围
   // 盒外时面板转穿透、指针流即断（矩形残留屏上/菜单外一击收不到）。菜单开层由 shell 的
@@ -1616,6 +1648,7 @@ window.deck.bridge.on('plugins/changed', (list) => {
   notify('plugins-changed', { ids: list.map((p) => p.id), status: list.map((p) => `${p.id}:${p.status}`) })
   if (!lastSnapshot) return // 快照还没到（启动瞬间）：下一拍 render 自会带上 plugins 段
   syncPlugins(list, { ...lastSnapshot, plugins: list }, pluginDeps)
+  placement.refresh()
   declareHotZones()
 })
 

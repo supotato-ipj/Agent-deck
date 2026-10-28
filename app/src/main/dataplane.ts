@@ -157,6 +157,9 @@ if (parentPort) {
             result = ctx.desktop.moveBatch(names, zone, beforeName)
           } else if (msg.method === 'desktop/reset-layout') {
             result = ctx.desktop.resetLayout()
+          } else if (msg.method === 'desktop/set-card-slot') {
+            const { id, col, row } = msg.payload as { id: string; col: number; row: number }
+            result = ctx.desktop.setCardSlot(id, col, row)
           } else if (msg.method === 'desktop/trash') {
             const { paths } = msg.payload as { paths: string[] }
             result = await ctx.desktop.trash(paths)
