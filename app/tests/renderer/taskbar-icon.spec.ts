@@ -20,7 +20,7 @@ const STATE: TaskbarState = {
   maximizeRetract: true,
 }
 
-describe('推荐组图标降级（工单302）', () => {
+describe('任务栏图标降级（工单302/321）', () => {
   let stub: TaskbarDomStub | null = null
 
   beforeEach(() => {
@@ -44,5 +44,30 @@ describe('推荐组图标降级（工单302）', () => {
     expect(rec).not.toBeNull()
     expect(rec!.querySelector('.tb-rec-letter')?.textContent).toBe('A')
     expect(rec!.querySelector('img')).toBeNull()
+  })
+
+  it('应用组 desktop/icon 返回空结果时同样显示首字母', async () => {
+    stub = installTaskbarDomStub({
+      state: {
+        ...STATE,
+        apps: [{
+          exe: 'C:\\Apps\\Beta.exe',
+          label: 'Beta',
+          pinned: false,
+          running: true,
+          title: 'Beta 窗口',
+          iconKey: 'C:\\Apps\\Beta.exe|0',
+        }],
+      },
+    })
+    vi.resetModules()
+    await import('../../src/renderer/taskbar')
+    await stub.whenReady()
+    await Promise.resolve()
+
+    const app = stub.element('pill-apps').querySelector('.tb-app')
+    expect(app).not.toBeNull()
+    expect(app!.querySelector('.tb-app-letter')?.textContent).toBe('B')
+    expect(app!.querySelector('img')).toBeNull()
   })
 })

@@ -841,19 +841,21 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
   el.className = e.running ? 'tb-app running' : 'tb-app'
   el.dataset.exe = e.exe // 交互挂点（点击/右键按 exe 身份分发）
   el.title = e.tooltip // 窗口标题 tooltip：仅即时显示，渲染层不持久化
+  const fallback = () => {
+    const fb = document.createElement('div')
+    fb.className = 'tb-app-letter'
+    fb.textContent = appIconFallbackText(e)
+    return fb
+  }
   if (e.iconKey) {
     const img = document.createElement('img')
     img.draggable = false // 手钉拖拽的宿主是 .tb-app 本身：图标默认可拖会把手势截成原生图片拖拽
     img.dataset.iconKey = e.iconKey
     img.alt = e.label
     el.appendChild(img)
-    applyIcon(img, e.iconKey)
+    applyIcon(img, e.iconKey, fallback)
   } else {
-    // 工单156：无图标键条目渲染首字母占位（应用组统一，含仅运行条目），不出空白格
-    const fb = document.createElement('div')
-    fb.className = 'tb-app-letter'
-    fb.textContent = appIconFallbackText(e)
-    el.appendChild(fb)
+    el.appendChild(fallback())
   }
   // 工单195 断点①全条目接线：所有应用组条目（含未钉运行）可起拖可落——运行段拖位是
   // 会话态（reorderRunOrder），手钉段拖位落盘；任何条目都是 before 落点（不再被容器

@@ -46,8 +46,9 @@ export interface TaskbarWindowTraits {
 /**
  * 应用组窗口过滤判据（工单156，纯函数）：真任务栏同款口径——后台进程、cloaked 挂起窗、
  * 工具窗、有属主弹窗（无 APPWINDOW）、无标题窗、自家进程的窗口一律拒；正常可见带
- * 标题主窗收（最小化窗特征与正常主窗一致，同收）。自家判据按 exe 归一身份（NTFS
- * 大小写斜杠不敏感）。FFI 枚举薄壳只采集特征不载裁决（本函数是唯一裁决点）。
+ * 标题主窗收（最小化窗特征与正常主窗一致，同收）。开始菜单与搜索的 Shell 宿主是系统
+ * 浮层，不作为用户运行应用收编；其他 SystemApps 不按目录连坐。自家判据按 exe 归一身份
+ * （NTFS 大小写斜杠不敏感）。FFI 枚举薄壳只采集特征不载裁决（本函数是唯一裁决点）。
  */
 export function shouldShowOnTaskbar(w: TaskbarWindowInput & TaskbarWindowTraits, ownExe: string): boolean {
   if (w.visible === false) return false // 不可见样式位
@@ -56,6 +57,7 @@ export function shouldShowOnTaskbar(w: TaskbarWindowInput & TaskbarWindowTraits,
   if (w.owned && !w.appWindow) return false // 有属主且无 APPWINDOW
   if (!w.title) return false // 空标题（后台无窗口面进程的常态）
   if (!w.exe) return false // 取不到身份的窗口无从寻址
+  if (/(?:^|[\\/])(?:startmenuexperiencehost|searchhost)\.exe$/i.test(w.exe)) return false // Shell 浮层宿主
   if (normalizeExe(w.exe) === normalizeExe(ownExe)) return false // 自家进程
   return true
 }
