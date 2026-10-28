@@ -1,23 +1,21 @@
 // 原生栏托管（工单260 起步；ADR-0016 修订记 2026-10-25 双缺陷复审 Q1=A / Q2=A 扩为
-// **全接管期**）：面板接管任务栏期间，原生任务栏的 appbar 状态由本模块以**单账**管理。
+// **全接管期**；工单308 M1 覆盖式普通档改钉**恒置位单账**）：面板接管任务栏期间，
+// 原生任务栏的 appbar 状态由本模块以**单账**管理。
 //
-// 三个目标态由同一份用户原状态（userState = 接管建立时的 ABM_GETSTATE 读回）派生：
-// - 普通栏态 → normalBarAutoHideState(userState)：清 ABS_AUTOHIDE、留 ALWAYSONTOP。
-//   自动隐藏协议本身就是唤出通路（底边悬停、Win 键、通知都能把屏外的原生栏拉出来），
-//   不清位则「屏外装夹 + visible=true」照样被叫出（复审对照：保留 auto-hide 且装夹
-//   visible=true 时 Win 键 215ms 后完整弹出；清位后底边与 Win 键各自 3.5s 观察均不弹）。
-// - 收栏态 → retractAutoHideState(userState)：置 ABS_AUTOHIDE，shell 由此释放原生
-//   48px 保留带（spike 取证 docs/audit/2026-10-24-t257-autohide-setstate-probe.md：
-//   工作区底边 1392→1440）。
-// - 退场（禁用 / 正常退出 / 死路径兜底）→ userState 原值。
+// M1（spec #306，工单308）语义：**接管建立 = 置位一次**（SET retractAutoHideState——保留
+// 用户的 ALWAYSONTOP 位、加 ABS_AUTOHIDE，取代旧「接管即清位」），此后**整个托管期零
+// appbar 状态写入**（旧普通↔收栏切换的 enter/clear 中间态随 AppBar 占位链整体退役——
+// 自绘栏普通档改覆盖式常驻，不再占用工作区，48px 保留带恒释放）；**退场写回一次**（用户
+// 原值，restoreTakeoverAutoHide）。auto-hide 单账由此保持最简形态：建立置位一次、退场
+// 写回一次，运行期无中间态。重申轮询（native-watch）命中置位丢失即按同一目标压回——
+// 运行期唯一的写入路径，属「重申」不属「迁移」。
 //
-// 三条纪律（ADR-0016 决策 1/2/3，勿改口径）：
-// - **单一账本**：全接管期只持一份 userState；普通↔收栏切换只换目标，**不重记用户
-//   原值**——中间态不是用户原值，拿它记账就是账目投毒（此后复原/守卫/守护会把用户
-//   任务栏永久翻成自动隐藏）。
+// 两条纪律（承 ADR-0016 决策 1/3，口径随 M1 收紧）：
+// - **单一账本**：全接管期只持一份 userState（接管建立时的 ABM_GETSTATE 读回）；重申
+//   只压目标、**不重记用户原值**——中间态不是用户原值，拿它记账就是账目投毒（此后复原/
+//   守卫/守护会把用户任务栏永久翻成自动隐藏）。
 // - **读回裁决**：每次 SETSTATE 都读回判成败并落存证；失败不静默，交重申轮询下一拍
-//   重试（501 电池 P10 面）。
-// - **离场才复原原值**：普通↔收栏互相回落到清位/收栏目标；只有退场写回 userState。
+//   重试（51 电池 P10 面）。
 //
 // 复原走还原路径①（退避重试）：读回不一致按 native-restore 的同一张退避表重试
 // （有限次、终局有界），异步推进不拖住条带销毁/退收栏；timer unref 不吊住进程退出。
@@ -27,23 +25,20 @@
 // 盘上由下一层接力（50 电池 A3/A4 现场由验真机）。
 //
 // 本模块与 native.ts 的可见性账各自独立（ShowWindow 与 appbar 状态是两个系统事实），
-// 互不代偿：清位不代替隐藏，隐藏也不代替清位。
+// 互不代偿：置位不代替隐藏，隐藏也不代替置位。
 //
 // 效果层（FFI 效果面，离线不可测）：接缝由真机验收 50/51 电池覆盖（工作区数值与
 // StuckRects3 字节是外部可观测面）；同 tray-yield/native 口径——纯逻辑进单测
-// （retractAutoHideState / normalBarAutoHideState / planAppBarStateRestore），效果层进验收。
+// （retractAutoHideState / planAppBarStateRestore），效果层进验收。
 import type { EventLog } from '../panel-ipc'
 import { getAppBarState, setAppBarState } from './appbar'
 import { clearAppBarLedger, writeAppBarLedger } from './appbar-ledger'
 import { planAppBarStateRestore } from './native-restore'
-import { ABS_AUTOHIDE, normalBarAutoHideState, retractAutoHideState } from './retract'
-
-/** 托管的档位：普通栏态（已清位）/ 收栏态（已置位） */
-export type TakeoverAutoHideMode = 'normal' | 'retracted'
+import { ABS_AUTOHIDE, retractAutoHideState } from './retract'
 
 /** 接管期单账（RAII 账本）：null = 未接管（无复原义务）。模块级单账——原生栏 appbar
  *  状态是会话级事实，与哪扇条带窗现任无关（同 hidNative 的控制器级口径）。 */
-let engaged: { userState: number; mode: TakeoverAutoHideMode } | null = null
+let engaged: { userState: number } | null = null
 
 /** 待决的复原重试：携带账面 userState（尚未复原完成的用户原状态）。新一次接管到场即
  *  作废上一次待决的复原——旧重试不得在新接管之后把状态翻回去（快速禁用/重启用即再
@@ -62,11 +57,6 @@ export function takeoverAutoHideEngaged(): boolean {
   return engaged !== null
 }
 
-/** 当前托管的档位（未接管 = null；验收/存证判读用） */
-export function takeoverAutoHideMode(): TakeoverAutoHideMode | null {
-  return engaged?.mode ?? null
-}
-
 /** 把目标写进系统并读回裁决；返回读回值。SETSTATE 与 GETSTATE 都在 appbar.ts 效果面 */
 function writeAndRead(target: number): number {
   setAppBarState(target)
@@ -75,11 +65,12 @@ function writeAndRead(target: number): number {
 
 /**
  * 建立接管（任务栏接管建立时调用一次，幂等）：记用户接管前原状态 → 落盘记账 →
- * 压到普通栏态的清位目标 → 读回裁决。
+ * **置位**（SET retractAutoHideState：保留 ALWAYSONTOP、加 ABS_AUTOHIDE——M1 覆盖式
+ * 普通档的恒置位目标，shell 由此释放原生 48px 保留带）→ 读回裁决。
  *
- * 记账**先于**置位：复原义务自接管建立即成立（置位失败也欠着「把用户原值还回去」），
- * 与收栏置位的旧口径（置位生效才记账）不同——那是「无接管则无义务」，这里接管本身就是
- * 义务来源。置位失败只落存证，交重申轮询下一拍重试。
+ * 记账**先于**置位：复原义务自接管建立即成立（置位失败也欠着「把用户原值还回去」）。
+ * 用户本已开启自动隐藏时本函数是无操作写入（结果不变），记账与复原照走、不特判；
+ * 置位失败只落存证，交重申轮询下一拍重试。
  */
 export function engageTakeoverAutoHide(log: EventLog | null): void {
   if (engaged !== null) return
@@ -87,7 +78,7 @@ export function engageTakeoverAutoHide(log: EventLog | null): void {
   // 履行完，账不许投毒）——不得取当前读回，那可能是尚未复原成功的中间态。
   const pending = pendingRestore
   const userState = pending !== null ? pending.userState : getAppBarState()
-  engaged = { userState, mode: 'normal' }
+  engaged = { userState }
   cancelPendingRestore()
   try {
     writeAppBarLedger(userState, log)
@@ -95,78 +86,35 @@ export function engageTakeoverAutoHide(log: EventLog | null): void {
     // 尽力语义：盘写不进（权限/磁盘满）不破接管流程——路径①（内存账）仍在，失败存证可见
     log?.append({ type: 'taskbar-autohide-ledger-write-failed', message: String(err) })
   }
-  const state = writeAndRead(normalBarAutoHideState(userState))
+  const state = writeAndRead(retractAutoHideState(userState))
   log?.append({ type: 'taskbar-autohide-takeover', userState, state })
-  if ((state & ABS_AUTOHIDE) === 0) {
-    log?.append({ type: 'taskbar-autohide-cleared', reason: 'takeover', userState, state })
-  } else {
-    log?.append({ type: 'taskbar-autohide-clear-failed', reason: 'takeover', userState, state })
-  }
-}
-
-/**
- * 进入收栏：把目标切到收栏态（置 ABS_AUTOHIDE，保留 ALWAYSONTOP）。**不重记**用户
- * 原值；未接管时先建立接管（防御路径，记账照 engage 纪律）。档位先落、再读回裁决——
- * 意图随档位走，成败只影响存证与重试，不改档位。
- */
-export function enterRetractAutoHide(log: EventLog | null): void {
-  if (engaged === null) engageTakeoverAutoHide(log)
-  const e = engaged
-  if (e === null || e.mode === 'retracted') return
-  e.mode = 'retracted'
-  const state = writeAndRead(retractAutoHideState(e.userState))
   if ((state & ABS_AUTOHIDE) !== 0) {
-    log?.append({ type: 'taskbar-autohide-set', previous: e.userState, state })
+    log?.append({ type: 'taskbar-autohide-set', previous: userState, state })
   } else {
-    log?.append({ type: 'taskbar-autohide-set-failed', previous: e.userState, state })
+    log?.append({ type: 'taskbar-autohide-set-failed', previous: userState, state })
   }
 }
 
 /**
- * 退出收栏：把目标切回**普通栏态的清位目标**（不是用户原值——原值只由退场复原）。
- * 未接管或已在普通档 = 静默空转。
+ * 重申当前目标（原生栏重申轮询的重挂动作，工单262；M1 恒置位——目标态唯一）：
+ * 把置位目标压回去。账不动（userState 不变、复原义务照旧）；无账（接管建立曾失败/
+ * 未走过）时按完整接管走（engage 置位一次到位）。成败以读回事实为准；读回仍不符只落
+ * 失败存证、**不退避**——重申由轮询的下一拍天然重试。explorer 重启按注册表原态复活 ⇒
+ * 系统读回是用户原态、置位丢失——这正是重申的值守面。
  */
-export function clearRetractAutoHide(log: EventLog | null, reason: string): void {
-  const e = engaged
-  if (e === null || e.mode === 'normal') return
-  e.mode = 'normal'
-  const state = writeAndRead(normalBarAutoHideState(e.userState))
-  if ((state & ABS_AUTOHIDE) === 0) {
-    log?.append({ type: 'taskbar-autohide-cleared', reason, userState: e.userState, state })
-  } else {
-    log?.append({ type: 'taskbar-autohide-clear-failed', reason, userState: e.userState, state })
-  }
-}
-
-/**
- * 重申当前目标（原生栏重申轮询的重挂动作，工单262）：把**当拍 want**（调用方从工作区
- * 收栏账取的目标档位——与机器裁决同源同拍，工单292 评审修复轮 F2 两账等价收口）压回去。
- * 账不动（userState 不变、复原义务照旧）；账面档位与 want 分叉时以 want 为准写目标并把
- * 账面档位对齐——分叉的实形态：closed 径收栏中被外部销窗时 stopYieldPoll 清工作区账而
- * RAII 账 mode 留 retracted，新会话账清后旧实现照账面档位写会与机器裁决反向（机器判
- * clear 却执行置位）。explorer 重启按注册表原态复活 ⇒ userState 恰是注册表里用户原态，
- * 账面无需也不许换。无账（接管建立曾失败/未走过）时按完整接管走。成败以读回事实为准；
- * 读回仍不符只落失败存证、**不退避**——重申由轮询的下一拍天然重试。
- */
-export function reassertTakeoverAutoHide(log: EventLog | null, retracted: boolean): void {
+export function reassertTakeoverAutoHide(
+  log: EventLog | null,
+): void {
   if (engaged === null) {
     engageTakeoverAutoHide(log)
-    if (!retracted) return // engage 已把普通档目标压到位（账面 mode 与 want 一致）
-    enterRetractAutoHide(log) // want=收栏档：engage 只压了普通档目标，补置位（mode 随 enter 落账）
     return
   }
   const e = engaged
-  // 两账等价（F2）：写入目标从当拍 want 派生、账面档位跟随对齐——目标档位的唯一所有权
-  // 在工作区收栏账（ADR-0016 Q1/Q2 口径「工作区收栏账只决定重申的目标档位」的执行面收口；
-  // 不对齐则后续 enter/clear 的幂等早退会按错档空转：mode=retracted 时 enter 静默返回，
-  // 收栏置位就丢了）。
-  e.mode = retracted ? 'retracted' : 'normal'
-  const state = writeAndRead(retracted ? retractAutoHideState(e.userState) : normalBarAutoHideState(e.userState))
-  const ok = retracted ? (state & ABS_AUTOHIDE) !== 0 : (state & ABS_AUTOHIDE) === 0
+  const state = writeAndRead(retractAutoHideState(e.userState))
+  const ok = (state & ABS_AUTOHIDE) !== 0
   log?.append({
     type: ok ? 'taskbar-autohide-reattached' : 'taskbar-autohide-reattach-failed',
     previous: e.userState,
-    mode: e.mode,
     state,
   })
 }
