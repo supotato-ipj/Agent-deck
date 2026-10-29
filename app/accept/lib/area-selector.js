@@ -18,7 +18,7 @@ const ACCEPT_AREA = 'accept';
 const CROSS_DOMAIN_THRESHOLD = 3;
 
 /**
- * 段/电池的有效域标签：段级优先，缺则取电池级（副电池单域覆盖口径，工单204）
+ * 段/电池的有效域标签：段级优先，缺则取电池级（电池级覆盖口径：域数不限，可单域可多域，工单204）
  * @param {{areas?: string[]}} battery
  * @param {{areas?: string[]}} segment
  * @returns {string[]}
