@@ -314,9 +314,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     //   ——166 电池 +P200 空临时组卡留屏；110 → 111：工单293 增段——51 电池 +P15
     //   普通态清位与三路径禁现；111 → 114：工单296 增段——50 电池 +A5/A6/A7 普通态
     //   出发的退场复原对应轮（正常退出/崩溃/强杀）；114 → 120：工单310 新电池 +P1..P6
-    //   （宿主摆位：长按/吸附/持久化/组卡冻结展开/搜索方向/无空位拒绝）
+    //   （宿主摆位：长按/吸附/持久化/组卡冻结展开/搜索方向/无空位拒绝）；120 → 121：
+    //   工单256 增段——49 电池 +P26 轮末清场自检（参照窗销毁后验＋桌面探针残留窄口径扫描）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(120)
+    expect(total).toBe(121)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

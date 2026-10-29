@@ -603,7 +603,7 @@
       "hintBar": true,
       "cdpPort": 9228,
       "kind": null,
-      "budgetSeconds": 240,
+      "budgetSeconds": 250,
       "lastMeasuredSeconds": 185,
       "lastMeasuredAt": "2026-10-23",
       "segments": [
@@ -885,6 +885,15 @@
             "taskbar",
             "taskbar.menu"
           ]
+        },
+        {
+          "seg": "P26",
+          "ticket": 256,
+          "title": "轮末清场自检（工单256）：参照窗 DECK-ACCEPT-SUMMON 统一销毁＋销毁后验（IsWindow 有界轮询，异常不吞）；桌面 DECK-P16-* 探针残留窄口径扫描（发现先可恢复删除再判红）——电池自己清场，不把污染留给下一轮；段起笔在收尾首行，took= 即统一收尾墙钟",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 25
         }
       ],
       "areas": [
