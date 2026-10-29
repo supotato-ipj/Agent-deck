@@ -603,7 +603,7 @@
       "hintBar": true,
       "cdpPort": 9228,
       "kind": null,
-      "budgetSeconds": 240,
+      "budgetSeconds": 250,
       "lastMeasuredSeconds": 185,
       "lastMeasuredAt": "2026-10-23",
       "segments": [
@@ -893,7 +893,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 15
+          "estSeconds": 25
         }
       ],
       "areas": [
