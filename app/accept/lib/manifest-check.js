@@ -11,7 +11,7 @@
  *
  * 工单204（spec #201 A1）增两道硬校验，与既有失效面五枚举治理同执行力：
  *   ④ 段级 areas 域标签——取值必须落在清单 areas 封闭词表内；段级缺省时取电池级
- *      （副电池单域覆盖口径），两处皆缺即判红（每段都必须有归属域）；
+ *      （电池级覆盖口径：域数不限，可单域可多域），两处皆缺即判红（每段都必须有归属域）；
  *   ⑤ path→area 映射表完备性——源码目录须逐个登记、源码文件须被某条规则覆盖，
  *      且规则自身的域必须在封闭词表内（新目录不先定域＝耦合表有洞）。
  *
@@ -217,7 +217,7 @@ function validateManifest(req = {}) {
     if (b.kind === 'experiment') continue;
 
     if (!Number.isFinite(b.budgetSeconds) || b.budgetSeconds <= 0) errors.push(`${where} 缺正数 budgetSeconds`);
-    // 电池级域标签（工单204）：副电池单域覆盖用——取值同样必须在封闭词表内
+    // 电池级域标签（工单204）：电池级覆盖用（域数不限，可单域可多域）——取值同样必须在封闭词表内
     const batteryAreas = Array.isArray(b.areas) ? b.areas : [];
     for (const a of batteryAreas) {
       if (!legalAreas.has(a)) errors.push(`${where} 电池级域标签 "${a}" 不在域标签封闭词表内`);
@@ -239,7 +239,7 @@ function validateManifest(req = {}) {
       else for (const sf of s.surfaces) {
         if (!legalSurfaces.has(sf)) errors.push(`${tag} 失效面 "${sf}" 不在五枚举内`);
       }
-      // 段级域标签（工单204）：段级优先，缺则取电池级覆盖（副电池单域口径）；两处皆缺判红
+      // 段级域标签（工单204）：段级优先，缺则取电池级覆盖（域数不限，可单域可多域）；两处皆缺判红
       const segAreas = Array.isArray(s.areas) ? s.areas : [];
       for (const a of segAreas) {
         if (!legalAreas.has(a)) errors.push(`${tag} 域标签 "${a}" 不在域标签封闭词表内`);
