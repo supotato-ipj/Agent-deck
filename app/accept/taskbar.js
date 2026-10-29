@@ -498,12 +498,15 @@ function userDesktopRootP16() {
 
 // —— 可恢复删除（工单256）：桌面探针残留一律走回收站，不许永久 unlink。首选
 // mavis-trash.cmd（票面点名工具，回收站语义）；不在则回退 PowerShell VisualBasic
-// SendToRecycleBin（自包含同语义）。批量单会话：逐文件单发会把 N 次 PS 冷启动白记进
-// 每轮收尾（首轮实测 7 文件 ~20s，P26 段 32s 的主项）。路径清单走单串 '|' 分隔传参
-// （'|' 是 NTFS 文件名非法字符，分隔安全）——PS 5.1 的 -File 不把余参吸进 [string[]]
-// （实测 Count=1，多参静默丢弃）。调用走临时 .ps1 文件 + -File 传参（createShortcutLnkP16
-// 同款）——powershell -Command 内联脚本经命令行重解析会吃反斜杠（实测 'C:\Users' 变
-// 'C:UsersAn'），路径通道不可内联。返回逐文件失败清单 [{name, why}]（空数组 = 全部离位）。
+// SendToRecycleBin（自包含同语义）。全部路径**一次调吃**：mavis 每次调用冷启一个
+// Electron 运行时（实测 0.2s~4s+/次随时段机器态浮动，与文件数无关）——逐文件循环
+// 调用把 P16 清场拖到 24.7s/26.6s（工单256 三轮实测），单次调吃后成本 ≈ 1×冷启。
+// 路径清单走单串 '|' 分隔传参（'|' 是 NTFS 文件名非法字符，分隔安全）——PS 5.1 的
+// -File 不把余参吸进 [string[]]（实测 Count=1，多参静默丢弃）。调用走临时 .ps1 文件 +
+// -File 传参（createShortcutLnkP16 同款）——powershell -Command 内联脚本经命令行重解析
+// 会吃反斜杠（实测 'C:\Users' 变 'C:UsersAn'），路径通道不可内联。成败以后验
+// 「不在原位」为准（mavis 对缺失路径亦不计失败）。返回逐文件失败清单 [{name, why}]
+// （空数组 = 全部离位）。
 const MAVIS_TRASH_CMD = 'C:\\Users\\An W\\.minimax\\bin\\mavis-trash.cmd';
 function trashFiles(paths) {
   if (!paths.length) return [];
@@ -511,7 +514,7 @@ function trashFiles(paths) {
   const scriptFile = path.join(__dirname, 'evidence', '49-trash-files.ps1');
   const script = fallback
     ? "param([string]$PathList)\nAdd-Type -AssemblyName Microsoft.VisualBasic\nforeach ($p in ($PathList -split '\\|')) {\n  try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin'); Write-Output ('OK ' + $p) }\n  catch { Write-Output ('ERR ' + $p + ' ' + $_.Exception.Message) }\n}\n"
-    : "param([string]$Tool, [string]$PathList)\nforeach ($p in ($PathList -split '\\|')) {\n  & $Tool -- $p\n  if ($LASTEXITCODE -ne 0) { Write-Output ('ERR ' + $p + ' mavis exit ' + $LASTEXITCODE) }\n}\n";
+    : "param([string]$Tool, [string]$PathList)\n$ps = $PathList -split '\\|'\n& $Tool -- @ps\nif ($LASTEXITCODE -ne 0) { Write-Output ('ERR mavis exit ' + $LASTEXITCODE) }\n";
   const fails = [];
   try {
     fs.writeFileSync(scriptFile, script, 'utf8');
@@ -524,18 +527,16 @@ function trashFiles(paths) {
       return paths.map((p) => ({ name: path.basename(p), why: `PS 会话 status=${r.status} ${(r.stderr || '').trim().slice(0, 120)}` }));
     }
     for (const l of String(r.stdout || '').split('\n')) {
-      if (l.startsWith('ERR ')) fails.push({ name: path.basename(l.slice(4).trim()), why: l.trim().slice(0, 160) });
+      if (l.startsWith('ERR ')) fails.push({ name: '会话级', why: l.trim().slice(0, 160) });
     }
   } catch (err) {
     return paths.map((p) => ({ name: path.basename(p), why: String(err && err.message) }));
   } finally {
     try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理（P16 夹具同款） */ }
   }
-  // 后验以「不在原位」为准（mavis 对缺失路径亦不计失败——盘上还在即算失败）
+  // 后验以「不在原位」为准（逐文件账目由此产生——mavis 的 stdout 行文不作契约）
   for (const p of paths) {
-    if (fs.existsSync(p) && !fails.some((f) => f.name === path.basename(p))) {
-      fails.push({ name: path.basename(p), why: '删除指令成功但文件仍在原位' });
-    }
+    if (fs.existsSync(p)) fails.push({ name: path.basename(p), why: '删除指令已发但文件仍在原位' });
   }
   return fails;
 }
@@ -605,7 +606,12 @@ function cleanupRecsProbes(rep, p16) {
   p16.done = true;
   const all16 = [...p16.probes, ...(p16.extras || [])]; // 工单161 起含递补候选 F/G
   // 工单256：桌面夹具批量可恢复删除（单会话），失败显式记账——静默残留会污染下一轮
+  const t16 = Date.now();
+  const steps16 = [];
+  const mark16 = (label, t0) => { steps16.push(`${label}=${Date.now() - t0}ms`); return Date.now(); };
+  let s16 = Date.now();
   const trashFails16 = trashFiles(all16.map((p) => path.join(p16.desktopRoot, p.name)));
+  s16 = mark16('回收站批量', s16);
   if (trashFails16.length) rep.fail(`轮末清场：桌面探针 lnk 可恢复删除失败：${trashFails16.map((f) => `${f.name}: ${f.why}`).join('; ')}`);
   try {
     // 摘除集合 = 种子键（seedExe，byStem 合成路径）+ 解析目标（p.exe——面板在启动臂
@@ -618,6 +624,7 @@ function cleanupRecsProbes(rep, p16) {
     });
     fs.writeFileSync(p16.usageFile, kept.length ? kept.join('\n') + '\n' : '', 'utf8');
   } catch { /* 尽力 */ }
+  s16 = mark16('usage摘除', s16);
   try {
     const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
     const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
@@ -629,7 +636,10 @@ function cleanupRecsProbes(rep, p16) {
     if (Array.isArray(store.excluded)) store.excluded = store.excluded.filter((e) => !probeExes.has(String(e.exe || '').toLowerCase())); // 工单161 移除名单段
     if (JSON.stringify(store) !== before) fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
   } catch { /* 尽力 */ }
+  s16 = mark16('store摘除', s16);
   try { fs.rmSync(p16.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+  mark16('tmpDir摘除', s16);
+  rep.note(`P16 清场分步（工单256）：${steps16.join(' ')}`);
 }
 
 // —— P18 统一序列探针（工单189）：csc 现编译 WinForms 最小窗，副本×3 ——
@@ -3908,20 +3918,30 @@ static class Probe {
     // 段起笔在收尾首行——took= 即整段收尾墙钟；判红统一归本段（不再悬垂记进末段）。
     // ================================================================
     rep.beginSegment('P26');
+    const t26 = Date.now();
+    const step26 = [];
+    const mark26 = (label, t0) => { step26.push(`${label}=${Date.now() - t0}ms`); return Date.now(); };
+    let tStep = Date.now();
     if (probe164) { try { probe164.destroy(); } catch (err) { rep.note(`P26 收尾：P14 探针拆除失败：${err && err.message}`); } }
+    tStep = mark26('P14探针', tStep);
     cleanupP18Probes(p18); // P18 痕迹摘除（进程/目录/栏布局存储手钉残留）
+    tStep = mark26('P18清场', tStep);
     // 工单211：收尾清场归句柄验证强退——gone=false 只入环境降责账、**不中止**
     // （清场不掩盖真结局；中止会拦住 finish() → 控制器不退 → 验收槽租约挂死）
     const cleared = await handle.stop();
+    tStep = mark26('面板强退', tStep);
     if (cleared && cleared.gone === false) {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）——需重启清障`,
         '清场后仍有面板进程存活', 'panel-forcekill');
     }
     cleanupRecsProbes(rep, p16); // P16 痕迹三处摘除（面板已杀，落盘清理不再被回写；桌面 lnk 走可恢复删除，工单256）
+    tStep = mark26('P16清场含回收站', tStep);
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
+    tStep = mark26('配置还原', tStep);
     // ——残留自检（窄口径，工单256 AC）：无遗留 DECK-ACCEPT-SUMMON 参照窗、
     //    无本电池 DECK-P16-* 桌面探针残留。发现残留先清（可恢复删除）再判红。
     const torn26 = await destroyRefWindow(); // 幂等兜底：内层已销则立返
+    tStep = mark26('参照窗兜底销毁', tStep);
     const refLeft = win32.topLevelWindows().filter((h) => titleOf(h) === 'DECK-ACCEPT-SUMMON');
     let deskRoot26 = null;
     let residue26 = [];
@@ -3936,6 +3956,8 @@ static class Probe {
     } catch (err) {
       rep.fail(`P26 残留自检前置缺失：桌面根定位/扫描失败：${err && err.message}`);
     }
+    tStep = mark26('残留扫描清理', tStep);
+    rep.note(`P26 收尾分步耗时：${step26.join(' ')}（合计 ${Date.now() - t26}ms）`);
     const windowClean26 = torn26.ok && refLeft.length === 0;
     const deskClean26 = residue26.length === 0 && residueAfter26.length === 0 && trashFails26.length === 0;
     if (windowClean26 && deskClean26) {
