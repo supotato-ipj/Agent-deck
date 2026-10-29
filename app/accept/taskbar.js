@@ -498,32 +498,46 @@ function userDesktopRootP16() {
 
 // —— 可恢复删除（工单256）：桌面探针残留一律走回收站，不许永久 unlink。首选
 // mavis-trash.cmd（票面点名工具，回收站语义）；不在则回退 PowerShell VisualBasic
-// SendToRecycleBin（自包含同语义）。调用走临时 .ps1 文件 + -File 传参（createShortcutLnkP16
-// 同款）——powershell -Command 内联脚本会吃反斜杠（实测 'C:\Users' 变 'C:UsersAn'），
-// 路径通道不可内联。返回 {ok, why}，失败由调用方显式记账。
+// SendToRecycleBin（自包含同语义）。批量单会话：逐文件单发会把 N 次 PS 冷启动白记进
+// 每轮收尾（首轮实测 7 文件 ~20s，P26 段 32s 的主项）。路径清单走单串 '|' 分隔传参
+// （'|' 是 NTFS 文件名非法字符，分隔安全）——PS 5.1 的 -File 不把余参吸进 [string[]]
+// （实测 Count=1，多参静默丢弃）。调用走临时 .ps1 文件 + -File 传参（createShortcutLnkP16
+// 同款）——powershell -Command 内联脚本经命令行重解析会吃反斜杠（实测 'C:\Users' 变
+// 'C:UsersAn'），路径通道不可内联。返回逐文件失败清单 [{name, why}]（空数组 = 全部离位）。
 const MAVIS_TRASH_CMD = 'C:\\Users\\An W\\.minimax\\bin\\mavis-trash.cmd';
-function trashFile(filePath) {
+function trashFiles(paths) {
+  if (!paths.length) return [];
   const fallback = !fs.existsSync(MAVIS_TRASH_CMD);
-  const scriptFile = path.join(__dirname, 'evidence', '49-trash-file.ps1');
+  const scriptFile = path.join(__dirname, 'evidence', '49-trash-files.ps1');
   const script = fallback
-    ? "param([string]$Path)\nAdd-Type -AssemblyName Microsoft.VisualBasic\n[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($Path, 'OnlyErrorDialogs', 'SendToRecycleBin')\n"
-    : "param([string]$Tool, [string]$Path)\n& $Tool -- $Path\nexit $LASTEXITCODE\n";
+    ? "param([string]$PathList)\nAdd-Type -AssemblyName Microsoft.VisualBasic\nforeach ($p in ($PathList -split '\\|')) {\n  try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin'); Write-Output ('OK ' + $p) }\n  catch { Write-Output ('ERR ' + $p + ' ' + $_.Exception.Message) }\n}\n"
+    : "param([string]$Tool, [string]$PathList)\nforeach ($p in ($PathList -split '\\|')) {\n  & $Tool -- $p\n  if ($LASTEXITCODE -ne 0) { Write-Output ('ERR ' + $p + ' mavis exit ' + $LASTEXITCODE) }\n}\n";
+  const fails = [];
   try {
     fs.writeFileSync(scriptFile, script, 'utf8');
     const args = fallback
-      ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptFile, filePath]
-      : ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptFile, MAVIS_TRASH_CMD, filePath];
-    const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 30000 });
+      ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptFile, paths.join('|')]
+      : ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptFile, MAVIS_TRASH_CMD, paths.join('|')];
+    const r = spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 60000 });
     if (r.status !== 0) {
-      return { ok: false, why: `${fallback ? 'PS 回收站删除' : 'mavis-trash'} status=${r.status} ${(r.stderr || r.stdout || '').trim().slice(0, 160)}` };
+      // 整会话失败：全部记失败（P26 自检随后复扫兜底）
+      return paths.map((p) => ({ name: path.basename(p), why: `PS 会话 status=${r.status} ${(r.stderr || '').trim().slice(0, 120)}` }));
+    }
+    for (const l of String(r.stdout || '').split('\n')) {
+      if (l.startsWith('ERR ')) fails.push({ name: path.basename(l.slice(4).trim()), why: l.trim().slice(0, 160) });
     }
   } catch (err) {
-    return { ok: false, why: err && err.message };
+    return paths.map((p) => ({ name: path.basename(p), why: String(err && err.message) }));
   } finally {
     try { fs.unlinkSync(scriptFile); } catch { /* 尽力清理（P16 夹具同款） */ }
   }
-  if (fs.existsSync(filePath)) return { ok: false, why: '删除指令成功但文件仍在原位' };
-  return { ok: true };
+  // 后验以「不在原位」为准（mavis 对缺失路径亦不计失败——盘上还在即算失败）
+  for (const p of paths) {
+    if (fs.existsSync(p) && !fails.some((f) => f.name === path.basename(p))) {
+      fails.push({ name: path.basename(p), why: '删除指令成功但文件仍在原位' });
+    }
+  }
+  return fails;
 }
 
 function seedRecsProbes(rep) {
@@ -590,13 +604,9 @@ function cleanupRecsProbes(rep, p16) {
   if (!p16 || p16.done) return;
   p16.done = true;
   const all16 = [...p16.probes, ...(p16.extras || [])]; // 工单161 起含递补候选 F/G
-  const trashFails16 = [];
-  for (const p of all16) {
-    // 工单256：桌面夹具走可恢复删除（trashFile），失败显式记账——静默残留会污染下一轮
-    const tr = trashFile(path.join(p16.desktopRoot, p.name));
-    if (!tr.ok) trashFails16.push(`${p.name}: ${tr.why}`);
-  }
-  if (trashFails16.length) rep.fail(`轮末清场：桌面探针 lnk 可恢复删除失败：${trashFails16.join('; ')}`);
+  // 工单256：桌面夹具批量可恢复删除（单会话），失败显式记账——静默残留会污染下一轮
+  const trashFails16 = trashFiles(all16.map((p) => path.join(p16.desktopRoot, p.name)));
+  if (trashFails16.length) rep.fail(`轮末清场：桌面探针 lnk 可恢复删除失败：${trashFails16.map((f) => `${f.name}: ${f.why}`).join('; ')}`);
   try {
     // 摘除集合 = 种子键（seedExe，byStem 合成路径）+ 解析目标（p.exe——面板在启动臂
     // 检测到的副本真启动事件同键）
@@ -3920,10 +3930,8 @@ static class Probe {
     try {
       deskRoot26 = (p16 && p16.desktopRoot) || userDesktopRootP16();
       residue26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P16-.*\.lnk$/i.test(n));
-      for (const n of residue26) {
-        const tr = trashFile(path.join(deskRoot26, n));
-        if (!tr.ok) trashFails26.push(`${n}: ${tr.why}`);
-      }
+      const tf26 = trashFiles(residue26.map((n) => path.join(deskRoot26, n)));
+      trashFails26.push(...tf26.map((f) => `${f.name}: ${f.why}`));
       if (residue26.length) residueAfter26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P16-.*\.lnk$/i.test(n));
     } catch (err) {
       rep.fail(`P26 残留自检前置缺失：桌面根定位/扫描失败：${err && err.message}`);
