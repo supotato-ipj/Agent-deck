@@ -87,3 +87,7 @@ Consequences 中《agent 写入插件包的契约与 capability 授予》的要�
 - 插件包进入**每包独立、由主进程登记的执行上下文**；`tier` 与 `pluginId` 只从通道绑定推导，`host.view`（快照段）、`host.config`（私有状态）与 invoke 窄面都在这个绑定上裁剪，manifest 与调用参数不能自报。
 - 投放型插件包拿**投放窄面**（4 段 + `taskbar/get-state` + 自身 `host.config`）；内核档插件包拿**受信内部桥**（母集减 `app/quit`）。`plugin-config` 的命名空间隔离由约定式收成强制式。
 - 写完成语义按本 ADR 兑现：install/update 的「成功」是有界激活成功；失败回滚，`result_unknown` 不重放；每次写带 `opId`，闸门/提案/审计沿用本 ADR。
+
+## 补记（spec #326，2026-10-31）
+
+[ADR-0025](0025-plugin-permission-host-contract.md) 将每包执行上下文收窄为独立 `webContents` 与 origin，并在基线投放窄面之上引入按包、按代码代次的**插件权限**与命名**插件凭证**。控制面凭证、信任档、用户手势授权、协作性安全边界与结果未知不重放原则不变；插件获权不扩大 agent 的控制面。
