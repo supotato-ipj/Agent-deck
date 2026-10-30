@@ -31,6 +31,34 @@ export interface AppConfig {
   autostart: AutostartConfig
   /** 任务栏插件（工单49）：独立置顶窗口的开关；禁用即还原为不加载窗口 */
   taskbar: TaskbarConfig
+  /** 对话窗（工单332）：后端档（DSH 安装路径显式配置；缺省走标准位探测） */
+  conversation: ConversationConfig
+}
+
+/** 对话窗（config.json conversation 段，工单332）：dshExe = DeepSeek Harness.exe 绝对路径
+ * （用户显式后端档；不配置时描述符探测标准安装位——C..Z 逐盘 Program 两式 + 用户安装位）。
+ * 认证不归面板管（ADR-0018）：本段不落任何凭证。 */
+export interface ConversationConfig {
+  dshExe?: string
+}
+
+export function defaultConversation(): ConversationConfig {
+  return {}
+}
+
+function mergeConversation(raw: unknown, fallback: ConversationConfig, warnings: string[]): ConversationConfig {
+  const out = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null) {
+    warnings.push('config.conversation 不是对象，已整体回退默认值')
+    return out
+  }
+  const conv = raw as Record<string, unknown>
+  if (conv.dshExe !== undefined) {
+    if (typeof conv.dshExe === 'string' && conv.dshExe.trim()) out.dshExe = conv.dshExe.trim()
+    else warnings.push('config.conversation.dshExe 非空字符串，已回退默认（探测标准安装位）')
+  }
+  return out
 }
 
 /** 任务栏（config.json taskbar 段，工单49）：启用即拉起独立置顶 pill 窗，禁用即窗口消失。
@@ -544,6 +572,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       plugins: mergePlugins(root.plugins, fallback.plugins, warnings),
       autostart: mergeAutostart(root.autostart, fallback.autostart, warnings),
       taskbar: mergeTaskbar(root.taskbar, fallback.taskbar, warnings),
+      conversation: mergeConversation(root.conversation, fallback.conversation, warnings),
     },
     warnings,
     created: false,

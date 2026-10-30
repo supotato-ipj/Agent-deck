@@ -89,8 +89,9 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
           reply(frame.id, {})
           return
         case 'session/resume':
-          if (!sessionNewDone) { replyError(frame.id, -32602, 'Invalid params: unknown session') ; return }
-          reply(frame.id, { sessionId: frame.params?.sessionId ?? 'fake-session-1', configOptions: [] })
+          // 会话正文持久在后端（DSH_HOME/sessions 同语义）：新进程可按 id 续接既有会话
+          if (frame.params?.sessionId !== 'fake-session-1') { replyError(frame.id, -32602, 'Invalid params: unknown session'); return }
+          reply(frame.id, { sessionId: frame.params.sessionId, configOptions: [] })
           return
         default:
           replyError(frame.id, -32601, `Method not found: ${frame.method}`)
