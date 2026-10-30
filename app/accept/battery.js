@@ -6112,7 +6112,7 @@ async function runSegments() {
           : rep.fail(`旧路径泄漏：快照内核清单含投放包=${kernelIds.filter((id) => `${id}`.startsWith('pkg-')).join('/') || '否'}；pkg-* plugin-mounted=${leakedMount ? JSON.stringify(leakedMount) : '无'}`);
 
         // —— ② 独立 webContents + origin + 宿主面收口（CDP 直查包页） ——
-        const zRaw = await cdpEvalOn('deck-pkg://pkg-zero/', `JSON.stringify({ origin: location.origin, deck: typeof window.deck, require: typeof window.require, process: typeof window.process, hostInvoke: window.deckHost ? typeof window.deckHost.invoke : 'no-host', hostBridge: window.deckHost ? typeof window.deckHost.bridge : 'no-host', title: document.title, marker: Boolean(document.getElementById('pkg-zero-marker')) })`);
+        const zRaw = await cdpEvalOn('deck-pkg://pkg-zero/', `JSON.stringify({ origin: location.origin, deck: typeof window.deck, require: typeof window.require, process: typeof window.process, hostInvoke: window.deckHost ? typeof window.deckHost.invoke : 'no-host', hostBridge: window.deckHost ? typeof window.deckHost.bridge : 'no-host', title: document.title, marker: Boolean(document.getElementById('pkg-zero-marker')), bodyText: document.body.textContent.slice(0, 200) })`);
         const z = JSON.parse(zRaw);
         const pkgTargets = (await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json())
           .filter((x) => x.url && x.url.startsWith('deck-pkg://'));
@@ -6121,7 +6121,7 @@ async function runSegments() {
           ? rep.pass(`独立执行上下文成立：包页真实 origin=${z.origin}（${pkgTargets.length} 个独立包页 CDP 目标，主进程登记 webContents→包身份）；`
             + `window.deck=${z.deck}/require=${z.require}/process=${z.process} 全 undefined（受信内部桥与 Node 面不泄漏）；`
             + `deckHost 无通用 invoke/桥事件（typeof=${z.hostInvoke}/${z.hostBridge}）；宿主壳挂载完成（title=${z.title}，DOM 标记在场）`)
-          : rep.fail(`独立上下文断言未过：${zRaw}；包页目标=${JSON.stringify(pkgTargets.map((x) => x.url))}`);
+          : rep.fail(`独立上下文断言未过：${zRaw}；壳页报错=${z.bodyText || '无'}；包页目标=${JSON.stringify(pkgTargets.map((x) => x.url))}`);
 
         // —— ③a 默认无出站网络：包内 fetch 三探（本包/跨包/直连外联）全拒 ——
         let netProbe = null;
