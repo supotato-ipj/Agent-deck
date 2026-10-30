@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>pkg-b</title></head>
+<body>
+  <div id="pkg-root">package B root（B 的 DOM）</div>
+  <script>
+    window.__secret = 'B-secret';
+    try { localStorage.setItem('who', 'B'); } catch (e) { window.__lsError = String(e); }
+    window.__beats = 0;
+    setInterval(function () { window.__beats++; }, 50);
+    try { window.host.mountEffect(); } catch (e) {}
+  </script>
+</body>
+</html>
