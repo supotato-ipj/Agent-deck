@@ -2,9 +2,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
-import type { PluginInfo, PluginManifest } from '../../shared/contract'
+import type { DroppedPackageInfo, DroppedPackageMigrationIssue, DroppedPackageState, PluginInfo, PluginManifest } from '../../shared/contract'
 import { PLUGIN_SCHEME } from './assets'
-import { readManifest } from './manifest'
+import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
+import { authorizeDroppedPackage } from './authorization'
+import { MANIFEST_FILE, PLUGIN_ID_RE, readManifest } from './manifest'
 import { listPluginDirs, watchPluginRoots } from './watch'
 
 /**
@@ -39,9 +41,43 @@ export interface PluginInstance {
   dispose(): void | Promise<void>
 }
 
+/**
+ * 插件根档位标记（工单331，ADR-0019/0025）：信任档由包根决定，不由 manifest 或调用参数自报。
+ * kernel = 内核/第一方根（受信内部桥，既有渲染层装载路径）；dropped = 用户根（投放档，
+ * 独立执行上下文路径）。bare string 根归 kernel（向后兼容既有调用与测试）。
+ */
+export interface PluginRootDescriptor {
+  dir: string
+  tier: 'kernel' | 'dropped'
+}
+
+/**
+ * 投放宿主端口（工单331）：dropped 档的上下文拉起/拆除由 Electron 侧实现
+ * （package-host.ts），宿主服务只做路由与状态记账——离线测试注入假端口。
+ */
+export interface DroppedPackageHostPort {
+  /** 拉起独立执行上下文（零权限包；调用即激活，无批准闸门） */
+  activate(pkg: { id: string; dir: string; generation: number; permissions: string[]; manifest: DroppedManifest }): void
+  /** 拆除该包的独立上下文（停用/换代/降级为迁移态时） */
+  deactivate(id: string): void
+}
+
 export interface PluginHostOptions {
-  /** 插件根目录，按序扫描；同 id 先到先得（内置根在前） */
-  roots: string[]
+  /**
+   * 插件根目录，按序扫描；同 id 先到先得（内核根在前，投放根永不被遮蔽方反超）。
+   * 元素可以是 bare string（= kernel 档，向后兼容）或档位标记描述符。
+   */
+  roots: Array<string | PluginRootDescriptor>
+  /**
+   * 投放宿主端口（工单331）：dropped 根的包经此拉起/拆除独立上下文；
+   * 缺省 = 无投放根语义为「不激活」（离线装配未接投放宿主时不拉上下文）。
+   */
+  droppedHost?: DroppedPackageHostPort
+  /**
+   * 结构化事件出口（工单331）：投放包生命周期事实（激活/停用/迁移/崩溃）落 DECK_EVENT_LOG，
+   * 供验收磁带与审计断言；缺省静默。
+   */
+  log?: (event: Record<string, unknown>) => void
   /**
    * 停用集读取缝（工单101 卡片显隐开关）：返回当前停用的插件包 id 列表，清单装配时剔除。
    * 读缝而非拷贝：设置服务改写 config.plugins.disabled 后无需重建宿主，重扫即生效；
@@ -66,10 +102,33 @@ interface Scanned {
   fingerprint: string
 }
 
+/** 投放档在册记账（工单331）：状态机 + 指纹 + 代次 */
+interface DroppedRecord {
+  id: string
+  dir: string
+  /** 分类通过的 manifest（零权限/权限全在目录内且主版本兼容）；结构坏时为 null */
+  manifest: DroppedManifest | null
+  /** 待迁移问题清单（pending-migration 态）；其余态 null */
+  issues: MigrationIssue[] | null
+  /** 结构错/资产缺失原因（error 态）；其余态 null */
+  error: string | null
+  fingerprint: string
+  generation: number
+  status: DroppedPackageState
+  permissions: string[]
+}
+
 /** 坏插件的兜底 id：目录名清洗成合法主机名，让用户看得懂是哪个插件坏了 */
 function fallbackId(dir: string): string {
   const base = path.basename(dir).toLowerCase().replace(/[^a-z0-9._-]/g, '-').replace(/^[^a-z0-9]+/, '')
   return base === '' ? 'broken' : base
+}
+
+/** 从 manifest 原文提取合法 id（迁移态记账用：包结构坏但 id 可辨时清单仍指名道姓） */
+function extractManifestId(raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  const id = (raw as Record<string, unknown>).id
+  return typeof id === 'string' && PLUGIN_ID_RE.test(id) ? id : null
 }
 
 function statOf(file: string): string {
@@ -91,7 +150,10 @@ function byMountOrder(a: PluginInfo, b: PluginInfo): number {
 }
 
 export class PluginHostService extends Service {
-  private readonly roots: string[]
+  private readonly kernelRoots: string[]
+  private readonly droppedRoots: string[]
+  private readonly droppedHost: DroppedPackageHostPort | null
+  private readonly log: (event: Record<string, unknown>) => void
   private readonly disabledIds: () => readonly string[]
   private readonly watchEnabled: boolean
   private readonly settleMs: number | undefined
@@ -101,19 +163,37 @@ export class PluginHostService extends Service {
   /** 资产指纹与代号：id → (fingerprint, revision) */
   private readonly generations = new Map<string, { fingerprint: string; revision: number }>()
   private listing: PluginInfo[] = []
+  /**
+   * 投放档在册条目：id → 状态记账（工单331）。与内核档分离——投放包不进内核清单，
+   * 渲染层同上下文 import 路径对其不存在（ADR-0025 断裂迁移）。
+   */
+  private readonly dropped = new Map<string, DroppedRecord>()
+  private droppedListing: DroppedPackageInfo[] = []
   private stopped = false
 
   constructor(ctx: Context, options: PluginHostOptions) {
     super(ctx, 'plugins')
-    this.roots = [...(options.roots ?? [])]
+    const roots = options.roots ?? []
+    // 档位分桶，桶内保持声明序（先到先得语义按桶内序成立）
+    const kernel: string[] = []
+    const dropped: string[] = []
+    for (const r of roots) {
+      if (typeof r === 'string') kernel.push(r)
+      else if (r.tier === 'kernel') kernel.push(r.dir)
+      else dropped.push(r.dir)
+    }
+    this.kernelRoots = kernel
+    this.droppedRoots = dropped
+    this.droppedHost = options.droppedHost ?? null
+    this.log = options.log ?? (() => {})
     this.disabledIds = options.disabledIds ?? (() => [])
     this.watchEnabled = options.watch ?? true
     this.settleMs = options.settleMs
     this.factory = options.createInstance ?? defaultInstance
     // 首扫在构造期完成：快照带插件清单，与其它服务同一节奏（不做则面板首帧无组件）
     this.rescan()
-    if (this.watchEnabled && this.roots.length) {
-      ctx.on('dispose', watchPluginRoots(this.roots, () => this.rescan(), { settleMs: this.settleMs }))
+    if (this.watchEnabled && (this.kernelRoots.length || this.droppedRoots.length)) {
+      ctx.on('dispose', watchPluginRoots([...this.kernelRoots, ...this.droppedRoots], () => this.rescan(), { settleMs: this.settleMs }))
     }
     // 停用集变化即重扫（工单101）：设置服务落盘后发出，清单随即剔除/恢复——
     // 渲染层经既有 plugins/changed 即时路径卸载/重挂，包文件全程不动
@@ -144,6 +224,7 @@ export class PluginHostService extends Service {
    * 清单无实质变化时不发事件（1Hz tick 与看门狗同频时无谓刷新）。
    * 停用集过滤（工单101）在装配最上游：被停用的 id 视同本次没扫到——在装实例走
    * 既有「消失 → 卸载」链、清单自然不含（快照 plugins 段天然无停用包），包文件不动。
+   * 工单331：dropped 根另路扫描（独立上下文路由），两档互不混清单。
    */
   rescan(): PluginInfo[] {
     const disabled = new Set(this.disabledIds())
@@ -176,7 +257,27 @@ export class PluginHostService extends Service {
       this.listing = listing
       this.ctx.emit('plugins/changed', listing)
     }
+
+    this.rescanDropped(disabled, new Set(scanned.map((item) => item.id)))
     return this.listing
+  }
+
+  /** 投放包当前清单（dropped 档管理视图；不进 PanelSnapshot.plugins 段） */
+  droppedInfo(): DroppedPackageInfo[] {
+    return this.droppedListing
+  }
+
+  /**
+   * 崩溃记账（工单331，AC3）：package-host 在 render-process-gone 时调用——置崩溃错误态、
+   * 落事件，**绝不重挂**。后续 rescan 若指纹未变保持 crashed（不自动重挂、mount 副作用
+   * 不重放）；代码内容变化 = 用户显式换代，才走 deactivate + 新代次 activate。
+   */
+  markDroppedCrashed(id: string, reason: string): void {
+    const record = this.dropped.get(id)
+    if (!record || record.status !== 'ok') return
+    record.status = 'crashed'
+    this.log({ type: 'dropped-package-crashed', id, generation: record.generation, reason })
+    this.publishDropped()
   }
 
   /** 卸载单个插件（内部原语：重扫发现消失/换代会用到；对外的卸载动作是移除插件目录） */
@@ -193,6 +294,164 @@ export class PluginHostService extends Service {
   }
 
   /**
+   * dropped 档重扫（工单331）：投放包按迁移分类路由，**不进内核清单**。
+   * 状态规则：
+   * - 首见 + 分类通过 + 零权限 → activate（投放即生效，无批准闸门）；
+   * - 首见 + 含已知敏感权限 → pending-approval（批准前不执行）；
+   * - 迁移问题 → pending-migration（结构化错误在列）；结构坏/资产缺失 → error；
+   * - 指纹变化（代码换代）→ deactivate 旧 + activate 新代次（crashed 亦然：换代即显式重建）；
+   * - 指纹未变 + crashed → **保持 crashed，绝不自动重挂**（AC3）；
+   * - 指纹未变 + 运行态 → 原样（不重复 activate）；
+   * - 停用/消失/降级为不可执行态 → deactivate。
+   */
+  private rescanDropped(disabled: Set<string>, kernelClaimed: Set<string>): void {
+    const droppedScanned = new Map<string, DroppedRecord>()
+    for (const root of this.droppedRoots) {
+      for (const dir of listPluginDirs(root)) {
+        const record = this.classifyDroppedDir(dir)
+        if (kernelClaimed.has(record.id)) {
+          // 内核档先到先得：投放根同 id 副本被忽略（内核不被投放副本遮蔽，ADR-0019 同口径）
+          this.log({ type: 'dropped-package-shadowed', id: record.id, dir })
+          continue
+        }
+        if (droppedScanned.has(record.id)) {
+          this.log({ type: 'dropped-package-shadowed', id: record.id, dir })
+          continue
+        }
+        droppedScanned.set(record.id, record)
+      }
+    }
+
+    for (const [id, next] of droppedScanned) {
+      const prev = this.dropped.get(id)
+      if (disabled.has(id)) {
+        // 停用包视同本次没扫到（工单101 同口径）：在装上下文走下方清算 deactivate、清单剔除
+        continue
+      }
+      const changed = !prev || prev.fingerprint !== next.fingerprint
+      if (!prev || changed) {
+        // 换代（首见 / 代码内容变化，含崩溃后显式改码）：旧上下文拆除、新代次重走分类
+        if (prev && (prev.status === 'ok' || prev.status === 'crashed')) this.droppedHost?.deactivate(id)
+        const executable = next.manifest !== null && authorizeDroppedPackage({ permissions: next.permissions }) === 'activate'
+        if (executable) {
+          next.generation = (prev?.generation ?? 0) + 1
+          this.droppedHost?.activate({
+            id, dir: next.dir, generation: next.generation,
+            permissions: next.permissions, manifest: next.manifest!,
+          })
+          next.status = 'ok'
+          this.log({ type: 'dropped-package-activated', id, generation: next.generation, origin: `deck-pkg://${id}` })
+        } else {
+          next.generation = 0
+          if (next.status === 'pending-migration') {
+            this.log({ type: 'dropped-package-migration', id, issues: next.issues })
+          } else if (next.status === 'pending-approval') {
+            this.log({ type: 'dropped-package-pending-approval', id, permissions: next.permissions })
+          } else if (next.status === 'error') {
+            this.log({ type: 'dropped-package-error', id, error: next.error })
+          }
+        }
+        this.dropped.set(id, next)
+      } else {
+        // 指纹未变：crashed 保持 crashed（不自动重挂、副作用不重放），其余原样保留既有记账
+        next.status = prev.status
+        next.generation = prev.generation
+        this.dropped.set(id, next)
+      }
+    }
+
+    // 消失/停用/被内核遮蔽的：摘记账 + 拆上下文（包文件不动）
+    for (const id of [...this.dropped.keys()]) {
+      if (droppedScanned.has(id) && !disabled.has(id)) continue
+      const prev = this.dropped.get(id)!
+      if (prev.status === 'ok' || prev.status === 'crashed') {
+        this.droppedHost?.deactivate(id)
+        if (prev.status === 'ok') {
+          this.log({ type: 'dropped-package-deactivated', id, generation: prev.generation, reason: droppedScanned.has(id) ? 'disabled' : 'removed' })
+        }
+      }
+      this.dropped.delete(id)
+    }
+
+    this.publishDropped()
+  }
+
+  /** 单个投放目录的分类：manifest 迁移分类 + 入口资产核对 → 状态记账（不含上下文动作）。
+   * 指纹 = manifest 原文 + 入口 stat（与内核档同口径：任一变动即换了一代资产）。 */
+  private classifyDroppedDir(dir: string): DroppedRecord {
+    let manifestText = ''
+    try {
+      manifestText = fs.readFileSync(path.join(dir, MANIFEST_FILE), 'utf8')
+    } catch { /* 缺失/不可读：按结构错分类 */ }
+    let raw: unknown = null
+    try {
+      raw = JSON.parse(manifestText)
+    } catch { /* 坏 JSON：按结构错分类 */ }
+    const parsed = classifyDroppedManifest(raw)
+    const entryRel = parsed.ok ? parsed.manifest.entry.replace(/^\.\//, '') : null
+    const fingerprint = `${manifestText}|${entryRel ? statOf(path.join(dir, entryRel)) : 'no-entry'}`
+
+    if (!parsed.ok) {
+      const structural = parsed.issues.filter((i) => i.code === 'manifest_invalid')
+      if (structural.length > 0) {
+        return {
+          id: extractManifestId(raw) ?? fallbackId(dir), dir, manifest: null, issues: null,
+          error: structural.map((i) => i.message).join('；'),
+          fingerprint, generation: 0, status: 'error', permissions: [],
+        }
+      }
+      return {
+        id: extractManifestId(raw) ?? fallbackId(dir),
+        dir, manifest: null, issues: parsed.issues, error: null,
+        fingerprint, generation: 0, status: 'pending-migration', permissions: [],
+      }
+    }
+    const manifest = parsed.manifest
+    const entryMissing = statOf(path.join(dir, manifest.entry.replace(/^\.\//, ''))) === 'missing'
+    if (entryMissing) {
+      return {
+        id: manifest.id, dir, manifest: null, issues: null,
+        error: `入口资产不存在: ${manifest.entry}`,
+        fingerprint, generation: 0, status: 'error', permissions: manifest.permissions,
+      }
+    }
+    const decision = authorizeDroppedPackage({ permissions: manifest.permissions })
+    return {
+      id: manifest.id, dir, manifest, issues: null, error: null,
+      fingerprint, generation: 0, status: decision === 'activate' ? 'ok' : decision, permissions: manifest.permissions,
+    }
+  }
+
+  /** 投放清单发布：实质变化才发事件（与内核档同一纪律） */
+  private publishDropped(): void {
+    const listing: DroppedPackageInfo[] = [...this.dropped.values()]
+      .map((r) => this.toDroppedInfo(r))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    if (JSON.stringify(listing) !== JSON.stringify(this.droppedListing)) {
+      this.droppedListing = listing
+      this.ctx.emit('dropped-plugins/changed', listing)
+    }
+  }
+
+  private toDroppedInfo(r: DroppedRecord): DroppedPackageInfo {
+    const liveContext = r.status === 'ok' || r.status === 'crashed'
+    let issues: DroppedPackageMigrationIssue[] | null = null
+    if (r.issues) issues = r.issues.map((i) => ({ ...i }))
+    return {
+      id: r.id,
+      name: r.manifest?.name ?? r.id,
+      version: r.manifest?.version ?? '',
+      status: r.status,
+      permissions: [...r.permissions],
+      hostApiVersion: r.manifest?.hostApiVersion ?? null,
+      generation: r.generation,
+      origin: liveContext ? `deck-pkg://${r.id}` : null,
+      error: r.error,
+      migrationIssues: issues,
+    }
+  }
+
+  /**
    * 两轮扫描：**有效 manifest 绝对优先**于坏目录。
    * 先让所有根的有效插件按根序登记 id（先到先得），再把坏目录按未占用的兜底 id 补进来——
    * 一个写坏的插件不该因为目录名撞了内置 id 就把内置组件顶掉，反之亦然。
@@ -202,7 +461,7 @@ export class PluginHostService extends Service {
     const broken: Scanned[] = []
     const claimed = new Set<string>()
 
-    for (const root of this.roots) {
+    for (const root of this.kernelRoots) {
       for (const dir of listPluginDirs(root)) {
         const parsed = readManifest(dir)
         if (parsed.manifest) valid.push({
@@ -279,6 +538,10 @@ export class PluginHostService extends Service {
     if (this.stopped) return // ctx.on('dispose') 可能多次触发，实例只卸一次
     this.stopped = true
     for (const id of [...this.live.keys()]) this.unload(id)
+    // 投放档清算（工单331）：面板退出即拆全部独立上下文
+    for (const [id, record] of [...this.dropped.entries()]) {
+      if (record.status === 'ok') this.droppedHost?.deactivate(id)
+    }
   }
 }
 
