@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>t329 probe media</title></head>
+<body style="background:#222;color:#eee;font-family:sans-serif">
+  <h3>t329 GSMTC probe session</h3>
+  <audio id="a" src="/quiet.wav" autoplay loop></audio>
+  <p>state: <span id="s">?</span></p>
+  <script>
+    const a = document.getElementById('a');
+    a.volume = 0.05; // quiet
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 't329 Probe Track',
+        artist: 'GSMTC Probe Artist',
+        album: 't329 Probe Album',
+        artwork: [ { src: '/art.png', sizes: '256x256', type: 'image/png' } ],
+      });
+      navigator.mediaSession.setActionHandler('play', () => a.play());
+      navigator.mediaSession.setActionHandler('pause', () => a.pause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => { a.currentTime = 0; });
+      navigator.mediaSession.setActionHandler('nexttrack', () => { a.currentTime = 0; });
+    }
+    setInterval(() => { document.getElementById('s').textContent =
+      a.paused ? 'paused' : (a.currentTime.toFixed(1) + 's'); }, 200);
+  </script>
+</body></html>

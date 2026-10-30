@@ -1,0 +1,136 @@
+{
+ "readyReqMs": 35,
+ "killAtRel": 866,
+ "removed": 1395,
+ "postExitList": {
+  "count": 0,
+  "currentKey": null,
+  "sessions": []
+ },
+ "events": [
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 44,
+   "sessions": [
+    "MSEdge#0"
+   ]
+  },
+  {
+   "type": "event",
+   "event": "session-added",
+   "key": "MSEdge#0",
+   "ts": 45
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 44,
+   "sessions": [
+    "MSEdge#0"
+   ]
+  },
+  {
+   "type": "event",
+   "event": "session-added",
+   "key": "MSEdge#0",
+   "ts": 45
+  },
+  {
+   "type": "event",
+   "event": "current-session-changed",
+   "key": null,
+   "ts": 1431
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 1432,
+   "sessions": []
+  },
+  {
+   "type": "event",
+   "event": "session-removed",
+   "key": "MSEdge#0",
+   "ts": 1432
+  }
+ ],
+ "transcript": [
+  {
+   "type": "ready",
+   "ts": 37,
+   "requestMs": 35
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 44,
+   "sessions": [
+    "MSEdge#0"
+   ]
+  },
+  {
+   "type": "event",
+   "event": "session-added",
+   "key": "MSEdge#0",
+   "ts": 45
+  },
+  {
+   "type": "ready",
+   "ts": 37,
+   "requestMs": 35
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 44,
+   "sessions": [
+    "MSEdge#0"
+   ]
+  },
+  {
+   "type": "event",
+   "event": "session-added",
+   "key": "MSEdge#0",
+   "ts": 45
+  },
+  {
+   "type": "result",
+   "id": "w",
+   "ok": true,
+   "ts": 55,
+   "data": {
+    "watch": true
+   }
+  },
+  {
+   "type": "event",
+   "event": "current-session-changed",
+   "key": null,
+   "ts": 1431
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 1432,
+   "sessions": []
+  },
+  {
+   "type": "event",
+   "event": "session-removed",
+   "key": "MSEdge#0",
+   "ts": 1432
+  },
+  {
+   "type": "result",
+   "id": "l",
+   "ok": true,
+   "ts": 1451,
+   "data": {
+    "count": 0,
+    "currentKey": null,
+    "sessions": []
+   }
+  }
+ ]
+}

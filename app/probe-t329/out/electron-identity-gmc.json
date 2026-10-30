@@ -1,0 +1,102 @@
+{
+ "results": {
+  "electronVersions": "44.4.3",
+  "isPackaged": false,
+  "defaultAumidReported": "Electron",
+  "appliedAumid": null,
+  "executableName": "electron.exe",
+  "execPath": "D:\\test-folder\\wallpaperengine-research--spec326-t329\\app\\node_modules\\electron\\dist\\electron.exe",
+  "mediaState": [
+   {
+    "paused": false,
+    "t": "0.82",
+    "vol": 0.04
+   },
+   {
+    "paused": false,
+    "t": "1.83",
+    "vol": 0.04
+   },
+   {
+    "paused": false,
+    "t": "2.83",
+    "vol": 0.04
+   },
+   {
+    "paused": false,
+    "t": "3.84",
+    "vol": 0.04
+   },
+   {
+    "paused": false,
+    "t": "4.84",
+    "vol": 0.04
+   }
+  ],
+  "smtcMeta": "t329 Electron Track",
+  "sessions": {
+   "count": 1,
+   "currentKey": null,
+   "sessions": [
+    {
+     "key": "MSEdge#0",
+     "aumid": "MSEdge",
+     "status": "Playing",
+     "caps": {
+      "play": false,
+      "pause": true,
+      "next": true,
+      "previous": true,
+      "stop": true
+     }
+    }
+   ]
+  },
+  "electronSessionAumid": null
+ },
+ "transcript": [
+  {
+   "type": "ready",
+   "ts": 43,
+   "requestMs": 42
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 57,
+   "sessions": [
+    "MSEdge#0"
+   ]
+  },
+  {
+   "type": "event",
+   "event": "session-added",
+   "key": "MSEdge#0",
+   "ts": 58
+  },
+  {
+   "type": "result",
+   "id": "1",
+   "ok": true,
+   "ts": 6394,
+   "data": {
+    "count": 1,
+    "currentKey": null,
+    "sessions": [
+     {
+      "key": "MSEdge#0",
+      "aumid": "MSEdge",
+      "status": "Playing",
+      "caps": {
+       "play": false,
+       "pause": true,
+       "next": true,
+       "previous": true,
+       "stop": true
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

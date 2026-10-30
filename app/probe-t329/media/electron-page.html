@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>t329 electron smtc probe</title></head>
+<body style="background:#111;color:#eee;font-family:sans-serif">
+  <h3>t329 Electron SMTC source</h3>
+  <audio id="a" src="/quiet.wav" autoplay loop></audio>
+  <script>
+    const a = document.getElementById('a');
+    a.volume = 0.04;
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 't329 Electron Track',
+        artist: 'Electron Identity Probe',
+        album: 't329 Electron Album',
+        artwork: [ { src: '/art.png', sizes: '256x256', type: 'image/png' } ],
+      });
+      navigator.mediaSession.setActionHandler('play', () => a.play());
+      navigator.mediaSession.setActionHandler('pause', () => a.pause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => { a.currentTime = 0; });
+      navigator.mediaSession.setActionHandler('nexttrack', () => { a.currentTime = 0; });
+    }
+  </script>
+</body></html>

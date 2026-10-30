@@ -1,0 +1,484 @@
+{
+ "summary": {
+  "readyRequestMs": 35,
+  "list": {
+   "count": 1,
+   "currentKey": null,
+   "sessions": [
+    {
+     "key": "MSEdge#0",
+     "aumid": "MSEdge",
+     "status": "Playing",
+     "caps": {
+      "play": false,
+      "pause": true,
+      "next": true,
+      "previous": true,
+      "stop": true
+     }
+    }
+   ]
+  },
+  "targetKey": "MSEdge#0",
+  "snap": {
+   "key": "MSEdge#0",
+   "aumid": "MSEdge",
+   "status": "Playing",
+   "caps": {
+    "play": false,
+    "pause": true,
+    "next": true,
+    "previous": true,
+    "stop": true
+   },
+   "timeline": {
+    "positionMs": 10.47,
+    "endTimeMs": 39938.32,
+    "minSeekMs": 0,
+    "maxSeekMs": 39938.32,
+    "lastUpdatedTime": "2026-10-31T01:40:47.8641168+08:00",
+    "now": "2026-10-30T17:41:07.5118126+00:00"
+   },
+   "media": {
+    "title": "t329 Probe Track",
+    "artist": "GSMTC Probe Artist",
+    "albumTitle": "",
+    "albumArtist": "",
+    "subtitle": "",
+    "genres": [],
+    "playType": "Music",
+    "trackNumber": 0,
+    "albumTrackCount": 0,
+    "thumbPresent": true
+   }
+  },
+  "thumb": {
+   "present": true,
+   "contentType": "image/png",
+   "declaredSize": 506,
+   "readBytes": 506,
+   "ms": 43,
+   "headHex": "89504e470d0a1a0a",
+   "bytesBase64": "iVBORw0KGgoAAAANSUhEUgAAAJYAAACWCAIAAACzY+a1AAABr0lEQVR4nOzaQYrCUBAA0Vb+NTyJ9wePpUgWgWwDocJ7yMCMm5Gie9Fmvd6fx8zvNf+f+9dc8evx39j/8dx37/EB1/YOWRLmSZgnYZ6EeRLmSZgnYZ6Eec8hzhTmSZi3rNI6AfMs0jwJ8yTMkzBPwjwJ8yTMkzBPwjzXmTw30jyLNM8M5pnCPAnzJMyTME/CPAnzJMyTME/CPAnzJMyTME/CPN9U5JnCPAnzPHiRJ2CeRZonYZ6EeRLmSZgnYZ6EeRLmSZjnOpNnCvOcufMEzLNI8yTMkzBPwjwJ8yTMkzBPwjwJ81xn8txI8yzSPAnzrNE8U5gnYZ6EeRLmSZgnYZ6EeRLmSZgnYZ6EeRLmOXPnmcI8CfM8eJEnYJ5FmidhnoR5EuZJmCdhnoR5EuZJmOc6k+dGmmeR5pnBPFOYJ2GehHkS5kmYJ2GehHkS5kmYJ2GehHkS5kmY55uKPFOYJ2GeBy/yBMyzSPMkzJMwT8I8CfMkzJMwT8I8CfNcZ/JMYZ4zd56AeRZpnoR5EuZJmCdhnoR5EuZJmCdhnutMnhtpnkWaJ2GeNZpnCvMkzPsCAAD//2MvJZYAAAAGSURBVAMAG9EEVLVbtB4AAAAASUVORK5CYII="
+  },
+  "pause": {
+   "action": "pause",
+   "capabilityAllowed": true,
+   "attempted": true,
+   "delivered": true,
+   "statusBefore": "Playing",
+   "statusAfter": "Paused",
+   "statusChanged": true,
+   "statusChangeMs": 108,
+   "elapsedMs": 108
+  },
+  "play": {
+   "action": "play",
+   "capabilityAllowed": true,
+   "attempted": true,
+   "delivered": true,
+   "statusBefore": "Paused",
+   "statusAfter": "Playing",
+   "statusChanged": true,
+   "statusChangeMs": 123,
+   "elapsedMs": 123
+  },
+  "playAgainWhilePlaying": {
+   "action": "play",
+   "capabilityAllowed": false,
+   "attempted": false,
+   "delivered": false,
+   "statusBefore": "Playing",
+   "statusAfter": "Playing",
+   "statusChanged": false,
+   "elapsedMs": 0
+  },
+  "next": {
+   "action": "next",
+   "capabilityAllowed": true,
+   "attempted": true,
+   "delivered": true,
+   "statusBefore": "Playing",
+   "statusAfter": "Playing",
+   "statusChanged": false,
+   "statusChangeMs": -1,
+   "elapsedMs": 2203
+  },
+  "nextPositionJump": {
+   "beforeMs": 19773.64,
+   "afterMs": 13.24
+  },
+  "previous": {
+   "action": "previous",
+   "capabilityAllowed": true,
+   "attempted": true,
+   "delivered": true,
+   "statusBefore": "Playing",
+   "statusAfter": "Playing",
+   "statusChanged": false,
+   "statusChangeMs": -1,
+   "elapsedMs": 2240
+  }
+ },
+ "transcript": [
+  {
+   "type": "ready",
+   "ts": 36,
+   "requestMs": 35
+  },
+  {
+   "type": "event",
+   "event": "sessions-changed",
+   "ts": 44,
+   "sessions": [
+    "MSEdge#0"
+   ]
+  },
+  {
+   "type": "event",
+   "event": "session-added",
+   "key": "MSEdge#0",
+   "ts": 45
+  },
+  {
+   "type": "result",
+   "id": "1",
+   "ok": true,
+   "ts": 54,
+   "data": {
+    "count": 1,
+    "currentKey": null,
+    "sessions": [
+     {
+      "key": "MSEdge#0",
+      "aumid": "MSEdge",
+      "status": "Playing",
+      "caps": {
+       "play": false,
+       "pause": true,
+       "next": true,
+       "previous": true,
+       "stop": true
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "result",
+   "id": "2",
+   "ok": true,
+   "ts": 58,
+   "data": {
+    "key": "MSEdge#0",
+    "aumid": "MSEdge",
+    "status": "Playing",
+    "caps": {
+     "play": false,
+     "pause": true,
+     "next": true,
+     "previous": true,
+     "stop": true
+    },
+    "timeline": {
+     "positionMs": 10.47,
+     "endTimeMs": 39938.32,
+     "minSeekMs": 0,
+     "maxSeekMs": 39938.32,
+     "lastUpdatedTime": "2026-10-31T01:40:47.8641168+08:00",
+     "now": "2026-10-30T17:41:07.5118126+00:00"
+    },
+    "media": {
+     "title": "t329 Probe Track",
+     "artist": "GSMTC Probe Artist",
+     "albumTitle": "",
+     "albumArtist": "",
+     "subtitle": "",
+     "genres": [],
+     "playType": "Music",
+     "trackNumber": 0,
+     "albumTrackCount": 0,
+     "thumbPresent": true
+    }
+   }
+  },
+  {
+   "type": "result",
+   "id": "3",
+   "ok": true,
+   "ts": 150,
+   "data": {
+    "present": true,
+    "contentType": "image/png",
+    "declaredSize": 506,
+    "readBytes": 506,
+    "ms": 43,
+    "headHex": "89504e470d0a1a0a",
+    "bytesBase64": "iVBORw0KGgoAAAANSUhEUgAAAJYAAACWCAIAAACzY+a1AAABr0lEQVR4nOzaQYrCUBAA0Vb+NTyJ9wePpUgWgWwDocJ7yMCMm5Gie9Fmvd6fx8zvNf+f+9dc8evx39j/8dx37/EB1/YOWRLmSZgnYZ6EeRLmSZgnYZ6Eec8hzhTmSZi3rNI6AfMs0jwJ8yTMkzBPwjwJ8yTMkzBPwjzXmTw30jyLNM8M5pnCPAnzJMyTME/CPAnzJMyTME/CPAnzJMyTME/CPN9U5JnCPAnzPHiRJ2CeRZonYZ6EeRLmSZgnYZ6EeRLmSZjnOpNnCvOcufMEzLNI8yTMkzBPwjwJ8yTMkzBPwjwJ81xn8txI8yzSPAnzrNE8U5gnYZ6EeRLmSZgnYZ6EeRLmSZgnYZ6EeRLmOXPnmcI8CfM8eJEnYJ5FmidhnoR5EuZJmCdhnoR5EuZJmOc6k+dGmmeR5pnBPFOYJ2GehHkS5kmYJ2GehHkS5kmYJ2GehHkS5kmY55uKPFOYJ2GeBy/yBMyzSPMkzJMwT8I8CfMkzJMwT8I8CfNcZ/JMYZ4zd56AeRZpnoR5EuZJmCdhnoR5EuZJmCdhnutMnhtpnkWaJ2GeNZpnCvMkzPsCAAD//2MvJZYAAAAGSURBVAMAG9EEVLVbtB4AAAAASUVORK5CYII="
+   }
+  },
+  {
+   "type": "result",
+   "id": "4",
+   "ok": true,
+   "ts": 154,
+   "data": {
+    "watch": true
+   }
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "timeline",
+   "ts": 181
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "playback",
+   "ts": 182
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "playback",
+   "ts": 182
+  },
+  {
+   "type": "result",
+   "id": "5",
+   "ok": true,
+   "ts": 267,
+   "data": {
+    "action": "pause",
+    "capabilityAllowed": true,
+    "attempted": true,
+    "delivered": true,
+    "statusBefore": "Playing",
+    "statusAfter": "Paused",
+    "statusChanged": true,
+    "statusChangeMs": 108,
+    "elapsedMs": 108
+   }
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "playback",
+   "ts": 6692
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "timeline",
+   "ts": 6693
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "playback",
+   "ts": 6693
+  },
+  {
+   "type": "result",
+   "id": "6",
+   "ok": true,
+   "ts": 6799,
+   "data": {
+    "action": "play",
+    "capabilityAllowed": true,
+    "attempted": true,
+    "delivered": true,
+    "statusBefore": "Paused",
+    "statusAfter": "Playing",
+    "statusChanged": true,
+    "statusChangeMs": 123,
+    "elapsedMs": 123
+   }
+  },
+  {
+   "type": "result",
+   "id": "7",
+   "ok": true,
+   "ts": 13217,
+   "data": {
+    "action": "play",
+    "capabilityAllowed": false,
+    "attempted": false,
+    "delivered": false,
+    "statusBefore": "Playing",
+    "statusAfter": "Playing",
+    "statusChanged": false,
+    "elapsedMs": 0
+   }
+  },
+  {
+   "type": "result",
+   "id": "8",
+   "ok": true,
+   "ts": 13217,
+   "data": {
+    "key": "MSEdge#0",
+    "aumid": "MSEdge",
+    "status": "Playing",
+    "caps": {
+     "play": false,
+     "pause": true,
+     "next": true,
+     "previous": true,
+     "stop": true
+    },
+    "timeline": {
+     "positionMs": 19773.64,
+     "endTimeMs": 39938.32,
+     "minSeekMs": 0,
+     "maxSeekMs": 39938.32,
+     "lastUpdatedTime": "2026-10-31T01:41:14.1235216+08:00",
+     "now": "2026-10-30T17:41:20.6503082+00:00"
+    },
+    "media": {
+     "title": "t329 Probe Track",
+     "artist": "GSMTC Probe Artist",
+     "albumTitle": "",
+     "albumArtist": "",
+     "subtitle": "",
+     "genres": [],
+     "playType": "Music",
+     "trackNumber": 0,
+     "albumTrackCount": 0,
+     "thumbPresent": true
+    }
+   }
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "timeline",
+   "ts": 13250
+  },
+  {
+   "type": "result",
+   "id": "9",
+   "ok": true,
+   "ts": 15436,
+   "data": {
+    "action": "next",
+    "capabilityAllowed": true,
+    "attempted": true,
+    "delivered": true,
+    "statusBefore": "Playing",
+    "statusAfter": "Playing",
+    "statusChanged": false,
+    "statusChangeMs": -1,
+    "elapsedMs": 2203
+   }
+  },
+  {
+   "type": "result",
+   "id": "10",
+   "ok": true,
+   "ts": 16142,
+   "data": {
+    "key": "MSEdge#0",
+    "aumid": "MSEdge",
+    "status": "Playing",
+    "caps": {
+     "play": false,
+     "pause": true,
+     "next": true,
+     "previous": true,
+     "stop": true
+    },
+    "timeline": {
+     "positionMs": 13.24,
+     "endTimeMs": 39938.32,
+     "minSeekMs": 0,
+     "maxSeekMs": 39938.32,
+     "lastUpdatedTime": "2026-10-31T01:41:20.6809329+08:00",
+     "now": "2026-10-30T17:41:23.5756118+00:00"
+    },
+    "media": {
+     "title": "t329 Probe Track",
+     "artist": "GSMTC Probe Artist",
+     "albumTitle": "",
+     "albumArtist": "",
+     "subtitle": "",
+     "genres": [],
+     "playType": "Music",
+     "trackNumber": 0,
+     "albumTrackCount": 0,
+     "thumbPresent": true
+    }
+   }
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "timeline",
+   "ts": 16174
+  },
+  {
+   "type": "result",
+   "id": "11",
+   "ok": true,
+   "ts": 18399,
+   "data": {
+    "action": "previous",
+    "capabilityAllowed": true,
+    "attempted": true,
+    "delivered": true,
+    "statusBefore": "Playing",
+    "statusAfter": "Playing",
+    "statusChanged": false,
+    "statusChangeMs": -1,
+    "elapsedMs": 2240
+   }
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "playback",
+   "ts": 18416
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "playback",
+   "ts": 18417
+  },
+  {
+   "type": "event",
+   "event": "session-updated",
+   "key": "MSEdge#0",
+   "what": "timeline",
+   "ts": 18417
+  },
+  {
+   "type": "result",
+   "id": "12",
+   "ok": true,
+   "ts": 18521,
+   "data": {
+    "action": "pause",
+    "capabilityAllowed": true,
+    "attempted": true,
+    "delivered": true,
+    "statusBefore": "Playing",
+    "statusAfter": "Paused",
+    "statusChanged": true,
+    "statusChangeMs": 121,
+    "elapsedMs": 121
+   }
+  }
+ ]
+}
