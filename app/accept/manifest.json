@@ -1800,6 +1800,10 @@
       "area": "sessions"
     },
     {
+      "path": "app/src/main/conversation",
+      "area": "sessions"
+    },
+    {
       "path": "app/src/main/services/settings.ts",
       "area": "settings"
     },
