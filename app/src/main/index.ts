@@ -20,6 +20,8 @@ import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { productionPluginRoots } from './plugins/roots'
+import { DroppedPackageHost } from './plugins/package-host'
+import { ExecutionContextRegistry } from './plugins/identity'
 import { userDataPath } from './paths'
 import type { TrayWireEvent } from './trayhost/protocol'
 
@@ -191,6 +193,18 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     void spikeWin.loadFile(path.join(app.getAppPath(), 'accept', 'lib', 'tray-spike.html'))
   }
 
+  // 投放包宿主（工单331）：dropped 档独立执行上下文的 Electron 接线。登记表与宿主先于
+  // 内核装配创建（激活发生在 PluginHostService 构造期首扫），config 存储与崩溃记账经
+  // 懒闭包在内核就绪后解析。仅用户根是投放档（roots.ts 档位标记）。
+  const packageRegistry = new ExecutionContextRegistry()
+  let kernelRef: ReturnType<typeof createPanelKernel> | null = null
+  const droppedPackageHost = new DroppedPackageHost({
+    registry: packageRegistry,
+    configPort: () => kernelRef?.pluginConfig ?? null,
+    onCrashed: (id, reason) => kernelRef?.plugins.markDroppedCrashed(id, reason),
+    log: (event) => log?.append(event),
+  })
+
   const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
@@ -222,6 +236,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         userRoot: config.plugins.dir || userDataPath('plugins'),
       }),
       disabledIds: () => config.plugins.disabled,
+      // 投放档（工单331）：独立上下文宿主端口 + 生命周期事件出口（dropped-package-*）
+      droppedHost: droppedPackageHost,
+      log: (event) => log?.append(event),
     },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
     // Electron API 不可用于子进程——桌面根/摆位存储/日志目录等路径全部在此解析后下发。
@@ -246,6 +263,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
   })
   await kernel.start()
+  kernelRef = kernel
+  // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
+  kernel.on('panel/changed', (snap) => droppedPackageHost.pushSnapshot(snap))
   // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady
@@ -253,6 +273,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   installPluginProtocol({ appRoot: RENDERER_ROOT, sharedRoot: path.join(__dirname, '../shared'), host: kernel.plugins, log: (e) => log?.append(e) })
 
   const win = createPanelWindow({ geometry: config.panel })
+  // 投放包视图挂载（工单331）：开窗前已激活的包在此补挂 contentView
+  droppedPackageHost.attach(win)
   wireBridgeIpc(win, kernel.bridge)
 
   // 任务栏插件窗口（工单49）：跟随内核 taskbar 状态建/销；禁用即窗口消失，面板本体不受影响
