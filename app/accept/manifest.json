@@ -28,7 +28,7 @@
           "surfaces": [
             "panel-alive"
           ],
-          "estSeconds": 15,
+          "estSeconds": 8,
           "areas": [
             "panel.core"
           ]
@@ -40,7 +40,7 @@
           "surfaces": [
             "pixel"
           ],
-          "estSeconds": 15,
+          "estSeconds": 9,
           "areas": [
             "panel.core",
             "cards"
@@ -53,7 +53,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 10,
+          "estSeconds": 12,
           "areas": [
             "cards",
             "sessions"
@@ -67,7 +67,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 10,
+          "estSeconds": 3,
           "areas": [
             "panel.core",
             "hotzone"
@@ -95,7 +95,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 3,
+          "estSeconds": 5,
           "areas": [
             "cards",
             "hotzone"
@@ -111,7 +111,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 35,
+          "estSeconds": 18,
           "areas": [
             "desktop"
           ]
@@ -123,7 +123,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 12,
+          "estSeconds": 9,
           "areas": [
             "desktop"
           ]
@@ -135,7 +135,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 12,
+          "estSeconds": 13,
           "areas": [
             "desktop"
           ]
@@ -148,7 +148,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35,
+          "estSeconds": 25,
           "areas": [
             "desktop"
           ]
@@ -161,7 +161,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 30,
+          "estSeconds": 18,
           "areas": [
             "desktop"
           ]
@@ -174,7 +174,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 25,
+          "estSeconds": 17,
           "areas": [
             "desktop"
           ]
@@ -187,7 +187,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 20,
+          "estSeconds": 9,
           "areas": [
             "desktop"
           ]
@@ -200,7 +200,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35,
+          "estSeconds": 28,
           "areas": [
             "desktop",
             "hotzone",
@@ -217,7 +217,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 19,
           "areas": [
             "desktop",
             "cards"
@@ -231,7 +231,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 25,
+          "estSeconds": 16,
           "areas": [
             "desktop",
             "cards"
@@ -246,7 +246,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 22,
           "areas": [
             "desktop",
             "cards"
@@ -276,7 +276,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 18,
           "areas": [
             "desktop",
             "cards"
@@ -291,7 +291,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 14,
           "areas": [
             "desktop",
             "cards"
@@ -305,7 +305,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35,
+          "estSeconds": 32,
           "areas": [
             "panel.core",
             "cards"
@@ -335,7 +335,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 21,
           "areas": [
             "settings",
             "config"
@@ -351,7 +351,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 19,
+          "estSeconds": 22,
           "areas": [
             "settings",
             "cards",
@@ -366,7 +366,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 12,
+          "estSeconds": 6,
           "areas": [
             "config"
           ]
@@ -378,7 +378,7 @@
           "surfaces": [
             "panel-alive"
           ],
-          "estSeconds": 8,
+          "estSeconds": 2,
           "areas": [
             "panel.core"
           ]
@@ -391,7 +391,7 @@
             "system-state",
             "pixel"
           ],
-          "estSeconds": 18,
+          "estSeconds": 6,
           "areas": [
             "tray"
           ]
@@ -406,7 +406,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 20,
+          "estSeconds": 11,
           "areas": [
             "desktop",
             "panel.core"
@@ -421,7 +421,7 @@
             "system-state",
             "pixel"
           ],
-          "estSeconds": 18,
+          "estSeconds": 15,
           "areas": [
             "tray",
             "panel.core"
@@ -435,7 +435,7 @@
             "panel-alive",
             "event-evidence"
           ],
-          "estSeconds": 12,
+          "estSeconds": 10,
           "areas": [
             "settings",
             "panel.core"
@@ -450,7 +450,7 @@
             "event-evidence",
             "panel-alive"
           ],
-          "estSeconds": 25,
+          "estSeconds": 23,
           "areas": [
             "sessions",
             "cards"
@@ -459,15 +459,28 @@
         {
           "seg": "P11",
           "ticket": 10,
-          "title": "桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装",
+          "title": "桌面组件插件自举：内置五卡经插件契约装载 + qoder 退役检查（工单331 退役旧同上下文投放探针，投放档真机面见 P13）",
           "surfaces": [
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 6,
           "areas": [
             "plugins",
             "cards"
+          ]
+        },
+        {
+          "seg": "P13",
+          "ticket": 331,
+          "title": "零权限投放包独立上下文（工单331 五条验收标准真机面）：零权限投放即生效（激活/停用/恢复）+ 独立 webContents/origin 与无 invoke 泄漏（CDP 多目标）+ 默认无出站网络 + 崩溃错误态不自动重挂/副作用不重放/他包与面板无恙 + 旧包三类结构化迁移错误",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 90,
+          "areas": [
+            "plugins"
           ]
         },
         {
@@ -477,7 +490,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 16,
+          "estSeconds": 15,
           "areas": [
             "render"
           ]
