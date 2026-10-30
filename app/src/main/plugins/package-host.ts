@@ -153,7 +153,8 @@ export class DroppedPackageHost {
     const view = new WebContentsView({
       webPreferences: {
         partition,
-        preload: path.join(__dirname, '../preload/package.js'),
+        // 本模块编译产物在 dist/main/plugins/（比 dist/main 深一级）：两级上行才是 dist/preload
+        preload: path.join(__dirname, '../../preload/package.js'),
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,
@@ -185,6 +186,12 @@ export class DroppedPackageHost {
     wc.on('render-process-gone', (_event, details) => {
       this.deps.log?.({ type: 'dropped-package-render-gone', id: pkg.id, reason: details.reason, exitCode: details.exitCode })
       this.deps.onCrashed(pkg.id, details.reason)
+    })
+    // 包页控制台出主进程日志（与协议 asset-404 同款运营观测）：preload 加载失败、壳页
+    // import 失败、插件自身抛错都从这里落盘——包页没有别的可观测出口。
+    wc.on('console-message', (_event, _level, message) => {
+      if (/Security Warning/.test(message)) return
+      this.deps.log?.({ type: 'dropped-package-console', id: pkg.id, message: String(message).slice(0, 300) })
     })
     wc.on('did-finish-load', () => {
       context.pageLoaded = true
