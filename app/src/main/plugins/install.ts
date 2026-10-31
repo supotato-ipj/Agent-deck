@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
+import type { InstallProposalView } from '../../shared/contract'
 
 /** 提交字节上限（ADR-0019 待装载区纪律）：总量/单文件/文件数/深度/manifest 体积 */
 const LIMIT_TOTAL_BYTES = 8 * 1024 * 1024
@@ -29,20 +30,8 @@ export interface InstallFileEntry {
   sizeBytes: number
 }
 
-/** 提案视图（批准 UI / MCP plugins_list 投影数据面；终态留痕） */
-export interface InstallProposalView {
-  proposalId: string
-  status: 'pending' | 'activated' | 'rejected' | 'failed'
-  /** 提交时铸的操作 id：意图/结局分离存证的相关键（结局事件复用同一 opId） */
-  opId: string
-  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[] }
-  files: InstallFileEntry[]
-  /** 聚合哈希：排序后 `${path}:${sha256}\n` 逐行串的 sha256（批准时同一份字节复算绑定） */
-  hash: string
-  source: { sessionId: string; backend: string; label: string | null }
-  createdAt: number
-  error: { code: string; message: string; stateUnknown?: boolean } | null
-}
+// 提案视图类型单源在 shared/contract（批准 UI 与主进程同一词汇）；此处 re-export 供测试/内部引用
+export type { InstallProposalView } from '../../shared/contract'
 
 export interface MountOutcome {
   ok: boolean
@@ -97,7 +86,7 @@ export type InstallSubmitResult =
         | 'busy'
       message: string
       opId?: string
-      issues?: MigrationIssue[]
+      issues?: InstallIssue[]
       existing?: unknown
       retryable?: boolean
     }
@@ -130,8 +119,12 @@ function isInside(child: string, parent: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
 
-interface WalkIssue {
-  code: 'limit_file_size' | 'limit_total_size' | 'limit_file_count' | 'limit_path_depth' | 'extension_not_allowed' | 'forbidden_entry' | 'symlink_rejected' | 'unreadable_entry'
+/** 安装管线 issue：形状复用 MigrationIssue（code/message），码域并入字节守卫各码（ADR-0019） */
+export type InstallIssueCode = MigrationIssue['code']
+  | 'limit_file_size' | 'limit_total_size' | 'limit_file_count' | 'limit_path_depth'
+  | 'extension_not_allowed' | 'forbidden_entry' | 'symlink_rejected' | 'unreadable_entry'
+export interface InstallIssue {
+  code: InstallIssueCode
   message: string
 }
 
@@ -251,7 +244,7 @@ export class PluginInstallManager {
     const cleanupStaging = (): void => {
       try { fs.rmSync(stagingDir, { recursive: true, force: true }) } catch { /* 尽力 */ }
     }
-    const issues: MigrationIssue[] = []
+    const issues: InstallIssue[] = []
     // 符号链接守卫（拷贝前 lstat 预walk）：cpSync 默认解引用，事后查拷贝产物打不中——
     // 源树里任何 symlink/junction 条目即拒，绝不把链外字节拷进待装载区
     const scanSymlinks = (cur: string, rel: string): void => {

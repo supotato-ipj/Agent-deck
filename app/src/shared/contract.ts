@@ -513,6 +513,21 @@ export interface ConversationSessionView {
   pendingPermission: { options: ConversationPermissionOption[] } | null
 }
 
+/** 工单334 安装提案视图（批准 UI 数据面；主进程 plugins 主账本投影） */
+export interface InstallProposalView {
+  proposalId: string
+  status: 'pending' | 'activated' | 'rejected' | 'failed'
+  /** 提交时铸的操作 id：意图/结局审计的相关键 */
+  opId: string
+  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[] }
+  files: Array<{ path: string; sha256: string; sizeBytes: number }>
+  /** 聚合哈希：批准时同一份字节复算绑定 */
+  hash: string
+  source: { sessionId: string; backend: string; label: string | null }
+  createdAt: number
+  error: { code: string; message: string; stateUnknown?: boolean } | null
+}
+
 /** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
 export interface ConversationRuntimeDiagnostics {
   agentName: string
@@ -871,6 +886,10 @@ export interface BridgeMethods {
    * 旧会话不自动继承；目录选择经 config.conversation.dshHome 持久化（重启保持）。
    */
   'conversation/new-data-dir': { request: null; response: { ok: boolean; dshHome?: string; previous?: string; error?: string } }
+  /** 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝 */
+  'install/list': { request: null; response: { proposals: InstallProposalView[] } }
+  'install/approve': { request: { proposalId: string }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean } }
+  'install/reject': { request: { proposalId: string }; response: { ok: boolean; code?: string; message?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

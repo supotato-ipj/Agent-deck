@@ -271,6 +271,32 @@ export class BridgeService extends Service {
       // 工单340（ADR-0026）：显式创建全新 DSH 数据目录手势（设置面入口；旧目录零触碰）
       case 'conversation/new-data-dir':
         return this.ctx.conversation.createFreshDataDir() as BridgeMethods[M]['response']
+      // 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝——真实用户手势
+      // 经桥进来，落 PluginInstallManager（哈希绑定/转正/有界激活/审计都在状态机内）
+      case 'install/list':
+        return { proposals: this.ctx.plugins.installProposals() } as BridgeMethods[M]['response']
+      case 'install/approve': {
+        const { proposalId } = payload as { proposalId?: unknown }
+        if (typeof proposalId !== 'string' || !proposalId.trim()) {
+          throw new BridgeError('install/approve 需要 proposalId（提案标识字符串）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.approve(String(proposalId))
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
+      case 'install/reject': {
+        const { proposalId } = payload as { proposalId?: unknown }
+        if (typeof proposalId !== 'string' || !proposalId.trim()) {
+          throw new BridgeError('install/reject 需要 proposalId（提案标识字符串）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.reject(String(proposalId))
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

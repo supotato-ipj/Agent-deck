@@ -677,7 +677,7 @@ export class ConversationService extends Service {
     if (!this.managedOpts) {
       return { ok: false, reason: 'unknown_tool', message: `未知工具: ${name}（本装配未启用管理面）` }
     }
-    const outcome = await dispatchManagedTool(name, args, this.managedOpts.source())
+    const outcome = await dispatchManagedTool(name, args, this.managedOpts.source(), ctx)
     this.logEvent({ type: 'managed-tool-call', sessionId: ctx.sessionId, tool: name, ok: outcome.ok, reason: outcome.ok ? null : outcome.reason })
     return outcome
   }

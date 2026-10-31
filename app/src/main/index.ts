@@ -248,6 +248,17 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       disabledIds: () => config.plugins.disabled,
       // 投放档（工单331）：独立上下文宿主端口 + 生命周期事件出口（dropped-package-*）
       droppedHost: droppedPackageHost,
+      // DSH 安装管线（工单334）：待装载区面板私域（userData/plugins-staging）；会话工作区
+      // 事实源 = 对话域会话 cwd（kernelRef 惰性取）；有界激活 12s（t331 坑位：crash 悬挂竞速）
+      install: {
+        stagingRoot: userDataPath('plugins-staging'),
+        userRoot: config.plugins.dir || userDataPath('plugins'),
+        sessionInfo: (sessionId) => {
+          const v = kernelRef?.conversation?.sessions().find((s) => s.id === sessionId)
+          return v ? { cwd: v.cwd, label: v.label } : null
+        },
+        mountBoundMs: 12_000,
+      },
       log: (event) => log?.append(event),
     },
     // 对话窗（工单332）：面板专属 DSH_HOME 与元数据落 userData（跟面板走），后端档
@@ -287,6 +298,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
                   kernel: kernelRef?.plugins.info() ?? [],
                   dropped: kernelRef?.plugins.droppedInfo() ?? [],
                 }),
+                // 工单334：安装提交缝（MCP 只收路径；会话工作区包含校验在 install.ts，
+                // sessionId 从 bearer 通道绑定来）
+                installSubmit: (args, mctx) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配安装面（install 未接线）——安装工具不可用')
+                  // backend='dsh'：管理面 v1 后端唯一 = DSH（ADR-0026）
+                  return mgr.submit(args, { sessionId: mctx.sessionId, backend: 'dsh' })
+                },
               })
             }
             return cached
