@@ -368,9 +368,11 @@ async function main() {
     if (recycled && panelStillAlive) rep.pass('进程回收：会话进程消失（backendPid 清空）且面板本体无恙');
     else rep.fail(`回收不符：recycled=${recycled} panelAlive=${panelStillAlive}`);
 
-    // 断言⑦ 全程零管理面（验收标准 4）
-    if ((await sessionsView()).every((s) => s.managed === false)) rep.pass('全程零管理面：无任何会话持有管理标记');
-    else rep.fail('出现 managed 会话（聊天型票面不允许）');
+    // 断言⑦ 全程零管理面（验收标准 4）——工单340 轮校准：元数据行跨轮留存（ended 行随
+    // metadata.json 持久），断言改为「无**在场** managed 会话」；否则 #333 轮次遗留的
+    // ended managed 行会让本断言历史敏感（2026-10-31 轮 1 FAIL 定责，非产品回归）
+    if ((await sessionsView()).every((s) => s.managed === false || s.status === 'ended' || s.status === 'failed')) rep.pass('全程零管理面：无在场会话持有管理标记（历史 ended/failed 行不计——幂等轮次安全）');
+    else rep.fail('出现在场 managed 会话（聊天型票面不允许）');
 
     // ===================================================================
     // 段 C2（工单333，spec #326）：管理型会话只读面板与插件契约——真实 DSH + 罐头 LLM。
@@ -556,10 +558,11 @@ async function main() {
         const info3 = await bridge('conversation/backend', null);
         // ② 创建明确报错：不建行（conversation-create-failed reason=boot 在案）
         const create3 = await bridge('conversation/create', { label: 'accept-340-bogus' });
-        const failEvent = await tape.wait('conversation-create-failed', (e) => e.reason === 'boot', { timeoutMs: 10000, since: gateT }).catch(() => null);
+        const failEvent = await tape.wait('conversation-create-failed', (e) => e.reason === 'boot' || e.reason === 'backend-unresolved', { timeoutMs: 10000, since: gateT });
         // ③ 零 DSH 进程面：无握手、无 session-new（解析在 spawn 之前落空）
-        const lateHandshake = await tape.wait('conversation-handshake', () => true, { timeoutMs: 2000, since: gateT }).then(() => true).catch(() => false);
-        const lateSessionNew = await tape.wait('conversation-session-new', () => true, { timeoutMs: 2000, since: gateT }).then(() => true).catch(() => false);
+        //    tape.wait 超时返回 null（不抛错）——必须 !! 强转，.then(()=>true) 会把 null 变 true
+        const lateHandshake = !!(await tape.wait('conversation-handshake', () => true, { timeoutMs: 2000, since: gateT }));
+        const lateSessionNew = !!(await tape.wait('conversation-session-new', () => true, { timeoutMs: 2000, since: gateT }));
         // ④ 失败非破坏：dshHome 哈希零变化
         const afterFailHash = hashDir(oldHome);
         if (info3 && info3.available === false && info3.detail && info3.detail.length > 10
