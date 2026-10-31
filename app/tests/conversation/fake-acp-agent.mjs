@@ -1,6 +1,7 @@
 // 确定性 ACP v1 fake 后端（工单332 常驻测试资产）：说 NDJSON JSON-RPC 2.0（ACP 帧），
 // 行为按场景脚本化，让 ACP 客户端与会话服务的常规回归完全离线、零 DSH 依赖。
 import { pathToFileURL } from 'node:url'
+import fs from 'node:fs'
 import path from 'node:path'
 //
 // 两种用法：
@@ -75,6 +76,37 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
   // 工单340 冒烟门观察对象：对注入的回环 MCP 宿主做最小探活（initialize → tools/list，
   // 带 bearer）。真实 DSH 在 session/new 后即刻做同一链路（t330 实录先 server/discover，
   // 方言请求宿主按 -32601 回，不影响 initialize/tools/list 两发的到达）。
+  // 工单334 managed-install 场景：探活后在会话工作区写零权限包 → MCP 提交（真实全链编排）
+  async function installFlow(mcp, cwd) {
+    const headers = { 'Content-Type': 'application/json' }
+    for (const hd of mcp.headers ?? []) headers[hd.name] = hd.value
+    try {
+      const init = await fetch(mcp.url, {
+        method: 'POST', headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 91001, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake-acp-agent', version: '0.1.0' } } }),
+      })
+      const sid = init.headers.get('mcp-session-id')
+      if (sid) headers['mcp-session-id'] = sid
+      await fetch(mcp.url, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) })
+      // DSH 姿势：包写在会话工作区下（cwd 来自 session/new——DSH 用自身文件工具落盘）
+      const pkgDir = path.join(cwd, 'dsh-hello-pkg')
+      fs.mkdirSync(pkgDir, { recursive: true })
+      fs.writeFileSync(path.join(pkgDir, 'plugin.json'), JSON.stringify({
+        id: 'dsh-hello', name: 'DSH HELLO', version: '1.0.0', entry: './card.js',
+        hostApiVersion: 1, capabilities: ['clock'], permissions: [],
+      }, null, 2), 'utf8')
+      fs.writeFileSync(path.join(pkgDir, 'card.js'), 'export default { mount(host) { host.el.textContent = "hello from dsh" } }\n', 'utf8')
+      const call = await fetch(mcp.url, {
+        method: 'POST', headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 91002, method: 'tools/call', params: { name: 'plugin_install_submit', arguments: { sourceDir: pkgDir } } }),
+      })
+      const body = await call.json().catch(() => null)
+      trace({ fakeInstallSubmit: call.status, ok: body?.result != null, body: JSON.stringify(body)?.slice(0, 400) })
+    } catch (err) {
+      trace({ fakeInstallSubmitError: String(err) })
+    }
+  }
+
   async function probeInjectedMcp(mcp) {
     if (!mcp || mcp.type !== 'http') return
     const headers = { 'Content-Type': 'application/json' }
@@ -117,6 +149,10 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
             if (scenario === 'managed') {
               const target = injectedMcp
               later(() => { void probeInjectedMcp(target) }, 10)
+            } else if (scenario === 'managed-install') {
+              const target = injectedMcp
+              const cwd = typeof frame.params?.cwd === 'string' ? frame.params.cwd : '.'
+              later(() => { void installFlow(target, cwd) }, 10)
             }
           }
           reply(frame.id, { sessionId: 'fake-session-1', configOptions: [] })

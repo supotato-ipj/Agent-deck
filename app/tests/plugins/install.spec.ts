@@ -52,7 +52,7 @@ function writePluginDir(dir: string, manifest: unknown, cardText: string = GOOD_
 
 let seq = 0
 
-function boot(opts: { kernelPackages?: boolean; preExistingStaging?: string } = {}): Harness {
+function boot(opts: { kernelPackages?: boolean; preExistingStaging?: boolean } = {}): Harness {
   const userRoot = tmpDir('user')
   const stagingRoot = tmpDir('staging')
   const kernelRoot = tmpDir('kernel')
