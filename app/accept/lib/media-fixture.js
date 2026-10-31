@@ -23,7 +23,9 @@ function toneWav() {
   const seconds = 5;
   const n = sampleRate * seconds;
   const data = Buffer.alloc(n * 2);
-  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 12000), i * 2);
+  // 振幅 8/32767（≈-72dB，人耳不可闻）：SMTC 注册只要求媒体管道在走，不需要可听音——
+  // 早期 12000 振幅的 440Hz 循环音刺耳（用户投诉实证），改近静音。
+  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 8), i * 2);
   const header = Buffer.alloc(44);
   header.write('RIFF', 0);
   header.writeUInt32LE(36 + data.length, 4);

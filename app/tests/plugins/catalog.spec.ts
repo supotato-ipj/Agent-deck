@@ -58,9 +58,9 @@ describe('插件契约目录：正典自洽（工单331）', () => {
     const net = PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'network.request')
     expect(net?.grant).toBe('exact-origin')
     expect(net?.status).toBe('declared')
-    // 工单336：media.read 通路落地 = enforced（首个敏感权限闭环）；media.control 归 #337
+    // 工单336：media.read = enforced；工单337：media.control 可选权限逐项批准 = enforced
     expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.read')?.status).toBe('enforced')
-    expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.control')?.status).toBe('declared')
+    expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.control')?.status).toBe('enforced')
   })
 
   it('每个权限与基线域引用的错误码都在错误目录中登记', () => {
