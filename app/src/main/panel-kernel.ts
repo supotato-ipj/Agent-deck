@@ -12,6 +12,7 @@ import { DataplaneService, type DataplaneServiceOptions } from './services/datap
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { ConversationService, type ConversationServiceOptions } from './conversation/service'
+import { MediaService, type MediaServiceOptions } from './media/service'
 import { DEFAULT_SEARCH_INTERVAL_MS, DEFAULT_TASKBAR_POLL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
@@ -42,6 +43,8 @@ export interface PanelKernelOptions {
   quit?: () => void
   /** 对话窗（工单332）：DSH_HOME/工作目录根/元数据文件/后端档/窗口唤起钩子（生产装配下发） */
   conversation?: ConversationServiceOptions
+  /** 媒体域（工单336，ADR-0025）：审计文件/桥 exe/授权账（生产装配下发；缺省 = 桥缺席明确态） */
+  media?: MediaServiceOptions
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -81,6 +84,9 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(PluginConfigService, options.pluginConfig)
   // 对话窗会话服务（工单332）：BridgeService 注入依赖它，必须先于桥接层注册。
   ctx.plugin(ConversationService, options.conversation)
+  // 媒体域（工单336）：可选装配（缺省 = 桥缺席明确态）；BridgeService 的媒体方法经
+  // ctx.media? 可选访问（不进 inject 清单——缺装配不得让桥接层静默不装载，pluginConfig 先例）。
+  ctx.plugin(MediaService, options.media)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {

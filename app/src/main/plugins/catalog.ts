@@ -111,8 +111,8 @@ const PERMISSIONS: readonly PermissionDescriptor[] = [
     events: ['media/sessions-changed'],
     errors: ['media_unavailable'],
     userGestureRequired: false,
-    limits: { snapshotRatePerSecond: 1, snapshotBytes: 64 * 1024 },
-    status: 'declared',
+    limits: { snapshotRatePerSecond: 1, snapshotBytes: 64 * 1024, thumbnailMaxBytes: 2 * 1024 * 1024 },
+    status: 'enforced',
   },
   {
     id: 'media.control',
@@ -169,6 +169,22 @@ const BASELINE_HOST_API: readonly BaselineApiDomain[] = [
     errors: ['config_invalid', 'config_io_failed', 'config_too_large', 'unknown_context'],
     status: 'enforced',
   },
+  {
+    id: 'host.media',
+    // 工单336：媒体域落地（首个敏感权限闭环）。数据面 = media.read 授权后的脱敏快照
+    // （MediaSnapshotDTO，白名单字段）；缩略图按需单取（类型/大小校验后交字节副本）。
+    // 授权面 = 持久化授权账（id+权限集合+代码哈希；撤销即断供）。media.control（控制动作）
+    // 归 #337——本域 actions 留空，控制动作不在 media.read 语义内。
+    summary: '媒体会话脱敏快照与受控缩略图（media.read 授权后按 capabilities=media 投喂；事件 media/sessions-changed 驱动宿主重推）',
+    dto: {
+      'MediaSnapshotDTO': '脱敏快照（generation/available/selectedKey/sessions[]；session = key/aumid/status/caps/timeline/media 八字段白名单）',
+      'MediaThumbnail': '受控缩略图（dataUrl 字节副本；png/jpeg/webp ≤2MB，校验拒付一个字节不出）',
+    },
+    actions: [],
+    events: ['media/sessions-changed'],
+    errors: ['media_unavailable', 'media_session_gone', 'media_thumbnail_rejected', 'media_permission_denied', 'unknown_context'],
+    status: 'enforced',
+  },
 ]
 
 /** 结构化错误目录（迁移错误 + 基线域运行时错误 + 权限运行时错误 + 闸门错误） */
@@ -190,6 +206,9 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'media_unavailable', kind: 'runtime', message: '系统媒体会话不可用' },
   { code: 'media_session_gone', kind: 'runtime', message: '目标媒体会话已消失（带代次会话键失效）' },
   { code: 'media_command_failed', kind: 'runtime', message: '媒体控制命令执行失败（目标当下能力不足或系统拒绝）' },
+  // —— 工单336 媒体域运行时错误（media.read 闭环）——
+  { code: 'media_thumbnail_rejected', kind: 'runtime', message: '缩略图校验未通过（类型/大小越界）——拒付，一个字节不出' },
+  { code: 'media_permission_denied', kind: 'gate', message: 'media.read 未授权（授权账无在册绑定或已撤销）——媒体数据不付' },
   { code: 'network_denied', kind: 'runtime', message: '目标 origin 不在该包的授权清单（默认无出站网络）' },
   { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/超时/响应超限）' },
 ]

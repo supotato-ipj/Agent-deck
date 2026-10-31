@@ -158,8 +158,8 @@ describe('结构错沿用旧语义（不属迁移，进 error 态）', () => {
 })
 
 describe('投放档 view 段上限（正典登记，与解析器同源）', () => {
-  it('DROPPED_VIEW_SEGMENTS = clock/hardware/layout/settings（ADR-0019 投放窄面四段）', () => {
-    expect([...DROPPED_VIEW_SEGMENTS]).toEqual(['clock', 'hardware', 'layout', 'settings'])
+  it('DROPPED_VIEW_SEGMENTS = clock/hardware/layout/settings/media（四段 + 工单336 媒体段）', () => {
+    expect([...DROPPED_VIEW_SEGMENTS]).toEqual(['clock', 'hardware', 'layout', 'settings', 'media'])
     expect(Object.isFrozen(DROPPED_VIEW_SEGMENTS)).toBe(true)
   })
 })
