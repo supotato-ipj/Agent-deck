@@ -353,6 +353,46 @@ export interface PluginManifest {
 /** 插件装载态：ok = 已识别、资产已校验并投递给渲染层；error = 坏 manifest/资产缺失，带原因 */
 export type PluginStatus = 'ok' | 'error'
 
+/**
+ * 投放包运行态（工单331，ADR-0025）：投放档独立上下文的生命周期词表。
+ * ok = 独立 webContents 运行中；crashed = 崩溃错误态（不自动重挂、恢复=显式重建）；
+ * pending-approval = 含敏感权限待批准（批准前不执行）；pending-migration = 待迁移（旧包/
+ * 未知权限/主版本不兼容，带结构化迁移错误）；error = 坏包（结构错/资产缺失）。
+ */
+export const DROPPED_PACKAGE_STATES = [
+  'ok', 'crashed', 'pending-approval', 'pending-migration', 'error',
+] as const
+export type DroppedPackageState = (typeof DROPPED_PACKAGE_STATES)[number]
+
+/** 投放包迁移问题（可读、结构化；机器与用户直接可消费） */
+export interface DroppedPackageMigrationIssue {
+  code: string
+  message: string
+  expected?: number
+  actual?: unknown
+  unknown?: string[]
+}
+
+/** 投放包清单条目（主进程 dropped 档管理视图；不进 PanelSnapshot.plugins 段） */
+export interface DroppedPackageInfo {
+  id: string
+  name: string
+  version: string
+  status: DroppedPackageState
+  /** 声明的敏感权限（零权限包为空清单） */
+  permissions: string[]
+  /** 目标宿主 API 主版本（迁移分类通过时 = 当前主版本） */
+  hostApiVersion: number | null
+  /** 代码代次（内容变化即递增） */
+  generation: number
+  /** 独立 origin（`deck-pkg://<id>`；上下文未拉起时为 null） */
+  origin: string | null
+  /** error 态原因 */
+  error: string | null
+  /** 待迁移态的结构化迁移错误（其余态为 null） */
+  migrationIssues: DroppedPackageMigrationIssue[] | null
+}
+
 /** 快照可见的插件条目（entry 已解析为可直接 import 的协议 URL） */
 export interface PluginInfo {
   id: string

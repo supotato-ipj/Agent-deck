@@ -5905,19 +5905,15 @@ async function runSegments() {
         restoreConfigB(configBackup09);
       }
     })();
-    // —— P11 工单10 桌面组件（插件体系自举）：外部样例插件「放入即被识别」——
-    // 位置纪律（沿用 09 踩坑 8）：本段是电池的**最后一段**（P9 之后、清场之前）。本段要在
-    // 电池运行中改 userData 下的插件目录，排在中间会扰动前面探针的时序。
-    // 唯一判据的形状：**全程不重启面板**——只往插件目录里放一个目录，面板自己认出来。
-    // 「没重启」由 boot 存证条数不变来证，不靠自述。
+    // —— P11 工单10 桌面组件（插件体系自举）：内置五卡经插件契约装载 ——
+    // 位置纪律（沿用 09 踩坑 8）：改 userData 下插件目录的段排在后段（P9 之后、清场之前），
+    // 避免扰动前面探针的时序。
+    // 工单331 特征退役（ADR-0025 断裂迁移）：本段原「hello 外部样例放入即识别/重载/卸载/重装」
+    // 四步断言的**旧同上下文投放路径已随 331 退役**（投放档改走独立 webContents+origin，
+    // 由新增 P13 段验真机面；样例 manifest 已升 hostApiVersion:1）——退役断言随特征同 PR
+    // 移除，非静默：理由在关票评论与本注释留痕。内置五卡自举与 qoder 退役检查不受影响。
     rep.beginSegment('P11');
     await (async () => {
-      // #278：hello 探针改写入 preflight 重定向的隔离目录——面板插件根只盯 config.plugins.dir
-      // （userData/plugins 已被旁置），写错目录「放入即识别」必假败
-      const pluginsDir = pluginsDirIsolated;
-      const sampleSrc = path.join(APP_ROOT, 'samples', 'hello-plugin');
-      const dest = path.join(pluginsDir, 'hello');
-      const bootCount = () => tape.all('boot').length;
       try {
         // 0. 内置卡自举：五个桌面组件必须**经插件契约**装载（不是面板自己画的）。
         //    工单99 日历成包、工单100 搜索面板成包，内置清单随之扩到五张
@@ -5959,87 +5955,273 @@ async function runSegments() {
           : rep.fail(`Qoder 状态块退役探针未过：qoder-card ${qoderGone ? '已缺席' : '仍在热区声明'}，`
             + `sessions-card 矩形 ${JSON.stringify(sz || null)}（期望 top 160 / 高 520）`);
 
-        if (!fs.existsSync(sampleSrc)) { rep.fail('桌面组件探针前置失败：样例插件源缺失'); return; }
-        if (lastEvent('plugin-mounted', (e) => e.id === 'hello', since)) {
-          rep.fail('桌面组件探针前置失败：样例插件在电池启动前已在装（干净起点不成立）');
-          return;
-        }
-        const boots0 = bootCount();
-        const t0 = Date.now();
-        fs.mkdirSync(dest, { recursive: true });
-        for (const name of ['plugin.json', 'card.js']) {
-          fs.copyFileSync(path.join(sampleSrc, name), path.join(dest, name));
-        }
-        rep.note(`桌面组件探针：样例插件已放入 ${dest}（本段不重启面板，boot 存证基线 ${boots0} 条）`);
 
-        // ① 主进程认到插件并把前端入口投递给渲染层（plugins/changed → plugin-mounted）
-        const mounted = await tape.wait('plugin-mounted', (e) => e.id === 'hello', { since: t0, timeoutMs: 15000 });
-        // ② 插件模块自身跑起来（deck-plugin:// 动态 import 成功 → mount 被调）
-        const ran = await tape.wait('hello-mounted', undefined, { since: t0, timeoutMs: 8000 });
-        // ③ 卡片进入热区：插件组件与面板卡片同一套点击穿透模型，不是画上去的死图
-        let zone = null;
-        for (let i = 0; i < 20 && !zone; i++) { await sleep(300); zone = latestZoneOf('hello-card'); }
-        const boots1 = bootCount();
-        if (!mounted) {
-          rep.fail('桌面组件探针未过：插件放入后 15s 内未收到 plugin-mounted（主进程未认到或未投递）');
-          return;
-        }
-        if (!ran) {
-          rep.fail(`桌面组件探针未过：主进程已投递入口，但插件模块未跑起来（无 hello-mounted；`
-            + `看面板 stderr 的 CSP/协议错误；capabilities=${JSON.stringify(mounted.capabilities)}）`);
-          return;
-        }
-        if (!zone) {
-          rep.fail('桌面组件探针未过：插件卡片未进入热区（点了没反应 = 面板在非热区是穿透的）');
-          return;
-        }
-        boots1 === boots0
-          ? rep.pass(`桌面组件·放入即识别：外部样例插件放入插件目录后**无需重启面板**即被装载并渲染`
-            + `（capabilities=${JSON.stringify(mounted.capabilities)}，卡片热区 ${Math.round(zone.w)}x${Math.round(zone.h)}，boot 存证 ${boots0}→${boots1} 未增）`)
-          : rep.fail(`桌面组件探针无效：插件装载期间面板重启过（boot 存证 ${boots0}→${boots1}），本段断言不成立`);
-        fullShot('10-plugin-hello');
-
-        // ② 运行时重载：改插件自己的 card.js → 代号递增 → 渲染层重挂（不重启面板）
-        const tReload = Date.now();
-        const cardFile = path.join(dest, 'card.js');
-        fs.writeFileSync(cardFile,
-          fs.readFileSync(cardFile, 'utf8').replace('EXTERNAL PLUGIN OK', 'EXTERNAL PLUGIN RELOADED'), 'utf8');
-        const reloaded = await tape.wait('plugin-mounted', (e) => e.id === 'hello', { since: tReload, timeoutMs: 15000 });
-        reloaded
-          ? rep.pass('桌面组件·运行时重载：改插件自身资产后即时重载生效（未重启面板，入口代号变化即换 URL 绕开 ESM 模块缓存）')
-          : rep.fail('桌面组件·重载未过：改 card.js 后 15s 内未再次收到 plugin-mounted');
-
-        // ③ 卸载：移除插件目录 → 卡片从热区消失（点击不再有反应，场面上真的走了）
-        const tUnload = Date.now();
-        fs.rmSync(dest, { recursive: true, force: true });
-        let gone = false;
-        for (let i = 0; i < 25 && !gone; i++) {
-          await sleep(300);
-          const last = tape.latest('hotzones', undefined, { since: tUnload });
-          gone = Boolean(last && !(last.rects || []).some((r) => r.id === 'hello-card'));
-        }
-        gone
-          ? rep.pass('桌面组件·卸载：移除插件目录后其卡片从面板消失（热区不再声明，无残留死区）')
-          : rep.fail('桌面组件·卸载未过：移除插件目录后 8s 内卡片仍在热区里');
-
-        // ④ 重装恢复：放回同一个目录 → 卡片回来（安装位语义：放入即被识别）
-        const tReinstall = Date.now();
-        fs.mkdirSync(dest, { recursive: true });
-        for (const name of ['plugin.json', 'card.js']) {
-          fs.copyFileSync(path.join(sampleSrc, name), path.join(dest, name));
-        }
-        const back = await tape.wait('plugin-mounted', (e) => e.id === 'hello', { since: tReinstall, timeoutMs: 15000 });
-        let backZone = null;
-        for (let i = 0; i < 20 && !backZone; i++) { await sleep(300); backZone = latestZoneOf('hello-card'); }
-        const boots2 = bootCount();
-        back && backZone && boots2 === boots0
-          ? rep.pass('桌面组件·重装恢复：把插件目录放回即恢复装载与渲染（boot 存证全程未增 = 四步都没重启面板）')
-          : rep.fail(`桌面组件·重装未过（plugin-mounted=${Boolean(back)}，卡片热区=${Boolean(backZone)}，boot ${boots0}→${boots2}）`);
-        fullShot('10-plugin-reinstalled');
+        // 工单331 特征退役：旧同上下文投放探针（hello 放入即识别/运行时重载/卸载/重装恢复）
+        // 已随投放窄面退役移除——新路径（独立上下文/零权限投放即生效/迁移错误）由 P13 段承接。
+        rep.note('P11 范围更新（工单331）：旧同上下文投放探针随 ADR-0025 断裂迁移退役，'
+          + '本段保留内置五卡自举与 qoder 退役检查；投放档新路径断言见 P13');
       } finally {
-        // 不给用户留残留：插件目录里的东西电池放进去的，电池自己收走
-        try { fs.rmSync(dest, { recursive: true, force: true }); } catch { /* 尽力 */ }
-        rep.note(`桌面组件探针清场：已移除 ${dest}`);
+        // 隔离插件目录随电池末尾清场一并回收（#278），此处无包级残留可清
+      }
+    })();
+
+    // —— P13 工单331（spec #326）：零权限投放包在独立上下文中运行 ——
+    // 一段绑定一工单（331）。旧同上下文投放路径已随 331 退役（ADR-0025 断裂迁移，见 P11 注），
+    // 本段验新路径真机面（契约目录/投影是纯逻辑，vitest 单测覆盖，不进真机段）：
+    // ① 零权限包投放即生效（激活/停用/恢复，无批准闸门）② 每包独立 webContents+origin
+    //（CDP 多目标取证）+ 无通用 invoke 泄漏 ③ 默认无出站网络 + 崩溃错误态（不自动重挂/
+    // 副作用不重放/他包与面板无恙）⑤ 旧包结构化迁移错误（缺主版本/未知权限/不兼容主版本）
+    // 且不保留旧路径（不进内核清单）。
+    // 观测通道：主进程 dropped-package-* 事件（DECK_EVENT_LOG → 事件磁带）+ CDP /json 多目标
+    //（deck-pkg:// 包页直接 evaluate）+ 私有状态磁盘落盘互证（P178 同法）。
+    // 崩溃触发：CDP Page.crash 主路径；8s 未崩走 OOM 兜底（包 fixture 轮询自身 config 的
+    // crash 旗标自崩——电池自写内容，不是产品钩子）。t328 探针坑位：崩溃包的 executeJavaScript
+    // promise 悬挂不落定，故崩溃后一切取证只走事件与磁盘，不再碰崩溃页。
+    rep.beginSegment('P13');
+    await (async () => {
+      const droppedDir = pluginsDirIsolated; // #278 隔离目录：面板插件根只盯这里
+      const pkgCfgFile = (id) => path.join(app.getPath('userData'), 'plugin-config', `${id}.json`);
+      const FIXTURE_IDS = ['pkg-zero', 'pkg-net', 'pkg-old', 'pkg-perm', 'pkg-badver'];
+      const writeDropped = (id, manifest, entryText) => {
+        const dir = path.join(droppedDir, id);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'plugin.json'), JSON.stringify(manifest), 'utf8');
+        fs.writeFileSync(path.join(dir, String(manifest.entry).replace(/^\.\//, '')), entryText, 'utf8');
+        return dir;
+      };
+      const rmDropped = (id) => { try { fs.rmSync(path.join(droppedDir, id), { recursive: true, force: true }); } catch { /* 尽力 */ } };
+
+      // fixture 入口（电池自写）：零权限包把 mount 副作用计数写进自己的私有状态命名空间
+      //（崩溃不重放断言的落盘账），并提供 config 轮询自崩口（OOM 兜底触发器）。
+      const ZERO_ENTRY = [
+        'let timer = null;',
+        'export default {',
+        '  async mount(host) {',
+        '    const env = await host.config.get();',
+        '    const n = ((env && env.config && env.config.mounts) || 0) + 1;',
+        '    await host.config.set({ mounts: n });',
+        '    host.el.innerHTML = \'<div id="pkg-zero-marker">ZERO-PKG-OK</div>\';',
+        '    timer = setInterval(async () => {',
+        '      try {',
+        '        const cur = await host.config.get();',
+        '        if (cur && cur.config && cur.config.crash === true) {',
+        '          if (timer) clearInterval(timer);',
+        '          timer = null;',
+        '          const hog = [];',
+        '          for (;;) {',
+        '            try { hog.push(new ArrayBuffer(256 * 1024 * 1024)); }',
+        '            catch (e1) { try { hog.push(new ArrayBuffer(16 * 1024 * 1024)); } catch (e2) { hog.push(new ArrayBuffer(1024 * 1024)); } }',
+        '          }',
+        '        }',
+        '      } catch { /* 存储抖动下轮再查 */ }',
+        '    }, 300);',
+        '  },',
+        '  unmount() { if (timer) clearInterval(timer); },',
+        '};',
+      ].join('\n');
+      // 网络探针包：mount 时对三个目标各发一次 fetch，结果（拒绝形态）落自己的私有状态。
+      const NET_ENTRY = [
+        'const probe = async (url) => { try { await fetch(url); return "allowed"; } catch (e) { return "denied:" + String((e && e.message) || e).slice(0, 60); } };',
+        'export default {',
+        '  async mount(host) {',
+        '    const results = {',
+        '      sameOrigin: await probe("deck-pkg://pkg-net/card.js"),',
+        '      crossPackage: await probe("deck-pkg://pkg-zero/card.js"),',
+        '      http: await probe("http://127.0.0.1:9/deck-p13-probe"),',
+        '    };',
+        '    await host.config.set({ netProbe: results });',
+        '    host.el.innerHTML = \'<div id="pkg-net-marker">NET-PKG-OK</div>\';',
+        '  },',
+        '};',
+      ].join('\n');
+
+      // —— CDP 多目标助手：/json 列表按 URL 前缀寻包页 target（面板 cdpEval 之外的独立通道）——
+      async function cdpTarget(urlPrefix) {
+        const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+        const t = targets.find((x) => x.url && x.url.startsWith(urlPrefix));
+        if (!t) {
+          const pkgUrls = targets.map((x) => x.url).filter((u) => `${u}`.startsWith('deck-pkg://')).join(', ') || '无';
+          throw new Error(`CDP 找不到目标 ${urlPrefix}（在场包页目标: ${pkgUrls}）`);
+        }
+        return t;
+      }
+      async function cdpTargetExists(urlPrefix) {
+        try { await cdpTarget(urlPrefix); return true; } catch { return false; }
+      }
+      async function cdpCallOn(urlPrefix, message, timeoutMs = 8000) {
+        const target = await cdpTarget(urlPrefix);
+        const ws = new WebSocket(target.webSocketDebuggerUrl);
+        try {
+          await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('CDP WebSocket 连接失败')); });
+          return await new Promise((res, rej) => {
+            const timer = setTimeout(() => rej(new Error('CDP 往返超时')), timeoutMs);
+            ws.onmessage = (ev) => {
+              const m = JSON.parse(ev.data);
+              if (m.id === 1) { clearTimeout(timer); res(m); }
+            };
+            ws.send(JSON.stringify({ id: 1, ...message }));
+          });
+        } finally {
+          ws.close();
+        }
+      }
+      const cdpEvalOn = (urlPrefix, expression, timeoutMs) =>
+        cdpCallOn(urlPrefix, { method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }, timeoutMs)
+          .then((reply) => {
+            if (reply.error || (reply.result && reply.result.exceptionDetails)) {
+              throw new Error(`CDP evaluate 失败: ${JSON.stringify(reply.error || reply.result.exceptionDetails)}`);
+            }
+            return reply.result.result.value;
+          });
+      const bridgeInvoke = (method, payload) => cdpEval(
+        `window.deck.bridge.invoke(${JSON.stringify(method)}, ${JSON.stringify(payload ?? {})})`);
+      // 内核快照的插件清单 id（旧路径退役断言：投放包绝不出现在这里）
+      const panelSnapshotPluginIds = () => cdpEval(
+        `window.deck.bridge.invoke('panel/snapshot').then((s) => s.plugins.map((p) => p.id))`);
+
+      try {
+        // —— ①⑤ 投放五包：零权限两包激活 + 三类迁移错误 ——
+        const t0 = Date.now();
+        writeDropped('pkg-zero', { id: 'pkg-zero', name: '零权限样例', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['clock'] }, ZERO_ENTRY);
+        writeDropped('pkg-net', { id: 'pkg-net', name: '网络探针', version: '1.0.0', entry: './card.js', hostApiVersion: 1 }, NET_ENTRY);
+        writeDropped('pkg-old', { id: 'pkg-old', name: '旧模型包', version: '1.0.0', entry: './card.js' }, 'export default {};');
+        writeDropped('pkg-perm', { id: 'pkg-perm', name: '未知权限包', version: '1.0.0', entry: './card.js', hostApiVersion: 1, permissions: ['fs.raw'] }, 'export default {};');
+        writeDropped('pkg-badver', { id: 'pkg-badver', name: '主版本不兼容包', version: '1.0.0', entry: './card.js', hostApiVersion: 99 }, 'export default {};');
+        rep.note(`已投放五个 fixture 包（pkg-zero/pkg-net 零权限、pkg-old 缺主版本、pkg-perm 未知权限 fs.raw、pkg-badver 主版本 99）→ ${droppedDir}`);
+
+        const actZero = await tape.wait('dropped-package-activated', (e) => e.id === 'pkg-zero', { since: t0, timeoutMs: 20000 });
+        const actNet = await tape.wait('dropped-package-activated', (e) => e.id === 'pkg-net', { since: t0, timeoutMs: 15000 });
+        const migOld = await tape.wait('dropped-package-migration', (e) => e.id === 'pkg-old', { since: t0, timeoutMs: 15000 });
+        const migPerm = await tape.wait('dropped-package-migration', (e) => e.id === 'pkg-perm', { since: t0, timeoutMs: 15000 });
+        const migBad = await tape.wait('dropped-package-migration', (e) => e.id === 'pkg-badver', { since: t0, timeoutMs: 15000 });
+        const migrated = Boolean(migOld && migPerm && migBad
+          && (migOld.issues || []).some((i) => i.code === 'host_api_version_missing')
+          && (migPerm.issues || []).some((i) => i.code === 'permission_unknown' && (i.unknown || []).includes('fs.raw'))
+          && (migBad.issues || []).some((i) => i.code === 'host_api_version_unsupported'));
+        (actZero && actNet && migrated)
+          ? rep.pass(`零权限投放即生效 + 旧包结构化迁移错误：pkg-zero/pkg-net 无敏感权限不走批准闸门直接激活（origin ${actZero.origin} / ${actNet.origin}）；`
+            + `pkg-old→host_api_version_missing、pkg-perm→permission_unknown(fs.raw)、pkg-badver→host_api_version_unsupported 三类旧包全部进待迁移态（可读原因在事件 issues[].message）`)
+          : rep.fail(`投放/迁移断言未过：激活 pkg-zero=${Boolean(actZero)} pkg-net=${Boolean(actNet)}；迁移 old=${Boolean(migOld)} perm=${Boolean(migPerm)} badver=${Boolean(migBad)}（查 dropped-package-* 事件与面板 stderr）`);
+
+        // —— 旧路径退役：投放包绝不进内核清单（快照 plugins 段 + plugin-mounted 双查） ——
+        await sleep(1500); // 等一拍快照与事件沉淀
+        const kernelIds = await panelSnapshotPluginIds();
+        const leakedMount = lastEvent('plugin-mounted', (e) => `${e.id}`.startsWith('pkg-'), t0);
+        (!leakedMount && !kernelIds.some((id) => `${id}`.startsWith('pkg-')))
+          ? rep.pass(`旧同上下文路径退役：投放包不在快照 plugins 段（内核清单 ${JSON.stringify(kernelIds)}），整轮无任何 pkg-* 的 plugin-mounted（旧全 invoke 路径对投放包不存在）`)
+          : rep.fail(`旧路径泄漏：快照内核清单含投放包=${kernelIds.filter((id) => `${id}`.startsWith('pkg-')).join('/') || '否'}；pkg-* plugin-mounted=${leakedMount ? JSON.stringify(leakedMount) : '无'}`);
+
+        // —— ② 独立 webContents + origin + 宿主面收口（CDP 直查包页） ——
+        const zRaw = await cdpEvalOn('deck-pkg://pkg-zero/', `JSON.stringify({ origin: location.origin, deck: typeof window.deck, require: typeof window.require, process: typeof window.process, hostInvoke: window.deckHost ? typeof window.deckHost.invoke : 'no-host', hostBridge: window.deckHost ? typeof window.deckHost.bridge : 'no-host', title: document.title, marker: Boolean(document.getElementById('pkg-zero-marker')), bodyText: document.body.textContent.slice(0, 200) })`);
+        const z = JSON.parse(zRaw);
+        const pkgTargets = (await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json())
+          .filter((x) => x.url && x.url.startsWith('deck-pkg://'));
+        (z.origin === 'deck-pkg://pkg-zero' && z.deck === 'undefined' && z.require === 'undefined' && z.process === 'undefined'
+          && z.hostInvoke === 'undefined' && z.hostBridge === 'undefined' && z.title === 'deck-pkg:ready' && z.marker && pkgTargets.length >= 2)
+          ? rep.pass(`独立执行上下文成立：包页真实 origin=${z.origin}（${pkgTargets.length} 个独立包页 CDP 目标，主进程登记 webContents→包身份）；`
+            + `window.deck=${z.deck}/require=${z.require}/process=${z.process} 全 undefined（受信内部桥与 Node 面不泄漏）；`
+            + `deckHost 无通用 invoke/桥事件（typeof=${z.hostInvoke}/${z.hostBridge}）；宿主壳挂载完成（title=${z.title}，DOM 标记在场）`)
+          : rep.fail(`独立上下文断言未过：${zRaw}；壳页报错=${z.bodyText || '无'}；包页目标=${JSON.stringify(pkgTargets.map((x) => x.url))}`);
+
+        // —— ③a 默认无出站网络：包内 fetch 三探（本包/跨包/直连外联）全拒 ——
+        let netProbe = null;
+        for (let i = 0; i < 20 && !netProbe; i++) {
+          await sleep(500);
+          try {
+            const env = await bridgeInvoke('plugin-config/get', { id: 'pkg-net' });
+            if (env && env.config && env.config.netProbe) netProbe = env.config.netProbe;
+          } catch { /* 页未挂载完，下轮再取 */ }
+        }
+        (netProbe && ['sameOrigin', 'crossPackage', 'http'].every((k) => `${netProbe[k]}`.startsWith('denied')))
+          ? rep.pass(`默认无出站网络成立：零权限包（无 network.request 授权）包内 fetch 本包资产=${netProbe.sameOrigin} / 跨包资产=${netProbe.crossPackage} / 直连外联=${netProbe.http}，三探全部被拒（session 级 webRequest 默认拒绝 + 壳页 CSP connect-src 'none' 双闸）`)
+          : rep.fail(`网络断言未过：netProbe=${JSON.stringify(netProbe || null)}（期望三探全部 denied）`);
+
+        // —— ②b 私有状态身份绑定：磁盘互证（P178 同法；身份由登记表推导，包内 API 无 id 可自报） ——
+        let zeroCfg = null;
+        try { zeroCfg = JSON.parse(fs.readFileSync(pkgCfgFile('pkg-zero'), 'utf8')); } catch { /* 未落盘 */ }
+        let bridgeCfg = null;
+        try { bridgeCfg = await bridgeInvoke('plugin-config/get', { id: 'pkg-zero' }); } catch { /* 未挂载 */ }
+        (zeroCfg && zeroCfg.mounts === 1 && bridgeCfg && bridgeCfg.config && bridgeCfg.config.mounts === 1)
+          ? rep.pass(`私有状态身份绑定成立：pkg-zero 的 mount 副作用经 host.config 落进自己的命名空间（磁盘 ${pkgCfgFile('pkg-zero')} mounts=${zeroCfg.mounts}；内核桥 plugin-config/get 读回一致=${bridgeCfg.config.mounts}）`)
+          : rep.fail(`私有状态断言未过：磁盘=${JSON.stringify(zeroCfg)}；内核桥读回=${JSON.stringify(bridgeCfg)}`);
+
+        // —— ③b 崩溃错误态：Page.crash 主路径 + OOM 兜底 ——
+        const tCrash = Date.now();
+        let crashPath = 'cdp-page-crash';
+        try {
+          await cdpCallOn('deck-pkg://pkg-zero/', { method: 'Page.crash', params: {} });
+        } catch (e) {
+          crashPath = 'oom-fallback';
+          rep.note(`Page.crash 不可用（${e.message}）→ OOM 兜底：经内核桥置 crash 旗标，fixture 轮询自崩`);
+          try { await bridgeInvoke('plugin-config/set', { id: 'pkg-zero', patch: { crash: true } }); } catch { /* 下轮 */ }
+        }
+        let gone = null;
+        try { gone = await tape.wait('dropped-package-render-gone', (e) => e.id === 'pkg-zero', { since: tCrash, timeoutMs: 8000 }); } catch { /* 兜底续等 */ }
+        if (!gone) {
+          if (crashPath !== 'oom-fallback') {
+            crashPath = 'oom-fallback';
+            try { await bridgeInvoke('plugin-config/set', { id: 'pkg-zero', patch: { crash: true } }); } catch { /* 下轮 */ }
+          }
+          try { gone = await tape.wait('dropped-package-render-gone', (e) => e.id === 'pkg-zero', { since: tCrash, timeoutMs: 25000 }); } catch { /* 落 fail */ }
+        }
+        const crashedEvt = gone ? lastEvent('dropped-package-crashed', (e) => e.id === 'pkg-zero', tCrash) : null;
+        // 不自动重挂观察窗：4s 内无新的 activated/context-created；mount 副作用不重放（磁盘账恒 1）
+        await sleep(4000);
+        const remounted = lastEvent('dropped-package-activated', (e) => e.id === 'pkg-zero', tCrash)
+          || lastEvent('dropped-package-context-created', (e) => e.id === 'pkg-zero', tCrash);
+        const cfgAfterCrash = (() => { try { return JSON.parse(fs.readFileSync(pkgCfgFile('pkg-zero'), 'utf8')); } catch { return null; } })();
+        const pkgNetAlive = await (async () => { try { return await cdpEvalOn('deck-pkg://pkg-net/', '1 + 1'); } catch { return 'dead'; } })();
+        const panelAlive = await (async () => { try { return await cdpEval('1 + 1'); } catch { return 'dead'; } })();
+        (gone && crashedEvt && !remounted && cfgAfterCrash && cfgAfterCrash.mounts === 1 && pkgNetAlive === 2 && panelAlive === 2)
+          ? rep.pass(`崩溃错误态成立（触发=${crashPath}，reason=${gone.reason}）：render-process-gone → dropped-package-crashed 进错误态；`
+            + `4s 观察窗零重挂（无新 context-created/activated，主进程无 reload 调用点）；mount 副作用不重放（磁盘账 mounts=${cfgAfterCrash.mounts} 恒 1）；`
+            + `他包无恙（pkg-net evaluate=${pkgNetAlive}）；面板无恙（evaluate=${panelAlive}）——恢复=显式，不在途动作重放`)
+          : rep.fail(`崩溃断言未过：gone=${Boolean(gone)} crashed=${JSON.stringify(crashedEvt)}；观察窗重挂=${Boolean(remounted)}；`
+            + `崩溃后磁盘 mounts=${cfgAfterCrash ? cfgAfterCrash.mounts : '读盘失败'}；pkg-net=${pkgNetAlive} panel=${panelAlive}`);
+
+        // —— ① 停用/恢复（健康包 pkg-net 走 set-card-enabled 全链） ——
+        const tDis = Date.now();
+        await bridgeInvoke('settings/set-card-enabled', { id: 'pkg-net', enabled: false });
+        const dis = await tape.wait('dropped-package-deactivated', (e) => e.id === 'pkg-net', { since: tDis, timeoutMs: 15000 });
+        let ctxGone = false;
+        for (let i = 0; i < 10 && !ctxGone; i++) {
+          await sleep(400);
+          ctxGone = Boolean(lastEvent('dropped-package-context-removed', (e) => e.id === 'pkg-net', tDis));
+        }
+        const netCfgKept = fs.existsSync(pkgCfgFile('pkg-net'));
+        await bridgeInvoke('settings/set-card-enabled', { id: 'pkg-net', enabled: true });
+        const reAct = await tape.wait('dropped-package-activated', (e) => e.id === 'pkg-net', { since: tDis, timeoutMs: 15000 });
+        let netBack = false;
+        for (let i = 0; i < 15 && !netBack; i++) { await sleep(500); netBack = await cdpTargetExists('deck-pkg://pkg-net/'); }
+        (dis && dis.reason === 'disabled' && ctxGone && netCfgKept && reAct && netBack)
+          ? rep.pass(`停用/恢复成立：set-card-enabled(false) → deactivated(reason=${dis.reason}) 且独立上下文拆除（context-removed 存证、页面目标消失）；`
+            + `私有状态文件保留（${netCfgKept}）；set-card-enabled(true) → 重新激活且包页回来（投放即生效语义同款，无批准闸门）`)
+          : rep.fail(`停用/恢复断言未过：deactivated=${JSON.stringify(dis)}；上下文拆除=${ctxGone}；配置保留=${netCfgKept}；重新激活=${Boolean(reAct)}；包页回来=${netBack}`);
+
+        // —— 崩溃包显式恢复 + ⑤ 迁移可行动（改写 manifest 转正） ——
+        const tFix = Date.now();
+        await bridgeInvoke('settings/set-card-enabled', { id: 'pkg-zero', enabled: false });
+        await bridgeInvoke('settings/set-card-enabled', { id: 'pkg-zero', enabled: true });
+        const zeroBack = await tape.wait('dropped-package-activated', (e) => e.id === 'pkg-zero', { since: tFix, timeoutMs: 15000 });
+        fs.writeFileSync(path.join(droppedDir, 'pkg-old', 'plugin.json'),
+          JSON.stringify({ id: 'pkg-old', name: '旧模型包', version: '1.0.1', entry: './card.js', hostApiVersion: 1 }), 'utf8');
+        const oldBack = await tape.wait('dropped-package-activated', (e) => e.id === 'pkg-old', { since: tFix, timeoutMs: 15000 });
+        let zeroMounts2 = null;
+        for (let i = 0; i < 16 && zeroMounts2 === null; i++) {
+          await sleep(500);
+          try {
+            const env = await bridgeInvoke('plugin-config/get', { id: 'pkg-zero' });
+            if (env && env.config && env.config.mounts >= 2) zeroMounts2 = env.config.mounts;
+          } catch { /* 页未就绪，下轮 */ }
+        }
+        (zeroBack && oldBack && zeroMounts2 !== null)
+          ? rep.pass(`显式恢复与迁移可行动成立：崩溃包经停用→启用显式重建并重走 mount（磁盘账 mounts=${zeroMounts2}，私有配置跨崩溃/停用保留；重建后随旗标残留再崩一次亦属预期——旗标是 fixture 自有状态，非自动重挂）；`
+            + `pkg-old 补 hostApiVersion:1 后由待迁移态转正激活（迁移路径可行动，非死胡同）`)
+          : rep.fail(`显式恢复断言未过：崩溃包重建=${Boolean(zeroBack)} mounts=${zeroMounts2}；pkg-old 迁移转正=${Boolean(oldBack)}`);
+      } finally {
+        for (const id of FIXTURE_IDS) rmDropped(id);
+        for (const id of ['pkg-zero', 'pkg-net']) { try { fs.rmSync(pkgCfgFile(id), { force: true }); } catch { /* 尽力 */ } }
+        rep.note(`P13 清场：fixture 包目录与私有状态文件已移除（${FIXTURE_IDS.join('/')}）`);
       }
     })();
 

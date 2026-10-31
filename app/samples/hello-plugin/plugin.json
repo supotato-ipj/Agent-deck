@@ -3,6 +3,7 @@
   "name": "HELLO 样例插件",
   "version": "1.0.0",
   "entry": "./card.js",
+  "hostApiVersion": 1,
   "capabilities": ["clock"],
   "order": 900
 }
