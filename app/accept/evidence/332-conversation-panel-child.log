@@ -1541,3 +1541,139 @@ DevTools listening on ws://127.0.0.1:9231/devtools/browser/a6cad968-92ce-42aa-a8
 [32684:1031/222555.164:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
 [32684:1031/222555.164:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 (electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/9d0dd1f3-380c-440b-a994-d75be2644e22
+[17656:1031/224341.456:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17656:1031/224341.456:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17656:1031/224341.456:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17656:1031/224341.533:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17656:1031/224341.533:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[17656:1031/224341.533:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17656:1031/224341.533:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[17656:1031/224341.533:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17656:1031/224341.533:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:318:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:320:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:318:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:320:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:335:42)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:318:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:320:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/ad47d143-814b-4ca9-8d91-eccebcc88a0f
+[28424:1031/224440.181:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[28424:1031/224440.181:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[28424:1031/224440.182:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[28424:1031/224440.265:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[28424:1031/224440.265:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[28424:1031/224440.265:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[28424:1031/224440.265:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[28424:1031/224440.266:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[28424:1031/224440.266:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/a20c9cdf-0087-45ea-905d-c60f62ede273
+[8408:1031/224720.243:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[8408:1031/224720.243:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[8408:1031/224720.244:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[8408:1031/224720.314:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[8408:1031/224720.314:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[8408:1031/224720.314:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[8408:1031/224720.314:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[8408:1031/224720.315:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[8408:1031/224720.315:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:318:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:320:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:318:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:320:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:335:42)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:318:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec338\app\dist\main\services\bridge.js:320:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec338\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec338\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/158b8cb6-3f03-4d8d-88af-2387978d18d9
+[12540:1031/224817.459:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[12540:1031/224817.459:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[12540:1031/224817.459:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[12540:1031/224817.548:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[12540:1031/224817.548:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[12540:1031/224817.548:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[12540:1031/224817.548:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[12540:1031/224817.548:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[12540:1031/224817.548:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.

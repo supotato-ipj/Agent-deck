@@ -1629,7 +1629,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 360,
+      "budgetSeconds": 480,
       "segments": [
         {
           "seg": "C1",
@@ -1714,6 +1714,21 @@
             "panel-alive"
           ],
           "estSeconds": 90,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C8",
+          "ticket": 338,
+          "title": "联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
           "areas": [
             "sessions",
             "plugins"
@@ -1942,6 +1957,10 @@
     },
     {
       "path": "app/src/main/media",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/network",
       "area": "plugins"
     },
     {
