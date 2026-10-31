@@ -53,7 +53,7 @@ interface Harness {
 
 let seq = 0
 
-async function boot(opts: { withLedger?: boolean } = {}): Promise<Harness> {
+async function boot(opts: { withLedger?: boolean; maxLivePackages?: number } = {}): Promise<Harness> {
   const droppedRoot = tmpDir(`dropped-${++seq}`)
   const userRoot = tmpDir('user')
   const stagingRoot = tmpDir('staging')
@@ -77,6 +77,7 @@ async function boot(opts: { withLedger?: boolean } = {}): Promise<Harness> {
       backupRoot,
       sessionInfo: () => null,
       mountBoundMs: 60,
+      ...(opts.maxLivePackages === undefined ? {} : { maxLivePackages: opts.maxLivePackages }),
     },
     log: (event) => events.push(event),
     ...(opts.withLedger === false ? {} : { authorization: ledger }),
@@ -187,6 +188,32 @@ describe('授权路由（工单336）：rescan 每轮按账重评', () => {
       permissions: ['network.request'],
       networkOrigins: ['http://127.0.0.1:47823'],
     })
+  })
+
+  it('资源预算门（工单341）：超上限的新包显式拒绝（status=error + 事件），腾出槽位后重扫自动激活', async () => {
+    h.dispose()
+    const h3 = await boot({ maxLivePackages: 2 })
+    try {
+      // 三个零权限包（无需批准）：上限 2 → 第三个显式拒绝
+      for (const id of ['pkg-a', 'pkg-b', 'pkg-c']) {
+        writePackage(h3.droppedRoot, baseManifest({ id }))
+      }
+      h3.rescan()
+      const statuses = h3.dropped()
+      expect(statuses.filter((p) => p.status === 'ok')).toHaveLength(2)
+      const refused = statuses.find((p) => p.status === 'error')
+      expect(refused).toBeTruthy()
+      // 显式拒绝事实经事件留痕（详情面 status=error；DroppedPackageInfo 只投影 id/status）
+      const evt = h3.events.filter((e) => e.type === 'dropped-package-budget-exceeded').at(-1)
+      expect(evt).toMatchObject({ id: refused?.id, cap: 2 })
+      // 腾一个槽位（删掉一个在跑的包）→ 下一轮重扫自动补位（预算不是永久拉黑）
+      fs.rmSync(path.join(h3.droppedRoot, String(statuses.find((p) => p.status === 'ok')?.id)), { recursive: true, force: true })
+      h3.rescan()
+      expect(h3.dropped().filter((p) => p.status === 'ok')).toHaveLength(2)
+      expect(h3.dropped().some((p) => p.status === 'error')).toBe(false)
+    } finally {
+      h3.dispose()
+    }
   })
 
   it('authorizationGrants：账清单出口（含已撤销行）', () => {
