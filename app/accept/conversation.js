@@ -174,6 +174,7 @@ async function main() {
   const dshHome = path.join(userData, 'dsh-home');
   const metaFile = path.join(userData, 'conversation', 'metadata.json');
   let llm = null;
+  let freshDir = null; // C3（工单340）：全新数据目录手势产物（清场删除）
   let started = 0;
   let finished = false;
   const finish = () => {
@@ -504,15 +505,103 @@ async function main() {
     } catch (c2err) {
       rep.fail(`段 C2 异常中止：${c2err instanceof Error ? c2err.message : String(c2err)}`);
     }
+
+    // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +
+    // 「创建全新数据目录」用户手势——旧目录零触碰、指向持久化、不继承不备份 ——
+    rep.beginSegment('C3');
+    try {
+      // 目录指纹：相对路径 + 内容 sha256（非破坏断言的比较基准；与单测同口径）
+      const crypto = require('crypto');
+      const hashDir = (root) => {
+        if (!fs.existsSync(root)) return '(absent)';
+        const out = [];
+        const walk = (dir, rel) => {
+          for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+            const childRel = rel ? `${rel}/${e.name}` : e.name;
+            const childAbs = path.join(dir, e.name);
+            if (e.isDirectory()) { out.push(`d ${childRel}`); walk(childAbs, childRel); }
+            else out.push(`f ${childRel} ${crypto.createHash('sha256').update(fs.readFileSync(childAbs)).digest('hex')}`);
+          }
+        };
+        walk(root, '');
+        return out.join('\n');
+      };
+      const oldHome = path.join(userData, 'dsh-home');
+      const beforeHash = hashDir(oldHome);
+
+      // 子轮 A：config 指向不存在的 exe（bogus 后端档）→ 重启面板（backendCache 随进程消亡）→ 解析落空
+      await handle.stop();
+      let bogusWritten = false;
+      try {
+        const json = configRaw ? JSON.parse(configRaw) : {};
+        json.conversation = { ...(json.conversation ?? {}), dshExe: 'X:\\deck-340-bogus\\DeepSeek Harness.exe' };
+        fs.writeFileSync(path.join(APP_ROOT, 'config.json'), JSON.stringify(json, null, 2) + '\n', 'utf8');
+        bogusWritten = true;
+      } catch { /* 写不进 = 本子轮无前提，断言位如实判负 */ }
+      handle.launch({
+        mode: 'accept',
+        cdpPort: CDP_PORT,
+        stdio: 'archive',
+        extraEnv: { [LLM_KEY_ENV]: 'accept-round-not-a-real-key' },
+      });
+      const hwnd3 = await handle.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 30000 });
+      if (!hwnd3 || !bogusWritten) {
+        rep.fail(`C3 前提不成立：窗口=${Boolean(hwnd3)} bogus 配置=${bogusWritten}`);
+      } else {
+        await until(async () => {
+          try { return (await bridge('panel/snapshot', null)) != null; } catch { return false; }
+        }, 20000);
+        const gateT = Date.now();
+        // ① 解析落空：backendInfo available=false 且 detail 明确（探测落空+补救指引）
+        const info3 = await bridge('conversation/backend', null);
+        // ② 创建明确报错：不建行（conversation-create-failed reason=boot 在案）
+        const create3 = await bridge('conversation/create', { label: 'accept-340-bogus' });
+        const failEvent = await tape.wait('conversation-create-failed', (e) => e.reason === 'boot', { timeoutMs: 10000, since: gateT }).catch(() => null);
+        // ③ 零 DSH 进程面：无握手、无 session-new（解析在 spawn 之前落空）
+        const lateHandshake = await tape.wait('conversation-handshake', () => true, { timeoutMs: 2000, since: gateT }).then(() => true).catch(() => false);
+        const lateSessionNew = await tape.wait('conversation-session-new', () => true, { timeoutMs: 2000, since: gateT }).then(() => true).catch(() => false);
+        // ④ 失败非破坏：dshHome 哈希零变化
+        const afterFailHash = hashDir(oldHome);
+        if (info3 && info3.available === false && info3.detail && info3.detail.length > 10
+          && create3 && create3.ok === false && create3.error && failEvent
+          && !lateHandshake && !lateSessionNew
+          && afterFailHash === beforeHash) {
+          rep.pass(`bogus 后端档失败非破坏：available=false（${info3.detail.slice(0, 40)}…）创建报错「${String(create3.error).slice(0, 50)}…」零握手/零 session-new，dshHome 哈希零变化`);
+        } else {
+          rep.fail(`bogus 后端档面不符：info=${JSON.stringify(info3 && { available: info3.available })} create=${JSON.stringify(create3 && { ok: create3.ok, error: create3.error })} failEvent=${Boolean(failEvent)} handshake=${lateHandshake} sessionNew=${lateSessionNew} hashSame=${afterFailHash === beforeHash}`);
+        }
+
+        // 子轮 B：「创建全新数据目录」用户手势（不经 DSH——解析失败不影响目录管理）
+        const fresh = await bridge('conversation/new-data-dir', null);
+        const info4 = await bridge('conversation/backend', null);
+        let persisted = null;
+        try {
+          const after = JSON.parse(readConfigRaw() ?? '{}');
+          persisted = after.conversation ? after.conversation.dshHome ?? null : null;
+        } catch { persisted = null; }
+        const oldUnchanged = hashDir(oldHome) === beforeHash;
+        if (fresh && fresh.ok && fresh.dshHome && fresh.previous === oldHome
+          && info4 && info4.dshHome === fresh.dshHome && persisted === fresh.dshHome && oldUnchanged) {
+          freshDir = fresh.dshHome;
+          rep.pass(`全新数据目录手势：${oldHome} → ${fresh.dshHome}，backendInfo 指向已更新，config.conversation.dshHome 持久化在案，旧目录哈希零变化（不备份不继承）`);
+        } else {
+          rep.fail(`全新数据目录面不符：fresh=${JSON.stringify(fresh)} infoDshHome=${info4 && info4.dshHome} persisted=${persisted} oldUnchanged=${oldUnchanged}`);
+          if (fresh && fresh.ok && fresh.dshHome) freshDir = fresh.dshHome; // 失败也要清场
+        }
+      }
+    } catch (c3err) {
+      rep.fail(`段 C3 异常中止：${c3err instanceof Error ? c3err.message : String(c3err)}`);
+    }
   } catch (err) {
     rep.fail(`电池异常中止：${err instanceof Error ? err.stack || err.message : String(err)}`);
   } finally {
-    // 清场：config 原样还原、罐头关停、探针文件删除（含观察口端口文件）、面板强退（验证消失）
+    // 清场：config 原样还原、罐头关停、探针文件删除（含观察口端口文件）、C3 全新目录、面板强退（验证消失）
+    try { await handle.stop(); } catch { /* 尽力 */ }
     try { restoreConfig(configRaw); } catch { /* 尽力 */ }
     try { if (llm) await llm.close(); } catch { /* 尽力 */ }
     try { fs.rmSync(ESCALATION_FILE, { force: true }); } catch { /* 尽力 */ }
     try { fs.rmSync(PROBE_PORT_FILE, { force: true }); } catch { /* 尽力 */ }
-    try { await handle.stop(); } catch { /* 尽力 */ }
+    try { if (freshDir) fs.rmSync(freshDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
     finish();
   }
 }
