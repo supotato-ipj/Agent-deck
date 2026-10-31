@@ -1,7 +1,7 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
 import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
@@ -19,6 +19,7 @@ import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/
 import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
+import { startConversationWindow, wireConversationQuitGuard } from './conversation/window'
 import { productionPluginRoots } from './plugins/roots'
 import { DroppedPackageHost } from './plugins/package-host'
 import { ExecutionContextRegistry } from './plugins/identity'
@@ -112,6 +113,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     plugins: defaultPlugins(),
     autostart: defaultAutostart(),
     taskbar: defaultTaskbar(),
+    conversation: defaultConversation(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
@@ -204,6 +206,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     onCrashed: (id, reason) => kernelRef?.plugins.markDroppedCrashed(id, reason),
     log: (event) => log?.append(event),
   })
+  // 对话窗唤起钩子（工单332）：装配期先占位，控制器就位后重绑
+  const conversationShowHook: { fn: (sessionId: string | null) => void } = { fn: () => {} }
 
   const kernel = createPanelKernel({
     weather: config.weather,
@@ -239,6 +243,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       // 投放档（工单331）：独立上下文宿主端口 + 生命周期事件出口（dropped-package-*）
       droppedHost: droppedPackageHost,
       log: (event) => log?.append(event),
+    },
+    // 对话窗（工单332）：面板专属 DSH_HOME 与元数据落 userData（跟面板走），后端档
+    // config.conversation 下发；会话事件走 DECK_EVENT_LOG 存证。窗口唤起经控制器（下）。
+    conversation: {
+      config: { exe: config.conversation.dshExe, model: config.conversation.model },
+      notifyShow: (sessionId) => conversationShowHook.fn(sessionId),
+      deps: {
+        log: (event) => log?.append(event),
+      },
     },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
     // Electron API 不可用于子进程——桌面根/摆位存储/日志目录等路径全部在此解析后下发。
@@ -314,7 +327,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
   wireHostIpc(win, tracker, log, { sentinelHeartbeat: true })
 
-  const tray = createTray({ onShowPanel: () => showPanel('tray-click') })
+  // 对话窗（工单332）：窗口控制器（关窗只收起、退出确认）+ 托盘入口。
+  // 服务唤起钩子在装配期指向惰性转发（控制器在内核启动后才存在）。
+  const conversationCtl = startConversationWindow({ ctx: kernel, log })
+  conversationShowHook.fn = (sessionId) => conversationCtl.show(sessionId ?? undefined)
+  wireConversationQuitGuard(conversationCtl)
+  app.on('before-quit', () => conversationCtl.dispose())
+
+  const tray = createTray({ onShowPanel: () => showPanel('tray-click'), onShowConversation: () => conversationCtl.show() })
   app.on('before-quit', () => {
     log?.append({ type: 'quit' })
     tray.destroy()

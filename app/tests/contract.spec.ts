@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createKernel } from '../src/main/kernel'
-import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather } from '../src/main/config'
+import { defaultConversation, defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather } from '../src/main/config'
 import type { AppConfig } from '../src/main/config'
 import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
 import type { TaskbarWindowInfo } from '../src/main/taskbar/windows'
@@ -63,6 +63,7 @@ function settingsOpts(dir: string): { settings: { file: string; config: AppConfi
     plugins: defaultPlugins(),
     autostart: defaultAutostart(),
     taskbar: defaultTaskbar(),
+    conversation: defaultConversation(),
   }
   return { settings: { file: path.join(dir, 'config.json'), config } }
 }

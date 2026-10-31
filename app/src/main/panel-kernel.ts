@@ -11,6 +11,7 @@ import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
+import { ConversationService, type ConversationServiceOptions } from './conversation/service'
 import { DEFAULT_SEARCH_INTERVAL_MS, DEFAULT_TASKBAR_POLL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
@@ -39,6 +40,8 @@ export interface PanelKernelOptions {
   pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
   quit?: () => void
+  /** 对话窗（工单332）：DSH_HOME/工作目录根/元数据文件/后端档/窗口唤起钩子（生产装配下发） */
+  conversation?: ConversationServiceOptions
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -76,6 +79,8 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   // 缺注册时 cordis 静默不装载 BridgeService（ctx.bridge 为 undefined），面板在
   // wireBridgeIpc(win, kernel.bridge) 处即崩，一扇窗都开不出来（工单187 真机轮实证）。
   ctx.plugin(PluginConfigService, options.pluginConfig)
+  // 对话窗会话服务（工单332）：BridgeService 注入依赖它，必须先于桥接层注册。
+  ctx.plugin(ConversationService, options.conversation)
   ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {
