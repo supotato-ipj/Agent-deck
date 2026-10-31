@@ -20,6 +20,8 @@ import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { startConversationWindow, wireConversationQuitGuard } from './conversation/window'
+import { createNodeProjectionSource, type ManagedProjectionSource } from './conversation/managed-projection'
+import { SessionCredentialRegistry } from './conversation/managed-credentials'
 import { productionPluginRoots } from './plugins/roots'
 import { DroppedPackageHost } from './plugins/package-host'
 import { ExecutionContextRegistry } from './plugins/identity'
@@ -208,6 +210,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   })
   // 对话窗唤起钩子（工单332）：装配期先占位，控制器就位后重绑
   const conversationShowHook: { fn: (sessionId: string | null) => void } = { fn: () => {} }
+  // 管理面凭证登记处（工单333）：显式建在装配层（服务自建则观察口拿不到同一实例）——
+  // 仅内存；accept 观察口经它向电池转交 bearer（绝不落盘）
+  const managedRegistry = new SessionCredentialRegistry()
 
   const kernel = createPanelKernel({
     weather: config.weather,
@@ -251,6 +256,32 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       notifyShow: (sessionId) => conversationShowHook.fn(sessionId),
       deps: {
         log: (event) => log?.append(event),
+      },
+      // 管理面（工单333，ADR-0018/0009/0025）：独立专用 MCP 宿主 + 只读投影源。
+      // 投影源惰性求值（内核启动后才有单点引用）；快照走 bridge 单点（不私开第二执行路径），
+      // 插件清单走 plugins 服务（内核 + 投放两路），源码读仅限用户插件根（投影模块内做
+      // 包含校验与体积上限），契约目录取 catalog.ts 单一正典的 agent 投影。
+      managed: {
+        registry: managedRegistry,
+        source: (() => {
+          let cached: ManagedProjectionSource | null = null
+          return () => {
+            if (!cached) {
+              cached = createNodeProjectionSource({
+                userRoot: config.plugins.dir || userDataPath('plugins'),
+                panelSnapshot: () => {
+                  if (!kernelRef) throw new Error('内核未就绪（面板启动中）')
+                  return kernelRef.bridge.snapshot()
+                },
+                pluginsList: () => ({
+                  kernel: kernelRef?.plugins.info() ?? [],
+                  dropped: kernelRef?.plugins.droppedInfo() ?? [],
+                }),
+              })
+            }
+            return cached
+          }
+        })(),
       },
     },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
@@ -299,6 +330,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // hint-bar 同款 accept 树 require 先例，仅 DECK_TASKBAR_BURST=1 的 --panel-accept 拉起。
   if (PANEL_ACCEPT_MODE && process.env.DECK_TASKBAR_BURST === '1') {
     require(path.join(app.getAppPath(), 'accept', 'lib', 'taskbar-burst.js')).run(kernel, log)
+  }
+
+  // 管理型会话验收观察口（工单333，accept 双门禁）：凭证绝不落盘——bearer 只在本进程
+  // 内存应答给电池控制器（驱动 401/未知工具/宿主回收三条真机断言）；端口（非凭证）写
+  // evidence/333-managed-probe-port.json 供寻址，电池轮末自删。生产零启用。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_MANAGED_PROBE === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'managed-probe.js'))
+      .startManagedProbe(managedRegistry, log)
+      .then((probe: { close: () => Promise<void> }) => { app.on('before-quit', () => { void probe.close() }) })
   }
 
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。

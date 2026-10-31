@@ -1,7 +1,9 @@
-// 对话窗渲染层（工单332）：纯呈现与输入（GLOSSARY「对话窗」）。状态唯一来源是
-// conversation/changed 推送的全量会话视图；动作全部经内核桥接契约（create/prompt/
-// cancel/permission/end/resume），渲染层不解释协议方言——工具与权限条目按原样载荷
-// 呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
+// 对话窗渲染层（工单332 聊天型 / 工单333 管理型叠加）：纯呈现与输入（GLOSSARY「对话窗」）。
+// 状态唯一来源是 conversation/changed 推送的全量会话视图；动作全部经内核桥接契约
+// （create/prompt/cancel/permission/end/resume），渲染层不解释协议方言——工具与权限条目
+// 按原样载荷呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
+// 管理型（工单333）：「管理」勾选 = 用户显式授权（逐会话、不持久化）；创建失败在窗内
+// 显式报错并给「以聊天型创建」按钮——绝不静默降级（ADR-0018 全有或全无）。
 import type { ConversationSessionView, ConversationTranscriptEntry } from '../shared/contract'
 
 const transcriptEl = document.getElementById('transcript') as HTMLElement
@@ -12,6 +14,8 @@ const btnNew = document.getElementById('btn-new') as HTMLButtonElement
 const btnSend = document.getElementById('btn-send') as HTMLButtonElement
 const btnCancel = document.getElementById('btn-cancel') as HTMLButtonElement
 const btnEnd = document.getElementById('btn-end') as HTMLButtonElement
+const chkManaged = document.getElementById('chk-managed') as HTMLInputElement
+const managedToggle = document.getElementById('managed-toggle') as HTMLLabelElement
 
 let sessions: ConversationSessionView[] = []
 let activeId: string | null = null
@@ -90,7 +94,8 @@ function render(): void {
     const opt = document.createElement('option')
     opt.value = s.id
     const stateMark = s.status === 'busy' ? '（回复中）' : s.status === 'starting' ? '（连接中）' : s.status === 'failed' ? '（已中断）' : s.status === 'ended' ? '（已结束）' : ''
-    opt.textContent = `${s.label}${stateMark}`
+    const managedMark = s.managed ? '［管理］' : ''
+    opt.textContent = `${managedMark}${s.label}${stateMark}`
     selectEl.appendChild(opt)
   }
   if (sessions.some((s) => s.id === prev)) selectEl.value = prev
@@ -117,7 +122,24 @@ function render(): void {
       resumeBtn.addEventListener('click', () => { void window.deck.bridge.invoke('conversation/resume', { sessionId: view.id }) })
       transcriptEl.appendChild(resumeBtn)
     }
+    if (view.managed) {
+      const badge = document.createElement('div')
+      badge.className = 'entry managed-badge'
+      badge.textContent = '管理型会话：DSH 可经只读 MCP 读取面板快照/插件清单/用户根源码/契约目录（凭证仅内存，会话结束即失效）'
+      transcriptEl.appendChild(badge)
+    }
     transcriptEl.scrollTop = transcriptEl.scrollHeight
+  }
+  if (managedFailed) {
+    const banner = document.createElement('div')
+    banner.className = 'entry error-banner'
+    banner.textContent = '管理型创建失败（全有或全无，未创建会话）。可显式选择以聊天型创建：'
+    const retryBtn = document.createElement('button')
+    retryBtn.className = 'chat-retry'
+    retryBtn.textContent = '以聊天型创建'
+    retryBtn.addEventListener('click', () => retryAsChat())
+    banner.appendChild(retryBtn)
+    transcriptEl.appendChild(banner)
   }
 
   const busy = view?.status === 'busy'
@@ -135,11 +157,37 @@ function render(): void {
     : '后端：DSH（对话通道 ACP v1）'
 }
 
+/** 管理型创建失败态（工单333）：窗内显式呈现错误 + 「以聊天型创建」按钮——绝不静默降级 */
+let managedFailed = false
+
 async function createSession(): Promise<void> {
-  const res = await window.deck.bridge.invoke('conversation/create', {})
-  if (res.ok && res.session) activeId = res.session.id
-  else statusEl.textContent = res.error ?? '创建失败'
+  const managed = chkManaged.checked
+  const res = await window.deck.bridge.invoke('conversation/create', { managed })
+  if (res.ok && res.session) {
+    managedFailed = false
+    activeId = res.session.id
+  } else {
+    if (managed && res.canRetryAsChat) {
+      managedFailed = true
+      statusEl.textContent = res.error ?? '管理型创建失败'
+    } else {
+      statusEl.textContent = res.error ?? '创建失败'
+    }
+  }
+  render()
 }
+
+/** 管理型失败后的显式聊天型选择：清勾选、按聊天型建（用户点按钮才降级，绝不自动） */
+function retryAsChat(): void {
+  chkManaged.checked = false
+  managedToggle.classList.remove('checked')
+  managedFailed = false
+  void createSession()
+}
+
+chkManaged.addEventListener('change', () => {
+  managedToggle.classList.toggle('checked', chkManaged.checked)
+})
 
 selectEl.addEventListener('change', () => { activeId = selectEl.value || null; render() })
 btnNew.addEventListener('click', () => { void createSession() })

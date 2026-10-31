@@ -72,6 +72,20 @@
   .perm-actions button { border-color: rgba(245, 166, 35, 0.6); color: #f5a623; }
   .perm-actions button:hover { background: rgba(245, 166, 35, 0.15); color: #ffc45e; }
   .entry.error-banner { color: #e06c75; border: 1px solid rgba(224, 108, 117, 0.5); border-radius: 8px; padding: 8px; font-size: 12px; }
+  #managed-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #7d8590;
+    cursor: pointer;
+    flex: none;
+  }
+  #managed-toggle input { accent-color: #f5a623; cursor: pointer; }
+  #managed-toggle.checked { color: #f5a623; }
+  .entry.managed-badge { color: #f5a623; font-size: 12px; }
+  .chat-retry { margin-top: 6px; border-color: rgba(143, 208, 255, 0.6); color: #8fd0ff; }
+  .chat-retry:hover { background: rgba(143, 208, 255, 0.12); color: #b5e1ff; }
   footer {
     flex: none;
     display: flex;
@@ -97,7 +111,10 @@
 <body>
 <header>
   <select id="session-select" aria-label="会话"></select>
-  <button id="btn-new" title="创建新的聊天会话">新会话</button>
+  <label id="managed-toggle" title="勾选后创建管理型会话：DSH 经会话凭证与只读 MCP 读取面板快照/插件清单/用户根源码/契约目录（全有或全无，失败不自动降级——ADR-0018）">
+    <input type="checkbox" id="chk-managed">管理
+  </label>
+  <button id="btn-new" title="创建新会话（勾选「管理」= 管理型，需显式授权）">新会话</button>
   <button id="btn-cancel" disabled title="取消在途回复">取消</button>
   <button id="btn-end" title="显式结束当前会话（回收进程）">结束</button>
 </header>

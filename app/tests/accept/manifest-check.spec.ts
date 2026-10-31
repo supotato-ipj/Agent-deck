@@ -318,9 +318,11 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     //   工单256 增段——49 电池 +P26 轮末清场自检（参照窗销毁后验＋桌面探针残留窄口径扫描）；
     //   121 → 122：工单332 新电池 332-conversation +C1（真实 DSH 聊天会话全链冒烟）；
     //   122 → 123：工单331 增段——03 电池 +P13 零权限投放包独立上下文（P11 同 PR 特征退役：
-    //   旧同上下文投放探针随 ADR-0025 断裂迁移移除，段保留、断言缩至内置五卡自举）
+    //   旧同上下文投放探针随 ADR-0025 断裂迁移移除，段保留、断言缩至内置五卡自举）；
+    //   123 → 124：工单333 增段——332-conversation +C2 管理型会话只读面板与插件契约
+    //   （真实 DSH 显式授权/只读工具真链/凭证失效/宿主回收；一段绑定一工单）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(123)
+    expect(total).toBe(124)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
