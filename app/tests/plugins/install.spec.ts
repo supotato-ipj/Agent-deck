@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView } from '../../src/main/plugins/install'
+import { PluginInstallManager, aggregateHashOf, listFileEntries, permissionGate, type InstallProposalView } from '../../src/main/plugins/install'
 import { currentHostApiVersion } from '../../src/main/plugins/catalog'
 
 /**
@@ -40,7 +40,7 @@ interface Harness {
   /** 工单335：停用/启用端口调用记录 */
   enabledCalls: Array<{ id: string; enabled: boolean }>
   /** 工单336：授权账端口调用记录（grant/revoke/clear 按序） */
-  authCalls: Array<{ op: 'grant' | 'revoke' | 'clear'; id: string; permissions?: string[]; codeHash?: string }>
+  authCalls: Array<{ op: 'grant' | 'revoke' | 'clear'; id: string; permissions?: string[]; codeHash?: string; origins?: string[] }>
   dispose(): void
 }
 
@@ -130,7 +130,7 @@ function boot(opts: {
           return { disabledCards: enabled ? [] : [id] }
         } }),
     authorization: {
-      grant: (id, permissions, codeHash) => { authCalls.push({ op: 'grant', id, permissions, codeHash }) },
+      grant: (id, permissions, codeHash, origins) => { authCalls.push({ op: 'grant', id, permissions, codeHash, ...(origins && origins.length ? { origins } : {}) }) },
       revoke: (id) => { authCalls.push({ op: 'revoke', id }) },
       clear: (id) => { authCalls.push({ op: 'clear', id }) },
     },
@@ -264,13 +264,21 @@ describe('安装管线：提交（守卫 → 待装载区 → 严格校验 → �
     expect(fs.existsSync(path.join(h.userRoot, 'old-pkg'))).toBe(false)
   })
 
-  it('含未开放敏感权限的包 → permission_deferred（#336 只开 media.read 通路）+ 副本清偿', async () => {
+  it('network.request 通路已开放（#338）：提交走提案而非 permission_deferred', async () => {
     const src = path.join(h.workspace, 'media')
-    // 工单337：media.control 已开放——封锁权限换 network.request（#338 域，仍 deferred）
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'media-pkg', permissions: ['network.request'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'net-pkg', permissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823'] })
     const out = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
-    expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
-    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+    expect(out).toMatchObject({ ok: true, status: 'pending-approval' })
+  })
+
+  it('permissionGate 对未来权限仍然拦（闸门为后续票保留）', () => {
+    // 目录封闭意味着真实包走不到这里；直接喂一个未来权限串守住闸门语义
+    const gate = permissionGate({
+      id: 'future', name: 'F', version: '1.0.0', entry: './card.js', hostApiVersion: 1,
+      permissions: ['media.read', 'future.permission'], optionalPermissions: [], networkOrigins: [], capabilities: [],
+    })
+    expect(gate).toMatchObject({ code: 'permission_deferred' })
+    expect(String(gate?.message)).toContain('future.permission')
   })
 
   it('id 冲突：内核根在册 id / 保留 id app / 用户根已有 id → id_conflict + 副本清偿', async () => {
@@ -566,13 +574,12 @@ describe('更新提案：提交（同族守卫 → diff → no_change → pendin
     }
   })
 
-  it('含未开放敏感权限的新字节 → permission_deferred（#336 边界：media.read 已开放，其余仍拒），副本清偿、旧代次不动', async () => {
+  it('更新新字节带 network.request（#338 已开放）→ 走更新提案，旧代次仍跑', async () => {
     await installGood(h)
     const src = path.join(h.workspace, 'perm-upd')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['network.request'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823'] })
     const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
-    expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
-    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+    expect(out).toMatchObject({ ok: true, status: 'pending-approval' })
     expect(fs.existsSync(path.join(h.userRoot, 'dsh-hello', 'plugin.json'))).toBe(true)
   })
 })
@@ -950,12 +957,13 @@ describe('media.read 通路（工单336）：提交与批准落账', () => {
     expect(intent).toMatchObject({ pkgId: 'dsh-media', permissions: ['media.read'] })
   })
 
-  it('media.read + 未开放权限混包 → 仍 permission_deferred（副本清偿）', async () => {
+  it('media.read + network.request 混包（#338 两通路都开放）→ 提案带两权限与 origin 清单', async () => {
     const src = path.join(h.workspace, 'mix')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-mix', permissions: ['media.read', 'network.request'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-mix', permissions: ['media.read', 'network.request'], networkOrigins: ['http://127.0.0.1:47823'] })
     const out = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
-    expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
-    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+    expect(out).toMatchObject({ ok: true, status: 'pending-approval' })
+    if (!out.ok || !out.proposal) return
+    expect(out.proposal.pkg).toMatchObject({ permissions: ['media.read', 'network.request'], networkOrigins: ['http://127.0.0.1:47823'] })
   })
 
   it('批准 → 授权账落账（id+permissions+聚合哈希三元组）→ 转正激活', async () => {
@@ -1047,16 +1055,18 @@ describe('media.read 通路（工单336）：更新重批与卸载清账', () =>
     ])
   })
 
-  it('更新新字节带未开放权限 → 仍 permission_deferred（旧代次不动）', async () => {
+  it('更新新字节带 network.request → 更新提案 pending（权限变化进 diff，旧代次跑着）', async () => {
     const src0 = path.join(h.workspace, 'm0')
     writePluginDir(src0, { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] })
     const sub0 = await h.mgr.submit({ sourceDir: src0 }, { sessionId: 'sess-1', backend: 'dsh' })
     if (!sub0.ok || sub0.status !== 'pending-approval') throw new Error('前提提交失败')
     await h.mgr.approve(sub0.proposal.proposalId)
     const src1 = path.join(h.workspace, 'm1')
-    writePluginDir(src1, { ...GOOD_MANIFEST, id: 'dsh-media', version: '1.1.0', permissions: ['media.read', 'network.request'] })
+    writePluginDir(src1, { ...GOOD_MANIFEST, id: 'dsh-media', version: '1.1.0', permissions: ['media.read', 'network.request'], networkOrigins: ['http://127.0.0.1:47823'] })
     const upd = await h.mgr.submitUpdate({ packageId: 'dsh-media', sourceDir: src1 }, { sessionId: 'sess-1', backend: 'dsh' })
-    expect(upd).toMatchObject({ ok: false, code: 'permission_deferred' })
+    expect(upd).toMatchObject({ ok: true, status: 'pending-approval' })
+    if (!upd.ok || upd.status !== 'pending-approval') return
+    expect(upd.proposal.update?.permissions.added).toContain('network.request')
   })
 
   it('更新换代激活失败：还原旧版 + 账还原旧哈希（旧包授权连续，不因换代失败停摆）', async () => {
@@ -1125,7 +1135,7 @@ describe('手动投放同闸门（工单336）：manual 提案', () => {
 
   function registerSeeded(dir: string) {
     return h.mgr.registerManualProposal({
-      pkg: { id: 'dsh-media', name: 'DSH MEDIA', version: '1.0.0', hostApiVersion: currentHostApiVersion(), permissions: ['media.read'], optionalPermissions: [] },
+      pkg: { id: 'dsh-media', name: 'DSH MEDIA', version: '1.0.0', hostApiVersion: currentHostApiVersion(), permissions: ['media.read'], optionalPermissions: [], networkOrigins: [] },
       dir, files: listFileEntries(dir), hash: aggregateHashOf(dir),
     })
   }
@@ -1183,5 +1193,54 @@ describe('手动投放同闸门（工单336）：manual 提案', () => {
     registerSeeded(dir)
     registerSeeded(dir)
     expect(h.mgr.list().filter((p) => p.pkg.id === 'dsh-media' && p.source.backend === 'manual')).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// network.request 通路（工单338）：提案带 origin 清单 → 批准按 origin 子集落账
+// （越声明面的项丢弃）→ 账行 origin 集是网络 Broker 的唯一放行依据。
+// ---------------------------------------------------------------------------
+describe('network.request 通路（工单338）：origin 参数面随批准落账', () => {
+  it('批准缺省 = 声明 origin 全授（落账带 origin 清单）', async () => {
+    const h = boot()
+    try {
+      const src = path.join(h.workspace, 'net')
+      writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-net', permissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823', 'https://example.com'] })
+      const sub = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+      if (!sub.ok || sub.status !== 'pending-approval') throw new Error('提交失败')
+      const decided = await h.mgr.approve(sub.proposal.proposalId)
+      expect(decided).toMatchObject({ ok: true, status: 'activated' })
+      const grant = h.authCalls.find((c) => c.op === 'grant')
+      expect(grant).toMatchObject({ id: 'dsh-net', permissions: ['network.request'], origins: ['http://127.0.0.1:47823', 'https://example.com'] })
+    } finally { h.dispose() }
+  })
+
+  it('批准给 origin 子集 → 只落子集；越声明面的项被丢弃', async () => {
+    const h = boot()
+    try {
+      const src = path.join(h.workspace, 'net2')
+      writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-net2', permissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823', 'https://example.com'] })
+      const sub = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+      if (!sub.ok || sub.status !== 'pending-approval') throw new Error('提交失败')
+      const decided = await h.mgr.approve(sub.proposal.proposalId, { grantOrigins: ['http://127.0.0.1:47823', 'http://evil.test'] })
+      expect(decided).toMatchObject({ ok: true, status: 'activated' })
+      const grant = h.authCalls.find((c) => c.op === 'grant')
+      expect(grant?.origins).toEqual(['http://127.0.0.1:47823'])
+    } finally { h.dispose() }
+  })
+
+  it('没授 network.request（权限只在可选集且未勾选）→ 不落 origin 清单', async () => {
+    const h = boot()
+    try {
+      const src = path.join(h.workspace, 'net3')
+      writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-net3', permissions: ['media.read'], optionalPermissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823'] })
+      const sub = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+      if (!sub.ok || sub.status !== 'pending-approval') throw new Error('提交失败')
+      const decided = await h.mgr.approve(sub.proposal.proposalId)
+      expect(decided).toMatchObject({ ok: true, status: 'activated' })
+      const grant = h.authCalls.find((c) => c.op === 'grant')
+      expect(grant).toMatchObject({ permissions: ['media.read'] })
+      expect(grant?.origins ?? []).toEqual([])
+    } finally { h.dispose() }
   })
 })

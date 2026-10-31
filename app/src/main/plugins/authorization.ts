@@ -1,3 +1,5 @@
+import { isPermissionChannelOpen } from './permission-channels'
+
 /**
  * 投放包授权状态机（工单331，ADR-0025）：manifest 权限声明 → 执行裁决。
  *
@@ -42,12 +44,13 @@ export interface GrantLookup {
 }
 
 /**
- * 授权裁决 v2（工单336，ADR-0025 按包/按代码代次授予）：本票只开 media.read 通路——
+ * 授权裁决 v2（工单336，ADR-0025 按包/按代码代次授予）：开放通路逐票扩：
  * - 零权限 → activate（不经账）；
- * - 权限**全部** = media.read 且账上 grant 匹配（声明的权限 ⊆ 授权集合 且 代码哈希相等）
- *   → activate（跨重启持久化授权）；
- * - 其余一切（media.control/network.request 通道未开放归 #337/#338、无账、哈希漂移、
- *   权限漂移）→ pending-approval（批准前不执行；同 id 新代码不继承旧批准）。
+ * - 权限**全部**在开放集且账上 grant 匹配（声明的必需权限 ⊆ 授权集合 且 代码哈希相等）
+ *   → activate（跨重启持久化授权）；开放集 = media.read/media.control（#336/#337）与
+ *   network.request（#338，origin 参数面随账存放，请求时另查）；
+ * - 其余一切（未开放权限、无账、哈希漂移、权限漂移）→ pending-approval（批准前不执行；
+ *   同 id 新代码不继承旧批准）。
  */
 export function authorizeDroppedPackageWithGrant(input: {
   permissions?: readonly string[]
@@ -58,10 +61,9 @@ export function authorizeDroppedPackageWithGrant(input: {
 }): AuthorizationDecision {
   const perms = input.permissions ?? []
   if (perms.length === 0) return 'activate'
-  // 敏感权限通道开放度（工单336/337）：media.read 与 media.control 已开放（后者可选、
-  // 逐项批准——账面子集授权即放行）；network.request 等仍未开放（混入即不放行——账面即便匹配也不行）
-  const openChannels = new Set(['media.read', 'media.control'])
-  if (!perms.every((p) => openChannels.has(p))) return 'pending-approval'
+  // 敏感权限通道开放度（单一正典 permission-channels.ts）：未开放权限混入即不放行——
+  // 账面即便匹配也不行（批准通道不存在，激活了也没有消费面）。
+  if (!perms.every((p) => isPermissionChannelOpen(p))) return 'pending-approval'
   const grant = input.grant
   if (!grant) return 'pending-approval'
   if (grant.codeHash !== input.codeHash) return 'pending-approval'

@@ -75,4 +75,15 @@ contextBridge.exposeInMainWorld('deckHost', {
     control: (sessionKey: string, action: string): Promise<unknown> =>
       ipcRenderer.invoke('pkg:media-control', { key: sessionKey, action }),
   },
+  /**
+   * host.network（工单338，ADR-0025 网络节）：向已获批的精确 origin 发起有界 HTTP(S)
+   * 请求-响应。包页自己的 fetch/XHR 仍被 session 级 webRequest + CSP 全拒；放行只经此
+   * 宿主代理面（主进程 NetworkBroker 做逐 origin 授权/限额/重定向策略/脱敏审计）。
+   * 返回结构化信封，不抛异常：ok=false 时 code ∈ 契约错误目录（network_permission_denied
+   * / network_rate_limited / network_timeout / network_redirect_blocked / network_failed）。
+   */
+  network: {
+    request: (spec: { url: string; method?: string; headers?: Record<string, string>; body?: string }): Promise<unknown> =>
+      ipcRenderer.invoke('pkg:network-request', spec),
+  },
 })

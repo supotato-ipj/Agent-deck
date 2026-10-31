@@ -38,7 +38,7 @@ describe('授权账：批准落账（绑定 id+权限集合+代码哈希）', ()
     const led = boot()
     led.grant('dsh-media', ['media.read'], 'hash-aaa')
     const g = led.activeGrant('dsh-media')
-    expect(g).toEqual({ permissions: ['media.read'], codeHash: 'hash-aaa', grantedAt: 1_700_000_000_000 })
+    expect(g).toEqual({ permissions: ['media.read'], networkOrigins: [], codeHash: 'hash-aaa', grantedAt: 1_700_000_000_000 })
   })
 
   it('grant 幂等 upsert：同 id 再批覆盖旧权限集合与哈希（更新重批沿换代）', () => {
@@ -104,7 +104,7 @@ describe('授权账：跨重启持久化', () => {
     const led = boot()
     led.grant('dsh-media', ['media.read'], 'hash-persist')
     const reborn = boot()
-    expect(reborn.activeGrant('dsh-media')).toEqual({ permissions: ['media.read'], codeHash: 'hash-persist', grantedAt: 1_700_000_000_000 })
+    expect(reborn.activeGrant('dsh-media')).toEqual({ permissions: ['media.read'], networkOrigins: [], codeHash: 'hash-persist', grantedAt: 1_700_000_000_000 })
   })
 
   it('撤销状态同样跨重启（重启不能复活已撤销授权）', () => {
@@ -141,5 +141,38 @@ describe('授权账：跨重启持久化', () => {
     const led = boot()
     expect(led.list()).toHaveLength(1)
     expect(led.activeGrant('ok-media')?.codeHash).toBe('h1')
+  })
+})
+
+describe('授权账：network.request 的 origin 集（工单338）', () => {
+  it('grant 带 origin 清单 → activeGrant/持久化重载后原样可读', () => {
+    const led = boot()
+    led.grant('dsh-net', ['network.request'], 'hash-net', ['http://127.0.0.1:47823', 'https://example.com'])
+    expect(led.activeGrant('dsh-net')).toMatchObject({ permissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823', 'https://example.com'] })
+    const reloaded = boot()
+    expect(reloaded.activeGrant('dsh-net')?.networkOrigins).toEqual(['http://127.0.0.1:47823', 'https://example.com'])
+  })
+
+  it('不给 network.request 的面 → origin 清单不落账（权限是 origin 的载体）', () => {
+    const led = boot()
+    led.grant('dsh-media', ['media.read'], 'hash-m', ['http://127.0.0.1:47823'])
+    expect(led.activeGrant('dsh-media')?.networkOrigins).toEqual([])
+  })
+
+  it('旧账行（无 networkOrigins 字段）重载按空清单兼容', () => {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(file, JSON.stringify({ version: 1, grants: [
+      { packageId: 'legacy', permissions: ['network.request'], codeHash: 'h', grantedAt: 1, revokedAt: null },
+    ] }), 'utf8')
+    const led = boot()
+    expect(led.activeGrant('legacy')).toMatchObject({ permissions: ['network.request'], networkOrigins: [] })
+  })
+
+  it('撤销后 activeGrant 为 null（origin 集随之断供）', () => {
+    const led = boot()
+    led.grant('dsh-net', ['network.request'], 'hash-net', ['http://127.0.0.1:47823'])
+    led.revoke('dsh-net')
+    expect(led.activeGrant('dsh-net')).toBeNull()
+    expect(led.list()[0].networkOrigins).toEqual(['http://127.0.0.1:47823'])
   })
 })

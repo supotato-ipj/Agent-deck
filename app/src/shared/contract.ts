@@ -534,7 +534,7 @@ export interface InstallProposalView {
   status: 'pending' | 'activated' | 'rejected' | 'failed'
   /** 提交时铸的操作 id：意图/结局审计的相关键 */
   opId: string
-  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[]; optionalPermissions: string[] }
+  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[]; optionalPermissions: string[]; /** 工单338：network.request 的精确 origin 声明（批准面据此展示与子集授予） */ networkOrigins: string[] }
   files: Array<{ path: string; sha256: string; sizeBytes: number }>
   /** 聚合哈希：批准时同一份字节复算绑定 */
   hash: string
@@ -556,6 +556,8 @@ export interface InstallProposalView {
 export interface AuthorizationGrantView {
   packageId: string
   permissions: string[]
+  /** 工单338：network.request 授予的精确 origin 集合（无该权限 = 空清单） */
+  networkOrigins: string[]
   /** 代码聚合哈希（授权绑定三元组之一；同 id 新代码不继承旧批准） */
   codeHash: string
   grantedAt: number
@@ -570,6 +572,17 @@ export interface MediaAuditBucketView {
   windowMs: number
   counts: { snapshot: number; thumbnail: number } & Partial<Record<`control:${string}`, number>>
   denied: number
+}
+
+/** 工单338 网络审计聚合桶（包+权限+时间窗计数与 origin 集合；不含路径/查询/载荷） */
+export interface NetworkAuditBucketView {
+  packageId: string
+  permission: string
+  windowStart: number
+  windowMs: number
+  counts: { request: number; redirect: number }
+  denied: number
+  origins: string[]
 }
 
 /** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
@@ -932,7 +945,7 @@ export interface BridgeMethods {
   'conversation/new-data-dir': { request: null; response: { ok: boolean; dshHome?: string; previous?: string; error?: string } }
   /** 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝 */
   'install/list': { request: null; response: { proposals: InstallProposalView[] } }
-  'install/approve': { request: { proposalId: string; grantPermissions?: string[] }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean; warnings?: string[] } }
+  'install/approve': { request: { proposalId: string; grantPermissions?: string[]; /** 工单338：network.request 的 origin 子集授予（缺省=声明清单全授） */ grantOrigins?: string[] }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean; warnings?: string[] } }
   'install/reject': { request: { proposalId: string }; response: { ok: boolean; code?: string; message?: string } }
   /**
    * 工单335 旧数据继承（独立用户手势，不与代码批准合并）：inherit=true 保留卸载残留
@@ -943,11 +956,13 @@ export interface BridgeMethods {
    * 工单336 授权账（可信 UI 数据面）：在册授权清单（含已撤销行——审计可见）+ 各自近窗
    * 媒体读取聚合（MediaAuditService 投影；不含媒体元数据）。
    */
-  'install/grants': { request: null; response: { grants: AuthorizationGrantView[]; buckets: MediaAuditBucketView[] } }
+  'install/grants': { request: null; response: { grants: AuthorizationGrantView[]; buckets: MediaAuditBucketView[]; /** 工单338：网络审计聚合投影（origin/方法/结果计数；无载荷） */ networkBuckets: NetworkAuditBucketView[] } }
   /** 工单336 授权撤销（可信 UI 真实用户手势）：撤销即停（接停用缝），撤销行留痕审计 */
   'install/revoke': { request: { packageId: string }; response: { ok: boolean; code?: string; message?: string } }
   /** 工单336 媒体审计聚合投影（包+权限+时间窗计数；完整记录仅可信 UI 保留 90 天） */
   'media/audit': { request: null; response: { buckets: MediaAuditBucketView[] } }
+  /** 工单338 网络审计聚合投影（包+权限+时间窗计数与 origin 集合；完整记录仅在审计文件） */
+  'network/audit': { request: null; response: { buckets: NetworkAuditBucketView[] } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

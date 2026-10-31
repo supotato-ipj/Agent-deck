@@ -42,6 +42,7 @@ const { createEventTape } = require('./lib/event-tape');
 const { createPanelHandle } = require('./lib/panel-control');
 const { startCannedLlm } = require('./lib/canned-llm');
 const { startMediaFixture } = require('./lib/media-fixture');
+const { startHttpFixture } = require('./lib/http-fixture');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '332-conversation-events.jsonl');
@@ -1059,6 +1060,134 @@ PKGDIR=${pkgDirM}` });
       }
     } catch (c7err) {
       rep.fail(`段 C7 异常中止：${c7err instanceof Error ? c7err.message : String(c7err)}`);
+    }
+
+    // —— 段 C8（工单338，network.request 精确 origin 联网）：本地 HTTP 夹具双 origin——
+    // A=manifest 声明并获批的 origin（真取数据上卡）；B=未授权的另一台服务（默认拒绝）；
+    // A 的 302 → B（跨 origin 重定向不自动跟随、目标 origin 只入审计）；包页直连仍被
+    // CSP 全拒（放行只经 deckHost.network.request 宿主代理面）；审计只有 origin/方法/结果。
+    rep.beginSegment('C8');
+    try {
+      // 夹具清场（battery-owned ids）：上轮批准/安装残留会让本轮 id_conflict（C4/C6/C7 同款）
+      const userPluginsRoot8 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      for (const fid of ['dsh-net']) {
+        try { fs.rmSync(path.join(userPluginsRoot8, fid), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      }
+      try { fs.rmSync(path.join(userData, 'plugins-staging'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const httpFx = await startHttpFixture();
+      try {
+        rep.note(`C8 本地 HTTP 夹具：授权 origin=${httpFx.origin}、未授权 origin=${httpFx.otherOrigin}（127.0.0.1 随机端口，无公网依赖）`);
+        const createC8 = await bridge('conversation/create', { managed: true, label: 'accept-338-network' });
+        if (!createC8.ok) {
+          rep.fail(`C8 管理型会话创建失败：${createC8.error}`);
+        } else {
+          const sidC8 = createC8.session.id;
+          const sessC8 = await sessionById(sidC8);
+          if (!sessC8 || !sessC8.cwd) {
+            rep.fail('C8 会话视图/cwd 缺失');
+          } else {
+            const pkgDir8 = path.join(sessC8.cwd, 'dsh-net-pkg');
+            const prompt8 = await bridge('conversation/prompt', { sessionId: sidC8, text: `MANAGED NET marker：落联网组件包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDir8}\nPKGID=dsh-net\nORIGIN=${httpFx.origin}\nOTHERORIGIN=${httpFx.otherOrigin}` });
+            if (!prompt8 || prompt8.ok !== true) rep.note(`C8 诊断 prompt 应答：${JSON.stringify(prompt8)}`);
+            const prop8 = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-net') ?? null, 90000);
+            if (!prop8) {
+              const v8 = await sessionById(sidC8);
+              rep.note(`C8 诊断 transcript=${JSON.stringify((v8 ? v8.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`)).slice(0, 700)}`);
+              rep.fail('C8 联网组件提案未出现（90s）');
+            } else {
+              // ① 提案数据面：network.request + 精确 origin 清单（批准面看得到要批什么）
+              const permsOk8 = Array.isArray(prop8.pkg.permissions) && prop8.pkg.permissions.includes('network.request');
+              const origins8 = prop8.pkg.networkOrigins || [];
+              const originsOk8 = origins8.length === 1 && origins8[0] === httpFx.origin;
+              const approved8 = await bridge('install/approve', { proposalId: prop8.proposalId }, 30000);
+              await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === prop8.proposalId && p.status === 'activated') ?? null, 30000);
+              if (permsOk8 && originsOk8 && approved8 && approved8.ok === true) {
+                rep.pass(`提案面与批准：permissions [network.request] + networkOrigins [${httpFx.origin}]（精确 origin 是授权参数面）→ 批准激活`);
+              } else {
+                rep.fail(`C8 提案/批准面不符：perms=${JSON.stringify(prop8.pkg.permissions)} origins=${JSON.stringify(origins8)} approved=${JSON.stringify(approved8)}`);
+              }
+              // ② 组件真实联网：授权 origin 取数上卡（宿主代理面），三类结果齐备再断言
+              await until(async () => (await pkgTarget('deck-pkg://dsh-net/')) ? true : null, 20000);
+              const netView8 = await until(async () => {
+                try {
+                  const t = await pkgTarget('deck-pkg://dsh-net/');
+                  if (!t) return null;
+                  const raw = await cdpEvalTarget(t, '(() => window.__netView ? JSON.stringify(window.__netView) : null)()', 8000);
+                  if (!raw) return null;
+                  const v = JSON.parse(raw);
+                  return v.allowed && v.denied && v.redirect && v.direct ? v : null;
+                } catch { return null }
+              }, 30000);
+              if (!netView8) {
+                try {
+                  const t = await pkgTarget('deck-pkg://dsh-net/');
+                  const seen = t ? await cdpEvalTarget(t, 'JSON.stringify({ mounted: Boolean(window.__netCardMounted), view: window.__netView || null, text: (document.querySelector(".net-card") || {}).textContent || null })', 8000) : 'no-target';
+                  rep.note(`C8 诊断 卡片实见=${String(seen).slice(0, 500)}`);
+                } catch { /* 尽力 */ }
+                rep.fail('C8 联网卡三类请求结果未齐备（30s）——诊断见上');
+              } else {
+                const allowedOk8 = netView8.allowed.ok === true && netView8.allowed.status === 200 && String(netView8.allowed.text || '').includes('deck-net-fixture');
+                if (allowedOk8) {
+                  rep.pass(`授权 origin 真取数：deckHost.network.request(${httpFx.origin}/data.json) → HTTP 200 文本上卡（宿主代理面放行，包页自己不出网）`);
+                } else {
+                  rep.fail(`C8 授权 origin 取数不符：${JSON.stringify(netView8.allowed).slice(0, 400)}`);
+                }
+                const deniedOk8 = netView8.denied.ok === false && netView8.denied.code === 'network_permission_denied';
+                if (deniedOk8) {
+                  rep.pass(`未授权 origin 默认拒绝：${httpFx.otherOrigin} 请求 → network_permission_denied（一个字节不出）`);
+                } else {
+                  rep.fail(`C8 未授权 origin 面不符：${JSON.stringify(netView8.denied).slice(0, 400)}`);
+                }
+                const redir8 = netView8.redirect;
+                const redirOk8 = redir8.ok === false && redir8.code === 'network_redirect_blocked'
+                  && String(redir8.location || '').includes('/secret');
+                // 不跟随的硬证据：重定向目标服务零命中（hits 只含 A 的 /data.json 与 /redirect 两发）
+                const hits8 = httpFx.hits();
+                if (redirOk8 && hits8 === 2) {
+                  rep.pass(`跨 origin 重定向不自动跟随：302 → ${httpFx.otherOrigin} 返回 network_redirect_blocked + location 在案；目标服务零命中（hits=${hits8}）`);
+                } else {
+                  rep.fail(`C8 重定向面不符：${JSON.stringify(redir8).slice(0, 300)} hits=${hits8}`);
+                }
+                const direct8 = netView8.direct === 'blocked';
+                if (direct8) {
+                  rep.pass('包页直连仍全拒：CSP connect-src none 拦掉卡内 fetch（放行只经宿主代理面，webRequest 拦截不放松）');
+                } else {
+                  rep.fail(`C8 包页直连未被拦：direct=${JSON.stringify(netView8.direct)}`);
+                }
+                // ③ 审计：脱敏聚合在案（origin/方法/结果；无载荷）
+                const auditEv8 = await tape.wait('network-audit-aggregate', (e) => e.packageId === 'dsh-net' && JSON.stringify(e.origins || []).includes(httpFx.origin), { timeoutMs: 20000, since: Date.now() - 60000 });
+                const auditBuckets8 = await bridge('network/audit', null).catch(() => null);
+                const bucket8 = ((auditBuckets8 && auditBuckets8.buckets) || []).find((b) => b.packageId === 'dsh-net' && b.permission === 'network.request');
+                if (auditEv8 && bucket8 && bucket8.counts.request >= 1 && bucket8.counts.redirect >= 1 && (bucket8.origins || []).includes(httpFx.origin)) {
+                  rep.pass(`脱敏审计：network-audit-aggregate 事件 + 聚合投影（request=${bucket8.counts.request}、redirect=${bucket8.counts.redirect}、denied=${bucket8.denied}；origins=${JSON.stringify(bucket8.origins)}，无路径/查询/正文）`);
+                } else {
+                  rep.fail(`C8 审计面不符：event=${Boolean(auditEv8)} bucket=${JSON.stringify(bucket8)}`);
+                }
+                // ④ 撤销即断供：账撤销 → 上下文拆除（网络面同步查账，撤销与断供零窗口）
+                const gateR8 = Date.now();
+                const revoked8 = await bridge('install/revoke', { packageId: 'dsh-net' });
+                const deact8 = await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-net' && e.reason === 'permission-revoked', { timeoutMs: 15000, since: gateR8 });
+                const gone8 = await until(async () => ((await pkgTarget('deck-pkg://dsh-net/')) ? null : true), 15000);
+                const grants8 = await bridge('install/grants', null);
+                const row8 = ((grants8 && grants8.grants) || []).find((g) => g.packageId === 'dsh-net');
+                if (revoked8 && revoked8.ok === true && deact8 && gone8 && row8 && row8.revokedAt > 0) {
+                  rep.pass(`撤销即断供：install/revoke → deactivated(reason=permission-revoked) + deck-pkg://dsh-net 上下文拆除 + 账行 revokedAt 在案`);
+                } else {
+                  rep.fail(`C8 撤销面不符：revoked=${JSON.stringify(revoked8)} deactivated=${Boolean(deact8)} gone=${Boolean(gone8)} row=${JSON.stringify(row8)}`);
+                }
+              }
+            }
+            await bridge('conversation/end', { sessionId: sidC8 });
+          }
+        }
+      } finally {
+        // 夹具纪律：本地 HTTP 服务全关停（用完即杀、零残留）
+        try { await httpFx.stop(); } catch { /* 尽力 */ }
+      }
+    } catch (c8err) {
+      rep.fail(`段 C8 异常中止：${c8err instanceof Error ? c8err.message : String(c8err)}`);
     }
 
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +

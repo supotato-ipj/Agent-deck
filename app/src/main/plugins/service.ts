@@ -7,6 +7,7 @@ import { PLUGIN_SCHEME } from './assets'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
 import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView, type MountOutcome } from './install'
 import { authorizeDroppedPackage, authorizeDroppedPackageWithGrant } from './authorization'
+import { isPermissionChannelOpen } from './permission-channels'
 import type { PluginAuthorizationLedger } from './authorization-ledger'
 import { MANIFEST_FILE, PLUGIN_ID_RE, readManifest } from './manifest'
 import { listPluginDirs, watchPluginRoots } from './watch'
@@ -255,7 +256,8 @@ export class PluginHostService extends Service {
           ...(installOpts.setCardEnabled ? { setCardEnabled: installOpts.setCardEnabled } : {}),
           ...(authz ? {
             authorization: {
-              grant: (id, permissions, codeHash) => authz.grant(id, permissions, codeHash),
+              // 工单338：origin 参数面必须随批准落账（适配器漏传 = 账面无 origin，网络面全拒）
+              grant: (id, permissions, codeHash, networkOrigins) => authz.grant(id, permissions, codeHash, networkOrigins),
               revoke: (id) => { authz.revoke(id) },
               clear: (id) => authz.clear(id),
             },
@@ -520,8 +522,10 @@ export class PluginHostService extends Service {
     if (this.installs) {
       for (const [id, rec] of droppedScanned) {
         if (disabled.has(id)) continue
-        const mediaOnly = rec.status === 'pending-approval' && rec.permissions.length > 0 && rec.permissions.every((p) => p === 'media.read')
-        if (!mediaOnly) continue
+        // 手动投放同闸门（工单336 起）：权限全在开放通道内才有批准面。开放度取单一正典
+        // （工单338 真机轮教训：此处只认 media.read 时网络包投进用户根没有批准 UI）。
+        const approvable = rec.status === 'pending-approval' && rec.permissions.length > 0 && rec.permissions.every((p) => isPermissionChannelOpen(p))
+        if (!approvable) continue
         if (this.installs.pendingManualProposalId(id)) continue
         let files: ReturnType<typeof listFileEntries>
         let hash: string
@@ -534,6 +538,7 @@ export class PluginHostService extends Service {
             id, name: rec.manifest?.name ?? id, version: rec.manifest?.version ?? '',
             hostApiVersion: rec.manifest?.hostApiVersion ?? 1, permissions: [...rec.permissions],
             optionalPermissions: [...(rec.manifest?.optionalPermissions ?? [])],
+            networkOrigins: [...(rec.manifest?.networkOrigins ?? [])],
           },
           dir: rec.dir, files, hash,
         })
