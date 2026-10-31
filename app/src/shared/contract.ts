@@ -585,6 +585,16 @@ export interface NetworkAuditBucketView {
   origins: string[]
 }
 
+/** 工单339 命名凭证（可信 UI 视图：只有元数据与绑定，无密文/明文） */
+export interface CredentialView {
+  name: string
+  headerName: string
+  valuePrefix: string
+  createdAt: number
+  rotatedAt: number | null
+  bindings: Array<{ packageId: string; origin: string; boundAt: number }>
+}
+
 /** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
 export interface ConversationRuntimeDiagnostics {
   agentName: string
@@ -963,6 +973,16 @@ export interface BridgeMethods {
   'media/audit': { request: null; response: { buckets: MediaAuditBucketView[] } }
   /** 工单338 网络审计聚合投影（包+权限+时间窗计数与 origin 集合；完整记录仅在审计文件） */
   'network/audit': { request: null; response: { buckets: NetworkAuditBucketView[] } }
+  /**
+   * 工单339 命名凭证（可信 UI）：list 只出元数据与绑定（secret 永不回传）；set 兼作新建与
+   * 轮换（同名 = 轮换，不触发代码重批）；delete 是唯一销毁凭证本体的手势；bind/unbind 是
+   * 「包 + 凭证 + 精确 origin」三元组的显式绑定/逐包撤销。
+   */
+  'credentials/list': { request: null; response: { credentials: CredentialView[] } }
+  'credentials/set': { request: { name: string; secret: string; headerName?: string; valuePrefix?: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/delete': { request: { name: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/bind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/unbind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

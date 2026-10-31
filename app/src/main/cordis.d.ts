@@ -14,6 +14,7 @@ import type { TaskbarService } from './services/taskbar'
 import type { ConversationService } from './conversation/service'
 import type { MediaService } from './media/service'
 import type { NetworkService } from './network/service'
+import type { CredentialService } from './credentials/service'
 import type { InstallProposalView } from './plugins/install'
 import type { ConversationSessionView, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
@@ -103,5 +104,7 @@ declare module 'cordis' {
     media?: MediaService
     /** 工单338 网络域（可选装配：Broker/审计；缺装配 = 宿主网络面如实不可用） */
     network?: NetworkService
+    /** 工单339 命名凭证域（可选装配：凭证库；缺装配 = 凭证保存/注入如实不可用） */
+    credentials?: CredentialService
   }
 }

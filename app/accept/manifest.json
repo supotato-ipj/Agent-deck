@@ -1735,6 +1735,21 @@
           ]
         },
         {
+          "seg": "C9",
+          "ticket": 339,
+          "title": "命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
           "seg": "C3",
           "ticket": 340,
           "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
@@ -1961,6 +1976,10 @@
     },
     {
       "path": "app/src/main/network",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/credentials",
       "area": "plugins"
     },
     {

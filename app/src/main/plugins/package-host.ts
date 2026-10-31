@@ -76,6 +76,8 @@ export interface NetworkRequestEnvelope {
   method?: string
   headers?: Record<string, string>
   body?: string
+  /** 工单339：命名凭证名（值由主进程凭证库解析注入；包拿不到 secret） */
+  credential?: string
 }
 
 /** 网络请求结果（工单338；与 NetworkBroker NetworkResult 结构一致——本文件本地形状） */
@@ -456,7 +458,7 @@ export class DroppedPackageHost {
     ipcMain.handle('pkg:network-request', async (event, payload: unknown) => {
       const ctx = this.deps.registry.lookup(event.sender.id)
       if (!ctx) return { ok: false, code: 'unknown_context', message: '调用方不在执行上下文登记表（未登记或已拆除）' }
-      const body = (payload ?? {}) as { url?: unknown; method?: unknown; headers?: unknown; body?: unknown }
+      const body = (payload ?? {}) as { url?: unknown; method?: unknown; headers?: unknown; body?: unknown; credential?: unknown }
       if (typeof body.url !== 'string' || !body.url.trim()) {
         return { ok: false, code: 'network_failed', message: 'pkg:network-request 需要 url（http/https 绝对 URL）' }
       }
@@ -466,6 +468,7 @@ export class DroppedPackageHost {
       const spec: NetworkRequestEnvelope = { url: body.url }
       if (typeof body.method === 'string') spec.method = body.method
       if (typeof body.body === 'string') spec.body = body.body
+      if (typeof body.credential === 'string' && body.credential) spec.credential = body.credential.slice(0, 64)
       if (typeof body.headers === 'object' && body.headers !== null) {
         const headers: Record<string, string> = {}
         for (const [k, v] of Object.entries(body.headers as Record<string, unknown>)) {

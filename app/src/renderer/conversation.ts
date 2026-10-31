@@ -4,7 +4,7 @@
 // 按原样载荷呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
 // 管理型（工单333）：「管理」勾选 = 用户显式授权（逐会话、不持久化）；创建失败在窗内
 // 显式报错并给「以聊天型创建」按钮——绝不静默降级（ADR-0018 全有或全无）。
-import type { AuthorizationGrantView, ConversationSessionView, ConversationTranscriptEntry, InstallProposalView, MediaAuditBucketView, NetworkAuditBucketView } from '../shared/contract'
+import type { AuthorizationGrantView, ConversationSessionView, ConversationTranscriptEntry, CredentialView, InstallProposalView, MediaAuditBucketView, NetworkAuditBucketView } from '../shared/contract'
 
 const transcriptEl = document.getElementById('transcript') as HTMLElement
 const selectEl = document.getElementById('session-select') as HTMLSelectElement
@@ -396,3 +396,115 @@ function refreshGrants(): void {
   })
 }
 refreshGrants()
+
+// ---------------------------------------------------------------------------
+// 命名凭证（工单339，ADR-0025「凭证只发给精确匹配目标」）：可信 UI 的唯一配置面——
+// 名称/头名/绑定可见，secret 只写不读（列表出口没有密文也没有明文）；绑定/解绑是
+// 「包 + 凭证 + 精确 origin」三元组的显式手势；删除是销毁凭证本体的唯一入口。
+// ---------------------------------------------------------------------------
+const credBar = document.getElementById('cred-bar') as HTMLElement
+let credRows: CredentialView[] = []
+
+function credError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function renderCreds(): void {
+  credBar.textContent = ''
+  credBar.style.display = 'block'
+  for (const c of credRows) {
+    const row = document.createElement('div')
+    row.className = 'cred-row'
+    const summary = document.createElement('div')
+    summary.className = 'cred-summary'
+    const binds = c.bindings.length
+      ? c.bindings.map((b) => `${b.packageId}@${b.origin}`).join('、')
+      : '未绑定任何包'
+    summary.innerHTML = `<span class="cred-name">凭证 ${c.name}</span>〔${c.headerName}〕<span class="cred-bind">${binds}</span>`
+    row.appendChild(summary)
+    for (const b of c.bindings) {
+      const un = document.createElement('button')
+      un.className = 'cred-unbind'
+      un.textContent = `解绑 ${b.packageId}`
+      un.addEventListener('click', () => {
+        void window.deck.bridge.invoke('credentials/unbind', { packageId: b.packageId, credentialName: c.name, origin: b.origin })
+          .then(() => refreshCreds())
+          .catch((err) => appendCredError(err))
+      })
+      row.appendChild(un)
+    }
+    const del = document.createElement('button')
+    del.className = 'cred-del'
+    del.textContent = '删除凭证'
+    del.addEventListener('click', () => {
+      void window.deck.bridge.invoke('credentials/delete', { name: c.name })
+        .then(() => refreshCreds())
+        .catch((err) => appendCredError(err))
+    })
+    row.appendChild(del)
+    credBar.appendChild(row)
+  }
+  // 新建/轮换（同名 = 轮换，不触发代码重批）
+  const form = document.createElement('div')
+  form.className = 'cred-form'
+  const name = document.createElement('input')
+  name.name = 'cred-name'
+  name.placeholder = '凭证名'
+  const secret = document.createElement('input')
+  secret.name = 'cred-secret'
+  secret.type = 'password'
+  secret.placeholder = 'secret（只写不读）'
+  const save = document.createElement('button')
+  save.className = 'cred-save'
+  save.textContent = '保存/轮换'
+  save.addEventListener('click', () => {
+    if (!name.value.trim() || !secret.value) return
+    void window.deck.bridge.invoke('credentials/set', { name: name.value.trim(), secret: secret.value })
+      .then(() => { secret.value = ''; return refreshCreds() })
+      .catch((err) => appendCredError(err))
+  })
+  form.append(name, secret, save)
+  credBar.appendChild(form)
+  // 绑定（包 id + 凭证 + 精确 origin）
+  const bindForm = document.createElement('div')
+  bindForm.className = 'cred-form'
+  const pkg = document.createElement('input')
+  pkg.name = 'cred-package'
+  pkg.placeholder = '包 id'
+  const pick = document.createElement('select')
+  pick.name = 'cred-pick'
+  for (const c of credRows) {
+    const opt = document.createElement('option')
+    opt.value = c.name
+    opt.textContent = c.name
+    pick.appendChild(opt)
+  }
+  const origin = document.createElement('input')
+  origin.name = 'cred-origin'
+  origin.placeholder = 'http://127.0.0.1:PORT'
+  const bindBtn = document.createElement('button')
+  bindBtn.className = 'cred-bind-btn'
+  bindBtn.textContent = '绑定'
+  bindBtn.addEventListener('click', () => {
+    if (!pkg.value.trim() || !pick.value || !origin.value.trim()) return
+    void window.deck.bridge.invoke('credentials/bind', { packageId: pkg.value.trim(), credentialName: pick.value, origin: origin.value.trim() })
+      .then(() => refreshCreds())
+      .catch((err) => appendCredError(err))
+  })
+  bindForm.append(pkg, pick, origin, bindBtn)
+  credBar.appendChild(bindForm)
+}
+
+function appendCredError(err: unknown): void {
+  const line = document.createElement('div')
+  line.className = 'cred-err'
+  line.textContent = `凭证操作失败：${credError(err)}`
+  credBar.appendChild(line)
+}
+
+function refreshCreds(): Promise<void> {
+  return window.deck.bridge.invoke('credentials/list', null)
+    .then((res) => { credRows = res.credentials; renderCreds() })
+    .catch(() => { /* 凭证面未装配：静默隐藏 */ })
+}
+void refreshCreds()

@@ -139,7 +139,7 @@ const PERMISSIONS: readonly PermissionDescriptor[] = [
     actions: ['network/request'],
     events: [],
     // 工单338：限额与权限拒绝分域——限流/超时/重定向/失败各不同码
-    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'unknown_context'],
+    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'credential_unavailable', 'unknown_context'],
     userGestureRequired: false,
     limits: { requestsPerSecond: 5, maxResponseBytes: 2 * 1024 * 1024, timeoutMs: 10_000, maxConcurrent: 2 },
     // 工单338：origin 授权/宿主代理面/限额/脱敏审计全链落地
@@ -199,7 +199,7 @@ const BASELINE_HOST_API: readonly BaselineApiDomain[] = [
     },
     actions: ['network/request'],
     events: [],
-    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'unknown_context'],
+    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'credential_unavailable', 'unknown_context'],
     status: 'enforced',
   },
 ]
@@ -236,6 +236,10 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'network_timeout', kind: 'runtime', message: '网络请求超时（timeoutMs=10s）——与权限拒绝分域' },
   { code: 'network_redirect_blocked', kind: 'runtime', message: '重定向不自动跟随：返回目标 origin，如需访问须单独请求并先取得授权' },
   { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/方法不支持/非法 URL）' },
+  // —— 工单339 命名凭证错误（凭证面与网络权限相互独立）——
+  { code: 'credential_unavailable', kind: 'gate', message: '命名凭证不可用（不存在/未绑定本包本 origin/密文不可解/加密能力不可用）——不静默改用其他凭证，也不撤销网络权限' },
+  { code: 'credential_invalid', kind: 'gate', message: '凭证名/secret/headerName/origin 形状非法——拒绝写入' },
+  { code: 'credential_store_unavailable', kind: 'runtime', message: '系统加密能力不可用（safeStorage/DPAPI 未就绪）——拒绝保存凭证，绝不落明文兜底' },
 ]
 
 /** 投放包 manifest 契约字段（与 dropped-manifest.ts 解析行为一一对应） */

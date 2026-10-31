@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import { NetworkAuditService, type NetworkAuditBucket } from './audit'
-import { NetworkBroker, type NetworkBrokerOptions, type NetworkRequestSpec, type NetworkResult } from './broker'
+import { NetworkBroker, type NetworkBrokerOptions, type CredentialResolverPort, type NetworkRequestSpec, type NetworkResult } from './broker'
 import type { PluginAuthorizationLedger } from '../plugins/authorization-ledger'
 
 /**
@@ -18,6 +18,8 @@ export interface NetworkServiceOptions {
   auditFile?: string
   /** 授权账（与插件宿主服务共用实例；缺省 = 无授权面——任何请求都拿不到放行） */
   authorization?: PluginAuthorizationLedger | null
+  /** 工单339：命名凭证解析（生产 = CredentialStore；缺省 = 无凭证面） */
+  credentials?: CredentialResolverPort | null
   log?(event: Record<string, unknown>): void
  /** 契约限额覆盖（缺省 = catalog limits 同源默认值） */
   limits?: NetworkBrokerOptions['limits']
@@ -35,6 +37,7 @@ export class NetworkService extends Service {
       : null
     this.broker = new NetworkBroker({
       authorization: options.authorization ?? null,
+      credentials: options.credentials ?? null,
       audit: this.audit,
       log,
       ...(options.limits ? { limits: options.limits } : {}),
