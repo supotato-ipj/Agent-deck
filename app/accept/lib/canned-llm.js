@@ -239,6 +239,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
           "  },",
           "  update(host) { this.render(host.view) },",
           "  render(view) {",
+          "    window.__mediaView = view && view.media ? { controlGranted: view.media.controlGranted, n: (view.media.sessions || []).length, keys: (view.media.sessions || []).map((x) => x.key) } : null",
           "    const root = this._root",
           "    const media = view && view.media",
           "    if (!media || media.available === false) { root.className = 'media-card media-unavailable'; root.textContent = '媒体不可用'; return }",

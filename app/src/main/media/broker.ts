@@ -264,6 +264,7 @@ export class MediaBroker {
    */
   viewForPackage(packageId: string): { media: MediaSnapshotDTO } | null {
     const grant = this.opts.authorization?.activeGrant(packageId) ?? null
+    this.opts.log({ type: 'media-view-probe', packageId, grantPerms: grant ? [...grant.permissions] : null, sessions: this.current.sessions.length, available: this.current.available })
     if (!grant || !grant.permissions.includes('media.read')) return null
     this.auditRecord(packageId, 'snapshot', null, 'ok')
     // 工单337：控制授权面随 DTO 投喂（卡片据此降级渲染——无 media.control = 只读态）

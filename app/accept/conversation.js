@@ -892,6 +892,14 @@ PKGDIR=${pkgDirM}` });
     // 渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。
     rep.beginSegment('C7');
     try {
+      // 夹具清场（battery-owned ids）：上轮批准/安装残留会让本轮 id_conflict（C4/C6 同款教训）
+      const userPluginsRoot7 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      for (const fid of ['dsh-media', 'dsh-media-ctl']) {
+        try { fs.rmSync(path.join(userPluginsRoot7, fid), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      }
+      try { fs.rmSync(path.join(userData, 'plugins-staging'), { recursive: true, force: true }); } catch { /* 尽力 */ }
       const createC7 = await bridge('conversation/create', { managed: true, label: 'accept-337-control' });
       if (!createC7.ok) {
         rep.fail(`C7 管理型会话创建失败：${createC7.error}`);
@@ -903,11 +911,19 @@ PKGDIR=${pkgDirM}` });
         } else {
           // ① A 包（只读对照）：无可选权限声明
           const pkgDirA = path.join(sessC7.cwd, 'dsh-media-pkg');
-          await bridge('conversation/prompt', { sessionId: sidC7, text: `MANAGED MEDIA marker：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDirA}\nPKGID=dsh-media` });
+          const promptA7 = await bridge('conversation/prompt', { sessionId: sidC7, text: `MANAGED MEDIA marker：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDirA}\nPKGID=dsh-media` });
+          if (!promptA7 || promptA7.ok !== true) rep.note(`C7 诊断 A prompt 应答：${JSON.stringify(promptA7)}`);
+          const dumpA7 = async () => {
+            const v = await sessionById(sidC7);
+            rep.note(`C7 A 诊断 transcript=${JSON.stringify((v ? v.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`)).slice(0, 800)}`);
+            try { rep.note(`C7 A 诊断 canned=${JSON.stringify((llm.requests ? llm.requests().slice(-4) : []).map((r) => r.diag)).slice(0, 800)}`); } catch { }
+          };
           const propA7 = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-media') ?? null, 90000);
           if (!propA7) {
+            await dumpA7();
             rep.fail('C7 A 包提案未出现（90s）');
           } else {
+            await dumpA7();
             const optOkA = Array.isArray(propA7.pkg.optionalPermissions) && propA7.pkg.optionalPermissions.length === 0;
             const approvedA = await bridge('install/approve', { proposalId: propA7.proposalId }, 30000);
             await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === propA7.proposalId && p.status === 'activated') ?? null, 30000);
@@ -930,9 +946,22 @@ PKGDIR=${pkgDirM}` });
             }
             // ② B 包（+可选 media.control）：WITHCONTROL 变体 → grantPermissions 子集批准
             const pkgDirB = path.join(sessC7.cwd, 'dsh-media-ctl-pkg');
-            await bridge('conversation/prompt', { sessionId: sidC7, text: `MANAGED MEDIA marker WITHCONTROL：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDirB}\nPKGID=dsh-media-ctl` });
+            // A turn 收束竞态防护：等会话回 ready 再发（prompt 返回=turn 已启动非已收束）
+            await until(async () => ((await sessionById(sidC7))?.status === 'ready') ? true : null, 30000);
+            const promptB7 = await until(async () => {
+              const r = await bridge('conversation/prompt', { sessionId: sidC7, text: `MANAGED MEDIA marker WITHCONTROL：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDirB}\nPKGID=dsh-media-ctl` });
+              return r && r.ok === true ? r : null;
+            }, 30000);
+            if (!promptB7) rep.note('C7 诊断 B prompt 重试窗内未成功（busy/错误）');
             const propB7 = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-media-ctl') ?? null, 90000);
             if (!propB7) {
+              const vdiagB7 = await sessionById(sidC7);
+              const textsB7 = (vdiagB7 ? vdiagB7.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 140)}`);
+              rep.note(`C7 B 诊断 transcript=${JSON.stringify(textsB7).slice(0, 900)}`);
+              try {
+                const diagsB7 = (llm.requests ? llm.requests().slice(-6) : []).map((r) => r.diag);
+                rep.note(`C7 B 诊断 canned=${JSON.stringify(diagsB7).slice(0, 900)}`);
+              } catch { /* 尽力 */ }
               rep.fail('C7 B 包提案未出现（90s）');
             } else {
               const optOkB = Array.isArray(propB7.pkg.optionalPermissions) && propB7.pkg.optionalPermissions.includes('media.control');
@@ -982,11 +1011,19 @@ PKGDIR=${pkgDirM}` });
                     } catch { return null }
                   }, 20000);
                 }
+                const seenB = await (async () => {
+                  try {
+                    const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
+                    if (!t) return 'no-target';
+                    return await cdpEvalTarget(t, 'JSON.stringify(window.__mediaView)', 8000);
+                  } catch (e) { return 'eval-err:' + String(e).slice(0, 80) }
+                })();
+                if (!(btnsOk && btnsOk.btns >= 2)) rep.note(`C7 ④诊断 B 卡实见=${String(seenB).slice(0, 400)}`);
                 const auditCtl = await tape.wait('media-audit-aggregate', (e) => e.packageId === 'dsh-media-ctl' && JSON.stringify(e.counts || {}).includes('control:'), { timeoutMs: 20000, since: Date.now() - 40000 });
                 if (optOkB && approvedB && approvedB.ok === true && btnsOk && btnsOk.btns >= 2 && fxKey && paused && played && auditCtl) {
                   rep.pass(`B 包控制全链：可选权限 [media.control] grantPermissions 子集批准 → 控制按钮渲染（${btnsOk.btns} 个）→ 夹具会话 ${fxKey} 暂停/播放真翻转 + 审计 control 族计数在案`);
                 } else {
-                  rep.fail(`C7 B 包面不符：opt=${optOkB} approved=${JSON.stringify(approvedB && { ok: approvedB.ok })} btns=${JSON.stringify(btnsOk)} fxKey=${JSON.stringify(fxKey)} paused=${paused} played=${played} audit=${Boolean(auditCtl)}`);
+                  rep.fail(`C7 B 包面不符：opt=${optOkB} approved=${JSON.stringify(approvedB)} btns=${JSON.stringify(btnsOk)} fxKey=${JSON.stringify(fxKey)} paused=${paused} played=${played} audit=${Boolean(auditCtl)}`);
                 }
                 if (fixture7) { try { await fixture7.stop(); } catch { /* 尽力 */ } fixture7 = null; }
               }

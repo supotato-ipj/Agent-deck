@@ -38,8 +38,8 @@ export interface MediaBridgePort {
   stop(): void
   list(): Promise<BridgeReply<BridgeListData>>
   thumb(key: string): Promise<BridgeReply<{ contentType: string; readBytes: number; bytesBase64: string; ms: number }>>
-  /** #337 media.control 预留：当下能力检查 + 真实结果复核在桥内（本票不发） */
-  control?(key: string, action: string): Promise<BridgeReply>
+  /** 工单337：控制命令——能力位检查+投递+真实结果复核在桥内（t329：投递 bool≠已执行，桥轮询复核） */
+  control(key: string, action: string): Promise<BridgeReply>
   watch(on: boolean): void
   /** 桥事件（会话/播放/时间线变化）：只作重取快照触发器（t329：时延爆发式 17ms-6.4s） */
   onEvent(cb: (e: { event: string; key?: string; sessions?: string[] }) => void): () => void
@@ -238,6 +238,13 @@ export class MediaBridgeClient implements MediaBridgePort {
     const out = await this.request({ cmd: 'thumb', key })
     if (!out.ok) return out
     return { ok: true, data: out.data as { contentType: string; readBytes: number; bytesBase64: string; ms: number } }
+  }
+
+  /** 工单337：控制命令（能力位检查/投递/结果复核都在桥内；result.data.status=复核后的真实播放态） */
+  async control(key: string, action: string): Promise<BridgeReply<{ status?: string }>> {
+    const out = await this.request({ cmd: 'control', key, action })
+    if (!out.ok) return out
+    return { ok: true, data: out.data as { status?: string } }
   }
 
   watch(on: boolean): void {

@@ -276,13 +276,17 @@ export class BridgeService extends Service {
       case 'install/list':
         return { proposals: this.ctx.plugins.installProposals() } as BridgeMethods[M]['response']
       case 'install/approve': {
-        const { proposalId } = payload as { proposalId?: unknown }
+        const { proposalId, grantPermissions } = payload as { proposalId?: unknown; grantPermissions?: unknown }
         if (typeof proposalId !== 'string' || !proposalId.trim()) {
           throw new BridgeError('install/approve 需要 proposalId（提案标识字符串）')
         }
+        // 可选权限子集（工单337）：字符串数组校验后透传（非法形状 = 不授可选，仅必需集）
+        const grantOpts = Array.isArray(grantPermissions) && grantPermissions.every((g) => typeof g === 'string' && g.trim())
+          ? { grantPermissions: grantPermissions.map((g) => String(g)) }
+          : undefined
         const mgr = this.ctx.plugins.installs
         const res = mgr
-          ? await mgr.approve(String(proposalId))
+          ? await mgr.approve(String(proposalId), grantOpts)
           : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
         return res as BridgeMethods[M]['response']
       }

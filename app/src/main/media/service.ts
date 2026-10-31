@@ -34,6 +34,7 @@ function unavailableBridge(reason: string): MediaBridgePort {
     watch() { /* 无进程可订 */ },
     async list() { return { ok: false as const, error: reason } },
     async thumb() { return { ok: false as const, error: reason } },
+    async control() { return { ok: false as const, error: reason } },
     onEvent() { return () => {} },
     onAvailability() { return () => {} },
   }

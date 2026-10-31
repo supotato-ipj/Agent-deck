@@ -46,6 +46,7 @@ function fakeBridge(opts: { sessions?: BridgeSessionSnapshot[]; currentKey?: str
     start() { /* fake 即刻就绪 */ },
     stop() { /* fake */ },
     watch(on) { this.watchCalls.push(on) },
+    control: async () => ({ ok: true, data: { status: 'Playing' } }),
     async list() {
       if (!state.available) return { ok: false, error: 'bridge down' }
       return { ok: true, data: { sessions: state.sessions, currentKey: state.currentKey } }
