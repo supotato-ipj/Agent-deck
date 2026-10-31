@@ -548,6 +548,8 @@ export interface InstallProposalView {
    * 手势（install/inherit）；pending 期间批准代码 = 默认 fresh（新配置起步，残留 detach）。
    */
   dataInheritance?: { decision: 'pending' | 'inherited' | 'fresh' }
+  /** 工单336 手动投放提案（手动落进用户根的敏感包同闸门；批准=复算用户根哈希绑定） */
+  manual?: boolean
 }
 
 /** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
