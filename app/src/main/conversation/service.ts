@@ -209,7 +209,8 @@ export class ConversationService extends Service {
   }
 
   private logEvent(event: Record<string, unknown>): void {
-    this.deps.log({ t: undefined, ...event, ts: this.deps.now() })
+    // 存证时间戳（t）由 fileEventLog 落笔时统一盖——这里自带 t 会把宿主的 t 覆成 undefined
+    this.deps.log({ ...event, ts: this.deps.now() })
   }
 
   // ------------------------------------------------------------------
@@ -271,6 +272,7 @@ export class ConversationService extends Service {
       internal.runtime = runtime
       view.backendSessionId = runtime.backendSessionId
       meta.backendSessionId = runtime.backendSessionId
+      view.backendPid = runtime.proc.pid ?? null
       view.status = 'ready'
       this.saveMetadata()
       this.logEvent({ type: 'conversation-created', sessionId: id, backendSessionId: runtime.backendSessionId, cwd })
