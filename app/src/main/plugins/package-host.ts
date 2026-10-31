@@ -4,6 +4,7 @@ import { ipcMain, session, WebContentsView, type BrowserWindow, type WebContents
 import { ExecutionContextRegistry } from './identity'
 import { PACKAGE_SCHEME, PACKAGE_SHELL_PATH, resolvePackageAssetUrl } from './assets'
 import { DROPPED_VIEW_SEGMENTS, type DroppedManifest } from './dropped-manifest'
+import { withMediaSegment } from './package-view'
 import type { PanelSnapshot } from '../../shared/contract'
 
 /**
@@ -288,8 +289,7 @@ export class DroppedPackageHost {
         // mediaView 返回 { media: DTO } 包装——投喂解包 DTO（嵌套包装会让卡片的
         // view.media.sessions 落空、永远空态——C6 真机排障实证）。
         if (segment === 'media') {
-          const media = this.deps.mediaView?.(context.id) ?? null
-          if (media && media.media) view.media = media.media
+          withMediaSegment(view, this.deps.mediaView?.(context.id) ?? null)
           continue
         }
         if (DROPPED_VIEW_SEGMENTS.includes(segment as (typeof DROPPED_VIEW_SEGMENTS)[number]) && segment in bag) {
@@ -302,16 +302,16 @@ export class DroppedPackageHost {
   }
 
   /**
-   * 媒体刷新（工单336，生产 = MediaBroker.onSnapshot）：桥事件驱动的快照代次变化即时
-   * 重推——对声明 media 段的在装包重走 capabilities 裁剪（授权查询同源），其余段不动。
+   * 媒体刷新（工单336，生产 = MediaBroker.onSnapshot）：桥事件/控制命令驱动的快照代次
+   * 变化即时重推——对声明 media 段的在装包重走 capabilities 裁剪（授权查询同源），其余
+   * 段不动。解包口径与 pushSnapshot 同源（withMediaSegment）——此处曾把 mediaView 的
+   * `{ media: DTO }` 包装整包赋给 view.media，卡片在每次媒体刷新后回落空态（工单337
+   * C7 真机排障实证）。
    */
   refreshMedia(): void {
     for (const context of this.live.values()) {
       if (!context.manifest.capabilities.includes('media')) continue
-      const media = this.deps.mediaView?.(context.id) ?? null
-      const view: Record<string, unknown> = { ...context.latestView }
-      if (media) view.media = media
-      else delete view.media
+      const view = withMediaSegment({ ...context.latestView }, this.deps.mediaView?.(context.id) ?? null)
       context.latestView = view
       this.pushView(context)
     }
