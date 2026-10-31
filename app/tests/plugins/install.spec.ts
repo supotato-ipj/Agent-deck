@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import { PluginInstallManager, aggregateHashOf, type InstallProposalView } from '../../src/main/plugins/install'
+import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView } from '../../src/main/plugins/install'
 import { currentHostApiVersion } from '../../src/main/plugins/catalog'
 
 /**
@@ -39,6 +39,8 @@ interface Harness {
   trashCalls: string[]
   /** 工单335：停用/启用端口调用记录 */
   enabledCalls: Array<{ id: string; enabled: boolean }>
+  /** 工单336：授权账端口调用记录（grant/revoke/clear 按序） */
+  authCalls: Array<{ op: 'grant' | 'revoke' | 'clear'; id: string; permissions?: string[]; codeHash?: string }>
   dispose(): void
 }
 
@@ -87,6 +89,7 @@ function boot(opts: {
   let releaseMount: (() => void) | null = null
   const trashCalls: string[] = []
   const enabledCalls: Harness['enabledCalls'] = []
+  const authCalls: Harness['authCalls'] = []
   const ctx = { userRoot, stagingRoot, kernelRoot, workspace, events, proposals, rescans, mountMode, releaseMount: releaseMount as Harness['releaseMount'] }
 
   const info = `#${++seq}`
@@ -126,12 +129,17 @@ function boot(opts: {
           enabledCalls.push({ id, enabled })
           return { disabledCards: enabled ? [] : [id] }
         } }),
+    authorization: {
+      grant: (id, permissions, codeHash) => { authCalls.push({ op: 'grant', id, permissions, codeHash }) },
+      revoke: (id) => { authCalls.push({ op: 'revoke', id }) },
+      clear: (id) => { authCalls.push({ op: 'clear', id }) },
+    },
   })
   const harness: Harness = {
     mgr, userRoot, stagingRoot, kernelRoot, workspace, backupRoot, configDir,
     events, proposals, get rescans() { return rescans }, mountMode,
     get releaseMount() { return releaseMount },
-    trashCalls, enabledCalls,
+    trashCalls, enabledCalls, authCalls,
     dispose() {
       mgr.dispose()
       for (const d of [userRoot, stagingRoot, kernelRoot, workspace, backupRoot, configDir]) fs.rmSync(d, { recursive: true, force: true })
@@ -256,9 +264,9 @@ describe('安装管线：提交（守卫 → 待装载区 → 严格校验 → �
     expect(fs.existsSync(path.join(h.userRoot, 'old-pkg'))).toBe(false)
   })
 
-  it('含敏感权限的包 → permission_deferred（代次批准持久化归 #335，本票零权限边界）+ 副本清偿', async () => {
+  it('含未开放敏感权限的包 → permission_deferred（#336 只开 media.read 通路）+ 副本清偿', async () => {
     const src = path.join(h.workspace, 'media')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'media-pkg', permissions: ['media.read'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'media-pkg', permissions: ['media.control'] })
     const out = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
     expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
     expect(fs.readdirSync(h.stagingRoot)).toEqual([])
@@ -557,10 +565,10 @@ describe('更新提案：提交（同族守卫 → diff → no_change → pendin
     }
   })
 
-  it('含敏感权限的新字节 → permission_deferred（#334 同一边界），副本清偿、旧代次不动', async () => {
+  it('含未开放敏感权限的新字节 → permission_deferred（#336 边界：media.read 已开放，其余仍拒），副本清偿、旧代次不动', async () => {
     await installGood(h)
     const src = path.join(h.workspace, 'perm-upd')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['media.read'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['media.control'] })
     const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
     expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
     expect(fs.readdirSync(h.stagingRoot)).toEqual([])
@@ -907,5 +915,272 @@ describe('写串行与停用/启用', () => {
     } finally {
       h2.dispose()
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单336：media.read 敏感通路打开（首个敏感权限完整闭环）——
+// 提交不再 permission_deferred → 提案带权限清单 → 批准落授权账（id+权限集合+代码哈希）
+// → 激活失败账回滚；更新重批（换代账换哈希）；混入未开放权限仍拒；
+// 手动投放同闸门（manual 提案：批准=复算用户根哈希→落账→rescan）。
+// ---------------------------------------------------------------------------
+
+describe('media.read 通路（工单336）：提交与批准落账', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  const MEDIA_MANIFEST = { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] }
+
+  function submitMedia(dirName = 'media-pkg', version = '1.0.0') {
+    const src = path.join(h.workspace, dirName)
+    writePluginDir(src, { ...MEDIA_MANIFEST, version })
+    return h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+  }
+
+  it('media.read 包提交 → 提案 pending 带权限清单（不再 permission_deferred），staging 纪律不变', async () => {
+    const out = await submitMedia()
+    expect(out.ok).toBe(true)
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('形状不符')
+    expect(out.proposal.pkg.permissions).toEqual(['media.read'])
+    expect(fs.existsSync(path.join(h.stagingRoot, out.proposal.proposalId, 'plugin.json'))).toBe(true)
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-media'))).toBe(false)
+    const intent = h.events.find((e) => e.type === 'plugin-install-intent')
+    expect(intent).toMatchObject({ pkgId: 'dsh-media', permissions: ['media.read'] })
+  })
+
+  it('media.read + 未开放权限混包 → 仍 permission_deferred（副本清偿）', async () => {
+    const src = path.join(h.workspace, 'mix')
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-mix', permissions: ['media.read', 'media.control'] })
+    const out = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
+    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+  })
+
+  it('批准 → 授权账落账（id+permissions+聚合哈希三元组）→ 转正激活', async () => {
+    const out = await submitMedia()
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    const hash = out.proposal.hash
+    const decided = await h.mgr.approve(out.proposal.proposalId)
+    expect(decided).toMatchObject({ ok: true, status: 'activated' })
+    expect(h.authCalls).toEqual([{ op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: hash }])
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-media', 'plugin.json'))).toBe(true)
+  })
+
+  it('哈希绑定：账上哈希 = 提案哈希 = 转正后用户根同一份字节', async () => {
+    const out = await submitMedia()
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    const beforeHash = out.proposal.hash
+    fs.writeFileSync(path.join(h.stagingRoot, out.proposal.proposalId, 'card.js'), 'export default {} // tampered\n', 'utf8')
+    await h.mgr.approve(out.proposal.proposalId)
+    // 哈希绑定失败 → 转正不发生 → 账不落（无空转授权）
+    expect(h.authCalls).toEqual([])
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-media'))).toBe(false)
+    expect(beforeHash).toBeTruthy()
+  })
+
+  it('激活确定失败：补偿移除转正目录 + 授权账回滚（revoke 不留无执行面的授权）', async () => {
+    h.mountMode.mode = 'fail'
+    const out = await submitMedia()
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    const decided = await h.mgr.approve(out.proposal.proposalId)
+    expect(decided).toMatchObject({ ok: false, code: 'activation_failed', rollback: 'removed' })
+    expect(h.authCalls).toEqual([
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: out.proposal.hash },
+      { op: 'revoke', id: 'dsh-media' },
+    ])
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-media'))).toBe(false)
+  })
+
+  it('激活结果未知：转正目录保留 + 授权账保留（实况以清单对账，不猜补偿）', async () => {
+    h.mountMode.mode = 'hang'
+    const out = await submitMedia()
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    const decided = await h.mgr.approve(out.proposal.proposalId)
+    expect(decided).toMatchObject({ ok: false, code: 'activation_unknown', stateUnknown: true })
+    expect(h.authCalls).toEqual([{ op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: out.proposal.hash }])
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-media', 'plugin.json'))).toBe(true)
+  })
+
+  it('拒绝 → 账不落（gate_denied，副本清偿）', async () => {
+    const out = await submitMedia()
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    await h.mgr.reject(out.proposal.proposalId)
+    expect(h.authCalls).toEqual([])
+    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+  })
+
+  it('零权限包批准不落账（授权只对敏感包存在）', async () => {
+    await installGood(h)
+    expect(h.authCalls).toEqual([])
+  })
+})
+
+describe('media.read 通路（工单336）：更新重批与卸载清账', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  it('已授权包更新：media.read 新字节提案（diff 权限不变）→ 批准落新哈希账（同 id 新代码不继承旧批准）', async () => {
+    // 前提：media.read 包已安装授权
+    const src0 = path.join(h.workspace, 'm0')
+    writePluginDir(src0, { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] })
+    const sub0 = await h.mgr.submit({ sourceDir: src0 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!sub0.ok || sub0.status !== 'pending-approval') throw new Error('前提提交失败')
+    expect(await h.mgr.approve(sub0.proposal.proposalId)).toMatchObject({ ok: true })
+    const oldHash = sub0.proposal.hash
+
+    // 更新：新字节（card v2），权限不变
+    const src1 = path.join(h.workspace, 'm1')
+    writePluginDir(src1, { ...GOOD_MANIFEST, id: 'dsh-media', version: '1.1.0', permissions: ['media.read'] }, 'export default { mount(host) { host.el.textContent = "v2" } }\n')
+    const upd = await h.mgr.submitUpdate({ packageId: 'dsh-media', sourceDir: src1 }, { sessionId: 'sess-1', backend: 'dsh' })
+    expect(upd.ok).toBe(true)
+    if (!upd.ok || upd.status !== 'pending-approval') throw new Error('更新提交失败')
+    expect(upd.proposal.pkg.permissions).toEqual(['media.read'])
+    expect(upd.proposal.update?.permissions).toEqual({ added: [], removed: [] })
+    expect(await h.mgr.approve(upd.proposal.proposalId)).toMatchObject({ ok: true, status: 'activated' })
+    // 账换代：grant 两次（旧哈希 → 新哈希），无 revoke（换代全程授权连续）
+    expect(h.authCalls).toEqual([
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: oldHash },
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: upd.proposal.hash },
+    ])
+  })
+
+  it('更新新字节带未开放权限 → 仍 permission_deferred（旧代次不动）', async () => {
+    const src0 = path.join(h.workspace, 'm0')
+    writePluginDir(src0, { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] })
+    const sub0 = await h.mgr.submit({ sourceDir: src0 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!sub0.ok || sub0.status !== 'pending-approval') throw new Error('前提提交失败')
+    await h.mgr.approve(sub0.proposal.proposalId)
+    const src1 = path.join(h.workspace, 'm1')
+    writePluginDir(src1, { ...GOOD_MANIFEST, id: 'dsh-media', version: '1.1.0', permissions: ['media.read', 'network.request'] })
+    const upd = await h.mgr.submitUpdate({ packageId: 'dsh-media', sourceDir: src1 }, { sessionId: 'sess-1', backend: 'dsh' })
+    expect(upd).toMatchObject({ ok: false, code: 'permission_deferred' })
+  })
+
+  it('更新换代激活失败：还原旧版 + 账还原旧哈希（旧包授权连续，不因换代失败停摆）', async () => {
+    const src0 = path.join(h.workspace, 'm0')
+    writePluginDir(src0, { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] })
+    const sub0 = await h.mgr.submit({ sourceDir: src0 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!sub0.ok || sub0.status !== 'pending-approval') throw new Error('前提提交失败')
+    await h.mgr.approve(sub0.proposal.proposalId)
+    const src1 = path.join(h.workspace, 'm1')
+    writePluginDir(src1, { ...GOOD_MANIFEST, id: 'dsh-media', version: '1.1.0', permissions: ['media.read'] })
+    const upd = await h.mgr.submitUpdate({ packageId: 'dsh-media', sourceDir: src1 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!upd.ok || upd.status !== 'pending-approval') throw new Error('更新提交失败')
+    h.mountMode.mode = 'fail'
+    const decided = await h.mgr.approve(upd.proposal.proposalId)
+    expect(decided).toMatchObject({ ok: false, code: 'activation_failed', rollback: 'restored' })
+    expect(h.authCalls).toEqual([
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: sub0.proposal.hash },
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: upd.proposal.hash },
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: sub0.proposal.hash },
+    ])
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-media', 'plugin.json'))).toBe(true)
+  })
+
+  it('更新把敏感权限摘除（media.read→零权限）→ 批准后清账（零权限不需要授权）', async () => {
+    const src0 = path.join(h.workspace, 'm0')
+    writePluginDir(src0, { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] })
+    const sub0 = await h.mgr.submit({ sourceDir: src0 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!sub0.ok || sub0.status !== 'pending-approval') throw new Error('前提提交失败')
+    await h.mgr.approve(sub0.proposal.proposalId)
+    const src1 = path.join(h.workspace, 'm1')
+    writePluginDir(src1, { ...GOOD_MANIFEST, id: 'dsh-media', version: '2.0.0', permissions: [] })
+    const upd = await h.mgr.submitUpdate({ packageId: 'dsh-media', sourceDir: src1 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!upd.ok || upd.status !== 'pending-approval') throw new Error('更新提交失败')
+    expect(upd.proposal.update?.permissions).toEqual({ added: [], removed: ['media.read'] })
+    await h.mgr.approve(upd.proposal.proposalId)
+    expect(h.authCalls).toEqual([
+      { op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: sub0.proposal.hash },
+      { op: 'clear', id: 'dsh-media' },
+    ])
+  })
+
+  it('卸载 → 授权账清除（重装同字节也重新批准——撤销不可被卸载重装绕过）', async () => {
+    const src0 = path.join(h.workspace, 'm0')
+    writePluginDir(src0, { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] })
+    const sub0 = await h.mgr.submit({ sourceDir: src0 }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!sub0.ok || sub0.status !== 'pending-approval') throw new Error('前提提交失败')
+    await h.mgr.approve(sub0.proposal.proposalId)
+    const un = await h.mgr.uninstall({ packageId: 'dsh-media' })
+    expect(un).toMatchObject({ ok: true })
+    expect(h.authCalls.at(-1)).toEqual({ op: 'clear', id: 'dsh-media' })
+  })
+})
+
+describe('手动投放同闸门（工单336）：manual 提案', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  const MEDIA_MANIFEST = { ...GOOD_MANIFEST, id: 'dsh-media', permissions: ['media.read'] }
+
+  function seedManual(): { dir: string } {
+    const dir = path.join(h.userRoot, 'dsh-media')
+    writePluginDir(dir, MEDIA_MANIFEST)
+    return { dir }
+  }
+
+  function registerSeeded(dir: string) {
+    return h.mgr.registerManualProposal({
+      pkg: { id: 'dsh-media', name: 'DSH MEDIA', version: '1.0.0', hostApiVersion: currentHostApiVersion(), permissions: ['media.read'] },
+      dir, files: listFileEntries(dir), hash: aggregateHashOf(dir),
+    })
+  }
+
+  it('registerManualProposal：提案 pending，files/hash 取自用户根在册字节，source.backend=manual', () => {
+    const { dir } = seedManual()
+    const hash = aggregateHashOf(dir)
+    const proposal = registerSeeded(dir)
+    expect(proposal.status).toBe('pending')
+    expect(proposal.source.backend).toBe('manual')
+    expect(proposal.files.map((f) => f.path).sort()).toEqual(['card.js', 'plugin.json'])
+    expect(proposal.hash).toBe(hash)
+    expect(h.mgr.list().some((p) => p.proposalId === proposal.proposalId)).toBe(true)
+  })
+
+  it('manual 提案批准：复算用户根哈希绑定 → 落账 → rescan → 有界激活', async () => {
+    const { dir } = seedManual()
+    const hash = aggregateHashOf(dir)
+    const proposal = registerSeeded(dir)
+    const rescansBefore = h.rescans
+    const decided = await h.mgr.approve(proposal.proposalId)
+    expect(decided).toMatchObject({ ok: true, status: 'activated' })
+    expect(h.authCalls).toEqual([{ op: 'grant', id: 'dsh-media', permissions: ['media.read'], codeHash: hash }])
+    expect(h.rescans).toBe(rescansBefore + 1)
+  })
+
+  it('manual 提案批准前字节被改 → hash_mismatch（转正不发生、账不落、包不执行）', async () => {
+    const { dir } = seedManual()
+    const proposal = registerSeeded(dir)
+    fs.writeFileSync(path.join(dir, 'card.js'), 'export default {} // tampered\n', 'utf8')
+    const decided = await h.mgr.approve(proposal.proposalId)
+    expect(decided).toMatchObject({ ok: false, code: 'hash_mismatch' })
+    expect(h.authCalls).toEqual([])
+  })
+
+  it('manual 提案拒绝：用户根文件不动（用户放的文件不删），包不执行，gate_denied 审计', async () => {
+    const { dir } = seedManual()
+    const proposal = registerSeeded(dir)
+    const rejected = await h.mgr.reject(proposal.proposalId)
+    expect(rejected).toMatchObject({ ok: true })
+    expect(fs.existsSync(path.join(dir, 'plugin.json'))).toBe(true)
+    expect(h.authCalls).toEqual([])
+    expect(h.events.find((e) => e.type === 'plugin-install-outcome')).toMatchObject({ outcome: 'gate_denied', proposalId: proposal.proposalId })
+  })
+
+  it('dropManualProposal：包消失（卸载/移除）后在册 manual 提案同步摘除', () => {
+    const { dir } = seedManual()
+    const proposal = registerSeeded(dir)
+    h.mgr.dropManualProposal('dsh-media', proposal.proposalId)
+    expect(h.mgr.list().some((p) => p.proposalId === proposal.proposalId)).toBe(false)
+  })
+
+  it('同 id 二次手动提案：幂等替换（不重复挂条）', () => {
+    const { dir } = seedManual()
+    registerSeeded(dir)
+    registerSeeded(dir)
+    expect(h.mgr.list().filter((p) => p.pkg.id === 'dsh-media' && p.source.backend === 'manual')).toHaveLength(1)
   })
 })

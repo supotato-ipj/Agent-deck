@@ -5,8 +5,9 @@ import type { Context } from 'cordis'
 import type { DroppedPackageInfo, DroppedPackageMigrationIssue, DroppedPackageState, PluginInfo, PluginManifest } from '../../shared/contract'
 import { PLUGIN_SCHEME } from './assets'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
-import { PluginInstallManager, type InstallProposalView, type MountOutcome } from './install'
-import { authorizeDroppedPackage } from './authorization'
+import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView, type MountOutcome } from './install'
+import { authorizeDroppedPackage, authorizeDroppedPackageWithGrant } from './authorization'
+import type { PluginAuthorizationLedger } from './authorization-ledger'
 import { MANIFEST_FILE, PLUGIN_ID_RE, readManifest } from './manifest'
 import { listPluginDirs, watchPluginRoots } from './watch'
 
@@ -108,6 +109,13 @@ export interface PluginHostOptions {
    * 缺省恒空 = 全启用（离线装配不接设置域）。
    */
   disabledIds?: () => readonly string[]
+  /**
+   * 授权账（工单336，ADR-0025 按包/按代码代次授予）：敏感权限授权的持久化事实源。
+   * rescan **每轮**按账重评授权（撤销即停接停用缝、哈希漂移不放行、批准后 rescan 激活）；
+   * 安装管线批准落账经 install.authorization 端口（同一账实例）。缺省 = 无授权面
+   * （敏感包一律 pending-approval，#331 行为兜底）。
+   */
+  authorization?: PluginAuthorizationLedger
   /** 目录看门狗（默认开；离线测试可关，改用显式 rescan 驱动） */
   watch?: boolean
   /** 看门狗风暴合并窗口（ms） */
@@ -177,6 +185,8 @@ export class PluginHostService extends Service {
   private readonly kernelRoots: string[]
   private readonly droppedRoots: string[]
   private readonly droppedHost: DroppedPackageHostPort | null
+  /** 授权账（工单336）：撤销即停/哈希漂移不放行/批准激活的每轮重评事实源 */
+  private readonly authorization: PluginAuthorizationLedger | null
   private readonly log: (event: Record<string, unknown>) => void
   private readonly disabledIds: () => readonly string[]
   private readonly watchEnabled: boolean
@@ -213,19 +223,17 @@ export class PluginHostService extends Service {
     this.kernelRoots = kernel
     this.droppedRoots = dropped
     this.droppedHost = options.droppedHost ?? null
+    this.authorization = options.authorization ?? null
     this.log = options.log ?? (() => {})
     this.disabledIds = options.disabledIds ?? (() => [])
     this.watchEnabled = options.watch ?? true
     this.settleMs = options.settleMs
     this.factory = options.createInstance ?? defaultInstance
-    // 首扫在构造期完成：快照带插件清单，与其它服务同一节奏（不做则面板首帧无组件）
-    this.rescan()
-    if (this.watchEnabled && (this.kernelRoots.length || this.droppedRoots.length)) {
-      ctx.on('dispose', watchPluginRoots([...this.kernelRoots, ...this.droppedRoots], () => this.rescan(), { settleMs: this.settleMs }))
-    }
-    // DSH 安装管线（工单334）：宿主端口=本服务（rescan + waitMountOutcome 有界激活缝）。
+    // DSH 安装管线（工单334）先于首扫装配：工单336 手动投放闸门在 rescan 里挂 manual
+    // 提案——首扫就要能看到在册提案面（装配序颠倒会让首扫漏挂）。
     // 工单335：备份根/回收站/私有配置路径/停用集缝随装配下发（缺省 = 管理器内置安全默认）
     const installOpts = options.install
+    const authz = this.authorization
     this.installs = installOpts
       ? new PluginInstallManager({
           userRoot: installOpts.userRoot,
@@ -245,8 +253,20 @@ export class PluginHostService extends Service {
           ...(installOpts.trashItem ? { trashItem: installOpts.trashItem } : {}),
           ...(installOpts.pluginConfigFile ? { pluginConfigFile: installOpts.pluginConfigFile } : {}),
           ...(installOpts.setCardEnabled ? { setCardEnabled: installOpts.setCardEnabled } : {}),
+          ...(authz ? {
+            authorization: {
+              grant: (id, permissions, codeHash) => authz.grant(id, permissions, codeHash),
+              revoke: (id) => { authz.revoke(id) },
+              clear: (id) => authz.clear(id),
+            },
+          } : {}),
         })
       : null
+    // 首扫在构造期完成：快照带插件清单，与其它服务同一节奏（不做则面板首帧无组件）
+    this.rescan()
+    if (this.watchEnabled && (this.kernelRoots.length || this.droppedRoots.length)) {
+      ctx.on('dispose', watchPluginRoots([...this.kernelRoots, ...this.droppedRoots], () => this.rescan(), { settleMs: this.settleMs }))
+    }
     // 挂载结果回报注册（工单334）：宿主壳页 title/崩溃即裁决在等者
     this.droppedHost?.onMountOutcome?.((info) => {
       const waiters = this.mountWaiters.get(info.id) ?? []
@@ -291,6 +311,23 @@ export class PluginHostService extends Service {
   /** 安装提案清单（批准 UI 数据面；未装配安装面 = 空表） */
   installProposals(): InstallProposalView[] {
     return this.installs?.list() ?? []
+  }
+
+  /**
+   * 撤销授权（工单336，可信 UI 真实用户手势）：账撤销（activeGrant 即刻 null——媒体
+   * Broker 授权门同步断供）→ rescan（撤销即停接 #335 停用缝，deactivate reason=
+   * permission-revoked）。未装配账面 = not_wired 如实报。
+   */
+  revokeAuthorization(packageId: string): { ok: boolean; code?: string } {
+    if (!this.authorization) return { ok: false, code: 'not_wired' }
+    const out = this.authorization.revoke(packageId)
+    if (out.ok) this.rescan()
+    return out
+  }
+
+  /** 授权账清单（可信 UI 数据面；含已撤销行——审计可见；未装配 = 空表） */
+  authorizationGrants() {
+    return this.authorization?.list() ?? []
   }
 
   /** 协议资产根：插件 id → 目录；未登记 id（含原型键名）一律 undefined */
@@ -389,6 +426,10 @@ export class PluginHostService extends Service {
    * - 指纹未变 + crashed → **保持 crashed，绝不自动重挂**（AC3）；
    * - 指纹未变 + 运行态 → 原样（不重复 activate）；
    * - 停用/消失/降级为不可执行态 → deactivate。
+   *
+   * 工单336 授权重评：授权判定**每轮重算**（不再只在首见/换代时）——账撤销/哈希漂移即时
+   * 反映（撤销即停，接停用缝 reason=permission-revoked），批准落账后 rescan 即激活；
+   * 手动投放同闸门：用户根里的 media.read 待批包挂 manual 提案（批准 UI 同词汇）。
    */
   private rescanDropped(disabled: Set<string>, kernelClaimed: Set<string>): void {
     const droppedScanned = new Map<string, DroppedRecord>()
@@ -415,11 +456,15 @@ export class PluginHostService extends Service {
         continue
       }
       const changed = !prev || prev.fingerprint !== next.fingerprint
+      // 授权重评（工单336）：每轮重算，不缓存——账面撤销/漂移即时反映。
+      // manifest 缺失（error/迁移态）一律不可执行；零权限在 authorizeDroppedRecord 内放行。
+      const decision = next.manifest !== null && this.authorizeDroppedRecord(next) === 'activate'
+        ? 'activate' as const
+        : 'pending-approval' as const
       if (!prev || changed) {
         // 换代（首见 / 代码内容变化，含崩溃后显式改码）：旧上下文拆除、新代次重走分类
         if (prev && (prev.status === 'ok' || prev.status === 'crashed')) this.droppedHost?.deactivate(id)
-        const executable = next.manifest !== null && authorizeDroppedPackage({ permissions: next.permissions }) === 'activate'
-        if (executable) {
+        if (decision === 'activate') {
           next.generation = (prev?.generation ?? 0) + 1
           this.droppedHost?.activate({
             id, dir: next.dir, generation: next.generation,
@@ -438,15 +483,63 @@ export class PluginHostService extends Service {
           }
         }
         this.dropped.set(id, next)
+      } else if (decision === 'activate') {
+        if (prev.status === 'ok' || prev.status === 'crashed') {
+          // 指纹未变且授权在账：运行态原样（不重复 activate）；crashed 保持 crashed（AC3 不自动重挂）
+          next.status = prev.status
+          next.generation = prev.generation
+        } else {
+          // 待批 → 账齐（批准落账后 rescan）：显式换代激活
+          next.generation = (prev.generation ?? 0) + 1
+          this.droppedHost?.activate({
+            id, dir: next.dir, generation: next.generation,
+            permissions: next.permissions, manifest: next.manifest!,
+          })
+          next.status = 'ok'
+          this.log({ type: 'dropped-package-activated', id, generation: next.generation, origin: `deck-pkg://${id}` })
+        }
+        this.dropped.set(id, next)
       } else {
-        // 指纹未变：crashed 保持 crashed（不自动重挂、副作用不重放），其余原样保留既有记账
-        next.status = prev.status
-        next.generation = prev.generation
+        if (prev.status === 'ok' || prev.status === 'crashed') {
+          // 撤销即停（工单336，接 #335 停用缝）：账面撤销/哈希漂移 → 拆上下文回待批
+          this.droppedHost?.deactivate(id)
+          next.generation = 0
+          next.status = 'pending-approval'
+          this.log({ type: 'dropped-package-deactivated', id, generation: prev.generation, reason: 'permission-revoked' })
+        } else {
+          // 指纹未变：crashed 保持 crashed（不自动重挂、副作用不重放），其余原样保留既有记账
+          next.status = prev.status
+          next.generation = prev.generation
+        }
         this.dropped.set(id, next)
       }
     }
 
-    // 消失/停用/被内核遮蔽的：摘记账 + 拆上下文（包文件不动）
+    // 手动投放同闸门（工单336）：用户根里待批的 media.read 包挂 manual 提案（批准 UI 同
+    // 词汇，批准前不执行）；幂等（在册 pending 提案不重挂）。
+    if (this.installs) {
+      for (const [id, rec] of droppedScanned) {
+        if (disabled.has(id)) continue
+        const mediaOnly = rec.status === 'pending-approval' && rec.permissions.length > 0 && rec.permissions.every((p) => p === 'media.read')
+        if (!mediaOnly) continue
+        if (this.installs.pendingManualProposalId(id)) continue
+        let files: ReturnType<typeof listFileEntries>
+        let hash: string
+        try {
+          files = listFileEntries(rec.dir)
+          hash = aggregateHashOf(rec.dir)
+        } catch { continue } // 字节不可读无从绑定——下轮 rescan 再议
+        this.installs.registerManualProposal({
+          pkg: {
+            id, name: rec.manifest?.name ?? id, version: rec.manifest?.version ?? '',
+            hostApiVersion: rec.manifest?.hostApiVersion ?? 1, permissions: [...rec.permissions],
+          },
+          dir: rec.dir, files, hash,
+        })
+      }
+    }
+
+    // 消失/停用/被内核遮蔽的：摘记账 + 拆上下文（包文件不动）；在册 manual 提案随包摘除
     for (const id of [...this.dropped.keys()]) {
       if (droppedScanned.has(id) && !disabled.has(id)) continue
       const prev = this.dropped.get(id)!
@@ -457,9 +550,27 @@ export class PluginHostService extends Service {
         }
       }
       this.dropped.delete(id)
+      this.installs?.dropManualProposal(id)
     }
 
     this.publishDropped()
+  }
+
+  /**
+   * 单包授权裁决（工单336）：零权限不经账（投放即生效）；敏感包查授权账——
+   * 账上绑定（权限集合+代码哈希）匹配才放行；账面缺失/撤销/漂移 = pending-approval。
+   * 聚合哈希按包目录现算（同一份字节绑定的事实源；不可读 = 不放行）。
+   */
+  private authorizeDroppedRecord(record: DroppedRecord): 'activate' | 'pending-approval' {
+    if (record.permissions.length === 0) return 'activate'
+    let codeHash: string
+    try {
+      codeHash = aggregateHashOf(record.dir)
+    } catch {
+      return 'pending-approval'
+    }
+    const grant = this.authorization?.activeGrant(record.id) ?? null
+    return authorizeDroppedPackageWithGrant({ permissions: record.permissions, grant, codeHash })
   }
 
   /** 单个投放目录的分类：manifest 迁移分类 + 入口资产核对 → 状态记账（不含上下文动作）。

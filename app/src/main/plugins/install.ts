@@ -9,8 +9,14 @@
 // （旧版入内部控制面备份 → 新代次落位 → 激活 → 旧版送回收站；回收站失败保留备份绝不
 // 降级永久删除）；uninstall 走回收站（失败明确报错不降级）；旧数据继承是独立用户手势
 // （卸载保留 `<id>.json` 但脱离挂载；同 id 重装提案带继承项；不继承 = detach 新配置起步，
-// 数据不永久删除）；全部写操作走同一串行信号量（busy 唯一可重试码）。敏感权限包沿 #334
-// 边界结构化拒绝 permission_deferred（代次批准持久化随权限域工单落地）。审计意图/结局分离。
+// 数据不永久删除）；全部写操作走同一串行信号量（busy 唯一可重试码）。审计意图/结局分离。
+//
+// 工单336 首个敏感权限完整闭环：permission_deferred 边界对 media.read 打开——纯 media.read
+// 包走批准（提案带权限清单，批准落**持久化授权账** id+权限集合+代码哈希；激活失败账回滚、
+// 结果未知账保留；更新重批=换代账换哈希；卸载清账）；media.read 之外的敏感权限通道仍未
+// 开放（permission_deferred，#337/#338 打开）。手动投放同闸门：手动落进用户根的敏感包由
+// 服务层挂 manual 提案（批准=复算用户根哈希绑定→落账→rescan→有界激活；拒绝=文件不动、
+// 包不执行；用户根文件是用户放的，清偿只走卸载回收站）。
 import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
@@ -87,6 +93,16 @@ export interface InstallManagerOptions {
    * 方法名」，MCP 写工具接既有停用集缝，不另立账）。缺省 = 工具如实不可用。
    */
   setCardEnabled?(id: string, enabled: boolean): unknown
+  /**
+   * 授权账端口（工单336，生产 = PluginAuthorizationLedger）：批准敏感包时落账
+   * （id+权限集合+代码哈希三元组，跨重启）；激活确定失败回滚（revoke）；卸载/权限摘除
+   * 清账（clear）。缺省 = 无授权面（media.read 包批准时如实报不可用）。
+   */
+  authorization?: {
+    grant(packageId: string, permissions: string[], codeHash: string): void
+    revoke(packageId: string): void
+    clear(packageId: string): void
+  }
 }
 
 export interface InstallSubmitCtx {
@@ -214,9 +230,30 @@ interface StageFail {
   issues?: InstallIssue[]
 }
 
+/**
+ * 敏感权限边界（工单336 首个敏感权限完整闭环）：本票只开 media.read 通路——
+ * 声明的权限**全部** = media.read 的包走批准（提案带权限清单，批准落授权账）；
+ * 混入任何其他敏感权限（media.control/network.request，通道归 #337/#338）仍结构化拒绝
+ * permission_deferred。返回 null = 可走批准；返回信封 = 拒绝（含清偿语义的调用方责任）。
+ */
+function permissionGate(manifest: DroppedManifest): { code: 'permission_deferred'; message: string } | null {
+  const blocked = manifest.permissions.filter((p) => p !== 'media.read')
+  if (blocked.length === 0) return null
+  return {
+    code: 'permission_deferred',
+    message: `含批准通道未开放的敏感权限 [${blocked.join(', ')}] 的包暂不接受提交（media.read 通路已开放，其余敏感权限随后续票落地）`,
+  }
+}
+
 export class PluginInstallManager {
   private readonly opts: InstallManagerOptions
   private readonly proposals = new Map<string, InstallProposalView>()
+  /** 手动提案的包目录（proposalId → 用户根包目录；批准=复算该目录哈希绑定） */
+  private readonly manualDirs = new Map<string, string>()
+  /** 手动提案按包 id 幂等：pkgId → proposalId（重复注册替换旧提案） */
+  private readonly manualByPkg = new Map<string, string>()
+  /** 更新提案的旧代次权限清单（proposalId → oldPermissions；换代失败还原账时用） */
+  private readonly updateOldPerms = new Map<string, string[]>()
   /** 串行化信号量：submit/update/uninstall/setEnabled 在途互斥（busy，唯一可重试码）；approve/reject/decideInheritance 排队跟走 */
   private active = 0
   private tail: Promise<unknown> = Promise.resolve()
@@ -241,6 +278,10 @@ export class PluginInstallManager {
 
   dispose(): void {
     this.disposed = true
+    this.proposals.clear()
+    this.manualDirs.clear()
+    this.manualByPkg.clear()
+    this.updateOldPerms.clear()
     try {
       fs.rmSync(this.opts.stagingRoot, { recursive: true, force: true })
     } catch { /* 尽力 */ }
@@ -253,6 +294,58 @@ export class PluginInstallManager {
   /** 真实用户手势（可信内核 UI）：批准 = 同一份字节复算哈希 → 原子转正/换代 → 有界激活 */
   approve(proposalId: string): Promise<InstallProposalDecision> {
     return this.enqueue(async () => this.approveInner(proposalId))
+  }
+
+  /**
+   * 手动提案挂载（工单336 手动投放同闸门）：手动落进用户根的敏感包由服务层（rescan）
+   * 经此挂成 pending 提案——批准 UI 与 MCP 提交同一份提案词汇，批准前包不执行。
+   * 同 id 幂等替换（重复 rescan 不重复挂条）；返回新提案视图。
+   */
+  registerManualProposal(args: { pkg: InstallProposalView['pkg']; dir: string; files: InstallFileEntry[]; hash: string }): InstallProposalView {
+    const prev = this.manualByPkg.get(args.pkg.id)
+    if (prev) {
+      this.proposals.delete(prev)
+      this.manualDirs.delete(prev)
+    }
+    const opId = this.opts.opId()
+    const proposalId = `prop-manual-${opId}`
+    const proposal: InstallProposalView = {
+      proposalId,
+      opId,
+      status: 'pending',
+      pkg: { ...args.pkg, permissions: [...args.pkg.permissions] },
+      files: args.files.map((f) => ({ ...f })),
+      hash: args.hash,
+      source: { sessionId: '', backend: 'manual', label: null },
+      createdAt: this.opts.now(),
+      error: null,
+      manual: true,
+    }
+    this.proposals.set(proposalId, proposal)
+    this.manualDirs.set(proposalId, args.dir)
+    this.manualByPkg.set(args.pkg.id, proposalId)
+    this.opts.log({ type: 'plugin-manual-proposal', proposalId, opId, pkgId: args.pkg.id, permissions: [...args.pkg.permissions], hash: args.hash })
+    this.opts.notify()
+    return proposal
+  }
+
+  /** 手动提案摘除（包从用户根消失/卸载后由服务层调用；id 不符的迟到调用如实忽略） */
+  dropManualProposal(packageId: string, proposalId?: string): void {
+    const current = this.manualByPkg.get(packageId)
+    if (!current) return
+    if (proposalId && current !== proposalId) return
+    this.proposals.delete(current)
+    this.manualDirs.delete(current)
+    this.manualByPkg.delete(packageId)
+    this.opts.notify()
+  }
+
+  /** 在册 pending 手动提案 id（服务层幂等挂载的判据；已决/不存在 = null） */
+  pendingManualProposalId(packageId: string): string | null {
+    const current = this.manualByPkg.get(packageId)
+    if (!current) return null
+    const p = this.proposals.get(current)
+    return p && p.status === 'pending' ? current : null
   }
 
   /** 真实用户手势：拒绝 = 待装载区副本清偿 + gate_denied 审计（用户根从未出现/旧代次不动） */
@@ -518,12 +611,14 @@ export class PluginInstallManager {
       return { ok: false, code: 'invalid_package', message: `manifest 校验未通过（${classified.issues.length} 项）`, opId, issues: classified.issues }
     }
     const manifest: DroppedManifest = classified.manifest
-    // 敏感权限包：结构化拒绝（代次批准持久化随权限域工单落地）——副本清偿
-    if (manifest.permissions.length > 0) {
+    // 敏感权限边界（工单336）：media.read 通路开放（提案带权限清单走批准）；
+    // media.read 之外的敏感权限通道未开放 → 结构化拒绝 + 副本清偿
+    const gate = permissionGate(manifest)
+    if (gate) {
       cleanupStaging()
       return {
-        ok: false, code: 'permission_deferred', message: `含敏感权限 [${manifest.permissions.join(', ')}] 的包暂不接受安装提交（权限代次批准持久化在后续票落地）——零权限包不受此限`, opId,
-        issues: [{ code: 'permission_unknown', message: '敏感权限包走代次批准通道（未开放）' }],
+        ok: false, code: gate.code, message: gate.message, opId,
+        issues: [{ code: 'permission_unknown', message: `${gate.message}——零权限包不受此限` }],
       }
     }
     // id 冲突：保留 id / 内核根在册 / 用户根已有——副本清偿
@@ -571,6 +666,7 @@ export class PluginInstallManager {
       backend: ctx.backend,
       pkgId: manifest.id,
       version: manifest.version,
+      permissions: [...manifest.permissions],
       hash,
       files: staged.files.length,
       ...(hasLeftover ? { dataInheritance: true } : {}),
@@ -643,11 +739,12 @@ export class PluginInstallManager {
       return { ok: false, code: 'invalid_package', message: `manifest 校验未通过（${classified.issues.length} 项）`, opId, issues: classified.issues }
     }
     const manifest: DroppedManifest = classified.manifest
-    if (manifest.permissions.length > 0) {
+    const gate = permissionGate(manifest)
+    if (gate) {
       cleanupStaging()
       return {
-        ok: false, code: 'permission_deferred', message: `含敏感权限 [${manifest.permissions.join(', ')}] 的包暂不接受更新提交（权限代次批准持久化在后续票落地）——零权限包不受此限`, opId,
-        issues: [{ code: 'permission_unknown', message: '敏感权限包走代次批准通道（未开放）' }],
+        ok: false, code: gate.code, message: gate.message, opId,
+        issues: [{ code: 'permission_unknown', message: `${gate.message}——零权限包不受此限` }],
       }
     }
     // 不允许改名（ADR-0019）：改名 = uninstall + install，两次闸门
@@ -700,6 +797,8 @@ export class PluginInstallManager {
       error: null,
       update,
     }
+    // 换代失败还原账的事实源：旧代次权限清单（工单336 账还原旧哈希时同权还原权限集合）
+    this.updateOldPerms.set(proposalId, [...oldManifest.permissions])
     this.proposals.set(proposalId, proposal)
     this.opts.log({
       type: 'plugin-update-intent',
@@ -727,6 +826,11 @@ export class PluginInstallManager {
     if (!proposal || proposal.status !== 'pending') {
       return { ok: false, code: 'not_found', message: `提案不存在或已决（${proposalId}）` }
     }
+    // 手动提案（工单336 手动投放同闸门）：字节已在用户根，批准=复算用户根哈希绑定
+    if (proposal.manual) {
+      const dir = this.manualDirs.get(proposalId) ?? path.join(this.opts.userRoot, proposal.pkg.id)
+      return this.approveManual(proposal, dir)
+    }
     const stagedDir = path.join(this.opts.stagingRoot, proposalId)
     // 同一份字节绑定：批准复算待装载区哈希 = 提案哈希，不一致即拒（转正不发生）
     let stagedHash: string
@@ -741,6 +845,17 @@ export class PluginInstallManager {
     const userTarget = path.join(this.opts.userRoot, proposal.pkg.id)
     if (proposal.update) return this.approveUpdate(proposal, stagedDir, userTarget)
     return this.approveInstall(proposal, stagedDir, userTarget)
+  }
+
+  /**
+   * 授权账落账（工单336）：转正后、rescan 激活前——账齐服务层才激活（按账重评授权）。
+   * 无授权面且包带敏感权限 = 批准面不完整，如实失败（转正不发生后的清偿由调用方处理）。
+   */
+  private grantAuthorization(packageId: string, permissions: string[], hash: string): boolean {
+    if (permissions.length === 0) return true
+    if (!this.opts.authorization) return false
+    this.opts.authorization.grant(packageId, permissions, hash)
+    return true
   }
 
   /** 安装批准（工单334 原语义 + 工单335 旧数据继承结算） */
@@ -764,8 +879,14 @@ export class PluginInstallManager {
     } catch (err) {
       return this.failProposal(proposal, 'activation_failed', `转正失败：${err instanceof Error ? err.message : String(err)}`)
     }
+    // 授权账落账（工单336）：转正后、rescan 激活前——账齐服务层才激活。账面哈希=提案哈希
+    // =转正字节同一份；落账失败（未装配授权面）=激活面不完整，按激活失败清偿。
+    if (!this.grantAuthorization(proposal.pkg.id, proposal.pkg.permissions, proposal.hash)) {
+      try { fs.rmSync(userTarget, { recursive: true, force: true }) } catch { /* 尽力 */ }
+      return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感包批准无法落账（转正目录已补偿移除）')
+    }
     this.opts.host.rescan()
-    // 有界激活：mount 结果三态——ok / 确定失败（补偿移除）/ 结果未知（不猜补偿，不自动重试）
+    // 有界激活：mount 结果三态——ok / 确定失败（补偿移除+账回滚）/ 结果未知（不猜补偿，不自动重试）
     const mount = await this.boundedMount(proposal.pkg.id)
     if (mount.ok) {
       proposal.status = 'activated'
@@ -774,7 +895,7 @@ export class PluginInstallManager {
       return { ok: true, status: 'activated' }
     }
     if (mount.unknown) {
-      // 结果未知：转正目录保留（实况以 plugins_list 对账），不猜补偿、不自动重试
+      // 结果未知：转正目录保留（实况以 plugins_list 对账），账保留，不猜补偿、不自动重试
       proposal.status = 'failed'
       proposal.error = { code: 'activation_unknown', message: mount.message ?? '激活结果未知（mount 等待超时）——转正目录保留，实况以插件清单对账；不自动重试', stateUnknown: true }
       try { fs.rmSync(stagedDir, { recursive: true, force: true }) } catch { /* 尽力 */ }
@@ -782,7 +903,8 @@ export class PluginInstallManager {
       this.opts.notify()
       return { ok: false, code: 'activation_unknown', message: proposal.error.message, stateUnknown: true }
     }
-    // 确定失败：补偿移除 + 再 rescan（rollback:'removed'）
+    // 确定失败：补偿移除 + 授权账回滚 + 再 rescan（rollback:'removed'）
+    if (proposal.pkg.permissions.length > 0) this.opts.authorization?.revoke(proposal.pkg.id)
     try { fs.rmSync(userTarget, { recursive: true, force: true }) } catch { /* 尽力 */ }
     try { fs.rmSync(stagedDir, { recursive: true, force: true }) } catch { /* 尽力 */ }
     this.opts.host.rescan()
@@ -859,7 +981,24 @@ export class PluginInstallManager {
       }
       return this.failProposal(proposal, 'activation_failed', `新代次落位失败（已还原旧版）：${err instanceof Error ? err.message : String(err)}`, { rollback: 'restored' })
     }
-    // 3) rescan + 有界激活
+    // 3) 授权账换代（工单336）：新权限集合+新哈希落账（批准更新=重新批准，同 id 新代码
+    // 不继承旧批准）；摘除敏感权限的更新=清账（零权限不需要授权）。落账失败（未装配授权
+    // 而新代次带敏感权限）= 换代面不完整，走旧版还原（账随字节还原）。
+    const newPerms = proposal.pkg.permissions
+    if (newPerms.length === 0) this.opts.authorization?.clear(proposal.pkg.id)
+    else if (!this.grantAuthorization(proposal.pkg.id, newPerms, proposal.hash)) {
+      try {
+        fs.renameSync(backupDir, userTarget)
+      } catch (restoreErr) {
+        const message = `授权落账失败且旧版还原失败（${restoreErr instanceof Error ? restoreErr.message : String(restoreErr)}）——结果未知，备份保留于 ${backupDir}`
+        proposal.status = 'failed'
+        proposal.error = { code: 'activation_failed', message, stateUnknown: true }
+        this.opts.log({ type: 'plugin-update-outcome', opId: proposal.opId, proposalId: proposal.proposalId, pkgId: proposal.pkg.id, outcome: 'activation_unknown', stateUnknown: true, backupPath: backupDir, message })
+        this.opts.notify()
+        return { ok: false, code: 'activation_unknown', message, stateUnknown: true }
+      }
+      return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感更新无法落账（已还原旧版）', { rollback: 'restored' })
+    }
     this.opts.host.rescan()
     const mount = await this.boundedMount(proposal.pkg.id)
     if (mount.ok) {
@@ -893,7 +1032,7 @@ export class PluginInstallManager {
       this.opts.notify()
       return { ok: false, code: 'activation_unknown', message: proposal.error.message, stateUnknown: true }
     }
-    // 确定失败：新包退出、旧版还原（rollback:'restored'）
+    // 确定失败：新包退出、旧版还原（rollback:'restored'）+ 授权账随字节还原旧代次
     try { fs.rmSync(userTarget, { recursive: true, force: true }) } catch { /* 尽力 */ }
     try {
       fs.renameSync(backupDir, userTarget)
@@ -905,6 +1044,10 @@ export class PluginInstallManager {
       this.opts.notify()
       return { ok: false, code: 'activation_unknown', message, stateUnknown: true }
     }
+    // 账还原旧代次（工单336）：旧包授权连续，不因换代失败停摆
+    const oldPerms = this.updateOldPerms.get(proposal.proposalId) ?? []
+    if (oldPerms.length > 0) this.opts.authorization?.grant(proposal.pkg.id, oldPerms, proposal.update?.oldHash ?? '')
+    else this.opts.authorization?.clear(proposal.pkg.id)
     this.opts.host.rescan()
     proposal.status = 'failed'
     proposal.error = { code: 'activation_failed', message: mount.message ?? '激活失败——已还原旧版（rollback restored）' }
@@ -913,9 +1056,50 @@ export class PluginInstallManager {
     return { ok: false, code: 'activation_failed', message: proposal.error.message, rollback: 'restored' }
   }
 
+  /**
+   * 手动提案批准（工单336 手动投放同闸门）：字节已在用户根——同一份字节绑定=复算用户根
+   * 哈希；落账 → rescan（服务层按账激活）→ 有界激活。确定失败回滚账（包不执行、文件不动
+   * ——文件是用户放的，清偿只走卸载回收站）；结果未知账保留（实况以清单对账）。
+   */
+  private async approveManual(proposal: InstallProposalView, dir: string): Promise<InstallProposalDecision> {
+    let currentHash: string
+    try {
+      currentHash = aggregateHashOf(dir)
+    } catch (err) {
+      return this.failProposal(proposal, 'hash_mismatch', `用户根包目录不可读：${err instanceof Error ? err.message : String(err)}`)
+    }
+    if (currentHash !== proposal.hash) {
+      return this.failProposal(proposal, 'hash_mismatch', '用户根字节与提案哈希不一致（同一份字节绑定失败）——批准不发生、账不落、包不执行')
+    }
+    if (!this.grantAuthorization(proposal.pkg.id, proposal.pkg.permissions, proposal.hash)) {
+      return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感包批准无法落账（包不执行）')
+    }
+    this.opts.host.rescan()
+    const mount = await this.boundedMount(proposal.pkg.id)
+    if (mount.ok) {
+      proposal.status = 'activated'
+      this.opts.log({ type: 'plugin-install-outcome', opId: proposal.opId, proposalId: proposal.proposalId, pkgId: proposal.pkg.id, outcome: 'activated', hash: proposal.hash, manual: true })
+      this.opts.notify()
+      return { ok: true, status: 'activated' }
+    }
+    if (mount.unknown) {
+      proposal.status = 'failed'
+      proposal.error = { code: 'activation_unknown', message: mount.message ?? '激活结果未知（mount 等待超时）——账保留，实况以插件清单对账；不自动重试', stateUnknown: true }
+      this.opts.log({ type: 'plugin-install-outcome', opId: proposal.opId, proposalId: proposal.proposalId, pkgId: proposal.pkg.id, outcome: 'activation_unknown', stateUnknown: true, manual: true, message: proposal.error.message })
+      this.opts.notify()
+      return { ok: false, code: 'activation_unknown', message: proposal.error.message, stateUnknown: true }
+    }
+    // 确定失败：授权账回滚（包不执行）；用户根文件不动（手动投放文件是用户放的）
+    if (proposal.pkg.permissions.length > 0) this.opts.authorization?.revoke(proposal.pkg.id)
+    proposal.status = 'failed'
+    proposal.error = { code: 'activation_failed', message: mount.message ?? '激活失败——授权已回滚（包不执行，文件原样保留）' }
+    this.opts.log({ type: 'plugin-install-outcome', opId: proposal.opId, proposalId: proposal.proposalId, pkgId: proposal.pkg.id, outcome: 'activation_failed', manual: true, message: proposal.error.message })
+    this.opts.notify()
+    return { ok: false, code: 'activation_failed', message: proposal.error.message }
+  }
+
   /** mount 等待套管理器时限（mountBoundMs）：宿主端口不回 → 结果未知（不猜） */
-  private boundedMount(packageId: string): Promise<MountOutcome> {
-    let timer: NodeJS.Timeout | undefined
+  private boundedMount(packageId: string): Promise<MountOutcome> {    let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<MountOutcome>((resolve) => {
       timer = setTimeout(() => resolve({ ok: false, message: `激活等待超时（${this.opts.mountBoundMs}ms）——结果未知`, unknown: true }), this.opts.mountBoundMs)
     })
@@ -1009,6 +1193,8 @@ export class PluginInstallManager {
       return { ok: false, code: 'trash_failed', message, opId }
     }
     this.opts.log({ type: 'plugin-uninstall-outcome', opId, pkgId: packageId, outcome: 'uninstalled' })
+    // 授权账清除（工单336）：重装同字节也重新批准——撤销不可被「卸载→重装」绕过
+    this.opts.authorization?.clear(packageId)
     this.opts.host.rescan()
     return { ok: true, opId }
   }
