@@ -110,11 +110,23 @@ export class DroppedPackageHost {
   private panelWindow: BrowserWindow | null = null
   private readonly bounds: { x: number; y: number; width: number; height: number }
   private ipcWired = false
+  /**
+   * 挂载结果回报订阅（工单335 补通有界激活通路）：服务层经本方法注册（DroppedPackageHostPort
+   * 同名端口），壳页 title/崩溃即裁决在等者。工单334 轮的通路缺口——回报只可达 deps 字段
+   * （生产构造未注入），服务层按端口方法注册落空 → 有界激活恒走 12s 超时未知态（真机 C4/C5
+   * 轮实证：title=deck-pkg:ready 在场而 approve=activation_unknown）。
+   */
+  private mountOutcomeCb: ((info: { id: string; ok: boolean; message: string | null }) => void) | null = null
 
   constructor(deps: DroppedPackageHostDeps) {
     this.deps = deps
     this.bounds = deps.bounds ?? DEFAULT_BOUNDS
     this.wireIpc()
+  }
+
+  /** 挂载结果回报注册（工单334 端口法）：服务层在等表由此裁决 */
+  onMountOutcome(cb: (info: { id: string; ok: boolean; message: string | null }) => void): void {
+    this.mountOutcomeCb = cb
   }
 
   /** 面板窗就绪后挂载（激活可先于开窗——开窗前在装的包在此补挂） */
@@ -185,21 +197,28 @@ export class DroppedPackageHost {
     this.deps.log?.({ type: 'dropped-package-context-created', id: pkg.id, generation: pkg.generation, webContentsId: wc.id, partition })
 
     // 挂载结果回报（工单334 有界激活的事实源）：壳页 preload 置 title=deck-pkg:ready/failed
-    // → page-title-updated 即报；一次性（每代 mount 恰一个结论）
+    // → page-title-updated 即报；一次性（每代 mount 恰一个结论）。工单335 补通端口法注册
+    const deliverMount = (ok: boolean, message: string | null): void => {
+      const info = { id: pkg.id, ok, message }
+      this.deps.onMountOutcome?.(info)
+      this.mountOutcomeCb?.(info)
+    }
     let mountReported = false
     const reportMount = (ok: boolean, message: string | null): void => {
       if (mountReported) return
       mountReported = true
-      this.deps.onMountOutcome?.({ id: pkg.id, ok, message })
+      deliverMount(ok, message)
     }
     wc.on('page-title-updated', (_event, title) => {
       if (title === 'deck-pkg:ready') reportMount(true, null)
       else if (title === 'deck-pkg:failed') reportMount(false, '包页挂载失败（deck-pkg:failed）')
     })
 
-    // AC3 崩溃处置：只报事实进错误态，绝不 reload/不重建（Electron 44 默认也不自动重载）
+    // AC3 崩溃处置：只报事实进错误态，绝不 reload/不重建（Electron 44 默认也不自动重载）。
+    // clean-exit = 主动拆除（deactivate 的 close()）——不是崩溃，不报不记账（工单335）
     wc.on('render-process-gone', (_event, details) => {
       this.deps.log?.({ type: 'dropped-package-render-gone', id: pkg.id, reason: details.reason, exitCode: details.exitCode })
+      if (details.reason === 'clean-exit') return
       reportMount(false, `包页进程崩溃（${details.reason}）——挂载未确认`)
       this.deps.onCrashed(pkg.id, details.reason)
     })
@@ -221,7 +240,8 @@ export class DroppedPackageHost {
     void wc.loadURL(`${PACKAGE_SCHEME}://${pkg.id}/${PACKAGE_SHELL_PATH}?entry=${encodeURIComponent(pkg.manifest.entry)}`)
   }
 
-  /** 拆除独立上下文（停用/换代/消失时；幂等） */
+  /** 拆除独立上下文（停用/换代/消失时；幂等）：摘登记 + 移除视图 + **销毁** webContents
+   *（工单335：只 stop 不销毁会让 CDP 目标表与渲染进程残留——卸载后清单消失断言实证）。 */
   deactivate(id: string): void {
     const context = this.live.get(id)
     if (!context) return
@@ -229,7 +249,10 @@ export class DroppedPackageHost {
     this.hide(context)
     this.deps.registry.removePackage(id)
     try {
-      if (!context.view.webContents.isDestroyed()) context.view.webContents.stop()
+      if (!context.view.webContents.isDestroyed()) {
+        context.view.webContents.stop()
+        context.view.webContents.close() // 强制销毁页（render-process-gone 以 clean-exit 报，崩溃处置不误触）
+      }
     } catch { /* 已销毁的上下文无需停 */ }
     this.deps.log?.({ type: 'dropped-package-context-removed', id, generation: context.generation })
   }
