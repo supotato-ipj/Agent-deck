@@ -123,10 +123,11 @@ const PERMISSIONS: readonly PermissionDescriptor[] = [
     data: [],
     actions: ['media/play', 'media/pause', 'media/previous', 'media/next'],
     events: [],
-    errors: ['media_unavailable', 'media_session_gone', 'media_command_failed'],
+    errors: ['media_unavailable', 'media_session_gone', 'media_command_failed', 'media_rate_limited'],
     userGestureRequired: false,
     limits: { commandsPerSecond: 5 },
-    status: 'declared',
+    // 工单337：可选权限逐项批准落地（控制面/授权账/降级渲染全链）
+    status: 'enforced',
   },
   {
     id: 'network.request',
@@ -173,9 +174,10 @@ const BASELINE_HOST_API: readonly BaselineApiDomain[] = [
     id: 'host.media',
     // 工单336：媒体域落地（首个敏感权限闭环）。数据面 = media.read 授权后的脱敏快照
     // （MediaSnapshotDTO，白名单字段）；缩略图按需单取（类型/大小校验后交字节副本）。
-    // 授权面 = 持久化授权账（id+权限集合+代码哈希；撤销即断供）。media.control（控制动作）
-    // 归 #337——本域 actions 留空，控制动作不在 media.read 语义内。
-    summary: '媒体会话脱敏快照与受控缩略图（media.read 授权后按 capabilities=media 投喂；事件 media/sessions-changed 驱动宿主重推）',
+    // 授权面 = 持久化授权账（id+权限集合+代码哈希；撤销即断供）。
+    // 工单337：media.control 可选权限逐项批准——控制命令经 deckHost.media.control →
+    // Broker.controlForPackage（授权门+限流+结构化错误+逐次审计）；未授权=卡片只读降级。
+    summary: '媒体会话脱敏快照与受控缩略图（media.read）+ 播放/暂停/上一曲/下一曲控制（media.control 可选，逐项批准）；事件 media/sessions-changed 驱动宿主重推',
     dto: {
       'MediaSnapshotDTO': '脱敏快照（generation/available/selectedKey/sessions[]；session = key/aumid/status/caps/timeline/media 八字段白名单）',
       'MediaThumbnail': '受控缩略图（dataUrl 字节副本；png/jpeg/webp ≤2MB，校验拒付一个字节不出）',
