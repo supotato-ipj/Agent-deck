@@ -32,12 +32,13 @@ function until<T>(pred: () => T | null | undefined, timeoutMs = 8000, stepMs = 4
 }
 
 /** 管理型投影源 stub（单点分派的替身——快照形状齐八段键） */
-function stubSource(): ManagedProjectionSource {
+function stubSource(install?: ManagedProjectionSource['installSubmit']): ManagedProjectionSource {
   return {
     panelSnapshot: () => ({ clock: {}, sessions: [], hardware: {}, weather: {}, desktop: {}, layout: {}, settings: {}, plugins: [] }),
     pluginsList: () => ({ kernel: [], dropped: [] }),
     pluginSource: () => { throw new Error('插件目录越界: x') },
     contractCatalog: () => ({ audience: 'agent', sections: [], data: {} }),
+    installSubmit: install,
   }
 }
 
@@ -191,7 +192,8 @@ describe('会话服务管理型创建（工单333 全有或全无）', () => {
       return text.includes('SNAPSHOT-OK:') && text.includes('MCP-UNKNOWN-TOOL-OK:app_quit') ? text : null
     })
     expect(got).toContain('clock') // 快照八段键之一真实回读
-    expect(got).toMatch(/TOOLS=4/)
+    // 工单334：封闭集 4→5（+plugin_install_submit 写工具；只读四工具不回归）
+    expect(got).toMatch(/TOOLS=5/)
     // 工具调用存证（无载荷、无凭证）
     const toolLogs = h.logs.filter((e) => e.type === 'managed-tool-call')
     expect(toolLogs.some((e) => e.tool === 'panel_snapshot' && e.ok === true)).toBe(true)
@@ -318,5 +320,104 @@ describe('会话服务管理型创建（工单333 全有或全无）', () => {
     expect(h.registry.size()).toBe(0)
     expect(h.hostRecord.startedCount()).toBe(0)
     expect(h.views().every((s) => s.managed === false)).toBe(true)
+  })
+
+  it('managed-install 全链编排（工单334）：fake 经 MCP 提交工作区包 → 提案 pending → 批准 → activated + staging 清偿 + 审计', { timeout: 20000 }, async () => {
+    // 真实 PluginInstallManager（tmp 目录）：source.installSubmit 直连（编排面与生产同构——
+    // 生产在 index.ts 把 installSubmit 缝到 PluginHostService.installs）
+    const userRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-inst-user-'))
+    const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-inst-stage-'))
+    fs.mkdirSync(userRoot, { recursive: true })
+    fs.mkdirSync(stagingRoot, { recursive: true })
+    const installLogs: Array<Record<string, unknown>> = []
+    let rescanCount = 0
+    const { PluginInstallManager } = await import('../../src/main/plugins/install')
+    let service2: ConversationService
+    const mgr = new PluginInstallManager({
+      userRoot,
+      stagingRoot,
+      kernelRoots: [],
+      sessionInfo: (sessionId) => {
+        const v = service2.sessions().find((s) => s.id === sessionId)
+        return v ? { cwd: v.cwd, label: v.label } : null
+      },
+      log: (e) => installLogs.push(e),
+      notify: () => { /* 提案经 list() 读 */ },
+      now: () => Date.now(),
+      opId: (() => { let n = 0; return () => `op-${++n}` })(),
+      host: {
+        rescan: () => { rescanCount++ },
+        waitMount: async () => ({ ok: true, message: null, unknown: false }),
+      },
+      mountBoundMs: 2000,
+    })
+    try {
+      const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-mgmt-install-'))
+      const dshHome2 = path.join(tmp2, 'dsh-home')
+      const workspacesRoot2 = path.join(tmp2, 'workspaces')
+      fs.mkdirSync(dshHome2, { recursive: true })
+      fs.mkdirSync(workspacesRoot2, { recursive: true })
+      const registry2 = new SessionCredentialRegistry()
+      const ctx2 = new Context()
+      const installSvcLogs: Array<Record<string, unknown>> = []
+      const spawnFake: ConversationSpawn = (plan, cwd, env) => {
+        const child: ChildProcess = spawn(process.execPath, [FAKE_AGENT, '--scenario', 'managed-install', '--trace'], {
+          cwd, env, stdio: ['pipe', 'pipe', 'pipe'],
+        })
+        return {
+          pid: child.pid,
+          stdin: child.stdin!,
+          stdout: child.stdout!,
+          onExit: (cb) => child.once('exit', (code, signal) => cb(code, signal)),
+          killTree: () => { try { child.kill() } catch { /* 尽力 */ } },
+        }
+      }
+      service2 = new ConversationService(ctx2, {
+        dshHome: dshHome2,
+        workspacesRoot: workspacesRoot2,
+        metadataFile: path.join(tmp2, 'metadata.json'),
+        deps: {
+          resolveBackend: async () => ({ exe: 'C:\\fake\\DeepSeek Harness.exe', cliJs: 'C:\\fake\\cli.js', source: 'test' }),
+          spawnProcess: spawnFake,
+          createJobObject: () => null,
+          env: { DECK_TEST: '1' },
+          log: (e) => installSvcLogs.push(e),
+        },
+        managed: {
+          source: () => stubSource((args, mctx) => mgr.submit(args, { sessionId: mctx.sessionId, backend: 'dsh' })),
+          registry: registry2,
+        },
+      })
+      try {
+        const res = await service2.create('install-e2e', { managed: true })
+        expect(res.ok, `管理型创建应成功：${res.error ?? ''}`).toBe(true)
+        // fake 在 cwd 写包并经 MCP 提交 → 提案 pending（会话工作区包含校验走真实会话 cwd）
+        const proposal = await until(() => mgr.list().find((p) => p.status === 'pending') ?? null, 10000)
+        expect(proposal).toBeTruthy()
+        expect(proposal!.pkg.id).toBe('dsh-hello')
+        expect(proposal!.source.backend).toBe('dsh')
+        // 待装载区纪律：staging 有副本、用户根无目录
+        expect(fs.existsSync(path.join(stagingRoot, proposal!.proposalId, 'plugin.json'))).toBe(true)
+        expect(fs.existsSync(path.join(userRoot, 'dsh-hello'))).toBe(false)
+        // 真实用户手势（批准）→ 转正 → rescan → activated
+        const decided = await mgr.approve(proposal!.proposalId)
+        expect(decided).toMatchObject({ ok: true, status: 'activated' })
+        expect(fs.existsSync(path.join(userRoot, 'dsh-hello', 'plugin.json'))).toBe(true)
+        expect(fs.existsSync(path.join(stagingRoot, proposal!.proposalId))).toBe(false)
+        expect(rescanCount).toBeGreaterThanOrEqual(1)
+        // 审计：意图/结局分离且 opId 相关
+        const intent = installLogs.find((e) => e.type === 'plugin-install-intent')
+        const outcome = installLogs.find((e) => e.type === 'plugin-install-outcome')
+        expect(intent).toMatchObject({ pkgId: 'dsh-hello' })
+        expect(outcome).toMatchObject({ outcome: 'activated', opId: (intent as Record<string, unknown>)['opId'] })
+      } finally {
+        service2.dispose()
+        await ctx2.stop().catch(() => {})
+        try { fs.rmSync(tmp2, { recursive: true, force: true }) } catch { /* Windows 句柄滞后尽力（fake cwd 锁） */ }
+      }
+    } finally {
+      mgr.dispose()
+      for (const d of [userRoot, stagingRoot]) fs.rmSync(d, { recursive: true, force: true })
+    }
   })
 })

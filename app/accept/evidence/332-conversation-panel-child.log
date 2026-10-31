@@ -89,3 +89,445 @@ DevTools listening on ws://127.0.0.1:9231/devtools/browser/28452824-8b6e-42de-8c
 [41740:1031/114228.477:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
 [41740:1031/114228.477:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 (electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/7d63d57d-ffd9-4d8f-ada0-f5a7bbed1566
+[42976:1031/131751.086:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42976:1031/131751.086:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42976:1031/131751.086:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42976:1031/131751.171:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42976:1031/131751.171:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42976:1031/131751.171:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42976:1031/131751.171:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42976:1031/131751.171:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42976:1031/131751.171:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/8d808583-5b21-4b0b-bffc-0a92f40cfd97
+[43044:1031/132246.784:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43044:1031/132246.784:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43044:1031/132246.784:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43044:1031/132246.872:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43044:1031/132246.872:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43044:1031/132246.872:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43044:1031/132246.872:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43044:1031/132246.872:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43044:1031/132246.872:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/06126801-141b-4c82-9976-e221d8b3b84a
+[43144:1031/132354.312:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43144:1031/132354.312:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43144:1031/132354.312:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43144:1031/132354.380:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43144:1031/132354.380:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43144:1031/132354.380:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43144:1031/132354.380:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43144:1031/132354.380:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43144:1031/132354.380:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/e12fcc28-bafa-47f9-aece-0bfeb2c58abd
+[43864:1031/132849.450:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43864:1031/132849.450:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43864:1031/132849.450:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43864:1031/132849.606:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43864:1031/132849.606:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43864:1031/132849.606:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43864:1031/132849.606:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43864:1031/132849.607:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43864:1031/132849.607:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/fdf0f7b2-610a-4e68-b979-0660dec030ac
+[41620:1031/133057.700:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41620:1031/133057.700:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41620:1031/133057.700:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41620:1031/133057.769:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41620:1031/133057.769:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41620:1031/133057.769:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41620:1031/133057.769:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41620:1031/133057.769:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41620:1031/133057.769:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/131b2532-c57a-4ff8-bac2-458c6643d1f9
+[41376:1031/133553.278:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41376:1031/133553.278:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41376:1031/133553.278:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41376:1031/133553.372:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41376:1031/133553.372:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41376:1031/133553.372:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41376:1031/133553.372:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41376:1031/133553.372:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41376:1031/133553.372:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/ea998977-eace-4430-b0dc-3fc1c082f63b
+[19260:1031/133750.866:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[19260:1031/133750.866:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[19260:1031/133750.866:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[19260:1031/133750.934:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[19260:1031/133750.934:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[19260:1031/133750.934:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[19260:1031/133750.934:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[19260:1031/133750.934:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[19260:1031/133750.934:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/a4a29573-8e3b-46c1-a8dc-08de12d32dc5
+[5948:1031/134246.160:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[5948:1031/134246.160:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[5948:1031/134246.160:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[5948:1031/134246.249:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[5948:1031/134246.249:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[5948:1031/134246.249:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[5948:1031/134246.249:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[5948:1031/134246.249:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[5948:1031/134246.249:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/841a4f78-0c97-4ba0-a354-0f9691bf58ec
+[41848:1031/134358.754:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41848:1031/134358.754:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41848:1031/134358.754:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41848:1031/134358.863:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41848:1031/134358.863:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41848:1031/134358.865:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41848:1031/134358.865:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41848:1031/134358.865:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41848:1031/134358.865:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/bbf1b032-cd4c-451f-b459-c9dd2041e6ff
+[43608:1031/134436.562:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43608:1031/134436.562:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43608:1031/134436.562:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43608:1031/134436.657:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43608:1031/134436.657:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43608:1031/134436.657:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43608:1031/134436.657:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43608:1031/134436.657:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43608:1031/134436.657:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/df3923b3-fdfb-4582-9d27-bf23147dfc64
+[40736:1031/134916.789:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40736:1031/134916.789:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40736:1031/134916.789:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40736:1031/134916.860:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40736:1031/134916.860:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[40736:1031/134916.860:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40736:1031/134916.860:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[40736:1031/134916.860:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40736:1031/134916.860:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/167081a0-cc01-480c-8e0c-8948d47594ac
+[28040:1031/135242.928:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[28040:1031/135242.928:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[28040:1031/135242.928:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[28040:1031/135243.008:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[28040:1031/135243.008:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[28040:1031/135243.008:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[28040:1031/135243.008:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[28040:1031/135243.008:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[28040:1031/135243.008:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/29fc3ed3-4ab6-475e-91c9-d3546051566a
+[42788:1031/135327.749:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42788:1031/135327.749:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42788:1031/135327.749:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42788:1031/135327.814:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42788:1031/135327.814:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42788:1031/135327.814:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42788:1031/135327.814:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42788:1031/135327.814:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42788:1031/135327.814:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/70e94a9e-c5df-4dde-a073-2548e2c337b1
+[44124:1031/135525.883:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44124:1031/135525.883:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44124:1031/135525.883:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44124:1031/135525.975:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44124:1031/135525.975:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[44124:1031/135525.975:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44124:1031/135525.975:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[44124:1031/135525.975:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44124:1031/135525.975:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/533ea489-1435-48c4-be8f-d2b3daa79316
+[44704:1031/135640.322:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44704:1031/135640.322:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44704:1031/135640.322:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44704:1031/135640.387:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44704:1031/135640.387:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[44704:1031/135640.388:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44704:1031/135640.388:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[44704:1031/135640.388:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44704:1031/135640.388:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/3aa70daf-b354-410f-919c-b1ecc1b4c2ad
+[7204:1031/135838.424:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: The operation completed successfully. (0x0)
+[7204:1031/135838.424:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[7204:1031/135838.424:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[7204:1031/135838.512:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[7204:1031/135838.512:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[7204:1031/135838.512:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[7204:1031/135838.512:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[7204:1031/135838.512:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[7204:1031/135838.512:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/99897cb4-7b30-4d54-9205-3f9280a83812
+[23968:1031/140105.164:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[23968:1031/140105.164:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[23968:1031/140105.164:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[23968:1031/140105.240:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[23968:1031/140105.240:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[23968:1031/140105.240:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[23968:1031/140105.240:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[23968:1031/140105.240:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[23968:1031/140105.240:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/614536ab-6fb4-44e9-ae95-3da91c8ae1ed
+[14652:1031/140303.425:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[14652:1031/140303.425:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[14652:1031/140303.425:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[14652:1031/140303.517:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[14652:1031/140303.517:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[14652:1031/140303.517:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[14652:1031/140303.517:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[14652:1031/140303.517:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[14652:1031/140303.517:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/8219741b-9215-438a-95d0-c3384c850ae7
+[29740:1031/140444.435:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[29740:1031/140444.435:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[29740:1031/140444.435:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[29740:1031/140444.504:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[29740:1031/140444.504:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[29740:1031/140444.504:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[29740:1031/140444.504:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[29740:1031/140444.504:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[29740:1031/140444.504:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/dbf0e8c7-7b8a-4d4f-94ae-ac49a7ca0947
+[1704:1031/140642.479:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[1704:1031/140642.479:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[1704:1031/140642.479:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[1704:1031/140642.579:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[1704:1031/140642.579:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[1704:1031/140642.579:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[1704:1031/140642.579:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[1704:1031/140642.579:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[1704:1031/140642.579:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/cb5d69a9-8770-4861-875b-b0750c9114b1
+[33976:1031/140853.690:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[33976:1031/140853.691:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[33976:1031/140853.690:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[33976:1031/140853.760:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[33976:1031/140853.760:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[33976:1031/140853.760:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[33976:1031/140853.760:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[33976:1031/140853.760:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[33976:1031/140853.760:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/c5bfe972-d4f9-403c-bc6e-743f642cef28
+[46672:1031/141052.066:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46672:1031/141052.066:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46672:1031/141052.066:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46672:1031/141052.173:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46672:1031/141052.173:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[46672:1031/141052.173:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46672:1031/141052.173:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[46672:1031/141052.173:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46672:1031/141052.173:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/6fc246e9-4bc9-42e9-9298-f7467186d428
+[41184:1031/141233.966:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41184:1031/141233.966:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41184:1031/141233.966:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41184:1031/141234.033:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41184:1031/141234.033:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41184:1031/141234.033:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41184:1031/141234.033:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41184:1031/141234.033:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41184:1031/141234.033:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/2a6ea5f6-9cf0-4f63-a2e4-24b6c972cee9
+[42136:1031/141432.232:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42136:1031/141432.231:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: The operation completed successfully. (0x0)
+[42136:1031/141432.231:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42136:1031/141432.323:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42136:1031/141432.323:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42136:1031/141432.323:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42136:1031/141432.323:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42136:1031/141432.323:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42136:1031/141432.323:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/b5dc0273-3a71-4e16-8aac-43d2018a8c00
+[47000:1031/141524.886:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[47000:1031/141524.886:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[47000:1031/141524.886:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[47000:1031/141524.984:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[47000:1031/141524.984:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[47000:1031/141524.984:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[47000:1031/141524.984:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[47000:1031/141524.984:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[47000:1031/141524.984:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/63f35f54-1884-439e-ba08-01d7f175008c
+[46884:1031/141724.210:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46884:1031/141724.210:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46884:1031/141724.210:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46884:1031/141724.299:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46884:1031/141724.299:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[46884:1031/141724.299:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46884:1031/141724.299:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[46884:1031/141724.299:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46884:1031/141724.299:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/678e71fd-964d-4453-ac48-9d62a5efc095
+[25056:1031/141947.045:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[25056:1031/141947.045:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: The operation completed successfully. (0x0)
+[25056:1031/141947.045:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[25056:1031/141947.119:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[25056:1031/141947.119:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[25056:1031/141947.119:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[25056:1031/141947.119:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[25056:1031/141947.119:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[25056:1031/141947.119:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/958fd520-7723-40ce-adbc-a06a502667ff
+[43168:1031/142145.841:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43168:1031/142145.841:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43168:1031/142145.841:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43168:1031/142145.927:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43168:1031/142145.927:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43168:1031/142145.927:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43168:1031/142145.927:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43168:1031/142145.927:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43168:1031/142145.927:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/5a9ad4d5-efe9-412d-aaf0-8782dc85192e
+[40352:1031/142344.259:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40352:1031/142344.260:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40352:1031/142344.260:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40352:1031/142344.333:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40352:1031/142344.333:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[40352:1031/142344.333:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40352:1031/142344.333:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[40352:1031/142344.333:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40352:1031/142344.333:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/0f720e42-c492-480e-a363-49fa2aa05c64
+[44124:1031/142542.928:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44124:1031/142542.928:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44124:1031/142542.928:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[44124:1031/142543.044:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44124:1031/142543.044:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[44124:1031/142543.044:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44124:1031/142543.045:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[44124:1031/142543.045:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[44124:1031/142543.045:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/2698b92c-0572-4955-93ba-6326b6ed882d
+[46444:1031/142647.078:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46444:1031/142647.079:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46444:1031/142647.079:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[46444:1031/142647.147:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46444:1031/142647.147:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[46444:1031/142647.147:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46444:1031/142647.147:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[46444:1031/142647.147:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[46444:1031/142647.147:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/3337d101-fe61-472d-99b6-18d25684d86f
+[1704:1031/142845.661:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[1704:1031/142845.661:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[1704:1031/142845.661:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[1704:1031/142845.752:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[1704:1031/142845.752:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[1704:1031/142845.752:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[1704:1031/142845.752:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[1704:1031/142845.752:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[1704:1031/142845.752:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/f52394f8-49bd-4dbb-ba48-3d10ff4c6be0
+[43496:1031/143140.975:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43496:1031/143140.987:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43496:1031/143140.989:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43496:1031/143141.064:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43496:1031/143141.064:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43496:1031/143141.064:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43496:1031/143141.064:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43496:1031/143141.065:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43496:1031/143141.065:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/a6820579-e498-4a90-99c9-92ef0aecf121
+[45500:1031/143212.458:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[45500:1031/143212.458:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[45500:1031/143212.458:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[45500:1031/143212.568:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[45500:1031/143212.568:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[45500:1031/143212.568:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[45500:1031/143212.568:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[45500:1031/143212.568:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[45500:1031/143212.568:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.

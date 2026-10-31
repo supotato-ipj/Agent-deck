@@ -5,6 +5,7 @@ import type { Context } from 'cordis'
 import type { DroppedPackageInfo, DroppedPackageMigrationIssue, DroppedPackageState, PluginInfo, PluginManifest } from '../../shared/contract'
 import { PLUGIN_SCHEME } from './assets'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
+import { PluginInstallManager, type InstallProposalView, type MountOutcome } from './install'
 import { authorizeDroppedPackage } from './authorization'
 import { MANIFEST_FILE, PLUGIN_ID_RE, readManifest } from './manifest'
 import { listPluginDirs, watchPluginRoots } from './watch'
@@ -60,6 +61,8 @@ export interface DroppedPackageHostPort {
   activate(pkg: { id: string; dir: string; generation: number; permissions: string[]; manifest: DroppedManifest }): void
   /** 拆除该包的独立上下文（停用/换代/降级为迁移态时） */
   deactivate(id: string): void
+  /** 挂载结果回报（工单334 有界激活事实源；缺省 = 宿主不回报，waitMountOutcome 走超时未知态） */
+  onMountOutcome?(cb: (info: { id: string; ok: boolean; message: string | null }) => void): void
 }
 
 export interface PluginHostOptions {
@@ -73,6 +76,17 @@ export interface PluginHostOptions {
    * 缺省 = 无投放根语义为「不激活」（离线装配未接投放宿主时不拉上下文）。
    */
   droppedHost?: DroppedPackageHostPort
+  /**
+   * DSH 安装管线（工单334，ADR-0019/0025）：提交→待批→批准→转正→有界激活。
+   * 缺省 = 不装配安装面（离线装配 install 方法如实不可用）。
+   */
+  install?: {
+    stagingRoot: string
+    userRoot: string
+    /** 会话工作区包含校验的事实源（对话域会话 cwd；不采信自报） */
+    sessionInfo(sessionId: string): { cwd: string; label: string | null } | null
+    mountBoundMs?: number
+  }
   /**
    * 结构化事件出口（工单331）：投放包生命周期事实（激活/停用/迁移/崩溃）落 DECK_EVENT_LOG，
    * 供验收磁带与审计断言；缺省静默。
@@ -170,6 +184,10 @@ export class PluginHostService extends Service {
   private readonly dropped = new Map<string, DroppedRecord>()
   private droppedListing: DroppedPackageInfo[] = []
   private stopped = false
+  /** DSH 安装管线（工单334）：缺省 null（未装配安装面） */
+  readonly installs: PluginInstallManager | null
+  /** 有界激活等待表（工单334）：包 id → 在等回调（onMountOutcome 到达即裁决） */
+  private readonly mountWaiters = new Map<string, Array<(o: MountOutcome) => void>>()
 
   constructor(ctx: Context, options: PluginHostOptions) {
     super(ctx, 'plugins')
@@ -195,16 +213,69 @@ export class PluginHostService extends Service {
     if (this.watchEnabled && (this.kernelRoots.length || this.droppedRoots.length)) {
       ctx.on('dispose', watchPluginRoots([...this.kernelRoots, ...this.droppedRoots], () => this.rescan(), { settleMs: this.settleMs }))
     }
+    // DSH 安装管线（工单334）：宿主端口=本服务（rescan + waitMountOutcome 有界激活缝）
+    const installOpts = options.install
+    this.installs = installOpts
+      ? new PluginInstallManager({
+          userRoot: installOpts.userRoot,
+          stagingRoot: installOpts.stagingRoot,
+          kernelRoots: [...this.kernelRoots],
+          sessionInfo: installOpts.sessionInfo,
+          log: (event) => this.log(event),
+          notify: () => this.ctx.emit('install/changed', { proposals: this.installs?.list() ?? [] }),
+          now: () => Date.now(),
+          opId: (() => { let n = 0; return () => `install-${Date.now()}-${++n}` })(),
+          host: {
+            rescan: () => this.rescan(),
+            waitMount: (id, timeoutMs) => this.waitMountOutcome(id, timeoutMs),
+          },
+          mountBoundMs: installOpts.mountBoundMs ?? 12_000,
+        })
+      : null
+    // 挂载结果回报注册（工单334）：宿主壳页 title/崩溃即裁决在等者
+    this.droppedHost?.onMountOutcome?.((info) => {
+      const waiters = this.mountWaiters.get(info.id) ?? []
+      this.mountWaiters.delete(info.id)
+      for (const w of waiters) w({ ok: info.ok, message: info.message, unknown: false })
+    })
     // 停用集变化即重扫（工单101）：设置服务落盘后发出，清单随即剔除/恢复——
     // 渲染层经既有 plugins/changed 即时路径卸载/重挂，包文件全程不动
     ctx.on('settings/cards-changed', () => this.rescan())
-    ctx.on('dispose', () => this.disposeAll())
+    ctx.on('dispose', () => {
+      this.installs?.dispose()
+      for (const [, ws] of this.mountWaiters) for (const w of ws) w({ ok: false, message: '面板退出——挂载结果未知', unknown: true })
+      this.mountWaiters.clear()
+      this.disposeAll()
+    })
   }
 
   /** 当前清单（快照段 `plugins` 的来源；坏插件以 error 态在列，面板据此静默降级；
    * 停用包已被剔除——工单101，恢复出厂/资产指纹互不影响） */
   info(): PluginInfo[] {
     return this.listing
+  }
+
+  /** 有界激活等待（工单334）：包 id 的 mount 结论——宿主回报或超时（结果未知） */
+  waitMountOutcome(packageId: string, timeoutMs: number): Promise<MountOutcome> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const ws = this.mountWaiters.get(packageId)
+        if (ws) this.mountWaiters.set(packageId, ws.filter((w) => w !== waiter))
+        resolve({ ok: false, message: `挂载等待超时（${timeoutMs}ms）——结果未知`, unknown: true })
+      }, timeoutMs)
+      const waiter = (o: MountOutcome): void => {
+        clearTimeout(timer)
+        resolve(o)
+      }
+      const ws = this.mountWaiters.get(packageId) ?? []
+      ws.push(waiter)
+      this.mountWaiters.set(packageId, ws)
+    })
+  }
+
+  /** 安装提案清单（批准 UI 数据面；未装配安装面 = 空表） */
+  installProposals(): InstallProposalView[] {
+    return this.installs?.list() ?? []
   }
 
   /** 协议资产根：插件 id → 目录；未登记 id（含原型键名）一律 undefined */

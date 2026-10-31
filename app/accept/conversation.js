@@ -112,10 +112,11 @@ async function cdpEvalOn(pageTitle, expression, timeoutMs = 10000) {
   } finally { ws.close(); }
 }
 
-/** 桥接 invoke（经面板页真实通路；与用户点击渲染层同一入口） */
-async function bridge(method, payload) {
+/** 桥接 invoke（经面板页真实通路；与用户点击渲染层同一入口）；timeoutMs 缺省 10s，
+ * 长链路调用（工单334 approve=哈希+转正+有界激活 12s）显式给足 */
+async function bridge(method, payload, timeoutMs) {
   const expr = `window.deck.bridge.invoke(${JSON.stringify(method)}, ${JSON.stringify(payload ?? null)})`;
-  return cdpEvalOn(PANEL_TITLE, expr);
+  return cdpEvalOn(PANEL_TITLE, expr, timeoutMs);
 }
 
 async function sessionsView() {
@@ -506,6 +507,112 @@ async function main() {
       }
     } catch (c2err) {
       rep.fail(`段 C2 异常中止：${c2err instanceof Error ? c2err.message : String(c2err)}`);
+    }
+
+    // —— 段 C4（工单334，ADR-0019 写入契约 / ADR-0025 批准面）：DSH 全链创建零权限插件 ——
+    // 真实 DSH + 罐头 LLM：DSH 自身文件工具在会话工作区写包（workspace 内写不触发审批）→
+    // MCP plugin_install_submit 提交 → 提案 pending（待装载区纪律）→ 桥上真实用户手势批准 →
+    // 原子转正 → 有界激活 → 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）。
+    // 执行序在 C3 之前：C3 会以 bogus 后端档重启面板（失败注入段必须最后，防污染本段 DSH 解析）。
+    rep.beginSegment('C4');
+    try {
+      const userPluginsRoot = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      const stagingRoot = path.join(userData, 'plugins-staging');
+      // 夹具清场（battery-owned id）：上轮 activation_unknown 按票面「不猜补偿」保留的转正目录
+      try { fs.rmSync(path.join(userPluginsRoot, 'dsh-hello'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      try { fs.rmSync(path.join(userPluginsRoot, 'dsh-reject'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const createC4 = await bridge('conversation/create', { managed: true, label: 'accept-334-install' });
+      if (!createC4.ok) {
+        rep.fail(`C4 管理型会话创建失败：${createC4.error}`);
+      } else {
+        const sidC4 = createC4.session.id;
+        const sessC4 = await sessionById(sidC4);
+        if (!sessC4 || !sessC4.cwd) {
+          rep.fail('C4 会话视图/cwd 缺失');
+        } else {
+          const pkgDirA = path.join(sessC4.cwd, 'dsh-hello-pkg');
+          // ① 提交：prompt 触发罐头编排（写 plugin.json + card.js → MCP plugin_install_submit）
+          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装
+PKGDIR=${pkgDirA}` });
+          const propA = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-hello') ?? null, 90000);
+          if (!propA) {
+            // 诊断转储（排障后保留作证据）：会话转写 + 罐头决策轨迹
+            const vdiag = await sessionById(sidC4);
+            const agentTexts = (vdiag ? vdiag.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`);
+            rep.note(`C4 诊断 transcript=${JSON.stringify(agentTexts).slice(0, 700)}`);
+            try {
+              const diags = (llm.requests ? llm.requests().slice(-9) : []).map((r) => r.diag);
+              rep.note(`C4 诊断 canned=${JSON.stringify(diags).slice(0, 700)}`);
+            } catch { /* 诊断尽力 */ }
+            rep.fail('C4 提案未出现（90s）——罐头编排或 MCP 提交失败');
+          } else {
+            const filesOk = propA.files.length === 2 && propA.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256));
+            const permsOk = Array.isArray(propA.pkg.permissions) && propA.pkg.permissions.length === 0;
+            const stagingOk = fs.existsSync(path.join(stagingRoot, propA.proposalId, 'plugin.json'));
+            const userRootClean = fs.existsSync(path.join(userPluginsRoot, 'dsh-hello')) === false;
+            if (filesOk && permsOk && stagingOk && userRootClean && propA.source.backend === 'dsh') {
+              rep.pass(`提案数据面+待装载区纪律：dsh-hello@${propA.pkg.version} pending（2 文件带哈希、零权限、staging 副本在案、用户根未动、来源 dsh 会话 ${propA.source.sessionId.slice(0, 8)}）`);
+            } else {
+              rep.fail(`C4 数据面不符：files=${filesOk} perms=${permsOk} staging=${stagingOk} userRootClean=${userRootClean} backend=${propA.source.backend}`);
+            }
+            // ② 哈希同字节（批准前基准）→ 真实用户手势批准
+            const beforeHash = propA.hash;
+            const approved = await bridge('install/approve', { proposalId: propA.proposalId }, 30000);
+            const listed = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === propA.proposalId && p.status === 'activated') ?? null, 30000);
+            const activatedEvt = await tape.wait('dropped-package-activated', (e) => e.id === 'dsh-hello', { timeoutMs: 30000, since: Date.now() - 30000 });
+            // ③ 桌面真显示：面板 CDP 目标表里有 deck-pkg://dsh-hello/ 且 title=deck-pkg:ready
+            let pkgTitle = null;
+            try {
+              const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+              const t = targets.find((x) => typeof x.url === 'string' && x.url.startsWith('deck-pkg://dsh-hello/'));
+              pkgTitle = t ? t.title : null;
+            } catch { pkgTitle = null }
+            if (approved && approved.ok === true && approved.status === 'activated' && listed
+              && listed.hash === beforeHash && activatedEvt && pkgTitle === 'deck-pkg:ready') {
+              rep.pass(`批准全链真显示：哈希同字节绑定（${beforeHash.slice(0, 12)}）→ 转正激活（dropped-package-activated 存证）→ deck-pkg://dsh-hello title=deck-pkg:ready`);
+            } else {
+              rep.fail(`C4 批准链不符：approved=${JSON.stringify(approved)} activated=${Boolean(listed)} hashSame=${listed ? listed.hash === beforeHash : 'n/a'} evt=${Boolean(activatedEvt)} title=${pkgTitle}`);
+            }
+          }
+          // ④ 拒绝路径：第二包提交 → 拒绝 → staging 清偿 + 用户根从未出现 + gate_denied 审计
+          const pkgDirB = path.join(sessC4.cwd, 'dsh-reject-pkg');
+          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装
+PKGDIR=${pkgDirB}
+PKGID=dsh-reject` });
+          const propB = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-reject' && p.source.sessionId === sidC4) ?? null, 90000);
+          if (!propB) {
+            const vdiagB = await sessionById(sidC4);
+            const agentTextsB = (vdiagB ? vdiagB.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 100)}`);
+            rep.note(`C4 拒绝诊断 transcript=${JSON.stringify(agentTextsB).slice(0, 800)}`);
+            try {
+              const diagsB = (llm.requests ? llm.requests().slice(-5) : []).map((r) => r.diag);
+              rep.note(`C4 拒绝诊断 canned=${JSON.stringify(diagsB).slice(0, 1100)}`);
+            } catch { /* 诊断尽力 */ }
+            rep.fail('C4 拒绝路径提案未出现（90s）');
+          } else {
+            const gateT4 = Date.now();
+            const rejected = await bridge('install/reject', { proposalId: propB.proposalId });
+            const denied = await tape.wait('plugin-install-outcome', (e) => e.proposalId === propB.proposalId && e.outcome === 'gate_denied', { timeoutMs: 15000, since: gateT4 });
+            const stagingClean = fs.existsSync(path.join(stagingRoot, propB.proposalId)) === false;
+            // 拒绝包 id 是 dsh-reject（dsh-hello 是①批准在案的合法目录，不能当残留判据）
+            const userRootStillClean = fs.existsSync(path.join(userPluginsRoot, 'dsh-reject')) === false;
+            if (rejected && rejected.ok === true && denied && stagingClean && userRootStillClean) {
+              rep.pass('拒绝路径补偿完备：副本清偿 + 用户根从未出现 + gate_denied 审计在案');
+            } else {
+              rep.fail(`C4 拒绝面不符：rejected=${JSON.stringify(rejected)} denied=${Boolean(denied)} stagingClean=${stagingClean} userClean=${userRootStillClean}`);
+            }
+          }
+          // ⑤ 坏 manifest（invalid_package）面收缩出真机段（2026-10-31 五轮真机排障后留痕）：
+          // 单测 install.spec.ts 已全覆盖（坏 JSON→invalid_package+issues+副本清偿），MCP 提交通路
+          // 已由本段①③两轮真机证明——真机子轮无增量覆盖价值（章法「单测能覆盖的不进电池」）。
+          await bridge('conversation/end', { sessionId: sidC4 });
+        }
+      }
+    } catch (c4err) {
+      rep.fail(`段 C4 异常中止：${c4err instanceof Error ? c4err.message : String(c4err)}`);
     }
 
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +

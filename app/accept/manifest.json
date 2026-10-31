@@ -1629,7 +1629,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 120,
+      "budgetSeconds": 240,
       "segments": [
         {
           "seg": "C1",
@@ -1660,6 +1660,21 @@
           ]
         },
         {
+          "seg": "C4",
+          "ticket": 334,
+          "title": "DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
           "seg": "C3",
           "ticket": 340,
           "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
@@ -1678,7 +1693,7 @@
         "sessions"
       ],
       "scope": true,
-      "lastMeasuredSeconds": 31,
+      "lastMeasuredSeconds": 42,
       "lastMeasuredAt": "2026-10-31"
     }
   ],

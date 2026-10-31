@@ -12,6 +12,7 @@ import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
 import type { ConversationService } from './conversation/service'
+import type { InstallProposalView } from './plugins/install'
 import type { ConversationSessionView, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
@@ -64,6 +65,8 @@ declare module 'cordis' {
     'taskbar/tray-replay-begin': (payload: { key: string; button: 'left' | 'right'; hwnd: string | null }) => void
     /** 工单332 对话窗：会话视图变化即推（创建/流式/工具/权限/取消/结束/失败） */
     'conversation/changed': (payload: { sessions: ConversationSessionView[] }) => void
+    /** 工单334 安装管线：提案变化即推（提交/批准/拒绝/失败——批准 UI 与诊断数据面） */
+    'install/changed': (payload: { proposals: InstallProposalView[] }) => void
   }
   interface Context {
     clock: ClockService
