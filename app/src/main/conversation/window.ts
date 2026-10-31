@@ -65,6 +65,9 @@ export function startConversationWindow(options: ConversationWindowOptions): Con
     })
     // 渲染层标题自绘会顶掉设定：保持固定窗口标题（电池按它寻窗）
     win.on('page-title-updated', (e) => e.preventDefault())
+    // 桥接事件按窗订阅（工单334 修复：此前 wireBridgeIpc 只 import 未调用——窗收不到
+    // 任何推送，对话流式/安装提案全靠启动首拉，窗内 UI 停滞）：会话流 + 安装提案两通道
+    wireBridgeIpc(win, ctx.bridge, ['conversation/changed', 'install/changed'])
     win.once('ready-to-show', () => win?.showInactive())
     void win.loadURL(conversationUrl())
     return win

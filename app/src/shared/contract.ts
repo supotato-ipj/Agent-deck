@@ -932,6 +932,8 @@ export interface BridgeEvents {
    * 全量视图（渲染层按 id 对齐；转写仅内存，不落盘）。不等 1Hz 快照。
    */
   'conversation/changed': { sessions: ConversationSessionView[] }
+  /** 工单334 安装管线：提案变化（提交/批准/拒绝/失败）即推——批准 UI 数据面 */
+  'install/changed': { proposals: InstallProposalView[] }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string
