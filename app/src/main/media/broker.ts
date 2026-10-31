@@ -45,6 +45,8 @@ export interface MediaSnapshotDTO {
   available: boolean
   selectedKey: string | null
   sessions: SanitizedMediaSession[]
+  /** 工单337：media.control 授权面（卡片据此降级渲染控制按钮） */
+  controlGranted: boolean
 }
 
 export type MediaThumbnailResult =
@@ -55,6 +57,11 @@ export type MediaThumbnailResult =
 export interface MediaAuthorizationPort {
   activeGrant(packageId: string): { permissions: readonly string[] } | null
 }
+
+/** 媒体控制结果（工单337）：结构化分域——权限拒绝/限流/会话消失/命令失败/桥缺席 */
+export type MediaControlResult =
+  | { ok: true; status?: string }
+  | { ok: false; code: 'media_permission_denied' | 'media_rate_limited' | 'media_session_gone' | 'media_command_failed' | 'media_unavailable'; message: string }
 
 export interface MediaBrokerOptions {
   bridge: MediaBridgePort
@@ -137,7 +144,7 @@ export class MediaBroker {
   private readonly snapshotBytesLimit: number
   private readonly thumbnailMaxBytes: number
   private generation = 0
-  private current: MediaSnapshotDTO = { generation: 0, available: false, selectedKey: null, sessions: [] }
+  private current: MediaSnapshotDTO = { generation: 0, available: false, selectedKey: null, sessions: [], controlGranted: false }
   private refreshTimer: NodeJS.Timeout | null = null
   private refreshing = false
   private refreshQueued = false
@@ -160,7 +167,7 @@ export class MediaBroker {
         this.scheduleRefresh()
       } else {
         this.opts.log({ type: 'media-bridge-down' })
-        this.current = { generation: this.current.generation, available: false, selectedKey: null, sessions: [] }
+        this.current = { generation: this.current.generation, available: false, selectedKey: null, sessions: [], controlGranted: false }
         this.notifySnapshot()
       }
     })
@@ -211,7 +218,7 @@ export class MediaBroker {
       if (!out.ok) {
         // 桥不可用/回复形状不符：available=false 明确态（不猜旧数据）
         this.opts.log({ type: 'media-list-failed', error: out.error })
-        this.current = { generation: this.current.generation, available: false, selectedKey: null, sessions: [] }
+        this.current = { generation: this.current.generation, available: false, selectedKey: null, sessions: [], controlGranted: false }
         this.notifySnapshot()
         return
       }
@@ -247,7 +254,7 @@ export class MediaBroker {
     const selected = selectedKey && sessions.some((s) => s.key === selectedKey)
       ? selectedKey
       : sessions.length > 0 ? sessions[0].key : null
-    return { generation: this.current.generation, available, selectedKey: selected, sessions }
+    return { generation: this.current.generation, available, selectedKey: selected, sessions, controlGranted: this.current.controlGranted ?? false }
   }
 
   /**
@@ -259,7 +266,51 @@ export class MediaBroker {
     const grant = this.opts.authorization?.activeGrant(packageId) ?? null
     if (!grant || !grant.permissions.includes('media.read')) return null
     this.auditRecord(packageId, 'snapshot', null, 'ok')
-    return { media: this.current }
+    // 工单337：控制授权面随 DTO 投喂（卡片据此降级渲染——无 media.control = 只读态）
+    const controlGranted = grant.permissions.includes('media.control')
+    return { media: { ...this.current, controlGranted } }
+  }
+
+  /**
+   * 媒体控制（工单337，media.control 可选权限）：授权门（denied 记账）→ 按包限流
+   * （契约 commandsPerSecond=5，滚动窗）→ 桥 control（能力位检查+投递+真实结果复核在桥内）。
+   * 错误分域：权限拒绝 / 限流 / 会话消失 / 命令失败——各不同码（ADR-0025）。
+   */
+  async controlForPackage(packageId: string, key: string, action: string): Promise<MediaControlResult> {
+    const grant = this.opts.authorization?.activeGrant(packageId) ?? null
+    if (!grant || !grant.permissions.includes('media.control')) {
+      this.auditRecord(packageId, `control:${action}`, key, 'denied')
+      return { ok: false, code: 'media_permission_denied', message: 'media.control 未授权（控制不付）' }
+    }
+    if (!this.controlRateOk(packageId)) {
+      this.auditRecord(packageId, `control:${action}`, key, 'rate_limited')
+      return { ok: false, code: 'media_rate_limited', message: '控制命令超过每包速率上限（5/s）——稍后重试' }
+    }
+    if (!this.opts.bridge.control) {
+      this.auditRecord(packageId, `control:${action}`, key, 'unavailable')
+      return { ok: false, code: 'media_unavailable', message: '桥面无 control 通道（桥未装配）' }
+    }
+    const out = await this.opts.bridge.control(key, action)
+    if (!out.ok) {
+      const gone = /gone|失效|invalid/i.test(out.error)
+      const unsupported = /不支持|unsupported|not.*support/i.test(out.error)
+      const code = gone ? 'media_session_gone' : unsupported ? 'media_command_failed' : 'media_unavailable'
+      this.auditRecord(packageId, `control:${action}`, key, 'unavailable')
+      return { ok: false, code, message: `控制未生效：${out.error}` }
+    }
+    this.auditRecord(packageId, `control:${action}`, key, 'ok')
+    return { ok: true, status: typeof (out.data as { status?: unknown })?.status === 'string' ? String((out.data as { status?: unknown }).status) : undefined }
+  }
+
+  /** 按包控制限流（滚动 1s 窗，上限 5——契约 commandsPerSecond 同源） */
+  private readonly controlWindows = new Map<string, number[]>()
+  private controlRateOk(packageId: string): boolean {
+    const now = Date.now()
+    const win = (this.controlWindows.get(packageId) ?? []).filter((ts) => now - ts < 1000)
+    if (win.length >= 5) { this.controlWindows.set(packageId, win); return false }
+    win.push(now)
+    this.controlWindows.set(packageId, win)
+    return true
   }
 
   /**
@@ -291,9 +342,9 @@ export class MediaBroker {
   }
 
   /** 审计（缺省 = 不记账——生产装配必须给 MediaAuditService） */
-  private auditRecord(packageId: string, kind: 'snapshot' | 'thumbnail', sessionKey: string | null, outcome: 'ok' | 'denied' | 'unavailable'): void {
+  private auditRecord(packageId: string, kind: 'snapshot' | 'thumbnail' | `control:${string}`, sessionKey: string | null, outcome: 'ok' | 'denied' | 'unavailable' | 'rate_limited'): void {
     try {
-      this.opts.audit?.record({ packageId, permission: 'media.read', kind, sessionKey, outcome })
+      this.opts.audit?.record({ packageId, permission: kind.startsWith('control:') ? 'media.control' : 'media.read', kind, sessionKey, outcome })
     } catch { /* 审计失败不连累供货 */ }
   }
 }

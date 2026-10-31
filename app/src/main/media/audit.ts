@@ -23,9 +23,9 @@ export interface MediaAccessRecord {
   at: number
   packageId: string
   permission: string
-  kind: 'snapshot' | 'thumbnail'
+  kind: 'snapshot' | 'thumbnail' | `control:${string}`
   sessionKey?: string | null
-  outcome: 'ok' | 'denied' | 'unavailable'
+  outcome: 'ok' | 'denied' | 'unavailable' | 'rate_limited'
 }
 
 /** 聚合桶（可投影面；键 = 包+权限+窗口起点，计数按种类分列） */
@@ -35,7 +35,7 @@ export interface MediaAuditBucket {
   /** 窗口起点（ms epoch；对齐 windowMs） */
   windowStart: number
   windowMs: number
-  counts: { snapshot: number; thumbnail: number }
+  counts: { snapshot: number; thumbnail: number } & Partial<Record<`control:${string}`, number>>
   /** 被拒（denied）与不可用（unavailable）的读取合计 */
   denied: number
 }
@@ -173,7 +173,14 @@ export class MediaAuditService {
     for (const r of this.records) {
       if (r.packageId !== packageId || r.permission !== permission) continue
       if (this.windowStartOf(r.at) !== windowStart) continue
-      if (r.outcome === 'ok') bucket.counts[r.kind] += 1
+      if (r.outcome === 'ok') {
+        if (r.kind.startsWith('control:')) {
+          const ck = r.kind as 'control:play'
+          bucket.counts[ck] = (bucket.counts[ck] ?? 0) + 1
+        } else {
+          bucket.counts[r.kind] += 1
+        }
+      }
       else bucket.denied += 1
     }
     return bucket
@@ -190,7 +197,14 @@ export class MediaAuditService {
         bucket = { packageId: r.packageId, permission: r.permission, windowStart, windowMs: this.windowMs, counts: { snapshot: 0, thumbnail: 0 }, denied: 0 }
         byKey.set(key, bucket)
       }
-      if (r.outcome === 'ok') bucket.counts[r.kind] += 1
+      if (r.outcome === 'ok') {
+        if (r.kind.startsWith('control:')) {
+          const ck = r.kind as 'control:play'
+          bucket.counts[ck] = (bucket.counts[ck] ?? 0) + 1
+        } else {
+          bucket.counts[r.kind] += 1
+        }
+      }
       else bucket.denied += 1
     }
     return [...byKey.values()].sort((a, b) => (a.packageId < b.packageId ? -1 : a.packageId > b.packageId ? 1 : a.windowStart - b.windowStart))

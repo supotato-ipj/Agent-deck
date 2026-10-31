@@ -23,7 +23,7 @@ function base(over: Record<string, unknown> = {}): Record<string, unknown> {
 const OK: DroppedManifest = {
   id: 'widget-a', name: '组件A', version: '1.0.0', entry: './card.js',
   hostApiVersion: currentHostApiVersion(),
-  permissions: [],
+  permissions: [], optionalPermissions: [],
   capabilities: [],
 }
 
@@ -34,7 +34,7 @@ describe('当前主版本包（AC1 零权限投放即生效的入口）', () => 
   })
 
   it('显式空权限数组等价缺省；capabilities 声明在投放四段内照收', () => {
-    const r = classifyDroppedManifest(base({ permissions: [], capabilities: ['clock', 'settings'] }))
+    const r = classifyDroppedManifest(base({ permissions: [], optionalPermissions: [], capabilities: ['clock', 'settings'] }))
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.manifest.permissions).toEqual([])

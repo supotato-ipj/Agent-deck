@@ -237,7 +237,8 @@ interface StageFail {
  * permission_deferred。返回 null = 可走批准；返回信封 = 拒绝（含清偿语义的调用方责任）。
  */
 function permissionGate(manifest: DroppedManifest): { code: 'permission_deferred'; message: string } | null {
-  const blocked = manifest.permissions.filter((p) => p !== 'media.read')
+  // 工单337：media.control 可选权限通路随 media.read 一并开放（可选=批准面逐项授权）
+  const blocked = [...manifest.permissions, ...manifest.optionalPermissions].filter((p) => p !== 'media.read' && p !== 'media.control')
   if (blocked.length === 0) return null
   return {
     code: 'permission_deferred',
@@ -292,8 +293,8 @@ export class PluginInstallManager {
   }
 
   /** 真实用户手势（可信内核 UI）：批准 = 同一份字节复算哈希 → 原子转正/换代 → 有界激活 */
-  approve(proposalId: string): Promise<InstallProposalDecision> {
-    return this.enqueue(async () => this.approveInner(proposalId))
+  approve(proposalId: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
+    return this.enqueue(async () => this.approveInner(proposalId, opts))
   }
 
   /**
@@ -649,7 +650,7 @@ export class PluginInstallManager {
       proposalId,
       opId,
       status: 'pending',
-      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions] },
+      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions], optionalPermissions: [...manifest.optionalPermissions] },
       files: staged.files,
       hash,
       source: { sessionId: ctx.sessionId, backend: ctx.backend, label: this.opts.sessionInfo(ctx.sessionId)?.label ?? null },
@@ -789,7 +790,7 @@ export class PluginInstallManager {
       proposalId,
       opId,
       status: 'pending',
-      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions] },
+      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions], optionalPermissions: [...manifest.optionalPermissions] },
       files: staged.files,
       hash: newHash,
       source: { sessionId: ctx.sessionId, backend: ctx.backend, label: this.opts.sessionInfo(ctx.sessionId)?.label ?? null },
@@ -821,7 +822,7 @@ export class PluginInstallManager {
   // 批准：哈希绑定 → 原子转正/换代 → 有界激活 → 补偿/结果未知
   // ------------------------------------------------------------------
 
-  private async approveInner(proposalId: string): Promise<InstallProposalDecision> {
+  private async approveInner(proposalId: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
     const proposal = this.proposals.get(proposalId)
     if (!proposal || proposal.status !== 'pending') {
       return { ok: false, code: 'not_found', message: `提案不存在或已决（${proposalId}）` }
@@ -829,7 +830,7 @@ export class PluginInstallManager {
     // 手动提案（工单336 手动投放同闸门）：字节已在用户根，批准=复算用户根哈希绑定
     if (proposal.manual) {
       const dir = this.manualDirs.get(proposalId) ?? path.join(this.opts.userRoot, proposal.pkg.id)
-      return this.approveManual(proposal, dir)
+      return this.approveManual(proposal, dir, opts)
     }
     const stagedDir = path.join(this.opts.stagingRoot, proposalId)
     // 同一份字节绑定：批准复算待装载区哈希 = 提案哈希，不一致即拒（转正不发生）
@@ -859,7 +860,7 @@ export class PluginInstallManager {
   }
 
   /** 安装批准（工单334 原语义 + 工单335 旧数据继承结算） */
-  private async approveInstall(proposal: InstallProposalView, stagedDir: string, userTarget: string): Promise<InstallProposalDecision> {
+  private async approveInstall(proposal: InstallProposalView, stagedDir: string, userTarget: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
     // 旧数据继承结算（工单335，先于转正——包永远观察不到未授权的旧配置）：
     // 继承是独立用户手势；未决默认 fresh（detach，不永久删除），继承 = 残留文件原样保留
     const inheritFail = this.settleInheritance(proposal)
@@ -881,7 +882,10 @@ export class PluginInstallManager {
     }
     // 授权账落账（工单336）：转正后、rescan 激活前——账齐服务层才激活。账面哈希=提案哈希
     // =转正字节同一份；落账失败（未装配授权面）=激活面不完整，按激活失败清偿。
-    if (!this.grantAuthorization(proposal.pkg.id, proposal.pkg.permissions, proposal.hash)) {
+    // 可选权限逐项批准（工单337）：必需权限成组必授；grantPermissions 只在可选集内追加
+    const optionalOk = (proposal.pkg.optionalPermissions ?? []).filter((p) => (opts?.grantPermissions ?? []).includes(p))
+    const grantedPerms = [...proposal.pkg.permissions, ...optionalOk]
+    if (!this.grantAuthorization(proposal.pkg.id, grantedPerms, proposal.hash)) {
       try { fs.rmSync(userTarget, { recursive: true, force: true }) } catch { /* 尽力 */ }
       return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感包批准无法落账（转正目录已补偿移除）')
     }
@@ -1061,7 +1065,7 @@ export class PluginInstallManager {
    * 哈希；落账 → rescan（服务层按账激活）→ 有界激活。确定失败回滚账（包不执行、文件不动
    * ——文件是用户放的，清偿只走卸载回收站）；结果未知账保留（实况以清单对账）。
    */
-  private async approveManual(proposal: InstallProposalView, dir: string): Promise<InstallProposalDecision> {
+  private async approveManual(proposal: InstallProposalView, dir: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
     let currentHash: string
     try {
       currentHash = aggregateHashOf(dir)
@@ -1071,7 +1075,10 @@ export class PluginInstallManager {
     if (currentHash !== proposal.hash) {
       return this.failProposal(proposal, 'hash_mismatch', '用户根字节与提案哈希不一致（同一份字节绑定失败）——批准不发生、账不落、包不执行')
     }
-    if (!this.grantAuthorization(proposal.pkg.id, proposal.pkg.permissions, proposal.hash)) {
+    // 可选权限逐项批准（工单337）：必需权限成组必授；grantPermissions 只在可选集内追加
+    const optionalOk = (proposal.pkg.optionalPermissions ?? []).filter((p) => (opts?.grantPermissions ?? []).includes(p))
+    const grantedPerms = [...proposal.pkg.permissions, ...optionalOk]
+    if (!this.grantAuthorization(proposal.pkg.id, grantedPerms, proposal.hash)) {
       return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感包批准无法落账（包不执行）')
     }
     this.opts.host.rescan()

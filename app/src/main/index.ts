@@ -217,6 +217,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       if (!media) return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配' }
       return await media.thumbnailForPackage(packageId, key)
     },
+    // 媒体控制（工单337）：授权门/限流/审计在 Broker，宿主只转发
+    mediaControl: async (packageId, key, action) => {
+      const media = kernelRef?.media
+      if (!media) return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配' }
+      return await media.controlForPackage(packageId, key, action)
+    },
   })
   // 对话窗唤起钩子（工单332）：装配期先占位，控制器就位后重绑
   const conversationShowHook: { fn: (sessionId: string | null) => void } = { fn: () => {} }

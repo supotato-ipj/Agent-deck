@@ -71,5 +71,8 @@ contextBridge.exposeInMainWorld('deckHost', {
   media: {
     thumbnail: (sessionKey: string): Promise<MediaThumbnailEnvelope> =>
       ipcRenderer.invoke('pkg:media-thumbnail', sessionKey),
+    // 工单337：媒体控制（media.control 授权后；授权门/限流/审计在 Broker）
+    control: (sessionKey: string, action: string): Promise<unknown> =>
+      ipcRenderer.invoke('pkg:media-control', { key: sessionKey, action }),
   },
 })

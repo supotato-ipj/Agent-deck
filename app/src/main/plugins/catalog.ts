@@ -208,6 +208,7 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'media_unavailable', kind: 'runtime', message: '系统媒体会话不可用' },
   { code: 'media_session_gone', kind: 'runtime', message: '目标媒体会话已消失（带代次会话键失效）' },
   { code: 'media_command_failed', kind: 'runtime', message: '媒体控制命令执行失败（目标当下能力不足或系统拒绝）' },
+  { code: 'media_rate_limited', kind: 'runtime', message: '媒体控制超过每包速率上限（commandsPerSecond=5）——稍后重试' },
   // —— 工单336 媒体域运行时错误（media.read 闭环）——
   { code: 'media_thumbnail_rejected', kind: 'runtime', message: '缩略图校验未通过（类型/大小越界）——拒付，一个字节不出' },
   { code: 'media_permission_denied', kind: 'gate', message: 'media.read 未授权（授权账无在册绑定或已撤销）——媒体数据不付' },

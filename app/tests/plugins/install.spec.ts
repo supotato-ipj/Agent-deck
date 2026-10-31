@@ -266,7 +266,8 @@ describe('安装管线：提交（守卫 → 待装载区 → 严格校验 → �
 
   it('含未开放敏感权限的包 → permission_deferred（#336 只开 media.read 通路）+ 副本清偿', async () => {
     const src = path.join(h.workspace, 'media')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'media-pkg', permissions: ['media.control'] })
+    // 工单337：media.control 已开放——封锁权限换 network.request（#338 域，仍 deferred）
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'media-pkg', permissions: ['network.request'] })
     const out = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
     expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
     expect(fs.readdirSync(h.stagingRoot)).toEqual([])
@@ -568,7 +569,7 @@ describe('更新提案：提交（同族守卫 → diff → no_change → pendin
   it('含未开放敏感权限的新字节 → permission_deferred（#336 边界：media.read 已开放，其余仍拒），副本清偿、旧代次不动', async () => {
     await installGood(h)
     const src = path.join(h.workspace, 'perm-upd')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['media.control'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['network.request'] })
     const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
     expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
     expect(fs.readdirSync(h.stagingRoot)).toEqual([])
@@ -951,7 +952,7 @@ describe('media.read 通路（工单336）：提交与批准落账', () => {
 
   it('media.read + 未开放权限混包 → 仍 permission_deferred（副本清偿）', async () => {
     const src = path.join(h.workspace, 'mix')
-    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-mix', permissions: ['media.read', 'media.control'] })
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-mix', permissions: ['media.read', 'network.request'] })
     const out = await h.mgr.submit({ sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
     expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
     expect(fs.readdirSync(h.stagingRoot)).toEqual([])
@@ -1124,7 +1125,7 @@ describe('手动投放同闸门（工单336）：manual 提案', () => {
 
   function registerSeeded(dir: string) {
     return h.mgr.registerManualProposal({
-      pkg: { id: 'dsh-media', name: 'DSH MEDIA', version: '1.0.0', hostApiVersion: currentHostApiVersion(), permissions: ['media.read'] },
+      pkg: { id: 'dsh-media', name: 'DSH MEDIA', version: '1.0.0', hostApiVersion: currentHostApiVersion(), permissions: ['media.read'], optionalPermissions: [] },
       dir, files: listFileEntries(dir), hash: aggregateHashOf(dir),
     })
   }
