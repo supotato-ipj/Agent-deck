@@ -31,6 +31,8 @@ function buildTrayIcon(): NativeImage {
 
 export interface TrayHooks {
   onShowPanel: () => void
+  /** 对话窗入口（工单332）：无后端也可开窗（窗内自行呈现后端不可用态） */
+  onShowConversation?: () => void
 }
 
 export function createTray(hooks: TrayHooks): Tray {
@@ -40,6 +42,7 @@ export function createTray(hooks: TrayHooks): Tray {
   panelLabels.run('tray-modify', () => {
     tray.setToolTip(TRAY_TOOLTIP)
     tray.setContextMenu(Menu.buildFromTemplate([
+      ...(hooks.onShowConversation ? [{ label: '对话窗', click: () => hooks.onShowConversation?.() }] : []),
       { label: '退出面板', click: () => app.quit() },
     ]))
   })

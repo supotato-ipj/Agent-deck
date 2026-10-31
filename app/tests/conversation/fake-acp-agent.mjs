@@ -84,6 +84,10 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
           runPromptScenario(frame)
           return
         }
+        case 'session/set_config_option':
+          // DSH 方言：返回更新后的 configOptions（值形状不校验——原样记账）
+          reply(frame.id, { configOptions: [{ id: frame.params?.configId ?? '', value: frame.params?.value ?? '' }] })
+          return
         case 'session/close':
           closed = true
           reply(frame.id, {})

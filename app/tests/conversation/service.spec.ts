@@ -36,7 +36,7 @@ function until<T>(pred: () => T | null | undefined, timeoutMs = 5000, stepMs = 4
   })
 }
 
-function makeHarness(scenario: string) {
+function makeHarness(scenario: string, config?: { model?: string }) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-conv-'))
   const dshHome = path.join(tmp, 'dsh-home')
   const workspacesRoot = path.join(tmp, 'workspaces')
@@ -90,6 +90,7 @@ function makeHarness(scenario: string) {
     dshHome,
     workspacesRoot,
     metadataFile,
+    config,
     deps: {
       resolveBackend: async () => ({ exe: 'C:\\fake\\DeepSeek Harness.exe', cliJs: 'C:\\fake\\cli.js', source: 'test' }),
       spawnProcess,
@@ -367,6 +368,26 @@ describe('对话窗会话服务（工单332）', () => {
     } finally {
       await h0.cleanup()
     }
+  })
+
+  it('显式 provider 路由（config.model）：新建会话经 set_config_option 下发（DSH 方言封适配器），续接不下发', async () => {
+    harness = makeHarness('fullchain', { model: '["probe-llm","probe-model"]' })
+    const h = harness!
+    const session = await createdSession(h)
+    const setOpt = h.spawns[0].traceFrames().find((f) => f.method === 'session/set_config_option') as { params: { sessionId: string; configId: string; value: string } }
+    expect(setOpt).toBeDefined()
+    expect(setOpt.params.configId).toBe('model')
+    expect(setOpt.params.value).toBe('["probe-llm","probe-model"]')
+    expect(setOpt.params.sessionId).toBe(session.backendSessionId ?? '')
+    expect((h.logs.find((e) => e.type === 'conversation-config-option') as Record<string, unknown>).configId).toBe('model')
+    // 续接：新进程走 session/resume，不下发 set_config_option（会话路由由后端持久化）
+    await h.service.end(session.id)
+    await until(() => !h.spawns[0].alive(), 8000)
+    const res = await h.service.resume(session.id)
+    expect(res.ok).toBe(true)
+    await until(() => h.spawns.length === 2 && h.views().find((s) => s.id === session.id)?.status === 'ready')
+    expect(h.spawns[1].traceFrames().some((f) => f.method === 'session/set_config_option')).toBe(false)
+    expect(h.spawns[1].traceFrames().some((f) => f.method === 'session/resume')).toBe(true)
   })
 
   it('busy 期二次 prompt 被拒（一轮一 turn）', async () => {

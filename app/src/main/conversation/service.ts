@@ -73,8 +73,8 @@ export interface ConversationServiceOptions {
   workspacesRoot?: string
   /** 元数据落盘文件（缺省 userData/conversation/metadata.json） */
   metadataFile?: string
-  /** 后端档（config.conversation 下发） */
-  config?: { exe?: string }
+  /** 后端档（config.conversation 下发）：exe 显式安装路径；model 显式 provider 路由（DSH 方言值） */
+  config?: { exe?: string; model?: string }
   /** 对话窗唤起钩子（生产装配注入窗口 show；服务本体零 Electron） */
   notifyShow?: (sessionId: string | null) => void
   deps?: Partial<ConversationDeps>
@@ -132,7 +132,7 @@ export class ConversationService extends Service {
   private readonly dshHome: string
   private readonly workspacesRoot: string
   private readonly metadataFile: string
-  private readonly config: { exe?: string }
+  private readonly backendConfig: { exe?: string; model?: string }
   private readonly notifyShow: (sessionId: string | null) => void
   private readonly sessionsInternal = new Map<string, InternalSession>()
   private metadataLoaded = false
@@ -143,7 +143,7 @@ export class ConversationService extends Service {
     this.dshHome = options.dshHome ?? userDataPath('dsh-home')
     this.workspacesRoot = options.workspacesRoot ?? userDataPath('conversation', 'cwd')
     this.metadataFile = options.metadataFile ?? userDataPath('conversation', 'metadata.json')
-    this.config = options.config ?? {}
+    this.backendConfig = options.config ?? {}
     this.notifyShow = options.notifyShow ?? (() => { /* 离线装配无窗可开 */ })
     const d = options.deps ?? {}
     this.deps = {
@@ -218,7 +218,7 @@ export class ConversationService extends Service {
 
   backendInfo(): ConversationBackendInfo {
     if (this.backendCache === undefined) {
-      this.backendCache = resolveDshInstall(this.config, defaultProbeDeps())
+      this.backendCache = resolveDshInstall(this.backendConfig, defaultProbeDeps())
     }
     if (!this.backendCache) {
       return {
@@ -232,7 +232,7 @@ export class ConversationService extends Service {
 
   private async resolveBackendCached(): Promise<DshInstall | null> {
     if (this.backendCache === undefined) {
-      this.backendCache = await this.deps.resolveBackend(this.config)
+      this.backendCache = await this.deps.resolveBackend(this.backendConfig)
       this.logEvent({ type: 'conversation-backend', available: !!this.backendCache, source: this.backendCache?.source ?? null })
     }
     return this.backendCache
@@ -327,6 +327,11 @@ export class ConversationService extends Service {
       ? await client.sessionResume({ sessionId: resumeSessionId, cwd, mcpServers: [] })
       : await client.sessionNew({ cwd, mcpServers: [] })
     runtime.backendSessionId = sessionResult.sessionId
+    // 用户显式配置的 provider 路由（导入面，非 UI）：仅新建会话下发；续接按后端持久化的会话路由走
+    if (!resumeSessionId && this.backendConfig.model) {
+      await client.setConfigOption(runtime.backendSessionId, 'model', this.backendConfig.model)
+      this.logEvent({ type: 'conversation-config-option', sessionId: internal.view.id, configId: 'model' })
+    }
     this.logEvent({
       type: resumeSessionId ? 'conversation-resumed' : 'conversation-session-new',
       sessionId: internal.view.id,

@@ -1,0 +1,146 @@
+'use strict';
+/**
+ * 罐头 OpenAI 兼容 SSE LLM（工单332 真机验收段专用测试资产，配方源自工单330 探针
+ * spec326-notes/t330-dsh-acp/mock-llm.mjs 的 CJS 移植收窄）：真实 DSH agent 回环
+ * （工具调用、沙箱升级审批、取消、流式）在零用户凭证下确定性驱动。
+ *
+ * 行为按最后一条用户消息里的标记脚本化（扫描从尾向前、剥 system-reminder，探针原语义）：
+ *   'PROBE OK'      → 文本 'PROBE OK'（两段流式）
+ *   'Count slowly'  → 慢速流式（20 词 × 500ms，给取消留时间）
+ *   'outside marker'→ 第一轮：workspace 外 write（沙箱拒绝）→ 第二轮：带
+ *                     sandbox_permissions:'danger-full-access' + justification 的升级写
+ *                     （触发 session/request_permission）→ 允许后落盘并回最终文本
+ * 其余 → 'OK (fallback)'。
+ *
+ * 认证边界（ADR-0018「认证不归面板管」）：服务校验 Authorization 头存在即可（任意串），
+ * 不持任何真实凭证；面板侧 provider 路由经 DSH profile patch 的 apiKeyEnv 引用环境变量。
+ */
+
+const { createServer } = require('node:http');
+
+async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
+  const state = { requests: [] };
+
+  const server = createServer((req, res) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      if (!req.url.endsWith('/chat/completions')) { res.writeHead(404); res.end(); return; }
+      let body;
+      try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { res.writeHead(400); res.end(); return; }
+      const record = {
+        t: new Date().toISOString(),
+        model: body.model,
+        stream: body.stream,
+        authPresent: Boolean(req.headers.authorization),
+      };
+      state.requests.push(record);
+
+      // 从尾向前找带已知标记的用户消息（DSH 会把一轮输入拆成多条 user 消息，真实文本在前）
+      const users = (body.messages || []).filter((m) => m.role === 'user');
+      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker'];
+      let cleanLastUser = '';
+      for (let i = users.length - 1; i >= 0; i--) {
+        const c = typeof users[i].content === 'string' ? users[i].content : JSON.stringify(users[i].content);
+        const cleaned = c.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ');
+        if (MARKERS.some((mk) => cleaned.includes(mk))) { cleanLastUser = cleaned; break; }
+      }
+      const marker = (s) => cleanLastUser.includes(s);
+
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      });
+      const cid = 'chatcmpl-deck332-' + state.requests.length;
+      const chunk = (delta, finish = null) => {
+        res.write(`data: ${JSON.stringify({
+          id: cid, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000),
+          model: body.model || 'probe-model',
+          choices: [{ index: 0, delta, finish_reason: finish }],
+        })}\n\n`);
+      };
+      const done = () => { res.write('data: [DONE]\n\n'); res.end(); };
+
+      // 本 turn（最后一条带标记的用户消息之后）的裁决：有没有 tool 结果、最后一次升级与否
+      const msgsAll = body.messages || [];
+      let markerIdx = -1;
+      for (let i = msgsAll.length - 1; i >= 0; i--) {
+        const m = msgsAll[i];
+        if (m.role !== 'user') continue;
+        const c = (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ');
+        if (MARKERS.some((mk) => c.includes(mk))) { markerIdx = i; break; }
+      }
+      const msgs = markerIdx >= 0 ? msgsAll.slice(markerIdx + 1) : msgsAll;
+      const turnTool = [...msgs].reverse().find((m) => m.role === 'tool');
+      const toolText = turnTool ? (typeof turnTool.content === 'string' ? turnTool.content : JSON.stringify(turnTool.content ?? '')) : '';
+
+      let plan;
+      if (marker('outside marker')) {
+        const denied = /sandbox|denied|escalat/i.test(toolText);
+        let alreadyEscalated = false;
+        const lastToolIdx = (() => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'tool') return i; return -1; })();
+        for (let i = lastToolIdx - 1; i >= 0; i--) {
+          if (msgs[i].role === 'assistant') { alreadyEscalated = JSON.stringify(msgs[i].tool_calls || '').includes('sandbox_permissions'); break; }
+        }
+        if (!turnTool) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: outsideFilePath, content: 'written by deck-332 accept OUTSIDE workspace' }) };
+        } else if (denied && !alreadyEscalated) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: outsideFilePath, content: 'written by deck-332 accept OUTSIDE workspace', sandbox_permissions: 'danger-full-access', justification: 'deck-332 accept: verify request_permission reaches the conversation window' }) };
+        } else if (denied) {
+          plan = { kind: 'text', out: 'OUTSIDE_WRITE_DENIED_AFTER_ESCALATION (tool said: ' + toolText.slice(0, 140) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'OUTSIDE_WRITE_DONE tool said: ' + toolText.slice(0, 140) };
+        }
+      } else if (marker('Count slowly')) {
+        plan = { kind: 'slow', out: 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty' };
+      } else if (marker('PROBE OK')) {
+        plan = { kind: 'text', out: 'PROBE OK' };
+      } else {
+        plan = { kind: 'text', out: 'OK (fallback)' };
+      }
+
+      if (body.stream === false) {
+        const msg = { role: 'assistant', content: plan.kind === 'text' ? plan.out : null };
+        if (plan.kind === 'tool') msg.tool_calls = [{ id: 'call_deck332_1', type: 'function', function: { name: plan.name, arguments: plan.args } }];
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ id: cid, object: 'chat.completion', created: Math.floor(Date.now() / 1000), model: body.model || 'probe-model', choices: [{ index: 0, message: msg, finish_reason: plan.kind === 'tool' ? 'tool_calls' : 'stop' }] }));
+        return;
+      }
+
+      chunk({ role: 'assistant' });
+      if (plan.kind === 'slow') {
+        const words = plan.out.split(' ');
+        let i = 0;
+        const timer = setInterval(() => {
+          if (i < words.length) { chunk({ content: words[i] + ' ' }); i++; }
+          else { clearInterval(timer); chunk({}, 'stop'); done(); }
+        }, 500);
+        res.on('close', () => clearInterval(timer));
+        return;
+      }
+      if (plan.kind === 'text') {
+        const mid = Math.ceil(plan.out.length / 2);
+        chunk({ content: plan.out.slice(0, mid) });
+        setTimeout(() => { chunk({ content: plan.out.slice(mid) }); chunk({}, 'stop'); done(); }, 150);
+        return;
+      }
+      chunk({ tool_calls: [{ index: 0, id: 'call_deck332_1', type: 'function', function: { name: plan.name, arguments: '' } }] });
+      setTimeout(() => {
+        chunk({ tool_calls: [{ index: 0, function: { arguments: plan.args } }] });
+        chunk({}, 'tool_calls');
+        done();
+      }, 150);
+    });
+  });
+
+  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  return {
+    url: `http://127.0.0.1:${server.address().port}`,
+    server,
+    requests: () => state.requests.slice(),
+    close: () => new Promise((resolve) => server.close(resolve)),
+  };
+}
+
+module.exports = { startCannedLlm };

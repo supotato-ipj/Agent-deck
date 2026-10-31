@@ -40,6 +40,10 @@ export interface AppConfig {
  * 认证不归面板管（ADR-0018）：本段不落任何凭证。 */
 export interface ConversationConfig {
   dshExe?: string
+  /** 后端模型路由（DSH 方言值原样，如 `["probe-llm","probe-model"]`）：用户显式配置，
+   * 适配器经 session/set_config_option 下发（探针 #330 实证可行；面板无模型选择 UI——ADR-0018，
+   * 这是配置导入面不是 UI 面）。认证不归面板管：本段不落任何凭证。 */
+  model?: string
 }
 
 export function defaultConversation(): ConversationConfig {
@@ -57,6 +61,10 @@ function mergeConversation(raw: unknown, fallback: ConversationConfig, warnings:
   if (conv.dshExe !== undefined) {
     if (typeof conv.dshExe === 'string' && conv.dshExe.trim()) out.dshExe = conv.dshExe.trim()
     else warnings.push('config.conversation.dshExe 非空字符串，已回退默认（探测标准安装位）')
+  }
+  if (conv.model !== undefined) {
+    if (typeof conv.model === 'string' && conv.model.trim()) out.model = conv.model.trim()
+    else warnings.push('config.conversation.model 非空字符串，已回退默认（后端自身默认路由）')
   }
   return out
 }
