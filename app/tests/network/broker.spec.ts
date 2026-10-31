@@ -240,3 +240,105 @@ describe('头白名单与审计脱敏（工单338）', () => {
     expect(raw).not.toContain('BODY')
   })
 })
+
+// ---------------------------------------------------------------------------
+// 命名凭证注入（工单339）：只在「本包 + 本 origin」绑定匹配时注入；未绑定/不存在/凭证面
+// 缺席一律 credential_unavailable（与网络权限无关，不撤销权限、不静默换凭证）；注入头
+// 在包自带头被白名单丢弃之后才写（包不能覆盖）。跨 origin 重定向不跟随 → 目标拿不到凭证。
+// ---------------------------------------------------------------------------
+describe('命名凭证注入（工单339）', () => {
+  it('已绑定凭证 → 注入头（值来自凭证解析口），包自带的 authorization 被丢弃后由注入面覆盖', async () => {
+    const seen: string[] = []
+    const broker = new NetworkBroker({
+      authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
+      credentials: {
+        resolve: (pkg, name, origin) => {
+          seen.push(`${pkg}|${name}|${origin}`)
+          return { ok: true, headerName: 'authorization', value: 'Bearer s3cr3t-v1' }
+        },
+      },
+      audit: null,
+      log: () => {},
+      limits: { requestsPerSecond: 100 },
+    })
+    const out = await broker.requestForPackage('pkg-net', {
+      url: `${main.origin}/echo-headers`,
+      credential: 'accept-cred',
+      headers: { authorization: 'Bearer forged' },
+    })
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    const headers = JSON.parse(String(out.text)).headers as Record<string, string>
+    expect(headers.authorization).toBe('Bearer s3cr3t-v1')
+    expect(seen).toEqual([`pkg-net|accept-cred|${main.origin}`])
+  })
+
+  it('未绑定/不存在 → credential_unavailable，请求根本没发出（目标服务零命中）', async () => {
+    let hits = 0
+    const target = await serve({
+      '/probe': (_req, res) => { hits += 1; res.writeHead(200, { 'content-type': 'text/plain' }); res.end('hit') },
+    })
+    try {
+      const broker = new NetworkBroker({
+        authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [target.origin] }) },
+        credentials: { resolve: () => ({ ok: false, code: 'credential_unavailable', message: '未绑定' }) },
+        audit: null,
+        log: () => {},
+        limits: { requestsPerSecond: 100 },
+      })
+      const out = await broker.requestForPackage('pkg-net', { url: `${target.origin}/probe`, credential: 'ghost' })
+      expect(out).toMatchObject({ ok: false, code: 'credential_unavailable', origin: target.origin })
+      expect(hits).toBe(0)
+    } finally {
+      await target.close()
+    }
+  })
+
+  it('凭证面缺席（未装配）→ credential_unavailable（不当作「无凭证直连」）', async () => {
+    const broker = new NetworkBroker({
+      authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
+      audit: null,
+      log: () => {},
+      limits: { requestsPerSecond: 100 },
+    })
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/data.json`, credential: 'any' })
+    expect(out).toMatchObject({ ok: false, code: 'credential_unavailable' })
+  })
+
+  it('网络权限未授时先拒权限（凭证不发出去也救不了）', async () => {
+    const broker = new NetworkBroker({
+      authorization: { activeGrant: () => ({ permissions: ['media.read'], networkOrigins: [main.origin] }) },
+      credentials: { resolve: () => ({ ok: true, headerName: 'authorization', value: 'Bearer x' }) },
+      audit: null,
+      log: () => {},
+      limits: { requestsPerSecond: 100 },
+    })
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/data.json`, credential: 'c' })
+    expect(out).toMatchObject({ ok: false, code: 'network_permission_denied' })
+  })
+
+  it('跨 origin 重定向带凭证：不跟随，目标服务零命中（凭证不跨域）', async () => {
+    let otherHits = 0
+    const second = await serve({
+      '/secret': (_req, res) => { otherHits += 1; res.writeHead(200, { 'content-type': 'text/plain' }); res.end('secret') },
+    })
+    const first = await serve({
+      '/go': (_req, res) => { res.writeHead(302, { location: `${second.origin}/secret` }); res.end() },
+    })
+    try {
+      const broker = new NetworkBroker({
+        authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [first.origin] }) },
+        credentials: { resolve: () => ({ ok: true, headerName: 'authorization', value: 'Bearer s3cr3t' }) },
+        audit: null,
+        log: () => {},
+        limits: { requestsPerSecond: 100 },
+      })
+      const out = await broker.requestForPackage('pkg-net', { url: `${first.origin}/go`, credential: 'cred' })
+      expect(out).toMatchObject({ ok: false, code: 'network_redirect_blocked' })
+      expect(otherHits).toBe(0)
+    } finally {
+      await first.close()
+      await second.close()
+    }
+  })
+})

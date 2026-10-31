@@ -31,6 +31,11 @@ export interface NetworkRequestSpec {
   headers?: Record<string, string>
   /** 文本请求体（GET/HEAD 忽略） */
   body?: string
+  /**
+   * 工单339：命名凭证（只给名字，不给值）——必须已由可信 UI 绑定到「本包 + 本 origin」，
+   * 否则 `credential_unavailable`（不静默改用其他凭证）；注入头由凭证元数据决定。
+   */
+  credential?: string
 }
 
 export type NetworkErrorCode =
@@ -39,6 +44,8 @@ export type NetworkErrorCode =
   | 'network_timeout'
   | 'network_redirect_blocked'
   | 'network_failed'
+  /** 工单339：命名凭证明细面（不存在/未绑定本包本 origin/密文不可解）——与网络权限无关 */
+  | 'credential_unavailable'
 
 export type NetworkResult =
   | {
@@ -55,6 +62,11 @@ export type NetworkResult =
     base64?: string
   }
   | { ok: false; code: NetworkErrorCode; message: string; origin: string; method: string; status?: number; location?: string }
+
+/** 命名凭证端口（工单339：只给「该包在该 origin 上可用的注入头」，不给枚举面） */
+export interface CredentialResolverPort {
+  resolve(packageId: string, credentialName: string, origin: string): { ok: true; headerName: string; value: string } | { ok: false; code: 'credential_unavailable'; message: string }
+}
 
 /** 授权账端口（Broker 只依赖查询面） */
 export interface NetworkAuthorizationPort {
@@ -83,6 +95,8 @@ export interface NetworkTransportPort {
 
 export interface NetworkBrokerOptions {
   authorization?: NetworkAuthorizationPort | null
+  /** 工单339：命名凭证解析（缺省 = 无凭证面，请求带 credential 一律 credential_unavailable） */
+  credentials?: CredentialResolverPort | null
   audit?: NetworkAuditService | null
   log(event: Record<string, unknown>): void
   limits?: Partial<NetworkLimits>
@@ -233,6 +247,19 @@ export class NetworkBroker {
     for (const [k, v] of Object.entries(requestedHeaders)) {
       if (!ALLOWED_HEADERS.has(k.toLowerCase())) continue
       if (typeof v === 'string') headers[k.toLowerCase()] = v.slice(0, 1024)
+    }
+    // 工单339：命名凭证注入——在包自带头被白名单丢弃之后做（包不能覆盖/窥探注入头）；
+    // 只在管理面已批准绑定「本包 + 本 origin」时注入，否则结构化 credential_unavailable。
+    const credentialName = typeof spec?.credential === 'string' ? spec.credential : ''
+    if (credentialName) {
+      const resolved = this.opts.credentials?.resolve(packageId, credentialName, origin) ?? null
+      if (!resolved || resolved.ok !== true) {
+        const message = resolved ? resolved.message : '凭证面未装配'
+        // 审计只记「凭证不可用」这一结果，不记凭证名细节以外的任何内容（无 secret）
+        this.audit({ packageId, origin, method, outcome: 'error', code: 'credential_unavailable' })
+        return { ok: false, code: 'credential_unavailable', message, origin, method }
+      }
+      headers[resolved.headerName] = resolved.value
     }
     const bodyText = typeof spec?.body === 'string' ? spec.body : undefined
     const body = bodyText !== undefined && method !== 'GET' && method !== 'HEAD' ? Buffer.from(bodyText, 'utf8') : undefined
