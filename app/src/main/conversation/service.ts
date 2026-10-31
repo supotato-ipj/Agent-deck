@@ -1,12 +1,22 @@
-// 对话窗会话服务（工单332，ADR-0018 对话通道 / ADR-0026 DSH 运行时）。
+// 对话窗会话服务（工单332，ADR-0018 对话通道 / ADR-0026 DSH 运行时；工单333 管理型叠加）。
 //
 // 拍板落地面：
 // - 仅长驻 ACP v1；聊天型为默认（mcpServers:[]、不签后端会话凭证、不起管理监听、
 //   不注入合成引导 prompt）。
+// - 管理型（工单333）用户显式勾选才创建，**全有或全无**：先起独立专用 MCP 宿主监听
+//   （t330 实录：DSH 拿到 mcpServers 即刻探活——监听必须先于 session/new）→ 能力检查
+//   （initialize mcpCapabilities.http）→ 铸仅内存会话凭证 → session/new 注入
+//   {type:"http",url,headers:[Authorization bearer]}。监听绑定失败/能力缺失/session/new
+//   失败 → 不建会话行、凭证回收、宿主无在场管理会话即回收，返回明确错误 +
+//   canRetryAsChat（「以聊天型创建」是用户显式选择，绝不静默降级）。
+// - 凭证生命周期（ADR-0017）：显式结束/进程异常退出/面板退出/宿主重拉即失效（仅内存）；
+//   宿主意外消亡 → revokeAll + 在场管理会话降级（仍可聊天，恢复管理须新建）。
+//   续接一律聊天型（mcpServers:[]、managed 翻 false——ADR-0018 续接语义）。
 // - 每会话一进程：主进程直接 spawn 描述符（不经 shell）；工作目录默认 userData 下
 //   会话专属空目录；Windows 上 Job Object kill-on-close 兜底孤儿。
 // - 元数据/正文分离：面板只存会话元数据（id/backend/backendSessionId/cwd 绝对路径/
 //   label/managed/时间戳），转写仅内存视图；正文归 DSH（$DSH_HOME/sessions 权威）。
+//   凭证绝不落盘（元数据、存证日志都不含 bearer——红线）。
 // - 不自动重启：进程异常退出 → 会话标 failed，UI 呈现明确失败态，由用户决定新建或续接
 //   （session/resume 按元数据 backendSessionId + 同一 cwd；后端不回放历史）。
 // - 权限绝不超时自动拒绝：request_permission 挂起直到用户裁决或用户取消本 turn。
@@ -33,6 +43,9 @@ import {
 import { createKillOnCloseJob, type JobObjectHandle } from './job-object'
 import { AcpClient } from './acp'
 import type { AcpPermissionOutcome, AcpPermissionRequest, AcpSessionUpdate } from './acp'
+import { SessionCredentialRegistry } from './managed-credentials'
+import { dispatchManagedTool, type ManagedProjectionSource, type ManagedToolOutcome } from './managed-projection'
+import { ManagedMcpHost, type ManagedHostDeps } from './managed-host'
 import type {
   ConversationBackendInfo,
   ConversationPermissionOption,
@@ -77,7 +90,25 @@ export interface ConversationServiceOptions {
   config?: { exe?: string; model?: string }
   /** 对话窗唤起钩子（生产装配注入窗口 show；服务本体零 Electron） */
   notifyShow?: (sessionId: string | null) => void
+  /** 管理面（工单333）：缺省 = 本装配未启用管理面，managed 创建如实报错（不静默当聊天） */
+  managed?: ConversationManagedOptions
   deps?: Partial<ConversationDeps>
+}
+
+/** 管理型宿主最小面（真源 ManagedMcpHost；测试注入 stub 驱动绑定失败等路径） */
+export interface ManagedMcpHostLike {
+  start(opts?: { port?: number }): Promise<{ url: string; port: number }>
+  stop(): Promise<void>
+  readonly listening: boolean
+}
+
+export interface ConversationManagedOptions {
+  /** 投影源工厂（主进程单点引用；调用时惰性求值——生产装配在内核启动后才有单点） */
+  source: () => ManagedProjectionSource
+  /** 宿主构造缝（缺省真 ManagedMcpHost） */
+  createHost?: (deps: ManagedHostDeps) => ManagedMcpHostLike
+  /** 凭证登记处（缺省自建；测试注入共享观察） */
+  registry?: SessionCredentialRegistry
 }
 
 /** 元数据行（落盘唯一形状——不存正文，ADR-0018） */
@@ -134,9 +165,15 @@ export class ConversationService extends Service {
   private readonly metadataFile: string
   private readonly backendConfig: { exe?: string; model?: string }
   private readonly notifyShow: (sessionId: string | null) => void
+  private readonly managedOpts: ConversationManagedOptions | null
+  private readonly credentials: SessionCredentialRegistry
   private readonly sessionsInternal = new Map<string, InternalSession>()
   private metadataLoaded = false
   private backendCache: DshInstall | null | undefined
+  /** 独立专用 MCP 宿主（管理面；按需起停，与外部档监听分开生命周期——工单333） */
+  private host: ManagedMcpHostLike | null = null
+  private hostUrl: string | null = null
+  private hostStarting: Promise<{ url: string; port: number }> | null = null
 
   constructor(ctx: Context, options: ConversationServiceOptions = {}) {
     super(ctx, 'conversation')
@@ -145,6 +182,8 @@ export class ConversationService extends Service {
     this.metadataFile = options.metadataFile ?? userDataPath('conversation', 'metadata.json')
     this.backendConfig = options.config ?? {}
     this.notifyShow = options.notifyShow ?? (() => { /* 离线装配无窗可开 */ })
+    this.managedOpts = options.managed ?? null
+    this.credentials = options.managed?.registry ?? new SessionCredentialRegistry()
     const d = options.deps ?? {}
     this.deps = {
       resolveBackend: d.resolveBackend ?? (async (cfg) => resolveDshInstall(cfg, defaultProbeDeps())),
@@ -240,10 +279,84 @@ export class ConversationService extends Service {
   }
 
   // ------------------------------------------------------------------
-  // 创建（全有或全无）
+  // 创建（全有或全无；工单333：managed 路由管理型创建）
   // ------------------------------------------------------------------
 
-  async create(label?: string): Promise<{ ok: boolean; session?: ConversationSessionView; error?: string }> {
+  async create(label?: string, opts?: { managed?: boolean }): Promise<{ ok: boolean; session?: ConversationSessionView; error?: string; canRetryAsChat?: boolean }> {
+    if (opts?.managed) return this.createManaged(label)
+    return this.createChat(label)
+  }
+
+  /** 管理面装配缺省时的如实报错（不静默当聊天型——ADR-0018 全有或全无） */
+  private async createManaged(label?: string): Promise<{ ok: boolean; session?: ConversationSessionView; error?: string; canRetryAsChat?: boolean }> {
+    if (!this.managedOpts) {
+      return { ok: false, error: '本装配未启用管理面（无投影源）——请以聊天型创建', canRetryAsChat: true }
+    }
+    this.loadMetadata()
+    const install = await this.resolveBackendCached()
+    if (!install) {
+      return { ok: false, error: this.backendInfo().detail }
+    }
+    // 1) 先起监听（t330 实录：DSH 拿到 mcpServers 即刻 server/discover+initialize+tools/list）
+    let hostUrl: string
+    try {
+      hostUrl = (await this.ensureManagedHost()).url
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      this.logEvent({ type: 'conversation-managed-create-failed', reason: 'host-bind', message })
+      return { ok: false, error: `管理通道监听绑定失败：${message}`, canRetryAsChat: true }
+    }
+    // 2) 铸会话 id/cwd/凭证（仍不建行——全有或全无）
+    const id = randomUUID()
+    const cwd = path.join(this.workspacesRoot, id)
+    fs.mkdirSync(cwd, { recursive: true })
+    const authorization = this.credentials.issue(id)
+    const meta: ConversationMetaRow = {
+      id,
+      backend: 'dsh',
+      backendSessionId: null,
+      cwd,
+      label: label?.trim() || `管理会话 ${new Date(this.deps.now()).toLocaleString()}`,
+      managed: true,
+      createdAt: this.deps.now(),
+      endedAt: null,
+    }
+    const view = rowToView(meta)
+    view.status = 'starting'
+    const internal: InternalSession = { view, runtime: null, meta }
+    try {
+      // 3) spawn + initialize（能力检查在 session/new 前——能力缺失即回滚）
+      const mcpServers = [{
+        type: 'http',
+        name: 'agent-deck-managed',
+        url: hostUrl,
+        headers: [{ name: 'Authorization', value: authorization }],
+      }]
+      const runtime = await this.bootProcess(internal, cwd, null, mcpServers, { requireHttpMcp: true })
+      // 4) 全部成功才在册（不半创建）
+      internal.runtime = runtime
+      view.backendSessionId = runtime.backendSessionId
+      meta.backendSessionId = runtime.backendSessionId
+      view.backendPid = runtime.proc.pid ?? null
+      view.status = 'ready'
+      this.sessionsInternal.set(id, internal)
+      this.saveMetadata()
+      // 存证不含 bearer（红线）：mcpUrl 是回环地址无凭证，可入档
+      this.logEvent({ type: 'conversation-managed-created', sessionId: id, backendSessionId: runtime.backendSessionId, cwd, mcpUrl: hostUrl })
+      this.emitChanged()
+      return { ok: true, session: this.sessionView(id) }
+    } catch (err) {
+      // 全有或全无回滚：杀进程、吊销凭证、无在场管理会话则回收宿主、不建行
+      if (internal.runtime) this.cleanupRuntime(internal.runtime)
+      this.credentials.revoke(id)
+      this.releaseManagedHostIfIdle()
+      const message = err instanceof Error ? err.message : String(err)
+      this.logEvent({ type: 'conversation-managed-create-failed', reason: 'boot', message })
+      return { ok: false, error: message, canRetryAsChat: true }
+    }
+  }
+
+  private async createChat(label?: string): Promise<{ ok: boolean; session?: ConversationSessionView; error?: string }> {
     this.loadMetadata()
     const install = await this.resolveBackendCached()
     if (!install) {
@@ -287,8 +400,14 @@ export class ConversationService extends Service {
     }
   }
 
-  /** 拉起进程 + initialize + session/new（聊天型：mcpServers 恒空，无管理通道） */
-  private async bootProcess(internal: InternalSession, cwd: string, resumeSessionId: string | null): Promise<SessionRuntime> {
+  /** 拉起进程 + initialize（管理型加能力检查）+ session/new（聊天型 mcpServers 恒空） */
+  private async bootProcess(
+    internal: InternalSession,
+    cwd: string,
+    resumeSessionId: string | null,
+    mcpServers: unknown[] = [],
+    opts: { requireHttpMcp?: boolean } = {},
+  ): Promise<SessionRuntime> {
     const install = await this.resolveBackendCached()
     if (!install) throw new Error('后端描述符解析失败（未检测到 DSH 安装）')
     const plan = buildLaunchPlan(install, this.dshHome)
@@ -309,6 +428,7 @@ export class ConversationService extends Service {
       pendingPermission: null,
       ending: false,
     }
+    internal.runtime = runtime
     this.wireClient(internal, runtime)
     // 退出即事实：统一在此处理（end()/异常路径按 ending 位分账）
     proc.onExit((code, signal) => {
@@ -325,9 +445,16 @@ export class ConversationService extends Service {
       agentVersion: handshake.agentInfo?.version ?? null,
       protocolVersion: handshake.protocolVersion,
     })
+    // 管理型能力检查（ADR-0018：后端未声明 HTTP MCP 能力 → 全有或全无失败，在 session/new 前拦截）
+    if (opts.requireHttpMcp) {
+      const caps = handshake.agentCapabilities as { mcpCapabilities?: { http?: unknown } } | undefined
+      if (caps?.mcpCapabilities?.http !== true) {
+        throw new Error('后端未声明 HTTP MCP 能力（initialize agentCapabilities.mcpCapabilities.http !== true）——按 ADR-0018 不创建管理型会话')
+      }
+    }
     const sessionResult = resumeSessionId
-      ? await client.sessionResume({ sessionId: resumeSessionId, cwd, mcpServers: [] })
-      : await client.sessionNew({ cwd, mcpServers: [] })
+      ? await client.sessionResume({ sessionId: resumeSessionId, cwd, mcpServers })
+      : await client.sessionNew({ cwd, mcpServers })
     runtime.backendSessionId = sessionResult.sessionId
     // 用户显式配置的 provider 路由（导入面，非 UI）：仅新建会话下发；续接按后端持久化的会话路由走
     if (!resumeSessionId && this.backendConfig.model) {
@@ -338,9 +465,91 @@ export class ConversationService extends Service {
       type: resumeSessionId ? 'conversation-resumed' : 'conversation-session-new',
       sessionId: internal.view.id,
       backendSessionId: sessionResult.sessionId,
-      mcpServers: 'empty(chat)',
+      // 存证只记形状不记载荷（凭证在 headers 里——绝不落盘红线）
+      mcpServers: mcpServers.length > 0 ? 'injected(managed)' : 'empty(chat)',
     })
     return runtime
+  }
+
+  // ------------------------------------------------------------------
+  // 管理面宿主（工单333）：按需起停 + 单点分派 + 凭证失效联动
+  // ------------------------------------------------------------------
+
+  /** 起宿主（幂等并发安全）：只在未监听时 start；绑定失败如实上抛（全有或全无第一道门） */
+  private ensureManagedHost(): Promise<{ url: string; port: number }> {
+    const managedOpts = this.managedOpts
+    if (this.host?.listening && this.hostUrl) return Promise.resolve({ url: this.hostUrl, port: Number(this.hostUrl.match(/:(\d+)\//)?.[1] ?? 0) })
+    if (!managedOpts) return Promise.reject(new Error('本装配未启用管理面'))
+    if (!this.hostStarting) {
+      this.hostStarting = (async () => {
+        const deps: ManagedHostDeps = {
+          registry: this.credentials,
+          dispatch: (name, args, ctx) => this.dispatchManaged(name, args, ctx),
+          onLost: (err) => this.onHostLost(err),
+          log: (e) => this.logEvent(e),
+        }
+        const host = (managedOpts.createHost ?? ((hd) => new ManagedMcpHost(hd)))(deps)
+        try {
+          const started = await host.start()
+          this.host = host
+          this.hostUrl = started.url
+          return started
+        } catch (err) {
+          this.host = null
+          this.hostUrl = null
+          throw err
+        }
+      })().finally(() => { this.hostStarting = null })
+    }
+    return this.hostStarting
+  }
+
+  /** 单点分派：投影封闭集 → 主进程投影源；存证只记形状（工具名/结局），不记载荷与凭证 */
+  private async dispatchManaged(name: string, args: unknown, ctx: { sessionId: string }): Promise<ManagedToolOutcome> {
+    if (!this.managedOpts) {
+      return { ok: false, reason: 'unknown_tool', message: `未知工具: ${name}（本装配未启用管理面）` }
+    }
+    const outcome = await dispatchManagedTool(name, args, this.managedOpts.source())
+    this.logEvent({ type: 'managed-tool-call', sessionId: ctx.sessionId, tool: name, ok: outcome.ok, reason: outcome.ok ? null : outcome.reason })
+    return outcome
+  }
+
+  /** 宿主意外消亡（ADR-0018 降级语义）：凭证全部失效 + 在场管理会话降级为聊天型 */
+  private onHostLost(err: Error): void {
+    this.credentials.revokeAll()
+    this.host = null
+    this.hostUrl = null
+    for (const s of this.sessionsInternal.values()) {
+      if (s.runtime && s.view.managed) {
+        s.view.managed = false
+        s.view.transcript.push({
+          kind: 'system',
+          at: this.deps.now(),
+          text: '管理通道已失效（MCP 宿主重拉）——本会话仍可聊天；恢复管理须新建管理型会话（ADR-0018）。',
+        })
+      }
+    }
+    this.logEvent({ type: 'conversation-management-lost', message: err.message })
+    this.emitChanged()
+  }
+
+  /** 最后一个管理型会话消亡且宿主仍在 → 回收监听（ADR-0018 按需监听） */
+  private releaseManagedHostIfIdle(): void {
+    const alive = [...this.sessionsInternal.values()].some((s) => s.runtime && s.view.managed)
+    if (!alive && this.host?.listening) {
+      const host = this.host
+      this.host = null
+      this.hostUrl = null
+      void host.stop().catch(() => { /* 回收尽力 */ })
+    }
+  }
+
+  /** 裸进程回收（创建失败回滚用——不建行、不标 failed，直接清） */
+  private cleanupRuntime(runtime: SessionRuntime): void {
+    if (runtime.pendingPermission) runtime.pendingPermission.resolve({ outcome: { outcome: 'cancelled' } })
+    try { runtime.client.end() } catch { /* 尽力 */ }
+    try { runtime.proc.killTree() } catch { /* 尽力 */ }
+    runtime.job?.close()
   }
 
   // ------------------------------------------------------------------
@@ -615,6 +824,17 @@ export class ConversationService extends Service {
         at: this.deps.now(),
         text: `已续接后端会话（${s.meta.backendSessionId.slice(0, 8)}…）。后端不回放历史正文，此前消息不可找回；正文权威在后端。`,
       }]
+      // 续接一律聊天型（ADR-0018）：管理通道与凭证不随续接恢复，恢复管理须新建管理型会话
+      if (s.meta.managed) {
+        s.meta.managed = false
+        s.view.managed = false
+        s.view.transcript.push({
+          kind: 'system',
+          at: this.deps.now(),
+          text: '续接一律聊天型（ADR-0018）：原管理通道与凭证不随续接恢复；恢复管理须新建管理型会话。',
+        })
+        this.logEvent({ type: 'conversation-resume-chat-only', sessionId })
+      }
       s.view.usage = { used: null, size: null }
       s.view.endedAt = null
       s.meta.endedAt = null
@@ -661,6 +881,14 @@ export class ConversationService extends Service {
       s.runtime = null
       s.view.backendPid = null
     }
+    // 管理面：凭证全清（宿主重拉/面板重启即失效——ADR-0017）+ 监听回收
+    this.credentials.revokeAll()
+    if (this.host?.listening) {
+      const host = this.host
+      this.host = null
+      this.hostUrl = null
+      void host.stop().catch(() => { /* 回收尽力 */ })
+    }
     this.saveMetadata()
     this.emitChanged()
   }
@@ -696,6 +924,9 @@ export class ConversationService extends Service {
     internal.view.backendPid = null
     internal.view.pendingPermission = null
     internal.view.transcript.push({ kind: 'system', at: this.deps.now(), text: error })
+    // 管理型：进程退出即凭证失效（ADR-0017）+ 宿主按需回收（工单333）
+    this.credentials.revoke(internal.view.id)
+    this.releaseManagedHostIfIdle()
     this.logEvent({ type: 'conversation-failed', sessionId: internal.view.id, message: error })
   }
 
@@ -709,6 +940,9 @@ export class ConversationService extends Service {
     internal.meta.endedAt = internal.view.endedAt
     internal.view.backendPid = null
     internal.view.pendingPermission = null
+    // 管理型：显式结束即凭证失效（ADR-0017）+ 宿主按需回收（工单333）
+    this.credentials.revoke(internal.view.id)
+    this.releaseManagedHostIfIdle()
     this.saveMetadata()
     this.logEvent({ type: 'conversation-ended', sessionId: internal.view.id })
     this.emitChanged()
