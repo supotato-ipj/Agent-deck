@@ -251,9 +251,11 @@ async function main() {
       rep.fail(`会话视图形态不符：managed=${view.managed} backendPid=${view.backendPid}`);
     }
 
-    // 断言② prompt 流式（验收标准 1：看到 DSH 回复）
+    // 断言② prompt 流式（验收标准 1：看到 DSH 回复）。各断言独立时间门（since）——
+    // tape.wait 取「首个匹配拍」，无门会咬到前序断言的旧事件。
+    let gateT = Date.now();
     await bridge('conversation/prompt', { sessionId, text: 'Say PROBE OK. Do not use any tools. (PROBE OK marker)' });
-    const endTurn = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sessionId && e.stopReason === 'end_turn', { timeoutMs: 45000 });
+    const endTurn = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sessionId && e.stopReason === 'end_turn', { timeoutMs: 45000, since: gateT });
     const view2 = await sessionById(sessionId);
     const agentText = (view2?.transcript || []).filter((e) => e.kind === 'agent').map((e) => e.text).join('');
     if (endTurn && agentText.includes('PROBE OK')) rep.pass('prompt 流式：agent 文本上窗（累计快照）+ end_turn 收束');
@@ -266,10 +268,11 @@ async function main() {
     if (convShown) rep.pass('对话窗在场（DECK-CONVERSATION，按 pid+标题甄别）');
     else rep.fail('conversation/show 后对话窗未出现');
 
+    gateT = Date.now();
     await bridge('conversation/prompt', { sessionId, text: 'Count slowly from 1 to 20, one number per line, no tools. (Count slowly marker)' });
     await sleep(2500); // 让慢流真的跑起来
     await bridge('conversation/cancel', { sessionId });
-    const cancelled = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sessionId && e.stopReason === 'cancelled', { timeoutMs: 30000 });
+    const cancelled = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sessionId && e.stopReason === 'cancelled', { timeoutMs: 30000, since: gateT });
     const view3 = await until(() => sessionById(sessionId).then((s) => (s && s.status === 'ready' ? s : null)), 15000);
     const pidStillAlive = view3 && typeof view3.backendPid === 'number' && pidAlive(view3.backendPid);
     if (cancelled && view3 && pidStillAlive) rep.pass('取消：stopReason=cancelled + 会话回 ready + 后端进程存活可续用');
@@ -287,8 +290,9 @@ async function main() {
     else rep.fail('conversation/show 后对话窗未复现');
 
     // 断言④ 工具审批（验收标准 1：权限请求原样呈现 + 绝不超时自动拒绝）
+    gateT = Date.now();
     await bridge('conversation/prompt', { sessionId, text: 'Write a file to the absolute path required by your task. (outside marker)' });
-    const permReq = await tape.wait('conversation-permission-request', (e) => e.sessionId === sessionId, { timeoutMs: 60000 });
+    const permReq = await tape.wait('conversation-permission-request', (e) => e.sessionId === sessionId, { timeoutMs: 60000, since: gateT });
     const permView = await until(() => sessionById(sessionId).then((s) => (s && s.pendingPermission ? s : null)), 15000);
     const optionIds = permView ? permView.pendingPermission.options.map((o) => o.optionId) : [];
     if (permReq && optionIds.includes('allow-once') && optionIds.includes('reject-once')) {
@@ -300,19 +304,22 @@ async function main() {
     const stillPending = await sessionById(sessionId).then((s) => !!s.pendingPermission);
     if (stillPending) rep.pass('权限挂起 1.5s 仍未被自动裁决（绝不超时自动拒绝）');
     else rep.fail('权限请求在无用户动作时被自动处置（违反 ADR-0018）');
+    gateT = Date.now();
     await bridge('conversation/permission', { sessionId, optionId: 'allow-once' });
-    const permTurn = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sessionId && e.stopReason === 'end_turn', { timeoutMs: 60000 });
-    const allowWorked = fs.existsSync(ESCALATION_FILE);
-    const permResolved = await tape.wait('conversation-permission-resolved', (e) => e.sessionId === sessionId && e.optionId === 'allow-once', { timeoutMs: 10000 });
+    const permResolved = await tape.wait('conversation-permission-resolved', (e) => e.sessionId === sessionId && e.optionId === 'allow-once', { timeoutMs: 10000, since: gateT });
+    // 升级写与收尾 turn 都在裁决之后：文件轮询 + since 门下的 end_turn（咬旧事件即假绿）
+    const allowWorked = await until(() => (fs.existsSync(ESCALATION_FILE) ? true : null), 30000);
+    const permTurn = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sessionId && e.stopReason === 'end_turn', { timeoutMs: 60000, since: gateT });
     if (permTurn && allowWorked && permResolved) rep.pass('allow-once 裁决生效：升级写真实落盘 + end_turn + 裁决存证');
     else rep.fail(`审批流不符：turn=${JSON.stringify(permTurn)} fileWritten=${allowWorked} resolved=${JSON.stringify(permResolved)}`);
 
     // 断言⑤ 显式退出（验收标准 1 结束语义 + 标准 5 元数据）
     const pidBeforeEnd = (await sessionById(sessionId)).backendPid;
+    gateT = Date.now();
     await bridge('conversation/end', { sessionId });
-    const closeLog = await tape.wait('conversation-session-close', (e) => e.sessionId === sessionId, { timeoutMs: 20000 });
-    const exitLog = await tape.wait('conversation-process-exit', (e) => e.sessionId === sessionId, { timeoutMs: 30000 });
-    const endedLog = await tape.wait('conversation-ended', (e) => e.sessionId === sessionId, { timeoutMs: 10000 });
+    const closeLog = await tape.wait('conversation-session-close', (e) => e.sessionId === sessionId, { timeoutMs: 20000, since: gateT });
+    const exitLog = await tape.wait('conversation-process-exit', (e) => e.sessionId === sessionId, { timeoutMs: 30000, since: gateT });
+    const endedLog = await tape.wait('conversation-ended', (e) => e.sessionId === sessionId, { timeoutMs: 10000, since: gateT });
     const endedView = await sessionById(sessionId);
     const metaAfter = fs.existsSync(metaFile) ? fs.readFileSync(metaFile, 'utf8') : '';
     if (closeLog && exitLog && exitLog.code === 0 && endedLog) {

@@ -1,0 +1,28 @@
+# accept 332-conversation — 2026-10-31T00:20:42.909Z
+[00:20:42.913] SEG   ▶ C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话｜工单332｜失效面=事件存证+系统状态+面板存活
+[00:20:42.985] NOTE  DSH 安装：D:\Program\Dsh\DeepSeek Harness.exe（来源 probe:D:\Program\Dsh）
+[00:20:47.647] PASS  后端可用性如实上报：已解析 DSH 安装（来源 probe:D:\Program\Dsh）
+[00:21:35.573] FAIL  握手存证缺失或形状不符：null
+[00:21:45.591] FAIL  session/new 存证形状不符：null
+[00:21:55.626] FAIL  config.conversation.model 未在 wire 上下发（set_config_option 存证缺失）
+[00:21:55.639] PASS  会话专属空工作目录：C:\Users\An W\AppData\Roaming\agent-deck-panel\conversation\cwd\0e8f5f42-1462-4da8-b94e-c7a4fb398b40
+[00:21:55.642] PASS  元数据落盘：backend/cwd 绝对路径在案；只存元数据（无正文、无凭证）
+[00:21:55.644] FAIL  会话视图形态不符：managed=false backendPid=null
+[00:21:56.808] PASS  prompt 流式：agent 文本上窗（累计快照）+ end_turn 收束
+[00:21:56.940] PASS  对话窗在场（DECK-CONVERSATION，按 pid+标题甄别）
+[00:21:59.570] FAIL  取消语义不符：cancelled={"type":"conversation-prompt-result","sessionId":"0e8f5f42-1462-4da8-b94e-c7a4fb398b40","stopReason":"cancelled","ts":1793406119500} status=ready pidAlive=false
+[00:21:59.595] FAIL  收起语义不符：hidden=true pidAfterHide=false
+[00:21:59.626] PASS  再唤回：对话窗重新可见
+[00:22:00.163] PASS  权限请求原样呈现：options=["allow-once","reject-once"]
+[00:22:01.671] PASS  权限挂起 1.5s 仍未被自动裁决（绝不超时自动拒绝）
+[00:22:01.692] FAIL  审批流不符：turn={"type":"conversation-prompt-result","sessionId":"0e8f5f42-1462-4da8-b94e-c7a4fb398b40","stopReason":"end_turn","ts":1793406116756} fileWritten=false resolved={"type":"conversation-permission-resolved","sessionId":"0e8f5f42-1462-4da8-b94e-c7a4fb398b40","optionId":"allow-once","ts":1793406121678}
+[00:22:01.834] PASS  显式退出：session/close + stdin close 自然退出 code=0 + ended 存证
+[00:22:01.835] PASS  退出后账目：状态 ended + 元数据 endedAt 落盘 + 进程已退
+[00:22:01.842] PASS  进程回收：会话进程消失（backendPid 清空）且面板本体无恙
+[00:22:01.848] PASS  全程零管理面：无任何会话持有管理标记
+[00:22:02.664] ===== 332-conversation VERDICT: FAIL-CODE (pass=12 fail=7 excluded=0) =====
+===== 账目（三态记账，工单110） =====
+三路计数：pass=12 fail=7 excluded=0 ｜ FAIL-CODE → 退出码 1
+排除窗：轮末已全部闭合
+段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
+  C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话 pass=12 fail=7 excl=0 took=79.8s｜工单332｜失效面=事件存证+系统状态+面板存活
