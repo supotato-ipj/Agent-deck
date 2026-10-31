@@ -223,6 +223,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       if (!media) return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配' }
       return await media.controlForPackage(packageId, key, action)
     },
+    // 网络请求（工单338）：放行只经宿主代理面——授权门/限额/重定向策略/审计在 NetworkBroker
+    networkRequest: async (packageId, spec) => {
+      const network = kernelRef?.network
+      if (!network) return { ok: false as const, code: 'network_failed', message: '网络面未装配' }
+      return await network.requestForPackage(packageId, spec)
+    },
   })
   // 对话窗唤起钩子（工单332）：装配期先占位，控制器就位后重绑
   const conversationShowHook: { fn: (sessionId: string | null) => void } = { fn: () => {} }
@@ -303,6 +309,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     media: {
       auditFile: userDataPath('media-audit.jsonl'),
       bridgeExePath: path.join(app.getAppPath(), 'resources', 'gsmtc-bridge', 'bridge.exe'),
+      authorization: pluginAuthorizationLedger,
+      log: (event) => log?.append(event),
+    },
+    // 网络域（工单338）：审计完整记录独立 JSONL（与控制面/媒体审计分离）；授权账同一实例
+    // （撤销即断供同源）。包页出站仍全拒——放行只经 deckHost.network.request → 本 Broker。
+    network: {
+      auditFile: userDataPath('network-audit.jsonl'),
       authorization: pluginAuthorizationLedger,
       log: (event) => log?.append(event),
     },

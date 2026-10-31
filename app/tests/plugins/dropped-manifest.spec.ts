@@ -23,7 +23,7 @@ function base(over: Record<string, unknown> = {}): Record<string, unknown> {
 const OK: DroppedManifest = {
   id: 'widget-a', name: '组件A', version: '1.0.0', entry: './card.js',
   hostApiVersion: currentHostApiVersion(),
-  permissions: [], optionalPermissions: [],
+  permissions: [], optionalPermissions: [], networkOrigins: [],
   capabilities: [],
 }
 
@@ -154,6 +154,42 @@ describe('结构错沿用旧语义（不属迁移，进 error 态）', () => {
       expect(r.ok).toBe(false)
       if (!r.ok) expect(r.issues[0].code).toBe('manifest_invalid')
     }
+  })
+})
+
+describe('networkOrigins 声明（工单338）：纯 origin、与权限成对', () => {
+  it('声明 network.request + 纯 origin 清单 → 正典化并去重（大小写/默认端口归一）', () => {
+    const r = classifyDroppedManifest(base({ permissions: ['network.request'], networkOrigins: ['HTTP://127.0.0.1:47823', 'http://127.0.0.1:47823/'] }))
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.manifest.networkOrigins).toEqual(['http://127.0.0.1:47823'])
+  })
+
+  it('{ origin } 对象写法同样接受（DSH 生成面的结构化形状）', () => {
+    const r = classifyDroppedManifest(base({ optionalPermissions: ['network.request'], networkOrigins: [{ origin: 'http://127.0.0.1:47824' }] }))
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.manifest.networkOrigins).toEqual(['http://127.0.0.1:47824'])
+  })
+
+  it('带路径/查询/片段或非 http(s) → network_origin_invalid（不猜前缀授权）', () => {
+    for (const bad of ['http://127.0.0.1:47823/api', 'http://127.0.0.1:47823/?q=1', 'ws://127.0.0.1:47823', 'not-a-url']) {
+      const r = classifyDroppedManifest(base({ permissions: ['network.request'], networkOrigins: [bad] }))
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.issues.some((i) => i.code === 'network_origin_invalid')).toBe(true)
+    }
+  })
+
+  it('声明 network.request 但清单为空 → network_origin_required', () => {
+    const r = classifyDroppedManifest(base({ permissions: ['network.request'] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.issues.map((i) => i.code)).toContain('network_origin_required')
+  })
+
+  it('给了 origin 清单但没声明 network.request → network_origin_without_permission', () => {
+    const r = classifyDroppedManifest(base({ networkOrigins: ['http://127.0.0.1:47823'] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.issues.map((i) => i.code)).toContain('network_origin_without_permission')
   })
 })
 

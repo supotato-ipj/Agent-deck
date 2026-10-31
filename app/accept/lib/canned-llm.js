@@ -38,7 +38,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
 
       // 从尾向前找带已知标记的用户消息（DSH 会把一轮输入拆成多条 user 消息，真实文本在前）
       const users = (body.messages || []).filter((m) => m.role === 'user');
-      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL', 'MANAGED UPDATE', 'MANAGED NOCHANGE', 'MANAGED UNINSTALL', 'MANAGED MEDIA'];
+      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL', 'MANAGED UPDATE', 'MANAGED NOCHANGE', 'MANAGED UNINSTALL', 'MANAGED MEDIA', 'MANAGED NET'];
       let cleanLastUser = '';
       for (let i = users.length - 1; i >= 0; i--) {
         const c = typeof users[i].content === 'string' ? users[i].content : JSON.stringify(users[i].content);
@@ -274,6 +274,84 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
             : { kind: 'text', out: 'MEDIA-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
         } else {
           plan = { kind: 'text', out: 'MEDIA-SUBMITTED:' + toolText.slice(0, 260) };
+        }
+      } else if (marker('MANAGED NET')) {
+        // 工单338 联网组件全链真机编排（与 MANAGED MEDIA 同族状态机）：
+        // 0=写 plugin.json（permissions=['network.request'] + networkOrigins=[ORIGIN]）；
+        // 1=写 card.js（联网卡：包页直连必须被 CSP 拦 → 经 deckHost.network.request 取
+        //   授权 origin 数据上卡 → 未授权 origin 拒绝 → 跨 origin 重定向被拒）；
+        // 2=MCP plugin_install_submit{sourceDir}；≥3=回显结果。
+        // PKGDIR/PKGID/ORIGIN/OTHERORIGIN 行尾整行（PKGDIR 路径含空格）。
+        const um = cleanLastUser;
+        const pkgDir = ((um.match(/PKGDIR=(.+)/) || [])[1] || '').trim();
+        const pkgId = ((um.match(/PKGID=(\S+)/) || [])[1] || 'dsh-net').trim();
+        const origin = ((um.match(/ORIGIN=(\S+)/) || [])[1] || '').trim();
+        const otherOrigin = ((um.match(/OTHERORIGIN=(\S+)/) || [])[1] || '').trim();
+        const toolCountN = msgs.filter((m) => m.role === 'tool').length;
+        // 卡片源码行：lib 侧用双引号串，卡源一律单引号串（同上族约定，避免转义互踩）
+        const cardLines = [
+          "const ORIGIN = " + JSON.stringify(origin),
+          "const OTHER = " + JSON.stringify(otherOrigin),
+          "const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))",
+          "function summarize(r) {",
+          "  if (!r) return '…'",
+          "  if (r.ok) return 'ok http=' + r.status + ' ' + String(r.text || '').slice(0, 120)",
+          "  return 'err ' + r.code + (r.location ? ' -> ' + r.location : '')",
+          "}",
+          "function rowHtml(cls, label, detail) {",
+          "  return '<div class=\"net-row ' + cls + '\"><span class=\"net-label\">' + esc(label) + '</span><span class=\"net-detail\">' + esc(detail) + '</span></div>'",
+          "}",
+          "export default {",
+          "  mount(host) {",
+          "    this._root = document.createElement('div')",
+          "    this._root.className = 'net-card'",
+          "    this._root.textContent = '联网卡启动中'",
+          "    host.el.textContent = ''",
+          "    host.el.appendChild(this._root)",
+          "    window.__netCardMounted = true",
+          "    window.__netView = { allowed: null, denied: null, redirect: null, direct: null }",
+          "    void this.run()",
+          "  },",
+          "  render() {",
+          "    const v = window.__netView || {}",
+          "    window.__netRendered = (window.__netRendered || 0) + 1",
+          "    this._root.className = 'net-card net-live'",
+          "    this._root.innerHTML = rowHtml('net-allowed', '授权 origin', summarize(v.allowed)) +",
+          "      rowHtml('net-denied', '未授权 origin', summarize(v.denied)) +",
+          "      rowHtml('net-redirect', '跨域重定向', summarize(v.redirect)) +",
+          "      rowHtml('net-direct', '包页直连', v.direct === null ? '…' : String(v.direct))",
+          "  },",
+          "  async run() {",
+          "    try {",
+          "      const res = await fetch(ORIGIN + '/data.json')",
+          "      window.__netView.direct = 'unexpected-fetch-ok:' + res.status",
+          "    } catch (err) {",
+          "      window.__netView.direct = 'blocked'",
+          "    }",
+          "    window.__netView.allowed = await window.deckHost.network.request({ url: ORIGIN + '/data.json' })",
+          "    this.render()",
+          "    window.__netView.denied = await window.deckHost.network.request({ url: OTHER + '/secret' })",
+          "    this.render()",
+          "    window.__netView.redirect = await window.deckHost.network.request({ url: ORIGIN + '/redirect' })",
+          "    this.render()",
+          "  },",
+          "}",
+        ];
+        const cardJs = cardLines.join('\n') + '\n';
+        const manifestN = JSON.stringify({ id: pkgId, name: 'DSH NET', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: [], permissions: ['network.request'], networkOrigins: origin ? [origin] : [] }, null, 2);
+        if (!pkgDir || !origin) {
+          plan = { kind: 'text', out: 'NET-MISSING-PKGDIR-OR-ORIGIN' };
+        } else if (toolCountN === 0) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/plugin.json', content: manifestN }) };
+        } else if (toolCountN === 1) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/card.js', content: cardJs }) };
+        } else if (toolCountN === 2) {
+          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_install_submit'));
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ sourceDir: pkgDir }) }
+            : { kind: 'text', out: 'NET-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'NET-SUBMITTED:' + toolText.slice(0, 260) };
         }
       } else if (marker('PROBE OK')) {
         plan = { kind: 'text', out: 'PROBE OK' };

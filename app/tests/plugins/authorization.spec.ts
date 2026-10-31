@@ -53,10 +53,18 @@ describe('授权裁决 v2：media.read 通路打开', () => {
     })).toBe('activate')
   })
 
-  it('混入未开放权限（network.request）→ pending-approval（账再匹配也不放行）', () => {
+  it('network.request 通路开放（工单338）：账面匹配 → activate（origin 由网络 Broker 另查）', () => {
     expect(authorizeDroppedPackageWithGrant({
       permissions: ['network.request'],
       grant: { permissions: ['network.request'], codeHash: 'h1' },
+      codeHash: 'h1',
+    })).toBe('activate')
+  })
+
+  it('混入未开放权限（未来权限）→ pending-approval（账再匹配也不放行）', () => {
+    expect(authorizeDroppedPackageWithGrant({
+      permissions: ['future.permission'],
+      grant: { permissions: ['future.permission'], codeHash: 'h1' },
       codeHash: 'h1',
     })).toBe('pending-approval')
   })

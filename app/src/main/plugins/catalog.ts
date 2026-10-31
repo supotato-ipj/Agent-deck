@@ -135,13 +135,15 @@ const PERMISSIONS: readonly PermissionDescriptor[] = [
     domain: 'network',
     summary: '向精确授权的 origin 发起 HTTP(S) 请求-响应（无凭证；重定向不自动跟随）',
     grant: 'exact-origin',
-    data: ['HttpResponse（有界响应体；不含中间流）'],
+    data: ['HttpResponse（有界响应体：文本/JSON/二进制字节副本；不含中间流）'],
     actions: ['network/request'],
     events: [],
-    errors: ['network_denied', 'network_failed', 'unknown_context'],
+    // 工单338：限额与权限拒绝分域——限流/超时/重定向/失败各不同码
+    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'unknown_context'],
     userGestureRequired: false,
-    limits: { requestsPerSecond: 1, maxResponseBytes: 2 * 1024 * 1024, timeoutMs: 10_000, maxConcurrent: 2 },
-    status: 'declared',
+    limits: { requestsPerSecond: 5, maxResponseBytes: 2 * 1024 * 1024, timeoutMs: 10_000, maxConcurrent: 2 },
+    // 工单338：origin 授权/宿主代理面/限额/脱敏审计全链落地
+    status: 'enforced',
   },
 ]
 
@@ -187,6 +189,19 @@ const BASELINE_HOST_API: readonly BaselineApiDomain[] = [
     errors: ['media_unavailable', 'media_session_gone', 'media_thumbnail_rejected', 'media_permission_denied', 'unknown_context'],
     status: 'enforced',
   },
+  {
+    id: 'host.network',
+    // 工单338：网络域落地。放行只经宿主代理面——包页自己的 fetch/XHR 仍被 session 级
+    // webRequest + CSP 全拒；NetworkBroker 做逐 origin 授权、限额与脱敏审计。
+    summary: '向 manifest 声明且获批的精确 origin 发起有界 HTTP(S) 请求-响应（network.request；重定向不自动跟随、无凭证）',
+    dto: {
+      'NetworkResponse': '有界响应（status/origin/method/contentType/bytes/truncated + text 或 base64 字节副本；无中间流）',
+    },
+    actions: ['network/request'],
+    events: [],
+    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'unknown_context'],
+    status: 'enforced',
+  },
 ]
 
 /** 结构化错误目录（迁移错误 + 基线域运行时错误 + 权限运行时错误 + 闸门错误） */
@@ -195,6 +210,10 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'host_api_version_missing', kind: 'migration', message: 'manifest 缺 hostApiVersion：这是旧模型插件包，须升级到当前主版本后重新投放' },
   { code: 'host_api_version_unsupported', kind: 'migration', message: 'hostApiVersion 主版本与宿主当前主版本不兼容，须迁移后重新投放' },
   { code: 'permission_unknown', kind: 'migration', message: 'manifest 声明了权限目录外的未知权限，须改用目录内权限或升主版本' },
+  // —— 工单338 网络 origin 声明迁移错误 ——
+  { code: 'network_origin_invalid', kind: 'migration', message: 'networkOrigins 含非法条目：必须是纯 origin（scheme://host[:port]，无路径/查询/片段）' },
+  { code: 'network_origin_required', kind: 'migration', message: '声明了 network.request 但 networkOrigins 为空：精确 origin 是授权的参数面' },
+  { code: 'network_origin_without_permission', kind: 'migration', message: '给了 networkOrigins 却没声明 network.request：origin 清单离开权限没有意义' },
   // —— 闸门错误（敏感包批准面，本票只登记形状）——
   { code: 'gate_denied', kind: 'gate', message: '用户拒绝批准，包不执行' },
   { code: 'gate_pending', kind: 'gate', message: '含敏感权限的包等待用户批准，批准前不执行' },
@@ -212,8 +231,11 @@ const ERRORS: readonly ContractErrorEntry[] = [
   // —— 工单336 媒体域运行时错误（media.read 闭环）——
   { code: 'media_thumbnail_rejected', kind: 'runtime', message: '缩略图校验未通过（类型/大小越界）——拒付，一个字节不出' },
   { code: 'media_permission_denied', kind: 'gate', message: 'media.read 未授权（授权账无在册绑定或已撤销）——媒体数据不付' },
-  { code: 'network_denied', kind: 'runtime', message: '目标 origin 不在该包的授权清单（默认无出站网络）' },
-  { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/超时/响应超限）' },
+  { code: 'network_permission_denied', kind: 'gate', message: '目标 origin 未获授权（network.request 缺失/已撤销/origin 不在授予集）——请求不付' },
+  { code: 'network_rate_limited', kind: 'runtime', message: '网络请求超过每包速率或并发上限（requestsPerSecond=5、maxConcurrent=2）——稍后重试' },
+  { code: 'network_timeout', kind: 'runtime', message: '网络请求超时（timeoutMs=10s）——与权限拒绝分域' },
+  { code: 'network_redirect_blocked', kind: 'runtime', message: '重定向不自动跟随：返回目标 origin，如需访问须单独请求并先取得授权' },
+  { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/方法不支持/非法 URL）' },
 ]
 
 /** 投放包 manifest 契约字段（与 dropped-manifest.ts 解析行为一一对应） */
@@ -224,6 +246,8 @@ const MANIFEST_SCHEMA: readonly ManifestSchemaField[] = [
   { name: 'entry', type: 'string', required: true, description: '相对包根的 .js/.mjs 入口' },
   { name: 'hostApiVersion', type: 'number', required: true, description: '目标宿主 API 主版本（首版只接受当前主版本）' },
   { name: 'permissions', type: 'string[]', required: false, description: '声明的敏感权限（权限目录封闭集合；缺省 = 零权限包，投放即生效）' },
+  { name: 'optionalPermissions', type: 'string[]', required: false, description: '可选敏感权限（封闭目录同严；批准面逐项授予，未授 = 降级运行）' },
+  { name: 'networkOrigins', type: 'string[]', required: false, description: 'network.request 的精确 origin 白名单（纯 origin：scheme://host[:port]，无路径/查询/片段；声明该权限时必须非空）' },
   { name: 'capabilities', type: 'string[]', required: false, description: '只读快照段声明（投放档四段上限，未知串静默裁剪）' },
   { name: 'mount', type: 'string', required: false, description: '挂载锚点（保留字段）' },
   { name: 'order', type: 'number', required: false, description: '挂载顺序（保留字段）' },

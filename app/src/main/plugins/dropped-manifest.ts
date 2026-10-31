@@ -1,5 +1,6 @@
 import { PLUGIN_ID_RE } from './manifest'
 import { currentHostApiVersion, knownPermissionIds } from './catalog'
+import { originOfDeclaration } from '../network/origin'
 
 /**
  * 投放包 manifest 迁移分类（工单331，ADR-0025）。
@@ -34,6 +35,12 @@ export interface DroppedManifest {
   permissions: string[]
   /** 可选权限（工单337：逐项批准语义——批准面可只授必需集；已校验全部在权限目录内） */
   optionalPermissions: string[]
+  /**
+   * network.request 的精确 origin 白名单（工单338）：已正典化（scheme/host 小写、默认端口
+   * 省略）并去重，与请求面用同一个匹配键。声明 network.request 必须给非空清单；没声明
+   * 该权限却给 origin 清单 = 配置错误（不静默留成死数据）。
+   */
+  networkOrigins: string[]
   /** 只读快照段（已裁剪到投放四段并去重） */
   capabilities: string[]
   mount?: string
@@ -43,7 +50,14 @@ export interface DroppedManifest {
 /** 迁移问题：结构化、可读、机器可消费（进待迁移态） */
 export interface MigrationIssue {
   /** 错误码（契约目录 errors 登记） */
-  code: 'host_api_version_missing' | 'host_api_version_unsupported' | 'permission_unknown' | 'manifest_invalid'
+  code:
+    | 'host_api_version_missing'
+    | 'host_api_version_unsupported'
+    | 'permission_unknown'
+    | 'network_origin_invalid'
+    | 'network_origin_required'
+    | 'network_origin_without_permission'
+    | 'manifest_invalid'
   /** 中文可读原因（用户/agent 直接可读） */
   message: string
   /** host_api_version_unsupported 附属：期望主版本 */
@@ -149,6 +163,45 @@ export function classifyDroppedManifest(raw: unknown): DroppedManifestResult {
     }
   }
 
+  // —— networkOrigins（工单338：network.request 的精确 origin 白名单）——
+  // 声明面严格同权限：纯 origin 才收（scheme://host[:port]，无路径/查询/片段）；非纯 origin
+  // 是配置错误而非「前缀授权」的暗号，早期结构化报错。元素可写成字符串或 { origin } 对象。
+  let networkOrigins: string[] = []
+  if (m && 'networkOrigins' in m && m.networkOrigins !== undefined) {
+    const rawOrigins = m.networkOrigins
+    if (!Array.isArray(rawOrigins)) {
+      issues.push({ code: 'network_origin_invalid', message: 'manifest networkOrigins 须为数组（元素为 origin 字符串或 { origin } 对象）' })
+    } else {
+      const invalid: string[] = []
+      const parsed: string[] = []
+      for (const entry of rawOrigins) {
+        const text = typeof entry === 'string'
+          ? entry
+          : typeof entry === 'object' && entry !== null && typeof (entry as { origin?: unknown }).origin === 'string'
+            ? String((entry as { origin: string }).origin)
+            : null
+        if (text === null) {
+          invalid.push(String(JSON.stringify(entry)).slice(0, 120))
+          continue
+        }
+        const check = originOfDeclaration(text)
+        if (!check.ok) invalid.push(`${text}（${check.message}）`)
+        else parsed.push(check.origin)
+      }
+      if (invalid.length > 0) {
+        issues.push({ code: 'network_origin_invalid', message: `manifest networkOrigins 含非法 origin：${invalid.join('；')}——必须是纯 origin（scheme://host[:port]）`, unknown: invalid })
+      }
+      networkOrigins = [...new Set(parsed)]
+    }
+  }
+  const declaresNetwork = permissions.includes('network.request') || optionalPermissions.includes('network.request')
+  if (declaresNetwork && networkOrigins.length === 0 && !issues.some((i) => i.code === 'network_origin_invalid')) {
+    issues.push({ code: 'network_origin_required', message: 'manifest 声明了 network.request 但 networkOrigins 为空：精确 origin 是授权的参数面，没有目标就没有可批准的东西' })
+  }
+  if (!declaresNetwork && networkOrigins.length > 0) {
+    issues.push({ code: 'network_origin_without_permission', message: 'manifest 给了 networkOrigins 但没声明 network.request：origin 清单离开权限没有意义（不静默留成死数据）' })
+  }
+
   if (issues.length > 0) return { ok: false, issues }
 
   // —— capabilities（投放宽松：未知/越档串静默裁剪，少给而非不给）——
@@ -166,6 +219,7 @@ export function classifyDroppedManifest(raw: unknown): DroppedManifestResult {
       hostApiVersion: current,
       permissions,
       optionalPermissions,
+      networkOrigins,
       capabilities,
       ...(mount ? { mount } : {}),
       ...(order === undefined ? {} : { order }),

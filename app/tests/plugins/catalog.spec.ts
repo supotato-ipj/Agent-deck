@@ -39,7 +39,7 @@ describe('插件契约目录：正典自洽（工单331）', () => {
   })
 
   it('基线宿主 API 分领域：host.view / host.config / host.media 在典，且不含通用 invoke', () => {
-    expect(baselineApiDomainIds()).toEqual(['host.view', 'host.config', 'host.media'])
+    expect(baselineApiDomainIds()).toEqual(['host.view', 'host.config', 'host.media', 'host.network'])
     const allActions = PLUGIN_CONTRACT_CATALOG.baselineHostApi.flatMap((d) => d.actions)
     expect(allActions.some((a) => a.includes('invoke'))).toBe(false)
     for (const domain of PLUGIN_CONTRACT_CATALOG.baselineHostApi) {
@@ -54,10 +54,10 @@ describe('插件契约目录：正典自洽（工单331）', () => {
     }
   })
 
-  it('network.request 授权模型为精确 origin；首版为声明态（消费路径归后续票）', () => {
+  it('network.request 授权模型为精确 origin；工单338 起为 enforced（消费路径已落地）', () => {
     const net = PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'network.request')
     expect(net?.grant).toBe('exact-origin')
-    expect(net?.status).toBe('declared')
+    expect(net?.status).toBe('enforced')
     // 工单336：media.read = enforced；工单337：media.control 可选权限逐项批准 = enforced
     expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.read')?.status).toBe('enforced')
     expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.control')?.status).toBe('enforced')

@@ -175,6 +175,20 @@ describe('授权路由（工单336）：rescan 每轮按账重评', () => {
     expect(h.svc.installs?.list().some((p) => p.pkg.id === 'dsh-media' && p.source.backend === 'manual' && p.status === 'pending')).toBe(false)
   })
 
+  it('network.request 批准：origin 清单穿过服务适配器落账（适配器漏传 = 账面无 origin，网络面全拒）', async () => {
+    writePackage(h.droppedRoot, baseManifest({ permissions: ['network.request'], networkOrigins: ['http://127.0.0.1:47823'] }))
+    h.rescan()
+    const manual = h.svc.installs?.list().find((p) => p.pkg.id === 'dsh-media' && p.source.backend === 'manual')
+    expect(manual).toBeTruthy()
+    const decided = await h.svc.installs!.approve(manual!.proposalId)
+    // 假端口无 onMountOutcome → mount 超时记结果未知；账已落（正是本处要验的）
+    expect(decided).toMatchObject({ ok: false, code: 'activation_unknown' })
+    expect(h.ledger.activeGrant('dsh-media')).toMatchObject({
+      permissions: ['network.request'],
+      networkOrigins: ['http://127.0.0.1:47823'],
+    })
+  })
+
   it('authorizationGrants：账清单出口（含已撤销行）', () => {
     const dir = writePackage(h.droppedRoot, baseManifest({ permissions: ['media.read'] }))
     h.ledger.grant('dsh-media', ['media.read'], aggregateHashOf(dir))

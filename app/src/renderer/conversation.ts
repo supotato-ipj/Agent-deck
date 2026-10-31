@@ -4,7 +4,7 @@
 // 按原样载荷呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
 // 管理型（工单333）：「管理」勾选 = 用户显式授权（逐会话、不持久化）；创建失败在窗内
 // 显式报错并给「以聊天型创建」按钮——绝不静默降级（ADR-0018 全有或全无）。
-import type { AuthorizationGrantView, ConversationSessionView, ConversationTranscriptEntry, InstallProposalView, MediaAuditBucketView } from '../shared/contract'
+import type { AuthorizationGrantView, ConversationSessionView, ConversationTranscriptEntry, InstallProposalView, MediaAuditBucketView, NetworkAuditBucketView } from '../shared/contract'
 
 const transcriptEl = document.getElementById('transcript') as HTMLElement
 const selectEl = document.getElementById('session-select') as HTMLSelectElement
@@ -270,7 +270,9 @@ function renderInstalls(): void {
     const src = `${p.source.label ?? p.source.sessionId.slice(0, 8)}・${p.source.backend}`
     const perms = p.pkg.permissions.length ? p.pkg.permissions.join(', ') : '无（零权限）'
     const kindLabel = p.update ? `更新 ${p.update.oldVersion}→${p.update.newVersion}` : '安装'
-    summary.textContent = `${kindLabel} ${p.pkg.id}@${p.pkg.version}〔${p.status}〕来源 ${src}・${p.files.length} 文件・权限：${perms}・hash ${p.hash.slice(0, 12)}`
+    const origins = p.pkg.networkOrigins ?? []
+    const originNote = origins.length ? `・联网 origin：${origins.join(', ')}` : ''
+    summary.textContent = `${kindLabel} ${p.pkg.id}@${p.pkg.version}〔${p.status}〕来源 ${src}・${p.files.length} 文件・权限：${perms}${originNote}・hash ${p.hash.slice(0, 12)}`
     row.appendChild(summary)
     // 工单335 更新提案：旧→新 diff 与权限变化（批准 UI 数据面）
     if (p.update) {
@@ -347,6 +349,7 @@ void window.deck.bridge.invoke('install/list', null).then((res) => {
 const grantBar = document.getElementById('grant-bar') as HTMLElement
 let grantRows: AuthorizationGrantView[] = []
 let auditBuckets: MediaAuditBucketView[] = []
+let auditBucketsNet: NetworkAuditBucketView[] = []
 
 function renderGrants(): void {
   grantBar.textContent = ''
@@ -364,7 +367,10 @@ function renderGrants(): void {
       .reduce((acc, b) => acc + b.counts.snapshot + b.counts.thumbnail, 0)
     const summary = document.createElement('div')
     summary.className = 'grant-summary'
-    summary.textContent = `授权 ${g.packageId}〔${g.revokedAt ? '已撤销' : '生效中'}〕权限 ${g.permissions.join(', ')}・hash ${g.codeHash.slice(0, 12)}・媒体读取（近1h）${reads} 次`
+    const nets = auditBucketsNet.filter((b) => b.packageId === g.packageId && b.permission === 'network.request')
+    const netCount = nets.reduce((acc, b) => acc + b.counts.request + b.counts.redirect + b.denied, 0)
+    const originNote = (g.networkOrigins ?? []).length ? `・origin ${(g.networkOrigins ?? []).join(', ')}` : ''
+    summary.textContent = `授权 ${g.packageId}〔${g.revokedAt ? '已撤销' : '生效中'}〕权限 ${g.permissions.join(', ')}${originNote}・hash ${g.codeHash.slice(0, 12)}・媒体读取（近1h）${reads} 次・网络请求（近1h）${netCount} 次`
     row.appendChild(summary)
     if (!g.revokedAt) {
       const no = document.createElement('button')
@@ -385,6 +391,7 @@ function refreshGrants(): void {
   void window.deck.bridge.invoke('install/grants', null).then((res) => {
     grantRows = res.grants
     auditBuckets = res.buckets
+    auditBucketsNet = res.networkBuckets ?? []
     renderGrants()
   })
 }
