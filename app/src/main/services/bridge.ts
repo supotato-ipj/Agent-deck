@@ -313,6 +313,24 @@ export class BridgeService extends Service {
           : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
         return res as BridgeMethods[M]['response']
       }
+      // 工单336 授权账（可信 UI 数据面与撤销手势）：清单（含已撤销行）/撤销即停/
+      // 媒体审计聚合投影（完整记录仅在审计文件，聚合不含媒体元数据）
+      case 'install/grants': {
+        const grants = this.ctx.plugins.authorizationGrants()
+        const buckets = (this.ctx.media?.auditBuckets?.() ?? [])
+        return { grants, buckets } as BridgeMethods[M]['response']
+      }
+      case 'install/revoke': {
+        const { packageId } = payload as { packageId?: unknown }
+        if (typeof packageId !== 'string' || !packageId.trim()) {
+          throw new BridgeError('install/revoke 需要 packageId（包 id 字符串）')
+        }
+        return this.ctx.plugins.revokeAuthorization(String(packageId)) as BridgeMethods[M]['response']
+      }
+      case 'media/audit': {
+        const buckets = this.ctx.media?.auditBuckets?.() ?? []
+        return { buckets } as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

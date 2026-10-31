@@ -29,6 +29,11 @@ export interface ConfigStorePort {
   set(id: string, patch: unknown): { config: Record<string, unknown>; warnings: string[] }
 }
 
+/** 缩略图信封（与 Broker MediaThumbnailResult 同形状；宿主不重复裁决只转发） */
+export type MediaThumbnailEnvelope =
+  | { ok: true; contentType: string; bytes: number; dataUrl: string }
+  | { ok: false; code: string; message: string }
+
 export interface DroppedPackageHostDeps {
   /** 执行上下文登记表（与 PluginHostService 共享；身份唯一事实来源） */
   registry: ExecutionContextRegistry
@@ -42,6 +47,14 @@ export interface DroppedPackageHostDeps {
   bounds?: { x: number; y: number; width: number; height: number }
   /** 挂载结果回报（工单334 有界激活）：壳页 title=deck-pkg:ready/failed 或崩溃即报事实 */
   onMountOutcome?: (info: { id: string; ok: boolean; message: string | null }) => void
+  /**
+   * 媒体段查询（工单336，生产 = MediaBroker.viewForPackage）：包获 media.read 授权 →
+   * 脱敏快照；未授权 = null（media 段不投——投影之外是「不存在」）。宿主只做
+   * capabilities 交集，授权裁决全在 Broker（撤销即断供零窗口）。
+   */
+  mediaView?: (packageId: string) => Record<string, unknown> | null
+  /** 受控缩略图（生产 = MediaBroker.thumbnailForPackage；校验/授权在 Broker） */
+  mediaThumbnail?: (packageId: string, key: string) => Promise<MediaThumbnailEnvelope>
 }
 
 /** 一条在装上下文 */
@@ -263,11 +276,35 @@ export class DroppedPackageHost {
       const view: Record<string, unknown> = {}
       const bag = snap as unknown as Record<string, unknown>
       for (const segment of context.manifest.capabilities) {
-        // capabilities 已在分类时裁到投放四段；此处再交集合一口径（少给而非不给）
+        // capabilities 已在分类时裁到投放段集合；此处再交集合一口径（少给而非不给）。
+        // media 段特殊：不在面板快照包里，走 Broker 授权查询（未授权 = null 不投）。
+        // mediaView 返回 { media: DTO } 包装——投喂解包 DTO（嵌套包装会让卡片的
+        // view.media.sessions 落空、永远空态——C6 真机排障实证）。
+        if (segment === 'media') {
+          const media = this.deps.mediaView?.(context.id) ?? null
+          if (media && media.media) view.media = media.media
+          continue
+        }
         if (DROPPED_VIEW_SEGMENTS.includes(segment as (typeof DROPPED_VIEW_SEGMENTS)[number]) && segment in bag) {
           view[segment] = bag[segment]
         }
       }
+      context.latestView = view
+      this.pushView(context)
+    }
+  }
+
+  /**
+   * 媒体刷新（工单336，生产 = MediaBroker.onSnapshot）：桥事件驱动的快照代次变化即时
+   * 重推——对声明 media 段的在装包重走 capabilities 裁剪（授权查询同源），其余段不动。
+   */
+  refreshMedia(): void {
+    for (const context of this.live.values()) {
+      if (!context.manifest.capabilities.includes('media')) continue
+      const media = this.deps.mediaView?.(context.id) ?? null
+      const view: Record<string, unknown> = { ...context.latestView }
+      if (media) view.media = media
+      else delete view.media
       context.latestView = view
       this.pushView(context)
     }
@@ -371,6 +408,23 @@ export class DroppedPackageHost {
         // 超限拒收（一个字节不写）与坏载荷在存储层已裁决；这里只映射错误码
         const code = message.includes('超限') ? 'config_too_large' : 'config_invalid'
         return { ok: false as const, code, message }
+      }
+    })
+    // 受控缩略图（工单336）：身份查登记表推导（不采信自报）；授权门/类型大小校验/审计
+    // 都在 Broker（宿主只转发）。校验拒付 = 一个字节不出。
+    ipcMain.handle('pkg:media-thumbnail', async (event, key: unknown) => {
+      const ctx = this.deps.registry.lookup(event.sender.id)
+      if (!ctx) return { ok: false as const, code: 'unknown_context', message: '调用方不在执行上下文登记表（未登记或已拆除）' }
+      if (typeof key !== 'string' || !key.trim()) {
+        return { ok: false as const, code: 'media_session_gone', message: '会话键缺失（缩略图按带代次不透明键寻址）' }
+      }
+      if (!this.deps.mediaThumbnail) {
+        return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配（缩略图不可用）' }
+      }
+      try {
+        return await this.deps.mediaThumbnail(ctx.packageId, key)
+      } catch (err) {
+        return { ok: false as const, code: 'media_unavailable', message: err instanceof Error ? err.message : String(err) }
       }
     })
   }

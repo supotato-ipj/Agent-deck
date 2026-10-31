@@ -1629,7 +1629,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 240,
+      "budgetSeconds": 360,
       "segments": [
         {
           "seg": "C1",
@@ -1684,6 +1684,21 @@
             "panel-alive"
           ],
           "estSeconds": 30,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C6",
+          "ticket": 336,
+          "title": "媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 90,
           "areas": [
             "sessions",
             "plugins"
@@ -1909,6 +1924,10 @@
     {
       "path": "app/src/main/conversation",
       "area": "sessions"
+    },
+    {
+      "path": "app/src/main/media",
+      "area": "plugins"
     },
     {
       "path": "app/src/main/services/settings.ts",

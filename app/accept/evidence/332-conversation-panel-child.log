@@ -583,3 +583,163 @@ DevTools listening on ws://127.0.0.1:9231/devtools/browser/e11bb22b-ef91-4ccc-8e
 [16000:1031/152536.511:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
 [16000:1031/152536.511:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 (electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/baa3e7ca-2981-42c7-9d1e-3504b9ea3060
+[43816:1031/164406.728:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43816:1031/164406.728:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43816:1031/164406.728:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[43816:1031/164406.811:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43816:1031/164406.811:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43816:1031/164406.811:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43816:1031/164406.811:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[43816:1031/164406.811:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[43816:1031/164406.811:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec336\app\dist\main\services\bridge.js:314:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec336\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec336\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/4b1eb02c-1a55-446d-9261-1fd56033ac00
+[42984:1031/164815.497:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42984:1031/164815.497:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42984:1031/164815.497:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[42984:1031/164815.738:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42984:1031/164815.738:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42984:1031/164815.738:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42984:1031/164815.738:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[42984:1031/164815.738:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[42984:1031/164815.739:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/a960fec9-7f07-4948-b099-73bce34ff8e0
+[52712:1031/185014.822:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[52712:1031/185014.824:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[52712:1031/185014.824:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[52712:1031/185014.974:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[52712:1031/185014.975:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[52712:1031/185014.975:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[52712:1031/185014.975:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[52712:1031/185014.976:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[52712:1031/185014.976:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec336\app\dist\main\services\bridge.js:314:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec336\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec336\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/b497b37a-5ab1-40b7-8566-6a40034329c1
+[41240:1031/185257.044:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41240:1031/185257.044:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41240:1031/185257.046:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[41240:1031/185257.152:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41240:1031/185257.152:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41240:1031/185257.152:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41240:1031/185257.152:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[41240:1031/185257.152:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[41240:1031/185257.152:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/fed17373-385d-420e-b3fd-9de5653280d0
+[60640:1031/185711.085:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60640:1031/185711.086:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60640:1031/185711.086:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60640:1031/185711.193:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60640:1031/185711.193:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[60640:1031/185711.193:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60640:1031/185711.193:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[60640:1031/185711.193:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60640:1031/185711.193:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec336\app\dist\main\services\bridge.js:314:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec336\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec336\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/b244fc11-f515-49e6-98d9-626ce68d4899
+[67860:1031/185935.329:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[67860:1031/185935.329:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[67860:1031/185935.329:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[67860:1031/185935.436:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[67860:1031/185935.436:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[67860:1031/185935.436:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[67860:1031/185935.436:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[67860:1031/185935.436:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[67860:1031/185935.436:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/7285e98c-28c6-4e0c-b43e-c7f0aa7ec302
+[69404:1031/190124.865:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[69404:1031/190124.865:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[69404:1031/190124.865:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[69404:1031/190124.956:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[69404:1031/190124.956:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[69404:1031/190124.957:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[69404:1031/190124.957:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[69404:1031/190124.957:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[69404:1031/190124.957:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec336\app\dist\main\services\bridge.js:314:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec336\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec336\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/fc520324-abfa-4cbf-be63-bc90efd2465b
+[60844:1031/190349.061:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60844:1031/190349.063:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60844:1031/190349.063:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[60844:1031/190349.242:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60844:1031/190349.242:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[60844:1031/190349.243:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60844:1031/190349.243:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[60844:1031/190349.244:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[60844:1031/190349.244:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/7d9f4046-6fd0-4dcb-bba2-14c8187e9c5b
+[66072:1031/190548.176:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[66072:1031/190548.176:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[66072:1031/190548.176:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[66072:1031/190548.257:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[66072:1031/190548.257:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[66072:1031/190548.257:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[66072:1031/190548.257:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[66072:1031/190548.257:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[66072:1031/190548.257:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--spec336\app\dist\main\services\bridge.js:314:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--spec336\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--spec336\app\dist\main\panel-ipc.js:50:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/e8163aef-19a3-4333-b0ae-3bed3fa08a01
+[24060:1031/190637.544:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[24060:1031/190637.546:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[24060:1031/190637.546:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[24060:1031/190637.761:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[24060:1031/190637.761:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[24060:1031/190637.761:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[24060:1031/190637.761:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[24060:1031/190637.762:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[24060:1031/190637.762:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.

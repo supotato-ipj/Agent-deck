@@ -328,7 +328,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // C3 是失败注入段必须最后）；预算 120→240（C4 est 90 实跑佐证随轮入库，#333 预算上调先例）
     // 126 → 127：工单335 增段——332-conversation +C5 DSH 更新已装包与卸载全链（执行序 C4 后
     // C3 前；est 90 起笔健康轮 took=6.5s 同 PR 校准 90→30）；预算 240 保持（120+30=150≤240）
-    expect(total).toBe(127)
+    // 127 → 128：工单336 增段——332-conversation +C6 媒体信息卡与 media.read（执行序 C5 后
+    // C3 前；est 90 起笔首轮量后校准）；预算 240→360（理由：媒体全链+真机 SMTC 播放器夹具
+    // ——罐头编排 4 轮+批准激活+Edge 起停+缩略图链+撤销即停，随关票评论留痕）
+    expect(total).toBe(128)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
