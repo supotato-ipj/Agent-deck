@@ -322,7 +322,9 @@ export class BridgeService extends Service {
       case 'install/grants': {
         const grants = this.ctx.plugins.authorizationGrants()
         const buckets = (this.ctx.media?.auditBuckets?.() ?? [])
-        return { grants, buckets } as BridgeMethods[M]['response']
+        // 工单338：网络审计聚合投影随授权账一并下发（origin/方法/结果计数；无载荷）
+        const networkBuckets = (this.ctx.network?.auditBuckets?.() ?? [])
+        return { grants, buckets, networkBuckets } as BridgeMethods[M]['response']
       }
       case 'install/revoke': {
         const { packageId } = payload as { packageId?: unknown }
@@ -333,6 +335,10 @@ export class BridgeService extends Service {
       }
       case 'media/audit': {
         const buckets = this.ctx.media?.auditBuckets?.() ?? []
+        return { buckets } as BridgeMethods[M]['response']
+      }
+      case 'network/audit': {
+        const buckets = this.ctx.network?.auditBuckets?.() ?? []
         return { buckets } as BridgeMethods[M]['response']
       }
       default:

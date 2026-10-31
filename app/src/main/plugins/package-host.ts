@@ -58,12 +58,30 @@ export interface DroppedPackageHostDeps {
   mediaThumbnail?: (packageId: string, key: string) => Promise<MediaThumbnailEnvelope>
   /** 媒体控制（工单337）：授权门/限流/审计在 Broker，宿主只转发 */
   mediaControl?: (packageId: string, key: string, action: string) => Promise<MediaControlResult>
+  /**
+   * 网络请求（工单338）：放行只经宿主代理面——NetworkBroker 做逐 origin 授权、限额与
+   * 脱敏审计；包页自己的 fetch/XHR 仍被 session 级 webRequest + CSP 全拒。
+   */
+  networkRequest?: (packageId: string, spec: NetworkRequestEnvelope) => Promise<NetworkRequestResult>
 }
 
 /** 媒体控制结果（工单337；与 Broker MediaControlResult 结构一致——本文件本地形状） */
 export type MediaControlResult =
   | { ok: true; status?: string }
   | { ok: false; code: 'media_permission_denied' | 'media_rate_limited' | 'media_session_gone' | 'media_command_failed' | 'media_unavailable'; message: string }
+
+/** 网络请求信封（工单338；包侧可给的全部意图） */
+export interface NetworkRequestEnvelope {
+  url: string
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+/** 网络请求结果（工单338；与 NetworkBroker NetworkResult 结构一致——本文件本地形状） */
+export type NetworkRequestResult =
+  | { ok: true; status: number; origin: string; method: string; contentType: string; bytes: number; truncated: boolean; text?: string; base64?: string }
+  | { ok: false; code: string; message: string; origin?: string; method?: string; status?: number; location?: string }
 
 /** 一条在装上下文 */
 interface PackageContext {
@@ -432,6 +450,34 @@ export class DroppedPackageHost {
         return { ok: false, code: 'media_command_failed', message: `不支持的控制命令：${action}` }
       }
       return this.deps.mediaControl?.(ctx.packageId, String(body.key), action) ?? { ok: false, code: 'media_unavailable', message: '控制面未装配' }
+    })
+    // 网络请求（工单338）：身份查登记表推导；放行只经宿主代理面（包页 fetch/XHR 仍全拒）。
+    // 授权门/限额/重定向策略/审计都在 NetworkBroker（宿主只转发与形状校验）。
+    ipcMain.handle('pkg:network-request', async (event, payload: unknown) => {
+      const ctx = this.deps.registry.lookup(event.sender.id)
+      if (!ctx) return { ok: false, code: 'unknown_context', message: '调用方不在执行上下文登记表（未登记或已拆除）' }
+      const body = (payload ?? {}) as { url?: unknown; method?: unknown; headers?: unknown; body?: unknown }
+      if (typeof body.url !== 'string' || !body.url.trim()) {
+        return { ok: false, code: 'network_failed', message: 'pkg:network-request 需要 url（http/https 绝对 URL）' }
+      }
+      if (!this.deps.networkRequest) {
+        return { ok: false, code: 'network_failed', message: '网络面未装配' }
+      }
+      const spec: NetworkRequestEnvelope = { url: body.url }
+      if (typeof body.method === 'string') spec.method = body.method
+      if (typeof body.body === 'string') spec.body = body.body
+      if (typeof body.headers === 'object' && body.headers !== null) {
+        const headers: Record<string, string> = {}
+        for (const [k, v] of Object.entries(body.headers as Record<string, unknown>)) {
+          if (typeof v === 'string') headers[k] = v
+        }
+        spec.headers = headers
+      }
+      try {
+        return await this.deps.networkRequest(ctx.packageId, spec)
+      } catch (err) {
+        return { ok: false, code: 'network_failed', message: err instanceof Error ? err.message : String(err) }
+      }
     })
     ipcMain.handle('pkg:media-thumbnail', async (event, key: unknown) => {
       const ctx = this.deps.registry.lookup(event.sender.id)

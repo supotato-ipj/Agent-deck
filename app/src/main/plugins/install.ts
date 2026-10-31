@@ -21,6 +21,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
+import { isPermissionChannelOpen } from './permission-channels'
 import { PLUGIN_ID_RE } from './manifest'
 import type { InstallProposalView, UpdateDiffView } from '../../shared/contract'
 
@@ -99,7 +100,7 @@ export interface InstallManagerOptions {
    * 清账（clear）。缺省 = 无授权面（media.read 包批准时如实报不可用）。
    */
   authorization?: {
-    grant(packageId: string, permissions: string[], codeHash: string): void
+    grant(packageId: string, permissions: string[], codeHash: string, networkOrigins?: string[]): void
     revoke(packageId: string): void
     clear(packageId: string): void
   }
@@ -230,19 +231,28 @@ interface StageFail {
   issues?: InstallIssue[]
 }
 
+/** 批准选项（工单337/338）：可选权限逐项授予 + network.request 的 origin 子集授予 */
+export interface ApproveOptions {
+  /** 可选权限逐项批准（只在 optionalPermissions 内生效） */
+  grantPermissions?: string[]
+  /** 工单338：network.request 的 origin 授予子集（缺省 = 声明清单全授；越声明面的项被丢弃） */
+  grantOrigins?: string[]
+}
+
 /**
  * 敏感权限边界（工单336 首个敏感权限完整闭环）：本票只开 media.read 通路——
  * 声明的权限**全部** = media.read 的包走批准（提案带权限清单，批准落授权账）；
  * 混入任何其他敏感权限（media.control/network.request，通道归 #337/#338）仍结构化拒绝
  * permission_deferred。返回 null = 可走批准；返回信封 = 拒绝（含清偿语义的调用方责任）。
  */
-function permissionGate(manifest: DroppedManifest): { code: 'permission_deferred'; message: string } | null {
-  // 工单337：media.control 可选权限通路随 media.read 一并开放（可选=批准面逐项授权）
-  const blocked = [...manifest.permissions, ...manifest.optionalPermissions].filter((p) => p !== 'media.read' && p !== 'media.control')
+export function permissionGate(manifest: DroppedManifest): { code: 'permission_deferred'; message: string } | null {
+  // 开放度取单一正典（permission-channels.ts）：工单336/337/338 的通道逐一开放；
+  // 未开放权限仍结构化拒付（闸门为后续票保留）。
+  const blocked = [...manifest.permissions, ...manifest.optionalPermissions].filter((p) => !isPermissionChannelOpen(p))
   if (blocked.length === 0) return null
   return {
     code: 'permission_deferred',
-    message: `含批准通道未开放的敏感权限 [${blocked.join(', ')}] 的包暂不接受提交（media.read 通路已开放，其余敏感权限随后续票落地）`,
+    message: `含批准通道未开放的敏感权限 [${blocked.join(', ')}] 的包暂不接受提交（media.read/media.control/network.request 通路已开放，其余敏感权限随后续票落地）`,
   }
 }
 
@@ -293,7 +303,7 @@ export class PluginInstallManager {
   }
 
   /** 真实用户手势（可信内核 UI）：批准 = 同一份字节复算哈希 → 原子转正/换代 → 有界激活 */
-  approve(proposalId: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
+  approve(proposalId: string, opts?: ApproveOptions): Promise<InstallProposalDecision> {
     return this.enqueue(async () => this.approveInner(proposalId, opts))
   }
 
@@ -650,7 +660,7 @@ export class PluginInstallManager {
       proposalId,
       opId,
       status: 'pending',
-      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions], optionalPermissions: [...manifest.optionalPermissions] },
+      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions], optionalPermissions: [...manifest.optionalPermissions], networkOrigins: [...manifest.networkOrigins] },
       files: staged.files,
       hash,
       source: { sessionId: ctx.sessionId, backend: ctx.backend, label: this.opts.sessionInfo(ctx.sessionId)?.label ?? null },
@@ -790,7 +800,7 @@ export class PluginInstallManager {
       proposalId,
       opId,
       status: 'pending',
-      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions], optionalPermissions: [...manifest.optionalPermissions] },
+      pkg: { id: manifest.id, name: manifest.name, version: manifest.version, hostApiVersion: manifest.hostApiVersion, permissions: [...manifest.permissions], optionalPermissions: [...manifest.optionalPermissions], networkOrigins: [...manifest.networkOrigins] },
       files: staged.files,
       hash: newHash,
       source: { sessionId: ctx.sessionId, backend: ctx.backend, label: this.opts.sessionInfo(ctx.sessionId)?.label ?? null },
@@ -822,7 +832,7 @@ export class PluginInstallManager {
   // 批准：哈希绑定 → 原子转正/换代 → 有界激活 → 补偿/结果未知
   // ------------------------------------------------------------------
 
-  private async approveInner(proposalId: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
+  private async approveInner(proposalId: string, opts?: ApproveOptions): Promise<InstallProposalDecision> {
     const proposal = this.proposals.get(proposalId)
     if (!proposal || proposal.status !== 'pending') {
       return { ok: false, code: 'not_found', message: `提案不存在或已决（${proposalId}）` }
@@ -852,15 +862,28 @@ export class PluginInstallManager {
    * 授权账落账（工单336）：转正后、rescan 激活前——账齐服务层才激活（按账重评授权）。
    * 无授权面且包带敏感权限 = 批准面不完整，如实失败（转正不发生后的清偿由调用方处理）。
    */
-  private grantAuthorization(packageId: string, permissions: string[], hash: string): boolean {
+  /**
+   * origin 授予集（工单338）：只有 network.request 落在授予权限里才产生 origin 清单；
+   * 批准面给的子集必须在声明清单内（越声明面的项丢弃——不靠请求时兜底）。
+   */
+  private resolveGrantOrigins(proposal: InstallProposalView, grantedPerms: string[], opts?: ApproveOptions): string[] {
+    if (!grantedPerms.includes('network.request')) return []
+    const declared = proposal.pkg.networkOrigins ?? []
+    const requested = opts?.grantOrigins
+    if (!requested || requested.length === 0) return [...declared]
+    const allowed = new Set(declared)
+    return [...new Set(requested.filter((o) => allowed.has(o)))]
+  }
+
+  private grantAuthorization(packageId: string, permissions: string[], hash: string, networkOrigins: string[] = []): boolean {
     if (permissions.length === 0) return true
     if (!this.opts.authorization) return false
-    this.opts.authorization.grant(packageId, permissions, hash)
+    this.opts.authorization.grant(packageId, permissions, hash, networkOrigins)
     return true
   }
 
   /** 安装批准（工单334 原语义 + 工单335 旧数据继承结算） */
-  private async approveInstall(proposal: InstallProposalView, stagedDir: string, userTarget: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
+  private async approveInstall(proposal: InstallProposalView, stagedDir: string, userTarget: string, opts?: ApproveOptions): Promise<InstallProposalDecision> {
     // 旧数据继承结算（工单335，先于转正——包永远观察不到未授权的旧配置）：
     // 继承是独立用户手势；未决默认 fresh（detach，不永久删除），继承 = 残留文件原样保留
     const inheritFail = this.settleInheritance(proposal)
@@ -883,9 +906,12 @@ export class PluginInstallManager {
     // 授权账落账（工单336）：转正后、rescan 激活前——账齐服务层才激活。账面哈希=提案哈希
     // =转正字节同一份；落账失败（未装配授权面）=激活面不完整，按激活失败清偿。
     // 可选权限逐项批准（工单337）：必需权限成组必授；grantPermissions 只在可选集内追加
+    // origin 参数面（工单338）：network.request 在授予集里才落 origin 清单；批准面可只授
+    // 声明清单的子集（grantOrigins），缺省 = 声明清单全授
     const optionalOk = (proposal.pkg.optionalPermissions ?? []).filter((p) => (opts?.grantPermissions ?? []).includes(p))
     const grantedPerms = [...proposal.pkg.permissions, ...optionalOk]
-    if (!this.grantAuthorization(proposal.pkg.id, grantedPerms, proposal.hash)) {
+    const grantedOrigins = this.resolveGrantOrigins(proposal, grantedPerms, opts)
+    if (!this.grantAuthorization(proposal.pkg.id, grantedPerms, proposal.hash, grantedOrigins)) {
       try { fs.rmSync(userTarget, { recursive: true, force: true }) } catch { /* 尽力 */ }
       return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感包批准无法落账（转正目录已补偿移除）')
     }
@@ -990,7 +1016,7 @@ export class PluginInstallManager {
     // 而新代次带敏感权限）= 换代面不完整，走旧版还原（账随字节还原）。
     const newPerms = proposal.pkg.permissions
     if (newPerms.length === 0) this.opts.authorization?.clear(proposal.pkg.id)
-    else if (!this.grantAuthorization(proposal.pkg.id, newPerms, proposal.hash)) {
+    else if (!this.grantAuthorization(proposal.pkg.id, newPerms, proposal.hash, newPerms.includes('network.request') ? proposal.pkg.networkOrigins : [])) {
       try {
         fs.renameSync(backupDir, userTarget)
       } catch (restoreErr) {
@@ -1065,7 +1091,7 @@ export class PluginInstallManager {
    * 哈希；落账 → rescan（服务层按账激活）→ 有界激活。确定失败回滚账（包不执行、文件不动
    * ——文件是用户放的，清偿只走卸载回收站）；结果未知账保留（实况以清单对账）。
    */
-  private async approveManual(proposal: InstallProposalView, dir: string, opts?: { grantPermissions?: string[] }): Promise<InstallProposalDecision> {
+  private async approveManual(proposal: InstallProposalView, dir: string, opts?: ApproveOptions): Promise<InstallProposalDecision> {
     let currentHash: string
     try {
       currentHash = aggregateHashOf(dir)
@@ -1076,9 +1102,12 @@ export class PluginInstallManager {
       return this.failProposal(proposal, 'hash_mismatch', '用户根字节与提案哈希不一致（同一份字节绑定失败）——批准不发生、账不落、包不执行')
     }
     // 可选权限逐项批准（工单337）：必需权限成组必授；grantPermissions 只在可选集内追加
+    // origin 参数面（工单338）：network.request 在授予集里才落 origin 清单；批准面可只授
+    // 声明清单的子集（grantOrigins），缺省 = 声明清单全授
     const optionalOk = (proposal.pkg.optionalPermissions ?? []).filter((p) => (opts?.grantPermissions ?? []).includes(p))
     const grantedPerms = [...proposal.pkg.permissions, ...optionalOk]
-    if (!this.grantAuthorization(proposal.pkg.id, grantedPerms, proposal.hash)) {
+    const grantedOrigins = this.resolveGrantOrigins(proposal, grantedPerms, opts)
+    if (!this.grantAuthorization(proposal.pkg.id, grantedPerms, proposal.hash, grantedOrigins)) {
       return this.failProposal(proposal, 'activation_failed', '未装配授权账面——敏感包批准无法落账（包不执行）')
     }
     this.opts.host.rescan()
@@ -1105,8 +1134,7 @@ export class PluginInstallManager {
     return { ok: false, code: 'activation_failed', message: proposal.error.message }
   }
 
-  /** mount 等待套管理器时限（mountBoundMs）：宿主端口不回 → 结果未知（不猜） */
-  private boundedMount(packageId: string): Promise<MountOutcome> {    let timer: NodeJS.Timeout | undefined
+  /** mount 等待套管理器时限（mountBoundMs）：宿主端口不回 → 结果未知（不猜） */  private boundedMount(packageId: string): Promise<MountOutcome> {    let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<MountOutcome>((resolve) => {
       timer = setTimeout(() => resolve({ ok: false, message: `激活等待超时（${this.opts.mountBoundMs}ms）——结果未知`, unknown: true }), this.opts.mountBoundMs)
     })

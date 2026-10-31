@@ -23,6 +23,8 @@ import path from 'node:path'
 export interface AuthorizationGrantRecord {
   packageId: string
   permissions: string[]
+  /** 工单338：network.request 的精确 origin 授予集（无该权限 = 空清单；正典 origin 串） */
+  networkOrigins: string[]
   /** 代码聚合哈希（批准时的待装载区/用户根同一份字节） */
   codeHash: string
   grantedAt: number
@@ -44,6 +46,8 @@ export interface AuthorizationLedgerOptions {
 /** 在册授权查询形状（activeGrant 出口；不含账簿簿记字段） */
 export interface ActiveGrant {
   permissions: string[]
+  /** 工单338：network.request 授予的精确 origin 集合（无该权限 = 空清单） */
+  networkOrigins: string[]
   codeHash: string
   grantedAt: number
 }
@@ -59,10 +63,12 @@ function coerceGrant(raw: unknown): AuthorizationGrantRecord | null {
   if (typeof r.packageId !== 'string' || !r.packageId) return null
   const permissions = asStringArray(r.permissions)
   if (!permissions) return null
+  // 工单338：origin 集缺省/形状坏按空清单（旧账行兼容——没有 network.request 的行本来就没 origin）
+  const networkOrigins = asStringArray(r.networkOrigins) ?? []
   if (typeof r.codeHash !== 'string' || !r.codeHash) return null
   if (typeof r.grantedAt !== 'number') return null
   const revokedAt = typeof r.revokedAt === 'number' ? r.revokedAt : null
-  return { packageId: r.packageId, permissions, codeHash: r.codeHash, grantedAt: r.grantedAt, revokedAt }
+  return { packageId: r.packageId, permissions, networkOrigins, codeHash: r.codeHash, grantedAt: r.grantedAt, revokedAt }
 }
 
 export class PluginAuthorizationLedger {
@@ -111,15 +117,17 @@ export class PluginAuthorizationLedger {
    * 批准落账（install.ts 批准手势的记账回调）：upsert 幂等；permissions 空 = 删账
    * （零权限不需要授权）；撤销过的行复活（revokedAt 清空、新绑定生效）。
    */
-  grant(packageId: string, permissions: string[], codeHash: string): void {
+  grant(packageId: string, permissions: string[], codeHash: string, networkOrigins: string[] = []): void {
     if (permissions.length === 0) {
       if (this.grants.delete(packageId)) this.persist()
       return
     }
     const prev = this.grants.get(packageId)
+    const origins = permissions.includes('network.request') ? [...new Set(networkOrigins)] : []
     this.grants.set(packageId, {
       packageId,
       permissions: [...permissions],
+      networkOrigins: origins,
       codeHash,
       grantedAt: this.opts.now(),
       revokedAt: null,
@@ -129,6 +137,7 @@ export class PluginAuthorizationLedger {
       type: 'plugin-authorization-granted',
       pkgId: packageId,
       permissions: [...permissions],
+      ...(origins.length ? { networkOrigins: origins } : {}),
       codeHash,
       ...(prev ? { replaced: true } : {}),
     })
@@ -148,7 +157,7 @@ export class PluginAuthorizationLedger {
   activeGrant(packageId: string): ActiveGrant | null {
     const row = this.grants.get(packageId)
     if (!row || row.revokedAt !== null) return null
-    return { permissions: row.permissions, codeHash: row.codeHash, grantedAt: row.grantedAt }
+    return { permissions: row.permissions, networkOrigins: row.networkOrigins ?? [], codeHash: row.codeHash, grantedAt: row.grantedAt }
   }
 
   /** 卸载清账（重装同字节也重新批准——撤销不可被卸载→重装绕过） */
