@@ -278,9 +278,11 @@ export class DroppedPackageHost {
       for (const segment of context.manifest.capabilities) {
         // capabilities 已在分类时裁到投放段集合；此处再交集合一口径（少给而非不给）。
         // media 段特殊：不在面板快照包里，走 Broker 授权查询（未授权 = null 不投）。
+        // mediaView 返回 { media: DTO } 包装——投喂解包 DTO（嵌套包装会让卡片的
+        // view.media.sessions 落空、永远空态——C6 真机排障实证）。
         if (segment === 'media') {
           const media = this.deps.mediaView?.(context.id) ?? null
-          if (media) view.media = media
+          if (media && media.media) view.media = media.media
           continue
         }
         if (DROPPED_VIEW_SEGMENTS.includes(segment as (typeof DROPPED_VIEW_SEGMENTS)[number]) && segment in bag) {

@@ -210,6 +210,7 @@ export class MediaBroker {
       const out = await this.opts.bridge.list()
       if (!out.ok) {
         // 桥不可用/回复形状不符：available=false 明确态（不猜旧数据）
+        this.opts.log({ type: 'media-list-failed', error: out.error })
         this.current = { generation: this.current.generation, available: false, selectedKey: null, sessions: [] }
         this.notifySnapshot()
         return
@@ -236,6 +237,8 @@ export class MediaBroker {
     }
     this.generation += 1
     this.current = { ...payload, generation: this.generation }
+    // 快照落账（工单336 排障：面板内 Broker 实际视图此前无观测点）
+    this.opts.log({ type: 'media-snapshot-refreshed', generation: this.generation, sessions: payload.sessions.length, keys: payload.sessions.map((s) => s.key).join(','), selectedKey: payload.selectedKey })
     this.notifySnapshot()
   }
 
