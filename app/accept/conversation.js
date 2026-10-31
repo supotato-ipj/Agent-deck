@@ -840,7 +840,13 @@ PKGDIR=${pkgDirM}` });
               if (liveOk === 'PLAYING') {
                 rep.pass('卡真显示全部会话：夹具 SMTC 会话上卡（title=T336 Accept Track，status=PLAYING，position+lastUpdatedTime 插值走时长行）');
               } else {
-                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)}——桥/快照/投喂链断点在 C6 诊断`);
+                // 决定性诊断：卡片页实见的 deckHost.media 数据面 + DOM 现状（拆「投喂断」vs「渲染断」）
+                try {
+                  const t = await pkgTarget('deck-pkg://dsh-media/');
+                  const seen = t ? await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")].map((r) => (r.querySelector(".media-title") || {}).textContent); return JSON.stringify({ rows, card: (document.querySelector(".media-card") || {}).className, hasHost: Boolean(window.deckHost && window.deckHost.media) }) })()', 8000) : 'no-target';
+                  rep.note(`C6 ④诊断 卡片实见=${String(seen).slice(0, 500)}`);
+                } catch (errD) { rep.note(`C6 ④诊断 CDP 失败：${errD instanceof Error ? errD.message : String(errD)}`); }
+                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)}——诊断见上`);
               }
               // ④ 受控缩略图链 + 审计存证
               const thumbOk = await until(async () => {
