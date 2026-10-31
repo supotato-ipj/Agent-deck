@@ -297,6 +297,22 @@ export class BridgeService extends Service {
           : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
         return res as BridgeMethods[M]['response']
       }
+      // 工单335 旧数据继承（独立用户手势，不与代码批准合并）：继承=重装包重新可读卸载
+      // 残留私有配置；不继承=新配置起步（残留 detach，不永久删除）
+      case 'install/inherit': {
+        const { proposalId, inherit } = payload as { proposalId?: unknown; inherit?: unknown }
+        if (typeof proposalId !== 'string' || !proposalId.trim()) {
+          throw new BridgeError('install/inherit 需要 proposalId（提案标识字符串）')
+        }
+        if (typeof inherit !== 'boolean') {
+          throw new BridgeError('install/inherit 需要 inherit（布尔：true=继承旧数据 false=新配置起步）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.decideInheritance(String(proposalId), inherit)
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

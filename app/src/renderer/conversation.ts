@@ -269,8 +269,46 @@ function renderInstalls(): void {
     summary.className = 'install-summary'
     const src = `${p.source.label ?? p.source.sessionId.slice(0, 8)}・${p.source.backend}`
     const perms = p.pkg.permissions.length ? p.pkg.permissions.join(', ') : '无（零权限）'
-    summary.textContent = `安装 ${p.pkg.id}@${p.pkg.version}〔${p.status}〕来源 ${src}・${p.files.length} 文件・权限：${perms}・hash ${p.hash.slice(0, 12)}`
+    const kindLabel = p.update ? `更新 ${p.update.oldVersion}→${p.update.newVersion}` : '安装'
+    summary.textContent = `${kindLabel} ${p.pkg.id}@${p.pkg.version}〔${p.status}〕来源 ${src}・${p.files.length} 文件・权限：${perms}・hash ${p.hash.slice(0, 12)}`
     row.appendChild(summary)
+    // 工单335 更新提案：旧→新 diff 与权限变化（批准 UI 数据面）
+    if (p.update) {
+      const diff = document.createElement('div')
+      diff.className = 'install-diff'
+      const f = p.update.files
+      const permParts: string[] = []
+      if (p.update.permissions.added.length) permParts.push(`+${p.update.permissions.added.join(', ')}`)
+      if (p.update.permissions.removed.length) permParts.push(`-${p.update.permissions.removed.join(', ')}`)
+      const fileParts: string[] = []
+      if (f.changed.length) fileParts.push(`改 ${f.changed.join(', ')}`)
+      if (f.added.length) fileParts.push(`增 ${f.added.join(', ')}`)
+      if (f.removed.length) fileParts.push(`删 ${f.removed.join(', ')}`)
+      diff.textContent = `变化：${fileParts.length ? fileParts.join('；') : '无文件变化'}・权限变化：${permParts.length ? permParts.join(' ') : '无'}`
+      row.appendChild(diff)
+    }
+    // 工单335 旧数据继承：独立用户手势（不与代码批准合并）；未决时批准代码 = 新配置起步
+    if (p.dataInheritance) {
+      const inherit = document.createElement('div')
+      inherit.className = 'install-inherit'
+      const label = document.createElement('span')
+      label.textContent = `旧数据继承（卸载残留配置）：${
+        p.dataInheritance.decision === 'inherited' ? '继承——重装后读回旧数据'
+          : p.dataInheritance.decision === 'fresh' ? '不继承——新配置起步' : '未决（批准代码=新配置起步）'} `
+      inherit.appendChild(label)
+      if (p.status === 'pending') {
+        const yes = document.createElement('button')
+        yes.className = 'install-inherit-yes'
+        yes.textContent = '继承旧数据'
+        yes.addEventListener('click', () => { void window.deck.bridge.invoke('install/inherit', { proposalId: p.proposalId, inherit: true }) })
+        const no = document.createElement('button')
+        no.className = 'install-inherit-no'
+        no.textContent = '不继承'
+        no.addEventListener('click', () => { void window.deck.bridge.invoke('install/inherit', { proposalId: p.proposalId, inherit: false }) })
+        inherit.append(yes, no)
+      }
+      row.appendChild(inherit)
+    }
     if (p.status === 'pending') {
       const ok = document.createElement('button')
       ok.className = 'install-approve'

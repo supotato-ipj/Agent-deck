@@ -31,14 +31,18 @@ function until<T>(pred: () => T | null | undefined, timeoutMs = 8000, stepMs = 4
   })
 }
 
-/** 管理型投影源 stub（单点分派的替身——快照形状齐八段键） */
-function stubSource(install?: ManagedProjectionSource['installSubmit']): ManagedProjectionSource {
+/** 管理型投影源 stub（单点分派的替身——快照形状齐八段键；工单335 可选挂 updateSubmit） */
+function stubSource(
+  install?: ManagedProjectionSource['installSubmit'],
+  update?: ManagedProjectionSource['updateSubmit'],
+): ManagedProjectionSource {
   return {
     panelSnapshot: () => ({ clock: {}, sessions: [], hardware: {}, weather: {}, desktop: {}, layout: {}, settings: {}, plugins: [] }),
     pluginsList: () => ({ kernel: [], dropped: [] }),
     pluginSource: () => { throw new Error('插件目录越界: x') },
     contractCatalog: () => ({ audience: 'agent', sections: [], data: {} }),
     installSubmit: install,
+    ...(update ? { updateSubmit: update } : {}),
   }
 }
 
@@ -192,8 +196,8 @@ describe('会话服务管理型创建（工单333 全有或全无）', () => {
       return text.includes('SNAPSHOT-OK:') && text.includes('MCP-UNKNOWN-TOOL-OK:app_quit') ? text : null
     })
     expect(got).toContain('clock') // 快照八段键之一真实回读
-    // 工单334：封闭集 4→5（+plugin_install_submit 写工具；只读四工具不回归）
-    expect(got).toMatch(/TOOLS=5/)
+    // 工单334：封闭集 4→5；工单335：5→9（+update/set_enabled/uninstall 写三件 + rescan 对账）
+    expect(got).toMatch(/TOOLS=9/)
     // 工具调用存证（无载荷、无凭证）
     const toolLogs = h.logs.filter((e) => e.type === 'managed-tool-call')
     expect(toolLogs.some((e) => e.tool === 'panel_snapshot' && e.ok === true)).toBe(true)
@@ -409,6 +413,111 @@ describe('会话服务管理型创建（工单333 全有或全无）', () => {
         const intent = installLogs.find((e) => e.type === 'plugin-install-intent')
         const outcome = installLogs.find((e) => e.type === 'plugin-install-outcome')
         expect(intent).toMatchObject({ pkgId: 'dsh-hello' })
+        expect(outcome).toMatchObject({ outcome: 'activated', opId: (intent as Record<string, unknown>)['opId'] })
+      } finally {
+        service2.dispose()
+        await ctx2.stop().catch(() => {})
+        try { fs.rmSync(tmp2, { recursive: true, force: true }) } catch { /* Windows 句柄滞后尽力（fake cwd 锁） */ }
+      }
+    } finally {
+      mgr.dispose()
+      for (const d of [userRoot, stagingRoot]) fs.rmSync(d, { recursive: true, force: true })
+    }
+  })
+
+  it('managed-update 全链编排（工单335）：fake 经 MCP 提交更新 → 提案带 diff 且旧代次字节不动 → 批准 → 原子换代', { timeout: 20000 }, async () => {
+    // 与 managed-install 同构：真实 PluginInstallManager（tmp 目录），source.updateSubmit 直连。
+    // 前提：用户根预置在册包 dsh-hello@1.0.0（更新目标的在册前提）。
+    const userRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-upd-user-'))
+    const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-upd-stage-'))
+    fs.mkdirSync(userRoot, { recursive: true })
+    fs.mkdirSync(stagingRoot, { recursive: true })
+    const pkgDirInstalled = path.join(userRoot, 'dsh-hello')
+    fs.mkdirSync(pkgDirInstalled, { recursive: true })
+    const oldManifest = { id: 'dsh-hello', name: 'DSH HELLO', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['clock'], permissions: [] }
+    fs.writeFileSync(path.join(pkgDirInstalled, 'plugin.json'), JSON.stringify(oldManifest, null, 2), 'utf8')
+    fs.writeFileSync(path.join(pkgDirInstalled, 'card.js'), 'export default { mount(host) { host.el.textContent = "hello from dsh" } }\n', 'utf8')
+    const installLogs: Array<Record<string, unknown>> = []
+    const { PluginInstallManager } = await import('../../src/main/plugins/install')
+    let service2: ConversationService
+    const mgr = new PluginInstallManager({
+      userRoot,
+      stagingRoot,
+      kernelRoots: [],
+      sessionInfo: (sessionId) => {
+        const v = service2.sessions().find((s) => s.id === sessionId)
+        return v ? { cwd: v.cwd, label: v.label } : null
+      },
+      log: (e) => installLogs.push(e),
+      notify: () => { /* 提案经 list() 读 */ },
+      now: () => Date.now(),
+      opId: (() => { let n = 0; return () => `op-${++n}` })(),
+      host: {
+        rescan: () => { /* 编排回归不接投放宿主 */ },
+        waitMount: async () => ({ ok: true, message: null, unknown: false }),
+      },
+      mountBoundMs: 2000,
+    })
+    try {
+      const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-mgmt-update-'))
+      const dshHome2 = path.join(tmp2, 'dsh-home')
+      const workspacesRoot2 = path.join(tmp2, 'workspaces')
+      fs.mkdirSync(dshHome2, { recursive: true })
+      fs.mkdirSync(workspacesRoot2, { recursive: true })
+      const registry2 = new SessionCredentialRegistry()
+      const ctx2 = new Context()
+      const spawnFake: ConversationSpawn = (plan, cwd, env) => {
+        const child: ChildProcess = spawn(process.execPath, [FAKE_AGENT, '--scenario', 'managed-update', '--trace'], {
+          cwd, env, stdio: ['pipe', 'pipe', 'pipe'],
+        })
+        return {
+          pid: child.pid,
+          stdin: child.stdin!,
+          stdout: child.stdout!,
+          onExit: (cb) => child.once('exit', (code, signal) => cb(code, signal)),
+          killTree: () => { try { child.kill() } catch { /* 尽力 */ } },
+        }
+      }
+      service2 = new ConversationService(ctx2, {
+        dshHome: dshHome2,
+        workspacesRoot: workspacesRoot2,
+        metadataFile: path.join(tmp2, 'metadata.json'),
+        deps: {
+          resolveBackend: async () => ({ exe: 'C:\\fake\\DeepSeek Harness.exe', cliJs: 'C:\\fake\\cli.js', source: 'test' }),
+          spawnProcess: spawnFake,
+          createJobObject: () => null,
+          env: { DECK_TEST: '1' },
+          log: () => {},
+        },
+        managed: {
+          source: () => stubSource(undefined, (args, mctx) => mgr.submitUpdate(args as { packageId: string; sourceDir: string }, { sessionId: mctx.sessionId, backend: 'dsh' })),
+          registry: registry2,
+        },
+      })
+      try {
+        const res = await service2.create('update-e2e', { managed: true })
+        expect(res.ok, `管理型创建应成功：${res.error ?? ''}`).toBe(true)
+        // fake 在 cwd 写新版字节并经 MCP 提交 → 更新提案 pending 带 diff
+        const proposal = await until(() => mgr.list().find((p) => p.status === 'pending' && p.update) ?? null, 10000)
+        expect(proposal).toBeTruthy()
+        expect(proposal!.pkg.id).toBe('dsh-hello')
+        expect(proposal!.pkg.version).toBe('1.1.0')
+        expect(proposal!.update!.oldVersion).toBe('1.0.0')
+        expect(proposal!.update!.files.changed).toEqual(['card.js', 'plugin.json'])
+        expect(proposal!.update!.permissions).toEqual({ added: [], removed: [] })
+        // 待批期间旧代次继续运行（文件面）：用户根还是 1.0.0 旧字节；新字节只在待装载区
+        expect(fs.readFileSync(path.join(pkgDirInstalled, 'card.js'), 'utf8')).toContain('"hello from dsh"')
+        expect(fs.existsSync(path.join(stagingRoot, proposal!.proposalId, 'card.js'))).toBe(true)
+        // 批准（真实用户手势）→ 原子换代 → 新代次在用户根
+        const decided = await mgr.approve(proposal!.proposalId)
+        expect(decided).toMatchObject({ ok: true, status: 'activated' })
+        expect(fs.readFileSync(path.join(pkgDirInstalled, 'card.js'), 'utf8')).toContain('hello from dsh v2')
+        expect(JSON.parse(fs.readFileSync(path.join(pkgDirInstalled, 'plugin.json'), 'utf8'))['version']).toBe('1.1.0')
+        expect(fs.existsSync(path.join(stagingRoot, proposal!.proposalId))).toBe(false)
+        // 审计：更新意图/结局分离且 opId 相关
+        const intent = installLogs.find((e) => e.type === 'plugin-update-intent')
+        const outcome = installLogs.find((e) => e.type === 'plugin-update-outcome')
+        expect(intent).toMatchObject({ pkgId: 'dsh-hello', oldVersion: '1.0.0', version: '1.1.0' })
         expect(outcome).toMatchObject({ outcome: 'activated', opId: (intent as Record<string, unknown>)['opId'] })
       } finally {
         service2.dispose()

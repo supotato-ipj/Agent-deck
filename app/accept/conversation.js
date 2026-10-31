@@ -22,6 +22,11 @@
 //   ① UI 契约（管理勾选 + 以聊天型创建显式选择）② 显式授权创建 wire 存证
 //   ③ 凭证零落盘 ④⑤ DSH 真调只读工具（快照/契约目录）⑥ 投影外未知工具
 //   ⑦ 凭证逐会话失效（旧 bearer 401）⑧ 宿主随最后管理会话回收 ⑨ 聊天型并存零回归
+// 段 C4 归 334（工单334 DSH 创建零权限插件）：DSH 文件工具写包 → MCP 提交 → 批准 → 转正
+//   激活 → 桌面真显示；拒绝路径补偿完备。
+// 段 C5 归 335（工单335 更新/卸载）：更新已装包（提案 diff+权限变化→待批旧代次仍跑→批准=
+//   原子换代→同字节 no_change）→ 卸载→回收站→清单消失。执行序 C4 后、C3 前（C3 bogus
+//   重启面板必须最后）。
 // 红线遵守：不碰用户 ~/.dsh（DSH_HOME 恒指面板专属 userData 子目录）；盘符不硬编码
 // （DSH 安装经描述符解析）；清场：罐头 LLM 关停、升级写探针文件删除、面板句柄强退。
 //
@@ -613,6 +618,121 @@ PKGID=dsh-reject` });
       }
     } catch (c4err) {
       rep.fail(`段 C4 异常中止：${c4err instanceof Error ? c4err.message : String(c4err)}`);
+    }
+
+    // —— 段 C5（工单335，ADR-0019 update 换入 / ADR-0025 代次批准）：DSH 更新已装包全链 ——
+    // 前提：C4 已安装 dsh-hello@1.0.0（批准激活、deck-pkg://dsh-hello 真显示）。执行序在 C3
+    // 之前（同 C4 理由：C3 会以 bogus 后端档重启面板，失败注入段必须最后）。罐头编排：
+    // 写新版字节 → MCP plugin_update_submit → 提案带旧→新 diff 与权限变化（批准 UI 数据面）
+    // → 待批期间旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准 = 原子换代（generation≥2
+    // 激活存证 + 新代次 mount）→ 同字节再提交 → no_change（不重载、不制造提案）→ 卸载 →
+    // 回收站 → 清单消失（用户根目录消失 + deactivated(reason=removed) + 上下文拆除）。
+    rep.beginSegment('C5');
+    try {
+      const userPluginsRoot5 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      const pkgTarget5 = path.join(userPluginsRoot5, 'dsh-hello');
+      if (!fs.existsSync(path.join(pkgTarget5, 'plugin.json'))) {
+        rep.fail('C5 前提不成立：C4 安装的 dsh-hello 不在用户根（C4 未绿或夹具被清）');
+      } else {
+        const createC5 = await bridge('conversation/create', { managed: true, label: 'accept-335-update' });
+        if (!createC5.ok) {
+          rep.fail(`C5 管理型会话创建失败：${createC5.error}`);
+        } else {
+          const sidC5 = createC5.session.id;
+          const sessC5 = await sessionById(sidC5);
+          if (!sessC5 || !sessC5.cwd) {
+            rep.fail('C5 会话视图/cwd 缺失');
+          } else {
+            const pkgDirU = path.join(sessC5.cwd, 'dsh-hello-pkg');
+            // ① 更新提交：罐头写新版字节（card.js v2 文本 + version 1.1.0）→ MCP plugin_update_submit
+            await bridge('conversation/prompt', { sessionId: sidC5, text: `MANAGED UPDATE marker：更新已安装插件包（落新版包目录并经 plugin_update_submit 提交）
+PKGDIR=${pkgDirU}` });
+            const propU = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-hello' && p.update) ?? null, 90000);
+            if (!propU) {
+              // 诊断转储（排障后保留作证据）：会话转写 + 罐头决策轨迹
+              const vdiag5 = await sessionById(sidC5);
+              rep.note(`C5 诊断 transcript=${JSON.stringify((vdiag5 ? vdiag5.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`)).slice(0, 700)}`);
+              try {
+                const diags5 = (llm.requests ? llm.requests().slice(-9) : []).map((r) => r.diag);
+                rep.note(`C5 诊断 canned=${JSON.stringify(diags5).slice(0, 700)}`);
+              } catch { /* 诊断尽力 */ }
+              rep.fail('C5 更新提案未出现（90s）——罐头编排或 MCP 提交失败');
+            } else {
+              const diffOk = Boolean(propU.update)
+                && propU.update.oldVersion === '1.0.0' && propU.update.newVersion === '1.1.0'
+                && Array.isArray(propU.update.files.changed) && propU.update.files.changed.includes('card.js')
+                && propU.update.permissions.added.length === 0 && propU.update.permissions.removed.length === 0;
+              // ② 待批旧代次仍在：提案期间 deck-pkg://dsh-hello 的 title 仍 deck-pkg:ready
+              const oldTitlePending = await until(async () => {
+                try {
+                  const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+                  const t = targets.find((x) => typeof x.url === 'string' && x.url.startsWith('deck-pkg://dsh-hello/'));
+                  return t && t.title === 'deck-pkg:ready' ? true : null;
+                } catch { return null }
+              }, 8000);
+              if (diffOk && oldTitlePending) {
+                rep.pass(`更新提案数据面+待批旧代次仍在：1.0.0→1.1.0 diff（card.js 变更、权限变化空）在批准 UI 数据面；待批期间旧代次 deck-pkg:ready 继续运行`);
+              } else {
+                rep.fail(`C5 更新提案面不符：diff=${JSON.stringify(propU.update)} oldTitlePending=${Boolean(oldTitlePending)}`);
+              }
+              // ③ 批准 → 原子换代：generation≥2 激活存证 + 新代次 mount（title 仍 ready）
+              const gateT5 = Date.now();
+              const approvedU = await bridge('install/approve', { proposalId: propU.proposalId }, 30000);
+              const activatedU = await tape.wait('dropped-package-activated', (e) => e.id === 'dsh-hello' && Number(e.generation) >= 2, { timeoutMs: 30000, since: gateT5 });
+              const newTitleReady = await until(async () => {
+                try {
+                  const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+                  const t = targets.find((x) => typeof x.url === 'string' && x.url.startsWith('deck-pkg://dsh-hello/'));
+                  return t && t.title === 'deck-pkg:ready' ? true : null;
+                } catch { return null }
+              }, 15000);
+              if (approvedU && approvedU.ok === true && approvedU.status === 'activated' && activatedU && newTitleReady) {
+                rep.pass(`批准=原子换代：activated（dropped-package-activated generation=${activatedU.generation} 存证）+ 新代次 mount（deck-pkg:ready）`);
+              } else {
+                rep.fail(`C5 批准换代不符：approved=${JSON.stringify(approvedU)} activated=${JSON.stringify(activatedU)} newTitle=${Boolean(newTitleReady)}`);
+              }
+              // ④ 同字节再提交 → no_change：工具结果如实 no_change（不重载、不制造提案）
+              await bridge('conversation/prompt', { sessionId: sidC5, text: `MANAGED NOCHANGE marker：把同一份包目录原样再提交一次更新
+PKGDIR=${pkgDirU}` });
+              const nochangeText = await until(() => sessionById(sidC5).then((s) => {
+                const t = (s?.transcript || []).filter((e) => e.kind === 'agent').map((e) => e.text).join('');
+                return t.includes('no_change') ? t : null;
+              }), 60000);
+              const stillNoPending = await bridge('install/list', null).then((r) => !r.proposals.some((p) => p.status === 'pending' && p.pkg.id === 'dsh-hello'));
+              if (nochangeText && stillNoPending) {
+                rep.pass('相同字节 no_change：工具结果如实 no_change（不重载、不制造批准提案）');
+              } else {
+                rep.fail(`C5 no_change 面不符：text=${nochangeText ? 'no_change 回读' : 'missing'} noPending=${stillNoPending}`);
+              }
+              // ⑤ 卸载 → 回收站 → 清单消失
+              await bridge('conversation/prompt', { sessionId: sidC5, text: `MANAGED UNINSTALL marker：卸载该插件包
+PKGID=dsh-hello` });
+              const unText = await until(() => sessionById(sidC5).then((s) => {
+                const t = (s?.transcript || []).filter((e) => e.kind === 'agent').map((e) => e.text).join('');
+                return t.includes('UNINSTALL-DONE') ? t : null;
+              }), 60000);
+              const goneFromRoot = await until(() => (!fs.existsSync(path.join(pkgTarget5, 'plugin.json')) ? true : null), 15000);
+              const deactivatedEvt = await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-hello' && e.reason === 'removed', { timeoutMs: 15000, since: Date.now() - 20000 });
+              const targetGone = await until(async () => {
+                try {
+                  const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+                  return targets.some((x) => typeof x.url === 'string' && x.url.startsWith('deck-pkg://dsh-hello/')) ? null : true;
+                } catch { return null }
+              }, 15000);
+              if (unText && goneFromRoot && deactivatedEvt && targetGone) {
+                rep.pass('卸载全链清单消失：MCP plugin_uninstall → 用户根目录消失（回收站路径，失败即失败）+ deactivated(reason=removed) 存证 + deck-pkg://dsh-hello 上下文拆除');
+              } else {
+                rep.fail(`C5 卸载面不符：unText=${Boolean(unText)} goneFromRoot=${goneFromRoot} deactivated=${JSON.stringify(deactivatedEvt)} targetGone=${Boolean(targetGone)}`);
+              }
+            }
+            await bridge('conversation/end', { sessionId: sidC5 });
+          }
+        }
+      }
+    } catch (c5err) {
+      rep.fail(`段 C5 异常中止：${c5err instanceof Error ? c5err.message : String(c5err)}`);
     }
 
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +

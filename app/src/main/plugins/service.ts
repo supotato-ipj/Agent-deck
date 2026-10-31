@@ -78,14 +78,24 @@ export interface PluginHostOptions {
   droppedHost?: DroppedPackageHostPort
   /**
    * DSH 安装管线（工单334，ADR-0019/0025）：提交→待批→批准→转正→有界激活。
+   * 工单335 增更新/卸载/停用端口：备份根、回收站（卸载与旧版处置唯一删除路径）、
+   * 私有配置路径（旧数据继承事实源）、停用集缝（settings）。
    * 缺省 = 不装配安装面（离线装配 install 方法如实不可用）。
    */
   install?: {
     stagingRoot: string
     userRoot: string
+    /** 更新换代备份根（工单335；缺省 = 待装载区同级 `<stagingRoot>-backup`） */
+    backupRoot?: string
     /** 会话工作区包含校验的事实源（对话域会话 cwd；不采信自报） */
     sessionInfo(sessionId: string): { cwd: string; label: string | null } | null
     mountBoundMs?: number
+    /** 回收站端口（工单335，生产 = Electron shell.trashItem；失败不降级永久删除） */
+    trashItem?(dir: string): Promise<void>
+    /** 包私有配置文件路径（工单335 旧数据继承事实源，生产 = plugin-config `<id>.json`） */
+    pluginConfigFile?(id: string): string
+    /** 停用/启用端口（工单335，生产 = SettingsService.setCardEnabled） */
+    setCardEnabled?(id: string, enabled: boolean): unknown
   }
   /**
    * 结构化事件出口（工单331）：投放包生命周期事实（激活/停用/迁移/崩溃）落 DECK_EVENT_LOG，
@@ -213,12 +223,14 @@ export class PluginHostService extends Service {
     if (this.watchEnabled && (this.kernelRoots.length || this.droppedRoots.length)) {
       ctx.on('dispose', watchPluginRoots([...this.kernelRoots, ...this.droppedRoots], () => this.rescan(), { settleMs: this.settleMs }))
     }
-    // DSH 安装管线（工单334）：宿主端口=本服务（rescan + waitMountOutcome 有界激活缝）
+    // DSH 安装管线（工单334）：宿主端口=本服务（rescan + waitMountOutcome 有界激活缝）。
+    // 工单335：备份根/回收站/私有配置路径/停用集缝随装配下发（缺省 = 管理器内置安全默认）
     const installOpts = options.install
     this.installs = installOpts
       ? new PluginInstallManager({
           userRoot: installOpts.userRoot,
           stagingRoot: installOpts.stagingRoot,
+          ...(installOpts.backupRoot ? { backupRoot: installOpts.backupRoot } : {}),
           kernelRoots: [...this.kernelRoots],
           sessionInfo: installOpts.sessionInfo,
           log: (event) => this.log(event),
@@ -230,6 +242,9 @@ export class PluginHostService extends Service {
             waitMount: (id, timeoutMs) => this.waitMountOutcome(id, timeoutMs),
           },
           mountBoundMs: installOpts.mountBoundMs ?? 12_000,
+          ...(installOpts.trashItem ? { trashItem: installOpts.trashItem } : {}),
+          ...(installOpts.pluginConfigFile ? { pluginConfigFile: installOpts.pluginConfigFile } : {}),
+          ...(installOpts.setCardEnabled ? { setCardEnabled: installOpts.setCardEnabled } : {}),
         })
       : null
     // 挂载结果回报注册（工单334）：宿主壳页 title/崩溃即裁决在等者
