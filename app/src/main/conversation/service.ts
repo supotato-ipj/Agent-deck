@@ -465,7 +465,10 @@ export class ConversationService extends Service {
     this.loadMetadata()
     const install = await this.resolveBackendCached()
     if (!install) {
-      return { ok: false, error: this.backendInfo().detail }
+      const detail = this.backendInfo().detail
+      // 创建失败也落账（工单340 C3 真机断言面：解析落空 = 明确报错 + 存证在案）
+      this.logEvent({ type: 'conversation-create-failed', reason: 'backend-unresolved', message: detail })
+      return { ok: false, error: detail }
     }
     const id = randomUUID()
     const cwd = path.join(this.workspacesRoot, id)
