@@ -493,7 +493,8 @@ export interface ConversationSessionView {
   /** 工作目录绝对路径（resume 必需，元数据落盘字段之一） */
   cwd: string
   label: string
-  /** 聊天型恒 false（管理型是 #333 的面） */
+  /** 管理型会话标记（工单333）：true = 管理通道在场（MCP 注入 + 凭证在册）；
+   *  宿主重拉降级、续接、显式结束都翻 false——「可管理」标识不说谎（ADR-0018） */
   managed: boolean
   status: ConversationSessionStatus
   createdAt: number
@@ -812,12 +813,15 @@ export interface BridgeMethods {
   /** 打开/唤起对话窗（无 sessionId = 最近活跃会话；窗口已开则置前）。关窗只收起（隐藏），不回收进程 */
   'conversation/show': { request: { sessionId?: string }; response: { ok: boolean; error?: string } }
   /**
-   * 创建聊天型会话：解析后端描述符 → 会话专属空工作目录（userData 下）→ spawn
-   * （每会话一进程，Job Object kill-on-close）→ initialize → session/new（mcpServers:[],
-   * 不注入管理通道、不签会话凭证、不注入合成引导 prompt——ADR-0018）。
-   * 任一步失败：回收进程、状态 failed、错误如实呈现（全有或全无）。
+   * 创建会话（工单332 聊天型 / 工单333 管理型）：解析后端描述符 → 会话专属空工作目录
+   * （userData 下）→ spawn（每会话一进程，Job Object kill-on-close）→ initialize →
+   * session/new。聊天型（managed 缺省/false）mcpServers:[]，不注入管理通道、不签会话
+   * 凭证、不注入合成引导 prompt（ADR-0018）。管理型（managed:true，用户显式勾选授权）
+   * 全有或全无：先起独立专用 MCP 宿主监听 → 能力检查 → 铸仅内存凭证 → session/new 注入
+   * {type:"http",url,headers:[Authorization bearer]}；任一步失败不建会话行，返回明确错误
+   * + canRetryAsChat（「以聊天型创建」是用户显式选择，绝不静默降级——ADR-0018）。
    */
-  'conversation/create': { request: { label?: string }; response: { ok: boolean; session?: ConversationSessionView; error?: string } }
+  'conversation/create': { request: { label?: string; managed?: boolean }; response: { ok: boolean; session?: ConversationSessionView; error?: string; canRetryAsChat?: boolean } }
   /** 会话清单（含转写视图；面板重启后转写为空——正文归 DSH 权威，ADR-0018） */
   'conversation/list': { request: null; response: { sessions: ConversationSessionView[] } }
   /** 发送用户输入：session/prompt 流式（回复/工具/权限经 conversation/changed 回推） */

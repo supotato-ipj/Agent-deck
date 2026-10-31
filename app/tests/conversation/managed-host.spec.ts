@@ -18,15 +18,13 @@ function okSource(): ManagedProjectionSource {
   }
 }
 
-function makeDispatch(overrides: Partial<ManagedDispatch> = {}): ManagedDispatch & { calls: Array<{ name: string; args: unknown; sessionId: string }> } {
-  const calls: Array<{ name: string; args: unknown; sessionId: string }> = {}
-  void calls
+function makeDispatch(): ManagedDispatch & { calls: Array<{ name: string; args: unknown; sessionId: string }> } {
   const log: Array<{ name: string; args: unknown; sessionId: string }> = []
   const fn = async (name: string, args: unknown, ctx: { sessionId: string }) => {
     log.push({ name, args, sessionId: ctx.sessionId })
     return { ok: true, payload: { echoed: name } }
   }
-  return Object.assign(fn, { calls: log, ...overrides }) as ManagedDispatch & { calls: Array<{ name: string; args: unknown; sessionId: string }> }
+  return Object.assign(fn, { calls: log }) as ManagedDispatch & { calls: Array<{ name: string; args: unknown; sessionId: string }> }
 }
 
 async function post(url: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; json: any; headers: Record<string, string> }> {

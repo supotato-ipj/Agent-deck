@@ -243,8 +243,8 @@ export class BridgeService extends Service {
         return this.ctx.conversation.showSession(sessionId ?? undefined) as BridgeMethods[M]['response']
       }
       case 'conversation/create': {
-        const { label } = (payload ?? {}) as { label?: string }
-        return await this.ctx.conversation.create(label ?? undefined) as BridgeMethods[M]['response']
+        const { label, managed } = (payload ?? {}) as { label?: string; managed?: boolean }
+        return await this.ctx.conversation.create(label ?? undefined, { managed: Boolean(managed) }) as BridgeMethods[M]['response']
       }
       case 'conversation/list':
         return { sessions: this.ctx.conversation.sessions() } as BridgeMethods[M]['response']

@@ -22,16 +22,25 @@ import path from 'node:path'
 //   crash       session/new 响应后 50ms 硬退（exit code 3）——进程异常退出路径
 //   badjson     起手先发一行非法 JSON（协议错误路径），之后行为同 fullchain
 //   init-only   只应 initialize，其余请求一律挂起（initialize 超时路径用小超时驱动）
+// —— 管理型（工单333）：
+//   managed       session/new 接收 mcpServers[0]（{type:"http",url,headers}）并真连它：
+//                 MCP initialize → tools/list → tools/call(panel_snapshot) → tools/call
+//                 (app_quit，期待未知工具错误)，结果回进转写（SNAPSHOT-OK:/MCP-UNKNOWN-TOOL-OK:/
+//                 MCP-FAIL: 标记）
+//   managed-nomcp initialize 声明 mcpCapabilities.http:false（能力缺失 → 服务层全有或全无败）
+//   mcp-reject    session/new 带 mcpServers 时报 -32602（session/new 失败 → 服务层回滚）
 
-const INIT_RESULT = {
-  protocolVersion: 1,
-  agentInfo: { name: 'fake-acp-agent', version: '0.1.0' },
-  agentCapabilities: {
-    mcpCapabilities: { http: true },
-    promptCapabilities: { image: false, audio: false, embeddedContext: false },
-    sessionCapabilities: { close: {}, list: {}, resume: {} },
-  },
-  authMethods: [],
+function initResultFor(scenario) {
+  return {
+    protocolVersion: 1,
+    agentInfo: { name: 'fake-acp-agent', version: '0.1.0' },
+    agentCapabilities: {
+      mcpCapabilities: { http: scenario !== 'managed-nomcp' },
+      promptCapabilities: { image: false, audio: false, embeddedContext: false },
+      sessionCapabilities: { close: {}, list: {}, resume: {} },
+    },
+    authMethods: [],
+  }
 }
 
 /**
@@ -47,6 +56,7 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
   let cancelled = false
   let sessionNewDone = false
   let slowTimer = null
+  let injectedMcp = null
   const pendingTimers = new Set()
   const trace = opts.trace || (() => {})
 
@@ -69,10 +79,18 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
       switch (frame.method) {
         case 'initialize':
           // init-only：挂起不应答（initialize 超时路径的驱动场景）
-          if (scenario !== 'init-only') reply(frame.id, INIT_RESULT)
+          if (scenario !== 'init-only') reply(frame.id, initResultFor(scenario))
           return
         case 'session/new':
           sessionNewDone = true
+          // 管理型：记录注入的 mcpServers[0]（工单333）；mcp-reject 场景带注入即报错（回滚路径）
+          if (Array.isArray(frame.params?.mcpServers) && frame.params.mcpServers.length > 0) {
+            if (scenario === 'mcp-reject') {
+              replyError(frame.id, -32602, 'Invalid params: mcp server rejected (fake mcp-reject)')
+              return
+            }
+            injectedMcp = frame.params.mcpServers[0]
+          }
           reply(frame.id, { sessionId: 'fake-session-1', configOptions: [] })
           if (scenario === 'crash') later(() => exit(3), 50)
           return
@@ -115,6 +133,10 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
     const finish = (stopReason) => {
       promptOpen = false
       reply(promptId, { stopReason })
+    }
+    if (scenario === 'managed') {
+      void runManagedTurn(promptId, finish)
+      return
     }
     if (scenario === 'permission') {
       update({ sessionUpdate: 'tool_call', toolCallId: 'call_1', title: 'Fake escalation write', kind: 'edit', status: 'in_progress' })
@@ -164,6 +186,67 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
   }
 
   const permissionWaiters = []
+
+  // —— 管理型 turn（工单333）：真连注入的回环 MCP 端点（Streamable HTTP + bearer），
+  //    完整走 initialize → tools/list → tools/call（快照读 + 写类名两发），结果进转写。
+  async function runManagedTurn(promptId, finish) {
+    // 累计快照语义（探针实录：同 messageId 的 chunk 是整条消息的累计快照——探针 #330/#332）
+    let mcpText = ''
+    const chunk = (text) => {
+      mcpText += (mcpText ? ' ' : '') + text
+      update({ sessionUpdate: 'agent_message_chunk', messageId: 'm-mcp', content: { type: 'text', text: mcpText } })
+    }
+    update({ sessionUpdate: 'tool_call', toolCallId: 'call_snap', title: 'panel_snapshot', kind: 'other', status: 'in_progress' })
+    try {
+      if (!injectedMcp || injectedMcp.type !== 'http') throw new Error('no injected http mcp server')
+      let mcpSession = null
+      const rpc = async (method, params, withSession = true) => {
+        const headers = { 'Content-Type': 'application/json' }
+        for (const hd of injectedMcp.headers ?? []) headers[hd.name] = hd.value
+        if (withSession && mcpSession) headers['mcp-session-id'] = mcpSession
+        const res = await fetch(injectedMcp.url, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: nextId++ + 10000, method, params }) })
+        const sid = res.headers.get('mcp-session-id')
+        if (sid) mcpSession = sid
+        const body = await res.json()
+        return { status: res.status, body }
+      }
+      const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake-acp-agent', version: '0.1.0' } }, false)
+      if (!init.body.result) throw new Error(`MCP initialize 失败: ${JSON.stringify(init.body).slice(0, 120)}`)
+      await rpc('notifications/initialized', {}, false)
+      const list = await rpc('tools/list', {})
+      const names = (list.body.result?.tools ?? []).map((t) => t.name)
+      const call = await rpc('tools/call', { name: 'panel_snapshot', arguments: {} })
+      const toolText = call.body.result?.content?.[0]?.text ?? ''
+      let keys = []
+      try { keys = Object.keys(JSON.parse(toolText)) } catch { /* 快照不是对象：标记里如实空 */ }
+      update({
+        sessionUpdate: 'tool_call_update', toolCallId: 'call_snap', status: call.body.result?.isError ? 'failed' : 'completed',
+        content: [{ type: 'content', content: { type: 'text', text: `tools=${names.join(',')}` } }],
+      })
+      chunk(`SNAPSHOT-OK:${keys.join('|')}|TOOLS=${names.length}`)
+    } catch (err) {
+      update({ sessionUpdate: 'tool_call_update', toolCallId: 'call_snap', status: 'failed' })
+      chunk(`MCP-FAIL:${err instanceof Error ? err.message : String(err)}`)
+      finish('end_turn')
+      return
+    }
+    // 写类工具名（投影外）：期待宿主封闭集门的「未知工具」错误——不静默放行
+    try {
+      const headers = { 'Content-Type': 'application/json' }
+      for (const hd of injectedMcp.headers ?? []) headers[hd.name] = hd.value
+      const res = await fetch(injectedMcp.url, {
+        method: 'POST', headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: nextId++ + 10000, method: 'tools/call', params: { name: 'app_quit', arguments: {} } }),
+      })
+      const body = await res.json()
+      if (body.error && /未知工具/.test(body.error.message)) chunk(`MCP-UNKNOWN-TOOL-OK:app_quit`)
+      else chunk(`MCP-WRITE-NOT-REJECTED:${JSON.stringify(body).slice(0, 120)}`)
+    } catch (err) {
+      chunk(`MCP-FAIL-2:${err instanceof Error ? err.message : String(err)}`)
+    }
+    finish('end_turn')
+  }
+
   function resolvePermission(frame) {
     const w = permissionWaiters.shift()
     if (!w) return
