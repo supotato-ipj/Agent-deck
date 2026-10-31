@@ -77,4 +77,13 @@ describe('管理型会话凭证登记处（工单333）', () => {
     // toJSON 也不得漏 token
     expect((reg as unknown as { toJSON?: () => unknown }).toJSON).toBeUndefined()
   })
+
+  it('bearerOf：仅内存查询缝——在册返回完整头值，revoke 后为 null，未知会话为 null（真机验收观察口用）', () => {
+    const reg = new SessionCredentialRegistry()
+    const t = reg.issue('s1')
+    expect(reg.bearerOf('s1')).toBe(t)
+    expect(reg.bearerOf('ghost')).toBeNull()
+    reg.revoke('s1')
+    expect(reg.bearerOf('s1')).toBeNull()
+  })
 })

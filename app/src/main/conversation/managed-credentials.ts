@@ -54,4 +54,14 @@ export class SessionCredentialRegistry {
   size(): number {
     return this.byToken.size
   }
+
+  /**
+   * 会话 → 当前完整 Authorization 头值（仅内存查询；不出进程边界）。
+   * 生产零调用方；真机验收观察口（app/accept/lib/managed-probe.js，--accept-chat 门控）
+   * 经它向电池转交 bearer 以驱动「旧凭证复用被拒 401」断言——凭证本体仍绝不落盘。
+   */
+  bearerOf(sessionId: string): string | null {
+    const token = this.bySession.get(sessionId)
+    return token ? `Bearer ${token}` : null
+  }
 }
