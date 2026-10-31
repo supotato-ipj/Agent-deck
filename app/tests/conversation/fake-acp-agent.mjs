@@ -26,7 +26,10 @@ import path from 'node:path'
 //   managed       session/new 接收 mcpServers[0]（{type:"http",url,headers}）并真连它：
 //                 MCP initialize → tools/list → tools/call(panel_snapshot) → tools/call
 //                 (app_quit，期待未知工具错误)，结果回进转写（SNAPSHOT-OK:/MCP-UNKNOWN-TOOL-OK:/
-//                 MCP-FAIL: 标记）
+//                 MCP-FAIL: 标记）；session/new 回复后即刻探活宿主（initialize+tools/list，
+//                 t330 实录：真实 DSH 拿到 mcpServers 即刻探活——工单340 冒烟门的观察对象）
+//   managed-nosmoke session/new 接收注入但**不探活宿主**（工单340 冒烟超时路径驱动：
+//                 模拟某未知版本忽略/搞砸 MCP 注入）
 //   managed-nomcp initialize 声明 mcpCapabilities.http:false（能力缺失 → 服务层全有或全无败）
 //   mcp-reject    session/new 带 mcpServers 时报 -32602（session/new 失败 → 服务层回滚）
 
@@ -69,6 +72,25 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
   const reply = (id, result) => send({ jsonrpc: '2.0', id, result })
   const replyError = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } })
 
+  // 工单340 冒烟门观察对象：对注入的回环 MCP 宿主做最小探活（initialize → tools/list，
+  // 带 bearer）。真实 DSH 在 session/new 后即刻做同一链路（t330 实录先 server/discover，
+  // 方言请求宿主按 -32601 回，不影响 initialize/tools/list 两发的到达）。
+  async function probeInjectedMcp(mcp) {
+    if (!mcp || mcp.type !== 'http') return
+    const headers = { 'Content-Type': 'application/json' }
+    for (const hd of mcp.headers ?? []) headers[hd.name] = hd.value
+    try {
+      const init = await fetch(mcp.url, {
+        method: 'POST', headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 90001, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake-acp-agent', version: '0.1.0' } } }),
+      })
+      const sid = init.headers.get('mcp-session-id')
+      if (sid) headers['mcp-session-id'] = sid
+      await fetch(mcp.url, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) })
+      await fetch(mcp.url, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: 90002, method: 'tools/list', params: {} }) })
+    } catch { /* 宿主不可达：探活落空，冒烟门按超时处置 */ }
+  }
+
   const handle = (frame) => {
     received.push(frame)
     trace(frame)
@@ -90,9 +112,25 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
               return
             }
             injectedMcp = frame.params.mcpServers[0]
+            // 工单340：真实 DSH 拿到 mcpServers 即刻探活宿主（t330 实录）——managed 场景
+            // 在回复后 10ms 探活（initialize+tools/list）；managed-nosmoke 场景保持沉默。
+            if (scenario === 'managed') {
+              const target = injectedMcp
+              later(() => { void probeInjectedMcp(target) }, 10)
+            }
           }
           reply(frame.id, { sessionId: 'fake-session-1', configOptions: [] })
-          if (scenario === 'crash') later(() => exit(3), 50)
+          // 工单340：crash 场景带注入时先探活再崩（对齐真实时序：即刻探活在前、崩溃在后——
+          // 否则冒烟门等不到探活 → 创建全有或全无失败，测不到「ready 后 crash」生命周期）
+          if (scenario === 'crash') {
+            const hasInjection = Array.isArray(frame.params?.mcpServers) && frame.params.mcpServers.length > 0
+            if (hasInjection && injectedMcp) {
+              const target = injectedMcp
+              void probeInjectedMcp(target).finally(() => { later(() => exit(3), 50) })
+            } else {
+              later(() => exit(3), 50)
+            }
+          }
           return
         case 'session/prompt': {
           if (closed) { replyError(frame.id, -32602, `Invalid params: unknown session: ${frame.params?.sessionId}`); return }

@@ -1640,7 +1640,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 60,
+          "estSeconds": 30,
           "areas": [
             "sessions"
           ]
@@ -1654,7 +1654,21 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 60,
+          "estSeconds": 30,
+          "areas": [
+            "sessions"
+          ]
+        },
+        {
+          "seg": "C3",
+          "ticket": 340,
+          "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
           "areas": [
             "sessions"
           ]
@@ -1664,7 +1678,7 @@
         "sessions"
       ],
       "scope": true,
-      "lastMeasuredSeconds": 23,
+      "lastMeasuredSeconds": 31,
       "lastMeasuredAt": "2026-10-31"
     }
   ],
