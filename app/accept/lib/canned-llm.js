@@ -38,7 +38,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
 
       // 从尾向前找带已知标记的用户消息（DSH 会把一轮输入拆成多条 user 消息，真实文本在前）
       const users = (body.messages || []).filter((m) => m.role === 'user');
-      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL', 'MANAGED UPDATE', 'MANAGED NOCHANGE', 'MANAGED UNINSTALL'];
+      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL', 'MANAGED UPDATE', 'MANAGED NOCHANGE', 'MANAGED UNINSTALL', 'MANAGED MEDIA'];
       let cleanLastUser = '';
       for (let i = users.length - 1; i >= 0; i--) {
         const c = typeof users[i].content === 'string' ? users[i].content : JSON.stringify(users[i].content);
@@ -171,16 +171,88 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
         } else {
           plan = { kind: 'text', out: 'UPDATE-SUBMITTED:' + toolText.slice(0, 260) };
         }
-      } else if (marker('MANAGED UNINSTALL')) {
-        // 工单335 卸载真机编排：0=MCP plugin_uninstall{packageId}；≥1=回显结果（回收站路径）
-        const pkgIdU = ((cleanLastUser.match(/PKGID=(\S+)/) || [])[1] || 'dsh-hello').trim();
-        if (!turnTool) {
-          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_uninstall'));
+      } else if (marker('MANAGED MEDIA')) {
+        // 工单336 媒体卡全链真机编排（与 MANAGED INSTALL 同族状态机，首个敏感权限闭环）：
+        // 0=写 plugin.json（permissions=['media.read'] + capabilities=['media']——敏感通路提交）；
+        // 1=写 card.js（媒体信息卡：view.media 脱敏快照渲染 + deckHost.media.thumbnail 受控缩略图
+        //   + 无会话/不可用明确态）；2=MCP plugin_install_submit{sourceDir}；≥3=回显结果。
+        // PKGDIR/PKGID 语义同族（PKGDIR 行尾整行——路径含空格）。
+        const um = cleanLastUser;
+        const pkgDir = ((um.match(/PKGDIR=(.+)/) || [])[1] || '').trim();
+        const pkgId = ((um.match(/PKGID=(\S+)/) || [])[1] || 'dsh-media').trim();
+        const toolCountM = msgs.filter((m) => m.role === 'tool').length;
+        // 卡片源码行（外层 JS 串内 \" = 卡源里的双引号 HTML 属性；卡源 JS 一律单引号串）
+        const cardLines = [
+          "const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))",
+          "const fmt = (ms) => { if (!Number.isFinite(ms) || ms < 0) ms = 0; const sec = Math.floor(ms / 1000); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0') }",
+          "const thumbCache = {}",
+          "function pick(media) {",
+          "  if (!media || media.available === false) return { state: 'unavailable' }",
+          "  if (!media.sessions || media.sessions.length === 0) return { state: 'empty' }",
+          "  const sel = media.selectedKey ? media.sessions.find((x) => x.key === media.selectedKey) : null",
+          "  return { state: 'live', s: sel || media.sessions[0] }",
+          "}",
+          "function applyThumb(el, out) {",
+          "  if (!el) return",
+          "  if (out && out.ok && out.dataUrl) el.innerHTML = '<img class=\"media-thumb-img\" src=\"' + out.dataUrl + '\" />'",
+          "  else if (el) el.textContent = '缩略图不可用'",
+          "}",
+          "async function fetchThumb(key, el) {",
+          "  if (thumbCache[key] === undefined) {",
+          "    try { thumbCache[key] = await window.deckHost.media.thumbnail(key) } catch (err) { thumbCache[key] = { ok: false, code: 'thumbnail_error' } }",
+          "  }",
+          "  applyThumb(el, thumbCache[key])",
+          "}",
+          "function rowHtml(s, selectedKey) {",
+          "  const tl = s.timeline || {}",
+          "  const pos = Math.min(Math.max((tl.positionMs || 0) + (Date.now() - (tl.lastUpdatedTimeMs || Date.now())), 0), tl.endTimeMs || 0)",
+          "  return '<div class=\"media-session' + (s.key === selectedKey ? ' media-selected' : '') + '\" data-key=\"' + esc(s.key) + '\">' +",
+          "    '<span class=\"media-title\">' + esc((s.media && s.media.title) || '（无曲名）') + '</span>' +",
+          "    '<span class=\"media-artist\">' + esc((s.media && s.media.artist) || '') + '</span>' +",
+          "    '<span class=\"media-status\">' + esc(s.status) + '</span>' +",
+          "    '<span class=\"media-position\">' + fmt(pos) + ' / ' + fmt(tl.endTimeMs || 0) + '</span>' +",
+          "    '<div class=\"media-thumb\">…</div></div>'",
+          "}",
+          "export default {",
+          "  mount(host) {",
+          "    this._root = document.createElement('div')",
+          "    this._root.className = 'media-card'",
+          "    this._root.textContent = '媒体卡启动中'",
+          "    host.el.textContent = ''",
+          "    host.el.appendChild(this._root)",
+          "    window.__mediaCardMounted = true",
+          "    this.render(host.view)",
+          "  },",
+          "  update(host) { this.render(host.view) },",
+          "  render(view) {",
+          "    const root = this._root",
+          "    const media = view && view.media",
+          "    if (!media || media.available === false) { root.className = 'media-card media-unavailable'; root.textContent = '媒体不可用'; return }",
+          "    if (!media.sessions || media.sessions.length === 0) { root.className = 'media-card media-empty'; root.textContent = '没有正在播放的媒体'; return }",
+          "    root.className = 'media-card media-live'",
+          "    root.innerHTML = media.sessions.map((s) => rowHtml(s, media.selectedKey)).join('')",
+          "    root.querySelectorAll('.media-session').forEach((el) => {",
+          "      const s = media.sessions.find((x) => x.key === el.getAttribute('data-key'))",
+          "      if (s && s.media && s.media.thumbPresent) void fetchThumb(s.key, el.querySelector('.media-thumb'))",
+          "    })",
+          "  },",
+          "}",
+        ];
+        const cardJs = cardLines.join('\n') + '\n';
+        const manifestM = JSON.stringify({ id: pkgId, name: 'DSH MEDIA', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['media'], permissions: ['media.read'] }, null, 2);
+        if (!pkgDir) {
+          plan = { kind: 'text', out: 'MEDIA-MISSING-PKGDIR' };
+        } else if (toolCountM === 0) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/plugin.json', content: manifestM }) };
+        } else if (toolCountM === 1) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/card.js', content: cardJs }) };
+        } else if (toolCountM === 2) {
+          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_install_submit'));
           plan = mcpTool
-            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ packageId: pkgIdU }) }
-            : { kind: 'text', out: 'UNINSTALL-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ sourceDir: pkgDir }) }
+            : { kind: 'text', out: 'MEDIA-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
         } else {
-          plan = { kind: 'text', out: 'UNINSTALL-DONE:' + toolText.slice(0, 200) };
+          plan = { kind: 'text', out: 'MEDIA-SUBMITTED:' + toolText.slice(0, 260) };
         }
       } else if (marker('PROBE OK')) {
         plan = { kind: 'text', out: 'PROBE OK' };

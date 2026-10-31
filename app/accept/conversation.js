@@ -41,6 +41,7 @@ const { cdpPortFor } = require('./lib/registry');
 const { createEventTape } = require('./lib/event-tape');
 const { createPanelHandle } = require('./lib/panel-control');
 const { startCannedLlm } = require('./lib/canned-llm');
+const { startMediaFixture } = require('./lib/media-fixture');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '332-conversation-events.jsonl');
@@ -101,6 +102,11 @@ async function cdpEvalOn(pageTitle, expression, timeoutMs = 10000) {
   const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
   const target = targets.find((t) => t.title === pageTitle);
   if (!target) throw new Error(`CDP 找不到页面目标：${pageTitle}`);
+  return cdpEvalTarget(target, expression, timeoutMs);
+}
+
+// 按目标对象直接求值（工单336 包页断言：deck-pkg://<id>/ 目标按 url 前缀甄别）
+async function cdpEvalTarget(target, expression, timeoutMs = 10000) {
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   try {
     await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('CDP WebSocket 连接失败')); });
@@ -115,6 +121,12 @@ async function cdpEvalOn(pageTitle, expression, timeoutMs = 10000) {
     }
     return reply.result.result.value;
   } finally { ws.close(); }
+}
+
+/** 包页 CDP 目标（按 url 前缀甄别；找不到 = null——轮询用不抛错） */
+async function pkgTarget(urlPrefix) {
+  const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+  return targets.find((t) => typeof t.url === 'string' && t.url.startsWith(urlPrefix)) || null;
 }
 
 /** 桥接 invoke（经面板页真实通路；与用户点击渲染层同一入口）；timeoutMs 缺省 10s，
@@ -733,6 +745,139 @@ PKGID=dsh-hello` });
       }
     } catch (c5err) {
       rep.fail(`段 C5 异常中止：${c5err instanceof Error ? c5err.message : String(c5err)}`);
+    }
+
+    // —— 段 C6（工单336，ADR-0025 媒体节）：媒体信息卡与 media.read——首个敏感权限完整闭环。
+    // 真实 DSH + 罐头 LLM：罐头写 media 包（permissions=['media.read'] + capabilities=['media']）
+    // → MCP plugin_install_submit → 提案权限栏 media.read（敏感通路不再 permission_deferred）
+    // → 批准落授权账（id+权限集合+代码哈希）→ 转正激活 → 卡真显示（真机需真实 SMTC 会话：
+    // 隔离 profile Edge 播本地小 wav，低音量 0.04、循环 5s 文件，测完 taskkill 进程树）→
+    // 受控缩略图链（deckHost.media.thumbnail → Broker 校验 → 字节副本）+ 审计存证 →
+    // 撤销即停（授权账撤销 → rescan 停用缝 → deactivated(permission-revoked) + CDP 目标消失）。
+    // 执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）。无会话/无缩略图/会话退出=卡片明确态
+    // （环境可能有在播会话——empty 态断言为「明确态二选一」，live 断言锚定夹具曲名）。
+    rep.beginSegment('C6');
+    let mediaFixture = null;
+    try {
+      const userPluginsRoot6 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      const stagingRoot6 = path.join(userData, 'plugins-staging');
+      // 夹具清场（battery-owned id：dsh-media；上轮撤销后用户根无目录属正常，残留则清）
+      try { fs.rmSync(path.join(userPluginsRoot6, 'dsh-media'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      try { fs.rmSync(stagingRoot6, { recursive: true, force: true }); } catch { /* 尽力 */ }
+
+      const createC6 = await bridge('conversation/create', { managed: true, label: 'accept-336-media' });
+      if (!createC6.ok) {
+        rep.fail(`C6 管理型会话创建失败：${createC6.error}`);
+      } else {
+        const sidC6 = createC6.session.id;
+        const sessC6 = await sessionById(sidC6);
+        if (!sessC6 || !sessC6.cwd) {
+          rep.fail('C6 会话视图/cwd 缺失');
+        } else {
+          const pkgDirM = path.join(sessC6.cwd, 'dsh-media-pkg');
+          // ① 提交：罐头写 media 包（敏感权限清单）→ MCP plugin_install_submit
+          await bridge('conversation/prompt', { sessionId: sidC6, text: `MANAGED MEDIA marker：落带 media.read 权限的媒体信息卡包并经 plugin_install_submit 提交安装
+PKGDIR=${pkgDirM}` });
+          const propM = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-media') ?? null, 90000);
+          if (!propM) {
+            const vdiagM = await sessionById(sidC6);
+            rep.note(`C6 诊断 transcript=${JSON.stringify((vdiagM ? vdiagM.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`)).slice(0, 700)}`);
+            try {
+              const diagsM = (llm.requests ? llm.requests().slice(-9) : []).map((r) => r.diag);
+              rep.note(`C6 诊断 canned=${JSON.stringify(diagsM).slice(0, 700)}`);
+            } catch { /* 诊断尽力 */ }
+            rep.fail('C6 media.read 提案未出现（90s）——罐头编排或 MCP 提交失败');
+          } else {
+            const permsOk = Array.isArray(propM.pkg.permissions) && propM.pkg.permissions.length === 1 && propM.pkg.permissions[0] === 'media.read';
+            const stagingOk = fs.existsSync(path.join(stagingRoot6, propM.proposalId, 'plugin.json'));
+            const userRootClean = fs.existsSync(path.join(userPluginsRoot6, 'dsh-media')) === false;
+            if (permsOk && stagingOk && userRootClean && propM.source.backend === 'dsh') {
+              rep.pass(`media.read 提案数据面（敏感通路打开）：dsh-media@${propM.pkg.version} pending，权限栏 [media.read]（不再 permission_deferred），staging 副本在案、用户根未动、来源 dsh 会话`);
+            } else {
+              rep.fail(`C6 提案面不符：perms=${JSON.stringify(propM.pkg.permissions)} staging=${stagingOk} userRootClean=${userRootClean} backend=${propM.source.backend}`);
+            }
+            // ② 批准（同一份字节哈希绑定 → 授权账落账）→ 转正激活 → 桌面真显示
+            const gateT6 = Date.now();
+            const beforeHash6 = propM.hash;
+            const approvedM = await bridge('install/approve', { proposalId: propM.proposalId }, 30000);
+            const activatedM = await tape.wait('dropped-package-activated', (e) => e.id === 'dsh-media', { timeoutMs: 30000, since: gateT6 });
+            const targetM = await until(async () => {
+              const t = await pkgTarget('deck-pkg://dsh-media/');
+              return t && t.title === 'deck-pkg:ready' ? t : null;
+            }, 20000);
+            if (approvedM && approvedM.ok === true && approvedM.status === 'activated'
+              && activatedM && targetM) {
+              rep.pass(`批准全链（授权账绑定 id+权限+代码哈希 ${beforeHash6.slice(0, 12)}）→ 转正激活（generation=${activatedM.generation}）→ deck-pkg://dsh-media title=deck-pkg:ready`);
+            } else {
+              rep.fail(`C6 批准链不符：approved=${JSON.stringify(approvedM)} activated=${Boolean(activatedM)} target=${Boolean(targetM)}`);
+            }
+            // ③ 卡真显示（明确状态面）：Edge 未起 → 卡呈现明确态（环境无在播会话=空态文案；
+            //    有在播会话=会话行——两者都是可表示状态）；起真实 SMTC 夹具 → 夹具曲名上卡。
+            const stateOk = await until(async () => {
+              try {
+                const t = await pkgTarget('deck-pkg://dsh-media/');
+                if (!t) return null;
+                const v = await cdpEvalTarget(t, '(() => { const c = document.querySelector(".media-card"); return c ? (c.className.includes("media-empty") ? "empty" : (document.querySelectorAll(".media-session").length > 0 ? "live" : "boot")) : "none" })()', 8000);
+                return v === 'empty' || v === 'live' ? v : null;
+              } catch { return null }
+            }, 20000);
+            if (stateOk) rep.pass(`卡片明确状态面（Edge 未起）：${stateOk === 'empty' ? '无会话明确态「没有正在播放的媒体」' : '环境在播会话的会话行'}——无会话/会话在场均可表示`);
+            else rep.fail('C6 卡片未呈现明确状态（boot/none 超 20s）——view.media 未达包页或卡未挂载');
+            try { mediaFixture = await startMediaFixture(); } catch (errM) {
+              rep.fail(`C6 媒体夹具起不来：${errM instanceof Error ? errM.message : String(errM)}`);
+            }
+            if (mediaFixture) {
+              rep.note(`C6 媒体夹具：Edge pid=${mediaFixture.pid} 低音量 0.04 循环 5s wav（测完进程树强杀）`);
+              const liveOk = await until(async () => {
+                try {
+                  const t = await pkgTarget('deck-pkg://dsh-media/');
+                  if (!t) return null;
+                  return await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent || "?" : null })()', 8000);
+                } catch { return null }
+              }, 45000);
+              if (liveOk === 'PLAYING') {
+                rep.pass('卡真显示全部会话：夹具 SMTC 会话上卡（title=T336 Accept Track，status=PLAYING，position+lastUpdatedTime 插值走时长行）');
+              } else {
+                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)}——桥/快照/投喂链断点在 C6 诊断`);
+              }
+              // ④ 受控缩略图链 + 审计存证
+              const thumbOk = await until(async () => {
+                try {
+                  const t = await pkgTarget('deck-pkg://dsh-media/');
+                  if (!t) return null;
+                  return await cdpEvalTarget(t, '(() => { const img = document.querySelector(".media-thumb-img"); return img && String(img.src || "").startsWith("data:image/") ? String(img.src).slice(0, 30) : null })()', 8000);
+                } catch { return null }
+              }, 30000);
+              const auditThumb = await tape.wait('media-audit-aggregate', (e) => e.packageId === 'dsh-media' && e.counts && Number(e.counts.thumbnail) >= 1, { timeoutMs: 20000, since: Date.now() - 30000 });
+              if (thumbOk && auditThumb) {
+                rep.pass(`受控缩略图链：deckHost.media.thumbnail → Broker 类型/大小校验 → 字节副本 dataURL 上卡（${String(thumbOk).slice(0, 22)}…）+ media-audit-aggregate 存证（thumbnail 计数≥1，按包聚合不含媒体元数据）`);
+              } else {
+                rep.fail(`C6 缩略图链不符：thumb=${Boolean(thumbOk)} audit=${JSON.stringify(auditThumb)}`);
+              }
+              // ⑤ 撤销即停（授权账撤销 → rescan 停用缝 → 上下文拆除；grants 行留痕）
+              const gateR6 = Date.now();
+              const revoked = await bridge('install/revoke', { packageId: 'dsh-media' });
+              const deactivatedM = await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-media' && e.reason === 'permission-revoked', { timeoutMs: 15000, since: gateR6 });
+              const targetGone6 = await until(async () => ((await pkgTarget('deck-pkg://dsh-media/')) ? null : true), 15000);
+              const grants6 = await bridge('install/grants', null);
+              const row6 = (grants6 && grants6.grants || []).find((g) => g.packageId === 'dsh-media');
+              if (revoked && revoked.ok === true && deactivatedM && targetGone6 && row6 && row6.revokedAt > 0) {
+                rep.pass(`撤销即停（撤销即断供零窗口）：install/revoke → deactivated(reason=permission-revoked) 存证 + deck-pkg://dsh-media 上下文拆除 + 授权账行 revokedAt 在案（审计可见）`);
+              } else {
+                rep.fail(`C6 撤销面不符：revoked=${JSON.stringify(revoked)} deactivated=${JSON.stringify(deactivatedM)} targetGone=${Boolean(targetGone6)} grantRow=${JSON.stringify(row6)}`);
+              }
+            }
+          }
+          await bridge('conversation/end', { sessionId: sidC6 });
+        }
+      }
+    } catch (c6err) {
+      rep.fail(`段 C6 异常中止：${c6err instanceof Error ? c6err.message : String(c6err)}`);
+    } finally {
+      // 媒体纪律：夹具进程树强杀 + 临时 profile 删除 + 本地服务关停（用完即杀，零残留）
+      try { if (mediaFixture) await mediaFixture.stop(); } catch { /* 尽力 */ }
     }
 
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +
