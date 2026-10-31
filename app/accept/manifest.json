@@ -1683,7 +1683,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 90,
+          "estSeconds": 30,
           "areas": [
             "sessions",
             "plugins"
@@ -1708,7 +1708,7 @@
         "sessions"
       ],
       "scope": true,
-      "lastMeasuredSeconds": 42,
+      "lastMeasuredSeconds": 45,
       "lastMeasuredAt": "2026-10-31"
     }
   ],
