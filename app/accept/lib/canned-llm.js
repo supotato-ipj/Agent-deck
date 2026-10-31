@@ -38,7 +38,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
 
       // 从尾向前找带已知标记的用户消息（DSH 会把一轮输入拆成多条 user 消息，真实文本在前）
       const users = (body.messages || []).filter((m) => m.role === 'user');
-      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL'];
+      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL', 'MANAGED UPDATE', 'MANAGED NOCHANGE', 'MANAGED UNINSTALL'];
       let cleanLastUser = '';
       for (let i = users.length - 1; i >= 0; i--) {
         const c = typeof users[i].content === 'string' ? users[i].content : JSON.stringify(users[i].content);
@@ -135,6 +135,52 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
             : { kind: 'text', out: 'INSTALL-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
         } else {
           plan = { kind: 'text', out: 'INSTALL-SUBMITTED:' + toolText.slice(0, 260) };
+        }
+      } else if (marker('MANAGED UPDATE') || marker('MANAGED NOCHANGE')) {
+        // 工单335 更新全链真机编排（与 MANAGED INSTALL 同族状态机）：
+        // UPDATE：0=写 plugin.json（version 1.1.0）；1=写 card.js（v2 文本）；2=MCP
+        //   plugin_update_submit{packageId,sourceDir}；≥3=回显结果（提案 pending 带 diff）。
+        // NOCHANGE：同字节直提（上一轮 UPDATE 落盘的包目录已批准进用户根，字节完全一致）
+        //   → 工具结果如实 no_change（不重载、不制造提案）。
+        const um = cleanLastUser;
+        const pkgDir = ((um.match(/PKGDIR=(.+)/) || [])[1] || '').trim();
+        const pkgId = ((um.match(/PKGID=(\S+)/) || [])[1] || 'dsh-hello').trim();
+        const nochange = marker('MANAGED NOCHANGE');
+        const toolCountU = msgs.filter((m) => m.role === 'tool').length;
+        const findMcpTool = (needle) => (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes(needle));
+        if (!pkgDir) {
+          plan = { kind: 'text', out: 'UPDATE-MISSING-PKGDIR' };
+        } else if (nochange) {
+          if (toolCountU === 0) {
+            const mcpTool = findMcpTool('plugin_update_submit');
+            plan = mcpTool
+              ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ packageId: pkgId, sourceDir: pkgDir }) }
+              : { kind: 'text', out: 'UPDATE-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+          } else {
+            plan = { kind: 'text', out: 'UPDATE-SUBMITTED:' + toolText.slice(0, 260) };
+          }
+        } else if (toolCountU === 0) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/plugin.json', content: JSON.stringify({ id: pkgId, name: 'DSH HELLO', version: '1.1.0', entry: './card.js', hostApiVersion: 1, capabilities: ['clock'], permissions: [] }, null, 2) }) };
+        } else if (toolCountU === 1) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/card.js', content: 'export default { mount(host) { host.el.textContent = "hello from dsh v2" } }\n' }) };
+        } else if (toolCountU === 2) {
+          const mcpTool = findMcpTool('plugin_update_submit');
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ packageId: pkgId, sourceDir: pkgDir }) }
+            : { kind: 'text', out: 'UPDATE-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'UPDATE-SUBMITTED:' + toolText.slice(0, 260) };
+        }
+      } else if (marker('MANAGED UNINSTALL')) {
+        // 工单335 卸载真机编排：0=MCP plugin_uninstall{packageId}；≥1=回显结果（回收站路径）
+        const pkgIdU = ((cleanLastUser.match(/PKGID=(\S+)/) || [])[1] || 'dsh-hello').trim();
+        if (!turnTool) {
+          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_uninstall'));
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ packageId: pkgIdU }) }
+            : { kind: 'text', out: 'UNINSTALL-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'UNINSTALL-DONE:' + toolText.slice(0, 200) };
         }
       } else if (marker('PROBE OK')) {
         plan = { kind: 'text', out: 'PROBE OK' };
