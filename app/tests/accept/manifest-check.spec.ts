@@ -324,7 +324,9 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     //   124 → 125：工单340 增段——332-conversation +C3 浮动版本与失败处置（bogus 后端档
     //   失败非破坏 + 全新数据目录手势；C1/C2 est 60→30 同 PR 校准，#333 健康轮 took=13.0/9.7s）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(125)
+    // 125 → 126：工单334 增段——332-conversation +C4 DSH 全链创建零权限插件（执行序 C1→C2→C4→C3；
+    // C3 是失败注入段必须最后）；预算 120→240（C4 est 90 实跑佐证随轮入库，#333 预算上调先例）
+    expect(total).toBe(126)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
