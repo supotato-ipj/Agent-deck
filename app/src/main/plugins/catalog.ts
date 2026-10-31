@@ -1,3 +1,4 @@
+import { DROPPED_PACKAGE_BUDGET } from './budget'
 /**
  * 插件契约目录（工单331，ADR-0025 拍板）：机器可读的**单一正典**。
  *
@@ -96,6 +97,8 @@ export const PACKAGE_RESOURCE_LIMITS = {
   manifestBytes: 64 * 1024,
   /** 插件私有状态单命名空间上限（与 config-store PLUGIN_CONFIG_MAX_BYTES 同源口径） */
   privateConfigBytes: 64 * 1024,
+  /** 工单341 资源预算（budget.ts 单一正典；C10 真机轮 0/1/5/10 包实测标定） */
+  ...DROPPED_PACKAGE_BUDGET,
 } as const
 
 /** 首版权限目录（封闭集合：media.read / media.control / network.request） */
@@ -237,6 +240,8 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'network_redirect_blocked', kind: 'runtime', message: '重定向不自动跟随：返回目标 origin，如需访问须单独请求并先取得授权' },
   { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/方法不支持/非法 URL）' },
   // —— 工单339 命名凭证错误（凭证面与网络权限相互独立）——
+  // —— 工单341 资源预算（超限显式拒绝，不静默退化）——
+  { code: 'package_budget_exceeded', kind: 'runtime', message: '同时在场投放包已达预算上限（maxLiveDroppedPackages）——本包拒绝激活，先卸载/停用其他包再试' },
   { code: 'credential_unavailable', kind: 'gate', message: '命名凭证不可用（不存在/未绑定本包本 origin/密文不可解/加密能力不可用）——不静默改用其他凭证，也不撤销网络权限' },
   { code: 'credential_invalid', kind: 'gate', message: '凭证名/secret/headerName/origin 形状非法——拒绝写入' },
   { code: 'credential_store_unavailable', kind: 'runtime', message: '系统加密能力不可用（safeStorage/DPAPI 未就绪）——拒绝保存凭证，绝不落明文兜底' },

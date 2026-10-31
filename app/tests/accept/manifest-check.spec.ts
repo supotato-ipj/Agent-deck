@@ -334,7 +334,8 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 128 → 129：工单337 增段——332-conversation +C7 媒体控制可选权限（双包对照；执行序 C7 后 C3 前）
     // 129 → 130：工单338 增段——332-conversation +C8 联网组件与 origin 权限（执行序 C7 后 C3 前）
     // 130 → 131：工单339 增段——332-conversation +C9 命名凭证与认证联网（执行序 C8 后 C3 前）
-    expect(total).toBe(131)
+    // 131 → 132：工单341 增段——332-conversation +C10 三参考组合与资源预算（执行序 C9 后 C3 前）
+    expect(total).toBe(132)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

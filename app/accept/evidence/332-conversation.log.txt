@@ -1,89 +1,100 @@
-# accept 332-conversation — 2026-10-31T15:07:32.048Z
-[15:07:32.053] SEG   ▶ C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话｜工单332｜失效面=事件存证+系统状态+面板存活
-[15:07:32.133] NOTE  DSH 安装：D:\Program\Dsh\DeepSeek Harness.exe（来源 probe:D:\Program\Dsh）
-[15:07:36.197] PASS  后端可用性如实上报：已解析 DSH 安装（来源 probe:D:\Program\Dsh）
-[15:07:39.124] PASS  ACP 握手存证：deepseek-harness-acp 0.0.1 protocolVersion=1
-[15:07:39.127] PASS  session/new 存证：mcpServers 空（零管理面，不注入管理通道）
-[15:07:39.129] PASS  provider 路由显式配置生效：set_config_option 存证（DSH 方言封适配器，无 UI 面）
-[15:07:39.163] PASS  会话专属空工作目录：C:\Users\An W\AppData\Roaming\agent-deck-panel\conversation\cwd\e3db6ece-0d3b-49bf-9e24-2b73826b326d
-[15:07:39.167] PASS  元数据落盘：backend/cwd 绝对路径在案；只存元数据（无正文、无凭证）
-[15:07:39.169] PASS  聊天型（managed=false）且后端进程在场 pid=24324
-[15:07:40.197] PASS  prompt 流式：agent 文本上窗（累计快照）+ end_turn 收束
-[15:07:40.371] PASS  对话窗在场（DECK-CONVERSATION，按 pid+标题甄别）
-[15:07:42.935] PASS  取消：stopReason=cancelled + 会话回 ready + 后端进程存活可续用
-[15:07:42.968] PASS  关窗只收起：DECK-CONVERSATION 不可见（隐藏）且会话进程仍在
-[15:07:42.983] PASS  再唤回：对话窗重新可见
-[15:07:43.486] PASS  权限请求原样呈现：options=["allow-once","reject-once"]
-[15:07:45.010] PASS  权限挂起 1.5s 仍未被自动裁决（绝不超时自动拒绝）
-[15:07:45.304] PASS  allow-once 裁决生效：升级写真实落盘 + end_turn + 裁决存证
-[15:07:45.440] PASS  显式退出：session/close + stdin close 自然退出 code=0 + ended 存证
-[15:07:45.441] PASS  退出后账目：状态 ended + 元数据 endedAt 落盘 + 进程已退
-[15:07:45.465] PASS  进程回收：会话进程消失（backendPid 清空）且面板本体无恙
-[15:07:45.487] PASS  全程零管理面：无在场会话持有管理标记（历史 ended/failed 行不计——幂等轮次安全）
-[15:07:45.489] SEG   ▶ C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归｜工单333｜失效面=事件存证+系统状态+面板存活
-[15:07:45.495] PASS  UI 契约在位：「管理」勾选 + 「以聊天型创建」显式选择（对话窗 DOM + 构建产物）
-[15:07:48.111] PASS  显式授权创建：managed=true + wire 存证（mcpServers=injected(managed)，mcpUrl=http://127.0.0.1:63909/mcp）
-[15:07:48.119] PASS  凭证零落盘：元数据与事件档全文不含 bearer（观察口仅内存转交）
-[15:07:49.251] PASS  DSH 真调只读工具：panel_snapshot 分派存证 + 快照段键（clock）真实回读
-[15:07:49.706] PASS  DSH 真读契约目录：plugin_contract_catalog 分派存证 + 目录本体（hostApiVersion）真实回读
-[15:07:49.714] PASS  投影外一律明确错误：app_quit → -32602 未知工具；resources/list → -32601（无静默放行/空成功）
-[15:07:52.464] PASS  凭证逐会话失效：A 显式结束后旧 bearer 401（复用被拒），B 的凭证不受影响
-[15:07:52.579] PASS  宿主回收：最后管理会话消亡后监听面消失（连接拒绝：fetch failed）
-[15:07:55.101] PASS  聊天型并存零回归：mcpServers 恒空 + managed=false（#332 行为原样）
-[15:07:55.196] SEG   ▶ C4 DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）｜工单334｜失效面=事件存证+系统状态+面板存活
-[15:07:59.193] PASS  提案数据面+待装载区纪律：dsh-hello@1.0.0 pending（2 文件带哈希、零权限、staging 副本在案、用户根未动、来源 dsh 会话 0e3b209c）
-[15:07:59.400] PASS  批准全链真显示：哈希同字节绑定（e7d5c9d77b1d）→ 转正激活（dropped-package-activated 存证）→ deck-pkg://dsh-hello title=deck-pkg:ready
-[15:08:00.301] PASS  拒绝路径补偿完备：副本清偿 + 用户根从未出现 + gate_denied 审计在案
-[15:08:00.406] SEG   ▶ C5 DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册）｜工单335｜失效面=事件存证+系统状态+面板存活
-[15:08:04.448] PASS  更新提案数据面+待批旧代次仍在：1.0.0→1.1.0 diff（card.js 变更、权限变化空）在批准 UI 数据面；待批期间旧代次 deck-pkg:ready 继续运行
-[15:08:05.265] PASS  批准=原子换代：activated（dropped-package-activated generation=2 存证）+ 新代次 mount（deck-pkg:ready）
-[15:08:05.936] PASS  相同字节 no_change：工具结果如实 no_change（不重载、不制造批准提案）
-[15:08:06.911] PASS  卸载全链清单消失：MCP plugin_uninstall → 用户根目录消失（回收站路径，失败即失败）+ deactivated(reason=removed) 存证 + deck-pkg://dsh-hello 上下文拆除
-[15:08:06.991] SEG   ▶ C6 媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）｜工单336｜失效面=事件存证+系统状态+面板存活
-[15:08:11.119] PASS  media.read 提案数据面（敏感通路打开）：dsh-media@1.0.0 pending，权限栏 [media.read]（不再 permission_deferred），staging 副本在案、用户根未动、来源 dsh 会话
-[15:08:11.307] PASS  批准全链（授权账绑定 id+权限+代码哈希 1205b21d54ed）→ 转正激活（generation=1）→ deck-pkg://dsh-media title=deck-pkg:ready
-[15:08:11.675] PASS  卡片明确状态面（Edge 未起）：环境在播会话的会话行——无会话/会话在场均可表示
-[15:08:11.966] NOTE  C6 媒体夹具：Edge pid=28560 低音量 0.04 循环 5s wav（测完进程树强杀）
-[15:08:12.918] PASS  卡真显示全部会话：夹具 SMTC 会话上卡（title=T336 Accept Track，status=PLAYING，position+lastUpdatedTime 插值走时长行）
-[15:08:12.926] PASS  受控缩略图链：deckHost.media.thumbnail → Broker 类型/大小校验 → 字节副本 dataURL 上卡（data:image/png;base64,…）+ media-audit-aggregate 存证（thumbnail 计数≥1，按包聚合不含媒体元数据）
-[15:08:12.993] PASS  撤销即停（撤销即断供零窗口）：install/revoke → deactivated(reason=permission-revoked) 存证 + deck-pkg://dsh-media 上下文拆除 + 授权账行 revokedAt 在案（审计可见）
-[15:08:14.781] SEG   ▶ C7 媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前｜工单337｜失效面=事件存证+系统状态+面板存活
-[15:08:18.849] NOTE  C7 A 诊断 transcript=["user:MANAGED MEDIA marker：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\\conversa","tool:{\"ok\":true,\"status\":\"pending-approval\",\"proposal\":{\"proposalId\":\"prop-install-1793459298720-9\",\"opId\":\"install-179345929"]
-[15:08:18.851] NOTE  C7 A 诊断 canned=[{"marker":"MANAGED MEDIA","planKind":"tool","planName":"write","toolCount":0,"out":""},{"marker":"MANAGED MEDIA","planKind":"tool","planName":"write","toolCount":1,"out":""},{"marker":"MANAGED MEDIA","planKind":"tool","planName":"mcp__agent-deck-managed__plugin_install_submit","toolCount":2,"out":""},{"marker":"MANAGED MEDIA","planKind":"text","planName":null,"toolCount":3,"out":"MEDIA-SUBMITTED:{\"ok\":true,\"status\":\"pending-approval\",\"proposal\":{\"proposalId\":\"prop-inst"}]
-[15:08:19.069] PASS  A 包只读对照：提案无可选权限、批准后卡片无控制按钮、授权账不含 media.control（逐项批准语义成立）
-[15:08:20.399] NOTE  C7 SMTC 源夹具：pid=26980（控制目标；测完优雅停+进程树清）
-[15:08:21.458] PASS  B 包控制全链：可选权限 [media.control] grantPermissions 子集批准 → 控制按钮渲染（4 个）→ 夹具会话 fixture-smtc.exe#1 暂停/播放真翻转 + 审计 control 族计数在案
-[15:08:23.182] SEG   ▶ C8 联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前｜工单338｜失效面=事件存证+系统状态+面板存活
-[15:08:23.192] NOTE  C8 本地 HTTP 夹具：授权 origin=http://127.0.0.1:58424、未授权 origin=http://127.0.0.1:58425（127.0.0.1 随机端口，无公网依赖）
-[15:08:27.441] PASS  提案面与批准：permissions [network.request] + networkOrigins [http://127.0.0.1:58424]（精确 origin 是授权参数面）→ 批准激活
-[15:08:27.646] PASS  授权 origin 真取数：deckHost.network.request(http://127.0.0.1:58424/data.json) → HTTP 200 文本上卡（宿主代理面放行，包页自己不出网）
-[15:08:27.647] PASS  未授权 origin 默认拒绝：http://127.0.0.1:58425 请求 → network_permission_denied（一个字节不出）
-[15:08:27.648] PASS  跨 origin 重定向不自动跟随：302 → http://127.0.0.1:58425 返回 network_redirect_blocked + location 在案；目标服务零命中（hits=2）
-[15:08:27.649] PASS  包页直连仍全拒：CSP connect-src none 拦掉卡内 fetch（放行只经宿主代理面，webRequest 拦截不放松）
-[15:08:27.660] PASS  脱敏审计：network-audit-aggregate 事件 + 聚合投影（request=3、redirect=3、denied=3；origins=["http://127.0.0.1:55616","http://127.0.0.1:55617","http://127.0.0.1:58424","http://127.0.0.1:58425","http://127.0.0.1:63044","http://127.0.0.1:63045"]，无路径/查询/正文）
-[15:08:27.787] PASS  撤销即断供：install/revoke → deactivated(reason=permission-revoked) + deck-pkg://dsh-net 上下文拆除 + 账行 revokedAt 在案
-[15:08:27.877] SEG   ▶ C9 命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前｜工单339｜失效面=事件存证+系统状态+面板存活
-[15:08:27.906] PASS  命名凭证建档：credentials/set 成功，list 只出元数据（authorization），secret 明文不回传（写入单向）
-[15:08:27.907] NOTE  C9 本地 HTTP 夹具：origin=http://127.0.0.1:55804（/auth/data 需要 Bearer；/data.json 无认证）
-[15:08:32.159] PASS  凭证注入真生效：绑定 accept-cred → http://127.0.0.1:55804 后请求 /auth/data 带 Bearer（夹具实收 v1），组件只见响应不见 secret
-[15:08:32.715] PASS  轮换不触发代码重批：credentials/set 同名轮换后账行 codeHash/grantedAt 不变（2a3c293b7f6b），下一次请求注入 v2
-[15:08:33.253] PASS  解绑即断凭证：带凭证请求 → credential_unavailable（不静默改用其他凭证）；无凭证请求仍 200（网络权限未被撤销）
-[15:08:33.270] PASS  审计不含 secret：network-audit.jsonl 全文无 v1/v2 明文（只有 origin/方法/结果/重定向）
-[15:08:34.249] PASS  卸载只清绑定：包与授权行消失，凭证 accept-cred 仍在册且绑定清空（凭证本体保留至用户显式删除）
-[15:08:34.370] SEG   ▶ C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）｜工单340｜失效面=事件存证+系统状态+面板存活
-[15:08:44.610] PASS  bogus 后端档失败非破坏：available=false（未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json c…）创建报错「未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json conversatio…」零握手/零 session-new，dshHome 哈希零变化
-[15:08:45.277] PASS  全新数据目录手势：C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home → C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home-2，backendInfo 指向已更新，config.conversation.dshHome 持久化在案，旧目录哈希零变化（不备份不继承）
-[15:08:46.090] ===== 332-conversation VERDICT: PASS (pass=58 fail=0 excluded=0) =====
+# accept 332-conversation — 2026-10-31T15:22:11.776Z
+[15:22:11.782] SEG   ▶ C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话｜工单332｜失效面=事件存证+系统状态+面板存活
+[15:22:11.857] NOTE  DSH 安装：D:\Program\Dsh\DeepSeek Harness.exe（来源 probe:D:\Program\Dsh）
+[15:22:17.031] PASS  后端可用性如实上报：已解析 DSH 安装（来源 probe:D:\Program\Dsh）
+[15:22:19.919] PASS  ACP 握手存证：deepseek-harness-acp 0.0.1 protocolVersion=1
+[15:22:19.921] PASS  session/new 存证：mcpServers 空（零管理面，不注入管理通道）
+[15:22:19.923] PASS  provider 路由显式配置生效：set_config_option 存证（DSH 方言封适配器，无 UI 面）
+[15:22:19.953] PASS  会话专属空工作目录：C:\Users\An W\AppData\Roaming\agent-deck-panel\conversation\cwd\28b6ba79-2ce6-4ed5-9530-f0dfc66b07d9
+[15:22:19.957] PASS  元数据落盘：backend/cwd 绝对路径在案；只存元数据（无正文、无凭证）
+[15:22:19.959] PASS  聊天型（managed=false）且后端进程在场 pid=5876
+[15:22:21.082] PASS  prompt 流式：agent 文本上窗（累计快照）+ end_turn 收束
+[15:22:21.150] PASS  对话窗在场（DECK-CONVERSATION，按 pid+标题甄别）
+[15:22:23.754] PASS  取消：stopReason=cancelled + 会话回 ready + 后端进程存活可续用
+[15:22:23.795] PASS  关窗只收起：DECK-CONVERSATION 不可见（隐藏）且会话进程仍在
+[15:22:23.812] PASS  再唤回：对话窗重新可见
+[15:22:24.319] PASS  权限请求原样呈现：options=["allow-once","reject-once"]
+[15:22:25.853] PASS  权限挂起 1.5s 仍未被自动裁决（绝不超时自动拒绝）
+[15:22:26.166] PASS  allow-once 裁决生效：升级写真实落盘 + end_turn + 裁决存证
+[15:22:26.336] PASS  显式退出：session/close + stdin close 自然退出 code=0 + ended 存证
+[15:22:26.338] PASS  退出后账目：状态 ended + 元数据 endedAt 落盘 + 进程已退
+[15:22:26.368] PASS  进程回收：会话进程消失（backendPid 清空）且面板本体无恙
+[15:22:26.402] PASS  全程零管理面：无在场会话持有管理标记（历史 ended/failed 行不计——幂等轮次安全）
+[15:22:26.404] SEG   ▶ C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归｜工单333｜失效面=事件存证+系统状态+面板存活
+[15:22:26.414] PASS  UI 契约在位：「管理」勾选 + 「以聊天型创建」显式选择（对话窗 DOM + 构建产物）
+[15:22:29.673] PASS  显式授权创建：managed=true + wire 存证（mcpServers=injected(managed)，mcpUrl=http://127.0.0.1:53534/mcp）
+[15:22:29.684] PASS  凭证零落盘：元数据与事件档全文不含 bearer（观察口仅内存转交）
+[15:22:31.151] PASS  DSH 真调只读工具：panel_snapshot 分派存证 + 快照段键（clock）真实回读
+[15:22:31.687] PASS  DSH 真读契约目录：plugin_contract_catalog 分派存证 + 目录本体（hostApiVersion）真实回读
+[15:22:31.704] PASS  投影外一律明确错误：app_quit → -32602 未知工具；resources/list → -32601（无静默放行/空成功）
+[15:22:34.923] PASS  凭证逐会话失效：A 显式结束后旧 bearer 401（复用被拒），B 的凭证不受影响
+[15:22:35.084] PASS  宿主回收：最后管理会话消亡后监听面消失（连接拒绝：fetch failed）
+[15:22:38.511] PASS  聊天型并存零回归：mcpServers 恒空 + managed=false（#332 行为原样）
+[15:22:38.616] SEG   ▶ C4 DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）｜工单334｜失效面=事件存证+系统状态+面板存活
+[15:22:43.533] PASS  提案数据面+待装载区纪律：dsh-hello@1.0.0 pending（2 文件带哈希、零权限、staging 副本在案、用户根未动、来源 dsh 会话 92a77a69）
+[15:22:43.827] PASS  批准全链真显示：哈希同字节绑定（e7d5c9d77b1d）→ 转正激活（dropped-package-activated 存证）→ deck-pkg://dsh-hello title=deck-pkg:ready
+[15:22:44.792] PASS  拒绝路径补偿完备：副本清偿 + 用户根从未出现 + gate_denied 审计在案
+[15:22:44.948] SEG   ▶ C5 DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册）｜工单335｜失效面=事件存证+系统状态+面板存活
+[15:22:49.422] PASS  更新提案数据面+待批旧代次仍在：1.0.0→1.1.0 diff（card.js 变更、权限变化空）在批准 UI 数据面；待批期间旧代次 deck-pkg:ready 继续运行
+[15:22:50.565] PASS  批准=原子换代：activated（dropped-package-activated generation=2 存证）+ 新代次 mount（deck-pkg:ready）
+[15:22:51.230] PASS  相同字节 no_change：工具结果如实 no_change（不重载、不制造批准提案）
+[15:22:52.587] PASS  卸载全链清单消失：MCP plugin_uninstall → 用户根目录消失（回收站路径，失败即失败）+ deactivated(reason=removed) 存证 + deck-pkg://dsh-hello 上下文拆除
+[15:22:52.705] SEG   ▶ C6 媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）｜工单336｜失效面=事件存证+系统状态+面板存活
+[15:22:57.310] PASS  media.read 提案数据面（敏感通路打开）：dsh-media@1.0.0 pending，权限栏 [media.read]（不再 permission_deferred），staging 副本在案、用户根未动、来源 dsh 会话
+[15:22:57.546] PASS  批准全链（授权账绑定 id+权限+代码哈希 1205b21d54ed）→ 转正激活（generation=1）→ deck-pkg://dsh-media title=deck-pkg:ready
+[15:22:57.897] PASS  卡片明确状态面（Edge 未起）：环境在播会话的会话行——无会话/会话在场均可表示
+[15:22:58.208] NOTE  C6 媒体夹具：Edge pid=18768 低音量 0.04 循环 5s wav（测完进程树强杀）
+[15:22:58.730] PASS  卡真显示全部会话：夹具 SMTC 会话上卡（title=T336 Accept Track，status=PLAYING，position+lastUpdatedTime 插值走时长行）
+[15:22:58.752] PASS  受控缩略图链：deckHost.media.thumbnail → Broker 类型/大小校验 → 字节副本 dataURL 上卡（data:image/png;base64,…）+ media-audit-aggregate 存证（thumbnail 计数≥1，按包聚合不含媒体元数据）
+[15:22:58.899] PASS  撤销即停（撤销即断供零窗口）：install/revoke → deactivated(reason=permission-revoked) 存证 + deck-pkg://dsh-media 上下文拆除 + 授权账行 revokedAt 在案（审计可见）
+[15:23:00.754] SEG   ▶ C7 媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前｜工单337｜失效面=事件存证+系统状态+面板存活
+[15:23:05.371] NOTE  C7 A 诊断 transcript=["user:MANAGED MEDIA marker：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\\conversa","tool:{\"ok\":true,\"status\":\"pending-approval\",\"proposal\":{\"proposalId\":\"prop-install-1793460185178-9\",\"opId\":\"install-179346018"]
+[15:23:05.373] NOTE  C7 A 诊断 canned=[{"marker":"MANAGED MEDIA","planKind":"tool","planName":"write","toolCount":0,"out":""},{"marker":"MANAGED MEDIA","planKind":"tool","planName":"write","toolCount":1,"out":""},{"marker":"MANAGED MEDIA","planKind":"tool","planName":"mcp__agent-deck-managed__plugin_install_submit","toolCount":2,"out":""},{"marker":"MANAGED MEDIA","planKind":"text","planName":null,"toolCount":3,"out":"MEDIA-SUBMITTED:{\"ok\":true,\"status\":\"pending-approval\",\"proposal\":{\"proposalId\":\"prop-inst"}]
+[15:23:05.608] PASS  A 包只读对照：提案无可选权限、批准后卡片无控制按钮、授权账不含 media.control（逐项批准语义成立）
+[15:23:07.046] NOTE  C7 SMTC 源夹具：pid=32844（控制目标；测完优雅停+进程树清）
+[15:23:07.680] PASS  B 包控制全链：可选权限 [media.control] grantPermissions 子集批准 → 控制按钮渲染（2 个）→ 夹具会话 fixture-smtc.exe#1 暂停/播放真翻转 + 审计 control 族计数在案
+[15:23:09.534] SEG   ▶ C8 联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前｜工单338｜失效面=事件存证+系统状态+面板存活
+[15:23:09.546] NOTE  C8 本地 HTTP 夹具：授权 origin=http://127.0.0.1:55720、未授权 origin=http://127.0.0.1:55721（127.0.0.1 随机端口，无公网依赖）
+[15:23:14.403] PASS  提案面与批准：permissions [network.request] + networkOrigins [http://127.0.0.1:55720]（精确 origin 是授权参数面）→ 批准激活
+[15:23:14.424] PASS  授权 origin 真取数：deckHost.network.request(http://127.0.0.1:55720/data.json) → HTTP 200 文本上卡（宿主代理面放行，包页自己不出网）
+[15:23:14.426] PASS  未授权 origin 默认拒绝：http://127.0.0.1:55721 请求 → network_permission_denied（一个字节不出）
+[15:23:14.427] PASS  跨 origin 重定向不自动跟随：302 → http://127.0.0.1:55721 返回 network_redirect_blocked + location 在案；目标服务零命中（hits=2）
+[15:23:14.429] PASS  包页直连仍全拒：CSP connect-src none 拦掉卡内 fetch（放行只经宿主代理面，webRequest 拦截不放松）
+[15:23:14.447] PASS  脱敏审计：network-audit-aggregate 事件 + 聚合投影（request=5、redirect=5、denied=5；origins=["http://127.0.0.1:54781","http://127.0.0.1:54782","http://127.0.0.1:55616","http://127.0.0.1:55617","http://127.0.0.1:55720","http://127.0.0.1:55721","http://127.0.0.1:58424","http://127.0.0.1:58425","http://127.0.0.1:63044","http://127.0.0.1:63045"]，无路径/查询/正文）
+[15:23:14.539] PASS  撤销即断供：install/revoke → deactivated(reason=permission-revoked) + deck-pkg://dsh-net 上下文拆除 + 账行 revokedAt 在案
+[15:23:14.689] SEG   ▶ C9 命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前｜工单339｜失效面=事件存证+系统状态+面板存活
+[15:23:14.726] PASS  命名凭证建档：credentials/set 成功，list 只出元数据（authorization），secret 明文不回传（写入单向）
+[15:23:14.728] NOTE  C9 本地 HTTP 夹具：origin=http://127.0.0.1:61134（/auth/data 需要 Bearer；/data.json 无认证）
+[15:23:19.375] PASS  凭证注入真生效：绑定 accept-cred → http://127.0.0.1:61134 后请求 /auth/data 带 Bearer（夹具实收 v1），组件只见响应不见 secret
+[15:23:19.951] PASS  轮换不触发代码重批：credentials/set 同名轮换后账行 codeHash/grantedAt 不变（52ca2bf5d559），下一次请求注入 v2
+[15:23:20.499] PASS  解绑即断凭证：带凭证请求 → credential_unavailable（不静默改用其他凭证）；无凭证请求仍 200（网络权限未被撤销）
+[15:23:20.518] PASS  审计不含 secret：network-audit.jsonl 全文无 v1/v2 明文（只有 origin/方法/结果/重定向）
+[15:23:21.564] PASS  卸载只清绑定：包与授权行消失，凭证 accept-cred 仍在册且绑定清空（凭证本体保留至用户显式删除）
+[15:23:21.694] SEG   ▶ C10 三参考闭环组合验收与资源预算（工单341，spec #326 收口）：零权限/媒体/认证联网三组件同时在场各自闭环（独立上下文并行无踩踏）→ 对抗矩阵（跨包隔离：零权限包调媒体/网络 API 各自 permission_denied / 旧媒体键误控 media_session_gone 且当前会话不受影响 / 无播放器回落明确空态 / 限额 network_rate_limited 与权限拒绝分域 / 审计全文无 secret 与载荷 / 崩溃不自动重挂：Page.crash 后 6s 无重激活且私有配置保留）→ 0/1/5/10 包工作集实测（diag/memory，每包边际 ≤ 128MB 预算；16 包上限的超限显式拒绝由单测覆盖）。执行序 C9 后 C3 前｜工单341｜失效面=事件存证+系统状态+面板存活
+[15:23:26.946] NOTE  C10 预算实测（面板全进程工作集 MB）：0=896、1=894、5=1314、10=1840；每包边际 1→5=105、5→10=105.2、0→10=94.4（预算上限 128MB/包）
+[15:23:26.948] PASS  资源预算实测在界：0/1/5/10 包工作集 896/894/1314/1840MB，每包边际 105MB ≤ 128MB（DROPPED_PACKAGE_BUDGET 标定源；上限 16 包的超限拒绝由单测覆盖）
+[15:23:35.351] PASS  三参考同时在场各自闭环：零权限卡（文本上卡）+ 媒体卡（T336 Accept Track PLAYING）+ 认证联网卡（带凭证 200）——三个独立上下文并行无互相踩踏
+[15:23:35.368] PASS  跨包隔离：零权限包直接调 deckHost.media.thumbnail / network.request → media_permission_denied / network_permission_denied（身份由登记表推导，不采信自报）
+[15:23:35.392] PASS  旧媒体键误控：代次失效键 → media_session_gone，真实会话仍 PLAYING（不误控新目标）
+[15:23:37.075] PASS  无播放器明确态：SMTC 夹具退出后夹具会话从快照消失，媒体卡留在可表示状态（media-card media-live、其余会话 1 行）——不崩、不静默保留旧数据
+[15:23:37.114] PASS  限额与权限分域：连发 6 次 → ["ok","ok","ok","ok","ok","network_rate_limited"]（network_rate_limited 在场，非权限拒绝）
+[15:23:37.142] PASS  审计脱敏（组合轮）：network/media 审计档全文无凭证 secret、无响应载荷（只有 origin/方法/结果/重定向）
+[15:23:43.367] PASS  崩溃不自动重挂：Page.crash → dropped-package-crashed 存证，6s 内无重激活（mount 副作用不重放），私有配置原样保留（dsh-hello.json）
+[15:23:43.501] SEG   ▶ C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）｜工单340｜失效面=事件存证+系统状态+面板存活
+[15:23:54.490] PASS  bogus 后端档失败非破坏：available=false（未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json c…）创建报错「未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json conversatio…」零握手/零 session-new，dshHome 哈希零变化
+[15:23:55.247] PASS  全新数据目录手势：C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home → C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home-2，backendInfo 指向已更新，config.conversation.dshHome 持久化在案，旧目录哈希零变化（不备份不继承）
+[15:23:56.064] ===== 332-conversation VERDICT: PASS (pass=66 fail=0 excluded=0) =====
 ===== 账目（三态记账，工单110） =====
-三路计数：pass=58 fail=0 excluded=0 ｜ PASS → 退出码 0
+三路计数：pass=66 fail=0 excluded=0 ｜ PASS → 退出码 0
 排除窗：轮末已全部闭合
 段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
-  C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话 pass=19 fail=0 excl=0 took=13.4s｜工单332｜失效面=事件存证+系统状态+面板存活
-  C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归 pass=9 fail=0 excl=0 took=9.7s｜工单333｜失效面=事件存证+系统状态+面板存活
-  C4 DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕） pass=3 fail=0 excl=0 took=5.2s｜工单334｜失效面=事件存证+系统状态+面板存活
-  C5 DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册） pass=4 fail=0 excl=0 took=6.6s｜工单335｜失效面=事件存证+系统状态+面板存活
-  C6 媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后） pass=6 fail=0 excl=0 took=7.8s｜工单336｜失效面=事件存证+系统状态+面板存活
-  C7 媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前 pass=2 fail=0 excl=0 took=8.4s｜工单337｜失效面=事件存证+系统状态+面板存活
-  C8 联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前 pass=7 fail=0 excl=0 took=4.7s｜工单338｜失效面=事件存证+系统状态+面板存活
-  C9 命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前 pass=6 fail=0 excl=0 took=6.5s｜工单339｜失效面=事件存证+系统状态+面板存活
-  C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份） pass=2 fail=0 excl=0 took=11.7s｜工单340｜失效面=事件存证+系统状态+面板存活
+  C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话 pass=19 fail=0 excl=0 took=14.6s｜工单332｜失效面=事件存证+系统状态+面板存活
+  C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归 pass=9 fail=0 excl=0 took=12.2s｜工单333｜失效面=事件存证+系统状态+面板存活
+  C4 DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕） pass=3 fail=0 excl=0 took=6.3s｜工单334｜失效面=事件存证+系统状态+面板存活
+  C5 DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册） pass=4 fail=0 excl=0 took=7.8s｜工单335｜失效面=事件存证+系统状态+面板存活
+  C6 媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后） pass=6 fail=0 excl=0 took=8.0s｜工单336｜失效面=事件存证+系统状态+面板存活
+  C7 媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前 pass=2 fail=0 excl=0 took=8.8s｜工单337｜失效面=事件存证+系统状态+面板存活
+  C8 联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前 pass=7 fail=0 excl=0 took=5.2s｜工单338｜失效面=事件存证+系统状态+面板存活
+  C9 命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前 pass=6 fail=0 excl=0 took=7.0s｜工单339｜失效面=事件存证+系统状态+面板存活
+  C10 三参考闭环组合验收与资源预算（工单341，spec #326 收口）：零权限/媒体/认证联网三组件同时在场各自闭环（独立上下文并行无踩踏）→ 对抗矩阵（跨包隔离：零权限包调媒体/网络 API 各自 permission_denied / 旧媒体键误控 media_session_gone 且当前会话不受影响 / 无播放器回落明确空态 / 限额 network_rate_limited 与权限拒绝分域 / 审计全文无 secret 与载荷 / 崩溃不自动重挂：Page.crash 后 6s 无重激活且私有配置保留）→ 0/1/5/10 包工作集实测（diag/memory，每包边际 ≤ 128MB 预算；16 包上限的超限显式拒绝由单测覆盖）。执行序 C9 后 C3 前 pass=8 fail=0 excl=0 took=21.8s｜工单341｜失效面=事件存证+系统状态+面板存活
+  C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份） pass=2 fail=0 excl=0 took=12.6s｜工单340｜失效面=事件存证+系统状态+面板存活

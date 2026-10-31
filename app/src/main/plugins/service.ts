@@ -8,6 +8,7 @@ import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } fr
 import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView, type MountOutcome } from './install'
 import { authorizeDroppedPackage, authorizeDroppedPackageWithGrant } from './authorization'
 import { isPermissionChannelOpen } from './permission-channels'
+import { MAX_LIVE_DROPPED_PACKAGES } from './budget'
 import type { PluginAuthorizationLedger } from './authorization-ledger'
 import { MANIFEST_FILE, PLUGIN_ID_RE, readManifest } from './manifest'
 import { listPluginDirs, watchPluginRoots } from './watch'
@@ -100,6 +101,11 @@ export interface PluginHostOptions {
     setCardEnabled?(id: string, enabled: boolean): unknown
     /** 命名凭证端口（工单339 卸载清理：只清绑定，凭证本体保留） */
     credentials?: { clearBindingsFor(packageId: string): void }
+    /**
+     * 同时在场投放包上限（工单341 资源预算；缺省 = budget.ts 常量）。超出即显式拒绝
+     * （status=error + dropped-package-budget-exceeded），不静默丢弃。
+     */
+    maxLivePackages?: number
   }
   /**
    * 结构化事件出口（工单331）：投放包生命周期事实（激活/停用/迁移/崩溃）落 DECK_EVENT_LOG，
@@ -194,6 +200,8 @@ export class PluginHostService extends Service {
   private readonly disabledIds: () => readonly string[]
   private readonly watchEnabled: boolean
   private readonly settleMs: number | undefined
+  /** 工单341 资源预算：同时在场投放包上限（工单测试可注入；缺省 = budget.ts 常量） */
+  private readonly maxLivePackages: number | undefined
   private readonly factory: NonNullable<PluginHostOptions['createInstance']>
   /** 在装实例：id → 实例（Map 查表，防原型链——09 踩坑 1 的纪律） */
   private readonly live = new Map<string, PluginInstance>()
@@ -231,6 +239,7 @@ export class PluginHostService extends Service {
     this.disabledIds = options.disabledIds ?? (() => [])
     this.watchEnabled = options.watch ?? true
     this.settleMs = options.settleMs
+    this.maxLivePackages = options.install?.maxLivePackages
     this.factory = options.createInstance ?? defaultInstance
     // DSH 安装管线（工单334）先于首扫装配：工单336 手动投放闸门在 rescan 里挂 manual
     // 提案——首扫就要能看到在册提案面（装配序颠倒会让首扫漏挂）。
@@ -436,6 +445,47 @@ export class PluginHostService extends Service {
    * 反映（撤销即停，接停用缝 reason=permission-revoked），批准落账后 rescan 即激活；
    * 手动投放同闸门：用户根里的 media.read 待批包挂 manual 提案（批准 UI 同词汇）。
    */
+  /**
+   * 预算门（工单341，budget.ts）：同时在场投放包上限——超出即显式拒绝：
+   * status=error（用户看得到原因）+ dropped-package-budget-exceeded 事件，绝不静默丢弃。
+   * `freed` = 本次换代刚拆掉的自己的旧上下文数（计数扣减）。
+   */
+  private activateWithinBudget(record: DroppedRecord, freed = 0, scope?: ReadonlySet<string>): boolean {
+    const cap = this.maxLivePackages ?? MAX_LIVE_DROPPED_PACKAGES
+    const live = this.liveDroppedCount(scope) - freed
+    if (live >= cap) {
+      record.generation = 0
+      record.status = 'error'
+      record.error = `package_budget_exceeded：同时在场投放包已达上限（${cap}）——本包拒绝激活；先卸载/停用其他包再试（显式拒绝，不静默丢弃）`
+      record.issues = null
+      this.dropped.set(record.id, record)
+      this.log({ type: 'dropped-package-budget-exceeded', id: record.id, live, cap })
+      return false
+    }
+    this.droppedHost?.activate({
+      id: record.id, dir: record.dir, generation: record.generation,
+      permissions: record.permissions, manifest: record.manifest!,
+    })
+    record.status = 'ok'
+    this.dropped.set(record.id, record)
+    this.log({ type: 'dropped-package-activated', id: record.id, generation: record.generation, origin: `deck-pkg://${record.id}` })
+    return true
+  }
+
+  /**
+   * 在场投放上下文数（ok/crashed 都占着 webContents——崩溃未拆也算占用预算）。
+   * `scope` = 本轮扫到的 id 集：已从磁盘消失但尚未在轮末清算的包不占预算
+   * （否则删包后要等下一轮 rescan 才让出槽位）。
+   */
+  private liveDroppedCount(scope?: ReadonlySet<string>): number {
+    let n = 0
+    for (const [id, rec] of this.dropped) {
+      if (scope && !scope.has(id)) continue
+      if (rec.status === 'ok' || rec.status === 'crashed') n += 1
+    }
+    return n
+  }
+
   private rescanDropped(disabled: Set<string>, kernelClaimed: Set<string>): void {
     const droppedScanned = new Map<string, DroppedRecord>()
     for (const root of this.droppedRoots) {
@@ -454,6 +504,7 @@ export class PluginHostService extends Service {
       }
     }
 
+    const scannedIds: ReadonlySet<string> = new Set(droppedScanned.keys())
     for (const [id, next] of droppedScanned) {
       const prev = this.dropped.get(id)
       if (disabled.has(id)) {
@@ -471,12 +522,8 @@ export class PluginHostService extends Service {
         if (prev && (prev.status === 'ok' || prev.status === 'crashed')) this.droppedHost?.deactivate(id)
         if (decision === 'activate') {
           next.generation = (prev?.generation ?? 0) + 1
-          this.droppedHost?.activate({
-            id, dir: next.dir, generation: next.generation,
-            permissions: next.permissions, manifest: next.manifest!,
-          })
-          next.status = 'ok'
-          this.log({ type: 'dropped-package-activated', id, generation: next.generation, origin: `deck-pkg://${id}` })
+          // 换代前已拆旧上下文（prev 在场）：预算计数扣掉它自己
+          this.activateWithinBudget(next, prev && (prev.status === 'ok' || prev.status === 'crashed') ? 1 : 0, scannedIds)
         } else {
           next.generation = 0
           if (next.status === 'pending-migration') {
@@ -496,12 +543,7 @@ export class PluginHostService extends Service {
         } else {
           // 待批 → 账齐（批准落账后 rescan）：显式换代激活
           next.generation = (prev.generation ?? 0) + 1
-          this.droppedHost?.activate({
-            id, dir: next.dir, generation: next.generation,
-            permissions: next.permissions, manifest: next.manifest!,
-          })
-          next.status = 'ok'
-          this.log({ type: 'dropped-package-activated', id, generation: next.generation, origin: `deck-pkg://${id}` })
+          this.activateWithinBudget(next, 0, scannedIds)
         }
         this.dropped.set(id, next)
       } else {

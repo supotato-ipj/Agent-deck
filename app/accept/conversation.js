@@ -1333,6 +1333,258 @@ PKGDIR=${pkgDirM}` });
       rep.fail(`段 C9 异常中止：${c9err instanceof Error ? c9err.message : String(c9err)}`);
     }
 
+    // —— 段 C10（工单341，三参考闭环组合 + 资源预算）：零权限/媒体/认证联网三组件同时
+    // 在场各自闭环 → 跨包隔离/旧键误控/无播放器/限额/审计脱敏/崩溃不重挂对抗 → 0/1/5/10
+    // 包工作集实测（每包边际 ≤ budget.ts 预算，超限行为由单测覆盖：显式拒绝不静默退化）。
+    rep.beginSegment('C10');
+    try {
+      const pluginsRoot10 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      const cleanBulk = () => {
+        try {
+          for (const e of fs.readdirSync(pluginsRoot10)) {
+            if (/^bulk-\d+$/.test(e)) fs.rmSync(path.join(pluginsRoot10, e), { recursive: true, force: true });
+          }
+        } catch { /* 目录可能不存在 */ }
+      };
+      for (const fid of ['dsh-hello', 'dsh-media', 'dsh-net-auth']) {
+        try { fs.rmSync(path.join(pluginsRoot10, fid), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      }
+      cleanBulk();
+      try { fs.rmSync(path.join(userData, 'plugins-staging'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const memRead = async () => {
+        try { return await cdpEvalOn(PANEL_TITLE, 'window.deck.bridge.invoke("diag/memory", null)', 10000); } catch { return null }
+      };
+      const writeBulk = (n) => {
+        for (let i = 1; i <= n; i++) {
+          const dir = path.join(pluginsRoot10, `bulk-${i}`);
+          if (fs.existsSync(path.join(dir, 'plugin.json'))) continue;
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, 'plugin.json'), JSON.stringify({ id: `bulk-${i}`, name: `Bulk ${i}`, version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: [] }, null, 2), 'utf8');
+          fs.writeFileSync(path.join(dir, 'card.js'), `export default { mount(host) { host.el.textContent = 'bulk ${i}' } }\n`, 'utf8');
+        }
+      };
+      const settle = async (expectCount) => until(async () => {
+        try {
+          const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+          const n = targets.filter((t) => typeof t.url === 'string' && /^deck-pkg:\/\/bulk-\d+\//.test(t.url)).length;
+          return n >= expectCount ? n : null;
+        } catch { return null }
+      }, 30000);
+      // ① 预算实测：0/1/5/10 包工作集
+      const mem0 = await memRead();
+      writeBulk(1); await settle(1); await sleep(800);
+      const mem1 = await memRead();
+      writeBulk(5); await settle(5); await sleep(1200);
+      const mem5 = await memRead();
+      writeBulk(10); await settle(10); await sleep(1500);
+      const mem10 = await memRead();
+      const perPkg = (a, b, n) => (a && b && n > 0 ? Math.round(((b.totalWorkingSetMB - a.totalWorkingSetMB) / n) * 10) / 10 : null)
+      const m1to5 = perPkg(mem1, mem5, 4);
+      const m5to10 = perPkg(mem5, mem10, 5);
+      const m0to10 = perPkg(mem0, mem10, 10);
+      rep.note(`C10 预算实测（面板全进程工作集 MB）：0=${mem0 ? mem0.totalWorkingSetMB : '?'}、1=${mem1 ? mem1.totalWorkingSetMB : '?'}、5=${mem5 ? mem5.totalWorkingSetMB : '?'}、10=${mem10 ? mem10.totalWorkingSetMB : '?'}；每包边际 1→5=${m1to5}、5→10=${m5to10}、0→10=${m0to10}（预算上限 128MB/包）`);
+      // 阈值与 app/src/main/plugins/budget.ts 的 PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES（128MB）同源
+      const budgetNum = Number(m1to5 ?? m5to10 ?? m0to10);
+      if (mem0 && mem1 && mem5 && mem10 && Number.isFinite(budgetNum) && budgetNum > 0 && budgetNum <= 128) {
+        rep.pass(`资源预算实测在界：0/1/5/10 包工作集 ${mem0.totalWorkingSetMB}/${mem1.totalWorkingSetMB}/${mem5.totalWorkingSetMB}/${mem10.totalWorkingSetMB}MB，每包边际 ${budgetNum}MB ≤ 128MB（DROPPED_PACKAGE_BUDGET 标定源；上限 16 包的超限拒绝由单测覆盖）`);
+      } else {
+        rep.fail(`C10 预算读数不符：${JSON.stringify({ mem0, mem1, mem5, mem10, m1to5, m5to10, m0to10 })}`);
+      }
+      // 清掉 bulk 包，给三参考腾场地
+      cleanBulk();
+      await until(async () => {
+        try {
+          const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+          return targets.some((t) => typeof t.url === 'string' && t.url.startsWith('deck-pkg://bulk-')) ? null : true;
+        } catch { return null }
+      }, 30000);
+      // ② 三参考同时在场（零权限 + 媒体 + 认证联网）
+      const httpFx10 = await startHttpFixture();
+      let mediaFx10 = null;
+      try {
+        const credName10 = 'combo-cred';
+        const secret10 = 'combo-secret-v1';
+        try { await bridge('credentials/delete', { name: credName10 }, 10000); } catch { /* 不存在 */ }
+        const set10 = await bridge('credentials/set', { name: credName10, secret: secret10 }, 10000);
+        const create10 = await bridge('conversation/create', { managed: true, label: 'accept-341-combo' });
+        if (!create10.ok) {
+          rep.fail(`C10 管理型会话创建失败：${create10.error}`);
+        } else {
+          const sid10 = create10.session.id;
+          const sess10 = await sessionById(sid10);
+          if (!sess10 || !sess10.cwd) {
+            rep.fail('C10 会话视图/cwd 缺失');
+          } else {
+            const promptAndWait = async (text, pkgId) => {
+              await until(async () => ((await sessionById(sid10))?.status === 'ready') ? true : null, 30000);
+              const sent = await until(async () => {
+                const r = await bridge('conversation/prompt', { sessionId: sid10, text });
+                return r && r.ok === true ? r : null;
+              }, 30000);
+              if (!sent) return null;
+              return await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === pkgId) ?? null, 90000);
+            };
+            // 零权限
+            const propHello = await promptAndWait(`MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装\nPKGDIR=${path.join(sess10.cwd, 'hello-combo-pkg')}\nPKGID=dsh-hello`, 'dsh-hello');
+            if (propHello) await bridge('install/approve', { proposalId: propHello.proposalId }, 30000);
+            // 媒体
+            // 媒体包带可选 media.control（旧键误控要走到控制面：无控制权限时先被权限门拦，测不到会话键解析）
+            const propMedia = await promptAndWait(`MANAGED MEDIA marker WITHCONTROL：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${path.join(sess10.cwd, 'media-combo-pkg')}\nPKGID=dsh-media`, 'dsh-media');
+            if (propMedia) await bridge('install/approve', { proposalId: propMedia.proposalId, grantPermissions: ['media.control'] }, 30000);
+            // 认证联网
+            const propNet = await promptAndWait(`MANAGED NET AUTH marker：落认证联网组件包并经 plugin_install_submit 提交安装\nPKGDIR=${path.join(sess10.cwd, 'net-combo-pkg')}\nPKGID=dsh-net-auth\nORIGIN=${httpFx10.origin}\nCREDNAME=${credName10}`, 'dsh-net-auth');
+            if (propNet) await bridge('install/approve', { proposalId: propNet.proposalId }, 30000);
+            const bind10 = await bridge('credentials/bind', { packageId: 'dsh-net-auth', credentialName: credName10, origin: httpFx10.origin }, 10000);
+            try { mediaFx10 = await startMediaFixture(); } catch (errM) {
+              rep.fail(`C10 媒体夹具起不来：${errM instanceof Error ? errM.message : String(errM)}`);
+            }
+            const three10 = await until(async () => {
+              try {
+                const tHello = await pkgTarget('deck-pkg://dsh-hello/');
+                const tMedia = await pkgTarget('deck-pkg://dsh-media/');
+                const tNet = await pkgTarget('deck-pkg://dsh-net-auth/');
+                if (!tHello || !tMedia || !tNet) return null;
+                const helloText = await cdpEvalTarget(tHello, 'document.body.textContent.slice(0, 60)', 8000);
+                const mediaRow = await cdpEvalTarget(tMedia, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent : null })()', 8000);
+                const netAuth = await cdpEvalTarget(tNet, 'window.__netAuthRun ? window.__netAuthRun().then(() => window.__netAuthView && window.__netAuthView.auth && window.__netAuthView.auth.ok === true ? "ok" : JSON.stringify(window.__netAuthView && window.__netAuthView.auth)) : "no-runner"', 20000);
+                return helloText && String(helloText).includes('hello') && mediaRow === 'PLAYING' && netAuth === 'ok'
+                  ? { helloText, mediaRow, netAuth } : null;
+              } catch { return null }
+            }, 60000);
+            if (set10 && set10.ok === true && three10 && bind10 && bind10.ok === true) {
+              rep.pass(`三参考同时在场各自闭环：零权限卡（文本上卡）+ 媒体卡（T336 Accept Track PLAYING）+ 认证联网卡（带凭证 200）——三个独立上下文并行无互相踩踏`);
+            } else {
+              rep.fail(`C10 三参考组合不符：set=${JSON.stringify(set10)} three=${Boolean(three10)} bind=${JSON.stringify(bind10)}`);
+            }
+            // ③ 跨包隔离：零权限包调媒体/网络 API → 各自授权门拒绝（不是"能用只是没数据"）
+            let iso10 = null;
+            try {
+              const tHello = await pkgTarget('deck-pkg://dsh-hello/');
+              if (tHello) {
+                iso10 = await cdpEvalTarget(tHello, `(async () => {
+                  const thumb = await window.deckHost.media.thumbnail('any#0')
+                  const net = await window.deckHost.network.request({ url: ${JSON.stringify(httpFx10.origin + '/data.json')} })
+                  return JSON.stringify({ thumb: thumb && thumb.code, net: net && net.code })
+                })()`, 15000);
+              }
+            } catch { iso10 = null }
+            const isoOk10 = iso10 && JSON.parse(iso10).thumb === 'media_permission_denied' && JSON.parse(iso10).net === 'network_permission_denied';
+            if (isoOk10) {
+              rep.pass('跨包隔离：零权限包直接调 deckHost.media.thumbnail / network.request → media_permission_denied / network_permission_denied（身份由登记表推导，不采信自报）');
+            } else {
+              rep.fail(`C10 跨包隔离不符：${String(iso10).slice(0, 300)}`);
+            }
+            // ④ 旧媒体键误控：不存在的代次键 → media_session_gone（不误控当前会话）
+            let stale10 = null;
+            try {
+              const tMedia = await pkgTarget('deck-pkg://dsh-media/');
+              if (tMedia) stale10 = await cdpEvalTarget(tMedia, `window.deckHost.media.control('fixture-smtc.exe#999', 'pause')`, 15000);
+            } catch { stale10 = null }
+            const staleOk10 = stale10 && stale10.ok === false && stale10.code === 'media_session_gone';
+            const stillPlaying10 = staleOk10 ? await cdpEvalTarget(await pkgTarget('deck-pkg://dsh-media/'), '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent : null })()', 8000) : null;
+            if (staleOk10 && stillPlaying10 === 'PLAYING') {
+              rep.pass('旧媒体键误控：代次失效键 → media_session_gone，真实会话仍 PLAYING（不误控新目标）');
+            } else {
+              rep.fail(`C10 旧键误控不符：stale=${JSON.stringify(stale10)} current=${JSON.stringify(stillPlaying10)}`);
+            }
+            // ⑤ 无播放器：停 SMTC 夹具 → 媒体卡回明确态（空/不可用），上下文不崩
+            if (mediaFx10) { try { await mediaFx10.stop(); } catch { /* 尽力 */ } mediaFx10 = null; }
+            // 环境里可能还有用户真实在播会话（本轮实测有 Edge 在播）——「无播放器」按「夹具会话消失
+            // 且卡片仍处在可表示状态（空态/不可用态/其余真实会话行）」判，而不是要求整卡变空。
+            let noPlayer10 = null;
+            const noPlayerSeen = await until(async () => {
+              try {
+                const t = await pkgTarget('deck-pkg://dsh-media/');
+                if (!t) return null;
+                const raw = await cdpEvalTarget(t, '(() => { const cls = (document.querySelector(".media-card") || {}).className || "none"; const rows = [...document.querySelectorAll(".media-session")]; const fx = rows.some((r) => (r.querySelector(".media-title") || {}).textContent === "T336 Accept Track"); return JSON.stringify({ cls, fx, rows: rows.length }) })()', 8000);
+                const v = JSON.parse(raw);
+                const representable = v.cls.includes('media-empty') || v.cls.includes('media-unavailable') || v.rows > 0;
+                if (v.fx === true || !representable) return null;
+                noPlayer10 = v;
+                return v;
+              } catch { return null }
+            }, 30000);
+            if (noPlayerSeen) {
+              rep.pass(`无播放器明确态：SMTC 夹具退出后夹具会话从快照消失，媒体卡留在可表示状态（${String(noPlayer10.cls).trim()}、其余会话 ${noPlayer10.rows} 行）——不崩、不静默保留旧数据`);
+            } else {
+              rep.fail('C10 无播放器态不符（30s 内夹具会话未消失或卡片不可表示）');
+            }
+            // ⑥ 限额：认证联网卡连发 6 次 → network_rate_limited（与权限拒绝分域）
+            let rate10 = null;
+            try {
+              const tNet = await pkgTarget('deck-pkg://dsh-net-auth/');
+              if (tNet) {
+                rate10 = await cdpEvalTarget(tNet, `(async () => {
+                  const codes = []
+                  for (let i = 0; i < 6; i++) {
+                    const r = await window.deckHost.network.request({ url: ${JSON.stringify(httpFx10.origin + '/data.json')} })
+                    codes.push(r && (r.ok ? 'ok' : r.code))
+                  }
+                  return JSON.stringify(codes)
+                })()`, 30000);
+              }
+            } catch { rate10 = null }
+            const rateOk10 = rate10 && JSON.parse(rate10).includes('network_rate_limited');
+            if (rateOk10) {
+              rep.pass(`限额与权限分域：连发 6 次 → ${String(rate10).slice(0, 120)}（network_rate_limited 在场，非权限拒绝）`);
+            } else {
+              rep.fail(`C10 限额面不符：${String(rate10).slice(0, 240)}`);
+            }
+            // ⑦ 审计脱敏：三份审计档全文无凭证 secret、无载荷（network 档不含查询串）
+            let auditOk10 = false;
+            try {
+              const files = ['network-audit.jsonl', 'media-audit.jsonl'].map((f) => path.join(userData, f));
+              auditOk10 = files.every((f) => {
+                if (!fs.existsSync(f)) return true;
+                const raw = fs.readFileSync(f, 'utf8');
+                return !raw.includes(secret10) && !raw.includes('TOP-SECRET-PAYLOAD');
+              });
+            } catch { auditOk10 = false }
+            if (auditOk10) rep.pass('审计脱敏（组合轮）：network/media 审计档全文无凭证 secret、无响应载荷（只有 origin/方法/结果/重定向）');
+            else rep.fail('C10 审计脱敏不符：审计档含 secret 或载荷明文字样');
+            // ⑧ 崩溃不自动重挂：零权限包写私有配置 → 崩溃 → 不 reload/不重放、配置不清
+            const crashGate10 = Date.now();
+            let cfgPath10 = path.join(userData, 'plugin-config', 'dsh-hello.json');
+            try {
+              const tHello = await pkgTarget('deck-pkg://dsh-hello/');
+              if (tHello) await cdpEvalTarget(tHello, 'window.deckHost.config.set({ comboProbe: "keep-me" }).then(() => true)', 10000);
+            } catch { /* 配置面尽力 */ }
+            let crashIssued10 = false;
+            try {
+              const tHello = await pkgTarget('deck-pkg://dsh-hello/');
+              if (tHello) {
+                // CDP Page.crash：真实渲染进程崩溃（不是关窗）
+                const ws = new WebSocket(tHello.webSocketDebuggerUrl);
+                await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('CDP 连接失败')) });
+                ws.send(JSON.stringify({ id: 9, method: 'Page.crash' }));
+                crashIssued10 = true;
+                setTimeout(() => { try { ws.close() } catch { /* 尽力 */ } }, 500);
+              }
+            } catch { crashIssued10 = false }
+            const crashedEvt10 = crashIssued10 ? await tape.wait('dropped-package-crashed', (e) => e.id === 'dsh-hello', { timeoutMs: 20000, since: crashGate10 }) : null;
+            const actAfterCrash10 = await tape.wait('dropped-package-activated', (e) => e.id === 'dsh-hello', { timeoutMs: 6000, since: Date.now() });
+            let cfgKept10 = false;
+            try { cfgKept10 = fs.existsSync(cfgPath10) && fs.readFileSync(cfgPath10, 'utf8').includes('keep-me') } catch { cfgKept10 = false }
+            if (crashedEvt10 && !actAfterCrash10 && cfgKept10) {
+              rep.pass(`崩溃不自动重挂：Page.crash → dropped-package-crashed 存证，6s 内无重激活（mount 副作用不重放），私有配置原样保留（${path.basename(cfgPath10)}）`);
+            } else {
+              rep.fail(`C10 崩溃处置不符：crashIssued=${crashIssued10} crashedEvt=${Boolean(crashedEvt10)} reActivated=${Boolean(actAfterCrash10)} cfgKept=${cfgKept10}`);
+            }
+            await bridge('conversation/end', { sessionId: sid10 });
+          }
+        }
+      } finally {
+        if (mediaFx10) { try { await mediaFx10.stop(); } catch { /* 尽力 */ } }
+        try { await httpFx10.stop(); } catch { /* 尽力 */ }
+        try { await bridge('credentials/delete', { name: 'combo-cred' }, 10000); } catch { /* 清场 */ }
+        cleanBulk();
+      }
+    } catch (c10err) {
+      rep.fail(`段 C10 异常中止：${c10err instanceof Error ? c10err.message : String(c10err)}`);
+    }
+
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +
     // 「创建全新数据目录」用户手势——旧目录零触碰、指向持久化、不继承不备份 ——
     rep.beginSegment('C3');
