@@ -28,11 +28,17 @@ interface Harness {
   stagingRoot: string
   kernelRoot: string
   workspace: string
+  backupRoot: string
+  configDir: string
   events: Record<string, unknown>[]
   proposals: InstallProposalView[][]
   rescans: number
   mountMode: { mode: 'ok' | 'fail' | 'hang'; message?: string }
   releaseMount: (() => void) | null
+  /** 工单335：回收站端口调用记录（路径按序） */
+  trashCalls: string[]
+  /** 工单335：停用/启用端口调用记录 */
+  enabledCalls: Array<{ id: string; enabled: boolean }>
   dispose(): void
 }
 
@@ -52,11 +58,22 @@ function writePluginDir(dir: string, manifest: unknown, cardText: string = GOOD_
 
 let seq = 0
 
-function boot(opts: { kernelPackages?: boolean; preExistingStaging?: boolean } = {}): Harness {
+function boot(opts: {
+  kernelPackages?: boolean
+  preExistingStaging?: boolean
+  /** 工单335：回收站端口行为（缺省 ok；'fail' = trash 拒绝注入；'none' = 不装配端口） */
+  trash?: 'ok' | 'fail' | 'none'
+  /** 工单335：不装配私有配置路径端口（旧数据继承面缺省） */
+  noConfigPort?: boolean
+  /** 工单335：不装配停用/启用端口 */
+  noEnabledPort?: boolean
+} = {}): Harness {
   const userRoot = tmpDir('user')
   const stagingRoot = tmpDir('staging')
   const kernelRoot = tmpDir('kernel')
   const workspace = tmpDir('ws')
+  const backupRoot = tmpDir('backup')
+  const configDir = tmpDir('cfg')
   if (opts.kernelPackages) {
     writePluginDir(path.join(kernelRoot, 'deck-app'), { id: 'deck-app', name: '内置', version: '1', entry: './card.js' })
   }
@@ -68,6 +85,8 @@ function boot(opts: { kernelPackages?: boolean; preExistingStaging?: boolean } =
   let rescans = 0
   const mountMode: Harness['mountMode'] = { mode: 'ok' }
   let releaseMount: (() => void) | null = null
+  const trashCalls: string[] = []
+  const enabledCalls: Harness['enabledCalls'] = []
   const ctx = { userRoot, stagingRoot, kernelRoot, workspace, events, proposals, rescans, mountMode, releaseMount: releaseMount as Harness['releaseMount'] }
 
   const info = `#${++seq}`
@@ -90,14 +109,32 @@ function boot(opts: { kernelPackages?: boolean; preExistingStaging?: boolean } =
       },
     },
     mountBoundMs: 200,
+    backupRoot,
+    ...(opts.trash !== 'none'
+      ? { trashItem: (dir: string) => {
+          trashCalls.push(dir)
+          if (opts.trash === 'fail') return Promise.reject(new Error('回收站不可用（注入失败）'))
+          // 真 shell.trashItem 语义：目录移出原位（进回收站）——成功即从用户根消失
+          try { fs.rmSync(dir, { recursive: true, force: true }) } catch { /* 尽力 */ }
+          return Promise.resolve()
+        } }
+      : {}),
+    ...(opts.noConfigPort ? {} : { pluginConfigFile: (id: string) => path.join(configDir, `${id}.json`) }),
+    ...(opts.noEnabledPort
+      ? {}
+      : { setCardEnabled: (id: string, enabled: boolean) => {
+          enabledCalls.push({ id, enabled })
+          return { disabledCards: enabled ? [] : [id] }
+        } }),
   })
   const harness: Harness = {
-    mgr, userRoot, stagingRoot, kernelRoot, workspace,
+    mgr, userRoot, stagingRoot, kernelRoot, workspace, backupRoot, configDir,
     events, proposals, get rescans() { return rescans }, mountMode,
     get releaseMount() { return releaseMount },
+    trashCalls, enabledCalls,
     dispose() {
       mgr.dispose()
-      for (const d of [userRoot, stagingRoot, kernelRoot, workspace]) fs.rmSync(d, { recursive: true, force: true })
+      for (const d of [userRoot, stagingRoot, kernelRoot, workspace, backupRoot, configDir]) fs.rmSync(d, { recursive: true, force: true })
     },
   }
   return harness
@@ -415,6 +452,458 @@ describe('安装管线：串行化与孤儿清偿', () => {
       expect(fs.existsSync(path.join(h2.stagingRoot, out.proposal.proposalId))).toBe(true)
       h2.mgr.dispose()
       expect(fs.existsSync(h2.stagingRoot)).toBe(false)
+    } finally {
+      h2.dispose()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单335：更新提案与代次（同族扩展）——update 提交/diff/no_change、待批旧代次不动、
+// 批准=原子换代（备份→落位→有界激活→旧版回收站）、拒绝不影响旧代次。
+// ---------------------------------------------------------------------------
+
+/** 安装并批准一个包（后续 update/no_change/uninstall 测试的在册前提） */
+async function installGood(h: Harness, id = 'dsh-hello', dirName = 'hello-pkg'): Promise<string> {
+  const out = await submitGood(h, id, dirName)
+  if (!out.ok) throw new Error(`前提安装失败：${JSON.stringify(out)}`)
+  const decided = await h.mgr.approve(out.proposal.proposalId)
+  if (!decided.ok) throw new Error(`前提批准失败：${JSON.stringify(decided)}`)
+  return out.proposal.proposalId
+}
+
+/** 写一个「更新版」包目录（card.js 文本与版本变化） */
+function writeUpdateDir(h: Harness, dirName: string, id: string, version = '1.1.0', cardText = 'export default { mount(host) { host.el.textContent = "hello v2" } }\n'): string {
+  const src = path.join(h.workspace, dirName)
+  writePluginDir(src, { ...GOOD_MANIFEST, id, version }, cardText)
+  return src
+}
+
+describe('更新提案：提交（同族守卫 → diff → no_change → pending）', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  it('更新提交：提案 pending 带 update diff（files.changed/permissions delta/版本旧→新），旧代次字节原样在用户根', async () => {
+    await installGood(h)
+    const oldBytes = fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')
+    const src = writeUpdateDir(h, 'upd-pkg', 'dsh-hello')
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    expect(out.ok).toBe(true)
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('形状不符')
+    const p = out.proposal
+    expect(p.status).toBe('pending')
+    expect(p.pkg.id).toBe('dsh-hello')
+    expect(p.pkg.version).toBe('1.1.0')
+    expect(p.update).toBeTruthy()
+    expect(p.update!.packageId).toBe('dsh-hello')
+    expect(p.update!.oldVersion).toBe('1.0.0')
+    expect(p.update!.newVersion).toBe('1.1.0')
+    expect(p.update!.files.changed).toEqual(['card.js', 'plugin.json']) // card 文本 + manifest 版本都变了
+    expect(p.update!.files.added).toEqual([])
+    expect(p.update!.files.removed).toEqual([])
+    expect(p.update!.permissions).toEqual({ added: [], removed: [] })
+    expect(p.update!.oldHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(p.update!.newHash).toBe(p.hash)
+    // 待批旧代次不动：用户根还是旧字节；新字节只在待装载区
+    expect(fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')).toBe(oldBytes)
+    expect(fs.readFileSync(path.join(h.stagingRoot, p.proposalId, 'card.js'), 'utf8')).toContain('hello v2')
+    // 审计：更新意图在案
+    const intent = h.events.find((e) => e.type === 'plugin-update-intent')
+    expect(intent).toMatchObject({ opId: out.opId, pkgId: 'dsh-hello', version: '1.1.0' })
+  })
+
+  it('相同字节 → no_change：不制造提案、不重载（无 rescan）、无待装载区残留', async () => {
+    await installGood(h)
+    const beforeProposals = h.mgr.list().length
+    // 与用户根在册字节完全一致（同版本同 card 文本——writeUpdateDir 缺省是 1.1.0 新文本，这里显式回同字节）
+    const src = writeUpdateDir(h, 'same-pkg', 'dsh-hello', '1.0.0', GOOD_CARD)
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    expect(out).toMatchObject({ ok: true, status: 'no_change', packageId: 'dsh-hello' })
+    expect(h.mgr.list().length).toBe(beforeProposals)
+    expect(h.rescans).toBe(1) // 安装前提的那一次；no_change 不再触发
+    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+    expect(h.events.find((e) => e.type === 'plugin-update-nochange')).toMatchObject({ pkgId: 'dsh-hello' })
+    expect(h.events.find((e) => e.type === 'plugin-update-intent')).toBeUndefined()
+  })
+
+  it('守卫：目标缺失 not_found / 内核档 not_manageable / 源 id≠目标 id_mismatch / 参数与来源同族', async () => {
+    expect(await h.mgr.submitUpdate({ packageId: 'ghost', sourceDir: path.join(h.workspace, 'x') }, { sessionId: 'sess-1', backend: 'dsh' }))
+      .toMatchObject({ ok: false, code: 'not_found' })
+    h.dispose()
+    const h2 = boot({ kernelPackages: true })
+    try {
+      await installGood(h2)
+      writeUpdateDir(h2, 'k-branch', 'deck-app')
+      expect(await h2.mgr.submitUpdate({ packageId: 'deck-app', sourceDir: path.join(h2.workspace, 'k-branch') }, { sessionId: 'sess-1', backend: 'dsh' }))
+        .toMatchObject({ ok: false, code: 'not_manageable' })
+      const src = writeUpdateDir(h2, 'mm-branch', 'other-id')
+      expect(await h2.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' }))
+        .toMatchObject({ ok: false, code: 'id_mismatch' })
+      expect(await h2.mgr.submitUpdate({ packageId: 'dsh-hello' }, { sessionId: 'sess-1', backend: 'dsh' }))
+        .toMatchObject({ ok: false, code: 'invalid_args' })
+      expect(await h2.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: 'rel' }, { sessionId: 'sess-1', backend: 'dsh' }))
+        .toMatchObject({ ok: false, code: 'invalid_args' })
+      expect(await h2.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: path.join(h2.workspace, 'nope') }, { sessionId: 'sess-1', backend: 'dsh' }))
+        .toMatchObject({ ok: false, code: 'invalid_source' })
+      // 工作区越界同族：插件根内来源拒
+      writeUpdateDir(h2, 'x', 'dsh-hello')
+      // 用户根目录本身不可作为来源（插件根内）
+      expect(await h2.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: path.join(h2.userRoot, 'dsh-hello') }, { sessionId: 'sess-1', backend: 'dsh' }))
+        .toMatchObject({ ok: false, code: 'invalid_source' })
+      expect(fs.readdirSync(h2.stagingRoot)).toEqual([])
+    } finally {
+      h2.dispose()
+    }
+  })
+
+  it('含敏感权限的新字节 → permission_deferred（#334 同一边界），副本清偿、旧代次不动', async () => {
+    await installGood(h)
+    const src = path.join(h.workspace, 'perm-upd')
+    writePluginDir(src, { ...GOOD_MANIFEST, id: 'dsh-hello', version: '1.1.0', permissions: ['media.read'] })
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    expect(out).toMatchObject({ ok: false, code: 'permission_deferred' })
+    expect(fs.readdirSync(h.stagingRoot)).toEqual([])
+    expect(fs.existsSync(path.join(h.userRoot, 'dsh-hello', 'plugin.json'))).toBe(true)
+  })
+})
+
+describe('更新批准：原子换代（备份 → 落位 → 有界激活 → 旧版回收站 → 补偿）', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  it('批准全链：新字节转正 + rescan + mount ok → activated；旧版送回收站（trash 端口收到备份路径）', async () => {
+    await installGood(h)
+    const src = writeUpdateDir(h, 'upd-pkg', 'dsh-hello')
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    const decided = await h.mgr.approve(out.proposal.proposalId)
+    expect(decided).toMatchObject({ ok: true, status: 'activated' })
+    if (!decided.ok) throw new Error('形状不符')
+    expect(decided.warnings).toBeUndefined()
+    // 新字节在用户根；待装载区清偿
+    expect(fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')).toContain('hello v2')
+    expect(fs.existsSync(path.join(h.stagingRoot, out.proposal.proposalId))).toBe(false)
+    // 旧版经备份送回收站：trash 调用指向 backupRoot 内备份；备份目录已消失
+    expect(h.trashCalls).toHaveLength(1)
+    expect(h.trashCalls[0]).toContain(path.basename(h.backupRoot))
+    expect(fs.existsSync(h.trashCalls[0])).toBe(false)
+    expect(h.rescans).toBeGreaterThanOrEqual(2)
+    const outcome = h.events.find((e) => e.type === 'plugin-update-outcome')
+    expect(outcome).toMatchObject({ opId: out.opId, outcome: 'activated' })
+    const view = h.mgr.list().find((p) => p.proposalId === out.proposal.proposalId)
+    expect(view?.status).toBe('activated')
+  })
+
+  it('回收站失败：更新仍 activated（换代已成功），备份保留在 backupRoot（绝不降级永久删除）+ warning + 审计', async () => {
+    h.dispose()
+    const h2 = boot({ trash: 'fail' })
+    try {
+      await installGood(h2)
+      const src = writeUpdateDir(h2, 'upd-pkg', 'dsh-hello')
+      const out = await h2.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+      if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+      const decided = await h2.mgr.approve(out.proposal.proposalId)
+      expect(decided.ok).toBe(true)
+      if (!decided.ok) throw new Error('形状不符')
+      expect(decided.warnings?.some((w) => w.includes('回收站'))).toBe(true)
+      // 备份保留：旧版字节仍在 backupRoot（文件级恢复面），没有被永久删除
+      expect(h2.trashCalls).toHaveLength(1)
+      expect(fs.existsSync(path.join(h2.trashCalls[0], 'card.js'))).toBe(true)
+      expect(fs.readFileSync(path.join(h2.trashCalls[0], 'card.js'), 'utf8')).toContain('"hello"')
+      const outcome = h2.events.find((e) => e.type === 'plugin-update-outcome')
+      expect(outcome).toMatchObject({ outcome: 'activated', oldVersionTrashFailed: true })
+    } finally {
+      h2.dispose()
+    }
+  })
+
+  it('激活确定失败：新包退出、旧版还原（rollback restored）、staging 清偿', async () => {
+    await installGood(h)
+    const src = writeUpdateDir(h, 'upd-pkg', 'dsh-hello')
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    h.mountMode.mode = 'fail'
+    const decided = await h.mgr.approve(out.proposal.proposalId)
+    expect(decided.ok).toBe(false)
+    if (decided.ok) throw new Error('形状不符')
+    expect(decided.code).toBe('activation_failed')
+    expect(decided.rollback).toBe('restored')
+    // 旧字节还原在用户根；新字节无残留；备份清偿；回收站未被调用（旧版没死）
+    expect(fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')).toContain('"hello"')
+    expect(fs.existsSync(path.join(h.stagingRoot, out.proposal.proposalId))).toBe(false)
+    expect(fs.readdirSync(h.backupRoot)).toEqual([])
+    expect(h.trashCalls).toHaveLength(0)
+    const view = h.mgr.list().find((p) => p.proposalId === out.proposal.proposalId)
+    expect(view?.status).toBe('failed')
+    expect(view?.error?.code).toBe('activation_failed')
+  })
+
+  it('激活结果未知：stateUnknown、不猜补偿（新代次在位+备份保留）、不自动重试', async () => {
+    await installGood(h)
+    const src = writeUpdateDir(h, 'upd-pkg', 'dsh-hello')
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    h.mountMode.mode = 'hang'
+    const decided = await h.mgr.approve(out.proposal.proposalId)
+    expect(decided.ok).toBe(false)
+    if (decided.ok) throw new Error('形状不符')
+    expect(decided.code).toBe('activation_unknown')
+    expect(decided.stateUnknown).toBe(true)
+    // 不猜补偿：新代次在位（实况以清单对账），备份保留（人工恢复面），回收站未调用
+    expect(fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')).toContain('hello v2')
+    expect(fs.readdirSync(h.backupRoot)).toHaveLength(1)
+    expect(h.trashCalls).toHaveLength(0)
+    const outcome = h.events.find((e) => e.type === 'plugin-update-outcome')
+    expect(outcome).toMatchObject({ outcome: 'activation_unknown', stateUnknown: true })
+  })
+
+  it('拒绝：staging 清偿 + gate_denied 审计，旧代次字节原样（不影响旧代次）', async () => {
+    await installGood(h)
+    const oldBytes = fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')
+    const src = writeUpdateDir(h, 'upd-pkg', 'dsh-hello')
+    const out = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!out.ok || out.status !== 'pending-approval') throw new Error('提交失败')
+    const rejected = await h.mgr.reject(out.proposal.proposalId)
+    expect(rejected).toMatchObject({ ok: true })
+    expect(fs.readFileSync(path.join(h.userRoot, 'dsh-hello', 'card.js'), 'utf8')).toBe(oldBytes)
+    expect(fs.existsSync(path.join(h.stagingRoot, out.proposal.proposalId))).toBe(false)
+    expect(h.mgr.list().find((p) => p.proposalId === out.proposal.proposalId)?.status).toBe('rejected')
+    // 更新提案的拒绝走同一 gate_denied 语义，结局落更新事件族（与意图同族对账；
+    // 前提安装自有一条 plugin-install-outcome，这里按 proposalId 精确对账）
+    expect(h.events.find((e) => e.type === 'plugin-update-outcome')).toMatchObject({ outcome: 'gate_denied', opId: out.opId })
+    expect(h.events.filter((e) => e.type === 'plugin-update-outcome')).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单335：卸载（回收站红线）——失败不降级永久删除；config 保留。
+// ---------------------------------------------------------------------------
+
+describe('卸载：回收站（失败明确报错，绝不永久删除）', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  it('卸载全链：trash 端口收到用户根目录 → 目录消失 + rescan + 审计意图/结局分离', async () => {
+    await installGood(h)
+    const target = path.join(h.userRoot, 'dsh-hello')
+    expect(fs.existsSync(target)).toBe(true)
+    const out = await h.mgr.uninstall({ packageId: 'dsh-hello' })
+    expect(out.ok).toBe(true)
+    expect(h.trashCalls).toEqual([target])
+    expect(fs.existsSync(target)).toBe(false)
+    expect(h.rescans).toBeGreaterThanOrEqual(2)
+    const intent = h.events.find((e) => e.type === 'plugin-uninstall-intent')
+    const outcome = h.events.find((e) => e.type === 'plugin-uninstall-outcome')
+    expect(intent).toMatchObject({ pkgId: 'dsh-hello' })
+    expect(outcome).toMatchObject({ opId: (intent as Record<string, unknown>)['opId'], outcome: 'uninstalled' })
+  })
+
+  it('回收站失败 → trash_failed 明确错误；目录原样在用户根（红线：不降级永久删除）', async () => {
+    h.dispose()
+    const h2 = boot({ trash: 'fail' })
+    try {
+      await installGood(h2)
+      const target = path.join(h2.userRoot, 'dsh-hello')
+      const out = await h2.mgr.uninstall({ packageId: 'dsh-hello' })
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('形状不符')
+      expect(out.code).toBe('trash_failed')
+      expect(out.message).toContain('回收站')
+      expect(fs.existsSync(path.join(target, 'plugin.json'))).toBe(true)
+      const outcome = h2.events.find((e) => e.type === 'plugin-uninstall-outcome')
+      expect(outcome).toMatchObject({ outcome: 'trash_failed' })
+      // 失败后同 id 重装（同字节）可以继续（数据未丢）
+    } finally {
+      h2.dispose()
+    }
+  })
+
+  it('守卫：内核档 not_manageable / 缺失 not_found / 非法参数 invalid_args / 无端口 not_wired', async () => {
+    expect(await h.mgr.uninstall({ packageId: 'ghost' })).toMatchObject({ ok: false, code: 'not_found' })
+    expect(await h.mgr.uninstall({})).toMatchObject({ ok: false, code: 'invalid_args' })
+    expect(await h.mgr.uninstall({ packageId: 'BAD ID' })).toMatchObject({ ok: false, code: 'invalid_args' })
+    h.dispose()
+    const h2 = boot({ kernelPackages: true })
+    try {
+      expect(await h2.mgr.uninstall({ packageId: 'deck-app' })).toMatchObject({ ok: false, code: 'not_manageable' })
+      expect(await h2.mgr.uninstall({ packageId: 'app' })).toMatchObject({ ok: false, code: 'not_manageable' })
+    } finally {
+      h2.dispose()
+    }
+    const h3 = boot({ trash: 'none' })
+    try {
+      await installGood(h3)
+      expect(await h3.mgr.uninstall({ packageId: 'dsh-hello' })).toMatchObject({ ok: false, code: 'not_wired' })
+      expect(fs.existsSync(path.join(h3.userRoot, 'dsh-hello', 'plugin.json'))).toBe(true)
+    } finally {
+      h3.dispose()
+    }
+  })
+
+  it('卸载保留私有配置：configDir 里 <id>.json 原样（解除挂载不碰配置）', async () => {
+    await installGood(h)
+    fs.writeFileSync(path.join(h.configDir, 'dsh-hello.json'), '{"greeting":"kept"}\n', 'utf8')
+    expect(await h.mgr.uninstall({ packageId: 'dsh-hello' })).toMatchObject({ ok: true })
+    expect(fs.readFileSync(path.join(h.configDir, 'dsh-hello.json'), 'utf8')).toBe('{"greeting":"kept"}\n')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单335：旧数据继承状态机——同 id 重装（install 通道撞卸载残留配置）→ 提案带独立
+// 批准项；继承是独立用户手势，不继承 = 新配置起步（detach，不永久删除）。
+// ---------------------------------------------------------------------------
+
+describe('旧数据继承：同 id 重装的独立手势', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  /** 前提：已装 → 写残留配置 → 卸载（残留即卸载保留物） */
+  async function leftoverState(h: Harness): Promise<void> {
+    await installGood(h)
+    fs.writeFileSync(path.join(h.configDir, 'dsh-hello.json'), '{"greeting":"old"}\n', 'utf8')
+    expect(await h.mgr.uninstall({ packageId: 'dsh-hello' })).toMatchObject({ ok: true })
+    expect(fs.existsSync(path.join(h.configDir, 'dsh-hello.json'))).toBe(true)
+  }
+
+  it('同 id 重装：提案带 dataInheritance(pending)；无残留的全新安装不带该字段', async () => {
+    await leftoverState(h)
+    const out = await submitGood(h)
+    if (!out.ok) throw new Error('提交失败')
+    expect(out.proposal.dataInheritance).toEqual({ decision: 'pending' })
+    h.dispose()
+    const h2 = boot()
+    try {
+      const fresh = await submitGood(h2)
+      if (!fresh.ok) throw new Error('提交失败')
+      expect(fresh.proposal.dataInheritance).toBeUndefined()
+    } finally {
+      h2.dispose()
+    }
+  })
+
+  it('独立手势继承：decideInheritance(true) → 批准代码后 <id>.json 原样（旧数据可重新读取）', async () => {
+    await leftoverState(h)
+    const out = await submitGood(h)
+    if (!out.ok) throw new Error('提交失败')
+    const decided = await h.mgr.decideInheritance(out.proposal.proposalId, true)
+    expect(decided).toMatchObject({ ok: true, decision: 'inherited' })
+    expect(h.mgr.list().find((p) => p.proposalId === out.proposal.proposalId)?.dataInheritance).toEqual({ decision: 'inherited' })
+    expect(await h.mgr.approve(out.proposal.proposalId)).toMatchObject({ ok: true, status: 'activated' })
+    expect(fs.readFileSync(path.join(h.configDir, 'dsh-hello.json'), 'utf8')).toBe('{"greeting":"old"}\n')
+    expect(fs.existsSync(path.join(h.configDir, 'dsh-hello.json.detached'))).toBe(false)
+    const evt = h.events.find((e) => e.type === 'plugin-config-inheritance')
+    expect(evt).toMatchObject({ pkgId: 'dsh-hello', decision: 'inherited' })
+  })
+
+  it('独立手势不继承：decideInheritance(false) → 批准后 detach（<id>.json → .detached，新配置起步，数据不永久删）', async () => {
+    await leftoverState(h)
+    const out = await submitGood(h)
+    if (!out.ok) throw new Error('提交失败')
+    expect(await h.mgr.decideInheritance(out.proposal.proposalId, false)).toMatchObject({ ok: true, decision: 'fresh' })
+    expect(await h.mgr.approve(out.proposal.proposalId)).toMatchObject({ ok: true })
+    expect(fs.existsSync(path.join(h.configDir, 'dsh-hello.json'))).toBe(false)
+    expect(fs.readFileSync(path.join(h.configDir, 'dsh-hello.json.detached'), 'utf8')).toBe('{"greeting":"old"}\n')
+    const evt = h.events.find((e) => e.type === 'plugin-config-inheritance')
+    expect(evt).toMatchObject({ pkgId: 'dsh-hello', decision: 'fresh', defaulted: false })
+  })
+
+  it('未决默认 fresh：只批准代码不决继承 → detach + 审计 defaulted（读取须显式继承批准）', async () => {
+    await leftoverState(h)
+    const out = await submitGood(h)
+    if (!out.ok) throw new Error('提交失败')
+    expect(await h.mgr.approve(out.proposal.proposalId)).toMatchObject({ ok: true })
+    expect(fs.existsSync(path.join(h.configDir, 'dsh-hello.json'))).toBe(false)
+    expect(fs.existsSync(path.join(h.configDir, 'dsh-hello.json.detached'))).toBe(true)
+    const evt = h.events.find((e) => e.type === 'plugin-config-inheritance')
+    expect(evt).toMatchObject({ pkgId: 'dsh-hello', decision: 'fresh', defaulted: true })
+  })
+
+  it('拒绝提案：残留配置原样（既不 detach 也不删）', async () => {
+    await leftoverState(h)
+    const out = await submitGood(h)
+    if (!out.ok) throw new Error('提交失败')
+    await h.mgr.decideInheritance(out.proposal.proposalId, true)
+    await h.mgr.reject(out.proposal.proposalId)
+    expect(fs.readFileSync(path.join(h.configDir, 'dsh-hello.json'), 'utf8')).toBe('{"greeting":"old"}\n')
+    expect(fs.existsSync(path.join(h.configDir, 'dsh-hello.json.detached'))).toBe(false)
+    expect(h.events.find((e) => e.type === 'plugin-config-inheritance')).toBeUndefined()
+  })
+
+  it('守卫：已决提案/未知提案 not_found；无继承面提案 not_applicable', async () => {
+    const out = await submitGood(h)
+    if (!out.ok) throw new Error('提交失败')
+    expect(await h.mgr.decideInheritance(out.proposal.proposalId, true)).toMatchObject({ ok: false, code: 'not_applicable' })
+    expect(await h.mgr.decideInheritance('nope', true)).toMatchObject({ ok: false, code: 'not_found' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单335：写全局串行（busy 与其他错误可区分）+ 停用/启用端口编排。
+// ---------------------------------------------------------------------------
+
+describe('写串行与停用/启用', () => {
+  let h: Harness
+  beforeEach(() => { h = boot() })
+  afterEach(() => { h.dispose() })
+
+  it('在途写期间 submitUpdate / uninstall / setEnabled → busy（retryable）；decideInheritance 排队跟走', async () => {
+    await installGood(h)
+    h.mountMode.mode = 'hang'
+    const src = writeUpdateDir(h, 'upd-pkg', 'dsh-hello')
+    const upd = await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+    if (!upd.ok || upd.status !== 'pending-approval') throw new Error('提交失败')
+    const approveP = h.mgr.approve(upd.proposal.proposalId)
+    // approve 在途（hang）：写入口一律 busy，且与其他错误可区分（retryable 唯一）
+    expect(await h.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' }))
+      .toMatchObject({ ok: false, code: 'busy', retryable: true })
+    expect(await h.mgr.uninstall({ packageId: 'dsh-hello' })).toMatchObject({ ok: false, code: 'busy', retryable: true })
+    expect(await h.mgr.setEnabled({ packageId: 'dsh-hello', enabled: false })).toMatchObject({ ok: false, code: 'busy', retryable: true })
+    // decideInheritance 排队（不互斥、不 busy）：手势照常入队；落点在批准结算后——
+    // 提案届时已决，如实 not_found（迟到的继承手势不被静默吞掉，也不 busy）
+    const diP = h.mgr.decideInheritance(upd.proposal.proposalId, false)
+    h.mountMode.mode = 'ok'
+    h.releaseMount?.()
+    expect(await approveP).toMatchObject({ ok: true })
+    expect(await diP).toMatchObject({ ok: false, code: 'not_found' })
+    // 本链无残留配置（无继承面）——detach 断言归「旧数据继承」describe
+  })
+
+  it('setEnabled：串行内调端口（参数原样达）；无端口 not_wired；批准面不受影响', async () => {
+    await installGood(h)
+    expect(await h.mgr.setEnabled({ packageId: 'dsh-hello', enabled: false })).toMatchObject({ ok: true })
+    expect(h.enabledCalls).toEqual([{ id: 'dsh-hello', enabled: false }])
+    expect(await h.mgr.setEnabled({ packageId: 'dsh-hello', enabled: true })).toMatchObject({ ok: true })
+    expect(await h.mgr.setEnabled({ packageId: 'x!', enabled: false })).toMatchObject({ ok: false, code: 'invalid_args' })
+    expect(await h.mgr.setEnabled({ packageId: 'dsh-hello', enabled: 'no' })).toMatchObject({ ok: false, code: 'invalid_args' })
+    h.dispose()
+    const h2 = boot({ noEnabledPort: true })
+    try {
+      expect(await h2.mgr.setEnabled({ packageId: 'dsh-hello', enabled: false })).toMatchObject({ ok: false, code: 'not_wired' })
+    } finally {
+      h2.dispose()
+    }
+  })
+
+  it('在途写期间新 submit → busy（uninstall↔submit 互斥同源信号量）', async () => {
+    h.dispose()
+    const h2 = boot()
+    try {
+      await installGood(h2)
+      h2.mountMode.mode = 'hang'
+      const src = writeUpdateDir(h2, 'upd-pkg', 'dsh-hello')
+      const upd = await h2.mgr.submitUpdate({ packageId: 'dsh-hello', sourceDir: src }, { sessionId: 'sess-1', backend: 'dsh' })
+      if (!upd.ok || upd.status !== 'pending-approval') throw new Error('提交失败')
+      const approveP = h2.mgr.approve(upd.proposal.proposalId)
+      const another = path.join(h2.workspace, 'other-pkg')
+      writePluginDir(another, { ...GOOD_MANIFEST, id: 'dsh-other' })
+      expect(await h2.mgr.submit({ sourceDir: another }, { sessionId: 'sess-1', backend: 'dsh' })).toMatchObject({ ok: false, code: 'busy' })
+      h2.mountMode.mode = 'ok'
+      h2.releaseMount?.()
+      expect(await approveP).toMatchObject({ ok: true })
     } finally {
       h2.dispose()
     }
