@@ -165,7 +165,7 @@ describe('真仓库现状全绿（电池接入表真表，CI 执行力所在）'
     return out
   }
 
-  it('九项接线登记齐备：八块电池 ＋ stall-duel experiment，字段齐备且六项校验全绿', () => {
+  it('十项接线登记齐备：九块电池 ＋ stall-duel experiment，字段齐备且六项校验全绿', () => {
     const manifest = loadManifest()
     expect(manifest).not.toBeNull()
     const acceptFiles = collectAcceptFiles(resolve(REPO_ROOT, 'app/accept'), 'app/accept', [])
@@ -177,9 +177,9 @@ describe('真仓库现状全绿（电池接入表真表，CI 执行力所在）'
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
 
-    // 十条登记：九块电池（kind 缺省＝电池；工单310 增摆位电池）＋ 一条 experiment（取证工具，段级治理豁免）
+    // 十一条登记：十块电池（kind 缺省＝电池；工单310 增摆位电池、工单332 增对话窗电池）＋ 一条 experiment（取证工具，段级治理豁免）
     const entries = manifest!.batteries as unknown as { id: string; flag: string; entry: string; hintBar: boolean; cdpPort: number | null; kind?: string | null }[]
-    expect(entries.length).toBe(10)
+    expect(entries.length).toBe(11)
     expect(entries.filter((b) => b.kind === 'experiment').map((b) => b.id)).toEqual(['132-stall-duel'])
     for (const b of entries) {
       expect(typeof b.flag).toBe('string')

@@ -1,0 +1,26 @@
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/d0b976cb-6a77-4024-a558-6176567ad5b7
+[18112:1031/082046.939:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[18112:1031/082046.939:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[18112:1031/082046.939:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[18112:1031/082047.015:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[18112:1031/082047.015:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[18112:1031/082047.015:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[18112:1031/082047.015:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[18112:1031/082047.015:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[18112:1031/082047.015:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/554dec54-5e95-4452-b5c6-a16dcfae4eed
+[24496:1031/082516.650:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[24496:1031/082516.650:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[24496:1031/082516.650:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[24496:1031/082516.730:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[24496:1031/082516.730:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[24496:1031/082516.730:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[24496:1031/082516.730:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[24496:1031/082516.730:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[24496:1031/082516.730:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.

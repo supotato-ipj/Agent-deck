@@ -16,6 +16,9 @@ console.log('[copy-assets] dist/renderer/taskbar-overflow.html')
 // 任务栏弹窗菜单页（工单193）：通用竖排弹窗菜单通路的载页，与条带页同根同协议
 copyFileSync(path.join(root, 'src', 'renderer', 'taskbar-menu.html'), path.join(rendererDest, 'taskbar-menu.html'))
 console.log('[copy-assets] dist/renderer/taskbar-menu.html')
+// 对话窗页（工单332）：内核 UI 的对话小窗，与面板页同根同协议
+copyFileSync(path.join(root, 'src', 'renderer', 'conversation.html'), path.join(rendererDest, 'conversation.html'))
+console.log('[copy-assets] dist/renderer/conversation.html')
 // 内置桌面组件（工单10）：卡片入口由 tsc 编译就位，manifest 不经 tsc，逐个复制过去。
 // 没有 manifest 的卡片目录对插件宿主不可见（manifest 即契约，缺契约不装载）。
 const cardsSrc = path.join(root, 'src', 'renderer', 'cards')

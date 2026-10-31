@@ -1607,6 +1607,38 @@
       "hintBar": true,
       "cdpPort": 9333,
       "kind": "experiment"
+    },
+    {
+      "id": "332-conversation",
+      "title": "对话窗 DSH 聊天会话（工单332，spec #326）：真实 DSH 全链冒烟——握手/流式/取消与收起/工具审批/退出/进程回收/零管理面",
+      "entry": "app/accept/conversation.js",
+      "flag": "--accept-chat",
+      "hintBar": true,
+      "cdpPort": 9231,
+      "kind": null,
+      "budgetSeconds": 120,
+      "segments": [
+        {
+          "seg": "C1",
+          "ticket": 332,
+          "title": "真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
+          "areas": [
+            "sessions"
+          ]
+        }
+      ],
+      "areas": [
+        "sessions"
+      ],
+      "scope": true,
+      "lastMeasuredSeconds": 14,
+      "lastMeasuredAt": "2026-10-31"
     }
   ],
   "areas": {
@@ -1635,6 +1667,10 @@
     "app/plugins"
   ],
   "pathAreas": [
+    {
+      "path": "app/src/renderer/conversation.ts",
+      "area": "sessions"
+    },
     {
       "path": "app/src",
       "area": "panel.core"
@@ -1800,6 +1836,10 @@
       "area": "sessions"
     },
     {
+      "path": "app/src/main/conversation",
+      "area": "sessions"
+    },
+    {
       "path": "app/src/main/services/settings.ts",
       "area": "settings"
     },
@@ -1895,6 +1935,10 @@
     }
   ],
   "requiredFileRules": [
+    {
+      "path": "app/src/renderer/conversation.ts",
+      "area": "sessions"
+    },
     {
       "path": "app/src/main/config.ts",
       "area": "config"

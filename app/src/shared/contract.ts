@@ -409,6 +409,71 @@ export interface PluginConfigState {
   warnings: string[]
 }
 
+// ---------------------------------------------------------------------------
+// 对话窗（工单332，ADR-0018 对话通道 / ADR-0026 DSH 运行时）：聊天型会话契约。
+// 面板只存会话元数据（id/cwd/backend/时间戳），正文仅内存视图不落盘（ADR-0018）。
+// ---------------------------------------------------------------------------
+
+/** 对话窗权限选项（ACP request_permission options 原样字段） */
+export interface ConversationPermissionOption {
+  optionId: string
+  name: string
+  kind: string
+}
+
+/** 对话窗转写条目（仅内存视图；agent_chunk 为累计快照替换语义——探针 #330 实录） */
+export interface ConversationTranscriptEntry {
+  kind: 'user' | 'agent' | 'tool' | 'permission' | 'system'
+  at: number
+  text: string
+  /** kind=tool：session/update 工具事件原样载荷（原样呈现，工单332 验收标准 1） */
+  raw?: Record<string, unknown>
+  /** kind=tool：状态（in_progress/completed/failed，原样透传） */
+  status?: string | null
+  toolCallId?: string | null
+  /** kind=permission：后端给的选项原样清单 */
+  options?: ConversationPermissionOption[]
+  /** kind=permission：用户裁决（选中 optionId；'cancelled' = 取消本 turn） */
+  resolvedOptionId?: string | null
+}
+
+/** 会话状态：starting（握手中）/ ready（可聊）/ busy（turn 在途）/ ended / failed（进程异常退出） */
+export type ConversationSessionStatus = 'starting' | 'ready' | 'busy' | 'ended' | 'failed'
+
+/** 会话视图（渲染层唯一呈现源；transcript 仅内存，不落盘） */
+export interface ConversationSessionView {
+  id: string
+  backend: string
+  backendSessionId: string | null
+  /** 后端进程 pid（null = 未运行） */
+  backendPid: number | null
+  /** ACP agentInfo（握手实测；浮动版本策略下为当时记录，ADR-0026） */
+  backendAgent: string | null
+  backendAgentVersion: string | null
+  /** 工作目录绝对路径（resume 必需，元数据落盘字段之一） */
+  cwd: string
+  label: string
+  /** 聊天型恒 false（管理型是 #333 的面） */
+  managed: boolean
+  status: ConversationSessionStatus
+  createdAt: number
+  endedAt: number | null
+  transcript: ConversationTranscriptEntry[]
+  /** 上下文占用（usage_update 原样数字） */
+  usage: { used: number | null; size: number | null }
+  /** failed 态的用户可见原因（不自动重启，由用户决定新建或续接——ADR-0018） */
+  error: string | null
+  /** 在途权限请求（原样选项；null = 无；绝不超时自动拒绝） */
+  pendingPermission: { options: ConversationPermissionOption[] } | null
+}
+
+/** 后端可用性（选择器/创建入口的置灰依据；null = 未安装） */
+export interface ConversationBackendInfo {
+  available: boolean
+  detail: string
+  exe: string | null
+}
+
 /** 内核桥接方法表：method → [请求体, 响应体] */
 export interface BridgeMethods {
   'panel/snapshot': { request: null; response: PanelSnapshot }
@@ -701,6 +766,39 @@ export interface BridgeMethods {
    * 参与；quit 依赖由生产装配（index.ts）注入，未装配如实拒绝（不静默吞）。
    */
   'app/quit': { request: null; response: { ok: boolean } }
+  // --- 对话窗（工单332）：聊天型会话全链 ---
+  /** 后端可用性查询（描述符解析 + 布局校验；未安装时对话窗置灰创建入口） */
+  'conversation/backend': { request: null; response: ConversationBackendInfo }
+  /** 打开/唤起对话窗（无 sessionId = 最近活跃会话；窗口已开则置前）。关窗只收起（隐藏），不回收进程 */
+  'conversation/show': { request: { sessionId?: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 创建聊天型会话：解析后端描述符 → 会话专属空工作目录（userData 下）→ spawn
+   * （每会话一进程，Job Object kill-on-close）→ initialize → session/new（mcpServers:[],
+   * 不注入管理通道、不签会话凭证、不注入合成引导 prompt——ADR-0018）。
+   * 任一步失败：回收进程、状态 failed、错误如实呈现（全有或全无）。
+   */
+  'conversation/create': { request: { label?: string }; response: { ok: boolean; session?: ConversationSessionView; error?: string } }
+  /** 会话清单（含转写视图；面板重启后转写为空——正文归 DSH 权威，ADR-0018） */
+  'conversation/list': { request: null; response: { sessions: ConversationSessionView[] } }
+  /** 发送用户输入：session/prompt 流式（回复/工具/权限经 conversation/changed 回推） */
+  'conversation/prompt': { request: { sessionId: string; text: string }; response: { ok: boolean; error?: string } }
+  /** 取消在途 turn：session/cancel；在途权限请求一并回 cancelled；进程存活可续用 */
+  'conversation/cancel': { request: { sessionId: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 权限裁决：optionId 必须取自当前请求的选项清单；绝不超时自动拒绝（ADR-0018）。
+   * 回复形状由适配器固定为 {outcome:{outcome:"selected",optionId}}（探针实证形状）。
+   */
+  'conversation/permission': { request: { sessionId: string; optionId: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 显式结束：在途 turn 先 cancel（短宽限落定）→ session/close → stdin close 自然退出
+   * （exit code 0）；超时即 Job Object/树杀兜底。元数据记 endedAt。
+   */
+  'conversation/end': { request: { sessionId: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 续接面板自己创建的会话：按元数据的 backendSessionId + 绝对 cwd 重新拉进程并
+   * session/resume（后端不回放历史——窗内旧消息不可找回，插入 system 说明）。
+   */
+  'conversation/resume': { request: { sessionId: string }; response: { ok: boolean; session?: ConversationSessionView; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -738,6 +836,11 @@ export interface BridgeEvents {
    * 条带渲染层据此钉住所属组（浮层在场只钉所属组，其余组照常收）。
    */
   'taskbar/popup-state': { family: string; open: boolean }
+  /**
+   * 工单332 对话窗：会话视图变化（创建/流式 chunk/工具/权限/取消/结束/失败）即推，
+   * 全量视图（渲染层按 id 对齐；转写仅内存，不落盘）。不等 1Hz 快照。
+   */
+  'conversation/changed': { sessions: ConversationSessionView[] }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string
