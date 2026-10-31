@@ -171,6 +171,17 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
         } else {
           plan = { kind: 'text', out: 'UPDATE-SUBMITTED:' + toolText.slice(0, 260) };
         }
+      } else if (marker('MANAGED UNINSTALL')) {
+        // 工单335 卸载真机编排：0=MCP plugin_uninstall{packageId}；≥1=回显结果（回收站路径）
+        const pkgIdU = ((cleanLastUser.match(/PKGID=(\S+)/) || [])[1] || 'dsh-hello').trim();
+        if (!turnTool) {
+          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_uninstall'));
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ packageId: pkgIdU }) }
+            : { kind: 'text', out: 'UNINSTALL-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'UNINSTALL-DONE:' + toolText.slice(0, 200) };
+        }
       } else if (marker('MANAGED MEDIA')) {
         // 工单336 媒体卡全链真机编排（与 MANAGED INSTALL 同族状态机，首个敏感权限闭环）：
         // 0=写 plugin.json（permissions=['media.read'] + capabilities=['media']——敏感通路提交）；
