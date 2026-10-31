@@ -268,6 +268,9 @@ export class BridgeService extends Service {
         const { sessionId } = payload as { sessionId: string }
         return await this.ctx.conversation.resume(String(sessionId ?? '')) as BridgeMethods[M]['response']
       }
+      // 工单340（ADR-0026）：显式创建全新 DSH 数据目录手势（设置面入口；旧目录零触碰）
+      case 'conversation/new-data-dir':
+        return this.ctx.conversation.createFreshDataDir() as BridgeMethods[M]['response']
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

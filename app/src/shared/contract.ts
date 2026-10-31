@@ -490,6 +490,11 @@ export interface ConversationSessionView {
   /** ACP agentInfo（握手实测；浮动版本策略下为当时记录，ADR-0026） */
   backendAgent: string | null
   backendAgentVersion: string | null
+  /** 工单340（ADR-0026）：浮动运行时「未验收版本」标记——验收只记录不白名单，
+   *  面板侧无转 true 路径；null = 本次面板生命周期内尚未完成过握手 */
+  runtimeUnaccepted: boolean | null
+  /** 工单340：接入冒烟结果（passed/failed = 管理型宿主探活；skipped = 聊天型无 MCP 面） */
+  runtimeSmoke: 'pending' | 'passed' | 'failed' | 'skipped' | null
   /** 工作目录绝对路径（resume 必需，元数据落盘字段之一） */
   cwd: string
   label: string
@@ -508,11 +513,28 @@ export interface ConversationSessionView {
   pendingPermission: { options: ConversationPermissionOption[] } | null
 }
 
+/** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
+export interface ConversationRuntimeDiagnostics {
+  agentName: string
+  agentVersion: string
+  protocolVersion: number
+  /** initialize 协商能力原样（agentCapabilities） */
+  capabilities: Record<string, unknown>
+  smoke: 'pending' | 'passed' | 'failed' | 'skipped'
+  /** 恒 false（ADR-0026：验收只记录不白名单） */
+  accepted: false
+  at: number
+}
+
 /** 后端可用性（选择器/创建入口的置灰依据；null = 未安装） */
 export interface ConversationBackendInfo {
   available: boolean
   detail: string
   exe: string | null
+  /** 工单340：最近一次真实接入诊断（null = 本面板生命周期内尚无握手） */
+  runtime: ConversationRuntimeDiagnostics | null
+  /** 工单340：面板专属 DSH 数据目录当前指向（全新目录手势的呈现面） */
+  dshHome: string | null
 }
 
 /** 内核桥接方法表：method → [请求体, 响应体] */
@@ -843,6 +865,12 @@ export interface BridgeMethods {
    * session/resume（后端不回放历史——窗内旧消息不可找回，插入 system 说明）。
    */
   'conversation/resume': { request: { sessionId: string }; response: { ok: boolean; session?: ConversationSessionView; error?: string } }
+  /**
+   * 工单340（ADR-0026）：用户显式手势——创建全新 DSH 数据目录并切换指向（设置面入口）。
+   * 新目录生成于面板专属根下首个空位（dsh-home-N），旧目录原样保留（零触碰）、
+   * 旧会话不自动继承；目录选择经 config.conversation.dshHome 持久化（重启保持）。
+   */
+  'conversation/new-data-dir': { request: null; response: { ok: boolean; dshHome?: string; previous?: string; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
