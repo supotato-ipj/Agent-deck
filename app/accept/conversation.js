@@ -830,11 +830,17 @@ PKGDIR=${pkgDirM}` });
             }
             if (mediaFixture) {
               rep.note(`C6 媒体夹具：Edge pid=${mediaFixture.pid} 低音量 0.04 循环 5s wav（测完进程树强杀）`);
+              let lastSeen6 = null;
               const liveOk = await until(async () => {
                 try {
                   const t = await pkgTarget('deck-pkg://dsh-media/');
                   if (!t) return null;
-                  return await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent || "?" : null })()', 8000);
+                  const st = await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent || "?" : null })()', 8000);
+                  // 取样口径（工单337 收尾）：只认 PLAYING 终态——行刚出现时可能处在
+                  // CHANGING（真实的过渡状态，不是失败），旧口径「首个非 null 即返回」会
+                  // 把过渡态当结论判红。
+                  lastSeen6 = st;
+                  return st === 'PLAYING' ? st : null;
                 } catch { return null }
               }, 45000);
               if (liveOk === 'PLAYING') {
@@ -846,7 +852,7 @@ PKGDIR=${pkgDirM}` });
                   const seen = t ? await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")].map((r) => (r.querySelector(".media-title") || {}).textContent); return JSON.stringify({ rows, card: (document.querySelector(".media-card") || {}).className, hasHost: Boolean(window.deckHost && window.deckHost.media) }) })()', 8000) : 'no-target';
                   rep.note(`C6 ④诊断 卡片实见=${String(seen).slice(0, 500)}`);
                 } catch (errD) { rep.note(`C6 ④诊断 CDP 失败：${errD instanceof Error ? errD.message : String(errD)}`); }
-                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)}——诊断见上`);
+                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)} 末次取样=${JSON.stringify(lastSeen6)}——诊断见上`);
               }
               // ④ 受控缩略图链 + 审计存证
               const thumbOk = await until(async () => {
@@ -975,12 +981,18 @@ PKGDIR=${pkgDirM}` });
               if (fixture7) {
                 rep.note(`C7 SMTC 源夹具：pid=${fixture7.pid}（控制目标；测完优雅停+进程树清）`);
                 await until(async () => (await pkgTarget('deck-pkg://dsh-media-ctl/')) ? true : null, 20000);
-                // B 包卡片：控制按钮渲染（controlGranted=true）
+                // B 包卡片：控制按钮渲染（controlGranted=true）。
+                // 取样口径（工单337 收尾）：等 ≥2 个按钮的视图落地再判——激活后包页
+                // 首帧可能还没收到带 controlGranted 的 view，旧口径「首个非 null 即返回」
+                // 会把 {btns:0} 的启动态当结论判红。
+                let lastBtns7 = null;
                 const btnsOk = await until(async () => {
                   try {
                     const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
                     if (!t) return null;
-                    return await cdpEvalTarget(t, '(() => ({ btns: document.querySelectorAll(".media-control-btn").length }))()', 8000);
+                    const seen = await cdpEvalTarget(t, '(() => ({ btns: document.querySelectorAll(".media-control-btn").length }))()', 8000);
+                    lastBtns7 = seen;
+                    return seen && seen.btns >= 2 ? seen : null;
                   } catch { return null }
                 }, 20000);
                 // 找夹具会话键（卡片行 data-key，title=T336 Accept Track）
@@ -1036,7 +1048,7 @@ PKGDIR=${pkgDirM}` });
                 if (optOkB && approvedB && approvedB.ok === true && btnsOk && btnsOk.btns >= 2 && fxKey && paused && played && auditCtl) {
                   rep.pass(`B 包控制全链：可选权限 [media.control] grantPermissions 子集批准 → 控制按钮渲染（${btnsOk.btns} 个）→ 夹具会话 ${fxKey} 暂停/播放真翻转 + 审计 control 族计数在案`);
                 } else {
-                  rep.fail(`C7 B 包面不符：opt=${optOkB} approved=${JSON.stringify(approvedB)} btns=${JSON.stringify(btnsOk)} fxKey=${JSON.stringify(fxKey)} paused=${paused} played=${played} audit=${Boolean(auditCtl)}`);
+                  rep.fail(`C7 B 包面不符：opt=${optOkB} approved=${JSON.stringify(approvedB)} btns=${JSON.stringify(btnsOk)} lastBtns=${JSON.stringify(lastBtns7)} fxKey=${JSON.stringify(fxKey)} paused=${paused} played=${played} audit=${Boolean(auditCtl)}`);
                 }
                 if (fixture7) { try { await fixture7.stop(); } catch { /* 尽力 */ } fixture7 = null; }
               }
