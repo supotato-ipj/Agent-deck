@@ -33,6 +33,9 @@ export interface ManagedHostDeps {
   dispatch: ManagedDispatch
   /** 宿主意外消亡（外部关停/底层错误）回调——服务层据此 revokeAll + 降级在场管理会话 */
   onLost?: (err: Error) => void
+  /** 工单340 冒烟观察缝：agent 对宿主的探活到达（经鉴权的 initialize / tools/list）——
+   *  管理型接入冒烟门的事实源（t330 实录：DSH 拿到 mcpServers 即刻探活） */
+  onAgentProbe?: (info: { sessionId: string; method: string }) => void
   /** 存证出口（生产接线 DECK_EVENT_LOG；离线 no-op） */
   log?: (event: Record<string, unknown>) => void
 }
@@ -164,6 +167,10 @@ export class ManagedMcpHost {
         return
       }
       const hasId = msg.id !== undefined && msg.id !== null
+      // 工单340 冒烟观察：探活两法（initialize/tools/list）到达即上报（鉴权已过，sessionId 可信）
+      if (hasId && (msg.method === 'initialize' || msg.method === 'tools/list')) {
+        this.deps.onAgentProbe?.({ sessionId, method: msg.method })
+      }
       if (!hasId) {
         // 通知（notifications/*）：无状态面不维护订阅，202 收讫
         res.writeHead(202).end()

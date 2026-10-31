@@ -42,10 +42,11 @@ import {
 } from './dsh-backend'
 import { createKillOnCloseJob, type JobObjectHandle } from './job-object'
 import { AcpClient } from './acp'
-import type { AcpPermissionOutcome, AcpPermissionRequest, AcpSessionUpdate } from './acp'
+import type { AcpInitializeResult, AcpPermissionOutcome, AcpPermissionRequest, AcpSessionUpdate } from './acp'
 import { SessionCredentialRegistry } from './managed-credentials'
 import { dispatchManagedTool, type ManagedProjectionSource, type ManagedToolOutcome } from './managed-projection'
 import { ManagedMcpHost, type ManagedHostDeps } from './managed-host'
+import { evaluateRuntimeAccess, smokeFailureMessage, type DshRuntimeAccessRecord, type DshRuntimeIdentity, type SmokeStatus } from './runtime'
 import type {
   ConversationBackendInfo,
   ConversationPermissionOption,
@@ -77,6 +78,8 @@ export interface ConversationDeps {
   /** 存证出口（生产接线 DECK_EVENT_LOG；离线 no-op） */
   log(event: Record<string, unknown>): void
   now(): number
+  /** 工单340：DSH_HOME 指向持久化缝（生产写 config.conversation.dshHome；缺省 no-op） */
+  persistDshHome?(home: string): void
 }
 
 export interface ConversationServiceOptions {
@@ -92,6 +95,9 @@ export interface ConversationServiceOptions {
   notifyShow?: (sessionId: string | null) => void
   /** 管理面（工单333）：缺省 = 本装配未启用管理面，managed 创建如实报错（不静默当聊天） */
   managed?: ConversationManagedOptions
+  /** 工单340：接入超时（initialize 握手 ms，缺省 120s——npm 独立包冷启 >30s 实测留余；
+   *  管理型只读冒烟等待 ms，缺省 20s——t330 实录 DSH 拿到注入即刻探活） */
+  timeouts?: { initializeMs?: number; smokeMs?: number }
   deps?: Partial<ConversationDeps>
 }
 
@@ -160,7 +166,8 @@ function extractText(content: unknown): string {
 
 export class ConversationService extends Service {
   private readonly deps: ConversationDeps
-  private readonly dshHome: string
+  /** 面板专属 DSH 数据目录（ADR-0026）：工单340 起可被「创建全新数据目录」手势切换指向 */
+  private dshHome: string
   private readonly workspacesRoot: string
   private readonly metadataFile: string
   private readonly backendConfig: { exe?: string; model?: string }
@@ -174,6 +181,12 @@ export class ConversationService extends Service {
   private host: ManagedMcpHostLike | null = null
   private hostUrl: string | null = null
   private hostStarting: Promise<{ url: string; port: number }> | null = null
+  /** 工单340：最近一次真实接入的运行时记录（诊断面板呈现源；accepted 恒 false） */
+  private runtimeDiag: DshRuntimeAccessRecord | null = null
+  /** 工单340：管理型接入冒烟等待表（panel session id → 裁决回传；宿主探活到达即 passed） */
+  private readonly smokeWaiters = new Map<string, (smoke: 'passed' | 'failed') => void>()
+  private readonly initTimeoutMs: number
+  private readonly smokeTimeoutMs: number
 
   constructor(ctx: Context, options: ConversationServiceOptions = {}) {
     super(ctx, 'conversation')
@@ -184,6 +197,8 @@ export class ConversationService extends Service {
     this.notifyShow = options.notifyShow ?? (() => { /* 离线装配无窗可开 */ })
     this.managedOpts = options.managed ?? null
     this.credentials = options.managed?.registry ?? new SessionCredentialRegistry()
+    this.initTimeoutMs = options.timeouts?.initializeMs ?? 120_000
+    this.smokeTimeoutMs = options.timeouts?.smokeMs ?? 20_000
     const d = options.deps ?? {}
     this.deps = {
       resolveBackend: d.resolveBackend ?? (async (cfg) => resolveDshInstall(cfg, defaultProbeDeps())),
@@ -192,6 +207,7 @@ export class ConversationService extends Service {
       env: d.env ?? process.env,
       log: d.log ?? (() => { /* 离线无存证档 */ }),
       now: d.now ?? (() => Date.now()),
+      persistDshHome: d.persistDshHome ?? (() => { /* 未接线 = 不持久化（离线装配） */ }),
     }
     // 面板退出：终止全部会话进程（不留后台孤儿——ADR-0018）
     ctx.on('dispose', () => this.dispose())
@@ -260,14 +276,103 @@ export class ConversationService extends Service {
     if (this.backendCache === undefined) {
       this.backendCache = resolveDshInstall(this.backendConfig, defaultProbeDeps())
     }
+    // 投影到契约形状：runtime.ts 的 agentCapabilities → 契约的 capabilities（不泄漏内部字段名）
+    const runtime = this.runtimeDiag
+      ? {
+          agentName: this.runtimeDiag.agentName,
+          agentVersion: this.runtimeDiag.agentVersion,
+          protocolVersion: this.runtimeDiag.protocolVersion,
+          capabilities: { ...this.runtimeDiag.agentCapabilities },
+          smoke: this.runtimeDiag.smoke,
+          accepted: this.runtimeDiag.accepted,
+          at: this.runtimeDiag.at,
+        }
+      : null
     if (!this.backendCache) {
       return {
         available: false,
         detail: '未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json conversation.dshExe 显式指定安装路径',
         exe: null,
+        runtime,
+        dshHome: this.dshHome,
       }
     }
-    return { available: true, detail: `已解析 DSH 安装（来源 ${this.backendCache.source}）`, exe: this.backendCache.exe }
+    return {
+      available: true,
+      detail: `已解析 DSH 安装（来源 ${this.backendCache.source}）`,
+      exe: this.backendCache.exe,
+      runtime,
+      dshHome: this.dshHome,
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 浮动运行时（工单340，ADR-0026）：版本只记录不比对、未验收标记、冒烟门
+  // ------------------------------------------------------------------
+
+  /** 接入记录落账：诊断单点更新 + 存证（能力原样在案；accepted 恒 false） */
+  private recordRuntime(sessionId: string | null, identity: DshRuntimeIdentity, smoke: SmokeStatus): void {
+    const verdict = evaluateRuntimeAccess(identity, smoke, { now: () => this.deps.now() })
+    this.runtimeDiag = verdict.record
+    this.logEvent({
+      type: 'conversation-runtime-recorded',
+      sessionId,
+      agent: verdict.record.agentName,
+      agentVersion: verdict.record.agentVersion,
+      protocolVersion: verdict.record.protocolVersion,
+      capabilities: verdict.record.agentCapabilities,
+      smoke,
+      accepted: false,
+    })
+  }
+
+  /** 管理型冒烟等待：宿主探活（initialize/tools/list 到达）→ passed；超时 → failed */
+  private waitForSmoke(sessionId: string): Promise<'passed' | 'failed'> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.smokeWaiters.delete(sessionId)
+        resolve('failed')
+      }, this.smokeTimeoutMs)
+      this.smokeWaiters.set(sessionId, (smoke) => {
+        clearTimeout(timer)
+        this.smokeWaiters.delete(sessionId)
+        resolve(smoke)
+      })
+    })
+  }
+
+  /**
+   * 用户显式手势（工单340，ADR-0026）：创建全新 DSH 数据目录并切换指向。
+   * 新目录 = 面板专属根下首个空位（dsh-home-N）；只 mkdir + 切换 + 持久化——
+   * 旧目录零触碰（无备份/复制/清理路径，票面「不自动备份」是实现边界）；
+   * 旧会话不自动继承（新目录无后端会话数据，旧行原样保留但不随带）。
+   */
+  createFreshDataDir(): { ok: boolean; dshHome?: string; previous?: string; error?: string } {
+    const previous = this.dshHome
+    const root = path.dirname(previous)
+    let n = 2
+    let candidate = path.join(root, `dsh-home-${n}`)
+    while (fs.existsSync(candidate)) {
+      n += 1
+      candidate = path.join(root, `dsh-home-${n}`)
+    }
+    try {
+      fs.mkdirSync(candidate, { recursive: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      this.logEvent({ type: 'conversation-data-dir-create-failed', message })
+      return { ok: false, error: `全新数据目录创建失败：${message}` }
+    }
+    try {
+      this.deps.persistDshHome?.(candidate)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      this.logEvent({ type: 'conversation-data-dir-persist-failed', message, dshHome: candidate })
+      return { ok: false, error: `目录已创建（${candidate}）但持久化失败：${message}——指向未切换` }
+    }
+    this.dshHome = candidate
+    this.logEvent({ type: 'conversation-data-dir-switched', previous, dshHome: candidate })
+    return { ok: true, dshHome: candidate, previous }
   }
 
   private async resolveBackendCached(): Promise<DshInstall | null> {
@@ -360,7 +465,10 @@ export class ConversationService extends Service {
     this.loadMetadata()
     const install = await this.resolveBackendCached()
     if (!install) {
-      return { ok: false, error: this.backendInfo().detail }
+      const detail = this.backendInfo().detail
+      // 创建失败也落账（工单340 C3 真机断言面：解析落空 = 明确报错 + 存证在案）
+      this.logEvent({ type: 'conversation-create-failed', reason: 'backend-unresolved', message: detail })
+      return { ok: false, error: detail }
     }
     const id = randomUUID()
     const cwd = path.join(this.workspacesRoot, id)
@@ -392,9 +500,12 @@ export class ConversationService extends Service {
       this.emitChanged()
       return { ok: true, session: this.sessionView(id) }
     } catch (err) {
+      // 全有或全无（工单340/ADR-0026）：boot 未完成不建行——进程回收在 bootProcess 失败路径
+      // （ending 位已置，onProcessExit 不会再把本行记成 failed）；这里只删行并如实报错
+      internal.runtime = null
+      this.sessionsInternal.delete(id)
       const message = err instanceof Error ? err.message : String(err)
-      this.failSession(internal, `会话创建失败：${message}`)
-      this.saveMetadata()
+      this.logEvent({ type: 'conversation-create-failed', reason: 'boot', message })
       this.emitChanged()
       return { ok: false, error: message }
     }
@@ -414,6 +525,7 @@ export class ConversationService extends Service {
     const env = { ...this.deps.env, ...plan.env }
     const proc = this.deps.spawnProcess(plan, cwd, env)
     const client = new AcpClient({
+      initializeTimeoutMs: this.initTimeoutMs,
       onProtocolError: (err) => this.logEvent({ type: 'conversation-protocol-error', sessionId: internal.view.id, message: err.message }),
     })
     client.attach({ input: proc.stdin, output: proc.stdout })
@@ -435,7 +547,17 @@ export class ConversationService extends Service {
       client.notifyExit(code, signal)
       this.onProcessExit(internal, runtime, code)
     })
-    const handshake = await client.initialize()
+    // 握手（乐观接入：版本字符串原样记录，永不参与判定——工单340/ADR-0026）
+    let handshake: AcpInitializeResult
+    try {
+      handshake = await client.initialize()
+    } catch (err) {
+      // 全有或全无（工单340）：握手失败即回滚——ending 位先置，防 onProcessExit 把已删行记成 failed
+      runtime.ending = true
+      this.cleanupRuntime(runtime)
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(`握手失败：${message}——补救：确认 DSH 可正常启动；若后端提示认证，按其给出的命令完成登录后重试`)
+    }
     internal.view.backendAgent = handshake.agentInfo?.name ?? null
     internal.view.backendAgentVersion = handshake.agentInfo?.version ?? null
     this.logEvent({
@@ -445,20 +567,61 @@ export class ConversationService extends Service {
       agentVersion: handshake.agentInfo?.version ?? null,
       protocolVersion: handshake.protocolVersion,
     })
+    // 运行时身份在案（诊断面板数据源）：未验收标记 + 冒烟 pending（管理型）
+    const identity: DshRuntimeIdentity = {
+      agentName: handshake.agentInfo?.name ?? 'unknown-agent',
+      agentVersion: handshake.agentInfo?.version ?? 'unknown-version',
+      protocolVersion: handshake.protocolVersion,
+      agentCapabilities: handshake.agentCapabilities,
+    }
     // 管理型能力检查（ADR-0018：后端未声明 HTTP MCP 能力 → 全有或全无失败，在 session/new 前拦截）
     if (opts.requireHttpMcp) {
       const caps = handshake.agentCapabilities as { mcpCapabilities?: { http?: unknown } } | undefined
       if (caps?.mcpCapabilities?.http !== true) {
+        runtime.ending = true
+        this.cleanupRuntime(runtime)
         throw new Error('后端未声明 HTTP MCP 能力（initialize agentCapabilities.mcpCapabilities.http !== true）——按 ADR-0018 不创建管理型会话')
       }
     }
-    const sessionResult = resumeSessionId
-      ? await client.sessionResume({ sessionId: resumeSessionId, cwd, mcpServers })
-      : await client.sessionNew({ cwd, mcpServers })
+    // 冒烟等待先于 session/new 挂表（t330 实录：DSH 拿到 mcpServers 即刻探活——不能漏早到探活）
+    const smokeArmed = opts.requireHttpMcp === true
+    const smokeDone = smokeArmed ? this.waitForSmoke(internal.view.id) : null
+    let sessionResult: { sessionId: string }
+    try {
+      sessionResult = resumeSessionId
+        ? await client.sessionResume({ sessionId: resumeSessionId, cwd, mcpServers })
+        : await client.sessionNew({ cwd, mcpServers })
+    } catch (err) {
+      runtime.ending = true
+      this.cleanupRuntime(runtime)
+      throw err
+    }
     runtime.backendSessionId = sessionResult.sessionId
+    // 冒烟门（工单340，管理型适用）：最小只读 MCP 冒烟=独立宿主探活到达；失败按真实故障处置
+    if (smokeArmed && smokeDone) {
+      const smoke = await smokeDone
+      if (smoke !== 'passed') {
+        this.recordRuntime(internal.view.id, identity, 'failed')
+        internal.view.runtimeUnaccepted = true
+        internal.view.runtimeSmoke = 'failed'
+        runtime.ending = true
+        this.cleanupRuntime(runtime)
+        throw new Error(smokeFailureMessage(identity.agentVersion))
+      }
+    }
+    const smokeStatus: SmokeStatus = smokeArmed ? 'passed' : 'skipped'
+    this.recordRuntime(internal.view.id, identity, smokeStatus)
+    internal.view.runtimeUnaccepted = true
+    internal.view.runtimeSmoke = smokeStatus
     // 用户显式配置的 provider 路由（导入面，非 UI）：仅新建会话下发；续接按后端持久化的会话路由走
     if (!resumeSessionId && this.backendConfig.model) {
-      await client.setConfigOption(runtime.backendSessionId, 'model', this.backendConfig.model)
+      try {
+        await client.setConfigOption(runtime.backendSessionId, 'model', this.backendConfig.model)
+      } catch (err) {
+        runtime.ending = true
+        this.cleanupRuntime(runtime)
+        throw err
+      }
       this.logEvent({ type: 'conversation-config-option', sessionId: internal.view.id, configId: 'model' })
     }
     this.logEvent({
@@ -480,14 +643,19 @@ export class ConversationService extends Service {
     const managedOpts = this.managedOpts
     if (this.host?.listening && this.hostUrl) return Promise.resolve({ url: this.hostUrl, port: Number(this.hostUrl.match(/:(\d+)\//)?.[1] ?? 0) })
     if (!managedOpts) return Promise.reject(new Error('本装配未启用管理面'))
-    if (!this.hostStarting) {
-      this.hostStarting = (async () => {
-        const deps: ManagedHostDeps = {
-          registry: this.credentials,
-          dispatch: (name, args, ctx) => this.dispatchManaged(name, args, ctx),
-          onLost: (err) => this.onHostLost(err),
-          log: (e) => this.logEvent(e),
-        }
+      if (!this.hostStarting) {
+        this.hostStarting = (async () => {
+          const deps: ManagedHostDeps = {
+            registry: this.credentials,
+            dispatch: (name, args, ctx) => this.dispatchManaged(name, args, ctx),
+            onLost: (err) => this.onHostLost(err),
+            // 工单340 冒烟事实源：agent 探活到达即裁决对应会话的冒烟等待为 passed
+            onAgentProbe: (info) => {
+              const resolve = this.smokeWaiters.get(info.sessionId)
+              if (resolve) resolve('passed')
+            },
+            log: (e) => this.logEvent(e),
+          }
         const host = (managedOpts.createHost ?? ((hd) => new ManagedMcpHost(hd)))(deps)
         try {
           const started = await host.start()
@@ -883,6 +1051,9 @@ export class ConversationService extends Service {
     }
     // 管理面：凭证全清（宿主重拉/面板重启即失效——ADR-0017）+ 监听回收
     this.credentials.revokeAll()
+    // 工单340：在途冒烟等待按退出收口（不再有宿主可探活）
+    for (const [, resolve] of this.smokeWaiters) resolve('failed')
+    this.smokeWaiters.clear()
     if (this.host?.listening) {
       const host = this.host
       this.host = null
@@ -899,6 +1070,13 @@ export class ConversationService extends Service {
 
   private onProcessExit(internal: InternalSession, runtime: SessionRuntime, code: number | null): void {
     runtime.job?.close()
+    // 工单340：在途冒烟等待按进程死亡收口（进程没了就不会再有宿主探活——与 dispose 同理，
+    // 否则创建流挂在冒烟门直到超时）
+    const smokeWaiter = this.smokeWaiters.get(internal.view.id)
+    if (smokeWaiter) {
+      this.smokeWaiters.delete(internal.view.id)
+      smokeWaiter('failed')
+    }
     if (runtime.ending) {
       this.logEvent({ type: 'conversation-process-exit', sessionId: internal.view.id, code })
       return // end()/dispose 流程自己记账
@@ -959,6 +1137,9 @@ function rowToView(row: ConversationMetaRow): ConversationSessionView {
     backendPid: null,
     backendAgent: null,
     backendAgentVersion: null,
+    // 重载行没有本次面板生命周期内的运行时观察：标记/冒烟如实为 null（不伪造历史接入）
+    runtimeUnaccepted: null,
+    runtimeSmoke: null,
     cwd: row.cwd,
     label: row.label,
     managed: row.managed,
