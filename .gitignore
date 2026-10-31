@@ -34,3 +34,6 @@ app/accept/evidence/accept-stdout.log
 
 # 证据分级入库（spec #281）：验收截图等像素证据只留运行机器本地，文本审计链（verdict/段账/jsonl/log）照旧随轮入库
 app/accept/evidence/**/*.png
+
+# 根级 node_modules（vitest/npx 缓存；2026-10-31 工单337 误入一次）
+/node_modules/

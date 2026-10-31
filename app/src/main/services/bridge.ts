@@ -20,16 +20,21 @@ export class BridgeError extends Error {
  * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar', 'pluginConfig']
+  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar', 'pluginConfig', 'conversation']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
   private readonly quitApp: () => void
 
-  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout; quit?: () => void } = {}) {
+  private readonly memoryProbe: (() => { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> }) | null
+
+  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout; quit?: () => void; memoryProbe?: () => { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> } } = {}) {
     super(ctx, 'bridge')
     this.weather = options.weather ?? defaultWeather()
     this.layout = options.layout ?? defaultDesktopLayout()
+    // 资源预算读数（工单341）：内存探针由生产装配注入（Electron app.getAppMetrics）；
+    // 离线装配缺省 = 如实不可用（零读数，不编造）
+    this.memoryProbe = options.memoryProbe ?? null
     // quit 依赖（工单83）：主进程 app.quit 由生产装配注入；离线装配未注入时如实拒绝
     this.quitApp = options.quit ?? (() => { throw new BridgeError('app/quit 未装配 quit 依赖（生产装配缺注入）') })
     // 数据面快照到达即推送（生产装配：utilityProcess 每拍一发；进程内装配无此事件，
@@ -235,6 +240,158 @@ export class BridgeService extends Service {
       case 'app/quit':
         this.quitApp()
         return { ok: true } as BridgeMethods[M]['response']
+      // --- 对话窗（工单332）：聊天型会话全链 ---
+      case 'conversation/backend':
+        return this.ctx.conversation.backendInfo() as BridgeMethods[M]['response']
+      case 'conversation/show': {
+        const { sessionId } = (payload ?? {}) as { sessionId?: string }
+        return this.ctx.conversation.showSession(sessionId ?? undefined) as BridgeMethods[M]['response']
+      }
+      case 'conversation/create': {
+        const { label, managed } = (payload ?? {}) as { label?: string; managed?: boolean }
+        return await this.ctx.conversation.create(label ?? undefined, { managed: Boolean(managed) }) as BridgeMethods[M]['response']
+      }
+      case 'conversation/list':
+        return { sessions: this.ctx.conversation.sessions() } as BridgeMethods[M]['response']
+      case 'conversation/prompt': {
+        const { sessionId, text } = payload as { sessionId: string; text: string }
+        return await this.ctx.conversation.prompt(String(sessionId ?? ''), String(text ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/cancel': {
+        const { sessionId } = payload as { sessionId: string }
+        return await this.ctx.conversation.cancel(String(sessionId ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/permission': {
+        const { sessionId, optionId } = payload as { sessionId: string; optionId: string }
+        return await this.ctx.conversation.respondPermission(String(sessionId ?? ''), String(optionId ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/end': {
+        const { sessionId } = payload as { sessionId: string }
+        return await this.ctx.conversation.end(String(sessionId ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/resume': {
+        const { sessionId } = payload as { sessionId: string }
+        return await this.ctx.conversation.resume(String(sessionId ?? '')) as BridgeMethods[M]['response']
+      }
+      // 工单340（ADR-0026）：显式创建全新 DSH 数据目录手势（设置面入口；旧目录零触碰）
+      case 'conversation/new-data-dir':
+        return this.ctx.conversation.createFreshDataDir() as BridgeMethods[M]['response']
+      // 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝——真实用户手势
+      // 经桥进来，落 PluginInstallManager（哈希绑定/转正/有界激活/审计都在状态机内）
+      case 'install/list':
+        return { proposals: this.ctx.plugins.installProposals() } as BridgeMethods[M]['response']
+      case 'install/approve': {
+        const { proposalId, grantPermissions } = payload as { proposalId?: unknown; grantPermissions?: unknown }
+        if (typeof proposalId !== 'string' || !proposalId.trim()) {
+          throw new BridgeError('install/approve 需要 proposalId（提案标识字符串）')
+        }
+        // 可选权限子集（工单337）：字符串数组校验后透传（非法形状 = 不授可选，仅必需集）
+        const grantOpts = Array.isArray(grantPermissions) && grantPermissions.every((g) => typeof g === 'string' && g.trim())
+          ? { grantPermissions: grantPermissions.map((g) => String(g)) }
+          : undefined
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.approve(String(proposalId), grantOpts)
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
+      case 'install/reject': {
+        const { proposalId } = payload as { proposalId?: unknown }
+        if (typeof proposalId !== 'string' || !proposalId.trim()) {
+          throw new BridgeError('install/reject 需要 proposalId（提案标识字符串）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.reject(String(proposalId))
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
+      // 工单335 旧数据继承（独立用户手势，不与代码批准合并）：继承=重装包重新可读卸载
+      // 残留私有配置；不继承=新配置起步（残留 detach，不永久删除）
+      case 'install/inherit': {
+        const { proposalId, inherit } = payload as { proposalId?: unknown; inherit?: unknown }
+        if (typeof proposalId !== 'string' || !proposalId.trim()) {
+          throw new BridgeError('install/inherit 需要 proposalId（提案标识字符串）')
+        }
+        if (typeof inherit !== 'boolean') {
+          throw new BridgeError('install/inherit 需要 inherit（布尔：true=继承旧数据 false=新配置起步）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.decideInheritance(String(proposalId), inherit)
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
+      // 工单336 授权账（可信 UI 数据面与撤销手势）：清单（含已撤销行）/撤销即停/
+      // 媒体审计聚合投影（完整记录仅在审计文件，聚合不含媒体元数据）
+      case 'install/grants': {
+        const grants = this.ctx.plugins.authorizationGrants()
+        const buckets = (this.ctx.media?.auditBuckets?.() ?? [])
+        // 工单338：网络审计聚合投影随授权账一并下发（origin/方法/结果计数；无载荷）
+        const networkBuckets = (this.ctx.network?.auditBuckets?.() ?? [])
+        return { grants, buckets, networkBuckets } as BridgeMethods[M]['response']
+      }
+      case 'install/revoke': {
+        const { packageId } = payload as { packageId?: unknown }
+        if (typeof packageId !== 'string' || !packageId.trim()) {
+          throw new BridgeError('install/revoke 需要 packageId（包 id 字符串）')
+        }
+        return this.ctx.plugins.revokeAuthorization(String(packageId)) as BridgeMethods[M]['response']
+      }
+      case 'media/audit': {
+        const buckets = this.ctx.media?.auditBuckets?.() ?? []
+        return { buckets } as BridgeMethods[M]['response']
+      }
+      // 工单341 资源预算读数（面板全进程工作集；C10 段 0/1/5/10 包实测用）
+      case 'diag/memory': {
+        return (this.memoryProbe ? this.memoryProbe() : { totalWorkingSetMB: 0, processes: [] }) as BridgeMethods[M]['response']
+      }
+      case 'network/audit': {
+        const buckets = this.ctx.network?.auditBuckets?.() ?? []
+        return { buckets } as BridgeMethods[M]['response']
+      }
+      // —— 工单339 命名凭证（可信 UI）：凭证库出口只有元数据；secret 单向写入 ——
+      case 'credentials/list': {
+        const credentials = this.ctx.credentials?.list?.() ?? []
+        return { credentials } as BridgeMethods[M]['response']
+      }
+      case 'credentials/set': {
+        const { name, secret, headerName, valuePrefix } = payload as { name?: unknown; secret?: unknown; headerName?: unknown; valuePrefix?: unknown }
+        if (typeof name !== 'string' || typeof secret !== 'string') {
+          throw new BridgeError('credentials/set 需要 name 与 secret（字符串）')
+        }
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.set(name, secret, {
+          ...(typeof headerName === 'string' ? { headerName } : {}),
+          ...(typeof valuePrefix === 'string' ? { valuePrefix } : {}),
+        }) as BridgeMethods[M]['response']
+      }
+      case 'credentials/delete': {
+        const { name } = payload as { name?: unknown }
+        if (typeof name !== 'string' || !name) throw new BridgeError('credentials/delete 需要 name')
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.remove(name) as BridgeMethods[M]['response']
+      }
+      case 'credentials/bind': {
+        const { packageId, credentialName, origin } = payload as { packageId?: unknown; credentialName?: unknown; origin?: unknown }
+        if (typeof packageId !== 'string' || typeof credentialName !== 'string' || typeof origin !== 'string') {
+          throw new BridgeError('credentials/bind 需要 packageId/credentialName/origin（字符串）')
+        }
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.bind(packageId, credentialName, origin) as BridgeMethods[M]['response']
+      }
+      case 'credentials/unbind': {
+        const { packageId, credentialName, origin } = payload as { packageId?: unknown; credentialName?: unknown; origin?: unknown }
+        if (typeof packageId !== 'string' || typeof credentialName !== 'string' || typeof origin !== 'string') {
+          throw new BridgeError('credentials/unbind 需要 packageId/credentialName/origin（字符串）')
+        }
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.unbind(packageId, credentialName, origin) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

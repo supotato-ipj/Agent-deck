@@ -11,6 +11,10 @@ import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
+import { ConversationService, type ConversationServiceOptions } from './conversation/service'
+import { MediaService, type MediaServiceOptions } from './media/service'
+import { NetworkService, type NetworkServiceOptions } from './network/service'
+import { CredentialService, type CredentialServiceOptions } from './credentials/service'
 import { DEFAULT_SEARCH_INTERVAL_MS, DEFAULT_TASKBAR_POLL_MS } from './kernel'
 import type { DesktopLayout, WeatherLocation } from '../shared/contract'
 
@@ -39,6 +43,18 @@ export interface PanelKernelOptions {
   pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
   quit?: () => void
+  /** 对话窗（工单332）：DSH_HOME/工作目录根/元数据文件/后端档/窗口唤起钩子（生产装配下发） */
+  conversation?: ConversationServiceOptions
+  /** 媒体域（工单336，ADR-0025）：审计文件/桥 exe/授权账（生产装配下发；缺省 = 桥缺席明确态） */
+  media?: MediaServiceOptions
+  /** 网络域（工单338，ADR-0025）：审计文件/授权账（生产装配下发；缺省 = 全拒的无授权面） */
+  network?: NetworkServiceOptions
+  /** 命名凭证域（工单339）：凭证库文件/加密端口（生产装配下发；缺省 = 只读不写） */
+  credentials?: CredentialServiceOptions
+  /** 诊断读数（工单341 资源预算）：memory = 面板全进程工作集（生产 = app.getAppMetrics 汇总） */
+  diagnostics?: {
+    memory?: () => { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> }
+  }
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -76,7 +92,29 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   // 缺注册时 cordis 静默不装载 BridgeService（ctx.bridge 为 undefined），面板在
   // wireBridgeIpc(win, kernel.bridge) 处即崩，一扇窗都开不出来（工单187 真机轮实证）。
   ctx.plugin(PluginConfigService, options.pluginConfig)
-  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
+  // 对话窗会话服务（工单332）：BridgeService 注入依赖它，必须先于桥接层注册。
+  ctx.plugin(ConversationService, options.conversation)
+  // 媒体域（工单336）：可选装配（缺省 = 桥缺席明确态）；BridgeService 的媒体方法经
+  // ctx.media? 可选访问（不进 inject 清单——缺装配不得让桥接层静默不装载，pluginConfig 先例）。
+  ctx.plugin(MediaService, options.media)
+  // 命名凭证域（工单339）：凭证库先于网络域注册——NetworkBroker 的解析口要拿到同一实例。
+  ctx.plugin(CredentialService, options.credentials)
+  // 网络域（工单338/339）：授权门/限额/审计在 NetworkBroker；凭证注入经凭证库解析口。
+  ctx.plugin(NetworkService, {
+    ...options.network,
+    credentials: {
+      resolve: (packageId, credentialName, origin) => {
+        const svc = ctx.credentials
+        return svc ? svc.resolve(packageId, credentialName, origin) : { ok: false as const, code: 'credential_unavailable' as const, message: '凭证面未装配' }
+      },
+    },
+  })
+  ctx.plugin(BridgeService, {
+    weather: options.weather,
+    layout: options.layout,
+    quit: options.quit,
+    ...(options.diagnostics?.memory ? { memoryProbe: options.diagnostics.memory } : {}),
+  })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）

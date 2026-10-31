@@ -1,7 +1,8 @@
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
-import { defaultAppearance, defaultAutostart, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
 import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
@@ -19,7 +20,14 @@ import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/
 import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
+import { startConversationWindow, wireConversationQuitGuard } from './conversation/window'
+import { createNodeProjectionSource, type ManagedProjectionSource } from './conversation/managed-projection'
+import { SessionCredentialRegistry } from './conversation/managed-credentials'
 import { productionPluginRoots } from './plugins/roots'
+import { DroppedPackageHost } from './plugins/package-host'
+import { ExecutionContextRegistry } from './plugins/identity'
+import { PluginAuthorizationLedger } from './plugins/authorization-ledger'
+import { createSafeStorageCipher } from './credentials/safe-storage'
 import { userDataPath } from './paths'
 import type { TrayWireEvent } from './trayhost/protocol'
 
@@ -110,6 +118,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     plugins: defaultPlugins(),
     autostart: defaultAutostart(),
     taskbar: defaultTaskbar(),
+    conversation: defaultConversation(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
@@ -191,6 +200,50 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     void spikeWin.loadFile(path.join(app.getAppPath(), 'accept', 'lib', 'tray-spike.html'))
   }
 
+  // 投放包宿主（工单331）：dropped 档独立执行上下文的 Electron 接线。登记表与宿主先于
+  // 内核装配创建（激活发生在 PluginHostService 构造期首扫），config 存储与崩溃记账经
+  // 懒闭包在内核就绪后解析。仅用户根是投放档（roots.ts 档位标记）。
+  const packageRegistry = new ExecutionContextRegistry()
+  let kernelRef: ReturnType<typeof createPanelKernel> | null = null
+  const droppedPackageHost = new DroppedPackageHost({
+    registry: packageRegistry,
+    configPort: () => kernelRef?.pluginConfig ?? null,
+    onCrashed: (id, reason) => kernelRef?.plugins.markDroppedCrashed(id, reason),
+    log: (event) => log?.append(event),
+    // 媒体面（工单336）：授权门/脱敏/校验都在 MediaBroker（media 服务），宿主只转发。
+    // 快照代次变化经 media/snapshot-changed 即时重推（下方订阅），面板 tick 另有同拍。
+    mediaView: (packageId) => kernelRef?.media?.viewForPackage(packageId) ?? null,
+    mediaThumbnail: async (packageId, key) => {
+      const media = kernelRef?.media
+      if (!media) return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配' }
+      return await media.thumbnailForPackage(packageId, key)
+    },
+    // 媒体控制（工单337）：授权门/限流/审计在 Broker，宿主只转发
+    mediaControl: async (packageId, key, action) => {
+      const media = kernelRef?.media
+      if (!media) return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配' }
+      return await media.controlForPackage(packageId, key, action)
+    },
+    // 网络请求（工单338）：放行只经宿主代理面——授权门/限额/重定向策略/审计在 NetworkBroker
+    networkRequest: async (packageId, spec) => {
+      const network = kernelRef?.network
+      if (!network) return { ok: false as const, code: 'network_failed', message: '网络面未装配' }
+      return await network.requestForPackage(packageId, spec)
+    },
+  })
+  // 对话窗唤起钩子（工单332）：装配期先占位，控制器就位后重绑
+  const conversationShowHook: { fn: (sessionId: string | null) => void } = { fn: () => {} }
+  // 管理面凭证登记处（工单333）：显式建在装配层（服务自建则观察口拿不到同一实例）——
+  // 仅内存；accept 观察口经它向电池转交 bearer（绝不落盘）
+  const managedRegistry = new SessionCredentialRegistry()
+  // 授权账（工单336，ADR-0025 按包/按代码代次授予）：显式建在装配层——插件宿主（撤销即停）
+  // 与媒体 Broker（撤销即断供）共用同一实例，撤销语义单一事实源。跨重启持久化。
+  const pluginAuthorizationLedger = new PluginAuthorizationLedger({
+    file: userDataPath('plugin-authorizations.json'),
+    now: () => Date.now(),
+    log: (event) => log?.append(event),
+  })
+
   const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
@@ -222,6 +275,139 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         userRoot: config.plugins.dir || userDataPath('plugins'),
       }),
       disabledIds: () => config.plugins.disabled,
+      // 授权账（工单336）：跨重启持久化（userData/plugin-authorizations.json）；撤销即停
+      // （rescan 停用缝）与媒体断供（Broker 授权门）同一账实例——撤销零窗口。
+      authorization: pluginAuthorizationLedger,
+      // 投放档（工单331）：独立上下文宿主端口 + 生命周期事件出口（dropped-package-*）
+      droppedHost: droppedPackageHost,
+      // DSH 安装管线（工单334）：待装载区面板私域（userData/plugins-staging）；会话工作区
+      // 事实源 = 对话域会话 cwd（kernelRef 惰性取）；有界激活 12s（t331 坑位：crash 悬挂竞速）。
+      // 工单335：更新换代备份根/回收站（shell.trashItem——失败绝不降级永久删除）/
+      // 私有配置路径（旧数据继承事实源）/停用集缝（settings，惰性经 kernelRef）
+      install: {
+        stagingRoot: userDataPath('plugins-staging'),
+        userRoot: config.plugins.dir || userDataPath('plugins'),
+        backupRoot: userDataPath('plugins-backup'),
+        sessionInfo: (sessionId) => {
+          const v = kernelRef?.conversation?.sessions().find((s) => s.id === sessionId)
+          return v ? { cwd: v.cwd, label: v.label } : null
+        },
+        mountBoundMs: 12_000,
+        trashItem: (dir) => shell.trashItem(dir),
+        pluginConfigFile: (id) => path.join(userDataPath('plugin-config'), `${id}.json`),
+        // 工单339：卸载只清凭证绑定，凭证本体保留至用户显式删除
+        credentials: { clearBindingsFor: (pkgId) => kernelRef?.credentials?.clearBindingsFor(pkgId) },
+        setCardEnabled: (id, enabled) => {
+          const settings = kernelRef?.settings
+          if (!settings) throw new Error('设置服务未就绪（面板启动中）')
+          return settings.setCardEnabled(id, enabled)
+        },
+      },
+      log: (event) => log?.append(event),
+    },
+    // 对话窗（工单332）：面板专属 DSH_HOME 与元数据落 userData（跟面板走），后端档
+    // config.conversation 下发；会话事件走 DECK_EVENT_LOG 存证。窗口唤起经控制器（下）。
+    // 媒体域（工单336）：审计完整记录独立 JSONL（与控制面审计分离）；GSMTC 桥 exe 缺席
+    // 时不拉起（Broker 明确不可用态——真机验收前置自证在场）。
+    media: {
+      auditFile: userDataPath('media-audit.jsonl'),
+      bridgeExePath: path.join(app.getAppPath(), 'resources', 'gsmtc-bridge', 'bridge.exe'),
+      authorization: pluginAuthorizationLedger,
+      log: (event) => log?.append(event),
+    },
+    // 诊断读数（工单341 资源预算）：面板全进程工作集汇总（C10 段 0/1/5/10 包实测同源）
+    diagnostics: {
+      memory: () => {
+        const processes = app.getAppMetrics().map((m) => ({
+          pid: m.pid,
+          type: String(m.type),
+          workingSetMB: Math.round(((m.memory && m.memory.workingSetSize) || 0) / 1024),
+        }))
+        return { totalWorkingSetMB: processes.reduce((acc, p) => acc + p.workingSetMB, 0), processes }
+      },
+    },
+    // 命名凭证域（工单339）：safeStorage（DPAPI）加密保存；文件落 userData/credentials.json。
+    // 加密不可用 = 拒绝保存（绝不落明文兜底）。
+    credentials: {
+      file: userDataPath('credentials.json'),
+      cipher: createSafeStorageCipher((event) => log?.append(event)),
+      log: (event) => log?.append(event),
+    },
+    // 网络域（工单338）：审计完整记录独立 JSONL（与控制面/媒体审计分离）；授权账同一实例
+    // （撤销即断供同源）。包页出站仍全拒——放行只经 deckHost.network.request → 本 Broker。
+    network: {
+      auditFile: userDataPath('network-audit.jsonl'),
+      authorization: pluginAuthorizationLedger,
+      log: (event) => log?.append(event),
+    },
+    conversation: {
+      config: { exe: config.conversation.dshExe, model: config.conversation.model },
+      // 工单340（ADR-0026）：数据目录指向跟 config 走（缺省 userData/dsh-home，手势切换后
+      // 下次启动落到新目录）；persistDshHome = 全新目录手势的持久化缝（旧目录零触碰）。
+      dshHome: config.conversation.dshHome || undefined,
+      notifyShow: (sessionId) => conversationShowHook.fn(sessionId),
+      deps: {
+        log: (event) => log?.append(event),
+        persistDshHome: (home) => {
+          const raw = fs.readFileSync(CONFIG_FILE, 'utf8')
+          const json = raw.trim() ? JSON.parse(raw) : {}
+          json.conversation = { ...(json.conversation ?? {}), dshHome: home }
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8')
+        },
+      },
+      // 管理面（工单333，ADR-0018/0009/0025）：独立专用 MCP 宿主 + 只读投影源。
+      // 投影源惰性求值（内核启动后才有单点引用）；快照走 bridge 单点（不私开第二执行路径），
+      // 插件清单走 plugins 服务（内核 + 投放两路），源码读仅限用户插件根（投影模块内做
+      // 包含校验与体积上限），契约目录取 catalog.ts 单一正典的 agent 投影。
+      managed: {
+        registry: managedRegistry,
+        source: (() => {
+          let cached: ManagedProjectionSource | null = null
+          return () => {
+            if (!cached) {
+              cached = createNodeProjectionSource({
+                userRoot: config.plugins.dir || userDataPath('plugins'),
+                panelSnapshot: () => {
+                  if (!kernelRef) throw new Error('内核未就绪（面板启动中）')
+                  return kernelRef.bridge.snapshot()
+                },
+                pluginsList: () => ({
+                  kernel: kernelRef?.plugins.info() ?? [],
+                  dropped: kernelRef?.plugins.droppedInfo() ?? [],
+                }),
+                // 工单334：安装提交缝（MCP 只收路径；会话工作区包含校验在 install.ts，
+                // sessionId 从 bearer 通道绑定来）
+                installSubmit: (args, mctx) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配安装面（install 未接线）——安装工具不可用')
+                  // backend='dsh'：管理面 v1 后端唯一 = DSH（ADR-0026）
+                  return mgr.submit(args, { sessionId: mctx.sessionId, backend: 'dsh' })
+                },
+                // 工单335：更新/停用/卸载/重扫缝（同一串行信号量在 install.ts；busy 唯一可重试）
+                updateSubmit: (args, mctx) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配安装面（update 未接线）——更新工具不可用')
+                  return mgr.submitUpdate(args, { sessionId: mctx.sessionId, backend: 'dsh' })
+                },
+                setEnabled: (args) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配停用/启用面（未接线）——工具不可用')
+                  return mgr.setEnabled(args)
+                },
+                uninstallPackage: (args) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配卸载面（回收站未接线）——卸载工具不可用')
+                  return mgr.uninstall(args)
+                },
+                rescan: () => ({
+                  dropped: kernelRef?.plugins.droppedInfo() ?? [],
+                }),
+              })
+            }
+            return cached
+          }
+        })(),
+      },
     },
     // 数据面（鼠标卡顿修复）：四个采集服务在 utilityProcess 子进程跑，主进程不装定时器。
     // Electron API 不可用于子进程——桌面根/摆位存储/日志目录等路径全部在此解析后下发。
@@ -246,6 +432,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
   })
   await kernel.start()
+  kernelRef = kernel
+  // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
+  kernel.on('panel/changed', (snap) => droppedPackageHost.pushSnapshot(snap))
+  // 媒体快照代次变化（工单336）：桥事件收敛后的即时重推——获批 media.read 的在装包
+  // 页 view.media 即时更新（面板兜底 tick 另有同拍；包内按 lastUpdatedTime 插值）。
+  kernel.on('media/snapshot-changed', () => droppedPackageHost.refreshMedia())
   // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady
@@ -253,6 +445,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   installPluginProtocol({ appRoot: RENDERER_ROOT, sharedRoot: path.join(__dirname, '../shared'), host: kernel.plugins, log: (e) => log?.append(e) })
 
   const win = createPanelWindow({ geometry: config.panel })
+  // 投放包视图挂载（工单331）：开窗前已激活的包在此补挂 contentView
+  droppedPackageHost.attach(win)
   wireBridgeIpc(win, kernel.bridge)
 
   // 任务栏插件窗口（工单49）：跟随内核 taskbar 状态建/销；禁用即窗口消失，面板本体不受影响
@@ -264,6 +458,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // hint-bar 同款 accept 树 require 先例，仅 DECK_TASKBAR_BURST=1 的 --panel-accept 拉起。
   if (PANEL_ACCEPT_MODE && process.env.DECK_TASKBAR_BURST === '1') {
     require(path.join(app.getAppPath(), 'accept', 'lib', 'taskbar-burst.js')).run(kernel, log)
+  }
+
+  // 管理型会话验收观察口（工单333，accept 双门禁）：凭证绝不落盘——bearer 只在本进程
+  // 内存应答给电池控制器（驱动 401/未知工具/宿主回收三条真机断言）；端口（非凭证）写
+  // evidence/333-managed-probe-port.json 供寻址，电池轮末自删。生产零启用。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_MANAGED_PROBE === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'managed-probe.js'))
+      .startManagedProbe(managedRegistry, log)
+      .then((probe: { close: () => Promise<void> }) => { app.on('before-quit', () => { void probe.close() }) })
   }
 
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
@@ -292,7 +495,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
   wireHostIpc(win, tracker, log, { sentinelHeartbeat: true })
 
-  const tray = createTray({ onShowPanel: () => showPanel('tray-click') })
+  // 对话窗（工单332）：窗口控制器（关窗只收起、退出确认）+ 托盘入口。
+  // 服务唤起钩子在装配期指向惰性转发（控制器在内核启动后才存在）。
+  const conversationCtl = startConversationWindow({ ctx: kernel, log })
+  conversationShowHook.fn = (sessionId) => conversationCtl.show(sessionId ?? undefined)
+  wireConversationQuitGuard(conversationCtl)
+  app.on('before-quit', () => conversationCtl.dispose())
+
+  const tray = createTray({ onShowPanel: () => showPanel('tray-click'), onShowConversation: () => conversationCtl.show() })
   app.on('before-quit', () => {
     log?.append({ type: 'quit' })
     tray.destroy()
