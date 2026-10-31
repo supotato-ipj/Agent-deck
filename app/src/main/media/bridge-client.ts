@@ -183,7 +183,9 @@ export class MediaBridgeClient implements MediaBridgePort {
       return
     }
     if (type === 'result') {
-      const id = typeof msg.id === 'number' ? msg.id : -1
+      // 桥侧 id 是字符串（探针 C#5 Esc(id) 输出）——两端口径都以数字关联
+      const rawId = typeof msg.id === 'string' ? Number(msg.id) : msg.id
+      const id = typeof rawId === 'number' && Number.isFinite(rawId) ? rawId : -1
       const pending = this.pending.get(id)
       if (!pending) return
       this.pending.delete(id)
