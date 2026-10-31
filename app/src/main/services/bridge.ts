@@ -26,10 +26,15 @@ export class BridgeService extends Service {
   private readonly layout: DesktopLayout
   private readonly quitApp: () => void
 
-  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout; quit?: () => void } = {}) {
+  private readonly memoryProbe: (() => { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> }) | null
+
+  constructor(ctx: Context, options: { weather?: WeatherLocation; layout?: DesktopLayout; quit?: () => void; memoryProbe?: () => { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> } } = {}) {
     super(ctx, 'bridge')
     this.weather = options.weather ?? defaultWeather()
     this.layout = options.layout ?? defaultDesktopLayout()
+    // 资源预算读数（工单341）：内存探针由生产装配注入（Electron app.getAppMetrics）；
+    // 离线装配缺省 = 如实不可用（零读数，不编造）
+    this.memoryProbe = options.memoryProbe ?? null
     // quit 依赖（工单83）：主进程 app.quit 由生产装配注入；离线装配未注入时如实拒绝
     this.quitApp = options.quit ?? (() => { throw new BridgeError('app/quit 未装配 quit 依赖（生产装配缺注入）') })
     // 数据面快照到达即推送（生产装配：utilityProcess 每拍一发；进程内装配无此事件，
@@ -336,6 +341,10 @@ export class BridgeService extends Service {
       case 'media/audit': {
         const buckets = this.ctx.media?.auditBuckets?.() ?? []
         return { buckets } as BridgeMethods[M]['response']
+      }
+      // 工单341 资源预算读数（面板全进程工作集；C10 段 0/1/5/10 包实测用）
+      case 'diag/memory': {
+        return (this.memoryProbe ? this.memoryProbe() : { totalWorkingSetMB: 0, processes: [] }) as BridgeMethods[M]['response']
       }
       case 'network/audit': {
         const buckets = this.ctx.network?.auditBuckets?.() ?? []

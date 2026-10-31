@@ -983,6 +983,8 @@ export interface BridgeMethods {
   'credentials/delete': { request: { name: string }; response: { ok: boolean; code?: string; message?: string } }
   'credentials/bind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
   'credentials/unbind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
+  /** 工单341 资源预算读数（面板全进程工作集 MB；离线装配 = 零读数不编造） */
+  'diag/memory': { request: null; response: { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
