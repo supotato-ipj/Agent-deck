@@ -11,7 +11,8 @@ import type { PluginHostService } from './plugins/service'
 import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
-import type { DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
+import type { ConversationService } from './conversation/service'
+import type { ConversationSessionView, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
@@ -61,6 +62,8 @@ declare module 'cordis' {
      * 影子账缺位为 null），pid 由控制器 FFI 解析。
      */
     'taskbar/tray-replay-begin': (payload: { key: string; button: 'left' | 'right'; hwnd: string | null }) => void
+    /** 工单332 对话窗：会话视图变化即推（创建/流式/工具/权限/取消/结束/失败） */
+    'conversation/changed': (payload: { sessions: ConversationSessionView[] }) => void
   }
   interface Context {
     clock: ClockService
@@ -87,5 +90,7 @@ declare module 'cordis' {
     taskbar: TaskbarService
     /** 工单178 插件私有状态（内核总装必装；命名空间存储目录默认 userData/plugin-config） */
     pluginConfig: PluginConfigService
+    /** 工单332 对话窗会话服务（内核总装必装；BridgeService 注入它，缺装配即静默不装载桥接层） */
+    conversation: ConversationService
   }
 }
