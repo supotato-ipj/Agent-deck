@@ -107,6 +107,31 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
           const echoTag = want === 'panel_snapshot' ? 'SNAPSHOT-TOOL-RESULT:' : 'CATALOG-TOOL-RESULT:';
           plan = { kind: 'text', out: echoTag + toolText.slice(0, 200) };
         }
+      } else if (marker('MANAGED INSTALL')) {
+        // 工单334 安装全链真机编排：包文件由 DSH 自身文件工具落盘（workspace 内写不触发审批），
+        // 然后调 MCP plugin_install_submit 提交（prompt 里 PKGDIR=<abs> 由电池按会话 cwd 填）。
+        // 轮次状态机按工具消息数走：0=写 plugin.json；1=写 card.js；2=提交；≥3=回显结果。
+        const userMsg = [...msgs].reverse().find((m) => m.role === 'user');
+        const um = userMsg ? (typeof userMsg.content === 'string' ? userMsg.content : JSON.stringify(userMsg.content)) : '';
+        const pkgDir = (um.match(/PKGDIR=(\S+)/) || [])[1] || '';
+        // BADMANIFEST 变体（工单334 坏包路径）：非法 JSON → 提交得 invalid_package 结构化错误
+        const manifest = um.includes('BADMANIFEST') ? '{ "id": not json' : JSON.stringify({ id: 'dsh-hello', name: 'DSH HELLO', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['clock'], permissions: [] }, null, 2);
+        const cardJs = 'export default { mount(host) { host.el.textContent = "hello from dsh" } }\n';
+        const toolCount = msgs.filter((m) => m.role === 'tool').length;
+        if (!pkgDir) {
+          plan = { kind: 'text', out: 'INSTALL-MISSING-PKGDIR' };
+        } else if (toolCount === 0) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/plugin.json', content: manifest }) };
+        } else if (toolCount === 1) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/card.js', content: cardJs }) };
+        } else if (toolCount === 2) {
+          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_install_submit'));
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ sourceDir: pkgDir }) }
+            : { kind: 'text', out: 'INSTALL-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'INSTALL-SUBMITTED:' + toolText.slice(0, 260) };
+        }
       } else if (marker('PROBE OK')) {
         plan = { kind: 'text', out: 'PROBE OK' };
       } else {
