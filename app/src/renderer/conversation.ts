@@ -4,7 +4,7 @@
 // 按原样载荷呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
 // 管理型（工单333）：「管理」勾选 = 用户显式授权（逐会话、不持久化）；创建失败在窗内
 // 显式报错并给「以聊天型创建」按钮——绝不静默降级（ADR-0018 全有或全无）。
-import type { ConversationSessionView, ConversationTranscriptEntry } from '../shared/contract'
+import type { ConversationSessionView, ConversationTranscriptEntry, InstallProposalView } from '../shared/contract'
 
 const transcriptEl = document.getElementById('transcript') as HTMLElement
 const selectEl = document.getElementById('session-select') as HTMLSelectElement
@@ -247,3 +247,56 @@ void window.deck.bridge.invoke('conversation/list', null).then((res) => {
   render()
 })
 render()
+
+// ---------------------------------------------------------------------------
+// 待批准安装条（工单334，ADR-0025 批准面）：可信内核 UI 的真实用户手势——批准前代码
+// 不执行；零权限包权限栏显示「无（零权限）」；终态提案留痕（activated/rejected/failed+错误）
+// ---------------------------------------------------------------------------
+const installBar = document.getElementById('install-bar') as HTMLElement
+let proposals: InstallProposalView[] = []
+
+function renderInstalls(): void {
+  installBar.textContent = ''
+  if (!proposals.length) {
+    installBar.style.display = 'none'
+    return
+  }
+  installBar.style.display = 'block'
+  for (const p of proposals) {
+    const row = document.createElement('div')
+    row.className = `install-row ${p.status}`
+    const summary = document.createElement('div')
+    summary.className = 'install-summary'
+    const src = `${p.source.label ?? p.source.sessionId.slice(0, 8)}・${p.source.backend}`
+    const perms = p.pkg.permissions.length ? p.pkg.permissions.join(', ') : '无（零权限）'
+    summary.textContent = `安装 ${p.pkg.id}@${p.pkg.version}〔${p.status}〕来源 ${src}・${p.files.length} 文件・权限：${perms}・hash ${p.hash.slice(0, 12)}`
+    row.appendChild(summary)
+    if (p.status === 'pending') {
+      const ok = document.createElement('button')
+      ok.className = 'install-approve'
+      ok.textContent = '批准'
+      ok.addEventListener('click', () => { void window.deck.bridge.invoke('install/approve', { proposalId: p.proposalId }) })
+      const no = document.createElement('button')
+      no.className = 'install-reject'
+      no.textContent = '拒绝'
+      no.addEventListener('click', () => { void window.deck.bridge.invoke('install/reject', { proposalId: p.proposalId }) })
+      row.append(ok, no)
+    }
+    if (p.status === 'failed' && p.error) {
+      const err = document.createElement('div')
+      err.className = 'install-err'
+      err.textContent = p.error.stateUnknown ? `${p.error.message}（结果未知，不自动重试）` : p.error.message
+      row.appendChild(err)
+    }
+    installBar.appendChild(row)
+  }
+}
+
+window.deck.bridge.on('install/changed', (payload) => {
+  proposals = payload.proposals
+  renderInstalls()
+})
+void window.deck.bridge.invoke('install/list', null).then((res) => {
+  proposals = res.proposals
+  renderInstalls()
+})
