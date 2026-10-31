@@ -353,6 +353,46 @@ export interface PluginManifest {
 /** 插件装载态：ok = 已识别、资产已校验并投递给渲染层；error = 坏 manifest/资产缺失，带原因 */
 export type PluginStatus = 'ok' | 'error'
 
+/**
+ * 投放包运行态（工单331，ADR-0025）：投放档独立上下文的生命周期词表。
+ * ok = 独立 webContents 运行中；crashed = 崩溃错误态（不自动重挂、恢复=显式重建）；
+ * pending-approval = 含敏感权限待批准（批准前不执行）；pending-migration = 待迁移（旧包/
+ * 未知权限/主版本不兼容，带结构化迁移错误）；error = 坏包（结构错/资产缺失）。
+ */
+export const DROPPED_PACKAGE_STATES = [
+  'ok', 'crashed', 'pending-approval', 'pending-migration', 'error',
+] as const
+export type DroppedPackageState = (typeof DROPPED_PACKAGE_STATES)[number]
+
+/** 投放包迁移问题（可读、结构化；机器与用户直接可消费） */
+export interface DroppedPackageMigrationIssue {
+  code: string
+  message: string
+  expected?: number
+  actual?: unknown
+  unknown?: string[]
+}
+
+/** 投放包清单条目（主进程 dropped 档管理视图；不进 PanelSnapshot.plugins 段） */
+export interface DroppedPackageInfo {
+  id: string
+  name: string
+  version: string
+  status: DroppedPackageState
+  /** 声明的敏感权限（零权限包为空清单） */
+  permissions: string[]
+  /** 目标宿主 API 主版本（迁移分类通过时 = 当前主版本） */
+  hostApiVersion: number | null
+  /** 代码代次（内容变化即递增） */
+  generation: number
+  /** 独立 origin（`deck-pkg://<id>`；上下文未拉起时为 null） */
+  origin: string | null
+  /** error 态原因 */
+  error: string | null
+  /** 待迁移态的结构化迁移错误（其余态为 null） */
+  migrationIssues: DroppedPackageMigrationIssue[] | null
+}
+
 /** 快照可见的插件条目（entry 已解析为可直接 import 的协议 URL） */
 export interface PluginInfo {
   id: string
@@ -407,6 +447,176 @@ export type SearchUiState = 'idle' | 'active' | 'offline'
 export interface PluginConfigState {
   config: Record<string, unknown>
   warnings: string[]
+}
+
+// ---------------------------------------------------------------------------
+// 对话窗（工单332，ADR-0018 对话通道 / ADR-0026 DSH 运行时）：聊天型会话契约。
+// 面板只存会话元数据（id/cwd/backend/时间戳），正文仅内存视图不落盘（ADR-0018）。
+// ---------------------------------------------------------------------------
+
+/** 对话窗权限选项（ACP request_permission options 原样字段） */
+export interface ConversationPermissionOption {
+  optionId: string
+  name: string
+  kind: string
+}
+
+/** 对话窗转写条目（仅内存视图；agent_chunk 为累计快照替换语义——探针 #330 实录） */
+export interface ConversationTranscriptEntry {
+  kind: 'user' | 'agent' | 'tool' | 'permission' | 'system'
+  at: number
+  text: string
+  /** kind=tool：session/update 工具事件原样载荷（原样呈现，工单332 验收标准 1） */
+  raw?: Record<string, unknown>
+  /** kind=tool：状态（in_progress/completed/failed，原样透传） */
+  status?: string | null
+  toolCallId?: string | null
+  /** kind=permission：后端给的选项原样清单 */
+  options?: ConversationPermissionOption[]
+  /** kind=permission：用户裁决（选中 optionId；'cancelled' = 取消本 turn） */
+  resolvedOptionId?: string | null
+}
+
+/** 会话状态：starting（握手中）/ ready（可聊）/ busy（turn 在途）/ ended / failed（进程异常退出） */
+export type ConversationSessionStatus = 'starting' | 'ready' | 'busy' | 'ended' | 'failed'
+
+/** 会话视图（渲染层唯一呈现源；transcript 仅内存，不落盘） */
+export interface ConversationSessionView {
+  id: string
+  backend: string
+  backendSessionId: string | null
+  /** 后端进程 pid（null = 未运行） */
+  backendPid: number | null
+  /** ACP agentInfo（握手实测；浮动版本策略下为当时记录，ADR-0026） */
+  backendAgent: string | null
+  backendAgentVersion: string | null
+  /** 工单340（ADR-0026）：浮动运行时「未验收版本」标记——验收只记录不白名单，
+   *  面板侧无转 true 路径；null = 本次面板生命周期内尚未完成过握手 */
+  runtimeUnaccepted: boolean | null
+  /** 工单340：接入冒烟结果（passed/failed = 管理型宿主探活；skipped = 聊天型无 MCP 面） */
+  runtimeSmoke: 'pending' | 'passed' | 'failed' | 'skipped' | null
+  /** 工作目录绝对路径（resume 必需，元数据落盘字段之一） */
+  cwd: string
+  label: string
+  /** 管理型会话标记（工单333）：true = 管理通道在场（MCP 注入 + 凭证在册）；
+   *  宿主重拉降级、续接、显式结束都翻 false——「可管理」标识不说谎（ADR-0018） */
+  managed: boolean
+  status: ConversationSessionStatus
+  createdAt: number
+  endedAt: number | null
+  transcript: ConversationTranscriptEntry[]
+  /** 上下文占用（usage_update 原样数字） */
+  usage: { used: number | null; size: number | null }
+  /** failed 态的用户可见原因（不自动重启，由用户决定新建或续接——ADR-0018） */
+  error: string | null
+  /** 在途权限请求（原样选项；null = 无；绝不超时自动拒绝） */
+  pendingPermission: { options: ConversationPermissionOption[] } | null
+}
+
+/** 工单335 更新提案 diff 视图（旧→新：版本、文件三态与权限变化；批准 UI 数据面） */
+export interface UpdateDiffView {
+  packageId: string
+  oldVersion: string
+  newVersion: string
+  /** 旧代次聚合哈希（用户根在册字节） */
+  oldHash: string
+  /** 新代次聚合哈希（= 提案 hash，待装载区同一份字节） */
+  newHash: string
+  /** 权限变化（旧→新；零权限包两侧皆空） */
+  permissions: { added: string[]; removed: string[] }
+  /** 文件变化（旧→新三态） */
+  files: { added: string[]; removed: string[]; changed: string[] }
+}
+
+/** 工单334 安装提案视图（批准 UI 数据面；主进程 plugins 主账本投影；工单335 增更新/继承两面） */
+export interface InstallProposalView {
+  proposalId: string
+  status: 'pending' | 'activated' | 'rejected' | 'failed'
+  /** 提交时铸的操作 id：意图/结局审计的相关键 */
+  opId: string
+  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[]; optionalPermissions: string[]; /** 工单338：network.request 的精确 origin 声明（批准面据此展示与子集授予） */ networkOrigins: string[] }
+  files: Array<{ path: string; sha256: string; sizeBytes: number }>
+  /** 聚合哈希：批准时同一份字节复算绑定 */
+  hash: string
+  source: { sessionId: string; backend: string; label: string | null }
+  createdAt: number
+  error: { code: string; message: string; stateUnknown?: boolean } | null
+  /** 工单335 更新提案：旧→新 diff 与权限变化（install 提案无此字段） */
+  update?: UpdateDiffView
+  /**
+   * 工单335 旧数据继承（install 提案撞见卸载残留私有配置时在册）：独立于代码批准的用户
+   * 手势（install/inherit）；pending 期间批准代码 = 默认 fresh（新配置起步，残留 detach）。
+   */
+  dataInheritance?: { decision: 'pending' | 'inherited' | 'fresh' }
+  /** 工单336 手动投放提案（手动落进用户根的敏感包同闸门；批准=复算用户根哈希绑定） */
+  manual?: boolean
+}
+
+/** 工单336 授权账行（可信 UI 数据面；含已撤销行——何时授何时撤在案） */
+export interface AuthorizationGrantView {
+  packageId: string
+  permissions: string[]
+  /** 工单338：network.request 授予的精确 origin 集合（无该权限 = 空清单） */
+  networkOrigins: string[]
+  /** 代码聚合哈希（授权绑定三元组之一；同 id 新代码不继承旧批准） */
+  codeHash: string
+  grantedAt: number
+  revokedAt: number | null
+}
+
+/** 工单336 媒体审计聚合桶（包+权限+时间窗计数；不含任何媒体元数据） */
+export interface MediaAuditBucketView {
+  packageId: string
+  permission: string
+  windowStart: number
+  windowMs: number
+  counts: { snapshot: number; thumbnail: number } & Partial<Record<`control:${string}`, number>>
+  denied: number
+}
+
+/** 工单338 网络审计聚合桶（包+权限+时间窗计数与 origin 集合；不含路径/查询/载荷） */
+export interface NetworkAuditBucketView {
+  packageId: string
+  permission: string
+  windowStart: number
+  windowMs: number
+  counts: { request: number; redirect: number }
+  denied: number
+  origins: string[]
+}
+
+/** 工单339 命名凭证（可信 UI 视图：只有元数据与绑定，无密文/明文） */
+export interface CredentialView {
+  name: string
+  headerName: string
+  valuePrefix: string
+  createdAt: number
+  rotatedAt: number | null
+  bindings: Array<{ packageId: string; origin: string; boundAt: number }>
+}
+
+/** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
+export interface ConversationRuntimeDiagnostics {
+  agentName: string
+  agentVersion: string
+  protocolVersion: number
+  /** initialize 协商能力原样（agentCapabilities） */
+  capabilities: Record<string, unknown>
+  smoke: 'pending' | 'passed' | 'failed' | 'skipped'
+  /** 恒 false（ADR-0026：验收只记录不白名单） */
+  accepted: false
+  at: number
+}
+
+/** 后端可用性（选择器/创建入口的置灰依据；null = 未安装） */
+export interface ConversationBackendInfo {
+  available: boolean
+  detail: string
+  exe: string | null
+  /** 工单340：最近一次真实接入诊断（null = 本面板生命周期内尚无握手） */
+  runtime: ConversationRuntimeDiagnostics | null
+  /** 工单340：面板专属 DSH 数据目录当前指向（全新目录手势的呈现面） */
+  dshHome: string | null
 }
 
 /** 内核桥接方法表：method → [请求体, 响应体] */
@@ -701,6 +911,80 @@ export interface BridgeMethods {
    * 参与；quit 依赖由生产装配（index.ts）注入，未装配如实拒绝（不静默吞）。
    */
   'app/quit': { request: null; response: { ok: boolean } }
+  // --- 对话窗（工单332）：聊天型会话全链 ---
+  /** 后端可用性查询（描述符解析 + 布局校验；未安装时对话窗置灰创建入口） */
+  'conversation/backend': { request: null; response: ConversationBackendInfo }
+  /** 打开/唤起对话窗（无 sessionId = 最近活跃会话；窗口已开则置前）。关窗只收起（隐藏），不回收进程 */
+  'conversation/show': { request: { sessionId?: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 创建会话（工单332 聊天型 / 工单333 管理型）：解析后端描述符 → 会话专属空工作目录
+   * （userData 下）→ spawn（每会话一进程，Job Object kill-on-close）→ initialize →
+   * session/new。聊天型（managed 缺省/false）mcpServers:[]，不注入管理通道、不签会话
+   * 凭证、不注入合成引导 prompt（ADR-0018）。管理型（managed:true，用户显式勾选授权）
+   * 全有或全无：先起独立专用 MCP 宿主监听 → 能力检查 → 铸仅内存凭证 → session/new 注入
+   * {type:"http",url,headers:[Authorization bearer]}；任一步失败不建会话行，返回明确错误
+   * + canRetryAsChat（「以聊天型创建」是用户显式选择，绝不静默降级——ADR-0018）。
+   */
+  'conversation/create': { request: { label?: string; managed?: boolean }; response: { ok: boolean; session?: ConversationSessionView; error?: string; canRetryAsChat?: boolean } }
+  /** 会话清单（含转写视图；面板重启后转写为空——正文归 DSH 权威，ADR-0018） */
+  'conversation/list': { request: null; response: { sessions: ConversationSessionView[] } }
+  /** 发送用户输入：session/prompt 流式（回复/工具/权限经 conversation/changed 回推） */
+  'conversation/prompt': { request: { sessionId: string; text: string }; response: { ok: boolean; error?: string } }
+  /** 取消在途 turn：session/cancel；在途权限请求一并回 cancelled；进程存活可续用 */
+  'conversation/cancel': { request: { sessionId: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 权限裁决：optionId 必须取自当前请求的选项清单；绝不超时自动拒绝（ADR-0018）。
+   * 回复形状由适配器固定为 {outcome:{outcome:"selected",optionId}}（探针实证形状）。
+   */
+  'conversation/permission': { request: { sessionId: string; optionId: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 显式结束：在途 turn 先 cancel（短宽限落定）→ session/close → stdin close 自然退出
+   * （exit code 0）；超时即 Job Object/树杀兜底。元数据记 endedAt。
+   */
+  'conversation/end': { request: { sessionId: string }; response: { ok: boolean; error?: string } }
+  /**
+   * 续接面板自己创建的会话：按元数据的 backendSessionId + 绝对 cwd 重新拉进程并
+   * session/resume（后端不回放历史——窗内旧消息不可找回，插入 system 说明）。
+   */
+  'conversation/resume': { request: { sessionId: string }; response: { ok: boolean; session?: ConversationSessionView; error?: string } }
+  /**
+   * 工单340（ADR-0026）：用户显式手势——创建全新 DSH 数据目录并切换指向（设置面入口）。
+   * 新目录生成于面板专属根下首个空位（dsh-home-N），旧目录原样保留（零触碰）、
+   * 旧会话不自动继承；目录选择经 config.conversation.dshHome 持久化（重启保持）。
+   */
+  'conversation/new-data-dir': { request: null; response: { ok: boolean; dshHome?: string; previous?: string; error?: string } }
+  /** 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝 */
+  'install/list': { request: null; response: { proposals: InstallProposalView[] } }
+  'install/approve': { request: { proposalId: string; grantPermissions?: string[]; /** 工单338：network.request 的 origin 子集授予（缺省=声明清单全授） */ grantOrigins?: string[] }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean; warnings?: string[] } }
+  'install/reject': { request: { proposalId: string }; response: { ok: boolean; code?: string; message?: string } }
+  /**
+   * 工单335 旧数据继承（独立用户手势，不与代码批准合并）：inherit=true 保留卸载残留
+   * 私有配置（重装包重新可读旧数据）；false/批准时未决 = 新配置起步（残留 detach）。
+   */
+  'install/inherit': { request: { proposalId: string; inherit: boolean }; response: { ok: boolean; decision?: string; code?: string; message?: string } }
+  /**
+   * 工单336 授权账（可信 UI 数据面）：在册授权清单（含已撤销行——审计可见）+ 各自近窗
+   * 媒体读取聚合（MediaAuditService 投影；不含媒体元数据）。
+   */
+  'install/grants': { request: null; response: { grants: AuthorizationGrantView[]; buckets: MediaAuditBucketView[]; /** 工单338：网络审计聚合投影（origin/方法/结果计数；无载荷） */ networkBuckets: NetworkAuditBucketView[] } }
+  /** 工单336 授权撤销（可信 UI 真实用户手势）：撤销即停（接停用缝），撤销行留痕审计 */
+  'install/revoke': { request: { packageId: string }; response: { ok: boolean; code?: string; message?: string } }
+  /** 工单336 媒体审计聚合投影（包+权限+时间窗计数；完整记录仅可信 UI 保留 90 天） */
+  'media/audit': { request: null; response: { buckets: MediaAuditBucketView[] } }
+  /** 工单338 网络审计聚合投影（包+权限+时间窗计数与 origin 集合；完整记录仅在审计文件） */
+  'network/audit': { request: null; response: { buckets: NetworkAuditBucketView[] } }
+  /**
+   * 工单339 命名凭证（可信 UI）：list 只出元数据与绑定（secret 永不回传）；set 兼作新建与
+   * 轮换（同名 = 轮换，不触发代码重批）；delete 是唯一销毁凭证本体的手势；bind/unbind 是
+   * 「包 + 凭证 + 精确 origin」三元组的显式绑定/逐包撤销。
+   */
+  'credentials/list': { request: null; response: { credentials: CredentialView[] } }
+  'credentials/set': { request: { name: string; secret: string; headerName?: string; valuePrefix?: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/delete': { request: { name: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/bind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/unbind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
+  /** 工单341 资源预算读数（面板全进程工作集 MB；离线装配 = 零读数不编造） */
+  'diag/memory': { request: null; response: { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -738,6 +1022,13 @@ export interface BridgeEvents {
    * 条带渲染层据此钉住所属组（浮层在场只钉所属组，其余组照常收）。
    */
   'taskbar/popup-state': { family: string; open: boolean }
+  /**
+   * 工单332 对话窗：会话视图变化（创建/流式 chunk/工具/权限/取消/结束/失败）即推，
+   * 全量视图（渲染层按 id 对齐；转写仅内存，不落盘）。不等 1Hz 快照。
+   */
+  'conversation/changed': { sessions: ConversationSessionView[] }
+  /** 工单334 安装管线：提案变化（提交/批准/拒绝/失败）即推——批准 UI 数据面 */
+  'install/changed': { proposals: InstallProposalView[] }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

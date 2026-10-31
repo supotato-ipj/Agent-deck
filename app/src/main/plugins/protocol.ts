@@ -1,18 +1,21 @@
 import fs from 'node:fs/promises'
 import { protocol } from 'electron'
 import type { PluginHostService } from './service'
-import { APP_HOST, PLUGIN_SCHEME, resolveAssetUrl, type AssetRoot } from './assets'
+import { APP_HOST, PACKAGE_SCHEME, PLUGIN_SCHEME, resolveAssetUrl, type AssetRoot } from './assets'
 
 /**
- * 插件资产协议装配（工单10）：Electron 侧的特权协议注册与请求处理。
+ * 插件资产协议装配（工单10）+ 投放包协议（工单331）：Electron 侧的特权协议注册与请求处理。
  * 纯寻址逻辑在 assets.ts（可离线测），本文件只做 Electron 接线。
  *
  * 两处调用时机是硬约束：
- * - registerPluginScheme() 必须在 app ready 之前调用（Electron 文档要求）
- * - 协议 handler 在 app ready 之后、窗口载入之前装
+ * - registerPluginScheme() 必须在 app ready 之前调用（Electron 文档要求）。
+ *   特权 scheme 池一次性列全（探针实测：ready 前二次调用被静默忽略、ready 后调用抛错——
+ *   deck-plugin 与 deck-pkg 必须在**同一次**注册里列全，错过时机救不回来）。
+ * - 协议 handler 在 app ready 之后、窗口载入之前装（deck-pkg 的 handler 按包 session 注册，
+ *   在 package-host.ts 的激活路径上）。
  */
 
-/** 特权协议注册：standard = 可作同源页面与模块，secure = ESM 必需，bypassCSP 免写死 CSP。必须在 app ready 前调用一次。 */
+/** 特权协议注册：standard = 可作同源页面与模块，secure = ESM 必需。必须在 app ready 前调用一次。 */
 export function registerPluginScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -23,6 +26,17 @@ export function registerPluginScheme(): void {
         supportFetchAPI: true,
         corsEnabled: true,
         stream: true,
+      },
+    },
+    {
+      // 工单331 投放包协议：standard 是 origin 正确解析的前提（缺了就是不透明 origin，
+      // localStorage 全废——探针实测点），per-session 处理器在 package-host.ts 装。
+      scheme: PACKAGE_SCHEME,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
       },
     },
   ])
@@ -46,6 +60,11 @@ export function taskbarOverflowUrl(): string {
 /** 任务栏弹窗菜单页 URL（工单193：通用竖排弹窗菜单通路的载页，query 寻址菜单面） */
 export function taskbarMenuUrl(): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/taskbar-menu.html`
+}
+
+/** 对话窗页面 URL（工单332：与面板页同根同源的内核 UI 页） */
+export function conversationUrl(): string {
+  return `${PLUGIN_SCHEME}://${APP_HOST}/conversation.html`
 }
 
 /**

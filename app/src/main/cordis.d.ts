@@ -11,7 +11,12 @@ import type { PluginHostService } from './plugins/service'
 import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
-import type { PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
+import type { ConversationService } from './conversation/service'
+import type { MediaService } from './media/service'
+import type { NetworkService } from './network/service'
+import type { CredentialService } from './credentials/service'
+import type { InstallProposalView } from './plugins/install'
+import type { ConversationSessionView, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
@@ -33,6 +38,8 @@ declare module 'cordis' {
     'settings/cards-changed': (payload: { disabled: string[] }) => void
     /** 工单10 桌面组件：插件清单变化（放入/移除/资产变更即推） */
     'plugins/changed': (payload: PluginInfo[]) => void
+    /** 工单331 投放包：dropped 档清单变化（投放/停用/迁移态变化即推；不进 PanelSnapshot） */
+    'dropped-plugins/changed': (payload: DroppedPackageInfo[]) => void
     /** 工单49/52 任务栏：开关变化与应用组编排帧即时回推（窗口控制器据此建窗/销窗，渲染层据此重绘应用组） */
     'taskbar/changed': (payload: TaskbarState) => void
     /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（桥接层随 panel/changed 同拍发出） */
@@ -59,6 +66,12 @@ declare module 'cordis' {
      * 影子账缺位为 null），pid 由控制器 FFI 解析。
      */
     'taskbar/tray-replay-begin': (payload: { key: string; button: 'left' | 'right'; hwnd: string | null }) => void
+    /** 工单332 对话窗：会话视图变化即推（创建/流式/工具/权限/取消/结束/失败） */
+    'conversation/changed': (payload: { sessions: ConversationSessionView[] }) => void
+    /** 工单334 安装管线：提案变化即推（提交/批准/拒绝/失败——批准 UI 与诊断数据面） */
+    'install/changed': (payload: { proposals: InstallProposalView[] }) => void
+    /** 工单336 媒体快照代次变化（桥事件收敛后发；宿主据此向获批包即时重推 media 段） */
+    'media/snapshot-changed': (payload: { generation: number }) => void
   }
   interface Context {
     clock: ClockService
@@ -85,5 +98,13 @@ declare module 'cordis' {
     taskbar: TaskbarService
     /** 工单178 插件私有状态（内核总装必装；命名空间存储目录默认 userData/plugin-config） */
     pluginConfig: PluginConfigService
+    /** 工单332 对话窗会话服务（内核总装必装；BridgeService 注入它，缺装配即静默不装载桥接层） */
+    conversation: ConversationService
+    /** 工单336 媒体域（可选装配：Broker/审计/桥客户端；缺装配 = 桥接层媒体方法如实不可用） */
+    media?: MediaService
+    /** 工单338 网络域（可选装配：Broker/审计；缺装配 = 宿主网络面如实不可用） */
+    network?: NetworkService
+    /** 工单339 命名凭证域（可选装配：凭证库；缺装配 = 凭证保存/注入如实不可用） */
+    credentials?: CredentialService
   }
 }

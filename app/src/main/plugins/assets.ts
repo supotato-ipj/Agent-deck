@@ -12,6 +12,12 @@ import path from 'node:path'
 /** 应用自定义协议：渲染层页面与插件资产同源同协议（spec「插件体系」） */
 export const PLUGIN_SCHEME = 'deck-plugin'
 
+/** 投放包协议（工单331，ADR-0025）：每包独立 session 注册处理器，origin = `<scheme>://<包 id>` */
+export const PACKAGE_SCHEME = 'deck-pkg'
+
+/** 投放包宿主壳路径（协议处理器特判内联投喂；查询串带 entry 相对路径） */
+export const PACKAGE_SHELL_PATH = '__deck-shell.html'
+
 /** 宿主渲染层的主机名（插件目录用插件 id 作主机名） */
 export const APP_HOST = 'app'
 
@@ -104,4 +110,46 @@ function mountOf(prefix: string | undefined): string {
   if (!prefix) return ''
   const p = prefix.startsWith('/') ? prefix : `/${prefix}`
   return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p
+}
+
+/**
+ * 投放包资产寻址（工单331）：`deck-pkg://<id>/<path>` → 该包根下的磁盘文件 + MIME。
+ * 每包独立 session 只注册自己的包根（隔离来自独立 partition + 独立 origin 双保险），
+ * 本函数是处理器的寻址核心——与 resolveAssetUrl 同一条寻址安全基准：
+ * 穿越 / NUL / 反斜杠 / 目录 / 不存在 / MIME 白名单外一律 null（→ 404，绝不投递）。
+ * 宿主壳路径（PACKAGE_SHELL_PATH）在此返回 null：它由处理器特判内联投喂，不在包根。
+ */
+export function resolvePackageAssetUrl(rawUrl: string, root: string): ResolvedAsset | null {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    return null
+  }
+  if (url.protocol !== `${PACKAGE_SCHEME}:`) return null
+  if (url.pathname === `/${PACKAGE_SHELL_PATH}`) return null
+
+  let pathname: string
+  try {
+    pathname = decodeURIComponent(url.pathname)
+  } catch {
+    return null
+  }
+  if (pathname.includes('\0') || pathname.includes('\\')) return null
+
+  const base = path.resolve(root)
+  const file = path.resolve(base, '.' + (pathname.startsWith('/') ? pathname : `/${pathname}`))
+  if (file !== base && !file.startsWith(base + path.sep)) return null
+
+  let stat: fs.Stats
+  try {
+    stat = fs.statSync(file)
+  } catch {
+    return null
+  }
+  if (!stat.isFile()) return null
+
+  const mime = mimeOf(file)
+  if (!mime) return null
+  return { file, mime }
 }

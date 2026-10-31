@@ -28,7 +28,7 @@
           "surfaces": [
             "panel-alive"
           ],
-          "estSeconds": 15,
+          "estSeconds": 8,
           "areas": [
             "panel.core"
           ]
@@ -40,7 +40,7 @@
           "surfaces": [
             "pixel"
           ],
-          "estSeconds": 15,
+          "estSeconds": 9,
           "areas": [
             "panel.core",
             "cards"
@@ -53,7 +53,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 10,
+          "estSeconds": 12,
           "areas": [
             "cards",
             "sessions"
@@ -67,7 +67,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 10,
+          "estSeconds": 3,
           "areas": [
             "panel.core",
             "hotzone"
@@ -95,7 +95,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 3,
+          "estSeconds": 5,
           "areas": [
             "cards",
             "hotzone"
@@ -111,7 +111,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 35,
+          "estSeconds": 18,
           "areas": [
             "desktop"
           ]
@@ -123,7 +123,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 12,
+          "estSeconds": 9,
           "areas": [
             "desktop"
           ]
@@ -135,7 +135,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 12,
+          "estSeconds": 13,
           "areas": [
             "desktop"
           ]
@@ -148,7 +148,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35,
+          "estSeconds": 25,
           "areas": [
             "desktop"
           ]
@@ -161,7 +161,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 30,
+          "estSeconds": 18,
           "areas": [
             "desktop"
           ]
@@ -174,7 +174,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 25,
+          "estSeconds": 17,
           "areas": [
             "desktop"
           ]
@@ -187,7 +187,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 20,
+          "estSeconds": 9,
           "areas": [
             "desktop"
           ]
@@ -200,7 +200,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35,
+          "estSeconds": 28,
           "areas": [
             "desktop",
             "hotzone",
@@ -217,7 +217,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 19,
           "areas": [
             "desktop",
             "cards"
@@ -231,7 +231,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 25,
+          "estSeconds": 16,
           "areas": [
             "desktop",
             "cards"
@@ -246,7 +246,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 22,
           "areas": [
             "desktop",
             "cards"
@@ -276,7 +276,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 18,
           "areas": [
             "desktop",
             "cards"
@@ -291,7 +291,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 14,
           "areas": [
             "desktop",
             "cards"
@@ -305,7 +305,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 35,
+          "estSeconds": 32,
           "areas": [
             "panel.core",
             "cards"
@@ -335,7 +335,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 21,
           "areas": [
             "settings",
             "config"
@@ -351,7 +351,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 19,
+          "estSeconds": 22,
           "areas": [
             "settings",
             "cards",
@@ -366,7 +366,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 12,
+          "estSeconds": 6,
           "areas": [
             "config"
           ]
@@ -378,7 +378,7 @@
           "surfaces": [
             "panel-alive"
           ],
-          "estSeconds": 8,
+          "estSeconds": 2,
           "areas": [
             "panel.core"
           ]
@@ -391,7 +391,7 @@
             "system-state",
             "pixel"
           ],
-          "estSeconds": 18,
+          "estSeconds": 6,
           "areas": [
             "tray"
           ]
@@ -406,7 +406,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 20,
+          "estSeconds": 11,
           "areas": [
             "desktop",
             "panel.core"
@@ -421,7 +421,7 @@
             "system-state",
             "pixel"
           ],
-          "estSeconds": 18,
+          "estSeconds": 15,
           "areas": [
             "tray",
             "panel.core"
@@ -435,7 +435,7 @@
             "panel-alive",
             "event-evidence"
           ],
-          "estSeconds": 12,
+          "estSeconds": 10,
           "areas": [
             "settings",
             "panel.core"
@@ -450,7 +450,7 @@
             "event-evidence",
             "panel-alive"
           ],
-          "estSeconds": 25,
+          "estSeconds": 23,
           "areas": [
             "sessions",
             "cards"
@@ -459,15 +459,28 @@
         {
           "seg": "P11",
           "ticket": 10,
-          "title": "桌面组件插件自举：内置三卡/放入即识别/重载/卸载/重装",
+          "title": "桌面组件插件自举：内置五卡经插件契约装载 + qoder 退役检查（工单331 退役旧同上下文投放探针，投放档真机面见 P13）",
           "surfaces": [
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 6,
           "areas": [
             "plugins",
             "cards"
+          ]
+        },
+        {
+          "seg": "P13",
+          "ticket": 331,
+          "title": "零权限投放包独立上下文（工单331 五条验收标准真机面）：零权限投放即生效（激活/停用/恢复）+ 独立 webContents/origin 与无 invoke 泄漏（CDP 多目标）+ 默认无出站网络 + 崩溃错误态不自动重挂/副作用不重放/他包与面板无恙 + 旧包三类结构化迁移错误",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 90,
+          "areas": [
+            "plugins"
           ]
         },
         {
@@ -477,7 +490,7 @@
           "surfaces": [
             "event-evidence"
           ],
-          "estSeconds": 16,
+          "estSeconds": 15,
           "areas": [
             "render"
           ]
@@ -1607,6 +1620,171 @@
       "hintBar": true,
       "cdpPort": 9333,
       "kind": "experiment"
+    },
+    {
+      "id": "332-conversation",
+      "title": "对话窗 DSH 会话（工单332 聊天型 + 工单333 管理型，spec #326）：真实 DSH 全链冒烟——握手/流式/取消与收起/工具审批/退出/进程回收/零管理面；管理型显式授权/只读工具真链/凭证失效/宿主回收",
+      "entry": "app/accept/conversation.js",
+      "flag": "--accept-chat",
+      "hintBar": true,
+      "cdpPort": 9231,
+      "kind": null,
+      "budgetSeconds": 600,
+      "segments": [
+        {
+          "seg": "C1",
+          "ticket": 332,
+          "title": "真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
+          "areas": [
+            "sessions"
+          ]
+        },
+        {
+          "seg": "C2",
+          "ticket": 333,
+          "title": "真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
+          "areas": [
+            "sessions"
+          ]
+        },
+        {
+          "seg": "C4",
+          "ticket": 334,
+          "title": "DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C5",
+          "ticket": 335,
+          "title": "DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C6",
+          "ticket": 336,
+          "title": "媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 90,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C7",
+          "ticket": 337,
+          "title": "媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 90,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C8",
+          "ticket": 338,
+          "title": "联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C9",
+          "ticket": 339,
+          "title": "命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C10",
+          "ticket": 341,
+          "title": "三参考闭环组合验收与资源预算（工单341，spec #326 收口）：零权限/媒体/认证联网三组件同时在场各自闭环（独立上下文并行无踩踏）→ 对抗矩阵（跨包隔离：零权限包调媒体/网络 API 各自 permission_denied / 旧媒体键误控 media_session_gone 且当前会话不受影响 / 无播放器回落明确空态 / 限额 network_rate_limited 与权限拒绝分域 / 审计全文无 secret 与载荷 / 崩溃不自动重挂：Page.crash 后 6s 无重激活且私有配置保留）→ 0/1/5/10 包工作集实测（diag/memory，每包边际 ≤ 128MB 预算；16 包上限的超限显式拒绝由单测覆盖）。执行序 C9 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 120,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C3",
+          "ticket": 340,
+          "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 30,
+          "areas": [
+            "sessions"
+          ]
+        }
+      ],
+      "areas": [
+        "sessions"
+      ],
+      "scope": true,
+      "lastMeasuredSeconds": 45,
+      "lastMeasuredAt": "2026-10-31"
     }
   ],
   "areas": {
@@ -1635,6 +1813,10 @@
     "app/plugins"
   ],
   "pathAreas": [
+    {
+      "path": "app/src/renderer/conversation.ts",
+      "area": "sessions"
+    },
     {
       "path": "app/src",
       "area": "panel.core"
@@ -1800,6 +1982,22 @@
       "area": "sessions"
     },
     {
+      "path": "app/src/main/conversation",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/media",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/network",
+      "area": "plugins"
+    },
+    {
+      "path": "app/src/main/credentials",
+      "area": "plugins"
+    },
+    {
       "path": "app/src/main/services/settings.ts",
       "area": "settings"
     },
@@ -1895,6 +2093,10 @@
     }
   ],
   "requiredFileRules": [
+    {
+      "path": "app/src/renderer/conversation.ts",
+      "area": "sessions"
+    },
     {
       "path": "app/src/main/config.ts",
       "area": "config"

@@ -315,9 +315,27 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     //   普通态清位与三路径禁现；111 → 114：工单296 增段——50 电池 +A5/A6/A7 普通态
     //   出发的退场复原对应轮（正常退出/崩溃/强杀）；114 → 120：工单310 新电池 +P1..P6
     //   （宿主摆位：长按/吸附/持久化/组卡冻结展开/搜索方向/无空位拒绝）；120 → 121：
-    //   工单256 增段——49 电池 +P26 轮末清场自检（参照窗销毁后验＋桌面探针残留窄口径扫描）
+    //   工单256 增段——49 电池 +P26 轮末清场自检（参照窗销毁后验＋桌面探针残留窄口径扫描）；
+    //   121 → 122：工单332 新电池 332-conversation +C1（真实 DSH 聊天会话全链冒烟）；
+    //   122 → 123：工单331 增段——03 电池 +P13 零权限投放包独立上下文（P11 同 PR 特征退役：
+    //   旧同上下文投放探针随 ADR-0025 断裂迁移移除，段保留、断言缩至内置五卡自举）；
+    //   123 → 124：工单333 增段——332-conversation +C2 管理型会话只读面板与插件契约
+    //   （真实 DSH 显式授权/只读工具真链/凭证失效/宿主回收；一段绑定一工单）；
+    //   124 → 125：工单340 增段——332-conversation +C3 浮动版本与失败处置（bogus 后端档
+    //   失败非破坏 + 全新数据目录手势；C1/C2 est 60→30 同 PR 校准，#333 健康轮 took=13.0/9.7s）
     const total = manifest!.batteries.reduce((n, b) => n + (b.segments || []).length, 0)
-    expect(total).toBe(121)
+    // 125 → 126：工单334 增段——332-conversation +C4 DSH 全链创建零权限插件（执行序 C1→C2→C4→C3；
+    // C3 是失败注入段必须最后）；预算 120→240（C4 est 90 实跑佐证随轮入库，#333 预算上调先例）
+    // 126 → 127：工单335 增段——332-conversation +C5 DSH 更新已装包与卸载全链（执行序 C4 后
+    // C3 前；est 90 起笔健康轮 took=6.5s 同 PR 校准 90→30）；预算 240 保持（120+30=150≤240）
+    // 127 → 128：工单336 增段——332-conversation +C6 媒体信息卡与 media.read（执行序 C5 后
+    // C3 前；est 90 起笔首轮量后校准）；预算 240→360（理由：媒体全链+真机 SMTC 播放器夹具
+    // ——罐头编排 4 轮+批准激活+Edge 起停+缩略图链+撤销即停，随关票评论留痕）
+    // 128 → 129：工单337 增段——332-conversation +C7 媒体控制可选权限（双包对照；执行序 C7 后 C3 前）
+    // 129 → 130：工单338 增段——332-conversation +C8 联网组件与 origin 权限（执行序 C7 后 C3 前）
+    // 130 → 131：工单339 增段——332-conversation +C9 命名凭证与认证联网（执行序 C8 后 C3 前）
+    // 131 → 132：工单341 增段——332-conversation +C10 三参考组合与资源预算（执行序 C9 后 C3 前）
+    expect(total).toBe(132)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -384,11 +402,11 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：36 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：37 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(36)
-    expect(manifest.requiredFileRules!.length).toBe(36)
+    expect(fileRules.length).toBe(37)
+    expect(manifest.requiredFileRules!.length).toBe(37)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()
