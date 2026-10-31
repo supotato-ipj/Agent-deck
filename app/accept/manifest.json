@@ -1616,7 +1616,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 180,
+      "budgetSeconds": 120,
       "segments": [
         {
           "seg": "C1",
@@ -1627,7 +1627,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 90,
+          "estSeconds": 60,
           "areas": [
             "sessions"
           ]
@@ -1636,7 +1636,9 @@
       "areas": [
         "sessions"
       ],
-      "scope": true
+      "scope": true,
+      "lastMeasuredSeconds": 14,
+      "lastMeasuredAt": "2026-10-31"
     }
   ],
   "areas": {
