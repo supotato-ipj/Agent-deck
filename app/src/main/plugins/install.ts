@@ -845,7 +845,7 @@ export class PluginInstallManager {
     }
     const userTarget = path.join(this.opts.userRoot, proposal.pkg.id)
     if (proposal.update) return this.approveUpdate(proposal, stagedDir, userTarget)
-    return this.approveInstall(proposal, stagedDir, userTarget)
+    return this.approveInstall(proposal, stagedDir, userTarget, opts)
   }
 
   /**

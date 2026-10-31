@@ -571,7 +571,11 @@ export class PluginHostService extends Service {
       return 'pending-approval'
     }
     const grant = this.authorization?.activeGrant(record.id) ?? null
-    return authorizeDroppedPackageWithGrant({ permissions: record.permissions, grant, codeHash })
+    return authorizeDroppedPackageWithGrant({
+      permissions: record.permissions,
+      optionalPermissions: record.manifest?.optionalPermissions ?? [],
+      grant, codeHash,
+    })
   }
 
   /** 单个投放目录的分类：manifest 迁移分类 + 入口资产核对 → 状态记账（不含上下文动作）。

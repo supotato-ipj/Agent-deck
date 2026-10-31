@@ -1,27 +1,25 @@
 // 媒体控制单元矩阵（工单337）：授权门（media.control 在账/撤销/未批准）、按包限流
 // （commandsPerSecond=5 滚动窗）、结构化错误映射（会话消失/命令失败/桥缺席）、审计 control 族。
 import { describe, expect, it } from 'vitest'
-import { MediaBroker, type MediaBridgePort } from '../../src/main/media/broker'
+import { MediaBroker } from '../../src/main/media/broker'
+import type { MediaBridgePort } from '../../src/main/media/bridge-client'
 
-function fakeBridge(control?: MediaBridgePort['control']): MediaBridgePort {
+function fakeBridge(control?: (key: string, action: string) => Promise<{ ok: true; data: { status?: string } } | { ok: false; error: string }>): MediaBridgePort {
   return {
     list: async () => ({ ok: true, data: { count: 0, currentKey: null, sessions: [] } }),
-    snap: async () => ({ ok: false, error: 'fake' }),
     thumb: async () => ({ ok: false, error: 'fake' }),
     ...(control ? { control } : {}),
     watch: () => {},
-  }
+  } as unknown as MediaBridgePort
 }
 
-function boot(permissions: string[], control?: MediaBridgePort['control']) {
-  const grants: Record<string, { permissions: string[] }> = {
-    'pkg-ctl': { permissions },
-  }
-  const audit: Array<Record<string, unknown>> = []
+function boot(permissions: string[], control?: (key: string, action: string) => Promise<{ ok: true; data: { status?: string } } | { ok: false; error: string }>) {
+  const audit: Array<{ kind: string; outcome: string; packageId: string; permission: string }> = []
+  const ledger = { activeGrant: (id: string) => ({ permissions, codeHash: 'h', grantedAt: 1 }) }
   const broker = new MediaBroker({
     bridge: fakeBridge(control),
-    authorization: { activeGrant: (id) => (grants[id] ? { permissions: grants[id].permissions, codeHash: 'h', grantedAt: 1 } : null) },
-    audit: { record: (acc) => { audit.push(acc) }, aggregate: () => [] },
+    authorization: ledger,
+    audit: { record: (acc: { kind: string; outcome: string; packageId: string; permission: string }) => { audit.push(acc) }, aggregate: () => [] } as never,
     log: () => {},
   })
   return { broker, audit }
@@ -50,11 +48,11 @@ describe('媒体控制授权门（工单337）', () => {
   })
 
   it('无账面包 → media_permission_denied（缺省无授权面语义）', async () => {
-    const audit: Array<Record<string, unknown>> = []
+    const audit: Array<{ kind: string; outcome: string }> = []
     const broker = new MediaBroker({
       bridge: fakeBridge(),
       authorization: null,
-      audit: { record: (acc) => { audit.push(acc) }, aggregate: () => [] },
+      audit: { record: (acc: { kind: string; outcome: string }) => { audit.push(acc) }, aggregate: () => [] } as never,
       log: () => {},
     })
     const out = await broker.controlForPackage('any', 'k', 'play')
@@ -72,10 +70,7 @@ describe('媒体控制按包限流（工单337，commandsPerSecond=5）', () => 
     const sixth = await broker.controlForPackage('pkg-ctl', 'k', 'pause')
     expect(sixth).toMatchObject({ ok: false, code: 'media_rate_limited' })
     expect(audit.some((a) => a.kind === 'control:pause' && a.outcome === 'rate_limited')).toBe(true)
-    // 独立包不受牵连（按包限流）
-    const grants2 = { 'pkg-other': { permissions: ['media.control'] } }
-    void grants2
-    //（同 broker 实例内另一包有独立窗口——此处仅验证 pkg-ctl 仍受限而其他包不被殃及的语义由实现保证）
+    //（按包独立窗口的语义由实现保证：controlWindows 以 packageId 为键）
   })
 })
 
