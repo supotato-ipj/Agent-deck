@@ -552,6 +552,26 @@ export interface InstallProposalView {
   manual?: boolean
 }
 
+/** 工单336 授权账行（可信 UI 数据面；含已撤销行——何时授何时撤在案） */
+export interface AuthorizationGrantView {
+  packageId: string
+  permissions: string[]
+  /** 代码聚合哈希（授权绑定三元组之一；同 id 新代码不继承旧批准） */
+  codeHash: string
+  grantedAt: number
+  revokedAt: number | null
+}
+
+/** 工单336 媒体审计聚合桶（包+权限+时间窗计数；不含任何媒体元数据） */
+export interface MediaAuditBucketView {
+  packageId: string
+  permission: string
+  windowStart: number
+  windowMs: number
+  counts: { snapshot: number; thumbnail: number }
+  denied: number
+}
+
 /** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
 export interface ConversationRuntimeDiagnostics {
   agentName: string
@@ -919,6 +939,15 @@ export interface BridgeMethods {
    * 私有配置（重装包重新可读旧数据）；false/批准时未决 = 新配置起步（残留 detach）。
    */
   'install/inherit': { request: { proposalId: string; inherit: boolean }; response: { ok: boolean; decision?: string; code?: string; message?: string } }
+  /**
+   * 工单336 授权账（可信 UI 数据面）：在册授权清单（含已撤销行——审计可见）+ 各自近窗
+   * 媒体读取聚合（MediaAuditService 投影；不含媒体元数据）。
+   */
+  'install/grants': { request: null; response: { grants: AuthorizationGrantView[]; buckets: MediaAuditBucketView[] } }
+  /** 工单336 授权撤销（可信 UI 真实用户手势）：撤销即停（接停用缝），撤销行留痕审计 */
+  'install/revoke': { request: { packageId: string }; response: { ok: boolean; code?: string; message?: string } }
+  /** 工单336 媒体审计聚合投影（包+权限+时间窗计数；完整记录仅可信 UI 保留 90 天） */
+  'media/audit': { request: null; response: { buckets: MediaAuditBucketView[] } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

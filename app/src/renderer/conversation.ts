@@ -4,7 +4,7 @@
 // 按原样载荷呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
 // 管理型（工单333）：「管理」勾选 = 用户显式授权（逐会话、不持久化）；创建失败在窗内
 // 显式报错并给「以聊天型创建」按钮——绝不静默降级（ADR-0018 全有或全无）。
-import type { ConversationSessionView, ConversationTranscriptEntry, InstallProposalView } from '../shared/contract'
+import type { AuthorizationGrantView, ConversationSessionView, ConversationTranscriptEntry, InstallProposalView, MediaAuditBucketView } from '../shared/contract'
 
 const transcriptEl = document.getElementById('transcript') as HTMLElement
 const selectEl = document.getElementById('session-select') as HTMLSelectElement
@@ -338,3 +338,54 @@ void window.deck.bridge.invoke('install/list', null).then((res) => {
   proposals = res.proposals
   renderInstalls()
 })
+
+// ---------------------------------------------------------------------------
+// 授权账（工单336，ADR-0025）：在册授权（含已撤销行）+ 近窗媒体读取聚合——可信内核 UI
+// 的撤销手势（撤销即停：账撤销 → rescan 停用缝拆上下文；媒体 Broker 同步断供零窗口）。
+// 审计聚合只有包+权限+时间窗计数（不含媒体元数据）。
+// ---------------------------------------------------------------------------
+const grantBar = document.getElementById('grant-bar') as HTMLElement
+let grantRows: AuthorizationGrantView[] = []
+let auditBuckets: MediaAuditBucketView[] = []
+
+function renderGrants(): void {
+  grantBar.textContent = ''
+  if (!grantRows.length) {
+    grantBar.style.display = 'none'
+    return
+  }
+  grantBar.style.display = 'block'
+  const hourAgo = Date.now() - 3_600_000
+  for (const g of grantRows) {
+    const row = document.createElement('div')
+    row.className = `grant-row ${g.revokedAt ? 'revoked' : 'active'}`
+    const reads = auditBuckets
+      .filter((b) => b.packageId === g.packageId && b.permission === 'media.read' && b.windowStart * 1 >= hourAgo - b.windowMs)
+      .reduce((acc, b) => acc + b.counts.snapshot + b.counts.thumbnail, 0)
+    const summary = document.createElement('div')
+    summary.className = 'grant-summary'
+    summary.textContent = `授权 ${g.packageId}〔${g.revokedAt ? '已撤销' : '生效中'}〕权限 ${g.permissions.join(', ')}・hash ${g.codeHash.slice(0, 12)}・媒体读取（近1h）${reads} 次`
+    row.appendChild(summary)
+    if (!g.revokedAt) {
+      const no = document.createElement('button')
+      no.className = 'grant-revoke'
+      no.textContent = '撤销'
+      no.addEventListener('click', () => {
+        void window.deck.bridge.invoke('install/revoke', { packageId: g.packageId }).then(() => {
+          void refreshGrants()
+        })
+      })
+      row.appendChild(no)
+    }
+    grantBar.appendChild(row)
+  }
+}
+
+function refreshGrants(): void {
+  void window.deck.bridge.invoke('install/grants', null).then((res) => {
+    grantRows = res.grants
+    auditBuckets = res.buckets
+    renderGrants()
+  })
+}
+refreshGrants()

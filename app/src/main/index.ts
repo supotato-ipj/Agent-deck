@@ -26,6 +26,7 @@ import { SessionCredentialRegistry } from './conversation/managed-credentials'
 import { productionPluginRoots } from './plugins/roots'
 import { DroppedPackageHost } from './plugins/package-host'
 import { ExecutionContextRegistry } from './plugins/identity'
+import { PluginAuthorizationLedger } from './plugins/authorization-ledger'
 import { userDataPath } from './paths'
 import type { TrayWireEvent } from './trayhost/protocol'
 
@@ -208,12 +209,27 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     configPort: () => kernelRef?.pluginConfig ?? null,
     onCrashed: (id, reason) => kernelRef?.plugins.markDroppedCrashed(id, reason),
     log: (event) => log?.append(event),
+    // 媒体面（工单336）：授权门/脱敏/校验都在 MediaBroker（media 服务），宿主只转发。
+    // 快照代次变化经 media/snapshot-changed 即时重推（下方订阅），面板 tick 另有同拍。
+    mediaView: (packageId) => kernelRef?.media?.viewForPackage(packageId) ?? null,
+    mediaThumbnail: async (packageId, key) => {
+      const media = kernelRef?.media
+      if (!media) return { ok: false as const, code: 'media_unavailable', message: '媒体面未装配' }
+      return await media.thumbnailForPackage(packageId, key)
+    },
   })
   // 对话窗唤起钩子（工单332）：装配期先占位，控制器就位后重绑
   const conversationShowHook: { fn: (sessionId: string | null) => void } = { fn: () => {} }
   // 管理面凭证登记处（工单333）：显式建在装配层（服务自建则观察口拿不到同一实例）——
   // 仅内存；accept 观察口经它向电池转交 bearer（绝不落盘）
   const managedRegistry = new SessionCredentialRegistry()
+  // 授权账（工单336，ADR-0025 按包/按代码代次授予）：显式建在装配层——插件宿主（撤销即停）
+  // 与媒体 Broker（撤销即断供）共用同一实例，撤销语义单一事实源。跨重启持久化。
+  const pluginAuthorizationLedger = new PluginAuthorizationLedger({
+    file: userDataPath('plugin-authorizations.json'),
+    now: () => Date.now(),
+    log: (event) => log?.append(event),
+  })
 
   const kernel = createPanelKernel({
     weather: config.weather,
@@ -246,6 +262,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         userRoot: config.plugins.dir || userDataPath('plugins'),
       }),
       disabledIds: () => config.plugins.disabled,
+      // 授权账（工单336）：跨重启持久化（userData/plugin-authorizations.json）；撤销即停
+      // （rescan 停用缝）与媒体断供（Broker 授权门）同一账实例——撤销零窗口。
+      authorization: pluginAuthorizationLedger,
       // 投放档（工单331）：独立上下文宿主端口 + 生命周期事件出口（dropped-package-*）
       droppedHost: droppedPackageHost,
       // DSH 安装管线（工单334）：待装载区面板私域（userData/plugins-staging）；会话工作区
@@ -273,6 +292,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
     // 对话窗（工单332）：面板专属 DSH_HOME 与元数据落 userData（跟面板走），后端档
     // config.conversation 下发；会话事件走 DECK_EVENT_LOG 存证。窗口唤起经控制器（下）。
+    // 媒体域（工单336）：审计完整记录独立 JSONL（与控制面审计分离）；GSMTC 桥 exe 缺席
+    // 时不拉起（Broker 明确不可用态——真机验收前置自证在场）。
+    media: {
+      auditFile: userDataPath('media-audit.jsonl'),
+      bridgeExePath: path.join(app.getAppPath(), 'resources', 'gsmtc-bridge', 'bridge.exe'),
+      authorization: pluginAuthorizationLedger,
+      log: (event) => log?.append(event),
+    },
     conversation: {
       config: { exe: config.conversation.dshExe, model: config.conversation.model },
       // 工单340（ADR-0026）：数据目录指向跟 config 走（缺省 userData/dsh-home，手势切换后
@@ -368,6 +395,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   kernelRef = kernel
   // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
   kernel.on('panel/changed', (snap) => droppedPackageHost.pushSnapshot(snap))
+  // 媒体快照代次变化（工单336）：桥事件收敛后的即时重推——获批 media.read 的在装包
+  // 页 view.media 即时更新（面板兜底 tick 另有同拍；包内按 lastUpdatedTime 插值）。
+  kernel.on('media/snapshot-changed', () => droppedPackageHost.refreshMedia())
   // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady

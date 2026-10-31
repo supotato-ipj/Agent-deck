@@ -47,6 +47,7 @@ interface Harness {
   deactivations: string[]
   events: Record<string, unknown>[]
   rescan(): void
+  dropped(): Array<{ id: string; status: string }>
   dispose(): void
 }
 

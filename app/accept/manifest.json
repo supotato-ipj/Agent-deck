@@ -1911,6 +1911,10 @@
       "area": "sessions"
     },
     {
+      "path": "app/src/main/media",
+      "area": "plugins"
+    },
+    {
       "path": "app/src/main/services/settings.ts",
       "area": "settings"
     },

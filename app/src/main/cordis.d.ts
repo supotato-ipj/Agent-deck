@@ -12,6 +12,7 @@ import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
 import type { ConversationService } from './conversation/service'
+import type { MediaService } from './media/service'
 import type { InstallProposalView } from './plugins/install'
 import type { ConversationSessionView, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
@@ -67,6 +68,8 @@ declare module 'cordis' {
     'conversation/changed': (payload: { sessions: ConversationSessionView[] }) => void
     /** 工单334 安装管线：提案变化即推（提交/批准/拒绝/失败——批准 UI 与诊断数据面） */
     'install/changed': (payload: { proposals: InstallProposalView[] }) => void
+    /** 工单336 媒体快照代次变化（桥事件收敛后发；宿主据此向获批包即时重推 media 段） */
+    'media/snapshot-changed': (payload: { generation: number }) => void
   }
   interface Context {
     clock: ClockService
@@ -95,5 +98,7 @@ declare module 'cordis' {
     pluginConfig: PluginConfigService
     /** 工单332 对话窗会话服务（内核总装必装；BridgeService 注入它，缺装配即静默不装载桥接层） */
     conversation: ConversationService
+    /** 工单336 媒体域（可选装配：Broker/审计/桥客户端；缺装配 = 桥接层媒体方法如实不可用） */
+    media?: MediaService
   }
 }

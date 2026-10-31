@@ -16,8 +16,11 @@ import { currentHostApiVersion, knownPermissionIds } from './catalog'
  * 纯逻辑：无 fs、无 Electron。常量（当前主版本 / 已知权限）取自 catalog.ts 单一正典。
  */
 
-/** 投放档只读快照段上限（ADR-0019 投放窄面四段；正典登记，渲染层裁剪同源） */
-export const DROPPED_VIEW_SEGMENTS = Object.freeze(['clock', 'hardware', 'layout', 'settings'] as const)
+/**
+ * 投放档只读快照段上限（正典登记，渲染层裁剪同源）：ADR-0019 投放窄面四段 + 工单336
+ * 媒体段。media 段只在包获 media.read 授权时投喂（package-host 授权门交集，少给而非不给）。
+ */
+export const DROPPED_VIEW_SEGMENTS = Object.freeze(['clock', 'hardware', 'layout', 'settings', 'media'] as const)
 
 /** 通过分类的投放包 manifest（零权限包 permissions 为空清单） */
 export interface DroppedManifest {
