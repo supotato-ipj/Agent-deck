@@ -1662,13 +1662,13 @@
         {
           "seg": "C4",
           "ticket": 334,
-          "title": "DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）；坏 manifest invalid_package 上窗无提案。执行序在 C3 前（C3 bogus 重启面板防污染）",
+          "title": "DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）",
           "surfaces": [
             "event-evidence",
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 90,
+          "estSeconds": 30,
           "areas": [
             "sessions",
             "plugins"
@@ -1693,7 +1693,7 @@
         "sessions"
       ],
       "scope": true,
-      "lastMeasuredSeconds": 31,
+      "lastMeasuredSeconds": 42,
       "lastMeasuredAt": "2026-10-31"
     }
   ],
