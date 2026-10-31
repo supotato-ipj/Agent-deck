@@ -38,8 +38,8 @@ describe('插件契约目录：正典自洽（工单331）', () => {
     expect(hostApi?.required).toBe(true)
   })
 
-  it('基线宿主 API 分领域：host.view / host.config 在典，且不含通用 invoke', () => {
-    expect(baselineApiDomainIds()).toEqual(['host.view', 'host.config'])
+  it('基线宿主 API 分领域：host.view / host.config / host.media 在典，且不含通用 invoke', () => {
+    expect(baselineApiDomainIds()).toEqual(['host.view', 'host.config', 'host.media'])
     const allActions = PLUGIN_CONTRACT_CATALOG.baselineHostApi.flatMap((d) => d.actions)
     expect(allActions.some((a) => a.includes('invoke'))).toBe(false)
     for (const domain of PLUGIN_CONTRACT_CATALOG.baselineHostApi) {
@@ -58,10 +58,9 @@ describe('插件契约目录：正典自洽（工单331）', () => {
     const net = PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'network.request')
     expect(net?.grant).toBe('exact-origin')
     expect(net?.status).toBe('declared')
-    // media 两项同样只登记不消费（本票只实现零权限路径）
-    for (const id of ['media.read', 'media.control']) {
-      expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === id)?.status).toBe('declared')
-    }
+    // 工单336：media.read 通路落地 = enforced（首个敏感权限闭环）；media.control 归 #337
+    expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.read')?.status).toBe('enforced')
+    expect(PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.control')?.status).toBe('declared')
   })
 
   it('每个权限与基线域引用的错误码都在错误目录中登记', () => {

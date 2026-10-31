@@ -108,6 +108,8 @@
   #status-line { flex: none; padding: 2px 10px 6px; font-size: 11px; color: #7d8590; }
   /* 工单334 待批准安装条（可信内核 UI 的真实手势面） */
   #install-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
+  #grant-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
+  .grant-row.revoked { opacity: 0.55; }
   .install-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
   .install-row.pending .install-summary { color: #f5a623; }
   .install-row.activated .install-summary, .install-row.rejected .install-summary { color: #7d8590; }
@@ -133,6 +135,7 @@
   <button id="btn-fresh-dir" title="创建全新 DSH 数据目录并切换指向（工单340/ADR-0026）：旧目录原样保留，新目录不继承旧会话；失败不自动清空或降级">全新数据目录</button>
 </header>
 <div id="install-bar" style="display:none"></div>
+<div id="grant-bar" style="display:none"></div>
 <div id="transcript"></div>
 <div id="status-line"></div>
 <footer>

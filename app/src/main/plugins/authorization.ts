@@ -31,3 +31,41 @@ export function authorizeDroppedPackage(input: AuthorizationInput): Authorizatio
   const perms = input.permissions ?? []
   return perms.length > 0 ? 'pending-approval' : 'activate'
 }
+
+/**
+ * 账面授权查询形状（工单336：PluginAuthorizationLedger.activeGrant 同形状——
+ * 这里只声明依赖的字段，不 import 账实现，裁决保持纯逻辑）。
+ */
+export interface GrantLookup {
+  permissions: readonly string[]
+  codeHash: string
+}
+
+/**
+ * 授权裁决 v2（工单336，ADR-0025 按包/按代码代次授予）：本票只开 media.read 通路——
+ * - 零权限 → activate（不经账）；
+ * - 权限**全部** = media.read 且账上 grant 匹配（声明的权限 ⊆ 授权集合 且 代码哈希相等）
+ *   → activate（跨重启持久化授权）；
+ * - 其余一切（media.control/network.request 通道未开放归 #337/#338、无账、哈希漂移、
+ *   权限漂移）→ pending-approval（批准前不执行；同 id 新代码不继承旧批准）。
+ */
+export function authorizeDroppedPackageWithGrant(input: {
+  permissions?: readonly string[]
+  grant: GrantLookup | null
+  codeHash: string
+}): AuthorizationDecision {
+  const perms = input.permissions ?? []
+  if (perms.length === 0) return 'activate'
+  // 本票只开 media.read：混入任何其他权限即不放行（账面即便匹配也不行——通道未开放）
+  if (!perms.every((p) => p === 'media.read')) return 'pending-approval'
+  const grant = input.grant
+  if (!grant) return 'pending-approval'
+  if (grant.codeHash !== input.codeHash) return 'pending-approval'
+  // 权限集合精确绑定：声明的集合与账面集合不一致（多/少/异序同集外）即漂移
+  const declared = [...perms].sort()
+  const granted = [...grant.permissions].sort()
+  if (declared.length !== granted.length || declared.some((p, i) => p !== granted[i])) {
+    return 'pending-approval'
+  }
+  return 'activate'
+}

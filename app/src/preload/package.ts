@@ -23,6 +23,11 @@ export type ConfigEnvelope =
   | { ok: true; config: Record<string, unknown>; warnings: string[] }
   | { ok: false; code: string; message: string }
 
+/** 媒体缩略图信封（工单336；授权/校验在主进程 Broker，preload 只透传信封） */
+export type MediaThumbnailEnvelope =
+  | { ok: true; contentType: string; bytes: number; dataUrl: string }
+  | { ok: false; code: string; message: string }
+
 let currentView: PackageView = {}
 const viewListeners = new Set<() => void>()
 
@@ -56,5 +61,15 @@ contextBridge.exposeInMainWorld('deckHost', {
   config: {
     get: (): Promise<ConfigEnvelope> => ipcRenderer.invoke('pkg:config-get'),
     set: (patch: unknown): Promise<ConfigEnvelope> => ipcRenderer.invoke('pkg:config-set', patch),
+  },
+  /**
+   * host.media（工单336，ADR-0025）：受控缩略图按需单取（快照本体走 view.media 推送）。
+   * 授权门与类型/大小校验都在主进程 Broker（media.read 在账才供货；校验拒付一个字节
+   * 不出——返回字节副本 dataURL，无原生流/WinRT 概念过此边界）。身份由登记表推导，
+   * 调用只带会话键（带代次不透明键）。
+   */
+  media: {
+    thumbnail: (sessionKey: string): Promise<MediaThumbnailEnvelope> =>
+      ipcRenderer.invoke('pkg:media-thumbnail', sessionKey),
   },
 })
