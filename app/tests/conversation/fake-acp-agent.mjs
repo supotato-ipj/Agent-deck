@@ -33,6 +33,10 @@ import path from 'node:path'
 //                 模拟某未知版本忽略/搞砸 MCP 注入）
 //   managed-nomcp initialize 声明 mcpCapabilities.http:false（能力缺失 → 服务层全有或全无败）
 //   mcp-reject    session/new 带 mcpServers 时报 -32602（session/new 失败 → 服务层回滚）
+// —— 工单335：
+//   managed-update  同 managed-install 链路，但提交**更新**（card.js 文本与版本 1.1.0 都变，
+//                   plugin_update_submit{packageId:'dsh-hello', sourceDir}）——用户根预置在册
+//                   包是测试前提（服务编排回归：提案 diff → 批准 → 原子换代）
 
 function initResultFor(scenario) {
   return {
@@ -77,7 +81,9 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
   // 带 bearer）。真实 DSH 在 session/new 后即刻做同一链路（t330 实录先 server/discover，
   // 方言请求宿主按 -32601 回，不影响 initialize/tools/list 两发的到达）。
   // 工单334 managed-install 场景：探活后在会话工作区写零权限包 → MCP 提交（真实全链编排）
-  async function installFlow(mcp, cwd) {
+  // 工单335 managed-update 场景：同链路提交**更新**——用户根须已有 dsh-hello（测试预置），
+  // fake 在工作区写新版字节（card.js 文本 + 版本 1.1.0 都变）→ plugin_update_submit。
+  async function installFlow(mcp, cwd, variant = 'install') {
     const headers = { 'Content-Type': 'application/json' }
     for (const hd of mcp.headers ?? []) headers[hd.name] = hd.value
     try {
@@ -91,19 +97,24 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
       // DSH 姿势：包写在会话工作区下（cwd 来自 session/new——DSH 用自身文件工具落盘）
       const pkgDir = path.join(cwd, 'dsh-hello-pkg')
       fs.mkdirSync(pkgDir, { recursive: true })
+      const isUpdate = variant === 'update'
       fs.writeFileSync(path.join(pkgDir, 'plugin.json'), JSON.stringify({
-        id: 'dsh-hello', name: 'DSH HELLO', version: '1.0.0', entry: './card.js',
+        id: 'dsh-hello', name: 'DSH HELLO', version: isUpdate ? '1.1.0' : '1.0.0', entry: './card.js',
         hostApiVersion: 1, capabilities: ['clock'], permissions: [],
       }, null, 2), 'utf8')
-      fs.writeFileSync(path.join(pkgDir, 'card.js'), 'export default { mount(host) { host.el.textContent = "hello from dsh" } }\n', 'utf8')
+      fs.writeFileSync(path.join(pkgDir, 'card.js'), isUpdate
+        ? 'export default { mount(host) { host.el.textContent = "hello from dsh v2" } }\n'
+        : 'export default { mount(host) { host.el.textContent = "hello from dsh" } }\n', 'utf8')
       const call = await fetch(mcp.url, {
         method: 'POST', headers,
-        body: JSON.stringify({ jsonrpc: '2.0', id: 91002, method: 'tools/call', params: { name: 'plugin_install_submit', arguments: { sourceDir: pkgDir } } }),
+        body: JSON.stringify(isUpdate
+          ? { jsonrpc: '2.0', id: 91002, method: 'tools/call', params: { name: 'plugin_update_submit', arguments: { packageId: 'dsh-hello', sourceDir: pkgDir } } }
+          : { jsonrpc: '2.0', id: 91002, method: 'tools/call', params: { name: 'plugin_install_submit', arguments: { sourceDir: pkgDir } } }),
       })
       const body = await call.json().catch(() => null)
-      trace({ fakeInstallSubmit: call.status, ok: body?.result != null, body: JSON.stringify(body)?.slice(0, 400) })
+      trace({ fakeInstallSubmit: call.status, variant, ok: body?.result != null, body: JSON.stringify(body)?.slice(0, 400) })
     } catch (err) {
-      trace({ fakeInstallSubmitError: String(err) })
+      trace({ fakeInstallSubmitError: String(err), variant })
     }
   }
 
@@ -152,7 +163,12 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
             } else if (scenario === 'managed-install') {
               const target = injectedMcp
               const cwd = typeof frame.params?.cwd === 'string' ? frame.params.cwd : '.'
-              later(() => { void installFlow(target, cwd) }, 10)
+              later(() => { void installFlow(target, cwd, 'install') }, 10)
+            } else if (scenario === 'managed-update') {
+              // 工单335：更新编排（用户根预置在册包 dsh-hello 是测试前提）
+              const target = injectedMcp
+              const cwd = typeof frame.params?.cwd === 'string' ? frame.params.cwd : '.'
+              later(() => { void installFlow(target, cwd, 'update') }, 10)
             }
           }
           reply(frame.id, { sessionId: 'fake-session-1', configOptions: [] })

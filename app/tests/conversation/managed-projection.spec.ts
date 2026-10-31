@@ -9,6 +9,7 @@ import {
   MANAGED_TOOLS,
   createNodeProjectionSource,
   dispatchManagedTool,
+  type ManagedProjectionSource,
 } from '../../src/main/conversation/managed-projection'
 import { PLUGIN_CONTRACT_CATALOG, projectCatalog } from '../../src/main/plugins/catalog'
 
@@ -31,19 +32,26 @@ function makeSource(userRoot: string) {
 }
 
 describe('管理型只读投影（工单333）', () => {
-  it('工具封闭集：恰四个只读工具 + 恰一个确定性安装写工具（工单334）；写面有且仅有 submit', () => {
-    // 工单334 演化：封闭集 4→5——plugin_install_submit 是 MCP 侧唯一写操作（确定性管理操作，
-    // ADR-0019）；只读四工具描述仍不得含写类动作，其余投影外工具一律 unknown_tool（下方用例）
+  it('工具封闭集：恰四个只读工具 + 恰五个确定性管理操作（工单334 安装 + 工单335 更新/停用/卸载/重扫）', () => {
+    // 工单334 演化：封闭集 4→5；工单335 演化：5→9（+update/set_enabled/uninstall 写三件
+    // +rescan 只读对账）。只读四工具描述仍不得含写类动作；投影外工具一律 unknown_tool（下方用例）
     expect(MANAGED_TOOLS.map((t) => t.name).sort()).toEqual(
-      ['panel_snapshot', 'plugin_contract_catalog', 'plugin_install_submit', 'plugin_source', 'plugins_list'].sort(),
+      [
+        'panel_snapshot', 'plugin_contract_catalog', 'plugin_source', 'plugins_list',
+        'plugin_install_submit', 'plugin_update_submit', 'plugin_set_enabled', 'plugin_uninstall', 'plugins_rescan',
+      ].sort(),
     )
+    const readOnly = new Set(['panel_snapshot', 'plugins_list', 'plugin_source', 'plugin_contract_catalog'])
     for (const t of MANAGED_TOOLS) {
-      if (t.name === 'plugin_install_submit') continue
+      if (!readOnly.has(t.name)) continue
       expect(t.description.length).toBeGreaterThan(0)
       expect(t.inputSchema).toBeTruthy()
       expect(JSON.stringify(t)).not.toMatch(/set|write|install|uninstall|enable|disable|quit|launch/i)
     }
-    expect(MANAGED_TOOLS.filter((t) => t.name === 'plugin_install_submit')).toHaveLength(1)
+    // 写面恰 4（install/update/setEnabled/uninstall 全走 install.ts 串行信号量）+ 重扫对账恰 1
+    const writers = ['plugin_install_submit', 'plugin_update_submit', 'plugin_set_enabled', 'plugin_uninstall']
+    expect(MANAGED_TOOLS.filter((t) => writers.includes(t.name))).toHaveLength(4)
+    expect(MANAGED_TOOLS.filter((t) => t.name === 'plugins_rescan')).toHaveLength(1)
   })
 
   it('panel_snapshot：经注入的单点快照源原样返回（JSON 可序列化）', async () => {
@@ -163,5 +171,81 @@ describe('管理型只读投影（工单333）', () => {
     const out2 = await dispatchManagedTool('plugin_source', { pluginId: 42 }, source)
     expect(out2.ok).toBe(false)
     if (!out2.ok) expect(out2.reason).toBe('invalid_args')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工单335 确定性写工具与重扫对账（封闭集演化 5→9）：分派到 source 端口；未接线如实
+// source_error；入参形状错 invalid_args；sessionId 永远从 bearer 通道绑定来不采信参数。
+// ---------------------------------------------------------------------------
+
+describe('管理型写工具与重扫（工单335）', () => {
+  function wiredSource(
+    ports: Partial<Pick<ManagedProjectionSource, 'updateSubmit' | 'setEnabled' | 'uninstallPackage' | 'rescan'>> = {},
+  ): ManagedProjectionSource {
+    return {
+      panelSnapshot: () => ({}),
+      pluginsList: () => ({}),
+      pluginSource: () => ({}),
+      contractCatalog: () => ({}),
+      ...ports,
+    }
+  }
+
+  it('plugin_update_submit：分派到端口（带通道绑定 sessionId）+ 参数校验 + 未接线如实报', async () => {
+    const calls: Array<{ args: unknown; ctx: unknown }> = []
+    const source = wiredSource({ updateSubmit: async (args, ctx) => { calls.push({ args, ctx }); return { ok: true, status: 'pending-approval' } } })
+    const out = await dispatchManagedTool('plugin_update_submit', { packageId: 'dsh-hello', sourceDir: 'C:\\ws\\pkg' }, source, { sessionId: 'sess-9' })
+    expect(out.ok).toBe(true)
+    expect(calls).toEqual([{ args: { packageId: 'dsh-hello', sourceDir: 'C:\\ws\\pkg' }, ctx: { sessionId: 'sess-9' } }])
+    for (const bad of [{ sourceDir: 'C:\\x' }, { packageId: '', sourceDir: 'C:\\x' }, { packageId: 'x', sourceDir: 'rel/path' }, {}]) {
+      const r = await dispatchManagedTool('plugin_update_submit', bad, source)
+      expect(r.ok, JSON.stringify(bad)).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('invalid_args')
+    }
+    const unwired = await dispatchManagedTool('plugin_update_submit', { packageId: 'x', sourceDir: 'C:\\x' }, wiredSource())
+    expect(unwired.ok).toBe(false)
+    if (!unwired.ok) expect(unwired.reason).toBe('source_error')
+  })
+
+  it('plugin_set_enabled / plugin_uninstall：分派到端口 + 参数校验 + 未接线如实报', async () => {
+    const enabled: unknown[] = []
+    const uninstalled: unknown[] = []
+    const source = wiredSource({
+      setEnabled: async (args) => { enabled.push(args); return { ok: true } },
+      uninstallPackage: async (args) => { uninstalled.push(args); return { ok: true, opId: 'op-1' } },
+    })
+    const se = await dispatchManagedTool('plugin_set_enabled', { packageId: 'dsh-hello', enabled: false }, source)
+    expect(se.ok).toBe(true)
+    expect(enabled).toEqual([{ packageId: 'dsh-hello', enabled: false }])
+    const un = await dispatchManagedTool('plugin_uninstall', { packageId: 'dsh-hello' }, source)
+    expect(un.ok).toBe(true)
+    expect(uninstalled).toEqual([{ packageId: 'dsh-hello' }])
+    for (const [name, bad] of [
+      ['plugin_set_enabled', { packageId: 'x' }],
+      ['plugin_set_enabled', { packageId: 'x', enabled: 'no' }],
+      ['plugin_uninstall', {}],
+      ['plugin_uninstall', { packageId: 7 }],
+    ] as const) {
+      const r = await dispatchManagedTool(name, bad, source)
+      expect(r.ok, `${name} ${JSON.stringify(bad)}`).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('invalid_args')
+    }
+    const seNowire = await dispatchManagedTool('plugin_set_enabled', { packageId: 'x', enabled: true }, wiredSource())
+    const unNowire = await dispatchManagedTool('plugin_uninstall', { packageId: 'x' }, wiredSource())
+    expect(seNowire.ok).toBe(false)
+    expect(unNowire.ok).toBe(false)
+    if (!seNowire.ok) expect(seNowire.reason).toBe('source_error')
+    if (!unNowire.ok) expect(unNowire.reason).toBe('source_error')
+  })
+
+  it('plugins_rescan：分派到端口回最新投放清单；未接线如实报', async () => {
+    const source = wiredSource({ rescan: () => ({ dropped: [{ id: 'dsh-hello', status: 'ok' }] }) })
+    const out = await dispatchManagedTool('plugins_rescan', {}, source)
+    expect(out.ok).toBe(true)
+    if (out.ok) expect((out.payload as { dropped: unknown[] }).dropped).toHaveLength(1)
+    const unwired = await dispatchManagedTool('plugins_rescan', {}, wiredSource())
+    expect(unwired.ok).toBe(false)
+    if (!unwired.ok) expect(unwired.reason).toBe('source_error')
   })
 })

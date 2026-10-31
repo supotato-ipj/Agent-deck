@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -249,15 +249,25 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       // 投放档（工单331）：独立上下文宿主端口 + 生命周期事件出口（dropped-package-*）
       droppedHost: droppedPackageHost,
       // DSH 安装管线（工单334）：待装载区面板私域（userData/plugins-staging）；会话工作区
-      // 事实源 = 对话域会话 cwd（kernelRef 惰性取）；有界激活 12s（t331 坑位：crash 悬挂竞速）
+      // 事实源 = 对话域会话 cwd（kernelRef 惰性取）；有界激活 12s（t331 坑位：crash 悬挂竞速）。
+      // 工单335：更新换代备份根/回收站（shell.trashItem——失败绝不降级永久删除）/
+      // 私有配置路径（旧数据继承事实源）/停用集缝（settings，惰性经 kernelRef）
       install: {
         stagingRoot: userDataPath('plugins-staging'),
         userRoot: config.plugins.dir || userDataPath('plugins'),
+        backupRoot: userDataPath('plugins-backup'),
         sessionInfo: (sessionId) => {
           const v = kernelRef?.conversation?.sessions().find((s) => s.id === sessionId)
           return v ? { cwd: v.cwd, label: v.label } : null
         },
         mountBoundMs: 12_000,
+        trashItem: (dir) => shell.trashItem(dir),
+        pluginConfigFile: (id) => path.join(userDataPath('plugin-config'), `${id}.json`),
+        setCardEnabled: (id, enabled) => {
+          const settings = kernelRef?.settings
+          if (!settings) throw new Error('设置服务未就绪（面板启动中）')
+          return settings.setCardEnabled(id, enabled)
+        },
       },
       log: (event) => log?.append(event),
     },
@@ -306,6 +316,25 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
                   // backend='dsh'：管理面 v1 后端唯一 = DSH（ADR-0026）
                   return mgr.submit(args, { sessionId: mctx.sessionId, backend: 'dsh' })
                 },
+                // 工单335：更新/停用/卸载/重扫缝（同一串行信号量在 install.ts；busy 唯一可重试）
+                updateSubmit: (args, mctx) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配安装面（update 未接线）——更新工具不可用')
+                  return mgr.submitUpdate(args, { sessionId: mctx.sessionId, backend: 'dsh' })
+                },
+                setEnabled: (args) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配停用/启用面（未接线）——工具不可用')
+                  return mgr.setEnabled(args)
+                },
+                uninstallPackage: (args) => {
+                  const mgr = kernelRef?.plugins.installs
+                  if (!mgr) throw new Error('本面板未装配卸载面（回收站未接线）——卸载工具不可用')
+                  return mgr.uninstall(args)
+                },
+                rescan: () => ({
+                  dropped: kernelRef?.plugins.droppedInfo() ?? [],
+                }),
               })
             }
             return cached
