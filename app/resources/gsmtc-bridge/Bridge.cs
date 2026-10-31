@@ -35,6 +35,8 @@ static class Bridge
         new Dictionary<string, EventToken>();
     static readonly Dictionary<string, int> genPerAumid = new Dictionary<string, int>();
     static readonly ConcurrentQueue<string> outq = new ConcurrentQueue<string>();
+    static readonly Dictionary<string, GlobalSystemMediaTransportControlsSessionMediaProperties> mediaCache =
+        new Dictionary<string, GlobalSystemMediaTransportControlsSessionMediaProperties>();
     static readonly AutoResetEvent outSignal = new AutoResetEvent(false);
     static bool watching = false;
     static readonly List<TypedEventHandler<GlobalSystemMediaTransportControlsSessionManager, object>> mgrHandlers =
@@ -77,9 +79,21 @@ static class Bridge
     // which the inbox csc + GAC glue dll combination does not resolve cleanly).
     static Task<T> AwaitOp<T>(Windows.Foundation.IAsyncOperation<T> op)
     {
+        return AwaitOp(op, 3000);
+    }
+
+    // 工单336 韧性：行为异常的源（如 MediaPlayer 型 SMTC 源）会让属性查询永不完成——
+    // 无时限 AwaitOp 把整桥挂死（真机排障实证）。超时抛错由调用方缓存兜底。
+    static Task<T> AwaitOp<T>(Windows.Foundation.IAsyncOperation<T> op, int timeoutMs)
+    {
         return Task.Run(delegate
         {
-            while (op.Status == Windows.Foundation.AsyncStatus.Started) Thread.Sleep(4);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (op.Status == Windows.Foundation.AsyncStatus.Started)
+            {
+                if (sw.ElapsedMilliseconds > timeoutMs) throw new TimeoutException("WinRT op 超时（" + timeoutMs + "ms）——源未应答");
+                Thread.Sleep(4);
+            }
             if (op.Status == Windows.Foundation.AsyncStatus.Error) throw new Exception("WinRT op error: " + op.ErrorCode);
             if (op.Status == Windows.Foundation.AsyncStatus.Canceled) throw new Exception("WinRT op canceled");
             return op.GetResults();
@@ -206,11 +220,15 @@ static class Bridge
     {
         if (cmd == "list")
         {
+            Console.Error.WriteLine("[list] enter");
             var keys = KeysSnapshot();
+            Console.Error.WriteLine("[list] keys=" + keys.Count);
             var sb = new StringBuilder();
             sb.Append("{\"type\":\"result\",\"id\":").Append(Esc(id)).Append(",\"ok\":true,\"ts\":").Append(JTs())
               .Append(",\"data\":{\"count\":").Append(keys.Count);
-            string cur = CurrentKeyOrNull();
+            Console.Error.WriteLine("[list] cur begin");
+        string cur = CurrentKeyOrNull();
+        Console.Error.WriteLine("[list] cur done");
             sb.Append(",\"currentKey\":").Append(cur == null ? "null" : Esc(cur));
             // 工单336：list 直接出全量快照（探针版为 light snap + 单键 snap 两跳；Broker
             // 刷新瀑布一次 list 即得完整 DTO——会话数个位数，暖机后每 snap ms 级）
@@ -220,7 +238,9 @@ static class Bridge
             {
                 if (!first) sb.Append(",");
                 first = false;
+                Console.Error.WriteLine("[list] fullsnap begin " + k);
                 sb.Append(FullSnap(k));
+                Console.Error.WriteLine("[list] fullsnap done " + k);
             }
             sb.Append("]}}");
             Emit(sb.ToString());
@@ -277,7 +297,15 @@ static class Bridge
 
     static string CurrentKeyOrNull()
     {
-        var cur = mgr.GetCurrentSession();
+        GlobalSystemMediaTransportControlsSession cur;
+        try
+        {
+            // 本 build API 漂移：CurrentSession 是属性（t329 漂移清单）；读挂起按 3s 时限降级 null
+            var t = Task.Run(() => mgr.GetCurrentSession());
+            if (!t.Wait(3000)) return null;
+            cur = t.Result;
+        }
+        catch { return null; }
         if (cur == null) return null;
         lock (keyGate)
         {
@@ -430,7 +458,9 @@ static class Bridge
     {
         var s = ByKeyOrNull(k);
         if (s == null) return "{\"key\":" + Esc(k) + ",\"gone\":true}";
+        Console.Error.WriteLine("[snap] pb begin " + k);
         var pb = s.GetPlaybackInfo();
+        Console.Error.WriteLine("[snap] tl begin");
         var c = pb.Controls;
         string aumid = s.SourceAppUserModelId ?? "unknown";
         return "{\"key\":" + Esc(k) + ",\"aumid\":" + Esc(aumid)
@@ -444,9 +474,22 @@ static class Bridge
 
     static string FullSnap(string k)
     {
+        // 工单336 韧性：同步 WinRT 读（GetPlaybackInfo/GetTimelineProperties）对行为异常源同样
+        // 会挂——整个 snap 体上 3s 硬时限，超时回落 mediaUnavailable（桥不挂、其余会话照常）
+        var body = Task.Run(() => FullSnapBody(k));
+        if (!body.Wait(3000))
+        {
+            return "{\"key\":" + Esc(k) + ",\"mediaUnavailable\":true}";
+        }
+        return body.Result;
+    }
+
+    static string FullSnapBody(string k)
+    {
         var s = ByKeyOrNull(k);
         if (s == null) return "{\"key\":" + Esc(k) + ",\"gone\":true}";
         var pb = s.GetPlaybackInfo();
+        Console.Error.WriteLine("[snap] tl begin");
         var c = pb.Controls;
         var tl = s.GetTimelineProperties();
         string aumid = s.SourceAppUserModelId ?? "unknown";
@@ -464,7 +507,22 @@ static class Bridge
           .Append(",\"lastUpdatedTimeMs\":").Append(tl.LastUpdatedTime.ToUnixTimeMilliseconds())
           .Append(",\"nowMs\":").Append(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
           .Append("}");
-        var mp = AwaitOp(s.TryGetMediaPropertiesAsync()).GetAwaiter().GetResult();
+        Console.Error.WriteLine("[snap] mp begin");
+        GlobalSystemMediaTransportControlsSessionMediaProperties mp;
+        try
+        {
+            mp = AwaitOp(s.TryGetMediaPropertiesAsync()).GetAwaiter().GetResult();
+            lock (mediaCache) { mediaCache[k] = mp; }
+        }
+        catch
+        {
+            // 源未应答：回落最近一次成功缓存（无缓存=占位 unknown——桥不挂、其余会话照常）
+            GlobalSystemMediaTransportControlsSessionMediaProperties cached = null;
+            lock (mediaCache) { if (!mediaCache.TryGetValue(k, out cached)) cached = null; }
+            mp = cached;
+            if (mp == null) return "{\"key\":" + Esc(k) + ",\"mediaUnavailable\":true}";
+        }
+        Console.Error.WriteLine("[snap] mp done");
         sb.Append(",\"media\":{\"title\":").Append(Esc(mp.Title)).Append(",\"artist\":").Append(Esc(mp.Artist))
           .Append(",\"albumTitle\":").Append(Esc(mp.AlbumTitle)).Append(",\"albumArtist\":").Append(Esc(mp.AlbumArtist))
           .Append(",\"subtitle\":").Append(Esc(mp.Subtitle));

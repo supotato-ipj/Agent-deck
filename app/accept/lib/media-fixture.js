@@ -1,19 +1,23 @@
 'use strict';
 /**
- * 工单336 C6 媒体夹具（真机 SMTC 会话源；配方 = spec326-notes/t329-gsmtc 探针收窄）：
- * 本地 http 服务（5 秒 440Hz 正弦 wav 循环 + artwork PNG + mediaSession metadata）+
- * 隔离 profile Edge 播放（autoplay 免手势）。媒体纪律：音量 0.04 低音量、小文件循环、
- * stop() = taskkill /T /F 进程树 + 临时 profile 删除 + 服务关停（播完即停、进程用完即杀）。
+ * 工单336 C6 媒体夹具（真机 SMTC 会话源）＝原生 MediaPlayer 源 exe（resources/smtc-fixture/
+ * fixture-smtc.exe，源码+build.cmd 同目录随库入库）：
+ *   - Windows.Media.Playback.MediaPlayer + CommandManager 自动注册 SMTC（Electron 网页播放
+ *     不注册 SMTC——t329 探针负结果；本路正例全链定谳 v6）。
+ *   - 选型史（真机排障全记录 spec326-notes/t336-media/）：隔离 profile Edge 的首跑态压制 SMTC
+ *     （媒体在播但系统无会话，多旗标+CDP 清场均无效）、用户 Edge 自动播被策略挡（运行实例不吃
+ *     命令行旗标）、.NET IInspectable 裸 vtable interop 编组 NRE——MediaPlayer 路全通。
+ * 媒体纪律：wav 本身低振幅 5s 循环、stop() = stdin "stop" 优雅停 + 临时文件清理，进程用完即杀。
  */
-const http = require('node:http');
 const { spawn, execFile } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-/** 16x16 纯红 PNG（SMTC artwork；Chromium 侧自行缩放——探针实测喂什么尺寸都缩到 150x150） */
+/** 16x16 纯红 PNG（SMTC artwork 缩略图源） */
 const ART_B64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGElEQVR4nGP4z8BAEiJN9aiGUQ0MQ0kDAJD5/wGaM2eTAAAAAElFTkSuQmCC';
 
+/** 5 秒 440Hz 正弦 wav（合法头：blockAlign=2/16bit 单声道） */
 function toneWav() {
   const sampleRate = 8000;
   const seconds = 5;
@@ -37,76 +41,43 @@ function toneWav() {
   return Buffer.concat([header, data]);
 }
 
-function pageHtml(artDataUrl) {
-  return '<!doctype html><html><head><meta charset="utf-8"><title>t336-fixture</title></head><body>\n' +
-    '<audio id="a" src="/tone.wav" loop></audio>\n' +
-    '<script>\n' +
-    'const art = "' + artDataUrl + '";\n' +
-    'function setMeta() {\n' +
-    '  if (!("mediaSession" in navigator)) return;\n' +
-    '  navigator.mediaSession.metadata = new MediaMetadata({ title: "T336 Accept Track", artist: "Deck Accept Artist", album: "T336", artwork: [{ src: art, sizes: "256x256", type: "image/png" }] });\n' +
-    '}\n' +
-    'const a = document.getElementById("a");\n' +
-    'a.volume = 0.04;\n' +
-    'a.play().catch(() => {});\n' +
-    'setMeta();\n' +
-    'a.addEventListener("playing", setMeta);\n' +
-    'document.title = "t336-fixture-playing";\n' +
-    '</script></body></html>';
-}
-
-function findEdge() {
-  const candidates = [
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-  ];
-  for (const c of candidates) {
-    try { fs.accessSync(c); return c; } catch { /* 试下一个 */ }
-  }
-  return null;
+function fixtureExe() {
+  const p = path.join(__dirname, '..', '..', 'resources', 'smtc-fixture', 'fixture-smtc.exe');
+  try { fs.accessSync(p); return p; } catch { return null; }
 }
 
 async function startMediaFixture() {
-  const wav = toneWav();
-  const artBuf = Buffer.from(ART_B64, 'base64');
-  const artUrl = 'data:image/png;base64,' + ART_B64;
-  const server = http.createServer((req, res) => {
-    if (req.url === '/tone.wav') { res.writeHead(200, { 'Content-Type': 'audio/wav' }); res.end(wav); return; }
-    if (req.url === '/art.png') { res.writeHead(200, { 'Content-Type': 'image/png' }); res.end(artBuf); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(pageHtml(artUrl));
+  const exe = fixtureExe();
+  if (!exe) throw new Error('SMTC 源夹具缺席（resources/smtc-fixture/fixture-smtc.exe 未入库）');
+  const wavPath = path.join(os.tmpdir(), `t336-tone-${process.pid}.wav`);
+  const artPath = path.join(os.tmpdir(), `t336-art-${process.pid}.png`);
+  fs.writeFileSync(wavPath, toneWav());
+  fs.writeFileSync(artPath, Buffer.from(ART_B64, 'base64'));
+  const child = spawn(exe, [wavPath, artPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+  child.stderr.on('data', () => { /* 运营噪声留盘即可 */ });
+  // 等 ready 行（stdio 协议）
+  let ready = false;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('SMTC 源夹具 ready 超时（5s）')), 5000);
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (d) => {
+      if (String(d).includes('"ready"')) { ready = true; clearTimeout(timer); resolve(); }
+    });
+    child.on('exit', (c) => { if (!ready) { clearTimeout(timer); reject(new Error(`SMTC 源夹具早退（code=${c}）`)); } });
   });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const addr = server.address();
-  const url = 'http://127.0.0.1:' + addr.port + '/t336.html';
-  const edge = findEdge();
-  if (!edge) {
-    server.close();
-    throw new Error('Edge 未找到（媒体夹具需要 Edge 播本地页面注册 SMTC 会话）');
-  }
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-t336-edge-'));
-  const child = spawn(edge, [
-    '--user-data-dir=' + profile,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--autoplay-policy=no-user-gesture-required',
-    '--window-size=320,220',
-    url,
-  ], { stdio: 'ignore' });
-  let stopped = false;
   const stop = async () => {
-    if (stopped) return;
-    stopped = true;
+    try { child.stdin.write('stop\n'); } catch { /* 可能已退 */ }
+    await new Promise((r) => setTimeout(r, 1200));
     try {
       await new Promise((resolve) => {
         execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], () => resolve());
       });
     } catch { /* 进程可能已退 */ }
-    await new Promise((r) => setTimeout(r, 800));
-    try { server.close(); } catch { /* 尽力 */ }
-    try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 }); } catch { /* 尽力 */ }
+    for (const f of [wavPath, artPath]) {
+      try { fs.rmSync(f, { force: true, maxRetries: 3, retryDelay: 300 }); } catch { /* 尽力 */ }
+    }
   };
-  return { url, pid: child.pid, edge, stop };
+  return { pid: child.pid, stop, wavPath, artPath };
 }
 
-module.exports = { startMediaFixture, findEdge };
+module.exports = { startMediaFixture };
