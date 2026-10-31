@@ -49,3 +49,12 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
    裸 `gh` 直连常被重置；裸 `git` 不是必然失败（`git ls-remote` 直连实测可用），但别把「有时能直连」当成有代理兜底。push 卡住时先确认自己设了代理或设了超时，别空等。
 3. **master 快进**：主检出执行 `git checkout master && git pull --ff-only`。主检出的 `app/` 是开机自启目标，每次合流后都要快进保持最新。完成判据：`git rev-parse master origin/master` 输出相等。
 4. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。远端分支由仓库的「合并后自动删除」接管（PR 合并即清），清理清单**不含远端分支项**，也不要提议删除已合并 PR 的远端分支；删未合并在途分支的保护规则见 AGENTS.md 远端分支纪律。
+
+## 孤儿检出清理
+
+`git worktree list` 只认已登记的检出。收尾时若 `git worktree remove` 失败或手工删过目录，`D:\test-folder\wallpaperengine-research--<slug>` 会留下无 `.git` 的孤儿目录——`git worktree prune` 清不掉它（prune 只清登记元数据，不删目录）。
+
+- **盘点**：`node app/scripts/cleanup-local.js` 的 `orphan-checkouts` 类别列出「带 `<repo>--` 前缀但未登记」的目录与体积（只报告，不自动删）。
+- **处置**：确认目录内无未提交工作后整目录删除；有未提交工作先拷出或补提交。
+- **悬空 junction**：`.scratch/` 下若有指向已删目标的联接，`Get-Item <path> -Force | Select LinkType` 确认后用 `Remove-Item` 删链接本身，不要递归删目标。
+- **核对**：清理后 `git status` 不应出现 "could not open directory" 警告。

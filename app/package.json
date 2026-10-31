@@ -21,6 +21,7 @@
     "accept:doc-group-cards": "npm run build && electron . --accept-doc-group-cards",
     "accept:placement": "npm run build && electron . --accept-placement",
     "accept:plan": "node scripts/select-rounds.js",
+    "cleanup:local": "node scripts/cleanup-local.js",
     "dev:panel": "npm run build && electron . --panel",
     "accept:chat": "npm run build && electron . --accept-chat"
   },
