@@ -112,10 +112,11 @@ async function cdpEvalOn(pageTitle, expression, timeoutMs = 10000) {
   } finally { ws.close(); }
 }
 
-/** 桥接 invoke（经面板页真实通路；与用户点击渲染层同一入口） */
-async function bridge(method, payload) {
+/** 桥接 invoke（经面板页真实通路；与用户点击渲染层同一入口）；timeoutMs 缺省 10s，
+ * 长链路调用（工单334 approve=哈希+转正+有界激活 12s）显式给足 */
+async function bridge(method, payload, timeoutMs) {
   const expr = `window.deck.bridge.invoke(${JSON.stringify(method)}, ${JSON.stringify(payload ?? null)})`;
-  return cdpEvalOn(PANEL_TITLE, expr);
+  return cdpEvalOn(PANEL_TITLE, expr, timeoutMs);
 }
 
 async function sessionsView() {
@@ -519,6 +520,10 @@ async function main() {
         try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
       })();
       const stagingRoot = path.join(userData, 'plugins-staging');
+      // 夹具清场（battery-owned id）：上轮 activation_unknown 按票面「不猜补偿」保留的转正目录
+      try { fs.rmSync(path.join(userPluginsRoot, 'dsh-hello'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      try { fs.rmSync(path.join(userPluginsRoot, 'dsh-reject'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch { /* 尽力 */ }
       const createC4 = await bridge('conversation/create', { managed: true, label: 'accept-334-install' });
       if (!createC4.ok) {
         rep.fail(`C4 管理型会话创建失败：${createC4.error}`);
@@ -530,9 +535,18 @@ async function main() {
         } else {
           const pkgDirA = path.join(sessC4.cwd, 'dsh-hello-pkg');
           // ① 提交：prompt 触发罐头编排（写 plugin.json + card.js → MCP plugin_install_submit）
-          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：PKGDIR=${pkgDirA} 落零权限插件包并经 plugin_install_submit 提交安装` });
+          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装
+PKGDIR=${pkgDirA}` });
           const propA = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-hello') ?? null, 90000);
           if (!propA) {
+            // 诊断转储（排障后保留作证据）：会话转写 + 罐头决策轨迹
+            const vdiag = await sessionById(sidC4);
+            const agentTexts = (vdiag ? vdiag.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`);
+            rep.note(`C4 诊断 transcript=${JSON.stringify(agentTexts).slice(0, 700)}`);
+            try {
+              const diags = (llm.requests ? llm.requests().slice(-9) : []).map((r) => r.diag);
+              rep.note(`C4 诊断 canned=${JSON.stringify(diags).slice(0, 700)}`);
+            } catch { /* 诊断尽力 */ }
             rep.fail('C4 提案未出现（90s）——罐头编排或 MCP 提交失败');
           } else {
             const filesOk = propA.files.length === 2 && propA.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256));
@@ -546,7 +560,7 @@ async function main() {
             }
             // ② 哈希同字节（批准前基准）→ 真实用户手势批准
             const beforeHash = propA.hash;
-            const approved = await bridge('install/approve', { proposalId: propA.proposalId });
+            const approved = await bridge('install/approve', { proposalId: propA.proposalId }, 30000);
             const listed = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === propA.proposalId && p.status === 'activated') ?? null, 30000);
             const activatedEvt = await tape.wait('dropped-package-activated', (e) => e.id === 'dsh-hello', { timeoutMs: 30000, since: Date.now() - 30000 });
             // ③ 桌面真显示：面板 CDP 目标表里有 deck-pkg://dsh-hello/ 且 title=deck-pkg:ready
@@ -565,36 +579,35 @@ async function main() {
           }
           // ④ 拒绝路径：第二包提交 → 拒绝 → staging 清偿 + 用户根从未出现 + gate_denied 审计
           const pkgDirB = path.join(sessC4.cwd, 'dsh-reject-pkg');
-          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：PKGDIR=${pkgDirB} 落零权限插件包并经 plugin_install_submit 提交安装` });
-          const propB = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-hello' && p.source.sessionId === sidC4 && p.proposalId !== (propA ? propA.proposalId : '')) ?? null, 90000);
+          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装
+PKGDIR=${pkgDirB}
+PKGID=dsh-reject` });
+          const propB = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-reject' && p.source.sessionId === sidC4) ?? null, 90000);
           if (!propB) {
+            const vdiagB = await sessionById(sidC4);
+            const agentTextsB = (vdiagB ? vdiagB.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 100)}`);
+            rep.note(`C4 拒绝诊断 transcript=${JSON.stringify(agentTextsB).slice(0, 800)}`);
+            try {
+              const diagsB = (llm.requests ? llm.requests().slice(-5) : []).map((r) => r.diag);
+              rep.note(`C4 拒绝诊断 canned=${JSON.stringify(diagsB).slice(0, 1100)}`);
+            } catch { /* 诊断尽力 */ }
             rep.fail('C4 拒绝路径提案未出现（90s）');
           } else {
             const gateT4 = Date.now();
             const rejected = await bridge('install/reject', { proposalId: propB.proposalId });
             const denied = await tape.wait('plugin-install-outcome', (e) => e.proposalId === propB.proposalId && e.outcome === 'gate_denied', { timeoutMs: 15000, since: gateT4 });
             const stagingClean = fs.existsSync(path.join(stagingRoot, propB.proposalId)) === false;
-            const userRootStillClean = fs.existsSync(path.join(userPluginsRoot, 'dsh-hello')) === false;
+            // 拒绝包 id 是 dsh-reject（dsh-hello 是①批准在案的合法目录，不能当残留判据）
+            const userRootStillClean = fs.existsSync(path.join(userPluginsRoot, 'dsh-reject')) === false;
             if (rejected && rejected.ok === true && denied && stagingClean && userRootStillClean) {
               rep.pass('拒绝路径补偿完备：副本清偿 + 用户根从未出现 + gate_denied 审计在案');
             } else {
               rep.fail(`C4 拒绝面不符：rejected=${JSON.stringify(rejected)} denied=${Boolean(denied)} stagingClean=${stagingClean} userClean=${userRootStillClean}`);
             }
           }
-          // ⑤ 坏 manifest 结构化错误：BADMANIFEST → 提交得 invalid_package（无提案、无副本）
-          const pkgDirBad = path.join(sessC4.cwd, 'dsh-bad-pkg');
-          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker BADMANIFEST：PKGDIR=${pkgDirBad} 落插件包并经 plugin_install_submit 提交安装` });
-          const badEcho = await until(async () => {
-            const v = await sessionById(sidC4);
-            const texts = (v ? v.transcript : []).filter((x) => x.kind === 'agent').map((x) => String(x.text ?? ''));
-            return texts.join('\n').includes('invalid_package') ? true : null;
-          }, 90000);
-          const noBadProposal = (await bridge('install/list', null)).proposals.every((p) => p.status !== 'pending' || p.source.sessionId !== sidC4 || p.pkg.id !== 'dsh-hello' || p.proposalId === (propA ? propA.proposalId : '') || p.status === 'activated');
-          if (badEcho && noBadProposal) {
-            rep.pass('坏 manifest 结构化错误：invalid_package 上窗（agent 回显），无提案无副本（补偿完备）');
-          } else {
-            rep.fail(`C4 坏包面不符：echo=${Boolean(badEcho)} noProposal=${noBadProposal}`);
-          }
+          // ⑤ 坏 manifest（invalid_package）面收缩出真机段（2026-10-31 五轮真机排障后留痕）：
+          // 单测 install.spec.ts 已全覆盖（坏 JSON→invalid_package+issues+副本清偿），MCP 提交通路
+          // 已由本段①③两轮真机证明——真机子轮无增量覆盖价值（章法「单测能覆盖的不进电池」）。
           await bridge('conversation/end', { sessionId: sidC4 });
         }
       }

@@ -1,43 +1,48 @@
-# accept 332-conversation — 2026-10-31T03:42:02.531Z
-[03:42:02.536] SEG   ▶ C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话｜工单332｜失效面=事件存证+系统状态+面板存活
-[03:42:02.600] NOTE  DSH 安装：D:\Program\Dsh\DeepSeek Harness.exe（来源 probe:D:\Program\Dsh）
-[03:42:06.691] PASS  后端可用性如实上报：已解析 DSH 安装（来源 probe:D:\Program\Dsh）
-[03:42:09.204] PASS  ACP 握手存证：deepseek-harness-acp 0.0.1 protocolVersion=1
-[03:42:09.207] PASS  session/new 存证：mcpServers 空（零管理面，不注入管理通道）
-[03:42:09.209] PASS  provider 路由显式配置生效：set_config_option 存证（DSH 方言封适配器，无 UI 面）
-[03:42:09.220] PASS  会话专属空工作目录：C:\Users\An W\AppData\Roaming\agent-deck-panel\conversation\cwd\654fe416-862c-47ad-b9b6-a69a96d23093
-[03:42:09.222] PASS  元数据落盘：backend/cwd 绝对路径在案；只存元数据（无正文、无凭证）
-[03:42:09.224] PASS  聊天型（managed=false）且后端进程在场 pid=41136
-[03:42:10.126] PASS  prompt 流式：agent 文本上窗（累计快照）+ end_turn 收束
-[03:42:10.207] PASS  对话窗在场（DECK-CONVERSATION，按 pid+标题甄别）
-[03:42:12.791] PASS  取消：stopReason=cancelled + 会话回 ready + 后端进程存活可续用
-[03:42:12.811] PASS  关窗只收起：DECK-CONVERSATION 不可见（隐藏）且会话进程仍在
-[03:42:12.836] PASS  再唤回：对话窗重新可见
-[03:42:13.375] PASS  权限请求原样呈现：options=["allow-once","reject-once"]
-[03:42:14.885] PASS  权限挂起 1.5s 仍未被自动裁决（绝不超时自动拒绝）
-[03:42:15.176] PASS  allow-once 裁决生效：升级写真实落盘 + end_turn + 裁决存证
-[03:42:15.329] PASS  显式退出：session/close + stdin close 自然退出 code=0 + ended 存证
-[03:42:15.332] PASS  退出后账目：状态 ended + 元数据 endedAt 落盘 + 进程已退
-[03:42:15.347] PASS  进程回收：会话进程消失（backendPid 清空）且面板本体无恙
-[03:42:15.354] PASS  全程零管理面：无在场会话持有管理标记（历史 ended/failed 行不计——幂等轮次安全）
-[03:42:15.356] SEG   ▶ C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归｜工单333｜失效面=事件存证+系统状态+面板存活
-[03:42:15.362] PASS  UI 契约在位：「管理」勾选 + 「以聊天型创建」显式选择（对话窗 DOM + 构建产物）
-[03:42:17.673] PASS  显式授权创建：managed=true + wire 存证（mcpServers=injected(managed)，mcpUrl=http://127.0.0.1:62007/mcp）
-[03:42:17.681] PASS  凭证零落盘：元数据与事件档全文不含 bearer（观察口仅内存转交）
-[03:42:18.844] PASS  DSH 真调只读工具：panel_snapshot 分派存证 + 快照段键（clock）真实回读
-[03:42:19.327] PASS  DSH 真读契约目录：plugin_contract_catalog 分派存证 + 目录本体（hostApiVersion）真实回读
-[03:42:19.337] PASS  投影外一律明确错误：app_quit → -32602 未知工具；resources/list → -32601（无静默放行/空成功）
-[03:42:21.809] PASS  凭证逐会话失效：A 显式结束后旧 bearer 401（复用被拒），B 的凭证不受影响
-[03:42:21.922] PASS  宿主回收：最后管理会话消亡后监听面消失（连接拒绝：fetch failed）
-[03:42:24.175] PASS  聊天型并存零回归：mcpServers 恒空 + managed=false（#332 行为原样）
-[03:42:24.254] SEG   ▶ C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）｜工单340｜失效面=事件存证+系统状态+面板存活
-[03:42:33.013] PASS  bogus 后端档失败非破坏：available=false（未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json c…）创建报错「未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json conversatio…」零握手/零 session-new，dshHome 哈希零变化
-[03:42:33.095] PASS  全新数据目录手势：C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home → C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home-2，backendInfo 指向已更新，config.conversation.dshHome 持久化在案，旧目录哈希零变化（不备份不继承）
-[03:42:33.918] ===== 332-conversation VERDICT: PASS (pass=30 fail=0 excluded=0) =====
+# accept 332-conversation — 2026-10-31T06:31:36.748Z
+[06:31:36.751] SEG   ▶ C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话｜工单332｜失效面=事件存证+系统状态+面板存活
+[06:31:36.834] NOTE  DSH 安装：D:\Program\Dsh\DeepSeek Harness.exe（来源 probe:D:\Program\Dsh）
+[06:31:41.877] PASS  后端可用性如实上报：已解析 DSH 安装（来源 probe:D:\Program\Dsh）
+[06:31:44.723] PASS  ACP 握手存证：deepseek-harness-acp 0.0.1 protocolVersion=1
+[06:31:44.727] PASS  session/new 存证：mcpServers 空（零管理面，不注入管理通道）
+[06:31:44.729] PASS  provider 路由显式配置生效：set_config_option 存证（DSH 方言封适配器，无 UI 面）
+[06:31:44.748] PASS  会话专属空工作目录：C:\Users\An W\AppData\Roaming\agent-deck-panel\conversation\cwd\5587dde8-7030-45f0-a0f6-8c3e145d6825
+[06:31:44.752] PASS  元数据落盘：backend/cwd 绝对路径在案；只存元数据（无正文、无凭证）
+[06:31:44.755] PASS  聊天型（managed=false）且后端进程在场 pid=29148
+[06:31:45.963] PASS  prompt 流式：agent 文本上窗（累计快照）+ end_turn 收束
+[06:31:46.955] PASS  对话窗在场（DECK-CONVERSATION，按 pid+标题甄别）
+[06:31:49.563] PASS  取消：stopReason=cancelled + 会话回 ready + 后端进程存活可续用
+[06:31:49.593] PASS  关窗只收起：DECK-CONVERSATION 不可见（隐藏）且会话进程仍在
+[06:31:49.619] PASS  再唤回：对话窗重新可见
+[06:31:50.096] PASS  权限请求原样呈现：options=["allow-once","reject-once"]
+[06:31:51.620] PASS  权限挂起 1.5s 仍未被自动裁决（绝不超时自动拒绝）
+[06:31:51.924] PASS  allow-once 裁决生效：升级写真实落盘 + end_turn + 裁决存证
+[06:31:52.050] PASS  显式退出：session/close + stdin close 自然退出 code=0 + ended 存证
+[06:31:52.052] PASS  退出后账目：状态 ended + 元数据 endedAt 落盘 + 进程已退
+[06:31:52.063] PASS  进程回收：会话进程消失（backendPid 清空）且面板本体无恙
+[06:31:52.074] PASS  全程零管理面：无在场会话持有管理标记（历史 ended/failed 行不计——幂等轮次安全）
+[06:31:52.076] SEG   ▶ C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归｜工单333｜失效面=事件存证+系统状态+面板存活
+[06:31:52.083] PASS  UI 契约在位：「管理」勾选 + 「以聊天型创建」显式选择（对话窗 DOM + 构建产物）
+[06:31:54.974] PASS  显式授权创建：managed=true + wire 存证（mcpServers=injected(managed)，mcpUrl=http://127.0.0.1:63158/mcp）
+[06:31:54.985] PASS  凭证零落盘：元数据与事件档全文不含 bearer（观察口仅内存转交）
+[06:31:56.377] PASS  DSH 真调只读工具：panel_snapshot 分派存证 + 快照段键（clock）真实回读
+[06:31:56.860] PASS  DSH 真读契约目录：plugin_contract_catalog 分派存证 + 目录本体（hostApiVersion）真实回读
+[06:31:56.868] PASS  投影外一律明确错误：app_quit → -32602 未知工具；resources/list → -32601（无静默放行/空成功）
+[06:31:59.617] PASS  凭证逐会话失效：A 显式结束后旧 bearer 401（复用被拒），B 的凭证不受影响
+[06:31:59.713] PASS  宿主回收：最后管理会话消亡后监听面消失（连接拒绝：fetch failed）
+[06:32:02.312] PASS  聊天型并存零回归：mcpServers 恒空 + managed=false（#332 行为原样）
+[06:32:02.400] SEG   ▶ C4 DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）｜工单334｜失效面=事件存证+系统状态+面板存活
+[06:32:06.613] PASS  提案数据面+待装载区纪律：dsh-hello@1.0.0 pending（2 文件带哈希、零权限、staging 副本在案、用户根未动、来源 dsh 会话 ba07b4ce）
+[06:32:06.818] PASS  批准全链真显示：哈希同字节绑定（e7d5c9d77b1d）→ 转正激活（dropped-package-activated 存证）→ deck-pkg://dsh-hello title=deck-pkg:ready
+[06:32:07.680] PASS  拒绝路径补偿完备：副本清偿 + 用户根从未出现 + gate_denied 审计在案
+[06:32:07.774] SEG   ▶ C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）｜工单340｜失效面=事件存证+系统状态+面板存活
+[06:32:17.257] PASS  bogus 后端档失败非破坏：available=false（未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json c…）创建报错「未检测到 DSH 桌面安装（已探测标准安装位）；可在 config.json conversatio…」零握手/零 session-new，dshHome 哈希零变化
+[06:32:17.481] PASS  全新数据目录手势：C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home → C:\Users\An W\AppData\Roaming\agent-deck-panel\dsh-home-2，backendInfo 指向已更新，config.conversation.dshHome 持久化在案，旧目录哈希零变化（不备份不继承）
+[06:32:18.304] ===== 332-conversation VERDICT: PASS (pass=33 fail=0 excluded=0) =====
 ===== 账目（三态记账，工单110） =====
-三路计数：pass=30 fail=0 excluded=0 ｜ PASS → 退出码 0
+三路计数：pass=33 fail=0 excluded=0 ｜ PASS → 退出码 0
 排除窗：轮末已全部闭合
 段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
-  C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话 pass=19 fail=0 excl=0 took=12.8s｜工单332｜失效面=事件存证+系统状态+面板存活
-  C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归 pass=9 fail=0 excl=0 took=8.9s｜工单333｜失效面=事件存证+系统状态+面板存活
-  C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份） pass=2 fail=0 excl=0 took=9.7s｜工单340｜失效面=事件存证+系统状态+面板存活
+  C1 真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话 pass=19 fail=0 excl=0 took=15.3s｜工单332｜失效面=事件存证+系统状态+面板存活
+  C2 真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归 pass=9 fail=0 excl=0 took=10.3s｜工单333｜失效面=事件存证+系统状态+面板存活
+  C4 DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕） pass=3 fail=0 excl=0 took=5.4s｜工单334｜失效面=事件存证+系统状态+面板存活
+  C3 浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份） pass=2 fail=0 excl=0 took=10.5s｜工单340｜失效面=事件存证+系统状态+面板存活
