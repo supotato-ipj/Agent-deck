@@ -1705,6 +1705,21 @@
           ]
         },
         {
+          "seg": "C7",
+          "ticket": 337,
+          "title": "媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 90,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
           "seg": "C3",
           "ticket": 340,
           "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",

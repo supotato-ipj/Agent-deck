@@ -533,6 +533,7 @@ export class PluginHostService extends Service {
           pkg: {
             id, name: rec.manifest?.name ?? id, version: rec.manifest?.version ?? '',
             hostApiVersion: rec.manifest?.hostApiVersion ?? 1, permissions: [...rec.permissions],
+            optionalPermissions: [...(rec.manifest?.optionalPermissions ?? [])],
           },
           dir: rec.dir, files, hash,
         })

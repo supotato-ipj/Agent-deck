@@ -55,7 +55,14 @@ export interface DroppedPackageHostDeps {
   mediaView?: (packageId: string) => Record<string, unknown> | null
   /** 受控缩略图（生产 = MediaBroker.thumbnailForPackage；校验/授权在 Broker） */
   mediaThumbnail?: (packageId: string, key: string) => Promise<MediaThumbnailEnvelope>
+  /** 媒体控制（工单337）：授权门/限流/审计在 Broker，宿主只转发 */
+  mediaControl?: (packageId: string, key: string, action: string) => Promise<MediaControlResult>
 }
+
+/** 媒体控制结果（工单337；与 Broker MediaControlResult 结构一致——本文件本地形状） */
+export type MediaControlResult =
+  | { ok: true; status?: string }
+  | { ok: false; code: 'media_permission_denied' | 'media_rate_limited' | 'media_session_gone' | 'media_command_failed' | 'media_unavailable'; message: string }
 
 /** 一条在装上下文 */
 interface PackageContext {
@@ -412,6 +419,20 @@ export class DroppedPackageHost {
     })
     // 受控缩略图（工单336）：身份查登记表推导（不采信自报）；授权门/类型大小校验/审计
     // 都在 Broker（宿主只转发）。校验拒付 = 一个字节不出。
+    // 媒体控制（工单337）：action 白名单校验（play/pause/previous/next——契约 actions 同源）
+    ipcMain.handle('pkg:media-control', async (event, payload: unknown) => {
+      const ctx = this.deps.registry.lookup(event.sender.id)
+      if (!ctx) return { ok: false as const, code: 'unknown_context', message: '调用方不在执行上下文登记表（未登记或已拆除）' }
+      const body = (payload ?? {}) as { key?: unknown; action?: unknown }
+      if (typeof body.key !== 'string' || !body.key || typeof body.action !== 'string') {
+        return { ok: false, code: 'media_command_failed', message: 'pkg:media-control 需要 key（会话键）与 action（play/pause/previous/next）' }
+      }
+      const action = String(body.action)
+      if (!['play', 'pause', 'previous', 'next'].includes(action)) {
+        return { ok: false, code: 'media_command_failed', message: `不支持的控制命令：${action}` }
+      }
+      return this.deps.mediaControl?.(ctx.packageId, String(body.key), action) ?? { ok: false, code: 'media_unavailable', message: '控制面未装配' }
+    })
     ipcMain.handle('pkg:media-thumbnail', async (event, key: unknown) => {
       const ctx = this.deps.registry.lookup(event.sender.id)
       if (!ctx) return { ok: false as const, code: 'unknown_context', message: '调用方不在执行上下文登记表（未登记或已拆除）' }

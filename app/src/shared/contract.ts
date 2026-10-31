@@ -534,7 +534,7 @@ export interface InstallProposalView {
   status: 'pending' | 'activated' | 'rejected' | 'failed'
   /** 提交时铸的操作 id：意图/结局审计的相关键 */
   opId: string
-  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[] }
+  pkg: { id: string; name: string; version: string; hostApiVersion: number; permissions: string[]; optionalPermissions: string[] }
   files: Array<{ path: string; sha256: string; sizeBytes: number }>
   /** 聚合哈希：批准时同一份字节复算绑定 */
   hash: string
@@ -568,7 +568,7 @@ export interface MediaAuditBucketView {
   permission: string
   windowStart: number
   windowMs: number
-  counts: { snapshot: number; thumbnail: number }
+  counts: { snapshot: number; thumbnail: number } & Partial<Record<`control:${string}`, number>>
   denied: number
 }
 
@@ -932,7 +932,7 @@ export interface BridgeMethods {
   'conversation/new-data-dir': { request: null; response: { ok: boolean; dshHome?: string; previous?: string; error?: string } }
   /** 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝 */
   'install/list': { request: null; response: { proposals: InstallProposalView[] } }
-  'install/approve': { request: { proposalId: string }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean; warnings?: string[] } }
+  'install/approve': { request: { proposalId: string; grantPermissions?: string[] }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean; warnings?: string[] } }
   'install/reject': { request: { proposalId: string }; response: { ok: boolean; code?: string; message?: string } }
   /**
    * 工单335 旧数据继承（独立用户手势，不与代码批准合并）：inherit=true 保留卸载残留

@@ -331,7 +331,8 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 127 → 128：工单336 增段——332-conversation +C6 媒体信息卡与 media.read（执行序 C5 后
     // C3 前；est 90 起笔首轮量后校准）；预算 240→360（理由：媒体全链+真机 SMTC 播放器夹具
     // ——罐头编排 4 轮+批准激活+Edge 起停+缩略图链+撤销即停，随关票评论留痕）
-    expect(total).toBe(128)
+    // 128 → 129：工单337 增段——332-conversation +C7 媒体控制可选权限（双包对照；执行序 C7 后 C3 前）
+    expect(total).toBe(129)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
