@@ -315,6 +315,17 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       authorization: pluginAuthorizationLedger,
       log: (event) => log?.append(event),
     },
+    // 诊断读数（工单341 资源预算）：面板全进程工作集汇总（C10 段 0/1/5/10 包实测同源）
+    diagnostics: {
+      memory: () => {
+        const processes = app.getAppMetrics().map((m) => ({
+          pid: m.pid,
+          type: String(m.type),
+          workingSetMB: Math.round(((m.memory && m.memory.workingSetSize) || 0) / 1024),
+        }))
+        return { totalWorkingSetMB: processes.reduce((acc, p) => acc + p.workingSetMB, 0), processes }
+      },
+    },
     // 命名凭证域（工单339）：safeStorage（DPAPI）加密保存；文件落 userData/credentials.json。
     // 加密不可用 = 拒绝保存（绝不落明文兜底）。
     credentials: {

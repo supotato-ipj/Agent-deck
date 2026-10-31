@@ -51,6 +51,10 @@ export interface PanelKernelOptions {
   network?: NetworkServiceOptions
   /** 命名凭证域（工单339）：凭证库文件/加密端口（生产装配下发；缺省 = 只读不写） */
   credentials?: CredentialServiceOptions
+  /** 诊断读数（工单341 资源预算）：memory = 面板全进程工作集（生产 = app.getAppMetrics 汇总） */
+  diagnostics?: {
+    memory?: () => { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> }
+  }
 }
 
 export function createPanelKernel(options: PanelKernelOptions): Context {
@@ -105,7 +109,12 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
       },
     },
   })
-  ctx.plugin(BridgeService, { weather: options.weather, layout: options.layout, quit: options.quit })
+  ctx.plugin(BridgeService, {
+    weather: options.weather,
+    layout: options.layout,
+    quit: options.quit,
+    ...(options.diagnostics?.memory ? { memoryProbe: options.diagnostics.memory } : {}),
+  })
   const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
   if (searchIntervalMs > 0) {
     // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）

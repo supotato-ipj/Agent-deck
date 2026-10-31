@@ -1629,7 +1629,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 480,
+      "budgetSeconds": 600,
       "segments": [
         {
           "seg": "C1",
@@ -1744,6 +1744,21 @@
             "panel-alive"
           ],
           "estSeconds": 60,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
+          "seg": "C10",
+          "ticket": 341,
+          "title": "三参考闭环组合验收与资源预算（工单341，spec #326 收口）：零权限/媒体/认证联网三组件同时在场各自闭环（独立上下文并行无踩踏）→ 对抗矩阵（跨包隔离：零权限包调媒体/网络 API 各自 permission_denied / 旧媒体键误控 media_session_gone 且当前会话不受影响 / 无播放器回落明确空态 / 限额 network_rate_limited 与权限拒绝分域 / 审计全文无 secret 与载荷 / 崩溃不自动重挂：Page.crash 后 6s 无重激活且私有配置保留）→ 0/1/5/10 包工作集实测（diag/memory，每包边际 ≤ 128MB 预算；16 包上限的超限显式拒绝由单测覆盖）。执行序 C9 后 C3 前",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 120,
           "areas": [
             "sessions",
             "plugins"
