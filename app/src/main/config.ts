@@ -40,6 +40,9 @@ export interface AppConfig {
  * 认证不归面板管（ADR-0018）：本段不落任何凭证。 */
 export interface ConversationConfig {
   dshExe?: string
+  /** DSH 数据目录指向（工单340/ADR-0026）：用户「创建全新数据目录」手势持久化的落点；
+   *  缺省 = userData/dsh-home。切换后旧目录原样保留，本字段只记当前指向。 */
+  dshHome?: string
   /** 后端模型路由（DSH 方言值原样，如 `["probe-llm","probe-model"]`）：用户显式配置，
    * 适配器经 session/set_config_option 下发（探针 #330 实证可行；面板无模型选择 UI——ADR-0018，
    * 这是配置导入面不是 UI 面）。认证不归面板管：本段不落任何凭证。 */
@@ -65,6 +68,10 @@ function mergeConversation(raw: unknown, fallback: ConversationConfig, warnings:
   if (conv.model !== undefined) {
     if (typeof conv.model === 'string' && conv.model.trim()) out.model = conv.model.trim()
     else warnings.push('config.conversation.model 非空字符串，已回退默认（后端自身默认路由）')
+  }
+  if (conv.dshHome !== undefined) {
+    if (typeof conv.dshHome === 'string' && conv.dshHome.trim()) out.dshHome = conv.dshHome.trim()
+    else warnings.push('config.conversation.dshHome 非空字符串，已回退默认（userData/dsh-home）')
   }
   return out
 }

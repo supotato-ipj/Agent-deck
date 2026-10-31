@@ -16,6 +16,7 @@ const btnCancel = document.getElementById('btn-cancel') as HTMLButtonElement
 const btnEnd = document.getElementById('btn-end') as HTMLButtonElement
 const chkManaged = document.getElementById('chk-managed') as HTMLInputElement
 const managedToggle = document.getElementById('managed-toggle') as HTMLLabelElement
+const btnFreshDir = document.getElementById('btn-fresh-dir') as HTMLButtonElement
 
 let sessions: ConversationSessionView[] = []
 let activeId: string | null = null
@@ -152,8 +153,12 @@ function render(): void {
     ? `｜上下文 ${view.usage.used ?? '?'} / ${view.usage.size ?? '?'}`
     : ''
   const backend = view?.backendAgent ? `｜${view.backendAgent} ${view.backendAgentVersion ?? ''}` : ''
+  // 工单340（ADR-0026）：浮动运行时未验收标记 + 冒烟结果如实呈现（accepted 恒 false，无转绿路径）
+  const runtimeMark = view?.runtimeUnaccepted
+    ? `｜未验收版本${view.runtimeSmoke && view.runtimeSmoke !== 'pending' ? `（冒烟 ${view.runtimeSmoke}）` : ''}`
+    : ''
   statusEl.textContent = view
-    ? `${view.cwd}${backend}${usage}${busy ? '｜回复中…' : ''}`
+    ? `${view.cwd}${backend}${runtimeMark}${usage}${busy ? '｜回复中…' : ''}`
     : '后端：DSH（对话通道 ACP v1）'
 }
 
@@ -199,6 +204,14 @@ btnCancel.addEventListener('click', () => {
 btnEnd.addEventListener('click', () => {
   const s = current()
   if (s) void window.deck.bridge.invoke('conversation/end', { sessionId: s.id })
+})
+// 工单340（ADR-0026）：显式创建全新 DSH 数据目录——用户手势，旧目录原样保留、新目录不继承旧会话
+btnFreshDir.addEventListener('click', () => {
+  void window.deck.bridge.invoke('conversation/new-data-dir', null).then((res) => {
+    statusEl.textContent = res.ok
+      ? `已切换全新数据目录：${res.dshHome}（旧目录 ${res.previous} 原样保留）`
+      : res.error ?? '全新数据目录创建失败'
+  })
 })
 
 async function send(): Promise<void> {

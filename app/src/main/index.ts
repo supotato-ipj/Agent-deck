@@ -1,5 +1,6 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
 import { createPanelKernel } from './panel-kernel'
@@ -253,9 +254,18 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     // config.conversation 下发；会话事件走 DECK_EVENT_LOG 存证。窗口唤起经控制器（下）。
     conversation: {
       config: { exe: config.conversation.dshExe, model: config.conversation.model },
+      // 工单340（ADR-0026）：数据目录指向跟 config 走（缺省 userData/dsh-home，手势切换后
+      // 下次启动落到新目录）；persistDshHome = 全新目录手势的持久化缝（旧目录零触碰）。
+      dshHome: config.conversation.dshHome || undefined,
       notifyShow: (sessionId) => conversationShowHook.fn(sessionId),
       deps: {
         log: (event) => log?.append(event),
+        persistDshHome: (home) => {
+          const raw = fs.readFileSync(CONFIG_FILE, 'utf8')
+          const json = raw.trim() ? JSON.parse(raw) : {}
+          json.conversation = { ...(json.conversation ?? {}), dshHome: home }
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8')
+        },
       },
       // 管理面（工单333，ADR-0018/0009/0025）：独立专用 MCP 宿主 + 只读投影源。
       // 投影源惰性求值（内核启动后才有单点引用）；快照走 bridge 单点（不私开第二执行路径），
