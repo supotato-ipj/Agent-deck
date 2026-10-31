@@ -38,7 +38,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
 
       // 从尾向前找带已知标记的用户消息（DSH 会把一轮输入拆成多条 user 消息，真实文本在前）
       const users = (body.messages || []).filter((m) => m.role === 'user');
-      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker'];
+      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG'];
       let cleanLastUser = '';
       for (let i = users.length - 1; i >= 0; i--) {
         const c = typeof users[i].content === 'string' ? users[i].content : JSON.stringify(users[i].content);
@@ -94,6 +94,19 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
         }
       } else if (marker('Count slowly')) {
         plan = { kind: 'slow', out: 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty' };
+      } else if (marker('MANAGED SNAPSHOT') || marker('MANAGED CATALOG')) {
+        // 工单333：管理型只读工具真机链——第一轮调注入 MCP 的只读工具（名从 body.tools
+        // 实测清单里找，不硬编码 mcp 服务名），第二轮把工具结果原样回显进最终文本
+        const want = marker('MANAGED SNAPSHOT') ? 'panel_snapshot' : 'plugin_contract_catalog';
+        if (!turnTool) {
+          const mcpTool = (body.tools || []).map((t) => t.function && t.function.name).find((n) => typeof n === 'string' && n.includes(want));
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({}) }
+            : { kind: 'text', out: 'MCP-TOOL-MISSING:' + want + ' (tools=' + JSON.stringify((body.tools || []).map((t) => t.function && t.function.name)) + ')' };
+        } else {
+          const echoTag = want === 'panel_snapshot' ? 'SNAPSHOT-TOOL-RESULT:' : 'CATALOG-TOOL-RESULT:';
+          plan = { kind: 'text', out: echoTag + toolText.slice(0, 200) };
+        }
       } else if (marker('PROBE OK')) {
         plan = { kind: 'text', out: 'PROBE OK' };
       } else {

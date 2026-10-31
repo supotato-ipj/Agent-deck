@@ -1623,7 +1623,7 @@
     },
     {
       "id": "332-conversation",
-      "title": "对话窗 DSH 聊天会话（工单332，spec #326）：真实 DSH 全链冒烟——握手/流式/取消与收起/工具审批/退出/进程回收/零管理面",
+      "title": "对话窗 DSH 会话（工单332 聊天型 + 工单333 管理型，spec #326）：真实 DSH 全链冒烟——握手/流式/取消与收起/工具审批/退出/进程回收/零管理面；管理型显式授权/只读工具真链/凭证失效/宿主回收",
       "entry": "app/accept/conversation.js",
       "flag": "--accept-chat",
       "hintBar": true,
@@ -1635,6 +1635,20 @@
           "seg": "C1",
           "ticket": 332,
           "title": "真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
+          "areas": [
+            "sessions"
+          ]
+        },
+        {
+          "seg": "C2",
+          "ticket": 333,
+          "title": "真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归",
           "surfaces": [
             "event-evidence",
             "system-state",

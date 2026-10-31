@@ -18,6 +18,10 @@
 //   ⑤ 显式退出：end → cancel/close/stdin close → 自然退出 code 0，元数据记 endedAt
 //   ⑥ 进程回收：会话进程 pid 消失（backendPid 清空），面板本体无恙
 //   ⑦ 全程零管理面：无 managed 会话、无凭证落盘
+// 段 C2 归 333（工单333 管理型会话只读面板与插件契约，真实 DSH + 罐头 LLM）：
+//   ① UI 契约（管理勾选 + 以聊天型创建显式选择）② 显式授权创建 wire 存证
+//   ③ 凭证零落盘 ④⑤ DSH 真调只读工具（快照/契约目录）⑥ 投影外未知工具
+//   ⑦ 凭证逐会话失效（旧 bearer 401）⑧ 宿主随最后管理会话回收 ⑨ 聊天型并存零回归
 // 红线遵守：不碰用户 ~/.dsh（DSH_HOME 恒指面板专属 userData 子目录）；盘符不硬编码
 // （DSH 安装经描述符解析）；清场：罐头 LLM 关停、升级写探针文件删除、面板句柄强退。
 //
@@ -40,7 +44,30 @@ const PANEL_TITLE = 'AGENT DECK';
 const CONV_TITLE = 'DECK-CONVERSATION';
 const LLM_KEY_ENV = 'DECK_CHAT_ACCEPT_LLM_KEY';
 const ESCALATION_FILE = path.join(app.getPath('userData'), 'conversation', 'accept-332-escalation.txt');
+const PROBE_PORT_FILE = path.join(__dirname, 'evidence', '333-managed-probe-port.json');
 const WM_CLOSE = 0x0010;
+
+/** 观察口取 bearer（工单333）：面板进程内存端点转交，凭证本体不经文件不经日志 */
+async function probeBearer(sessionId) {
+  const portInfo = JSON.parse(fs.readFileSync(PROBE_PORT_FILE, 'utf8'));
+  const res = await fetch(`http://127.0.0.1:${portInfo.port}/bearer?sessionId=${encodeURIComponent(sessionId)}`);
+  const body = await res.json();
+  return body.bearer ?? null;
+}
+
+/** 直打管理宿主（电池=同用户进程，持有观察口转交的 bearer）：返回 JSON-RPC 信封或连接错误标记 */
+async function hostCall(mcpUrl, bearer, method, params) {
+  try {
+    const res = await fetch(mcpUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(bearer ? { Authorization: bearer } : {}) },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  } catch (err) {
+    return { status: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
 
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 30000 });
 const handle = createPanelHandle({
@@ -187,12 +214,12 @@ async function main() {
       `- id: agent-default-model\n  config:\n    provider: probe-llm\n    model: probe-model\n`, 'utf8');
     started = Date.now();
 
-    // —— 拉面板（--panel-accept 绕单实例锁；事件档 + CDP + 罐头 LLM key 注入）——
+    // —— 拉面板（--panel-accept 绕单实例锁；事件档 + CDP + 罐头 LLM key + 管理观察口注入）——
     handle.launch({
       mode: 'accept',
       cdpPort: CDP_PORT,
       stdio: 'archive',
-      extraEnv: { [LLM_KEY_ENV]: 'accept-round-not-a-real-key' },
+      extraEnv: { [LLM_KEY_ENV]: 'accept-round-not-a-real-key', DECK_MANAGED_PROBE: '1' },
     });
     const hwnd = await handle.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 30000 });
     if (!hwnd) {
@@ -343,13 +370,148 @@ async function main() {
     // 断言⑦ 全程零管理面（验收标准 4）
     if ((await sessionsView()).every((s) => s.managed === false)) rep.pass('全程零管理面：无任何会话持有管理标记');
     else rep.fail('出现 managed 会话（聊天型票面不允许）');
+
+    // ===================================================================
+    // 段 C2（工单333，spec #326）：管理型会话只读面板与插件契约——真实 DSH + 罐头 LLM。
+    //   ① UI 契约：对话窗「管理」勾选与「以聊天型创建」显式选择在位（构建产物 + DOM）
+    //   ② 显式授权创建（managed:true）：wire 存证 managed-created（mcpUrl 回环）+
+    //     session/new mcpServers='injected(managed)'；view.managed=true
+    //   ③ 凭证零落盘：元数据与事件档全文不含 bearer（红线）
+    //   ④ DSH 真调只读工具（面板快照）：managed-tool-call 存证 + 快照键真实回读
+    //   ⑤ DSH 真读契约目录：managed-tool-call 存证 + hostApiVersion 回读
+    //   ⑥ 投影外未知工具（电池直打宿主）：app_quit → -32602 未知工具；resources/list → -32601
+    //   ⑦ 凭证逐会话失效（观察口 bearer 直打）：end A 后旧 bearer 401，B 的 bearer 仍有效
+    //   ⑧ 宿主回收：end B（最后管理会话消亡）→ mcpUrl 连接拒绝
+    //   ⑨ 聊天型并存零回归：同面板聊天会话 mcpServers 恒空
+    //   失败路径（绑定失败/能力缺失/session-new 失败三路全有或全无回滚）为 vitest 覆盖面
+    //   （真机无法稳定构造），分工随关票评论留痕。
+    // ===================================================================
+    rep.beginSegment('C2');
+    try {
+      // ① UI 契约（构建产物 + 对话窗 DOM）
+      const convJs = fs.readFileSync(path.join(APP_ROOT, 'dist', 'renderer', 'conversation.js'), 'utf8');
+      const retryInBuild = convJs.includes('以聊天型创建');
+      const dom = await cdpEvalOn(CONV_TITLE, '!!document.getElementById("chk-managed") && !!document.getElementById("btn-new")', 10000).catch(() => null);
+      if (retryInBuild && dom) rep.pass('UI 契约在位：「管理」勾选 + 「以聊天型创建」显式选择（对话窗 DOM + 构建产物）');
+      else rep.fail(`UI 契约缺失：构建产物含重试钮=${retryInBuild} 对话窗 DOM=${JSON.stringify(dom)}`);
+
+      // ② 显式授权创建管理型会话 A
+      let gateT = Date.now();
+      const createdA = await bridge('conversation/create', { label: 'accept-333a', managed: true });
+      if (!createdA.ok) {
+        rep.fail(`管理型创建失败：${createdA.error}`);
+        throw new Error('C2 中止：管理型会话 A 创建失败');
+      }
+      const sidA = createdA.session.id;
+      const managedCreatedLog = await tape.wait('conversation-managed-created', (e) => e.sessionId === sidA, { timeoutMs: 10000, since: gateT });
+      const managedNewLog = await tape.wait('conversation-session-new', (e) => e.sessionId === sidA, { timeoutMs: 10000, since: gateT });
+      const viewA = await until(() => sessionById(sidA).then((s) => (s && s.status === 'ready' && s.managed === true ? s : null)), 30000);
+      if (managedCreatedLog && managedNewLog && managedNewLog.mcpServers === 'injected(managed)'
+        && typeof managedCreatedLog.mcpUrl === 'string' && /^http:\/\/127\.0\.0\.1:\d+\/mcp$/.test(managedCreatedLog.mcpUrl)
+        && viewA) {
+        rep.pass(`显式授权创建：managed=true + wire 存证（mcpServers=injected(managed)，mcpUrl=${managedCreatedLog.mcpUrl}）`);
+      } else {
+        rep.fail(`管理型创建存证不符：created=${JSON.stringify(managedCreatedLog)} new=${JSON.stringify(managedNewLog)} view=${JSON.stringify(viewA && { managed: viewA.managed, status: viewA.status })}`);
+      }
+
+      // ③ 凭证零落盘（观察口转交 bearer；元数据与事件档全文不含）
+      const bearerA = await until(() => probeBearer(sidA).then((b) => (b ? b : null)), 10000);
+      if (!bearerA) {
+        rep.fail('观察口未取到 bearer A（probe 未启用或会话未在册）');
+        throw new Error('C2 中止：bearer A 缺失');
+      }
+      const metaText = fs.existsSync(metaFile) ? fs.readFileSync(metaFile, 'utf8') : '';
+      const eventsText = fs.existsSync(EVENTS_FILE) ? fs.readFileSync(EVENTS_FILE, 'utf8') : '';
+      const bearerCore = bearerA.slice('Bearer '.length);
+      if (!metaText.includes(bearerCore) && !eventsText.includes(bearerCore)) rep.pass('凭证零落盘：元数据与事件档全文不含 bearer（观察口仅内存转交）');
+      else rep.fail('凭证落盘（红线）：元数据或事件档含 bearer');
+
+      // ④ DSH 真调只读工具（面板快照）
+      gateT = Date.now();
+      await bridge('conversation/prompt', { sessionId: sidA, text: 'Read the panel snapshot via your MCP tools, then echo the raw tool result verbatim. (MANAGED SNAPSHOT marker)' });
+      const snapCall = await tape.wait('managed-tool-call', (e) => e.sessionId === sidA && e.tool === 'panel_snapshot' && e.ok === true, { timeoutMs: 60000, since: gateT });
+      const snapTurn = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sidA && e.stopReason === 'end_turn', { timeoutMs: 60000, since: gateT });
+      const snapText = await sessionById(sidA).then((s) => (s?.transcript || []).filter((e) => e.kind === 'agent').map((e) => e.text).join(''));
+      if (snapCall && snapTurn && snapText.includes('SNAPSHOT-TOOL-RESULT:') && snapText.includes('clock')) {
+        rep.pass('DSH 真调只读工具：panel_snapshot 分派存证 + 快照段键（clock）真实回读');
+      } else {
+        rep.fail(`快照工具链不符：call=${JSON.stringify(snapCall)} turn=${JSON.stringify(snapTurn)} text=${JSON.stringify(snapText.slice(0, 300))}`);
+      }
+
+      // ⑤ DSH 真读机器可读契约目录
+      gateT = Date.now();
+      await bridge('conversation/prompt', { sessionId: sidA, text: 'Read the plugin contract catalog via your MCP tools, then echo the raw tool result verbatim. (MANAGED CATALOG marker)' });
+      const catCall = await tape.wait('managed-tool-call', (e) => e.sessionId === sidA && e.tool === 'plugin_contract_catalog' && e.ok === true, { timeoutMs: 60000, since: gateT });
+      const catTurn = await tape.wait('conversation-prompt-result', (e) => e.sessionId === sidA && e.stopReason === 'end_turn', { timeoutMs: 60000, since: gateT });
+      const catText = await sessionById(sidA).then((s) => (s?.transcript || []).filter((e) => e.kind === 'agent').map((e) => e.text).join(''));
+      if (catCall && catTurn && catText.includes('CATALOG-TOOL-RESULT:') && catText.includes('hostApiVersion')) {
+        rep.pass('DSH 真读契约目录：plugin_contract_catalog 分派存证 + 目录本体（hostApiVersion）真实回读');
+      } else {
+        rep.fail(`契约目录工具链不符：call=${JSON.stringify(catCall)} turn=${JSON.stringify(catTurn)} text=${JSON.stringify(catText.slice(0, 300))}`);
+      }
+
+      // ⑥ 投影外未知工具（电池直打宿主）：不静默放行、不空成功
+      const writeTool = await hostCall(managedCreatedLog.mcpUrl, bearerA, 'tools/call', { name: 'app_quit', arguments: {} });
+      const offProto = await hostCall(managedCreatedLog.mcpUrl, bearerA, 'resources/list', {});
+      const writeOk = writeTool.status === 200 && writeTool.body && writeTool.body.error && writeTool.body.error.code === -32602
+        && /未知工具/.test(writeTool.body.error.message);
+      const protoOk = offProto.status === 200 && offProto.body && offProto.body.error && offProto.body.error.code === -32601;
+      if (writeOk && protoOk) rep.pass('投影外一律明确错误：app_quit → -32602 未知工具；resources/list → -32601（无静默放行/空成功）');
+      else rep.fail(`投影外处置不符：write=${JSON.stringify(writeTool).slice(0, 200)} proto=${JSON.stringify(offProto).slice(0, 200)}`);
+
+      // 创建管理型会话 B（第 ⑦ 步的在场见证者——宿主不随 A 结束而回收）
+      gateT = Date.now();
+      const createdB = await bridge('conversation/create', { label: 'accept-333b', managed: true });
+      if (!createdB.ok) {
+        rep.fail(`管理型会话 B 创建失败：${createdB.error}`);
+        throw new Error('C2 中止：管理型会话 B 创建失败');
+      }
+      const sidB = createdB.session.id;
+      const bearerB = await until(() => probeBearer(sidB).then((b) => (b ? b : null)), 10000);
+
+      // ⑦ 凭证逐会话失效：end A 后旧 bearerA 401，bearerB 不受影响
+      gateT = Date.now();
+      await bridge('conversation/end', { sessionId: sidA });
+      const endedA = await tape.wait('conversation-ended', (e) => e.sessionId === sidA, { timeoutMs: 30000, since: gateT });
+      const oldRejected = await until(() => hostCall(managedCreatedLog.mcpUrl, bearerA, 'tools/list', {}).then((r) => r.status === 401 ? r : null), 15000);
+      const bStillValid = await hostCall(managedCreatedLog.mcpUrl, bearerB, 'tools/list', {});
+      if (endedA && oldRejected && bStillValid.status === 200 && bStillValid.body && bStillValid.body.result) {
+        rep.pass('凭证逐会话失效：A 显式结束后旧 bearer 401（复用被拒），B 的凭证不受影响');
+      } else {
+        rep.fail(`凭证失效面不符：endedA=${JSON.stringify(endedA)} old=${JSON.stringify(oldRejected && { status: oldRejected.status })} b=${JSON.stringify(bStillValid.status)}`);
+      }
+
+      // ⑧ 宿主回收：end B（最后管理会话消亡）→ 监听面消失（连接拒绝）
+      gateT = Date.now();
+      await bridge('conversation/end', { sessionId: sidB });
+      await tape.wait('conversation-ended', (e) => e.sessionId === sidB, { timeoutMs: 30000, since: gateT });
+      const hostGone = await until(() => hostCall(managedCreatedLog.mcpUrl, bearerB, 'tools/list', {}).then((r) => (r.status === 0 ? r : null)), 15000);
+      if (hostGone) rep.pass(`宿主回收：最后管理会话消亡后监听面消失（连接拒绝：${hostGone.error}）`);
+      else rep.fail('宿主未随最后管理会话回收（mcpUrl 仍可达）');
+
+      // ⑨ 聊天型并存零回归：同面板聊天会话 mcpServers 恒空
+      gateT = Date.now();
+      const chat = await bridge('conversation/create', { label: 'accept-333-chat' });
+      if (!chat.ok) {
+        rep.fail(`并存聊天会话创建失败：${chat.error}`);
+      } else {
+        const chatNew = await tape.wait('conversation-session-new', (e) => e.sessionId === chat.session.id && e.mcpServers === 'empty(chat)', { timeoutMs: 10000, since: gateT });
+        const chatView = await sessionById(chat.session.id);
+        if (chatNew && chatView && chatView.managed === false) rep.pass('聊天型并存零回归：mcpServers 恒空 + managed=false（#332 行为原样）');
+        else rep.fail(`并存聊天会话形态不符：new=${JSON.stringify(chatNew)} managed=${chatView && chatView.managed}`);
+        await bridge('conversation/end', { sessionId: chat.session.id });
+      }
+    } catch (c2err) {
+      rep.fail(`段 C2 异常中止：${c2err instanceof Error ? c2err.message : String(c2err)}`);
+    }
   } catch (err) {
     rep.fail(`电池异常中止：${err instanceof Error ? err.stack || err.message : String(err)}`);
   } finally {
-    // 清场：config 原样还原、罐头关停、探针文件删除、面板强退（验证消失）
+    // 清场：config 原样还原、罐头关停、探针文件删除（含观察口端口文件）、面板强退（验证消失）
     try { restoreConfig(configRaw); } catch { /* 尽力 */ }
     try { if (llm) await llm.close(); } catch { /* 尽力 */ }
     try { fs.rmSync(ESCALATION_FILE, { force: true }); } catch { /* 尽力 */ }
+    try { fs.rmSync(PROBE_PORT_FILE, { force: true }); } catch { /* 尽力 */ }
     try { await handle.stop(); } catch { /* 尽力 */ }
     finish();
   }
