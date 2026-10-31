@@ -104,6 +104,12 @@ export interface InstallManagerOptions {
     revoke(packageId: string): void
     clear(packageId: string): void
   }
+  /**
+   * 命名凭证端口（工单339）：卸载只移除绑定，**凭证本体保留至用户显式删除**。
+   */
+  credentials?: {
+    clearBindingsFor(packageId: string): void
+  }
 }
 
 export interface InstallSubmitCtx {
@@ -1230,6 +1236,8 @@ export class PluginInstallManager {
     this.opts.log({ type: 'plugin-uninstall-outcome', opId, pkgId: packageId, outcome: 'uninstalled' })
     // 授权账清除（工单336）：重装同字节也重新批准——撤销不可被「卸载→重装」绕过
     this.opts.authorization?.clear(packageId)
+    // 命名凭证（工单339）：卸载只清绑定点，凭证本体保留（用户显式删除才销毁）
+    this.opts.credentials?.clearBindingsFor(packageId)
     this.opts.host.rescan()
     return { ok: true, opId }
   }

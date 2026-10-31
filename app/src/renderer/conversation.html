@@ -109,6 +109,24 @@
   /* 工单334 待批准安装条（可信内核 UI 的真实手势面） */
   #install-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
   #grant-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
+  /* 工单339 命名凭证（可信 UI）：名称/头名/绑定可见，secret 只写不读 */
+  #cred-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
+  .cred-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .cred-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9d1d9; }
+  .cred-summary .cred-name { color: #f5a623; }
+  .cred-bind { font-size: 11px; color: #7d8590; }
+  .cred-row button, #cred-bar button { font: inherit; font-size: 11px; padding: 1px 8px; border-radius: 5px; cursor: pointer; background: transparent; }
+  .cred-del { border-color: rgba(255, 123, 114, 0.6); color: #ff7b72; }
+  .cred-unbind { border-color: rgba(245, 166, 35, 0.6); color: #f5a623; }
+  .cred-save, .cred-bind-btn { border-color: rgba(126, 231, 135, 0.6); color: #7ee787; }
+  .cred-form { display: flex; gap: 6px; padding: 3px 0; }
+  .cred-form input { font: inherit; font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.14); background: transparent; color: #c9d1d9; }
+  .cred-form input[name=cred-name] { width: 110px; }
+  .cred-form input[name=cred-secret] { width: 160px; }
+  .cred-form input[name=cred-package] { width: 100px; }
+  .cred-form input[name=cred-origin] { width: 190px; }
+  .cred-form select { font: inherit; font-size: 11px; background: transparent; color: #c9d1d9; border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; }
+  .cred-err { font-size: 11px; color: #ff7b72; }
   .grant-row.revoked { opacity: 0.55; }
   .install-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
   .install-row.pending .install-summary { color: #f5a623; }
@@ -136,6 +154,7 @@
 </header>
 <div id="install-bar" style="display:none"></div>
 <div id="grant-bar" style="display:none"></div>
+<div id="cred-bar" style="display:none"></div>
 <div id="transcript"></div>
 <div id="status-line"></div>
 <footer>

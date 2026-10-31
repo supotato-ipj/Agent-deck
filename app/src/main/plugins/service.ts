@@ -98,6 +98,8 @@ export interface PluginHostOptions {
     pluginConfigFile?(id: string): string
     /** 停用/启用端口（工单335，生产 = SettingsService.setCardEnabled） */
     setCardEnabled?(id: string, enabled: boolean): unknown
+    /** 命名凭证端口（工单339 卸载清理：只清绑定，凭证本体保留） */
+    credentials?: { clearBindingsFor(packageId: string): void }
   }
   /**
    * 结构化事件出口（工单331）：投放包生命周期事实（激活/停用/迁移/崩溃）落 DECK_EVENT_LOG，
@@ -254,6 +256,7 @@ export class PluginHostService extends Service {
           ...(installOpts.trashItem ? { trashItem: installOpts.trashItem } : {}),
           ...(installOpts.pluginConfigFile ? { pluginConfigFile: installOpts.pluginConfigFile } : {}),
           ...(installOpts.setCardEnabled ? { setCardEnabled: installOpts.setCardEnabled } : {}),
+          ...(installOpts.credentials ? { credentials: installOpts.credentials } : {}),
           ...(authz ? {
             authorization: {
               // 工单338：origin 参数面必须随批准落账（适配器漏传 = 账面无 origin，网络面全拒）

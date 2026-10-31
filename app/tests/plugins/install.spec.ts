@@ -41,6 +41,8 @@ interface Harness {
   enabledCalls: Array<{ id: string; enabled: boolean }>
   /** 工单336：授权账端口调用记录（grant/revoke/clear 按序） */
   authCalls: Array<{ op: 'grant' | 'revoke' | 'clear'; id: string; permissions?: string[]; codeHash?: string; origins?: string[] }>
+  /** 工单339：凭证绑定清理调用记录（卸载路径） */
+  credClearCalls: string[]
   dispose(): void
 }
 
@@ -90,6 +92,7 @@ function boot(opts: {
   const trashCalls: string[] = []
   const enabledCalls: Harness['enabledCalls'] = []
   const authCalls: Harness['authCalls'] = []
+  const credClearCalls: string[] = []
   const ctx = { userRoot, stagingRoot, kernelRoot, workspace, events, proposals, rescans, mountMode, releaseMount: releaseMount as Harness['releaseMount'] }
 
   const info = `#${++seq}`
@@ -134,12 +137,15 @@ function boot(opts: {
       revoke: (id) => { authCalls.push({ op: 'revoke', id }) },
       clear: (id) => { authCalls.push({ op: 'clear', id }) },
     },
+    credentials: {
+      clearBindingsFor: (id) => { credClearCalls.push(id) },
+    },
   })
   const harness: Harness = {
     mgr, userRoot, stagingRoot, kernelRoot, workspace, backupRoot, configDir,
     events, proposals, get rescans() { return rescans }, mountMode,
     get releaseMount() { return releaseMount },
-    trashCalls, enabledCalls, authCalls,
+    trashCalls, enabledCalls, authCalls, credClearCalls,
     dispose() {
       mgr.dispose()
       for (const d of [userRoot, stagingRoot, kernelRoot, workspace, backupRoot, configDir]) fs.rmSync(d, { recursive: true, force: true })
@@ -715,6 +721,8 @@ describe('卸载：回收站（失败明确报错，绝不永久删除）', () =
     const outcome = h.events.find((e) => e.type === 'plugin-uninstall-outcome')
     expect(intent).toMatchObject({ pkgId: 'dsh-hello' })
     expect(outcome).toMatchObject({ opId: (intent as Record<string, unknown>)['opId'], outcome: 'uninstalled' })
+    // 工单339：卸载只清凭证绑定（凭证本体保留在凭证库，由用户显式删除）
+    expect(h.credClearCalls).toEqual(['dsh-hello'])
   })
 
   it('回收站失败 → trash_failed 明确错误；目录原样在用户根（红线：不降级永久删除）', async () => {

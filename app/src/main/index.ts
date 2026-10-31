@@ -27,6 +27,7 @@ import { productionPluginRoots } from './plugins/roots'
 import { DroppedPackageHost } from './plugins/package-host'
 import { ExecutionContextRegistry } from './plugins/identity'
 import { PluginAuthorizationLedger } from './plugins/authorization-ledger'
+import { createSafeStorageCipher } from './credentials/safe-storage'
 import { userDataPath } from './paths'
 import type { TrayWireEvent } from './trayhost/protocol'
 
@@ -294,6 +295,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         mountBoundMs: 12_000,
         trashItem: (dir) => shell.trashItem(dir),
         pluginConfigFile: (id) => path.join(userDataPath('plugin-config'), `${id}.json`),
+        // 工单339：卸载只清凭证绑定，凭证本体保留至用户显式删除
+        credentials: { clearBindingsFor: (pkgId) => kernelRef?.credentials?.clearBindingsFor(pkgId) },
         setCardEnabled: (id, enabled) => {
           const settings = kernelRef?.settings
           if (!settings) throw new Error('设置服务未就绪（面板启动中）')
@@ -310,6 +313,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       auditFile: userDataPath('media-audit.jsonl'),
       bridgeExePath: path.join(app.getAppPath(), 'resources', 'gsmtc-bridge', 'bridge.exe'),
       authorization: pluginAuthorizationLedger,
+      log: (event) => log?.append(event),
+    },
+    // 命名凭证域（工单339）：safeStorage（DPAPI）加密保存；文件落 userData/credentials.json。
+    // 加密不可用 = 拒绝保存（绝不落明文兜底）。
+    credentials: {
+      file: userDataPath('credentials.json'),
+      cipher: createSafeStorageCipher((event) => log?.append(event)),
       log: (event) => log?.append(event),
     },
     // 网络域（工单338）：审计完整记录独立 JSONL（与控制面/媒体审计分离）；授权账同一实例

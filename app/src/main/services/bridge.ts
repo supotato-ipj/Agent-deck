@@ -341,6 +341,48 @@ export class BridgeService extends Service {
         const buckets = this.ctx.network?.auditBuckets?.() ?? []
         return { buckets } as BridgeMethods[M]['response']
       }
+      // —— 工单339 命名凭证（可信 UI）：凭证库出口只有元数据；secret 单向写入 ——
+      case 'credentials/list': {
+        const credentials = this.ctx.credentials?.list?.() ?? []
+        return { credentials } as BridgeMethods[M]['response']
+      }
+      case 'credentials/set': {
+        const { name, secret, headerName, valuePrefix } = payload as { name?: unknown; secret?: unknown; headerName?: unknown; valuePrefix?: unknown }
+        if (typeof name !== 'string' || typeof secret !== 'string') {
+          throw new BridgeError('credentials/set 需要 name 与 secret（字符串）')
+        }
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.set(name, secret, {
+          ...(typeof headerName === 'string' ? { headerName } : {}),
+          ...(typeof valuePrefix === 'string' ? { valuePrefix } : {}),
+        }) as BridgeMethods[M]['response']
+      }
+      case 'credentials/delete': {
+        const { name } = payload as { name?: unknown }
+        if (typeof name !== 'string' || !name) throw new BridgeError('credentials/delete 需要 name')
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.remove(name) as BridgeMethods[M]['response']
+      }
+      case 'credentials/bind': {
+        const { packageId, credentialName, origin } = payload as { packageId?: unknown; credentialName?: unknown; origin?: unknown }
+        if (typeof packageId !== 'string' || typeof credentialName !== 'string' || typeof origin !== 'string') {
+          throw new BridgeError('credentials/bind 需要 packageId/credentialName/origin（字符串）')
+        }
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.bind(packageId, credentialName, origin) as BridgeMethods[M]['response']
+      }
+      case 'credentials/unbind': {
+        const { packageId, credentialName, origin } = payload as { packageId?: unknown; credentialName?: unknown; origin?: unknown }
+        if (typeof packageId !== 'string' || typeof credentialName !== 'string' || typeof origin !== 'string') {
+          throw new BridgeError('credentials/unbind 需要 packageId/credentialName/origin（字符串）')
+        }
+        const svc = this.ctx.credentials
+        if (!svc) return { ok: false, code: 'credential_store_unavailable', message: '凭证面未装配' } as BridgeMethods[M]['response']
+        return svc.unbind(packageId, credentialName, origin) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }
