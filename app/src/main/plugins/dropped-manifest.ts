@@ -30,8 +30,10 @@ export interface DroppedManifest {
   entry: string
   /** 目标宿主 API 主版本（= 当前主版本才可通过） */
   hostApiVersion: number
-  /** 声明的敏感权限（已校验全部在权限目录内） */
+  /** 声明的敏感权限（必需；已校验全部在权限目录内） */
   permissions: string[]
+  /** 可选权限（工单337：逐项批准语义——批准面可只授必需集；已校验全部在权限目录内） */
+  optionalPermissions: string[]
   /** 只读快照段（已裁剪到投放四段并去重） */
   capabilities: string[]
   mount?: string
@@ -130,6 +132,23 @@ export function classifyDroppedManifest(raw: unknown): DroppedManifestResult {
     }
   }
 
+  // —— optionalPermissions（工单337：可选权限逐项批准；封闭目录同严——未知串 = 迁移错误）——
+  let optionalPermissions: string[] = []
+  if (m && 'optionalPermissions' in m && m.optionalPermissions !== undefined) {
+    const rawOpt = m.optionalPermissions
+    if (Array.isArray(rawOpt) && rawOpt.every((p) => typeof p === 'string')) {
+      const known = new Set(knownPermissionIds())
+      const unknown = [...new Set(rawOpt.filter((p: string) => !known.has(p)))]
+      if (unknown.length > 0) {
+        issues.push({ code: 'permission_unknown', message: `manifest 声明了权限目录外的未知可选权限（${unknown.join('、')}）：权限是封闭目录，须改用目录内权限或升宿主主版本`, unknown })
+      } else {
+        optionalPermissions = [...new Set(rawOpt as string[])]
+      }
+    } else {
+      issues.push({ code: 'permission_unknown', message: 'manifest optionalPermissions 须为字符串数组：无法解释的声明按未知权限处置，不静默放行' })
+    }
+  }
+
   if (issues.length > 0) return { ok: false, issues }
 
   // —— capabilities（投放宽松：未知/越档串静默裁剪，少给而非不给）——
@@ -146,6 +165,7 @@ export function classifyDroppedManifest(raw: unknown): DroppedManifestResult {
       id, name, version, entry,
       hostApiVersion: current,
       permissions,
+      optionalPermissions,
       capabilities,
       ...(mount ? { mount } : {}),
       ...(order === undefined ? {} : { order }),

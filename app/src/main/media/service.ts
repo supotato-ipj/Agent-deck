@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { Service } from 'cordis'
 import { MediaAuditService, type MediaAuditBucket } from './audit'
-import { MediaBroker, type MediaBrokerOptions, type MediaSnapshotDTO, type MediaThumbnailResult, createProductionBridge } from './broker'
+import { MediaBroker, type MediaBrokerOptions, type MediaControlResult, type MediaSnapshotDTO, type MediaThumbnailResult, createProductionBridge } from './broker'
 import type { MediaBridgePort } from './bridge-client'
 import type { PluginAuthorizationLedger } from '../plugins/authorization-ledger'
 
@@ -34,6 +34,7 @@ function unavailableBridge(reason: string): MediaBridgePort {
     watch() { /* 无进程可订 */ },
     async list() { return { ok: false as const, error: reason } },
     async thumb() { return { ok: false as const, error: reason } },
+    async control() { return { ok: false as const, error: reason } },
     onEvent() { return () => {} },
     onAvailability() { return () => {} },
   }
@@ -85,6 +86,11 @@ export class MediaService extends Service {
   /** 受控缩略图（宿主 IPC 转发；授权/校验/审计在 Broker） */
   thumbnailForPackage(packageId: string, key: string): Promise<MediaThumbnailResult> {
     return this.broker.thumbnailForPackage(packageId, key)
+  }
+
+  /** 媒体控制（工单337，宿主 IPC 转发；授权门/限流/结构化错误/逐次审计在 Broker） */
+  controlForPackage(packageId: string, key: string, action: string): Promise<MediaControlResult> {
+    return this.broker.controlForPackage(packageId, key, action)
   }
 
   /** 审计聚合投影（可信 UI 数据面；完整记录仅在审计文件） */

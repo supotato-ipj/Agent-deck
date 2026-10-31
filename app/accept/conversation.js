@@ -830,11 +830,17 @@ PKGDIR=${pkgDirM}` });
             }
             if (mediaFixture) {
               rep.note(`C6 媒体夹具：Edge pid=${mediaFixture.pid} 低音量 0.04 循环 5s wav（测完进程树强杀）`);
+              let lastSeen6 = null;
               const liveOk = await until(async () => {
                 try {
                   const t = await pkgTarget('deck-pkg://dsh-media/');
                   if (!t) return null;
-                  return await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent || "?" : null })()', 8000);
+                  const st = await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => r.querySelector(".media-title") && r.querySelector(".media-title").textContent === "T336 Accept Track"); return hit ? (hit.querySelector(".media-status") || {}).textContent || "?" : null })()', 8000);
+                  // 取样口径（工单337 收尾）：只认 PLAYING 终态——行刚出现时可能处在
+                  // CHANGING（真实的过渡状态，不是失败），旧口径「首个非 null 即返回」会
+                  // 把过渡态当结论判红。
+                  lastSeen6 = st;
+                  return st === 'PLAYING' ? st : null;
                 } catch { return null }
               }, 45000);
               if (liveOk === 'PLAYING') {
@@ -846,7 +852,7 @@ PKGDIR=${pkgDirM}` });
                   const seen = t ? await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")].map((r) => (r.querySelector(".media-title") || {}).textContent); return JSON.stringify({ rows, card: (document.querySelector(".media-card") || {}).className, hasHost: Boolean(window.deckHost && window.deckHost.media) }) })()', 8000) : 'no-target';
                   rep.note(`C6 ④诊断 卡片实见=${String(seen).slice(0, 500)}`);
                 } catch (errD) { rep.note(`C6 ④诊断 CDP 失败：${errD instanceof Error ? errD.message : String(errD)}`); }
-                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)}——诊断见上`);
+                rep.fail(`C6 夹具会话未上卡（45s）：status=${JSON.stringify(liveOk)} 末次取样=${JSON.stringify(lastSeen6)}——诊断见上`);
               }
               // ④ 受控缩略图链 + 审计存证
               const thumbOk = await until(async () => {
@@ -884,6 +890,175 @@ PKGDIR=${pkgDirM}` });
     } finally {
       // 媒体纪律：夹具进程树强杀 + 临时 profile 删除 + 本地服务关停（用完即杀，零残留）
       try { if (mediaFixture) await mediaFixture.stop(); } catch { /* 尽力 */ }
+    }
+
+    // —— 段 C7（工单337，media.control 可选权限逐项批准）：双包对照——
+    // A 包（media.read 必需，无可选）批准后卡片只读（无控制按钮 + 控制调用拒付）；
+    // B 包（+optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮
+    // 渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。
+    rep.beginSegment('C7');
+    try {
+      // 夹具清场（battery-owned ids）：上轮批准/安装残留会让本轮 id_conflict（C4/C6 同款教训）
+      const userPluginsRoot7 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      for (const fid of ['dsh-media', 'dsh-media-ctl']) {
+        try { fs.rmSync(path.join(userPluginsRoot7, fid), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      }
+      try { fs.rmSync(path.join(userData, 'plugins-staging'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const createC7 = await bridge('conversation/create', { managed: true, label: 'accept-337-control' });
+      if (!createC7.ok) {
+        rep.fail(`C7 管理型会话创建失败：${createC7.error}`);
+      } else {
+        const sidC7 = createC7.session.id;
+        const sessC7 = await sessionById(sidC7);
+        if (!sessC7 || !sessC7.cwd) {
+          rep.fail('C7 会话视图/cwd 缺失');
+        } else {
+          // ① A 包（只读对照）：无可选权限声明
+          const pkgDirA = path.join(sessC7.cwd, 'dsh-media-pkg');
+          const promptA7 = await bridge('conversation/prompt', { sessionId: sidC7, text: `MANAGED MEDIA marker：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDirA}\nPKGID=dsh-media` });
+          if (!promptA7 || promptA7.ok !== true) rep.note(`C7 诊断 A prompt 应答：${JSON.stringify(promptA7)}`);
+          const dumpA7 = async () => {
+            const v = await sessionById(sidC7);
+            rep.note(`C7 A 诊断 transcript=${JSON.stringify((v ? v.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`)).slice(0, 800)}`);
+            try { rep.note(`C7 A 诊断 canned=${JSON.stringify((llm.requests ? llm.requests().slice(-4) : []).map((r) => r.diag)).slice(0, 800)}`); } catch { }
+          };
+          const propA7 = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-media') ?? null, 90000);
+          if (!propA7) {
+            await dumpA7();
+            rep.fail('C7 A 包提案未出现（90s）');
+          } else {
+            await dumpA7();
+            const optOkA = Array.isArray(propA7.pkg.optionalPermissions) && propA7.pkg.optionalPermissions.length === 0;
+            const approvedA = await bridge('install/approve', { proposalId: propA7.proposalId }, 30000);
+            await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === propA7.proposalId && p.status === 'activated') ?? null, 30000);
+            // A 包只读面：卡片无控制按钮 + 控制调用拒付（media_permission_denied）
+            const ctlOkA = await until(async () => {
+              try {
+                const t = await pkgTarget('deck-pkg://dsh-media/');
+                if (!t) return null;
+                return await cdpEvalTarget(t, '(() => ({ btns: document.querySelectorAll(".media-control-btn").length, cls: (document.querySelector(".media-card") || {}).className }))()', 8000);
+              } catch { return null }
+            }, 20000);
+            const deniedA = await cdpEvalOn(PANEL_TITLE, 'window.deck.bridge.invoke("install/grants", null)', 10000).then((g) => {
+              const row = ((g && g.grants) || []).find((x) => x.packageId === 'dsh-media');
+              return row && !(row.permissions || []).includes('media.control') ? true : null;
+            }).catch(() => null);
+            if (optOkA && approvedA && approvedA.ok === true && ctlOkA && ctlOkA.btns === 0 && deniedA) {
+              rep.pass('A 包只读对照：提案无可选权限、批准后卡片无控制按钮、授权账不含 media.control（逐项批准语义成立）');
+            } else {
+              rep.fail(`C7 A 包面不符：opt=${optOkA} approved=${JSON.stringify(approvedA && { ok: approvedA.ok })} ctl=${JSON.stringify(ctlOkA)} denied=${deniedA}`);
+            }
+            // ② B 包（+可选 media.control）：WITHCONTROL 变体 → grantPermissions 子集批准
+            const pkgDirB = path.join(sessC7.cwd, 'dsh-media-ctl-pkg');
+            // A turn 收束竞态防护：等会话回 ready 再发（prompt 返回=turn 已启动非已收束）
+            await until(async () => ((await sessionById(sidC7))?.status === 'ready') ? true : null, 30000);
+            const promptB7 = await until(async () => {
+              const r = await bridge('conversation/prompt', { sessionId: sidC7, text: `MANAGED MEDIA marker WITHCONTROL：落媒体信息卡包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDirB}\nPKGID=dsh-media-ctl` });
+              return r && r.ok === true ? r : null;
+            }, 30000);
+            if (!promptB7) rep.note('C7 诊断 B prompt 重试窗内未成功（busy/错误）');
+            const propB7 = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-media-ctl') ?? null, 90000);
+            if (!propB7) {
+              const vdiagB7 = await sessionById(sidC7);
+              const textsB7 = (vdiagB7 ? vdiagB7.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 140)}`);
+              rep.note(`C7 B 诊断 transcript=${JSON.stringify(textsB7).slice(0, 900)}`);
+              try {
+                const diagsB7 = (llm.requests ? llm.requests().slice(-6) : []).map((r) => r.diag);
+                rep.note(`C7 B 诊断 canned=${JSON.stringify(diagsB7).slice(0, 900)}`);
+              } catch { /* 尽力 */ }
+              rep.fail('C7 B 包提案未出现（90s）');
+            } else {
+              const optOkB = Array.isArray(propB7.pkg.optionalPermissions) && propB7.pkg.optionalPermissions.includes('media.control');
+              const approvedB = await bridge('install/approve', { proposalId: propB7.proposalId, grantPermissions: ['media.control'] }, 30000);
+              await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === propB7.proposalId && p.status === 'activated') ?? null, 30000);
+              // SMTC 源夹具（控制目标；低音量小文件、用完即杀）
+              let fixture7 = null;
+              try { fixture7 = await startMediaFixture(); } catch (errF) {
+                rep.fail(`C7 媒体夹具起不来：${errF instanceof Error ? errF.message : String(errF)}`);
+              }
+              if (fixture7) {
+                rep.note(`C7 SMTC 源夹具：pid=${fixture7.pid}（控制目标；测完优雅停+进程树清）`);
+                await until(async () => (await pkgTarget('deck-pkg://dsh-media-ctl/')) ? true : null, 20000);
+                // B 包卡片：控制按钮渲染（controlGranted=true）。
+                // 取样口径（工单337 收尾）：等 ≥2 个按钮的视图落地再判——激活后包页
+                // 首帧可能还没收到带 controlGranted 的 view，旧口径「首个非 null 即返回」
+                // 会把 {btns:0} 的启动态当结论判红。
+                let lastBtns7 = null;
+                const btnsOk = await until(async () => {
+                  try {
+                    const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
+                    if (!t) return null;
+                    const seen = await cdpEvalTarget(t, '(() => ({ btns: document.querySelectorAll(".media-control-btn").length }))()', 8000);
+                    lastBtns7 = seen;
+                    return seen && seen.btns >= 2 ? seen : null;
+                  } catch { return null }
+                }, 20000);
+                // 找夹具会话键（卡片行 data-key，title=T336 Accept Track）
+                const fxKey = await until(async () => {
+                  try {
+                    const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
+                    if (!t) return null;
+                    return await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => (r.querySelector(".media-title") || {}).textContent === "T336 Accept Track"); return hit ? hit.getAttribute("data-key") : null })()', 8000);
+                  } catch { return null }
+                }, 30000);
+                // 控制真生效：pause → 行状态 PAUSED → play → PLAYING。
+                // 断言口径两条铁律（工单337 排障留痕）：①状态词表大写（Broker DTO 归一
+                // PLAYING/PAUSED…，旧口径 'Paused' 必然假红）②传播是异步的（control 应答 →
+                // 快照重取 → 包页重渲），卡内自轮询而非 Promise 一落地即取样。单次尝试只发
+                // 一发命令（按包限流 5/s），外层 until 负责重试。
+                let paused = false, played = false;
+                if (fxKey) {
+                  const waitStatusAfter = (act, want) => until(async () => {
+                    try {
+                      const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
+                      if (!t) return null;
+                      const r = await cdpEvalTarget(t, `(async () => {
+                        const key = ${JSON.stringify(fxKey)}
+                        const ctl = await window.deckHost.media.control(key, ${JSON.stringify(act)})
+                        if (!ctl || ctl.ok !== true) return 'control:' + JSON.stringify(ctl || null)
+                        const t0 = Date.now()
+                        let last = 'no-row'
+                        while (Date.now() - t0 < 8000) {
+                          const row = [...document.querySelectorAll('.media-session')].find((el) => el.getAttribute('data-key') === key)
+                          last = row ? String((row.querySelector('.media-status') || {}).textContent || '') : 'no-row'
+                          if (last === ${JSON.stringify(want)}) return true
+                          await new Promise((res) => setTimeout(res, 120))
+                        }
+                        return 'stuck:' + last
+                      })()`, 12000);
+                      if (r === true) return true;
+                      rep.note(`C7 ④诊断 ${act}→${want} 未达：${String(r).slice(0, 200)}`);
+                      return null;
+                    } catch (err) { return null }
+                  }, 25000);
+                  paused = Boolean(await waitStatusAfter('pause', 'PAUSED'));
+                  played = Boolean(await waitStatusAfter('play', 'PLAYING'));
+                }
+                const seenB = await (async () => {
+                  try {
+                    const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
+                    if (!t) return 'no-target';
+                    return await cdpEvalTarget(t, 'JSON.stringify(window.__mediaView)', 8000);
+                  } catch (e) { return 'eval-err:' + String(e).slice(0, 80) }
+                })();
+                if (!(btnsOk && btnsOk.btns >= 2)) rep.note(`C7 ④诊断 B 卡实见=${String(seenB).slice(0, 400)}`);
+                const auditCtl = await tape.wait('media-audit-aggregate', (e) => e.packageId === 'dsh-media-ctl' && JSON.stringify(e.counts || {}).includes('control:'), { timeoutMs: 20000, since: Date.now() - 40000 });
+                if (optOkB && approvedB && approvedB.ok === true && btnsOk && btnsOk.btns >= 2 && fxKey && paused && played && auditCtl) {
+                  rep.pass(`B 包控制全链：可选权限 [media.control] grantPermissions 子集批准 → 控制按钮渲染（${btnsOk.btns} 个）→ 夹具会话 ${fxKey} 暂停/播放真翻转 + 审计 control 族计数在案`);
+                } else {
+                  rep.fail(`C7 B 包面不符：opt=${optOkB} approved=${JSON.stringify(approvedB)} btns=${JSON.stringify(btnsOk)} lastBtns=${JSON.stringify(lastBtns7)} fxKey=${JSON.stringify(fxKey)} paused=${paused} played=${played} audit=${Boolean(auditCtl)}`);
+                }
+                if (fixture7) { try { await fixture7.stop(); } catch { /* 尽力 */ } fixture7 = null; }
+              }
+            }
+            await bridge('conversation/end', { sessionId: sidC7 });
+          }
+        }
+      }
+    } catch (c7err) {
+      rep.fail(`段 C7 异常中止：${c7err instanceof Error ? c7err.message : String(c7err)}`);
     }
 
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +

@@ -214,7 +214,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
           "  }",
           "  applyThumb(el, thumbCache[key])",
           "}",
-          "function rowHtml(s, selectedKey) {",
+          "function rowHtml(s, selectedKey, controlGranted) {",
           "  const tl = s.timeline || {}",
           "  const pos = Math.min(Math.max((tl.positionMs || 0) + (Date.now() - (tl.lastUpdatedTimeMs || Date.now())), 0), tl.endTimeMs || 0)",
           "  return '<div class=\"media-session' + (s.key === selectedKey ? ' media-selected' : '') + '\" data-key=\"' + esc(s.key) + '\">' +",
@@ -222,7 +222,10 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
           "    '<span class=\"media-artist\">' + esc((s.media && s.media.artist) || '') + '</span>' +",
           "    '<span class=\"media-status\">' + esc(s.status) + '</span>' +",
           "    '<span class=\"media-position\">' + fmt(pos) + ' / ' + fmt(tl.endTimeMs || 0) + '</span>' +",
-          "    '<div class=\"media-thumb\">…</div></div>'",
+          "    '<div class=\"media-thumb\">…</div>' +",
+          "    (controlGranted ? '<button class=\"media-control-btn\" data-act=\"pause\" data-key=\"' + esc(s.key) + '\">暂停</button>' +",
+          "      '<button class=\"media-control-btn\" data-act=\"play\" data-key=\"' + esc(s.key) + '\">播放</button>' : '') +",
+          "    '</div>'",
           "}",
           "export default {",
           "  mount(host) {",
@@ -236,21 +239,28 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
           "  },",
           "  update(host) { this.render(host.view) },",
           "  render(view) {",
+          "    window.__mediaView = view && view.media ? { controlGranted: view.media.controlGranted, n: (view.media.sessions || []).length, keys: (view.media.sessions || []).map((x) => x.key) } : null",
           "    const root = this._root",
           "    const media = view && view.media",
           "    if (!media || media.available === false) { root.className = 'media-card media-unavailable'; root.textContent = '媒体不可用'; return }",
           "    if (!media.sessions || media.sessions.length === 0) { root.className = 'media-card media-empty'; root.textContent = '没有正在播放的媒体'; return }",
           "    root.className = 'media-card media-live'",
-          "    root.innerHTML = media.sessions.map((s) => rowHtml(s, media.selectedKey)).join('')",
+          "    root.innerHTML = media.sessions.map((s) => rowHtml(s, media.selectedKey, media.controlGranted)).join('')",
           "    root.querySelectorAll('.media-session').forEach((el) => {",
           "      const s = media.sessions.find((x) => x.key === el.getAttribute('data-key'))",
           "      if (s && s.media && s.media.thumbPresent) void fetchThumb(s.key, el.querySelector('.media-thumb'))",
+          "    })",
+          "    root.querySelectorAll('.media-control-btn').forEach((btn) => {",
+          "      btn.addEventListener('click', () => {",
+          "        void window.deckHost.media.control(btn.getAttribute('data-key'), btn.getAttribute('data-act'))",
+          "      })",
           "    })",
           "  },",
           "}",
         ];
         const cardJs = cardLines.join('\n') + '\n';
-        const manifestM = JSON.stringify({ id: pkgId, name: 'DSH MEDIA', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['media'], permissions: ['media.read'] }, null, 2);
+        // WITHCONTROL 变体（工单337）：media.control 作为可选权限声明（批准面逐项授权）
+        const manifestM = JSON.stringify(Object.assign({ id: pkgId, name: 'DSH MEDIA', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['media'], permissions: ['media.read'] }, um.includes('WITHCONTROL') ? { optionalPermissions: ['media.control'] } : {}), null, 2);
         if (!pkgDir) {
           plan = { kind: 'text', out: 'MEDIA-MISSING-PKGDIR' };
         } else if (toolCountM === 0) {

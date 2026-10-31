@@ -51,21 +51,25 @@ export interface GrantLookup {
  */
 export function authorizeDroppedPackageWithGrant(input: {
   permissions?: readonly string[]
+  /** 可选权限声明面（工单337）：账面授予的可选子集必须落在声明面内 */
+  optionalPermissions?: readonly string[]
   grant: GrantLookup | null
   codeHash: string
 }): AuthorizationDecision {
   const perms = input.permissions ?? []
   if (perms.length === 0) return 'activate'
-  // 本票只开 media.read：混入任何其他权限即不放行（账面即便匹配也不行——通道未开放）
-  if (!perms.every((p) => p === 'media.read')) return 'pending-approval'
+  // 敏感权限通道开放度（工单336/337）：media.read 与 media.control 已开放（后者可选、
+  // 逐项批准——账面子集授权即放行）；network.request 等仍未开放（混入即不放行——账面即便匹配也不行）
+  const openChannels = new Set(['media.read', 'media.control'])
+  if (!perms.every((p) => openChannels.has(p))) return 'pending-approval'
   const grant = input.grant
   if (!grant) return 'pending-approval'
   if (grant.codeHash !== input.codeHash) return 'pending-approval'
-  // 权限集合精确绑定：声明的集合与账面集合不一致（多/少/异序同集外）即漂移
-  const declared = [...perms].sort()
-  const granted = [...grant.permissions].sort()
-  if (declared.length !== granted.length || declared.some((p, i) => p !== granted[i])) {
-    return 'pending-approval'
-  }
+  // 权限集合绑定（工单337 可选权限语义）：必需权限全部在账 + 账面不越声明面
+  // （必需 ∪ 可选）——可选未授 = 降级运行（不是不激活）；账面越声明面 = 漂移
+  const declared = new Set([...perms, ...(input.optionalPermissions ?? [])])
+  const granted = grant.permissions
+  if (!perms.every((p) => granted.includes(p))) return 'pending-approval'
+  if (!granted.every((p) => declared.has(p))) return 'pending-approval'
   return 'activate'
 }

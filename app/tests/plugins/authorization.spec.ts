@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { authorizeDroppedPackageWithGrant } from '../../src/main/plugins/authorization'
 
 /**
- * 授权裁决 v2（工单336，ADR-0025）：本票只开 media.read 敏感通路——
+ * 授权裁决 v2（工单336，ADR-0025）：敏感通路开放度（工单336 media.read、工单337 media.control）——
  * 权限全部 = media.read 且账上 grant 匹配（权限集合覆盖 + 代码哈希相等）才放行；
  * 其余敏感权限（media.control/network.request）批准通道未开放（#337/#338），
  * 无账/哈希漂移/权限漂移一律 pending-approval（批准前不执行）。
@@ -45,12 +45,15 @@ describe('授权裁决 v2：media.read 通路打开', () => {
     })).toBe('pending-approval')
   })
 
-  it('混入未开放权限（media.control / network.request）→ pending-approval（账再匹配也不放行）', () => {
+  it('media.control 通路开放（工单337）：账面子集授权匹配 → activate', () => {
     expect(authorizeDroppedPackageWithGrant({
-      permissions: ['media.control'],
-      grant: { permissions: ['media.control'], codeHash: 'h1' },
+      permissions: ['media.read', 'media.control'],
+      grant: { permissions: ['media.read', 'media.control'], codeHash: 'h1' },
       codeHash: 'h1',
-    })).toBe('pending-approval')
+    })).toBe('activate')
+  })
+
+  it('混入未开放权限（network.request）→ pending-approval（账再匹配也不放行）', () => {
     expect(authorizeDroppedPackageWithGrant({
       permissions: ['network.request'],
       grant: { permissions: ['network.request'], codeHash: 'h1' },
