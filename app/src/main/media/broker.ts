@@ -300,7 +300,13 @@ export class MediaBroker {
       return { ok: false, code, message: `控制未生效：${out.error}` }
     }
     this.auditRecord(packageId, `control:${action}`, key, 'ok')
-    return { ok: true, status: typeof (out.data as { status?: unknown })?.status === 'string' ? String((out.data as { status?: unknown }).status) : undefined }
+    // 控制命令本身就是重取快照的触发器（t329：桥事件时延爆发式 17ms-6.4s，只等事件会让
+    // 「控制→卡片状态翻转」迟到甚至落空）——投递复核已在桥内完成，这里随即重读 list。
+    this.scheduleRefresh()
+    const data = (out.data ?? {}) as { status?: unknown; statusAfter?: unknown }
+    const rawStatus = data.statusAfter ?? data.status
+    const status = typeof rawStatus === 'string' && STATUS_WORDS.has(rawStatus.toUpperCase()) ? rawStatus.toUpperCase() : undefined
+    return { ok: true, status }
   }
 
   /** 按包控制限流（滚动 1s 窗，上限 5——契约 commandsPerSecond 同源） */

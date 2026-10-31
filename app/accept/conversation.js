@@ -991,25 +991,38 @@ PKGDIR=${pkgDirM}` });
                     return await cdpEvalTarget(t, '(() => { const rows = [...document.querySelectorAll(".media-session")]; const hit = rows.find((r) => (r.querySelector(".media-title") || {}).textContent === "T336 Accept Track"); return hit ? hit.getAttribute("data-key") : null })()', 8000);
                   } catch { return null }
                 }, 30000);
-                // 控制真生效：pause → 行状态 PAUSED → play → PLAYING
+                // 控制真生效：pause → 行状态 PAUSED → play → PLAYING。
+                // 断言口径两条铁律（工单337 排障留痕）：①状态词表大写（Broker DTO 归一
+                // PLAYING/PAUSED…，旧口径 'Paused' 必然假红）②传播是异步的（control 应答 →
+                // 快照重取 → 包页重渲），卡内自轮询而非 Promise 一落地即取样。单次尝试只发
+                // 一发命令（按包限流 5/s），外层 until 负责重试。
                 let paused = false, played = false;
                 if (fxKey) {
-                  paused = await until(async () => {
+                  const waitStatusAfter = (act, want) => until(async () => {
                     try {
                       const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
                       if (!t) return null;
-                      const st = await cdpEvalTarget(t, `window.deckHost.media.control(${JSON.stringify(fxKey)}, 'pause').then(() => document.querySelector(".media-card").textContent.includes('Paused'))`, 8000);
-                      return st === true ? true : null;
-                    } catch { return null }
-                  }, 20000);
-                  played = await until(async () => {
-                    try {
-                      const t = await pkgTarget('deck-pkg://dsh-media-ctl/');
-                      if (!t) return null;
-                      const st = await cdpEvalTarget(t, `window.deckHost.media.control(${JSON.stringify(fxKey)}, 'play').then(() => document.querySelector(".media-card").textContent.includes('Playing'))`, 8000);
-                      return st === true ? true : null;
-                    } catch { return null }
-                  }, 20000);
+                      const r = await cdpEvalTarget(t, `(async () => {
+                        const key = ${JSON.stringify(fxKey)}
+                        const ctl = await window.deckHost.media.control(key, ${JSON.stringify(act)})
+                        if (!ctl || ctl.ok !== true) return 'control:' + JSON.stringify(ctl || null)
+                        const t0 = Date.now()
+                        let last = 'no-row'
+                        while (Date.now() - t0 < 8000) {
+                          const row = [...document.querySelectorAll('.media-session')].find((el) => el.getAttribute('data-key') === key)
+                          last = row ? String((row.querySelector('.media-status') || {}).textContent || '') : 'no-row'
+                          if (last === ${JSON.stringify(want)}) return true
+                          await new Promise((res) => setTimeout(res, 120))
+                        }
+                        return 'stuck:' + last
+                      })()`, 12000);
+                      if (r === true) return true;
+                      rep.note(`C7 ④诊断 ${act}→${want} 未达：${String(r).slice(0, 200)}`);
+                      return null;
+                    } catch (err) { return null }
+                  }, 25000);
+                  paused = Boolean(await waitStatusAfter('pause', 'PAUSED'));
+                  played = Boolean(await waitStatusAfter('play', 'PLAYING'));
                 }
                 const seenB = await (async () => {
                   try {
