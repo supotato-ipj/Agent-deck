@@ -1675,6 +1675,21 @@
           ]
         },
         {
+          "seg": "C5",
+          "ticket": 335,
+          "title": "DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 90,
+          "areas": [
+            "sessions",
+            "plugins"
+          ]
+        },
+        {
           "seg": "C3",
           "ticket": 340,
           "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
