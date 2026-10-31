@@ -83,7 +83,7 @@ contextBridge.exposeInMainWorld('deckHost', {
    * / network_rate_limited / network_timeout / network_redirect_blocked / network_failed）。
    */
   network: {
-    request: (spec: { url: string; method?: string; headers?: Record<string, string>; body?: string }): Promise<unknown> =>
+    request: (spec: { url: string; method?: string; headers?: Record<string, string>; body?: string; credential?: string }): Promise<unknown> =>
       ipcRenderer.invoke('pkg:network-request', spec),
   },
 })

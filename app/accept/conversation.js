@@ -289,7 +289,7 @@ async function main() {
       && metaText.includes('"backend": "dsh"')
       && !metaText.includes('"transcript"')
       && !metaText.includes('apiKey')
-      && !metaText.toLowerCase().includes('credential');
+      && !/"credential[a-zA-Z]*"\s*:/.test(metaText);
     if (metaOk) rep.pass('元数据落盘：backend/cwd 绝对路径在案；只存元数据（无正文、无凭证）');
     else rep.fail(`元数据形状不符（transcript 字段=${metaText.includes('"transcript"')}，内容=${metaText.slice(0, 200)}）`);
     if (view.managed === false && typeof view.backendPid === 'number' && view.backendPid > 0 && pidAlive(view.backendPid)) {
@@ -596,10 +596,17 @@ PKGDIR=${pkgDirA}` });
             }
           }
           // ④ 拒绝路径：第二包提交 → 拒绝 → staging 清偿 + 用户根从未出现 + gate_denied 审计
+          // turn 收束竞态防护（工单339 真机轮实证：prompt 返回=已启动非已收束，上一轮未收束
+          // 时第二发 prompt 被拒 → 无第二轮 → 提案永不出现；与 C7 同款防护 + 窗口内重试）
           const pkgDirB = path.join(sessC4.cwd, 'dsh-reject-pkg');
-          await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装
+          await until(async () => ((await sessionById(sidC4))?.status === 'ready') ? true : null, 30000);
+          const promptB4 = await until(async () => {
+            const r = await bridge('conversation/prompt', { sessionId: sidC4, text: `MANAGED INSTALL marker：落零权限插件包并经 plugin_install_submit 提交安装
 PKGDIR=${pkgDirB}
 PKGID=dsh-reject` });
+            return r && r.ok === true ? r : null;
+          }, 30000);
+          if (!promptB4) rep.note('C4 诊断 拒绝路径 prompt 重试窗内未成功（busy/错误）');
           const propB = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-reject' && p.source.sessionId === sidC4) ?? null, 90000);
           if (!propB) {
             const vdiagB = await sessionById(sidC4);
@@ -1159,7 +1166,10 @@ PKGDIR=${pkgDirM}` });
                 // ③ 审计：脱敏聚合在案（origin/方法/结果；无载荷）
                 const auditEv8 = await tape.wait('network-audit-aggregate', (e) => e.packageId === 'dsh-net' && JSON.stringify(e.origins || []).includes(httpFx.origin), { timeoutMs: 20000, since: Date.now() - 60000 });
                 const auditBuckets8 = await bridge('network/audit', null).catch(() => null);
-                const bucket8 = ((auditBuckets8 && auditBuckets8.buckets) || []).find((b) => b.packageId === 'dsh-net' && b.permission === 'network.request');
+                // 审计是 1h 聚合窗：跨轮会留下旧窗桶——按「本轮夹具 origin」选桶（旧轮 origin 不再现）
+                const bucket8 = ((auditBuckets8 && auditBuckets8.buckets) || [])
+                  .filter((b) => b.packageId === 'dsh-net' && b.permission === 'network.request' && (b.origins || []).includes(httpFx.origin))
+                  .sort((a, b) => b.windowStart - a.windowStart)[0];
                 if (auditEv8 && bucket8 && bucket8.counts.request >= 1 && bucket8.counts.redirect >= 1 && (bucket8.origins || []).includes(httpFx.origin)) {
                   rep.pass(`脱敏审计：network-audit-aggregate 事件 + 聚合投影（request=${bucket8.counts.request}、redirect=${bucket8.counts.redirect}、denied=${bucket8.denied}；origins=${JSON.stringify(bucket8.origins)}，无路径/查询/正文）`);
                 } else {
@@ -1188,6 +1198,139 @@ PKGDIR=${pkgDirM}` });
       }
     } catch (c8err) {
       rep.fail(`段 C8 异常中止：${c8err instanceof Error ? c8err.message : String(c8err)}`);
+    }
+
+    // —— 段 C9（工单339，命名凭证与认证联网）：可信 UI 建档（secret 只写不读）→ 组件经
+    // 绑定注入 Bearer 真取认证数据 → 轮换不重批（账三元组不变、注入换代）→ 解绑即
+    // credential_unavailable 且网络权限不被撤销（无凭证请求照常）→ 审计无 secret →
+    // 卸载只清绑定、凭证本体保留。
+    rep.beginSegment('C9');
+    try {
+      const userPluginsRoot9 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      for (const fid of ['dsh-net-auth']) {
+        try { fs.rmSync(path.join(userPluginsRoot9, fid), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      }
+      try { fs.rmSync(path.join(userData, 'plugins-staging'), { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const httpFx9 = await startHttpFixture();
+      try {
+        const credName = 'accept-cred';
+        const secretV1 = 'accept-secret-v1';
+        const secretV2 = 'accept-secret-v2';
+        // 清场：上一轮的凭证可能还在（凭证本体跨卸载保留）
+        try { await bridge('credentials/delete', { name: credName }, 10000); } catch { /* 不存在即无需清 */ }
+        // ① 可信 UI 建档：secret 只写不读（list 出口无明文）
+        const set1 = await bridge('credentials/set', { name: credName, secret: secretV1 }, 10000);
+        const list1 = await bridge('credentials/list', null);
+        const listed1 = ((list1 && list1.credentials) || []).find((c) => c.name === credName);
+        const noLeak1 = !JSON.stringify(list1).includes(secretV1);
+        if (set1 && set1.ok === true && listed1 && noLeak1) {
+          rep.pass(`命名凭证建档：credentials/set 成功，list 只出元数据（${listed1.headerName}），secret 明文不回传（写入单向）`);
+        } else {
+          rep.fail(`C9 凭证建档不符：set=${JSON.stringify(set1)} listed=${JSON.stringify(listed1)} noLeak=${noLeak1}`);
+        }
+        rep.note(`C9 本地 HTTP 夹具：origin=${httpFx9.origin}（/auth/data 需要 Bearer；/data.json 无认证）`);
+        const createC9 = await bridge('conversation/create', { managed: true, label: 'accept-339-named-auth' });
+        if (!createC9.ok) {
+          rep.fail(`C9 管理型会话创建失败：${createC9.error}`);
+        } else {
+          const sidC9 = createC9.session.id;
+          const sessC9 = await sessionById(sidC9);
+          if (!sessC9 || !sessC9.cwd) {
+            rep.fail('C9 会话视图/cwd 缺失');
+          } else {
+            const pkgDir9 = path.join(sessC9.cwd, 'dsh-net-auth-pkg');
+            const prompt9 = await bridge('conversation/prompt', { sessionId: sidC9, text: `MANAGED NET AUTH marker：落认证联网组件包并经 plugin_install_submit 提交安装\nPKGDIR=${pkgDir9}\nPKGID=dsh-net-auth\nORIGIN=${httpFx9.origin}\nCREDNAME=${credName}` });
+            if (!prompt9 || prompt9.ok !== true) rep.note(`C9 诊断 prompt 应答：${JSON.stringify(prompt9)}`);
+            const prop9 = await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.status === 'pending' && p.pkg.id === 'dsh-net-auth') ?? null, 90000);
+            if (!prop9) {
+              const v9 = await sessionById(sidC9);
+              rep.note(`C9 诊断 transcript=${JSON.stringify((v9 ? v9.transcript : []).map((x) => `${x.kind}:${String(x.text ?? '').slice(0, 120)}`)).slice(0, 700)}`);
+              rep.fail('C9 认证联网组件提案未出现（90s）');
+            } else {
+              const approved9 = await bridge('install/approve', { proposalId: prop9.proposalId }, 30000);
+              await until(async () => (await bridge('install/list', null)).proposals.find((p) => p.proposalId === prop9.proposalId && p.status === 'activated') ?? null, 30000);
+              await until(async () => (await pkgTarget('deck-pkg://dsh-net-auth/')) ? true : null, 20000);
+              const runAuth = () => until(async () => {
+                try {
+                  const t = await pkgTarget('deck-pkg://dsh-net-auth/');
+                  if (!t) return null;
+                  await cdpEvalTarget(t, 'window.__netAuthRun ? window.__netAuthRun().then(() => true) : false', 15000);
+                  const raw = await cdpEvalTarget(t, 'JSON.stringify(window.__netAuthView)', 8000);
+                  const v = JSON.parse(raw);
+                  return v && v.auth && v.plain ? v : null;
+                } catch { return null }
+              }, 30000);
+              // ② 绑定 + 真注入：宿主把 Bearer secret 注入到 /auth/data（组件拿不到 secret）
+              const bind9 = await bridge('credentials/bind', { packageId: 'dsh-net-auth', credentialName: credName, origin: httpFx9.origin }, 10000);
+              const view1 = await runAuth();
+              const seen1 = httpFx9.authSeen();
+              const inject1 = view1 && view1.auth.ok === true && view1.auth.status === 200 && String(view1.auth.text || '').includes('deck-auth-fixture') && seen1.includes(`Bearer ${secretV1}`);
+              if (approved9 && approved9.ok === true && bind9 && bind9.ok === true && inject1) {
+                rep.pass(`凭证注入真生效：绑定 ${credName} → ${httpFx9.origin} 后请求 /auth/data 带 Bearer（夹具实收 v1），组件只见响应不见 secret`);
+              } else {
+                rep.fail(`C9 注入面不符：approved=${JSON.stringify(approved9)} bind=${JSON.stringify(bind9)} auth=${JSON.stringify(view1 && view1.auth)} seen=${JSON.stringify(seen1)}`);
+              }
+              // ③ 轮换不重批：账三元组（codeHash/grantedAt）不变，注入换到 v2
+              const grantsBefore9 = await bridge('install/grants', null);
+              const rowBefore9 = ((grantsBefore9 && grantsBefore9.grants) || []).find((g) => g.packageId === 'dsh-net-auth');
+              const set2 = await bridge('credentials/set', { name: credName, secret: secretV2 }, 10000);
+              const grantsAfter9 = await bridge('install/grants', null);
+              const rowAfter9 = ((grantsAfter9 && grantsAfter9.grants) || []).find((g) => g.packageId === 'dsh-net-auth');
+              await sleep(500);
+              const view2 = await runAuth();
+              const inject2 = view2 && view2.auth.ok === true && httpFx9.authSeen().includes(`Bearer ${secretV2}`);
+              const noRebatch = rowBefore9 && rowAfter9 && rowBefore9.codeHash === rowAfter9.codeHash && rowBefore9.grantedAt === rowAfter9.grantedAt;
+              if (set2 && set2.ok === true && noRebatch && inject2) {
+                rep.pass(`轮换不触发代码重批：credentials/set 同名轮换后账行 codeHash/grantedAt 不变（${String(rowAfter9.codeHash).slice(0, 12)}），下一次请求注入 v2`);
+              } else {
+                rep.fail(`C9 轮换面不符：set=${JSON.stringify(set2)} noRebatch=${Boolean(noRebatch)} inject2=${Boolean(inject2)}`);
+              }
+              // ④ 解绑 → credential_unavailable；网络权限不被撤销（无凭证请求照常 200）
+              const unbind9 = await bridge('credentials/unbind', { packageId: 'dsh-net-auth', credentialName: credName, origin: httpFx9.origin }, 10000);
+              await sleep(500);
+              const view3 = await runAuth();
+              const unbound9 = view3 && view3.auth.ok === false && view3.auth.code === 'credential_unavailable' && view3.plain && view3.plain.ok === true;
+              if (unbind9 && unbind9.ok === true && unbound9) {
+                rep.pass(`解绑即断凭证：带凭证请求 → credential_unavailable（不静默改用其他凭证）；无凭证请求仍 200（网络权限未被撤销）`);
+              } else {
+                rep.fail(`C9 解绑面不符：unbind=${JSON.stringify(unbind9)} auth=${JSON.stringify(view3 && view3.auth)} plainOk=${Boolean(view3 && view3.plain && view3.plain.ok)}`);
+              }
+              // ⑤ 审计无 secret（完整记录只有 origin/方法/结果）
+              let auditClean = false;
+              try {
+                const rawAudit = fs.readFileSync(path.join(userData, 'network-audit.jsonl'), 'utf8');
+                auditClean = !rawAudit.includes(secretV1) && !rawAudit.includes(secretV2);
+              } catch { auditClean = false }
+              if (auditClean) rep.pass('审计不含 secret：network-audit.jsonl 全文无 v1/v2 明文（只有 origin/方法/结果/重定向）');
+              else rep.fail('C9 审计泄露或缺失：network-audit.jsonl 含 secret 明文或不可读');
+              // ⑥ 卸载：只清绑定，凭证本体保留至用户显式删除
+              const promptU9 = await bridge('conversation/prompt', { sessionId: sidC9, text: `MANAGED UNINSTALL marker：卸载认证联网组件\nPKGID=dsh-net-auth` });
+              if (!promptU9 || promptU9.ok !== true) rep.note(`C9 卸载 prompt 应答：${JSON.stringify(promptU9)}`);
+              const uninstalled9 = await until(async () => {
+                const t = await pkgTarget('deck-pkg://dsh-net-auth/');
+                const listing = await bridge('install/grants', null);
+                const row = ((listing && listing.grants) || []).find((g) => g.packageId === 'dsh-net-auth');
+                return !t && !row ? true : null;
+              }, 30000);
+              const list9 = await bridge('credentials/list', null);
+              const cred9 = ((list9 && list9.credentials) || []).find((c) => c.name === credName);
+              if (uninstalled9 && cred9 && (cred9.bindings || []).length === 0) {
+                rep.pass(`卸载只清绑定：包与授权行消失，凭证 ${credName} 仍在册且绑定清空（凭证本体保留至用户显式删除）`);
+              } else {
+                rep.fail(`C9 卸载面不符：uninstalled=${Boolean(uninstalled9)} cred=${JSON.stringify(cred9)}`);
+              }
+              try { await bridge('credentials/delete', { name: credName }, 10000); } catch { /* 清场 */ }
+            }
+            await bridge('conversation/end', { sessionId: sidC9 });
+          }
+        }
+      } finally {
+        try { await httpFx9.stop(); } catch { /* 尽力 */ }
+      }
+    } catch (c9err) {
+      rep.fail(`段 C9 异常中止：${c9err instanceof Error ? c9err.message : String(c9err)}`);
     }
 
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +
