@@ -513,7 +513,22 @@ export interface ConversationSessionView {
   pendingPermission: { options: ConversationPermissionOption[] } | null
 }
 
-/** 工单334 安装提案视图（批准 UI 数据面；主进程 plugins 主账本投影） */
+/** 工单335 更新提案 diff 视图（旧→新：版本、文件三态与权限变化；批准 UI 数据面） */
+export interface UpdateDiffView {
+  packageId: string
+  oldVersion: string
+  newVersion: string
+  /** 旧代次聚合哈希（用户根在册字节） */
+  oldHash: string
+  /** 新代次聚合哈希（= 提案 hash，待装载区同一份字节） */
+  newHash: string
+  /** 权限变化（旧→新；零权限包两侧皆空） */
+  permissions: { added: string[]; removed: string[] }
+  /** 文件变化（旧→新三态） */
+  files: { added: string[]; removed: string[]; changed: string[] }
+}
+
+/** 工单334 安装提案视图（批准 UI 数据面；主进程 plugins 主账本投影；工单335 增更新/继承两面） */
 export interface InstallProposalView {
   proposalId: string
   status: 'pending' | 'activated' | 'rejected' | 'failed'
@@ -526,6 +541,13 @@ export interface InstallProposalView {
   source: { sessionId: string; backend: string; label: string | null }
   createdAt: number
   error: { code: string; message: string; stateUnknown?: boolean } | null
+  /** 工单335 更新提案：旧→新 diff 与权限变化（install 提案无此字段） */
+  update?: UpdateDiffView
+  /**
+   * 工单335 旧数据继承（install 提案撞见卸载残留私有配置时在册）：独立于代码批准的用户
+   * 手势（install/inherit）；pending 期间批准代码 = 默认 fresh（新配置起步，残留 detach）。
+   */
+  dataInheritance?: { decision: 'pending' | 'inherited' | 'fresh' }
 }
 
 /** 工单340：最近一次真实接入的运行时诊断（浮动版本策略下为当时记录——不声称版本已锁定） */
@@ -888,8 +910,13 @@ export interface BridgeMethods {
   'conversation/new-data-dir': { request: null; response: { ok: boolean; dshHome?: string; previous?: string; error?: string } }
   /** 工单334 安装管线（批准 UI 数据面与手势）：提案清单 / 批准 / 拒绝 */
   'install/list': { request: null; response: { proposals: InstallProposalView[] } }
-  'install/approve': { request: { proposalId: string }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean } }
+  'install/approve': { request: { proposalId: string }; response: { ok: boolean; status?: string; code?: string; message?: string; rollback?: string; stateUnknown?: boolean; warnings?: string[] } }
   'install/reject': { request: { proposalId: string }; response: { ok: boolean; code?: string; message?: string } }
+  /**
+   * 工单335 旧数据继承（独立用户手势，不与代码批准合并）：inherit=true 保留卸载残留
+   * 私有配置（重装包重新可读旧数据）；false/批准时未决 = 新配置起步（残留 detach）。
+   */
+  'install/inherit': { request: { proposalId: string; inherit: boolean }; response: { ok: boolean; decision?: string; code?: string; message?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

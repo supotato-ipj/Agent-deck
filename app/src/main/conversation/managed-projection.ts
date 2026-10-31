@@ -60,8 +60,9 @@ export const MANAGED_TOOLS: readonly ManagedToolDescriptor[] = Object.freeze([
     // 上限：总量 8MiB/单文件 2MiB/256 文件/深度 8/扩展名白名单（js/mjs/css/json/html/svg/png/woff2）；
     // 拒 node_modules/.git/符号链接/敏感权限包（permission_deferred）。提交后进入待批准
     // （字节进待装载区，热插拔不可见），真实用户批准前不执行；结果以 plugins_list 对账。
-    // 失败不自动重试——按结构化错误修复后重新提交。
-    description: '提交一个零权限插件包供用户批准安装（确定性操作）：sourceDir 必须是本会话工作区内的绝对路径目录，包含 plugin.json（零权限 manifest）与入口 JS。批准前代码不执行；本工具不等待批准结果（异步提案），用 plugins_list 观察状态。',
+    // 失败不自动重试——按结构化错误修复后重新提交。撞见卸载残留私有配置时提案带
+    // 「旧数据继承」独立批准项（工单335；继承与否由用户独立决定，不合并进代码批准）。
+    description: '提交一个零权限插件包供用户批准安装（确定性操作）：sourceDir 必须是本会话工作区内的绝对路径目录，包含 plugin.json（零权限 manifest）与入口 JS。批准前代码不执行；本工具不等待批准结果（异步提案），用 plugins_list 观察状态。同 id 曾被卸载且留有私有配置时，提案附带「旧数据继承」独立批准项（用户独立决定，未决默认新配置起步）。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -70,6 +71,61 @@ export const MANAGED_TOOLS: readonly ManagedToolDescriptor[] = Object.freeze([
       required: ['sourceDir'],
       additionalProperties: false,
     },
+  },
+  {
+    name: 'plugin_update_submit',
+    // 工单335 确定性更新操作（ADR-0019 update 换入 / ADR-0025 代次批准）：目标=用户根在册包；
+    // 源 manifest id 必须等于目标 id（不允许改名）；新字节进待装载区，**待批期间旧代次继续
+    // 运行**；提案带旧→新 diff 与权限变化；批准=原子换代（旧版送回收站），拒绝不影响旧代次；
+    // 相同字节 → no_change（不重载、不制造批准）。正常更新保留包私有配置。敏感权限包
+    // permission_deferred。busy = 有写操作在途（唯一可重试）；结果未知不重放，以 plugins_list 对账。
+    description: '提交一个已安装零权限插件包的更新供用户批准（确定性操作）：packageId=用户根在册包 id，sourceDir=本会话工作区内的新版包目录（manifest id 必须与 packageId 一致，零权限）。待批期间旧版本继续运行；批准后原子替换；字节与在册完全相同时返回 no_change（无需批准）。本工具不等待批准结果，用 plugins_list 对账。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        packageId: { type: 'string', description: '目标包 id（用户插件根中已安装）' },
+        sourceDir: { type: 'string', description: '新版包目录的绝对路径（必须在会话工作区内，manifest id 与 packageId 一致）' },
+      },
+      required: ['packageId', 'sourceDir'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plugin_set_enabled',
+    // 工单335 停用/启用（ADR-0019 沿用既有 settings 停用集缝，W 免闸门——可逆不引入代码）：
+    // 停用=解除挂载保留目录与私有配置；启用=恢复挂载。接既有 config.plugins.disabled 停用集。
+    description: '停用或启用一个插件包（确定性、可逆操作）：停用=解除挂载但保留包目录与私有配置；启用=重新挂载。对内置/第一方包与投放包同样有效（settings 停用集）。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        packageId: { type: 'string', description: '插件包 id' },
+        enabled: { type: 'boolean', description: 'true=启用，false=停用' },
+      },
+      required: ['packageId', 'enabled'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plugin_uninstall',
+    // 工单335 卸载（ADR-0019/0025）：只对用户根投放包；目录送**回收站**（失败明确报错，
+    // 绝不降级永久删除）；私有配置保留但脱离挂载；同 id 重装的旧数据继承由用户独立批准。
+    // 内核/第一方包不可卸载（只能停用，not_manageable）。卸载后清单以 plugins_list 对账。
+    description: '卸载一个用户根投放插件包（确定性操作）：包目录送系统回收站（误删可找回；回收站失败即失败，绝不永久删除）。私有配置保留但脱离挂载——同 id 重装时是否继承旧数据由用户独立批准。内置/第一方包不可卸载。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        packageId: { type: 'string', description: '要卸载的包 id（用户插件根中已安装）' },
+      },
+      required: ['packageId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plugins_rescan',
+    // 工单335 确定性重扫（ADR-0019：无参数无闸门；触发的重载与 watcher 同源）：手动投放/
+    // watcher 失效后的目录重新入列；返回最新投放包清单供对账（R 档，不做任何写）。
+    description: '触发插件目录重扫（只读对账操作）：刷新扫描并返回最新投放包清单。不改变任何包——用于手动投放或 watcher 失效后让目录重新入列，以及写操作结果未知后的状态对账。',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ])
 
@@ -81,6 +137,14 @@ export interface ManagedProjectionSource {
   contractCatalog(): unknown
   /** 安装提交（工单334 写工具；缺省 = 本装配未接线，工具如实报不可用） */
   installSubmit?(args: { sourceDir: string }, ctx: { sessionId: string }): Promise<unknown>
+  /** 更新提交（工单335 写工具；缺省 = 未接线如实报不可用） */
+  updateSubmit?(args: { packageId: string; sourceDir: string }, ctx: { sessionId: string }): Promise<unknown>
+  /** 停用/启用（工单335 写工具，接 settings 停用集缝；缺省 = 未接线如实报不可用） */
+  setEnabled?(args: { packageId: string; enabled: boolean }): Promise<unknown>
+  /** 卸载（工单335 写工具，回收站路径；缺省 = 未接线如实报不可用） */
+  uninstallPackage?(args: { packageId: string }): Promise<unknown>
+  /** 确定性重扫（工单335 对账操作；缺省 = 未接线如实报不可用） */
+  rescan?(): unknown
 }
 
 export type ManagedToolOutcome =
@@ -120,6 +184,52 @@ export async function dispatchManagedTool(
         // sessionId 从 bearer 通道绑定来（ctx），绝不采信参数自报
         const payload = await source.installSubmit({ sourceDir: a.sourceDir }, { sessionId: ctx?.sessionId ?? '' })
         return { ok: true, payload }
+      }
+      case 'plugin_update_submit': {
+        // 工单335：与 install 同族——只收路径；sessionId 从 bearer 通道绑定来
+        const a = (args ?? {}) as { packageId?: unknown; sourceDir?: unknown }
+        if (typeof a.packageId !== 'string' || !a.packageId.trim()) {
+          return { ok: false, reason: 'invalid_args', message: 'plugin_update_submit 需要 packageId（用户根中已安装的包 id）' }
+        }
+        if (typeof a.sourceDir !== 'string' || !a.sourceDir.trim() || !path.isAbsolute(a.sourceDir)) {
+          return { ok: false, reason: 'invalid_args', message: 'plugin_update_submit 需要 sourceDir（新版包目录绝对路径，必须在会话工作区内）' }
+        }
+        if (!source.updateSubmit) {
+          return { ok: false, reason: 'source_error', message: '本面板未装配安装面（update 未接线）——更新工具不可用' }
+        }
+        const payload = await source.updateSubmit({ packageId: a.packageId, sourceDir: a.sourceDir }, { sessionId: ctx?.sessionId ?? '' })
+        return { ok: true, payload }
+      }
+      case 'plugin_set_enabled': {
+        const a = (args ?? {}) as { packageId?: unknown; enabled?: unknown }
+        if (typeof a.packageId !== 'string' || !a.packageId.trim()) {
+          return { ok: false, reason: 'invalid_args', message: 'plugin_set_enabled 需要 packageId（插件包 id）' }
+        }
+        if (typeof a.enabled !== 'boolean') {
+          return { ok: false, reason: 'invalid_args', message: 'plugin_set_enabled 需要 enabled（布尔：true=启用 false=停用）' }
+        }
+        if (!source.setEnabled) {
+          return { ok: false, reason: 'source_error', message: '本面板未装配停用/启用面（settings 停用集未接线）——工具不可用' }
+        }
+        const payload = await source.setEnabled({ packageId: a.packageId, enabled: a.enabled })
+        return { ok: true, payload }
+      }
+      case 'plugin_uninstall': {
+        const a = (args ?? {}) as { packageId?: unknown }
+        if (typeof a.packageId !== 'string' || !a.packageId.trim()) {
+          return { ok: false, reason: 'invalid_args', message: 'plugin_uninstall 需要 packageId（用户根中已安装的包 id）' }
+        }
+        if (!source.uninstallPackage) {
+          return { ok: false, reason: 'source_error', message: '本面板未装配卸载面（回收站未接线）——卸载工具不可用' }
+        }
+        const payload = await source.uninstallPackage({ packageId: a.packageId })
+        return { ok: true, payload }
+      }
+      case 'plugins_rescan': {
+        if (!source.rescan) {
+          return { ok: false, reason: 'source_error', message: '本面板未装配重扫面（未接线）——工具不可用' }
+        }
+        return { ok: true, payload: source.rescan() }
       }
       case 'plugin_source': {
         const a = (args ?? {}) as { pluginId?: unknown; path?: unknown }
@@ -164,11 +274,20 @@ export function createNodeProjectionSource(deps: {
   pluginsList: () => unknown
   /** 安装提交缝（工单334；缺省 = 未装配，工具如实报不可用） */
   installSubmit?: (args: { sourceDir: string }, ctx: { sessionId: string }) => Promise<unknown>
+  /** 更新/停用/卸载/重扫缝（工单335；缺省 = 未装配，工具如实报不可用） */
+  updateSubmit?: (args: { packageId: string; sourceDir: string }, ctx: { sessionId: string }) => Promise<unknown>
+  setEnabled?: (args: { packageId: string; enabled: boolean }) => Promise<unknown>
+  uninstallPackage?: (args: { packageId: string }) => Promise<unknown>
+  rescan?: () => unknown
 }): ManagedProjectionSource {
   return {
     panelSnapshot: () => deps.panelSnapshot(),
     pluginsList: () => deps.pluginsList(),
     installSubmit: deps.installSubmit,
+    updateSubmit: deps.updateSubmit,
+    setEnabled: deps.setEnabled,
+    uninstallPackage: deps.uninstallPackage,
+    rescan: deps.rescan,
     contractCatalog: () => projectCatalog(PLUGIN_CONTRACT_CATALOG, 'agent'),
     pluginSource: ({ pluginId, path: relPath }) => {
       const rootReal = fs.realpathSync(deps.userRoot)
