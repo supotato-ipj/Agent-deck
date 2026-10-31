@@ -20,7 +20,7 @@ export class BridgeError extends Error {
  * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar', 'pluginConfig']
+  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar', 'pluginConfig', 'conversation']
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -235,6 +235,39 @@ export class BridgeService extends Service {
       case 'app/quit':
         this.quitApp()
         return { ok: true } as BridgeMethods[M]['response']
+      // --- 对话窗（工单332）：聊天型会话全链 ---
+      case 'conversation/backend':
+        return this.ctx.conversation.backendInfo() as BridgeMethods[M]['response']
+      case 'conversation/show': {
+        const { sessionId } = (payload ?? {}) as { sessionId?: string }
+        return this.ctx.conversation.showSession(sessionId ?? undefined) as BridgeMethods[M]['response']
+      }
+      case 'conversation/create': {
+        const { label } = (payload ?? {}) as { label?: string }
+        return await this.ctx.conversation.create(label ?? undefined) as BridgeMethods[M]['response']
+      }
+      case 'conversation/list':
+        return { sessions: this.ctx.conversation.sessions() } as BridgeMethods[M]['response']
+      case 'conversation/prompt': {
+        const { sessionId, text } = payload as { sessionId: string; text: string }
+        return await this.ctx.conversation.prompt(String(sessionId ?? ''), String(text ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/cancel': {
+        const { sessionId } = payload as { sessionId: string }
+        return await this.ctx.conversation.cancel(String(sessionId ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/permission': {
+        const { sessionId, optionId } = payload as { sessionId: string; optionId: string }
+        return await this.ctx.conversation.respondPermission(String(sessionId ?? ''), String(optionId ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/end': {
+        const { sessionId } = payload as { sessionId: string }
+        return await this.ctx.conversation.end(String(sessionId ?? '')) as BridgeMethods[M]['response']
+      }
+      case 'conversation/resume': {
+        const { sessionId } = payload as { sessionId: string }
+        return await this.ctx.conversation.resume(String(sessionId ?? '')) as BridgeMethods[M]['response']
+      }
       default:
         throw new BridgeError(`未知桥接方法: ${method}`)
     }

@@ -24,9 +24,8 @@ export interface JobObjectHandle {
  */
 export function createKillOnCloseJob(): JobObjectHandle | null {
   if (process.platform !== 'win32') return null
-  let koffi: typeof import('koffi')
+  let koffi: typeof import('koffi').default
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     koffi = require('koffi')
   } catch {
     return null

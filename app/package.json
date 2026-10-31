@@ -21,7 +21,8 @@
     "accept:doc-group-cards": "npm run build && electron . --accept-doc-group-cards",
     "accept:placement": "npm run build && electron . --accept-placement",
     "accept:plan": "node scripts/select-rounds.js",
-    "dev:panel": "npm run build && electron . --panel"
+    "dev:panel": "npm run build && electron . --panel",
+    "accept:chat": "npm run build && electron . --accept-chat"
   },
   "dependencies": {
     "cordis": "^3.18.1",

@@ -231,6 +231,12 @@ export class AcpClient {
     this.write({ jsonrpc: '2.0', method: 'session/cancel', params: { sessionId } })
   }
 
+  /** DSH 方言：session/set_config_option（value 为 JSON 字符串——探针 #330 实录）。
+   * 封在本适配器内，供「用户显式配置的 provider 路由」导入面使用，无 UI 面（ADR-0018）。 */
+  setConfigOption(sessionId: string, configId: string, value: string): Promise<unknown> {
+    return this.request<unknown>('session/set_config_option', { sessionId, configId, value }, this.options.requestTimeoutMs ?? 30_000)
+  }
+
   closeSession(sessionId: string): Promise<void> {
     return this.request<Record<string, never>>('session/close', { sessionId }, this.options.requestTimeoutMs ?? 30_000)
       .then(() => undefined)
