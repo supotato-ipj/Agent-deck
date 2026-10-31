@@ -31,15 +31,19 @@ function makeSource(userRoot: string) {
 }
 
 describe('管理型只读投影（工单333）', () => {
-  it('工具封闭集：恰四个只读工具，描述不含任何写类动作', () => {
+  it('工具封闭集：恰四个只读工具 + 恰一个确定性安装写工具（工单334）；写面有且仅有 submit', () => {
+    // 工单334 演化：封闭集 4→5——plugin_install_submit 是 MCP 侧唯一写操作（确定性管理操作，
+    // ADR-0019）；只读四工具描述仍不得含写类动作，其余投影外工具一律 unknown_tool（下方用例）
     expect(MANAGED_TOOLS.map((t) => t.name).sort()).toEqual(
-      ['panel_snapshot', 'plugin_contract_catalog', 'plugin_source', 'plugins_list'].sort(),
+      ['panel_snapshot', 'plugin_contract_catalog', 'plugin_install_submit', 'plugin_source', 'plugins_list'].sort(),
     )
     for (const t of MANAGED_TOOLS) {
+      if (t.name === 'plugin_install_submit') continue
       expect(t.description.length).toBeGreaterThan(0)
       expect(t.inputSchema).toBeTruthy()
       expect(JSON.stringify(t)).not.toMatch(/set|write|install|uninstall|enable|disable|quit|launch/i)
     }
+    expect(MANAGED_TOOLS.filter((t) => t.name === 'plugin_install_submit')).toHaveLength(1)
   })
 
   it('panel_snapshot：经注入的单点快照源原样返回（JSON 可序列化）', async () => {

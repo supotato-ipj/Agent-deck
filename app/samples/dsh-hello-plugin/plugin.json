@@ -1,0 +1,9 @@
+{
+  "id": "dsh-hello",
+  "name": "DSH HELLO",
+  "version": "1.0.0",
+  "entry": "./card.js",
+  "hostApiVersion": 1,
+  "capabilities": ["clock"],
+  "permissions": []
+}

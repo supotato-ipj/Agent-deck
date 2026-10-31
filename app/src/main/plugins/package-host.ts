@@ -40,6 +40,8 @@ export interface DroppedPackageHostDeps {
   log?: (event: Record<string, unknown>) => void
   /** 视图默认位（摆位集成归后续票） */
   bounds?: { x: number; y: number; width: number; height: number }
+  /** 挂载结果回报（工单334 有界激活）：壳页 title=deck-pkg:ready/failed 或崩溃即报事实 */
+  onMountOutcome?: (info: { id: string; ok: boolean; message: string | null }) => void
 }
 
 /** 一条在装上下文 */
@@ -182,9 +184,23 @@ export class DroppedPackageHost {
     this.live.set(pkg.id, context)
     this.deps.log?.({ type: 'dropped-package-context-created', id: pkg.id, generation: pkg.generation, webContentsId: wc.id, partition })
 
+    // 挂载结果回报（工单334 有界激活的事实源）：壳页 preload 置 title=deck-pkg:ready/failed
+    // → page-title-updated 即报；一次性（每代 mount 恰一个结论）
+    let mountReported = false
+    const reportMount = (ok: boolean, message: string | null): void => {
+      if (mountReported) return
+      mountReported = true
+      this.deps.onMountOutcome?.({ id: pkg.id, ok, message })
+    }
+    wc.on('page-title-updated', (_event, title) => {
+      if (title === 'deck-pkg:ready') reportMount(true, null)
+      else if (title === 'deck-pkg:failed') reportMount(false, '包页挂载失败（deck-pkg:failed）')
+    })
+
     // AC3 崩溃处置：只报事实进错误态，绝不 reload/不重建（Electron 44 默认也不自动重载）
     wc.on('render-process-gone', (_event, details) => {
       this.deps.log?.({ type: 'dropped-package-render-gone', id: pkg.id, reason: details.reason, exitCode: details.exitCode })
+      reportMount(false, `包页进程崩溃（${details.reason}）——挂载未确认`)
       this.deps.onCrashed(pkg.id, details.reason)
     })
     // 包页控制台出主进程日志（与协议 asset-404 同款运营观测）：preload 加载失败、壳页

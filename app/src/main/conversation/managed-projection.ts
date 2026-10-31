@@ -52,6 +52,25 @@ export const MANAGED_TOOLS: readonly ManagedToolDescriptor[] = Object.freeze([
     description: '读取机器可读插件契约目录（只读发现面，不授予权限）：manifest 形状/宿主 API 版本策略/基线宿主域/权限目录/结构化错误/资源上限。',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
+  {
+    name: 'plugin_install_submit',
+    // 工单334 确定性安装操作（ADR-0019 写入契约 / ADR-0025 批准面）：MCP 只收路径不收代码正文；
+    // 包 = 会话工作区内目录，含 plugin.json（id/name/version/entry/hostApiVersion=当前主版本/
+    // permissions 必须为空数组=零权限）+ entry 指向的 .js/.mjs（default 导出 mount(host)）。
+    // 上限：总量 8MiB/单文件 2MiB/256 文件/深度 8/扩展名白名单（js/mjs/css/json/html/svg/png/woff2）；
+    // 拒 node_modules/.git/符号链接/敏感权限包（permission_deferred）。提交后进入待批准
+    // （字节进待装载区，热插拔不可见），真实用户批准前不执行；结果以 plugins_list 对账。
+    // 失败不自动重试——按结构化错误修复后重新提交。
+    description: '提交一个零权限插件包供用户批准安装（确定性操作）：sourceDir 必须是本会话工作区内的绝对路径目录，包含 plugin.json（零权限 manifest）与入口 JS。批准前代码不执行；本工具不等待批准结果（异步提案），用 plugins_list 观察状态。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceDir: { type: 'string', description: '包目录的绝对路径（必须在会话工作区内）' },
+      },
+      required: ['sourceDir'],
+      additionalProperties: false,
+    },
+  },
 ])
 
 /** 生产投影源端口（主进程单点的薄引用——由装配层注入） */
@@ -60,6 +79,8 @@ export interface ManagedProjectionSource {
   pluginsList(): unknown
   pluginSource(args: { pluginId: string; path?: string }): unknown
   contractCatalog(): unknown
+  /** 安装提交（工单334 写工具；缺省 = 本装配未接线，工具如实报不可用） */
+  installSubmit?(args: { sourceDir: string }, ctx: { sessionId: string }): Promise<unknown>
 }
 
 export type ManagedToolOutcome =
@@ -71,6 +92,7 @@ export async function dispatchManagedTool(
   name: string,
   args: unknown,
   source: ManagedProjectionSource,
+  ctx?: { sessionId: string },
 ): Promise<ManagedToolOutcome> {
   const tool = MANAGED_TOOLS.find((t) => t.name === name)
   if (!tool) {
@@ -84,6 +106,21 @@ export async function dispatchManagedTool(
         return { ok: true, payload: source.pluginsList() }
       case 'plugin_contract_catalog':
         return { ok: true, payload: source.contractCatalog() }
+      case 'plugin_install_submit': {
+        const a = (args ?? {}) as { sourceDir?: unknown }
+        if (typeof a.sourceDir !== 'string' || !a.sourceDir.trim()) {
+          return { ok: false, reason: 'invalid_args', message: 'plugin_install_submit 需要 sourceDir（包目录绝对路径，必须在会话工作区内）' }
+        }
+        if (!path.isAbsolute(a.sourceDir)) {
+          return { ok: false, reason: 'invalid_args', message: 'sourceDir 必须是绝对路径（MCP 只收路径不收正文）' }
+        }
+        if (!source.installSubmit) {
+          return { ok: false, reason: 'source_error', message: '本面板未装配安装面（install 未接线）——安装工具不可用' }
+        }
+        // sessionId 从 bearer 通道绑定来（ctx），绝不采信参数自报
+        const payload = await source.installSubmit({ sourceDir: a.sourceDir }, { sessionId: ctx?.sessionId ?? '' })
+        return { ok: true, payload }
+      }
       case 'plugin_source': {
         const a = (args ?? {}) as { pluginId?: unknown; path?: unknown }
         if (typeof a.pluginId !== 'string' || !a.pluginId.trim() || path.isAbsolute(a.pluginId)) {
@@ -125,10 +162,13 @@ export function createNodeProjectionSource(deps: {
   userRoot: string
   panelSnapshot: () => unknown
   pluginsList: () => unknown
+  /** 安装提交缝（工单334；缺省 = 未装配，工具如实报不可用） */
+  installSubmit?: (args: { sourceDir: string }, ctx: { sessionId: string }) => Promise<unknown>
 }): ManagedProjectionSource {
   return {
     panelSnapshot: () => deps.panelSnapshot(),
     pluginsList: () => deps.pluginsList(),
+    installSubmit: deps.installSubmit,
     contractCatalog: () => projectCatalog(PLUGIN_CONTRACT_CATALOG, 'agent'),
     pluginSource: ({ pluginId, path: relPath }) => {
       const rootReal = fs.realpathSync(deps.userRoot)

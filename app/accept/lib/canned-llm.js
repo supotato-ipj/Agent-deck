@@ -38,7 +38,7 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
 
       // 从尾向前找带已知标记的用户消息（DSH 会把一轮输入拆成多条 user 消息，真实文本在前）
       const users = (body.messages || []).filter((m) => m.role === 'user');
-      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG'];
+      const MARKERS = ['PROBE OK', 'Count slowly', 'outside marker', 'MANAGED SNAPSHOT', 'MANAGED CATALOG', 'MANAGED INSTALL'];
       let cleanLastUser = '';
       for (let i = users.length - 1; i >= 0; i--) {
         const c = typeof users[i].content === 'string' ? users[i].content : JSON.stringify(users[i].content);
@@ -107,12 +107,49 @@ async function startCannedLlm({ port = 0, outsideFilePath } = {}) {
           const echoTag = want === 'panel_snapshot' ? 'SNAPSHOT-TOOL-RESULT:' : 'CATALOG-TOOL-RESULT:';
           plan = { kind: 'text', out: echoTag + toolText.slice(0, 200) };
         }
+      } else if (marker('MANAGED INSTALL')) {
+        // 工单334 安装全链真机编排：包文件由 DSH 自身文件工具落盘（workspace 内写不触发审批），
+        // 然后调 MCP plugin_install_submit 提交（prompt 里 PKGDIR=<abs> 由电池按会话 cwd 填）。
+        // 轮次状态机按工具消息数走：0=写 plugin.json；1=写 card.js；2=提交；≥3=回显结果。
+        // PKGDIR 从 marker 所在的用户消息取（cleanLastUser）——DSH 会把一轮输入拆成多条
+        // user 消息，msgs 末尾的 user 未必是带 PKGDIR 的那条（2026-10-31 真机轮 2 实证）
+        const um = cleanLastUser;
+        // PKGDIR 在行尾整行捕获（路径含空格——\S+ 会在 'An W' 处截断，真机轮 3 实证）
+        const pkgDir = ((um.match(/PKGDIR=(.+)/) || [])[1] || '').trim();
+        // 拒绝路径用不同包 id（同 id 二次提交撞用户根在册 id → id_conflict，测不到拒绝）
+        const pkgId = ((um.match(/PKGID=(\S+)/) || [])[1] || 'dsh-hello').trim();
+        // BADMANIFEST 变体（工单334 坏包路径）：非法 JSON → 提交得 invalid_package 结构化错误
+        const manifest = um.includes('BADMANIFEST') ? '{ "id": not json' : JSON.stringify({ id: pkgId, name: 'DSH HELLO', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: ['clock'], permissions: [] }, null, 2);
+        const cardJs = 'export default { mount(host) { host.el.textContent = "hello from dsh" } }\n';
+        const toolCount = msgs.filter((m) => m.role === 'tool').length;
+        if (!pkgDir) {
+          plan = { kind: 'text', out: 'INSTALL-MISSING-PKGDIR' };
+        } else if (toolCount === 0) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/plugin.json', content: manifest }) };
+        } else if (toolCount === 1) {
+          plan = { kind: 'tool', name: 'write', args: JSON.stringify({ file_path: pkgDir + '/card.js', content: cardJs }) };
+        } else if (toolCount === 2) {
+          const mcpTool = (body.tools || []).map((x) => x.function && x.function.name).find((n) => typeof n === 'string' && n.includes('plugin_install_submit'));
+          plan = mcpTool
+            ? { kind: 'tool', name: mcpTool, args: JSON.stringify({ sourceDir: pkgDir }) }
+            : { kind: 'text', out: 'INSTALL-SUBMIT-MISSING (tools=' + JSON.stringify((body.tools || []).map((x) => x.function && x.function.name)) + ')' };
+        } else {
+          plan = { kind: 'text', out: 'INSTALL-SUBMITTED:' + toolText.slice(0, 260) };
+        }
       } else if (marker('PROBE OK')) {
         plan = { kind: 'text', out: 'PROBE OK' };
       } else {
         plan = { kind: 'text', out: 'OK (fallback)' };
       }
 
+      // 决策诊断（工单334 真机排障）：record 是同一对象引用，事后挂 diag 即随 requests() 出
+      record.diag = {
+        marker: MARKERS.find((mk) => cleanLastUser.includes(mk)) ?? null,
+        planKind: plan.kind,
+        planName: plan.name ?? null,
+        toolCount: msgs.filter((m) => m.role === 'tool').length,
+        out: (plan.out ?? '').slice(0, 90),
+      };
       if (body.stream === false) {
         const msg = { role: 'assistant', content: plan.kind === 'text' ? plan.out : null };
         if (plan.kind === 'tool') msg.tool_calls = [{ id: 'call_deck332_1', type: 'function', function: { name: plan.name, arguments: plan.args } }];
