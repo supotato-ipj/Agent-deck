@@ -43,6 +43,7 @@ const { createPanelHandle } = require('./lib/panel-control');
 const { startCannedLlm } = require('./lib/canned-llm');
 const { startMediaFixture } = require('./lib/media-fixture');
 const { startHttpFixture } = require('./lib/http-fixture');
+const { cleanupBatteryArtifacts } = require('./lib/battery-cleanup');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '332-conversation-events.jsonl');
@@ -190,6 +191,14 @@ async function main() {
   const rep = new Report('332-conversation', { scope: parseAcceptScope(process.argv) });
   const userData = app.getPath('userData');
   const configRaw = readConfigRaw();
+  // 自清场（2026-11-01 事故补）：验收面板与用户常驻面板共用 userData——上一轮崩溃残留的
+  // 测试包/授权账行/会话会作为「残留插件卡」出现在用户桌面上，开跑先清一遍。
+  try {
+    const cleanedAtStart = cleanupBatteryArtifacts(userData);
+    if ((cleanedAtStart.packages || []).length || cleanedAtStart.grants || cleanedAtStart.sessions) {
+      console.log(`[accept] 启动自清场：packages=${JSON.stringify(cleanedAtStart.packages)} grants=${cleanedAtStart.grants} sessions=${cleanedAtStart.sessions}`);
+    }
+  } catch { /* 清场失败不阻塞验收 */ }
   const dshHome = path.join(userData, 'dsh-home');
   const metaFile = path.join(userData, 'conversation', 'metadata.json');
   let llm = null;
@@ -1678,6 +1687,13 @@ PKGDIR=${pkgDirM}` });
     // 清场：config 原样还原、罐头关停、探针文件删除（含观察口端口文件）、C3 全新目录、面板强退（验证消失）
     try { await handle.stop(); } catch { /* 尽力 */ }
     try { restoreConfig(configRaw); } catch { /* 尽力 */ }
+    // 收尾自清场：本轮装的测试包/授权账行/会话/备份/（全属测试的）审计档——不留到用户桌面
+    try {
+      const cleanedAtEnd = cleanupBatteryArtifacts(userData);
+      if ((cleanedAtEnd.packages || []).length || cleanedAtEnd.grants || cleanedAtEnd.sessions) {
+        console.log(`[accept] 收尾自清场：packages=${JSON.stringify(cleanedAtEnd.packages)} grants=${cleanedAtEnd.grants} sessions=${cleanedAtEnd.sessions} backups=${JSON.stringify(cleanedAtEnd.backups)} audits=${JSON.stringify(cleanedAtEnd.audits)}`);
+      }
+    } catch { /* 清场失败不影响判决 */ }
     try { if (llm) await llm.close(); } catch { /* 尽力 */ }
     try { fs.rmSync(ESCALATION_FILE, { force: true }); } catch { /* 尽力 */ }
     try { fs.rmSync(PROBE_PORT_FILE, { force: true }); } catch { /* 尽力 */ }
