@@ -1225,8 +1225,14 @@ async function main() {
         pasteRow && !pasteRow.disabled
           ? rep.pass(`PASTE 行可用（needs:'pasteable' 读剪贴板实况）：剪贴板里有真文件时使能`)
           : rep.fail(`PASTE 行可用性异常：${JSON.stringify(pasteRow)}`);
-        if (menu && menu.rows.length === 1) {
-          await clickAt({ x: menu.rect.x + menu.rect.w / 2, y: menu.rect.y + menu.rect.h / 2, w: 2, h: 2 });
+        // 工单291（spec #353）：继续条件改按 PASTE 行的实况裁决——不看菜单行数。
+        // 工单187 裁决②让 NEW GROUP 在固有扩展组卡上恒可见，这张菜单恒两行，旧的「只有一行」
+        // 判据恒假 → 整块被静默跳过，段账只剩 PASTE 可用那一条断言（段名在账、断言不在场）。
+        // PASTE 行在且未置灰才继续；不成立时上面那条「PASTE 可用性」断言已显式报红，此处不重复记账。
+        if (pasteRow && !pasteRow.disabled) {
+          // 按行 id 落点，不点整张菜单的几何正中：两行菜单的正中恰好落在 PASTE 与 NEW GROUP 之间，点正中等于掷硬币。
+          const pastePoint = rowPoint(menu, 'paste');
+          if (pastePoint) await clickAt(pastePoint);
           const routed = await tape.wait('doc-group-cards-paste-routed', undefined, { since: tP, timeoutMs: 10000 });
           const landed = await until(() => desktopHas(desktop, 's1.txt'), 10000, 250);
           const tempCard = await until(async () => {
