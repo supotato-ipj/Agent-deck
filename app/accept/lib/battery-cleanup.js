@@ -12,7 +12,9 @@
  * - 换代备份 `plugins-backup/old-<id>-*`；
  * - 待装载区（整目录，重新按需创建）；
  * - 对话窗元数据里 label 以 `accept-` 开头的会话行及其 cwd 工作目录；
- * - 审计档：**仅当全文所有记录都属于电池包时**整份删除（有真实用户记录就保留——审计不能因测试被删）。
+ * - 审计档：**仅当全文所有记录都属于电池包时**整份删除（有真实用户记录就保留——审计不能因测试被删）；
+ * - DSH provider 路由补丁（`dsh-home/profiles/acp/cordis.patch.yml`）：电池会把 provider 指到
+ *   一次性罐头 LLM（端口随进程消失），补丁留着会让用户真实对话全连不上——标记命中即还原为空补丁。
  *
  * 调用点：电池启动时一次（清上一轮崩溃残留）+ finally 里一次（面板停掉之后）。
  * 纯 node:fs，无 Electron 依赖。
@@ -104,7 +106,7 @@ function cleanAuditIfBatteryOnly(file) {
   return removeSafe(file);
 }
 
-/** 对话窗元数据：删掉 label 以 accept- 开头的会话行与它们的 cwd 目录 */
+/** 对话窗元数据：删掉 label 以 accept- 开头的会话行、它们的 cwd 目录与 DSH 侧会话缓存 */
 function cleanSessions(userData) {
   const metaFile = path.join(userData, 'conversation', 'metadata.json');
   let raw;
@@ -131,8 +133,12 @@ function cleanSessions(userData) {
   }
   for (const s of dropped) {
     const id = typeof s.id === 'string' ? s.id : null;
-    if (!id) continue;
-    removeSafe(path.join(userData, 'conversation', 'cwd', id));
+    if (id) removeSafe(path.join(userData, 'conversation', 'cwd', id));
+    // DSH 自己的 session 投影缓存（backendSessionId 命名；孤儿缓存不清会一直堆）
+    const backendId = typeof s.backendSessionId === 'string' ? s.backendSessionId : null;
+    if (backendId && /^[a-zA-Z0-9-]+$/.test(backendId)) {
+      removeSafe(path.join(userData, 'dsh-home', 'storages', 'session_projcache', 'sessions', `${backendId}.json`));
+    }
   }
   return dropped.length;
 }
@@ -140,10 +146,10 @@ function cleanSessions(userData) {
 /**
  * 清场主入口：返回做了什么（供电池日志留痕）。
  * @param {string} userData 面板 userData 根
- * @returns {{ packages: string[], grants: number, configs: string[], backups: string[], sessions: number, audits: string[] }}
+ * @returns {{ packages: string[], grants: number, configs: string[], backups: string[], sessions: number, audits: string[], dshPatchReset?: boolean }}
  */
 function cleanupBatteryArtifacts(userData) {
-  const report = { packages: [], grants: 0, configs: [], backups: [], sessions: 0, audits: [] };
+  const report = { packages: [], grants: 0, configs: [], backups: [], sessions: 0, audits: [], dshPatchReset: false };
 
   // 1) 投放包目录
   const pluginsRoot = path.join(userData, 'plugins');
@@ -177,7 +183,18 @@ function cleanupBatteryArtifacts(userData) {
   // 6) 会话行 + cwd
   report.sessions = cleanSessions(userData);
 
-  // 7) 审计档（只在全属电池包时删）
+  // 7) DSH provider 路由补丁：电池把 provider 指到一次性罐头 LLM（端口会失效），
+  //    补丁留着会让用户真实对话全连不上——标记命中就还原为空补丁（其余补丁内容不碰）
+  const patchFile = path.join(userData, 'dsh-home', 'profiles', 'acp', 'cordis.patch.yml');
+  try {
+    const patch = fs.readFileSync(patchFile, 'utf8');
+    if (patch.includes('DECK_CHAT_ACCEPT_LLM_KEY')) {
+      fs.writeFileSync(patchFile, '[]\n', 'utf8');
+      report.dshPatchReset = true;
+    }
+  } catch { /* 无补丁文件 = 无需处理 */ }
+
+  // 8) 审计档（只在全属电池包时删）
   for (const name of ['media-audit.jsonl', 'network-audit.jsonl']) {
     if (cleanAuditIfBatteryOnly(path.join(userData, name))) report.audits.push(name);
   }
