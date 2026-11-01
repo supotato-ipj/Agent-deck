@@ -47,6 +47,15 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
    ```
 
    裸 `gh` 直连常被重置；裸 `git` 不是必然失败（`git ls-remote` 直连实测可用），但别把「有时能直连」当成有代理兜底。push 卡住时先确认自己设了代理或设了超时，别空等。
+
+   **代理没在跑时的兜底（2026-11-01 实测）**：本机 `127.0.0.1:1080` 的 SOCKS 代理可能压根没起（`Test-NetConnection 127.0.0.1 -Port 1080` → `TcpTestSucceeded=False`），此时上面的代理写法不成立。实测此时的通路是**直连 + HTTP/2**：仓库 `.git/config` 钉的 `[http] version = HTTP/1.1` 会被 GitHub 重置（`Recv failure: Connection was reset` 或 `Failed to connect to github.com:443`），而同一时刻 `api.github.com` 是通的（`curl` 200、gh 全套 API 正常）——**只挡 `github.com` 的 TLS/SNI 通路**。所以 `gh` 那套照常用，`git` 侧显式覆成 HTTP/2 并允许重试：
+
+   ```powershell
+   git -c http.version=HTTP/2 push -u origin feat/<slug>      # 重试到 exit=0 为止
+   git -c http.version=HTTP/2 pull --ff-only                    # master 快进同理
+   ```
+
+   直连链路本身是间歇性的（同一分钟内 `ls-remote` 可能成也可能败），**别把一次失败当成路不通就改用 API 拼 commit**——重试 2~4 次通常就成了；`gh pr create` 走 `api.github.com`，不受此影响。
 3. **master 快进**：主检出执行 `git checkout master && git pull --ff-only`。主检出的 `app/` 是开机自启目标，每次合流后都要快进保持最新。完成判据：`git rev-parse master origin/master` 输出相等。
 4. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。远端分支由仓库的「合并后自动删除」接管（PR 合并即清），清理清单**不含远端分支项**，也不要提议删除已合并 PR 的远端分支；删未合并在途分支的保护规则见 AGENTS.md 远端分支纪律。
 
