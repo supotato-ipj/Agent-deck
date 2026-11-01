@@ -1,0 +1,94 @@
+工单291（spec #353）P186 守卫修复 —— doc-group-cards 真机轮取证与红轮定责
+
+取证方式：accept-guard 托管轮（node D:\test-folder\.accept-guard\guard.mjs hold --as mcode
+--purpose accept-sprint -- npm run accept:doc-group-cards -- --accept-scope=P186），全程无裸跑；
+每轮轮前清各检出面板进程、轮末自动释放验收槽。分支轮在集成分支 feat/291-p186-guard-fix
+@5085d77 的检出上跑，基线轮在 origin/master@533330e 的一次性 worktree 上跑。
+
+一、本票取证面：P186 段由「静默跳过」恢复为四条断言实跑
+
+  P186 段账（三轮对照）
+  ┌──────────────────┬────────────────────┬──────────────────────────────┐
+  │ 轮次             │ P186 段账          │ 说明                         │
+  ├──────────────────┼────────────────────┼──────────────────────────────┤
+  │ 分支轮 1 @5085d77│ pass=4 fail=0      │ took=15.6s —— 四臂实跑       │
+  │ 分支轮 2 @5085d77│ pass=4 fail=0      │ took=25.9s —— 轮2 为健康轮    │
+  │ 基线轮 @533330e  │ pass=1 fail=0      │ took=3.9s —— 旧守卫恒假形态  │
+  └──────────────────┴────────────────────┴──────────────────────────────┘
+
+  基线轮 pass=1、took=3.9s 即工单291 票面所述「静默失效的守卫」旧形态：段账只剩
+  「PASTE 可用」一条断言，路由/置灰/解散三臂整体未执行，段仍报 PASS。分支轮 pass=4、
+  took 15.6s/25.9s 即修复后形态——三臂真正跑起来了。
+
+  四条断言逐条在场（分支轮 2 原文，见 291-round2-doc-group-cards.log.txt）
+  ① PASS  PASTE 行可用（needs:'pasteable' 读剪贴板实况）：剪贴板里有真文件时使能
+  ② PASS  路由态一（固有卡 → 新临时卡）：PASTE 落出临时卡 dgc-t1（0 格），文件落桌面根而磁盘
+          未搬动（暂存原样 true）
+  ③ PASS  PASTE 置灰态：剪贴板无文件时该行仍在列但置灰（点了没反应，菜单也不收）
+  ④ PASS  解散回落：临时卡退场，其名下文件回到固有 TXT 卡，磁盘清单前后一致（14 份，未动）
+          ——组卡是归属概念不是目录
+
+  三类日志存证（spec 要求「路由、置灰、解散三类日志均在场」）
+  · 路由：NOTE  paste-routed 存证：{"cardId":"dgc-t1","kind":"temp"}
+  · 置灰：NOTE  临时卡组卡菜单行：paste(灰), new-group, edit-types, dissolve
+          （PASTE 行在列且置灰——置灰态与「PASTE 缺行」是两回事，前者合契约）
+  · 解散：NOTE  临时卡开层存证：cardId="dgc-t1" rows=["paste","new-group","edit-types","dissolve"]
+          ｜磁盘组定义 temps=[{"id":"dgc-t1",...,"names":["s1.txt"]}]
+          NOTE  DISSOLVE 确认层：在场（文案「DISSOLVE CARD? 临时 11-01 13:28 01 s1.txt」）
+
+  范围段声明：--accept-scope=P186 已过清单硬交叉校验（段号在 166 电池清单内），
+  verdict 行带 scope=P186，轮末「清单范围段 P186」条目在位。
+
+  段级清单不变：P186 实测 took=15.6s / 25.9s，均低于清单 est 30s ⇒ 按章法「实测偏差过大才
+  同 PR 校准」，本票不动 estSeconds（manifest.json 本次零改动）。
+
+二、红轮与基线判别（章法 flaky 流程三步已走全）
+
+  重试：分支两轮（分支轮 1 / 分支轮 2）。
+  基线判别：origin/master@533330e（无工单291 改动）同夜同机同时段一次性 worktree 同款电池。
+
+  轮次        verdict                     P179        P184        P180        P186
+  分支轮 1    FAIL-CODE (49/6)            fail=1      fail=5      pass=8/0    pass=4 fail=0
+  分支轮 2    FAIL-CODE (54/1)            fail=1      pass=5/0    pass=8/0    pass=4 fail=0
+  基线轮      FAIL-CODE (45/7)            fail=1      fail=5      fail=1      pass=1 fail=0
+
+  ① P179「整排几何：居中偏差=10.00 垂直居中=false 格点对齐=true 序递增=true id唯一=true」
+     —— 分支两轮恒红、基线同红且偏差同值 10.00 ⇒ 基线同挂，非工单291 引入。
+
+  ② P184 五红（多选开关 on=false event=false 邻卡=false／点选切换 两格未同时在选／
+     框选 拖拽带=false 入选=0 multiOn=false／ENTER 批量启动 event=null 选区=0／
+     多选菜单 选区=0 格）—— 分支轮 1 红、分支轮 2 绿、基线红 ⇒ 跨轮漂移的输入注入敏感相，
+     基线同症，非工单291 引入（且本票 diff 物理上不可能影响 P184：diff 全在 P186 段内，
+     P186 段在 P184 段之后执行）。
+
+  ③ P180 问B「入场首拍丢失，驻留后丢失，三拍后=0」—— 仅基线红，分支两轮皆绿 ⇒
+     机器态噪声；分支轮环境面优于基线轮。
+
+  定责留痕：已开票 #354（166 电池 P179 两轮恒红 + P184 五红跨轮漂移——基线判别坐实非工单291
+  引入，workArea 1392→1440 机器态嫌疑）。本票不追改该三处。
+
+三、红轮的机器态线索（workArea 高度漂移）
+
+  面板坐标映射随屏读数：
+  · 2026-10-30 的 213 轮（仓库内 213-doc-group-cards.log.txt）：bounds 2560×1440 /
+    workArea 2560×1392（任务栏占位 48px）⇒ P179 pass=6 fail=0。
+  · 2026-11-01 本轮三跑：bounds 2560×1440 / workArea 2560×1440（任务栏不再占位）⇒ P179 恒红。
+
+  「整排几何」判的是卡排相对 workArea 的垂直居中，workArea 高度差 48px 与「居中偏差=10.00、
+  垂直居中=false」的失配方向一致。嫌疑机器态：原生任务栏自动隐藏/占位状态在 213 轮之后
+  被改（机器上另有并行检出在动原生栏，见工单293「原生栏抑制」与 #321「过滤 Shell 宿主」两域）。
+
+四、干扰面与未入库存物
+
+  · 像素证据不因本票新增入库：本轮截图通道异常（Error processing argument at index 0,
+    conversion failure from display=…），四张截图均「跳过…不影响断言」，故本轮无新增 PNG。
+  · 文本审计链（verdict／段账目／事件流 jsonl／文本 log）随本 PR 入库：
+    291-round1-doc-group-cards.log.txt / .events.jsonl   （分支轮 1）
+    291-round2-doc-group-cards.log.txt / .events.jsonl   （分支轮 2，健康轮）
+    291-baseline-doc-group-cards.log.txt / .events.jsonl （基线轮）
+    291-attribution.txt                                 （本件）
+    另按既有惯例更新正本 166-doc-group-cards.log.txt / .events.jsonl / 166-panel-child.log。
+  · 离线三项自检（npm run build && npm run typecheck && npm test）：134 文件 / 2605 用例 /
+    0 失败；exit 1 系本机既有 vitest worker「Timeout calling "onTaskUpdate"」超时，基线同现
+    （已用「改动暂存回退再跑」复跑坐实，非本票引入）；另 tests/contract.spec.ts 偶发 EPERM
+    rename flake，单跑 107/107 绿。
