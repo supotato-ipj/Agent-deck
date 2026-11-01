@@ -731,17 +731,12 @@ async function main() {
         ? rep.pass(`24×24 残留带定案（文档并接受）：最新热区申报里 doc-zone 恰为 (${band.x},${band.y},${band.w},${band.h})，与 ZONE_HOTZONE_PAD_PX=${pad} 同值——它不是零尺寸矩形漏网（零尺寸矩形在 main.ts:1575 被 filter 掉），而是零尺寸矩形被外扩撑成的带`)
         : rep.fail(`残留带尺寸与成因不符：band=${JSON.stringify(band)} ZONE_HOTZONE_PAD_PX=${pad}`);
 
-      // 整排几何：左到右、整行水平居中、按视口垂直居中、组序稳定、id 唯一
+      // 整排几何：20px 格点对齐、卡 id 唯一（组序稳定另有一条断言）
       const cards = await cdpEval(EXPR.cards);
-      const vp = await cdpEval(EXPR.viewport);
       const rowLeft = Math.min(...cards.map((c) => c.x));
       const rowRight = Math.max(...cards.map((c) => c.x + c.w));
-      const rowCenter = (rowLeft + rowRight) / 2;
-      const centerOff = Math.abs(rowCenter - vp.w / 2);
       const ids = cards.map((c) => c.id);
       const uniq = new Set(ids).size === ids.length;
-      const yOk = cards.every((c) => Math.abs((c.y + c.h / 2) - vp.h / 2) <= 24);
-      const orderOk = ids.every((id, i) => i === 0 || cards[i - 1].x <= cards[i].x);
       const gridAligned = cards.every((c) => c.x % 20 === 0 && c.y % 20 === 0);
       const txtCard = cards.find((c) => c.id === 'dgc-txt');
       const pdfCard = cards.find((c) => c.id === 'dgc-pdf');
@@ -749,9 +744,15 @@ async function main() {
       cards.length >= 3 && txtCard && pdfCard && zipCard
         ? rep.pass(`整排在场：${cards.length} 张卡（${ids.join(', ')}），卡 id 全表唯一=${uniq}`)
         : rep.fail(`整排异常：ids=${JSON.stringify(ids)} txt=${!!txtCard} pdf=${!!pdfCard} zip=${!!zipCard}`);
-      centerOff <= 24 && yOk && orderOk && uniq && gridAligned
-        ? rep.pass(`整排几何（工单310 宿主持有位置）：水平居中偏差 ${centerOff.toFixed(2)}px（≤24，20px 格点量化残差），逐卡垂直居中偏差 ≤24，四边对齐 20px 格线，左到右序递增，id 唯一`)
-        : rep.fail(`整排几何：居中偏差=${centerOff.toFixed(2)} 垂直居中=${yOk} 格点对齐=${gridAligned} 序递增=${orderOk} id唯一=${uniq}`);
+      // 工单310（ADR-0024）起桌面组件摆位收归宿主 20px 网格：宿主独占内联几何，插件只发布
+      // data-placement-auto-* 供宿主取默认位，组卡从此是独立格点、不保证共行——旧判据里的
+      // 「整排水平居中」「逐卡垂直居中」「左到右序递增」编码的是插件自持摆位时代的不变式，
+      // ADR-0024 后产品契约不再保证，真值还取决于用户自己的手定位（layout.json v2 的 cards
+      // 只记手定位）。故按 #354 把断言面收窄到不依赖用户摆位的不变量：20px 格点对齐 + 卡 id 唯一；
+      // 宿主网格契约的真断言面在 310 电池 P4（新增组卡落最近空位、旧卡一张未挪）。
+      uniq && gridAligned
+        ? rep.pass(`整排几何成立（工单310/ADR-0024 宿主持有位置）：${cards.length} 张卡落点全在 20px 格线上（x/y 皆 20 的整数倍）、卡 id 全表唯一=${uniq}；不判整排居中与左右序（位次随用户手定位而变）`)
+        : rep.fail(`整排几何：格点对齐=${gridAligned} id唯一=${uniq} 卡数=${cards.length}`);
       // 组序稳定：表内扩展名按 EXT_GROUP_ORDER、表外统一按字母序兜底（grouping.js sortGroupKeys 同款排法）
       const order = fs.readFileSync(path.join(APP_ROOT, 'plugins', 'doc-group-cards', 'grouping.js'), 'utf8');
       const table = (order.match(/EXT_GROUP_ORDER\s*=\s*\[([\s\S]*?)\]/) || [])[1] || '';

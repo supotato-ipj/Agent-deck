@@ -1,121 +1,121 @@
-# accept 166-doc-group-cards — 2026-11-01T05:26:07.127Z
-[05:26:08.683] NOTE  插件私有根（私有，绝不落共享根）：C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins
-[05:26:08.939] NOTE  install-plugin --root 就位：C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards\plugin.json
-[05:26:08.983] NOTE  夹具就位：桌面 15 份，暂存 2 份
-[05:26:14.278] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1440} 视口={"w":2560,"h":1440} scale=1.0000
-[05:26:14.305] SEG   ▶ P178 插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验）｜工单178｜失效面=事件存证+系统状态
-[05:26:14.315] PASS  跨进程读回成立：面板页 invoke('plugin-config/get') 返回 {config, warnings} 形状（warnings=[]）
-[05:26:14.668] PASS  落盘面成立：set 之后 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugin-config\doc-group-cards.json 即为 22 字节且含新键，get 读回同值
-[05:26:14.695] PASS  命名空间隔离成立：deck187-probe 落 deck187-probe.json，doc-group-cards 文件逐字节未变（同）
-[05:26:14.702] NOTE  已把 doc-group-cards.json 写成坏 JSON，重启面板验自愈面
-[05:26:20.231] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1440} 视口={"w":2560,"h":1440} scale=1.0000
-[05:26:20.268] PASS  坏值自愈成立：坏 JSON 视同空对象并记 warning（plugin-config 文件不是合法 JSON，已视同空对象），插件照常装载
-[05:26:20.271] NOTE  P178 契约面收尾：插件私有状态已复位，后续段从零定义起
-[05:26:20.273] SEG   ▶ P179 装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排左到右·水平与垂直居中·组序稳定·卡 id 唯一｜工单179｜失效面=像素+事件存证+系统状态
-[05:26:20.287] PASS  装载接管成立：doc-group-cards-mounted 存证在档，插件容器与自带样式表均在场
-[05:26:20.291] PASS  成因链在场：文档区 display:none 且矩形 0×0（零尺寸），而「分区非空」判据仍数到 18 个 .ditem 子节点
-[05:26:20.292] PASS  24×24 残留带定案（文档并接受）：最新热区申报里 doc-zone 恰为 (0,0,24,24)，与 ZONE_HOTZONE_PAD_PX=24 同值——它不是零尺寸矩形漏网（零尺寸矩形在 main.ts:1575 被 filter 掉），而是零尺寸矩形被外扩撑成的带
-[05:26:20.308] PASS  整排在场：5 张卡（dgc-txt, dgc-docx, dgc-pdf, dgc-jpg, dgc-zip），卡 id 全表唯一=true
-[05:26:20.310] FAIL  整排几何：居中偏差=10.00 垂直居中=false 格点对齐=true 序递增=true id唯一=true
-[05:26:20.313] PASS  组序稳定：卡序与 EXT_GROUP_ORDER 一致（表内按表序、表外 indexOf=-1 排在表前且按字母序），无到达序依赖——ranks=[-1,1,11,13,22]
-[05:26:21.338] NOTE  截图通道异常（跳过 187-p179-cards，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
-[05:26:21.340] SEG   ▶ P180 折叠/展开与滚动：溢出隐藏且一屏 6 格·+N 徽标自洽 / 展开 2×/4× + 其余卡淡出 + 按自身高度重新垂直居中 / 展开后热区即时重申报（DOM 矩形互证）+ 新露出的第 7 格立刻可点 / 纵向滚动条成立 / 首拍滚轮真机实测（问B：入场首拍是否丢失、驻留后一拍、连打三拍）｜工单180｜失效面=输入注入+像素+事件存证
-[05:26:21.352] PASS  折叠态溢出隐藏：内容区 overflow-y=hidden，一屏露 6 格、藏 4 格（藏而不丢：DOM 里 [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object] 格全在）
-[05:26:21.354] PASS  +N 徽标正确：卡片实况 [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object] 格 − 一屏 6 格 = 藏 4，徽标文本「+4」
-[05:26:22.134] NOTE  截图通道异常（跳过 187-p180-collapsed，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
-[05:26:28.853] PASS  展开态 640×980（2×宽 / 约4×高）：320×240 → 640×980，保折叠位中心放大（偏差 0.00/0.00px），其余 4 张卡淡出
-[05:26:28.862] PASS  淡出卡形态：dgc-docx opacity=0.06、pointer-events=none（工单167：淡出卡卡框塌成 0×0 → 主进程那侧扫 .card 取零尺寸矩形、按 main.ts:1575 滤掉 → 不再声明热区，那一带真正穿透回桌面，不再是「看得见的死区」）
-[05:26:28.866] PASS  热区重申报：展开后最新热区矩形与 DOM 矩形互证一致（{"id":"dgc-txt","x":280,"y":230,"w":640,"h":980}）——新露出的那圈立即可点
-[05:26:29.567] NOTE  截图通道异常（跳过 187-p180-expanded，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
-[05:26:29.973] PASS  新露区域立即可点：折叠态看不见的第 7 格（DGC187-t5.txt）点中即高亮，无需等下一拍
-[05:26:31.284] PASS  纵向滚动条：展开内容区 overflow-y=auto，可滚余量 136px（scrollHeight=1052 / clientHeight=916，66 份夹具）
-[05:26:34.451] NOTE  问B 实测：入场首拍 scrollTop 0→null（丢失，首个 scroll 事件滞后 n/a）；驻留后一拍 0→1；连打三拍 1→136
-[05:26:34.452] PASS  问B 结论（真机）：入场首拍**丢失**（丢 1 拍），驻留后一拍必达（0→1），连打三拍 1→136 全部生效——SendInput 队列与 setIgnoreMouseEvents→合成器延迟两项残差的净效应 = 入场丢至多 1 拍、其后无丢，与离线模型同口径
-[05:26:34.952] NOTE  滚轮用例夹具已撤（rtf 批量 66 份），其余夹具留着给后续段
-[05:26:36.690] SEG   ▶ P181 卡级交互：点图标格只高亮不改卡框（逐像素不变、不折叠）/再点一格仍不改形状/空白处折叠↔展开往复幂等/+N 徽标与空白同一裁决/双击图标走既有 launch 契约起真进程｜工单181｜失效面=输入注入+事件存证
-[05:26:44.157] PASS  点图标只高亮不改形状：该格亮起（.dgc-selected），卡框逐像素未变（320×240），卡片未展开
-[05:26:44.554] PASS  高亮是插件自建的一套：再点一格后高亮 1 格，卡框仍逐像素不变，也不伪造内核 desktop-selected 存证族
-[05:26:45.467] PASS  空白处往复切换：折叠→展开（640×980）→折叠回原矩形，往复幂等
-[05:26:45.896] PASS  徽标与空白同一裁决：点「+4」徽标同样切到展开态（isCardToggle 单一出口）
-[05:26:46.873] PASS  双击启动成立：存证 DGC187-del1.txt（DGC187-del1.txt），文件确在桌面扫描池内
-[05:26:46.876] SEG   ▶ P182 自绘菜单外壳与只读五项：图标格右键出 #dgc-menu + 全屏 .card 遮罩 + 开层期间全窗热区（不让穿透）/OPEN·OPEN LOCATION·COPY PATH·COPY·CUT 在列/菜单外一击与 Esc 都收场且全窗热区即撤、24×24 残留带回位｜工单182｜失效面=输入注入+事件存证
-[05:26:47.352] PASS  文件菜单只读五项在列：OPEN / OPEN LOCATION / COPY PATH / COPY / CUT / RENAME / DELETE（外加工单183 的 RENAME / DELETE 共 7 行）
-[05:26:47.354] NOTE  遮罩形态：overlay={"x":0,"y":0,"w":2560,"h":1440} isCard=true
-[05:26:47.357] PASS  开层期间面板不让穿透：热区申报里出现全窗矩形 {"id":"dgc-overlay","x":0,"y":0,"w":2560,"h":1440}，菜单外的一击收得到
-[05:26:47.897] NOTE  菜单外点击收场：closed=true
-[05:26:54.924] PASS  菜单外点击与 Esc 都收场：两次开层分别由屏外一击与 Esc 收掉（存证族在档）
-[05:26:54.927] PASS  关层即撤全窗热区：doc-zone 残留带回到 (0,0,24,24)，没留死区
-[05:26:54.928] SEG   ▶ P183 写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②）｜工单183｜失效面=输入注入+事件存证
-[05:26:55.376] PASS  文件菜单七行齐：OPEN / OPEN LOCATION / COPY PATH / COPY / CUT / RENAME / DELETE（破坏性的 DELETE 收尾）
-[05:26:56.366] PASS  RENAME 带内联编辑器：输入框在场（草稿「DGC187-ren1.txt」，扩展名之前的部分已预选），改名走内核 desktop/rename 一对一契约
-[05:26:57.071] PASS  RENAME 提交成立：DGC187-ren1.txt → DGC187-ren2.txt（真实改名，扫描池随 watch 更新）
-[05:27:04.992] PASS  DELETE 带确认层：确认框在场（文案「DELETE 1 ITEM?
+# accept 166-doc-group-cards — 2026-11-01T07:07:03.941Z
+[07:07:05.209] NOTE  插件私有根（私有，绝不落共享根）：C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins
+[07:07:05.412] NOTE  install-plugin --root 就位：C:\Users\ANW~1\AppData\Local\Temp\deck187-plugins\doc-group-cards\plugin.json
+[07:07:05.438] NOTE  夹具就位：桌面 15 份，暂存 2 份
+[07:07:09.551] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1440} 视口={"w":2560,"h":1440} scale=1.0000
+[07:07:09.565] SEG   ▶ P178 插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验）｜工单178｜失效面=事件存证+系统状态
+[07:07:09.575] PASS  跨进程读回成立：面板页 invoke('plugin-config/get') 返回 {config, warnings} 形状（warnings=[]）
+[07:07:09.599] PASS  落盘面成立：set 之后 C:\Users\An W\AppData\Roaming\agent-deck-panel\plugin-config\doc-group-cards.json 即为 22 字节且含新键，get 读回同值
+[07:07:09.622] PASS  命名空间隔离成立：deck187-probe 落 deck187-probe.json，doc-group-cards 文件逐字节未变（同）
+[07:07:09.628] NOTE  已把 doc-group-cards.json 写成坏 JSON，重启面板验自愈面
+[07:07:14.251] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1440} 视口={"w":2560,"h":1440} scale=1.0000
+[07:07:14.315] PASS  坏值自愈成立：坏 JSON 视同空对象并记 warning（plugin-config 文件不是合法 JSON，已视同空对象），插件照常装载
+[07:07:14.319] NOTE  P178 契约面收尾：插件私有状态已复位，后续段从零定义起
+[07:07:14.321] SEG   ▶ P179 装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排 20px 格点对齐·组序稳定·卡 id 唯一（#354 按 ADR-0024 收窄：摆位收归宿主 20px 网格后，整排居中与左右序不再由产品契约保证，故不再断言）｜工单179｜失效面=像素+事件存证+系统状态
+[07:07:14.337] PASS  装载接管成立：doc-group-cards-mounted 存证在档，插件容器与自带样式表均在场
+[07:07:14.340] PASS  成因链在场：文档区 display:none 且矩形 0×0（零尺寸），而「分区非空」判据仍数到 18 个 .ditem 子节点
+[07:07:14.342] PASS  24×24 残留带定案（文档并接受）：最新热区申报里 doc-zone 恰为 (0,0,24,24)，与 ZONE_HOTZONE_PAD_PX=24 同值——它不是零尺寸矩形漏网（零尺寸矩形在 main.ts:1575 被 filter 掉），而是零尺寸矩形被外扩撑成的带
+[07:07:14.349] PASS  整排在场：5 张卡（dgc-txt, dgc-docx, dgc-pdf, dgc-jpg, dgc-zip），卡 id 全表唯一=true
+[07:07:14.351] PASS  整排几何成立（工单310/ADR-0024 宿主持有位置）：5 张卡落点全在 20px 格线上（x/y 皆 20 的整数倍）、卡 id 全表唯一=true；不判整排居中与左右序（位次随用户手定位而变）
+[07:07:14.354] PASS  组序稳定：卡序与 EXT_GROUP_ORDER 一致（表内按表序、表外 indexOf=-1 排在表前且按字母序），无到达序依赖——ranks=[-1,1,11,13,22]
+[07:07:15.182] NOTE  截图通道异常（跳过 187-p179-cards，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
+[07:07:15.184] SEG   ▶ P180 折叠/展开与滚动：溢出隐藏且一屏 6 格·+N 徽标自洽 / 展开 2×/4× + 其余卡淡出 + 按自身高度重新垂直居中 / 展开后热区即时重申报（DOM 矩形互证）+ 新露出的第 7 格立刻可点 / 纵向滚动条成立 / 首拍滚轮真机实测（问B：入场首拍是否丢失、驻留后一拍、连打三拍）｜工单180｜失效面=输入注入+像素+事件存证
+[07:07:15.194] PASS  折叠态溢出隐藏：内容区 overflow-y=hidden，一屏露 6 格、藏 4 格（藏而不丢：DOM 里 [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object] 格全在）
+[07:07:15.196] PASS  +N 徽标正确：卡片实况 [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object] 格 − 一屏 6 格 = 藏 4，徽标文本「+4」
+[07:07:15.803] NOTE  截图通道异常（跳过 187-p180-collapsed，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
+[07:07:22.519] PASS  展开态 640×980（2×宽 / 约4×高）：320×240 → 640×980，保折叠位中心放大（偏差 0.00/0.00px），其余 4 张卡淡出
+[07:07:22.526] PASS  淡出卡形态：dgc-docx opacity=0.06、pointer-events=none（工单167：淡出卡卡框塌成 0×0 → 主进程那侧扫 .card 取零尺寸矩形、按 main.ts:1575 滤掉 → 不再声明热区，那一带真正穿透回桌面，不再是「看得见的死区」）
+[07:07:22.529] PASS  热区重申报：展开后最新热区矩形与 DOM 矩形互证一致（{"id":"dgc-txt","x":280,"y":230,"w":640,"h":980}）——新露出的那圈立即可点
+[07:07:23.244] NOTE  截图通道异常（跳过 187-p180-expanded，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
+[07:07:23.638] PASS  新露区域立即可点：折叠态看不见的第 7 格（DGC187-t5.txt）点中即高亮，无需等下一拍
+[07:07:25.742] PASS  纵向滚动条：展开内容区 overflow-y=auto，可滚余量 136px（scrollHeight=1052 / clientHeight=916，66 份夹具）
+[07:07:30.202] NOTE  问B 实测：入场首拍 scrollTop 0→null（丢失，首个 scroll 事件滞后 n/a）；驻留后一拍 0→null；连打三拍 0→0
+[07:07:30.203] FAIL  问B 与离线模型不一致：入场首拍丢失，驻留后丢失，三拍后=0（明细见 NOTE）
+[07:07:30.718] NOTE  滚轮用例夹具已撤（rtf 批量 66 份），其余夹具留着给后续段
+[07:07:32.477] SEG   ▶ P181 卡级交互：点图标格只高亮不改卡框（逐像素不变、不折叠）/再点一格仍不改形状/空白处折叠↔展开往复幂等/+N 徽标与空白同一裁决/双击图标走既有 launch 契约起真进程｜工单181｜失效面=输入注入+事件存证
+[07:07:39.922] PASS  点图标只高亮不改形状：该格亮起（.dgc-selected），卡框逐像素未变（320×240），卡片未展开
+[07:07:40.336] PASS  高亮是插件自建的一套：再点一格后高亮 1 格，卡框仍逐像素不变，也不伪造内核 desktop-selected 存证族
+[07:07:41.221] PASS  空白处往复切换：折叠→展开（640×980）→折叠回原矩形，往复幂等
+[07:07:41.645] PASS  徽标与空白同一裁决：点「+4」徽标同样切到展开态（isCardToggle 单一出口）
+[07:07:42.684] PASS  双击启动成立：存证 DGC187-del1.txt（DGC187-del1.txt），文件确在桌面扫描池内
+[07:07:42.693] SEG   ▶ P182 自绘菜单外壳与只读五项：图标格右键出 #dgc-menu + 全屏 .card 遮罩 + 开层期间全窗热区（不让穿透）/OPEN·OPEN LOCATION·COPY PATH·COPY·CUT 在列/菜单外一击与 Esc 都收场且全窗热区即撤、24×24 残留带回位｜工单182｜失效面=输入注入+事件存证
+[07:07:43.207] PASS  文件菜单只读五项在列：OPEN / OPEN LOCATION / COPY PATH / COPY / CUT / RENAME / DELETE（外加工单183 的 RENAME / DELETE 共 7 行）
+[07:07:43.209] NOTE  遮罩形态：overlay={"x":0,"y":0,"w":2560,"h":1440} isCard=true
+[07:07:43.211] PASS  开层期间面板不让穿透：热区申报里出现全窗矩形 {"id":"dgc-overlay","x":0,"y":0,"w":2560,"h":1440}，菜单外的一击收得到
+[07:07:53.969] NOTE  菜单外点击收场：closed=false
+[07:07:54.525] PASS  菜单外点击与 Esc 都收场：两次开层分别由屏外一击与 Esc 收掉（存证族在档）
+[07:07:54.526] PASS  关层即撤全窗热区：doc-zone 残留带回到 (0,0,24,24)，没留死区
+[07:07:54.528] SEG   ▶ P183 写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②）｜工单183｜失效面=输入注入+事件存证
+[07:07:54.998] PASS  文件菜单七行齐：OPEN / OPEN LOCATION / COPY PATH / COPY / CUT / RENAME / DELETE（破坏性的 DELETE 收尾）
+[07:07:56.039] PASS  RENAME 带内联编辑器：输入框在场（草稿「DGC187-ren1.txt」，扩展名之前的部分已预选），改名走内核 desktop/rename 一对一契约
+[07:07:56.747] PASS  RENAME 提交成立：DGC187-ren1.txt → DGC187-ren2.txt（真实改名，扫描池随 watch 更新）
+[07:08:04.700] PASS  DELETE 带确认层：确认框在场（文案「DELETE 1 ITEM?
 DGC187-del1.txt」），不确认不动磁盘
-[05:27:06.009] NOTE  取消分支：文件仍在原处=true
-[05:27:08.257] PASS  DELETE 确认后真删：DGC187-del1.txt 已不在桌面（desktop/trash 既有契约，回收站直进）
-[05:27:09.404] PASS  组卡菜单骨架（固有卡）：右键卡片空白出菜单，行集=PASTE + NEW GROUP——paste,new-group；NEW GROUP 建的是新卡、不改这张规则生成的卡，而 EDIT TYPES·DISSOLVE 仍不出
-[05:27:10.247] SEG   ▶ P184 卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用｜工单184｜失效面=输入注入+事件存证
-[05:27:16.998] PASS  逐卡多选开关：dgc-multi 点亮（.dgc-multi-on）+ 存证在档，另一张卡的开关不受影响（逐卡独立）
-[05:27:17.813] PASS  点选切换：两格各自点一下即两格在选（2 格），再点一格即摘（单选集合，非累加）
-[05:27:18.249] NOTE  框选段落首全表落证：[{"id":"dgc-txt","expanded":false,"faded":true,"x":440,"y":600,"w":0,"h":0},{"id":"dgc-docx","expanded":false,"faded":true,"x":1040,"y":540,"w":0,"h":0},{"id":"dgc-pdf","expanded":true,"faded":false,"x":960,"y":356,"w":640,"h":980},{"id":"dgc-jpg","expanded":false,"faded":true,"x":1380,"y":540,"w":0,"h":0},{"id":"dgc-zip","expanded":false,"faded":true,"x":1780,"y":600,"w":0,"h":0}]｜视口={"w":2560,"h":1440}
-[05:27:19.183] NOTE  框选取证：起笔点压着 {"tag":"DIV","cls":"dgc-grid","id":"","parent":"card dgc-card dgc-expanded","x":996,"y":399,"w":568,"h":916}｜按下瞬间 multiOn=true expanded=true｜拖拽中 multiOn=true 拖拽带=true 页内错误=[]
-[05:27:19.189] NOTE  框选坐标系自证：实测网格外沿 996,399｜算式外沿 980,398｜偏移 {"dx":16,"dy":1}｜松手后带子残留=false multiOn=true
-[05:27:19.190] PASS  框选成立：拖拽期间卡上有 .dgc-marquee 带，松手后 3 格入选（内容区空白起笔，不改写已有格序；网格外沿与算式外沿偏移 {"dx":16,"dy":1}）
-[05:27:19.266] PASS  ENTER 整批启动：一次回车发出 3 条（DGC187-p1.pdf, DGC187-p2.pdf, DGC187-p3.pdf），与选区同数
-[05:27:21.038] PASS  多选菜单置灰：恰一选中才可用的 OPEN LOCATION 与 RENAME 两行置灰，OPEN 仍可用（needs 单一裁决出口）；本条先把框选选中的 3 格收敛到 2 格再验
-[05:27:28.911] SEG   ▶ P186 粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录）｜工单186｜失效面=输入注入+事件存证+系统状态
-[05:27:41.616] PASS  PASTE 行可用（needs:'pasteable' 读剪贴板实况）：剪贴板里有真文件时使能
-[05:27:42.166] PASS  路由态一（固有卡 → 新临时卡）：PASTE 落出临时卡 dgc-t1（0 格），文件落桌面根而磁盘未搬动（暂存原样 true）
-[05:27:42.168] NOTE  paste-routed 存证：{"cardId":"dgc-t1","kind":"temp"}
-[05:27:51.670] PASS  PASTE 置灰态：剪贴板无文件时该行仍在列但置灰（点了没反应，菜单也不收）
-[05:27:53.041] NOTE  临时卡开层存证：cardId="dgc-t1" rows=["paste","new-group","edit-types","dissolve"]｜磁盘组定义 temps=[{"id":"dgc-t1","name":"临时 11-01 13:27 01","seq":1,"createdAtMs":1793510862076,"names":["s1.txt"]}]
-[05:27:53.535] NOTE  DISSOLVE 确认层：在场（文案「DISSOLVE CARD?
-临时 11-01 13:27 01
+[07:08:06.506] NOTE  取消分支：文件仍在原处=true
+[07:08:09.577] PASS  DELETE 确认后真删：DGC187-del1.txt 已不在桌面（desktop/trash 既有契约，回收站直进）
+[07:08:10.739] PASS  组卡菜单骨架（固有卡）：右键卡片空白出菜单，行集=PASTE + NEW GROUP——paste,new-group；NEW GROUP 建的是新卡、不改这张规则生成的卡，而 EDIT TYPES·DISSOLVE 仍不出
+[07:08:17.850] SEG   ▶ P184 卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用｜工单184｜失效面=输入注入+事件存证
+[07:08:26.692] FAIL  多选开关异常：on=false event=false 邻卡=false
+[07:08:31.575] FAIL  点选切换异常：两格未同时在选
+[07:08:37.047] NOTE  框选段落首全表落证：[{"id":"dgc-txt","expanded":false,"faded":false,"x":440,"y":600,"w":320,"h":240},{"id":"dgc-docx","expanded":false,"faded":false,"x":1040,"y":540,"w":320,"h":240},{"id":"dgc-pdf","expanded":false,"faded":false,"x":1120,"y":780,"w":320,"h":240},{"id":"dgc-jpg","expanded":false,"faded":false,"x":1380,"y":540,"w":320,"h":240},{"id":"dgc-zip","expanded":false,"faded":false,"x":1780,"y":600,"w":320,"h":240}]｜视口={"w":2560,"h":1440}
+[07:08:38.012] NOTE  框选取证：起笔点压着 {"tag":"DIV","cls":"dgc-grid","id":"","parent":"card dgc-card","x":1141,"y":823,"w":280,"h":184}｜按下瞬间 multiOn=false expanded=false｜拖拽中 multiOn=false 拖拽带=false 页内错误=[]
+[07:08:38.021] NOTE  框选坐标系自证：实测网格外沿 1141,823｜算式外沿 1140,822｜偏移 {"dx":1,"dy":1}｜松手后带子残留=false multiOn=false
+[07:08:38.023] FAIL  框选异常：拖拽带=false 入选=0 松手后带子残留=false multiOn=false 坐标系偏移={"dx":1,"dy":1} 格子数=3
+[07:08:46.034] FAIL  ENTER 批量启动异常：event=null 选区=0
+[07:08:55.711] FAIL  多选菜单异常：选区=0 格（收敛=false）rows=[{"id":"open","label":"OPEN","disabled":false},{"id":"open-location","label":"OPEN LOCATION","disabled":false},{"id":"copy-path","label":"COPY PATH","disabled":false},{"id":"copy","label":"COPY","disabled":false},{"id":"cut","label":"CUT","disabled":false},{"id":"rename","label":"RENAME","disabled":false},{"id":"delete","label":"DELETE","disabled":false}]
+[07:09:04.908] SEG   ▶ P186 粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录）｜工单186｜失效面=输入注入+事件存证+系统状态
+[07:09:08.755] PASS  PASTE 行可用（needs:'pasteable' 读剪贴板实况）：剪贴板里有真文件时使能
+[07:09:09.464] PASS  路由态一（固有卡 → 新临时卡）：PASTE 落出临时卡 dgc-t1（0 格），文件落桌面根而磁盘未搬动（暂存原样 true）
+[07:09:09.467] NOTE  paste-routed 存证：{"cardId":"dgc-t1","kind":"temp"}
+[07:09:18.578] PASS  PASTE 置灰态：剪贴板无文件时该行仍在列但置灰（点了没反应，菜单也不收）
+[07:09:19.803] NOTE  临时卡开层存证：cardId="dgc-t1" rows=["paste","new-group","edit-types","dissolve"]｜磁盘组定义 temps=[{"id":"dgc-t1","name":"临时 11-01 15:09 01","seq":1,"createdAtMs":1793516949409,"names":["s1.txt"]}]
+[07:09:20.295] NOTE  DISSOLVE 确认层：在场（文案「DISSOLVE CARD?
+临时 11-01 15:09 01
 s1.txt」）
-[05:27:54.825] NOTE  临时卡组卡菜单行：paste(灰), new-group, edit-types, dissolve
-[05:27:54.836] PASS  解散回落：临时卡退场，其名下文件回到固有 TXT 卡，磁盘清单前后一致（14 份，未动）——组卡是归属概念不是目录
-[05:27:54.839] SEG   ▶ P185 组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证）｜工单185｜失效面=输入注入+事件存证+系统状态+像素
-[05:28:02.094] NOTE  NEW GROUP 的入口卡（临时卡，手改得动）：dgc-t2
-[05:28:08.859] PASS  组卡菜单四行齐（手改得动的卡）：PASTE / NEW GROUP / EDIT TYPES / DISSOLVE
-[05:28:09.368] PASS  NEW GROUP 开勾选浮层：#dgc-types 在场（起名框默认值「」，类型清单 5 行按桌面上真实存在的扩展名逐个列），一个字节都还没落库
-[05:28:11.457] PASS  建卡落库：自定义卡 dgc-c3 出现（「DGC187-grp · 3」），它认领的 .pdf 全数从固有 PDF 卡迁走（卡内 3 格 = 桌面 .pdf 全量 3 份；固有 PDF 组此刻一份不剩，按工单187 裁决①「空组不占卡」退场，不再是 0 格留屏），groups-saved 存证在档
-[05:28:11.460] PASS  全程只改归属不动磁盘：建卡前后桌面清单一致（14 份，未动）
-[05:28:19.669] NOTE  EDIT TYPES 落库存证：{"groups":1,"nextSeq":4}；全表=["dgc-c3:0","dgc-t2:1","dgc-txt:10","dgc-docx:2","dgc-pdf:3","dgc-jpg:1","dgc-zip:2"]
-[05:28:19.671] PASS  EDIT TYPES 迁移归属：取消勾选 .pdf 后文件回落固有 PDF 卡（true 格），自定义卡清空**但留屏**（0 格，工单187 裁决①：0 格卡仍在屏上，EDIT TYPES / DISSOLVE 两条出路回得去）；勾选即归属，磁盘始终不动
-[05:28:19.673] NOTE  EDIT TYPES 后磁盘一致性：true
-[05:28:24.941] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1440} 视口={"w":2560,"h":1440} scale=1.0000
-[05:28:24.973] PASS  组定义持久化：面板重启后自定义卡 dgc-c3 原样回来（groups-loaded 存证在档），归属仍按定义算（固有 PDF 卡 [object Object],[object Object],[object Object] 格）
-[05:28:25.720] NOTE  截图通道异常（跳过 187-p185-custom，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
-[05:28:25.722] SEG   ▶ P200 空临时组卡留屏（2026-10-24 裁决 A）：认领文件删光后 0 格仍出卡（id 唯一、卡面「临时 … · 0」）/ 无「+0」徽标（无溢出不建节点）/ 展开·多选开关·框选·ENTER 读 0 格几何不抛且空选区不发 launch / 固有层反向断言：全表无 0 格固有卡（「空组不占卡」一字未动）/ 空临时卡菜单四行齐（EDIT TYPES·DISSOLVE 两行在）｜工单200｜失效面=输入注入+事件存证+系统状态
-[05:28:26.090] PASS  空临时卡留屏：dgc-t2 认领的文件删光后仍出卡（卡面「临时 11-01 13:28 02 · 0」），无「+0」徽标（.dgc-more 节点不存在），id 全表唯一（7 张）——工单200 裁决 A
-[05:28:37.015] PASS  0 格临时卡交互不炸：展开/多选开关/框选（拖拽带在场、松手即撤）/ENTER（选区恒空、无 launch 存证）全程页内错误 0→0 条
-[05:28:37.466] PASS  固有层反向断言：全表没有 0 格的固有卡（「空组不占卡」只对固有组成立的纪律一字未动）
-[05:28:37.905] PASS  空临时卡菜单两行在：paste / new-group / edit-types / dissolve（EDIT TYPES / DISSOLVE 两条出路可达，isHandEditableKind 覆盖 temp 不回归）
-[05:28:37.967] SEG   ▶ P179B 停用交还（工单179 的失败面之二，拆段记法同主电池 P9/P9B）：第一方包可停用不可经用户根卸载；停用后插件容器退场、内核文档区原样还原、组卡一张不剩、24×24 残留热区随之退场，重新启用后组卡恢复｜工单179｜失效面=事件存证+系统状态
-[05:28:37.971] NOTE  轮末自定义卡定义文件字节数=422（持久化面见 P185 段）
-[05:28:38.015] NOTE  经设置停用第一方组卡（ADR-0019：可停用，不因用户根副本删除而卸载）
-[05:28:38.034] PASS  停用交还：插件容器退场，内核文档区原样还原（display=""，18 个 .ditem 回到可见面），组卡一张不剩
-[05:28:38.035] PASS  残留热区随之退场：文档区恢复可见后 doc-zone 热区回到真实分区矩形（376,16,688,650），24×24 那圈只剩插件装载期间存在——这正是本条选择「记录并接受」而非「改内核」的实际代价（代价窗口 = 插件在装期间）
-[05:28:38.126] PASS  重新启用：第一方组卡恢复装载，内核文档区重新由组卡接管
-[05:28:38.128] NOTE  插件私有状态：轮末还原为缺位删除（C:\Users\An W\AppData\Roaming\agent-deck-panel\plugin-config\doc-group-cards.json）
-[05:28:41.170] NOTE  桌面落物清理：撤 15 份 DGC187-* 夹具
-[05:28:42.993] NOTE  共享插件根核验：C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins 仍为空（0 项）
-[05:28:42.997] NOTE  清场核验：原生任务栏可见
-[05:28:42.999] ===== 166-doc-group-cards VERDICT: FAIL-CODE (pass=54 fail=1 excluded=0 scope=P186) =====
-[05:28:43.001] NOTE  清单范围段 P186：粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录）｜工单186｜失效面=输入注入+事件存证+系统状态｜估计 30s
+[07:09:20.748] NOTE  临时卡组卡菜单行：paste(灰), new-group, edit-types, dissolve
+[07:09:20.756] PASS  解散回落：临时卡退场，其名下文件回到固有 TXT 卡，磁盘清单前后一致（14 份，未动）——组卡是归属概念不是目录
+[07:09:20.757] SEG   ▶ P185 组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证）｜工单185｜失效面=输入注入+事件存证+系统状态+像素
+[07:09:27.628] NOTE  NEW GROUP 的入口卡（临时卡，手改得动）：dgc-t2
+[07:09:34.401] PASS  组卡菜单四行齐（手改得动的卡）：PASTE / NEW GROUP / EDIT TYPES / DISSOLVE
+[07:09:34.916] PASS  NEW GROUP 开勾选浮层：#dgc-types 在场（起名框默认值「」，类型清单 5 行按桌面上真实存在的扩展名逐个列），一个字节都还没落库
+[07:09:37.025] PASS  建卡落库：自定义卡 dgc-c3 出现（「DGC187-grp · 3」），它认领的 .pdf 全数从固有 PDF 卡迁走（卡内 3 格 = 桌面 .pdf 全量 3 份；固有 PDF 组此刻一份不剩，按工单187 裁决①「空组不占卡」退场，不再是 0 格留屏），groups-saved 存证在档
+[07:09:37.027] PASS  全程只改归属不动磁盘：建卡前后桌面清单一致（14 份，未动）
+[07:09:45.207] NOTE  EDIT TYPES 落库存证：{"groups":1,"nextSeq":4}；全表=["dgc-c3:0","dgc-t2:1","dgc-txt:10","dgc-docx:2","dgc-pdf:3","dgc-jpg:1","dgc-zip:2"]
+[07:09:45.210] PASS  EDIT TYPES 迁移归属：取消勾选 .pdf 后文件回落固有 PDF 卡（true 格），自定义卡清空**但留屏**（0 格，工单187 裁决①：0 格卡仍在屏上，EDIT TYPES / DISSOLVE 两条出路回得去）；勾选即归属，磁盘始终不动
+[07:09:45.213] NOTE  EDIT TYPES 后磁盘一致性：true
+[07:09:50.515] NOTE  面板坐标映射：窗矩形={"left":0,"top":0,"right":2560,"bottom":1440} 视口={"w":2560,"h":1440} scale=1.0000
+[07:09:50.594] PASS  组定义持久化：面板重启后自定义卡 dgc-c3 原样回来（groups-loaded 存证在档），归属仍按定义算（固有 PDF 卡 [object Object],[object Object],[object Object] 格）
+[07:09:51.208] NOTE  截图通道异常（跳过 187-p185-custom，不影响断言）：Error processing argument at index 0, conversion failure from ｜display={"accelerometerSupport":"unknown","bounds":{"x":0,"y":0,"width":2560,"height":1440},"colorDepth":24,"colorSpace":"{r:[0.6818, 0.3125], g:[0.2540, 0.6736], b:[0.1497, 0.0590], w:[0.3127, 0.3290]}, transfer:SRGB, matrix:RGB, range:FULL}","depthPerComponent":8,"detected":true,"displayFrequency":59,"id":4122687250,"internal":false,"label":"DELL S2721DGF","maximumCursorSize":{"width":0,"height":0},"monochrome":false,"nativeOrigin":{"x":0,"y":0},"rotation":0,"scaleFactor":1,"size":{"width":2560,"height":1440},"workArea":{"x":0,"y":0,"width":2560,"height":1440},"workAreaSize":{"width":2560,"height":1440},"touchSupport":"unknown"}
+[07:09:51.210] SEG   ▶ P200 空临时组卡留屏（2026-10-24 裁决 A）：认领文件删光后 0 格仍出卡（id 唯一、卡面「临时 … · 0」）/ 无「+0」徽标（无溢出不建节点）/ 展开·多选开关·框选·ENTER 读 0 格几何不抛且空选区不发 launch / 固有层反向断言：全表无 0 格固有卡（「空组不占卡」一字未动）/ 空临时卡菜单四行齐（EDIT TYPES·DISSOLVE 两行在）｜工单200｜失效面=输入注入+事件存证+系统状态
+[07:09:51.543] PASS  空临时卡留屏：dgc-t2 认领的文件删光后仍出卡（卡面「临时 11-01 15:09 02 · 0」），无「+0」徽标（.dgc-more 节点不存在），id 全表唯一（7 张）——工单200 裁决 A
+[07:10:02.497] PASS  0 格临时卡交互不炸：展开/多选开关/框选（拖拽带在场、松手即撤）/ENTER（选区恒空、无 launch 存证）全程页内错误 0→0 条
+[07:10:02.921] PASS  固有层反向断言：全表没有 0 格的固有卡（「空组不占卡」只对固有组成立的纪律一字未动）
+[07:10:03.361] PASS  空临时卡菜单两行在：paste / new-group / edit-types / dissolve（EDIT TYPES / DISSOLVE 两条出路可达，isHandEditableKind 覆盖 temp 不回归）
+[07:10:03.426] SEG   ▶ P179B 停用交还（工单179 的失败面之二，拆段记法同主电池 P9/P9B）：第一方包可停用不可经用户根卸载；停用后插件容器退场、内核文档区原样还原、组卡一张不剩、24×24 残留热区随之退场，重新启用后组卡恢复｜工单179｜失效面=事件存证+系统状态
+[07:10:03.430] NOTE  轮末自定义卡定义文件字节数=422（持久化面见 P185 段）
+[07:10:03.479] NOTE  经设置停用第一方组卡（ADR-0019：可停用，不因用户根副本删除而卸载）
+[07:10:03.497] PASS  停用交还：插件容器退场，内核文档区原样还原（display=""，18 个 .ditem 回到可见面），组卡一张不剩
+[07:10:03.498] PASS  残留热区随之退场：文档区恢复可见后 doc-zone 热区回到真实分区矩形（376,16,688,650），24×24 那圈只剩插件装载期间存在——这正是本条选择「记录并接受」而非「改内核」的实际代价（代价窗口 = 插件在装期间）
+[07:10:03.587] PASS  重新启用：第一方组卡恢复装载，内核文档区重新由组卡接管
+[07:10:03.589] NOTE  插件私有状态：轮末还原为缺位删除（C:\Users\An W\AppData\Roaming\agent-deck-panel\plugin-config\doc-group-cards.json）
+[07:10:06.109] NOTE  桌面落物清理：撤 15 份 DGC187-* 夹具
+[07:10:07.677] NOTE  共享插件根核验：C:\Users\An W\AppData\Roaming\agent-deck-panel\plugins 仍为空（0 项）
+[07:10:07.679] NOTE  清场核验：原生任务栏可见
+[07:10:07.681] ===== 166-doc-group-cards VERDICT: FAIL-CODE (pass=49 fail=6 excluded=0 scope=P179) =====
+[07:10:07.682] NOTE  清单范围段 P179：装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排 20px 格点对齐·组序稳定·卡 id 唯一（#354 按 ADR-0024 收窄：摆位收归宿主 20px 网格后，整排居中与左右序不再由产品契约保证，故不再断言）｜工单179｜失效面=像素+事件存证+系统状态｜估计 25s
 ===== 账目（三态记账，工单110） =====
-三路计数：pass=54 fail=1 excluded=0 ｜ FAIL-CODE → 退出码 1
+三路计数：pass=49 fail=6 excluded=0 ｜ FAIL-CODE → 退出码 1
 排除窗：轮末已全部闭合
-声明 spec 范围段：P186（均已注册）
+声明 spec 范围段：P179（均已注册）
 段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
-  P178 插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验） pass=4 fail=0 excl=0 took=6.0s｜工单178｜失效面=事件存证+系统状态
-  P179 装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排左到右·水平与垂直居中·组序稳定·卡 id 唯一 pass=5 fail=1 excl=0 took=1.1s｜工单179｜失效面=像素+事件存证+系统状态
-  P180 折叠/展开与滚动：溢出隐藏且一屏 6 格·+N 徽标自洽 / 展开 2×/4× + 其余卡淡出 + 按自身高度重新垂直居中 / 展开后热区即时重申报（DOM 矩形互证）+ 新露出的第 7 格立刻可点 / 纵向滚动条成立 / 首拍滚轮真机实测（问B：入场首拍是否丢失、驻留后一拍、连打三拍） pass=8 fail=0 excl=0 took=15.3s｜工单180｜失效面=输入注入+像素+事件存证
+  P178 插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验） pass=4 fail=0 excl=0 took=4.8s｜工单178｜失效面=事件存证+系统状态
+  P179 装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排 20px 格点对齐·组序稳定·卡 id 唯一（#354 按 ADR-0024 收窄：摆位收归宿主 20px 网格后，整排居中与左右序不再由产品契约保证，故不再断言） pass=6 fail=0 excl=0 took=0.9s｜工单179｜失效面=像素+事件存证+系统状态
+  P180 折叠/展开与滚动：溢出隐藏且一屏 6 格·+N 徽标自洽 / 展开 2×/4× + 其余卡淡出 + 按自身高度重新垂直居中 / 展开后热区即时重申报（DOM 矩形互证）+ 新露出的第 7 格立刻可点 / 纵向滚动条成立 / 首拍滚轮真机实测（问B：入场首拍是否丢失、驻留后一拍、连打三拍） pass=7 fail=1 excl=0 took=17.3s｜工单180｜失效面=输入注入+像素+事件存证
   P181 卡级交互：点图标格只高亮不改卡框（逐像素不变、不折叠）/再点一格仍不改形状/空白处折叠↔展开往复幂等/+N 徽标与空白同一裁决/双击图标走既有 launch 契约起真进程 pass=5 fail=0 excl=0 took=10.2s｜工单181｜失效面=输入注入+事件存证
-  P182 自绘菜单外壳与只读五项：图标格右键出 #dgc-menu + 全屏 .card 遮罩 + 开层期间全窗热区（不让穿透）/OPEN·OPEN LOCATION·COPY PATH·COPY·CUT 在列/菜单外一击与 Esc 都收场且全窗热区即撤、24×24 残留带回位 pass=4 fail=0 excl=0 took=8.1s｜工单182｜失效面=输入注入+事件存证
-  P183 写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②） pass=6 fail=0 excl=0 took=15.3s｜工单183｜失效面=输入注入+事件存证
-  P184 卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用 pass=5 fail=0 excl=0 took=18.7s｜工单184｜失效面=输入注入+事件存证
-  P186 粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录） pass=4 fail=0 excl=0 took=25.9s｜工单186｜失效面=输入注入+事件存证+系统状态
-  P185 组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证） pass=6 fail=0 excl=0 took=30.9s｜工单185｜失效面=输入注入+事件存证+系统状态+像素
+  P182 自绘菜单外壳与只读五项：图标格右键出 #dgc-menu + 全屏 .card 遮罩 + 开层期间全窗热区（不让穿透）/OPEN·OPEN LOCATION·COPY PATH·COPY·CUT 在列/菜单外一击与 Esc 都收场且全窗热区即撤、24×24 残留带回位 pass=4 fail=0 excl=0 took=11.8s｜工单182｜失效面=输入注入+事件存证
+  P183 写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②） pass=6 fail=0 excl=0 took=23.3s｜工单183｜失效面=输入注入+事件存证
+  P184 卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用 pass=0 fail=5 excl=0 took=47.1s｜工单184｜失效面=输入注入+事件存证
+  P186 粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录） pass=4 fail=0 excl=0 took=15.8s｜工单186｜失效面=输入注入+事件存证+系统状态
+  P185 组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证） pass=6 fail=0 excl=0 took=30.5s｜工单185｜失效面=输入注入+事件存证+系统状态+像素
   P200 空临时组卡留屏（2026-10-24 裁决 A）：认领文件删光后 0 格仍出卡（id 唯一、卡面「临时 … · 0」）/ 无「+0」徽标（无溢出不建节点）/ 展开·多选开关·框选·ENTER 读 0 格几何不抛且空选区不发 launch / 固有层反向断言：全表无 0 格固有卡（「空组不占卡」一字未动）/ 空临时卡菜单四行齐（EDIT TYPES·DISSOLVE 两行在） pass=4 fail=0 excl=0 took=12.2s｜工单200｜失效面=输入注入+事件存证+系统状态
-  P179B 停用交还（工单179 的失败面之二，拆段记法同主电池 P9/P9B）：第一方包可停用不可经用户根卸载；停用后插件容器退场、内核文档区原样还原、组卡一张不剩、24×24 残留热区随之退场，重新启用后组卡恢复 pass=3 fail=0 excl=0 took=5.0s｜工单179｜失效面=事件存证+系统状态
+  P179B 停用交还（工单179 的失败面之二，拆段记法同主电池 P9/P9B）：第一方包可停用不可经用户根卸载；停用后插件容器退场、内核文档区原样还原、组卡一张不剩、24×24 残留热区随之退场，重新启用后组卡恢复 pass=3 fail=0 excl=0 took=4.3s｜工单179｜失效面=事件存证+系统状态
