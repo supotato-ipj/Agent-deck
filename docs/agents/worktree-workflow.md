@@ -29,6 +29,15 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
    完成判据：worktree 就位，分支基于最新 origin/master。
 3. **自举**：worktree 的 `app/` 下 `npm ci`。koffi/esbuild 的 install-scripts 被 npm 策略拦掉是无害告警，发布包自带预编译产物。
 4. **自检**：`npm run build && npm run typecheck && npm test`。完成判据：三项全绿。`tests/autostart.spec.ts` 的真 COM 用例在全量并行跑时常挂，是本机环境抖动（issue #33），不是回归——单跑 `npx vitest run tests/autostart.spec.ts` 绿即放行。
+
+   **另两条本机既有信号（2026-11-01 实测，与本机改动无关，基线 `origin/master` 同现）**——别把它们当回归去追，也别因此放宽任何断言：
+
+   | 信号 | 形态 | 判据 |
+   |---|---|---|
+   | `npm test` 以 **exit 1** 收尾，但**用例全绿** | 末尾一条未处理错误 `Error: [vitest-worker]: Timeout calling "onTaskUpdate"`（vitest worker IPC 超时），计数行仍是 `Test Files 134 passed (134)` / `Tests 2605 passed (2605)` / `0` 失败 | **看计数不看退出码**：`Tests` 行 0 失败即放行。要坐实是既有信号，把改动 `git stash` 后原样复跑一次，错误照样出现即定谳 |
+   | `tests/contract.spec.ts` 在**全量并行**时红 | `EPERM: operation not permitted, rename ... config.json.tmp -> config.json`（Windows 文件占用） | 单跑 `npx vitest run tests/contract.spec.ts` → `107 passed` 即放行 |
+
+   两条都出在「全量并行 + 本机负载高」的窗口。**判据始终是计数行**：`Test Files` / `Tests` 的通过数与失败数，以及完整失败输出（真失败要留全文，别截断）。
 5. 开发与提交都在 worktree 进行；提交信息沿用 `type(scope): 工单N 描述`（现行格式以 git log 为准）。
 
 ## 收尾
