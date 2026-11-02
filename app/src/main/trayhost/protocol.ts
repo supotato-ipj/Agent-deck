@@ -295,6 +295,11 @@ export function encodeTrayPayload(o: EncodeNotifyOptions & { dwMessage: number; 
  * 真机坐实（Electron 托盘源码 shell/browser/ui/win/notify_icon_host.cc）：其回调只认
  * WM_LBUTTONDOWN/WM_RBUTTONDOWN/WM_CONTEXTMENU 一族，**不认 UP 族**——外壳发消息对，
  * 我们只发 UP 时，自家图标（及一切只认按下态的应用）永远收不到动作，右键菜单不弹。
+ *
+ * 左右键同构（工单363 O2 取舍）：左键同样是「按下 + 抬起」两条，不收窄成单条。
+ * 外壳对两个键逐条转发原始鼠标消息；应用按哪一条动作由它自己决定。「认两条的应用
+ * 须自行去重」是外壳同款投递的固有面（自家 Electron 托盘即只认按下族），不是我们
+ * 替应用改口径的理由——收窄左键会让只认按下族的应用（左键默认动作）同样收不到动作。
  * 菜单由图标所属应用自己渲染，回放前必须 AllowSetForegroundWindow（调用方负责，
  * 传属主进程 ID 而非 hwnd——API 形参是 DWORD dwProcessId）。
  */
@@ -311,6 +316,38 @@ export interface TrayClickPack {
   message: number
   wparam: number
   lparam: number
+}
+
+/**
+ * 投递口径的存证形态（工单363 O3）：一次回放是**一个投递序列**（外壳口径：pre-v4
+ * 图标收鼠标消息对——按下 + 抬起各一条），不是单条消息。故「成功」必须分层说清：
+ * - `posted` 恒指**整条序列都投出去了**（全成功）；
+ * - `partial` = 部分投递（0 < delivered < total）——例如应用在两条之间退场，
+ *   第二条被系统拒收而第一条已生效；此时**不算成功**，但也不等于全失败；
+ * - `delivered` / `total` 记条数，失败原因由效果层另行落存证。
+ * 旧口径（`posted` = 每条都成功）保留同名，但含义被本函数钉死，不再有第二种解释。
+ */
+export interface TrayDeliverySummary {
+  /** 投递序列长度（外壳口径的完整序列条数） */
+  total: number
+  /** 成功投递条数 */
+  delivered: number
+  /** 整条序列都投出去了（部分成功恒为 false） */
+  posted: boolean
+  /** 部分投递成功（0 < delivered < total） */
+  partial: boolean
+}
+
+/** 投递序列 → 投递口径（纯函数；空序列不算成功） */
+export function summarizeTrayDelivery(sent: ReadonlyArray<{ posted: boolean }>): TrayDeliverySummary {
+  const total = sent.length
+  const delivered = sent.reduce((n, s) => n + (s.posted ? 1 : 0), 0)
+  return {
+    total,
+    delivered,
+    posted: total > 0 && delivered === total,
+    partial: delivered > 0 && delivered < total,
+  }
 }
 
 /**

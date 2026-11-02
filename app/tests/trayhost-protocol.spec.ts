@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { packTrayClick, WM_CONTEXTMENU, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP } from '../src/main/trayhost/protocol'
+import { packTrayClick, summarizeTrayDelivery, WM_CONTEXTMENU, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP } from '../src/main/trayhost/protocol'
 import {
   NIM_ADD,
   NIM_DELETE,
@@ -182,6 +182,30 @@ describe('真实字节语料夹具（fixtures/trayhost/real-corpus.json，真机
  *   （GET_X_LPARAM 取低字、GET_Y_LPARAM 取高字，即 MAKELPARAM(x,y)）。
  * 旧实现把 v0 两参数整体互换 + WM_LBUTTONUP 常量误为 0x0203（实为 WM_LBUTTONDBLCLK，
  * 真值 0x0202）+ v4 lParam 布局错位——#163 真机 A/B 坐实为回放全哑主因，工单164 修正。 */
+describe('summarizeTrayDelivery（投递序列的投递口径，工单363 O3）', () => {
+  it('全部成功：posted=true、partial=false、delivered=total（posted 恒指「整条序列都投出去了」）', () => {
+    expect(summarizeTrayDelivery([{ posted: true }, { posted: true }])).toEqual({
+      total: 2, delivered: 2, posted: true, partial: false,
+    })
+  })
+
+  it('部分成功（应用退场致第二条被拒收）：posted=false、partial=true、delivered=1 —— 不静默当成功', () => {
+    expect(summarizeTrayDelivery([{ posted: true }, { posted: false }])).toEqual({
+      total: 2, delivered: 1, posted: false, partial: true,
+    })
+  })
+
+  it('全部失败：posted=false、partial=false、delivered=0（部分成功与全失败分得开）', () => {
+    expect(summarizeTrayDelivery([{ posted: false }, { posted: false }])).toEqual({
+      total: 2, delivered: 0, posted: false, partial: false,
+    })
+  })
+
+  it('空序列：posted=false、partial=false（一条都没投出去不算成功）', () => {
+    expect(summarizeTrayDelivery([])).toEqual({ total: 0, delivered: 0, posted: false, partial: false })
+  })
+})
+
 describe('packTrayClick', () => {
   const V4 = { uid: 0x1234, callbackMessage: 0x0400, version: 4 }
 
@@ -232,6 +256,24 @@ describe('packTrayClick', () => {
       { message: 0x0401, wparam: 0x2710, lparam: 0x0204 },
       { message: 0x0401, wparam: 0x2710, lparam: 0x0205 },
     ])
+  })
+
+  it('左右键同构：左键同样是「按下 + 抬起」两条（外壳对两个键逐条转发原始鼠标消息）', () => {
+    // 工单363 O2 取舍：左键不收窄成单条。外壳对左键同样转发按下与抬起两条，
+    // 应用按哪一条动作由它自己决定（自家 Electron 托盘只认按下族⇒只发抬起时
+    // 自家菜单永不弹）。「双触发」是外壳同款投递的固有面：认两条的应用须自行去重
+    // （Electron 托盘即如此），不是我们替应用改口径的理由——收窄左键会让只认按下
+    // 族的应用（左键默认动作）同样收不到动作。
+    const legacy = { uid: 7, callbackMessage: 0x400, version: 0 }
+    const left = packTrayClick(legacy, 'left', { x: 0, y: 0 })
+    const right = packTrayClick(legacy, 'right', { x: 0, y: 0 })
+    expect(left).toHaveLength(2)
+    expect(right).toHaveLength(2)
+    expect(left.map((p) => p.lparam)).toEqual([WM_LBUTTONDOWN, WM_LBUTTONUP])
+    expect(right.map((p) => p.lparam)).toEqual([WM_RBUTTONDOWN, WM_RBUTTONUP])
+    // 两键同形：wParam 恒为 uID，消息族只差按键
+    expect(left.every((p) => p.wparam === legacy.uid)).toBe(true)
+    expect(right.every((p) => p.wparam === legacy.uid)).toBe(true)
   })
 
   it('v0：消息对的**顺序**是按下先、抬起后（外壳逐条转发鼠标消息的顺序）', () => {
