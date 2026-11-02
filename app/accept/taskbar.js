@@ -2560,6 +2560,9 @@ async function main() {
     }
 
     // —— 臂3：自家图标（必测样本）栏内真实右键 → 自家菜单 → Esc → 条带及时恢复置顶 ——
+    // 原档位先取（臂3 要把档位临时开到 all，还原时要用**原值**——取晚了会拿到 'all'，
+    // 还原成 all 会让溢出段清零、后续段的托盘档位前提全变）。
+    const prevLimit27 = ((await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE) || {}).trayOverflowLimit) || 5;
     // 前置：档位临时开到 all——自家托盘图标在名单里的排位常在档位之外（红轮实证排位
     // 第 18 枚），档位 5 时它只存在于溢出浮层、条带页无其 DOM（栏内入口就无从点起）。
     await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 'all' })`, TASKBAR_TITLE);
@@ -2617,7 +2620,6 @@ async function main() {
     }
 
     // —— 臂4：溢出入口同链（AC5：栏内与托盘溢出两条入口行为一致）——
-    const prevLimit27 = (stB && stB.trayOverflowLimit) ? stB.trayOverflowLimit : 5;
     const rosterC = (await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE) || {}).tray || [];
     const ownIdxC = ownB ? rosterC.findIndex((e) => e.key === ownB.key) : -1;
     // 档位下限 3：自家图标排位在前 3 枚时进不了溢出（档位合法值只有 3/5/8/all），
@@ -2662,7 +2664,18 @@ async function main() {
         const tO = Date.now();
         probe164.frames.length = 0;
         win32.clickPhys(ptRow.x, ptRow.y, 'right');
-        clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === ovTargetKey && e.button === 'right', { since: tO, timeoutMs: 3000 });
+        clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === ovTargetKey && e.button === 'right', { since: tO, timeoutMs: 1500 });
+        if (!clickO) {
+          // 物理行点击被浮层抢焦吞掉的替代路径（本机实测：浮层 show 后 ~100-400ms 即被
+          // 桌面别的窗口抢焦收层——reason=blur，行点击整帧丢失）。链断言（同一回放
+          // 分发/同一放行/同一消息对）不依赖落点输入方式：直接在浮层页派发行
+          // contextmenu，走的是渲染层 handler→bridge→服务→宿主的同一条链。
+          // 物理点击面的证据在 55 族 P7（行左/右键收帧）——两处互补。
+          try {
+            await cdpEval('DECK-TRAY-OVERFLOW', `(() => { const el = document.querySelector('.ov-row[data-key=${JSON.stringify(ovTargetKey)}]'); if (!el) return false; el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return true; })()`);
+          } catch { /* 浮层页不在场（窗口被收层/销毁）——下一轮重试 */ }
+          clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === ovTargetKey && e.button === 'right', { since: tO, timeoutMs: 3000 });
+        }
         if (!clickO) continue;
         grantO = await tape.wait('taskbar-tray-foreground-grant', (e) => e.key === ovTargetKey, { since: tO, timeoutMs: 3000 });
         evO = await tape.wait('tray-replay', (e) => e.key === ovTargetKey, { since: tO, timeoutMs: 3000 });
