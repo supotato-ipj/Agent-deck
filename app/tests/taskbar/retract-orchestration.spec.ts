@@ -536,8 +536,10 @@ describe('原生栏重申轮询接线（工单262，spec #258；工单308 M1 目
 describe('分屏会话接线（工单269，spec #267；效果层离线不可测，以源码级守卫钉住）', () => {
   const CTRL = 'app/src/main/taskbar/window.ts'
   const SNAP = 'app/src/main/taskbar/snap.ts'
+  const SEAM = 'app/src/main/taskbar/win-facts.ts'
   const code = codeOf(CTRL)
   const snapCode = codeOf(SNAP)
+  const seamCode = codeOf(SEAM)
 
   it('会话事实喂进三态裁决：控制器在收栏轮询接缝上调分屏探针并传 snapSessionActive（spec 决策 3）', () => {
     expect(code).toMatch(/snapSessionActive:\s*snap\.active/)
@@ -555,29 +557,33 @@ describe('分屏会话接线（工单269，spec #267；效果层离线不可测�
     expect(code).toMatch(/snapSessionLedger/)
   })
 
-  it('探针失败按「无会话」处理（还原是安全方向）：分屏探针包 try/catch，异常不拦轮询', () => {
-    const m = snapCode.match(/try\s*\{[\s\S]{0,400}?catch/)
+  it('探针失败按「无会话」处理（还原是安全方向）：控制器包 try/catch，甄别单拍失效按非 Snap（工单370 起判在接缝）', () => {
+    // 甄别判的单拍 try/catch（IsWindowArranged 单调失效按非 Snap，不猜不重试）住在事实接缝
+    const m = seamCode.match(/try\s*\{[\s\S]{0,400}?catch/)
     expect(m).toBeTruthy()
     expect(code).toMatch(/pollSnapSession/)
   })
 
-  it('真 Snap 探针绑定 user32 的 IsWindowArranged（公共 API），模块加载不触 FFI（lazy-bind 先例）', () => {
-    expect(snapCode).toMatch(/IsWindowArranged/)
-    // lazy-bind：koffi 只在 bind() 内 require（yield.ts / windows.ts 同款），顶层零 FFI
-    const top = snapCode.slice(0, snapCode.indexOf('function bind('))
+  it('真 Snap 探针绑定 user32 的 IsWindowArranged（公共 API）：绑定面住在事实接缝且模块加载不触 FFI（lazy-bind 先例）', () => {
+    expect(seamCode).toMatch(/IsWindowArranged/)
+    // lazy-bind：koffi 只在 bind() 内 require（yield.ts 先例），顶层零 FFI
+    const top = seamCode.slice(0, seamCode.indexOf('function bind('))
     expect(top).not.toMatch(/koffi\.load|require\('koffi'\)/)
-    expect(snapCode).toMatch(/require\('koffi'\)/)
+    expect(seamCode).toMatch(/require\('koffi'\)/)
+    // snap.ts 是接缝消费方：零 koffi、零绑定面（工单370 收敛）
+    expect(snapCode).not.toMatch(/koffi/)
   })
 
   it('识别不可用严格降级（spec 决策 11）：IsWindowArranged 声明期抛错被 try/catch 收编为不可用事实', () => {
     // 声明包 try/catch——缺失符号同步抛错（域笔记实机实证），失败置空走「无会话」
-    const m = snapCode.match(/try\s*\{[^}]*IsWindowArranged[^}]*\}\s*catch/)
+    const m = seamCode.match(/try\s*\{[^}]*IsWindowArranged[^}]*\}\s*catch/)
     expect(m).toBeTruthy()
   })
 
-  it('无补齐路径（工单268 定谳：Windows 自动重排）——分屏模块与控制器不调任何窗口移动/改窗接口', () => {
+  it('无补齐路径（工单268 定谳：Windows 自动重排）——分屏模块、事实接缝与控制器不调任何窗口移动/改窗接口', () => {
     for (const banned of [/SetWindowPos/, /MoveWindow/, /ShowWindow\(/]) {
       expect(snapCode.match(banned), `snap.ts 含 ${banned}`).toBeNull()
+      expect(seamCode.match(banned), `win-facts.ts（事实接缝，只读边界）含 ${banned}`).toBeNull()
     }
     // 控制器新增的分屏段（pollSnapSession 定义）不含改窗调用
     const seg = code.slice(code.indexOf('pollSnapSession'), code.indexOf('pollSnapSession') + 900)
@@ -596,8 +602,10 @@ describe('分屏会话接线（工单269，spec #267；效果层离线不可测�
 describe('分屏会话集合生命周期接线（工单270，spec #267；效果层离线不可测，以源码级守卫钉住）', () => {
   const CTRL = 'app/src/main/taskbar/window.ts'
   const SNAP = 'app/src/main/taskbar/snap.ts'
+  const SEAM = 'app/src/main/taskbar/win-facts.ts'
   const code = codeOf(CTRL)
   const snapCode = codeOf(SNAP)
+  const seamCode = codeOf(SEAM)
 
   it('探针带成员追踪集：上一拍合格成员句柄喂回探针（最小化/解除的前成员照采事实，去向可分类）', () => {
     // 追踪集账本随拍更新——集合生命周期的「成员」而非「一次判定」是账面口径
@@ -628,39 +636,51 @@ describe('分屏会话集合生命周期接线（工单270，spec #267；效果�
     expect(iSnapLog).toBeGreaterThan(iResolve)
   })
 
-  it('探针采集面扩展：追踪集参数 + cloak 分位（SHELL 位 = 其他虚拟桌面）', () => {
+  it('探针采集面扩展：追踪集参数 + cloak 分位（SHELL 位 = 其他虚拟桌面；工单370 起分位常量住在事实接缝）', () => {
     expect(snapCode).toMatch(/track:\s*readonly number\[\]/)
-    expect(snapCode).toMatch(/DWM_CLOAKED_SHELL/)
+    expect(seamCode).toMatch(/DWM_CLOAKED_SHELL/)
     expect(snapCode).toMatch(/cloakedShell/)
   })
 })
 
-describe('枚举/FFI 面双写防漂移守卫（工单271 评审收口④：单一来源收敛前的在案钉）', () => {
-  // 现状：snap.ts 与 windows.ts 各持一份 Win32 枚举/绑定面（Bound 表、MAX_WINDOWS、
-  // pidOf/exeOfPid 逐字双写）。收敛为单一来源（snap.ts 复用 windows.ts 的 Bound）前，
-  // 本守卫钉住双写不漂移——改一份必须同步另一份（或顺势收敛）。traitsOf 刻意不在
-  // 逐字守卫内：两份口径分叉是工单270 的裁决（windows.ts 布尔折叠 vs snap.ts cloak
-  // 分位采集），不是漂移。
+describe('外部窗口事实接缝单一来源守卫（工单370：工单271 双写防漂移守卫的收敛形态）', () => {
+  // 工单370（spec #369 决策 6）收敛：顶层窗口枚举骨架、Win32 事实绑定面（Bound 表）、
+  // 进程识别（pidOf/exeOfPid）、特征位采集（含 cloak 分位）、几何/类名/标题读取与
+  // MAX_WINDOWS 护栏单一住在 win-facts.ts；windows.ts（任务栏投影+效果层）与 snap.ts
+  // （Snap 投影+纯裁决）是接缝消费方，不再各自持绑定/枚举。工单270 时 traitsOf 两份
+  // 口径分叉（windows 布尔折叠 vs snap cloak 分位）——收敛为统一分位采集（windows 投影
+  // 只用布尔位，行为同旧口径）。守卫语义从「双写不漂移」升级为「单源不回分叉」。
+  const SEAM = 'app/src/main/taskbar/win-facts.ts'
   const WIN = 'app/src/main/taskbar/windows.ts'
   const SNAP = 'app/src/main/taskbar/snap.ts'
+  const seam = codeOf(SEAM)
+  const win = codeOf(WIN)
+  const snap = codeOf(SNAP)
 
-  /** 抓取顶层函数全文（闭括号落在行首——两个文件的函数体收尾同形） */
-  const grab = (src: string, fn: string): string | undefined =>
-    src.match(new RegExp(`function ${fn}\\([^)]*\\):[^\\n]*\\{[\\s\\S]*?\\n\\}`))?.[0]
-
-  it('pidOf / exeOfPid 双写逐字一致（exeOfPid 单一语义：OpenProcess+QueryFullProcessImageNameW+CloseHandle 配对）', () => {
-    const win = srcOf(WIN)
-    const snap = srcOf(SNAP)
-    for (const fn of ['pidOf', 'exeOfPid']) {
-      expect(grab(win, fn), `windows.ts 缺 ${fn}`).toBeTruthy()
-      expect(grab(snap, fn), `snap.ts 缺 ${fn}`).toBeTruthy()
-      expect(grab(snap, fn), `${fn} 双写漂移——两份必须逐字同步，或收敛为单一实现`).toBe(grab(win, fn))
+  it('枚举骨架与事实原语单一实现住在接缝（scanTopWindows / pidOf / exeOfPid / 标题缝）', () => {
+    for (const sym of ['function scanTopWindows', 'function pidOf', 'function exeOfPid',
+      'GetTopWindow', 'QueryFullProcessImageNameW', 'DwmGetWindowAttribute']) {
+      expect(seam.includes(sym), `接缝缺 ${sym}`).toBe(true)
+    }
+    // 消费方零残留（codeOf 已剥注释——散文提及不算实现）
+    for (const [rel, c] of [[WIN, win], [SNAP, snap]] as const) {
+      for (const banned of ['function scanTopWindows', 'function pidOf', 'function exeOfPid',
+        'GetTopWindow', 'GetWindow(', 'QueryFullProcessImageNameW', 'DwmGetWindowAttribute',
+        'GetWindowText', 'MAX_WINDOWS']) {
+        expect(c.includes(banned), `${rel} 残留 ${banned}`).toBe(false)
+      }
     }
   })
 
-  it('MAX_WINDOWS 枚举上限双写同值（2048——链式枚举的终止护栏不得两处分叉）', () => {
-    expect(srcOf(WIN).match(/const MAX_WINDOWS = (\d+)/)?.[1]).toBe('2048')
-    expect(srcOf(SNAP).match(/const MAX_WINDOWS = (\d+)/)?.[1]).toBe('2048')
+  it('MAX_WINDOWS 枚举上限单源（2048——链式枚举的终止护栏不得分叉）', () => {
+    expect(srcOf(SEAM).match(/const MAX_WINDOWS = (\d+)/)?.[1]).toBe('2048')
+  })
+
+  it('事实接缝只读：零窗口改动/置前/投递能力（效果面留在 windows.ts，spec #369 几何控制器另案）', () => {
+    for (const banned of ['SetWindowPos', 'MoveWindow', 'ShowWindow', 'SetForegroundWindow',
+      'BringWindowToTop', 'PostMessage', 'AttachThreadInput']) {
+      expect(seam.includes(banned), `接缝含改动面 FFI ${banned}`).toBe(false)
+    }
   })
 })
 

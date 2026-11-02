@@ -114,10 +114,12 @@ describe('appendEvent / readStartEvents / pruneOldDays', () => {
 })
 
 describe('隐私守卫（ADR-0002：不读窗口标题）', () => {
-  // ADR-0007 书面口子（工单52）：窗口标题仅任务栏链路内存即时读取（tooltip/多窗口
-  // 列表），永不持久化。口子只开在 taskbar/windows.ts 一个文件；其余 src/main 边界不变。
-  const TITLE_READ_ALLOWLIST = new Set(['src/main/taskbar/windows.ts'])
-  it('src/main 全部源码不出现 GetWindowText / window_title（任务栏窗口枚举模块为 ADR-0007 唯一例外）', () => {
+  // ADR-0007 书面口子（工单52；工单370 随事实接缝收敛移址）：窗口标题仅任务栏链路内存
+  // 即时读取（tooltip/多窗口列表），永不持久化。口子只开在 taskbar/win-facts.ts 一个
+  // 文件（外部窗口事实接缝——windows.ts/snap.ts 均经其公开缝 nativeWindowTitle 读标题，
+  // 不直读）；其余 src/main 边界不变。
+  const TITLE_READ_ALLOWLIST = new Set(['src/main/taskbar/win-facts.ts'])
+  it('src/main 全部源码不出现 GetWindowText / window_title（外部窗口事实接缝为 ADR-0007 唯一例外）', () => {
     const walk = (dir: string): string[] =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((de) => {
         const p = path.join(dir, de.name)
@@ -133,9 +135,11 @@ describe('隐私守卫（ADR-0002：不读窗口标题）', () => {
     }
   })
 
-  it('任务栏标题口子永不持久化：窗口枚举模块不写盘，栏编排/栏布局模块不读标题', () => {
-    const win = fs.readFileSync(path.resolve(__dirname, '../../src/main/taskbar/windows.ts'), 'utf8')
-    expect(win).not.toMatch(/writeFileSync|appendFileSync|appendFile|createWriteStream/)
+  it('任务栏标题口子永不持久化：窗口事实接缝与效果层不写盘，栏编排/栏布局模块不读标题', () => {
+    for (const rel of ['src/main/taskbar/win-facts.ts', 'src/main/taskbar/windows.ts']) {
+      const src = fs.readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')
+      expect(src, `${rel} 不写盘`).not.toMatch(/writeFileSync|appendFileSync|appendFile|createWriteStream/)
+    }
     for (const rel of ['src/main/taskbar/apps-plan.ts', 'src/main/taskbar/layout-store.ts']) {
       const src = fs.readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')
       expect(src, `${rel} 不得读窗口标题`).not.toContain('GetWindowText')
