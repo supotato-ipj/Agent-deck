@@ -291,6 +291,16 @@ class Report {
     };
   }
 
+  /**
+   * 段账目补写（副电池用，工单114 时长预算流程要「健康轮段账目 took=」校准 estSeconds）：
+   * 副电池口径的 verdict(explicit) 路径**不落**账目段（verdict() 里的 !explicit 门），
+   * 副电池显式给 PASS/FAIL 标签时时长预算流程要的 took= 取数就缺——本方法按同款格式
+   * 补写一遍（不改 verdict 语义与退出码）。
+   */
+  writeLedger(scopeUnknown = []) {
+    this._writeLedger_(scopeUnknown)
+  }
+
   /** 账目段（工单110）：三路计数、排除条目、段账目、scope 核对结论，供合并门取证据 */
   _writeLedger_(scopeUnknown) {
     const tri = this.triVerdict();

@@ -214,10 +214,15 @@ async function cdpEval(title, expression) {
   } finally { ws.close(); }
 }
 
-// —— 负载形态（与产品 protocol.ts packTrayClick 逐字段对照；A 臂=产品现行形态）——
+// —— 负载形态（与产品 protocol.ts packTrayClick 逐字段对照）——
+// 工单363（评审整改 O 项）：A 臂**不再是**「产品现行形态」——产品现行 v0 口径已改为
+// 外壳的**鼠标消息对**（按下 + 抬起各一条，protocol.ts packTrayClick），本函数复刻的
+// 是 #163 期的单发形态（且字段语义还是 #164 修正前的旧义：wParam/lParam 整体互换、
+// 左键误为 WM_LBUTTONDBLCLK=0x0203）。故本臂保留作**历史对照臂**，不再是产品形态
+// 的代表；现行形态的断言在 49 族 P14/P27 两段（v0 消息对 + v4 单条）。
 // JS << 是 32 位有符号——一律 >>>0 归一成无符号 32 位再入 koffi uintptr_t 通道
 // （同坑：host.ts 对 GDI 句柄的符号扩展备注）。
-/** 产品 packTrayClick 的忠实复刻（右键 button 预展开；左键见 packProductLeft） */
+/** #163 期单发形态的复刻（历史对照臂；产品现行 v0 = 按下+抬起两条，见 protocol.ts） */
 function packProduct(entry, button, x, y) {
   if (entry.version >= 4) {
     const xx = x & 0xffff, yy = y & 0xffff;
@@ -457,7 +462,8 @@ function postPayload(hwnd, callbackMessage, pack) {
     //    左/右键回放——修复后产品链路应出现 P3-B 的行为签名（右键弹菜单/开面板）。
     //    样本=已登记第三方，优先已知 oracle 好的 exe；左键臂限白名单（会真开窗，
     //    观测后 WM_CLOSE 尽力还原桌面）。存证断言面=tray-replay 的
-    //    wparam/lparam/version/posted/pid/asfw 逐字段留档。 ——
+    //    wparam/lparam/version/posted/pid 逐字段留档（工单363 O1：数据面的 asfw 字段
+    //    已退役——放行权移到主进程，放行结果看 taskbar-tray-foreground-grant 存证）。 ——
     const WM_CLOSE = 0x0010;
     const closeNewWindows = (probe) => {
       for (const w of probe.newVisible || []) {
@@ -489,14 +495,15 @@ function postPayload(hwnd, callbackMessage, pack) {
         const result = fresh.filter((e) => e.type === 'tray-replay-result' && e.key === s.key).pop() || null;
         row[button] = {
           responsive: probe.responsive,
-          replay: replay && { posted: replay.posted, version: replay.version, wparam: replay.wparam, lparam: replay.lparam, pid: replay.pid, asfw: replay.asfw },
+          replay: replay && { posted: replay.posted, version: replay.version, wparam: replay.wparam, lparam: replay.lparam, pid: replay.pid },
           bridgeResult: result ?? null,
           menus: probe.menus.length, fgBecame: probe.foregroundBecameTarget,
           newVisible: probe.newVisible.map((w) => ({ exe: w.exe, title: w.title })),
         };
         h({ type: 'P5-arm', sample: s.exe, button, responsive: probe.responsive, posted: replay?.posted ?? null,
           version: replay?.version ?? null, wparam: replay?.wparam ?? null, lparam: replay?.lparam ?? null,
-          asfw: replay?.asfw ?? null, menus: probe.menus.length, fgBecame: probe.foregroundBecameTarget,
+          // 工单363 O1：数据面不再调 AllowSetForegroundWindow，存证里的 asfw 字段随之退役
+    asfw: null, menus: probe.menus.length, fgBecame: probe.foregroundBecameTarget,
           newVisible: probe.newVisible.length });
         await dismissMenus();
         if (button === 'left') { closeNewWindows(probe); await sleep(400); } // 左键新窗尽力还原
