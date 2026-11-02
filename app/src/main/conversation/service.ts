@@ -149,6 +149,8 @@ interface InternalSession {
   view: ConversationSessionView
   runtime: SessionRuntime | null
   meta: ConversationMetaRow
+  /** 工单364：回合失败的序号（单调递增）——渲染层据此判「新一轮失败」，不靠文案相等 */
+  turnFailureSeq: number
 }
 
 const END_GRACE_MS = 5000
@@ -230,6 +232,7 @@ export class ConversationService extends Service {
           view: rowToView(row),
           runtime: null,
           meta: row,
+          turnFailureSeq: 0,
         })
       }
     } catch (err) {
@@ -428,7 +431,7 @@ export class ConversationService extends Service {
     }
     const view = rowToView(meta)
     view.status = 'starting'
-    const internal: InternalSession = { view, runtime: null, meta }
+    const internal: InternalSession = { view, runtime: null, meta, turnFailureSeq: 0 }
     try {
       // 3) spawn + initialize（能力检查在 session/new 前——能力缺失即回滚）
       const mcpServers = [{
@@ -485,7 +488,7 @@ export class ConversationService extends Service {
     }
     const view = rowToView(meta)
     view.status = 'starting'
-    const internal: InternalSession = { view, runtime: null, meta }
+    const internal: InternalSession = { view, runtime: null, meta, turnFailureSeq: 0 }
     this.sessionsInternal.set(id, internal)
     this.emitChanged()
     try {
@@ -852,8 +855,10 @@ export class ConversationService extends Service {
     if (!body.trim()) return { ok: false, error: '输入为空' }
     s.view.transcript.push({ kind: 'user', at: this.deps.now(), text: body })
     s.view.status = 'busy'
-    // 工单364：新一轮开始——上一轮的失败原因不再挂着（view.error = 用户可见原因）
-    s.view.error = null
+    // 工单364：新一轮开始——**只**清回合级的失败标记（view.promptFailure）。
+    // view.error 是**会话级** failed 态的原因（契约原义），不由一轮回合的成败摆布：
+    // 把它清掉等于抹掉会话级的失败原因（用户据此决定新建或续接）。
+    s.view.promptFailure = null
     this.logEvent({ type: 'conversation-prompt-start', sessionId })
     this.emitChanged()
     const runtime = s.runtime
@@ -869,9 +874,11 @@ export class ConversationService extends Service {
         const message = err instanceof Error ? err.message : String(err)
         if (s.view.status === 'busy') {
           s.view.status = runtime.client.isExited ? 'failed' : 'ready'
-          // 工单364：回合失败对渲染层可见（view.error 是契约里的「用户可见原因」；
-          // 转写里也留一条 system 说明）——渲染层据此显示错误并恢复草稿
-          s.view.error = `发送失败：${message}`
+          // 工单364：回合失败对渲染层可见——走**独立字段** view.promptFailure
+          // （view.error 是会话级 failed 态的原因，原义不动）；序号单调递增，
+          // 渲染层据此判「新一轮失败」而不靠文案相等。转写里也留一条 system 说明。
+          s.turnFailureSeq += 1
+          s.view.promptFailure = { seq: s.turnFailureSeq, message: `发送失败：${message}` }
           s.view.transcript.push({ kind: 'system', at: this.deps.now(), text: `发送失败：${message}` })
         }
         this.logEvent({ type: 'conversation-prompt-error', sessionId, message })
@@ -1010,6 +1017,8 @@ export class ConversationService extends Service {
         this.logEvent({ type: 'conversation-resume-chat-only', sessionId })
       }
       s.view.usage = { used: null, size: null }
+      // 工单364：续接后是全新一轮，旧的回合级失败标记不再挂着
+      s.view.promptFailure = null
       s.view.endedAt = null
       s.meta.endedAt = null
       s.view.status = 'ready'
@@ -1105,6 +1114,8 @@ export class ConversationService extends Service {
     internal.runtime = null
     internal.view.status = 'failed'
     internal.view.error = error
+    // 工单364：会话级失败已说明结局，回合级标记不再重复呈现
+    internal.view.promptFailure = null
     internal.view.backendPid = null
     internal.view.pendingPermission = null
     internal.view.transcript.push({ kind: 'system', at: this.deps.now(), text: error })
@@ -1155,6 +1166,8 @@ function rowToView(row: ConversationMetaRow): ConversationSessionView {
     transcript: [],
     usage: { used: null, size: null },
     error: null,
+    // 工单364：回合级失败独立字段（初始无失败）
+    promptFailure: null,
     pendingPermission: null,
   }
 }

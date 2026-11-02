@@ -15,19 +15,18 @@
 /** 视口（面板窗 = 主显示器全屏 bounds，含任务栏占位） */
 export type Viewport = { width: number; height: number }
 
-/** 落位盒子（左上角 + 尺寸，四个数一起写进内联样式） */
-export type Box = { left: number; top: number; width: number; height: number }
-
 /**
- * 装配结果（工单362）：文案区高度、盒子尺寸与落位。
+ * 装配结果（工单362）：文案区高度、盒子高度与落位。
  * 文案区的自然高度由 DOM 实测得来（折行已经发生在那一步），本模块只出**策略**。
+ *
+ * **宽度不在这里**（工单362 复审）：宽度的唯一出处是 confirmWidthOf（CONFIRM_W 为上限，
+ * 窄视口按 CONFIRM_MARGIN 夹取）。此前这里另带一份 width，无人消费——等于第二份尺寸。
  */
 export type ConfirmFit = {
   /** 文案区实际高度（超高时被上限截断，超出部分自己滚） */
   textH: number
   /** 文案区高度上限 */
   textMaxH: number
-  width: number
   height: number
   left: number
   top: number
@@ -78,7 +77,12 @@ export declare function confirmOkLabelOf(mode?: string): string
 export declare function confirmTextOf(names: readonly string[], mode?: string): string
 /** 盒子里除文案区以外的那截固定高度（上下边框 + 上下内边距 + 两枚按钮） */
 export declare function confirmChromeH(): number
-/** 装配：按视口与**实测**的文案自然高度算文案区高度、盒子尺寸与落位 */
+/**
+ * 对话框宽度（唯一出处）：CONFIRM_W 为上限，视口不够宽时按 CONFIRM_MARGIN 夹取——
+ * 确认框整体不得超出视口（工单362 AC）。
+ */
+export declare function confirmWidthOf(viewport: Viewport): number
+/** 装配：按视口与**实测**的文案自然高度算文案区高度、盒子高度与落位（宽度见 confirmWidthOf） */
 export declare function confirmFitOf(viewport: Viewport, textNaturalH: number): ConfirmFit
 /** 删除确认层的转移矩阵 */
 export declare function nextConfirmLayer(state: ConfirmState, event: ConfirmEvent): ConfirmResult

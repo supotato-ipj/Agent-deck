@@ -184,6 +184,36 @@ describe('对话窗会话服务（工单332）', () => {
     expect(result.stopReason).toBe('end_turn')
   })
 
+  it('回合失败走**独立字段**（view.promptFailure）：view.error 保持会话级 failed 态的原义不动', async () => {
+    harness = makeHarness('prompt-error')
+    const h = harness!
+    const session = await createdSession(h)
+    const res = await h.service.prompt(session.id, '会失败的一轮')
+    expect(res.ok).toBe(true)
+    await until(() => h.views().find((s) => s.id === session.id)?.promptFailure != null)
+    const view = h.views().find((s) => s.id === session.id)!
+    // 回合级失败原因在独立字段里，序号单调递增（渲染层据此判「新一轮失败」）
+    expect(view.promptFailure!.message).toContain('发送失败')
+    expect(view.promptFailure!.seq).toBeGreaterThan(0)
+    // 会话级原因原义保留：回合失败**不占** view.error（那是 failed 态的原因），会话也未 failed
+    expect(view.error).toBeNull()
+    expect(view.status).toBe('ready')
+  })
+
+  it('回合失败的序号单调递增（同一句话连来两次也不混）：第二次失败 seq 更大', async () => {
+    harness = makeHarness('prompt-error')
+    const h = harness!
+    const session = await createdSession(h)
+    await h.service.prompt(session.id, '第一轮')
+    await until(() => h.views().find((s) => s.id === session.id)?.promptFailure != null)
+    const first = h.views().find((s) => s.id === session.id)!.promptFailure!
+    await h.service.prompt(session.id, '第二轮')
+    await until(() => (h.views().find((s) => s.id === session.id)?.promptFailure?.seq ?? 0) > first.seq)
+    const second = h.views().find((s) => s.id === session.id)!.promptFailure!
+    expect(second.seq).toBeGreaterThan(first.seq)
+    expect(second.message).toBe(first.message) // 文案相同——判据不能靠文案相等
+  })
+
   it('权限请求原样呈现 + 用户裁决形状逐字上 wire + 绝不超时自动拒绝', async () => {
     harness = makeHarness('permission')
     const h = harness!
