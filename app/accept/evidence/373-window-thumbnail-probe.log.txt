@@ -1,0 +1,112 @@
+工单373 真机探针（t373-window-thumbnail-probe.js）——外部窗口实时缩略图与最小化降级验证
+运行时刻：2026-11-02T21:47:38.670Z
+退出码：0（断言全过）
+
+控制器 DPI 口径：Per-Monitor V2 生效（本报告全部坐标为物理 px）
+系统 DPI=96（scale=1.00x）
+S1 基线：tasklist 计数 notepad=1 msedge=34 electron=0；原生任务栏 appbarState=1 visible=true
+S1 本机预存的 notepad/msedge 可见窗已快照，探针只认启动后新出现的窗，绝不触碰用户既有窗口
+PASS S2 探针持有目标条带窗就位（WS_POPUP 置顶，客户区==窗口区，DWM 目标矩形口径=客户坐标） —— hwnd=1b09f0 clientScreen={"x":60,"y":1180,"w":1660,"h":220}
+S2 helper-win32 就绪：pid=42780 dpi=96 ctx=PER_MONITOR_AWARE_V2 windows={"live":"f02da","popup":"5d111a","cloak":"1780f12"}
+S2 helper-electron 就绪：pid=28452 destHwnd=12015e srcHwnd=3f1066 src动画页加载=true bounds(DIP)={"x":1840,"y":1180,"width":640,"height":220}
+S2 notepad 拉起：hwnd=3c02ec pid=33684（单实例复用既有进程时清理只 WM_CLOSE 该窗）
+S2 msedge 拉起：hwnd=100164 pid=41676（独立临时 profile，--app=file://动画页）
+PASS S2 目标条带窗初始为底色（6 格全空，取证基线成立） —— bgRatio=1.000
+—— S3 实时缩略图：注册 → 首帧 → 实时传播（逐张填入时延账目） ——
+  [时延] 逐张填入 · win32-live = 12.4ms（注册→首帧内容可见）
+PASS S3 win32-live 实时缩略图呈现（面板持有目标窗内出现源窗当前色） —— hr=0 fill=12.4ms
+  [时延] 逐张填入 · notepad = 22.7ms（注册→首帧内容可见）
+PASS S3 notepad 实时缩略图呈现（真实第三方 Win32） —— fill=22.7ms
+  [时延] 逐张填入 · msedge = 20.4ms（注册→首帧内容可见）
+PASS S3 msedge 实时缩略图呈现（Chromium/硬件加速） —— fill=20.4ms
+  [时延] 逐张填入 · electron = 22.2ms（注册→首帧内容可见）
+PASS S3 electron 实时缩略图呈现（Chromium/Electron） —— fill=22.2ms
+  [时延] 逐张填入 · win32-popup = 11.9ms（注册→首帧内容可见）
+PASS S3 自绘无边框（WS_POPUP）实时缩略图呈现 —— fill=11.9ms
+  [时延] 实时传播 · win32-live setcolor 红→绿 = 20.9ms（源窗内容变化→缩略图跟随）
+PASS S3 win32-live 实时传播（源窗内容变化，缩略图同步更新——非静态截图） —— propagation=21.0ms
+PASS S3 自绘无边框实时传播（蓝→品红跟随） —— propagation=11.0ms
+PASS S3 notepad 实时传播（源窗几何变化触发重渲染，缩略图像素差可见） —— propagation=24.3ms
+  [时延] 实时传播 · notepad 几何重渲染 = 24.3ms
+PASS S3 msedge 实时传播（源窗宽度变化→GPU 内容重排，缩略图像素差可见——硬件加速内容为实时流非静态帧） —— propagation=21.4ms
+  [时延] 实时传播 · msedge 几何重排 = 21.4ms
+PASS S3 electron 实时传播（源窗宽度变化→GPU 内容重排，缩略图像素差可见——硬件加速内容为实时流非静态帧） —— propagation=17.0ms
+  [时延] 实时传播 · electron 几何重排 = 17.0ms
+S3g 诊断：eDestHwnd=12015e IsWindow=true rect=[1840,1180,2480,1400] class=Chrome_WidgetWin_1
+PASS S3g 平台约束发现：跨进程目标窗注册被拒（E_INVALIDARG），生产须在面板进程内注册（决策15 口径） —— hr=-2147024809 IsWindow=true（同轮探针自有目标窗 6 格注册全部成功）
+  [时延] 打开（首格注册→首帧） · win32-live = 12.4ms（预览「打开」DWM 承载部分口径——胶囊 UI 本身的打开时延属 UI 层，不在本探针）
+—— S4 最小化：实时缩略图行为实测 + 内存缓存 + 无缓存回退 ——
+PASS S4a 特征色（品红）已在实时缩略图呈现（缓存内容可辨认的前提）
+PASS S4a 最小化前 PrintWindow 内存缓存抓取（PW_RENDERFULLCONTENT，仅内存位图） —— size=560x400 品红占比=0.87 okPw=true
+S4a win32-live 最小化后实时缩略图实测：冻结（最后一帧留存）（blankRatio=0.000 frozenRatio=1.000）——逐扇记录，不作无条件承诺
+PASS S4a 最小化行为可观测且已记录（实测分类，不预设结果） —— IsIconic=true 分类=冻结（最后一帧留存）
+S4a 最小化后再抓 PrintWindow：品红占比=0.00（PrintWindow 返回成功）——生产缓存必须在最小化前抓取，实测证据留档
+  [时延] 缓存填入 · win32-live（最小化态） = 55.1ms（注销实时→内存缓存渲染可见）
+PASS S4a 最小化窗口在目标窗中展示最近缓存（内存位图渲染，特征色像素比对） —— fill=55.2ms
+PASS S4a 窗口还原后实时缩略图恢复（缓存模式退出、实时关系重建） —— re-register hr=0 live=true
+S4b notepad 最小化后实时缩略图实测：冻结（最后一帧留存）（blankRatio=0.084 frozenRatio=0.991）
+PASS S4b notepad 最小化行为可观测且已记录 —— IsIconic=true 分类=冻结（最后一帧留存）
+S4b notepad 图标提取：成功（来源=GCLP_HICON） 标题="无标题 - Notepad"
+  [时延] 回退填入 · notepad（图标+标题，无缓存） = 44.7ms（图标+标题渲染可见）
+PASS S4b 无缓存最小化窗口回退为应用图标+标题（目标窗内可见，预览始终可用） —— fill=44.8ms icon=GCLP_HICON title=有
+S4c msedge 最小化后实时缩略图实测：冻结（最后一帧留存）（blankRatio=0.000 frozenRatio=1.000）
+PASS S4c msedge 最小化行为可观测且已记录 —— IsIconic=true 分类=冻结（最后一帧留存）
+S4c electron 最小化后实时缩略图实测：冻结（最后一帧留存）（blankRatio=0.065 frozenRatio=1.000）
+PASS S4c electron 最小化行为可观测且已记录 —— IsIconic=true 分类=冻结（最后一帧留存）
+S4c win32-popup 最小化后实时缩略图实测：冻结（最后一帧留存）（blankRatio=0.000 frozenRatio=1.000）
+PASS S4c win32-popup 最小化行为可观测且已记录 —— IsIconic=true 分类=冻结（最后一帧留存）
+—— S5 cloak（DWMWA_CLOAK）实测记录 ——
+S5a 跨进程置 cloak（helper 窗）：DwmSetWindowAttribute(DWMWA_CLOAK)=hr-2147024891（被拒——生产对他人窗不可主动 cloak，只能经 DWMWA_CLOAKED 读回识别（如其他虚拟桌面窗））
+PASS S5b 同进程 cloak 试验窗注册实时缩略图并呈现（cloaking 前基线） —— fill=19.6ms
+S5b cloak 实测：DwmSetWindowAttribute(DWMWA_CLOAK)=hr0，DWMWA_CLOAKED 读回=1，缩略图=冻结（最后一帧留存）（blankRatio=0.000 frozenRatio=1.000）
+PASS S5b 同进程 cloak 属性可置可读、缩略图行为已实测记录（逐项记录，不作无条件承诺） —— cloaked=1 分类=冻结（最后一帧留存）
+PASS S5b 解除 cloak 后实时缩略图恢复呈现
+—— S6 预览关闭：缩略图关系/位图/缓存全释放 + 不建磁盘缓存 ——
+PASS S6a 全部缩略图关系注销后目标窗回底色（实时画面不再呈现） —— 注销 5 个关系 → 6 格全部回底色=true
+PASS S6b 注销后同源再注册成立（缩略图关系可完全释放重建，无泄漏锁死） —— hr=0 fill=12.6ms
+S6c 内存缓存/图标引用全部清空并销毁 GDI 资源——缓存只存内存是结构性保证（PrintWindow→DIB→Buffer，代码中无磁盘写路径），非运行期约定
+PASS S6d 缩略图全流程不新建磁盘图像文件（临时目录与证据目录文件清单前后比对） —— 新增文件（edge-profile 外）=无；证据目录新增=无（edge-profile 内 Chromium 自管缓存不计——非探针写路径）
+S6d 结构性说明：探针对缩略图/缓存只有内存写路径（PrintWindow→DIB→Buffer、DWM 合成），代码中无任何图像文件写调用——磁盘缓存不存在是结构性质，非运行期约定
+—— S7 清理与零残留 ——
+（helper-electron BrowserWindow(dest) 已关闭——后续该窗断言会如实失败）
+（helper-electron BrowserWindow(src) 已关闭——后续该窗断言会如实失败）
+PASS S7 探针圈定的全部进程已退出（spawn pid + 新增差集；用户既有进程不在圈定集内） —— 全部退出（圈定 3 pid）
+PASS S7 影像名进程计数不高于基线（notepad/msedge/electron 无子进程残留） —— notepad 1→1 msedge 34→34 electron 0→0
+PASS S7 探针临时目录已删除（helper 源码/动画页与 edge profile 不残留） —— C:\Users\ANW~1\AppData\Local\Temp\t373-probe-ItBAhS
+PASS S7 原生任务栏状态不变（ABM_GETSTATE + 可见性） —— state 1→1 visible true→true
+S7 光标已归位
+S7 常驻进程：探针只 spawn 上述已退出的子进程，main 返回即退出，无常驻残留（结构性保证）
+
+=== 兼容矩阵（本轮实测，逐项记录、不作无条件承诺） ===
+| win32-live | 实时:OK | 传播:OK | 最小化:冻结（最后一帧留存） | 缓存/回退:OK（最小化前缓存） | cloak:— |
+| notepad | 实时:OK | 传播:OK(几何重渲染) | 最小化:冻结（最后一帧留存） | 缓存/回退:OK（图标+标题回退） | cloak:— |
+| msedge | 实时:OK | 传播:OK(几何重排) | 最小化:冻结（最后一帧留存） | 缓存/回退:— | cloak:— |
+| electron | 实时:OK | 传播:OK(几何重排) | 最小化:冻结（最后一帧留存） | 缓存/回退:— | cloak:— |
+| win32-popup | 实时:OK | 传播:OK | 最小化:冻结（最后一帧留存） | 缓存/回退:— | cloak:— |
+| electron-dest(跨进程目标) | 实时:E_INVALIDARG hr=-2147024809（目标窗须属调用进程） | 传播:— | 最小化:— | 缓存/回退:— | cloak:— |
+| win32-cloak | 实时:— | 传播:— | 最小化:— | 缓存/回退:— | cloak:跨进程置cloak被拒 hr-2147024891（N/T） |
+| cloak-self(同进程) | 实时:OK | 传播:— | 最小化:— | 缓存/回退:— | cloak:冻结（最后一帧留存）（CLOAKED=1） |
+
+=== 时延账本（支撑 200ms 主交互预算评审） ===
+| 逐张填入 | win32-live | 12.4ms |
+| 逐张填入 | notepad | 22.7ms |
+| 逐张填入 | msedge | 20.4ms |
+| 逐张填入 | electron | 22.2ms |
+| 逐张填入 | win32-popup | 11.9ms |
+| 实时传播 | win32-live setcolor 红→绿 | 20.9ms |
+| 实时传播 | notepad 几何重渲染 | 24.3ms |
+| 实时传播 | msedge 几何重排 | 21.4ms |
+| 实时传播 | electron 几何重排 | 17.0ms |
+| 打开（首格注册→首帧） | win32-live | 12.4ms |
+| 缓存填入 | win32-live（最小化态） | 55.1ms |
+| 回退填入 | notepad（图标+标题，无缓存） | 44.7ms |
+逐张填入时延范围：11.9–22.7ms（n=5）；评审口径：DWM 注册→首帧是预览「填入」的承重段，胶囊点击→预览窗打开的 UI 段不在本探针。
+
+=== 工单373 go/no-go 证据要点 ===
+① 实时缩略图（面板持有目标窗）：成立——win32-live/popup/notepad/msedge/electron 逐扇注册呈现，setcolor 与几何驱动内容变化证实时效流（非静态帧）；平台约束：目标窗必须属调用进程（跨进程目标 E_INVALIDARG，S3g），生产须在面板进程内注册——与 spec 决策15「目标窗必须由面板持有」一致
+② 最小化降级：成立——最小化前 PrintWindow 内存缓存渲染可见（特征色像素比对）；无缓存回退图标+标题可见；最小化后 DWM 实时缩略图行为逐扇实测记录
+③ 兼容矩阵：最小化/自绘/硬件加速/cloak 逐项实测记录（见矩阵表），不作无条件承诺
+④ 释放与不落盘：全部注销→回底色、再注册成立、缓存 GDI 资源销毁、缩略图流程零磁盘图像文件——见 S6 PASS 行
+⑤ 零残留：进程计数回基线、临时目录删除、任务栏状态不变——见 S7 PASS 行
+go/no-go 判读：探针能力不记作生产完成——生产窗口预览仍需按 spec #369 决策 15/30 与 ADR-0028 实现预览服务、生命周期与失败关闭；
+断言账目：全部通过
