@@ -2639,10 +2639,8 @@ async function main() {
       const scaleO = (rectO.right - rectO.left) / dipO.width;
       const morePt = { x: Math.round(rectO.left + (moreRect.x + moreRect.w / 2) * scaleO), y: Math.round(rectO.top + (moreRect.y + moreRect.h / 2) * scaleO) };
       const convergedO = await converge27(morePt, strip13);
-      // 溢出名单（开层前取一次）：行几何按溢出页同款算术现算（行高 30、首行上内衬 7——
-      // 溢出页 ready 存证里的行矩形同款）。**不等 ready 存证**：红轮实证 ready 与
-      // opened 同拍落地（2ms），等它只是多花一趟 CDP 往返——而浮层开出来 ~0.6s 就被
-      // 桌面上的别的窗口抢焦收层（reason=blur），往返一趟行点击就落在浮层外了。
+      // 溢出名单（开层前取一次）：行几何兜底按溢出页同款算术现算（行高 30、首行上内衬 7——
+      // 溢出页 ready 存证里的行矩形同款）；首选还是 ready 存证（与 opened 同拍落地）。
       const rosterForOv = ((await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE) || {}).tray || []);
       const tailForOv = rosterForOv.slice(3);
       const rowIdxOv = tailForOv.findIndex((e) => e.key === ovTargetKey);
@@ -2656,9 +2654,15 @@ async function main() {
         win32.clickPhys(morePt.x, morePt.y, 'left');
         openedO = await tape.wait('taskbar-tray-overflow-opened', undefined, { since: sinceO, timeoutMs: 4000 });
         if (!openedO) continue;
-        rowsO = tailForOv.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 7 + 30 * i, h: 30 }));
+        // 行几何：优先取 ready 存证（与 opened 同拍落地，2ms 级），缺席才按溢出页同款
+        // 算术现算（行高 30、首行上内衬 7）——两路同源，行点坐标一致。
+        const readyO = await tape.wait('taskbar-tray-overflow-ready', (e) => Array.isArray(e.rows) && e.rows.length > 0, { since: sinceO, timeoutMs: 1500 });
+        rowsO = readyO && readyO.rows ? readyO.rows : tailForOv.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 7 + 30 * i, h: 30 }));
         rowO = rowsO.find((r) => r.key === ovTargetKey);
         if (!rowO) continue;
+        // 沉降拍（55 族红轮实证）：浮层 show 后 ~100ms 内落点的点击**整帧丢失**（新窗输入
+        // 路由未就绪）——开层后沉降 700ms 再点行。55 族同款 openPopup 的实跑口径。
+        await sleep(700);
         const bO = openedO.bounds;
         const ptRow = { x: Math.round(rectO.left + (bO.x + 140) * scaleO), y: Math.round(rectO.top + (bO.y + rowO.y + rowO.h / 2) * scaleO) };
         const tO = Date.now();
