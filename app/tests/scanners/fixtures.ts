@@ -196,3 +196,111 @@ export class KimiWorkFx {
     fs.writeFileSync(path.join(this.root, 'conversation-context-usage.json'), JSON.stringify(this.usage), 'utf8')
   }
 }
+
+const MINIMAX_SCHEMA = `
+CREATE TABLE local_runtime_sessions (
+    session_id TEXT,
+    record_json TEXT,
+    updated_at_ms INTEGER,
+    agent_name TEXT,
+    runtime TEXT,
+    session_type TEXT,
+    status TEXT,
+    archived INTEGER,
+    workspace_dir TEXT,
+    project_workspace_dir TEXT,
+    title TEXT,
+    created_at_ms INTEGER,
+    error_message TEXT
+);`
+
+/**
+ * MiniMax Code 数据根（工单374 spike 夹具）：`v2/sqlite/runtime-state.sqlite` 主账本 +
+ * `v2/sessions/YYYY/MM/DD/…` dated 历史目录两件套。内容全部合成、确定性（同参必得同树），
+ * 不复制任何用户真实会话内容；列集是真实表的子集，只含探针读取的列（真实表列更多，
+ * 探针不得依赖缺列）。
+ */
+export class MinimaxFx {
+  private readonly db: DatabaseSync
+
+  /** nowMs 为 epoch 毫秒（与真实 updated_at_ms 同单位） */
+  constructor(public readonly root: string, public readonly nowMs: number) {
+    fs.mkdirSync(path.join(root, 'v2', 'sqlite'), { recursive: true })
+    this.db = new DatabaseSync(path.join(root, 'v2', 'sqlite', 'runtime-state.sqlite'))
+    this.db.exec(MINIMAX_SCHEMA)
+  }
+
+  /** 主账本一行；title/project 传 null 模拟缺真值，status 原样入库（不校验值域） */
+  add(
+    id: string,
+    options: { ageMin?: number; title?: string | null; project?: string | null; status?: string; archived?: number } = {},
+  ): void {
+    const updated = Math.trunc(this.nowMs - (options.ageMin ?? 5) * 60_000)
+    this.db.prepare(
+      'INSERT INTO local_runtime_sessions (session_id, updated_at_ms, status, archived, workspace_dir, title) VALUES (?,?,?,?,?,?)',
+    ).run(
+      id,
+      updated,
+      options.status ?? 'idle',
+      options.archived ?? 0,
+      options.project === null ? null : `D:/work/${options.project ?? 'zulu'}`,
+      options.title === undefined ? `fx-title-${id}` : options.title,
+    )
+  }
+
+  /**
+   * dated 历史目录 + messages.jsonl 尾部夹具（目录时间取 nowMs-ageMin*60000 的本地时间）。
+   * tail 依序为记录序列；每条 {role, stopReason?} 合成为真实行形态
+   * `{message_id, turn_id, message:{role, content, timestamp, stopReason?}}`。
+   * 返回 messages.jsonl 路径。
+   */
+  addHistory(
+    id: string,
+    ageMin: number,
+    tail: Array<{ role: 'user' | 'assistant' | 'toolResult' | 'custom'; stopReason?: string }>,
+  ): string {
+    const t = this.nowMs - ageMin * 60_000
+    const d = new Date(t)
+    const p2 = (n: number) => String(n).padStart(2, '0')
+    const p3 = (n: number) => String(n).padStart(3, '0')
+    const dir = path.join(
+      this.root, 'v2', 'sessions',
+      String(d.getFullYear()), p2(d.getMonth() + 1), p2(d.getDate()),
+      `${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}-${p3(d.getMilliseconds())}-session_${Buffer.from(id, 'utf8').toString('base64')}`,
+    )
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({
+      schemaVersion: 1,
+      sessionId: id,
+      createdAtMs: t,
+      updatedAtMs: t,
+      source: 'local-runtime',
+      layout: 'v2-final-dated-session',
+      paths: {
+        sessionDir: dir,
+        ledger: path.join(dir, 'ledger.ndjson'),
+        display: path.join(dir, 'display.ndjson'),
+        snapshot: path.join(dir, 'snapshot.ndjson'),
+        reports: path.join(dir, 'reports'),
+        messages: path.join(dir, 'messages.jsonl'),
+      },
+    }), 'utf8')
+    const lines = tail.map((m, i) => JSON.stringify({
+      message_id: `fx-msg-${i}`,
+      turn_id: 'fx-turn-0',
+      message: {
+        role: m.role,
+        content: [{ type: 'text', text: `fx-content-${i}` }],
+        timestamp: t + i,
+        ...(m.stopReason === undefined ? {} : { stopReason: m.stopReason }),
+      },
+    }))
+    const mf = path.join(dir, 'messages.jsonl')
+    fs.writeFileSync(mf, lines.join('\n') + '\n', 'utf8')
+    return mf
+  }
+
+  close(): void {
+    this.db.close()
+  }
+}
