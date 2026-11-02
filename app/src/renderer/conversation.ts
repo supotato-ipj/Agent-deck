@@ -1,9 +1,22 @@
 // 对话窗渲染层（工单332 聊天型 / 工单333 管理型叠加；工单364 初始化门禁与发送反馈）：
-// 纯呈现与输入（GLOSSARY「对话窗」）。状态唯一来源是 conversation/changed 推送的全量会话视图；
-// 动作全部经内核桥接契约（create/prompt/cancel/permission/end/resume），渲染层不解释协议方言——
-// 工具与权限条目按原样载荷呈现，权限裁决只回用户点中的 optionId（绝不超时自动拒绝，ADR-0018）。
+// 纯呈现与输入（GLOSSARY「对话窗」）。动作全部经内核桥接契约（create/prompt/cancel/permission/
+// end/resume），渲染层不解释协议方言——工具与权限条目按原样载荷呈现，权限裁决只回用户点中的
+// optionId（绝不超时自动拒绝，ADR-0018）。
 // 管理型（工单333）：「管理」勾选 = 用户显式授权（逐会话、不持久化）；创建失败在窗内
 // 显式报错并给「以聊天型创建」按钮——绝不静默降级（ADR-0018 全有或全无）。
+//
+// **权威视图 vs UI 本地态**（工单364 复审：头注释此前与实现脱节，此处写准）：
+//   · 权威视图 = conversation/changed 推送过来的**全量会话视图**（会话列表、转写、状态、
+//     usage、会话级 error、回合级 promptFailure）。它是唯一的事实来源。
+//   · UI 本地态 = 只活在本渲染层、**不冒充事实**的三样东西：
+//       ① initState/initError —— 初始化门禁（页面尚未与内核接上时输入与发送保持禁用）；
+//       ② pendingSend     —— 受理前的**乐观回显**（点了发送立刻看见自己的消息）；
+//       ③ awaitingTurn    —— 在途回合的账（回合失败时据此恢复草稿）。
+//   · 本地态如何让位于权威推送：乐观回显在权威转写里出现同一条用户消息时自动退场
+//     （syncPendingSend）；在途回合在权威视图出现 agent 回复或回合失败标记时收束
+//     （syncAwaitingTurn）；初始化门禁在首份推送到达时转为 ready（推送到达即证明桥接在位）。
+//   · 本地态**不改写**权威视图：回合失败落在权威视图的独立字段 promptFailure 上，
+//     会话级失败原因仍在 view.error（两者不是一件事，渲染层不拿回合的成败改写会话的结局）。
 //
 // 工单364（初始化门禁 + 发送反馈）：
 // - 静态初始态禁用输入与发送（HTML 层）；初始化成功后才按当前会话状态开放。初始化失败
@@ -13,7 +26,7 @@
 // - 有会话：点发送与按 Enter 都立即回显用户输入并进入「回复中」；权威转写仍经既有变化推送
 //   刷新（不建第二条发送链）。桥接拒绝/同步异常/后端回合失败一律可见报错并恢复草稿；
 //   不自动重试、不自动新建会话、不切换后端、不动 DSH 数据目录。
-import type { AuthorizationGrantView, ConversationSessionView, ConversationTranscriptEntry, CredentialView, InstallProposalView, MediaAuditBucketView, NetworkAuditBucketView } from '../shared/contract'
+import type { AuthorizationGrantView, BridgeMethod, BridgeMethods, ConversationSessionView, ConversationTranscriptEntry, CredentialView, InstallProposalView, MediaAuditBucketView, NetworkAuditBucketView } from '../shared/contract'
 
 const transcriptEl = document.getElementById('transcript') as HTMLElement
 const selectEl = document.getElementById('session-select') as HTMLSelectElement
@@ -39,15 +52,24 @@ let activeId: string | null = null
 type InitState = 'pending' | 'ready' | 'failed'
 let initState: InitState = 'pending'
 let initError: string | null = null
-/** 工单364：发送失败可见（状态行每次 render 覆写——只写那里等于没写） */
-let sendError: string | null = null
+/**
+ * 工单364：动作失败可见（**统一呈现口**）。
+ *
+ * 此前只有 sendError 一处，且创建失败写状态行——状态行每次 render 都被覆写，写那里等于没写
+ * （创建失败其实是无声的）。故归一为一个字段，消息在**调用点**带上自己的前缀
+ * （发送失败／创建失败／取消失败……），转写里一条错误横幅呈现。
+ */
+let actionError: string | null = null
 /** 工单364：受理前的本地乐观回显（权威转写到达后自动让位，不重复显示） */
 let pendingSend: { sessionId: string; text: string; expectedUserCount: number } | null = null
 /**
  * 工单364：已受理但未收束的回合（回合失败时据此恢复草稿——失败可见且草稿不丢）。
- * 判据用计数而非时序：权威转写里的 agent 条目变多 = 回合有回复；view.error 变新 = 回合失败。
+ *
+ * 判据用**计数与序号**，不靠文案相等：权威转写里的 agent 条目变多 = 回合有回复；
+ * 权威视图的 promptFailure.seq 变大 = **新一轮**回合失败（同一句话连来两次时，
+ * 文案相等判据会漏判，草稿就此丢失——故用单调递增的序号）。
  */
-let awaitingTurn: { sessionId: string; text: string; expectedAgentCount: number; errorAtSend: string | null } | null = null
+let awaitingTurn: { sessionId: string; text: string; expectedAgentCount: number; failureSeqAtSend: number } | null = null
 /** 工单364：无会话时点发送的明确指导（不静默） */
 let noSessionNotice = false
 
@@ -63,6 +85,28 @@ function current(): ConversationSessionView | null {
 function bridgeAvailable(): boolean {
   const bridge = window.deck?.bridge
   return !!bridge && typeof bridge.invoke === 'function'
+}
+
+/**
+ * 桥接调用的统一包装（工单364）：三处「bridgeAvailable() + catch 静默」形状归一。
+ *
+ * 返回两态：{ ok: true, value } / { ok: false, error }——**调用方**决定这条失败要不要呈现：
+ *   · 初始化链与发送链：一律呈现（绝不静默吞掉——ADR-0018「绝不静默降级」）；
+ *   · install/credentials 面（工单334/335/336/339 的地盘，与本票无关）：沿用既有行为面——
+ *     失败即安静退场，**不改变**它们既有的用户可见行为（守卫非留不可：面板未装配该面时
+ *     调用必然失败，抛出去只会变成未处理拒绝＝另一种静默）。
+ */
+async function bridgeCall<M extends BridgeMethod>(
+  method: M,
+  payload: BridgeMethods[M]['request'],
+): Promise<{ ok: true; value: BridgeMethods[M]['response'] } | { ok: false; error: string }> {
+  if (!bridgeAvailable()) return { ok: false, error: '内核桥接未就绪（preload 未装配）' }
+  try {
+    const value = await window.deck.bridge.invoke(method, payload)
+    return { ok: true, value }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 function systemEntry(text: string): HTMLElement {
@@ -98,18 +142,30 @@ function agentEntryCount(view: ConversationSessionView | null): number {
 }
 
 /**
- * 工单364：回合收束判定——回合失败（新出现的 view.error）→ 恢复草稿；回合有回复 → 正常收束。
- * 失败原因本身由 view.error 呈现（既有错误横幅），此处只负责把草稿放回输入框。
+ * 工单364：回合收束判定——回合失败（权威视图的回合级失败序号变大）→ 恢复草稿；
+ * 回合有回复 → 正常收束。失败原因本身由权威视图呈现（错误横幅），此处只负责把草稿放回输入框。
  */
 function syncAwaitingTurn(view: ConversationSessionView | null): void {
   if (!awaitingTurn || !view || view.id !== awaitingTurn.sessionId) return
-  if (view.error && view.error !== awaitingTurn.errorAtSend) {
+  const failureSeq = view.promptFailure?.seq ?? 0
+  if (failureSeq > awaitingTurn.failureSeqAtSend) {
     const text = awaitingTurn.text
     awaitingTurn = null
-    if (!inputEl.value.trim()) inputEl.value = text
+    restoreDraft(text)
     return
   }
   if (agentEntryCount(view) >= awaitingTurn.expectedAgentCount) awaitingTurn = null
+}
+
+/**
+ * 草稿恢复（工单364）：失败的一轮**不丢**用户输入。
+ *
+ * 输入框此刻可能已有用户在等待期敲下的新内容——那是要**并入**，不是覆盖：直接覆盖等于把
+ * 用户新敲的字抹掉（那才是真的静默丢失）。空框时原样放回，非空时追加在后面。
+ */
+function restoreDraft(text: string): void {
+  const cur = inputEl.value
+  inputEl.value = cur.trim() ? `${cur}\n${text}` : text
 }
 
 function fmtTime(at: number): string {
@@ -142,7 +198,12 @@ function entryNode(entry: ConversationTranscriptEntry): HTMLElement {
         b.textContent = opt.name
         b.addEventListener('click', () => {
           const s = current()
-          if (s) void window.deck.bridge.invoke('conversation/permission', { sessionId: s.id, optionId: opt.optionId })
+          if (!s) return
+          void bridgeCall('conversation/permission', { sessionId: s.id, optionId: opt.optionId }).then((r) => {
+            if (r.ok) return
+            actionError = `权限裁决失败：${r.error}`
+            render()
+          })
         })
         actions.appendChild(b)
       }
@@ -150,7 +211,12 @@ function entryNode(entry: ConversationTranscriptEntry): HTMLElement {
       cancelBtn.textContent = '取消本回合'
       cancelBtn.addEventListener('click', () => {
         const s = current()
-        if (s) void window.deck.bridge.invoke('conversation/cancel', { sessionId: s.id })
+        if (!s) return
+        void bridgeCall('conversation/cancel', { sessionId: s.id }).then((r) => {
+          if (r.ok) return
+          actionError = `取消失败：${r.error}`
+          render()
+        })
       })
       actions.appendChild(cancelBtn)
       div.appendChild(actions)
@@ -213,13 +279,20 @@ function render(): void {
     if (view.error) {
       transcriptEl.appendChild(errorEntry(view.error))
     }
-    if (sendError) {
-      transcriptEl.appendChild(errorEntry(`发送失败：${sendError}`))
+    // 工单364：回合级失败走**独立字段**（会话级原因 view.error 原义不动，两者不是一件事）
+    if (view.promptFailure) {
+      transcriptEl.appendChild(errorEntry(view.promptFailure.message))
     }
     if (view.status === 'failed') {
       const resumeBtn = document.createElement('button')
       resumeBtn.textContent = '续接本会话'
-      resumeBtn.addEventListener('click', () => { void window.deck.bridge.invoke('conversation/resume', { sessionId: view.id }) })
+      resumeBtn.addEventListener('click', () => {
+        void bridgeCall('conversation/resume', { sessionId: view.id }).then((r) => {
+          if (r.ok) return
+          actionError = `续接失败：${r.error}`
+          render()
+        })
+      })
       transcriptEl.appendChild(resumeBtn)
     }
     if (view.managed) {
@@ -230,10 +303,15 @@ function render(): void {
     }
     transcriptEl.scrollTop = transcriptEl.scrollHeight
   }
+  // 工单364：动作失败统一呈现口（发送/创建/取消/裁决……的失败都在这里，不静默消失）
+  if (actionError) {
+    transcriptEl.appendChild(errorEntry(actionError))
+    transcriptEl.scrollTop = transcriptEl.scrollHeight
+  }
   if (managedFailed) {
     const banner = document.createElement('div')
     banner.className = 'entry error-banner'
-    banner.textContent = '管理型创建失败（全有或全无，未创建会话）。可显式选择以聊天型创建：'
+    banner.textContent = `管理型创建失败${managedError ? `：${managedError}` : ''}（全有或全无，未创建会话）。可显式选择以聊天型创建：`
     const retryBtn = document.createElement('button')
     retryBtn.className = 'chat-retry'
     retryBtn.textContent = '以聊天型创建'
@@ -267,6 +345,8 @@ function render(): void {
 
 /** 管理型创建失败态（工单333）：窗内显式呈现错误 + 「以聊天型创建」按钮——绝不静默降级 */
 let managedFailed = false
+/** 管理型创建失败的原因（横幅上要看得见，不能只有一句「创建失败」） */
+let managedError: string | null = null
 
 async function createSession(): Promise<void> {
   if (!bridgeAvailable()) {
@@ -275,17 +355,25 @@ async function createSession(): Promise<void> {
     return
   }
   const managed = chkManaged.checked
-  const res = await window.deck.bridge.invoke('conversation/create', { managed })
+  const called = await bridgeCall('conversation/create', { managed })
+  // 工单364：初始化链上的失败必须**可见**——此前桥接拒绝是未处理拒绝（等于无声），
+  // 而「创建失败」写状态行也会被下一次 render 覆写。两处都改成转写里的错误横幅。
+  if (!called.ok) {
+    actionError = `创建失败：${called.error}`
+    render()
+    return
+  }
+  const res = called.value
   if (res.ok && res.session) {
     managedFailed = false
+    managedError = null
+    actionError = null
     activeId = res.session.id
+  } else if (managed && res.canRetryAsChat) {
+    managedFailed = true
+    managedError = res.error ?? '管理型创建失败'
   } else {
-    if (managed && res.canRetryAsChat) {
-      managedFailed = true
-      statusEl.textContent = res.error ?? '管理型创建失败'
-    } else {
-      statusEl.textContent = res.error ?? '创建失败'
-    }
+    actionError = `创建失败：${res.error ?? '内核未受理本次创建'}`
   }
   render()
 }
@@ -307,18 +395,37 @@ btnNew.addEventListener('click', () => { void createSession() })
 btnSend.addEventListener('click', send)
 btnCancel.addEventListener('click', () => {
   const s = current()
-  if (s) void window.deck.bridge.invoke('conversation/cancel', { sessionId: s.id })
+  if (!s) return
+  void bridgeCall('conversation/cancel', { sessionId: s.id }).then((r) => {
+    if (r.ok) return
+    actionError = `取消失败：${r.error}`
+    render()
+  })
 })
 btnEnd.addEventListener('click', () => {
   const s = current()
-  if (s) void window.deck.bridge.invoke('conversation/end', { sessionId: s.id })
+  if (!s) return
+  void bridgeCall('conversation/end', { sessionId: s.id }).then((r) => {
+    if (r.ok) return
+    actionError = `结束会话失败：${r.error}`
+    render()
+  })
 })
 // 工单340（ADR-0026）：显式创建全新 DSH 数据目录——用户手势，旧目录原样保留、新目录不继承旧会话
 btnFreshDir.addEventListener('click', () => {
-  void window.deck.bridge.invoke('conversation/new-data-dir', null).then((res) => {
-    statusEl.textContent = res.ok
-      ? `已切换全新数据目录：${res.dshHome}（旧目录 ${res.previous} 原样保留）`
-      : res.error ?? '全新数据目录创建失败'
+  void bridgeCall('conversation/new-data-dir', null).then((r) => {
+    if (!r.ok) {
+      actionError = `切换全新数据目录失败：${r.error}`
+      render()
+      return
+    }
+    const res = r.value
+    if (res.ok) {
+      statusEl.textContent = `已切换全新数据目录：${res.dshHome}（旧目录 ${res.previous} 原样保留）`
+    } else {
+      actionError = `切换全新数据目录失败：${res.error ?? '全新数据目录创建失败'}`
+      render()
+    }
   })
 })
 
@@ -337,40 +444,43 @@ async function send(): Promise<void> {
   }
   if (!text.trim()) return
   if (initState !== 'ready') {
-    sendError = '对话窗尚未初始化完成——请重开对话窗后再发送'
+    actionError = '发送失败：对话窗尚未初始化完成——请重开对话窗后再发送'
     render()
     return
   }
   inputEl.value = ''
-  sendError = null
+  actionError = null
   noSessionNotice = false
   pendingSend = { sessionId: s.id, text, expectedUserCount: userEntryCount(s) + 1 }
   render()
-  try {
-    const res = await window.deck.bridge.invoke('conversation/prompt', { sessionId: s.id, text })
-    if (!res.ok) {
-      failSend(text, res.error ?? '内核未受理本次发送')
-      return
-    }
-    // 受理成功：权威转写经既有变化推送到达，本地回显届时让位；
-    // 记下本回合——回合失败时据此恢复草稿（失败可见、草稿不丢）
-    awaitingTurn = {
-      sessionId: s.id,
-      text,
-      expectedAgentCount: agentEntryCount(s) + 1,
-      errorAtSend: s.error,
-    }
-    render()
-  } catch (err) {
-    failSend(text, err instanceof Error ? err.message : String(err))
+  const called = await bridgeCall('conversation/prompt', { sessionId: s.id, text })
+  if (!called.ok) {
+    failSend(text, called.error)
+    return
   }
+  const res = called.value
+  if (!res || !res.ok) {
+    failSend(text, res?.error ?? '内核未受理本次发送')
+    return
+  }
+  // 受理成功：权威转写经既有变化推送到达，本地回显届时让位；
+  // 记下本回合——回合失败时据此恢复草稿（失败可见、草稿不丢）
+  awaitingTurn = {
+    sessionId: s.id,
+    text,
+    expectedAgentCount: agentEntryCount(s) + 1,
+    // 回合失败判据的基准：发送那一刻的回合失败序号（之后序号变大 = 新一轮失败）
+    failureSeqAtSend: s.promptFailure?.seq ?? 0,
+  }
+  render()
 }
 
 /** 工单364：发送失败可见 + 恢复草稿（不静默丢失；绝不自动重试） */
 function failSend(text: string, message: string): void {
   pendingSend = null
-  sendError = message
-  if (!inputEl.value.trim()) inputEl.value = text
+  actionError = `发送失败：${message}`
+  // 草稿**并入**输入框（等待期用户新敲的内容不被覆盖，两份都在）
+  restoreDraft(text)
   render()
 }
 
@@ -419,9 +529,10 @@ async function boot(): Promise<void> {
       render()
     })
     // 启动：拉一次清单（重启面板后转写为空属预期——正文归 DSH 权威）
-    const res = await window.deck.bridge.invoke('conversation/list', null)
-    if (!res || !Array.isArray(res.sessions)) throw new Error('会话清单回执形状异常')
-    sessions = res.sessions
+    const called = await bridgeCall('conversation/list', null)
+    if (!called.ok) throw new Error(called.error)
+    if (!called.value || !Array.isArray(called.value.sessions)) throw new Error('会话清单回执形状异常')
+    sessions = called.value.sessions
     if (sessions.length) activeId = sessions[0].id
     initState = 'ready'
     clearInitFailed()
@@ -524,10 +635,13 @@ if (bridgeAvailable()) {
     proposals = payload.proposals
     renderInstalls()
   })
-  void window.deck.bridge.invoke('install/list', null).then((res) => {
-    proposals = res.proposals
+  // install 面（工单334/335/336/338 的地盘，与本票无关）：失败安静退场——既有行为面不变，
+  // 这里只把「catch 静默」形状归一到统一包装（守卫非留不可：面板未装配该面时调用必失败）
+  void bridgeCall('install/list', null).then((r) => {
+    if (!r.ok) return
+    proposals = r.value.proposals
     renderInstalls()
-  }).catch(() => { /* 安装面未装配：静默隐藏 */ })
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -577,13 +691,14 @@ function renderGrants(): void {
 }
 
 function refreshGrants(): void {
-  if (!bridgeAvailable()) return
-  void window.deck.bridge.invoke('install/grants', null).then((res) => {
-    grantRows = res.grants
-    auditBuckets = res.buckets
-    auditBucketsNet = res.networkBuckets ?? []
+  // 授权面（与本票无关）：失败安静退场——既有行为面不变，只归一调用形状
+  void bridgeCall('install/grants', null).then((r) => {
+    if (!r.ok) return
+    grantRows = r.value.grants
+    auditBuckets = r.value.buckets
+    auditBucketsNet = r.value.networkBuckets ?? []
     renderGrants()
-  }).catch(() => { /* 授权面未装配：静默隐藏 */ })
+  })
 }
 refreshGrants()
 
@@ -693,9 +808,12 @@ function appendCredError(err: unknown): void {
 }
 
 function refreshCreds(): Promise<void> {
-  if (!bridgeAvailable()) return Promise.resolve()
-  return window.deck.bridge.invoke('credentials/list', null)
-    .then((res) => { credRows = res.credentials; renderCreds() })
-    .catch(() => { /* 凭证面未装配：静默隐藏 */ })
+  // 凭证面（与本票无关）：失败安静退场——既有行为面不变，只归一调用形状
+  return bridgeCall('credentials/list', null)
+    .then((r) => {
+      if (!r.ok) return
+      credRows = r.value.credentials
+      renderCreds()
+    })
 }
 void refreshCreds()

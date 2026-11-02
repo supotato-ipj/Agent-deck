@@ -1467,6 +1467,20 @@
           "estSeconds": 25
         },
         {
+          "seg": "P362",
+          "ticket": 362,
+          "title": "确认框真实排版（工单362 / spec361 之①）：DELETE 与 DISSOLVE 两路的确认框里，两枚按钮（确认/CANCEL）的**最终矩形**完整落在对话框与视口内（存证与真机点击用的就是这两个矩形）；量不到即判失败（不静默跳过）",
+          "surfaces": [
+            "input-injection",
+            "pixel",
+            "event-evidence"
+          ],
+          "areas": [
+            "plugins"
+          ],
+          "estSeconds": 25
+        },
+        {
           "seg": "P184",
           "ticket": 184,
           "title": "卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用",
@@ -1646,6 +1660,19 @@
       "kind": null,
       "budgetSeconds": 600,
       "segments": [
+        {
+          "seg": "C11",
+          "ticket": 364,
+          "title": "对话窗真实控件路径（工单364 / spec #361 之③，spec 测试决策 6：直调 conversation/prompt 不能替代这条路径）：无会话点发送→明确指导「请先创建会话」且不发起任何请求（无 prompt-start 存证）/ 有会话点按钮→立即回显并进入「回复中」/ 按 Enter 同行为 / Shift+Enter 不发送（转写无此行、输入保留、默认行为未拦）/ 变化推送后权威转写含后端回执",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "areas": [
+            "sessions"
+          ],
+          "estSeconds": 10
+        },
         {
           "seg": "C1",
           "ticket": 332,

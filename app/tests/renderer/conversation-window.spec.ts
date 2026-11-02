@@ -60,6 +60,19 @@ afterEach(() => {
   vi.resetModules()
 })
 
+describe('对话窗样式（工单364 复审）：#init-error 只留布局属性', () => {
+  it('诊断位不重写 .entry.error-banner 已有的声明（颜色/边框/圆角/内边距/字号各只有一处）', () => {
+    const html = fs.readFileSync(HTML_PATH, 'utf8')
+    const rule = html.match(/#init-error\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(rule).not.toBe('')
+    for (const decl of ['color', 'border', 'border-radius', 'padding', 'font-size']) {
+      const re = new RegExp('(^|;)\\s*' + decl + '\\s*:')
+      expect(rule, '#init-error 不该重写 ' + decl).not.toMatch(re)
+    }
+    // 布局属性仍在（诊断位是独立于转写的一行）
+    expect(rule).toMatch(/flex/)
+  })
+})
 describe('对话窗发送反馈（工单364）', () => {
   it('页面静态初始态：输入与发送在 HTML 层即禁用（脚本没跑起来也不留死按钮）', () => {
     const html = fs.readFileSync(HTML_PATH, 'utf8')
@@ -201,6 +214,66 @@ describe('对话窗发送反馈（工单364）', () => {
     }
   })
 
+  it('失败时原草稿**并入**输入框（等待期用户已敲的新内容不被覆盖，两份都在）', async () => {
+    const harness = await makeConversationBridgeHarness('fullchain')
+    try {
+      await harness.createSession()
+      let release: (() => void) | null = null
+      const dom = await mountWindow(harness, {
+        'conversation/prompt': async () => {
+          await new Promise<void>((resolve) => { release = resolve })
+          throw new Error('慢拒绝：内核没受理')
+        },
+      })
+      await until(() => !dom.element('btn-send').disabled)
+      dom.element('prompt-input').value = '原始草稿'
+      dom.element('btn-send').dispatch('click')
+      // 等待期：用户又敲了新内容（发送时输入框已被清空，此刻是新内容在场）
+      dom.element('prompt-input').value = '等待期新输入'
+      release!()
+      await until(() => textOf(dom.element('transcript')).includes('发送失败'))
+      const value = dom.element('prompt-input').value
+      // 两份都在：原草稿没丢，新内容也没被覆盖
+      expect(value).toContain('原始草稿')
+      expect(value).toContain('等待期新输入')
+    } finally {
+      await harness.cleanup()
+    }
+  })
+
+  it('同一失败消息连来两次：每一轮都判为失败（判据是单调递增的失败标记，不靠文案相等）', async () => {
+    const harness = await makeConversationBridgeHarness('prompt-error')
+    try {
+      await harness.createSession()
+      const dom = await mountWindow(harness)
+      await until(() => !dom.element('btn-send').disabled)
+      dom.element('prompt-input').value = '第一轮'
+      dom.element('btn-send').dispatch('click')
+      await until(() => dom.element('prompt-input').value.includes('第一轮'))
+      await until(() => !dom.element('btn-send').disabled)
+      dom.element('prompt-input').value = '第二轮'
+      dom.element('btn-send').dispatch('click')
+      await until(() => dom.element('prompt-input').value.includes('第二轮'))
+      expect(dom.calls('conversation/prompt').length).toBe(2)
+    } finally {
+      await harness.cleanup()
+    }
+  })
+
+  it('初始化链上的失败可见（创建会话被拒：错误呈现给用户，不静默吞掉）', async () => {
+    const harness = await makeConversationBridgeHarness('fullchain')
+    try {
+      const dom = await mountWindow(harness, {
+        'conversation/create': async () => { throw new Error('内核拒绝创建：后端缺席') },
+      })
+      await until(() => !dom.element('btn-new').disabled)
+      dom.element('btn-new').dispatch('click')
+      await until(() => textOf(dom.element('transcript')).includes('创建失败'))
+      expect(textOf(dom.element('transcript'))).toContain('内核拒绝创建')
+    } finally {
+      await harness.cleanup()
+    }
+  })
   it('后端等待期间取消入口可用；取消后回合收束（不新增固定超时自动判失败）', async () => {
     const harness = await makeConversationBridgeHarness('slow')
     try {

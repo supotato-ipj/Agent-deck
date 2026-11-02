@@ -106,8 +106,10 @@
     height: 44px;
   }
   #status-line { flex: none; padding: 2px 10px 6px; font-size: 11px; color: #7d8590; }
-  /* 工单364：初始化诊断位（独立于转写，不被每次 render 覆写） */
-  #init-error { flex: none; margin: 6px 10px 0; color: #e06c75; border: 1px solid rgba(224, 108, 117, 0.5); border-radius: 8px; padding: 8px; font-size: 12px; }
+  /* 工单364：初始化诊断位（独立于转写，不被每次 render 覆写）。
+     只留**布局**属性——颜色/边框/圆角/内边距/字号已由 .entry.error-banner 定过一遍
+     （本 div 本就带这个 class），此处重写一遍＝同一批声明有两份，改一处就分叉。 */
+  #init-error { flex: none; margin: 6px 10px 0; }
   /* 工单334 待批准安装条（可信内核 UI 的真实手势面） */
   #install-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
   #grant-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }

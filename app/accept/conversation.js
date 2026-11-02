@@ -138,6 +138,61 @@ async function bridge(method, payload, timeoutMs) {
   return cdpEvalOn(PANEL_TITLE, expr, timeoutMs);
 }
 
+// 工单364（段 C11）：对话窗页的 CDP 取样口——对话窗是**另一个** BrowserWindow，但同属本
+// 应用的渲染进程，同一个 CDP 端口同样能看到它（按窗口标题 DECK-CONVERSATION 甄别）。
+const CONV_EXPR = {
+  /** 窗内可见状态（用户看到的那一份） */
+  state: `(() => {
+    const el = (id) => document.getElementById(id);
+    const initErr = el('init-error');
+    const sel = el('session-select');
+    return {
+      transcript: (el('transcript') || {}).textContent || '',
+      status: (el('status-line') || {}).textContent || '',
+      inputDisabled: !!(el('prompt-input') || {}).disabled,
+      sendDisabled: !!(el('btn-send') || {}).disabled,
+      inputValue: (el('prompt-input') || {}).value || '',
+      // 诊断面（排障留证）：初始化诊断位、会话下拉的内容与选中项
+      initErrorText: initErr ? (initErr.textContent || '') : '(无该元素)',
+      initErrorShown: initErr ? (initErr.style && initErr.style.display !== 'none') : false,
+      options: sel ? Array.from(sel.options || []).map((o) => o.textContent || '') : [],
+      selected: sel ? (sel.value || '') : '',
+    };
+  })()`,
+  /** 在真实按钮上派发点击（禁用的按钮在真浏览器里不派发 click，故用 dispatchEvent 逼它走一次） */
+  dispatchSend: (text) => `(() => {
+    const inp = document.getElementById('prompt-input');
+    const btn = document.getElementById('btn-send');
+    inp.value = ${JSON.stringify(text)};
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    return { transcript: document.getElementById('transcript').textContent, inputValue: inp.value };
+  })()`,
+  /** 点发送（已启用时走真 click）——同步取样：不等内核回执 */
+  clickSend: (text) => `(() => {
+    const inp = document.getElementById('prompt-input');
+    const btn = document.getElementById('btn-send');
+    inp.value = ${JSON.stringify(text)};
+    btn.click();
+    return {
+      transcript: document.getElementById('transcript').textContent,
+      status: document.getElementById('status-line').textContent,
+      inputValue: inp.value,
+    };
+  })()`,
+  /** 按键（Enter / Shift+Enter）——同步取样 */
+  pressKey: (text, shift) => `(() => {
+    const inp = document.getElementById('prompt-input');
+    inp.value = ${JSON.stringify(text)};
+    const ev = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: ${shift}, bubbles: true, cancelable: true });
+    inp.dispatchEvent(ev);
+    return {
+      transcript: document.getElementById('transcript').textContent,
+      status: document.getElementById('status-line').textContent,
+      inputValue: inp.value,
+      prevented: ev.defaultPrevented,
+    };
+  })()`,
+};
 async function sessionsView() {
   const res = await bridge('conversation/list', null);
   return res.sessions;
@@ -212,54 +267,186 @@ async function main() {
     app.exit(v.exitCode);
   };
 
+  /**
+   * 电池级前置（**不属于任何段**）：provider 路由 + 罐头 LLM + 面板拉起。
+   *
+   * 工单364（段 C11）要求在**零会话**态驱动真实控件——那要求面板已起、而面板里一个会话都
+   * 还没有。故环境备妥从 C1 段里提到段之前：它是所有段共用的环境，不是某一段的断言。
+   * 前置失败 = 轮级失败（环境不具备，哪一段都跑不了——不摊到某一段头上）。
+   */
+  async function prepareEnv() {
+    try {
+      fs.writeFileSync(EVENTS_FILE, '', 'utf8');
+      try { fs.rmSync(ESCALATION_FILE, { force: true }); } catch { /* 清场尽力 */ }
+      // provider 路由显式配置（用户后端档姿势，探针实证 set_config_option 是唯一生效路径——
+      // profile patch 的 agent-default-model 不改 session/new 默认，2026-10-31 预检实证）：
+      // config.conversation.model 原样是 DSH 方言值；凭证明面只在 apiKeyEnv 引用（不落凭证）。
+      try {
+        const json = configRaw ? JSON.parse(configRaw) : {};
+        json.conversation = { ...(json.conversation ?? {}), model: '["probe-llm","probe-model"]' };
+        fs.writeFileSync(path.join(APP_ROOT, 'config.json'), JSON.stringify(json, null, 2) + '\n', 'utf8');
+      } catch { /* 配置写不进 → 后端默认路由 → 认证错误将在断言位如实判负 */ }
+
+      // —— 环境备妥：DSH 安装解析（不硬编码盘符）+ 罐头 LLM + provider 显式配置（零凭证）——
+      const install = resolveDsh();
+      if (!install) {
+        return { ok: false, error: 'DSH 安装未解析到（描述符探测落空）——本电池要求真实 DSH 在场' };
+      }
+      rep.note(`DSH 安装：${install.exe}（来源 ${install.source}）`);
+      const llmLocal = await startCannedLlm({ outsideFilePath: ESCALATION_FILE });
+      const patchDir = path.join(dshHome, 'profiles', 'acp');
+      fs.mkdirSync(patchDir, { recursive: true });
+      // provider 显式配置姿势（探针配方）：cordis.patch.yml + apiKeyEnv 引用环境变量——配置不落凭证
+      fs.writeFileSync(path.join(patchDir, 'cordis.patch.yml'),
+        `# deck-332 accept patch: explicit provider route to local canned LLM (no credential on disk)\n` +
+        `- id: llm-pi-ai\n  config:\n    providers:\n      probe-llm:\n        displayName: Accept Canned LLM\n        apiKeyEnv: ${LLM_KEY_ENV}\n        api: openai-completions\n        baseURL: ${llmLocal.url}/v1\n        models:\n          - id: probe-model\n            name: Probe Model\n            contextWindow: 262144\n            reasoningEfforts:\n              off:\n              high: high\n` +
+        `- id: agent-default-model\n  config:\n    provider: probe-llm\n    model: probe-model\n`, 'utf8');
+      const startedLocal = Date.now();
+
+      // —— 拉面板（--panel-accept 绕单实例锁；事件档 + CDP + 罐头 LLM key + 管理观察口注入）——
+      handle.launch({
+        mode: 'accept',
+        cdpPort: CDP_PORT,
+        stdio: 'archive',
+        extraEnv: { [LLM_KEY_ENV]: 'accept-round-not-a-real-key', DECK_MANAGED_PROBE: '1' },
+      });
+      const hwnd = await handle.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 30000 });
+      if (!hwnd) {
+        return { ok: false, error: '面板窗口未就绪（30s）——无法驱动对话窗链路' };
+      }
+      await until(async () => {
+        try { return (await bridge('panel/snapshot', null)) != null; } catch { return false; }
+      }, 20000);
+      return { ok: true, llm: llmLocal, started: startedLocal };
+    } catch (err) {
+      return { ok: false, error: `环境备妥异常：${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+
+  // ===== 电池级前置（环境备妥）——**不属于任何段** ==============================
+  const env = await prepareEnv();
+  if (!env.ok) {
+    rep.fail(`电池前置失败：${env.error}`);
+    finish();
+    return;
+  }
+  llm = env.llm;
+  started = env.started;
+  // ===== C11 · 工单364 对话窗真实控件路径 ==============================
+  // 段归属：工单364（spec #361 之③）。此前这块真机面**全是** bridge('conversation/prompt')
+  // 直调——spec 测试决策 6 明说「现有直接调用 conversation/prompt 的测试保留，但**不能替代**
+  // 这条路径」：用户真实点的那个控件从没被真机验过。故新起本段，走真实控件路径。
+  //
+  // 增段条件对照：① 真机行为存证——真对话窗里的控件可用性、可见文案与转写更新（真 DOM、
+  //   真事件、真会话服务、真变化推送）；② 单测能覆盖的不进——控件逻辑在
+  //   tests/renderer/conversation-window.spec.ts 已穷举，真机只钉「真窗口里真点下去的那条路」；
+  //   ③ 一段绑定一工单——本段只归工单364。
+  rep.beginSegment('C11');
+  try {
+    // ① 无会话：对话窗打开时面板里一个会话都还没有 → 明确指导「请先创建会话」
+    const shown = await bridge('conversation/show', {});
+    const convPage = await until(async () => {
+      const targets = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json();
+      return targets.find((t) => t.title === CONV_TITLE) || null;
+    }, 15000, 250);
+    if (!shown || !shown.ok) {
+      rep.fail(`C11 前置失败：对话窗未开（conversation/show=${JSON.stringify(shown)}）`);
+    } else if (!convPage) {
+      rep.fail('C11 前置失败：对话窗页（CDP 目标）未出现');
+    } else {
+      const st = await until(async () => {
+        const s = await cdpEvalOn(CONV_TITLE, CONV_EXPR.state);
+        return s && s.transcript.includes('请先创建会话') ? s : null;
+      }, 15000, 250);
+      if (st) {
+        rep.pass(`无会话态：对话窗明确指导「请先创建会话」（输入禁用=${st.inputDisabled}／发送禁用=${st.sendDisabled}——控件状态与指导一致）`);
+      } else {
+        rep.fail('无会话态异常：对话窗未给出「请先创建会话」的明确指导');
+      }
+      // 点发送（真实控件上的事件）：不得发起任何请求，且给出可见指导
+      const tNo = Date.now();
+      const clicked = await cdpEvalOn(CONV_TITLE, CONV_EXPR.dispatchSend('不该发出去的字'));
+      const startedNo = await tape.wait('conversation-prompt-start', null, { since: tNo, timeoutMs: 1500 });
+      const guided = String((clicked && clicked.transcript) || '').includes('当前没有可发送的会话');
+      if (!startedNo && guided) {
+        rep.pass('无会话点发送：不发起任何请求（无 conversation-prompt-start 存证）+ 明确指导「当前没有可发送的会话——请先创建会话」');
+      } else {
+        rep.fail(`无会话点发送异常：发起了请求=${!!startedNo} 指导可见=${guided}`);
+      }
+    }
+
+    // ② 有会话：点按钮 → 立即回显 + 「回复中」；变化推送后转写更新
+    const created = await bridge('conversation/create', { label: 'accept-364' });
+    if (!created || !created.ok) {
+      rep.fail(`C11 前置失败：conversation/create 失败：${created && created.error}`);
+    } else {
+      const sid = created.session.id;
+      const ready = await until(async () => {
+        const v = await cdpEvalOn(CONV_TITLE, CONV_EXPR.state);
+        return v && !v.sendDisabled ? v : null;
+      }, 45000, 250);
+      if (!ready) {
+        const diag = await cdpEvalOn(CONV_TITLE, CONV_EXPR.state).catch(() => null);
+        const panelList = await bridge('conversation/list', null).catch(() => null);
+        rep.note(`C11 诊断：窗内=${JSON.stringify(diag)}｜面板侧会话=${JSON.stringify(panelList && (panelList.sessions || []).map((s) => ({ id: s.id, status: s.status, label: s.label })))}`);
+        rep.fail('C11 前置失败：会话未在对话窗里变为可发送（45s）——诊断见上一条 NOTE');
+      } else {
+        // —— 点发送按钮：立即回显 + 进入「回复中」（同步取样：不等内核回执）——
+        const BUTTON_TEXT = 'C11 点按钮这一轮';
+        const clicked = await cdpEvalOn(CONV_TITLE, CONV_EXPR.clickSend(BUTTON_TEXT));
+        const echoed = String(clicked.transcript).includes(BUTTON_TEXT);
+        const replying = String(clicked.status).includes('回复中');
+        echoed && replying
+          ? rep.pass('有会话点发送按钮：立即回显用户输入并进入「回复中」（不等内核回执）')
+          : rep.fail(`有会话点发送按钮异常：回显=${echoed} 回复中=${replying}（状态行=${JSON.stringify(clicked.status)}）`);
+        // —— 变化推送 → 权威转写更新（真实 DSH + 罐头 LLM 的回执）——
+        const replied = await until(async () => {
+          const v = await cdpEvalOn(CONV_TITLE, CONV_EXPR.state);
+          return v && v.transcript.includes('OK (fallback)') ? v : null;
+        }, 45000, 400);
+        if (replied) {
+          rep.pass('变化推送 → 转写更新：权威转写含后端回执（罐头 LLM），本地回显让位不重复');
+        } else {
+          rep.fail('变化推送后转写未更新（45s 内未见后端回执）');
+        }
+        // —— 按 Enter：与点按钮同一条路 ——
+        const idle = await until(async () => {
+          const v = await cdpEvalOn(CONV_TITLE, CONV_EXPR.state);
+          return v && !v.sendDisabled ? v : null;
+        }, 30000, 250);
+        if (!idle) {
+          rep.fail('Enter 一路前置失败：上一轮收束后发送仍未恢复可用');
+        } else {
+          const ENTER_TEXT = 'C11 按回车这一轮';
+          const entered = await cdpEvalOn(CONV_TITLE, CONV_EXPR.pressKey(ENTER_TEXT, false));
+          const echoed2 = String(entered.transcript).includes(ENTER_TEXT);
+          const replying2 = String(entered.status).includes('回复中');
+          echoed2 && replying2
+            ? rep.pass('有会话按 Enter：与点按钮同一条路——立即回显并进入「回复中」')
+            : rep.fail(`Enter 一路异常：回显=${echoed2} 回复中=${replying2}（状态行=${JSON.stringify(entered.status)}）`);
+          await until(async () => {
+            const v = await cdpEvalOn(CONV_TITLE, CONV_EXPR.state);
+            return v && !v.sendDisabled;
+          }, 30000, 250);
+          // —— Shift+Enter：不发送（换行行为不变）——
+          const SHIFT_TEXT = 'C11 这一行不该被发出去';
+          const shifted = await cdpEvalOn(CONV_TITLE, CONV_EXPR.pressKey(SHIFT_TEXT, true));
+          const notSent = !String(shifted.transcript).includes(SHIFT_TEXT);
+          const kept = String(shifted.inputValue).includes(SHIFT_TEXT);
+          const notPrevented = shifted.prevented === false;
+          notSent && kept && notPrevented
+            ? rep.pass('Shift+Enter 不发送：转写里没有这行字、输入框内容仍在、默认行为未被拦（换行行为不变）')
+            : rep.fail(`Shift+Enter 异常：未发送=${notSent} 输入保留=${kept} 未拦默认=${notPrevented}`);
+        }
+      }
+      // 段末清场：结束本段建的会话（进程回收），不留会话给后面的段
+      await bridge('conversation/end', { sessionId: sid });
+    }
+  } catch (err) {
+    rep.fail(`段 C11 异常中止：${err instanceof Error ? err.message : String(err)}`);
+  }
   rep.beginSegment('C1');
   try {
-    fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    try { fs.rmSync(ESCALATION_FILE, { force: true }); } catch { /* 清场尽力 */ }
-    // provider 路由显式配置（用户后端档姿势，探针实证 set_config_option 是唯一生效路径——
-    // profile patch 的 agent-default-model 不改 session/new 默认，2026-10-31 预检实证）：
-    // config.conversation.model 原样是 DSH 方言值；凭证明面只在 apiKeyEnv 引用（不落凭证）。
-    try {
-      const json = configRaw ? JSON.parse(configRaw) : {};
-      json.conversation = { ...(json.conversation ?? {}), model: '["probe-llm","probe-model"]' };
-      fs.writeFileSync(path.join(APP_ROOT, 'config.json'), JSON.stringify(json, null, 2) + '\n', 'utf8');
-    } catch { /* 配置写不进 → 后端默认路由 → 认证错误将在断言位如实判负 */ }
-
-    // —— 环境备妥：DSH 安装解析（不硬编码盘符）+ 罐头 LLM + provider 显式配置（零凭证）——
-    const install = resolveDsh();
-    if (!install) {
-      rep.fail('DSH 安装未解析到（描述符探测落空）——本段要求真实 DSH 在场');
-      finish();
-      return;
-    }
-    rep.note(`DSH 安装：${install.exe}（来源 ${install.source}）`);
-    llm = await startCannedLlm({ outsideFilePath: ESCALATION_FILE });
-    const patchDir = path.join(dshHome, 'profiles', 'acp');
-    fs.mkdirSync(patchDir, { recursive: true });
-    // provider 显式配置姿势（探针配方）：cordis.patch.yml + apiKeyEnv 引用环境变量——配置不落凭证
-    fs.writeFileSync(path.join(patchDir, 'cordis.patch.yml'),
-      `# deck-332 accept patch: explicit provider route to local canned LLM (no credential on disk)\n` +
-      `- id: llm-pi-ai\n  config:\n    providers:\n      probe-llm:\n        displayName: Accept Canned LLM\n        apiKeyEnv: ${LLM_KEY_ENV}\n        api: openai-completions\n        baseURL: ${llm.url}/v1\n        models:\n          - id: probe-model\n            name: Probe Model\n            contextWindow: 262144\n            reasoningEfforts:\n              off:\n              high: high\n` +
-      `- id: agent-default-model\n  config:\n    provider: probe-llm\n    model: probe-model\n`, 'utf8');
-    started = Date.now();
-
-    // —— 拉面板（--panel-accept 绕单实例锁；事件档 + CDP + 罐头 LLM key + 管理观察口注入）——
-    handle.launch({
-      mode: 'accept',
-      cdpPort: CDP_PORT,
-      stdio: 'archive',
-      extraEnv: { [LLM_KEY_ENV]: 'accept-round-not-a-real-key', DECK_MANAGED_PROBE: '1' },
-    });
-    const hwnd = await handle.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 30000 });
-    if (!hwnd) {
-      rep.fail('面板窗口未就绪（30s）——无法驱动对话窗链路');
-      finish();
-      return;
-    }
-    await until(async () => {
-      try { return (await bridge('panel/snapshot', null)) != null; } catch { return false; }
-    }, 20000);
-
     // 断言① 握手与创建（验收标准 1/2/3/4 的创建时刻面）
     const backend = await bridge('conversation/backend', null);
     if (backend && backend.available) rep.pass(`后端可用性如实上报：${backend.detail}`);
