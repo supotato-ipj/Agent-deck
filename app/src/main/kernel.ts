@@ -11,6 +11,7 @@ import type { DataplaneSnapshot } from './dataplane-protocol'
 import { BridgeService } from './services/bridge'
 import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
+import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
 import { FocusService } from './services/focus'
 import { HardwareService } from './services/hardware'
 import { LocalPanelDataService } from './services/panel-data'
@@ -68,6 +69,8 @@ export interface KernelOptions {
   /** 对话窗（工单332）：DSH_HOME/工作目录根/元数据文件与依赖缝（离线测试注入 tmp 桩；
    * 缺省生产落点——服务惰性落盘，装配时不触真实 userData） */
   conversation?: ConversationServiceOptions
+  /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
+  desktopWorkspace?: DesktopWorkspaceServiceOptions
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -77,6 +80,9 @@ export const DEFAULT_SEARCH_INTERVAL_MS = 50
 /** 任务栏应用组轮询（工单52）：1Hz——应用启动/退出 1–2 秒内反映到应用组 */
 export const DEFAULT_TASKBAR_POLL_MS = 1000
 export const USAGE_PRUNE_MS = 3600_000
+/** 桌面工作区 reconciliation 轮询（工单375）：2Hz——系统快捷键/TaskView 切换在 ~0.5s
+ *  内被观察回推（spec #369 决策 17 切换确认 ≤1s 预算的观察半边）；服务侧同一常量兜底 */
+export const DEFAULT_WORKSPACE_POLL_MS = 500
 
 /** 组装 cordis 内核：插件生命周期 + 依赖注入（ADR-0004 圈定的子集）。 */
 export function createKernel(options: KernelOptions = {}): Context {
@@ -106,6 +112,9 @@ export function createKernel(options: KernelOptions = {}): Context {
         ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
     },
   })
+  // 桌面工作区（工单375）：实验开关隔离（默认关）——BridgeService 对它是可选注入，
+  // 注册先后不约束桥接层装载。装配即自起跑（开关关闭 = 零桌面零轮询）。
+  ctx.plugin(DesktopWorkspaceService, options.desktopWorkspace)
   // 插件私有状态（工单178）：BridgeService 注入依赖它，必须先于桥接层注册。
   ctx.plugin(PluginConfigService, options.pluginConfig)
   // 对话窗会话服务（工单332）：BridgeService 注入依赖它，必须先于桥接层注册。

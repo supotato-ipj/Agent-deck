@@ -257,6 +257,33 @@ export interface TaskbarState {
 /** 托盘按钮（工单56）：左键 = 应用默认动作（启动/置前由图标所属应用自决），右键 = 上下文菜单 */
 export type TaskbarTrayButton = 'left' | 'right'
 
+/**
+ * 桌面工作区模式（工单375，GLOSSARY.md「桌面模式切换组」）：当前所在桌面的产品语义。
+ * unmanaged = 配对桌面之外的既有 Win11 虚拟桌面（GLOSSARY.md「非托管桌面」）——
+ * 不是本产品的第三种模式，处于其中时模式组两枚入口均不高亮。
+ */
+export type DesktopMode = 'normal' | 'agent' | 'unmanaged'
+
+/**
+ * 桌面工作区状态投影（工单375，spec #369 决策 2 只读投影）：独立面板、自绘任务栏与
+ * （后续工单的）顶部胶囊共享的同一份跨桌面状态。available=false = 实验开关未启用或
+ * 真实桌面能力不可用（失败关闭，spec 决策 30）——模式组不渲染、切换命令拒绝。
+ */
+export interface DesktopWorkspaceState {
+  /** 实验开关（config agentDesktop.enabled）且平台能力可用才为 true；默认关闭 */
+  available: boolean
+  /** 已配对（普通/Agent 两枚系统桌面 ID 均在册）；未配对时两枚入口均不高亮 */
+  paired: boolean
+  /** 当前模式（以系统桌面 ID 对账映射，unmanaged = 配对桌面之外） */
+  current: DesktopMode
+  /** 切换在途（单飞：在途期间的新切换请求被忽略，spec 决策 4） */
+  switching: boolean
+  /** 在途目标（仅在 switching 时非空；UI 只在系统桌面 ID 匹配后才提交） */
+  target: 'normal' | 'agent' | null
+  /** 最近一次切换失败提示（成功切换即清空；仅内存不落盘） */
+  lastError: string | null
+}
+
 /** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
  * tooltip 即时显示不落盘；iconKey = 图标像素缓存键（null = 该条目尚无像素，渲染层按空格呈现） */
 export interface TaskbarTrayEntry {
@@ -995,6 +1022,17 @@ export interface BridgeMethods {
   'credentials/unbind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
   /** 工单341 资源预算读数（面板全进程工作集 MB；离线装配 = 零读数不编造） */
   'diag/memory': { request: null; response: { totalWorkingSetMB: number; processes: Array<{ pid: number; type: string; workingSetMB: number }> } }
+  /**
+   * 桌面工作区状态查询（工单375）：只读投影，面板/任务栏/（后续）胶囊共享。
+   * 开关关闭或能力不可用时 available=false（形态照常，不抛）。
+   */
+  'workspace/get-state': { request: null; response: DesktopWorkspaceState }
+  /**
+   * 桌面模式切换（工单375，spec #369 决策 4 切换事务）：单飞串行——在途期间的请求被
+   * 忽略（ok:false）；只有系统桌面 ID 与目标一致才提交 UI（回执 = 提交后的状态）。
+   * 失败保持现状并携带提示；未配对时先配对（普通 = 当下所在桌面，Agent 新建为空）。
+   */
+  'workspace/switch-to': { request: { mode: 'normal' | 'agent' }; response: { ok: boolean; state: DesktopWorkspaceState; error?: string } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -1039,6 +1077,12 @@ export interface BridgeEvents {
   'conversation/changed': { sessions: ConversationSessionView[] }
   /** 工单334 安装管线：提案变化（提交/批准/拒绝/失败）即推——批准 UI 数据面 */
   'install/changed': { proposals: InstallProposalView[] }
+  /**
+   * 桌面工作区状态变化（工单375）：配对/当前模式/切换在途/失败提示任一变化即推。
+   * 面板、任务栏与（后续）胶囊订阅同一份——共享状态并跟随当前桌面（ADR-0028）。
+   * 系统快捷键/TaskView 造成的切换也经 reconciliation 观察后由此回推（不抢回用户）。
+   */
+  'workspace/changed': DesktopWorkspaceState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

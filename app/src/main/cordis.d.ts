@@ -11,12 +11,13 @@ import type { PluginHostService } from './plugins/service'
 import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
+import type { DesktopWorkspaceService } from './services/desktop-workspace'
 import type { ConversationService } from './conversation/service'
 import type { MediaService } from './media/service'
 import type { NetworkService } from './network/service'
 import type { CredentialService } from './credentials/service'
 import type { InstallProposalView } from './plugins/install'
-import type { ConversationSessionView, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
+import type { ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
@@ -72,6 +73,12 @@ declare module 'cordis' {
     'install/changed': (payload: { proposals: InstallProposalView[] }) => void
     /** 工单336 媒体快照代次变化（桥事件收敛后发；宿主据此向获批包即时重推 media 段） */
     'media/snapshot-changed': (payload: { generation: number }) => void
+    /**
+     * 工单375 桌面工作区：配对/当前模式/切换在途/失败提示任一变化即推。面板、任务栏
+     * 与（后续）胶囊订阅同一份——共享状态并跟随当前桌面（ADR-0028）；系统快捷键/
+     * TaskView 造成的切换经 reconciliation 观察后由此回推（不抢回用户）。
+     */
+    'workspace/changed': (payload: DesktopWorkspaceState) => void
   }
   interface Context {
     clock: ClockService
@@ -106,5 +113,7 @@ declare module 'cordis' {
     network?: NetworkService
     /** 工单339 命名凭证域（可选装配：凭证库；缺装配 = 凭证保存/注入如实不可用） */
     credentials?: CredentialService
+    /** 工单375 桌面工作区（可选装配：实验开关隔离——缺装配 = 投影回退禁用态） */
+    desktopWorkspace?: DesktopWorkspaceService
   }
 }

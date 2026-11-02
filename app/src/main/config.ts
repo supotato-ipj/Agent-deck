@@ -33,6 +33,49 @@ export interface AppConfig {
   taskbar: TaskbarConfig
   /** 对话窗（工单332）：后端档（DSH 安装路径显式配置；缺省走标准位探测） */
   conversation: ConversationConfig
+  /** 桌面工作区（工单375，spec #369 决策 29 实验开关）：默认关闭——全量端到端验收
+   *  前不默认开放 Agent 入口。启用后桌面配对（系统桌面 ID）持久化在此段，重启恢复
+   *  最小闭环不重建桌面（完整布局恢复归工单383）。 */
+  agentDesktop: AgentDesktopConfig
+}
+
+/**
+ * 桌面工作区（config.json agentDesktop 段，工单375）：实验开关 + 桌面配对身份。
+ * 配对只落**系统桌面 ID**（GUID 原文）——不落窗口标题、不落任何窗口身份（ADR-0002）。
+ * 身份失效（桌面被用户在 TaskView 删除）时服务进入未配对安全态，不自动重建桌面。
+ */
+export interface AgentDesktopConfig {
+  /** 实验开关（spec #369 决策 29）：默认 false——Agent 入口在全量端到端验收前不默认开放 */
+  enabled: boolean
+  /** 已配对普通桌面系统 ID（空串 = 未配对；首次启用 = 启用当下所在的桌面） */
+  normalDesktopId: string
+  /** 已配对 Agent 桌面系统 ID（空串 = 未配对；首次启用新建，首次为空） */
+  agentDesktopId: string
+}
+
+export function defaultAgentDesktop(): AgentDesktopConfig {
+  return { enabled: false, normalDesktopId: '', agentDesktopId: '' }
+}
+
+function mergeAgentDesktop(raw: unknown, fallback: AgentDesktopConfig, warnings: string[]): AgentDesktopConfig {
+  const out: AgentDesktopConfig = { ...fallback }
+  if (raw === undefined) return out
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    warnings.push('config.agentDesktop 不是对象，已整体回退默认值（实验开关关）')
+    return out
+  }
+  const section = raw as Record<string, unknown>
+  if (section.enabled !== undefined) {
+    if (typeof section.enabled === 'boolean') out.enabled = section.enabled
+    else warnings.push(`config.agentDesktop.enabled 不是布尔值，已回退默认值 ${fallback.enabled}`)
+  }
+  for (const key of ['normalDesktopId', 'agentDesktopId'] as const) {
+    const v = section[key]
+    if (v === undefined) continue
+    if (typeof v === 'string' && /^[0-9a-fA-F-]*$/.test(v)) out[key] = v
+    else warnings.push(`config.agentDesktop.${key} 不是合法桌面 ID 形态，已回退空串（视为未配对）`)
+  }
+  return out
 }
 
 /** 对话窗（config.json conversation 段，工单332）：dshExe = DeepSeek Harness.exe 绝对路径
@@ -588,6 +631,7 @@ export function loadConfig(file: string, fallback: AppConfig): LoadConfigResult 
       autostart: mergeAutostart(root.autostart, fallback.autostart, warnings),
       taskbar: mergeTaskbar(root.taskbar, fallback.taskbar, warnings),
       conversation: mergeConversation(root.conversation, fallback.conversation, warnings),
+      agentDesktop: mergeAgentDesktop(root.agentDesktop, fallback.agentDesktop, warnings),
     },
     warnings,
     created: false,

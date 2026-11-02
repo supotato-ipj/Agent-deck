@@ -119,6 +119,8 @@ function createTaskbarWindow(log: EventLog | null): BrowserWindow {
 
 export interface TaskbarController {
   dispose(): void
+  /** 当前条带窗原生句柄（工单375 桌面跟随兜底的跟随目标；不在场/销毁 = null） */
+  hwnd(): number | null
 }
 
 /**
@@ -758,6 +760,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       offTrayBegin()
       offPopupState() // 工单253：退订浮层在场订阅（不留悬挂监听）
       destroy('dispose')
+    },
+    hwnd() {
+      const s = session
+      return s && !s.win.isDestroyed() ? hwndOf(s.win) : null
     },
   }
 }
