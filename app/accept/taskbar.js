@@ -93,6 +93,8 @@ const handle = createPanelHandle({
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
+// 托盘溢出浮层窗标题（工单162 载体，taskbar/overflow.ts TRAY_OVERFLOW_TITLE）
+const OVERFLOW_TITLE = 'DECK-TRAY-OVERFLOW';
 const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 栏高回归 48 DIP）
 const VK_ESC = 0x1b;
 
@@ -734,6 +736,10 @@ async function main() {
   const originalConfig = readConfigRaw();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
+    // 段账目补写（工单114 时长预算流程）：副电池口径的 verdict(explicit) 不落账目段
+    // （report.js 的 !explicit 门）⇒ 本电池的健康轮段账目 took= 取不到，estSeconds 的
+    // 校准就没有依据。此处按 report.js 同款格式补写（不改 verdict 语义与退出码）。
+    rep.writeLedger([]);
     app.exit(v.fails === 0 ? 0 : 1);
   };
   // 参照窗统一销毁（工单256 AC1：销毁后验、不吞异常）。幂等：P22–P25 内层 finally 就近调，
@@ -2319,8 +2325,12 @@ async function main() {
       const {
         encodeNotifyIconData, NIM_ADD, NIM_DELETE, NIM_SETVERSION,
         NIF_MESSAGE, NIF_ICON, NIF_TIP,
+        // 鼠标消息族常量取协议模块单一来源（工单363 评审判断题：本地重定义与
+        // protocol.ts 的导出重复了两份，改一处漏一处）——取值与协议模块一致。
+        WM_LBUTTONDOWN: WM_LBUTTONDOWN_T, WM_LBUTTONUP: WM_LBUTTONUP_T,
+        WM_RBUTTONDOWN: WM_RBUTTONDOWN_T, WM_RBUTTONUP: WM_RBUTTONUP_T,
+        WM_CONTEXTMENU: WM_CONTEXTMENU_T,
       } = require(path.join(APP_ROOT, 'dist', 'main', 'trayhost', 'protocol.js'));
-      const WM_LBUTTONDOWN_T = 0x0201, WM_LBUTTONUP_T = 0x0202, WM_RBUTTONDOWN_T = 0x0204, WM_RBUTTONUP_T = 0x0205, WM_CONTEXTMENU_T = 0x007b;
       // v0 uid 用满 32 位（断言 wParam 不截位）；v4 uid 高 16 位故意放垃圾（0x1234 应被丢弃）
       const PROBE_UID_V0 = 0x1640001;
       const PROBE_UID_V4 = 0x12341802;
@@ -2373,22 +2383,20 @@ async function main() {
         probe164.frames.length = 0;
         await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key0)}, button: 'right' })`);
         const ev = await tape.wait('tray-replay', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
-        const frame = await probe164.waitFrame((f) => f.msg === CB_V0);
-        // 工单363：pre-v4 图标的回调是**鼠标消息对**（外壳逐条转发：按下 + 抬起）——
-        // 单发抬起一条不是外壳口径（Electron 托盘只认按下族 ⇒ 右键菜单永不弹）
-        const frameDown = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_RBUTTONDOWN_T);
+        // 工单363 H3（段归属）：本段回归工单164 的原口径——旧版图标回调负载的**字段
+        // 语义**（wParam=uID、lParam=抬起族鼠标消息 WM_RBUTTONUP=0x0205）；消息**条数**
+        // 与「按下族」那条（外壳口径的鼠标消息对）属工单363 的语义，移至新段 P27 断言
+        // （同一电池同一轮，断言未丢，只改归属——章法「一段绑定一工单」）。
         const frameUp = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_RBUTTONUP_T);
         const packs = ev && ev.packs;
+        const upPack = packs && packs.find((p) => p.lparam === WM_RBUTTONUP_T);
         const ok = ev && ev.posted === true && ev.version === 0
-          && packs && packs.length === 2
-          && packs[0].wparam === PROBE_UID_V0 && packs[0].lparam === WM_RBUTTONDOWN_T
-          && packs[1].wparam === PROBE_UID_V0 && packs[1].lparam === WM_RBUTTONUP_T
-          && ev.pid === process.pid // ASFW 属主 pid（旧实现传 hwnd——必不等）
-          && frameDown && frameDown.wp === PROBE_UID_V0 && frameDown.lp === WM_RBUTTONDOWN_T
+          && upPack && upPack.wparam === PROBE_UID_V0 && upPack.posted === true
+          && ev.pid === process.pid // 放行属主 pid（旧实现传 hwnd——必不等）
           && frameUp && frameUp.wp === PROBE_UID_V0 && frameUp.lp === WM_RBUTTONUP_T;
-        ok ? arms.push('v0-右键:存证+收帧一致(wparam=uID/鼠标消息对=0x0204+0x0205/pid=属主)')
-          : armFail('v0-右键', `存证=${JSON.stringify(ev && { posted: ev.posted, packs: ev.packs, version: ev.version, pid: ev.pid })} 收帧=${JSON.stringify([frameDown, frameUp])}`);
-        rep.note(`v0 右键 asfw=${ev && ev.asfw}（前台态依赖，尽力放行不作硬断言）`);
+        ok ? arms.push('v0-右键:存证+收帧一致(wparam=uID/lparam=WM_RBUTTONUP=0x0205/pid=属主)')
+          : armFail('v0-右键', `存证=${JSON.stringify(ev && { posted: ev.posted, packs: ev.packs, version: ev.version, pid: ev.pid })} 收帧=${JSON.stringify(frameUp)}`);
+        rep.note(`v0 右键投递口径：delivered=${ev && ev.delivered}/${ev && ev.total} partial=${ev && ev.partial}（放行改由主进程发起，见 taskbar-tray-foreground-grant 存证）`);
       }
 
       // —— v0 左键（真实点击臂）：SendInput 点条带探针图标 → DOM handler → 桥 → 宿主 → 收帧 ——
@@ -2407,7 +2415,7 @@ async function main() {
         const dip13 = screen.getPrimaryDisplay().bounds;
         const scale13 = (rect13.right - rect13.left) / dip13.width;
         await waitGeometrySettled(latestGeometry(null), 9000);
-        let clickEv = null, ev = null, frame = null, frameUp = null, geoMissing = false;
+        let clickEv = null, ev = null, frameUp = null, geoMissing = false;
         for (let attempt = 0; attempt < 2 && !clickEv; attempt++) {
           const geo = await cdpEval(`(() => {
             const el = document.querySelector('.tb-tray-icon[data-key=${JSON.stringify(key0)}]');
@@ -2425,7 +2433,6 @@ async function main() {
           clickEv = await tape.wait('taskbar-tray-click', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
           if (clickEv) {
             ev = await tape.wait('tray-replay', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
-            frame = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_LBUTTONDOWN_T);
             frameUp = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_LBUTTONUP_T);
           } else {
             await waitGeometrySettled(latestGeometry(null), 9000); // 漂移重试前再等安静
@@ -2437,14 +2444,12 @@ async function main() {
           armFail('v0-左键', '条带页找不到探针图标 .tb-tray-icon');
         } else {
           const packsL = ev && ev.packs;
+          const upPackL = packsL && packsL.find((p) => p.lparam === WM_LBUTTONUP_T);
           const ok = clickEv && ev && ev.posted === true
-            && packsL && packsL.length === 2
-            && packsL[0].wparam === PROBE_UID_V0 && packsL[0].lparam === WM_LBUTTONDOWN_T
-            && packsL[1].wparam === PROBE_UID_V0 && packsL[1].lparam === WM_LBUTTONUP_T
-            && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_LBUTTONDOWN_T
+            && upPackL && upPackL.wparam === PROBE_UID_V0 && upPackL.posted === true
             && frameUp && frameUp.wp === PROBE_UID_V0 && frameUp.lp === WM_LBUTTONUP_T;
-          ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 鼠标消息对=0x0201+0x0202)')
-            : armFail('v0-左键', `点击存证=${!!clickEv} 回放存证=${JSON.stringify(ev && { wparam: ev.wparam, lparam: ev.lparam, posted: ev.posted })} 收帧=${JSON.stringify(frame)}`);
+          ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 lp=WM_LBUTTONUP=0x0202)')
+            : armFail('v0-左键', `点击存证=${!!clickEv} 回放存证=${JSON.stringify(ev && { wparam: ev.wparam, lparam: ev.lparam, posted: ev.posted })} 收帧=${JSON.stringify(frameUp)}`);
         }
         win32.tapKeys([VK_ESC]); // 万一名单漂移点到邻位第三方图标开了菜单——尽力收净不留桌面残留
       }
@@ -2482,6 +2487,304 @@ async function main() {
         rep.fail(`P14 ${failArms.length}/${arms.length} 臂失败：${failArms.join(' | ')}`);
       }
 
+    // P27 通知区域原生菜单链（工单363 新段；一段绑定一工单——P14 段已回归 #164 原口径）：
+    //   臂1 消息对（外壳口径）：pre-v4 图标的回调收「按下 + 抬起」两条、逐条 posted，
+    //        探针窗按序收帧（0x0204 → 0x0205）——单发抬起一条不是外壳口径（自家
+    //        Electron 托盘只认按下族 ⇒ 右键菜单永不弹）。
+    //   臂2 主进程放行：放行权归条带窗属主进程（真实右键的末次输入接收者），回放前
+    //        同步放行 → taskbar-tray-foreground-grant 存证（数据面那次恒失败的调用
+    //        与 asfw 字段已随工单363 O1 退役）。
+    //   臂3 栏内入口端到端（自家图标·必测样本）：真实右键自家托盘图标 → 自家菜单出现
+    //        （持前台）→ Esc 收起 → 条带及时恢复置顶（reason≠timeout、elapsedMs 有界）。
+    //   臂4 溢出入口同链（AC5）：「⋯」浮层内右键同一图标 → 同一放行/同一消息对/同一
+    //        回放分发（surface=overflow）→ 浮层收层 → 条带恢复置顶。
+    rep.beginSegment('P27');
+    const p27Pass = [];
+    const p27Fail = [];
+    const p27Arm = (ok, name, detail) => (ok ? p27Pass : p27Fail).push(`${name}:${detail}`);
+    // 前台窗读数（自家菜单出现/交还的判据）：pid + 类名 + 句柄
+    const fgInfo27 = () => {
+      const h = Number(win32.GetForegroundWindow());
+      if (!h) return null;
+      let pid = 0;
+      try { pid = win32.threadIdOf(h).pid; } catch { pid = 0; }
+      let cls = '';
+      try { cls = win32.className(h); } catch { cls = ''; }
+      return { hwnd: h, pid, cls };
+    };
+    const panelWin27 = findWindow(panelPid, PANEL_TITLE) || 0;
+    // 自家菜单出现判据：前台窗属自家进程，且既不是条带窗也不是面板本体（非激活纪律：
+    // 面板窗 focusable:false/WS_EX_NOACTIVATE，永不夺前台——前台落自家进程只可能是菜单）。
+    const waitOwnMenu27 = async (ms = 6000) => {
+      const dl = Date.now() + ms;
+      while (Date.now() < dl) {
+        const fg = fgInfo27();
+        if (fg && fg.pid === panelPid && fg.hwnd !== strip13 && fg.hwnd !== panelWin27) return fg;
+        await sleep(100);
+      }
+      return null;
+    };
+    // 热区到靶：条带默认鼠标穿透，热区轮询命中才开门——移入后等 WindowFromPoint 命中
+    const converge27 = async (pt, hwnd) => {
+      win32.moveMousePhys(pt.x, pt.y);
+      for (let i = 0; i < 24; i++) {
+        await sleep(250);
+        try { if (win32.windowFromPointRoot(pt) === hwnd) return true; } catch { /* 继续等 */ }
+      }
+      return false;
+    };
+    if (!key0 || !probe164) {
+      p27Arm(false, '臂1消息对', `探针未在册（key0=${key0}）`);
+      p27Arm(false, '臂2放行', '探针未在册');
+    } else {
+      const tA = Date.now();
+      probe164.frames.length = 0;
+      await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key0)}, button: 'right' })`);
+      const evA = await tape.wait('tray-replay', (e) => e.key === key0, { since: tA, timeoutMs: 6000 });
+      const grantA = await tape.wait('taskbar-tray-foreground-grant', (e) => e.key === key0, { since: tA, timeoutMs: 6000 });
+      const frameDownA = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_RBUTTONDOWN_T);
+      const frameUpA = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_RBUTTONUP_T);
+      const packsA = (evA && evA.packs) || [];
+      const pairOk = !!(evA && evA.posted === true && evA.version === 0
+        && packsA.length === 2
+        && packsA[0].lparam === WM_RBUTTONDOWN_T && packsA[0].posted === true
+        && packsA[1].lparam === WM_RBUTTONUP_T && packsA[1].posted === true
+        && packsA[0].wparam === PROBE_UID_V0 && packsA[1].wparam === PROBE_UID_V0
+        && evA.delivered === 2 && evA.total === 2 && evA.partial === false
+        && frameDownA && frameDownA.wp === PROBE_UID_V0 && frameDownA.lp === WM_RBUTTONDOWN_T
+        && frameUpA && frameUpA.wp === PROBE_UID_V0 && frameUpA.lp === WM_RBUTTONUP_T);
+      p27Arm(pairOk, '臂1消息对', pairOk
+        ? 'pre-v4 回放=按下+抬起两条（逐条 posted，delivered=2/2 partial=false），探针按序收帧 0x0204→0x0205'
+        : `存证=${JSON.stringify(evA && { posted: evA.posted, delivered: evA.delivered, total: evA.total, partial: evA.partial, packs: evA.packs })} 收帧=${JSON.stringify([frameDownA, frameUpA])}`);
+      p27Arm(!!grantA, '臂2放行', grantA
+        ? `taskbar-tray-foreground-grant granted=${grantA.granted} reason=${grantA.reason} pid=${grantA.pid}（granted 硬断言在真实右键臂）`
+        : '无 taskbar-tray-foreground-grant 存证');
+    }
+
+    // —— 臂3：自家图标（必测样本）栏内真实右键 → 自家菜单 → Esc → 条带及时恢复置顶 ——
+    // 原档位先取（臂3 要把档位临时开到 all，还原时要用**原值**——取晚了会拿到 'all'，
+    // 还原成 all 会让溢出段清零、后续段的托盘档位前提全变）。
+    const prevLimit27 = ((await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE) || {}).trayOverflowLimit) || 5;
+    // 前置：档位临时开到 all——自家托盘图标在名单里的排位常在档位之外（红轮实证排位
+    // 第 18 枚），档位 5 时它只存在于溢出浮层、条带页无其 DOM（栏内入口就无从点起）。
+    await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 'all' })`, TASKBAR_TITLE);
+    await sleep(1200);
+    await waitGeometrySettled(latestGeometry(null), 9000);
+    const stB = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
+    const rosterB = (stB && stB.tray) || [];
+    const ownB = rosterB.find((e) => {
+      const h = Number((String(e.key).match(/^(\d+):/) || [])[1] || 0);
+      if (!h) return false;
+      try { return win32.threadIdOf(h).pid === panelPid; } catch { return false; }
+    });
+    let ovTargetKey = null;
+    let ovTargetIsOwn = false;
+    if (!ownB) {
+      p27Arm(false, '臂3栏内入口', `名单无自家托盘图标（roster=${rosterB.length}）`);
+    } else {
+      const ownKey = ownB.key;
+      const geoB = await cdpEval(`(() => { const el = document.querySelector('.tb-tray-icon[data-key=${JSON.stringify(ownKey)}]'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`, TASKBAR_TITLE);
+      if (!geoB) {
+        p27Arm(false, '臂3栏内入口', `条带页无自家图标 DOM（key=${ownKey}）`);
+      } else {
+        const rectB = win32.rectOf(strip13);
+        const dipB = screen.getPrimaryDisplay().bounds;
+        const scaleB = (rectB.right - rectB.left) / dipB.width;
+        const ptB = { x: Math.round(rectB.left + geoB.x * scaleB), y: Math.round(rectB.top + geoB.y * scaleB) };
+        const convergedB = await converge27(ptB, strip13);
+        const tB = Date.now();
+        win32.clickPhys(ptB.x, ptB.y, 'right');
+        const evB = await tape.wait('tray-replay', (e) => e.key === ownKey, { since: tB, timeoutMs: 6000 });
+        const grantB = await tape.wait('taskbar-tray-foreground-grant', (e) => e.key === ownKey, { since: tB, timeoutMs: 6000 });
+        const yieldB = await tape.wait('taskbar-tray-yield', (e) => e.key === ownKey, { since: tB, timeoutMs: 6000 });
+        const menuB = await waitOwnMenu27(6000);
+        win32.tapKeys([VK_ESC]);
+        await sleep(600);
+        // 恢复存证按监视 pid 取（自家图标属主=面板主进程）：P14 的 invoke 右键臂也起过
+        // 一拍让位窗（探针属主=电池进程、无菜单⇒10s 超时兜底），不按 pid 过滤会捡错那条。
+        const restoredB = await tape.wait('taskbar-tray-yield-restored', (e) => e.pid === panelPid, { since: tB, timeoutMs: 8000 });
+        const fgAfterB = fgInfo27();
+        const topmostB = isTopmost(strip13);
+        const pairB = !!(evB && evB.posted === true && evB.packs && evB.packs.length === 2
+          && evB.packs[0].lparam === WM_RBUTTONDOWN_T && evB.packs[1].lparam === WM_RBUTTONUP_T
+          && evB.packs[0].posted === true && evB.packs[1].posted === true);
+        p27Arm(pairB, '臂3消息对', pairB ? '自家图标回放=按下+抬起两条（逐条 posted）' : `存证=${JSON.stringify(evB && { posted: evB.posted, packs: evB.packs })}`);
+        p27Arm(!!(grantB && grantB.granted === true), '臂3放行', grantB ? `granted=${grantB.granted} reason=${grantB.reason}` : '无放行存证');
+        p27Arm(!!menuB, '臂3菜单出现', menuB ? `前台=自家进程窗 cls=${menuB.cls} hwnd=${menuB.hwnd}（到靶=${convergedB}）` : '自家菜单未出现/未持前台');
+        // mode=yield=首次起拍、extend=让位中换监视目标（P14 的 invoke 臂已起过让位窗，
+        // 两态都表示「条带处在让位态」——自家菜单要在非置顶带之上才诞生成立）。
+        p27Arm(!!(yieldB && (yieldB.mode === 'yield' || yieldB.mode === 'extend')), '臂3让位', yieldB ? `mode=${yieldB.mode}` : '无让位存证');
+        const timelyB = !!(restoredB && restoredB.reason !== 'timeout' && Number(restoredB.elapsedMs) < 3000);
+        p27Arm(timelyB, '臂3及时恢复置顶', timelyB ? `reason=${restoredB.reason} elapsedMs=${restoredB.elapsedMs}（非 10s 超时兜底）` : `恢复存证=${JSON.stringify(restoredB)}`);
+        p27Arm(!!(menuB && fgAfterB && fgAfterB.hwnd !== menuB.hwnd), '臂3Esc收起', menuB && fgAfterB ? `前台由 ${menuB.hwnd} 交给 ${fgAfterB.hwnd}（cls=${fgAfterB.cls}）` : '菜单/前台读数缺位');
+        p27Arm(topmostB === true, '臂3条带置顶', `条带 topmost=${topmostB}`);
+      }
+    }
+
+    // —— 臂4：溢出入口同链（AC5：栏内与托盘溢出两条入口行为一致）——
+    const rosterC = (await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE) || {}).tray || [];
+    const ownIdxC = ownB ? rosterC.findIndex((e) => e.key === ownB.key) : -1;
+    // 档位下限 3：自家图标排位在前 3 枚时进不了溢出（档位合法值只有 3/5/8/all），
+    // 此时改用探针图标（探针注册最晚、必在溢出尾段）——链断言仍然成立。
+    ovTargetIsOwn = ownIdxC >= 3;
+    ovTargetKey = ovTargetIsOwn ? ownB.key : key0;
+    await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })`, TASKBAR_TITLE);
+    await sleep(1200);
+    await waitGeometrySettled(latestGeometry(null), 9000);
+    const geoOv = latestGeometry(null);
+    const moreRect = geoOv && geoOv.trayOverflow;
+    if (!moreRect) {
+      p27Arm(false, '臂4溢出入口', '几何帧无 trayOverflow 矩形（⋯ 未渲染）');
+    } else {
+      const rectO = win32.rectOf(strip13);
+      const dipO = screen.getPrimaryDisplay().bounds;
+      const scaleO = (rectO.right - rectO.left) / dipO.width;
+      const morePt = { x: Math.round(rectO.left + (moreRect.x + moreRect.w / 2) * scaleO), y: Math.round(rectO.top + (moreRect.y + moreRect.h / 2) * scaleO) };
+      const convergedO = await converge27(morePt, strip13);
+      // 溢出名单（开层前取一次）：行几何兜底按溢出页同款算术现算（行高 30、首行上内衬 7——
+      // 溢出页 ready 存证里的行矩形同款）；首选还是 ready 存证（与 opened 同拍落地）。
+      const rosterForOv = ((await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE) || {}).tray || []);
+      const tailForOv = rosterForOv.slice(3);
+      const rowIdxOv = tailForOv.findIndex((e) => e.key === ovTargetKey);
+      const rowYOv = rowIdxOv >= 0 ? 7 + 30 * rowIdxOv : null;
+      // 开层 + 行右点（最多三轮）：浮层开出来后可能被桌面上的别的窗口抢焦而「blur」
+      // 收层 ⇒ 行点击落空 ⇒ 重开重试（55 族「右键开浮层三试」同款纪律）。
+      let clickO = null, grantO = null, evO = null, closedO = null, openedO = null, rowsO = [], rowO = null;
+      let targetKeyNow = ovTargetKey; // 本轮实际落点的那一行（自家图标不可达时退到名单首行）
+      let tO = 0; // 本轮落点点击的时刻（循环外要用：恢复存证按 since 取）
+      for (let attempt = 0; attempt < 3 && !clickO; attempt++) {
+        await converge27(morePt, strip13);
+        const sinceO = Date.now();
+        win32.clickPhys(morePt.x, morePt.y, 'left');
+        openedO = await tape.wait('taskbar-tray-overflow-opened', undefined, { since: sinceO, timeoutMs: 4000 });
+        if (!openedO) continue;
+        // 沉降拍（55 族 openPopup 同款）：点 ⋯ 后沉降 700ms 再读存证/点行——新窗输入
+        // 路由未就绪时 ~100ms 内的落点整帧丢失。
+        await sleep(700);
+        // —— 行矩形**点击前即时重取**（55 族臂4 能过、这里过不了的差异点）——
+        // ready 存证只在名单 churn 时才重报（本机托盘 26 枚、churn 频繁 ⇒ 快照常是旧的），
+        // 拿旧 y 点行会落在**别的行**上 ⇒ 回放发给了另一个图标 ⇒ 段判「点击未生效」。
+        // 故这里进浮层页当场取该行 getBoundingClientRect（页面视口坐标）+ 元素命中节点
+        // （elementFromPoint）⇒ 落点、命中节点都是当场事实，可自证。
+        const readyO = await tape.wait('taskbar-tray-overflow-ready', (e) => Array.isArray(e.rows) && e.rows.length > 0, { since: sinceO, timeoutMs: 1500 });
+        rowsO = readyO && readyO.rows ? readyO.rows : tailForOv.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 7 + 30 * i, h: 30 }));
+        rowO = rowsO.find((r) => r.key === ovTargetKey);
+        if (!rowO) continue;
+        const ovWin = win32.topLevelWindows().find((w) => titleOf(w) === OVERFLOW_TITLE) || null;
+        const ovRect = ovWin ? win32.rectOf(ovWin) : null;
+        // 目标行：自家图标优先（菜单出现/收起/及时恢复要真机断言）；它排在溢出名单
+        // 中后段时（实测排位 ~67、行 y ~2000px），**浮层可视区装不下**（溢出名单可达
+        // 60+ 枚 ⇒ 浮层高 ~2000px 超屏，列表滚动）⇒ 物理点击根本点不到——这才是
+        // 臂4 点不中的真因（55 族能过：它的目标行是自注册探针、名单仅 32 枚 ⇒ 浮层
+        // 整体在屏内、行落在可视区）。故：进浮层页把目标行 scrollIntoView 滚进视口，
+        // 再取**点击前即时**的矩形（ready 存证快照会过期）。滚不进视口时退到溢出名单
+        // 首行（物理可达），链断言不变。
+        let rowRect = null;
+        // 注：本电池的 cdpEval 形参是 (expression, pageTitle)——与取证工具的 (title, expression)
+        // 相反（早先按取证工具的写法调过，实测静默抛「CDP 找不到页面目标」⇒ 实时矩形恒 null）。
+        const liveRow = async (key) => {
+          try {
+            return await cdpEval(`(() => {
+              const el = document.querySelector('.ov-row[data-key=${JSON.stringify(key)}]');
+              if (!el) return { miss: 'no-element' };
+              el.scrollIntoView({ block: 'center', inline: 'nearest' });
+              const r = el.getBoundingClientRect();
+              const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+              return { x: r.x, y: r.y, w: r.width, h: r.height, iw: window.innerWidth, ih: window.innerHeight,
+                       hit: hit ? (hit.className || hit.tagName) : null,
+                       inView: r.top >= 0 && r.bottom <= window.innerHeight };
+            })()`, OVERFLOW_TITLE);
+          } catch (err) { return { miss: 'cdp:' + (err && err.message ? err.message : String(err)) }; }
+        };
+        rowRect = await liveRow(targetKeyNow);
+        if (!rowRect || !rowRect.inView) {
+          const fallbackKey = tailForOv.length ? tailForOv[0].key : null;
+          if (fallbackKey && fallbackKey !== targetKeyNow) {
+            const rb = await liveRow(fallbackKey);
+            if (rb && rb.inView) {
+              rowRect = rb;
+              targetKeyNow = fallbackKey;
+              rep.note(`P27 臂4 目标切换：原目标行不可达（${ovTargetKey} 缺失或不在视口）→ 改用溢出名单首行 ${fallbackKey}`);
+            }
+          }
+        }
+        let ptRow = null; let inside = null; let rowBox = null;
+        if (rowRect && ovRect && rowRect.w > 0) {
+          const osc = (ovRect.right - ovRect.left) / rowRect.iw; // 浮层页 CSS → 物理
+          rowBox = {
+            x0: Math.round(ovRect.left + rowRect.x * osc), x1: Math.round(ovRect.left + (rowRect.x + rowRect.w) * osc),
+            y0: Math.round(ovRect.top + rowRect.y * osc), y1: Math.round(ovRect.top + (rowRect.y + rowRect.h) * osc),
+          };
+          ptRow = { x: Math.round((rowBox.x0 + rowBox.x1) / 2), y: Math.round((rowBox.y0 + rowBox.y1) / 2) };
+          inside = ptRow.x >= rowBox.x0 && ptRow.x <= rowBox.x1 && ptRow.y >= rowBox.y0 && ptRow.y <= rowBox.y1;
+        } else {
+          // 兜底：ready/算术行矩形（55 族 rowPt 口径：标签列 +140、行中点）
+          const bO = openedO.bounds;
+          ptRow = { x: Math.round(rectO.left + (bO.x + 140) * scaleO), y: Math.round(rectO.top + (bO.y + rowO.y + rowO.h / 2) * scaleO) };
+          rowBox = { x0: null, x1: null, y0: Math.round(rectO.top + (bO.y + rowO.y) * scaleO), y1: Math.round(rectO.top + (bO.y + rowO.y + rowO.h) * scaleO) };
+          inside = null;
+        }
+        const ovVisible = ovWin ? win32.IsWindowVisible(ovWin) : false;
+        rep.note(`P27 臂4 落点自证#${attempt + 1}: 浮层窗在场=${!!ovWin} 可见=${ovVisible} 实时行矩形=${rowRect ? JSON.stringify({ x: rowRect.x, y: rowRect.y, w: rowRect.w, h: rowRect.h }) : 'null'} 命中节点=${rowRect ? rowRect.hit : 'n/a'} 行框(物理)=${JSON.stringify(rowBox)} 点击点=${JSON.stringify(ptRow)} 落在行框内=${inside}`);
+        if (!ptRow) continue;
+        tO = Date.now();
+        probe164.frames.length = 0;
+        win32.clickPhys(ptRow.x, ptRow.y, 'right');
+        clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === targetKeyNow && e.button === 'right', { since: tO, timeoutMs: 2000 });
+        if (!clickO) {
+          // 有界重试：真机点击偶发丢帧是常态——同一落点再点一次（两次尝试都留证）
+          win32.clickPhys(ptRow.x, ptRow.y, 'right');
+          clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === targetKeyNow && e.button === 'right', { since: tO, timeoutMs: 2000 });
+          rep.note(`P27 臂4 落点重试#${attempt + 1}: 第二次同点点击后生效=${!!clickO}`);
+        }
+        if (!clickO) {
+          // 诊断用（非通过路径）：浮层页直派 contextmenu 走同一条链——用来判定「链本身
+          // 通不通」与「只是物理落点没到」，不作为臂4 的通过凭据。
+          try {
+            await cdpEval(`(() => { const el = document.querySelector('.ov-row[data-key=${JSON.stringify(targetKeyNow)}]'); if (!el) return false; el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return true; })()`, OVERFLOW_TITLE);
+          } catch { /* 浮层页不在场 */ }
+          const chainDiag = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === targetKeyNow && e.button === 'right', { since: tO, timeoutMs: 2000 });
+          rep.note(`P27 臂4 诊断#${attempt + 1}: 物理落点未生效；浮层页直派 contextmenu 后链存证=${!!chainDiag}（链${chainDiag ? '通' : '不通'}）`);
+          continue;
+        }
+        grantO = await tape.wait('taskbar-tray-foreground-grant', (e) => e.key === targetKeyNow, { since: tO, timeoutMs: 3000 });
+        evO = await tape.wait('tray-replay', (e) => e.key === targetKeyNow, { since: tO, timeoutMs: 3000 });
+        closedO = await tape.wait('taskbar-tray-overflow-closed', (e) => e.reason === 'row', { since: tO, timeoutMs: 3000 });
+      }
+      if (!openedO || !rowO || !clickO) {
+        p27Arm(false, '臂4溢出入口', `浮层未开/无目标行/行点击未生效（opened=${!!openedO} row=${!!rowO} click=${!!clickO} target=${ovTargetKey}→${targetKeyNow}）`);
+      } else {
+        const packsO = (evO && evO.packs) || [];
+        const pairO = !!(evO && evO.posted === true && packsO.length === 2
+          && packsO[0].lparam === WM_RBUTTONDOWN_T && packsO[1].lparam === WM_RBUTTONUP_T
+          && packsO[0].posted === true && packsO[1].posted === true);
+        p27Arm(!!clickO, '臂4溢出回放分发', clickO ? `taskbar-tray-click surface=overflow key=${targetKeyNow} button=right` : '无 overflow 面回放存证');
+        p27Arm(!!(grantO && grantO.granted === true), '臂4溢出放行', grantO ? `granted=${grantO.granted} reason=${grantO.reason}（与栏内同一放行链）` : '无放行存证');
+        p27Arm(pairO, '臂4溢出消息对', pairO ? '溢出入口同一消息对（按下+抬起两条）' : `存证=${JSON.stringify(evO && { posted: evO.posted, packs: evO.packs })}`);
+        p27Arm(!!closedO, '臂4溢出收层', closedO ? '浮层行点即收（reason=row）' : '无收层存证');
+        // 菜单出现/收起/及时恢复：只在目标**就是自家图标**时断言（改用溢出名单首行时
+        // 那是第三方图标，其自带菜单与应用相关 ⇒ 不在本段断言面）。
+        if (ovTargetIsOwn && targetKeyNow === ovTargetKey) {
+          const menuO = await waitOwnMenu27(6000);
+          win32.tapKeys([VK_ESC]);
+          await sleep(600);
+          const restoredO = await tape.wait('taskbar-tray-yield-restored', (e) => e.pid === panelPid, { since: tO, timeoutMs: 8000 });
+          const fgAfterO = fgInfo27();
+          const timelyO = !!(restoredO && restoredO.reason !== 'timeout' && Number(restoredO.elapsedMs) < 3000);
+          p27Arm(!!menuO, '臂4溢出菜单出现', menuO ? `前台=自家进程窗 cls=${menuO.cls} hwnd=${menuO.hwnd}（到靶=${convergedO}）` : '溢出入口自家菜单未出现');
+          p27Arm(timelyO, '臂4溢出及时恢复置顶', timelyO ? `reason=${restoredO.reason} elapsedMs=${restoredO.elapsedMs}` : `恢复存证=${JSON.stringify(restoredO)}`);
+          p27Arm(!!(menuO && fgAfterO && fgAfterO.hwnd !== menuO.hwnd), '臂4溢出Esc收起', menuO && fgAfterO ? `前台由 ${menuO.hwnd} 交给 ${fgAfterO.hwnd}` : '菜单/前台读数缺位');
+        } else {
+          rep.note(`P27 臂4 溢出目标=探针图标（自家图标排位 ${ownIdxC} < 档位下限 3，进不了溢出）：本臂只断言链一致（放行/消息对/回放分发/收层），菜单出现与及时恢复由臂3 覆盖`);
+        }
+      }
+    }
+    try { await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(prevLimit27)} })`, TASKBAR_TITLE); } catch { /* 条带已不在场 */ }
+    if (p27Fail.length === 0) {
+      rep.pass(`P27 通知区域原生菜单链：${p27Pass.length} 臂全过（${p27Pass.join('；')}）`);
+    } else {
+      rep.fail(`P27 ${p27Fail.length} 臂失败：${p27Fail.join(' | ')}`);
+    }
       // 清理探针（正常路径；异常路径 finally 兜底）
       try { ShellNotifyIconW(NIM_DELETE, nidV0); } catch { /* 尽力 */ }
       try { ShellNotifyIconW(NIM_DELETE, nidV4); } catch { /* 尽力 */ }

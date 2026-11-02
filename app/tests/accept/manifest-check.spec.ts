@@ -335,13 +335,16 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 129 → 130：工单338 增段——332-conversation +C8 联网组件与 origin 权限（执行序 C7 后 C3 前）
     // 130 → 131：工单339 增段——332-conversation +C9 命名凭证与认证联网（执行序 C8 后 C3 前）
     // 131 → 132：工单341 增段——332-conversation +C10 三参考组合与资源预算（执行序 C9 后 C3 前）
-    // 132 → 133：工单362 增段——166-doc-group-cards +P362 确认框真实排版（DELETE 与 DISSOLVE
+// 132 → 133：工单362 增段——166-doc-group-cards +P362 确认框真实排版（DELETE 与 DISSOLVE
     // 两路；此前这两条排版断言混在 P183/P186 两段里，段归属唯一工单之律要求它们归到 362 自己的段；
     // 执行序 P183 后 P184 前——本段自开 DELETE 与 DISSOLVE 两层，自量自记账）
     // 133 → 134：工单364 增段——332-conversation +C11 对话窗真实控件路径（执行序 C1 前——本段要在
     // **零会话**态驱动真实控件，故环境备妥提到段之前；spec 测试决策 6：直调 conversation/prompt
     // 不能替代这条路径。预算 600 保持：570+10=580≤600）
-    expect(total).toBe(134)
+    // 134 → 135：工单363 增段——49-taskbar +P27 通知区域原生菜单链（两入口同链/主进程放行/
+    // 外壳口径鼠标消息对/自家菜单出现收起/条带及时恢复置顶；一段绑定一工单，est 15 按健康轮
+    // 段账目 took= 校准，同 PR 校准 P13/P14/P16/P19/P25/P26 的高估值以让出预算）
+    expect(total).toBe(135)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

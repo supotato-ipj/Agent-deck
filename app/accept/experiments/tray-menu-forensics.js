@@ -692,18 +692,45 @@ function findOutsidePoint(stripRect) {
       h({ type: 'P3-overflow', key: key2, window: ov, limit: limit2, trayCount: trayList.length });
       findings.overflow = { key: key2, pid: pid2, window: ov, limit: limit2 };
       // 开层：条带页「⋯」真实左键（宿主按光标位置弹浮层并取焦）
+      // 工单363 S1 修正：旧口径「DOM 取 ⋯ 矩形 → 移光标 → 等 300ms → 点一下」开不出
+      // 浮层（ovWin=null）——条带**默认鼠标穿透**，热区 25ms 轮询命中才开门，300ms 的
+      // 落点等待不足以让热区开门，点落在穿透层上。改用 55 族已验证的观察法：
+      //   光标到靶（WindowFromPoint 命中条带窗）→ 真实左键 → 以
+      //   taskbar-tray-overflow-opened/-ready 存证判开层（窗标题只作旁证）。
       const moreExpr = '(() => { const el = document.querySelector(\'[data-id=\\"tray-overflow\\"]\');'
         + ' if (!el) return null; const r = el.getBoundingClientRect();'
         + ' return { x: r.x + r.width / 2, y: r.y + r.height / 2, iw: window.innerWidth }; })()';
       const more = await cdpEval(STRIP_TITLE, moreExpr);
-      if (more) {
+      let openedEv = null;
+      let readyEv = null;
+      if (!more) {
+        h({ type: 'P3-no-more', reason: '条带页无 ⋯ 元素（data-id=tray-overflow）' });
+      } else {
         const mscale = (stripRect.right - stripRect.left) / more.iw;
-        win32.SetCursorPos(Math.round(stripRect.left + more.x * mscale), Math.round(stripRect.top + more.y * mscale));
-        await sleep(300);
-        win32.clickPhys(Math.round(stripRect.left + more.x * mscale), Math.round(stripRect.top + more.y * mscale), 'left');
+        const mpt = {
+          x: Math.round(stripRect.left + more.x * mscale),
+          y: Math.round(stripRect.top + more.y * mscale),
+        };
+        win32.SetCursorPos(mpt.x, mpt.y);
+        let hit = false;
+        for (let i = 0; i < 24 && !hit; i++) {
+          await sleep(250);
+          const root = win32.windowFromPointRoot(mpt);
+          hit = !!root && root === strip;
+        }
+        h({ type: 'P3-converge', point: mpt, hit });
+        tail.next();
+        win32.clickPhys(mpt.x, mpt.y, 'left');
+        const dl = Date.now() + 8000;
+        while (Date.now() < dl && !openedEv) {
+          const evs = tail.next();
+          openedEv = evs.find((e) => e.type === 'taskbar-tray-overflow-opened') || null;
+          readyEv = evs.find((e) => e.type === 'taskbar-tray-overflow-ready') || null;
+          if (!openedEv) await sleep(120);
+        }
       }
-      const ovWin = await waitFor(() => win32.topLevelWindows().find((w) => titleOf(w) === OVERFLOW_TITLE) || null, 8000);
-      h({ type: 'P3-opened', window: ovWin });
+      const ovWin = await waitFor(() => win32.topLevelWindows().find((w) => titleOf(w) === OVERFLOW_TITLE) || null, 4000);
+      h({ type: 'P3-opened', window: ovWin, opened: openedEv, ready: readyEv });
       if (ovWin) {
         const rowExpr = '(() => { const el = document.querySelector(\'.ov-row[data-key=' + JSON.stringify(key2) + ']\');'
           + ' if (!el) return null; const r = el.getBoundingClientRect();'

@@ -3,7 +3,7 @@
 // 同模式），广播 TaskbarCreated 收编存量图标，解析真实 NIM_* 流量并提取图标像素。
 // 压成无分支薄壳：字节 → trayhost/protocol 纯解码；像素修复 → trayhost/pixels。
 // 本文件只在数据面子进程加载（koffi 延迟绑定，离线测试不触）。
-import { COPYDATA_TRAY, decodeTrayPayload, packTrayClick, toTrayEvent, type TrayClickButton, type TrayIconPixels, type TrayWireEvent } from './protocol'
+import { COPYDATA_TRAY, decodeTrayPayload, packTrayClick, summarizeTrayDelivery, toTrayEvent, type TrayClickButton, type TrayIconPixels, type TrayWireEvent } from './protocol'
 import { fixIconAlpha, maskRowStride } from './pixels'
 
 const WM_COPYDATA = 0x004a
@@ -131,15 +131,14 @@ export class TrayHost {
       getDIBits: gdi32.func('int __stdcall GetDIBits(uint32 hdc, uint32 hbm, uint32 start, uint32 lines, void *bits, void *bi, uint32 usage)'),
       deleteObject: gdi32.func('bool __stdcall DeleteObject(uint32 h)'),
       getModuleHandle: kernel32.func('uintptr_t __stdcall GetModuleHandleW(uintptr_t name)'),
-      // 点击回放（工单56）：GetCursorPos 取光标位置供 v4 负载的 MAKELPARAM 语义；
-      // AllowSetForegroundWindow 是**尽力放行**——工单163 修正形参（属主进程 ID，
-      // DWORD；旧实现传 hwnd 恒失败）。工单363 取证坐实：本进程（数据面子进程）
-      // 既非前台也非末次输入接收者 ⇒ 这里放行恒失败（存证 asfw=false），应用的菜单
-      // 因此不持前台、点外/Esc 收不掉。权威放行改由面板主进程发起（条带窗属主、
-      // 真实右键的末次输入接收者）——见 taskbar/foreground.ts 与 taskbar/window.ts
-      // 的 taskbar/tray-replay-begin 处理器。此处保留调用：放行对同一属主的重复
-      // 授权无害，且保留了既有存证字段（asfw=false 本身即断点证据）。
-      allowSetForegroundWindow: user32.func('bool __stdcall AllowSetForegroundWindow(uintptr_t dwProcessId)'),
+      // 点击回放（工单56）：GetCursorPos 取光标位置供 v4 负载的 MAKELPARAM 语义。
+      //
+      // 工单363 O1（陈旧字段清理）：**这里不再调 AllowSetForegroundWindow**。放行权已
+      // 移到面板主进程（taskbar/foreground.ts + taskbar/window.ts 的
+      // taskbar/tray-replay-begin 处理器）——数据面子进程既非前台也非末次输入接收者，
+      // 这里放行恒失败，留着只会在存证里写下一条恒假的「放行失败」误导后来读证据
+      // 的人（该字段 asfw 已随之删除；放行结果改看主进程的
+      // taskbar-tray-foreground-grant 存证）。
       getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, uint32 *lpdwProcessId)'),
       getCursorPos: user32.func('bool __stdcall GetCursorPos(void *pt)'),
       // 外来指针的安全读取：ReadProcessMemory 读失败返回 false 而非访问违例崩溃——
@@ -337,23 +336,33 @@ export class TrayHost {
       return { ok: false, error }
     }
     const packs = packTrayClick(entry, button, { x: pt.readInt32LE(0), y: pt.readInt32LE(4) })
-    // 前台权放行（工单164 修正）：ASFW 形参是属主进程 ID——GetWindowThreadProcessId 换取
-    // pid 再放行（旧实现传 hwnd 当 pid，恒 false）；结果随存证留档供验收判读
+    // 属主进程 id（回放存证用；放行已移主进程——见 start() 里 AllowSetForegroundWindow
+    // 注释：数据面调它恒失败，故此处只取 pid 不放行）
     const pidBuf = Buffer.alloc(4)
     this.f.getWindowThreadProcessId(entry.hwnd, pidBuf)
     const ownerPid = pidBuf.readUInt32LE(0)
-    const asfw = Boolean(this.f.allowSetForegroundWindow(ownerPid))
     // 外壳口径的消息序列逐条投递（工单363：pre-v4 图标收**鼠标消息对**——按下与抬起
     // 各一条；同一目标线程的 PostMessage 保序 ⇒ 应用收到的顺序与外壳一致）
     const sent = packs.map((pack) => {
       const posted = Boolean(this.f.postMessage(entry.hwnd, pack.message, pack.wparam, pack.lparam))
       return { ...pack, posted }
     })
-    const posted = sent.every((s) => s.posted)
-    // 存证：packs = 完整投递序列（逐条投递结果）；message/wparam/lparam = 首条
-    // （pre-v4 即「按下」那条）
-    this.options.log?.({ type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version, pid: ownerPid, asfw, packs: sent, posted, message: sent[0]?.message, wparam: sent[0]?.wparam, lparam: sent[0]?.lparam })
-    return posted ? { ok: true } : { ok: false, error: '回调投递被系统拒收' }
+    // 投递口径（工单363 O3）：一次回放是整条序列——posted 恒指「整条都投出去了」；
+    // 部分投递（应用退场致第二条被拒收而第一条已生效）单列 partial，不静默当成功。
+    const delivery = summarizeTrayDelivery(sent)
+    // 存证：packs = 完整投递序列（逐条投递结果）；delivered/total/partial = 投递口径；
+    // message/wparam/lparam = 首条（pre-v4 即「按下」那条）
+    this.options.log?.({
+      type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version,
+      pid: ownerPid, packs: sent, posted: delivery.posted, delivered: delivery.delivered,
+      total: delivery.total, partial: delivery.partial,
+      message: sent[0]?.message, wparam: sent[0]?.wparam, lparam: sent[0]?.lparam,
+    })
+    if (delivery.posted) return { ok: true }
+    if (delivery.partial) {
+      return { ok: false, error: `回调部分投递（${delivery.delivered}/${delivery.total} 条成功，缺的那条被系统拒收）` }
+    }
+    return { ok: false, error: '回调投递被系统拒收' }
   }
 
   /** HICON → 32bpp 顶向下 BGRA 像素（alpha 修复走纯函数）。GetIconInfo 位图归我们销毁。 */

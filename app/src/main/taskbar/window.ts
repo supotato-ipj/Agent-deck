@@ -17,7 +17,7 @@ import type { EventLog } from '../panel-ipc'
 import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import { taskbarUrl } from '../plugins/protocol'
 import { setTopmost, hwndOf } from '../win32'
-import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
+import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar, windowAlive } from './native'
 import { grantTrayForeground } from './foreground'
 import { getAppBarState } from './appbar'
 import { engageTakeoverAutoHide, reassertTakeoverAutoHide, restoreTakeoverAutoHide } from './appbar-autohide'
@@ -174,14 +174,19 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 与置顶动作；native 菜单 z 序真机人工验收留证（事件时序存证为主，票面口径）。
   let trayYield: { machine: TrayYieldMachine; timer: NodeJS.Timeout } | null = null
 
-  /** 让位中再次右键（换图标）：换监视 pid 续时限（machine 语义），条带已在普通带不动 */
-  const beginTrayYield = (payload: { key: string; hwnd: string | null }): void => {
+  /**
+   * 回放右键起拍（工单363 改名）：本函数此前叫 beginTrayYield，名不副实——它兼两责：
+   * ①主进程前台放行（工单363：放行权归主进程，条带窗属主=真实右键的末次输入接收者）；
+   * ②条带让位起拍（工单194：回放期间条带退出置顶带，菜单关后回顶）。
+   * 拆成两个动作各自有名，放行与让位各自可读；结构不动。
+   */
+  const onTrayReplayBegin = (payload: { key: string; hwnd: string | null }): void => {
     const hwnd = payload.hwnd ? Number(payload.hwnd) : 0
     const pid = hwnd ? pidOfWindow(hwnd) : 0
     // 前台放行（工单363）：应用收到托盘回调后要弹自己的菜单，必须能取前台——
     // Windows 前台锁下只有持前台权/末次输入的过程能替它放行。放行落本进程（条带
     // 窗属主、真实右键的末次输入接收者）：投递真源在数据面子进程，那儿无前台权、
-    // 放行恒失败（真机实证 asfw=false ⇒ 菜单不弹或不持前台、点外/Esc 收不掉）。
+    // 放行恒失败（真机实证恒失败 ⇒ 菜单不弹或不持前台、点外/Esc 收不掉）。
     // 本事件由服务在**转发回放之前**同步发出 ⇒ 放行先于回调投递（外壳同款时序）。
     const grant = grantTrayForeground({ hwnd, pid })
     log?.append({ type: 'taskbar-tray-foreground-grant', key: payload.key, pid: grant.pid, granted: grant.granted, reason: grant.reason })
@@ -220,12 +225,25 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       } catch { /* 枚举失败按「菜单不在场」继续——三路侦测不因单拍 FFI 抖动翻脸 */ }
     }
     let fgPid = 0
+    let fgHwnd = 0
     try {
-      fgPid = probeForegroundWindow()?.pid ?? 0
+      const fg = probeForegroundWindow()
+      fgPid = fg?.pid ?? 0
+      fgHwnd = fg?.hwnd ?? 0
     } catch { /* 同上：本拍放弃前台证据 */ }
+    // 菜单窗消失判据（工单363 S2）：记下的那个前台窗（菜单在场时目标 pid 持前台的
+    // 那个窗）若已销毁 ⇒ 菜单已收起 ⇒ 及时恢复置顶。自家 Chromium 菜单收起后前台
+    // 可能仍留在自家进程（自家另一个窗顶上），前台变化路判不出「菜单已关」。
+    let menuHwndGone = false
+    const menuHwnd = ty.machine.menuWindowHwnd
+    if (menuHwnd) {
+      try {
+        menuHwndGone = !windowAlive(menuHwnd)
+      } catch { /* 判不出按「仍在场」——误恢复比误留非置顶更糟 */ }
+    }
     let decision: TrayYieldDecision
     try {
-      decision = ty.machine.poll({ menuCount, fgPid, now: Date.now() })
+      decision = ty.machine.poll({ menuCount, fgPid, fgHwnd, menuHwndGone, now: Date.now() })
     } catch {
       return // 状态机不抛；防御性收口不把侦测拍变崩点
     }
@@ -730,7 +748,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   })
   // 托盘右键让位起拍（工单194）：TaskbarService.trayClick 在转发回放前同步发出，
   // 本控制器同轮内先降置顶、后见菜单诞生（z 序正确性赖此顺序，见 trayClick 注）
-  const offTrayBegin = ctx.on('taskbar/tray-replay-begin', beginTrayYield)
+  const offTrayBegin = ctx.on('taskbar/tray-replay-begin', onTrayReplayBegin)
   screen.on('display-metrics-changed', onDisplayMetrics)
 
   return {

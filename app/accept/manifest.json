@@ -758,7 +758,7 @@
             "event-evidence",
             "pixel"
           ],
-          "estSeconds": 3
+          "estSeconds": 1
         },
         {
           "seg": "P15B",
@@ -778,7 +778,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 24
+          "estSeconds": 23
         },
         {
           "seg": "P17",
@@ -798,17 +798,32 @@
             "event-evidence",
             "pixel"
           ],
-          "estSeconds": 10
+          "estSeconds": 6
         },
         {
           "seg": "P14",
           "ticket": 164,
-          "title": "托盘回放负载语义（#163 断点修正回归；#363 修正为外壳口径的鼠标消息对——按下+抬起各一条）：自注册 v0/v4 探针收帧 + 右/左键负载断言 + 真实点击端到端",
+          "title": "托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言（wParam=uID、lParam=抬起族鼠标消息）+ 真实点击端到端",
           "surfaces": [
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 10
+          "estSeconds": 9
+        },
+        {
+          "seg": "P27",
+          "ticket": 363,
+          "title": "通知区域原生菜单链（工单363）：栏内与溢出两入口同一回放链（主进程放行 granted + 外壳口径鼠标消息对=按下+抬起两条、逐条 posted）+ 自家图标菜单出现/Esc 收起 + 条带及时恢复置顶（恢复 reason≠timeout）",
+          "surfaces": [
+            "event-evidence",
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 15,
+          "areas": [
+            "taskbar",
+            "tray"
+          ]
         },
         {
           "seg": "P18",
@@ -893,7 +908,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 8,
+          "estSeconds": 7,
           "areas": [
             "taskbar",
             "taskbar.menu"
@@ -906,7 +921,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 25
+          "estSeconds": 24
         }
       ],
       "areas": [

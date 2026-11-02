@@ -1,7 +1,7 @@
 // 托盘回调的前台放行（工单363）：应用收到托盘回调后要弹**自己的**菜单 ⇒ 它必须能取前台。
 // 真机取证（工单363 基线轮）：回调投递与负载语义全通（posted=true、v0 负载
 // wp=uid/lp=WM_RBUTTONUP、PowerToys 的 #32768 标准菜单确实弹出），断点落在**前台段**——
-// 数据面子进程发起的 AllowSetForegroundWindow 恒失败（存证 asfw=false），应用的菜单
+// 数据面子进程发起的 AllowSetForegroundWindow 恒失败（该调用已删、asfw 存证字段随之退役），应用的菜单
 // 不持前台 ⇒ Esc（走前台窗）与点外都收不掉，部分应用（OneDrive、Electron 托盘）
 // 直接不弹菜单。放行因此改由面板主进程发起（条带窗属主、真实右键的末次输入接收者）。
 //

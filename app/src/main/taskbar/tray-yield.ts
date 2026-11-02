@@ -23,6 +23,16 @@ export interface TrayYieldProbe {
   menuCount: number
   /** 当拍前台窗属主 pid（无前台窗 = 0） */
   fgPid: number
+  /**
+   * 当拍前台窗句柄（0/缺省 = 无前台窗）。用于记下「菜单窗身份」——菜单在场时前台
+   * 落在目标 pid 的菜单窗上，那个句柄就是菜单窗本身（工单363 S2）。
+   */
+  fgHwnd?: number
+  /**
+   * 效果层判出的「上拍记下的菜单窗已消失」（句柄已销毁）。与 #32768 计数同一语义、
+   * 但不依赖窗口类名——自绘菜单（自家 Chromium 菜单窗、第三方自绘面板）同样适用。
+   */
+  menuHwndGone?: boolean
   now: number
 }
 
@@ -50,6 +60,8 @@ export class TrayYieldMachine {
   private deadline = 0
   private isActive = false
   private ownPid = 0
+  /** 菜单在场时前台落在目标 pid 的那个窗句柄（= 菜单窗身份；0 = 未记下） */
+  private menuHwnd = 0
 
   get active(): boolean {
     return this.isActive
@@ -66,6 +78,15 @@ export class TrayYieldMachine {
   }
 
   /**
+   * 记下的菜单窗句柄（0 = 未记下）。效果层拿它判「菜单窗是否已消失」——判据是
+   * 句柄销毁，与菜单是 #32768 还是自绘窗无关（工单363 S2：自家 Chromium 菜单收起
+   * 后前台可能仍留在自家进程，前台变化路判不出「菜单已关」⇒ 只能等 10s 超时）。
+   */
+  get menuWindowHwnd(): number {
+    return this.menuHwnd
+  }
+
+  /**
    * 回放右键起拍。pid = 托盘图标属主进程（hwnd 解析缺位 = 0，盲区口径：菜单/前台
    * 两路都停用——pid 未知分不清前台是否落到菜单应用，只靠超时兜底）；fgPid =
    * 起拍时的前台属主（前台变化判据的基线）。
@@ -75,6 +96,7 @@ export class TrayYieldMachine {
     this.watchedPid = pid
     this.ownPid = ownPid
     this.fgBaseline = fgPid
+    this.menuHwnd = 0
     // 基线本身已落在目标 pid 上（上一轮菜单进程仍持前台）：视同已见目标
     this.fgSawWatched = pid !== 0 && fgPid === pid && fgPid !== ownPid
     this.sawMenu = false
@@ -91,10 +113,14 @@ export class TrayYieldMachine {
    */
   poll(probe: TrayYieldProbe): TrayYieldDecision {
     if (!this.isActive) return { action: 'hold', menuSeen: false }
-    const { menuCount, fgPid, now } = probe
+    const { menuCount, fgPid, fgHwnd, menuHwndGone, now } = probe
     if (this.watchedPid !== 0) {
       if (menuCount > 0) this.sawMenu = true
-      if (fgPid === this.watchedPid) this.fgSawWatched = true
+      if (fgPid === this.watchedPid) {
+        this.fgSawWatched = true
+        // 目标 pid 持前台 ⇒ 前台窗即菜单窗（菜单在场常态）——记下身份供「消失」判据
+        if (fgHwnd) this.menuHwnd = fgHwnd
+      }
     }
     const elapsed = now - this.beganAt
     if (now >= this.deadline) {
@@ -102,6 +128,14 @@ export class TrayYieldMachine {
       return { action: 'restore', reason: 'timeout', elapsedMs: elapsed }
     }
     if (this.sawMenu && menuCount === 0) {
+      this.isActive = false
+      return { action: 'restore', reason: 'menu-closed', elapsedMs: elapsed }
+    }
+    // 菜单窗消失（通用信号，工单363 S2）：记下的菜单窗句柄已销毁 ⇒ 菜单已收起，
+    // 及时恢复条带置顶。与 #32768 计数路同一语义但不限窗口类名——自家 Chromium
+    // 菜单收起后前台可能仍留在自家进程（自家另一个窗顶上），前台变化路判不出，
+    // 旧口径只能等 10s 超时兜底。
+    if (menuHwndGone) {
       this.isActive = false
       return { action: 'restore', reason: 'menu-closed', elapsedMs: elapsed }
     }
