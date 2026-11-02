@@ -4,7 +4,7 @@
 - 工单：[#363](https://github.com/supotato-ipj/Agent-deck/issues/363)（父 spec #361 决策 7「先取证再定改点」/ 决策 8「通用修复边界」）
 - 取证工具：`app/accept/experiments/tray-menu-forensics.js`（新增；基线轮 r2 与修复轮 r5/r7/r8/r9 共用同一工具）
 - 判读素材：`D:\test-folder\.agent-notes\t363-tray-menu\`（findings.json / timeline.json / panel-events.jsonl，不进仓库）
-- 真机轮：一律经 accept-guard 托管（`hold --as mcode --purpose accept-sprint`）
+- 真机轮：一律经 accept-guard 托管（`hold --as mcode --purpose accept-sprint`）；基线轮 r2、修复轮 r5/r7/r8/r11
 
 ## 1. TL;DR：两个断点，都不是「菜单实现」问题
 
@@ -57,8 +57,26 @@
 - 让位账：菜单在场 → 点外 → Esc → 换图标 → 条带销毁各路径，恢复后 `topmostAfter=true`（条带不永久停留
   非置顶态）；标准 `#32768` 走 `reason=menu-closed` 快速恢复，自绘面板走超时上限（10s）盲区兜底恢复
   （工单194 既定口径）。
-- 自家图标菜单项行为：菜单由**既有** `tray.setContextMenu(Menu.buildFromTemplate([对话窗, 退出面板]))`
-  呈现（模板/文案/项集未改，未重做成自绘菜单）；项触发走菜单自身的键盘/点击路径。
+
+### 4.1 自家图标菜单链（工单363 必测项，独立证据链——轮 r11）
+
+```
+P7-menu       栏内真实右键自家图标（产品链）：
+             tray-replay{packs:[{lparam:516(WM_RBUTTONDOWN),posted:true},
+                               {lparam:517(WM_RBUTTONUP),posted:true}],posted:true}
+             taskbar-tray-foreground-grant{granted:true, reason:'ok'}
+             前台窗 = 自家 Chrome_WidgetWin_1（pid 面板主进程）← 菜单持前台
+P7-conversation  菜单内触发「对话窗」项（键盘 Down+Enter，菜单已持前台）：
+             convOpened = {title:'DECK-CONVERSATION'} ← 对话窗真实打开
+P7-close     Esc 后菜单消失（menusAfter=0）；条带恢复置顶（topmostAfter=true）
+```
+
+- 菜单由**既有** `tray.setContextMenu(Menu.buildFromTemplate([对话窗, 退出面板]))` 呈现——模板/文案/项集
+  未改，未重做成自绘菜单（spec 决策 6）；项触发走菜单自身的路径（菜单已持前台 ⇒ 键盘落在菜单上）。
+- 面板的非激活纪律未动：面板窗始终 `focusable:false`/WS_EX_NOACTIVATE，面板本体不抢前台；菜单的激活由
+  菜单自身的窗口承担，菜单关闭后前台交还原应用（存证：Esc 后前台回到原应用，点外后回到桌面）。
+- 「退出面板」项未单独点验（点它即退面板，验完面板就没了）：项集与模板未改 + 菜单项行为由 Electron 既有
+  菜单路径承担，「对话窗」项已真机点验通过，同一菜单的「退出面板」项走同一 `Menu` 点击路径。
 
 ## 5. 遗留与边界（按 spec #361 决策 8 / Out of Scope 记录，不加特判）
 
