@@ -7,13 +7,13 @@
 // snapSessionMembers / resolveSnapSession），FFI 采集（probeSnapWindows）只出事实不载裁决。
 //
 // 严格降级（spec 决策 11）：IsWindowArranged 声明期缺失（koffi 按名解析，缺失符号同步
-// 抛错——域笔记 2026-10-24 实机实证）⇒ bind 内 try/catch 收编为「识别不可用」
+// 抛错——域笔记 2026-10-24 实机实证）⇒ 接缝 bind 内 try/catch 收编为「识别不可用」
 // （available=false、零事实），分屏收栏整体关闭，最大化收栏/全屏让位不受影响，
 // 绝不退化为几何猜测。可用性事实由调用方落存证（window.ts 的 taskbar-snap-session）。
 //
 // 无补齐路径（工单268 真机定谳）：工作区释放后 Windows 自动把 Snap 窗重排到新底边
 // （docs/audit/2026-10-24-t268-snap-window-rearrange-probe.md，三轮全一致、真 Snap 零
-// 丢失）——本模块与调用方**不调任何窗口移动/改窗接口**。
+// 丢失）——本模块与调用方**不调任何窗口移动/改窗接口**（离线守卫钉）。
 //
 // 工单270（集合生命周期与可区分存证）：
 // - 成员集合（snapSessionMembers）：多窗 Snap 同一集合生命周期——最小化其一/关闭其一
@@ -26,87 +26,33 @@
 //   判「会话因何结束」（spec 决策 14 可观测性）；探针采集支持**成员追踪集**（track 参数，
 //   前成员句柄即便已解除 Snap 也照采事实——去向可分类，关闭则从枚举消失）。
 //
-// lazy-bind 单例（yield.ts / windows.ts 先例，syskeys.ts 头注纪律）：模块加载不触 FFI，
+// 工单370（spec #369 决策 6）：枚举骨架、身份/特征/几何/标题采集全部经 win-facts.ts
+// 单一事实接缝（任务栏快照同缝）——本模块不再持绑定面与枚举循环，只剩甄别判装配
+// （身份先行：arranged/追踪集命中才付全量采集，成本纪律见接缝头注）与纯裁决面。
+// lazy-bind 单例（yield.ts / windows.ts 先例，syskeys.ts 头注纪律）：本模块零 FFI，
 // 纯函数测试不引 koffi；离线测试只加载纯裁决面。
 
-import { normalizeExe, shouldShowOnTaskbar } from './apps-plan'
-import { nativeWindowTitle } from './windows'
+import { shouldShowOnTaskbar } from './apps-plan'
+import {
+  arrangedAvailable,
+  exeOfPid,
+  isIconic,
+  isWindowVisible,
+  nativeWindowTitle,
+  pidOf,
+  readWindowArranged,
+  scanTopWindows,
+  windowClassName,
+  windowRect,
+  windowTraits,
+} from './win-facts'
 import { DESKTOP_HOST_CLASSES } from '../../shared/retract'
 import type { PhysRect } from '../../shared/retract'
-
-const GW_HWNDNEXT = 2
-const GW_OWNER = 4
-const GWL_EXSTYLE = -20
-const WS_EX_TOOLWINDOW = 0x00000080
-const WS_EX_APPWINDOW = 0x00040000
-const DWMWA_CLOAKED = 14
-/** cloak 分位（dwmapi.h 官方值）：应用自 cloak（挂起 UWP） */
-const DWM_CLOAKED_APP = 0x1
-/** cloak 分位（dwmapi.h 官方值）：壳 cloak——其他虚拟桌面 */
-const DWM_CLOAKED_SHELL = 0x2
-const MAX_WINDOWS = 2048
-const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-
-interface KoffiFunc {
-  (...args: unknown[]): unknown
-}
-
-interface Bound {
-  getTopWindow: KoffiFunc
-  getWindow: KoffiFunc
-  isWindowVisible: KoffiFunc
-  getWindowRect: KoffiFunc
-  isIconic: KoffiFunc
-  /** IsWindowArranged（缺失符号时声明期抛错 ⇒ null = 识别不可用，严格降级） */
-  isWindowArranged: KoffiFunc | null
-  getWindowThreadProcessId: KoffiFunc
-  getClassNameW: KoffiFunc
-  openProcess: KoffiFunc
-  queryImageName: KoffiFunc
-  closeHandle: KoffiFunc
-  getWindowLong: KoffiFunc
-  dwmGetWindowAttribute: KoffiFunc
-}
-
-let bound: Bound | null = null
-
-function bind(): Bound {
-  if (bound) return bound
-  const koffi = require('koffi')
-  const user32 = koffi.load('user32.dll')
-  const kernel32 = koffi.load('kernel32.dll')
-  const dwmapi = koffi.load('dwmapi.dll')
-  koffi.struct('TASKBAR_SNAP_RECT', { left: 'long', top: 'long', right: 'long', bottom: 'long' })
-  // 识别不可用 = 声明期抛错被收编（spec 决策 11）：可用性记在 Bound 上，采集侧据此
-  // 短路（零事实、available=false），最大化收栏/全屏让位不受影响
-  let isWindowArranged: KoffiFunc | null = null
-  try {
-    isWindowArranged = user32.func('bool __stdcall IsWindowArranged(uintptr_t hWnd)')
-  } catch {
-    isWindowArranged = null
-  }
-  bound = {
-    getTopWindow: user32.func('uintptr_t __stdcall GetTopWindow(uintptr_t hWnd)'),
-    getWindow: user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uint32 uCmd)'),
-    isWindowVisible: user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)'),
-    getWindowRect: user32.func('bool __stdcall GetWindowRect(uintptr_t hWnd, _Out_ TASKBAR_SNAP_RECT *r)'),
-    isIconic: user32.func('bool __stdcall IsIconic(uintptr_t hWnd)'),
-    isWindowArranged,
-    getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, uint32 *pid)'),
-    getClassNameW: user32.func('int __stdcall GetClassNameW(uintptr_t hWnd, uint16 *buf, int nMax)'),
-    openProcess: kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)'),
-    queryImageName: kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)'),
-    closeHandle: kernel32.func('bool __stdcall CloseHandle(void *h)'),
-    getWindowLong: user32.func('long __stdcall GetWindowLongW(uintptr_t hWnd, int nIndex)'),
-    dwmGetWindowAttribute: dwmapi.func('int32 __stdcall DwmGetWindowAttribute(uintptr_t hwnd, uint32 attr, void *pv, uint32 cb)'),
-  }
-  return bound
-}
 
 /**
  * 一枚顶层窗的 Snap 采集中间事实（FFI 采集，喂纯裁决）。特征位与 apps-plan 的
  * TaskbarWindowTraits 同名同义（结构兼容）；iconic/arranged 是分屏会话新增采集面
- * （枚举真源 windows.ts 的快照不记录这两位，本模块自采）。
+ * （任务栏快照投影不记录这两位，本投影自采——均经接缝原语，无第二份绑定）。
  */
 export interface SnapWindowFact {
   hwnd: number
@@ -233,69 +179,8 @@ export interface SnapProbeResult {
   windows: SnapWindowFact[]
 }
 
-function pidOf(b: Bound, hwnd: number): number {
-  const buf = Buffer.alloc(4)
-  b.getWindowThreadProcessId(hwnd, buf)
-  return buf.readUInt32LE(0)
-}
-
-function exeOfPid(b: Bound, pid: number): string {
-  const handle = b.openProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
-  if (!handle) return ''
-  try {
-    const name = Buffer.alloc(1024) // 512 wchar
-    const size = Buffer.alloc(4)
-    size.writeUInt32LE(510, 0)
-    if (!b.queryImageName(handle, 0, name, size)) return ''
-    return name.toString('utf16le', 0, size.readUInt32LE(0) * 2)
-  } finally {
-    b.closeHandle(handle)
-  }
-}
-
-function classNameOf(b: Bound, hwnd: number): string {
-  const buf = Buffer.alloc(512)
-  const n = b.getClassNameW(hwnd, buf, 256) as number
-  let out = ''
-  for (let i = 0; i < n; i++) out += String.fromCharCode(buf.readUInt16LE(i * 2))
-  return out
-}
-
-function rectOf(b: Bound, hwnd: number): PhysRect {
-  const r = { left: 0, top: 0, right: 0, bottom: 0 }
-  try {
-    if (!b.getWindowRect(hwnd, r)) return r
-  } catch { /* 竞态销毁按零矩形（正面积相交判否——安全方向） */ }
-  return r
-}
-
-function traitsOf(b: Bound, hwnd: number): { toolWindow: boolean; owned: boolean; appWindow: boolean; cloaked: boolean; cloakedShell: boolean } {
-  let toolWindow = false
-  let appWindow = false
-  try {
-    const ex = Number(b.getWindowLong(hwnd, GWL_EXSTYLE)) | 0
-    toolWindow = (ex & WS_EX_TOOLWINDOW) !== 0
-    appWindow = (ex & WS_EX_APPWINDOW) !== 0
-  } catch { /* 样式取不到（窗口竞态销毁）按无位 */ }
-  let owned = false
-  try {
-    owned = Number(b.getWindow(hwnd, GW_OWNER)) !== 0
-  } catch { /* 属主取不到按无属主 */ }
-  let cloaked = false
-  let cloakedShell = false
-  try {
-    const buf = Buffer.alloc(4)
-    if (b.dwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, buf, 4) === 0) {
-      const cloak = buf.readInt32LE(0)
-      cloaked = cloak !== 0
-      cloakedShell = (cloak & DWM_CLOAKED_SHELL) !== 0 // SHELL 位 = 其他虚拟桌面（工单270 分位采集）
-    }
-  } catch { /* DWM 态取不到按未 cloak */ }
-  return { toolWindow, owned, appWindow, cloaked, cloakedShell }
-}
-
 /**
- * 采集一拍真 Snap 候选事实（链式枚举，不用 EnumWindows 回调——windows.ts 同款纪律）。
+ * 采集一拍真 Snap 候选事实（经 win-facts 接缝枚举，不用 EnumWindows 回调——同款纪律）。
  * 成本口径（量测在案，docs/audit/2026-10-25-t267-snap-probe-beat-cost.md，t267 实测）：
  * 逐窗只付 IsWindowVisible + IsWindowArranged 两次 user32 调用——本机常态一拍 0.374ms
  * （495 扫描窗/17 可见窗，40 拍均值，占 250ms 轮询间隔 0.15%），MAX_WINDOWS=2048 护栏
@@ -309,36 +194,36 @@ function traitsOf(b: Bound, hwnd: number): { toolWindow: boolean; owned: boolean
  * 追踪集常态 ≤ 数枚，成本不增级。
  */
 export function probeSnapWindows(track: readonly number[] = []): SnapProbeResult {
-  const b = bind()
-  if (!b.isWindowArranged) return { available: false, windows: [] }
+  if (!arrangedAvailable()) return { available: false, windows: [] }
   const trackSet = track.length > 0 ? new Set(track) : null
-  const out: SnapWindowFact[] = []
-  let h = b.getTopWindow(0) as number
-  let guardCount = 0
-  while (h && guardCount++ < MAX_WINDOWS) {
-    if (b.isWindowVisible(h)) {
-      let arranged = false
-      try {
-        arranged = Boolean(b.isWindowArranged?.(h))
-      } catch { /* 单拍失效按非 Snap（安全方向，不猜） */ }
-      if (arranged || trackSet?.has(h)) {
-        const pid = pidOf(b, h)
-        out.push({
-          hwnd: h,
-          pid,
-          className: classNameOf(b, h),
-          exe: pid ? exeOfPid(b, pid) : '',
-          // 标题经 windows.ts 的公开缝读（隐私口子单文件收口，ADR-0007；本模块不直读）
-          title: nativeWindowTitle(h),
-          rect: rectOf(b, h),
-          iconic: Boolean(b.isIconic(h)),
-          arranged,
-          visible: true,
-          ...traitsOf(b, h),
-        })
-      }
+  // 甄别判负责「身份先行」：arranged 命中或追踪集内的窗才进全量采集，arranged 读数
+  // 随甄别记下（候选窗不重付第二次 IsWindowArranged）
+  const arrangedAt = new Map<number, boolean>()
+  const hwnds = scanTopWindows((h) => {
+    if (!isWindowVisible(h)) return false
+    const arranged = readWindowArranged(h)
+    if (arranged || trackSet?.has(h)) {
+      arrangedAt.set(h, arranged)
+      return true
     }
-    h = b.getWindow(h, GW_HWNDNEXT) as number
+    return false
+  })
+  const out: SnapWindowFact[] = []
+  for (const h of hwnds) {
+    const pid = pidOf(h)
+    out.push({
+      hwnd: h,
+      pid,
+      className: windowClassName(h),
+      exe: pid ? exeOfPid(pid) : '',
+      // 标题经接缝的公开缝读（隐私口子单文件收口在 win-facts.ts，ADR-0007；本模块不直读）
+      title: nativeWindowTitle(h),
+      rect: windowRect(h),
+      iconic: isIconic(h),
+      arranged: arrangedAt.get(h) ?? false,
+      visible: true,
+      ...windowTraits(h),
+    })
   }
   return { available: true, windows: out }
 }
