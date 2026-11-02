@@ -1,0 +1,61 @@
+工单371 真机探针（t371-virtual-desktop-probe.js）——真实虚拟桌面配对、切换与面板跟随验证
+运行时刻：2026-11-02T19:47:35.493Z
+退出码：0（断言全过）
+
+CoInitializeEx: S_OK
+基线注册表事实：桌面数=2 集合=[b8574018-b910-46a1-b8c3-7ccdd48f6513, 5a5adac7-64fd-46f8-9535-d7edad9cfa57] 当前=b8574018-b910-46a1-b8c3-7ccdd48f6513
+基线原生任务栏：appbarState=1 rect={"left":0,"top":1392,"right":2560,"bottom":1440}
+公开 IVirtualDesktopManager 绑定：可用
+内部 IVirtualDesktopManagerInternal 绑定：可用，GetCount=2（24H2/25H2 IID 命中）
+探针窗创建：panel=1801b0 taskbar=1280d56 capsule=2004e0 panelplain=f09a8 migrator=4711b6 sentinelN=e02ee
+PASS S3 公开 GetWindowDesktopId 读到哨兵桌面 ID 且与注册表当前一致（配对以系统桌面 ID 区分） —— 哨兵=b8574018-b910-46a1-b8c3-7ccdd48f6513 注册表当前=b8574018-b910-46a1-b8c3-7ccdd48f6513
+PASS S3 面板/任务栏/胶囊不进入合格应用窗口集合（自家进程排除规则，生产同款） —— 合格集 4 窗（全为他进程）
+PASS S3 合格集非空（他进程真实应用窗在场，谓词正对照成立） —— 合格集 4 窗
+S3 跨进程 GetWindowDesktopId 读回观察：成功 4 窗 / 失败 0 窗（样例 4b0fd8→b8574018, 408de→b8574018, 30b8e→b8574018）
+COM CreateDesktop 成功：Agent 桌面 ID=0462faec-e951-4118-9bfd-1349ab005cee
+PASS S4 创建后系统桌面集合 +1 且含新 ID（注册表回读） —— count=3
+S5 真点击「切到 Agent 桌面」按钮 @(148,202)（SendInput 物理坐标）
+（handler 1001 触发：探针入口点击已到达，执行切往 Agent 桌面）
+PASS S5 点击探针入口后实际桌面切换（系统事实回读：公开 VDM+注册表+DWM cloak+内部 GetCurrentDesktop） —— 注册表=0462faec-e951-4118-9bfd-1349ab005cee 内部=0462faec-e951-4118-9bfd-1349ab005cee 哨兵N离场(on=false,cloak=2)
+PASS S5 点击→切换确认 ≤1000ms（spec 决策 17 预算） —— 点击→确认=161ms
+PASS S6 Agent 哨兵以系统 ID 归属 Agent 桌面且在当前桌面 —— id=0462faec-e951-4118-9bfd-1349ab005cee agent=0462faec-e951-4118-9bfd-1349ab005cee on=true
+切走后静置 800ms 跟随窗事实：on=true,cloak=0 on=true,cloak=0 on=true,cloak=0 on=true,cloak=0（1801b0=panel 1280d56=taskbar 2004e0=capsule f09a8=panelplain）
+跟随机制判定：topmost 三窗（panel/taskbar/capsule）=自动跟随（原生跨桌面在场，无需动作）；非置顶 panelplain=自动跟随
+PASS S6 面板/任务栏/胶囊(+panelplain) 在 Agent 桌面可用（跟随事实：IsOnCurrent+未 cloak） —— 跟随窗全部回读为当前桌面且未 shell cloak 耗时=156ms
+PASS S6 迁移试验窗切走后被桌面绑定（on=false+shell cloak） —— on=false,cloak=2
+S6 SW_SHOWNA 重显复测：migrator on=false,cloak=2（重显不迁移——失败边界如实记录）
+PASS S6 公开 MoveWindowToDesktop 迁移路径成立（desktop-bound 窗跟随兜底） —— hr=S_OK on=true,cloak=0
+S7 真点击「切回普通桌面」按钮 @(148,262)
+（handler 1002 触发：探针入口点击已到达，执行切回普通桌面）
+PASS S7 点击探针入口切回普通桌面（系统事实回读） —— 注册表=b8574018-b910-46a1-b8c3-7ccdd48f6513 内部=b8574018-b910-46a1-b8c3-7ccdd48f6513 哨兵N回读在当前桌面
+PASS S7 点击→切换确认 ≤1000ms（spec 预算） —— 点击→确认=176ms
+回程切走后跟随窗事实：on=true,cloak=0 on=true,cloak=0 on=true,cloak=0 on=true,cloak=0
+S7 migrator 公开迁移回普通桌面：hr=S_OK on=true
+PASS S7 跟随窗全部跟随回普通桌面（机制与去程一致） —— on=true,cloak=0 on=true,cloak=0 on=true,cloak=0 on=true,cloak=0
+PASS S8 第三桌面创建（替身用户既有桌面） —— count=4 third=c6f469b2-3b86-45d2-ba87-4f4ee09d6388
+（有意切换到第三桌面一次，用于放置哨兵：确认）
+PASS S8 第三桌面哨兵归属第三桌面（系统 ID） —— id=c6f469b2-3b86-45d2-ba87-4f4ee09d6388 third=c6f469b2-3b86-45d2-ba87-4f4ee09d6388
+PASS S8 配对切换 4 轮中第三桌面不被自动切回、不被吞并、不被删除（ID/哨兵/集合全程不变） —— 四轮全部安全
+S9 公开 MoveWindowToDesktop：hr=S_OK 移动后哨兵N归属=0462faec-e951-4118-9bfd-1349ab005cee（成功迁移——窗口跨桌面移动公开路径成立）
+S9 公开 MoveWindowToDesktop 移回：哨兵N归属=b8574018-b910-46a1-b8c3-7ccdd48f6513
+S10 热键 Win+Ctrl+→：确认切到 5a5adac7-64fd-46f8-9535-d7edad9cfa57 耗时=357ms
+PASS S10 热键左切回到原桌面（回读）
+—— S11 清理与零残留断言 ——
+RemoveDesktop(c6f469b2-3b86-45d2-ba87-4f4ee09d6388) 已调用
+RemoveDesktop(0462faec-e951-4118-9bfd-1349ab005cee) 已调用
+PASS S11 新建桌面全部删除：注册表桌面集合与基线逐项相等、当前=普通桌面（无多余桌面） —— count=2 当前=b8574018-b910-46a1-b8c3-7ccdd48f6513 集合与基线逐项相等
+PASS S11 探针窗口零残留（本 pid 顶层可见窗=0）
+S11 原生任务栏矩形观察（autohide peek 态下矩形本就随滑入滑出漂移，不作断言）：{"left":0,"top":1392,"right":2560,"bottom":1440}→{"left":0,"top":1392,"right":2560,"bottom":1440}
+PASS S11 原生任务栏状态不变（ABM_GETSTATE + 可见性） —— state 1→1 visible true→true
+S11 常驻进程：探针未 spawn 任何子进程，main 返回即退出，无常驻残留（结构性保证）
+
+=== 工单371 go/no-go 证据要点 ===
+① 桌面配对与 ID 区分：公开 VDM + 注册表 + DWM cloak + 内部 GetCurrentDesktop 多源互证——见 S3/S6/S8 PASS 行
+② 点击探针入口→实际切换：两次真点击（→Agent 161ms、→普通 176ms）均以系统事实回读确认（预算 ≤1000ms）
+③ 面板/任务栏/胶囊跨桌面可用：实测成立（机制判定见 S6 行：topmost 形态与 panelplain 形态分别记录）；确认耗时 156ms；探针窗不进合格应用集合见 S3；重显迁移兜底路径见 migrator 两行
+④ 第三桌面安全：见 S8 PASS 行（替身用户桌面，配对切换 4 轮全程原样）
+⑤ 零残留：见 S11 PASS 行（桌面集合回基线、窗口零残留、原生任务栏状态不变、无子进程）
+内部 COM（创建/切换/删除，24H2/25H2 IID）：可用——生产适配器首选路径成立
+公开 VDM：桌面 ID 读取/IsOnCurrent 可用；MoveWindowToDesktop 能力见 S9 实测行
+断言账目：全部通过
+go/no-go 判读：探针能力不记作生产完成——生产实现仍需按 spec #369 决策 3/8/30 走适配器与失败关闭；验收标准①~⑤逐条对应上方 PASS/FAIL 行。
