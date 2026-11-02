@@ -1836,9 +1836,9 @@
    "hintBar": true,
    "cdpPort": 9232,
    "kind": null,
-   "budgetSeconds": 180,
-   "lastMeasuredSeconds": null,
-   "lastMeasuredAt": null,
+   "budgetSeconds": 60,
+   "lastMeasuredSeconds": 20,
+   "lastMeasuredAt": "2026-11-03",
    "areas": [
     "taskbar",
     "panel.core",
@@ -1853,7 +1853,7 @@
       "system-state",
       "event-evidence"
      ],
-     "estSeconds": 6
+     "estSeconds": 2
     },
     {
      "seg": "P2",
@@ -1864,7 +1864,7 @@
       "system-state",
       "event-evidence"
      ],
-     "estSeconds": 15
+     "estSeconds": 3
     },
     {
      "seg": "P3",
@@ -1875,18 +1875,18 @@
       "system-state",
       "event-evidence"
      ],
-     "estSeconds": 10
+     "estSeconds": 3
     },
     {
      "seg": "P4",
      "ticket": 375,
-     "title": "单飞连点：在途第二击忽略（回执 ok:false+在途提示），无第二次提交，系统终态唯一",
+     "title": "单飞连点：在途入口禁用（第二击零回执）无第二次提交，系统终态唯一（服务层 ok:false 单飞回执由离线测试钉）",
      "surfaces": [
       "input-injection",
       "system-state",
       "event-evidence"
      ],
-     "estSeconds": 10
+     "estSeconds": 4
     },
     {
      "seg": "P5",
@@ -1895,7 +1895,7 @@
      "surfaces": [
       "system-state"
      ],
-     "estSeconds": 8
+     "estSeconds": 3
     },
     {
      "seg": "P6",
@@ -1905,7 +1905,7 @@
       "input-injection",
       "system-state"
      ],
-     "estSeconds": 12
+     "estSeconds": 5
     },
     {
      "seg": "P7",
@@ -1914,7 +1914,7 @@
      "surfaces": [
       "system-state"
      ],
-     "estSeconds": 10
+     "estSeconds": 4
     },
     {
      "seg": "P8",
@@ -1923,7 +1923,7 @@
      "surfaces": [
       "system-state"
      ],
-     "estSeconds": 14
+     "estSeconds": 4
     }
    ]
   }

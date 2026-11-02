@@ -200,10 +200,18 @@ function bindVdCom375() {
   };
 }
 
-/** 合格应用窗口集合（win-facts.ts 投影同口径最小谓词；自家进程排除 = 不参与窗口计数的生产语义） */
+/** 合格应用窗口集合（win-facts.ts 投影同口径最小谓词；自家进程排除 = 不参与窗口计数
+ *  的生产语义——shouldShowOnTaskbar 按 exe 归一身份排除自家，面板/条带与控制器共享
+ *  electron exe，故按 exe 集排除而非 pid：传 ownExes = [面板 exe]（控制器自身窗口再按
+ *  pid 排除兜底）。 */
 const DWM_CLOAKED_SHELL375 = 0x2;
-function qualifiedAppWindows375() {
+/** exe 归一（shouldShowOnTaskbar.normalizeExe 同款口径：斜杠归一 + 小写比较） */
+function normalizeExePath(x) {
+  return String(x).split('/').join('\\').toLowerCase();
+}
+function qualifiedAppWindows375(ownExes) {
   const myPid = process.pid;
+  const excludedExe = new Set((ownExes || []).map((x) => normalizeExePath(x)));
   const WS_EX_TOOLWINDOW = 0x80, WS_EX_APPWINDOW = 0x40000;
   const out = [];
   for (const h of win32.topLevelWindows()) {
@@ -211,10 +219,12 @@ function qualifiedAppWindows375() {
     if (ex & WS_EX_TOOLWINDOW) continue;
     if (ex & WS_EX_APPWINDOW) continue;
     if (!win32.IsWindowVisible(h)) continue;
-    if (cloakValue375(h) === DWM_CLOAKED_SHELL) continue;
+    if (cloakValue375(h) === DWM_CLOAKED_SHELL375) continue;
     if (Number(win32.GetWindowLongW(h, -8 /* GWL_HWNDPARENT */)) !== 0) continue;
     const pid = win32.threadIdOf(h).pid;
-    if (pid === myPid) continue; // 控制器进程排除（探针工具自身）
+    if (pid === myPid) continue; // 控制器进程排除（探针工具自身兜底）
+    const exePath = normalizeExePath(win32.exeOfPid(pid) || '');
+    if (exePath && excludedExe.has(exePath)) continue; // 面板进程排除（生产 ownExe 同款语义）
     out.push({ hwnd: h, pid });
   }
   return out;
@@ -285,6 +295,7 @@ function modeButtonPoint375(geo, tbRect, scale, id) {
 async function main() {
   const rep = new Report('375-desktop-switch');
   let notepads = [];
+  let lastNotepadHwnd = 0;
   let base = null; // 启动期注册表基线（P1-P7 采集、P8 finally 零残留断言共用）
   let normalId = null; // 普通 = 启用时所在桌面（系统 ID）
   const originalConfig = readConfigRaw();
@@ -325,6 +336,9 @@ async function main() {
     const ready = await tape.wait('taskbar-geometry', (e) => e.modePill && Array.isArray(e.modeButtons), { timeoutMs: 12000 });
     if (!ready) throw new Error('taskbar-geometry 存证缺失模式组矩形（模式组未渲染或几何帧未到）');
     const latestGeo = () => tape.latest('taskbar-geometry', (e) => e.modePill) || ready;
+    // 面板 exe 身份（合格窗口排除的「自家」= 生产 ownExe 同源——shouldShowOnTaskbar 按它排除）
+    const panelExePath = String(win32.exeOfPid(win32.threadIdOf(tbHwnd).pid) || '');
+    if (!panelExePath) throw new Error('面板 exe 身份不可读——合格窗口排除无从谈起');
 
     // —— P1 模式切换组在场（开始组右侧、互斥两枚、未配对不高亮）——
     rep.beginSegment('P1');
@@ -383,7 +397,7 @@ async function main() {
       const conf = agentId ? await waitDesktopCurrent375(com, agentId, 3000) : { ok: false, detail: paired.detail };
       // Agent 首次为空：合格窗口无一归属 Agent 桌面（正对照 = 合格集非空）
       let agentEmpty = true;
-      const qualP2 = qualifiedAppWindows375();
+      const qualP2 = qualifiedAppWindows375([panelExePath]);
       for (const w of qualP2) {
         if (com.desktopIdOf(w.hwnd) === agentId) { agentEmpty = false; break; }
       }
@@ -435,7 +449,10 @@ async function main() {
       await waitDesktopCurrent375(com, normalId, 3000);
       const ptA = modeButtonPoint375(latestGeo(), tbRect, scale, 'agent');
       await convergeAt375(ptA, tbHwnd);
-      // 两连点（间隔 40ms < 确认窗）：第二击应落单飞忽略（ok:false + 「在途」提示）
+      // 两连点（间隔 40ms < 确认窗）：在途入口禁用（workspace/changed switching=true 即推
+      // 重渲）→ 第二击不产生新回执；系统恰好一次切换、终态唯一（spec 决策 4「在途禁用
+      // 入口并忽略后续连点」；服务层 ok:false 单飞回执由离线测试 tests/desktop/
+      // workspace-service.spec.ts 钉——两条路都不产生第二次提交）
       const t0 = Date.now();
       win32.clickPhys(ptA.x, ptA.y, 'left');
       await sleep(40);
@@ -445,16 +462,24 @@ async function main() {
       for (;;) {
         results = tape.all('taskbar-mode-action-result', (e) => e.mode === 'agent' && e.t >= t0)
           .map((e) => ({ ok: e.ok, error: e.error }));
-        if (results.length >= 2 || Date.now() > deadline) break;
+        if (results.length >= 1 && Date.now() > deadline) break;
+        if (results.length >= 1) {
+          // 首回执已到：再宽限 1.5s 收可能存在的第二回执（若入口未被禁用则会有）
+          await sleep(1500);
+          results = tape.all('taskbar-mode-action-result', (e) => e.mode === 'agent' && e.t >= t0)
+            .map((e) => ({ ok: e.ok, error: e.error }));
+          break;
+        }
+        if (Date.now() > deadline) break;
         await sleep(60);
       }
       // 系统事实：恰好完成一次切换（当前=Agent），连点没有产生桌面分裂
       const finalFacts = await waitDesktopCurrent375(com, agentId, 3000);
-      const ignored = results.filter((r) => r.ok === false && String(r.error || '').includes('在途'));
-      if (finalFacts.ok && results.length >= 2 && ignored.length >= 1) {
-        rep.pass(`P4 连点在途忽略：两击两回执（${JSON.stringify(results)}），第二击被单飞忽略未产生第二次提交，系统最终=${finalFacts.detail}`);
+      const singleCommit = results.length === 1 && results[0].ok === true;
+      if (finalFacts.ok && singleCommit) {
+        rep.pass(`P4 连点在途忽略：在途入口禁用（第二击零回执，回执=${JSON.stringify(results)}），无第二次提交，系统最终=${finalFacts.detail}`);
       } else {
-        rep.fail(`P4 最终事实=${JSON.stringify(finalFacts)} 回执=${JSON.stringify(results)}（期望两回执且其一含「在途」忽略提示）`);
+        rep.fail(`P4 最终事实=${JSON.stringify(finalFacts)} 回执=${JSON.stringify(results)}（期望恰一回执 ok:true——在途第二击被入口禁用吞掉）`);
       }
     } catch (err) { rep.fail(`P4 异常: ${err.message}`); }
 
@@ -471,7 +496,7 @@ async function main() {
       const onStrip = com.isOnCurrent(tbHwnd);
       const cloakStrip = cloakValue375(tbHwnd);
       // 自家不进合格窗口集合（面板子进程的窗口全家族；合格集非空 = 正对照）
-      const qual = qualifiedAppWindows375();
+      const qual = qualifiedAppWindows375([panelExePath]);
       let panelPidInSet = false;
       try {
         const panelWinPid = panelHwnd ? win32.threadIdOf(panelHwnd).pid : 0;
@@ -533,16 +558,29 @@ async function main() {
       // 回 Agent 桌面再开 notepad：归属应为 Agent 桌面（新窗口归属打开时所在桌面）
       com.switchDesktop(agentId);
       await waitDesktopCurrent375(com, agentId, 3000);
+      // 既有记事本快照（残留轮的窗不算本轮新窗——Win11 Store 记事本 stub 杀不死宿主）
+      const preExisting = new Set();
+      for (const h of win32.topLevelWindows()) {
+        if (!win32.IsWindowVisible(h)) continue;
+        const exe = String(win32.exeNameOfWindow(h) || '').toLowerCase();
+        const cls = String(win32.className(h) || '');
+        if (exe === 'notepad.exe' || cls === 'Notepad') preExisting.add(h);
+      }
       const np = spawn('notepad.exe', [], { stdio: 'ignore' });
       notepads.push(np);
       let npHwnd = 0;
-      const deadline = Date.now() + 8000;
+      const deadline = Date.now() + 15000; // Win11 Store 记事本冷启动可达 10s+
       while (Date.now() < deadline && !npHwnd) {
         for (const h of win32.topLevelWindows()) {
-          if (win32.IsWindowVisible(h) && String(win32.exeNameOfWindow(h) || '').toLowerCase() === 'notepad.exe') npHwnd = h;
+          if (preExisting.has(h)) continue; // 只认本轮新建
+          if (!win32.IsWindowVisible(h)) continue;
+          const exe = String(win32.exeNameOfWindow(h) || '').toLowerCase();
+          const cls = String(win32.className(h) || '');
+          if (exe === 'notepad.exe' || cls === 'Notepad') npHwnd = h;
         }
-        if (!npHwnd) await sleep(120);
+        if (!npHwnd) await sleep(150);
       }
+      lastNotepadHwnd = npHwnd;
       const npId = npHwnd ? com.desktopIdOf(npHwnd) : null;
       // 切回普通：notepad 桌面绑定（shell cloak=2）——系统语义原样，面板零干预
       com.switchDesktop(normalId);
@@ -612,6 +650,13 @@ async function main() {
     } catch (err) { rep.fail(`P8 异常: ${err.message}`); }
 
     for (const np of notepads) spawnSync('taskkill', ['/PID', String(np.pid), '/T', '/F'], { stdio: 'ignore' });
+    // Win11 Store 记事本：spawn 到的是 stub 进程，宿主另有人——按新窗属主补杀
+    if (lastNotepadHwnd) {
+      try {
+        const hostPid = win32.threadIdOf(lastNotepadHwnd).pid;
+        if (hostPid) spawnSync('taskkill', ['/PID', String(hostPid), '/T', '/F'], { stdio: 'ignore' });
+      } catch { /* 尽力清场 */ }
+    }
     const cleared = await handle.stop();
     if (cleared && cleared.gone === false) {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')})——需重启清障`,

@@ -346,7 +346,8 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 段账目 took= 校准，同 PR 校准 P13/P14/P16/P19/P25/P26 的高估值以让出预算）
     // 135 → 143：工单375 增电池——375-desktop-switch 副电池整建（真实双桌面切换最小闭环：
     // P1 模式组在场 / P2 首次配对 / P3 切换确认 / P4 单飞连点 / P5 跟随排除 / P6 对账 /
-    // P7 新窗归属 / P8 零残留；一段绑定一工单，est 合计 85 按段结构推估，健康轮 took= 同 PR 回填校准）
+    // P7 新窗归属 / P8 零残留；一段绑定一工单，est 合计 28 按健康轮 took= 同 PR 校准
+    // ——guard accept-sprint 轮全段 12.1s 段墙钟 + 面板启动裕量，预算 60s=下限）
     expect(total).toBe(143)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
