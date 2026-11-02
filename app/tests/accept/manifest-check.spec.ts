@@ -335,7 +335,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 129 → 130：工单338 增段——332-conversation +C8 联网组件与 origin 权限（执行序 C7 后 C3 前）
     // 130 → 131：工单339 增段——332-conversation +C9 命名凭证与认证联网（执行序 C8 后 C3 前）
     // 131 → 132：工单341 增段——332-conversation +C10 三参考组合与资源预算（执行序 C9 后 C3 前）
-    expect(total).toBe(132)
+    // 132 → 133：工单363 增段——49-taskbar +P27 通知区域原生菜单链（两入口同链/主进程放行/
+    // 外壳口径鼠标消息对/自家菜单出现收起/条带及时恢复置顶；一段绑定一工单，est 15 按健康轮
+    // 段账目 took= 校准，同 PR 校准 P13/P14/P16/P19/P25/P26 的高估值以让出预算）
+    expect(total).toBe(133)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
