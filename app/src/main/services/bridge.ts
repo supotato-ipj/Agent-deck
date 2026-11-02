@@ -1,5 +1,5 @@
 import { Service } from 'cordis'
-import type { Context } from 'cordis'
+import type { Context, Inject } from 'cordis'
 import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
@@ -20,7 +20,13 @@ export class BridgeError extends Error {
  * BridgeMethods / BridgeEvents 映射与本服务的 dispatch，不另开通道。
  */
 export class BridgeService extends Service {
-  static inject = ['clock', 'panelData', 'search', 'settings', 'focus', 'plugins', 'taskbar', 'pluginConfig', 'conversation']
+  // 桌面工作区（工单375）可选注入：未装配时投影回退禁用态，桥接层不得静默不装载
+  static inject: Inject = {
+    clock: { required: true }, panelData: { required: true }, search: { required: true },
+    settings: { required: true }, focus: { required: true }, plugins: { required: true },
+    taskbar: { required: true }, pluginConfig: { required: true }, conversation: { required: true },
+    desktopWorkspace: { required: false },
+  }
 
   private readonly weather: WeatherLocation
   private readonly layout: DesktopLayout
@@ -228,6 +234,25 @@ export class BridgeService extends Service {
       case 'taskbar/tray-icon': {
         const { key } = payload as { key: string }
         return { icon: this.ctx.taskbar.trayIconOf(String(key ?? '')) } as BridgeMethods[M]['response']
+      }
+      // --- 桌面工作区（工单375）：共享状态投影与模式切换（spec #369 决策 2/4） ---
+      case 'workspace/get-state': {
+        const svc = this.ctx.desktopWorkspace
+        return (svc ? svc.state() : {
+          available: false, paired: false, current: 'unmanaged', switching: false, target: null, lastError: null,
+        }) as BridgeMethods[M]['response']
+      }
+      case 'workspace/switch-to': {
+        const { mode } = payload as { mode: 'normal' | 'agent' }
+        if (mode !== 'normal' && mode !== 'agent') {
+          throw new BridgeError(`workspace/switch-to.mode 须为 normal|agent，收到 ${String(mode)}`)
+        }
+        const svc = this.ctx.desktopWorkspace
+        if (!svc) {
+          const state = { available: false, paired: false, current: 'unmanaged' as const, switching: false, target: null, lastError: null }
+          return { ok: false, state, error: '桌面工作区未装配' } as BridgeMethods[M]['response']
+        }
+        return await svc.switchTo(mode) as BridgeMethods[M]['response']
       }
       case 'plugin-config/get': {
         const { id } = payload as { id: string }

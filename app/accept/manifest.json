@@ -1,2288 +1,2387 @@
 {
-  "version": 1,
-  "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, flag/hintBar/cdpPort/kind(电池接入表接线五字段，工单214 扩展), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。 工单204（spec #201 A1）schema 扩展——段耦合登记：顶层 areas＝段耦合的域标签封闭词表（14 域，与 surfaces 五枚举同款治理；取值越表判红，词表与映射表同处维护）；pathAreas＝声明式 path→area 映射表（{path 仓库相对路径前缀, area 域标签, wires?}，最长前缀命中；wires=\"*\" 表示共享验收基建——该路径被全部电池接线）；wideAreas＝公共底座域（命中即给保守计划：波及面未知，多跑不少跑）；sourceRoots＝完备性校验的源码树根目录。段条目新增 areas 数组（主电池 33 段逐段标注）；电池条目新增 areas 数组（电池级标签覆盖——电池级覆盖口径：副电池域数不限，可单域可多域；段级缺省时取电池级）与 scope 布尔（该电池代码解析 --accept-scope，可按段声明范围段）。校验器（app/accept/lib/manifest-check.js）据此加判：域标签越出词表判红、段无归属域判红、映射表对源码目录不完备判红。 工单214（spec #203）schema 扩展——电池接入表：电池级条目新增接线五字段 flag（控制器身份旗标，全表唯一）/ entry（电池模块路径，仓库根相对路径）/ hintBar（验收提示条挂条条件，布尔——挂条由表派生）/ cdpPort（CDP 端口，可空，全表唯一；无端口的电池留空）/ kind（可空；'experiment' 表示取证工具，段级治理豁免、接线四项仍受校验）；script 名不存表——由 flag 派生（--accept-tray → accept:tray），CI 校验 package.json 存在同形态 script。运行端（src/main/index.ts）读本表统一分发：flag 匹配 argv → require(entry)()，单实例豁免与挂条条件一并由表派生；面板侧被测物模式（--panel/--panel-accept/--tray-spike）不表化。校验器（app/accept/lib/manifest-check.js 的 validateRegistry）据此加判：flag 唯一、entry 文件存在、script 派生一致、cdpPort 唯一、experiment 条目豁免段级校验、双向完备（表内每电池接线五字段齐备、接线字段无孤儿）。 工单220（spec #201 A 链 P1 机制补强）schema 扩展——文件级例外规则白名单：顶层 requiredFileRules＝必须存在的文件级例外规则台账（{path 仓库相对路径, area 域标签, wires?}），逐条登记 path→area 映射表里全部 34 条文件级规则（path 末段带扩展名者）——目录级规则会兜住任何文件级规则，删一条或把它改域，耦合表照样「结构性完备」而选段悄悄漏报，故白名单是这块的牙齿：条目必须在映射表在场、域必须一致、映射表侧不得有未登记的文件级规则。校验器（app/accept/lib/manifest-check.js 的 validateRequiredFileRules）据此加判：文件级规则被删判红、被改域判红、未登记判红、白名单整份缺位判红。 工单220 数据面修正（6 处语义缺口，与源码实际耦合对齐）：P9B 段增补 cards 域（会话行的点击 handler 与 sessions-rendered 存证同在 app/src/renderer/cards/sessions/card.ts）；P5.9/P5.10/P5.12/P5.13/P5.14/P5.15/P5.16/P5.17 八段增补 cards 域（桌面右键上下文菜单的 shell 在 app/src/renderer/cards/context-menu/menu.ts，desktop-menu-opened/closed 由该卡自己 notify，八段全靠它才跑得起来——两表同改，不许只改一边）；50-taskbar-carry 电池级增补 settings 域（B1/B2 走设置浮层真实 DOM 链，落在 app/src/main/services/settings.ts；config 已属 wideAreas，保守计划自动覆盖，不另补）；pathAreas 里 app/src/renderer/tray-pixels.ts 的域由 tray 改 taskbar（该模块头注自述服务任务栏条带的托盘溢出页，唯一消费者是 renderer/taskbar.ts 与 renderer/taskbar-overflow.ts）。",
-  "surfaces": {
-    "panel-alive": "面板存活",
-    "pixel": "像素",
-    "event-evidence": "事件存证",
-    "input-injection": "输入注入",
-    "system-state": "系统状态"
-  },
-  "batteries": [
+ "version": 1,
+ "_doc": "验收段级清单（工单114，spec #109）——测试集唯一登记处。电池代码只在段起笔报段号（beginSegment(seg)），工单归属/失效面/时长元数据全部由本清单在报告启动时供给（代码与账本零重复）。schema：battery = { id(=Report 名), title, entry, flag/hintBar/cdpPort/kind(电池接入表接线五字段，工单214 扩展), budgetSeconds(分电池时长预算), lastMeasuredSeconds/lastMeasuredAt(最近一轮实测墙钟), segments[] }；segment = { seg(段号，电池内唯一), ticket(归属工单号，一段绑定一工单), title, surfaces(断言失效面，五枚举有序数组，首项为主面), estSeconds(估计时长秒) }。失效面五枚举：panel-alive=面板存活（进程/窗口存活、退出闭环、单实例）、pixel=像素（实拍与像素统计断言）、event-evidence=事件存证（DECK_EVENT_LOG 存证与数据面探针）、input-injection=输入注入（SendInput 交互链路，落点/遮挡敏感）、system-state=系统状态（窗口样式/z 序/前台/注册表/文件系统/config 落盘/工作区）。预算纪律：segments 估计总和 ≤ budgetSeconds（#115 校验器静态把关）；增段须附实跑日志佐证（章法归 #116）。 lastMeasuredSeconds/lastMeasuredAt 是最近一轮实测墙钟的记录值（可为非健康轮）；作为校准基准的时长数据须取健康轮（章法：环境劣化轮不作校准基准）。工单126 治理补账：P4.5/P8T 为 PR #106（spec #97 三票）追认登记——分支早于治理机制、无健康轮 took= 段账目，estSeconds 按 PR #106 既有真机轮证据推估（环境噪声间隙段内表现 + 同构段量级，依据见 PR 描述「治理补账」章节），实跑佐证与校准由转正轮（工单127）回填。 工单204（spec #201 A1）schema 扩展——段耦合登记：顶层 areas＝段耦合的域标签封闭词表（14 域，与 surfaces 五枚举同款治理；取值越表判红，词表与映射表同处维护）；pathAreas＝声明式 path→area 映射表（{path 仓库相对路径前缀, area 域标签, wires?}，最长前缀命中；wires=\"*\" 表示共享验收基建——该路径被全部电池接线）；wideAreas＝公共底座域（命中即给保守计划：波及面未知，多跑不少跑）；sourceRoots＝完备性校验的源码树根目录。段条目新增 areas 数组（主电池 33 段逐段标注）；电池条目新增 areas 数组（电池级标签覆盖——电池级覆盖口径：副电池域数不限，可单域可多域；段级缺省时取电池级）与 scope 布尔（该电池代码解析 --accept-scope，可按段声明范围段）。校验器（app/accept/lib/manifest-check.js）据此加判：域标签越出词表判红、段无归属域判红、映射表对源码目录不完备判红。 工单214（spec #203）schema 扩展——电池接入表：电池级条目新增接线五字段 flag（控制器身份旗标，全表唯一）/ entry（电池模块路径，仓库根相对路径）/ hintBar（验收提示条挂条条件，布尔——挂条由表派生）/ cdpPort（CDP 端口，可空，全表唯一；无端口的电池留空）/ kind（可空；'experiment' 表示取证工具，段级治理豁免、接线四项仍受校验）；script 名不存表——由 flag 派生（--accept-tray → accept:tray），CI 校验 package.json 存在同形态 script。运行端（src/main/index.ts）读本表统一分发：flag 匹配 argv → require(entry)()，单实例豁免与挂条条件一并由表派生；面板侧被测物模式（--panel/--panel-accept/--tray-spike）不表化。校验器（app/accept/lib/manifest-check.js 的 validateRegistry）据此加判：flag 唯一、entry 文件存在、script 派生一致、cdpPort 唯一、experiment 条目豁免段级校验、双向完备（表内每电池接线五字段齐备、接线字段无孤儿）。 工单220（spec #201 A 链 P1 机制补强）schema 扩展——文件级例外规则白名单：顶层 requiredFileRules＝必须存在的文件级例外规则台账（{path 仓库相对路径, area 域标签, wires?}），逐条登记 path→area 映射表里全部 34 条文件级规则（path 末段带扩展名者）——目录级规则会兜住任何文件级规则，删一条或把它改域，耦合表照样「结构性完备」而选段悄悄漏报，故白名单是这块的牙齿：条目必须在映射表在场、域必须一致、映射表侧不得有未登记的文件级规则。校验器（app/accept/lib/manifest-check.js 的 validateRequiredFileRules）据此加判：文件级规则被删判红、被改域判红、未登记判红、白名单整份缺位判红。 工单220 数据面修正（6 处语义缺口，与源码实际耦合对齐）：P9B 段增补 cards 域（会话行的点击 handler 与 sessions-rendered 存证同在 app/src/renderer/cards/sessions/card.ts）；P5.9/P5.10/P5.12/P5.13/P5.14/P5.15/P5.16/P5.17 八段增补 cards 域（桌面右键上下文菜单的 shell 在 app/src/renderer/cards/context-menu/menu.ts，desktop-menu-opened/closed 由该卡自己 notify，八段全靠它才跑得起来——两表同改，不许只改一边）；50-taskbar-carry 电池级增补 settings 域（B1/B2 走设置浮层真实 DOM 链，落在 app/src/main/services/settings.ts；config 已属 wideAreas，保守计划自动覆盖，不另补）；pathAreas 里 app/src/renderer/tray-pixels.ts 的域由 tray 改 taskbar（该模块头注自述服务任务栏条带的托盘溢出页，唯一消费者是 renderer/taskbar.ts 与 renderer/taskbar-overflow.ts）。",
+ "surfaces": {
+  "panel-alive": "面板存活",
+  "pixel": "像素",
+  "event-evidence": "事件存证",
+  "input-injection": "输入注入",
+  "system-state": "系统状态"
+ },
+ "batteries": [
+  {
+   "id": "03-battery",
+   "title": "主电池：面板全部行为 + 宿主常驻（工单03 起逐票堆叠）",
+   "entry": "app/accept/battery.js",
+   "flag": "--accept",
+   "hintBar": true,
+   "cdpPort": 9223,
+   "kind": null,
+   "budgetSeconds": 720,
+   "lastMeasuredSeconds": 495,
+   "lastMeasuredAt": "2026-10-11",
+   "segments": [
     {
-      "id": "03-battery",
-      "title": "主电池：面板全部行为 + 宿主常驻（工单03 起逐票堆叠）",
-      "entry": "app/accept/battery.js",
-      "flag": "--accept",
-      "hintBar": true,
-      "cdpPort": 9223,
-      "kind": null,
-      "budgetSeconds": 720,
-      "lastMeasuredSeconds": 495,
-      "lastMeasuredAt": "2026-10-11",
-      "segments": [
-        {
-          "seg": "P1",
-          "ticket": 3,
-          "title": "启动面板（子进程，存证事件落盘；假死自愈接线）",
-          "surfaces": [
-            "panel-alive"
-          ],
-          "estSeconds": 8,
-          "areas": [
-            "panel.core"
-          ]
-        },
-        {
-          "seg": "P2",
-          "ticket": 3,
-          "title": "透明合成（棋盘参照窗 + 时钟卡文字像素）",
-          "surfaces": [
-            "pixel"
-          ],
-          "estSeconds": 9,
-          "areas": [
-            "panel.core",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P2.5",
-          "ticket": 4,
-          "title": "数据卡片桥接契约上线（会话/天气 + 硬件卡退役回归）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 12,
-          "areas": [
-            "cards",
-            "sessions"
-          ]
-        },
-        {
-          "seg": "P3",
-          "ticket": 3,
-          "title": "默认穿透：左键/右键直达桌面",
-          "surfaces": [
-            "input-injection",
-            "system-state"
-          ],
-          "estSeconds": 3,
-          "areas": [
-            "panel.core",
-            "hotzone"
-          ]
-        },
-        {
-          "seg": "P4",
-          "ticket": 3,
-          "title": "热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序",
-          "surfaces": [
-            "input-injection",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 20,
-          "areas": [
-            "hotzone",
-            "panel.core"
-          ]
-        },
-        {
-          "seg": "P4.5",
-          "ticket": 99,
-          "title": "日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 5,
-          "areas": [
-            "cards",
-            "hotzone"
-          ]
-        },
-        {
-          "seg": "P5",
-          "ticket": 5,
-          "title": "桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 18,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5-ICON",
-          "ticket": 1,
-          "title": "快捷方式真实图标区分度（lnk 绕行提取链）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 9,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5-ICON2",
-          "ticket": 6,
-          "title": "巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 13,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5.5",
-          "ticket": 6,
-          "title": "编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 25,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5.6",
-          "ticket": 20,
-          "title": "选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 18,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5.7",
-          "ticket": 21,
-          "title": "框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 17,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5.8",
-          "ticket": 22,
-          "title": "批量拖拽摆位：整组插入序 + ghost N 项徽标",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 9,
-          "areas": [
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P5.9",
-          "ticket": 23,
-          "title": "分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 28,
-          "areas": [
-            "desktop",
-            "hotzone",
-            "plugins",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.10",
-          "ticket": 24,
-          "title": "单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 19,
-          "areas": [
-            "desktop",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.12",
-          "ticket": 26,
-          "title": "多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 16,
-          "areas": [
-            "desktop",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.13",
-          "ticket": 27,
-          "title": "删除与删除全部：回收站直进/确认层取消与确认/摆位对账",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 22,
-          "areas": [
-            "desktop",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.14",
-          "ticket": 28,
-          "title": "原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 25,
-          "areas": [
-            "desktop",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.15",
-          "ticket": 29,
-          "title": "复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 18,
-          "areas": [
-            "desktop",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.16",
-          "ticket": 30,
-          "title": "粘贴：置灰态/落桌面根/同名「 - 副本」递增",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 14,
-          "areas": [
-            "desktop",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P5.17",
-          "ticket": 31,
-          "title": "键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 32,
-          "areas": [
-            "panel.core",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P7S",
-          "ticket": 7,
-          "title": "搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 40,
-          "areas": [
-            "search",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P8S",
-          "ticket": 8,
-          "title": "设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 21,
-          "areas": [
-            "settings",
-            "config"
-          ]
-        },
-        {
-          "seg": "P8T",
-          "ticket": 101,
-          "title": "卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 22,
-          "areas": [
-            "settings",
-            "cards",
-            "plugins",
-            "config"
-          ]
-        },
-        {
-          "seg": "P6",
-          "ticket": 3,
-          "title": "config 几何生效（改 config 重启面板）",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 6,
-          "areas": [
-            "config"
-          ]
-        },
-        {
-          "seg": "P7",
-          "ticket": 3,
-          "title": "单实例守卫：二次拉起即退 + refused 存证 + 原面板完好",
-          "surfaces": [
-            "panel-alive"
-          ],
-          "estSeconds": 2,
-          "areas": [
-            "panel.core"
-          ]
-        },
-        {
-          "seg": "P8",
-          "ticket": 3,
-          "title": "托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色）",
-          "surfaces": [
-            "system-state",
-            "pixel"
-          ],
-          "estSeconds": 6,
-          "areas": [
-            "tray"
-          ]
-        },
-        {
-          "seg": "P9",
-          "ticket": 3,
-          "title": "Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07）",
-          "surfaces": [
-            "input-injection",
-            "pixel",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 11,
-          "areas": [
-            "desktop",
-            "panel.core"
-          ]
-        },
-        {
-          "seg": "P10",
-          "ticket": 3,
-          "title": "托盘退出闭环：UIA 可见/WM_CLOSE 退出/托盘消失",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "pixel"
-          ],
-          "estSeconds": 15,
-          "areas": [
-            "tray",
-            "panel.core"
-          ]
-        },
-        {
-          "seg": "P10E",
-          "ticket": 83,
-          "title": "设置浮层「退出面板」按钮闭环",
-          "surfaces": [
-            "panel-alive",
-            "event-evidence"
-          ],
-          "estSeconds": 10,
-          "areas": [
-            "settings",
-            "panel.core"
-          ]
-        },
-        {
-          "seg": "P9B",
-          "ticket": 9,
-          "title": "会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "panel-alive"
-          ],
-          "estSeconds": 23,
-          "areas": [
-            "sessions",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P11",
-          "ticket": 10,
-          "title": "桌面组件插件自举：内置五卡经插件契约装载 + qoder 退役检查（工单331 退役旧同上下文投放探针，投放档真机面见 P13）",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 6,
-          "areas": [
-            "plugins",
-            "cards"
-          ]
-        },
-        {
-          "seg": "P13",
-          "ticket": 331,
-          "title": "零权限投放包独立上下文（工单331 五条验收标准真机面）：零权限投放即生效（激活/停用/恢复）+ 独立 webContents/origin 与无 invoke 泄漏（CDP 多目标）+ 默认无出站网络 + 崩溃错误态不自动重挂/副作用不重放/他包与面板无恙 + 旧包三类结构化迁移错误",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 90,
-          "areas": [
-            "plugins"
-          ]
-        },
-        {
-          "seg": "P12",
-          "ticket": 91,
-          "title": "渲染层哨兵判据（#91 定案）：活性心跳武装在证/忙环注入失能档发射与闭合/全程无自发静默失能",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 15,
-          "areas": [
-            "render"
-          ]
-        }
-      ],
-      "scope": true
+     "seg": "P1",
+     "ticket": 3,
+     "title": "启动面板（子进程，存证事件落盘；假死自愈接线）",
+     "surfaces": [
+      "panel-alive"
+     ],
+     "estSeconds": 8,
+     "areas": [
+      "panel.core"
+     ]
     },
     {
-      "id": "48-tray-spike",
-      "title": "托盘 spike（工单48 路线 C 闸门）：托盘宿主竞争/改道/渲染/语料/交还",
-      "entry": "app/accept/tray-spike.js",
-      "flag": "--accept-tray",
-      "hintBar": true,
-      "cdpPort": null,
-      "kind": null,
-      "budgetSeconds": 60,
-      "lastMeasuredSeconds": 13,
-      "lastMeasuredAt": "2026-10-07",
-      "segments": [
-        {
-          "seg": "PRE",
-          "ticket": 48,
-          "title": "互斥侦察基线（Shell_TrayWnd 属主 explorer，第三方托管冲突不可判）",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P0",
-          "ticket": 48,
-          "title": "拉起 spike 面板（托盘宿主上线）",
-          "surfaces": [
-            "panel-alive",
-            "event-evidence"
-          ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P1",
-          "ticket": 48,
-          "title": "投递竞争：FindWindow 命中我方竞争窗口",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P2",
-          "ticket": 48,
-          "title": "泵延迟无感知：NIM_ADD/NIM_DELETE 同步快回 + 改道实证",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P3",
-          "ticket": 48,
-          "title": "真实图标流量：面板自身托盘图标带像素到达（按 key 聚合）",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P3b",
-          "ticket": 48,
-          "title": "验收页像素正确：spike 页琥珀簇（PrintWindow 直拍）",
-          "surfaces": [
-            "pixel"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P3c",
-          "ticket": 48,
-          "title": "第三方图标像素正确：提取主色与页面渲染互证",
-          "surfaces": [
-            "pixel"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P4",
-          "ticket": 48,
-          "title": "投递改道旁证：真托盘条带无琥珀（<40 噪声阈值）",
-          "surfaces": [
-            "pixel"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P5",
-          "ticket": 48,
-          "title": "字节语料固化：corpus JSONL 可解析、含 NIM_ADD 负载",
-          "surfaces": [
-            "event-evidence"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P6",
-          "ticket": 48,
-          "title": "交还：面板退出广播 TaskbarCreated，真托盘回归 explorer",
-          "surfaces": [
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 3
-        }
-      ],
-      "areas": [
-        "tray"
-      ]
+     "seg": "P2",
+     "ticket": 3,
+     "title": "透明合成（棋盘参照窗 + 时钟卡文字像素）",
+     "surfaces": [
+      "pixel"
+     ],
+     "estSeconds": 9,
+     "areas": [
+      "panel.core",
+      "cards"
+     ]
     },
     {
-      "id": "49-taskbar",
-      "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
-      "entry": "app/accept/taskbar.js",
-      "flag": "--accept-taskbar",
-      "hintBar": true,
-      "cdpPort": 9228,
-      "kind": null,
-      "budgetSeconds": 250,
-      "lastMeasuredSeconds": 185,
-      "lastMeasuredAt": "2026-10-23",
-      "segments": [
-        {
-          "seg": "P1",
-          "ticket": 49,
-          "title": "任务栏窗口在场：置顶 + 底部通栏落屏底 + 原生任务栏已隐藏（工单50 几何口径）",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P2",
-          "ticket": 49,
-          "title": "面板本体钉底不受影响（非置顶 + pin 存证在流）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P3",
-          "ticket": 49,
-          "title": "pill 缝隙穿透 + pill 热区命中（双向往返，工单52 缝隙探针）",
-          "surfaces": [
-            "input-injection",
-            "system-state"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P4",
-          "ticket": 49,
-          "title": "开始按钮弹出原生开始菜单（前台宿主版本相关）",
-          "surfaces": [
-            "input-injection",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P5",
-          "ticket": 49,
-          "title": "TaskView 按钮弹出原生任务视图 + 残留清场",
-          "surfaces": [
-            "input-injection",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P6",
-          "ticket": 49,
-          "title": "运行时禁用（CDP taskbar/set-enabled）：窗销/原生还原/config 落盘/面板无恙",
-          "surfaces": [
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P7",
-          "ticket": 49,
-          "title": "运行时重新启用：窗口恢复仍置顶",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P8",
-          "ticket": 49,
-          "title": "启动态禁用（config 门禁）：窗口不建面板照常",
-          "surfaces": [
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 5
-        },
-        {
-          "seg": "P9",
-          "ticket": 49,
-          "title": "启动态恢复启用：窗口回来仍置顶",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 6
-        },
-        {
-          "seg": "P10",
-          "ticket": 103,
-          "title": "关-开连发竞态：条带恰一扇/完整禁用归零（孤儿检测器）/再启用占位在场/无乱序注销",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 15
-        },
-        {
-          "seg": "P11",
-          "ticket": 153,
-          "title": "运行时交还：禁用即交还托盘宿主（竞争窗按属主归零+stopped存证）/重启用即收编（宿主重建+名单回填）/停起停整周期",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 4
-        },
-        {
-          "seg": "P12",
-          "ticket": 153,
-          "title": "宿主守恒：禁用态数据面强杀重启不复活宿主（respawn按期望态）/启态禁用不建宿主",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 10
-        },
-        {
-          "seg": "P13",
-          "ticket": 247,
-          "title": "栏高与图标尺寸（工单238/240 落地值：条带 48DIP、应用组图标 24px/格位 36×36、托盘 16px 原生直渲+源<16px 最近邻放大档）：CDP computed style 与几何存证互证",
-          "surfaces": [
-            "pixel",
-            "event-evidence"
-          ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P15",
-          "ticket": 247,
-          "title": "栏分组布局重排：开始组钉左+撑满栏高 48DIP（工单238 栏高口径）/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
-          "surfaces": [
-            "event-evidence",
-            "pixel"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P15B",
-          "ticket": 190,
-          "title": "屏幕中心线锚定：应用组中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张；全程带内不越界",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 20
-        },
-        {
-          "seg": "P16",
-          "ticket": 247,
-          "title": "推荐组交互主体：图标化上限5（.tb-rec 36×36 图标格，工单240 格位档位）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁；③右键三行随工单196 迁浮层窗 DECK-TASKBAR-REC-MENU，横排退役断言扩全条带）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 23
-        },
-        {
-          "seg": "P17",
-          "ticket": 161,
-          "title": "推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）（工单196：移除臂迁 DECK-TASKBAR-REC-MENU、恢复入口迁 DECK-TASKBAR-BLANK-MENU 浮层窗锚点）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 19
-        },
-        {
-          "seg": "P19",
-          "ticket": 192,
-          "title": "推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙（开始组右侧/应用组左侧）、开始组 pill 推荐位零残留、两组显隐解耦（藏两系统按钮推荐组独立在场并退条带左缘 / 推荐位清空推荐组不渲染、回池复原）",
-          "surfaces": [
-            "event-evidence",
-            "pixel"
-          ],
-          "estSeconds": 6
-        },
-        {
-          "seg": "P14",
-          "ticket": 164,
-          "title": "托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言（wParam=uID、lParam=抬起族鼠标消息）+ 真实点击端到端",
-          "surfaces": [
-            "event-evidence",
-            "input-injection"
-          ],
-          "estSeconds": 9
-        },
-        {
-          "seg": "P27",
-          "ticket": 363,
-          "title": "通知区域原生菜单链（工单363）：栏内与溢出两入口同一回放链（主进程放行 granted + 外壳口径鼠标消息对=按下+抬起两条、逐条 posted）+ 自家图标菜单出现/Esc 收起 + 条带及时恢复置顶（恢复 reason≠timeout）",
-          "surfaces": [
-            "event-evidence",
-            "input-injection",
-            "system-state"
-          ],
-          "estSeconds": 15,
-          "areas": [
-            "taskbar",
-            "tray"
-          ]
-        },
-        {
-          "seg": "P18",
-          "ticket": 189,
-          "title": "应用组统一序列默认落位（ADR-0013）：z 序脱钩（反复切前台位次纹丝不动+几何帧互证）/新面孔追加最右/全关消失/复启回最右/钉入原地转正/已钉开新窗并入钉图标/关闭不消失/未运行解除消失/解除原地转运行",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 20
-        },
-        {
-          "seg": "P21",
-          "ticket": 196,
-          "title": "多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：csc 现编译 WinForms 最小窗同 exe 双实例（argv 定标题，cmd 副本双开弃用）——左键图标出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）、点行选窗存证+前台对账+行点即收、点外即收（时钟格转达 strip-click）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 5
-        },
-        {
-          "seg": "P20",
-          "ticket": 195,
-          "title": "全量拖拽三断点（真 OLE apps→apps 拖拽臂，现行电池无此臂）：A 全条目接线（手钉拖到仅运行图标上不静默吞掉，before 语义落点条目化）/B 运行段会话拖位+渲染冻结（中程强推 changed 被拖节点 expando 同一性保持，drag-start/drag-drop/drag-result 三存证组合）/C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop 不丢，拖拽窗口 hotzone-leave=0 持门存证）/E 拖拽失败可见反馈（未钉运行拖到推荐组=服务层确定性拒返，toast 在场+文案断言）/D1+D2 拖位持久化两半（D1 臂A 钉入前重启=运行拖位回默认序；D2 末尾重启=手钉拖位落盘记住、存储无运行序段；q3 钉入后只在手钉段，两半各配一次重启）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 35
-        },
-        {
-          "seg": "P22",
-          "ticket": 243,
-          "title": "唤出条悬停 150ms 弹出（用户故事 16）：快速扫过（停留 60ms < 150ms）命中条带但不得误触发；停驻悬停后弹出且弹出时刻 ≥ 移动后 150ms（机器时刻戳取热区声明）；栏面退场（非弹出组 display:none）+ 弹出组复现在 48px 带内且叠在最大化窗之上（命中测试落在条带窗）；段前置含「建真最大化参照窗 → 进收栏档」",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 7,
-          "areas": [
-            "taskbar",
-            "taskbar.menu"
-          ]
-        },
-        {
-          "seg": "P23",
-          "ticket": 243,
-          "title": "唤出条点击立即弹出（用户故事 17，不吃 150ms 悬停延迟）：点击→弹出 < 150ms，且弹出时刻早于热区开门时刻+150ms——悬停路径结构上不可能这么早（悬停起算点 ≥ 开门时刻），故只能是点击路径；DOM .summon-popped 在场",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 1,
-          "areas": [
-            "taskbar",
-            "taskbar.menu"
-          ]
-        },
-        {
-          "seg": "P24",
-          "ticket": 243,
-          "title": "唤出条 400ms 宽限（用户故事 20）：指针压在已弹出 pill 上时保持弹出（宽限作废）；鼠标离开后 150ms 仍弹出（宽限未到，非瞬时塌）；塌陷于离开后 ≥350ms（400ms 宽限减去离开检测滞后，机器时刻戳取热区声明）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 2,
-          "areas": [
-            "taskbar",
-            "taskbar.menu"
-          ]
-        },
-        {
-          "seg": "P25",
-          "ticket": 243,
-          "title": "唤出条按组独立 + 浮层在场（用户故事 19/21）：两组同存（唤出热区声明同时含两组 pill 命中区——弹一组不影响另一组）；非所属组按自己的宽限收起而另一组仍在场（其余组照常收）；所属组开出自绘浮层且开层那一拍所属组仍在弹出态（「钉住后离场不塌」真机不可观测：自绘浮层夺前台⇒收栏档被档位迁移打断，缺口留证见交付报告）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 7,
-          "areas": [
-            "taskbar",
-            "taskbar.menu"
-          ]
-        },
-        {
-          "seg": "P26",
-          "ticket": 256,
-          "title": "轮末清场自检（工单256）：参照窗 DECK-ACCEPT-SUMMON 统一销毁＋销毁后验（IsWindow 有界轮询，异常不吞）；桌面 DECK-P16-* 探针残留窄口径扫描（发现先可恢复删除再判红）——电池自己清场，不把污染留给下一轮；段起笔在收尾首行，took= 即统一收尾墙钟",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 24
-        }
-      ],
-      "areas": [
-        "taskbar",
-        "taskbar.menu"
-      ]
+     "seg": "P2.5",
+     "ticket": 4,
+     "title": "数据卡片桥接契约上线（会话/天气 + 硬件卡退役回归）",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 12,
+     "areas": [
+      "cards",
+      "sessions"
+     ]
     },
     {
-      "id": "50-taskbar-carry",
-      "title": "任务栏显隐还原（工单50）：守卫链三还原路径（收栏/普通双相位，工单296 补普通态出发）+ 逃生开关 + 偏好不扰",
-      "entry": "app/accept/taskbar-carry.js",
-      "flag": "--accept-taskbar-carry",
-      "hintBar": true,
-      "cdpPort": 9224,
-      "kind": null,
-      "budgetSeconds": 120,
-      "lastMeasuredSeconds": 66,
-      "lastMeasuredAt": "2026-10-26",
-      "segments": [
-        {
-          "seg": "A1",
-          "ticket": 247,
-          "title": "接管开启：原生任务栏隐藏 + 条带落屏底（条带高 48DIP，工单238 栏高口径）",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 4
-        },
-        {
-          "seg": "A2",
-          "ticket": 50,
-          "title": "正常退出（WM_CLOSE，收栏档出发）：原生任务栏还原 + appbar 状态复原（工单261 路径① dispose 还账/守卫接手；工单308 M1——收栏拍零置位，置位在接管建立拍）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 8
-        },
-        {
-          "seg": "A3",
-          "ticket": 50,
-          "title": "崩溃路径（taskkill 面板树守卫存活，收栏档出发）：panel-exit 双兜底——可见性 SW_SHOW + appbar 落盘账复原（工单261 路径②；工单308 M1 收栏档口径）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 8
-        },
-        {
-          "seg": "A4",
-          "ticket": 50,
-          "title": "进程被杀路径（守卫+面板同杀，收栏档出发）：还原守护 guard-dead 双兜底 + 自退（工单261 路径③ appbar 落盘账；工单308 M1 收栏档口径）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 9
-        },
-        {
-          "seg": "A5",
-          "ticket": 296,
-          "title": "正常退出（WM_CLOSE，普通档出发）：appbar 读回复原基线 + 原生任务栏还原（工单296 退场复原不随档位缩水；工单308 M1 置位口径——接管即置位，读回含 AUTOHIDE）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 9
-        },
-        {
-          "seg": "A6",
-          "ticket": 296,
-          "title": "崩溃路径（taskkill 面板树守卫存活，普通档出发）：panel-exit 从落盘账复原 + 读回基线（账记于接管建立拍；工单308 M1 置位口径）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 7
-        },
-        {
-          "seg": "A7",
-          "ticket": 296,
-          "title": "进程被杀路径（守卫+面板同杀，普通档出发）：还原守护 guard-dead 从落盘账复原 + 自退（账记于接管建立拍；工单308 M1 置位口径）",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 8
-        },
-        {
-          "seg": "B1",
-          "ticket": 50,
-          "title": "逃生开关关闭（设置浮层真实 DOM 链）：原生即还原/条带销毁/config 落盘",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 4
-        },
-        {
-          "seg": "B2",
-          "ticket": 50,
-          "title": "逃生开关再开：原生再隐、条带回来（双向可用）",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "C1",
-          "ticket": 50,
-          "title": "偏好不扰（工单260 措辞收口）：StuckRects3 Settings 面板生命周期结束后字节复原（首末两点比对，与实现对齐）",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "C2",
-          "ticket": 260,
-          "title": "off 口径（工单260；工单293 全接管期改段；工单308 M1 改写）：off 只关收栏档、托管恒置位——B 相位两次接管生命周期各恰两次状态写入（建立置位 set 一 + 退场复原 restored 一，reason=disabled/force）；运行期零其他写入；退出后读回=开跑前基线",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 1,
-          "areas": [
-            "taskbar"
-          ]
-        }
-      ],
-      "areas": [
-        "taskbar",
-        "settings"
-      ]
+     "seg": "P3",
+     "ticket": 3,
+     "title": "默认穿透：左键/右键直达桌面",
+     "surfaces": [
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 3,
+     "areas": [
+      "panel.core",
+      "hotzone"
+     ]
     },
     {
-      "id": "51-taskbar-appbar",
-      "title": "AppBar 工作区占位（工单51）：占位/最大化让位/分辨率重算/全屏让位/卸载归还",
-      "entry": "app/accept/taskbar-appbar.js",
-      "flag": "--accept-taskbar-appbar",
-      "hintBar": true,
-      "cdpPort": 9229,
-      "kind": null,
-      "budgetSeconds": 190,
-      "lastMeasuredSeconds": 128,
-      "lastMeasuredAt": "2026-10-25",
-      "segments": [
-        {
-          "seg": "P1",
-          "ticket": 51,
-          "title": "接管建立=置位（工单308 M1 改写）：taskbar-autohide-takeover（userState=开跑前原值）+ set 存证 + 读回含 AUTOHIDE + 工作区=屏底（保留带释放）+ 条带贴屏底",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 4
-        },
-        {
-          "seg": "P2",
-          "ticket": 51,
-          "title": "覆盖式常驻（工单308 M1 改写）：后台最大化窗底边=屏底、条带覆盖其上、读回恒置位——最大化让位语义随占位退役，窗尺寸不被托管改变",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P3",
-          "ticket": 51,
-          "title": "分辨率变化重算（工单308 M1 改写）：条带随新分辨率重贴新屏底、工作区随新模恒整屏 → 还原（setpos 存证随占位链退役）",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 4
-        },
-        {
-          "seg": "P4",
-          "ticket": 51,
-          "title": "全屏让位：前台全屏参照窗 → 条带隐藏；退出 1 秒内恢复",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 3
-        },
-        {
-          "seg": "P6",
-          "ticket": 244,
-          "title": "最大化收栏（工单244；工单308 M1 改写）：栏面退场出唤出条（taskbar-retract、条带在场、五组条存证）+ 零 appbar 拍动 + 读回恒置位 + 工作区恒屏底；解除 → retract-lifted → 覆盖式常驻 + 原生栏零可见帧",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 4,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P7",
-          "ticket": 244,
-          "title": "三态优先级（工单244；工单308 M1 改写）：全屏让位压过收栏（条带整窗退场 + 全屏期间无收栏存证 + 托管恒置位不中断）；退出全屏回到最大化窗 → 收栏态自动回来",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 3,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P5",
-          "ticket": 51,
-          "title": "退场复原（工单308 M1 改写）：面板退出 → restored reason=dispose + 读回=开跑前原值 + 工作区归还基线 + 原生栏可见",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 6
-        },
-        {
-          "seg": "P9",
-          "ticket": 260,
-          "title": "面板正常退出双复原（工单260；工单293 扩全接管期；工单308 M1 改写）：臂 A 收栏态（收栏拍零置位）WM_CLOSE → restored reason=dispose + 读回复原接管前原值 + 工作区回基线 + 原生栏可见；臂 B 普通档：接管即置位（takeover+set、读回含 AUTOHIDE）+ 静置不复活 + 退出复原原值 + 落盘账清",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 18,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P10",
-          "ticket": 262,
-          "title": "全接管期原生栏重申轮询（工单262；工单293 判据改段；工单308 M1 目标态恒置位；段位垫底——explorer 重启断基线）：可见性翻转压回；explorer 重启重挂（隐藏≤4s + 置位终态≤40s + 工作区回屏底）；普通档翻开原生栏 → 重申压回（无清位落定前置）",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 28,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P11",
-          "ticket": 269,
-          "title": "分屏收栏单窗最小闭环（工单269；工单308 M1 改写）：Win+Left 合成真 Snap → 会话存证 + 收栏档（零 appbar 拍动、工作区恒屏底；前台=中性 holder 后台事实）+ Snap 窗上下贴边 + 唤出条悬停弹出且 Snap 窗矩形逐字不变；Win+Down 解除 → 会话结束 + retract-lifted + 栏面回常驻；SetWindowPos 伪分屏阴性（零收栏/零会话存证）",
-          "surfaces": [
-            "system-state",
-            "event-evidence",
-            "input-injection"
-          ],
-          "estSeconds": 7,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P12",
-          "ticket": 270,
-          "title": "分屏会话集合生命周期与代表性布局（工单270；工单308 随动——工作区判据恒屏底）：左右双窗与三分之一加三分之二统一进入分屏收栏并上下贴边；普通前台轮换不打断（矩形逐字不变）；最小化其一仍维持、最后一个最小化才结束（cause=minimized）且恢复即重建；最后一个拖拽解除结束（cause=unsnapped）并回常驻；收尾关宿主后会话结束（防成员残留拖住会话）",
-          "surfaces": [
-            "system-state",
-            "event-evidence",
-            "input-injection"
-          ],
-          "estSeconds": 28,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P13",
-          "ticket": 270,
-          "title": "虚拟桌面切换隔离与收栏理由接续（工单270；工单308 随动）：四角布局统一判定；Win+Ctrl+D 切新桌面→会话结束（cause=desktop-switched），回原桌面按布局重建；真最大化前台期间关闭全部 Snap 窗→会话结束（cause=closed + retractHeldByZoomed=true、零 retract-lifted），解除最大化才回常驻",
-          "surfaces": [
-            "system-state",
-            "event-evidence",
-            "input-injection"
-          ],
-          "estSeconds": 18,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P14",
-          "ticket": 271,
-          "title": "全屏让位与分屏会话解耦（工单271；工单308 M1 改写——托管恒置位不中断）：分屏后台收栏上全屏进入→整条栏隐藏（零 retract-lifted、读回恒置位）、工作区恒屏底、后台 Snap 窗矩形逐字不变；覆盖期会话存续退出全屏→仅 yield-lifted、唤出条直接回归；覆盖期结束会话零 lift；退出全屏按既有路径回常驻；最大化临时覆盖不结束会话",
-          "surfaces": [
-            "system-state",
-            "event-evidence",
-            "input-injection"
-          ],
-          "estSeconds": 20,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P15",
-          "ticket": 293,
-          "title": "受控原值下的接管置位与三路径禁现（工单293；工单308 M1 改写）：受控原值（自动隐藏 ON）下接管建立记账（takeover userState=受控原值、账在盘）+ 置位（set + 读回含 AUTOHIDE——对已开用户是无操作写入）；底边悬停 3.5s 零可见帧、Win 键零可见帧（SW_HIDE+置位态唤出 0 帧，t257 spike）；通知路径证据单列；禁用 → restored reason=disabled + 读回复原受控原值 + 账清 + 原生栏还原在场",
-          "surfaces": [
-            "panel-alive",
-            "system-state",
-            "event-evidence",
-            "input-injection"
-          ],
-          "estSeconds": 30,
-          "areas": [
-            "taskbar"
-          ]
-        },
-        {
-          "seg": "P16",
-          "ticket": 308,
-          "title": "覆盖式主诉专项段（工单308，spec #306）：后台最大化窗+普通窗夺前台→3s 观察窗逐拍采样（读回恒置位、最大化窗矩形逐点不变、条带覆盖常驻屏底、takeover/set 之外状态族零拍动）；档位循环（收栏→回常驻）后矩形仍逐字一致",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 10
-        }
-      ],
-      "areas": [
-        "taskbar"
-      ]
+     "seg": "P4",
+     "ticket": 3,
+     "title": "热区接收 + 永不顶起/永不激活 + 底部钉扎 z 序",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 20,
+     "areas": [
+      "hotzone",
+      "panel.core"
+     ]
     },
     {
-      "id": "55-taskbar-right-group",
-      "title": "任务栏右组（工单55）：右组 pill/系统动作三格/子集持久化",
-      "entry": "app/accept/taskbar-right-group.js",
-      "flag": "--accept-taskbar-right-group",
-      "hintBar": true,
-      "cdpPort": 9225,
-      "kind": null,
-      "budgetSeconds": 120,
-      "lastMeasuredSeconds": 34,
-      "lastMeasuredAt": "2026-10-13",
-      "segments": [
-        {
-          "seg": "P1",
-          "ticket": 55,
-          "title": "右组 pill 在场（摘要+音量+时钟）+ 显示桌面细条钉屏幕最右端",
-          "surfaces": [
-            "system-state"
-          ],
-          "estSeconds": 1
-        },
-        {
-          "seg": "P3",
-          "ticket": 55,
-          "title": "时钟格点击 → 原生通知中心前台",
-          "surfaces": [
-            "input-injection",
-            "system-state"
-          ],
-          "estSeconds": 6
-        },
-        {
-          "seg": "P4",
-          "ticket": 55,
-          "title": "音量格点击 → 原生快速设置前台",
-          "surfaces": [
-            "input-injection",
-            "system-state"
-          ],
-          "estSeconds": 2
-        },
-        {
-          "seg": "P5",
-          "ticket": 55,
-          "title": "显示桌面细条 → ToggleDesktop（notepad 探针一收一放）",
-          "surfaces": [
-            "input-injection",
-            "system-state"
-          ],
-          "estSeconds": 7
-        },
-        {
-          "seg": "P6",
-          "ticket": 55,
-          "title": "勾选子集持久化：set-metrics 落盘 + 即时收敛 + 重拉保持",
-          "surfaces": [
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 12
-        },
-        {
-          "seg": "P7",
-          "ticket": 162,
-          "title": "托盘溢出菜单：默认5可见+超量入⋯/浮层随鼠标弹出/行左右键同一回放分发/点外收起/档位两挂点（⋯右键+右组空白右键）落盘/数量回落自动回栏⋯消失",
-          "surfaces": [
-            "input-injection",
-            "system-state",
-            "event-evidence"
-          ],
-          "estSeconds": 25
-        },
-        {
-          "seg": "P8",
-          "ticket": 244,
-          "title": "图标档位：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 托盘溢出菜单行图标 16px + 行高 30（CDP computed style 与 taskbar-geometry 存证帧两路互证）",
-          "surfaces": [
-            "pixel",
-            "event-evidence"
-          ],
-          "estSeconds": 4,
-          "areas": [
-            "taskbar",
-            "taskbar.menu"
-          ]
-        }
-      ],
-      "areas": [
-        "taskbar",
-        "taskbar.menu"
-      ]
+     "seg": "P4.5",
+     "ticket": 99,
+     "title": "日历卡成包探针：热区挂载存证 + 月网格自快照时钟段抽验（不并入 P4，一段绑定一工单）",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 5,
+     "areas": [
+      "cards",
+      "hotzone"
+     ]
     },
     {
-      "id": "156-taskbar-apps-filter",
-      "title": "应用组枚举过滤（工单156）：垃圾窗不上栏",
-      "entry": "app/accept/taskbar-apps-filter.js",
-      "flag": "--accept-taskbar-apps-filter",
-      "hintBar": true,
-      "cdpPort": 9226,
-      "kind": null,
-      "budgetSeconds": 60,
-      "lastMeasuredSeconds": 10,
-      "lastMeasuredAt": "2026-10-11",
-      "segments": [
-        {
-          "seg": "P1",
-          "ticket": 156,
-          "title": "垃圾窗不上栏：探针在场取证（notepad 主窗+空标题/工具窗/有属主弹窗）+ 栏面名单裁决（notepad 收、powershell 拒、running 条目全有标题）",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 15
-        }
-      ],
-      "areas": [
-        "taskbar"
-      ]
+     "seg": "P5",
+     "ticket": 5,
+     "title": "桌面承载：条目一致性/图标隐藏/单击选中/双击启动/杀进程自动还原",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 18,
+     "areas": [
+      "desktop"
+     ]
     },
     {
-      "id": "166-doc-group-cards",
-      "title": "桌面文档组卡（工单187 / spec166 收官）：一段绑定一工单——178 契约跨进程/179 装载接管·整排几何·24×24 残留定案·停用交还/180 折叠展开·滚动条·热区重申报·首拍滚轮/181 卡级交互/182 菜单外壳与只读五项/183 DELETE·RENAME 与组卡菜单骨架/184 卡内多选/186 粘贴路由·临时卡·解散/185 组定义持久化与三层归属",
-      "entry": "app/accept/doc-group-cards.js",
-      "flag": "--accept-doc-group-cards",
-      "hintBar": true,
-      "cdpPort": 9227,
-      "kind": null,
-      "budgetSeconds": 540,
-      "segments": [
-        {
-          "seg": "P178",
-          "ticket": 178,
-          "title": "插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验）",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 12
-        },
-        {
-          "seg": "P179",
-          "ticket": 179,
-          "title": "装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排 20px 格点对齐·组序稳定·卡 id 唯一（#354 按 ADR-0024 收窄：摆位收归宿主 20px 网格后，整排居中与左右序不再由产品契约保证，故不再断言）",
-          "surfaces": [
-            "pixel",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 25
-        },
-        {
-          "seg": "P179B",
-          "ticket": 179,
-          "title": "停用交还（工单179 的失败面之二，拆段记法同主电池 P9/P9B）：第一方包可停用不可经用户根卸载；停用后插件容器退场、内核文档区原样还原、组卡一张不剩、24×24 残留热区随之退场，重新启用后组卡恢复",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 15
-        },
-        {
-          "seg": "P180",
-          "ticket": 180,
-          "title": "折叠/展开与滚动：溢出隐藏且一屏 6 格·+N 徽标自洽 / 展开 2×/4× + 其余卡淡出 + 按自身高度重新垂直居中 / 展开后热区即时重申报（DOM 矩形互证）+ 新露出的第 7 格立刻可点 / 纵向滚动条成立 / 首拍滚轮真机实测（问B：入场首拍是否丢失、驻留后一拍、连打三拍）",
-          "surfaces": [
-            "input-injection",
-            "pixel",
-            "event-evidence"
-          ],
-          "estSeconds": 55
-        },
-        {
-          "seg": "P181",
-          "ticket": 181,
-          "title": "卡级交互：点图标格只高亮不改卡框（逐像素不变、不折叠）/再点一格仍不改形状/空白处折叠↔展开往复幂等/+N 徽标与空白同一裁决/双击图标走既有 launch 契约起真进程",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 20
-        },
-        {
-          "seg": "P182",
-          "ticket": 182,
-          "title": "自绘菜单外壳与只读五项：图标格右键出 #dgc-menu + 全屏 .card 遮罩 + 开层期间全窗热区（不让穿透）/OPEN·OPEN LOCATION·COPY PATH·COPY·CUT 在列/菜单外一击与 Esc 都收场且全窗热区即撤、24×24 残留带回位",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 20
-        },
-        {
-          "seg": "P183",
-          "ticket": 183,
-          "title": "写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 25
-        },
-        {
-          "seg": "P362",
-          "ticket": 362,
-          "title": "确认框真实排版（工单362 / spec361 之①）：DELETE 与 DISSOLVE 两路的确认框里，两枚按钮（确认/CANCEL）的**最终矩形**完整落在对话框与视口内（存证与真机点击用的就是这两个矩形）；量不到即判失败（不静默跳过）",
-          "surfaces": [
-            "input-injection",
-            "pixel",
-            "event-evidence"
-          ],
-          "areas": [
-            "plugins"
-          ],
-          "estSeconds": 25
-        },
-        {
-          "seg": "P184",
-          "ticket": 184,
-          "title": "卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 30
-        },
-        {
-          "seg": "P186",
-          "ticket": 186,
-          "title": "粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 30
-        },
-        {
-          "seg": "P185",
-          "ticket": 185,
-          "title": "组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state",
-            "pixel"
-          ],
-          "estSeconds": 30
-        },
-        {
-          "seg": "P200",
-          "ticket": 200,
-          "title": "空临时组卡留屏（2026-10-24 裁决 A）：认领文件删光后 0 格仍出卡（id 唯一、卡面「临时 … · 0」）/ 无「+0」徽标（无溢出不建节点）/ 展开·多选开关·框选·ENTER 读 0 格几何不抛且空选区不发 launch / 固有层反向断言：全表无 0 格固有卡（「空组不占卡」一字未动）/ 空临时卡菜单四行齐（EDIT TYPES·DISSOLVE 两行在）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 15
-        }
-      ],
-      "areas": [
-        "desktop",
-        "plugins"
-      ],
-      "scope": true
+     "seg": "P5-ICON",
+     "ticket": 1,
+     "title": "快捷方式真实图标区分度（lnk 绕行提取链）",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 9,
+     "areas": [
+      "desktop"
+     ]
     },
     {
-      "id": "310-placement",
-      "title": "桌面组件摆位（工单310）：长按拖拽 + 20px 网格吸附 + 手定位持久化 + 组卡冻结/原位展开 + 搜索活动态方向 + 无空位拒绝与尺寸夹取",
-      "entry": "app/accept/placement.js",
-      "flag": "--accept-placement",
-      "hintBar": true,
-      "cdpPort": 9230,
-      "kind": null,
-      "budgetSeconds": 120,
-      "segments": [
-        {
-          "seg": "P1",
-          "ticket": 310,
-          "title": "长按进入与取消：400ms 成立、长按前 >6px 取消、Esc/失焦取消、长按成立后抑制点击、点阵网格只出现在可用区",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 9,
-          "areas": [
-            "cards",
-            "hotzone"
-          ]
-        },
-        {
-          "seg": "P2",
-          "ticket": 310,
-          "title": "网格吸附与冲突反馈：拖拽跟手、绿/红落点、松手吸附 20px 格点、冲突回弹、拖拽期全窗热区",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 8,
-          "areas": [
-            "cards",
-            "hotzone"
-          ]
-        },
-        {
-          "seg": "P3",
-          "ticket": 310,
-          "title": "手定位持久化与恢复出厂：两张卡拖拽落盘 v2 形状（docs 保留 + cards 格点）、重启双卡回原位、恢复出厂同时清空手定位与文档名单",
-          "surfaces": [
-            "system-state",
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 11,
-          "areas": [
-            "cards",
-            "config",
-            "desktop"
-          ]
-        },
-        {
-          "seg": "P4",
-          "ticket": 310,
-          "title": "组卡默认位冻结与原位展开 + 插件卡默认登记：首次摆位冻结组卡默认位、新建/解散不挪旧卡、展开保中心+夹取、邻卡淡出、展开卡仍可拖、热区重申报",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 9,
-          "areas": [
-            "cards",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "P5",
-          "ticket": 310,
-          "title": "搜索面板活动态方向：待机按 420×100 占位，活动态优先向下、下方空间不足向上且始终留在可用区；活动态长按不触发摆位",
-          "surfaces": [
-            "input-injection",
-            "event-evidence"
-          ],
-          "estSeconds": 8,
-          "areas": [
-            "cards",
-            "search"
-          ]
-        },
-        {
-          "seg": "P6",
-          "ticket": 310,
-          "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区；极端小面板两张手定位夹取后相撞无空位 → 停靠首个可用位并落 placement-overlap-accepted 诊断（不静默重叠）",
-          "surfaces": [
-            "input-injection",
-            "event-evidence",
-            "system-state"
-          ],
-          "estSeconds": 48,
-          "areas": [
-            "cards",
-            "desktop",
-            "config"
-          ]
-        }
-      ],
-      "areas": [
-        "cards",
-        "hotzone",
-        "plugins",
-        "search",
-        "desktop",
-        "config"
-      ],
-      "lastMeasuredSeconds": 92,
-      "lastMeasuredAt": "2026-10-28"
+     "seg": "P5-ICON2",
+     "ticket": 6,
+     "title": "巨型 exe 图标兜底 + 文件夹目标（SHDefExtractIconW）",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 13,
+     "areas": [
+      "desktop"
+     ]
     },
     {
-      "id": "132-stall-duel",
-      "title": "工单132 第一阶段对照实验（stall-duel）：卡顿归因取证工具——experiment 身份，段级治理豁免",
-      "entry": "app/accept/experiments/stall-duel.js",
-      "flag": "--accept-stall-duel",
-      "hintBar": true,
-      "cdpPort": 9333,
-      "kind": "experiment"
+     "seg": "P5.5",
+     "ticket": 6,
+     "title": "编排与摆位：自动归类/拖拽重编排/持久化/恢复出厂",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 25,
+     "areas": [
+      "desktop"
+     ]
     },
     {
-      "id": "332-conversation",
-      "title": "对话窗 DSH 会话（工单332 聊天型 + 工单333 管理型，spec #326）：真实 DSH 全链冒烟——握手/流式/取消与收起/工具审批/退出/进程回收/零管理面；管理型显式授权/只读工具真链/凭证失效/宿主回收",
-      "entry": "app/accept/conversation.js",
-      "flag": "--accept-chat",
-      "hintBar": true,
-      "cdpPort": 9231,
-      "kind": null,
-      "budgetSeconds": 600,
-      "segments": [
-        {
-          "seg": "C11",
-          "ticket": 364,
-          "title": "对话窗真实控件路径（工单364 / spec #361 之③，spec 测试决策 6：直调 conversation/prompt 不能替代这条路径）：无会话点发送→明确指导「请先创建会话」且不发起任何请求（无 prompt-start 存证）/ 有会话点按钮→立即回显并进入「回复中」/ 按 Enter 同行为 / Shift+Enter 不发送（转写无此行、输入保留、默认行为未拦）/ 变化推送后权威转写含后端回执",
-          "surfaces": [
-            "event-evidence",
-            "system-state"
-          ],
-          "areas": [
-            "sessions"
-          ],
-          "estSeconds": 10
-        },
-        {
-          "seg": "C1",
-          "ticket": 332,
-          "title": "真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 30,
-          "areas": [
-            "sessions"
-          ]
-        },
-        {
-          "seg": "C2",
-          "ticket": 333,
-          "title": "真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 30,
-          "areas": [
-            "sessions"
-          ]
-        },
-        {
-          "seg": "C4",
-          "ticket": 334,
-          "title": "DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 30,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C5",
-          "ticket": 335,
-          "title": "DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册）",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 30,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C6",
-          "ticket": 336,
-          "title": "媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 90,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C7",
-          "ticket": 337,
-          "title": "媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 90,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C8",
-          "ticket": 338,
-          "title": "联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 60,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C9",
-          "ticket": 339,
-          "title": "命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 60,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C10",
-          "ticket": 341,
-          "title": "三参考闭环组合验收与资源预算（工单341，spec #326 收口）：零权限/媒体/认证联网三组件同时在场各自闭环（独立上下文并行无踩踏）→ 对抗矩阵（跨包隔离：零权限包调媒体/网络 API 各自 permission_denied / 旧媒体键误控 media_session_gone 且当前会话不受影响 / 无播放器回落明确空态 / 限额 network_rate_limited 与权限拒绝分域 / 审计全文无 secret 与载荷 / 崩溃不自动重挂：Page.crash 后 6s 无重激活且私有配置保留）→ 0/1/5/10 包工作集实测（diag/memory，每包边际 ≤ 128MB 预算；16 包上限的超限显式拒绝由单测覆盖）。执行序 C9 后 C3 前",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 120,
-          "areas": [
-            "sessions",
-            "plugins"
-          ]
-        },
-        {
-          "seg": "C3",
-          "ticket": 340,
-          "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
-          "surfaces": [
-            "event-evidence",
-            "system-state",
-            "panel-alive"
-          ],
-          "estSeconds": 30,
-          "areas": [
-            "sessions"
-          ]
-        }
-      ],
-      "areas": [
-        "sessions"
-      ],
-      "scope": true,
-      "lastMeasuredSeconds": 45,
-      "lastMeasuredAt": "2026-10-31"
+     "seg": "P5.6",
+     "ticket": 20,
+     "title": "选区：单击重置/Ctrl 并集/空白清空/重建不丢/外删剔除/双击全开",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 18,
+     "areas": [
+      "desktop"
+     ]
+    },
+    {
+     "seg": "P5.7",
+     "ticket": 21,
+     "title": "框选：替换/Ctrl 并集/阈值/条目起笔/越界续接/外扩带（工单89）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 17,
+     "areas": [
+      "desktop"
+     ]
+    },
+    {
+     "seg": "P5.8",
+     "ticket": 22,
+     "title": "批量拖拽摆位：整组插入序 + ghost N 项徽标",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 9,
+     "areas": [
+      "desktop"
+     ]
+    },
+    {
+     "seg": "P5.9",
+     "ticket": 23,
+     "title": "分区空白上下文菜单：开层/全窗热区/外击吞没/全选/恢复出厂/插件热插拔",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 28,
+     "areas": [
+      "desktop",
+      "hotzone",
+      "plugins",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.10",
+     "ticket": 24,
+     "title": "单项菜单：右键切选/打开/打开所在位置/复制路径（工单27-29 行在列）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 19,
+     "areas": [
+      "desktop",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.12",
+     "ticket": 26,
+     "title": "多选菜单：集内右键收敛/打开全部/多行复制路径/集外回归",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 16,
+     "areas": [
+      "desktop",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.13",
+     "ticket": 27,
+     "title": "删除与删除全部：回收站直进/确认层取消与确认/摆位对账",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 22,
+     "areas": [
+      "desktop",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.14",
+     "ticket": 28,
+     "title": "原地重命名：输入框直注/Esc 取消/重名冲突/摆位同拍迁移",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 25,
+     "areas": [
+      "desktop",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.15",
+     "ticket": 29,
+     "title": "复制与剪切：CF_HDROP + Preferred DropEffect 单项/多选",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 18,
+     "areas": [
+      "desktop",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.16",
+     "ticket": 30,
+     "title": "粘贴：置灰态/落桌面根/同名「 - 副本」递增",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 14,
+     "areas": [
+      "desktop",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P5.17",
+     "ticket": 31,
+     "title": "键盘门控全套：生灭同相硬断言/六键/Esc 两层定序/浮层优先",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 32,
+     "areas": [
+      "panel.core",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P7S",
+     "ticket": 7,
+     "title": "搜索并入：引擎探针/激活/结果/Enter/Ctrl+Enter/选择/失焦/ENGINE OFFLINE",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 40,
+     "areas": [
+      "search",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P8S",
+     "ticket": 8,
+     "title": "设置浮层与透明度：开层/滑杆三链一致/ESC/失焦/重启保持",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 21,
+     "areas": [
+      "settings",
+      "config"
+     ]
+    },
+    {
+     "seg": "P8T",
+     "ticket": 101,
+     "title": "卡片显隐开关：开层开关行/停用搜索卡消失落盘/重启保留/启用原位回归 + 收尾清场重启",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 22,
+     "areas": [
+      "settings",
+      "cards",
+      "plugins",
+      "config"
+     ]
+    },
+    {
+     "seg": "P6",
+     "ticket": 3,
+     "title": "config 几何生效（改 config 重启面板）",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 6,
+     "areas": [
+      "config"
+     ]
+    },
+    {
+     "seg": "P7",
+     "ticket": 3,
+     "title": "单实例守卫：二次拉起即退 + refused 存证 + 原面板完好",
+     "surfaces": [
+      "panel-alive"
+     ],
+     "estSeconds": 2,
+     "areas": [
+      "panel.core"
+     ]
+    },
+    {
+     "seg": "P8",
+     "ticket": 3,
+     "title": "托盘图标注册与可见（NotifyIconSettings + IsPromoted 识别色）",
+     "surfaces": [
+      "system-state",
+      "pixel"
+     ],
+     "estSeconds": 6,
+     "areas": [
+      "tray"
+     ]
+    },
+    {
+     "seg": "P9",
+     "ticket": 3,
+     "title": "Win+D 收起桌面豁免 + 遮罩守望 + 防抖自动恢复重钉（工单07）",
+     "surfaces": [
+      "input-injection",
+      "pixel",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 11,
+     "areas": [
+      "desktop",
+      "panel.core"
+     ]
+    },
+    {
+     "seg": "P10",
+     "ticket": 3,
+     "title": "托盘退出闭环：UIA 可见/WM_CLOSE 退出/托盘消失",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "pixel"
+     ],
+     "estSeconds": 15,
+     "areas": [
+      "tray",
+      "panel.core"
+     ]
+    },
+    {
+     "seg": "P10E",
+     "ticket": 83,
+     "title": "设置浮层「退出面板」按钮闭环",
+     "surfaces": [
+      "panel-alive",
+      "event-evidence"
+     ],
+     "estSeconds": 10,
+     "areas": [
+      "settings",
+      "panel.core"
+     ]
+    },
+    {
+     "seg": "P9B",
+     "ticket": 9,
+     "title": "会话行直达：启动/聚焦/静默降级（探针 charmap + 探针会话）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "panel-alive"
+     ],
+     "estSeconds": 23,
+     "areas": [
+      "sessions",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P11",
+     "ticket": 10,
+     "title": "桌面组件插件自举：内置五卡经插件契约装载 + qoder 退役检查（工单331 退役旧同上下文投放探针，投放档真机面见 P13）",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 6,
+     "areas": [
+      "plugins",
+      "cards"
+     ]
+    },
+    {
+     "seg": "P13",
+     "ticket": 331,
+     "title": "零权限投放包独立上下文（工单331 五条验收标准真机面）：零权限投放即生效（激活/停用/恢复）+ 独立 webContents/origin 与无 invoke 泄漏（CDP 多目标）+ 默认无出站网络 + 崩溃错误态不自动重挂/副作用不重放/他包与面板无恙 + 旧包三类结构化迁移错误",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 90,
+     "areas": [
+      "plugins"
+     ]
+    },
+    {
+     "seg": "P12",
+     "ticket": 91,
+     "title": "渲染层哨兵判据（#91 定案）：活性心跳武装在证/忙环注入失能档发射与闭合/全程无自发静默失能",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 15,
+     "areas": [
+      "render"
+     ]
     }
-  ],
-  "areas": {
-    "panel.core": "面板内核",
-    "desktop": "桌面域",
-    "tray": "托盘域",
-    "taskbar": "任务栏域",
-    "taskbar.menu": "任务栏弹窗菜单域",
-    "search": "搜索域",
-    "settings": "设置域",
-    "cards": "卡片域",
-    "plugins": "插件域",
-    "config": "配置域",
-    "hotzone": "交互热区域",
-    "sessions": "会话域",
-    "render": "渲染层域",
-    "accept": "验收域"
+   ],
+   "scope": true
   },
-  "wideAreas": [
-    "panel.core",
-    "render",
+  {
+   "id": "48-tray-spike",
+   "title": "托盘 spike（工单48 路线 C 闸门）：托盘宿主竞争/改道/渲染/语料/交还",
+   "entry": "app/accept/tray-spike.js",
+   "flag": "--accept-tray",
+   "hintBar": true,
+   "cdpPort": null,
+   "kind": null,
+   "budgetSeconds": 60,
+   "lastMeasuredSeconds": 13,
+   "lastMeasuredAt": "2026-10-07",
+   "segments": [
+    {
+     "seg": "PRE",
+     "ticket": 48,
+     "title": "互斥侦察基线（Shell_TrayWnd 属主 explorer，第三方托管冲突不可判）",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P0",
+     "ticket": 48,
+     "title": "拉起 spike 面板（托盘宿主上线）",
+     "surfaces": [
+      "panel-alive",
+      "event-evidence"
+     ],
+     "estSeconds": 3
+    },
+    {
+     "seg": "P1",
+     "ticket": 48,
+     "title": "投递竞争：FindWindow 命中我方竞争窗口",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P2",
+     "ticket": 48,
+     "title": "泵延迟无感知：NIM_ADD/NIM_DELETE 同步快回 + 改道实证",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P3",
+     "ticket": 48,
+     "title": "真实图标流量：面板自身托盘图标带像素到达（按 key 聚合）",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P3b",
+     "ticket": 48,
+     "title": "验收页像素正确：spike 页琥珀簇（PrintWindow 直拍）",
+     "surfaces": [
+      "pixel"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P3c",
+     "ticket": 48,
+     "title": "第三方图标像素正确：提取主色与页面渲染互证",
+     "surfaces": [
+      "pixel"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P4",
+     "ticket": 48,
+     "title": "投递改道旁证：真托盘条带无琥珀（<40 噪声阈值）",
+     "surfaces": [
+      "pixel"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P5",
+     "ticket": 48,
+     "title": "字节语料固化：corpus JSONL 可解析、含 NIM_ADD 负载",
+     "surfaces": [
+      "event-evidence"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P6",
+     "ticket": 48,
+     "title": "交还：面板退出广播 TaskbarCreated，真托盘回归 explorer",
+     "surfaces": [
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 3
+    }
+   ],
+   "areas": [
+    "tray"
+   ]
+  },
+  {
+   "id": "49-taskbar",
+   "title": "任务栏条带（工单49 tracer bullet）：置顶/穿透/系统按钮/运行时与启动态开关",
+   "entry": "app/accept/taskbar.js",
+   "flag": "--accept-taskbar",
+   "hintBar": true,
+   "cdpPort": 9228,
+   "kind": null,
+   "budgetSeconds": 250,
+   "lastMeasuredSeconds": 185,
+   "lastMeasuredAt": "2026-10-23",
+   "segments": [
+    {
+     "seg": "P1",
+     "ticket": 49,
+     "title": "任务栏窗口在场：置顶 + 底部通栏落屏底 + 原生任务栏已隐藏（工单50 几何口径）",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P2",
+     "ticket": 49,
+     "title": "面板本体钉底不受影响（非置顶 + pin 存证在流）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P3",
+     "ticket": 49,
+     "title": "pill 缝隙穿透 + pill 热区命中（双向往返，工单52 缝隙探针）",
+     "surfaces": [
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P4",
+     "ticket": 49,
+     "title": "开始按钮弹出原生开始菜单（前台宿主版本相关）",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P5",
+     "ticket": 49,
+     "title": "TaskView 按钮弹出原生任务视图 + 残留清场",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 3
+    },
+    {
+     "seg": "P6",
+     "ticket": 49,
+     "title": "运行时禁用（CDP taskbar/set-enabled）：窗销/原生还原/config 落盘/面板无恙",
+     "surfaces": [
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P7",
+     "ticket": 49,
+     "title": "运行时重新启用：窗口恢复仍置顶",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P8",
+     "ticket": 49,
+     "title": "启动态禁用（config 门禁）：窗口不建面板照常",
+     "surfaces": [
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 5
+    },
+    {
+     "seg": "P9",
+     "ticket": 49,
+     "title": "启动态恢复启用：窗口回来仍置顶",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 6
+    },
+    {
+     "seg": "P10",
+     "ticket": 103,
+     "title": "关-开连发竞态：条带恰一扇/完整禁用归零（孤儿检测器）/再启用占位在场/无乱序注销",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 15
+    },
+    {
+     "seg": "P11",
+     "ticket": 153,
+     "title": "运行时交还：禁用即交还托盘宿主（竞争窗按属主归零+stopped存证）/重启用即收编（宿主重建+名单回填）/停起停整周期",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 4
+    },
+    {
+     "seg": "P12",
+     "ticket": 153,
+     "title": "宿主守恒：禁用态数据面强杀重启不复活宿主（respawn按期望态）/启态禁用不建宿主",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 10
+    },
+    {
+     "seg": "P13",
+     "ticket": 247,
+     "title": "栏高与图标尺寸（工单238/240 落地值：条带 48DIP、应用组图标 24px/格位 36×36、托盘 16px 原生直渲+源<16px 最近邻放大档）：CDP computed style 与几何存证互证",
+     "surfaces": [
+      "pixel",
+      "event-evidence"
+     ],
+     "estSeconds": 3
+    },
+    {
+     "seg": "P15",
+     "ticket": 247,
+     "title": "栏分组布局重排：开始组钉左+撑满栏高 48DIP（工单238 栏高口径）/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
+     "surfaces": [
+      "event-evidence",
+      "pixel"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P15B",
+     "ticket": 190,
+     "title": "屏幕中心线锚定：应用组中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张；全程带内不越界",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 20
+    },
+    {
+     "seg": "P16",
+     "ticket": 247,
+     "title": "推荐组交互主体：图标化上限5（.tb-rec 36×36 图标格，工单240 格位档位）+ 左键启动（shell 通道端到端）+ 右键菜单（手钉→递补后恒5/打开位置；移除行随工单161）+ 拖拽组内换位与跨组升手钉 + 解除手钉随下拍回池+reveal（⑥应用组菜单随工单193 迁浮层窗 DECK-TASKBAR-MENU：行集/横排退役/行点即收/点外即收随迁；③右键三行随工单196 迁浮层窗 DECK-TASKBAR-REC-MENU，横排退役断言扩全条带）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 23
+    },
+    {
+     "seg": "P17",
+     "ticket": 161,
+     "title": "推荐组移除名单：右键第三行「从推荐栏移除」→ 持久排除落盘 + 第7名递补（上限恒5）+ 推荐组空白右键恢复段点选回池 + 面板重启后排除与名单都保持（恢复入口跨重启可达）（工单196：移除臂迁 DECK-TASKBAR-REC-MENU、恢复入口迁 DECK-TASKBAR-BLANK-MENU 浮层窗锚点）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 19
+    },
+    {
+     "seg": "P19",
+     "ticket": 192,
+     "title": "推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙（开始组右侧/应用组左侧）、开始组 pill 推荐位零残留、两组显隐解耦（藏两系统按钮推荐组独立在场并退条带左缘 / 推荐位清空推荐组不渲染、回池复原）",
+     "surfaces": [
+      "event-evidence",
+      "pixel"
+     ],
+     "estSeconds": 6
+    },
+    {
+     "seg": "P14",
+     "ticket": 164,
+     "title": "托盘回放负载语义（#163 断点修正回归）：自注册 v0/v4 探针收帧 + 右/左键 MSDN 口径断言（wParam=uID、lParam=抬起族鼠标消息）+ 真实点击端到端",
+     "surfaces": [
+      "event-evidence",
+      "input-injection"
+     ],
+     "estSeconds": 9
+    },
+    {
+     "seg": "P27",
+     "ticket": 363,
+     "title": "通知区域原生菜单链（工单363）：栏内与溢出两入口同一回放链（主进程放行 granted + 外壳口径鼠标消息对=按下+抬起两条、逐条 posted）+ 自家图标菜单出现/Esc 收起 + 条带及时恢复置顶（恢复 reason≠timeout）",
+     "surfaces": [
+      "event-evidence",
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 15,
+     "areas": [
+      "taskbar",
+      "tray"
+     ]
+    },
+    {
+     "seg": "P18",
+     "ticket": 189,
+     "title": "应用组统一序列默认落位（ADR-0013）：z 序脱钩（反复切前台位次纹丝不动+几何帧互证）/新面孔追加最右/全关消失/复启回最右/钉入原地转正/已钉开新窗并入钉图标/关闭不消失/未运行解除消失/解除原地转运行",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 20
+    },
+    {
+     "seg": "P21",
+     "ticket": 196,
+     "title": "多窗选窗浮层（工单196，ADR-0013 五面迁移收官）：csc 现编译 WinForms 最小窗同 exe 双实例（argv 定标题，cmd 副本双开弃用）——左键图标出选窗浮层 DECK-TASKBAR-WINS-MENU（行集=2/行身份=hwnd/标题断言）、点行选窗存证+前台对账+行点即收、点外即收（时钟格转达 strip-click）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 5
+    },
+    {
+     "seg": "P20",
+     "ticket": 195,
+     "title": "全量拖拽三断点（真 OLE apps→apps 拖拽臂，现行电池无此臂）：A 全条目接线（手钉拖到仅运行图标上不静默吞掉，before 语义落点条目化）/B 运行段会话拖位+渲染冻结（中程强推 changed 被拖节点 expando 同一性保持，drag-start/drag-drop/drag-result 三存证组合）/C 跨组拖拽+组间缝隙松手（缝隙中停拍 drop 不丢，拖拽窗口 hotzone-leave=0 持门存证）/E 拖拽失败可见反馈（未钉运行拖到推荐组=服务层确定性拒返，toast 在场+文案断言）/D1+D2 拖位持久化两半（D1 臂A 钉入前重启=运行拖位回默认序；D2 末尾重启=手钉拖位落盘记住、存储无运行序段；q3 钉入后只在手钉段，两半各配一次重启）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 35
+    },
+    {
+     "seg": "P22",
+     "ticket": 243,
+     "title": "唤出条悬停 150ms 弹出（用户故事 16）：快速扫过（停留 60ms < 150ms）命中条带但不得误触发；停驻悬停后弹出且弹出时刻 ≥ 移动后 150ms（机器时刻戳取热区声明）；栏面退场（非弹出组 display:none）+ 弹出组复现在 48px 带内且叠在最大化窗之上（命中测试落在条带窗）；段前置含「建真最大化参照窗 → 进收栏档」",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 7,
+     "areas": [
+      "taskbar",
+      "taskbar.menu"
+     ]
+    },
+    {
+     "seg": "P23",
+     "ticket": 243,
+     "title": "唤出条点击立即弹出（用户故事 17，不吃 150ms 悬停延迟）：点击→弹出 < 150ms，且弹出时刻早于热区开门时刻+150ms——悬停路径结构上不可能这么早（悬停起算点 ≥ 开门时刻），故只能是点击路径；DOM .summon-popped 在场",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 1,
+     "areas": [
+      "taskbar",
+      "taskbar.menu"
+     ]
+    },
+    {
+     "seg": "P24",
+     "ticket": 243,
+     "title": "唤出条 400ms 宽限（用户故事 20）：指针压在已弹出 pill 上时保持弹出（宽限作废）；鼠标离开后 150ms 仍弹出（宽限未到，非瞬时塌）；塌陷于离开后 ≥350ms（400ms 宽限减去离开检测滞后，机器时刻戳取热区声明）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 2,
+     "areas": [
+      "taskbar",
+      "taskbar.menu"
+     ]
+    },
+    {
+     "seg": "P25",
+     "ticket": 243,
+     "title": "唤出条按组独立 + 浮层在场（用户故事 19/21）：两组同存（唤出热区声明同时含两组 pill 命中区——弹一组不影响另一组）；非所属组按自己的宽限收起而另一组仍在场（其余组照常收）；所属组开出自绘浮层且开层那一拍所属组仍在弹出态（「钉住后离场不塌」真机不可观测：自绘浮层夺前台⇒收栏档被档位迁移打断，缺口留证见交付报告）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 7,
+     "areas": [
+      "taskbar",
+      "taskbar.menu"
+     ]
+    },
+    {
+     "seg": "P26",
+     "ticket": 256,
+     "title": "轮末清场自检（工单256）：参照窗 DECK-ACCEPT-SUMMON 统一销毁＋销毁后验（IsWindow 有界轮询，异常不吞）；桌面 DECK-P16-* 探针残留窄口径扫描（发现先可恢复删除再判红）——电池自己清场，不把污染留给下一轮；段起笔在收尾首行，took= 即统一收尾墙钟",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 24
+    }
+   ],
+   "areas": [
+    "taskbar",
+    "taskbar.menu"
+   ]
+  },
+  {
+   "id": "50-taskbar-carry",
+   "title": "任务栏显隐还原（工单50）：守卫链三还原路径（收栏/普通双相位，工单296 补普通态出发）+ 逃生开关 + 偏好不扰",
+   "entry": "app/accept/taskbar-carry.js",
+   "flag": "--accept-taskbar-carry",
+   "hintBar": true,
+   "cdpPort": 9224,
+   "kind": null,
+   "budgetSeconds": 120,
+   "lastMeasuredSeconds": 66,
+   "lastMeasuredAt": "2026-10-26",
+   "segments": [
+    {
+     "seg": "A1",
+     "ticket": 247,
+     "title": "接管开启：原生任务栏隐藏 + 条带落屏底（条带高 48DIP，工单238 栏高口径）",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 4
+    },
+    {
+     "seg": "A2",
+     "ticket": 50,
+     "title": "正常退出（WM_CLOSE，收栏档出发）：原生任务栏还原 + appbar 状态复原（工单261 路径① dispose 还账/守卫接手；工单308 M1——收栏拍零置位，置位在接管建立拍）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 8
+    },
+    {
+     "seg": "A3",
+     "ticket": 50,
+     "title": "崩溃路径（taskkill 面板树守卫存活，收栏档出发）：panel-exit 双兜底——可见性 SW_SHOW + appbar 落盘账复原（工单261 路径②；工单308 M1 收栏档口径）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 8
+    },
+    {
+     "seg": "A4",
+     "ticket": 50,
+     "title": "进程被杀路径（守卫+面板同杀，收栏档出发）：还原守护 guard-dead 双兜底 + 自退（工单261 路径③ appbar 落盘账；工单308 M1 收栏档口径）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 9
+    },
+    {
+     "seg": "A5",
+     "ticket": 296,
+     "title": "正常退出（WM_CLOSE，普通档出发）：appbar 读回复原基线 + 原生任务栏还原（工单296 退场复原不随档位缩水；工单308 M1 置位口径——接管即置位，读回含 AUTOHIDE）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 9
+    },
+    {
+     "seg": "A6",
+     "ticket": 296,
+     "title": "崩溃路径（taskkill 面板树守卫存活，普通档出发）：panel-exit 从落盘账复原 + 读回基线（账记于接管建立拍；工单308 M1 置位口径）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 7
+    },
+    {
+     "seg": "A7",
+     "ticket": 296,
+     "title": "进程被杀路径（守卫+面板同杀，普通档出发）：还原守护 guard-dead 从落盘账复原 + 自退（账记于接管建立拍；工单308 M1 置位口径）",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 8
+    },
+    {
+     "seg": "B1",
+     "ticket": 50,
+     "title": "逃生开关关闭（设置浮层真实 DOM 链）：原生即还原/条带销毁/config 落盘",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 4
+    },
+    {
+     "seg": "B2",
+     "ticket": 50,
+     "title": "逃生开关再开：原生再隐、条带回来（双向可用）",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "C1",
+     "ticket": 50,
+     "title": "偏好不扰（工单260 措辞收口）：StuckRects3 Settings 面板生命周期结束后字节复原（首末两点比对，与实现对齐）",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "C2",
+     "ticket": 260,
+     "title": "off 口径（工单260；工单293 全接管期改段；工单308 M1 改写）：off 只关收栏档、托管恒置位——B 相位两次接管生命周期各恰两次状态写入（建立置位 set 一 + 退场复原 restored 一，reason=disabled/force）；运行期零其他写入；退出后读回=开跑前基线",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 1,
+     "areas": [
+      "taskbar"
+     ]
+    }
+   ],
+   "areas": [
+    "taskbar",
+    "settings"
+   ]
+  },
+  {
+   "id": "51-taskbar-appbar",
+   "title": "AppBar 工作区占位（工单51）：占位/最大化让位/分辨率重算/全屏让位/卸载归还",
+   "entry": "app/accept/taskbar-appbar.js",
+   "flag": "--accept-taskbar-appbar",
+   "hintBar": true,
+   "cdpPort": 9229,
+   "kind": null,
+   "budgetSeconds": 190,
+   "lastMeasuredSeconds": 128,
+   "lastMeasuredAt": "2026-10-25",
+   "segments": [
+    {
+     "seg": "P1",
+     "ticket": 51,
+     "title": "接管建立=置位（工单308 M1 改写）：taskbar-autohide-takeover（userState=开跑前原值）+ set 存证 + 读回含 AUTOHIDE + 工作区=屏底（保留带释放）+ 条带贴屏底",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 4
+    },
+    {
+     "seg": "P2",
+     "ticket": 51,
+     "title": "覆盖式常驻（工单308 M1 改写）：后台最大化窗底边=屏底、条带覆盖其上、读回恒置位——最大化让位语义随占位退役，窗尺寸不被托管改变",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 3
+    },
+    {
+     "seg": "P3",
+     "ticket": 51,
+     "title": "分辨率变化重算（工单308 M1 改写）：条带随新分辨率重贴新屏底、工作区随新模恒整屏 → 还原（setpos 存证随占位链退役）",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 4
+    },
+    {
+     "seg": "P4",
+     "ticket": 51,
+     "title": "全屏让位：前台全屏参照窗 → 条带隐藏；退出 1 秒内恢复",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 3
+    },
+    {
+     "seg": "P6",
+     "ticket": 244,
+     "title": "最大化收栏（工单244；工单308 M1 改写）：栏面退场出唤出条（taskbar-retract、条带在场、五组条存证）+ 零 appbar 拍动 + 读回恒置位 + 工作区恒屏底；解除 → retract-lifted → 覆盖式常驻 + 原生栏零可见帧",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 4,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P7",
+     "ticket": 244,
+     "title": "三态优先级（工单244；工单308 M1 改写）：全屏让位压过收栏（条带整窗退场 + 全屏期间无收栏存证 + 托管恒置位不中断）；退出全屏回到最大化窗 → 收栏态自动回来",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 3,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P5",
+     "ticket": 51,
+     "title": "退场复原（工单308 M1 改写）：面板退出 → restored reason=dispose + 读回=开跑前原值 + 工作区归还基线 + 原生栏可见",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 6
+    },
+    {
+     "seg": "P9",
+     "ticket": 260,
+     "title": "面板正常退出双复原（工单260；工单293 扩全接管期；工单308 M1 改写）：臂 A 收栏态（收栏拍零置位）WM_CLOSE → restored reason=dispose + 读回复原接管前原值 + 工作区回基线 + 原生栏可见；臂 B 普通档：接管即置位（takeover+set、读回含 AUTOHIDE）+ 静置不复活 + 退出复原原值 + 落盘账清",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 18,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P10",
+     "ticket": 262,
+     "title": "全接管期原生栏重申轮询（工单262；工单293 判据改段；工单308 M1 目标态恒置位；段位垫底——explorer 重启断基线）：可见性翻转压回；explorer 重启重挂（隐藏≤4s + 置位终态≤40s + 工作区回屏底）；普通档翻开原生栏 → 重申压回（无清位落定前置）",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 28,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P11",
+     "ticket": 269,
+     "title": "分屏收栏单窗最小闭环（工单269；工单308 M1 改写）：Win+Left 合成真 Snap → 会话存证 + 收栏档（零 appbar 拍动、工作区恒屏底；前台=中性 holder 后台事实）+ Snap 窗上下贴边 + 唤出条悬停弹出且 Snap 窗矩形逐字不变；Win+Down 解除 → 会话结束 + retract-lifted + 栏面回常驻；SetWindowPos 伪分屏阴性（零收栏/零会话存证）",
+     "surfaces": [
+      "system-state",
+      "event-evidence",
+      "input-injection"
+     ],
+     "estSeconds": 7,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P12",
+     "ticket": 270,
+     "title": "分屏会话集合生命周期与代表性布局（工单270；工单308 随动——工作区判据恒屏底）：左右双窗与三分之一加三分之二统一进入分屏收栏并上下贴边；普通前台轮换不打断（矩形逐字不变）；最小化其一仍维持、最后一个最小化才结束（cause=minimized）且恢复即重建；最后一个拖拽解除结束（cause=unsnapped）并回常驻；收尾关宿主后会话结束（防成员残留拖住会话）",
+     "surfaces": [
+      "system-state",
+      "event-evidence",
+      "input-injection"
+     ],
+     "estSeconds": 28,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P13",
+     "ticket": 270,
+     "title": "虚拟桌面切换隔离与收栏理由接续（工单270；工单308 随动）：四角布局统一判定；Win+Ctrl+D 切新桌面→会话结束（cause=desktop-switched），回原桌面按布局重建；真最大化前台期间关闭全部 Snap 窗→会话结束（cause=closed + retractHeldByZoomed=true、零 retract-lifted），解除最大化才回常驻",
+     "surfaces": [
+      "system-state",
+      "event-evidence",
+      "input-injection"
+     ],
+     "estSeconds": 18,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P14",
+     "ticket": 271,
+     "title": "全屏让位与分屏会话解耦（工单271；工单308 M1 改写——托管恒置位不中断）：分屏后台收栏上全屏进入→整条栏隐藏（零 retract-lifted、读回恒置位）、工作区恒屏底、后台 Snap 窗矩形逐字不变；覆盖期会话存续退出全屏→仅 yield-lifted、唤出条直接回归；覆盖期结束会话零 lift；退出全屏按既有路径回常驻；最大化临时覆盖不结束会话",
+     "surfaces": [
+      "system-state",
+      "event-evidence",
+      "input-injection"
+     ],
+     "estSeconds": 20,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P15",
+     "ticket": 293,
+     "title": "受控原值下的接管置位与三路径禁现（工单293；工单308 M1 改写）：受控原值（自动隐藏 ON）下接管建立记账（takeover userState=受控原值、账在盘）+ 置位（set + 读回含 AUTOHIDE——对已开用户是无操作写入）；底边悬停 3.5s 零可见帧、Win 键零可见帧（SW_HIDE+置位态唤出 0 帧，t257 spike）；通知路径证据单列；禁用 → restored reason=disabled + 读回复原受控原值 + 账清 + 原生栏还原在场",
+     "surfaces": [
+      "panel-alive",
+      "system-state",
+      "event-evidence",
+      "input-injection"
+     ],
+     "estSeconds": 30,
+     "areas": [
+      "taskbar"
+     ]
+    },
+    {
+     "seg": "P16",
+     "ticket": 308,
+     "title": "覆盖式主诉专项段（工单308，spec #306）：后台最大化窗+普通窗夺前台→3s 观察窗逐拍采样（读回恒置位、最大化窗矩形逐点不变、条带覆盖常驻屏底、takeover/set 之外状态族零拍动）；档位循环（收栏→回常驻）后矩形仍逐字一致",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 10
+    }
+   ],
+   "areas": [
+    "taskbar"
+   ]
+  },
+  {
+   "id": "55-taskbar-right-group",
+   "title": "任务栏右组（工单55）：右组 pill/系统动作三格/子集持久化",
+   "entry": "app/accept/taskbar-right-group.js",
+   "flag": "--accept-taskbar-right-group",
+   "hintBar": true,
+   "cdpPort": 9225,
+   "kind": null,
+   "budgetSeconds": 120,
+   "lastMeasuredSeconds": 34,
+   "lastMeasuredAt": "2026-10-13",
+   "segments": [
+    {
+     "seg": "P1",
+     "ticket": 55,
+     "title": "右组 pill 在场（摘要+音量+时钟）+ 显示桌面细条钉屏幕最右端",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 1
+    },
+    {
+     "seg": "P3",
+     "ticket": 55,
+     "title": "时钟格点击 → 原生通知中心前台",
+     "surfaces": [
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 6
+    },
+    {
+     "seg": "P4",
+     "ticket": 55,
+     "title": "音量格点击 → 原生快速设置前台",
+     "surfaces": [
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 2
+    },
+    {
+     "seg": "P5",
+     "ticket": 55,
+     "title": "显示桌面细条 → ToggleDesktop（notepad 探针一收一放）",
+     "surfaces": [
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 7
+    },
+    {
+     "seg": "P6",
+     "ticket": 55,
+     "title": "勾选子集持久化：set-metrics 落盘 + 即时收敛 + 重拉保持",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 12
+    },
+    {
+     "seg": "P7",
+     "ticket": 162,
+     "title": "托盘溢出菜单：默认5可见+超量入⋯/浮层随鼠标弹出/行左右键同一回放分发/点外收起/档位两挂点（⋯右键+右组空白右键）落盘/数量回落自动回栏⋯消失",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 25
+    },
+    {
+     "seg": "P8",
+     "ticket": 244,
+     "title": "图标档位：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 托盘溢出菜单行图标 16px + 行高 30（CDP computed style 与 taskbar-geometry 存证帧两路互证）",
+     "surfaces": [
+      "pixel",
+      "event-evidence"
+     ],
+     "estSeconds": 4,
+     "areas": [
+      "taskbar",
+      "taskbar.menu"
+     ]
+    }
+   ],
+   "areas": [
+    "taskbar",
+    "taskbar.menu"
+   ]
+  },
+  {
+   "id": "156-taskbar-apps-filter",
+   "title": "应用组枚举过滤（工单156）：垃圾窗不上栏",
+   "entry": "app/accept/taskbar-apps-filter.js",
+   "flag": "--accept-taskbar-apps-filter",
+   "hintBar": true,
+   "cdpPort": 9226,
+   "kind": null,
+   "budgetSeconds": 60,
+   "lastMeasuredSeconds": 10,
+   "lastMeasuredAt": "2026-10-11",
+   "segments": [
+    {
+     "seg": "P1",
+     "ticket": 156,
+     "title": "垃圾窗不上栏：探针在场取证（notepad 主窗+空标题/工具窗/有属主弹窗）+ 栏面名单裁决（notepad 收、powershell 拒、running 条目全有标题）",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 15
+    }
+   ],
+   "areas": [
+    "taskbar"
+   ]
+  },
+  {
+   "id": "166-doc-group-cards",
+   "title": "桌面文档组卡（工单187 / spec166 收官）：一段绑定一工单——178 契约跨进程/179 装载接管·整排几何·24×24 残留定案·停用交还/180 折叠展开·滚动条·热区重申报·首拍滚轮/181 卡级交互/182 菜单外壳与只读五项/183 DELETE·RENAME 与组卡菜单骨架/184 卡内多选/186 粘贴路由·临时卡·解散/185 组定义持久化与三层归属",
+   "entry": "app/accept/doc-group-cards.js",
+   "flag": "--accept-doc-group-cards",
+   "hintBar": true,
+   "cdpPort": 9227,
+   "kind": null,
+   "budgetSeconds": 540,
+   "segments": [
+    {
+     "seg": "P178",
+     "ticket": 178,
+     "title": "插件私有状态跨进程真机面：面板页 invoke(plugin-config/get) 与磁盘落盘互证 + 命名空间隔离（他 id 写档不动本档）+ 坏 JSON 视同空对象并记 warning 后插件照常装载（面板重启验）",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 12
+    },
+    {
+     "seg": "P179",
+     "ticket": 179,
+     "title": "装载接管（工单179 的失败面之一）：装载存证/内核文档区被藏而 .ditem 子节点仍在（24×24 残留带的成因链三要素齐）/整排 20px 格点对齐·组序稳定·卡 id 唯一（#354 按 ADR-0024 收窄：摆位收归宿主 20px 网格后，整排居中与左右序不再由产品契约保证，故不再断言）",
+     "surfaces": [
+      "pixel",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 25
+    },
+    {
+     "seg": "P179B",
+     "ticket": 179,
+     "title": "停用交还（工单179 的失败面之二，拆段记法同主电池 P9/P9B）：第一方包可停用不可经用户根卸载；停用后插件容器退场、内核文档区原样还原、组卡一张不剩、24×24 残留热区随之退场，重新启用后组卡恢复",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 15
+    },
+    {
+     "seg": "P180",
+     "ticket": 180,
+     "title": "折叠/展开与滚动：溢出隐藏且一屏 6 格·+N 徽标自洽 / 展开 2×/4× + 其余卡淡出 + 按自身高度重新垂直居中 / 展开后热区即时重申报（DOM 矩形互证）+ 新露出的第 7 格立刻可点 / 纵向滚动条成立 / 首拍滚轮真机实测（问B：入场首拍是否丢失、驻留后一拍、连打三拍）",
+     "surfaces": [
+      "input-injection",
+      "pixel",
+      "event-evidence"
+     ],
+     "estSeconds": 55
+    },
+    {
+     "seg": "P181",
+     "ticket": 181,
+     "title": "卡级交互：点图标格只高亮不改卡框（逐像素不变、不折叠）/再点一格仍不改形状/空白处折叠↔展开往复幂等/+N 徽标与空白同一裁决/双击图标走既有 launch 契约起真进程",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 20
+    },
+    {
+     "seg": "P182",
+     "ticket": 182,
+     "title": "自绘菜单外壳与只读五项：图标格右键出 #dgc-menu + 全屏 .card 遮罩 + 开层期间全窗热区（不让穿透）/OPEN·OPEN LOCATION·COPY PATH·COPY·CUT 在列/菜单外一击与 Esc 都收场且全窗热区即撤、24×24 残留带回位",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 20
+    },
+    {
+     "seg": "P183",
+     "ticket": 183,
+     "title": "写操作与组卡菜单骨架：文件菜单七行齐（+RENAME/DELETE 收尾）/RENAME 内联编辑器→敲名→Enter 真改名/DELETE 确认层取消不动磁盘、确认后真删/固有卡组卡菜单出 PASTE·NEW GROUP 两行（EDIT TYPES·DISSOLVE 仍只挂在手改得动的卡上，工单187 裁决②）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 25
+    },
+    {
+     "seg": "P362",
+     "ticket": 362,
+     "title": "确认框真实排版（工单362 / spec361 之①）：DELETE 与 DISSOLVE 两路的确认框里，两枚按钮（确认/CANCEL）的**最终矩形**完整落在对话框与视口内（存证与真机点击用的就是这两个矩形）；量不到即判失败（不静默跳过）",
+     "surfaces": [
+      "input-injection",
+      "pixel",
+      "event-evidence"
+     ],
+     "areas": [
+      "plugins"
+     ],
+     "estSeconds": 25
+    },
+    {
+     "seg": "P184",
+     "ticket": 184,
+     "title": "卡内多选：逐卡开关（点亮且不影响邻卡）/点选切换/展开态内容区空白起笔框选（拖拽带在场）/ENTER 一次整批启动（条数与选区同数）/两格在选时 OPEN LOCATION 与 RENAME 两行置灰而 OPEN 仍可用",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 30
+    },
+    {
+     "seg": "P186",
+     "ticket": 186,
+     "title": "粘贴路由与解散：剪贴板有文件时 PASTE 可用（固有卡 → 新临时卡，两份文件落桌面根而暂存原样）/剪贴板清成文本后该行置灰/临时卡解散后其名下文件回落固有卡，磁盘清单前后一致（组卡是归属不是目录）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 30
+    },
+    {
+     "seg": "P185",
+     "ticket": 185,
+     "title": "组定义持久化与三层归属：手改得动的卡上组卡菜单四行齐 / NEW GROUP 开勾选浮层且一个字节未落库 / 勾 .pdf 提交后自定义卡认领、固有 PDF 卡空掉退场（工单187 裁决①） / EDIT TYPES 取消勾即回落固有卡而空卡留屏 / 全程磁盘清单一致 / 面板重启后组定义原样回来（groups-loaded 存证）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state",
+      "pixel"
+     ],
+     "estSeconds": 30
+    },
+    {
+     "seg": "P200",
+     "ticket": 200,
+     "title": "空临时组卡留屏（2026-10-24 裁决 A）：认领文件删光后 0 格仍出卡（id 唯一、卡面「临时 … · 0」）/ 无「+0」徽标（无溢出不建节点）/ 展开·多选开关·框选·ENTER 读 0 格几何不抛且空选区不发 launch / 固有层反向断言：全表无 0 格固有卡（「空组不占卡」一字未动）/ 空临时卡菜单四行齐（EDIT TYPES·DISSOLVE 两行在）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 15
+    }
+   ],
+   "areas": [
+    "desktop",
+    "plugins"
+   ],
+   "scope": true
+  },
+  {
+   "id": "310-placement",
+   "title": "桌面组件摆位（工单310）：长按拖拽 + 20px 网格吸附 + 手定位持久化 + 组卡冻结/原位展开 + 搜索活动态方向 + 无空位拒绝与尺寸夹取",
+   "entry": "app/accept/placement.js",
+   "flag": "--accept-placement",
+   "hintBar": true,
+   "cdpPort": 9230,
+   "kind": null,
+   "budgetSeconds": 120,
+   "segments": [
+    {
+     "seg": "P1",
+     "ticket": 310,
+     "title": "长按进入与取消：400ms 成立、长按前 >6px 取消、Esc/失焦取消、长按成立后抑制点击、点阵网格只出现在可用区",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 9,
+     "areas": [
+      "cards",
+      "hotzone"
+     ]
+    },
+    {
+     "seg": "P2",
+     "ticket": 310,
+     "title": "网格吸附与冲突反馈：拖拽跟手、绿/红落点、松手吸附 20px 格点、冲突回弹、拖拽期全窗热区",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 8,
+     "areas": [
+      "cards",
+      "hotzone"
+     ]
+    },
+    {
+     "seg": "P3",
+     "ticket": 310,
+     "title": "手定位持久化与恢复出厂：两张卡拖拽落盘 v2 形状（docs 保留 + cards 格点）、重启双卡回原位、恢复出厂同时清空手定位与文档名单",
+     "surfaces": [
+      "system-state",
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 11,
+     "areas": [
+      "cards",
+      "config",
+      "desktop"
+     ]
+    },
+    {
+     "seg": "P4",
+     "ticket": 310,
+     "title": "组卡默认位冻结与原位展开 + 插件卡默认登记：首次摆位冻结组卡默认位、新建/解散不挪旧卡、展开保中心+夹取、邻卡淡出、展开卡仍可拖、热区重申报",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 9,
+     "areas": [
+      "cards",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "P5",
+     "ticket": 310,
+     "title": "搜索面板活动态方向：待机按 420×100 占位，活动态优先向下、下方空间不足向上且始终留在可用区；活动态长按不触发摆位",
+     "surfaces": [
+      "input-injection",
+      "event-evidence"
+     ],
+     "estSeconds": 8,
+     "areas": [
+      "cards",
+      "search"
+     ]
+    },
+    {
+     "seg": "P6",
+     "ticket": 310,
+     "title": "无空位拒绝与尺寸变化夹取：小面板下容不下的卡被拒并给出提示；手定位越界夹取进可用区；极端小面板两张手定位夹取后相撞无空位 → 停靠首个可用位并落 placement-overlap-accepted 诊断（不静默重叠）",
+     "surfaces": [
+      "input-injection",
+      "event-evidence",
+      "system-state"
+     ],
+     "estSeconds": 48,
+     "areas": [
+      "cards",
+      "desktop",
+      "config"
+     ]
+    }
+   ],
+   "areas": [
+    "cards",
+    "hotzone",
+    "plugins",
+    "search",
+    "desktop",
     "config"
-  ],
-  "sourceRoots": [
-    "app/src",
-    "app/plugins"
-  ],
-  "pathAreas": [
-    {
-      "path": "app/src/renderer/conversation.ts",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src",
-      "area": "panel.core"
-    },
-    {
-      "path": "app/src/main",
-      "area": "panel.core"
-    },
-    {
-      "path": "app/src/main/desktop",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/main/focus",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/hardware",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/plugins",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/scanners",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/search",
-      "area": "search"
-    },
-    {
-      "path": "app/src/main/services",
-      "area": "panel.core"
-    },
-    {
-      "path": "app/src/main/taskbar",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/trayhost",
-      "area": "tray"
-    },
-    {
-      "path": "app/src/main/usage",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/preload",
-      "area": "panel.core"
-    },
-    {
-      "path": "app/src/renderer",
-      "area": "panel.core"
-    },
-    {
-      "path": "app/src/renderer/cards",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/cards/calendar",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/cards/clock",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/cards/context-menu",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/cards/search",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/cards/sessions",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/cards/weather",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/shared",
-      "area": "panel.core"
-    },
-    {
-      "path": "app/plugins",
-      "area": "plugins"
-    },
-    {
-      "path": "app/plugins/doc-group-cards",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/config.ts",
-      "area": "config"
-    },
-    {
-      "path": "app/src/main/desktop-cover.ts",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/main/hotzone.ts",
-      "area": "hotzone"
-    },
-    {
-      "path": "app/src/main/icon-carry.ts",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/main/icon-restore-watch.cjs",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/main/lag-sentinel.ts",
-      "area": "render"
-    },
-    {
-      "path": "app/src/main/paths.ts",
-      "area": "config"
-    },
-    {
-      "path": "app/src/main/render-sentinel-sampler.ts",
-      "area": "render"
-    },
-    {
-      "path": "app/src/main/render-sentinel.ts",
-      "area": "render"
-    },
-    {
-      "path": "app/src/main/tray.ts",
-      "area": "tray"
-    },
-    {
-      "path": "app/src/main/services/clock.ts",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/main/services/desktop.ts",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/main/services/focus.ts",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/services/hardware.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/services/plugin-config.ts",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/services/search.ts",
-      "area": "search"
-    },
-    {
-      "path": "app/src/main/services/sessions.ts",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/conversation",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/media",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/network",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/credentials",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/services/settings.ts",
-      "area": "settings"
-    },
-    {
-      "path": "app/src/main/services/taskbar.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/services/usage.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/taskbar/app-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/blank-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/menu-host.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/rec-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/tier-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/wins-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/renderer/pasteable-query.ts",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/placement.ts",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/plugin-tiers.ts",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/renderer/plugins.ts",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/renderer/selection.ts",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/renderer/taskbar",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/renderer/taskbar-menu",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/renderer/tray-pixels.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/renderer/zone-hotzone.ts",
-      "area": "hotzone"
-    },
-    {
-      "path": "app/src/shared/overflow.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/shared/retract.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/accept",
-      "area": "accept"
-    },
-    {
-      "path": "app/accept/lib",
-      "area": "accept",
-      "wires": "*"
-    },
-    {
-      "path": "app/accept/manifest.json",
-      "area": "accept",
-      "wires": "*"
+   ],
+   "lastMeasuredSeconds": 92,
+   "lastMeasuredAt": "2026-10-28"
+  },
+  {
+   "id": "132-stall-duel",
+   "title": "工单132 第一阶段对照实验（stall-duel）：卡顿归因取证工具——experiment 身份，段级治理豁免",
+   "entry": "app/accept/experiments/stall-duel.js",
+   "flag": "--accept-stall-duel",
+   "hintBar": true,
+   "cdpPort": 9333,
+   "kind": "experiment"
+  },
+  {
+   "id": "332-conversation",
+   "title": "对话窗 DSH 会话（工单332 聊天型 + 工单333 管理型，spec #326）：真实 DSH 全链冒烟——握手/流式/取消与收起/工具审批/退出/进程回收/零管理面；管理型显式授权/只读工具真链/凭证失效/宿主回收",
+   "entry": "app/accept/conversation.js",
+   "flag": "--accept-chat",
+   "hintBar": true,
+   "cdpPort": 9231,
+   "kind": null,
+   "budgetSeconds": 600,
+   "segments": [
+    {
+     "seg": "C11",
+     "ticket": 364,
+     "title": "对话窗真实控件路径（工单364 / spec #361 之③，spec 测试决策 6：直调 conversation/prompt 不能替代这条路径）：无会话点发送→明确指导「请先创建会话」且不发起任何请求（无 prompt-start 存证）/ 有会话点按钮→立即回显并进入「回复中」/ 按 Enter 同行为 / Shift+Enter 不发送（转写无此行、输入保留、默认行为未拦）/ 变化推送后权威转写含后端回执",
+     "surfaces": [
+      "event-evidence",
+      "system-state"
+     ],
+     "areas": [
+      "sessions"
+     ],
+     "estSeconds": 10
+    },
+    {
+     "seg": "C1",
+     "ticket": 332,
+     "title": "真实 DSH 聊天会话全链（罐头 LLM 零凭证）：握手+session/new 零管理面+专属空 cwd+元数据只存元数据 / prompt 流式 end_turn / cancel=cancelled 进程存活+关窗只收起 / request_permission 原样呈现+不超时自动拒绝+allow-once 落盘 / end 自然退出 code 0+元数据 endedAt / 进程回收 / 无 managed 会话",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 30,
+     "areas": [
+      "sessions"
+     ]
+    },
+    {
+     "seg": "C2",
+     "ticket": 333,
+     "title": "真实 DSH 管理型会话只读面板与插件契约（罐头 LLM 零凭证）：UI 契约（管理勾选+以聊天型创建显式选择）/ 显式授权创建 wire 存证（injected(managed)+回环 mcpUrl）/ 凭证零落盘 / DSH 真调 panel_snapshot+plugin_contract_catalog（分派存证+内容回读）/ 投影外 app_quit=-32602 未知工具+resources/list=-32601 / 凭证逐会话失效（旧 bearer 401、他凭证不受影响）/ 宿主随最后管理会话回收（连接拒绝）/ 聊天型并存零回归",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 30,
+     "areas": [
+      "sessions"
+     ]
+    },
+    {
+     "seg": "C4",
+     "ticket": 334,
+     "title": "DSH 全链创建零权限插件（工单334，ADR-0019 写入契约/ADR-0025 批准面；罐头 LLM 零凭证）：DSH 文件工具写包（会话工作区）→ MCP plugin_install_submit → 提案数据面（2 文件带哈希/零权限/来源 dsh 会话）+ 待装载区纪律（staging 副本在案/用户根未动）→ 桥上真实手势批准 → 哈希同字节绑定 → 转正激活（dropped-package-activated）→ 桌面真显示（deck-pkg://dsh-hello title=deck-pkg:ready）；拒绝路径补偿完备（副本清偿+gate_denied）执行序在 C3 前（C3 bogus 重启面板防污染）。坏 manifest invalid_package 面收缩出真机段：单测 install.spec.ts 全覆盖 + MCP 通路已由本段①③两轮证明（章法「单测能覆盖的不进电池」，2026-10-31 真机排障后收缩留痕）",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 30,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C5",
+     "ticket": 335,
+     "title": "DSH 更新已装包与卸载全链（工单335，ADR-0019 update 换入/ADR-0025 代次批准；罐头 LLM 零凭证）：update 提案旧→新 diff 与权限变化（批准 UI 数据面）→ 待批旧代次仍跑（CDP title 仍 deck-pkg:ready）→ 批准=原子换代（generation≥2 激活存证+新代次 mount）→ 同字节再提交 no_change（不重载不制造提案）→ MCP 卸载→回收站→清单消失（用户根目录消失+deactivated reason=removed+deck-pkg 上下文拆除）。执行序 C4 后 C3 前（C3 bogus 重启面板必须最后；前提=C4 安装的 dsh-hello 在册）",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 30,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C6",
+     "ticket": 336,
+     "title": "媒体信息卡与 media.read——首个敏感权限完整闭环（工单336，ADR-0025 媒体节；罐头 LLM 零凭证）：media.read 提案数据面（敏感通路不再 permission_deferred，权限栏 [media.read]，staging 纪律/用户根未动）→ 批准落持久化授权账（id+权限集合+代码哈希三元组绑定）→ 转正激活（deck-pkg://dsh-media title=deck-pkg:ready）→ 卡片明确状态面（无会话=空态文案/会话在场=会话行二选一，皆可表示）→ 真实 SMTC 夹具（隔离 profile Edge 低音量 0.04 循环 5s wav，测完 taskkill 进程树+临时 profile 删除）→ 夹具会话上卡（title=T336 Accept Track status=PLAYING，覆盖全部会话、当前会话默认选择）→ 受控缩略图链（deckHost.media.thumbnail→Broker 类型/大小校验→字节副本 dataURL 上卡）+ media-audit-aggregate 审计存证（按包聚合不含媒体元数据）→ 撤销即停（install/revoke→deactivated reason=permission-revoked+CDP 目标消失+授权账行 revokedAt 在案）。执行序 C5 后 C3 前（C3 bogus 重启面板必须最后）",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 90,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C7",
+     "ticket": 337,
+     "title": "媒体控制可选权限（工单337，ADR-0025 控制节）：双包对照——A 包（仅 media.read）批准后卡片只读（无控制按钮+授权账不含 media.control）；B 包（optionalPermissions [media.control]）以 grantPermissions 子集批准 → 控制按钮渲染 → 控制命令对 SMTC 源夹具真生效（暂停/播放状态翻转）+ 审计 control 族计数。执行序 C7 后 C3 前",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 90,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C8",
+     "ticket": 338,
+     "title": "联网组件与 origin 权限（工单338，ADR-0025 网络节；罐头 LLM 零凭证）：network.request 提案数据面（permissions [network.request] + networkOrigins [精确 origin]）→ 批准激活 → 组件经 deckHost.network.request 真取本地 HTTP 夹具数据上卡（宿主代理面）→ 未授权 origin 默认拒绝（network_permission_denied）→ 跨 origin 302 不自动跟随（network_redirect_blocked + 目标 origin 在案、目标服务零命中）→ 包页直连仍被 CSP 全拒 → 脱敏审计（origin/方法/结果计数，无路径/查询/正文）→ 撤销即断供（deactivated reason=permission-revoked + 账行 revokedAt）。本地 127.0.0.1 随机端口双服务夹具，无公网依赖；执行序 C7 后 C3 前",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 60,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C9",
+     "ticket": 339,
+     "title": "命名凭证与认证联网（工单339，ADR-0025 凭证节）：可信 UI 建档（credentials/set 写入单向，list 只出元数据、secret 明文不回传）→ 组件绑定「包+凭证+精确 origin」后经 deckHost.network.request 注入 Bearer 真取本地认证数据（/auth/data 需要 Bearer，组件只见响应不见 secret）→ 同名轮换不触发代码重批（账行 codeHash/grantedAt 不变，注入换到新一代 secret）→ 解绑即 credential_unavailable 且网络权限不被撤销（无凭证请求照常 200）→ 审计全文无 secret 明文 → 卸载只清绑定、凭证本体保留至用户显式删除。本地 127.0.0.1 认证 HTTP 夹具，无公网依赖；执行序 C8 后 C3 前",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 60,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C10",
+     "ticket": 341,
+     "title": "三参考闭环组合验收与资源预算（工单341，spec #326 收口）：零权限/媒体/认证联网三组件同时在场各自闭环（独立上下文并行无踩踏）→ 对抗矩阵（跨包隔离：零权限包调媒体/网络 API 各自 permission_denied / 旧媒体键误控 media_session_gone 且当前会话不受影响 / 无播放器回落明确空态 / 限额 network_rate_limited 与权限拒绝分域 / 审计全文无 secret 与载荷 / 崩溃不自动重挂：Page.crash 后 6s 无重激活且私有配置保留）→ 0/1/5/10 包工作集实测（diag/memory，每包边际 ≤ 128MB 预算；16 包上限的超限显式拒绝由单测覆盖）。执行序 C9 后 C3 前",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 120,
+     "areas": [
+      "sessions",
+      "plugins"
+     ]
+    },
+    {
+     "seg": "C3",
+     "ticket": 340,
+     "title": "浮动版本与失败处置（工单340，ADR-0026）：bogus 后端档重启面板——解析落空明确报错+创建失败不建行+零 DSH 进程（无握手/无 session-new 事件）+dshHome 哈希零变化；「创建全新数据目录」用户手势——新目录切换+backendInfo 指向更新+config.conversation.dshHome 持久化+旧目录哈希零变化（不继承不备份）",
+     "surfaces": [
+      "event-evidence",
+      "system-state",
+      "panel-alive"
+     ],
+     "estSeconds": 30,
+     "areas": [
+      "sessions"
+     ]
     }
-  ],
-  "requiredFileRules": [
+   ],
+   "areas": [
+    "sessions"
+   ],
+   "scope": true,
+   "lastMeasuredSeconds": 45,
+   "lastMeasuredAt": "2026-10-31"
+  },
+  {
+   "id": "375-desktop-switch",
+   "title": "桌面工作区（工单375）：真实双桌面切换最小闭环——模式组/配对/单飞确认/reconciliation/跟随与排除/新窗归属/零残留",
+   "entry": "app/accept/desktop-switch.js",
+   "flag": "--accept-desktop-switch",
+   "hintBar": true,
+   "cdpPort": 9232,
+   "kind": null,
+   "budgetSeconds": 60,
+   "lastMeasuredSeconds": 20,
+   "lastMeasuredAt": "2026-11-03",
+   "areas": [
+    "taskbar",
+    "panel.core",
+    "desktop"
+   ],
+   "segments": [
     {
-      "path": "app/src/renderer/conversation.ts",
-      "area": "sessions"
+     "seg": "P1",
+     "ticket": 375,
+     "title": "模式切换组在场：两枚互斥图标位于开始组右侧，未配对两枚均不高亮；未配对期零桌面创建",
+     "surfaces": [
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 2
     },
     {
-      "path": "app/src/main/config.ts",
-      "area": "config"
+     "seg": "P2",
+     "ticket": 375,
+     "title": "首次启用配对：普通=启用当下所在桌面（既有窗口不动）、新建 Agent 桌面首次为空、双 ID 落盘",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 3
     },
     {
-      "path": "app/src/main/desktop-cover.ts",
-      "area": "desktop"
+     "seg": "P3",
+     "ticket": 375,
+     "title": "切换往返：系统目标桌面 ID 回读匹配才提交 UI（各向 ≤1000ms 预算），模式组高亮翻转",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 3
     },
     {
-      "path": "app/src/main/hotzone.ts",
-      "area": "hotzone"
+     "seg": "P4",
+     "ticket": 375,
+     "title": "单飞连点：在途入口禁用（第二击零回执）无第二次提交，系统终态唯一（服务层 ok:false 单飞回执由离线测试钉）",
+     "surfaces": [
+      "input-injection",
+      "system-state",
+      "event-evidence"
+     ],
+     "estSeconds": 4
     },
     {
-      "path": "app/src/main/icon-carry.ts",
-      "area": "desktop"
+     "seg": "P5",
+     "ticket": 375,
+     "title": "跟随与排除：面板/条带在 Agent 桌面在场（IsOnCurrent+未 cloak）；面板进程不进合格窗口集合",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 3
     },
     {
-      "path": "app/src/main/icon-restore-watch.cjs",
-      "area": "desktop"
+     "seg": "P6",
+     "ticket": 375,
+     "title": "reconciliation：系统侧切第三桌面 → 两枚均不高亮回推、不抢回；热键切走后高亮对齐系统事实",
+     "surfaces": [
+      "input-injection",
+      "system-state"
+     ],
+     "estSeconds": 5
     },
     {
-      "path": "app/src/main/lag-sentinel.ts",
-      "area": "render"
+     "seg": "P7",
+     "ticket": 375,
+     "title": "新窗口归属：Agent 桌面启动的 notepad 归属 Agent；切回普通后 shell cloak（桌面绑定）",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 4
     },
     {
-      "path": "app/src/main/paths.ts",
-      "area": "config"
-    },
-    {
-      "path": "app/src/main/render-sentinel-sampler.ts",
-      "area": "render"
-    },
-    {
-      "path": "app/src/main/render-sentinel.ts",
-      "area": "render"
-    },
-    {
-      "path": "app/src/main/tray.ts",
-      "area": "tray"
-    },
-    {
-      "path": "app/src/main/services/clock.ts",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/main/services/desktop.ts",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/main/services/focus.ts",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/services/hardware.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/services/plugin-config.ts",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/main/services/search.ts",
-      "area": "search"
-    },
-    {
-      "path": "app/src/main/services/sessions.ts",
-      "area": "sessions"
-    },
-    {
-      "path": "app/src/main/services/settings.ts",
-      "area": "settings"
-    },
-    {
-      "path": "app/src/main/services/taskbar.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/services/usage.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/main/taskbar/app-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/blank-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/menu-host.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/rec-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/tier-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/main/taskbar/wins-menu.ts",
-      "area": "taskbar.menu"
-    },
-    {
-      "path": "app/src/renderer/pasteable-query.ts",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/placement.ts",
-      "area": "cards"
-    },
-    {
-      "path": "app/src/renderer/plugin-tiers.ts",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/renderer/plugins.ts",
-      "area": "plugins"
-    },
-    {
-      "path": "app/src/renderer/selection.ts",
-      "area": "desktop"
-    },
-    {
-      "path": "app/src/renderer/tray-pixels.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/renderer/zone-hotzone.ts",
-      "area": "hotzone"
-    },
-    {
-      "path": "app/src/shared/overflow.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/src/shared/retract.ts",
-      "area": "taskbar"
-    },
-    {
-      "path": "app/accept/manifest.json",
-      "area": "accept",
-      "wires": "*"
+     "seg": "P8",
+     "ticket": 375,
+     "title": "收尾复原：删配对 Agent 桌面零残留（注册表与基线逐项相等）、config 三态还原",
+     "surfaces": [
+      "system-state"
+     ],
+     "estSeconds": 4
     }
-  ]
+   ]
+  }
+ ],
+ "areas": {
+  "panel.core": "面板内核",
+  "desktop": "桌面域",
+  "tray": "托盘域",
+  "taskbar": "任务栏域",
+  "taskbar.menu": "任务栏弹窗菜单域",
+  "search": "搜索域",
+  "settings": "设置域",
+  "cards": "卡片域",
+  "plugins": "插件域",
+  "config": "配置域",
+  "hotzone": "交互热区域",
+  "sessions": "会话域",
+  "render": "渲染层域",
+  "accept": "验收域"
+ },
+ "wideAreas": [
+  "panel.core",
+  "render",
+  "config"
+ ],
+ "sourceRoots": [
+  "app/src",
+  "app/plugins"
+ ],
+ "pathAreas": [
+  {
+   "path": "app/src/renderer/conversation.ts",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src",
+   "area": "panel.core"
+  },
+  {
+   "path": "app/src/main",
+   "area": "panel.core"
+  },
+  {
+   "path": "app/src/main/desktop",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/focus",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/hardware",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/plugins",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/scanners",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/search",
+   "area": "search"
+  },
+  {
+   "path": "app/src/main/services",
+   "area": "panel.core"
+  },
+  {
+   "path": "app/src/main/taskbar",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/trayhost",
+   "area": "tray"
+  },
+  {
+   "path": "app/src/main/usage",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/preload",
+   "area": "panel.core"
+  },
+  {
+   "path": "app/src/renderer",
+   "area": "panel.core"
+  },
+  {
+   "path": "app/src/renderer/cards",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/cards/calendar",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/cards/clock",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/cards/context-menu",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/cards/search",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/cards/sessions",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/cards/weather",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/shared",
+   "area": "panel.core"
+  },
+  {
+   "path": "app/plugins",
+   "area": "plugins"
+  },
+  {
+   "path": "app/plugins/doc-group-cards",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/config.ts",
+   "area": "config"
+  },
+  {
+   "path": "app/src/main/desktop-cover.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/hotzone.ts",
+   "area": "hotzone"
+  },
+  {
+   "path": "app/src/main/icon-carry.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/icon-restore-watch.cjs",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/lag-sentinel.ts",
+   "area": "render"
+  },
+  {
+   "path": "app/src/main/paths.ts",
+   "area": "config"
+  },
+  {
+   "path": "app/src/main/render-sentinel-sampler.ts",
+   "area": "render"
+  },
+  {
+   "path": "app/src/main/render-sentinel.ts",
+   "area": "render"
+  },
+  {
+   "path": "app/src/main/tray.ts",
+   "area": "tray"
+  },
+  {
+   "path": "app/src/main/services/clock.ts",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/main/services/desktop.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/services/focus.ts",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/services/hardware.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/services/plugin-config.ts",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/services/search.ts",
+   "area": "search"
+  },
+  {
+   "path": "app/src/main/services/sessions.ts",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/conversation",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/media",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/network",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/credentials",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/services/settings.ts",
+   "area": "settings"
+  },
+  {
+   "path": "app/src/main/services/taskbar.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/services/usage.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/taskbar/app-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/blank-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/menu-host.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/rec-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/tier-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/wins-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/renderer/pasteable-query.ts",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/placement.ts",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/plugin-tiers.ts",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/renderer/plugins.ts",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/renderer/selection.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/renderer/taskbar",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/renderer/taskbar-menu",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/renderer/tray-pixels.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/renderer/zone-hotzone.ts",
+   "area": "hotzone"
+  },
+  {
+   "path": "app/src/shared/overflow.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/shared/retract.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/accept",
+   "area": "accept"
+  },
+  {
+   "path": "app/accept/lib",
+   "area": "accept",
+   "wires": "*"
+  },
+  {
+   "path": "app/accept/manifest.json",
+   "area": "accept",
+   "wires": "*"
+  }
+ ],
+ "requiredFileRules": [
+  {
+   "path": "app/src/renderer/conversation.ts",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/config.ts",
+   "area": "config"
+  },
+  {
+   "path": "app/src/main/desktop-cover.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/hotzone.ts",
+   "area": "hotzone"
+  },
+  {
+   "path": "app/src/main/icon-carry.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/icon-restore-watch.cjs",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/lag-sentinel.ts",
+   "area": "render"
+  },
+  {
+   "path": "app/src/main/paths.ts",
+   "area": "config"
+  },
+  {
+   "path": "app/src/main/render-sentinel-sampler.ts",
+   "area": "render"
+  },
+  {
+   "path": "app/src/main/render-sentinel.ts",
+   "area": "render"
+  },
+  {
+   "path": "app/src/main/tray.ts",
+   "area": "tray"
+  },
+  {
+   "path": "app/src/main/services/clock.ts",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/main/services/desktop.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/main/services/focus.ts",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/services/hardware.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/services/plugin-config.ts",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/main/services/search.ts",
+   "area": "search"
+  },
+  {
+   "path": "app/src/main/services/sessions.ts",
+   "area": "sessions"
+  },
+  {
+   "path": "app/src/main/services/settings.ts",
+   "area": "settings"
+  },
+  {
+   "path": "app/src/main/services/taskbar.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/services/usage.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/main/taskbar/app-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/blank-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/menu-host.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/rec-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/tier-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/main/taskbar/wins-menu.ts",
+   "area": "taskbar.menu"
+  },
+  {
+   "path": "app/src/renderer/pasteable-query.ts",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/placement.ts",
+   "area": "cards"
+  },
+  {
+   "path": "app/src/renderer/plugin-tiers.ts",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/renderer/plugins.ts",
+   "area": "plugins"
+  },
+  {
+   "path": "app/src/renderer/selection.ts",
+   "area": "desktop"
+  },
+  {
+   "path": "app/src/renderer/tray-pixels.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/renderer/zone-hotzone.ts",
+   "area": "hotzone"
+  },
+  {
+   "path": "app/src/shared/overflow.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/src/shared/retract.ts",
+   "area": "taskbar"
+  },
+  {
+   "path": "app/accept/manifest.json",
+   "area": "accept",
+   "wires": "*"
+  }
+ ]
 }

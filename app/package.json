@@ -23,7 +23,8 @@
     "accept:plan": "node scripts/select-rounds.js",
     "cleanup:local": "node scripts/cleanup-local.js",
     "dev:panel": "npm run build && electron . --panel",
-    "accept:chat": "npm run build && electron . --accept-chat"
+    "accept:chat": "npm run build && electron . --accept-chat",
+    "accept:desktop-switch": "npm run build && electron . --accept-desktop-switch"
   },
   "dependencies": {
     "cordis": "^3.18.1",

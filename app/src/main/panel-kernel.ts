@@ -10,6 +10,7 @@ import { FocusService, type FocusServiceOptions } from './services/focus'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
+import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { ConversationService, type ConversationServiceOptions } from './conversation/service'
 import { MediaService, type MediaServiceOptions } from './media/service'
@@ -39,6 +40,8 @@ export interface PanelKernelOptions {
   taskbar?: TaskbarServiceOptions
   /** 任务栏应用组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
   taskbarPollMs?: number
+  /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = config agentDesktop 段，默认关） */
+  desktopWorkspace?: DesktopWorkspaceServiceOptions
   /** 插件私有状态（工单178）：命名空间存储目录缺省 userData/plugin-config（生产装配不传即缺省落点） */
   pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
@@ -87,6 +90,18 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
         ?? ((key, button) => (ctx.panelData as { replayTrayClick?: (k: string, b: 'left' | 'right') => boolean } | undefined)
           ?.replayTrayClick?.(key, button) ?? false),
     },
+  })
+  // 桌面工作区（工单375）：实验开关隔离（默认关）。装配即自起跑；BridgeService 对它
+  // 是可选注入，未注册时投影回退禁用态（桥接层不静默失效）。
+  ctx.plugin(DesktopWorkspaceService, {
+    ...options.desktopWorkspace,
+    enabled: options.desktopWorkspace?.enabled ?? options.settings?.config?.agentDesktop?.enabled ?? false,
+    pairing: options.desktopWorkspace?.pairing ?? (() => {
+      const section = options.settings?.config?.agentDesktop
+      return section?.normalDesktopId || section?.agentDesktopId
+        ? { normalId: section.normalDesktopId, agentId: section.agentDesktopId }
+        : null
+    })(),
   })
   // 插件私有状态（工单178）：BridgeService 的 inject 列了 'pluginConfig'，本装配必须注册它——
   // 缺注册时 cordis 静默不装载 BridgeService（ctx.bridge 为 undefined），面板在

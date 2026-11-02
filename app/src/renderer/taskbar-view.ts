@@ -2,7 +2,7 @@
 // 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 import { planAppsOverflow, planTrayOverflow } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
@@ -28,6 +28,60 @@ export const TASKBAR_BUTTONS: readonly TaskbarButtonSpec[] = [
 export const TASKBAR_BUTTON_ICONS: Readonly<Record<TaskbarButtonId, string>> = {
   start: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1 1h10v10H1zM13 1h10v10H13zM1 13h10v10H1zM13 13h10v10H13z"/></svg>',
   tasks: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M1 2h22v20H1V2Zm2 2v16h18V4H3Z"/><path fill="currentColor" d="M7 4h3v16H7z"/></svg>',
+}
+
+// —— 工单375 桌面模式切换组（spec #369 决策 17，GLOSSARY「桌面模式切换组」）——
+
+/** 模式入口 id：普通桌面 / Agent 桌面（两枚互斥图标，spec 用户故事 9） */
+export type DesktopModeId = 'normal' | 'agent'
+
+/** 模式入口图标（24px 内联 SVG 居中于 36px 格，开始组同族）：普通 = 单桌面；
+ * Agent = 桌面+智能点阵（双态仅高亮差异，图形同一）。 */
+export const DESKTOP_MODE_ICONS: Readonly<Record<DesktopModeId, string>> = {
+  normal: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M2 4h20v14H2V4Zm2 2v10h16V6H4Z"/><path fill="currentColor" d="M8 20h8v2H8z"/></svg>',
+  agent: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M2 4h20v14H2V4Zm2 2v10h16V6H4Z"/><path fill="currentColor" d="M8 20h8v2H8z"/><circle cx="12" cy="11" r="2.2"/></svg>',
+}
+
+/** 模式入口可见名（title/aria-label——高亮之外的第二识别通道） */
+export const DESKTOP_MODE_TITLES: Readonly<Record<DesktopModeId, string>> = {
+  normal: '普通桌面',
+  agent: 'Agent 桌面',
+}
+
+/** 模式入口视图（工单375）：active = 配对在册且当前命中（当前桌面高亮，验收②）；
+ * disabled = 功能不在场或切换在途（在途入口禁用、连点被服务单飞忽略的双保险）。 */
+export interface DesktopModeEntry {
+  id: DesktopModeId
+  title: string
+  active: boolean
+  disabled: boolean
+}
+
+/**
+ * 工作区状态 → 模式入口两枚（纯函数）：available=false 或状态缺位 → 空清单（模式组
+ * 整组不渲染——实验开关隔离）；unmanaged（第三桌面）→ 两枚均不高亮（GLOSSARY「非
+ * 托管桌面」口径）；未配对 → 两枚均不高亮（等待首次启用配对）。
+ */
+export function desktopModeEntries(state: DesktopWorkspaceState | null): DesktopModeEntry[] {
+  if (!state || !state.available) return []
+  const ids: DesktopModeId[] = ['normal', 'agent']
+  return ids.map((id) => ({
+    id,
+    title: DESKTOP_MODE_TITLES[id],
+    active: state.paired && state.current === id,
+    disabled: state.switching || (state.paired && state.current === id),
+  }))
+}
+
+/**
+ * 模式切换分发（工单375）：mode 经桥 invoke（workspace/switch-to），单飞/确认/失败
+ * 提示裁决在内核。响应原样上抛（ok:false 也返回——在途连点是普通失败不是异常）。
+ */
+export async function dispatchWorkspaceSwitch(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  mode: DesktopModeId,
+): Promise<{ ok: boolean; state: DesktopWorkspaceState; error?: string }> {
+  return bridge.invoke('workspace/switch-to', { mode })
 }
 
 /** 右组动作格（工单55）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、点击触发原生
@@ -599,6 +653,15 @@ export function appsBandLeft(recsRight: number | null, startRight: number | null
   return recsRight ?? startRight
 }
 
+/**
+ * 应用组空带左邻右缘（工单375 模式组随迁）：左邻链 = 推荐组右缘 → 模式切换组右缘 →
+ * 开始组右缘——模式组插在开始组右侧（ADR-0028 任务栏新秩序的第一步；组合整体居中归
+ * 工单380），应用组空带的左界随之让开模式组，容量与夹取不压邻组。
+ */
+export function appsBandLeftWithMode(recsRight: number | null, modeRight: number | null, startRight: number | null): number | null {
+  return recsRight ?? modeRight ?? startRight
+}
+
 /** 空带两侧边界：左邻组整组不在场（推荐组与开始组都不渲染）时左界退到条带左缘内衬；
  * 右组自身越界左侵（异常态，26+ 托盘极端拥挤）产出零宽带——不产出负带宽，等下一拍 */
 export function appsBand(leftRight: number | null, rightLeft: number): AppsBand {
@@ -629,15 +692,18 @@ export interface GroupPillSpan {
 export function appsBandFromSpans(spans: {
   /** 开始组区间（缺位 = 该组不在场） */
   start?: GroupPillSpan
+  /** 模式切换组区间（缺位 = 该组不在场，工单375） */
+  mode?: GroupPillSpan
   /** 推荐组区间（缺位 = 该组不在场） */
   recs?: GroupPillSpan
   /** 右组区间（缺位 = 缓存缺位 ⇒ 右界不设限） */
   right?: GroupPillSpan
 }): AppsBand {
   const recsRight = spans.recs ? spans.recs.x + spans.recs.width : null
+  const modeRight = spans.mode ? spans.mode.x + spans.mode.width : null
   const startRight = spans.start ? spans.start.x + spans.start.width : null
   const rightLeft = spans.right ? spans.right.x : Number.POSITIVE_INFINITY
-  return appsBand(appsBandLeft(recsRight, startRight), rightLeft)
+  return appsBand(appsBandLeftWithMode(recsRight, modeRight, startRight), rightLeft)
 }
 
 /** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。

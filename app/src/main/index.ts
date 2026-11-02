@@ -2,12 +2,13 @@ import { app, BrowserWindow, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAgentDesktop, defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
 import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
+import { hwndOf } from './win32'
 import { startTaskbarController } from './taskbar/window'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
@@ -119,6 +120,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     autostart: defaultAutostart(),
     taskbar: defaultTaskbar(),
     conversation: defaultConversation(),
+    agentDesktop: defaultAgentDesktop(),
   }
   const { config, warnings, created } = loadConfig(CONFIG_FILE, fallback)
   for (const w of warnings) console.warn('[deck]', w)
@@ -254,6 +256,16 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     focus: { tools: config.tools },
     // 任务栏（工单49/54/55）：开关、按钮显隐与硬件摘要勾选随 config 下发，
     // set-enabled/set-button-hidden/set-metrics 经此整份回写
+    // 桌面工作区（工单375）：实验开关 + 桌面配对随 config 下发；配对落盘经同一
+    // config.json（settings 同款可变引用整份回写）。
+    desktopWorkspace: {
+      enabled: config.agentDesktop.enabled,
+      pairing: config.agentDesktop.normalDesktopId || config.agentDesktop.agentDesktopId
+        ? { normalId: config.agentDesktop.normalDesktopId, agentId: config.agentDesktop.agentDesktopId }
+        : null,
+      file: CONFIG_FILE,
+      config,
+    },
     taskbar: {
       enabled: config.taskbar.enabled,
       hiddenButtons: config.taskbar.hiddenButtons,
@@ -452,6 +464,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 任务栏插件窗口（工单49）：跟随内核 taskbar 状态建/销；禁用即窗口消失，面板本体不受影响
   const taskbarCtl = startTaskbarController({ ctx: kernel, log })
   app.on('before-quit', () => taskbarCtl.dispose())
+
+  // 桌面跟随兜底注册（工单375）：面板 + 条带窗的当前 hwnd 惰性供给——NOACTIVATE 弹窗
+  // 原生跨桌面在场（t371 实测），键盘模式 focusable 翻转退化为 desktop-bound 时由
+  // 公开 MoveWindowToDesktop 兜底迁移。窗随启停生灭，句柄每次取当前值。
+  kernel.desktopWorkspace?.registerFollowTargets(() => [
+    ...(!win.isDestroyed() ? [{ hwnd: hwndOf(win), label: 'panel' }] : []),
+    ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
+  ])
 
   // #103 缺陷① 验收触发器（accept 双门禁）：P10 需要同一 JS 任务内连发两次 setEnabled——
   // renderer 侧双桥写无论多快都跨 IPC 任务，旧窗 closed 总能先落地（2026-10-11 红轮实证）。

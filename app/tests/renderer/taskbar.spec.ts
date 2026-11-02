@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -10,7 +10,7 @@ import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 import type { TaskbarBridge, TaskbarAppViewEntry } from '../../src/renderer/taskbar-view'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
+import type { DesktopWorkspaceState, HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
@@ -1050,5 +1050,61 @@ describe('最大化收栏开关（工单239，fake bridge 驱动）', () => {
   it('开关状态随任务栏态透出：默认开（缺键的旧快照按开处理）', () => {
     expect(state().maximizeRetract).toBe(true)
     expect(state({ maximizeRetract: false }).maximizeRetract).toBe(false)
+  })
+})
+
+// —— 工单375 桌面模式切换组（spec #369 决策 17，GLOSSARY「桌面模式切换组」）——
+
+const WORKSPACE_BASE: DesktopWorkspaceState = {
+  available: true, paired: true, current: 'normal', switching: false, target: null, lastError: null,
+}
+
+describe('桌面模式切换组视图（工单375，fake bridge 驱动）', () => {
+  it('状态缺位 / available=false → 空清单（模式组整组不渲染——实验开关隔离）', () => {
+    expect(desktopModeEntries(null)).toEqual([])
+    expect(desktopModeEntries({ ...WORKSPACE_BASE, available: false })).toEqual([])
+  })
+
+  it('两枚互斥入口固定序 normal→agent；配对在册时当前桌面高亮（验收②）', () => {
+    const entries = desktopModeEntries(WORKSPACE_BASE)
+    expect(entries.map((e) => e.id)).toEqual(['normal', 'agent'])
+    expect(entries.map((e) => e.active)).toEqual([true, false])
+    expect(desktopModeEntries({ ...WORKSPACE_BASE, current: 'agent' }).map((e) => e.active)).toEqual([false, true])
+  })
+
+  it('未配对 / 第三桌面（unmanaged）→ 两枚均不高亮（GLOSSARY「非托管桌面」口径）', () => {
+    expect(desktopModeEntries({ ...WORKSPACE_BASE, paired: false, current: 'unmanaged' }).every((e) => !e.active)).toBe(true)
+    expect(desktopModeEntries({ ...WORKSPACE_BASE, current: 'unmanaged' }).every((e) => !e.active)).toBe(true)
+  })
+
+  it('切换在途 → 两枚均禁用（服务单飞的 UI 双保险）；同模式在册位禁用重入', () => {
+    expect(desktopModeEntries({ ...WORKSPACE_BASE, switching: true }).every((e) => e.disabled)).toBe(true)
+    expect(desktopModeEntries(WORKSPACE_BASE).map((e) => e.disabled)).toEqual([true, false])
+  })
+
+  it('切换分发：经 workspace/switch-to 到桥，回执原样透出（ok:false 也是普通失败）', async () => {
+    const b = fakeBridge(state())
+    const okState = { ...WORKSPACE_BASE, current: 'agent' as const }
+    ;(b.bridge.invoke as unknown as (m: string, p: unknown) => Promise<unknown>) = async (m: string, p: unknown) => {
+      b.calls.push({ method: m, payload: p })
+      return { ok: true, state: okState }
+    }
+    await expect(dispatchWorkspaceSwitch(b.bridge as never, 'agent')).resolves.toEqual({ ok: true, state: okState })
+    expect(b.calls.filter((c) => c.method === 'workspace/switch-to')).toEqual([
+      { method: 'workspace/switch-to', payload: { mode: 'agent' } },
+    ])
+  })
+})
+
+describe('应用组空带左邻链含模式组（工单375）：推荐组 → 模式组 → 开始组回退', () => {
+  it('模式组插位于开始组右侧：应用组空带左界让开模式组右缘（不压邻组）', () => {
+    // 推荐组在场 → 推荐组右缘优先；推荐组缺席 → 模式组右缘；两者缺席 → 开始组右缘
+    expect(appsBandLeftWithMode(200, 120, 60)).toBe(200)
+    expect(appsBandLeftWithMode(null, 120, 60)).toBe(120)
+    expect(appsBandLeftWithMode(null, null, 60)).toBe(60)
+    expect(appsBandLeftWithMode(null, null, null)).toBeNull()
+    // 缓存口径（收栏态）：mode 区间进 appsBandFromSpans 同一左邻链
+    const band = appsBandFromSpans({ mode: { x: 100, width: 80 }, right: { x: 1000, width: 200 } })
+    expect(band.lo).toBe(180 + GROUP_GAP)
   })
 })

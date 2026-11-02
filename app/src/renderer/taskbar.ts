@@ -16,16 +16,17 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsPillLeft, appsSlotsFor, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
-import type { AppsBand, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsPillLeft, appsSlotsFor, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import type { AppsBand, DesktopModeEntry, DesktopModeId, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
 import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
 import { initialSummonState, summonedGroups } from '../shared/retract.js'
 import type { SummonState } from '../shared/retract.js'
-import type { HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
+import type { DesktopWorkspaceState, HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
+const pillMode = document.getElementById('pill-mode') as HTMLElement
 const pillRecs = document.getElementById('pill-recs') as HTMLElement
 const pillApps = document.getElementById('pill-apps') as HTMLElement
 const rightPill = document.getElementById('right-pill') as HTMLElement
@@ -46,6 +47,9 @@ document.addEventListener('dragstart', (e) => {
 
 /** 最近一次渲染的状态：几何重排（resize）时按它重声明热区 */
 let current: TaskbarState | null = null
+/** 桌面工作区共享状态（工单375）：面板/任务栏/（后续）胶囊订阅同一份（spec 决策 5）——
+ * workspace/changed 即推 + boot 拉 workspace/get-state 对齐；null = 未拉到（模式组不渲染） */
+let desktopState: DesktopWorkspaceState | null = null
 /** 右组 1Hz 数据帧的最近值：重渲染（勾选变更）时按它立即填字，不等下一拍 */
 let latestStatus: TaskbarStatus | null = null
 /** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
@@ -138,6 +142,7 @@ function cacheSummonPills(state: TaskbarState): void {
   const m = measure()
   const pills: Array<{ group: string; x: number; width: number }> = []
   if (vm.visible) pills.push({ group: 'start', x: m.startPill.x, width: m.startPill.w })
+  if (pillMode.hidden === false) pills.push({ group: 'mode', x: m.modePill.x, width: m.modePill.w }) // 模式组（工单375）
   if (vm.recsVisible) pills.push({ group: 'recs', x: m.recPill.x, width: m.recPill.w })
   if (vm.apps.length > 0) pills.push({ group: 'apps', x: m.appsPill.x, width: m.appsPill.w })
   pills.push({ group: 'right', x: m.rightPill.x, width: m.rightPill.w })
@@ -152,6 +157,7 @@ function cacheSummonPills(state: TaskbarState): void {
 /** 组 → 栏面元素（被唤出时该元素复现；未唤出时退场） */
 const SUMMON_GROUP_ELEMENT: Record<string, HTMLElement> = {
   start: pillStart,
+  mode: pillMode,
   recs: pillRecs,
   apps: pillApps,
   right: rightPill,
@@ -161,6 +167,7 @@ const SUMMON_GROUP_ELEMENT: Record<string, HTMLElement> = {
 /** 组的可读名（唤出条 title——不靠图标猜是哪一组） */
 const SUMMON_GROUP_LABEL: Record<string, string> = {
   start: '开始组',
+  mode: '模式切换组',
   recs: '推荐组',
   apps: '应用组',
   right: '右组',
@@ -384,6 +391,8 @@ function rectOf(el: HTMLElement, id: string): Rect {
 function measure() {
   return {
     startPill: rectOf(pillStart, 'pill-start'),
+    modePill: rectOf(pillMode, 'pill-mode'),
+    modeButtons: [...pillMode.querySelectorAll<HTMLElement>('.tb-mode-btn')].map((el) => rectOf(el, el.dataset.id ?? '')),
     recPill: rectOf(pillRecs, 'pill-recs'),
     buttons: [...pillStart.querySelectorAll<HTMLElement>('.tb-btn')].map((el) => rectOf(el, el.dataset.id ?? '')),
     recommendations: [...pillRecs.querySelectorAll<HTMLElement>('.tb-rec')].map((el) => ({
@@ -422,6 +431,7 @@ function declareHotZones(state: TaskbarState): void {
   const m = measure()
   const zones = [m.rightPill, m.sliver]
   if (vm.visible) zones.unshift(m.startPill)
+  if (!pillMode.hidden) zones.unshift(m.modePill) // 模式切换组（工单375）
   if (vm.recsVisible) zones.unshift(m.recPill)
   if (vm.apps.length > 0) zones.unshift(m.appsPill)
   window.deck.host.setHotZones(zones)
@@ -439,6 +449,8 @@ function notifyGeometry(): void {
   const m = measure()
   const payload: Record<string, unknown> = {
     startPill: m.startPill,
+    modePill: m.modePill,
+    modeButtons: m.modeButtons,
     recPill: m.recPill,
     buttons: m.buttons,
     recommendations: m.recommendations,
@@ -636,6 +648,25 @@ function clampStartPillWidth(): void {
   pillStart.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
+/** 模式切换组落位（工单375）：开始组右缘+组间距（开始组整组不渲染时退条带左缘内衬）。
+ * 内容装配完同步落位——无中间帧闪烁；不渲染（工作区不可用）不落位。收栏态不落位
+ * （栏面退场、开始组量不到）——沿用收栏前的落位（唤出条镜像同一份矩形）。 */
+function positionModePill(): void {
+  if (pillMode.hidden) return
+  if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
+  const left = pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP
+  pillMode.style.left = `${Math.round(left)}px`
+}
+
+/** 模式切换组拥挤守卫（工单375，工单158 守卫语义随迁）：极端拥挤时 maxWidth 收窄到
+ * 右组左缘前整体裁剪——图标格 flex:none 永不裁切。收栏态不跑（退场邻组不参与裁剪）。 */
+function clampModePillWidth(): void {
+  if (pillMode.hidden) return
+  if (!barSurfaceOnStage()) return
+  const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - pillMode.getBoundingClientRect().left
+  pillMode.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
+}
+
 /** 推荐组落位（工单192 独立拆出）：开始组右缘+组间距（开始组整组不渲染时退条带左缘内衬
  * ——两组显隐解耦后推荐组可独自在场）。内容装配完同步落位——无中间帧闪烁；推荐组不渲染
  * （无推荐位）不落位。
@@ -645,7 +676,10 @@ function clampStartPillWidth(): void {
 function positionRecPill(): void {
   if (pillRecs.hidden) return
   if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
-  const left = pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP
+  // 左邻链 = 模式切换组右缘（工单375 插位于开始组右侧）→ 开始组右缘 → 条带左缘内衬
+  const left = pillMode.hidden
+    ? (pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP)
+    : pillMode.getBoundingClientRect().right + GROUP_GAP
   pillRecs.style.left = `${Math.round(left)}px`
 }
 
@@ -679,13 +713,15 @@ function currentAppsBand(): AppsBand {
     // 收栏态：两侧边界取收栏前缓存（退场邻组不参与裁剪；右组缺位 ⇒ 右界不设限）
     return appsBandFromSpans({
       start: cachedSpan('start'),
+      mode: cachedSpan('mode'),
       recs: cachedSpan('recs'),
       right: cachedSpan('right'),
     })
   }
   return appsBand(
-    appsBandLeft(
+    appsBandLeftWithMode(
       pillRecs.hidden ? null : pillRecs.getBoundingClientRect().right,
+      pillMode.hidden ? null : pillMode.getBoundingClientRect().right,
       pillStart.hidden ? null : pillStart.getBoundingClientRect().right,
     ),
     rightPill.getBoundingClientRect().left,
@@ -964,6 +1000,26 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
   positionAppsPill(band)
 }
 
+/** 模式切换组入口元素（工单375）：高亮 = 当前桌面、禁用 = 切换在途（服务单飞兜底的
+ *  UI 面）；点击经 workspace/switch-to（单飞/确认/失败提示裁决在内核，渲染层不判）。
+ *  点击存证双事件（taskbar-mode-action / -result）与系统动作格同族——电池按它对账。 */
+function makeModeEl(m: DesktopModeEntry): HTMLElement {
+  const el = document.createElement('div')
+  el.className = `tb-mode-btn${m.active ? ' active' : ''}${m.disabled ? ' disabled' : ''}`
+  el.dataset.id = m.id
+  el.innerHTML = DESKTOP_MODE_ICONS[m.id]
+  el.title = m.title
+  el.setAttribute('aria-label', m.title)
+  if (!m.disabled) {
+    el.addEventListener('click', () => {
+      window.deck.host.notify('taskbar-mode-action', { mode: m.id })
+      void dispatchWorkspaceSwitch(window.deck.bridge, m.id as DesktopModeId)
+        .then((r) => window.deck.host.notify('taskbar-mode-action-result', { mode: m.id, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+    })
+  }
+  return el
+}
+
 function render(state: TaskbarState): void {
   current = state
   const vm = taskbarViewModel(state)
@@ -988,6 +1044,15 @@ function render(state: TaskbarState): void {
         .then((r) => window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
     })
     pillStart.appendChild(el)
+  }
+  // 桌面模式切换组（工单375，spec #369 决策 17）：开始组右侧的两枚互斥入口——
+  // available=false 整组不渲染（实验开关隔离）；unmanaged/未配对两枚均不高亮（纯函数裁决）
+  pillMode.hidden = true
+  pillMode.textContent = ''
+  const modes = desktopModeEntries(desktopState)
+  if (modes.length) {
+    pillMode.hidden = false
+    for (const m of modes) pillMode.appendChild(makeModeEl(m))
   }
   // 推荐组 pill（工单192 独立拆出）：推荐位图标渲染迁入独立容器，推荐位非空即独立在场
   for (const rec of vm.recommendations) {
@@ -1046,6 +1111,8 @@ function render(state: TaskbarState): void {
   // 守卫收窄 → 推荐组落位（开始组右缘+组间距）+ 拥挤守卫收窄 → 应用组按空带（左邻=推荐组
   // 优先回退开始组，右邻=右组）裁容量并居中落位——依赖序自左向右，左邻矩形先于应用组成壳
   clampStartPillWidth()
+  positionModePill()
+  clampModePillWidth()
   positionRecPill()
   clampRecPillWidth()
   renderApps(vm.apps)
@@ -1200,7 +1267,7 @@ function boot(): void {
     setInterval(() => summonTick(), SUMMON_TICK_MS)
     const m = measure()
     window.deck.host.notify('taskbar-ready', {
-      enabled: state.enabled, startPill: m.startPill, recPill: m.recPill, buttons: m.buttons, recommendations: m.recommendations,
+      enabled: state.enabled, startPill: m.startPill, modePill: m.modePill, modeButtons: m.modeButtons, recPill: m.recPill, buttons: m.buttons, recommendations: m.recommendations,
       appsPill: m.appsPill, apps: m.apps, overflow: m.overflow,
       rightPill: m.rightPill, rightCells: m.rightCells, trayIcons: m.trayIcons, trayOverflow: m.trayOverflow, sliver: m.sliver,
     })
@@ -1212,6 +1279,19 @@ function boot(): void {
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
     window.deck.bridge.on('taskbar/status', (status) => applyStatus(status))
+    // 桌面工作区共享状态（工单375）：boot 对齐（get-state）+ workspace/changed 即推——
+    // 模式组显隐/高亮/禁用随共享状态重渲（面板/任务栏/胶囊同一份，spec 决策 5）。
+    // 未装配（旧内核/桥缺方法）按「不渲染模式组」静默——实验开关默认关的兼容口径。
+    void window.deck.bridge.invoke('workspace/get-state', null)
+      .then((s) => {
+        desktopState = s
+        if (current) requestRender(current)
+      })
+      .catch(() => { /* 工作区未装配：模式组不渲染 */ })
+    window.deck.bridge.on('workspace/changed', (s) => {
+      desktopState = s
+      if (current) requestRender(current)
+    })
     // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
     // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空。
     // 工单195 断点②：拖拽会话活动期跳过重建（会中止 OLE 会话），dragend 凭 dragResized 补渲。

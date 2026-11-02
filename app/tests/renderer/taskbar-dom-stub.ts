@@ -45,7 +45,8 @@ export interface StubRect {
 /** 组 pill 的桩内矩形（x/宽 与 taskbar.html 的落位口径同形；条带窗通栏 1920×48） */
 const RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
   'pill-start': { x: 8, y: 0, w: 120, h: 48 },
-  'pill-recs': { x: 136, y: 0, w: 200, h: 48 },
+  'pill-mode': { x: 136, y: 0, w: 88, h: 48 }, // 桌面模式切换组（工单375）——开始组右侧
+  'pill-recs': { x: 232, y: 0, w: 200, h: 48 },
   'pill-apps': { x: 344, y: 0, w: 300, h: 48 },
   'right-pill': { x: 1600, y: 0, w: 280, h: 48 },
   'show-desktop': { x: 1912, y: 0, w: 8, h: 48 },
@@ -53,7 +54,7 @@ const RECTS: Record<string, { x: number; y: number; w: number; h: number }> = {
 }
 
 /** 组 pill 的宿主 id（收栏态栏面退场的就是这五个——taskbar.html 的 CSS 口径） */
-const GROUP_PILL_IDS = new Set(['pill-start', 'pill-recs', 'pill-apps', 'right-pill', 'show-desktop'])
+const GROUP_PILL_IDS = new Set(['pill-start', 'pill-mode', 'pill-recs', 'pill-apps', 'right-pill', 'show-desktop'])
 
 /** 只认本仓实际用到的选择器形态：tag / .class / #id / [attr] / [attr="v"] / 组合与后代 */
 function readAttr(el: StubElement, name: string): string | undefined {
@@ -327,7 +328,7 @@ export class StubElement {
 }
 
 /** 渲染入口用到的六个宿主元素（id 与 taskbar.html 一致） */
-const HOST_IDS = ['pill-start', 'pill-recs', 'pill-apps', 'right-pill', 'show-desktop', 'summon-strips']
+const HOST_IDS = ['pill-start', 'pill-mode', 'pill-recs', 'pill-apps', 'right-pill', 'show-desktop', 'summon-strips']
 
 export interface TaskbarDomStub {
   /** 宿主元素（按 id 取） */
