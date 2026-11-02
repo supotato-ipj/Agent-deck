@@ -35,6 +35,7 @@ const user32 = koffi.load('user32.dll')
 const FindWindowExW = user32.func('uintptr_t __stdcall FindWindowExW(uintptr_t hWndParent, uintptr_t hWndChildAfter, const char16_t *lpszClass, const char16_t *lpszWindow)')
 const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, _Out_ uint32 *pid)')
 const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)')
+const IsWindow = user32.func('bool __stdcall IsWindow(uintptr_t hWnd)')
 const ShowWindow = user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)')
 
 const kernel32 = koffi.load('kernel32.dll')
@@ -42,6 +43,20 @@ const OpenProcess = kernel32.func('void * __stdcall OpenProcess(uint32 access, b
 const QueryFullProcessImageNameW = kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32 flags, char16_t *name, uint32 *size)')
 const CloseHandle = kernel32.func('bool __stdcall CloseHandle(void *h)')
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+/**
+ * 窗口句柄是否仍是活窗（IsWindow 真值：句柄未被销毁）。
+ * 工单363 S2 用它判「菜单窗已消失」：菜单收起时菜单窗句柄被销毁 ⇒ 及时恢复条带
+ * 置顶——判据是句柄销毁，与菜单是 #32768 还是自绘窗（自家 Chromium 菜单）无关。
+ */
+export function windowAlive(hwnd: number): boolean {
+  if (!hwnd) return false
+  try {
+    return Boolean(IsWindow(hwnd))
+  } catch {
+    return true // 判不出时按「仍在场」——误恢复比误留非置顶更糟
+  }
+}
 
 /** pid 所属进程的完整 exe 路径；取不到返回空串（窗口已退出/权限不足） */
 function exePathOfPid(pid: number): string {

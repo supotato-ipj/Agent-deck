@@ -77,6 +77,28 @@ describe('TrayYieldMachine（托盘让位闸门状态机）', () => {
     expect(d).toEqual({ action: 'restore', reason: 'timeout', elapsedMs: TRAY_YIELD_TIMEOUT_MS })
   })
 
+  it('自家图标菜单（目标=自家进程）收起：菜单窗消失 → 及时恢复（menu-closed），不等 10s 超时', () => {
+    // 工单363 S2：自家托盘图标的菜单是自家 Chromium 菜单窗——收起后前台可能仍留在
+    // 自家进程（对话窗等自家窗），前台变化路判不出「菜单已关」⇒ 旧口径只能等超时。
+    // 通用信号 = 菜单窗消失（效果层判出记下的前台窗已销毁）⇒ 与 #32768 计数同一语义。
+    const m = new TrayYieldMachine()
+    m.begin(OWN_PID, OTHER_PID, OWN_PID, T0) // 目标=自家托盘图标属主（=自家进程）
+    const hold1 = m.poll({ menuCount: 0, fgPid: OWN_PID, fgHwnd: 9001, now: T0 + 150 })
+    expect(hold1.action).toBe('hold') // 菜单在场：自家进程持前台
+    expect(m.menuWindowHwnd).toBe(9001) // 记下菜单窗身份（供效果层判销毁）
+    // 菜单收起：效果层判出菜单窗已销毁（前台仍留在自家进程——自家另一个窗）
+    const d = m.poll({ menuCount: 0, fgPid: OWN_PID, fgHwnd: 9002, menuHwndGone: true, now: T0 + 300 })
+    expect(d).toEqual({ action: 'restore', reason: 'menu-closed', elapsedMs: 300 })
+    expect(m.active).toBe(false)
+  })
+
+  it('第三方目标：菜单窗消失信号同样生效（#32768 菜单销毁 → menu-closed），与前台变化路不打架', () => {
+    const m = began()
+    hold(m, T0 + TRAY_YIELD_POLL_MS, 0, TARGET_PID) // 目标持前台（自绘菜单：#32768 计数恒 0）
+    const d = m.poll({ menuCount: 0, fgPid: TARGET_PID, fgHwnd: 9001, menuHwndGone: true, now: T0 + 400 })
+    expect(d).toEqual({ action: 'restore', reason: 'menu-closed', elapsedMs: 400 })
+  })
+
   it('前台无窗（0）或自家进程成前台 → 不触发前台变化路径', () => {
     const m = began()
     expect(hold(m, T0 + 1_000, 0, 0).action).toBe('hold')
