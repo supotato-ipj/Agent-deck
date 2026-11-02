@@ -18,6 +18,21 @@ export type Viewport = { width: number; height: number }
 /** 落位盒子（左上角 + 尺寸，四个数一起写进内联样式） */
 export type Box = { left: number; top: number; width: number; height: number }
 
+/**
+ * 装配结果（工单362）：文案区高度、盒子尺寸与落位。
+ * 文案区的自然高度由 DOM 实测得来（折行已经发生在那一步），本模块只出**策略**。
+ */
+export type ConfirmFit = {
+  /** 文案区实际高度（超高时被上限截断，超出部分自己滚） */
+  textH: number
+  /** 文案区高度上限 */
+  textMaxH: number
+  width: number
+  height: number
+  left: number
+  top: number
+}
+
 /** 确认层状态：开层时冻结的文件名清单（显示用）与绝对路径（真正送给 desktop/trash 的载荷） */
 export type ConfirmState = {
   open: boolean
@@ -36,7 +51,7 @@ export declare const CONFIRM_MODE_DISSOLVE: 'dissolve'
 /** 确认层的一个事件的全部副作用（按数组序执行） */
 export type ConfirmEffect =
   | { kind: 'tier'; held: boolean }
-  | { kind: 'show'; mode: string; names: readonly string[]; box: Box }
+  | { kind: 'show'; mode: string; names: readonly string[] }
   | { kind: 'hide' }
   | { kind: 'run'; op: 'trash' | 'dissolve'; paths: readonly string[]; cardId: string }
   | { kind: 'hotzones' }
@@ -59,14 +74,14 @@ export declare const CLOSED_CONFIRM: ConfirmState
 export declare function confirmTitleOf(names: readonly string[], mode?: string): string
 /** 确认钮上的字（与标题同源：dissolve 时写 DISSOLVE） */
 export declare function confirmOkLabelOf(mode?: string): string
-/** 文案行数：标题一行 + 文件名每件一行 */
-export declare function confirmLinesOf(names: readonly string[]): number
-/** 确认层盒子尺寸 */
-export declare function confirmSizeOf(names: readonly string[]): { width: number; height: number }
-/** 确认层落位：视口正中 */
-export declare function confirmBoxOf(viewport: Viewport, names: readonly string[]): Box
+/** 文案正文：标题一行 + 文件名清单（一段文字，不是行数） */
+export declare function confirmTextOf(names: readonly string[], mode?: string): string
+/** 盒子里除文案区以外的那截固定高度（上下边框 + 上下内边距 + 两枚按钮） */
+export declare function confirmChromeH(): number
+/** 装配：按视口与**实测**的文案自然高度算文案区高度、盒子尺寸与落位 */
+export declare function confirmFitOf(viewport: Viewport, textNaturalH: number): ConfirmFit
 /** 删除确认层的转移矩阵 */
-export declare function nextConfirmLayer(state: ConfirmState, event: ConfirmEvent, viewport: Viewport): ConfirmResult
+export declare function nextConfirmLayer(state: ConfirmState, event: ConfirmEvent): ConfirmResult
 
 // ---------------------------------------------------------------------------
 // 内联重命名编辑器
@@ -134,10 +149,13 @@ export declare const RENAME_CLOSED_NOTIFY: string
 export declare const CONFIRM_W: number
 export declare const CONFIRM_LINE_H: number
 export declare const CONFIRM_PAD_Y: number
+export declare const CONFIRM_PAD_X: number
+export declare const CONFIRM_BORDER: number
 export declare const CONFIRM_GAP_Y: number
 export declare const CONFIRM_BTN_H: number
+export declare const CONFIRM_MARGIN: number
 
-/** 确认层样式（几何数值从上面的常量插值，与 confirmSizeOf 同源） */
+/** 确认层样式（几何数值从上面的常量插值，与 confirmChromeH/confirmFitOf 同源） */
 export declare const CONFIRM_CSS: string
 /** 内联重命名编辑器样式（作用域根由调用方给；并入 card.js 的 CARD_CSS 一起插，不另起样式元素） */
 export declare function renameCssOf(scope: string): string

@@ -106,6 +106,8 @@
     height: 44px;
   }
   #status-line { flex: none; padding: 2px 10px 6px; font-size: 11px; color: #7d8590; }
+  /* 工单364：初始化诊断位（独立于转写，不被每次 render 覆写） */
+  #init-error { flex: none; margin: 6px 10px 0; color: #e06c75; border: 1px solid rgba(224, 108, 117, 0.5); border-radius: 8px; padding: 8px; font-size: 12px; }
   /* 工单334 待批准安装条（可信内核 UI 的真实手势面） */
   #install-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
   #grant-bar { flex: none; border-top: 1px solid rgba(245, 166, 35, 0.35); padding: 6px 10px; font-size: 12px; }
@@ -155,11 +157,14 @@
 <div id="install-bar" style="display:none"></div>
 <div id="grant-bar" style="display:none"></div>
 <div id="cred-bar" style="display:none"></div>
+<!-- 工单364：静态初始态即禁用输入与发送——页面脚本没跑起来（资产/preload 异常）时
+     也不会留下「能点却无反应」的死按钮；可见诊断见 #init-error 与下方状态行。 -->
+<div id="init-error" class="entry error-banner" style="display:none"></div>
 <div id="transcript"></div>
-<div id="status-line"></div>
+<div id="status-line">对话窗正在初始化……（初始化完成前输入与发送不可用）</div>
 <footer>
-  <textarea id="prompt-input" placeholder="向 DSH 发送消息（Enter 发送，Shift+Enter 换行）"></textarea>
-  <button id="btn-send">发送</button>
+  <textarea id="prompt-input" disabled placeholder="向 DSH 发送消息（Enter 发送，Shift+Enter 换行）"></textarea>
+  <button id="btn-send" disabled>发送</button>
 </footer>
 <script type="module" src="./conversation.js"></script>
 </body>
