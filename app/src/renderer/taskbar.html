@@ -125,6 +125,39 @@
     overflow: hidden;
   }
   #pill-start[hidden] { display: none; }
+  /* 桌面模式切换组 pill（工单375，GLOSSARY「桌面模式切换组」）：开始组右侧的独立漂浮
+   * 圆角矩形（.pill 外观同族）。横向落位归渲染层（positionModePill：开始组右缘+组间距，
+   * 开始组不渲染时退条带左缘内衬）；显隐按工作区状态（available=false 整组不渲染——
+   * 实验开关隔离）。两枚互斥入口（.tb-mode-btn）：当前桌面高亮（.active 亮底），第三
+   * 桌面两枚均不高亮；切换在途入口禁用（.disabled 降透明度）。极端拥挤让位面与
+   * #pill-start 同族（clampModePillWidth 收窄到右组左缘前整体裁剪，图标格 flex:none）。 */
+  #pill-mode {
+    position: fixed;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    box-sizing: border-box;
+    min-width: 0;
+    overflow: hidden;
+  }
+  #pill-mode[hidden] { display: none; }
+  .tb-mode-btn {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    cursor: default;
+    color: rgba(255, 255, 255, 0.82);
+  }
+  .tb-mode-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  .tb-mode-btn.active {
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+  }
+  .tb-mode-btn.disabled { opacity: 0.45; }
   /* 推荐组 pill（工单192 独立拆出）：栖开始组右侧、应用组左侧的独立漂浮圆角矩形，间隙与
    * 样式与开始组同族（.pill 外观 + GROUP_GAP 组间距）。横向落位归渲染层
    * （positionRecPill：开始组右缘+组间距，开始组不渲染时退条带左缘内衬）；显隐独立——
@@ -306,6 +339,7 @@
    * 用属性位而非 JS 显隐：整树重渲（taskbar/changed、拖拽补渲）不丢收栏态。
    * 被唤出的组带 .summon-popped 类复现（其余组保持退场）。 */
   body[data-bar-mode="maximize-retract"] #pill-start:not(.summon-popped),
+  body[data-bar-mode="maximize-retract"] #pill-mode:not(.summon-popped),
   body[data-bar-mode="maximize-retract"] #pill-recs:not(.summon-popped),
   body[data-bar-mode="maximize-retract"] #pill-apps:not(.summon-popped),
   body[data-bar-mode="maximize-retract"] #right-pill:not(.summon-popped),
@@ -316,6 +350,7 @@
    * （条带页样式表是平铺规则集，@keyframes 的嵌套块过不了工单238 的样式表守卫）；
    * 收起**瞬时**——类一撤即 display:none，无淡出/位移过渡（本片 CSS 不挂任何过渡声明）。 */
   body[data-bar-mode="maximize-retract"] #pill-start.summon-popped,
+  body[data-bar-mode="maximize-retract"] #pill-mode.summon-popped,
   body[data-bar-mode="maximize-retract"] #pill-recs.summon-popped,
   body[data-bar-mode="maximize-retract"] #pill-apps.summon-popped,
   body[data-bar-mode="maximize-retract"] #right-pill.summon-popped {
@@ -372,6 +407,7 @@
 <div id="summon-strips" role="group" aria-label="任务栏唤出条"></div>
 <div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
 <div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
+<div id="pill-mode" class="pill" role="toolbar" aria-label="任务栏桌面模式切换组"></div>
 <div id="pill-recs" class="pill" role="toolbar" aria-label="任务栏推荐组"></div>
 <div id="right-pill" class="pill" role="toolbar" aria-label="任务栏右组"></div>
 <div id="show-desktop" role="button" aria-label="显示桌面"></div>

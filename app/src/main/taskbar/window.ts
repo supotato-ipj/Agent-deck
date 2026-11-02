@@ -672,7 +672,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // bar-mode = 三态下发（工单241：栏面退场/复现——唤出条几何由渲染层自算）；
     // cursor-zone = 光标落在哪个热区（工单242：唤出条指针对账的唯一事实来源）；
     // popup-state = 自绘浮层开合（工单242：浮层在场钉住所属组）
-    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state'])
+    // workspace/changed = 桌面工作区共享状态（工单375）：模式组显隐/高亮/禁用随动
+    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state', 'workspace/changed'])
     wireHostIpc(w, s.tracker, log, {
       // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶
       pin: (v) => {

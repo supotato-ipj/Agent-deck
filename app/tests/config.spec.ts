@@ -601,3 +601,39 @@ describe('config.taskbar 托盘溢出档位（工单162）', () => {
     expect(r.warnings.some((w) => w.includes('config.taskbar.hiddenButtons'))).toBe(true)
   })
 })
+
+describe('config.agentDesktop 桌面工作区（工单375，实验开关）', () => {
+  it('缺段时默认关（spec #369 决策 29：全量端到端验收前 Agent 入口不默认开放）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.agentDesktop).toEqual({ enabled: false, normalDesktopId: '', agentDesktopId: '' })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('enabled=true 与配对身份生效（重启恢复最小闭环的落盘面）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ agentDesktop: { enabled: true, normalDesktopId: 'aa-bb', agentDesktopId: 'cc-dd' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.agentDesktop).toEqual({ enabled: true, normalDesktopId: 'aa-bb', agentDesktopId: 'cc-dd' })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('非布尔开关回退默认并告警；非法桌面 ID 形态回退空串（视为未配对）并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ agentDesktop: { enabled: 'on', normalDesktopId: 'not a guid!' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.agentDesktop.enabled).toBe(false)
+    expect(r.config.agentDesktop.normalDesktopId).toBe('')
+    expect(r.warnings.some((w) => w.includes('config.agentDesktop.enabled'))).toBe(true)
+    expect(r.warnings.some((w) => w.includes('config.agentDesktop.normalDesktopId'))).toBe(true)
+  })
+
+  it('agentDesktop 整体非对象回退默认并告警', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ agentDesktop: 'on' }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.agentDesktop).toEqual({ enabled: false, normalDesktopId: '', agentDesktopId: '' })
+    expect(r.warnings.some((w) => w.includes('config.agentDesktop'))).toBe(true)
+  })
+})

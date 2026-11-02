@@ -15,7 +15,7 @@ import { planSummonStrips, reduceSummon, SUMMON_STRIP_HIT_HEIGHT, SUMMON_STRIP_V
 import type { SummonPillRect, SummonState } from '../shared/retract.js'
 
 /** 栏分组标识（与 shared/retract 的 SummonPillRect.group 同口径：渲染层自定组名） */
-export const SUMMON_GROUPS = ['start', 'recs', 'apps', 'right', 'showdesk'] as const
+export const SUMMON_GROUPS = ['start', 'mode', 'recs', 'apps', 'right', 'showdesk'] as const // mode = 桌面模式切换组（工单375）
 export type SummonGroup = (typeof SUMMON_GROUPS)[number]
 
 /** 热区 id 前缀：条命中区与弹出 pill 命中区分开编码——对账靠它还原「指针此刻在哪」 */
@@ -206,7 +206,7 @@ export const SUMMON_RISE_DY = 8
  * 哪些组的栏面元素靠 translateY(-50%) 垂直居中——上滑动画带位移；
  * 满高竖条（显示桌面细条）无处可滑，只淡入。
  */
-export const SUMMON_SHIFTED_GROUPS: readonly string[] = ['start', 'recs', 'apps', 'right']
+export const SUMMON_SHIFTED_GROUPS: readonly string[] = ['start', 'mode', 'recs', 'apps', 'right'] // mode = 桌面模式切换组（工单375）
 
 /** 唤出动画关键帧（WAAPI 形状；索引签名与 DOM 的 Keyframe 对齐，渲染层可直接 animate） */
 export interface SummonKeyframe {
