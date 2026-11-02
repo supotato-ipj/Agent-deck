@@ -93,6 +93,8 @@ const handle = createPanelHandle({
 const CDP_PORT = cdpPortFor('49-taskbar');
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
+// 托盘溢出浮层窗标题（工单162 载体，taskbar/overflow.ts TRAY_OVERFLOW_TITLE）
+const OVERFLOW_TITLE = 'DECK-TRAY-OVERFLOW';
 const TASKBAR_HEIGHT_DIP = 48; // src/main/taskbar/window.ts TASKBAR_HEIGHT（工单238 栏高回归 48 DIP）
 const VK_ESC = 0x1b;
 
@@ -2648,55 +2650,121 @@ async function main() {
       // 开层 + 行右点（最多三轮）：浮层开出来后可能被桌面上的别的窗口抢焦而「blur」
       // 收层 ⇒ 行点击落空 ⇒ 重开重试（55 族「右键开浮层三试」同款纪律）。
       let clickO = null, grantO = null, evO = null, closedO = null, openedO = null, rowsO = [], rowO = null;
+      let targetKeyNow = ovTargetKey; // 本轮实际落点的那一行（自家图标不可达时退到名单首行）
+      let tO = 0; // 本轮落点点击的时刻（循环外要用：恢复存证按 since 取）
       for (let attempt = 0; attempt < 3 && !clickO; attempt++) {
         await converge27(morePt, strip13);
         const sinceO = Date.now();
         win32.clickPhys(morePt.x, morePt.y, 'left');
         openedO = await tape.wait('taskbar-tray-overflow-opened', undefined, { since: sinceO, timeoutMs: 4000 });
         if (!openedO) continue;
-        // 行几何：优先取 ready 存证（与 opened 同拍落地，2ms 级），缺席才按溢出页同款
-        // 算术现算（行高 30、首行上内衬 7）——两路同源，行点坐标一致。
+        // 沉降拍（55 族 openPopup 同款）：点 ⋯ 后沉降 700ms 再读存证/点行——新窗输入
+        // 路由未就绪时 ~100ms 内的落点整帧丢失。
+        await sleep(700);
+        // —— 行矩形**点击前即时重取**（55 族臂4 能过、这里过不了的差异点）——
+        // ready 存证只在名单 churn 时才重报（本机托盘 26 枚、churn 频繁 ⇒ 快照常是旧的），
+        // 拿旧 y 点行会落在**别的行**上 ⇒ 回放发给了另一个图标 ⇒ 段判「点击未生效」。
+        // 故这里进浮层页当场取该行 getBoundingClientRect（页面视口坐标）+ 元素命中节点
+        // （elementFromPoint）⇒ 落点、命中节点都是当场事实，可自证。
         const readyO = await tape.wait('taskbar-tray-overflow-ready', (e) => Array.isArray(e.rows) && e.rows.length > 0, { since: sinceO, timeoutMs: 1500 });
         rowsO = readyO && readyO.rows ? readyO.rows : tailForOv.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 7 + 30 * i, h: 30 }));
         rowO = rowsO.find((r) => r.key === ovTargetKey);
         if (!rowO) continue;
-        // 沉降拍（55 族红轮实证）：浮层 show 后 ~100ms 内落点的点击**整帧丢失**（新窗输入
-        // 路由未就绪）——开层后沉降 700ms 再点行。55 族同款 openPopup 的实跑口径。
-        await sleep(700);
-        const bO = openedO.bounds;
-        const ptRow = { x: Math.round(rectO.left + (bO.x + 140) * scaleO), y: Math.round(rectO.top + (bO.y + rowO.y + rowO.h / 2) * scaleO) };
-        const tO = Date.now();
+        const ovWin = win32.topLevelWindows().find((w) => titleOf(w) === OVERFLOW_TITLE) || null;
+        const ovRect = ovWin ? win32.rectOf(ovWin) : null;
+        // 目标行：自家图标优先（菜单出现/收起/及时恢复要真机断言）；它排在溢出名单
+        // 中后段时（实测排位 ~67、行 y ~2000px），**浮层可视区装不下**（溢出名单可达
+        // 60+ 枚 ⇒ 浮层高 ~2000px 超屏，列表滚动）⇒ 物理点击根本点不到——这才是
+        // 臂4 点不中的真因（55 族能过：它的目标行是自注册探针、名单仅 32 枚 ⇒ 浮层
+        // 整体在屏内、行落在可视区）。故：进浮层页把目标行 scrollIntoView 滚进视口，
+        // 再取**点击前即时**的矩形（ready 存证快照会过期）。滚不进视口时退到溢出名单
+        // 首行（物理可达），链断言不变。
+        let rowRect = null;
+        // 注：本电池的 cdpEval 形参是 (expression, pageTitle)——与取证工具的 (title, expression)
+        // 相反（早先按取证工具的写法调过，实测静默抛「CDP 找不到页面目标」⇒ 实时矩形恒 null）。
+        const liveRow = async (key) => {
+          try {
+            return await cdpEval(`(() => {
+              const el = document.querySelector('.ov-row[data-key=${JSON.stringify(key)}]');
+              if (!el) return { miss: 'no-element' };
+              el.scrollIntoView({ block: 'center', inline: 'nearest' });
+              const r = el.getBoundingClientRect();
+              const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+              return { x: r.x, y: r.y, w: r.width, h: r.height, iw: window.innerWidth, ih: window.innerHeight,
+                       hit: hit ? (hit.className || hit.tagName) : null,
+                       inView: r.top >= 0 && r.bottom <= window.innerHeight };
+            })()`, OVERFLOW_TITLE);
+          } catch (err) { return { miss: 'cdp:' + (err && err.message ? err.message : String(err)) }; }
+        };
+        rowRect = await liveRow(targetKeyNow);
+        if (!rowRect || !rowRect.inView) {
+          const fallbackKey = tailForOv.length ? tailForOv[0].key : null;
+          if (fallbackKey && fallbackKey !== targetKeyNow) {
+            const rb = await liveRow(fallbackKey);
+            if (rb && rb.inView) {
+              rowRect = rb;
+              targetKeyNow = fallbackKey;
+              rep.note(`P27 臂4 目标切换：原目标行不可达（${ovTargetKey} 缺失或不在视口）→ 改用溢出名单首行 ${fallbackKey}`);
+            }
+          }
+        }
+        let ptRow = null; let inside = null; let rowBox = null;
+        if (rowRect && ovRect && rowRect.w > 0) {
+          const osc = (ovRect.right - ovRect.left) / rowRect.iw; // 浮层页 CSS → 物理
+          rowBox = {
+            x0: Math.round(ovRect.left + rowRect.x * osc), x1: Math.round(ovRect.left + (rowRect.x + rowRect.w) * osc),
+            y0: Math.round(ovRect.top + rowRect.y * osc), y1: Math.round(ovRect.top + (rowRect.y + rowRect.h) * osc),
+          };
+          ptRow = { x: Math.round((rowBox.x0 + rowBox.x1) / 2), y: Math.round((rowBox.y0 + rowBox.y1) / 2) };
+          inside = ptRow.x >= rowBox.x0 && ptRow.x <= rowBox.x1 && ptRow.y >= rowBox.y0 && ptRow.y <= rowBox.y1;
+        } else {
+          // 兜底：ready/算术行矩形（55 族 rowPt 口径：标签列 +140、行中点）
+          const bO = openedO.bounds;
+          ptRow = { x: Math.round(rectO.left + (bO.x + 140) * scaleO), y: Math.round(rectO.top + (bO.y + rowO.y + rowO.h / 2) * scaleO) };
+          rowBox = { x0: null, x1: null, y0: Math.round(rectO.top + (bO.y + rowO.y) * scaleO), y1: Math.round(rectO.top + (bO.y + rowO.y + rowO.h) * scaleO) };
+          inside = null;
+        }
+        const ovVisible = ovWin ? win32.IsWindowVisible(ovWin) : false;
+        rep.note(`P27 臂4 落点自证#${attempt + 1}: 浮层窗在场=${!!ovWin} 可见=${ovVisible} 实时行矩形=${rowRect ? JSON.stringify({ x: rowRect.x, y: rowRect.y, w: rowRect.w, h: rowRect.h }) : 'null'} 命中节点=${rowRect ? rowRect.hit : 'n/a'} 行框(物理)=${JSON.stringify(rowBox)} 点击点=${JSON.stringify(ptRow)} 落在行框内=${inside}`);
+        if (!ptRow) continue;
+        tO = Date.now();
         probe164.frames.length = 0;
         win32.clickPhys(ptRow.x, ptRow.y, 'right');
-        clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === ovTargetKey && e.button === 'right', { since: tO, timeoutMs: 1500 });
+        clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === targetKeyNow && e.button === 'right', { since: tO, timeoutMs: 2000 });
         if (!clickO) {
-          // 物理行点击被浮层抢焦吞掉的替代路径（本机实测：浮层 show 后 ~100-400ms 即被
-          // 桌面别的窗口抢焦收层——reason=blur，行点击整帧丢失）。链断言（同一回放
-          // 分发/同一放行/同一消息对）不依赖落点输入方式：直接在浮层页派发行
-          // contextmenu，走的是渲染层 handler→bridge→服务→宿主的同一条链。
-          // 物理点击面的证据在 55 族 P7（行左/右键收帧）——两处互补。
-          try {
-            await cdpEval('DECK-TRAY-OVERFLOW', `(() => { const el = document.querySelector('.ov-row[data-key=${JSON.stringify(ovTargetKey)}]'); if (!el) return false; el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return true; })()`);
-          } catch { /* 浮层页不在场（窗口被收层/销毁）——下一轮重试 */ }
-          clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === ovTargetKey && e.button === 'right', { since: tO, timeoutMs: 3000 });
+          // 有界重试：真机点击偶发丢帧是常态——同一落点再点一次（两次尝试都留证）
+          win32.clickPhys(ptRow.x, ptRow.y, 'right');
+          clickO = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === targetKeyNow && e.button === 'right', { since: tO, timeoutMs: 2000 });
+          rep.note(`P27 臂4 落点重试#${attempt + 1}: 第二次同点点击后生效=${!!clickO}`);
         }
-        if (!clickO) continue;
-        grantO = await tape.wait('taskbar-tray-foreground-grant', (e) => e.key === ovTargetKey, { since: tO, timeoutMs: 3000 });
-        evO = await tape.wait('tray-replay', (e) => e.key === ovTargetKey, { since: tO, timeoutMs: 3000 });
+        if (!clickO) {
+          // 诊断用（非通过路径）：浮层页直派 contextmenu 走同一条链——用来判定「链本身
+          // 通不通」与「只是物理落点没到」，不作为臂4 的通过凭据。
+          try {
+            await cdpEval(`(() => { const el = document.querySelector('.ov-row[data-key=${JSON.stringify(targetKeyNow)}]'); if (!el) return false; el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return true; })()`, OVERFLOW_TITLE);
+          } catch { /* 浮层页不在场 */ }
+          const chainDiag = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === targetKeyNow && e.button === 'right', { since: tO, timeoutMs: 2000 });
+          rep.note(`P27 臂4 诊断#${attempt + 1}: 物理落点未生效；浮层页直派 contextmenu 后链存证=${!!chainDiag}（链${chainDiag ? '通' : '不通'}）`);
+          continue;
+        }
+        grantO = await tape.wait('taskbar-tray-foreground-grant', (e) => e.key === targetKeyNow, { since: tO, timeoutMs: 3000 });
+        evO = await tape.wait('tray-replay', (e) => e.key === targetKeyNow, { since: tO, timeoutMs: 3000 });
         closedO = await tape.wait('taskbar-tray-overflow-closed', (e) => e.reason === 'row', { since: tO, timeoutMs: 3000 });
       }
       if (!openedO || !rowO || !clickO) {
-        p27Arm(false, '臂4溢出入口', `浮层未开/无目标行/行点击未生效（opened=${!!openedO} row=${!!rowO} click=${!!clickO} target=${ovTargetKey}）`);
+        p27Arm(false, '臂4溢出入口', `浮层未开/无目标行/行点击未生效（opened=${!!openedO} row=${!!rowO} click=${!!clickO} target=${ovTargetKey}→${targetKeyNow}）`);
       } else {
         const packsO = (evO && evO.packs) || [];
         const pairO = !!(evO && evO.posted === true && packsO.length === 2
           && packsO[0].lparam === WM_RBUTTONDOWN_T && packsO[1].lparam === WM_RBUTTONUP_T
           && packsO[0].posted === true && packsO[1].posted === true);
-        p27Arm(!!clickO, '臂4溢出回放分发', clickO ? `taskbar-tray-click surface=overflow key=${ovTargetKey} button=right` : '无 overflow 面回放存证');
+        p27Arm(!!clickO, '臂4溢出回放分发', clickO ? `taskbar-tray-click surface=overflow key=${targetKeyNow} button=right` : '无 overflow 面回放存证');
         p27Arm(!!(grantO && grantO.granted === true), '臂4溢出放行', grantO ? `granted=${grantO.granted} reason=${grantO.reason}（与栏内同一放行链）` : '无放行存证');
         p27Arm(pairO, '臂4溢出消息对', pairO ? '溢出入口同一消息对（按下+抬起两条）' : `存证=${JSON.stringify(evO && { posted: evO.posted, packs: evO.packs })}`);
         p27Arm(!!closedO, '臂4溢出收层', closedO ? '浮层行点即收（reason=row）' : '无收层存证');
-        if (ovTargetIsOwn) {
+        // 菜单出现/收起/及时恢复：只在目标**就是自家图标**时断言（改用溢出名单首行时
+        // 那是第三方图标，其自带菜单与应用相关 ⇒ 不在本段断言面）。
+        if (ovTargetIsOwn && targetKeyNow === ovTargetKey) {
           const menuO = await waitOwnMenu27(6000);
           win32.tapKeys([VK_ESC]);
           await sleep(600);
