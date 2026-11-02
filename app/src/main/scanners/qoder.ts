@@ -9,7 +9,7 @@ import { ACTIVE_WINDOW, RUNNING_WINDOW, makeSession } from './types'
 import type { SessionInfo } from './types'
 
 /** 读文件末尾至多 maxBytes 字节，按行返回（去尾部残行由调用方的逐行解析天然兜底） */
-function readTail(file: string, maxBytes: number): string {
+export function readTail(file: string, maxBytes: number): string {
   const fh = fs.openSync(file, 'r')
   try {
     const size = fs.fstatSync(fh).size
