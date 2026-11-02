@@ -13,6 +13,7 @@ import path from 'node:path'
 //
 // 场景（脚本化、确定性）：
 //   fullchain   initialize → session/new → prompt（两条累计 chunk + usage_update → end_turn）
+//   prompt-error session/prompt 直接回 JSON-RPC 错误（工单364：后端回合失败的确定性驱动）
 //   slow        prompt 持续流 chunk（默认 60 × 25ms），收到 session/cancel 即收尾
 //               （收尾累计 chunk + stopReason:"cancelled"），不取消则流完 end_turn
 //   permission  prompt 触发 server→client 请求 session/request_permission（allow-once/reject-once）；
@@ -223,6 +224,12 @@ export function createFakeAcpAgentCore(scenario, io, opts = {}) {
     const finish = (stopReason) => {
       promptOpen = false
       reply(promptId, { stopReason })
+    }
+    // 工单364：回合失败（错误回执）——客户端 promise 拒绝，服务层记失败并推可见诊断
+    if (scenario === 'prompt-error') {
+      promptOpen = false
+      replyError(promptId, -32000, 'fake backend turn failed (prompt-error)')
+      return
     }
     if (scenario === 'managed') {
       void runManagedTurn(promptId, finish)
