@@ -2814,6 +2814,38 @@ describe('内核桥接契约（工单56 托盘入栏）', () => {
     }
   }, 30_000)
 
+  it('taskbar/tray-click 右键：让位起拍事件先于回放转发发出（放行与让位同轮落位）', async () => {
+    const dir = tmpDir()
+    const order: string[] = []
+    const so = settingsOpts(dir)
+    const ctx = createKernel(kernelOpts(dir, {
+      ...so,
+      taskbar: {
+        file: so.settings.file,
+        config: so.settings.config,
+        deps: {
+          sendSystemKeys: () => true,
+          // 回放转发记一笔：放行挂在起拍事件上（taskbar/window.ts 的控制器处理），
+          // 顺序若倒过来，放行就晚于回调投递——应用取前台时已被拒
+          replayTrayClick: () => { order.push('replay'); return true },
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      ctx.emit('dataplane/tray-event', trayEv() as never)
+      ctx.on('taskbar/tray-replay-begin', () => { order.push('begin') })
+      await ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'right' })
+      expect(order).toEqual(['begin', 'replay'])
+      // 左键不触发让位起拍（左键没有应用菜单要诞生，条带不必让位）
+      order.length = 0
+      await ctx.bridge.invoke('taskbar/tray-click', { key: '100:1', button: 'left' })
+      expect(order).toEqual(['replay'])
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
   it('托盘宿主缺席时点击按失败回报（数据面子进程未就绪）', async () => {
     const dir = tmpDir()
     const t = trayOpts(dir, { deps: { sendSystemKeys: () => true, replayTrayClick: () => false } })

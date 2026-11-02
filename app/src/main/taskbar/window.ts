@@ -18,6 +18,7 @@ import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import { taskbarUrl } from '../plugins/protocol'
 import { setTopmost, hwndOf } from '../win32'
 import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar } from './native'
+import { grantTrayForeground } from './foreground'
 import { getAppBarState } from './appbar'
 import { engageTakeoverAutoHide, reassertTakeoverAutoHide, restoreTakeoverAutoHide } from './appbar-autohide'
 import { probeForegroundWindow } from './yield'
@@ -175,10 +176,17 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
 
   /** 让位中再次右键（换图标）：换监视 pid 续时限（machine 语义），条带已在普通带不动 */
   const beginTrayYield = (payload: { key: string; hwnd: string | null }): void => {
-    const s = session
-    if (!s || s.win.isDestroyed()) return // 条带不在场（禁用态）：无可让位，回放照常
     const hwnd = payload.hwnd ? Number(payload.hwnd) : 0
     const pid = hwnd ? pidOfWindow(hwnd) : 0
+    // 前台放行（工单363）：应用收到托盘回调后要弹自己的菜单，必须能取前台——
+    // Windows 前台锁下只有持前台权/末次输入的过程能替它放行。放行落本进程（条带
+    // 窗属主、真实右键的末次输入接收者）：投递真源在数据面子进程，那儿无前台权、
+    // 放行恒失败（真机实证 asfw=false ⇒ 菜单不弹或不持前台、点外/Esc 收不掉）。
+    // 本事件由服务在**转发回放之前**同步发出 ⇒ 放行先于回调投递（外壳同款时序）。
+    const grant = grantTrayForeground({ hwnd, pid })
+    log?.append({ type: 'taskbar-tray-foreground-grant', key: payload.key, pid: grant.pid, granted: grant.granted, reason: grant.reason })
+    const s = session
+    if (!s || s.win.isDestroyed()) return // 条带不在场（禁用态）：无可让位，回放照常
     let fgPid = 0
     try {
       fgPid = probeForegroundWindow()?.pid ?? 0

@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { packTrayClick, WM_CONTEXTMENU, WM_LBUTTONUP, WM_RBUTTONUP } from '../src/main/trayhost/protocol'
+import { packTrayClick, WM_CONTEXTMENU, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP } from '../src/main/trayhost/protocol'
 import {
   NIM_ADD,
   NIM_DELETE,
@@ -185,54 +185,70 @@ describe('真实字节语料夹具（fixtures/trayhost/real-corpus.json，真机
 describe('packTrayClick', () => {
   const V4 = { uid: 0x1234, callbackMessage: 0x0400, version: 4 }
 
-  it('常量：WM_LBUTTONUP=0x0202（0x0203 是 WM_LBUTTONDBLCLK）、WM_RBUTTONUP=0x0205、WM_CONTEXTMENU=0x007B', () => {
+  it('常量：鼠标消息族真值（按下/抬起）＋WM_CONTEXTMENU=0x007B', () => {
+    expect(WM_LBUTTONDOWN).toBe(0x0201)
     expect(WM_LBUTTONUP).toBe(0x0202)
+    expect(WM_RBUTTONDOWN).toBe(0x0204)
     expect(WM_RBUTTONUP).toBe(0x0205)
     expect(WM_CONTEXTMENU).toBe(0x007b)
   })
 
   it('v4：wParam = MAKELPARAM(x,y)，lParam = (uID << 16) | 事件（LOWORD=事件、HIWORD=uID）', () => {
-    const pack = packTrayClick(V4, 'left', { x: 100, y: 200 })
+    const pack = packTrayClick(V4, 'left', { x: 100, y: 200 })[0]
     expect(pack.message).toBe(0x0400)
     expect(pack.wparam).toBe((200 << 16) | 100)
     expect(pack.lparam).toBe((0x1234 << 16) | 0x0202)
   })
 
   it('v4 右键：事件 = WM_CONTEXTMENU（v4 语义下外壳右键即此消息，#163 §5-4）', () => {
-    const pack = packTrayClick(V4, 'right', { x: 5, y: 6 })
+    const pack = packTrayClick(V4, 'right', { x: 5, y: 6 })[0]
     expect(pack.wparam).toBe((6 << 16) | 5)
     expect(pack.lparam).toBe((0x1234 << 16) | 0x007b)
   })
 
+  it('v4 只投一条（通知码口径：右键 WM_CONTEXTMENU、左键 WM_LBUTTONUP）', () => {
+    expect(packTrayClick(V4, 'right', { x: 5, y: 6 })).toHaveLength(1)
+    expect(packTrayClick(V4, 'left', { x: 5, y: 6 })).toHaveLength(1)
+  })
+
   it('v4：光标坐标取低 16 位（负坐标/超屏不串位）', () => {
-    const pack = packTrayClick(V4, 'left', { x: -1, y: 0 })
+    const pack = packTrayClick(V4, 'left', { x: -1, y: 0 })[0]
     expect(pack.wparam & 0xffff).toBe(0xffff)
     expect((pack.wparam >>> 16) & 0xffff).toBe(0)
   })
 
   it('v4：uid 取高 16 位（v4 图标 ID 限 16 位，MSDN）', () => {
-    const pack = packTrayClick({ ...V4, uid: 0xdeadbeef }, 'left', { x: 1, y: 2 })
+    const pack = packTrayClick({ ...V4, uid: 0xdeadbeef }, 'left', { x: 1, y: 2 })[0]
     expect((pack.lparam >>> 16) & 0xffff).toBe(0xbeef)
   })
 
-  it('v0：wParam = uID（32 位不截），lParam = 鼠标消息（左 WM_LBUTTONUP/右 WM_RBUTTONUP）', () => {
+  it('v0：wParam = uID（32 位不截），lParam = 鼠标消息**对**（按下 + 抬起，外壳口径）', () => {
     const legacy = { uid: 0x2710, callbackMessage: 0x0401, version: 0 }
-    expect(packTrayClick(legacy, 'left', { x: 9, y: 9 })).toEqual({
-      message: 0x0401, wparam: 0x2710, lparam: 0x0202,
-    })
-    expect(packTrayClick(legacy, 'right', { x: 9, y: 9 })).toEqual({
-      message: 0x0401, wparam: 0x2710, lparam: 0x0205,
-    })
+    expect(packTrayClick(legacy, 'left', { x: 9, y: 9 })).toEqual([
+      { message: 0x0401, wparam: 0x2710, lparam: 0x0201 },
+      { message: 0x0401, wparam: 0x2710, lparam: 0x0202 },
+    ])
+    expect(packTrayClick(legacy, 'right', { x: 9, y: 9 })).toEqual([
+      { message: 0x0401, wparam: 0x2710, lparam: 0x0204 },
+      { message: 0x0401, wparam: 0x2710, lparam: 0x0205 },
+    ])
+  })
+
+  it('v0：消息对的**顺序**是按下先、抬起后（外壳逐条转发鼠标消息的顺序）', () => {
+    const legacy = { uid: 7, callbackMessage: 0x401, version: 0 }
+    const lps = packTrayClick(legacy, 'right', { x: 0, y: 0 }).map((p) => p.lparam)
+    expect(lps).toEqual([0x0204, 0x0205])
   })
 
   it('v0：uID 超 16 位原样在 wParam（MSDN：标识符可 32 位长，#163 P3-B 口径）', () => {
-    const pack = packTrayClick({ uid: 0xdeadbeef, callbackMessage: 0x400, version: 0 }, 'right', { x: 0, y: 0 })
-    expect(pack.wparam).toBe(0xdeadbeef)
-    expect(pack.lparam).toBe(0x0205)
+    const packs = packTrayClick({ uid: 0xdeadbeef, callbackMessage: 0x400, version: 0 }, 'right', { x: 0, y: 0 })
+    expect(packs.every((p) => p.wparam === 0xdeadbeef)).toBe(true)
+    expect(packs.map((p) => p.lparam)).toEqual([0x0204, 0x0205])
   })
 
   it('未协商版本（0）按 v0 语义', () => {
-    expect(packTrayClick({ uid: 1, callbackMessage: 0x400, version: 0 }, 'left', { x: 0, y: 0 }).lparam).toBe(0x0202)
-    expect(packTrayClick({ uid: 1, callbackMessage: 0x400, version: 0 }, 'left', { x: 0, y: 0 }).wparam).toBe(1)
+    const packs = packTrayClick({ uid: 1, callbackMessage: 0x400, version: 0 }, 'left', { x: 0, y: 0 })
+    expect(packs.map((p) => p.lparam)).toEqual([0x0201, 0x0202])
+    expect(packs.every((p) => p.wparam === 1)).toBe(true)
   })
 })
