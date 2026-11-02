@@ -18,6 +18,19 @@
  * 工单187 真机轮再补 `getBoundingClientRect()`——见文件末尾那段「桩里的布局」。
  */
 import { CARD_PAD_X, CARD_PAD_Y, HEAD_H, cardGeometryOf, cellRectOf } from '../../plugins/doc-group-cards/geometry'
+import {
+  CONFIRM_BORDER,
+  CONFIRM_BTN_H,
+  CONFIRM_BOX_ID,
+  CONFIRM_CANCEL_ID,
+  CONFIRM_GAP_Y,
+  CONFIRM_LINE_H,
+  CONFIRM_OK_ID,
+  CONFIRM_PAD_X,
+  CONFIRM_PAD_Y,
+  CONFIRM_TEXT_ID,
+  CONFIRM_W,
+} from '../../plugins/doc-group-cards/writeops'
 export type DomEvent = {
   type: string
   target: Element
@@ -109,6 +122,18 @@ export class Element {
    */
   getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
     return rectOf(this)
+  }
+
+  /**
+   * 内容高度（可滚动内容的全文高）与可见高度（工单362：文案区超高时「只有文案区可滚动」
+   * 就是靠这两个数说的——scrollHeight > clientHeight 即文案溢出、按钮区一寸不让）。
+   */
+  get scrollHeight(): number {
+    return scrollHeightOf(this)
+  }
+
+  get clientHeight(): number {
+    return clientHeightOf(this)
   }
 
   /** 在桩里「已挂载」= 能沿 parent 链走到某个文档根 */
@@ -328,6 +353,10 @@ function px(style: Record<string, string>, key: string): number {
 }
 
 function rectOf(node: Element): { left: number; top: number; width: number; height: number } {
+  // 确认层子树**先**按它自己的排版算（工单362）：遮罩也是 class='card'，若落到下面那条
+  // 卡片分支里，确认层的矩形会被当成卡框算——那正是当年「算式与实排不一致」的藏身处。
+  const dialog = confirmDialogOf(node)
+  if (dialog) return confirmRectOf(dialog, node)
   const card = cardAncestorOf(node)
   if (!card) return { left: 0, top: 0, width: 0, height: 0 }
   const box = { left: px(card.style, 'left'), top: px(card.style, 'top') }
@@ -366,4 +395,151 @@ function cardAncestorOf(node: Element): Element | null {
 
 function gridElementOf(card: Element): Element | null {
   return card.children.find((c) => c.classList.contains('dgc-grid')) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// 桩里的布局：确认层（工单362）
+//
+// 确认层的排版真相只在 **DOM** 里：长文件名会**换行**、两枚按钮**各占一行**堆叠、文案区
+// 超高时**只有文案区**滚动。桩按这套真实排版给 getBoundingClientRect() 的数（与卡片子树那份
+// 同款理由，工单187 先例：桩不按实现的算式给数，才照得出「算式与实排不一致」）。
+//
+// **这份模型只认排版结构，不认实现的算式**：折行、按钮堆叠、限高后的可见高度，都是这里
+// 独立算的；实现若拿「每件文件名一行」去估高度（工单362 的病灶：盒子只按一枚按钮算高、
+// 文件名换行不计入），这里立刻照出第二枚按钮被裁在盒外。
+//
+// 数字全部取自 writeops.js（单一出处）：宽度 / 边框 / 内边距 / 间距 / 按钮高 / 行高——那几个数
+// 同时也是 CONFIRM_CSS 里插值用的同一批，故桩与画法不会各说一套。
+// ---------------------------------------------------------------------------
+
+/** 桩里 11px 等宽字体的近似字宽：ASCII 半角、CJK 全角 */
+const CONFIRM_ASCII_W = 6.6
+const CONFIRM_CJK_W = 11
+
+/** 一个字符的宽（像素）：CJK 视为全角，其余半角 */
+function charWidthOf(ch: string): number {
+  const cp = ch.codePointAt(0) ?? 0
+  return cp >= 0x2e80 ? CONFIRM_CJK_W : CONFIRM_ASCII_W
+}
+
+/**
+ * 文案在给定内容宽度下折成几行（white-space: pre-wrap：硬换行 + 按宽度折行）。
+ * 桩按**字符**累加宽度——中文逐字可断，英文按字断（比浏览器粗，但确定且可复现）。
+ */
+export function confirmLinesOfText(text: string, contentWidth: number): number {
+  let lines = 0
+  for (const seg of text.split('\n')) {
+    lines += 1
+    let w = 0
+    for (const ch of seg) {
+      const cw = charWidthOf(ch)
+      if (w + cw > contentWidth) {
+        lines += 1
+        w = cw
+      } else {
+        w += cw
+      }
+    }
+  }
+  return lines
+}
+
+/** 对话框的内容宽度（去掉边框与左右内边距） */
+function confirmContentWidth(dialogWidth: number): number {
+  return dialogWidth - 2 * CONFIRM_BORDER - 2 * CONFIRM_PAD_X
+}
+
+/** 确认层对话框（id 是排版的锚，class 另有一份作用域根） */
+function confirmDialogOf(node: Element): Element | null {
+  let n: Element | null = node
+  while (n) {
+    if (n.id === CONFIRM_BOX_ID) return n
+    n = n.parent
+  }
+  return null
+}
+
+/** 按 id 在一个节点的孩子里找（确认层的三个内件都是对话框的直接孩子） */
+function childById(parent: Element, id: string): Element | null {
+  return parent.children.find((c) => c.id === id) ?? null
+}
+
+/**
+ * 确认层子树的矩形：文案按宽度折行、两枚按钮各占一行堆叠、文案区被限高时可见高度=限高。
+ */
+function confirmRectOf(dialog: Element, node: Element): { left: number; top: number; width: number; height: number } {
+  const left = px(dialog.style, 'left')
+  const top = px(dialog.style, 'top')
+  const width = px(dialog.style, 'width') || CONFIRM_W
+  const height = px(dialog.style, 'height')
+  const contentWidth = confirmContentWidth(width)
+  const contentLeft = left + CONFIRM_BORDER + CONFIRM_PAD_X
+  const contentTop = top + CONFIRM_BORDER + CONFIRM_PAD_Y
+
+  const text = childById(dialog, CONFIRM_TEXT_ID)
+  const natural = text ? confirmLinesOfText(text.textContent, contentWidth) * CONFIRM_LINE_H : 0
+  const textHeight = text ? px(text.style, 'height') || natural : 0
+  const textRect = { left: contentLeft, top: contentTop, width: contentWidth, height: textHeight }
+  if (node === text) return textRect
+
+  const ok = childById(dialog, CONFIRM_OK_ID)
+  const okRect = { left: contentLeft, top: contentTop + textHeight + CONFIRM_GAP_Y, width: contentWidth, height: CONFIRM_BTN_H }
+  if (node === ok) return okRect
+
+  const cancel = childById(dialog, CONFIRM_CANCEL_ID)
+  const cancelRect = { left: contentLeft, top: okRect.top + CONFIRM_BTN_H + CONFIRM_GAP_Y, width: contentWidth, height: CONFIRM_BTN_H }
+  if (node === cancel) return cancelRect
+
+  return { left, top, width, height }
+}
+
+/** 文案区的自然高度（折行后的全文高；超高时可见高度被截断，自然高度不变） */
+function scrollHeightOf(node: Element): number {
+  const dialog = confirmDialogOf(node)
+  if (!dialog || node.id !== CONFIRM_TEXT_ID) return 0
+  const width = px(dialog.style, 'width') || CONFIRM_W
+  return confirmLinesOfText(node.textContent, confirmContentWidth(width)) * CONFIRM_LINE_H
+}
+
+/** 文案区的可见高度（被显式限高时就是那个限高） */
+function clientHeightOf(node: Element): number {
+  const dialog = confirmDialogOf(node)
+  if (!dialog || node.id !== CONFIRM_TEXT_ID) return 0
+  return px(node.style, 'height') || scrollHeightOf(node)
+}
+
+/** 确认层此刻的**最终布局**：对话框、文案区与两枚按钮的真实矩形 + 文案折行情况 */
+export type ConfirmLayout = {
+  dialog: { left: number; top: number; width: number; height: number }
+  text: { left: number; top: number; width: number; height: number }
+  ok: { left: number; top: number; width: number; height: number }
+  cancel: { left: number; top: number; width: number; height: number }
+  /** 文案折成几行（桩的换行模型） */
+  lines: number
+  /** 文案区可见高度 / 自然高度（后者 > 前者即「文案区可滚动」） */
+  clientHeight: number
+  scrollHeight: number
+}
+
+/**
+ * 取确认层此刻的最终布局（对话框不在场即 null）。
+ * @param doc 能按 id 取节点的文档门面（桩里是 documentShim）
+ */
+export function confirmLayoutOf(doc: { getElementById: (id: string) => Element | null }): ConfirmLayout | null {
+  const dialog = doc.getElementById(CONFIRM_BOX_ID)
+  if (!dialog) return null
+  const text = childById(dialog, CONFIRM_TEXT_ID)
+  const ok = childById(dialog, CONFIRM_OK_ID)
+  const cancel = childById(dialog, CONFIRM_CANCEL_ID)
+  if (!text || !ok || !cancel) return null
+  const width = px(dialog.style, 'width') || CONFIRM_W
+  return {
+    dialog: confirmRectOf(dialog, dialog),
+    text: confirmRectOf(dialog, text),
+    ok: confirmRectOf(dialog, ok),
+    cancel: confirmRectOf(dialog, cancel),
+    lines: confirmLinesOfText(text.textContent, confirmContentWidth(width)),
+    clientHeight: clientHeightOf(text),
+    scrollHeight: scrollHeightOf(text),
+  }
 }

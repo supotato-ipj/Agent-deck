@@ -36,18 +36,22 @@ import {
 import {
   CLOSED_CONFIRM,
   CLOSED_RENAME,
+  CONFIRM_BORDER,
   CONFIRM_BTN_H,
+  CONFIRM_GAP_Y,
   CONFIRM_KEYBOARD_TIER,
   CONFIRM_LINE_H,
+  CONFIRM_MARGIN,
   CONFIRM_MODE_DISSOLVE,
   CONFIRM_MODE_TRASH,
+  CONFIRM_PAD_X,
   CONFIRM_PAD_Y,
   CONFIRM_W,
   RENAME_KEYBOARD_TIER,
-  confirmBoxOf,
-  confirmLinesOf,
+  confirmChromeH,
+  confirmFitOf,
   confirmOkLabelOf,
-  confirmSizeOf,
+  confirmTextOf,
   confirmTitleOf,
   nextConfirmLayer,
   nextRenameEditor,
@@ -79,7 +83,7 @@ const runs = (effects: ReadonlyArray<{ kind: string }>): AnyRun[] =>
 
 /** 走一层：闭态 + 一个事件 → 结果 */
 function confirm(event: ConfirmEvent, state: ConfirmState = CLOSED_CONFIRM) {
-  return nextConfirmLayer(state, event, VIEWPORT)
+  return nextConfirmLayer(state, event)
 }
 
 /** 走一层：闭态 + 一个事件 → 结果 */
@@ -171,33 +175,53 @@ describe('删除确认层：取消四路一律无副作用（票面验收：取�
   })
 })
 
-describe('确认层的几何与文案（居中、算出即画出）', () => {
+describe('确认层的装配策略（工单362：尺寸与位置按 DOM 实测排版，不按理想化行数）', () => {
   it('标题单复数与内核同款措辞', () => {
     expect(confirmTitleOf([DOCX])).toBe('DELETE 1 ITEM?')
     expect(confirmTitleOf([DOCX, PDF])).toBe('DELETE 2 ITEMS?')
   })
 
-  it('行数 = 标题一行 + 文件名每件一行；空清单也按一行算（盒子不塌成 0 高）', () => {
-    expect(confirmLinesOf([DOCX])).toBe(2)
-    expect(confirmLinesOf([DOCX, PDF])).toBe(3)
-    expect(confirmLinesOf([])).toBe(2)
+  it('文案正文 = 标题 + 清单（排版的输入是一段**文字**，不是行数）', () => {
+    expect(confirmTextOf([DOCX], CONFIRM_MODE_TRASH)).toBe('DELETE 1 ITEM?\n方案.docx')
+    expect(confirmTextOf([DOCX, PDF], CONFIRM_MODE_TRASH)).toBe('DELETE 2 ITEMS?\n方案.docx\n预算.pdf')
+    expect(confirmTextOf(['卡'], CONFIRM_MODE_DISSOLVE)).toBe('DISSOLVE CARD?\n卡')
   })
 
-  it('尺寸 = 上内边距 + 行数 × 行高 + 间距 + 按钮行高 + 下内边距（与 CSS 里插的是同一批常量）', () => {
-    expect(confirmSizeOf([DOCX])).toEqual({
-      width: CONFIRM_W,
-      height: 2 * CONFIRM_PAD_Y + 2 * CONFIRM_LINE_H + 10 + CONFIRM_BTN_H,
-    })
+  it('盒子里除文案区以外的那截：上下边框 + 上下内边距 + **两枚**按钮（各带自己的间距）', () => {
+    expect(confirmChromeH()).toBe(2 * CONFIRM_BORDER + 2 * CONFIRM_PAD_Y + 2 * (CONFIRM_GAP_Y + CONFIRM_BTN_H))
   })
 
-  it('落位在视口正中，且整只盒子落在视口内（存证里报的按钮矩形与用户真点到的那一枚同源）', () => {
-    const box = confirmBoxOf(VIEWPORT, [DOCX])
-    expect(box.left).toBe(Math.round((VIEWPORT.width - box.width) / 2))
-    expect(box.top).toBe(Math.round((VIEWPORT.height - box.height) / 2))
-    expect(box.left + box.width).toBeLessThanOrEqual(VIEWPORT.width)
-    expect(box.top + box.height).toBeLessThanOrEqual(VIEWPORT.height)
-    expect(box.left).toBeGreaterThanOrEqual(0)
-    expect(box.top).toBeGreaterThanOrEqual(0)
+  it('文案不高时：盒子高 = 那截固定高 + **实测**文案高；落位在视口正中', () => {
+    const natural = 3 * CONFIRM_LINE_H
+    const fit = confirmFitOf(VIEWPORT, natural)
+    expect(fit.textH).toBe(natural)
+    expect(fit.width).toBe(CONFIRM_W)
+    expect(fit.height).toBe(confirmChromeH() + natural)
+    expect(fit.left).toBe(Math.round((VIEWPORT.width - fit.width) / 2))
+    expect(fit.top).toBe(Math.round((VIEWPORT.height - fit.height) / 2))
+  })
+
+  it('文案超高时：**只有文案区**被截断（上限 = 视口上限 − 那截固定高），按钮区一寸不让', () => {
+    const fit = confirmFitOf(VIEWPORT, 100000)
+    expect(fit.textH).toBe(VIEWPORT.height - 2 * CONFIRM_MARGIN - confirmChromeH())
+    expect(fit.height).toBe(VIEWPORT.height - 2 * CONFIRM_MARGIN)
+  })
+
+  it('无论文案多高，整只盒子都落在视口内（视口上限只压文案区）', () => {
+    for (const natural of [0, CONFIRM_LINE_H, 280, 100000]) {
+      const fit = confirmFitOf(VIEWPORT, natural)
+      expect(fit.left).toBeGreaterThanOrEqual(0)
+      expect(fit.top).toBeGreaterThanOrEqual(0)
+      expect(fit.left + fit.width).toBeLessThanOrEqual(VIEWPORT.width)
+      expect(fit.top + fit.height).toBeLessThanOrEqual(VIEWPORT.height)
+    }
+  })
+
+  it('反例锚点：从前那份算式只算了一枚按钮——盒子因此比内容矮一截（第二枚按钮被裁在盒外）', () => {
+    const naive = 2 * CONFIRM_PAD_Y + 2 * CONFIRM_LINE_H + CONFIRM_GAP_Y + CONFIRM_BTN_H
+    const fit = confirmFitOf(VIEWPORT, 2 * CONFIRM_LINE_H)
+    expect(fit.height).toBeGreaterThan(naive)
+    expect(fit.height - naive).toBe(CONFIRM_GAP_Y + CONFIRM_BTN_H + 2 * CONFIRM_BORDER)
   })
 })
 
