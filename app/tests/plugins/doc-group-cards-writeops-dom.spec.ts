@@ -27,11 +27,9 @@ import {
   CONFIRM_STYLE_ID,
   CONFIRM_TEXT_ID,
   RENAME_INPUT_CLASS,
-  confirmBoxOf,
-  confirmSizeOf,
 } from '../../plugins/doc-group-cards/writeops'
 import plugin, { STYLE_ID, type Host, type HostDesktopItem, type HostView } from '../../plugins/doc-group-cards/card'
-import { Element, EventTarget, focusLog, newDom, walk } from './doc-group-cards-dom-shim'
+import { Element, EventTarget, confirmLayoutOf, focusLog, newDom, walk } from './doc-group-cards-dom-shim'
 
 // ---------------------------------------------------------------------------
 // 宿主桩
@@ -198,15 +196,24 @@ describe('DELETE：菜单行只开层，不落盘（票面：DELETE 前弹出自
     expect([ov.style.width, ov.style.height]).toEqual([`${win.innerWidth}px`, `${win.innerHeight}px`])
   })
 
-  it('对话框摆的就是纯模块算出的那个盒子（落位与画法同源，存证里报的按钮矩形不会与真点到的那一枚分家）', () => {
+  it('对话框按 **DOM 真实排版** 摆：盒子高 = 那截固定高 + 实测文案高，两枚按钮都在盒内', () => {
     openConfirmViaMenu()
-    const box = confirmBoxOf(viewport(), ['方案.docx'])
     const dialog = byId(CONFIRM_BOX_ID)!
-    expect([dialog.style.left, dialog.style.top]).toEqual([`${box.left}px`, `${box.top}px`])
-    expect([dialog.style.width, dialog.style.height]).toEqual([`${box.width}px`, `${box.height}px`])
-    expect(box).toEqual(confirmBoxOf(viewport(), ['方案.docx']))
-    expect(box.height).toBe(confirmSizeOf(['方案.docx']).height)
-    expect(box.top + box.height).toBeLessThanOrEqual(win.innerHeight)
+    const text = byId(CONFIRM_TEXT_ID)!
+    const layout = confirmLayoutOf(dom.documentShim)!
+    // 内联几何 = 实测布局（落位与画法同源：用户点到的与存证里报的是同一个盒子）
+    expect(dialog.style.left).toBe(`${layout.dialog.left}px`)
+    expect(dialog.style.top).toBe(`${layout.dialog.top}px`)
+    expect(dialog.style.width).toBe(`${layout.dialog.width}px`)
+    expect(dialog.style.height).toBe(`${layout.dialog.height}px`)
+    // 文案区的高度是**量出来**的那截（不是「每件一行」的估计——工单362）
+    expect(text.style.height).toBe(`${layout.text.height}px`)
+    // 两枚按钮完整落在盒内（病灶：从前只算了一枚按钮，CANCEL 被裁在盒外）
+    for (const btn of [layout.ok, layout.cancel]) {
+      expect(btn.top).toBeGreaterThanOrEqual(layout.dialog.top)
+      expect(btn.top + btn.height).toBeLessThanOrEqual(layout.dialog.top + layout.dialog.height)
+    }
+    expect(layout.dialog.top + layout.dialog.height).toBeLessThanOrEqual(win.innerHeight)
   })
 
   it('文案 = 标题 + 文件名清单（标题措辞出自纯模块，不在 card.js 里另写）', () => {

@@ -102,9 +102,12 @@ import {
   CONFIRM_TEXT_CLASS,
   CONFIRM_TEXT_ID,
   CONFIRM_CSS,
+  CONFIRM_MARGIN,
+  CONFIRM_W,
   RENAME_INPUT_CLASS,
   RENAME_KEYBOARD_TIER,
-  confirmTitleOf,
+  confirmTextOf,
+  confirmFitOf,
   confirmOkLabelOf,
   nextConfirmLayer,
   nextRenameEditor,
@@ -449,6 +452,11 @@ let menuStyleNode = null
 let confirmState = CLOSED_CONFIRM
 /** 确认层开层期间的全屏遮罩与样式元素（各自按引用持有，关层即摘） */
 let confirmOverlayNode = null
+/**
+ * 确认层最后一次量到的**真实矩形**（工单362：存证与自动点击用的按钮矩形必须来自最终布局，
+ * 不是排版前的估算框）。关层即清——闭态不残留上一次的矩形。
+ */
+let confirmRects = null
 let confirmStyleNode = null
 
 /**
@@ -683,10 +691,12 @@ function onMenuKeydown(ev) {
 
 /**
  * 铺确认层：全屏遮罩 + 居中对话框 + 文案 + 确认/取消两钮 + 两个接管面（层外点击取消、Esc 取消）。
- * 对话框的落位与尺寸按 writeops.js 算出的数写内联样式（存证里报的按钮矩形与用户真点到的那一枚
- * 必须是同一个盒子，故落位与画法同源）。
+ *
+ * **尺寸与位置按 DOM 真实排版算**（工单362 = spec361 之①）：文案先落到文档里，量它**折行之后**
+ * 的自然高度，再按视口上限装配盒子——文案区是唯一可滚动的那截，两枚按钮一寸不让。存证与自动
+ * 点击用的矩形取自**最终布局**（不是排版前的估算框）。
  */
-function showConfirm(host, mode, names, box) {
+function showConfirm(host, mode, names) {
   hideConfirm() // 重开不留两层
 
   const style = document.createElement('style')
@@ -701,16 +711,12 @@ function showConfirm(host, mode, names, box) {
   const dialog = document.createElement('div')
   dialog.id = CONFIRM_BOX_ID
   dialog.className = CONFIRM_BOX_CLASS
-  dialog.style.left = `${box.left}px`
-  dialog.style.top = `${box.top}px`
-  dialog.style.width = `${box.width}px`
-  dialog.style.height = `${box.height}px`
 
   const text = document.createElement('div')
   text.id = CONFIRM_TEXT_ID
   text.className = CONFIRM_TEXT_CLASS
   // white-space: pre-wrap，故标题与文件名清单用换行拼在一处（与内核确认层同款排版）
-  text.textContent = `${confirmTitleOf(names, mode)}\n${names.join('\n')}`
+  text.textContent = confirmTextOf(names, mode)
   dialog.appendChild(text)
 
   const ok = document.createElement('div')
@@ -746,6 +752,33 @@ function showConfirm(host, mode, names, box) {
   injected.push(overlay)
   confirmOverlayNode = overlay
   window.addEventListener('keydown', onConfirmKeydown)
+
+  // 排版：先定宽（定宽才谈得上折行），再**量**文案区的自然高度——长文件名在浏览器里折成
+  // 几行，这一步量到的就是折行之后的高度（不是「每件一行」的估计）。随后按视口上限装配盒子：
+  // 上限只压文案区，两枚按钮一寸不让（spec361 决策 3）。
+  const viewport = { width: window.innerWidth, height: window.innerHeight }
+  dialog.style.width = `${CONFIRM_W}px`
+  const fit = confirmFitOf(viewport, text.getBoundingClientRect().height)
+  text.style.height = `${fit.textH}px`
+  text.style.maxHeight = `${fit.textMaxH}px`
+  dialog.style.height = `${fit.height}px`
+  dialog.style.maxHeight = `${viewport.height - 2 * CONFIRM_MARGIN}px`
+  dialog.style.left = `${fit.left}px`
+  dialog.style.top = `${fit.top}px`
+
+  // 存证与自动点击用的矩形：**最终布局**读出来的那几个数（spec361 决策 4）
+  confirmRects = {
+    box: rectOf(dialog),
+    text: rectOf(text),
+    ok: rectOf(ok),
+    cancel: rectOf(cancel),
+  }
+}
+
+/** 元素的真实矩形（存证与自动点击都取它——不是排版前的估算框） */
+function rectOf(el) {
+  const r = el.getBoundingClientRect()
+  return { left: r.left, top: r.top, width: r.width, height: r.height }
 }
 
 /** 关层：遮罩、样式、窗口监听一起收，登记项也从表里划掉 */
@@ -755,6 +788,7 @@ function hideConfirm() {
   dropInjected(confirmStyleNode)
   confirmOverlayNode = null
   confirmStyleNode = null
+  confirmRects = null
 }
 
 function onConfirmKeydown(ev) {
@@ -767,7 +801,7 @@ function onConfirmKeydown(ev) {
 /** 一个事件一次合成：状态交给 writeops.js 的归约器，效果数组按序落到宿主与 DOM 上 */
 function dispatchConfirm(host, event) {
   if (!host) return
-  const next = nextConfirmLayer(confirmState, event, { width: window.innerWidth, height: window.innerHeight })
+  const next = nextConfirmLayer(confirmState, event)
   confirmState = next.state
   for (const fx of next.effects) {
     if (fx.kind === 'tier') {
@@ -776,7 +810,7 @@ function dispatchConfirm(host, event) {
       if (fx.held) host.holdKeyboardTier(CONFIRM_KEYBOARD_TIER)
       else host.releaseKeyboardTier(CONFIRM_KEYBOARD_TIER)
     } else if (fx.kind === 'show') {
-      showConfirm(host, fx.mode, fx.names, fx.box)
+      showConfirm(host, fx.mode, fx.names)
     } else if (fx.kind === 'hide') {
       hideConfirm()
     } else if (fx.kind === 'run') {
@@ -791,7 +825,12 @@ function dispatchConfirm(host, event) {
       // 热区纪律：遮罩一铺一撤都改了矩形，两个方向都要让渲染层重扫
       host.onDomChanged()
     } else if (fx.kind === 'notify') {
-      host.notify(fx.type, fx.payload)
+      // 存证里的按钮矩形取自**最终布局**（spec361 决策 4）：排版完成后才量得到的那几个数，
+      // 归约器（纯逻辑、零 DOM）给不出，故由这里补进载荷。
+      const payload = fx.type === CONFIRM_OPENED_NOTIFY && confirmRects
+        ? { ...(fx.payload ?? {}), box: confirmRects.box, text: confirmRects.text, ok: confirmRects.ok, cancel: confirmRects.cancel }
+        : fx.payload
+      host.notify(fx.type, payload)
     }
   }
 }

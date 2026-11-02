@@ -71,11 +71,17 @@ export const RENAME_OPENED_NOTIFY = 'doc-group-cards-rename-opened'
 export const RENAME_CLOSED_NOTIFY = 'doc-group-cards-rename-closed'
 
 // ---------------------------------------------------------------------------
-// 删除确认层几何：尺寸与居中（唯一出处；card.js 只把算出的数写进 DOM）
+// 删除确认层几何：装配策略（**尺寸按真实排版，落位按视口正中**）
 //
-// 几何为什么也走纯模块：确认层的盒子是**居中**的，居中算式与画出来的盒子必须是同一个算式的
-// 产物——热区取的是 getBoundingClientRect()，JS 算的落位与 CSS 画的盒子对不上时，用户点到的
-// 按钮与存证里报的按钮矩形会分家（电池按存证矩形注入点击，点空了却以为点中了）。
+// 工单362 起，这一层不再自己**估**盒子多高：从前那份算式把「每件文件名一行」当排版事实，
+// 又只算了一枚按钮，而 CSS 渲染的是两枚按钮、文件名还会折行——盒子因此比内容矮一截，第二枚
+// 按钮被裁在盒外（票面「按钮显示不全」）。
+//
+// 现在的分工：**排版的事实由 DOM 给**（card.js 量出文案区折行后的自然高度），**策略在本模块**
+// （confirmFitOf：文案区多高、盒子多高、落在哪儿）。于是：
+//   - 换行、按钮堆叠这些真排版细节不必在这里重演一遍（重演一遍就又成第二份真相）；
+//   - 视口上限只压文案区，两枚按钮一寸不让（spec361 决策 3）；
+//   - 存证与真机点击用的按钮矩形取自**最终布局**（spec361 决策 4），不是排版前的估算框。
 // ---------------------------------------------------------------------------
 
 /** 对话框宽度（像素） */
@@ -84,10 +90,16 @@ export const CONFIRM_W = 268
 export const CONFIRM_LINE_H = 14
 /** 对话框上下内边距（像素） */
 export const CONFIRM_PAD_Y = 12
+/** 对话框左右内边距（像素） */
+export const CONFIRM_PAD_X = 14
+/** 对话框边框宽（像素；border-box 下边框也占盒高，故盒子算式必须计入） */
+export const CONFIRM_BORDER = 1
 /** 文案块与按钮行之间的间距（像素） */
 export const CONFIRM_GAP_Y = 10
 /** 按钮行高（像素） */
 export const CONFIRM_BTN_H = 26
+/** 盒子离视口边缘至少留这么多（像素）：视口上限就是它 */
+export const CONFIRM_MARGIN = 16
 
 /**
  * 确认层标题：与内核同款措辞（单数/复数），一字不差地照抄不是巧合——同一个心智模型。
@@ -106,35 +118,53 @@ export function confirmOkLabelOf(mode) {
 }
 
 /**
- * 文案行数：标题一行 + 文件名每件一行。空清单（不该发生，见下方归约器的空清单拒绝）也按一行算，
- * 免得盒子塌成一个 0 高的框。
+ * 文案正文：标题一行 + 文件名清单（**一段文字**，不是行数）。
+ *
+ * 工单362 起这一层不再拿「每件文件名一行」当排版事实：长中文名在一行里放不下时会**换行**，
+ * 换几行只有 DOM 排版知道——故排版尺寸由 confirmFitOf 按**实测**高度算，不在这里猜。
+ * @param {readonly string[]} names 开层时冻结的清单（仅用于排版与显示）
+ * @param {string} [mode]
  */
-export function confirmLinesOf(names) {
-  return 1 + Math.max(1, names.length)
+export function confirmTextOf(names, mode) {
+  return `${confirmTitleOf(names, mode)}\n${names.join('\n')}`
 }
 
 /**
- * 确认层盒子尺寸：高 = 上内边距 + 文案行数 × 行高 + 间距 + 按钮行高 + 下内边距。
- * CSS 里插的是同一批常量，JS 里算的也是同一批常量。
- * @param {readonly string[]} names 开层时冻结的文件名清单（仅用于排版与显示）
+ * 盒子里除文案区以外的那截固定高度：上下边框 + 上下内边距 + **两枚**按钮（各带自己的间距）。
+ *
+ * 工单362 的病灶之一正在这里：从前这份算式只算了一枚按钮，而 CSS 渲染的是**两枚**（确认钮与
+ * CANCEL 各占一行），盒子因此比内容矮一截，第二枚按钮被裁在盒外。
  */
-export function confirmSizeOf(names) {
-  return { width: CONFIRM_W, height: 2 * CONFIRM_PAD_Y + confirmLinesOf(names) * CONFIRM_LINE_H + CONFIRM_GAP_Y + CONFIRM_BTN_H }
+export function confirmChromeH() {
+  return 2 * CONFIRM_BORDER + 2 * CONFIRM_PAD_Y + 2 * (CONFIRM_GAP_Y + CONFIRM_BTN_H)
 }
 
 /**
- * 确认层落位：视口正中（**不**按任务栏让位——面板窗本就是主显示器全屏 bounds，
- * 内核的删除确认层同样是直接居中，用户已经习惯了它落在这个位置）。
- * @param {{ width: number, height: number }} viewport
- * @param {readonly string[]} names
+ * 装配：给定视口与**实测**的文案自然高度，算出文案区高度、盒子尺寸与落位。
+ *
+ * 尺寸与位置一律按真实排版来：文案区多高由 DOM 量出来（换行已经发生在那一步），盒子多高是
+ * 「那截固定高 + 文案区高」，视口上限只压**文案区**——两枚按钮一寸不让（spec361 决策 2/3）。
+ * @param {{ width: number, height: number }} viewport 面板窗视口
+ * @param {number} textNaturalH 文案区的自然高度（实测值，不是行数 × 行高）
  */
-export function confirmBoxOf(viewport, names) {
-  const size = confirmSizeOf(names)
+export function confirmFitOf(viewport, textNaturalH) {
+  const chrome = confirmChromeH()
+  const maxBoxH = Math.max(chrome, viewport.height - 2 * CONFIRM_MARGIN)
+  const textMaxH = Math.max(0, maxBoxH - chrome)
+  const textH = Math.min(Math.max(0, textNaturalH), textMaxH)
+  const height = chrome + textH
+  const width = CONFIRM_W
   return {
-    left: Math.max(0, Math.round((viewport.width - size.width) / 2)),
-    top: Math.max(0, Math.round((viewport.height - size.height) / 2)),
-    width: size.width,
-    height: size.height,
+    /** 文案区实际高度（超高时被上限截断，超出部分自己滚） */
+    textH,
+    /** 文案区高度上限 */
+    textMaxH,
+    width,
+    height,
+    // 落位在视口正中（**不**按任务栏让位——面板窗本就是主显示器全屏 bounds，
+    // 内核的删除确认层同样是直接居中，用户已经习惯了它落在这个位置）
+    left: Math.max(0, Math.round((viewport.width - width) / 2)),
+    top: Math.max(0, Math.round((viewport.height - height) / 2)),
   }
 }
 
@@ -150,7 +180,7 @@ export const CLOSED_CONFIRM = { open: false, mode: CONFIRM_MODE_TRASH, names: []
  *   names 仅供显示（标题与清单文案）；paths 是送 desktop/trash 的载荷；cardId 是解散的目标卡。
  *   两者都**开层时冻结**——确认层开着期间桌面变了也按冻结那份走（绝不把中途新增的件搭车送走）。
  * @typedef {{ kind: 'tier', held: boolean }
- *   | { kind: 'show', mode: string, names: readonly string[], box: { left: number, top: number, width: number, height: number } }
+ *   | { kind: 'show', mode: string, names: readonly string[] }
  *   | { kind: 'hide' }
  *   | { kind: 'run', op: 'trash' | 'dissolve', paths: readonly string[], cardId: string }
  *   | { kind: 'hotzones' }
@@ -182,10 +212,9 @@ export const CLOSED_CONFIRM = { open: false, mode: CONFIRM_MODE_TRASH, names: []
  *
  * @param {ConfirmState} state
  * @param {ConfirmEvent} event
- * @param {{ width: number, height: number }} viewport 落位要按视口算（面板窗尺寸）
  * @returns {{ state: ConfirmState, effects: ConfirmEffect[] }}
  */
-export function nextConfirmLayer(state, event, viewport) {
+export function nextConfirmLayer(state, event) {
   switch (event.type) {
     case 'open': {
       if (state.open) return { state, effects: [] }
@@ -194,17 +223,19 @@ export function nextConfirmLayer(state, event, viewport) {
       if (mode === CONFIRM_MODE_DISSOLVE ? !cardId : !event.paths.length) return { state, effects: [] }
       const names = [...event.names]
       const paths = [...event.paths]
-      const box = confirmBoxOf(viewport, names)
       return {
         state: { open: true, mode, names, paths, cardId },
         effects: [
           { kind: 'tier', held: true },
-          { kind: 'show', mode, names, box },
+          // show 只带「开什么层」：**尺寸与位置由 card.js 量真实排版后算**（工单362：
+          // 排版前估算的盒子既不含换行、也只有一枚按钮，存证与真点到的那一枚会分家）
+          { kind: 'show', mode, names },
           { kind: 'hotzones' },
           {
             kind: 'notify',
             type: CONFIRM_OPENED_NOTIFY,
-            payload: { mode, names, count: paths.length, cardId, box },
+            // 这里的载荷不含盒子：盒子是**排版之后**才有的数，由 card.js 量出来补上
+            payload: { mode, names, count: paths.length, cardId },
           },
         ],
       }
@@ -376,8 +407,8 @@ export function nextRenameEditor(state, event) {
 }
 
 /**
- * 确认层样式（几何数值全部从上面的常量插值进来，与 confirmSizeOf/confirmBoxOf 同源；
- * 对话框的 left/top/width/height 由 JS 按算式写内联样式——热区与存证矩形取的是
+ * 确认层样式（几何数值全部从上面的常量插值进来，与 confirmChromeH/confirmFitOf 同源；
+ * 对话框的 left/top/width/height 由 JS 按**实测**排版结果写内联样式——热区与存证矩形取的是
  * getBoundingClientRect()，CSS 与 JS 各写一份尺寸时用户点到的是错的）。
  *
  * 确认层的遮罩与菜单遮罩不是同一个节点：菜单先收干净才轮到确认层开，两者不会同时在场，
@@ -388,9 +419,9 @@ export const CONFIRM_CSS = `
 .${CONFIRM_BOX_CLASS} {
   position: absolute;
   box-sizing: border-box;
-  padding: ${CONFIRM_PAD_Y}px 14px;
+  padding: ${CONFIRM_PAD_Y}px ${CONFIRM_PAD_X}px;
   background: rgba(20, 20, 22, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: ${CONFIRM_BORDER}px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
   font-family: Consolas, "Courier New", monospace;
   overflow: hidden;
@@ -401,7 +432,10 @@ export const CONFIRM_CSS = `
   letter-spacing: 0.06em;
   color: #e6e6e6;
   white-space: pre-wrap;
-  overflow: hidden;
+  /* 长文件名在窄框里会折行；折行处不许把字顶出框（word-break 那层） */
+  overflow-wrap: anywhere;
+  /* 文案区是**唯一**可滚动的那截：两枚按钮不参与滚动（工单362 / spec361 决策 3） */
+  overflow-y: auto;
   user-select: none;
 }
 .${CONFIRM_OK_CLASS}, .${CONFIRM_CANCEL_CLASS} {

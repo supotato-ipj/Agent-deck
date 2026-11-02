@@ -182,8 +182,12 @@ const EXPR = {
     const ok = document.getElementById('dgc-confirm-ok');
     const cancel = document.getElementById('dgc-confirm-cancel');
     const rect = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+    const br = b.getBoundingClientRect();
+    // 工单362：对话框自己的矩形与视口一并量出来——「按钮完整可见」要对着框与视口判
     return { open: true, text: text ? (text.textContent || '').trim() : null,
-      ok: rect(ok), cancel: rect(cancel) }; })()`,
+      dialog: { x: br.left, y: br.top, w: br.width, h: br.height },
+      ok: rect(ok), cancel: rect(cancel),
+      viewport: { w: window.innerWidth, h: window.innerHeight } }; })()`,
   rename: `(() => { const i = document.querySelector('.dgc-rename-input'); if (!i) return null;
     const r = i.getBoundingClientRect();
     return { open: true, value: i.value, rect: { x: r.left, y: r.top, w: r.width, h: r.height } }; })()`,
@@ -250,7 +254,28 @@ const toPhys = (css) => ({
   x: Math.round(panelMap.left + css.x * panelMap.scale),
   y: Math.round(panelMap.top + css.y * panelMap.scale),
 });
-const centerOf = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+const centerOf = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 })
+
+/**
+ * 工单362：确认框排版裁决——两枚按钮的**最终矩形**必须完整落在对话框与视口内。
+ *
+ * 从前确认框的高度只按「每件文件名一行 + 一枚按钮」估，长中文名折行也不计入，第二枚按钮
+ * （CANCEL）被裁在框外——点它等于点遮罩（取消），看着像能按、其实按不到确认。
+ * 存证与本电池的自动点击都取 DOM 的最终矩形，故这条裁决对着那两个矩形判即可。
+ *
+ * @param cf EXPR.confirm 的探针结果（量不到就返回 null：不裁决）
+ * @returns {{ ok: boolean, text: string } | null}
+ */
+function confirmLayoutVerdict(cf) {
+  if (!cf || !cf.ok || !cf.cancel || !cf.dialog || !cf.viewport) return null
+  const EPS = 0.5
+  const inBox = (r) => r.x >= cf.dialog.x - EPS && r.y >= cf.dialog.y - EPS
+    && r.x + r.w <= cf.dialog.x + cf.dialog.w + EPS && r.y + r.h <= cf.dialog.y + cf.dialog.h + EPS
+  const inView = (r) => r.x >= -EPS && r.y >= -EPS
+    && r.x + r.w <= cf.viewport.w + EPS && r.y + r.h <= cf.viewport.h + EPS
+  const shape = `确认 ${Math.round(cf.ok.w)}x${Math.round(cf.ok.h)} @${Math.round(cf.ok.x)},${Math.round(cf.ok.y)}／取消 ${Math.round(cf.cancel.w)}x${Math.round(cf.cancel.h)} @${Math.round(cf.cancel.x)},${Math.round(cf.cancel.y)}；框 ${Math.round(cf.dialog.w)}x${Math.round(cf.dialog.h)} @${Math.round(cf.dialog.x)},${Math.round(cf.dialog.y)}`
+  return { ok: inBox(cf.ok) && inBox(cf.cancel) && inView(cf.ok) && inView(cf.cancel), text: shape }
+}
 
 const minimizedForRestore = [];
 /** 落点必须真被本面板接收：被无关顶层窗盖住就最小化它（还原清单轮末消费，battery.js 同款纪律） */
@@ -1053,6 +1078,13 @@ async function main() {
         cf && evConfirm
           ? rep.pass(`DELETE 带确认层：确认框在场（文案「${String(cf.text).slice(0, 40)}」），不确认不动磁盘`)
           : rep.fail(`DELETE 确认层异常：confirm=${!!cf} event=${!!evConfirm}（菜单开层=${!!firstMenu.menu} 第 ${firstMenu.attempt} 次）`);
+        // 工单362：两枚按钮的**最终矩形**必须完整落在对话框与视口内（存证与点击用的就是它）。
+        const cfLayout = confirmLayoutVerdict(cf)
+        if (cfLayout) {
+          cfLayout.ok
+            ? rep.pass(`确认框排版：两枚按钮的最终矩形完整落在框内与视口内（${cfLayout.text}）`)
+            : rep.fail(`确认框排版异常：按钮矩形被裁（${cfLayout.text}）`);
+        }
         if (cf && cf.cancel) {
           await clickAt(centerOf(cf.cancel));
           await sleep(600);
@@ -1288,6 +1320,13 @@ async function main() {
               await clickAt(rowPoint(gm, 'dissolve'));
               const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150);
               rep.note(`DISSOLVE 确认层：${cf ? `在场（文案「${String(cf.text).slice(0, 40)}」）` : '未开'}`);
+              // 工单362：解散这一路与删除共用同一块壳，同款排版不变量（两种用途都覆盖）
+              const disLayout = confirmLayoutVerdict(cf)
+              if (disLayout) {
+                disLayout.ok
+                  ? rep.pass(`DISSOLVE 确认框排版：两枚按钮的最终矩形完整落在框内与视口内（${disLayout.text}）`)
+                  : rep.fail(`DISSOLVE 确认框排版异常：按钮矩形被裁（${disLayout.text}）`);
+              }
               if (cf && cf.ok) await clickAt(centerOf(cf.ok));
               dissolved = await until(async () => {
                 const cards = await cdpEval(EXPR.cards);
