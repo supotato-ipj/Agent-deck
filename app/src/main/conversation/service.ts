@@ -852,6 +852,8 @@ export class ConversationService extends Service {
     if (!body.trim()) return { ok: false, error: '输入为空' }
     s.view.transcript.push({ kind: 'user', at: this.deps.now(), text: body })
     s.view.status = 'busy'
+    // 工单364：新一轮开始——上一轮的失败原因不再挂着（view.error = 用户可见原因）
+    s.view.error = null
     this.logEvent({ type: 'conversation-prompt-start', sessionId })
     this.emitChanged()
     const runtime = s.runtime
@@ -864,11 +866,15 @@ export class ConversationService extends Service {
       },
       (err) => {
         if (s.runtime === runtime) runtime.inFlight = null
+        const message = err instanceof Error ? err.message : String(err)
         if (s.view.status === 'busy') {
           s.view.status = runtime.client.isExited ? 'failed' : 'ready'
-          s.view.transcript.push({ kind: 'system', at: this.deps.now(), text: `发送失败：${err instanceof Error ? err.message : err}` })
+          // 工单364：回合失败对渲染层可见（view.error 是契约里的「用户可见原因」；
+          // 转写里也留一条 system 说明）——渲染层据此显示错误并恢复草稿
+          s.view.error = `发送失败：${message}`
+          s.view.transcript.push({ kind: 'system', at: this.deps.now(), text: `发送失败：${message}` })
         }
-        this.logEvent({ type: 'conversation-prompt-error', sessionId, message: err instanceof Error ? err.message : String(err) })
+        this.logEvent({ type: 'conversation-prompt-error', sessionId, message })
         this.emitChanged()
       },
     )
