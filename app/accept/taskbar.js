@@ -2286,7 +2286,8 @@ async function main() {
     }
     // P14 托盘点击回放负载语义（#164，回归面 = #163 取证坐实的回放全哑主因）：
     //   (前置) 重启用（P12 收在禁用态）→ 条带 + 宿主 + 名单回填
-    //   (v0-右) CDP invoke 右键 → tray-replay 存证 wparam=uID/lparam=WM_RBUTTONUP +
+    //   (v0-右) CDP invoke 右键 → tray-replay 存证 wparam=uID/lparam=鼠标消息对
+    //           (WM_RBUTTONDOWN + WM_RBUTTONUP，外壳逐条转发口径，工单363) +
     //           探针窗收帧逐字段一致 + pid=属主进程（抓 ASFW 传 hwnd 当 pid 回归）
     //   (v0-左) 真实 SendInput 点击条带探针图标（用户链路端到端：DOM handler → 桥 →
     //           宿主 → 回调到达）→ 收帧 lp=WM_LBUTTONUP(0x0202，旧实现误为 0x0203)
@@ -2319,7 +2320,7 @@ async function main() {
         encodeNotifyIconData, NIM_ADD, NIM_DELETE, NIM_SETVERSION,
         NIF_MESSAGE, NIF_ICON, NIF_TIP,
       } = require(path.join(APP_ROOT, 'dist', 'main', 'trayhost', 'protocol.js'));
-      const WM_LBUTTONUP_T = 0x0202, WM_RBUTTONUP_T = 0x0205, WM_CONTEXTMENU_T = 0x007b;
+      const WM_LBUTTONDOWN_T = 0x0201, WM_LBUTTONUP_T = 0x0202, WM_RBUTTONDOWN_T = 0x0204, WM_RBUTTONUP_T = 0x0205, WM_CONTEXTMENU_T = 0x007b;
       // v0 uid 用满 32 位（断言 wParam 不截位）；v4 uid 高 16 位故意放垃圾（0x1234 应被丢弃）
       const PROBE_UID_V0 = 0x1640001;
       const PROBE_UID_V4 = 0x12341802;
@@ -2373,12 +2374,20 @@ async function main() {
         await cdpEval(`window.deck.bridge.invoke('taskbar/tray-click', { key: ${JSON.stringify(key0)}, button: 'right' })`);
         const ev = await tape.wait('tray-replay', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
         const frame = await probe164.waitFrame((f) => f.msg === CB_V0);
+        // 工单363：pre-v4 图标的回调是**鼠标消息对**（外壳逐条转发：按下 + 抬起）——
+        // 单发抬起一条不是外壳口径（Electron 托盘只认按下族 ⇒ 右键菜单永不弹）
+        const frameDown = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_RBUTTONDOWN_T);
+        const frameUp = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_RBUTTONUP_T);
+        const packs = ev && ev.packs;
         const ok = ev && ev.posted === true && ev.version === 0
-          && ev.wparam === PROBE_UID_V0 && ev.lparam === WM_RBUTTONUP_T
+          && packs && packs.length === 2
+          && packs[0].wparam === PROBE_UID_V0 && packs[0].lparam === WM_RBUTTONDOWN_T
+          && packs[1].wparam === PROBE_UID_V0 && packs[1].lparam === WM_RBUTTONUP_T
           && ev.pid === process.pid // ASFW 属主 pid（旧实现传 hwnd——必不等）
-          && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_RBUTTONUP_T;
-        ok ? arms.push('v0-右键:存证+收帧一致(wparam=uID/lparam=0x0205/pid=属主)')
-          : armFail('v0-右键', `存证=${JSON.stringify(ev && { posted: ev.posted, wparam: ev.wparam, lparam: ev.lparam, version: ev.version, pid: ev.pid })} 收帧=${JSON.stringify(frame)}`);
+          && frameDown && frameDown.wp === PROBE_UID_V0 && frameDown.lp === WM_RBUTTONDOWN_T
+          && frameUp && frameUp.wp === PROBE_UID_V0 && frameUp.lp === WM_RBUTTONUP_T;
+        ok ? arms.push('v0-右键:存证+收帧一致(wparam=uID/鼠标消息对=0x0204+0x0205/pid=属主)')
+          : armFail('v0-右键', `存证=${JSON.stringify(ev && { posted: ev.posted, packs: ev.packs, version: ev.version, pid: ev.pid })} 收帧=${JSON.stringify([frameDown, frameUp])}`);
         rep.note(`v0 右键 asfw=${ev && ev.asfw}（前台态依赖，尽力放行不作硬断言）`);
       }
 
@@ -2398,7 +2407,7 @@ async function main() {
         const dip13 = screen.getPrimaryDisplay().bounds;
         const scale13 = (rect13.right - rect13.left) / dip13.width;
         await waitGeometrySettled(latestGeometry(null), 9000);
-        let clickEv = null, ev = null, frame = null, geoMissing = false;
+        let clickEv = null, ev = null, frame = null, frameUp = null, geoMissing = false;
         for (let attempt = 0; attempt < 2 && !clickEv; attempt++) {
           const geo = await cdpEval(`(() => {
             const el = document.querySelector('.tb-tray-icon[data-key=${JSON.stringify(key0)}]');
@@ -2416,7 +2425,8 @@ async function main() {
           clickEv = await tape.wait('taskbar-tray-click', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
           if (clickEv) {
             ev = await tape.wait('tray-replay', (e) => e.key === key0, { since: t, timeoutMs: 6000 });
-            frame = await probe164.waitFrame((f) => f.msg === CB_V0);
+            frame = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_LBUTTONDOWN_T);
+            frameUp = await probe164.waitFrame((f) => f.msg === CB_V0 && f.lp === WM_LBUTTONUP_T);
           } else {
             await waitGeometrySettled(latestGeometry(null), 9000); // 漂移重试前再等安静
           }
@@ -2426,10 +2436,14 @@ async function main() {
         if (geoMissing) {
           armFail('v0-左键', '条带页找不到探针图标 .tb-tray-icon');
         } else {
+          const packsL = ev && ev.packs;
           const ok = clickEv && ev && ev.posted === true
-            && ev.wparam === PROBE_UID_V0 && ev.lparam === WM_LBUTTONUP_T
-            && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_LBUTTONUP_T;
-          ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 lp=0x0202)')
+            && packsL && packsL.length === 2
+            && packsL[0].wparam === PROBE_UID_V0 && packsL[0].lparam === WM_LBUTTONDOWN_T
+            && packsL[1].wparam === PROBE_UID_V0 && packsL[1].lparam === WM_LBUTTONUP_T
+            && frame && frame.wp === PROBE_UID_V0 && frame.lp === WM_LBUTTONDOWN_T
+            && frameUp && frameUp.wp === PROBE_UID_V0 && frameUp.lp === WM_LBUTTONUP_T;
+          ok ? arms.push('v0-左键:真实点击端到端(存证+收帧 鼠标消息对=0x0201+0x0202)')
             : armFail('v0-左键', `点击存证=${!!clickEv} 回放存证=${JSON.stringify(ev && { wparam: ev.wparam, lparam: ev.lparam, posted: ev.posted })} 收帧=${JSON.stringify(frame)}`);
         }
         win32.tapKeys([VK_ESC]); // 万一名单漂移点到邻位第三方图标开了菜单——尽力收净不留桌面残留

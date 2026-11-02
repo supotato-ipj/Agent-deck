@@ -131,11 +131,14 @@ export class TrayHost {
       getDIBits: gdi32.func('int __stdcall GetDIBits(uint32 hdc, uint32 hbm, uint32 start, uint32 lines, void *bits, void *bi, uint32 usage)'),
       deleteObject: gdi32.func('bool __stdcall DeleteObject(uint32 h)'),
       getModuleHandle: kernel32.func('uintptr_t __stdcall GetModuleHandleW(uintptr_t name)'),
-      // 点击回放（工单56）：AllowSetForegroundWindow 放行图标所属应用弹自己的菜单
-      // （我们抢了托盘前台权，应用默认收不到 SetForegroundWindow 许可）；GetCursorPos
-      // 取光标位置供 v4 负载的 MAKELPARAM 语义。工单164 修正：ASFW 形参是属主进程 ID
-      // （DWORD）——旧实现传 hwnd 恒失败（#163 取证 asfw=false 实测），GetWindowThreadProcessId
-      // 换取 pid 再放行。
+      // 点击回放（工单56）：GetCursorPos 取光标位置供 v4 负载的 MAKELPARAM 语义；
+      // AllowSetForegroundWindow 是**尽力放行**——工单163 修正形参（属主进程 ID，
+      // DWORD；旧实现传 hwnd 恒失败）。工单363 取证坐实：本进程（数据面子进程）
+      // 既非前台也非末次输入接收者 ⇒ 这里放行恒失败（存证 asfw=false），应用的菜单
+      // 因此不持前台、点外/Esc 收不掉。权威放行改由面板主进程发起（条带窗属主、
+      // 真实右键的末次输入接收者）——见 taskbar/foreground.ts 与 taskbar/window.ts
+      // 的 taskbar/tray-replay-begin 处理器。此处保留调用：放行对同一属主的重复
+      // 授权无害，且保留了既有存证字段（asfw=false 本身即断点证据）。
       allowSetForegroundWindow: user32.func('bool __stdcall AllowSetForegroundWindow(uintptr_t dwProcessId)'),
       getWindowThreadProcessId: user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, uint32 *lpdwProcessId)'),
       getCursorPos: user32.func('bool __stdcall GetCursorPos(void *pt)'),
@@ -333,15 +336,23 @@ export class TrayHost {
       this.options.log?.({ type: 'tray-replay-fail', stage: 'GetCursorPos', key, button, lastError: this.f.getLastError() })
       return { ok: false, error }
     }
-    const pack = packTrayClick(entry, button, { x: pt.readInt32LE(0), y: pt.readInt32LE(4) })
+    const packs = packTrayClick(entry, button, { x: pt.readInt32LE(0), y: pt.readInt32LE(4) })
     // 前台权放行（工单164 修正）：ASFW 形参是属主进程 ID——GetWindowThreadProcessId 换取
     // pid 再放行（旧实现传 hwnd 当 pid，恒 false）；结果随存证留档供验收判读
     const pidBuf = Buffer.alloc(4)
     this.f.getWindowThreadProcessId(entry.hwnd, pidBuf)
     const ownerPid = pidBuf.readUInt32LE(0)
     const asfw = Boolean(this.f.allowSetForegroundWindow(ownerPid))
-    const posted = Boolean(this.f.postMessage(entry.hwnd, pack.message, pack.wparam, pack.lparam))
-    this.options.log?.({ type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version, pid: ownerPid, asfw, ...pack, posted })
+    // 外壳口径的消息序列逐条投递（工单363：pre-v4 图标收**鼠标消息对**——按下与抬起
+    // 各一条；同一目标线程的 PostMessage 保序 ⇒ 应用收到的顺序与外壳一致）
+    const sent = packs.map((pack) => {
+      const posted = Boolean(this.f.postMessage(entry.hwnd, pack.message, pack.wparam, pack.lparam))
+      return { ...pack, posted }
+    })
+    const posted = sent.every((s) => s.posted)
+    // 存证：packs = 完整投递序列（逐条投递结果）；message/wparam/lparam = 首条
+    // （pre-v4 即「按下」那条）
+    this.options.log?.({ type: 'tray-replay', key, button, hwnd: entry.hwnd, uid: entry.uid, version: entry.version, pid: ownerPid, asfw, packs: sent, posted, message: sent[0]?.message, wparam: sent[0]?.wparam, lparam: sent[0]?.lparam })
     return posted ? { ok: true } : { ok: false, error: '回调投递被系统拒收' }
   }
 
