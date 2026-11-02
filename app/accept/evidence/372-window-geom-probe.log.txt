@@ -1,0 +1,90 @@
+工单372 真机探针（t372-window-geom-probe.js）——外部窗口几何写入与首次操作取消验证
+运行时刻：2026-11-02T20:48:38.038Z
+退出码：0（断言全过）
+
+控制器 DPI 口径：Per-Monitor V2 生效（本报告全部坐标为物理 px）
+系统 DPI=96（scale=1.00x）
+S1 基线：tasklist 计数 notepad=1 msedge=34 electron=0；原生任务栏 appbarState=1 visible=true
+S1 本机预存的 notepad/msedge 可见窗已快照，探针只认启动后新出现的窗，绝不触碰用户既有窗口
+S2 helper-win32 就绪：pid=44068 dpi=96 ctx=PER_MONITOR_AWARE_V2 windows={"plain":"520132","fixed":"4081c","reject":"509f4","popup":"70064"}
+S2 helper-electron 就绪：pid=11296 hwnd=70a1e bounds(DIP)={"x":960,"y":200,"width":800,"height":600} screenScale=1
+S2 notepad 拉起：hwnd=4f11a8 pid=33684（单实例复用既有 notepad 进程——清理只对该窗 WM_CLOSE，不 taskkill 用户进程）
+S2 msedge 拉起：hwnd=8c10aa pid=46676（独立临时 profile）
+S2 事件 hook 已安装：EVENT_OBJECT_LOCATIONCHANGE(0x800B) out-of-context，监听 7 窗
+PASS S2 核心代表窗就位（win32 对照 + Electron/Chromium + 真实第三方 Win32） —— win32-plain, win32-fixed, win32-reject, win32-popup, electron, notepad, msedge
+—— S3 跨进程读几何与 DPI 口径 ——
+  win32-plain: hwnd=520132 rect(物理)=[30,60,670,540] dwmFrameBounds=[37,60,663,533] dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 → OK
+  win32-fixed: hwnd=4081c rect(物理)=[700,60,1220,460] dwmFrameBounds=[707,60,1213,453] dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 → OK
+  win32-reject: hwnd=509f4 rect(物理)=[30,560,590,980] dwmFrameBounds=[37,560,583,973] dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 → OK
+  win32-popup: hwnd=70064 rect(物理)=[700,560,1180,920] dwmFrameBounds=[700,560,1180,920] dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 → OK
+  electron: hwnd=70a1e rect(物理)=[960,200,1760,800] dwmFrameBounds=[967,200,1753,793] dpi=96(1.00x) ctx=PER_MONITOR_AWARE → OK
+  notepad: hwnd=4f11a8 rect(物理)=[338,338,1738,1238] dwmFrameBounds=[343,338,1733,1233] dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 → OK
+  msedge: hwnd=8c10aa rect(物理)=[10,10,770,530] dwmFrameBounds=[17,10,763,523] dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 → OK
+PASS S3 全部代表窗跨进程读几何成功（GetWindowRect + DWM 扩展框 + GetDpiForWindow + awareness context） —— 7 窗
+—— S4 跨进程写几何（SetWindowPos 移动 + 缩放，物理 px） ——
+  win32-plain: move→[150,150,790,630](生效) resize→[150,150,930,730](生效)
+  win32-fixed: 跳过（S7 降级行）
+  win32-reject: 跳过（S7 降级行）
+  win32-popup: move→[820,650,1300,1010](生效) resize→[820,650,1440,1110](生效)
+  electron: move→[1080,290,1880,890](生效) resize→[1080,290,2020,990](生效)
+  notepad: move→[458,428,1858,1328](生效) resize→[458,428,1998,1428](生效)
+  msedge: move→[130,100,890,620](生效) resize→[130,100,1030,720](生效)
+PASS S4 可写代表窗（notepad/electron/msedge/plain/popup）移动+缩放 SetWindowPos 全部生效 —— 全部生效
+—— S5 首次几何操作：复原 → 确认等待（零写零漂移）→ 确认后重新发起 ——
+S5A 第一次拖动：ok=true orig=[150,150,930,730] after=[240,220,1020,800] 事件=10 external=10
+PASS S5A 首次拖动实际改变几何（SendInput 真拖，事件流同步可见） —— dx=90,dy=70,events=10
+PASS S5A 首次操作立即复原（矩形与原位等值，容差 1px） —— 复原后=[150,150,930,730] 原=[150,150,930,730]
+PASS S5A 确认等待期：无几何漂移、无外部事件、无新增写窗（确认框语义） —— drift=false external=10→10 写窗+=0
+PASS S5A 确认后重新发起的操作生效（第二次拖动位移 ≥40px） —— after=[220,205,1000,785]
+PASS S5B electron 首次最大化实际生效（WM_SYSCOMMAND 跨进程路径） —— post=1 zoomed=1 rect=[-8,-8,2568,1448]
+PASS S5B electron 最大化立即复原（矩形与原位等值） —— [1080,290,2020,990]
+PASS S5B electron 确认等待期几何保持原状 —— [1080,290,2020,990]
+PASS S5B electron 确认后重新发起的最大化生效
+PASS S5B notepad 首次最大化实际生效（WM_SYSCOMMAND 跨进程路径） —— post=1 zoomed=1 rect=[-8,-8,2568,1448]
+PASS S5B notepad 最大化立即复原（矩形与原位等值） —— [458,428,1998,1428]
+PASS S5B notepad 确认等待期几何保持原状 —— [458,428,1998,1428]
+PASS S5B notepad 确认后重新发起的最大化生效
+—— S6 自身写窗回声抑制 + 外部改窗识别与 reconciliation ——
+PASS S6a 自身写窗事件全部归类为回声（pending 期望矩形命中，不误判为外部操作） —— 事件=1 echo=1 external=0 writes=1
+PASS S6a 回声抑制后不再触发写窗（无改窗循环）：单次写 + 几何落位 —— writes=1 rect=[350,300,870,680]
+PASS S6a 静置 800ms 后仍稳定（回声窗口过期后无新事件、无再写） —— rect=[350,300,870,680] writes=1
+PASS S6b 外部改窗被识别（伴生进程自改 → external，不与回声混淆） —— self.ok=true rect=[410,345,960,750] external=1
+PASS S6b reconciliation 单发落位（一次写即达目标矩形） —— rect=[250,230,910,690] 目标=[250,230,910,690]
+PASS S6b 无乒乓循环：reconciliation 后 900ms 内零新外部事件、零新增写窗、几何保持 —— external=1→1 writes+=0 rect=[250,230,910,690]
+—— S7 固定尺寸 / 拒绝改窗 / 自绘无边框 / 权限不足 ——
+PASS S7a 固定尺寸窗：位置写入仍生效（有限降级不等于完全不可控） —— [700,60,1220,460]→[780,120,1300,520]
+PASS S7a 固定尺寸窗：缩放被钉死（诊断分类「异常未平铺-固定尺寸」，单次尝试不重试不强改） —— 请求 700×520 实得 520×400
+PASS S7b 拒绝改窗窗：窗体钉死自己的尺寸（诊断分类「异常未平铺-拒绝改窗」，写入结果可预期可诊断） —— 请求 800×620 实得 560×420
+PASS S7b 拒绝改窗窗：位置写入仍生效（降级面记录在案） —— [-30,520,530,940]
+PASS S7c 自绘无边框（WS_POPUP）形态：移动+缩放正常生效（自绘不必然降级） —— [870,690,1550,1190]
+S7d 本机探测到疑似高 IL 进程窗 1 个：cua-driver(pid=13932)——探针不写用户窗口，仅记录存在性
+S7d 权限不足行：本机存在可观察对象，但几何写入试验需要专用提升测试窗（需 UAC），本轮记 N/T——生产按失败分类+单次尝试+不重试+诊断上报兜底
+PASS S7e 降级窗口处理后其他窗口继续可写（不阻塞） —— [260,240,920,700]
+—— S8 清理与零残留断言 ——
+S8 WinEvent hook 已卸载（UnhookWinEvent + koffi.unregister，结构性保证）
+（helper-electron BrowserWindow 已关闭——后续该窗断言会如实失败）
+PASS S8 探针圈定的全部进程已退出（spawn pid + 新增差集；用户既有进程不在圈定集内） —— 全部退出（圈定 4 pid）
+PASS S8 影像名进程计数不高于基线（notepad/msedge/electron 无子进程残留） —— notepad 1→1 msedge 34→34 electron 0→0
+PASS S8 探针临时目录已删除（helper 源码与 edge profile 不残留） —— C:\Users\ANW~1\AppData\Local\Temp\t372-probe-CmL49W
+PASS S8 原生任务栏状态不变（ABM_GETSTATE + 可见性） —— state 1→1 visible true→true
+S8 光标已归位（拖动前坐标恢复）
+S8 常驻进程：探针只 spawn 上述已退出的子进程，main 返回即退出，无常驻残留（结构性保证）
+
+=== 应用兼容矩阵（本轮实测） ===
+| win32-plain | 伴生对照 | 读:OK | 移动:OK | 缩放:OK | dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 |
+| win32-fixed | 伴生对照 | 读:OK | 移动:移动OK | 缩放:钉死(降级) | dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 |
+| win32-reject | 伴生对照 | 读:OK | 移动:移动OK | 缩放:钉死(降级) | dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 |
+| win32-popup | 伴生对照 | 读:OK | 移动:OK | 缩放:OK | dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 |
+| electron | 伴生对照 | 读:OK | 移动:OK | 缩放:OK | dpi=96(1.00x) ctx=PER_MONITOR_AWARE |
+| notepad | 真实第三方 | 读:OK | 移动:OK | 缩放:OK | dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 |
+| msedge | 真实第三方 | 读:OK | 移动:OK | 缩放:OK | dpi=96(1.00x) ctx=PER_MONITOR_AWARE_V2 |
+| 高IL权限不足窗 | N/T | 本机无确定性测试对象（不提权），生产按失败分类兜底 |
+
+=== 工单372 go/no-go 证据要点 ===
+① 跨进程读/写几何（Win32 + Chromium/Electron）：成立——SetWindowPos 物理 px 生效，坐标与 DPI 口径见 S3/S4 表
+② 首次操作取消/确认：拖动与最大化两条入口的复原、确认等待期零写零漂移、确认后重新发起生效——见 S5 PASS 行
+③ 回声抑制与 reconciliation：自身写窗全部归类回声且单次写不循环；外部改窗识别为 external 并单发落位、无乒乓——见 S6 PASS 行
+④ 有限可诊断降级：固定尺寸/拒绝改窗钉死可诊断、自绘无边框可写、降级不阻塞其他窗；权限不足本机 N/T（不提权）——见 S7 各行
+⑤ 零残留：进程计数回基线、临时目录删除、任务栏状态不变、hook 卸载——见 S8 PASS 行
+go/no-go 判读：探针能力不记作生产完成——生产几何控制器仍需按 spec #369 决策 8/10/12/30 实现授权状态机与失败关闭；
+断言账目：全部通过
