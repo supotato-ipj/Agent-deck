@@ -288,10 +288,19 @@ export function encodeTrayPayload(o: EncodeNotifyOptions & { dwMessage: number; 
  *   lParam = 事件消息（左键 WM_LBUTTONUP=0x0202、右键 WM_RBUTTONUP=0x0205）。
  *   （工单164 前实现两参数整体互换且 WM_LBUTTONUP 误为 0x0203=WM_LBUTTONDBLCLK，
  *   #163 真机 A/B 坐实为回放全哑主因。）
+ *
+ * 工单363 修正（外壳口径的**消息条数**）：pre-v4 图标的回调是**鼠标消息对**——外壳把
+ * 图标上收到的原始鼠标消息逐条转发（按下与抬起各一条），应用按哪一条动作由它自己决定。
+ * 单发 UP 一条不是外壳口径：#163 取证的 A/B 臂样本恰好都认 UP，掩盖了消息条数缺口。
+ * 真机坐实（Electron 托盘源码 shell/browser/ui/win/notify_icon_host.cc）：其回调只认
+ * WM_LBUTTONDOWN/WM_RBUTTONDOWN/WM_CONTEXTMENU 一族，**不认 UP 族**——外壳发消息对，
+ * 我们只发 UP 时，自家图标（及一切只认按下态的应用）永远收不到动作，右键菜单不弹。
  * 菜单由图标所属应用自己渲染，回放前必须 AllowSetForegroundWindow（调用方负责，
  * 传属主进程 ID 而非 hwnd——API 形参是 DWORD dwProcessId）。
  */
+export const WM_LBUTTONDOWN = 0x0201
 export const WM_LBUTTONUP = 0x0202
+export const WM_RBUTTONDOWN = 0x0204
 export const WM_RBUTTONUP = 0x0205
 export const WM_CONTEXTMENU = 0x007b
 
@@ -304,24 +313,29 @@ export interface TrayClickPack {
   lparam: number
 }
 
+/**
+ * 一次回放的投递序列（外壳口径）：pre-v4 图标收**鼠标消息对**（按下 + 抬起），
+ * v4 图标收一条通知码（右键 WM_CONTEXTMENU / 左键 WM_LBUTTONUP，v4 负载布局）。
+ */
 export function packTrayClick(
   entry: { uid: number; callbackMessage: number; version: number },
   button: TrayClickButton,
   cursor: { x: number; y: number },
-): TrayClickPack {
+): TrayClickPack[] {
   if (entry.version >= 4) {
     const x = cursor.x & 0xffff
     const y = cursor.y & 0xffff
     const event = button === 'right' ? WM_CONTEXTMENU : WM_LBUTTONUP
-    return {
+    return [{
       message: entry.callbackMessage,
       wparam: (y << 16) | x,
       lparam: ((entry.uid & 0xffff) << 16) | event,
-    }
+    }]
   }
-  return {
-    message: entry.callbackMessage,
-    wparam: entry.uid >>> 0,
-    lparam: button === 'left' ? WM_LBUTTONUP : WM_RBUTTONUP,
-  }
+  const down = button === 'right' ? WM_RBUTTONDOWN : WM_LBUTTONDOWN
+  const up = button === 'right' ? WM_RBUTTONUP : WM_LBUTTONUP
+  return [
+    { message: entry.callbackMessage, wparam: entry.uid >>> 0, lparam: down },
+    { message: entry.callbackMessage, wparam: entry.uid >>> 0, lparam: up },
+  ]
 }
