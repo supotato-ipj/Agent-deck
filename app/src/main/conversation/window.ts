@@ -50,7 +50,13 @@ export function startConversationWindow(options: ConversationWindowOptions): Con
       autoHideMenuBar: true,
       backgroundColor: '#141820',
       webPreferences: {
-        preload: path.join(__dirname, '../preload/index.js'),
+        // preload 接线（工单364 真机轮 C11 抓到的根因）：本模块编译产物在 dist/main/conversation/，
+        // preload 在 dist/preload/——**两级**上溯。此前写 '../preload/index.js'（一级）解析到
+        // dist/main/preload/index.js（不存在）⇒ Electron 跳过 preload ⇒ 窗内 window.deck 未定义
+        // ⇒ 对话窗与内核**完全不通**（点发送毫无反应、推送也到不了窗）——正是 spec #361 现场
+        // 「故障发生在发起 ACP 请求之前」的成因。同款病灶在任务栏弹窗上已修过（taskbar/popup.ts
+        // 同一写法、同一注释纪律）。
+        preload: path.join(__dirname, '../../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,

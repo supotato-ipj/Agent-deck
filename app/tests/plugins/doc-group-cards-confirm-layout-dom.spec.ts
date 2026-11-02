@@ -18,12 +18,16 @@ import { PANEL_ID, ROW_CLASS } from '../../plugins/doc-group-cards/menu'
 import { STORE_KEY } from '../../plugins/doc-group-cards/ownership'
 import { MULTI_CLASS } from '../../plugins/doc-group-cards/selection'
 import {
+  CONFIRM_BOX_ID,
   CONFIRM_CANCEL_ID,
+  CONFIRM_W,
   CONFIRM_LINE_H,
+  CONFIRM_MARGIN,
   CONFIRM_OK_ID,
   CONFIRM_OPENED_NOTIFY,
   CONFIRM_OVERLAY_ID,
   CONFIRM_TEXT_ID,
+  confirmWidthOf,
 } from '../../plugins/doc-group-cards/writeops'
 import plugin, { type Host, type HostDesktopItem, type HostView } from '../../plugins/doc-group-cards/card'
 import { Element, EventTarget, confirmLayoutOf, newDom, walk, type ConfirmLayout } from './doc-group-cards-dom-shim'
@@ -315,6 +319,29 @@ describe('确认层排版（工单362）：文案超高时**只有文案区滚�
     expect(l.scrollHeight).toBeGreaterThan(l.clientHeight)
     expectButtonsFullyVisible(l)
     expectBoxInsideViewport(l)
+  })
+})
+
+describe('确认层排版（工单362 复审）：宽度按视口夹取——窄视口不横向溢出', () => {
+  /** 窄视口宽度（像素）：比 CONFIRM_W 268 小，逼出「固定宽度导致右侧溢出」那条缺陷 */
+  const NARROW_W = 200
+
+  it('窄视口：确认框宽度按视口上限夹取，整只框不超出视口，两枚按钮完整', () => {
+    win.innerWidth = NARROW_W
+    plugin.mount(h.host)
+    openDeleteConfirm(0)
+    const l = layout()
+    expect(l.dialog.width).toBeLessThan(CONFIRM_W)
+    expect(l.dialog.width).toBeLessThanOrEqual(NARROW_W - 2 * CONFIRM_MARGIN)
+    expectButtonsFullyVisible(l)
+    expectBoxInsideViewport(l)
+  })
+
+  it('宽度只有一处出处：落进 DOM 的宽度 = confirmWidthOf(视口)（CSS 与 JS 不各写一份尺寸）', () => {
+    plugin.mount(h.host)
+    openDeleteConfirm(0)
+    const dialog = byId(CONFIRM_BOX_ID)!
+    expect(dialog.style.width).toBe(`${confirmWidthOf(viewport())}px`)
   })
 })
 

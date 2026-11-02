@@ -263,18 +263,48 @@ const centerOf = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 })
  * （CANCEL）被裁在框外——点它等于点遮罩（取消），看着像能按、其实按不到确认。
  * 存证与本电池的自动点击都取 DOM 的最终矩形，故这条裁决对着那两个矩形判即可。
  *
- * @param cf EXPR.confirm 的探针结果（量不到就返回 null：不裁决）
- * @returns {{ ok: boolean, text: string } | null}
+ * **量不到就判负**（章法：flaky 禁止静默处理）：探针没取到几何时**不许**返回 null 让调用点
+ * 跳过——那会让这条断言在段账里彻底消失（既不 pass 也不 fail）。故此处恒给裁决，
+ * 「量不到」本身作为失败原因写进段账目。
+ *
+ * @param cf EXPR.confirm 的探针结果
+ * @returns {{ ok: boolean, text: string, reason: string }}
  */
 function confirmLayoutVerdict(cf) {
-  if (!cf || !cf.ok || !cf.cancel || !cf.dialog || !cf.viewport) return null
+  if (!cf || !cf.ok || !cf.cancel || !cf.dialog || !cf.viewport) {
+    return {
+      ok: false,
+      text: '量不到确认框几何（探针未取到 ok/cancel/dialog/viewport 之一）',
+      reason: '量不到确认框几何——排版无法核实',
+    }
+  }
   const EPS = 0.5
   const inBox = (r) => r.x >= cf.dialog.x - EPS && r.y >= cf.dialog.y - EPS
     && r.x + r.w <= cf.dialog.x + cf.dialog.w + EPS && r.y + r.h <= cf.dialog.y + cf.dialog.h + EPS
   const inView = (r) => r.x >= -EPS && r.y >= -EPS
     && r.x + r.w <= cf.viewport.w + EPS && r.y + r.h <= cf.viewport.h + EPS
   const shape = `确认 ${Math.round(cf.ok.w)}x${Math.round(cf.ok.h)} @${Math.round(cf.ok.x)},${Math.round(cf.ok.y)}／取消 ${Math.round(cf.cancel.w)}x${Math.round(cf.cancel.h)} @${Math.round(cf.cancel.x)},${Math.round(cf.cancel.y)}；框 ${Math.round(cf.dialog.w)}x${Math.round(cf.dialog.h)} @${Math.round(cf.dialog.x)},${Math.round(cf.dialog.y)}`
-  return { ok: inBox(cf.ok) && inBox(cf.cancel) && inView(cf.ok) && inView(cf.cancel), text: shape }
+  const ok = inBox(cf.ok) && inBox(cf.cancel) && inView(cf.ok) && inView(cf.cancel)
+  return { ok, text: shape, reason: ok ? '' : '按钮矩形被裁（不在框内或不在视口内）' }
+}
+
+/**
+ * 工单362：排版断言的**统一呈现**（DELETE / DISSOLVE 两路复用同一形状）。
+ *
+ * 量不到也**判失败**并把原因写进段账目——绝不静默跳过（章法：flaky 禁止静默处理）。
+ * 断言只钉用户可见的几何事实与控件可用性，不钉内部实现。
+ *
+ * @param rep 报告句柄
+ * @param cf EXPR.confirm 的探针结果
+ * @param label 用途标签（DELETE / DISSOLVE）
+ */
+function reportConfirmLayout(rep, cf, label) {
+  const v = confirmLayoutVerdict(cf)
+  if (v.ok) {
+    rep.pass(`${label} 确认框排版：两枚按钮的最终矩形完整落在框内与视口内（${v.text}）`)
+  } else {
+    rep.fail(`${label} 确认框排版异常：${v.reason}（${v.text}）`)
+  }
 }
 
 const minimizedForRestore = [];
@@ -1078,13 +1108,7 @@ async function main() {
         cf && evConfirm
           ? rep.pass(`DELETE 带确认层：确认框在场（文案「${String(cf.text).slice(0, 40)}」），不确认不动磁盘`)
           : rep.fail(`DELETE 确认层异常：confirm=${!!cf} event=${!!evConfirm}（菜单开层=${!!firstMenu.menu} 第 ${firstMenu.attempt} 次）`);
-        // 工单362：两枚按钮的**最终矩形**必须完整落在对话框与视口内（存证与点击用的就是它）。
-        const cfLayout = confirmLayoutVerdict(cf)
-        if (cfLayout) {
-          cfLayout.ok
-            ? rep.pass(`确认框排版：两枚按钮的最终矩形完整落在框内与视口内（${cfLayout.text}）`)
-            : rep.fail(`确认框排版异常：按钮矩形被裁（${cfLayout.text}）`);
-        }
+        // 工单362 的排版断言已移入本电池的 P362 段（段归属唯一工单：183 段不留无归属断言）
         if (cf && cf.cancel) {
           await clickAt(centerOf(cf.cancel));
           await sleep(600);
@@ -1123,6 +1147,79 @@ async function main() {
       if (gmenu) { await clickAt({ x: (await cdpEval(EXPR.viewport)).w - 12, y: (await cdpEval(EXPR.viewport)).h - 12 }); await sleep(400); }
     }
 
+    // ===== P362 · 工单362 确认框排版（DELETE 与 DISSOLVE 两路）====================
+    // 段归属：工单362（spec361 之①）。此前这两条排版断言混在 P183（工单183）与 P186
+    // （工单186）里——「一段绑定一工单：同段不得混入无归属的断言」（章法：增段三条件之三），
+    // 且清单里根本没有工单362 的登记。故新起本段，两条断言同归工单362；本段自己开层、自己量、
+    // 自己记账（段账目里两条断言都在场）。
+    //
+    // 增段条件对照：① 真机行为存证——两枚按钮的**最终矩形**是 DOM 真实排版事实（长名折行、
+    //   按钮堆叠、视口上限），单测那份 DOM 桩给的是模型值；② 单测能覆盖的不进——纯算式
+    //   （confirmWidthOf / confirmFitOf）已在 vitest 里穷举，真机只钉「真排版下按钮完整可见」；
+    //   ③ 一段绑定一工单——本段只归工单362。
+    rep.beginSegment('P362');
+    {
+      await collapseAll(); // 段首收排：淡出卡 pointer-events:none，不收就会吃掉后续点击
+
+      // —— DELETE 一路：文件菜单 → DELETE → 确认层 → 量两枚按钮的最终矩形 ——
+      const txtCard = await cardProbe('dgc-txt')
+      const target = txtCard && txtCard.cells[0]
+      if (!target) {
+        rep.fail('P362 前置失败：TXT 卡上没有可删的件（DELETE 一路无从进入）')
+      } else {
+        await rowStable()
+        const menu = await openCellMenuAt('dgc-txt', path.basename(target.path))
+        if (!menu.menu) {
+          rep.fail('P362 前置失败：文件菜单未开（DELETE 一路无从进入）')
+        } else {
+          await clickAt(rowPoint(menu.menu, 'delete'))
+          const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150)
+          reportConfirmLayout(rep, cf, 'DELETE')
+          // 取消零副作用：量完收场（按钮完整可见 ⇒ CANCEL 点得到）
+          if (cf && cf.cancel) { await clickAt(centerOf(cf.cancel)); await sleep(500) }
+        }
+      }
+
+      // —— DISSOLVE 一路：粘贴落一张临时卡（手改得动的卡才有 DISSOLVE 行）→ 确认层 ——
+      const p362File = path.join(STAGING, `${DESKTOP_PREFIX}p362.txt`)
+      fs.writeFileSync(p362File, `deck187 staged ${DESKTOP_PREFIX}p362.txt\n`, 'utf8')
+      const seeded = await seedClipboard([p362File])
+      if (!seeded) {
+        rep.fail('P362 前置失败：剪贴板播种失败（DISSOLVE 一路无从进入）')
+      } else {
+        const zip = await cardProbe('dgc-zip')
+        await clickAt({ x: zip.x + 8, y: zip.y + zip.h / 2 }, 'right')
+        const gm = await until(() => cdpEval(EXPR.menu), 6000, 150)
+        const pastePoint = rowPoint(gm, 'paste')
+        if (pastePoint) await clickAt(pastePoint)
+        const temp = await until(async () => {
+          const cards = await cdpEval(EXPR.cards)
+          return cards.find((c) => /^dgc-t\d+$/.test(c.id) && c.cells >= 1) || null
+        }, 10000, 250)
+        if (!temp) {
+          rep.fail('P362 前置失败：粘贴未落出临时卡（DISSOLVE 一路无从进入）')
+        } else {
+          const live = await cardProbe(temp.id)
+          await clickAt({ x: live.x + 8, y: live.y + live.h / 2 }, 'right')
+          const gm2 = await until(() => cdpEval(EXPR.menu), 6000, 150)
+          const dis = gm2 && gm2.rows.find((r) => r.id === 'dissolve')
+          if (!dis) {
+            rep.fail('P362 前置失败：临时卡菜单没有 DISSOLVE 行（DISSOLVE 一路无从进入）')
+          } else {
+            await clickAt(rowPoint(gm2, 'dissolve'))
+            const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150)
+            reportConfirmLayout(rep, cf, 'DISSOLVE')
+            // 段末清场：临时卡**真解散**（组定义回落、文件回固有卡）——取消虽零副作用，
+            // 但那会留下一张临时卡给后面的段认（本段不留残局）。
+            if (cf && cf.ok) await clickAt(centerOf(cf.ok))
+            await until(async () => {
+              const cards = await cdpEval(EXPR.cards)
+              return !cards.some((c) => c.id === temp.id)
+            }, 8000, 200)
+          }
+        }
+      }
+    }
     // ===== P184 · 工单184 卡内多选 ============================================
     rep.beginSegment('P184');
     {
@@ -1320,13 +1417,7 @@ async function main() {
               await clickAt(rowPoint(gm, 'dissolve'));
               const cf = await until(() => cdpEval(EXPR.confirm), 6000, 150);
               rep.note(`DISSOLVE 确认层：${cf ? `在场（文案「${String(cf.text).slice(0, 40)}」）` : '未开'}`);
-              // 工单362：解散这一路与删除共用同一块壳，同款排版不变量（两种用途都覆盖）
-              const disLayout = confirmLayoutVerdict(cf)
-              if (disLayout) {
-                disLayout.ok
-                  ? rep.pass(`DISSOLVE 确认框排版：两枚按钮的最终矩形完整落在框内与视口内（${disLayout.text}）`)
-                  : rep.fail(`DISSOLVE 确认框排版异常：按钮矩形被裁（${disLayout.text}）`);
-              }
+              // 工单362 的排版断言已移入本电池的 P362 段（段归属唯一工单：186 段不留无归属断言）
               if (cf && cf.ok) await clickAt(centerOf(cf.ok));
               dissolved = await until(async () => {
                 const cards = await cdpEval(EXPR.cards);

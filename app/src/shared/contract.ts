@@ -509,6 +509,16 @@ export interface ConversationSessionView {
   usage: { used: number | null; size: number | null }
   /** failed 态的用户可见原因（不自动重启，由用户决定新建或续接——ADR-0018） */
   error: string | null
+  /**
+   * 工单364：**回合级**失败（桥接拒绝之外的同步异常与后端回合失败）。
+   *
+   * 与 error 分属两件事：error 是**会话级** failed 态的原因（契约原义，挂了就是挂了，
+   * 由用户决定新建或续接），本字段只承载「这一轮失败了」——一轮的成败不该改写会话的结局。
+   *
+   * seq 单调递增（每会话每次回合失败 +1）：渲染层据此判「**新一轮**失败」，不靠错误文案
+   * 相等——同一句话连来两次时，文案相等判据会漏判（草稿就此丢失）。
+   */
+  promptFailure: { seq: number; message: string } | null
   /** 在途权限请求（原样选项；null = 无；绝不超时自动拒绝） */
   pendingPermission: { options: ConversationPermissionOption[] } | null
 }

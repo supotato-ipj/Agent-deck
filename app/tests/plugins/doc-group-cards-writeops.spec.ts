@@ -53,6 +53,7 @@ import {
   confirmOkLabelOf,
   confirmTextOf,
   confirmTitleOf,
+  confirmWidthOf,
   nextConfirmLayer,
   nextRenameEditor,
   renameCssOf,
@@ -195,10 +196,23 @@ describe('确认层的装配策略（工单362：尺寸与位置按 DOM 实测�
     const natural = 3 * CONFIRM_LINE_H
     const fit = confirmFitOf(VIEWPORT, natural)
     expect(fit.textH).toBe(natural)
-    expect(fit.width).toBe(CONFIRM_W)
     expect(fit.height).toBe(confirmChromeH() + natural)
-    expect(fit.left).toBe(Math.round((VIEWPORT.width - fit.width) / 2))
+    expect(fit.left).toBe(Math.round((VIEWPORT.width - confirmWidthOf(VIEWPORT)) / 2))
     expect(fit.top).toBe(Math.round((VIEWPORT.height - fit.height) / 2))
+  })
+
+  it('宽度唯一出处：confirmWidthOf 是视口的函数（CONFIRM_W 为上限；窄视口按 CONFIRM_MARGIN 夹取）', () => {
+    expect(confirmWidthOf(VIEWPORT)).toBe(CONFIRM_W)
+    const narrow = { width: 200, height: 1440 }
+    expect(confirmWidthOf(narrow)).toBe(narrow.width - 2 * CONFIRM_MARGIN)
+    expect(confirmWidthOf(narrow)).toBeLessThan(CONFIRM_W)
+    // 再窄也不得为负或为零（否则框宽为 0，按钮无从落位）
+    expect(confirmWidthOf({ width: 40, height: 1440 })).toBeGreaterThan(0)
+  })
+
+  it('装配结果里**不再带第二份宽度**（宽度只此一处：CONFIRM_W → confirmWidthOf → DOM 内联）', () => {
+    const fit = confirmFitOf(VIEWPORT, 3 * CONFIRM_LINE_H)
+    expect(Object.keys(fit)).not.toContain('width')
   })
 
   it('文案超高时：**只有文案区**被截断（上限 = 视口上限 − 那截固定高），按钮区一寸不让', () => {
@@ -212,7 +226,7 @@ describe('确认层的装配策略（工单362：尺寸与位置按 DOM 实测�
       const fit = confirmFitOf(VIEWPORT, natural)
       expect(fit.left).toBeGreaterThanOrEqual(0)
       expect(fit.top).toBeGreaterThanOrEqual(0)
-      expect(fit.left + fit.width).toBeLessThanOrEqual(VIEWPORT.width)
+      expect(fit.left + confirmWidthOf(VIEWPORT)).toBeLessThanOrEqual(VIEWPORT.width)
       expect(fit.top + fit.height).toBeLessThanOrEqual(VIEWPORT.height)
     }
   })

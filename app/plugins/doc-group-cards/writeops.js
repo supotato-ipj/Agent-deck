@@ -84,7 +84,12 @@ export const RENAME_CLOSED_NOTIFY = 'doc-group-cards-rename-closed'
 //   - 存证与真机点击用的按钮矩形取自**最终布局**（spec361 决策 4），不是排版前的估算框。
 // ---------------------------------------------------------------------------
 
-/** 对话框宽度（像素） */
+/**
+ * 对话框宽度**上限**（像素）：实际宽度由 confirmWidthOf 按视口夹取后落进 DOM。
+ *
+ * 它是**唯一**的字面量宽度来源——CSS 不写宽度、JS 也不另写一份（仓库自警的「CSS 与 JS 各写
+ * 一份尺寸」）。
+ */
 export const CONFIRM_W = 268
 /** 文案单行高（像素） */
 export const CONFIRM_LINE_H = 14
@@ -140,10 +145,26 @@ export function confirmChromeH() {
 }
 
 /**
- * 装配：给定视口与**实测**的文案自然高度，算出文案区高度、盒子尺寸与落位。
+ * 对话框宽度（**唯一出处**）：CONFIRM_W 是上限，视口不够宽时按 CONFIRM_MARGIN 夹取——
+ * 确认框整体不得超出视口（工单362 AC「确认框整体不超出视口」；此前固定 268px，窄视口右侧溢出）。
+ *
+ * 宽度是**视口的函数**、与文案无关，故可以先定宽再量文案（定宽才谈得上折行）——装配结果里
+ * 不再另带一份 width（那份字段无人消费，等于第二份尺寸）。
+ *
+ * @param {{ width: number, height: number }} viewport 面板窗视口
+ * @returns {number} 落进 DOM 的对话框宽度（像素）
+ */
+export function confirmWidthOf(viewport) {
+  const maxW = viewport.width - 2 * CONFIRM_MARGIN
+  return Math.max(1, Math.min(CONFIRM_W, maxW))
+}
+
+/**
+ * 装配：给定视口与**实测**的文案自然高度，算出文案区高度、盒子高度与落位。
  *
  * 尺寸与位置一律按真实排版来：文案区多高由 DOM 量出来（换行已经发生在那一步），盒子多高是
  * 「那截固定高 + 文案区高」，视口上限只压**文案区**——两枚按钮一寸不让（spec361 决策 2/3）。
+ * 宽度不在这里给：宽度的唯一出处是 confirmWidthOf（见其上注释）。
  * @param {{ width: number, height: number }} viewport 面板窗视口
  * @param {number} textNaturalH 文案区的自然高度（实测值，不是行数 × 行高）
  */
@@ -153,13 +174,12 @@ export function confirmFitOf(viewport, textNaturalH) {
   const textMaxH = Math.max(0, maxBoxH - chrome)
   const textH = Math.min(Math.max(0, textNaturalH), textMaxH)
   const height = chrome + textH
-  const width = CONFIRM_W
+  const width = confirmWidthOf(viewport)
   return {
     /** 文案区实际高度（超高时被上限截断，超出部分自己滚） */
     textH,
     /** 文案区高度上限 */
     textMaxH,
-    width,
     height,
     // 落位在视口正中（**不**按任务栏让位——面板窗本就是主显示器全屏 bounds，
     // 内核的删除确认层同样是直接居中，用户已经习惯了它落在这个位置）

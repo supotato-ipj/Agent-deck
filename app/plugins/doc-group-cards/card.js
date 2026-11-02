@@ -103,7 +103,7 @@ import {
   CONFIRM_TEXT_ID,
   CONFIRM_CSS,
   CONFIRM_MARGIN,
-  CONFIRM_W,
+  confirmWidthOf,
   RENAME_INPUT_CLASS,
   RENAME_KEYBOARD_TIER,
   confirmTextOf,
@@ -756,8 +756,11 @@ function showConfirm(host, mode, names) {
   // 排版：先定宽（定宽才谈得上折行），再**量**文案区的自然高度——长文件名在浏览器里折成
   // 几行，这一步量到的就是折行之后的高度（不是「每件一行」的估计）。随后按视口上限装配盒子：
   // 上限只压文案区，两枚按钮一寸不让（spec361 决策 3）。
+  //
+  // 宽度**只有一处出处**（confirmWidthOf）：CONFIRM_W 是上限，窄视口按 CONFIRM_MARGIN 夹取，
+  // 确认框整体不超出视口（工单362 AC）。此前这里写死 CONFIRM_W，视口窄于 268px 时右侧溢出。
   const viewport = { width: window.innerWidth, height: window.innerHeight }
-  dialog.style.width = `${CONFIRM_W}px`
+  dialog.style.width = `${confirmWidthOf(viewport)}px`
   const fit = confirmFitOf(viewport, text.getBoundingClientRect().height)
   text.style.height = `${fit.textH}px`
   text.style.maxHeight = `${fit.textMaxH}px`
