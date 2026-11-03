@@ -365,6 +365,47 @@ describe('Agent 拖入服务（工单407）：拖拽会话投影与落点触发'
   })
 })
 
+describe('Agent 拖入服务：会话存证收窄（评审修复 2026-11-04）——只记涉及 Agent 入口的会话', () => {
+  it('全程未涉 Agent 入口的日常拖窗：drag-in-session 存证零落地，投影面照常翻转', () => {
+    const h = harness()
+    seedEligible(h, 1001)
+    h.dragStart(1001)
+    h.cursorZone(null)
+    h.dragEnd(1001, { x: 10, y: 10 })
+    expect(h.logs.filter((e) => e.type === 'drag-in-session')).toEqual([])
+    // 收窄只对存证面——投影面（渲染层高亮/会话预览暂停）不受影响
+    expect(h.changedEvents).toEqual([
+      { active: true, overAgent: false },
+      { active: false, overAgent: false },
+    ])
+  })
+
+  it('途中经过 Agent 入口再拖走：start+end 成对补落，先后序保持 start→end', () => {
+    const h = harness()
+    seedEligible(h, 1001)
+    h.dragStart(1001)
+    h.cursorZone('mode:agent')
+    h.cursorZone(null)
+    h.dragEnd(1001, { x: 10, y: 10 })
+    const sessions = h.logs.filter((e) => e.type === 'drag-in-session')
+    expect(sessions.map((e) => e.phase)).toEqual(['start', 'end'])
+    expect(sessions[0]).toMatchObject({ hwnd: 1001, overAgent: false, startAt: expect.any(Number) })
+    expect(sessions[1]).toMatchObject({ hwnd: 1001, dropOnAgent: false, cancelled: false })
+  })
+
+  it('起手即悬停 Agent 入口：start 记录 overAgent=true；Esc 取消的涉入会话同样成对落证', () => {
+    const h = harness()
+    seedEligible(h, 1001)
+    h.cursorZone('mode:agent')
+    h.dragStart(1001)
+    h.dragEnd(1001, { x: 10, y: 10 }, true)
+    const sessions = h.logs.filter((e) => e.type === 'drag-in-session')
+    expect(sessions.map((e) => e.phase)).toEqual(['start', 'end'])
+    expect(sessions[0]).toMatchObject({ hwnd: 1001, overAgent: true })
+    expect(sessions[1]).toMatchObject({ hwnd: 1001, dropOnAgent: false, cancelled: true })
+  })
+})
+
 // ————————————————————————————————————————————————————————————
 // 工单408（spec #403 用户故事 44-48）：取消路径零改窗、不合格落放无副作用、
 // 回滚有界与可诊断终局、连续拖入 × 屏外带组合（组合矩阵在 agent-drag-in-flow.spec.ts）。

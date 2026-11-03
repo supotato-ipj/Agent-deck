@@ -135,6 +135,12 @@ export class AgentDragInService extends Service {
   /** 拖拽前几何（onDragStart 捕获——不合格落放与回滚的复原面；会话结束即清；
    *  读取失败 = null——复原面缺位按「无可复原」处理，不猜） */
   private preDrag: { hwnd: number; rect: ScopeRect | null } | null = null
+  /** 会话存证收窄（评审修复 2026-11-04）：drag-in-session 存证只在会话涉及 Agent 入口
+   *  时落（起手即悬停、途中经过或结束于入口皆算）——普通桌面内的日常拖窗不再逐次记
+   *  hwnd/光标点。start 记录暂存至此，end 判定涉及后成对补落（先后序保持 start→end；
+   *  startAt 保真实起点时刻——存证落点的 t 是 append 时刻，暂存会错位）。 */
+  private pendingSessionStart: { hwnd: number; overAgent: boolean; startAt: number } | null = null
+  private sessionTouchedAgent = false
 
   constructor(ctx: Context, options: AgentDragInServiceOptions = {}) {
     super(ctx, 'agentDragIn')
@@ -193,13 +199,15 @@ export class AgentDragInService extends Service {
 
   /** 拖拽会话观察（观察面零裁决：只记起止与光标事实，判定全部在事务入口）。
    *  拖前几何在起点捕获一次（工单408 story 45/47 的复原面）——取消路径不清窗、
-   *  只在落放事务里使用。 */
+   *  只在落放事务里使用。存证收窄：start 记录暂存，end 判定会话涉及 Agent 入口
+   *  （起手悬停/途中经过/结束于入口）才成对补落——普通桌面日常拖窗零存证。 */
   private onDragStart(hwnd: number): void {
     if (!this.enabledFlag) return
     this.dragActive = true
     this.overAgent = this.lastZoneId === 'mode:agent'
     this.preDrag = { hwnd, rect: this.safeReadRect(hwnd) }
-    this.logEvent({ type: 'drag-in-session', phase: 'start', hwnd, overAgent: this.overAgent })
+    this.pendingSessionStart = { hwnd, overAgent: this.overAgent, startAt: Date.now() }
+    this.sessionTouchedAgent = this.overAgent
     this.emitChanged()
   }
 
@@ -207,10 +215,16 @@ export class AgentDragInService extends Service {
     if (!this.enabledFlag || !this.dragActive) return
     const dropOnAgent = !cancelled && this.lastZoneId === 'mode:agent'
     const preDragRect = this.preDrag?.hwnd === hwnd ? this.preDrag.rect : null
+    const pendingStart = this.pendingSessionStart
     this.preDrag = null
+    this.pendingSessionStart = null
     this.dragActive = false
     this.overAgent = false
-    this.logEvent({ type: 'drag-in-session', phase: 'end', hwnd, dropOnAgent, cancelled, point: point ?? null })
+    if (this.sessionTouchedAgent || this.lastZoneId === 'mode:agent') {
+      if (pendingStart) this.logEvent({ type: 'drag-in-session', phase: 'start', hwnd: pendingStart.hwnd, overAgent: pendingStart.overAgent, startAt: pendingStart.startAt })
+      this.logEvent({ type: 'drag-in-session', phase: 'end', hwnd, dropOnAgent, cancelled, point: point ?? null })
+    }
+    this.sessionTouchedAgent = false
     this.emitChanged()
     if (cancelled) return // Esc：系统移动循环已原生复原，面板零插手（story 44）
     if (dropOnAgent) void this.dragIn(hwnd, 'drop', preDragRect)
@@ -234,6 +248,7 @@ export class AgentDragInService extends Service {
     const over = id === 'mode:agent'
     if (over !== this.overAgent) {
       this.overAgent = over
+      if (over) this.sessionTouchedAgent = true // 会话存证收窄判据：途中经过 Agent 入口即涉及
       this.emitChanged()
     }
   }

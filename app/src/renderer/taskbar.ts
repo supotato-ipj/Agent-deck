@@ -24,6 +24,7 @@ import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
 import { initialSummonState, summonedGroups } from '../shared/retract.js'
 import type { SummonState } from '../shared/retract.js'
 import type { DesktopWorkspaceState, HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
+import type { DragInRejectReason } from '../main/desktop/drag-in-plan'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
 const pillMode = document.getElementById('pill-mode') as HTMLElement
@@ -812,8 +813,10 @@ function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): vo
 
 /** 拖入失败简短原因文案（工单408，spec #403 story 45）：drop 通路事务终局的
  * reason 枚举 → 条带内一句话；不含窗口标题或拖入内容。取消路径（拖走/Esc/栏外松手）
- * 服务层零反馈上行——本表只映失败终局。 */
-const DRAG_IN_REJECT_TEXT: Record<string, string> = {
+ * 服务层零反馈上行——本表只映失败终局。键取 DragInRejectReason 联合类型（评审修复
+ * 2026-11-04，不再逐条复抄字符串字面量）：新增 reason 漏配文案即编译错，静默落兜底
+ * 的口子收掉；type-only import 不进渲染层模块图（renderer-boundary 守卫只禁值 import）。 */
+const DRAG_IN_REJECT_TEXT: Record<DragInRejectReason, string> = {
   'window-unknown': '未能识别该窗口，已取消移交',
   'ineligible-window': '该窗口不能移入 Agent 桌面（窗口类型或屏幕不合格），已还原',
   'source-desktop-mismatch': '该窗口不在普通桌面，已取消移交',
@@ -824,6 +827,14 @@ const DRAG_IN_REJECT_TEXT: Record<string, string> = {
   unavailable: 'Agent 桌面工作区不可用',
   'not-normal-desktop': '当前不在普通桌面，无法移交',
   'missing-pairing-id': '桌面配对身份缺侧，无法移交',
+}
+
+/** reason → 文案（契约层 reason 是宽 string——未知值走兜底，不假设对端枚举同版） */
+function dragInRejectText(reason: string | undefined): string {
+  if (reason !== undefined && reason in DRAG_IN_REJECT_TEXT) {
+    return DRAG_IN_REJECT_TEXT[reason as DragInRejectReason]
+  }
+  return '窗口移交未完成'
 }
 
 /** 拖拽失败可见反馈（工单195）：服务层拒返（ok:false）与契约异常都不静默——条带内
@@ -1329,7 +1340,7 @@ function boot(): void {
     // 只消费原因枚举，不含窗口标题或拖入内容。
     window.deck.bridge.on('workspace/drag-in-feedback', (p) => {
       if (p.ok) return
-      showDragError(DRAG_IN_REJECT_TEXT[p.reason ?? ''] ?? '窗口移交未完成')
+      showDragError(dragInRejectText(p.reason))
     })
     // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
     // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空。

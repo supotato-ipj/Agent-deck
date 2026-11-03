@@ -149,6 +149,20 @@ export function createKernel(options: KernelOptions = {}): Context {
         ?? (() => Boolean(ctx.desktopWorkspace?.state().available)),
       pairingIds: options.agentDragIn?.deps?.pairingIds
         ?? (() => ctx.desktopWorkspace?.pairingIds() ?? null),
+      // 主屏物理矩形（资格重核「主屏合格」判据）——与 panel-kernel.ts 装配同一 Electron
+      // 真源口径（物理 px）。零矩形缺省会把一切窗判成副屏、拖入恒拒 'ineligible-window'
+      // （375 P10 首轮实证；评审修复 2026-11-04）。electron 延迟 require：装配期不触碰，
+      // 调用时才解析——离线测试注入假源不受影响。
+      primaryRect: options.agentDragIn?.deps?.primaryRect
+        ?? (() => {
+          const d = require('electron').screen.getPrimaryDisplay()
+          return {
+            left: Math.round(d.bounds.x * d.scaleFactor),
+            top: Math.round(d.bounds.y * d.scaleFactor),
+            right: Math.round((d.bounds.x + d.bounds.width) * d.scaleFactor),
+            bottom: Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor),
+          }
+        }),
     },
   })
   ctx.plugin(AgentTilingService, {
