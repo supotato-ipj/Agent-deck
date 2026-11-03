@@ -2152,6 +2152,22 @@
           "estSeconds": 20
         },
         {
+          "seg": "P11",
+          "ticket": 408,
+          "title": "拖入取消回滚与连续拖入（工单408）：真实 Esc 取消（悬停 Agent 入口发 Esc——MOVESIZE 起/止各一帧、零迁移零交接、窗矩形系统原生复原）；栏外松手（拖动成果原样保留、700ms 纹丝未动——面板零改窗）；工具窗不合格落放入口（零迁移、面板按拖前几何真 SetWindowPos 复原、条带内简短反馈 toast 在场）；连续两窗拖入（迁移确认序=交接序 [E4,E5]、落放全程不切桌面、进入 Agent 后 count=2 placed=2 各占左右半格）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "areas": [
+            "desktop",
+            "panel.core",
+            "taskbar"
+          ],
+          "estSeconds": 35
+        },
+        {
           "seg": "P9",
           "ticket": 377,
           "title": "收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 三态还原",
