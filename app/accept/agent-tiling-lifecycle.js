@@ -49,7 +49,6 @@ const CAPSULE_TITLE = 'DECK-CAPSULE';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const koffi = win32.koffi;
 koffi.load('user32.dll');
-const RectT = koffi.struct('T376_RECT', { left: 'long', top: 'long', right: 'long', bottom: 'long' });
 
 // ————————————————————————————————————————————————————————————
 // 系统事实源（375 同款：注册表单查询原子读 + COM 双源；桌面身份一律系统 ID）
@@ -193,39 +192,6 @@ function bindVdCom376() {
       return hr === 0 ? comGuidToStr376(g[0]) : null;
     },
   };
-}
-
-/** 合格应用窗口集合（win-facts.ts 投影同口径最小谓词；375 P5 同款） */
-const DWM_CLOAKED_SHELL376 = 0x2;
-const dwmapi376 = koffi.load('dwmapi.dll');
-const DwmGetWindowAttribute376 = dwmapi376.func('int32 __stdcall DwmGetWindowAttribute(uintptr_t hwnd, uint32 attr, void *pv, uint32 cb)');
-function cloakValue376(hwnd) {
-  const buf = Buffer.alloc(4);
-  if (DwmGetWindowAttribute376(Number(hwnd), 14, buf, 4) !== 0) return -1;
-  return buf.readUInt32LE(0);
-}
-function normalizeExePath(x) {
-  return String(x).split('/').join('\\').toLowerCase();
-}
-function qualifiedAppWindows376(ownExes) {
-  const myPid = process.pid;
-  const excludedExe = new Set((ownExes || []).map((x) => normalizeExePath(x)));
-  const WS_EX_TOOLWINDOW = 0x80, WS_EX_APPWINDOW = 0x40000;
-  const out = [];
-  for (const h of win32.topLevelWindows()) {
-    const ex = Number(win32.GetWindowLongW(h, -20)) | 0;
-    if (ex & WS_EX_TOOLWINDOW) continue;
-    if (ex & WS_EX_APPWINDOW) continue;
-    if (!win32.IsWindowVisible(h)) continue;
-    if (cloakValue376(h) === DWM_CLOAKED_SHELL376) continue;
-    if (Number(win32.GetWindowLongW(h, -8)) !== 0) continue;
-    const pid = win32.threadIdOf(h).pid;
-    if (pid === myPid) continue;
-    const exePath = normalizeExePath(win32.exeOfPid(pid) || '');
-    if (exePath && excludedExe.has(exePath)) continue;
-    out.push({ hwnd: h, pid });
-  }
-  return out;
 }
 
 // ————————————————————————————————————————————————————————————
