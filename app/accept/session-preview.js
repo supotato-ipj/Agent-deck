@@ -37,6 +37,9 @@ const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '381-session-preview-events.jsonl');
+// 工单384：布局持久化（工单383）落在共享 userData——本电池不验重启恢复，布局文档
+// 重定向到本电池证据目录并在起止清掉（前置 = 恢复态 none，不继承他轮的 crash/桌面 ID 标记）。
+const LAYOUT_FILE = path.join(__dirname, 'evidence', '381-session-preview-layout.json');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const handle = createPanelHandle({
   execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
@@ -420,6 +423,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 无旧布局 */ }
     fixtures = makeFixtures();
     beforeTree = snapshotTree(fixtures.root);
     rep.note(`夹具根=${fixtures.root}（qodercn 2 会话 / zcode 8 会话 / kimicode 1 会话 / minimaxcode 3 会话；全部合成）`);
@@ -438,7 +442,7 @@ async function main() {
 
     handle.launch({
       mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore',
-      extraEnv: { DECK_SESSION_PREVIEW_ROOTS: JSON.stringify(fixtures.rootsEnv) },
+      extraEnv: { DECK_SESSION_PREVIEW_ROOTS: JSON.stringify(fixtures.rootsEnv), DECK_AGENT_LAYOUT_FILE: LAYOUT_FILE },
     });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
@@ -819,6 +823,7 @@ async function main() {
 
       // ③ 面板退出与配置三态还原
       const cleared = await handle.stop();
+      try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 已删/未生成 */ }
       restoreConfig(originalConfig);
       const cfgRestored = (() => {
         const raw = readConfigRaw();

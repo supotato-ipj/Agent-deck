@@ -384,7 +384,11 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 隐私断言 / 崩溃不强制搬窗 / 安全态故障注入 / 零残留；一段绑定一工单）。
     // 存储模型、恢复规划与暂停 reconciliation 按增段条件②由 agent-layout /
     // agent-tiling-recovery 单测矩阵钉，真机段只验真实重启/强杀/故障注入下的系统事实。
-    expect(total).toBe(185)
+    // 185 → 186：工单384 增段——375-desktop-switch 电池增 P0（发布门默认开放：config 无
+    // agentDesktop 段时功能按产品默认在场、模式组渲染且未配对不高亮、仅在场零桌面创建；
+    // 一段绑定一工单）。默认值合并语义与非法值回退按增段条件②由 config.spec 单测钉，
+    // 真机段只验真实 config 缺段启动下的系统事实与渲染事实。
+    expect(total).toBe(186)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

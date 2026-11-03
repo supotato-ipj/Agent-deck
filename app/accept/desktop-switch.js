@@ -2,6 +2,9 @@
 // 工单375 桌面工作区验收：真实双桌面切换最小闭环（spec #369 决策 2/4/17/29/30，
 // ADR-0028；t371 探针 go 裁决后的生产实现段）。控制器以 --accept-desktop-switch
 // 身份运行，拉起 --panel-accept 面板子进程，逐段验收：
+//   P0 默认开放（工单384 发布门，spec #369 决策 24/29）：本轮 config **不写 agentDesktop
+//      段**——整条链跑在产品默认上。断言默认值本身让功能在场：available=true/paired=false、
+//      模式组两枚在渲染、未配对不高亮且入口可用、仅在场零桌面创建
 //   P1 模式切换组在场：两枚互斥图标位于开始组右侧（taskbar-geometry 存证帧），未配对
 //      态两枚均不高亮（第三桌面不高亮在 P6 验）；开关关闭整组不渲染由离线渲染层测试钉
 //   P2 首次启用配对：点 Agent 图标 → 普通 = 启用当下所在桌面（既有窗口不动——合格
@@ -37,6 +40,9 @@ const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '375-desktop-switch-events.jsonl');
+// 工单384：布局持久化（工单383）落在共享 userData——本电池不验重启恢复，布局文档
+// 重定向到本电池证据目录并在起止清掉（前置 = 恢复态 none，不继承他轮的 crash/桌面 ID 标记）。
+const LAYOUT_FILE = path.join(__dirname, 'evidence', '375-desktop-switch-layout.json');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const handle = createPanelHandle({
   execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
@@ -396,11 +402,12 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    // config 补丁（三态还原见 finally）：实验开关开 + 清配对（首启用语义从本轮起算）+
-    // 任务栏启用（模式组宿主）
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 无旧布局 */ }
+    // config 补丁（三态还原见 finally）：**不写 agentDesktop 段**（工单384 发布门：整条
+    // 链跑在产品默认上——默认开放、未配对；默认值拿不到时 P0 立判）+ 任务栏启用（模式组宿主）
     {
       const json = originalConfig !== null ? JSON.parse(originalConfig) : {};
-      json.agentDesktop = { ...(json.agentDesktop ?? {}), enabled: true, normalDesktopId: '', agentDesktopId: '' };
+      delete json.agentDesktop;
       json.taskbar = { ...(json.taskbar ?? {}), enabled: true };
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
     }
@@ -410,8 +417,8 @@ async function main() {
     if (!base.count || !base.current) throw new Error('注册表桌面事实不可读——环境问题，本轮未取证');
     normalId = base.current;
 
-    // —— 拉起面板子进程（实验开关开）——
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    // —— 拉起面板子进程（产品默认：功能开关未显式写——见 P0）——
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: { DECK_AGENT_LAYOUT_FILE: LAYOUT_FILE } });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     rep.note(`面板 pid=${boot.pid}`);
@@ -421,12 +428,32 @@ async function main() {
     const dip = screen.getPrimaryDisplay().bounds;
     const scale = (tbRect.right - tbRect.left) / dip.width;
 
-    // 等任务栏几何存证帧（含模式组矩形——available=false 的帧无 modePill，超时即事实）。
-    // 工单375 起 boot 首帧先于 workspace/get-state 回执（modePill 宽 0），等首个
-    // 「两枚按钮且矩形非零」的帧——不能只看字段在场。
-    const ready = await tape.wait('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
-      && Array.isArray(e.modeButtons) && e.modeButtons.length === 2, { timeoutMs: 12000 });
-    if (!ready) throw new Error('taskbar-geometry 存证缺失模式组矩形（模式组未渲染或几何帧未到）');
+    // —— P0 默认开放（工单384 发布门，spec #369 决策 29/24）——
+    // 本轮 config 无 agentDesktop 段：产品默认路径（不写开关、不写配对）。断言默认值本身
+    // 让功能在场：workspace available=true / paired=false、模式组按默认渲染两枚入口、
+    // 未配对两枚均不高亮而不禁用、仅在场不建桌面（配对动作仍归首次切换请求——P2）。
+    // 模式组几何帧是 P1..P9 的共同前提，故 P0 同时持有该等待（超时即默认开放未成立）。
+    rep.beginSegment('P0');
+    let ready = null;
+    try {
+      ready = await tape.wait('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
+        && Array.isArray(e.modeButtons) && e.modeButtons.length === 2, { timeoutMs: 12000 });
+      const cfgRaw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      const noSection = cfgRaw.agentDesktop === undefined;
+      const ws = await cdpEval375(TASKBAR_TITLE, `window.deck.bridge.invoke('workspace/get-state', null)`);
+      const defaultOpen = Boolean(ws) && ws.available === true && ws.paired === false;
+      const idsOk = Boolean(ready) && ready.modeButtons.map((b) => b.id).join(',') === 'normal,agent';
+      const cls = ready ? await cdpEval375(TASKBAR_TITLE, MODE_CLASS_EXPR) : [];
+      const noneActive = cls.length === 2 && cls.every((e) => !e.active && !e.disabled);
+      const f0 = regDesktopFacts();
+      const noCreate = f0.count === base.count && base.ids.every((x) => f0.ids.includes(x));
+      if (noSection && defaultOpen && idsOk && noneActive && noCreate) {
+        rep.pass(`P0 默认开放：config 无 agentDesktop 段 → available=true/paired=false（默认值成立）、模式组两枚在渲染（normal,agent）、未配对不高亮且入口可用、仅在场零桌面创建（${f0.count} 桌面与基线逐项相等）`);
+      } else {
+        rep.fail(`P0 无段=${noSection} 状态=${JSON.stringify(ws)} 按钮=${idsOk} 高亮=${JSON.stringify(cls)} 桌面=${f0.count}/${base.count} 帧=${Boolean(ready)}`);
+      }
+    } catch (err) { rep.fail(`P0 异常: ${err.message}`); }
+    if (!ready) throw new Error('默认开放未成立：taskbar-geometry 缺模式组矩形（模式组未渲染或几何帧未到——见 P0）');
     const latestGeo = () => tape.latest('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
       && Array.isArray(e.modeButtons) && e.modeButtons.length === 2) || ready;
     // 面板 exe 身份（合格窗口排除的「自家」= 生产 ownExe 同源——shouldShowOnTaskbar 按它排除）
@@ -1005,6 +1032,7 @@ async function main() {
         '清场后仍有面板进程存活', 'panel-forcekill');
     }
     // config 三态还原（工单124）：原本无文件则删掉电池落的最小桩
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 已删/未生成 */ }
     restoreConfig(originalConfig);
     win32.ensureNativeTaskbarVisible();
   }

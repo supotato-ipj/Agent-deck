@@ -35,6 +35,9 @@ const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '378-agent-geometry-auth-events.jsonl');
+// 工单384：布局持久化（工单383）落在共享 userData——本电池不验重启恢复，布局文档
+// 重定向到本电池证据目录并在起止清掉（前置 = 恢复态 none，不继承他轮的 crash/桌面 ID 标记）。
+const LAYOUT_FILE = path.join(__dirname, 'evidence', '378-agent-geometry-auth-layout.json');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const handle = createPanelHandle({
   execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
@@ -537,7 +540,9 @@ async function waitPromptGone(timeoutMs = 3000) {
 async function dragTitleBar(hwnd, dx, dy) {
   const r = win32.rectOf(hwnd);
   if (!r) return { ok: false };
-  const sx = Math.round((r.left + r.right) / 2);
+  // 工单384：起拖点避开胶囊矩形（同 focusByTitle——正中标题栏被 DECK-CAPSULE 覆盖，
+  // 按下落在胶囊上就不产生窗口拖动，鼠标 Snap 入口于是打不到目标窗）。取 30% 横位。
+  const sx = Math.round(r.left + (r.right - r.left) * 0.3);
   const sy = r.top + 14; // WPF 标准标题栏（~30px）：取顶边内 14px，确保落在 caption 上
   win32.moveMousePhys(sx, sy);
   await sleep(90);
@@ -579,12 +584,17 @@ async function dragRightBorder(hwnd, dx) {
 async function focusByTitle(hwnd) {
   const r = win32.rectOf(hwnd);
   if (!r) return false;
-  win32.clickPhys(Math.round((r.left + r.right) / 2), r.top + 10, 'left');
+  // 工单384：点击点避开胶囊矩形（DECK-CAPSULE：主屏顶部居中 168×30，y=6..36，TOPMOST）——
+  // 标题栏正中的点击会落在胶囊上（打开窗口预览、焦点不回目标窗），Win+Up/Win+Left/Snap
+  // 于是打不到目标窗（P3 入口矩阵三例 pw=false 的实证）。取标题栏 30% 横位：全宽/half
+  // 半屏窗都落在胶囊之外，断言语义不变（仍是「真实点击标题栏聚焦」）。
+  const clickX = Math.round(r.left + (r.right - r.left) * 0.3);
+  win32.clickPhys(clickX, r.top + 10, 'left');
   await sleep(200);
   if (Number(win32.GetForegroundWindow()) === Number(hwnd)) return true;
   win32.SetForegroundWindow(hwnd);
   await sleep(200);
-  win32.clickPhys(Math.round((r.left + r.right) / 2), r.top + 10, 'left');
+  win32.clickPhys(clickX, r.top + 10, 'left');
   await sleep(200);
   return Number(win32.GetForegroundWindow()) === Number(hwnd);
 }
@@ -639,6 +649,7 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 无旧布局 */ }
     {
       const json = originalConfig !== null ? JSON.parse(originalConfig) : {};
       json.agentDesktop = { ...(json.agentDesktop ?? {}), enabled: true, normalDesktopId: '', agentDesktopId: '' };
@@ -651,7 +662,7 @@ async function main() {
     if (!base.count || !base.current) throw new Error('注册表桌面事实不可读——环境问题，本轮未取证');
     normalId = base.current;
 
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: { DECK_AGENT_LAYOUT_FILE: LAYOUT_FILE } });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     rep.note(`面板 pid=${boot.pid}`);
@@ -977,6 +988,7 @@ async function main() {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')})——需重启清障`,
         '清场后仍有面板进程存活', 'panel-forcekill');
     }
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 已删/未生成 */ }
     restoreConfig(originalConfig);
     win32.ensureNativeTaskbarVisible();
   }

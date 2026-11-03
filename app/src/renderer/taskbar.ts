@@ -1050,7 +1050,7 @@ function render(state: TaskbarState): void {
     pillStart.appendChild(el)
   }
   // 桌面模式切换组（工单375，spec #369 决策 17）：开始组右侧的两枚互斥入口——
-  // available=false 整组不渲染（实验开关隔离）；unmanaged/未配对两枚均不高亮（纯函数裁决）
+  // available=false 整组不渲染（功能开关关闭/平台能力不可用）；unmanaged/未配对两枚均不高亮（纯函数裁决）
   pillMode.hidden = true
   pillMode.textContent = ''
   const modes = desktopModeEntries(desktopState)
@@ -1284,7 +1284,7 @@ function boot(): void {
     window.deck.bridge.on('taskbar/status', (status) => applyStatus(status))
     // 桌面工作区共享状态（工单375）：boot 对齐（get-state）+ workspace/changed 即推——
     // 模式组显隐/高亮/禁用随共享状态重渲（面板/任务栏/胶囊同一份，spec 决策 5）。
-    // 未装配（旧内核/桥缺方法）按「不渲染模式组」静默——实验开关默认关的兼容口径。
+    // 未装配（旧内核/桥缺方法）按「不渲染模式组」静默——功能未启用的兼容口径。
     void window.deck.bridge.invoke('workspace/get-state', null)
       .then((s) => {
         desktopState = s

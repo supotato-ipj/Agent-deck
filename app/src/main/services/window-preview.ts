@@ -20,7 +20,7 @@ import { projectPreviewItems } from '../desktop/preview-projection'
 const DEFAULT_REFRESH_MS = 500
 
 export interface WindowPreviewServiceOptions {
-  /** 实验开关（config agentDesktop.enabled；缺省关——零预览） */
+  /** 功能开关（config agentDesktop.enabled；生产装配必下发，缺省关——零预览） */
   enabled?: boolean
   /** 存证日志（只记计数/模式/原因——不含标题/图像，决策 26） */
   log?: (event: Record<string, unknown>) => void

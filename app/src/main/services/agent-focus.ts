@@ -16,7 +16,7 @@ import type { Context, Inject } from 'cordis'
 import type { AgentFocusState, DesktopMode } from '../../shared/contract'
 
 export interface AgentFocusServiceOptions {
-  /** 实验开关（config agentDesktop.enabled；缺省关——零聚焦） */
+  /** 功能开关（config agentDesktop.enabled；生产装配必下发，缺省关——零聚焦） */
   enabled?: boolean
   /** 存证日志（只记 hwnd/动作/前台事实，不含窗口标题——决策 26 / ADR-0002） */
   log?: (event: Record<string, unknown>) => void
@@ -112,7 +112,7 @@ export class AgentFocusService extends Service {
     this.exiting = false
   }
 
-  /** 可用 = 实验开关开 */
+  /** 可用 = 功能开关开 */
   private available(): boolean {
     return this.enabledFlag
   }

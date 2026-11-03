@@ -2150,12 +2150,16 @@ async function main() {
       if (titleOf(h) === TASKBAR_TITLE && win32.threadIdOf(h).pid === panelPid) stripsAfterBurst.push(h);
     }
     const burstEnd = Date.now();
-    // 竞态窗内合法事件序：destroyed(旧,disabled) → removed(旧,destroy 路径) → created(新)
-    // → registered(新)；registered(新) 之后再冒 removed 即乱序注销（迟到 closed 误注销新窗占位）
+    // 竞态窗内合法事件序：window-destroyed(旧,disabled) → window-created(新)；created(新)
+    // 之后再冒 destroyed 即乱序注销（迟到 closed 误注销新窗占位）。
+    // 工单384：占位链事件 taskbar-appbar-registered/-removed 已随工单308（ADR-0015 M1
+    // 原生栏托管恒置位、零 appbar 动作）整体退役——本段原「registered(新)」判据改读
+    // 仍在流的窗生命周期事件（taskbar-window-created/-destroyed），断言意图不变：
+    // 连发后恰一扇新窗、且迟到 closed 不得注销/摧毁它。
     const evsBurst = tape.all(undefined, (e) => e.t <= burstEnd, { since: sinceP10 });
-    const regsBurst = evsBurst.filter((e) => e.type === 'taskbar-appbar-registered');
+    const regsBurst = evsBurst.filter((e) => e.type === 'taskbar-window-created');
     const lastRegT = regsBurst.length ? regsBurst[regsBurst.length - 1].t : 0;
-    const spuriousRemoved = evsBurst.filter((e) => e.type === 'taskbar-appbar-removed' && e.t > lastRegT);
+    const spuriousRemoved = evsBurst.filter((e) => e.type === 'taskbar-window-destroyed' && e.t > lastRegT);
     // 孤儿检测器：完整禁用后条带必须归零
     const r10off = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
     let stripGone = false;
@@ -2166,12 +2170,12 @@ async function main() {
     // 再启用：恰一扇 + 仍置顶 + 新窗占位存证在场
     const r10on = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
     const tbFinal = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
-    const regFinal = await tape.wait('taskbar-appbar-registered', (e) => e.t > burstEnd, { timeoutMs: 8000 });
+    const regFinal = await tape.wait('taskbar-window-created', (e) => e.t > burstEnd, { timeoutMs: 8000 });
     if (burst && burst.first === false && burst.second === true
       && stripsAfterBurst.length === 1 && spuriousRemoved.length === 0
       && stripGone && r10off && r10off.enabled === false
       && r10on && r10on.enabled === true && tbFinal && isTopmost(tbFinal) && regFinal) {
-      rep.pass(`P10(a) 桥写连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=${regFinal.hwnd}）、无乱序注销`);
+      rep.pass(`P10(a) 桥写连发：条带恰一扇、禁用归零（无孤儿）、再启用新窗存证在场（taskbar-window-created；条带 hwnd=${tbFinal}）、无乱序注销`);
     } else {
       rep.fail(`P10(a) 连发=${JSON.stringify(burst)} 条带数=${stripsAfterBurst.length} 乱序注销=${spuriousRemoved.length}`
         + ` 禁用归零=${stripGone} 禁用响应=${JSON.stringify(r10off)} 再启用窗=${!!tbFinal} 新窗占位=${!!regFinal}`);
@@ -2198,9 +2202,10 @@ async function main() {
     }
     const burstEnd2 = Date.now();
     const evsInProc = tape.all(undefined, (e) => e.t <= burstEnd2, { since: sinceBurst });
-    const regsInProc = evsInProc.filter((e) => e.type === 'taskbar-appbar-registered');
+    // 工单384：同 (a)——appbar 占位链事件已随工单308 退役，改读窗生命周期事件。
+    const regsInProc = evsInProc.filter((e) => e.type === 'taskbar-window-created');
     const lastRegT2 = regsInProc.length ? regsInProc[regsInProc.length - 1].t : 0;
-    const spuriousRemoved2 = evsInProc.filter((e) => e.type === 'taskbar-appbar-removed' && e.t > lastRegT2);
+    const spuriousRemoved2 = evsInProc.filter((e) => e.type === 'taskbar-window-destroyed' && e.t > lastRegT2);
     // 孤儿检测器：完整禁用后条带必须归零
     const rOff2 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
     let stripGone2 = false;
@@ -2210,11 +2215,11 @@ async function main() {
     }
     const rOn2 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: true })`);
     const tbFinal2 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 8000 });
-    const regFinal2 = await tape.wait('taskbar-appbar-registered', (e) => e.t > burstEnd2, { timeoutMs: 8000 });
+    const regFinal2 = await tape.wait('taskbar-window-created', (e) => e.t > burstEnd2, { timeoutMs: 8000 });
     if (burstDone && stripsBurst.length === 1 && spuriousRemoved2.length === 0
       && stripGone2 && rOff2 && rOff2.enabled === false
       && rOn2 && rOn2.enabled === true && tbFinal2 && isTopmost(tbFinal2) && regFinal2) {
-      rep.pass(`P10(b) 进程内连发：条带恰一扇、禁用归零（无孤儿）、再启用占位在场（hwnd=${regFinal2.hwnd}）、无乱序注销`);
+      rep.pass(`P10(b) 进程内连发：条带恰一扇、禁用归零（无孤儿）、再启用新窗存证在场（taskbar-window-created；条带 hwnd=${tbFinal2}）、无乱序注销`);
     } else {
       rep.fail(`P10(b) 连发存证=${!!burstDone} 条带数=${stripsBurst.length} 乱序注销=${spuriousRemoved2.length}`
         + ` 禁用归零=${stripGone2} 禁用响应=${JSON.stringify(rOff2)} 再启用窗=${!!tbFinal2} 新窗占位=${!!regFinal2}`);
@@ -3825,7 +3830,7 @@ static class Probe {
     // 渲染层 DOM 读式（工单243）：栏面退场 = 非弹出组 display:none（收栏态 CSS 口径）；
     // 弹出的组 = 带 .summon-popped 类（复现在同一条 48px 带内）；应用图标矩形供浮层臂取点。
     const SUMMON_DOM_EXPR = `(() => {
-      const ids = { start: 'pill-start', recs: 'pill-recs', apps: 'pill-apps', right: 'right-pill', showdesk: 'show-desktop' };
+      const ids = { start: 'pill-start', mode: 'pill-mode', recs: 'pill-recs', apps: 'pill-apps', right: 'right-pill', showdesk: 'show-desktop' };
       const out = { barMode: document.body.dataset.barMode || '', innerHeight: window.innerHeight, groups: {}, appIcons: [], recIcons: [], detail: {} };
       for (const g of Object.keys(ids)) {
         const el = document.getElementById(ids[g]);

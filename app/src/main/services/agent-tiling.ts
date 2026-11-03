@@ -14,7 +14,7 @@
 // 操作里浮动；后台自改判定为非前台 → 静默复原不弹框。切出撤销授权但保留浮动几何，
 // 恢复平铺收回浮动、补入溢出、清授权，异常窗跳过并由调用方报告数量。
 //
-// 实验开关（spec 决策 29）：config agentDesktop.enabled = false（缺省）时本服务
+// 功能开关（spec 决策 29）：config agentDesktop.enabled = false（关闭）时本服务
 // available=false——零观察、零落位、投影恒空态。
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
@@ -60,7 +60,7 @@ import {
 } from '../desktop/geom-auth'
 
 export interface AgentTilingServiceOptions {
-  /** 实验开关（config agentDesktop.enabled 下发；缺省 = 关——零观察零落位） */
+  /** 功能开关（config agentDesktop.enabled 下发；生产装配必下发，缺省 = 关——零观察零落位） */
   enabled?: boolean
   /** 事件批处理窗口（ms）：LOCATIONCHANGE 风暴合并（缺省 80ms——500ms 稳定预算的主项） */
   batchMs?: number
@@ -252,7 +252,7 @@ export class AgentTilingService extends Service {
     this.syncActivation()
   }
 
-  /** 可用 = 实验开关开（平台能力在 deps 真源侧失败关闭——collectFacts 抛错按本拍不可用） */
+  /** 可用 = 功能开关开（平台能力在 deps 真源侧失败关闭——collectFacts 抛错按本拍不可用） */
   private available(): boolean {
     return this.enabledFlag
   }

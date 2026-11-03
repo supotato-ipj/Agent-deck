@@ -44,7 +44,7 @@ export interface PanelKernelOptions {
   taskbar?: TaskbarServiceOptions
   /** 任务栏应用组编排轮询间隔（ms，工单52）；0 = 不装定时器，缺省 = DEFAULT_TASKBAR_POLL_MS */
   taskbarPollMs?: number
-  /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = config agentDesktop 段，默认关） */
+  /** 桌面工作区（工单375）：功能开关与依赖缝（缺省 = config agentDesktop 段；段缺省 = 产品默认开放） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
   /** Agent 聚焦（工单379）：实验开关与依赖缝（缺省随 agentDesktop 开关） */
@@ -102,7 +102,7 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
           ?.replayTrayClick?.(key, button) ?? false),
     },
   })
-  // 桌面工作区（工单375）：实验开关隔离（默认关）。装配即自起跑；BridgeService 对它
+  // 桌面工作区（工单375）：功能开关隔离（缺配置 = 关；生产 config 默认开放）。装配即自起跑；BridgeService 对它
   // 是可选注入，未注册时投影回退禁用态（桥接层不静默失效）。
   ctx.plugin(DesktopWorkspaceService, {
     ...options.desktopWorkspace,

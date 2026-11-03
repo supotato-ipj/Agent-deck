@@ -1830,7 +1830,7 @@
     },
     {
       "id": "375-desktop-switch",
-      "title": "桌面工作区（工单375）：真实双桌面切换最小闭环——模式组/配对/单飞确认/reconciliation/跟随与排除/新窗归属/零残留；工单380 增按桌面过滤与跨桌面点击",
+      "title": "桌面工作区（工单375）：真实双桌面切换最小闭环——模式组/配对/单飞确认/reconciliation/跟随与排除/新窗归属/零残留；工单380 增按桌面过滤与跨桌面点击；工单384 增默认开放发布门",
       "entry": "app/accept/desktop-switch.js",
       "flag": "--accept-desktop-switch",
       "hintBar": true,
@@ -1845,6 +1845,21 @@
         "desktop"
       ],
       "segments": [
+        {
+          "seg": "P0",
+          "ticket": 384,
+          "title": "默认开放（发布门）：config 无 agentDesktop 段 → workspace available=true/paired=false、模式组两枚在渲染且未配对不高亮不禁用、仅在场零桌面创建",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 3,
+          "areas": [
+            "desktop",
+            "taskbar",
+            "config"
+          ]
+        },
         {
           "seg": "P1",
           "ticket": 375,

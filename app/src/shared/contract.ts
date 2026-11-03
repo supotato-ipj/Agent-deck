@@ -266,11 +266,11 @@ export type DesktopMode = 'normal' | 'agent' | 'unmanaged'
 
 /**
  * 桌面工作区状态投影（工单375，spec #369 决策 2 只读投影）：独立面板、自绘任务栏与
- * （后续工单的）顶部胶囊共享的同一份跨桌面状态。available=false = 实验开关未启用或
+ * （后续工单的）顶部胶囊共享的同一份跨桌面状态。available=false = 功能开关被显式关闭或
  * 真实桌面能力不可用（失败关闭，spec 决策 30）——模式组不渲染、切换命令拒绝。
  */
 export interface DesktopWorkspaceState {
-  /** 实验开关（config agentDesktop.enabled）且平台能力可用才为 true；默认关闭 */
+  /** 功能开关（config agentDesktop.enabled，工单384 起默认 true）且平台能力可用才为 true */
   available: boolean
   /** 已配对（普通/Agent 两枚系统桌面 ID 均在册）；未配对时两枚入口均不高亮 */
   paired: boolean
@@ -288,10 +288,10 @@ export interface DesktopWorkspaceState {
  * Agent 平铺状态投影（工单376，spec #369 决策 14/26 只读投影）：顶部胶囊与桥共享的
  * 同一份平铺账。count 口径 = Agent 桌面主屏**全部合格窗口**（含平铺、最小化与各类
  * 未平铺——GLOSSARY「顶部窗口胶囊」），排除副屏、面板自身、系统弹窗与其他桌面；
- * available=false（实验开关关 / 非 Agent 桌面）时计数恒 0。
+ * available=false（功能开关关 / 非 Agent 桌面）时计数恒 0。
  */
 export interface AgentTilingState {
-  /** 实验开关（config agentDesktop.enabled）；关闭时零观察零落位 */
+  /** 功能开关（config agentDesktop.enabled）；关闭时零观察零落位 */
   available: boolean
   /** 当前桌面模式（非 agent 时平铺失活——普通桌面零自动改窗） */
   current: DesktopMode
