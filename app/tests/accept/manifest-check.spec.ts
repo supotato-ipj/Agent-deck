@@ -380,7 +380,11 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // DB status 不冒充执行 / 多组单行横向滚动与 1Hz 刷新；一段绑定一工单）。MiniMax
     // 读取口径、诚实分态与只读性按增段条件②由 scanners/projection/service 单测与
     // 夹具全树快照钉，真机段只验真实悬停注入下的 DOM 呈现与刷新时序。
-    expect(total).toBe(180)
+    // 180 → 185：工单383 增 383-agent-restart-recovery 电池 P1-P5（干净重启恢复 /
+    // 隐私断言 / 崩溃不强制搬窗 / 安全态故障注入 / 零残留；一段绑定一工单）。
+    // 存储模型、恢复规划与暂停 reconciliation 按增段条件②由 agent-layout /
+    // agent-tiling-recovery 单测矩阵钉，真机段只验真实重启/强杀/故障注入下的系统事实。
+    expect(total).toBe(185)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

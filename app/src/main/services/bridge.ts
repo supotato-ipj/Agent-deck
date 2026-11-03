@@ -537,6 +537,7 @@ function emptyTilingState(): AgentTilingState {
   return {
     available: false, current: 'unmanaged', count: 0, placed: 0, overflow: 0, anomalies: 0,
     anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 }, floating: 0, prompting: 0, authorized: 0,
+    recovery: 'none', recoveryReason: null,
   }
 }
 

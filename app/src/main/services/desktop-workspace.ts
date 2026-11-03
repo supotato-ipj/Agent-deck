@@ -184,6 +184,11 @@ export class DesktopWorkspaceService extends Service {
     this.ctx.emit('workspace/changed', this.state())
   }
 
+  /** 当前持有的配对（工单383：布局恢复的归属核对口——只读快照，不含窗口数据） */
+  pairingIds(): StoredPairing | null {
+    return this.pairing ? { ...this.pairing } : null
+  }
+
   /** 测试观察缝：当前持有的配对（工单52 storeForTest 同款） */
   pairingForTest(): StoredPairing | null {
     return this.pairing ? { ...this.pairing } : null

@@ -20,6 +20,7 @@ function factsOf(hwnd: number): TileWindowFacts | null {
   const title = nativeWindowTitle(hwnd) ?? ''
   return {
     hwnd,
+    pid,
     exe,
     title,
     visible: true,

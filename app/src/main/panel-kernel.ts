@@ -125,6 +125,9 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
         ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
       ownExes: options.agentTiling?.deps?.ownExes
         ?? (() => [process.execPath]), // 面板进程 exe（own-process 排除——面板/胶囊/条带同进程家族）
+      // 工单383：布局恢复的桌面归属核对——配对 Agent 桌面 ID（未配对 = null，不恢复）
+      agentDesktopId: options.agentTiling?.deps?.agentDesktopId
+        ?? (() => ctx.desktopWorkspace?.pairingIds()?.agentId ?? null),
     },
   })
   // Agent 聚焦（工单379）：随 agentDesktop 开关隔离（默认关）。聚焦服务对平铺账是行为

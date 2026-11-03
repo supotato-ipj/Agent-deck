@@ -2389,6 +2389,74 @@
           "estSeconds": 4
         }
       ]
+    },
+    {
+      "id": "383-agent-restart-recovery",
+      "title": "Agent 桌面重启恢复（工单383）：干净重启恢复配对/窗口顺序/平铺树/浮动几何且手动授权全部关闭、持久化不含标题/缩略图/授权、崩溃不强制搬窗且原生任务栏由既有守护链复原、桌面 ID 失效与窗口身份不符与模型不一致进入安全态零改窗、零残留",
+      "entry": "app/accept/agent-restart-recovery.js",
+      "flag": "--accept-agent-restart-recovery",
+      "hintBar": true,
+      "cdpPort": 9238,
+      "kind": null,
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 93,
+      "lastMeasuredAt": "2026-11-03",
+      "areas": [
+        "desktop",
+        "panel.core"
+      ],
+      "segments": [
+        {
+          "seg": "P1",
+          "ticket": 383,
+          "title": "干净重启恢复：真实三窗平铺 → app/quit 干净退出 → 重启后配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（逐像素）、手动授权全关闭（floating/prompting/authorized 口径）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 8
+        },
+        {
+          "seg": "P2",
+          "ticket": 383,
+          "title": "隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/floating），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 1
+        },
+        {
+          "seg": "P3",
+          "ticket": 383,
+          "title": "崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；夹具窗矩形逐像素不变；任务栏条带由既有守护链重建",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "panel-alive"
+          ],
+          "estSeconds": 16
+        },
+        {
+          "seg": "P4",
+          "ticket": 383,
+          "title": "安全态故障注入：窗口身份不符（同 hwnd 换 pid）→ window-identity、模型不一致（树引用越界）→ model、桌面 ID 不一致 → desktop-id；三次重启均零自动改窗",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 42
+        },
+        {
+          "seg": "P5",
+          "ticket": 383,
+          "title": "收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 与布局文件还原、原生任务栏经既有还原链/清场兜底可见",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 6
+        }
+      ]
     }
   ],
   "areas": {
