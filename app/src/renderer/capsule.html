@@ -5,8 +5,9 @@
 <title>DECK-CAPSULE</title>
 <style>
   /* 顶部窗口胶囊（工单376）：Agent 桌面正上方的小计数胶囊——整页透明，唯胶囊体可见。
-   * 本票只承载计数主体（预览展开/恢复按钮/聚焦退出归工单378+）；整窗鼠标穿透由
-   * 主进程 setIgnoreMouseEvents 承担，页内不留交互面。 */
+   * 工单378：右侧独立恢复按钮（恢复平铺：收回浮动 + 补入溢出 + 清授权，异常跳过并报告）。
+   * 窗口默认鼠标穿透，仅按钮热区接收点击（主进程 HotzoneTracker 按渲染层声明的热区
+   * 切换穿透）——间隙点击落到下方窗口。 */
   html, body {
     margin: 0;
     width: 100%;
@@ -27,6 +28,7 @@
     justify-content: center;
     column-gap: 6px;
     box-sizing: border-box;
+    padding: 0 30px 0 10px;
     background: rgba(0, 0, 0, 0.62);
     border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 999px;
@@ -38,10 +40,44 @@
   #capsule[hidden] { display: none; }
   #cap-count { font-weight: 700; color: #ffffff; }
   #cap-label { opacity: 0.78; }
+  #cap-status {
+    opacity: 0.8;
+    font-size: 10px;
+    letter-spacing: 0;
+    max-width: 0;
+    overflow: hidden;
+    transition: max-width 120ms ease;
+  }
+  #cap-status.show { max-width: 104px; }
+  #cap-restore {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f0f0f4;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+  #cap-restore:hover { background: rgba(255, 255, 255, 0.2); }
+  #cap-restore[disabled] { opacity: 0.4; cursor: default; }
 </style>
 </head>
 <body>
-<div id="capsule" role="status" aria-label="Agent 桌面窗口计数"><span id="cap-count">0</span><span id="cap-label">窗</span></div>
+<div id="capsule" role="status" aria-label="Agent 桌面窗口计数">
+  <span id="cap-count">0</span><span id="cap-label">窗</span>
+  <span id="cap-status" aria-live="polite"></span>
+  <button id="cap-restore" type="button" title="恢复平铺" aria-label="恢复平铺">⟳</button>
+</div>
 <script type="module" src="./capsule.js"></script>
 </body>
 </html>

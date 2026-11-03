@@ -214,10 +214,10 @@ describe('真仓库清单：选择器对真实登记处可用（工单207）', (
     expect(pick(p, '03-battery')!.mode).toBe('full')
   })
 
-  it('改共享验收基建 → 全部十三块电池进计划（工单376 增 376-agent-tiling、工单377 增 377-agent-tiling-lifecycle）', () => {
+  it('改共享验收基建 → 全部十四块电池进计划（工单376 增 376-agent-tiling、工单377 增 377-agent-tiling-lifecycle、工单378 增 378-agent-geometry-auth）', () => {
     const manifest = loadManifest()
     const p = selectPlan({ changedFiles: ['app/accept/lib/report.js'], manifest })
-    expect(p.batteries).toHaveLength(13)
+    expect(p.batteries).toHaveLength(14)
     expect(p.conservative).toBe(true)
   })
 })

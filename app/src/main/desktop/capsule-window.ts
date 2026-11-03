@@ -11,16 +11,18 @@ import { BrowserWindow, screen } from 'electron'
 import path from 'node:path'
 import type { Context } from 'cordis'
 import type { DesktopWorkspaceState } from '../../shared/contract'
-import { wireBridgeIpc } from '../panel-ipc'
+import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import type { EventLog } from '../panel-ipc'
+import { HotzoneTracker } from '../hotzone'
 import { capsuleUrl } from '../plugins/protocol'
-import { hwndOf } from '../win32'
+import { hwndOf, setTopmost } from '../win32'
 
 /** 胶囊窗标题：验收控制器按 pid + 标题寻窗（TASKBAR_TITLE 先例） */
 export const CAPSULE_TITLE = 'DECK-CAPSULE'
 
-/** 胶囊几何（DIP）：主屏顶部居中小条（计数胶囊不占平铺区——平铺顶部不留白，覆盖其上） */
-const CAPSULE_W = 96
+/** 胶囊几何（DIP）：主屏顶部居中小条（计数胶囊不占平铺区——平铺顶部不留白，覆盖其上）。
+ *  工单378：宽度放宽容纳右侧恢复按钮与短暂结果提示（恢复 N · 跳过 M）。 */
+const CAPSULE_W = 168
 const CAPSULE_H = 30
 
 function capsuleBounds(): { x: number; y: number; width: number; height: number } {
@@ -52,8 +54,9 @@ function createCapsuleWindow(log: EventLog | null): BrowserWindow {
     },
   })
   win.setAlwaysOnTop(true, 'screen-saver')
-  // 默认穿透（条带窗同款纪律）：本票胶囊只读计数，无交互面——整窗穿透，预览交互
-  // 票再按命中区翻开。forward 不装（全局低级鼠标钩子成本，条带窗已实证的取舍）。
+  // 默认穿透（条带窗同款纪律）：工单378 起恢复按钮是唯一交互面——渲染层声明按钮热区，
+  // 主进程 HotzoneTracker 按光标命中翻转穿透，其余区域点击照旧落到下方窗口。
+  // forward 不装（全局低级鼠标钩子成本，条带窗已实证的取舍）。
   win.setIgnoreMouseEvents(true)
   win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     if (level >= 2) log?.append({ type: 'capsule-renderer-console', level, message, line, sourceId })
@@ -77,6 +80,7 @@ export interface CapsuleController {
 export function startCapsuleController(options: { ctx: Context; log: EventLog | null }): CapsuleController {
   const { ctx, log } = options
   let win: BrowserWindow | null = null
+  let tracker: HotzoneTracker | null = null
   let disposed = false
 
   // 显隐判据：桌面工作区投影 available && current==='agent'（工作区服务是桌面模式的
@@ -93,11 +97,21 @@ export function startCapsuleController(options: { ctx: Context; log: EventLog | 
     const want = wantVisible()
     if (want && (!win || win.isDestroyed())) {
       win = createCapsuleWindow(log)
+      tracker = new HotzoneTracker(win, {
+        onTransition: (hot) => log?.append({ type: hot ? 'capsule-hotzone-enter' : 'capsule-hotzone-leave' }),
+        // 热区离开即重申置顶（条带窗同款：热区点击会顶起 z 序，胶囊必须始终置顶）
+        onLeave: () => {
+          if (win && !win.isDestroyed()) setTopmost(hwndOf(win), true)
+        },
+      })
       wireBridgeIpc(win, ctx.bridge, ['tiling/changed', 'workspace/changed'])
+      wireHostIpc(win, tracker, log, { pin: (w) => setTopmost(hwndOf(w), true) })
       void win.loadURL(capsuleUrl())
       win.showInactive()
       log?.append({ type: 'capsule-window-created' })
     } else if (!want && win && !win.isDestroyed()) {
+      tracker?.dispose()
+      tracker = null
       win.destroy()
       win = null
       log?.append({ type: 'capsule-window-closed' })
@@ -112,6 +126,8 @@ export function startCapsuleController(options: { ctx: Context; log: EventLog | 
   return {
     dispose(): void {
       disposed = true
+      tracker?.dispose()
+      tracker = null
       if (win && !win.isDestroyed()) win.destroy()
       win = null
     },

@@ -82,6 +82,13 @@ declare module 'cordis' {
     'workspace/changed': (payload: DesktopWorkspaceState) => void
     /** 工单376 Agent 平铺：计数/落格/溢出/异常任一变化即推——胶囊与桥订阅同一份 */
     'tiling/changed': (payload: AgentTilingState) => void
+    /**
+     * 工单378 授权提示请求：首个用户几何操作已复原，等待「调整窗口/保持平铺」。
+     * 只带窗口句柄与当前几何（提示窗定位用），不带标题——隐私面（spec 决策 26）。
+     */
+    'tiling/authorize-request': (payload: { hwnd: number; rect: { left: number; top: number; right: number; bottom: number } }) => void
+    /** 工单378 授权提示关闭（确认/取消/切出撤销/恢复平铺/窗口消失）——控制器据此收窗 */
+    'tiling/authorize-closed': (payload: { hwnd: number }) => void
   }
   interface Context {
     clock: ClockService

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DECK-TILE-PROMPT</title>
+<style>
+  /* 逐窗几何授权提示（工单378）：首次操作已复原，问「调整窗口 / 保持平铺」。
+   * 默认与 Esc 都保持平铺；没有「以后不再提示」（spec #369 决策 10 / out-of-scope）。 */
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    user-select: none;
+    cursor: default;
+  }
+  #prompt {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    background: rgba(22, 24, 30, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    color: #e9e9ee;
+    font-size: 13px;
+  }
+  #p-title { font-weight: 600; letter-spacing: 0.02em; }
+  #p-hint { opacity: 0.66; font-size: 11px; }
+  #p-actions { display: flex; gap: 10px; }
+  button {
+    flex: 1;
+    height: 26px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    color: #f2f2f6;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button:hover { background: rgba(255, 255, 255, 0.16); }
+  #btn-adjust { border-color: rgba(120, 180, 255, 0.55); }
+  #btn-keep { opacity: 0.86; }
+</style>
+</head>
+<body>
+<div id="prompt" role="dialog" aria-modal="true" aria-label="窗口几何授权">
+  <div id="p-title">调整窗口？</div>
+  <div id="p-hint">确认后请重新拖动或缩放；Esc 保持平铺</div>
+  <div id="p-actions">
+    <button id="btn-adjust" type="button">调整窗口</button>
+    <button id="btn-keep" type="button">保持平铺</button>
+  </div>
+</div>
+<script type="module" src="./tile-prompt.js"></script>
+</body>
+</html>

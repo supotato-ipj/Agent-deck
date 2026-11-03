@@ -309,6 +309,12 @@ export interface AgentTilingState {
    * 受理但拒改达重试上限（WM_WINDOWPOSCHANGING 钉死/minmax 夹取）。三类合计 = anomalies。
    */
   anomalyDetail: { fixedSize: number; denied: number; refused: number }
+  /** 手动浮动窗口数（工单378，GLOSSARY「浮动窗口」）：脱离平铺树、几何保留、可覆盖窗格 */
+  floating: number
+  /** 正在等待「调整窗口/保持平铺」的窗口数（工单378：首次用户操作已复原、授权未产生） */
+  prompting: number
+  /** 已确认授权、等待用户重新发起操作的窗口数（工单378：仍平铺） */
+  authorized: number
 }
 
 /** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
@@ -1062,6 +1068,17 @@ export interface BridgeMethods {
   'workspace/switch-to': { request: { mode: 'normal' | 'agent' }; response: { ok: boolean; state: DesktopWorkspaceState; error?: string } }
   /** Agent 平铺状态只读投影（工单376）：顶部胶囊与诊断共用（缺装配回退空态） */
   'tiling/get-state': { request: null; response: AgentTilingState }
+  /**
+   * 逐窗几何授权决定（工单378，spec #369 决策 10/26）：只由可信内核 UI（授权提示窗）的
+   * 真实用户手势调用——confirm = 调整窗口（授权下一次重新发起的操作，不写几何、不重排），
+   * cancel = 保持平铺（窗口已在格上）。非 prompt 阶段一律 ok:false（不越级授权）。
+   */
+  'tiling/authorize': { request: { hwnd: number; decision: 'confirm' | 'cancel' }; response: { ok: boolean; state: AgentTilingState } }
+  /**
+   * 恢复平铺（工单378，spec #369 决策 11/26）：收回全部手动浮动、按空间补入容量溢出、
+   * 清除未消费授权；异常未平铺跳过并报告数量。可信内核 UI（胶囊右侧恢复按钮）用户手势触发。
+   */
+  'tiling/restore': { request: null; response: { ok: boolean; restored: number; skipped: number; state: AgentTilingState } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */

@@ -11,6 +11,7 @@ import { createPanelWindow } from './panel-window'
 import { hwndOf } from './win32'
 import { startTaskbarController } from './taskbar/window'
 import { startCapsuleController } from './desktop/capsule-window'
+import { startTilePromptController } from './desktop/tile-prompt-window'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
@@ -271,6 +272,8 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     // 真源（物理 px 口径——条带 48 DIP × scaleFactor，任务栏 stripBounds 同源常量）。
     agentTiling: {
       enabled: config.agentDesktop.enabled,
+      // 授权决策存证（工单378）：只记 hwnd/阶段/前台/动作——不含窗口标题（隐私边界）
+      log: (event) => log?.append(event),
       deps: {
         primaryRect: () => {
           const d = screen.getPrimaryDisplay()
@@ -517,9 +520,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
   ])
 
-  // 顶部窗口胶囊（工单376）：随工作区模式建/销（agent 才在场）；整窗穿透只读计数。
+  // 顶部窗口胶囊（工单376）：随工作区模式建/销（agent 才在场）；整窗穿透，仅右侧
+  // 恢复按钮热区接收点击（工单378）。
   const capsuleCtl = startCapsuleController({ ctx: kernel, log })
   app.on('before-quit', () => capsuleCtl.dispose())
+
+  // 逐窗几何授权提示窗（工单378）：首次用户操作被复原后显示「调整窗口/保持平铺」；
+  // 每个窗口每次进入独立授权（只在内存，切出 Agent 桌面即撤销——决策 10/13）。
+  const promptCtl = startTilePromptController({ ctx: kernel, log })
+  app.on('before-quit', () => promptCtl.dispose())
 
   // Agent 平铺（工单376）：启动事件订阅（构造期不起——装配顺序下工作区可能晚到）。
   kernel.agentTiling?.start()

@@ -2103,6 +2103,95 @@
           "estSeconds": 11
         }
       ]
+    },
+{
+      "id": "378-agent-geometry-auth",
+      "title": "Agent 平铺逐窗几何授权与恢复平铺（工单378）：首次操作复原+提示/Esc 保持平铺/确认不重排/重新操作浮动/后台自改不弹框/拖动与边框与最大化与键盘与 Snap 同规则/切出撤销授权保留浮动几何/胶囊恢复按钮与异常跳过报告/零残留",
+      "entry": "app/accept/agent-geometry-auth.js",
+      "flag": "--accept-agent-geometry-auth",
+      "hintBar": true,
+      "cdpPort": 9235,
+      "kind": null,
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 32,
+      "lastMeasuredAt": "2026-11-03",
+      "areas": [
+        "desktop",
+        "panel.core"
+      ],
+      "segments": [
+        {
+          "seg": "P1",
+          "ticket": 378,
+          "title": "首次拖动取消：真实拖动成员 1 → 复原到原格且 ≤500ms、提示窗「调整窗口/保持平铺」在场、prompting=1 零浮动；Esc 后提示关闭、布局逐像素不变；胶囊恢复按钮始终在场",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 9
+        },
+        {
+          "seg": "P2",
+          "ticket": 378,
+          "title": "确认与浮动：再次拖动复原+提示；真实点「调整窗口」→ 确认本身不重排（仍在原格、authorized=1）；重新拖动 → 浮动（几何保留、其余成员重铺满、授权消费）",
+          "surfaces": [
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 4
+        },
+        {
+          "seg": "P3",
+          "ticket": 378,
+          "title": "全几何入口逐窗授权：边框缩放/最大化（Win+Up）/键盘 Snap（Win+Left）/鼠标 Snap（拖到左缘）四入口都先复原再询问，Esc 保持平铺",
+          "surfaces": [
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 7
+        },
+        {
+          "seg": "P4",
+          "ticket": 378,
+          "title": "后台自改不弹框：非前台成员窗被外部改窗 → 静默复原、零提示零授权（story 30）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4
+        },
+        {
+          "seg": "P5",
+          "ticket": 378,
+          "title": "切出/返回：切普通保留浮动几何；返回不自动恢复（仍浮动、其余铺满）；返回后首次操作复原到浮动几何并提示（授权已撤销）",
+          "surfaces": [
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 5
+        },
+        {
+          "seg": "P6",
+          "ticket": 378,
+          "title": "胶囊恢复按钮：真实点击 → 浮动收回平铺、异常固定尺寸窗跳过并在胶囊报告「恢复 1 · 跳过 1」、授权清除（恢复后首次操作重新提示）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 6
+        },
+        {
+          "seg": "P7",
+          "ticket": 378,
+          "title": "收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 三态还原",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 5
+        }
+      ]
     }
   ],
   "areas": {

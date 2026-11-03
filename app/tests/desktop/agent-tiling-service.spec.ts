@@ -20,6 +20,8 @@ interface Harness {
   svc: AgentTilingService
   windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean }>
   writes: Array<{ hwnd: number; target: TileRect }>
+  /** 复原写（工单378：首次操作复原走 restoreRect，与普通落位分开记账） */
+  restores: Array<{ hwnd: number; target: TileRect }>
   watchOn: (hwnd: number) => void
   mode: { value: 'normal' | 'agent' | 'unmanaged' }
   events: AgentTilingState[]
@@ -31,6 +33,12 @@ interface Harness {
   primary: { value: TileRect }
   /** 触发显示参数变化回调（分辨率/DPI/主屏变化的假源） */
   displayChange(): void
+  /** 前台窗集合（工单378「用户主动操作」判据的假源） */
+  foreground: Set<number>
+  /** 授权提示上行事件（hwnd 序） */
+  prompts: Array<{ hwnd: number; rect: TileRect }>
+  /** 授权提示关闭事件（hwnd 序） */
+  closed: number[]
 }
 
 function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean } = {}): Harness {
@@ -39,6 +47,7 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
   ])
   windows.clear()
   const writes: Array<{ hwnd: number; target: TileRect }> = []
+  const restores: Array<{ hwnd: number; target: TileRect }> = []
   const events: AgentTilingState[] = []
   const mode = { value: 'normal' as 'normal' | 'agent' | 'unmanaged' }
   let failNext = false
@@ -46,6 +55,9 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
   const primary = { value: { ...PRIMARY } }
   const displayCbs: Array<() => void> = []
   let watchCb: ((hwnd: number) => void) | null = null
+  const foreground = new Set<number>()
+  const prompts: Array<{ hwnd: number; rect: TileRect }> = []
+  const closed: number[] = []
 
   const factsOf = (): TileWindowFacts[] =>
     [...windows.entries()].map(([hwnd, w]) => ({
@@ -68,6 +80,7 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
   const svc = new AgentTilingService(ctx, {
     enabled: over.enabled ?? true,
     batchMs: 0,
+    settleMs: 40,
     ...over,
     deps: {
       currentMode: () => mode.value,
@@ -83,14 +96,18 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
       },
       collectFacts: factsOf,
       readRect: (hwnd) => ({ ...(windows.get(hwnd)?.rect ?? { left: 0, top: 0, right: 0, bottom: 0 }) }),
-      writeRect: (hwnd, target) => {
+      // 生产落位统一走 restoreRect（最大化态先 SC_RESTORE）；测试里同时记入 writes（几何写
+      // 全集）与 restores（复原通道标记），377 的写集断言与 378 的复原断言各取所需
+      restoreRect: (hwnd, target) => {
+        restores.push({ hwnd, target: { ...target } })
         writes.push({ hwnd, target: { ...target } })
         if (failNext) return false
-        if (stuck.has(hwnd)) return true // 受理但拒改：矩形纹丝不动（核验面见 readRect）
+        if (stuck.has(hwnd)) return true
         const w = windows.get(hwnd)
         if (w) w.rect = { ...target }
         return true
       },
+      isForeground: (hwnd) => foreground.has(hwnd),
       startWatch: (cb) => {
         watchCb = cb
         return () => {
@@ -101,11 +118,14 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
     },
   })
   ctx.on('tiling/changed', (payload) => events.push(payload))
+  ctx.on('tiling/authorize-request', (payload) => prompts.push(payload))
+  ctx.on('tiling/authorize-closed', (payload) => closed.push(payload.hwnd))
   svc.start()
   return {
     svc,
     windows,
     writes,
+    restores,
     mode,
     events,
     watchOn: (hwnd) => watchCb?.(hwnd),
@@ -117,6 +137,9 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
     displayChange: () => {
       for (const cb of [...displayCbs]) cb()
     },
+    foreground,
+    prompts,
+    closed,
   }
 }
 
@@ -526,5 +549,210 @@ describe('Agent 平铺生命周期（工单377）', () => {
     await settle(60)
     expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
     expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 250, right: 330, bottom: 500 })
+  })
+})
+
+
+describe('逐窗几何授权、浮动与恢复平铺（工单378）', () => {
+  /** 用户主动改几何：先改矩形、置前台、触发一拍（拖动/边框/最大化/键盘/Snap 的假身） */
+  const userMove = async (h: Harness, hwnd: number, rect: TileRect): Promise<void> => {
+    h.windows.get(hwnd)!.rect = { ...rect }
+    h.foreground.add(hwnd)
+    h.watchOn(hwnd)
+    await settle(60)
+  }
+  /** 后台自改：非前台的外部几何变化 */
+  const backgroundMove = async (h: Harness, hwnd: number, rect: TileRect): Promise<void> => {
+    h.windows.get(hwnd)!.rect = { ...rect }
+    h.foreground.delete(hwnd)
+    h.watchOn(hwnd)
+    await settle(60)
+  }
+  const moved = (r: TileRect, dx: number, dy: number): TileRect => ({
+    left: r.left + dx, top: r.top + dy, right: r.right + dx, bottom: r.bottom + dy,
+  })
+
+  it('首次用户操作：先复原到窗格并上行提示（不浮动、不重排），取消后保持平铺', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1])
+    expect(h.windows.get(1)!.rect).toEqual(AREA)
+    const before = { ...h.windows.get(1)!.rect }
+    await userMove(h, 1, moved(AREA, 120, 80))
+    // 复原：窗口回到窗格（restore 通道），提示上行；零浮动
+    expect(h.windows.get(1)!.rect).toEqual(before)
+    expect(h.restores.at(-1)).toEqual({ hwnd: 1, target: AREA })
+    expect(h.prompts).toEqual([{ hwnd: 1, rect: AREA }])
+    expect(h.svc.authPhaseForTest(1)).toBe('prompt')
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 1, authorized: 0, placed: 1 })
+    // Esc / 保持平铺：锁定，窗口仍在格上
+    const cancelled = h.svc.cancelHwnd(1)
+    expect(cancelled.ok).toBe(true)
+    expect(h.svc.authPhaseForTest(1)).toBe('locked')
+    expect(h.windows.get(1)!.rect).toEqual(before)
+    expect(h.closed).toEqual([1])
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0, authorized: 0 })
+  })
+
+  it('后台自改不弹框：非前台的外部几何变化静默复原、零提示、零授权（story 30）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    const target2 = { ...h.windows.get(2)!.rect }
+    await backgroundMove(h, 2, moved(target2, 60, 40))
+    expect(h.windows.get(2)!.rect).toEqual(target2)
+    expect(h.prompts).toEqual([])
+    expect(h.svc.authPhaseForTest(2)).toBe('locked')
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0 })
+  })
+
+  it('确认本身不重排：零写入零复原、进入 armed、窗口仍在格上（决策 9）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1])
+    await userMove(h, 1, moved(AREA, 90, 60))
+    const writesBefore = h.writes.length
+    const restoresBefore = h.restores.length
+    const confirmed = h.svc.confirmHwnd(1)
+    expect(confirmed.ok).toBe(true)
+    expect(h.svc.authPhaseForTest(1)).toBe('armed')
+    expect(h.writes.length).toBe(writesBefore)
+    expect(h.restores.length).toBe(restoresBefore)
+    expect(h.windows.get(1)!.rect).toEqual(AREA)
+    expect(h.svc.state()).toMatchObject({ floating: 0, authorized: 1, placed: 1 })
+  })
+
+  it('确认后重新发起操作 → 浮动：退出平铺树、其余成员重铺满、授权消费（story 37/38）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    const right = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+    expect(h.windows.get(2)!.rect).toEqual(right)
+    await userMove(h, 2, moved(right, 80, 50))
+    h.svc.confirmHwnd(2)
+    const floated = moved(right, 80, 50)
+    await userMove(h, 2, floated)
+    // 浮动：几何保留（可覆盖窗格），成员 1 重铺满，成员 2 不再落格
+    expect(h.windows.get(2)!.rect).toEqual(floated)
+    expect(h.windows.get(1)!.rect).toEqual(AREA)
+    // 一次持续授权在操作静止后消费（不是第一个浮动事件就消费）
+    await settle(120)
+    expect(h.svc.authPhaseForTest(2)).toBe('locked')
+    expect(h.svc.floatingRectForTest(2)).toEqual(floated)
+    expect(h.svc.state()).toMatchObject({ floating: 1, authorized: 0, placed: 1 })
+  })
+
+  it('浮动窗再次操作需重新授权：未授权用户改 → 复原到保留浮动几何并提示；确认后操作 → 接受新几何仍浮动', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    const right = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+    await userMove(h, 2, moved(right, 60, 40))
+    h.svc.confirmHwnd(2)
+    const floatRect = moved(right, 60, 40)
+    await userMove(h, 2, floatRect)
+    expect(h.svc.state().floating).toBe(1)
+    // 未授权再次拖动 → 复原到浮动几何并提示（不是拉回平铺）
+    await userMove(h, 2, moved(floatRect, 100, 100))
+    expect(h.windows.get(2)!.rect).toEqual(floatRect)
+    expect(h.prompts.at(-1)).toEqual({ hwnd: 2, rect: floatRect })
+    expect(h.svc.state()).toMatchObject({ floating: 1, prompting: 1 })
+    // 确认后再次操作 → 接受新几何（仍浮动、授权消费）
+    h.svc.confirmHwnd(2)
+    const again = moved(floatRect, 100, 100)
+    await userMove(h, 2, again)
+    expect(h.windows.get(2)!.rect).toEqual(again)
+    expect(h.svc.floatingRectForTest(2)).toEqual(again)
+    await settle(120)
+    expect(h.svc.authPhaseForTest(2)).toBe('locked')
+    expect(h.svc.state()).toMatchObject({ floating: 1, authorized: 0 })
+  })
+
+  it('切出撤销授权但保留浮动几何；返回后不自动恢复浮动（story 39）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    const right = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+    await userMove(h, 2, moved(right, 60, 40))
+    h.svc.confirmHwnd(2)
+    const floatRect = moved(right, 60, 40)
+    await userMove(h, 2, floatRect)
+    // 另一个窗进入提示（未消费授权）——切出应撤销它
+    await userMove(h, 1, moved(AREA, 40, 20))
+    expect(h.svc.state().prompting).toBe(1)
+    h.mode.value = 'normal'
+    h.svc.syncActivation()
+    await settle(60)
+    expect(h.svc.authPhaseForTest(1)).toBe('locked')
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0 })
+    expect(h.closed).toContain(1)
+    // 切回：浮动窗几何不变、不被自动拉回平铺
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle(60)
+    expect(h.windows.get(2)!.rect).toEqual(floatRect)
+    expect(h.svc.state()).toMatchObject({ floating: 1, placed: 1 })
+  })
+
+  it('恢复平铺：收回浮动（按浮动序补入平铺）、清授权、异常窗跳过并报告数量（story 28/40）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3])
+    // 浮动 2 与 3（各自确认 + 重新操作）
+    const r2 = { left: 1280, top: 0, right: 2560, bottom: 696 }
+    const r3 = { left: 1280, top: 696, right: 2560, bottom: 1392 }
+    await userMove(h, 2, moved(r2, 40, 30))
+    h.svc.confirmHwnd(2)
+    await userMove(h, 2, moved(r2, 40, 30))
+    await userMove(h, 3, moved(r3, 30, 40))
+    h.svc.confirmHwnd(3)
+    await userMove(h, 3, moved(r3, 30, 40))
+    expect(h.svc.state()).toMatchObject({ floating: 2, placed: 1 })
+    // 异常窗（固定尺寸）在场：恢复平铺应跳过并报告
+    h.windows.set(9, { rect: { left: 200, top: 200, right: 500, bottom: 460 }, iconic: false, resizable: false })
+    h.watchOn(9)
+    await settle(60)
+    expect(h.svc.state().anomalies).toBe(1)
+    const res = await h.svc.restoreTiling()
+    expect(res.ok).toBe(true)
+    expect(res.restored).toBe(2)
+    expect(res.skipped).toBe(1)
+    // 三窗布局（按成员序 1,2,3 的确定性裂变）
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1280, bottom: 1392 })
+    expect(h.windows.get(2)!.rect).toEqual(r2)
+    expect(h.windows.get(3)!.rect).toEqual(r3)
+    expect(h.svc.state()).toMatchObject({ floating: 0, authorized: 0, prompting: 0, placed: 3, anomalies: 1 })
+    // 清授权后的首次操作会重新提示
+    await userMove(h, 1, moved(AREA, 30, 20))
+    expect(h.prompts.at(-1)!.hwnd).toBe(1)
+  })
+
+  it('窗口消失清授权：同一 hwnd 新窗身份不继承 prompt/armed', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1])
+    await userMove(h, 1, moved(AREA, 50, 30))
+    expect(h.svc.authPhaseForTest(1)).toBe('prompt')
+    h.windows.delete(1)
+    h.watchOn(0)
+    await settle(60)
+    expect(h.svc.authPhaseForTest(1)).toBe('locked')
+    expect(h.closed).toContain(1)
   })
 })
