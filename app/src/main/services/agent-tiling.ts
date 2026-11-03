@@ -183,6 +183,9 @@ export class AgentTilingService extends Service {
    *  （story 21「移回主屏按最新窗口加入」），消失成员移除、兄弟吸收空位。显示参数
    *  变化重建平铺树时以本序重算（确定性函数）。 */
   private memberOrder: number[] = []
+  /** 一次性待入列交接（工单407）：拖入确认事件的 hwnd 暂存——下次布局拍按交接顺序
+   *  并入成员序后清除（不形成第二份持久成员账；只在内存，停表即清） */
+  private pendingHandoff: number[] = []
   /** 布局几何账（工单404，spec #403 决策「布局写窗与用户手势分流」）：hwnd → 该窗最近
    *  一次被布局**实际落定**的矩形（写后回读达标，或观察即达标）。判据事实化：窗口停在
    *  上拍布局落定的矩形上、而本轮规划目标变了 → 差异来自兄弟裂变/吸收/重算（布局自身
@@ -250,11 +253,17 @@ export class AgentTilingService extends Service {
     }
   }
 
-  /** 启动（构造后由装配层调用一次）：订阅 workspace/changed，按当前模式对齐激活态 */
+  /** 启动（构造后由装配层调用一次）：订阅 workspace/changed 与拖入交接，按当前模式对齐激活态 */
   start(): void {
     if (this.started) return
     this.started = true
     this.ctx.on('workspace/changed', () => this.syncActivation())
+    // 拖入一次性交接（工单407）：确认事件暂存待入列——下次布局拍按交接顺序并入成员序
+    // 并清除（见 onePass 对账；不形成第二份持久成员账）
+    this.ctx.on('tiling/drag-in-registered', (p: { hwnd: number }) => {
+      const hwnd = Number(p?.hwnd)
+      if (hwnd > 0 && !this.pendingHandoff.includes(hwnd)) this.pendingHandoff.push(hwnd)
+    })
     this.syncActivation()
   }
 
@@ -379,6 +388,7 @@ export class AgentTilingService extends Service {
     this.lastState = null
     this.layoutLoaded = false
     this.pendingRestore = null
+    this.pendingHandoff = []
     this.safe = false
     this.recovery = 'none'
     this.recoveryReason = null
@@ -556,6 +566,18 @@ export class AgentTilingService extends Service {
     // 可平铺候选 = 合格成员 − 异常未平铺 − 手动浮动（浮动窗几何保留、不参与规划、可覆盖窗格）
     const candidates = members.filter((m) => !this.anomalies.has(m.hwnd) && !isFloating(this.auth, m.hwnd))
     const candSet = new Set(candidates.map((m) => m.hwnd))
+    // 拖入交接对账（工单407）：确认过的待入列窗按交接顺序并入成员序——交接序优先于
+    // 本拍 z 序（story 41「连续拖入的顺序可预测」）。已消费条目即清；窗口已从事实里
+    // 消失（拖入后关闭）的条目丢弃——暂存账不沉淀。
+    if (this.pendingHandoff.length > 0) {
+      const factHwnds = new Set(facts.map((f) => f.hwnd))
+      for (const hwnd of this.pendingHandoff) {
+        if (candSet.has(hwnd) && !this.memberOrder.includes(hwnd)) this.memberOrder.push(hwnd)
+      }
+      // 消费即清：已并入成员序的条目移除；窗口已从事实消失（拖入后关闭）的条目丢弃；
+      // 只剩「事实在场但还不合格」的条目留待下拍（暂存账不沉淀为第二份成员账）
+      this.pendingHandoff = this.pendingHandoff.filter((h) => !this.memberOrder.includes(h) && factHwnds.has(h))
+    }
     // 成员加入序对账：保留在册序，新成员按本拍 z 序追加队尾（首见序 = 加入事件序——
     // 移回主屏按最新窗口加入，story 21）
     this.memberOrder = this.memberOrder.filter((h) => candSet.has(h))
@@ -904,6 +926,7 @@ export class AgentTilingService extends Service {
     this.recovery = 'safe'
     this.recoveryReason = reason
     this.pendingRestore = null
+    this.pendingHandoff = []
     this.restoringPass = false
     this.memberOrder = []
     this.tree = null
@@ -1103,6 +1126,11 @@ export class AgentTilingService extends Service {
   /** 测试观察缝：成员加入序快照（生命周期顺序断言——移回按最新加入） */
   memberOrderForTest(): number[] {
     return [...this.memberOrder]
+  }
+
+  /** 测试观察缝：拖入交接暂存账快照（工单407——消费即清、消失即弃的断言面） */
+  handoffPendingForTest(): number[] {
+    return [...this.pendingHandoff]
   }
 
   /** 测试观察缝：逐窗授权阶段（工单378 授权矩阵——浮动/提示/已确认） */

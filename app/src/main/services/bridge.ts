@@ -258,6 +258,18 @@ export class BridgeService extends Service {
         }
         return await svc.switchTo(mode) as BridgeMethods[M]['response']
       }
+      // --- 标题栏拖入（工单407，spec #403 决策「新增一个内部工作区拖入命令」）：请求
+      // 只带源窗口句柄，主进程重核资格/源桌面/配对并迁移回读确认；缺装配按不可用拒绝。
+      case 'workspace/drag-in': {
+        const { hwnd } = payload as { hwnd: number }
+        const h = Number(hwnd)
+        if (!Number.isFinite(h) || h <= 0) {
+          throw new BridgeError(`workspace/drag-in.hwnd 须为正数窗口句柄，收到 ${String(hwnd)}`)
+        }
+        const svc = this.ctx.agentDragIn
+        if (!svc) return { ok: false, reason: 'unavailable' } as BridgeMethods[M]['response']
+        return await svc.dragIn(h, 'command') as BridgeMethods[M]['response']
+      }
       // --- Agent 平铺（工单376）：只读投影（缺装配回退空态——决策 26 控制面口径） ---
       case 'tiling/get-state': {
         const svc = this.ctx.agentTiling

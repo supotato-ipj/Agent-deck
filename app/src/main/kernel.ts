@@ -13,6 +13,7 @@ import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
 import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
 import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
+import { AgentDragInService, type AgentDragInServiceOptions } from './services/agent-drag-in'
 import { FocusService } from './services/focus'
 import { HardwareService } from './services/hardware'
 import { LocalPanelDataService } from './services/panel-data'
@@ -74,6 +75,8 @@ export interface KernelOptions {
   /** 桌面工作区（工单375）：功能开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
+  /** 标题栏拖入（工单407）：功能开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
+  agentDragIn?: AgentDragInServiceOptions
   /** Agent 会话预览（工单381）：显式装配（离线夹具根）；缺省不注册 → 桥接回退空态 */
   sessionPreview?: SessionPreviewServiceOptions
 }
@@ -134,6 +137,20 @@ export function createKernel(options: KernelOptions = {}): Context {
     })
   }
   // Agent 平铺（工单376）：随 agentDesktop 开关隔离；deps 缺省延迟绑定真源（离线测试注入假源）。
+  // 标题栏拖入（工单407）：随 agentDesktop 开关隔离（缺省关）；deps 缺省延迟绑定真源。
+  ctx.plugin(AgentDragInService, {
+    ...options.agentDragIn,
+    enabled: options.agentDragIn?.enabled ?? false,
+    deps: {
+      ...options.agentDragIn?.deps,
+      currentMode: options.agentDragIn?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      workspaceAvailable: options.agentDragIn?.deps?.workspaceAvailable
+        ?? (() => Boolean(ctx.desktopWorkspace?.state().available)),
+      pairingIds: options.agentDragIn?.deps?.pairingIds
+        ?? (() => ctx.desktopWorkspace?.pairingIds() ?? null),
+    },
+  })
   ctx.plugin(AgentTilingService, {
     ...options.agentTiling,
     enabled: options.agentTiling?.enabled ?? false,

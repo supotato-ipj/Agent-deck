@@ -1954,6 +1954,23 @@
             "taskbar",
             "desktop"
           ]
+        },
+        {
+          "seg": "P10",
+          "ticket": 407,
+          "title": "标题栏拖入 Agent 桌面最小事务（工单407）：真实标题栏拖动探针窗到任务栏 Agent 入口——MOVESIZE 起/止识别源窗口、悬停渲染层 .drop-target 落点高亮、拖动窗内会话预览零展开、桌面 ID 回读确认迁移并 drag-in-registered 存证、落放不切桌面；切 Agent 后交接窗实际平铺（count/placed=1 铺满平铺区）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 12,
+          "areas": [
+            "desktop",
+            "panel.core",
+            "taskbar",
+            "sessions"
+          ]
         }
       ]
     },

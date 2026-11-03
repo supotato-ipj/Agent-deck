@@ -50,6 +50,9 @@ let current: TaskbarState | null = null
 /** 桌面工作区共享状态（工单375）：面板/任务栏/（后续）胶囊订阅同一份（spec 决策 5）——
  * workspace/changed 即推 + boot 拉 workspace/get-state 对齐；null = 未拉到（模式组不渲染） */
 let desktopState: DesktopWorkspaceState | null = null
+/** 标题栏拖拽落点高亮（工单407）：主进程拖拽会话投影 overAgent=true 时 Agent 入口
+ *  亮描边（.drop-target）——渲染层只消费主进程光标事实，不自行 hit-test（契约面） */
+let dragInOverAgent = false
 /** 右组 1Hz 数据帧的最近值：重渲染（勾选变更）时按它立即填字，不等下一拍 */
 let latestStatus: TaskbarStatus | null = null
 /** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
@@ -1009,7 +1012,7 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
  *  点击存证双事件（taskbar-mode-action / -result）与系统动作格同族——电池按它对账。 */
 function makeModeEl(m: DesktopModeEntry): HTMLElement {
   const el = document.createElement('div')
-  el.className = `tb-mode-btn${m.active ? ' active' : ''}${m.disabled ? ' disabled' : ''}`
+  el.className = `tb-mode-btn${m.active ? ' active' : ''}${m.disabled ? ' disabled' : ''}${m.id === 'agent' && dragInOverAgent ? ' drop-target' : ''}`
   el.dataset.id = m.id
   el.innerHTML = DESKTOP_MODE_ICONS[m.id]
   el.title = m.title
@@ -1294,6 +1297,16 @@ function boot(): void {
     window.deck.bridge.on('workspace/changed', (s) => {
       desktopState = s
       if (current) requestRender(current)
+    })
+    // 标题栏拖拽落点高亮（工单407）：只消费主进程拖拽会话投影（光标 hit-test 在主进程
+    // 热区跟踪器，与穿透判定同拍同源）——overAgent 翻转即热切换 Agent 入口描边（不走
+    // 全量重渲：拖拽期 OLE/原生会话对重排敏感，requestRender 的合帧挂起语义不适用）。
+    window.deck.bridge.on('workspace/drag-in-changed', (p) => {
+      const over = Boolean(p.active && p.overAgent)
+      if (over === dragInOverAgent) return
+      dragInOverAgent = over
+      const agent = pillMode.querySelector<HTMLElement>('.tb-mode-btn[data-id="agent"]')
+      agent?.classList.toggle('drop-target', over)
     })
     // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
     // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空。

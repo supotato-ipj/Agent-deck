@@ -12,6 +12,7 @@ import { DataplaneService, type DataplaneServiceOptions } from './services/datap
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
 import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
+import { AgentDragInService, type AgentDragInServiceOptions } from './services/agent-drag-in'
 import { AgentFocusService, type AgentFocusServiceOptions } from './services/agent-focus'
 import { WindowPreviewService, type WindowPreviewServiceOptions } from './services/window-preview'
 import { SessionPreviewService, type SessionPreviewServiceOptions } from './session-preview/service'
@@ -47,6 +48,8 @@ export interface PanelKernelOptions {
   /** 桌面工作区（工单375）：功能开关与依赖缝（缺省 = config agentDesktop 段；段缺省 = 产品默认开放） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
+  /** 标题栏拖入（工单407）：功能开关与依赖缝（缺省随 agentDesktop 开关；真源延迟绑定） */
+  agentDragIn?: AgentDragInServiceOptions
   /** Agent 聚焦（工单379）：实验开关与依赖缝（缺省随 agentDesktop 开关） */
   agentFocus?: AgentFocusServiceOptions
   /** 窗口预览（工单379）：实验开关与依赖缝（抓帧/图标由生产装配注入） */
@@ -113,6 +116,33 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
         ? { normalId: section.normalDesktopId, agentId: section.agentDesktopId }
         : null
     })(),
+  })
+  // 标题栏拖入（工单407）：随 agentDesktop 开关隔离。迁移事务与拖拽会话投影的编排层；
+  // 桌面事实/窗口资格/FFI 动作全部经 deps 缝延迟绑定真源（离线测试注入假源零 FFI）。
+  ctx.plugin(AgentDragInService, {
+    ...options.agentDragIn,
+    enabled: options.agentDragIn?.enabled ?? options.settings?.config?.agentDesktop?.enabled ?? false,
+    deps: {
+      ...options.agentDragIn?.deps,
+      currentMode: options.agentDragIn?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      workspaceAvailable: options.agentDragIn?.deps?.workspaceAvailable
+        ?? (() => Boolean(ctx.desktopWorkspace?.state().available)),
+      pairingIds: options.agentDragIn?.deps?.pairingIds
+        ?? (() => ctx.desktopWorkspace?.pairingIds() ?? null),
+      // 主屏物理矩形（资格重核「主屏合格」判据；零矩形会把一切窗判成副屏——
+      // 375 P10 首轮实证）——与 agentTiling 装配同一 Electron 真源口径（物理 px）
+      primaryRect: options.agentDragIn?.deps?.primaryRect
+        ?? (() => {
+          const d = require('electron').screen.getPrimaryDisplay()
+          return {
+            left: Math.round(d.bounds.x * d.scaleFactor),
+            top: Math.round(d.bounds.y * d.scaleFactor),
+            right: Math.round((d.bounds.x + d.bounds.width) * d.scaleFactor),
+            bottom: Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor),
+          }
+        }),
+    },
   })
   // Agent 平铺（工单376）：随 agentDesktop 开关隔离（默认关）——事件驱动编排，装配即
   // 订阅 workspace/changed（agent 模式才激活观察与落位；普通/非托管桌面零自动改窗）。
