@@ -12,6 +12,7 @@ import { BridgeService } from './services/bridge'
 import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
 import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
+import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
 import { FocusService } from './services/focus'
 import { HardwareService } from './services/hardware'
 import { LocalPanelDataService } from './services/panel-data'
@@ -71,6 +72,7 @@ export interface KernelOptions {
   conversation?: ConversationServiceOptions
   /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
+  agentTiling?: AgentTilingServiceOptions
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -115,6 +117,18 @@ export function createKernel(options: KernelOptions = {}): Context {
   // 桌面工作区（工单375）：实验开关隔离（默认关）——BridgeService 对它是可选注入，
   // 注册先后不约束桥接层装载。装配即自起跑（开关关闭 = 零桌面零轮询）。
   ctx.plugin(DesktopWorkspaceService, options.desktopWorkspace)
+  // Agent 平铺（工单376）：随 agentDesktop 开关隔离；deps 缺省延迟绑定真源（离线测试注入假源）。
+  ctx.plugin(AgentTilingService, {
+    ...options.agentTiling,
+    enabled: options.agentTiling?.enabled ?? false,
+    deps: {
+      ...options.agentTiling?.deps,
+      currentMode: options.agentTiling?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      ownExes: options.agentTiling?.deps?.ownExes ?? (() => [process.execPath]),
+      taskbarTop: options.agentTiling?.deps?.taskbarTop ?? (() => null), // 内核装配无条带——面板装配覆写
+    },
+  })
   // 插件私有状态（工单178）：BridgeService 注入依赖它，必须先于桥接层注册。
   ctx.plugin(PluginConfigService, options.pluginConfig)
   // 对话窗会话服务（工单332）：BridgeService 注入依赖它，必须先于桥接层注册。

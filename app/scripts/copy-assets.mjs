@@ -19,6 +19,9 @@ console.log('[copy-assets] dist/renderer/taskbar-menu.html')
 // 对话窗页（工单332）：内核 UI 的对话小窗，与面板页同根同协议
 copyFileSync(path.join(root, 'src', 'renderer', 'conversation.html'), path.join(rendererDest, 'conversation.html'))
 console.log('[copy-assets] dist/renderer/conversation.html')
+// 顶部窗口胶囊页（工单376）：Agent 桌面计数胶囊的载页，与面板页同根同协议
+copyFileSync(path.join(root, 'src', 'renderer', 'capsule.html'), path.join(rendererDest, 'capsule.html'))
+console.log('[copy-assets] dist/renderer/capsule.html')
 // 内置桌面组件（工单10）：卡片入口由 tsc 编译就位，manifest 不经 tsc，逐个复制过去。
 // 没有 manifest 的卡片目录对插件宿主不可见（manifest 即契约，缺契约不装载）。
 const cardsSrc = path.join(root, 'src', 'renderer', 'cards')

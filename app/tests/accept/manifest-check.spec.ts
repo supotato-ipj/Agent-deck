@@ -348,7 +348,11 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // P1 模式组在场 / P2 首次配对 / P3 切换确认 / P4 单飞连点 / P5 跟随排除 / P6 对账 /
     // P7 新窗归属 / P8 零残留；一段绑定一工单，est 合计 28 按健康轮 took= 同 PR 校准
     // ——guard accept-sprint 轮全段 12.1s 段墙钟 + 面板启动裕量，预算 60s=下限）
-    expect(total).toBe(143)
+    // 143 → 149：工单376 增电池——376-agent-tiling 副电池整建（Agent 平铺与顶部计数胶囊
+    // 最小闭环：P1 一窗铺满 / P2 两窗各半 / P3 计数口径与排除面 / P4 回声抑制与
+    // reconciliation / P5 普通桌面零改窗 / P6 零残留；一段绑定一工单，est 合计 68
+    // 按健康轮 took= 同 PR 校准）
+    expect(total).toBe(149)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

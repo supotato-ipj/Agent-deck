@@ -254,6 +254,13 @@ export class BridgeService extends Service {
         }
         return await svc.switchTo(mode) as BridgeMethods[M]['response']
       }
+      // --- Agent 平铺（工单376）：只读投影（缺装配回退空态——决策 26 控制面口径） ---
+      case 'tiling/get-state': {
+        const svc = this.ctx.agentTiling
+        return (svc ? svc.state() : {
+          available: false, current: 'unmanaged', count: 0, placed: 0, overflow: 0, anomalies: 0,
+        }) as BridgeMethods[M]['response']
+      }
       case 'plugin-config/get': {
         const { id } = payload as { id: string }
         return this.ctx.pluginConfig.get(id) as BridgeMethods[M]['response']

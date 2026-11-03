@@ -24,7 +24,8 @@
     "cleanup:local": "node scripts/cleanup-local.js",
     "dev:panel": "npm run build && electron . --panel",
     "accept:chat": "npm run build && electron . --accept-chat",
-    "accept:desktop-switch": "npm run build && electron . --accept-desktop-switch"
+    "accept:desktop-switch": "npm run build && electron . --accept-desktop-switch",
+    "accept:agent-tiling": "npm run build && electron . --accept-agent-tiling"
   },
   "dependencies": {
     "cordis": "^3.18.1",

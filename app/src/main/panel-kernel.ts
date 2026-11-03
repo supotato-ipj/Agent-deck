@@ -11,6 +11,7 @@ import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { DataplaneService, type DataplaneServiceOptions } from './services/dataplane'
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
+import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { ConversationService, type ConversationServiceOptions } from './conversation/service'
 import { MediaService, type MediaServiceOptions } from './media/service'
@@ -42,6 +43,7 @@ export interface PanelKernelOptions {
   taskbarPollMs?: number
   /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = config agentDesktop 段，默认关） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
+  agentTiling?: AgentTilingServiceOptions
   /** 插件私有状态（工单178）：命名空间存储目录缺省 userData/plugin-config（生产装配不传即缺省落点） */
   pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
@@ -102,6 +104,19 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
         ? { normalId: section.normalDesktopId, agentId: section.agentDesktopId }
         : null
     })(),
+  })
+  // Agent 平铺（工单376）：随 agentDesktop 开关隔离（默认关）——事件驱动编排，装配即
+  // 订阅 workspace/changed（agent 模式才激活观察与落位；普通/非托管桌面零自动改窗）。
+  ctx.plugin(AgentTilingService, {
+    ...options.agentTiling,
+    enabled: options.agentTiling?.enabled ?? options.settings?.config?.agentDesktop?.enabled ?? false,
+    deps: {
+      ...options.agentTiling?.deps,
+      currentMode: options.agentTiling?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      ownExes: options.agentTiling?.deps?.ownExes
+        ?? (() => [process.execPath]), // 面板进程 exe（own-process 排除——面板/胶囊/条带同进程家族）
+    },
   })
   // 插件私有状态（工单178）：BridgeService 的 inject 列了 'pluginConfig'，本装配必须注册它——
   // 缺注册时 cordis 静默不装载 BridgeService（ctx.bridge 为 undefined），面板在
