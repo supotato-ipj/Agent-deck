@@ -270,6 +270,218 @@ describe('投影与预览（工单405，用户故事 11；验收标准 5 的服�
   })
 })
 
+// ————————————————————————————————————————————————————————————
+// 工单406（spec #403 用户故事 3/4/22-31；GLOSSARY「屏外滚动带」「恢复平铺」）：
+// 关闭补入与列收拢、关闭与视口锚、最小化与还原、恢复平铺与聚焦退出。
+// 断言全部落在实际写窗矩形与状态投影（假窗口 map 读回），不绑内部类。
+// ————————————————————————————————————————————————————————————
+
+describe('关闭补入与列收拢（工单406，用户故事 3/4/25）', () => {
+  it('关闭屏内窗：兄弟吸收空位、最早进入屏外的窗补入、次带成员原位保留', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])
+    await settle()
+    openWindows(h, [[5, R(5)], [6, R(6)]])
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2 })
+    h.windows.delete(4)
+    h.watchOn(4)
+    await settle()
+    // 兄弟吸收：窗 1 上移继承父窗格（左半列）再裂变让位——窗 1 原位不动、窗 5 落下半
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 584, bottom: 376 })
+    // 最早屏外进入序补入：窗 5（先入带）进树，窗 6（后入带）原列位保留
+    expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 376, right: 584, bottom: 752 })
+    expect(h.windows.get(6)!.rect).toEqual(COL0)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+  })
+
+  it('关闭屏外窗：带只收拢列、屏内树窗格不动；收拢到空带回满区', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])
+    await settle()
+    openWindows(h, [[5, R(5)], [6, R(6)]])
+    await settle()
+    h.windows.delete(5)
+    h.watchOn(5)
+    await settle()
+    // 树窗格原样（不因带成员关闭重排）：列只收拢——窗 6 从第 2 列左移到第 1 列
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 584, bottom: 376 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 584, top: 0, right: 1168, bottom: 376 })
+    expect(h.windows.get(6)!.rect).toEqual(COL0)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+    // 关到带空：树区回满区（600 宽半格）、视口回位、零带成员
+    h.windows.delete(6)
+    h.watchOn(6)
+    await settle()
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 600, bottom: 376 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 376 })
+    expect(h.svc.state()).toMatchObject({ count: 4, placed: 4, overflow: 0 })
+  })
+})
+
+describe('关闭与视口锚（工单406，用户故事 25/26/27）', () => {
+  it('关闭非当前列：当前列保持完整可见（视口不被其他列生命周期拖走）', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual({ left: 568, top: 0, right: 1168, bottom: 752 })
+    h.windows.delete(6)
+    h.watchOn(6)
+    await settle()
+    // 带收拢后当前列仍完整可见（camera 钳到内容右端 = 当前列贴右缘）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ overflow: 1 })
+  })
+
+  it('关闭当前列：右邻优先完整可见', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    h.windows.delete(5)
+    h.watchOn(5)
+    await settle()
+    expect(h.windows.get(6)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ overflow: 1 })
+  })
+
+  it('关闭当前列（无右邻）：左邻完整可见', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)]])
+    await settle()
+    h.fgEmit(6)
+    await settle()
+    expect(h.windows.get(6)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+    h.windows.delete(6)
+    h.watchOn(6)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+  })
+
+  it('关闭屏内当前窗：视口跟随系统新前台（受管带窗滑入完整视图）', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)], [7, R(7)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    h.foreground.add(2)
+    h.fgEmit(2)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ overflow: 3 })
+    // 关闭当前树窗 2；系统新前台 = 带成员 7（第 3 列，旧视口下完全屏外）
+    h.foreground.delete(2)
+    h.foreground.add(7)
+    h.windows.delete(2)
+    h.watchOn(2)
+    await settle()
+    // 视口跟随系统新前台：窗 7 完整可见（旧视口下它在物理 [1184,1784] 屏外）
+    expect(h.windows.get(7)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2 })
+  })
+
+  it('关闭屏内当前窗、系统新前台非受管：不猜锚，视口仅钳制不留空白', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)], [7, R(7)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    h.foreground.add(2)
+    h.fgEmit(2)
+    await settle()
+    h.foreground.delete(2) // 新前台不在受管账（无 fit 目标）
+    h.windows.delete(2)
+    h.watchOn(2)
+    await settle()
+    // 视口钳在内容右端内：当前可见内容仍是有效带列（无空白视口）
+    expect(h.windows.get(6)!.rect).toEqual({ left: 584, top: 0, right: 1184, bottom: 752 })
+    expect(h.windows.get(7)!.rect).toEqual({ left: 1184, top: 0, right: 1784, bottom: 752 })
+  })
+})
+
+describe('最小化与还原（工单406，用户故事 22/23/24）', () => {
+  it('最小化带成员：保留列位与顺序；还原后回原列', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    h.windows.set(5, { rect: h.windows.get(5)!.rect, iconic: true })
+    h.watchOn(5)
+    await settle()
+    // 最小化不动视口、不丢列位（成员留带、顺序不变）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 568, top: 0, right: 1168, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2 })
+    h.windows.set(5, { rect: h.windows.get(5)!.rect, iconic: false })
+    h.watchOn(5)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual({ left: 568, top: 0, right: 1168, bottom: 752 })
+  })
+
+  it('前台还原：fit 滑入完整可见', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)]])
+    await settle()
+    h.windows.set(5, { rect: h.windows.get(5)!.rect, iconic: true })
+    h.watchOn(5)
+    await settle()
+    h.windows.set(5, { rect: COL0, iconic: false })
+    h.foreground.add(5)
+    h.fgEmit(5)
+    await settle()
+    // 前台还原 → 单一 fit 入口：整组最小滑动到窗 5 完整可见
+    expect(h.windows.get(5)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+  })
+
+  it('后台还原：视口不动（不抢当前上下文）', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    h.windows.set(6, { rect: h.windows.get(6)!.rect, iconic: true })
+    h.watchOn(6)
+    await settle()
+    h.windows.set(6, { rect: h.windows.get(6)!.rect, iconic: false })
+    h.watchOn(6)
+    await settle()
+    // 后台还原只回列位，视口原位（窗 6 大部屏外、窗 5 与屏内窗全不动）
+    expect(h.windows.get(6)!.rect).toEqual({ left: 1168, top: 0, right: 1768, bottom: 752 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 568, top: 0, right: 1168, bottom: 752 })
+  })
+})
+
+describe('恢复平铺与聚焦退出（工单406，用户故事 29/33）', () => {
+  it('恢复平铺：保留当前锚窗（不跳回树起点）', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)]])
+    await settle()
+    h.fgEmit(5)
+    await settle()
+    await h.svc.restoreTiling()
+    await settle()
+    // 恢复平铺后以当前锚窗（窗 5）执行 fit——不回树起点（窗 5 完整可见）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 568, top: 0, right: 1168, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2, floating: 0 })
+  })
+
+  it('聚焦退出：restoreTiling(退出窗) 后按 fit 显示刚退出聚焦的窗（带成员）', async () => {
+    const h = harness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)]])
+    await settle()
+    h.svc.setHeldWindow(5) // 聚焦进入（最大化由聚焦服务负责；挂起即可隔离平铺写）
+    await h.svc.restoreTiling(5)
+    await settle()
+    expect(h.svc.heldWindowForTest()).toBeNull()
+    // 退出聚焦 → 恢复混合布局并 fit 到刚退出的窗（带成员完整可见）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 752 })
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+  })
+})
+
 describe('带成员授权与生命周期（工单405 + 工单404 分流）', () => {
   it('用户拖动带成员：locked 相位复原到列位并上行授权提示（带成员是受管平铺成员）', async () => {
     const h = harness()

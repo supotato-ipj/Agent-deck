@@ -51,6 +51,8 @@ function doc(over: Partial<AgentLayoutDoc> = {}): AgentLayoutDoc {
     order: [],
     tree: null,
     queue: [],
+    band: [],
+    anchor: null,
     floating: [],
     ...over,
   }
@@ -60,7 +62,8 @@ describe('布局文档解析与一致性（工单383）', () => {
   it('缺失 → none；坏 JSON/未知版本/结构不符 → invalid（不猜读）', () => {
     expect(parseLayout(null).kind).toBe('none')
     expect(parseLayout('{')).toMatchObject({ kind: 'invalid', reason: 'json' })
-    expect(parseLayout(JSON.stringify({ ...doc(), version: 2 }))).toMatchObject({ kind: 'invalid', reason: 'version' })
+    // v1 = 上一版（迁移接受：band/anchor 缺省）；99 = 未知版本（安全态，不猜读）
+    expect(parseLayout(JSON.stringify({ ...doc(), version: 99 }))).toMatchObject({ kind: 'invalid', reason: 'version' })
     expect(parseLayout(JSON.stringify({ ...doc(), desktopId: '' }))).toMatchObject({ kind: 'invalid', reason: 'desktopId' })
     expect(parseLayout(JSON.stringify({ ...doc(), clean: 'yes' }))).toMatchObject({ kind: 'invalid', reason: 'clean' })
   })
@@ -177,8 +180,8 @@ describe('布局捕获与隐私白名单（工单383）', () => {
     for (const forbidden of ['title', 'prompt', 'armed', 'authorized', 'thumbnail', 'image']) {
       expect(text.includes(`"${forbidden}"`)).toBe(false)
     }
-    // 字段白名单：只有恢复必需的六类键
-    expect(Object.keys(captured).sort()).toEqual(['clean', 'desktopId', 'floating', 'order', 'queue', 'tree', 'version'])
+    // 字段白名单：只有恢复必需的键（工单406 增屏外顺序与锚窗身份）
+    expect(Object.keys(captured).sort()).toEqual(['anchor', 'band', 'clean', 'desktopId', 'floating', 'order', 'queue', 'tree', 'version'])
   })
 
   it('树模型与成员序一致：三窗树的 placements 恢复顺序与原建树一致', () => {
@@ -198,5 +201,122 @@ describe('布局捕获与隐私白名单（工单383）', () => {
     if (plan.shape) walk(plan.shape)
     expect(leaves).toEqual([0, 1, 2])
     expect(treePlan(tree).placements.map((p) => p.id)).toEqual(['1', '2', '3'])
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单406（spec #403 决策「持久化布局关系而非旧像素」）：布局文档 v2 扩展
+// 屏外顺序（band）与锚窗身份（anchor）——v1 迁移、白名单核验、恢复规划重映射。
+// ————————————————————————————————————————————————————————————
+
+describe('布局文档 v2：屏外顺序与锚窗身份（工单406）', () => {
+  const bandDoc = (): AgentLayoutDoc => doc({
+    order: [identity(1), identity(2), identity(3), identity(4), identity(5)],
+    tree: {
+      kind: 'split', axis: 'h',
+      first: {
+        kind: 'split', axis: 'v',
+        first: { kind: 'leaf', ref: 0 },
+        second: { kind: 'leaf', ref: 3 },
+      },
+      second: {
+        kind: 'split', axis: 'v',
+        first: { kind: 'leaf', ref: 1 },
+        second: { kind: 'leaf', ref: 2 },
+      },
+    },
+    queue: [1, 2, 0, 3],
+    band: [4],
+    anchor: 4,
+  })
+
+  it('v1 文档迁移：缺 band/anchor 按缺省重建（空带、无锚），版本规范化为当前版', () => {
+    const v1 = JSON.stringify({
+      version: 1,
+      desktopId: DESKTOP,
+      clean: true,
+      order: [identity(1), identity(2)],
+      tree: { kind: 'split', axis: 'h', first: { kind: 'leaf', ref: 0 }, second: { kind: 'leaf', ref: 1 } },
+      queue: [1, 0],
+      floating: [],
+    })
+    const parsed = parseLayout(v1)
+    expect(parsed.kind).toBe('ok')
+    if (parsed.kind !== 'ok') return
+    expect(parsed.doc.version).toBe(AGENT_LAYOUT_VERSION)
+    expect(parsed.doc.band).toEqual([])
+    expect(parsed.doc.anchor).toBeNull()
+  })
+
+  it('v2 合法文档往返：band/anchor 字段保持', () => {
+    const parsed = parseLayout(serializeLayout(bandDoc()))
+    expect(parsed.kind).toBe('ok')
+    if (parsed.kind !== 'ok') return
+    expect(parsed.doc.band).toEqual([4])
+    expect(parsed.doc.anchor).toBe(4)
+  })
+
+  it('结构核验：band/anchor 引用越界、重复、与树/浮动互斥破坏逐项拒绝', () => {
+    const base = bandDoc()
+    expect(validateLayout(base)).toBeNull()
+    expect(validateLayout({ ...base, band: '0' })).toBe('band')
+    expect(validateLayout({ ...base, band: [9] })).toBe('band-ref')
+    expect(validateLayout({ ...base, band: [-1] })).toBe('band-ref')
+    expect(validateLayout({ ...base, band: [4, 4] })).toBe('band-duplicate')
+    expect(validateLayout({ ...base, band: [0] })).toBe('band-in-tree')
+    expect(validateLayout({ ...base, floating: [{ ref: 4, rect: { left: 1, top: 1, right: 9, bottom: 9 } }] })).toBe('band-in-floating')
+    expect(validateLayout({ ...base, anchor: 9 })).toBe('anchor-ref')
+    expect(validateLayout({ ...base, anchor: 'x' })).toBe('anchor')
+    expect(validateLayout({ ...base, floating: [{ ref: 4, rect: { left: 1, top: 1, right: 9, bottom: 9 } }], band: [] })).toBe('anchor-in-floating')
+  })
+
+  it('恢复规划：band/anchor 按新下标重映射；消失成员出带、锚失效置空', () => {
+    const d = bandDoc()
+    // 窗 5（带成员兼锚窗）已关闭；窗 6 是新开的
+    const f6 = fact(6)
+    const plan = planRestore(d, [fact(1), fact(2), fact(3), fact(4), f6], [fact(1), fact(2), fact(3), fact(4), f6])
+    expect(plan.kind).toBe('apply')
+    if (plan.kind !== 'apply') return
+    expect(plan.order.map((w) => w.hwnd)).toEqual([1, 2, 3, 4, 6])
+    expect(plan.dropped).toBe(1)
+    expect(plan.band).toEqual([]) // 带成员消失 → 出带
+    expect(plan.anchor).toBeNull() // 锚窗消失 → 无锚
+    // 带成员存活：重映射到新下标
+    const d2 = bandDoc()
+    const plan2 = planRestore(d2, [fact(1), fact(2), fact(3), fact(4), fact(5)], [fact(1), fact(2), fact(3), fact(4), fact(5)])
+    expect(plan2.kind).toBe('apply')
+    if (plan2.kind !== 'apply') return
+    expect(plan2.band).toEqual([4])
+    expect(plan2.anchor).toBe(4)
+  })
+
+  it('捕获：band/anchor 映射为 order 下标；锚不在成员序时置空（不落浮动窗为锚）', () => {
+    // 640×500 区、minPane 320×240：四窗恰满容量，窗 5 入带
+    const tree = createTree({ left: 0, top: 0, right: 640, bottom: 500 })
+    for (const id of ['1', '2', '3', '4', '5']) treeInsert(tree, id)
+    expect(tree.overflow).toEqual(['5'])
+    const captured = captureLayout({
+      desktopId: DESKTOP,
+      clean: false,
+      order: [identity(1), identity(2), identity(3), identity(4), identity(5), identity(9)],
+      tree,
+      floating: [{ hwnd: 9, rect: { left: 10, top: 20, right: 300, bottom: 400 } }],
+      band: [5],
+      anchor: 5,
+    })
+    expect(captured.band).toEqual([4])
+    expect(captured.anchor).toBe(4)
+    expect(validateLayout(captured)).toBeNull()
+    // 锚窗已浮动（不在成员序）→ 置空，不把浮动窗落成锚
+    const capturedFloatAnchor = captureLayout({
+      desktopId: DESKTOP,
+      clean: false,
+      order: [identity(1), identity(2), identity(3), identity(4), identity(5), identity(9)],
+      tree,
+      floating: [{ hwnd: 9, rect: { left: 10, top: 20, right: 300, bottom: 400 } }],
+      band: [5],
+      anchor: 9,
+    })
+    expect(capturedFloatAnchor.anchor).toBeNull()
   })
 })

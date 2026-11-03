@@ -506,7 +506,9 @@ async function main() {
     {
       const text = (() => { try { return fs.readFileSync(LAYOUT_FILE, 'utf8'); } catch { return ''; } })();
       const docNow = readLayoutDoc();
-      const keysOk = layoutKeys(docNow) === 'clean,desktopId,floating,order,queue,tree,version';
+      // 工单406 布局文档 v2：白名单增 band（屏外顺序）/anchor（锚窗身份）——持久化布局关系，
+      // 仍不含标题/缩略图/授权，隐私口径不变
+      const keysOk = layoutKeys(docNow) === 'anchor,band,clean,desktopId,floating,order,queue,tree,version';
       const forbidden = ['"title"', '"prompt"', '"armed"', '"authorized"', '"thumbnail"', 'data:image', FIXTURE_PREFIX];
       const hits = forbidden.filter((f) => text.includes(f));
       const eventText = (() => { try { return fs.readFileSync(EVENTS_FILE, 'utf8'); } catch { return ''; } })();

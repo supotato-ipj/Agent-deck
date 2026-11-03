@@ -28,7 +28,8 @@ export interface AgentFocusServiceOptions {
     maximize?: (hwnd: number) => boolean
     restoreWindow?: (hwnd: number) => boolean
     setTilingHeld?: (hwnd: number | null) => void
-    restoreTiling?: () => Promise<{ ok: boolean; restored: number; skipped: number }>
+    /** 工单406：退出聚焦时传入刚退出的窗——恢复平铺后按 fit 显示它（GLOSSARY「窗口聚焦」） */
+    restoreTiling?: (fitHwnd?: number) => Promise<{ ok: boolean; restored: number; skipped: number }>
   }
 }
 
@@ -39,7 +40,7 @@ interface FocusDeps {
   maximize: (hwnd: number) => boolean
   restoreWindow: (hwnd: number) => boolean
   setTilingHeld: (hwnd: number | null) => void
-  restoreTiling: () => Promise<{ ok: boolean; restored: number; skipped: number }>
+  restoreTiling: (fitHwnd?: number) => Promise<{ ok: boolean; restored: number; skipped: number }>
 }
 
 export interface FocusExitResult {
@@ -166,8 +167,10 @@ export class AgentFocusService extends Service {
       this.logEvent({ type: 'focus-exit', reason: 'user', hwnd })
       this.ctx.emit('focus/changed', this.state())
       // 挂起保持到恢复平铺落位之后：还原引发的 LOCATIONCHANGE 拍不会把目标窗的
-      // 中间几何当成用户操作去弹授权（口径：最大化/还原不是「改几何」）
-      const r = await this.deps.restoreTiling()
+      // 中间几何当成用户操作去弹授权（口径：最大化/还原不是「改几何」）。
+      // 工单406：传入刚退出的窗——恢复平铺后按 fit 显示它（GLOSSARY「窗口聚焦」）；
+      // 平铺账在恢复拍内先解挂再落位（退出窗的还原几何不是用户改几何）。
+      const r = await this.deps.restoreTiling(hwnd)
       this.deps.setTilingHeld(null)
       return { ok: true, restored: r.restored, skipped: r.skipped, state: this.state() }
     } finally {

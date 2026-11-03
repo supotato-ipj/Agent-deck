@@ -15,8 +15,12 @@ import type { TileRect, TilingNode, TilingTree } from './tiling-plan'
 import { normalizeExe } from './tile-scope'
 import type { TileWindowFacts } from './tile-scope'
 
-/** 布局文档版本（升版必须带迁移；未知版本按模型不一致进安全态，不猜读） */
-export const AGENT_LAYOUT_VERSION = 1 as const
+/** 布局文档版本（升版必须带迁移；未知版本按模型不一致进安全态，不猜读）。
+ *  v2（工单406）：新增 band（屏外滚动带顺序）与 anchor（视口锚窗身份）——持久化布局
+ *  关系而非旧像素；v1 文档按缺省迁移（空带、无锚）。 */
+export const AGENT_LAYOUT_VERSION = 2 as const
+/** 上一版（迁移接受：缺 band/anchor 按缺省重建） */
+const AGENT_LAYOUT_VERSION_PREV = 1 as const
 
 /** 窗口稳定身份（进程仍活时 hwnd 为窗口身份；pid+exe 用于核对「同一扇窗」） */
 export interface WindowIdentity {
@@ -51,6 +55,10 @@ export interface AgentLayoutDoc {
   tree: LayoutTreeShape | null
   /** 分裂队列（order 下标；树内叶窗格的裂变顺序——未来插入的确定性延续） */
   queue: number[]
+  /** 屏外滚动带顺序（order 下标；受管平铺成员，进带序 = 成员序相对序——工单406） */
+  band: number[]
+  /** 视口锚窗身份（order 下标或 null；恢复后按当前平铺区重算 fit，不存像素——工单406） */
+  anchor: number | null
   /** 浮动窗与保留几何（授权不在此） */
   floating: LayoutFloating[]
 }
@@ -108,7 +116,7 @@ function collectShapeRefs(shape: LayoutTreeShape | null, out: number[]): void {
 export function validateLayout(doc: unknown): string | null {
   if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) return 'document'
   const d = doc as Record<string, unknown>
-  if (d.version !== AGENT_LAYOUT_VERSION) return 'version'
+  if (d.version !== AGENT_LAYOUT_VERSION && d.version !== AGENT_LAYOUT_VERSION_PREV) return 'version'
   if (typeof d.desktopId !== 'string' || !d.desktopId) return 'desktopId'
   if (typeof d.clean !== 'boolean') return 'clean'
   if (!Array.isArray(d.order)) return 'order'
@@ -147,6 +155,24 @@ export function validateLayout(doc: unknown): string | null {
     if (floatingRefs.has(f.ref as number)) return 'floating-duplicate'
     floatingRefs.add(f.ref as number)
   }
+  // 工单406：band（屏外顺序）/ anchor（锚窗）——受管平铺成员，与树、浮动互斥；
+  // v1 文档缺省（迁移），出现则核验
+  const bandRefs = new Set<number>()
+  if (d.band !== undefined) {
+    if (!Array.isArray(d.band)) return 'band'
+    for (const ref of d.band) {
+      if (!refOk(ref)) return 'band-ref'
+      if (shapeRefs.includes(ref as number)) return 'band-in-tree'
+      if (floatingRefs.has(ref as number)) return 'band-in-floating'
+      if (bandRefs.has(ref as number)) return 'band-duplicate'
+      bandRefs.add(ref as number)
+    }
+  }
+  if (d.anchor !== undefined && d.anchor !== null) {
+    if (typeof d.anchor !== 'number' || !Number.isInteger(d.anchor)) return 'anchor'
+    if (!refOk(d.anchor)) return 'anchor-ref'
+    if (floatingRefs.has(d.anchor)) return 'anchor-in-floating'
+  }
   return null
 }
 
@@ -162,7 +188,9 @@ export function parseLayout(text: string | null): LayoutParseResult {
   const reason = validateLayout(raw)
   if (reason) return { kind: 'invalid', reason }
   const d = raw as Record<string, unknown>
-  // 白名单重建：未知字段不进内存、不再落盘
+  // 白名单重建：未知字段不进内存、不再落盘。v1 → v2 迁移：band/anchor 按缺省重建
+  // （空带、无锚——旧文档没有屏外语义，恢复后由成员序重推导、视口回起点）。
+  const isPrev = d.version === AGENT_LAYOUT_VERSION_PREV
   const order = (d.order as WindowIdentity[]).map((w) => ({ hwnd: w.hwnd, pid: w.pid, exe: w.exe }))
   const tree = d.tree === null ? null : (d.tree as LayoutTreeShape)
   return {
@@ -174,6 +202,8 @@ export function parseLayout(text: string | null): LayoutParseResult {
       order,
       tree,
       queue: [...(d.queue as number[])],
+      band: isPrev ? [] : [...(d.band as number[])],
+      anchor: isPrev ? null : ((d.anchor as number | null) ?? null),
       floating: (d.floating as LayoutFloating[]).map((f) => ({
         ref: f.ref,
         rect: { ...f.rect },
@@ -250,6 +280,10 @@ export type RestorePlan =
     queue: number[]
     /** 浮动窗（新 order 下标 + 保留几何） */
     floating: LayoutFloating[]
+    /** 屏外滚动带顺序（新 order 下标；消失成员出带——工单406） */
+    band: number[]
+    /** 视口锚窗（新 order 下标或 null；消失/转浮动置空——工单406） */
+    anchor: number | null
     /** 已消失/移出当前桌面而丢弃的成员数 */
     dropped: number
   }
@@ -315,7 +349,31 @@ export function planRestore(
     if (ref === undefined) continue
     floating.push({ ref, rect: { ...item.rect } })
   }
-  return { kind: 'apply', order, shape: pruned, queue, floating, dropped: doc.order.length - keptOld.length }
+  // 工单406：屏外顺序与锚窗按新下标重映射——消失成员出带（不沉淀）、转浮动成员出带、
+  // 锚窗消失/转浮动置空（恢复后无锚回布局起点，不猜）
+  const floatingRefs = new Set(floating.map((f) => f.ref))
+  const band: number[] = []
+  const bandSeen = new Set<number>()
+  for (const oldRef of doc.band) {
+    const ref = oldToNew.get(oldRef)
+    if (ref === undefined || bandSeen.has(ref) || floatingRefs.has(ref)) continue
+    bandSeen.add(ref)
+    band.push(ref)
+  }
+  const anchor = doc.anchor === null || doc.anchor === undefined
+    ? null
+    : (oldToNew.get(doc.anchor) ?? null)
+  const anchorEffective = anchor !== null && !floatingRefs.has(anchor) ? anchor : null
+  return {
+    kind: 'apply',
+    order,
+    shape: pruned,
+    queue,
+    floating,
+    band,
+    anchor: anchorEffective,
+    dropped: doc.order.length - keptOld.length,
+  }
 }
 
 /** 平铺树 → 持久形状（叶 id 经 hwnd→order 下标映射；调用方保证 order 覆盖树内成员） */
@@ -333,13 +391,17 @@ export function captureShape(node: TilingNode, refOf: (hwnd: number) => number |
   return { kind: 'split', axis: node.axis, first, second }
 }
 
-/** 平铺树 → 持久文档（order 由编排层按加入序 + 浮动序组装） */
+/** 平铺树 → 持久文档（order 由编排层按加入序 + 浮动序组装）。
+ *  band/anchor（工单406）：屏外顺序与锚窗映射为 order 下标；锚不在成员序（已浮动/
+ *  已消失）时置空——浮动窗不落成锚。 */
 export function captureLayout(input: {
   desktopId: string
   clean: boolean
   order: WindowIdentity[]
   tree: TilingTree | null
   floating: Array<{ hwnd: number; rect: TileRect }>
+  band?: readonly number[]
+  anchor?: number | null
 }): AgentLayoutDoc {
   const refByHwnd = new Map(input.order.map((w, i) => [w.hwnd, i] as const))
   const refOf = (hwnd: number): number | undefined => refByHwnd.get(hwnd)
@@ -358,6 +420,15 @@ export function captureLayout(input: {
     if (ref === undefined) continue
     floating.push({ ref, rect: { ...f.rect } })
   }
+  const floatingRefs = new Set(floating.map((f) => f.ref))
+  const band: number[] = []
+  for (const hwnd of input.band ?? []) {
+    const ref = refOf(hwnd)
+    if (ref === undefined || band.includes(ref) || floatingRefs.has(ref)) continue
+    band.push(ref)
+  }
+  const anchorRef = input.anchor != null ? refOf(input.anchor) : undefined
+  const anchor = anchorRef !== undefined && !floatingRefs.has(anchorRef) ? anchorRef : null
   return {
     version: AGENT_LAYOUT_VERSION,
     desktopId: input.desktopId,
@@ -365,6 +436,8 @@ export function captureLayout(input: {
     order: input.order.map((w) => ({ ...w })),
     tree,
     queue,
+    band,
+    anchor,
     floating,
   }
 }

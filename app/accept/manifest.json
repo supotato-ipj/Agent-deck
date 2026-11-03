@@ -1837,8 +1837,8 @@
       "cdpPort": 9232,
       "kind": null,
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 27,
-      "lastMeasuredAt": "2026-11-03",
+      "lastMeasuredSeconds": 29,
+      "lastMeasuredAt": "2026-11-04",
       "areas": [
         "taskbar",
         "panel.core",
@@ -2442,8 +2442,8 @@
       "cdpPort": 9238,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 93,
-      "lastMeasuredAt": "2026-11-03",
+      "lastMeasuredSeconds": 80,
+      "lastMeasuredAt": "2026-11-04",
       "areas": [
         "desktop",
         "panel.core"
@@ -2462,7 +2462,7 @@
         {
           "seg": "P2",
           "ticket": 383,
-          "title": "隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/floating），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题",
+          "title": "隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/band/anchor/floating——工单406 v2 增屏外顺序与锚窗身份），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题",
           "surfaces": [
             "system-state",
             "event-evidence"

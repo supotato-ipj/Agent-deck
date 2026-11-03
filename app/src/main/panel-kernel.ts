@@ -172,9 +172,9 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
       setTilingHeld: options.agentFocus?.deps?.setTilingHeld
         ?? ((hwnd) => ctx.agentTiling?.setHeldWindow(hwnd)),
       restoreTiling: options.agentFocus?.deps?.restoreTiling
-        ?? (async () => {
+        ?? (async (fitHwnd?: number) => {
           const svc = ctx.agentTiling
-          return svc ? await svc.restoreTiling() : { ok: false, restored: 0, skipped: 0 }
+          return svc ? await svc.restoreTiling(fitHwnd) : { ok: false, restored: 0, skipped: 0 }
         }),
     },
   })
