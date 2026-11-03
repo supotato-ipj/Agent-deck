@@ -67,8 +67,51 @@ export function pruneLedger(ledger: EchoLedger, now: number): void {
 /** 失败账：hwnd → 已尝试次数 */
 export type AttemptLedger = Map<number, number>
 
-/** 异常集（拒绝改窗——MAX_WRITE_ATTEMPTS 次未达标的窗；编排层跳过并报告） */
+/** 异常集（拒绝改窗——达上限/预判不通过的窗；编排层跳过并报告） */
 export type AnomalySet = Set<number>
+
+/**
+ * 异常未平铺的语义分类（工单377，spec 决策 12 细分类）：
+ * - 'fixed-size'：固定尺寸窗（GWL_STYLE 缺 WS_THICKFRAME 的预判据）——一次判定，
+ *   不试写不重试（试写对它必然无效果，白付噪声）；
+ * - 'write-denied'：系统拒绝写窗（SetWindowPos 返 false——含权限不足 ERROR_ACCESS_DENIED
+ *   面）——一次判定即异常化，不无限重试（系统说了不行，重试没有信息增量）；
+ * - 'refused'：写窗受理但矩形纹丝不动/核验不达标，达 MAX_WRITE_ATTEMPTS 上限
+ *   （WM_WINDOWPOSCHANGING 钉死、minmax 夹取等应用侧拒改）——有限重试后异常化。
+ */
+export type AnomalyKind = 'fixed-size' | 'write-denied' | 'refused'
+
+/** 异常分类账：hwnd → 类别（与 AnomalySet 同进出——异常化的窗必有类别） */
+export type AnomalyKindLedger = Map<number, AnomalyKind>
+
+/** 异常化登记（单入口：AnomalySet 与分类账同进出，不漏账） */
+export function markAnomaly(anomalies: AnomalySet, kinds: AnomalyKindLedger, hwnd: number, kind: AnomalyKind): void {
+  anomalies.add(hwnd)
+  kinds.set(hwnd, kind)
+}
+
+/** 解除异常（窗口消失时清账——同一 hwnd 复用是新窗身份，不继承旧异常） */
+export function clearAnomaly(anomalies: AnomalySet, kinds: AnomalyKindLedger, hwnd: number): void {
+  anomalies.delete(hwnd)
+  kinds.delete(hwnd)
+}
+
+/** 异常分类计数快照（投影面：fixedSize / denied / refused 三类各自数量） */
+export interface AnomalyDetail {
+  fixedSize: number
+  denied: number
+  refused: number
+}
+
+export function anomalyDetailOf(kinds: AnomalyKindLedger): AnomalyDetail {
+  const out: AnomalyDetail = { fixedSize: 0, denied: 0, refused: 0 }
+  for (const kind of kinds.values()) {
+    if (kind === 'fixed-size') out.fixedSize++
+    else if (kind === 'write-denied') out.denied++
+    else out.refused++
+  }
+  return out
+}
 
 /** 写后核验决策（失败 reconciliation）：达标清账；未达标计次，达上限即异常化。
  *  返回 'ok' | 'retry' | 'anomaly'——retry/anomaly 由编排层决定是否再写与如何报告。 */

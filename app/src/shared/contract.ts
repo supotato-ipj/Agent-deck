@@ -299,10 +299,16 @@ export interface AgentTilingState {
   count: number
   /** 当前平铺规划已落格数 */
   placed: number
-  /** 容量溢出数（工单376 纯规划已标记；补入语义归工单377） */
+  /** 容量溢出数（工单376 标记、工单377 补入——空间释放后按成员序补回） */
   overflow: number
-  /** 异常未平铺数（拒绝改窗达重试上限——有限诊断不无限重试） */
+  /** 异常未平铺数（有限诊断不无限重试） */
   anomalies: number
+  /**
+   * 异常未平铺分类计数（工单377）：fixedSize = 固定尺寸窗（WS_THICKFRAME 缺位预判，
+   * 不试写）；denied = 系统拒绝写窗（SetWindowPos false，含权限不足面）；refused =
+   * 受理但拒改达重试上限（WM_WINDOWPOSCHANGING 钉死/minmax 夹取）。三类合计 = anomalies。
+   */
+  anomalyDetail: { fixedSize: number; denied: number; refused: number }
 }
 
 /** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），

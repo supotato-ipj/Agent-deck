@@ -4,6 +4,7 @@
  * 1500ms、容差 2px）离线复现——不形成改窗循环的机制保证在此钉死。
  */
 import { describe, expect, it } from 'vitest'
+import { anomalyDetailOf, clearAnomaly, markAnomaly } from '../../src/main/desktop/geom-control'
 import {
   classifyGeomEvent,
   planWrites,
@@ -127,5 +128,36 @@ describe('批量写集 planWrites（工单376）', () => {
       ],
       anomalies,
     )).toEqual([{ hwnd: 4, target: T2 }])
+  })
+})
+
+describe('异常分类账（工单377，spec 决策 12 细分类）', () => {
+  it('markAnomaly 同进出：AnomalySet 与分类账一致', () => {
+    const anomalies = new Set<number>()
+    const kinds = new Map<number, 'fixed-size' | 'write-denied' | 'refused'>()
+    markAnomaly(anomalies, kinds, 7, 'fixed-size')
+    expect([...anomalies]).toEqual([7])
+    expect(kinds.get(7)).toBe('fixed-size')
+  })
+
+  it('anomalyDetailOf 按三类计数（合计 = 异常数）', () => {
+    const anomalies = new Set<number>()
+    const kinds = new Map<number, 'fixed-size' | 'write-denied' | 'refused'>()
+    markAnomaly(anomalies, kinds, 1, 'fixed-size')
+    markAnomaly(anomalies, kinds, 2, 'write-denied')
+    markAnomaly(anomalies, kinds, 3, 'write-denied')
+    markAnomaly(anomalies, kinds, 4, 'refused')
+    const d = anomalyDetailOf(kinds)
+    expect(d).toEqual({ fixedSize: 1, denied: 2, refused: 1 })
+    expect(d.fixedSize + d.denied + d.refused).toBe(anomalies.size)
+  })
+
+  it('clearAnomaly 同进出：两侧同时消失（hwnd 复用不继承旧异常）', () => {
+    const anomalies = new Set<number>()
+    const kinds = new Map<number, 'fixed-size' | 'write-denied' | 'refused'>()
+    markAnomaly(anomalies, kinds, 9, 'refused')
+    clearAnomaly(anomalies, kinds, 9)
+    expect(anomalies.size).toBe(0)
+    expect(kinds.size).toBe(0)
   })
 })

@@ -113,3 +113,189 @@ describe('平铺区推导 tileAreaOf（工单376，用户故事 22）', () => {
     expect(tileAreaOf(primary, 2000).bottom).toBe(1440)
   })
 })
+
+// ————————————————————————————————————————————————————————————
+// 工单377：完整生命周期与容量降级（3-8 窗裂变队列续行、兄弟吸收、溢出补入、
+// 持久树不变量、平铺区可用判）
+// ————————————————————————————————————————————————————————————
+
+import { createTree, isTileableArea, treeInsert, treePlacedIds, treePlan, treeRemove } from '../../src/main/desktop/tiling-plan'
+import type { TilingTree } from '../../src/main/desktop/tiling-plan'
+
+/** 平铺不变量：placements 两两不重叠、合计铺满平铺区（面积守恒） */
+function assertTilingInvariant(plan: { placements: Array<{ rect: TileRect }> }, area: TileRect): void {
+  const total = plan.placements.reduce((acc, p) => acc + (p.rect.right - p.rect.left) * (p.rect.bottom - p.rect.top), 0)
+  expect(total).toBe((area.right - area.left) * (area.bottom - area.top))
+  for (let i = 0; i < plan.placements.length; i++) {
+    for (let j = i + 1; j < plan.placements.length; j++) {
+      const a = plan.placements[i].rect
+      const b = plan.placements[j].rect
+      const w = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+      const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+      expect(w <= 0 || h <= 0).toBe(true)
+    }
+  }
+}
+
+function rectOf(plan: { placements: Array<{ id: string; rect: TileRect }> }, id: string): TileRect {
+  const r = plan.placements.find((p) => p.id === id)
+  if (!r) throw new Error(`placement ${id} 缺位`)
+  return r.rect
+}
+
+describe('平铺树：裂变队列续行与确定性（工单377，用户故事 16/17/18）', () => {
+  it('四窗裂变 A：A/D 左列、B/C 右列（用户故事 16）', () => {
+    const plan = planTiling(['w1', 'w2', 'w3', 'w4'], AREA)
+    expect(plan.overflow).toEqual([])
+    expect(rectOf(plan, 'w1')).toEqual({ left: 0, top: 0, right: 1280, bottom: 696 })
+    expect(rectOf(plan, 'w4')).toEqual({ left: 0, top: 696, right: 1280, bottom: 1392 })
+    expect(rectOf(plan, 'w2')).toEqual({ left: 1280, top: 0, right: 2560, bottom: 696 })
+    expect(rectOf(plan, 'w3')).toEqual({ left: 1280, top: 696, right: 2560, bottom: 1392 })
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('五窗再次裂变 B：窗 2 窗格横裂（用户故事 17）', () => {
+    const plan = planTiling(['w1', 'w2', 'w3', 'w4', 'w5'], AREA)
+    expect(plan.overflow).toEqual([])
+    expect(rectOf(plan, 'w2')).toEqual({ left: 1280, top: 0, right: 1920, bottom: 696 })
+    expect(rectOf(plan, 'w5')).toEqual({ left: 1920, top: 0, right: 2560, bottom: 696 })
+    // 其余窗格不被五窗裂变牵动
+    expect(rectOf(plan, 'w1')).toEqual({ left: 0, top: 0, right: 1280, bottom: 696 })
+    expect(rectOf(plan, 'w4')).toEqual({ left: 0, top: 696, right: 1280, bottom: 1392 })
+    expect(rectOf(plan, 'w3')).toEqual({ left: 1280, top: 696, right: 2560, bottom: 1392 })
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('六至八窗按叶窗格队列续行（队列近似 BFS：随后裂的是窗 3、窗 1、窗 4 的窗格）', () => {
+    const plan = planTiling(['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8'], AREA)
+    expect(plan.overflow).toEqual([])
+    expect(rectOf(plan, 'w3')).toEqual({ left: 1280, top: 696, right: 1920, bottom: 1392 })
+    expect(rectOf(plan, 'w6')).toEqual({ left: 1920, top: 696, right: 2560, bottom: 1392 })
+    expect(rectOf(plan, 'w1')).toEqual({ left: 0, top: 0, right: 640, bottom: 696 })
+    expect(rectOf(plan, 'w7')).toEqual({ left: 640, top: 0, right: 1280, bottom: 696 })
+    expect(rectOf(plan, 'w4')).toEqual({ left: 0, top: 696, right: 640, bottom: 1392 })
+    expect(rectOf(plan, 'w8')).toEqual({ left: 640, top: 696, right: 1280, bottom: 1392 })
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('六窗以上确定性：同一事件序列两次建树逐字节同布局（用户故事 18）', () => {
+    const seq = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+    const a = planTiling(seq, AREA)
+    const b = planTiling(seq, AREA)
+    expect(a).toEqual(b)
+    assertTilingInvariant(a, AREA)
+  })
+
+  it('增量裂变 = 一次性建树（逐窗加入与批量规划同布局）', () => {
+    const seq = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8']
+    const batch = planTiling(seq, AREA)
+    const tree = createTree(AREA)
+    for (const id of seq) treeInsert(tree, id)
+    // treePlan 输出按叶中序（空间序）；planTiling 按成员序——按 id 对齐比较
+    const byId = new Map(batch.placements.map((p) => [p.id, p.rect]))
+    const treePlanOut = treePlan(tree)
+    expect(treePlanOut.overflow).toEqual([])
+    expect(new Map(treePlanOut.placements.map((p) => [p.id, p.rect]))).toEqual(byId)
+    expect(treePlanOut.placements.length).toBe(batch.placements.length)
+  })
+})
+
+describe('平铺树：兄弟吸收（工单377，用户故事 20、GLOSSARY「Agent 平铺」）', () => {
+  it('三窗关窗 2：兄弟窗 3 吸收整右半，窗 1 窗格不动', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2', 'w3']) treeInsert(tree, id)
+    expect(treeRemove(tree, 'w2')).toBe(true)
+    const plan = treePlan(tree)
+    expect(rectOf(plan, 'w1')).toEqual({ left: 0, top: 0, right: 1280, bottom: 1392 })
+    expect(rectOf(plan, 'w3')).toEqual({ left: 1280, top: 0, right: 2560, bottom: 1392 })
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('兄弟子树整体上移：兄弟是已裂变的子树时按既有轴重展（深度全体 -1）', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2', 'w3', 'w4']) treeInsert(tree, id)
+    // 关窗 4：兄弟 = 窗 1 叶（同对 A1/A2）→ 窗 1 吸收整左列
+    expect(treeRemove(tree, 'w4')).toBe(true)
+    const plan = treePlan(tree)
+    expect(rectOf(plan, 'w1')).toEqual({ left: 0, top: 0, right: 1280, bottom: 1392 })
+    expect(rectOf(plan, 'w2')).toEqual({ left: 1280, top: 0, right: 2560, bottom: 696 })
+    expect(rectOf(plan, 'w3')).toEqual({ left: 1280, top: 696, right: 2560, bottom: 1392 })
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('移除最后成员退回空根；再插入按 0→1 重新铺满', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2']) treeInsert(tree, id)
+    treeRemove(tree, 'w2')
+    treeRemove(tree, 'w1')
+    expect(treePlacedIds(tree).size).toBe(0)
+    treeInsert(tree, 'w9')
+    expect(rectOf(treePlan(tree), 'w9')).toEqual(AREA)
+  })
+
+  it('移回主屏按最新窗口加入：移除后再插入 = 裂变当前队首（story 21）', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2', 'w3']) treeInsert(tree, id)
+    treeRemove(tree, 'w2')
+    treeInsert(tree, 'w2') // 移回
+    const plan = treePlan(tree)
+    // 队首是窗 1 叶（A）→ 新窗按裂变规则切它（上下对分左半），窗 3 右半不动
+    expect(rectOf(plan, 'w1')).toEqual({ left: 0, top: 0, right: 1280, bottom: 696 })
+    expect(rectOf(plan, 'w2')).toEqual({ left: 0, top: 696, right: 1280, bottom: 1392 })
+    expect(rectOf(plan, 'w3')).toEqual({ left: 1280, top: 0, right: 2560, bottom: 1392 })
+    assertTilingInvariant(plan, AREA)
+  })
+})
+
+describe('容量溢出与按序补入（工单377，用户故事 26/29）', () => {
+  const SMALL: TileRect = { left: 0, top: 0, right: 660, bottom: 500 } // 四窗后叶 330×250，再裂 165 < 320
+
+  it('溢出不重排既有成员：五/六窗溢出，前四窗几何与四窗布局逐字节同', () => {
+    const four = planTiling(['w1', 'w2', 'w3', 'w4'], SMALL)
+    const six = planTiling(['w1', 'w2', 'w3', 'w4', 'w5', 'w6'], SMALL)
+    expect(six.overflow).toEqual(['w5', 'w6'])
+    expect(six.placements).toEqual(four.placements)
+  })
+
+  it('有空间后按序补入：关窗 4 → 窗 5 补入、窗 6 仍溢出；再关窗 2 → 窗 6 补入', () => {
+    const tree = createTree(SMALL)
+    for (const id of ['w1', 'w2', 'w3', 'w4', 'w5', 'w6']) treeInsert(tree, id)
+    expect(treePlan(tree).overflow).toEqual(['w5', 'w6'])
+    treeRemove(tree, 'w4')
+    treeInsert(tree, 'w5') // 补入重试（编排层每拍按成员序重试同一入口）
+    const after5 = treePlan(tree)
+    expect(after5.overflow).toEqual(['w6'])
+    expect(rectOf(after5, 'w5')).toEqual({ left: 0, top: 250, right: 330, bottom: 500 })
+    treeRemove(tree, 'w2')
+    treeInsert(tree, 'w6')
+    const after6 = treePlan(tree)
+    expect(after6.overflow).toEqual([])
+    expect(rectOf(after6, 'w6')).toEqual({ left: 330, top: 250, right: 660, bottom: 500 })
+    assertTilingInvariant(after6, SMALL)
+  })
+
+  it('补入遵循成员序：先溢出者先补（treeInsert 幂等，重试不改序）', () => {
+    const tree = createTree(SMALL)
+    for (const id of ['w1', 'w2', 'w3', 'w4', 'w5', 'w6']) treeInsert(tree, id)
+    treeRemove(tree, 'w4')
+    // 编排层按 memberOrder 全量重试：w5 先于 w6
+    for (const id of ['w1', 'w2', 'w3', 'w5', 'w6']) treeInsert(tree, id)
+    const plan = treePlan(tree)
+    expect(plan.overflow).toEqual(['w6'])
+    expect(plan.placements.map((p) => p.id).sort()).toEqual(['w1', 'w2', 'w3', 'w5'].sort())
+  })
+})
+
+describe('平铺区可用判 isTileableArea（工单377，用户故事 23 不写不可见坐标）', () => {
+  it('退化矩形不可用（主屏暂不可用/空矩形过渡态）', () => {
+    expect(isTileableArea({ left: 0, top: 0, right: 0, bottom: 0 })).toBe(false)
+    expect(isTileableArea({ left: 0, top: 0, right: 100, bottom: 0 })).toBe(false)
+  })
+
+  it('容不下一个最小窗格不可用；恰好最小窗格可用', () => {
+    expect(isTileableArea({ left: 0, top: 0, right: 319, bottom: 240 })).toBe(false)
+    expect(isTileableArea({ left: 0, top: 0, right: 320, bottom: 239 })).toBe(false)
+    expect(isTileableArea({ left: 0, top: 0, right: 320, bottom: 240 })).toBe(true)
+    expect(isTileableArea(AREA)).toBe(true)
+  })
+})

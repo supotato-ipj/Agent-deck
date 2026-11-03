@@ -21,9 +21,22 @@ const facts = (over: Partial<TileWindowFacts> = {}): TileWindowFacts => ({
   owned: false,
   appWindow: false,
   iconic: false,
+  resizable: true,
   rect: { left: 100, top: 100, right: 800, bottom: 600 },
   onCurrentDesktop: true,
   ...over,
+})
+
+describe('最小化窗豁免主屏相交判（工单377，用户故事 19/44）', () => {
+  it('最小化窗矩形为屏外哨兵位（-32000）仍判 tile（保留窗格与计数）', () => {
+    const r = classifyTileWindow(facts({ iconic: true, rect: { left: -32000, top: -32000, right: -31800, bottom: -31800 } }), OWN, PRIMARY)
+    expect(r).toEqual({ kind: 'tile' })
+  })
+
+  it('非最小化窗落在屏外仍按副屏排除（移出主屏 = 退出平铺，story 21）', () => {
+    const r = classifyTileWindow(facts({ rect: { left: 3000, top: 0, right: 3800, bottom: 600 } }), OWN, PRIMARY)
+    expect(r).toEqual({ kind: 'excluded', reason: 'off-main-screen' })
+  })
 })
 
 describe('合格窗口判据 classifyTileWindow（工单376）', () => {

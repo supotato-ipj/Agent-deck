@@ -1,8 +1,8 @@
-// Agent 平铺规划（工单376，spec #369 决策 7「平铺决策模块」）：无副作用纯函数——
-// 输入有序窗口成员、主屏平铺矩形与容量约束，输出完整平铺树与目标几何。零 IO、零 FFI、
-// 零 electron——坐标一律物理像素（t372 实证口径：SetWindowPos/GetWindowRect 全物理 px，
-// 与目标窗自身 DPI awareness 无关）。离线 vitest 矩阵直驱；窗口枚举与几何写入在
-// tile-scope.ts / geom-write.ts，编排在其上的 services/agent-tiling.ts。
+// Agent 平铺规划（工单376 立、工单377 成）：无副作用纯函数——输入有序窗口成员、
+// 主屏平铺矩形与容量约束，输出平铺树与目标几何。零 IO、零 FFI、零 electron——坐标
+// 一律物理像素（t372 实证口径：SetWindowPos/GetWindowRect 全物理 px，与目标窗自身
+// DPI awareness 无关）。离线 vitest 矩阵直驱；窗口枚举与几何写入在 tile-scope.ts /
+// geom-write.ts，编排在其上的 services/agent-tiling.ts。
 //
 // 分裂模型（spec 决策 7「初始分裂队列 B、A，子窗格追加队尾，分裂轴随深度交替」+
 // 用户故事 13-17 实义）：窗口 1 铺满根窗格；窗口 2 裂变根窗格——既有内容（窗 1）
@@ -12,9 +12,20 @@
 // 用户故事对账：3 窗裂 B（A 左半、B 右上、C 右下 ✓）、4 窗裂 A（A/D 左列、B/C 右列 ✓）、
 // 5 窗再裂 B ✓。同一窗口事件序列必得同一布局（布局只由事件序列决定，与焦点无关）。
 //
-// 容量（spec 决策 12）：继续裂变会使任一子格低于最小窗格（约 320×240 逻辑像素——
-// 物理口径由调用方按主屏 DPI 换算传入）时，新窗口不落格，进容量溢出（仍计数与预览，
-// 有空间后按序补入——补入语义归工单377，本模块只标记）。
+// 生命周期（工单377，GLOSSARY「Agent 平铺」「平铺窗格」）：376 的无状态重规划只对
+// 「纯增加」序列成立；关闭/移出主屏的空位必须由**兄弟**吸收（用户故事 20——重规划
+// 会让无关窗格缩水/换位），故 377 起布局状态是一棵**持久二叉分裂树**（TilingTree）：
+//   - treeInsert：新窗/补入按叶窗格队列裂变（取队列中第一个可裂叶——队列近似 BFS，
+//     队首即最大叶，名义路径与「只取队首」全同；饱和态队首不可裂而深处叶可裂时仍能
+//     落格，容量不冻结）；
+//   - treeRemove：关闭/移出/异常退出 → 兄弟子树整体上移继承父窗格（深度全体 -1、
+//     矩形按既有轴重展）——兄弟吸收空位，其余窗格不动；
+//   - 最小化不产生事件：成员留在树里，窗格与顺序原样保留（story 19）；
+//   - 容量溢出（spec 决策 12）：裂变会使子格低于最小窗格（约 320×240 逻辑像素）时
+//     不落格、记入 tree.overflow（仍计数与预览）；溢出成员留在成员序里，编排层每拍
+//     按序重试插入——空间一释放即按序补入（story 29）。
+// planTiling 保留为「成员序一次性建树」的薄包装（376 离线矩阵的入口，名义路径输出
+// 与 376 实现逐字节一致）；编排层持有 TilingTree 实例做增量生命周期。
 
 /** 物理像素矩形（t372/51 电池同款口径，左上为原点） */
 export interface TileRect {
@@ -42,12 +53,48 @@ export interface TilingPlan {
 export const MIN_PANE_W = 320
 export const MIN_PANE_H = 240
 
-interface LeafNode {
+// ————————————————————————————————————————————————————————————
+// 持久平铺树（工单377）
+// ————————————————————————————————————————————————————————————
+
+/** 叶窗格：承载至多一个成员（null = 空窗格，只出现在根前态） */
+export interface TilingLeaf {
   kind: 'leaf'
-  /** 承载的成员 id（null = 空窗格：仅出现在规划前态，输出不产生） */
   id: string | null
   rect: TileRect
   depth: number
+  parent: TilingSplit | null
+}
+
+/** 分裂节点：轴在建格时定死（历史轴），吸收上移不重算 */
+export interface TilingSplit {
+  kind: 'split'
+  axis: 'h' | 'v'
+  rect: TileRect
+  depth: number
+  parent: TilingSplit | null
+  first: TilingNode
+  second: TilingNode
+}
+
+export type TilingNode = TilingLeaf | TilingSplit
+
+/** 持久平铺树：布局账本（根 + 叶窗格队列 + 溢出集） */
+export interface TilingTree {
+  /** 建树时的平铺区（显示参数变化检测用——编排层比对决定是否重建） */
+  area: TileRect
+  minPaneW: number
+  minPaneH: number
+  root: TilingNode
+  /** 叶窗格队列（分裂队列）：首裂后全部叶都在队（近似 BFS 序——队首即最大叶） */
+  queue: TilingLeaf[]
+  /** 容量溢出成员（按成员序；不占格、仍计数，有空间按序补入） */
+  overflow: string[]
+}
+
+export interface TreeOpts {
+  minPaneW?: number
+  minPaneH?: number
 }
 
 /** 裂变轴：深度偶数 = 左右（'h'），深度奇数 = 上下（'v'）——随深度交替 */
@@ -71,80 +118,184 @@ function splitRect(rect: TileRect, axis: 'h' | 'v'): [TileRect, TileRect] {
   ]
 }
 
-function areaOf(rect: TileRect): { w: number; h: number } {
-  return { w: Math.max(0, rect.right - rect.left), h: Math.max(0, rect.bottom - rect.top) }
+function paneSize(rect: TileRect): { w: number; h: number } {
+  return { w: rect.right - rect.left, h: rect.bottom - rect.top }
+}
+
+/** 建空树（根为空叶窗格；首窗落根，第二窗才首次裂变） */
+export function createTree(area: TileRect, opts: TreeOpts = {}): TilingTree {
+  return {
+    area: { ...area },
+    minPaneW: opts.minPaneW ?? MIN_PANE_W,
+    minPaneH: opts.minPaneH ?? MIN_PANE_H,
+    root: { kind: 'leaf', id: null, rect: { ...area }, depth: 0, parent: null },
+    queue: [],
+    overflow: [],
+  }
+}
+
+function collectLeaves(node: TilingNode, out: TilingLeaf[]): void {
+  if (node.kind === 'leaf') {
+    out.push(node)
+    return
+  }
+  collectLeaves(node.first, out)
+  collectLeaves(node.second, out)
+}
+
+/** 已落格成员 id 集（溢出成员不在内） */
+export function treePlacedIds(tree: TilingTree): Set<string> {
+  const leaves: TilingLeaf[] = []
+  collectLeaves(tree.root, leaves)
+  const out = new Set<string>()
+  for (const l of leaves) if (l.id !== null) out.add(l.id)
+  return out
+}
+
+function replaceChild(tree: TilingTree, oldNode: TilingNode, newNode: TilingNode): void {
+  const parent = oldNode.parent
+  newNode.parent = parent
+  if (parent === null) tree.root = newNode
+  else if (parent.first === oldNode) parent.first = newNode
+  else parent.second = newNode
 }
 
 /**
- * 平铺规划（工单376）：对有序成员（z 序即入列序——编排层供给）在平铺区内产出确定性
- * 几何。成员可为空（空桌面 → 空规划）。溢出口径：新成员入列时，其裂变会使所在叶窗格
- * 任一子格低于最小窗格 → 该成员不裂变、直接溢出；此前已落格成员几何不变（布局只由
- * 明确事件序列决定——溢出不重排既有成员）。
+ * 裂变插入（新窗加入 / 溢出补入，同一入口——补入即「按最新窗口加入」的裂变语义）：
+ * 取叶窗格队列中**第一个可裂叶**（队列近似 BFS，名义路径=队首），按深度交替轴切开，
+ * 既有内容留首子格（左/上）、新窗落次子格（右/下），双子格追加队尾（首裂 seeding
+ * [新格, 旧格] = spec 决策 7 的 [B, A]）。无任何可裂叶 → 容量溢出（不占格）。
+ * 幂等：已落格成员直接返回 placed（不重复裂变）。
+ */
+export function treeInsert(tree: TilingTree, id: string): 'placed' | 'overflow' {
+  if (treePlacedIds(tree).has(id)) return 'placed'
+  const oi = tree.overflow.indexOf(id)
+  if (oi >= 0) tree.overflow.splice(oi, 1) // 补入重试：先出溢出账，成功/失败由本轮重新定账
+
+  // 0→1：空根直接落位（不裂变）
+  if (tree.root.kind === 'leaf' && tree.root.id === null) {
+    tree.root.id = id
+    return 'placed'
+  }
+
+  // 候选叶窗格：首裂前队列空、根是唯一叶（被窗 1 占据）；此后全部叶在队列里
+  const candidates: TilingLeaf[] = tree.queue.length ? tree.queue : tree.root.kind === 'leaf' ? [tree.root] : []
+  for (const leaf of candidates) {
+    const axis = axisOf(leaf.depth)
+    const [firstRect, secondRect] = splitRect(leaf.rect, axis)
+    const f = paneSize(firstRect)
+    const s = paneSize(secondRect)
+    if (f.w < tree.minPaneW || f.h < tree.minPaneH || s.w < tree.minPaneW || s.h < tree.minPaneH) {
+      continue // 容量溢出判据：裂变会使子格低于最小窗格（spec 决策 12）
+    }
+    const node: TilingSplit = {
+      kind: 'split',
+      axis,
+      rect: { ...leaf.rect },
+      depth: leaf.depth,
+      parent: leaf.parent,
+      first: null as unknown as TilingNode,
+      second: null as unknown as TilingNode,
+    }
+    const existing: TilingLeaf = { kind: 'leaf', id: leaf.id, rect: firstRect, depth: leaf.depth + 1, parent: node }
+    const fresh: TilingLeaf = { kind: 'leaf', id, rect: secondRect, depth: leaf.depth + 1, parent: node }
+    node.first = existing
+    node.second = fresh
+    const seeding = tree.queue.length === 0 // 首裂（根窗格被窗 2 切开）
+    const qi = tree.queue.indexOf(leaf)
+    if (qi >= 0) tree.queue.splice(qi, 1)
+    replaceChild(tree, leaf, node)
+    if (seeding) tree.queue.push(fresh, existing) // [B, A]——新窗格在前（story 15 的前提）
+    else tree.queue.push(existing, fresh) // 子窗格追加队尾 [既有, 新]
+    return 'placed'
+  }
+  if (!tree.overflow.includes(id)) tree.overflow.push(id)
+  return 'overflow'
+}
+
+/** 兄弟子树上移继承：矩形重展（按各节点既有轴）、深度全体对齐新层位 */
+function rebaseSubtree(node: TilingNode, rect: TileRect, depth: number): void {
+  node.rect = { ...rect }
+  node.depth = depth
+  if (node.kind === 'split') {
+    const [f, s] = splitRect(rect, node.axis)
+    rebaseSubtree(node.first, f, depth + 1)
+    rebaseSubtree(node.second, s, depth + 1)
+  }
+}
+
+/**
+ * 移除成员（关闭 / 移出主屏 / 异常退出平铺树——GLOSSARY「Agent 平铺」兄弟吸收语义）：
+ * 被删叶出队，兄弟子树整体上移继承父窗格（矩形=父矩形、深度全体 -1）——兄弟吸收
+ * 空位，其余窗格不动（story 20）。单窗树退回空根（0→1 前态）。溢出成员移除 = 出
+ * 溢出账。幂等：成员不在树（也不在溢出账）返回 false。
+ */
+export function treeRemove(tree: TilingTree, id: string): boolean {
+  const leaves: TilingLeaf[] = []
+  collectLeaves(tree.root, leaves)
+  const leaf = leaves.find((l) => l.id === id)
+  if (!leaf) {
+    const oi = tree.overflow.indexOf(id)
+    if (oi >= 0) {
+      tree.overflow.splice(oi, 1)
+      return true
+    }
+    return false
+  }
+  if (leaf.parent === null) {
+    // 单窗树：退回空根（队列此刻必空——防御性过滤）
+    tree.root = { kind: 'leaf', id: null, rect: { ...leaf.rect }, depth: 0, parent: null }
+    tree.queue = tree.queue.filter((l) => l !== leaf)
+    return true
+  }
+  const parent = leaf.parent
+  const sibling = parent.first === leaf ? parent.second : parent.first
+  const qi = tree.queue.indexOf(leaf)
+  if (qi >= 0) tree.queue.splice(qi, 1)
+  // 兄弟子树上移：继承父位（parent 指向父的父），矩形/深度按父层位重展
+  rebaseSubtree(sibling, parent.rect, parent.depth)
+  replaceChild(tree, parent, sibling)
+  return true
+}
+
+/**
+ * 平铺规划输出（叶窗格中序 = 空间左上→右下序，确定性）：placements 与溢出集不相交。
+ */
+export function treePlan(tree: TilingTree): TilingPlan {
+  const leaves: TilingLeaf[] = []
+  collectLeaves(tree.root, leaves)
+  const placements: TilePlacement[] = []
+  for (const l of leaves) {
+    if (l.id !== null) placements.push({ id: l.id, rect: { ...l.rect } })
+  }
+  return { placements, overflow: [...tree.overflow] }
+}
+
+// ————————————————————————————————————————————————————————————
+// 一次性建树（376 离线矩阵入口）与平铺区推导
+// ————————————————————————————————————————————————————————————
+
+/**
+ * 平铺规划（工单376 契约入口，工单377 起为建树薄包装）：对有序成员（加入序）在平铺区
+ * 内产出确定性几何。成员可为空（空桌面 → 空规划）。溢出口径：新成员入列时无可裂叶
+ * → 溢出（此前已落格成员几何不变——溢出不重排既有成员）。
  */
 export function planTiling(
   members: readonly string[],
   area: TileRect,
-  opts: { minPaneW?: number; minPaneH?: number } = {},
+  opts: TreeOpts = {},
 ): TilingPlan {
-  const minW = opts.minPaneW ?? MIN_PANE_W
-  const minH = opts.minPaneH ?? MIN_PANE_H
-  if (members.length === 0) return { placements: [], overflow: [] }
-
-  // 叶窗格队列（分裂队列）：窗 1 铺满根；窗 2 裂根后 seeding [B, A]（B = 新窗格在前）；
-  // 此后从队首取叶裂变，双子格按 [既有, 新] 追加队尾（见模块头注对账）。
-  let root: LeafNode = { kind: 'leaf', id: null, rect: { ...area }, depth: 0 }
-  const queue: LeafNode[] = []
+  const tree = createTree(area, opts)
+  for (const id of members) treeInsert(tree, id)
+  const plan = treePlan(tree)
+  // placements 按成员入列序输出（376 契约：布局账以成员序为准）
+  const rectById = new Map(plan.placements.map((p) => [p.id, p.rect] as const))
   const placements: TilePlacement[] = []
-  const overflow: string[] = []
-
-  members.forEach((id, index) => {
-    if (index === 0) {
-      root = { kind: 'leaf', id, rect: { ...area }, depth: 0 }
-      return
-    }
-    // 窗 2 裂变根窗格（首个分裂）；此后从队首取叶裂变
-    const target = index === 1 ? root : queue.shift()
-    if (!target) {
-      // 队列空 = 防御路径（正常流每窗必有一格可裂变）：溢出收场，不抛不重排
-      overflow.push(id)
-      return
-    }
-    const axis = axisOf(target.depth)
-    const [first, second] = splitRect(target.rect, axis)
-    const f = areaOf(first)
-    const s = areaOf(second)
-    if (f.w < minW || f.h < minH || s.w < minW || s.h < minH) {
-      // 容量溢出：本窗不落格，被裂窗格原样还原（队首弹出了再塞回去，语义=未裂变）
-      if (index === 1) root = target
-      else queue.unshift(target)
-      overflow.push(id)
-      return
-    }
-    // 既有内容留首子格（左/上），新窗落次子格（右/下）
-    const existing: LeafNode = { kind: 'leaf', id: target.id, rect: first, depth: target.depth + 1 }
-    const fresh: LeafNode = { kind: 'leaf', id, rect: second, depth: target.depth + 1 }
-    if (index === 1) {
-      // 窗 2 的裂变即初始 seeding（spec 决策 7「初始分裂队列 B、A」）：B = 新窗格在前，
-      // A = 既有窗格殿后（story 15「第三窗裂 B」的前提）。首裂后根窗格不复存在——
-      // 全部叶窗格都在队列里（root 置空，收集只走队列）
-      root = { kind: 'leaf', id: null, rect: { ...area }, depth: 0 }
-      queue.push(fresh, existing)
-    } else {
-      // 子窗格追加队尾 [既有, 新]（story 17「五窗再裂 B」的对账见模块头注）
-      if (target.id !== null) queue.push(existing, fresh)
-      else queue.push(fresh) // 空叶不该出现（防御：只补新格）
-    }
-  })
-
-  // 收集叶窗格：按成员入列序（z 序）输出——队列/根只是内部账，布局账以成员序为准
-  const rectById = new Map<string, TileRect>()
-  if (root.id !== null) rectById.set(root.id, root.rect)
-  for (const leaf of queue) if (leaf.id !== null) rectById.set(leaf.id, leaf.rect)
   for (const id of members) {
     const rect = rectById.get(id)
-    if (rect) placements.push({ id, rect: { ...rect } })
+    if (rect) placements.push({ id, rect })
   }
-  return { placements, overflow }
+  return { placements, overflow: plan.overflow }
 }
 
 /**
@@ -160,4 +311,18 @@ export function tileAreaOf(primary: TileRect, taskbarTop: number | null): TileRe
     right: primary.right,
     bottom: taskbarTop !== null && taskbarTop < primary.bottom ? taskbarTop : primary.bottom,
   }
+}
+
+/**
+ * 平铺区可用判（工单377，用户故事 23「窗口不写入不可见坐标」）：区为退化矩形
+ * （显示参数变化的过渡态——主屏暂时不可用/取到空矩形）或容不下一个最小窗格时不可用。
+ * 编排层在本拍跳过全部几何写入（计数照报、全员未落格）——不往不可见坐标写窗。
+ */
+export function isTileableArea(
+  area: TileRect,
+  opts: TreeOpts = {},
+): boolean {
+  const w = area.right - area.left
+  const h = area.bottom - area.top
+  return w >= (opts.minPaneW ?? MIN_PANE_W) && h >= (opts.minPaneH ?? MIN_PANE_H)
 }

@@ -2003,6 +2003,106 @@
           "estSeconds": 5
         }
       ]
+    },
+    {
+      "id": "377-agent-tiling-lifecycle",
+      "title": "Agent 平铺完整生命周期与容量降级（工单377）：三至六窗确定性裂变与重放/最小化保留/关闭与移出兄弟吸收/移回最新加入/固定尺寸异常未平铺/零残留——受控 WPF 夹具窗（一窗一进程，无会话恢复）",
+      "entry": "app/accept/agent-tiling-lifecycle.js",
+      "flag": "--accept-agent-tiling-lifecycle",
+      "hintBar": true,
+      "cdpPort": 9234,
+      "kind": null,
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 62,
+      "lastMeasuredAt": "2026-11-03",
+      "areas": [
+        "desktop"
+      ],
+      "segments": [
+        {
+          "seg": "P1",
+          "ticket": 377,
+          "title": "一至三窗：配对+切 Agent → 首窗铺满、两窗左右各半、三窗裂 B（A 左半/B 右上/C 右下）逐像素；计数 3、count/placed=3",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 10
+        },
+        {
+          "seg": "P2",
+          "ticket": 377,
+          "title": "四窗裂 A：A/D 左列、B/C 右列逐像素；计数 4、count/placed=4",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 3
+        },
+        {
+          "seg": "P3",
+          "ticket": 377,
+          "title": "五窗再裂 B：B 窗格横裂、其余窗格逐像素不动；计数 5",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 3
+        },
+        {
+          "seg": "P4",
+          "ticket": 377,
+          "title": "六窗裂 C + 确定性重放：六窗精确几何；清空全部成员后以同序重建六窗 → 逐像素同布局、两轮计数=6",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 18
+        },
+        {
+          "seg": "P5",
+          "ticket": 377,
+          "title": "最小化保留窗格与顺序：最小化成员 2 → 其余五窗零移动、计数与 placed 保持 6；还原回原格",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 2
+        },
+        {
+          "seg": "P6",
+          "ticket": 377,
+          "title": "关闭收缩由兄弟吸收：关成员 4 → 兄弟（成员 1）吸收整左列，其余四窗逐像素不动；计数回落 5",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 3
+        },
+        {
+          "seg": "P7",
+          "ticket": 377,
+          "title": "移出/移回主屏：移出最新成员 → 兄弟吸收整右下格、计数回落 4；移回按最新窗口加入（裂变当前队首、其余窗格不动）、计数回 5",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 1
+        },
+        {
+          "seg": "P8",
+          "ticket": 377,
+          "title": "固定尺寸异常未平铺：WPF ResizeMode=NoResize 探针窗（无 WS_THICKFRAME）→ 生产零写窗、其余窗不动、计数仍含它、anomalies=1 且 fixedSize 分类在案、静置无重试",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 9
+        },
+        {
+          "seg": "P9",
+          "ticket": 377,
+          "title": "收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 三态还原",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 11
+        }
+      ]
     }
   ],
   "areas": {
