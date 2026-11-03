@@ -393,7 +393,14 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 胶囊/预览计数含带成员、关 28 扇带收拢补入；一段绑定一工单）。带纯几何（列宽/露边/
     // fit 钳制）与生命周期语义按增段条件②由 tiling-plan.spec / agent-tiling-band.spec
     // 单测矩阵钉，真机段只验真实 33 窗触发、真鼠标露边命中与前台事件驱动的整组滑动。
-    expect(total).toBe(187)
+    // 186 → 187：工单407 增段——375-desktop-switch 电池增 P10（标题栏拖入 Agent 桌面
+    // 最小事务：MOVESIZE 源窗识别、落点高亮、预览暂停、桌面 ID 回读确认、落放不切桌面、
+    // 进入 Agent 后交接实际平铺；一段绑定一工单）。资格核对/迁移回读/回滚/交接顺序按
+    // 增段条件②由 drag-in-plan / agent-drag-in-service / agent-tiling-handoff 单测矩阵钉，
+    // 真机段只验真实标题栏输入、系统桌面 ID 回读与渲染层高亮这些单测无法证明的面。
+    // 187 → 188：并流对账——工单405（377 电池 P10 屏外滚动带）与工单407（375 电池 P10
+    // 标题栏拖入）两票各增一段，合并后段总数为两票增量之和。
+    expect(total).toBe(188)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

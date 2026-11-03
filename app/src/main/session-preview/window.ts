@@ -270,6 +270,19 @@ export function startSessionPreviewController(options: { ctx: Context; log: Even
     else feed('leave-anchor')
   }
   const offZone = ctx.on('taskbar/cursor-zone', onZone)
+  // 标题栏拖拽协调（工单407，spec #403 决策「拖拽期间协调会话预览」）：原生标题栏拖动
+  // 在场即暂停悬停预览（展开态立即收起、暂停期锚点命中被吞——reducer 纯语义见 hover.ts）；
+  // 拖动结束恢复既有预览行为（重新悬停 300ms 后照常展开）。
+  const offDragIn = ctx.on('workspace/drag-in-changed', ({ active }: { active: boolean; overAgent: boolean }) => {
+    if (disposed || !available()) return
+    if (active) {
+      const r = reduceHover(machine, { type: 'drag-active' }, Date.now())
+      machine = r.state
+      if (r.action === 'close') closeBubble('drag-in')
+    } else {
+      machine = reduceHover(machine, { type: 'drag-end' }, Date.now()).state
+    }
+  })
   const offWorkspace = ctx.on('workspace/changed', () => {
     syncWindow()
     // 锚点消失（开关关/能力不可用）：气泡立即收起，不留孤儿窗
@@ -292,6 +305,7 @@ export function startSessionPreviewController(options: { ctx: Context; log: Even
       disposed = true
       clearInterval(pumpTimer)
       offZone()
+      offDragIn()
       offWorkspace()
       destroyWindow('dispose')
     },

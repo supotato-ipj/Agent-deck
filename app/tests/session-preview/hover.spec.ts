@@ -107,6 +107,52 @@ describe('悬停状态机（fake clock）', () => {
   })
 })
 
+describe('标题栏拖拽期间的会话预览暂停（工单407，spec #403 决策「拖拽期间协调会话预览」）', () => {
+  it('展开态遇到 drag-active：立即收起并进入暂停（拖拽期预览不争夺落点，story 40）', () => {
+    let s = initialHoverState()
+    s = reduceHover(s, { type: 'enter-anchor' }, 0).state
+    s = tickTo(s, HOVER_OPEN_MS).state
+    expect(s.phase).toBe('open')
+    const r = reduceHover(s, { type: 'drag-active' }, 2000)
+    expect(r.action).toBe('close')
+    expect(r.state.phase).toBe('idle')
+    expect(r.state.dragHold).toBe(true)
+  })
+
+  it('暂停期 enter-anchor 被吞：拖动划过 Agent 入口不展开、不计时', () => {
+    let s = initialHoverState()
+    s = reduceHover(s, { type: 'drag-active' }, 0).state
+    expect(s.dragHold).toBe(true)
+    const r = reduceHover(s, { type: 'enter-anchor' }, 100)
+    expect(r.action).toBe('none')
+    expect(r.state.phase).toBe('idle')
+    expect(tickTo(r.state, 100 + HOVER_OPEN_MS).action).toBe('none')
+  })
+
+  it('暂停期待展开态（arming）也被取消', () => {
+    let s = reduceHover(initialHoverState(), { type: 'enter-anchor' }, 0).state
+    s = reduceHover(s, { type: 'drag-active' }, 100).state
+    expect(s.phase).toBe('idle')
+    expect(s.dragHold).toBe(true)
+  })
+
+  it('drag-end 解除暂停：恢复既有预览行为（重新悬停 300ms 后照常展开）', () => {
+    let s = reduceHover(initialHoverState(), { type: 'drag-active' }, 0).state
+    s = reduceHover(s, { type: 'drag-end' }, 3000).state
+    expect(s.dragHold).toBe(false)
+    expect(s.phase).toBe('idle')
+    s = reduceHover(s, { type: 'enter-anchor' }, 3100).state
+    const r = tickTo(s, 3100 + HOVER_OPEN_MS)
+    expect(r.action).toBe('open')
+  })
+
+  it('drag-end 在未暂停态是幂等空转', () => {
+    const r = reduceHover(initialHoverState(), { type: 'drag-end' }, 0)
+    expect(r.action).toBe('none')
+    expect(r.state.dragHold).toBe(false)
+  })
+})
+
 describe('锚点热区 id 镜像守卫', () => {
   it('渲染层 modeZoneId(agent) 与主进程悬停锚点常量逐字一致', () => {
     expect(modeZoneId('agent')).toBe(SESSION_PREVIEW_ANCHOR_ZONE)
@@ -117,6 +163,7 @@ describe('锚点热区 id 镜像守卫', () => {
     const events: HoverEvent[] = [
       { type: 'enter-anchor' }, { type: 'leave-anchor' }, { type: 'enter-bubble' },
       { type: 'leave-bubble' }, { type: 'esc' }, { type: 'tick' }, { type: 'reset' },
+      { type: 'drag-active' }, { type: 'drag-end' },
     ]
     for (const e of events) expect(() => reduceHover(initialHoverState(), e, 0)).not.toThrow()
   })
