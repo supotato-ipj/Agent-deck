@@ -357,7 +357,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 未平铺 P8 / 零残留 P9；一段绑定一工单）。夹具定案为受控 WPF 窗口（一窗一进程）——
     // 记事本会话恢复会一次拉起整套旧窗（实测 21 扇），成员集合与计数不可判。容量溢出与
     // 拒改/权限细分类按增段条件②不进真机段，由纯函数矩阵钉。
-    expect(total).toBe(158)
+    // 158 → 165：工单378 增电池——378-agent-geometry-auth 副电池整建（首次操作复原+提示/
+    // Esc 保持平铺 P1 / 确认不重排与重新操作浮动 P2 / 边框·最大化·键盘·Snap 四入口 P3 /
+    // 后台自改不弹框 P4 / 切出撤销授权保留浮动几何 P5 / 胶囊恢复按钮与异常跳过报告 P6 /
+    // 零残留 P7；一段绑定一工单）。授权状态机与复原/浮动/恢复决策按增段条件②由
+    // geom-auth 纯函数矩阵钉，真机段只验真实输入链路与系统几何事实。
+    expect(total).toBe(165)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

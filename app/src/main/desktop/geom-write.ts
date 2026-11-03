@@ -22,6 +22,9 @@ const WINEVENT_OUTOFCONTEXT = 0
 const OBJID_WINDOW = 0
 const SWP_NOZORDER = 0x4
 const SWP_NOACTIVATE = 0x10
+const GA_ROOT = 2
+const WM_SYSCOMMAND = 0x0112
+const SC_RESTORE = 0xf120
 
 interface KoffiFunc {
   (...args: unknown[]): unknown
@@ -32,6 +35,10 @@ interface GeomBound {
   getWindowRect: KoffiFunc
   setWinEventHook: KoffiFunc
   unhookWinEvent: KoffiFunc
+  getForegroundWindow: KoffiFunc
+  getAncestor: KoffiFunc
+  isZoomed: KoffiFunc
+  postMessage: KoffiFunc
 }
 
 let bound: GeomBound | null = null
@@ -61,8 +68,44 @@ function bind(): GeomBound {
       'void * __stdcall SetWinEventHook(uint32 eventMin, uint32 eventMax, void *hmodWinEventProc, void *pfnWinEventProc, uint32 idProcess, uint32 idThread, uint32 dwFlags)',
     ),
     unhookWinEvent: user32.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)'),
+    getForegroundWindow: user32.func('uintptr_t __stdcall GetForegroundWindow()'),
+    getAncestor: user32.func('uintptr_t __stdcall GetAncestor(uintptr_t hWnd, uint32 gaFlags)'),
+    isZoomed: user32.func('bool __stdcall IsZoomed(uintptr_t hWnd)'),
+    postMessage: user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wParam, intptr_t lParam)'),
   }
   return bound
+}
+
+/**
+ * 目标窗此刻是否前台（工单378「用户主动操作」判据）：拖动/边框/最大化/键盘/Snap 都作用于
+ * 前台窗；后台自改不满足——复原但不弹框（决策 10、story 30）。取根窗比较（GA_ROOT），
+ * 被属主/子窗包装的目标也能判对。读失败按非前台（安全方向：静默复原，不误弹框）。
+ */
+export function isForegroundWindow(hwnd: number): boolean {
+  try {
+    const b = bind()
+    const fg = Number(b.getForegroundWindow())
+    if (!fg) return false
+    const root = Number(b.getAncestor(fg, GA_ROOT)) || fg
+    return root === Number(hwnd) || fg === Number(hwnd)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 复原窗到目标矩形（工单378 首次操作复原）：最大化态先发 WM_SYSCOMMAND SC_RESTORE
+ * （t372 S5B 实证的跨进程还原入口，逐像素回到原矩形），再 SetWindowPos 写目标——
+ * 避免直接对最大化窗写几何被系统夹取。返回写窗受理与否。
+ */
+export function restoreWindowRect(hwnd: number, target: TileRect): boolean {
+  try {
+    const b = bind()
+    if (b.isZoomed(hwnd)) b.postMessage(hwnd, WM_SYSCOMMAND, SC_RESTORE, 0)
+  } catch {
+    /* 还原消息失败不阻写：SetWindowPos 仍可能生效，核验在编排层 */
+  }
+  return writeWindowRect(hwnd, target)
 }
 
 /** 写窗（物理 px；不激活不改 z 序）。返回系统受理与否——受理 ≠ 最终达标（核验在编排层） */

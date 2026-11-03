@@ -259,8 +259,35 @@ export class BridgeService extends Service {
         const svc = this.ctx.agentTiling
         return (svc ? svc.state() : {
           available: false, current: 'unmanaged', count: 0, placed: 0, overflow: 0, anomalies: 0,
-          anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 },
+          anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 }, floating: 0, prompting: 0, authorized: 0,
         }) as BridgeMethods[M]['response']
+      }
+      // --- 逐窗几何授权（工单378，决策 10/26）：只认可信内核 UI（授权提示窗）的用户手势。
+      // 非 prompt 阶段 ok:false（不越级授权）；确认本身不写几何（决策 9）。
+      case 'tiling/authorize': {
+        const { hwnd, decision } = payload as { hwnd: number; decision: 'confirm' | 'cancel' }
+        if (decision !== 'confirm' && decision !== 'cancel') {
+          throw new BridgeError(`tiling/authorize.decision 须为 confirm|cancel，收到 ${String(decision)}`)
+        }
+        const svc = this.ctx.agentTiling
+        if (!svc) {
+          return { ok: false, state: {
+            available: false, current: 'unmanaged' as const, count: 0, placed: 0, overflow: 0, anomalies: 0,
+            anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 }, floating: 0, prompting: 0, authorized: 0,
+          } } as BridgeMethods[M]['response']
+        }
+        return (decision === 'confirm' ? svc.confirmHwnd(Number(hwnd)) : svc.cancelHwnd(Number(hwnd))) as BridgeMethods[M]['response']
+      }
+      // --- 恢复平铺（工单378，决策 11/26）：可信内核 UI（胶囊右侧恢复按钮）用户手势 ---
+      case 'tiling/restore': {
+        const svc = this.ctx.agentTiling
+        if (!svc) {
+          return { ok: false, restored: 0, skipped: 0, state: {
+            available: false, current: 'unmanaged' as const, count: 0, placed: 0, overflow: 0, anomalies: 0,
+            anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 }, floating: 0, prompting: 0, authorized: 0,
+          } } as BridgeMethods[M]['response']
+        }
+        return await svc.restoreTiling() as BridgeMethods[M]['response']
       }
       case 'plugin-config/get': {
         const { id } = payload as { id: string }
