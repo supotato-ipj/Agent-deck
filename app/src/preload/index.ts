@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld('deck', {
     // 拖拽会话开关（工单195）：开 = 热区穿透轮询持门（抑制关门）——OLE 拖拽活动期跨
     // 组/缝隙松手不丢；关 = 恢复常态判定。渲染层 dragstart/dragend 成对调用。
     setDragSession: (on: boolean) => { ipcRenderer.send('deck:host-drag-session', on) },
+    // 窗口预览条目矩形上行（工单379）：DWM 实时缩略图目标矩形随滚动/布局变化；主进程按
+    // 物理 px 换算后注册/更新。载荷 = [{hwnd,x,y,w,h}]（CSS px，相对预览窗视口）。
+    previewLayout: (rects: unknown) => { ipcRenderer.send('deck:host-preview-layout', rects) },
     notify: (type: string, payload?: Record<string, unknown>) => {
       ipcRenderer.send('deck:host-notify', { type, payload })
     },

@@ -166,6 +166,9 @@ export class AgentTilingService extends Service {
   /** 持久平铺树（工单377，GLOSSARY「Agent 平铺」）：布局账本——增量裂变/兄弟吸收；
    *  显示参数变化（平铺区变）时按成员序整体重建（重算语义，story 23）。 */
   private tree: TilingTree | null = null
+  /** 聚焦目标（工单379，决策 16）：挂起窗保留窗格与计数，但平铺 pass 不写它、不做授权
+   *  判定——真实最大化不是「用户改几何」。null = 无聚焦。只在内存，切出即清。 */
+  private heldHwnd: number | null = null
 
   constructor(ctx: Context, options: AgentTilingServiceOptions = {}) {
     super(ctx, 'agentTiling')
@@ -230,6 +233,32 @@ export class AgentTilingService extends Service {
     }
   }
 
+  /**
+   * 预览成员快照（工单379，spec 决策 15）：与胶囊计数同口径的主屏合格窗口事实——
+   * 含最小化/浮动/未平铺（预览列出全部，不只可见平铺窗格）。标题只作上屏载荷，
+   * 调用方（窗口预览服务）不得把它写入日志。不可用/非 Agent 桌面返回空集。
+   */
+  previewMembers(): TileWindowFacts[] {
+    if (!this.active()) return []
+    try {
+      const facts = this.deps.collectFacts()
+      return projectTileScope(facts, this.deps.ownExes(), this.deps.primaryRect()).members
+    } catch {
+      return [] // 本拍事实不可读：预览空集（不猜）
+    }
+  }
+
+  /** 聚焦挂起（工单379，决策 16）：挂起窗保留窗格/计数，但平铺 pass 不写它、不做授权
+   *  判定（真实最大化不是用户改几何）；null = 解除。只在内存，失活即清。 */
+  setHeldWindow(hwnd: number | null): void {
+    this.heldHwnd = hwnd
+  }
+
+  /** 当前挂起窗（诊断/测试观察缝） */
+  heldWindowForTest(): number | null {
+    return this.heldHwnd
+  }
+
   /** 激活态对齐（workspace/changed 与启动路径共用）：agent 激活，其余失活 */
   syncActivation(): void {
     const active = this.active()
@@ -266,6 +295,8 @@ export class AgentTilingService extends Service {
     this.echoLedger.clear()
     this.placing = false
     this.pendingPass = false
+    // 聚焦挂起随失活清除（工单379）：普通/非托管桌面不继承 Agent 桌面的挂起状态
+    this.heldHwnd = null
     this.pushState({ count: 0, placed: 0, overflow: 0, anomalies: 0, anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 } })
   }
 
@@ -478,6 +509,7 @@ export class AgentTilingService extends Service {
     const floatingRestore = new Map<number, TileRect>()
     for (const p of plan.placements) {
       const hwnd = Number(p.id)
+      if (hwnd === this.heldHwnd) continue // 聚焦目标（工单379）：最大化不是用户改几何
       if (iconicByHwnd.get(hwnd)) continue // 最小化不算用户改几何（还原事件触发下一拍）
       if (!knownPlaced.has(String(hwnd))) continue // 新成员落位/溢出补入：正常写，不授权
       const current = rectByHwnd.get(hwnd)
@@ -499,6 +531,7 @@ export class AgentTilingService extends Service {
     // 浮动窗观察（不在平铺树里）：已授权改 → 接受；未授权用户改 → 复原到保留几何并询问；
     // 后台自改 → 浮动窗不受平铺约束，只更新记忆几何（"复原原状"的原状 = 操作前几何）
     for (const hwnd of floatingIds(this.auth)) {
+      if (hwnd === this.heldHwnd) continue // 聚焦目标（含浮动窗）：挂起期不受平铺约束
       const current = rectByHwnd.get(hwnd)
       if (!current || iconicByHwnd.get(hwnd)) continue
       const remembered = floatingRectOf(this.auth, hwnd)
@@ -533,10 +566,12 @@ export class AgentTilingService extends Service {
     }
 
     // 写集：规划目标 × 当前矩形比对（异常窗跳过、最小化跳过、已达标不重写）
-    const assignments = plan.placements.map((p) => {
-      const hwnd = Number(p.id)
-      return { hwnd, target: p.rect, iconic: iconicByHwnd.get(hwnd) ?? false, current: rectByHwnd.get(hwnd) ?? null }
-    })
+    const assignments = plan.placements
+      .filter((p) => Number(p.id) !== this.heldHwnd) // 挂起窗不写（保持真实最大化几何）
+      .map((p) => {
+        const hwnd = Number(p.id)
+        return { hwnd, target: p.rect, iconic: iconicByHwnd.get(hwnd) ?? false, current: rectByHwnd.get(hwnd) ?? null }
+      })
     const writes = planWrites(assignments, this.anomalies)
 
     // 批量落位：登记期望矩形（回声抑制）→ 写 → 失败即撤账（失败写不吞后续外部事件）。

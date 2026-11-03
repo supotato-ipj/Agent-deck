@@ -2884,3 +2884,24 @@ describe('内核桥接契约（工单83 退出面板）', () => {
     }
   }, 30_000)
 })
+
+describe('内核桥接契约（工单379 窗口预览与聚焦回退）', () => {
+  it('缺装配时预览/聚焦方法如实回退空态（不抛、不编造）', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      const preview = await ctx.bridge.invoke('preview/get-state', null)
+      expect(preview).toEqual({ available: false, current: 'unmanaged', open: false, items: [] })
+      expect(await ctx.bridge.invoke('preview/toggle', null)).toEqual({ ok: false, open: false })
+      expect(await ctx.bridge.invoke('preview/close', null)).toEqual({ ok: false })
+      expect(await ctx.bridge.invoke('preview/select', { hwnd: 1 })).toEqual({ ok: false, focused: null })
+      expect(await ctx.bridge.invoke('preview/diag', null)).toEqual({ open: false, live: 0, cached: 0 })
+      expect(await ctx.bridge.invoke('focus/get-state', null)).toEqual({ focused: null })
+      const exited = await ctx.bridge.invoke('focus/exit', null)
+      expect(exited.ok).toBe(false)
+      expect(exited.state).toEqual({ focused: null })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})

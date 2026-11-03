@@ -13,12 +13,14 @@ import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
 import type { DesktopWorkspaceService } from './services/desktop-workspace'
 import type { AgentTilingService } from './services/agent-tiling'
+import type { AgentFocusService } from './services/agent-focus'
+import type { WindowPreviewService } from './services/window-preview'
 import type { ConversationService } from './conversation/service'
 import type { MediaService } from './media/service'
 import type { NetworkService } from './network/service'
 import type { CredentialService } from './credentials/service'
 import type { InstallProposalView } from './plugins/install'
-import type { AgentTilingState, ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
+import type { AgentFocusState, AgentTilingState, ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus, WindowPreviewState } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
@@ -89,6 +91,18 @@ declare module 'cordis' {
     'tiling/authorize-request': (payload: { hwnd: number; rect: { left: number; top: number; right: number; bottom: number } }) => void
     /** 工单378 授权提示关闭（确认/取消/切出撤销/恢复平铺/窗口消失）——控制器据此收窗 */
     'tiling/authorize-closed': (payload: { hwnd: number }) => void
+    /**
+     * 工单379 窗口预览状态变化（展开/收起/条目更新）：预览窗控制器据此建/显/更/销窗；
+     * 同一事件即桥接事件 'preview/changed'（胶囊页与预览页订阅）。
+     * 载荷含标题与内存位图——只走窗内桥，不落日志。
+     */
+    'preview/changed': (payload: WindowPreviewState) => void
+    /** 工单379 Agent 聚焦状态变化（进入/退出）——胶囊页据此切换主体点击语义 */
+    'focus/changed': (payload: AgentFocusState) => void
+    /** 工单379 控制器上行：某条目 DWM 实时注册失败 → 预览服务改判图标+标题回退 */
+    'window-preview/live-failed': (payload: { hwnd: number }) => void
+    /** 工单379 控制器上行：当前 DWM 关系数（诊断/验收「关闭即释放」） */
+    'window-preview/live-registered': (payload: { count: number }) => void
   }
   interface Context {
     clock: ClockService
@@ -127,5 +141,9 @@ declare module 'cordis' {
     desktopWorkspace?: DesktopWorkspaceService
     /** 工单376 Agent 平铺（可选装配：随 agentDesktop 开关隔离——缺装配 = 投影回退空态） */
     agentTiling?: AgentTilingService
+    /** 工单379 Agent 聚焦（可选装配：随 agentDesktop 开关隔离——缺装配 = 聚焦不可用） */
+    agentFocus?: AgentFocusService
+    /** 工单379 窗口预览（可选装配：随 agentDesktop 开关隔离——缺装配 = 预览不可用） */
+    windowPreview?: WindowPreviewService
   }
 }

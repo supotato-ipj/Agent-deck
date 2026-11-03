@@ -72,6 +72,11 @@ export function capsuleUrl(): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/capsule.html`
 }
 
+/** 窗口预览页 URL（工单379：胶囊展开的横向条目承载页，与胶囊页同根同源） */
+export function previewUrl(): string {
+  return `${PLUGIN_SCHEME}://${APP_HOST}/preview.html`
+}
+
 /** 逐窗几何授权提示页 URL（工单378：hwnd 经查询参数寻址，窗口内容不含标题） */
 export function tilePromptUrl(hwnd: number): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/tile-prompt.html?hwnd=${encodeURIComponent(String(hwnd))}`

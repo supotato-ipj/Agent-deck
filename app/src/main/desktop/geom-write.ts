@@ -25,6 +25,9 @@ const SWP_NOACTIVATE = 0x10
 const GA_ROOT = 2
 const WM_SYSCOMMAND = 0x0112
 const SC_RESTORE = 0xf120
+const SW_MAXIMIZE = 3
+const SW_RESTORE = 9
+const EVENT_SYSTEM_FOREGROUND = 0x0003
 
 interface KoffiFunc {
   (...args: unknown[]): unknown
@@ -36,6 +39,8 @@ interface GeomBound {
   setWinEventHook: KoffiFunc
   unhookWinEvent: KoffiFunc
   getForegroundWindow: KoffiFunc
+  setForegroundWindow: KoffiFunc
+  showWindow: KoffiFunc
   getAncestor: KoffiFunc
   isZoomed: KoffiFunc
   postMessage: KoffiFunc
@@ -46,6 +51,10 @@ let bound: GeomBound | null = null
 let registeredCb: ((hwnd: number) => void) | null = null
 let registeredProc: unknown = null
 let hookHandle: unknown = null
+/** 前台观察（工单379）：独立注册体（同名二次 register 是 #153 坑——各自单登） */
+let fgRegisteredCb: ((hwnd: number) => void) | null = null
+let fgRegisteredProc: unknown = null
+let fgHookHandle: unknown = null
 
 function bind(): GeomBound {
   if (bound) return bound
@@ -59,6 +68,12 @@ function bind(): GeomBound {
     'void',
     ['void *', 'uint32', 'uintptr_t', 'int32', 'int32', 'uint32', 'uint32'],
   )
+  koffi.proto(
+    '__stdcall',
+    'GEOM_WRITE_FOREGROUND_PROC',
+    'void',
+    ['void *', 'uint32', 'uintptr_t', 'int32', 'int32', 'uint32', 'uint32'],
+  )
   bound = {
     setWindowPos: user32.func(
       'bool __stdcall SetWindowPos(uintptr_t hWnd, uintptr_t after, int x, int y, int cx, int cy, uint32 flags)',
@@ -69,6 +84,8 @@ function bind(): GeomBound {
     ),
     unhookWinEvent: user32.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)'),
     getForegroundWindow: user32.func('uintptr_t __stdcall GetForegroundWindow()'),
+    setForegroundWindow: user32.func('bool __stdcall SetForegroundWindow(uintptr_t hWnd)'),
+    showWindow: user32.func('bool __stdcall ShowWindow(uintptr_t hWnd, int nCmdShow)'),
     getAncestor: user32.func('uintptr_t __stdcall GetAncestor(uintptr_t hWnd, uint32 gaFlags)'),
     isZoomed: user32.func('bool __stdcall IsZoomed(uintptr_t hWnd)'),
     postMessage: user32.func('bool __stdcall PostMessageW(uintptr_t hWnd, uint32 msg, uintptr_t wParam, intptr_t lParam)'),
@@ -191,4 +208,90 @@ export function stopLocationChangeWatch(): void {
   // koffi 注册体不显式解挂（进程级单登复用——二次起表 koffi.register 同名会撞 #153 坑，
   // 保留单注册体、只换 registeredCb 指向是最安全的复用形态）
   registeredCb = null
+}
+
+/** 当前前台窗 hwnd（读失败/无前台 → null） */
+export function foregroundWindow(): number | null {
+  try {
+    const fg = Number(bind().getForegroundWindow())
+    return fg > 0 ? fg : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 真实最大化并激活目标窗（工单379，spec #369 决策 16 / GLOSSARY「Agent 聚焦」）：
+ * ShowWindow(SW_MAXIMIZE) 是系统级真最大化——既有的最大化收栏（IsZoomed 族事实）
+ * 照常生效；随后 SetForegroundWindow 把焦点交给目标（预览窗刚取焦，本进程是前台，
+ * 激活许可成立）。返回系统受理与否（受理 ≠ 最终达标，验收以 IsZoomed/几何为准）。
+ */
+export function maximizeWindow(hwnd: number): boolean {
+  try {
+    const b = bind()
+    const shown = Boolean(b.showWindow(hwnd, SW_MAXIMIZE))
+    // 兼容前台许可被拒的时机：先激活再最大化一次（不改变结果语义，只是提高成功率）
+    const fg = Number(b.getForegroundWindow())
+    if (fg !== Number(hwnd)) b.setForegroundWindow(hwnd)
+    return shown
+  } catch {
+    return false
+  }
+}
+
+/** 还原目标窗到最大化前几何（退出聚焦；与 restoreWindowRect 的 SC_RESTORE 同源语义） */
+export function restoreWindow(hwnd: number): boolean {
+  try {
+    return Boolean(bind().showWindow(hwnd, SW_RESTORE))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 前台变化观察（工单379，聚焦协调）：EVENT_SYSTEM_FOREGROUND 全局钩子——回调只递
+ * 新前台窗 hwnd（轻活；判定与退出聚焦在服务层）。返回停表函数（Unhook + 解注册）。
+ * 注册体进程级单登（#153 教训：同名二次 register 崩）——重起只换回调指向。
+ */
+export function startForegroundWatch(onChange: (hwnd: number) => void): () => void {
+  const b = bind()
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const koffi = require('koffi')
+  stopForegroundWatch()
+  if (!fgRegisteredProc) {
+    fgRegisteredProc = koffi.register(
+      (_hHook: unknown, _event: number, hwnd: number) => {
+        try {
+          fgRegisteredCb?.(Number(hwnd))
+        } catch {
+          /* 回调异常不入事件流 */
+        }
+      },
+      'GEOM_WRITE_FOREGROUND_PROC *',
+    )
+  }
+  fgRegisteredCb = onChange
+  fgHookHandle = b.setWinEventHook(
+    EVENT_SYSTEM_FOREGROUND,
+    EVENT_SYSTEM_FOREGROUND,
+    null,
+    fgRegisteredProc,
+    0,
+    0,
+    WINEVENT_OUTOFCONTEXT,
+  )
+  return stopForegroundWatch
+}
+
+/** 停前台观察（幂等） */
+export function stopForegroundWatch(): void {
+  if (fgHookHandle) {
+    try {
+      bind().unhookWinEvent(fgHookHandle)
+    } catch {
+      /* 收尾尽力 */
+    }
+    fgHookHandle = null
+  }
+  fgRegisteredCb = null
 }
