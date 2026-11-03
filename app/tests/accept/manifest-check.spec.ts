@@ -352,7 +352,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 最小闭环：P1 一窗铺满 / P2 两窗各半 / P3 计数口径与排除面 / P4 回声抑制与
     // reconciliation / P5 普通桌面零改窗 / P6 零残留；一段绑定一工单，est 合计 68
     // 按健康轮 took= 同 PR 校准）
-    expect(total).toBe(149)
+    // 149 → 158：工单377 增电池——377-agent-tiling-lifecycle 副电池整建（一至六窗裂变与
+    // 重放确定性 P1-P4 / 最小化保留 P5 / 关闭兄弟吸收 P6 / 移出移回主屏 P7 / 固定尺寸异常
+    // 未平铺 P8 / 零残留 P9；一段绑定一工单）。夹具定案为受控 WPF 窗口（一窗一进程）——
+    // 记事本会话恢复会一次拉起整套旧窗（实测 21 扇），成员集合与计数不可判。容量溢出与
+    // 拒改/权限细分类按增段条件②不进真机段，由纯函数矩阵钉。
+    expect(total).toBe(158)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

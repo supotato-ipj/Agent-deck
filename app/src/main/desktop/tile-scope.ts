@@ -39,6 +39,13 @@ export interface TileWindowFacts {
   appWindow: boolean
   /** 最小化（IsIconic——最小化窗仍计入胶囊计数，GLOSSARY 口径） */
   iconic: boolean
+  /**
+   * 可接受用户级改窗（GWL_STYLE WS_THICKFRAME 在位，工单377）：缺位 = 固定尺寸窗，
+   * 平铺编排跳过写窗、直接异常分类（spec 决策 12「固定尺寸…进入异常未平铺」的
+   * 预判据——不试写）。事实取不到（样式读失败归 0）按 false——异常化是跳过+报告，
+   * 无破坏性，安全向。
+   */
+  resizable: boolean
   rect: ScopeRect
   /** 公开 VDM IsWindowOnCurrent（true/false/null——null = 不可判，不参与拒绝） */
   onCurrentDesktop: boolean | null
@@ -93,7 +100,14 @@ export function classifyTileWindow(
   if (w.toolWindow || (w.owned && !w.appWindow)) return { kind: 'excluded', reason: 'tool-or-popup' }
   if (!w.title || !w.exe) return { kind: 'excluded', reason: 'no-identity' }
   if (SHELL_HOST_RE.test(w.exe)) return { kind: 'excluded', reason: 'shell-host' }
-  if (!intersectsMainScreen(w.rect, primary)) return { kind: 'excluded', reason: 'off-main-screen' }
+  // 最小化窗豁免主屏相交判（工单377）：最小化窗矩形是经典的屏外哨兵位（-32000，
+  // 不携带任何真实显示器信息），按矩形判会把最小化窗误判成副屏窗而踢出树——兄弟
+  // 吸收随后让别的窗占它的格，违反 GLOSSARY「顶部窗口胶囊」/用户故事 19「最小化
+  // 仍计数、保留窗格与顺序」。诚实口径：最小化窗的显示器归属从矩形不可观测，故按
+  // 计入处理（保留窗格是硬语义，宁可多计不可错踢）。
+  if (!w.iconic && !intersectsMainScreen(w.rect, primary)) {
+    return { kind: 'excluded', reason: 'off-main-screen' }
+  }
   return { kind: 'tile' }
 }
 

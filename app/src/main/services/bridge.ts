@@ -259,6 +259,7 @@ export class BridgeService extends Service {
         const svc = this.ctx.agentTiling
         return (svc ? svc.state() : {
           available: false, current: 'unmanaged', count: 0, placed: 0, overflow: 0, anomalies: 0,
+          anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 },
         }) as BridgeMethods[M]['response']
       }
       case 'plugin-config/get': {

@@ -25,7 +25,8 @@
     "dev:panel": "npm run build && electron . --panel",
     "accept:chat": "npm run build && electron . --accept-chat",
     "accept:desktop-switch": "npm run build && electron . --accept-desktop-switch",
-    "accept:agent-tiling": "npm run build && electron . --accept-agent-tiling"
+    "accept:agent-tiling": "npm run build && electron . --accept-agent-tiling",
+    "accept:agent-tiling-lifecycle": "npm run build && electron . --accept-agent-tiling-lifecycle"
   },
   "dependencies": {
     "cordis": "^3.18.1",

@@ -9,6 +9,7 @@
 // 缺省/拒绝的两向口径），不抛不重试；本模块自身不抛（collectTileFacts 顶层 catch 归空集）。
 import { scanTopWindows, isWindowVisible, isIconic, windowTraits, nativeWindowTitle, exeOfPid, pidOf, windowRect } from '../taskbar/win-facts'
 import { isWindowOnCurrentDesktop } from './virtual-desktop'
+import { hasResizableFrame } from './window-frame'
 import type { TileWindowFacts } from './tile-scope'
 
 function factsOf(hwnd: number): TileWindowFacts | null {
@@ -28,6 +29,7 @@ function factsOf(hwnd: number): TileWindowFacts | null {
     owned: traits.owned,
     appWindow: traits.appWindow,
     iconic: isIconic(hwnd),
+    resizable: hasResizableFrame(hwnd),
     rect: windowRect(hwnd),
     onCurrentDesktop: isWindowOnCurrentDesktop(hwnd),
   }

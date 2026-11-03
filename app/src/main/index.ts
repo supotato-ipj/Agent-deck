@@ -286,6 +286,28 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
           const bottomPhys = Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor)
           return bottomPhys - Math.round(48 * d.scaleFactor)
         },
+        // 最小窗格（工单377）：spec 决策 12「约 320×240 逻辑像素」——物理 px 口径按
+        // 主屏缩放换算（150% 缩放下 320 物理 px 只有 213 逻辑 px，直接用常量会切得过细）
+        minPane: () => {
+          const d = screen.getPrimaryDisplay()
+          return {
+            w: Math.round(320 * d.scaleFactor),
+            h: Math.round(240 * d.scaleFactor),
+          }
+        },
+        // 显示参数变化（分辨率/DPI/主屏增删，工单377）→ 平铺重算：事实与几何都在
+        // 服务 pass 内现读，这里只做事件转发（单订阅、退订对称）
+        onDisplayChanged: (cb) => {
+          const handler = () => cb()
+          screen.on('display-metrics-changed', handler)
+          screen.on('display-added', handler)
+          screen.on('display-removed', handler)
+          return () => {
+            screen.off('display-metrics-changed', handler)
+            screen.off('display-added', handler)
+            screen.off('display-removed', handler)
+          }
+        },
       },
     },
     taskbar: {
