@@ -2060,7 +2060,7 @@
       "cdpPort": 9234,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 58,
+      "lastMeasuredSeconds": 110,
       "lastMeasuredAt": "2026-11-04",
       "areas": [
         "desktop"
@@ -2165,7 +2165,7 @@
             "panel.core",
             "taskbar"
           ],
-          "estSeconds": 35
+          "estSeconds": 40
         },
         {
           "seg": "P9",
