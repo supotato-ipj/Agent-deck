@@ -16,7 +16,7 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, modeZoneId, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, DesktopModeEntry, DesktopModeId, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
@@ -431,7 +431,15 @@ function declareHotZones(state: TaskbarState): void {
   const m = measure()
   const zones = [m.rightPill, m.sliver]
   if (vm.visible) zones.unshift(m.startPill)
-  if (!pillMode.hidden) zones.unshift(m.modePill) // 模式切换组（工单375）
+  if (!pillMode.hidden) {
+    // 模式切换组（工单375）：整组 pill 承接点击；按钮级热区（mode:<id>）先于整组声明
+    // ——热区命中序以先声明者为准，Agent 入口必须能被热区跟踪器单独命中（工单381：
+    // 悬停锚点 mode:agent，25ms 光标 hit-test 与穿透判定同拍同源）
+    zones.unshift(
+      ...m.modeButtons.map((b) => ({ ...b, id: modeZoneId(b.id as 'normal' | 'agent') })),
+      m.modePill,
+    )
+  }
   if (vm.recsVisible) zones.unshift(m.recPill)
   if (vm.apps.length > 0) zones.unshift(m.appsPill)
   window.deck.host.setHotZones(zones)

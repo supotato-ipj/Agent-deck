@@ -9,6 +9,7 @@ import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
 import type { TaskbarWindowInfo } from '../src/main/taskbar/windows'
 import type { DesktopItem, PanelSnapshot, PluginInfo, TaskbarState, TaskbarStatus, TaskbarSystemAction } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
+import { KimiCodeFx, QoderFx, ZcodeFx, rec } from './scanners/fixtures'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
 
@@ -2900,6 +2901,74 @@ describe('内核桥接契约（工单379 窗口预览与聚焦回退）', () => 
       const exited = await ctx.bridge.invoke('focus/exit', null)
       expect(exited.ok).toBe(false)
       expect(exited.state).toEqual({ focused: null })
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+})
+
+describe('内核桥接契约（工单381 Agent 会话预览）', () => {
+  it('缺装配时会话预览如实回退空态（不抛、不编造会话）', async () => {
+    const ctx = createKernel(kernelOpts(tmpDir()))
+    await ctx.start()
+    try {
+      const state = await ctx.bridge.invoke('session-preview/get-state', null)
+      expect(state).toEqual({ available: false, open: false, groups: [], generatedAt: 0 })
+      expect(await ctx.bridge.invoke('session-preview/close', null)).toEqual({ ok: false })
+      // 首版只读：桥方法表里不存在任何会话直达/选中方法
+      await expect(ctx.bridge.invoke('session-preview/select' as never, null as never)).rejects.toThrow()
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('装配投影后经桥下发：固定工具序、真实标题/项目/短 ID 分列、五态字段形状', async () => {
+    const dir = tmpDir()
+    const qroot = path.join(dir, 'qoder')
+    const q = new QoderFx(qroot)
+    q.now = Date.now() / 1000
+    q.addSession('q_confirmsession', 5, [rec('assistant', 'tool', 'D:/work/alpha')])
+    const zroot = path.join(dir, 'zcode')
+    const z = new ZcodeFx(zroot, Date.now() / 1000)
+    z.add('sess_title_123456', 20_000, { title: '真标题', directory: 'D:/work/delta' })
+    const kroot = path.join(dir, 'kimi')
+    const k = new KimiCodeFx(kroot, Date.now() / 1000)
+    k.addSession('kimi_sess_abcdef', 30, { title: 'kimi 标题' })
+    const ctx = createKernel(kernelOpts(dir, {
+      sessionPreview: {
+        enabled: true,
+        roots: { qoder: qroot, zcode: zroot, kimicode: kroot },
+        deps: {
+          available: () => true,
+          dshSessions: () => [{
+            id: 'dsh_waiting_1', backend: 'dsh', backendSessionId: null, backendPid: null,
+            backendAgent: null, backendAgentVersion: null, runtimeUnaccepted: null, runtimeSmoke: null,
+            cwd: 'D:\\work\\omega', label: '等待确认', managed: false, status: 'busy',
+            createdAt: Date.now(), endedAt: null, transcript: [], usage: { used: null, size: null },
+            error: null, promptFailure: null,
+            pendingPermission: { options: [{ optionId: 'allow-once', name: '允许一次', kind: 'allow_once' }] },
+          }],
+        },
+      },
+    }))
+    await ctx.start()
+    try {
+      expect(ctx.sessionPreview?.open()).toBe(true)
+      const state = await ctx.bridge.invoke('session-preview/get-state', null)
+      expect(state.available).toBe(true)
+      expect(state.open).toBe(true)
+      expect(state.groups.map((g) => g.tool)).toEqual(['qodercn', 'zcode', 'kimicode', 'dsh'])
+      const card = (tool: string) => state.groups.find((g) => g.tool === tool)!.cards[0]
+      expect(card('qodercn')).toMatchObject({ title: null, project: 'alpha', shortId: 'q_confir', status: 'suspected-waiting' })
+      expect(card('zcode')).toMatchObject({ title: '真标题', project: 'delta', shortId: 'sess_tit', status: 'active' })
+      expect(card('kimicode')).toMatchObject({ title: 'kimi 标题', status: 'active' })
+      expect(card('dsh')).toMatchObject({ title: '等待确认', project: 'omega', status: 'waiting' })
+      // 载荷是 JSON 数据模型内值（桥可序列化），且不含转写正文
+      const wire = JSON.parse(JSON.stringify(state)) as typeof state
+      expect(wire.groups.flatMap((g) => g.cards).every((c) => !('transcript' in c))).toBe(true)
+      await expect(ctx.bridge.invoke('session-preview/close', null)).resolves.toEqual({ ok: true })
+      expect((await ctx.bridge.invoke('session-preview/get-state', null)).groups).toEqual([])
+      z.close()
     } finally {
       await ctx.stop()
     }

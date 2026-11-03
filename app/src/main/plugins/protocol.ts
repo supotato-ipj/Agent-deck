@@ -82,6 +82,11 @@ export function tilePromptUrl(hwnd: number): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/tile-prompt.html?hwnd=${encodeURIComponent(String(hwnd))}`
 }
 
+/** Agent 会话预览气泡页 URL（工单381：与胶囊页同根同源，悬停展开的横向卡片流） */
+export function sessionPreviewUrl(): string {
+  return `${PLUGIN_SCHEME}://${APP_HOST}/session-preview.html`
+}
+
 /**
  * 装协议处理器：应用渲染层根目录 + 当前在装插件的目录，随插件增删实时变化。
  * 读盘只在这里发生——渲染层永远拿不到文件系统句柄（contextIsolation + sandbox 不变）。

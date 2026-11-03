@@ -370,7 +370,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 172 → 173：工单380 增段——375-desktop-switch 电池增 P9（任务栏按当前桌面过滤 /
     // 跨桌面单窗激活 / 多窗选窗菜单；一段绑定一工单）。组合居中与容量/夹取几何按增段
     // 条件②由 taskbar-view 纯函数矩阵钉，P15/P15B/P19 只改既有断言到组合语义。
-    expect(total).toBe(173)
+    // 173 → 179：工单381 增电池——381-session-preview 副电池整建（悬停展开与卡片流 P1 /
+    // 离场宽限与 Esc P2 / 1Hz 刷新 P3 / 单行横向滚动 P4 / 两桌面可用与只读无直达 P5 /
+    // 源存储只读与零残留 P6；一段绑定一工单）。状态分派/投影/悬停时序按增段条件②由
+    // projection/hover/service 纯函数矩阵与 fake ACP 会话服务测试钉，真机段只验真实
+    // 悬停注入、DOM 呈现、系统桌面事实与源存储只读。
+    expect(total).toBe(179)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -437,11 +442,11 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：37 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：40 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(37)
-    expect(manifest.requiredFileRules!.length).toBe(37)
+    expect(fileRules.length).toBe(40)
+    expect(manifest.requiredFileRules!.length).toBe(40)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

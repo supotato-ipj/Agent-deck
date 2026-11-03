@@ -55,3 +55,47 @@ export function scanZcode(root: string, now: number): SessionInfo[] {
   }
   return sessions
 }
+
+/**
+ * 会话预览行（工单381）：zcode 的真实标题信号面——`session.title`（工单374 实测
+ * 311/311 非空，title_source 为 custom/first_input/generated）由本行读取；标题空/缺 →
+ * null，UI 降级「未命名会话」，绝不拿项目目录名顶替。档案化与子代理会话沿用 scanZcode
+ * 的排除口径。只读：openReadOnly（readOnly:true），不写源存储。
+ */
+export interface ZcodePreviewRow {
+  id: string
+  title: string | null
+  project: string | null
+  lastActivityMs: number
+}
+
+interface ZcodePreviewSqlRow {
+  id: unknown
+  directory: unknown
+  title: unknown
+  time_updated: unknown
+  time_archived: unknown
+}
+
+/** @param nowMs 墙钟毫秒（与 lastActivityMs 同单位） */
+export function zcodePreviewRows(root: string, nowMs: number): ZcodePreviewRow[] {
+  const db = openReadOnly(path.join(root, 'cli', 'db', 'db.sqlite'))
+  let rows: ZcodePreviewSqlRow[]
+  try {
+    rows = db.prepare('SELECT id, directory, title, time_updated, time_archived FROM session').all() as unknown as ZcodePreviewSqlRow[]
+  } finally {
+    db.close()
+  }
+  const out: ZcodePreviewRow[] = []
+  for (const row of rows) {
+    const sid = String(row.id)
+    if (row.time_archived || row.time_updated === null || row.time_updated === undefined
+      || sid.startsWith(ZCODE_SUBAGENT_PREFIX)) continue
+    if (typeof row.time_updated !== 'number') throw new Error(`zcode 会话 ${sid} 更新时间非数值`)
+    const lastActivityMs = Math.round(row.time_updated)
+    if (nowMs / 1000 - lastActivityMs / 1000 > ACTIVE_WINDOW) continue
+    const title = typeof row.title === 'string' && row.title.trim() ? row.title.trim() : null
+    out.push({ id: sid, title, project: dirName(row.directory) || null, lastActivityMs })
+  }
+  return out
+}

@@ -24,6 +24,7 @@ import { UsageService } from './services/usage'
 import { PluginHostService, type PluginHostOptions } from './plugins/service'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { ConversationService, type ConversationServiceOptions } from './conversation/service'
+import { SessionPreviewService, type SessionPreviewServiceOptions } from './session-preview/service'
 import { planTaskbarRecommendations, RECOMMENDATION_POOL_LIMIT } from './taskbar/plan'
 import type { WeatherLocation } from '../shared/contract'
 
@@ -73,6 +74,8 @@ export interface KernelOptions {
   /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
+  /** Agent 会话预览（工单381）：显式装配（离线夹具根）；缺省不注册 → 桥接回退空态 */
+  sessionPreview?: SessionPreviewServiceOptions
 }
 
 export const DEFAULT_TICK_MS = 1000
@@ -117,6 +120,19 @@ export function createKernel(options: KernelOptions = {}): Context {
   // 桌面工作区（工单375）：实验开关隔离（默认关）——BridgeService 对它是可选注入，
   // 注册先后不约束桥接层装载。装配即自起跑（开关关闭 = 零桌面零轮询）。
   ctx.plugin(DesktopWorkspaceService, options.desktopWorkspace)
+  // Agent 会话预览（工单381）：只在显式装配时注册（离线契约测试未装配即走桥接回退空态）。
+  // 数据源缺省接线程内对话服务的 DSH 视图——文件扫描器由 options.roots/deps 注入夹具根。
+  if (options.sessionPreview) {
+    ctx.plugin(SessionPreviewService, {
+      ...options.sessionPreview,
+      deps: {
+        ...options.sessionPreview.deps,
+        available: options.sessionPreview.deps?.available ?? (() => true),
+        dshSessions: options.sessionPreview.deps?.dshSessions
+          ?? (() => ctx.conversation?.sessions() ?? []),
+      },
+    })
+  }
   // Agent 平铺（工单376）：随 agentDesktop 开关隔离；deps 缺省延迟绑定真源（离线测试注入假源）。
   ctx.plugin(AgentTilingService, {
     ...options.agentTiling,

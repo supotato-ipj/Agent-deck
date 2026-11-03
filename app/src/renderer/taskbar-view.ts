@@ -48,6 +48,16 @@ export const DESKTOP_MODE_TITLES: Readonly<Record<DesktopModeId, string>> = {
   agent: 'Agent 桌面',
 }
 
+/**
+ * 模式按钮热区 id（工单381）：Agent 入口同时是 Agent 会话预览的悬停锚点——条带渲染层
+ * 按 `mode:<id>` 声明按钮级热区，主进程只认 `mode:agent` 这一条光标事实（热区跟踪器
+ * 25ms 轮询按光标坐标 hit-test，与穿透判定同拍同源）。两侧字面量由单测镜像守卫钉住
+ * （app/tests/session-preview/hover.spec.ts）。
+ */
+export function modeZoneId(id: DesktopModeId): string {
+  return `mode:${id}`
+}
+
 /** 模式入口视图（工单375）：active = 配对在册且当前命中（当前桌面高亮，验收②）；
  * disabled = 功能不在场或切换在途（在途入口禁用、连点被服务单飞忽略的双保险）。 */
 export interface DesktopModeEntry {

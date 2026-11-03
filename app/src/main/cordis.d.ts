@@ -15,12 +15,13 @@ import type { DesktopWorkspaceService } from './services/desktop-workspace'
 import type { AgentTilingService } from './services/agent-tiling'
 import type { AgentFocusService } from './services/agent-focus'
 import type { WindowPreviewService } from './services/window-preview'
+import type { SessionPreviewService } from './session-preview/service'
 import type { ConversationService } from './conversation/service'
 import type { MediaService } from './media/service'
 import type { NetworkService } from './network/service'
 import type { CredentialService } from './credentials/service'
 import type { InstallProposalView } from './plugins/install'
-import type { AgentFocusState, AgentTilingState, ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus, WindowPreviewState } from '../shared/contract'
+import type { AgentFocusState, AgentTilingState, ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SessionPreviewState, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus, WindowPreviewState } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
@@ -103,6 +104,12 @@ declare module 'cordis' {
     'window-preview/live-failed': (payload: { hwnd: number }) => void
     /** 工单379 控制器上行：当前 DWM 关系数（诊断/验收「关闭即释放」） */
     'window-preview/live-registered': (payload: { count: number }) => void
+    /**
+     * 工单381 Agent 会话预览：展开/收起/1Hz 投影刷新即推（气泡窗控制器与气泡页订阅同一份）。
+     * 同一事件即桥接事件 'session-preview/changed'。载荷只含标题/项目/短 ID/状态，
+     * 不含对话正文；新增日志不记对话标题。
+     */
+    'session-preview/changed': (payload: SessionPreviewState) => void
   }
   interface Context {
     clock: ClockService
@@ -145,5 +152,7 @@ declare module 'cordis' {
     agentFocus?: AgentFocusService
     /** 工单379 窗口预览（可选装配：随 agentDesktop 开关隔离——缺装配 = 预览不可用） */
     windowPreview?: WindowPreviewService
+    /** 工单381 Agent 会话预览（可选装配：随 agentDesktop 开关隔离——缺装配 = 投影回退空态） */
+    sessionPreview?: SessionPreviewService
   }
 }

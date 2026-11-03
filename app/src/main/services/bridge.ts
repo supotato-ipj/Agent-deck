@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
-import type { AgentTilingState, BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation, WindowPreviewState } from '../../shared/contract'
+import type { AgentTilingState, BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SessionPreviewState, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation, WindowPreviewState } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -28,6 +28,8 @@ export class BridgeService extends Service {
     desktopWorkspace: { required: false },
     agentFocus: { required: false },
     windowPreview: { required: false },
+    // 会话预览（工单381）可选注入：缺装配 = 投影如实回退空态（气泡页显空态，不编造会话）
+    sessionPreview: { required: false },
   }
 
   private readonly weather: WeatherLocation
@@ -334,6 +336,15 @@ export class BridgeService extends Service {
         const r = await svc.exit()
         return { ok: r.ok, restored: r.restored, skipped: r.skipped, state: r.state } as BridgeMethods[M]['response']
       }
+      // --- Agent 会话预览（工单381，spec 决策 20-24）：只读投影 + 收起（无会话直达方法） ---
+      case 'session-preview/get-state': {
+        const svc = this.ctx.sessionPreview
+        return (svc ? svc.state() : emptySessionPreviewState()) as BridgeMethods[M]['response']
+      }
+      case 'session-preview/close': {
+        const svc = this.ctx.sessionPreview
+        return { ok: Boolean(svc && svc.close('bridge')) } as BridgeMethods[M]['response']
+      }
       case 'plugin-config/get': {
         const { id } = payload as { id: string }
         return this.ctx.pluginConfig.get(id) as BridgeMethods[M]['response']
@@ -532,4 +543,9 @@ function emptyTilingState(): AgentTilingState {
 /** 缺装配时的预览空态 */
 function emptyPreviewState(): WindowPreviewState {
   return { available: false, current: 'unmanaged', open: false, items: [] }
+}
+
+/** 缺装配时的会话预览空态（不编造会话；generatedAt=0 表明从未生成投影） */
+function emptySessionPreviewState(): SessionPreviewState {
+  return { available: false, open: false, groups: [], generatedAt: 0 }
 }

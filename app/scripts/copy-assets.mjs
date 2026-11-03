@@ -28,6 +28,9 @@ console.log('[copy-assets] dist/renderer/tile-prompt.html')
 // 窗口预览页（工单379）：胶囊展开的横向条目承载页，与胶囊页同根同协议
 copyFileSync(path.join(root, 'src', 'renderer', 'preview.html'), path.join(rendererDest, 'preview.html'))
 console.log('[copy-assets] dist/renderer/preview.html')
+// Agent 会话预览气泡页（工单381）：悬停模式组 Agent 入口展开的横向卡片流，与胶囊页同根同协议
+copyFileSync(path.join(root, 'src', 'renderer', 'session-preview.html'), path.join(rendererDest, 'session-preview.html'))
+console.log('[copy-assets] dist/renderer/session-preview.html')
 // 内置桌面组件（工单10）：卡片入口由 tsc 编译就位，manifest 不经 tsc，逐个复制过去。
 // 没有 manifest 的卡片目录对插件宿主不可见（manifest 即契约，缺契约不装载）。
 const cardsSrc = path.join(root, 'src', 'renderer', 'cards')

@@ -177,9 +177,9 @@ describe('真仓库现状全绿（电池接入表真表，CI 执行力所在）'
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
 
-    // 十六条登记：十五条电池（kind 缺省＝电池；工单310 增摆位电池、工单332 增对话窗电池、工单375 增桌面工作区电池、工单376 增 Agent 平铺电池、工单377 增 Agent 平铺生命周期电池、工单378 增逐窗几何授权电池、工单379 增窗口预览与聚焦电池）＋ 一条 experiment（取证工具，段级治理豁免）
+    // 十七条登记：十六条电池（kind 缺省＝电池；工单310 增摆位电池、工单332 增对话窗电池、工单375 增桌面工作区电池、工单376 增 Agent 平铺电池、工单377 增 Agent 平铺生命周期电池、工单378 增逐窗几何授权电池、工单379 增窗口预览与聚焦电池、工单381 增 Agent 会话预览电池）＋ 一条 experiment（取证工具，段级治理豁免）
     const entries = manifest!.batteries as unknown as { id: string; flag: string; entry: string; hintBar: boolean; cdpPort: number | null; kind?: string | null }[]
-    expect(entries.length).toBe(16)
+    expect(entries.length).toBe(17)
     expect(entries.filter((b) => b.kind === 'experiment').map((b) => b.id)).toEqual(['132-stall-duel'])
     for (const b of entries) {
       expect(typeof b.flag).toBe('string')
