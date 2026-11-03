@@ -53,6 +53,10 @@ export interface TilingPlan {
 export const MIN_PANE_W = 320
 export const MIN_PANE_H = 240
 
+/** 屏外列露边（逻辑 px；spec #403 用户故事 16「约 32 逻辑像素」，GLOSSARY「屏外滚动带」；
+ *  物理值经 bandRevealPx 按主屏缩放换算） */
+export const BAND_REVEAL_PX = 32
+
 // ————————————————————————————————————————————————————————————
 // 持久平铺树（工单377）
 // ————————————————————————————————————————————————————————————
@@ -400,4 +404,89 @@ export function isTileableArea(
   const w = area.right - area.left
   const h = area.bottom - area.top
   return w >= (opts.minPaneW ?? MIN_PANE_W) && h >= (opts.minPaneH ?? MIN_PANE_H)
+}
+
+// ————————————————————————————————————————————————————————————
+// 屏外滚动带纯几何（工单405，spec #403 决策「统一布局坐标与视口」，GLOSSARY
+// 「屏外滚动带」；语义对齐用户已验证的 agent-tiling-hybrid.prototype 原型）：
+// 屏内树与屏外列共享连续坐标——带非空时屏内树区右缘让出露边（整树 rebase 到缩窄区），
+// 屏外列从树区右缘起依次向右相邻排列；视口偏移（camera）对整组生效，fit = 钳到
+// 「目标完整可见 + 左右露边预留」区间内离当前视口最近的点（最小滑动，不居中不回零）。
+// ————————————————————————————————————————————————————————————
+
+/**
+ * 屏外列宽（用户故事 13/14）：半屏宽（下取整）、最小 minColW（320 逻辑像素的物理
+ * 等值——装配层与 minPane.w 同源换算）、最大平铺区宽度。区宽低于下限时取区宽
+ * （原型 min(areaW, max(min, half)) 求序——上限规则优先，列不越出平铺区宽度）。
+ */
+export function bandColumnWidth(areaW: number, minColW: number): number {
+  return Math.min(areaW, Math.max(minColW, Math.floor(areaW / 2)))
+}
+
+/**
+ * 带非空时的屏内树区：右缘让出露边（列的左缘恰好落在树区右缘上——露边 32px 露在
+ * 屏内右缘且与树窗格零重叠，点击目标唯一）。带空时树区 = 平铺区（不缩）。
+ */
+export function bandTreeArea(area: TileRect, reveal: number): TileRect {
+  return { ...area, right: area.right - reveal }
+}
+
+/**
+ * 屏外列连续矩形（进入序）：列 i 左缘 = 树区右缘 + i×列宽，占满平铺高度，
+ * 依次向右相邻排列（用户故事 12「按打开或拖入顺序找到」）。
+ */
+export function bandColumnRects(area: TileRect, count: number, colW: number, reveal: number): TileRect[] {
+  const out: TileRect[] = []
+  for (let i = 0; i < count; i++) {
+    const left = area.right - reveal + i * colW
+    out.push({ left, top: area.top, right: left + colW, bottom: area.bottom })
+  }
+  return out
+}
+
+/**
+ * 露边物理换算：32 逻辑像素按主屏缩放等比——minPaneW 即 320 逻辑像素的物理等值
+ * （装配层同源换算），比例换算保持两者一致。
+ */
+export function bandRevealPx(minPaneW: number): number {
+  return Math.round((minPaneW * BAND_REVEAL_PX) / MIN_PANE_W)
+}
+
+/** fit 上下文（编排层按目标在树/带与邻列在位性给出） */
+export interface FitOpts {
+  /** 目标左侧预留的露边（目标在带内 = reveal——左邻的右缘/树缘保持可见） */
+  leftPeek: number
+  /** 目标右侧预留的露边（目标右邻在位 = reveal——右邻的左缘保持可见） */
+  rightPeek: number
+  /** 连续布局内容右端（末列右缘）——视口右界钳制，防空白视口（用户故事 28） */
+  contentRight: number
+}
+
+/**
+ * fit 最小滑动（用户故事 17/18/19；原型 fit 实证语义）：视口偏移钳到「目标完整可见
+ * + 左右露边预留」闭区间内离当前视口最近的点——不移动过头、已可见不动、双向对称。
+ * 区间为空（目标宽于可用视口，极窄屏）居中兜底；结果再钳到 [0, 内容右端 − 区宽]
+ * （视口不越出内容、带收拢后不留空白视口）。
+ */
+export function fitCamera(camera: number, target: TileRect, area: TileRect, opts: FitOpts): number {
+  const areaW = area.right - area.left
+  const lo = target.right - area.right + opts.rightPeek
+  const hi = target.left - area.left - opts.leftPeek
+  let next: number
+  if (lo > hi) {
+    next = target.left - area.left - Math.floor((areaW - (target.right - target.left)) / 2)
+  } else {
+    next = Math.min(Math.max(camera, lo), hi)
+  }
+  const maxCam = Math.max(0, opts.contentRight - area.right)
+  return Math.min(Math.max(next, 0), maxCam)
+}
+
+/**
+ * 整树重展到新平铺区（工单405 带空↔非空迁移，原型 syncArea 语义）：结构/轴/队列
+ * 引用原样保留，矩形按新区重算（复用兄弟吸收的 rebase 语义——矩形重展、深度对齐）。
+ */
+export function rebaseTreeArea(tree: TilingTree, area: TileRect): void {
+  tree.area = { ...area }
+  rebaseSubtree(tree.root, area, 0)
 }

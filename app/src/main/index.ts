@@ -343,6 +343,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
             screen.off('display-removed', handler)
           }
         },
+        // 前台变化（工单405 单一激活入口：露边点击/任务栏等普通激活 → fit 最小滑动）：
+        // 绑 geom-write 真源 EVENT_SYSTEM_FOREGROUND（多订阅扇出——与聚焦协调 379 并存）
+        onForegroundChanged: (cb) =>
+          (require('./desktop/geom-write') as typeof import('./desktop/geom-write')).startForegroundWatch(cb),
       },
     },
     // 标题栏拖入（工单407）：随 agentDesktop 开关隔离；存证只记 hwnd/阶段/桌面 ID 与

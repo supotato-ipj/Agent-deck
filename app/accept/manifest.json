@@ -2060,8 +2060,8 @@
       "cdpPort": 9234,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 62,
-      "lastMeasuredAt": "2026-11-03",
+      "lastMeasuredSeconds": 58,
+      "lastMeasuredAt": "2026-11-04",
       "areas": [
         "desktop"
       ],
@@ -2139,6 +2139,17 @@
             "event-evidence"
           ],
           "estSeconds": 9
+        },
+        {
+          "seg": "P10",
+          "ticket": 405,
+          "title": "屏外滚动带与双向 fit（工单405）：第 33 扇触发带（列矩形=半屏宽×全平铺高×露边32px、32 扇屏内窗全在缩窄区、无一保原矩形）；露边真点击→整组最小滑动（带成员贴右缘完整可见、屏内窗推出左屏外）；SetForeground 普通激活→同一 fit 整组回位；胶囊计数=33、预览条目含带成员；关 28 扇带收拢补入（overflow=0）",
+          "surfaces": [
+            "system-state",
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 20
         },
         {
           "seg": "P9",

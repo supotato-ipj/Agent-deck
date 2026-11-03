@@ -5,7 +5,22 @@
  * 既有行为的事实钉，不改契约）。
  */
 import { describe, expect, it } from 'vitest'
-import { MIN_PANE_H, MIN_PANE_W, planTiling, tileAreaOf } from '../../src/main/desktop/tiling-plan'
+import {
+  MIN_PANE_H,
+  MIN_PANE_W,
+  BAND_REVEAL_PX,
+  bandColumnRects,
+  bandColumnWidth,
+  bandRevealPx,
+  bandTreeArea,
+  createTree,
+  fitCamera,
+  planTiling,
+  rebaseTreeArea,
+  tileAreaOf,
+  treeInsert,
+  treePlan,
+} from '../../src/main/desktop/tiling-plan'
 import type { TileRect } from '../../src/main/desktop/tiling-plan'
 
 const AREA: TileRect = { left: 0, top: 0, right: 2560, bottom: 1392 } // 2560×1440 屏 − 48px 栏
@@ -119,7 +134,7 @@ describe('平铺区推导 tileAreaOf（工单376，用户故事 22）', () => {
 // 持久树不变量、平铺区可用判）
 // ————————————————————————————————————————————————————————————
 
-import { createTree, isTileableArea, treeInsert, treePlacedIds, treePlan, treeRemove } from '../../src/main/desktop/tiling-plan'
+import { isTileableArea, treePlacedIds, treeRemove } from '../../src/main/desktop/tiling-plan'
 import type { TilingTree } from '../../src/main/desktop/tiling-plan'
 
 /** 平铺不变量：placements 两两不重叠、合计铺满平铺区（面积守恒） */
@@ -297,5 +312,152 @@ describe('平铺区可用判 isTileableArea（工单377，用户故事 23 不写
     expect(isTileableArea({ left: 0, top: 0, right: 320, bottom: 239 })).toBe(false)
     expect(isTileableArea({ left: 0, top: 0, right: 320, bottom: 240 })).toBe(true)
     expect(isTileableArea(AREA)).toBe(true)
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单405 屏外滚动带纯几何（spec #403 决策「统一布局坐标与视口」+ 用户故事 12-18，
+// GLOSSARY「屏外滚动带」；语义对齐用户已验证的 agent-tiling-hybrid.prototype 原型）
+// ————————————————————————————————————————————————————————————
+describe('屏外滚动带列宽 bandColumnWidth（工单405，用户故事 13/14）', () => {
+  it('常规屏：半屏宽（下取整）', () => {
+    expect(bandColumnWidth(2560, 320)).toBe(1280)
+    expect(bandColumnWidth(1921, 320)).toBe(960) // 半宽 960.5 下取整
+  })
+
+  it('半宽低于 320 取 320（极窄屏下限）', () => {
+    expect(bandColumnWidth(500, 320)).toBe(320)
+    expect(bandColumnWidth(640, 320)).toBe(320)
+  })
+
+  it('不超过平铺区宽度（区宽 < 320 时取区宽——原型的 min(areaW, max(320, half)) 序）', () => {
+    expect(bandColumnWidth(300, 320)).toBe(300)
+    expect(bandColumnWidth(320, 320)).toBe(320)
+  })
+})
+
+describe('屏外列连续矩形 bandColumnRects（工单405，用户故事 12/13/15）', () => {
+  const A: TileRect = { left: 0, top: 0, right: 2560, bottom: 1392 }
+  it('首列左缘 = 树区右缘（露边 32px 露在屏内右缘），列占满平铺高度，依次向右相邻', () => {
+    const cols = bandColumnRects(A, 3, 1280, 32)
+    expect(cols).toEqual([
+      { left: 2528, top: 0, right: 3808, bottom: 1392 },
+      { left: 3808, top: 0, right: 5088, bottom: 1392 },
+      { left: 5088, top: 0, right: 6368, bottom: 1392 },
+    ])
+  })
+  it('带左偏移的平铺区（主屏非零原点）列随区平移', () => {
+    const cols = bandColumnRects({ left: 100, top: 50, right: 2660, bottom: 1442 }, 1, 1280, 32)
+    expect(cols).toEqual([{ left: 2628, top: 50, right: 3908, bottom: 1442 }])
+  })
+  it('零列 = 空集', () => {
+    expect(bandColumnRects(A, 0, 1280, 32)).toEqual([])
+  })
+})
+
+describe('带非空时屏内树区 bandTreeArea / rebaseTreeArea（工单405，原型 syncArea 语义）', () => {
+  it('树区右缘让出露边：right = 区右 − 32，其余边不动', () => {
+    expect(bandTreeArea({ left: 0, top: 0, right: 2560, bottom: 1392 }, 32)).toEqual({
+      left: 0, top: 0, right: 2528, bottom: 1392,
+    })
+  })
+  it('rebaseTreeArea：整树重展到新区（结构不变、叶矩形重算、树记账区更新）', () => {
+    const small: TileRect = { left: 0, top: 0, right: 660, bottom: 500 }
+    const tree = createTree(small)
+    treeInsert(tree, 'w1')
+    treeInsert(tree, 'w2')
+    const before = treePlan(tree)
+    expect(before.placements[0].rect).toEqual({ left: 0, top: 0, right: 330, bottom: 500 })
+    const shrunk = bandTreeArea(small, 32)
+    rebaseTreeArea(tree, shrunk)
+    const after = treePlan(tree)
+    // 结构不变（两窗仍左右各半），矩形按缩窄区重展
+    expect(after.placements[0].rect).toEqual({ left: 0, top: 0, right: 314, bottom: 500 })
+    expect(after.placements[1].rect).toEqual({ left: 314, top: 0, right: 628, bottom: 500 })
+    expect(tree.area).toEqual(shrunk)
+  })
+})
+
+describe('fit 最小滑动 fitCamera（工单405，用户故事 17/18/19；原型 fit 语义逐条对齐）', () => {
+  const A: TileRect = { left: 0, top: 0, right: 2560, bottom: 1392 }
+  const COL_W = 1280
+  // 带两列：列 0 = [2528, 3808]、列 1 = [3808, 5088]（连续坐标）
+  const cols = bandColumnRects(A, 2, COL_W, 32)
+
+  it('从静止（camera=0）fit 屏内窗：视口不动（窗已完整可见）', () => {
+    const camera = fitCamera(0, { left: 0, top: 0, right: 1280, bottom: 1392 }, A, {
+      leftPeek: 0, rightPeek: 32, contentRight: 2528 + 2 * COL_W,
+    })
+    expect(camera).toBe(0)
+  })
+
+  it('从静止 fit 首列：最小滑动到列刚好完整可见（camera = 列右缘 − 区右缘）', () => {
+    const camera = fitCamera(0, cols[0], A, { leftPeek: 32, rightPeek: 0, contentRight: 2528 + 2 * COL_W })
+    expect(camera).toBe(cols[0].right - A.right) // 3808-2560 = 1248
+    // 滑动后列的物理位置：完整贴右缘可见
+    expect(cols[0].right - camera).toBe(A.right)
+    expect(cols[0].left - camera).toBe(A.right - COL_W)
+  })
+
+  it('fit 非末列：右邻露边预留（camera 再让 32px，右邻左缘滑入屏内可见）', () => {
+    const camera = fitCamera(0, cols[0], A, { leftPeek: 32, rightPeek: 32, contentRight: 2528 + 2 * COL_W })
+    expect(camera).toBe(cols[0].right - A.right + 32)
+    expect(cols[1].left - camera).toBe(A.right - 32) // 右邻露边可见
+  })
+
+  it('从右列返回屏内最左窗：视口回到 0（整组回位）', () => {
+    const camera = fitCamera(1248, { left: 0, top: 0, right: 320, bottom: 1392 }, A, {
+      leftPeek: 0, rightPeek: 32, contentRight: 2528 + 2 * COL_W,
+    })
+    expect(camera).toBe(0)
+  })
+
+  it('双向对称：从屏内深处 fit 更深的屏外列 = 继续右滑最小量；反方向同理', () => {
+    const atCol0 = fitCamera(0, cols[0], A, { leftPeek: 32, rightPeek: 32, contentRight: 2528 + 2 * COL_W })
+    const atCol1 = fitCamera(atCol0, cols[1], A, { leftPeek: 32, rightPeek: 0, contentRight: 2528 + 2 * COL_W })
+    expect(atCol1).toBe(cols[1].right - A.right) // 5088-2560 = 2528
+    const backToCol0 = fitCamera(atCol1, cols[0], A, { leftPeek: 32, rightPeek: 32, contentRight: 2528 + 2 * COL_W })
+    // 最小滑动 = 钳到可见区间 [lo, hi] 内离当前视口最近的点：从列 1 深处返回落在区间右端
+    // （列 0 完整可见 + 左邻露边可见的最右视口），不是从静止出发的左端——原型实证语义
+    expect(backToCol0).toBe(cols[0].left - 32)
+  })
+
+  it('已在目标可见范围内：视口不动（最小滑动，不居中不回零）', () => {
+    // camera=600 时目标 [1000,2000] 物理 [400,1400] 已完整可见（右露边预留后仍可见）
+    const camera = fitCamera(600, { left: 1000, top: 0, right: 2000, bottom: 1392 }, A, {
+      leftPeek: 0, rightPeek: 0, contentRight: 2528 + 2 * COL_W,
+    })
+    expect(camera).toBe(600)
+  })
+
+  it('视口右界钳制：不超过内容右端（不出现空白视口）', () => {
+    const contentRight = 2528 + COL_W // 只一列
+    const camera = fitCamera(0, cols[0], A, { leftPeek: 32, rightPeek: 32, contentRight })
+    expect(camera).toBe(Math.max(0, contentRight - A.right))
+  })
+
+  it('目标宽于可用视口（极窄屏）：居中兜底', () => {
+    const narrow: TileRect = { left: 0, top: 0, right: 500, bottom: 400 }
+    const camera = fitCamera(0, { left: 2500, top: 0, right: 3600, bottom: 400 }, narrow, {
+      leftPeek: 32, rightPeek: 32, contentRight: 3600,
+    })
+    expect(camera).toBe(2500 - Math.floor((500 - 1100) / 2) - 0 + 0) // 居中：left - (areaW - w)/2
+    expect(camera).toBe(2500 + 300)
+  })
+
+  it('fitCamera 不产生负视口', () => {
+    expect(fitCamera(0, { left: -500, top: 0, right: -100, bottom: 100 }, A, {
+      leftPeek: 0, rightPeek: 0, contentRight: 0,
+    })).toBe(0)
+  })
+})
+
+describe('露边物理换算 bandRevealPx（工单405，用户故事 16：32 逻辑像素）', () => {
+  it('100% 缩放（minPaneW=320）：32 物理 px', () => {
+    expect(bandRevealPx(320)).toBe(32)
+    expect(BAND_REVEAL_PX).toBe(32)
+  })
+  it('高缩放按 minPaneW 等比（minPaneW=480 → 48）', () => {
+    expect(bandRevealPx(480)).toBe(48)
   })
 })
