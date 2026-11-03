@@ -124,11 +124,11 @@ export class ZcodeFx {
     this.db.exec(ZCODE_SCHEMA)
   }
 
-  add(sid: string, ageMs: number, options: { archived?: boolean; directory?: string } = {}): void {
+  add(sid: string, ageMs: number, options: { archived?: boolean; directory?: string; title?: string | null } = {}): void {
     const upd = Math.trunc((this.now - ageMs / 1000.0) * 1000)
     this.db.prepare(
       'INSERT INTO session (id, directory, title, time_created, time_updated, time_archived) VALUES (?,?,?,?,?,?)',
-    ).run(sid, options.directory ?? 'D:/work/delta', `t-${sid}`, upd - 100000, upd, options.archived ? 1 : null)
+    ).run(sid, options.directory ?? 'D:/work/delta', options.title === undefined ? `t-${sid}` : options.title, upd - 100000, upd, options.archived ? 1 : null)
   }
 
   addTodo(sid: string, position: number, status: string): void {

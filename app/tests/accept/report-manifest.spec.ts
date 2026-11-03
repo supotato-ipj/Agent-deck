@@ -161,10 +161,10 @@ describe('仓库清单自一致性（app/accept/manifest.json，schema 定稿的
   /** 工单214：experiment 条目（取证工具）段级治理豁免——无段/无预算，不参与段级断言 */
   const cellBatteries = () => manifest!.batteries.filter((b) => b.kind !== 'experiment')
 
-  it('清单可加载且十五块电池 ＋ 一条 experiment 条目全部登记（工单376 增 376-agent-tiling、工单377 增 377-agent-tiling-lifecycle、工单378 增 378-agent-geometry-auth、工单379 增 379-window-preview）', () => {
+  it('清单可加载且十六块电池 ＋ 一条 experiment 条目全部登记（工单376 增 376-agent-tiling、工单377 增 377-agent-tiling-lifecycle、工单378 增 378-agent-geometry-auth、工单379 增 379-window-preview、工单381 增 381-session-preview）', () => {
     expect(manifest).not.toBeNull()
     expect(manifest!.batteries.map((b) => b.id).sort()).toEqual(
-      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter', '166-doc-group-cards', '310-placement', '332-conversation', '375-desktop-switch', '376-agent-tiling', '377-agent-tiling-lifecycle', '378-agent-geometry-auth', '379-window-preview', '132-stall-duel'].sort(),
+      ['03-battery', '48-tray-spike', '49-taskbar', '50-taskbar-carry', '51-taskbar-appbar', '55-taskbar-right-group', '156-taskbar-apps-filter', '166-doc-group-cards', '310-placement', '332-conversation', '375-desktop-switch', '376-agent-tiling', '377-agent-tiling-lifecycle', '378-agent-geometry-auth', '379-window-preview', '381-session-preview', '132-stall-duel'].sort(),
     )
   })
 

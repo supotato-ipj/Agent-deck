@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DECK-SESSION-PREVIEW</title>
+<style>
+  /* Agent 会话预览气泡（工单381，spec #369 决策 23/24）：悬停模式组 Agent 入口展开的
+   * 横向卡片流。整页透明，唯气泡体可见；卡片首版只读（无点击直达），单行横向滚动。 */
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    user-select: none;
+    cursor: default;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #sp-bubble {
+    box-sizing: border-box;
+    max-width: 1000px;
+    padding: 7px 8px;
+    background: rgba(14, 15, 20, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    color: #e8e8ee;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  #sp-bubble[hidden] { display: none; }
+  #sp-stream {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 7px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+    /* 单行横向滚动：卡片不换行、组间以竖分隔条呈现（工具相对顺序固定） */
+    cursor: default;
+  }
+  #sp-stream::-webkit-scrollbar { height: 6px; }
+  #sp-stream::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.28); border-radius: 3px; }
+  .sp-sep {
+    flex: none;
+    width: 1px;
+    margin: 2px 1px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .sp-card {
+    flex: none;
+    width: 186px;
+    box-sizing: border-box;
+    padding: 7px 9px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.05);
+    /* 只读：无 hover 高亮、无 pointer 光标、无点击动作 */
+    cursor: default;
+  }
+  .sp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 3px;
+  }
+  .sp-tool {
+    flex: none;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.10);
+    color: #cfd3dd;
+  }
+  .sp-status {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: #aeb3bf;
+  }
+  .sp-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #7d8494;
+  }
+  .sp-status[data-status="running"] .sp-dot { background: #57d38c; }
+  .sp-status[data-status="active"] .sp-dot { background: #6ea8ff; }
+  .sp-status[data-status="waiting"] .sp-dot { background: #ffb340; }
+  .sp-status[data-status="suspected-waiting"] .sp-dot { background: #e0c268; }
+  .sp-status[data-status="unknown"] .sp-dot { background: #7d8494; }
+  .sp-title {
+    font-size: 12px;
+    color: #f2f3f7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sp-title.unnamed { color: #9aa1af; font-style: italic; }
+  .sp-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    color: #8b93a3;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .sp-project { overflow: hidden; text-overflow: ellipsis; }
+  .sp-id { flex: none; color: #6f7787; }
+  #sp-empty {
+    padding: 4px 10px;
+    color: #9aa1af;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div id="sp-bubble" role="dialog" aria-label="Agent 会话预览" hidden>
+  <div id="sp-stream" data-readonly="true"></div>
+</div>
+<script type="module" src="./session-preview.js"></script>
+</body>
+</html>

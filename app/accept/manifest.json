@@ -2298,6 +2298,86 @@
           "estSeconds": 6
         }
       ]
+    },
+    {
+      "id": "381-session-preview",
+      "title": "Agent 会话预览（工单381）：悬停模式组 Agent 入口 300ms 展开悬浮卡片流（工具固定相对序/组内最近活跃/空工具不占位/完成与空闲过滤）、真实标题与项目名与短 ID 分列（无标题显示未命名）、Qoder 疑似等待与 mtime 最近活跃诚实分态、单行横向滚动、400ms 移入宽限与 Esc 收起、打开期间 1Hz 刷新、普通与 Agent 两桌面可用且卡片只读无直达、源存储只读、零残留",
+      "entry": "app/accept/session-preview.js",
+      "flag": "--accept-session-preview",
+      "hintBar": true,
+      "cdpPort": 9237,
+      "kind": null,
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 20,
+      "lastMeasuredAt": "2026-11-03",
+      "areas": [
+        "sessions",
+        "taskbar",
+        "hotzone"
+      ],
+      "segments": [
+        {
+          "seg": "P1",
+          "ticket": 381,
+          "title": "悬停展开与卡片流：真实注入悬停 Agent 入口 ≥300ms 才展开（未提前）、气泡位于任务栏上沿之上且覆盖悬停点；四工具固定相对序、组内最近活跃、空工具不占位；Qoder CONFIRM=疑似等待、mtime=最近活跃、完成会话被过滤；真实标题/项目名/短 ID 分列、无标题显示未命名；卡片单行只读无按钮",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 8
+        },
+        {
+          "seg": "P2",
+          "ticket": 381,
+          "title": "离场宽限与收起：指针移入气泡 900ms 不收起；离开后 250ms 仍展开、400ms 宽限（≥380ms）后收起；Esc 真实按键收起",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 5
+        },
+        {
+          "seg": "P3",
+          "ticket": 381,
+          "title": "打开期间 1Hz 刷新：generatedAt 与 session-preview-refresh 存证按约 1000ms 步进（900–1400ms 带内），静止画面不高于 1Hz",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 6
+        },
+        {
+          "seg": "P4",
+          "ticket": 381,
+          "title": "活动卡片单行横向滚动：卡片超出气泡宽度 → scrollWidth > clientWidth、scrollLeft 可推移、全部卡片同一行、气泡宽 ≤1000",
+          "surfaces": [
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 3
+        },
+        {
+          "seg": "P5",
+          "ticket": 381,
+          "title": "普通与 Agent 两桌面可用且只读无直达：普通桌面悬停展开；点击卡片无会话直达/模式动作/会话创建存证、前台窗口不变、气泡保持展开；配对切到 Agent 桌面后同一入口悬停仍展开",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 12
+        },
+        {
+          "seg": "P6",
+          "ticket": 381,
+          "title": "源存储只读与零残留：夹具全树 sha256+mtime 前后逐字节一致；config 三态还原；切回普通并删除本轮创建的 Agent 桌面（注册表集合与基线相等）；面板退出",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 5
+        }
+      ]
     }
   ],
   "areas": {
@@ -2328,6 +2408,22 @@
   "pathAreas": [
     {
       "path": "app/src/renderer/conversation.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/main/session-preview",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/renderer/session-preview.html",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/renderer/session-preview.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/renderer/session-preview-view.ts",
       "area": "sessions"
     },
     {
@@ -2608,6 +2704,18 @@
   "requiredFileRules": [
     {
       "path": "app/src/renderer/conversation.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/renderer/session-preview.html",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/renderer/session-preview.ts",
+      "area": "sessions"
+    },
+    {
+      "path": "app/src/renderer/session-preview-view.ts",
       "area": "sessions"
     },
     {

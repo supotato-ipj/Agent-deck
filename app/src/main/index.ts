@@ -13,6 +13,8 @@ import { startTaskbarController } from './taskbar/window'
 import { startCapsuleController } from './desktop/capsule-window'
 import { startTilePromptController } from './desktop/tile-prompt-window'
 import { startPreviewWindowController } from './desktop/preview-window'
+import { startSessionPreviewController } from './session-preview/window'
+import { defaultSessionRoots } from './scanners'
 import { extractIconDataUrl } from './desktop/icon-ffi'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
@@ -95,6 +97,28 @@ const PANEL_MODE = process.argv.includes('--panel')
 const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
 const TRAY_SPIKE_MODE = process.argv.includes('--tray-spike')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
+
+/**
+ * 会话预览工具数据根覆盖（工单381 真机验收夹具）：`DECK_SESSION_PREVIEW_ROOTS` 为
+ * JSON 对象，只认 qoder/zcode/kimicode 三键与字符串值，与缺省真实根合并。生产不设该
+ * 变量即本机真实根；解析失败按未设处理（不猜、不静默塞空根）。
+ */
+function sessionPreviewRoots(): Record<string, string> | null {
+  const raw = process.env.DECK_SESSION_PREVIEW_ROOTS
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const out: Record<string, string> = {}
+    for (const key of ['qoder', 'zcode', 'kimicode']) {
+      const v = parsed[key]
+      if (typeof v === 'string' && v) out[key] = v
+    }
+    return Object.keys(out).length ? { ...defaultSessionRoots(), ...out } : null
+  } catch {
+    return null
+  }
+}
 
 // 特权协议必须在 app ready 之前注册（Electron 硬要求）：面板页面与插件资产都走它。
 registerPluginScheme()
@@ -250,6 +274,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     log: (event) => log?.append(event),
   })
 
+  // 会话预览工具数据根（工单381）：验收夹具覆盖只解析一次（三键白名单 + 缺省真实根合并）
+  const previewRoots = sessionPreviewRoots()
+
   const kernel = createPanelKernel({
     weather: config.weather,
     layout: config.desktop,
@@ -339,6 +366,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
           }
         },
       },
+    },
+    // Agent 会话预览（工单381）：随 agentDesktop 开关隔离；源存储严格只读（三个文件
+    // 扫描器 + 面板内 DSH 视图）。数据根可由验收夹具经环境变量整份替换（生产不设即
+    // 本机真实根）——只认已知三键与字符串值，坏 JSON 如实忽略并按未设处理。
+    sessionPreview: {
+      enabled: config.agentDesktop.enabled,
+      log: (event) => log?.append(event),
+      ...(previewRoots ? { roots: previewRoots } : {}),
     },
     taskbar: {
       enabled: config.taskbar.enabled,
@@ -561,6 +596,11 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 满足 200ms 可交互预算）；展开时按条目矩形注册 DWM 实时缩略图，收起即注销（关闭即释放）。
   const previewCtl = startPreviewWindowController({ ctx: kernel, log })
   app.on('before-quit', () => previewCtl.dispose())
+
+  // Agent 会话预览气泡窗（工单381）：工作区可用即预建常热承载窗（屏幕外），悬停模式组
+  // Agent 入口 300ms 后移到图标上方展开；离开 400ms 宽限 / Esc / 点外收起。首版只读。
+  const sessionPreviewCtl = startSessionPreviewController({ ctx: kernel, log })
+  app.on('before-quit', () => sessionPreviewCtl.dispose())
 
   // Agent 平铺（工单376）：启动事件订阅（构造期不起——装配顺序下工作区可能晚到）。
   kernel.agentTiling?.start()

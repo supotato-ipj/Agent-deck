@@ -351,6 +351,69 @@ export interface AgentFocusState {
   focused: number | null
 }
 
+// ---------------------------------------------------------------------------
+// Agent 会话预览（工单381，spec #369 决策 20-24，ADR-0028）
+// ---------------------------------------------------------------------------
+
+/**
+ * 会话预览工具域（工单381）：本票只含四工具——MiniMax Code 由后续工单接入同一投影
+ * （spec 决策 21 的五工具全集以 GLOSSARY「Agent 会话预览」为准，扩展即加此联合）。
+ * 标识用工具域（qodercn 而非面板旧行标签 qoder）：来源根与扫描器一一对应。
+ */
+export type SessionPreviewTool = 'qodercn' | 'zcode' | 'kimicode' | 'dsh'
+
+/** 工具相对顺序（固定；空工具不占位——GLOSSARY「Agent 会话预览」） */
+export const SESSION_PREVIEW_TOOL_ORDER: readonly SessionPreviewTool[] = ['qodercn', 'zcode', 'kimicode', 'dsh'] as const
+
+/**
+ * 会话预览状态（spec 决策 22，诚实分态五值）：running = 明确执行信号（只有 DSH busy）；
+ * active = 只有最近活跃时间（文件扫描器的 mtime 一律落这里，不冒充执行）；
+ * waiting = 真实等待（只有 DSH pendingPermission）；suspected-waiting = 启发式疑似等待
+ * （只有 Qoder CONFIRM：末条 assistant 以 tool_use 收尾，等待对象不可辨）；
+ * unknown = 来源可读但状态不可判（不推断）。完成/空闲的会话不进卡片流。
+ */
+export type SessionPreviewStatus = 'running' | 'active' | 'waiting' | 'suspected-waiting' | 'unknown'
+
+/**
+ * 会话预览卡片：真实标题、项目名与短会话 ID 分列（spec 决策 23）——title=null 时 UI
+ * 显示「未命名会话」，绝不拿目录名/项目名顶替标题。身份只由 (tool, id) 组成。
+ * 卡片首版只读：无点击直达动作（spec 用户故事 69）。
+ */
+export interface SessionPreviewCard {
+  tool: SessionPreviewTool
+  /** 来源会话稳定 ID（原样；与 tool 共同构成唯一键） */
+  id: string
+  /** 工具自记的真实标题；无标题 = null（UI 降级「未命名会话」） */
+  title: string | null
+  /** 项目名（来源工作目录末段；缺 = null） */
+  project: string | null
+  /** 短会话 ID（展示用；取 id 前 8 字符，短于 8 则原样） */
+  shortId: string
+  status: SessionPreviewStatus
+  /** 最近活跃时刻（epoch ms；无信号 = null，排序时置末） */
+  lastActivityMs: number | null
+}
+
+/** 某工具的卡片组（组内按最近活跃降序；空工具整组不出现） */
+export interface SessionPreviewToolGroup {
+  tool: SessionPreviewTool
+  cards: SessionPreviewCard[]
+}
+
+/**
+ * Agent 会话预览只读投影（工单381）：气泡页与桥共用同一份。available = 悬停锚点在场
+ * （桌面模式切换组可用——实验开关与平台能力；普通与 Agent 两桌面均可查看）；
+ * open = 气泡当前展开；groups 按 SESSION_PREVIEW_TOOL_ORDER 固定相对序。
+ * 不含对话正文/窗口标题，新增日志不记对话标题（spec 决策 26）。
+ */
+export interface SessionPreviewState {
+  available: boolean
+  open: boolean
+  groups: SessionPreviewToolGroup[]
+  /** 投影生成时刻（epoch ms）；打开期间 1Hz 刷新 */
+  generatedAt: number
+}
+
 /** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
  * tooltip 即时显示不落盘；iconKey = 图标像素缓存键（null = 该条目尚无像素，渲染层按空格呈现） */
 export interface TaskbarTrayEntry {
@@ -1138,6 +1201,16 @@ export interface BridgeMethods {
   'focus/get-state': { request: null; response: AgentFocusState }
   /** 退出聚焦并恢复默认平铺（再点胶囊/恢复按钮/明确激活其他窗口的收口共用） */
   'focus/exit': { request: null; response: { ok: boolean; restored: number; skipped: number; state: AgentFocusState } }
+  /**
+   * Agent 会话预览只读投影（工单381）：气泡页首帧自取（打开推送可能早于页面订阅）。
+   * 缺装配/不可用时如实返回 available=false 的空态。
+   */
+  'session-preview/get-state': { request: null; response: SessionPreviewState }
+  /**
+   * 收起会话预览（工单381）：Esc 与点外收起。只由气泡窗（可信内核 UI）用户手势调用；
+   * 首版卡片只读——不存在「选中会话」类方法（spec 用户故事 69）。
+   */
+  'session-preview/close': { request: null; response: { ok: boolean } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -1197,6 +1270,11 @@ export interface BridgeEvents {
   'preview/changed': WindowPreviewState
   /** Agent 聚焦状态变化（工单379）：进入/退出聚焦即推（胶囊页据此切换主体点击语义） */
   'focus/changed': AgentFocusState
+  /**
+   * Agent 会话预览状态变化（工单381）：展开/收起/1Hz 投影刷新即推（气泡页订阅同一份）。
+   * 载荷只含标题/项目/短 ID/状态——不含对话正文；新增日志不记对话标题（spec 决策 26）。
+   */
+  'session-preview/changed': SessionPreviewState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

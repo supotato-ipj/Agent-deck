@@ -14,6 +14,7 @@ import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './
 import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
 import { AgentFocusService, type AgentFocusServiceOptions } from './services/agent-focus'
 import { WindowPreviewService, type WindowPreviewServiceOptions } from './services/window-preview'
+import { SessionPreviewService, type SessionPreviewServiceOptions } from './session-preview/service'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { ConversationService, type ConversationServiceOptions } from './conversation/service'
 import { MediaService, type MediaServiceOptions } from './media/service'
@@ -50,6 +51,8 @@ export interface PanelKernelOptions {
   agentFocus?: AgentFocusServiceOptions
   /** 窗口预览（工单379）：实验开关与依赖缝（抓帧/图标由生产装配注入） */
   windowPreview?: WindowPreviewServiceOptions
+  /** Agent 会话预览（工单381）：实验开关、工具数据根与依赖缝（缺省真实根 + 只读扫描器） */
+  sessionPreview?: SessionPreviewServiceOptions
   /** 插件私有状态（工单178）：命名空间存储目录缺省 userData/plugin-config（生产装配不传即缺省落点） */
   pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
@@ -166,6 +169,20 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(PluginConfigService, options.pluginConfig)
   // 对话窗会话服务（工单332）：BridgeService 注入依赖它，必须先于桥接层注册。
   ctx.plugin(ConversationService, options.conversation)
+  // Agent 会话预览（工单381）：随 agentDesktop 开关隔离（缺省关）。数据源两半——文件
+  // 扫描器（qodercn/zcode/kimicode，只读）与面板内 DSH 会话视图；悬停锚点在场判据取
+  // 桌面工作区投影 available（普通与 Agent 两桌面均可用）。BridgeService 对它可选注入。
+  ctx.plugin(SessionPreviewService, {
+    ...options.sessionPreview,
+    enabled: options.sessionPreview?.enabled ?? options.settings?.config?.agentDesktop?.enabled ?? false,
+    deps: {
+      ...options.sessionPreview?.deps,
+      available: options.sessionPreview?.deps?.available
+        ?? (() => Boolean(ctx.desktopWorkspace?.state().available)),
+      dshSessions: options.sessionPreview?.deps?.dshSessions
+        ?? (() => ctx.conversation?.sessions() ?? []),
+    },
+  })
   // 媒体域（工单336）：可选装配（缺省 = 桥缺席明确态）；BridgeService 的媒体方法经
   // ctx.media? 可选访问（不进 inject 清单——缺装配不得让桥接层静默不装载，pluginConfig 先例）。
   ctx.plugin(MediaService, options.media)

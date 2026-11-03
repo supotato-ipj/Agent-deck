@@ -168,3 +168,38 @@ export function scanQoder(root: string, now: number): SessionInfo[] {
   }
   return sessions
 }
+
+/**
+ * 会话预览行（工单381）：Qoder CN 的只读预览信号面。
+ *
+ * 与 scanQoder 的区别只在于**不给状态编造语义**：把末条会话记录的形态（lastKind）原样
+ * 交给投影层，由投影层按 spec #369 决策 22 降级——`tool`（末条 assistant 以 tool_use
+ * 收尾）只配「疑似等待」；`text`（assistant 文本收尾）视为完成；`user`/null 交给
+ * 投影层判「最近活跃/未知」。标题无来源（实测 jsonl 全字段并集无 title）→ null。
+ * 只读纪律与 scanQoder 相同：statSync/readTail，绝不写源存储。
+ */
+export interface QoderPreviewRow {
+  id: string
+  project: string | null
+  lastActivityMs: number
+  lastKind: 'tool' | 'text' | 'user' | null
+}
+
+/**
+ * 读 Qoder CN 预览行（工单381）：nowMs 为墙钟毫秒（与 lastActivityMs 同单位）；
+ * 只返回 10 分钟活跃池内的会话（更旧的视为空闲、不进卡片流）。
+ */
+export function qoderPreviewRows(root: string, nowMs: number): QoderPreviewRow[] {
+  const now = nowMs / 1000
+  const rows: QoderPreviewRow[] = []
+  for (const row of qoderJsonlRows(root, now)) {
+    const { role, kind } = sessionLast(row.file)
+    rows.push({
+      id: row.id,
+      project: projectName(row.file) || null,
+      lastActivityMs: Math.round(row.mtime * 1000),
+      lastKind: role === 'assistant' ? (kind === 'tool' ? 'tool' : 'text') : role === 'user' ? 'user' : null,
+    })
+  }
+  return rows
+}

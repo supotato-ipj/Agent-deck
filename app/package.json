@@ -28,7 +28,8 @@
     "accept:agent-tiling": "npm run build && electron . --accept-agent-tiling",
     "accept:agent-tiling-lifecycle": "npm run build && electron . --accept-agent-tiling-lifecycle",
     "accept:agent-geometry-auth": "npm run build && electron . --accept-agent-geometry-auth",
-    "accept:window-preview": "npm run build && electron . --accept-window-preview"
+    "accept:window-preview": "npm run build && electron . --accept-window-preview",
+    "accept:session-preview": "npm run build && electron . --accept-session-preview"
   },
   "dependencies": {
     "cordis": "^3.18.1",
