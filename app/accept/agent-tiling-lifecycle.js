@@ -37,6 +37,9 @@ const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '377-agent-tiling-lifecycle-events.jsonl');
+// 工单384：布局持久化（工单383）落在共享 userData——本电池不验重启恢复，布局文档
+// 重定向到本电池证据目录并在起止清掉（前置 = 恢复态 none，不继承他轮的 crash/桌面 ID 标记）。
+const LAYOUT_FILE = path.join(__dirname, 'evidence', '377-agent-tiling-lifecycle-layout.json');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const handle = createPanelHandle({
   execPath: process.execPath, appRoot: APP_ROOT, eventLogPath: EVENTS_FILE,
@@ -468,7 +471,8 @@ async function main() {
 
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
-    // config 补丁（P9 三态还原）：实验开关开 + 清配对（首启用语义从本轮起算）+ 任务栏启用
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 无旧布局 */ }
+    // config 补丁（P9 三态还原）：功能开关开 + 清配对（首启用语义从本轮起算）+ 任务栏启用
     {
       const json = originalConfig !== null ? JSON.parse(originalConfig) : {};
       json.agentDesktop = { ...(json.agentDesktop ?? {}), enabled: true, normalDesktopId: '', agentDesktopId: '' };
@@ -481,7 +485,7 @@ async function main() {
     if (!base.count || !base.current) throw new Error('注册表桌面事实不可读——环境问题，本轮未取证');
     normalId = base.current;
 
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: { DECK_AGENT_LAYOUT_FILE: LAYOUT_FILE } });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     rep.note(`面板 pid=${boot.pid}`);
@@ -490,9 +494,13 @@ async function main() {
     const tbRect = win32.rectOf(tbHwnd);
     const dip = screen.getPrimaryDisplay().bounds;
     const scale = (tbRect.right - tbRect.left) / dip.width;
-    const ready = await tape.wait('taskbar-geometry', (e) => e.modePill && Array.isArray(e.modeButtons), { timeoutMs: 12000 });
+    // 工单384：几何前置收紧——首个含 modePill 的帧可能早于 workspace/get-state 回执
+    // （modeButtons 还是空数组），必须等到「两枚按钮且矩形非零」的帧（375 同口径）。
+    const ready = await tape.wait('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
+      && Array.isArray(e.modeButtons) && e.modeButtons.length === 2, { timeoutMs: 12000 });
     if (!ready) throw new Error('taskbar-geometry 存证缺失模式组矩形');
-    const latestGeo = () => tape.latest('taskbar-geometry', (e) => e.modePill) || ready;
+    const latestGeo = () => tape.latest('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
+      && Array.isArray(e.modeButtons) && e.modeButtons.length === 2) || ready;
     const panelExePath = String(win32.exeOfPid(win32.threadIdOf(tbHwnd).pid) || '');
     if (!panelExePath) throw new Error('面板 exe 身份不可读');
 
@@ -789,6 +797,7 @@ async function main() {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')})——需重启清障`,
         '清场后仍有面板进程存活', 'panel-forcekill');
     }
+    try { fs.unlinkSync(LAYOUT_FILE); } catch { /* 已删/未生成 */ }
     restoreConfig(originalConfig);
     win32.ensureNativeTaskbarVisible();
   }

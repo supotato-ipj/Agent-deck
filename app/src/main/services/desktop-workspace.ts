@@ -7,8 +7,8 @@
 // desktop/workspace-plan.ts（vitest 矩阵），本服务只做编排、持久化与事件回推——
 // 离线测试经 deps 注入假源（TaskbarService 同款纪律），零 FFI/Electron。
 //
-// 实验开关（spec #369 决策 29）：config agentDesktop.enabled 默认 false——开关关闭时
-// 本服务 available=false，模式组不渲染、切换命令拒绝、不建桌面、不起轮询。
+// 功能开关（spec #369 决策 29）：config agentDesktop.enabled 自工单384 全量验收起默认 true——
+// 开关关闭时本服务 available=false，模式组不渲染、切换命令拒绝、不建桌面、不起轮询。
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import type { DesktopMode, DesktopWorkspaceState } from '../../shared/contract'
@@ -25,7 +25,7 @@ import {
 import type { DesktopSetFacts, StoredPairing } from '../desktop/workspace-plan'
 
 export interface DesktopWorkspaceServiceOptions {
-  /** 实验开关（config agentDesktop.enabled 下发；缺省 = 关，spec #369 决策 29） */
+  /** 功能开关（config agentDesktop.enabled 下发；生产装配必下发，缺省 = 关——离线测试零装配，spec #369 决策 29） */
   enabled?: boolean
   /** 已存配对（config agentDesktop 两枚桌面 ID；空串按未存处理） */
   pairing?: StoredPairing | null
@@ -159,7 +159,7 @@ export class DesktopWorkspaceService extends Service {
     }
   }
 
-  /** 功能在场 = 实验开关开 + 内部 COM 绑定可用（失败关闭，spec 决策 30） */
+  /** 功能在场 = 功能开关开 + 内部 COM 绑定可用（失败关闭，spec 决策 30） */
   private available(): boolean {
     return this.enabledFlag && this.deps.internalAvailable()
   }
@@ -201,7 +201,7 @@ export class DesktopWorkspaceService extends Service {
    */
   async switchTo(mode: 'normal' | 'agent'): Promise<{ ok: boolean; state: DesktopWorkspaceState; error?: string }> {
     if (!this.available()) {
-      const error = '桌面工作区未启用（实验开关关闭或平台能力不可用）'
+      const error = '桌面工作区未启用（功能开关关闭或平台能力不可用）'
       this.lastError = error
       this.ctx.emit('workspace/changed', this.state())
       return { ok: false, state: this.state(), error }

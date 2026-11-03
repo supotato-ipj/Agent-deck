@@ -33,19 +33,21 @@ export interface AppConfig {
   taskbar: TaskbarConfig
   /** 对话窗（工单332）：后端档（DSH 安装路径显式配置；缺省走标准位探测） */
   conversation: ConversationConfig
-  /** 桌面工作区（工单375，spec #369 决策 29 实验开关）：默认关闭——全量端到端验收
-   *  前不默认开放 Agent 入口。启用后桌面配对（系统桌面 ID）持久化在此段，重启恢复
-   *  最小闭环不重建桌面（完整布局恢复归工单383）。 */
+  /** 桌面工作区（工单375，spec #369 决策 29；工单384 全量验收通过后默认开放）：
+   *  Agent 入口默认在场，平台能力不可用仍失败关闭（spec 决策 30）。桌面配对（系统桌面
+   *  ID）持久化在此段，重启恢复最小闭环不重建桌面（完整布局恢复归工单383）。 */
   agentDesktop: AgentDesktopConfig
 }
 
 /**
- * 桌面工作区（config.json agentDesktop 段，工单375）：实验开关 + 桌面配对身份。
+ * 桌面工作区（config.json agentDesktop 段，工单375）：功能开关 + 桌面配对身份。
  * 配对只落**系统桌面 ID**（GUID 原文）——不落窗口标题、不落任何窗口身份（ADR-0002）。
  * 身份失效（桌面被用户在 TaskView 删除）时服务进入未配对安全态，不自动重建桌面。
  */
 export interface AgentDesktopConfig {
-  /** 实验开关（spec #369 决策 29）：默认 false——Agent 入口在全量端到端验收前不默认开放 */
+  /** 功能开关（spec #369 决策 29）：工单384 全量验收通过后默认 true——Agent 入口默认
+   *  开放；用户显式写 false 仍可关闭（缺段/非法值回退此默认）。平台能力不可用不受此
+   *  开关影响：available 仍按失败关闭（spec 决策 30）。 */
   enabled: boolean
   /** 已配对普通桌面系统 ID（空串 = 未配对；首次启用 = 启用当下所在的桌面） */
   normalDesktopId: string
@@ -54,14 +56,16 @@ export interface AgentDesktopConfig {
 }
 
 export function defaultAgentDesktop(): AgentDesktopConfig {
-  return { enabled: false, normalDesktopId: '', agentDesktopId: '' }
+  // 工单384（spec #369 决策 29/24）：全量端到端验收通过 → 默认开放 Agent 入口。
+  // 这是产品默认，不是实验开关档；显式 false 仍关闭（用户选择不被默认覆盖）。
+  return { enabled: true, normalDesktopId: '', agentDesktopId: '' }
 }
 
 function mergeAgentDesktop(raw: unknown, fallback: AgentDesktopConfig, warnings: string[]): AgentDesktopConfig {
   const out: AgentDesktopConfig = { ...fallback }
   if (raw === undefined) return out
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    warnings.push('config.agentDesktop 不是对象，已整体回退默认值（实验开关关）')
+    warnings.push('config.agentDesktop 不是对象，已整体回退默认值（功能开关取默认）')
     return out
   }
   const section = raw as Record<string, unknown>

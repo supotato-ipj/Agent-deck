@@ -71,7 +71,7 @@ export interface KernelOptions {
   /** 对话窗（工单332）：DSH_HOME/工作目录根/元数据文件与依赖缝（离线测试注入 tmp 桩；
    * 缺省生产落点——服务惰性落盘，装配时不触真实 userData） */
   conversation?: ConversationServiceOptions
-  /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
+  /** 桌面工作区（工单375）：功能开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
   /** Agent 会话预览（工单381）：显式装配（离线夹具根）；缺省不注册 → 桥接回退空态 */
@@ -117,7 +117,7 @@ export function createKernel(options: KernelOptions = {}): Context {
         ?? (() => ctx.panelData?.taskbarRecommendations() ?? []),
     },
   })
-  // 桌面工作区（工单375）：实验开关隔离（默认关）——BridgeService 对它是可选注入，
+  // 桌面工作区（工单375）：功能开关（缺装配/未下发 = 关，生产装配下发 config 默认开放）——BridgeService 对它是可选注入，
   // 注册先后不约束桥接层装载。装配即自起跑（开关关闭 = 零桌面零轮询）。
   ctx.plugin(DesktopWorkspaceService, options.desktopWorkspace)
   // Agent 会话预览（工单381）：只在显式装配时注册（离线契约测试未装配即走桥接回退空态）。

@@ -146,7 +146,7 @@ declare module 'cordis' {
     network?: NetworkService
     /** 工单339 命名凭证域（可选装配：凭证库；缺装配 = 凭证保存/注入如实不可用） */
     credentials?: CredentialService
-    /** 工单375 桌面工作区（可选装配：实验开关隔离——缺装配 = 投影回退禁用态） */
+    /** 工单375 桌面工作区（可选装配：功能开关隔离——缺装配 = 投影回退禁用态） */
     desktopWorkspace?: DesktopWorkspaceService
     /** 工单376 Agent 平铺（可选装配：随 agentDesktop 开关隔离——缺装配 = 投影回退空态） */
     agentTiling?: AgentTilingService

@@ -69,7 +69,7 @@ export interface DesktopModeEntry {
 
 /**
  * 工作区状态 → 模式入口两枚（纯函数）：available=false 或状态缺位 → 空清单（模式组
- * 整组不渲染——实验开关隔离）；unmanaged（第三桌面）→ 两枚均不高亮（GLOSSARY「非
+ * 整组不渲染——功能开关隔离）；unmanaged（第三桌面）→ 两枚均不高亮（GLOSSARY「非
  * 托管桌面」口径）；未配对 → 两枚均不高亮（等待首次启用配对）。
  */
 export function desktopModeEntries(state: DesktopWorkspaceState | null): DesktopModeEntry[] {
