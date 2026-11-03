@@ -1,6 +1,7 @@
 /**
- * MiniMax Code 只读来源探针（工单374 spike，spec #369 决策 21/22/23；生产接线归后续垂直工单，
- * 故不注册进 SCANNERS）。
+ * MiniMax Code 只读来源探针（工单374 spike，spec #369 决策 21/22/23）。生产接线是工单382 的
+ * 会话预览行 `minimaxcodePreviewRows`（接入 Agent 会话预览第五工具）；它仍**不注册进
+ * SCANNERS**——旧会话列表的 RUN/DONE 判定需要执行信号，而 MiniMax 没有诚实的执行信号。
  *
  * 本机实测事实（2026-11-03，`~/.minimax`，MiniMax Code CLI——bin 下 minimax.cmd / mcode-tools）：
  * - 会话主账本：`v2/sqlite/runtime-state.sqlite`（活跃 WAL）的 `local_runtime_sessions` 表：
@@ -24,6 +25,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { openReadOnly } from './sqlite'
 import { readTail } from './qoder'
+import { ACTIVE_WINDOW } from './types'
 
 /** MiniMax Code 单条会话的只读探针行（工单374 输入契约；标题/项目缺真值给 null，不拿目录名顶替） */
 export interface MinimaxSessionProbe {
@@ -94,6 +96,38 @@ export function probeMinimaxSessions(root: string): MinimaxSessionProbe[] {
     })
   }
   out.sort((a, b) => (b.lastActivityMs ?? -1) - (a.lastActivityMs ?? -1))
+  return out
+}
+
+/**
+ * 会话预览行（工单382，spec #369 决策 21）：MiniMax Code 接入同一只读投影的唯一读取面。
+ * 只携带**已证实**的三类信号——稳定身份（DB session_id）、工具自记标题（空/缺 → null，
+ * 上层显示「未命名会话」）、项目名（workspace_dir 末段）与最近活跃（updated_at_ms）。
+ * **刻意不含 DB status**：工单374 实测 status 与活跃时间不相关，读进来就可能被上层误当执行
+ * 信号；等待在存储层没有任何对等记录 → 本工具的执行与等待一律无从判定（投影只落「最近活跃」）。
+ * 活跃池口径与 zcode/kimicode 一致（10 分钟）；缺最近活跃时间的行无法进入活动流，跳过。
+ * 只读：openReadOnly + 纯 SELECT；来源不可读 → 空集（ADR-0003 静默跳过语义）。
+ */
+export interface MinimaxPreviewRow {
+  id: string
+  title: string | null
+  project: string | null
+  lastActivityMs: number
+}
+
+/** @param nowMs 墙钟毫秒（与 lastActivityMs 同单位） */
+export function minimaxcodePreviewRows(root: string, nowMs: number): MinimaxPreviewRow[] {
+  const out: MinimaxPreviewRow[] = []
+  for (const probe of probeMinimaxSessions(root)) {
+    if (probe.lastActivityMs === null) continue
+    if (nowMs / 1000 - probe.lastActivityMs / 1000 > ACTIVE_WINDOW) continue
+    out.push({
+      id: probe.id,
+      title: probe.title,
+      project: probe.project,
+      lastActivityMs: probe.lastActivityMs,
+    })
+  }
   return out
 }
 

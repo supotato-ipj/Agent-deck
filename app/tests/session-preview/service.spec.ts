@@ -10,7 +10,7 @@ import { Context } from 'cordis'
 import { SessionPreviewService, readPreviewRows } from '../../src/main/session-preview/service'
 import type { SessionPreviewServiceDeps } from '../../src/main/session-preview/service'
 import type { SessionPreviewState } from '../../src/shared/contract'
-import { QoderFx, rec } from '../scanners/fixtures'
+import { MinimaxFx, QoderFx, rec } from '../scanners/fixtures'
 
 interface Harness {
   svc: SessionPreviewService
@@ -88,6 +88,45 @@ describe('会话预览服务：打开与投影', () => {
     expect(last.groups).toEqual([])
     expect(h.svc.close('esc')).toBe(false) // 重复收起幂等
     h.svc.dispose()
+  })
+
+  it('minimaxcode 进入同一投影：真实标题/最近活跃，顺序在 dsh 之前（第五工具接入）', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-spmx-'))
+    const mx = new MinimaxFx(path.join(tmp, 'minimax'), Date.now())
+    mx.add('mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', { ageMin: 2, project: 'mu', title: 'MiniMax 真标题' })
+    try {
+      const h = harness({}, { minimaxcode: mx.root })
+      expect(h.svc.open()).toBe(true)
+      const groups = h.svc.state().groups
+      expect(groups.map((g) => g.tool)).toEqual(['qodercn', 'minimaxcode'])
+      const card = groups[1].cards[0]
+      expect(card).toMatchObject({
+        id: 'mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123',
+        title: 'MiniMax 真标题',
+        project: 'mu',
+        shortId: 'mvs_aaaa',
+        status: 'active',
+      })
+      h.svc.dispose()
+    } finally {
+      mx.close()
+      fs.rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
+  it('minimaxcode 读取失败只清空自身：其余四工具预览不受影响', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-spmxbad-'))
+    const badRoot = path.join(tmp, 'minimax')
+    fs.mkdirSync(path.join(badRoot, 'v2', 'sqlite'), { recursive: true })
+    fs.writeFileSync(path.join(badRoot, 'v2', 'sqlite', 'runtime-state.sqlite'), 'not a database', 'utf8')
+    try {
+      const h = harness({}, { minimaxcode: badRoot })
+      expect(h.svc.open()).toBe(true)
+      expect(h.svc.state().groups.map((g) => g.tool)).toEqual(['qodercn'])
+      h.svc.dispose()
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true })
+    }
   })
 
   it('单工具读取失败隔离：坏 SQLite 只让 zcode 空集，qodercn 卡片照常', () => {

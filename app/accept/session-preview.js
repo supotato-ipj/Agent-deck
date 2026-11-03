@@ -14,6 +14,11 @@
 //      同一入口仍可悬停；点击卡片不产生会话直达/模式动作/其他窗口激活。
 //   P6 源存储只读与零残留：夹具全树 sha256+mtime 前后逐字节一致；config 三态还原；
 //      切回普通并删除本轮创建的 Agent 桌面（注册表集合与基线相等）；面板退出、不残留窗。
+//   P7 五工具同场（工单382）：MiniMax Code 作为第五工具进入同一流——在场工具序是
+//      qodercn→zcode→kimicode→minimaxcode→dsh 固定序的子序列（DSH 在验收面板无真实 ACP
+//      会话，如实缺席）；MiniMax 真实标题/项目/短 ID、空标题降级未命名、状态只落
+//      「最近活跃」（DB status=started 也不冒充执行）；过期会话被过滤；多组仍单行可横向
+//      滚动、1Hz 刷新后 MiniMax 卡片不丢。源存储只读由 P6 全树快照覆盖（含 minimax 夹具）。
 //
 // 运行：npm run accept:session-preview（= electron . --accept-session-preview）。
 // **必须经 accept-guard 托管**（AGENTS.md 真机验收调度协议）。
@@ -312,6 +317,25 @@ function makeFixtures() {
   fs.writeFileSync(kwire, '{"type":"config.update"}\n', 'utf8');
   fs.utimesSync(kwire, kt, kt);
 
+  // —— MiniMax Code（工单382 第五工具）：主账本 runtime-state.sqlite ——
+  // 真实标题 + 空标题（降级未命名）+ 超出活跃池的过期会话（应被过滤）；
+  // titled 行 DB status=started（工单374 证实 status 非执行信号——卡片仍只许「最近活跃」）。
+  const mxdir = path.join(root, 'minimax', 'v2', 'sqlite');
+  fs.mkdirSync(mxdir, { recursive: true });
+  const mxdb = new DatabaseSync(path.join(mxdir, 'runtime-state.sqlite'));
+  mxdb.exec(`CREATE TABLE local_runtime_sessions (
+    session_id TEXT PRIMARY KEY, updated_at_ms INTEGER, status TEXT, archived INTEGER,
+    workspace_dir TEXT, title TEXT
+  );`);
+  const mxins = mxdb.prepare('INSERT INTO local_runtime_sessions (session_id, updated_at_ms, status, archived, workspace_dir, title) VALUES (?,?,?,?,?,?)');
+  const minimaxTitle = 'mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123';
+  const minimaxBlank = 'mvs_bbbbbbbb4f2c4a67b2d9a6c1e8f0d456';
+  const minimaxStale = 'mvs_cccccccc4f2c4a67b2d9a6c1e8f0d789';
+  mxins.run(minimaxTitle, now - 20_000, 'started', 0, 'D:/work/mu', 'MiniMax 真标题');
+  mxins.run(minimaxBlank, now - 30_000, 'idle', 0, 'D:/work/nu', '');
+  mxins.run(minimaxStale, now - 11 * 60_000, 'idle', 0, 'D:/work/old', '过期会话');
+  mxdb.close();
+
   return {
     root,
     now,
@@ -319,12 +343,16 @@ function makeFixtures() {
       qoder: path.join(root, 'qoder'),
       zcode: path.join(root, 'zcode'),
       kimicode: path.join(root, 'kimicode'),
+      minimaxcode: path.join(root, 'minimax'),
     },
     expected: {
       qoderId: 'sess-q-suspect',
       zcodeFix: 'sess-z-fix-001',
       zcodeBlank: 'sess-z-blank-002',
       kimiId: 'kimi-0001',
+      minimaxTitleId: minimaxTitle,
+      minimaxBlankId: minimaxBlank,
+      minimaxStaleId: minimaxStale,
     },
   };
 }
@@ -394,7 +422,7 @@ async function main() {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
     fixtures = makeFixtures();
     beforeTree = snapshotTree(fixtures.root);
-    rep.note(`夹具根=${fixtures.root}（qodercn 2 会话 / zcode 8 会话 / kimicode 1 会话；全部合成）`);
+    rep.note(`夹具根=${fixtures.root}（qodercn 2 会话 / zcode 8 会话 / kimicode 1 会话 / minimaxcode 3 会话；全部合成）`);
 
     {
       const json = originalConfig !== null ? JSON.parse(originalConfig) : {};
@@ -687,6 +715,61 @@ async function main() {
         rep.fail(`P5 普通臂=${normalOk}（current=${wsNormal.current} 展开=${!!shownNormal}） 只读=${readOnlyOk}（hidden=${domBefore.hidden}/${afterDom.hidden} 直达事件=${directEvents.length} 前台 0x${Number(fgBefore).toString(16)}→0x${Number(fgAfter).toString(16)} 气泡=0x${Number(bubbleHwnd).toString(16)}） Agent 臂=${agentOk}（切换=${JSON.stringify(switched)} 展开=${!!shownAgent} 组=${stateAgent && stateAgent.groups.length}）`);
       }
     } catch (err) { rep.fail(`P5 异常: ${err.message}`); }
+
+    // —— P7 五工具同场：MiniMax Code 第五工具（工单382，spec 决策 21/22/23）——
+    rep.beginSegment('P7');
+    try {
+      await ensureClosed('P7');
+      const t7 = Date.now();
+      await hoverAgent();
+      const shown7 = await tape.wait('session-preview-window-shown', null, { timeoutMs: 5000, since: t7 });
+      if (!shown7) throw new Error('悬停 5s 内未见 session-preview-window-shown 存证');
+      const state7 = await bubbleState();
+      const dom7 = await bubbleDom();
+      const cards7 = dom7.cards;
+      const byId7 = new Map(cards7.map((c) => [c.id, c]));
+      const order = state7.groups.map((g) => g.tool);
+      const fixed = ['qodercn', 'zcode', 'kimicode', 'minimaxcode', 'dsh'];
+      // 在场工具必须是固定序的**子序列**：只有真实有会话的工具占位（dsh 在验收面板无真实
+      // ACP 会话，如实缺席；它若在场，顺序仍须落在固定序上）
+      const idx = order.map((t) => fixed.indexOf(t));
+      const orderOk = idx.length > 0 && idx.every((v, i) => v >= 0 && (i === 0 || v > idx[i - 1]));
+      const minimaxIn = order.includes('minimaxcode');
+      const noEmptyGroup = state7.groups.every((g) => g.cards.length > 0);
+      const titled = byId7.get(fixtures.expected.minimaxTitleId);
+      const blank = byId7.get(fixtures.expected.minimaxBlankId);
+      const staleFiltered = !cards7.some((c) => c.id === fixtures.expected.minimaxStaleId);
+      const titleOk = titled && titled.tool === 'minimaxcode' && titled.title === 'MiniMax 真标题'
+        && titled.project === 'mu' && titled.shortId === 'mvs_aaaa';
+      const blankOk = blank && blank.unnamed && blank.title === '未命名会话';
+      // 诚实：MiniMax 卡片只许「最近活跃」——DB status=started 也不得冒充执行/等待
+      const honest = !!titled && !!blank
+        && titled.status === 'active' && blank.status === 'active'
+        && ![titled, blank].some((c) => c.status === 'running' || c.status === 'waiting' || c.status === 'suspected-waiting');
+      const minimaxCards = cards7.filter((c) => c.tool === 'minimaxcode');
+      const minimaxCount = minimaxCards.length === 2;
+      const singleRow = dom7.flexWrap === 'nowrap' && dom7.tops.length === 1;
+      const scroll = await cdpEval(BUBBLE_TITLE, SCROLL_EXPR);
+      const scrollOk = !!(scroll && scroll.scrollWidth > scroll.clientWidth && scroll.after > 0);
+      // 五工具同场下 1Hz 刷新仍成立，且刷新后 MiniMax 卡片未丢失（第五工具不打断既有刷新）
+      const g0 = (await bubbleState()).generatedAt;
+      await sleep(1150);
+      const stateAfter = await bubbleState();
+      const domAfter = await bubbleDom();
+      const dRefresh = stateAfter.generatedAt - g0;
+      const refreshOk = dRefresh >= 900 && dRefresh <= 1400;
+      const minimaxAfter = domAfter.cards.some((c) => c.id === fixtures.expected.minimaxTitleId)
+        && stateAfter.groups.some((g) => g.tool === 'minimaxcode');
+      rep.note(`P7 工具序=${order.join('→')}（固定序子序列=${orderOk}，dsh 在场=${order.includes('dsh')}） MiniMax 卡片=${JSON.stringify([titled, blank].map((c) => c && ({ id: c.id, s: c.status, u: c.unnamed, t: c.title })))} 刷新步进=${dRefresh}ms`);
+
+      if (shown7 && minimaxIn && orderOk && noEmptyGroup && titleOk && blankOk && honest && minimaxCount && staleFiltered && singleRow && scrollOk && refreshOk && minimaxAfter) {
+        rep.pass(`P7 五工具同场：MiniMax Code 真实进入悬浮卡片流——在场工具序 ${order.join('→')} 落在固定序子序列上（dsh 无真实 ACP 会话如实缺席）、空工具不占位；真实标题/项目/短 ID 分列（MiniMax 真标题 / mu / mvs_aaaa）、空标题显示未命名、过期（11 分钟）会话被过滤；DB status=started 的会话仍只显示「最近活跃」，不伪造执行/等待；${cards7.length} 张卡片单行、可横向滚动、1Hz 刷新 ${dRefresh}ms 后 MiniMax 卡片在位`);
+      } else {
+        rep.fail(`P7 展开=${!!shown7} MiniMax在场=${minimaxIn} 序=${order.join(',')}(${orderOk}) 空组=${noEmptyGroup} 标题=${titleOk} 未命名=${blankOk} 诚实=${honest} 卡片数=${minimaxCards.length}(${minimaxCount}) 过期过滤=${staleFiltered} 单行=${singleRow} 滚动=${JSON.stringify(scroll)}(${scrollOk}) 刷新=${dRefresh}(${refreshOk}) 刷新后在场=${minimaxAfter}`);
+      }
+      win32.send([win32.keyInput(0x1b, win32.KEYDOWN), win32.keyInput(0x1b, win32.KEYUP)]);
+      await sleep(300);
+    } catch (err) { rep.fail(`P7 异常: ${err && err.stack || err}`); }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {

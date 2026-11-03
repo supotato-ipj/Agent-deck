@@ -9,6 +9,7 @@ export const SESSION_PREVIEW_TOOL_LABELS: Readonly<Record<SessionPreviewTool, st
   qodercn: 'QD',
   zcode: 'ZC',
   kimicode: 'KC',
+  minimaxcode: 'MM',
   dsh: 'DSH',
 }
 
@@ -17,6 +18,7 @@ export const SESSION_PREVIEW_TOOL_NAMES: Readonly<Record<SessionPreviewTool, str
   qodercn: 'Qoder CN',
   zcode: 'ZCode',
   kimicode: 'Kimi Code',
+  minimaxcode: 'MiniMax Code',
   dsh: 'DSH',
 }
 

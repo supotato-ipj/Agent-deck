@@ -9,7 +9,7 @@ import { PLUGIN_CAPABILITIES } from '../src/shared/contract'
 import type { TaskbarWindowInfo } from '../src/main/taskbar/windows'
 import type { DesktopItem, PanelSnapshot, PluginInfo, TaskbarState, TaskbarStatus, TaskbarSystemAction } from '../src/shared/contract'
 import { flush, harness } from './search/harness'
-import { KimiCodeFx, QoderFx, ZcodeFx, rec } from './scanners/fixtures'
+import { KimiCodeFx, MinimaxFx, QoderFx, ZcodeFx, rec } from './scanners/fixtures'
 
 /** 内核契约缝（spec：在 Node 中直接驱动 cordis 内核，断言桥接 API 的请求/响应与变更推送）。 */
 
@@ -2934,10 +2934,13 @@ describe('内核桥接契约（工单381 Agent 会话预览）', () => {
     const kroot = path.join(dir, 'kimi')
     const k = new KimiCodeFx(kroot, Date.now() / 1000)
     k.addSession('kimi_sess_abcdef', 30, { title: 'kimi 标题' })
+    const mxroot = path.join(dir, 'minimax')
+    const mx = new MinimaxFx(mxroot, Date.now())
+    mx.add('mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', { ageMin: 2, project: 'mu', title: 'MiniMax 真标题' })
     const ctx = createKernel(kernelOpts(dir, {
       sessionPreview: {
         enabled: true,
-        roots: { qoder: qroot, zcode: zroot, kimicode: kroot },
+        roots: { qoder: qroot, zcode: zroot, kimicode: kroot, minimaxcode: mxroot },
         deps: {
           available: () => true,
           dshSessions: () => [{
@@ -2957,11 +2960,20 @@ describe('内核桥接契约（工单381 Agent 会话预览）', () => {
       const state = await ctx.bridge.invoke('session-preview/get-state', null)
       expect(state.available).toBe(true)
       expect(state.open).toBe(true)
-      expect(state.groups.map((g) => g.tool)).toEqual(['qodercn', 'zcode', 'kimicode', 'dsh'])
+      expect(state.groups.map((g) => g.tool)).toEqual(['qodercn', 'zcode', 'kimicode', 'minimaxcode', 'dsh'])
       const card = (tool: string) => state.groups.find((g) => g.tool === tool)!.cards[0]
       expect(card('qodercn')).toMatchObject({ title: null, project: 'alpha', shortId: 'q_confir', status: 'suspected-waiting' })
       expect(card('zcode')).toMatchObject({ title: '真标题', project: 'delta', shortId: 'sess_tit', status: 'active' })
       expect(card('kimicode')).toMatchObject({ title: 'kimi 标题', status: 'active' })
+      // 第五工具（工单382）：真实标题/项目/短 ID 原样，状态只落最近活跃（不伪造执行/等待）
+      expect(card('minimaxcode')).toMatchObject({
+        id: 'mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123',
+        title: 'MiniMax 真标题',
+        project: 'mu',
+        shortId: 'mvs_aaaa',
+        status: 'active',
+      })
+      expect(['running', 'waiting', 'suspected-waiting']).not.toContain(card('minimaxcode').status)
       expect(card('dsh')).toMatchObject({ title: '等待确认', project: 'omega', status: 'waiting' })
       // 载荷是 JSON 数据模型内值（桥可序列化），且不含转写正文
       const wire = JSON.parse(JSON.stringify(state)) as typeof state
@@ -2969,6 +2981,7 @@ describe('内核桥接契约（工单381 Agent 会话预览）', () => {
       await expect(ctx.bridge.invoke('session-preview/close', null)).resolves.toEqual({ ok: true })
       expect((await ctx.bridge.invoke('session-preview/get-state', null)).groups).toEqual([])
       z.close()
+      mx.close()
     } finally {
       await ctx.stop()
     }

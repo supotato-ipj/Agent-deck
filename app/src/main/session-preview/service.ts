@@ -2,7 +2,8 @@
  * Agent 会话预览服务（工单381，spec #369 决策 20-24/27 —— 只读投影 + 打开期间 1Hz 刷新）。
  *
  * 数据源（严格只读，source storage 零写入）：
- *   - qodercn / zcode / kimicode：各自只读扫描器的预览行（真实标题原样透传）；
+ *   - qodercn / zcode / kimicode / minimaxcode（工单382）：各自只读扫描器的预览行
+ *     （真实标题原样透传；minimaxcode 只取身份/标题/项目/最近活跃，不读 DB status）；
  *   - dsh：面板内 ConversationSessionView（真实 label、busy、pendingPermission）。
  *
  * 生命周期：气泡关闭时零轮询（spec 决策 27「不用高频轮询维持静止画面」）；悬停展开后
@@ -15,6 +16,7 @@ import type { ConversationSessionView, SessionPreviewState, SessionPreviewToolGr
 import { defaultSessionRoots } from '../scanners'
 import type { SessionRoots } from '../scanners'
 import { kimicodePreviewRows } from '../scanners/kimicode'
+import { minimaxcodePreviewRows } from '../scanners/minimaxcode'
 import { qoderPreviewRows } from '../scanners/qoder'
 import { zcodePreviewRows } from '../scanners/zcode'
 import { buildSessionPreviewGroups } from './projection'
@@ -27,6 +29,7 @@ export interface SessionPreviewRowInputs {
   qoder: SessionPreviewInputs['qoder']
   zcode: SessionPreviewInputs['zcode']
   kimicode: SessionPreviewInputs['kimicode']
+  minimaxcode: SessionPreviewInputs['minimaxcode']
 }
 
 export interface SessionPreviewServiceDeps {
@@ -64,6 +67,7 @@ export function readPreviewRows(roots: SessionRoots, nowMs: number, log?: (e: Re
     qoder: safe('qodercn', () => (root('qoder') ? qoderPreviewRows(root('qoder'), nowMs) : []), []),
     zcode: safe('zcode', () => (root('zcode') ? zcodePreviewRows(root('zcode'), nowMs) : []), []),
     kimicode: safe('kimicode', () => (root('kimicode') ? kimicodePreviewRows(root('kimicode'), nowMs) : []), []),
+    minimaxcode: safe('minimaxcode', () => (root('minimaxcode') ? minimaxcodePreviewRows(root('minimaxcode'), nowMs) : []), []),
   }
 }
 
