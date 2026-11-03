@@ -5,7 +5,7 @@
  * 先例：tests/desktop/plan.spec.ts（直接喂构造输入断言输出清单）。
  */
 import { describe, expect, it } from 'vitest'
-import { planAppsGroup, planAppsOverflow, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../../src/main/taskbar/apps-plan'
+import { partitionTaskbarWindowsByDesktop, planAppsGroup, planAppsOverflow, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../../src/main/taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../../src/main/taskbar/apps-plan'
 
 const pinned = (exe: string, over: Partial<TaskbarPinnedEntry> = {}): TaskbarPinnedEntry => ({
@@ -366,5 +366,45 @@ describe('应用组溢出裁决（工单58）：容量超限尾部收进浮层�
     expect(entries).toEqual(snapshot)
     expect(bar[0]).toBe(entries[0])
     expect(overflow[0]).toBe(entries[2])
+  })
+})
+
+// —— 工单380 按桌面分区（spec #369 决策 6）：运行图标按当前桌面过滤；另一桌面的候选
+// 窗口供点击裁决（当前桌面优先、仅另一桌面有窗则切过去激活），非托管桌面窗口不切桌面。
+describe('任务栏窗口按当前桌面分区（工单380）', () => {
+  const OWN = 'C:\Deck\Agent-Deck.exe'
+  const base = { exe: 'C:\Apps\A.exe', title: '甲', visible: true }
+
+  it('当前桌面分区只收「IsOnCurrent 非 false 且过既有合格判据」的窗口', () => {
+    const windows = [
+      { ...base, hwnd: 1 },
+      { ...base, hwnd: 2, cloaked: true },
+      { ...base, hwnd: 3, toolWindow: true },
+      { ...base, hwnd: 4, title: '' },
+      { ...base, hwnd: 5, exe: OWN },
+    ]
+    const onCurrent = new Map([[1, true], [2, true], [3, true], [4, true], [5, true]])
+    const { current, other } = partitionTaskbarWindowsByDesktop(windows, OWN, (h) => onCurrent.get(h) ?? null)
+    expect(current.map((w) => w.hwnd)).toEqual([1])
+    expect(other).toEqual([])
+  })
+
+  it('另一桌面候选要求忽略 cloak 后仍合格（cloakShell 或 IsOnCurrent=false）', () => {
+    const windows = [
+      { ...base, hwnd: 1, cloaked: true, cloakedShell: true }, // 配对桌面窗口
+      { ...base, hwnd: 2, cloaked: false }, // IsOnCurrent=false 但未被 DWM cloak
+      { ...base, hwnd: 3, cloaked: true, cloakedShell: true, toolWindow: true }, // 忽略 cloak 仍不合格
+      { ...base, hwnd: 4, cloaked: true, cloakedShell: true, title: '' },
+    ]
+    const onCurrent = new Map([[1, false], [2, false], [3, false], [4, false]])
+    const { current, other } = partitionTaskbarWindowsByDesktop(windows, OWN, (h) => onCurrent.get(h) ?? null)
+    expect(current).toEqual([])
+    expect(other.map((w) => w.hwnd)).toEqual([1, 2])
+  })
+
+  it('IsOnCurrent 不可判（null）时按既有合格判据收入当前分区（不误删）', () => {
+    const { current, other } = partitionTaskbarWindowsByDesktop([{ ...base, hwnd: 1 }], OWN, () => null)
+    expect(current.map((w) => w.hwnd)).toEqual([1])
+    expect(other).toEqual([])
   })
 })

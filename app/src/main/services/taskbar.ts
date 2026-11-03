@@ -7,7 +7,7 @@ import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
-import { normalizeExe, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
+import { normalizeExe, partitionTaskbarWindowsByDesktop, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
@@ -78,6 +78,15 @@ export interface TaskbarServiceOptions {
     focusExeWindow?: (exe: string) => boolean
     /** 托盘点击回放（工单56；缺省 = 无宿主，离线测试注入假源）。返回 false = 请求没送出去 */
     replayTrayClick?: (key: string, button: TaskbarTrayButton) => boolean
+    /** 窗口是否在当前桌面（工单380；公开 IVirtualDesktopManager IsOnCurrent。null = 不可判，
+     * 沿用既有合格过滤口径不误删；缺省延迟绑定 desktop/virtual-desktop） */
+    isWindowOnCurrent?: (hwnd: number) => boolean | null
+    /** 窗口所属桌面系统 ID（工单380 跨桌面点击目标判定；缺省延迟绑定 desktop/virtual-desktop） */
+    windowDesktopId?: (hwnd: number) => string | null
+    /** 已配对桌面 ID（工单380；缺省读 ctx.desktopWorkspace.pairingForTest——未装配/未配对 = null） */
+    pairedDesktops?: () => { normalId: string; agentId: string } | null
+    /** 切换到配对桌面（工单380；缺省经 ctx.desktopWorkspace.switchTo——单飞/确认/失败提示在内核） */
+    switchToDesktop?: (mode: 'normal' | 'agent') => Promise<{ ok: boolean; error?: string }>
   }
 }
 
@@ -125,6 +134,10 @@ interface TaskbarDeps {
   revealExe: (exe: string) => void
   focusExeWindow: (exe: string) => boolean
   replayTrayClick: (key: string, button: TaskbarTrayButton) => boolean
+  isWindowOnCurrent: (hwnd: number) => boolean | null
+  windowDesktopId: (hwnd: number) => string | null
+  pairedDesktops: () => { normalId: string; agentId: string } | null
+  switchToDesktop: (mode: 'normal' | 'agent') => Promise<{ ok: boolean; error?: string }>
 }
 
 /**
@@ -146,8 +159,9 @@ export class TaskbarService extends Service {
   // 生产面板以 ~6KB/s 刷 stdout：验收控制器把面板 stdout 接成管道且不排空时，64KB
   // 管道 ~11s 写满、主线程下一次同步写永久阻塞——#107 全系停摆的真机根因（minidump
   // 实证 + 排空对照实验，工单132 第一阶段）。声明为 { required: false } 即抑制告警，
-  // 缺席时照旧走 Electron 兜底，服务照常启动。
-  static inject: Inject = { panelData: { required: true }, desktop: { required: false } }
+  // 缺席时照旧走 Electron 兜底，服务照常启动。desktopWorkspace 同款可选（工单380）：
+  // 未装配/未启用时跨桌面点击按「无配对桌面」降级（不切桌面），不刷告警。
+  static inject: Inject = { panelData: { required: true }, desktop: { required: false }, desktopWorkspace: { required: false } }
 
   private readonly file: string | null
   private readonly appConfig: AppConfig | null
@@ -156,8 +170,11 @@ export class TaskbarService extends Service {
   private readonly deps: TaskbarDeps
   private current: TaskbarState
   private store: TaskbarLayoutStore = { version: 1, pinned: [], recommended: [], excluded: [] }
-  /** 最近一枚窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；仅内存——标题同拍进出，永不持久化） */
+  /** 最近一枚**当前桌面**窗口枚举快照（工单53 点击三态/选窗/关闭的寻址依据；工单380
+   * 按当前桌面过滤——另一桌面窗口进 lastOtherDesktop 仅供参考；标题仅内存，永不持久化） */
   private lastWindows: TaskbarWindowInfo[] = []
+  /** 另一桌面的「本可上栏」窗口快照（工单380 跨桌面点击候选；不进栏面运行态） */
+  private lastOtherDesktop: TaskbarWindowInfo[] = []
   /** 会话运行序（工单189，ADR-0013 应用组统一序列）：未钉运行应用的位次账本（归一 exe 键），
    * 仅内存、不落盘、无时间戳——面板重启归零重引导（首拍按首见序建立），运行应用重启回最右 */
   private runOrder: string[] = []
@@ -222,6 +239,36 @@ export class TaskbarService extends Service {
       // 托盘回放真源在数据面子进程的托盘宿主（Win32 同处），本进程只转发请求；
       // 生产装配经 panel-kernel 注入，离线内核无宿主时按「送不出去」回报。
       replayTrayClick: options.deps?.replayTrayClick ?? (() => false),
+      // 桌面事实（工单380）：公开 VDM 查询缺省延迟绑定（惰性 bind，离线测试注入假源后
+      // 零 FFI）；配对/切换走桌面工作区服务的同一事务（单飞/确认/失败提示在内核）。
+      isWindowOnCurrent: options.deps?.isWindowOnCurrent
+        ?? ((hwnd) => {
+          try {
+            return (require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')).isWindowOnCurrentDesktop(hwnd)
+          } catch {
+            return null // 绑定缺席/离线测试：不可判（不误删，按既有合格口径）
+          }
+        }),
+      windowDesktopId: options.deps?.windowDesktopId
+        ?? ((hwnd) => {
+          try {
+            return (require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')).windowDesktopId(hwnd)
+          } catch {
+            return null // 绑定缺席/离线测试：不可判（不切桌面）
+          }
+        }),
+      pairedDesktops: options.deps?.pairedDesktops
+        ?? (() => {
+          const pair = this.ctx.desktopWorkspace?.pairingForTest() ?? null
+          return pair?.normalId && pair.agentId ? { normalId: pair.normalId, agentId: pair.agentId } : null
+        }),
+      switchToDesktop: options.deps?.switchToDesktop
+        ?? (async (mode) => {
+          const ws = this.ctx.desktopWorkspace
+          if (!ws) return { ok: false, error: '桌面工作区未装配（无法跨桌面激活）' }
+          const r = await ws.switchTo(mode)
+          return { ok: r.ok, error: r.error }
+        }),
     }
     const fallback = defaultTaskbar()
     this.current = {
@@ -241,6 +288,9 @@ export class TaskbarService extends Service {
     this.ctx.on('dataplane/snapshot', () => this.refreshRecommendations())
     // 托盘入栏（工单56）：数据面托盘宿主的规范化事件流逐条进名单编排，变化才回推。
     this.ctx.on('dataplane/tray-event', (event) => this.onTrayEvent(event))
+    // 桌面切换（工单380）：共享状态回推即重编排一拍——运行图标按当前桌面过滤尽快跟上
+    // （系统快捷键/TaskView 切换走 reconciliation 同一事件；1Hz 轮询仍是兜底）。
+    this.ctx.on('workspace/changed', () => this.refresh())
   }
 
   state(): TaskbarState {
@@ -471,20 +521,24 @@ export class TaskbarService extends Service {
   refresh(): void {
     if (!this.current.enabled) return
     this.ensureLayout()
-    let windows: TaskbarWindowInfo[]
+    let raw: TaskbarWindowInfo[]
     try {
-      // 工单156 过滤判据（shouldShowOnTaskbar 纯函数）：cloaked/工具窗/有属主无
-      // APPWINDOW/空标题/自家的窗口不上栏——枚举薄壳只采集特征，裁决全在判据内
-      windows = this.deps.listWindows().filter((w) => shouldShowOnTaskbar(w, this.deps.ownExe))
+      raw = this.deps.listWindows()
     } catch (err) {
       // 枚举失败沿用上一轮（desktop 扫描同款纪律：慢半拍优于瞬时空白）
       console.warn(`deck-taskbar: 本轮窗口枚举失败，沿用上一轮应用组：${err instanceof Error ? err.message : err}`)
       return
     }
-    this.lastWindows = windows
+    // 工单380：按当前桌面分区（spec #369 决策 6）——栏面运行态只收当前桌面窗口；
+    // 另一桌面的合格候选（忽略 cloak 后仍合格）只供跨桌面点击裁决，不进运行段。
+    // shouldShowOnTaskbar 仍是唯一合格判据（cloaked/工具窗/有属主无 APPWINDOW/空标题/
+    // 自家进程照拒）；IsOnCurrent 不可判（null）时按既有口径收入当前分区，不误删。
+    const { current, other } = partitionTaskbarWindowsByDesktop(raw, this.deps.ownExe, this.deps.isWindowOnCurrent)
+    this.lastWindows = current
+    this.lastOtherDesktop = other
     // 工单189：编排一拍走 planAppsSequence（默认规则落位＋手工序合并）——会话运行序
     // 先行回存再判内容变化（序推进与可见序列是两本账，摘除陈旧键不改可见序也须落账）
-    const plan = planAppsSequence(this.store.pinned, windows, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
+    const plan = planAppsSequence(this.store.pinned, current, this.runOrder, (exe) => this.deps.iconKeyForPath(exe))
     this.runOrder = plan.runOrder
     if (JSON.stringify(plan.apps) === JSON.stringify(this.current.apps)) return
     this.current = { ...this.current, apps: plan.apps }
@@ -598,17 +652,44 @@ export class TaskbarService extends Service {
     return this.current.apps.find((e) => normalizeExe(e.exe) === key)
   }
 
-  /** 该 exe 的当拍窗口快照（裁决与关闭的寻址集；含 hwnd，标题仅内存） */
+  /** 该 exe 的当拍窗口快照（裁决与关闭的寻址集；含 hwnd，标题仅内存）。
+   * 工单380：只含**当前桌面**窗口——另一桌面窗口不参与点击三态/关闭/选窗的当前桌面路径。 */
   private windowsOf(exe: string): TaskbarWindowInfo[] {
     const key = normalizeExe(exe)
     return this.lastWindows.filter((w) => normalizeExe(w.exe) === key)
   }
 
+  /** 该 exe 在**另一桌面**的合格窗口快照（工单380 跨桌面点击候选；不进栏面运行态） */
+  private otherDesktopWindowsOf(exe: string): TaskbarWindowInfo[] {
+    const key = normalizeExe(exe)
+    return this.lastOtherDesktop.filter((w) => normalizeExe(w.exe) === key)
+  }
+
   /**
-   * 左键点击（工单53）：裁决在纯函数 decideAppClick——未运行（无窗口）→ 启动 exe；
-   * 单窗口未前台 → 置前；单窗口已前台 → 最小化；多窗口 → 返回带标题清单（窗口效果
-   * 留给渲染层选窗后的 taskbar/activate-window）。exe 护栏 = 必须在当前应用组条目内，
-   * 否则 ok:false（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   * 窗口所属的**配对桌面**模式（工单380）：非配对桌面（第三桌面）返回 null——其他虚拟
+   * 桌面不受托管，点击按未运行启动，绝不自动切过去。配对 ID 未在册或窗口桌面 ID
+   * 不可判也返回 null（安全方向：不猜、不切）。
+   */
+  private desktopModeOfWindow(hwnd: number): 'normal' | 'agent' | null {
+    const pair = this.deps.pairedDesktops()
+    if (!pair?.normalId || !pair?.agentId) return null
+    const id = this.deps.windowDesktopId(hwnd)
+    if (!id) return null
+    if (id === pair.normalId) return 'normal'
+    if (id === pair.agentId) return 'agent'
+    return null
+  }
+
+  /**
+   * 左键点击（工单53；工单380 增加桌面事实）：裁决在纯函数 decideAppClick——未运行
+   * （无窗口）→ 启动 exe；单窗口未前台 → 置前；单窗口已前台 → 最小化；多窗口 → 返回
+   * 带标题清单（窗口效果留给渲染层选窗后的 taskbar/activate-window）。
+   *
+   * 工单380 跨桌面（spec #369 决策 19）：**当前桌面窗口优先**（有当前桌面窗口即走上面
+   * 三态，不因别桌有窗而漂移）；仅**另一配对桌面**有窗 → 经桌面工作区同一事务切过去
+   * （单飞/系统 ID 确认），随后激活原窗口（单窗）或复用选窗菜单（多窗）；非配对桌面
+   * 窗口不切桌面；完全未运行才启动。exe 护栏 = 必须在当前应用组条目内，否则 ok:false
+   * （应用进出栏的帧间竞态按普通失败回报，不抛）。
    */
   async appClick(exe: string): Promise<{ ok: boolean; action: TaskbarAppClickAction | null; windows?: TaskbarWindowRef[]; error?: string }> {
     const entry = this.appEntry(exe)
@@ -619,18 +700,49 @@ export class TaskbarService extends Service {
     } catch {
       fg = 0 // 前台不可判按「不在前台」处理（置前是安全方向）
     }
-    const decision = decideAppClick(this.windowsOf(entry.exe), fg)
-    switch (decision.kind) {
-      case 'launch': {
-        const err = await this.deps.launchExe(entry.exe)
-        return err ? { ok: false, action: null, error: err } : { ok: true, action: 'launched' }
+    const currentWins = this.windowsOf(entry.exe)
+    if (currentWins.length > 0) {
+      const decision = decideAppClick(currentWins, fg)
+      switch (decision.kind) {
+        case 'launch': // 不可达（currentWins 非空）；保留穷尽性
+          break
+        case 'activate':
+          return { ok: this.deps.activateWindow(decision.hwnd), action: 'activated' }
+        case 'minimize':
+          return { ok: this.deps.minimizeWindow(decision.hwnd), action: 'minimized' }
+        case 'pick':
+          return { ok: true, action: 'window-list', windows: decision.windows }
       }
-      case 'activate':
-        return { ok: this.deps.activateWindow(decision.hwnd), action: 'activated' }
-      case 'minimize':
-        return { ok: this.deps.minimizeWindow(decision.hwnd), action: 'minimized' }
-      case 'pick':
-        return { ok: true, action: 'window-list', windows: decision.windows }
+    }
+    // 仅另一配对桌面有窗：切到对应桌面后激活（多窗复用选窗菜单）
+    const other = this.otherDesktopWindowsOf(entry.exe)
+      .map((w) => ({ w, mode: this.desktopModeOfWindow(w.hwnd) }))
+      .filter((m): m is { w: TaskbarWindowInfo; mode: 'normal' | 'agent' } => m.mode !== null)
+    if (other.length > 0) {
+      // 两配对桌面都有窗的极边缘态：取枚举序首位（z 序最上）窗口所属桌面，确定性且可解释
+      const mode = other[0].mode
+      const targets = other.filter((m) => m.mode === mode).map((m) => m.w)
+      const switched = await this.deps.switchToDesktop(mode)
+      if (!switched.ok) return { ok: false, action: null, error: switched.error ?? '切换桌面失败' }
+      this.refresh() // 目标桌面成为当前桌面：窗口归入当前分区（选窗行/精确到达的寻址集）
+      // 切换确认后目标窗口即属当前桌面：DWM cloak 位的清除可能晚于确认回读半拍，
+      // 显式并入当前寻址集（下一拍枚举按系统事实自然收敛）——避免选窗行点不动的竞态。
+      for (const t of targets) if (!this.lastWindows.some((w) => w.hwnd === t.hwnd)) this.lastWindows.push(t)
+      this.lastOtherDesktop = this.lastOtherDesktop.filter((w) => !targets.some((t) => t.hwnd === w.hwnd))
+      if (targets.length === 1) {
+        return { ok: this.deps.activateWindow(targets[0].hwnd), action: 'activated' }
+      }
+      return {
+        ok: true,
+        action: 'window-list',
+        windows: targets.map((w) => ({ hwnd: w.hwnd, title: w.title })),
+      }
+    }
+    try {
+      const err = await this.deps.launchExe(entry.exe)
+      return err ? { ok: false, action: null, error: err } : { ok: true, action: 'launched' }
+    } catch (err) {
+      return { ok: false, action: null, error: err instanceof Error ? err.message : String(err) }
     }
   }
 

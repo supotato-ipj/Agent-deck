@@ -753,7 +753,7 @@
         {
           "seg": "P15",
           "ticket": 247,
-          "title": "栏分组布局重排：开始组钉左+撑满栏高 48DIP（工单238 栏高口径）/应用组带内落位不与邻组重叠（几何存证+CDP 互证）、右组细条不变（居中语义随工单190 移交 P15B）",
+          "title": "栏分组布局重排：开始组钉左+撑满栏高 48DIP（工单238 栏高口径）/模式组固定开始组右侧/推荐组改居应用组右侧（工单380）、组合不越右组细条不变、推荐位界内且紧贴应用组右侧",
           "surfaces": [
             "event-evidence",
             "pixel"
@@ -763,7 +763,7 @@
         {
           "seg": "P15B",
           "ticket": 190,
-          "title": "屏幕中心线锚定：应用组中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张；全程带内不越界",
+          "title": "应用+推荐组合中心锚定（工单380 取代 ADR-0013 应用组单独居中）：组合中心对齐屏幕水平中心线（±2.5px）；藏/显 TaskView、推荐位移除/恢复、托盘档位切换三路邻居宽度驱动中心不变；图标增多对称扩张",
           "surfaces": [
             "event-evidence",
             "system-state"
@@ -793,7 +793,7 @@
         {
           "seg": "P19",
           "ticket": 192,
-          "title": "推荐组独立漂浮 pill（工单192）：#pill-recs 独立容器界内落位与组间隙（开始组右侧/应用组左侧）、开始组 pill 推荐位零残留、两组显隐解耦（藏两系统按钮推荐组独立在场并退条带左缘 / 推荐位清空推荐组不渲染、回池复原）",
+          "title": "推荐组独立漂浮 pill 与组合重算（工单192/380）：#pill-recs 界内、紧贴应用组右侧、组合居中且不压托盘、开始组零残留、两组显隐解耦；推荐清空→应用组单独居中、回池→组合重新居中",
           "surfaces": [
             "event-evidence",
             "pixel"
@@ -1830,14 +1830,14 @@
     },
     {
       "id": "375-desktop-switch",
-      "title": "桌面工作区（工单375）：真实双桌面切换最小闭环——模式组/配对/单飞确认/reconciliation/跟随与排除/新窗归属/零残留",
+      "title": "桌面工作区（工单375）：真实双桌面切换最小闭环——模式组/配对/单飞确认/reconciliation/跟随与排除/新窗归属/零残留；工单380 增按桌面过滤与跨桌面点击",
       "entry": "app/accept/desktop-switch.js",
       "flag": "--accept-desktop-switch",
       "hintBar": true,
       "cdpPort": 9232,
       "kind": null,
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 20,
+      "lastMeasuredSeconds": 27,
       "lastMeasuredAt": "2026-11-03",
       "areas": [
         "taskbar",
@@ -1910,7 +1910,7 @@
         {
           "seg": "P7",
           "ticket": 375,
-          "title": "新窗口归属：Agent 桌面启动的 notepad 归属 Agent；切回普通后 shell cloak（桌面绑定）",
+          "title": "新窗口归属：Agent 桌面启动的 csc 探针窗归属 Agent（Win11 Store 记事本激活不再可靠随活动桌面，P18 同款探针替代）；切回普通后 shell cloak",
           "surfaces": [
             "system-state"
           ],
@@ -1924,6 +1924,21 @@
             "system-state"
           ],
           "estSeconds": 4
+        },
+        {
+          "seg": "P9",
+          "ticket": 380,
+          "title": "任务栏按桌面过滤与跨桌面点击（工单380）：运行图标按当前桌面过滤（手钉共享在位 running=false、Agent 专属运行图标不上普通桌面栏、普通桌面正对照）；仅另一配对桌面单窗→点击切过去激活原窗口不重复启动；多窗→切过去复用选窗菜单并精确到达",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 12,
+          "areas": [
+            "taskbar",
+            "desktop"
+          ]
         }
       ]
     },
@@ -2104,7 +2119,7 @@
         }
       ]
     },
-{
+    {
       "id": "378-agent-geometry-auth",
       "title": "Agent 平铺逐窗几何授权与恢复平铺（工单378）：首次操作复原+提示/Esc 保持平铺/确认不重排/重新操作浮动/后台自改不弹框/拖动与边框与最大化与键盘与 Snap 同规则/切出撤销授权保留浮动几何/胶囊恢复按钮与异常跳过报告/零残留",
       "entry": "app/accept/agent-geometry-auth.js",

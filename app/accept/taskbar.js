@@ -1108,9 +1108,11 @@ async function main() {
       const g0 = await waitGeometrySettled(geom14);
       const GAP15 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px）
       const bandOf = (g) => {
-        // 左邻组右缘：推荐组独立 pill 在场取其右缘（工单192），缺席回退开始组；
-        // 工单190 起空带只作容量/夹取围栏（居中语义在 P15B），不带中点
-        const leftEdge = g.recPill && g.recPill.w > 0 ? g.recPill.x + g.recPill.w : g.startPill.x + g.startPill.w;
+        // 左邻组右缘（工单380）：模式组在场取其右缘，缺席回退开始组；推荐组改居应用组
+        // 右侧，不再是左邻。工单190 起空带只作容量/夹取围栏（组合居中语义在 P15B）
+        const leftEdge = g.modePill && g.modePill.w > 0
+          ? g.modePill.x + g.modePill.w
+          : g.startPill.x + g.startPill.w;
         return {
           lo: leftEdge + GAP15,
           hi: g.rightPill.x - GAP15,
@@ -1141,20 +1143,23 @@ async function main() {
       const rightOk14 = Math.abs(g0.rightPill.x + g0.rightPill.w - (dip14.width - 14)) <= 2
         && Math.abs(g0.sliver.x + g0.sliver.w - dip14.width) <= 2;
       const recs14 = g0.recommendations || [];
-      // 推荐位界内断言重定界（工单192）：有推荐位 → 独立 pill 在场、与开始组有明确间隙、
-      // 枚枚界内 #pill-recs；无推荐位 → 独立 pill 不渲染（矩形归零）。量测出处随迁、
-      // recommendations 字段名与语义不变（taskbar-geometry 断言存活前提）
+      // 推荐位界内断言（工单380 重定界）：有推荐位 → 独立 pill 在场、紧贴应用组右侧
+      // （组间距 8，无应用组时退组合中心/带内）、整组不越右组左缘；无推荐位 → 不渲染。
+      // 量测出处随迁、recommendations 字段名与语义不变（taskbar-geometry 断言存活前提）
       const recPill14 = g0.recPill && g0.recPill.w > 0 ? g0.recPill : null;
       const recsOk14 = recs14.length === 0
         ? !recPill14
         : !!recPill14
-          && recPill14.x >= g0.startPill.x + g0.startPill.w + GAP15 - 0.5
-          && recs14.every((r) => r.x >= recPill14.x - 0.5 && r.x + r.w <= recPill14.x + recPill14.w + 0.5);
+          && recs14.every((r) => r.x >= recPill14.x - 0.5 && r.x + r.w <= recPill14.x + recPill14.w + 0.5)
+          && (g0.appsPill.w > 0
+            ? recPill14.x >= g0.appsPill.x + g0.appsPill.w + GAP15 - 0.5
+            : recPill14.x >= b0.lo - 0.5)
+          && recPill14.x + recPill14.w <= b0.hi + 0.5;
       if (startOk14 && cssOk14 && noOverlap14 && rightOk14 && recsOk14) {
         rep.pass(`P15 三组新布局落位：开始组钉左（x=${g0.startPill.x.toFixed(1)}，CSS=${css14.startLeft}，撑满栏高 h=${g0.startPill.h.toFixed(1)}）、`
-          + `应用组带内落位（带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]，居中语义见 P15B）、`
+          + `应用组带内落位（带 [${b0.lo.toFixed(0)}, ${b0.hi.toFixed(0)}]，组合居中语义见 P15B）、`
           + `不与邻组重叠、右组+细条钉右不变${recs14.length
-            ? `、推荐位 ${recs14.length} 枚独立 pill 界内（pill @${recPill14.x.toFixed(0)}，与开始组间隙 ${(recPill14.x - g0.startPill.x - g0.startPill.w).toFixed(0)}px）`
+            ? `、推荐位 ${recs14.length} 枚独立 pill 界内（pill @${recPill14.x.toFixed(0)}，紧贴应用组右侧间隙 ${g0.appsPill.w > 0 ? (recPill14.x - g0.appsPill.x - g0.appsPill.w).toFixed(0) : 'n/a'}px）`
             : '、推荐位空缺独立 pill 不渲染'}`);
       } else {
         rep.fail(`P15 钉左=${startOk14}(x=${g0.startPill.x}) css互证=${cssOk14}(${JSON.stringify(css14)})`
@@ -1165,15 +1170,16 @@ async function main() {
       if (notepad14) spawnSync('taskkill', ['/PID', String(notepad14.pid), '/T', '/F'], { stdio: 'ignore' });
     }
 
-    // P15B 屏幕中心线锚定（工单190，ADR-0013 决策2）：应用组 pill 中心对齐屏幕水平
-    // 中心线，不随开始组/推荐组/右组宽度漂移。容差 ±2.5px CSS px（段内注明口径：落位
-    // 取整 ±1px + 1Hz 快照抖动余量，与旧空带居中容差同源）。三路邻居宽度驱动各带复原：
-    // 藏/显 TaskView（左邻）、推荐位移除/恢复（开始组内容增删，工单161 rec-remove/
+    // P15B 应用+推荐组合中心锚定（工单380，spec #369 决策 17；取代 ADR-0013 决策 2 的
+    // 应用组单独居中）：应用组与推荐组按可见总宽度整体居中——组合中心对齐屏幕水平
+    // 中心线，不随开始组/模式组/右组宽度漂移；推荐组在场时紧贴应用组右侧，无推荐位
+    // 退化应用组单独居中。容差 ±2.5px CSS px（落位取整 ±1px + 1Hz 快照抖动余量）。
+    // 邻居宽度驱动复活中心：藏/显 TaskView（左邻）、推荐位移除/恢复（工单161 rec-remove/
     // rec-restore 通道，P16 种子探针保证在场）、托盘溢出档位切换（右邻，工单162 档位
     // 通道，原档位读 config 还原）；对称扩张臂用第二应用探针（图标增多向两侧对称扩张，
-    // mspaint 独立 exe 不与 notepad 合一）。夹取/不越界 = 逐帧「pill 恒在带内」断言
-    // （超宽病态档夹取数学由单测钉——章法：单测能覆盖的不进电池）；居中锚 = 屏幕中心线
-    // （条带窗通栏横跨主屏、窗 x = 屏 x，存证帧视口中线 = 屏宽/2 − 窗 DIP 原点）。
+    // mspaint 独立 exe 不与 notepad 合一）。夹取/不越界 = 逐帧「组合块恒在带内」断言
+    // （超宽病态档容量/夹取数学由单测钉——章法：单测能覆盖的不进电池）；居中锚 = 屏幕
+    // 中心线（条带窗通栏横跨主屏、窗 x = 屏 x，存证帧视口中线 = 屏宽/2 − 窗 DIP 原点）。
     rep.beginSegment('P15B');
     let notepad15b = null;
     let mspaint15b = null;
@@ -1182,16 +1188,22 @@ async function main() {
     let tierTarget15b = null;
     try {
       const dip15b = screen.getPrimaryDisplay().bounds;
-      const appsMid = (g) => g.appsPill.x + g.appsPill.w / 2;
+      // 组合块横向区间 = 应用组左缘 ~（推荐组右缘，无推荐组则应用组右缘）——工单380：
+      // 居中的是应用+推荐组合的可见总宽度，不是应用组单独（取代 ADR-0013 决策 2）。
+      const combinedRight = (g) => (g.recPill && g.recPill.w > 0 ? g.recPill.x + g.recPill.w : g.appsPill.x + g.appsPill.w);
+      const combinedLeft = (g) => (g.appsPill.w > 0
+        ? g.appsPill.x
+        : (g.recPill && g.recPill.w > 0 ? g.recPill.x : g.appsPill.x));
+      const combinedMid = (g) => (combinedLeft(g) + combinedRight(g)) / 2;
       const tbHwnd15b = findWindow(panelPid, TASKBAR_TITLE);
       const rect15b = tbHwnd15b ? win32.rectOf(tbHwnd15b) : null;
       // 窗 DIP 原点（P1 同款换算：窗物理宽 / 屏 DIP 宽 = 缩放），存证帧视口原点 = 窗原点
       const winXDip15b = rect15b ? rect15b.left / ((rect15b.right - rect15b.left) / dip15b.width) : 0;
       const centerLine15b = dip15b.x + dip15b.width / 2 - winXDip15b;
       const inBand15b = (g) => {
-        const lo = g.startPill.x + g.startPill.w + 8;
+        const lo = (g.modePill && g.modePill.w > 0 ? g.modePill.x + g.modePill.w : g.startPill.x + g.startPill.w) + 8;
         const hi = g.rightPill.x - 8;
-        return g.appsPill.x >= lo - 0.5 && g.appsPill.x + g.appsPill.w <= hi + 0.5;
+        return combinedLeft(g) >= lo - 0.5 && combinedRight(g) <= hi + 0.5;
       };
       // 应用格保底探针（同 P15：栏上无应用时 notepad 1–2s 上栏）
       let geom15b = latestGeometry(null);
@@ -1205,7 +1217,7 @@ async function main() {
         }
       }
       const gA = await waitGeometrySettled(geom15b);
-      const midA = appsMid(gA);
+      const midA = combinedMid(gA);
       const anchorOk = Math.abs(midA - centerLine15b) <= 2.5;
       // 臂1 藏 TaskView（左邻收窄）→ 中心不变；显回 → 中心不变
       const wA = gA.startPill.w;
@@ -1219,7 +1231,7 @@ async function main() {
       }
       await sleep(1300);
       if (gHide) gHide = latestGeometry(null);
-      const hideOk = !!(gHide && Math.abs(appsMid(gHide) - centerLine15b) <= 2.5);
+      const hideOk = !!(gHide && Math.abs(combinedMid(gHide) - centerLine15b) <= 2.5);
       let gShow = null;
       const sinceShow15b = Date.now();
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-button-hidden', { id: 'tasks', hidden: false })`);
@@ -1230,7 +1242,7 @@ async function main() {
       }
       await sleep(1300);
       if (gShow) gShow = latestGeometry(null);
-      const showOk = !!(gShow && Math.abs(appsMid(gShow) - centerLine15b) <= 2.5);
+      const showOk = !!(gShow && Math.abs(combinedMid(gShow) - centerLine15b) <= 2.5);
       // 臂2 推荐位移除/恢复（开始组内容增删）→ 中心不变（P16 种子保证推荐位在场）。
       // 递补语义（工单161）：候选池有后继时移除后第 6 名即时递补、可见恒 5——开始组
       // 宽度不变，宽度类邻居驱动由臂1（TaskView）/臂3（托盘档位）承载；本臂口径 =
@@ -1247,14 +1259,14 @@ async function main() {
         const gRec = latestGeometry(null);
         const stRec = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
         const removed = !!(stRec && stRec.excluded && stRec.excluded.some((e) => eqExe(e.exe, recExe15b)));
-        const recGoneOk = !!(removed && gRec && Math.abs(appsMid(gRec) - centerLine15b) <= 2.5);
+        const recGoneOk = !!(removed && gRec && Math.abs(combinedMid(gRec) - centerLine15b) <= 2.5);
         const sinceRecBack = Date.now();
         await cdpEval(`window.deck.bridge.invoke('taskbar/rec-restore', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE);
         await sleep(1600);
         const gRecBack = latestGeometry(null);
         const stBack = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', {})`, TASKBAR_TITLE);
         const restored = !!(stBack && stBack.excluded && !stBack.excluded.some((e) => eqExe(e.exe, recExe15b)));
-        const recBackOk = !!(restored && gRecBack && Math.abs(appsMid(gRecBack) - centerLine15b) <= 2.5);
+        const recBackOk = !!(restored && gRecBack && Math.abs(combinedMid(gRecBack) - centerLine15b) <= 2.5);
         // recExe15b 不清空：finally 幂等重发恢复（rec-restore 对名单外身份空转）
         recOk = !!(recGoneOk && recBackOk);
       } else {
@@ -1278,18 +1290,21 @@ async function main() {
       }
       await sleep(1300);
       if (gTier) gTier = latestGeometry(null);
-      const tierMoved = !!(gTier && Math.abs(appsMid(gTier) - centerLine15b) <= 2.5);
+      const tierMoved = !!(gTier && Math.abs(combinedMid(gTier) - centerLine15b) <= 2.5);
       const sinceTierBack = Date.now();
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tier15b)} })`, TASKBAR_TITLE);
+      // 还原判据取「落定帧」：托盘 churn/1Hz 刷新可能在还原途中推中间宽度帧——
+      // 有界等一个同时满足「右组回到原左缘（±8）」与「组合中心仍贴中心线（±2.5）」的帧，
+      // 阈值不变，只是不再拿单点采样帧判死（2026-11-03 本机实测偶发中间帧）。
       let gTierBack = null;
-      for (let i = 0; i < 30 && !gTierBack; i++) {
-        await sleep(200);
+      const deadlineTierBack = Date.now() + 6000;
+      while (Date.now() < deadlineTierBack && !gTierBack) {
         const cand = latestGeometry(null, { since: sinceTierBack });
-        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8) gTierBack = cand;
+        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8
+          && Math.abs(combinedMid(cand) - centerLine15b) <= 2.5) gTierBack = cand;
+        if (!gTierBack) await sleep(200);
       }
-      await sleep(1300);
-      if (gTierBack) gTierBack = latestGeometry(null);
-      const tierRestored = !!(gTierBack && Math.abs(appsMid(gTierBack) - centerLine15b) <= 2.5);
+      const tierRestored = !!gTierBack;
       // tier15b 不清空：finally 幂等重发原档位（set-tray-overflow-limit 同值幂等）
       // 臂4 图标增多向两侧对称扩张：第二应用探针（mspaint 独立 exe 不与 notepad 合一）
       const wBefore = (latestGeometry(null) || gA).appsPill.w;
@@ -1305,7 +1320,7 @@ async function main() {
       }
       await sleep(1300);
       if (gGrow) gGrow = latestGeometry(null);
-      const growOk = !!(gGrow && Math.abs(appsMid(gGrow) - centerLine15b) <= 2.5);
+      const growOk = !!(gGrow && Math.abs(combinedMid(gGrow) - centerLine15b) <= 2.5);
       // 对称性：左缘左移量 ≈ 右缘右移量（落位取整 ±1px → 合计不对称 ≤3px）
       const symOk = !!(gGrow
         && Math.abs((xBefore - gGrow.appsPill.x) - ((gGrow.appsPill.x + gGrow.appsPill.w) - (xBefore + wBefore))) <= 3);
@@ -1314,12 +1329,13 @@ async function main() {
       const allInBand = frames15b.every(inBand15b);
       if (anchorOk && hideOk && showOk && (recOk !== false) && tierMoved && tierRestored && growOk && symOk && allInBand) {
         const recNote = recOk === true ? '推荐位移除/恢复中心不变' : '推荐位空池（种子未上场），增删驱动未行使';
-        rep.pass(`P15B 屏幕中心线锚定：应用组中心 ${midA.toFixed(1)} ≈ 屏幕中心线 ${centerLine15b.toFixed(1)}（容差 ±2.5px）、`
+        rep.pass(`P15B 应用+推荐组合中心锚定（工单380）：组合中心 ${midA.toFixed(1)} ≈ 屏幕中心线 ${centerLine15b.toFixed(1)}（容差 ±2.5px）、`
           + `藏/显 TaskView 中心不变、${recNote}、托盘档位 ${JSON.stringify(tierTarget15b)} 切换中心不变、`
           + `图标增多对称扩张（宽 ${wBefore.toFixed(0)}→${gGrow ? gGrow.appsPill.w.toFixed(0) : '?'}px，不对称 ≤3px）、全程带内不越界`);
       } else {
-        rep.fail(`P15B 锚定=${anchorOk}(组心${midA.toFixed(1)} vs 中心线${centerLine15b.toFixed(1)})`
+        rep.fail(`P15B 组合锚定=${anchorOk}(组合心${midA.toFixed(1)} vs 中心线${centerLine15b.toFixed(1)})`
           + ` 藏钮=${hideOk} 显回=${showOk} 推荐位=${JSON.stringify(recOk)} 档位切换=${tierMoved} 档位还原=${tierRestored}`
+          + ` 档位账=${JSON.stringify({ tier: tier15b, target: tierTarget15b, rp0, gTier: gTier && { right: gTier.rightPill, mid: combinedMid(gTier) }, gTierBack: gTierBack && { right: gTierBack.rightPill, mid: combinedMid(gTierBack), apps: gTierBack.appsPill, rec: gTierBack.recPill } })}`
           + ` 对称扩张=${growOk}/${symOk}(帧=${gGrow ? JSON.stringify(gGrow.appsPill) : 'null'})`
           + ` 带内=${allInBand} 帧=${JSON.stringify({ gA: gA && gA.appsPill, gHide: gHide && gHide.appsPill, gShow: gShow && gShow.appsPill })}`);
       }
@@ -1890,16 +1906,17 @@ async function main() {
       }
     }
 
-    // P19 推荐组独立漂浮 pill（工单192）：拆出开始组的独立容器（开始组右侧、应用组左侧，
-    // 间隙与样式同族）与两组显隐解耦。三臂——
+    // P19 推荐组独立漂浮 pill（工单192；工单380 改居应用组右侧）：拆出开始组的独立容器
+    // 与两组显隐解耦，并验证应用+推荐组合居中/重算。三臂——
     // ①独立容器在场：P16/P17 存活的五探针推荐位全部落 #pill-recs 界内、开始组 pill 内
-    //   零残留（.tb-rec 不再出现在 #pill-start）、与开始组有明确间隙（GROUP_GAP 8px）、
-    //   应用组不越推荐组右缘（应用组空带左邻=推荐组右缘）；
-    // ②显隐解耦正向：CDP 藏两系统按钮 → 开始组 display:none、推荐组独立在场（recPill
-    //   在场、recommendations 名单不变、退条带左缘内衬 x≈8），复原后开始组回归；
+    //   零残留（.tb-rec 不再出现在 #pill-start）、推荐组紧贴应用组右侧（GROUP_GAP 8px，
+    //   应用组缺席则单独居中）、组合不越右组左缘、组合中心贴屏幕水平中心线；
+    // ②显隐解耦正向：CDP 藏两系统按钮 → 开始组 display:none、推荐组独立在场
+    //   （recPill 在场、recommendations 名单不变、组合仍居中心线），复原后开始组回归；
     // ③解耦反向：迭代 rec-remove 当前可见名单直至候选池竭（滤除后截断语义——移除腾位
     //   即时递补，清空=池竭）→ 推荐组 display:none、recPill 矩形归零、recommendations []、
-    //   开始组不受牵连；移除账全数 rec-restore 回池（excluded 清空复原）。
+    //   应用组单独居中、开始组不受牵连；移除账全数 rec-restore 回池（组合重新居中、
+    //   excluded 清空复原）。
     // 全臂 CDP 桥直发 + 几何存证帧 + DOM 读取（显隐裁决面，无输入注入——驱动式同 P15）。
     rep.beginSegment('P19');
     if (!p16) {
@@ -1908,8 +1925,20 @@ async function main() {
       const probes19 = p16.probes;
       const recNames19 = (g) => (g && g.recommendations ? g.recommendations.map((r) => r.name) : []);
       const state19 = () => cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
-      const GAP19 = 8; // 渲染层 GROUP_GAP（taskbar-view appsBand 纯函数常量，CSS px，与 P15 同源）
-      // —— ① 独立容器在场与组间隙 ——
+      const GAP19 = 8; // 渲染层 GROUP_GAP（taskbar-view 纯函数常量，CSS px，与 P15 同源）
+      // 组合中心（工单380）：应用组左缘 ~（推荐组右缘，无推荐组则应用组右缘）的中点应
+      // 贴合屏幕水平中心线——推荐组出现/消失/宽度变化后重算。
+      const dip19 = screen.getPrimaryDisplay().bounds;
+      const tbHwnd19 = findWindow(panelPid, TASKBAR_TITLE);
+      const rect19 = tbHwnd19 ? win32.rectOf(tbHwnd19) : null;
+      const winXDip19 = rect19 ? rect19.left / ((rect19.right - rect19.left) / dip19.width) : 0;
+      const centerLine19 = dip19.x + dip19.width / 2 - winXDip19;
+      const combLeft19 = (g) => (g.appsPill.w > 0
+        ? g.appsPill.x
+        : (g.recPill && g.recPill.w > 0 ? g.recPill.x : g.appsPill.x));
+      const combRight19 = (g) => (g.recPill && g.recPill.w > 0 ? g.recPill.x + g.recPill.w : g.appsPill.x + g.appsPill.w);
+      const combMid19 = (g) => (combLeft19(g) + combRight19(g)) / 2;
+      // —— ① 独立容器在场与组合落位 ——
       const g19 = await waitGeometrySettled(latestGeometry(null));
       const dom19 = await cdpEval(`(() => {
         const rs = document.getElementById('pill-recs');
@@ -1930,20 +1959,23 @@ async function main() {
         const r = (g19.recommendations || []).find((x) => x.name === n);
         return r && r.x >= pill19.x - 0.5 && r.x + r.w <= pill19.x + pill19.w + 0.5;
       });
-      const gapOk19 = !!pill19 && g19.startPill.w > 0
-        && pill19.x >= g19.startPill.x + g19.startPill.w + GAP19 - 0.5;
-      const appsAfter19 = !pill19 || g19.appsPill.w === 0
-        || g19.appsPill.x >= pill19.x + pill19.w + GAP19 - 0.5;
+      // 工单380：推荐组紧贴应用组右侧（应用组缺席时按组合规则单独居中）；组合右缘
+      // 恒不越右组左缘（绝不覆盖托盘）；组合中心贴屏幕水平中心线（±2.5px）。
+      const recsAfterApps19 = !pill19 || g19.appsPill.w === 0
+        || pill19.x >= g19.appsPill.x + g19.appsPill.w + GAP19 - 0.5;
+      const bandRightOk19 = !pill19 || pill19.x + pill19.w <= g19.rightPill.x - GAP19 + 0.5;
+      const centerOk19 = Math.abs(combMid19(g19) - centerLine19) <= 2.5;
       const zeroResidue19 = dom19.startCells === 0;
       const domOk19 = dom19.recsDisplay !== 'none' && dom19.recsInlineLeft !== ''
         && dom19.recCells === names19.length;
-      if (fixture19 && inside19 && gapOk19 && appsAfter19 && zeroResidue19 && domOk19) {
+      if (fixture19 && inside19 && recsAfterApps19 && bandRightOk19 && centerOk19 && zeroResidue19 && domOk19) {
         rep.pass(`P19 推荐组独立漂浮 pill：${names19.length} 枚推荐位全部界内 #pill-recs`
-          + `（pill @${pill19.x.toFixed(0)}，开始组零残留），与开始组间隙达标（≥8px）`
-          + `、应用组居其右侧空带，独立容器 DOM 在场`);
+          + `（pill @${pill19.x.toFixed(0)}，开始组零残留），紧贴应用组右侧（间隙 ${g19.appsPill.w > 0 ? (pill19.x - g19.appsPill.x - g19.appsPill.w).toFixed(0) : 'n/a'}px）`
+          + `、组合中心 ${combMid19(g19).toFixed(1)} ≈ 屏幕中心线 ${centerLine19.toFixed(1)}、不越右组，独立容器 DOM 在场`);
       } else {
-        rep.fail(`P19 独立容器：夹具集=${fixture19}(${JSON.stringify(names19)}) 界内=${inside19} 间隙=${gapOk19}`
-          + ` 应用组右置=${appsAfter19} 开始组零残留=${zeroResidue19}(startCells=${dom19.startCells})`
+        rep.fail(`P19 独立容器：夹具集=${fixture19}(${JSON.stringify(names19)}) 界内=${inside19} 推荐贴应用右=${recsAfterApps19}`
+          + ` 不压托盘=${bandRightOk19} 组合中心=${centerOk19}(${combMid19(g19).toFixed(1)} vs ${centerLine19.toFixed(1)})`
+          + ` 开始组零残留=${zeroResidue19}(startCells=${dom19.startCells})`
           + ` DOM=${domOk19}(${JSON.stringify(dom19)}) recPill=${JSON.stringify(g19.recPill || null)}`);
       }
 
@@ -1972,7 +2004,8 @@ async function main() {
       const hideOk19 = !!(decoupled19 && domHide19
         && domHide19.startDisplay === 'none'
         && domHide19.recsDisplay !== 'none'
-        && Math.abs(parseFloat(domHide19.recsLeft || 'NaN') - 8) <= 2); // 退条带左缘内衬（APPS_INSET=8）
+        && domHide19.recsLeft !== ''
+        && Math.abs(combMid19(decoupled19) - centerLine19) <= 2.5); // 工单380：组合仍居中（退条带左内衬的旧锚定退役）
       // 复原两钮（显式复原；config 三态还原兜底）
       const sinceShow19 = Date.now();
       await cdpEval(`(async () => {
@@ -1988,7 +2021,7 @@ async function main() {
       }
       if (hideOk19 && reshown19) {
         rep.pass(`P19 显隐解耦正向：两系统按钮全藏 → 开始组不渲染（display:none）、推荐组独立在场`
-          + `（recPill 退条带左缘 left=${domHide19.recsLeft}，${recNames19(decoupled19).length} 枚推荐位无牵连），复原后开始组回归`);
+          + `（组合中心 ${combMid19(decoupled19).toFixed(1)} ≈ 屏幕中心线 ${centerLine19.toFixed(1)}，${recNames19(decoupled19).length} 枚推荐位无牵连），复原后开始组回归`);
       } else {
         rep.fail(`P19 解耦正向：藏钮后=${hideOk19}(帧=${decoupled19 ? JSON.stringify({ startPill: decoupled19.startPill, recPill: decoupled19.recPill }) : 'null'}`
           + ` dom=${JSON.stringify(domHide19 || {})}) 复原=${!!reshown19}`);
@@ -2064,13 +2097,17 @@ async function main() {
       }
       const stClean19 = await state19();
       const clean19 = !!(stClean19 && Array.isArray(stClean19.excluded) && stClean19.excluded.length === 0);
+      // 工单380：推荐组消失 → 应用组单独居中；回池出现 → 组合重新居中（两次重算都贴中心线）
+      const emptyCenterOk19 = !emptied19 || Math.abs(combMid19(emptied19) - centerLine19) <= 2.5;
+      const repoolCenterOk19 = !repool19 || Math.abs(combMid19(repool19) - centerLine19) <= 2.5;
       if (emptied19) {
-        if (domEmpty19 === 'none' && repool19 && clean19) {
+        if (domEmpty19 === 'none' && repool19 && clean19 && emptyCenterOk19 && repoolCenterOk19) {
           rep.pass(`P19 显隐解耦反向：候选池竭（移除 ${seenRemove19.length} 枚）→ 推荐组不渲染（display:none、`
-            + `recPill 矩形归零、recommendations []），开始组在场不受牵连；rec-restore 回池复原`
-            + `（可见集复原、excluded 清空）`);
+            + `recPill 矩形归零、recommendations []），应用组单独居中（${combMid19(emptied19).toFixed(1)} ≈ 中心线 ${centerLine19.toFixed(1)}），`
+            + `开始组在场不受牵连；rec-restore 回池复原（组合重新居中 ${combMid19(repool19).toFixed(1)}、excluded 清空）`);
         } else {
           rep.fail(`P19 解耦反向：清空=${!!emptied19} dom=${JSON.stringify(domEmpty19)} 回池=${!!repool19}`
+            + ` 空态居中=${emptyCenterOk19} 回池居中=${repoolCenterOk19}`
             + `(recs=${JSON.stringify(recNames19(latestGeometry(null)))}) excluded清空=${clean19}`);
         }
       } else if (stuck19 && stuck19.length && stuck19.every((r) => !String(r.exe || ''))) {

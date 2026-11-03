@@ -628,10 +628,11 @@ export function splitAppsOverflow(
   return planAppsOverflow(apps, slots)
 }
 
-// —— 工单159 栏分组布局重排 + 工单190 屏幕中心线锚定：应用组几何（纯函数；DOM 落位在
-// taskbar.ts）——布局反转：开始组钉条带左缘；应用组 pill 中心对齐屏幕水平中心线（工单190，
-// 不随开始组/推荐组/右组宽度漂移），空带 [开始组右缘, 右组左缘] 降为容量与夹取边界。
-// 居中参照系与容量边界两侧化在本层纯函数化——几何算式单测可钉，DOM 侧（taskbar.ts）
+// —— 工单159 栏分组布局重排 + 工单190 屏幕中心线锚定 + 工单380 应用推荐组合居中：
+// 应用组几何（纯函数；DOM 落位在 taskbar.ts）——布局：开始组钉条带左缘、模式组固定
+// 开始组右侧；应用组与推荐组按可见总宽度整体居中（无推荐位时应用组单独居中，取代
+// ADR-0013 的应用组单独居中）；空带 [左邻组右缘, 右组左缘] 降为容量与夹取边界。
+// 居中参照系、组合落位与容量边界在本层纯函数化——几何算式单测可钉，DOM 侧（taskbar.ts）
 // 只做矩形实测与落位。
 
 /** 应用组几何常量（与 taskbar.html CSS 同源：pill 内衬 8+8、图标格 36+2 间距、组间距 8、
@@ -643,23 +644,25 @@ export const GROUP_GAP = 8
 
 /** 应用组空带：[lo, hi] = [左邻组右缘（含组间距）, 右组左缘（含组间距）]——
  * 工单190 起不承载居中参照（居中锚 = 屏幕水平中心线），只作容量边界与夹取围栏
- * （pill 永不越带压邻居）；左邻按工单192 推荐组独立拆出随迁 = 推荐组 pill（appsBandLeft
- * 裁决：缺席回退开始组 pill） */
+ * （pill 永不越带压邻居）；工单380 起左邻 = 模式组（缺席回退开始组），推荐组与
+ * 应用组同属居中的组合块，不再是左邻。 */
 export interface AppsBand { lo: number; hi: number }
 
-/** 应用组空带左邻右缘（工单192 推荐组独立拆出随迁）：推荐组在场取推荐组右缘，缺席回退
- * 开始组右缘，两组都不在场（各自空则整组不渲染）返回 null——appsBand 据此退条带左缘内衬 */
+/** 应用组空带左邻右缘（工单192 历史口径）：推荐组在场取推荐组右缘，缺席回退
+ * 开始组右缘。工单380 起推荐组改居应用组右侧，渲染层改用 appsBandLeftWithMode；
+ * 本函数保留给旧缓存/测试口径，不参与新布局。 */
 export function appsBandLeft(recsRight: number | null, startRight: number | null): number | null {
   return recsRight ?? startRight
 }
 
 /**
- * 应用组空带左邻右缘（工单375 模式组随迁）：左邻链 = 推荐组右缘 → 模式切换组右缘 →
- * 开始组右缘——模式组插在开始组右侧（ADR-0028 任务栏新秩序的第一步；组合整体居中归
- * 工单380），应用组空带的左界随之让开模式组，容量与夹取不压邻组。
+ * 应用组空带左邻右缘（工单375 模式组随迁；工单380 推荐组退出左邻链）：左邻链 =
+ * 模式切换组右缘 → 开始组右缘——模式组固定在开始组右侧（ADR-0028 任务栏新秩序），
+ * 应用组空带的左界让开模式组，容量与夹取不压邻组。推荐组不再是左邻（它与应用组
+ * 同属居中的组合块，按组合几何整体落位）。
  */
-export function appsBandLeftWithMode(recsRight: number | null, modeRight: number | null, startRight: number | null): number | null {
-  return recsRight ?? modeRight ?? startRight
+export function appsBandLeftWithMode(modeRight: number | null, startRight: number | null): number | null {
+  return modeRight ?? startRight
 }
 
 /** 空带两侧边界：左邻组整组不在场（推荐组与开始组都不渲染）时左界退到条带左缘内衬；
@@ -686,24 +689,24 @@ export interface GroupPillSpan {
  * 点不到）。本函数改用收栏前最后一帧的区间（唤出条镜像的**同一份**）⇒ 容量与落位与收栏前
  * 一致：已唤出的组拿到可点击的宽度，条与组的横向区间同源（位置记忆不打架）。
  *
- * 边界口径与常态 appsBand 逐字一致：左邻按推荐组优先、缺席回退开始组，都缺席退条带左缘
- * 内衬；右界 = 右组左缘 − 组间距（右组缺位 ⇒ 不设限：容量放开，不裁剪）。
+ * 边界口径与常态 appsBand 逐字一致：左邻 = 模式组优先、缺席回退开始组，都缺席退条带左缘
+ * 内衬（工单380：推荐组改居应用组右侧，不再参与左邻链）；右界 = 右组左缘 − 组间距
+ * （右组缺位 ⇒ 不设限：容量放开，不裁剪）。
  */
 export function appsBandFromSpans(spans: {
   /** 开始组区间（缺位 = 该组不在场） */
   start?: GroupPillSpan
   /** 模式切换组区间（缺位 = 该组不在场，工单375） */
   mode?: GroupPillSpan
-  /** 推荐组区间（缺位 = 该组不在场） */
+  /** 推荐组区间（缺位 = 该组不在场；工单380 起不参与左邻链，仅为形状兼容保留） */
   recs?: GroupPillSpan
   /** 右组区间（缺位 = 缓存缺位 ⇒ 右界不设限） */
   right?: GroupPillSpan
 }): AppsBand {
-  const recsRight = spans.recs ? spans.recs.x + spans.recs.width : null
   const modeRight = spans.mode ? spans.mode.x + spans.mode.width : null
   const startRight = spans.start ? spans.start.x + spans.start.width : null
   const rightLeft = spans.right ? spans.right.x : Number.POSITIVE_INFINITY
-  return appsBand(appsBandLeftWithMode(recsRight, modeRight, startRight), rightLeft)
+  return appsBand(appsBandLeftWithMode(modeRight, startRight), rightLeft)
 }
 
 /** 应用组容量（工单159 两侧化）：带宽 − pill 内衬 → 图标格数（含 ⋯ 钮位，工单58 口径）。
@@ -726,6 +729,82 @@ export function appsPillLeft(band: AppsBand, pillWidth: number, centerX: number)
   if (left + w > band.hi) left = band.hi - w
   if (left < band.lo) left = band.lo
   return Math.round(left)
+}
+
+// —— 工单380 应用+推荐组合居中（spec #369 决策 17，取代 ADR-0013 的应用组单独居中）——
+// 应用组与推荐组按可见总宽度整体居中、推荐组紧贴应用组右侧；容量先扣推荐组预留宽度
+// （空间不足先让应用条目进入溢出），再对组合夹取，绝不覆盖托盘（推荐组右缘恒不越
+// 右组左缘前）。纯函数，DOM 实测宽度由调用方喂入。
+
+/**
+ * 应用组容量带（工单380）：从空带中先扣除推荐组预留宽度（推荐组宽度 + 组间距）——
+ * 「空间不足先溢出」的裁决顺序落点：应用组只能占用剩余宽度，超出的条目先进入现有
+ * ⋯ 溢出，而不是把组合挤出右界压托盘。推荐组不在场（宽度 0）即原样返回空带。
+ */
+export function combinedAppsBand(band: AppsBand, recsWidth: number): AppsBand {
+  const reserve = recsWidth > 0 ? recsWidth + GROUP_GAP : 0
+  return { lo: band.lo, hi: Math.max(band.lo, band.hi - reserve) }
+}
+
+/** 应用组容量（工单380）：扣推荐组预留宽度后的格数口径与 appsSlotsFor 逐字一致。 */
+export function appsSlotsForCombined(band: AppsBand, recsWidth: number): number {
+  return appsSlotsFor(combinedAppsBand(band, recsWidth))
+}
+
+/** 应用+推荐组合落位结果（客户区坐标；appsMaxWidth/recsMaxWidth 仅病态档非空 = 需 CSS 收窄） */
+export interface CombinedPillLayout {
+  /** 应用组 pill 左缘（应用组不渲染时无意义，取带左缘） */
+  appsLeft: number
+  /** 推荐组 pill 左缘（推荐组不在场 = null） */
+  recsLeft: number | null
+  /** 应用组收窄宽度（仅带宽不足、应用组需让位时非空） */
+  appsMaxWidth: number | null
+  /** 推荐组收窄宽度（仅推荐组自身宽过带宽时非空——保证右缘不越右组） */
+  recsMaxWidth: number | null
+}
+
+/**
+ * 应用+推荐组合落位（工单380，纯函数）：组合总宽 = 应用组宽 + 组间距 + 推荐组宽
+ * （推荐组缺席则仅应用组），整体中心对齐屏幕水平中心线（centerX）；越界即整块夹回
+ * 带内（左贴带左缘 / 右贴带右缘）。无推荐位退化为 appsPillLeft（应用组单独居中）。
+ *
+ * 病态档（组合宽于带宽，例如溢出浮层展开或推荐组自身过宽）：推荐组先贴带右缘
+ * （**绝不覆盖托盘**——右缘恒 = 带右界），应用组向左让位并在必要时收窄（appsMaxWidth），
+ * 两段仍以组间距分隔不重叠；推荐组自身宽过带宽时按带宽收窄（recsMaxWidth）。
+ */
+export function combinedPillsLeft(band: AppsBand, appsWidth: number, recsWidth: number, centerX: number): CombinedPillLayout {
+  const appsW = Math.max(0, appsWidth)
+  const recsW = Math.max(0, recsWidth)
+  if (recsW <= 0) {
+    return { appsLeft: appsPillLeft(band, appsW, centerX), recsLeft: null, appsMaxWidth: null, recsMaxWidth: null }
+  }
+  const bandW = Math.max(0, band.hi - band.lo)
+  const hasApps = appsW > 0
+  const total = (hasApps ? appsW + GROUP_GAP : 0) + recsW
+  if (total <= bandW) {
+    let left = centerX - total / 2
+    if (left < band.lo) left = band.lo
+    if (left + total > band.hi) left = band.hi - total
+    if (left < band.lo) left = band.lo // 浮点防御（bandW === total 时贴左缘）
+    const appsLeft = Math.round(left)
+    return {
+      appsLeft,
+      recsLeft: Math.round(hasApps ? left + appsW + GROUP_GAP : left),
+      appsMaxWidth: null,
+      recsMaxWidth: null,
+    }
+  }
+  // 病态档：推荐组先钉带右缘（自身过宽则按带宽收窄），应用组向左让位/收窄
+  const recsEff = Math.min(recsW, bandW)
+  const recsLeft = Math.max(band.lo, band.hi - recsEff)
+  const available = Math.max(0, recsLeft - GROUP_GAP - band.lo)
+  const appsEff = Math.min(appsW, available)
+  return {
+    appsLeft: Math.round(Math.max(band.lo, recsLeft - GROUP_GAP - appsEff)),
+    recsLeft: Math.round(recsLeft),
+    appsMaxWidth: appsW > available ? Math.round(available) : null,
+    recsMaxWidth: recsW > bandW ? Math.round(bandW) : null,
+  }
 }
 
 /**

@@ -1,11 +1,11 @@
-// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162/190/192/195）：状态经 taskbar/get-state 拉取 +
+// 任务栏条带渲染入口（工单49/52/53/54/55/56/57/58/159/162/190/192/195/375/380）：状态经 taskbar/get-state 拉取 +
 // taskbar/changed 订阅；右组 1Hz 数据帧（时钟 + 硬件仪表，工单55）经 taskbar/status 订阅。
-// 四组布局（工单192 推荐组独立拆出、工单190 应用组中心锚定）：开始组 pill 钉条带左缘
-// （系统按钮，工单54）、推荐组 pill 漂浮于开始组右侧应用组左侧（positionRecPill 落位，
-// 显隐按推荐位有无与开始组解耦，工单192）、应用组（手钉 + 运行中合并，工单52，右键菜单/
-// 中键/多窗口选窗属工单53）pill 中心对齐屏幕水平中心线（appsPillLeft——不随两侧内容漂移，
-// 空带 [左邻组右缘, 右组左缘] 只作容量与夹取围栏）、右组（硬件摘要 + 托盘图标（溢出收进
-// 「⋯」，工单162）+ 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
+// 组布局（工单380，spec #369 决策 17 取代 ADR-0013 的应用组单独居中）：开始组 pill 钉
+// 条带左缘（系统按钮，工单54）、模式切换组固定开始组右侧（工单375）、应用组（手钉 +
+// 运行中合并，工单52，右键菜单/中键/多窗口选窗属工单53）与推荐组（工单192 独立容器）
+// 按可见总宽度整体居中、推荐组紧贴应用组右侧（combinedPillsLeft；无推荐位时应用组
+// 单独居中）；空带 [左邻组右缘, 右组左缘] 只作容量与夹取围栏。右组（硬件摘要 + 托盘
+// 图标（溢出收进「⋯」，工单162）+ 音量 + 时钟，工单55/56）与显示桌面细条位置不变。
 // 各 pill、按钮/推荐位/应用组条目/右组单元格与细条矩形经宿主面声明为热区并落存证——
 // 验收电池据此取点击坐标。视图模型是纯函数（taskbar-view.ts）；本文件只是它的 DOM 呈现端
 // + 弹窗菜单开层/转达收层（工单193/196，ADR-0013：全部右键菜单与多窗选窗迁独立浮层窗
@@ -16,7 +16,7 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsPillLeft, appsSlotsFor, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, DesktopModeEntry, DesktopModeId, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
@@ -667,43 +667,24 @@ function clampModePillWidth(): void {
   pillMode.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
 }
 
-/** 推荐组落位（工单192 独立拆出）：开始组右缘+组间距（开始组整组不渲染时退条带左缘内衬
- * ——两组显隐解耦后推荐组可独自在场）。内容装配完同步落位——无中间帧闪烁；推荐组不渲染
- * （无推荐位）不落位。
- *
- * 工单253：收栏态不落位（栏面退场、开始组量不到，落位会漂到条带左缘）——沿用收栏前的
- * 落位（唤出条镜像同一份矩形 ⇒ 条与组同位）。 */
-function positionRecPill(): void {
-  if (pillRecs.hidden) return
-  if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
-  // 左邻链 = 模式切换组右缘（工单375 插位于开始组右侧）→ 开始组右缘 → 条带左缘内衬
-  const left = pillMode.hidden
-    ? (pillStart.hidden ? APPS_INSET : pillStart.getBoundingClientRect().right + GROUP_GAP)
-    : pillMode.getBoundingClientRect().right + GROUP_GAP
-  pillRecs.style.left = `${Math.round(left)}px`
-}
-
-/** 推荐组拥挤守卫（工单158 守卫语义随工单192 拆出随迁）：极端拥挤（26+ 托盘右组宽出）
- * 时 maxWidth 收窄到右组左缘前——推荐位图标格随 pill 整体裁剪（定宽格不吃文字收缩档，
- * overflow hidden），与 clampStartPillWidth 同族。
- *
- * 工单253：收栏态不跑（退场的右组量不到 ⇒ 收窄值是 0 ⇒ 推荐位被裁成空壳、点不到）。 */
-function clampRecPillWidth(): void {
-  if (pillRecs.hidden) return
-  if (!barSurfaceOnStage()) return // 工单253：退场邻组不参与裁剪
-  const avail = rightPill.getBoundingClientRect().left - GROUP_GAP - pillRecs.getBoundingClientRect().left
-  pillRecs.style.maxWidth = `${Math.max(0, Math.round(avail))}px`
-}
-
 /** 收栏前缓存的各组 pill 区间（收栏态的布局来源——与唤出条镜像的**同一份**矩形） */
 function cachedSpan(group: string): GroupPillSpan | undefined {
   const p = summonPillCache.find((r) => r.group === group)
   return p ? { x: p.x, width: p.width } : undefined
 }
 
-/** 应用组空带（工单159，工单192 左邻随推荐组拆出随迁）：[左邻组右缘, 右组左缘] —— 居中
- * 参照系与两侧容量边界同源。左邻按推荐组优先（appsBandLeft 纯函数裁决：推荐组在场取其
- * 右缘，缺席回退开始组右缘，都不在场退条带左缘内衬）
+/** 推荐组当前布局宽度（工单380）：栏面在场按实测 offsetWidth；收栏态栏面退场量不到，
+ * 取收栏前缓存区间宽度（与唤出条镜像同一份）——容量与落位在收栏前后一致。 */
+function recsLayoutWidth(): number {
+  if (pillRecs.hidden) return 0
+  if (!barSurfaceOnStage()) return cachedSpan('recs')?.width ?? 0
+  return pillRecs.offsetWidth
+}
+
+/** 应用组空带（工单159；工单375 模式组随迁；工单380 推荐组退出左邻链）：[左邻组右缘,
+ * 右组左缘] —— 容量边界与夹取围栏。左邻 = 模式切换组优先、缺席回退开始组，都缺席退
+ * 条带左缘内衬（appsBandLeftWithMode 纯函数裁决）。推荐组与应用组同属居中的组合块，
+ * 不再参与左邻链。
  *
  * 工单253：收栏态栏面退场、活邻组量不到（实测宽度 0）⇒ 常态口径算出的空带是零宽带（容量
  * 0 格 ⇒ 应用条目全被塞进「⋯」溢出，组被压成 54px 的溢出钮）。收栏态改取**收栏前缓存的
@@ -714,13 +695,11 @@ function currentAppsBand(): AppsBand {
     return appsBandFromSpans({
       start: cachedSpan('start'),
       mode: cachedSpan('mode'),
-      recs: cachedSpan('recs'),
       right: cachedSpan('right'),
     })
   }
   return appsBand(
     appsBandLeftWithMode(
-      pillRecs.hidden ? null : pillRecs.getBoundingClientRect().right,
       pillMode.hidden ? null : pillMode.getBoundingClientRect().right,
       pillStart.hidden ? null : pillStart.getBoundingClientRect().right,
     ),
@@ -728,17 +707,28 @@ function currentAppsBand(): AppsBand {
   )
 }
 
-/** 应用组落位（工单190）：pill 中心对齐屏幕水平中心线（appsPillLeft 纯函数——中心锚定
- * 不随开始组/推荐组/右组宽度漂移，推荐增删/托盘档位切换后结构性重渲自动回正；带外夹取
- * 维持现状、带宽不足钉带左缘）。锚点取 innerWidth/2：条带窗横跨主屏全宽且窗 x = 屏 x
- * （stripBounds 通栏口径，降级净空只让纵向），视口中线即屏幕水平中心线。pill 宽度按
- * offsetWidth 实测（border-box，含内衬边框），内容装配完同步落位——无中间帧闪烁
+/** 应用组+推荐组组合落位（工单380）：两块按可见总宽度整体居中（combinedPillsLeft 纯函数
+ * ——组合中心对齐屏幕水平中心线，推荐出现/消失/宽度变化后结构性重渲自动回正），推荐组
+ * 紧贴应用组右侧（组间距 8）；无推荐位时退化为应用组单独居中。带外整块夹取；病态档
+ * （组合宽于带宽）推荐组先贴带右缘、应用组让位/收窄——绝不覆盖托盘。锚点取
+ * innerWidth/2：条带窗横跨主屏全宽且窗 x = 屏 x（stripBounds 通栏口径，降级净空只让
+ * 纵向），视口中线即屏幕水平中心线。宽度按 offsetWidth 实测（border-box，含内衬边框），
+ * 内容装配完同步落位——无中间帧闪烁。
  *
  * 工单253：收栏态不落位（沿用收栏前的落位——与唤出条镜像的矩形同位）。 */
-function positionAppsPill(band: AppsBand): void {
-  if (pillApps.style.display === 'none') return
+function positionCombinedPills(band: AppsBand): void {
   if (!barSurfaceOnStage()) return // 工单253：布局冻结在收栏那一刻
-  pillApps.style.left = `${appsPillLeft(band, pillApps.offsetWidth, window.innerWidth / 2)}px`
+  const recsWidth = recsLayoutWidth()
+  const appsWidth = pillApps.style.display === 'none' ? 0 : pillApps.offsetWidth
+  const layout = combinedPillsLeft(band, appsWidth, recsWidth, window.innerWidth / 2)
+  if (appsWidth > 0) {
+    pillApps.style.left = `${layout.appsLeft}px`
+    pillApps.style.maxWidth = layout.appsMaxWidth === null ? '' : `${layout.appsMaxWidth}px`
+  }
+  if (recsWidth > 0 && layout.recsLeft !== null) {
+    pillRecs.style.left = `${layout.recsLeft}px`
+    pillRecs.style.maxWidth = layout.recsMaxWidth === null ? '' : `${layout.recsMaxWidth}px`
+  }
 }
 
 /** 应用组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
@@ -964,20 +954,26 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   return el
 }
 
-/** 应用组渲染（工单52/58/159）：手钉+运行中合并条目按容量拆分——容量按空带两侧边界
- * 裁决（appsSlotsFor——闭合形态恒在带内，不与邻组重叠）；栏内满员即出 ⋯ 钮，浮层开着时
- * 尾部条目横排进 pill（条带窗只有 48px 高（工单238），竖排浮层出不了窗口矩形，54 右键
- * 菜单同款先例）；数量回落浮层自动收、图标回栏。装配完就地居中落位（positionAppsPill
- * ——开合/增删后的结构性重渲即回正）。空组整组不渲染（display:none） */
+/** 应用组渲染（工单52/58/159；工单380 与推荐组组合居中）：手钉+运行中合并条目按容量
+ * 拆分——容量先扣推荐组预留宽度（appsSlotsForCombined：空间不足先让条目进入现有 ⋯ 溢出，
+ * 闭合形态恒在带内，不与邻组/托盘重叠）；栏内满员即出 ⋯ 钮，浮层开着时尾部条目横排进
+ * pill（条带窗只有 48px 高（工单238），竖排浮层出不了窗口矩形，54 右键菜单同款先例）；
+ * 数量回落浮层自动收、图标回栏。装配完与推荐组一起按组合总宽居中落位
+ * （positionCombinedPills——开合/增删后的结构性重渲即回正）。空组整组不渲染
+ * （display:none）；推荐组独自在场时按组合规则单独居中。 */
 function renderApps(entries: TaskbarAppViewEntry[]): void {
   pillApps.textContent = ''
   pillApps.style.display = entries.length ? '' : 'none'
+  pillApps.style.maxWidth = ''
+  pillRecs.style.maxWidth = '' // 重排版先清上一拍病态档收窄，按新带宽重算
+  const band = currentAppsBand()
+  const recsWidth = recsLayoutWidth()
   if (!entries.length) {
     overflowOpen = false
+    positionCombinedPills(band) // 应用组缺席：推荐组独自保持组合中心
     return
   }
-  const band = currentAppsBand()
-  const { bar, overflow } = splitAppsOverflow(entries, appsSlotsFor(band))
+  const { bar, overflow } = splitAppsOverflow(entries, appsSlotsForCombined(band, recsWidth))
   if (!overflow.length) overflowOpen = false // 数量回落自动收层（图标全部回栏）
   for (const e of bar) pillApps.appendChild(makeAppEl(e, false))
   if (overflow.length) {
@@ -997,7 +993,7 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
       for (const e of overflow) pillApps.appendChild(makeAppEl(e, true))
     }
   }
-  positionAppsPill(band)
+  positionCombinedPills(band)
 }
 
 /** 模式切换组入口元素（工单375）：高亮 = 当前桌面、禁用 = 切换在途（服务单飞兜底的
@@ -1107,14 +1103,13 @@ function render(state: TaskbarState): void {
     wireAction(clock, 'clock')
     rightPill.appendChild(clock)
   }
-  // 工单159 布局重排（工单192 推荐组拆出随迁）：右组先行落位 → 开始组钉左（CSS）+ 拥挤
-  // 守卫收窄 → 推荐组落位（开始组右缘+组间距）+ 拥挤守卫收窄 → 应用组按空带（左邻=推荐组
-  // 优先回退开始组，右邻=右组）裁容量并居中落位——依赖序自左向右，左邻矩形先于应用组成壳
+  // 工单380 布局重排（取代工单190 的应用组单独居中）：右组先行落位 → 开始组钉左（CSS）+
+  // 拥挤守卫收窄 → 模式组落位（开始组右缘+组间距）+ 拥挤守卫收窄 → 应用组按空带（左邻=
+  // 模式组优先回退开始组，右邻=右组）裁容量（先扣推荐组预留宽度）并与推荐组整体居中
+  // 落位——依赖序自左向右，左邻矩形先于组合块成壳。
   clampStartPillWidth()
   positionModePill()
   clampModePillWidth()
-  positionRecPill()
-  clampRecPillWidth()
   renderApps(vm.apps)
   renderSummon() // 唤出条（工单242）：收栏态下逐组一条（几何重算 + 条 DOM + 唤出态）
   declareHotZones(state)
