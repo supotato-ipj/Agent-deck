@@ -130,6 +130,18 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
         ?? (() => Boolean(ctx.desktopWorkspace?.state().available)),
       pairingIds: options.agentDragIn?.deps?.pairingIds
         ?? (() => ctx.desktopWorkspace?.pairingIds() ?? null),
+      // 主屏物理矩形（资格重核「主屏合格」判据；零矩形会把一切窗判成副屏——
+      // 375 P10 首轮实证）——与 agentTiling 装配同一 Electron 真源口径（物理 px）
+      primaryRect: options.agentDragIn?.deps?.primaryRect
+        ?? (() => {
+          const d = require('electron').screen.getPrimaryDisplay()
+          return {
+            left: Math.round(d.bounds.x * d.scaleFactor),
+            top: Math.round(d.bounds.y * d.scaleFactor),
+            right: Math.round((d.bounds.x + d.bounds.width) * d.scaleFactor),
+            bottom: Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor),
+          }
+        }),
     },
   })
   // Agent 平铺（工单376）：随 agentDesktop 开关隔离（默认关）——事件驱动编排，装配即

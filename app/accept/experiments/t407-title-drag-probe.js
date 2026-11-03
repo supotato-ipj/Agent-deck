@@ -255,6 +255,7 @@ async function main() {
     say('');
     say(`事件账目：${JSON.stringify(movesizeEvents)}`);
     say(`采样账目：${samples.length} 点（首=${JSON.stringify(samples[0] || null)} 末=${JSON.stringify(samples[samples.length - 1] || null)}）`);
+
     exitCode = failures.length === 0 ? 0 : 1;
   } catch (err) {
     say(`探针异常（本轮未取到证据，按环境问题处理）: ${err && err.stack || err}`);

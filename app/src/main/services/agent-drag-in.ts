@@ -146,7 +146,9 @@ export class AgentDragInService extends Service {
       windowDesktopId: d.windowDesktopId
         ?? ((hwnd) => (require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')).windowDesktopId(hwnd)),
       moveWindowToDesktop: d.moveWindowToDesktop
-        ?? ((hwnd, id) => (require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')).moveWindowToDesktop(hwnd, id)),
+        // 拖入迁移 = 跨进程移动（公开 MoveWindowToDesktop 对他进程窗 E_ACCESSDENIED，
+        // t407-move-window 探针实证）——内部 GetViewForHwnd + MoveViewToDesktop 真源
+        ?? ((hwnd, id) => (require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')).moveWindowToDesktopInternal(hwnd, id)),
       readRect: d.readRect
         ?? ((hwnd) => (require('../desktop/geom-write') as typeof import('../desktop/geom-write')).readWindowRect(hwnd)),
       restoreRect: d.restoreRect

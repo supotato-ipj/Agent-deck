@@ -5,6 +5,9 @@
 //     SwitchDesktop / CreateDesktop / RemoveDesktop；
 //   - 公开 IVirtualDesktopManager：IsWindowOnCurrentVirtualDesktop / GetWindowDesktopId /
 //     MoveWindowToDesktop（desktop-bound 窗的跟随兜底——SW_SHOWNA 重显不迁移，探针实证）；
+//   - 内部 IApplicationViewCollection::GetViewForHwnd + VDMI::MoveViewToDesktop（工单407
+//     t407-move-window 探针实证：**跨进程**移动他进程窗口的可用路径——公开
+//     MoveWindowToDesktop 对他进程窗实测 E_ACCESSDENIED，不能承载拖入迁移）；
 //   - 注册表 VirtualDesktopIDs/CurrentVirtualDesktop 单查询原子读（explorer 维护）。
 //
 // 纪律（spec 决策 3/30）：适配器**不向业务层泄露乐观状态**——switchDesktop 只报告 COM
@@ -26,6 +29,8 @@ const IID = {
   vdManagerInternal_24H2: '53F5CA0B-158F-4124-900C-057158060B27',
   virtualDesktop: '3F07F4BE-B107-441A-AF0F-39D82529072C',
   serviceProvider: '6D5140C1-7436-11CE-8034-00AA006009FA',
+  /** IApplicationViewCollection（QueryService 双参同 IID，MScholtes 24H2 布局） */
+  applicationViewCollection: '1841C6D7-4F9D-42C0-AF41-8747538F10E5',
 }
 
 // COM vtable 槽位（t371 实证布局，QI0/AddRef1/Release2 起）
@@ -42,6 +47,10 @@ const SLOT_IS_ON_CURRENT = 3
 const SLOT_GET_WIN_DESKTOP_ID = 4
 const SLOT_MOVE_WINDOW_TO_DESKTOP = 5
 const SLOT_RELEASE = 2
+/** 内部 VDMI::MoveViewToDesktop（IApplicationView + IVirtualDesktop，t407-move-window 探针实证） */
+const SLOT_VDMI_MOVE_VIEW_TO_DESKTOP = 4
+/** IApplicationViewCollection::GetViewForHwnd（QI0/AddRef1/Release2 起，GetViews=3…GetViewForHwnd=6） */
+const SLOT_VIEW_COLL_GET_VIEW_FOR_HWND = 6
 
 /** koffi 模块对象（module 与 dll 实例同构：load + 全部成员函数） */
 interface KoffiLike {
@@ -64,10 +73,13 @@ interface Bound {
   koffi: KoffiLike
   /** 内部 COM 可用（false = IID 漂移/壳不可达——失败关闭，创建与切换整体离场） */
   internalAvailable: boolean
-  /** 公开 IVirtualDesktopManager 查询面可用 */
+  /** 公开 VDM 查询面可用 */
   publicAvailable: boolean
+  /** 内部 IApplicationViewCollection 可用（跨进程移动窗口路径，t407-move-window 探针） */
+  viewCollectionAvailable: boolean
   internalPtr: unknown
   publicPtr: unknown
+  viewCollectionPtr: unknown
   protos: Record<string, unknown>
   guidFromStr: (s: string) => unknown
 }
@@ -109,6 +121,8 @@ function bind(): Bound | null {
       isOnCurrent: koffi.proto('__stdcall', 'VD_IsOnCurrent', 'int32', ['void *', 'uintptr_t', koffi.out('int32 *')]),
       getWinDesktopId: koffi.proto('__stdcall', 'VD_GetWinDesktopId', 'int32', ['void *', 'uintptr_t', koffi.out('VD_GUID *')]),
       moveWindowToDesktop: koffi.proto('__stdcall', 'VD_MoveWindowToDesktop', 'int32', ['void *', 'uintptr_t', 'const VD_GUID *']),
+      getViewForHwnd: koffi.proto('__stdcall', 'VD_GetViewForHwnd', 'int32', ['void *', 'uintptr_t', koffi.out('void **')]),
+      moveViewToDesktop: koffi.proto('__stdcall', 'VD_MoveViewToDesktop', 'int32', ['void *', 'void *', 'void *']),
     }
     const PTRSZ = 8 // x64 指针宽
     const slotOf = (obj: unknown, i: number) => koffi.decode(koffi.decode(obj, 'void *'), i * PTRSZ, 'void *')
@@ -128,13 +142,19 @@ function bind(): Bound | null {
     // 公开 VDM 独立绑定（窗口桌面 ID/IsOnCurrent/移动的查询面）
     const pub = [null]
     const hrPub = coCreateInstance(guidFromStr(CLSID.vdManager), null, 1, guidFromStr(IID.vdManager), pub)
+    // 内部 IApplicationViewCollection（跨进程移动窗口路径；QueryService 双参同 IID，
+    // t407-move-window 探针实证形态）——缺席只降级移动面，查询/切换/创建不受影响
+    const viewColl = [null]
+    const hrViewColl = koffi.call(slotOf(shell[0], SLOT_QUERY_SERVICE), protos.queryService!, shell[0], guidFromStr(IID.applicationViewCollection), guidFromStr(IID.applicationViewCollection), viewColl)
     try { releasePtr(shell[0]) } catch { /* 壳引用释放（QueryService 已持自有引用） */ }
     bound = {
       koffi,
       internalAvailable: hrQs === 0 && svc[0] != null,
       publicAvailable: hrPub === 0 && pub[0] != null,
+      viewCollectionAvailable: hrViewColl === 0 && viewColl[0] != null,
       internalPtr: svc[0],
       publicPtr: pub[0],
+      viewCollectionPtr: viewColl[0],
       protos,
       guidFromStr,
     }
@@ -406,6 +426,9 @@ export function windowDesktopId(hwnd: number): string | null {
 /**
  * 把窗口移动到目标桌面（公开 MoveWindowToDesktop——desktop-bound 窗的跟随兜底路径，
  * t371 实证 S_OK 双向可用）。返回 true = 系统受理（最终归属仍以回读为准）。
+ *
+ * **仅限自家进程窗口**：对他进程窗实测 E_ACCESSDENIED（工单407 t407-move-window 探针
+ * round2 实证）——跨进程移动（拖入迁移）走 moveWindowToDesktopInternal。
  */
 export function moveWindowToDesktop(hwnd: number, id: string): boolean {
   const b = bind()
@@ -415,5 +438,39 @@ export function moveWindowToDesktop(hwnd: number, id: string): boolean {
     return hr === 0
   } catch {
     return false
+  }
+}
+
+/**
+ * 跨进程把窗口移动到目标桌面（内部 IApplicationViewCollection::GetViewForHwnd +
+ * VDMI::MoveViewToDesktop，工单407 t407-move-window 探针 GO 实证：hr=0 且公开
+ * GetWindowDesktopId 回读命中目标）。拖入迁移的移动真源；返回 = 系统受理与否
+ * （最终归属仍以桌面 ID 回读为准，调用方确认——migrationConfirmed）。
+ */
+export function moveWindowToDesktopInternal(hwnd: number, id: string): boolean {
+  const b = bind()
+  if (!b?.viewCollectionAvailable || !b.internalAvailable || !id) return false
+  let view: unknown = null
+  try {
+    const v = [null]
+    const hrView = b.koffi.call(vtSlot(b.viewCollectionPtr, SLOT_VIEW_COLL_GET_VIEW_FOR_HWND), b.protos.getViewForHwnd!, b.viewCollectionPtr, hwnd, v)
+    if (hrView !== 0 || !v[0]) return false
+    view = v[0]
+    const target = desktopObjectById(id)
+    if (!target) return false
+    try {
+      const hrMove = b.koffi.call(vtSlot(b.internalPtr, SLOT_VDMI_MOVE_VIEW_TO_DESKTOP), b.protos.moveViewToDesktop!, b.internalPtr, view, target)
+      return hrMove === 0
+    } finally {
+      releaseObj(target)
+    }
+  } catch {
+    return false
+  } finally {
+    if (view) {
+      try {
+        b.koffi.call(vtSlot(view, SLOT_RELEASE), b.protos.release!, view)
+      } catch { /* 释放尽力 */ }
+    }
   }
 }

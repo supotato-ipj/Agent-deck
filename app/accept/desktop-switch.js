@@ -978,7 +978,16 @@ async function main() {
         com.switchDesktop(normalId);
         await waitDesktopCurrent375(com, normalId, 3000);
       }
-      // 夹具：新探针窗落普通桌面（P7 同款 WinForms 探针；按 exe 身份寻窗）
+      // 夹具：新探针窗落普通桌面（P7 同款 WinForms 探针；按 exe 身份寻窗）。
+      // 先清掉 P7/P9 留在 Agent 桌面的探针窗（本段平铺断言要 count=1 的干净 Agent 桌面；
+      // 它们的 pin/选窗用途已随 P9 收尾结束）
+      for (const h of probeWindows380(probe7Exe)) {
+        try {
+          const pid = win32.threadIdOf(h).pid;
+          if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+        } catch { /* 尽力清场 */ }
+      }
+      await sleep(600);
       p10Probe = copyProbe380(probe7, 'P10-DRAG');
       p10Child = spawn(p10Probe.exe, [], { stdio: 'ignore' });
       probeChildren.push(p10Child);
