@@ -1,26 +1,26 @@
-# accept 383-agent-restart-recovery — 2026-11-03T08:44:55.091Z
-[08:44:55.225] NOTE  基线注册表事实：桌面数=2 集合=[b8574018, 5a5adac7] 当前=b8574018
-[08:44:55.317] NOTE  平铺区期望：[0,0,2560,1392]（主屏 2560×1440 @1x）
-[08:45:09.439] NOTE  夹具桌面事实：791868=onCurrent:true/id:70359898，4064438=onCurrent:true/id:70359898，3409796=onCurrent:true/id:70359898；当前=70359898 agent=70359898
-[08:45:18.084] NOTE  P1 持久文档：clean=true order=3 树=在场 队列=[0,1,2] 浮动=0
-[08:45:18.086] SEG   ▶ P1 干净重启恢复：真实三窗平铺 → app/quit 干净退出 → 重启后配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（逐像素）、手动授权全关闭（floating/prompting/authorized 口径）｜工单383｜失效面=系统状态+事件存证
-[08:45:23.573] PASS  P1 干净重启恢复：app/quit 后重启 → 配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（w1 [0,0,1280,1392]、w2 [1280,0,2560,1392]、w3 浮动 [360,280,1060,880]，逐像素）；授权全关闭（floating=1 prompting=0 authorized=0）；状态 recovery=restored
-[08:45:23.574] SEG   ▶ P2 隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/floating），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题｜工单383｜失效面=系统状态+事件存证
-[08:45:23.579] PASS  P2 隐私：持久文档只含白名单键（clean,desktopId,floating,order,queue,tree,version），不含窗口标题/缩略图/手动授权（检索 "title"、"prompt"、"armed"、"authorized"、"thumbnail"、data:image、T383-W- 零命中）；事件日志不含夹具标题
-[08:45:23.581] SEG   ▶ P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；夹具窗矩形逐像素不变；任务栏条带由既有守护链重建｜工单383｜失效面=系统状态+事件存证+面板存活
-[08:45:31.214] PASS  P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；三窗矩形逐像素不变（[0,0,1280,1392] [1280,0,2560,1392] [360,280,1060,880]）；任务栏条带在场=true（既有守护链重建；原生栏在退出后还原见 P5）
-[08:45:39.261] SEG   ▶ P4 安全态故障注入：窗口身份不符（同 hwnd 换 pid）→ window-identity、模型不一致（树引用越界）→ model、桌面 ID 不一致 → desktop-id；三次重启均零自动改窗｜工单383｜失效面=系统状态+事件存证
-[08:46:21.598] PASS  P4 安全态：身份不符→window-identity、模型不一致→model、桌面 ID 不一致→desktop-id；三次重启均零自动改窗（夹具矩形不动）
-[08:46:21.600] SEG   ▶ P5 收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 与布局文件还原、原生任务栏经既有还原链/清场兜底可见｜工单383｜失效面=系统状态
-[08:46:24.545] PASS  P5 零残留：注册表桌面集合与基线逐项相等（2 桌面）、当前不在已删 Agent 桌面、夹具窗进程已清场
-[08:46:27.970] PASS  P5 原生任务栏可见（自动还原未在窗内生效，经既有清场兜底入口翻回）
-[08:46:27.975] ===== 383-agent-restart-recovery VERDICT: PASS (pass=6 fail=0) =====
+# accept 383-agent-restart-recovery — 2026-11-03T17:43:22.028Z
+[17:43:22.153] NOTE  基线注册表事实：桌面数=3 集合=[b8574018, 5a5adac7, c03d2558] 当前=b8574018
+[17:43:22.231] NOTE  平铺区期望：[0,0,2560,1392]（主屏 2560×1440 @1x）
+[17:43:31.346] NOTE  夹具桌面事实：5641598=onCurrent:true/id:b7f47be7，2233434=onCurrent:true/id:b7f47be7，27333630=onCurrent:true/id:b7f47be7；当前=b7f47be7 agent=b7f47be7
+[17:43:39.909] NOTE  P1 持久文档：clean=true order=3 树=在场 队列=[0,1,2] 浮动=0
+[17:43:39.910] SEG   ▶ P1 干净重启恢复：真实三窗平铺 → app/quit 干净退出 → 重启后配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（逐像素）、手动授权全关闭（floating/prompting/authorized 口径）｜工单383｜失效面=系统状态+事件存证
+[17:43:44.055] PASS  P1 干净重启恢复：app/quit 后重启 → 配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（w1 [0,0,1280,1392]、w2 [1280,0,2560,1392]、w3 浮动 [360,280,1060,880]，逐像素）；授权全关闭（floating=1 prompting=0 authorized=0）；状态 recovery=restored
+[17:43:44.056] SEG   ▶ P2 隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/floating），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题｜工单383｜失效面=系统状态+事件存证
+[17:43:44.059] PASS  P2 隐私：持久文档只含白名单键（clean,desktopId,floating,order,queue,tree,version），不含窗口标题/缩略图/手动授权（检索 "title"、"prompt"、"armed"、"authorized"、"thumbnail"、data:image、T383-W- 零命中）；事件日志不含夹具标题
+[17:43:44.061] SEG   ▶ P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；夹具窗矩形逐像素不变；任务栏条带由既有守护链重建｜工单383｜失效面=系统状态+事件存证+面板存活
+[17:43:49.653] PASS  P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；三窗矩形逐像素不变（[0,0,1280,1392] [1280,0,2560,1392] [360,280,1060,880]）；任务栏条带在场=true（既有守护链重建；原生栏在退出后还原见 P5）
+[17:43:57.670] SEG   ▶ P4 安全态故障注入：窗口身份不符（同 hwnd 换 pid）→ window-identity、模型不一致（树引用越界）→ model、桌面 ID 不一致 → desktop-id；三次重启均零自动改窗｜工单383｜失效面=系统状态+事件存证
+[17:44:35.066] PASS  P4 安全态：身份不符→window-identity、模型不一致→model、桌面 ID 不一致→desktop-id；三次重启均零自动改窗（夹具矩形不动）
+[17:44:35.067] SEG   ▶ P5 收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 与布局文件还原、原生任务栏经既有还原链/清场兜底可见｜工单383｜失效面=系统状态
+[17:44:37.261] PASS  P5 零残留：注册表桌面集合与基线逐项相等（3 桌面）、当前不在已删 Agent 桌面、夹具窗进程已清场
+[17:44:40.692] PASS  P5 原生任务栏可见（自动还原未在窗内生效，经既有清场兜底入口翻回）
+[17:44:40.698] ===== 383-agent-restart-recovery VERDICT: PASS (pass=6 fail=0) =====
 ===== 账目（三态记账，工单110） =====
 三路计数：pass=6 fail=0 excluded=0 ｜ PASS → 退出码 0
 排除窗：轮末已全部闭合
 段账目（took=段实测墙钟；工单/失效面标注自清单，工单114）：
-  P1 干净重启恢复：真实三窗平铺 → app/quit 干净退出 → 重启后配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（逐像素）、手动授权全关闭（floating/prompting/authorized 口径） pass=1 fail=0 excl=0 took=5.5s｜工单383｜失效面=系统状态+事件存证
+  P1 干净重启恢复：真实三窗平铺 → app/quit 干净退出 → 重启后配对恢复（paired=true current=agent）、窗口顺序/平铺树/浮动几何按必要信息恢复（逐像素）、手动授权全关闭（floating/prompting/authorized 口径） pass=1 fail=0 excl=0 took=4.1s｜工单383｜失效面=系统状态+事件存证
   P2 隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/floating），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题 pass=1 fail=0 excl=0 took=0.0s｜工单383｜失效面=系统状态+事件存证
-  P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；夹具窗矩形逐像素不变；任务栏条带由既有守护链重建 pass=1 fail=0 excl=0 took=15.7s｜工单383｜失效面=系统状态+事件存证+面板存活
-  P4 安全态故障注入：窗口身份不符（同 hwnd 换 pid）→ window-identity、模型不一致（树引用越界）→ model、桌面 ID 不一致 → desktop-id；三次重启均零自动改窗 pass=1 fail=0 excl=0 took=42.3s｜工单383｜失效面=系统状态+事件存证
-  P5 收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 与布局文件还原、原生任务栏经既有还原链/清场兜底可见 pass=2 fail=0 excl=0 took=6.4s｜工单383｜失效面=系统状态
+  P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；夹具窗矩形逐像素不变；任务栏条带由既有守护链重建 pass=1 fail=0 excl=0 took=13.6s｜工单383｜失效面=系统状态+事件存证+面板存活
+  P4 安全态故障注入：窗口身份不符（同 hwnd 换 pid）→ window-identity、模型不一致（树引用越界）→ model、桌面 ID 不一致 → desktop-id；三次重启均零自动改窗 pass=1 fail=0 excl=0 took=37.4s｜工单383｜失效面=系统状态+事件存证
+  P5 收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 与布局文件还原、原生任务栏经既有还原链/清场兜底可见 pass=2 fail=0 excl=0 took=5.6s｜工单383｜失效面=系统状态
