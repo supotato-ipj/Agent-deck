@@ -24,6 +24,7 @@ import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
 import { initialSummonState, summonedGroups } from '../shared/retract.js'
 import type { SummonState } from '../shared/retract.js'
 import type { DesktopWorkspaceState, HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
+import type { DragInRejectReason } from '../main/desktop/drag-in-plan'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
 const pillMode = document.getElementById('pill-mode') as HTMLElement
@@ -50,6 +51,9 @@ let current: TaskbarState | null = null
 /** 桌面工作区共享状态（工单375）：面板/任务栏/（后续）胶囊订阅同一份（spec 决策 5）——
  * workspace/changed 即推 + boot 拉 workspace/get-state 对齐；null = 未拉到（模式组不渲染） */
 let desktopState: DesktopWorkspaceState | null = null
+/** 标题栏拖拽落点高亮（工单407）：主进程拖拽会话投影 overAgent=true 时 Agent 入口
+ *  亮描边（.drop-target）——渲染层只消费主进程光标事实，不自行 hit-test（契约面） */
+let dragInOverAgent = false
 /** 右组 1Hz 数据帧的最近值：重渲染（勾选变更）时按它立即填字，不等下一拍 */
 let latestStatus: TaskbarStatus | null = null
 /** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
@@ -807,6 +811,32 @@ function makeDraggable(el: HTMLElement, group: TaskbarDragGroup, id: string): vo
   })
 }
 
+/** 拖入失败简短原因文案（工单408，spec #403 story 45）：drop 通路事务终局的
+ * reason 枚举 → 条带内一句话；不含窗口标题或拖入内容。取消路径（拖走/Esc/栏外松手）
+ * 服务层零反馈上行——本表只映失败终局。键取 DragInRejectReason 联合类型（评审修复
+ * 2026-11-04，不再逐条复抄字符串字面量）：新增 reason 漏配文案即编译错，静默落兜底
+ * 的口子收掉；type-only import 不进渲染层模块图（renderer-boundary 守卫只禁值 import）。 */
+const DRAG_IN_REJECT_TEXT: Record<DragInRejectReason, string> = {
+  'window-unknown': '未能识别该窗口，已取消移交',
+  'ineligible-window': '该窗口不能移入 Agent 桌面（窗口类型或屏幕不合格），已还原',
+  'source-desktop-mismatch': '该窗口不在普通桌面，已取消移交',
+  'move-failed': '移交未受理，窗口已留在原桌面并还原位置',
+  'move-unconfirmed': '移交未获系统确认，已回滚到原桌面',
+  'rollback-failed': '移交失败且回滚未完成，请检查该窗口位置',
+  unpaired: 'Agent 桌面未配对，无法移交',
+  unavailable: 'Agent 桌面工作区不可用',
+  'not-normal-desktop': '当前不在普通桌面，无法移交',
+  'missing-pairing-id': '桌面配对身份缺侧，无法移交',
+}
+
+/** reason → 文案（契约层 reason 是宽 string——未知值走兜底，不假设对端枚举同版） */
+function dragInRejectText(reason: string | undefined): string {
+  if (reason !== undefined && reason in DRAG_IN_REJECT_TEXT) {
+    return DRAG_IN_REJECT_TEXT[reason as DragInRejectReason]
+  }
+  return '窗口移交未完成'
+}
+
 /** 拖拽失败可见反馈（工单195）：服务层拒返（ok:false）与契约异常都不静默——条带内
  * toast 逐字透出错误文案，5s 兜底自收；#drag-toast 是 body 直挂节点，整树重渲不触碰，
  * 验收电池按 DOM 在场 + 文案断言。 */
@@ -1009,7 +1039,7 @@ function renderApps(entries: TaskbarAppViewEntry[]): void {
  *  点击存证双事件（taskbar-mode-action / -result）与系统动作格同族——电池按它对账。 */
 function makeModeEl(m: DesktopModeEntry): HTMLElement {
   const el = document.createElement('div')
-  el.className = `tb-mode-btn${m.active ? ' active' : ''}${m.disabled ? ' disabled' : ''}`
+  el.className = `tb-mode-btn${m.active ? ' active' : ''}${m.disabled ? ' disabled' : ''}${m.id === 'agent' && dragInOverAgent ? ' drop-target' : ''}`
   el.dataset.id = m.id
   el.innerHTML = DESKTOP_MODE_ICONS[m.id]
   el.title = m.title
@@ -1294,6 +1324,23 @@ function boot(): void {
     window.deck.bridge.on('workspace/changed', (s) => {
       desktopState = s
       if (current) requestRender(current)
+    })
+    // 标题栏拖拽落点高亮（工单407）：只消费主进程拖拽会话投影（光标 hit-test 在主进程
+    // 热区跟踪器，与穿透判定同拍同源）——overAgent 翻转即热切换 Agent 入口描边（不走
+    // 全量重渲：拖拽期 OLE/原生会话对重排敏感，requestRender 的合帧挂起语义不适用）。
+    window.deck.bridge.on('workspace/drag-in-changed', (p) => {
+      const over = Boolean(p.active && p.overAgent)
+      if (over === dragInOverAgent) return
+      dragInOverAgent = over
+      const agent = pillMode.querySelector<HTMLElement>('.tb-mode-btn[data-id="agent"]')
+      agent?.classList.toggle('drop-target', over)
+    })
+    // 拖入终局简短反馈（工单408，spec #403 story 45「同时看到简短原因」）：失败原因
+    // 枚举透成条带内 toast（showDragError 同款）；成功零操作——窗口迁走即天然可见。
+    // 只消费原因枚举，不含窗口标题或拖入内容。
+    window.deck.bridge.on('workspace/drag-in-feedback', (p) => {
+      if (p.ok) return
+      showDragError(dragInRejectText(p.reason))
     })
     // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
     // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空。

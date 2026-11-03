@@ -299,7 +299,12 @@ export interface AgentTilingState {
   count: number
   /** 当前平铺规划已落格数 */
   placed: number
-  /** 容量溢出数（工单376 标记、工单377 补入——空间释放后按成员序补回） */
+  /**
+   * 屏外滚动带成员数（工单405 语义升版，GLOSSARY「屏外滚动带」「容量溢出」）：容量
+   * 溢出 = 触发屏外带扩展的容量条件，屏外成员是**受管平铺成员**（写入带列矩形、
+   * 计入胶囊与预览），不是未平铺窗口——未平铺只剩浮动与异常两类。带成员空间释放后
+   * 按进入序补回屏内。
+   */
   overflow: number
   /** 异常未平铺数（有限诊断不无限重试） */
   anomalies: number
@@ -1172,6 +1177,13 @@ export interface BridgeMethods {
    * 失败保持现状并携带提示；未配对时先配对（普通 = 当下所在桌面，Agent 新建为空）。
    */
   'workspace/switch-to': { request: { mode: 'normal' | 'agent' }; response: { ok: boolean; state: DesktopWorkspaceState; error?: string } }
+  /**
+   * 标题栏拖入工作区命令（工单407，spec #403 决策「新增一个内部工作区拖入命令」）：
+   * 请求只携带源窗口句柄——主进程重核配对/当前普通桌面/源桌面/主屏/窗口资格（不信任
+   * 调用方自报），迁移以桌面 ID 回读确认；确认后才登记一次性待入列交接。落放不切桌面。
+   * 失败返回 ok:false + 简短原因枚举（story 45/46/47）。
+   */
+  'workspace/drag-in': { request: { hwnd: number }; response: { ok: boolean; reason?: string; detail?: string } }
   /** Agent 平铺状态只读投影（工单376）：顶部胶囊与诊断共用（缺装配回退空态） */
   'tiling/get-state': { request: null; response: AgentTilingState }
   /**
@@ -1270,8 +1282,26 @@ export interface BridgeEvents {
    * 系统快捷键/TaskView 造成的切换也经 reconciliation 观察后由此回推（不抢回用户）。
    */
   'workspace/changed': DesktopWorkspaceState
+  /**
+   * 标题栏拖拽会话状态变化（工单407，spec #403 决策「拖拽期间协调会话预览」）：
+   * MOVESIZE 起止与 Agent 入口悬停（overAgent）任一变化即推——任务栏渲染层据此显示
+   * 落点高亮、会话预览据此暂停/恢复。载荷只含布尔投影，不含窗口数据。
+   */
+  'workspace/drag-in-changed': { active: boolean; overAgent: boolean }
+  /**
+   * 拖入事务终局反馈（工单408，spec #403 story 45「简短原因」/47「可诊断终局」）：
+   * drop 通路每次事务收尾即发一次——任务栏渲染层把失败原因透成条带内简短反馈
+   * （showDragError 同款），成功零操作（窗口迁走即天然可见）。载荷只含句柄与原因
+   * 枚举，不含窗口标题或拖入内容（隐私口径同 spec 决策 50）。
+   */
+  'workspace/drag-in-feedback': { hwnd: number; ok: boolean; reason?: string; source: 'drop' | 'command' }
   /** Agent 平铺状态变化（工单376）：计数/落格/溢出/异常任一变化即推——胶囊订阅同一份 */
   'tiling/changed': AgentTilingState
+  /**
+   * 拖入一次性交接登记（工单407）：迁移经桌面 ID 回读确认后即发一次——Agent 平铺服务
+   * 订阅它把该窗按交接顺序并入待入列（下次布局拍对账并清除）。渲染层不消费。
+   */
+  'tiling/drag-in-registered': { hwnd: number }
   /**
    * 窗口预览状态变化（工单379）：展开/收起/条目（模式/图标/缓存帧）变化即推。
    * 载荷含标题与内存位图——只走窗内桥，不落日志、不出预览/胶囊窗。

@@ -961,6 +961,156 @@ async function main() {
         if (normalId && com9.currentId() !== normalId) com9.switchDesktop(normalId);
       } catch { /* 尽力 */ }
     }
+
+    // —— P10 标题栏拖入 Agent 桌面最小事务（工单407，spec #403 决策「拖入是一次事务」）——
+    // 普通桌面主屏合格探针窗经真实标题栏拖动（SendInput 按下→分步移动→松开）拖到任务栏
+    // Agent 入口松手：主进程 MOVESIZE 起止识别源窗口、落点悬停即渲染层 .drop-target 高亮
+    // （会话预览暂停——拖动窗内零 session-preview-open 存证）、松手后主进程迁移经桌面
+    // ID 回读确认并登记交接（drag-in-registered 存证）、落放不切桌面；切到 Agent 桌面后
+    // 该窗按交接实际平铺（count/placed=1、矩形铺满平铺区）。
+    rep.beginSegment('P10');
+    let p10Probe = null;
+    let p10Child = null;
+    try {
+      if (!agentId) throw new Error('P2 未取得 Agent 桌面 ID——本段无法执行');
+      // 干净起点：普通桌面（P9 finally 已回；二次确认）
+      if (com.currentId() !== normalId) {
+        com.switchDesktop(normalId);
+        await waitDesktopCurrent375(com, normalId, 3000);
+      }
+      // 夹具：新探针窗落普通桌面（P7 同款 WinForms 探针；按 exe 身份寻窗）。
+      // 先清掉 P7/P9 留在 Agent 桌面的探针窗（本段平铺断言要 count=1 的干净 Agent 桌面；
+      // 它们的 pin/选窗用途已随 P9 收尾结束）
+      for (const h of probeWindows380(probe7Exe)) {
+        try {
+          const pid = win32.threadIdOf(h).pid;
+          if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+        } catch { /* 尽力清场 */ }
+      }
+      await sleep(600);
+      p10Probe = copyProbe380(probe7, 'P10-DRAG');
+      p10Child = spawn(p10Probe.exe, [], { stdio: 'ignore' });
+      probeChildren.push(p10Child);
+      const dragHwnd = await waitProbeWindow380(p10Probe.exe, 8000);
+      if (!dragHwnd) throw new Error('P10 前置失守：拖入探针窗未出现');
+      let dragSrcId = com.desktopIdOf(dragHwnd);
+      for (let i = 0; i < 15 && (!dragSrcId || /^0{8}-/.test(dragSrcId)); i++) {
+        await sleep(200);
+        dragSrcId = com.desktopIdOf(dragHwnd);
+      }
+      if (dragSrcId !== normalId) throw new Error(`P10 前置失守：探针窗不在普通桌面（${dragSrcId}）`);
+      const rectBefore10 = win32.rectOf(dragHwnd);
+
+      // 主进程侧 MOVESIZE 起止观察（t407 探针同款钩子——源窗口归属与起止的真机证据）
+      const user32P10 = koffi.load('user32.dll');
+      koffi.struct('T407P_POINT', { x: 'long', y: 'long' });
+      const SetWinEventHookP10 = user32P10.func('void * __stdcall SetWinEventHook(uint32 eventMin, uint32 eventMax, void *hmodWinEventProc, void *pfnWinEventProc, uint32 idProcess, uint32 idThread, uint32 dwFlags)');
+      const UnhookWinEventP10 = user32P10.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)');
+      koffi.proto('__stdcall', 'T407P_WineventProc', 'void', ['void *', 'uint32', 'uintptr_t', 'int32', 'int32', 'uint32', 'uint32']);
+      const movesize10 = [];
+      const wineventCb10 = koffi.register((_h, event, hwnd, idObject) => {
+        if (idObject !== 0) return;
+        movesize10.push({ event, hwnd: Number(hwnd) });
+      }, 'T407P_WineventProc *');
+      const hook10 = SetWinEventHookP10(0x000a, 0x000b, null, wineventCb10, 0, 0, 0);
+      if (!hook10) throw new Error('P10 MOVESIZE 钩子注册失败');
+
+      // 真实标题栏拖动：按下标题栏 → 分步移到 Agent 入口 → 松手（378 dragTitleBar 同款）
+      const ptAgent10 = modeButtonPoint375(latestGeo(), tbRect, scale, 'agent');
+      if (!ptAgent10) throw new Error('P10 前置失守：agent 模式按钮几何缺位');
+      const sx10 = Math.round(rectBefore10.left + (rectBefore10.right - rectBefore10.left) * 0.3);
+      const sy10 = rectBefore10.top + 14;
+      const tDrag10 = Date.now();
+      await convergeAt375({ x: sx10, y: sy10 }, dragHwnd);
+      win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+      await sleep(100);
+      const steps10 = 12;
+      for (let i = 1; i <= steps10; i++) {
+        const x = Math.round(sx10 + ((ptAgent10.x - sx10) * i) / steps10);
+        const y = Math.round(sy10 + ((ptAgent10.y - sy10) * i) / steps10);
+        win32.moveMousePhys(x, y);
+        await sleep(45);
+      }
+      // 拖动悬停 Agent 入口：渲染层 .drop-target 高亮在拖动窗内即翻真（落点高亮真机面）
+      let highlightSeen10 = false;
+      for (let i = 0; i < 10 && !highlightSeen10; i++) {
+        try {
+          highlightSeen10 = await cdpEval375(TASKBAR_TITLE,
+            `document.querySelector('.tb-mode-btn[data-id="agent"]')?.classList.contains('drop-target') === true`);
+        } catch { /* CDP 竞态重试 */ }
+        if (!highlightSeen10) await sleep(60);
+      }
+      win32.moveMousePhys(ptAgent10.x, ptAgent10.y);
+      await sleep(80);
+      win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+      await sleep(400);
+      try { UnhookWinEventP10(hook10); } catch { /* 尽力 */ }
+
+      // 拖动窗内会话预览零展开（预览暂停真机面：拖拽窗口 [tDrag, now] 无 session-preview-open）
+      const previewOpens10 = tape.all('session-preview-open', (e) => e.t >= tDrag10 - 100).length;
+      const starts10 = movesize10.filter((e) => e.event === 0x000a);
+      const ends10 = movesize10.filter((e) => e.event === 0x000b);
+      const srcOk10 = starts10.length === 1 && ends10.length === 1
+        && starts10[0].hwnd === dragHwnd && ends10[0].hwnd === dragHwnd;
+
+      // 迁移确认：桌面 ID 回读 = Agent（有界，零 GUID 重读同 P7 口径）
+      let migrated10 = false;
+      for (let i = 0; i < 25 && !migrated10; i++) {
+        const id10 = com.desktopIdOf(dragHwnd);
+        if (id10 && !/^0{8}-/.test(id10)) migrated10 = id10 === agentId;
+        else migrated10 = false;
+        if (!migrated10) await sleep(120);
+      }
+      const stillNormal10 = regDesktopFacts().current === normalId; // 落放不切桌面
+      const regEvent10 = await tape.wait('drag-in-registered', (e) => e.t >= tDrag10, { timeoutMs: 4000 });
+
+      if (srcOk10 && highlightSeen10 && previewOpens10 === 0 && migrated10 && stillNormal10 && regEvent10) {
+        rep.pass(`P10 标题栏拖入最小事务：MOVESIZE 起/止各一帧且 hwnd=探针窗（源窗口归属 ${String(dragSrcId).slice(0, 8)}…）；悬停 Agent 入口渲染层 .drop-target 高亮在场、拖动窗内零会话预览展开；松手后桌面 ID 回读=Agent（迁移确认）、当前桌面仍在普通（落放不切桌面）、drag-in-registered 存证在流`);
+      } else {
+        rep.fail(`P10 源窗归属=${JSON.stringify(movesize10)} 期望hwnd=${dragHwnd} 落点高亮=${highlightSeen10} 预览展开=${previewOpens10} 迁移确认=${migrated10} 落放不切桌面=${stillNormal10} 交接存证=${JSON.stringify(regEvent10)}`);
+      }
+
+      // 进入 Agent 桌面：交接窗按交接实际平铺（count/placed=1、矩形铺满平铺区）
+      const ptA10 = modeButtonPoint375(latestGeo(), tbRect, scale, 'agent');
+      await convergeAt375(ptA10, tbHwnd);
+      win32.clickPhys(ptA10.x, ptA10.y, 'left');
+      const confA10 = await waitDesktopCurrent375(com, agentId, 3000);
+      if (!confA10.ok) throw new Error(`P10 切换失守：未切到 Agent 桌面（${confA10.detail}）`);
+      let tiling10 = null;
+      for (let i = 0; i < 30; i++) {
+        try {
+          tiling10 = await cdpEval375(PANEL_TITLE, `window.deck.bridge.invoke('tiling/get-state', null)`);
+        } catch { /* CDP 竞态重试 */ }
+        if (tiling10 && tiling10.count === 1 && tiling10.placed === 1) break;
+        await sleep(200);
+      }
+      const rectTiled10 = win32.rectOf(dragHwnd);
+      const dip10 = screen.getPrimaryDisplay().bounds;
+      const scale10 = (tbRect.right - tbRect.left) / dip10.width;
+      const bottomPhys10 = Math.round((dip10.y + dip10.height) * scale10) - Math.round(48 * scale10);
+      const tiledOk10 = tiling10 && tiling10.count === 1 && tiling10.placed === 1
+        && rectTiled10.left <= 2 && rectTiled10.top <= 2
+        && Math.abs(rectTiled10.bottom - bottomPhys10) <= 4
+        && rectTiled10.right >= (tbRect.right - tbRect.left) * 0.95;
+      if (tiledOk10) {
+        rep.pass(`P10 进入 Agent 桌面：交接窗实际平铺（tiling count=1 placed=1、矩形 ${JSON.stringify(rectTiled10)} 铺满平铺区上缘/左缘/条带顶）`);
+      } else {
+        rep.fail(`P10 进入 Agent 平铺未成就：tiling=${JSON.stringify(tiling10)} 矩形=${JSON.stringify(rectTiled10)} 期望底=${bottomPhys10}`);
+      }
+    } catch (err) { rep.fail(`P10 异常: ${err.message}`); }
+    finally {
+      // 探针清场 + 回普通桌面（P8 收尾前提）
+      if (p10Child) spawnSync('taskkill', ['/PID', String(p10Child.pid), '/T', '/F'], { stdio: 'ignore' });
+      try {
+        if (p10Probe) fs.rmSync(path.dirname(p10Probe.exe), { recursive: true, force: true });
+      } catch { /* 尽力清场 */ }
+      try {
+        if (com.currentId() !== normalId) {
+          com.switchDesktop(normalId);
+          await waitDesktopCurrent375(com, normalId, 3000);
+        }
+      } catch { /* 尽力 */ }
+    }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {

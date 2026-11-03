@@ -1837,8 +1837,8 @@
       "cdpPort": 9232,
       "kind": null,
       "budgetSeconds": 60,
-      "lastMeasuredSeconds": 27,
-      "lastMeasuredAt": "2026-11-03",
+      "lastMeasuredSeconds": 29,
+      "lastMeasuredAt": "2026-11-04",
       "areas": [
         "taskbar",
         "panel.core",
@@ -1954,6 +1954,23 @@
             "taskbar",
             "desktop"
           ]
+        },
+        {
+          "seg": "P10",
+          "ticket": 407,
+          "title": "标题栏拖入 Agent 桌面最小事务（工单407）：真实标题栏拖动探针窗到任务栏 Agent 入口——MOVESIZE 起/止识别源窗口、悬停渲染层 .drop-target 落点高亮、拖动窗内会话预览零展开、桌面 ID 回读确认迁移并 drag-in-registered 存证、落放不切桌面；切 Agent 后交接窗实际平铺（count/placed=1 铺满平铺区）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 12,
+          "areas": [
+            "desktop",
+            "panel.core",
+            "taskbar",
+            "sessions"
+          ]
         }
       ]
     },
@@ -2043,8 +2060,8 @@
       "cdpPort": 9234,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 62,
-      "lastMeasuredAt": "2026-11-03",
+      "lastMeasuredSeconds": 110,
+      "lastMeasuredAt": "2026-11-04",
       "areas": [
         "desktop"
       ],
@@ -2122,6 +2139,33 @@
             "event-evidence"
           ],
           "estSeconds": 9
+        },
+        {
+          "seg": "P10",
+          "ticket": 405,
+          "title": "屏外滚动带与双向 fit（工单405）：第 33 扇触发带（列矩形=半屏宽×全平铺高×露边32px、32 扇屏内窗全在缩窄区、无一保原矩形）；露边真点击→整组最小滑动（带成员贴右缘完整可见、屏内窗推出左屏外）；SetForeground 普通激活→同一 fit 整组回位；胶囊计数=33、预览条目含带成员；关 28 扇带收拢补入（overflow=0）",
+          "surfaces": [
+            "system-state",
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 20
+        },
+        {
+          "seg": "P11",
+          "ticket": 408,
+          "title": "拖入取消回滚与连续拖入（工单408）：真实 Esc 取消（悬停 Agent 入口发 Esc——MOVESIZE 起/止各一帧、零迁移零交接、窗矩形系统原生复原）；栏外松手（拖动成果原样保留、700ms 纹丝未动——面板零改窗）；工具窗不合格落放入口（零迁移、面板按拖前几何真 SetWindowPos 复原、条带内简短反馈 toast 在场）；连续两窗拖入（迁移确认序=交接序 [E4,E5]、落放全程不切桌面、进入 Agent 后 count=2 placed=2 各占左右半格）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "areas": [
+            "desktop",
+            "panel.core",
+            "taskbar"
+          ],
+          "estSeconds": 40
         },
         {
           "seg": "P9",
@@ -2414,8 +2458,8 @@
       "cdpPort": 9238,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 93,
-      "lastMeasuredAt": "2026-11-03",
+      "lastMeasuredSeconds": 80,
+      "lastMeasuredAt": "2026-11-04",
       "areas": [
         "desktop",
         "panel.core"
@@ -2434,7 +2478,7 @@
         {
           "seg": "P2",
           "ticket": 383,
-          "title": "隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/floating），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题",
+          "title": "隐私断言：持久文档只含白名单键（version/desktopId/clean/order/tree/queue/band/anchor/floating——工单406 v2 增屏外顺序与锚窗身份），不含窗口标题、缩略图或手动几何授权；事件日志不含夹具标题",
           "surfaces": [
             "system-state",
             "event-evidence"

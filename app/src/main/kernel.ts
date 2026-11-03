@@ -13,6 +13,7 @@ import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
 import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
 import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
+import { AgentDragInService, type AgentDragInServiceOptions } from './services/agent-drag-in'
 import { FocusService } from './services/focus'
 import { HardwareService } from './services/hardware'
 import { LocalPanelDataService } from './services/panel-data'
@@ -74,6 +75,8 @@ export interface KernelOptions {
   /** 桌面工作区（工单375）：功能开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
+  /** 标题栏拖入（工单407）：功能开关与依赖缝（缺省 = 开关关、真源延迟绑定） */
+  agentDragIn?: AgentDragInServiceOptions
   /** Agent 会话预览（工单381）：显式装配（离线夹具根）；缺省不注册 → 桥接回退空态 */
   sessionPreview?: SessionPreviewServiceOptions
 }
@@ -134,6 +137,34 @@ export function createKernel(options: KernelOptions = {}): Context {
     })
   }
   // Agent 平铺（工单376）：随 agentDesktop 开关隔离；deps 缺省延迟绑定真源（离线测试注入假源）。
+  // 标题栏拖入（工单407）：随 agentDesktop 开关隔离（缺省关）；deps 缺省延迟绑定真源。
+  ctx.plugin(AgentDragInService, {
+    ...options.agentDragIn,
+    enabled: options.agentDragIn?.enabled ?? false,
+    deps: {
+      ...options.agentDragIn?.deps,
+      currentMode: options.agentDragIn?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      workspaceAvailable: options.agentDragIn?.deps?.workspaceAvailable
+        ?? (() => Boolean(ctx.desktopWorkspace?.state().available)),
+      pairingIds: options.agentDragIn?.deps?.pairingIds
+        ?? (() => ctx.desktopWorkspace?.pairingIds() ?? null),
+      // 主屏物理矩形（资格重核「主屏合格」判据）——与 panel-kernel.ts 装配同一 Electron
+      // 真源口径（物理 px）。零矩形缺省会把一切窗判成副屏、拖入恒拒 'ineligible-window'
+      // （375 P10 首轮实证；评审修复 2026-11-04）。electron 延迟 require：装配期不触碰，
+      // 调用时才解析——离线测试注入假源不受影响。
+      primaryRect: options.agentDragIn?.deps?.primaryRect
+        ?? (() => {
+          const d = require('electron').screen.getPrimaryDisplay()
+          return {
+            left: Math.round(d.bounds.x * d.scaleFactor),
+            top: Math.round(d.bounds.y * d.scaleFactor),
+            right: Math.round((d.bounds.x + d.bounds.width) * d.scaleFactor),
+            bottom: Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor),
+          }
+        }),
+    },
+  })
   ctx.plugin(AgentTilingService, {
     ...options.agentTiling,
     enabled: options.agentTiling?.enabled ?? false,

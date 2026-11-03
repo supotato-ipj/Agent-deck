@@ -85,6 +85,8 @@ function layoutDoc(over: Partial<AgentLayoutDoc> = {}): AgentLayoutDoc {
     order: [identity(1), identity(2), identity(3)],
     tree,
     queue: [1, 0],
+    band: [],
+    anchor: null,
     floating,
     ...over,
   }
@@ -353,7 +355,92 @@ describe('持久化隐私与授权边界（工单383 验收②）', () => {
       for (const forbidden of ['"title"', '"prompt"', '"armed"', '"authorized"', '"thumbnail"']) {
         expect(text.includes(forbidden)).toBe(false)
       }
-      expect(Object.keys(readDoc(h)).sort()).toEqual(['clean', 'desktopId', 'floating', 'order', 'queue', 'tree', 'version'])
+      expect(Object.keys(readDoc(h)).sort()).toEqual(['anchor', 'band', 'clean', 'desktopId', 'floating', 'order', 'queue', 'tree', 'version'])
+    } finally { h.cleanup() }
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单406（spec #403 决策「持久化布局关系而非旧像素」+ 用户故事 30/31）：重启恢复以
+// 有效锚窗恢复视口——持久化屏外顺序与锚窗身份，恢复后按当前平铺区重算 fit（不留空白
+// 视口、不恢复旧像素偏移）；锚窗已消失 → 回布局起点。
+// 夹具：主屏 1200×752 平铺区、容量 4 扇、列宽 600、露边 32（与 agent-tiling-band 同款）。
+// ————————————————————————————————————————————————————————————
+
+describe('带与锚窗恢复（工单406）', () => {
+  const NARROW = { left: 0, top: 0, right: 1200, bottom: 800 }
+  const AREA_NARROW: TileRect = { left: 0, top: 0, right: 1200, bottom: 752 }
+
+  /** 五窗布局文档：树 4 叶（1/4 左列、2/3 右列）+ 带成员 5 + 锚窗 5 */
+  function bandDoc(): AgentLayoutDoc {
+    return {
+      version: AGENT_LAYOUT_VERSION,
+      desktopId: AGENT,
+      clean: true,
+      order: [identity(1), identity(2), identity(3), identity(4), identity(5)],
+      tree: {
+        kind: 'split', axis: 'h',
+        first: {
+          kind: 'split', axis: 'v',
+          first: { kind: 'leaf', ref: 0 },
+          second: { kind: 'leaf', ref: 3 },
+        },
+        second: {
+          kind: 'split', axis: 'v',
+          first: { kind: 'leaf', ref: 1 },
+          second: { kind: 'leaf', ref: 2 },
+        },
+      },
+      queue: [1, 2, 0, 3],
+      band: [4],
+      anchor: 4,
+      floating: [],
+    }
+  }
+
+  it('干净重启：以持久锚窗恢复视口（带成员 fit 完整可见，不用旧像素偏移）', async () => {
+    const h = makeHarness({ doc: bandDoc(), windows: [1, 2, 3, 4, 5], primary: NARROW })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      expect(h.svc.recoveryForTest()).toEqual({ status: 'restored', reason: null })
+      // 树成员按当前平铺区重算（缩窄区 1168 宽、结构原样；夹具条带顶 1392 > 屏高 800
+      // → 平铺区高 = 屏高 800，无栏可避）。锚窗 fit 使整组左移 568——树窗推出左屏外
+      expect(h.windows.get(1)!.rect).toEqual({ left: -568, top: 0, right: 16, bottom: 400 })
+      expect(h.windows.get(4)!.rect).toEqual({ left: -568, top: 400, right: 16, bottom: 800 })
+      // 锚窗（带成员 5）按当前几何 fit 完整可见——不是露边位、不是旧像素
+      expect(h.windows.get(5)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 800 })
+      expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+      expect(h.prompts).toEqual([])
+    } finally { h.cleanup() }
+  })
+
+  it('锚窗已消失：无锚回布局起点（视口归零、树回满区、零空白）', async () => {
+    const d = bandDoc()
+    // 窗 5（带成员兼锚窗）面板停摆期间已关闭
+    const h = makeHarness({ doc: d, windows: [1, 2, 3, 4], primary: NARROW })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      expect(h.svc.recoveryForTest()).toEqual({ status: 'restored', reason: null })
+      // 带空 → 树回满区；无锚 → 视口起点
+      expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 600, bottom: 400 })
+      expect(h.windows.get(2)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 400 })
+      expect(h.svc.state()).toMatchObject({ count: 4, placed: 4, overflow: 0 })
+    } finally { h.cleanup() }
+  })
+
+  it('恢复落盘回写：band/anchor 随下一拍持久化（关系而非像素）', async () => {
+    const h = makeHarness({ doc: bandDoc(), windows: [1, 2, 3, 4, 5], primary: NARROW })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      const doc = readDoc(h)
+      expect(doc.version).toBe(AGENT_LAYOUT_VERSION)
+      expect(doc.band).toEqual([4])
+      expect(doc.anchor).toBe(4)
+      expect(doc.order.map((w) => w.hwnd)).toEqual([1, 2, 3, 4, 5])
+      expect(JSON.stringify(doc)).not.toContain('敏感标题')
     } finally { h.cleanup() }
   })
 })

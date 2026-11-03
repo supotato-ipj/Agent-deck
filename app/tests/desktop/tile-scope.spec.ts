@@ -140,3 +140,27 @@ describe('几何判据（工单376 共用）', () => {
     expect(rectMatches({ left: 12, top: 20, right: 130, bottom: 240 }, t)).toBe(false)
   })
 })
+
+describe('受管窗豁免 off-main-screen 排除（工单405，屏外滚动带成员账）', () => {
+  // 屏外带成员被布局写到主屏右缘之外的列上——它们的「屏外」是受管布局自身的产物，
+  // 不是副屏迁移。豁免判据沿用最小化豁免同款诚实口径（tile-scope.ts 头注）：窗口停在
+  // 布局实际落定的矩形上（编排层以 lastPlaced 匹配给出豁免集），按矩形判会把自家
+  // 带成员误判成副屏窗踢出成员账。其余拒绝面（其他桌面/cloaked 等）不受豁免。
+  it('豁免集内的屏外窗判 tile；不在豁免集仍排除（story 21 移出主屏语义保持）', () => {
+    const off = facts({ hwnd: 9, rect: { left: 2600, top: 0, right: 3880, bottom: 1392 } })
+    expect(classifyTileWindow(off, OWN, PRIMARY)).toEqual({ kind: 'excluded', reason: 'off-main-screen' })
+    expect(classifyTileWindow(off, OWN, PRIMARY, [9])).toEqual({ kind: 'tile' })
+  })
+  it('豁免只作用于 off-main-screen：其他桌面/cloaked 照常拒绝', () => {
+    const other = facts({ hwnd: 9, rect: { left: 2600, top: 0, right: 3880, bottom: 1392 }, cloakedShell: true })
+    expect(classifyTileWindow(other, OWN, PRIMARY, [9])).toEqual({ kind: 'excluded', reason: 'other-desktop' })
+  })
+  it('projectTileScope 透传豁免集', () => {
+    const fs = [
+      facts({ hwnd: 1 }),
+      facts({ hwnd: 9, rect: { left: 2600, top: 0, right: 3880, bottom: 1392 } }),
+    ]
+    expect(projectTileScope(fs, OWN, PRIMARY).members.map((m) => m.hwnd)).toEqual([1])
+    expect(projectTileScope(fs, OWN, PRIMARY, [9]).members.map((m) => m.hwnd)).toEqual([1, 9])
+  })
+})

@@ -19,9 +19,26 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import type { AgentTilingState, DesktopMode } from '../../shared/contract'
-import { MIN_PANE_H, MIN_PANE_W, createTree, isTileableArea, tileAreaOf, treeFromShape, treeInsert, treePlacedIds, treePlan, treeRemove } from '../desktop/tiling-plan'
-import type { TilingTree, TileRect } from '../desktop/tiling-plan'
-import { captureLayout, identityOf, parseLayout, planRestore, serializeLayout } from '../desktop/agent-layout'
+import {
+  MIN_PANE_H,
+  MIN_PANE_W,
+  bandColumnRects,
+  bandColumnWidth,
+  bandRevealPx,
+  bandTreeArea,
+  createTree,
+  fitCamera,
+  isTileableArea,
+  rebaseTreeArea,
+  tileAreaOf,
+  treeFromShape,
+  treeInsert,
+  treePlacedIds,
+  treePlan,
+  treeRemove,
+} from '../desktop/tiling-plan'
+import type { TilingTree, TilePlacement, TileRect } from '../desktop/tiling-plan'
+import { AGENT_LAYOUT_VERSION, captureLayout, identityOf, parseLayout, planRestore, serializeLayout } from '../desktop/agent-layout'
 import type { AgentLayoutDoc, RestorePlan, WindowIdentity } from '../desktop/agent-layout'
 import { rectMatches, projectTileScope } from '../desktop/tile-scope'
 import type { TileWindowFacts, ScopeRect } from '../desktop/tile-scope'
@@ -96,6 +113,12 @@ export interface AgentTilingServiceOptions {
     minPane?: () => { w: number; h: number }
     /** 目标窗是否前台（工单378「用户主动操作」判据；缺省延迟绑定 geom-write.isForegroundWindow） */
     isForeground?: (hwnd: number) => boolean
+    /**
+     * 前台变化订阅（工单405 单一激活入口——露边点击/任务栏激活等都表现为系统前台变化，
+     * 汇入同一 fit 最小滑动）。回调只递新前台 hwnd（轻活）。缺省 noop（离线测试注入
+     * 假源后零 FFI，与 onDisplayChanged 同款）；生产装配绑 geom-write.startForegroundWatch。
+     */
+    onForegroundChanged?: (cb: (hwnd: number) => void) => () => void
     /** 复原窗到目标矩形（工单378：最大化态先 SC_RESTORE 再写；缺省延迟绑定 geom-write.restoreWindowRect） */
     restoreRect?: (hwnd: number, target: TileRect) => boolean
     /** 当前配对 Agent 桌面系统 ID（工单383 归属核对；缺省 null = 无配对不恢复） */
@@ -118,6 +141,7 @@ interface TilingDeps {
   onDisplayChanged: (cb: () => void) => () => void
   minPane: () => { w: number; h: number }
   isForeground: (hwnd: number) => boolean
+  onForegroundChanged: (cb: (hwnd: number) => void) => () => void
   restoreRect: (hwnd: number, target: TileRect) => boolean
   agentDesktopId: () => string | null
   readLayoutText: (file: string) => string | null
@@ -168,6 +192,17 @@ export class AgentTilingService extends Service {
   private stopWatch: (() => void) | null = null
   /** 显示参数变化订阅停表（分辨率/DPI/主屏增删 → 重算平铺——用户故事 23） */
   private stopDisplay: (() => void) | null = null
+  /** 前台变化订阅停表（工单405 单一激活入口：露边点击/任务栏激活 → fit 最小滑动） */
+  private stopForeground: (() => void) | null = null
+  /** 视口偏移（工单405，物理 px）：0 = 屏内树满屏（带首列露边可见）；fit 整组滑动改写。
+   *  只存偏移语义；锚窗身份的持久化归工单406（spec 决策「持久化布局关系而非旧像素」）。 */
+  private camera = 0
+  /** 视口锚窗（工单406，spec 决策「持久化布局关系而非旧像素」）：最近前台受管窗 /
+   *  最近一次 fit 目标。恢复/重入/重启/显示参数变化后按它的**当前几何**重算 fit——
+   *  不存像素偏移。只在内存 + 布局文档 anchor 身份（GLOSSARY「屏外滚动带」）。 */
+  private anchorHwnd: number | null = null
+  /** 待 fit 目标（前台事件缝置入、下一拍消费，最新赢；本拍末清零） */
+  private pendingFitHwnd: number | null = null
   /** 显示参数变化脏标（下一拍按「重算语义」重新纳回屏外旧成员——story 23；
    *  只在变化拍生效：普通「用户把窗拖去副屏」仍按移出主屏处理，story 21） */
   private displayDirty = false
@@ -183,6 +218,15 @@ export class AgentTilingService extends Service {
    *  （story 21「移回主屏按最新窗口加入」），消失成员移除、兄弟吸收空位。显示参数
    *  变化重建平铺树时以本序重算（确定性函数）。 */
   private memberOrder: number[] = []
+  /** 一次性待入列交接（工单407）：拖入确认事件的 hwnd 暂存——下次布局拍按交接顺序
+   *  并入成员序后清除（不形成第二份持久成员账；只在内存，停表即清） */
+  private pendingHandoff: number[] = []
+  /** 布局几何账（工单404，spec #403 决策「布局写窗与用户手势分流」）：hwnd → 该窗最近
+   *  一次被布局**实际落定**的矩形（写后回读达标，或观察即达标）。判据事实化：窗口停在
+   *  上拍布局落定的矩形上、而本轮规划目标变了 → 差异来自兄弟裂变/吸收/重算（布局自身
+   *  缩放），是预期写入——不进入授权状态机（不弹框、不浮动、不消费授权）。窗口消失
+   *  即清（同 hwnd 复用是新窗身份，不继承旧几何账）。 */
+  private lastPlaced = new Map<number, TileRect>()
   /** 持久平铺树（工单377，GLOSSARY「Agent 平铺」）：布局账本——增量裂变/兄弟吸收；
    *  显示参数变化（平铺区变）时按成员序整体重建（重算语义，story 23）。 */
   private tree: TilingTree | null = null
@@ -229,6 +273,7 @@ export class AgentTilingService extends Service {
       minPane: options.deps?.minPane ?? (() => ({ w: MIN_PANE_W, h: MIN_PANE_H })), // 100% 缩放等值
       isForeground: options.deps?.isForeground
         ?? ((hwnd) => (require('../desktop/geom-write') as typeof import('../desktop/geom-write')).isForegroundWindow(hwnd)),
+      onForegroundChanged: options.deps?.onForegroundChanged ?? (() => () => undefined), // 无源 noop（离线缺省）
       restoreRect: options.deps?.restoreRect
         ?? ((hwnd, target) => (require('../desktop/geom-write') as typeof import('../desktop/geom-write')).restoreWindowRect(hwnd, target)),
       agentDesktopId: options.deps?.agentDesktopId ?? (() => null),
@@ -244,11 +289,17 @@ export class AgentTilingService extends Service {
     }
   }
 
-  /** 启动（构造后由装配层调用一次）：订阅 workspace/changed，按当前模式对齐激活态 */
+  /** 启动（构造后由装配层调用一次）：订阅 workspace/changed 与拖入交接，按当前模式对齐激活态 */
   start(): void {
     if (this.started) return
     this.started = true
     this.ctx.on('workspace/changed', () => this.syncActivation())
+    // 拖入一次性交接（工单407）：确认事件暂存待入列——下次布局拍按交接顺序并入成员序
+    // 并清除（见 onePass 对账；不形成第二份持久成员账）
+    this.ctx.on('tiling/drag-in-registered', (p: { hwnd: number }) => {
+      const hwnd = Number(p?.hwnd)
+      if (hwnd > 0 && !this.pendingHandoff.includes(hwnd)) this.pendingHandoff.push(hwnd)
+    })
     this.syncActivation()
   }
 
@@ -283,6 +334,21 @@ export class AgentTilingService extends Service {
   }
 
   /**
+   * 受管窗豁免集（工单405）：窗口停在布局实际落定的矩形上（lastPlaced 布局几何账，
+   * 容差同授权判据）→ 其「屏外」由受管布局自身负责（屏外列、视口滑动），投影不按
+   * off-main-screen 踢出——否则带成员被自家写窗推出口径、成员账自毁。用户真实拖走
+   * 的窗不再匹配落定矩形、不进豁免集（story 21 移出主屏语义保持）。
+   */
+  private exemptOffMainFrom(facts: readonly TileWindowFacts[]): number[] {
+    const out: number[] = []
+    for (const f of facts) {
+      const placed = this.lastPlaced.get(f.hwnd)
+      if (placed && rectMatches(f.rect, placed, AUTH_CHANGE_TOLERANCE_PX)) out.push(f.hwnd)
+    }
+    return out
+  }
+
+  /**
    * 预览成员快照（工单379，spec 决策 15）：与胶囊计数同口径的主屏合格窗口事实——
    * 含最小化/浮动/未平铺（预览列出全部，不只可见平铺窗格）。标题只作上屏载荷，
    * 调用方（窗口预览服务）不得把它写入日志。不可用/非 Agent 桌面返回空集。
@@ -291,7 +357,7 @@ export class AgentTilingService extends Service {
     if (!this.active()) return []
     try {
       const facts = this.deps.collectFacts()
-      return projectTileScope(facts, this.deps.ownExes(), this.deps.primaryRect()).members
+      return projectTileScope(facts, this.deps.ownExes(), this.deps.primaryRect(), this.exemptOffMainFrom(facts)).members
     } catch {
       return [] // 本拍事实不可读：预览空集（不猜）
     }
@@ -326,6 +392,9 @@ export class AgentTilingService extends Service {
         // 显示参数变化（分辨率/DPI/主屏增删）→ 重算平铺（用户故事 23）：事件只触发
         // 一拍批合并——事实与矩形都在 pass 内现读，订阅本身零 FFI
         this.stopDisplay = this.deps.onDisplayChanged(() => this.onDisplayChanged())
+        // 前台变化（工单405 单一激活入口）：露边点击/任务栏激活都表现为系统前台变化，
+        // 汇入同一 fit；回调零 FFI 轻活（置 fit 标 + 批合并），滑动在 pass 内做
+        this.stopForeground = this.deps.onForegroundChanged((hwnd) => this.onForegroundEvent(hwnd))
         void this.runPass() // 激活即对齐一轮（切回 Agent 桌面的既有窗口立刻落位）
       }
     } else {
@@ -344,6 +413,11 @@ export class AgentTilingService extends Service {
       this.stopDisplay()
       this.stopDisplay = null
     }
+    if (this.stopForeground) {
+      this.stopForeground()
+      this.stopForeground = null
+    }
+    this.pendingFitHwnd = null
     if (this.batchTimer) {
       clearTimeout(this.batchTimer)
       this.batchTimer = null
@@ -366,12 +440,17 @@ export class AgentTilingService extends Service {
     this.attempts.clear()
     this.anomalies.clear()
     this.anomalyKinds.clear()
+    this.lastPlaced.clear()
     this.clearSettleTimers()
     clearFloating(this.auth)
     this.auth = createGeomAuthLedger()
     this.lastState = null
+    this.camera = 0
+    this.anchorHwnd = null
+    this.pendingFitHwnd = null
     this.layoutLoaded = false
     this.pendingRestore = null
+    this.pendingHandoff = []
     this.safe = false
     this.recovery = 'none'
     this.recoveryReason = null
@@ -394,6 +473,20 @@ export class AgentTilingService extends Service {
     if (!this.available()) return
     this.displayDirty = true
     this.schedulePass(0)
+  }
+
+  /**
+   * 前台变化（工单405 单一激活入口，spec 决策「单一激活入口执行 fit」）：露边点击、
+   * 任务栏等普通激活都表现为系统前台变化，汇入同一 fit 最小滑动。只对受管成员
+   * （memberOrder = 平铺/带成员，浮动与异常不在册）请求滑动；非成员（面板自家窗、
+   * 无关窗）忽略。回调体内零 FFI——置 fit 标并批合并，滑动在 pass 内做。
+   */
+  private onForegroundEvent(hwnd: number): void {
+    if (!this.available() || !this.stopForeground) return
+    if (!this.memberOrder.includes(hwnd)) return
+    this.anchorHwnd = hwnd // 最近前台受管窗 = 视口锚（工单406，story 30）
+    this.pendingFitHwnd = hwnd
+    this.schedulePass(hwnd)
   }
 
   /** 短批处理（决策 27）：事件风暴合并为一轮重排 */
@@ -446,11 +539,17 @@ export class AgentTilingService extends Service {
   }
 
   /**
-   * 恢复平铺（工单378 决策 11）：收回全部手动浮动（按进入浮动序重新补入平铺）、清除
-   * 未消费授权、按空间补入容量溢出；异常未平铺跳过并报告数量（skipped）。返回被收回的
-   * 浮动窗数（restored）与跳过数，调用方（胶囊）据此报告。
+   * 恢复平铺（工单378 决策 11 + 工单406，GLOSSARY「恢复平铺」「窗口聚焦」）：收回全部
+   * 手动浮动（按进入浮动序重新补入平铺）、清除未消费授权、按空间补入屏外带；异常未平铺
+   * 跳过并报告数量（skipped）。返回被收回的浮动窗数（restored）与跳过数，调用方（胶囊）
+   * 据此报告。
+   *
+   * 视口锚（工单406）：`fitHwnd` 显式目标（聚焦退出 = 刚退出聚焦的窗，GLOSSARY「窗口
+   * 聚焦」「随后按 fit 显示刚退出聚焦的窗口」）优先；否则当前前台受管窗（GLOSSARY
+   * 「恢复平铺」「以当前前台受管窗为视图锚点执行 fit」）；再否则保留既有锚窗（story 29
+   * 「保留当前锚窗」）；全无有效锚才回布局起点（视口归零）。
    */
-  async restoreTiling(): Promise<{ ok: boolean; restored: number; skipped: number; state: AgentTilingState }> {
+  async restoreTiling(fitHwnd?: number): Promise<{ ok: boolean; restored: number; skipped: number; state: AgentTilingState }> {
     if (!this.active() || this.safe) {
       return { ok: false, restored: 0, skipped: this.anomalies.size, state: this.state() }
     }
@@ -461,6 +560,20 @@ export class AgentTilingService extends Service {
     // 「默认 Agent 平铺」= 按成员加入序整体重算（浮动期兄弟吸收留下的增量树形不作数）：
     // 清树让本拍按成员序重建，收回后的布局与同成员序的默认布局一致
     this.tree = null
+    let target = typeof fitHwnd === 'number' && Number.isFinite(fitHwnd) && fitHwnd > 0 ? fitHwnd : null
+    if (target === null) {
+      for (const hwnd of this.memberOrder) {
+        if (this.deps.isForeground(hwnd)) { target = hwnd; break }
+      }
+    }
+    if (target !== null) {
+      // 聚焦退出路径：挂起先解（退出窗的还原几何不是用户改几何；调用方随后 setTilingHeld(null) 幂等）
+      if (this.heldHwnd === target) this.heldHwnd = null
+      this.anchorHwnd = target
+      this.pendingFitHwnd = target
+    } else if (this.anchorHwnd === null) {
+      this.camera = 0 // 无有效锚：回屏内二叉布局起点（story 29 只在「有锚」时保视口）
+    }
     await this.runPass()
     return { ok: true, restored: floats.length, skipped: this.anomalies.size, state: this.state() }
   }
@@ -485,14 +598,15 @@ export class AgentTilingService extends Service {
       return // 本拍事实不可读：沿用上一拍（不猜）
     }
     const primary = this.deps.primaryRect()
-    const projection = projectTileScope(facts, this.deps.ownExes(), primary)
+    // 受管窗豁免（工单405）：屏外带成员/视口滑动推出的屏内窗不按副屏踢出（见 helper 头注）
+    const projection = projectTileScope(facts, this.deps.ownExes(), primary, this.exemptOffMainFrom(facts))
     const members = projection.members
     // 显示参数变化拍（story 23）：区缩小后旧成员矩形落在新主屏外——它们仍是同一块
     // 物理屏幕上的窗，只是几何还没重算。把「此前在树里、只因 off-main-screen 被排」
     // 的成员纳回本轮（随后按新面积重算落位，不再屏外）。普通拍不纳回：用户把窗拖去
     // 副屏 = 真移出主屏（story 21 退出平铺）。
     if (this.displayDirty) {
-      const placed = this.tree ? treePlacedIds(this.tree) : new Set<string>()
+      const placed = this.tree ? new Set<string>([...treePlacedIds(this.tree), ...this.tree.overflow]) : new Set<string>()
       const factById = new Map(facts.map((f) => [f.hwnd, f] as const))
       for (const ex of projection.excluded) {
         if (ex.reason !== 'off-main-screen' || !placed.has(String(ex.hwnd))) continue
@@ -531,6 +645,14 @@ export class AgentTilingService extends Service {
     for (const h of [...this.anomalies]) {
       if (!memberSet.has(h)) clearAnomaly(this.anomalies, this.anomalyKinds, h)
     }
+    // 尝试账与布局几何账随窗口消失清账（工单404）：旧窗残留的重试计数会让同 hwnd 新窗
+    // 首拍就达异常上限；旧几何账会让新窗首拍被误判成布局位移
+    for (const h of this.attempts.keys()) {
+      if (!memberSet.has(h)) this.attempts.delete(h)
+    }
+    for (const h of this.lastPlaced.keys()) {
+      if (!memberSet.has(h)) this.lastPlaced.delete(h)
+    }
     const authIds = new Set<number>([...this.auth.phase.keys(), ...this.auth.floating.keys()])
     for (const h of authIds) {
       if (memberSet.has(h)) continue
@@ -541,11 +663,50 @@ export class AgentTilingService extends Service {
     // 可平铺候选 = 合格成员 − 异常未平铺 − 手动浮动（浮动窗几何保留、不参与规划、可覆盖窗格）
     const candidates = members.filter((m) => !this.anomalies.has(m.hwnd) && !isFloating(this.auth, m.hwnd))
     const candSet = new Set(candidates.map((m) => m.hwnd))
+    // 本拍「既有成员」快照先于拖入交接对账取（工单408）：交接并入的窗是本拍新成员，
+    // 持前台时仍走前台新窗 fit 滑入（story 20/43「进入 Agent 后自动完成实际平铺」）；
+    // 快照若晚于合并，交接成员会被误判成既有成员而永远跳过 fit。
+    const prevOrder = new Set(this.memberOrder)
+    // 拖入交接对账（工单407）：确认过的待入列窗按交接顺序并入成员序——交接序优先于
+    // 本拍 z 序（story 41「连续拖入的顺序可预测」）。已消费条目即清；窗口已从事实里
+    // 消失（拖入后关闭）的条目丢弃——暂存账不沉淀。
+    if (this.pendingHandoff.length > 0) {
+      const factHwnds = new Set(facts.map((f) => f.hwnd))
+      for (const hwnd of this.pendingHandoff) {
+        if (candSet.has(hwnd) && !this.memberOrder.includes(hwnd)) this.memberOrder.push(hwnd)
+      }
+      // 消费即清：已并入成员序的条目移除；窗口已从事实消失（拖入后关闭）的条目丢弃；
+      // 只剩「事实在场但还不合格」的条目留待下拍（暂存账不沉淀为第二份成员账）
+      this.pendingHandoff = this.pendingHandoff.filter((h) => !this.memberOrder.includes(h) && factHwnds.has(h))
+    }
     // 成员加入序对账：保留在册序，新成员按本拍 z 序追加队尾（首见序 = 加入事件序——
     // 移回主屏按最新窗口加入，story 21）
     this.memberOrder = this.memberOrder.filter((h) => candSet.has(h))
     for (const m of candidates) {
       if (!this.memberOrder.includes(m.hwnd)) this.memberOrder.push(m.hwnd)
+    }
+    // 前台新窗滑入（工单405，story 20）：新成员持前台 → 本拍 fit 目标（z 序首个 =
+    // 最前台）；后台新窗只入列不动视口（story 21——无 fit 标即视口原位）
+    for (const m of candidates) {
+      if (prevOrder.has(m.hwnd) || m.iconic) continue
+      if (this.deps.isForeground(m.hwnd)) {
+        this.pendingFitHwnd = m.hwnd
+        break
+      }
+    }
+    // 关闭屏内当前窗跟随系统新前台（工单406，story 27）：锚窗消失（关闭/移出主屏）→
+    // 系统新前台受管窗成为本拍 fit 目标（显式前台事件已置目标时让位）；无受管前台 →
+    // 不猜锚，视口仅按内容右端钳制（不留空白视口，story 28）。
+    if (this.anchorHwnd !== null && !memberSet.has(this.anchorHwnd)) {
+      this.anchorHwnd = null
+      if (this.pendingFitHwnd === null) {
+        for (const m of candidates) {
+          if (!m.iconic && this.deps.isForeground(m.hwnd)) {
+            this.pendingFitHwnd = m.hwnd
+            break
+          }
+        }
+      }
     }
     const count = members.length
     if (!isTileableArea(area, { minPaneW: minPane.w, minPaneH: minPane.h })) {
@@ -560,46 +721,136 @@ export class AgentTilingService extends Service {
       })
       return
     }
-    // 树生命周期（工单377）：平铺区变化（分辨率/DPI/主屏）→ 按成员序重建（重算语义，
-    // story 23）；成员消失 → 兄弟吸收（story 20）；成员新增/溢出补入 → 按成员序裂变
-    // 插入（story 17 队列续行 / story 29 按序补入）
+    // 树生命周期（工单377 + 工单405 屏外滚动带）：平铺区变化（分辨率/DPI/主屏）→ 按
+    // 成员序重建（重算语义，story 23）；成员消失 → 兄弟吸收（story 20）；成员新增/溢出
+    // 补入 → 按成员序裂变插入（story 17 队列续行 / story 29 按序补入）。带非空时屏内
+    // 树区右缘让出露边（GLOSSARY「屏外滚动带」——带首列左缘恰好落树区右缘，露边 32px
+    // 露在屏内右缘且与树窗格零重叠）；带空↔非空迁移整树 rebase（原型 syncArea 语义）。
+    const bandBefore = this.tree ? [...this.tree.overflow] : []
+    const bandWasEmpty = bandBefore.length === 0
+    const bandReveal = bandRevealPx(minPane.w)
+    const treeArea = bandWasEmpty ? area : bandTreeArea(area, bandReveal)
     if (
       !this.tree ||
-      !rectEq(this.tree.area, area) ||
+      !rectEq(this.tree.area, treeArea) ||
       this.tree.minPaneW !== minPane.w ||
       this.tree.minPaneH !== minPane.h
     ) {
-      this.tree = createTree(area, { minPaneW: minPane.w, minPaneH: minPane.h })
+      this.tree = createTree(treeArea, { minPaneW: minPane.w, minPaneH: minPane.h })
     }
     for (const id of [...treePlacedIds(this.tree)]) {
       if (!candSet.has(Number(id))) treeRemove(this.tree, id)
     }
     this.tree.overflow = this.tree.overflow.filter((id) => candSet.has(Number(id)))
     // 本拍之前已在树里的窗（工单378）：只有「曾经落格、现在几何不对」才是用户/后台改了几何；
-    // 新成员首拍的几何差异是正常落位，不进入授权判定（不给新窗弹授权框）
+    // 新成员首拍的几何差异是正常落位，不进入授权判定（不给新窗弹授权框）。
+    // 带成员同属受管账（工单405——用户拖动带成员与拖动屏内窗同一授权语义）。
     const knownPlaced = new Set(treePlacedIds(this.tree))
+    const bandBeforeIds = new Set(bandBefore)
     for (const hwnd of this.memberOrder) {
-      treeInsert(this.tree, String(hwnd)) // 已在树=幂等；溢出=入账待补
+      treeInsert(this.tree, String(hwnd)) // 已在树=幂等；溢出=入带待补
+    }
+    // 带空↔非空迁移：整树 rebase（带出现树让位露边、带清空树回满区——矩形重展、
+    // 结构/轴/队列引用不变）
+    const bandEmptyNow = this.tree.overflow.length === 0
+    if (bandWasEmpty !== bandEmptyNow) {
+      rebaseTreeArea(this.tree, bandEmptyNow ? area : bandTreeArea(area, bandReveal))
     }
     const rectByHwnd = new Map(members.map((m) => [Number(m.hwnd), m.rect] as const))
     const iconicByHwnd = new Map(members.map((m) => [Number(m.hwnd), m.iconic] as const))
 
+    // —— 工单405 带几何与视口（连续坐标；物理目标 = 连续 − 视口偏移）——
+    // 列宽/露边按主屏缩放换算（与 minPane 同源：320 逻辑 ↔ minPane.w）；列矩形按带
+    // 进入序（tree.overflow 序）依次向右相邻排列。
+    const tree = this.tree
+    const bandColW = bandColumnWidth(area.right - area.left, minPane.w)
+    const bandCols = (): TileRect[] => bandColumnRects(area, tree.overflow.length, bandColW, bandReveal)
+    // fit 决策（单一激活入口）：露边点击/任务栏等普通激活（前台事件缝 pendingFitHwnd）、
+    // 前台新窗。目标须在本拍受管账（树或带）且非挂起/浮动/异常/最小化——否则视口不动。
+    const fitHwnd = this.pendingFitHwnd
+    this.pendingFitHwnd = null
+    let plan = treePlan(tree)
+    // 单一 fit 计算（工单405 显式事件与工单406 锚窗跟随共用同一条最小滑动路径）
+    const applyFit = (hwnd: number): boolean => {
+      const idStr = String(hwnd)
+      const bandIdx = tree.overflow.indexOf(idStr)
+      const treeIdx = plan.placements.findIndex((p) => p.id === idStr)
+      const managed = bandIdx >= 0 || treeIdx >= 0
+      const suspended =
+        hwnd === this.heldHwnd ||
+        isFloating(this.auth, hwnd) ||
+        this.anomalies.has(hwnd) ||
+        (iconicByHwnd.get(hwnd) ?? false)
+      if (!managed || suspended) return false
+      const onBand = bandIdx >= 0
+      const rect = onBand ? bandCols()[bandIdx] : plan.placements[treeIdx].rect
+      this.camera = fitCamera(this.camera, rect, area, {
+        leftPeek: onBand ? bandReveal : 0,
+        rightPeek: onBand
+          ? bandIdx < tree.overflow.length - 1 ? bandReveal : 0
+          : tree.overflow.length > 0 ? bandReveal : 0,
+        contentRight: area.right - bandReveal + tree.overflow.length * bandColW,
+      })
+      this.anchorHwnd = hwnd
+      return true
+    }
+    if (fitHwnd !== null) {
+      applyFit(fitHwnd)
+    } else if (this.anchorHwnd !== null) {
+      // 锚窗跟随（工单406）：显式 fit 事件缺位时，锚窗的物理矩形若不再完整可见（兄弟
+      // 吸收/带补入/列收拢/显示重算动了它的目标矩形），按同一 fit 最小滑动回锚；已完整
+      // 可见则零移动（幂等——story 21 后台事件不动视口的前提是锚窗可见性未破）。
+      const idStr = String(this.anchorHwnd)
+      const bandIdx = tree.overflow.indexOf(idStr)
+      const treeIdx = plan.placements.findIndex((p) => p.id === idStr)
+      const rect = bandIdx >= 0
+        ? bandCols()[bandIdx]
+        : treeIdx >= 0 ? plan.placements[treeIdx].rect : null
+      const visible = rect !== null &&
+        rect.left - this.camera >= area.left &&
+        rect.right - this.camera <= area.right
+      if (!visible) applyFit(this.anchorHwnd)
+    }
+    // 物理目标（整组最小滑动）：视口先钳到内容右端（带收拢后不留空白视口——story 28），
+    // 再对全部受管窗按 −camera 平移。屏幕外带列与屏内树同一平移（GLOSSARY「屏外滚动带」）。
+    const targets = (): TilePlacement[] => {
+      const len = tree.overflow.length
+      const contentRight = area.right - bandReveal + len * bandColW
+      this.camera = Math.min(Math.max(this.camera, 0), Math.max(0, contentRight - area.right))
+      const shift = (r: TileRect): TileRect => ({ ...r, left: r.left - this.camera, right: r.right - this.camera })
+      const out: TilePlacement[] = plan.placements.map((p) => ({ id: p.id, rect: shift(p.rect) }))
+      const cols = bandCols()
+      for (let i = 0; i < len; i++) out.push({ id: tree.overflow[i], rect: shift(cols[i]) })
+      return out
+    }
+    let currentTargets = targets()
+
     // —— 工单378 授权决策（先于写集：复原/浮动改变本轮写集与树形）——
     // 计一组：本拍需复原的窗（提示期持续复原 / 首次操作复原）与需上行提示的窗。
-    let plan = treePlan(this.tree)
     const newPromptSet = new Set<number>()
     const floatSet: number[] = []
     const floatingRestore = new Map<number, TileRect>()
-    for (const p of plan.placements) {
+    for (const p of currentTargets) {
       const hwnd = Number(p.id)
       if (hwnd === this.heldHwnd) continue // 聚焦目标（工单379）：最大化不是用户改几何
       if (iconicByHwnd.get(hwnd)) continue // 最小化不算用户改几何（还原事件触发下一拍）
-      if (!knownPlaced.has(String(hwnd))) continue // 新成员落位/溢出补入：正常写，不授权
+      if (!knownPlaced.has(p.id) && !bandBeforeIds.has(p.id)) continue // 新成员落位/入带：正常写，不授权
       const current = rectByHwnd.get(hwnd)
       if (!current) continue
       const changed = !rectMatches(current, p.rect, AUTH_CHANGE_TOLERANCE_PX)
-      if (!changed) continue
+      if (!changed) {
+        // 窗确实在目标上：记入布局几何账（后续目标变化即可判定为布局自身缩放，工单404）
+        this.lastPlaced.set(hwnd, { ...p.rect })
+        continue
+      }
       if (this.restoringPass) continue // 恢复轮：按持久模型落位，不是用户改几何（不弹框）
+      // 布局自身缩放分流（工单404，spec #403 决策「布局写窗与用户手势分流」）：窗口仍停
+      // 在上一拍布局实际落定的矩形上 → 本轮目标变化来自兄弟裂变/吸收/重算/整组滑动
+      // （工单405 fit），是预期写入，不进入授权状态机（locked 不弹框、armed 不浮动不
+      // 消费授权）。回声判据救不了这条：期望账在写后核验达标即清，旧矩形不在账里——
+      // 必须按布局几何账判。
+      const prevPlaced = this.lastPlaced.get(hwnd)
+      if (prevPlaced && rectMatches(current, prevPlaced, AUTH_CHANGE_TOLERANCE_PX)) continue
       // 回声 = 自身写窗的回声（期望矩形命中）：不是用户操作，零动作（且已消费）
       const echo = classifyGeomEvent(this.echoLedger, hwnd, current, now) === 'echo'
       const userGesture = echo ? false : this.deps.isForeground(hwnd)
@@ -639,7 +890,8 @@ export class AgentTilingService extends Service {
         rememberFloating(this.auth, hwnd, current)
       }
     }
-    // 浮动者退出平铺树（其余成员重新铺满——浮动窗可覆盖窗格）并重规划本轮写集
+    // 浮动者退出平铺树/带（其余成员重新铺满——浮动窗可覆盖窗格；带成员浮动 = 出带，
+    // 带收拢列左移）并重规划本轮写集
     if (floatSet.length > 0) {
       for (const hwnd of floatSet) {
         const rect = rectByHwnd.get(hwnd)
@@ -648,10 +900,12 @@ export class AgentTilingService extends Service {
         treeRemove(this.tree, String(hwnd))
       }
       plan = treePlan(this.tree)
+      currentTargets = targets()
     }
 
-    // 写集：规划目标 × 当前矩形比对（异常窗跳过、最小化跳过、已达标不重写）
-    const assignments = plan.placements
+    // 写集：规划目标 × 当前矩形比对（异常窗跳过、最小化跳过、已达标不重写）。
+    // 屏外带成员与屏内窗同一写路径（工单405——带列矩形是布局目标，不是未平铺原矩形）。
+    const assignments = currentTargets
       .filter((p) => Number(p.id) !== this.heldHwnd) // 挂起窗不写（保持真实最大化几何）
       .map((p) => {
         const hwnd = Number(p.id)
@@ -690,13 +944,39 @@ export class AgentTilingService extends Service {
     // 未达标计次 / 达上限异常化（跳过后续落格、不阻塞其他窗、不无限重试）。异常类别
     // （工单377）：写窗被系统拒绝（false）达上限 = write-denied（权限不足等）；受理但
     // 矩形不达标达上限 = refused（应用侧拒改/夹取）。
+    const verifyOnce = (hwnd: number, target: TileRect): 'ok' | 'retry' | 'anomaly' => {
+      const actual = this.deps.readRect(hwnd)
+      return verifyWriteOutcome(this.attempts, this.anomalies, hwnd, actual, target)
+    }
+    const settleOk = (hwnd: number, target: TileRect): void => {
+      retractPending(this.echoLedger, hwnd) // 达标：期望矩形已落地，回声账清零
+      this.lastPlaced.set(hwnd, { ...target }) // 布局几何账：窗确实在此（工单404）
+    }
+    const retries: Array<{ hwnd: number; target: TileRect }> = []
     for (const w of outcomes) {
-      const actual = this.deps.readRect(w.hwnd)
-      const verdict = verifyWriteOutcome(this.attempts, this.anomalies, w.hwnd, actual, w.target)
-      if (verdict === 'ok') retractPending(this.echoLedger, w.hwnd) // 达标：期望矩形已落地，回声账清零
+      const verdict = verifyOnce(w.hwnd, w.target)
+      if (verdict === 'ok') settleOk(w.hwnd, w.target)
+      if (verdict === 'retry') retries.push({ hwnd: w.hwnd, target: w.target })
       if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
         this.anomalyKinds.set(w.hwnd, writeFailed.has(w.hwnd) ? 'write-denied' : 'refused')
       }
+    }
+    // 写窗收敛闭环（工单404，spec #403 决策「以实际几何收敛为准」）：retry 不再等下一次
+    // 窗口事件——同一拍内有界重写（尝试账已计次，MAX_WRITE_ATTEMPTS 内收敛或异常化），
+    // 完全无后续事件也能收敛或进入明确错误态。首轮 retry 必已计 1 次，本轮再不达标即达
+    // 上限——每窗每拍至多 MAX_WRITE_ATTEMPTS 次写，有界。
+    for (const w of retries) {
+      recordPending(this.echoLedger, w.hwnd, w.target, now)
+      const ok = this.deps.restoreRect(w.hwnd, w.target)
+      writeOk.set(w.hwnd, ok)
+      if (!ok) retractPending(this.echoLedger, w.hwnd)
+      const verdict = verifyOnce(w.hwnd, w.target)
+      if (verdict === 'ok') settleOk(w.hwnd, w.target)
+      if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
+        this.anomalyKinds.set(w.hwnd, ok ? 'refused' : 'write-denied')
+      }
+      // verdict 'retry' 在本轮不可能（MAX_WRITE_ATTEMPTS=2，首轮已计 1）——防御上不再
+      // 第三写，残数留待下一拍（跨拍计次仍单调，有界性不破）
     }
     pruneLedger(this.echoLedger, Date.now())
 
@@ -706,7 +986,7 @@ export class AgentTilingService extends Service {
       if (this.anomalies.has(hwnd)) continue
       if (writeOk.get(hwnd) === false) continue
       beginPrompt(this.auth, hwnd)
-      const target = plan.placements.find((p) => Number(p.id) === hwnd)?.rect ?? floatingRectOf(this.auth, hwnd)
+      const target = currentTargets.find((p) => Number(p.id) === hwnd)?.rect ?? floatingRectOf(this.auth, hwnd)
       if (target) this.ctx.emit('tiling/authorize-request', { hwnd, rect: { ...target } })
     }
     // 异常化即撤销授权（不反复弹窗、不阻塞其他窗口）
@@ -823,9 +1103,18 @@ export class AgentTilingService extends Service {
       return w ? String(w.hwnd) : null
     }
     const opts = { minPaneW: minPane.w, minPaneH: minPane.h }
+    // 屏外带（工单406）：持久化的是带顺序与锚窗身份（关系），不是像素——树区按带非空
+    // 让出露边重建，恢复后的第一拍以锚窗当前几何重算 fit（不留空白视口、不带旧偏移）
+    const bandHwnds = plan.band
+      .map((ref) => plan.order[ref]?.hwnd)
+      .filter((h): h is number => typeof h === 'number' && !floatingHwnds.has(h))
+    const reveal = bandRevealPx(minPane.w)
+    const effArea = bandHwnds.length > 0 ? bandTreeArea(area, reveal) : area
     this.tree = plan.shape
-      ? treeFromShape(plan.shape, area, opts, plan.queue, idOfRef)
-      : createTree(area, opts)
+      ? treeFromShape(plan.shape, effArea, opts, plan.queue, idOfRef)
+      : createTree(effArea, opts)
+    this.tree.overflow = bandHwnds.map(String)
+    this.anchorHwnd = plan.anchor !== null ? (plan.order[plan.anchor]?.hwnd ?? null) : null
     // 浮动几何按持久模型写回（干净重启的「恢复」；授权仍然是关闭的——不产生 prompt/armed）
     for (const item of plan.floating) {
       const identity = plan.order[item.ref]
@@ -853,9 +1142,13 @@ export class AgentTilingService extends Service {
     this.recovery = 'safe'
     this.recoveryReason = reason
     this.pendingRestore = null
+    this.pendingHandoff = []
     this.restoringPass = false
     this.memberOrder = []
     this.tree = null
+    this.camera = 0
+    this.anchorHwnd = null
+    this.lastPlaced.clear()
     this.auth = createGeomAuthLedger()
     this.clearSettleTimers()
     this.logEvent({ type: 'tiling-recovery', status: 'safe', reason })
@@ -895,7 +1188,13 @@ export class AgentTilingService extends Service {
       .map((hwnd) => ({ hwnd, rect: floatingRectOf(this.auth, hwnd) }))
       .filter((f): f is { hwnd: number; rect: TileRect } => f.rect !== null)
       .map((f) => ({ hwnd: f.hwnd, rect: f.rect }))
-    return captureLayout({ desktopId, clean, order, tree: this.tree, floating })
+    // 屏外顺序与锚窗身份（工单406）：带成员在 memberOrder 内（captureLayout 映射为
+    // order 下标）；锚窗不在成员序（已浮动/已消失）时 captureLayout 置空
+    const band = this.tree ? this.tree.overflow.map((id) => Number(id)) : []
+    const anchor = this.anchorHwnd !== null && this.memberOrder.includes(this.anchorHwnd)
+      ? this.anchorHwnd
+      : null
+    return captureLayout({ desktopId, clean, order, tree: this.tree, floating, band, anchor })
   }
 
   /**
@@ -909,7 +1208,17 @@ export class AgentTilingService extends Service {
     if (!desktopId) return
     let doc: AgentLayoutDoc
     if (this.safe) {
-      doc = { version: 1, desktopId, clean, order: [], tree: null, queue: [], floating: [] }
+      doc = {
+        version: AGENT_LAYOUT_VERSION,
+        desktopId,
+        clean,
+        order: [],
+        tree: null,
+        queue: [],
+        band: [],
+        anchor: null,
+        floating: [],
+      }
     } else if (this.pendingRestore) {
       doc = { ...this.pendingRestore, desktopId, clean }
     } else {
@@ -1051,6 +1360,11 @@ export class AgentTilingService extends Service {
   /** 测试观察缝：成员加入序快照（生命周期顺序断言——移回按最新加入） */
   memberOrderForTest(): number[] {
     return [...this.memberOrder]
+  }
+
+  /** 测试观察缝：拖入交接暂存账快照（工单407——消费即清、消失即弃的断言面） */
+  handoffPendingForTest(): number[] {
+    return [...this.pendingHandoff]
   }
 
   /** 测试观察缝：逐窗授权阶段（工单378 授权矩阵——浮动/提示/已确认） */
