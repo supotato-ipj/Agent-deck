@@ -371,7 +371,11 @@ async function dragTitleBarTo377(hwnd, to, opts = {}) {
     await sleep(40);
   }
   if (opts.esc) {
-    win32.send([win32.keyInput(0x1b, win32.KEYDOWN), win32.keyInput(0x1b, win32.KEYUP)]);
+    // Esc 按住 120ms 再松（人手节奏；面板在会话期 40ms 采样 Esc——瞬时 down+up 批发送
+    // 可能落在采样间隙）
+    win32.send([win32.keyInput(0x1b, win32.KEYDOWN)]);
+    await sleep(120);
+    win32.send([win32.keyInput(0x1b, win32.KEYUP)]);
     await sleep(150);
   }
   await sleep(80);

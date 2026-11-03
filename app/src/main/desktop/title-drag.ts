@@ -43,6 +43,10 @@ interface DragBound {
 
 let bound: DragBound | null = null
 let bindFailed = false
+/** 拖拽会话期 Esc 采样（工单408）：会话起点清零、40ms 步进轮询、终点回收 */
+let escapeSeen = false
+let escSampler: ReturnType<typeof setInterval> | null = null
+const ESC_SAMPLE_MS = 40
 /** 事件回调单登（koffi 具名注册进程级唯一——二次 start 复用同一注册体，#153 教训） */
 let registeredCb: ((event: number, hwnd: number) => void) | null = null
 let registeredProc: unknown = null
@@ -128,8 +132,25 @@ export function startTitleDragWatch(hooks: TitleDragHooks): () => void {
     )
   }
   registeredCb = (event, hwnd) => {
-    if (event === EVENT_SYSTEM_MOVESIZESTART) hooks.onStart?.(hwnd)
-    else if (event === EVENT_SYSTEM_MOVESIZEEND) hooks.onEnd?.(hwnd, readCursorPoint(), isEscapeDown())
+    if (event === EVENT_SYSTEM_MOVESIZESTART) {
+      // Esc 取消采样（工单408，story 44）：会话期低频轮询 Esc 按下态——Esc 在拖动中段
+      // 按下又松开（先于松手数百 ms）时，仅凭 MOVESIZEEND 瞬时读数会漏判（375/377 P11
+      // 首轮实证：Esc 原生取消了移动循环，面板却在 END 读不到按下态而照常迁移）。取消
+      // 是「会话期 Esc 曾按下」不是「松手瞬间 Esc 在按下」。
+      escapeSeen = false
+      if (escSampler === null) {
+        escSampler = setInterval(() => {
+          if (isEscapeDown()) escapeSeen = true
+        }, ESC_SAMPLE_MS)
+      }
+      hooks.onStart?.(hwnd)
+    } else if (event === EVENT_SYSTEM_MOVESIZEEND) {
+      if (escSampler !== null) {
+        clearInterval(escSampler)
+        escSampler = null
+      }
+      hooks.onEnd?.(hwnd, readCursorPoint(), escapeSeen || isEscapeDown())
+    }
   }
   hookHandle = b.setWinEventHook(
     EVENT_SYSTEM_MOVESIZESTART,
@@ -143,8 +164,13 @@ export function startTitleDragWatch(hooks: TitleDragHooks): () => void {
   return stopTitleDragWatch
 }
 
-/** 停表（幂等）：Unhook + 解注册——失活/卸载路径零残留事件源 */
+/** 停表（幂等）：Unhook + 解注册——失活/卸载路径零残留事件源（Esc 采样器一并回收） */
 export function stopTitleDragWatch(): void {
+  if (escSampler !== null) {
+    clearInterval(escSampler)
+    escSampler = null
+  }
+  escapeSeen = false
   if (hookHandle) {
     try {
       const b = bind()
