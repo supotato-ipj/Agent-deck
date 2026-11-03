@@ -331,6 +331,59 @@ async function spawnFixedSizeWindow37x(title, timeoutMs = 25000) {
   return { pid: proc.pid, hwnd };
 }
 
+/**
+ * 工具窗夹具（工单408 不合格源被测物）：WPF WindowStyle=ToolWindow → WS_EX_TOOLWINDOW，
+ * 标题栏可拖（真实 MOVESIZE 手势在）但 tile-scope 判 tool-or-popup 不合格——
+ * 「可拖但不可入」的真机夹具形态（固定尺寸窗不适用：tile-scope 不看 resizable，
+ * 固定尺寸窗仍算合格源）。
+ */
+async function spawnToolWindow37x(title, timeoutMs = 25000) {
+  const script = [
+    'Add-Type -AssemblyName PresentationFramework',
+    '$w = New-Object System.Windows.Window',
+    `$w.Title = '${title}'`,
+    "$w.WindowStyle = 'ToolWindow'",
+    '$w.Width = 420', '$w.Height = 320', '$w.Left = 120', '$w.Top = 120',
+    '$w.ShowDialog() | Out-Null',
+  ].join('; ');
+  const proc = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { stdio: 'ignore' });
+  const hwnd = await waitWindowByTitle(title, timeoutMs);
+  return { pid: proc.pid, hwnd };
+}
+
+/**
+ * 真实标题栏拖动到目标点（工单408；378 dragTitleBar 同款起拖点纪律——30% 横位避胶囊，
+ * 407/375 P10 同款分步节奏）。opts.esc = 松手前发 ESC（系统移动循环原生取消——
+ * story 44「Esc 只取消迁移」的真机手势面）。
+ */
+async function dragTitleBarTo377(hwnd, to, opts = {}) {
+  const r = win32.rectOf(hwnd);
+  if (!r) return false;
+  const sx = Math.round(r.left + (r.right - r.left) * 0.3);
+  const sy = r.top + 14;
+  win32.moveMousePhys(sx, sy);
+  await sleep(90);
+  win32.send([win32.mouseInput(0, 0, win32.LEFTDOWN)]);
+  await sleep(90);
+  const steps = 12;
+  for (let i = 1; i <= steps; i++) {
+    win32.moveMousePhys(Math.round(sx + ((to.x - sx) * i) / steps), Math.round(sy + ((to.y - sy) * i) / steps));
+    await sleep(40);
+  }
+  if (opts.esc) {
+    // Esc 按住 120ms 再松（人手节奏；面板在会话期 40ms 采样 Esc——瞬时 down+up 批发送
+    // 可能落在采样间隙）
+    win32.send([win32.keyInput(0x1b, win32.KEYDOWN)]);
+    await sleep(120);
+    win32.send([win32.keyInput(0x1b, win32.KEYUP)]);
+    await sleep(150);
+  }
+  await sleep(80);
+  win32.send([win32.mouseInput(0, 0, win32.LEFTUP)]);
+  await sleep(200);
+  return true;
+}
+
 /** 矩形等值（容差 tol，物理 px） */
 function rectEq(r, t, tol = 2) {
   if (!r) return false;
@@ -836,6 +889,195 @@ async function main() {
         rep.fail(`P10 带触发=${JSON.stringify(stBand)} 带矩形 ok=${bandOk} 保原矩形=${keptOriginal.length} 屏内越界=${!inScreenOk} 滑入=${JSON.stringify(fitIn)} 整组左移=${slid} 滑回=${JSON.stringify(fitBack)} 回位=${backIn} 胶囊=${JSON.stringify(cap)} 预览=${JSON.stringify(pv)} 补入=${JSON.stringify(drain)} 收拢回屏内=${drained}`);
       }
     } catch (err) { rep.fail(`P10 异常: ${err.message}`); }
+
+    // —— P11 拖入取消回滚与连续拖入（工单408，spec #403 用户故事 44-48）——
+    // 只覆盖单测无法证明的真机面：①真实 Esc 取消（悬停 Agent 入口发 ESC——系统移动
+    // 循环原生复原、面板零插手、零迁移零交接）；②栏外松手（用户拖动成果原样保留——
+    // 面板零改窗零复原）；③不合格源（工具窗）落放入口（面板按拖前几何真 SetWindowPos
+    // 复原 + 条带内简短反馈 toast）；④连续两窗拖入（迁移确认序=交接序、落放不切桌面、
+    // 进入 Agent 后实际平铺各半）。
+    rep.beginSegment('P11');
+    const p11Mine = [];
+    try {
+      if (!agentId) throw new Error('P11 前置失守：P1 未取得 Agent 桌面 ID');
+      // 前置：回普通桌面 + 清 P1-P10 夹具（④的平铺断言要 Agent 桌面从零起算；
+      // 它们的用途已随各段结束）
+      const ptN11 = modeButtonPoint376(latestGeo(), tbRect, scale, 'normal');
+      if (!ptN11) throw new Error('P11 前置失守：normal 模式按钮几何缺位');
+      await convergeAt376(ptN11, tbHwnd);
+      win32.clickPhys(ptN11.x, ptN11.y, 'left');
+      const backN11 = await waitDesktopCurrent376(com, normalId, 3000);
+      if (!backN11.ok) throw new Error(`P11 前置失守：未切回普通桌面（${backN11.detail}）`);
+      for (const f of fixtures) {
+        if (f.pid) spawnSync('taskkill', ['/PID', String(f.pid), '/T', '/F'], { stdio: 'ignore' });
+      }
+      fixtures.length = 0;
+      tiles.length = 0;
+      await sleep(600);
+
+      // MOVESIZE 起/止观察（P10 同款钩子；koffi 具名注册进程级唯一——T408P 前缀）
+      const user32P11 = koffi.load('user32.dll');
+      koffi.struct('T408P_POINT', { x: 'long', y: 'long' });
+      const SetWinEventHookP11 = user32P11.func('void * __stdcall SetWinEventHook(uint32 eventMin, uint32 eventMax, void *hmodWinEventProc, void *pfnWinEventProc, uint32 idProcess, uint32 idThread, uint32 dwFlags)');
+      const UnhookWinEventP11 = user32P11.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)');
+      koffi.proto('__stdcall', 'T408P_WineventProc', 'void', ['void *', 'uint32', 'uintptr_t', 'int32', 'int32', 'uint32', 'uint32']);
+      const movesize11 = [];
+      const wineventCb11 = koffi.register((_h, event, hwnd, idObject) => {
+        if (idObject !== 0) return;
+        movesize11.push({ event, hwnd: Number(hwnd) });
+      }, 'T408P_WineventProc *');
+      const hook11 = SetWinEventHookP11(0x000a, 0x000b, null, wineventCb11, 0, 0, 0);
+      if (!hook11) throw new Error('P11 MOVESIZE 钩子注册失败');
+      const unhook11 = () => { try { UnhookWinEventP11(hook11); } catch { /* 尽力 */ } };
+
+      // 桌面 ID 稳定回读（零 GUID 重读同 P7/P10 口径）
+      const desktopIdSettled11 = async (hwnd) => {
+        let id = com.desktopIdOf(hwnd);
+        for (let i = 0; i < 15 && (!id || /^0{8}-/.test(id)); i++) {
+          await sleep(200);
+          id = com.desktopIdOf(hwnd);
+        }
+        return id;
+      };
+      const ptAgent11 = modeButtonPoint376(latestGeo(), tbRect, scale, 'agent');
+      if (!ptAgent11) throw new Error('P11 前置失守：agent 模式按钮几何缺位');
+      // 栏外落点：任务栏右端时钟区（非 Agent 入口）
+      const ptClock11 = { x: tbRect.right - 80, y: tbRect.top + Math.round((tbRect.bottom - tbRect.top) / 2) };
+
+      // ① Esc 取消（story 44）：拖向 Agent 入口悬停后发 ESC——即使光标在入口上也不迁移
+      {
+        const e1 = await spawnFixture('E1');
+        fixtures.push(e1);
+        p11Mine.push(e1);
+        if (!e1.hwnd) throw new Error('P11 前置失守：E1 未出现');
+        const e1Before = win32.rectOf(e1.hwnd);
+        const t11a = Date.now();
+        await dragTitleBarTo377(e1.hwnd, ptAgent11, { esc: true });
+        await sleep(400);
+        const e1Starts = movesize11.filter((e) => e.event === 0x000a && e.hwnd === e1.hwnd).length;
+        const e1Ends = movesize11.filter((e) => e.event === 0x000b && e.hwnd === e1.hwnd).length;
+        const e1Id = await desktopIdSettled11(e1.hwnd);
+        const e1Rect = win32.rectOf(e1.hwnd);
+        const e1Reg = tape.all('drag-in-registered', (e) => e.t >= t11a).length;
+        if (e1Starts === 1 && e1Ends === 1 && e1Id === normalId && e1Reg === 0 && rectEq(e1Rect, e1Before)) {
+          rep.pass(`P11① Esc 取消：MOVESIZE 起/止各一帧且 hwnd=夹具窗；桌面 ID 仍普通（零迁移）、零 drag-in-registered；窗矩形原生复原 ${rectStr(e1Before)}——悬停 Agent 入口发 Esc 只取消迁移（面板零插手）`);
+        } else {
+          rep.fail(`P11① 起/止=${e1Starts}/${e1Ends} 桌面=${e1Id === normalId} 交接=${e1Reg} 矩形复原=${rectEq(e1Rect, e1Before)}（拖前 ${rectStr(e1Before)} 拖后 ${rectStr(e1Rect)}）`);
+        }
+      }
+
+      // ② 栏外松手（story 44）：拖到任务栏时钟区松手——用户拖动成果保留（面板零复原）
+      {
+        const e2 = await spawnFixture('E2');
+        fixtures.push(e2);
+        p11Mine.push(e2);
+        if (!e2.hwnd) throw new Error('P11 前置失守：E2 未出现');
+        const e2Before = win32.rectOf(e2.hwnd);
+        const t11b = Date.now();
+        await dragTitleBarTo377(e2.hwnd, ptClock11, {});
+        await sleep(400);
+        const e2Id = await desktopIdSettled11(e2.hwnd);
+        const e2Rect = win32.rectOf(e2.hwnd);
+        const e2Reg = tape.all('drag-in-registered', (e) => e.t >= t11b).length;
+        await sleep(700);
+        const e2RectLate = win32.rectOf(e2.hwnd); // 面板零改窗：落定位置持续稳定
+        const moved = e2Rect && e2Before && (Math.abs(e2Rect.left - e2Before.left) > 40 || Math.abs(e2Rect.top - e2Before.top) > 40);
+        if (e2Id === normalId && e2Reg === 0 && moved && rectEq(e2Rect, e2RectLate, 1)) {
+          rep.pass(`P11② 栏外松手：桌面 ID 仍普通、零 drag-in-registered；用户拖动成果原样保留（${rectStr(e2Before)} → ${rectStr(e2Rect)}）且 700ms 后纹丝未动（面板零改窗零复原）`);
+        } else {
+          rep.fail(`P11② 桌面=${e2Id === normalId} 交接=${e2Reg} 位移=${moved} 稳定=${rectEq(e2Rect, e2RectLate, 1)}（拖前 ${rectStr(e2Before)} 落定 ${rectStr(e2Rect)} 迟拍 ${rectStr(e2RectLate)}）`);
+        }
+      }
+
+      // ③ 不合格源落放（story 45）：工具窗拖入 Agent 入口——保持原桌面、复原拖前几何、
+      // 条带内简短反馈 toast（workspace/drag-in-feedback → #drag-toast）
+      {
+        const e3 = await spawnToolWindow37x('T377-TOOL-E3');
+        fixtures.push({ pid: e3.pid, hwnd: e3.hwnd });
+        p11Mine.push(e3);
+        if (!e3.hwnd) throw new Error('P11 前置失守：E3 工具窗未出现');
+        const e3Before = win32.rectOf(e3.hwnd);
+        const t11c = Date.now();
+        await dragTitleBarTo377(e3.hwnd, ptAgent11, {});
+        // 面板复原拖前几何：有界等待矩形回到拖前位
+        const e3Restored = await waitRectStable(e3.hwnd, e3Before, 1500, 5000);
+        const e3Id = await desktopIdSettled11(e3.hwnd);
+        const e3Rect = win32.rectOf(e3.hwnd);
+        const e3Reg = tape.all('drag-in-registered', (e) => e.t >= t11c).length;
+        let toast11 = null;
+        for (let i = 0; i < 10 && !toast11; i++) {
+          try {
+            toast11 = await cdpEval376(TASKBAR_TITLE,
+              `(() => { const t = document.getElementById('drag-toast'); return (t && t.dataset.on === '1' && t.textContent.length > 0) ? t.textContent : null })()`);
+          } catch { /* CDP 竞态重试 */ }
+          if (!toast11) await sleep(120);
+        }
+        if (e3Id === normalId && e3Reg === 0 && e3Restored.ok && rectEq(e3Rect, e3Before) && toast11) {
+          rep.pass(`P11③ 不合格源落放：工具窗拖入 Agent 入口——桌面 ID 仍普通、零交接；面板按拖前几何真 SetWindowPos 复原（${rectStr(e3Before)}，${e3Restored.ms}ms 内达标）；条带内简短反馈 toast 在场（「${String(toast11).slice(0, 24)}…」）`);
+        } else {
+          rep.fail(`P11③ 桌面=${e3Id === normalId} 交接=${e3Reg} 几何复原=${JSON.stringify(e3Restored)}（拖前 ${rectStr(e3Before)} 终态 ${rectStr(e3Rect)}） toast=${JSON.stringify(toast11)}`);
+        }
+      }
+
+      // ④ 连续两窗（story 41/42/43）：依次拖入 Agent 入口——迁移确认序=交接序、
+      // 落放不切桌面、进入 Agent 后实际平铺各半
+      {
+        const dragIn11 = async (tag) => {
+          const w = await spawnFixture(tag);
+          fixtures.push(w);
+          p11Mine.push(w);
+          if (!w.hwnd) throw new Error(`P11 前置失守：${tag} 未出现`);
+          const t0 = Date.now();
+          await dragTitleBarTo377(w.hwnd, ptAgent11, {});
+          let id = null;
+          for (let i = 0; i < 25; i++) {
+            id = com.desktopIdOf(w.hwnd);
+            if (id && !/^0{8}-/.test(id) && id === agentId) break;
+            id = null;
+            await sleep(120);
+          }
+          const stillNormal = regDesktopFacts().current === normalId;
+          return { w, t0, migrated: id === agentId, stillNormal };
+        };
+        const r4 = await dragIn11('E4');
+        const r5 = await dragIn11('E5');
+        const regs = tape.all('drag-in-registered', (e) => e.t >= r4.t0).map((e) => e.hwnd);
+        const orderOk = regs.length === 2 && regs[0] === r4.w.hwnd && regs[1] === r5.w.hwnd;
+        if (!(r4.migrated && r5.migrated && r4.stillNormal && r5.stillNormal && orderOk)) {
+          rep.fail(`P11④ 迁移=${r4.migrated}/${r5.migrated} 落放不切桌面=${r4.stillNormal}/${r5.stillNormal} 交接序=${JSON.stringify(regs)} 期望=[${r4.w.hwnd},${r5.w.hwnd}]`);
+        } else {
+          // 进入 Agent 桌面：交接窗实际平铺（count=2、各占左右半格）
+          await convergeAt376(ptAgent11, tbHwnd);
+          win32.clickPhys(ptAgent11.x, ptAgent11.y, 'left');
+          const confA11 = await waitDesktopCurrent376(com, agentId, 3000);
+          if (!confA11.ok) throw new Error(`P11④ 切换失守：未切到 Agent 桌面（${confA11.detail}）`);
+          const st11 = await waitTilingState((x) => x.count === 2 && x.placed === 2, 10000);
+          const mid11 = Math.round((AREA.left + AREA.right) / 2);
+          const rect4 = win32.rectOf(r4.w.hwnd);
+          const rect5 = win32.rectOf(r5.w.hwnd);
+          const half4 = rectEq(rect4, { left: AREA.left, top: AREA.top, right: mid11, bottom: AREA.bottom }, 3);
+          const half5 = rectEq(rect5, { left: mid11, top: AREA.top, right: AREA.right, bottom: AREA.bottom }, 3);
+          if (st11.ok && half4 && half5) {
+            rep.pass(`P11④ 连续两窗拖入：迁移确认序=交接序 [E4,E5]（桌面 ID 回读=Agent ×2）、落放全程不切桌面；进入 Agent 后实际平铺 count=2 placed=2、E4=${rectStr(rect4)} E5=${rectStr(rect5)} 各占左右半格`);
+          } else {
+            rep.fail(`P11④ 平铺未成就：tiling=${JSON.stringify(st11.state ?? st11)} E4=${rectStr(rect4)} E5=${rectStr(rect5)} 期望各半（mid=${mid11}）`);
+          }
+        }
+      }
+      unhook11();
+    } catch (err) { rep.fail(`P11 异常: ${err.message}`); }
+    finally {
+      // P11 夹具清场（E1-E5 + 工具窗）+ 钩子解注册 + 回普通桌面（P9 收尾前提）
+      for (const f of p11Mine) {
+        if (f.pid) spawnSync('taskkill', ['/PID', String(f.pid), '/T', '/F'], { stdio: 'ignore' });
+      }
+      try {
+        if (com.currentId() !== normalId) {
+          com.switchDesktop(normalId);
+          await waitDesktopCurrent376(com, normalId, 3000);
+        }
+      } catch { /* 尽力（P9 有热键兜底） */ }
+    }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {

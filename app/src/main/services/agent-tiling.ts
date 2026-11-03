@@ -663,6 +663,10 @@ export class AgentTilingService extends Service {
     // 可平铺候选 = 合格成员 − 异常未平铺 − 手动浮动（浮动窗几何保留、不参与规划、可覆盖窗格）
     const candidates = members.filter((m) => !this.anomalies.has(m.hwnd) && !isFloating(this.auth, m.hwnd))
     const candSet = new Set(candidates.map((m) => m.hwnd))
+    // 本拍「既有成员」快照先于拖入交接对账取（工单408）：交接并入的窗是本拍新成员，
+    // 持前台时仍走前台新窗 fit 滑入（story 20/43「进入 Agent 后自动完成实际平铺」）；
+    // 快照若晚于合并，交接成员会被误判成既有成员而永远跳过 fit。
+    const prevOrder = new Set(this.memberOrder)
     // 拖入交接对账（工单407）：确认过的待入列窗按交接顺序并入成员序——交接序优先于
     // 本拍 z 序（story 41「连续拖入的顺序可预测」）。已消费条目即清；窗口已从事实里
     // 消失（拖入后关闭）的条目丢弃——暂存账不沉淀。
@@ -677,7 +681,6 @@ export class AgentTilingService extends Service {
     }
     // 成员加入序对账：保留在册序，新成员按本拍 z 序追加队尾（首见序 = 加入事件序——
     // 移回主屏按最新窗口加入，story 21）
-    const prevOrder = new Set(this.memberOrder)
     this.memberOrder = this.memberOrder.filter((h) => candSet.has(h))
     for (const m of candidates) {
       if (!this.memberOrder.includes(m.hwnd)) this.memberOrder.push(m.hwnd)

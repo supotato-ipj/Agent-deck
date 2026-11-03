@@ -89,6 +89,11 @@ declare module 'cordis' {
      */
     'workspace/drag-in-changed': (payload: { active: boolean; overAgent: boolean }) => void
     /**
+     * 工单408 拖入事务终局反馈：drop 通路每次事务收尾即发一次——任务栏渲染层把失败
+     * 原因透成条带内简短反馈。载荷只含句柄与原因枚举，不含窗口标题或拖入内容。
+     */
+    'workspace/drag-in-feedback': (payload: { hwnd: number; ok: boolean; reason?: string; source: 'drop' | 'command' }) => void
+    /**
      * 工单407 拖入一次性交接登记：迁移经桌面 ID 回读确认后即发一次——Agent 平铺服务
      * 订阅它把该窗按交接顺序并入待入列（下次布局拍对账并清除）。渲染层不消费。
      */

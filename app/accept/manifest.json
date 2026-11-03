@@ -2060,7 +2060,7 @@
       "cdpPort": 9234,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 58,
+      "lastMeasuredSeconds": 110,
       "lastMeasuredAt": "2026-11-04",
       "areas": [
         "desktop"
@@ -2150,6 +2150,22 @@
             "event-evidence"
           ],
           "estSeconds": 20
+        },
+        {
+          "seg": "P11",
+          "ticket": 408,
+          "title": "拖入取消回滚与连续拖入（工单408）：真实 Esc 取消（悬停 Agent 入口发 Esc——MOVESIZE 起/止各一帧、零迁移零交接、窗矩形系统原生复原）；栏外松手（拖动成果原样保留、700ms 纹丝未动——面板零改窗）；工具窗不合格落放入口（零迁移、面板按拖前几何真 SetWindowPos 复原、条带内简短反馈 toast 在场）；连续两窗拖入（迁移确认序=交接序 [E4,E5]、落放全程不切桌面、进入 Agent 后 count=2 placed=2 各占左右半格）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "areas": [
+            "desktop",
+            "panel.core",
+            "taskbar"
+          ],
+          "estSeconds": 40
         },
         {
           "seg": "P9",

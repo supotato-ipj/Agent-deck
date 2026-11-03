@@ -25,8 +25,9 @@ export interface ScreenPoint {
 export interface TitleDragHooks {
   /** 拖动会话开始（hwnd = 被移动窗口——源窗口身份的唯一出处） */
   onStart?: (hwnd: number) => void
-  /** 拖动会话结束（point = 松手时刻光标屏幕坐标——落点判定的光标事实） */
-  onEnd?: (hwnd: number, point: ScreenPoint | null) => void
+  /** 拖动会话结束（point = 松手时刻光标屏幕坐标；cancelled = 松手时 Esc 按下——
+   *  系统移动循环被 Esc 取消的直读信号，story 44「Esc 只取消迁移」的判定事实） */
+  onEnd?: (hwnd: number, point: ScreenPoint | null, cancelled: boolean) => void
 }
 
 interface KoffiFunc {
@@ -37,10 +38,15 @@ interface DragBound {
   setWinEventHook: KoffiFunc
   unhookWinEvent: KoffiFunc
   getCursorPos: KoffiFunc
+  getAsyncKeyState: KoffiFunc
 }
 
 let bound: DragBound | null = null
 let bindFailed = false
+/** 拖拽会话期 Esc 采样（工单408）：会话起点清零、40ms 步进轮询、终点回收 */
+let escapeSeen = false
+let escSampler: ReturnType<typeof setInterval> | null = null
+const ESC_SAMPLE_MS = 40
 /** 事件回调单登（koffi 具名注册进程级唯一——二次 start 复用同一注册体，#153 教训） */
 let registeredCb: ((event: number, hwnd: number) => void) | null = null
 let registeredProc: unknown = null
@@ -66,11 +72,26 @@ function bind(): DragBound | null {
       ),
       unhookWinEvent: user32.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)'),
       getCursorPos: user32.func('bool __stdcall GetCursorPos(_Out_ TITLE_DRAG_POINT *pt)'),
+      getAsyncKeyState: user32.func('int16 __stdcall GetAsyncKeyState(int vKey)'),
     }
     return bound
   } catch {
     bindFailed = true
     return null
+  }
+}
+
+const VK_ESCAPE = 0x1b
+
+/** 松手时刻 Esc 是否按下（读失败 = false——按「未取消」处理，落点判定照常；不猜取消） */
+export function isEscapeDown(): boolean {
+  try {
+    const b = bind()
+    if (!b) return false
+    // 高位 = 按下（GetAsyncKeyState 约定）
+    return (Number(b.getAsyncKeyState(VK_ESCAPE)) & 0x8000) !== 0
+  } catch {
+    return false
   }
 }
 
@@ -111,8 +132,25 @@ export function startTitleDragWatch(hooks: TitleDragHooks): () => void {
     )
   }
   registeredCb = (event, hwnd) => {
-    if (event === EVENT_SYSTEM_MOVESIZESTART) hooks.onStart?.(hwnd)
-    else if (event === EVENT_SYSTEM_MOVESIZEEND) hooks.onEnd?.(hwnd, readCursorPoint())
+    if (event === EVENT_SYSTEM_MOVESIZESTART) {
+      // Esc 取消采样（工单408，story 44）：会话期低频轮询 Esc 按下态——Esc 在拖动中段
+      // 按下又松开（先于松手数百 ms）时，仅凭 MOVESIZEEND 瞬时读数会漏判（375/377 P11
+      // 首轮实证：Esc 原生取消了移动循环，面板却在 END 读不到按下态而照常迁移）。取消
+      // 是「会话期 Esc 曾按下」不是「松手瞬间 Esc 在按下」。
+      escapeSeen = false
+      if (escSampler === null) {
+        escSampler = setInterval(() => {
+          if (isEscapeDown()) escapeSeen = true
+        }, ESC_SAMPLE_MS)
+      }
+      hooks.onStart?.(hwnd)
+    } else if (event === EVENT_SYSTEM_MOVESIZEEND) {
+      if (escSampler !== null) {
+        clearInterval(escSampler)
+        escSampler = null
+      }
+      hooks.onEnd?.(hwnd, readCursorPoint(), escapeSeen || isEscapeDown())
+    }
   }
   hookHandle = b.setWinEventHook(
     EVENT_SYSTEM_MOVESIZESTART,
@@ -126,8 +164,13 @@ export function startTitleDragWatch(hooks: TitleDragHooks): () => void {
   return stopTitleDragWatch
 }
 
-/** 停表（幂等）：Unhook + 解注册——失活/卸载路径零残留事件源 */
+/** 停表（幂等）：Unhook + 解注册——失活/卸载路径零残留事件源（Esc 采样器一并回收） */
 export function stopTitleDragWatch(): void {
+  if (escSampler !== null) {
+    clearInterval(escSampler)
+    escSampler = null
+  }
+  escapeSeen = false
   if (hookHandle) {
     try {
       const b = bind()

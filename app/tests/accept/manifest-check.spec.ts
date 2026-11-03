@@ -400,7 +400,13 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 真机段只验真实标题栏输入、系统桌面 ID 回读与渲染层高亮这些单测无法证明的面。
     // 187 → 188：并流对账——工单405（377 电池 P10 屏外滚动带）与工单407（375 电池 P10
     // 标题栏拖入）两票各增一段，合并后段总数为两票增量之和。
-    expect(total).toBe(188)
+    // 188 → 189：工单408 增段——377-agent-tiling-lifecycle 电池增 P11（拖入取消回滚与
+    // 连续拖入：真实 Esc 取消原生复原、栏外松手拖动成果保留、工具窗不合格落放拖前几何
+    // 复原+条带反馈 toast、连续两窗迁移确认序=交接序+进入平铺；一段绑定一工单）。取消/
+    // 不合格/回滚/交接序语义按增段条件②由 agent-drag-in-service / agent-drag-in-flow
+    // 单测矩阵钉，真机段只验真实 Esc 手势、系统桌面 ID、真 SetWindowPos 复原与渲染层
+    // toast 这些单测无法证明的面。
+    expect(total).toBe(189)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
