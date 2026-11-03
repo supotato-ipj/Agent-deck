@@ -88,6 +88,10 @@ export class AgentTilingService extends Service {
   private pendingPass = false
   private lastState: AgentTilingState | null = null
   private started = false
+  /** 成员加入序（hwnd，先到在前）：布局只由加入事件序列决定（spec 决策 7「有序窗口
+   *  成员」+ 用户故事 18/31——确定性不随 z 序/焦点漂移）；新成员按首见序追加队尾
+   *  （story 21「移回主屏按最新窗口加入」），消失成员移除、兄弟吸收空位。 */
+  private memberOrder: number[] = []
 
   constructor(ctx: Context, options: AgentTilingServiceOptions = {}) {
     super(ctx, 'agentTiling')
@@ -218,8 +222,14 @@ export class AgentTilingService extends Service {
     }
     const primary = this.deps.primaryRect()
     const { members } = projectTileScope(facts, this.deps.ownExes(), primary)
+    // 成员加入序对账：保留在册序，新成员按本拍 z 序追加队尾（首见序 = 加入事件序）
+    const memberSet = new Set(members.map((m) => m.hwnd))
+    this.memberOrder = this.memberOrder.filter((h) => memberSet.has(h))
+    for (const m of members) {
+      if (!this.memberOrder.includes(m.hwnd)) this.memberOrder.push(m.hwnd)
+    }
     const area: TileRect = tileAreaOf(primary, this.deps.taskbarTop())
-    const plan = planTiling(members.map((m) => String(m.hwnd)), area)
+    const plan = planTiling(this.memberOrder.map(String), area)
     const rectByHwnd = new Map(members.map((m) => [Number(m.hwnd), m.rect] as const))
     const iconicByHwnd = new Map(members.map((m) => [Number(m.hwnd), m.iconic] as const))
 

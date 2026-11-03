@@ -361,11 +361,14 @@ function createToolWindow(title) {
     lpszMenuName: 'const char16_t *', lpszClassName: 'const char16_t *',
   });
   koffi.proto('__stdcall', 'T376_WndProc', 'intptr_t', ['uintptr_t', 'uint32', 'uintptr_t', 'intptr_t']);
-  const wndProc = koffi.register(() => 0, 'T376_WndProc *'); // 全部消息交默认处理（0 = 让 DefWindowProc 兜）
+  const DefWindowProcW = user32.func('intptr_t __stdcall DefWindowProcW(uintptr_t, uint32, uintptr_t, intptr_t)');
+  // 全部消息交 DefWindowProc（WM_NCCREATE 返 0 会让 CreateWindowEx 直接失败——r2 实测坑）
+  const wndProc = koffi.register(
+    (hwnd, msg, wp, lp) => DefWindowProcW(hwnd, msg, wp, lp),
+    'T376_WndProc *',
+  );
   const RegisterClassW = user32.func('uint16 __stdcall RegisterClassW(const T376_WNDCLASS *)');
   const CreateWindowExW = user32.func('uintptr_t __stdcall CreateWindowExW(uint32, const char16_t *, const char16_t *, uint32, int, int, int, int, uintptr_t, uintptr_t, void *, void *)');
-  const DefWindowProcW = user32.func('intptr_t __stdcall DefWindowProcW(uintptr_t, uint32, uintptr_t, void *)');
-  void DefWindowProcW;
   const kernel32 = koffi.load('kernel32.dll');
   const GetModuleHandleW = kernel32.func('void * __stdcall GetModuleHandleW(const char16_t *)');
   const clsName = 'T376ToolWin';
@@ -380,8 +383,9 @@ function createToolWindow(title) {
   const atom = RegisterClassW(wc);
   if (!atom) return { hwnd: 0, wndProc };
   // WS_EX_TOOLWINDOW = 0x80（排除面被测物）；WS_OVERLAPPEDWINDOW | WS_VISIBLE
+  // （uintptr_t 形参不给 null——koffi 只认整数，t372/375 同款坑位）
   const hwnd = CreateWindowExW(0x80, clsName, title, 0x00CF0000 | 0x10000000,
-    40, 40, 480, 360, null, null, GetModuleHandleW(null), null);
+    40, 40, 480, 360, 0, 0, GetModuleHandleW(null), null);
   return { hwnd: Number(hwnd), wndProc };
 }
 
@@ -563,8 +567,9 @@ async function main() {
       // ④ 面板/条带/胶囊自身不计：合格集正对照（含 notepad 两扇）而计数只反映合格应用
       const qual = qualifiedAppWindows376([panelExePath]);
       const notepadInQual = qual.filter((w) => {
-        const exe = String(win32.exeNameOfWindow(w.hwnd) || '').toLowerCase();
-        return exe === 'notepad.exe';
+        const exe = String(win32.exeNameOfWindow(w.hwnd) || '').toLowerCase(); // basename 不带 .exe（t372 实测口径）
+        const cls = String(win32.className(w.hwnd) || '');
+        return exe.startsWith('notepad') || cls === 'Notepad';
       }).length;
       // ⑤ 胶囊置顶（WS_EX_TOPMOST）——spec 决策 16「胶囊始终置顶」
       const capHwnd = await handle.waitWindow({ title: CAPSULE_TITLE, timeoutMs: 4000 });

@@ -1935,9 +1935,9 @@
       "hintBar": true,
       "cdpPort": 9233,
       "kind": null,
-      "budgetSeconds": 180,
-      "lastMeasuredSeconds": null,
-      "lastMeasuredAt": null,
+      "budgetSeconds": 60,
+      "lastMeasuredSeconds": 14,
+      "lastMeasuredAt": "2026-11-03",
       "areas": [
         "desktop",
         "panel.core",
@@ -1952,7 +1952,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 14
+          "estSeconds": 3
         },
         {
           "seg": "P2",
@@ -1962,7 +1962,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 10
+          "estSeconds": 1
         },
         {
           "seg": "P3",
@@ -1972,7 +1972,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 12
+          "estSeconds": 1
         },
         {
           "seg": "P4",
@@ -1981,7 +1981,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 12
+          "estSeconds": 2
         },
         {
           "seg": "P5",
@@ -1991,7 +1991,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 12
+          "estSeconds": 5
         },
         {
           "seg": "P6",
@@ -2000,7 +2000,7 @@
           "surfaces": [
             "system-state"
           ],
-          "estSeconds": 8
+          "estSeconds": 5
         }
       ]
     }

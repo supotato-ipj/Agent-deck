@@ -250,6 +250,29 @@ describe('Agent 平铺编排（工单376）', () => {
     expect(h.events.length).toBe(nEvents)
   })
 
+  it('布局确定性：z 序翻转（焦点变化）不改成员加入序 → 布局不漂移（story 18/31）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    h.windows.set(1, { rect: AREA, iconic: false })
+    h.watchOn(1)
+    await settle()
+    h.windows.set(2, { rect: AREA, iconic: false })
+    h.watchOn(2)
+    await settle(60)
+    const firstPlan = h.writes.filter((w) => w.hwnd === 2).at(-1)!.target
+    expect(firstPlan).toEqual({ left: 1280, top: 0, right: 2560, bottom: 1392 }) // 窗 2 = 后加入 → 右半
+    h.writes.length = 0
+    // 焦点切到窗 2 → 枚举 z 序翻转（[2,1]）——加入序账不随之重排，零重写
+    const innerCollect = h.svc as unknown as { deps: { collectFacts: () => TileWindowFacts[] } }
+    const orig = innerCollect.deps.collectFacts
+    innerCollect.deps.collectFacts = () => orig().slice().reverse()
+    h.watchOn(1)
+    await settle(60)
+    expect(h.writes).toEqual([])
+  })
+
   it('失活即清场：切回普通后事件不再产生写入', async () => {
     const h = harness()
     h.mode.value = 'agent'
