@@ -2202,7 +2202,7 @@
       "cdpPort": 9236,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 51,
+      "lastMeasuredSeconds": 54,
       "lastMeasuredAt": "2026-11-03",
       "areas": [
         "desktop",
