@@ -38,7 +38,7 @@ import {
   treeRemove,
 } from '../desktop/tiling-plan'
 import type { TilingTree, TilePlacement, TileRect } from '../desktop/tiling-plan'
-import { captureLayout, identityOf, parseLayout, planRestore, serializeLayout } from '../desktop/agent-layout'
+import { AGENT_LAYOUT_VERSION, captureLayout, identityOf, parseLayout, planRestore, serializeLayout } from '../desktop/agent-layout'
 import type { AgentLayoutDoc, RestorePlan, WindowIdentity } from '../desktop/agent-layout'
 import { rectMatches, projectTileScope } from '../desktop/tile-scope'
 import type { TileWindowFacts, ScopeRect } from '../desktop/tile-scope'
@@ -197,6 +197,10 @@ export class AgentTilingService extends Service {
   /** 视口偏移（工单405，物理 px）：0 = 屏内树满屏（带首列露边可见）；fit 整组滑动改写。
    *  只存偏移语义；锚窗身份的持久化归工单406（spec 决策「持久化布局关系而非旧像素」）。 */
   private camera = 0
+  /** 视口锚窗（工单406，spec 决策「持久化布局关系而非旧像素」）：最近前台受管窗 /
+   *  最近一次 fit 目标。恢复/重入/重启/显示参数变化后按它的**当前几何**重算 fit——
+   *  不存像素偏移。只在内存 + 布局文档 anchor 身份（GLOSSARY「屏外滚动带」）。 */
+  private anchorHwnd: number | null = null
   /** 待 fit 目标（前台事件缝置入、下一拍消费，最新赢；本拍末清零） */
   private pendingFitHwnd: number | null = null
   /** 显示参数变化脏标（下一拍按「重算语义」重新纳回屏外旧成员——story 23；
@@ -442,6 +446,7 @@ export class AgentTilingService extends Service {
     this.auth = createGeomAuthLedger()
     this.lastState = null
     this.camera = 0
+    this.anchorHwnd = null
     this.pendingFitHwnd = null
     this.layoutLoaded = false
     this.pendingRestore = null
@@ -479,6 +484,7 @@ export class AgentTilingService extends Service {
   private onForegroundEvent(hwnd: number): void {
     if (!this.available() || !this.stopForeground) return
     if (!this.memberOrder.includes(hwnd)) return
+    this.anchorHwnd = hwnd // 最近前台受管窗 = 视口锚（工单406，story 30）
     this.pendingFitHwnd = hwnd
     this.schedulePass(hwnd)
   }
@@ -533,11 +539,17 @@ export class AgentTilingService extends Service {
   }
 
   /**
-   * 恢复平铺（工单378 决策 11）：收回全部手动浮动（按进入浮动序重新补入平铺）、清除
-   * 未消费授权、按空间补入容量溢出；异常未平铺跳过并报告数量（skipped）。返回被收回的
-   * 浮动窗数（restored）与跳过数，调用方（胶囊）据此报告。
+   * 恢复平铺（工单378 决策 11 + 工单406，GLOSSARY「恢复平铺」「窗口聚焦」）：收回全部
+   * 手动浮动（按进入浮动序重新补入平铺）、清除未消费授权、按空间补入屏外带；异常未平铺
+   * 跳过并报告数量（skipped）。返回被收回的浮动窗数（restored）与跳过数，调用方（胶囊）
+   * 据此报告。
+   *
+   * 视口锚（工单406）：`fitHwnd` 显式目标（聚焦退出 = 刚退出聚焦的窗，GLOSSARY「窗口
+   * 聚焦」「随后按 fit 显示刚退出聚焦的窗口」）优先；否则当前前台受管窗（GLOSSARY
+   * 「恢复平铺」「以当前前台受管窗为视图锚点执行 fit」）；再否则保留既有锚窗（story 29
+   * 「保留当前锚窗」）；全无有效锚才回布局起点（视口归零）。
    */
-  async restoreTiling(): Promise<{ ok: boolean; restored: number; skipped: number; state: AgentTilingState }> {
+  async restoreTiling(fitHwnd?: number): Promise<{ ok: boolean; restored: number; skipped: number; state: AgentTilingState }> {
     if (!this.active() || this.safe) {
       return { ok: false, restored: 0, skipped: this.anomalies.size, state: this.state() }
     }
@@ -548,6 +560,20 @@ export class AgentTilingService extends Service {
     // 「默认 Agent 平铺」= 按成员加入序整体重算（浮动期兄弟吸收留下的增量树形不作数）：
     // 清树让本拍按成员序重建，收回后的布局与同成员序的默认布局一致
     this.tree = null
+    let target = typeof fitHwnd === 'number' && Number.isFinite(fitHwnd) && fitHwnd > 0 ? fitHwnd : null
+    if (target === null) {
+      for (const hwnd of this.memberOrder) {
+        if (this.deps.isForeground(hwnd)) { target = hwnd; break }
+      }
+    }
+    if (target !== null) {
+      // 聚焦退出路径：挂起先解（退出窗的还原几何不是用户改几何；调用方随后 setTilingHeld(null) 幂等）
+      if (this.heldHwnd === target) this.heldHwnd = null
+      this.anchorHwnd = target
+      this.pendingFitHwnd = target
+    } else if (this.anchorHwnd === null) {
+      this.camera = 0 // 无有效锚：回屏内二叉布局起点（story 29 只在「有锚」时保视口）
+    }
     await this.runPass()
     return { ok: true, restored: floats.length, skipped: this.anomalies.size, state: this.state() }
   }
@@ -665,6 +691,20 @@ export class AgentTilingService extends Service {
         break
       }
     }
+    // 关闭屏内当前窗跟随系统新前台（工单406，story 27）：锚窗消失（关闭/移出主屏）→
+    // 系统新前台受管窗成为本拍 fit 目标（显式前台事件已置目标时让位）；无受管前台 →
+    // 不猜锚，视口仅按内容右端钳制（不留空白视口，story 28）。
+    if (this.anchorHwnd !== null && !memberSet.has(this.anchorHwnd)) {
+      this.anchorHwnd = null
+      if (this.pendingFitHwnd === null) {
+        for (const m of candidates) {
+          if (!m.iconic && this.deps.isForeground(m.hwnd)) {
+            this.pendingFitHwnd = m.hwnd
+            break
+          }
+        }
+      }
+    }
     const count = members.length
     if (!isTileableArea(area, { minPaneW: minPane.w, minPaneH: minPane.h })) {
       // 平铺区不可用（显示参数变化过渡态/主屏暂时不可用）：本拍零写入——不写不可见
@@ -727,27 +767,46 @@ export class AgentTilingService extends Service {
     const fitHwnd = this.pendingFitHwnd
     this.pendingFitHwnd = null
     let plan = treePlan(tree)
-    if (fitHwnd !== null) {
-      const idStr = String(fitHwnd)
+    // 单一 fit 计算（工单405 显式事件与工单406 锚窗跟随共用同一条最小滑动路径）
+    const applyFit = (hwnd: number): boolean => {
+      const idStr = String(hwnd)
       const bandIdx = tree.overflow.indexOf(idStr)
       const treeIdx = plan.placements.findIndex((p) => p.id === idStr)
       const managed = bandIdx >= 0 || treeIdx >= 0
       const suspended =
-        fitHwnd === this.heldHwnd ||
-        isFloating(this.auth, fitHwnd) ||
-        this.anomalies.has(fitHwnd) ||
-        (iconicByHwnd.get(fitHwnd) ?? false)
-      if (managed && !suspended) {
-        const onBand = bandIdx >= 0
-        const rect = onBand ? bandCols()[bandIdx] : plan.placements[treeIdx].rect
-        this.camera = fitCamera(this.camera, rect, area, {
-          leftPeek: onBand ? bandReveal : 0,
-          rightPeek: onBand
-            ? bandIdx < tree.overflow.length - 1 ? bandReveal : 0
-            : tree.overflow.length > 0 ? bandReveal : 0,
-          contentRight: area.right - bandReveal + tree.overflow.length * bandColW,
-        })
-      }
+        hwnd === this.heldHwnd ||
+        isFloating(this.auth, hwnd) ||
+        this.anomalies.has(hwnd) ||
+        (iconicByHwnd.get(hwnd) ?? false)
+      if (!managed || suspended) return false
+      const onBand = bandIdx >= 0
+      const rect = onBand ? bandCols()[bandIdx] : plan.placements[treeIdx].rect
+      this.camera = fitCamera(this.camera, rect, area, {
+        leftPeek: onBand ? bandReveal : 0,
+        rightPeek: onBand
+          ? bandIdx < tree.overflow.length - 1 ? bandReveal : 0
+          : tree.overflow.length > 0 ? bandReveal : 0,
+        contentRight: area.right - bandReveal + tree.overflow.length * bandColW,
+      })
+      this.anchorHwnd = hwnd
+      return true
+    }
+    if (fitHwnd !== null) {
+      applyFit(fitHwnd)
+    } else if (this.anchorHwnd !== null) {
+      // 锚窗跟随（工单406）：显式 fit 事件缺位时，锚窗的物理矩形若不再完整可见（兄弟
+      // 吸收/带补入/列收拢/显示重算动了它的目标矩形），按同一 fit 最小滑动回锚；已完整
+      // 可见则零移动（幂等——story 21 后台事件不动视口的前提是锚窗可见性未破）。
+      const idStr = String(this.anchorHwnd)
+      const bandIdx = tree.overflow.indexOf(idStr)
+      const treeIdx = plan.placements.findIndex((p) => p.id === idStr)
+      const rect = bandIdx >= 0
+        ? bandCols()[bandIdx]
+        : treeIdx >= 0 ? plan.placements[treeIdx].rect : null
+      const visible = rect !== null &&
+        rect.left - this.camera >= area.left &&
+        rect.right - this.camera <= area.right
+      if (!visible) applyFit(this.anchorHwnd)
     }
     // 物理目标（整组最小滑动）：视口先钳到内容右端（带收拢后不留空白视口——story 28），
     // 再对全部受管窗按 −camera 平移。屏幕外带列与屏内树同一平移（GLOSSARY「屏外滚动带」）。
@@ -1041,9 +1100,18 @@ export class AgentTilingService extends Service {
       return w ? String(w.hwnd) : null
     }
     const opts = { minPaneW: minPane.w, minPaneH: minPane.h }
+    // 屏外带（工单406）：持久化的是带顺序与锚窗身份（关系），不是像素——树区按带非空
+    // 让出露边重建，恢复后的第一拍以锚窗当前几何重算 fit（不留空白视口、不带旧偏移）
+    const bandHwnds = plan.band
+      .map((ref) => plan.order[ref]?.hwnd)
+      .filter((h): h is number => typeof h === 'number' && !floatingHwnds.has(h))
+    const reveal = bandRevealPx(minPane.w)
+    const effArea = bandHwnds.length > 0 ? bandTreeArea(area, reveal) : area
     this.tree = plan.shape
-      ? treeFromShape(plan.shape, area, opts, plan.queue, idOfRef)
-      : createTree(area, opts)
+      ? treeFromShape(plan.shape, effArea, opts, plan.queue, idOfRef)
+      : createTree(effArea, opts)
+    this.tree.overflow = bandHwnds.map(String)
+    this.anchorHwnd = plan.anchor !== null ? (plan.order[plan.anchor]?.hwnd ?? null) : null
     // 浮动几何按持久模型写回（干净重启的「恢复」；授权仍然是关闭的——不产生 prompt/armed）
     for (const item of plan.floating) {
       const identity = plan.order[item.ref]
@@ -1075,6 +1143,8 @@ export class AgentTilingService extends Service {
     this.restoringPass = false
     this.memberOrder = []
     this.tree = null
+    this.camera = 0
+    this.anchorHwnd = null
     this.lastPlaced.clear()
     this.auth = createGeomAuthLedger()
     this.clearSettleTimers()
@@ -1115,7 +1185,13 @@ export class AgentTilingService extends Service {
       .map((hwnd) => ({ hwnd, rect: floatingRectOf(this.auth, hwnd) }))
       .filter((f): f is { hwnd: number; rect: TileRect } => f.rect !== null)
       .map((f) => ({ hwnd: f.hwnd, rect: f.rect }))
-    return captureLayout({ desktopId, clean, order, tree: this.tree, floating })
+    // 屏外顺序与锚窗身份（工单406）：带成员在 memberOrder 内（captureLayout 映射为
+    // order 下标）；锚窗不在成员序（已浮动/已消失）时 captureLayout 置空
+    const band = this.tree ? this.tree.overflow.map((id) => Number(id)) : []
+    const anchor = this.anchorHwnd !== null && this.memberOrder.includes(this.anchorHwnd)
+      ? this.anchorHwnd
+      : null
+    return captureLayout({ desktopId, clean, order, tree: this.tree, floating, band, anchor })
   }
 
   /**
@@ -1129,7 +1205,17 @@ export class AgentTilingService extends Service {
     if (!desktopId) return
     let doc: AgentLayoutDoc
     if (this.safe) {
-      doc = { version: 1, desktopId, clean, order: [], tree: null, queue: [], floating: [] }
+      doc = {
+        version: AGENT_LAYOUT_VERSION,
+        desktopId,
+        clean,
+        order: [],
+        tree: null,
+        queue: [],
+        band: [],
+        anchor: null,
+        floating: [],
+      }
     } else if (this.pendingRestore) {
       doc = { ...this.pendingRestore, desktopId, clean }
     } else {
