@@ -817,8 +817,12 @@ async function main() {
         return { ok: !!(t && t.ok), n: s.items.length, hasBand: s.items.some((x) => x.hwnd === ${bandHwnd}) };
       })()`);
       await cdpEval376(CAPSULE_TITLE, `(async () => { await window.deck.bridge.invoke('preview/close', null); return true; })()`);
-      // 空间释放按序补入 + 带收拢 + 视口回位（用户故事 4/28）：关 28 扇 → 带成员补入屏内
-      for (let i = 5; i < tiles.length; i++) win32.PostMessageW(tiles[i], 0x0010, 0, 0);
+      // 空间释放按序补入 + 带收拢 + 视口回位（用户故事 4/28）：关 28 扇（保留带成员）
+      // → 空位释放后带成员按进入序补入屏内、overflow=0
+      for (let i = 5; i < tiles.length; i++) {
+        if (tiles[i] === bandHwnd) continue; // 带成员保留——补入臂的被测物
+        win32.PostMessageW(tiles[i], 0x0010, 0, 0);
+      }
       const drain = await waitTilingState((x) => x.count === 6 && x.placed === 6 && x.overflow === 0, 15000);
       const drained = drain.ok && (() => {
         const r = win32.rectOf(bandHwnd);
