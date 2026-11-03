@@ -183,6 +183,12 @@ export class AgentTilingService extends Service {
    *  （story 21「移回主屏按最新窗口加入」），消失成员移除、兄弟吸收空位。显示参数
    *  变化重建平铺树时以本序重算（确定性函数）。 */
   private memberOrder: number[] = []
+  /** 布局几何账（工单404，spec #403 决策「布局写窗与用户手势分流」）：hwnd → 该窗最近
+   *  一次被布局**实际落定**的矩形（写后回读达标，或观察即达标）。判据事实化：窗口停在
+   *  上拍布局落定的矩形上、而本轮规划目标变了 → 差异来自兄弟裂变/吸收/重算（布局自身
+   *  缩放），是预期写入——不进入授权状态机（不弹框、不浮动、不消费授权）。窗口消失
+   *  即清（同 hwnd 复用是新窗身份，不继承旧几何账）。 */
+  private lastPlaced = new Map<number, TileRect>()
   /** 持久平铺树（工单377，GLOSSARY「Agent 平铺」）：布局账本——增量裂变/兄弟吸收；
    *  显示参数变化（平铺区变）时按成员序整体重建（重算语义，story 23）。 */
   private tree: TilingTree | null = null
@@ -366,6 +372,7 @@ export class AgentTilingService extends Service {
     this.attempts.clear()
     this.anomalies.clear()
     this.anomalyKinds.clear()
+    this.lastPlaced.clear()
     this.clearSettleTimers()
     clearFloating(this.auth)
     this.auth = createGeomAuthLedger()
@@ -531,6 +538,14 @@ export class AgentTilingService extends Service {
     for (const h of [...this.anomalies]) {
       if (!memberSet.has(h)) clearAnomaly(this.anomalies, this.anomalyKinds, h)
     }
+    // 尝试账与布局几何账随窗口消失清账（工单404）：旧窗残留的重试计数会让同 hwnd 新窗
+    // 首拍就达异常上限；旧几何账会让新窗首拍被误判成布局位移
+    for (const h of this.attempts.keys()) {
+      if (!memberSet.has(h)) this.attempts.delete(h)
+    }
+    for (const h of this.lastPlaced.keys()) {
+      if (!memberSet.has(h)) this.lastPlaced.delete(h)
+    }
     const authIds = new Set<number>([...this.auth.phase.keys(), ...this.auth.floating.keys()])
     for (const h of authIds) {
       if (memberSet.has(h)) continue
@@ -598,8 +613,18 @@ export class AgentTilingService extends Service {
       const current = rectByHwnd.get(hwnd)
       if (!current) continue
       const changed = !rectMatches(current, p.rect, AUTH_CHANGE_TOLERANCE_PX)
-      if (!changed) continue
+      if (!changed) {
+        // 窗确实在目标上：记入布局几何账（后续目标变化即可判定为布局自身缩放，工单404）
+        this.lastPlaced.set(hwnd, { ...p.rect })
+        continue
+      }
       if (this.restoringPass) continue // 恢复轮：按持久模型落位，不是用户改几何（不弹框）
+      // 布局自身缩放分流（工单404，spec #403 决策「布局写窗与用户手势分流」）：窗口仍停
+      // 在上一拍布局实际落定的矩形上 → 本轮目标变化来自兄弟裂变/吸收/重算，是预期写入，
+      // 不进入授权状态机（locked 不弹框、armed 不浮动不消费授权）。回声判据救不了这条：
+      // 期望账在写后核验达标即清，旧矩形不在账里——必须按布局几何账判。
+      const prevPlaced = this.lastPlaced.get(hwnd)
+      if (prevPlaced && rectMatches(current, prevPlaced, AUTH_CHANGE_TOLERANCE_PX)) continue
       // 回声 = 自身写窗的回声（期望矩形命中）：不是用户操作，零动作（且已消费）
       const echo = classifyGeomEvent(this.echoLedger, hwnd, current, now) === 'echo'
       const userGesture = echo ? false : this.deps.isForeground(hwnd)
@@ -690,13 +715,39 @@ export class AgentTilingService extends Service {
     // 未达标计次 / 达上限异常化（跳过后续落格、不阻塞其他窗、不无限重试）。异常类别
     // （工单377）：写窗被系统拒绝（false）达上限 = write-denied（权限不足等）；受理但
     // 矩形不达标达上限 = refused（应用侧拒改/夹取）。
+    const verifyOnce = (hwnd: number, target: TileRect): 'ok' | 'retry' | 'anomaly' => {
+      const actual = this.deps.readRect(hwnd)
+      return verifyWriteOutcome(this.attempts, this.anomalies, hwnd, actual, target)
+    }
+    const settleOk = (hwnd: number, target: TileRect): void => {
+      retractPending(this.echoLedger, hwnd) // 达标：期望矩形已落地，回声账清零
+      this.lastPlaced.set(hwnd, { ...target }) // 布局几何账：窗确实在此（工单404）
+    }
+    const retries: Array<{ hwnd: number; target: TileRect }> = []
     for (const w of outcomes) {
-      const actual = this.deps.readRect(w.hwnd)
-      const verdict = verifyWriteOutcome(this.attempts, this.anomalies, w.hwnd, actual, w.target)
-      if (verdict === 'ok') retractPending(this.echoLedger, w.hwnd) // 达标：期望矩形已落地，回声账清零
+      const verdict = verifyOnce(w.hwnd, w.target)
+      if (verdict === 'ok') settleOk(w.hwnd, w.target)
+      if (verdict === 'retry') retries.push({ hwnd: w.hwnd, target: w.target })
       if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
         this.anomalyKinds.set(w.hwnd, writeFailed.has(w.hwnd) ? 'write-denied' : 'refused')
       }
+    }
+    // 写窗收敛闭环（工单404，spec #403 决策「以实际几何收敛为准」）：retry 不再等下一次
+    // 窗口事件——同一拍内有界重写（尝试账已计次，MAX_WRITE_ATTEMPTS 内收敛或异常化），
+    // 完全无后续事件也能收敛或进入明确错误态。首轮 retry 必已计 1 次，本轮再不达标即达
+    // 上限——每窗每拍至多 MAX_WRITE_ATTEMPTS 次写，有界。
+    for (const w of retries) {
+      recordPending(this.echoLedger, w.hwnd, w.target, now)
+      const ok = this.deps.restoreRect(w.hwnd, w.target)
+      writeOk.set(w.hwnd, ok)
+      if (!ok) retractPending(this.echoLedger, w.hwnd)
+      const verdict = verifyOnce(w.hwnd, w.target)
+      if (verdict === 'ok') settleOk(w.hwnd, w.target)
+      if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
+        this.anomalyKinds.set(w.hwnd, ok ? 'refused' : 'write-denied')
+      }
+      // verdict 'retry' 在本轮不可能（MAX_WRITE_ATTEMPTS=2，首轮已计 1）——防御上不再
+      // 第三写，残数留待下一拍（跨拍计次仍单调，有界性不破）
     }
     pruneLedger(this.echoLedger, Date.now())
 
@@ -856,6 +907,7 @@ export class AgentTilingService extends Service {
     this.restoringPass = false
     this.memberOrder = []
     this.tree = null
+    this.lastPlaced.clear()
     this.auth = createGeomAuthLedger()
     this.clearSettleTimers()
     this.logEvent({ type: 'tiling-recovery', status: 'safe', reason })

@@ -5,6 +5,9 @@
  * deps 全假源（workspace-service.spec.ts 同款纪律），零 FFI/Electron。
  */
 import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { Context } from 'cordis'
 import { AgentTilingService } from '../../src/main/services/agent-tiling'
 import type { AgentTilingServiceOptions } from '../../src/main/services/agent-tiling'
@@ -25,8 +28,9 @@ interface Harness {
   watchOn: (hwnd: number) => void
   mode: { value: 'normal' | 'agent' | 'unmanaged' }
   events: AgentTilingState[]
-  /** 让下一轮写恒失败（SetWindowPos 返回 false 的观测口） */
-  failWrites(): void
+  /** 让后续写失败（SetWindowPos 返回 false 的观测口）；传次数 = 瞬时失败（工单404 收敛面），
+   *  传 hwnd = 只对该窗失败（工单404：同拍有界重试下全局恒失败会连坐其他窗的正当写入） */
+  failWrites(count?: number, hwnd?: number): void
   /** 钉死窗集合：写「受理」但矩形纹丝不动（WM_WINDOWPOSCHANGING 拒改的核验面） */
   stuck: Set<number>
   /** 主屏矩形（可变——显示参数变化重算的注入面，工单377） */
@@ -50,7 +54,8 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
   const restores: Array<{ hwnd: number; target: TileRect }> = []
   const events: AgentTilingState[] = []
   const mode = { value: 'normal' as 'normal' | 'agent' | 'unmanaged' }
-  let failNext = false
+  let failLeft = 0
+  let failHwnd: number | null = null
   const stuck = new Set<number>()
   const primary = { value: { ...PRIMARY } }
   const displayCbs: Array<() => void> = []
@@ -101,7 +106,10 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
       restoreRect: (hwnd, target) => {
         restores.push({ hwnd, target: { ...target } })
         writes.push({ hwnd, target: { ...target } })
-        if (failNext) return false
+        if (failLeft > 0 && (failHwnd === null || failHwnd === hwnd)) {
+          failLeft--
+          return false
+        }
         if (stuck.has(hwnd)) return true
         const w = windows.get(hwnd)
         if (w) w.rect = { ...target }
@@ -129,8 +137,9 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
     mode,
     events,
     watchOn: (hwnd) => watchCb?.(hwnd),
-    failWrites: () => {
-      failNext = true
+    failWrites: (count = Number.POSITIVE_INFINITY, hwnd: number | null = null) => {
+      failLeft = count
+      failHwnd = hwnd
     },
     stuck,
     primary,
@@ -483,7 +492,7 @@ describe('Agent 平铺生命周期（工单377）', () => {
     await settle()
     await addWindows(h, [1, 2])
     h.windows.set(1, { rect: { left: 400, top: 300, right: 1500, bottom: 1000 }, iconic: false }) // 拖离目标
-    h.failWrites()
+    h.failWrites(Number.POSITIVE_INFINITY, 1) // 只对窗 1 恒拒绝（工单404 同拍有界重试：全局恒失败会连坐窗 2 的正当重排写）
     h.watchOn(1)
     await settle(60)
     h.watchOn(1)
@@ -754,5 +763,260 @@ describe('逐窗几何授权、浮动与恢复平铺（工单378）', () => {
     await settle(60)
     expect(h.svc.authPhaseForTest(1)).toBe('locked')
     expect(h.closed).toContain(1)
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单404（spec #403）：布局自身缩放分流与写窗收敛——
+// - 布局自身的目标矩形变化（兄弟裂变/吸收/重算）不是用户改几何：locked 不弹框、
+//   armed 不误转浮动不消费授权（前台恰落在待缩/待扩张兄弟也要证）；
+// - 一次写窗/回读失败后完全无后续事件：同拍有界重试收敛或异常化（不依赖下一拍事件）；
+// - 窗口消失清尝试账（hwnd 复用不继承旧计数）；
+// - 缺陷回归清单（#403 Testing Decisions）：6+ 新增、不同顺序逐级关闭到 4/3、同拍多窗、
+//   2→1→新增及重启后的连续性。
+// 断言全部落在实际矩形（假窗口 map 读回）、授权事件与状态投影，不绑内部类。
+// ————————————————————————————————————————————————————————————
+
+describe('工单404：布局自身缩放分流与写窗收敛', () => {
+  const RIGHT: TileRect = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+  const RIGHT_TOP: TileRect = { left: 1280, top: 0, right: 2560, bottom: 696 }
+  const RIGHT_BOTTOM: TileRect = { left: 1280, top: 696, right: 2560, bottom: 1392 }
+  // 六窗确定性布局（2560×1392 全部可容——与纯函数矩阵同数字）
+  const SIX: Record<number, TileRect> = {
+    1: { left: 0, top: 0, right: 1280, bottom: 696 },
+    2: { left: 1280, top: 0, right: 1920, bottom: 696 },
+    3: { left: 1280, top: 696, right: 1920, bottom: 1392 },
+    4: { left: 0, top: 696, right: 1280, bottom: 1392 },
+    5: { left: 1920, top: 0, right: 2560, bottom: 696 },
+    6: { left: 1920, top: 696, right: 2560, bottom: 1392 },
+  }
+  const moved = (r: TileRect, dx: number, dy: number): TileRect => ({
+    left: r.left + dx, top: r.top + dy, right: r.right + dx, bottom: r.bottom + dy,
+  })
+  const userMove = async (h: Harness, hwnd: number, rect: TileRect): Promise<void> => {
+    h.windows.get(hwnd)!.rect = { ...rect }
+    h.foreground.add(hwnd)
+    h.watchOn(hwnd)
+    await settle(60)
+  }
+  const expectRects = (h: Harness, map: Record<number, TileRect>): void => {
+    for (const [k, v] of Object.entries(map)) {
+      expect(h.windows.get(Number(k))!.rect).toEqual(v)
+    }
+  }
+
+  it('locked 相位：新增兄弟裂变的布局缩放不弹授权框、待缩窗落新格（前台在待缩窗）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    h.foreground.add(2) // 前台恰在将被新窗裂变缩小的窗上
+    await addWindows(h, [3])
+    expect(h.prompts).toEqual([]) // 布局自身缩放不是用户改几何——零授权提示
+    expect(h.svc.authPhaseForTest(2)).toBe('locked')
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0, authorized: 0, count: 3, placed: 3 })
+    expectRects(h, { 1: { left: 0, top: 0, right: 1280, bottom: 1392 }, 2: RIGHT_TOP, 3: RIGHT_BOTTOM })
+  })
+
+  it('armed 相位：新增兄弟裂变不误转浮动、不消费授权（前台在待缩窗）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    await userMove(h, 2, moved(RIGHT, 60, 40))
+    expect(h.svc.confirmHwnd(2).ok).toBe(true) // prompt → armed
+    expect(h.prompts.length).toBe(1)
+    h.foreground.add(2) // 确认后前台仍在窗 2
+    await addWindows(h, [3])
+    // 布局缩放：窗 2 写入新格（不浮动、授权不消费——armed 仍在）
+    expect(h.svc.state()).toMatchObject({ floating: 0, authorized: 1, placed: 3 })
+    expect(h.svc.authPhaseForTest(2)).toBe('armed')
+    expect(h.prompts.length).toBe(1) // 无新提示
+    expectRects(h, { 1: { left: 0, top: 0, right: 1280, bottom: 1392 }, 2: RIGHT_TOP, 3: RIGHT_BOTTOM })
+  })
+
+  it('locked 相位：关闭兄弟吸收不弹框（前台恰在待扩张兄弟）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3])
+    h.foreground.add(3) // 前台恰在将吸收空位的兄弟
+    h.windows.delete(2)
+    h.watchOn(3)
+    await settle(60)
+    expect(h.prompts).toEqual([])
+    expect(h.svc.authPhaseForTest(3)).toBe('locked')
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0, count: 2, placed: 2 })
+    expectRects(h, { 1: { left: 0, top: 0, right: 1280, bottom: 1392 }, 3: RIGHT })
+  })
+
+  it('armed 相位：关闭兄弟吸收不误转浮动、不消费授权（前台恰在待扩张兄弟）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    await userMove(h, 1, moved({ left: 0, top: 0, right: 1280, bottom: 1392 }, 40, 30))
+    expect(h.svc.confirmHwnd(1).ok).toBe(true)
+    h.foreground.add(1)
+    h.windows.delete(2)
+    h.watchOn(1)
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ floating: 0, authorized: 1, count: 1, placed: 1 })
+    expect(h.svc.authPhaseForTest(1)).toBe('armed')
+    expect(h.windows.get(1)!.rect).toEqual(AREA) // 吸收整区
+  })
+
+  it('6+ 新增：全部既有窗在前台的极端下，六窗实际矩形全部落定、零授权事件（无非预期遮挡）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4, 5])
+    for (const id of [1, 2, 3, 4, 5]) h.foreground.add(id) // 极端：既有窗全部报前台
+    await addWindows(h, [6])
+    expect(h.prompts).toEqual([])
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0, count: 6, placed: 6, overflow: 0 })
+    expectRects(h, SIX)
+  })
+
+  it('不同顺序逐级关闭到 3：前台始终落在待扩张兄弟，实际矩形逐步收敛、零授权事件', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4, 5, 6])
+    expectRects(h, SIX)
+    // 关 6（兄弟 3 吸收右下整列），前台在 3
+    h.foreground.add(3)
+    h.windows.delete(6)
+    h.watchOn(3)
+    await settle(60)
+    expectRects(h, { 1: SIX[1], 2: SIX[2], 3: RIGHT_BOTTOM, 4: SIX[4], 5: SIX[5] })
+    // 关 2（兄弟 5 吸收右上整列），前台在 5
+    h.foreground.add(5)
+    h.windows.delete(2)
+    h.watchOn(5)
+    await settle(60)
+    expectRects(h, { 1: SIX[1], 5: RIGHT_TOP, 3: RIGHT_BOTTOM, 4: SIX[4] })
+    // 关 4（兄弟 1 吸收左列），到 3 窗：四象限收敛为左半/右上/右下
+    h.foreground.add(1)
+    h.windows.delete(4)
+    h.watchOn(1)
+    await settle(60)
+    expectRects(h, { 1: { left: 0, top: 0, right: 1280, bottom: 1392 }, 5: RIGHT_TOP, 3: RIGHT_BOTTOM })
+    expect(h.prompts).toEqual([])
+    expect(h.svc.state()).toMatchObject({ floating: 0, prompting: 0, authorized: 0, count: 3, placed: 3 })
+  })
+
+  it('首次写窗失败且完全无后续事件：同拍有界重试收敛到目标矩形、零异常', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1])
+    h.windows.get(1)!.rect = moved(AREA, 120, 80) // 拖离目标
+    h.failWrites(1) // 瞬时失败恰好一次（SetWindowPos 偶发 false）
+    h.watchOn(1)
+    await settle(60) // 只此一拍——之后零事件
+    expect(h.windows.get(1)!.rect).toEqual(AREA) // 同拍重试收敛
+    expect(h.svc.anomaliesForTest()).toEqual([])
+    expect(h.svc.state()).toMatchObject({ anomalies: 0, placed: 1 })
+  })
+
+  it('写窗受理但矩形不动且无后续事件：单拍内有界重试达上限即异常化 refused（写入次数 ≤ 上限）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1])
+    h.windows.get(1)!.rect = moved(AREA, 90, 60)
+    h.stuck.add(1)
+    const before = h.writes.filter((w) => w.hwnd === 1).length
+    h.watchOn(1)
+    await settle(60) // 单拍（旧行为要等下一次事件才达上限）
+    expect(h.svc.anomalyKindsForTest().get(1)).toBe('refused')
+    expect(h.writes.filter((w) => w.hwnd === 1).length - before).toBeLessThanOrEqual(2)
+    expect(h.svc.state()).toMatchObject({ anomalies: 1 })
+  })
+
+  it('尝试账随窗口消失清账：同 hwnd 新窗身份不继承旧计数（旧计数残留会误异常化新窗）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2])
+    h.windows.get(1)!.rect = moved(AREA, 70, 50)
+    h.stuck.add(1)
+    h.watchOn(1)
+    await settle(60) // 旧窗 1 计次
+    h.windows.delete(1)
+    h.stuck.delete(1)
+    h.watchOn(0) // 消失拍：清异常账与尝试账
+    await settle(60)
+    h.windows.set(1, { rect: moved(AREA, 33, 22), iconic: false }) // 同 hwnd 新窗
+    h.watchOn(1)
+    await settle(60)
+    expect(h.svc.anomaliesForTest()).toEqual([]) // 不继承旧计数——不误异常化
+    // 新窗按成员序裂变落次子格（memberOrder [2,1] → 窗 2 留首格、新 1 落右半）
+    expect(h.windows.get(2)!.rect).toEqual({ left: 0, top: 0, right: 1280, bottom: 1392 })
+    expect(h.windows.get(1)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 1392 })
+  })
+
+  it('同拍多窗出现与关闭：单拍内全部落位/吸收，顺序确定（实际矩形断言）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1])
+    h.windows.set(2, { rect: { ...AREA }, iconic: false })
+    h.windows.set(3, { rect: { ...AREA }, iconic: false })
+    h.watchOn(2) // 同拍两个新窗，只触发一拍
+    await settle(60)
+    expectRects(h, { 1: { left: 0, top: 0, right: 1280, bottom: 1392 }, 2: RIGHT_TOP, 3: RIGHT_BOTTOM })
+    expect(h.svc.state()).toMatchObject({ count: 3, placed: 3 })
+    h.windows.delete(2)
+    h.windows.delete(3)
+    h.watchOn(1)
+    await settle(60)
+    expect(h.windows.get(1)!.rect).toEqual(AREA)
+    expect(h.svc.state()).toMatchObject({ count: 1, placed: 1 })
+  })
+
+  it('2→1→新增及重启后的连续性：持久模型恢复后实际矩形与干净退出前一致、恢复轮零授权', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-t404-'))
+    try {
+      const file = path.join(dir, 'agent-layout.json')
+      const AGENT_ID = 't404-agent-desktop'
+      const h = harness({ layoutFile: file, deps: { agentDesktopId: () => AGENT_ID } })
+      h.mode.value = 'agent'
+      h.svc.syncActivation()
+      await settle()
+      await addWindows(h, [1, 2])
+      h.windows.delete(2)
+      h.watchOn(1)
+      await settle(60)
+      await addWindows(h, [3]) // 2→1→新增
+      const before = { w1: h.windows.get(1)!.rect, w3: h.windows.get(3)!.rect }
+      expect(before.w1).toEqual({ left: 0, top: 0, right: 1280, bottom: 1392 })
+      expect(before.w3).toEqual(RIGHT)
+      h.svc.shutdown() // 干净退出（clean=true 落盘）
+      // 重启：同一份持久文档、新服务实例、窗口几何已被外部搬动
+      const h2 = harness({ layoutFile: file, deps: { agentDesktopId: () => AGENT_ID } })
+      h2.windows.set(1, { rect: { left: 300, top: 200, right: 900, bottom: 700 }, iconic: false })
+      h2.windows.set(3, { rect: { left: 500, top: 300, right: 1200, bottom: 800 }, iconic: false })
+      h2.mode.value = 'agent'
+      h2.svc.syncActivation()
+      await settle(60)
+      expect(h2.windows.get(1)!.rect).toEqual(before.w1)
+      expect(h2.windows.get(3)!.rect).toEqual(before.w3)
+      expect(h2.prompts).toEqual([]) // 恢复轮不是用户改几何
+      expect(h2.svc.state()).toMatchObject({ recovery: 'restored', placed: 2 })
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
