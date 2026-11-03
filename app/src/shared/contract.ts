@@ -284,6 +284,27 @@ export interface DesktopWorkspaceState {
   lastError: string | null
 }
 
+/**
+ * Agent 平铺状态投影（工单376，spec #369 决策 14/26 只读投影）：顶部胶囊与桥共享的
+ * 同一份平铺账。count 口径 = Agent 桌面主屏**全部合格窗口**（含平铺、最小化与各类
+ * 未平铺——GLOSSARY「顶部窗口胶囊」），排除副屏、面板自身、系统弹窗与其他桌面；
+ * available=false（实验开关关 / 非 Agent 桌面）时计数恒 0。
+ */
+export interface AgentTilingState {
+  /** 实验开关（config agentDesktop.enabled）；关闭时零观察零落位 */
+  available: boolean
+  /** 当前桌面模式（非 agent 时平铺失活——普通桌面零自动改窗） */
+  current: DesktopMode
+  /** 主屏合格窗口计数（含最小化；随开关窗变化） */
+  count: number
+  /** 当前平铺规划已落格数 */
+  placed: number
+  /** 容量溢出数（工单376 纯规划已标记；补入语义归工单377） */
+  overflow: number
+  /** 异常未平铺数（拒绝改窗达重试上限——有限诊断不无限重试） */
+  anomalies: number
+}
+
 /** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
  * tooltip 即时显示不落盘；iconKey = 图标像素缓存键（null = 该条目尚无像素，渲染层按空格呈现） */
 export interface TaskbarTrayEntry {
@@ -1033,6 +1054,8 @@ export interface BridgeMethods {
    * 失败保持现状并携带提示；未配对时先配对（普通 = 当下所在桌面，Agent 新建为空）。
    */
   'workspace/switch-to': { request: { mode: 'normal' | 'agent' }; response: { ok: boolean; state: DesktopWorkspaceState; error?: string } }
+  /** Agent 平铺状态只读投影（工单376）：顶部胶囊与诊断共用（缺装配回退空态） */
+  'tiling/get-state': { request: null; response: AgentTilingState }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -1083,6 +1106,8 @@ export interface BridgeEvents {
    * 系统快捷键/TaskView 造成的切换也经 reconciliation 观察后由此回推（不抢回用户）。
    */
   'workspace/changed': DesktopWorkspaceState
+  /** Agent 平铺状态变化（工单376）：计数/落格/溢出/异常任一变化即推——胶囊订阅同一份 */
+  'tiling/changed': AgentTilingState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

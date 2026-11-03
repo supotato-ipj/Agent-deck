@@ -67,6 +67,11 @@ export function conversationUrl(): string {
   return `${PLUGIN_SCHEME}://${APP_HOST}/conversation.html`
 }
 
+/** 顶部窗口胶囊页 URL（工单376：与面板页同根同源，计数入口的载页） */
+export function capsuleUrl(): string {
+  return `${PLUGIN_SCHEME}://${APP_HOST}/capsule.html`
+}
+
 /**
  * 装协议处理器：应用渲染层根目录 + 当前在装插件的目录，随插件增删实时变化。
  * 读盘只在这里发生——渲染层永远拿不到文件系统句柄（contextIsolation + sandbox 不变）。

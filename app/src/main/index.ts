@@ -10,6 +10,7 @@ import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
 import { hwndOf } from './win32'
 import { startTaskbarController } from './taskbar/window'
+import { startCapsuleController } from './desktop/capsule-window'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
@@ -266,6 +267,27 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       file: CONFIG_FILE,
       config,
     },
+    // Agent 平铺（工单376）：随 agentDesktop 开关隔离；主屏矩形与任务栏条带顶接 Electron
+    // 真源（物理 px 口径——条带 48 DIP × scaleFactor，任务栏 stripBounds 同源常量）。
+    agentTiling: {
+      enabled: config.agentDesktop.enabled,
+      deps: {
+        primaryRect: () => {
+          const d = screen.getPrimaryDisplay()
+          return {
+            left: Math.round(d.bounds.x * d.scaleFactor),
+            top: Math.round(d.bounds.y * d.scaleFactor),
+            right: Math.round((d.bounds.x + d.bounds.width) * d.scaleFactor),
+            bottom: Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor),
+          }
+        },
+        taskbarTop: () => {
+          const d = screen.getPrimaryDisplay()
+          const bottomPhys = Math.round((d.bounds.y + d.bounds.height) * d.scaleFactor)
+          return bottomPhys - Math.round(48 * d.scaleFactor)
+        },
+      },
+    },
     taskbar: {
       enabled: config.taskbar.enabled,
       hiddenButtons: config.taskbar.hiddenButtons,
@@ -471,6 +493,20 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   kernel.desktopWorkspace?.registerFollowTargets(() => [
     ...(!win.isDestroyed() ? [{ hwnd: hwndOf(win), label: 'panel' }] : []),
     ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
+  ])
+
+  // 顶部窗口胶囊（工单376）：随工作区模式建/销（agent 才在场）；整窗穿透只读计数。
+  const capsuleCtl = startCapsuleController({ ctx: kernel, log })
+  app.on('before-quit', () => capsuleCtl.dispose())
+
+  // Agent 平铺（工单376）：启动事件订阅（构造期不起——装配顺序下工作区可能晚到）。
+  kernel.agentTiling?.start()
+
+  // 跟随兜底追加胶囊窗（工单376）：键盘模式退化 desktop-bound 时随面板/条带同路迁移。
+  kernel.desktopWorkspace?.registerFollowTargets(() => [
+    ...(!win.isDestroyed() ? [{ hwnd: hwndOf(win), label: 'panel' }] : []),
+    ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
+    ...(capsuleCtl.hwnd() ? [{ hwnd: capsuleCtl.hwnd()!, label: 'capsule' }] : []),
   ])
 
   // #103 缺陷① 验收触发器（accept 双门禁）：P10 需要同一 JS 任务内连发两次 setEnabled——

@@ -12,12 +12,13 @@ import type { PluginConfigService } from './services/plugin-config'
 import type { PanelDataPort } from './services/panel-data'
 import type { TaskbarService } from './services/taskbar'
 import type { DesktopWorkspaceService } from './services/desktop-workspace'
+import type { AgentTilingService } from './services/agent-tiling'
 import type { ConversationService } from './conversation/service'
 import type { MediaService } from './media/service'
 import type { NetworkService } from './network/service'
 import type { CredentialService } from './credentials/service'
 import type { InstallProposalView } from './plugins/install'
-import type { ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
+import type { AgentTilingState, ConversationSessionView, DesktopWorkspaceState, DroppedPackageInfo, PanelSnapshot, PluginInfo, SearchUiState, SearchResultItem, SettingsState, TaskbarBarModeState, TaskbarState, TaskbarStatus } from '../shared/contract'
 import type { TrayWireEvent } from './trayhost/protocol'
 
 declare module 'cordis' {
@@ -79,6 +80,8 @@ declare module 'cordis' {
      * TaskView 造成的切换经 reconciliation 观察后由此回推（不抢回用户）。
      */
     'workspace/changed': (payload: DesktopWorkspaceState) => void
+    /** 工单376 Agent 平铺：计数/落格/溢出/异常任一变化即推——胶囊与桥订阅同一份 */
+    'tiling/changed': (payload: AgentTilingState) => void
   }
   interface Context {
     clock: ClockService
@@ -115,5 +118,7 @@ declare module 'cordis' {
     credentials?: CredentialService
     /** 工单375 桌面工作区（可选装配：实验开关隔离——缺装配 = 投影回退禁用态） */
     desktopWorkspace?: DesktopWorkspaceService
+    /** 工单376 Agent 平铺（可选装配：随 agentDesktop 开关隔离——缺装配 = 投影回退空态） */
+    agentTiling?: AgentTilingService
   }
 }

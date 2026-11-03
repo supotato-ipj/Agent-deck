@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DECK-CAPSULE</title>
+<style>
+  /* 顶部窗口胶囊（工单376）：Agent 桌面正上方的小计数胶囊——整页透明，唯胶囊体可见。
+   * 本票只承载计数主体（预览展开/恢复按钮/聚焦退出归工单378+）；整窗鼠标穿透由
+   * 主进程 setIgnoreMouseEvents 承担，页内不留交互面。 */
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    user-select: none;
+    cursor: default;
+  }
+  #capsule {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 6px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    color: #e8e8e8;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  #capsule[hidden] { display: none; }
+  #cap-count { font-weight: 700; color: #ffffff; }
+  #cap-label { opacity: 0.78; }
+</style>
+</head>
+<body>
+<div id="capsule" role="status" aria-label="Agent 桌面窗口计数"><span id="cap-count">0</span><span id="cap-label">窗</span></div>
+<script type="module" src="./capsule.js"></script>
+</body>
+</html>
