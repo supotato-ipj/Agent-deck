@@ -51,8 +51,10 @@ let bound: GeomBound | null = null
 let registeredCb: ((hwnd: number) => void) | null = null
 let registeredProc: unknown = null
 let hookHandle: unknown = null
-/** 前台观察（工单379）：独立注册体（同名二次 register 是 #153 坑——各自单登） */
-let fgRegisteredCb: ((hwnd: number) => void) | null = null
+/** 前台观察（工单379）：独立注册体（同名二次 register 是 #153 坑——各自单登）。
+ *  工单405 起多订阅（订阅扇出）：聚焦协调（379）与平铺 fit 入口（405）并存——
+ *  单回调会被后订阅者覆盖（startForegroundWatch 复用同一注册体），扇出到集合。 */
+const fgCbs = new Set<(hwnd: number) => void>()
 let fgRegisteredProc: unknown = null
 let fgHookHandle: unknown = null
 
@@ -249,20 +251,19 @@ export function restoreWindow(hwnd: number): boolean {
 }
 
 /**
- * 前台变化观察（工单379，聚焦协调）：EVENT_SYSTEM_FOREGROUND 全局钩子——回调只递
- * 新前台窗 hwnd（轻活；判定与退出聚焦在服务层）。返回停表函数（Unhook + 解注册）。
- * 注册体进程级单登（#153 教训：同名二次 register 崩）——重起只换回调指向。
+ * 前台变化观察（工单379，聚焦协调；工单405 起多订阅扇出）：EVENT_SYSTEM_FOREGROUND
+ * 全局钩子——回调只递新前台窗 hwnd（轻活；判定在服务层）。返回停表函数（只解本订阅；
+ * 最后一个订阅者退订才 Unhook）。注册体进程级单登（#153 教训：同名二次 register 崩）。
  */
 export function startForegroundWatch(onChange: (hwnd: number) => void): () => void {
   const b = bind()
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const koffi = require('koffi')
-  stopForegroundWatch()
   if (!fgRegisteredProc) {
     fgRegisteredProc = koffi.register(
       (_hHook: unknown, _event: number, hwnd: number) => {
         try {
-          fgRegisteredCb?.(Number(hwnd))
+          for (const cb of [...fgCbs]) cb(Number(hwnd))
         } catch {
           /* 回调异常不入事件流 */
         }
@@ -270,20 +271,25 @@ export function startForegroundWatch(onChange: (hwnd: number) => void): () => vo
       'GEOM_WRITE_FOREGROUND_PROC *',
     )
   }
-  fgRegisteredCb = onChange
-  fgHookHandle = b.setWinEventHook(
-    EVENT_SYSTEM_FOREGROUND,
-    EVENT_SYSTEM_FOREGROUND,
-    null,
-    fgRegisteredProc,
-    0,
-    0,
-    WINEVENT_OUTOFCONTEXT,
-  )
-  return stopForegroundWatch
+  fgCbs.add(onChange)
+  if (!fgHookHandle) {
+    fgHookHandle = b.setWinEventHook(
+      EVENT_SYSTEM_FOREGROUND,
+      EVENT_SYSTEM_FOREGROUND,
+      null,
+      fgRegisteredProc,
+      0,
+      0,
+      WINEVENT_OUTOFCONTEXT,
+    )
+  }
+  return () => {
+    fgCbs.delete(onChange)
+    if (fgCbs.size === 0) stopForegroundWatch()
+  }
 }
 
-/** 停前台观察（幂等） */
+/** 停前台观察（幂等，全量退订 + Unhook） */
 export function stopForegroundWatch(): void {
   if (fgHookHandle) {
     try {
@@ -293,5 +299,5 @@ export function stopForegroundWatch(): void {
     }
     fgHookHandle = null
   }
-  fgRegisteredCb = null
+  fgCbs.clear()
 }

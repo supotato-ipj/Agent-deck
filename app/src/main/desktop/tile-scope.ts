@@ -86,11 +86,19 @@ export function intersectsMainScreen(rect: ScopeRect, primary: ScopeRect): boole
  * 单窗范围裁决（工单376）：判定一扇顶层窗口是否进入 Agent 主屏平铺/计数。
  * 拒绝理由按上述序取首个命中——计数排除面（用户故事 45）与平铺管辖面共用同一裁决，
  * 口径稳定（「数字反映真实工作规模」）。
+ *
+ * `exemptOffMain`（工单405）：受管平铺成员豁免集——屏外滚动带成员被布局写到主屏右缘
+ * 之外的列上、视口滑动也会把屏内窗临时推出屏外，这些「屏外」是受管布局自身的产物，
+ * 按矩形判会把自家成员误判成副屏窗踢出成员账（编排层以「窗口停在布局实际落定的
+ * 矩形上」给出豁免集）。豁免只作用于 off-main-screen 一项：其他桌面/cloaked 等拒绝面
+ * 照常生效（story 21「移出主屏 = 退出平铺」对用户真实拖动保持不变——被拖走的窗不再
+ * 匹配布局落定矩形，不进豁免集）。
  */
 export function classifyTileWindow(
   w: TileWindowFacts,
   ownExes: readonly string[],
   primary: ScopeRect,
+  exemptOffMain?: readonly number[],
 ): TileScopeKind {
   const exe = normalizeExe(w.exe)
   if (exe && ownExes.map(normalizeExe).includes(exe)) return { kind: 'excluded', reason: 'own-process' }
@@ -107,7 +115,9 @@ export function classifyTileWindow(
   // 吸收随后让别的窗占它的格，违反 GLOSSARY「顶部窗口胶囊」/用户故事 19「最小化
   // 仍计数、保留窗格与顺序」。诚实口径：最小化窗的显示器归属从矩形不可观测，故按
   // 计入处理（保留窗格是硬语义，宁可多计不可错踢）。
-  if (!w.iconic && !intersectsMainScreen(w.rect, primary)) {
+  // 受管窗豁免（工单405）：同款诚实口径——窗口停在布局落定矩形上时其「屏外」由
+  // 布局自身负责（见上）。
+  if (!w.iconic && !exemptOffMain?.includes(w.hwnd) && !intersectsMainScreen(w.rect, primary)) {
     return { kind: 'excluded', reason: 'off-main-screen' }
   }
   return { kind: 'tile' }
@@ -121,16 +131,18 @@ export interface TileScopeProjection {
   excluded: Array<{ hwnd: number; reason: Extract<TileScopeKind, { kind: 'excluded' }>['reason'] }>
 }
 
-/** 批量投影（编排层每拍调用）：facts 序即 z 序（win-facts scanTopWindows 输出序） */
+/** 批量投影（编排层每拍调用）：facts 序即 z 序（win-facts scanTopWindows 输出序）。
+ *  `exemptOffMain` 透传 classifyTileWindow（工单405 受管窗豁免，见其头注）。 */
 export function projectTileScope(
   facts: readonly TileWindowFacts[],
   ownExes: readonly string[],
   primary: ScopeRect,
+  exemptOffMain?: readonly number[],
 ): TileScopeProjection {
   const members: TileWindowFacts[] = []
   const excluded: TileScopeProjection['excluded'] = []
   for (const f of facts) {
-    const verdict = classifyTileWindow(f, ownExes, primary)
+    const verdict = classifyTileWindow(f, ownExes, primary, exemptOffMain)
     if (verdict.kind === 'tile') members.push(f)
     else excluded.push({ hwnd: f.hwnd, reason: verdict.reason })
   }

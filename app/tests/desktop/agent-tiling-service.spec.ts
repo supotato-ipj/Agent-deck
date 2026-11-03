@@ -544,20 +544,27 @@ describe('Agent 平铺生命周期（工单377）', () => {
   it('容量溢出与按序补入：小屏六窗溢出两扇、关窗 4 → 窗 5 补入（stories 26/29）', async () => {
     const h = harness()
     h.mode.value = 'agent'
-    h.primary.value = { left: 0, top: 0, right: 660, bottom: 500 }
+    // 夹具 700×500：缩窄区（700−32=668）窗格 334 仍可裂变——带非空时树区让出露边，
+    // 补入容量按缩窄区评估（原型 syncArea 语义的固有边界：区宽贴近 2×最小窗格时，
+    // 露边会让最近边界的裂变不可行、带不排空；story 4 的补入以缩窄区容量为准）。
+    h.primary.value = { left: 0, top: 0, right: 700, bottom: 500 }
     h.svc.syncActivation()
     await settle()
-    await addWindows(h, [1, 2, 3, 4, 5, 6], { left: 0, top: 0, right: 660, bottom: 500 })
+    await addWindows(h, [1, 2, 3, 4, 5, 6], { left: 0, top: 0, right: 700, bottom: 500 })
     expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2 })
-    // 前四窗 = 四窗布局，溢出不重排既有成员
-    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 330, bottom: 250 })
-    expect(h.windows.get(4)!.rect).toEqual({ left: 0, top: 250, right: 330, bottom: 500 })
-    // 关窗 4 → 窗 5 按序补入、窗 6 仍溢出
+    // 工单405 屏外滚动带语义：带非空 → 树区右缘让出露边 32px（区宽 668）、窗 5/6 入带。
+    // 屏内四窗按缩窄区重展（四窗布局结构不变，列宽 334）；溢出成员写带列矩形，
+    // 不再保留打开时的原矩形（spec #403 用户故事 10/13/15）。
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 334, bottom: 250 })
+    expect(h.windows.get(4)!.rect).toEqual({ left: 0, top: 250, right: 334, bottom: 500 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 668, top: 0, right: 1018, bottom: 500 })
+    // 关窗 4 → 窗 5 按序补入、窗 6 仍溢出（带收拢：窗 6 收拢到列 0）
     h.windows.delete(4)
     h.watchOn(1)
     await settle(60)
     expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
-    expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 250, right: 330, bottom: 500 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 250, right: 334, bottom: 500 })
+    expect(h.windows.get(6)!.rect).toEqual({ left: 668, top: 0, right: 1018, bottom: 500 })
   })
 })
 
