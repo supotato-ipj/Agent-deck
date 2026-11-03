@@ -1288,6 +1288,13 @@ export interface BridgeEvents {
    * 落点高亮、会话预览据此暂停/恢复。载荷只含布尔投影，不含窗口数据。
    */
   'workspace/drag-in-changed': { active: boolean; overAgent: boolean }
+  /**
+   * 拖入事务终局反馈（工单408，spec #403 story 45「简短原因」/47「可诊断终局」）：
+   * drop 通路每次事务收尾即发一次——任务栏渲染层把失败原因透成条带内简短反馈
+   * （showDragError 同款），成功零操作（窗口迁走即天然可见）。载荷只含句柄与原因
+   * 枚举，不含窗口标题或拖入内容（隐私口径同 spec 决策 50）。
+   */
+  'workspace/drag-in-feedback': { hwnd: number; ok: boolean; reason?: string; source: 'drop' | 'command' }
   /** Agent 平铺状态变化（工单376）：计数/落格/溢出/异常任一变化即推——胶囊订阅同一份 */
   'tiling/changed': AgentTilingState
   /**

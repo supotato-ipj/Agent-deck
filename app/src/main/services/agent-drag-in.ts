@@ -73,7 +73,7 @@ export interface AgentDragInServiceOptions {
     /** 起标题栏拖动观察（缺省延迟绑定 desktop/title-drag；返回停表函数） */
     startDragWatch?: (hooks: {
       onStart: (hwnd: number) => void
-      onEnd: (hwnd: number, point: ScreenPoint | null) => void
+      onEnd: (hwnd: number, point: ScreenPoint | null, cancelled: boolean) => void
     }) => () => void
     /** 移动尝试上限（缺省 drag-in-plan 常量；离线矩阵可收紧） */
     moveAttempts?: number
@@ -99,7 +99,7 @@ interface DragInDeps {
   primaryRect: () => ScopeRect
   startDragWatch: (hooks: {
     onStart: (hwnd: number) => void
-    onEnd: (hwnd: number, point: ScreenPoint | null) => void
+    onEnd: (hwnd: number, point: ScreenPoint | null, cancelled: boolean) => void
   }) => () => void
   moveAttempts: number
   moveRetryDelayMs: number
@@ -132,6 +132,9 @@ export class AgentDragInService extends Service {
   private handoff: number[] = []
   /** 同一拖入事务单飞（drop 与命令并发时的重入保护） */
   private inFlight = false
+  /** 拖拽前几何（onDragStart 捕获——不合格落放与回滚的复原面；会话结束即清；
+   *  读取失败 = null——复原面缺位按「无可复原」处理，不猜） */
+  private preDrag: { hwnd: number; rect: ScopeRect | null } | null = null
 
   constructor(ctx: Context, options: AgentDragInServiceOptions = {}) {
     super(ctx, 'agentDragIn')
@@ -174,7 +177,7 @@ export class AgentDragInService extends Service {
     this.ctx.on('taskbar/cursor-zone', (p: { id: string | null }) => this.onCursorZone(p?.id ?? null))
     this.stopDrag = this.deps.startDragWatch({
       onStart: (hwnd) => this.onDragStart(hwnd),
-      onEnd: (hwnd, point) => this.onDragEnd(hwnd, point),
+      onEnd: (hwnd, point, cancelled) => this.onDragEnd(hwnd, point, cancelled),
     })
   }
 
@@ -188,23 +191,39 @@ export class AgentDragInService extends Service {
     return [...this.handoff]
   }
 
-  /** 拖拽会话观察（观察面零裁决：只记起止与光标事实，判定全部在事务入口） */
+  /** 拖拽会话观察（观察面零裁决：只记起止与光标事实，判定全部在事务入口）。
+   *  拖前几何在起点捕获一次（工单408 story 45/47 的复原面）——取消路径不清窗、
+   *  只在落放事务里使用。 */
   private onDragStart(hwnd: number): void {
     if (!this.enabledFlag) return
     this.dragActive = true
     this.overAgent = this.lastZoneId === 'mode:agent'
+    this.preDrag = { hwnd, rect: this.safeReadRect(hwnd) }
     this.logEvent({ type: 'drag-in-session', phase: 'start', hwnd, overAgent: this.overAgent })
     this.emitChanged()
   }
 
-  private onDragEnd(hwnd: number, point: ScreenPoint | null): void {
+  private onDragEnd(hwnd: number, point: ScreenPoint | null, cancelled: boolean): void {
     if (!this.enabledFlag || !this.dragActive) return
-    const dropOnAgent = this.lastZoneId === 'mode:agent'
+    const dropOnAgent = !cancelled && this.lastZoneId === 'mode:agent'
+    const preDragRect = this.preDrag?.hwnd === hwnd ? this.preDrag.rect : null
+    this.preDrag = null
     this.dragActive = false
     this.overAgent = false
-    this.logEvent({ type: 'drag-in-session', phase: 'end', hwnd, dropOnAgent, point: point ?? null })
+    this.logEvent({ type: 'drag-in-session', phase: 'end', hwnd, dropOnAgent, cancelled, point: point ?? null })
     this.emitChanged()
-    if (dropOnAgent) void this.dragIn(hwnd, 'drop')
+    if (cancelled) return // Esc：系统移动循环已原生复原，面板零插手（story 44）
+    if (dropOnAgent) void this.dragIn(hwnd, 'drop', preDragRect)
+    // 栏外松手/拖走：只取消迁移——用户已完成的拖窗位置原样保留（story 44）
+  }
+
+  /** 拖前几何读取（失败 = null——复原面缺位按「无可复原」处理，不猜） */
+  private safeReadRect(hwnd: number): ScopeRect | null {
+    try {
+      return this.deps.readRect(hwnd)
+    } catch {
+      return null
+    }
   }
 
   /** 光标热区事实（任务栏热区跟踪器 25ms hit-test 的结论——拖拽期落点高亮的唯一来源） */
@@ -227,13 +246,27 @@ export class AgentDragInService extends Service {
    * 拖入事务（bridge 'workspace/drag-in' 与落点触发共同入口）：门禁重核 → 资格重核 →
    * 源桌面重核 → 原几何保存 → 有界移动 → 桌面 ID 回读确认 → 交接登记；任何未确认路径
    * 回滚原桌面与原几何、零登记（不伪造成功）。失败返回 { ok:false, reason }（story 45
-   * 简短原因）。落放不切桌面——本方法没有任何桌面切换通道。
+   * 简短原因），drop 通路另上行 'workspace/drag-in-feedback'（渲染层条带内简短反馈）。
+   * 落放不切桌面——本方法没有任何桌面切换通道。
+   *
+   * preDragRect（工单408）：落点触发时由拖拽会话在起点捕获的拖前几何——不合格落放
+   * 按它复原（不是落点矩形），迁移/回滚失败也按它回滚（story 45/47「拖拽前几何」）；
+   * 命令通路没有拖拽会话，回滚面取事务起点矩形（即当时原几何）。
    */
-  async dragIn(hwnd: number, source: DragInSource = 'command'): Promise<DragInResult> {
+  async dragIn(hwnd: number, source: DragInSource = 'command', preDragRect: ScopeRect | null = null): Promise<DragInResult> {
     if (!this.enabledFlag) return { ok: false, reason: 'unavailable' }
     if (this.inFlight) return { ok: false, reason: 'move-failed', detail: '拖入事务在途' }
     this.inFlight = true
     try {
+      const finish = (result: DragInResult): DragInResult => {
+        // 简短反馈（story 45）只走 drop 通路——命令通路的结果由 bridge 调用方消费
+        if (source === 'drop') {
+          this.ctx.emit('workspace/drag-in-feedback', {
+            hwnd, ok: result.ok, reason: result.reason, source,
+          })
+        }
+        return result
+      }
       const pairing = this.deps.pairingIds()
       const gate = decideDragInGate({
         workspaceAvailable: this.deps.workspaceAvailable(),
@@ -244,7 +277,7 @@ export class AgentDragInService extends Service {
       })
       if (gate.action === 'reject') {
         this.logEvent({ type: 'drag-in-rejected', hwnd, source, reason: gate.reason })
-        return { ok: false, reason: gate.reason }
+        return finish({ ok: false, reason: gate.reason })
       }
       const agentId = pairing!.agentId
       const normalId = pairing!.normalId
@@ -255,28 +288,31 @@ export class AgentDragInService extends Service {
         fact = this.deps.collectFacts().find((f) => f.hwnd === hwnd)
       } catch (err) {
         this.logEvent({ type: 'drag-in-rejected', hwnd, source, reason: 'window-unknown', message: err instanceof Error ? err.message : String(err) })
-        return { ok: false, reason: 'window-unknown' }
+        return finish(this.rejectIneligibleDrop(hwnd, source, preDragRect, 'window-unknown'))
       }
       if (!fact) {
         this.logEvent({ type: 'drag-in-rejected', hwnd, source, reason: 'window-unknown' })
-        return { ok: false, reason: 'window-unknown' }
+        return finish(this.rejectIneligibleDrop(hwnd, source, preDragRect, 'window-unknown'))
       }
       const verdict = classifyTileWindow(fact, this.deps.ownExes(), this.deps.primaryRect())
       if (verdict.kind !== 'tile') {
         this.logEvent({ type: 'drag-in-rejected', hwnd, source, reason: 'ineligible-window', detail: verdict.reason })
-        return { ok: false, reason: 'ineligible-window', detail: verdict.reason }
+        return finish({ ...this.rejectIneligibleDrop(hwnd, source, preDragRect, 'ineligible-window'), detail: verdict.reason })
       }
 
       // 源桌面重核：窗口必须就在配对普通桌面（story 38「只有主屏合格窗口可以拖入」
-      // 的桌面维度；回读不到按不符处理——不猜）
+      // 的桌面维度；回读不到按不符处理——不猜）。工单408 边界：此路**不复原几何**——
+      // 源在别的桌面的窗可能是 Agent 受管成员（用户在 Agent 桌面拖自己的平铺窗），
+      // 几何归平铺/授权账管，这里插手会和 reconciliation 打架。
       const sourceDesktop = this.deps.windowDesktopId(hwnd)
       if (!sourceDesktop || sourceDesktop !== normalId) {
         this.logEvent({ type: 'drag-in-rejected', hwnd, source, reason: 'source-desktop-mismatch', sourceDesktop })
-        return { ok: false, reason: 'source-desktop-mismatch' }
+        return finish({ ok: false, reason: 'source-desktop-mismatch' })
       }
 
-      // 事务起点：保存原几何（回滚面；原桌面 = normalId 已由源桌面重核确认）
-      const originalRect = this.deps.readRect(hwnd)
+      // 事务起点：确定回滚面几何（拖前几何优先——story 45/47「拖拽前几何」；命令通路
+      // 无拖拽会话，取事务起点矩形 = 当时原几何）。原桌面 = normalId 已由源桌面重核确认。
+      const originalRect = preDragRect ?? this.deps.readRect(hwnd)
 
       // 有界移动尝试
       let moveAccepted = false
@@ -288,34 +324,64 @@ export class AgentDragInService extends Service {
         if (attempt < this.deps.moveAttempts) await sleep(this.deps.moveRetryDelayMs)
       }
       if (!moveAccepted) {
-        this.logEvent({ type: 'drag-in-failed', hwnd, source, reason: 'move-failed', attempts: this.deps.moveAttempts })
         // 移动从未受理：窗口仍在原桌面，但按事务纪律复原几何（story 45 无副作用边界）
-        this.deps.restoreRect(hwnd, originalRect)
-        return { ok: false, reason: 'move-failed' }
+        const geometryRestored = this.deps.restoreRect(hwnd, originalRect)
+        this.logEvent({ type: 'drag-in-failed', hwnd, source, reason: 'move-failed', attempts: this.deps.moveAttempts, geometryRestored })
+        return finish({ ok: false, reason: 'move-failed', detail: geometryRestored ? undefined : 'geometry-restored=false' })
       }
 
       // 桌面 ID 回读确认（有界轮询；确认只认系统事实，story 46）
       const confirmed = await this.confirmDesktopId(hwnd, agentId)
       if (!confirmed) {
-        // 未确认：回滚原桌面 + 复原原几何（有界单步；回滚结果如实上报，不伪造成功）
-        const rolledBack = this.deps.moveWindowToDesktop(hwnd, normalId)
-        this.deps.restoreRect(hwnd, originalRect)
-        const rollbackVerified = rolledBack && rollbackConfirmed(this.deps.windowDesktopId(hwnd), normalId)
+        // 未确认：有界回滚原桌面（story 47——回滚也享预算，不单发赌一次）+ 复原几何；
+        // 结果如实上报，不伪造成功
+        let rollbackVerified = false
+        let rollbackAttempts = 0
+        let lastReadback: string | null = null
+        for (let attempt = 1; attempt <= this.deps.moveAttempts; attempt++) {
+          rollbackAttempts = attempt
+          if (this.deps.moveWindowToDesktop(hwnd, normalId)) {
+            lastReadback = this.deps.windowDesktopId(hwnd)
+            if (rollbackConfirmed(lastReadback, normalId)) {
+              rollbackVerified = true
+              break
+            }
+          }
+          if (attempt < this.deps.moveAttempts) await sleep(this.deps.moveRetryDelayMs)
+        }
+        const geometryRestored = this.deps.restoreRect(hwnd, originalRect)
+        if (rollbackVerified) {
+          this.logEvent({ type: 'drag-in-failed', hwnd, source, reason: 'move-unconfirmed', rollbackAttempts, lastReadback, geometryRestored })
+          return finish({ ok: false, reason: 'move-unconfirmed', detail: geometryRestored ? undefined : 'geometry-restored=false' })
+        }
         this.logEvent({
-          type: 'drag-in-failed', hwnd, source, reason: 'move-unconfirmed',
-          rolledBack: rollbackVerified,
+          type: 'drag-in-failed', hwnd, source, reason: 'rollback-failed',
+          rollbackAttempts, lastReadback, geometryRestored,
         })
-        return { ok: false, reason: rolledBack && rollbackVerified ? 'move-unconfirmed' : 'rollback-failed' }
+        return finish({ ok: false, reason: 'rollback-failed', detail: `rollback-attempts=${rollbackAttempts};geometry-restored=${geometryRestored}` })
       }
 
       // 确认：登记一次性待入列交接（一次性上行——Agent 平铺按事件对账并清除）
       if (!this.handoff.includes(hwnd)) this.handoff.push(hwnd)
       this.logEvent({ type: 'drag-in-registered', hwnd, source, desktopId: agentId })
       this.ctx.emit('tiling/drag-in-registered', { hwnd })
-      return { ok: true }
+      return finish({ ok: true })
     } finally {
       this.inFlight = false
     }
+  }
+
+  /** 不合格落放的无副作用收尾（story 45）：保持原桌面（零移动），恢复拖拽前几何，
+   *  给简短原因。仅 drop 通路有拖前几何可复原；window-unknown / ineligible-window
+   *  是「永远不会被平铺接管」的窗——复原不与任何账打架。 */
+  private rejectIneligibleDrop(
+    hwnd: number,
+    source: DragInSource,
+    preDragRect: ScopeRect | null,
+    reason: 'window-unknown' | 'ineligible-window',
+  ): DragInResult {
+    if (source === 'drop' && preDragRect) this.deps.restoreRect(hwnd, preDragRect)
+    return { ok: false, reason }
   }
 
   /** 确认轮询：公开 VDM 回读 = 目标桌面 ID（预算内步进轮询；预算耗尽 = 未确认） */
@@ -336,6 +402,7 @@ export class AgentDragInService extends Service {
     }
     this.dragActive = false
     this.overAgent = false
+    this.preDrag = null
     this.handoff = []
   }
 }

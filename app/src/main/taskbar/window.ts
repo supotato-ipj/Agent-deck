@@ -673,7 +673,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // cursor-zone = 光标落在哪个热区（工单242：唤出条指针对账的唯一事实来源）；
     // popup-state = 自绘浮层开合（工单242：浮层在场钉住所属组）
     // workspace/changed = 桌面工作区共享状态（工单375）：模式组显隐/高亮/禁用随动
-    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state', 'workspace/changed', 'workspace/drag-in-changed'])
+    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state', 'workspace/changed', 'workspace/drag-in-changed', 'workspace/drag-in-feedback'])
     wireHostIpc(w, s.tracker, log, {
       // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶
       pin: (v) => {

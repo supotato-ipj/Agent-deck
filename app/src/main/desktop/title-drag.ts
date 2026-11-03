@@ -25,8 +25,9 @@ export interface ScreenPoint {
 export interface TitleDragHooks {
   /** 拖动会话开始（hwnd = 被移动窗口——源窗口身份的唯一出处） */
   onStart?: (hwnd: number) => void
-  /** 拖动会话结束（point = 松手时刻光标屏幕坐标——落点判定的光标事实） */
-  onEnd?: (hwnd: number, point: ScreenPoint | null) => void
+  /** 拖动会话结束（point = 松手时刻光标屏幕坐标；cancelled = 松手时 Esc 按下——
+   *  系统移动循环被 Esc 取消的直读信号，story 44「Esc 只取消迁移」的判定事实） */
+  onEnd?: (hwnd: number, point: ScreenPoint | null, cancelled: boolean) => void
 }
 
 interface KoffiFunc {
@@ -37,6 +38,7 @@ interface DragBound {
   setWinEventHook: KoffiFunc
   unhookWinEvent: KoffiFunc
   getCursorPos: KoffiFunc
+  getAsyncKeyState: KoffiFunc
 }
 
 let bound: DragBound | null = null
@@ -66,11 +68,26 @@ function bind(): DragBound | null {
       ),
       unhookWinEvent: user32.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)'),
       getCursorPos: user32.func('bool __stdcall GetCursorPos(_Out_ TITLE_DRAG_POINT *pt)'),
+      getAsyncKeyState: user32.func('int16 __stdcall GetAsyncKeyState(int vKey)'),
     }
     return bound
   } catch {
     bindFailed = true
     return null
+  }
+}
+
+const VK_ESCAPE = 0x1b
+
+/** 松手时刻 Esc 是否按下（读失败 = false——按「未取消」处理，落点判定照常；不猜取消） */
+export function isEscapeDown(): boolean {
+  try {
+    const b = bind()
+    if (!b) return false
+    // 高位 = 按下（GetAsyncKeyState 约定）
+    return (Number(b.getAsyncKeyState(VK_ESCAPE)) & 0x8000) !== 0
+  } catch {
+    return false
   }
 }
 
@@ -112,7 +129,7 @@ export function startTitleDragWatch(hooks: TitleDragHooks): () => void {
   }
   registeredCb = (event, hwnd) => {
     if (event === EVENT_SYSTEM_MOVESIZESTART) hooks.onStart?.(hwnd)
-    else if (event === EVENT_SYSTEM_MOVESIZEEND) hooks.onEnd?.(hwnd, readCursorPoint())
+    else if (event === EVENT_SYSTEM_MOVESIZEEND) hooks.onEnd?.(hwnd, readCursorPoint(), isEscapeDown())
   }
   hookHandle = b.setWinEventHook(
     EVENT_SYSTEM_MOVESIZESTART,
