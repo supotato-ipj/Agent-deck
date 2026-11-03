@@ -12,6 +12,8 @@ import { DataplaneService, type DataplaneServiceOptions } from './services/datap
 import { TaskbarService, type TaskbarServiceOptions } from './services/taskbar'
 import { DesktopWorkspaceService, type DesktopWorkspaceServiceOptions } from './services/desktop-workspace'
 import { AgentTilingService, type AgentTilingServiceOptions } from './services/agent-tiling'
+import { AgentFocusService, type AgentFocusServiceOptions } from './services/agent-focus'
+import { WindowPreviewService, type WindowPreviewServiceOptions } from './services/window-preview'
 import { PluginConfigService, type PluginConfigServiceOptions } from './services/plugin-config'
 import { ConversationService, type ConversationServiceOptions } from './conversation/service'
 import { MediaService, type MediaServiceOptions } from './media/service'
@@ -44,6 +46,10 @@ export interface PanelKernelOptions {
   /** 桌面工作区（工单375）：实验开关与依赖缝（缺省 = config agentDesktop 段，默认关） */
   desktopWorkspace?: DesktopWorkspaceServiceOptions
   agentTiling?: AgentTilingServiceOptions
+  /** Agent 聚焦（工单379）：实验开关与依赖缝（缺省随 agentDesktop 开关） */
+  agentFocus?: AgentFocusServiceOptions
+  /** 窗口预览（工单379）：实验开关与依赖缝（抓帧/图标由生产装配注入） */
+  windowPreview?: WindowPreviewServiceOptions
   /** 插件私有状态（工单178）：命名空间存储目录缺省 userData/plugin-config（生产装配不传即缺省落点） */
   pluginConfig?: PluginConfigServiceOptions
   /** 退出面板（工单83）：app.quit 注入（index.ts 生产装配提供） */
@@ -116,6 +122,42 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
         ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
       ownExes: options.agentTiling?.deps?.ownExes
         ?? (() => [process.execPath]), // 面板进程 exe（own-process 排除——面板/胶囊/条带同进程家族）
+    },
+  })
+  // Agent 聚焦（工单379）：随 agentDesktop 开关隔离（默认关）。聚焦服务对平铺账是行为
+  // 依赖（挂起目标窗/退出后恢复平铺）——装配层把两侧接起来；BridgeService 对它可选注入。
+  ctx.plugin(AgentFocusService, {
+    ...options.agentFocus,
+    enabled: options.agentFocus?.enabled ?? options.settings?.config?.agentDesktop?.enabled ?? false,
+    deps: {
+      ...options.agentFocus?.deps,
+      currentMode: options.agentFocus?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      setTilingHeld: options.agentFocus?.deps?.setTilingHeld
+        ?? ((hwnd) => ctx.agentTiling?.setHeldWindow(hwnd)),
+      restoreTiling: options.agentFocus?.deps?.restoreTiling
+        ?? (async () => {
+          const svc = ctx.agentTiling
+          return svc ? await svc.restoreTiling() : { ok: false, restored: 0, skipped: 0 }
+        }),
+    },
+  })
+  // 窗口预览（工单379）：条目成员与胶囊计数同口径（AgentTilingService.previewMembers），
+  // 选择条目进入聚焦（AgentFocusService）；抓帧/图标真源由生产装配注入（缺省不可用）。
+  ctx.plugin(WindowPreviewService, {
+    ...options.windowPreview,
+    enabled: options.windowPreview?.enabled ?? options.settings?.config?.agentDesktop?.enabled ?? false,
+    deps: {
+      ...options.windowPreview?.deps,
+      currentMode: options.windowPreview?.deps?.currentMode
+        ?? (() => ctx.desktopWorkspace?.state().current ?? 'unmanaged'),
+      members: options.windowPreview?.deps?.members
+        ?? (() => ctx.agentTiling?.previewMembers() ?? []),
+      enterFocus: options.windowPreview?.deps?.enterFocus
+        ?? ((hwnd) => {
+          const focus = ctx.agentFocus
+          return focus ? focus.enter(hwnd) : { ok: false, state: { focused: null } }
+        }),
     },
   })
   // 插件私有状态（工单178）：BridgeService 的 inject 列了 'pluginConfig'，本装配必须注册它——

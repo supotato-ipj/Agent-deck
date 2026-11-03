@@ -12,6 +12,8 @@ import { hwndOf } from './win32'
 import { startTaskbarController } from './taskbar/window'
 import { startCapsuleController } from './desktop/capsule-window'
 import { startTilePromptController } from './desktop/tile-prompt-window'
+import { startPreviewWindowController } from './desktop/preview-window'
+import { extractIconDataUrl } from './desktop/icon-ffi'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
@@ -313,6 +315,31 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         },
       },
     },
+    // Agent 聚焦（工单379）：存证只记 hwnd/动作（隐私边界）；前台观察与最大化走
+    // desktop/geom-write 真源（deps 缺省延迟绑定）。
+    agentFocus: {
+      enabled: config.agentDesktop.enabled,
+      log: (event) => log?.append(event),
+    },
+    // 窗口预览（工单379）：抓帧走 373 探针 go 裁决的 PrintWindow 内存帧（只内存不落盘）；
+    // 图标优先直取 exe 资源（巨型 exe 的 getFileIcon 会退通用图标——icon-ffi 先例），
+    // 失败回落 Electron app.getFileIcon。
+    windowPreview: {
+      enabled: config.agentDesktop.enabled,
+      log: (event) => log?.append(event),
+      deps: {
+        iconOf: async (exe) => {
+          const direct = exe ? extractIconDataUrl(exe, 0, 32) : null
+          if (direct) return direct
+          try {
+            const img = await app.getFileIcon(exe, { size: 'normal' })
+            return img.isEmpty() ? null : img.toDataURL()
+          } catch {
+            return null
+          }
+        },
+      },
+    },
     taskbar: {
       enabled: config.taskbar.enabled,
       hiddenButtons: config.taskbar.hiddenButtons,
@@ -530,14 +557,23 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const promptCtl = startTilePromptController({ ctx: kernel, log })
   app.on('before-quit', () => promptCtl.dispose())
 
+  // 窗口预览承载窗（工单379）：Agent 桌面可用即预建隐藏窗（页面先加载——打开只做 show，
+  // 满足 200ms 可交互预算）；展开时按条目矩形注册 DWM 实时缩略图，收起即注销（关闭即释放）。
+  const previewCtl = startPreviewWindowController({ ctx: kernel, log })
+  app.on('before-quit', () => previewCtl.dispose())
+
   // Agent 平铺（工单376）：启动事件订阅（构造期不起——装配顺序下工作区可能晚到）。
   kernel.agentTiling?.start()
+  // Agent 聚焦与窗口预览（工单379）：同一启动纪律（工作区/平铺装配可能晚到）。
+  kernel.agentFocus?.start()
+  kernel.windowPreview?.start()
 
   // 跟随兜底追加胶囊窗（工单376）：键盘模式退化 desktop-bound 时随面板/条带同路迁移。
   kernel.desktopWorkspace?.registerFollowTargets(() => [
     ...(!win.isDestroyed() ? [{ hwnd: hwndOf(win), label: 'panel' }] : []),
     ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
     ...(capsuleCtl.hwnd() ? [{ hwnd: capsuleCtl.hwnd()!, label: 'capsule' }] : []),
+    ...(previewCtl.hwnd() ? [{ hwnd: previewCtl.hwnd()!, label: 'preview' }] : []),
   ])
 
   // #103 缺陷① 验收触发器（accept 双门禁）：P10 需要同一 JS 任务内连发两次 setEnabled——

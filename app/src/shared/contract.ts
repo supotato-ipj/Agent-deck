@@ -317,6 +317,40 @@ export interface AgentTilingState {
   authorized: number
 }
 
+/**
+ * 窗口预览条目（工单379，spec #369 决策 15/26，GLOSSARY「窗口预览」）：胶囊展开的横向
+ * 条目之一。可见窗 mode='live'（DWM 实时缩略图由主进程注册进预览窗，渲染层只留位）；
+ * 最小化窗 mode='cached'（预览打开期间抓取的内存帧 → image dataURL）；无缓存回退
+ * mode='icon'（应用图标 + 标题）。title/icon/image 只作上屏载荷，**不进低敏日志**。
+ */
+export interface WindowPreviewItem {
+  hwnd: number
+  /** 窗口标题（上屏用；隐私边界——不落日志、不出预览窗） */
+  title: string
+  /** 应用图标 PNG dataURL（取不到/未就绪 = null——回退条目只显标题） */
+  icon: string | null
+  /** live=DWM 实时缩略图；cached=最小化内存缓存；icon=图标+标题回退 */
+  mode: 'live' | 'cached' | 'icon'
+  /** 缓存缩略图（仅 mode='cached'；内存帧 → dataURL，预览关闭即释放） */
+  image: string | null
+}
+
+/** 窗口预览只读投影（工单379）：胶囊页与预览页共用，open=false 时 items 为空 */
+export interface WindowPreviewState {
+  available: boolean
+  current: DesktopMode
+  open: boolean
+  items: WindowPreviewItem[]
+}
+
+/**
+ * Agent 聚焦投影（工单379，spec #369 决策 16）：focused = 由窗口预览选定、当前真实最大化
+ * 的目标窗 hwnd（null = 非聚焦态）。胶囊据此决定「点主体 = 展开预览 / 退出聚焦」。
+ */
+export interface AgentFocusState {
+  focused: number | null
+}
+
 /** 栏内托盘条目（工单56）：身份键 = 协议层身份（NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid>），
  * tooltip 即时显示不落盘；iconKey = 图标像素缓存键（null = 该条目尚无像素，渲染层按空格呈现） */
 export interface TaskbarTrayEntry {
@@ -1079,6 +1113,31 @@ export interface BridgeMethods {
    * 清除未消费授权；异常未平铺跳过并报告数量。可信内核 UI（胶囊右侧恢复按钮）用户手势触发。
    */
   'tiling/restore': { request: null; response: { ok: boolean; restored: number; skipped: number; state: AgentTilingState } }
+  /**
+   * 窗口预览状态只读投影（工单379）：胶囊页与预览页共用（open/条目）。
+   */
+  'preview/get-state': { request: null; response: WindowPreviewState }
+  /**
+   * 胶囊主体点击（工单379，spec #369 决策 14/16）：非聚焦态 = 展开/收起窗口预览；
+   * 聚焦态 = 退出聚焦并对全部窗口执行恢复平铺（GLOSSARY「Agent 聚焦」）。
+   */
+  'preview/toggle': { request: null; response: { ok: boolean; open: boolean } }
+  /** 收起窗口预览（Esc / 点外 / 再点胶囊；非聚焦态语义） */
+  'preview/close': { request: null; response: { ok: boolean } }
+  /**
+   * 选择预览条目（工单379，决策 16）：先收预览，再让目标窗真实最大化进入聚焦。
+   * 只由预览窗（可信内核 UI）用户手势调用。
+   */
+  'preview/select': { request: { hwnd: number }; response: { ok: boolean; focused: number | null } }
+  /**
+   * 预览资源诊断（工单379，决策 15/26）：open / DWM 关系数 / 内存缓存条数——验收断言
+   * 「关闭即释放」用；不携带标题或图像。
+   */
+  'preview/diag': { request: null; response: { open: boolean; live: number; cached: number } }
+  /** Agent 聚焦只读投影（工单379，决策 16）：focused = 当前真实最大化目标窗 */
+  'focus/get-state': { request: null; response: AgentFocusState }
+  /** 退出聚焦并恢复默认平铺（再点胶囊/恢复按钮/明确激活其他窗口的收口共用） */
+  'focus/exit': { request: null; response: { ok: boolean; restored: number; skipped: number; state: AgentFocusState } }
 }
 
 /** 内核桥接事件表：event → 推送载荷 */
@@ -1131,6 +1190,13 @@ export interface BridgeEvents {
   'workspace/changed': DesktopWorkspaceState
   /** Agent 平铺状态变化（工单376）：计数/落格/溢出/异常任一变化即推——胶囊订阅同一份 */
   'tiling/changed': AgentTilingState
+  /**
+   * 窗口预览状态变化（工单379）：展开/收起/条目（模式/图标/缓存帧）变化即推。
+   * 载荷含标题与内存位图——只走窗内桥，不落日志、不出预览/胶囊窗。
+   */
+  'preview/changed': WindowPreviewState
+  /** Agent 聚焦状态变化（工单379）：进入/退出聚焦即推（胶囊页据此切换主体点击语义） */
+  'focus/changed': AgentFocusState
 }
 
 export type BridgeMethod = keyof BridgeMethods & string

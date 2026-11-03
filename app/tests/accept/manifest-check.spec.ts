@@ -362,7 +362,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 后台自改不弹框 P4 / 切出撤销授权保留浮动几何 P5 / 胶囊恢复按钮与异常跳过报告 P6 /
     // 零残留 P7；一段绑定一工单）。授权状态机与复原/浮动/恢复决策按增段条件②由
     // geom-auth 纯函数矩阵钉，真机段只验真实输入链路与系统几何事实。
-    expect(total).toBe(165)
+    // 165 → 172：工单379 增电池——379-window-preview 副电池整建（预览打开与实时缩略图
+    // P1 / 最小化缓存与图标回退 P2 / 非聚焦收起 P3 / 选择进入聚焦 P4 / 退出聚焦与前台
+    // 变化 P5 / 资源生命周期与隐私 P6 / 零残留 P7；一段绑定一工单）。DWM 注册/抓帧
+    // 失败回退、条目投影与聚焦状态机按增段条件②由纯函数/服务单测钉，真机段只验真实
+    // 点击链路、DWM 像素呈现与系统几何事实。
+    expect(total).toBe(172)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

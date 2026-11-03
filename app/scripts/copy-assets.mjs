@@ -25,6 +25,9 @@ console.log('[copy-assets] dist/renderer/capsule.html')
 // 逐窗几何授权提示页（工单378）：首次操作复原后的「调整窗口/保持平铺」浮层
 copyFileSync(path.join(root, 'src', 'renderer', 'tile-prompt.html'), path.join(rendererDest, 'tile-prompt.html'))
 console.log('[copy-assets] dist/renderer/tile-prompt.html')
+// 窗口预览页（工单379）：胶囊展开的横向条目承载页，与胶囊页同根同协议
+copyFileSync(path.join(root, 'src', 'renderer', 'preview.html'), path.join(rendererDest, 'preview.html'))
+console.log('[copy-assets] dist/renderer/preview.html')
 // 内置桌面组件（工单10）：卡片入口由 tsc 编译就位，manifest 不经 tsc，逐个复制过去。
 // 没有 manifest 的卡片目录对插件宿主不可见（manifest 即契约，缺契约不装载）。
 const cardsSrc = path.join(root, 'src', 'renderer', 'cards')

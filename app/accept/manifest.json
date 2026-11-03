@@ -854,7 +854,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 35
+          "estSeconds": 15
         },
         {
           "seg": "P22",
@@ -1499,7 +1499,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30
+          "estSeconds": 10
         },
         {
           "seg": "P185",
@@ -2190,6 +2190,97 @@
             "system-state"
           ],
           "estSeconds": 5
+        }
+      ]
+    },
+    {
+      "id": "379-window-preview",
+      "title": "窗口预览与 Agent 聚焦（工单379）：胶囊展开横向预览（实时缩略图/最小化缓存/图标标题回退/横向滚动/200ms 可交互）、非聚焦收起（再点胶囊/Esc/点外/鼠标离开不收起）、选择真实最大化聚焦（胶囊置顶/计数正确）、再点胶囊与恢复按钮退出并恢复平铺、激活其他窗口与抢前台退出、后台新窗不退出、资源关闭即释放与日志无标题图像、零残留",
+      "entry": "app/accept/window-preview.js",
+      "flag": "--accept-window-preview",
+      "hintBar": true,
+      "cdpPort": 9236,
+      "kind": null,
+      "budgetSeconds": 120,
+      "lastMeasuredSeconds": 54,
+      "lastMeasuredAt": "2026-11-03",
+      "areas": [
+        "desktop",
+        "panel.core"
+      ],
+      "segments": [
+        {
+          "seg": "P1",
+          "ticket": 379,
+          "title": "预览打开与实时缩略图：胶囊主体真实点击 → 预览窗 ≤200ms 可交互（open→rendered 存证）、六条可见窗条目为 live 且逐条 DWM 实时内容像素可辨认、标题逐条对应、横向可滚动、预览位于胶囊下方",
+          "surfaces": [
+            "input-injection",
+            "pixel",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 20
+        },
+        {
+          "seg": "P2",
+          "ticket": 379,
+          "title": "最小化缓存与图标回退：预览打开期间抓帧 → 最小化后条目改用最近缓存（像素可辨认）；关闭即释放（diag.cached=0）；无缓存的最小化窗回退应用图标+标题、最小化仍计数",
+          "surfaces": [
+            "system-state",
+            "pixel",
+            "event-evidence"
+          ],
+          "estSeconds": 5
+        },
+        {
+          "seg": "P3",
+          "ticket": 379,
+          "title": "非聚焦收起：鼠标离开 900ms 不收起；再点胶囊收起；Esc 收起；点外真实点击收起",
+          "surfaces": [
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 5
+        },
+        {
+          "seg": "P4",
+          "ticket": 379,
+          "title": "选择进入聚焦：真实点击条目 → 目标真实最大化（IsZoomed 覆盖主屏）、胶囊保持置顶、计数保持正确、其余成员保持平铺原位",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 2
+        },
+        {
+          "seg": "P5",
+          "ticket": 379,
+          "title": "退出聚焦：再点胶囊/恢复按钮退出并恢复默认平铺（逐像素）；激活其他窗口先退出；后台新窗（最小化出现）不退出、抢前台才退出并补入第七窗",
+          "surfaces": [
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 11
+        },
+        {
+          "seg": "P6",
+          "ticket": 379,
+          "title": "资源生命周期与隐私：关闭后 DWM 关系与内存缓存归零（preview-released）；事件日志不含窗口标题、不含 data:image、无 title/image 字段；打开→上屏→首帧→缩略图→关闭→释放链完整",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 1
+        },
+        {
+          "seg": "P7",
+          "ticket": 379,
+          "title": "收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与基线逐项相等、config 三态还原",
+          "surfaces": [
+            "system-state"
+          ],
+          "estSeconds": 6
         }
       ]
     }

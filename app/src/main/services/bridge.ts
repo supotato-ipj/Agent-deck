@@ -1,6 +1,6 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation } from '../../shared/contract'
+import type { AgentTilingState, BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation, WindowPreviewState } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
@@ -26,6 +26,8 @@ export class BridgeService extends Service {
     settings: { required: true }, focus: { required: true }, plugins: { required: true },
     taskbar: { required: true }, pluginConfig: { required: true }, conversation: { required: true },
     desktopWorkspace: { required: false },
+    agentFocus: { required: false },
+    windowPreview: { required: false },
   }
 
   private readonly weather: WeatherLocation
@@ -278,16 +280,59 @@ export class BridgeService extends Service {
         }
         return (decision === 'confirm' ? svc.confirmHwnd(Number(hwnd)) : svc.cancelHwnd(Number(hwnd))) as BridgeMethods[M]['response']
       }
-      // --- 恢复平铺（工单378，决策 11/26）：可信内核 UI（胶囊右侧恢复按钮）用户手势 ---
+      // --- 恢复平铺（工单378，决策 11/26）：可信内核 UI（胶囊右侧恢复按钮）用户手势。
+      // 工单379：聚焦态下恢复按钮 = 先退出聚焦（还原目标几何）再恢复默认平铺。
       case 'tiling/restore': {
         const svc = this.ctx.agentTiling
+        const focus = this.ctx.agentFocus
+        if (focus && focus.state().focused != null) {
+          const r = await focus.exit()
+          return { ok: r.ok, restored: r.restored, skipped: r.skipped, state: svc ? svc.state() : emptyTilingState() } as BridgeMethods[M]['response']
+        }
         if (!svc) {
-          return { ok: false, restored: 0, skipped: 0, state: {
-            available: false, current: 'unmanaged' as const, count: 0, placed: 0, overflow: 0, anomalies: 0,
-            anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 }, floating: 0, prompting: 0, authorized: 0,
-          } } as BridgeMethods[M]['response']
+          return { ok: false, restored: 0, skipped: 0, state: emptyTilingState() } as BridgeMethods[M]['response']
         }
         return await svc.restoreTiling() as BridgeMethods[M]['response']
+      }
+      // --- 窗口预览与 Agent 聚焦（工单379，spec 决策 15/16）：胶囊主体/预览窗用户手势 ---
+      case 'preview/get-state': {
+        const svc = this.ctx.windowPreview
+        return (svc ? svc.state() : emptyPreviewState()) as BridgeMethods[M]['response']
+      }
+      case 'preview/toggle': {
+        const focus = this.ctx.agentFocus
+        // 聚焦态再点胶囊 = 退出聚焦并恢复默认平铺（GLOSSARY「Agent 聚焦」）
+        if (focus && focus.state().focused != null) {
+          await focus.exit()
+          return { ok: true, open: false } as BridgeMethods[M]['response']
+        }
+        const svc = this.ctx.windowPreview
+        return (svc ? svc.toggle() : { ok: false, open: false }) as BridgeMethods[M]['response']
+      }
+      case 'preview/close': {
+        const svc = this.ctx.windowPreview
+        svc?.close('user')
+        return { ok: Boolean(svc) } as BridgeMethods[M]['response']
+      }
+      case 'preview/select': {
+        const { hwnd } = payload as { hwnd: number }
+        const svc = this.ctx.windowPreview
+        if (!svc) return { ok: false, focused: null } as BridgeMethods[M]['response']
+        return svc.select(Number(hwnd)) as BridgeMethods[M]['response']
+      }
+      case 'preview/diag': {
+        const svc = this.ctx.windowPreview
+        return (svc ? svc.diag() : { open: false, live: 0, cached: 0 }) as BridgeMethods[M]['response']
+      }
+      case 'focus/get-state': {
+        const svc = this.ctx.agentFocus
+        return (svc ? svc.state() : { focused: null }) as BridgeMethods[M]['response']
+      }
+      case 'focus/exit': {
+        const svc = this.ctx.agentFocus
+        if (!svc) return { ok: false, restored: 0, skipped: 0, state: { focused: null } } as BridgeMethods[M]['response']
+        const r = await svc.exit()
+        return { ok: r.ok, restored: r.restored, skipped: r.skipped, state: r.state } as BridgeMethods[M]['response']
       }
       case 'plugin-config/get': {
         const { id } = payload as { id: string }
@@ -474,4 +519,17 @@ export class BridgeService extends Service {
     // 工单55 任务栏右组 1Hz 数据帧：与 panel/changed 同源同拍，只裁时钟 + 硬件仪表两段
     this.ctx.emit('taskbar/status', { clock: this.ctx.panelData.clock(), hardware: this.ctx.panelData.hardware().gauges })
   }
+}
+
+/** 缺装配时的平铺空态（桥接层回退——不编造数据，与 tiling/get-state 同形） */
+function emptyTilingState(): AgentTilingState {
+  return {
+    available: false, current: 'unmanaged', count: 0, placed: 0, overflow: 0, anomalies: 0,
+    anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 }, floating: 0, prompting: 0, authorized: 0,
+  }
+}
+
+/** 缺装配时的预览空态 */
+function emptyPreviewState(): WindowPreviewState {
+  return { available: false, current: 'unmanaged', open: false, items: [] }
 }

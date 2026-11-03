@@ -74,7 +74,7 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService, events:
  * hooks.pin：键盘模式进出的 z 序恢复动作——面板钉底（默认），任务栏窗重申置顶。
  * hooks.sentinelHeartbeat：哨兵失能档发射武装（#91）——只有接了渲染层活性心跳的窗
  * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。 */
-export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void } = {}): void {
+export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void } = {}): void {
   const pin = hooks.pin ?? pinToBottom
   const onHotzones = (event: Electron.IpcMainEvent, rects: HotzoneRect[]) => {
     if (event.sender !== win.webContents) return
@@ -118,14 +118,21 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
     tracker?.setHold(!!on)
     log?.append({ type: on ? 'taskbar-drag-hold-on' : 'taskbar-drag-hold-off' })
   }
+  // 窗口预览条目矩形（工单379）：DWM 目标矩形随滚动/布局变化——只转给声明了钩子的预览窗
+  const onPreviewLayout = (event: Electron.IpcMainEvent, rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => {
+    if (event.sender !== win.webContents) return
+    hooks.onPreviewLayout?.(Array.isArray(rects) ? rects : [])
+  }
   ipcMain.on('deck:host-set-hotzones', onHotzones)
   ipcMain.on('deck:host-notify', onNotify)
+  ipcMain.on('deck:host-preview-layout', onPreviewLayout)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
   ipcMain.on('deck:host-drag-session', onDragSession)
   wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false })
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
+    ipcMain.removeListener('deck:host-preview-layout', onPreviewLayout)
     ipcMain.removeListener('deck:host-keyboard-mode', onKeyboardMode)
     ipcMain.removeListener('deck:host-drag-session', onDragSession)
   })

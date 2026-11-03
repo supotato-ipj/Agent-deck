@@ -3,8 +3,10 @@
 //
 // 工单378：右侧恢复按钮（始终可用）。点击经桥 tiling/restore（可信内核 UI 用户手势）
 // 收回手动浮动、补入容量溢出、清除授权；结果（restored / skipped）在胶囊内短暂显示，
-// 异常未平铺跳过数一并报告（GLOSSARY「恢复平铺」）。按钮热区经 host.setHotZones 声明，
-// 其余区域保持穿透（点击落到下方窗口）。预览展开归工单379。
+// 异常未平铺跳过数一并报告（GLOSSARY「恢复平铺」）。
+// 工单379：胶囊主体点击 = 展开/收起横向窗口预览（preview/toggle；聚焦态由主进程改判为
+// 「退出聚焦并恢复平铺」）。主体与恢复按钮同走 host.setHotZones 热区声明——其余区域
+// 保持穿透（点击落到下方窗口）。
 // 自诊断（条带页同款教训）：桥接失败在页内可见（胶囊显「-」并落 console——真机轮
 // 的存证面能分辨「没跑」与「跑崩」）。
 import type { AgentTilingState } from '../shared/contract'
@@ -45,11 +47,26 @@ function showStatus(text: string): void {
   }, 3200)
 }
 
-/** 按钮热区声明（CSS px = DIP，相对窗口客户区）：只有按钮接收点击，其余保持穿透 */
+/** 热区声明（CSS px = DIP，相对窗口客户区）：胶囊主体 + 恢复按钮接收点击，其余保持穿透。
+ *  恢复按钮在前——重叠时热区命中序以先声明者为准（按钮是更小的命中区）。 */
 function declareHotzones(): void {
+  const body = capsuleEl.getBoundingClientRect()
   const r = restoreEl.getBoundingClientRect()
-  window.deck.host.setHotZones([{ id: 'restore', x: r.x, y: r.y, w: r.width, h: r.height }])
+  window.deck.host.setHotZones([
+    { id: 'restore', x: r.x, y: r.y, w: r.width, h: r.height },
+    { id: 'body', x: body.x, y: body.y, w: body.width, h: body.height },
+  ])
 }
+
+// 胶囊主体点击：展开/收起窗口预览（工单379）；聚焦态由主进程改判为退出聚焦
+capsuleEl.addEventListener('click', (ev) => {
+  if ((ev.target as HTMLElement | null)?.closest('#cap-restore')) return
+  window.deck.host.notify('capsule-toggle-req', {})
+  void window.deck.bridge
+    .invoke('preview/toggle', null)
+    .then((res) => window.deck.host.notify('capsule-toggle-res', { open: Boolean((res as { open?: boolean } | null)?.open) }))
+    .catch((err) => console.error('[capsule] preview toggle failed', err))
+})
 
 restoreEl.addEventListener('click', async () => {
   if (busy) return
