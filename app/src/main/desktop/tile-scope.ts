@@ -26,6 +26,8 @@ export interface ScopeRect {
 /** 一次窗口范围事实快照（采集面在 win-facts 接缝 + VDM 公开桥，编排层合成） */
 export interface TileWindowFacts {
   hwnd: number
+  /** 窗口属主进程 PID（工单383 稳定身份核对；取不到归 undefined——只按 exe 核对） */
+  pid?: number
   /** 进程可执行文件绝对路径（取不到归 ''） */
   exe: string
   /** 窗口标题（空串 = 无窗口面/取不到） */

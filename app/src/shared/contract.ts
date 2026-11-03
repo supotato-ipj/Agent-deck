@@ -315,6 +315,15 @@ export interface AgentTilingState {
   prompting: number
   /** 已确认授权、等待用户重新发起操作的窗口数（工单378：仍平铺） */
   authorized: number
+  /**
+   * 重启恢复状态（工单383，spec #369 决策 13/16）：none = 无持久布局待恢复；
+   * restored = 已按持久模型恢复（顺序/树/浮动几何）；paused = 主屏暂不可用，暂停改窗
+   * 并保留模型，恢复后 reconciliation；safe = 安全态（停止自动改窗——桌面 ID 失效/
+   * 窗口身份不符/模型不一致/上次会话崩溃）。
+   */
+  recovery: 'none' | 'restored' | 'paused' | 'safe'
+  /** 恢复/安全态原因（仅枚举，不含标题等隐私内容；none/restored 时为 null） */
+  recoveryReason: 'desktop-id' | 'window-identity' | 'model' | 'crash' | 'display-unavailable' | null
 }
 
 /**

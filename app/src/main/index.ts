@@ -301,6 +301,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     // 真源（物理 px 口径——条带 48 DIP × scaleFactor，任务栏 stripBounds 同源常量）。
     agentTiling: {
       enabled: config.agentDesktop.enabled,
+      // 布局持久化（工单383）：配对/顺序/平铺树/浮动几何落 userData；验收经环境变量重定向。
+      // 文档不含窗口标题、对话标题、缩略图或手动授权（desktop/agent-layout 白名单）。
+      layoutFile: process.env.DECK_AGENT_LAYOUT_FILE || userDataPath('agent-desktop-layout.json'),
       // 授权决策存证（工单378）：只记 hwnd/阶段/前台/动作——不含窗口标题（隐私边界）
       log: (event) => log?.append(event),
       deps: {
@@ -602,8 +605,34 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const sessionPreviewCtl = startSessionPreviewController({ ctx: kernel, log })
   app.on('before-quit', () => sessionPreviewCtl.dispose())
 
-  // Agent 平铺（工单376）：启动事件订阅（构造期不起——装配顺序下工作区可能晚到）。
+  // Agent 平铺（工单376）：启动事件订阅。工单383 先等桌面工作区首轮对账完成——
+  // 面板在 Agent 桌面重启时，工作区构造期异步 reconciliation 可能早于本订阅发完
+  // 'workspace/changed'；先 await 再起，syncActivation 才能读到已对账的 current。
+  const wsGate = {
+    present: Boolean(kernel.desktopWorkspace),
+    before: kernel.desktopWorkspace?.state().current ?? null,
+  }
+  try {
+    await kernel.desktopWorkspace?.start()
+  } catch (err) {
+    log?.append({
+      type: 'workspace-start-failed',
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+  log?.append({
+    type: 'workspace-start-gate',
+    ...wsGate,
+    after: kernel.desktopWorkspace?.state().current ?? null,
+    paired: kernel.desktopWorkspace?.state().paired ?? null,
+  })
   kernel.agentTiling?.start()
+  // 工单383：工作区首轮对账完成后强制再对齐一次激活态——start() 可能已被 cordis 在
+  // 服务注册阶段调用（彼时工作区 current 尚未对账完成），仅靠 workspace/changed 会漏拍。
+  kernel.agentTiling?.syncActivation()
+  // 干净退出标记（工单383）：正常退出把持久模型写成 clean=true，下一轮按布局恢复；
+  // 崩溃/强杀走不到这里，clean=false 留在盘上，下次启动判为崩溃——不应用旧布局、不搬窗。
+  app.on('before-quit', () => kernel.agentTiling?.shutdown())
   // Agent 聚焦与窗口预览（工单379）：同一启动纪律（工作区/平铺装配可能晚到）。
   kernel.agentFocus?.start()
   kernel.windowPreview?.start()

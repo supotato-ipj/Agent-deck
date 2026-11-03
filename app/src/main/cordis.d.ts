@@ -92,6 +92,8 @@ declare module 'cordis' {
     'tiling/authorize-request': (payload: { hwnd: number; rect: { left: number; top: number; right: number; bottom: number } }) => void
     /** 工单378 授权提示关闭（确认/取消/切出撤销/恢复平铺/窗口消失）——控制器据此收窗 */
     'tiling/authorize-closed': (payload: { hwnd: number }) => void
+    /** 工单383 重启恢复状态迁移（restored/paused/safe）：诊断存证用，载荷只有枚举与原因 */
+    'tiling/recovery': (payload: { status: 'none' | 'restored' | 'paused' | 'safe'; reason: string | null }) => void
     /**
      * 工单379 窗口预览状态变化（展开/收起/条目更新）：预览窗控制器据此建/显/更/销窗；
      * 同一事件即桥接事件 'preview/changed'（胶囊页与预览页订阅）。

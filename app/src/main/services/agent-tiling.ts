@@ -19,8 +19,10 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import type { AgentTilingState, DesktopMode } from '../../shared/contract'
-import { MIN_PANE_H, MIN_PANE_W, createTree, isTileableArea, tileAreaOf, treeInsert, treePlacedIds, treePlan, treeRemove } from '../desktop/tiling-plan'
+import { MIN_PANE_H, MIN_PANE_W, createTree, isTileableArea, tileAreaOf, treeFromShape, treeInsert, treePlacedIds, treePlan, treeRemove } from '../desktop/tiling-plan'
 import type { TilingTree, TileRect } from '../desktop/tiling-plan'
+import { captureLayout, identityOf, parseLayout, planRestore, serializeLayout } from '../desktop/agent-layout'
+import type { AgentLayoutDoc, RestorePlan, WindowIdentity } from '../desktop/agent-layout'
 import { rectMatches, projectTileScope } from '../desktop/tile-scope'
 import type { TileWindowFacts, ScopeRect } from '../desktop/tile-scope'
 import {
@@ -35,6 +37,8 @@ import {
   verifyWriteOutcome,
 } from '../desktop/geom-control'
 import type { AnomalyKind, AnomalyKindLedger, AttemptLedger, AnomalySet, EchoLedger } from '../desktop/geom-control'
+import fs from 'node:fs'
+import path from 'node:path'
 import {
   acceptFloating,
   authCounts,
@@ -64,6 +68,11 @@ export interface AgentTilingServiceOptions {
   log?: (event: Record<string, unknown>) => void
   /** 一次持续授权的静止判据（ms；缺省 800——离线矩阵可缩短以秒级断言） */
   settleMs?: number
+  /**
+   * 布局持久化文件（工单383）：null/缺省 = 无落盘面（离线测试默认）。
+   * 生产装配 = userData/agent-desktop-layout.json（验收可经 DECK_AGENT_LAYOUT_FILE 重定向）。
+   */
+  layoutFile?: string | null
   /** 依赖缝：真源缺省延迟绑定 desktop/tile-scope 采集链（离线测试注入假源后零 FFI） */
   deps?: {
     /** 当前模式（缺省读 desktopWorkspace 服务投影——缺装配 = unmanaged 恒不激活） */
@@ -89,6 +98,12 @@ export interface AgentTilingServiceOptions {
     isForeground?: (hwnd: number) => boolean
     /** 复原窗到目标矩形（工单378：最大化态先 SC_RESTORE 再写；缺省延迟绑定 geom-write.restoreWindowRect） */
     restoreRect?: (hwnd: number, target: TileRect) => boolean
+    /** 当前配对 Agent 桌面系统 ID（工单383 归属核对；缺省 null = 无配对不恢复） */
+    agentDesktopId?: () => string | null
+    /** 布局文本读取（工单383；缺省 fs 真源） */
+    readLayoutText?: (file: string) => string | null
+    /** 布局文本原子写入（工单383；缺省 fs 真源） */
+    writeLayoutText?: (file: string, text: string) => void
   }
 }
 
@@ -104,6 +119,9 @@ interface TilingDeps {
   minPane: () => { w: number; h: number }
   isForeground: (hwnd: number) => boolean
   restoreRect: (hwnd: number, target: TileRect) => boolean
+  agentDesktopId: () => string | null
+  readLayoutText: (file: string) => string | null
+  writeLayoutText: (file: string, text: string) => void
 }
 
 const DEFAULT_BATCH_MS = 80
@@ -158,6 +176,8 @@ export class AgentTilingService extends Service {
   private pendingPass = false
   private lastState: AgentTilingState | null = null
   private started = false
+  /** 激活态迁移观察（诊断存证：active/current；不含窗口数据） */
+  private wasActive: boolean | null = null
   /** 成员加入序（hwnd，先到在前）：布局只由加入事件序列决定（spec 决策 7「有序窗口
    *  成员」+ 用户故事 18/31——确定性不随 z 序/焦点漂移）；新成员按首见序追加队尾
    *  （story 21「移回主屏按最新窗口加入」），消失成员移除、兄弟吸收空位。显示参数
@@ -169,6 +189,22 @@ export class AgentTilingService extends Service {
   /** 聚焦目标（工单379，决策 16）：挂起窗保留窗格与计数，但平铺 pass 不写它、不做授权
    *  判定——真实最大化不是「用户改几何」。null = 无聚焦。只在内存，切出即清。 */
   private heldHwnd: number | null = null
+  // —— 工单383 重启恢复账（只在内存的会话状态；持久文档字段见 desktop/agent-layout） ——
+  private readonly layoutFile: string | null
+  /** 持久文档已装载（首激活读一次；暂停态每拍重试不重读） */
+  private layoutLoaded = false
+  /** 待应用文档（主屏暂不可用时保留模型，恢复后 reconciliation） */
+  private pendingRestore: AgentLayoutDoc | null = null
+  /** 安全态：停止自动改窗（桌面 ID 失效/窗口身份不符/模型不一致/崩溃） */
+  private safe = false
+  private recovery: AgentTilingState['recovery'] = 'none'
+  private recoveryReason: AgentTilingState['recoveryReason'] = null
+  /** 恢复后的首个 reconciliation pass：跳过授权判定（恢复写窗不是用户操作、不弹框） */
+  private restoringPass = false
+  /** 最近一拍全量窗口事实的稳定身份表（持久化身份来源；不含标题） */
+  private lastIdentities = new Map<number, WindowIdentity>()
+  /** 最近一次落盘文本（同内容不重复写） */
+  private lastSavedText: string | null = null
 
   constructor(ctx: Context, options: AgentTilingServiceOptions = {}) {
     super(ctx, 'agentTiling')
@@ -176,6 +212,7 @@ export class AgentTilingService extends Service {
     this.batchMs = options.batchMs ?? DEFAULT_BATCH_MS
     this.logEvent = options.log ?? (() => undefined)
     this.settleMs = options.settleMs ?? AUTH_SETTLE_MS
+    this.layoutFile = options.layoutFile ?? null
     this.deps = {
       currentMode: options.deps?.currentMode ?? (() => 'unmanaged'),
       ownExes: options.deps?.ownExes ?? (() => []),
@@ -194,6 +231,16 @@ export class AgentTilingService extends Service {
         ?? ((hwnd) => (require('../desktop/geom-write') as typeof import('../desktop/geom-write')).isForegroundWindow(hwnd)),
       restoreRect: options.deps?.restoreRect
         ?? ((hwnd, target) => (require('../desktop/geom-write') as typeof import('../desktop/geom-write')).restoreWindowRect(hwnd, target)),
+      agentDesktopId: options.deps?.agentDesktopId ?? (() => null),
+      readLayoutText: options.deps?.readLayoutText ?? ((file) => {
+        try { return fs.readFileSync(file, 'utf8') } catch { return null }
+      }),
+      writeLayoutText: options.deps?.writeLayoutText ?? ((file, text) => {
+        fs.mkdirSync(path.dirname(file), { recursive: true })
+        const tmp = `${file}.tmp`
+        fs.writeFileSync(tmp, text, 'utf8')
+        fs.renameSync(tmp, file)
+      }),
     }
   }
 
@@ -230,6 +277,8 @@ export class AgentTilingService extends Service {
       floating: counts.floating,
       prompting: counts.prompting,
       authorized: counts.authorized,
+      recovery: this.recovery,
+      recoveryReason: this.recoveryReason,
     }
   }
 
@@ -262,6 +311,15 @@ export class AgentTilingService extends Service {
   /** 激活态对齐（workspace/changed 与启动路径共用）：agent 激活，其余失活 */
   syncActivation(): void {
     const active = this.active()
+    if (this.wasActive !== active) {
+      this.wasActive = active
+      this.logEvent({
+        type: 'tiling-activation',
+        active,
+        available: this.available(),
+        current: this.deps.currentMode(),
+      })
+    }
     if (active) {
       if (!this.stopWatch) {
         this.stopWatch = this.deps.startWatch((hwnd) => this.onLocationChange(hwnd))
@@ -297,6 +355,8 @@ export class AgentTilingService extends Service {
     this.pendingPass = false
     // 聚焦挂起随失活清除（工单379）：普通/非托管桌面不继承 Agent 桌面的挂起状态
     this.heldHwnd = null
+    // 切出前落盘模型（工单383）：浮动几何保留、授权已撤销——重启按同一份布局恢复
+    this.saveLayout(false)
     this.pushState({ count: 0, placed: 0, overflow: 0, anomalies: 0, anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 } })
   }
 
@@ -310,6 +370,14 @@ export class AgentTilingService extends Service {
     clearFloating(this.auth)
     this.auth = createGeomAuthLedger()
     this.lastState = null
+    this.layoutLoaded = false
+    this.pendingRestore = null
+    this.safe = false
+    this.recovery = 'none'
+    this.recoveryReason = null
+    this.restoringPass = false
+    this.lastIdentities.clear()
+    this.lastSavedText = null
   }
 
   /** LOCATIONCHANGE 事件入口（FFI 回调侧只递 hwnd——轻活纪律，归类在 tick） */
@@ -383,7 +451,7 @@ export class AgentTilingService extends Service {
    * 浮动窗数（restored）与跳过数，调用方（胶囊）据此报告。
    */
   async restoreTiling(): Promise<{ ok: boolean; restored: number; skipped: number; state: AgentTilingState }> {
-    if (!this.active()) {
+    if (!this.active() || this.safe) {
       return { ok: false, restored: 0, skipped: this.anomalies.size, state: this.state() }
     }
     const floats = clearFloating(this.auth)
@@ -412,7 +480,8 @@ export class AgentTilingService extends Service {
     let facts: TileWindowFacts[]
     try {
       facts = this.deps.collectFacts()
-    } catch {
+    } catch (err) {
+      this.logEvent({ type: 'tiling-facts-unavailable', message: err instanceof Error ? err.message : String(err) })
       return // 本拍事实不可读：沿用上一拍（不猜）
     }
     const primary = this.deps.primaryRect()
@@ -433,6 +502,23 @@ export class AgentTilingService extends Service {
       this.displayDirty = false
     }
     const memberSet = new Set(members.map((m) => m.hwnd))
+    // 稳定身份表（工单383）：只留 hwnd/pid/归一化 exe——标题不进入持久化账
+    this.lastIdentities = new Map(facts.map((f) => [f.hwnd, identityOf(f)] as const))
+    const area: TileRect = tileAreaOf(primary, this.deps.taskbarTop())
+    // 最小窗格按主屏 DPI 换算（spec 决策 12「约 320×240 逻辑像素」——物理 px 口径）
+    const minPane = this.deps.minPane()
+    // 重启恢复（工单383）：安全态/主屏暂不可用时本拍零写入；模型原地保留（不丢）
+    if (!this.reconcileRecovery(facts, members, area, minPane)) {
+      this.pushState({
+        count: members.length,
+        placed: 0,
+        overflow: members.length,
+        anomalies: this.anomalies.size,
+        anomalyDetail: anomalyDetailOf(this.anomalyKinds),
+      })
+      this.saveLayout(false)
+      return
+    }
 
     // 异常预判（工单377）：固定尺寸窗（WS_THICKFRAME 缺位）一次判定即异常化——
     // 不试写（试写对它必然无效果），保留当前几何、不阻塞其他窗口
@@ -462,9 +548,6 @@ export class AgentTilingService extends Service {
       if (!this.memberOrder.includes(m.hwnd)) this.memberOrder.push(m.hwnd)
     }
     const count = members.length
-    const area: TileRect = tileAreaOf(primary, this.deps.taskbarTop())
-    // 最小窗格按主屏 DPI 换算（spec 决策 12「约 320×240 逻辑像素」——物理 px 口径）
-    const minPane = this.deps.minPane()
     if (!isTileableArea(area, { minPaneW: minPane.w, minPaneH: minPane.h })) {
       // 平铺区不可用（显示参数变化过渡态/主屏暂时不可用）：本拍零写入——不写不可见
       // 坐标（用户故事 23）；计数照报，全员按未落格口径呈现
@@ -516,6 +599,7 @@ export class AgentTilingService extends Service {
       if (!current) continue
       const changed = !rectMatches(current, p.rect, AUTH_CHANGE_TOLERANCE_PX)
       if (!changed) continue
+      if (this.restoringPass) continue // 恢复轮：按持久模型落位，不是用户改几何（不弹框）
       // 回声 = 自身写窗的回声（期望矩形命中）：不是用户操作，零动作（且已消费）
       const echo = classifyGeomEvent(this.echoLedger, hwnd, current, now) === 'echo'
       const userGesture = echo ? false : this.deps.isForeground(hwnd)
@@ -538,6 +622,7 @@ export class AgentTilingService extends Service {
       if (!remembered) continue
       const changed = !rectMatches(current, remembered, AUTH_CHANGE_TOLERANCE_PX)
       if (!changed) continue
+      if (this.restoringPass) continue // 恢复轮：浮动几何已按持久模型写回，不判用户操作
       const echo = classifyGeomEvent(this.echoLedger, hwnd, current, now) === 'echo'
       const userGesture = echo ? false : this.deps.isForeground(hwnd)
       const action = decideGeomEvent({ phase: phaseOf(this.auth, hwnd), floating: true, echo, changed, userGesture })
@@ -638,6 +723,230 @@ export class AgentTilingService extends Service {
       anomalies: this.anomalies.size,
       anomalyDetail: anomalyDetailOf(this.anomalyKinds),
     })
+    // 恢复轮结束 + 模型落盘（工单383）：本轮之后的事件回到正常授权判定
+    this.restoringPass = false
+    this.saveLayout(false)
+  }
+
+  // ————————————————————————————————————————————————————————————
+  // 重启恢复（工单383，spec #369 决策 13 桌面持久化 + 决策 16 恢复与故障矩阵）
+  // ————————————————————————————————————————————————————————————
+
+  /**
+   * 恢复一拍（纯编排，IO 经 deps 注入）：首激活读一次持久文档；之后每拍重试暂停态。
+   * 返回 false = 本拍停止自动改窗（安全态/主屏暂不可用）——调用方零写集、原地保留模型。
+   *
+   * 判据顺序（安全态即停止，不猜、不修补）：
+   *  1. 持久文档解析/结构不一致 → model；
+   *  2. 上次会话未干净退出（crash 标记）→ crash（不应用旧布局、不强制搬窗）；
+   *  3. 存储桌面 ID 与当前配对 Agent 桌面不一致 → desktop-id（不猜接管未知桌面）；
+   *  4. 同 hwnd 的 exe/pid 不符 → window-identity；
+   *  5. 主屏暂不可用 → paused（pendingRestore 保留，恢复后 reconciliation）。
+   */
+  private reconcileRecovery(
+    facts: readonly TileWindowFacts[],
+    members: readonly TileWindowFacts[],
+    area: TileRect,
+    minPane: { w: number; h: number },
+  ): boolean {
+    if (this.safe) return false
+    if (!this.layoutFile) return true
+    if (!this.layoutLoaded) {
+      this.layoutLoaded = true
+      const parsed = parseLayout(this.deps.readLayoutText(this.layoutFile))
+      this.logEvent({
+        type: 'tiling-recovery-load',
+        outcome: parsed.kind,
+        reason: parsed.kind === 'invalid' ? parsed.reason : null,
+        clean: parsed.kind === 'ok' ? parsed.doc.clean : null,
+        order: parsed.kind === 'ok' ? parsed.doc.order.length : null,
+      })
+      if (parsed.kind === 'invalid') {
+        this.enterSafe('model')
+        return false
+      }
+      if (parsed.kind === 'none') {
+        this.recovery = 'none'
+        this.recoveryReason = null
+        return true
+      }
+      const doc = parsed.doc
+      if (doc.clean !== true) {
+        this.enterSafe('crash')
+        return false
+      }
+      const desktopId = this.deps.agentDesktopId()
+      if (!desktopId || doc.desktopId !== desktopId) {
+        this.enterSafe('desktop-id')
+        return false
+      }
+      this.pendingRestore = doc
+    }
+    if (!this.pendingRestore) return true
+    if (!isTileableArea(area, { minPaneW: minPane.w, minPaneH: minPane.h })) {
+      // 主屏暂不可用：暂停改窗、保留模型（用户故事 23 / spec 决策 16）
+      this.setRecovery('paused', 'display-unavailable')
+      return false
+    }
+    const plan = planRestore(this.pendingRestore, facts, members)
+    if (plan.kind === 'safe') {
+      this.enterSafe(plan.reason)
+      return false
+    }
+    this.applyRestorePlan(plan, facts, area, minPane)
+    this.pendingRestore = null
+    this.setRecovery('restored', null)
+    return true
+  }
+
+  /** 应用恢复计划：顺序/树/分裂队列原样重建（矩形按当前平铺区重算）、浮动几何写回 */
+  private applyRestorePlan(
+    plan: Extract<RestorePlan, { kind: 'apply' }>,
+    facts: readonly TileWindowFacts[],
+    area: TileRect,
+    minPane: { w: number; h: number },
+  ): void {
+    const orderHwnds = plan.order.map((w) => w.hwnd)
+    const floatingHwnds = new Set<number>()
+    const factById = new Map(facts.map((f) => [f.hwnd, f] as const))
+    this.auth = createGeomAuthLedger()
+    for (const item of plan.floating) {
+      const identity = plan.order[item.ref]
+      if (!identity) continue
+      floatingHwnds.add(identity.hwnd)
+      enterFloating(this.auth, identity.hwnd, item.rect)
+    }
+    // 成员序只含平铺/溢出成员——浮动窗由 auth 账单独承载（恢复平铺时按浮动序补入）
+    this.memberOrder = orderHwnds.filter((h) => !floatingHwnds.has(h))
+    const idOfRef = (ref: number): string | null => {
+      const w = plan.order[ref]
+      return w ? String(w.hwnd) : null
+    }
+    const opts = { minPaneW: minPane.w, minPaneH: minPane.h }
+    this.tree = plan.shape
+      ? treeFromShape(plan.shape, area, opts, plan.queue, idOfRef)
+      : createTree(area, opts)
+    // 浮动几何按持久模型写回（干净重启的「恢复」；授权仍然是关闭的——不产生 prompt/armed）
+    for (const item of plan.floating) {
+      const identity = plan.order[item.ref]
+      if (!identity) continue
+      const fact = factById.get(identity.hwnd)
+      if (!fact || fact.iconic) continue
+      if (rectMatches(fact.rect, item.rect, AUTH_CHANGE_TOLERANCE_PX)) continue
+      recordPending(this.echoLedger, identity.hwnd, item.rect, Date.now())
+      const ok = this.deps.restoreRect(identity.hwnd, item.rect)
+      if (!ok) retractPending(this.echoLedger, identity.hwnd)
+    }
+    this.restoringPass = true
+    this.logEvent({
+      type: 'tiling-recovery',
+      status: 'restored',
+      dropped: plan.dropped,
+      order: plan.order.length,
+      floating: plan.floating.length,
+    })
+  }
+
+  /** 进入安全态（停止自动改窗）；不覆盖持久文档（旧模型不可信，退出时清干净标记/空模型） */
+  private enterSafe(reason: NonNullable<AgentTilingState['recoveryReason']>): void {
+    this.safe = true
+    this.recovery = 'safe'
+    this.recoveryReason = reason
+    this.pendingRestore = null
+    this.restoringPass = false
+    this.memberOrder = []
+    this.tree = null
+    this.auth = createGeomAuthLedger()
+    this.clearSettleTimers()
+    this.logEvent({ type: 'tiling-recovery', status: 'safe', reason })
+    this.ctx.emit('tiling/recovery', { status: 'safe', reason })
+  }
+
+  /** 恢复状态迁移（同态不重复上行；载荷只有枚举，不含窗口数据） */
+  private setRecovery(
+    status: AgentTilingState['recovery'],
+    reason: AgentTilingState['recoveryReason'],
+  ): void {
+    if (this.recovery === status && this.recoveryReason === reason) return
+    this.recovery = status
+    this.recoveryReason = reason
+    this.logEvent({ type: 'tiling-recovery', status, reason })
+    this.ctx.emit('tiling/recovery', { status, reason })
+  }
+
+  /** 持久文档组装（白名单字段；标题/缩略图/授权从不在此出现） */
+  private capturePersistDoc(desktopId: string, clean: boolean): AgentLayoutDoc {
+    const hwnds: number[] = []
+    const push = (hwnd: number): void => {
+      if (hwnd > 0 && !hwnds.includes(hwnd)) hwnds.push(hwnd)
+    }
+    for (const h of this.memberOrder) push(h)
+    for (const h of floatingIds(this.auth)) push(h)
+    if (this.tree) {
+      for (const id of treePlacedIds(this.tree)) push(Number(id))
+      for (const leaf of this.tree.queue) if (leaf.id !== null) push(Number(leaf.id))
+    }
+    const order: WindowIdentity[] = []
+    for (const hwnd of hwnds) {
+      const identity = this.lastIdentities.get(hwnd)
+      if (identity) order.push({ ...identity })
+    }
+    const floating = floatingIds(this.auth)
+      .map((hwnd) => ({ hwnd, rect: floatingRectOf(this.auth, hwnd) }))
+      .filter((f): f is { hwnd: number; rect: TileRect } => f.rect !== null)
+      .map((f) => ({ hwnd: f.hwnd, rect: f.rect }))
+    return captureLayout({ desktopId, clean, order, tree: this.tree, floating })
+  }
+
+  /**
+   * 模型落盘（原子替换；同内容不重复写）。安全态写**空模型 + 干净标记**——下一轮从活
+   * 窗口事实重建，绝不把不可信旧布局再次喂给恢复路径。暂停态保留 pending 文档（模型
+   * 不丢，主屏恢复后的下一轮继续 reconciliation）。
+   */
+  private saveLayout(clean: boolean): void {
+    if (!this.layoutFile || !this.layoutLoaded) return
+    const desktopId = this.deps.agentDesktopId()
+    if (!desktopId) return
+    let doc: AgentLayoutDoc
+    if (this.safe) {
+      doc = { version: 1, desktopId, clean, order: [], tree: null, queue: [], floating: [] }
+    } else if (this.pendingRestore) {
+      doc = { ...this.pendingRestore, desktopId, clean }
+    } else {
+      doc = this.capturePersistDoc(desktopId, clean)
+    }
+    const text = serializeLayout(doc)
+    if (!clean && text === this.lastSavedText) return
+    try {
+      this.deps.writeLayoutText(this.layoutFile, text)
+      this.lastSavedText = text
+    } catch {
+      // 落盘失败：模型仍在内存，下一拍重试（不谎报已持久化）
+    }
+  }
+
+  /**
+   * 干净退出（生产装配在 app before-quit 调用）：把当前模型写成 clean=true，
+   * 下一轮正常重启按持久模型恢复；崩溃（未调用本方法）保留 clean=false 标记。
+   */
+  shutdown(): void {
+    if (!this.layoutFile || !this.layoutLoaded) return
+    this.saveLayout(true)
+  }
+
+  /** 测试驱动口：强制落盘（离线矩阵断言存储内容/隐私口径） */
+  flushLayoutForTest(clean = false): void {
+    this.saveLayout(clean)
+  }
+
+  /** 测试观察缝：恢复状态与原因 */
+  recoveryForTest(): { status: AgentTilingState['recovery']; reason: AgentTilingState['recoveryReason'] } {
+    return { status: this.recovery, reason: this.recoveryReason }
+  }
+
+  /** 测试观察缝：是否处于安全态（停止自动改窗） */
+  safeForTest(): boolean {
+    return this.safe
   }
 
   /** 一次操作开始/继续：重置静止计时器（几何静止 AUTH_SETTLE_MS 后消费授权） */
@@ -697,6 +1006,8 @@ export class AgentTilingService extends Service {
       floating: counts.floating,
       prompting: counts.prompting,
       authorized: counts.authorized,
+      recovery: this.recovery,
+      recoveryReason: this.recoveryReason,
     }
     const prev = this.lastState
     if (
@@ -712,7 +1023,9 @@ export class AgentTilingService extends Service {
       prev.anomalyDetail.refused === next.anomalyDetail.refused &&
       prev.floating === next.floating &&
       prev.prompting === next.prompting &&
-      prev.authorized === next.authorized
+      prev.authorized === next.authorized &&
+      prev.recovery === next.recovery &&
+      prev.recoveryReason === next.recoveryReason
     ) {
       return
     }

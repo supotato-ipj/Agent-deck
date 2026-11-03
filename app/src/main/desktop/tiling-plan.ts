@@ -143,6 +143,81 @@ function collectLeaves(node: TilingNode, out: TilingLeaf[]): void {
   collectLeaves(node.second, out)
 }
 
+/**
+ * 从持久形状重建平铺树（工单383 重启恢复）：结构/轴原样保留，矩形与深度按当前平铺区
+ * 重算（分辨率/DPI 变化不改变布局关系）。形参用宽松的结构类型（与 agent-layout 的
+ * LayoutTreeShape 同形），避免本模块依赖持久化模块。
+ */
+export interface TreeShapeNode {
+  kind: 'leaf'
+  ref: number | null
+}
+
+export interface TreeShapeSplit {
+  kind: 'split'
+  axis: 'h' | 'v'
+  first: TreeShape
+  second: TreeShape
+}
+
+export type TreeShape = TreeShapeNode | TreeShapeSplit
+
+export function treeFromShape(
+  shape: TreeShape,
+  area: TileRect,
+  opts: TreeOpts = {},
+  queueRefs: readonly number[] = [],
+  idOfRef: (ref: number) => string | null = (ref) => String(ref),
+): TilingTree {
+  const build = (node: TreeShape, rect: TileRect, depth: number, parent: TilingSplit | null): TilingNode => {
+    if (node.kind === 'leaf') {
+      return {
+        kind: 'leaf',
+        id: node.ref === null ? null : idOfRef(node.ref),
+        rect: { ...rect },
+        depth,
+        parent,
+      }
+    }
+    const [firstRect, secondRect] = splitRect(rect, node.axis)
+    const split: TilingSplit = {
+      kind: 'split',
+      axis: node.axis,
+      rect: { ...rect },
+      depth,
+      parent,
+      first: null as unknown as TilingNode,
+      second: null as unknown as TilingNode,
+    }
+    split.first = build(node.first, firstRect, depth + 1, split)
+    split.second = build(node.second, secondRect, depth + 1, split)
+    return split
+  }
+  const tree = createTree(area, opts)
+  tree.root = build(shape, area, 0, null)
+  if (tree.root.kind === 'split') {
+    const leaves: TilingLeaf[] = []
+    collectLeaves(tree.root, leaves)
+    const byId = new Map<string, TilingLeaf>()
+    for (const leaf of leaves) if (leaf.id !== null) byId.set(leaf.id, leaf)
+    const seen = new Set<TilingLeaf>()
+    for (const ref of queueRefs) {
+      const id = idOfRef(ref)
+      const leaf = id === null ? undefined : byId.get(id)
+      if (!leaf || seen.has(leaf)) continue
+      seen.add(leaf)
+      tree.queue.push(leaf)
+    }
+    // 队列不完整（持久文档缺项/结构裁剪）：按叶序补齐——裂变确定性优先于字面顺序
+    for (const leaf of leaves) {
+      if (seen.has(leaf)) continue
+      seen.add(leaf)
+      tree.queue.push(leaf)
+    }
+  }
+  return tree
+}
+
 /** 已落格成员 id 集（溢出成员不在内） */
 export function treePlacedIds(tree: TilingTree): Set<string> {
   const leaves: TilingLeaf[] = []
