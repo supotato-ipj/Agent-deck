@@ -388,7 +388,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // agentDesktop 段时功能按产品默认在场、模式组渲染且未配对不高亮、仅在场零桌面创建；
     // 一段绑定一工单）。默认值合并语义与非法值回退按增段条件②由 config.spec 单测钉，
     // 真机段只验真实 config 缺段启动下的系统事实与渲染事实。
-    expect(total).toBe(186)
+    // 186 → 187：工单407 增段——375-desktop-switch 电池增 P10（标题栏拖入 Agent 桌面
+    // 最小事务：MOVESIZE 源窗识别、落点高亮、预览暂停、桌面 ID 回读确认、落放不切桌面、
+    // 进入 Agent 后交接实际平铺；一段绑定一工单）。资格核对/迁移回读/回滚/交接顺序按
+    // 增段条件②由 drag-in-plan / agent-drag-in-service / agent-tiling-handoff 单测矩阵钉，
+    // 真机段只验真实标题栏输入、系统桌面 ID 回读与渲染层高亮这些单测无法证明的面。
+    expect(total).toBe(187)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

@@ -160,6 +160,14 @@
     color: #ffffff;
   }
   .tb-mode-btn.disabled { opacity: 0.45; }
+  /* 落点高亮（工单407，spec #403 决策「拖悬 Agent 入口显示落点高亮」）：原生标题栏
+   * 拖动悬停 Agent 入口时主进程推 workspace/drag-in-changed{overAgent:true}——入口
+   * 亮描边圈（与 .active 亮底区分：落点目标 ≠ 当前桌面），拖走/松手即灭。 */
+  .tb-mode-btn.drop-target {
+    background: rgba(56, 189, 248, 0.28);
+    box-shadow: inset 0 0 0 2px rgba(56, 189, 248, 0.9);
+    color: #ffffff;
+  }
   /* 推荐组 pill（工单192 独立拆出；工单380 改居应用组右侧）：与应用组按可见总宽度整体
    * 居中、紧贴应用组右侧（组间距 GROUP_GAP）的独立漂浮圆角矩形，间隙与样式与开始组同族
    * （.pill 外观）。横向落位归渲染层（positionCombinedPills：组合整体居中，无应用组时

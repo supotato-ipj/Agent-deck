@@ -1172,6 +1172,13 @@ export interface BridgeMethods {
    * 失败保持现状并携带提示；未配对时先配对（普通 = 当下所在桌面，Agent 新建为空）。
    */
   'workspace/switch-to': { request: { mode: 'normal' | 'agent' }; response: { ok: boolean; state: DesktopWorkspaceState; error?: string } }
+  /**
+   * 标题栏拖入工作区命令（工单407，spec #403 决策「新增一个内部工作区拖入命令」）：
+   * 请求只携带源窗口句柄——主进程重核配对/当前普通桌面/源桌面/主屏/窗口资格（不信任
+   * 调用方自报），迁移以桌面 ID 回读确认；确认后才登记一次性待入列交接。落放不切桌面。
+   * 失败返回 ok:false + 简短原因枚举（story 45/46/47）。
+   */
+  'workspace/drag-in': { request: { hwnd: number }; response: { ok: boolean; reason?: string; detail?: string } }
   /** Agent 平铺状态只读投影（工单376）：顶部胶囊与诊断共用（缺装配回退空态） */
   'tiling/get-state': { request: null; response: AgentTilingState }
   /**
@@ -1270,8 +1277,19 @@ export interface BridgeEvents {
    * 系统快捷键/TaskView 造成的切换也经 reconciliation 观察后由此回推（不抢回用户）。
    */
   'workspace/changed': DesktopWorkspaceState
+  /**
+   * 标题栏拖拽会话状态变化（工单407，spec #403 决策「拖拽期间协调会话预览」）：
+   * MOVESIZE 起止与 Agent 入口悬停（overAgent）任一变化即推——任务栏渲染层据此显示
+   * 落点高亮、会话预览据此暂停/恢复。载荷只含布尔投影，不含窗口数据。
+   */
+  'workspace/drag-in-changed': { active: boolean; overAgent: boolean }
   /** Agent 平铺状态变化（工单376）：计数/落格/溢出/异常任一变化即推——胶囊订阅同一份 */
   'tiling/changed': AgentTilingState
+  /**
+   * 拖入一次性交接登记（工单407）：迁移经桌面 ID 回读确认后即发一次——Agent 平铺服务
+   * 订阅它把该窗按交接顺序并入待入列（下次布局拍对账并清除）。渲染层不消费。
+   */
+  'tiling/drag-in-registered': { hwnd: number }
   /**
    * 窗口预览状态变化（工单379）：展开/收起/条目（模式/图标/缓存帧）变化即推。
    * 载荷含标题与内存位图——只走窗内桥，不落日志、不出预览/胶囊窗。

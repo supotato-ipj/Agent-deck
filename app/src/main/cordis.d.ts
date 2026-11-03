@@ -83,6 +83,16 @@ declare module 'cordis' {
      * TaskView 造成的切换经 reconciliation 观察后由此回推（不抢回用户）。
      */
     'workspace/changed': (payload: DesktopWorkspaceState) => void
+    /**
+     * 工单407 标题栏拖拽会话投影：MOVESIZE 起止与 Agent 入口悬停任一变化即推——
+     * 任务栏渲染层据此显示落点高亮、会话预览据此暂停/恢复。载荷只含布尔投影。
+     */
+    'workspace/drag-in-changed': (payload: { active: boolean; overAgent: boolean }) => void
+    /**
+     * 工单407 拖入一次性交接登记：迁移经桌面 ID 回读确认后即发一次——Agent 平铺服务
+     * 订阅它把该窗按交接顺序并入待入列（下次布局拍对账并清除）。渲染层不消费。
+     */
+    'tiling/drag-in-registered': (payload: { hwnd: number }) => void
     /** 工单376 Agent 平铺：计数/落格/溢出/异常任一变化即推——胶囊与桥订阅同一份 */
     'tiling/changed': (payload: AgentTilingState) => void
     /**
@@ -150,6 +160,8 @@ declare module 'cordis' {
     desktopWorkspace?: DesktopWorkspaceService
     /** 工单376 Agent 平铺（可选装配：随 agentDesktop 开关隔离——缺装配 = 投影回退空态） */
     agentTiling?: AgentTilingService
+    /** 工单407 Agent 拖入（可选装配：随 agentDesktop 开关隔离——缺装配 = 命令如实不可用） */
+    agentDragIn?: import('./services/agent-drag-in').AgentDragInService
     /** 工单379 Agent 聚焦（可选装配：随 agentDesktop 开关隔离——缺装配 = 聚焦不可用） */
     agentFocus?: AgentFocusService
     /** 工单379 窗口预览（可选装配：随 agentDesktop 开关隔离——缺装配 = 预览不可用） */

@@ -25,6 +25,9 @@ export interface HoverState {
   since: number
   /** 指针是否在气泡内（移入宽限的核心状态） */
   inBubble: boolean
+  /** 标题栏拖拽暂停（工单407，spec #403 决策「拖拽期间协调会话预览」）：原生标题栏
+   *  拖动在场时吞掉 enter-anchor（预览不争夺落点），drag-end 解除后恢复既有行为 */
+  dragHold: boolean
 }
 
 export type HoverEvent =
@@ -35,33 +38,42 @@ export type HoverEvent =
   | { type: 'esc' }
   | { type: 'tick' }
   | { type: 'reset' }
+  | { type: 'drag-active' }
+  | { type: 'drag-end' }
 
 /** 控制器要执行的动作（窗口显隐由控制器落地；状态机不碰 Electron） */
 export type HoverAction = 'none' | 'open' | 'close'
 
 export function initialHoverState(): HoverState {
-  return { phase: 'idle', since: 0, inBubble: false }
+  return { phase: 'idle', since: 0, inBubble: false, dragHold: false }
 }
 
 export function reduceHover(state: HoverState, event: HoverEvent, nowMs: number): { state: HoverState; action: HoverAction } {
   switch (event.type) {
+    case 'drag-active':
+      // 拖拽暂停（工单407）：展开/收起态立即收起（预览不争夺落点或焦点），暂停期吞锚点
+      return { state: { phase: 'idle', since: 0, inBubble: false, dragHold: true }, action: state.phase === 'open' || state.phase === 'closing' ? 'close' : 'none' }
+    case 'drag-end':
+      // 解除暂停：恢复既有悬停预览行为（下次 enter-anchor 重新走 300ms 展开）
+      return { state: { ...state, dragHold: false }, action: 'none' }
     case 'enter-anchor':
-      if (state.phase === 'idle') return { state: { phase: 'arming', since: nowMs, inBubble: false }, action: 'none' }
+      if (state.dragHold) return { state, action: 'none' } // 拖拽期锚点命中被吞（story 40）
+      if (state.phase === 'idle') return { state: { phase: 'arming', since: nowMs, inBubble: false, dragHold: false }, action: 'none' }
       // 宽限期内移回锚点：立即复展开（不重新计时 300ms）
-      if (state.phase === 'closing') return { state: { phase: 'open', since: 0, inBubble: state.inBubble }, action: 'none' }
+      if (state.phase === 'closing') return { state: { phase: 'open', since: 0, inBubble: state.inBubble, dragHold: false }, action: 'none' }
       return { state, action: 'none' }
     case 'leave-anchor':
       if (state.phase === 'arming') return { state: initialHoverState(), action: 'none' }
-      if (state.phase === 'open' && !state.inBubble) return { state: { phase: 'closing', since: nowMs, inBubble: false }, action: 'none' }
+      if (state.phase === 'open' && !state.inBubble) return { state: { phase: 'closing', since: nowMs, inBubble: false, dragHold: state.dragHold }, action: 'none' }
       return { state, action: 'none' }
     case 'enter-bubble': {
       // 指针移入气泡：取消待收起（宽限内进入是正常路径）
-      if (state.phase === 'closing') return { state: { phase: 'open', since: 0, inBubble: true }, action: 'none' }
-      if (state.phase === 'open') return { state: { phase: 'open', since: 0, inBubble: true }, action: 'none' }
+      if (state.phase === 'closing') return { state: { phase: 'open', since: 0, inBubble: true, dragHold: state.dragHold }, action: 'none' }
+      if (state.phase === 'open') return { state: { phase: 'open', since: 0, inBubble: true, dragHold: state.dragHold }, action: 'none' }
       return { state: { ...state, inBubble: true }, action: 'none' }
     }
     case 'leave-bubble':
-      if (state.phase === 'open') return { state: { phase: 'closing', since: nowMs, inBubble: false }, action: 'none' }
+      if (state.phase === 'open') return { state: { phase: 'closing', since: nowMs, inBubble: false, dragHold: state.dragHold }, action: 'none' }
       return { state: { ...state, inBubble: false }, action: 'none' }
     case 'esc':
       if (state.phase === 'open' || state.phase === 'closing') return { state: initialHoverState(), action: 'close' }
@@ -71,7 +83,7 @@ export function reduceHover(state: HoverState, event: HoverEvent, nowMs: number)
       return { state: initialHoverState(), action: state.phase === 'open' || state.phase === 'closing' ? 'close' : 'none' }
     case 'tick':
       if (state.phase === 'arming' && nowMs - state.since >= HOVER_OPEN_MS) {
-        return { state: { phase: 'open', since: 0, inBubble: state.inBubble }, action: 'open' }
+        return { state: { phase: 'open', since: 0, inBubble: state.inBubble, dragHold: state.dragHold }, action: 'open' }
       }
       if (state.phase === 'closing' && nowMs - state.since >= HOVER_GRACE_MS) {
         return { state: initialHoverState(), action: 'close' }

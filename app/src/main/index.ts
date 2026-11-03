@@ -345,6 +345,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         },
       },
     },
+    // 标题栏拖入（工单407）：随 agentDesktop 开关隔离；存证只记 hwnd/阶段/桌面 ID 与
+    // 光标点（隐私边界——不含窗口标题或拖入内容）。
+    agentDragIn: {
+      enabled: config.agentDesktop.enabled,
+      log: (event) => log?.append(event),
+    },
     // Agent 聚焦（工单379）：存证只记 hwnd/动作（隐私边界）；前台观察与最大化走
     // desktop/geom-write 真源（deps 缺省延迟绑定）。
     agentFocus: {
