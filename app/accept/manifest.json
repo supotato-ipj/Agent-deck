@@ -2301,14 +2301,14 @@
     },
     {
       "id": "381-session-preview",
-      "title": "Agent 会话预览（工单381）：悬停模式组 Agent 入口 300ms 展开悬浮卡片流（工具固定相对序/组内最近活跃/空工具不占位/完成与空闲过滤）、真实标题与项目名与短 ID 分列（无标题显示未命名）、Qoder 疑似等待与 mtime 最近活跃诚实分态、单行横向滚动、400ms 移入宽限与 Esc 收起、打开期间 1Hz 刷新、普通与 Agent 两桌面可用且卡片只读无直达、源存储只读、零残留",
+      "title": "Agent 会话预览（工单381 建四工具，工单382 补第五工具 MiniMax Code）：悬停模式组 Agent 入口 300ms 展开悬浮卡片流（工具固定相对序/组内最近活跃/空工具不占位/完成与空闲过滤）、真实标题与项目名与短 ID 分列（无标题显示未命名）、Qoder 疑似等待与 mtime 最近活跃诚实分态、MiniMax 只显示最近活跃不伪造执行等待、单行横向滚动、400ms 移入宽限与 Esc 收起、打开期间 1Hz 刷新、普通与 Agent 两桌面可用且卡片只读无直达、源存储只读、零残留",
       "entry": "app/accept/session-preview.js",
       "flag": "--accept-session-preview",
       "hintBar": true,
       "cdpPort": 9237,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 20,
+      "lastMeasuredSeconds": 22,
       "lastMeasuredAt": "2026-11-03",
       "areas": [
         "sessions",
@@ -2371,11 +2371,22 @@
         {
           "seg": "P6",
           "ticket": 381,
-          "title": "源存储只读与零残留：夹具全树 sha256+mtime 前后逐字节一致；config 三态还原；切回普通并删除本轮创建的 Agent 桌面（注册表集合与基线相等）；面板退出",
+          "title": "源存储只读与零残留：夹具全树 sha256+mtime 前后逐字节一致（工单382 起含 minimax 夹具树）；config 三态还原；切回普通并删除本轮创建的 Agent 桌面（注册表集合与基线相等）；面板退出",
           "surfaces": [
             "system-state"
           ],
           "estSeconds": 5
+        },
+        {
+          "seg": "P7",
+          "ticket": 382,
+          "title": "五工具同场（MiniMax Code 第五工具）：在场工具序落在 qodercn→zcode→kimicode→minimaxcode→dsh 固定序子序列、空工具不占位；MiniMax 真实标题/项目/短 ID、空标题降级未命名、过期会话过滤、DB status=started 仍只显示最近活跃（不伪造执行/等待）；多组卡片单行可横向滚动、1Hz 刷新后卡片不丢",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 4
         }
       ]
     }

@@ -356,14 +356,14 @@ export interface AgentFocusState {
 // ---------------------------------------------------------------------------
 
 /**
- * 会话预览工具域（工单381）：本票只含四工具——MiniMax Code 由后续工单接入同一投影
- * （spec 决策 21 的五工具全集以 GLOSSARY「Agent 会话预览」为准，扩展即加此联合）。
+ * 会话预览工具域（工单381 建四工具，工单382 接入第五工具 MiniMax Code，spec 决策 21 的
+ * 五工具全集以 GLOSSARY「Agent 会话预览」为准，扩展即加此联合）。
  * 标识用工具域（qodercn 而非面板旧行标签 qoder）：来源根与扫描器一一对应。
  */
-export type SessionPreviewTool = 'qodercn' | 'zcode' | 'kimicode' | 'dsh'
+export type SessionPreviewTool = 'qodercn' | 'zcode' | 'kimicode' | 'minimaxcode' | 'dsh'
 
 /** 工具相对顺序（固定；空工具不占位——GLOSSARY「Agent 会话预览」） */
-export const SESSION_PREVIEW_TOOL_ORDER: readonly SessionPreviewTool[] = ['qodercn', 'zcode', 'kimicode', 'dsh'] as const
+export const SESSION_PREVIEW_TOOL_ORDER: readonly SessionPreviewTool[] = ['qodercn', 'zcode', 'kimicode', 'minimaxcode', 'dsh'] as const
 
 /**
  * 会话预览状态（spec 决策 22，诚实分态五值）：running = 明确执行信号（只有 DSH busy）；

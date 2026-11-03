@@ -27,7 +27,11 @@ export const SCANNERS: Record<string, Scanner> = {
   kimiwork: scanKimiWork,
 }
 
-/** 五工具默认数据根（Python server.SESSION_ROOTS 平移；主检出/测试可注入替身） */
+/**
+ * 默认数据根（Python server.SESSION_ROOTS 平移；主检出/测试可注入替身）。
+ * `minimaxcode`（工单382）只供会话预览投影读取——它不进 SCANNERS/collectSessions，
+ * 因为 MiniMax 没有诚实的执行/等待信号，不参与旧会话列表的 RUN/DONE 判定。
+ */
 export function defaultSessionRoots(home: string = os.homedir()): SessionRoots {
   return {
     qoder: path.join(home, '.qoder-cn'),
@@ -35,6 +39,7 @@ export function defaultSessionRoots(home: string = os.homedir()): SessionRoots {
     zcode: path.join(home, '.zcode'),
     kimicode: path.join(home, '.kimi-code'),
     kimiwork: path.join(home, 'AppData', 'Roaming', 'kimi-desktop', 'kimi-agent'),
+    minimaxcode: path.join(home, '.minimax'),
   }
 }
 

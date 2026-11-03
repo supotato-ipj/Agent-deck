@@ -37,8 +37,9 @@ describe('会话卡片视图映射', () => {
     }
   })
 
-  it('工具短标固定（QD/ZC/KC/DSH）', () => {
-    expect(SESSION_PREVIEW_TOOL_LABELS).toEqual({ qodercn: 'QD', zcode: 'ZC', kimicode: 'KC', dsh: 'DSH' })
+  it('工具短标固定（QD/ZC/KC/MM/DSH——第五工具 MiniMax Code）', () => {
+    expect(SESSION_PREVIEW_TOOL_LABELS).toEqual({ qodercn: 'QD', zcode: 'ZC', kimicode: 'KC', minimaxcode: 'MM', dsh: 'DSH' })
+    expect(cardView(card({ tool: 'minimaxcode' })).toolName).toBe('MiniMax Code')
   })
 
   it('无真实标题显示未命名会话，项目名/短 ID 分列（不拿项目名顶替标题）', () => {

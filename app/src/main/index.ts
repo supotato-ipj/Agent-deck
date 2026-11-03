@@ -99,9 +99,9 @@ const TRAY_SPIKE_MODE = process.argv.includes('--tray-spike')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
 
 /**
- * 会话预览工具数据根覆盖（工单381 真机验收夹具）：`DECK_SESSION_PREVIEW_ROOTS` 为
- * JSON 对象，只认 qoder/zcode/kimicode 三键与字符串值，与缺省真实根合并。生产不设该
- * 变量即本机真实根；解析失败按未设处理（不猜、不静默塞空根）。
+ * 会话预览工具数据根覆盖（工单381/382 真机验收夹具）：`DECK_SESSION_PREVIEW_ROOTS` 为
+ * JSON 对象，只认 qoder/zcode/kimicode/minimaxcode 四键与字符串值，与缺省真实根合并。
+ * 生产不设该变量即本机真实根；解析失败按未设处理（不猜、不静默塞空根）。
  */
 function sessionPreviewRoots(): Record<string, string> | null {
   const raw = process.env.DECK_SESSION_PREVIEW_ROOTS
@@ -110,7 +110,7 @@ function sessionPreviewRoots(): Record<string, string> | null {
     const parsed = JSON.parse(raw) as Record<string, unknown>
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
     const out: Record<string, string> = {}
-    for (const key of ['qoder', 'zcode', 'kimicode']) {
+    for (const key of ['qoder', 'zcode', 'kimicode', 'minimaxcode']) {
       const v = parsed[key]
       if (typeof v === 'string' && v) out[key] = v
     }

@@ -11,18 +11,21 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { ConversationSessionView, SessionPreviewCard } from '../../src/shared/contract'
+import { SESSION_PREVIEW_TOOL_ORDER } from '../../src/shared/contract'
 import { kimicodePreviewRows } from '../../src/main/scanners/kimicode'
+import { minimaxcodePreviewRows } from '../../src/main/scanners/minimaxcode'
 import { qoderPreviewRows } from '../../src/main/scanners/qoder'
 import { zcodePreviewRows } from '../../src/main/scanners/zcode'
 import {
   buildSessionPreviewGroups,
   dshCards,
   kimicodeCards,
+  minimaxcodeCards,
   qoderCards,
   shortSessionId,
   zcodeCards,
 } from '../../src/main/session-preview/projection'
-import { KimiCodeFx, QoderFx, ZcodeFx, rec } from '../scanners/fixtures'
+import { KimiCodeFx, MinimaxFx, QoderFx, ZcodeFx, rec } from '../scanners/fixtures'
 
 let tmp = ''
 const fixtures: Array<{ close?: () => void } | object> = []
@@ -57,6 +60,12 @@ function newZcode(): ZcodeFx {
 
 function newKimi(): KimiCodeFx {
   const f = new KimiCodeFx(freshDir('k'), Date.now() / 1000)
+  fixtures.push(f)
+  return f
+}
+
+function newMinimax(): MinimaxFx {
+  const f = new MinimaxFx(freshDir('mx'), Date.now())
   fixtures.push(f)
   return f
 }
@@ -158,6 +167,40 @@ describe('zcode / kimicode 真实标题与最近活跃', () => {
   })
 })
 
+describe('minimaxcode 第五工具（工单382：真实标题与最近活跃，不伪造执行/等待）', () => {
+  it('真实标题/项目/短 ID 原样透传；状态只落「最近活跃」，DB status 不冒充执行', () => {
+    const f = newMinimax()
+    f.add('mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', { ageMin: 2, project: 'mu', title: 'MiniMax 真标题', status: 'started' })
+    f.add('mvs_bbbbbbbb4f2c4a67b2d9a6c1e8f0d456', { ageMin: 3, title: null, status: 'error' })
+    const nowMs = f.nowMs
+    const cards = minimaxcodeCards(minimaxcodePreviewRows(f.root, nowMs), nowMs)
+    expect(cards.map((c) => [c.id, c.title, c.project, c.shortId, c.status])).toEqual([
+      ['mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', 'MiniMax 真标题', 'mu', 'mvs_aaaa', 'active'],
+      ['mvs_bbbbbbbb4f2c4a67b2d9a6c1e8f0d456', null, 'zulu', 'mvs_bbbb', 'active'],
+    ])
+    f.close()
+  })
+
+  it('绝不产出 running/waiting/suspected-waiting：执行与等待一律不推断', () => {
+    const f = newMinimax()
+    f.add('mvs_cccccccc4f2c4a67b2d9a6c1e8f0d789', { ageMin: 1, status: 'started' })
+    const nowMs = f.nowMs
+    const cards = minimaxcodeCards(minimaxcodePreviewRows(f.root, nowMs), nowMs)
+    expect(cards).toHaveLength(1)
+    expect(['running', 'waiting', 'suspected-waiting']).not.toContain(cards[0].status)
+    expect(cards[0].status).toBe('active')
+    f.close()
+  })
+
+  it('超出活跃池的 MiniMax 会话被过滤（活动过滤）', () => {
+    const f = newMinimax()
+    f.add('mvs_dddddddd4f2c4a67b2d9a6c1e8f0d111', { ageMin: 11 })
+    const nowMs = f.nowMs
+    expect(minimaxcodeCards(minimaxcodePreviewRows(f.root, nowMs), nowMs)).toEqual([])
+    f.close()
+  })
+})
+
 describe('DSH 真实信号分态', () => {
   it('busy = 执行中；pendingPermission = 等待询问；label 原样、cwd 末段作项目名', () => {
     const busy = dshView({ id: 'd-busy', label: '修 bug', status: 'busy', cwd: 'D:\\work\\omega\\' })
@@ -212,11 +255,45 @@ describe('投影组集（固定工具序 / 组内最近活跃 / 空工具不占�
       qoder: qoderPreviewRows(qf.root, nowMs),
       zcode: zcodePreviewRows(zf.root, nowMs),
       kimicode: [],
+      minimaxcode: [],
       dsh: [dshView({ id: 'd-busy', status: 'busy' })],
     }, nowMs)
     expect(groups.map((g) => g.tool)).toEqual(['qodercn', 'zcode', 'dsh'])
     expect(groups[1].cards.map((c) => c.id)).toEqual(['z_new', 'z_old'])
     expect(groups.some((g) => g.tool === 'kimicode')).toBe(false)
+  })
+
+  it('五工具相对顺序固定为 qodercn→zcode→kimicode→minimaxcode→dsh（spec #369 用户故事 58）', () => {
+    expect(SESSION_PREVIEW_TOOL_ORDER).toEqual(['qodercn', 'zcode', 'kimicode', 'minimaxcode', 'dsh'])
+    const mf = newMinimax()
+    mf.add('mvs_eeeeeeee4f2c4a67b2d9a6c1e8f0d222', { ageMin: 1, project: 'nu', title: '五工具同场' })
+    const qf = newQoder()
+    qf.addSession('q1', 30, [rec('assistant', 'tool', 'D:/work/alpha')])
+    const zf = newZcode()
+    zf.add('z_1', 20_000)
+    const kf = newKimi()
+    kf.addSession('k_1', 20, { title: 'kimi' })
+    const nowMs = Math.min(qf.now, zf.now, kf.now) * 1000
+    const groups = buildSessionPreviewGroups({
+      qoder: qoderPreviewRows(qf.root, nowMs),
+      zcode: zcodePreviewRows(zf.root, nowMs),
+      kimicode: kimicodePreviewRows(kf.root, nowMs),
+      minimaxcode: minimaxcodePreviewRows(mf.root, mf.nowMs),
+      dsh: [dshView({ id: 'd-busy', status: 'busy' })],
+    }, nowMs)
+    expect(groups.map((g) => g.tool)).toEqual(['qodercn', 'zcode', 'kimicode', 'minimaxcode', 'dsh'])
+    // 组内各一张：五工具同场时顺序只由固定工具序决定，不被活跃时间混排
+    expect(groups.every((g) => g.cards.length === 1)).toBe(true)
+    mf.close()
+  })
+
+  it('minimaxcode 空集时整组不占位（空工具不占位）', () => {
+    const now = Date.now()
+    const groups = buildSessionPreviewGroups({
+      qoder: [], zcode: [], kimicode: [], minimaxcode: [],
+      dsh: [dshView({ id: 'd-busy', status: 'busy' })],
+    }, now)
+    expect(groups.map((g) => g.tool)).toEqual(['dsh'])
   })
 
   it('短会话 ID：前 8 字符；短 id 原样', () => {

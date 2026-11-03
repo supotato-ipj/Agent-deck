@@ -12,6 +12,7 @@ import { openReadOnly } from '../../src/main/scanners/sqlite'
 import {
   minimaxHistoryDirName,
   minimaxSessionsDb,
+  minimaxcodePreviewRows,
   probeMinimaxSessions,
   probeMinimaxTail,
 } from '../../src/main/scanners/minimaxcode'
@@ -137,6 +138,40 @@ describe('minimaxcode dated 历史（身份与尾部启发式）', () => {
   })
 })
 
+describe('minimaxcode 会话预览行（工单382：只读身份/标题/活动，不伪造执行或等待）', () => {
+  it('读取真实身份/标题/项目/最近活跃；空标题给 null；行内不含状态字段（无执行/等待可伪造）', () => {
+    const f = fresh()
+    f.add('mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', { ageMin: 2, project: 'kappa', title: '修构建脚本' })
+    f.add('mvs_bbbbbbbb4f2c4a67b2d9a6c1e8f0d456', { ageMin: 3, title: null, status: 'started' })
+    const rows = minimaxcodePreviewRows(f.root, f.nowMs)
+    expect(rows.map((r) => [r.id, r.title, r.project, r.lastActivityMs])).toEqual([
+      ['mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', '修构建脚本', 'kappa', f.nowMs - 2 * 60_000],
+      ['mvs_bbbbbbbb4f2c4a67b2d9a6c1e8f0d456', null, 'zulu', f.nowMs - 3 * 60_000],
+    ])
+    // 输入契约只有四个字段：DB status 不进入预览行（否则上层可能把它当执行信号）
+    for (const row of rows) expect(Object.keys(row).sort()).toEqual(['id', 'lastActivityMs', 'project', 'title'])
+    f.close()
+  })
+
+  it('超出 10 分钟活跃池与 archived 会话不进预览行（空闲过滤/归档排除）', () => {
+    const f = fresh()
+    f.add('mvs_cccccccc4f2c4a67b2d9a6c1e8f0d789', { ageMin: 11 })
+    f.add('mvs_dddddddd4f2c4a67b2d9a6c1e8f0d111', { ageMin: 2, archived: 1 })
+    expect(minimaxcodePreviewRows(f.root, f.nowMs)).toEqual([])
+    f.close()
+  })
+
+  it('来源不可读（缺库/坏库）→ 空集，不抛、不编造', () => {
+    const missing = path.join(tmp, 'mx-preview-missing')
+    fs.mkdirSync(missing, { recursive: true })
+    expect(minimaxcodePreviewRows(missing, 1_800_000_000_000)).toEqual([])
+    const broken = path.join(tmp, 'mx-preview-broken')
+    fs.mkdirSync(path.join(broken, 'v2', 'sqlite'), { recursive: true })
+    fs.writeFileSync(minimaxSessionsDb(broken), 'not a sqlite file at all')
+    expect(minimaxcodePreviewRows(broken, 1_800_000_000_000)).toEqual([])
+  })
+})
+
 describe('minimaxcode 只读性证明（源存储零修改）', () => {
   it('探针前后 fixture 全树 sha256+mtime 清单逐字节一致', () => {
     const f = fresh()
@@ -148,6 +183,7 @@ describe('minimaxcode 只读性证明（源存储零修改）', () => {
     const before = snapshot(f.root)
     probeMinimaxSessions(f.root)
     probeMinimaxTail(messages)
+    minimaxcodePreviewRows(f.root, f.nowMs)
     expect(snapshot(f.root)).toEqual(before)
     f.close()
   })

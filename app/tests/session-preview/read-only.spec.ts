@@ -9,10 +9,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { kimicodePreviewRows } from '../../src/main/scanners/kimicode'
+import { minimaxcodePreviewRows } from '../../src/main/scanners/minimaxcode'
 import { qoderPreviewRows } from '../../src/main/scanners/qoder'
 import { zcodePreviewRows } from '../../src/main/scanners/zcode'
 import { openReadOnly } from '../../src/main/scanners/sqlite'
-import { KimiCodeFx, QoderFx, ZcodeFx, rec } from '../scanners/fixtures'
+import { KimiCodeFx, MinimaxFx, QoderFx, ZcodeFx, rec } from '../scanners/fixtures'
 
 let tmp = ''
 const open: Array<{ close(): void }> = []
@@ -79,6 +80,18 @@ describe('会话预览行读取的只读性（源存储零修改）', () => {
     const rows = kimicodePreviewRows(root, f.now * 1000)
     expect(rows).toHaveLength(1)
     expect(rows[0].title).toBe('kimi 标题')
+    expect(snapshot(root)).toEqual(before)
+  })
+
+  it('minimaxcode（工单382）：预览行读取前后夹具全树逐字节一致', () => {
+    const root = path.join(tmp, 'mx')
+    const f = new MinimaxFx(root, Date.now())
+    open.push(f)
+    f.add('mvs_aaaaaaaa4f2c4a67b2d9a6c1e8f0d123', { ageMin: 2, project: 'mu', title: 'MiniMax 真标题' })
+    const before = snapshot(root)
+    const rows = minimaxcodePreviewRows(root, f.nowMs)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].title).toBe('MiniMax 真标题')
     expect(snapshot(root)).toEqual(before)
   })
 

@@ -1,7 +1,8 @@
 /**
- * Agent 会话预览投影（工单381，spec #369 决策 20-23 —— 纯逻辑，无 IO）。
+ * Agent 会话预览投影（工单381 建四工具，工单382 补第五工具 minimaxcode；spec #369 决策
+ * 20-23 —— 纯逻辑，无 IO）。
  *
- * 输入是四工具各自的**只读信号行**：qodercn/zcode/kimicode 来自文件扫描器，
+ * 输入是五工具各自的**只读信号行**：qodercn/zcode/kimicode/minimaxcode 来自文件扫描器，
  * dsh 来自面板内 ConversationSessionView。输出是契约 SessionPreviewState 的 groups：
  *   - 工具相对顺序固定（SESSION_PREVIEW_TOOL_ORDER），空工具整组不占位；
  *   - 组内按最近活跃降序；
@@ -25,6 +26,7 @@ import type {
 import { SESSION_PREVIEW_TOOL_ORDER } from '../../shared/contract'
 import { ACTIVE_WINDOW } from '../scanners/types'
 import type { KimiCodePreviewRow } from '../scanners/kimicode'
+import type { MinimaxPreviewRow } from '../scanners/minimaxcode'
 import type { QoderPreviewRow } from '../scanners/qoder'
 import type { ZcodePreviewRow } from '../scanners/zcode'
 
@@ -91,6 +93,19 @@ export function kimicodeCards(rows: KimiCodePreviewRow[], nowMs: number): Sessio
   return out
 }
 
+/**
+ * minimaxcode（工单382）：只有真实标题 + 最近活跃。工单374 已证 status 与活跃时间不相关、
+ * 存储层无等待记录——执行与等待一律不推断，状态只落 active（完成/空闲同为空集）。
+ */
+export function minimaxcodeCards(rows: MinimaxPreviewRow[], nowMs: number): SessionPreviewCard[] {
+  const out: SessionPreviewCard[] = []
+  for (const row of rows) {
+    if (!isActive(row.lastActivityMs, nowMs)) continue
+    out.push(card('minimaxcode', row.id, row.title, row.project, 'active', row.lastActivityMs))
+  }
+  return out
+}
+
 /** DSH 最近活跃：会话创建/结束与转写末条时间的最大值（转写仅内存） */
 function dshLastActivity(session: ConversationSessionView): number {
   let last = session.createdAt
@@ -131,6 +146,7 @@ export interface SessionPreviewInputs {
   qoder: QoderPreviewRow[]
   zcode: ZcodePreviewRow[]
   kimicode: KimiCodePreviewRow[]
+  minimaxcode: MinimaxPreviewRow[]
   dsh: ConversationSessionView[]
 }
 
@@ -150,6 +166,7 @@ export function buildSessionPreviewGroups(input: SessionPreviewInputs, nowMs: nu
     qodercn: sortCards(qoderCards(input.qoder, nowMs)),
     zcode: sortCards(zcodeCards(input.zcode, nowMs)),
     kimicode: sortCards(kimicodeCards(input.kimicode, nowMs)),
+    minimaxcode: sortCards(minimaxcodeCards(input.minimaxcode, nowMs)),
     dsh: sortCards(dshCards(input.dsh, nowMs)),
   }
   return SESSION_PREVIEW_TOOL_ORDER

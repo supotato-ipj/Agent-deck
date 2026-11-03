@@ -375,7 +375,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 源存储只读与零残留 P6；一段绑定一工单）。状态分派/投影/悬停时序按增段条件②由
     // projection/hover/service 纯函数矩阵与 fake ACP 会话服务测试钉，真机段只验真实
     // 悬停注入、DOM 呈现、系统桌面事实与源存储只读。
-    expect(total).toBe(179)
+    // 179 → 180：工单382 增段——381-session-preview 电池增 P7（MiniMax Code 第五工具
+    // 五工具同场：固定序子序列 / 空工具不占位 / 真实标题与未命名降级 / 过期过滤 /
+    // DB status 不冒充执行 / 多组单行横向滚动与 1Hz 刷新；一段绑定一工单）。MiniMax
+    // 读取口径、诚实分态与只读性按增段条件②由 scanners/projection/service 单测与
+    // 夹具全树快照钉，真机段只验真实悬停注入下的 DOM 呈现与刷新时序。
+    expect(total).toBe(180)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
