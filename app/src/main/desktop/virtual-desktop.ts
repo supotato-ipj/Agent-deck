@@ -386,6 +386,24 @@ export function isWindowOnCurrentDesktop(hwnd: number): boolean | null {
 }
 
 /**
+ * 窗口所属桌面系统 ID（公开 IVirtualDesktopManager::GetWindowDesktopId，工单380 跨桌面
+ * 点击目标判定）：不可用/取失败 = null——调用方不猜、不切桌面（安全方向）。
+ */
+export function windowDesktopId(hwnd: number): string | null {
+  const b = bind()
+  if (!b?.publicAvailable) return null
+  try {
+    const g = [null]
+    const hr = b.koffi.call(vtSlot(b.publicPtr, SLOT_GET_WIN_DESKTOP_ID), b.protos.getWinDesktopId!, b.publicPtr, hwnd, g)
+    if (hr !== 0) return null
+    const id = comGuidToStr(g[0] as { d1: number; d2: number; d3: number; d4: ArrayLike<number> } | null)
+    return id || null
+  } catch {
+    return null
+  }
+}
+
+/**
  * 把窗口移动到目标桌面（公开 MoveWindowToDesktop——desktop-bound 窗的跟随兜底路径，
  * t371 实证 S_OK 双向可用）。返回 true = 系统受理（最终归属仍以回读为准）。
  */

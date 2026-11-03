@@ -17,9 +17,11 @@
     user-select: none;
     cursor: default;
   }
-  /* 应用组 pill（工单52：手钉+运行中应用合并）：屏幕中心线锚定漂浮（工单190）——落位归渲染层
-   * taskbar.ts positionAppsPill（appsPillLeft：centerX=屏幕水平中心线，带外按 [开始组右缘,
-   * 右组左缘] 夹取不压邻居），CSS 只给结构形态与 JS 落位前的默认贴左；空组不渲染（display:none 由入口控制）。
+  /* 应用组 pill（工单52：手钉+运行中应用合并）：与推荐组按可见总宽度整体居中（工单380，
+   * 取代工单190 的应用组单独居中；无推荐位退化为应用组单独居中）——落位归渲染层
+   * taskbar.ts positionCombinedPills（combinedPillsLeft：centerX=屏幕水平中心线，
+   * 带外按 [左邻组右缘, 右组左缘] 整块夹取不压邻居/托盘），CSS 只给结构形态与 JS
+   * 落位前的默认贴左；空组不渲染（display:none 由入口控制）。
    * 工单238：栏高 48 DIP 下本组撑满全高（height:100% + border-box——高度不再由内容撑出），
    * 竖向内距归零（格 36 + 边框 2 = 38 ≤ 48，内容不再顶出条带窗）；横向内距 8+8 不动
    * （应用组容量算式 PILL_PAD_X=16 同源）；圆角 999px 胶囊改 8px 圆角矩形，材质照旧 */
@@ -158,12 +160,13 @@
     color: #ffffff;
   }
   .tb-mode-btn.disabled { opacity: 0.45; }
-  /* 推荐组 pill（工单192 独立拆出）：栖开始组右侧、应用组左侧的独立漂浮圆角矩形，间隙与
-   * 样式与开始组同族（.pill 外观 + GROUP_GAP 组间距）。横向落位归渲染层
-   * （positionRecPill：开始组右缘+组间距，开始组不渲染时退条带左缘内衬）；显隐独立——
-   * 按推荐位有无（recommendations 非空才渲染），与开始组的系统按钮显隐解耦。
-   * 极端拥挤的让位面与 #pill-start 同族：maxWidth 收窄到右组左缘前整体裁剪
-   * （overflow hidden）——图标格定宽不吃文字收缩档（clampRecPillWidth，工单158 守卫语义随拆出随迁）。 */
+  /* 推荐组 pill（工单192 独立拆出；工单380 改居应用组右侧）：与应用组按可见总宽度整体
+   * 居中、紧贴应用组右侧（组间距 GROUP_GAP）的独立漂浮圆角矩形，间隙与样式与开始组同族
+   * （.pill 外观）。横向落位归渲染层（positionCombinedPills：组合整体居中，无应用组时
+   * 推荐组单独居中）；显隐独立——按推荐位有无（recommendations 非空才渲染），与开始组
+   * 的系统按钮显隐解耦。
+   * 极端拥挤的让位面：组合病态档下推荐组先贴带右缘、自身过宽时按带宽收窄
+   * （overflow hidden）——图标格定宽不吃文字收缩档，绝不覆盖托盘。 */
   #pill-recs {
     position: fixed;
     left: 8px;

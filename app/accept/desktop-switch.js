@@ -12,11 +12,16 @@
 //      NOACTIVATE 弹窗原生跨桌面在场，t371 实证机制）；面板进程不进合格应用窗口集合
 //   P6 reconciliation：系统侧切到非托管桌面（电池经系统事实源直切，与快捷键/TaskView
 //      同一观察面）→ 模式组两枚均不高亮回推、**不抢回**；热键切回后高亮对齐系统事实
-//   P7 新窗口归属：Agent 桌面启动的 notepad 归属 Agent 桌面；切回普通后该窗 shell
-//      cloak（桌面绑定）；普通桌面零改窗（本票无几何写入路径——离线守卫 retract-
-//      orchestration.spec.ts 钉边界，ADR-0016 硬门的真机专段仍归 51 电池 P16）
+//   P7 新窗口归属：Agent 桌面启动的 csc WinForms 探针窗归属 Agent（工单380 夹具调整：
+//      Win11 Store 记事本激活不再可靠落在活动桌面，P18 同款原生探针替代，断言不变）；
+//      切回普通后该窗 shell cloak（桌面绑定）；普通桌面零改窗（本票无几何写入路径——离线
+//      守卫 retract-orchestration.spec.ts 钉边界，ADR-0016 硬门的真机专段仍归 51 电池 P16）
 //   P8 收尾复原（零残留）：切回普通、删除配对 Agent 桌面、注册表集合与基线逐项相等、
 //      config 三态还原
+//   P9 任务栏按桌面过滤与跨桌面点击（工单380，spec #369 决策 6/19）：运行图标按当前
+//      桌面过滤（手钉共享在位 running=false、另一配对桌面专属应用不上普通栏、普通桌
+//      面正对照）；点击仅另一桌面有窗的手钉应用 → 切过去激活（单窗不重复启动；多窗
+//      切过去复用选窗菜单并精确到达）
 // 运行：npm run accept:desktop-switch（= electron . --accept-desktop-switch）。
 // **必须经 accept-guard 托管**（AGENTS.md 真机验收调度协议）。
 const { app, screen } = require('electron');
@@ -98,6 +103,7 @@ const protoObjArrCount375 = koffi.proto('__stdcall', 'T375_ObjArrCount', 'int32'
 const protoObjArrGetAt375 = koffi.proto('__stdcall', 'T375_ObjArrGetAt', 'int32', ['void *', 'int32', 'const T375_GUID *', koffi.out('void **')]);
 const protoIsOnCurrent375 = koffi.proto('__stdcall', 'T375_IsOnCurrent', 'int32', ['void *', 'uintptr_t', koffi.out('int32 *')]);
 const protoGetWinDesktopId375 = koffi.proto('__stdcall', 'T375_GetWinDesktopId', 'int32', ['void *', 'uintptr_t', koffi.out('T375_GUID *')]);
+const protoMoveWindow375 = koffi.proto('__stdcall', 'T375_MoveWindowToDesktop', 'int32', ['void *', 'uintptr_t', 'const T375_GUID *']);
 
 const CLSID375 = { immersiveShell: 'C2F03A33-21F5-47FA-B4BB-156362A2F239', vdmi: 'C5E0CDCA-7B6E-41B2-9FC4-D93975CC467B', vdm: 'AA509086-5CA9-4C25-8F95-589D3C07B48A' };
 const IID375 = { vdmi_24H2: '53F5CA0B-158F-4124-900C-057158060B27', vdm: 'A5CD92FF-29BE-454C-8D04-D82879FB3F1B', virtualDesktop: '3F07F4BE-B107-441A-AF0F-39D82529072C', serviceProvider: '6D5140C1-7436-11CE-8034-00AA006009FA' };
@@ -197,6 +203,11 @@ function bindVdCom375() {
       const hr = koffi.call(slot375(vdm, 4), protoGetWinDesktopId375, vdm, hwnd, g);
       return hr === 0 ? comGuidToStr375(g[0]) : null;
     },
+    /** 系统 TaskView 同款搬家（公开 MoveWindowToDesktop）：仅测试夹具摆位用，P7 归属断言不调用 */
+    moveWindowToDesktop: (hwnd, id) => {
+      const hr = koffi.call(slot375(vdm, 5), protoMoveWindow375, vdm, hwnd, guidFromStr375(id));
+      return hr === 0;
+    },
   };
 }
 
@@ -292,10 +303,88 @@ function modeButtonPoint375(geo, tbRect, scale, id) {
   };
 }
 
+// —— 工单380 探针窗（P7 新窗归属与 P9 任务栏跨桌面夹具）——
+// 选型沿 P18 结论（app/accept/taskbar.js）：Win11 Store 记事本的激活走存根/Store 宿主，
+// 新窗不再可靠落在「打开时所在桌面」（本轮实测落在调用方桌面），窗口身份/桌面归属都不可
+// 作为系统语义证据；csc 现编译 WinForms 最小窗是按当前活动桌面创建的原生 Win32 窗。
+const PROBE380_CS = `
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+static class Probe {
+  [STAThread]
+  static void Main() {
+    string img = AppDomain.CurrentDomain.FriendlyName;
+    Form f = new Form();
+    f.Text = img + " deck380 probe";
+    f.StartPosition = FormStartPosition.Manual;
+    f.Bounds = new Rectangle(120, 120, 320, 180);
+    Application.Run(f);
+  }
+}
+`;
+function seedProbe380(rep, tag) {
+  try {
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+    const csc = path.join(sysRoot, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+    if (!fs.existsSync(csc)) {
+      rep.note('工单380 探针前置失败：csc.exe 缺失（.NET Framework4.x）');
+      return null;
+    }
+    const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-t380-'));
+    const csFile = path.join(tmpDir, 'probe.cs');
+    fs.writeFileSync(csFile, PROBE380_CS, 'utf8');
+    const exe = path.join(tmpDir, `DECK-${tag}.exe`);
+    const built = spawnSync(csc, ['/nologo', '/target:winexe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+      `/out:${exe}`, csFile], { encoding: 'utf8' });
+    if (built.status !== 0 || !fs.existsSync(exe)) {
+      rep.note(`工单380 探针编译失败：status=${built.status} ${(built.stderr || '').trim().slice(0, 200)}`);
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      return null;
+    }
+    return { tmpDir, exe, img: path.basename(exe) };
+  } catch (err) {
+    rep.note(`工单380 探针种入失败: ${err && err.message}`);
+    return null;
+  }
+}
+/** 同源码副本 → 唯一镜像名（各自独立 exe 身份，供「Agent 专属/普通桌面正对照」两枚夹具） */
+function copyProbe380(probe, tag) {
+  const exe = path.join(probe.tmpDir, `DECK-${tag}.exe`);
+  fs.copyFileSync(probe.exe, exe);
+  return { tmpDir: probe.tmpDir, exe, img: path.basename(exe) };
+}
+
+/** 按 exe 路径找可见顶层窗（探针窗身份唯一，无需标题判据） */
+function probeWindows380(exe) {
+  const target = normalizeExePath(exe);
+  const out = [];
+  for (const h of win32.topLevelWindows()) {
+    if (!win32.IsWindowVisible(h)) continue;
+    const wExe = normalizeExePath(win32.exeOfPid(win32.threadIdOf(h).pid) || '');
+    if (wExe === target) out.push(h);
+  }
+  return out;
+}
+function probeWindow380(exe) {
+  return probeWindows380(exe)[0] || 0;
+}
+async function waitProbeWindow380(exe, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const h = probeWindow380(exe);
+    if (h) return h;
+    await sleep(120);
+  }
+  return 0;
+}
+
 async function main() {
   const rep = new Report('375-desktop-switch');
-  let notepads = [];
-  let lastNotepadHwnd = 0;
+  let probeChildren = [];
+  let lastProbeHwnd = 0;
+  let probe7 = null; // 工单380 新窗归属/P9 夹具的 WinForms 探针（P7 编译一次）
+  let probe7Exe = null;
   let base = null; // 启动期注册表基线（P1-P7 采集、P8 finally 零残留断言共用）
   let normalId = null; // 普通 = 启用时所在桌面（系统 ID）
   const originalConfig = readConfigRaw();
@@ -332,10 +421,14 @@ async function main() {
     const dip = screen.getPrimaryDisplay().bounds;
     const scale = (tbRect.right - tbRect.left) / dip.width;
 
-    // 等任务栏几何存证帧（含模式组矩形——available=false 的帧无 modePill，超时即事实）
-    const ready = await tape.wait('taskbar-geometry', (e) => e.modePill && Array.isArray(e.modeButtons), { timeoutMs: 12000 });
+    // 等任务栏几何存证帧（含模式组矩形——available=false 的帧无 modePill，超时即事实）。
+    // 工单375 起 boot 首帧先于 workspace/get-state 回执（modePill 宽 0），等首个
+    // 「两枚按钮且矩形非零」的帧——不能只看字段在场。
+    const ready = await tape.wait('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
+      && Array.isArray(e.modeButtons) && e.modeButtons.length === 2, { timeoutMs: 12000 });
     if (!ready) throw new Error('taskbar-geometry 存证缺失模式组矩形（模式组未渲染或几何帧未到）');
-    const latestGeo = () => tape.latest('taskbar-geometry', (e) => e.modePill) || ready;
+    const latestGeo = () => tape.latest('taskbar-geometry', (e) => e.modePill && e.modePill.w > 0
+      && Array.isArray(e.modeButtons) && e.modeButtons.length === 2) || ready;
     // 面板 exe 身份（合格窗口排除的「自家」= 生产 ownExe 同源——shouldShowOnTaskbar 按它排除）
     const panelExePath = String(win32.exeOfPid(win32.threadIdOf(tbHwnd).pid) || '');
     if (!panelExePath) throw new Error('面板 exe 身份不可读——合格窗口排除无从谈起');
@@ -377,17 +470,24 @@ async function main() {
       // 配对 = 注册表集合 +1（新建 Agent）且双 ID 落盘 config（普通 = 启用时所在桌面）
       const paired = await (async () => {
         const deadline = Date.now() + 8000;
+        let lastDetail = '无桌面创建观察';
         for (;;) {
           const f = regDesktopFacts();
           const created = f.ids.find((x) => !base.ids.includes(x));
           if (f.count === base.count + 1 && created) {
-            const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-            if (cfg.agentDesktop && cfg.agentDesktop.agentDesktopId === created && cfg.agentDesktop.normalDesktopId === normalId) {
+            let cfg = null;
+            try { cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch { cfg = null; }
+            lastDetail = `落盘=${JSON.stringify(cfg && cfg.agentDesktop)} 新ID=${created.slice(0, 8)}…`;
+            // 建桌在注册表先可见、面板配对落盘随后（同一事务内）——等到落盘匹配，
+            // 不在「刚见到新桌面」的一瞬判失败（工单375 首跑即此竞态）。
+            if (cfg && cfg.agentDesktop && cfg.agentDesktop.agentDesktopId === created
+              && cfg.agentDesktop.normalDesktopId === normalId) {
               return { ok: true, created };
             }
-            return { ok: false, detail: `落盘=${JSON.stringify(cfg.agentDesktop)} 新ID=${created.slice(0, 8)}…` };
+          } else {
+            lastDetail = `集合数=${f.count}（基线 ${base.count}）`;
           }
-          if (Date.now() - t0 > deadline) return { ok: false, detail: `集合数=${f.count}（基线 ${base.count}）` };
+          if (Date.now() - t0 > deadline) return { ok: false, detail: lastDetail };
           await sleep(80);
         }
       })();
@@ -447,6 +547,14 @@ async function main() {
       // 干净起点：回普通
       com.switchDesktop(normalId);
       await waitDesktopCurrent375(com, normalId, 3000);
+      // 系统事实已是普通，但渲染层桌面状态经 reconciliation（≤500ms）才回推——在回推前
+      // 模式组仍把 Agent 判为「当前模式」而禁用入口（连点臂会点在禁用格上零回执）。
+      // 有界等入口恢复可点（normal 高亮 / agent 未禁用），再做真连点（阈值与断言不变）。
+      for (let i = 0; i < 30; i++) {
+        const cls = await cdpEval375(TASKBAR_TITLE, MODE_CLASS_EXPR);
+        if (cls.find((c) => c.id === 'normal')?.active === true && cls.find((c) => c.id === 'agent')?.disabled === false) break;
+        await sleep(100);
+      }
       const ptA = modeButtonPoint375(latestGeo(), tbRect, scale, 'agent');
       await convergeAt375(ptA, tbHwnd);
       // 两连点（间隔 40ms < 确认窗）：在途入口禁用（workspace/changed switching=true 即推
@@ -557,42 +665,275 @@ async function main() {
       if (!agentId) throw new Error('P2 未取得 Agent 桌面 ID——本段无法执行');
       // 回 Agent 桌面再开 notepad：归属应为 Agent 桌面（新窗口归属打开时所在桌面）
       com.switchDesktop(agentId);
-      await waitDesktopCurrent375(com, agentId, 3000);
-      // 既有记事本快照（残留轮的窗不算本轮新窗——Win11 Store 记事本 stub 杀不死宿主）
-      const preExisting = new Set();
-      for (const h of win32.topLevelWindows()) {
-        if (!win32.IsWindowVisible(h)) continue;
-        const exe = String(win32.exeNameOfWindow(h) || '').toLowerCase();
-        const cls = String(win32.className(h) || '');
-        if (exe === 'notepad.exe' || cls === 'Notepad') preExisting.add(h);
+      let toAgent7 = await waitDesktopCurrent375(com, agentId, 3000);
+      if (!toAgent7.ok) {
+        com.switchDesktop(agentId); // P6 热键末态邻位抖动：一次重试（仍不成就判红，不盲开窗）
+        toAgent7 = await waitDesktopCurrent375(com, agentId, 3000);
       }
-      const np = spawn('notepad.exe', [], { stdio: 'ignore' });
-      notepads.push(np);
-      let npHwnd = 0;
-      const deadline = Date.now() + 15000; // Win11 Store 记事本冷启动可达 10s+
-      while (Date.now() < deadline && !npHwnd) {
-        for (const h of win32.topLevelWindows()) {
-          if (preExisting.has(h)) continue; // 只认本轮新建
-          if (!win32.IsWindowVisible(h)) continue;
-          const exe = String(win32.exeNameOfWindow(h) || '').toLowerCase();
-          const cls = String(win32.className(h) || '');
-          if (exe === 'notepad.exe' || cls === 'Notepad') npHwnd = h;
-        }
-        if (!npHwnd) await sleep(150);
+      if (!toAgent7.ok) throw new Error(`P7 前置失守：系统未切到 Agent 桌面（${toAgent7.detail}）`);
+      // 工单380：改用 csc 现编译 WinForms 探针窗（见 PROBE380_CS 注——Store 记事本激活
+      // 不再可靠落在打开时所在桌面，不能作为「新窗归属」的系统证据）。断言保持：新窗
+      // 归属 = 打开时所在桌面；切回普通后 shell cloak。
+      probe7 = seedProbe380(rep, 'P7-PROBE');
+      if (!probe7) throw new Error('P7 探针前置失败（见 note）');
+      probe7Exe = probe7.exe;
+      const probeChild7 = spawn(probe7.exe, [], { stdio: 'ignore' });
+      probeChildren.push(probeChild7);
+      const npHwnd = await waitProbeWindow380(probe7.exe, 10000);
+      lastProbeHwnd = npHwnd;
+      const zeroGuid = (id) => !id || /^0{8}-/.test(String(id));
+      // 新建窗的桌面 ID 可能在窗口落定前读到零 GUID（实测：cloak=2 证明在另一桌面，
+      // 但 GetWindowDesktopId 首读全零）——有界重读到非零（≤3s），切回后再以系统事实复核。
+      let npId = npHwnd ? com.desktopIdOf(npHwnd) : null;
+      for (let i = 0; i < 15 && zeroGuid(npId); i++) {
+        await sleep(200);
+        npId = npHwnd ? com.desktopIdOf(npHwnd) : null;
       }
-      lastNotepadHwnd = npHwnd;
-      const npId = npHwnd ? com.desktopIdOf(npHwnd) : null;
-      // 切回普通：notepad 桌面绑定（shell cloak=2）——系统语义原样，面板零干预
+      // 切回普通：探针窗桌面绑定（shell cloak=2）——系统语义原样，面板零干预
       com.switchDesktop(normalId);
-      await waitDesktopCurrent375(com, normalId, 3000);
+      const toNormal7 = await waitDesktopCurrent375(com, normalId, 3000);
+      if (!toNormal7.ok) throw new Error(`P7 收尾失守：系统未切回普通桌面（${toNormal7.detail}）`);
       await sleep(500);
       const npCloak = npHwnd ? cloakValue375(npHwnd) : null;
+      // 切回后再读一次桌面 ID（cloak 已证明是非当前桌面；此处只把归属钉到 Agent ID）
+      const npIdAfter = npHwnd ? com.desktopIdOf(npHwnd) : null;
+      if (!zeroGuid(npIdAfter)) npId = npIdAfter;
       if (npHwnd && npId === agentId && npCloak === DWM_CLOAKED_SHELL375) {
-        rep.pass(`P7 新窗口归属打开时所在桌面（notepad 桌面 ID=${String(npId).slice(0, 8)}… = Agent）；切回普通后该窗 shell cloak（桌面绑定，系统语义原样、面板零干预）`);
+        rep.pass(`P7 新窗口归属打开时所在桌面（探针窗桌面 ID=${String(npId).slice(0, 8)}… = Agent）；切回普通后该窗 shell cloak（桌面绑定，系统语义原样、面板零干预）`);
       } else {
-        rep.fail(`P7 notepad hwnd=${npHwnd} 归属=${npId === agentId}（${npId}） cloak=${npCloak}`);
+        rep.fail(`P7 探针窗 hwnd=${npHwnd} 归属=${npId === agentId}（${npId}） cloak=${npCloak}`);
       }
     } catch (err) { rep.fail(`P7 异常: ${err.message}`); }
+
+    // —— P9 任务栏按当前桌面过滤 + 跨桌面应用点击（工单380，spec #369 决策 6/19）——
+    // 三臂：①运行图标按当前桌面过滤（Agent 桌面的仅运行应用不上普通桌面栏，手钉共享
+    // 在位但 running=false）；②仅另一配对桌面有单窗 → 点击切过去并激活原窗口（不重复
+    // 启动）；③仅另一配对桌面有多窗 → 切过去后复用选窗菜单，点行精确到达。
+    // 全臂真鼠标点击栏面图标（坐标取 taskbar-geometry 存证帧）+ 系统桌面 ID/前台 hwnd 事实。
+    rep.beginSegment('P9');
+    let p9ProbeAgent = null;
+    let p9ProbeNormal = null;
+    let p9PinnedExe = null;
+    try {
+      if (!agentId) throw new Error('P2 未取得 Agent 桌面 ID——本段无法执行');
+      const norm9 = (s) => String(s || '').replace(/\//g, '\\').toLowerCase();
+      const state9 = () => cdpEval375(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', null)`);
+      const waitState9 = async (pred, timeoutMs = 8000) => {
+        const deadline = Date.now() + timeoutMs;
+        let last = null;
+        while (Date.now() < deadline) {
+          last = await state9();
+          if (last && pred(last)) return last;
+          await sleep(200);
+        }
+        return last;
+      };
+      const onDesktop9 = (hwnd, id) => com.desktopIdOf(hwnd) === id;
+      const strip9 = () => tbHwnd; // 条带窗跨桌面跟随，句柄不变（P1 起持有）
+      const goto9 = async (id) => {
+        com.switchDesktop(id);
+        let r = await waitDesktopCurrent375(com, id, 3000);
+        if (!r.ok) { com.switchDesktop(id); r = await waitDesktopCurrent375(com, id, 3000); }
+        return r;
+      };
+      // 夹具摆位：原生窗按创建时活动桌面归属；若新窗落在别处（宿主/激活路径差异），
+      // 用系统 TaskView 同款 MoveWindowToDesktop 摆到目标桌面（只用于夹具，不改产品断言）。
+      const ensureDesktop9 = async (hwnd, id) => {
+        if (!hwnd) return false;
+        if (onDesktop9(hwnd, id)) return true;
+        com.moveWindowToDesktop(hwnd, id);
+        for (let i = 0; i < 20; i++) {
+          if (onDesktop9(hwnd, id)) return true;
+          await sleep(120);
+        }
+        return false;
+      };
+      const probeWinsOn9 = (exe, id) => probeWindows380(exe).filter((h) => onDesktop9(h, id));
+
+      // Agent 桌面：钉住 P7 的探针窗（手钉共享前置），并开一个不钉的探针副本作隔离对照
+      const toAgent9 = await goto9(agentId);
+      if (!toAgent9.ok) throw new Error(`P9 前置失守：系统未切到 Agent 桌面（${toAgent9.detail}）`);
+      if (!probe7 || !probe7Exe) throw new Error('P9 前置：P7 探针未就绪（P7 未成就）');
+      const np9 = probeWinsOn9(probe7Exe, agentId);
+      if (!np9.length) throw new Error('P9 前置：Agent 桌面无 P7 探针窗（P7 未成就）');
+      p9PinnedExe = probe7Exe;
+      const npExe9 = p9PinnedExe;
+      let stAgent9 = null;
+      for (let i = 0; i < 30; i++) {
+        stAgent9 = await state9();
+        if (stAgent9 && (stAgent9.apps || []).some((a) => norm9(a.exe) === norm9(npExe9) && a.running)) break;
+        await sleep(300);
+      }
+      await cdpEval375(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(npExe9)}, pinned: true })`);
+      const pinnedState9 = await waitState9((st) => (st.apps || []).some((a) => norm9(a.exe) === norm9(npExe9) && a.pinned));
+      const pinnedOk9 = !!(pinnedState9 && (pinnedState9.apps || []).some((a) => norm9(a.exe) === norm9(npExe9) && a.pinned));
+      // Agent 专属、未手钉的探针副本（普通桌面栏不得出现其运行条目）
+      const probeAgent9 = copyProbe380(probe7, 'P9-AGENT');
+      p9ProbeAgent = spawn(probeAgent9.exe, [], { stdio: 'ignore' });
+      probeChildren.push(p9ProbeAgent);
+      const agentProbeHwnd9 = await waitProbeWindow380(probeAgent9.exe, 8000);
+      const agentProbeOnAgent9 = await ensureDesktop9(agentProbeHwnd9, agentId);
+      const agentProbeExe9 = agentProbeHwnd9 ? probeAgent9.exe : '';
+
+      // 回普通桌面：开一个普通桌面专属探针副本作正对照（运行条目应在场）
+      const toNorm9 = await goto9(normalId);
+      if (!toNorm9.ok) throw new Error(`P9 前置失守：系统未切回普通桌面（${toNorm9.detail}）`);
+      const probeNormal9 = copyProbe380(probe7, 'P9-NORMAL');
+      p9ProbeNormal = spawn(probeNormal9.exe, [], { stdio: 'ignore' });
+      probeChildren.push(p9ProbeNormal);
+      const normalProbeHwnd9 = await waitProbeWindow380(probeNormal9.exe, 8000);
+      const normalProbeOnNormal9 = await ensureDesktop9(normalProbeHwnd9, normalId);
+      const normalProbeExe9 = normalProbeHwnd9 ? probeNormal9.exe : '';
+      const stNorm9 = await waitState9((st) => {
+        const apps = st.apps || [];
+        const pinned = apps.find((a) => norm9(a.exe) === norm9(npExe9));
+        return !!(pinned && pinned.pinned && pinned.running === false)
+          && apps.some((a) => norm9(a.exe) === norm9(normalProbeExe9) && a.running === true);
+      }, 12000);
+      const appsNorm9 = (stNorm9 && stNorm9.apps) || [];
+      const pinnedNorm9 = appsNorm9.find((a) => norm9(a.exe) === norm9(npExe9));
+      const agentOnlyVisible9 = !!agentProbeExe9 && appsNorm9.some((a) => norm9(a.exe) === norm9(agentProbeExe9));
+      const normalProbeVisible9 = !!normalProbeExe9 && appsNorm9.some((a) => norm9(a.exe) === norm9(normalProbeExe9) && a.running === true);
+      const probesOk9 = agentProbeOnAgent9 && normalProbeOnNormal9;
+      const filterOk9 = pinnedOk9 && probesOk9 && !!pinnedNorm9 && pinnedNorm9.pinned === true && pinnedNorm9.running === false
+        && !agentOnlyVisible9 && normalProbeVisible9;
+      if (filterOk9) {
+        rep.pass(`P9① 运行图标按当前桌面过滤：普通桌面栏上手钉探针共享在位（running=false——窗口在 Agent）、`
+          + `Agent 专属探针副本不上栏、普通桌面正对照 running=true`);
+      } else {
+        rep.fail(`P9① 手钉=${pinnedOk9} 探针=${probesOk9}(agent=${agentProbeHwnd9}/${agentProbeOnAgent9} normal=${normalProbeHwnd9}/${normalProbeOnNormal9}) `
+          + `手钉共享=${JSON.stringify(pinnedNorm9 || null)} Agent专属上栏=${agentOnlyVisible9} 正对照=${normalProbeVisible9} `
+          + `apps=${JSON.stringify(appsNorm9.map((a) => ({ exe: a.exe, pinned: a.pinned, running: a.running })))}`);
+      }
+
+      // 栏面图标几何（当前普通桌面）：手钉 notepad 的点击坐标
+      const iconPoint9 = async (exe) => {
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline) {
+          const geo = latestGeo();
+          const entry = geo && Array.isArray(geo.apps) ? geo.apps.find((a) => norm9(a.id) === norm9(exe)) : null;
+          if (entry) {
+            const strip = strip9();
+            const rect = strip ? win32.rectOf(strip) : tbRect;
+            const scale9 = (rect.right - rect.left) / dip.width;
+            return {
+              x: Math.round(rect.left + (entry.x + entry.w / 2) * scale9),
+              y: Math.round(rect.top + (entry.y + entry.h / 2) * scale9),
+              entry,
+            };
+          }
+          await sleep(200);
+        }
+        return null;
+      };
+      const clickApp9 = async (exe) => {
+        const pt = await iconPoint9(exe);
+        if (!pt) return null;
+        const strip = strip9();
+        if (strip) await convergeAt375(pt, strip);
+        const t0 = Date.now();
+        win32.clickPhys(pt.x, pt.y, 'left');
+        const result = await tape.wait('taskbar-app-result', (e) => e.t >= t0 && norm9(e.exe) === norm9(exe), { timeoutMs: 8000 });
+        return { result, t0, pt };
+      };
+      const fgHwnd9 = () => Number(win32.GetForegroundWindow()) || 0;
+
+      // —— ② 仅另一配对桌面有单窗：点击切过去激活原窗口（不重复启动） ——
+      let singleOk9 = false;
+      let singleNote9 = '';
+      let singleWin9 = probeWinsOn9(npExe9, agentId);
+      if (singleWin9.length === 1) {
+        const target = singleWin9[0];
+        const clk = await clickApp9(npExe9);
+        const conf9 = await waitDesktopCurrent375(com, agentId, 4000);
+        let fgOk9 = false;
+        for (let i = 0; i < 20 && !fgOk9; i++) {
+          fgOk9 = fgHwnd9() === target;
+          if (!fgOk9) await sleep(100);
+        }
+        const afterWins9 = probeWinsOn9(npExe9, agentId);
+        const noNew9 = afterWins9.length === singleWin9.length;
+        singleOk9 = !!(clk && clk.result && clk.result.ok === true && clk.result.action === 'activated'
+          && conf9.ok && fgOk9 && noNew9);
+        singleNote9 = `action=${clk && clk.result && clk.result.action} 桌面确认=${conf9.ok} 前台=${fgHwnd9()}/${target} 窗口数=${singleWin9.length}→${afterWins9.length}`;
+        if (!singleOk9) rep.fail(`P9② 单窗跨桌面激活失败：${singleNote9}`);
+      } else {
+        singleNote9 = `Agent 桌面已有 ${singleWin9.length} 个探针窗口（单窗臂未行使，多窗臂覆盖）`;
+      }
+
+      // —— ③ 仅另一配对桌面有多窗：切过去后复用选窗菜单，点行精确到达 ——
+      // 回 Agent 补一个同身份探针窗口（若②后已在 Agent 直接开）
+      if (com.currentId() !== agentId) {
+        const toA9 = await goto9(agentId);
+        if (!toA9.ok) throw new Error(`P9③ 前置失守：系统未切到 Agent 桌面（${toA9.detail}）`);
+      }
+      let beforeMulti9 = probeWinsOn9(npExe9, agentId);
+      if (beforeMulti9.length < 2) {
+        const second9 = spawn(probe7.exe, [], { stdio: 'ignore' });
+        probeChildren.push(second9);
+        const want9 = beforeMulti9.length + 1;
+        const deadline9 = Date.now() + 10000;
+        while (Date.now() < deadline9 && probeWindows380(probe7Exe).length < want9) await sleep(200);
+        // 同镜像第二窗若落在别处，摆回 Agent（夹具摆位；窗口身份仍是同 exe）
+        for (const h of probeWindows380(probe7Exe)) await ensureDesktop9(h, agentId);
+        beforeMulti9 = probeWinsOn9(npExe9, agentId);
+      }
+      const multiWins9 = probeWinsOn9(npExe9, agentId);
+      // 回普通桌面再点击
+      const toN9 = await goto9(normalId);
+      if (!toN9.ok) throw new Error(`P9③ 前置失守：系统未切回普通桌面（${toN9.detail}）`);
+      await sleep(800);
+      const clkM9 = await clickApp9(npExe9);
+      const confM9 = await waitDesktopCurrent375(com, agentId, 4000);
+      const menuEvent9 = clkM9
+        ? await tape.wait('taskbar-wins-menu-open', (e) => e.t >= clkM9.t0, { timeoutMs: 6000 })
+        : null;
+      let pickOk9 = false;
+      let pickHwnd9 = 0;
+      if (multiWins9.length >= 2) {
+        pickHwnd9 = multiWins9[multiWins9.length - 1];
+        const pickRes9 = await cdpEval375(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/activate-window', { hwnd: ${pickHwnd9} })`);
+        for (let i = 0; i < 20 && !pickOk9; i++) {
+          pickOk9 = fgHwnd9() === pickHwnd9;
+          if (!pickOk9) await sleep(100);
+        }
+        if (!(pickRes9 && pickRes9.ok === true) || !pickOk9) {
+          rep.fail(`P9③ 选窗行精确到达失败：回执=${JSON.stringify(pickRes9)} 前台=${fgHwnd9()}/${pickHwnd9}`);
+        }
+      } else {
+        rep.fail(`P9③ 多窗前置未成就：Agent 桌面探针窗口数=${multiWins9.length}`);
+      }
+      const multiOk9 = !!(clkM9 && clkM9.result && clkM9.result.action === 'window-list'
+        && confM9.ok && !!menuEvent9 && pickOk9 && multiWins9.length >= 2);
+      if (multiOk9) {
+        rep.pass(`P9③ 仅另一配对桌面多窗：点击切到 Agent 并复用选窗菜单（${multiWins9.length} 行），`
+          + `点行精确到达 hwnd=${pickHwnd9}（前台命中）`);
+      } else if (!pickOk9) {
+        // 明细已在上方失败记录（不重复判红）
+      } else {
+        rep.fail(`P9③ 多窗跨桌面：action=${clkM9 && clkM9.result && clkM9.result.action} 桌面确认=${confM9.ok} `
+          + `菜单事件=${!!menuEvent9} 选中=${pickOk9}`);
+      }
+      if (singleOk9) {
+        rep.pass(`P9② 仅另一配对桌面单窗：点击切到 Agent 并激活原窗口（${singleNote9}）`);
+      }
+      if (!singleOk9 && singleWin9.length > 1) rep.note(`P9② ${singleNote9}`);
+    } catch (err) { rep.fail(`P9 异常: ${err.message}`); }
+    finally {
+      // 手钉复原（栏布局共享存储不留本轮身份），探针清场；回普通桌面交 P8 收尾
+      try {
+        if (p9PinnedExe) {
+          await cdpEval375(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-app-pinned', { exe: ${JSON.stringify(p9PinnedExe)}, pinned: false })`);
+        }
+      } catch { /* 条带已不在场 */ }
+      for (const p of [p9ProbeAgent, p9ProbeNormal]) {
+        if (p) spawnSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { stdio: 'ignore' });
+      }
+      try {
+        const com9 = bindVdCom375();
+        if (normalId && com9.currentId() !== normalId) com9.switchDesktop(normalId);
+      } catch { /* 尽力 */ }
+    }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
@@ -649,14 +990,15 @@ async function main() {
       }
     } catch (err) { rep.fail(`P8 异常: ${err.message}`); }
 
-    for (const np of notepads) spawnSync('taskkill', ['/PID', String(np.pid), '/T', '/F'], { stdio: 'ignore' });
-    // Win11 Store 记事本：spawn 到的是 stub 进程，宿主另有人——按新窗属主补杀
-    if (lastNotepadHwnd) {
+    for (const np of probeChildren) spawnSync('taskkill', ['/PID', String(np.pid), '/T', '/F'], { stdio: 'ignore' });
+    // 探针窗宿主（WinForms 探针为单进程；按句柄属主补杀兜底）
+    if (lastProbeHwnd) {
       try {
-        const hostPid = win32.threadIdOf(lastNotepadHwnd).pid;
+        const hostPid = win32.threadIdOf(lastProbeHwnd).pid;
         if (hostPid) spawnSync('taskkill', ['/PID', String(hostPid), '/T', '/F'], { stdio: 'ignore' });
       } catch { /* 尽力清场 */ }
     }
+    try { if (probe7) fs.rmSync(probe7.tmpDir, { recursive: true, force: true }); } catch { /* 尽力清场 */ }
     const cleared = await handle.stop();
     if (cleared && cleared.gone === false) {
       rep.exclude(`清场核验：面板强退失败：强杀后有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')})——需重启清障`,

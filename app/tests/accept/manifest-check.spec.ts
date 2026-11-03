@@ -367,7 +367,10 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 变化 P5 / 资源生命周期与隐私 P6 / 零残留 P7；一段绑定一工单）。DWM 注册/抓帧
     // 失败回退、条目投影与聚焦状态机按增段条件②由纯函数/服务单测钉，真机段只验真实
     // 点击链路、DWM 像素呈现与系统几何事实。
-    expect(total).toBe(172)
+    // 172 → 173：工单380 增段——375-desktop-switch 电池增 P9（任务栏按当前桌面过滤 /
+    // 跨桌面单窗激活 / 多窗选窗菜单；一段绑定一工单）。组合居中与容量/夹取几何按增段
+    // 条件②由 taskbar-view 纯函数矩阵钉，P15/P15B/P19 只改既有断言到组合语义。
+    expect(total).toBe(173)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

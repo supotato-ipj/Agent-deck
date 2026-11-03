@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -629,7 +629,7 @@ describe('栏高 48 与栏分组几何/材质改版（工单238：48 DIP 回归�
 
   it('挤撞守卫只收窄宽度、绝不改高度（收窄档仍撑满 48 高）', () => {
     expect(rendererSrc, '渲染层不得按内容写 pill 高度').not.toMatch(/\.style\.height\s*=/)
-    // 四道守卫（clampStartPillWidth / clampRecPillWidth / positionRecPill / positionAppsPill）
+    // 守卫（clampStartPillWidth / clampModePillWidth / positionCombinedPills）
     // 写的都是 maxWidth / left——横向收窄，不触高度
     expect(rendererSrc.match(/\.style\.maxWidth\s*=/g)?.length ?? 0).toBeGreaterThanOrEqual(2)
   })
@@ -757,14 +757,14 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
   it('应用组 pill 落位归渲染层（绝对定位 + JS 居中），CSS 不携带横向居中形态', () => {
     const rule = ruleOf('#pill-apps')
     expect(rule).toContain('position: absolute')
-    expect(rule, 'CSS 不得自行居中（居中裁决 = appsPillLeft 纯函数）').not.toContain('left: 50%')
+    expect(rule, 'CSS 不得自行居中（居中裁决 = combinedPillsLeft 纯函数）').not.toContain('left: 50%')
     expect(rule).not.toContain('translate(-50%')
   })
 
   it('推荐组独立漂浮 pill（工单192）：钉落位归 JS 的 fixed 容器，拥挤收窄档与显隐边界样式同开始组族', () => {
     const rule = ruleOf('#pill-recs')
-    expect(rule, '推荐组独立容器 fixed 漂浮（横向落位归渲染层 positionRecPill）').toContain('position: fixed')
-    expect(rule, '拥挤收窄整体裁剪（clampRecPillWidth 守卫语义随拆出随迁）').toContain('overflow: hidden')
+    expect(rule, '推荐组独立容器 fixed 漂浮（横向落位归渲染层 positionCombinedPills）').toContain('position: fixed')
+    expect(rule, '拥挤收窄整体裁剪（combinedPillsLeft 病态档收窄语义）').toContain('overflow: hidden')
     expect(rule).toContain('min-width: 0')
     expect(css).toContain('#pill-recs[hidden]')
     // 拆出后开始组仍保挤撞收窄三件套（守卫不随拆出退役）
@@ -780,7 +780,7 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
     expect(iStart).toBeGreaterThanOrEqual(0)
     expect(iRecs, '#pill-recs 容器元素在场').toBeGreaterThan(0)
     expect(iStart, '推荐组在开始组之后').toBeLessThan(iRecs)
-    expect(iRecs, '推荐组在右组之前（「开始组与应用组之间」的几何落位由 positionRecPill 裁决、P19 真机断言）').toBeLessThan(iRight)
+    expect(iRecs, '推荐组在右组之前（工单380 视觉上紧贴应用组右侧，落位由 positionCombinedPills 裁决、P19 真机断言）').toBeLessThan(iRight)
   })
 
   it('空带两侧边界（纯函数）：左=左邻组右缘+组间距（左右邻都不在场=条带左内衬）、右=右组左缘−组间距', () => {
@@ -835,27 +835,30 @@ describe('栏分组布局重排（工单159 钉左/两侧界 + 工单190 屏幕�
   it('收栏态空带（纯函数，工单253）：由收栏前缓存的各组区间反推——退场邻组不参与裁剪', () => {
     // 收栏态栏面退场、邻组实测宽度为 0 ⇒ 空带两侧边界取**收栏前最后一帧**的区间
     // （唤出条镜像的同一份）——已唤出的应用组因此不被压成零宽、条目不被全塞进「⋯」。
-    // 左邻=推荐组右缘 336（+组间距 8）→ 344；右界=右组左缘 1600（−组间距 8）→ 1592
+    // 工单380：左邻 = 模式组（缺席回退开始组）；推荐组改居应用组右侧，不再参与左邻链
+    // 左邻=开始组右缘 128（+组间距 8）→ 136；右界=右组左缘 1600（−组间距 8）→ 1592
     expect(appsBandFromSpans({
       start: { x: 8, width: 120 },
       recs: { x: 136, width: 200 },
       right: { x: 1600, width: 280 },
-    })).toEqual({ lo: 344, hi: 1592 })
-    // 推荐组不在场 ⇒ 左邻回退开始组右缘 128（+8）→ 136
+    })).toEqual({ lo: 136, hi: 1592 })
+    // 模式组在场 ⇒ 模式组右缘 180（+8）→ 188 优先
     expect(appsBandFromSpans({
       start: { x: 8, width: 120 },
+      mode: { x: 136, width: 44 },
+      recs: { x: 300, width: 200 },
       right: { x: 1600, width: 280 },
-    })).toEqual({ lo: 136, hi: 1592 })
-    // 两个左邻都不在场 ⇒ 左界退条带左缘内衬 8
+    })).toEqual({ lo: 188, hi: 1592 })
+    // 模式组与开始组都不在场 ⇒ 左界退条带左缘内衬 8
     expect(appsBandFromSpans({ right: { x: 1600, width: 280 } })).toEqual({ lo: 8, hi: 1592 })
     // 右组不在场（缓存缺位）⇒ 右界不设限：容量放开，不裁剪
     expect(appsBandFromSpans({ start: { x: 8, width: 120 } })).toEqual({ lo: 136, hi: Number.POSITIVE_INFINITY })
   })
 
-  it('收栏态空带与常态空带同口径（纯函数，工单253）：同一份区间 ⇒ 同一条带', () => {
+  it('收栏态空带与常态空带同口径（纯函数，工单253；工单380 左邻链）：同一份区间 ⇒ 同一条带', () => {
     // 常态口径（量活邻组）与收栏态口径（量收栏前缓存）给同一组区间 ⇒ 同一条带
-    const spans = { start: { x: 8, width: 120 }, recs: { x: 136, width: 200 }, right: { x: 1600, width: 280 } }
-    expect(appsBandFromSpans(spans)).toEqual(appsBand(appsBandLeft(336, 128), 1600))
+    const spans = { start: { x: 8, width: 120 }, recs: { x: 300, width: 200 }, right: { x: 1600, width: 280 } }
+    expect(appsBandFromSpans(spans)).toEqual(appsBand(appsBandLeftWithMode(null, 128), 1600))
   })
 })
 
@@ -1096,15 +1099,97 @@ describe('桌面模式切换组视图（工单375，fake bridge 驱动）', () =
   })
 })
 
-describe('应用组空带左邻链含模式组（工单375）：推荐组 → 模式组 → 开始组回退', () => {
+describe('应用组空带左邻链含模式组（工单375/380）：模式组 → 开始组回退（推荐组改居应用组右侧，不再作左邻）', () => {
   it('模式组插位于开始组右侧：应用组空带左界让开模式组右缘（不压邻组）', () => {
-    // 推荐组在场 → 推荐组右缘优先；推荐组缺席 → 模式组右缘；两者缺席 → 开始组右缘
-    expect(appsBandLeftWithMode(200, 120, 60)).toBe(200)
-    expect(appsBandLeftWithMode(null, 120, 60)).toBe(120)
-    expect(appsBandLeftWithMode(null, null, 60)).toBe(60)
-    expect(appsBandLeftWithMode(null, null, null)).toBeNull()
-    // 缓存口径（收栏态）：mode 区间进 appsBandFromSpans 同一左邻链
-    const band = appsBandFromSpans({ mode: { x: 100, width: 80 }, right: { x: 1000, width: 200 } })
+    // 模式组在场 → 模式组右缘；缺席 → 开始组右缘；两者缺席 → null（退条带左内衬）
+    expect(appsBandLeftWithMode(120, 60)).toBe(120)
+    expect(appsBandLeftWithMode(null, 60)).toBe(60)
+    expect(appsBandLeftWithMode(null, null)).toBeNull()
+    // 缓存口径（收栏态）：mode 区间进 appsBandFromSpans 同一左邻链；推荐组缓存不再作左邻
+    const band = appsBandFromSpans({
+      start: { x: 8, width: 120 },
+      mode: { x: 100, width: 80 },
+      recs: { x: 300, width: 90 },
+      right: { x: 1000, width: 200 },
+    })
     expect(band.lo).toBe(180 + GROUP_GAP)
+  })
+})
+
+// —— 工单380 应用+推荐组合居中（spec #369 决策 17，取代 ADR-0013 的应用组单独居中）——
+// 语义：模式组固定开始组右侧；应用组与推荐组按可见总宽度整体居中，推荐组紧贴应用组右侧；
+// 无推荐位时应用组单独居中；容量先扣推荐组预留宽度（空间不足先溢出），再对组合夹取，
+// 绝不覆盖托盘。
+describe('应用+推荐组合居中与容量（工单380）', () => {
+  const BAND = { lo: 100, hi: 1000 }
+  const centerOf = (l: { appsLeft: number; recsLeft: number | null }, appsW: number, recsW: number): number => {
+    const left = l.appsLeft
+    const right = l.recsLeft === null ? left + appsW : l.recsLeft + recsW
+    return (left + right) / 2
+  }
+
+  it('推荐组在场：组合总宽居中，推荐组紧贴应用组右侧（含组间距）', () => {
+    const l = combinedPillsLeft(BAND, 200, 120, 600)
+    expect(l).toEqual({ appsLeft: 436, recsLeft: 644, appsMaxWidth: null, recsMaxWidth: null })
+    expect(l.recsLeft! - (l.appsLeft + 200)).toBe(GROUP_GAP) // 紧贴应用组右侧
+    expect(centerOf(l, 200, 120)).toBeCloseTo(600)
+  })
+
+  it('无推荐位：应用组单独居中（沿用 appsPillLeft 落位）', () => {
+    expect(combinedPillsLeft(BAND, 200, 0, 600)).toEqual({
+      appsLeft: appsPillLeft(BAND, 200, 600), recsLeft: null, appsMaxWidth: null, recsMaxWidth: null,
+    })
+  })
+
+  it('应用组缺席、仅推荐组：推荐组单独居中（不引入幻影组间距偏移）', () => {
+    const l = combinedPillsLeft(BAND, 0, 120, 600)
+    expect(l.recsLeft).toBe(540) // 600 − 60
+    expect((l.recsLeft! + (l.recsLeft! + 120)) / 2).toBeCloseTo(600)
+  })
+
+  it('推荐出现/消失/宽度变化：每次重算后组合中心仍在屏幕中心线', () => {
+    for (const recsW of [80, 120, 260]) {
+      const l = combinedPillsLeft(BAND, 200, recsW, 600)
+      expect(centerOf(l, 200, recsW)).toBeCloseTo(600)
+      expect(l.recsLeft! - (l.appsLeft + 200)).toBe(GROUP_GAP)
+    }
+    // 推荐组消失 → 退化为应用组单独居中
+    const gone = combinedPillsLeft(BAND, 200, 0, 600)
+    expect(gone.recsLeft).toBeNull()
+    expect(centerOf(gone, 200, 0)).toBeCloseTo(600)
+  })
+
+  it('空间不足先溢出：容量带先扣推荐组预留宽度（推荐组宽度 + 组间距）', () => {
+    expect(combinedAppsBand(BAND, 120)).toEqual({ lo: 100, hi: 1000 - 120 - GROUP_GAP })
+    expect(combinedAppsBand(BAND, 0)).toEqual(BAND)
+    // 格数口径与应用组现有容量算式一致
+    expect(appsSlotsForCombined(BAND, 120)).toBe(appsSlotsFor({ lo: 100, hi: 1000 - 120 - GROUP_GAP }))
+    // 预留宽度吃掉容量：推荐组在场格数不增反减
+    expect(appsSlotsForCombined(BAND, 120)).toBeLessThan(appsSlotsFor(BAND))
+  })
+
+  it('夹取组合：理想位越界时整块夹回带内（左贴带左缘 / 右贴带右缘），不压邻组', () => {
+    // 中心线偏右 → 理想位越右界 → 右缘贴带右界
+    const right = combinedPillsLeft({ lo: 100, hi: 500 }, 200, 120, 450)
+    expect(right.appsLeft).toBe(500 - (200 + GROUP_GAP + 120))
+    expect(right.recsLeft! + 120).toBe(500)
+    // 中心线偏左 → 理想位越左界 → 左缘贴带左界
+    const left = combinedPillsLeft({ lo: 400, hi: 1000 }, 200, 120, 300)
+    expect(left.appsLeft).toBe(400)
+    expect(left.recsLeft).toBe(400 + 200 + GROUP_GAP)
+  })
+
+  it('带宽不足：推荐组贴带右缘（绝不覆盖托盘），应用组向左让位并收窄', () => {
+    const l = combinedPillsLeft({ lo: 100, hi: 400 }, 200, 120, 250)
+    expect(l.recsLeft! + 120).toBe(400) // 推荐组右缘恒 = 带右界（右组左缘前）
+    expect(l.appsLeft).toBe(100)
+    expect(l.appsMaxWidth).toBe(400 - 120 - GROUP_GAP - 100) // 应用组收窄到推荐组左侧
+    expect(l.appsLeft + l.appsMaxWidth! + GROUP_GAP).toBe(l.recsLeft)
+  })
+
+  it('推荐组自身宽过带宽：推荐组收窄到带内，仍不越过右组', () => {
+    const l = combinedPillsLeft({ lo: 100, hi: 300 }, 0, 260, 200)
+    expect(l.recsLeft).toBe(100)
+    expect(l.recsMaxWidth).toBe(200)
   })
 })

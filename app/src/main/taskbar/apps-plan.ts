@@ -35,6 +35,8 @@ export interface TaskbarWindowTraits {
   visible?: boolean
   /** DWM cloaked（UWP 挂起 / 其他虚拟桌面）；拒 */
   cloaked?: boolean
+  /** DWM cloak 的 SHELL 分位（其他虚拟桌面；工单270 起采集，工单380 用于跨桌面点击候选） */
+  cloakedShell?: boolean
   /** WS_EX_TOOLWINDOW 工具窗样式；拒 */
   toolWindow?: boolean
   /** 有属主窗（GW_OWNER 非空）；配合 appWindow 判 */
@@ -65,6 +67,35 @@ export function shouldShowOnTaskbar(w: TaskbarWindowInput & TaskbarWindowTraits,
 /** exe 身份归一：小写 + 斜杠归一到反斜杠（NTFS 大小写不敏感） */
 export function normalizeExe(exe: string): string {
   return exe.replace(/\//g, '\\').toLowerCase()
+}
+
+/**
+ * 任务栏窗口按当前桌面分区（工单380，spec #369 决策 6/19）：
+ * - current：当前桌面上栏的窗口集——`IsOnCurrent` 非 false（null = 不可判，沿用既有
+ *   合格判据不误删）且过 shouldShowOnTaskbar（cloak 兜底仍在）；
+ * - other：供跨桌面点击裁决的「另一桌面」候选——`IsOnCurrent === false` 或 SHELL cloak
+ *   （其他虚拟桌面），但**忽略 cloak 后**仍满足 shouldShowOnTaskbar 的全部合格判据
+ *   （工具窗/空标题/自家进程等照拒——垃圾窗不是激活目标）。
+ * 纯函数、零 IO：桌面事实由调用方注入（生产是公开 IVirtualDesktopManager 查询）。
+ */
+export function partitionTaskbarWindowsByDesktop<T extends TaskbarWindowInput & TaskbarWindowTraits & { hwnd: number }>(
+  windows: readonly T[],
+  ownExe: string,
+  isOnCurrent: (hwnd: number) => boolean | null,
+): { current: T[]; other: T[] } {
+  const current: T[] = []
+  const other: T[] = []
+  for (const w of windows) {
+    const onCurrent = isOnCurrent(w.hwnd)
+    if (onCurrent !== false && shouldShowOnTaskbar(w, ownExe)) {
+      current.push(w)
+      continue
+    }
+    if (onCurrent === false || w.cloakedShell) {
+      if (shouldShowOnTaskbar({ ...w, cloaked: false }, ownExe)) other.push(w)
+    }
+  }
+  return { current, other }
 }
 
 /** 仅运行应用的显示名：exe 基名去扩展 */
