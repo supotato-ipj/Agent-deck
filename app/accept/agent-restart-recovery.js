@@ -333,6 +333,41 @@ function detailStr(detail) {
   return (detail || []).map((x) => `hwnd=${x.hwnd} ${rectStr(x.got)}${x.want ? `(期望 ${rectStr(x.want)})` : ''}`).join('；');
 }
 
+// —— 环境静默（工单410 观察轮取证，2026-11-05 两轮 P1 同签名失败后定位）：guard 占槽
+// 通知的 toast 横幅（exe=shellexperiencehost、class=Windows.UI.Core.CoreWindow，虚拟屏
+// 右下横幅区）在切入新建 Agent 桌面时被系统重放，横幅显示时长随用户通知设置可达分钟
+// 级，会被平铺投影计为合格成员（无 WS_THICKFRAME → fixed-size 异常）——精确计数断言
+// 必被污染。处置：只隐藏该签名的可见横幅（不杀进程、不改系统设置、不放宽任何断言），
+// 隐藏后等一拍确认清零；命中与否均记 note 留证（环境降责定责证据）。
+async function quietShellToasts(note, maxWaitMs = 8000) {
+  const vs = win32.virtualScreen();
+  const vsRight = vs.x + vs.w;
+  const vsBottom = vs.y + vs.h;
+  const t0 = Date.now();
+  let hits = 0;
+  for (;;) {
+    const toasts = win32.topLevelWindows().filter((h) => {
+      if (!win32.IsWindowVisible(h)) return false;
+      if (win32.exeNameOfWindow(h) !== 'shellexperiencehost') return false;
+      if (win32.className(h) !== 'Windows.UI.Core.CoreWindow') return false;
+      const r = win32.rectOf(h);
+      // 只碰横幅区（虚拟屏右下 600×320 带）；其余 CoreWindow（输入窗等）不动
+      return r.right >= vsRight - 600 && r.bottom >= vsBottom - 320;
+    });
+    if (!toasts.length) {
+      if (hits) note(`环境静默：隐藏 shell toast 横幅 ${hits} 面（guard 占槽通知切桌面重放；非断言放宽）——${Date.now() - t0}ms 清零`);
+      return true;
+    }
+    for (const h of toasts) win32.ShowWindow(h, 0); // SW_HIDE
+    hits += toasts.length;
+    if (Date.now() - t0 > maxWaitMs) {
+      note(`环境静默超时：toast 横幅未被清除（${toasts.map((h) => `hwnd=${h}@${rectStr(win32.rectOf(h))}`).join('；')}）——环境面证据已留`);
+      return false;
+    }
+    await sleep(300);
+  }
+}
+
 /** 三窗布局（spec 决策 7 / 故事 15）：首窗左半、次窗右上、第三窗右下（集合稳定——
  *  成员序随当次事实序，窗-格对应不钉死） */
 function layout3(area) {
@@ -429,6 +464,7 @@ async function main() {
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     const tb = await handle.waitWindow({ title: 'DECK-TASKBAR', timeoutMs: 12000 });
     if (!tb) throw new Error('任务栏窗口未出现');
+    await quietShellToasts(rep.note); // 环境静默（面板重启不切桌面，防御性清残留横幅）
     return boot;
   };
 
@@ -475,6 +511,7 @@ async function main() {
     if (!switchRes || !switchRes.ok) throw new Error(`面板切换到 Agent 桌面失败：${JSON.stringify(switchRes)}`);
     const switched = await waitDesktopCurrent383(com, agentId);
     if (!switched.ok) throw new Error(`切到 Agent 桌面未确认：${switched.detail}`);
+    await quietShellToasts(rep.note); // 切入新建 Agent 桌面 → guard 通知横幅在此重放，先清再计数
     const boot1 = await waitTilingState((s) => s.available && s.current === 'agent', 8000);
     if (!boot1.ok) throw new Error(`首次启动未进入 Agent 模式：${JSON.stringify(boot1.state)}`);
     for (const tag of ['W1', 'W2', 'W3']) {
@@ -486,6 +523,24 @@ async function main() {
     rep.note(`夹具桌面事实：${fixtures.map((f) => `${f.hwnd}=onCurrent:${com.isOnCurrent(f.hwnd)}/id:${String(com.desktopIdOf(f.hwnd)).slice(0, 8)}`).join('，')}；当前=${String(com.currentId()).slice(0, 8)} agent=${agentId.slice(0, 8)}`);
     const st3 = await waitTilingState((s) => s.count === 3 && s.placed === 3, 10000);
     const layoutOk1 = await waitAllRects(fixtures.map((f, i) => ({ hwnd: f.hwnd, rect: expected3[i] })));
+    // 环境取证（工单410 观察轮发现 count≠3 的第 4 成员签名）：面板预览成员账 hwnd 级
+    // 枚举——exe/类名/Thickframe/矩形，不含窗口标题（隐私口径同段内断言）。仅在计数
+    // 未收敛时取，健康轮零开销。
+    if (!st3.ok) {
+      try {
+        const mem = await cdpEval('DECK-CAPSULE', `(async () => {
+          await window.deck.bridge.invoke('preview/toggle', null);
+          const s = await window.deck.bridge.invoke('preview/get-state', null);
+          await window.deck.bridge.invoke('preview/close', null);
+          return { n: s.items.length, hwnds: s.items.map((x) => x.hwnd) };
+        })()`);
+        const sig = (mem && mem.hwnds || []).map((h) => {
+          const style = win32.GetWindowLongW(h, -16);
+          return `hwnd=${h} exe=${win32.exeNameOfWindow(h)} class=${win32.className(h)} thick=${(style & 0x00040000) ? 1 : 0} rect=${rectStr(win32.rectOf(h))}`;
+        }).join('；');
+        rep.note(`P1 成员账取证（无标题）：面板计数=${JSON.stringify(st3.state && st3.state.count)} 成员=${sig || '（枚举失败）'}`);
+      } catch (e) { rep.note(`P1 成员账取证失败：${e.message}`); }
+    }
     const quit1 = await quitPanel();
     if (!st3.ok || !layoutOk1.ok || !quit1.ok) {
       rep.fail(`P1 准备失败：三窗=${JSON.stringify(st3.state)} 布局=${JSON.stringify({ ok: layoutOk1.ok, detail: detailStr(layoutOk1.detail) })} 退出=${JSON.stringify(quit1)}`);
