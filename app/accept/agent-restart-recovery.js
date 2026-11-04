@@ -237,6 +237,7 @@ async function waitTilingState(pred, timeoutMs = 10000) {
   const t0 = Date.now();
   let last = null;
   for (;;) {
+    if (quietNote) sweepShellToasts(quietNote); // 环境静默：计数等待轮内清污（重放时机浮动）
     try { last = await readTilingState(); } catch (err) { last = { error: String((err && err.message) || err) }; }
     if (last && pred(last)) return { ok: true, ms: Date.now() - t0, state: last };
     if (Date.now() - t0 > timeoutMs) return { ok: false, ms: Date.now() - t0, state: last };
@@ -333,35 +334,38 @@ function detailStr(detail) {
   return (detail || []).map((x) => `hwnd=${x.hwnd} ${rectStr(x.got)}${x.want ? `(期望 ${rectStr(x.want)})` : ''}`).join('；');
 }
 
-// —— 环境静默（工单410 观察轮取证，2026-11-05 两轮 P1 同签名失败后定位）：guard 占槽
-// 通知的 toast 横幅（exe=shellexperiencehost、class=Windows.UI.Core.CoreWindow，虚拟屏
-// 右下横幅区）在切入新建 Agent 桌面时被系统重放，横幅显示时长随用户通知设置可达分钟
-// 级，会被平铺投影计为合格成员（无 WS_THICKFRAME → fixed-size 异常）——精确计数断言
-// 必被污染。处置：只隐藏该签名的可见横幅（不杀进程、不改系统设置、不放宽任何断言），
-// 隐藏后等一拍确认清零；命中与否均记 note 留证（环境降责定责证据）。
-async function quietShellToasts(note, maxWaitMs = 8000) {
+// —— 环境静默（工单410 真机轮取证，2026-11-05 三轮同签名）：guard 占槽通知的 toast
+// 横幅（exe=shellexperiencehost、class=Windows.UI.Core.CoreWindow，虚拟屏右下横幅区）
+// 在切入新建 Agent 桌面时被系统重放，且重放时机随系统通知状态浮动（实测可在切换后
+// ~60s 才现面），横幅显示时长随用户通知设置可达分钟级——被平铺投影计为合格成员（无
+// WS_THICKFRAME → fixed-size 异常），count===n 精确断言必被污染。处置：只隐藏该签名
+// 的可见横幅（不杀进程、不改系统设置、不放宽任何断言）；切换点整段清一次 + 计数等待
+// 轮内每拍单扫（重放时机浮动，切换点单次清不清得住）；命中与否均记 note 留证。
+let quietNote = null; // main() 置入：(m) => rep.note(m)
+function sweepShellToasts(note) {
   const vs = win32.virtualScreen();
   const vsRight = vs.x + vs.w;
   const vsBottom = vs.y + vs.h;
+  const toasts = win32.topLevelWindows().filter((h) => {
+    if (!win32.IsWindowVisible(h)) return false;
+    if (win32.exeNameOfWindow(h) !== 'shellexperiencehost') return false;
+    if (win32.className(h) !== 'Windows.UI.Core.CoreWindow') return false;
+    const r = win32.rectOf(h);
+    // 只碰横幅区（虚拟屏右下 600×320 带）；其余 CoreWindow（输入窗等）不动
+    return r.right >= vsRight - 600 && r.bottom >= vsBottom - 320;
+  });
+  for (const h of toasts) win32.ShowWindow(h, 0); // SW_HIDE
+  if (toasts.length && note) {
+    note(`环境静默：隐藏 shell toast 横幅 ${toasts.length} 面（guard 占槽通知切桌面重放；非断言放宽）`);
+  }
+  return toasts.length;
+}
+async function quietShellToasts(note, maxWaitMs = 8000) {
   const t0 = Date.now();
-  let hits = 0;
   for (;;) {
-    const toasts = win32.topLevelWindows().filter((h) => {
-      if (!win32.IsWindowVisible(h)) return false;
-      if (win32.exeNameOfWindow(h) !== 'shellexperiencehost') return false;
-      if (win32.className(h) !== 'Windows.UI.Core.CoreWindow') return false;
-      const r = win32.rectOf(h);
-      // 只碰横幅区（虚拟屏右下 600×320 带）；其余 CoreWindow（输入窗等）不动
-      return r.right >= vsRight - 600 && r.bottom >= vsBottom - 320;
-    });
-    if (!toasts.length) {
-      if (hits) note(`环境静默：隐藏 shell toast 横幅 ${hits} 面（guard 占槽通知切桌面重放；非断言放宽）——${Date.now() - t0}ms 清零`);
-      return true;
-    }
-    for (const h of toasts) win32.ShowWindow(h, 0); // SW_HIDE
-    hits += toasts.length;
+    if (!sweepShellToasts(note)) return true;
     if (Date.now() - t0 > maxWaitMs) {
-      note(`环境静默超时：toast 横幅未被清除（${toasts.map((h) => `hwnd=${h}@${rectStr(win32.rectOf(h))}`).join('；')}）——环境面证据已留`);
+      note('环境静默超时：toast 横幅未被清除（环境面证据已留）');
       return false;
     }
     await sleep(300);
@@ -379,6 +383,9 @@ function layout3(area) {
     { left: mid, top, right: area.right, bottom: area.bottom },
   ];
 }
+
+/** P1 注入的浮动几何（故障注入构造合法浮动条目；P3 重建断言对照「无窗停留」） */
+const FLOAT_INJECT = { left: 360, top: 280, right: 1060, bottom: 880 };
 
 /** 四窗布局（工单410 story 19 重建续行）：三窗树上第 4 成员裂变队首叶 → 四象限 */
 function layout4(area) {
@@ -441,6 +448,7 @@ function layoutKeys(doc) {
 // ————————————————————————————————————————————————————————————
 async function main() {
   const rep = new Report('383-agent-restart-recovery');
+  quietNote = (m) => rep.note(m);
   const fixtures = [];
   let base = null;
   let normalId = null;
@@ -464,7 +472,7 @@ async function main() {
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     const tb = await handle.waitWindow({ title: 'DECK-TASKBAR', timeoutMs: 12000 });
     if (!tb) throw new Error('任务栏窗口未出现');
-    await quietShellToasts(rep.note); // 环境静默（面板重启不切桌面，防御性清残留横幅）
+    await quietShellToasts((m) => rep.note(m)); // 环境静默（面板重启不切桌面，防御性清残留横幅）
     return boot;
   };
 
@@ -511,7 +519,7 @@ async function main() {
     if (!switchRes || !switchRes.ok) throw new Error(`面板切换到 Agent 桌面失败：${JSON.stringify(switchRes)}`);
     const switched = await waitDesktopCurrent383(com, agentId);
     if (!switched.ok) throw new Error(`切到 Agent 桌面未确认：${switched.detail}`);
-    await quietShellToasts(rep.note); // 切入新建 Agent 桌面 → guard 通知横幅在此重放，先清再计数
+    await quietShellToasts((m) => rep.note(m)); // 切入新建 Agent 桌面 → guard 通知横幅在此重放，先清再计数
     const boot1 = await waitTilingState((s) => s.available && s.current === 'agent', 8000);
     if (!boot1.ok) throw new Error(`首次启动未进入 Agent 模式：${JSON.stringify(boot1.state)}`);
     for (const tag of ['W1', 'W2', 'W3']) {
@@ -629,7 +637,7 @@ async function main() {
       // 序重建默认平铺（成员序随事实序，窗-格对应不钉死——集合断言）
       const entries3 = fixtures.map((f) => ({ hwnd: f.hwnd, rect: win32.rectOf(f.hwnd) }));
       const setOk3 = rectsMatchSet(entries3, layout3(AREA));
-      const floatKept = entries3.some((e) => rectEq(e.rect, FLOAT));
+      const floatKept = entries3.some((e) => rectEq(e.rect, FLOAT_INJECT));
       const st3 = rebuilt.ok ? rebuilt.state : await readTilingState();
       // 面板运行期原生任务栏由自绘条带接管（既有设计），此处验「条带由守护链重建」；
       // 原生栏可见性在面板退出后由既有还原链恢复（P5 断言）。

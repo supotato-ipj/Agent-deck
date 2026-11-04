@@ -419,6 +419,7 @@ async function waitCapsuleCount(expected, timeoutMs = 6000) {
   const t0 = Date.now();
   let last = null;
   for (;;) {
+    if (quietNote) sweepShellToasts(quietNote); // 环境静默：计数等待轮内清污（重放时机浮动）
     try { last = await readCapsuleCount(); } catch { last = null; }
     if (last === expected) return { ok: true, ms: Date.now() - t0 };
     if (Date.now() - t0 > timeoutMs) return { ok: false, ms: Date.now() - t0, count: last };
@@ -441,6 +442,7 @@ async function waitTilingState(pred, timeoutMs = 8000) {
   const t0 = Date.now();
   let last = null;
   for (;;) {
+    if (quietNote) sweepShellToasts(quietNote); // 环境静默：计数等待轮内清污（重放时机浮动）
     try { last = await readTilingState(); } catch (err) { last = { error: String((err && err.message) || err) }; }
     if (last && pred(last)) return { ok: true, ms: Date.now() - t0, state: last };
     if (Date.now() - t0 > timeoutMs) return { ok: false, ms: Date.now() - t0, state: last };
@@ -472,34 +474,38 @@ function detailStr(detail) {
   return (detail || []).map((x) => `hwnd=${x.hwnd} ${rectStr(x.got)}${x.want ? `(期望 ${rectStr(x.want)})` : ''}`).join('；');
 }
 
-// —— 环境静默（工单410 真机轮取证）：guard 占槽通知的 toast 横幅（exe=shellexperiencehost、
-// class=Windows.UI.Core.CoreWindow，虚拟屏右下横幅区）在切入新建 Agent 桌面时被系统重放，
-// 横幅显示时长随用户通知设置可达分钟级，会被平铺投影计为合格成员（无 WS_THICKFRAME →
-// fixed-size 异常）——count===n 精确断言必被污染。处置：只隐藏该签名的可见横幅（不杀
-// 进程、不改系统设置、不放宽任何断言），隐藏后等一拍确认清零；命中与否均记 note 留证。
-async function quietShellToasts(note, maxWaitMs = 8000) {
+// —— 环境静默（工单410 真机轮取证，2026-11-05 三轮同签名）：guard 占槽通知的 toast
+// 横幅（exe=shellexperiencehost、class=Windows.UI.Core.CoreWindow，虚拟屏右下横幅区）
+// 在切入新建 Agent 桌面时被系统重放，且重放时机随系统通知状态浮动（实测可在切换后
+// ~60s 才现面），横幅显示时长随用户通知设置可达分钟级——被平铺投影计为合格成员（无
+// WS_THICKFRAME → fixed-size 异常），count===n 精确断言必被污染。处置：只隐藏该签名
+// 的可见横幅（不杀进程、不改系统设置、不放宽任何断言）；切换点整段清一次 + 计数等待
+// 轮内每拍单扫（重放时机浮动，切换点单次清不清得住）；命中与否均记 note 留证。
+let quietNote = null; // main() 置入：(m) => rep.note(m)
+function sweepShellToasts(note) {
   const vs = win32.virtualScreen();
   const vsRight = vs.x + vs.w;
   const vsBottom = vs.y + vs.h;
+  const toasts = win32.topLevelWindows().filter((h) => {
+    if (!win32.IsWindowVisible(h)) return false;
+    if (win32.exeNameOfWindow(h) !== 'shellexperiencehost') return false;
+    if (win32.className(h) !== 'Windows.UI.Core.CoreWindow') return false;
+    const r = win32.rectOf(h);
+    // 只碰横幅区（虚拟屏右下 600×320 带）；其余 CoreWindow（输入窗等）不动
+    return r.right >= vsRight - 600 && r.bottom >= vsBottom - 320;
+  });
+  for (const h of toasts) win32.ShowWindow(h, 0); // SW_HIDE
+  if (toasts.length && note) {
+    note(`环境静默：隐藏 shell toast 横幅 ${toasts.length} 面（guard 占槽通知切桌面重放；非断言放宽）`);
+  }
+  return toasts.length;
+}
+async function quietShellToasts(note, maxWaitMs = 8000) {
   const t0 = Date.now();
-  let hits = 0;
   for (;;) {
-    const toasts = win32.topLevelWindows().filter((h) => {
-      if (!win32.IsWindowVisible(h)) return false;
-      if (win32.exeNameOfWindow(h) !== 'shellexperiencehost') return false;
-      if (win32.className(h) !== 'Windows.UI.Core.CoreWindow') return false;
-      const r = win32.rectOf(h);
-      // 只碰横幅区（虚拟屏右下 600×320 带）；其余 CoreWindow（输入窗等）不动
-      return r.right >= vsRight - 600 && r.bottom >= vsBottom - 320;
-    });
-    if (!toasts.length) {
-      if (hits) note(`环境静默：隐藏 shell toast 横幅 ${hits} 面（guard 占槽通知切桌面重放；非断言放宽）——${Date.now() - t0}ms 清零`);
-      return true;
-    }
-    for (const h of toasts) win32.ShowWindow(h, 0); // SW_HIDE
-    hits += toasts.length;
+    if (!sweepShellToasts(note)) return true;
     if (Date.now() - t0 > maxWaitMs) {
-      note(`环境静默超时：toast 横幅未被清除（${toasts.map((h) => `hwnd=${h}@${rectStr(win32.rectOf(h))}`).join('；')}）——环境面证据已留`);
+      note('环境静默超时：toast 横幅未被清除（环境面证据已留）');
       return false;
     }
     await sleep(300);
@@ -547,6 +553,7 @@ function layout6(area) {
 // ————————————————————————————————————————————————————————————
 async function main() {
   const rep = new Report('377-agent-tiling-lifecycle');
+  quietNote = (m) => rep.note(m);
   const fixtures = []; // { pid, hwnd } —— P9 收尾逐进程清场
   const tiles = []; // 成员窗（加入序——事件序列的唯一依据）
   let fixtureSeq = 0;
@@ -645,7 +652,7 @@ async function main() {
         conf = await waitDesktopCurrent376(com, agentId, 4000);
       }
       if (!conf.ok) throw new Error('切换 Agent 未确认');
-      await quietShellToasts(rep.note); // 切入新建 Agent 桌面 → guard 通知横幅在此重放，先清再计数
+      await quietShellToasts((m) => rep.note(m)); // 切入新建 Agent 桌面 → guard 通知横幅在此重放，先清再计数
       await spawnTile();
       const [left, right] = splitH377(AREA);
       const full = await waitAllRects([{ hwnd: tiles[0], rect: AREA }], 10000);
@@ -833,7 +840,7 @@ async function main() {
     rep.beginSegment('P10');
     try {
       if (tiles.length !== 5) throw new Error(`P8 未达五窗（当前 ${tiles.length}）`);
-      await quietShellToasts(rep.note); // 防御性清横幅（P10 计数断言密集：count=9/placed=8/overflow=1）
+      await quietShellToasts((m) => rep.note(m)); // 防御性清横幅（P10 计数断言密集：count=9/placed=8/overflow=1）
       const REVEAL = Math.round(32 * (scale || 1));
       const AREA_W = AREA.right - AREA.left;
       const COL_W = Math.min(AREA_W, Math.max(Math.round(320 * (scale || 1)), Math.floor(AREA_W / 2)));
@@ -944,7 +951,7 @@ async function main() {
       win32.clickPhys(ptN11.x, ptN11.y, 'left');
       const backN11 = await waitDesktopCurrent376(com, normalId, 3000);
       if (!backN11.ok) throw new Error(`P11 前置失守：未切回普通桌面（${backN11.detail}）`);
-      await quietShellToasts(rep.note); // 切回普通桌面同样触发横幅重放面，防御性清一次
+      await quietShellToasts((m) => rep.note(m)); // 切回普通桌面同样触发横幅重放面，防御性清一次
       for (const f of fixtures) {
         if (f.pid) spawnSync('taskkill', ['/PID', String(f.pid), '/T', '/F'], { stdio: 'ignore' });
       }
@@ -1088,7 +1095,7 @@ async function main() {
           win32.clickPhys(ptAgent11.x, ptAgent11.y, 'left');
           const confA11 = await waitDesktopCurrent376(com, agentId, 3000);
           if (!confA11.ok) throw new Error(`P11④ 切换失守：未切到 Agent 桌面（${confA11.detail}）`);
-          await quietShellToasts(rep.note); // 切入 Agent 触发横幅重放面，先清再计数（count=2 精确断言）
+          await quietShellToasts((m) => rep.note(m)); // 切入 Agent 触发横幅重放面，先清再计数（count=2 精确断言）
           const st11 = await waitTilingState((x) => x.count === 2 && x.placed === 2, 10000);
           const mid11 = Math.round((AREA.left + AREA.right) / 2);
           const rect4 = win32.rectOf(r4.w.hwnd);
