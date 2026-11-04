@@ -12,6 +12,7 @@
 // 集合逐项核验。任何一处引用越界/重复/互斥破坏都判 invalid——恢复层停止自动改窗，
 // 不猜、不修补、不无限重试。
 import type { TileRect, TilingNode, TilingTree } from './tiling-plan'
+import { MAX_PANES } from './tiling-plan'
 import { normalizeExe } from './tile-scope'
 import type { TileWindowFacts } from './tile-scope'
 
@@ -325,14 +326,31 @@ export function planRestore(
     keptHwnd.add(m.hwnd)
     order.push(identityOf(m))
   }
-  const pruned = doc.tree
+  const pruned0 = doc.tree
     ? remapShape(pruneShape(doc.tree, new Set(keptOld)), oldToNew)
     : null
+  // 工单410 旧布局向新上限归一：合法但超过屏内容量上限（MAX_PANES=8）的旧模型，按持久
+  // 成员顺序保留前段屏内成员（兄弟上移吸收被剪叶），其余按成员序转入屏外滚动带（追加在
+  // 既有带成员之后——已入带者保持原带序，归一是迁移时刻的进带事件）。模型损坏不按可恢复
+  // 模型处理（invalid 文档在 parse 层已拒绝），此处只处理「合法但超限」。
+  let pruned = pruned0
+  let displaced: number[] = []
+  if (pruned) {
+    const leafRefs: number[] = []
+    shapeLeaves(pruned, leafRefs)
+    if (leafRefs.length > MAX_PANES) {
+      const ordered = [...leafRefs].sort((a, b) => a - b) // 新下标升序 = 持久成员序
+      const kept = new Set(ordered.slice(0, MAX_PANES))
+      displaced = ordered.slice(MAX_PANES)
+      pruned = pruneShape(pruned, kept)
+    }
+  }
   const queue: number[] = []
   const queueSeen = new Set<number>()
+  const displacedSet = new Set(displaced)
   for (const oldRef of doc.queue) {
     const ref = oldToNew.get(oldRef)
-    if (ref === undefined || queueSeen.has(ref)) continue
+    if (ref === undefined || queueSeen.has(ref) || displacedSet.has(ref)) continue
     queueSeen.add(ref)
     queue.push(ref)
   }
@@ -357,6 +375,12 @@ export function planRestore(
   for (const oldRef of doc.band) {
     const ref = oldToNew.get(oldRef)
     if (ref === undefined || bandSeen.has(ref) || floatingRefs.has(ref)) continue
+    bandSeen.add(ref)
+    band.push(ref)
+  }
+  // 工单410 归一转入带：树成员不与带/浮动互斥破坏（同源账本），直接按成员序追加
+  for (const ref of displaced) {
+    if (bandSeen.has(ref) || floatingRefs.has(ref)) continue
     bandSeen.add(ref)
     band.push(ref)
   }
