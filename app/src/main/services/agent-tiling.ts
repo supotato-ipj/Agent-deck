@@ -20,6 +20,7 @@ import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import type { AgentTilingState, DesktopMode } from '../../shared/contract'
 import {
+  MAX_PANES,
   MIN_PANE_H,
   MIN_PANE_W,
   bandColumnRects,
@@ -734,7 +735,8 @@ export class AgentTilingService extends Service {
       !this.tree ||
       !rectEq(this.tree.area, treeArea) ||
       this.tree.minPaneW !== minPane.w ||
-      this.tree.minPaneH !== minPane.h
+      this.tree.minPaneH !== minPane.h ||
+      this.tree.maxPanes !== MAX_PANES
     ) {
       this.tree = createTree(treeArea, { minPaneW: minPane.w, minPaneH: minPane.h })
     }

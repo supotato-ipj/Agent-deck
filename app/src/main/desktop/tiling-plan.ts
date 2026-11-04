@@ -21,9 +21,10 @@
 //   - treeRemove：关闭/移出/异常退出 → 兄弟子树整体上移继承父窗格（深度全体 -1、
 //     矩形按既有轴重展）——兄弟吸收空位，其余窗格不动；
 //   - 最小化不产生事件：成员留在树里，窗格与顺序原样保留（story 19）；
-//   - 容量溢出（spec 决策 12）：裂变会使子格低于最小窗格（约 320×240 逻辑像素）时
-//     不落格、记入 tree.overflow（仍计数与预览）；溢出成员留在成员序里，编排层每拍
-//     按序重试插入——空间一释放即按序补入（story 29）。
+//   - 容量溢出（spec 决策 12 + 工单410 双约束）：屏内成员已达上限 8（MAX_PANES）或
+//     裂变会使子格低于最小窗格（约 320×240 逻辑像素）时，不落格、记入 tree.overflow
+//     （仍计数与预览）；溢出成员留在成员序里，编排层每拍按序重试插入——空间一释放
+//     即按序补入（story 29；上限态下关窗补入同样按成员序，工单410 story 9）。
 // planTiling 保留为「成员序一次性建树」的薄包装（376 离线矩阵的入口，名义路径输出
 // 与 376 实现逐字节一致）；编排层持有 TilingTree 实例做增量生命周期。
 
@@ -52,6 +53,11 @@ export interface TilingPlan {
 /** 最小窗格（物理 px；spec 决策 12「约 320×240 逻辑像素」，本机 scale=1 等值） */
 export const MIN_PANE_W = 320
 export const MIN_PANE_H = 240
+
+/** 屏内容量上限（工单410，spec #410 决策「屏内平衡二叉分裂最多容纳 8 个平铺窗格」）：
+ *  已有 8 个屏内成员时新成员直接进入屏外滚动带，不再尝试裂变。8 是上限不是对小屏的
+ *  强制分裂数量——小屏提前入带仍由最小窗格约束承接（容量双约束，GLOSSARY「容量溢出」）。 */
+export const MAX_PANES = 8
 
 /** 屏外列露边（逻辑 px；spec #403 用户故事 16「约 32 逻辑像素」，GLOSSARY「屏外滚动带」；
  *  物理值经 bandRevealPx 按主屏缩放换算） */
@@ -89,6 +95,8 @@ export interface TilingTree {
   area: TileRect
   minPaneW: number
   minPaneH: number
+  /** 屏内容量上限（工单410；建树时定死，显示参数变化重建时随 opts 重算） */
+  maxPanes: number
   root: TilingNode
   /** 叶窗格队列（分裂队列）：首裂后全部叶都在队（近似 BFS 序——队首即最大叶） */
   queue: TilingLeaf[]
@@ -99,6 +107,8 @@ export interface TilingTree {
 export interface TreeOpts {
   minPaneW?: number
   minPaneH?: number
+  /** 屏内容量上限（缺省 MAX_PANES=8；纯函数缝可注入小值验证双约束序） */
+  maxPanes?: number
 }
 
 /** 裂变轴：深度偶数 = 左右（'h'），深度奇数 = 上下（'v'）——随深度交替 */
@@ -132,6 +142,7 @@ export function createTree(area: TileRect, opts: TreeOpts = {}): TilingTree {
     area: { ...area },
     minPaneW: opts.minPaneW ?? MIN_PANE_W,
     minPaneH: opts.minPaneH ?? MIN_PANE_H,
+    maxPanes: opts.maxPanes ?? MAX_PANES,
     root: { kind: 'leaf', id: null, rect: { ...area }, depth: 0, parent: null },
     queue: [],
     overflow: [],
@@ -243,7 +254,9 @@ function replaceChild(tree: TilingTree, oldNode: TilingNode, newNode: TilingNode
  * 裂变插入（新窗加入 / 溢出补入，同一入口——补入即「按最新窗口加入」的裂变语义）：
  * 取叶窗格队列中**第一个可裂叶**（队列近似 BFS，名义路径=队首），按深度交替轴切开，
  * 既有内容留首子格（左/上）、新窗落次子格（右/下），双子格追加队尾（首裂 seeding
- * [新格, 旧格] = spec 决策 7 的 [B, A]）。无任何可裂叶 → 容量溢出（不占格）。
+ * [新格, 旧格] = spec 决策 7 的 [B, A]）。容量双约束（工单410）：屏内成员已达上限
+ * （maxPanes=8，先判——上限不随屏幕尺寸放宽）或任一裂变会使子格低于最小窗格 →
+ * 容量溢出（不占格、不尝试裂变）。
  * 幂等：已落格成员直接返回 placed（不重复裂变）。
  */
 export function treeInsert(tree: TilingTree, id: string): 'placed' | 'overflow' {
@@ -255,6 +268,13 @@ export function treeInsert(tree: TilingTree, id: string): 'placed' | 'overflow' 
   if (tree.root.kind === 'leaf' && tree.root.id === null) {
     tree.root.id = id
     return 'placed'
+  }
+
+  // 屏内容量上限（工单410，spec #410「已有 8 个屏内成员时，新成员直接进入有序屏外
+  // 集合，不再尝试裂变」）：先于最小窗格判据——上限适用于所有入口，不随屏幕尺寸放宽
+  if (treePlacedIds(tree).size >= tree.maxPanes) {
+    if (!tree.overflow.includes(id)) tree.overflow.push(id)
+    return 'overflow'
   }
 
   // 候选叶窗格：首裂前队列空、根是唯一叶（被窗 1 占据）；此后全部叶在队列里
