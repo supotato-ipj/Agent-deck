@@ -2061,7 +2061,7 @@
       "kind": null,
       "budgetSeconds": 120,
       "lastMeasuredSeconds": 110,
-      "lastMeasuredAt": "2026-11-04",
+      "lastMeasuredAt": "2026-11-05",
       "areas": [
         "desktop"
       ],
@@ -2149,7 +2149,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 20
+          "estSeconds": 8
         },
         {
           "seg": "P11",
@@ -2458,8 +2458,8 @@
       "cdpPort": 9238,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 80,
-      "lastMeasuredAt": "2026-11-04",
+      "lastMeasuredSeconds": 90,
+      "lastMeasuredAt": "2026-11-05",
       "areas": [
         "desktop",
         "panel.core"
@@ -2494,7 +2494,7 @@
             "event-evidence",
             "panel-alive"
           ],
-          "estSeconds": 16
+          "estSeconds": 20
         },
         {
           "seg": "P4",
