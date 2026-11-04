@@ -1018,11 +1018,15 @@ export class AgentTilingService extends Service {
    * 恢复一拍（纯编排，IO 经 deps 注入）：首激活读一次持久文档；之后每拍重试暂停态。
    * 返回 false = 本拍停止自动改窗（安全态/主屏暂不可用）——调用方零写集、原地保留模型。
    *
-   * 判据顺序（安全态即停止，不猜、不修补）：
+   * 判据顺序（安全态即停止，不猜、不修补；工单410 升版）：
    *  1. 持久文档解析/结构不一致 → model；
-   *  2. 上次会话未干净退出（crash 标记）→ crash（不应用旧布局、不强制搬窗）；
-   *  3. 存储桌面 ID 与当前配对 Agent 桌面不一致 → desktop-id（不猜接管未知桌面）；
-   *  4. 同 hwnd 的 exe/pid 不符 → window-identity；
+   *  2. 存储桌面 ID 与当前配对 Agent 桌面不一致 → desktop-id（不猜接管未知桌面——
+   *     重建规则同样不接管，story 22）；
+   *  3. 上次会话未干净退出（clean=false）→ 异常重建（recovery=rebuilt）：旧成员顺序、
+   *     树形、队列、屏外顺序、锚窗和浮动记录全部不应用，平铺不停用——按当前 Agent 桌面
+   *     合格窗口及当次事件顺序重建新成员序（正常屏内/屏外规划与实际几何回读收敛）；
+   *  4. 干净退出 → pendingRestore 按持久模型恢复（同 hwnd exe/pid 不符 → window-identity；
+   *     异常重建不采用旧窗口身份，不做此判定——不因旧句柄消失而阻塞当前窗口）；
    *  5. 主屏暂不可用 → paused（pendingRestore 保留，恢复后 reconciliation）。
    */
   private reconcileRecovery(
@@ -1053,14 +1057,17 @@ export class AgentTilingService extends Service {
         return true
       }
       const doc = parsed.doc
-      if (doc.clean !== true) {
-        this.enterSafe('crash')
-        return false
-      }
       const desktopId = this.deps.agentDesktopId()
       if (!desktopId || doc.desktopId !== desktopId) {
         this.enterSafe('desktop-id')
         return false
+      }
+      if (doc.clean !== true) {
+        // 异常重建（工单410）：只废弃旧布局内容，不进入永久停写态。旧成员顺序/树形/
+        // 队列/屏外顺序/锚窗/浮动记录全部不应用（pendingRestore 不置入），本拍起按
+        // 正常 pass 流程以当前合格窗口重建（新成员首拍落位不进授权判定，无弹框）。
+        this.setRecovery('rebuilt', null)
+        return true
       }
       this.pendingRestore = doc
     }

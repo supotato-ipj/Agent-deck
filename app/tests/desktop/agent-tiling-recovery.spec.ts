@@ -242,25 +242,100 @@ describe('正常重启恢复（工单383 验收①）', () => {
   })
 })
 
-describe('安全态（工单383 验收④：不猜、不无限重试、停止改窗）', () => {
-  it('崩溃标记（clean=false）：不应用旧布局、零窗口写入', async () => {
+// ————————————————————————————————————————————————————————————
+// 工单410（spec #410 决策「异常退出只废弃旧布局内容」「异常后从当前事实重建」）：
+// clean=false 不再进入永久 crash 停写态——布局文档可解析且桌面配对仍可信时，旧成员顺序、
+// 树形、队列、屏外顺序、锚窗和浮动记录全部不应用，以当前 Agent 桌面主屏合格窗口及当次
+// 事件顺序建立新成员序（正常屏内/屏外规划）；恢复投影如实区分干净恢复（restored）与
+// 异常重建（rebuilt）。其他安全闸门不放宽：模型不一致仍 model、桌面 ID 不一致仍
+// desktop-id；异常重建不采用旧窗口身份，不因旧句柄消失而阻塞（无 window-identity 判定）。
+// ————————————————————————————————————————————————————————————
+
+describe('异常重启重建（工单410）', () => {
+  // 三窗默认平铺（成员序 [1,2,3]）：w1 左半、w2 右上、w3 右下（旧常量 RIGHT_TOP 是
+  // 两叶恢复布局的「右半满高」，与此处三叶布局不同名不同值）
+  const PANE_W2: TileRect = { left: 1280, top: 0, right: 2560, bottom: 696 }
+  const PANE_W3: TileRect = { left: 1280, top: 696, right: 2560, bottom: 1392 }
+
+  it('clean=false：旧布局（树/浮动/带/锚）不应用，当前合格窗口重建默认平铺', async () => {
+    const h = makeHarness({
+      // 崩溃前模型：w1 左半、w2 右半（w3 浮动 @FLOAT）——重建后必须全部不成立
+      doc: layoutDoc({ clean: false, floating: [{ ref: 2, rect: FLOAT }] }),
+      windows: [1, 2, 3],
+    })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      // 恢复投影如实表达：rebuilt ≠ restored ≠ safe
+      expect(h.svc.recoveryForTest()).toEqual({ status: 'rebuilt', reason: null })
+      expect(h.svc.safeForTest()).toBe(false)
+      // 当前三窗按当次事实序重建默认平铺（w1 左半 / w2 右上 / w3 右下）
+      expect(h.windows.get(1)!.rect).toEqual(LEFT)
+      expect(h.windows.get(2)!.rect).toEqual(PANE_W2)
+      expect(h.windows.get(3)!.rect).toEqual(PANE_W3)
+      // 旧浮动记录不应用：w3 不在浮动账、几何不是 FLOAT
+      expect(h.svc.floatingRectForTest(3)).toBeNull()
+      // 恢复写窗不是用户操作：不弹授权
+      expect(h.prompts).toEqual([])
+      expect(h.svc.state()).toMatchObject({
+        count: 3, placed: 3, overflow: 0, floating: 0, prompting: 0, authorized: 0,
+        recovery: 'rebuilt', recoveryReason: null,
+      })
+      // 不永久停用平铺：恢复平铺动作可用（safe 态下 ok:false 的旧语义不再出现）
+      const restored = await h.svc.restoreTiling()
+      expect(restored.ok).toBe(true)
+    } finally { h.cleanup() }
+  })
+
+  it('重建后新窗继续受管（story 19）：第 4 窗按既定裂变落格，不是一次性恢复', async () => {
+    const h = makeHarness({
+      doc: layoutDoc({ clean: false }),
+      windows: [1, 2, 3],
+    })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      expect(h.svc.recoveryForTest().status).toBe('rebuilt')
+      h.windows.set(4, { rect: { left: 60, top: 70, right: 660, bottom: 520 }, iconic: false, pid: 1004, exe: 'C:\\apps\\w4.exe' })
+      await h.svc.runPass()
+      await settle(60)
+      // 成员序 [1,2,3,4]：第 4 窗裂变窗 1 窗格（队首）→ 左列上下分
+      expect(h.windows.get(4)!.rect).toEqual({ left: 0, top: 696, right: 1280, bottom: 1392 })
+      expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1280, bottom: 696 })
+      expect(h.svc.state()).toMatchObject({ count: 4, placed: 4, overflow: 0, recovery: 'rebuilt' })
+    } finally { h.cleanup() }
+  })
+
+  it('clean=false 但桌面配对不可信：仍安全态 desktop-id（重建不接管未知桌面，story 22）', async () => {
+    const h = makeHarness({
+      doc: layoutDoc({ clean: false, desktopId: OTHER }),
+      windows: [1, 2, 3],
+    })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      expect(h.svc.recoveryForTest()).toEqual({ status: 'safe', reason: 'desktop-id' })
+      expect(h.writes).toEqual([])
+    } finally { h.cleanup() }
+  })
+
+  it('重建落盘：新成员序成为持久文档（后续干净重启按重建后模型恢复）', async () => {
     const h = makeHarness({
       doc: layoutDoc({ clean: false, floating: [{ ref: 2, rect: FLOAT }] }),
       windows: [1, 2, 3],
     })
     try {
-      const before = new Map([...h.windows].map(([k, v]) => [k, { ...v.rect }]))
       await h.svc.runPass()
       await settle(60)
-      expect(h.svc.recoveryForTest()).toEqual({ status: 'safe', reason: 'crash' })
-      expect(h.svc.safeForTest()).toBe(true)
-      expect(h.writes).toEqual([])
-      for (const [hwnd, rect] of before) expect(h.windows.get(hwnd)!.rect).toEqual(rect)
-      const restored = await h.svc.restoreTiling()
-      expect(restored.ok).toBe(false)
+      const doc = readDoc(h)
+      expect(doc.clean).toBe(false) // 运行中仍是崩溃判据口径
+      expect(doc.order.map((w) => w.hwnd)).toEqual([1, 2, 3])
+      expect(doc.floating).toEqual([]) // 旧浮动记录不随重建沉淀
     } finally { h.cleanup() }
   })
+})
 
+describe('安全态（工单383 验收④：不猜、不无限重试、停止改窗）', () => {
   it('桌面 ID 不一致：安全态 desktop-id，零写入', async () => {
     const h = makeHarness({ doc: layoutDoc({ desktopId: OTHER }), windows: [1, 2, 3] })
     try {
@@ -297,7 +372,10 @@ describe('安全态（工单383 验收④：不猜、不无限重试、停止改
   })
 
   it('安全态退出：干净标记覆盖为 true 且模型清空（不把不可信旧布局再喂给恢复路径）', async () => {
-    const h = makeHarness({ doc: layoutDoc({ clean: false }), windows: [1, 2, 3] })
+    const bad = layoutDoc({
+      tree: { kind: 'split', axis: 'h', first: { kind: 'leaf', ref: 9 }, second: { kind: 'leaf', ref: 1 } },
+    })
+    const h = makeHarness({ raw: serializeLayout(bad), windows: [1, 2, 3] })
     try {
       await h.svc.runPass()
       await settle(40)
