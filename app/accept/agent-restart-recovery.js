@@ -1,14 +1,17 @@
 'use strict';
-// 工单383 Agent 桌面重启恢复验收（spec #369 决策 13/16；工单375/376/377 真机链的续段）：
+// 工单383 Agent 桌面重启恢复验收（spec #369 决策 13/16；工单375/376/377 真机链的续段；
+// P3 崩溃段断言随工单410 升版——异常退出不再进入永久停写态，改为按当前事实重建）：
 // 控制器以 --accept-agent-restart-recovery 身份运行，拉起 --panel-accept 面板子进程。
 //   P1 干净重启恢复：真实三窗平铺 → app/quit 干净退出 → 重启后顺序/平铺树/浮动几何
 //      恢复（浮动几何用持久文档故障注入构造合法浮动条目）、授权计数全 0、配对恢复；
 //   P2 隐私断言：持久文档不含窗口标题/缩略图/手动授权字段（白名单键）；事件日志不含
 //      夹具标题；
-//   P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash，夹具窗
-//      矩形逐像素不变；原生任务栏/条带由既有守护链恢复；
+//   P3 异常重启重建（工单410）：强杀面板（盘上 clean=false）→ 重启不再进入安全态停写
+//      （recovery=rebuilt），旧布局（树形/浮动几何）不应用，当前合格窗口按当次事实重建
+//      平铺（三窗互斥铺满平铺区、无恢复授权弹窗）；重建后新窗仍受管（第 4 窗按既定
+//      裂变落格）；任务栏条带由既有守护链恢复；
 //   P4 安全态故障注入：身份不符（同 hwnd 换 pid）/模型不一致（树引用越界）/桌面 ID
-//      不一致 → 各自安全态，零自动改窗；
+//      不一致 → 各自安全态，零自动改窗（工单410 后安全闸门不放宽）；
 //   P5 收尾复原（零残留）：夹具窗清场、切回普通、删 Agent 桌面、注册表集合与基线逐项
 //      相等、config 与布局文件还原。
 //
@@ -330,7 +333,8 @@ function detailStr(detail) {
   return (detail || []).map((x) => `hwnd=${x.hwnd} ${rectStr(x.got)}${x.want ? `(期望 ${rectStr(x.want)})` : ''}`).join('；');
 }
 
-/** 三窗布局（spec 决策 7 / 故事 15）：w1 左半、w2 右上、w3 右下 */
+/** 三窗布局（spec 决策 7 / 故事 15）：首窗左半、次窗右上、第三窗右下（集合稳定——
+ *  成员序随当次事实序，窗-格对应不钉死） */
 function layout3(area) {
   const mid = area.left + Math.floor((area.right - area.left) / 2);
   const top = area.top + Math.floor((area.bottom - area.top) / 2);
@@ -339,6 +343,30 @@ function layout3(area) {
     { left: mid, top: area.top, right: area.right, bottom: top },
     { left: mid, top, right: area.right, bottom: area.bottom },
   ];
+}
+
+/** 四窗布局（工单410 story 19 重建续行）：三窗树上第 4 成员裂变队首叶 → 四象限 */
+function layout4(area) {
+  const mid = area.left + Math.floor((area.right - area.left) / 2);
+  const top = area.top + Math.floor((area.bottom - area.top) / 2);
+  return [
+    { left: area.left, top: area.top, right: mid, bottom: top },
+    { left: area.left, top, right: mid, bottom: area.bottom },
+    { left: mid, top: area.top, right: area.right, bottom: top },
+    { left: mid, top, right: area.right, bottom: area.bottom },
+  ];
+}
+
+/** 集合断言：每个期望格恰被一窗命中（窗格互斥、容差 2 → 贪心即精确匹配） */
+function rectsMatchSet(entries, expectedSet) {
+  if (entries.length !== expectedSet.length) return false;
+  const used = new Set();
+  for (const want of expectedSet) {
+    const hit = entries.findIndex((e) => !used.has(e.hwnd) && rectEq(e.rect, want));
+    if (hit < 0) return false;
+    used.add(entries[hit].hwnd);
+  }
+  return used.size === entries.length;
 }
 
 // ————————————————————————————————————————————————————————————
@@ -520,10 +548,9 @@ async function main() {
       }
     }
 
-    // —— P3 崩溃不强制搬窗 ——
+    // —— P3 异常重启重建（工单410：旧布局不应用、当前合格窗口重建平铺） ——
     rep.beginSegment('P3');
     {
-      const before = fixtures.map((f) => ({ hwnd: f.hwnd, rect: win32.rectOf(f.hwnd) }));
       const panelPid = (() => {
         try {
           const ev = fs.readFileSync(EVENTS_FILE, 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((e) => e.type === 'boot');
@@ -538,21 +565,44 @@ async function main() {
       await sleep(400);
       const crashedDoc = readLayoutDoc();
       await waitReady();
-      const safe = await waitTilingState((s) => s.recovery === 'safe' && s.recoveryReason === 'crash', 10000);
-      await sleep(1200);
-      const after = before.map((b) => ({ hwnd: b.hwnd, rect: win32.rectOf(b.hwnd) }));
-      const still = after.every((a, i) => rectEq(a.rect, before[i].rect));
+      // 重建态（工单410）：rebuilt 而非 safe/crash——停写态不复存在，平铺不停用；
+      // 谓词带 placed/floating（重建在同一拍完成规划与写入，等齐即免稳定竞态）
+      const rebuilt = await waitTilingState((s) => s.recovery === 'rebuilt' && s.recoveryReason === null
+        && s.placed === 3 && s.overflow === 0 && s.floating === 0, 10000);
+      await sleep(1200); // 重建几何稳定窗
+      // 旧布局不应用：P1 注入的浮动几何（w3 @FLOAT）不得有任何窗停留；三窗按当次事实
+      // 序重建默认平铺（成员序随事实序，窗-格对应不钉死——集合断言）
+      const entries3 = fixtures.map((f) => ({ hwnd: f.hwnd, rect: win32.rectOf(f.hwnd) }));
+      const setOk3 = rectsMatchSet(entries3, layout3(AREA));
+      const floatKept = entries3.some((e) => rectEq(e.rect, FLOAT));
+      const st3 = rebuilt.ok ? rebuilt.state : await readTilingState();
       // 面板运行期原生任务栏由自绘条带接管（既有设计），此处验「条带由守护链重建」；
       // 原生栏可见性在面板退出后由既有还原链恢复（P5 断言）。
       const strip = win32.topLevelWindows().some((h) => win32.IsWindowVisible(h) && windowTitleOf(h) === 'DECK-TASKBAR');
-      const ok = crashedDoc && crashedDoc.clean === false && safe.ok && still && strip;
+      // 重建后新窗仍受管（story 19，不是一次性恢复）：第 4 窗按既定裂变落格（四象限）
+      const w4 = await spawnFixture('W4');
+      if (!w4.hwnd) throw new Error('P3 夹具窗 T383-W-W4 未出现');
+      fixtures.push({ pid: w4.pid, hwnd: w4.hwnd });
+      const st4 = await waitTilingState((s) => s.count === 4 && s.placed === 4 && s.overflow === 0, 10000);
+      await sleep(600);
+      const entries4 = fixtures.map((f) => ({ hwnd: f.hwnd, rect: win32.rectOf(f.hwnd) }));
+      const setOk4 = rectsMatchSet(entries4, layout4(AREA));
+      const w4Closed = (() => { try { win32.PostMessageW(w4.hwnd, 0x0010, 0, 0); return true; } catch { return false; } })();
+      const drainBack = await waitTilingState((s) => s.count === 3 && s.placed === 3, 10000);
+      // W4 出清场账（进程随窗关自退 + taskkill 兜底）——P4/P5 的夹具矩形断言只涉前三窗
+      if (w4.pid) spawnSync('taskkill', ['/PID', String(w4.pid), '/T', '/F'], { stdio: 'ignore' });
+      const w4Idx = fixtures.findIndex((f) => f.hwnd === w4.hwnd);
+      if (w4Idx >= 0) fixtures.splice(w4Idx, 1);
+      const ok = crashedDoc && crashedDoc.clean === false && rebuilt.ok && setOk3 && !floatKept
+        && st3.floating === 0 && st3.prompting === 0 && st3.authorized === 0
+        && st4.ok && setOk4 && w4Closed && drainBack.ok && strip;
       if (ok) {
-        rep.pass(`P3 崩溃不强制搬窗：强杀面板（盘上 clean=false）→ 重启进入安全态 crash；三窗矩形逐像素不变（${after.map((a) => rectStr(a.rect)).join(' ') }）；任务栏条带在场=${strip}（既有守护链重建；原生栏在退出后还原见 P5）`);
+        rep.pass(`P3 异常重启重建：强杀面板（盘上 clean=false）→ 重启 recovery=rebuilt（不再安全态停写）；旧布局不应用（注入浮动几何无窗停留、floating/prompting/authorized 全 0），三窗按当次事实重建平铺（${entries3.map((e) => rectStr(e.rect)).join(' ')} 互斥铺满）；第 4 窗重建后照常受管（placed=4 四象限）、关闭后回落 placed=3；任务栏条带在场=${strip}（既有守护链重建；原生栏在退出后还原见 P5）`);
       } else {
-        rep.fail(`P3 文档 clean=${crashedDoc && crashedDoc.clean} 安全态=${JSON.stringify(safe.state)} 矩形不变=${still} 条带=${strip} 前=${JSON.stringify(before.map((b) => rectStr(b.rect)))} 后=${JSON.stringify(after.map((a) => rectStr(a.rect)))}`);
+        rep.fail(`P3 文档 clean=${crashedDoc && crashedDoc.clean} 重建=${JSON.stringify(rebuilt.state)} 三窗集合=${setOk3} 浮动残留=${floatKept} 状态=${JSON.stringify(st3)} 四窗=${JSON.stringify(st4.state)} 四窗集合=${setOk4} 关W4=${w4Closed} 回落=${JSON.stringify(drainBack.state)} 条带=${strip}`);
       }
       const quitSafe = await quitPanel();
-      if (!quitSafe.ok) rep.fail(`P3 安全态面板未能干净退出：${JSON.stringify(quitSafe)}`);
+      if (!quitSafe.ok) rep.fail(`P3 重建态面板未能干净退出：${JSON.stringify(quitSafe)}`);
     }
 
     // —— P4 安全态故障注入：身份/模型/桌面 ID ——

@@ -13,18 +13,18 @@
 //   P8 固定尺寸异常未平铺：WPF ResizeMode=NoResize 探针窗（无 WS_THICKFRAME）→ 生产零写窗
 //      （矩形纹丝不动）、其余窗几何不动、计数仍含它、anomalies=1 且 fixedSize 分类在案、
 //      静置无重试
-//   P10 屏外滚动带与双向 fit（工单405）：第 33 扇触发带（列矩形/露边/缩窄区）→ 露边真
-//      点击整组最小滑入、普通激活整组回位（双向）→ 胶囊/预览计数含带成员 → 关 28 扇带
-//      收拢补入（377 定案「溢出不设真机段」的代价顾虑由 405 验收标准承接——并行拉起
-//      压墙钟，见段内注记）
+//   P10 屏外滚动带与双向 fit（工单405 立、工单410 改夹具）：第 9 扇触发带（屏内上限 8——
+//      列矩形/露边/缩窄区）→ 露边真点击整组最小滑入、普通激活整组回位（双向）→ 胶囊/
+//      预览计数含带成员 → 关 3 扇带收拢补入（405 定案「并行拉起压墙钟」在 9 窗夹具下
+//      代价进一步回落，见段内注记）
 //   P9 收尾复原（零残留）：夹具窗逐进程清场、切回普通、删配对 Agent 桌面、注册表集合与
 //      基线逐项相等、config 三态还原
 //
 // 被测物夹具（工单377 定案）：受控 WPF 窗口（一窗一 powershell 进程，标题 T377-W-*）。
 // 不用记事本：本机 Win11 记事本是会话恢复型 Store 应用，杀掉后下次启动整套恢复旧窗
 // （实测 21 扇），成员集合与计数不可判——夹具必须是每窗独立、无持久会话、样式可外部
-// 改窗的进程。容量溢出不设真机段（本机 2560×1392 平铺区约需 33 扇窗才触发，代价不成
-// 比例；几何/状态机由纯函数矩阵钉——battery-governance 增段条件②）。
+// 改窗的进程。容量触发在工单410 定案屏内上限 8 后由第 9 扇即可达（405 时代按纯尺寸
+// 阈值本机约第 33 扇才触发、当年不设真机段；上限产品化后真机证据与代价重新成比例）。
 //
 // 运行：npm run accept:agent-tiling-lifecycle（= electron . --accept-agent-tiling-lifecycle）。
 // **必须经 accept-guard 托管**（AGENTS.md 真机验收调度协议）。
@@ -791,18 +791,18 @@ async function main() {
 
     rep.note(`正对照：面板 exe=${panelExePath}（胶囊/条带/面板自身不进计数）`);
 
-    // —— P10 屏外滚动带与双向 fit（工单405，spec #403 用户故事 10-21）——
-    // 本机 2560×1392 平铺区容量 32 扇（带空树满区），第 33 扇触发屏外滚动带——
-    // 377 定案「溢出不设真机段」的代价顾虑由本票验收标准（带成员真机行为证据）承接：
-    // 并行拉起把 28 扇夹具的墙钟压到 ~10s，代价与证据重新成比例（工单405 登记）。
+    // —— P10 屏外滚动带与双向 fit（工单405 立；工单410 触发夹具 33→9：屏内上限 8 使
+    // 第 9 扇必入带，spec #410 用户故事 4/5/11）——
+    // 带几何/双向 fit/计数/收拢断言原样保留（405 验收标准），仅触发夹具缩量：并行拉起
+    // 4 扇夹具的墙钟远低于 405 时代的 28 扇，代价与证据重新成比例（改段理由随 PR 登记）。
     rep.beginSegment('P10');
     try {
       if (tiles.length !== 5) throw new Error(`P8 未达五窗（当前 ${tiles.length}）`);
       const REVEAL = Math.round(32 * (scale || 1));
       const AREA_W = AREA.right - AREA.left;
       const COL_W = Math.min(AREA_W, Math.max(Math.round(320 * (scale || 1)), Math.floor(AREA_W / 2)));
-      // 并行拉起 28 扇夹具（5+28=33）→ 第 33 扇入带
-      const spawnN = 28;
+      // 并行拉起 4 扇夹具（5+4=9）→ 第 9 扇入带（屏内 8 上限）
+      const spawnN = 4;
       const pend = [];
       for (let i = 0; i < spawnN; i++) {
         fixtureSeq += 1;
@@ -823,17 +823,17 @@ async function main() {
         if (!hwnd) throw new Error(`夹具窗 ${p.title} 未出现`);
         tiles.push(hwnd);
       }
-      // 带触发：33 = 32 屏内 + 1 屏外带成员
-      const stBand = await waitTilingState((x) => x.count === 33 && x.placed === 32 && x.overflow === 1, 15000);
+      // 带触发（工单410）：9 = 8 屏内（上限） + 1 屏外带成员
+      const stBand = await waitTilingState((x) => x.count === 9 && x.placed === 8 && x.overflow === 1, 15000);
       // 带成员识别：唯一左缘落在露边位（区右 − 32）的夹具窗
       const revealLeft = AREA.right - REVEAL;
       const bandHwnd = tiles.find((h) => Math.abs(win32.rectOf(h).left - revealLeft) <= 2) || 0;
       const bandExpect = { left: revealLeft, top: AREA.top, right: revealLeft + COL_W, bottom: AREA.bottom };
       const bandOk = !!bandHwnd && rectEq(win32.rectOf(bandHwnd), bandExpect);
-      // 不再按原矩形覆盖（用户故事 10）：33 扇无一保持初始 700×500@(160,120)
+      // 不再按原矩形覆盖（用户故事 10/26）：9 扇无一保持初始 700×500@(160,120)
       const SPAWN_RECT = { left: 160, top: 120, right: 860, bottom: 620 };
       const keptOriginal = tiles.filter((h) => rectEq(win32.rectOf(h), SPAWN_RECT));
-      // 屏内 32 扇全部在缩窄区内（右缘 ≤ 区右 − 露边；树区让位露边，零重叠）
+      // 屏内 8 扇全部在缩窄区内（右缘 ≤ 区右 − 露边；树区让位露边，零重叠）
       const inScreenOk = tiles.filter((h) => h !== bandHwnd).every((h) => {
         const r = win32.rectOf(h);
         return r.right <= revealLeft + 2 && r.left >= AREA.left - 2 && r.top >= AREA.top - 2 && r.bottom <= AREA.bottom + 2;
@@ -862,16 +862,16 @@ async function main() {
         fitBack = await waitRectStable(bandHwnd, bandExpect, 500, 8000);
         backIn = win32.rectOf(tiles[0]).left >= AREA.left - 2;
       }
-      // 验收标准 5：屏外成员计入顶部胶囊与窗口预览（真机证据——真面板桥 + 真成员集）
-      const cap = await waitCapsuleCount(33);
+      // 验收标准 5（story 16）：屏外成员计入顶部胶囊与窗口预览（真机证据——真面板桥 + 真成员集）
+      const cap = await waitCapsuleCount(9);
       const pv = await cdpEval376(CAPSULE_TITLE, `(async () => {
         const t = await window.deck.bridge.invoke('preview/toggle', null);
         const s = await window.deck.bridge.invoke('preview/get-state', null);
         return { ok: !!(t && t.ok), n: s.items.length, hasBand: s.items.some((x) => x.hwnd === ${bandHwnd}) };
       })()`);
       await cdpEval376(CAPSULE_TITLE, `(async () => { await window.deck.bridge.invoke('preview/close', null); return true; })()`);
-      // 空间释放按序补入 + 带收拢 + 视口回位（用户故事 4/28）：关 28 扇（保留带成员）
-      // → 空位释放后带成员按进入序补入屏内、overflow=0
+      // 空间释放按序补入 + 带收拢 + 视口回位（story 9/10 + 405 用户故事 4/28）：关 3 扇
+      // （保留带成员）→ 空位释放后带成员按进入序补入屏内、overflow=0（补入后 6 窗仍守上限）
       for (let i = 5; i < tiles.length; i++) {
         if (tiles[i] === bandHwnd) continue; // 带成员保留——补入臂的被测物
         win32.PostMessageW(tiles[i], 0x0010, 0, 0);
@@ -881,10 +881,10 @@ async function main() {
         const r = win32.rectOf(bandHwnd);
         return r.left >= AREA.left - 2 && r.right <= AREA.right + 2 && r.top >= AREA.top - 2 && r.bottom <= AREA.bottom + 2;
       })();
-      // P10 收尾：28 扇已自退；tiles 回到 P1-P8 口径（band 成员窗进程归 P9 taskkill 兜底）
+      // P10 收尾：3 扇已自退；tiles 回到 P1-P8 口径（band 成员窗进程归 P9 taskkill 兜底）
       tiles.length = 5;
-      if (stBand.ok && bandOk && keptOriginal.length === 0 && inScreenOk && fitIn.ok && slid && fitBack.ok && backIn && cap.ok && pv && pv.n === 33 && pv.hasBand && drain.ok && drained) {
-        rep.pass(`P10 屏外滚动带与双向 fit：第 33 扇入带（列矩形 ${rectStr(bandExpect)} = 半屏宽 ${COL_W} × 全平铺高 × 露边 ${REVEAL}px 露在屏内右缘，32 扇屏内窗全部缩窄区内、无一保原矩形）；露边真点击 → 整组最小滑动（带成员贴右缘完整可见 ${rectStr(fitIn.rect)}、成员 1 推出左屏外 left=${win32.rectOf(tiles[0]).left}）；SetForeground 激活屏内窗 → 整组回位（带成员回露边位、成员 1 回屏内）；胶囊计数=33、预览 ${pv.n} 条含带成员；关 28 扇后带收拢补入（placed=6 overflow=0、带成员回屏内）`);
+      if (stBand.ok && bandOk && keptOriginal.length === 0 && inScreenOk && fitIn.ok && slid && fitBack.ok && backIn && cap.ok && pv && pv.n === 9 && pv.hasBand && drain.ok && drained) {
+        rep.pass(`P10 屏外滚动带与双向 fit：第 9 扇入带（屏内上限 8，工单410；列矩形 ${rectStr(bandExpect)} = 半屏宽 ${COL_W} × 全平铺高 × 露边 ${REVEAL}px 露在屏内右缘，8 扇屏内窗全部缩窄区内、无一保原矩形）；露边真点击 → 整组最小滑动（带成员贴右缘完整可见 ${rectStr(fitIn.rect)}、成员 1 推出左屏外 left=${win32.rectOf(tiles[0]).left}）；SetForeground 激活屏内窗 → 整组回位（带成员回露边位、成员 1 回屏内）；胶囊计数=9、预览 ${pv.n} 条含带成员；关 3 扇后带收拢补入（placed=6 overflow=0、带成员回屏内）`);
       } else {
         rep.fail(`P10 带触发=${JSON.stringify(stBand)} 带矩形 ok=${bandOk} 保原矩形=${keptOriginal.length} 屏内越界=${!inScreenOk} 滑入=${JSON.stringify(fitIn)} 整组左移=${slid} 滑回=${JSON.stringify(fitBack)} 回位=${backIn} 胶囊=${JSON.stringify(cap)} 预览=${JSON.stringify(pv)} 补入=${JSON.stringify(drain)} 收拢回屏内=${drained}`);
       }
