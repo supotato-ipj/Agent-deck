@@ -333,13 +333,11 @@ describe('旧布局向屏内上限归一（工单410）', () => {
   function legacyShape(memberCount: number, area = { left: 0, top: 0, right: 2560, bottom: 1392 }) {
     const tree = createTree(area, { maxPanes: 99 })
     for (let i = 1; i <= memberCount; i++) treeInsert(tree, String(i))
-    const refOf = (id: string): number | undefined => {
-      const n = Number(id)
-      return n >= 1 && n <= memberCount ? n - 1 : undefined
-    }
+    const refOf = (hwnd: number): number | undefined =>
+      hwnd >= 1 && hwnd <= memberCount ? hwnd - 1 : undefined
     const shape = captureShape(tree.root, refOf)
     const queue = tree.queue
-      .map((leaf) => (leaf.id === null ? undefined : refOf(leaf.id)))
+      .map((leaf) => (leaf.id === null ? undefined : refOf(Number(leaf.id))))
       .filter((r): r is number => r !== undefined)
     return { shape, queue }
   }
