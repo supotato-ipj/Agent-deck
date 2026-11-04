@@ -168,6 +168,97 @@ describe('容量溢出进屏外滚动带（工单405，用户故事 10/11/12）'
   })
 })
 
+// ————————————————————————————————————————————————————————————
+// 工单410（spec #410 决策「屏内窗格上限 8」，多窗稳定性服务矩阵）：宽屏（几何容量 ≥ 9）
+// 上限是唯一约束——逐个打开 6/7/8/9 窗回读实际矩形：非例外成员无原矩形覆盖、无误转
+// 浮动、无误消费授权；第 9 窗入带、前台滑入；关闭屏内窗后最早入带者按序补入（story 9）。
+// ————————————————————————————————————————————————————————————
+
+describe('屏内 8 窗上限（工单410，宽屏多窗稳定性矩阵）', () => {
+  const WIDE = { left: 0, top: 0, right: 2560, bottom: 1440 }
+  const WIDE_AREA: TileRect = { left: 0, top: 0, right: 2560, bottom: 1392 }
+  const WIDE_REVEAL = 32
+  const WIDE_COL_W = 1280 // min(2560, max(320, 1280))
+  // 带首列连续矩形（camera=0 时物理 = 连续）：左缘 = 区右 − 露边
+  const WIDE_COL0: TileRect = { left: 2560 - WIDE_REVEAL, top: 0, right: 2560 - WIDE_REVEAL + WIDE_COL_W, bottom: 1392 }
+
+  function wideHarness(): Harness {
+    return harness({
+      deps: {
+        ...({} as Partial<AgentTilingServiceOptions['deps']>),
+        primaryRect: () => ({ ...WIDE }),
+        taskbarTop: () => 1392,
+      },
+    })
+  }
+
+  it('6/7/8 窗逐个打开全部落格（placed=8 overflow=0），无一保原矩形、无误浮动、无误提示', async () => {
+    const h = wideHarness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)]])
+    await settle()
+    for (const n of [6, 7, 8]) {
+      openWindows(h, [[n, R(n)]])
+      await settle()
+      expect(h.svc.state(), `${n} 窗`).toMatchObject({ count: n, placed: n, overflow: 0, floating: 0, prompting: 0, authorized: 0 })
+    }
+    expect(h.prompts).toEqual([])
+    // 八窗全在缩窄前的屏内树区（带空 = 树满区），无一保持打开时的原矩形
+    for (const [hwnd] of h.windows) {
+      const r = h.windows.get(hwnd)!.rect
+      expect(r, `窗 ${hwnd} 不保原矩形`).not.toEqual(R(hwnd))
+      expect(r.right).toBeLessThanOrEqual(WIDE_AREA.right + 2)
+      expect(r.left).toBeGreaterThanOrEqual(WIDE_AREA.left - 2)
+    }
+  })
+
+  it('第 9 窗入带（列矩形=半屏宽×全平铺高×露边32px）；前台滑入贴右缘完整可见（story 5/11）', async () => {
+    const h = wideHarness()
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)], [5, R(5)], [6, R(6)], [7, R(7)], [8, R(8)]])
+    await settle()
+    expect(h.svc.state()).toMatchObject({ placed: 8, overflow: 0 })
+    openWindows(h, [[9, R(9)]])
+    await settle()
+    // 入带：受管平铺成员（不是未平铺），列矩形占满平铺高、露边露在屏内右缘
+    expect(h.svc.state()).toMatchObject({ count: 9, placed: 8, overflow: 1, floating: 0, anomalies: 0 })
+    expect(h.windows.get(9)!.rect).toEqual(WIDE_COL0)
+    expect(h.prompts).toEqual([])
+    // 前台新窗自动 fit 最小滑动到完整视图：camera=1248 → 带成员贴右缘（右半满高）
+    h.fgEmit(9)
+    await settle()
+    expect(h.windows.get(9)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 1392 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('第 10 窗按序随入带右端（story 6）：带序 = 进入序', async () => {
+    const h = wideHarness()
+    openWindows(h, Array.from({ length: 9 }, (_, i) => [i + 1, R(i + 1)] as [number, TileRect]))
+    await settle()
+    openWindows(h, [[10, R(10)]])
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 10, placed: 8, overflow: 2 })
+    // 第 10 窗 = 带第二列：左缘 = 首列左缘 + 列宽
+    expect(h.windows.get(10)!.rect).toEqual({
+      left: WIDE_COL0.left + WIDE_COL_W, top: 0, right: WIDE_COL0.right + WIDE_COL_W, bottom: 1392,
+    })
+  })
+
+  it('关闭屏内窗：兄弟吸收 + 最早入带者按序补入（story 9），补入后仍守 8 上限', async () => {
+    const h = wideHarness()
+    openWindows(h, Array.from({ length: 10 }, (_, i) => [i + 1, R(i + 1)] as [number, TileRect]))
+    await settle()
+    expect(h.svc.state()).toMatchObject({ placed: 8, overflow: 2 })
+    h.windows.delete(1)
+    h.watchOn(2) // 任意窗口事件触发重排拍
+    await settle()
+    // 空位释放 → 最早入带的窗 9 补入屏内；窗 10 仍在带（8 上限）
+    expect(h.svc.state()).toMatchObject({ count: 9, placed: 8, overflow: 1 })
+    const r9 = h.windows.get(9)!.rect
+    expect(r9.left).toBeGreaterThanOrEqual(WIDE_AREA.left - 2)
+    expect(r9.right).toBeLessThanOrEqual(WIDE_AREA.right + 2) // 补入 = 回屏内树区
+    expect(h.windows.get(10)!.rect).toEqual(WIDE_COL0) // 窗 10 收拢到首列位
+  })
+})
+
 describe('fit 最小滑动（工单405，用户故事 17/18/19；单一激活入口）', () => {
   async function withBand(h: Harness): Promise<void> {
     openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])

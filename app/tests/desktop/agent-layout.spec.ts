@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AGENT_LAYOUT_VERSION,
   captureLayout,
+  captureShape,
   identityMatches,
   identityOf,
   parseLayout,
@@ -13,7 +14,7 @@ import {
   validateLayout,
 } from '../../src/main/desktop/agent-layout'
 import type { AgentLayoutDoc, WindowIdentity } from '../../src/main/desktop/agent-layout'
-import { createTree, treeInsert, treePlan } from '../../src/main/desktop/tiling-plan'
+import { createTree, treeFromShape, treeInsert, treePlan } from '../../src/main/desktop/tiling-plan'
 import type { TilingTree } from '../../src/main/desktop/tiling-plan'
 import type { TileWindowFacts } from '../../src/main/desktop/tile-scope'
 
@@ -318,5 +319,117 @@ describe('布局文档 v2：屏外顺序与锚窗身份（工单406）', () => {
       anchor: 9,
     })
     expect(capturedFloatAnchor.anchor).toBeNull()
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单410（spec #410 决策「旧布局向新上限归一」）：干净启动读到合法但超过 8 个屏内
+// 窗格的旧模型时，按持久成员顺序保留前段屏内成员，其余按序转入屏外滚动带；模型损坏
+// 不按可恢复模型处理（不在本节——损坏文档仍走 invalid → model 安全态）。
+// ————————————————————————————————————————————————————————————
+
+describe('旧布局向屏内上限归一（工单410）', () => {
+  /** 旧模型树（无上限时代可合法携带 >8 叶）：maxPanes 注入 99 模拟旧建树 */
+  function legacyShape(memberCount: number, area = { left: 0, top: 0, right: 2560, bottom: 1392 }) {
+    const tree = createTree(area, { maxPanes: 99 })
+    for (let i = 1; i <= memberCount; i++) treeInsert(tree, String(i))
+    const refOf = (hwnd: number): number | undefined =>
+      hwnd >= 1 && hwnd <= memberCount ? hwnd - 1 : undefined
+    const shape = captureShape(tree.root, refOf)
+    const queue = tree.queue
+      .map((leaf) => (leaf.id === null ? undefined : refOf(Number(leaf.id))))
+      .filter((r): r is number => r !== undefined)
+    return { shape, queue }
+  }
+
+  it('九叶旧树：前 8 个成员（按持久成员序）保留在树，第 9 成员按序转入带', () => {
+    const { shape, queue } = legacyShape(9)
+    const d = doc({
+      order: Array.from({ length: 9 }, (_, i) => identity(i + 1)),
+      tree: shape,
+      queue,
+    })
+    expect(validateLayout(d)).toBeNull()
+    const facts = Array.from({ length: 9 }, (_, i) => fact(i + 1))
+    const plan = planRestore(d, facts, facts)
+    expect(plan.kind).toBe('apply')
+    if (plan.kind !== 'apply') return
+    const leafRefs: number[] = []
+    const walk = (s: typeof plan.shape): void => {
+      if (!s) return
+      if (s.kind === 'leaf') { if (s.ref !== null) leafRefs.push(s.ref); return }
+      walk(s.first)
+      walk(s.second)
+    }
+    walk(plan.shape)
+    expect(leafRefs.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]) // 前 8 成员留树
+    expect(plan.band).toEqual([8]) // 第 9 成员（下标 8）入带
+    // 队列与树自洽：恰含全部树内叶、无越界无重复
+    expect([...plan.queue].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+  })
+
+  it('九叶旧树 + 既有带成员：已入带者保持带序，被归一出的成员按成员序追加队尾', () => {
+    const { shape, queue } = legacyShape(9)
+    const d = doc({
+      order: Array.from({ length: 10 }, (_, i) => identity(i + 1)),
+      tree: shape,
+      queue,
+      band: [9], // 第 10 成员（下标 9）旧模型已在带
+      anchor: 8, // 锚 = 被归一出的成员（下标 8）——转带后仍是合法锚
+    })
+    expect(validateLayout(d)).toBeNull()
+    const facts = Array.from({ length: 10 }, (_, i) => fact(i + 1))
+    const plan = planRestore(d, facts, facts)
+    expect(plan.kind).toBe('apply')
+    if (plan.kind !== 'apply') return
+    expect(plan.band).toEqual([9, 8]) // 既有带成员在前、归一转入者按成员序追加
+    expect(plan.anchor).toBe(8) // 带成员可以是锚
+  })
+
+  it('八叶及以下旧树不归一（上限是迁移判据，不是重排借口）', () => {
+    const { shape, queue } = legacyShape(8)
+    const d = doc({
+      order: Array.from({ length: 8 }, (_, i) => identity(i + 1)),
+      tree: shape,
+      queue,
+    })
+    const facts = Array.from({ length: 8 }, (_, i) => fact(i + 1))
+    const plan = planRestore(d, facts, facts)
+    expect(plan.kind).toBe('apply')
+    if (plan.kind !== 'apply') return
+    expect(plan.band).toEqual([])
+    const leafRefs: number[] = []
+    const walk = (s: typeof plan.shape): void => {
+      if (!s) return
+      if (s.kind === 'leaf') { if (s.ref !== null) leafRefs.push(s.ref); return }
+      walk(s.first)
+      walk(s.second)
+    }
+    walk(plan.shape)
+    expect(leafRefs.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+  })
+
+  it('归一后的计划可被 treeFromShape 重建为合法树（≤8 叶、队列自洽）', () => {
+    const { shape, queue } = legacyShape(9)
+    const d = doc({
+      order: Array.from({ length: 9 }, (_, i) => identity(i + 1)),
+      tree: shape,
+      queue,
+    })
+    const facts = Array.from({ length: 9 }, (_, i) => fact(i + 1))
+    const plan = planRestore(d, facts, facts)
+    expect(plan.kind).toBe('apply')
+    if (plan.kind !== 'apply') return
+    const tree = treeFromShape(
+      plan.shape as NonNullable<typeof plan.shape>,
+      { left: 0, top: 0, right: 2560, bottom: 1392 },
+      {},
+      plan.queue,
+      (ref) => String(ref + 1), // 服务侧同款：ref = order 下标 → hwnd
+    )
+    expect(treePlan(tree).placements.length).toBe(8)
+    expect(treePlan(tree).placements.map((p) => p.id).sort()).toEqual(
+      Array.from({ length: 8 }, (_, i) => String(i + 1)).sort(),
+    )
   })
 })

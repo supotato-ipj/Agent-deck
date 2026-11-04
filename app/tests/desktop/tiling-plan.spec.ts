@@ -301,6 +301,90 @@ describe('容量溢出与按序补入（工单377，用户故事 26/29）', () =
   })
 })
 
+// ————————————————————————————————————————————————————————————
+// 工单410（spec #410 决策「屏内窗格上限 8」）：容量双约束——最小窗格之外新增屏内容量
+// 上限 8；已有 8 个屏内成员时新成员直接进入屏外集合，不再尝试裂变（story 3/4/5）。
+// 8 是上限不是对小屏的强制分裂数量：小屏提前入带由既有最小窗格约束承接（story 7）。
+// ————————————————————————————————————————————————————————————
+
+describe('屏内容量上限 8（工单410，用户故事 3/4/5）', () => {
+  it('1/2/5/6/7/8 窗全部落格（尺寸允许时 8 窗封顶不入带）', () => {
+    for (const n of [1, 2, 5, 6, 7, 8]) {
+      const members = Array.from({ length: n }, (_, i) => `w${i + 1}`)
+      const plan = planTiling(members, AREA)
+      expect(plan.overflow, `${n} 窗不应溢出`).toEqual([])
+      expect(plan.placements.length).toBe(n)
+      assertTilingInvariant(plan, AREA)
+    }
+  })
+
+  it('第 9 窗必入带、第 10 窗按序随入（story 5/6）：前 8 窗几何与八窗布局逐字节同', () => {
+    const eight = planTiling(['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8'], AREA)
+    const ten = planTiling(['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10'], AREA)
+    expect(ten.placements).toEqual(eight.placements) // 溢出不重排既有成员
+    expect(ten.overflow).toEqual(['w9', 'w10'])
+  })
+
+  it('上限先于几何判据：8 窗后仍可满足最小窗格的裂变也不再尝试（本机 2560×1392 第 9 扇 320×696 本可裂）', () => {
+    // 八窗后叶 640×696，任一裂变都满足 320×240——仅凭最小窗格约束第 9 扇会落格；
+    // 上限 8 使它直接入带（本测试在本机几何下钉「上限不是最小窗格推导」）
+    const nine = planTiling(['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9'], AREA)
+    expect(nine.overflow).toEqual(['w9'])
+    expect(nine.placements.length).toBe(8)
+  })
+
+  it('小屏提前入带（story 7）：最小窗格约束优先于凑满 8 窗', () => {
+    const SMALL: TileRect = { left: 0, top: 0, right: 660, bottom: 500 } // 四窗后叶 330×250，再裂 165 < 320
+    const six = planTiling(['w1', 'w2', 'w3', 'w4', 'w5', 'w6'], SMALL)
+    expect(six.placements.length).toBe(4)
+    expect(six.overflow).toEqual(['w5', 'w6'])
+  })
+
+  it('关闭补入（story 9）：8+2 窗关一扇屏内窗 → 兄弟吸收 + 最早入带者补入、后随者仍在带', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10']) treeInsert(tree, id)
+    expect(treePlan(tree).overflow).toEqual(['w9', 'w10'])
+    treeRemove(tree, 'w8')
+    // 编排层按 memberOrder 全量重试（工单405 补入同一入口）
+    for (const id of ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w9', 'w10']) treeInsert(tree, id)
+    const plan = treePlan(tree)
+    expect(plan.overflow).toEqual(['w10']) // 最早入带的 w9 补入，w10 仍在带
+    expect(plan.placements.length).toBe(8)
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('带成员补入受同一上限约束：补入后 8 窗满员，其余留在带（上限适用所有入口）', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10', 'w11']) treeInsert(tree, id)
+    expect(treePlan(tree).overflow).toEqual(['w9', 'w10', 'w11'])
+    treeRemove(tree, 'w1')
+    treeRemove(tree, 'w2')
+    // 编排层按 memberOrder 全量重试：两空位按序补入 w9/w10，w11 留带
+    for (const id of ['w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10', 'w11']) treeInsert(tree, id)
+    const plan = treePlan(tree)
+    expect(plan.overflow).toEqual(['w11'])
+    expect(plan.placements.length).toBe(8)
+    assertTilingInvariant(plan, AREA)
+  })
+
+  it('maxPanes 选项可注入（纯函数缝）；缺省 8', () => {
+    const plan = planTiling(['w1', 'w2', 'w3'], AREA, { maxPanes: 2 })
+    expect(plan.overflow).toEqual(['w3'])
+    expect(plan.placements.length).toBe(2)
+  })
+
+  it('空位补入遵循成员序：先溢出者先补（上限态下重试不改序）', () => {
+    const tree = createTree(AREA)
+    for (const id of ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10']) treeInsert(tree, id)
+    // 重试插入带成员（幂等，不改序）
+    for (const id of ['w9', 'w10']) treeInsert(tree, id)
+    expect(treePlan(tree).overflow).toEqual(['w9', 'w10'])
+    treeRemove(tree, 'w5')
+    for (const id of ['w9', 'w10']) treeInsert(tree, id)
+    expect(treePlan(tree).overflow).toEqual(['w10'])
+  })
+})
+
 describe('平铺区可用判 isTileableArea（工单377，用户故事 23 不写不可见坐标）', () => {
   it('退化矩形不可用（主屏暂不可用/空矩形过渡态）', () => {
     expect(isTileableArea({ left: 0, top: 0, right: 0, bottom: 0 })).toBe(false)
