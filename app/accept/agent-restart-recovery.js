@@ -431,11 +431,14 @@ function pruneRef(node, ref) {
   if (!second) return first;
   return { kind: 'split', axis: node.axis, first, second };
 }
-/** 把 doc 的第 ref 个窗口改成浮动（模型合法：树/队列去掉该引用，floating 增加） */
+/** 把 doc 的第 ref 个窗口改成浮动（模型合法：树/队列去掉该引用，floating 增加）；
+ *  锚窗恰为该成员时置空（anchor-in-floating 是模型互斥破坏——工单406 锚不落浮动账；
+ *  锚随上一会话前台浮动，命中与否非确定，2026-11-05 真机轮实证），恢复后无锚回起点 */
 function makeFloating(doc, ref, rect) {
   const next = JSON.parse(JSON.stringify(doc));
   next.tree = pruneRef(next.tree, ref);
   next.queue = next.queue.filter((r) => r !== ref);
+  if (next.anchor === ref) next.anchor = null;
   next.floating = [...(next.floating || []).filter((f) => f.ref !== ref), { ref, rect }];
   return next;
 }
