@@ -1,0 +1,74 @@
+工单411 交付破坏探针三向验红留档（评审修复#2，2026-11-06）
+=============================================================
+worktree: D:/test-folder/wallpaperengine-research--spec411  分支: feat/spec411
+目的：评审#2 指出 6f14072 提交信息声称「交付破坏探针三向验红后逐字节恢复」但全
+worktree 无任何探针记录可核查。本档以可留档方式重跑三向探针：每向给出被破坏的
+真实文件、精确改动、命令与红输出；随后精确恢复并复跑全绿。
+
+【基线】恢复前现状绿
+命令: npm run typecheck:accept-lib
+输出: （无诊断）退出码 0 —— BASELINE-GREEN-ACCEPTLIB-TYPECHECK
+
+-------------------------------------------------------------
+探针A（票面 Testing Decisions 第1向）：真实声明引入未知类型 → accept lib typecheck 红
+被破坏文件: app/accept/lib/report.d.ts（第134行）
+精确改动:   writeLedger(scopeUnknown?: string[]): void
+         →  writeLedger(scopeUnknown?: BogusProbeType411): void
+命令: npm run typecheck:accept-lib
+输出（红）:
+  accept/lib/report.d.ts(134,30): error TS2304: Cannot find name 'BogusProbeType411'.
+退出码: 2
+恢复: git checkout -- accept/lib/report.d.ts
+
+-------------------------------------------------------------
+探针B（第2向）：真实声明成员缺失 → 成员对齐测试红
+被破坏文件: app/accept/lib/report.d.ts
+精确改动:   删除 Report 类声明中的 writeLedger(scopeUnknown?: string[]): void 一行
+命令: npx vitest run tests/accept/accept-lib-alignment.spec.ts
+输出（红，2 failed | 11 passed (13)，退出码 1）:
+  FAIL 工单411 层2：真实八组模块成员对齐 > 真实八组…对齐通过
+    - Expected: []
+    + Received: [ { "at": "report.Report().writeLedger", "problem": "实现多出声明外成员" } ]
+  FAIL 工单411 层2：真实八组模块成员对齐 > 现存缺陷回归：Report 公开 writeLedger 必须真实在位且已声明
+    AssertionError: expected [ 'name', 'file', 'passes', …(19) ] to include 'writeLedger'
+恢复: git checkout -- accept/lib/report.d.ts
+
+-------------------------------------------------------------
+探针C（第3向）：真实实现成员多出 → 成员对齐测试红
+被破坏文件: app/accept/lib/report.js（Report 类，第300行 writeLedger 之前）
+精确改动:   插入未声明方法:
+              probe411ExtraUndeclared() {
+                // probe411: 实现多成员探针——交付后立即恢复
+              }
+命令: npx vitest run tests/accept/accept-lib-alignment.spec.ts
+输出（红，2 failed | 11 passed (13)，退出码 1）:
+  FAIL …现存缺陷回归：Report 公开 writeLedger 必须真实在位且已声明
+    - Expected: []
+    + Received: [ { "at": "Report.probe411ExtraUndeclared", "problem": "实现多出声明外成员" } ]
+  （另一失败为同一真实八组对齐用例的同因报红）
+恢复: git checkout -- accept/lib/report.js accept/lib/report.d.ts
+
+-------------------------------------------------------------
+恢复核对
+命令: git checkout -- accept/lib/report.js accept/lib/report.d.ts && git status --short
+输出: （空）—— 工作树与 HEAD 逐字节相同（BYTE-IDENTICAL-RESTORED）
+
+-------------------------------------------------------------
+复跑全绿（恢复后，票面最终验证口径：完整 typecheck + 完整 Vitest）
+1) 命令: npm run typecheck（= tsc -p tsconfig.typecheck.json && tsc -p tsconfig.accept-lib.json）
+   输出: （无诊断）退出码 0 —— 绿
+2) 命令: npx vitest run（全量）
+   第1轮: Test Files 167 passed (167) / Tests 3096 passed (3096)，退出码 1——
+     唯一 error 为 vitest-worker RPC 超时（Timeout calling "onTaskUpdate"），
+     无任何测试失败，属 runner 层并行负载噪声；
+   第2轮: 1 failed | 3095 passed——失败为 tests/dataplane-kernel.spec.ts「重命名写路径…」
+     超默认 5s 超时：该测试与工单30 粘贴测试同款拉起真实数据面内核子进程，
+     40bc705 只校准了粘贴一处、漏了同文件 rename 这一处（master 基线全量 run 同款
+     超时，40bc705 提交信息已留对照实验记录，属既有负载 flake，非本分支引入）。
+     处置：同款 30s 预算校准（断言不动），单跑该文件 5/5 绿复核。
+   第3轮: Test Files 167 passed (167) / Tests 3096 passed (3096)，退出码 0 —— 全绿。
+   随后 npm run typecheck 在最终状态复跑退出码 0。
+
+附注（评审#1 处置）：961375c 的 saveConfig EPERM/EBUSY 退避重试已按评审撤销
+（97e09ca 精确回退 config.ts 至 40bc705 状态），生产运行逻辑不再随本票变化；
+其动机（全量重负载下门禁 flake）拆独立工单处理。
