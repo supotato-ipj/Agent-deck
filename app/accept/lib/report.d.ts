@@ -128,6 +128,10 @@ export declare class Report {
   beginSegment(seg: string | number, title?: string): SegmentLedger
   triVerdict(): { verdict: 'PASS' | 'FAIL-CODE' | 'FAIL-ENV'; exitCode: 0 | 1 | 2 }
   verdict(explicit?: string): VerdictResult
+  /** 段账目补写（工单114：副电池显式 verdict 路径不落账目段，时长预算流程按同款格式补写
+   *  took= 取数；不改 verdict 语义与退出码）。工单411 补声明——真实公开方法此前漏声明。
+   *  scopeUnknown 保持现有可选的未知范围段列表语义（缺省空数组）。 */
+  writeLedger(scopeUnknown?: string[]): void
 }
 
 export declare function parseAcceptScope(argv: unknown[]): string[]

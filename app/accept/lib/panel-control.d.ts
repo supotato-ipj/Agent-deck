@@ -104,8 +104,11 @@ export declare interface PanelHandleState {
   stderrTail: string
 }
 
-/** 句柄 stop 的决策（outcome 比面板控制模块多一档 idle 短路） */
-export declare interface PanelHandleStopResult extends PanelStopResult {
+/** 句柄 stop 的决策（outcome 比面板控制模块多一档 idle 短路）。
+ *  工单411：改类型组合表达 outcome 扩展——子接口继承会把基接口 outcome 三值联合
+ *  放宽成四值（TS2430 非法继承，被 skipLibCheck 掩盖）；普通 stop 结果
+ *  （createPanelControl().stop）仍保持不含 idle 的三值基接口不动。 */
+export declare type PanelHandleStopResult = Omit<PanelStopResult, 'outcome'> & {
   outcome: PanelStopResult['outcome'] | 'idle'
 }
 
