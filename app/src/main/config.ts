@@ -591,12 +591,23 @@ function mergeAppearance(raw: unknown, fallback: AppearanceConfig, warnings: str
 
 /** 整份回写 config.json（首运行落盘与工单08 设置滑杆的持久化通道）。
  * tmp+rename 原子写（writeStoreText 先例）：config 收口屏幕几何/端口/透明度，
- * 坏写不碰原文件——半截 JSON 会让下次启动整体回退默认。 */
+ * 坏写不碰原文件——半截 JSON 会让下次启动整体回退默认。
+ * Windows：杀毒/索引服务可能短暂占用目标文件（EPERM/EBUSY）——短退避重试，
+ * 原子性不变（credentials/store persist 同款先例）。 */
 export function saveConfig(file: string, config: AppConfig): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   const tmp = `${file}.tmp`
   fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n', 'utf8')
-  fs.renameSync(tmp, file)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(tmp, file)
+      return
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (attempt >= 2 || (code !== 'EPERM' && code !== 'EBUSY')) throw err
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25)
+    }
+  }
 }
 
 /**
