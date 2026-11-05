@@ -50,8 +50,13 @@ export function acceptLibCompilerOptions(appRoot: string): ts.CompilerOptions {
   return parsed.options
 }
 
+// 同 worker 内跨调用复用上一程序作 oldProgram（TS 增量复用：未变更的 lib.d.ts/@types 不重解析）。
+// 门禁全量并行时 5s 预算内唯一现实路径：首次构建仍付全价，后续程序构建大幅降载。
+let lastProgram: ts.Program | undefined
+
 export function createAlignmentContext(rootNames: string[], options: ts.CompilerOptions): AlignmentContext {
-  const program = ts.createProgram({ rootNames, options })
+  const program = ts.createProgram({ rootNames, options, oldProgram: lastProgram })
+  lastProgram = program
   const checker = program.getTypeChecker()
   const ownFiles = new Set<string>(
     rootNames.map((f) => path.resolve(f).toLowerCase()),

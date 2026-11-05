@@ -125,7 +125,7 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
 describe('工单411 层2：成员对齐比较器双向语义（持久夹具负例）', () => {
   it('等集形状判绿', () => {
     expect(alignFixturePair('ok-pair')).toEqual([])
-  })
+  }, 30_000) // 本文件首个程序构建付全价（skipLibCheck=false 全量 lib/node 类型，单独实测 ~2.1s），后续经 oldProgram 复用降载
   it('可选成员合法缺席判绿', () => {
     expect(alignFixturePair('optional-absent-pair')).toEqual([])
   })
@@ -160,7 +160,7 @@ describe('工单411 层2：真实八组模块成员对齐', () => {
       allIssues.push(...alignModule(ctxForRealRepo(), moduleName, declFile, mod, sampleRoots))
     }
     expect(allIssues).toEqual([])
-  })
+  }, 30_000) // 真实仓库检查程序首次构建付全价（八组声明 + 全量 lib/node 类型，单独实测 ~3s）
 
   it('现存缺陷回归：Report 公开 writeLedger 必须真实在位且已声明', () => {
     const report = requireLib('report')

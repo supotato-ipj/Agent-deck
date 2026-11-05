@@ -66,11 +66,11 @@ describe('工单411 层1：accept lib 专用声明检查面', () => {
     expect(diags.length, '坏声明夹具未被专用配置判红——skipLibCheck 覆盖可能失效').toBeGreaterThan(0)
     const text = diags.map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' ')).join('\n')
     expect(text).toContain('SPEC411_MISSING_TYPE')
-  })
+  }, 30_000) // 真实成本：skipLibCheck=false 下 8 组声明 + 全量 lib/node 类型检查程序，单独实测 ~3.4s，全量门禁并行时更久
 
   it('真仓库八组声明经真实命令全绿（npx tsc -p tsconfig.accept-lib.json）', () => {
     // 不经 shell：直接 node typescript/bin/tsc，Windows 下 npx.cmd 无 shell 不可靠
     const tscJs = require.resolve('typescript/bin/tsc')
     execFileSync(process.execPath, [tscJs, '-p', 'tsconfig.accept-lib.json'], { cwd: appRoot, stdio: 'pipe' })
-  })
+  }, 30_000) // 真实成本：spawn 真实 tsc 全量检查（单独实测 ~3.2s），全量门禁并行时更久
 })
