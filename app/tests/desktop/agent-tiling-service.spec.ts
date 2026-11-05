@@ -588,14 +588,15 @@ describe('Agent 平铺生命周期（工单377）', () => {
 })
 
 // ————————————————————————————————————————————————————————————
-// 工单414 characterization 基线：真实应用最小尺寸夹取（写受理、矩形不达标）→「拒改后
-// 异常化」。本组测试固定现状行为——415/416 翻转预期（新窗入屏外带）时先在此取得红色
-// 回归。只断言外部可见矩形/计数/分类/事件，不绑定私有树结构（spec 413 Testing 决策）。
+// 工单414→415 characterization 翻转：真实应用最小尺寸夹取（写受理、矩形不达标）。
+// 414 基线固定「拒改后异常化」；工单415 把基线翻转为新容量语义——新窗自身无法接受
+// 分裂目标时由本次新窗入屏外带（两级安置降级，spec 413），既有窗夹取仍留 416 翻转。
+// 只断言外部可见矩形/计数/分类/事件，不绑定私有树结构（spec 413 Testing 决策）。
 // 五窗布局确定性（2560×1392，minPane 320×240，屏内上限 8）：W5 裂 W2 叶（横裂），
 // W5 目标 (1920,0,2560,696)=640×696，与工单377 五窗落位测试同一数字。
 // ————————————————————————————————————————————————————————————
-describe('工单414 characterization：最小尺寸夹取基线（415/416 翻转）', () => {
-  it('新窗夹取：第 5 窗目标被 minSize 夹取 → refused 异常化、停在夹取矩形、不入带；下一拍出树兄弟吸收', async () => {
+describe('工单414→415 characterization 翻转：最小尺寸夹取的新容量语义', () => {
+  it('新窗夹取（415 翻转）：第 5 窗自身 minSize 无法接受分裂目标 → 分裂完全回退、第 5 窗入带、零异常', async () => {
     const h = harness()
     h.mode.value = 'agent'
     h.svc.syncActivation()
@@ -604,26 +605,32 @@ describe('工单414 characterization：最小尺寸夹取基线（415/416 翻转
     h.windows.set(5, { rect: { ...AREA }, iconic: false, minSize: { w: 800, h: 400 } })
     h.watchOn(5)
     await settle(60)
-    // 现状基线：写受理但回读被夹取（640×696 → 800×696）→ 同拍两次写达上限 → refused
-    expect(h.svc.anomalyKindsForTest().get(5)).toBe('refused')
-    // 第 5 窗停在夹取矩形（不是目标、不在带列——现状保留异常窗当前几何）
-    expect(h.windows.get(5)!.rect).toEqual({ left: 1920, top: 0, right: 2720, bottom: 696 })
-    // 既有窗 W2 正常落新窗格（横裂左半）
-    expect(h.windows.get(2)!.rect).toEqual({ left: 1280, top: 0, right: 1920, bottom: 696 })
-    // 不出现「入带」：溢出为 0、异常为 1（异常当拍账面树仍含 W5——placed=5 是现状口径，
-    // 出树落在下一拍）
+    // 新容量语义：不再 refused 异常化——第 5 窗是受管平铺成员（屏外带），零新增异常
+    expect(h.svc.anomalyKindsForTest().get(5)).toBeUndefined()
+    // 第 5 窗写入合法屏外列（列宽 1280=半屏、占满平铺高 1392、露边 32 在 camera=0 下露于屏内右缘）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    // 分裂完全回退：既有四窗保持原窗格与顺序、无半分裂残留——最终矩形与「带形成」既有
+    // 语义逐像素一致（树区让出露边 32px 整树重展，与容量路径入带同一 rebase：W1 窗格
+    // 1280→1264 宽；字面「与第 5 窗打开前逐像素不动」与带列左缘=区右−32 的零重叠露边
+    // 契约不可同时成立——露边让位是既有带形成语义，GLOSSARY「屏外滚动带」story 14）
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    expect(h.windows.get(3)!.rect).toEqual({ left: 1264, top: 696, right: 2528, bottom: 1392 })
+    expect(h.windows.get(4)!.rect).toEqual({ left: 0, top: 696, right: 1264, bottom: 1392 })
     expect(h.svc.state()).toMatchObject({
-      count: 5, placed: 5, overflow: 0, anomalies: 1,
-      anomalyDetail: { fixedSize: 0, denied: 0, refused: 1 },
+      count: 5, placed: 4, overflow: 1, anomalies: 0,
+      anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 },
     })
-    // 下一拍：异常窗出树，W2 吸收整右半；W5 保留夹取矩形残留（现状基线——415 要消灭的面）
-    const writes5Before = h.writes.filter((w) => w.hwnd === 5).length
+    // 布局写入与容量回退零误授权（AC 5）
+    expect(h.prompts).toEqual([])
+    // 下一拍稳定：会话内证据免撞墙（第 5 窗不重试插回树），全案零新写、布局不再抖动
+    const writesBefore = h.writes.length
     h.watchOn(2)
     await settle(60)
-    expect(h.windows.get(2)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 696 })
-    expect(h.windows.get(5)!.rect).toEqual({ left: 1920, top: 0, right: 2720, bottom: 696 })
-    expect(h.writes.filter((w) => w.hwnd === 5).length).toBe(writes5Before) // 异常化后零再写
-    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 0, anomalies: 1 })
+    expect(h.writes.length).toBe(writesBefore)
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
   })
 
   it('既有窗夹取：第 5 窗分裂使既有窗目标低于其 minSize → 既有窗 refused 异常化、新窗照常落格', async () => {
@@ -653,11 +660,94 @@ describe('工单414 characterization：最小尺寸夹取基线（415/416 翻转
 })
 
 // ————————————————————————————————————————————————————————————
+// 工单415（spec 413 两级安置降级）：新窗自身尺寸不足 → 容量回退入带。
+// 覆盖 AC4（屏外列也夹取 → 有限写入后异常未平铺）、AC5（分轴不回归：write-denied 与
+// 夹取可区分）、会话内约束证据边界（不跨身份/窗口消失即清、不钉死带成员）。
+// ————————————————————————————————————————————————————————————
+describe('工单415 容量回退入带：终局异常、分轴与证据边界', () => {
+  it('AC4 屏外列也夹取：有限写入（2 次）后 refused 异常化——不无限重试、不隐藏、不伪称落位', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false, minSize: { w: 2000, h: 400 } })
+    h.watchOn(5)
+    await settle(60)
+    // 分裂尝试 + 带安置 = 恰 2 次写（有限写入预算），带列 1280 宽 < minSize 2000 也夹取
+    const writes5 = h.writes.filter((w) => w.hwnd === 5)
+    expect(writes5).toHaveLength(2)
+    expect(writes5[1].target).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 }) // 带列确实尝试过
+    expect(h.svc.anomalyKindsForTest().get(5)).toBe('refused')
+    // 窗口未被隐藏：停在夹取后的带列矩形（2528 + 2000），真实几何可见
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 4528, bottom: 1392 })
+    expect(h.svc.state()).toMatchObject({
+      count: 5, placed: 4, overflow: 1, anomalies: 1,
+      anomalyDetail: { fixedSize: 0, denied: 0, refused: 1 },
+    })
+    expect(h.prompts).toEqual([])
+    // 下一拍：异常窗出带、带收拢树回满区；W5 保留当前几何（异常未平铺不伪称落位）
+    h.watchOn(2)
+    await settle(60)
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1280, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 696 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 4528, bottom: 1392 })
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 0, anomalies: 1 })
+  })
+
+  it('AC5 分轴不回归：新窗写窗被系统拒绝（ok=false）仍 write-denied 异常化，不 capacity 回退入带', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false })
+    h.failWrites(Number.POSITIVE_INFINITY, 5) // 系统拒绝写窗——权限/系统类，不是尺寸夹取
+    h.watchOn(5)
+    await settle(60)
+    h.watchOn(5)
+    await settle(60)
+    expect(h.svc.anomalyKindsForTest().get(5)).toBe('write-denied')
+    // 不入带（溢出 0）：受理失败不走容量回退——两条失败轴仍可区分
+    // （第二次触发拍：异常窗出树，placed=4 是既有异常记账口径；对照容量回退的 overflow=1）
+    expect(h.svc.state()).toMatchObject({
+      count: 5, placed: 4, overflow: 0, anomalies: 1,
+      anomalyDetail: { fixedSize: 0, denied: 1, refused: 0 },
+    })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('约束证据只在当前会话：窗口消失即清——新窗身份可正常入树，不被旧下界钉在带里', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false, minSize: { w: 800, h: 400 } })
+    h.watchOn(5)
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+    // 关闭带成员（证据随窗口消失清账），重开同 hwnd 的新窗（无 minSize 约束）
+    h.windows.delete(5)
+    h.watchOn(2)
+    await settle(60)
+    h.windows.set(5, { rect: { ...AREA }, iconic: false })
+    h.watchOn(5)
+    await settle(60)
+    // 若旧证据（下界 800 宽）未清，~632 宽新窗格会被拒而滞留带；清账后正常落格。
+    // （落点 = 队首叶裂变：回退拍试插+回退的队列出入把 W2 叶挪到队尾，队首为 W3 叶——
+    // 同一事件序列仍确定得出此布局；断言点是「入树落格」，不是滞留带）
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 5, overflow: 0, anomalies: 0 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 1920, top: 696, right: 2560, bottom: 1392 })
+  })
+})
+
+// ————————————————————————————————————————————————————————————
 // 工单414 低敏写窗诊断事件（AC 1）：写循环/重写/核验/异常化的当拍证据——
 // 只记 hwnd、目标/实际矩形、写窗结果、尝试序、异常类别与恢复状态；不记标题。
 // ————————————————————————————————————————————————————————————
-describe('工单414 低敏写窗诊断事件', () => {
-  it('夹取路径：tiling-write（受理）/tiling-verify（目标+实际+verdict+attempt）/tiling-anomaly（kind+恢复态），零标题字段', async () => {
+describe('工单414 低敏写窗诊断事件（415 翻转：夹取 → 容量回退留证）', () => {
+  it('夹取路径：place 夹取 → band-fallback 带安置；tiling-verify 全程留证；零异常事件、零标题字段', async () => {
     const h = harness()
     h.mode.value = 'agent'
     h.svc.syncActivation()
@@ -667,11 +757,15 @@ describe('工单414 低敏写窗诊断事件', () => {
     h.watchOn(5)
     await settle(60)
     const writes5 = h.logs.filter((e) => e.type === 'tiling-write' && e.hwnd === 5)
-    expect(writes5).toHaveLength(2) // place + 同拍有界重写
-    for (const w of writes5) {
-      expect(w.ok).toBe(true) // 受理（非系统拒绝）
-      expect(w.target).toEqual({ left: 1920, top: 0, right: 2560, bottom: 696 })
-    }
+    expect(writes5).toHaveLength(2) // 分裂尝试（place）+ 同拍容量回退（band-fallback）
+    expect(writes5[0]).toMatchObject({
+      ok: true, phase: 'place',
+      target: { left: 1920, top: 0, right: 2560, bottom: 696 },
+    })
+    expect(writes5[1]).toMatchObject({
+      ok: true, phase: 'band-fallback',
+      target: { left: 2528, top: 0, right: 3808, bottom: 1392 },
+    })
     const verifies5 = h.logs.filter((e) => e.type === 'tiling-verify' && e.hwnd === 5)
     expect(verifies5).toHaveLength(2)
     expect(verifies5[0]).toMatchObject({
@@ -679,10 +773,13 @@ describe('工单414 低敏写窗诊断事件', () => {
       actual: { left: 1920, top: 0, right: 2720, bottom: 696 }, // 夹取后的实际矩形
       verdict: 'retry', attempt: 1,
     })
-    expect(verifies5[1]).toMatchObject({ verdict: 'anomaly', attempt: 2 })
-    const anomalies5 = h.logs.filter((e) => e.type === 'tiling-anomaly' && e.hwnd === 5)
-    expect(anomalies5).toHaveLength(1)
-    expect(anomalies5[0]).toMatchObject({ kind: 'refused', recovery: 'none', recoveryReason: null })
+    expect(verifies5[1]).toMatchObject({
+      target: { left: 2528, top: 0, right: 3808, bottom: 1392 },
+      actual: { left: 2528, top: 0, right: 3808, bottom: 1392 }, // 带列达标
+      verdict: 'ok', attempt: 2,
+    })
+    // 容量回退不是异常：零异常事件（分轴——write-denied/refused 事件由各自路径另行留证）
+    expect(h.logs.filter((e) => e.type === 'tiling-anomaly' && e.hwnd === 5)).toEqual([])
     // 隐私边界：诊断事件流零窗口标题（harness 事实标题为「窗 N」——不得出现在事件里）
     expect(JSON.stringify(h.logs)).not.toContain('窗 ')
   })

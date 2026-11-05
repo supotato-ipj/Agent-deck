@@ -229,6 +229,13 @@ export class AgentTilingService extends Service {
    *  缩放），是预期写入——不进入授权状态机（不弹框、不浮动、不消费授权）。窗口消失
    *  即清（同 hwnd 复用是新窗身份，不继承旧几何账）。 */
   private lastPlaced = new Map<number, TileRect>()
+  /** 会话内最小尺寸下界证据（工单415，spec413「以真实写窗事实学习约束」「约束证据只在
+   *  当前会话」）：hwnd → 已观测的尺寸下界 + 观测时的窗口身份。下界只在「写窗受理但
+   *  实际尺寸 > 目标尺寸」的维度记录（实际值 = 该维度最小尺寸的下界估计）；只用于插入
+   *  前的免撞墙复核（试插新叶低于下界 → 直接入带），带安置本身仍以真实写窗回读为准。
+   *  只在内存：不写入布局文档（持久白名单不含）、窗口消失清账、同句柄换身份失效、
+   *  显示参数变化清空重评、异常重建清空。 */
+  private minSizeFloor = new Map<number, { w: number; h: number; identity: WindowIdentity }>()
   /** 持久平铺树（工单377，GLOSSARY「Agent 平铺」）：布局账本——增量裂变/兄弟吸收；
    *  显示参数变化（平铺区变）时按成员序整体重建（重算语义，story 23）。 */
   private tree: TilingTree | null = null
@@ -458,6 +465,7 @@ export class AgentTilingService extends Service {
     this.recoveryReason = null
     this.restoringPass = false
     this.lastIdentities.clear()
+    this.minSizeFloor.clear() // 工单415：尺寸能力证据只在当前会话（停表即清）
     this.lastSavedText = null
   }
 
@@ -616,6 +624,9 @@ export class AgentTilingService extends Service {
         if (f) members.push(f)
       }
       this.displayDirty = false
+      // 显示参数变化：尺寸能力证据清空重评（spec413 story 31/32——旧会话/旧显示条件下的
+      // 像素经验不把约束锁死，随后的写窗事实重新学习）
+      this.minSizeFloor.clear()
     }
     const memberSet = new Set(members.map((m) => m.hwnd))
     // 稳定身份表（工单383）：只留 hwnd/pid/归一化 exe——标题不进入持久化账
@@ -658,6 +669,10 @@ export class AgentTilingService extends Service {
     }
     for (const h of this.lastPlaced.keys()) {
       if (!memberSet.has(h)) this.lastPlaced.delete(h)
+    }
+    // 尺寸能力证据随窗口消失清账（工单415）：证据不跨窗口身份存活
+    for (const h of this.minSizeFloor.keys()) {
+      if (!memberSet.has(h)) this.minSizeFloor.delete(h)
     }
     const authIds = new Set<number>([...this.auth.phase.keys(), ...this.auth.floating.keys()])
     for (const h of authIds) {
@@ -755,7 +770,27 @@ export class AgentTilingService extends Service {
     const knownPlaced = new Set(treePlacedIds(this.tree))
     const bandBeforeIds = new Set(bandBefore)
     for (const hwnd of this.memberOrder) {
-      treeInsert(this.tree, String(hwnd)) // 已在树=幂等；溢出=入带待补
+      const idStr = String(hwnd)
+      const floor = this.minSizeFloor.get(hwnd)
+      if (floor) {
+        const ident = this.lastIdentities.get(hwnd)
+        if (!ident || ident.pid !== floor.identity.pid || ident.exe !== floor.identity.exe) {
+          this.minSizeFloor.delete(hwnd) // 同句柄新身份/身份不明：旧证据不继承（spec413 会话边界）
+        } else {
+          // 证据复核式插入（工单415）：试插后的新叶低于已观测下界 → 免撞墙直接入带
+          // （带序尾）；空间释放后窗格足够大仍按序补入——下界只是复核，带安置仍以真实
+          // 写窗回读为准（不把窗永久钉在带里）
+          if (treeInsert(this.tree, idStr) === 'placed') {
+            const p = treePlan(this.tree).placements.find((x) => x.id === idStr)
+            if (p && (p.rect.right - p.rect.left < floor.w || p.rect.bottom - p.rect.top < floor.h)) {
+              treeRemove(this.tree, idStr)
+              if (!this.tree.overflow.includes(idStr)) this.tree.overflow.push(idStr)
+            }
+          }
+          continue
+        }
+      }
+      treeInsert(this.tree, idStr) // 已在树=幂等；溢出=入带待补
     }
     // 带空↔非空迁移：整树 rebase（带出现树让位露边、带清空树回满区——矩形重展、
     // 结构/轴/队列引用不变）
@@ -801,23 +836,27 @@ export class AgentTilingService extends Service {
       this.anchorHwnd = hwnd
       return true
     }
-    if (fitHwnd !== null) {
-      applyFit(fitHwnd)
-    } else if (this.anchorHwnd !== null) {
-      // 锚窗跟随（工单406）：显式 fit 事件缺位时，锚窗的物理矩形若不再完整可见（兄弟
-      // 吸收/带补入/列收拢/显示重算动了它的目标矩形），按同一 fit 最小滑动回锚；已完整
-      // 可见则零移动（幂等——story 21 后台事件不动视口的前提是锚窗可见性未破）。
-      const idStr = String(this.anchorHwnd)
-      const bandIdx = tree.overflow.indexOf(idStr)
-      const treeIdx = plan.placements.findIndex((p) => p.id === idStr)
-      const rect = bandIdx >= 0
-        ? bandCols()[bandIdx]
-        : treeIdx >= 0 ? plan.placements[treeIdx].rect : null
-      const visible = rect !== null &&
-        rect.left - this.camera >= area.left &&
-        rect.right - this.camera <= area.right
-      if (!visible) applyFit(this.anchorHwnd)
+    // 单一 fit 决策（显式事件与锚窗跟随共用；工单415 容量回退重排后复核复用同一闭包）
+    const resolveFit = (): void => {
+      if (fitHwnd !== null) {
+        applyFit(fitHwnd)
+      } else if (this.anchorHwnd !== null) {
+        // 锚窗跟随（工单406）：显式 fit 事件缺位时，锚窗的物理矩形若不再完整可见（兄弟
+        // 吸收/带补入/列收拢/显示重算动了它的目标矩形），按同一 fit 最小滑动回锚；已完整
+        // 可见则零移动（幂等——story 21 后台事件不动视口的前提是锚窗可见性未破）。
+        const idStr = String(this.anchorHwnd)
+        const bandIdx = tree.overflow.indexOf(idStr)
+        const treeIdx = plan.placements.findIndex((p) => p.id === idStr)
+        const rect = bandIdx >= 0
+          ? bandCols()[bandIdx]
+          : treeIdx >= 0 ? plan.placements[treeIdx].rect : null
+        const visible = rect !== null &&
+          rect.left - this.camera >= area.left &&
+          rect.right - this.camera <= area.right
+        if (!visible) applyFit(this.anchorHwnd)
+      }
     }
+    resolveFit()
     // 物理目标（整组最小滑动）：视口先钳到内容右端（带收拢后不留空白视口——story 28），
     // 再对全部受管窗按 −camera 平移。屏幕外带列与屏内树同一平移（GLOSSARY「屏外滚动带」）。
     const targets = (): TilePlacement[] => {
@@ -970,10 +1009,23 @@ export class AgentTilingService extends Service {
       retractPending(this.echoLedger, hwnd) // 达标：期望矩形已落地，回声账清零
       this.lastPlaced.set(hwnd, { ...target }) // 布局几何账：窗确实在此（工单404）
     }
-    const retries: Array<{ hwnd: number; target: TileRect }> = []
+    let retries: Array<{ hwnd: number; target: TileRect }> = []
+    // 工单415 两级安置降级（spec413）：新窗自身无法接受分裂目标（写「受理」但回读被
+    // 最小尺寸等夹取）→ 收集容量回退，不再对同一目标有界重写（那只会撞同一堵墙并
+    // 异常化）。分轴不动：写窗被系统拒绝（restoreRect false）仍走 write-denied。
+    const bandFallbacks: Array<{ hwnd: number; target: TileRect; actual: ScopeRect | null }> = []
     for (const w of outcomes) {
       const verdict = verifyOnce(w.hwnd, w.target)
       if (verdict === 'ok') settleOk(w.hwnd, w.target)
+      if (
+        verdict === 'retry' &&
+        !writeFailed.has(w.hwnd) && // 受理（false = 系统拒绝，不入容量回退）
+        !knownPlaced.has(String(w.hwnd)) && !bandBeforeIds.has(String(w.hwnd)) && // 本次新窗承担回退
+        !isFloating(this.auth, w.hwnd) // 浮动复原写不参与平铺回退
+      ) {
+        bandFallbacks.push({ hwnd: w.hwnd, target: w.target, actual: this.deps.readRect(w.hwnd) })
+        continue
+      }
       if (verdict === 'retry') retries.push({ hwnd: w.hwnd, target: w.target })
       if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
         const kind = writeFailed.has(w.hwnd) ? 'write-denied' : 'refused'
@@ -983,6 +1035,64 @@ export class AgentTilingService extends Service {
           recovery: this.recovery, recoveryReason: this.recoveryReason,
         })
       }
+    }
+    // —— 容量回退入带（工单415）：分裂完全回退 + 带安置同拍完成（不留半分裂一拍）——
+    // 新窗承担回退（spec413）：既有成员保持分裂前窗格（treeRemove 兄弟自动重展）、
+    // 树形与相对顺序不变；本窗入带序尾后按带列安置。带空→非空迁移沿用规划期同一
+    // rebase 语义（树区让出露边 32px）。屏外列也夹取时核验自然达上限 → 最终 refused
+    // 异常（有限写入：分裂尝试 + 带安置，每窗每拍仍 ≤ MAX_WRITE_ATTEMPTS 次写）。
+    if (bandFallbacks.length > 0) {
+      for (const fb of bandFallbacks) {
+        treeRemove(tree, String(fb.hwnd))
+        if (!tree.overflow.includes(String(fb.hwnd))) tree.overflow.push(String(fb.hwnd))
+        // 以真实写窗事实学习约束（spec413）：只在「实际 > 目标」的维度记下界，会话内有效
+        this.learnMinSizeFloor(fb.hwnd, fb.target, fb.actual, this.lastIdentities.get(fb.hwnd))
+        // 低敏回退诊断（spec413 决策「记录有界的写窗/回退结果」）：句柄/目标/实际/恢复态
+        this.logEvent({
+          type: 'tiling-band-fallback', hwnd: fb.hwnd,
+          target: { ...fb.target }, actual: fb.actual ? { ...fb.actual } : null,
+          recovery: this.recovery, recoveryReason: this.recoveryReason,
+        })
+      }
+      if (bandWasEmpty && tree.overflow.length > 0) {
+        rebaseTreeArea(tree, bandTreeArea(area, bandReveal))
+      }
+      plan = treePlan(tree)
+      resolveFit() // 前台新窗入带自动滑入 / 锚窗可见性复核（同一 fit 最小滑动路径，story 18）
+      currentTargets = targets()
+      const assignments2 = currentTargets
+        .filter((p) => Number(p.id) !== this.heldHwnd) // 挂起窗不写（同首轮写集口径）
+        .map((p) => {
+          const hwnd = Number(p.id)
+          return { hwnd, target: p.rect, iconic: iconicByHwnd.get(hwnd) ?? false, current: rectByHwnd.get(hwnd) ?? null }
+        })
+      for (const w of planWrites(assignments2, this.anomalies)) {
+        recordPending(this.echoLedger, w.hwnd, w.target, now)
+        const ok = this.deps.restoreRect(w.hwnd, w.target)
+        this.logEvent({ type: 'tiling-write', hwnd: w.hwnd, target: { ...w.target }, ok, phase: 'band-fallback' })
+        writeOk.set(w.hwnd, ok)
+        if (!ok) {
+          retractPending(this.echoLedger, w.hwnd)
+          writeFailed.add(w.hwnd)
+        }
+        const verdict = verifyOnce(w.hwnd, w.target)
+        if (verdict === 'ok') settleOk(w.hwnd, w.target)
+        if (verdict === 'retry') retries.push({ hwnd: w.hwnd, target: w.target })
+        if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
+          const kind = writeFailed.has(w.hwnd) ? 'write-denied' : 'refused'
+          this.anomalyKinds.set(w.hwnd, kind)
+          this.logEvent({
+            type: 'tiling-anomaly', hwnd: w.hwnd, kind,
+            recovery: this.recovery, recoveryReason: this.recoveryReason,
+          })
+        }
+      }
+      // 回退重算改了目标：回退前登记的 retry 只保留目标仍与当前规划一致的
+      //（浮动复原不在规划内，原样保留）
+      retries = retries.filter((w) => {
+        const p = currentTargets.find((t) => Number(t.id) === w.hwnd)
+        return p ? rectEq(p.rect, w.target) : isFloating(this.auth, w.hwnd)
+      })
     }
     // 写窗收敛闭环（工单404，spec #403 决策「以实际几何收敛为准」）：retry 不再等下一次
     // 窗口事件——同一拍内有界重写（尝试账已计次，MAX_WRITE_ATTEMPTS 内收敛或异常化），
@@ -1035,6 +1145,34 @@ export class AgentTilingService extends Service {
     // 恢复轮结束 + 模型落盘（工单383）：本轮之后的事件回到正常授权判定
     this.restoringPass = false
     this.saveLayout(false)
+  }
+
+  /**
+   * 记录会话内尺寸能力证据（工单415，spec413「以真实写窗事实学习约束」）：写入被受理
+   * 但某维度实际尺寸 > 目标尺寸 = 该维度被应用最小尺寸夹取，实际值即下界估计（分量
+   * 取历史最大）。同句柄身份变化（pid/exe 不符）即弃旧重学；不持久化（布局文档白名单
+   * 不含）、不跨窗口身份。下界只用于插入前复核（免反复撞墙），带安置仍以真实回读为准。
+   */
+  private learnMinSizeFloor(
+    hwnd: number,
+    target: TileRect,
+    actual: ScopeRect | null,
+    identity: WindowIdentity | undefined,
+  ): void {
+    if (!actual || !identity) return
+    const prev = this.minSizeFloor.get(hwnd)
+    const stale = prev !== undefined &&
+      (prev.identity.pid !== identity.pid || prev.identity.exe !== identity.exe)
+    const base = stale || prev === undefined ? { w: 0, h: 0, identity } : prev
+    const tw = target.right - target.left
+    const th = target.bottom - target.top
+    const aw = actual.right - actual.left
+    const ah = actual.bottom - actual.top
+    this.minSizeFloor.set(hwnd, {
+      w: aw > tw ? Math.max(base.w, aw) : base.w,
+      h: ah > th ? Math.max(base.h, ah) : base.h,
+      identity,
+    })
   }
 
   // ————————————————————————————————————————————————————————————
@@ -1093,6 +1231,8 @@ export class AgentTilingService extends Service {
         // 异常重建（工单410）：只废弃旧布局内容，不进入永久停写态。旧成员顺序/树形/
         // 队列/屏外顺序/锚窗/浮动记录全部不应用（pendingRestore 不置入），本拍起按
         // 正常 pass 流程以当前合格窗口重建（新成员首拍落位不进授权判定，无弹框）。
+        // 尺寸能力证据一并清空（工单415：异常重建后按既有生命周期重评，spec413）
+        this.minSizeFloor.clear()
         this.setRecovery('rebuilt', null)
         return true
       }

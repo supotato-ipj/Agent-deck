@@ -617,3 +617,64 @@ describe('带成员授权与生命周期（工单405 + 工单404 分流）', () 
     expect(h.windows.get(2)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 376 })
   })
 })
+
+// ————————————————————————————————————————————————————————————
+// 工单415（spec 413）：新窗自身尺寸不足 → 容量回退入带的 fit 面（AC 3）。宽屏夹具
+// （容量 8 不溢出）+ minSize 夹取注入：第 5 窗因夹取入带——前台新窗同拍自动滑入完整
+// 可见、后台新窗只追加右端视口不动、露边点击与普通激活走同一最小滑动路径（story 18/
+// 19/15/16）。断言外部可见矩形与授权提示，不绑定私有结构。
+// ————————————————————————————————————————————————————————————
+describe('工单415 新窗夹取入带的 fit 面（前台滑入/后台不动/同一激活路径）', () => {
+  const W5_MIN = { w: 800, h: 400 }
+  const W5_COL_CAM0: TileRect = { left: 2528, top: 0, right: 3808, bottom: 1392 }
+  const W5_COL_FIT: TileRect = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+
+  function wideHarness(): Harness {
+    return harness({
+      deps: {
+        ...({} as Partial<AgentTilingServiceOptions['deps']>),
+        primaryRect: () => ({ left: 0, top: 0, right: 2560, bottom: 1440 }),
+        taskbarTop: () => 1392,
+      },
+    })
+  }
+
+  async function openConstrained5(h: Harness): Promise<void> {
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])
+    await settle()
+    h.windows.set(5, { rect: R(5), iconic: false, minSize: W5_MIN })
+    h.watchOn(5)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+  }
+
+  it('前台新窗入带：同拍自动 fit 完整可见（story 18）+ 零误授权（AC 5）', async () => {
+    const h = wideHarness()
+    h.foreground.add(5)
+    await openConstrained5(h)
+    // camera=1248：带成员贴右缘完整可见；屏内四窗整组左移（布局预期写入，不进授权）
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.windows.get(1)!.rect).toEqual({ left: -1248, top: 0, right: 16, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 16, top: 0, right: 1280, bottom: 696 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('后台新窗只追加右端、视口不动；露边点击与反向激活走同一最小滑动路径（story 19/15/17）', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    // 视口不动（camera=0）：带列只露 32px 露边，屏内四窗停在让位重展位
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    // 露边点击/任务栏激活（前台事件单一入口）：fit 最小滑动到完整可见
+    h.fgEmit(5)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.prompts).toEqual([])
+    // 反向返回屏内窗：同一 fit 路径整组回位（双向对称）
+    h.fgEmit(1)
+    await settle()
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+  })
+})
