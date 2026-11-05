@@ -2060,8 +2060,8 @@
       "cdpPort": 9234,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 110,
-      "lastMeasuredAt": "2026-11-05",
+      "lastMeasuredSeconds": 76,
+      "lastMeasuredAt": "2026-11-06",
       "areas": [
         "desktop"
       ],

@@ -984,6 +984,93 @@ describe('工单414 低敏写窗诊断事件（415 翻转：夹取 → 容量回
 })
 
 
+// ————————————————————————————————————————————————————————————
+// 工单417（spec 413）：新容量语义贯通桌面重入/失活会话边界与恢复平铺。spec 413 实现决策
+// 「窗口消失、桌面失活、显示参数变化或异常重建时按既有生命周期清理或重新评估」——尺寸
+// 能力证据（minSize 下界/分裂阻断记忆）不跨桌面失活泄漏：失活即清账，重入按当前事实
+// 重评（story 31/32）。只断言外部可见矩形/计数/分类/提示。
+// ————————————————————————————————————————————————————————————
+describe('工单417 尺寸能力证据会话边界（桌面失活）与恢复平铺贯通', () => {
+  it('AC2 证据不跨桌面失活泄漏：失活清账、重入按当前事实重评——约束解除后不被旧下界钉在带里', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false, minSize: { w: 800, h: 400 } })
+    h.watchOn(5)
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+    // —— 桌面重入（切普通桌面再切回，约束未变）：证据不跨失活携带 → 重评后由新鲜写窗
+    // 事实再次入带，外部结果与初入一致（零异常、带列位不变、既有窗回分裂前窗格）
+    h.mode.value = 'normal'
+    h.svc.syncActivation()
+    await settle()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.prompts).toEqual([])
+    // —— 失活期间应用侧约束解除（同 hwnd 同身份——应用升级/设置变更）：重入不再被旧
+    // 证据钉在带里，按当前事实重评 → 补入树内落格（story 32 过期约束不永久生效）
+    h.mode.value = 'normal'
+    h.svc.syncActivation()
+    await settle()
+    h.windows.get(5)!.minSize = undefined
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 5, overflow: 0, anomalies: 0 })
+    // 补入窗格（640×696）对已解除约束的窗合法；队列头历经轮转后为窗 1 的叶——
+    // 同一事件序确定性复现（spec413 story 42），不与首开场景的裂变叶位强求一致
+    expect(h.windows.get(5)!.rect).toEqual({ left: 640, top: 0, right: 1280, bottom: 696 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('恢复平铺：容量带成员保持受管账位；浮动期获得 minSize 的窗收回时容量回退入带次位（不异常化、不保浮动矩形）', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3, 4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false, minSize: { w: 800, h: 400 } })
+    h.watchOn(5)
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1 })
+    // 窗 6 入树后经授权流浮动（378 同款：动→确认→再动）
+    await addWindows(h, [6])
+    const pane6 = h.windows.get(6)!.rect
+    const moved6: TileRect = { left: pane6.left + 80, top: pane6.top + 50, right: pane6.right + 80, bottom: pane6.bottom + 50 }
+    h.windows.get(6)!.rect = { ...moved6 }
+    h.foreground.add(6)
+    h.watchOn(6)
+    await settle(60)
+    expect(h.prompts.length).toBe(1)
+    h.svc.confirmHwnd(6)
+    h.windows.get(6)!.rect = { ...moved6 }
+    h.foreground.add(6)
+    h.watchOn(6)
+    await settle(60)
+    expect(h.svc.state()).toMatchObject({ floating: 1 })
+    const promptsBeforeRestore = h.prompts.length
+    // 浮动期间应用侧约束出现（升级/设置变更），恢复平铺收回浮动窗
+    h.windows.get(6)!.minSize = { w: 800, h: 400 }
+    h.svc.restoreTiling()
+    await settle(60)
+    // 收回：6 重新入树 → 分裂目标被夹取 → 容量回退入带次位（带序 = 进入序 [5,6]）；
+    // 不是异常、不保留浮动矩形；容量带成员 5 的受管账位不受恢复平铺扰动。
+    // 锚窗 = 恢复时前台受管窗 6（ADR-0028 恢复后以当前前台受管窗为锚）：整组 fit 滑动
+    // 使窗 6 完整可见——两根带列进屏，屏内树窗整组移出左侧
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2, floating: 0, anomalies: 0 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 0, right: 1280, bottom: 1392 })
+    expect(h.windows.get(6)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 1392 })
+    expect(h.windows.get(1)!.rect).toEqual({ left: -2528, top: 0, right: -1264, bottom: 696 })
+    expect(h.prompts.length).toBe(promptsBeforeRestore)
+  })
+})
+
 describe('逐窗几何授权、浮动与恢复平铺（工单378）', () => {
   /** 用户主动改几何：先改矩形、置前台、触发一拍（拖动/边框/最大化/键盘/Snap 的假身） */
   const userMove = async (h: Harness, hwnd: number, rect: TileRect): Promise<void> => {

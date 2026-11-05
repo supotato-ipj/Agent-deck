@@ -1,0 +1,35 @@
+工单417 真机探针（t414-real-app-tiling-probe.js tag=417）——真实 Electron 应用最小尺寸夹取观察
+运行时刻：2026-11-05T18:28:19.553Z
+退出码：0（观察能力断言全过）
+
+S1 基线：electron.exe 进程计数=0；主屏={"left":0,"top":0,"right":2560,"bottom":1440} taskbarTop=1392
+S1 事实集过滤：探针服务只管理自拉起的 T414 窗（collectFacts 过滤），绝不触碰用户既有窗口
+S2 helper 就绪：pid=76964 windows=T414-W1(hwnd=2b0f7a,min=none) T414-W2(hwnd=1817b0,min=none) T414-W3(hwnd=271020,min=none) T414-W4(hwnd=780a10,min=1100x900) T414-W5(hwnd=270e26,min=1100x900)
+S3 生产 AgentTilingService 已启动（dist 真源；currentMode=agent 注入，其余缺省绑定生产 FFI）
+S4 服务收敛：count=5 placed=3 overflow=2 anomalies=0 anomalyDetail={"fixedSize":0,"denied":0,"refused":0} recovery=none/-
+PASS S4 平铺服务激活并管理 5 扇真实 Electron 窗（count=5） —— count=5
+—— S5 实际几何 vs 最后写窗目标（真实 Electron 应用） ——
+  T414-W1 hwnd=2b0f7a min=none 写目标=[-16,0,1248,696] 实际=[-16,0,1248,696]
+  T414-W2 hwnd=1817b0 min=none 写目标=[-1280,0,-16,1392] 实际=[-1280,0,-16,1392]
+  T414-W3 hwnd=271020 min=none 写目标=[-16,696,1248,1392] 实际=[-16,696,1248,1392]
+  T414-W4 hwnd=780a10 min=1100x900 写目标=[2528,0,3808,1392] 实际=[2528,0,3808,1392]
+  T414-W5 hwnd=270e26 min=1100x900 写目标=[1248,0,2528,1392] 实际=[1248,0,2528,1392]
+PASS S5 低敏平铺状态可读（count/placed/overflow/anomalies/anomalyDetail/recovery 全字段） —— available=true
+PASS S5 实际几何可读（5 扇 GetWindowRect 全部非空） —— T414-W1:[-16,0,1248,696] T414-W2:[-1280,0,-16,1392] T414-W3:[-16,696,1248,1392] T414-W4:[2528,0,3808,1392] T414-W5:[1248,0,2528,1392]
+PASS S5 写窗诊断事件在真机事件流（tiling-write 含目标矩形与写窗结果） —— tiling-write 覆盖 5 扇
+PASS S5 隐私边界：诊断事件流零标题字段（jsonl 全行无 title 键） —— 24 行
+—— S6 夹取取证结论 ——
+未复现：本轮真实 Electron 窗全部接受了平铺目标（写受理且回读达标）——如实记录，不伪造根因
+异常化结论：anomalies=0 detail={"fixedSize":0,"denied":0,"refused":0}；tiling-anomaly 事件 0 条（无）
+S6 事件流全量证据：D:\test-folder\wallpaperengine-research--spec413-integration\app\accept\evidence\417-real-app-tiling-probe-events.jsonl（24 行）
+—— S7 清理与零残留 ——
+PASS S7 伴生 Electron 进程计数不高于基线（无残留） —— 0 → 0
+PASS S7 探针临时目录已删除 —— C:\Users\ANW~1\AppData\Local\Temp\t414-probe-0h1S93
+S7 WinEvent hook：生产服务绑定的观察 hook 随探针进程退出由系统释放（进程级生命周期）
+
+=== 工单414 观察能力要点 ===
+① 低敏平铺状态：生产服务 state() 投影（计数/落格/溢出/异常分类/恢复态）直接可读——见 S4/S5
+② 实际几何：GetWindowRect 对拍写窗目标——夹取/达标逐扇可见——见 S5 表
+③ 诊断事件：tiling-write/tiling-verify/tiling-anomaly 在真实应用写窗链上当拍落 jsonl——见 S6 与事件文件
+④ 结论二值如实：夹取复现或未复现均记录在案，不伪造根因（spec 413 Further Notes）
+断言账目：全部通过

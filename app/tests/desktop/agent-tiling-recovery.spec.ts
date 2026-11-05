@@ -27,7 +27,7 @@ const FLOAT: TileRect = { left: 400, top: 300, right: 1100, bottom: 900 }
 
 interface Harness {
   svc: AgentTilingService
-  windows: Map<number, { rect: TileRect; iconic: boolean; pid: number; exe: string }>
+  windows: Map<number, { rect: TileRect; iconic: boolean; pid: number; exe: string; minSize?: { w: number; h: number } }>
   writes: Array<{ hwnd: number; target: TileRect; kind: 'restore' | 'tile' }>
   mode: { value: 'normal' | 'agent' | 'unmanaged' }
   primary: { value: TileRect }
@@ -95,7 +95,8 @@ function layoutDoc(over: Partial<AgentLayoutDoc> = {}): AgentLayoutDoc {
 function makeHarness(initial?: {
   doc?: AgentLayoutDoc | null
   raw?: string
-  windows?: number[]
+  /** 窗清单：纯 hwnd 或带 minSize 夹取的规格（工单417——minSize 必须在首轮 pass 前就位） */
+  windows?: Array<number | { hwnd: number; minSize: { w: number; h: number } }>
   mode?: 'normal' | 'agent'
   primary?: TileRect
   cleanShutdownWrites?: (docText: string) => void
@@ -104,13 +105,15 @@ function makeHarness(initial?: {
   const file = path.join(dir, 'agent-layout.json')
   if (initial?.raw !== undefined) fs.writeFileSync(file, initial.raw)
   else if (initial?.doc) fs.writeFileSync(file, serializeLayout(initial.doc))
-  const windows = new Map<number, { rect: TileRect; iconic: boolean; pid: number; exe: string }>()
-  for (const hwnd of initial?.windows ?? []) {
+  const windows = new Map<number, { rect: TileRect; iconic: boolean; pid: number; exe: string; minSize?: { w: number; h: number } }>()
+  for (const spec of initial?.windows ?? []) {
+    const hwnd = typeof spec === 'number' ? spec : spec.hwnd
     windows.set(hwnd, {
       rect: { left: 50 + hwnd, top: 60 + hwnd, right: 600 + hwnd, bottom: 500 + hwnd },
       iconic: false,
       pid: 1000 + hwnd,
       exe: `C:\\apps\\w${hwnd}.exe`,
+      ...(typeof spec === 'number' ? {} : { minSize: spec.minSize }),
     })
   }
   const writes: Harness['writes'] = []
@@ -151,7 +154,20 @@ function makeHarness(initial?: {
       restoreRect: (hwnd, target) => {
         writes.push({ hwnd, target: { ...target }, kind: 'restore' })
         const w = windows.get(hwnd)
-        if (w) w.rect = { ...target }
+        if (w) {
+          // 最小尺寸夹取（工单414/417，与 agent-tiling-service.spec 同款）：写「受理」但
+          // 应用按自身 minWidth/minHeight 夹取（WM_GETMINMAXINFO 假身）——回读不达标，
+          // 核验天然判 retry → 容量回退路径（spec 413）
+          const ms = w.minSize
+          w.rect = ms
+            ? {
+                left: target.left,
+                top: target.top,
+                right: target.left + Math.max(target.right - target.left, ms.w),
+                bottom: target.top + Math.max(target.bottom - target.top, ms.h),
+              }
+            : { ...target }
+        }
         return true
       },
       isForeground: (h) => foreground.has(h),
@@ -430,7 +446,9 @@ describe('持久化隐私与授权边界（工单383 验收②）', () => {
       const text = fs.readFileSync(h.file, 'utf8')
       expect(text).not.toContain('T383 敏感标题')
       expect(text).not.toContain('data:image')
-      for (const forbidden of ['"title"', '"prompt"', '"armed"', '"authorized"', '"thumbnail"']) {
+      // 工单417：尺寸能力证据（minSize 下界/分裂阻断记忆）只在当前会话——持久布局
+      // 格式不新增此类字段（spec 413「持久格式不扩张」）
+      for (const forbidden of ['"title"', '"prompt"', '"armed"', '"authorized"', '"thumbnail"', '"minSize"']) {
         expect(text.includes(forbidden)).toBe(false)
       }
       expect(Object.keys(readDoc(h)).sort()).toEqual(['anchor', 'band', 'clean', 'desktopId', 'floating', 'order', 'queue', 'tree', 'version'])
@@ -519,6 +537,80 @@ describe('带与锚窗恢复（工单406）', () => {
       expect(doc.anchor).toBe(4)
       expect(doc.order.map((w) => w.hwnd)).toEqual([1, 2, 3, 4, 5])
       expect(JSON.stringify(doc)).not.toContain('敏感标题')
+    } finally { h.cleanup() }
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单417（spec 413）：新容量语义贯通恢复路径——干净恢复与异常重建都按当前事实重新评估，
+// 尺寸能力证据不跨会话（重启/重建）泄漏、持久布局格式不新增此类字段（story 29/30/32）。
+// 夹具：宽屏 2560×1392 平铺区（harness 默认主屏）+ minSize 夹取（工单414 同款假身）。
+// ————————————————————————————————————————————————————————————
+describe('工单417 新容量语义贯通恢复与会话边界（干净恢复/异常重建）', () => {
+  /** 五窗布局文档（与 406 describe 的 bandDoc 同款）：树 4 叶 + 带成员 5（锚置空 = 视口起点） */
+  function bandDoc417(): AgentLayoutDoc {
+    return {
+      version: AGENT_LAYOUT_VERSION,
+      desktopId: AGENT,
+      clean: true,
+      order: [identity(1), identity(2), identity(3), identity(4), identity(5)],
+      tree: {
+        kind: 'split', axis: 'h',
+        first: {
+          kind: 'split', axis: 'v',
+          first: { kind: 'leaf', ref: 0 },
+          second: { kind: 'leaf', ref: 3 },
+        },
+        second: {
+          kind: 'split', axis: 'v',
+          first: { kind: 'leaf', ref: 1 },
+          second: { kind: 'leaf', ref: 2 },
+        },
+      },
+      queue: [1, 2, 0, 3],
+      band: [4],
+      anchor: null,
+      floating: [],
+    }
+  }
+
+  it('干净恢复：带成员关系按持久账恢复、无跨会话证据——以当拍写窗事实重学（重新夹取回带，零异常零授权）', async () => {
+    const h = makeHarness({
+      doc: bandDoc417(),
+      windows: [1, 2, 3, 4, { hwnd: 5, minSize: { w: 800, h: 400 } }],
+    })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      expect(h.svc.recoveryForTest()).toEqual({ status: 'restored', reason: null })
+      // 持久 band=[4] 只恢复关系不携带尺寸证据：窗 5 重试插树 → 分裂目标 640×696 被
+      // 夹取 → 容量回退回带（当拍重学，非旧会话记忆）——零异常、零误授权
+      expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+      expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+      // 分裂完全回退：既有四窗保持恢复窗格（无半分裂残留）
+      expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+      expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+      expect(h.prompts).toEqual([])
+      // 带关系随下一拍回写持久文档（关系而非像素，不含任何尺寸证据字段）
+      const doc = readDoc(h)
+      expect(doc.band).toEqual([4])
+      expect(JSON.stringify(doc)).not.toContain('minSize')
+    } finally { h.cleanup() }
+  })
+
+  it('异常重建：clean=false 按当前事实重建，容量语义在重建路径同样生效（不是旧账恢复、不是异常化）', async () => {
+    const h = makeHarness({
+      doc: layoutDoc({ clean: false }),
+      windows: [1, 2, 3, 4, { hwnd: 5, minSize: { w: 800, h: 400 } }],
+    })
+    try {
+      await h.svc.runPass()
+      await settle(60)
+      expect(h.svc.recoveryForTest()).toEqual({ status: 'rebuilt', reason: null })
+      // 重建按成员序 1-5 平铺：1-4 落格，第 5 扇分裂目标被夹取 → 容量回退入带
+      expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+      expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+      expect(h.prompts).toEqual([])
     } finally { h.cleanup() }
   })
 })

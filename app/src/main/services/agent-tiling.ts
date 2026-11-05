@@ -442,6 +442,11 @@ export class AgentTilingService extends Service {
     this.echoLedger.clear()
     this.placing = false
     this.pendingPass = false
+    // 尺寸能力证据不跨桌面失活泄漏（工单417，spec413「窗口消失、桌面失活、显示参数
+    // 变化或异常重建时按既有生命周期清理或重新评估」）：失活即清 minSize 下界与分裂
+    // 阻断记忆——重入按当前事实重评，过期约束不把窗口钉死在带里（story 31/32）
+    this.minSizeFloor.clear()
+    this.splitBlockMemo.clear()
     // 聚焦挂起随失活清除（工单379）：普通/非托管桌面不继承 Agent 桌面的挂起状态
     this.heldHwnd = null
     // 切出前落盘模型（工单383）：浮动几何保留、授权已撤销——重启按同一份布局恢复
@@ -783,6 +788,9 @@ export class AgentTilingService extends Service {
     const bandBeforeIds = new Set(bandBefore)
     // 工单416：本拍「新落格窗 → 被其裂变的叶占据者」对账表——既有窗夹取时据此级联回退
     const splitParent = new Map<string, string>()
+    // 工单417：本拍插树成功集合——其树分裂目标被夹取时按容量回退入带（含带成员恢复
+    // 重评/按序补入的插树重试；判据是「本拍新落格」而非「拍前不在带内」）
+    const insertedNow = new Set<string>()
     for (const hwnd of this.memberOrder) {
       const idStr = String(hwnd)
       // 分裂阻断记忆（工单416）：阻断者仍在候选且身份未变 → 不重试插树（保持带成员，
@@ -836,6 +844,7 @@ export class AgentTilingService extends Service {
           if (!this.tree.overflow.includes(idStr)) this.tree.overflow.push(idStr)
         } else {
           placedNow = true
+          insertedNow.add(idStr)
           if (parent) splitParent.set(idStr, parent)
         }
       }
@@ -1072,8 +1081,9 @@ export class AgentTilingService extends Service {
         !writeFailed.has(w.hwnd) && // 受理（false = 系统拒绝，不入容量回退）
         !isFloating(this.auth, w.hwnd) // 浮动复原写不参与平铺回退
       ) {
-        if (!knownPlaced.has(String(w.hwnd)) && !bandBeforeIds.has(String(w.hwnd))) {
-          // 本次新窗自身约束（工单415）
+        if (insertedNow.has(String(w.hwnd))) {
+          // 本次新落格（工单415 自身约束；工单417 扩展到带成员恢复重评/按序补入的插树
+          // 重试——判据是「本拍插树成功」，其夹取目标是树分裂窗格而非带列）
           bandFallbacks.push({ hwnd: w.hwnd, target: w.target, actual: this.deps.readRect(w.hwnd) })
           continue
         }
@@ -1082,8 +1092,9 @@ export class AgentTilingService extends Service {
           existingClips.push({ hwnd: w.hwnd, target: w.target, actual: this.deps.readRect(w.hwnd) })
           continue
         }
-        // bandBeforeIds（既有带成员）：带列 = 屏外列本身，夹取即屏外列也不可接受——
-        // 保持既有有界重写 → 最终 refused（spec413「屏外目标也失败时保留最终异常分类」）
+        // 其余（带成员列位写、8 上限直接入带的带列写——均未插树）：带列 = 屏外列本身，
+        // 夹取即屏外列也不可接受——保持既有有界重写 → 最终 refused
+        // （spec413「屏外目标也失败时保留最终异常分类」）
       }
       if (verdict === 'retry') retries.push({ hwnd: w.hwnd, target: w.target })
       if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
@@ -1145,6 +1156,10 @@ export class AgentTilingService extends Service {
           recovery: this.recovery, recoveryReason: this.recoveryReason,
         })
       }
+      // 带空→非空迁移的 rebase 以「回退前溢出账」为准（工单417）：本拍插树可能已把带
+      // 清空并 rebase 回满区（如桌面重入重评、按序补入后被夹取），回退重新入带须再次
+      // 让位；拍首带本非空且中途未清空时不重复 rebase
+      const overflowEmptyBeforeAdds = tree.overflow.length === 0
       for (const a of adds) {
         treeRemove(tree, String(a.hwnd))
         if (!tree.overflow.includes(String(a.hwnd))) tree.overflow.push(String(a.hwnd))
@@ -1159,7 +1174,7 @@ export class AgentTilingService extends Service {
           recovery: this.recovery, recoveryReason: this.recoveryReason,
         })
       }
-      if (bandWasEmpty && tree.overflow.length > 0) {
+      if (overflowEmptyBeforeAdds && tree.overflow.length > 0) {
         rebaseTreeArea(tree, bandTreeArea(area, bandReveal))
       }
       plan = treePlan(tree)
@@ -1169,7 +1184,10 @@ export class AgentTilingService extends Service {
         .filter((p) => Number(p.id) !== this.heldHwnd) // 挂起窗不写（同首轮写集口径）
         .map((p) => {
           const hwnd = Number(p.id)
-          return { hwnd, target: p.rect, iconic: iconicByHwnd.get(hwnd) ?? false, current: rectByHwnd.get(hwnd) ?? null }
+          // current 用当拍真实回读（工单417，spec413 story 38「状态投影以真实矩形回读
+          // 为准」）：拍首快照会把「本拍内已被分裂尝试写过」的窗判成仍在目标位（如桌面
+          // 重入重评时窗拍首恰在带列位），漏掉回退安置写、留下夹取残影
+          return { hwnd, target: p.rect, iconic: iconicByHwnd.get(hwnd) ?? false, current: this.deps.readRect(hwnd) }
         })
       for (const w of planWrites(assignments2, this.anomalies)) {
         const phase = rollbackHwnds.has(w.hwnd) ? 'rollback' : 'band-fallback'

@@ -25,7 +25,7 @@
  * 用法（**必须经 accept-guard 托管**，禁裸跑——本机多检出共享同一验收槽）：
  *   先 npm run build（探针 require dist 产物），再：
  *   node D:\test-folder\.accept-guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
- *     node app\accept\experiments\t414-real-app-tiling-probe.js
+ *     node app\accept\experiments\t414-real-app-tiling-probe.js [工单tag，缺省 414]
  *
  * 退出码：0 = 观察能力成立（状态+几何+诊断事件三面取证完成；夹取复现与否见报告）；
  *         1 = 观察能力断言不成立；2 = 环境/时序问题（本轮未取到证据）。
@@ -41,8 +41,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const APP_ROOT = path.resolve(__dirname, '..', '..');
 const DIST_SERVICE = path.join(APP_ROOT, 'dist', 'main', 'services', 'agent-tiling.js');
 const DIST_TILE_SCAN = path.join(APP_ROOT, 'dist', 'main', 'desktop', 'tile-scan.js');
-const REPORT_FILE = path.join(__dirname, '..', 'evidence', '414-real-app-tiling-probe.log.txt');
-const EVENTS_FILE = path.join(__dirname, '..', 'evidence', '414-real-app-tiling-probe-events.jsonl');
+// 工单 tag（argv[2]，缺省 414）：证据文件按轮工单命名——417 复跑（新容量语义贯通后
+// 的 5+ 窗回归观察）落 417-*，414 基线证据保持原样不覆盖
+const TAG = (/^[0-9]{3,4}$/.test(process.argv[2] || '') ? process.argv[2] : '414');
+const REPORT_FILE = path.join(__dirname, '..', 'evidence', `${TAG}-real-app-tiling-probe.log.txt`);
+const EVENTS_FILE = path.join(__dirname, '..', 'evidence', `${TAG}-real-app-tiling-probe-events.jsonl`);
 
 /** 结论账目（探针自己的报告面） */
 const findings = [];
@@ -66,7 +69,7 @@ function flushEvents() {
 function flushReport(exitCode) {
   try {
     fs.writeFileSync(REPORT_FILE, [
-      '工单414 真机探针（t414-real-app-tiling-probe.js）——真实 Electron 应用最小尺寸夹取观察',
+      `工单${TAG} 真机探针（t414-real-app-tiling-probe.js tag=${TAG}）——真实 Electron 应用最小尺寸夹取观察`,
       `运行时刻：${new Date().toISOString()}`,
       `退出码：${exitCode}（${failures.length === 0 ? '观察能力断言全过' : failures.length + ' 条断言不成立'}）`,
       '',
