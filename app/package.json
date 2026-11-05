@@ -6,7 +6,8 @@
   "main": "dist/main/index.js",
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs",
-    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json && npm run typecheck:accept-lib",
+    "typecheck:accept-lib": "tsc -p tsconfig.accept-lib.json",
     "test": "vitest run",
     "install-plugin": "node scripts/install-plugin.mjs",
     "dev": "npm run build && electron .",
