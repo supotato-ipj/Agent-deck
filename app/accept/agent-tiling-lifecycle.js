@@ -854,6 +854,13 @@ async function main() {
           'Add-Type -AssemblyName PresentationFramework',
           '$w = New-Object System.Windows.Window',
           `$w.Title = '${title}'`,
+          // 后台新窗前提（工单417 夹具修正）：ShowDialog 默认激活抢前台，第 9 扇一旦在
+          // 落位拍持有前台就会触发 story 18「前台新窗入带自动 fit 滑入」，与带触发首断言
+          // 的 camera=0 前提竞态（416 轮证据 t=…318716 同机制滑入仅晚 160ms——基线判别
+          // 两轮实证：分支 2 红/基线 1 绿）。ShowActivated=false 使夹具符合断言本意的
+          // 后台新窗（story 19「后台新窗只追加右端视口不动」）；滑入行为仍由本段露边
+          // 点击臂承证，零断言放宽。
+          '$w.ShowActivated = $false',
           '$w.Width = 700', '$w.Height = 500', '$w.Left = 160', '$w.Top = 120',
           '$w.ShowDialog() | Out-Null',
         ].join('; ');

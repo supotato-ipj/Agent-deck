@@ -25,7 +25,7 @@ const COL0: TileRect = { left: 1200 - REVEAL, top: 0, right: 1200 - REVEAL + COL
 
 interface Harness {
   svc: AgentTilingService
-  windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean }>
+  windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number } }>
   writes: Array<{ hwnd: number; target: TileRect }>
   watchOn: (hwnd: number) => void
   mode: { value: 'normal' | 'agent' | 'unmanaged' }
@@ -34,10 +34,12 @@ interface Harness {
   /** 前台变化事件（工单405 激活 fit 驱动缝——露边点击/任务栏激活的假源） */
   fgEmit: (hwnd: number) => void
   prompts: Array<{ hwnd: number; rect: TileRect }>
+  /** 触发显示参数变化回调（分辨率/DPI/主屏变化的假源——工单417 重评缝，service 同款） */
+  displayChange(): void
 }
 
 function harness(over: Partial<AgentTilingServiceOptions> = {}): Harness {
-  const windows = new Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean }>()
+  const windows = new Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number } }>()
   const writes: Array<{ hwnd: number; target: TileRect }> = []
   const events: AgentTilingState[] = []
   const mode = { value: 'agent' as 'normal' | 'agent' | 'unmanaged' }
@@ -45,6 +47,7 @@ function harness(over: Partial<AgentTilingServiceOptions> = {}): Harness {
   const prompts: Array<{ hwnd: number; rect: TileRect }> = []
   let watchCb: ((hwnd: number) => void) | null = null
   let fgCb: ((hwnd: number) => void) | null = null
+  const displayCbs: Array<() => void> = []
 
   const factsOf = (): TileWindowFacts[] =>
     [...windows.entries()].map(([hwnd, w]) => ({
@@ -74,13 +77,32 @@ function harness(over: Partial<AgentTilingServiceOptions> = {}): Harness {
       ownExes: () => ['C:\\apps\\agent-deck\\agentdeck.exe'],
       primaryRect: () => ({ ...PRIMARY }),
       taskbarTop: () => TASKBAR_TOP,
-      onDisplayChanged: () => () => undefined,
+      onDisplayChanged: (cb) => {
+        displayCbs.push(cb)
+        return () => {
+          const i = displayCbs.indexOf(cb)
+          if (i >= 0) displayCbs.splice(i, 1)
+        }
+      },
       collectFacts: factsOf,
       readRect: (hwnd) => ({ ...(windows.get(hwnd)?.rect ?? { left: 0, top: 0, right: 0, bottom: 0 }) }),
       restoreRect: (hwnd, target) => {
         writes.push({ hwnd, target: { ...target } })
         const w = windows.get(hwnd)
-        if (w) w.rect = { ...target }
+        if (w) {
+          // 最小尺寸夹取（工单414，与 agent-tiling-service.spec 同款）：写受理但应用按
+          // 自身 minWidth/minHeight 夹取（WM_GETMINMAXINFO 假身）——回读不达标走既有
+          // 核验路径。屏外带列 600×752 > 夹具常规件，仅显式 minSize 的窗触发。
+          const ms = w.minSize
+          w.rect = ms
+            ? {
+                left: target.left,
+                top: target.top,
+                right: target.left + Math.max(target.right - target.left, ms.w),
+                bottom: target.top + Math.max(target.bottom - target.top, ms.h),
+              }
+            : { ...target }
+        }
         return true
       },
       isForeground: (hwnd) => foreground.has(hwnd),
@@ -112,6 +134,9 @@ function harness(over: Partial<AgentTilingServiceOptions> = {}): Harness {
     foreground,
     fgEmit: (hwnd) => fgCb?.(hwnd),
     prompts,
+    displayChange: () => {
+      for (const cb of [...displayCbs]) cb()
+    },
   }
 }
 
@@ -602,5 +627,263 @@ describe('带成员授权与生命周期（工单405 + 工单404 分流）', () 
     expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 376, right: 600, bottom: 752 })
     expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 600, bottom: 376 })
     expect(h.windows.get(2)!.rect).toEqual({ left: 600, top: 0, right: 1200, bottom: 376 })
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单415（spec 413）：新窗自身尺寸不足 → 容量回退入带的 fit 面（AC 3）。宽屏夹具
+// （容量 8 不溢出）+ minSize 夹取注入：第 5 窗因夹取入带——前台新窗同拍自动滑入完整
+// 可见、后台新窗只追加右端视口不动、露边点击与普通激活走同一最小滑动路径（story 18/
+// 19/15/16）。断言外部可见矩形与授权提示，不绑定私有结构。
+// ————————————————————————————————————————————————————————————
+describe('工单415 新窗夹取入带的 fit 面（前台滑入/后台不动/同一激活路径）', () => {
+  const W5_MIN = { w: 800, h: 400 }
+  const W5_COL_CAM0: TileRect = { left: 2528, top: 0, right: 3808, bottom: 1392 }
+  const W5_COL_FIT: TileRect = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+
+  function wideHarness(): Harness & { screen: { right: number; bottom: number; taskbarTop: number } } {
+    // 可变屏幕（工单417 显示变化重评缝）：分辨率/DPI 变化 = 改 screen + displayChange()
+    const screen = { right: 2560, bottom: 1440, taskbarTop: 1392 }
+    const h = harness({
+      deps: {
+        ...({} as Partial<AgentTilingServiceOptions['deps']>),
+        primaryRect: () => ({ left: 0, top: 0, right: screen.right, bottom: screen.bottom }),
+        taskbarTop: () => screen.taskbarTop,
+      },
+    })
+    return { ...h, screen }
+  }
+
+  async function openConstrained5(h: Harness): Promise<void> {
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])
+    await settle()
+    h.windows.set(5, { rect: R(5), iconic: false, minSize: W5_MIN })
+    h.watchOn(5)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+  }
+
+  it('前台新窗入带：同拍自动 fit 完整可见（story 18）+ 零误授权（AC 5）', async () => {
+    const h = wideHarness()
+    h.foreground.add(5)
+    await openConstrained5(h)
+    // camera=1248：带成员贴右缘完整可见；屏内四窗整组左移（布局预期写入，不进授权）
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.windows.get(1)!.rect).toEqual({ left: -1248, top: 0, right: 16, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 16, top: 0, right: 1280, bottom: 696 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('后台新窗只追加右端、视口不动；露边点击与反向激活走同一最小滑动路径（story 19/15/17）', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    // 视口不动（camera=0）：带列只露 32px 露边，屏内四窗停在让位重展位
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    // 露边点击/任务栏激活（前台事件单一入口）：fit 最小滑动到完整可见
+    h.fgEmit(5)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.prompts).toEqual([])
+    // 反向返回屏内窗：同一 fit 路径整组回位（双向对称）
+    h.fgEmit(1)
+    await settle()
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单416（spec 413）：既有窗尺寸约束 → 新窗入带的 fit 面（AC 5）。既有 W2 拒缩时
+// 第 5 窗由既有窗约束路径入带——前台新窗同拍自动滑入完整可见、后台新窗只追加右端视
+// 口不动、露边点击与反向激活走同一最小滑动路径，与工单415 自身约束路径外部一致。
+// 断言外部可见矩形与授权提示，不绑定私有结构。
+// ————————————————————————————————————————————————————————————
+describe('工单416 既有窗夹取入带的 fit 面（前台滑入/后台不动/同一激活路径）', () => {
+  const W5_COL_CAM0: TileRect = { left: 2528, top: 0, right: 3808, bottom: 1392 }
+  const W5_COL_FIT: TileRect = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+
+  function wideHarness(): Harness & { screen: { right: number; bottom: number; taskbarTop: number } } {
+    // 可变屏幕（工单417 显示变化重评缝）：分辨率/DPI 变化 = 改 screen + displayChange()
+    const screen = { right: 2560, bottom: 1440, taskbarTop: 1392 }
+    const h = harness({
+      deps: {
+        ...({} as Partial<AgentTilingServiceOptions['deps']>),
+        primaryRect: () => ({ left: 0, top: 0, right: screen.right, bottom: screen.bottom }),
+        taskbarTop: () => screen.taskbarTop,
+      },
+    })
+    return { ...h, screen }
+  }
+
+  async function openExistingConstrained5(h: Harness): Promise<void> {
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])
+    await settle()
+    h.windows.get(2)!.minSize = { w: 800, h: 400 } // 既有 W2 拒缩——分裂目标 640×696 被夹取
+    h.windows.set(5, { rect: { left: 0, top: 0, right: 2560, bottom: 1392 }, iconic: false })
+    h.watchOn(5)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+  }
+
+  it('前台新窗因既有窗约束入带：同拍自动 fit 完整可见（story 18）+ 零误授权', async () => {
+    const h = wideHarness()
+    h.foreground.add(5)
+    await openExistingConstrained5(h)
+    // camera=1248：带成员贴右缘完整可见；屏内四窗整组左移（布局预期写入，不进授权）
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.windows.get(1)!.rect).toEqual({ left: -1248, top: 0, right: 16, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 16, top: 0, right: 1280, bottom: 696 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('后台新窗只追加右端、视口不动；露边点击与反向激活走同一最小滑动路径（story 19/15/17）', async () => {
+    const h = wideHarness()
+    await openExistingConstrained5(h)
+    // 视口不动（camera=0）：带列只露 32px 露边，屏内四窗停在分裂前窗格的让位重展位
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    // 露边点击/任务栏激活（前台事件单一入口）：fit 最小滑动到完整可见
+    h.fgEmit(5)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.prompts).toEqual([])
+    // 反向返回屏内窗：同一 fit 路径整组回位（双向对称）
+    h.fgEmit(1)
+    await settle()
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单417（spec 413）：新容量语义贯通带生命周期与显示条件重评。宽屏夹具 + minSize 夹取：
+// 第 5 扇因真实应用尺寸约束入带后，关闭补入/列收拢/最小化还原/聚焦退出/显示变化各既有
+// 生命周期面不回归、且按当前事实重新评估（story 23/24/25/26/31/32）。只断言外部可见
+// 矩形/计数/视口/分类——不绑定私有树结构。
+// ————————————————————————————————————————————————————————————
+describe('工单417 新容量语义贯通带生命周期（关闭补入/列收拢/最小化/显示变化/聚焦退出）', () => {
+  const W5_MIN = { w: 800, h: 400 }
+  const W5_COL_CAM0: TileRect = { left: 2528, top: 0, right: 3808, bottom: 1392 }
+  const W6_COL_CAM0: TileRect = { left: 3808, top: 0, right: 5088, bottom: 1392 }
+  const W5_COL_FIT: TileRect = { left: 1280, top: 0, right: 2560, bottom: 1392 }
+
+  // 与 415/416 describe 同款纪律：局部宽屏夹具（不抽公共件），屏幕可变供显示变化重评
+  function wideHarness(): Harness & { screen: { right: number; bottom: number; taskbarTop: number } } {
+    const screen = { right: 2560, bottom: 1440, taskbarTop: 1392 }
+    const h = harness({
+      deps: {
+        ...({} as Partial<AgentTilingServiceOptions['deps']>),
+        primaryRect: () => ({ left: 0, top: 0, right: screen.right, bottom: screen.bottom }),
+        taskbarTop: () => screen.taskbarTop,
+      },
+    })
+    return { ...h, screen }
+  }
+
+  async function openConstrained5(h: ReturnType<typeof wideHarness>): Promise<void> {
+    openWindows(h, [[1, R(1)], [2, R(2)], [3, R(3)], [4, R(4)]])
+    await settle()
+    h.windows.set(5, { rect: R(5), iconic: false, minSize: W5_MIN })
+    h.watchOn(5)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+  }
+
+  it('关闭补入（story 23）：带成员下界只是复核——屏内空间释放到 ≥ minSize 才按序补入', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    // 逐关屏内窗：窗格仍低于该窗已观测下界时保持带成员（不撞墙、不半分裂）
+    h.windows.delete(4)
+    h.watchOn(4)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 4, placed: 3, overflow: 1, anomalies: 0 })
+    // 关窗 3 → 兄弟吸收后窗格 1264×1392 ≥ 下界 800×400 → 补入落格（带清空、树回满区）
+    h.windows.delete(3)
+    h.watchOn(3)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 3, placed: 3, overflow: 0, anomalies: 0 })
+    // 继续收缩：既有窗格继续吸收，带成员已入树随树重展（不回带、不异常化）
+    h.windows.delete(2)
+    h.watchOn(2)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 2, placed: 2, overflow: 0, anomalies: 0 })
+    h.windows.delete(1)
+    h.watchOn(1)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 1, placed: 1, overflow: 0, anomalies: 0 })
+    // 带空 → 树区回满区：窗 5 独占平铺区（不再保留带列矩形）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 0, top: 0, right: 2560, bottom: 1392 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('关闭带成员只收拢列（story 24）：容量带成员同语义——列收拢、屏内树窗格不动、收拢到空带回满区', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    h.windows.set(6, { rect: R(6), iconic: false, minSize: W5_MIN })
+    h.watchOn(6)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2, anomalies: 0 })
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+    expect(h.windows.get(6)!.rect).toEqual(W6_COL_CAM0)
+    // 关屏外窗 5：带只收拢列（窗 6 左移一列），屏内四窗不动、无空白视口
+    h.windows.delete(5)
+    h.watchOn(5)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+    expect(h.windows.get(6)!.rect).toEqual(W5_COL_CAM0)
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    // 关屏外窗 6：带空 → 树区回满区（不再让出露边）
+    h.windows.delete(6)
+    h.watchOn(6)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 4, placed: 4, overflow: 0, anomalies: 0 })
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1280, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 696 })
+  })
+
+  it('最小化/还原（story 25/26）：容量带成员保留列位与顺序；前台还原 fit 滑入完整可见', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    // 最小化带成员：列位保留、零改窗（不动列序、不异常化、不丢证据）
+    h.windows.get(5)!.iconic = true
+    h.watchOn(5)
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_CAM0)
+    // 前台还原：fit 滑入完整可见（与 8 窗容量路径的还原同一入口——前台变化单一 fit 缝）
+    h.windows.get(5)!.iconic = false
+    h.foreground.add(5)
+    h.fgEmit(5)
+    await settle()
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.prompts).toEqual([])
+  })
+
+  it('显示变化按当前事实重评（story 31）：分辨率变大 → 证据清空重评，带成员补入落格而非被旧经验钉死', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    // 2560→3840：四窗各 1920×1056 窗格，第 5 窗补入目标 960×1056 ≥ 800×400 → 落格
+    h.screen.right = 3840
+    h.screen.bottom = 2160
+    h.screen.taskbarTop = 2112
+    h.displayChange()
+    await settle()
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 5, overflow: 0, anomalies: 0 })
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2880, top: 0, right: 3840, bottom: 1056 })
+    expect(h.prompts).toEqual([])
+  })
+
+  it('聚焦退出（story 22）：容量带成员退出聚焦后恢复混合布局并 fit 刚退出的窗', async () => {
+    const h = wideHarness()
+    await openConstrained5(h)
+    h.svc.setHeldWindow(5) // 聚焦进入（挂起即可隔离平铺写）
+    await h.svc.restoreTiling(5)
+    await settle()
+    expect(h.svc.heldWindowForTest()).toBeNull()
+    expect(h.windows.get(5)!.rect).toEqual(W5_COL_FIT)
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
   })
 })
