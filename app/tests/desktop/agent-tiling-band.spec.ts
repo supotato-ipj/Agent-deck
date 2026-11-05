@@ -25,7 +25,7 @@ const COL0: TileRect = { left: 1200 - REVEAL, top: 0, right: 1200 - REVEAL + COL
 
 interface Harness {
   svc: AgentTilingService
-  windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean }>
+  windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number } }>
   writes: Array<{ hwnd: number; target: TileRect }>
   watchOn: (hwnd: number) => void
   mode: { value: 'normal' | 'agent' | 'unmanaged' }
@@ -37,7 +37,7 @@ interface Harness {
 }
 
 function harness(over: Partial<AgentTilingServiceOptions> = {}): Harness {
-  const windows = new Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean }>()
+  const windows = new Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number } }>()
   const writes: Array<{ hwnd: number; target: TileRect }> = []
   const events: AgentTilingState[] = []
   const mode = { value: 'agent' as 'normal' | 'agent' | 'unmanaged' }
@@ -80,7 +80,20 @@ function harness(over: Partial<AgentTilingServiceOptions> = {}): Harness {
       restoreRect: (hwnd, target) => {
         writes.push({ hwnd, target: { ...target } })
         const w = windows.get(hwnd)
-        if (w) w.rect = { ...target }
+        if (w) {
+          // 最小尺寸夹取（工单414，与 agent-tiling-service.spec 同款）：写受理但应用按
+          // 自身 minWidth/minHeight 夹取（WM_GETMINMAXINFO 假身）——回读不达标走既有
+          // 核验路径。屏外带列 600×752 > 夹具常规件，仅显式 minSize 的窗触发。
+          const ms = w.minSize
+          w.rect = ms
+            ? {
+                left: target.left,
+                top: target.top,
+                right: target.left + Math.max(target.right - target.left, ms.w),
+                bottom: target.top + Math.max(target.bottom - target.top, ms.h),
+              }
+            : { ...target }
+        }
         return true
       },
       isForeground: (hwnd) => foreground.has(hwnd),

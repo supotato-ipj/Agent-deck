@@ -82,7 +82,8 @@ export interface AgentTilingServiceOptions {
   enabled?: boolean
   /** 事件批处理窗口（ms）：LOCATIONCHANGE 风暴合并（缺省 80ms——500ms 稳定预算的主项） */
   batchMs?: number
-  /** 存证日志（诊断面：授权决策的 hwnd/阶段/前台/动作——不含窗口标题，隐私边界同决策 26） */
+  /** 存证日志（诊断面：授权决策与写窗诊断（工单414 tiling-write/tiling-verify/tiling-anomaly）
+   *  的 hwnd/矩形/结果/类别/恢复态——不含窗口标题，隐私边界同决策 26） */
   log?: (event: Record<string, unknown>) => void
   /** 一次持续授权的静止判据（ms；缺省 800——离线矩阵可缩短以秒级断言） */
   settleMs?: number
@@ -640,6 +641,10 @@ export class AgentTilingService extends Service {
     for (const m of members) {
       if (!m.resizable && !this.anomalies.has(m.hwnd)) {
         markAnomaly(this.anomalies, this.anomalyKinds, m.hwnd, 'fixed-size')
+        this.logEvent({
+          type: 'tiling-anomaly', hwnd: m.hwnd, kind: 'fixed-size',
+          recovery: this.recovery, recoveryReason: this.recoveryReason,
+        })
       }
     }
     // 窗口消失清账（含异常账与授权账）：同一 hwnd 复用是新窗身份，不继承旧状态
@@ -924,6 +929,8 @@ export class AgentTilingService extends Service {
     for (const w of writes) {
       recordPending(this.echoLedger, w.hwnd, w.target, now)
       const ok = this.deps.restoreRect(w.hwnd, w.target)
+      // 低敏写窗诊断（工单414）：句柄/目标矩形/写窗结果当拍落事件（不含标题等敏感字段）
+      this.logEvent({ type: 'tiling-write', hwnd: w.hwnd, target: { ...w.target }, ok, phase: 'place' })
       writeOk.set(w.hwnd, ok)
       if (!ok) {
         retractPending(this.echoLedger, w.hwnd)
@@ -934,6 +941,7 @@ export class AgentTilingService extends Service {
     for (const [hwnd, target] of floatingRestore) {
       recordPending(this.echoLedger, hwnd, target, now)
       const ok = this.deps.restoreRect(hwnd, target)
+      this.logEvent({ type: 'tiling-write', hwnd, target: { ...target }, ok, phase: 'restore' })
       writeOk.set(hwnd, ok)
       if (!ok) {
         retractPending(this.echoLedger, hwnd)
@@ -947,8 +955,16 @@ export class AgentTilingService extends Service {
     // （工单377）：写窗被系统拒绝（false）达上限 = write-denied（权限不足等）；受理但
     // 矩形不达标达上限 = refused（应用侧拒改/夹取）。
     const verifyOnce = (hwnd: number, target: TileRect): 'ok' | 'retry' | 'anomaly' => {
+      const attempt = (this.attempts.get(hwnd) ?? 0) + 1 // 本次核验的尝试序（verifyWriteOutcome 内计次）
       const actual = this.deps.readRect(hwnd)
-      return verifyWriteOutcome(this.attempts, this.anomalies, hwnd, actual, target)
+      const verdict = verifyWriteOutcome(this.attempts, this.anomalies, hwnd, actual, target)
+      // 低敏写窗诊断（工单414）：目标 vs 实际矩形 + 核验结论——区分尺寸夹取（受理+不达标）、
+      // 权限拒绝（ok=false）与异步时序的当拍证据（spec 413 维护者故事 39）
+      this.logEvent({
+        type: 'tiling-verify', hwnd, target: { ...target },
+        actual: actual ? { ...actual } : null, verdict, attempt,
+      })
+      return verdict
     }
     const settleOk = (hwnd: number, target: TileRect): void => {
       retractPending(this.echoLedger, hwnd) // 达标：期望矩形已落地，回声账清零
@@ -960,7 +976,12 @@ export class AgentTilingService extends Service {
       if (verdict === 'ok') settleOk(w.hwnd, w.target)
       if (verdict === 'retry') retries.push({ hwnd: w.hwnd, target: w.target })
       if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
-        this.anomalyKinds.set(w.hwnd, writeFailed.has(w.hwnd) ? 'write-denied' : 'refused')
+        const kind = writeFailed.has(w.hwnd) ? 'write-denied' : 'refused'
+        this.anomalyKinds.set(w.hwnd, kind)
+        this.logEvent({
+          type: 'tiling-anomaly', hwnd: w.hwnd, kind,
+          recovery: this.recovery, recoveryReason: this.recoveryReason,
+        })
       }
     }
     // 写窗收敛闭环（工单404，spec #403 决策「以实际几何收敛为准」）：retry 不再等下一次
@@ -970,12 +991,18 @@ export class AgentTilingService extends Service {
     for (const w of retries) {
       recordPending(this.echoLedger, w.hwnd, w.target, now)
       const ok = this.deps.restoreRect(w.hwnd, w.target)
+      this.logEvent({ type: 'tiling-write', hwnd: w.hwnd, target: { ...w.target }, ok, phase: 'retry' })
       writeOk.set(w.hwnd, ok)
       if (!ok) retractPending(this.echoLedger, w.hwnd)
       const verdict = verifyOnce(w.hwnd, w.target)
       if (verdict === 'ok') settleOk(w.hwnd, w.target)
       if (verdict === 'anomaly' && !this.anomalyKinds.has(w.hwnd)) {
-        this.anomalyKinds.set(w.hwnd, ok ? 'refused' : 'write-denied')
+        const kind = ok ? 'refused' : 'write-denied'
+        this.anomalyKinds.set(w.hwnd, kind)
+        this.logEvent({
+          type: 'tiling-anomaly', hwnd: w.hwnd, kind,
+          recovery: this.recovery, recoveryReason: this.recoveryReason,
+        })
       }
       // verdict 'retry' 在本轮不可能（MAX_WRITE_ATTEMPTS=2，首轮已计 1）——防御上不再
       // 第三写，残数留待下一拍（跨拍计次仍单调，有界性不破）
