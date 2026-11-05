@@ -21,7 +21,7 @@ const AREA: TileRect = { left: 0, top: 0, right: 2560, bottom: 1392 }
 
 interface Harness {
   svc: AgentTilingService
-  windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number } }>
+  windows: Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number }; growLock?: boolean }>
   writes: Array<{ hwnd: number; target: TileRect }>
   /** 复原写（工单378：首次操作复原走 restoreRect，与普通落位分开记账） */
   restores: Array<{ hwnd: number; target: TileRect }>
@@ -48,7 +48,7 @@ interface Harness {
 }
 
 function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean } = {}): Harness {
-  const windows = new Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number } }>([
+  const windows = new Map<number, { rect: TileRect; iconic: boolean; resizable?: boolean; minSize?: { w: number; h: number }; growLock?: boolean }>([
     // 面板自家窗（own exe 排除的假身）+ 一扇别的桌面窗（初始集合为空也行——由测试增删）
   ])
   windows.clear()
@@ -117,6 +117,22 @@ function harness(over: Partial<AgentTilingServiceOptions> & { enabled?: boolean 
         if (stuck.has(hwnd)) return true
         const w = windows.get(hwnd)
         if (w) {
+          // 回退锁死（工单416 AC3 注入面）：已缩小的窗拒绝长回——写「受理」、位置随目标、
+          // 尺寸钉在当前值（「移动可以、长大不行」的应用侧 pin 假身）。回读同一 Map，
+          // 核验天然判回退不达标。
+          if (
+            w.growLock && w.rect &&
+            (target.right - target.left > w.rect.right - w.rect.left ||
+              target.bottom - target.top > w.rect.bottom - w.rect.top)
+          ) {
+            w.rect = {
+              left: target.left,
+              top: target.top,
+              right: target.left + (w.rect.right - w.rect.left),
+              bottom: target.top + (w.rect.bottom - w.rect.top),
+            }
+            return true
+          }
           // 最小尺寸夹取（工单414）：写「受理」但应用按自身 minWidth/minHeight 夹取——
           // 位置照写、尺寸不低于 minSize（WM_GETMINMAXINFO 夹取的假身）。回读同一 Map，
           // 核验天然判不达标 → 既有 retry/异常化路径。新窗/既有窗均可注入（对指定目标
@@ -588,14 +604,14 @@ describe('Agent 平铺生命周期（工单377）', () => {
 })
 
 // ————————————————————————————————————————————————————————————
-// 工单414→415 characterization 翻转：真实应用最小尺寸夹取（写受理、矩形不达标）。
-// 414 基线固定「拒改后异常化」；工单415 把基线翻转为新容量语义——新窗自身无法接受
-// 分裂目标时由本次新窗入屏外带（两级安置降级，spec 413），既有窗夹取仍留 416 翻转。
+// 工单414→415/416 characterization 翻转：真实应用最小尺寸夹取（写受理、矩形不达标）。
+// 414 基线固定「拒改后异常化」；工单415 把新窗自身夹取翻转为入带；工单416 把既有窗
+// 夹取也翻转为「新窗承担回退入带 + 既有窗回退到分裂前目标并逐窗回读」（spec 413）。
 // 只断言外部可见矩形/计数/分类/事件，不绑定私有树结构（spec 413 Testing 决策）。
 // 五窗布局确定性（2560×1392，minPane 320×240，屏内上限 8）：W5 裂 W2 叶（横裂），
 // W5 目标 (1920,0,2560,696)=640×696，与工单377 五窗落位测试同一数字。
 // ————————————————————————————————————————————————————————————
-describe('工单414→415 characterization 翻转：最小尺寸夹取的新容量语义', () => {
+describe('工单414→415/416 characterization 翻转：最小尺寸夹取的新容量语义', () => {
   it('新窗夹取（415 翻转）：第 5 窗自身 minSize 无法接受分裂目标 → 分裂完全回退、第 5 窗入带、零异常', async () => {
     const h = harness()
     h.mode.value = 'agent'
@@ -633,7 +649,7 @@ describe('工单414→415 characterization 翻转：最小尺寸夹取的新容�
     expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
   })
 
-  it('既有窗夹取：第 5 窗分裂使既有窗目标低于其 minSize → 既有窗 refused 异常化、新窗照常落格', async () => {
+  it('既有窗夹取（416 翻转）：分裂使既有窗低于其 minSize → 分裂完全回退、第 5 窗入带、既有四窗保持分裂前窗格、零异常', async () => {
     const h = harness()
     h.mode.value = 'agent'
     h.svc.syncActivation()
@@ -644,18 +660,169 @@ describe('工单414→415 characterization 翻转：最小尺寸夹取的新容�
     h.windows.set(5, { rect: { ...AREA }, iconic: false })
     h.watchOn(5)
     await settle(60)
-    // W5 裂 W2 叶：W2 新目标 (1280,0,1920,696)=640×696 < minSize 800 → 受理但夹取到 800×696
-    expect(h.svc.anomalyKindsForTest().get(2)).toBe('refused')
-    expect(h.windows.get(2)!.rect).toEqual({ left: 1280, top: 0, right: 2080, bottom: 696 })
-    // 新窗不受连坐：照常落格（异常当拍账面 placed=5 同上）
-    expect(h.windows.get(5)!.rect).toEqual({ left: 1920, top: 0, right: 2560, bottom: 696 })
-    expect(h.svc.state()).toMatchObject({ count: 5, placed: 5, overflow: 0, anomalies: 1 })
-    // 下一拍：既有异常窗出树，新窗（兄弟）吸收整个父窗格
+    // W5 裂 W2 叶：W2 新目标 (1280,0,1920,696)=640×696 < minSize 800 → 受理但夹取到 800×696。
+    // 新容量语义（spec413 story 7/9）：既有窗拒绝缩小由本次新窗承担回退——零异常化
+    expect(h.svc.anomalyKindsForTest().size).toBe(0)
+    // 第 5 窗入带：合法屏外列（列宽 1280=半屏、占满平铺高、背景新窗视口不动 camera=0）
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    // 分裂完全回退：W2 回到分裂前窗格、无半分裂残留——最终矩形与「带形成」既有语义
+    // 逐像素一致（树区让出露边 32px 整树重展，与容量路径入带同一 rebase，同 415 口径）
+    expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    expect(h.windows.get(3)!.rect).toEqual({ left: 1264, top: 696, right: 2528, bottom: 1392 })
+    expect(h.windows.get(4)!.rect).toEqual({ left: 0, top: 696, right: 1264, bottom: 1392 })
+    expect(h.svc.state()).toMatchObject({
+      count: 5, placed: 4, overflow: 1, anomalies: 0,
+      anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 },
+    })
+    // 布局写入与容量回退零误授权（AC 2：不误消费手动几何授权）
+    expect(h.prompts).toEqual([])
+    // 下一拍稳定：阻断约束（W2 拒缩）未解除前第 5 窗不重试插树——与 415 自身约束路径
+    // 外部结果一致（AC 2），全案零新写、布局不再抖动（AC 4）
+    const writesBefore = h.writes.length
+    h.watchOn(2)
+    await settle(60)
+    expect(h.writes.length).toBe(writesBefore)
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 1, anomalies: 0 })
+  })
+})
+
+// ————————————————————————————————————————————————————————————
+// 工单416（spec 413）：既有窗尺寸约束 → 新窗入带 + 几何回退收敛。
+// 覆盖 AC2（两条约束路径外部结果一致）、AC3（回退未达标 → 显式异常+低敏诊断，不凭
+// 账面恢复判成功）、AC4（同拍双新窗/有界写入/下一拍零抖动）。
+// ————————————————————————————————————————————————————————————
+describe('工单416 既有窗约束回退：路径一致性、回退失败异常与有界收敛', () => {
+  /** 既有窗约束夹具：W2 拒缩（minSize 800×400），第 5 窗裂 W2 叶触发 416 回退 */
+  async function existingConstrained5(): Promise<ReturnType<typeof harness>> {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3])
+    h.windows.get(2)!.minSize = { w: 800, h: 400 }
+    await addWindows(h, [4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false })
     h.watchOn(5)
     await settle(60)
-    expect(h.windows.get(5)!.rect).toEqual({ left: 1280, top: 0, right: 2560, bottom: 696 })
-    expect(h.windows.get(2)!.rect).toEqual({ left: 1280, top: 0, right: 2080, bottom: 696 })
-    expect(h.svc.state()).toMatchObject({ count: 5, placed: 4, overflow: 0, anomalies: 1 })
+    return h
+  }
+
+  it('AC2 两条约束路径外部结果一致：均由第 5 窗入带承担回退，既有四窗同一分裂前窗格、零误授权', async () => {
+    // 路径 A：新窗自身约束（工单415）——第 5 窗自己 minSize 不足
+    const a = harness()
+    a.mode.value = 'agent'
+    a.svc.syncActivation()
+    await settle()
+    await addWindows(a, [1, 2, 3, 4])
+    a.windows.set(5, { rect: { ...AREA }, iconic: false, minSize: { w: 800, h: 400 } })
+    a.watchOn(5)
+    await settle(60)
+    // 路径 B：既有窗约束（工单416）——既有 W2 minSize 不足
+    const b = await existingConstrained5()
+    // 两案外部结果一致：既有四窗同一分裂前窗格（带形成 rebase 位）、第 5 窗同一带列
+    for (const h of [a, b]) {
+      expect(h.windows.get(1)!.rect).toEqual({ left: 0, top: 0, right: 1264, bottom: 696 })
+      expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+      expect(h.windows.get(3)!.rect).toEqual({ left: 1264, top: 696, right: 2528, bottom: 1392 })
+      expect(h.windows.get(4)!.rect).toEqual({ left: 0, top: 696, right: 1264, bottom: 1392 })
+      expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+      expect(h.svc.state()).toMatchObject({
+        count: 5, placed: 4, overflow: 1, anomalies: 0,
+        anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 },
+      })
+      expect(h.prompts).toEqual([])
+    }
+    // 下一拍同样一致：两条路径都零新写稳定（不重试插树、不抖动）
+    const writesA = a.writes.length
+    const writesB = b.writes.length
+    a.watchOn(2)
+    b.watchOn(2)
+    await settle(60)
+    expect(a.writes.length).toBe(writesA)
+    expect(b.writes.length).toBe(writesB)
+  })
+
+  it('AC3 既有窗已移动但回退未达标：显式 refused 异常 + 低敏诊断如实报告，不凭账面恢复判成功', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3])
+    // W2 缩得下（minSize 800）但拒绝长回（growLock：缩小后写受理、尺寸钉在 800）——
+    // 「已移动、回退写不达标」的注入面
+    h.windows.get(2)!.minSize = { w: 800, h: 400 }
+    h.windows.get(2)!.growLock = true
+    await addWindows(h, [4])
+    h.windows.set(5, { rect: { ...AREA }, iconic: false })
+    h.watchOn(5)
+    await settle(60)
+    // 回退失败：既有窗显式异常化（不只恢复账面树），第 5 窗仍入带（新窗承担回退不受连坐）
+    expect(h.svc.anomalyKindsForTest().get(2)).toBe('refused')
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    // W2 停在回退未达标的真实矩形（位置随回退目标、尺寸钉死 800）——不隐藏、不伪称落位
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2064, bottom: 696 })
+    expect(h.svc.state()).toMatchObject({
+      count: 5, placed: 4, overflow: 1, anomalies: 1,
+      anomalyDetail: { fixedSize: 0, denied: 0, refused: 1 },
+    })
+    // 低敏诊断链如实报告（spec413 story 39/40）：回退触发 + rollback 写 + 核验达上限 + 异常
+    expect(h.logs.filter((e) => e.type === 'tiling-split-rollback' && e.hwnd === 2)).toHaveLength(1)
+    const rollbackWrites = h.logs.filter((e) => e.type === 'tiling-write' && e.hwnd === 2 && e.phase === 'rollback')
+    expect(rollbackWrites).toHaveLength(1)
+    expect(rollbackWrites[0]).toMatchObject({ ok: true })
+    const verifies2 = h.logs.filter((e) => e.type === 'tiling-verify' && e.hwnd === 2)
+    expect(verifies2.at(-1)).toMatchObject({ verdict: 'anomaly', attempt: 2 })
+    const anomalies2 = h.logs.filter((e) => e.type === 'tiling-anomaly' && e.hwnd === 2)
+    expect(anomalies2).toHaveLength(1)
+    expect(anomalies2[0]).toMatchObject({ kind: 'refused' })
+    expect(h.prompts).toEqual([])
+    // 隐私边界：诊断事件流零窗口标题
+    expect(JSON.stringify(h.logs)).not.toContain('窗 ')
+  })
+
+  it('AC4 同拍双新窗、双既有窗约束：各自完全回退、双双入带、每窗有界写入、下一拍零抖动', async () => {
+    const h = harness()
+    h.mode.value = 'agent'
+    h.svc.syncActivation()
+    await settle()
+    await addWindows(h, [1, 2, 3])
+    h.windows.get(2)!.minSize = { w: 800, h: 400 }
+    h.windows.get(3)!.minSize = { w: 800, h: 400 }
+    await addWindows(h, [4])
+    // 同拍事件：W5、W6 几乎同时打开（队列序确定：W5 裂 W2 叶、W6 裂 W3 叶）
+    const writesAtFallbackStart = h.writes.length
+    h.windows.set(5, { rect: { ...AREA }, iconic: false })
+    h.windows.set(6, { rect: { ...AREA }, iconic: false })
+    h.watchOn(5)
+    h.watchOn(6)
+    await settle(60)
+    // 两案各自完全回退：W5、W6 双双入带（进入序 = 列序），W2/W3 回到分裂前窗格
+    expect(h.windows.get(5)!.rect).toEqual({ left: 2528, top: 0, right: 3808, bottom: 1392 })
+    expect(h.windows.get(6)!.rect).toEqual({ left: 3808, top: 0, right: 5088, bottom: 1392 })
+    expect(h.windows.get(2)!.rect).toEqual({ left: 1264, top: 0, right: 2528, bottom: 696 })
+    expect(h.windows.get(3)!.rect).toEqual({ left: 1264, top: 696, right: 2528, bottom: 1392 })
+    expect(h.svc.state()).toMatchObject({
+      count: 6, placed: 4, overflow: 2, anomalies: 0,
+      anomalyDetail: { fixedSize: 0, denied: 0, refused: 0 },
+    })
+    expect(h.prompts).toEqual([])
+    // 有界写入：回退当拍无旧大矩形残留的反复重写——每窗 ≤ MAX_WRITE_ATTEMPTS 次写
+    //（分裂尝试 + 回退/带安置；开窗阶段的历史写入不在本断言口径内）
+    const perHwnd = new Map<number, number>()
+    for (const w of h.writes.slice(writesAtFallbackStart)) {
+      perHwnd.set(w.hwnd, (perHwnd.get(w.hwnd) ?? 0) + 1)
+    }
+    for (const [hwnd, n] of perHwnd) expect(n).toBeLessThanOrEqual(2)
+    // 下一拍零抖动：阻断约束未解除前两窗都不重试插树
+    const writesBefore = h.writes.length
+    h.watchOn(2)
+    h.watchOn(3)
+    await settle(60)
+    expect(h.writes.length).toBe(writesBefore)
+    expect(h.svc.state()).toMatchObject({ count: 6, placed: 4, overflow: 2, anomalies: 0 })
   })
 })
 
