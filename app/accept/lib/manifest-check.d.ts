@@ -48,6 +48,8 @@ export declare interface ManifestCheckRequest {
   manifest: unknown
   /** batteryId → 源码全文；缺某电池判红（登记处指向的电池必须可扫描） */
   sources: Record<string, string>
+  /** 卡插件路径 → 源码全文（工单226）；给出时交叉校验卡事件消费段必带 cards，空扫描判红 */
+  cardSources?: Record<string, string>
   /** accept 目录在场电池脚本路径表（反向核对：清单外的在场脚本判红）；缺省不核 */
   presentEntries?: string[]
   /** 源码树枚举（工单204：path→area 完备性校验的输入）；缺省不核 */
@@ -59,7 +61,7 @@ export declare interface ManifestCheckResult {
   errors: string[]
 }
 
-/** 清单 ↔ 源码双向校验：段号字集双向比对 + 字段完备 + 分电池时长预算 + 域标签与映射表完备性 */
+/** 清单 ↔ 源码双向校验：段号/字段/预算/域映射 + 可选卡插件事件消费段 cards 交叉校验（工单226） */
 export declare function validateManifest(req: ManifestCheckRequest): ManifestCheckResult
 
 /** --accept-scope 硬交叉校验：声明的段号必须在本电池清单条目内 */

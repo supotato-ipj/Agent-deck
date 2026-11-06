@@ -30,6 +30,10 @@
  *      删掉一条（或把它的域改掉）耦合表照样"结构性完备"，选段就悄悄漏报。
  *      清单 requiredFileRules 登记全部文件级例外规则（path + 域），
  *      校验器据此判：白名单条目在映射表在场且域一致、映射表里的文件级规则都登记在案。
+ *
+ * 工单226增卡插件事件交叉校验（validateManifest 的可选 cardSources 输入）：
+ *   ⑬ 消费卡插件 notify/emit 事件的验收段必须带 cards——EventTape 四方法及薄包装按调用点归段，
+ *      间接/条件/模板事件按静态事实解析，未知动态形态与空扫描一律判红，不得零匹配全绿。
  */
 
 /** 电池源码里的段起笔字集：六电池全部单引号字面量、无模板串、无变量段号（工单114 交接） */
@@ -53,6 +57,309 @@ function extractCodeSegments(source) {
     if (!out.includes(m[1])) out.push(m[1]);
   }
   return out;
+}
+
+const EVENT_TAPE_CALL_RE = /\btape\s*\.\s*(?:wait|waitStable|latest|all)\s*\(/g;
+const NOTIFY_CALL_RE = /\.\s*(?:notify|emit)\s*\(/g;
+const STRING_LITERAL_RE = /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g;
+
+function readBalanced(source, openIndex, splitArguments) {
+  const args = [];
+  const stack = [source[openIndex]];
+  let argStart = openIndex + 1;
+  for (let i = openIndex + 1; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const quote = ch;
+      for (i++; i < source.length; i++) {
+        if (source[i] === '\\') i++;
+        else if (source[i] === quote) break;
+      }
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') stack.push(ch);
+    else if (ch === ')' || ch === ']' || ch === '}') {
+      if (stack.pop() !== ({ ')': '(', ']': '[', '}': '{' })[ch]) return null;
+      if (!stack.length) {
+        args.push({ text: source.slice(argStart, i), index: argStart });
+        return { args, closeIndex: i };
+      }
+    } else if (splitArguments && ch === ',' && stack.length === 1) {
+      args.push({ text: source.slice(argStart, i), index: argStart });
+      argStart = i + 1;
+    }
+  }
+  return null;
+}
+
+function readCall(source, openIndex) {
+  return readBalanced(source, openIndex, true);
+}
+
+function findBlockEnd(source, openIndex) {
+  const block = readBalanced(source, openIndex, false);
+  return block ? block.closeIndex : source.length - 1;
+}
+
+function sourceFunctions(source) {
+  const out = [];
+  const patterns = [
+    /\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g,
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/g,
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(source)) !== null) {
+      const openIndex = m.index + m[0].lastIndexOf('(');
+      const paramsCall = readCall(source, openIndex);
+      if (!paramsCall) continue;
+      const params = paramsCall.args.map((a) => a.text.trim().replace(/^\.\.\./, '').split('=')[0].trim());
+      let cursor = paramsCall.closeIndex + 1;
+      while (/\s/.test(source[cursor] || '')) cursor++;
+      let bodyStart;
+      let bodyEnd;
+      if (re === patterns[0]) {
+        bodyStart = source.indexOf('{', cursor);
+        if (bodyStart < 0) continue;
+        bodyEnd = findBlockEnd(source, bodyStart);
+      } else {
+        if (source.slice(cursor, cursor + 2) !== '=>') continue;
+        cursor += 2;
+        while (/\s/.test(source[cursor] || '')) cursor++;
+        bodyStart = cursor;
+        if (source[cursor] === '{') bodyEnd = findBlockEnd(source, cursor);
+        else {
+          const semicolon = source.indexOf(';', cursor);
+          bodyEnd = semicolon < 0 ? source.length : semicolon;
+        }
+      }
+      out.push({ name: m[1], params, paramOpen: openIndex, bodyStart, bodyEnd });
+    }
+  }
+  return out;
+}
+
+function constLiterals(source) {
+  const out = new Map();
+  const re = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")/g;
+  let m;
+  while ((m = re.exec(source)) !== null) out.set(m[1], m[2].slice(1, -1));
+  return out;
+}
+
+function literalValues(expression) {
+  return (String(expression || '').match(STRING_LITERAL_RE) || []).map((s) => s.slice(1, -1));
+}
+
+function resolveEventExpression(expression, constants) {
+  const text = String(expression || '').trim();
+  if (!text || text === 'undefined') return { kind: 'all', events: [] };
+  if (constants.has(text)) return { kind: 'events', events: [constants.get(text)] };
+  if (/^(?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")$/.test(text)) {
+    return { kind: 'events', events: [text.slice(1, -1)] };
+  }
+  if (text.startsWith('`') && text.endsWith('`')) {
+    let unknown = false;
+    const event = text.slice(1, -1).replace(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g, (_m, name) => {
+      if (!constants.has(name)) unknown = true;
+      return constants.get(name) || '';
+    });
+    if (!unknown && !event.includes('${')) return { kind: 'events', events: [event] };
+    return { kind: 'unknown', events: [] };
+  }
+  const literals = literalValues(text);
+  const residue = text.replace(STRING_LITERAL_RE, ' ');
+  if (literals.length && !residue.includes('+') && !residue.includes('`')
+      && !/[A-Za-z_$][\w$]*\s*\(/.test(residue)) {
+    return { kind: 'events', events: literals };
+  }
+  return { kind: 'unknown', events: [] };
+}
+
+function addWrapper(wrappers, name, descriptor) {
+  const list = wrappers.get(name) || [];
+  const key = JSON.stringify(descriptor);
+  if (!list.some((d) => JSON.stringify(d) === key)) list.push(descriptor);
+  wrappers.set(name, list);
+}
+
+function discoverEventWrappers(source) {
+  const functions = sourceFunctions(source);
+  const wrappers = new Map();
+  const skipDirect = new Set();
+  const skipWrapper = new Set();
+  for (const fn of functions) {
+    const body = source.slice(fn.bodyStart, fn.bodyEnd);
+    for (const match of body.matchAll(EVENT_TAPE_CALL_RE)) {
+      const index = fn.bodyStart + match.index;
+      const openIndex = source.indexOf('(', index + match[0].length - 1);
+      const call = readCall(source, openIndex);
+      if (!call || !call.args.length) continue;
+      const expression = call.args[0].text.trim();
+      const typeParam = fn.params.indexOf(expression);
+      if (typeParam >= 0) {
+        addWrapper(wrappers, fn.name, { typeParam });
+        skipDirect.add(index);
+        continue;
+      }
+      if (!(expression.startsWith('`') && expression.endsWith('`'))) continue;
+      const names = [...expression.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g)].map((p) => p[1]);
+      if (!names.length || names.some((name) => !fn.params.includes(name))) continue;
+      const paramMap = Object.fromEntries(names.map((name) => [name, fn.params.indexOf(name)]));
+      addWrapper(wrappers, fn.name, { template: expression, paramMap });
+      skipDirect.add(index);
+    }
+  }
+  for (let pass = 0; pass < functions.length; pass++) {
+    let changed = false;
+    for (const fn of functions) {
+      const body = source.slice(fn.bodyStart, fn.bodyEnd);
+      for (const [name, descriptors] of wrappers) {
+        const re = new RegExp(`\\b${name}\\s*\\(`, 'g');
+        for (const match of body.matchAll(re)) {
+          const index = fn.bodyStart + match.index;
+          const openIndex = source.indexOf('(', index + match[0].length - 1);
+          const call = readCall(source, openIndex);
+          if (!call) continue;
+          for (const descriptor of descriptors) {
+            if (descriptor.typeParam !== undefined) {
+              const expression = (call.args[descriptor.typeParam] || {}).text?.trim();
+              const outerParam = fn.params.indexOf(expression);
+              if (outerParam < 0) continue;
+              const before = (wrappers.get(fn.name) || []).length;
+              addWrapper(wrappers, fn.name, { typeParam: outerParam });
+              skipWrapper.add(index);
+              if ((wrappers.get(fn.name) || []).length !== before) changed = true;
+            } else {
+              const paramMap = {};
+              let resolved = true;
+              for (const [nameInTemplate, innerParam] of Object.entries(descriptor.paramMap)) {
+                const expression = (call.args[innerParam] || {}).text?.trim();
+                const outerParam = fn.params.indexOf(expression);
+                if (outerParam < 0) { resolved = false; break; }
+                paramMap[nameInTemplate] = outerParam;
+              }
+              if (!resolved) continue;
+              const before = (wrappers.get(fn.name) || []).length;
+              addWrapper(wrappers, fn.name, { template: descriptor.template, paramMap });
+              skipWrapper.add(index);
+              if ((wrappers.get(fn.name) || []).length !== before) changed = true;
+            }
+          }
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return { functions, wrappers, skipDirect, skipWrapper };
+}
+
+function segmentAt(source, index) {
+  let segment = null;
+  for (const match of source.matchAll(SEGMENT_CALL_RE)) {
+    if (match.index > index) break;
+    segment = match[1];
+  }
+  return segment;
+}
+
+function extractCardEvents(cardSources) {
+  const events = new Set();
+  const errors = [];
+  for (const [path, rawSource] of Object.entries(cardSources)) {
+    const source = stripJsComments(rawSource);
+    const constants = constLiterals(source);
+    const indirectRe = /\bnotify\s*:\s*\{\s*type\s*:\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")/g;
+    for (const match of source.matchAll(indirectRe)) events.add(match[1].slice(1, -1));
+    for (const match of source.matchAll(NOTIFY_CALL_RE)) {
+      const index = match.index;
+      const openIndex = source.indexOf('(', index + match[0].length - 1);
+      const call = readCall(source, openIndex);
+      const expression = call && call.args.length ? call.args[0].text.trim() : '';
+      if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.notify\.type$/.test(expression)) continue;
+      const resolved = resolveEventExpression(expression, constants);
+      if (!call || resolved.kind !== 'events' || !resolved.events.length) {
+        errors.push(`卡插件 ${path} 存在无法静态解析的 notify/emit 事件类型（工单226：动态形态不得漏扫判绿）`);
+      } else for (const event of resolved.events) events.add(event);
+    }
+  }
+  return { events, errors };
+}
+
+function scanCardEventConsumers(batteryId, rawSource, cardEvents) {
+  const source = stripJsComments(rawSource);
+  const constants = constLiterals(source);
+  const { functions, wrappers, skipDirect, skipWrapper } = discoverEventWrappers(source);
+  const definitionParams = new Set(functions.map((fn) => fn.paramOpen));
+  const dependencies = [];
+  const errors = [];
+  const seen = new Set();
+  const consume = (events, index, description) => {
+    for (const event of events) {
+      if (!cardEvents.has(event)) continue;
+      const seg = segmentAt(source, index);
+      if (!seg) {
+        errors.push(`电池[${batteryId}] 段外 ${description} 消费卡插件事件 "${event}"（工单226：段归属必须明确）`);
+        continue;
+      }
+      const key = `${seg}\0${event}`;
+      if (!seen.has(key)) { seen.add(key); dependencies.push({ seg, event }); }
+    }
+  };
+  const resolve = (call, index, description) => {
+    const first = call.args[0];
+    const resolved = resolveEventExpression(first ? first.text : '', constants);
+    if (resolved.kind === 'all') {
+      consume(call.args.flatMap((a) => literalValues(a.text)), index, description);
+    } else if (resolved.kind === 'unknown') {
+      const seg = segmentAt(source, index) || '<段外>';
+      errors.push(`电池[${batteryId}] 段[${seg}] ${description} 的事件类型无法静态解析（工单226：动态形态不得漏扫判绿）`);
+    } else consume(resolved.events, index, description);
+  };
+  for (const match of source.matchAll(EVENT_TAPE_CALL_RE)) {
+    const index = match.index;
+    if (skipDirect.has(index)) continue;
+    const openIndex = source.indexOf('(', index + match[0].length - 1);
+    const call = readCall(source, openIndex);
+    if (!call) {
+      errors.push(`电池[${batteryId}] EventTape 调用无法解析（工单226：扫描不得漏项判绿）`);
+      continue;
+    }
+    resolve(call, index, 'EventTape');
+  }
+  for (const [name, descriptors] of wrappers) {
+    const re = new RegExp(`\\b${name}\\s*\\(`, 'g');
+    for (const match of source.matchAll(re)) {
+      const index = match.index;
+      const openIndex = source.indexOf('(', index + match[0].length - 1);
+      if (skipWrapper.has(index) || definitionParams.has(openIndex)) continue;
+      const call = readCall(source, openIndex);
+      if (!call) {
+        errors.push(`电池[${batteryId}] 薄包装 ${name}() 调用无法解析（工单226：扫描不得漏项判绿）`);
+        continue;
+      }
+      for (const descriptor of descriptors) {
+        if (descriptor.typeParam !== undefined) {
+          const args = call.args.slice(descriptor.typeParam);
+          resolve({ args }, index, `薄包装 ${name}()`);
+          continue;
+        }
+        let event = descriptor.template;
+        let unknown = false;
+        for (const [templateParam, callParam] of Object.entries(descriptor.paramMap)) {
+          const arg = call.args[callParam];
+          const resolved = resolveEventExpression(arg ? arg.text : '', constants);
+          if (resolved.kind !== 'events' || resolved.events.length !== 1) { unknown = true; break; }
+          event = event.replace(new RegExp(`\\$\\{\\s*${templateParam}\\s*\\}`, 'g'), resolved.events[0]);
+        }
+        if (unknown) {
+          const seg = segmentAt(source, index) || '<段外>';
+          errors.push(`电池[${batteryId}] 段[${seg}] 薄包装 ${name}() 的模板事件类型无法静态解析（工单226：动态形态不得漏扫判绿）`);
+        } else consume([event.slice(1, -1)], index, `薄包装 ${name}()`);
+      }
+    }
+  }
+  return { dependencies, errors };
 }
 
 /**
@@ -161,9 +468,10 @@ function validateRequiredFileRules(manifest) {
 
 /**
  * 清单 ↔ 源码双向校验。
- * @param {{manifest: object, sources: Record<string, string>, presentEntries?: string[], sourceTree?: {dirs: string[], files: string[]}}} req
+ * @param {{manifest: object, sources: Record<string, string>, cardSources?: Record<string, string>, presentEntries?: string[], sourceTree?: {dirs: string[], files: string[]}}} req
  *   manifest：清单对象（report.loadManifest() 的产物或夹具）；sources：batteryId → 源码全文。
  *   sources 缺某电池 = 该电池「清单在账、源码缺席」——判红（登记处指向的电池必须真实存在）。
+ *   cardSources：卡插件路径 → 源码全文（工单226）；给出时交叉校验卡事件消费段必带 cards。
  *   presentEntries：accept 目录下实际在场的电池脚本路径表（评审 P2 反向核对——新电池脚本
  *   不入清单则整块逃逸治理）；给出时，清单外的在场脚本判红。
  *   sourceTree：源码树枚举（工单204）——目录与文件，仓库相对路径；给出时核 path→area 完备性。
@@ -173,6 +481,14 @@ function validateManifest(req = {}) {
   const manifest = req.manifest;
   const sources = req.sources || {};
   const errors = [];
+  const cardScan = req.cardSources === undefined ? null : extractCardEvents(req.cardSources);
+  let cardConsumptionCount = 0;
+  if (cardScan) {
+    errors.push(...cardScan.errors);
+    if (!Object.keys(req.cardSources).length || !cardScan.events.size) {
+      errors.push('卡插件事件扫描为空（工单226：非空自证失败，扫描器不得退化成零匹配全绿）');
+    }
+  }
   if (!manifest || !Array.isArray(manifest.batteries) || !manifest.batteries.length) {
     return { ok: false, errors: ['清单缺 batteries 数组（或清单缺位）'] };
   }
@@ -278,7 +594,24 @@ function validateManifest(req = {}) {
       if (!(new RegExp(`new\\s+Report\\(\\s*'${b.id}'`)).test(sources[b.id])) {
         errors.push(`${where} 源码未见 new Report('${b.id}')——Report 名与清单 id 不对应，元数据与 scope 硬校验会静默失效`);
       }
+      if (cardScan) {
+        const consumption = scanCardEventConsumers(b.id, sources[b.id], cardScan.events);
+        errors.push(...consumption.errors);
+        cardConsumptionCount += consumption.dependencies.length;
+        for (const dep of consumption.dependencies) {
+          const segment = segs.find((s) => s && String(s.seg) === dep.seg);
+          if (!segment) continue;
+          const segAreas = Array.isArray(segment.areas) ? segment.areas : [];
+          const effAreas = segAreas.length ? segAreas : batteryAreas;
+          if (!effAreas.includes('cards')) {
+            errors.push(`${where} 段[${dep.seg}] 消费卡插件事件 "${dep.event}" 但有效 areas 缺 cards（工单226：段耦合必须覆盖事件生产域）`);
+          }
+        }
+      }
     }
+  }
+  if (cardScan && cardScan.events.size && !cardConsumptionCount) {
+    errors.push('验收段卡插件事件消费扫描为空（工单226：非空自证失败，扫描器不得退化成零匹配全绿）');
   }
   // 反向核对（评审 P2）：accept 目录在场电池脚本必须全部入清单，否则整块逃逸治理
   for (const p of Array.isArray(req.presentEntries) ? req.presentEntries : []) {

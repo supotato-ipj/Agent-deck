@@ -2,7 +2,8 @@
 // 超预算各判红、合法清单判绿；另以真仓库清单+六电池真实源码跑「现状全绿」——
 // CI（test.yml 的 npm test）由此静态把关测试集的每次增删改。
 // 工单204（spec #201 A1）扩：段级 areas 域标签（封闭词表）+ path→area 映射表完备性，
-// 与既有「失效面五枚举」治理同执行力。
+// 与既有「失效面五枚举」治理同执行力。工单226 再扩卡插件事件 × 消费段 cards 交叉校验，
+// 含间接/条件/模板事件、薄包装归段、非空自证与九段真实清单一一转红负例。
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -54,6 +55,20 @@ function collectSourceTree(root: string, roots: string[]): { dirs: string[]; fil
     walk(resolve(root, r), r)
   }
   return { dirs, files }
+}
+
+function realManifestRequest() {
+  const root = resolve(__dirname, '../../..')
+  const manifest = loadManifest()!
+  const sources: Record<string, string> = {}
+  for (const b of manifest.batteries.filter((x) => x.kind !== 'experiment')) {
+    sources[b.id] = readFileSync(resolve(root, b.entry), 'utf8')
+  }
+  const cardSources: Record<string, string> = {}
+  for (const file of collectSourceTree(root, ['app/src/renderer/cards']).files) {
+    if (/\.[cm]?[jt]s$/.test(file)) cardSources[file] = readFileSync(resolve(root, file), 'utf8')
+  }
+  return { manifest, sources, cardSources }
 }
 
 describe('段号字集提取', () => {
@@ -271,36 +286,24 @@ describe('Report 构造期 scope 硬校验（工单110 告警不阻断的升级�
 })
 
 describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
-  // manifest.batteries[].entry 是仓库根相对路径（app/accept/...），从 app/ 上一级解析
   const APP_ROOT = resolve(__dirname, '../../..')
-  it('六电池真实清单 ↔ 六电池真实源码：双向同步、字段完备、预算合规、Report 名对应', () => {
-    const manifest = loadManifest() as { batteries: { id: string; entry: string }[] }
-    expect(manifest).not.toBeNull()
-    const sources: Record<string, string> = {}
-    for (const b of manifest.batteries) {
-      sources[b.id] = readFileSync(resolve(APP_ROOT, b.entry), 'utf8')
-    }
+  it('真实清单 ↔ 真实源码：双向同步、字段完备、预算合规、Report 名对应、卡事件域交叉', () => {
+    const { manifest, sources, cardSources } = realManifestRequest()
     // 反向核对：accept 目录（除 lib/ 与非电池脚本）在场脚本必须全部入清单
     const presentEntries = readdirSync(resolve(APP_ROOT, 'app/accept'))
       .filter((f) => f.endsWith('.js'))
       .map((f) => `app/accept/${f}`)
-    const r = validateManifest({ manifest, sources, presentEntries })
+    const r = validateManifest({ manifest, sources, cardSources, presentEntries })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
   })
 
-  it('八电池真实清单：域标签全回填 + path→area 映射表对源码目录完备（工单204）', () => {
-    const manifest = loadManifest()
-    expect(manifest).not.toBeNull()
+  it('真实清单：域标签全回填 + path→area 映射表对源码目录完备（工单204）', () => {
+    const { manifest, sources, cardSources } = realManifestRequest()
     // 词表落在 14 域上（封闭：清单 areas 键集就是全集，CI 以它为准）
-    expect(Object.keys(manifest!.areas).length).toBe(14)
-    const sources: Record<string, string> = {}
-    // 工单214：experiment 条目（取证工具）段级治理豁免——不参与段级源码扫描
-    for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
-      sources[b.id] = readFileSync(resolve(APP_ROOT, b.entry), 'utf8')
-    }
-    const sourceTree = collectSourceTree(APP_ROOT, manifest!.sourceRoots || [])
-    const r = validateManifest({ manifest, sources, sourceTree })
+    expect(Object.keys(manifest.areas).length).toBe(14)
+    const sourceTree = collectSourceTree(APP_ROOT, manifest.sourceRoots || [])
+    const r = validateManifest({ manifest, sources, cardSources, sourceTree })
     expect(r.errors).toEqual([])
     expect(r.ok).toBe(true)
     // 108 段全部有归属域：段级或电池级至少一处登记
@@ -414,6 +417,145 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
       }
     }
   })
+})
+
+function cardEventFixture(consumer = "tape.wait('card-opened', null)") {
+  const manifest = legalManifest()
+  ;(manifest as { areas: Record<string, string> }).areas = { ...manifest.areas, cards: '卡插件域' }
+  manifest.batteries[0].segments[0].areas = ['cards']
+  const source = legalSource.replace("rep.pass('a')", `${consumer}\nrep.pass('a')`)
+  const cardSources: Record<string, string> = {
+    'app/src/renderer/cards/fx/card.ts': "host.notify('card-opened', {})",
+  }
+  return { manifest, sources: { fx: source }, cardSources }
+}
+
+describe('卡插件事件 × 验收段 areas 交叉校验（工单226）', () => {
+  it('直接 notify + EventTape 消费且段带 cards → 判绿', () => {
+    const r = validateManifest(cardEventFixture())
+    expect(r.errors).toEqual([])
+    expect(r.ok).toBe(true)
+  })
+
+  it.each(['wait', 'latest', 'all', 'waitStable'])('EventTape %s 消费卡事件但段缺 cards → 判红', (method) => {
+    const req = cardEventFixture(`tape.${method}('card-opened', null)`)
+    req.manifest.batteries[0].segments[0].areas = ['desktop']
+    const r = validateManifest(req)
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('段[F1]') && e.includes('card-opened') && e.includes('缺 cards'))).toBe(true)
+  })
+
+  it('context-menu 的 fx.notify.type 间接发送可识别', () => {
+    const req = cardEventFixture("tape.wait('desktop-menu-opened', null)")
+    req.cardSources = {
+      'app/src/renderer/cards/context-menu/menu.ts': "const fx = { notify: { type: 'desktop-menu-opened' } }; host.notify(fx.notify.type, {})",
+    }
+    expect(validateManifest(req)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('别名 notify 与条件表达式的各个字面量分支均可识别', () => {
+    const req = cardEventFixture("tape.latest('search-opened')")
+    req.cardSources = {
+      'app/src/renderer/cards/search/card.ts': "h.notify(ok ? (reveal ? 'search-revealed' : 'search-opened') : 'search-action-rejected', {})",
+    }
+    expect(validateManifest(req)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('薄包装按调用点归段，而不是按包装定义位置归段', () => {
+    const req = cardEventFixture("lastEvent('card-opened')")
+    req.sources.fx = "const lastEvent = (type, pred) => tape.all(type, pred);\n" + req.sources.fx
+    req.manifest.batteries[0].segments[0].areas = ['desktop']
+    const r = validateManifest(req)
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('段[F1]') && e.includes('card-opened'))).toBe(true)
+  })
+
+  it('事件参数不在首位的薄包装仍按实际转发参数扫描', () => {
+    const req = cardEventFixture("verify('family', 0, 'card-opened')")
+    req.sources.fx = 'async function verify(family, since, type) { await tape.wait(type, null); }\n' + req.sources.fx
+    expect(validateManifest(req)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('all(undefined, predicate) 谓词中的卡事件字面量也计入消费', () => {
+    const req = cardEventFixture("tape.all(undefined, (e) => e.type === 'card-opened')")
+    req.manifest.batteries[0].segments[0].areas = ['desktop']
+    const r = validateManifest(req)
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('段[F1]') && e.includes('card-opened'))).toBe(true)
+  })
+
+  it('多层模板薄包装经常量调用点解析事件名', () => {
+    const req = cardEventFixture("outer('card')")
+    req.sources.fx = "const popup = (family) => tape.all(`${family}-ready`);\nconst outer = (family) => popup(family);\n" + req.sources.fx
+    req.cardSources = { 'app/src/renderer/cards/fx/card.ts': "host.emit('card-ready')" }
+    expect(validateManifest(req)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('消费侧动态事件类型无法静态解析 → 判红，不允许漏扫判绿', () => {
+    const r = validateManifest(cardEventFixture('tape.wait(type, null)'))
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('无法静态解析'))).toBe(true)
+  })
+
+  it('生产侧动态 notify 类型无法静态解析 → 判红', () => {
+    const req = cardEventFixture()
+    req.cardSources['app/src/renderer/cards/fx/dynamic.ts'] = 'host.notify(eventType, {})'
+    const r = validateManifest(req)
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('dynamic.ts') && e.includes('无法静态解析'))).toBe(true)
+  })
+
+  it('段外消费卡事件 → 判红并指认段归属缺失', () => {
+    const req = cardEventFixture('')
+    req.sources.fx = "tape.wait('card-opened', null)\n" + req.sources.fx
+    const r = validateManifest(req)
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('段外') && e.includes('card-opened'))).toBe(true)
+  })
+
+  it('卡插件源码或事件扫描为空 → 非空自证判红', () => {
+    const emptyCases: Record<string, string>[] = [{}, { 'app/src/renderer/cards/fx/card.ts': 'export default {}' }]
+    for (const cardSources of emptyCases) {
+      const req = cardEventFixture()
+      req.cardSources = cardSources
+      const r = validateManifest(req)
+      expect(r.ok).toBe(false)
+      expect(r.errors.some((e) => e.includes('卡插件事件扫描为空'))).toBe(true)
+    }
+  })
+
+  it('卡事件存在但消费段扫描为空 → 非空自证判红', () => {
+    const r = validateManifest(cardEventFixture(''))
+    expect(r.ok).toBe(false)
+    expect(r.errors.some((e) => e.includes('消费扫描为空'))).toBe(true)
+  })
+
+  it('非卡事件不误伤；另一段的真实卡消费满足非空自证', () => {
+    const req = cardEventFixture("tape.wait('desktop-changed', null)")
+    req.sources.fx = req.sources.fx.replace("rep.fail('b')", "tape.all('card-opened')\nrep.fail('b')")
+    req.manifest.batteries[0].segments[1].areas = ['cards']
+    expect(validateManifest(req)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('段级 areas 缺省时沿用电池级 cards，与选择器同口径', () => {
+    const req = cardEventFixture()
+    delete (req.manifest.batteries[0].segments[0] as { areas?: string[] }).areas
+    req.manifest.batteries[0].areas = ['cards']
+    expect(validateManifest(req)).toEqual({ ok: true, errors: [] })
+  })
+
+  it.each(['P5.9', 'P5.10', 'P5.12', 'P5.13', 'P5.14', 'P5.15', 'P5.16', 'P5.17', 'P9B'])(
+    '真实清单 %s 删除 cards → 自动门逐个判红', (seg) => {
+      const req = realManifestRequest()
+      req.manifest = structuredClone(req.manifest)
+      const segment = req.manifest.batteries.find((b) => b.id === '03-battery')!.segments!.find((s) => s.seg === seg)!
+      segment.areas = segment.areas!.filter((area) => area !== 'cards')
+      const r = validateManifest(req)
+      expect(r.ok).toBe(false)
+      expect(r.errors.length).toBeGreaterThan(0)
+      expect(r.errors.every((e) => e.includes(`段[${seg}]`) && e.includes('缺 cards'))).toBe(true)
+    },
+  )
 })
 
 /**
