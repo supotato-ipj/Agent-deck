@@ -240,6 +240,66 @@ describe('生命周期事件与清单推送（验收磁带的断言来源）', (
   })
 })
 
+describe('摆位下行与激活事件 bounds（工单343）', () => {
+  it('setDroppedPackageBounds 转发宿主执行：形状合法条目透传，畸形条目剔除', async () => {
+    const root = tmpDir()
+    writePackage(root, baseManifest())
+    const boundsCalls: Array<Array<{ id: string; x: number; y: number; width: number; height: number }>> = []
+    const ctx = new Context()
+    ctx.plugin(PluginHostService, {
+      roots: [{ dir: root, tier: 'dropped' as const }],
+      watch: false,
+      droppedHost: {
+        activate: () => {},
+        deactivate: () => {},
+        setPackageBounds: (list) => boundsCalls.push(list),
+      },
+      log: () => {},
+    })
+    await ctx.start()
+    const svc = ctx.plugins as PluginHostService
+    const ok = svc.setDroppedPackageBounds([
+      { id: 'widget-a', x: 40, y: 40, width: 320, height: 180 },
+      { id: '', x: 1, y: 1, width: 1, height: 1 },
+      { id: 'bad', x: Number.NaN, y: 0, width: 10, height: 10 },
+      'junk',
+    ])
+    expect(ok).toBe(true)
+    expect(boundsCalls).toHaveLength(1)
+    expect(boundsCalls[0]).toEqual([{ id: 'widget-a', x: 40, y: 40, width: 320, height: 180 }])
+    await ctx.stop()
+  })
+
+  it('宿主缺席 setter → 如实 ok=false（离线装配不谎报已执行）', async () => {
+    const root = tmpDir()
+    writePackage(root, baseManifest())
+    const { svc } = await boot({ droppedRoots: [root] })
+    expect(svc.setDroppedPackageBounds([{ id: 'widget-a', x: 0, y: 0, width: 10, height: 10 }])).toBe(false)
+    await Promise.resolve()
+  })
+
+  it('激活事件补 bounds 字段：宿主回报实际矩形（DIP）随事件在档；宿主不回报则缺省不编造', async () => {
+    const root = tmpDir()
+    writePackage(root, baseManifest({ id: 'evt-bounds' }))
+    const ctx = new Context()
+    const events: Record<string, unknown>[] = []
+    ctx.plugin(PluginHostService, {
+      roots: [{ dir: root, tier: 'dropped' as const }],
+      watch: false,
+      droppedHost: {
+        activate: () => {},
+        deactivate: () => {},
+        boundsOf: (id: string) => (id === 'evt-bounds' ? { x: 60, y: 80, width: 320, height: 180 } : null),
+      },
+      log: (event) => events.push(event),
+    })
+    await ctx.start()
+    const act = events.find((e) => e.type === 'dropped-package-activated' && e.id === 'evt-bounds')
+    expect(act).toMatchObject({ bounds: { x: 60, y: 80, width: 320, height: 180 } })
+    await ctx.stop()
+  })
+})
+
 describe('同 id 冲突与档位语义', () => {
   it('kernel 根先到先得：dropped 根同 id 包被忽略（内核档不被投放副本遮蔽），清单只进内核侧', async () => {
     const kernelRoot = tmpDir()

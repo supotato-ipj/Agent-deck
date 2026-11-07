@@ -1545,7 +1545,7 @@
     },
     {
       "id": "310-placement",
-      "title": "桌面组件摆位（工单310）：长按拖拽 + 20px 网格吸附 + 手定位持久化 + 组卡冻结/原位展开 + 搜索活动态方向 + 无空位拒绝与尺寸夹取",
+      "title": "桌面组件摆位（工单310）：长按拖拽 + 20px 网格吸附 + 手定位持久化 + 组卡冻结/原位展开 + 搜索活动态方向 + 无空位拒绝与尺寸夹取；投放包真实摆位与热区集成（工单343）",
       "entry": "app/accept/placement.js",
       "flag": "--accept-placement",
       "hintBar": true,
@@ -1639,6 +1639,21 @@
             "cards",
             "desktop",
             "config"
+          ]
+        },
+        {
+          "seg": "P7",
+          "ticket": 343,
+          "title": "投放包真实摆位与热区集成（ADR-0024 宿主统一网格）：两包零权限投放进格点账本——激活事件带 bounds、矩形对齐 20px 格线/落可用区/互不重叠且不压在场卡、注入点击经包宿主 config 通道回执（热区命中集并入包矩形解除穿透，无输入注入桥）、禁用即视图移除与账本出格、重启用回账本重落位",
+          "surfaces": [
+            "event-evidence",
+            "input-injection",
+            "system-state"
+          ],
+          "estSeconds": 25,
+          "areas": [
+            "plugins",
+            "hotzone"
           ]
         }
       ],

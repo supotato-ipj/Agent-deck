@@ -414,7 +414,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // + spike 页条目像素消失；存活对照探针零回收；一段绑定一工单）。reaped 词汇/账本
     // 回收/计划层剔除按增段条件②由 trayhost-protocol / trayhost-reap / tray-plan
     // 单测矩阵钉，真机段只验真实强杀下的句柄 signaled 回收链与像素消失。
-    expect(total).toBe(190)
+    // 190 → 191：工单343 增段——310-placement 电池增 P7（投放包真实摆位与热区集成：
+    // 两包零权限投放进格点账本，激活事件带 bounds、矩形格线/可用区/互斥/不压卡、
+    // 点击经包宿主 config 通道回执、禁用即出账本与视图移除；一段绑定一工单）。摆位
+    // 纯函数按 ADR-0024 既有例外由本电池几何断言兜底，真机段只验真实激活/注入点击/
+    // 停用链这些单测无法证明的面。
+    expect(total).toBe(191)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

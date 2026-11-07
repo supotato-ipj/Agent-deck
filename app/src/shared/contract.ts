@@ -593,6 +593,11 @@ export interface PanelSnapshot {
   settings: SettingsState
   /** 工单10 桌面组件：按挂载顺序排列；坏插件以 status=error 在列（面板据此静默降级） */
   plugins: PluginInfo[]
+  /**
+   * 工单343 投放包管理清单投影（dropped 档；与 plugins 段互斥——投放包绝不进内核清单）。
+   * 渲染层摆位账本据此为在场包（ok/crashed）算视图矩形并经 desktop/set-package-bounds 下行。
+   */
+  dropped?: DroppedPackageInfo[]
 }
 
 /** 搜索结果行（工单07，Listary 本地 API data.results 行的字段集，snake_case 平移为驼峰） */
@@ -913,6 +918,17 @@ export interface BridgeMethods {
   'desktop/set-card-slot': {
     request: { id: string; col: number; row: number }
     response: { ok: boolean; cards: Record<string, CardSlot>; error?: string }
+  }
+  /**
+   * 投放包视图摆位下行（工单343，ADR-0024 宿主统一网格）：渲染层摆位账本为每个在场
+   * 投放包算好的视图矩形（DIP，20px 格线、与卡片占用互斥），按包 id 声明给主进程执行——
+   * 包宿主即时套用到该包视图并入热区命中集（不建输入注入桥，穿透解除后 OS 按视图层叠
+   * 自然递点击）。幂等重设：随快照节拍重复下发同值无害；包停用/卸载后条目从清单消失
+   * （宿主出热区表，渲染层账本出占用）。ok=false = 宿主面未装配（离线装配如实拒绝）。
+   */
+  'desktop/set-package-bounds': {
+    request: { packages: Array<{ id: string; x: number; y: number; width: number; height: number }> }
+    response: { ok: boolean; error?: string }
   }
   /** 搜索激活（点击热区）：待机 → 活动；活动态重复激活幂等（返回当前派生态） */
   'search/activate': { request: null; response: { state: SearchUiState } }

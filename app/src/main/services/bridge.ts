@@ -123,6 +123,12 @@ export class BridgeService extends Service {
         const { id, col, row } = payload as { id: string; col: number; row: number }
         return await this.ctx.panelData.setCardSlot(String(id ?? ''), Number(col), Number(row)) as BridgeMethods[M]['response']
       }
+      // 投放包视图摆位下行（工单343）：渲染层账本算好的包矩形表，形状护栏/执行都在
+      // plugins→package-host（declared/live 双表 + 热区命中集同步）
+      case 'desktop/set-package-bounds': {
+        const { packages } = (payload ?? {}) as { packages?: unknown }
+        return { ok: this.ctx.plugins.setDroppedPackageBounds(packages) } as BridgeMethods[M]['response']
+      }
       case 'search/activate':
         return { state: this.ctx.search.activate() } as BridgeMethods[M]['response']
       case 'search/query': {
