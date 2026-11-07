@@ -1037,6 +1037,7 @@ describe('内核桥接契约（工单49 任务栏）', () => {
       const add = (uid: number) => ctx.emit('dataplane/tray-event', {
         kind: 'add', key: `100:${uid}`, hwnd: '100', uid, guid: null, tooltip: `t${uid}`,
         callbackMessage: 0, version: 0, flags: 0, hicon: '999',
+        ownerPid: null, reapedAt: null,
         icon: { width: 2, height: 2, bgraBase64: 'AAAA' },
       })
       add(1)

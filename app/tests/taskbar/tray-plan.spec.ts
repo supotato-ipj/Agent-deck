@@ -4,9 +4,13 @@
 import { describe, expect, it } from 'vitest'
 import { applyTrayEvent, planTrayOverflow, sameTrayIcons, trayIconKeyOf } from '../../src/main/taskbar/tray-plan'
 import type { TaskbarTrayEntry } from '../../src/shared/contract'
+import { reapedTrayEvent } from '../../src/main/trayhost/protocol'
 import type { TrayIconPixels, TrayWireEvent } from '../../src/main/trayhost/protocol'
 
 const PIX: TrayIconPixels = { width: 16, height: 16, bgraBase64: 'AAAA' }
+
+/** 回收事件（工单423）：面板侧广播，载荷 key/ownerPid/时刻 */
+const reaped = (key: string): TrayWireEvent => reapedTrayEvent(key, 1234, 1762400000000)
 
 function ev(over: Partial<TrayWireEvent> = {}): TrayWireEvent {
   return {
@@ -20,6 +24,8 @@ function ev(over: Partial<TrayWireEvent> = {}): TrayWireEvent {
     version: 0,
     flags: 0,
     hicon: null,
+    ownerPid: null,
+    reapedAt: null,
     ...over,
   }
 }
@@ -80,6 +86,56 @@ describe('托盘名单编排', () => {
     for (const kind of ['version', 'focus', 'unknown'] as const) {
       expect(applyTrayEvent(list, ev({ kind }))).toBe(list)
     }
+  })
+
+  // —— 回收（工单423）：宿主进程死亡 → 面板广播 reaped → 计划层剔除条目并重排，
+  // 与 delete 同构（渲染侧无新增状态）。词汇对齐 GLOSSARY「回收」。 ——
+  describe('reaped 剔除与重排收敛（工单423）', () => {
+    it('reaped 摘除对应条目（与 delete 同构），其余条目次序不动', () => {
+      const list = applyTrayEvent(applyTrayEvent(applyTrayEvent([], ev({ key: 'a:1' })), ev({ key: 'b:2' })), ev({ key: 'c:3' }))
+      const out = applyTrayEvent(list, reaped('a:1'))
+      expect(out.map((i) => i.key)).toEqual(['b:2', 'c:3'])
+    })
+
+    it('reaped 名单外身份（重复回收/竞态）：不抛，二次回收幂等（同单次回收结果）', () => {
+      const list = applyTrayEvent([], ev({ key: 'a:1' }))
+      const once = applyTrayEvent(list, reaped('a:1'))
+      expect(applyTrayEvent(once, reaped('a:1'))).toEqual(once)
+    })
+
+    it('溢出条目自动回栏：栏内图标回收后重拆溢出，名单序尾的溢出条目补入', () => {
+      let list: readonly TaskbarTrayEntry[] = []
+      for (const k of ['a:1', 'b:2', 'c:3', 'd:4', 'e:5', 'f:6', 'g:7']) {
+        list = applyTrayEvent(list, ev({ key: k }))
+      }
+      // 档位 5：名单序前 5 可见，第 6/7 枚入溢出（工单162 溢出语义）
+      const over = planTrayOverflow(list, 5)
+      expect(over.overflow.map((i) => i.key)).toEqual(['f:6', 'g:7'])
+      // 栏内图标 a:1 被回收 → 名单剔除 → 重拆溢出：f:6 自动回栏，只剩 g:7
+      const reapedList = applyTrayEvent(list, reaped('a:1'))
+      const overAfter = planTrayOverflow(reapedList, 5)
+      expect(overAfter.bar.map((i) => i.key)).toEqual(['b:2', 'c:3', 'd:4', 'e:5', 'f:6'])
+      expect(overAfter.overflow.map((i) => i.key)).toEqual(['g:7'])
+    })
+
+    it('与 add/update/delete 混序账面一致：回收后同 key 重新 add 即重新入栏', () => {
+      let list: readonly TaskbarTrayEntry[] = []
+      list = applyTrayEvent(list, ev({ key: 'a:1', tooltip: '旧实例', icon: PIX }))
+      list = applyTrayEvent(list, ev({ key: 'b:2', tooltip: '存活', icon: PIX }))
+      list = applyTrayEvent(list, reaped('a:1'))
+      expect(list.map((i) => i.key)).toEqual(['b:2'])
+      list = applyTrayEvent(list, ev({ key: 'a:1', tooltip: '新实例', icon: PIX }))
+      expect(list.map((i) => i.key)).toEqual(['b:2', 'a:1'])
+      list = applyTrayEvent(list, ev({ kind: 'delete', key: 'b:2' }))
+      expect(list.map((i) => i.key)).toEqual(['a:1'])
+    })
+
+    it('回收与 delete 互为冗余：先回收再 delete 不双重摘除、不抛', () => {
+      let list: readonly TaskbarTrayEntry[] = applyTrayEvent([], ev({ key: 'a:1' }))
+      list = applyTrayEvent(list, reaped('a:1'))
+      list = applyTrayEvent(list, ev({ kind: 'delete', key: 'a:1' }))
+      expect(list).toEqual([])
+    })
   })
 
   it('sameTrayIcons 逐条比对（tooltip 与像素键都变才算变）', () => {

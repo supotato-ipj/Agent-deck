@@ -409,7 +409,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 不合格/回滚/交接序语义按增段条件②由 agent-drag-in-service / agent-drag-in-flow
     // 单测矩阵钉，真机段只验真实 Esc 手势、系统桌面 ID、真 SetWindowPos 复原与渲染层
     // toast 这些单测无法证明的面。
-    expect(total).toBe(189)
+    // 189 → 190：工单423 增段——48-tray-spike 电池增 P7（僵尸图标回收：探针进程
+    // Shell_NotifyIconW 注册合成图标 → 强杀不留注销 → ≤3s reaped（key/ownerPid/时刻）
+    // + spike 页条目像素消失；存活对照探针零回收；一段绑定一工单）。reaped 词汇/账本
+    // 回收/计划层剔除按增段条件②由 trayhost-protocol / trayhost-reap / tray-plan
+    // 单测矩阵钉，真机段只验真实强杀下的句柄 signaled 回收链与像素消失。
+    expect(total).toBe(190)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

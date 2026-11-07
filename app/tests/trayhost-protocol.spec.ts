@@ -19,6 +19,7 @@ import {
   NIF_TIP,
   decodeTrayPayload,
   encodeTrayPayload,
+  reapedTrayEvent,
   toTrayEvent,
 } from '../src/main/trayhost/protocol'
 
@@ -289,8 +290,54 @@ describe('packTrayClick', () => {
   })
 
   it('未协商版本（0）按 v0 语义', () => {
-    const packs = packTrayClick({ uid: 1, callbackMessage: 0x400, version: 0 }, 'left', { x: 0, y: 0 })
+    const packs = packTrayClick({ uid: 1, callbackMessage: 0x400, version: 0 }, 'left', { x: 1, y: 2 })
     expect(packs.map((p) => p.lparam)).toEqual([0x0201, 0x0202])
     expect(packs.every((p) => p.wparam === 1)).toBe(true)
+  })
+})
+
+/** 回收事件词汇（工单423）：`reaped` 仅面板侧发出——宿主进程句柄 signaled 后由
+ * 账本层构造，不是 wire 层 NIM_* 流量的转述。故词汇归属断言两半：
+ * ① wire 解码（toTrayEvent）对任何 dwMessage 都不产出 `reaped`；
+ * ② 面板侧构造（reapedTrayEvent）产出带 key/ownerPid/回收时刻的 `reaped` 事件。
+ * 词汇对齐 GLOSSARY「回收」词条：检测到托盘图标宿主进程死亡后移除并落证据事件。 */
+describe('reaped（回收事件，工单423：面板侧词汇，非 wire 流量转述）', () => {
+  it('wire 解码永不产出 reaped（NIM_* 五种 + 未知消息均不含回收）', () => {
+    const decode = (dwMessage: number) =>
+      decodeTrayPayload(encodeTrayPayload({ ...BASE, arch: 'x64', version: 3, dwMessage }))!
+    for (const dwMessage of [NIM_ADD, NIM_MODIFY, NIM_DELETE, NIM_SETFOCUS, NIM_SETVERSION, 99]) {
+      expect(toTrayEvent(decode(dwMessage)).kind).not.toBe('reaped')
+    }
+  })
+
+  it('reapedTrayEvent：kind=reaped，载荷含 key/ownerPid/reapedAt（epoch ms）', () => {
+    const t = 1762400000000
+    const e = reapedTrayEvent('100:1', 4321, t)
+    expect(e.kind).toBe('reaped')
+    expect(e.key).toBe('100:1')
+    expect(e.ownerPid).toBe(4321)
+    expect(e.reapedAt).toBe(t)
+  })
+
+  it('reapedTrayEvent：wire 字段位（hwnd/uid/tooltip/像素）为中性空值，不冒充 wire 流量', () => {
+    const e = reapedTrayEvent('guid:00112233-4455-6677-8899-aabbccddeeff', 7, 1)
+    expect(e.hwnd).toBe('')
+    expect(e.uid).toBe(0)
+    expect(e.guid).toBeNull()
+    expect(e.tooltip).toBe('')
+    expect(e.hicon).toBeNull()
+    expect(e.icon).toBeUndefined()
+    expect(e.callbackMessage).toBe(0)
+    expect(e.version).toBe(0)
+    expect(e.flags).toBe(0)
+  })
+
+  it('wire 事件（add）的 reaped 专载字段为 null（只回收事件携带 ownerPid/时刻）', () => {
+    const decode = (over: Partial<Parameters<typeof encodeTrayPayload>[0]>) =>
+      decodeTrayPayload(encodeTrayPayload({ ...BASE, arch: 'x64', version: 3, ...over }))!
+    const e = toTrayEvent(decode({}))
+    expect(e.kind).toBe('add')
+    expect(e.ownerPid).toBeNull()
+    expect(e.reapedAt).toBeNull()
   })
 })

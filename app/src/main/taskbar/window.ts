@@ -739,15 +739,22 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   if (ctx.taskbar.state().enabled) create()
+  // 禁用态跟踪：交还三件套只走**启停跃迁**（true→false），enabled 不变的 changed 事件
+  // （推荐位首拍刷新、收编回推等）不再误杀托盘宿主——工单423 真机实证：spike 电池
+  // （taskbar.enabled=false 且宿主强制在场）下，boot 后首拍推荐位刷新即触发本分支，
+  // 竞争窗被拆、P2/P7 全链哑火。enabled 未变时条带本就不在场，销条带是死代码路径，
+  // 杀宿主却是实伤。
+  let enabledLatch = ctx.taskbar.state().enabled
   const offChanged = ctx.on('taskbar/changed', (state: TaskbarState) => {
     if (state.enabled) create()
-    else {
+    else if (enabledLatch) {
       // 禁用三件套的交还环（#153）：先发宿主停（广播落地时条带可能仍在场，图标无缝
       // 回注册 explorer），随即销条带、还原原生栏。dispose（应用退出）不走这里——
       // 退出侧交还广播已被 ADR-0012 否决，强杀路径本就走不到钩子。
       setTray(false)
       destroy('disabled')
     }
+    enabledLatch = state.enabled
   })
   // 托盘右键让位起拍（工单194）：TaskbarService.trayClick 在转发回放前同步发出，
   // 本控制器同轮内先降置顶、后见菜单诞生（z 序正确性赖此顺序，见 trayClick 注）

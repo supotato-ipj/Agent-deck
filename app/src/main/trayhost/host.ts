@@ -3,8 +3,9 @@
 // 同模式），广播 TaskbarCreated 收编存量图标，解析真实 NIM_* 流量并提取图标像素。
 // 压成无分支薄壳：字节 → trayhost/protocol 纯解码；像素修复 → trayhost/pixels。
 // 本文件只在数据面子进程加载（koffi 延迟绑定，离线测试不触）。
-import { COPYDATA_TRAY, decodeTrayPayload, packTrayClick, summarizeTrayDelivery, toTrayEvent, type TrayClickButton, type TrayIconPixels, type TrayWireEvent } from './protocol'
+import { COPYDATA_TRAY, decodeTrayPayload, packTrayClick, reapedTrayEvent, summarizeTrayDelivery, toTrayEvent, type TrayClickButton, type TrayIconPixels, type TrayWireEvent } from './protocol'
 import { fixIconAlpha, maskRowStride } from './pixels'
+import { startReapMonitor, type ReapMonitor, type ReapWatchRef } from './reap-monitor'
 
 const WM_COPYDATA = 0x004a
 const PM_REMOVE = 0x0001
@@ -18,6 +19,9 @@ const WS_POPUP = 0x80000000
 const WS_EX_TOOLWINDOW = 0x80
 const WS_EX_NOACTIVATE = 0x08000000
 const DIB_RGB_COLORS = 0
+/** 进程句柄同步等待权（工单423 回收判据：句柄 signaled = 宿主进程对象已终结） */
+const SYNCHRONIZE = 0x00100000
+const WAIT_OBJECT_0 = 0
 
 export interface TrayCorpusEntry {
   t: number
@@ -55,6 +59,8 @@ interface TrayEntry {
   callbackMessage: number
   /** 应用协商的 NOTIFYICON_VERSION（未协商为 0，按旧版负载语义回放） */
   version: number
+  /** 宿主进程号（工单423 回收判据的取证面）：add/update 时刻由回调窗句柄取进程号 */
+  ownerPid: number
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -94,6 +100,10 @@ export class TrayHost {
   private stopped = false
   /** 托盘条目登记（工单56）：key → 回放所需的地址与协商版本；删除事件同步摘除 */
   private readonly entries = new Map<string, TrayEntry>()
+  /** 回收监视（工单423）：key → 宿主进程句柄（SYNCHRONIZE）与宿主 pid；随条目增删
+   * 幂等增减，句柄即用即关。判据只认句柄 signaled——无超时兜底、无启发式。 */
+  private readonly reapWatches = new Map<string, { handle: number; ownerPid: number }>()
+  private monitor: ReapMonitor | null = null
 
   constructor(private readonly options: TrayHostOptions) {}
 
@@ -131,6 +141,12 @@ export class TrayHost {
       getDIBits: gdi32.func('int __stdcall GetDIBits(uint32 hdc, uint32 hbm, uint32 start, uint32 lines, void *bits, void *bi, uint32 usage)'),
       deleteObject: gdi32.func('bool __stdcall DeleteObject(uint32 h)'),
       getModuleHandle: kernel32.func('uintptr_t __stdcall GetModuleHandleW(uintptr_t name)'),
+      // 回收监视（工单423）：对宿主进程 OpenProcess 持 SYNCHRONIZE 句柄，监视线程
+      // 零超时等待；signaled 上报回主线程复验后回收。句柄指向注册时刻的进程对象，
+      // 免疫 PID 复用；不轮询 PID 存活。
+      openProcess: kernel32.func('uintptr_t __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)'),
+      closeHandle: kernel32.func('bool __stdcall CloseHandle(uintptr_t handle)'),
+      waitMultiple: kernel32.func('uint32 __stdcall WaitForMultipleObjects(uint32 n, void *handles, bool any, uint32 ms)'),
       // 点击回放（工单56）：GetCursorPos 取光标位置供 v4 负载的 MAKELPARAM 语义。
       //
       // 工单363 O1（陈旧字段清理）：**这里不再调 AllowSetForegroundWindow**。放行权已
@@ -180,6 +196,12 @@ export class TrayHost {
 
     this.pumpTimer = setInterval(() => this.pump(), this.options.pumpIntervalMs ?? 25)
     this.topmostTimer = setInterval(() => this.assertTopmost('keepalive'), this.options.topmostIntervalMs ?? 2000)
+    // 回收监视线程（工单423）：单一工作线程零超时分批等待在场宿主句柄，signaled
+    // 者上报回主线程（onReapDead）回账本执行回收——账本操作不跨线程。
+    this.monitor = startReapMonitor({
+      onDead: (keys) => this.onReapDead(keys),
+      log: (e) => this.options.log?.(e),
+    })
     this.options.log?.({ type: 'tray-host-ready', hwnd: this.hwnd, realTrayHwnd: this.realTrayHwnd, taskbarCreatedMsg: this.taskbarCreatedMsg })
     return { hwnd: this.hwnd, realTrayHwnd: this.realTrayHwnd, taskbarCreatedMsg: this.taskbarCreatedMsg }
   }
@@ -205,6 +227,11 @@ export class TrayHost {
     } catch { /* 尽力注销 */ }
     this.options.log?.({ type: 'tray-host-stopped', hwnd: this.hwnd })
     this.hwnd = 0
+    // 回收监视随账本作废（工单423 交还链幂等）：监视线程终止 + 全部句柄释放，
+    // 之后向 explorer 重注册/重新收编重新记账，全程无跨账残留。
+    this.monitor?.stop()
+    this.monitor = null
+    for (const key of [...this.reapWatches.keys()]) this.releaseReapWatch(key)
     this.entries.clear() // 交还真托盘后登记全部作废（图标将向 explorer 重新注册）
   }
 
@@ -294,10 +321,13 @@ export class TrayHost {
    * 条目登记（工单56）：点击回放的负载由应用协商版本决定，登记随事件流维护——
    * add/update 覆盖（version 协商事件同样覆盖，只改版本字段），delete 摘除，
    * 其余事件（setfocus/unknown）不动。stop 清空（交还真托盘后登记全部作废）。
+   * 工单423 增量：add/update 时刻补记 ownerPid（回调窗句柄取进程号）并臂上回收
+   * 监视句柄；delete 随摘随关。
    */
   private remember(event: TrayWireEvent): void {
     if (event.kind === 'delete') {
       this.entries.delete(event.key)
+      this.releaseReapWatch(event.key)
       return
     }
     if (event.kind === 'version') {
@@ -307,14 +337,107 @@ export class TrayHost {
     }
     if (event.kind !== 'add' && event.kind !== 'update') return
     const prev = this.entries.get(event.key)
+    const hwnd = Number(event.hwnd)
+    const pidBuf = Buffer.alloc(4)
+    this.f.getWindowThreadProcessId(hwnd, pidBuf)
+    const readPid = pidBuf.readUInt32LE(0)
+    // 进程号读不出（窗已亡/句柄无效）沿用既有登记——宁可漏收不误收
+    const ownerPid = readPid !== 0 ? readPid : (prev?.ownerPid ?? 0)
     this.entries.set(event.key, {
-      hwnd: Number(event.hwnd),
+      hwnd,
       uid: event.uid,
       guid: event.guid,
       // 未带 NIF_MESSAGE 的部分更新不覆盖既有回调消息（部分更新语义同 tooltip）
       callbackMessage: event.callbackMessage || (prev?.callbackMessage ?? 0),
       version: event.version || (prev?.version ?? 0),
+      ownerPid,
     })
+    this.armReapWatch(event.key, ownerPid)
+  }
+
+  /**
+   * 回收监视臂（工单423）：对宿主进程 OpenProcess 持 SYNCHRONIZE 句柄——句柄指向
+   * 注册时刻的进程对象，天然免疫 PID 复用。同宿主重复收编不重开（句柄仍有效）；
+   * 换宿主（guid 键应用重启）先关旧再开新；OpenProcess 拒收（权限/已死）不开监视
+   * ——宁可漏收不误收。监视集变化即同步给监视线程。
+   */
+  private armReapWatch(key: string, ownerPid: number): void {
+    if (ownerPid <= 0) return
+    const prev = this.reapWatches.get(key)
+    if (prev) {
+      if (prev.ownerPid === ownerPid) return
+      this.releaseReapWatch(key)
+    }
+    let handle = 0
+    let openError: string | null = null
+    try {
+      // bInheritHandle 须传 boolean——koffi 的 bool 形参拒收 number（真机实证：
+      // 传 0 恒抛 Unexpected Number value，句柄恒开失败）
+      handle = Number(this.f.openProcess(SYNCHRONIZE, false, ownerPid))
+    } catch (err) {
+      // 函数缝缺席（离线）/调用异常：视同拒收，宁可漏收
+      openError = (err as Error).message
+    }
+    if (!handle) {
+      this.options.log?.({ type: 'tray-reap-watch-fail', key, ownerPid, lastError: this.f.getLastError?.() ?? null, error: openError })
+      return
+    }
+    this.reapWatches.set(key, { handle, ownerPid })
+    this.syncMonitor()
+    // 句柄在场存证（回收判据生效面）：OpenProcess 成功即监视线程可对它等待
+    this.options.log?.({ type: 'tray-reap-watch-armed', key, ownerPid, handle })
+  }
+
+  /** 回收监视摘臂：句柄即用即关（尽力而为，失败仅存证——泄漏随进程退出由系统回收）。 */
+  private releaseReapWatch(key: string): void {
+    const watch = this.reapWatches.get(key)
+    if (!watch) return
+    this.reapWatches.delete(key)
+    this.syncMonitor()
+    try {
+      this.f.closeHandle(watch.handle)
+    } catch (err) {
+      this.options.log?.({ type: 'tray-reap-watch-close-fail', key, message: (err as Error).message })
+    }
+  }
+
+  /** 监视集全量同步给监视线程（条目增删即换快照，工作线程每拍取整份）。 */
+  private syncMonitor(): void {
+    const snapshot: ReapWatchRef[] = [...this.reapWatches].map(([key, w]) => ({ key, handle: w.handle }))
+    this.monitor?.setHandles(snapshot)
+  }
+
+  /**
+   * 死亡上报回账（工单423，既有主线程调度）：监视线程上报 signaled 的 key 列表，
+   * 主线程逐个以零超时等待复验后回收——上报与复验之间的竞态窗内条目可能已被
+   * NIM_DELETE 摘走（名单外 key 幂等忽略），重复上报也只回收一次。
+   */
+  private onReapDead(keys: readonly string[]): void {
+    for (const key of keys) {
+      const watch = this.reapWatches.get(key)
+      if (!watch) continue
+      if (!this.handleSignaled(watch.handle)) continue
+      this.reapOne(key, watch)
+    }
+  }
+
+  /** 句柄复验：零超时 WaitForMultipleObjects 单句柄等待（bWaitAll=false，n=1 语义同
+   * 单句柄等待），signaled 即宿主已亡。 */
+  private handleSignaled(handle: number): boolean {
+    const buf = Buffer.alloc(8)
+    buf.writeBigUInt64LE(BigInt.asUintN(64, BigInt(handle)), 0)
+    return Number(this.f.waitMultiple(1, buf, false, 0)) === WAIT_OBJECT_0
+  }
+
+  /** 回收动作（票面既定）：账本删条目 + 监视句柄释放 + 广播 reaped（key/ownerPid/时刻）。 */
+  private reapOne(key: string, watch: { handle: number; ownerPid: number }): void {
+    this.entries.delete(key)
+    this.reapWatches.delete(key)
+    this.syncMonitor()
+    try {
+      this.f.closeHandle(watch.handle)
+    } catch { /* 尽力关 */ }
+    this.options.onEvent(reapedTrayEvent(key, watch.ownerPid, Date.now()))
   }
 
   /**
