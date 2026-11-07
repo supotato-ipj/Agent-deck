@@ -29,7 +29,11 @@ let trayCorpusFile: string | undefined
  * 幻影 tray-host-stopped 存证、重试起也不被旧实例挡道（绿轮实证教训）。 */
 function startTrayHost(): void {
   if (trayHost) return
-  const corpusFile = trayCorpusFile // 闭包内 let 收窄失效，先落 const
+  // 语料定档兜底（工单325）：P12(a) 数据面重启落在禁用态时 respawn init 的 tray 段被剥
+  // （effectiveInit 按期望态重算），本进程 trayCorpusFile 恒 undefined——之后经 tray-control
+  // 起的宿主（49 电池 P14 前置正是此路）语料回调全静，取证轮 2 实证 P14 host session 零语料
+  // 而相邻 session 正常。dataplane 继承主进程 env，直读同变量补齐（init 定档仍优先）。
+  const corpusFile = trayCorpusFile ?? process.env.DECK_TRAY_CORPUS // 闭包内 let 收窄失效，先落 const
   const host = new TrayHost({
     onEvent: (event) => parentPort!.postMessage({ type: 'tray-event', event }),
     corpus: corpusFile
