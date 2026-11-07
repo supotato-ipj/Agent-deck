@@ -60,6 +60,8 @@ export class TrayYieldMachine {
   private deadline = 0
   private isActive = false
   private ownPid = 0
+  /** 起拍时的前台窗句柄（0 = 未知）：自家常驻窗（溢出宿主/条带）不被误记成菜单窗的基线（工单401） */
+  private baselineFgHwnd = 0
   /** 菜单在场时前台落在目标 pid 的那个窗句柄（= 菜单窗身份；0 = 未记下） */
   private menuHwnd = 0
 
@@ -89,13 +91,16 @@ export class TrayYieldMachine {
   /**
    * 回放右键起拍。pid = 托盘图标属主进程（hwnd 解析缺位 = 0，盲区口径：菜单/前台
    * 两路都停用——pid 未知分不清前台是否落到菜单应用，只靠超时兜底）；fgPid =
-   * 起拍时的前台属主（前台变化判据的基线）。
+   * 起拍时的前台属主（前台变化判据的基线）；fgHwnd = 起拍时的前台窗句柄
+   * （0 = 未知）——溢出径点 ⋯ 的左键已把前台交给自家进程，起拍 fgHwnd 是自家
+   * 常驻窗而非菜单窗，排除它才不会把「菜单窗已销毁」判据钉死（工单401）。
    */
-  begin(pid: number, fgPid: number, ownPid: number, now: number): TrayYieldBeginMode {
+  begin(pid: number, fgPid: number, ownPid: number, now: number, fgHwnd = 0): TrayYieldBeginMode {
     const mode: TrayYieldBeginMode = this.isActive ? 'extend' : 'yield'
     this.watchedPid = pid
     this.ownPid = ownPid
     this.fgBaseline = fgPid
+    this.baselineFgHwnd = fgHwnd
     this.menuHwnd = 0
     // 基线本身已落在目标 pid 上（上一轮菜单进程仍持前台）：视同已见目标
     this.fgSawWatched = pid !== 0 && fgPid === pid && fgPid !== ownPid
@@ -118,8 +123,11 @@ export class TrayYieldMachine {
       if (menuCount > 0) this.sawMenu = true
       if (fgPid === this.watchedPid) {
         this.fgSawWatched = true
-        // 目标 pid 持前台 ⇒ 前台窗即菜单窗（菜单在场常态）——记下身份供「消失」判据
-        if (fgHwnd) this.menuHwnd = fgHwnd
+        // 目标 pid 持前台 ⇒ 前台窗即菜单窗（菜单在场常态）——记下身份供「消失」判据。
+        // 起拍基线窗除外（工单401）：臂4 溢出径起拍时前台是自家常驻窗（点 ⋯ 的左键
+        // 所致），它在菜单收起后仍存活——误记会让 menuHwndGone 永不命中、恢复被拖到
+        // 10s 超时（三连跑 r1 elapsed=10107 / r3 elapsed=9914 实证）。
+        if (fgHwnd && fgHwnd !== this.baselineFgHwnd) this.menuHwnd = fgHwnd
       }
     }
     const elapsed = now - this.beganAt

@@ -195,11 +195,14 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     const s = session
     if (!s || s.win.isDestroyed()) return // 条带不在场（禁用态）：无可让位，回放照常
     let fgPid = 0
+    let fgHwnd0 = 0
     try {
-      fgPid = probeForegroundWindow()?.pid ?? 0
+      const fg0 = probeForegroundWindow()
+      fgPid = fg0?.pid ?? 0
+      fgHwnd0 = fg0?.hwnd ?? 0
     } catch { /* 前台不可判按无前台处理（恢复是安全方向，与 yield.ts 同纪律） */ }
     const machine = trayYield?.machine ?? new TrayYieldMachine()
-    const mode = machine.begin(pid, fgPid, process.pid, Date.now())
+    const mode = machine.begin(pid, fgPid, process.pid, Date.now(), fgHwnd0)
     if (mode === 'yield') {
       // 降非置顶走 Electron 自家 API：内部 alwaysOnTop 账同步翻转，hide/show 等
       // 内部路径不会把 TOPMOST 位写回（FFI 直翻样式位会留下「Electron 以为还置顶」
