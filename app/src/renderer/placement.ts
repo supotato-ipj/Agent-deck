@@ -674,8 +674,12 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
         const size = { ...PACKAGE_CARD_SIZE }
         const packageList: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
         const ordered = [...activePackages].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        // 卡片占用单独取（occupiedBoxes 会并入包表——包裁决必须豁免自己，否则记忆位
+        // 与自身旧矩形相交恒判失效，每拍漂移）
+        const cardBoxes = all.filter((st) => !st.rejected).map((st) => boxOfSlot(st.baseSlot, st.baseSize, area))
         for (const pkg of ordered) {
-          const occupiedAll = [...occupiedBoxes(all), ...packageList.map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.height }))]
+          const otherPkgs = [...packageSlots].filter(([id]) => id !== pkg.id).map(([, s]) => boxOfSlot(s, size, area))
+          const occupiedAll = [...cardBoxes, ...otherPkgs, ...packageList.map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.height }))]
           const remembered = packageSlots.get(pkg.id)
           let slot = remembered ? clampSlot(remembered, size, area) : null
           // 记忆位仍合法（未被夹走、未被卡片/兄弟包占走）才沿用；否则按默认位重找最近空位
@@ -705,10 +709,12 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
           packageList.push({ id: pkg.id, x: box.x, y: box.y, width: box.w, height: box.h })
         }
         // 下行（渲染层算、主进程执行）：载荷含在场代次——换代重挂即重发，新视图即时回位；
-        // 停用/卸载使清单缩空，空表下发让主进程同步出热区命中集。
+        // 停用/卸载使清单缩空，空表下发让主进程同步出热区命中集。变化才发 + 存证随行
+        //（placement-package-bounds 事件 = 渲染层账本对包矩形的裁决留痕，验收与排障可读）。
         const payloadKey = JSON.stringify([activePackages, packageList])
         if (payloadKey !== lastPackagePayload) {
           lastPackagePayload = payloadKey
+          deps.notify('placement-package-bounds', { packages: packageList })
           void deps.invoke('desktop/set-package-bounds', { packages: packageList })
             .catch(() => { /* 下行失败不阻塞摆位：下一拍快照重发自愈 */ })
         }

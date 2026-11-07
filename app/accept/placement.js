@@ -858,14 +858,16 @@ async function main() {
         fs.writeFileSync(path.join(pkgRoot, id, 'plugin.json'), JSON.stringify({
           id, name: `摆位样例 ${id}`, version: '1.0.0', entry: './card.js', hostApiVersion: 1,
         }), 'utf8');
-        // 点击回执 fixture：整面按钮，点击计数经 host.config 上行（包→宿主回执走 pkg:config-set）
+        // 点击回执 fixture：整面按钮（position:fixed 铺满包视图视口——root 是 auto 高容器，
+        // 百分比高会塌成内容高，视图中心的点击会落在按钮外），点击计数经 host.config 上行
+        //（包→宿主回执走 pkg:config-set）
         fs.writeFileSync(path.join(pkgRoot, id, 'card.js'), [
           'export default {',
           '  async mount(host) {',
           '    const env = await host.config.get();',
           '    let clicks = ((env && env.config && env.config.clicks) || 0) + 1;',
           '    await host.config.set({ clicks });',
-          '    host.el.innerHTML = \'<button id="pkg-click-btn" style="width:100%;height:100%;font-size:28px">CLICK</button>\';',
+          '    host.el.innerHTML = \'<button id="pkg-click-btn" style="position:fixed;inset:0;width:100%;height:100%;font-size:28px">CLICK</button>\';',
           '    host.el.querySelector(\'#pkg-click-btn\').addEventListener(\'click\', async () => {',
           '      clicks += 1;',
           '      const btn = document.getElementById(\'pkg-click-btn\');',
@@ -918,11 +920,11 @@ async function main() {
         const rendered = tape.latest('placement-rendered');
         const solidCards = ((rendered && rendered.cards) || []).filter((c) => !c.expanded && !c.search && !c.rejected);
         const cardHit = rectA && rectB && solidCards.find((c) =>
-          overlaps(rectA, { x: c.x, y: c.y, width: c.w, height: c.h })
-          || overlaps(rectB, { x: c.x, y: c.y, width: c.w, height: c.h }));
+          overlaps(rectA, { x: c.rect.x, y: c.rect.y, width: c.rect.w, height: c.rect.h })
+          || overlaps(rectB, { x: c.rect.x, y: c.rect.y, width: c.rect.w, height: c.rect.h }));
         rectA && rectB && !cardHit
           ? rep.pass(`包与卡片同一账本互斥：${solidCards.length} 张在场卡无一被压（占用互斥同源 20px 格点）`)
-          : rep.fail(`包压卡片：hit=${JSON.stringify(cardHit && cardHit.id)} cards=${JSON.stringify(solidCards.map((c) => `${c.id}@${c.x},${c.y},${c.w}x${c.h}`).slice(0, 8))}`);
+          : rep.fail(`包压卡片：hit=${JSON.stringify(cardHit && cardHit.id)} cards=${JSON.stringify(solidCards.map((c) => `${c.id}@${c.rect.x},${c.rect.y},${c.rect.w}x${c.rect.h}`).slice(0, 8))}`);
 
         // ③ 点击回执：注入点击 B 中心——热区命中集并入包矩形（穿透解除）→ OS 递点击 → 包页
         // handler → host.config 上行（pkg:config-set）；plugin-config/get 读回即端到端回执。

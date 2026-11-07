@@ -62,6 +62,8 @@ export class BridgeService extends Service {
       layout: this.layout,
       settings: this.ctx.settings.state(),
       plugins: this.ctx.plugins.info(),
+      // 投放包清单投影（工单343）：渲染层摆位账本据此为在场包算视图矩形并下行
+      dropped: this.ctx.plugins.droppedInfo(),
     }
   }
 

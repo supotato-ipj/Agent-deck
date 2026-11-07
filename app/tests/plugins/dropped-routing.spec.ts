@@ -241,19 +241,28 @@ describe('生命周期事件与清单推送（验收磁带的断言来源）', (
 })
 
 describe('摆位下行与激活事件 bounds（工单343）', () => {
-  it('setDroppedPackageBounds 转发宿主执行：形状合法条目透传，畸形条目剔除', async () => {
+  it('setDroppedPackageBounds 转发宿主执行：接收者绑定保真（类方法 this 不被打断）+ 畸形条目剔除', async () => {
     const root = tmpDir()
     writePackage(root, baseManifest())
-    const boundsCalls: Array<Array<{ id: string; x: number; y: number; width: number; height: number }>> = []
+    // 类方法形态的假宿主（读 this 字段）——解构方法引用再调用的接线缺陷在此必炸
+    class SpyHost {
+      received: Array<{ id: string; x: number; y: number; width: number; height: number }> | null = null
+      private readonly mark = 'receiver-bound'
+      touched(): string {
+        return this.mark
+      }
+      activate(): void {}
+      deactivate(): void {}
+      setPackageBounds(list: Array<{ id: string; x: number; y: number; width: number; height: number }>): void {
+        this.received = list
+      }
+    }
+    const host = new SpyHost()
     const ctx = new Context()
     ctx.plugin(PluginHostService, {
       roots: [{ dir: root, tier: 'dropped' as const }],
       watch: false,
-      droppedHost: {
-        activate: () => {},
-        deactivate: () => {},
-        setPackageBounds: (list) => boundsCalls.push(list),
-      },
+      droppedHost: host,
       log: () => {},
     })
     await ctx.start()
@@ -265,8 +274,7 @@ describe('摆位下行与激活事件 bounds（工单343）', () => {
       'junk',
     ])
     expect(ok).toBe(true)
-    expect(boundsCalls).toHaveLength(1)
-    expect(boundsCalls[0]).toEqual([{ id: 'widget-a', x: 40, y: 40, width: 320, height: 180 }])
+    expect(host.received).toEqual([{ id: 'widget-a', x: 40, y: 40, width: 320, height: 180 }])
     await ctx.stop()
   })
 

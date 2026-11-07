@@ -418,8 +418,8 @@ export class PluginHostService extends Service {
    * 宿主未装配摆位面（离线测试假端口）如实 ok=false，不谎报已执行。
    */
   setDroppedPackageBounds(list: unknown): boolean {
-    const setPackageBounds = this.droppedHost?.setPackageBounds
-    if (!setPackageBounds) return false
+    const host = this.droppedHost
+    if (!host || !host.setPackageBounds) return false
     const items = Array.isArray(list) ? list : []
     const valid: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
     for (const item of items) {
@@ -430,7 +430,8 @@ export class PluginHostService extends Service {
       if (![x, y, width, height].every(Number.isFinite)) continue
       valid.push({ id: b.id, x, y, width, height })
     }
-    setPackageBounds(valid)
+    // 经接收者调用（this 绑定保真）——解构方法引用会把类方法的 this 打断（真机排障实证）
+    host.setPackageBounds(valid)
     return true
   }
 

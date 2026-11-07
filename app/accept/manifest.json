@@ -1650,7 +1650,7 @@
             "input-injection",
             "system-state"
           ],
-          "estSeconds": 25,
+          "estSeconds": 8,
           "areas": [
             "plugins",
             "hotzone"
@@ -1665,8 +1665,8 @@
         "desktop",
         "config"
       ],
-      "lastMeasuredSeconds": 92,
-      "lastMeasuredAt": "2026-10-28"
+      "lastMeasuredSeconds": 90,
+      "lastMeasuredAt": "2026-11-07"
     },
     {
       "id": "132-stall-duel",

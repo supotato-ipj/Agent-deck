@@ -227,9 +227,9 @@ export class DroppedPackageHost {
       }
       applied.push({ id: b.id, ...rect })
     }
-    if (applied.length === 0) return
+    // 空表也存证（渲染层账本出清的下发同样要走热区出表；一条空事件区分「发了空表」与「没发」）
     this.deps.log?.({ type: 'dropped-package-bounds', bounds: applied })
-    this.boundsListener?.(this.boundsRects())
+    if (applied.length > 0) this.boundsListener?.(this.boundsRects())
   }
 
   /** 包当前视图矩形（激活事件 bounds 字段事实源）：在场取实际矩形；未挂窗的在场上下文
