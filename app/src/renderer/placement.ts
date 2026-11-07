@@ -37,6 +37,9 @@ export const CARD_SIZES: Record<string, { w: number; h: number }> = {
 export const GROUP_COLLAPSED = { w: 320, h: 240 }
 export const GROUP_EXPANDED = { w: 640, h: 980 }
 
+/** 投放包固定卡面尺寸（工单343 首版口径 320×180；manifest 不扩尺寸声明字段） */
+export const PACKAGE_CARD_SIZE = { w: 320, h: 180 }
+
 /** 默认位锚点（出厂版面按格点量化后的结果；文档区原点来自 config，其余为代码表） */
 export interface DefaultAnchor {
   /** 绝对 DIP 横向锚点（left）；缺省与 right 二选一 */
@@ -187,6 +190,11 @@ export interface PlacementSyncInput {
   cards: Record<string, CardSlot>
   /** config 下发的文档区原点（默认位量化来源） */
   docZone: { left: number; top: number; maxWidth: number }
+  /**
+   * 在场投放包（工单343：快照 dropped 段的 ok/crashed 条目；停用/卸载即出账本）。
+   * 带代码代次——换代重挂即重下发 bounds，不等矩形变化。
+   */
+  packages?: ReadonlyArray<{ id: string; generation: number }>
 }
 
 interface CardState {
@@ -249,6 +257,12 @@ export interface PlacementHost {
 export function createPlacement(deps: PlacementDeps): PlacementHost {
   let handCards: Record<string, CardSlot> = {}
   let pendingCards: Record<string, CardSlot> = {}
+  /** 在场投放包（工单343；sync 喂入的最近一份，schedule 重排沿用） */
+  let activePackages: ReadonlyArray<{ id: string; generation: number }> = []
+  /** 包名空间账本：包 id → 格点（与卡片 id 互斥；停用/卸载即出，内存态不落盘） */
+  let packageSlots = new Map<string, CardSlot>()
+  /** 最近一次下发的包矩形载荷（内容同值不重发；换代/停用使载荷变化即重发） */
+  let lastPackagePayload = ''
   let docZoneCfg = { left: 400, top: 40, maxWidth: 640 }
   let area = usableAreaOf(window.innerWidth, window.innerHeight)
   let states = new Map<string, CardState>()
@@ -435,6 +449,9 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       // 占用按基准形态：搜索活动态盖别人不算占位，组卡展开是临时模态
       out.push(boxOfSlot(st.baseSlot, st.baseSize, area))
     }
+    // 包名空间同账本互斥（工单343）：卡片落点/拖拽裁决把在场投放包矩形一并计入；
+    // excludeId 是卡 id，包从不豁免——任何卡片都不得压到投放包上。
+    for (const [, slot] of packageSlots) out.push(boxOfSlot(slot, PACKAGE_CARD_SIZE, area))
     return out
   }
 
@@ -446,6 +463,10 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
     try {
       // 乐观手定位（尚未落盘回执）与本拍快照合并：写盘在途时卡片不回跳
       handCards = { ...input.cards, ...pendingCards }
+      if (input.packages) activePackages = input.packages
+      // 包名空间出账本（工单343）：停用/卸载即出，腾出的格点下一拍对卡片与包同样可用
+      const livePkgIds = new Set(activePackages.map((p) => p.id))
+      for (const id of [...packageSlots.keys()]) if (!livePkgIds.has(id)) packageSlots.delete(id)
       docZoneCfg = input.docZone
       area = usableAreaOf(window.innerWidth, window.innerHeight)
       updateOverlays()
@@ -466,9 +487,9 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
             const fixed = frozenSlots.get(d.id)
             if (fixed) baseSlot = clampSlot(fixed, info.baseSize, area)
             else {
-              // 冻结后新增的组卡：落最近的空位。既有卡（上一拍的全表）全部计入占用——
-              // 新卡不得盖住任何已摆好的卡，也不许把旧卡挤走。
-              const existing: Box[] = [...prev.values()].filter((s) => !s.rejected).map((s) => boxOfSlot(s.baseSlot, s.baseSize, area))
+              // 冻结后新增的组卡：落最近的空位。既有卡（上一拍的全表）与在场投放包全部计入占用——
+              // 新卡不得盖住任何已摆好的卡/包，也不许把旧卡挤走。
+              const existing: Box[] = occupiedBoxes([...prev.values()])
               const seen: Box[] = [...existing, ...occupiedBoxes([...next.values()], d.id)]
               baseSlot = centerFreeSlot(info.baseSize, seen, area) ?? { col: 0, row: 0 }
               frozenSlots.set(d.id, baseSlot)
@@ -504,9 +525,10 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       }
 
       // 第二遍：占用裁决（手定位优先占用；默认位撞车挪最近空位；无空位拒绝）
+      // 占用集以在场投放包矩形起底（工单343）：包先到的格点对卡片同样不可用。
       const all = [...next.values()]
       const reserved = new Set<string>()
-      const occupied: Box[] = []
+      const occupied: Box[] = occupiedBoxes([])
       const resolve = resolveHand
       resolveHand = false
       // 手定位先占：用户摆过的卡位置最优先，不被默认位挤走。
@@ -644,6 +666,65 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       states = next
       // 清理：已消失的卡不删手定位（存储长期保留）；冻结表也不删（卡回来了回原位）
       for (const id of [...groupBase.keys()]) if (!next.has(id) && !frozenSlots.has(id)) groupBase.delete(id)
+
+      // ---- 投放包名空间落位（工单343）：与卡片同源——20px 格线、占用互斥、最近空位、
+      // 默认位=中心最近空位；不进 DOM、不写 layout.json，矩形经 set-package-bounds 下行
+      // 主进程执行（渲染层算、主进程执行）。同批包按 id 序裁决，先到先占。
+      {
+        const size = { ...PACKAGE_CARD_SIZE }
+        const packageList: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
+        const ordered = [...activePackages].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        // 卡片占用单独取（occupiedBoxes 会并入包表——包裁决必须豁免自己，否则记忆位
+        // 与自身旧矩形相交恒判失效，每拍漂移）
+        const cardBoxes = all.filter((st) => !st.rejected).map((st) => boxOfSlot(st.baseSlot, st.baseSize, area))
+        for (const pkg of ordered) {
+          const otherPkgs = [...packageSlots].filter(([id]) => id !== pkg.id).map(([, s]) => boxOfSlot(s, size, area))
+          const occupiedAll = [...cardBoxes, ...otherPkgs, ...packageList.map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.height }))]
+          const remembered = packageSlots.get(pkg.id)
+          let slot = remembered ? clampSlot(remembered, size, area) : null
+          // 记忆位仍合法（未被夹走、未被卡片/兄弟包占走）才沿用；否则按默认位重找最近空位
+          if (slot && (slot.col !== remembered!.col || slot.row !== remembered!.row
+            || occupiedAll.some((o) => intersects(boxOfSlot(slot!, size, area), o)))) slot = null
+          if (!slot) {
+            const center = {
+              col: Math.max(0, Math.floor((area.w / 2 - size.w / 2) / GRID_PX)),
+              row: Math.max(0, Math.floor((area.h / 2 - size.h / 2) / GRID_PX)),
+            }
+            slot = nearestFreeSlot(center, size, occupiedAll, area)
+          }
+          if (!slot) {
+            // 无空位：拒绝摆放（不静默叠卡），视图留在宿主兜底位并落诊断（同卡面章法）
+            packageSlots.delete(pkg.id)
+            const key = `pkg:${pkg.id}`
+            if (!rejectedNotice.has(key)) {
+              rejectedNotice.add(key)
+              deps.notify('placement-package-rejected', { id: pkg.id, reason: 'no-space', w: size.w, h: size.h })
+              deps.notice('桌面放不下这个投放包：没有可用格点，已拒绝摆放')
+            }
+            continue
+          }
+          rejectedNotice.delete(`pkg:${pkg.id}`)
+          packageSlots.set(pkg.id, slot)
+          const box = boxOfSlot(slot, size, area)
+          packageList.push({ id: pkg.id, x: box.x, y: box.y, width: box.w, height: box.h })
+        }
+        // 下行（渲染层算、主进程执行）：载荷含在场代次——换代重挂即重发，新视图即时回位；
+        // 停用/卸载使清单缩空，空表下发让主进程同步出热区命中集。变化才发 + 存证随行
+        //（placement-package-bounds 事件 = 渲染层账本对包矩形的裁决留痕，验收与排障可读）。
+        const payloadKey = JSON.stringify([activePackages, packageList])
+        if (payloadKey !== lastPackagePayload) {
+          lastPackagePayload = payloadKey
+          deps.notify('placement-package-bounds', { packages: packageList })
+          void deps.invoke('desktop/set-package-bounds', { packages: packageList })
+            .catch(() => {
+              // 下行失败不阻塞摆位，但本轮「已发」记账作废：仍是本轮载荷时清空，
+              // 下一拍快照必重发——不清的话桥瞬断 + 版面不变时「变化才发」会跳过重发，
+              // 包永久停在宿主兜底位（自愈靠重发，不靠主进程重试）。
+              if (lastPackagePayload === payloadKey) lastPackagePayload = ''
+            })
+        }
+      }
+
       emitRendered()
     } finally {
       syncing = false
@@ -681,7 +762,7 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
     queueMicrotask(() => {
       scheduled = false
       if (disposed) return
-      sync({ cards: currentHandSnapshot(), docZone: docZoneCfg })
+      sync({ cards: currentHandSnapshot(), docZone: docZoneCfg, packages: activePackages })
     })
   }
 
@@ -992,7 +1073,7 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
       groupBase = new Map()
       deps.notify('placement-factory', {})
     },
-    refresh: () => sync({ cards: currentHandSnapshot(), docZone: docZoneCfg }),
+    refresh: () => sync({ cards: currentHandSnapshot(), docZone: docZoneCfg, packages: activePackages }),
     dispose() {
       disposed = true
       resizeObserver?.disconnect()

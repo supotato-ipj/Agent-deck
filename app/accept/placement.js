@@ -2,15 +2,19 @@
 // 工单310 桌面组件摆位真机验收（spec #310，ADR-0024）：控制器以 --accept-placement 身份运行，
 // 拉起 --panel-accept 面板子进程（绕开单实例锁，与常驻面板共存）。
 //
-// 一段绑定一工单（docs/agents/battery-governance.md）：六段全归 310。
+// 一段绑定一工单（docs/agents/battery-governance.md）：P1–P6 归 310，P7 归 343。
 //   ① 长按进入与取消（400ms / 6px / Esc / 失焦 / 点击抑制 / 点阵只铺可用区）
 //   ② 20px 吸附、绿/红落点、冲突回弹、拖拽期全窗热区
 //   ③ 手定位持久化（layout v2：docs 保留 + cards 格点）、重启回原位、恢复出厂双清
 //   ④ 组卡默认位冻结、新建/解散不挪旧卡、展开保中心+夹取、邻卡淡出、展开卡仍可拖、热区重申报
 //   ⑤ 搜索面板待机 420×100 占位、活动态优先向下/不足向上且留在可用区
 //   ⑥ 小面板无空位拒绝并提示、手定位越界夹取进可用区
+//   ⑦ 投放包真实摆位与热区集成（工单343）：两包激活互不重叠、对齐 20px 格线、落可用区
+//      且不压卡片、点击经包宿主通道回执、激活事件带 bounds、禁用即出账本与视图移除
 // 只断言真人可见/可查的外部事实（屏幕矩形、热区申报、磁盘落盘、重启后行为、提示文案），
-// 不断言实现内部；摆位纯函数的数学正确性由本电池的几何断言兜底（本票明确接受的覆盖取舍）。
+// 不断言实现内部；P1–P6 摆位纯函数的数学正确性由本电池的几何断言兜底（工单310 用户裁决
+// 例外，battery-governance.md 在案且仅限该票）；P7 落位逻辑按工单343 spec Testing
+// Decisions 不另设单测——纯函数既有覆盖 + 真机 P7 端到端兜底。
 //
 // 运行：npm run accept:placement（= electron . --accept-placement）
 // 装机纪律：只在临时 config/layout 备份上动手，轮末原样还原；桌面夹具一律 PLACE310- 前缀并清场。
@@ -267,6 +271,32 @@ function patchConfig(mutator) {
 function userDesktop() {
   return app.getPath('desktop');
 }
+
+/** 投放包根解析（index.ts 同款口径，本文件夹具落盘与清场共用一处）：config.plugins.dir
+ * 在册则其优先，userData/plugins 恒兜底；去重有序，首位 = 首选根。 */
+function packageRoots() {
+  const roots = [];
+  try {
+    const cfg = JSON.parse(readConfigRaw() || '{}');
+    if (cfg.plugins && cfg.plugins.dir) roots.push(String(cfg.plugins.dir));
+  } catch { /* 缺配置走默认根 */ }
+  const fallback = path.join(app.getPath('userData'), 'plugins');
+  if (!roots.includes(fallback)) roots.push(fallback);
+  return roots;
+}
+
+/** P7 投放包清场（工单343）：包目录（配置根 + userData 根双查）与包私有配置一并移除，
+ * 防崩溃轮残留的电池包在下一次面板启动时被激活上用户桌面。id 均为已登记 dsh-* 族。 */
+function removeBatteryPackages(ids) {
+  for (const id of ids) {
+    for (const root of packageRoots()) {
+      try { fs.rmSync(path.join(root, id), { recursive: true, force: true }); } catch { /* 尽力 */ }
+    }
+    try { fs.rmSync(path.join(app.getPath('userData'), 'plugin-config', `${id}.json`), { force: true }); } catch { /* 尽力 */ }
+  }
+}
+
+const P7_PACKAGE_IDS = ['dsh-hello', 'dsh-net'];
 
 function makeFixtures(names) {
   for (const name of names) fs.writeFileSync(path.join(userDesktop(), `${FIXTURE_PREFIX}${name}`), 'placement fixture\n', 'utf8');
@@ -816,12 +846,145 @@ async function main() {
         ? rep.pass(`还原本机配置与版面后面板正常起落（时钟卡 ${restored.x},${restored.y}）`)
         : rep.fail(`还原后状态异常：${JSON.stringify(restored)}`);
     }
+
+    // ------------------ P7 投放包真实摆位与热区集成（工单343） ------------------
+    rep.beginSegment('P7');
+    segmentNote(rep, '两包零权限投放进格点账本：激活事件带 bounds、矩形互不重叠/对齐 20px 格线/'
+      + '落可用区/不压卡片、点击经包宿主通道回执（热区命中集并入的端到端证明）、禁用即出账本与视图移除、重启用回账本重落位');
+    {
+      const [PKG_A, PKG_B] = P7_PACKAGE_IDS;
+      const bridgeInvoke = (method, payload) => cdpEval(
+        `window.deck.bridge.invoke(${JSON.stringify(method)}, ${JSON.stringify(payload ?? {})})`);
+      const pkgTargets = async () => (await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json())
+        .filter((x) => typeof x.url === 'string' && x.url.startsWith('deck-pkg://'));
+      // 包根与面板同源（index.ts 解析口径：config.plugins.dir || userData/plugins）
+      const [pkgRoot] = packageRoots();
+      const writeDropped = (id) => {
+        fs.mkdirSync(path.join(pkgRoot, id), { recursive: true });
+        fs.writeFileSync(path.join(pkgRoot, id, 'plugin.json'), JSON.stringify({
+          id, name: `摆位样例 ${id}`, version: '1.0.0', entry: './card.js', hostApiVersion: 1,
+        }), 'utf8');
+        // 点击回执 fixture：整面按钮（position:fixed 铺满包视图视口——root 是 auto 高容器，
+        // 百分比高会塌成内容高，视图中心的点击会落在按钮外），点击计数经 host.config 上行
+        //（包→宿主回执走 pkg:config-set）
+        fs.writeFileSync(path.join(pkgRoot, id, 'card.js'), [
+          'export default {',
+          '  async mount(host) {',
+          '    const env = await host.config.get();',
+          '    let clicks = ((env && env.config && env.config.clicks) || 0) + 1;',
+          '    await host.config.set({ clicks });',
+          '    host.el.innerHTML = \'<button id="pkg-click-btn" style="position:fixed;inset:0;width:100%;height:100%;font-size:28px">CLICK</button>\';',
+          '    host.el.querySelector(\'#pkg-click-btn\').addEventListener(\'click\', async () => {',
+          '      clicks += 1;',
+          '      const btn = document.getElementById(\'pkg-click-btn\');',
+          '      if (btn) btn.textContent = \'CLICKED \' + clicks;',
+          '      try { await host.config.set({ clicks }); } catch { /* 回执尽力 */ }',
+          '    });',
+          '  },',
+          '};',
+        ].join('\n'), 'utf8');
+      };
+      const rectOf = (evt, id) => ((evt && evt.bounds) || []).find((b) => b.id === id) || null;
+      const shapeOk = (b) => !!b && [b.x, b.y, b.width, b.height].every((v) => Number.isFinite(v));
+      const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+      const area = { x: MARGIN, y: MARGIN, w: geo.inner.w - 2 * MARGIN, h: geo.inner.h - 2 * MARGIN - BAND };
+      const inArea = (b) => b.x >= area.x - 0.5 && b.y >= area.y - 0.5
+        && b.x + b.width <= area.x + area.w + 0.5 && b.y + b.height <= area.y + area.h + 0.5;
+      const gridOk = (b) => b.x % GRID === 0 && b.y % GRID === 0 && b.width % GRID === 0 && b.height % GRID === 0;
+
+      try {
+        // 前置：两包登记停用（未知 id 静默待命）+ 清上一轮残留，再投放夹具
+        await bridgeInvoke('settings/set-card-enabled', { id: PKG_A, enabled: false });
+        await bridgeInvoke('settings/set-card-enabled', { id: PKG_B, enabled: false });
+        await sleep(900); // 停用 rescan 落定再投放，防看门狗先激活
+        removeBatteryPackages([PKG_A, PKG_B]);
+        writeDropped(PKG_A);
+        writeDropped(PKG_B);
+
+        // ①② 逐包启用：零权限投放即激活（无批准闸门）；激活事件带 bounds（DIP）
+        const tA = Date.now();
+        await bridgeInvoke('settings/set-card-enabled', { id: PKG_A, enabled: true });
+        const actA = await tape.wait('dropped-package-activated', (e) => e.id === PKG_A, { since: tA, timeoutMs: 15000 });
+        const tB = Date.now();
+        await bridgeInvoke('settings/set-card-enabled', { id: PKG_B, enabled: true });
+        const actB = await tape.wait('dropped-package-activated', (e) => e.id === PKG_B, { since: tB, timeoutMs: 15000 });
+        // 摆位下行回执：渲染层账本算好矩形 → set-package-bounds → 宿主落 dropped-package-bounds 存证
+        const boundsAB = await tape.wait('dropped-package-bounds',
+          (e) => rectOf(e, PKG_A) && rectOf(e, PKG_B), { since: tA, timeoutMs: 20000 });
+        const rectA = rectOf(boundsAB, PKG_A);
+        const rectB = rectOf(boundsAB, PKG_B);
+
+        actA && actB && shapeOk(actA.bounds) && shapeOk(actB.bounds)
+          ? rep.pass(`激活事件带 bounds（DIP）：${PKG_A} ${JSON.stringify(actA.bounds)}；${PKG_B} ${JSON.stringify(actB.bounds)}（激活时刻宿主矩形；最终矩形以下行存证为准）`)
+          : rep.fail(`激活事件缺 bounds：A=${JSON.stringify(actA && actA.bounds)} B=${JSON.stringify(actB && actB.bounds)}`);
+
+        rectA && rectB && gridOk(rectA) && gridOk(rectB) && inArea(rectA) && inArea(rectB) && !overlaps(rectA, rectB)
+          ? rep.pass(`两包真实摆位：${PKG_A} (${rectA.x},${rectA.y}) ${rectA.width}×${rectA.height}、${PKG_B} (${rectB.x},${rectB.y}) ${rectB.width}×${rectB.height}——对齐 20px 格线、落可用区、互不重叠`)
+          : rep.fail(`两包摆位几何不符：A=${JSON.stringify(rectA)} B=${JSON.stringify(rectB)} 格线=${!!(rectA && gridOk(rectA))}/${!!(rectB && gridOk(rectB))} 可用区=${!!(rectA && inArea(rectA))}/${!!(rectB && inArea(rectB))} 重叠=${!!(rectA && rectB && overlaps(rectA, rectB))}`);
+
+        // 不压卡片：placement-rendered 的卡矩形（展开/活动态是临时模态不算占位，跳过）
+        const rendered = tape.latest('placement-rendered');
+        const solidCards = ((rendered && rendered.cards) || []).filter((c) => !c.expanded && !c.search && !c.rejected);
+        const cardHit = rectA && rectB && solidCards.find((c) =>
+          overlaps(rectA, { x: c.rect.x, y: c.rect.y, width: c.rect.w, height: c.rect.h })
+          || overlaps(rectB, { x: c.rect.x, y: c.rect.y, width: c.rect.w, height: c.rect.h }));
+        rectA && rectB && !cardHit
+          ? rep.pass(`包与卡片同一账本互斥：${solidCards.length} 张在场卡无一被压（占用互斥同源 20px 格点）`)
+          : rep.fail(`包压卡片：hit=${JSON.stringify(cardHit && cardHit.id)} cards=${JSON.stringify(solidCards.map((c) => `${c.id}@${c.rect.x},${c.rect.y},${c.rect.w}x${c.rect.h}`).slice(0, 8))}`);
+
+        // ③ 点击回执：注入点击 B 中心——热区命中集并入包矩形（穿透解除）→ OS 递点击 → 包页
+        // handler → host.config 上行（pkg:config-set）；plugin-config/get 读回即端到端回执。
+        if (rectB) {
+          const clicksBefore = await bridgeInvoke('plugin-config/get', { id: PKG_B })
+            .then((r) => (r && r.config && r.config.clicks) || 0).catch(() => 0);
+          await clickCard({ x: rectB.x + rectB.width / 2, y: rectB.y + rectB.height / 2 });
+          const clicksAfter = await until(async () => {
+            const r = await bridgeInvoke('plugin-config/get', { id: PKG_B }).catch(() => null);
+            return r && r.config && Number(r.config.clicks) > clicksBefore ? Number(r.config.clicks) : null;
+          }, 6000, 300);
+          clicksAfter !== null
+            ? rep.pass(`点击直达包内容：注入点击 (${Math.round(rectB.x + rectB.width / 2)},${Math.round(rectB.y + rectB.height / 2)}) 后经包宿主 config 通道回执 clicks ${clicksBefore}→${clicksAfter}（热区并入包矩形解除穿透，无输入注入桥）`)
+            : rep.fail(`点击未达包内容：clicks 停在 ${clicksBefore}（查 hotzone 命中集与包视图矩形）`);
+        }
+
+        // ④ 禁用 A：视图移除 + 出账本（下行存证清单缩到只剩 B）
+        const tDis = Date.now();
+        await bridgeInvoke('settings/set-card-enabled', { id: PKG_A, enabled: false });
+        const deactivated = await tape.wait('dropped-package-deactivated', (e) => e.id === PKG_A && e.reason === 'disabled', { since: tDis, timeoutMs: 15000 });
+        const viewGone = await until(async () => !(await pkgTargets()).some((t) => t.url.startsWith(`deck-pkg://${PKG_A}/`)), 10000, 300);
+        const ledgerOut = await until(async () => {
+          const evt = tape.latest('dropped-package-bounds', null, { since: tDis });
+          return evt && rectOf(evt, PKG_B) && !rectOf(evt, PKG_A) ? evt : null;
+        }, 10000, 300);
+        deactivated && viewGone && ledgerOut
+          ? rep.pass(`禁用即显隐一致：deactivated(reason=disabled) 在档、deck-pkg://${PKG_A} 视图已移除、摆位账本同步出格（下行清单只剩 ${PKG_B}）`)
+          : rep.fail(`禁用链路不符：deactivated=${!!deactivated} viewGone=${viewGone} ledgerOut=${JSON.stringify(ledgerOut && ledgerOut.bounds)}`);
+
+        // ⑤ 重启用 A：回格点账本重新落位（禁用不留幽灵格点）
+        const tRe = Date.now();
+        await bridgeInvoke('settings/set-card-enabled', { id: PKG_A, enabled: true });
+        const actA2 = await tape.wait('dropped-package-activated', (e) => e.id === PKG_A, { since: tRe, timeoutMs: 15000 });
+        const reBounds = await tape.wait('dropped-package-bounds',
+          (e) => rectOf(e, PKG_A) && rectOf(e, PKG_B), { since: tRe, timeoutMs: 20000 });
+        const rectA2 = rectOf(reBounds, PKG_A);
+        actA2 && rectA2 && gridOk(rectA2) && inArea(rectA2) && !overlaps(rectA2, rectB)
+          ? rep.pass(`重启用回账本重落位：${PKG_A} 再激活（generation=${actA2.generation}）落 (${rectA2.x},${rectA2.y})，格线/可用区/与 ${PKG_B} 互斥全部保持`)
+          : rep.fail(`重启用落位异常：act=${!!actA2} rect=${JSON.stringify(rectA2)} 格线=${!!(rectA2 && gridOk(rectA2))} 重叠=${!!(rectA2 && overlaps(rectA2, rectB))}`);
+      } finally {
+        // 清场：两包退停用集 + 目录与私有配置移除（崩溃轮由 finally 兜底同款清场）
+        try { await bridgeInvoke('settings/set-card-enabled', { id: PKG_A, enabled: false }); } catch { /* 尽力 */ }
+        try { await bridgeInvoke('settings/set-card-enabled', { id: PKG_B, enabled: false }); } catch { /* 尽力 */ }
+        await sleep(500);
+        removeBatteryPackages([PKG_A, PKG_B]);
+      }
+    }
   } catch (err) {
     rep.fail(`电池异常中止：${err instanceof Error ? err.stack || err.message : String(err)}`);
   } finally {
-    // 清场：面板强退（验证消失）→ 配置/版面原样还原 → 桌面夹具清光
+    // 清场：面板强退（验证消失）→ 配置/版面原样还原 → 桌面夹具与 P7 投放包清光
     try { await handle.stop(); } catch { /* 尽力 */ }
     try { restoreConfig(configRaw); } catch { /* 尽力 */ }
+    try { removeBatteryPackages(P7_PACKAGE_IDS); } catch { /* 尽力 */ }
     try {
       if (layoutRaw !== null) fs.writeFileSync(layoutFile, layoutRaw, 'utf8');
       else fs.rmSync(layoutFile, { force: true });

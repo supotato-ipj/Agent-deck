@@ -703,6 +703,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 渲染层活性心跳武装（#91）：面板窗接 2s 心跳（deck:host-beat，渲染层 main.ts 起拍），
   // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
   wireHostIpc(win, tracker, log, { sentinelHeartbeat: true })
+  // 投放包 bounds 表并入热区命中集（工单343）：包宿主 live 表变化即推送（含初始表），
+  // hit-test 主进程侧并入——包视图区域解除穿透，OS 自然递点击，不建输入注入桥。
+  droppedPackageHost.onBoundsChanged((rects) => tracker.setPackageRects(rects))
 
   // 对话窗（工单332）：窗口控制器（关窗只收起、退出确认）+ 托盘入口。
   // 服务唤起钩子在装配期指向惰性转发（控制器在内核启动后才存在）。

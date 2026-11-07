@@ -1578,6 +1578,13 @@ const pluginDeps: PluginRuntimeDeps = {
 /** 最近一拍快照：插件清单变化时复用（渲染层只保留这一份，不另建缓存） */
 let lastSnapshot: PanelSnapshot | null = null
 
+/** 在场投放包（工单343）：ok/crashed 都占着视图与格点账本；停用/卸载即出账本 */
+function livePackagesOf(snap: PanelSnapshot): Array<{ id: string; generation: number }> {
+  return (snap.dropped ?? [])
+    .filter((p) => p.status === 'ok' || p.status === 'crashed')
+    .map((p) => ({ id: p.id, generation: p.generation }))
+}
+
 function render(snap: PanelSnapshot): void {
   lastSnapshot = snap
   renderDesktop(snap.desktop, snap.layout)
@@ -1586,7 +1593,8 @@ function render(snap: PanelSnapshot): void {
   // 宿主只负责把清单与裁剪后的视图喂过去。
   syncPlugins(snap.plugins, snap, pluginDeps)
   // 摆位（工单310）：手定位表随 desktop 段下发；文档区原点来自 config layout。
-  placement.sync({ cards: snap.desktop.cards, docZone: snap.layout.docZone })
+  // 在场投放包（工单343）同口径参与格点账本，矩形经 set-package-bounds 下行主进程。
+  placement.sync({ cards: snap.desktop.cards, docZone: snap.layout.docZone, packages: livePackagesOf(snap) })
 }
 
 // ---- 热区声明（全部卡片 + 桌面承载区） ----

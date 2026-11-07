@@ -28,6 +28,12 @@ export interface HotzoneHooks {
  */
 export class HotzoneTracker {
   private rects: HotzoneRect[] = []
+  /**
+   * 投放包视图矩形表（工单343）：包宿主 live bounds 表的投影（index.ts 接线推送），
+   * 与渲染层申报的热区**同一 hit-test**并入命中集——包视图区域从「穿透死区」变为可交互，
+   * 不建 sendInputEvent 注入桥，穿透解除后 OS 按视图层叠自然递点击。
+   */
+  private packageRects: HotzoneRect[] = []
   private hot = false
   private missCount = 0
   /** 拖拽会话持门计数（工单195）：OLE 拖拽活动期抑制关门——渲染层 dragstart/dragend
@@ -45,6 +51,11 @@ export class HotzoneTracker {
 
   setRects(rects: HotzoneRect[]): void {
     this.rects = rects
+  }
+
+  /** 包宿主 bounds 表并入命中集（工单343；index.ts 接线随宿主 live 表变化推送） */
+  setPackageRects(rects: HotzoneRect[]): void {
+    this.packageRects = Array.isArray(rects) ? rects : []
   }
 
   /** 命中区变化时上报（工单242 对账通路）：只在真变了才发——等距拍发会把渲染层淹掉 */
@@ -93,8 +104,13 @@ export class HotzoneTracker {
     const bounds = this.win.getBounds()
     const px = cursor.x - bounds.x
     const py = cursor.y - bounds.y
-    const hit = this.rects.find(r =>
-      px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)
+    // 包矩形优先命中（工单343 spec 决策4：包宿主 bounds 表并入命中集）：WebContentsView
+    // 层叠在渲染层之上，点击先落包视图——zoneId 同拍上报包热区 id（setPackageRects 传入的
+    // 包 id），不误报被盖住的渲染层热区。包矩形与渲染层热区本就互斥（摆位账本同一份占用），
+    // 优先序只是对声明缺口的兜底取序。
+    const contains = (r: HotzoneRect) =>
+      px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h
+    const hit = this.packageRects.find(contains) ?? this.rects.find(contains)
     if (hit) {
       this.missCount = 0
       // 工单242：命中区 id 与穿透判定同拍同源（同一份光标坐标、同一遍 hit-test）——

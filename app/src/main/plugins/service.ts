@@ -3,6 +3,7 @@ import path from 'node:path'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import type { DroppedPackageInfo, DroppedPackageMigrationIssue, DroppedPackageState, PluginInfo, PluginManifest } from '../../shared/contract'
+import { parsePackageRect, type PackageBoundsEntry } from '../../shared/contract'
 import { PLUGIN_SCHEME } from './assets'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
 import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView, type MountOutcome } from './install'
@@ -66,6 +67,14 @@ export interface DroppedPackageHostPort {
   deactivate(id: string): void
   /** 挂载结果回报（工单334 有界激活事实源；缺省 = 宿主不回报，waitMountOutcome 走超时未知态） */
   onMountOutcome?(cb: (info: { id: string; ok: boolean; message: string | null }) => void): void
+  /**
+   * 摆位下行（工单343，ADR-0024 位置由宿主持有）：渲染层摆位账本算好的包视图矩形
+   * （DIP，20px 格线）按包 id 声明，宿主即时套用并入热区命中集。缺省 = 宿主不支持
+   * 摆位（离线装配），setDroppedPackageBounds 如实 ok=false。
+   */
+  setPackageBounds?(list: Array<{ id: string; x: number; y: number; width: number; height: number }>): void
+  /** 包当前视图矩形（工单343 激活事件 bounds 字段事实源；缺省/未知 = null 不编造） */
+  boundsOf?(id: string): { x: number; y: number; width: number; height: number } | null
 }
 
 export interface PluginHostOptions {
@@ -405,6 +414,26 @@ export class PluginHostService extends Service {
   }
 
   /**
+   * 投放包摆位下行（工单343）：渲染层摆位账本算好的包视图矩形表转发宿主执行。
+   * 形状护栏在 shared/contract（parsePackageRect，id 非空 + 四值有限数，与宿主执行端
+   * 同一份），畸形条目剔除不连累合法条目；宿主未装配摆位面（离线测试假端口）如实
+   * ok=false，不谎报已执行。
+   */
+  setDroppedPackageBounds(list: unknown): boolean {
+    const host = this.droppedHost
+    if (!host || !host.setPackageBounds) return false
+    const items = Array.isArray(list) ? list : []
+    const valid: PackageBoundsEntry[] = []
+    for (const item of items) {
+      const entry = parsePackageRect(item)
+      if (entry) valid.push(entry)
+    }
+    // 经接收者调用（this 绑定保真）——解构方法引用会把类方法的 this 打断（真机排障实证）
+    host.setPackageBounds(valid)
+    return true
+  }
+
+  /**
    * 崩溃记账（工单331，AC3）：package-host 在 render-process-gone 时调用——置崩溃错误态、
    * 落事件，**绝不重挂**。后续 rescan 若指纹未变保持 crashed（不自动重挂、mount 副作用
    * 不重放）；代码内容变化 = 用户显式换代，才走 deactivate + 新代次 activate。
@@ -468,7 +497,13 @@ export class PluginHostService extends Service {
     })
     record.status = 'ok'
     this.dropped.set(record.id, record)
-    this.log({ type: 'dropped-package-activated', id: record.id, generation: record.generation, origin: `deck-pkg://${record.id}` })
+    // 激活事件补 bounds（工单343）：宿主此刻持有的包视图矩形（DIP）——首次激活是宿主默认位，
+    // 渲染层摆位下发后以 dropped-package-bounds 事件为最终矩形事实源；宿主不回报则缺省不编造。
+    const bounds = this.droppedHost?.boundsOf?.(record.id) ?? null
+    this.log({
+      type: 'dropped-package-activated', id: record.id, generation: record.generation, origin: `deck-pkg://${record.id}`,
+      ...(bounds ? { bounds } : {}),
+    })
     return true
   }
 
