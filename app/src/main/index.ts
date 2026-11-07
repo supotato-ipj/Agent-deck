@@ -559,11 +559,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
         usageDir,
         // 托盘宿主（工单56 入栏、#153 随任务栏开关）：子进程竞争同名窗口收编系统托盘；
         // 启态禁用不建（不偷图标——图标只该随条带收编），运行期启停经 tray-control；
-        // 验收 spike 模式恒建并额外收语料（测试夹具来源）
+        // 验收 spike 模式恒建并额外收语料（测试夹具来源）。accept 模式设 DECK_TRAY_CORPUS
+        // 亦录语料（工单325 取证钩子：P14 probe-add「ok=true 名单不在册」红轮需逐条
+        // WM_COPYDATA 语料定谳投递去向——spike 形态进不了 49 电池语境，见 #325 取证计划）
         tray: (options.traySpike || config.taskbar.enabled)
           ? (options.traySpike
             ? { corpusFile: process.env.DECK_TRAY_CORPUS ?? path.join(app.getAppPath(), 'accept', 'evidence', '48-tray-corpus.jsonl') }
-            : {})
+            : (process.env.DECK_TRAY_CORPUS ? { corpusFile: process.env.DECK_TRAY_CORPUS } : {}))
           : undefined,
       },
       log: (event) => log?.append(event),
