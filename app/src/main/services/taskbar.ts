@@ -566,7 +566,8 @@ export class TaskbarService extends Service {
   onTrayEvent(event: TrayWireEvent): void {
     // 影子 hwnd 账（工单194）先于名单变化早退维护：同名条目换了属主窗口（应用重启、
     // guid 键不变 hwnd 换新）时名单可能零变化，账却必须跟上最新 hwnd。
-    if (event.kind === 'delete') this.trayHwnds.delete(event.key)
+    // 工单423：reaped（宿主死亡的回收广播）与 delete 同构摘账。
+    if (event.kind === 'delete' || event.kind === 'reaped') this.trayHwnds.delete(event.key)
     else if (event.kind === 'add' || event.kind === 'update') this.trayHwnds.set(event.key, event.hwnd)
     const next = applyTrayEvent(this.current.tray, event)
     if (sameTrayIcons(this.current.tray, next)) return

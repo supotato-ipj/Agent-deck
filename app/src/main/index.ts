@@ -213,7 +213,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   }
   const onTrayEvent = (event: TrayWireEvent) => {
     const dom = event.icon ? dominantColor(event.icon) : null
-    log?.append({ type: 'tray-event', kind: event.kind, key: event.key, hwnd: event.hwnd, tooltip: event.tooltip, hasIcon: !!event.icon, w: event.icon?.width ?? 0, h: event.icon?.height ?? 0, ...(dom ? { dom } : {}) })
+    log?.append({
+      type: 'tray-event', kind: event.kind, key: event.key, hwnd: event.hwnd, tooltip: event.tooltip,
+      hasIcon: !!event.icon, w: event.icon?.width ?? 0, h: event.icon?.height ?? 0, ...(dom ? { dom } : {}),
+      // 回收证据（工单423）：宿主 pid 与回收时刻随 reaped 事件落栏面事件流（事后取证有账可查）
+      ...(event.kind === 'reaped' ? { ownerPid: event.ownerPid, reapedAt: event.reapedAt } : {}),
+    })
     if (spikeWin && !spikeWin.isDestroyed() && spikeReady) spikeWin.webContents.send('tray:event', event)
     else spikePending.push(event)
   }

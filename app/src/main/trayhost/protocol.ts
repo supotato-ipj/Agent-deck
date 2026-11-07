@@ -160,7 +160,7 @@ export interface TrayIconPixels {
 }
 
 export interface TrayWireEvent {
-  kind: 'add' | 'update' | 'delete' | 'version' | 'focus' | 'unknown'
+  kind: 'add' | 'update' | 'delete' | 'version' | 'focus' | 'unknown' | 'reaped'
   /** 图标身份键：NIF_GUID 在则 guid:<guid>，否则 <hwnd>:<uid> */
   key: string
   /** 十进制串（句柄值，结构化克隆友好） */
@@ -175,6 +175,10 @@ export interface TrayWireEvent {
   /** NIM_ADD/MODIFY 且 NIF_ICON 时的图标句柄（十进制串，效果层提取像素用） */
   hicon: string | null
   icon?: TrayIconPixels | null
+  /** 回收专载（工单423，仅 kind='reaped' 携带）：宿主进程号；wire 事件恒 null */
+  ownerPid: number | null
+  /** 回收专载：回收时刻（epoch ms）；wire 事件恒 null */
+  reapedAt: number | null
 }
 
 const KINDS: Record<number, TrayWireEvent['kind']> = {
@@ -198,6 +202,30 @@ export function toTrayEvent(n: DecodedNotify): TrayWireEvent {
     version: n.version ?? 0,
     flags: n.flags,
     hicon: hasIcon ? String(n.hicon) : null,
+    ownerPid: null,
+    reapedAt: null,
+  }
+}
+
+/**
+ * 回收事件构造（工单423）：宿主进程句柄 signaled 后由账本层在主线程构造并广播。
+ * `reaped` 仅面板侧发出——不进 wire 解码词表（toTrayEvent 不产出它），载荷含条目
+ * key、ownerPid、回收时刻；wire 字段位一律中性空值，不冒充 NIM_* 流量转述。
+ */
+export function reapedTrayEvent(key: string, ownerPid: number, reapedAt: number): TrayWireEvent {
+  return {
+    kind: 'reaped',
+    key,
+    hwnd: '',
+    uid: 0,
+    guid: null,
+    tooltip: '',
+    callbackMessage: 0,
+    version: 0,
+    flags: 0,
+    hicon: null,
+    ownerPid,
+    reapedAt,
   }
 }
 

@@ -34,15 +34,15 @@ export function trayIconKeyOf(event: TrayWireEvent): string | null {
 
 /**
  * 名单推进：add/update 同道 upsert（Windows 的 NIM_MODIFY 是部分更新——无图不带图、
- * 无 tip 不清 tip），delete 摘除，其余事件（setversion/setfocus/unknown）原样返回。
- * 不变即原引用返回——渲染层据此跳过重渲。
+ * 无 tip 不清 tip），delete 与 reaped（工单423 回收：宿主进程死亡的面板侧广播）摘除，
+ * 其余事件（setversion/setfocus/unknown）原样返回。不变即原引用返回——渲染层据此跳过重渲。
  */
 export function applyTrayEvent(
   list: readonly TaskbarTrayEntry[],
   event: TrayWireEvent,
 ): readonly TaskbarTrayEntry[] {
   const idx = list.findIndex((i) => i.key === event.key)
-  if (event.kind === 'delete') {
+  if (event.kind === 'delete' || event.kind === 'reaped') {
     return idx < 0 ? list : list.filter((_, i) => i !== idx)
   }
   // setversion/setfocus/unknown 与删除名单外身份都是空转：原引用返回（零分配）

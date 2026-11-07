@@ -595,6 +595,17 @@
           "estSeconds": 1
         },
         {
+          "seg": "P7",
+          "ticket": 423,
+          "title": "回收：探针强杀不留注销 → ≤3s reaped（key/ownerPid/时刻）+ 条目像素消失；存活对照零回收",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "pixel"
+          ],
+          "estSeconds": 4
+        },
+        {
           "seg": "P6",
           "ticket": 48,
           "title": "交还：面板退出广播 TaskbarCreated，真托盘回归 explorer",

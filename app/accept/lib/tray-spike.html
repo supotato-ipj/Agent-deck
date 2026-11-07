@@ -45,7 +45,9 @@ function iconDataUrl(icon) {
 window.traySpike.onEvent((ev) => {
   eventCount++
   statusEl.textContent = `已收 ${eventCount} 条事件 / 在栏图标 ${icons.size} 个（末条 ${ev.kind} ${ev.key}）`
-  if (ev.kind === 'delete') {
+  // 工单423：reaped（宿主死亡的回收广播）与 delete 同构摘行——通知区域条目消失的
+  // 像素断言面（渲染收敛，与名单编排同语义，无新增状态）
+  if (ev.kind === 'delete' || ev.kind === 'reaped') {
     const row = icons.get(ev.key)
     if (row) { row.row.remove(); icons.delete(ev.key) }
     return

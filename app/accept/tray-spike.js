@@ -6,12 +6,13 @@
 //   P3 真实托盘图标在验收页像素正确渲染（面板自绘琥珀图标为基准真值）
 //   P4 投递改道证据（spike 期间真托盘条带无琥珀像素）
 //   P5 真实字节语料固化（corpus JSONL 可解析、含 NIM_ADD）
+//   P7 回收（工单423）：探针强杀不留注销 → ≤3s reaped + 条目像素消失；存活对照零回收
 //   P6 交还：面板退出后广播 TaskbarCreated，真托盘回归 explorer
 // 运行：npm run accept:tray（= electron . --accept-tray）。
 const { app, BrowserWindow, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // 工单212：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
@@ -155,6 +156,66 @@ function realTrayHwnd() {
 function broadcastTaskbarCreated() {
   const msg = RegisterWindowMessageW('TaskbarCreated');
   win32.PostMessageW(0xffff, msg, 0, 0);
+}
+
+function processAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+// —— 工单423 回收探针（独立进程）：直调 Shell_NotifyIconW 注册合成图标后挂住等强杀 ——
+// 探针进程的回调窗即图标宿主（ownerPid 判据来源），控制器 taskkill /F 强杀不留注销。
+// 纯色图标（magenta=回收目标 / cyan=存活对照）供 spike 页像素级「条目消失/对照在场」
+// 断言；探针脚本 lib/tray-reap-probe.cjs，握手 JSON 供断言与清场。
+const REAP_MAGENTA = [255, 0, 255];
+const REAP_CYAN = [0, 255, 255];
+const REAP_PROBE_SCRIPT = path.join(__dirname, 'lib', 'tray-reap-probe.cjs');
+
+function spawnReapProbes(rep) {
+  const spawnOne = (uid, tooltip, rgb) => {
+    const hs = path.join(__dirname, 'evidence', `423-probe-handshake-${uid}.json`);
+    try { fs.unlinkSync(hs); } catch { /* 首次不存在 */ }
+    const child = spawn(process.execPath, [REAP_PROBE_SCRIPT, hs, String(uid), tooltip, rgb], {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: 'ignore',
+    });
+    return { child, hs, uid, tooltip, pid: 0, hwnd: 0, ok: false };
+  };
+  const a = spawnOne(0xd3c44823, 'DECK-REAP-PROBE-A', '255,0,255');
+  const b = spawnOne(0xd3c44824, 'DECK-REAP-PROBE-B', '0,255,255');
+  const waitHandshake = async (p, timeoutMs = 10000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      try {
+        const j = JSON.parse(fs.readFileSync(p.hs, 'utf8'));
+        p.pid = j.pid; p.hwnd = j.hwnd; p.ok = Boolean(j.ok);
+        return j;
+      } catch { await sleep(100); }
+    }
+    return null;
+  };
+  const cleanup = async () => {
+    // 轮末清场（工单256）：对照探针 B 的图标由控制器代发 NIM_DELETE 优雅注销
+    // （shell 按 hwnd+uid 摘除），随后两探针进程强杀 + 消失后验，残留即记账。
+    try {
+      if (b.hwnd) {
+        const { encodeNotifyIconData } = require(path.join(APP_ROOT, 'dist', 'main', 'trayhost', 'protocol.js'));
+        const nid = encodeNotifyIconData({
+          arch: 'x64', version: 3, hwnd: b.hwnd, uid: b.uid,
+          flags: 0x1 | 0x2 | 0x4, callbackMessage: 0x8000 + 95, hicon: 0, tooltip: b.tooltip,
+        });
+        ShellNotifyIconW(2 /* NIM_DELETE */, nid);
+      }
+    } catch { /* 尽力注销 */ }
+    for (const p of [a, b]) {
+      if (p.pid) { try { spawnSync('taskkill', ['/PID', String(p.pid), '/F'], { encoding: 'utf8' }); } catch { /* 尽力 */ } }
+    }
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && [a, b].some((p) => p.pid && processAlive(p.pid))) await sleep(200);
+    const left = [a, b].filter((p) => p.pid && processAlive(p.pid));
+    if (left.length > 0) rep.note(`清场残留：探针进程未消失 pid=${left.map((p) => p.pid).join(',')}`);
+    return left;
+  };
+  return { a, b, waitHandshake, cleanup };
 }
 
 async function main() {
@@ -332,6 +393,67 @@ async function main() {
     corpus.length >= 3 && adds.length >= 1 && corpus.every((c) => typeof c.hex === 'string' && c.cbData * 2 === c.hex.length)
       ? rep.pass(`字节语料固化：${corpus.length} 条负载落盘（NIM_ADD ${adds.length} 条，hex 长度与 cbData 钩稽一致）`)
       : rep.fail(`字节语料异常：${corpus.length} 条（NIM_ADD ${adds.length}）`);
+
+    // —— P7 回收（工单423）：探针进程直调 Shell_NotifyIconW 注册合成图标 → 强杀不留注销
+    // → 断言时限内（≤3s）出现 reaped（key/ownerPid/时刻）且通知区域条目消失（spike 页
+    // magenta 像素消退）；对照轮存活探针（cyan）零回收。探针独立进程——控制器杀它不伤电池。
+    rep.beginSegment('P7');
+    const reapProbe = spawnReapProbes(rep);
+    try {
+      const hsA = await reapProbe.waitHandshake(reapProbe.a);
+      const hsB = await reapProbe.waitHandshake(reapProbe.b);
+      const addA = hsA && hsA.ok ? await tape.wait('tray-event', (e) => e.kind === 'add' && Number(e.hwnd) === reapProbe.a.hwnd, { timeoutMs: 6000 }) : null;
+      const addB = hsB && hsB.ok ? await tape.wait('tray-event', (e) => e.kind === 'add' && Number(e.hwnd) === reapProbe.b.hwnd, { timeoutMs: 6000 }) : null;
+      if (!addA || !addB) {
+        rep.fail(`探针注册/收编未成立：A=${JSON.stringify(reapProbe.a)} B=${JSON.stringify(reapProbe.b)} addA=${JSON.stringify(addA)} addB=${JSON.stringify(addB)}`);
+      } else {
+        rep.pass(`探针合成图标经探针通路注册并收编进账本：A key=${addA.key}（magenta）/ B key=${addB.key}（cyan 对照）`);
+
+        // 收编可见性：spike 页 magenta/cyan 像素在强杀前应在场。若页面图标行超出视口
+        // （机器态：收编存量图标过多挤到折叠线下），像素半边按环境降责记账（事件半边照断）。
+        await sleep(1200); // 等首波事件落页
+        let magentaBefore = 0;
+        let cyanBefore = 0;
+        if (spikeHwnd) { // spikeHwnd 是 hwnd 数值（P3b 经 win32 枚举寻得），面板存活期恒有效
+          const pageBefore = captureWindow(spikeHwnd, '423-reap-before');
+          magentaBefore = colorHits(pageBefore, REAP_MAGENTA, 24);
+          cyanBefore = colorHits(pageBefore, REAP_CYAN, 24);
+          magentaBefore >= 40 && cyanBefore >= 40
+            ? rep.pass(`收编可见性：spike 页 magenta ${magentaBefore} px / cyan ${cyanBefore} px（两探针图标渲染在场）`)
+            : rep.exclude(`探针图标未进 spike 页视口（magenta ${magentaBefore} px / cyan ${cyanBefore} px）——收编存量过多挤到折叠线下，像素半边降责，事件断言照断`,
+              'spike 页视口容量不足以呈现全部收编图标（机器态）', 'tray-reap-viewport');
+        }
+
+        // 强杀探针 A（不留注销）——回收判据的主证
+        const killT0 = Date.now();
+        spawnSync('taskkill', ['/PID', String(reapProbe.a.pid), '/F'], { encoding: 'utf8' });
+        const reaped = await tape.wait('tray-event', (e) => e.kind === 'reaped' && Number(e.ownerPid) === reapProbe.a.pid, { timeoutMs: 3000 });
+        const reapMs = reaped ? reaped.t - killT0 : null;
+        reaped && reapMs <= 3000 && reaped.key === addA.key
+          ? rep.pass(`僵尸图标回收：强杀探针 A 后 ${reapMs}ms 出现 reaped（key=${reaped.key} ownerPid=${reaped.ownerPid} reapedAt=${reaped.reapedAt}，≤3000ms 时限）`)
+          : rep.fail(`回收超时或载荷不符：reaped=${JSON.stringify(reaped)}（kill 后 ${reapMs}ms，要求 key=${addA.key} ownerPid=${reapProbe.a.pid} ≤3000ms）`);
+
+        // 对照轮：存活探针 B 零回收（句柄未 signaled，宁可漏收不误收的零误收半边）
+        const strayReapB = tape.all('tray-event', (e) => e.kind === 'reaped' && e.key === addB.key);
+        strayReapB.length === 0
+          ? rep.pass('对照轮零回收：存活探针 B（cyan）全程无 reaped')
+          : rep.fail(`对照轮误回收：存活探针 B 收到 ${strayReapB.length} 条 reaped（误收）`);
+        // 条目消失的像素半边（视口在场时）：magenta 消退、cyan 仍在（对照在场）
+        if (spikeHwnd) { // spikeHwnd 是 hwnd 数值（P3b 经 win32 枚举寻得），面板存活期恒有效
+          await sleep(600);
+          const pageAfter = captureWindow(spikeHwnd, '423-reap-after');
+          const magentaAfter = colorHits(pageAfter, REAP_MAGENTA, 24);
+          const cyanAfter = colorHits(pageAfter, REAP_CYAN, 24);
+          magentaBefore >= 40
+            ? (magentaAfter < 40 && cyanAfter >= 40
+              ? rep.pass(`通知区域条目消失：spike 页 magenta ${magentaBefore}→${magentaAfter} px（探针 A 行已摘），cyan ${cyanAfter} px 对照在场`)
+              : rep.fail(`条目未消失或对照误伤：magenta ${magentaAfter} px（应 <40），cyan ${cyanAfter} px（应 ≥40）`))
+            : rep.note('像素半边已环境降责（强杀前未可见），跳过消失断言——事件链为唯一断言面');
+        }
+      }
+    } finally {
+      await reapProbe.cleanup();
+    }
 
     // —— P6 交还：杀面板 → 广播 → 真托盘回归 explorer ——
     rep.beginSegment('P6');
