@@ -1344,8 +1344,12 @@ async function main() {
       // 还原判据取「落定帧」：托盘 churn/1Hz 刷新可能在还原途中推中间宽度帧——
       // 有界等一个同时满足「右组回到原左缘（±8）」与「组合中心仍贴中心线（±2.5）」的帧，
       // 阈值不变，只是不再拿单点采样帧判死（2026-11-03 本机实测偶发中间帧）。
+      // 预算 6s→15s（工单255，证据标定）：几何帧只按变化推送，托盘名册在还原窗内
+      // 抖动（±1 格宽振荡）会把落定帧挤到 6s 之外——2026-11-07 r3 实测还原帧
+      // +9.0s 到达（差 0.7s 判红），帧账显示等待窗内中心恒 1280.0、x 已回 rp0，
+      // 谓词与产品均无责，纯预算不足；健康轮 <1.3s 早退不受影响（r1/r2 实测）。
       let gTierBack = null;
-      const deadlineTierBack = Date.now() + 6000;
+      const deadlineTierBack = Date.now() + 15000;
       while (Date.now() < deadlineTierBack && !gTierBack) {
         const cand = latestGeometry(null, { since: sinceTierBack });
         if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8
