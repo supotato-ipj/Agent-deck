@@ -2450,7 +2450,13 @@ async function main() {
       const okAdd4 = ShellNotifyIconW(NIM_ADD, nidV4);
       // 探针收编确认：tray-event 明细只在 spike 模式落盘（#163 留档口径，红轮实证
       // 非轮 0 行）——改走栏内名单（get-state 的 key 集合，服务层消费同一事件流，
-      // P11 收编断言同源）轮询等待探针在册；key = <hwnd十进制>:<uid十进制>
+      // P11 收编断言同源）轮询等待探针在册；key = <hwnd十进制>:<uid十进制>。
+      // 名单 miss 回收重注一拍（工单325 取证定谳，spec325-notes/forensics-verdict.md）：
+      // NIM_ADD 会被 OS 托盘管线间歇路由进 explorer 真托盘（红轮 corpus 零探针 add +
+      // NotifyIconSettings 僵尸 DECK164-PROBE-* 铁证；同进程 14s 后的 NIM_DELETE 却正常
+      // 到达我方）——host 侧无罪。delete 对我方无害（条目本就不在册）、路由到 explorer
+      // 时清其副本；re-add 按当拍解析态重投。断言口径不变：最终必须在册（改段理由见
+      // PR 描述；阈值/等待未放宽，重试只走 miss 路径，健康轮零增量）。
       const waitRosterKey = async (key, timeoutMs = 9000) => {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
@@ -2460,10 +2466,21 @@ async function main() {
         }
         return false;
       };
+      const registerWithRetry = async (nid, key, label, ok) => {
+        if (!ok) return false;
+        let hit = await waitRosterKey(key, 9000);
+        if (!hit) {
+          rep.note(`P14 ${label} 首注未在册（OS 路由异常签名）——回收重注一拍`);
+          ShellNotifyIconW(NIM_DELETE, nid);
+          ShellNotifyIconW(NIM_ADD, nid);
+          hit = await waitRosterKey(key, 4000);
+        }
+        return hit;
+      };
       const expKey0 = `${probe164.hwnd}:${PROBE_UID_V0}`;
       const expKey4 = `${probe164.hwnd}:${PROBE_UID_V4}`;
-      const inRoster0 = okAdd0 ? await waitRosterKey(expKey0) : false;
-      const inRoster4 = okAdd4 ? await waitRosterKey(expKey4) : false;
+      const inRoster0 = await registerWithRetry(nidV0, expKey0, 'probe-add-v0', okAdd0);
+      const inRoster4 = await registerWithRetry(nidV4, expKey4, 'probe-add-v4', okAdd4);
       // v4 协商：NIM_SETVERSION 负载只带 hwnd/uid/uVersion=4（uVersion 字段即协商值）。
       // 协商真值断言落在 v4 臂的 tray-replay 存证 version 字段（宿主登记表回读——
       // version 类事件明细同样只在 spike 模式落盘）

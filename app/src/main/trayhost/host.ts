@@ -195,7 +195,11 @@ export class TrayHost {
     this.f.postMessage(HWND_BROADCAST, this.taskbarCreatedMsg, 0, 0)
 
     this.pumpTimer = setInterval(() => this.pump(), this.options.pumpIntervalMs ?? 25)
-    this.topmostTimer = setInterval(() => this.assertTopmost('keepalive'), this.options.topmostIntervalMs ?? 2000)
+    // keepalive 2s→500ms（工单325）：Shell_NotifyIconW 的调用方解析存在间歇态，瞬时
+    // 排位落败时新注册会被路由进真托盘（取证轮 4 实证：探针 NIM_ADD 进 explorer 注册表
+    // 成僵尸、14s 后同进程 NIM_DELETE 却到达我方）——收紧瞬时暴露窗，降低真实应用
+    // 冷启动图标被吞的面。代价仅 assertTopmost 频率 ×4（SetWindowPos+FindWindow 毫秒级）。
+    this.topmostTimer = setInterval(() => this.assertTopmost('keepalive'), this.options.topmostIntervalMs ?? 500)
     // 回收监视线程（工单423）：单一工作线程零超时分批等待在场宿主句柄，signaled
     // 者上报回主线程（onReapDead）回账本执行回收——账本操作不跨线程。
     this.monitor = startReapMonitor({
