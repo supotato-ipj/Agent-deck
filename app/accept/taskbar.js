@@ -1328,13 +1328,22 @@ async function main() {
       tierTarget15b = tier15b === 3 ? 8 : 3;
       const gTier0 = latestGeometry(null) || gA;
       const rp0 = gTier0.rightPill.x;
+      // 还原锚 = 改档前观测到的右组左缘**全集**（gA/gHide/gShow/gTier0，工单255）：
+      // 托盘名册抖动让「改档前几何」在 ±1 格宽档位族内持续振荡（2026-11-07 终版B 轮
+      // 实测五态 1825.7~1847.7 分钟级往复，改档后 +18.2s 才重现 rp0 态、15s 预算差
+      // 0.4s 判红；r3 轮同机制 +9.0s 差 0.7s）——单点 rp0 是抖动相位的偶然采样，
+      // 还原判据改为「回到改档前档位 5 几何族中任一观测态」（±8 容差不变），对时序
+      // 与抖动相位不敏感（章法改段理由：断言语义=布局回到改档前的档位几何族，
+      // 不是回到某个瞬时采样；帧账显示等待窗内组合中心恒 1280.0、档位族逐帧重现）。
+      const anchors15b = [...new Set([gA, gHide, gShow, gTier0]
+        .filter(Boolean).map((g) => g.rightPill && g.rightPill.x).filter((x) => Number.isFinite(x)))];
       const sinceTier15b = Date.now();
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tierTarget15b)} })`, TASKBAR_TITLE);
       let gTier = null;
       for (let i = 0; i < 30 && !gTier; i++) {
         await sleep(200);
         const cand = latestGeometry(null, { since: sinceTier15b });
-        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) > 8) gTier = cand;
+        if (cand && cand.rightPill && anchors15b.every((a) => Math.abs(cand.rightPill.x - a) > 8)) gTier = cand;
       }
       await sleep(1300);
       if (gTier) gTier = latestGeometry(null);
@@ -1342,17 +1351,16 @@ async function main() {
       const sinceTierBack = Date.now();
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tier15b)} })`, TASKBAR_TITLE);
       // 还原判据取「落定帧」：托盘 churn/1Hz 刷新可能在还原途中推中间宽度帧——
-      // 有界等一个同时满足「右组回到原左缘（±8）」与「组合中心仍贴中心线（±2.5）」的帧，
-      // 阈值不变，只是不再拿单点采样帧判死（2026-11-03 本机实测偶发中间帧）。
+      // 有界等一个同时满足「右组回到改档前几何族任一态（±8）」与「组合中心仍贴
+      // 中心线（±2.5）」的帧（锚集见上方 anchors15b 注）。
       // 预算 6s→15s（工单255，证据标定）：几何帧只按变化推送，托盘名册在还原窗内
-      // 抖动（±1 格宽振荡）会把落定帧挤到 6s 之外——2026-11-07 r3 实测还原帧
-      // +9.0s 到达（差 0.7s 判红），帧账显示等待窗内中心恒 1280.0、x 已回 rp0，
-      // 谓词与产品均无责，纯预算不足；健康轮 <1.3s 早退不受影响（r1/r2 实测）。
+      // 抖动会把落定帧挤到 6s 之外——2026-11-07 r3 实测还原帧 +9.0s 到达（差 0.7s
+      // 判红）；健康轮 <1.3s 早退不受影响（r1/r2 实测）。
       let gTierBack = null;
       const deadlineTierBack = Date.now() + 15000;
       while (Date.now() < deadlineTierBack && !gTierBack) {
         const cand = latestGeometry(null, { since: sinceTierBack });
-        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8
+        if (cand && cand.rightPill && anchors15b.some((a) => Math.abs(cand.rightPill.x - a) <= 8)
           && Math.abs(combinedMid(cand) - centerLine15b) <= 2.5) gTierBack = cand;
         if (!gTierBack) await sleep(200);
       }
@@ -1387,7 +1395,7 @@ async function main() {
       } else {
         rep.fail(`P15B 组合锚定=${anchorOk}(组合心${midA.toFixed(1)} vs 中心线${centerLine15b.toFixed(1)})`
           + ` 藏钮=${hideOk} 显回=${showOk} 推荐位=${JSON.stringify(recOk)} 档位切换=${tierMoved} 档位还原=${tierRestored}`
-          + ` 档位账=${JSON.stringify({ tier: tier15b, target: tierTarget15b, rp0, gTier: gTier && { right: gTier.rightPill, mid: combinedMid(gTier) }, gTierBack: gTierBack && { right: gTierBack.rightPill, mid: combinedMid(gTierBack), apps: gTierBack.appsPill, rec: gTierBack.recPill } })}`
+          + ` 档位账=${JSON.stringify({ tier: tier15b, target: tierTarget15b, rp0, anchors: anchors15b, gTier: gTier && { right: gTier.rightPill, mid: combinedMid(gTier) }, gTierBack: gTierBack && { right: gTierBack.rightPill, mid: combinedMid(gTierBack), apps: gTierBack.appsPill, rec: gTierBack.recPill } })}`
           + ` 对称扩张=${growOk}/${symOk}(帧=${gGrow ? JSON.stringify(gGrow.appsPill) : 'null'})`
           + ` 带内=${allInBand} 帧=${JSON.stringify({ gA: gA && gA.appsPill, gHide: gHide && gHide.appsPill, gShow: gShow && gShow.appsPill })}`);
       }
