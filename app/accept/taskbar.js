@@ -79,6 +79,9 @@ const { createEventTape } = require('./lib/event-tape');
 // 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
 // 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
 const { createPanelHandle } = require('./lib/panel-control');
+// 工单255：栏布局存储电池残留扫除（纯判别在 lib，IO/留痕在电池侧）——轮起笔把旧轮
+// 硬杀遗留的探针条目清出存储，面板从干净名单起跑
+const { stripBatteryResidue } = require('./lib/probe-residue');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '49-taskbar-events.jsonl');
@@ -654,6 +657,28 @@ function cleanupRecsProbes(rep, p16) {
   rep.note(`P16 清场分步（工单256）：${steps16.join(' ')}`);
 }
 
+// —— 栏布局存储跨轮残留扫除（工单255）——
+// 现行轮末清场按「本轮探针身份」精确过滤（上方 store摘除步），但轮中途被硬杀
+// （guard 超时/崩溃，P26 finally 不执行）时，P15B/P17 各臂 rec-remove 落账的排除
+// 条目已随存储落盘、身份属旧轮探针——下一轮的 probeExes 永不含它，精确过滤摘不掉
+// ⇒ 每轮 P17②「excluded清空=false（回池=true）」自持红链（2026-10-27 三连红实证；
+// 产品面 restoreEntry 只移除归一命中项，语义无责，红的是电池侧残留不是产品）。
+// 处置 = 轮起笔（面板拉起前）按电池签名模式扫一遍三段（判别纯逻辑在
+// lib/probe-residue：label=DECK-P16-<时戳>-<A..G>、exe=deck-p16-cmd/probe-X/
+// usage-seed 路径形态，用户真实条目不可能携带），被杀轮的残留由下一轮起笔自愈，
+// 中间不再夹红轮。有摘除必 note 留痕（静默改存储不算处置完成）。
+function sweepTaskbarStoreResidue(rep) {
+  try {
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    const swept = stripBatteryResidue(store);
+    if (swept.removed.length) {
+      fs.writeFileSync(storeFile, JSON.stringify(swept.store, null, 1) + '\n', 'utf8');
+      rep.note(`轮起笔残留扫除（工单255）：taskbar-layout.json 清出 ${swept.removed.length} 条跨轮探针残留（${swept.removed.slice(0, 6).join('; ')}${swept.removed.length > 6 ? ' …' : ''}）`);
+    }
+  } catch { /* 尽力 */ }
+}
+
 // —— P18 统一序列探针（工单189）：csc 现编译 WinForms 最小窗，副本×3 ——
 // 探针选型四轮真机取证留痕（禁静默换径）：
 //   R2 cmd 副本直接 spawn 无窗——默认终端宿主（Windows Terminal）接管控制台窗；
@@ -775,6 +800,9 @@ async function main() {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
     patchTaskbar({ enabled: true });
     await ensureTaskViewClosed(rep); // 上一轮 P5 的任务视图残留会盖住条带，先清场
+
+    // —— 栏布局存储跨轮残留扫除（工单255）：面板拉起前清出旧轮硬杀遗留的探针条目 ——
+    sweepTaskbarStoreResidue(rep);
 
     // —— P16 推荐组探针（工单160）：先于面板种入（usage 打分只在服务构造时读盘）——
     p16 = seedRecsProbes(rep);
@@ -1300,13 +1328,22 @@ async function main() {
       tierTarget15b = tier15b === 3 ? 8 : 3;
       const gTier0 = latestGeometry(null) || gA;
       const rp0 = gTier0.rightPill.x;
+      // 还原锚 = 改档前观测到的右组左缘**全集**（gA/gHide/gShow/gTier0，工单255）：
+      // 托盘名册抖动让「改档前几何」在 ±1 格宽档位族内持续振荡（2026-11-07 终版B 轮
+      // 实测五态 1825.7~1847.7 分钟级往复，改档后 +18.2s 才重现 rp0 态、15s 预算差
+      // 0.4s 判红；r3 轮同机制 +9.0s 差 0.7s）——单点 rp0 是抖动相位的偶然采样，
+      // 还原判据改为「回到改档前档位 5 几何族中任一观测态」（±8 容差不变），对时序
+      // 与抖动相位不敏感（章法改段理由：断言语义=布局回到改档前的档位几何族，
+      // 不是回到某个瞬时采样；帧账显示等待窗内组合中心恒 1280.0、档位族逐帧重现）。
+      const anchors15b = [...new Set([gA, gHide, gShow, gTier0]
+        .filter(Boolean).map((g) => g.rightPill && g.rightPill.x).filter((x) => Number.isFinite(x)))];
       const sinceTier15b = Date.now();
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tierTarget15b)} })`, TASKBAR_TITLE);
       let gTier = null;
       for (let i = 0; i < 30 && !gTier; i++) {
         await sleep(200);
         const cand = latestGeometry(null, { since: sinceTier15b });
-        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) > 8) gTier = cand;
+        if (cand && cand.rightPill && anchors15b.every((a) => Math.abs(cand.rightPill.x - a) > 8)) gTier = cand;
       }
       await sleep(1300);
       if (gTier) gTier = latestGeometry(null);
@@ -1314,13 +1351,16 @@ async function main() {
       const sinceTierBack = Date.now();
       await cdpEval(`window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(tier15b)} })`, TASKBAR_TITLE);
       // 还原判据取「落定帧」：托盘 churn/1Hz 刷新可能在还原途中推中间宽度帧——
-      // 有界等一个同时满足「右组回到原左缘（±8）」与「组合中心仍贴中心线（±2.5）」的帧，
-      // 阈值不变，只是不再拿单点采样帧判死（2026-11-03 本机实测偶发中间帧）。
+      // 有界等一个同时满足「右组回到改档前几何族任一态（±8）」与「组合中心仍贴
+      // 中心线（±2.5）」的帧（锚集见上方 anchors15b 注）。
+      // 预算 6s→15s（工单255，证据标定）：几何帧只按变化推送，托盘名册在还原窗内
+      // 抖动会把落定帧挤到 6s 之外——2026-11-07 r3 实测还原帧 +9.0s 到达（差 0.7s
+      // 判红）；健康轮 <1.3s 早退不受影响（r1/r2 实测）。
       let gTierBack = null;
-      const deadlineTierBack = Date.now() + 6000;
+      const deadlineTierBack = Date.now() + 15000;
       while (Date.now() < deadlineTierBack && !gTierBack) {
         const cand = latestGeometry(null, { since: sinceTierBack });
-        if (cand && cand.rightPill && Math.abs(cand.rightPill.x - rp0) <= 8
+        if (cand && cand.rightPill && anchors15b.some((a) => Math.abs(cand.rightPill.x - a) <= 8)
           && Math.abs(combinedMid(cand) - centerLine15b) <= 2.5) gTierBack = cand;
         if (!gTierBack) await sleep(200);
       }
@@ -1355,7 +1395,7 @@ async function main() {
       } else {
         rep.fail(`P15B 组合锚定=${anchorOk}(组合心${midA.toFixed(1)} vs 中心线${centerLine15b.toFixed(1)})`
           + ` 藏钮=${hideOk} 显回=${showOk} 推荐位=${JSON.stringify(recOk)} 档位切换=${tierMoved} 档位还原=${tierRestored}`
-          + ` 档位账=${JSON.stringify({ tier: tier15b, target: tierTarget15b, rp0, gTier: gTier && { right: gTier.rightPill, mid: combinedMid(gTier) }, gTierBack: gTierBack && { right: gTierBack.rightPill, mid: combinedMid(gTierBack), apps: gTierBack.appsPill, rec: gTierBack.recPill } })}`
+          + ` 档位账=${JSON.stringify({ tier: tier15b, target: tierTarget15b, rp0, anchors: anchors15b, gTier: gTier && { right: gTier.rightPill, mid: combinedMid(gTier) }, gTierBack: gTierBack && { right: gTierBack.rightPill, mid: combinedMid(gTierBack), apps: gTierBack.appsPill, rec: gTierBack.recPill } })}`
           + ` 对称扩张=${growOk}/${symOk}(帧=${gGrow ? JSON.stringify(gGrow.appsPill) : 'null'})`
           + ` 带内=${allInBand} 帧=${JSON.stringify({ gA: gA && gA.appsPill, gHide: gHide && gHide.appsPill, gShow: gShow && gShow.appsPill })}`);
       }

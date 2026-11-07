@@ -89,6 +89,7 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
   const report = requireLib('report')
   const registry = requireLib('registry')
   const trayMachineState = requireLib('tray-machine-state')
+  const probeResidue = requireLib('probe-residue')
   return {
     'area-selector': {
       selectPlan: () => (areaSelector.selectPlan as (req: unknown) => unknown)({ changedFiles: [], manifest: null }),
@@ -118,6 +119,9 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
     },
     'tray-machine-state': {
       judgeTrayMachineState: () => (trayMachineState.judgeTrayMachineState as (input?: unknown) => unknown)({}),
+    },
+    'probe-residue': {
+      stripBatteryResidue: () => (probeResidue.stripBatteryResidue as (s: unknown) => unknown)({ pinned: [], recommended: [], excluded: [] }),
     },
   }
 }
