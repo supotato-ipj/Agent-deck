@@ -5,7 +5,7 @@ import { ExecutionContextRegistry } from './identity'
 import { PACKAGE_SCHEME, PACKAGE_SHELL_PATH, resolvePackageAssetUrl } from './assets'
 import { DROPPED_VIEW_SEGMENTS, type DroppedManifest } from './dropped-manifest'
 import { withMediaSegment } from './package-view'
-import type { HotzoneRect, PanelSnapshot } from '../../shared/contract'
+import { parsePackageRect, type HotzoneRect, type PackageBoundsEntry, type PackageRect, type PanelSnapshot } from '../../shared/contract'
 
 /**
  * 投放包宿主（工单331，ADR-0025）：dropped 档独立执行上下文的 Electron 接线。
@@ -47,7 +47,7 @@ export interface DroppedPackageHostDeps {
   /** 结构化事件出口（DECK_EVENT_LOG） */
   log?: (event: Record<string, unknown>) => void
   /** 视图默认位（工单343：渲染层未下发摆位时的兜底落点） */
-  bounds?: { x: number; y: number; width: number; height: number }
+  defaultBounds?: PackageRect
   /** 挂载结果回报（工单334 有界激活）：壳页 title=deck-pkg:ready/failed 或崩溃即报事实 */
   onMountOutcome?: (info: { id: string; ok: boolean; message: string | null }) => void
   /**
@@ -102,9 +102,6 @@ interface PackageContext {
  * desktop/set-package-bounds 下发（per-package，见 declaredBounds/liveBounds）。 */
 const DEFAULT_BOUNDS = { x: 380, y: 40, width: 320, height: 180 }
 
-/** 包视图矩形（DIP；与视图坐标同口径，不做 DPR/多屏换算） */
-type PackageRect = { x: number; y: number; width: number; height: number }
-
 /** 壳页 CSP：connect-src 'none' 在 CSP 层先掐 fetch/XHR（webRequest 拒绝是第二道闸） */
 const SHELL_CSP = "default-src 'self' 'unsafe-inline'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'none'"
 
@@ -157,7 +154,7 @@ export class DroppedPackageHost {
   /** 面板窗（attach 后挂 contentView；激活可先于开窗发生，挂载动作延后补） */
   private panelWindow: BrowserWindow | null = null
   /** 渲染层未下发摆位时的默认位（兜底；真实矩形以 declaredBounds 为准） */
-  private readonly bounds: PackageRect
+  private readonly defaultBounds: PackageRect
   /**
    * 渲染层最近声明的包视图矩形（工单343）：按包 id 键控，**跨代次保留**——换代重挂即时
    * 回旧位，不等下一拍快照；包停用/卸载不删（重启用回账本重落位前的临时落点）。
@@ -178,7 +175,7 @@ export class DroppedPackageHost {
 
   constructor(deps: DroppedPackageHostDeps) {
     this.deps = deps
-    this.bounds = deps.bounds ?? DEFAULT_BOUNDS
+    this.defaultBounds = deps.defaultBounds ?? DEFAULT_BOUNDS
     this.wireIpc()
   }
 
@@ -213,19 +210,19 @@ export class DroppedPackageHost {
    * 写声明表（跨代次保留）、即时套用在场视图、同步热区命中集，并落 dropped-package-bounds
    * 存证（最终矩形事实源；激活事件的 bounds 是激活时刻值，渲染层下发后以此为准）。
    */
-  setPackageBounds(list: Array<{ id: string; x: number; y: number; width: number; height: number }>): void {
-    const applied: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
-    for (const b of list) {
-      const rect = { x: Number(b?.x), y: Number(b?.y), width: Number(b?.width), height: Number(b?.height) }
-      if (typeof b?.id !== 'string' || !b.id) continue
-      if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) continue
-      this.declaredBounds.set(b.id, rect)
-      const context = this.live.get(b.id)
+  setPackageBounds(list: PackageBoundsEntry[]): void {
+    const applied: PackageBoundsEntry[] = []
+    for (const item of list) {
+      // 形状护栏在 shared/contract（parsePackageRect，与 service 形状过滤同一份）：畸形剔除不连累合法条目
+      const rect = parsePackageRect(item)
+      if (!rect) continue
+      this.declaredBounds.set(rect.id, rect)
+      const context = this.live.get(rect.id)
       if (context) {
-        this.liveBounds.set(b.id, rect)
+        this.liveBounds.set(rect.id, rect)
         this.applyBounds(context, rect)
       }
-      applied.push({ id: b.id, ...rect })
+      applied.push(rect)
     }
     // 空表也存证（渲染层账本出清的下发同样要走热区出表；一条空事件区分「发了空表」与「没发」）
     this.deps.log?.({ type: 'dropped-package-bounds', bounds: applied })
@@ -241,7 +238,7 @@ export class DroppedPackageHost {
   /** 全部在场视图按各自 bounds 表重设（窗口 resize/move 跟随的幂等兜底） */
   private reapplyAll(): void {
     for (const context of this.live.values()) {
-      const rect = this.liveBounds.get(context.id) ?? this.declaredBounds.get(context.id) ?? this.bounds
+      const rect = this.liveBounds.get(context.id) ?? this.declaredBounds.get(context.id) ?? this.defaultBounds
       this.applyBounds(context, rect)
     }
   }
@@ -433,7 +430,7 @@ export class DroppedPackageHost {
       if (this.panelWindow && !this.panelWindow.isDestroyed() && !context.view.webContents.isDestroyed()) {
         this.panelWindow.contentView.addChildView(context.view)
         // 落位链（工单343）：渲染层最近声明 > 宿主默认位；激活即记入在场表（热区命中集同步）
-        const rect = this.declaredBounds.get(context.id) ?? this.bounds
+        const rect = this.declaredBounds.get(context.id) ?? this.defaultBounds
         this.liveBounds.set(context.id, rect)
         context.view.setBounds({ ...rect })
         this.boundsListener?.(this.boundsRects())

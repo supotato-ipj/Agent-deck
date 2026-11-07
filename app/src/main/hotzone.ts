@@ -104,12 +104,13 @@ export class HotzoneTracker {
     const bounds = this.win.getBounds()
     const px = cursor.x - bounds.x
     const py = cursor.y - bounds.y
-    // 渲染层申报热区优先（既有行为不变），包视图矩形次之（工单343）——两者本就互斥
-    //（摆位账本同一份占用），叠加覆盖只为声明缺口兜底。
-    const hit = this.rects.find(r =>
-      px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)
-      ?? this.packageRects.find(r =>
-        px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)
+    // 包矩形优先命中（工单343 spec 决策4：包宿主 bounds 表并入命中集）：WebContentsView
+    // 层叠在渲染层之上，点击先落包视图——zoneId 同拍上报包热区 id（setPackageRects 传入的
+    // 包 id），不误报被盖住的渲染层热区。包矩形与渲染层热区本就互斥（摆位账本同一份占用），
+    // 优先序只是对声明缺口的兜底取序。
+    const contains = (r: HotzoneRect) =>
+      px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h
+    const hit = this.packageRects.find(contains) ?? this.rects.find(contains)
     if (hit) {
       this.missCount = 0
       // 工单242：命中区 id 与穿透判定同拍同源（同一份光标坐标、同一遍 hit-test）——

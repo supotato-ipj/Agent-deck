@@ -1652,6 +1652,7 @@
           ],
           "estSeconds": 8,
           "areas": [
+            "cards",
             "plugins",
             "hotzone"
           ]

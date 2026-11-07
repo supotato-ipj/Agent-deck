@@ -244,13 +244,9 @@ describe('摆位下行与激活事件 bounds（工单343）', () => {
   it('setDroppedPackageBounds 转发宿主执行：接收者绑定保真（类方法 this 不被打断）+ 畸形条目剔除', async () => {
     const root = tmpDir()
     writePackage(root, baseManifest())
-    // 类方法形态的假宿主（读 this 字段）——解构方法引用再调用的接线缺陷在此必炸
+    // 类方法形态的假宿主（setPackageBounds 写 this.received 字段）——解构方法引用再调用的接线缺陷在此必炸
     class SpyHost {
       received: Array<{ id: string; x: number; y: number; width: number; height: number }> | null = null
-      private readonly mark = 'receiver-bound'
-      touched(): string {
-        return this.mark
-      }
       activate(): void {}
       deactivate(): void {}
       setPackageBounds(list: Array<{ id: string; x: number; y: number; width: number; height: number }>): void {
@@ -283,7 +279,6 @@ describe('摆位下行与激活事件 bounds（工单343）', () => {
     writePackage(root, baseManifest())
     const { svc } = await boot({ droppedRoots: [root] })
     expect(svc.setDroppedPackageBounds([{ id: 'widget-a', x: 0, y: 0, width: 10, height: 10 }])).toBe(false)
-    await Promise.resolve()
   })
 
   it('激活事件补 bounds 字段：宿主回报实际矩形（DIP）随事件在档；宿主不回报则缺省不编造', async () => {

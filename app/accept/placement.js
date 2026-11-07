@@ -12,7 +12,9 @@
 //   ⑦ 投放包真实摆位与热区集成（工单343）：两包激活互不重叠、对齐 20px 格线、落可用区
 //      且不压卡片、点击经包宿主通道回执、激活事件带 bounds、禁用即出账本与视图移除
 // 只断言真人可见/可查的外部事实（屏幕矩形、热区申报、磁盘落盘、重启后行为、提示文案），
-// 不断言实现内部；摆位纯函数的数学正确性由本电池的几何断言兜底（本票明确接受的覆盖取舍）。
+// 不断言实现内部；P1–P6 摆位纯函数的数学正确性由本电池的几何断言兜底（工单310 用户裁决
+// 例外，battery-governance.md 在案且仅限该票）；P7 落位逻辑按工单343 spec Testing
+// Decisions 不另设单测——纯函数既有覆盖 + 真机 P7 端到端兜底。
 //
 // 运行：npm run accept:placement（= electron . --accept-placement）
 // 装机纪律：只在临时 config/layout 备份上动手，轮末原样还原；桌面夹具一律 PLACE310- 前缀并清场。
@@ -270,16 +272,24 @@ function userDesktop() {
   return app.getPath('desktop');
 }
 
+/** 投放包根解析（index.ts 同款口径，本文件夹具落盘与清场共用一处）：config.plugins.dir
+ * 在册则其优先，userData/plugins 恒兜底；去重有序，首位 = 首选根。 */
+function packageRoots() {
+  const roots = [];
+  try {
+    const cfg = JSON.parse(readConfigRaw() || '{}');
+    if (cfg.plugins && cfg.plugins.dir) roots.push(String(cfg.plugins.dir));
+  } catch { /* 缺配置走默认根 */ }
+  const fallback = path.join(app.getPath('userData'), 'plugins');
+  if (!roots.includes(fallback)) roots.push(fallback);
+  return roots;
+}
+
 /** P7 投放包清场（工单343）：包目录（配置根 + userData 根双查）与包私有配置一并移除，
  * 防崩溃轮残留的电池包在下一次面板启动时被激活上用户桌面。id 均为已登记 dsh-* 族。 */
 function removeBatteryPackages(ids) {
-  const roots = new Set([path.join(app.getPath('userData'), 'plugins')]);
-  try {
-    const cfg = JSON.parse(readConfigRaw() || '{}');
-    if (cfg.plugins && cfg.plugins.dir) roots.add(String(cfg.plugins.dir));
-  } catch { /* 尽力 */ }
   for (const id of ids) {
-    for (const root of roots) {
+    for (const root of packageRoots()) {
       try { fs.rmSync(path.join(root, id), { recursive: true, force: true }); } catch { /* 尽力 */ }
     }
     try { fs.rmSync(path.join(app.getPath('userData'), 'plugin-config', `${id}.json`), { force: true }); } catch { /* 尽力 */ }
@@ -848,11 +858,7 @@ async function main() {
       const pkgTargets = async () => (await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json())
         .filter((x) => typeof x.url === 'string' && x.url.startsWith('deck-pkg://'));
       // 包根与面板同源（index.ts 解析口径：config.plugins.dir || userData/plugins）
-      let pkgRoot = path.join(app.getPath('userData'), 'plugins');
-      try {
-        const cfgNow = JSON.parse(readConfigRaw() || '{}');
-        if (cfgNow.plugins && cfgNow.plugins.dir) pkgRoot = String(cfgNow.plugins.dir);
-      } catch { /* 缺配置走默认根 */ }
+      const [pkgRoot] = packageRoots();
       const writeDropped = (id) => {
         fs.mkdirSync(path.join(pkgRoot, id), { recursive: true });
         fs.writeFileSync(path.join(pkgRoot, id, 'plugin.json'), JSON.stringify({

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import type { DroppedPackageInfo, DroppedPackageMigrationIssue, DroppedPackageState, PluginInfo, PluginManifest } from '../../shared/contract'
+import { parsePackageRect, type PackageBoundsEntry } from '../../shared/contract'
 import { PLUGIN_SCHEME } from './assets'
 import { classifyDroppedManifest, type DroppedManifest, type MigrationIssue } from './dropped-manifest'
 import { PluginInstallManager, aggregateHashOf, listFileEntries, type InstallProposalView, type MountOutcome } from './install'
@@ -414,21 +415,18 @@ export class PluginHostService extends Service {
 
   /**
    * 投放包摆位下行（工单343）：渲染层摆位账本算好的包视图矩形表转发宿主执行。
-   * 形状护栏在本层（id 非空、四值有限数），畸形条目剔除不连累合法条目；
-   * 宿主未装配摆位面（离线测试假端口）如实 ok=false，不谎报已执行。
+   * 形状护栏在 shared/contract（parsePackageRect，id 非空 + 四值有限数，与宿主执行端
+   * 同一份），畸形条目剔除不连累合法条目；宿主未装配摆位面（离线测试假端口）如实
+   * ok=false，不谎报已执行。
    */
   setDroppedPackageBounds(list: unknown): boolean {
     const host = this.droppedHost
     if (!host || !host.setPackageBounds) return false
     const items = Array.isArray(list) ? list : []
-    const valid: Array<{ id: string; x: number; y: number; width: number; height: number }> = []
+    const valid: PackageBoundsEntry[] = []
     for (const item of items) {
-      if (!item || typeof item !== 'object') continue
-      const b = item as Record<string, unknown>
-      if (typeof b.id !== 'string' || !b.id) continue
-      const x = Number(b.x), y = Number(b.y), width = Number(b.width), height = Number(b.height)
-      if (![x, y, width, height].every(Number.isFinite)) continue
-      valid.push({ id: b.id, x, y, width, height })
+      const entry = parsePackageRect(item)
+      if (entry) valid.push(entry)
     }
     // 经接收者调用（this 绑定保真）——解构方法引用会把类方法的 this 打断（真机排障实证）
     host.setPackageBounds(valid)

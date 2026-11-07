@@ -487,9 +487,9 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
             const fixed = frozenSlots.get(d.id)
             if (fixed) baseSlot = clampSlot(fixed, info.baseSize, area)
             else {
-            // 冻结后新增的组卡：落最近的空位。既有卡（上一拍的全表）与在场投放包全部计入占用——
-            // 新卡不得盖住任何已摆好的卡/包，也不许把旧卡挤走。
-            const existing: Box[] = occupiedBoxes([...prev.values()])
+              // 冻结后新增的组卡：落最近的空位。既有卡（上一拍的全表）与在场投放包全部计入占用——
+              // 新卡不得盖住任何已摆好的卡/包，也不许把旧卡挤走。
+              const existing: Box[] = occupiedBoxes([...prev.values()])
               const seen: Box[] = [...existing, ...occupiedBoxes([...next.values()], d.id)]
               baseSlot = centerFreeSlot(info.baseSize, seen, area) ?? { col: 0, row: 0 }
               frozenSlots.set(d.id, baseSlot)
@@ -716,7 +716,12 @@ export function createPlacement(deps: PlacementDeps): PlacementHost {
           lastPackagePayload = payloadKey
           deps.notify('placement-package-bounds', { packages: packageList })
           void deps.invoke('desktop/set-package-bounds', { packages: packageList })
-            .catch(() => { /* 下行失败不阻塞摆位：下一拍快照重发自愈 */ })
+            .catch(() => {
+              // 下行失败不阻塞摆位，但本轮「已发」记账作废：仍是本轮载荷时清空，
+              // 下一拍快照必重发——不清的话桥瞬断 + 版面不变时「变化才发」会跳过重发，
+              // 包永久停在宿主兜底位（自愈靠重发，不靠主进程重试）。
+              if (lastPackagePayload === payloadKey) lastPackagePayload = ''
+            })
         }
       }
 

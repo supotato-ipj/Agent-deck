@@ -565,6 +565,35 @@ export interface DroppedPackageInfo {
   migrationIssues: DroppedPackageMigrationIssue[] | null
 }
 
+/**
+ * 包视图矩形（工单343 摆位下行，DIP）：与视图坐标同口径，不做 DPR/多屏换算。
+ * service 形状过滤与包宿主执行端两道共用同一份形状定义（此前逐字两遍，2026-11 评审 P1-1 收敛）。
+ */
+export interface PackageRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 包摆位下行条目（desktop/set-package-bounds 请求体条目）：包 id + 视图矩形 */
+export interface PackageBoundsEntry extends PackageRect {
+  id: string
+}
+
+/**
+ * 包摆位下行条目形状护栏（唯一出处，service.ts 与 package-host.ts 共用）：
+ * id 非空字符串 + 四值有限数；畸形返回 null 由调用方剔除——不抛，一条坏条目不连累整表。
+ */
+export function parsePackageRect(item: unknown): PackageBoundsEntry | null {
+  if (!item || typeof item !== 'object') return null
+  const b = item as Record<string, unknown>
+  if (typeof b.id !== 'string' || !b.id) return null
+  const rect = { x: Number(b.x), y: Number(b.y), width: Number(b.width), height: Number(b.height) }
+  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return null
+  return { id: b.id, ...rect }
+}
+
 /** 快照可见的插件条目（entry 已解析为可直接 import 的协议 URL） */
 export interface PluginInfo {
   id: string
