@@ -114,6 +114,16 @@ const { nativeTaskbarVisible, ensureNativeTaskbarVisible } = win32;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** 等谓词成立，返回达成时刻距起点的毫秒；超时返回 -1 */
+async function waitMs(pred, timeoutMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    if (pred()) return Date.now() - t0;
+    await sleep(60);
+  }
+  return -1;
+}
+
 function titleOf(hwnd) {
   const buf = Buffer.alloc(512);
   const n = GetWindowTextW(hwnd, buf, 256);
@@ -943,6 +953,7 @@ async function main() {
     // P6 运行时禁用（插件热切换真机链路）：CDP 在面板页驱动 taskbar/set-enabled →
     // taskbar/changed → 控制器销毁窗口；config.json 同步落盘；面板本体不受影响。
     rep.beginSegment('P6');
+    const since6 = Date.now(); // 事件磁带 since 门在禁用调用发出前记——事件本身无代次字段，时间门是唯一「本代次」语义来源（工单228）
     const r6 = await cdpEval(`window.deck.bridge.invoke('taskbar/set-enabled', { enabled: false })`);
     let tbAfterDisable = null;
     for (let i = 0; i < 25 && !tbAfterDisable; i++) {
@@ -951,11 +962,20 @@ async function main() {
     }
     const diskOff = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
     const panelAlive = !!findWindow(panelPid, PANEL_TITLE);
-    const nativeBackP6 = nativeTaskbarVisible(); // 工单50：禁用即还原原生任务栏（逃生方向）
+    // 工单228：原生还原改有界等待后的视图事实——面板侧还原链是异步退避（总暗窗 2.52s），
+    // 旧单拍直查踩「还原尚未落定」中间态读出假阴性。预算 8000ms＝2520ms 退避链 ×3.2 +
+    // 同仓同谓词先例（50 电池 waitNativeVisible(true, 8000)、51 电池 waitMs(..., 8000)）。
+    const nativeWaitMs6 = await waitMs(() => nativeTaskbarVisible(), 8000);
+    const nativeBackP6 = nativeWaitMs6 >= 0;
     if (r6 && r6.enabled === false && tbAfterDisable && diskOff.taskbar && diskOff.taskbar.enabled === false && panelAlive && nativeBackP6) {
       rep.pass('P6 运行时禁用：任务栏窗口即销毁、原生任务栏还原、config 落盘、面板本体不受影响');
     } else {
-      rep.fail(`P6 响应=${JSON.stringify(r6)} 窗已销=${!!tbAfterDisable} 原生还原=${nativeBackP6} 落盘=${JSON.stringify(diskOff.taskbar)} 面板在=${panelAlive}`);
+      // 终局失败：还原三事件只作诊断与定责（不作通过判据），磁带 since 门取本代次各最新一拍随账入证
+      const ev6 = (type) => tape.latest(type, null, { since: since6 });
+      const fmtEv6 = (e) => (e ? JSON.stringify(e) : '无事件（可能已可见静默或链未达）');
+      rep.fail(`P6 响应=${JSON.stringify(r6)} 窗已销=${!!tbAfterDisable} 原生还原=${nativeBackP6} 还原等待=${nativeWaitMs6}ms`
+        + ` restored=${fmtEv6(ev6('taskbar-restored'))} restore-failed=${fmtEv6(ev6('taskbar-restore-failed'))} restore-skipped=${fmtEv6(ev6('taskbar-restore-skipped'))}`
+        + ` 落盘=${JSON.stringify(diskOff.taskbar)} 面板在=${panelAlive}`);
     }
 
     // P7 运行时重新启用 → 窗口恢复（仍置顶）
