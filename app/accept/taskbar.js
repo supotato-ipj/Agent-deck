@@ -79,6 +79,9 @@ const { createEventTape } = require('./lib/event-tape');
 // 工单211：面板句柄（app/accept/lib/panel-control 的 createPanelHandle）——发射/就绪/
 // 重启/清场四段样板归句柄；清场走**验证强退**（优雅终止 → 整树强杀 → 有界等待并验证消失）
 const { createPanelHandle } = require('./lib/panel-control');
+// 工单255：栏布局存储电池残留扫除（纯判别在 lib，IO/留痕在电池侧）——轮起笔把旧轮
+// 硬杀遗留的探针条目清出存储，面板从干净名单起跑
+const { stripBatteryResidue } = require('./lib/probe-residue');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '49-taskbar-events.jsonl');
@@ -654,6 +657,28 @@ function cleanupRecsProbes(rep, p16) {
   rep.note(`P16 清场分步（工单256）：${steps16.join(' ')}`);
 }
 
+// —— 栏布局存储跨轮残留扫除（工单255）——
+// 现行轮末清场按「本轮探针身份」精确过滤（上方 store摘除步），但轮中途被硬杀
+// （guard 超时/崩溃，P26 finally 不执行）时，P15B/P17 各臂 rec-remove 落账的排除
+// 条目已随存储落盘、身份属旧轮探针——下一轮的 probeExes 永不含它，精确过滤摘不掉
+// ⇒ 每轮 P17②「excluded清空=false（回池=true）」自持红链（2026-10-27 三连红实证；
+// 产品面 restoreEntry 只移除归一命中项，语义无责，红的是电池侧残留不是产品）。
+// 处置 = 轮起笔（面板拉起前）按电池签名模式扫一遍三段（判别纯逻辑在
+// lib/probe-residue：label=DECK-P16-<时戳>-<A..G>、exe=deck-p16-cmd/probe-X/
+// usage-seed 路径形态，用户真实条目不可能携带），被杀轮的残留由下一轮起笔自愈，
+// 中间不再夹红轮。有摘除必 note 留痕（静默改存储不算处置完成）。
+function sweepTaskbarStoreResidue(rep) {
+  try {
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    const swept = stripBatteryResidue(store);
+    if (swept.removed.length) {
+      fs.writeFileSync(storeFile, JSON.stringify(swept.store, null, 1) + '\n', 'utf8');
+      rep.note(`轮起笔残留扫除（工单255）：taskbar-layout.json 清出 ${swept.removed.length} 条跨轮探针残留（${swept.removed.slice(0, 6).join('; ')}${swept.removed.length > 6 ? ' …' : ''}）`);
+    }
+  } catch { /* 尽力 */ }
+}
+
 // —— P18 统一序列探针（工单189）：csc 现编译 WinForms 最小窗，副本×3 ——
 // 探针选型四轮真机取证留痕（禁静默换径）：
 //   R2 cmd 副本直接 spawn 无窗——默认终端宿主（Windows Terminal）接管控制台窗；
@@ -775,6 +800,9 @@ async function main() {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
     patchTaskbar({ enabled: true });
     await ensureTaskViewClosed(rep); // 上一轮 P5 的任务视图残留会盖住条带，先清场
+
+    // —— 栏布局存储跨轮残留扫除（工单255）：面板拉起前清出旧轮硬杀遗留的探针条目 ——
+    sweepTaskbarStoreResidue(rep);
 
     // —— P16 推荐组探针（工单160）：先于面板种入（usage 打分只在服务构造时读盘）——
     p16 = seedRecsProbes(rep);
