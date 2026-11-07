@@ -122,25 +122,29 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
   }
 }
 
+// 本文件凡构建 TS 检查程序的用例（fixtureCtx / ctxForRealRepo → createAlignmentContext）
+// 一律显式 15s 预算：单跑各 ~1.0–1.8s，但全量门禁并行时 CPU 竞争会把程序构建推过 vitest
+// 5s 默认预算（工单228 自检门实测 3 例假红，单跑全绿）——128/163 行先例同机制同处置，
+// 只放宽时间预算、断言零改动。
 describe('工单411 层2：成员对齐比较器双向语义（持久夹具负例）', () => {
   it('等集形状判绿', () => {
     expect(alignFixturePair('ok-pair')).toEqual([])
   }, 30_000) // 本文件首个程序构建付全价（skipLibCheck=false 全量 lib/node 类型，单独实测 ~2.1s），后续经 oldProgram 复用降载
   it('可选成员合法缺席判绿', () => {
     expect(alignFixturePair('optional-absent-pair')).toEqual([])
-  })
+  }, 15_000)
   it('声明多成员（必需成员运行时缺失）判红', () => {
     const issues = alignFixturePair('decl-extra-pair')
     expect(issuesAt(issues, '.required').map((i) => i.problem)).toEqual(['声明必需成员在运行时缺失'])
-  })
+  }, 15_000)
   it('实现多成员（运行时多出声明外成员）判红', () => {
     const issues = alignFixturePair('impl-extra-pair')
     expect(issuesAt(issues, '.extra').map((i) => i.problem)).toEqual(['实现多出声明外成员'])
-  })
+  }, 15_000)
   it('未知可选名出现判红（可选性不是未知成员逃生口）', () => {
     const issues = alignFixturePair('unknown-optional-pair')
     expect(issuesAt(issues, '.opt2').map((i) => i.problem)).toEqual(['实现多出声明外成员'])
-  })
+  }, 15_000)
 })
 
 describe('工单411 层2：真实八组模块成员对齐', () => {
@@ -172,7 +176,7 @@ describe('工单411 层2：真实八组模块成员对齐', () => {
     const members = declaredClassMemberNames(ctx, declFile, 'Report')
     expect(members).toContain('writeLedger')
     expect(bidirectionalKeyIssues('Report', members, Object.keys(inst).concat(prototypePublicKeys(inst)))).toEqual([])
-  })
+  }, 15_000)
 })
 
 describe('工单411 层2：防漏——新声明文件 / 缺失样本根显式判红', () => {
@@ -183,7 +187,7 @@ describe('工单411 层2：防漏——新声明文件 / 缺失样本根显式�
     // createPanelControl 形状的函数有封闭返回类型——不给样本根必须判红
     const issues = alignModule(ctx, 'ok-pair', dts, mod, {})
     expect(issues).toContainEqual({ at: 'ok-pair.make', problem: '需样本根的导出（工厂/类/封闭结果）未登记样本根' })
-  })
+  }, 15_000)
 
   it('登记了不存在导出的样本根判红（登记表防朽）', () => {
     const dts = path.join(fixturesDir, 'align', 'ok-pair.d.ts')
@@ -191,7 +195,7 @@ describe('工单411 层2：防漏——新声明文件 / 缺失样本根显式�
     const mod = requireFromApp(path.join(fixturesDir, 'align', 'ok-pair.js')) as Record<string, () => unknown>
     const issues = alignModule(ctx, 'ok-pair', dts, mod, { make: () => mod.make(), ghost: () => ({}) })
     expect(issues).toContainEqual({ at: 'ok-pair.ghost', problem: '样本根登记了声明中不存在的导出' })
-  })
+  }, 15_000)
 
   it('真实声明文件自动发现不含夹具目录（坏声明夹具不进正常编译目标）', () => {
     const declFiles = discoverDeclFiles(appRoot)
@@ -214,7 +218,7 @@ describe('工单411 层2：私有句柄状态双向对齐（决策12，AST × ch
     const declaredNames = declaredInterfaceMemberNames(ctx, panelControlDts, 'PanelHandleState')
     expect(runtimeKeys.length).toBe(7) // 票面点名「七项句柄状态」
     expect(bidirectionalKeyIssues('PanelHandleState', declaredNames, runtimeKeys)).toEqual([])
-  })
+  }, 15_000)
 
   it('负例：声明多一项（持久夹具 8 项接口）→ 判红', () => {
     const fixtureDts = path.join(fixturesDir, 'panel-state-fixture-extra.d.ts')
@@ -223,7 +227,7 @@ describe('工单411 层2：私有句柄状态双向对齐（决策12，AST × ch
     const runtimeKeys = extractFactoryStateKeys(fs.readFileSync(panelControlJs, 'utf8'), 'createPanelHandle')
     const issues = bidirectionalKeyIssues('FixturePanelStateExtra', declaredNames, runtimeKeys)
     expect(issues).toContainEqual({ at: 'FixturePanelStateExtra.fakeExtra', problem: '声明成员在实现侧缺失' })
-  })
+  }, 15_000)
 
   it('负例：实现多一项（合成状态字面量多出键）→ 判红', () => {
     const ctx = ctxForRealRepo()
@@ -235,7 +239,7 @@ describe('工单411 层2：私有句柄状态双向对齐（决策12，AST × ch
     expect(extractFactoryStateKeys(implExtra, 'createPanelHandle')).toContain('driftKey')
     const issues = bidirectionalKeyIssues('PanelHandleState', declaredNames, extractFactoryStateKeys(implExtra, 'createPanelHandle'))
     expect(issues).toContainEqual({ at: 'PanelHandleState.driftKey', problem: '实现多出声明外成员' })
-  })
+  }, 15_000)
 })
 
 // —— 真实仓库检查程序（懒建一次，八组声明 + 专用配置口径） ——
