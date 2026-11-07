@@ -1,8 +1,6 @@
 import { app, Menu, nativeImage, Tray } from 'electron'
 import type { NativeImage } from 'electron'
 import { panelLabels } from './lag-sentinel'
-import { probeForegroundWindow } from './taskbar/yield'
-import { TRAY_POPUP_POLL_MS, trayPopupVerdict } from './tray-popup'
 
 /**
  * 托盘常驻件（工单03）：图标程序化绘制（深底 + 琥珀色四点，deck 母题），免二进制资产。
@@ -46,26 +44,11 @@ export interface TrayHooks {
  * 'right-click' 事件里自控 menu.popup()，弹出结果用 trayPopupVerdict 有界验证。
  * 重试机会只有一拍（防循环弹骚扰）；两拍均未见菜单窗夺前台时以 span 标签留痕。
  */
-function popupTrayMenu(menu: Menu): void {
-  const pre = probeForegroundWindow()
-  const preFgHwnd = pre?.hwnd ?? 0
-  const attempt = (retried: boolean): void => {
-    panelLabels.run(retried ? 'tray-popup-retry' : 'tray-popup', () => menu.popup())
-    const beginAt = Date.now()
-    const timer = setInterval(() => {
-      let probe = null
-      try {
-        probe = probeForegroundWindow()
-      } catch { /* 探针抖动按缺位处理（裁决器视同基线在场） */ }
-      const v = trayPopupVerdict(preFgHwnd, probe, process.pid, Date.now() - beginAt, retried)
-      if (v === 'pending') return
-      clearInterval(timer)
-      if (v === 'settled') return
-      if (v === 'retry') return attempt(true)
-      panelLabels.run('tray-popup-giveup', () => {})
-    }, TRAY_POPUP_POLL_MS)
-  }
-  attempt(false)
+function popupTrayMenu(tray: Tray, menu: Menu): void {
+  // popUpContextMenu（Electron 托盘菜单纯 JS 弹出的 canonical API）：内部自处理
+  // SetForegroundWindow/菜单位置——v1 的 menu.popup() 无焦点窗可挂时静默 no-op
+  // （面板窗全部 non-activatable），真机单轮取证 r1 P27 16 臂全过坐实此路通。
+  panelLabels.run('tray-popup', () => tray.popUpContextMenu(menu))
 }
 
 export function createTray(hooks: TrayHooks): Tray {
@@ -82,7 +65,7 @@ export function createTray(hooks: TrayHooks): Tray {
     ])
   })
   tray.on('right-click', () => {
-    if (trayMenu) popupTrayMenu(trayMenu)
+    if (trayMenu) popupTrayMenu(tray, trayMenu)
   })
   tray.on('click', () => hooks.onShowPanel())
   return tray
