@@ -34,6 +34,12 @@ declare module 'cordis' {
     'dataplane/snapshot': () => void
     /** 工单56 托盘入栏：子进程托盘宿主每条规范化事件发出，任务栏服务据此编排栏内名单 */
     'dataplane/tray-event': (event: TrayWireEvent) => void
+    /**
+     * 工单437 自有图标对账：子进程托盘宿主生命周期事件转发（原样只进日志，主进程侧
+     * 无从感知宿主重建时机）。订阅方按 type 分派：ready=重开自家应答等待窗、
+     * stopped/failed=摘在场位；其余（competition/replay-result 等）与本对账无关。
+     */
+    'dataplane/tray-host': (event: { type: string }) => void
     /** 工单07 搜索：派生态变化（待机/活动/引擎离线）与引擎成功响应 */
     'search/state': (payload: { state: SearchUiState }) => void
     'search/results': (payload: { total: number; items: SearchResultItem[] }) => void

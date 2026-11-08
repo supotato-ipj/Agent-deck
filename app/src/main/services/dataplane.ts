@@ -143,6 +143,9 @@ export class DataplaneService extends Service implements PanelDataPort {
       this.ctx.emit('dataplane/tray-event', msg.event)
       this.options.onTrayEvent?.(msg.event)
     } else if (msg.type === 'tray-host') {
+      // 宿主生命周期上 cordis 事件（工单437 自有图标对账的 ready/stopped 源）——
+      // 原先只进日志，主进程侧无从感知宿主重建时机；事件族统一带 type 字段
+      this.ctx.emit('dataplane/tray-host', msg.event as { type: string })
       this.options.log?.(msg.event)
     } else if (msg.type === 'res') {
       const waiter = this.pending.get(msg.id)
