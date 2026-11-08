@@ -13,6 +13,7 @@
 // ⑤ 现存缺陷回归：Report 公开 writeLedger 方法必须真实在位（漏声明在此判红）。
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import {
@@ -82,7 +83,9 @@ const panelHandleFakeDeps = () => ({
 /** 真实八组的样本根登记（决策11「少量根」）：工厂、类与封闭结果——全部走真实实现路径 */
 function realSampleRoots(): Record<string, Record<string, () => unknown>> {
   const areaSelector = requireLib('area-selector')
+  const batteryCleanup = requireLib('battery-cleanup')
   const batteryConfig = requireLib('battery-config')
+  const configIsolation = requireLib('config-isolation')
   const eventTape = requireLib('event-tape')
   const manifestCheck = requireLib('manifest-check')
   const panelControl = requireLib('panel-control')
@@ -96,6 +99,20 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
     },
     'battery-config': {
       createBatteryConfig: () => (batteryConfig.createBatteryConfig as (f: string) => unknown)('fake-config-path.json'),
+    },
+    'battery-cleanup': {
+      // 工单402：漂移检查的样本根——空 userData 目录得全字段账目；缺位配置得快照/比对结论
+      cleanupBatteryArtifacts: () => (batteryCleanup.cleanupBatteryArtifacts as (u: string) => unknown)(fs.mkdtempSync(path.join(os.tmpdir(), 'align-cleanup-'))),
+      snapshotConfig: () => (batteryCleanup.snapshotConfig as (f?: string) => unknown)('align-no-such-config.json'),
+      checkConfigDrift: () => (batteryCleanup.checkConfigDrift as (s: unknown) => unknown)(
+        (batteryCleanup.snapshotConfig as (f?: string) => unknown)('align-no-such-config.json'),
+      ),
+    },
+    'config-isolation': {
+      prepareIsolation: () => (configIsolation.prepareIsolation as (d?: unknown) => unknown)({
+        userConfigFile: 'align-no-such-config.json',
+        tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'align-iso-')),
+      }),
     },
     'event-tape': {
       createEventTape: () => (eventTape.createEventTape as (f: string) => unknown)('fake-events.jsonl'),

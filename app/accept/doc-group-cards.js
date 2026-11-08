@@ -32,7 +32,7 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
-const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
+const { readConfigRaw, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
 // 工单212：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
 // 超时档 8000（本电池档：母票 #201 决策 8 的枚举漏列本电池，编排台账 §8 裁决 1
@@ -44,7 +44,6 @@ const { createPanelHandle } = require('./lib/panel-control');
 
 const BATTERY_ID = '166-doc-group-cards';
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 // 工单212：事件文件常量名归一——原名 EVIDENCE_FILE，其余七块电池一律叫 EVENTS_FILE；
 // **路径字面不变**（仍是 166-doc-group-cards-events.jsonl），本刀只统一变量名
 const EVENTS_FILE = path.join(__dirname, 'evidence', '166-doc-group-cards-events.jsonl');

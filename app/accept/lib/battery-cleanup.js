@@ -22,6 +22,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { USER_CONFIG_FILE } = require('./battery-config');
 
 /** 电池自有的投放包 id（各段用过的一次性包；新增段请登记到这里） */
 const BATTERY_PACKAGE_IDS = [
@@ -202,4 +204,37 @@ function cleanupBatteryArtifacts(userData) {
   return report;
 }
 
-module.exports = { cleanupBatteryArtifacts, isBatteryPackageId, BATTERY_PACKAGE_IDS };
+/** sha256 原文摘要（工单402 漂移比对口径） */
+function sha256Of(raw) {
+  return crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+}
+
+/**
+ * config 漂移检查·轮前快照（工单402）：目标缺省为生产落点（USER_CONFIG_FILE），
+ * 不受 DECK_CONFIG_FILE 隔离覆盖影响——隔离失效时本检查是用户配置的最后一道兜底。
+ * @param {string} [configFile] 目标配置文件（单测注入临时文件）
+ * @returns {{file: string, sha256: string|null, raw: string|null}} 缺位来（raw=null）、在位带原文
+ */
+function snapshotConfig(configFile = USER_CONFIG_FILE) {
+  const raw = fs.existsSync(configFile) ? fs.readFileSync(configFile, 'utf8') : null;
+  return { file: configFile, sha256: raw === null ? null : sha256Of(raw), raw };
+}
+
+/**
+ * config 漂移检查·轮后比对（工单402）：sha256 不等即判红并还原（缺位来、缺位去）。
+ * 调用方据 drifted 记降责账（rep.exclude）——本函数只判、只还原，不记账。
+ * @param {{file: string, sha256: string|null, raw: string|null}} snapshot 轮前快照
+ * @returns {{drifted: boolean, restored: boolean, beforeSha: string|null, afterSha: string|null}}
+ */
+function checkConfigDrift(snapshot) {
+  const currentRaw = fs.existsSync(snapshot.file) ? fs.readFileSync(snapshot.file, 'utf8') : null;
+  const currentSha = currentRaw === null ? null : sha256Of(currentRaw);
+  if (currentSha === snapshot.sha256) {
+    return { drifted: false, restored: false, beforeSha: snapshot.sha256, afterSha: currentSha };
+  }
+  if (snapshot.raw === null) fs.rmSync(snapshot.file, { force: true });
+  else fs.writeFileSync(snapshot.file, snapshot.raw, 'utf8');
+  return { drifted: true, restored: true, beforeSha: snapshot.sha256, afterSha: currentSha };
+}
+
+module.exports = { cleanupBatteryArtifacts, isBatteryPackageId, BATTERY_PACKAGE_IDS, snapshotConfig, checkConfigDrift };

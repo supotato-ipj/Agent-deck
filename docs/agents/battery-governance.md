@@ -38,9 +38,18 @@ description: 验收电池章法——增/删/改三面规矩、flaky 处置流�
 
 ## 改段
 
-- **阈值/等待/取样区改动**：PR 描述必须给理由（为什么旧值错了、新值凭什么对）——断言不许被无形侵蚀。
-- **实拍证据更新**：文本审计链（verdict/段账/jsonl/文本 log）随对应改动的 PR 更新，不接受与断言无关的证据漂移。证据分级入库（spec #281）：文本审计链（verdict、段级账目、事件流 jsonl、文本 log）随轮进版本历史，作为可克隆的审计链；截图 PNG 只留存于运行机器本地作审计件，不进版本历史（`.gitignore` 忽略规则挡目录级 add，CI 哨兵挡 `git add -f` 式破防）；跨机调取走工单附件或本地取证包。新增重型二进制产物类型须先过分类账盘点（`node app/scripts/evidence-ledger.js`）再定去留。
+- **阈值/等待/取样区改动**：PR 描述必须给理由（为什么旧值错了、新值凭什么对）——断言不许被无形侵蚀。- **实拍证据更新**：文本审计链（verdict/段账/jsonl/文本 log）随对应改动的 PR 更新，不接受与断言无关的证据漂移。证据分级入库（spec #281）：文本审计链（verdict、段级账目、事件流 jsonl、文本 log）随轮进版本历史，作为可克隆的审计链；截图 PNG 只留存于运行机器本地作审计件，不进版本历史（`.gitignore` 忽略规则挡目录级 add，CI 哨兵挡 `git add -f` 式破防）；跨机调取走工单附件或本地取证包。新增重型二进制产物类型须先过分类账盘点（`node app/scripts/evidence-ledger.js`）再定去留。
 - 段号改名视同删+增：走两面的全部规矩（含清单同步）。
+
+## config 隔离落点（工单402）
+
+验收电池与用户面板共用同一检出与 userData，**电池轮的 config 读写不得落到用户生产配置**。控制器分发时（`src/main/index.ts`）把本轮落点迁到一次性隔离文件（`DECK_CONFIG_FILE` 环境变量，面板子进程继承），轮末 `app.exit` 包装层清理；崩溃残留快照留在 `%TEMP%/deck-accept-config-guard-<检出哈希>/`，下一轮起跑先比对 sha256 并还原。
+
+电池侧纪律：
+
+- **config 落点一律走 `accept/lib/battery-config`**（`CONFIG_FILE` / `readConfigRaw` / `patchTaskbar` / `restoreConfig`）——禁止自建 `path.join(APP_ROOT, 'config.json')`；自建落点会绕过隔离，回退成「探针档位写进用户配置」的旧事故（#402）。
+- 生产落点只读比对面是 `battery-config.USER_CONFIG_FILE`；`battery-cleanup` 的 `snapshotConfig` / `checkConfigDrift` 以它为默认目标（轮前快照 ↔ 轮末比对，命中即还原）。
+- SIGKILL 不可捕获：隔离失效/崩溃后的兜底靠「下一轮起跑比对残留快照」＋「P26 漂移检查」两道，不要假设 finally 一定执行。
 
 ## 本地证据保留窗（工单349）
 

@@ -2,7 +2,7 @@ import { app, BrowserWindow, screen, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { defaultAgentDesktop, defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig } from './config'
+import { defaultAgentDesktop, defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile } from './config'
 import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
@@ -38,7 +38,11 @@ import { createSafeStorageCipher } from './credentials/safe-storage'
 import { userDataPath } from './paths'
 import type { TrayWireEvent } from './trayhost/protocol'
 
-const CONFIG_FILE = path.join(app.getAppPath(), 'config.json')
+/**
+ * config 落点（工单402）：DECK_CONFIG_FILE 覆盖优先——验收电池经控制器注入隔离落点，
+ * 面板子进程继承同一环境变量，探针档位零接触用户生产配置；未设即生产落点（app/config.json）。
+ */
+const CONFIG_FILE = resolveConfigFile(process.env.DECK_CONFIG_FILE, app.getAppPath())
 /** 渲染层资产根（dist/renderer）：经 deck-plugin:// 协议交付，工单10 起与插件资产同源 */
 const RENDERER_ROOT = path.join(__dirname, '../renderer')
 const ACCEPT_DIR = path.join(app.getAppPath(), 'accept')
@@ -881,6 +885,31 @@ if (RESTORE_MODE) {
       // 空处理器压掉「窗口全关默认退出」——电池自己管理生命周期（参照窗关掉后还要继续跑）；
       // 处理器由本分发统一注册一次（原先每块电池各注册一遍）。
       app.on('window-all-closed', () => {})
+      // 工单402：本轮 config 落点迁到一次性隔离文件——用户生产 config.json 全程零写入。
+      // 隔离路径经 DECK_CONFIG_FILE 下发给电池（battery-config 读同一变量）与面板子进程（继承环境）。
+      const configIsolation = require(path.join(ACCEPT_DIR, 'lib', 'config-isolation.js'))
+      const isolation = configIsolation.prepareIsolation()
+      process.env.DECK_CONFIG_FILE = isolation.isolatedFile
+      configIsolation.installCrashGuard(isolation)
+      if (isolation.residueRestored) {
+        console.warn(`[accept] 上轮崩溃残留：用户 config 已还原（残留轮结束 sha=${isolation.residueBeforeSha}）`)
+      }
+      // 轮末兜底：Electron 的 app.exit 走原生退出，不保证触发 Node exit 事件——在分发点包一层，
+      // 退出前比对用户 config 漂移（命中即还原）并清隔离落点（两操作均幂等）。
+      const exitApp = app.exit.bind(app)
+      app.exit = (code?: number) => {
+        try {
+          const judged = isolation.checkDrift()
+          if (judged.drifted) {
+            console.error(`[accept] 轮末 config 漂移已还原（${judged.beforeSha} → ${judged.afterSha}）`)
+          }
+        } catch (err) {
+          console.error('[accept] 轮末 config 漂移检查失败:', err)
+        } finally {
+          isolation.dispose()
+          exitApp(code)
+        }
+      }
       require(registryLib.modulePathFor(CONTROLLER_ENTRY.entry))()
       return
     }

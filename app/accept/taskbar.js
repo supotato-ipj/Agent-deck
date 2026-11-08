@@ -72,6 +72,8 @@ const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
+// 工单402：用户生产配置漂移检查（轮前快照 ↔ 轮末比对；命中即还原并记降责账）
+const { snapshotConfig, checkConfigDrift } = require('./lib/battery-cleanup');
 const { cdpPortFor } = require('./lib/registry');
 // 工单210：事件磁带（app/accept/lib/event-tape）——等待/读事件收口到一份正典实现；
 // 超时档 8000（taskbar 族五块档，母票 #201 决策 8）
@@ -769,6 +771,9 @@ async function main() {
   let refS = null; // P22–P25 参照窗 DECK-ACCEPT-SUMMON（工单256：main 级持有——段末就近销毁 + P26 轮末兜底）
   let refHwndS = 0; // 参照窗真实载体句柄（销毁后验按它核验，不虚构子进程）
   const originalConfig = readConfigRaw();
+  // 工单402：用户生产配置轮前快照（目标恒为 USER_CONFIG_FILE，不受隔离覆盖影响）——
+  // 隔离失效时轮末 P26 据它判红并还原
+  const userConfigSnapshot = snapshotConfig();
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
     // 段账目补写（工单114 时长预算流程）：副电池口径的 verdict(explicit) 不落账目段
@@ -4379,6 +4384,15 @@ static class Probe {
     tStep = mark26('P16清场含回收站', tStep);
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     tStep = mark26('配置还原', tStep);
+    // 工单402：用户生产配置漂移检查——轮内不该有任何写入；命中即判红并还原（checkConfigDrift 已还原）
+    const drift402 = checkConfigDrift(userConfigSnapshot);
+    tStep = mark26('用户config漂移检查', tStep);
+    if (drift402.drifted) {
+      rep.exclude(`用户 config 漂移：轮内被改动，已还原（sha ${drift402.beforeSha} → ${drift402.afterSha}）`,
+        '用户生产 config.json 被电池轮改动', 'config-drift');
+    } else {
+      rep.note('用户 config 漂移检查：轮内零改动');
+    }
     // ——残留自检（窄口径，工单256 AC）：无遗留 DECK-ACCEPT-SUMMON 参照窗、
     //    无本电池 DECK-P16-* 桌面探针残留。发现残留先清（可恢复删除）再判红。
     const torn26 = await destroyRefWindow(); // 幂等兜底：内层已销则立返
