@@ -22,3 +22,12 @@ export const DROPPED_PACKAGE_BUDGET = Object.freeze({
   maxLiveDroppedPackages: MAX_LIVE_DROPPED_PACKAGES,
   marginalMemoryBytes: PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES,
 })
+
+// —— 内存半边的运行时闸门（工单344，ADR-0027 增补段）——数量半边有硬门（第 17 个包
+// 当场拒绝），内存半边由哨兵按下列参数把「挂在墙上的尺」变成「闸门」。参数即契约。
+
+/** 哨兵采样节奏：每 10 秒一轮，仅在有在场投放包时跑（无包停表，开销有界） */
+export const MEMORY_SENTINEL_INTERVAL_MS = 10_000
+
+/** 连续超预算确认窗轮数：10s×3 ≈ 30 秒滞回——滤掉瞬时尖峰，不误杀正常包 */
+export const MEMORY_SENTINEL_CONFIRM_ROUNDS = 3
