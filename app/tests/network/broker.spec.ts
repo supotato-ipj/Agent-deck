@@ -88,6 +88,8 @@ function boot(opts: {
   origins?: string[] | null
   permissions?: string[]
   limits?: NetworkBrokerOptions['limits']
+  /** 工单345：每包限额覆写切片（构造期 min(默认,覆写) 生效） */
+  packageLimits?: NetworkBrokerOptions['packageLimits']
   transport?: NetworkTransportPort
   audit?: boolean
 } = {}) {
@@ -101,6 +103,7 @@ function boot(opts: {
     audit,
     log: () => {},
     ...(opts.limits ? { limits: opts.limits } : {}),
+    ...(opts.packageLimits ? { packageLimits: opts.packageLimits } : {}),
     ...(opts.transport ? { transport: opts.transport } : {}),
   })
   return { broker, audit }
@@ -205,6 +208,64 @@ describe('限额（工单338）：限流/并发与权限拒绝是不同错误', 
     const { broker } = boot({ limits: { requestsPerSecond: 100 } })
     const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/data.json`, method: 'TRACE' })
     expect(out).toMatchObject({ ok: false, code: 'network_failed' })
+  })
+})
+
+describe('每包限额覆写（工单345：构造期生效，可收紧不可放宽）', () => {
+  /** 记录 transport 实际收到的限额（超时/字节上限的观测口） */
+  function spyingTransport(seen: Array<{ timeoutMs: number; maxBytes: number }>): NetworkTransportPort {
+    return {
+      send: async (spec) => {
+        seen.push({ timeoutMs: spec.timeoutMs, maxBytes: spec.maxBytes })
+        return { status: 200, headers: { 'content-type': 'text/plain' }, body: Buffer.from('ok'), truncated: false }
+      },
+    }
+  }
+
+  it('收紧速率：覆写 1/s 的包同秒第二发被拒；未覆写包不受影响', async () => {
+    const { broker } = boot({ packageLimits: { 'pkg-tight': { requestsPerSecond: 1 } } })
+    const first = await broker.requestForPackage('pkg-tight', { url: `${main.origin}/data.json` })
+    expect(first.ok).toBe(true)
+    const second = await broker.requestForPackage('pkg-tight', { url: `${main.origin}/data.json` })
+    expect(second).toMatchObject({ ok: false, code: 'network_rate_limited' })
+    // 另一个包走目录默认（5/s）：覆写只作用于声明的包
+    const loose = await broker.requestForPackage('pkg-loose', { url: `${main.origin}/data.json` })
+    expect(loose.ok).toBe(true)
+  })
+
+  it('收紧并发：maxConcurrent=1 时在途再发 → network_rate_limited（该包独享生效值）', async () => {
+    let release: (() => void) | null = null
+    const hang: NetworkTransportPort = {
+      send: () => new Promise((resolve) => { release = () => resolve({ status: 200, headers: {}, body: Buffer.from('ok'), truncated: false }) }),
+    }
+    const { broker } = boot({ transport: hang, packageLimits: { 'pkg-t': { maxConcurrent: 1 } } })
+    const inflight = broker.requestForPackage('pkg-t', { url: `${main.origin}/data.json` })
+    const second = await broker.requestForPackage('pkg-t', { url: `${main.origin}/data.json` })
+    expect(second).toMatchObject({ ok: false, code: 'network_rate_limited' })
+    release!()
+    await inflight
+  })
+
+  it('收紧超时与响应体上限：transport 收到生效值；未覆写包仍走目录默认', async () => {
+    const seen: Array<{ timeoutMs: number; maxBytes: number }> = []
+    const { broker } = boot({
+      transport: spyingTransport(seen),
+      packageLimits: { 'pkg-t': { timeoutMs: 1234, maxResponseBytes: 4096 } },
+    })
+    await broker.requestForPackage('pkg-t', { url: `${main.origin}/data.json` })
+    await broker.requestForPackage('pkg-other', { url: `${main.origin}/data.json` })
+    expect(seen[0]).toEqual({ timeoutMs: 1234, maxBytes: 4096 })
+    expect(seen[1]).toEqual({ timeoutMs: 10_000, maxBytes: 2 * 1024 * 1024 })
+  })
+
+  it('放宽不可能生效：程序化传入超默认覆写被 min 钳回默认（越权配置拿不到更宽限额）', async () => {
+    const seen: Array<{ timeoutMs: number; maxBytes: number }> = []
+    const { broker } = boot({
+      transport: spyingTransport(seen),
+      packageLimits: { 'pkg-t': { timeoutMs: 999_999, maxResponseBytes: 99 * 1024 * 1024 } },
+    })
+    await broker.requestForPackage('pkg-t', { url: `${main.origin}/data.json` })
+    expect(seen[0]).toEqual({ timeoutMs: 10_000, maxBytes: 2 * 1024 * 1024 })
   })
 })
 

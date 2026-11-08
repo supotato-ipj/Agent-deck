@@ -285,7 +285,7 @@ describe('config.plugins 插件目录（工单10 桌面组件安装位）', () =
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.plugins).toEqual({ dir: '', disabled: [] })
+    expect(r.config.plugins).toEqual({ dir: '', disabled: [], limits: {} })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -335,7 +335,7 @@ describe('config.plugins 停用集（工单101 卡片显隐开关）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ plugins: { disabled: ['search'] } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.plugins).toEqual({ dir: '', disabled: ['search'] })
+    expect(r.config.plugins).toEqual({ dir: '', disabled: ['search'], limits: {} })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -344,9 +344,88 @@ describe('config.plugins 停用集（工单101 卡片显隐开关）', () => {
     // 同 battery.js P7S 离线探针的最小覆写形状（只写 search.port + taskbar.enabled）
     fs.writeFileSync(file, JSON.stringify({ search: { port: 39999 }, taskbar: { enabled: false } }, null, 2) + '\n')
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.plugins).toEqual({ dir: '', disabled: [] })
+    expect(r.config.plugins).toEqual({ dir: '', disabled: [], limits: {} })
     expect(r.warnings).toHaveLength(0)
     expect(r.config.search.port).toBe(39999)
+  })
+})
+
+describe('config.plugins.limits 限额覆写（工单345：可收紧不可放宽）', () => {
+  it('合法覆写与 dir/disabled 同居生效（收紧进合并产物，零告警）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({
+      plugins: {
+        dir: 'D:\\deck-plugins',
+        disabled: ['ghost'],
+        limits: { 'pkg-a': { 'network.request': { requestsPerSecond: 2, timeoutMs: 5000 }, 'media.control': { commandsPerSecond: 1 } } },
+      },
+    }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.limits).toEqual({
+      'pkg-a': { 'network.request': { requestsPerSecond: 2, timeoutMs: 5000 }, 'media.control': { commandsPerSecond: 1 } },
+    })
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('重启持久化往返：save → load 原样读回（合法覆写跨重启保持）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { limits: { 'pkg-a': { 'media.control': { commandsPerSecond: 2 } } } } }))
+    const first = loadConfig(file, FALLBACK)
+    expect(first.config.plugins.limits).toEqual({ 'pkg-a': { 'media.control': { commandsPerSecond: 2 } } })
+    saveConfig(file, first.config)
+    const second = loadConfig(file, FALLBACK)
+    expect(second.config.plugins.limits).toEqual(first.config.plugins.limits)
+    expect(second.warnings).toHaveLength(0)
+  })
+
+  it('放宽拒绝：超默认条目不进产物且告警携带 limit_widen_rejected；合法条目同批保留', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({
+      plugins: { limits: { 'pkg-a': { 'network.request': { requestsPerSecond: 99, timeoutMs: 3000 } } } },
+    }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.limits).toEqual({ 'pkg-a': { 'network.request': { timeoutMs: 3000 } } })
+    expect(r.warnings.join()).toMatch(/limit_widen_rejected/)
+    expect(r.warnings.join()).toMatch(/plugins\.limits/)
+  })
+
+  it('非法值拒绝（0/负数/非数/非整数/未知权限/未知键）：告警携带 limit_invalid，合法条目保留', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({
+      plugins: {
+        limits: {
+          'pkg-a': {
+            'network.request': { requestsPerSecond: 0, maxConcurrent: -1, timeoutMs: '5000', maxResponseBytes: 1.5, unknownKey: 1 },
+            'media.read': { snapshotBytes: 1024 },
+            'media.control': { commandsPerSecond: 2 },
+          },
+          '../evil': { 'network.request': { requestsPerSecond: 1 } },
+        },
+      },
+    }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.limits).toEqual({ 'pkg-a': { 'media.control': { commandsPerSecond: 2 } } })
+    const joined = r.warnings.join()
+    expect(joined).toMatch(/limit_invalid/)
+    expect(joined.match(/limit_invalid/g)?.length).toBeGreaterThanOrEqual(6)
+    expect(joined).not.toMatch(/limit_widen_rejected/)
+  })
+
+  it('limits 段非对象：整段回退空覆写并告警（dir/disabled 不受连坐）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { dir: 'D:\\deck-plugins', limits: 'nope' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.limits).toEqual({})
+    expect(r.config.plugins.dir).toBe('D:\\deck-plugins')
+    expect(r.warnings.join()).toMatch(/plugins\.limits/)
+  })
+
+  it('缺 limits 段：空覆写零告警（老 config 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ plugins: { dir: 'D:\\deck-plugins' } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.plugins.limits).toEqual({})
+    expect(r.warnings).toHaveLength(0)
   })
 })
 

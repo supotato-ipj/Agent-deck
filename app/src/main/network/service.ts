@@ -23,6 +23,8 @@ export interface NetworkServiceOptions {
   log?(event: Record<string, unknown>): void
  /** 契约限额覆盖（缺省 = catalog limits 同源默认值） */
   limits?: NetworkBrokerOptions['limits']
+  /** 工单345：每包限额覆写切片（config.plugins.limits 的 network.request 切片；构造期 min 生效，重启生效不热更） */
+  packageLimits?: NetworkBrokerOptions['packageLimits']
 }
 
 export class NetworkService extends Service {
@@ -41,6 +43,7 @@ export class NetworkService extends Service {
       audit: this.audit,
       log,
       ...(options.limits ? { limits: options.limits } : {}),
+      ...(options.packageLimits ? { packageLimits: options.packageLimits } : {}),
     })
   }
 

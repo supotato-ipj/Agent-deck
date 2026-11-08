@@ -16,7 +16,7 @@ function fakeBridge(control?: (key: string, action: string) => Promise<ControlRe
   } as unknown as MediaBridgePort
 }
 
-function boot(permissions: string[], control?: (key: string, action: string) => Promise<ControlReply>) {
+function boot(permissions: string[], control?: (key: string, action: string) => Promise<ControlReply>, packageLimits?: Record<string, Record<string, number>>) {
   const audit: Array<{ kind: string; outcome: string; packageId: string; permission: string }> = []
   const ledger = { activeGrant: (id: string) => ({ permissions, codeHash: 'h', grantedAt: 1 }) }
   const broker = new MediaBroker({
@@ -24,6 +24,7 @@ function boot(permissions: string[], control?: (key: string, action: string) => 
     authorization: ledger,
     audit: { record: (acc: { kind: string; outcome: string; packageId: string; permission: string }) => { audit.push(acc) }, aggregate: () => [] } as never,
     log: () => {},
+    ...(packageLimits ? { packageLimits } : {}),
   })
   return { broker, audit }
 }
@@ -118,6 +119,37 @@ describe('媒体控制按包限流（工单337，commandsPerSecond=5）', () => 
     expect(sixth).toMatchObject({ ok: false, code: 'media_rate_limited' })
     expect(audit.some((a) => a.kind === 'control:pause' && a.outcome === 'rate_limited')).toBe(true)
     //（按包独立窗口的语义由实现保证：controlWindows 以 packageId 为键）
+  })
+})
+
+describe('每包控制限流覆写（工单345：构造期生效，可收紧不可放宽）', () => {
+  it('收紧 commandsPerSecond=1：同秒第 2 发即 media_rate_limited，消息带生效值；未覆写包仍默认 5/s', async () => {
+    const { broker } = boot(['media.read', 'media.control'], async () => ({ ok: true, data: { status: 'Playing' } }), {
+      'pkg-tight': { commandsPerSecond: 1 },
+    })
+    const first = await broker.controlForPackage('pkg-tight', 'k', 'play')
+    expect(first.ok).toBe(true)
+    const second = await broker.controlForPackage('pkg-tight', 'k', 'pause')
+    expect(second).toMatchObject({ ok: false, code: 'media_rate_limited' })
+    expect(second.ok === false && second.message).toContain('1/s')
+    // 未覆写包走目录默认（5/s）：覆写只作用于声明的包
+    const { broker: loose } = boot(['media.read', 'media.control'], async () => ({ ok: true, data: { status: 'Playing' } }))
+    for (let i = 0; i < 5; i++) {
+      expect((await loose.controlForPackage('pkg-loose', 'k', 'play')).ok).toBe(true)
+    }
+    expect(await loose.controlForPackage('pkg-loose', 'k', 'pause')).toMatchObject({ ok: false, code: 'media_rate_limited' })
+  })
+
+  it('放宽不可能生效：程序化传入 50/s 被 min 钳回默认 5/s（越权配置拿不到更宽限额）', async () => {
+    const { broker } = boot(['media.read', 'media.control'], async () => ({ ok: true, data: { status: 'Playing' } }), {
+      'pkg-wide': { commandsPerSecond: 50 },
+    })
+    for (let i = 0; i < 5; i++) {
+      expect((await broker.controlForPackage('pkg-wide', 'k', 'play')).ok).toBe(true)
+    }
+    const sixth = await broker.controlForPackage('pkg-wide', 'k', 'pause')
+    expect(sixth).toMatchObject({ ok: false, code: 'media_rate_limited' })
+    expect(sixth.ok === false && sixth.message).toContain('5/s')
   })
 })
 
