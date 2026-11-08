@@ -100,6 +100,18 @@ describe('合格窗口判据 classifyTileWindow（工单376）', () => {
       .toEqual({ kind: 'excluded', reason: 'shell-host' })
   })
 
+  it('通知 toast 横幅（ShellExperienceHost CoreWindow）= shell-host（工单420）', () => {
+    // 签名 = PR #412 真机取证事实：exe=shellexperiencehost、class=CoreWindow、
+    // 虚拟屏右下横幅区、无 THICKFRAME、owned/toolWindow/appWindow 全否（否则早被
+    // tool-or-popup 拦下）——真机三轮同签名计为 fixed-size 异常成员的资格面口子
+    expect(classifyTileWindow(facts({
+      exe: 'C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\ShellExperienceHost.exe',
+      title: 'accept-guard',
+      resizable: false,
+      rect: { left: 2164, top: 1269, right: 2560, bottom: 1440 },
+    }), OWN, PRIMARY)).toEqual({ kind: 'excluded', reason: 'shell-host' })
+  })
+
   it('不可见样式位 = not-visible', () => {
     expect(classifyTileWindow(facts({ visible: false }), OWN, PRIMARY))
       .toEqual({ kind: 'excluded', reason: 'not-visible' })

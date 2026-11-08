@@ -73,7 +73,11 @@ export function normalizeExe(exe: string): string {
   return exe.replace(/\//g, '\\').toLowerCase()
 }
 
-const SHELL_HOST_RE = /(?:^|\\)(?:startmenuexperiencehost|searchhost)\.exe$/i
+// Shell 浮层宿主进程集（工单420：shellexperiencehost 收口——其 CoreWindow 全是 shell
+// 系统面：通知 toast 横幅、通知中心、音量/快捷设置 flyout，无一是合法平铺候选。真机
+// 取证 PR #412 三轮同签名：横幅穿透全部拒绝面计为 fixed-size 异常成员，污染 count/
+// anomalies 精确账。不按 CoreWindow 窗口类别排除——UWP 应用主窗同为 CoreWindow，误伤）
+const SHELL_HOST_RE = /(?:^|\\)(?:startmenuexperiencehost|searchhost|shellexperiencehost)\.exe$/i
 
 /** 矩形正面积相交（副屏判否的安全方向：零矩形/取不到 = 不相交） */
 export function intersectsMainScreen(rect: ScopeRect, primary: ScopeRect): boolean {
