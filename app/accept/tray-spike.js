@@ -23,7 +23,8 @@ const { createEventTape } = require('./lib/event-tape');
 const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
+// 工单402：config 生效落点归 battery-config（DECK_CONFIG_FILE 隔离覆盖）
+const { CONFIG_FILE } = require('./lib/battery-config');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '48-runtime-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 6000 });
 // 工单212：句柄装配——发射形态 tray-spike（['.','--tray-spike']，编排台账 §8 裁决 3 扩枚举）；

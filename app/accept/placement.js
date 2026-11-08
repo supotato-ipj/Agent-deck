@@ -23,13 +23,12 @@ const path = require('path');
 const fs = require('fs');
 const win32 = require('./lib/win32');
 const { Report } = require('./lib/report');
-const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
+const { readConfigRaw, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 const { cdpPortFor } = require('./lib/registry');
 const { createEventTape } = require('./lib/event-tape');
 const { createPanelHandle } = require('./lib/panel-control');
 
 const APP_ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(APP_ROOT, 'config.json');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '310-placement-events.jsonl');
 const tape = createEventTape(EVENTS_FILE, { defaultTimeoutMs: 8000 });
 const handle = createPanelHandle({

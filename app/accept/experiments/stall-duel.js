@@ -15,6 +15,8 @@ const { spawn, spawnSync } = require('child_process');
 const win32 = require('../lib/win32');
 const { createPanelControl } = require('../lib/panel-control');
 const { cdpPortFor } = require('../lib/registry');
+// 工单402：config 生效落点归 battery-config（DECK_CONFIG_FILE 隔离覆盖；实验也零接触用户配置）
+const { CONFIG_FILE } = require('../lib/battery-config');
 const {
   dedupeProbeStalls, couplingStats, classifyOrder, labelDistribution,
 } = require('./stall-duel-analyze');
@@ -148,7 +150,7 @@ async function main() {
   // r1 轮实证：默认配置 taskbar.enabled=true（config.ts defaultTaskbar），任务栏链
   // （AppBar 注册/500ms 置顶 keepalive/1Hz 枚举/条带渲染层）在场与否是停摆实验的
   // 生死级变量——不控制它，任何臂间对照都被它污染。
-  const configFile = path.join(APP_ROOT, 'config.json');
+  const configFile = CONFIG_FILE;
   let configBackup = null;
   if (fs.existsSync(configFile)) configBackup = fs.readFileSync(configFile, 'utf8');
   const cfgNow = (() => { try { return JSON.parse(configBackup ?? '{}'); } catch { return {}; } })();

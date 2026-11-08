@@ -2,13 +2,29 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultAutostart, defaultAgentDesktop, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, saveConfig } from '../src/main/config'
+import { defaultAppearance, defaultAutostart, defaultAgentDesktop, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile, saveConfig } from '../src/main/config'
 
 const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins(), autostart: defaultAutostart(), taskbar: defaultTaskbar(), conversation: defaultConversation(), agentDesktop: defaultAgentDesktop() }
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deck-config-')), 'config.json')
 }
+
+describe('config 落点解析（工单402：DECK_CONFIG_FILE 隔离覆盖）', () => {
+  it('未设覆盖 → 应用目录下的 config.json（生产缺省落点不变）', () => {
+    expect(resolveConfigFile(undefined, path.join('D:', 'deck-app'))).toBe(path.join('D:', 'deck-app', 'config.json'))
+  })
+
+  it('覆盖为绝对路径 → 原样采用（电池隔离落点）', () => {
+    const isolated = path.join(os.tmpdir(), 'deck-accept', 'config-round.json')
+    expect(resolveConfigFile(isolated, path.join('D:', 'deck-app'))).toBe(path.resolve(isolated))
+  })
+
+  it('覆盖为空串/空白 → 视作未设，回落生产落点（环境变量空值不是覆盖）', () => {
+    expect(resolveConfigFile('', path.join('D:', 'deck-app'))).toBe(path.join('D:', 'deck-app', 'config.json'))
+    expect(resolveConfigFile('  ', path.join('D:', 'deck-app'))).toBe(path.join('D:', 'deck-app', 'config.json'))
+  })
+})
 
 describe('config 模型', () => {
   it('defaultPanelGeometry 取显示器全屏', () => {

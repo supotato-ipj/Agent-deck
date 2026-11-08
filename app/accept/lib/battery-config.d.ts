@@ -1,6 +1,8 @@
 // 电池 config 读写共通 helper（工单124）的类型声明：battery-config.js 是 CJS 纯 fs 模块，
 // 本声明服务 tests/*.spec.ts 的类型检查与后续 TS 消费方。
 export declare const CONFIG_FILE: string
+/** 生产落点（用户真实配置 app/config.json）；漂移检查恒对它，不受 DECK_CONFIG_FILE 覆盖影响 */
+export declare const USER_CONFIG_FILE: string
 
 export declare interface BatteryConfig {
   /** 绑定的 config.json 绝对路径 */

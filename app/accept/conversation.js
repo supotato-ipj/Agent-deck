@@ -34,7 +34,7 @@
 const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { readConfigRaw, restoreConfig } = require('./lib/battery-config');
+const { readConfigRaw, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
 const win32 = require('./lib/win32');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { cdpPortFor } = require('./lib/registry');
@@ -284,7 +284,7 @@ async function main() {
       try {
         const json = configRaw ? JSON.parse(configRaw) : {};
         json.conversation = { ...(json.conversation ?? {}), model: '["probe-llm","probe-model"]' };
-        fs.writeFileSync(path.join(APP_ROOT, 'config.json'), JSON.stringify(json, null, 2) + '\n', 'utf8');
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
       } catch { /* 配置写不进 → 后端默认路由 → 认证错误将在断言位如实判负 */ }
 
       // —— 环境备妥：DSH 安装解析（不硬编码盘符）+ 罐头 LLM + provider 显式配置（零凭证）——
@@ -1810,7 +1810,7 @@ PKGDIR=${pkgDirM}` });
       try {
         const json = configRaw ? JSON.parse(configRaw) : {};
         json.conversation = { ...(json.conversation ?? {}), dshExe: 'X:\\deck-340-bogus\\DeepSeek Harness.exe' };
-        fs.writeFileSync(path.join(APP_ROOT, 'config.json'), JSON.stringify(json, null, 2) + '\n', 'utf8');
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(json, null, 2) + '\n', 'utf8');
         bogusWritten = true;
       } catch { /* 写不进 = 本子轮无前提，断言位如实判负 */ }
       handle.launch({

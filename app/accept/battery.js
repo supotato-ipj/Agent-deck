@@ -19,6 +19,8 @@ const { cdpPortFor } = require('./lib/registry');
 const { createPanelHandle, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
 const { createEventTape } = require('./lib/event-tape');
 const { judgeTrayMachineState, DND_MARKER } = require('./lib/tray-machine-state');
+// 工单402：config 生效落点归 battery-config（DECK_CONFIG_FILE 隔离覆盖与面板侧同口径）
+const { CONFIG_FILE } = require('./lib/battery-config');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const EVENTS_FILE = path.join(__dirname, 'evidence', '03-runtime-events.jsonl');
@@ -801,7 +803,7 @@ async function runSegments() {
   // 工单50：本电池多段断言依赖原生任务栏在场（P8/P10 托盘识别色扫描 Shell_TrayWnd
   // 矩形；clearDesktop 同区点击），而任务栏插件默认开启会隐藏原生任务栏——主电池
   // 全程以 taskbar.enabled=false 运行（任务栏显隐有 49/50 专电池），清场还原原文。
-  const CONFIG_FILE_MAIN = path.join(APP_ROOT, 'config.json');
+  const CONFIG_FILE_MAIN = CONFIG_FILE;
   const configBackupMain = fs.existsSync(CONFIG_FILE_MAIN) ? fs.readFileSync(CONFIG_FILE_MAIN, 'utf8') : null;
   // #278：外部插件目录重定向至空 tmp，并停用第一方组卡——接管内置文档区的插件
   // （实证：doc-group-cards 把 #doc-zone display:none 换成自绘组卡，P5 族 12 段全红
@@ -926,7 +928,7 @@ async function runSegments() {
     await sleep(1200);
 
     // —— 电池共用探针件（06 复位 / 08 设置浮层共用；hwnd 随重启段更新，闭包取现值）——
-    const CONFIG_FILE_B = path.join(APP_ROOT, 'config.json');
+    const CONFIG_FILE_B = CONFIG_FILE;
     const pctOf = (v) => Math.round(v * 100);
     // 热区矩形按**面板代次**取：面板重启后旧矩形不再作数（几何虽同，上一任面板的热区
     // 属于上一任现场）。sinceMs 缺省 0 = 全部历史，与旧行为同。
@@ -4765,7 +4767,7 @@ async function runSegments() {
       const probeFile = path.join(probeDir, `${token}.txt`);
       const word = `${token}.txt`; // 搜完整文件名：唯一且必排首位（目录不匹配 .txt，旧电池同法）
       const savedClip = clipboardGet();
-      const configPathS = path.join(APP_ROOT, 'config.json');
+      const configPathS = CONFIG_FILE;
       const configBackupS = fs.existsSync(configPathS) ? fs.readFileSync(configPathS, 'utf8') : null;
       let currentRect = w32.rectOf(hwnd);
       let searchZone = null;

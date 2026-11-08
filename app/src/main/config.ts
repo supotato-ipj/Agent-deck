@@ -589,6 +589,13 @@ function mergeAppearance(raw: unknown, fallback: AppearanceConfig, warnings: str
   return out
 }
 
+/** config 落点解析（工单402）：DECK_CONFIG_FILE 覆盖优先，缺省落应用目录 config.json。
+ * 验收电池经控制器注入隔离落点，探针档位不再写进用户生产配置。 */
+export function resolveConfigFile(override: string | undefined, appPath: string): string {
+  const raw = typeof override === 'string' ? override.trim() : ''
+  return raw ? path.resolve(raw) : path.join(appPath, 'config.json')
+}
+
 /** 整份回写 config.json（首运行落盘与工单08 设置滑杆的持久化通道）。
  * tmp+rename 原子写（writeStoreText 先例）：config 收口屏幕几何/端口/透明度，
  * 坏写不碰原文件——半截 JSON 会让下次启动整体回退默认。 */

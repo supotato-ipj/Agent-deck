@@ -3,7 +3,7 @@
 // 换 helper 后行为与既有手写实现等价（right-group writeTaskbarFields 为真机背书的参照实现）。
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createBatteryConfig } from '../../accept/lib/battery-config'
 
@@ -19,6 +19,33 @@ function tempConfigPath() {
   dirs.push(dir)
   return join(dir, 'config.json')
 }
+
+describe('落点覆盖（工单402：电池零接触用户生产配置）', () => {
+  const PRODUCTION = resolve(__dirname, '..', '..', 'config.json')
+
+  afterEach(() => {
+    delete process.env.DECK_CONFIG_FILE
+  })
+
+  it('未设覆盖 → 生效落点为生产落点（缺省行为不变）', async () => {
+    const mod = await import('../../accept/lib/battery-config')
+    expect(mod.CONFIG_FILE).toBe(PRODUCTION)
+    expect(mod.USER_CONFIG_FILE).toBe(PRODUCTION)
+  })
+
+  it('模块先加载、覆盖后注入 → 读写跟随隔离路径（落点按调用时解析，不受加载顺序影响）', async () => {
+    // 本文件的顶部 import 已加载模块（早于本用例注入覆盖）——复现隔离模块依赖链的现实时序
+    const mod = await import('../../accept/lib/battery-config')
+    const isolated = tempConfigPath()
+    writeFileSync(isolated, '{"taskbar":{"enabled":true}}\n', 'utf8')
+    process.env.DECK_CONFIG_FILE = isolated
+    expect(mod.CONFIG_FILE).toBe(resolve(isolated))
+    expect(mod.USER_CONFIG_FILE).toBe(PRODUCTION)
+    expect(mod.readConfigRaw()).toBe('{"taskbar":{"enabled":true}}\n')
+    mod.patchTaskbar({ enabled: false })
+    expect(JSON.parse(readFileSync(isolated, 'utf8')).taskbar.enabled).toBe(false)
+  })
+})
 
 describe('缺位态（fresh worktree：config.json 不存在）', () => {
   it('readConfigRaw 返回 null（不抛 ENOENT——修 49/50 秒败的契约起点）', () => {
