@@ -1781,6 +1781,108 @@ PKGDIR=${pkgDirM}` });
       rep.fail(`段 C10 异常中止：${c10err instanceof Error ? c10err.message : String(c10err)}`);
     }
 
+    // —— 段 C12（工单344，ADR-0027 内存半边运行时闸门）：包内存哨兵端到端——投放包页跑
+    // 内存分配循环把单包顶过 128MB 预算线（刚过线、不灾难级，封顶 ~60MB 堆）→ 验证
+    // 告警（dropped-package-memory-alert）→ 连续 3 轮确认窗（10s×3≈30s 滞回）→ 显式停用
+    // （dropped-package-deactivated reason=memory-budget-exceeded，含读数/阈值/轮数）→
+    // 包进错误态（错误文案带 package_memory_exceeded）→ 条带 toast 用户可见反馈 →
+    // 面板本体不崩、不自动重挂、包文件不动。段尾清场写进段（删包 + 等目标消失 + 配置残留清）。
+    rep.beginSegment('C12');
+    try {
+      const TASKBAR_TITLE = 'DECK-TASKBAR';
+      const pluginsRoot12 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      const hogDir12 = path.join(pluginsRoot12, 'dsh-memhog');
+      try { fs.rmSync(hogDir12, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const gate12 = Date.now();
+      // 投放（零权限 = 投放即生效）：卡片循环分配 4MB/拍、15 拍封顶（~60MB 堆，刚过线不灾难级）
+      fs.mkdirSync(hogDir12, { recursive: true });
+      fs.writeFileSync(path.join(hogDir12, 'plugin.json'), JSON.stringify({ id: 'dsh-memhog', name: 'Mem Hog', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: [] }, null, 2), 'utf8');
+      fs.writeFileSync(path.join(hogDir12, 'card.js'), `export default {
+  mount(host) {
+    host.el.textContent = 'hog'
+    const chunks = []
+    const t = setInterval(() => {
+      try { chunks.push(new Array(512 * 1024).fill(1.1)) } catch (e) { clearInterval(t) }
+      if (chunks.length >= 15) clearInterval(t)
+    }, 400)
+  }
+}
+`, 'utf8');
+      // ① 包起来（投放即生效）
+      const up12 = await until(async () => pkgTarget('deck-pkg://dsh-memhog/') ? true : null, 30000);
+      if (!up12) {
+        rep.fail('C12 内存 hog 包未激活：30s 内 deck-pkg://dsh-memhog/ 目标未出现');
+      } else {
+        // ② 首次越线 = 告警（读数 + 阈值在载荷；确认窗未走满绝不处置）
+        const alert12 = await tape.wait('dropped-package-memory-alert', (e) => e.id === 'dsh-memhog', { timeoutMs: 60000, since: gate12 });
+        const deactEarly12 = alert12 ? await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-memhog' && e.reason === 'memory-budget-exceeded', { timeoutMs: 8000, since: gate12 }) : null;
+        if (alert12 && Number.isFinite(alert12.bytes) && alert12.thresholdBytes === 128 * 1024 * 1024 && !deactEarly12) {
+          rep.pass(`内存哨兵告警在界：首次越过预算线即告警一次（读数 ${Math.round(alert12.bytes / 1048576)}MB ≥ 阈值 128MB），8s 内无处置（滞回确认窗不误杀）`);
+        } else {
+          rep.fail(`C12 告警面不符：alert=${JSON.stringify(alert12)} earlyDeact=${Boolean(deactEarly12)}`);
+        }
+        // ③ 连续 3 轮确认窗走满 = 显式停用（审计事件含读数/阈值/轮数，reason 与 permission-revoked 同构）
+        const deact12 = await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-memhog' && e.reason === 'memory-budget-exceeded', { timeoutMs: 90000, since: gate12 });
+        const deactOk12 = deact12 && Number.isFinite(deact12.bytes) && deact12.bytes > deact12.thresholdBytes && deact12.rounds >= 3;
+        if (deactOk12) {
+          rep.pass(`确认窗走满显式停用：连续 ${deact12.rounds} 轮超线（读数 ${Math.round(deact12.bytes / 1048576)}MB ≥ 128MB），停用审计事件含读数/阈值/轮数（reason=memory-budget-exceeded）`);
+        } else {
+          rep.fail(`C12 停用面不符：deact=${JSON.stringify(deact12)}`);
+        }
+        // ④ 包进错误态（账不删）：dropped 清单保留该包、错误文案带契约错误码
+        let errInfo12 = null;
+        try {
+          const snap12 = await cdpEvalOn(PANEL_TITLE, 'window.deck.bridge.invoke("panel/snapshot", null)', 15000);
+          errInfo12 = ((snap12 || {}).dropped || []).find((p) => p.id === 'dsh-memhog') || null;
+        } catch { errInfo12 = null }
+        const errOk12 = errInfo12 && errInfo12.status === 'error' && String(errInfo12.error || '').includes('package_memory_exceeded');
+        if (errOk12) {
+          rep.pass(`停用后账不删：dropped 清单保留 dsh-memhog（status=error，错误文案带 package_memory_exceeded）`);
+        } else {
+          rep.fail(`C12 错误态不符：info=${JSON.stringify(errInfo12)}`);
+        }
+        // ⑤ 用户可见反馈：条带 toast 逐字透出停用原因（5s 自收——事件落地即查）
+        let toast12 = null;
+        try {
+          toast12 = await cdpEvalOn(TASKBAR_TITLE, '(() => { const t = document.getElementById("memory-toast"); return t && t.dataset.on === "1" ? t.textContent : null })()', 10000);
+        } catch { toast12 = null; rep.note('C12 条带 toast 取样口缺席：DECK-TASKBAR 页面目标未找到（taskbar.enabled 应为 true）'); }
+        if (toast12 && String(toast12).includes('Mem Hog') && String(toast12).includes('停用')) {
+          rep.pass('条带 toast 用户可见：停用原因逐字透出（「Mem Hog」「停用」，复用拖入失败 toast 图案 5s 自收）');
+        } else {
+          rep.fail(`C12 条带 toast 不符：toast=${JSON.stringify(toast12)}`);
+        }
+        // ⑥ 包文件不动 + 不自动重挂
+        const filesKept12 = fs.existsSync(path.join(hogDir12, 'plugin.json')) && fs.existsSync(path.join(hogDir12, 'card.js'));
+        const reactivated12 = await tape.wait('dropped-package-activated', (e) => e.id === 'dsh-memhog', { timeoutMs: 8000, since: Date.now() });
+        if (filesKept12 && !reactivated12) {
+          rep.pass('包文件不动、不自动重挂：plugin.json/card.js 原样在盘，8s 内无重激活（重新投放=显式恢复）');
+        } else {
+          rep.fail(`C12 补偿面不符：filesKept=${filesKept12} reactivated=${Boolean(reactivated12)}`);
+        }
+        // ⑦ 面板本体不崩不卡：哨兵动手后面板页仍可答话
+        let alive12 = false;
+        try { alive12 = (await cdpEvalOn(PANEL_TITLE, '1 + 1', 10000)) === 2 } catch { alive12 = false }
+        if (alive12) {
+          rep.pass('面板本体不崩：包内存失控全链（告警→停用）后面板页 CDP 应答正常');
+        } else {
+          rep.fail('C12 面板本体不符：哨兵处置后面板页 CDP 无应答');
+        }
+      }
+      // —— 段尾清场（写进段）：删包 → 等包目标与清单残留消失 → 私有配置残留清 ——
+      try { fs.rmSync(hogDir12, { recursive: true, force: true }); } catch (e) { rep.note(`C12 清场删包异常：${e instanceof Error ? e.message : String(e)}`); }
+      const cleaned12 = await until(async () => (await pkgTarget('deck-pkg://dsh-memhog/')) ? null : true, 30000);
+      try { fs.rmSync(path.join(userData, 'plugin-config', 'dsh-memhog.json'), { force: true }); } catch { /* 尽力 */ }
+      if (cleaned12) {
+        rep.pass('段尾清场完成：dsh-memhog 包目录已删、deck-pkg://dsh-memhog/ 目标消失、私有配置残留已清');
+      } else {
+        rep.fail('C12 清场不符：30s 内包目标未消失（残留会污染用户桌面）');
+      }
+    } catch (c12err) {
+      rep.fail(`段 C12 异常中止：${c12err instanceof Error ? c12err.message : String(c12err)}`);
+    }
+
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +
     // 「创建全新数据目录」用户手势——旧目录零触碰、指向持久化、不继承不备份 ——
     rep.beginSegment('C3');

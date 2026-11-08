@@ -419,7 +419,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 点击经包宿主 config 通道回执、禁用即出账本与视图移除；一段绑定一工单）。落位
     // 逻辑按工单343 spec Testing Decisions 不另设单测（纯函数既有覆盖 + 真机 P7
     // 端到端兜底），真机段只验真实激活/注入点击/停用链这些单测无法证明的面。
-    expect(total).toBe(191)
+    // 191 → 192：工单344 增段——332-conversation 电池增 C12（包内存哨兵端到端：投放包
+    // 页内存分配循环顶过 128MB 预算线 → 首次越线告警 → 连续 3 轮确认窗显式停用 → 账不删/
+    // 条带 toast/包文件不动/面板不崩；一段绑定一工单）。滞回判账与停用补偿按增段条件②由
+    // memory-sentinel / memory-disable 单测矩阵钉，真机段只验真实渲染进程内存越线、
+    // 30s 滞回时序与条带 toast 这些单测无法证明的面。
+    expect(total).toBe(192)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

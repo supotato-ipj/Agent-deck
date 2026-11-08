@@ -1686,7 +1686,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 600,
+      "budgetSeconds": 660,
       "segments": [
         {
           "seg": "C11",
@@ -1832,6 +1832,21 @@
           "areas": [
             "sessions",
             "plugins"
+          ]
+        },
+        {
+          "seg": "C12",
+          "ticket": 344,
+          "title": "包内存哨兵端到端（工单344，ADR-0027 内存半边运行时闸门）：零权限投放包页内存分配循环把单包顶过 128MB 预算线（封顶 ~60MB 堆，刚过线不灾难级）→ 首次越线告警（dropped-package-memory-alert 含读数/阈值，8s 内无处置——滞回确认窗不误杀）→ 连续 3 轮确认窗走满显式停用（dropped-package-deactivated reason=memory-budget-exceeded 含读数/阈值/轮数）→ 账不删（dropped 清单保留 error 态，错误文案带 package_memory_exceeded）→ 条带 toast 用户可见（#memory-toast 逐字透出停用原因）→ 包文件不动、8s 内无重激活（重新投放=显式恢复）→ 面板本体不崩（CDP 应答）。执行序 C10 后 C3 前；段尾清场写进段（删包+等目标消失+配置残留清）",
+          "surfaces": [
+            "event-evidence",
+            "system-state",
+            "panel-alive"
+          ],
+          "estSeconds": 60,
+          "areas": [
+            "plugins",
+            "taskbar"
           ]
         },
         {

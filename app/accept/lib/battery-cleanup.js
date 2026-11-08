@@ -34,6 +34,7 @@ const BATTERY_PACKAGE_IDS = [
   'dsh-net-auth',
   'dsh-reject',
   'dsh-mix',
+  'dsh-memhog',
 ];
 
 function isBatteryPackageId(id) {
