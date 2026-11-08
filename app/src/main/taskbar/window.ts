@@ -29,6 +29,7 @@ import type { BarMode } from './retract'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
 import type { NativeWatchProbe } from './native-watch'
 import { TrayYieldMachine, TRAY_YIELD_POLL_MS } from './tray-yield'
+import { TRAY_POPUP_VERIFY_MS } from '../tray-popup'
 import type { TrayYieldDecision, TrayYieldRestoreReason } from './tray-yield'
 import { startTrayOverflowHost } from './overflow'
 import { startAppMenuHost } from './app-menu'
@@ -174,7 +175,18 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // （win32.setPinGate）：置位期间全部置顶重申点跳过重申并落存证——被自家重申点
   // 抢回置顶等于修复白做。裁决在 tray-yield 纯状态机（单测钉），本层只做 FFI 采集
   // 与置顶动作；native 菜单 z 序真机人工验收留证（事件时序存证为主，票面口径）。
-  let trayYield: { machine: TrayYieldMachine; timer: NodeJS.Timeout } | null = null
+  // 自家图标菜单开层验证账（工单401 残余面）：右键回放 PostMessage 成功不保证 Chromium
+  // 派发（间歇丢消息，真机 p≈0.5/拍）——验证窗内自家菜单窗未夺前台即重注一拍。裁决
+  // 用 tray-popup 纯逻辑；**住在本控制器**因为「菜单窗」的判据要排除自家 UI 窗前台
+  // churn（臂4 溢出径收层把前台交给条带，service 层看不见这些句柄——v1 误 settled 教训）。
+  interface OwnMenuRetry {
+    key: string
+    count: number // 已重注拍数（一次右键最多一拍）
+    preFgHwnd: number // 起拍基线前台窗（臂4 径=溢出浮层窗，臂3 径=第三方窗）
+    beginAt: number
+    settled: boolean
+  }
+  let trayYield: { machine: TrayYieldMachine; timer: NodeJS.Timeout; ownRetry?: OwnMenuRetry } | null = null
 
   /**
    * 回放右键起拍（工单363 改名）：本函数此前叫 beginTrayYield，名不副实——它兼两责：
@@ -182,7 +194,7 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
    * ②条带让位起拍（工单194：回放期间条带退出置顶带，菜单关后回顶）。
    * 拆成两个动作各自有名，放行与让位各自可读；结构不动。
    */
-  const onTrayReplayBegin = (payload: { key: string; hwnd: string | null }): void => {
+  const onTrayReplayBegin = (payload: { key: string; button?: 'left' | 'right'; hwnd: string | null }): void => {
     const hwnd = payload.hwnd ? Number(payload.hwnd) : 0
     const pid = hwnd ? pidOfWindow(hwnd) : 0
     // 前台放行（工单363）：应用收到托盘回调后要弹自己的菜单，必须能取前台——
@@ -210,7 +222,20 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       s.win.setAlwaysOnTop(false)
     }
     if (!trayYield) trayYield = { machine, timer: setInterval(() => pollTrayYield(), TRAY_YIELD_POLL_MS) }
+    if (payload.button === 'right' && pid === process.pid) {
+      // 自家图标右键（工单401）：起开层验证账。同 key 续账且已 settled 即重置计数
+      // （新的一击有完整的一拍重注额度）；未 settled 续账沿用（重注额度不翻倍）。
+      const prev = trayYield.ownRetry
+      trayYield.ownRetry = { key: payload.key, count: prev && prev.key === payload.key && !prev.settled ? prev.count : 0, preFgHwnd: fgHwnd0, beginAt: Date.now(), settled: false }
+    }
     log?.append({ type: 'taskbar-tray-yield', key: payload.key, pid, fgPid, mode })
+  }
+
+  // 条带窗句柄（会话在场；销毁/缺位 = 0——判据里 0 恒不命中，安全方向）
+  const ownStripHwnd401 = (sess: TaskbarSession | null): number => {
+    try {
+      return sess && !sess.win.isDestroyed() ? Number(hwndOf(sess.win)) : 0
+    } catch { return 0 }
   }
 
   /** 一拍侦测：FFI 采集（目标 pid 菜单窗数 + 前台属主）喂状态机，restore 即收闸回顶 */
@@ -245,6 +270,28 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       try {
         menuHwndGone = !windowAlive(menuHwnd)
       } catch { /* 判不出按「仍在场」——误恢复比误留非置顶更糟 */ }
+    }
+    // 自家图标菜单开层验证拍（工单401）：菜单窗判据 = 自家 pid 夺前台且**异于基线与
+    // 条带窗**——臂4 溢出径收层会把前台交给条带（自家 pid、异于基线），不排除就是
+    // v1 误 settled 的教训。验证窗耗尽：未重注过即重注一拍（panelData.replayTrayClick
+    // 直调，与 service deps 兜底同款鸭子类型）；重注仍未开即弃（防循环弹骚扰）。
+    const oRetry = ty.ownRetry
+    if (oRetry && !oRetry.settled) {
+      if (fgPid === process.pid && fgHwnd && fgHwnd !== oRetry.preFgHwnd && fgHwnd !== ownStripHwnd401(s)) {
+        oRetry.settled = true
+      } else if (Date.now() - oRetry.beginAt >= TRAY_POPUP_VERIFY_MS) {
+        if (oRetry.count === 0) {
+          oRetry.count = 1
+          oRetry.beginAt = Date.now()
+          log?.append({ type: 'taskbar-own-menu-retry', key: oRetry.key })
+          try {
+            ;(ctx.panelData as { replayTrayClick?: (k: string, b: 'right') => boolean } | undefined)?.replayTrayClick?.(oRetry.key, 'right')
+          } catch { /* 数据面缺席：本拍放弃，等 giveup 归账 */ }
+        } else {
+          log?.append({ type: 'taskbar-own-menu-giveup', key: oRetry.key })
+          ty.ownRetry = undefined
+        }
+      }
     }
     let decision: TrayYieldDecision
     try {
