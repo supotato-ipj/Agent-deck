@@ -264,6 +264,10 @@ export class AgentTilingService extends Service {
   private lastIdentities = new Map<number, WindowIdentity>()
   /** 最近一次落盘文本（同内容不重复写） */
   private lastSavedText: string | null = null
+  /** 干净退出已落盘（工单442）：shutdown 写完 clean=true 后置位——退出撕卸窗内点燃的
+   *  平铺拍（撕卸 dispose 引发前台/几何事件的挂起拍或新拍、placing 在途拍）一律停写，
+   *  防止拍末 saveLayout(false) 踏平 clean 标记令下一轮重启误走 rebuilt */
+  private quitFlushed = false
 
   constructor(ctx: Context, options: AgentTilingServiceOptions = {}) {
     super(ctx, 'agentTiling')
@@ -1505,6 +1509,9 @@ export class AgentTilingService extends Service {
    */
   private saveLayout(clean: boolean): void {
     if (!this.layoutFile || !this.layoutLoaded) return
+    // 干净退出已落盘后停写（工单442）：clean=true 已盖章，此后任何拍（退出撕卸窗内的
+    // 挂起拍/新拍/在途拍）都不得覆写——clean=false 文本必异于 clean=true，去重挡不住
+    if (this.quitFlushed && !clean) return
     const desktopId = this.deps.agentDesktopId()
     if (!desktopId) return
     let doc: AgentLayoutDoc
@@ -1542,6 +1549,7 @@ export class AgentTilingService extends Service {
   shutdown(): void {
     if (!this.layoutFile || !this.layoutLoaded) return
     this.saveLayout(true)
+    this.quitFlushed = true // 工单442：盖章后停写，退出撕卸窗内的拍不再踏平 clean 标记
   }
 
   /** 测试驱动口：强制落盘（离线矩阵断言存储内容/隐私口径） */
