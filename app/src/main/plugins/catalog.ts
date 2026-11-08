@@ -242,6 +242,8 @@ const ERRORS: readonly ContractErrorEntry[] = [
   // —— 工单339 命名凭证错误（凭证面与网络权限相互独立）——
   // —— 工单341 资源预算（超限显式拒绝，不静默退化）——
   { code: 'package_budget_exceeded', kind: 'runtime', message: '同时在场投放包已达预算上限（maxLiveDroppedPackages）——本包拒绝激活，先卸载/停用其他包再试' },
+  // —— 工单344 包内存哨兵（ADR-0027 内存半边运行时闸门；与 package_budget_exceeded 同族同位置）——
+  { code: 'package_memory_exceeded', kind: 'runtime', message: '包内存持续超预算（单包 128MB，连续 3 轮采样确认）——本包被哨兵显式停用；包文件未动，重新投放一次即恢复' },
   { code: 'credential_unavailable', kind: 'gate', message: '命名凭证不可用（不存在/未绑定本包本 origin/密文不可解/加密能力不可用）——不静默改用其他凭证，也不撤销网络权限' },
   { code: 'credential_invalid', kind: 'gate', message: '凭证名/secret/headerName/origin 形状非法——拒绝写入' },
   { code: 'credential_store_unavailable', kind: 'runtime', message: '系统加密能力不可用（safeStorage/DPAPI 未就绪）——拒绝保存凭证，绝不落明文兜底' },
