@@ -256,6 +256,25 @@ describe('正常重启恢复（工单383 验收①）', () => {
       expect(readDoc(h).clean).toBe(true)
     } finally { h.cleanup() }
   })
+
+  // 工单442（P1 干净重启恢复一次性 flake）：shutdown（before-quit flush）写完 clean=true
+  // 之后，退出撕卸窗内仍可能点燃一拍平铺拍（撕卸 dispose 引发前台/几何事件 →
+  // schedulePass → 批定时器在 quit 过程中触发）——拍末 saveLayout(false) 踏平 clean 标记，
+  // 下一轮重启走 rebuilt。期望：shutdown 之后任何一拍不得覆写 clean=true 已落盘的标记。
+  it('shutdown 后仍点燃的 pending 拍不得踏平 clean 标记（工单442）', async () => {
+    const h = makeHarness({ windows: [1, 2, 3] })
+    try {
+      await h.svc.runPass()
+      await settle(40)
+      expect(readDoc(h).clean).toBe(false) // 运行中口径：崩溃判据
+      h.svc.onDisplayChanged() // 挂起一拍（batchTimer pending，模拟撕卸期事件入口）
+      h.svc.shutdown() // before-quit flush：写 clean=true
+      expect(readDoc(h).clean).toBe(true)
+      await settle(40) // 退出撕卸窗内：pending 拍点燃
+      expect(readDoc(h).clean).toBe(true) // 修复前红：拍末 saveLayout(false) 踏平 → rebuilt
+      expect(readDoc(h).order).toHaveLength(3) // 红轮盘上证据同款：clean=false 且 order=3 全员在册
+    } finally { h.cleanup() }
+  })
 })
 
 // ————————————————————————————————————————————————————————————
