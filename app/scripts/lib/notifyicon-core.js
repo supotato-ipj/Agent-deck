@@ -48,7 +48,8 @@ function resolveExecutablePath(raw, env) {
   return null;
 }
 
-/** .reg 字符串值去转义（"a\\"b" → a"b，"a\\\\b" → a\\b） */
+/** .reg 字符串值去转义（"a\\"b" → a"b，"a\\\\b" → a\\b）；与 userassist.ts 的
+ * unescapeRegName 同构——两处分属 CJS 脚本核与 TS 主进程，暂不拉共享模块 */
 function unescapeRegString(quoted) {
   let out = '';
   for (let i = 0; i < quoted.length; i++) {
@@ -96,6 +97,12 @@ function parseNotifyIconRegExport(text) {
 /** #325 取证红轮留下的我方探针僵尸（InitialTooltip 精确匹配；每红轮净增 2 条） */
 const PROBE_ZOMBIE_TOOLTIPS = new Set(['DECK164-PROBE-V0', 'DECK164-PROBE-V4']);
 
+const VERDICT = Object.freeze({
+  PROBE_ZOMBIE: 'probe-zombie',
+  DEAD_PATH: 'dead-path',
+  KEEP: 'keep',
+});
+
 /**
  * 判定单条目：probe-zombie（白名单，即使 exe 路径仍在）> dead-path（路径可解析且
  * 文件不存在）> keep（活路径、不可解析、无路径一律不动）。
@@ -105,13 +112,14 @@ const PROBE_ZOMBIE_TOOLTIPS = new Set(['DECK164-PROBE-V0', 'DECK164-PROBE-V4']);
  * @returns {'probe-zombie'|'dead-path'|'keep'}
  */
 function judgeNotifyIconEntry(entry, resolvedPath, fileExists) {
-  if (PROBE_ZOMBIE_TOOLTIPS.has(entry.initialTooltip)) return 'probe-zombie';
-  if (resolvedPath && !fileExists) return 'dead-path';
-  return 'keep';
+  if (PROBE_ZOMBIE_TOOLTIPS.has(entry.initialTooltip)) return VERDICT.PROBE_ZOMBIE;
+  if (resolvedPath && !fileExists) return VERDICT.DEAD_PATH;
+  return VERDICT.KEEP;
 }
 
 module.exports = {
   parseNotifyIconRegExport,
   resolveExecutablePath,
   judgeNotifyIconEntry,
+  VERDICT,
 };

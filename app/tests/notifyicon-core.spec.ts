@@ -124,8 +124,9 @@ describe('judgeNotifyIconEntry（三态判定：probe-zombie / dead-path / keep�
     ['活路径条目', { executablePath: EXE, initialTooltip: 'AGENT DECK' }, EXE, true],
     ['不可解析路径（resolvedPath=null）', { executablePath: '{DEADBEEF-0000-0000-0000-000000000000}\\x.exe', initialTooltip: null }, null, false],
     ['无 ExecutablePath 条目', { executablePath: null, initialTooltip: null }, null, false],
-    ['白名单形似但不等（V1/前缀/大写）', { executablePath: EXE, initialTooltip: 'DECK164-PROBE-V1' }, EXE, true],
+    ['白名单形似但不等（V1/前缀）', { executablePath: EXE, initialTooltip: 'DECK164-PROBE-V1' }, EXE, true],
     ['白名单工具名当前缀', { executablePath: EXE, initialTooltip: 'DECK164-PROBE-V0-extra' }, EXE, true],
+    ['白名单小写变体', { executablePath: EXE, initialTooltip: 'deck164-probe-v0' }, EXE, true],
   ])('%s → keep（活路径不动、不可判死不删）', (_name, entry, resolved, exists) => {
     expect(judgeNotifyIconEntry(entry, resolved, exists)).toBe('keep')
   })

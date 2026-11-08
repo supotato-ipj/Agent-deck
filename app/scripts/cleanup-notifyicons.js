@@ -20,12 +20,12 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { parseNotifyIconRegExport, resolveExecutablePath, judgeNotifyIconEntry } =
+const { parseNotifyIconRegExport, resolveExecutablePath, judgeNotifyIconEntry, VERDICT } =
   require('./lib/notifyicon-core.js');
 
 const REG_KEY = 'HKCU\\Control Panel\\NotifyIconSettings';
 
-/** 参数解析：--apply / --json / --help（对齐 cleanup-local.js） */
+/** 参数解析：只收 --apply / --json / --help 三个布尔旗标（操作习惯对齐 cleanup-local.js） */
 function parseArgs(argv) {
   const flags = {};
   for (const a of argv) {
@@ -63,30 +63,35 @@ function exportRegistry() {
   }
 }
 
+/** 存在性事实：盘符/网络共享不可达（外接盘离线、NAS 断网）时「不存在」不可判死，返回 null */
+function probeExistence(resolvedPath) {
+  if (!resolvedPath) return null;
+  const root = path.parse(resolvedPath).root;
+  if (root && !fs.existsSync(root)) return null;
+  return fs.existsSync(resolvedPath);
+}
+
+/** 同一判据复用于扫描与落盘前重探：壳只提供存在性事实，判定归纯核 */
+function verdictOf(entry, resolvedPath) {
+  const exists = probeExistence(resolvedPath);
+  return judgeNotifyIconEntry(entry, exists === null ? null : resolvedPath, exists === true);
+}
+
 function collectFacts(entries, env) {
   return entries.map((entry) => {
     const resolvedPath = resolveExecutablePath(entry.executablePath, env);
-    const exists = resolvedPath ? fs.existsSync(resolvedPath) : false;
-    return {
-      ...entry,
-      resolvedPath,
-      verdict: judgeNotifyIconEntry(entry, resolvedPath, exists),
-    };
+    return { ...entry, resolvedPath, verdict: verdictOf(entry, resolvedPath) };
   });
-}
-
-/** 删除前重探一次：扫描与落盘之间活路径可能恢复，恢复即放行 */
-function stillDeletable(fact) {
-  if (fact.verdict === 'probe-zombie') return true;
-  return Boolean(fact.resolvedPath) && !fs.existsSync(fact.resolvedPath);
 }
 
 function applyDeletes(facts) {
   const deleted = [];
+  const skipped = [];
   const failures = [];
   for (const fact of facts) {
-    if (!stillDeletable(fact)) {
-      failures.push({ key: fact.key, error: '扫描后路径恢复存在，已放行' });
+    // 扫描与落盘之间活路径可能恢复（或盘刚挂回），恢复即放行，不算失败
+    if (verdictOf(fact, fact.resolvedPath) === VERDICT.KEEP) {
+      skipped.push(fact.key);
       continue;
     }
     try {
@@ -96,7 +101,7 @@ function applyDeletes(facts) {
       failures.push({ key: fact.key, error: String(error.stderr || error.code || error) });
     }
   }
-  return { deleted, failures };
+  return { deleted, skipped, failures };
 }
 
 function render(facts, options) {
@@ -105,9 +110,9 @@ function render(facts, options) {
     const tip = fact.initialTooltip ? `  tooltip="${fact.initialTooltip}"` : '';
     console.log(`  [${fact.verdict}]  ${fact.key}  ${detail}${tip}`);
   }
-  const pending = facts.filter((fact) => fact.verdict !== 'keep');
-  const dead = pending.filter((fact) => fact.verdict === 'dead-path').length;
-  const probe = pending.filter((fact) => fact.verdict === 'probe-zombie').length;
+  const pending = facts.filter((fact) => fact.verdict !== VERDICT.KEEP);
+  const dead = pending.filter((fact) => fact.verdict === VERDICT.DEAD_PATH).length;
+  const probe = pending.filter((fact) => fact.verdict === VERDICT.PROBE_ZOMBIE).length;
   console.log(
     `\n共 ${facts.length} 条；待删 ${pending.length} 条（dead-path ${dead}，probe-zombie ${probe}）；` +
       `其余 ${facts.length - pending.length} 条保留。` +
@@ -133,26 +138,42 @@ function main() {
   }
 
   const facts = collectFacts(entries, process.env);
-  const pending = facts.filter((fact) => fact.verdict !== 'keep');
-  const result = options.apply ? applyDeletes(pending) : { deleted: [], failures: [] };
+  const pending = facts.filter((fact) => fact.verdict !== VERDICT.KEEP);
+  const restartHint = '重启 explorer（或注销重登）后托盘溢出层才会同步收敛——本脚本不代杀 explorer。';
 
   if (flags.json) {
-    console.log(JSON.stringify({ total: facts.length, entries: facts, ...result }, null, 2));
-  } else {
-    render(facts, options);
-    if (options.apply) {
-      console.log(`已删除 ${result.deleted.length} 条。`);
-      if (result.failures.length > 0) {
-        console.log(`失败/放行 ${result.failures.length} 条：`);
-        for (const failure of result.failures) console.log(`  ${failure.key}  ${failure.error}`);
-      }
-      if (result.deleted.length > 0) {
-        console.log('提示：重启 explorer（或注销重登）后托盘溢出层才会同步收敛——本脚本不代杀 explorer。');
-      }
-    }
+    const result = options.apply ? applyDeletes(pending) : { deleted: [], skipped: [], failures: [] };
+    console.log(
+      JSON.stringify(
+        {
+          total: facts.length,
+          entries: facts,
+          ...result,
+          explorerRestartHint: result.deleted.length > 0 ? restartHint : null,
+        },
+        null,
+        2,
+      ),
+    );
+    if (result.failures.length > 0) process.exitCode = 1;
+    return;
   }
 
+  render(facts, options);
+  if (!options.apply) return;
+
+  const result = applyDeletes(pending);
+  console.log(`已删除 ${result.deleted.length} 条。`);
+  if (result.skipped.length > 0) {
+    console.log(`扫描后已恢复存在、放行 ${result.skipped.length} 条：${result.skipped.join(', ')}`);
+  }
+  if (result.failures.length > 0) {
+    console.log(`删除失败 ${result.failures.length} 条：`);
+    for (const failure of result.failures) console.log(`  ${failure.key}  ${failure.error}`);
+  }
+  if (result.deleted.length > 0) console.log(`提示：${restartHint}`);
   if (result.failures.length > 0) process.exitCode = 1;
 }
+
 
 main();
