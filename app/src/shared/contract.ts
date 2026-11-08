@@ -1360,6 +1360,17 @@ export interface BridgeEvents {
    * 载荷只含标题/项目/短 ID/状态——不含对话正文；新增日志不记对话标题（spec 决策 26）。
    */
   'session-preview/changed': SessionPreviewState
+  /**
+   * 包内存哨兵告警（工单344，ADR-0027 内存半边运行时闸门）：某在场投放包渲染进程工作集
+   * **首次**越过单包预算线即推一次（任务栏条带 toast 5s 自收——留给用户自己动手的窗口；
+   * 持续超线不重复骚扰，确认窗走满是另一条事件）。载荷只含包 id/名与读数、阈值字节。
+   */
+  'plugins/memory-alert': { id: string; name: string; bytes: number; thresholdBytes: number }
+  /**
+   * 包内存哨兵停用（工单344）：连续超预算确认窗（10s×3 ≈ 30 秒滞回）走满、包被显式停用
+   * 即推一次（条带 toast 告知错误态与恢复路径：重新投放一次即恢复，包文件未动）。
+   */
+  'plugins/memory-deactivated': { id: string; name: string; bytes: number; thresholdBytes: number; rounds: number }
 }
 
 export type BridgeMethod = keyof BridgeMethods & string
