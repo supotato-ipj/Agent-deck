@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { ipcMain, session, WebContentsView, type BrowserWindow, type WebContents } from 'electron'
 import { ExecutionContextRegistry } from './identity'
+import { PackagePidRegistry } from './memory-sentinel'
 import { PACKAGE_SCHEME, PACKAGE_SHELL_PATH, resolvePackageAssetUrl } from './assets'
 import { DROPPED_VIEW_SEGMENTS, type DroppedManifest } from './dropped-manifest'
 import { withMediaSegment } from './package-view'
@@ -149,6 +150,12 @@ export class DroppedPackageHost {
   private readonly deps: DroppedPackageHostDeps
   /** 在装上下文：包 id → 上下文（Map 查表防原型链） */
   private readonly live = new Map<string, PackageContext>()
+  /**
+   * pid↔包对照表（工单344 包内存哨兵的事实源，落宿主层——spec 拍板）：包激活时经现成
+   * 手法（webContents → OS pid，与渲染层哨兵同款）记录一份映射，换代即换 pid（activate
+   * 覆盖登记），停用即摘除。pid 是 Electron 层事实，**不进**纯逻辑 identity 登记表。
+   */
+  private readonly pids = new PackagePidRegistry()
   /** 已装协议处理器的 session partition（同 session 重复 handle 会抛，换代先 unhandle） */
   private readonly wiredSessions = new Set<string>()
   /** 面板窗（attach 后挂 contentView；激活可先于开窗发生，挂载动作延后补） */
@@ -300,6 +307,10 @@ export class DroppedPackageHost {
       root: dir,
       origin: `${PACKAGE_SCHEME}://${pkg.id}`,
     })
+    // pid↔包对照登记（工单344）：进程此时可能尚未拉起（getOSProcessId()=0），did-finish-load
+    // 处补记真实 pid——换代 activate 即覆盖，换代换 pid 由登记语义天然成立
+    const pidNow = wc.getOSProcessId()
+    if (pidNow > 0) this.pids.record(pkg.id, pidNow)
 
     const context: PackageContext = {
       id: pkg.id,
@@ -346,6 +357,9 @@ export class DroppedPackageHost {
     })
     wc.on('did-finish-load', () => {
       context.pageLoaded = true
+      // pid 对照补记（工单344）：激活瞬间进程可能尚未拉起，页面加载完成时真实 pid 必已就位
+      const pid = wc.getOSProcessId()
+      if (pid > 0) this.pids.record(pkg.id, pid)
       this.pushView(context)
     })
     // 防包页面开新窗/新上下文逃逸
@@ -367,6 +381,7 @@ export class DroppedPackageHost {
     this.liveBounds.delete(id)
     this.boundsListener?.(this.boundsRects())
     this.deps.registry.removePackage(id)
+    this.pids.remove(id) // pid 对照随上下文摘除（工单344：停用摘除，哨兵读不到即放行）
     try {
       if (!context.view.webContents.isDestroyed()) {
         context.view.webContents.stop()
@@ -423,6 +438,16 @@ export class DroppedPackageHost {
   /** webContents 是否仍存活（诊断读数；崩溃后 isCrashed 路径供验收对照） */
   webContentsOf(id: string): WebContents | null {
     return this.live.get(id)?.view.webContents ?? null
+  }
+
+  /** 单包 OS pid（包内存哨兵读数事实源；未登记/已摘除 = null 不编造） */
+  pidOf(id: string): number | null {
+    return this.pids.pidOf(id)
+  }
+
+  /** pid↔包对照快照（包内存哨兵采样投影的事实源） */
+  pidEntries(): Array<{ packageId: string; pid: number }> {
+    return this.pids.entries()
   }
 
   private show(context: PackageContext): void {

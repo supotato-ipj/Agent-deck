@@ -166,6 +166,8 @@ interface DroppedRecord {
   generation: number
   status: DroppedPackageState
   permissions: string[]
+  /** 内存哨兵停用标记（工单344）：rescan 不救回（指纹未变保持 error），改码换代/重投=显式恢复 */
+  memoryDisabled: boolean
 }
 
 /** 坏插件的兜底 id：目录名清洗成合法主机名，让用户看得懂是哪个插件坏了 */
@@ -446,6 +448,34 @@ export class PluginHostService extends Service {
     this.publishDropped()
   }
 
+  /**
+   * 内存哨兵停用（工单344，ADR-0027 内存半边的运行时闸门）：连续超预算确认窗走满后
+   * 由哨兵调用——照抄既有停用路径的处置面：幂等 deactivate（强制销毁渲染进程）、
+   * `status=error`、错误文案带 `package_memory_exceeded`（契约目录同族错误码）、
+   * 落停用审计事件（reason=`memory-budget-exceeded` 与 permission-revoked 同构，含读数/
+   * 阈值/轮数）。**包文件不动、账不删、不自动重挂**：rescan 不救回（指纹未变保持 error，
+   * 见 rescanDropped 内存停用分支）——用户重新投放一次/改码换代 = 显式恢复，与崩溃包
+   * 「不重挂、显式恢复」完全同一套体验。
+   *
+   * @returns 是否实际停用（包不在册/不在运行态 = false，幂等不重放）
+   */
+  disableDroppedPackageForMemory(id: string, facts: { bytes: number; thresholdBytes: number; rounds: number }): boolean {
+    const record = this.dropped.get(id)
+    if (!record || record.status !== 'ok') return false
+    this.droppedHost?.deactivate(id)
+    const mb = (n: number): number => Math.round((n / (1024 * 1024)) * 10) / 10
+    record.status = 'error'
+    record.error = `package_memory_exceeded：包内存持续超预算（${mb(facts.bytes)}MB ≥ 预算 ${mb(facts.thresholdBytes)}MB，连续 ${facts.rounds} 轮采样确认）——已由包内存哨兵显式停用；包文件未动，重新投放一次即恢复`
+    record.issues = null
+    record.memoryDisabled = true
+    this.log({
+      type: 'dropped-package-deactivated', id, generation: record.generation,
+      reason: 'memory-budget-exceeded', bytes: facts.bytes, thresholdBytes: facts.thresholdBytes, rounds: facts.rounds,
+    })
+    this.publishDropped()
+    return true
+  }
+
   /** 卸载单个插件（内部原语：重扫发现消失/换代会用到；对外的卸载动作是移除插件目录） */
   unload(id: string): boolean {
     const instance = this.live.get(id)
@@ -571,7 +601,14 @@ export class PluginHostService extends Service {
         }
         this.dropped.set(id, next)
       } else if (decision === 'activate') {
-        if (prev.status === 'ok' || prev.status === 'crashed') {
+        if (prev.memoryDisabled) {
+          // 内存哨兵停用不自动重挂（工单344）：指纹未变保持 error 与停用原因——
+          // 重新投放一次/改码换代才是显式恢复（与 crashed「不重挂、显式恢复」同一套体验）
+          next.status = 'error'
+          next.error = prev.error
+          next.generation = prev.generation
+          next.memoryDisabled = true
+        } else if (prev.status === 'ok' || prev.status === 'crashed') {
           // 指纹未变且授权在账：运行态原样（不重复 activate）；crashed 保持 crashed（AC3 不自动重挂）
           next.status = prev.status
           next.generation = prev.generation
@@ -592,6 +629,9 @@ export class PluginHostService extends Service {
           // 指纹未变：crashed 保持 crashed（不自动重挂、副作用不重放），其余原样保留既有记账
           next.status = prev.status
           next.generation = prev.generation
+          // 内存哨兵停用标记与原因文案随记账保留（工单344；fresh 分类不会复现哨兵错误文案）
+          next.memoryDisabled = prev.memoryDisabled
+          if (prev.memoryDisabled) next.error = prev.error
         }
         this.dropped.set(id, next)
       }
@@ -684,13 +724,13 @@ export class PluginHostService extends Service {
         return {
           id: extractManifestId(raw) ?? fallbackId(dir), dir, manifest: null, issues: null,
           error: structural.map((i) => i.message).join('；'),
-          fingerprint, generation: 0, status: 'error', permissions: [],
+          fingerprint, generation: 0, status: 'error', permissions: [], memoryDisabled: false,
         }
       }
       return {
         id: extractManifestId(raw) ?? fallbackId(dir),
         dir, manifest: null, issues: parsed.issues, error: null,
-        fingerprint, generation: 0, status: 'pending-migration', permissions: [],
+        fingerprint, generation: 0, status: 'pending-migration', permissions: [], memoryDisabled: false,
       }
     }
     const manifest = parsed.manifest
@@ -699,13 +739,14 @@ export class PluginHostService extends Service {
       return {
         id: manifest.id, dir, manifest: null, issues: null,
         error: `入口资产不存在: ${manifest.entry}`,
-        fingerprint, generation: 0, status: 'error', permissions: manifest.permissions,
+        fingerprint, generation: 0, status: 'error', permissions: manifest.permissions, memoryDisabled: false,
       }
     }
     const decision = authorizeDroppedPackage({ permissions: manifest.permissions })
     return {
       id: manifest.id, dir, manifest, issues: null, error: null,
       fingerprint, generation: 0, status: decision === 'activate' ? 'ok' : decision, permissions: manifest.permissions,
+      memoryDisabled: false,
     }
   }
 

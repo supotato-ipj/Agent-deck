@@ -100,6 +100,12 @@ declare module 'cordis' {
      */
     'workspace/drag-in-feedback': (payload: { hwnd: number; ok: boolean; reason?: string; source: 'drop' | 'command' }) => void
     /**
+     * 工单344 包内存哨兵：告警（首次超线）/停用（确认窗走满）即推——任务栏条带渲染层
+     * 透成条带内 toast（拖入失败反馈同款，5s 自收）。载荷只含包 id/名与读数、阈值。
+     */
+    'plugins/memory-alert': (payload: { id: string; name: string; bytes: number; thresholdBytes: number }) => void
+    'plugins/memory-deactivated': (payload: { id: string; name: string; bytes: number; thresholdBytes: number; rounds: number }) => void
+    /**
      * 工单407 拖入一次性交接登记：迁移经桌面 ID 回读确认后即发一次——Agent 平铺服务
      * 订阅它把该窗按交接顺序并入待入列（下次布局拍对账并清除）。渲染层不消费。
      */

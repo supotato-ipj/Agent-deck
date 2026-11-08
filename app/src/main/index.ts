@@ -35,6 +35,7 @@ import { createNodeProjectionSource, type ManagedProjectionSource } from './conv
 import { SessionCredentialRegistry } from './conversation/managed-credentials'
 import { productionPluginRoots } from './plugins/roots'
 import { DroppedPackageHost } from './plugins/package-host'
+import { PackageMemorySentinel } from './plugins/memory-sentinel'
 import { ExecutionContextRegistry } from './plugins/identity'
 import { PluginAuthorizationLedger } from './plugins/authorization-ledger'
 import { createSafeStorageCipher } from './credentials/safe-storage'
@@ -616,6 +617,59 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 媒体快照代次变化（工单336）：桥事件收敛后的即时重推——获批 media.read 的在装包
   // 页 view.media 即时更新（面板兜底 tick 另有同拍；包内按 lastUpdatedTime 插值）。
   kernel.on('media/snapshot-changed', () => droppedPackageHost.refreshMedia())
+  // 包内存哨兵（工单344，ADR-0027 内存半边的运行时闸门）：采样薄壳——判账全在纯逻辑
+  // 账本（memory-sentinel.ts），此处只喂事实源：pid 对照（宿主层）+ 进程工作集
+  // （app.getAppMetrics 按 pid，与 diag/memory 同一事实源；不做边际基线减法，包进程
+  // 工作集直标 128MB 预算线）。两级处置：首次超线 = 告警（存证 + 条带 toast，留给用户
+  // 自己动手的窗口）；连续 3 轮 = 显式停用（照抄既有停用路径：error 态 + 渲染进程销毁，
+  // 账/包文件不动、不自动重挂）。无在场投放包即停表（开销有界）。
+  const droppedPackageNameOf = (id: string): string =>
+    (kernelRef?.plugins.droppedInfo() ?? []).find((p) => p.id === id)?.name ?? id
+  // 在场包 id 集（status=ok 的 dropped 清单）：采样事实源与离场清账比对共用同一口径
+  const livePackageIds = (): readonly string[] =>
+    (kernelRef?.plugins.droppedInfo() ?? []).filter((p) => p.status === 'ok').map((p) => p.id)
+  const memorySentinel = new PackageMemorySentinel(
+    {
+      livePackageIds,
+      pidEntries: () => droppedPackageHost.pidEntries(),
+      readWorkingSetBytes: (pid) => {
+        const m = app.getAppMetrics().find((x) => x.pid === pid)
+        return m && m.memory ? m.memory.workingSetSize * 1024 : null
+      },
+    },
+    {
+      // 读数缺失放行只留证（宁可漏报不误杀）：进程刚崩、时序缝隙的放行凭据
+      onSampleMissing: (notes) => {
+        for (const note of notes) log?.append({ type: 'dropped-package-memory-sample-missing', id: note.packageId, pid: note.pid, bytes: null })
+      },
+      onAlert: (a) => {
+        log?.append({ type: 'dropped-package-memory-alert', id: a.packageId, bytes: a.bytes, thresholdBytes: a.thresholdBytes })
+        kernelRef?.emit('plugins/memory-alert', { id: a.packageId, name: droppedPackageNameOf(a.packageId), bytes: a.bytes, thresholdBytes: a.thresholdBytes })
+      },
+      onDeactivate: (a) => {
+        // 停用审计事件（含读数/阈值/轮数）在 disableDroppedPackageForMemory 内落盘
+        kernelRef?.plugins.disableDroppedPackageForMemory(a.packageId, { bytes: a.bytes, thresholdBytes: a.thresholdBytes, rounds: a.rounds })
+        kernelRef?.emit('plugins/memory-deactivated', { id: a.packageId, name: droppedPackageNameOf(a.packageId), bytes: a.bytes, thresholdBytes: a.thresholdBytes, rounds: a.rounds })
+      },
+    },
+  )
+  memorySentinel.refresh()
+  // 在场包集变化驱动启停（无包停表，开销有界）+ 离场清账：包经非哨兵路径离场（崩溃
+  // markDroppedCrashed、用户停用、permission-revoked、移除）时滞回账本的 streak 若不清，
+  // 换代/重投回来后旧计数串到新 episode——新代次首轮超线即二轮（静默跳过告警 toast）
+  // 甚至当场停用，违反「首次超线=告警不处置」。所有离场路径都收敛到 publishDropped，
+  // 故在 changed 拍上对「上一轮在场、本轮不在场」的 id 透传 forget（幂等；哨兵自己
+  // 停用的路径账本已出表，重复清账无副作用）。
+  let lastLiveSentinelIds: readonly string[] = []
+  kernel.on('dropped-plugins/changed', () => {
+    const live = livePackageIds()
+    for (const id of lastLiveSentinelIds) {
+      if (!live.includes(id)) memorySentinel.forget(id)
+    }
+    lastLiveSentinelIds = [...live]
+    memorySentinel.refresh()
+  })
+  kernel.on('dispose', () => memorySentinel.dispose())
   // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady

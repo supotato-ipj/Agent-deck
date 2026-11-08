@@ -861,6 +861,35 @@ function showDragError(message: string): void {
   }, 5000)
 }
 
+/** 条带内 toast 文案取整（MB 读数）：哨兵载荷是字节，人读的是 MB */
+function toastMB(bytes: number): string {
+  return String(Math.round((bytes / (1024 * 1024)) * 10) / 10)
+}
+
+/** 包内存哨兵可见反馈（工单344）：告警/停用各推一次即各显一条——复用拖入失败 toast
+ * 图案（showDragError 同款：#memory-toast body 直挂节点，整树重渲不触碰，5s 兜底自收；
+ * 独立节点不与 drag-toast 互踩），验收电池按 DOM 在场 + 文案断言。 */
+let memoryToastTimer: ReturnType<typeof setTimeout> | null = null
+function showMemoryToast(message: string): void {
+  let el = document.getElementById('memory-toast')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'memory-toast'
+    document.body.appendChild(el)
+  }
+  el.textContent = message
+  el.dataset.on = '1'
+  if (memoryToastTimer !== null) clearTimeout(memoryToastTimer)
+  memoryToastTimer = setTimeout(() => {
+    const t = document.getElementById('memory-toast')
+    if (t) {
+      t.textContent = ''
+      delete t.dataset.on
+    }
+    memoryToastTimer = null
+  }, 5000)
+}
+
 /** 落位一次拖拽：同组换位与跨组语义同一道分发，落点 before 恒为条目身份。
  * dragSource 不在此清（drop 后 dragend 恒尾随，清场+补渲统一在 dragend——成功换位
  * 的 taskbar/changed 回推若赶在 dragend 之前到达，冻结闸还开着，正好由 dragend 补渲）。
@@ -1341,6 +1370,14 @@ function boot(): void {
     window.deck.bridge.on('workspace/drag-in-feedback', (p) => {
       if (p.ok) return
       showDragError(dragInRejectText(p.reason))
+    })
+    // 包内存哨兵反馈（工单344）：告警（首次超线，留给用户自己动手的窗口）与停用
+    // （确认窗走满，告知错误态与恢复路径）各推一次即各显一条——全程不静默。
+    window.deck.bridge.on('plugins/memory-alert', (p) => {
+      showMemoryToast(`包「${p.name}」内存超预算（${toastMB(p.bytes)}MB / 预算 ${toastMB(p.thresholdBytes)}MB）——持续超限将被停用`)
+    })
+    window.deck.bridge.on('plugins/memory-deactivated', (p) => {
+      showMemoryToast(`包「${p.name}」持续超内存预算已被停用（${toastMB(p.bytes)}MB，连续 ${p.rounds} 轮）——包文件未动，重新投放一次即恢复`)
     })
     // 几何重排重渲染并重声明热区（工单58/55）：主进程在 display-metrics-changed 时
     // setBounds 重排条带（换分辨率/换主屏），pill 坐标随客户区宽度变化——旧热区矩形会落空。
