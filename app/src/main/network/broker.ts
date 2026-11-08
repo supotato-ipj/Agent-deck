@@ -100,6 +100,12 @@ export interface NetworkBrokerOptions {
   audit?: NetworkAuditService | null
   log(event: Record<string, unknown>): void
   limits?: Partial<NetworkLimits>
+  /**
+   * 工单345：每包限额覆写切片（包 id → 限额键 → 值，config.plugins.limits 的
+   * network.request 切片）。构造期逐键 min(基线, 覆写) 生效——覆写只会收紧，放宽
+   * 与非法值在此被数学钳制（配置面已先行结构化拒绝，这里是执行面双保险）。
+   */
+  packageLimits?: Record<string, Record<string, number>>
   transport?: NetworkTransportPort
   now?(): number
 }
@@ -116,6 +122,11 @@ function isTextual(contentType: string): boolean {
   if (ct.includes('json') || ct.includes('xml') || ct.includes('javascript')) return true
   if (ct.includes('x-www-form-urlencoded')) return true
   return false
+}
+
+/** 工单345：覆写值只许收紧——合法正数取 min(基线, 覆写)，其余（缺/非法/放宽）回落基线 */
+function clampTighter(raw: unknown, base: number): number {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), base) : base
 }
 
 /** 生产传输：node http/https（redirect 不跟随；响应按键截断；超时即销毁） */
@@ -168,6 +179,8 @@ export function createNodeTransport(): NetworkTransportPort {
 export class NetworkBroker {
   private readonly opts: NetworkBrokerOptions
   private readonly limits: NetworkLimits
+  /** 工单345：每包生效限额（构造期 min(基线, 覆写) 一次性算定；配置不热更，重启生效） */
+  private readonly packageLimits: Map<string, NetworkLimits>
   private readonly transport: NetworkTransportPort
   private readonly rateWindows = new Map<string, number[]>()
   private readonly inflight = new Map<string, number>()
@@ -175,18 +188,32 @@ export class NetworkBroker {
   constructor(opts: NetworkBrokerOptions) {
     this.opts = opts
     this.limits = { ...DEFAULT_LIMITS, ...(opts.limits ?? {}) }
+    this.packageLimits = new Map()
+    for (const [pkgId, raw] of Object.entries(opts.packageLimits ?? {})) {
+      this.packageLimits.set(pkgId, {
+        requestsPerSecond: clampTighter(raw.requestsPerSecond, this.limits.requestsPerSecond),
+        maxConcurrent: clampTighter(raw.maxConcurrent, this.limits.maxConcurrent),
+        timeoutMs: clampTighter(raw.timeoutMs, this.limits.timeoutMs),
+        maxResponseBytes: clampTighter(raw.maxResponseBytes, this.limits.maxResponseBytes),
+      })
+    }
     this.transport = opts.transport ?? createNodeTransport()
+  }
+
+  /** 本包生效限额（未覆写包 = 基线；覆写包 = 构造期 min(基线, 覆写)） */
+  private limitsFor(packageId: string): NetworkLimits {
+    return this.packageLimits.get(packageId) ?? this.limits
   }
 
   private now(): number {
     return this.opts.now?.() ?? Date.now()
   }
 
-  /** 按包速率窗（滚动 1s，上限 requestsPerSecond） */
+  /** 按包速率窗（滚动 1s，上限 requestsPerSecond 生效值） */
   private rateOk(packageId: string): boolean {
     const now = this.now()
     const win = (this.rateWindows.get(packageId) ?? []).filter((ts) => now - ts < 1000)
-    if (win.length >= this.limits.requestsPerSecond) {
+    if (win.length >= this.limitsFor(packageId).requestsPerSecond) {
       this.rateWindows.set(packageId, win)
       return false
     }
@@ -231,15 +258,16 @@ export class NetworkBroker {
       this.audit({ packageId, origin, method, outcome: 'error', code: 'network_failed' })
       return { ok: false, code: 'network_failed', message: `方法不支持：${method}（允许 GET/POST/PUT/PATCH/DELETE/HEAD）`, origin, method }
     }
-    // 并发上限（与权限拒绝分域的限额错误）
+    // 并发上限（与权限拒绝分域的限额错误；生效值随包收紧，工单345）
+    const effective = this.limitsFor(packageId)
     const live = this.inflight.get(packageId) ?? 0
-    if (live >= this.limits.maxConcurrent) {
+    if (live >= effective.maxConcurrent) {
       this.audit({ packageId, origin, method, outcome: 'error', code: 'network_rate_limited' })
-      return { ok: false, code: 'network_rate_limited', message: `并发上限（${this.limits.maxConcurrent}）已满——稍后重试`, origin, method }
+      return { ok: false, code: 'network_rate_limited', message: `并发上限（${effective.maxConcurrent}）已满——稍后重试`, origin, method }
     }
     if (!this.rateOk(packageId)) {
       this.audit({ packageId, origin, method, outcome: 'error', code: 'network_rate_limited' })
-      return { ok: false, code: 'network_rate_limited', message: `超过每包速率上限（${this.limits.requestsPerSecond}/s）——稍后重试`, origin, method }
+      return { ok: false, code: 'network_rate_limited', message: `超过每包速率上限（${effective.requestsPerSecond}/s）——稍后重试`, origin, method }
     }
     // 头白名单（其余丢弃：包不能自设凭证/主机头）
     const headers: Record<string, string> = { accept: '*/*' }
@@ -273,8 +301,8 @@ export class NetworkBroker {
         method,
         headers,
         ...(body ? { body } : {}),
-        timeoutMs: this.limits.timeoutMs,
-        maxBytes: this.limits.maxResponseBytes,
+        timeoutMs: effective.timeoutMs,
+        maxBytes: effective.maxResponseBytes,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

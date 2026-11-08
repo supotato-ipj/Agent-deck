@@ -279,7 +279,7 @@ describe('设置服务·卡片显隐停用集（工单101）', () => {
     try {
       ctx.settings!.setCardEnabled('search', false)
       const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'))
-      expect(onDisk.plugins).toEqual({ dir: 'D:\\deck-plugins', disabled: ['search'] })
+      expect(onDisk.plugins).toEqual({ dir: 'D:\\deck-plugins', disabled: ['search'], limits: {} })
       expect(onDisk.search).toEqual({ port: 39999, engine: 'auto', everythingPort: 80 })
       expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(config)
       // loadConfig 默认合并回读：重启后停用集原样回来（不得丢）

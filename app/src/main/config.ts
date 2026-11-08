@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, TaskbarTrayOverflowLimit, WeatherLocation } from '../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../shared/contract'
 import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
+import { mergeLimitsOverrides, type PackageLimitOverrides } from './plugins/limits'
 
 /** 面板几何（DIP 逻辑像素）：随 config.json 分发，缺省取主显示器全屏 */
 export interface PanelGeometry {
@@ -168,6 +169,13 @@ export interface PluginsConfig {
    * 未知 id 保留：目录暂缺的停用条目不丢，包放回来仍保持停用（重启保留语义同一出处）。
    */
   disabled: string[]
+  /**
+   * 限额覆写（工单345，ADR-0025「可收紧不可放宽」）：包 id → 权限 id → 限额键 → 正整数。
+   * 合并校验（放宽/非法值结构化拒绝，错误码 limit_widen_rejected / limit_invalid 登记
+   * 契约错误目录）在 plugins/limits.ts；生效值 = min(目录默认值, 覆写值)，Broker 构造期
+   * 读取，改配置重启面板后生效（不热更）。media.read 等其余权限限额不在开放覆写面。
+   */
+  limits: PackageLimitOverrides
 }
 
 /**
@@ -277,9 +285,10 @@ export function defaultAppearance(): AppearanceConfig {
   return { cardOpacity: 0.55 }
 }
 
-/** 默认插件目录：空串 = 由主进程解析为 userData/plugins（见 PluginsConfig 注释）；停用集缺省空 = 全启用 */
+/** 默认插件目录：空串 = 由主进程解析为 userData/plugins（见 PluginsConfig 注释）；
+ * 停用集缺省空 = 全启用；限额覆写缺省空 = 各包走权限目录默认值 */
 export function defaultPlugins(): PluginsConfig {
-  return { dir: '', disabled: [] }
+  return { dir: '', disabled: [], limits: {} }
 }
 
 /** 默认自启：开启（桌面常驻是第一诉求）；appDir 留空 = 未声明生产位置，面板不接管新建 */
@@ -413,6 +422,14 @@ function mergePlugins(raw: unknown, fallback: PluginsConfig, warnings: string[])
       if (dropped) warnings.push('config.plugins.disabled 含非法条目，已丢弃（合法条目保留）')
       out.disabled = ids
     }
+  }
+  // 限额覆写（工单345）：合并校验在 plugins/limits.ts（放宽 → limit_widen_rejected、
+  // 非法 → limit_invalid，逐条拒绝只剪该条目）；拒绝记录原样转 warning，被拒条目不进产物
+  const limits = section.limits
+  if (limits !== undefined) {
+    const merged = mergeLimitsOverrides(limits)
+    out.limits = merged.limits
+    for (const r of merged.rejections) warnings.push(r.message)
   }
   return out
 }

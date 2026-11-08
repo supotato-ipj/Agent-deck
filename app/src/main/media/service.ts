@@ -24,6 +24,8 @@ export interface MediaServiceOptions {
   /** 授权账（与插件宿主服务共用实例；缺省 = 无授权面——媒体数据不供任何包） */
   authorization?: PluginAuthorizationLedger | null
   log?(event: Record<string, unknown>): void
+  /** 工单345：每包限额覆写切片（config.plugins.limits 的 media.control 切片；构造期 min 生效，重启生效不热更） */
+  packageLimits?: Record<string, Record<string, number>>
 }
 
 /** 桥缺席端口（exe 缺失/未装配）：一切请求如实不可用 */
@@ -64,6 +66,7 @@ export class MediaService extends Service {
       authorization: options.authorization ?? null,
       audit: this.audit,
       log,
+      ...(options.packageLimits ? { packageLimits: options.packageLimits } : {}),
     }
     this.broker = new MediaBroker(brokerOpts)
     this.broker.start()

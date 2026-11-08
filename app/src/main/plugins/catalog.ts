@@ -230,13 +230,13 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'media_unavailable', kind: 'runtime', message: '系统媒体会话不可用' },
   { code: 'media_session_gone', kind: 'runtime', message: '目标媒体会话已消失（带代次会话键失效）' },
   { code: 'media_command_failed', kind: 'runtime', message: '媒体控制命令执行失败（目标当下能力不足或系统拒绝）' },
-  { code: 'media_rate_limited', kind: 'runtime', message: '媒体控制超过每包速率上限（commandsPerSecond=5）——稍后重试' },
+  { code: 'media_rate_limited', kind: 'runtime', message: '媒体控制超过每包速率上限（commandsPerSecond，生效值随包收紧，见 resourceLimits 投影）——稍后重试' },
   // —— 工单336 媒体域运行时错误（media.read 闭环）——
   { code: 'media_thumbnail_rejected', kind: 'runtime', message: '缩略图校验未通过（类型/大小越界）——拒付，一个字节不出' },
   { code: 'media_permission_denied', kind: 'gate', message: 'media.read 未授权（授权账无在册绑定或已撤销）——媒体数据不付' },
   { code: 'network_permission_denied', kind: 'gate', message: '目标 origin 未获授权（network.request 缺失/已撤销/origin 不在授予集）——请求不付' },
-  { code: 'network_rate_limited', kind: 'runtime', message: '网络请求超过每包速率或并发上限（requestsPerSecond=5、maxConcurrent=2）——稍后重试' },
-  { code: 'network_timeout', kind: 'runtime', message: '网络请求超时（timeoutMs=10s）——与权限拒绝分域' },
+  { code: 'network_rate_limited', kind: 'runtime', message: '网络请求超过每包速率或并发上限（requestsPerSecond / maxConcurrent，生效值随包收紧，见 resourceLimits 投影）——稍后重试' },
+  { code: 'network_timeout', kind: 'runtime', message: '网络请求超时（timeoutMs，生效值随包收紧）——与权限拒绝分域' },
   { code: 'network_redirect_blocked', kind: 'runtime', message: '重定向不自动跟随：返回目标 origin，如需访问须单独请求并先取得授权' },
   { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/方法不支持/非法 URL）' },
   // —— 工单339 命名凭证错误（凭证面与网络权限相互独立）——
@@ -245,6 +245,9 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'credential_unavailable', kind: 'gate', message: '命名凭证不可用（不存在/未绑定本包本 origin/密文不可解/加密能力不可用）——不静默改用其他凭证，也不撤销网络权限' },
   { code: 'credential_invalid', kind: 'gate', message: '凭证名/secret/headerName/origin 形状非法——拒绝写入' },
   { code: 'credential_store_unavailable', kind: 'runtime', message: '系统加密能力不可用（safeStorage/DPAPI 未就绪）——拒绝保存凭证，绝不落明文兜底' },
+  // —— 工单345 插件限额覆写（ADR-0025「可收紧不可放宽」的配置面拒绝）——
+  { code: 'limit_widen_rejected', kind: 'gate', message: '限额覆写超过目录默认值（可收紧不可放宽）——该条目已拒绝，限额维持默认' },
+  { code: 'limit_invalid', kind: 'gate', message: '限额覆写非法（非整数/非正数/未知权限或限额键/包 id 形态非法）——该条目已拒绝，限额维持默认' },
 ]
 
 /** 投放包 manifest 契约字段（与 dropped-manifest.ts 解析行为一一对应） */
@@ -322,14 +325,44 @@ export interface CatalogProjection {
   data: Record<string, unknown>
 }
 
+/** 单限额的两栏（工单345）：default = 权限目录正典；effective = min(默认, 用户覆写) */
+export interface PermissionLimitColumn {
+  default: number
+  effective: number
+}
+
+/** 权限 id → 限额键 → 两栏（resourceLimits 投影的 permissionLimits 形状） */
+export type PermissionLimitColumns = Record<string, Record<string, PermissionLimitColumn>>
+
+export interface ProjectCatalogOptions {
+  /** 工单345：按包两栏数据（收紧后可见生效值）；缺省 = 全目录默认值视图（effective === default） */
+  permissionLimitColumns?: PermissionLimitColumns
+}
+
 /** 批准 UI 可见段：权限（批准对象）、身份、基线域（告知包能拿什么）、资源上限 */
 const APPROVAL_UI_SECTIONS: readonly ProjectableSection[] = ['identity', 'baselineHostApi', 'permissions', 'resourceLimits']
+
+/** resourceLimits 投影缺省两栏：全目录权限限额的默认值视图（effective === default） */
+function defaultPermissionLimitColumns(): PermissionLimitColumns {
+  const out: PermissionLimitColumns = {}
+  for (const p of PERMISSIONS) {
+    out[p.id] = {}
+    for (const [key, value] of Object.entries(p.limits)) {
+      out[p.id][key] = { default: value, effective: value }
+    }
+  }
+  return out
+}
 
 /**
  * 同源投影：批准 UI 与 agent/MCP 从同一目录投影，不同受众裁剪不同段。
  * 纯函数、JSON 可序列化——投影结果可直出 IPC/工具描述，不含运行时对象。
+ *
+ * 工单345：resourceLimits 段 = { packages（投放包文件形状/预算，原样）+ permissionLimits
+ * （每权限限额「默认值/生效值」两栏）}——生效值经 options 传入按包两栏（收紧后可见），
+ * 缺省为默认值视图。两栏数据的计算统一在 plugins/limits.ts（min(默认, 覆写) 唯一口径）。
  */
-export function projectCatalog(catalog: PluginContractCatalog, audience: CatalogAudience): CatalogProjection {
+export function projectCatalog(catalog: PluginContractCatalog, audience: CatalogAudience, options?: ProjectCatalogOptions): CatalogProjection {
   const sections: readonly ProjectableSection[] = audience === 'agent'
     ? PROJECTABLE_CATALOG_SECTIONS
     : APPROVAL_UI_SECTIONS
@@ -352,7 +385,10 @@ export function projectCatalog(catalog: PluginContractCatalog, audience: Catalog
         data.errors = catalog.errors
         break
       case 'resourceLimits':
-        data.resourceLimits = catalog.resourceLimits
+        data.resourceLimits = {
+          packages: catalog.resourceLimits,
+          permissionLimits: options?.permissionLimitColumns ?? defaultPermissionLimitColumns(),
+        }
         break
     }
   }

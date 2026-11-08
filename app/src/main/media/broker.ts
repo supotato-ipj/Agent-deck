@@ -77,6 +77,12 @@ export interface MediaBrokerOptions {
   snapshotBytesLimit?: number
   /** 缩略图字节上限（缺省 2MB，ADR-0025 受控缩略图） */
   thumbnailMaxBytes?: number
+  /**
+   * 工单345：每包限额覆写切片（包 id → 限额键 → 值，config.plugins.limits 的
+   * media.control 切片）。构造期 min(契约默认, 覆写) 生效——覆写只会收紧，放宽与
+   * 非法值在此被数学钳制（配置面已先行结构化拒绝，这里是执行面双保险）。
+   */
+  packageLimits?: Record<string, Record<string, number>>
 }
 
 /** 桥 status → 封闭词表（未知值 = UNKNOWN，不透传原串） */
@@ -87,6 +93,13 @@ const GENRES_MAX = 8
 /** media.read 契约上限（catalog limits.snapshotBytes 同源） */
 const DEFAULT_SNAPSHOT_BYTES = 64 * 1024
 const DEFAULT_THUMB_MAX_BYTES = 2 * 1024 * 1024
+/** media.control 契约上限（catalog limits.commandsPerSecond 同源） */
+const DEFAULT_COMMANDS_PER_SECOND = 5
+
+/** 工单345：覆写值只许收紧——合法正数取 min(基线, 覆写)，其余（缺/非法/放宽）回落基线 */
+function clampTighter(raw: unknown, base: number): number {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), base) : base
+}
 
 function asString(v: unknown, max = FIELD_STRING_MAX): string {
   if (typeof v !== 'string') return ''
@@ -143,6 +156,8 @@ export class MediaBroker {
   private readonly opts: MediaBrokerOptions
   private readonly snapshotBytesLimit: number
   private readonly thumbnailMaxBytes: number
+  /** 工单345：每包控制速率生效值（构造期 min(契约默认, 覆写) 一次性算定；重启生效不热更） */
+  private readonly packageCommandsPerSecond: Map<string, number>
   private generation = 0
   private current: MediaSnapshotDTO = { generation: 0, available: false, selectedKey: null, sessions: [], controlGranted: false }
   private refreshTimer: NodeJS.Timeout | null = null
@@ -155,6 +170,15 @@ export class MediaBroker {
     this.opts = opts
     this.snapshotBytesLimit = opts.snapshotBytesLimit ?? DEFAULT_SNAPSHOT_BYTES
     this.thumbnailMaxBytes = opts.thumbnailMaxBytes ?? DEFAULT_THUMB_MAX_BYTES
+    this.packageCommandsPerSecond = new Map()
+    for (const [pkgId, raw] of Object.entries(opts.packageLimits ?? {})) {
+      this.packageCommandsPerSecond.set(pkgId, clampTighter(raw.commandsPerSecond, DEFAULT_COMMANDS_PER_SECOND))
+    }
+  }
+
+  /** 本包控制速率生效值（未覆写包 = 契约默认；覆写包 = 构造期 min(默认, 覆写)） */
+  private commandsPerSecondFor(packageId: string): number {
+    return this.packageCommandsPerSecond.get(packageId) ?? DEFAULT_COMMANDS_PER_SECOND
   }
 
   start(): void {
@@ -285,7 +309,7 @@ export class MediaBroker {
     }
     if (!this.controlRateOk(packageId)) {
       this.auditRecord(packageId, `control:${action}`, key, 'rate_limited')
-      return { ok: false, code: 'media_rate_limited', message: '控制命令超过每包速率上限（5/s）——稍后重试' }
+      return { ok: false, code: 'media_rate_limited', message: `控制命令超过每包速率上限（${this.commandsPerSecondFor(packageId)}/s）——稍后重试` }
     }
     if (!this.opts.bridge.control) {
       this.auditRecord(packageId, `control:${action}`, key, 'unavailable')
@@ -309,12 +333,12 @@ export class MediaBroker {
     return { ok: true, status }
   }
 
-  /** 按包控制限流（滚动 1s 窗，上限 5——契约 commandsPerSecond 同源） */
+  /** 按包控制限流（滚动 1s 窗，上限 = 该包 commandsPerSecond 生效值——契约默认 5，工单345 起可按包收紧） */
   private readonly controlWindows = new Map<string, number[]>()
   private controlRateOk(packageId: string): boolean {
     const now = Date.now()
     const win = (this.controlWindows.get(packageId) ?? []).filter((ts) => now - ts < 1000)
-    if (win.length >= 5) { this.controlWindows.set(packageId, win); return false }
+    if (win.length >= this.commandsPerSecondFor(packageId)) { this.controlWindows.set(packageId, win); return false }
     win.push(now)
     this.controlWindows.set(packageId, win)
     return true

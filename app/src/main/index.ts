@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { defaultAgentDesktop, defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile } from './config'
+import { packagePermissionSlice } from './plugins/limits'
 import { createPanelKernel } from './panel-kernel'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
@@ -454,10 +455,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     // config.conversation 下发；会话事件走 DECK_EVENT_LOG 存证。窗口唤起经控制器（下）。
     // 媒体域（工单336）：审计完整记录独立 JSONL（与控制面审计分离）；GSMTC 桥 exe 缺席
     // 时不拉起（Broker 明确不可用态——真机验收前置自证在场）。
+    // 工单345：media.control 限额覆写随 config.plugins.limits 下发（Broker 构造期 min 生效，重启生效）。
     media: {
       auditFile: userDataPath('media-audit.jsonl'),
       bridgeExePath: path.join(app.getAppPath(), 'resources', 'gsmtc-bridge', 'bridge.exe'),
       authorization: pluginAuthorizationLedger,
+      packageLimits: packagePermissionSlice(config.plugins.limits, 'media.control'),
       log: (event) => log?.append(event),
     },
     // 诊断读数（工单341 资源预算）：面板全进程工作集汇总（C10 段 0/1/5/10 包实测同源）
@@ -480,9 +483,11 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
     // 网络域（工单338）：审计完整记录独立 JSONL（与控制面/媒体审计分离）；授权账同一实例
     // （撤销即断供同源）。包页出站仍全拒——放行只经 deckHost.network.request → 本 Broker。
+    // 工单345：network.request 限额覆写随 config.plugins.limits 下发（Broker 构造期 min 生效，重启生效）。
     network: {
       auditFile: userDataPath('network-audit.jsonl'),
       authorization: pluginAuthorizationLedger,
+      packageLimits: packagePermissionSlice(config.plugins.limits, 'network.request'),
       log: (event) => log?.append(event),
     },
     conversation: {
