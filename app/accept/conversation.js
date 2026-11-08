@@ -1831,6 +1831,13 @@ PKGDIR=${pkgDirM}` });
         } else {
           rep.fail(`C12 停用面不符：deact=${JSON.stringify(deact12)}`);
         }
+        // ⑤（取样前置，工单344 评审）：toast 5s 自收，④ 的 panel/snapshot CDP eval 上限
+        // 15s——若 ④ 慢于自收窗口，断言窗口假红（flake 向量）。故 deact 事件一落点立即对
+        // TASKBAR 页取样（本段刚制造内存压力，取样越贴近事件越稳），断言仍在 ④ 之后按序出。
+        let toast12 = null;
+        try {
+          toast12 = await cdpEvalOn(TASKBAR_TITLE, '(() => { const t = document.getElementById("memory-toast"); return t && t.dataset.on === "1" ? t.textContent : null })()', 10000);
+        } catch { toast12 = null; rep.note('C12 条带 toast 取样口缺席：DECK-TASKBAR 页面目标未找到（taskbar.enabled 应为 true）'); }
         // ④ 包进错误态（账不删）：dropped 清单保留该包、错误文案带契约错误码
         let errInfo12 = null;
         try {
@@ -1843,11 +1850,7 @@ PKGDIR=${pkgDirM}` });
         } else {
           rep.fail(`C12 错误态不符：info=${JSON.stringify(errInfo12)}`);
         }
-        // ⑤ 用户可见反馈：条带 toast 逐字透出停用原因（5s 自收——事件落地即查）
-        let toast12 = null;
-        try {
-          toast12 = await cdpEvalOn(TASKBAR_TITLE, '(() => { const t = document.getElementById("memory-toast"); return t && t.dataset.on === "1" ? t.textContent : null })()', 10000);
-        } catch { toast12 = null; rep.note('C12 条带 toast 取样口缺席：DECK-TASKBAR 页面目标未找到（taskbar.enabled 应为 true）'); }
+        // ⑤ 用户可见反馈（断言）：取样已在 ③ 落点完成——条带 toast 逐字透出停用原因
         if (toast12 && String(toast12).includes('Mem Hog') && String(toast12).includes('停用')) {
           rep.pass('条带 toast 用户可见：停用原因逐字透出（「Mem Hog」「停用」，复用拖入失败 toast 图案 5s 自收）');
         } else {

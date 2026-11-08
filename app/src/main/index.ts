@@ -620,9 +620,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 账/包文件不动、不自动重挂）。无在场投放包即停表（开销有界）。
   const droppedPackageNameOf = (id: string): string =>
     (kernelRef?.plugins.droppedInfo() ?? []).find((p) => p.id === id)?.name ?? id
+  // 在场包 id 集（status=ok 的 dropped 清单）：采样事实源与离场清账比对共用同一口径
+  const livePackageIds = (): readonly string[] =>
+    (kernelRef?.plugins.droppedInfo() ?? []).filter((p) => p.status === 'ok').map((p) => p.id)
   const memorySentinel = new PackageMemorySentinel(
     {
-      livePackageIds: () => (kernelRef?.plugins.droppedInfo() ?? []).filter((p) => p.status === 'ok').map((p) => p.id),
+      livePackageIds,
       pidEntries: () => droppedPackageHost.pidEntries(),
       readWorkingSetBytes: (pid) => {
         const m = app.getAppMetrics().find((x) => x.pid === pid)
@@ -646,8 +649,21 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
   )
   memorySentinel.refresh()
-  // 在场包集变化驱动启停（无包停表，开销有界）
-  kernel.on('dropped-plugins/changed', () => memorySentinel.refresh())
+  // 在场包集变化驱动启停（无包停表，开销有界）+ 离场清账：包经非哨兵路径离场（崩溃
+  // markDroppedCrashed、用户停用、permission-revoked、移除）时滞回账本的 streak 若不清，
+  // 换代/重投回来后旧计数串到新 episode——新代次首轮超线即二轮（静默跳过告警 toast）
+  // 甚至当场停用，违反「首次超线=告警不处置」。所有离场路径都收敛到 publishDropped，
+  // 故在 changed 拍上对「上一轮在场、本轮不在场」的 id 透传 forget（幂等；哨兵自己
+  // 停用的路径账本已出表，重复清账无副作用）。
+  let lastLiveSentinelIds: readonly string[] = []
+  kernel.on('dropped-plugins/changed', () => {
+    const live = livePackageIds()
+    for (const id of lastLiveSentinelIds) {
+      if (!live.includes(id)) memorySentinel.forget(id)
+    }
+    lastLiveSentinelIds = [...live]
+    memorySentinel.refresh()
+  })
   kernel.on('dispose', () => memorySentinel.dispose())
   // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。

@@ -208,6 +208,17 @@ export class PackageMemorySentinel {
     else this.stopTimer()
   }
 
+  /**
+   * 离场清账透传（工单344 评审）：包经非哨兵路径离场（渲染进程崩溃、用户停用、
+   * 权限撤销、移除）时 streak 若不清，换代/重投回来后旧计数串到新 episode——新代次
+   * 首轮超线即二轮（静默跳过告警）甚至当场停用，违反「首次超线=告警不处置」。
+   * 生产装配在 dropped-plugins/changed 拍上对「上一轮在场、本轮不在场」的 id 调用；
+   * 哨兵自己停用的路径账本已出表，此处幂等不重放。
+   */
+  forget(packageId: string): void {
+    this.ledger.forget(packageId)
+  }
+
   /** 一轮采样：投影 → 判账 → 分发（定时器与测试共用入口） */
   sampleOnce(): void {
     const live = this.ports.livePackageIds()

@@ -168,6 +168,43 @@ describe('阈值滞回（单测矩阵 3）：首次超限=告警、连续 3 轮=
     expect(ledger.rounds).toBe(3)
   })
 
+  it('离场清账（工单344 评审）：中途崩溃/停用离场→forget→换代重灌读数，新 episode 首次超线仍先告警不处置', () => {
+    // 模拟生产装配的 dropped-plugins/changed 纪律（index.ts）：在场集变化拍上，
+    // 「上一轮在场、本轮不在场」的 id 透传 forget——streak 不许串到重新投放的新 episode
+    const readTable = new Map<number, number | null>([[7, 150 * MB]])
+    const pidReg = new PackagePidRegistry()
+    pidReg.record('hog', 7)
+    let live: string[] = ['hog']
+    const actions: SentinelAction[] = []
+    const sentinel = new PackageMemorySentinel(
+      {
+        livePackageIds: () => live,
+        pidEntries: () => pidReg.entries(),
+        readWorkingSetBytes: (pid) => readTable.get(pid) ?? null,
+      },
+      { onAlert: (a) => actions.push({ type: 'alert', ...a }), onDeactivate: (a) => actions.push({ type: 'deactivate', ...a }) },
+      { thresholdBytes: THRESHOLD, rounds: 3, intervalMs: 10_000 },
+    )
+    const sample = () => sentinel.sampleOnce()
+    // 旧 episode：超线 1 轮（告警）→ 崩溃离场（status≠ok，live 出表 + forget 清账）
+    sample()
+    expect(actions).toEqual([{ type: 'alert', packageId: 'hog', bytes: 150 * MB, thresholdBytes: THRESHOLD }])
+    live = []
+    for (const id of ['hog']) if (!live.includes(id)) sentinel.forget(id) // 与 index.ts 同一纪律
+    // 换代重投：新 pid 新代次，重灌罐头读数
+    pidReg.record('hog', 8)
+    readTable.set(8, 150 * MB)
+    live = ['hog']
+    sample() // 新 episode 首轮超线：必须重新告警（旧 streak=1 不许串账跳过告警）
+    expect(actions).toHaveLength(2)
+    expect(actions[1]).toEqual({ type: 'alert', packageId: 'hog', bytes: 150 * MB, thresholdBytes: THRESHOLD })
+    sample()
+    expect(actions).toHaveLength(2) // 第 2 轮：确认窗继续，无动作
+    sample()
+    expect(actions).toHaveLength(3) // 第 3 轮：停用
+    expect(actions[2]).toMatchObject({ type: 'deactivate', rounds: 3 })
+  })
+
   it('refresh：有在场包起表、无包停表（开销有界）；dispose 收表', () => {
     vi.useFakeTimers()
     try {
