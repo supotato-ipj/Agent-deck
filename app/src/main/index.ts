@@ -1,4 +1,5 @@
 import { app, BrowserWindow, screen, shell } from 'electron'
+import type { Tray } from 'electron'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -23,7 +24,8 @@ import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
 import { attachLagSentinel, panelLabels } from './lag-sentinel'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
-import { forceShowNativeTaskbar, restoreNativeTaskbarIfHidden } from './taskbar/native'
+import { forceShowNativeTaskbar, pidOfWindow, restoreNativeTaskbarIfHidden } from './taskbar/native'
+import { startTrayOwnReconcile } from './tray-own-reconcile'
 import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
@@ -576,6 +578,32 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       onTrayEvent: options.traySpike ? onTrayEvent : undefined,
     },
   })
+  // 托盘自有图标对账（工单437）：宿主重建广播后自家图标 NIM_ADD 会被 OS 管线间歇粘进
+  // explorer（#325 路由族 own-icon 变体，坏态按身份粘住不自愈）——缺席即 destroy +
+  // recreate Tray（新回调窗 = 新身份重抽路由签，destroy 按持位路由顺手清 explorer 副本），
+  // 与 #430 探针 miss→重注纪律族统一。订阅必须先于 kernel.start（首拍 tray-host-ready
+  // 不漏）；tray 此时未建，reinject 经 trayHolder 惰性取用（Tray 在下方开窗段创建）。
+  const trayHolder: { current: Tray | null } = { current: null }
+  startTrayOwnReconcile({
+    // 面板进程生命周期即订阅生命周期——退订缝留空（dispose 语义由离线测试覆盖）
+    subscribeTrayEvent: (cb) => {
+      kernel.on('dataplane/tray-event', (e: TrayWireEvent) => cb({ kind: e.kind, hwnd: e.hwnd }))
+      return () => {}
+    },
+    subscribeTrayHost: (cb) => {
+      kernel.on('dataplane/tray-host', (e: { type: string }) => cb(e))
+      return () => {}
+    },
+    windowPidOf: (hwnd) => pidOfWindow(Number(hwnd)),
+    ownPid: process.pid,
+    reinject: () => {
+      const t = trayHolder.current
+      if (!t) return
+      t.destroy()
+      trayHolder.current = createTray(trayHooks)
+    },
+    log: (event) => log?.append(event),
+  })
   await kernel.start()
   kernelRef = kernel
   // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
@@ -718,10 +746,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   wireConversationQuitGuard(conversationCtl)
   app.on('before-quit', () => conversationCtl.dispose())
 
-  const tray = createTray({ onShowPanel: () => showPanel('tray-click'), onShowConversation: () => conversationCtl.show() })
+  // Tray 入 trayHolder（工单437 对账的 reinject 目标）：缺席重建时 hooks 原样复用，
+  // before-quit 销毁的恒是当届实例。
+  const trayHooks = { onShowPanel: () => showPanel('tray-click'), onShowConversation: () => conversationCtl.show() }
+  trayHolder.current = createTray(trayHooks)
   app.on('before-quit', () => {
     log?.append({ type: 'quit' })
-    tray.destroy()
+    trayHolder.current?.destroy()
   })
 
   win.once('ready-to-show', () => {
