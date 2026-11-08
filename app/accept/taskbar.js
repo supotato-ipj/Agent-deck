@@ -4384,14 +4384,13 @@ static class Probe {
     tStep = mark26('P16清场含回收站', tStep);
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     tStep = mark26('配置还原', tStep);
-    // 工单402：用户生产配置漂移检查——轮内不该有任何写入；命中即判红并还原（checkConfigDrift 已还原）
-    const drift402 = checkConfigDrift(userConfigSnapshot);
-    tStep = mark26('用户config漂移检查', tStep);
-    if (drift402.drifted) {
-      rep.exclude(`用户 config 漂移：轮内被改动，已还原（sha ${drift402.beforeSha} → ${drift402.afterSha}）`,
-        '用户生产 config.json 被电池轮改动', 'config-drift');
+    // 工单402：用户生产配置外写检查——轮内不该有任何写入；命中即判红并还原（checkConfigDrift 已还原）
+    const configDrift = checkConfigDrift(userConfigSnapshot);
+    tStep = mark26('用户config外写检查', tStep);
+    if (configDrift.drifted) {
+      rep.fail(`用户 config 外写：轮内被改动，已还原（sha ${configDrift.beforeSha} → ${configDrift.afterSha}）`);
     } else {
-      rep.note('用户 config 漂移检查：轮内零改动');
+      rep.note('用户 config 外写检查：轮内零改动');
     }
     // ——残留自检（窄口径，工单256 AC）：无遗留 DECK-ACCEPT-SUMMON 参照窗、
     //    无本电池 DECK-P16-* 桌面探针残留。发现残留先清（可恢复删除）再判红。

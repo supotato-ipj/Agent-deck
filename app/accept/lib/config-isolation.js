@@ -23,8 +23,8 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { snapshotConfig, checkConfigDrift } = require('./battery-cleanup');
-
-const DEFAULT_USER_CONFIG_FILE = path.resolve(__dirname, '..', '..', 'config.json');
+// 生产落点单点定义归 battery-config（USER_CONFIG_FILE 与环境无关，早加载无副作用）
+const { USER_CONFIG_FILE } = require('./battery-config');
 
 /** 每检出独立 guard 目录：按用户配置绝对路径取短哈希（大小写不敏感盘符口径） */
 function guardDirFor(userConfigFile, tmpRoot) {
@@ -39,16 +39,16 @@ let roundSeq = 0;
 
 /**
  * 准备本轮隔离落点（控制器分发时调用一次）。
- * @param {{userConfigFile?: string, tmpRoot?: string, tag?: string, guardDir?: string}} [deps]
- *   userConfigFile 缺省 app/config.json；tmpRoot 缺省 os.tmpdir()；单测注入沙箱路径
+ * @param {{userConfigFile?: string, tmpRoot?: string}} [deps]
+ *   userConfigFile 缺省 battery-config.USER_CONFIG_FILE；tmpRoot 缺省 os.tmpdir()；单测注入沙箱路径
  * @returns {{isolatedFile: string, guardDir: string, snapshot: object, residueRestored: boolean,
  *   residueBeforeSha: string|null, checkDrift: () => object, dispose: () => void}}
  */
 function prepareIsolation(deps = {}) {
-  const userConfigFile = path.resolve(deps.userConfigFile || DEFAULT_USER_CONFIG_FILE);
+  const userConfigFile = path.resolve(deps.userConfigFile || USER_CONFIG_FILE);
   const tmpRoot = deps.tmpRoot || os.tmpdir();
-  const guardDir = deps.guardDir || guardDirFor(userConfigFile, tmpRoot);
-  const tag = deps.tag || `${process.pid}-${Date.now()}-${roundSeq++}`;
+  const guardDir = guardDirFor(userConfigFile, tmpRoot);
+  const tag = `${process.pid}-${Date.now()}-${roundSeq++}`;
   const isolatedFile = path.join(guardDir, `config-${tag}.json`);
   const snapshotFile = path.join(guardDir, 'snapshot.json');
 
@@ -59,9 +59,9 @@ function prepareIsolation(deps = {}) {
   let residueBeforeSha = null;
   try {
     const previous = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
-    const judged = checkConfigDrift(previous);
-    residueRestored = judged.drifted;
-    residueBeforeSha = judged.afterSha;
+    const drift = checkConfigDrift(previous);
+    residueRestored = drift.drifted;
+    residueBeforeSha = drift.afterSha;
   } catch { /* 无残留快照（首轮或上轮正常收尾） */ }
 
   const snapshot = snapshotConfig(userConfigFile);
@@ -92,9 +92,9 @@ function prepareIsolation(deps = {}) {
 function installCrashGuard(handle, proc = process, log = console) {
   const onFatal = (code, reason) => {
     try {
-      const judged = handle.checkDrift();
-      if (judged.drifted) {
-        log.error(`[accept] ${reason}：用户 config 发现漂移，已还原（${judged.beforeSha} → ${judged.afterSha}）`);
+      const drift = handle.checkDrift();
+      if (drift.drifted) {
+        log.error(`[accept] ${reason}：用户 config 发现外写，已还原（${drift.beforeSha} → ${drift.afterSha}）`);
       }
     } finally {
       try { handle.dispose(); } catch { /* 尽力 */ }

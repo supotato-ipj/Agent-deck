@@ -52,7 +52,8 @@ function createBatteryConfig(configFile) {
 }
 
 module.exports = {
-  // 每次访问按当前环境解析（模块导出 getter：电池在加载后解构也能拿到注入后的落点）
+  // 每次访问按当前环境解析（模块导出 getter：电池模块在分发注入覆盖之后才被 require，
+  // 顶层解构即拿到隔离落点；缺省实例的函数则始终按调用时环境解析）
   get CONFIG_FILE() { return effectiveConfigFile(); },
   USER_CONFIG_FILE,
   createBatteryConfig,

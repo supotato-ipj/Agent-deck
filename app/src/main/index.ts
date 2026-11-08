@@ -899,12 +899,12 @@ if (RESTORE_MODE) {
       const exitApp = app.exit.bind(app)
       app.exit = (code?: number) => {
         try {
-          const judged = isolation.checkDrift()
-          if (judged.drifted) {
-            console.error(`[accept] 轮末 config 漂移已还原（${judged.beforeSha} → ${judged.afterSha}）`)
+          const drift = isolation.checkDrift()
+          if (drift.drifted) {
+            console.error(`[accept] 轮末 config 外写已还原（${drift.beforeSha} → ${drift.afterSha}）`)
           }
         } catch (err) {
-          console.error('[accept] 轮末 config 漂移检查失败:', err)
+          console.error('[accept] 轮末 config 外写检查失败:', err)
         } finally {
           isolation.dispose()
           exitApp(code)

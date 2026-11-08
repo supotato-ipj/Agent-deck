@@ -4,14 +4,10 @@ import type { ConfigDrift, ConfigSnapshot } from './battery-cleanup'
 
 /** prepareIsolation 注入面（全部可缺省走真机路径；单测注入沙箱） */
 export declare interface PrepareIsolationDeps {
-  /** 用户生产配置（缺省 app/config.json）——只读播种，轮内零写入 */
+  /** 用户生产配置（缺省 battery-config.USER_CONFIG_FILE）——只读播种，轮内零写入 */
   userConfigFile?: string
   /** 一次性产物的根目录（缺省 os.tmpdir()） */
   tmpRoot?: string
-  /** 隔离文件名标签（缺省 pid-时间-序号） */
-  tag?: string
-  /** guard 目录显式覆盖（缺省按用户配置路径取短哈希） */
-  guardDir?: string
 }
 
 /** 本轮隔离句柄 */
