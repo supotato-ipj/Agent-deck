@@ -110,7 +110,18 @@ export class PluginAuthorizationLedger {
     const tmp = `${this.opts.file}.tmp`
     fs.mkdirSync(path.dirname(this.opts.file), { recursive: true })
     fs.writeFileSync(tmp, JSON.stringify(body, null, 2) + '\n', 'utf8')
-    fs.renameSync(tmp, this.opts.file)
+    // Windows：杀毒/索引服务可能短暂占用目标文件（EPERM/EBUSY）——短退避重试，原子性不变
+    // （同款先例：credentials/store.ts persist；全量电池并行时实测瞬时 EPERM 翻车一次）
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.renameSync(tmp, this.opts.file)
+        return
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (attempt >= 2 || (code !== 'EPERM' && code !== 'EBUSY')) throw err
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25)
+      }
+    }
   }
 
   /**
