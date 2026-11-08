@@ -2721,7 +2721,11 @@ async function main() {
         await sleep(600);
         // 恢复存证按监视 pid 取（自家图标属主=面板主进程）：P14 的 invoke 右键臂也起过
         // 一拍让位窗（探针属主=电池进程、无菜单⇒10s 超时兜底），不按 pid 过滤会捡错那条。
-        const restoredB = await tape.wait('taskbar-tray-yield-restored', (e) => e.pid === panelPid, { since: tB, timeoutMs: 8000 });
+        // 等待窗须覆盖 host 让位超时兜底 TRAY_YIELD_TIMEOUT_MS=10s +一拍（工单401）：
+        // 旧 8s < 10s，凡走超时/晚 foreground-changed 路径的轮，存证结构性落在窗外
+        // 报 null——及时性断言口径不变（reason≠timeout && elapsedMs<3000），这里只
+        // 把失败轮的存证从 null 变成可判读的 reason/elapsedMs。
+        const restoredB = await tape.wait('taskbar-tray-yield-restored', (e) => e.pid === panelPid, { since: tB, timeoutMs: 10500 });
         const fgAfterB = fgInfo27();
         const topmostB = isTopmost(strip13);
         const pairB = !!(evB && evB.posted === true && evB.packs && evB.packs.length === 2
@@ -2887,7 +2891,8 @@ async function main() {
           const menuO = await waitOwnMenu27(6000);
           win32.tapKeys([VK_ESC]);
           await sleep(600);
-          const restoredO = await tape.wait('taskbar-tray-yield-restored', (e) => e.pid === panelPid, { since: tO, timeoutMs: 8000 });
+          // 等待窗同臂3 口径：覆盖 host 10s 超时兜底 +一拍（工单401），断言口径不变。
+          const restoredO = await tape.wait('taskbar-tray-yield-restored', (e) => e.pid === panelPid, { since: tO, timeoutMs: 10500 });
           const fgAfterO = fgInfo27();
           const timelyO = !!(restoredO && restoredO.reason !== 'timeout' && Number(restoredO.elapsedMs) < 3000);
           p27Arm(!!menuO, '臂4溢出菜单出现', menuO ? `前台=自家进程窗 cls=${menuO.cls} hwnd=${menuO.hwnd}（到靶=${convergedO}）` : '溢出入口自家菜单未出现');

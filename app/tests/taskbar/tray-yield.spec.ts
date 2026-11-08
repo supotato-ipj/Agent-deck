@@ -99,6 +99,26 @@ describe('TrayYieldMachine（托盘让位闸门状态机）', () => {
     expect(d).toEqual({ action: 'restore', reason: 'menu-closed', elapsedMs: 400 })
   })
 
+  it('工单401：起拍时自家前台窗（溢出宿主/条带）不得被记成菜单窗——基线窗常驻不销毁，误记会让 menuHwndGone 变死信号拖到 10s 超时', () => {
+    // 臂4 溢出径的物理时序：点 ⋯ 的左键已把前台交给自家进程 ⇒ 起拍 fgPid=ownPid、
+    // fgHwnd=自家常驻窗（Electron_NotifyIconHostWindow 等）。该窗在菜单收起后仍存活
+    // ⇒ 若被记成 menuHwnd，「菜单窗已销毁」永远判不出 ⇒ 只能等 10s 超时兜底
+    // （2026-11-07 三连跑 r1 timeout elapsed=10107 / r3 foreground-changed elapsed=9914 实证）。
+    const HOST_HWND = 9001 // 起拍时的自家前台窗（常驻）
+    const MENU_HWND = 9002 // 真菜单窗（后诞生、异于基线）
+    const m = new TrayYieldMachine()
+    m.begin(OWN_PID, OWN_PID, OWN_PID, T0, HOST_HWND) // 目标=自家图标属主；起拍前台=自家宿主窗
+    // 菜单未开的头几拍：fg 仍落在基线宿主窗上——不得误记为菜单窗
+    expect(m.poll({ menuCount: 0, fgPid: OWN_PID, fgHwnd: HOST_HWND, now: T0 + 150 }).action).toBe('hold')
+    expect(m.menuWindowHwnd).toBe(0)
+    // 真菜单窗夺前台：记下的必须是它（异于基线）
+    expect(m.poll({ menuCount: 0, fgPid: OWN_PID, fgHwnd: MENU_HWND, now: T0 + 300 }).action).toBe('hold')
+    expect(m.menuWindowHwnd).toBe(MENU_HWND)
+    // 菜单收起（宿主窗仍在前台/存活）：menuHwndGone 命中 → 及时 menu-closed，不等 10s
+    const d = m.poll({ menuCount: 0, fgPid: OWN_PID, fgHwnd: HOST_HWND, menuHwndGone: true, now: T0 + 500 })
+    expect(d).toEqual({ action: 'restore', reason: 'menu-closed', elapsedMs: 500 })
+  })
+
   it('前台无窗（0）或自家进程成前台 → 不触发前台变化路径', () => {
     const m = began()
     expect(hold(m, T0 + 1_000, 0, 0).action).toBe('hold')
