@@ -16,7 +16,7 @@ import { HotzoneTracker } from '../hotzone'
 import type { EventLog } from '../panel-ipc'
 import { wireBridgeIpc, wireHostIpc } from '../panel-ipc'
 import { taskbarUrl } from '../plugins/protocol'
-import { setTopmost, hwndOf } from '../win32'
+import { setTopmost, hwndOf, moveBelow, ownWindowsAbove, isTopmost } from '../win32'
 import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTaskbarVisible, pidOfWindow, showNativeTaskbar, windowAlive } from './native'
 import { grantTrayForeground } from './foreground'
 import { getAppBarState } from './appbar'
@@ -26,6 +26,7 @@ import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './
 import type { SnapSessionEndCause, SnapWindowFact } from './snap'
 import { ABS_AUTOHIDE, planBarTransition, resolveBarMode, retractHeldByZoomed } from './retract'
 import type { BarMode } from './retract'
+import { planTopmostReassert } from './topmost-plan'
 import { NATIVE_WATCH_POLL_MS, NativeReassertMachine } from './native-watch'
 import type { NativeWatchProbe } from './native-watch'
 import { TrayYieldMachine, TRAY_YIELD_POLL_MS } from './tray-yield'
@@ -507,21 +508,34 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   }
 
   /**
-   * 置顶重申（ADR-0007 已知风险 + 工单194 托盘让位闸门）：条带是 WS_EX_TOPMOST 带，
-   * 置顶重申有三处（500ms keepalive、热区离开、全屏让位恢复拍）——重申点把条带抢回
-   * 置顶带，应用右键菜单就又被压回条带之下，修复等于白做（工单194 票面验收第二条款）。
-   * → 闸门置位期间一律跳过并落存证。
+   * 置顶重申（ADR-0007 已知风险 + 工单194 托盘让位闸门 + 工单450 自家浮层让位）：
+   * 条带是 WS_EX_TOPMOST 带，置顶重申点（500ms keepalive、热区离开、键盘 pin、
+   * shown、全屏让位恢复拍）全部经本单漏斗，闸门与让位各管一段：
+   * - **托盘回放让位闸门**（工单194）：闸门置位期间一律跳过并落存证——重申点把条带
+   *   抢回置顶带，第三方应用右键菜单就又被压回条带之下，修复等于白做（票面验收第二条款）。
+   * - **自家浮层让位**（工单450）：旧版每拍无条件 HWND_TOPMOST 把条带插到置顶带顶，
+   *   压过同带内后诞生的自家弹出物（六菜单面浮层窗开层 64~366ms 即被反压、hover 原生
+   *   tooltip 出生下一拍即被压，取证 popup-z-forensics 三轮红）。裁决归纯函数
+   *   planTopmostReassert（单测钉）：条带上方无本进程可见窗=行为与旧版逐字一致（对世界
+   *   照抢）；有（浮层/tooltip）=插到最低一枚自家窗正下方（对自家让位，置顶位丢失仍先回带）。
    *
    * **收栏态不改这条**（工单241）：收栏态条带窗仍须压在最大化窗之上（唤出条贴屏底、
    * 可见、可点），置顶重申与收栏共存。收栏**不另起第二套置顶抑制机制**——两套抑制
-   * 互踩会让 z 序断言 flaky（票面取证第 2 条）。
+   * 互踩会让 z 序断言 flaky（票面取证第 2 条）；自家让位不是抑制（重申照走、只改落点），
+   * 与该裁决正交。
    */
   const assertTop = (s: TaskbarSession, reason: string): void => {
     if (trayYield) {
       log?.append({ type: 'taskbar-topmost-suppressed', reason })
       return
     }
-    if (!s.win.isDestroyed()) setTopmost(hwndOf(s.win), true)
+    if (s.win.isDestroyed()) return
+    const hwnd = hwndOf(s.win)
+    const plan = planTopmostReassert({ topmost: isTopmost(hwnd), ownAbove: ownWindowsAbove(hwnd, process.pid) })
+    if (plan.jump) setTopmost(hwnd, true)
+    if (plan.below !== null && moveBelow(hwnd, plan.below)) {
+      log?.append({ type: 'taskbar-topmost-own-yield', reason, below: plan.below })
+    }
   }
 
   /**
@@ -700,17 +714,12 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       applyBarMode(s, mode, probe)
     }, YIELD_POLL_MS)
     // 热区离开重申置顶：热区交互（点击）会顶起 z 序归属变化（探针01-C 同机制），
-    // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。让位闸门置位期间跳过
-    // （工单194：菜单就铺在条带热区上，鼠标划过菜单/热区边缘的离开拍不许抢回置顶）。
+    // 面板离开重钉底，任务栏离开重置顶——两窗语义相反。让位闸门与自家浮层让位
+    // 都在 assertTop 单漏斗内裁决（工单194 抑制存证 reason=hotzone-leave 语义不变；
+    // 工单450：离开拍若发生在自家浮层在场时，照旧重申但插浮层之下，不再反压）。
     s.tracker = new HotzoneTracker(w, {
       onLeave: () => {
-        if (trayYield) {
-          log?.append({ type: 'taskbar-topmost-suppressed', reason: 'hotzone-leave' })
-          return
-        }
-        if (!w.isDestroyed() && setTopmost(hwndOf(w), true)) {
-          log?.append({ type: 'taskbar-topmost', reason: 'hotzone-leave' })
-        }
+        assertTop(s, 'hotzone-leave')
       },
       onTransition: (hot) => log?.append({ type: hot ? 'taskbar-hotzone-enter' : 'taskbar-hotzone-leave' }),
       // 工单242 指针对账：热区跟踪器按光标坐标 hit-test 的结论下发条带渲染层——
@@ -726,13 +735,10 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // plugins/memory-* = 包内存哨兵告警/停用反馈（工单344）：条带内 toast（5s 自收）
     wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state', 'workspace/changed', 'workspace/drag-in-changed', 'workspace/drag-in-feedback', 'plugins/memory-alert', 'plugins/memory-deactivated'])
     wireHostIpc(w, s.tracker, log, {
-      // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶
-      pin: (v) => {
-        if (trayYield) {
-          log?.append({ type: 'taskbar-topmost-suppressed', reason: 'keyboard-pin' })
-          return
-        }
-        setTopmost(hwndOf(v), true)
+      // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶（抑制与
+      // 自家让位同在 assertTop 单漏斗，工单450 收口——原裸 setTopmost 会越过自家浮层）
+      pin: () => {
+        assertTop(s, 'keyboard-pin')
       },
       onNotify: (type, payload) => {
         // 渲染层就绪握手（工单241）：条带页加载期可能错过早先的档位下发（订阅晚于首推）
