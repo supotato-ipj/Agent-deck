@@ -37,3 +37,21 @@ app/accept/evidence/**/*.png
 
 # 根级 node_modules（vitest/npx 缓存；2026-10-31 工单337 误入一次）
 /node_modules/
+
+# 会话工作底稿（取证轮日志/PR 底稿/验收脚本等）只留本地：票面结论已进 GitHub Issues/PR，
+# 裸底稿不入库也不进 git 状态（2026-11-09 状态卫生；PNG 口径同上两条）
+.scratch/
+
+# coding agent 的项目本地配置（同 .zcode/ 口径）
+.zcodeignore
+
+# 运行时配置的本地备份（config.json 本体已忽略）
+app/config.json.bak*
+
+# 一次性交互原型（自标「勿入生产」，双击打开的验证件）：只留本地不入库
+app/src/main/desktop/agent-tiling-hybrid.prototype.html
+app/src/renderer/taskbar-redesign.prototype.html
+
+# 证据分级入库（spec #281）扩展：jpg/jpeg 截图同 PNG 口径，只留本地
+app/accept/evidence/**/*.jpg
+app/accept/evidence/**/*.jpeg
