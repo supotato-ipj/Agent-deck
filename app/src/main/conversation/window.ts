@@ -6,6 +6,8 @@
 // - 显式「结束会话」（conversation/end）或面板退出（dispose）才回收每会话进程；
 // - 面板退出前若有在途 turn，弹一次确认（ADR-0018「退出不确认」的反对理由），确认后
 //   全部会话随内核 dispose 终止，不留后台孤儿（Job Object kill-on-close 兜底）。
+//   例外（工单431，ADR-0030）：--panel-quit 无人径旁路确认框（guard 清场等不了人，
+//   等价自动选「终止会话并退出」，正文由后端保存可续接）。
 //
 // 页面经 deck-plugin:// 协议加载（与面板页/条带页同源同通道），桥接事件按窗订阅
 // conversation/changed（wireBridgeIpc 的显式事件清单）。
@@ -13,6 +15,7 @@
 import { app, BrowserWindow, dialog } from 'electron'
 import path from 'node:path'
 import type { Context } from 'cordis'
+import { isPanelQuitRequested } from '../panel-quit'
 import { conversationUrl } from '../plugins/protocol'
 import { wireBridgeIpc } from '../panel-ipc'
 import type { EventLog } from '../panel-ipc'
@@ -94,6 +97,13 @@ export function startConversationWindow(options: ConversationWindowOptions): Con
   function confirmQuitIfBusy(): boolean {
     const busy = ctx.conversation?.hasInFlightTurns() ?? false
     if (!busy) return true
+    // --panel-quit 无人径（工单431，ADR-0030）：guard 清场等不了人，闩置位即旁路确认框，
+    // 等价自动选「终止会话并退出」（正文由后端保存可续接）；托盘/设置浮层的有人径不走
+    // 此闩、保留确认框——无人/有人退出语义分岔见 ADR-0030。
+    if (isPanelQuitRequested()) {
+      log?.append({ type: 'quit-busy-bypassed', source: 'panel-quit' })
+      return true
+    }
     const choice = dialog.showMessageBoxSync({
       type: 'question',
       buttons: ['终止会话并退出', '取消'],

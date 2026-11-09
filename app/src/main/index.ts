@@ -31,6 +31,7 @@ import { restoreAppBarStateFromLedger } from './taskbar/appbar-ledger'
 import { defaultDesktopRoots } from './desktop/adapter'
 import { installPluginProtocol, panelUrl, registerPluginScheme } from './plugins/protocol'
 import { startConversationWindow, wireConversationQuitGuard } from './conversation/window'
+import { dispatchSecondInstance, hasPanelQuitFlag, planQuitInstance, requestPanelQuit } from './panel-quit'
 import { createNodeProjectionSource, type ManagedProjectionSource } from './conversation/managed-projection'
 import { SessionCredentialRegistry } from './conversation/managed-credentials'
 import { productionPluginRoots } from './plugins/roots'
@@ -105,6 +106,19 @@ const PANEL_MODE = process.argv.includes('--panel')
 const PANEL_ACCEPT_MODE = process.argv.includes('--panel-accept')
 const TRAY_SPIKE_MODE = process.argv.includes('--tray-spike')
 const RESTORE_MODE = process.argv.includes('--icon-restore')
+/**
+ * 退出实例（工单431，ADR-0030）：带 --panel-quit 拉起的一次性退出信使——不拉任何 UI，
+ * 只把退出意图经单实例锁的 argv 转发给持锁面板（guard 清场优雅径的无人入口）。
+ * 分支置于文件尾启动链的**外层守卫默认分支之前**（旧位置会反拉新面板，见 ADR-0030）。
+ */
+const PANEL_QUIT_MODE = hasPanelQuitFlag(process.argv)
+
+/**
+ * second-instance 的 showPanel 晚绑钩子（工单431）：分发点提前到拿锁时刻注册（文件尾
+ * 面板分支），彼时 bootPanel 尚未装配、showPanel 闭包不存在——先占位 no-op（半开机态
+ * 二次拉起维持既有 no-op 口径），bootPanel 走到旧注册点时接管。
+ */
+const secondInstanceShowHook: { fn: () => void } = { fn: () => {} }
 
 /**
  * 会话预览工具数据根覆盖（工单381/382 真机验收夹具）：`DECK_SESSION_PREVIEW_ROOTS` 为
@@ -853,7 +867,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 它先关才成立——WM_CLOSE 只落主窗时条件永不达成、进程残留（主电池 P10 实证）。
   // 条带窗的拆卸走上方 before-quit 的 taskbarCtl.dispose()。
   win.on('closed', () => app.quit())
-  app.on('second-instance', () => showPanel('second-instance'))
+  // second-instance（工单431）：分发点已提前到拿锁时刻注册（文件尾面板分支），此处只
+  // 接管 showPanel 晚绑钩子——quit 旗标径在分发点直接走完整退出链，不再路过这里。
+  secondInstanceShowHook.fn = () => showPanel('second-instance')
 }
 
 if (RESTORE_MODE) {
@@ -870,6 +886,19 @@ if (RESTORE_MODE) {
     forceShowNativeTaskbar(log)
     app.exit(0)
   })
+} else if (PANEL_QUIT_MODE) {
+  // 退出实例（工单431，ADR-0030）：guard 清场优雅径的无人退出入口。必须置于外层守卫
+  // 默认分支**之前**——掉进守卫分支的旧构建退出实例会在无面板持锁时反拉新面板
+  //（「先部署后翻 guard config」的次序纪律即为此，见 ADR-0030）。
+  const plan = planQuitInstance(app.requestSingleInstanceLock())
+  if (plan.outcome === 'no-panel') {
+    // 拿到锁 = 无常驻面板（守卫 spawn 面板前的显式让位空窗期，或面板本就没跑）：
+    // 无事可退，还锁即退——不拉守卫、不拉面板。
+    app.releaseSingleInstanceLock()
+  }
+  // forwarded：拿锁失败 = 常驻面板在跑，argv 已被 requestSingleInstanceLock 内部转发给
+  // 持锁面板（其 second-instance 认旗标走完整退出链）。两径本实例都不拉任何 UI，即刻退场。
+  app.exit(0)
 } else if (!IS_CONTROLLER_MODE && !PANEL_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE) {
   // 外层守卫（工单05，默认入口）：抢单实例锁——二次拉起在此快速拒绝（毫秒级）。
   // 首次拉起：隐藏原生图标 → 拉起面板（--panel 子进程）→ 常驻等待。守卫是面板的父进程，
@@ -961,6 +990,25 @@ if (RESTORE_MODE) {
   // 不上屏（新建文件不出现）。这两项在 ready 之前必须挂上。
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
   app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  // second-instance 统一分发（工单431，ADR-0030）：注册提前到**拿锁时刻**——本分支走到
+  // 这里即锁已在手（--panel 模式），认 --panel-quit 的段不再等 bootPanel 装配到文件内的
+  // 旧注册点，半开机态被 guard 清场也能走完整退出链（mid-boot 的部分 dispose 风险由取证
+  // 轮覆盖，失败兜底仍是 guard 强杀，见 ADR-0030）。showPanel 侧经晚绑钩子由 bootPanel 接管。
+  if (PANEL_MODE) {
+    const quitLog = fileEventLog(process.env.DECK_EVENT_LOG)
+    app.on('second-instance', (_event, argv) => {
+      dispatchSecondInstance(argv, {
+        quitRequest: () => {
+          // 事件词汇（工单431）：把「谁叫退的」变一等可取证事实——既有 before-quit 的
+          // {type:'quit'} 无差别，分不清托盘退出/清场叫退/桥接 app.quit()。重复转发
+          // 经闩幂等，quit-request 只记首笔。
+          if (requestPanelQuit()) quitLog?.append({ type: 'quit-request', source: 'panel-quit' })
+          app.quit()
+        },
+        showPanel: () => secondInstanceShowHook.fn(),
+      })
+    })
+  }
   void app.whenReady().then(() => {
     // 工单86 验收提示条：控制器身份挂条——琥珀药丸驻留屏幕上中部安全带，提示用户暂勿键鼠操作；
     // 随控制器进程生灭自清（约束与依据见 accept/lib/hint-bar.js 头注、docs/adr/0008-accept-hint-bar.md）。
