@@ -66,7 +66,8 @@ description: agent-deck 单工单开发流程：开工（认领 issue、建 work
 
    直连链路本身是间歇性的（同一分钟内 `ls-remote` 可能成也可能败），**别把一次失败当成路不通就改用 API 拼 commit**——重试 2~4 次通常就成了；`gh pr create` 走 `api.github.com`，不受此影响。
 3. **master 快进**：主检出执行 `git checkout master && git pull --ff-only`。主检出的 `app/` 是开机自启目标，每次合流后都要快进保持最新。完成判据：`git rev-parse master origin/master` 输出相等。
-4. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。远端分支由仓库的「合并后自动删除」接管（PR 合并即清），清理清单**不含远端分支项**，也不要提议删除已合并 PR 的远端分支；删未合并在途分支的保护规则见 AGENTS.md 远端分支纪律。
+4. **工作区卫生（收尾前核对）**：电池在哪个检出跑，就核对该检出的 `git status`——电池每轮会重写 `app/accept/evidence` 的文本审计链（jsonl/log），**不改段的验收轮/健康轮/自测轮**跑完后要么随在途 PR 入库、要么 `git restore` 还原，不留未提交差异挂着（面板「更改」计数与后续会话会一直看到它；2026-11-09 状态卫生 PR #448 即此残留的清账）。会话底稿/探针一律写 `.scratch/`（已整目录 ignore）或仓库外，不得落在 `app/src/`、`research/` 等入库路径。完成判据：`git status --short` 输出为空。
+5. **清理**（在主检出执行）：`git worktree remove "D:\test-folder\wallpaperengine-research--<slug>"`、`git branch -d feat/<slug>`、`gh issue close <n> --comment "<收尾摘要>"`。完成判据：worktree 已移除、本地分支已删、工单已关。远端分支由仓库的「合并后自动删除」接管（PR 合并即清），清理清单**不含远端分支项**，也不要提议删除已合并 PR 的远端分支；删未合并在途分支的保护规则见 AGENTS.md 远端分支纪律。
 
 ## 孤儿检出清理
 
