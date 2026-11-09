@@ -1686,7 +1686,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 695,
+      "budgetSeconds": 660,
       "segments": [
         {
           "seg": "C11",
@@ -1872,7 +1872,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 35,
+          "estSeconds": 8,
           "areas": [
             "settings",
             "plugins"

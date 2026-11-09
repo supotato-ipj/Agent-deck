@@ -225,14 +225,17 @@ function dirBytes(dir: string): number {
   return total
 }
 
-/** 备份条目反解来源包 id：备份目录内 plugin.json 优先，名字（old-<pkgId>-<opId>，取最后一个 -op- 前段）兜底 */
+/** 备份条目反解来源包 id：备份目录内 plugin.json 优先（换代 rename 的是完整包目录，
+ *  在册包必有 plugin.json——名字反解纯属防御兜底）；opId 前缀两代形态并存（测试 op-N /
+ *  生产 install-<ts>-<n>，service.ts opId 工厂），名字兜底取最后一次出现的分隔前段。 */
 function backupPkgIdOf(abs: string, ref: string): string {
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(abs, 'plugin.json'), 'utf8')) as { id?: unknown }
     if (typeof manifest?.id === 'string' && PLUGIN_ID_RE.test(manifest.id)) return manifest.id
   } catch { /* 尽力 */ }
   const body = ref.slice('old-'.length)
-  const cut = body.lastIndexOf('-op-')
+  let cut = -1
+  for (const sep of ['-op-', '-install-']) cut = Math.max(cut, body.lastIndexOf(sep))
   return cut > 0 ? body.slice(0, cut) : body
 }
 

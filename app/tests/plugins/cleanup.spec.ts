@@ -156,6 +156,22 @@ describe('插件数据清理（工单346）：列条目', () => {
     expect(res.entries.map((e) => e.ref).sort()).toEqual(['old-pkg-a-op-3', 'pkg-b.json.detached'])
   })
 
+  it('备份 pkgId 反解：plugin.json 优先；损坏时按目录名兜底（生产 install-<ts>-<n> 与测试 op-N 两代 opId 形态都对）', () => {
+    // plugin.json 在场可读：反解用它
+    writeBackup(h, 'pkg-good', 'install-1731012345678-3', { 'plugin.json': '{"id":"pkg-good"}' })
+    // plugin.json 损坏：名字兜底——生产 opId 形态 install-<ts>-<n>
+    writeBackup(h, 'pkg-prod', 'install-1731012345678-3', { 'plugin.json': '{broken' })
+    // plugin.json 损坏：名字兜底——测试 opId 形态 op-N
+    writeBackup(h, 'pkg-test', 'op-9', { 'plugin.json': '{broken' })
+    const res = h.mgr.listCleanup()
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    const byRef = new Map(res.entries.map((e) => [e.ref, e.pkgId]))
+    expect(byRef.get('old-pkg-good-install-1731012345678-3')).toBe('pkg-good')
+    expect(byRef.get('old-pkg-prod-install-1731012345678-3')).toBe('pkg-prod')
+    expect(byRef.get('old-pkg-test-op-9')).toBe('pkg-test')
+  })
+
   it('两类都没有 → 空清单（不报错）', () => {
     const res = h.mgr.listCleanup()
     expect(res.ok).toBe(true)

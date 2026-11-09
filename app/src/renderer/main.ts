@@ -1066,11 +1066,12 @@ function fmtBytes(n: number): string {
 function fmtDate(ms: number): string {
   const d = new Date(ms)
   const p = (v: number): string => String(v).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 function cleanupKindLabel(kind: 'backup' | 'detached'): string {
-  return kind === 'backup' ? '备份' : '脱离'
+  // GLOSSARY 全称（「备份」单独出现会与回滚点词条的 _Avoid_ 撞词）
+  return kind === 'backup' ? '换代备份' : '脱离配置'
 }
 
 function renderCleanupList(): void {

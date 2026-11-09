@@ -1997,11 +1997,20 @@ PKGDIR=${pkgDirM}` });
           rep.fail(`C13 清理入口不符：open=${cleanupOpen13} closed=${cleanupClosed13}`);
         }
       }
-      // —— 段尾清场（写进段）：探针包已卸载（目录已进回收站），兜底删残留 + 私有配置残留清 ——
+      // —— 段尾清场（写进段）：探针包已卸载（目录已进回收站），兜底删残留 + 私有配置残留清
+      //    （判据=文件不存在，异常显式记账不吞——清场 pass 须有验证支撑）——
       try { fs.rmSync(probeDir13, { recursive: true, force: true }); } catch (e) { rep.note(`C13 清场删包异常：${e instanceof Error ? e.message : String(e)}`); }
-      try { fs.rmSync(path.join(userData, 'plugin-config', 'dsh-uninstall-probe.json'), { force: true }); } catch { /* 尽力 */ }
-      try { fs.rmSync(path.join(userData, 'plugin-config', 'dsh-uninstall-probe.json.detached'), { force: true }); } catch { /* 尽力 */ }
-      rep.pass('段尾清场完成：探针包目录兜底删、私有配置/脱离配置残留已清');
+      for (const residue13 of ['dsh-uninstall-probe.json', 'dsh-uninstall-probe.json.detached']) {
+        try { fs.rmSync(path.join(userData, 'plugin-config', residue13), { force: true }); } catch (e) { rep.note(`C13 清场删 ${residue13} 异常：${e instanceof Error ? e.message : String(e)}`); }
+      }
+      const clean13 = !fs.existsSync(probeDir13)
+        && !fs.existsSync(path.join(userData, 'plugin-config', 'dsh-uninstall-probe.json'))
+        && !fs.existsSync(path.join(userData, 'plugin-config', 'dsh-uninstall-probe.json.detached'));
+      if (clean13) {
+        rep.pass('段尾清场完成：探针包目录不在盘、私有配置/脱离配置残留已清（判据=文件不存在）');
+      } else {
+        rep.fail('C13 清场不符：探针包目录或配置残留仍在盘');
+      }
     } catch (c13err) {
       rep.fail(`段 C13 异常中止：${c13err instanceof Error ? c13err.message : String(c13err)}`);
     }
