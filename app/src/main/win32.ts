@@ -11,6 +11,7 @@ const GetWindow = user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uin
 const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)')
 const FindWindowW = user32.func('uintptr_t __stdcall FindWindowW(const char16_t *lpClassName, const char16_t *lpWindowName)')
 const GetWindowLongW = user32.func('int32 __stdcall GetWindowLongW(uintptr_t hWnd, int32 nIndex)')
+const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr_t hWnd, _Out_ uint32 *pid)')
 
 const SWP_NOSIZE = 0x0001
 const SWP_NOMOVE = 0x0002
@@ -63,6 +64,32 @@ export function isTopmost(hwnd: number): boolean {
 export function setTopmost(hwnd: number, on: boolean): boolean {
   return SetWindowPos(hwnd, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER)
+}
+
+/** 插到指定窗正下方（工单450 自家浮层让位）：hWndInsertAfter 语义——对 belowHwnd
+ * 之下的世界照旧在上，唯独不越过 belowHwnd。SWP_NOACTIVATE，不动几何。 */
+export function moveBelow(hwnd: number, belowHwnd: number): boolean {
+  return SetWindowPos(hwnd, belowHwnd, 0, 0, 0, 0,
+    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER)
+}
+
+/** 自顶向下走查到 strip 为止，收集「条带上方」属主为本进程的可见窗（工单450）。
+ * 返回按 z 序高→低排列（末位即最低，是让位插点）；走查 512 窗内不可达条带
+ * （极深链/条带已销毁）返回 null——调用方按「不可判」裁决（topmost-plan 语义）。 */
+export function ownWindowsAbove(stripHwnd: number, ownPid: number): number[] | null {
+  const out: number[] = []
+  const pidBuf = Buffer.alloc(4)
+  let h = GetTopWindow(0)
+  for (let i = 0; h && i < 512; i++) {
+    const cur = Number(h)
+    if (cur === stripHwnd) return out
+    if (IsWindowVisible(cur)) {
+      GetWindowThreadProcessId(cur, pidBuf)
+      if (pidBuf.readUInt32LE(0) === ownPid) out.push(cur)
+    }
+    h = GetWindow(cur, GW_HWNDNEXT)
+  }
+  return null
 }
 
 /** a 是否排在 b 之上（可见窗口 z 序，自顶向下先遇到者在上）。任一不可见/不存在时
