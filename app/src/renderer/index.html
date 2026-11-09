@@ -459,6 +459,44 @@
   }
   #settings-exit:hover { color: #e0a87a; }
 
+  /* 投放包区块（工单346）：行 = 名称/版本 + 卸载小按钮；按钮走确认层（列五要素明细）。
+   * 插件数据清理入口行 = settings-reset/exit 同款动作行。 */
+  #settings-packages-block { margin-top: 10px; }
+  #settings-packages-list .pkg-row { margin-top: 6px; }
+  #settings-packages-list .pkg-row .set-label {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pkg-uninstall, .cleanup-del {
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .pkg-uninstall:hover, .cleanup-del:hover { color: #e0a87a; }
+  #settings-cleanup {
+    margin-top: 10px;
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #settings-cleanup:hover { color: #d6d6d6; }
+
   /* 删除确认层（工单27）：多选【删除全部】先弹的自绘轻量确认——列出条数、确认/取消
    * 两钮。卡片同世界观（class="card" 底色随全局透明度）；开层期间热区换全窗（同菜单），
    * 点外部 = 取消、Esc = 取消（键盘模式临时开启，同设置浮层先例）。 */
@@ -501,6 +539,76 @@
   }
   #trash-confirm-actions button:hover { color: #d6d6d6; }
   #trash-confirm-ok { color: #fff; }
+
+  /* 插件卸载确认层 / 插件数据清理浮层与确认层（工单346）：trash-confirm 同款形态
+   * （开层期间热区换全窗、Esc/失焦/点外部=取消）；清理浮层多一条目列表（可滚）。 */
+  #plugin-uninstall-confirm, #plugin-cleanup, #plugin-cleanup-confirm {
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    width: 320px;
+    height: auto;
+    z-index: 90;
+    display: none;
+    cursor: default;
+  }
+  #plugin-uninstall-confirm h2, #plugin-cleanup h2, #plugin-cleanup-confirm h2 { margin-bottom: 12px; }
+  #plugin-uninstall-text, #plugin-cleanup-confirm-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #d6d6d6;
+    white-space: pre-line;
+    max-height: 220px;
+    overflow: auto;
+  }
+  #plugin-cleanup-list {
+    font-size: 12px;
+    color: #d6d6d6;
+    max-height: 220px;
+    overflow: auto;
+  }
+  #plugin-cleanup-list .cleanup-row {
+    display: flex;
+    align-items: center;
+    column-gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  #plugin-cleanup-list .cleanup-row:last-child { border-bottom: none; }
+  #plugin-cleanup-list .cleanup-kind {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: #9aa0a6;
+    white-space: nowrap;
+  }
+  #plugin-cleanup-list .cleanup-desc {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #plugin-cleanup-list .cleanup-empty { color: #6b7075; padding: 6px 0; }
+  #plugin-uninstall-actions, #plugin-cleanup-actions, #plugin-cleanup-confirm-actions {
+    margin-top: 14px;
+    display: flex;
+    column-gap: 10px;
+  }
+  #plugin-uninstall-actions button, #plugin-cleanup-actions button, #plugin-cleanup-confirm-actions button {
+    flex: 1;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #6b7075;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+  }
+  #plugin-uninstall-actions button:hover, #plugin-cleanup-actions button:hover, #plugin-cleanup-confirm-actions button:hover { color: #d6d6d6; }
+  #plugin-uninstall-ok, #plugin-cleanup-confirm-ok { color: #fff; }
 
   /* 删除失败提示（工单27 AC「菜单层有可见提示」）：权限/占用失败如实上浮的瞬态条，
    * 纯展示不接交互（无热区，点击穿透），数秒自隐。 */
@@ -597,6 +705,17 @@
     <div class="set-row"><span class="set-label">CARDS</span></div>
     <div id="settings-cards-list"></div>
   </div>
+  <!-- 投放包区块（工单346）：列快照 dropped 段全部投放包，每行名称/版本+卸载按钮。
+       投放档才有卸载语义（内核档可停用不可卸载，GLOSSARY）；卸载经确认层列五要素
+       明细后走同一条 install/uninstall 管线（与 agent 的 MCP 工具共用，审计记
+       actor='user'）。行随 1Hz 快照 reconcile（同 CARDS 列表形态）。 -->
+  <div id="settings-packages-block">
+    <div class="set-row"><span class="set-label">PACKAGES</span></div>
+    <div id="settings-packages-list"></div>
+  </div>
+  <!-- 插件数据清理入口（工单346）：换代备份残渣/脱离配置两类只增不减的遗留——
+       开独立浮层列条目（类型/体积/时间/来源包），删前确认，统一送回收站（绝不永久删）。 -->
+  <div id="settings-cleanup" role="button">&#9851; PLUGIN DATA</div>
   <div id="settings-reset" role="button">&#8634; RESET LAYOUT</div>
   <div id="settings-exit" role="button">&#9211; EXIT PANEL</div>
 </div>
@@ -607,6 +726,39 @@
   <div id="trash-confirm-actions">
     <button id="trash-confirm-ok" role="button">DELETE</button>
     <button id="trash-confirm-cancel" role="button">CANCEL</button>
+  </div>
+</div>
+
+<!-- 插件卸载确认层（工单346）：trash-confirm 同款自绘轻量确认——五要素明细（包
+     id/版本、将清除的授权、将解除的凭证绑定、目录去向=回收站、私有配置保留）、
+     确认/取消两钮，Esc/失焦/点外部=取消。 -->
+<div class="card" id="plugin-uninstall-confirm" tabindex="-1">
+  <h2>UNINSTALL</h2>
+  <div id="plugin-uninstall-text"></div>
+  <div id="plugin-uninstall-actions">
+    <button id="plugin-uninstall-ok" role="button">UNINSTALL</button>
+    <button id="plugin-uninstall-cancel" role="button">CANCEL</button>
+  </div>
+</div>
+
+<!-- 插件数据清理浮层（工单346）：列两类遗留条目（换代备份/脱离配置）+ 逐条删 +
+     一键清空；删除动作先过确认层（列明细）。 -->
+<div class="card" id="plugin-cleanup" tabindex="-1">
+  <h2>PLUGIN DATA</h2>
+  <div id="plugin-cleanup-list"></div>
+  <div id="plugin-cleanup-actions">
+    <button id="plugin-cleanup-all" role="button">CLEAN ALL</button>
+    <button id="plugin-cleanup-close" role="button">CLOSE</button>
+  </div>
+</div>
+
+<!-- 插件数据清理确认层（工单346）：列将清理条目明细，确认后送回收站。 -->
+<div class="card" id="plugin-cleanup-confirm" tabindex="-1">
+  <h2>CLEAN</h2>
+  <div id="plugin-cleanup-confirm-text"></div>
+  <div id="plugin-cleanup-confirm-actions">
+    <button id="plugin-cleanup-confirm-ok" role="button">CLEAN</button>
+    <button id="plugin-cleanup-confirm-cancel" role="button">CANCEL</button>
   </div>
 </div>
 

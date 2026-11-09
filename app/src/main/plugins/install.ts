@@ -48,6 +48,9 @@ export interface InstallFileEntry {
 
 // 提案视图类型单源在 shared/contract（批准 UI 与主进程同一词汇）；此处 re-export 供测试/内部引用
 export type { InstallProposalView, UpdateDiffView } from '../../shared/contract'
+// 工单346 清理条目：形状单一出处住 contract（renderer 同款），本模块 re-export 供主进程侧引用
+import type { PluginCleanupEntry } from '../../shared/contract'
+export type { PluginCleanupEntry }
 
 export interface MountOutcome {
   ok: boolean
@@ -175,6 +178,24 @@ export type UninstallResult =
       retryable?: boolean
     }
 
+export type CleanupListResult =
+  | { ok: true; entries: PluginCleanupEntry[] }
+  | { ok: false; code: 'not_wired'; message: string }
+
+export type CleanupResult =
+  | { ok: true; opId: string; cleanedRefs: string[]; bytes: number }
+  | {
+      ok: false
+      code: 'invalid_args' | 'not_found' | 'not_wired' | 'trash_failed' | 'busy'
+      message: string
+      opId?: string
+      /** 部分成功明细（trash_failed 时）：已清/未清各自留账 */
+      cleanedRefs?: string[]
+      failedRefs?: Array<{ ref: string; message: string }>
+      bytes?: number
+      retryable?: boolean
+    }
+
 export type SetEnabledResult =
   | { ok: true; state: unknown }
   | { ok: false; code: 'invalid_args' | 'busy' | 'not_wired' | 'write_failed'; message: string; retryable?: boolean }
@@ -182,6 +203,38 @@ export type SetEnabledResult =
 export type InheritanceDecisionResult =
   | { ok: true; decision: 'inherited' | 'fresh' }
   | { ok: false; code: 'not_found' | 'not_applicable'; message: string }
+
+/** 工单346 清理目标类的条目名白名单（字符集排除 `/` `\` `:`——路径穿越/绝对路径/盘符一律不匹配） */
+const BACKUP_REF_RE = /^old-[a-z0-9][a-z0-9._-]*$/
+const DETACHED_REF_RE = /^[a-z0-9][a-z0-9._-]*\.json\.detached$/
+const DETACHED_SUFFIX = '.json.detached'
+
+/** 目录递归字节量（清理清单/审计用；读失败按 0 尽力） */
+function dirBytes(dir: string): number {
+  let total = 0
+  const walk = (cur: string): void => {
+    for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
+      const child = path.join(cur, e.name)
+      if (e.isDirectory()) walk(child)
+      else {
+        try { total += fs.statSync(child).size } catch { /* 尽力 */ }
+      }
+    }
+  }
+  try { walk(dir) } catch { /* 尽力 */ }
+  return total
+}
+
+/** 备份条目反解来源包 id：备份目录内 plugin.json 优先，名字（old-<pkgId>-<opId>，取最后一个 -op- 前段）兜底 */
+function backupPkgIdOf(abs: string, ref: string): string {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(abs, 'plugin.json'), 'utf8')) as { id?: unknown }
+    if (typeof manifest?.id === 'string' && PLUGIN_ID_RE.test(manifest.id)) return manifest.id
+  } catch { /* 尽力 */ }
+  const body = ref.slice('old-'.length)
+  const cut = body.lastIndexOf('-op-')
+  return cut > 0 ? body.slice(0, cut) : body
+}
 
 /** 聚合哈希的文件清单来源：目录内全部常规文件按相对路径排序，逐个 sha256 */
 export function listFileEntries(dir: string): InstallFileEntry[] {
@@ -404,11 +457,60 @@ export class PluginInstallManager {
     return run.finally(() => { this.active -= 1 })
   }
 
-  /** 工单335 卸载：回收站唯一删除路径；失败明确报错，绝不降级永久删除（票面红线） */
-  uninstall(args: { packageId?: unknown }): Promise<UninstallResult> {
+  /** 工单335 卸载：回收站唯一删除路径；失败明确报错，绝不降级永久删除（票面红线）。
+   *  工单346 增 actor：'user'=UI 桥真实手势，缺省/其余='dsh'（历史唯一调用方是 DSH）。 */
+  uninstall(args: { packageId?: unknown; actor?: unknown }): Promise<UninstallResult> {
     if (this.active > 0 || this.disposed) return Promise.resolve(this.busyResultUninstall())
     this.active += 1
     const run = this.tail.then(() => this.uninstallInner(args), () => this.uninstallInner(args))
+    this.tail = run.then(() => undefined, () => undefined)
+    return run.finally(() => { this.active -= 1 })
+  }
+
+  /** 工单346 清理清单（只读，不走写队列）：两类遗留（换代备份残渣/脱离配置）全量，不动任何文件 */
+  listCleanup(): CleanupListResult {
+    const entries: PluginCleanupEntry[] = []
+    // 换代备份残渣：备份根下 old-* 目录（正常换代已自动送回收站，残渣=送站失败者）
+    try {
+      if (fs.existsSync(this.backupRoot)) {
+        for (const e of fs.readdirSync(this.backupRoot, { withFileTypes: true }).sort((x, y) => x.name.localeCompare(y.name))) {
+          if (!e.isDirectory() || !BACKUP_REF_RE.test(e.name)) continue
+          const abs = path.join(this.backupRoot, e.name)
+          let modifiedAt = 0
+          try { modifiedAt = fs.statSync(abs).mtimeMs } catch { /* 尽力 */ }
+          entries.push({ kind: 'backup', ref: e.name, pkgId: backupPkgIdOf(abs, e.name), bytes: dirBytes(abs), modifiedAt })
+        }
+      }
+    } catch { /* 读面尽力 */ }
+    // 脱离配置：配置根下 <id>.json.detached（拒绝继承被脱离挂载；每包至多一个，重拒绝会替换）
+    const cfgFile = this.opts.pluginConfigFile?.('probe')
+    if (cfgFile) {
+      const dir = path.dirname(cfgFile)
+      try {
+        if (fs.existsSync(dir)) {
+          for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((x, y) => x.name.localeCompare(y.name))) {
+            if (!e.isFile() || !DETACHED_REF_RE.test(e.name)) continue
+            const abs = path.join(dir, e.name)
+            let bytes = 0
+            let modifiedAt = 0
+            try {
+              const st = fs.statSync(abs)
+              bytes = st.size
+              modifiedAt = st.mtimeMs
+            } catch { /* 尽力 */ }
+            entries.push({ kind: 'detached', ref: e.name, pkgId: e.name.slice(0, -DETACHED_SUFFIX.length), bytes, modifiedAt })
+          }
+        }
+      } catch { /* 读面尽力 */ }
+    }
+    return { ok: true, entries }
+  }
+
+  /** 工单346 清理（写面走串行队列）：白名单校验 → 逐条送回收站 → 批量一笔账（opId 串全程） */
+  cleanup(args: { entries?: unknown }): Promise<CleanupResult> {
+    if (this.active > 0 || this.disposed) return Promise.resolve(this.busyResultCleanup())
+    this.active += 1
+    const run = this.tail.then(() => this.cleanupInner(args), () => this.cleanupInner(args))
     this.tail = run.then(() => undefined, () => undefined)
     return run.finally(() => { this.active -= 1 })
   }
@@ -436,6 +538,9 @@ export class PluginInstallManager {
     return { ok: false, code: 'busy', message: BUSY_MESSAGE, retryable: true }
   }
   private busyResultUninstall(): UninstallResult {
+    return { ok: false, code: 'busy', message: BUSY_MESSAGE, retryable: true }
+  }
+  private busyResultCleanup(): CleanupResult {
     return { ok: false, code: 'busy', message: BUSY_MESSAGE, retryable: true }
   }
   private busyResultSetEnabled(): SetEnabledResult {
@@ -1203,8 +1308,10 @@ export class PluginInstallManager {
   // 卸载（工单335）：回收站唯一删除路径；config 原样保留（解除挂载不碰配置）
   // ------------------------------------------------------------------
 
-  private async uninstallInner(args: { packageId?: unknown }): Promise<UninstallResult> {
+  private async uninstallInner(args: { packageId?: unknown; actor?: unknown }): Promise<UninstallResult> {
     const opId = this.opts.opId()
+    // 工单346 发起者记账：'user'=UI 桥真实手势，缺省/其余='dsh'（历史唯一调用方）
+    const actor = args?.actor === 'user' ? 'user' : 'dsh'
     const packageId = args?.packageId
     if (typeof packageId !== 'string' || !PLUGIN_ID_RE.test(packageId)) {
       return { ok: false, code: 'invalid_args', message: `packageId 须为合法包 id（小写主机名字符集）：${String(packageId)}`, opId }
@@ -1224,22 +1331,101 @@ export class PluginInstallManager {
     if (!this.opts.trashItem) {
       return { ok: false, code: 'not_wired', message: '本面板未装配回收站面——卸载不可用（写尚未开始）', opId }
     }
-    this.opts.log({ type: 'plugin-uninstall-intent', opId, pkgId: packageId, dir: target })
+    this.opts.log({ type: 'plugin-uninstall-intent', opId, pkgId: packageId, dir: target, actor })
     try {
       await this.opts.trashItem(target)
     } catch (err) {
       // 红线：回收站失败 = 整个卸载失败，绝不降级永久删除
       const message = `回收站失败：${err instanceof Error ? err.message : String(err)}——目录原样保留（不降级永久删除）`
-      this.opts.log({ type: 'plugin-uninstall-outcome', opId, pkgId: packageId, outcome: 'trash_failed', message })
+      this.opts.log({ type: 'plugin-uninstall-outcome', opId, pkgId: packageId, outcome: 'trash_failed', message, actor })
       return { ok: false, code: 'trash_failed', message, opId }
     }
-    this.opts.log({ type: 'plugin-uninstall-outcome', opId, pkgId: packageId, outcome: 'uninstalled' })
+    this.opts.log({ type: 'plugin-uninstall-outcome', opId, pkgId: packageId, outcome: 'uninstalled', actor })
     // 授权账清除（工单336）：重装同字节也重新批准——撤销不可被「卸载→重装」绕过
     this.opts.authorization?.clear(packageId)
     // 命名凭证（工单339）：卸载只清绑定点，凭证本体保留（用户显式删除才销毁）
     this.opts.credentials?.clearBindingsFor(packageId)
     this.opts.host.rescan()
     return { ok: true, opId }
+  }
+
+  // ------------------------------------------------------------------
+  // 插件数据清理（工单346）：只删目标类（换代备份残渣/脱离配置）、统一回收站、
+  // 失败保留可重试（绝不降级永久删除）、批量一笔账（intent 全量 → 逐条送站 → outcome 汇总）
+  // ------------------------------------------------------------------
+
+  private async cleanupInner(args: { entries?: unknown }): Promise<CleanupResult> {
+    const opId = this.opts.opId()
+    const list = args?.entries
+    if (!Array.isArray(list) || list.length === 0) {
+      return { ok: false, code: 'invalid_args', message: '清理需要 entries（非空 {kind,ref} 条目数组）', opId }
+    }
+    if (!this.opts.trashItem) {
+      return { ok: false, code: 'not_wired', message: '本面板未装配回收站面——清理不可用（写尚未开始）', opId }
+    }
+    // 形状校验 + 目标解析：白名单字符集挡路径穿越/绝对路径/盘符；服务端自拼路径，不采信调用方路径
+    const targets: Array<{ kind: 'backup' | 'detached'; ref: string; pkgId: string; abs: string; bytes: number }> = []
+    for (const raw of list) {
+      if (!raw || typeof raw !== 'object') {
+        return { ok: false, code: 'invalid_args', message: `清理条目须为 {kind,ref} 对象：${JSON.stringify(raw) ?? String(raw)}`, opId }
+      }
+      const { kind, ref } = raw as { kind?: unknown; ref?: unknown }
+      if (typeof ref !== 'string') {
+        return { ok: false, code: 'invalid_args', message: `清理条目 ref 须为字符串：${String(ref)}`, opId }
+      }
+      if (kind === 'backup') {
+        if (!BACKUP_REF_RE.test(ref)) {
+          return { ok: false, code: 'invalid_args', message: `换代备份 ref 非法（须为备份根内 old-* 目录名，不含路径）：${ref}`, opId }
+        }
+        const abs = path.join(this.backupRoot, ref)
+        if (!fs.existsSync(abs)) {
+          return { ok: false, code: 'not_found', message: `换代备份「${ref}」已不在（清单过期）——请刷新清单后重试`, opId }
+        }
+        targets.push({ kind, ref, pkgId: backupPkgIdOf(abs, ref), abs, bytes: dirBytes(abs) })
+      } else if (kind === 'detached') {
+        if (!DETACHED_REF_RE.test(ref)) {
+          return { ok: false, code: 'invalid_args', message: `脱离配置 ref 非法（须为 <包id>.json.detached 文件名，不含路径）：${ref}`, opId }
+        }
+        const pkgId = ref.slice(0, -DETACHED_SUFFIX.length)
+        const base = this.opts.pluginConfigFile?.(pkgId)
+        if (!base) {
+          return { ok: false, code: 'not_wired', message: '本面板未装配私有配置面——脱离配置不可清理', opId }
+        }
+        // settleInheritance 同款落点：pluginConfigFile(id) 已含 .json，脱离件 = 其后加 .detached
+        const abs = `${base}.detached`
+        if (!fs.existsSync(abs)) {
+          return { ok: false, code: 'not_found', message: `脱离配置「${ref}」已不在（清单过期）——请刷新清单后重试`, opId }
+        }
+        targets.push({ kind, ref, pkgId, abs, bytes: fs.statSync(abs).size })
+      } else {
+        return { ok: false, code: 'invalid_args', message: `清理条目 kind 须为 'backup' 或 'detached'：${String(kind)}`, opId }
+      }
+    }
+    // 批量一笔账：intent 全量（谁清、清什么、各多少字节）→ 逐条送站 → outcome 汇总
+    this.opts.log({
+      type: 'plugin-cleanup-intent', opId, actor: 'user',
+      entries: targets.map((t) => ({ kind: t.kind, ref: t.ref, pkgId: t.pkgId, bytes: t.bytes })),
+    })
+    const cleanedRefs: string[] = []
+    const failedRefs: Array<{ ref: string; message: string }> = []
+    let cleanedBytes = 0
+    for (const t of targets) {
+      try {
+        await this.opts.trashItem(t.abs)
+        cleanedRefs.push(t.ref)
+        cleanedBytes += t.bytes
+      } catch (err) {
+        // 红线：单条回收站失败不连累整批（其余条目照清），失败条目原样保留可重试，绝不降级永久删除
+        failedRefs.push({ ref: t.ref, message: err instanceof Error ? err.message : String(err) })
+      }
+    }
+    if (failedRefs.length > 0) {
+      const message = `部分清理失败（${failedRefs.length}/${targets.length}）——失败条目原样保留（不降级永久删除），可重试`
+      this.opts.log({ type: 'plugin-cleanup-outcome', opId, actor: 'user', outcome: 'trash_failed', bytes: cleanedBytes, cleanedRefs, failedRefs, message })
+      return { ok: false, code: 'trash_failed', message, opId, cleanedRefs, failedRefs, bytes: cleanedBytes }
+    }
+    this.opts.log({ type: 'plugin-cleanup-outcome', opId, actor: 'user', outcome: 'cleaned', bytes: cleanedBytes, cleanedRefs })
+    return { ok: true, opId, cleanedRefs, bytes: cleanedBytes }
   }
 
   // ------------------------------------------------------------------

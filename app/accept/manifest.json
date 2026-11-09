@@ -1686,7 +1686,7 @@
       "hintBar": true,
       "cdpPort": 9231,
       "kind": null,
-      "budgetSeconds": 660,
+      "budgetSeconds": 695,
       "segments": [
         {
           "seg": "C11",
@@ -1861,6 +1861,21 @@
           "estSeconds": 30,
           "areas": [
             "sessions"
+          ]
+        },
+        {
+          "seg": "C13",
+          "ticket": 346,
+          "title": "卸载确认闸门与插件数据清理入口（工单346）：设置浮层投放包区块真实手势——零权限探针包投放即生效 → PACKAGES 行出列 → 卸载按钮 → 确认层五要素明细（包 id/版本、授权=无、凭证绑定=无、目录去向=系统回收站、私有配置保留）→ CANCEL 取消不产生删除（层收+目录原样）→ 重开确认 UNINSTALL 走同一条 uninstall 管线（目录真实进回收站、包目标消失、审计 plugin-uninstall-intent/outcome 带 actor=user 与 MCP 的 dsh 分账、PACKAGES 行随快照出列）→ PLUGIN DATA 清理入口开层收层（清理动作真机面归单测）。执行序 C12 后 C3 前；段尾清场写进段",
+          "surfaces": [
+            "input-injection",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 35,
+          "areas": [
+            "settings",
+            "plugins"
           ]
         }
       ],

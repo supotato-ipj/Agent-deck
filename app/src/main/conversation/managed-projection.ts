@@ -141,8 +141,8 @@ export interface ManagedProjectionSource {
   updateSubmit?(args: { packageId: string; sourceDir: string }, ctx: { sessionId: string }): Promise<unknown>
   /** 停用/启用（工单335 写工具，接 settings 停用集缝；缺省 = 未接线如实报不可用） */
   setEnabled?(args: { packageId: string; enabled: boolean }): Promise<unknown>
-  /** 卸载（工单335 写工具，回收站路径；缺省 = 未接线如实报不可用） */
-  uninstallPackage?(args: { packageId: string }): Promise<unknown>
+  /** 卸载（工单335 写工具，回收站路径；缺省 = 未接线如实报不可用）。工单346 增 actor：MCP 通道恒 'dsh'（审计可分用户 UI/agent 发起） */
+  uninstallPackage?(args: { packageId: string; actor: 'dsh' }): Promise<unknown>
   /** 确定性重扫（工单335 对账操作；缺省 = 未接线如实报不可用） */
   rescan?(): unknown
 }
@@ -222,7 +222,7 @@ export async function dispatchManagedTool(
         if (!source.uninstallPackage) {
           return { ok: false, reason: 'source_error', message: '本面板未装配卸载面（回收站未接线）——卸载工具不可用' }
         }
-        const payload = await source.uninstallPackage({ packageId: a.packageId })
+        const payload = await source.uninstallPackage({ packageId: a.packageId, actor: 'dsh' })
         return { ok: true, payload }
       }
       case 'plugins_rescan': {
