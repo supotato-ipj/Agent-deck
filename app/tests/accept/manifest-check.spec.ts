@@ -424,7 +424,14 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 条带 toast/包文件不动/面板不崩；一段绑定一工单）。滞回判账与停用补偿按增段条件②由
     // memory-sentinel / memory-disable 单测矩阵钉，真机段只验真实渲染进程内存越线、
     // 30s 滞回时序与条带 toast 这些单测无法证明的面。
-    expect(total).toBe(192)
+    // 192 → 193：工单346 增段——332-conversation 电池增 C13（卸载确认闸门与插件数据
+    // 清理入口：设置浮层投放包区块真实手势全链——确认层五要素明细、CANCEL 取消不产生
+    // 删除、确认走同一条 uninstall 管线（目录真实进回收站 + 审计 actor=user 分账 +
+    // PACKAGES 行出列）、PLUGIN DATA 入口开层收层；一段绑定一工单）。清理的只删目标类/
+    // 白名单拒绝/审计形状按增段条件②由 cleanup 单测矩阵钉（tests/plugins/cleanup.spec.ts
+    // 10 例）；取消闸门（确认层 CANCEL 后零删除）的真机面由本段 CANCEL 断言钉——真机段
+    // 只验真实点击手势、确认层呈现与回收站真删除这些单测无法证明的面。
+    expect(total).toBe(193)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

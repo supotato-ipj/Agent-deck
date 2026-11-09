@@ -458,6 +458,39 @@ export class BridgeService extends Service {
           : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
         return res as BridgeMethods[M]['response']
       }
+      // 工单346 卸载（可信 UI 真实用户手势）：actor 恒 'user' 入审计账；与 MCP
+      // plugin_uninstall 同一条卸载管线（回收站/清授权/清凭证绑定），不另开旁路
+      case 'install/uninstall': {
+        const { packageId } = payload as { packageId?: unknown }
+        if (typeof packageId !== 'string' || !packageId.trim()) {
+          throw new BridgeError('install/uninstall 需要 packageId（包 id 字符串）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.uninstall({ packageId: String(packageId), actor: 'user' })
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
+      // 工单346 插件数据清理：清单（只读，两类遗留全量）+ 送回收站（只删目标类、
+      // 部分失败条目保留可重试、绝不降级永久删除）
+      case 'install/cleanup-list': {
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? mgr.listCleanup()
+          : { ok: false, message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
+      case 'install/cleanup': {
+        const { entries } = payload as { entries?: unknown }
+        if (!Array.isArray(entries) || entries.length === 0) {
+          throw new BridgeError('install/cleanup 需要 entries（非空 {kind,ref} 条目数组）')
+        }
+        const mgr = this.ctx.plugins.installs
+        const res = mgr
+          ? await mgr.cleanup({ entries })
+          : { ok: false, code: 'not_found', message: '本面板未装配安装面' }
+        return res as BridgeMethods[M]['response']
+      }
       // 工单336 授权账（可信 UI 数据面与撤销手势）：清单（含已撤销行）/撤销即停/
       // 媒体审计聚合投影（完整记录仅在审计文件，聚合不含媒体元数据）
       case 'install/grants': {

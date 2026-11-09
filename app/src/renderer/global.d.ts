@@ -15,6 +15,8 @@ declare global {
   type DesktopPlan = import('../shared/contract').DesktopPlan
   type HotzoneRect = import('../shared/contract').HotzoneRect
   type SettingsState = import('../shared/contract').SettingsState
+  /** 插件数据清理条目（工单346，install/cleanup-list 响应条目） */
+  type PluginCleanupEntry = import('../shared/contract').PluginCleanupEntry
   /** 上下文菜单条目（工单23 contributor 形状：数组即注册位，注册机制后续工单接入）。
    * disabled = 置灰行（工单30【粘贴】）：呈现弱化 + activate 挡下（menu.ts 归约器）。 */
   type DeckCtxMenuItem = { id: string; label: string; disabled?: boolean; run(): void }

@@ -744,6 +744,15 @@ export interface UpdateDiffView {
   files: { added: string[]; removed: string[]; changed: string[] }
 }
 
+/** 工单346 插件数据清理条目（只读清单面）：kind=目标类；ref=条目名（目录名/文件名，不含路径——服务端自拼路径，调用方不得拼） */
+export interface PluginCleanupEntry {
+  kind: 'backup' | 'detached'
+  ref: string
+  pkgId: string
+  bytes: number
+  modifiedAt: number
+}
+
 /** 工单334 安装提案视图（批准 UI 数据面；主进程 plugins 主账本投影；工单335 增更新/继承两面） */
 export interface InstallProposalView {
   proposalId: string
@@ -1189,6 +1198,22 @@ export interface BridgeMethods {
    * 私有配置（重装包重新可读旧数据）；false/批准时未决 = 新配置起步（残留 detach）。
    */
   'install/inherit': { request: { proposalId: string; inherit: boolean }; response: { ok: boolean; decision?: string; code?: string; message?: string } }
+  /**
+   * 工单346 卸载（可信 UI 真实用户手势，设置浮层投放包区块入口）：actor 恒 'user' 入
+   * 审计账；与 MCP plugin_uninstall 同一条卸载管线（回收站/清授权/清凭证绑定），不另开旁路。
+   */
+  'install/uninstall': { request: { packageId: string }; response: { ok: boolean; opId?: string; code?: string; message?: string; retryable?: boolean } }
+  /**
+   * 工单346 插件数据清理清单（只读）：两类只增不减的遗留全量——换代备份残渣
+   * （plugins-backup/old-*，正常换代已自动送回收站、残渣=送站失败者）与脱离配置
+   * （<id>.json.detached，拒绝继承被脱离挂载）。ref 是条目名不含路径（服务端自拼）。
+   */
+  'install/cleanup-list': { request: null; response: { ok: boolean; entries?: PluginCleanupEntry[]; message?: string } }
+  /**
+   * 工单346 插件数据清理（可信 UI 手势）：只删目标类（在册包与当前配置绝不动）、
+   * 统一送回收站、部分失败条目保留可重试（绝不降级永久删除）、批量一笔审计账。
+   */
+  'install/cleanup': { request: { entries: Array<{ kind: 'backup' | 'detached'; ref: string }> }; response: { ok: boolean; opId?: string; code?: string; message?: string; cleanedRefs?: string[]; failedRefs?: Array<{ ref: string; message: string }>; bytes?: number; retryable?: boolean } }
   /**
    * 工单336 授权账（可信 UI 数据面）：在册授权清单（含已撤销行——审计可见）+ 各自近窗
    * 媒体读取聚合（MediaAuditService 投影；不含媒体元数据）。

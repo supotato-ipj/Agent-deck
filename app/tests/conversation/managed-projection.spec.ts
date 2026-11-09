@@ -220,7 +220,8 @@ describe('管理型写工具与重扫（工单335）', () => {
     expect(enabled).toEqual([{ packageId: 'dsh-hello', enabled: false }])
     const un = await dispatchManagedTool('plugin_uninstall', { packageId: 'dsh-hello' }, source)
     expect(un.ok).toBe(true)
-    expect(uninstalled).toEqual([{ packageId: 'dsh-hello' }])
+    // 工单346：MCP 通道恒传 actor 'dsh'（审计可分用户 UI/agent 发起）
+    expect(uninstalled).toEqual([{ packageId: 'dsh-hello', actor: 'dsh' }])
     for (const [name, bad] of [
       ['plugin_set_enabled', { packageId: 'x' }],
       ['plugin_set_enabled', { packageId: 'x', enabled: 'no' }],

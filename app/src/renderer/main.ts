@@ -934,6 +934,326 @@ window.addEventListener('pointerdown', (e) => {
   closeTrashConfirm('outside')
 }, { capture: true })
 
+// ---- 插件卸载确认层 / 插件数据清理浮层（工单346）：trash-confirm 同款自绘轻量确认 ----
+// 开层临时取得键盘焦点（Esc=取消）、确认/取消两钮、点外部=取消；开层期间热区换全窗
+// （declareHotZones 读下面的开层判定）。按钮矩形随开层存证上报（电池定位点击）。
+
+const pluginUninstallCard = el('plugin-uninstall-confirm')
+const pluginUninstallText = el('plugin-uninstall-text')
+const pluginUninstallOk = el('plugin-uninstall-ok')
+const pluginUninstallCancel = el('plugin-uninstall-cancel')
+/** 待卸载目标（null = 关闭态）；确认即对它走 install/uninstall（actor='user'） */
+let uninstallTarget: { id: string; name: string } | null = null
+
+function pluginUninstallConfirmOpen(): boolean {
+  return uninstallTarget !== null
+}
+
+type PluginUninstallConfirmCloseReason = 'confirm' | 'cancel' | 'outside' | 'esc' | 'blur'
+
+/** 开卸载确认层：五要素明细 = 包 id/版本 + 将清除的授权（列权限名）+ 将解除的凭证绑定
+ *  （列凭证名）+ 目录去向=回收站 + 私有配置保留。授权/绑定来自可信 UI 数据面（与对话
+ *  窗授权账同源）；拉取失败不开层（明细不齐不让删）。 */
+async function openPluginUninstallConfirm(pkgId: string): Promise<void> {
+  if (pluginUninstallConfirmOpen()) return
+  const pkg = (lastSnapshot?.dropped ?? []).find((p) => p.id === pkgId)
+  if (!pkg) return
+  let grants: { packageId: string; permissions: string[]; revokedAt: number | null }[] = []
+  let credentials: { name: string; bindings: Array<{ packageId: string }> }[] = []
+  try {
+    // 两路明细并行拉（任一失败都不开层——半份明细的确认是危险的确认）
+    const [grantsRes, credsRes] = await Promise.all([
+      window.deck.bridge.invoke('install/grants', null),
+      window.deck.bridge.invoke('credentials/list', null),
+    ])
+    grants = grantsRes.grants ?? []
+    credentials = credsRes.credentials ?? []
+  } catch (err) {
+    showNotice(`卸载明细拉取失败：${String(err)}`)
+    notify('plugin-uninstall-confirm-failed', { id: pkgId, message: String(err) })
+    return
+  }
+  const perms = [...new Set(grants.filter((g) => g.packageId === pkgId && g.revokedAt === null).flatMap((g) => g.permissions))]
+  const credNames = [...new Set(credentials.filter((c) => c.bindings.some((b) => b.packageId === pkgId)).map((c) => c.name))]
+  pluginUninstallText.textContent = [
+    'UNINSTALL PACKAGE?',
+    `${pkg.name}（${pkg.id} v${pkg.version}）`,
+    `将清除授权：${perms.length > 0 ? perms.join(', ') : '无'}`,
+    `将解除凭证绑定：${credNames.length > 0 ? credNames.join(', ') : '无'}`,
+    '包目录送系统回收站（可找回）',
+    '插件私有配置保留——重装时可选择继承或重新开始',
+  ].join('\n')
+  uninstallTarget = { id: pkgId, name: pkg.name }
+  pluginUninstallCard.style.display = 'block'
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'plugin-uninstall-confirm' })
+  pluginUninstallCard.focus()
+  notify('plugin-uninstall-confirm-opened', {
+    id: pkgId, permissions: perms, credentials: credNames,
+    confirm: rectOfBox(pluginUninstallOk.getBoundingClientRect()),
+    cancel: rectOfBox(pluginUninstallCancel.getBoundingClientRect()),
+  })
+  declareHotZones()
+}
+
+function closePluginUninstallConfirm(reason: PluginUninstallConfirmCloseReason): void {
+  const target = uninstallTarget
+  if (!target) return
+  uninstallTarget = null
+  pluginUninstallCard.style.display = 'none'
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'plugin-uninstall-confirm' })
+  notify('plugin-uninstall-confirm-closed', { reason, id: target.id })
+  declareHotZones()
+  if (reason === 'confirm') void doPluginUninstall(target.id)
+}
+
+/** 真卸载：与 agent 的 MCP plugin_uninstall 同一条管线（回收站/清授权/清凭证绑定）；
+ *  成功后快照下一拍自然刷新 PACKAGES 行。 */
+async function doPluginUninstall(pkgId: string): Promise<void> {
+  notify('plugin-uninstall-invoked', { id: pkgId })
+  try {
+    const res = await window.deck.bridge.invoke('install/uninstall', { packageId: pkgId })
+    if (!res.ok) {
+      showNotice(`卸载失败（${res.code ?? ''}）：${res.message ?? ''}`)
+      notify('plugin-uninstall-failed', { id: pkgId, code: res.code, message: res.message })
+      return
+    }
+    notify('plugin-uninstalled', { id: pkgId, opId: res.opId })
+    showNotice(`已卸载 ${pkgId}（目录在回收站，私有配置保留）`)
+  } catch (err) {
+    showNotice(`卸载失败：${String(err)}`)
+    notify('plugin-uninstall-failed', { id: pkgId, message: String(err) })
+  }
+}
+
+pluginUninstallOk.addEventListener('click', () => closePluginUninstallConfirm('confirm'))
+pluginUninstallCancel.addEventListener('click', () => closePluginUninstallConfirm('cancel'))
+pluginUninstallCard.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closePluginUninstallConfirm('esc')
+  }
+})
+pluginUninstallCard.addEventListener('focusout', (e) => {
+  const to = e.relatedTarget as Node | null
+  if (to && pluginUninstallCard.contains(to)) return // 焦点仍在确认层内（两钮之间转移）
+  closePluginUninstallConfirm('blur')
+})
+
+// ---- 插件数据清理浮层（工单346）：列两类遗留（换代备份/脱离配置）+ 逐条删 + 全清 ----
+const pluginCleanupCard = el('plugin-cleanup')
+const pluginCleanupList = el('plugin-cleanup-list')
+const pluginCleanupAll = el('plugin-cleanup-all')
+const pluginCleanupCloseBtn = el('plugin-cleanup-close')
+const settingsCleanup = el('settings-cleanup')
+const pluginCleanupConfirmCard = el('plugin-cleanup-confirm')
+const pluginCleanupConfirmText = el('plugin-cleanup-confirm-text')
+const pluginCleanupConfirmOk = el('plugin-cleanup-confirm-ok')
+const pluginCleanupConfirmCancel = el('plugin-cleanup-confirm-cancel')
+
+let cleanupCardOpen = false
+let cleanupEntries: PluginCleanupEntry[] = []
+/** 待清理条目（null = 确认层关闭态）；确认即对它整份 install/cleanup */
+let cleanupTargets: Array<{ kind: 'backup' | 'detached'; ref: string }> | null = null
+
+function cleanupConfirmOpen(): boolean {
+  return cleanupTargets !== null
+}
+
+function fmtBytes(n: number): string {
+  return n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`
+}
+
+function fmtDate(ms: number): string {
+  const d = new Date(ms)
+  const p = (v: number): string => String(v).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function cleanupKindLabel(kind: 'backup' | 'detached'): string {
+  // GLOSSARY 全称（「备份」单独出现会与回滚点词条的 _Avoid_ 撞词）
+  return kind === 'backup' ? '换代备份' : '脱离配置'
+}
+
+function renderCleanupList(): void {
+  if (cleanupEntries.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'cleanup-empty'
+    empty.textContent = '无遗留（换代备份/脱离配置都是空的）'
+    pluginCleanupList.replaceChildren(empty)
+    return
+  }
+  pluginCleanupList.replaceChildren(...cleanupEntries.map((entry) => {
+    const row = document.createElement('div')
+    row.className = 'cleanup-row'
+    const kind = document.createElement('span')
+    kind.className = 'cleanup-kind'
+    kind.textContent = cleanupKindLabel(entry.kind)
+    const desc = document.createElement('span')
+    desc.className = 'cleanup-desc'
+    desc.textContent = `${entry.pkgId} · ${fmtBytes(entry.bytes)} · ${fmtDate(entry.modifiedAt)}`
+    desc.title = entry.ref
+    const btn = document.createElement('button')
+    btn.className = 'cleanup-del'
+    btn.dataset['kind'] = entry.kind
+    btn.dataset['ref'] = entry.ref
+    btn.textContent = '删'
+    btn.setAttribute('aria-label', `清理${cleanupKindLabel(entry.kind)}条目 ${entry.pkgId}`)
+    row.append(kind, desc, btn)
+    return row
+  }))
+}
+
+/** 开清理浮层：设置浮层先收（一层一层来），再拉清单（只读面） */
+async function openPluginCleanup(): Promise<void> {
+  if (cleanupCardOpen) return
+  try {
+    const res = await window.deck.bridge.invoke('install/cleanup-list', null)
+    if (!res.ok) {
+      showNotice(res.message ?? '清理清单不可用')
+      return
+    }
+    cleanupEntries = res.entries ?? []
+  } catch (err) {
+    showNotice(String(err))
+    return
+  }
+  closeSettings('toggle')
+  cleanupCardOpen = true
+  renderCleanupList()
+  pluginCleanupCard.style.display = 'block'
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'plugin-cleanup' })
+  pluginCleanupCard.focus()
+  notify('plugin-cleanup-opened', {
+    count: cleanupEntries.length,
+    all: rectOfBox(pluginCleanupAll.getBoundingClientRect()),
+    close: rectOfBox(pluginCleanupCloseBtn.getBoundingClientRect()),
+  })
+  declareHotZones()
+}
+
+function closePluginCleanup(reason: 'close' | 'esc' | 'outside' | 'blur'): void {
+  if (!cleanupCardOpen) return
+  cleanupCardOpen = false
+  cleanupEntries = []
+  pluginCleanupCard.style.display = 'none'
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'plugin-cleanup' })
+  notify('plugin-cleanup-closed', { reason })
+  declareHotZones()
+}
+
+settingsCleanup.addEventListener('click', () => { void openPluginCleanup() })
+
+// 逐条删（事件托付）：与全清共用确认层（列明细）
+pluginCleanupList.addEventListener('click', (e) => {
+  const btn = e.target as HTMLElement
+  if (!(btn instanceof HTMLButtonElement)) return
+  const kind = btn.dataset['kind'] as 'backup' | 'detached' | undefined
+  const ref = btn.dataset['ref']
+  if (!kind || !ref || !cleanupCardOpen) return
+  openCleanupConfirm([{ kind, ref }])
+})
+
+pluginCleanupAll.addEventListener('click', () => {
+  if (!cleanupCardOpen || cleanupEntries.length === 0) return
+  openCleanupConfirm(cleanupEntries.map((e2) => ({ kind: e2.kind, ref: e2.ref })))
+})
+pluginCleanupCloseBtn.addEventListener('click', () => closePluginCleanup('close'))
+
+/** 开清理确认层：列条目明细（类型/条目名/体积）；确认后统一送回收站（绝不永久删） */
+function openCleanupConfirm(entries: Array<{ kind: 'backup' | 'detached'; ref: string }>): void {
+  if (cleanupConfirmOpen()) return
+  const lines = entries.map((t) => {
+    const entry = cleanupEntries.find((e2) => e2.ref === t.ref && e2.kind === t.kind)
+    return `${cleanupKindLabel(t.kind)} · ${entry?.pkgId ?? t.ref} · ${entry ? fmtBytes(entry.bytes) : '?'}\n${t.ref}`
+  })
+  pluginCleanupConfirmText.textContent = `CLEAN ${entries.length} ITEM(S)?（送系统回收站）\n${lines.join('\n')}`
+  cleanupTargets = entries
+  pluginCleanupConfirmCard.style.display = 'block'
+  dispatchKeyboardGate({ type: 'overlay-opened', name: 'plugin-cleanup-confirm' })
+  pluginCleanupConfirmCard.focus()
+  notify('plugin-cleanup-confirm-opened', {
+    count: entries.length,
+    confirm: rectOfBox(pluginCleanupConfirmOk.getBoundingClientRect()),
+    cancel: rectOfBox(pluginCleanupConfirmCancel.getBoundingClientRect()),
+  })
+  declareHotZones()
+}
+
+function closeCleanupConfirm(reason: 'confirm' | 'cancel' | 'outside' | 'esc' | 'blur'): void {
+  const targets = cleanupTargets
+  if (!targets) return
+  cleanupTargets = null
+  pluginCleanupConfirmCard.style.display = 'none'
+  dispatchKeyboardGate({ type: 'overlay-closed', name: 'plugin-cleanup-confirm' })
+  notify('plugin-cleanup-confirm-closed', { reason, count: targets.length })
+  declareHotZones()
+  if (reason === 'confirm') void doPluginCleanup(targets)
+}
+
+/** 真清理：只删目标类、部分失败条目保留可重试；完毕重拉清单刷新浮层 */
+async function doPluginCleanup(entries: Array<{ kind: 'backup' | 'detached'; ref: string }>): Promise<void> {
+  notify('plugin-cleanup-invoked', { count: entries.length })
+  try {
+    const res = await window.deck.bridge.invoke('install/cleanup', { entries })
+    if (res.ok) {
+      notify('plugin-cleaned', { count: entries.length, bytes: res.bytes, opId: res.opId })
+      showNotice(`已清理 ${entries.length} 项（${fmtBytes(res.bytes ?? 0)} 送回收站）`)
+    } else {
+      notify('plugin-cleanup-failed', { code: res.code, failed: res.failedRefs?.length ?? 0 })
+      showNotice(`清理未完成（${res.code ?? ''}）：${res.message ?? ''}——失败条目保留可重试`)
+    }
+  } catch (err) {
+    showNotice(`清理失败：${String(err)}`)
+    return
+  }
+  // 重拉清单刷新浮层（成功条目出列；失败条目留着等重试）
+  try {
+    const list = await window.deck.bridge.invoke('install/cleanup-list', null)
+    cleanupEntries = list.ok ? (list.entries ?? []) : []
+  } catch { /* 刷新失败保持旧清单，下次开层重拉 */ }
+  renderCleanupList()
+  declareHotZones()
+}
+
+pluginCleanupConfirmOk.addEventListener('click', () => closeCleanupConfirm('confirm'))
+pluginCleanupConfirmCancel.addEventListener('click', () => closeCleanupConfirm('cancel'))
+pluginCleanupConfirmCard.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeCleanupConfirm('esc')
+  }
+})
+pluginCleanupConfirmCard.addEventListener('focusout', (e) => {
+  const to = e.relatedTarget as Node | null
+  if (to && pluginCleanupConfirmCard.contains(to)) return
+  closeCleanupConfirm('blur')
+})
+
+// 点外部 = 取消（trash-confirm 同款捕获拦截）：清理确认层最上，其次清理浮层，再其次卸载确认层
+window.addEventListener('pointerdown', (e) => {
+  const target = e.target as HTMLElement
+  if (cleanupConfirmOpen()) {
+    if (target.closest('#plugin-cleanup-confirm')) return
+    e.stopPropagation()
+    e.preventDefault()
+    closeCleanupConfirm('outside')
+    return
+  }
+  if (cleanupCardOpen) {
+    if (target.closest('#plugin-cleanup')) return
+    e.stopPropagation()
+    e.preventDefault()
+    closePluginCleanup('outside')
+    return
+  }
+  if (pluginUninstallConfirmOpen()) {
+    if (target.closest('#plugin-uninstall-confirm')) return
+    e.stopPropagation()
+    e.preventDefault()
+    closePluginUninstallConfirm('outside')
+  }
+}, { capture: true })
+
 // 面板的拖拽语义全是自绘手势（摆位、框选各自监听 pointer 流）。浏览器原生 HTML5
 // 拖拽在本面板没有合法用途，且代价是整个面板停摆：一旦 DoDragDrop 会话起不来收不掉，
 // 满屏 Ghost 幽灵窗跟着光标走、渲染主线程进模态循环，此后点击进得去但事件不发、
@@ -1248,6 +1568,7 @@ function renderSettings(s: SettingsState): void {
   lastSettings = s // 最近一次内核态：开关 invoke 失败时的回滚真相
   applyCardAlpha(s.cardOpacity)
   renderCardToggles(s)
+  renderPackages()
 }
 
 // ---- 卡片显隐开关列表（工单101）----
@@ -1314,6 +1635,45 @@ settingsCardsList.addEventListener('change', (e) => {
       if (lastSettings) renderSettings(lastSettings)
     },
   )
+})
+
+// ---- 投放包区块（工单346）：卸载的用户手势 ----
+// 行 = 快照 dropped 段全部投放包（名称/版本 + 卸载按钮）。投放档才有卸载语义（内核档
+// 可停用不可卸载，GLOSSARY）；点击先过卸载确认层（五要素明细），确认后走与 MCP
+// plugin_uninstall 同一条 install/uninstall 管线（审计记 actor='user'，不另开旁路）。
+// 行随 1Hz 快照 reconcile（renderSettings 调用；签名变了才重建 DOM，不抖动交互中的行）。
+
+const settingsPackagesList = el('settings-packages-list')
+let packageRowsKey: string | null = null
+
+function renderPackages(): void {
+  const rows = [...(lastSnapshot?.dropped ?? [])].sort((a, b) => a.id.localeCompare(b.id))
+  const key = JSON.stringify(rows.map((r) => [r.id, r.name, r.version, r.status]))
+  if (key === packageRowsKey) return
+  packageRowsKey = key
+  settingsPackagesList.replaceChildren(...rows.map((row) => {
+    const line = document.createElement('div')
+    line.className = 'set-row pkg-row'
+    const label = document.createElement('span')
+    label.className = 'set-label'
+    label.textContent = `${row.name} v${row.version}`
+    const btn = document.createElement('button')
+    btn.className = 'pkg-uninstall'
+    btn.dataset['packageId'] = row.id
+    btn.textContent = '卸载'
+    btn.setAttribute('aria-label', `卸载插件包 ${row.name}（目录送回收站）`)
+    line.append(label, btn)
+    return line
+  }))
+}
+
+// 卸载按钮（事件托付，同 CARDS 开关形态）：开确认层而非直接删——卸载会清授权账与
+// 凭证绑定（重装不继承），先列五要素明细让用户过目。
+settingsPackagesList.addEventListener('click', (e) => {
+  const btn = e.target as HTMLElement
+  const id = btn instanceof HTMLButtonElement ? btn.dataset['packageId'] : undefined
+  if (!id) return
+  void openPluginUninstallConfirm(id)
 })
 
 /** 任务栏逃生开关（工单50）：勾选态 reconcile——开层拉取、切换回执、taskbar/changed
@@ -1620,12 +1980,17 @@ function declareHotZones(): void {
     }])
     return
   }
-  // 手势进行中（拖拽摆位/框选）、菜单开层（工单23）或删除确认开层（工单27）保持全窗
-  // 热区：1Hz 快照重建会走到这里重声明常规热区，若中途覆写回小矩形，指针恰在分区包围
-  // 盒外时面板转穿透、指针流即断（矩形残留屏上/菜单外一击收不到）。菜单开层由 shell 的
-  // isOpen 判定（热插拔：插件卸载即 undefined，自动恢复常规热区）。
-  if (dragState.active || marqueeState.active || menuOpen() || trashConfirmOpen()) {
-    const id = trashConfirmOpen() ? 'trash-confirm'
+  // 手势进行中（拖拽摆位/框选）、菜单开层（工单23）、删除确认开层（工单27）或插件
+  // 卸载/清理浮层开层（工单346）保持全窗热区：1Hz 快照重建会走到这里重声明常规热区，
+  // 若中途覆写回小矩形，指针恰在分区包围盒外时面板转穿透、指针流即断（矩形残留屏上/
+  // 菜单外一击收不到）。菜单开层由 shell 的 isOpen 判定（热插拔：插件卸载即 undefined，
+  // 自动恢复常规热区）。
+  if (dragState.active || marqueeState.active || menuOpen() || trashConfirmOpen()
+    || pluginUninstallConfirmOpen() || cleanupCardOpen || cleanupConfirmOpen()) {
+    const id = cleanupConfirmOpen() ? 'plugin-cleanup-confirm'
+      : cleanupCardOpen ? 'plugin-cleanup'
+      : pluginUninstallConfirmOpen() ? 'plugin-uninstall-confirm'
+      : trashConfirmOpen() ? 'trash-confirm'
       : menuOpen() ? 'menu' : dragState.active ? 'drag' : 'marquee'
     window.deck.host.setHotZones([{
       id, x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
@@ -1646,6 +2011,9 @@ const doc = zoneHotzoneRectOf(docZone)
   // 退出面板按钮（工单83）同法：矩形随浮层显隐进热区（电池按 id 定位点击）
   const se = settingsExit.getBoundingClientRect()
   if (se.width > 0) rects.push({ id: 'settings-exit', x: se.left, y: se.top, w: se.width, h: se.height })
+  // 插件数据清理入口（工单346）同法：随设置浮层显隐（开清理浮层时设置浮层已收，矩形归零）
+  const sc = settingsCleanup.getBoundingClientRect()
+  if (sc.width > 0) rects.push({ id: 'settings-cleanup', x: sc.left, y: sc.top, w: sc.width, h: sc.height })
   // 关闭中的设置浮层矩形为 0（display:none），与一切零尺寸矩形一起不进热区（不留死区）
   window.deck.host.setHotZones(rects.filter((r) => r.w > 0 && r.h > 0))
 }

@@ -1886,6 +1886,135 @@ PKGDIR=${pkgDirM}` });
       rep.fail(`段 C12 异常中止：${c12err instanceof Error ? c12err.message : String(c12err)}`);
     }
 
+    // —— 段 C13（工单346，卸载确认闸门 + 插件数据清理入口）：设置浮层投放包区块
+    //    真实手势全链——投放零权限探针包（投放即生效）→ PACKAGES 行出列 → 卸载按钮
+    //    → 确认层五要素明细（包 id/版本/授权=无/凭证绑定=无/目录去向=回收站/私有配置
+    //    保留）→ 取消不产生删除 → 重开确认 → 同一条 uninstall 管线（目录真实进回收站、
+    //    审计 plugin-uninstall-intent 带 actor='user'、PACKAGES 行随快照出列）→
+    //    PLUGIN DATA 清理入口可开层收层。执行序 C12 后 C3 前 ——
+    rep.beginSegment('C13');
+    try {
+      const pluginsRoot13 = (() => {
+        try { return (JSON.parse(configRaw || '{}').plugins || {}).dir || path.join(userData, 'plugins') } catch { return path.join(userData, 'plugins') }
+      })();
+      const probeDir13 = path.join(pluginsRoot13, 'dsh-uninstall-probe');
+      try { fs.rmSync(probeDir13, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      const gate13 = Date.now();
+      // 投放（零权限 = 投放即生效）：探针包只挂个静态卡片，不申请任何权限
+      fs.mkdirSync(probeDir13, { recursive: true });
+      fs.writeFileSync(path.join(probeDir13, 'plugin.json'), JSON.stringify({ id: 'dsh-uninstall-probe', name: 'Uninstall Probe', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: [] }, null, 2), 'utf8');
+      fs.writeFileSync(path.join(probeDir13, 'card.js'), 'export default { mount(host) { host.el.textContent = "probe" } }\n', 'utf8');
+      // ① 包起来（dropped 段在列，PACKAGES 行随 1Hz 快照出列）
+      const up13 = await until(async () => pkgTarget('deck-pkg://dsh-uninstall-probe/') ? true : null, 30000);
+      if (!up13) {
+        rep.fail('C13 探针包未激活：30s 内 deck-pkg://dsh-uninstall-probe/ 目标未出现');
+      } else {
+        // ② 开设置浮层，轮询 PACKAGES 行的卸载按钮，点开确认层
+        await cdpEvalOn(PANEL_TITLE, `document.getElementById('settings-btn').click()`, 10000);
+        const clicked13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `(() => {
+            const btn = document.querySelector('#settings-packages-list .pkg-uninstall[data-package-id="dsh-uninstall-probe"]');
+            if (!btn) return null;
+            btn.click();
+            return true;
+          })()`, 10000);
+          return r === true ? true : null;
+        }, 20000);
+        // 确认层文案（明细拉取是异步的，轮询层可见）
+        const layer13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `(() => {
+            const c = document.getElementById('plugin-uninstall-confirm');
+            if (!c || c.style.display === 'none') return null;
+            return document.getElementById('plugin-uninstall-text').textContent;
+          })()`, 10000);
+          return typeof r === 'string' && r.length > 0 ? r : null;
+        }, 15000);
+        const five13 = layer13
+          && layer13.includes('UNINSTALL PACKAGE?')
+          && layer13.includes('dsh-uninstall-probe') && layer13.includes('v1.0.0')
+          && layer13.includes('将清除授权：无') && layer13.includes('将解除凭证绑定：无')
+          && layer13.includes('系统回收站') && layer13.includes('私有配置保留');
+        if (clicked13 && five13) {
+          rep.pass(`确认层五要素明细在界：包 id/版本、授权=无、凭证绑定=无、目录去向=系统回收站、私有配置保留（文案 ${JSON.stringify(String(layer13).split('\n')[1] ?? '')}）`);
+        } else {
+          rep.fail(`C13 确认层不符：clicked=${clicked13} text=${JSON.stringify(layer13)}`);
+        }
+        // ③ 取消不产生删除：CANCEL → 层关 + 包目录原样
+        await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-uninstall-cancel').click()`, 10000);
+        const cancelClosed13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-uninstall-confirm').style.display === 'none' ? true : null`, 10000);
+          return r === true ? true : null;
+        }, 10000);
+        const cancelNoDelete13 = fs.existsSync(path.join(probeDir13, 'plugin.json'));
+        if (cancelClosed13 && cancelNoDelete13) {
+          rep.pass('取消闸门如实：CANCEL 后确认层收起、包目录原样在盘（取消不产生删除）');
+        } else {
+          rep.fail(`C13 取消路径不符：closed=${cancelClosed13} dirKept=${cancelNoDelete13}`);
+        }
+        // ④ 重开确认层 → UNINSTALL：同一条 uninstall 管线（目录真实进回收站）
+        await cdpEvalOn(PANEL_TITLE, `(() => {
+          const btn = document.querySelector('#settings-packages-list .pkg-uninstall[data-package-id="dsh-uninstall-probe"]');
+          if (btn) btn.click();
+          return Boolean(btn);
+        })()`, 10000);
+        const reopened13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-uninstall-confirm').style.display === 'none' ? null : true`, 10000);
+          return r === true ? true : null;
+        }, 15000);
+        if (reopened13) await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-uninstall-ok').click()`, 10000);
+        const dirGone13 = await until(async () => (fs.existsSync(probeDir13) ? null : true), 30000);
+        const targetGone13 = await until(async () => ((await pkgTarget('deck-pkg://dsh-uninstall-probe/')) ? null : true), 30000);
+        // ⑤ 审计：同管线事件带 actor='user'（与 MCP 的 'dsh' 分账）
+        const intent13 = await tape.wait('plugin-uninstall-intent', (e) => e.pkgId === 'dsh-uninstall-probe' && e.actor === 'user', { timeoutMs: 10000, since: gate13 });
+        const outcome13 = await tape.wait('plugin-uninstall-outcome', (e) => e.pkgId === 'dsh-uninstall-probe' && e.outcome === 'uninstalled' && e.actor === 'user', { timeoutMs: 10000, since: gate13 });
+        // ⑥ PACKAGES 行随快照出列
+        const rowGone13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `(() => {
+            const btn = document.querySelector('#settings-packages-list .pkg-uninstall[data-package-id="dsh-uninstall-probe"]');
+            return btn ? null : true;
+          })()`, 10000);
+          return r === true ? true : null;
+        }, 15000);
+        if (dirGone13 && targetGone13 && intent13 && outcome13 && rowGone13) {
+          rep.pass('UI 卸载走同一条管线：包目录真实进回收站、包目标消失、审计 intent/outcome 带 actor=user、PACKAGES 行随快照出列');
+        } else {
+          rep.fail(`C13 卸载路径不符：dirGone=${dirGone13} targetGone=${targetGone13} intent=${Boolean(intent13)} outcome=${Boolean(outcome13)} rowGone=${rowGone13}`);
+        }
+        // ⑦ PLUGIN DATA 清理入口可开层收层（清理动作本身由单测覆盖，真机只验入口活性）
+        await cdpEvalOn(PANEL_TITLE, `document.getElementById('settings-cleanup').click()`, 10000);
+        const cleanupOpen13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-cleanup').style.display === 'none' ? null : true`, 10000);
+          return r === true ? true : null;
+        }, 15000);
+        await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-cleanup-close').click()`, 10000);
+        const cleanupClosed13 = await until(async () => {
+          const r = await cdpEvalOn(PANEL_TITLE, `document.getElementById('plugin-cleanup').style.display === 'none' ? true : null`, 10000);
+          return r === true ? true : null;
+        }, 10000);
+        if (cleanupOpen13 && cleanupClosed13) {
+          rep.pass('插件数据清理入口活性：PLUGIN DATA 开层列清单、CLOSE 收层（清理动作真机面归单测）');
+        } else {
+          rep.fail(`C13 清理入口不符：open=${cleanupOpen13} closed=${cleanupClosed13}`);
+        }
+      }
+      // —— 段尾清场（写进段）：探针包已卸载（目录已进回收站），兜底删残留 + 私有配置残留清
+      //    （判据=文件不存在，异常显式记账不吞——清场 pass 须有验证支撑）——
+      try { fs.rmSync(probeDir13, { recursive: true, force: true }); } catch (e) { rep.note(`C13 清场删包异常：${e instanceof Error ? e.message : String(e)}`); }
+      for (const residue13 of ['dsh-uninstall-probe.json', 'dsh-uninstall-probe.json.detached']) {
+        try { fs.rmSync(path.join(userData, 'plugin-config', residue13), { force: true }); } catch (e) { rep.note(`C13 清场删 ${residue13} 异常：${e instanceof Error ? e.message : String(e)}`); }
+      }
+      const clean13 = !fs.existsSync(probeDir13)
+        && !fs.existsSync(path.join(userData, 'plugin-config', 'dsh-uninstall-probe.json'))
+        && !fs.existsSync(path.join(userData, 'plugin-config', 'dsh-uninstall-probe.json.detached'));
+      if (clean13) {
+        rep.pass('段尾清场完成：探针包目录不在盘、私有配置/脱离配置残留已清（判据=文件不存在）');
+      } else {
+        rep.fail('C13 清场不符：探针包目录或配置残留仍在盘');
+      }
+    } catch (c13err) {
+      rep.fail(`段 C13 异常中止：${c13err instanceof Error ? c13err.message : String(c13err)}`);
+    }
+
     // —— 段 C3（工单340，ADR-0026 浮动版本与失败处置）：bogus 后端档失败非破坏 +
     // 「创建全新数据目录」用户手势——旧目录零触碰、指向持久化、不继承不备份 ——
     rep.beginSegment('C3');
