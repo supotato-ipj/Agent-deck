@@ -16,7 +16,7 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, modeZoneId, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, METRIC_SLOT_TEXT, modeZoneId, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, DesktopModeEntry, DesktopModeId, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
@@ -507,6 +507,9 @@ function renderSummary(metrics: TaskbarState['metrics'], gauges: HardwareGauges 
     const el = document.createElement('span')
     el.className = `tb-seg${seg.on ? ' on' : ' off'}`
     el.dataset.metric = seg.id
+    // 定宽槽位校宽哨兵（工单459）：data-max = 该段极宽读数形态，CSS ::before 隐藏
+    // 哨兵按它撑槽——读数逐拍变化只在槽内消化，段宽恒定
+    el.dataset.max = METRIC_SLOT_TEXT[seg.id]
     // 常态呈现数值；编辑态呈现指标名（勾选语义一目了见，数值被勾选态取代）
     el.textContent = editing ? seg.label : formatMetric(seg.id, gauges ?? { cpu: 0, memory: 0, memory_gb: '--' })
     if (editing) {

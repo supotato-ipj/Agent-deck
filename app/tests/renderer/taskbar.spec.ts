@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, METRIC_SLOT_TEXT, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -288,6 +288,24 @@ describe('任务栏右组（工单55，fake bridge 驱动）', () => {
     // 高位进位仍封两位小数（位数有界——定宽槽位的前提）
     expect(formatMetric('net-up', g(0, 15360))).toBe('UP 15.36MB/s')
     expect(formatMetric('net-up', g(0, 125500))).toBe('UP 125.50MB/s')
+  })
+
+  it('定宽槽位校宽文本（工单459）：罩住各段读数极宽形态——百分位 100%、三位数 KB、两位整数 MB', () => {
+    const g = (dl: number, ul: number): HardwareGauges => ({
+      cpu: 0, memory: 0, memory_gb: '', gpu_usage: 0, download_speed: dl, upload_speed: ul,
+    })
+    const full: HardwareGauges = { cpu: 100, memory: 100, memory_gb: '', gpu_usage: 100, download_speed: 0, upload_speed: 0 }
+    for (const m of ['cpu', 'gpu', 'ram'] as const) {
+      expect(formatMetric(m, full).length, `${m} 满百读数不超校宽文本`).toBeLessThanOrEqual(METRIC_SLOT_TEXT[m].length)
+    }
+    // 速率段：KB 极值（999.99KB/s）与 MB 高位（125.50MB/s）都不得超校宽文本
+    //（tabular-nums 下等长即等宽，'.' 窄于数字——长度口径保守成立）
+    expect(formatMetric('net-down', g(999.99, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+    expect(formatMetric('net-down', g(125500, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+    expect(formatMetric('net-up', g(0, 999.99)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
+    expect(formatMetric('net-up', g(0, 125500)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
+    // 占位符（源缺位）远窄于校宽文本，槽位不塌
+    expect(formatMetric('net-down', { cpu: 0, memory: 0, memory_gb: '' }).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
   })
 
   it('时钟格文本：ClockState → 本地 HH:MM（两位补零）', () => {
@@ -608,13 +626,21 @@ describe('硬件摘要定宽槽位（工单459：tabular-nums + min-width ch + �
     expect(seg, '槽内右对齐——位数变化不改段左缘').toContain('text-align: right')
   })
 
-  it('段槽 min-width 按读数极宽校准：百分位段 8ch（CPU 100%）、速率段 10ch（DL 999.99KB/s / UP 125.50MB/s）', () => {
+  it('段槽 min-width 按读数极宽校准（真机红轮校准）：百分位段 10ch（CPU 100%）、速率段 15ch（DL 999.99KB/s / UP 125.50MB/s）', () => {
     for (const m of ['cpu', 'gpu', 'ram']) {
-      expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 8ch')
-    }
-    for (const m of ['net-down', 'net-up']) {
       expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 10ch')
     }
+    for (const m of ['net-down', 'net-up']) {
+      expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 15ch')
+    }
+  })
+
+  it('隐藏校宽哨兵（工单459 真机红轮）：::before 按 data-max 极宽文本撑槽（display:block+height:0，零依赖字体度量手估）', () => {
+    const sizer = ruleOf('.tb-seg::before')
+    expect(sizer, '校宽哨兵取 data-max 属性文本').toContain('content: attr(data-max)')
+    expect(sizer, '块级参与定宽（不与可见文字同行）').toContain('display: block')
+    expect(sizer, '零高不撑行高、不占竖向空间').toContain('height: 0')
+    expect(sizer, '不可见').toContain('visibility: hidden')
   })
 })
 

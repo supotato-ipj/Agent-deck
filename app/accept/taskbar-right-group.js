@@ -1196,6 +1196,7 @@ async function main() {
     let p10ok = false;
     let detail10 = '';
     const gaugeFile10 = HW_GAUGE_FILE;
+    let metricsBase10 = null; // 段尾复原（P6 把勾选子集持久化成 ['cpu','ram']——本段要五项全勾）
     try {
       if (!gaugeFile10) throw new Error('HW_GAUGE_FILE 缺位');
       // 基线自愈：两系统钮须在场（几何帧触发器翻左组；电池自持隔离 config 常态全在场）
@@ -1205,9 +1206,20 @@ async function main() {
         await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(id)}, hidden: false })`);
       }
       if (hiddenBase10.length) await sleep(600);
+      // 五项全勾（首跑红轮实证：P6 把子集持久化成 ['cpu','ram']，摘要格只剩两段，
+      // net-down/net-up 槽位缺席——喂速率读数无处可落）。段尾复原基线子集。
+      metricsBase10 = (baseState10 && Array.isArray(baseState10.metrics)) ? baseState10.metrics : ['cpu', 'gpu', 'ram', 'net-down', 'net-up'];
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })`);
+      let segs10 = 0;
+      for (let i = 0; i < 10; i++) {
+        segs10 = await cdpEval(TASKBAR_TITLE, `document.querySelectorAll('#hw-summary .tb-seg').length`);
+        if (segs10 === 5) break;
+        await sleep(400);
+      }
+      if (segs10 !== 5) throw new Error(`五项段未齐（在场 ${segs10}/5）`);
       const expect10 = (g) => ({
         cpu: `CPU ${Math.round(g.cpu)}%`,
-        gpu: `GPU ${Math.round(g.gpu)}%`,
+        gpu: `GPU ${Math.round(g.gpu_usage)}%`,
         ram: `RAM ${Math.round(g.memory)}%`,
         'net-down': g.download_speed >= 1000 ? `DL ${(g.download_speed / 1000).toFixed(2)}MB/s` : `DL ${g.download_speed.toFixed(2)}KB/s`,
         'net-up': g.upload_speed >= 1000 ? `UP ${(g.upload_speed / 1000).toFixed(2)}MB/s` : `UP ${g.upload_speed.toFixed(2)}KB/s`,
@@ -1231,11 +1243,11 @@ async function main() {
       const cellOf10 = (frame, id) => (frame.rightCells || []).find((c) => c.id === id) || null;
 
       // 窄拍：1 位百分位 + 短速率（既有 'DL 1.23KB/s' 口径实机取证）
-      const narrow10 = { cpu: 9, gpu: 8, memory: 46, download_speed: 1.23, upload_speed: 0.5 };
+      const narrow10 = { cpu: 9, gpu_usage: 8, memory: 46, download_speed: 1.23, upload_speed: 0.5 };
       const a10 = await feed10(narrow10);
       const frameA = a10.ev ? await geoViaToggle10('tasks') : null;
       // 宽拍：3 位百分位 + 满 5 位 KB / MB 进位（速率槽位最宽形态）
-      const wide10 = { cpu: 100, gpu: 87, memory: 99, download_speed: 999.99, upload_speed: 125500 };
+      const wide10 = { cpu: 100, gpu_usage: 87, memory: 99, download_speed: 999.99, upload_speed: 125500 };
       const b10 = await feed10(wide10);
       const frameB = b10.ev ? await geoViaToggle10('start') : null;
       detail10 += `窄拍值=${a10.ev ? JSON.stringify(a10.ev.values) : '未达'} 宽拍值=${b10.ev ? JSON.stringify(b10.ev.values) : '未达'}`;
@@ -1276,6 +1288,10 @@ async function main() {
       detail10 += ` 异常=${e10.message}`;
     } finally {
       try { fs.unlinkSync(gaugeFile10); } catch { /* 本就缺位 */ }
+      // 勾选子集复原（本段五项全勾过——回基线，不给 P6 之后的重跑轮留漂移）
+      try {
+        if (metricsBase10) await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ${JSON.stringify(metricsBase10)} })`);
+      } catch { /* 面板已退场 */ }
     }
     if (p10ok) {
       rep.pass(`P10 硬件摘要定宽槽位：窄/宽两拍读数（CPU 9%↔100%、DL 1.23KB/s↔999.99KB/s、UP 0.50KB/s↔125.50MB/s 含 MB 进位）taskbar-right-status 口径实机取证、tb-seg tabular-nums+右对齐+定宽槽位 computed 三证、taskbar-geometry 右组矩形与摘要/音量/时钟格宽两拍不变`);
