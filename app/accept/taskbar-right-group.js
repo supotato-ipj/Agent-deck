@@ -1378,11 +1378,14 @@ async function main() {
       const backOk11 = !!back11 && back11.state === 'up' && !back11.slash && !back11.dot;
       detail11 += ` 复原拍=${JSON.stringify(back11)}`;
 
-      // ④ 点击开快速设置（与音量格同款分发——P4 同判据：合成回执 + 原生前台）
+      // ④ 点击开快速设置（与音量格同款分发——P4 同判据：合成回执 + 原生前台）。
+      // 句柄取当前条带窗（P7 tbHwnd7 同款先例）：P9 跨面板重拉销毁重建条带窗，boot 期的
+      // tbHwnd 已是死句柄——2026-11-11 首跑红臂实证（收敛 32 拍全 false 而同点点击实过）。
+      const tbHwnd11 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
       const netCell11 = geo11.rightCells.find((x) => x.id === 'network');
       const netPt11 = toPhys(netCell11.x + netCell11.w / 2, netCell11.y + netCell11.h / 2);
       const beforeP11 = foregroundInfo();
-      const conv11 = await convergeAt(netPt11, tbHwnd);
+      const conv11 = await convergeAt(netPt11, tbHwnd11);
       rep.note(`P11 点击前收敛=${conv11}`);
       win32.clickPhys(netPt11.x, netPt11.y, 'left');
       const ev11 = await tape.wait('taskbar-action-result', (e) => e.action === 'quick-settings' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
