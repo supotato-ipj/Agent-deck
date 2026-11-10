@@ -4,7 +4,6 @@
 // 类型。状态随 1Hz taskbar/status 数据帧下发（bridge.push 载荷增 network 段），不开新事件
 // 通道。
 import os from 'node:os'
-import type { NetworkInterfaceInfo } from 'node:os'
 
 /** 网卡快照行（判定的唯一输入面）：名字仅存证、判定只看 internal 与 addresses 两维 */
 export interface AdapterSnapshot {
@@ -16,13 +15,21 @@ export interface AdapterSnapshot {
   addresses: string[]
 }
 
+/** 快照输入行的最小结构面（本投影只消费 address/internal 两字段）：os 的
+ * NetworkInterfaceInfo（IPv4/IPv6 联合）两字段齐备可赋——入参不钉 Node 全型，
+ * 合成快照（单测夹具）也不必伪造 scopeid/netmask/cidr 等不进判定面的字段。 */
+export interface AdapterInfoRow {
+  address: string
+  internal: boolean
+}
+
 /**
  * os.networkInterfaces() 输出 → 判定快照投影（纯函数）：按网卡名归并地址行。
  * 输入行只消费 address/internal 两字段（family/mac/netmask/cidr 不进判定面）；
  * 同名网卡各行 internal 取或（Node 语义里同一接口各行同 flag——回环/物理整卡一致）。
  */
 export function toAdapterSnapshot(
-  ifaces: NodeJS.Dict<readonly NetworkInterfaceInfo[]>,
+  ifaces: NodeJS.Dict<readonly AdapterInfoRow[]>,
 ): AdapterSnapshot[] {
   return Object.entries(ifaces).map(([name, infos]) => ({
     name,
