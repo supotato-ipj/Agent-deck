@@ -435,7 +435,11 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 「常驻管理」节真实右键开层点行勾选、config 落盘 {id,name} 双保险、豁免溢出裁剪的
     // 栏面键序对账、跨面板重启保持——菜单浮层手势/收编名单量/强退重拉这些单测无法证明
     // 的面；纯函数面（匹配/豁免/计数/回落）由 tray-plan 与 taskbar 单测族钉，增段条件②）。
-    expect(total).toBe(194)
+    // 194 → 195：工单459 增段——55-taskbar-right-group 电池增 P10（硬件摘要定宽槽位：
+    // 硬件仪表 stub 喂窄/宽两拍读数、taskbar-geometry 帧右组矩形与摘要/音量/时钟格宽
+    // 两拍不变——真实排版几何宽度是 jsdom 单测断不到的面，增段条件①；formatMetric 进位
+    // 与槽位 CSS 产物由 taskbar renderer 单测族钉，增段条件②）。
+    expect(total).toBe(195)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

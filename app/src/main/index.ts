@@ -786,6 +786,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       .then((probe: { close: () => Promise<void> }) => { app.on('before-quit', () => { void probe.close() }) })
   }
 
+  // 硬件仪表脚本喂入（工单459，accept 双门禁）：P10 定宽槽位段要喂确定性位数读数——
+  // 真实采样位数不可控，本触发器把 gauges 段换成 DECK_HW_GAUGE_FILE 脚本文件现读
+  // （真 1Hz 管线原样，只换数据源；文件缺位透传真实采样）。生产零启用。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_HW_GAUGE_STUB === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'hardware-gauge-stub.js'))
+      .install(kernel.panelData, log, process.env.DECK_HW_GAUGE_FILE)
+  }
+
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
   // 托盘点击、second-instance、Win+D 防抖恢复共用；恢复后的重钉是票01 实施要点。
   const showPanel = (reason: string) => {

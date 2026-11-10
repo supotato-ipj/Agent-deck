@@ -16,6 +16,11 @@
 //   P8 图标档位（工单244；工单458 随动改写：溢出行→网格）：托盘图标 16px（1:1 直渲）
 //      + 托盘格盒 28×28 + 溢出网格 5 列 36×36 格、16px 图标居中 + 浮层恒宽 200
 //      （CDP computed style 与几何存证帧两路互证；条目数变化两拍宽度不变）
+//   P9 托盘常驻（工单462）：档位菜单「常驻管理」节勾选即写名单即生效/豁免溢出裁剪/
+//      到达序原位/解除回账/跨面板重启保持
+//   P10 硬件摘要定宽槽位（工单459）：硬件仪表 stub 喂窄/宽两拍读数（1 位↔3 位百分位、
+//      短 KB↔满 5 位 KB 与 MB 进位），taskbar-geometry 右组矩形与摘要/音量/时钟格宽
+//      两拍不变 + tb-seg tabular-nums/右对齐/定宽 computed 三证
 // 运行：npm run accept:taskbar-right-group（= electron . --accept-taskbar-right-group）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -45,6 +50,11 @@ const handle = createPanelHandle({
 });
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('55-taskbar-right-group');
+// 工单459 硬件仪表脚本喂入（P10 定宽槽位段）：控制器写脚本读数、面板进程内 stub
+// （accept/lib/hardware-gauge-stub.js，DECK_HW_GAUGE_STUB=1 双门禁）在 hardware() 现读。
+// 三处拉面板（起跑 + P6/P9 重拉）都带同一 extraEnv；轮末 P10 段自删脚本文件。
+const HW_GAUGE_FILE = path.join(APP_ROOT, 'accept', 'evidence', '459-hw-gauge-script.json');
+const PANEL_ENV_459 = { DECK_HW_GAUGE_STUB: '1', DECK_HW_GAUGE_FILE: HW_GAUGE_FILE };
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const VK_ESC = 0x1b;
@@ -262,7 +272,7 @@ async function main() {
 
     // —— 拉起面板子进程（任务栏启用态）——
     // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept'] ＋ CDP 端口）
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV_459 });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
@@ -416,7 +426,7 @@ async function main() {
     panelPid = 0;
     await sleep(1200);
     const since6 = Date.now();
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV_459 });
     const boot6 = await tape.wait('boot', undefined, { since: since6, timeoutMs: 15000 });
     if (!boot6) throw new Error('P6 重拉面板子进程未上报 boot');
     panelPid = boot6.pid;
@@ -1113,7 +1123,7 @@ async function main() {
       panelPid = 0;
       await sleep(1200);
       const since9d = Date.now();
-      handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+      handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV_459 });
       const boot9 = await tape.wait('boot', undefined, { since: since9d, timeoutMs: 15000 });
       if (!boot9) throw new Error('P9 重拉面板子进程未上报 boot');
       panelPid = boot9.pid;
@@ -1172,6 +1182,106 @@ async function main() {
         }
       }
     } catch { /* 面板已退场 */ }
+
+    // —— P10 硬件摘要定宽槽位（工单459）：喂不同位数读数，taskbar-geometry 右组矩形宽度不变 ——
+    // 断言形态（spec #457 测试裁决：总宽恒定经 taskbar-geometry 帧在电池断言）：硬件仪表 stub
+    // （DECK_HW_GAUGE_STUB=1，main/index.ts accept 双门禁）把 gauges 换成控制器脚本文件现读——
+    // 真 1Hz 管线（bridge.push → taskbar/status → applyStatus → formatMetric → 定宽槽位 DOM）
+    // 原样走通只换数据源。窄/宽两拍读数位数差拉满（1 位百分位 + 短 KB ↔ 3 位百分位 + 满 5 位
+    // KB / MB 进位），taskbar-right-status 数值口径实机取证（含 MB 进位）；几何帧由左侧系统钮
+    // set-button-hidden 无害翻转触发（载荷变化在左组，右组右锚定不受牵连；窄拍翻 tasks、宽拍翻
+    // start——两拍翻不同的钮，同值幂等不重发几何帧，P9 实证）。右侧噪声隔离：托盘名单/像素键
+    // 两拍同名单时右组 pill 宽必须不变；名单变动的轮次以摘要/音量/时钟三格宽对账为准并留痕。
+    rep.beginSegment('P10');
+    let p10ok = false;
+    let detail10 = '';
+    const gaugeFile10 = HW_GAUGE_FILE;
+    try {
+      if (!gaugeFile10) throw new Error('HW_GAUGE_FILE 缺位');
+      // 基线自愈：两系统钮须在场（几何帧触发器翻左组；电池自持隔离 config 常态全在场）
+      const baseState10 = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+      const hiddenBase10 = Array.isArray(baseState10 && baseState10.hiddenButtons) ? baseState10.hiddenButtons : [];
+      for (const id of hiddenBase10) {
+        await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(id)}, hidden: false })`);
+      }
+      if (hiddenBase10.length) await sleep(600);
+      const expect10 = (g) => ({
+        cpu: `CPU ${Math.round(g.cpu)}%`,
+        gpu: `GPU ${Math.round(g.gpu)}%`,
+        ram: `RAM ${Math.round(g.memory)}%`,
+        'net-down': g.download_speed >= 1000 ? `DL ${(g.download_speed / 1000).toFixed(2)}MB/s` : `DL ${g.download_speed.toFixed(2)}KB/s`,
+        'net-up': g.upload_speed >= 1000 ? `UP ${(g.upload_speed / 1000).toFixed(2)}MB/s` : `UP ${g.upload_speed.toFixed(2)}KB/s`,
+      });
+      const feed10 = async (g) => {
+        fs.writeFileSync(gaugeFile10, JSON.stringify(g), 'utf8');
+        const want = expect10(g);
+        const since = Date.now();
+        return { want, ev: await waitLastEvent('taskbar-right-status',
+          (e) => e.values && Object.entries(want).every(([k, v]) => e.values[k] === v), 8000, { since }) };
+      };
+      const geoViaToggle10 = async (buttonId) => {
+        const t = Date.now();
+        await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(buttonId)}, hidden: true })`);
+        const frame = await waitLastEvent('taskbar-geometry',
+          (e) => e.rightPill && Array.isArray(e.rightCells) && Array.isArray(e.buttons), 8000, { since: t });
+        await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(buttonId)}, hidden: false })`);
+        await sleep(400); // 复原拍（载荷回基线，下一拍翻另一钮必发帧）
+        return frame;
+      };
+      const cellOf10 = (frame, id) => (frame.rightCells || []).find((c) => c.id === id) || null;
+
+      // 窄拍：1 位百分位 + 短速率（既有 'DL 1.23KB/s' 口径实机取证）
+      const narrow10 = { cpu: 9, gpu: 8, memory: 46, download_speed: 1.23, upload_speed: 0.5 };
+      const a10 = await feed10(narrow10);
+      const frameA = a10.ev ? await geoViaToggle10('tasks') : null;
+      // 宽拍：3 位百分位 + 满 5 位 KB / MB 进位（速率槽位最宽形态）
+      const wide10 = { cpu: 100, gpu: 87, memory: 99, download_speed: 999.99, upload_speed: 125500 };
+      const b10 = await feed10(wide10);
+      const frameB = b10.ev ? await geoViaToggle10('start') : null;
+      detail10 += `窄拍值=${a10.ev ? JSON.stringify(a10.ev.values) : '未达'} 宽拍值=${b10.ev ? JSON.stringify(b10.ev.values) : '未达'}`;
+
+      // 槽位与等宽数字真机证（CDP computed style，P8 同款）：tabular-nums / 右对齐 / 定宽三件
+      const slotStyle10 = await cdpEval(TASKBAR_TITLE, `(() => {
+        const cs = (el, p) => (el ? getComputedStyle(el)[p] : null);
+        return ['cpu', 'net-down'].map((m) => {
+          const el = document.querySelector('#hw-summary .tb-seg[data-metric="' + m + '"]');
+          return el ? { m, tabular: cs(el, 'fontVariantNumeric'), align: cs(el, 'textAlign'), minWidth: cs(el, 'minWidth') } : null;
+        });
+      })()`);
+      const styleOk10 = Array.isArray(slotStyle10) && slotStyle10.length === 2 && slotStyle10.every((s) => s
+        && String(s.tabular).includes('tabular-nums') && s.align === 'right' && parseFloat(s.minWidth) > 0);
+
+      // 两拍矩形对账：摘要/音量/时钟格宽逐项恒等（定宽槽位的直接证据）；右组 pill 宽在托盘
+      // 名单两拍同名单时也须恒等（真机噪声隔离：名单变动轮以格宽对账为准并留痕）
+      const rects10 = (() => {
+        if (!frameA || !frameB) return { ok: false, why: '几何帧缺' };
+        const rows = [];
+        for (const id of ['hw-summary', 'volume', 'clock']) {
+          const ca = cellOf10(frameA, id);
+          const cb = cellOf10(frameB, id);
+          if (!ca || !cb) return { ok: false, why: `rightCells 缺 ${id}` };
+          rows.push(`${id} ${ca.w.toFixed(2)}→${cb.w.toFixed(2)}`);
+          if (Math.abs(ca.w - cb.w) > 0.01) return { ok: false, why: `${id} 格宽变 ${ca.w}→${cb.w}` };
+        }
+        const trayA = (frameA.trayIcons || []).map((t) => t.key);
+        const trayB = (frameB.trayIcons || []).map((t) => t.key);
+        const traySame = JSON.stringify(trayA) === JSON.stringify(trayB);
+        const pillSame = Math.abs(frameA.rightPill.w - frameB.rightPill.w) <= 0.01;
+        if (!traySame && !pillSame) return { ok: false, why: `托盘名单变动(${trayA.length}→${trayB.length})且右组宽变 ${frameA.rightPill.w}→${frameB.rightPill.w}` };
+        return { ok: true, why: `${rows.join(' ; ')}；右组 pill ${frameA.rightPill.w.toFixed(2)}→${frameB.rightPill.w.toFixed(2)}（托盘两拍同名单=${traySame}）` };
+      })();
+      p10ok = !!a10.ev && !!b10.ev && !!frameA && !!frameB && styleOk10 && rects10.ok;
+      detail10 += ` 槽位=${JSON.stringify(slotStyle10)} 矩形对账=${rects10.why}`;
+    } catch (e10) {
+      detail10 += ` 异常=${e10.message}`;
+    } finally {
+      try { fs.unlinkSync(gaugeFile10); } catch { /* 本就缺位 */ }
+    }
+    if (p10ok) {
+      rep.pass(`P10 硬件摘要定宽槽位：窄/宽两拍读数（CPU 9%↔100%、DL 1.23KB/s↔999.99KB/s、UP 0.50KB/s↔125.50MB/s 含 MB 进位）taskbar-right-status 口径实机取证、tb-seg tabular-nums+右对齐+定宽槽位 computed 三证、taskbar-geometry 右组矩形与摘要/音量/时钟格宽两拍不变`);
+    } else {
+      rep.fail(`P10[定宽槽位] ${detail10}`);
+    }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {

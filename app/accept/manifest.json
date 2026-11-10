@@ -1373,6 +1373,17 @@
             "event-evidence"
           ],
           "estSeconds": 23
+        },
+        {
+          "seg": "P10",
+          "ticket": 459,
+          "title": "硬件摘要定宽槽位（工单459）：硬件仪表 stub 喂窄/宽两拍读数（1 位百分位 CPU 9%/短速率 DL 1.23KB/s ↔ 3 位百分位 CPU 100%/满 5 位 KB DL 999.99KB/s 与 MB 进位 UP 125.50MB/s，accept 双门禁 DECK_HW_GAUGE_STUB=1）+ taskbar-right-status 数值口径实机取证（含 MB 进位）+ tb-seg tabular-nums/右对齐/定宽 computed 三证 + taskbar-geometry 帧右组矩形与摘要/音量/时钟格宽两拍不变（几何帧由左侧系统钮 set-button-hidden 无害翻转触发，右组右锚定不受牵连）",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "pixel"
+          ],
+          "estSeconds": 12
         }
       ],
       "areas": [
