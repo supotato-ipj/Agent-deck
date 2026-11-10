@@ -4,6 +4,7 @@
 // 类型。状态随 1Hz taskbar/status 数据帧下发（bridge.push 载荷增 network 段），不开新事件
 // 通道。
 import os from 'node:os'
+import type { NetworkInterfaceInfo } from 'node:os'
 
 /** 网卡快照行（判定的唯一输入面）：名字仅存证、判定只看 internal 与 addresses 两维 */
 export interface AdapterSnapshot {
@@ -21,7 +22,7 @@ export interface AdapterSnapshot {
  * 同名网卡各行 internal 取或（Node 语义里同一接口各行同 flag——回环/物理整卡一致）。
  */
 export function toAdapterSnapshot(
-  ifaces: NodeJS.Dict<readonly NodeJS.NetworkInterfaceInfo[]>,
+  ifaces: NodeJS.Dict<readonly NetworkInterfaceInfo[]>,
 ): AdapterSnapshot[] {
   return Object.entries(ifaces).map(([name, infos]) => ({
     name,
