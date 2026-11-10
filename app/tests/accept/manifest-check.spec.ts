@@ -444,7 +444,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 点击开原生快速设置——真机二态视觉与原生浮层前台是 jsdom 单测断不到的面，增段
     // 条件①；判定纯函数与二态视图/分发由 network.spec 与 taskbar renderer 单测族钉，
     // 增段条件②）。
-    expect(total).toBe(196)
+    // 196 → 197：工单460 增段——55-taskbar-right-group 电池增 P12（对话窗入口格：插位
+    // 托盘群最左端/格盒 28×28/title「对话窗」/一步调窗真实热区点击→DECK-CONVERSATION
+    // 可见/已开再点置前不隐藏（窗语义 ADR-0018）——真实窗创建与前台语义是 jsdom 单测
+    // 断不到的面，增段条件①；二态裁决/图标/分发本体由 taskbar renderer 单测族钉，增段
+    // 条件②；busy 点亮不进段——需在途 turn 后端会话，重且不增信）。
+    expect(total).toBe(197)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

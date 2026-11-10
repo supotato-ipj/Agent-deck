@@ -26,6 +26,11 @@
 //      断网态随 1Hz 帧翻转（网卡快照 stub 喂「网卡在场无地址」快照走真判定管线——
 //      down 斜杠+红点在场；删脚本复原拍翻回 up，双向随帧更新）/点击开原生快速设置
 //      （与音量格同款 quick-settings 分发）
+//   P12 对话窗入口格（工单460，spec #457 T4；ADR-0018 关窗只隐藏）：rightCells 挂
+//      data-id 且插位硬件摘要与首枚托盘图标之间（托盘群最左端）/格盒 28×28+图标格族
+//      圆角 10px+title「对话窗」+内联 SVG/首态熄灭/一步调窗（真实热区点击→点击回执 ok
+//      +DECK-CONVERSATION 可见）/已开再点置前不隐藏（窗仍在+前台=对话窗；busy 点亮由
+//      renderer 单测族钉，真机不重——需在途 turn 的后端会话）
 // 运行：npm run accept:taskbar-right-group（= electron . --accept-taskbar-right-group）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -1405,6 +1410,111 @@ async function main() {
       rep.pass(`P11 网络状态格：rightCells 挂 data-id 且插位「⋯」与音量之间（音量格紧邻右侧）、联网态实心信号（无斜杠无红点）、断网态随 1Hz 帧翻转（stub 喂无地址快照走真判定管线——down 斜杠+红点在场）+ 复原拍回 up（双向随帧更新）、点击开原生快速设置（音量格同款分发，前台 ${fg11 ? `${fg11.exe} / ${fg11.cls}` : '缺'}）`);
     } else {
       rep.fail(`P11[网络状态格] ${detail11}`);
+    }
+
+    // —— P12 对话窗入口格（工单460，spec #457 T4；ADR-0018 关窗只隐藏）：一步调窗真机验收 ——
+    // 增段三条件：真实热区点击→真实对话窗出现、已开再点置前不隐藏（窗语义 ADR-0018）是
+    // jsdom 单测断不到的面（条件①）；二态裁决/图标/分发本体已由 taskbar renderer 单测族钉
+    // （条件②）；一段绑定一工单（条件③）。busy 点亮不进本段——真机点亮需在途 turn 的后端
+    // 会话，重且不增信（conversation/changed 订阅全链已由单测钉）。
+    rep.beginSegment('P12');
+    let p12ok = false;
+    let detail12 = '';
+    let fg12 = null;
+    let convHwnd12 = null; // 段尾清场：WM_CLOSE 只收起（ADR-0018），对话窗不留场
+    const convTitle12 = 'DECK-CONVERSATION';
+    const WM_CLOSE12 = 0x0010;
+    const GetWindowTextW12 = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+    const windowTitleOf12 = (hwnd) => {
+      const buf = Buffer.alloc(512);
+      const n = GetWindowTextW12(hwnd, buf, 256);
+      let s = '';
+      for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
+      return s;
+    };
+    // 对话窗甄别（conversation.js convHwndOf 同款口径）：面板进程 + 标题 DECK-CONVERSATION + 可见
+    const convWin12 = () => {
+      if (!panelPid) return null;
+      for (const h of win32.topLevelWindows()) {
+        if (Number(win32.threadIdOf(h).pid) !== Number(panelPid)) continue;
+        if (windowTitleOf12(h) !== convTitle12) continue;
+        if (!win32.IsWindowVisible(h)) continue;
+        return h;
+      }
+      return null;
+    };
+    const until12 = async (shot, timeoutMs = 8000) => {
+      const deadline = Date.now() + timeoutMs;
+      let last = null;
+      while (Date.now() < deadline) {
+        last = await shot();
+        if (last) return last;
+        await sleep(250);
+      }
+      return null;
+    };
+    try {
+      // ① 在场与插位（几何帧口径）：conversation 格在 rightCells，紧随 hw-summary 右侧
+      //    （摘要缺席时居右组首）且在 network 左侧；「托盘群最左端」由格盒 DOM 序核对
+      //    （conversation 之后第一个格类子元素 = .tb-tray-icon——托盘图标挂 data-key 不进
+      //    rightCells 列）。
+      const geo12 = await waitLastEvent('taskbar-geometry',
+        (e) => e.rightPill && (e.rightCells || []).some((c) => c.id === 'conversation'), 8000, {});
+      if (!geo12) throw new Error('taskbar-geometry 缺 conversation 格（data-id 几何口径未挂）');
+      const ids12 = geo12.rightCells.map((c) => c.id);
+      const idxConv12 = ids12.indexOf('conversation');
+      const idxSum12 = ids12.indexOf('hw-summary');
+      const idxNet12 = ids12.indexOf('network');
+      const posOk12 = idxConv12 >= 0 && idxConv12 < idxNet12 && (idxSum12 < 0 || idxSum12 === idxConv12 - 1);
+      detail12 += `插位=${JSON.stringify(ids12)}`;
+      // ② 格盒与识别（CDP computed）：28×28（托盘图标格同款）+ 图标格族圆角 10px +
+      //    title「对话窗」+ 内联 SVG 在格 + 首态熄灭（idle——busy 点亮单测钉，缺会话数据不误报）
+      const dom12 = await cdpEval(TASKBAR_TITLE, `(() => {
+        const el = document.querySelector('#right-pill [data-id="conversation"]');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const summary = document.getElementById('hw-summary');
+        const tray = document.querySelector('#right-pill .tb-tray-icon');
+        return { state: el.dataset.state ?? '', title: el.title, w: r.width, h: r.height,
+          radius: cs.borderRadius, svg: !!el.querySelector('svg'),
+          convLeft: r.left, summaryRight: summary ? summary.getBoundingClientRect().right : null,
+          firstTrayLeft: tray ? tray.getBoundingClientRect().left : null };
+      })()`);
+      const sizeOk12 = !!dom12 && Math.abs(dom12.w - 28) <= 1 && Math.abs(dom12.h - 28) <= 1;
+      const styleOk12 = !!dom12 && dom12.radius === '10px' && dom12.title === '对话窗' && dom12.svg
+        && dom12.state === 'idle';
+      const orderOk12 = !!dom12 && (dom12.summaryRight === null || dom12.convLeft >= dom12.summaryRight)
+        && (dom12.firstTrayLeft === null || dom12.convLeft <= dom12.firstTrayLeft);
+      detail12 += ` 格盒=${JSON.stringify(dom12)}`;
+      // ③ 一步调窗：真实热区点击 → conversation/show（存证 taskbar-conversation-action-result）
+      //    → DECK-CONVERSATION 可见（内核 show() = ensureWindow+restore+show）
+      const tbHwnd12 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
+      const cell12 = geo12.rightCells.find((x) => x.id === 'conversation');
+      const convPt12 = toPhys(cell12.x + cell12.w / 2, cell12.y + cell12.h / 2);
+      const convHit12 = await convergeAt(convPt12, tbHwnd12);
+      rep.note(`P12 点击前收敛=${convHit12}`);
+      win32.clickPhys(convPt12.x, convPt12.y, 'left');
+      const ev12 = await tape.wait('taskbar-conversation-action-result', (e) => e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      convHwnd12 = await until12(async () => convWin12(), 10000);
+      detail12 += ` 点击回执=${JSON.stringify(ev12)} 对话窗=${convHwnd12 ? '可见' : '缺'}`;
+      // ④ 已开再点：置前不隐藏（非 toggle，ADR-0018）——窗仍可见且前台=对话窗
+      win32.clickPhys(convPt12.x, convPt12.y, 'left');
+      const ev12b = await tape.wait('taskbar-conversation-action-result', (e) => e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      const stillOk12 = await until12(async () => (convWin12() ? true : null), 6000);
+      const cur12 = convWin12();
+      fg12 = cur12 ? await waitForeground((i) => i.hwnd === Number(cur12), 6000) : null;
+      detail12 += ` 再点回执=${JSON.stringify(ev12b)} 不隐藏=${!!stillOk12} 前台=${JSON.stringify(fg12)}`;
+      p12ok = posOk12 && sizeOk12 && styleOk12 && orderOk12 && convHit12 && !!ev12 && !!convHwnd12 && !!ev12b && stillOk12 && !!fg12;
+    } catch (e12) {
+      detail12 += ` 异常=${e12.message}`;
+    } finally {
+      if (convHwnd12) win32.PostMessageW(convHwnd12, WM_CLOSE12, 0, 0);
+    }
+    if (p12ok) {
+      rep.pass(`P12 对话窗入口格：rightCells 挂 data-id 且插位硬件摘要与首枚托盘图标之间（托盘群最左端）、格盒 28×28+图标格族圆角 10px+title「对话窗」+内联 SVG、首态熄灭、一步调窗（点击回执 ok + DECK-CONVERSATION 可见）、已开再点置前不隐藏（窗仍在 + 前台=对话窗）`);
+    } else {
+      rep.fail(`P12[对话窗入口格] ${detail12}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);

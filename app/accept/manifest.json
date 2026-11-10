@@ -1395,6 +1395,17 @@
             "event-evidence"
           ],
           "estSeconds": 6
+        },
+        {
+          "seg": "P12",
+          "ticket": 460,
+          "title": "对话窗入口格（工单460，spec #457 T4；ADR-0018 关窗只隐藏）：rightCells 挂 data-id 且插位硬件摘要与首枚托盘图标之间（托盘群最左端）+ 格盒 28×28 托盘图标格同款（图标格族圆角 10px）+ title「对话窗」+ 内联 SVG 在格 + 首态熄灭（缺会话数据不误报点亮）+ 一步调窗（真实热区点击→taskbar-conversation-action-result 回执 ok + DECK-CONVERSATION 可见，内核 conversation/show→show()）+ 已开再点置前不隐藏（窗仍在 + 前台=对话窗；busy 点亮二态由 renderer 单测族钉——真机点亮需在途 turn 的后端会话，增段条件②）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 8
         }
       ],
       "areas": [
