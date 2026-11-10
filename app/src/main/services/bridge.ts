@@ -2,6 +2,7 @@ import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import type { AgentTilingState, BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, DesktopLayout, DesktopZone, PanelSnapshot, SessionPreviewState, SettingsState, TaskbarButtonId, TaskbarDragDrop, TaskbarMetric, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayOverflowLimit, WeatherLocation, WindowPreviewState } from '../../shared/contract'
 import { defaultDesktopLayout, defaultWeather } from '../config'
+import { isNetworkUp, readAdapterSnapshot } from '../taskbar/network'
 import type { SearchService } from './search'
 import type { SettingsService } from './settings'
 
@@ -584,8 +585,13 @@ export class BridgeService extends Service {
   /** 推送当前快照（数据面宿主收到子进程快照后调用；与 tick 共用同一事件） */
   push(): void {
     this.ctx.emit('panel/changed', this.snapshot())
-    // 工单55 任务栏右组 1Hz 数据帧：与 panel/changed 同源同拍，只裁时钟 + 硬件仪表两段
-    this.ctx.emit('taskbar/status', { clock: this.ctx.panelData.clock(), hardware: this.ctx.panelData.hardware().gauges })
+    // 工单55 任务栏右组 1Hz 数据帧：与 panel/changed 同源同拍，只裁时钟 + 硬件仪表两段。
+    // 工单461 载荷增 network 段（联网判定纯函数读本机网卡快照，不发探测包）——不开新事件通道。
+    this.ctx.emit('taskbar/status', {
+      clock: this.ctx.panelData.clock(),
+      hardware: this.ctx.panelData.hardware().gauges,
+      network: isNetworkUp(readAdapterSnapshot()),
+    })
   }
 }
 

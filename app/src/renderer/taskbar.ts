@@ -16,7 +16,7 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, METRIC_SLOT_TEXT, modeZoneId, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, METRIC_SLOT_TEXT, modeZoneId, NETWORK_CELL_ICONS, NETWORK_CELL_TITLES, networkCellState, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, DesktopModeEntry, DesktopModeId, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
@@ -490,6 +490,18 @@ function wireAction(el: HTMLElement, id: string): void {
         window.deck.host.notify('taskbar-action-result', { action: r.action, ok: r.ok, ...(r.error ? { error: r.error } : {}) })
       })
   })
+}
+
+/** 网络状态格二态落地（工单461）：state/图标/名称三件同拍落 DOM——同态空转（1Hz 帧每拍
+ * 都来，只有翻转才碰 DOM）。缺帧/字段缺位按 up 乐观呈现（networkCellState 口径——boot
+ * 头一拍不误报断网红点）。data-state 是二态的 DOM 判据（电池 CDP 断言挂点）。 */
+function applyNetworkCell(el: HTMLElement, network: boolean | null | undefined): void {
+  const state = networkCellState(network)
+  if (el.dataset.state === state) return
+  el.dataset.state = state
+  el.innerHTML = NETWORK_CELL_ICONS[state]
+  el.title = NETWORK_CELL_TITLES[state]
+  el.setAttribute('aria-label', NETWORK_CELL_TITLES[state])
 }
 
 /** 右组硬件摘要格（工单55）：常态按勾选子集呈现数值段；编辑态五项全呈现、点击段即
@@ -1161,6 +1173,17 @@ function render(state: TaskbarState): void {
       })
       rightPill.appendChild(more)
     }
+    // 网络状态格（工单461，spec #457 T3；ADR-0031 自绘二态）：插位在「⋯」与音量格之间
+    // （补回被托管压住的原生网络图标——原生图标不经 Shell_NotifyIcon，收编不可达）。
+    // 点击走音量格同款 quick-settings 动作分发（wireAction 目录右侧格 family）；二态随
+    // 1Hz 帧就地翻转（applyStatus → applyNetworkCell），data-id 挂几何上报口径
+    //（measure rightCells 自动收集，热区/电池取坐标零特例）。
+    const networkCell = document.createElement('div')
+    networkCell.className = 'tb-cell tb-network-cell'
+    networkCell.dataset.id = 'network'
+    applyNetworkCell(networkCell, latestStatus?.network)
+    wireAction(networkCell, 'network')
+    rightPill.appendChild(networkCell)
     const volume = document.createElement('div')
     volume.className = 'tb-cell'
     volume.dataset.id = 'volume'
@@ -1201,11 +1224,14 @@ function requestRender(state: TaskbarState): void {
   render(state)
 }
 
-/** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态） */
+/** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态）。
+ * 工单461 起载荷含 network 段——网络格二态随帧就地翻转（applyNetworkCell 同款纪律）。 */
 function applyStatus(status: TaskbarStatus): void {
   latestStatus = status
   const clockEl = rightPill.querySelector<HTMLElement>('[data-id="clock"]')
   if (clockEl) clockEl.textContent = formatClock(status.clock)
+  const networkEl = rightPill.querySelector<HTMLElement>('[data-id="network"]')
+  if (networkEl) applyNetworkCell(networkEl, status.network)
   const values: Record<string, string> = {}
   for (const el of rightPill.querySelectorAll<HTMLElement>('#hw-summary .tb-seg')) {
     const id = (el.dataset.metric ?? '') as TaskbarMetric

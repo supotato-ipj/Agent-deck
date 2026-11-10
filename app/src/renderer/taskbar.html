@@ -238,6 +238,17 @@
   }
   .tb-cell:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-cell:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 网络状态格（工单461，spec #457 T3；ADR-0031 自绘二态）：插位「⋯」与音量格之间，
+   * 托盘图标格同款 28×28 格盒、16px 图标居中、图标格族圆角 10px（非文本芯片格）。
+   * 二态 DOM 判据 = data-state（up/down）+ 图标内 tb-net-slash/tb-net-dot 类名 */
+  .tb-network-cell {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  .tb-network-cell .tb-system-icon { width: 16px; height: 16px; }
   /* 摘要段定宽槽位（工单459）：数值用等宽数字（tabular-nums，逐拍跳动只在槽内消化）+
    * min-width 定宽 + 右对齐（设置浮层 #opacity-value 同款先例）——位数变化不改变段宽，
    * 整行总宽恒定、右组不再左右伸缩。段宽下限按读数极宽校准（真机红轮实证：ch 手估被

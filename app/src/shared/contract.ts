@@ -497,10 +497,13 @@ export type TaskbarActivateAction = 'launched' | 'focused'
 
 /** 任务栏右组 1Hz 数据帧（工单55）：时钟 + 硬件仪表，随数据面每拍快照回推
  * （与 panel/changed 同源同拍——数值口径与硬件卡一致的依据；只裁右组要的两段，
- * 整份 PanelSnapshot 不进条带渲染层） */
+ * 整份 PanelSnapshot 不进条带渲染层）。工单461 载荷增 network 段：联网布尔
+ * （判定=存在带 IP 的活动非内部网卡，ADR-0031，不发探测包），不开新事件通道。 */
 export interface TaskbarStatus {
   clock: ClockState
   hardware: HardwareGauges
+  /** 联网布尔（工单461 网络状态格二态的唯一数据源） */
+  network: boolean
 }
 
 /**

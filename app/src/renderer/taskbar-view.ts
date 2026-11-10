@@ -94,10 +94,11 @@ export async function dispatchWorkspaceSwitch(
   return bridge.invoke('workspace/switch-to', { mode })
 }
 
-/** 右组动作格（工单55）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、点击触发原生
- * 快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；显示桌面
- * 细条 = Win+D（label 空——细条无文字，钉屏幕最右端，对齐 Win11 右下角肌肉记忆）。
- * 组内序 = 硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟 → 细条。 */
+/** 右组动作格（工单55；工单461 增网络格）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、
+ * 点击触发原生快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；
+ * 显示桌面细条 = Win+D（label 空——细条无文字，钉屏幕最右端，对齐 Win11 右下角肌肉记忆）；
+ * 网络格 = 快速设置（与音量格同款动作分发，ADR-0031 自绘二态补位原生网络图标）。
+ * 组内序 = 硬件摘要 →（托盘位 #56 占位，超量收「⋯」）→ 网络 → 音量 → 时钟 → 细条。 */
 export interface TaskbarCellSpec {
   id: string
   label: string
@@ -105,10 +106,41 @@ export interface TaskbarCellSpec {
 }
 
 export const RIGHT_CELLS: readonly TaskbarCellSpec[] = [
+  { id: 'network', label: '', action: 'quick-settings' },
   { id: 'volume', label: '♪ VOL', action: 'quick-settings' },
   { id: 'clock', label: '', action: 'notification-center' },
   { id: 'show-desktop', label: '', action: 'toggle-desktop' },
 ] as const
+
+// —— 工单461 网络状态格（spec #457 T3；ADR-0031 自绘二态，插位「⋯」与音量格之间）——
+
+/** 网络状态格二态：up = 联网（实心信号图标）、down = 断网（斜杠加红点，视觉醒目） */
+export type NetworkCellState = 'up' | 'down'
+
+/**
+ * 状态帧布尔 → 格二态（纯函数）：false 才断网（唯一显式断网态）；缺帧/字段缺位按联网
+ * 乐观呈现——首帧 <1s 到位，宁可短暂乐观不误报断网红点（boot 头一拍红点是假警报）。
+ */
+export function networkCellState(network: boolean | null | undefined): NetworkCellState {
+  return network === false ? 'down' : 'up'
+}
+
+/**
+ * 二态图标（内联 SVG，开始组同族 24 框渲染层缩 16 呈现——taskbar.html 格盒 CSS）：
+ * up = 四级实心信号（tb-net-bars 全亮 currentColor）；down = 同一信号灰阶（opacity .35）
+ * + 斜杠（tb-net-slash）+ 红点（tb-net-dot，警示红不随主题）。类名是二态的 DOM 判据
+ * （电池 CDP 按类名断言斜杠+红点在场），不随实现漂移。
+ */
+export const NETWORK_CELL_ICONS: Readonly<Record<NetworkCellState, string>> = {
+  up: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-net-bars" fill="currentColor" d="M3 17h3v5H3zM8 12h3v10H8zM13 7h3v15h-3zM18 2h3v20h-3z"/></svg>',
+  down: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-net-bars" fill="currentColor" opacity="0.35" d="M3 17h3v5H3zM8 12h3v10H8zM13 7h3v15h-3zM18 2h3v20h-3z"/><path class="tb-net-slash" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" d="M3 21 21 3"/><circle class="tb-net-dot" cx="19.5" cy="19.5" r="3.5" fill="#e81123"/></svg>',
+}
+
+/** 二态可见名（title/aria-label——图标格族第二识别通道） */
+export const NETWORK_CELL_TITLES: Readonly<Record<NetworkCellState, string>> = {
+  up: '网络已连接',
+  down: '网络已断开',
+}
 
 /** 点击分发目录 = 开始组按钮 + 右组动作格 */
 const CATALOG: ReadonlyArray<{ id: string; action: TaskbarSystemAction }> = [...TASKBAR_BUTTONS, ...RIGHT_CELLS]

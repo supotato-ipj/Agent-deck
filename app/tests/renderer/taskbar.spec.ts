@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, METRIC_SLOT_TEXT, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, METRIC_SLOT_TEXT, NETWORK_CELL_ICONS, NETWORK_CELL_TITLES, networkCellState, PILL_PAD_X, RIGHT_CELLS, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -1326,5 +1326,45 @@ describe('应用+推荐组合居中与容量（工单380）', () => {
     const l = combinedPillsLeft({ lo: 100, hi: 300 }, 0, 260, 200)
     expect(l.recsLeft).toBe(100)
     expect(l.recsMaxWidth).toBe(200)
+  })
+})
+
+describe('网络状态格（工单461，spec #457 T3：自绘二态，ADR-0031）', () => {
+  it('networkCellState：true→up / false→down / 缺帧与字段缺位→up（首帧 <1s 到位——乐观呈现，不误报断网红点）', () => {
+    expect(networkCellState(true)).toBe('up')
+    expect(networkCellState(false)).toBe('down')
+    expect(networkCellState(null)).toBe('up')
+    expect(networkCellState(undefined)).toBe('up')
+  })
+
+  it('二态图标齐备：down 含斜杠与红点标记类（断网醒目的 DOM 判据——电池按类名断言）；图标为内联 SVG', () => {
+    for (const st of ['up', 'down'] as const) {
+      expect(NETWORK_CELL_ICONS[st]).toContain('<svg')
+    }
+    expect(NETWORK_CELL_ICONS.up).toContain('tb-net-bars')
+    expect(NETWORK_CELL_ICONS.down).toContain('tb-net-bars')
+    expect(NETWORK_CELL_ICONS.down).toContain('tb-net-slash')
+    expect(NETWORK_CELL_ICONS.down).toContain('tb-net-dot')
+    expect(NETWORK_CELL_ICONS.up).not.toContain('tb-net-slash')
+    expect(NETWORK_CELL_ICONS.up).not.toContain('tb-net-dot')
+  })
+
+  it('二态 title 齐备（悬停提示 + 无障碍名——图标格族第二识别通道）', () => {
+    expect(NETWORK_CELL_TITLES.up).toBeTruthy()
+    expect(NETWORK_CELL_TITLES.down).toBeTruthy()
+    expect(NETWORK_CELL_TITLES.up).not.toBe(NETWORK_CELL_TITLES.down)
+  })
+
+  it('右组动作格目录含网络格：点击分发与音量格同款——taskbar/system-action quick-settings', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    expect(await dispatchTaskbarButton(bridge, 'network')).toEqual({ ok: true, action: 'quick-settings' })
+    expect(calls).toEqual([{ method: 'taskbar/system-action', payload: { action: 'quick-settings' } }])
+  })
+
+  it('RIGHT_CELLS 含 network 条目且 action=quick-settings（插位在音量格左侧——目录序即渲染序镜像）', () => {
+    const ids = RIGHT_CELLS.map((c) => c.id)
+    expect(ids).toContain('network')
+    expect(RIGHT_CELLS.find((c) => c.id === 'network')!.action).toBe('quick-settings')
+    expect(ids.indexOf('network')).toBeLessThan(ids.indexOf('volume'))
   })
 })

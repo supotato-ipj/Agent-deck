@@ -1353,7 +1353,7 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
     }
   }, 30_000)
 
-  it('taskbar/status：每拍快照随 tick 回推时钟 + 硬件仪表（右组 1Hz 数据源）', async () => {
+  it('taskbar/status：每拍快照随 tick 回推时钟 + 硬件仪表 + 联网布尔（右组 1Hz 数据源，工单461 载荷增 network 段）', async () => {
     const dir = tmpDir()
     const t = taskbarOpts(dir)
     const ctx = createKernel(kernelOpts(dir, t.opts))
@@ -1365,6 +1365,8 @@ describe('内核桥接契约（工单55 任务栏右组）', () => {
       expect(received).toHaveLength(1)
       expect(received[0].clock.epochMs).toBeGreaterThan(0)
       expect(typeof received[0].hardware.cpu).toBe('number')
+      // 工单461：network 段随帧下发（联网判定纯函数在本机真实快照上的实跑结果）
+      expect(typeof received[0].network).toBe('boolean')
       off()
       ctx.bridge.tick()
       expect(received).toHaveLength(1)
