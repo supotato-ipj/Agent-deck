@@ -723,9 +723,28 @@ describe('图标与字形档位统一（工单240，spec #236 几何常量表右
   })
 
   it('托盘溢出菜单行图标 16px（工单240：栏内栏外观感一致）', () => {
-    const row = ruleOv240('.ov-row img')
-    expect(row).toContain('width: 16px')
-    expect(row).toContain('height: 16px')
+    const img = ruleOv240('.ov-cell img')
+    expect(img, '格内图标 16px 档不变（工单458 网格化只换承载形态）').toContain('width: 16px')
+    expect(img).toContain('height: 16px')
+  })
+
+  it('托盘溢出网格档（工单458）：固定 5 列 36×36 格、恒宽 200、名称退原生 title 不渲文字', () => {
+    const listRule = ruleOv240('#overflow-list')
+    expect(listRule, '浮层恒定宽 200px（CSS 定值——条目数 1 枚与 10+ 枚都不影响宽度）')
+      .toContain('width: 200px')
+    expect(listRule, 'box-sizing 定宽预算含边与内衬（5×36 + gap 2×4 + 内衬 5×2 + 边 1×2 = 200）')
+      .toContain('box-sizing: border-box')
+    expect(listRule, '固定 5 列、格宽 36px').toContain('grid-template-columns: repeat(5, 36px)')
+    expect(listRule, '格高 36px（grid-auto-rows 定死，行步进含 gap）').toContain('grid-auto-rows: 36px')
+    const cell = ruleOv240('.ov-cell')
+    expect(cell, '16px 图标在格内水平居中').toContain('justify-content: center')
+    expect(cell, '16px 图标在格内垂直居中').toContain('align-items: center')
+    const ovSrc = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/taskbar-overflow.ts'), 'utf8')
+    expect(ovSrc, '悬停名称提示走原生 title 属性（格不渲名称文字）').toMatch(/\.title = /)
+    expect(ovSrc, '竖排行 + 名称 span 形态随网格化退役').not.toContain("className = 'ov-label'")
+    expect(cssOv240, '名称文字规则随网格化退役').not.toContain('.ov-label')
+    expect(ovSrc, 'ready 回报 rows 携带格矩形 x/w（坐标语义行→格，电池取点击坐标依赖）').toMatch(/x: r\.x/)
+    expect(ovSrc).toMatch(/w: r\.width/)
   })
 
   it('注释同步（工单240 覆盖审计 D4）：旧的「16px 最近邻放大 / 托盘 24px 升档」说法不得残留', () => {
