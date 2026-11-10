@@ -137,6 +137,9 @@ export class StubElement {
   hidden = false
   draggable = false
   className = ''
+  /** innerHTML 字符串产物（真 DOM 写 innerHTML 会解析子树，桩是工单249 最小近似——
+   * 只落串不解析；渲染入口系统钮/二态格的图标交换都写它，读回断言即图标落格证据） */
+  innerHTML = ''
   tagName: string
   /** 所属文档的 body（收栏态栏面退场的判据来源：body[data-bar-mode]，真 DOM 同款） */
   body: StubElement | null = null
