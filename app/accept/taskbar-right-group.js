@@ -929,7 +929,7 @@ async function main() {
     // 人眼验收不进电池（机器图标不定），由工单 462 真机轮 CDP 名单取证佐证。
     rep.beginSegment('P9');
     const since9 = Date.now();
-    // 档位与常驻名单基线（段尾复原——本段切档 2/1、勾 3 枚探针）
+    // 档位与常驻名单基线（段尾复原——本段切档 3、勾 3 枚探针）
     const prevLimit9 = (() => {
       try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')).taskbar?.trayOverflowLimit ?? 5; } catch { return 5; }
     })();
@@ -982,9 +982,10 @@ async function main() {
       }
       return null;
     };
-    const geo9a = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, { since: since9 });
+    const geo9a = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, {});
     let arm1 = false, detail9a = '';
     let pinRow0 = null, pinRow1 = null;
+    let pinRowCount9 = 0;
     if (!geo9a) {
       detail9a = '无 trayOverflow 几何（⋯ 未渲染）';
     } else {
@@ -995,9 +996,12 @@ async function main() {
         pinRow0 = pop9.rows.find((r) => r.id === `pin:${probe9Keys[0]}`);
         pinRow1 = pop9.rows.find((r) => r.id === `pin:${probe9Keys[1]}`);
         const pinRows9 = pop9.rows.filter((r) => String(r.id || '').startsWith('pin:'));
-        detail9a += ` 常驻行=${pinRows9.length}/${roster9.length} tier 行=${pop9.rows.filter((r) => String(r.id || '').startsWith('tier-')).length}`;
+        // 行集对账名单取「开层后现读」——探针注册后名单仍在收编窗口，前读会与菜单渲染
+        // 时的行集错一拍（首跑实证 roster 前读 29、开层时 30，行数对账误红）
+        const rosterNow9 = await rosterKeys();
+        detail9a += ` 常驻行=${pinRows9.length}/${rosterNow9.length} tier 行=${pop9.rows.filter((r) => String(r.id || '').startsWith('tier-')).length}`;
         // 臂1a：常驻管理节列出全部名单（pin 行数 = 名单数，含栏内+溢出内——工单462 验收标准①）
-        const sectionOk = pinRows9.length === roster9.length;
+        const sectionOk = pinRows9.length === rosterNow9.length;
         // 臂1b：点行勾选即写名单即生效（存证回执 + config 落盘；两行连击不关层——keepOpen）
         let result1 = null;
         const clickPinRow9 = async (row) => {
@@ -1028,6 +1032,7 @@ async function main() {
           && disk9pinned.some((r) => r.id === probe9Keys[0] && r.name === probe9Names[0])
           && disk9pinned.some((r) => r.id === probe9Keys[1] && r.name === probe9Names[1]);
         detail9a += ` 回执=${!!result1}/${!!result1b} 落盘=${JSON.stringify(disk9pinned)}`;
+        pinRowCount9 = pinRows9.length;
         // 收层：点浮层外（不给后续臂留残留浮层）
         const center9 = { x: Math.round((dip.x + dip.width / 2) * scale), y: Math.round((dip.y + dip.height / 2) * scale) };
         win32.clickPhys(center9.x, center9.y, 'left');
@@ -1035,23 +1040,25 @@ async function main() {
       }
     }
     if (arm1) {
-      rep.pass(`臂1 常驻管理节列出全部名单（栏内+溢出内 ${roster9.length} 行）、点行勾选即写名单即生效（config 落盘 {id,name} 双保险）、勾选连击不关层`);
+      rep.pass(`臂1 常驻管理节列出全部名单（栏内+溢出内 ${pinRowCount9} 行）、点行勾选即写名单即生效（config 落盘 {id,name} 双保险）、勾选连击不关层`);
     } else {
       rep.fail(`P9[臂1 勾选即生效] ${detail9a}`);
     }
 
-    // 臂2：豁免溢出裁剪 + 档位只数非常驻 + 保持到达序原位——钉 2 枚探针、档位切 2，
-    // 栏面键序逐枚对账（期望序 = 名单序中「常驻豁免 + 前 2 枚非常驻」的插序序列）
+    // 臂2：豁免溢出裁剪 + 档位只数非常驻 + 保持到达序原位——钉 2 枚探针、档位切 3
+    //（合法档最小 3），栏面键序逐枚对账（期望序 = 名单序中「常驻豁免 + 前 3 枚非常驻」
+    // 的插序序列，栏内 5 枚 > 档位 3 即「只数非常驻」的直接证据）
     let arm2 = false;
     let detail9b = `探针=${probe9Keys.filter((k) => roster9.includes(k)).length}`;
     try {
-      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 2 })`);
+      const sinceInvoke9b = Date.now();
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })`);
       await sleep(800);
       const roster9b = await rosterKeys();
       const pinnedSet = new Set([probe9Keys[0], probe9Keys[1]].filter((k) => roster9b.includes(k)));
       let kept = 0;
-      const expected9 = roster9b.filter((k) => pinnedSet.has(k) || kept++ < 2);
-      const geo9b = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: since9 });
+      const expected9 = roster9b.filter((k) => pinnedSet.has(k) || kept++ < 3);
+      const geo9b = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9b });
       const barKeys9 = geo9b ? geo9b.trayIcons.map((t) => t.key) : [];
       arm2 = geo9b && !!geo9b.trayOverflow
         && JSON.stringify(barKeys9) === JSON.stringify(expected9)
@@ -1063,22 +1070,23 @@ async function main() {
       detail9b += ` 异常=${e9.message}`;
     }
     if (arm2) {
-      rep.pass('臂2 常驻豁免溢出裁剪：档位 2 只数非常驻（栏内 = 2 常驻 + 2 非常驻）、到达序原位不重排（栏面键序逐枚对账）、「⋯」收余量');
+      rep.pass('臂2 常驻豁免溢出裁剪：档位 3 只数非常驻（栏内 = 2 常驻 + 3 非常驻，5 > 档位 3）、到达序原位不重排（栏面键序逐枚对账）、「⋯」收余量');
     } else {
       rep.fail(`P9[臂2 豁免/计数/原位] ${detail9b}`);
     }
 
-    // 臂3：解除常驻即回档位账——摘 1 枚，栏面跟随回 3 枚（2 非常驻 + 1 常驻）
+    // 臂3：解除常驻即回档位账——摘 1 枚，栏面跟随回 4 枚（3 非常驻 + 1 常驻）
     let arm3 = false;
     let detail9c = '';
     try {
+      const sinceInvoke9c = Date.now();
       await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[1])}, name: ${JSON.stringify(probe9Names[1])}, pinned: false })`);
       await sleep(800);
       const roster9c = await rosterKeys();
       const pinned3 = new Set([probe9Keys[0]].filter((k) => roster9c.includes(k)));
       let kept3 = 0;
-      const expected9c = roster9c.filter((k) => pinned3.has(k) || kept3++ < 2);
-      const geo9c = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: Date.now() - 4000 });
+      const expected9c = roster9c.filter((k) => pinned3.has(k) || kept3++ < 3);
+      const geo9c = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9c });
       const barKeys9c = geo9c ? geo9c.trayIcons.map((t) => t.key) : [];
       const disk9c = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
       arm3 = JSON.stringify(barKeys9c) === JSON.stringify(expected9c)
@@ -1089,13 +1097,13 @@ async function main() {
       detail9c += ` 异常=${e9c.message}`;
     }
     if (arm3) {
-      rep.pass('臂3 解除常驻即回档位账：名单摘条、栏面回「2 非常驻 + 1 常驻」、落盘同步');
+      rep.pass('臂3 解除常驻即回档位账：名单摘条、栏面回「3 非常驻 + 1 常驻」、落盘同步');
     } else {
       rep.fail(`P9[臂3 解除回账] ${detail9c}`);
     }
 
     // 臂4：跨面板重启保持——再钉 1 枚（账 2 条）、P6 同款强退重拉，重启后账原样、
-    // 豁免语义照走（档位 1 下栏内 = 2 常驻 + 1 非常驻，「⋯」在场）
+    // 豁免语义照走（档位 3 下栏内 = 2 常驻 + 3 非常驻，「⋯」在场）
     let arm4 = false;
     let detail9d = '';
     try {
@@ -1122,13 +1130,14 @@ async function main() {
       const expectLedger = [probe9Keys[0], probe9Keys[2]].map((k) => ({ id: k, name: probe9Names[probe9Keys.indexOf(k)] }));
       const ledgerOk = JSON.stringify(pinned9.map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger)
         && JSON.stringify((disk9d.taskbar?.trayPinned ?? []).map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger);
-      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 1 })`);
+      const sinceInvoke9d = Date.now();
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })`);
       await sleep(800);
       const roster9d = await rosterKeys();
       const pinned4 = new Set([probe9Keys[0], probe9Keys[2]].filter((k) => roster9d.includes(k)));
       let kept4 = 0;
-      const expected9d = roster9d.filter((k) => pinned4.has(k) || kept4++ < 1);
-      const geo9d = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: since9d });
+      const expected9d = roster9d.filter((k) => pinned4.has(k) || kept4++ < 3);
+      const geo9d = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9d });
       const barKeys9d = geo9d ? geo9d.trayIcons.map((t) => t.key) : [];
       arm4 = ledgerOk && !!geo9d && !!geo9d.trayOverflow
         && JSON.stringify(barKeys9d) === JSON.stringify(expected9d);
@@ -1137,7 +1146,7 @@ async function main() {
       detail9d += ` 异常=${e9d.message}`;
     }
     if (arm4) {
-      rep.pass('臂4 跨面板重启保持：常驻账原样恢复（state+config 双证）、档位 1 下豁免照走（栏内 = 2 常驻 + 1 非常驻）');
+      rep.pass('臂4 跨面板重启保持：常驻账原样恢复（state+config 双证）、档位 3 下豁免照走（栏内 = 2 常驻 + 3 非常驻）');
     } else {
       rep.fail(`P9[臂4 重启保持] ${detail9d}`);
     }
