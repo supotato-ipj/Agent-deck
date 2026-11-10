@@ -1352,12 +1352,12 @@
         {
           "seg": "P8",
           "ticket": 244,
-          "title": "图标档位：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 托盘溢出菜单行图标 16px + 行高 30（CDP computed style 与 taskbar-geometry 存证帧两路互证）",
+          "title": "图标档位（工单458 随动改写：溢出行→网格）：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 溢出网格 5 列 36×36 格、16px 图标居中、悬停 title 在场 + 浮层恒宽 200（条目数变化档 5/档 3 两拍宽度不变）（CDP computed style 与 ready 格矩形帧两路互证）",
           "surfaces": [
             "pixel",
             "event-evidence"
           ],
-          "estSeconds": 4,
+          "estSeconds": 5,
           "areas": [
             "taskbar",
             "taskbar.menu"
