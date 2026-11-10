@@ -1286,7 +1286,7 @@
       "cdpPort": 9225,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 61,
+      "lastMeasuredSeconds": 64,
       "lastMeasuredAt": "2026-11-11",
       "segments": [
         {
@@ -1383,7 +1383,7 @@
             "event-evidence",
             "pixel"
           ],
-          "estSeconds": 12
+          "estSeconds": 4
         }
       ],
       "areas": [
