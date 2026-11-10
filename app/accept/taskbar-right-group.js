@@ -1103,7 +1103,7 @@ async function main() {
     }
 
     // 臂4：跨面板重启保持——再钉 1 枚（账 2 条）、P6 同款强退重拉，重启后账原样、
-    // 豁免语义照走（档位 3 下栏内 = 2 常驻 + 3 非常驻，「⋯」在场）
+    // 豁免语义照走（重拉后切档 5 真变档取帧：栏内 = 2 常驻 + 5 非常驻，7 > 档位 5）
     let arm4 = false;
     let detail9d = '';
     try {
@@ -1130,13 +1130,15 @@ async function main() {
       const expectLedger = [probe9Keys[0], probe9Keys[2]].map((k) => ({ id: k, name: probe9Names[probe9Keys.indexOf(k)] }));
       const ledgerOk = JSON.stringify(pinned9.map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger)
         && JSON.stringify((disk9d.taskbar?.trayPinned ?? []).map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger);
+      // 切档 5 真变档必发帧（重拉时盘上已是 3——再发 3 是幂等空转无几何帧，首跑二轮实证）；
+      // 豁免照走 = 栏内 7 枚（2 常驻 + 5 非常驻）> 档位 5，「⋯」收余量
       const sinceInvoke9d = Date.now();
-      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })`);
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 5 })`);
       await sleep(800);
       const roster9d = await rosterKeys();
       const pinned4 = new Set([probe9Keys[0], probe9Keys[2]].filter((k) => roster9d.includes(k)));
       let kept4 = 0;
-      const expected9d = roster9d.filter((k) => pinned4.has(k) || kept4++ < 3);
+      const expected9d = roster9d.filter((k) => pinned4.has(k) || kept4++ < 5);
       const geo9d = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9d });
       const barKeys9d = geo9d ? geo9d.trayIcons.map((t) => t.key) : [];
       arm4 = ledgerOk && !!geo9d && !!geo9d.trayOverflow
@@ -1146,7 +1148,7 @@ async function main() {
       detail9d += ` 异常=${e9d.message}`;
     }
     if (arm4) {
-      rep.pass('臂4 跨面板重启保持：常驻账原样恢复（state+config 双证）、档位 3 下豁免照走（栏内 = 2 常驻 + 3 非常驻）');
+      rep.pass('臂4 跨面板重启保持：常驻账原样恢复（state+config 双证）、重拉后切档 5 豁免照走（栏内 = 2 常驻 + 5 非常驻，7 > 档位 5）');
     } else {
       rep.fail(`P9[臂4 重启保持] ${detail9d}`);
     }
