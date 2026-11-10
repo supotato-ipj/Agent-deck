@@ -12,7 +12,7 @@
 // ✓ 态随 taskbar/changed 回推重渲。托盘图标右键继续透传应用自带菜单（ADR-0013）——
 // 常驻入口只在档位菜单。
 import { dispatchTrayOverflowLimit, dispatchTrayPinned, taskbarPinnedMenuPopupRows, taskbarTierMenuPopupRows, taskbarViewModel } from './taskbar-view.js'
-import { trayPinnedMatcher } from '../shared/overflow.js'
+import { trayPinnedMatch, trayPinnedMatcher } from '../shared/overflow.js'
 import type { TaskbarTrayOverflowLimit } from '../shared/contract'
 import type { TaskbarState } from '../shared/contract'
 
@@ -55,6 +55,12 @@ export const tierMenuAdapter = {
     if (entry) {
       const vm = taskbarViewModel(stateCache!)
       const next = !trayPinnedMatcher(vm.trayPinned)(entry)
+      // 连击本地先记账：勾击快于 taskbar/changed 回推时 stateCache 还是旧快照，第二击
+      // 从旧名单重算出同向 next、被内核同名单幂等空转吞掉（快速双击=单次生效）。就地
+      // 增删该记录（滤除口径与内核 setTrayPinned 同一份 trayPinnedMatch——先标识后名字
+      // 全摘、按需补回），本地账先行，回推到达时 rows() 整拍刷新自愈。
+      const rest = vm.trayPinned.filter((r) => !trayPinnedMatch(r, entry))
+      stateCache!.trayPinned = next ? [...rest, { id: entry.key, name: entry.tooltip }] : rest
       window.deck.host.notify('taskbar-tray-pinned', { key: entry.key, name: entry.tooltip, pinned: next })
       void dispatchTrayPinned(window.deck.bridge, entry.key, entry.tooltip, next)
         .then((s) => window.deck.host.notify('taskbar-tray-pinned-result', { key: entry.key, pinned: next, ok: s !== null }))

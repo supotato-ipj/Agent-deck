@@ -349,14 +349,15 @@ export function formatMetric(id: TaskbarMetric, gauges: HardwareGauges): string 
 
 /** 定宽槽位校宽文本（工单459）：每段读数的极宽形态——渲染层落 data-max，CSS ::before
  * 隐藏哨兵按它撑槽（显示宽度 = max(真实读数, 校宽文本) 恒定，零依赖字体度量手估）。
- * 进位封顶后速率段位数有界（KB 段最宽 999.99、MB 段两位整数），本表即槽位恒宽的唯一
- * 校准源；单测钉「读数极宽形态不超校宽文本」。 */
+ * 进位封顶后速率段位数有界（KB 段最宽 = 舍入界宽形态 '1000.00'——x∈(999.995,1000)
+ * toFixed(2) 进到 1000.00 仍落 KB 段；MB 段两位整数），本表即槽位恒宽的唯一校准源；
+ * 单测钉「读数极宽形态不超校宽文本」（含 999.996 界宽样本）。 */
 export const METRIC_SLOT_TEXT: Record<TaskbarMetric, string> = {
   cpu: 'CPU 100%',
   gpu: 'GPU 100%',
   ram: 'RAM 100%',
-  'net-down': 'DL 999.99MB/s',
-  'net-up': 'UP 999.99MB/s',
+  'net-down': 'DL 1000.00KB/s',
+  'net-up': 'UP 1000.00KB/s',
 }
 
 /** 时钟格文本：本地 HH:MM（两位补零） */

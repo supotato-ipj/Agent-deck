@@ -991,6 +991,15 @@ async function main() {
       await sleep(400);
     }
     rep.note(`P9 探针在册 ${probe9Keys.filter((k) => roster9.includes(k)).length}/${uids9.length} 名单=${roster9.length}`);
+    // 残账归零（评审修复）：段尾复原前崩溃且 config 隔离还原失守时，DECK462-P* 残账会按
+    // 名字兜底命中本轮重注册的同名探针，臂1 首击语义翻转成「取消」、pinned===true 回执
+    // 等不到。收编确认后逐枚 pinned:false 归零再进臂1——内核按先标识后名字滤除，旧 hwnd
+    // 的同名残账一并摘除；干净环境无命中即幂等空转（不写盘、不推事件），pinned:false 回执
+    // 不会撞臂1 的 pinned===true 过滤。
+    for (let i = 0; i < probe9Keys.length; i++) {
+      try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[i])}, name: ${JSON.stringify(probe9Names[i])}, pinned: false })`); } catch { /* 条带已不在场 */ }
+    }
+    await sleep(400); // 归零回推重拆一拍（有残账时栏面恢复档位账序，臂1 行集对账不受残账扰动）
     // 档位菜单浮层锚点（P7 tierPopup7 同式——P7 的闭包锚在其 else 块内，本段自持一份；
     // opened/resized 窗 bounds 与 ready 行矩形两路配对，行几何按行 id 定位）
     const tierPopup9 = (since) => {

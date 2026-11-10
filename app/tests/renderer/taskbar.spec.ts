@@ -290,6 +290,10 @@ describe('任务栏右组（工单55，fake bridge 驱动）', () => {
     // 高位进位仍封两位小数（位数有界——定宽槽位的前提）
     expect(formatMetric('net-up', g(0, 15360))).toBe('UP 15.36MB/s')
     expect(formatMetric('net-up', g(0, 125500))).toBe('UP 125.50MB/s')
+    // 舍入界宽（评审修复口径）：x∈(999.995,1000) toFixed(2) 进到 '1000.00' 仍落 KB 段
+    //——KB 段最宽形态即此（METRIC_SLOT_TEXT 校宽文本按它校准）
+    expect(formatMetric('net-down', g(999.996, 0))).toBe('DL 1000.00KB/s')
+    expect(formatMetric('net-up', g(0, 999.996))).toBe('UP 1000.00KB/s')
   })
 
   it('定宽槽位校宽文本（工单459）：罩住各段读数极宽形态——百分位 100%、三位数 KB、两位整数 MB', () => {
@@ -300,11 +304,14 @@ describe('任务栏右组（工单55，fake bridge 驱动）', () => {
     for (const m of ['cpu', 'gpu', 'ram'] as const) {
       expect(formatMetric(m, full).length, `${m} 满百读数不超校宽文本`).toBeLessThanOrEqual(METRIC_SLOT_TEXT[m].length)
     }
-    // 速率段：KB 极值（999.99KB/s）与 MB 高位（125.50MB/s）都不得超校宽文本
+    // 速率段：KB 极值（999.99KB/s）、舍入界宽（1000.00KB/s，14 字符=校宽文本本身）与
+    // MB 高位（125.50MB/s）都不得超校宽文本
     //（tabular-nums 下等长即等宽，'.' 窄于数字——长度口径保守成立）
     expect(formatMetric('net-down', g(999.99, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+    expect(formatMetric('net-down', g(999.996, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
     expect(formatMetric('net-down', g(125500, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
     expect(formatMetric('net-up', g(0, 999.99)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
+    expect(formatMetric('net-up', g(0, 999.996)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
     expect(formatMetric('net-up', g(0, 125500)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
     // 占位符（源缺位）远窄于校宽文本，槽位不塌
     expect(formatMetric('net-down', { cpu: 0, memory: 0, memory_gb: '' }).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
