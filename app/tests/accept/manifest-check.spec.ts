@@ -449,7 +449,7 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 可见/已开再点置前不隐藏（窗语义 ADR-0018）——真实窗创建与前台语义是 jsdom 单测
     // 断不到的面，增段条件①；二态裁决/图标/分发本体由 taskbar renderer 单测族钉，增段
     // 条件②；busy 点亮不进段——需在途 turn 后端会话，重且不增信）。
-    expect(total).toBe(197)
+    expect(total).toBe(197) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

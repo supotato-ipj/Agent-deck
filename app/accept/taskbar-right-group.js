@@ -1494,13 +1494,16 @@ async function main() {
       const convPt12 = toPhys(cell12.x + cell12.w / 2, cell12.y + cell12.h / 2);
       const convHit12 = await convergeAt(convPt12, tbHwnd12);
       rep.note(`P12 点击前收敛=${convHit12}`);
+      const t12 = Date.now();
       win32.clickPhys(convPt12.x, convPt12.y, 'left');
-      const ev12 = await tape.wait('taskbar-conversation-action-result', (e) => e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      const ev12 = await tape.wait('taskbar-conversation-action-result', (e) => e.ok, { timeoutMs: 5000, since: t12 });
       convHwnd12 = await until12(async () => convWin12(), 10000);
       detail12 += ` 点击回执=${JSON.stringify(ev12)} 对话窗=${convHwnd12 ? '可见' : '缺'}`;
-      // ④ 已开再点：置前不隐藏（非 toggle，ADR-0018）——窗仍可见且前台=对话窗
+      // ④ 已开再点：置前不隐藏（非 toggle，ADR-0018）——窗仍可见且前台=对话窗。
+      // 回执独立时间门（since=第二次点击时刻）——无门会咬到首击回执（P6/P7 since 门同款纪律）
+      const t12b = Date.now();
       win32.clickPhys(convPt12.x, convPt12.y, 'left');
-      const ev12b = await tape.wait('taskbar-conversation-action-result', (e) => e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      const ev12b = await tape.wait('taskbar-conversation-action-result', (e) => e.ok, { timeoutMs: 5000, since: t12b });
       const stillOk12 = await until12(async () => (convWin12() ? true : null), 6000);
       const cur12 = convWin12();
       fg12 = cur12 ? await waitForeground((i) => i.hwnd === Number(cur12), 6000) : null;
