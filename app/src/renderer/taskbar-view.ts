@@ -255,17 +255,21 @@ export function toggleMetric(metrics: readonly TaskbarMetric[], key: TaskbarMetr
   return METRIC_ORDER.filter((k) => next.includes(k))
 }
 
-/** 摘要数值格式化：口径与硬件卡一致（百分比 Math.round、速率 toFixed(2) KB/s；
- * GPU/网络字段源缺位落占位符，不显示假 0） */
+/** 摘要数值格式化：口径与硬件卡一致（百分比 Math.round、速率 toFixed(2)；速率满
+ * 1000KB/s 进位以 MB/s 计——工单459，位数封顶使定宽槽位宽度可恒定）；GPU/网络字段
+ * 源缺位落占位符，不显示假 0 */
 export function formatMetric(id: TaskbarMetric, gauges: HardwareGauges): string {
   const percent = (x: number | null | undefined) => (x == null ? '---' : `${Math.round(x)}%`)
-  const kbps = (x: number | null | undefined) => (x == null ? '--' : `${x.toFixed(2)}KB/s`)
+  const rate = (x: number | null | undefined) => {
+    if (x == null) return '--'
+    return x >= 1000 ? `${(x / 1000).toFixed(2)}MB/s` : `${x.toFixed(2)}KB/s`
+  }
   switch (id) {
     case 'cpu': return `CPU ${percent(gauges.cpu)}`
     case 'gpu': return `GPU ${percent(gauges.gpu_usage)}`
     case 'ram': return `RAM ${percent(gauges.memory)}`
-    case 'net-down': return `DL ${kbps(gauges.download_speed)}`
-    case 'net-up': return `UP ${kbps(gauges.upload_speed)}`
+    case 'net-down': return `DL ${rate(gauges.download_speed)}`
+    case 'net-up': return `UP ${rate(gauges.upload_speed)}`
   }
 }
 

@@ -275,6 +275,21 @@ describe('任务栏右组（工单55，fake bridge 驱动）', () => {
     expect(formatMetric('net-up', bare)).toBe('UP --')
   })
 
+  it('速率进位（工单459）：≥1000KB/s 换算 MB/s（两位小数口径不变），阈值下维持 KB/s', () => {
+    const g = (dl: number, ul: number): HardwareGauges => ({
+      cpu: 0, memory: 0, memory_gb: '', gpu_usage: 0, download_speed: dl, upload_speed: ul,
+    })
+    // 阈值下不变：既有 'DL 1.23KB/s' 口径（票面纪律①）与三位数 KB 极值
+    expect(formatMetric('net-down', g(1.234, 0))).toBe('DL 1.23KB/s')
+    expect(formatMetric('net-down', g(999.99, 0))).toBe('DL 999.99KB/s')
+    // 恰满 1000 进位；小数换算不变两位小数
+    expect(formatMetric('net-down', g(1000, 0))).toBe('DL 1.00MB/s')
+    expect(formatMetric('net-down', g(1024.6, 0))).toBe('DL 1.02MB/s')
+    // 高位进位仍封两位小数（位数有界——定宽槽位的前提）
+    expect(formatMetric('net-up', g(0, 15360))).toBe('UP 15.36MB/s')
+    expect(formatMetric('net-up', g(0, 125500))).toBe('UP 125.50MB/s')
+  })
+
   it('时钟格文本：ClockState → 本地 HH:MM（两位补零）', () => {
     const epochMs = new Date(2026, 9, 6, 8, 5).getTime()
     expect(formatClock({ iso: new Date(epochMs).toISOString(), epochMs })).toBe('08:05')
@@ -572,6 +587,34 @@ describe('栏高与图标尺寸（工单158 基线 + 工单240 档位统一：�
     // 工单160 图标化后推荐位不再吃文字收缩档（.tb-rec 定宽图标格）：极端拥挤的让位面
     // 收敛为 pill maxWidth 收窄整体裁剪（overflow hidden），系统钮 flex:none 优先权不变
     expect(ruleOf('.tb-rec'), '推荐位图标格定宽（不吃收缩）').toContain('width: 36px')
+  })
+})
+
+describe('硬件摘要定宽槽位（工单459：tabular-nums + min-width ch + 右对齐，整行总宽恒定）', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
+
+  /** 取选择器块的规则体（`sel {` 起到配对 `}`；块内无嵌套括号——样式完整性守卫保证） */
+  function ruleOf(sel: string): string {
+    const i = css!.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    const body = css!.slice(i)
+    return body.slice(0, body.indexOf('}'))
+  }
+
+  it('摘要段等宽数字 + 右对齐（设置浮层 #opacity-value 同款先例：min-width ch + tabular-nums + 右对齐）', () => {
+    const seg = ruleOf('.tb-seg')
+    expect(seg, '数值用等宽数字——读数逐拍跳动只在槽内消化').toContain('font-variant-numeric: tabular-nums')
+    expect(seg, '槽内右对齐——位数变化不改段左缘').toContain('text-align: right')
+  })
+
+  it('段槽 min-width 按读数极宽校准：百分位段 8ch（CPU 100%）、速率段 10ch（DL 999.99KB/s / UP 125.50MB/s）', () => {
+    for (const m of ['cpu', 'gpu', 'ram']) {
+      expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 8ch')
+    }
+    for (const m of ['net-down', 'net-up']) {
+      expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 10ch')
+    }
   })
 })
 
