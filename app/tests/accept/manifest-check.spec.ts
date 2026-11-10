@@ -431,7 +431,25 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 白名单拒绝/审计形状按增段条件②由 cleanup 单测矩阵钉（tests/plugins/cleanup.spec.ts
     // 10 例）；取消闸门（确认层 CANCEL 后零删除）的真机面由本段 CANCEL 断言钉——真机段
     // 只验真实点击手势、确认层呈现与回收站真删除这些单测无法证明的面。
-    expect(total).toBe(193)
+    // 193 → 194：工单462 增段——55-taskbar-right-group 电池增 P9（托盘常驻：档位菜单
+    // 「常驻管理」节真实右键开层点行勾选、config 落盘 {id,name} 双保险、豁免溢出裁剪的
+    // 栏面键序对账、跨面板重启保持——菜单浮层手势/收编名单量/强退重拉这些单测无法证明
+    // 的面；纯函数面（匹配/豁免/计数/回落）由 tray-plan 与 taskbar 单测族钉，增段条件②）。
+    // 194 → 195：工单459 增段——55-taskbar-right-group 电池增 P10（硬件摘要定宽槽位：
+    // 硬件仪表 stub 喂窄/宽两拍读数、taskbar-geometry 帧右组矩形与摘要/音量/时钟格宽
+    // 两拍不变——真实排版几何宽度是 jsdom 单测断不到的面，增段条件①；formatMetric 进位
+    // 与槽位 CSS 产物由 taskbar renderer 单测族钉，增段条件②）。
+    // 195 → 196：工单461 增段——55-taskbar-right-group 电池增 P11（网络状态格自绘二态：
+    // 插位/联网态实机呈现、网卡快照 stub 喂无地址快照走真判定管线的 1Hz 帧双向翻转、
+    // 点击开原生快速设置——真机二态视觉与原生浮层前台是 jsdom 单测断不到的面，增段
+    // 条件①；判定纯函数与二态视图/分发由 network.spec 与 taskbar renderer 单测族钉，
+    // 增段条件②）。
+    // 196 → 197：工单460 增段——55-taskbar-right-group 电池增 P12（对话窗入口格：插位
+    // 托盘群最左端/格盒 28×28/title「对话窗」/一步调窗真实热区点击→DECK-CONVERSATION
+    // 可见/已开再点置前不隐藏（窗语义 ADR-0018）——真实窗创建与前台语义是 jsdom 单测
+    // 断不到的面，增段条件①；二态裁决/图标/分发本体由 taskbar renderer 单测族钉，增段
+    // 条件②；busy 点亮不进段——需在途 turn 后端会话，重且不增信）。
+    expect(total).toBe(197) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

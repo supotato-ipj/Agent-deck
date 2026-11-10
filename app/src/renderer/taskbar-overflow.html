@@ -5,7 +5,8 @@
 <title>DECK-TRAY-OVERFLOW</title>
 <style>
   /* 托盘溢出菜单浮层页（工单162）：整页透明，唯菜单面板承接点击。配色与条带 pill
-   * 菜单同一世界观（深底细边、文字实色、hover 反白灰底）。行 = 图标 + 名称（竖排）。 */
+   * 菜单同一世界观（深底细边、hover 反白灰底）。工单458 网格化：纯图标网格——
+   * 固定 5 列、格 36×36px、16px 图标居中，名称文字退役（悬停提示走原生 title）。 */
   html, body {
     margin: 0;
     width: 100%;
@@ -22,34 +23,35 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 280px;
+    /* 工单458：恒定宽 200px——预算 5×36 + 列 gap 2×4 + 内衬 5×2 + 边 1×2 = 200，
+     * CSS 定值不随条目数伸缩（ready 回报 w 恒 200，宿主定窗随之恒定）。 */
+    width: 200px;
     max-height: 560px; /* 超长名单滚动（'all' 档 + 图标众多机器态） */
     overflow-y: auto;
+    overflow-x: hidden;
     box-sizing: border-box;
-    padding: 6px;
+    padding: 5px;
+    display: grid;
+    grid-template-columns: repeat(5, 36px);
+    grid-auto-rows: 36px;
+    gap: 2px;
     background: rgba(24, 24, 28, 0.92);
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 12px;
   }
-  .ov-row {
+  /* 极端长名单才滚动：细滚动条占宽 2px 在恒宽预算内（滚后内容区 186 < 格区 188，
+   * 让位的是最后一列右缘 2px gap，格本身完整不断言面）。 */
+  #overflow-list::-webkit-scrollbar { width: 2px; }
+  .ov-cell {
     display: flex;
     align-items: center;
-    column-gap: 10px;
-    padding: 7px 10px;
+    justify-content: center;
     border-radius: 8px;
     cursor: pointer;
   }
-  .ov-row:hover { background: rgba(255, 255, 255, 0.10); }
-  .ov-row img { width: 16px; height: 16px; display: block; } /* 工单240：与条带托盘同档 16px 原生直渲 */
+  .ov-cell:hover { background: rgba(255, 255, 255, 0.10); }
+  .ov-cell img { width: 16px; height: 16px; display: block; } /* 工单240：与条带托盘同档 16px 原生直渲 */
   .ov-px { image-rendering: pixelated; } /* 源小于显示档才挂（判据同条带 trayIconPixelated；16px 源 1:1 直渲不挂） */
-  .ov-label {
-    font-size: 13px;
-    color: #d6d6d6;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .ov-row:hover .ov-label { color: #fff; }
 </style>
 </head>
 <body>

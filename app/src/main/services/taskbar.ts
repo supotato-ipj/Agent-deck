@@ -1,7 +1,7 @@
 import { Service } from 'cordis'
 import type { Context, Inject } from 'cordis'
 import fs from 'node:fs'
-import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
+import type { TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarDragGroup, TaskbarAppEntry, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../../shared/contract'
 import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
@@ -9,7 +9,7 @@ import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
 import { normalizeExe, partitionTaskbarWindowsByDesktop, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
-import { applyTrayEvent, sameTrayIcons, trayIconKeyOf } from '../taskbar/tray-plan'
+import { applyTrayEvent, sameTrayIcons, trayIconKeyOf, trayPinnedMatch } from '../taskbar/tray-plan'
 import type { TrayWireEvent } from '../trayhost/protocol'
 import { excludeEntry, loadTaskbarStore, migrateLegacyPinned, moveInOrder, parseLegacyPinnedNames, pinEntry, reorderPinned, restoreEntry, serializeTaskbarStore, unpinEntry } from '../taskbar/layout-store'
 import type { MigrationItem, TaskbarLayoutStore } from '../taskbar/layout-store'
@@ -29,6 +29,8 @@ export interface TaskbarServiceOptions {
   metrics?: TaskbarMetric[]
   /** 托盘溢出档位（config.json taskbar.trayOverflowLimit 下发；缺省 = 5 枚，工单162） */
   trayOverflowLimit?: TaskbarTrayOverflowLimit
+  /** 托盘常驻名单初值（config.json taskbar.trayPinned 下发；缺省 = 空名单，工单462） */
+  trayPinned?: TaskbarTrayPinnedEntry[]
   /** 最大化收栏开关（config.json taskbar.maximizeRetract 下发；缺省 = 开，工单239） */
   maximizeRetract?: boolean
   /** config.json 绝对路径（缺省 = 不落盘，仅内存态——离线测试省配置桩） */
@@ -276,6 +278,7 @@ export class TaskbarService extends Service {
       hiddenButtons: [...(options.hiddenButtons ?? fallback.hiddenButtons)],
       metrics: [...(options.metrics ?? fallback.metrics)],
       trayOverflowLimit: options.trayOverflowLimit ?? fallback.trayOverflowLimit,
+      trayPinned: (options.trayPinned ?? fallback.trayPinned).map((r) => ({ ...r })),
       maximizeRetract: options.maximizeRetract ?? fallback.maximizeRetract,
       recommendations: [],
       excluded: [],
@@ -304,6 +307,7 @@ export class TaskbarService extends Service {
       excluded: this.store.excluded.map((e) => ({ ...e })),
       apps: [...this.current.apps],
       tray: [...this.current.tray],
+      trayPinned: this.current.trayPinned.map((r) => ({ ...r })),
     }
   }
 
@@ -318,6 +322,7 @@ export class TaskbarService extends Service {
       hiddenButtons: [...next.hiddenButtons],
       metrics: [...next.metrics],
       trayOverflowLimit: next.trayOverflowLimit,
+      trayPinned: next.trayPinned.map((r) => ({ id: r.id, name: r.name })),
       maximizeRetract: next.maximizeRetract,
     }
     saveConfig(this.file, { ...this.appConfig, taskbar })
@@ -328,7 +333,7 @@ export class TaskbarService extends Service {
    * settings 同款顺序：先写盘后提交内存态——写失败即抛，三者一致）。 */
   private commit(next: TaskbarState): TaskbarState {
     this.persist(next)
-    this.current = { ...next, hiddenButtons: [...next.hiddenButtons], metrics: [...next.metrics] }
+    this.current = { ...next, hiddenButtons: [...next.hiddenButtons], metrics: [...next.metrics], trayPinned: next.trayPinned.map((r) => ({ ...r })) }
     this.ctx.emit('taskbar/changed', this.state())
     return this.state()
   }
@@ -391,6 +396,32 @@ export class TaskbarService extends Service {
     }
     if (limit === this.current.trayOverflowLimit) return this.state()
     return this.commit({ ...this.current, trayOverflowLimit: limit })
+  }
+
+  /**
+   * 托盘常驻名单（工单462）：档位菜单「常驻管理」节勾选落点。pinned=true 记 {id, name}、
+   * false 摘除——匹配走 trayPinnedMatch（先标识后名字，shared/overflow 同一份本体）：
+   * 标识命中即换账（同 id 改名记账刷新）；标识漂移（重启后 hwnd 类键）按名字兜底，旧账被
+   * 新账替换，名单不产生幽灵记录。同名单幂等空转（不重写盘、不重推事件）；id 非非空字符串
+   * / pinned 非布尔抛 BridgeError（契约违规不静默吞掉）。持久化 + 提交 + 回推走 commit
+   * 三段收口（setTrayOverflowLimit 同款）——渲染层重拆名单，钉住即豁免溢出、解除即回档位账。
+   */
+  setTrayPinned(id: string, name: string, pinned: boolean): TaskbarState {
+    if (typeof id !== 'string' || !id) {
+      throw new BridgeError(`taskbar.set-tray-pinned.id 须为非空字符串，收到 ${JSON.stringify(id)}`)
+    }
+    if (typeof pinned !== 'boolean') {
+      throw new BridgeError(`taskbar.set-tray-pinned.pinned 须为布尔值，收到 ${String(pinned)}`)
+    }
+    const entry = { key: id, tooltip: typeof name === 'string' ? name : '' }
+    const next = [
+      ...this.current.trayPinned.filter((r) => !trayPinnedMatch(r, entry)),
+      ...(pinned ? [{ id, name: entry.tooltip }] : []),
+    ]
+    const same = next.length === this.current.trayPinned.length
+      && next.every((r, i) => { const c = this.current.trayPinned[i]; return r.id === c.id && r.name === c.name })
+    if (same) return this.state()
+    return this.commit({ ...this.current, trayPinned: next })
   }
 
   /**

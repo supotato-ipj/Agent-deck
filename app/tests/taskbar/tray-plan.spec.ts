@@ -3,6 +3,7 @@
 // 删除摘除、其余事件（setversion/setfocus/unknown）空转。
 import { describe, expect, it } from 'vitest'
 import { applyTrayEvent, planTrayOverflow, sameTrayIcons, trayIconKeyOf } from '../../src/main/taskbar/tray-plan'
+import { trayPinnedMatch, trayPinnedMatcher } from '../../src/shared/overflow'
 import type { TaskbarTrayEntry } from '../../src/shared/contract'
 import { reapedTrayEvent } from '../../src/main/trayhost/protocol'
 import type { TrayIconPixels, TrayWireEvent } from '../../src/main/trayhost/protocol'
@@ -193,5 +194,128 @@ describe('托盘溢出拆分（工单162）：名单序前 N 可见、超量入�
     expect(bar[0]).toBe(entries[0])
     expect(overflow[0]).toBe(entries[3])
     expect(entries).toEqual(snapshot)
+  })
+})
+
+// —— 托盘常驻豁免（工单462，GLOSSARY「托盘常驻」）：常驻集合作为 planTrayOverflow 的
+// 谓词入参——名单内条目豁免切尾、永远平铺栏内；保持到达序原位不重排不跳位；档位只数
+// 非常驻条目（「⋯」不吃名额语义不变）。数量回落（图标退出/解除常驻）重拆即自动回栏。 ——
+describe('托盘常驻豁免溢出拆分（工单462）：档位只数非常驻、豁免条目保持到达序原位', () => {
+  /** icons(n) 的第 i 枚（0 起）的 key */
+  const keyOf = (i: number): string => `${100 + i}:1`
+  const icons = (n: number): TaskbarTrayEntry[] =>
+    Array.from({ length: n }, (_, i) => ({ key: `${100 + i}:1`, tooltip: `图标${i}`, iconKey: `k${i}` }))
+  /** 常驻谓词：入参为 icons(n) 的下标集 */
+  const pinnedAt = (...idx: number[]) => (e: TaskbarTrayEntry) => {
+    const i = Number(e.key.split(':')[0]) - 100
+    return idx.includes(i)
+  }
+
+  it('常驻豁免切尾：7 枚钉住第 2/6 枚（0 起）、档位 5 → 非常驻恰 5 枚全在栏、无溢出', () => {
+    const { bar, overflow } = planTrayOverflow(icons(7), 5, pinnedAt(1, 5))
+    expect(bar.map((i) => i.key)).toEqual([0, 1, 2, 3, 4, 5, 6].map(keyOf))
+    expect(overflow).toEqual([])
+  })
+
+  it('非常驻超量仍切尾：8 枚钉住末枚、档位 5 → 栏内 = 前 5 非常驻 + 常驻（原位殿后）、溢出 = 余下非常驻', () => {
+    const { bar, overflow } = planTrayOverflow(icons(8), 5, pinnedAt(7))
+    expect(bar.map((i) => i.key)).toEqual([0, 1, 2, 3, 4, 7].map(keyOf))
+    expect(overflow.map((i) => i.key)).toEqual([5, 6].map(keyOf))
+  })
+
+  it('保持到达序原位不重排：中段常驻条目钉在原位，两侧非常驻按序排布、不跳位不聚块', () => {
+    const { bar } = planTrayOverflow(icons(8), 3, pinnedAt(2, 5))
+    expect(bar.map((i) => i.key)).toEqual([0, 1, 2, 3, 5].map(keyOf))
+    expect(planTrayOverflow(icons(8), 3, pinnedAt(2, 5)).overflow.map((i) => i.key)).toEqual([4, 6, 7].map(keyOf))
+  })
+
+  it('全部常驻：档位再小也全在栏、溢出恒空（豁免不吃档位名额）', () => {
+    const { bar, overflow } = planTrayOverflow(icons(5), 3, pinnedAt(0, 1, 2, 3, 4))
+    expect(bar).toHaveLength(5)
+    expect(overflow).toEqual([])
+  })
+
+  it('档位「全部」：常驻与否全在栏（豁免语义在无溢出档下无感）', () => {
+    const { bar, overflow } = planTrayOverflow(icons(6), 'all', pinnedAt(0, 3))
+    expect(bar).toHaveLength(6)
+    expect(overflow).toEqual([])
+  })
+
+  it('解除常驻即回旧账：同名单重拆，被解条目按非常驻参与切尾（勾选可逆）', () => {
+    const { bar, overflow } = planTrayOverflow(icons(8), 5, pinnedAt(7))
+    expect(overflow.map((i) => i.key)).toEqual([5, 6].map(keyOf))
+    const off = planTrayOverflow(icons(8), 5, pinnedAt())
+    expect(off.bar.map((i) => i.key)).toEqual([0, 1, 2, 3, 4].map(keyOf))
+    expect(off.overflow.map((i) => i.key)).toEqual([5, 6, 7].map(keyOf))
+  })
+
+  it('谓词缺省 = 旧语义逐字不变（不传常驻集合的调用方零行为漂移）', () => {
+    expect(planTrayOverflow(icons(7), 5)).toEqual({ bar: icons(5), overflow: icons(7).slice(5) })
+    expect(planTrayOverflow(icons(2), 0, () => false).overflow).toHaveLength(2)
+  })
+
+  it('输入不被改动、条目原样引用（与无常驻版同一纪律）', () => {
+    const entries = icons(6)
+    const snapshot = entries.map((e) => ({ ...e }))
+    const { bar, overflow } = planTrayOverflow(entries, 3, pinnedAt(4))
+    expect(bar.map((i) => i.key)).toEqual([0, 1, 2, 4].map(keyOf))
+    expect(overflow.map((i) => i.key)).toEqual([3, 5].map(keyOf))
+    expect(bar[3]).toBe(entries[4])
+    expect(entries).toEqual(snapshot)
+  })
+})
+
+// —— 常驻匹配纯函数（工单462）：{标识, 名字} 二元记录对条目的匹配——先标识后名字
+// （GLOSSARY「托盘常驻」双保险记账：标识 = 图标身份键 guid:<guid> / <hwnd>:<uid>，
+// 重启后 hwnd 类标识可能漂移；名字 = 勾选时刻 tooltip 兜底）。 ——
+describe('托盘常驻匹配：先标识后名字（工单462 双保险记账）', () => {
+  const rec = (id: string, name: string) => ({ id, name })
+  const ent = (key: string, tooltip: string) => ({ key, tooltip })
+
+  it('标识相等即命中（先标识——tooltip 已改名的更新场景不脱钉）', () => {
+    expect(trayPinnedMatch(rec('guid:abc', '旧名'), ent('guid:abc', '新名'))).toBe(true)
+    expect(trayPinnedMatch(rec('100:1', 'x'), ent('100:1', 'y'))).toBe(true)
+  })
+
+  it('标识对不上、名字相同 → 名字兜底命中（跨重启 hwnd 类标识漂移的恢复场景）', () => {
+    expect(trayPinnedMatch(rec('999:1', '蓝牙'), ent('777:2', '蓝牙'))).toBe(true)
+  })
+
+  it('标识与名字都不中 → 不命中（名单不产生幽灵钉挂）', () => {
+    expect(trayPinnedMatch(rec('100:1', '蓝牙'), ent('100:2', '耳机'))).toBe(false)
+    expect(trayPinnedMatch(rec('guid:a', 'X'), ent('guid:b', 'Y'))).toBe(false)
+  })
+
+  it('名字空串不参与兜底（空 tooltip 的条目只按标识比，防全栏误挂）', () => {
+    expect(trayPinnedMatch(rec('100:1', ''), ent('100:2', ''))).toBe(false)
+    expect(trayPinnedMatch(rec('100:1', ''), ent('100:1', ''))).toBe(true)
+    expect(trayPinnedMatch(rec('100:1', '蓝牙'), ent('100:2', ''))).toBe(false)
+    expect(trayPinnedMatch(rec('100:1', ''), ent('100:2', '蓝牙'))).toBe(false)
+  })
+
+  it('谓词形态：任一记录命中即常驻；全不中不常驻；空名单恒不常驻', () => {
+    const isPinned = trayPinnedMatcher([rec('a:1', 'X'), rec('b:2', '蓝牙')])
+    expect(isPinned(ent('a:1', '别的名'))).toBe(true) // 标识优先
+    expect(isPinned(ent('b:9', '蓝牙'))).toBe(true) // 名字兜底
+    expect(isPinned(ent('c:9', 'X'))).toBe(true) // 另一条记录的名字兜底
+    expect(isPinned(ent('c:9', 'Z'))).toBe(false) // 全不中
+    expect(trayPinnedMatcher([])(ent('a:1', 'X'))).toBe(false)
+  })
+
+  it('跨重启恢复链路（名字兜底端到端）：旧面板记 {hwndA, 蓝牙/hwndB, 电源}，重启后名单全换新键 → 两常驻豁免入栏；解名单则按非常驻切尾', () => {
+    const records = [rec('1000:5', '蓝牙'), rec('2000:6', '电源')]
+    const rebooted: TaskbarTrayEntry[] = [
+      { key: '3000:7', tooltip: '音量', iconKey: 'k0' },
+      { key: '4000:8', tooltip: '蓝牙', iconKey: 'k1' },
+      { key: '5000:9', tooltip: '电源', iconKey: 'k2' },
+    ]
+    // 档位 1：两常驻豁免 → 全在栏（音量占唯一的非常驻名额），溢出空
+    const { bar, overflow } = planTrayOverflow(rebooted, 1, trayPinnedMatcher(records))
+    expect(bar.map((i) => i.tooltip)).toEqual(['音量', '蓝牙', '电源'])
+    expect(overflow).toEqual([])
+    // 对照：名单不在场（重启丢了账）则按非常驻切尾——豁免语义的差别就在这份账
+    const off = planTrayOverflow(rebooted, 1)
+    expect(off.bar.map((i) => i.tooltip)).toEqual(['音量'])
+    expect(off.overflow.map((i) => i.tooltip)).toEqual(['蓝牙', '电源'])
   })
 })

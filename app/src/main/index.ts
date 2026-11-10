@@ -420,6 +420,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       hiddenButtons: config.taskbar.hiddenButtons,
       metrics: config.taskbar.metrics,
       trayOverflowLimit: config.taskbar.trayOverflowLimit,
+      // 托盘常驻名单（工单462）：随 config 下发，档位菜单「常驻管理」勾选经
+      // taskbar/set-tray-pinned 即时生效并落盘
+      trayPinned: config.taskbar.trayPinned,
       // 最大化收栏开关（工单239）：随 config 下发，默认开；设置浮层切换经
       // taskbar/set-maximize-retract 即时生效
       maximizeRetract: config.taskbar.maximizeRetract,
@@ -781,6 +784,23 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     require(path.join(app.getAppPath(), 'accept', 'lib', 'managed-probe.js'))
       .startManagedProbe(managedRegistry, log)
       .then((probe: { close: () => Promise<void> }) => { app.on('before-quit', () => { void probe.close() }) })
+  }
+
+  // 硬件仪表脚本喂入（工单459，accept 双门禁）：P10 定宽槽位段要喂确定性位数读数——
+  // 真实采样位数不可控，本触发器把 gauges 段换成 DECK_HW_GAUGE_FILE 脚本文件现读
+  // （真 1Hz 管线原样，只换数据源；文件缺位透传真实采样）。生产零启用。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_HW_GAUGE_STUB === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'hardware-gauge-stub.js'))
+      .install(kernel.panelData, log, process.env.DECK_HW_GAUGE_FILE)
+  }
+
+  // 网卡快照脚本喂入（工单461，accept 双门禁）：P11 网络状态格段要喂「无活动非内部网卡」
+  // 快照验二态翻转——真机断网态不可控（物理断网卡破坏宿主机连通性），本触发器把
+  // os.networkInterfaces 换成 DECK_NETWORK_SNAPSHOT_FILE 脚本文件现读（真判定纯函数与
+  // 真 1Hz 管线原样走通，只换快照源；文件缺位透传真实采样）。生产零启用。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_NETWORK_SNAPSHOT_STUB === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'network-snapshot-stub.js'))
+      .install(log, process.env.DECK_NETWORK_SNAPSHOT_FILE)
   }
 
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。

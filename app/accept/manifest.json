@@ -1286,8 +1286,8 @@
       "cdpPort": 9225,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 34,
-      "lastMeasuredAt": "2026-10-13",
+      "lastMeasuredSeconds": 64,
+      "lastMeasuredAt": "2026-11-11",
       "segments": [
         {
           "seg": "P1",
@@ -1352,16 +1352,60 @@
         {
           "seg": "P8",
           "ticket": 244,
-          "title": "图标档位：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 托盘溢出菜单行图标 16px + 行高 30（CDP computed style 与 taskbar-geometry 存证帧两路互证）",
+          "title": "图标档位（工单458 随动改写：溢出行→网格）：托盘图标 16px（1:1 直渲判据 naturalWidth<16 才挂 pixelated）+ 托盘格盒 28×28 + 溢出网格 5 列 36×36 格、16px 图标居中、悬停 title 在场 + 浮层恒宽 200（条目数变化档 5/档 3 两拍宽度不变）（CDP computed style 与 ready 格矩形帧两路互证）",
           "surfaces": [
             "pixel",
             "event-evidence"
           ],
-          "estSeconds": 4,
+          "estSeconds": 5,
           "areas": [
             "taskbar",
             "taskbar.menu"
           ]
+        },
+        {
+          "seg": "P9",
+          "ticket": 462,
+          "title": "托盘常驻（工单462）：档位菜单「常驻管理」节列出全部名单（栏内+溢出内，pin 行数=名单数）+ 点行勾选即写名单即生效（taskbar-tray-pinned(-result) 存证 + config 落盘 {id,name} 双保险）+ 勾选连击不关层 + 豁免溢出裁剪（档位 3 只数非常驻：栏内=2 常驻+3 非常驻，taskbar-geometry 栏面键序逐枚对账=到达序原位）+ 解除即回档位账 + 跨面板重启保持（强退重拉后账原样、档位 3 下豁免照走）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 23
+        },
+        {
+          "seg": "P10",
+          "ticket": 459,
+          "title": "硬件摘要定宽槽位（工单459）：硬件仪表 stub 喂窄/宽两拍读数（1 位百分位 CPU 9%/短速率 DL 1.23KB/s ↔ 3 位百分位 CPU 100%/满 5 位 KB DL 999.99KB/s 与 MB 进位 UP 125.50MB/s，accept 双门禁 DECK_HW_GAUGE_STUB=1）+ taskbar-right-status 数值口径实机取证（含 MB 进位）+ tb-seg tabular-nums/右对齐/定宽 computed 三证 + taskbar-geometry 帧右组矩形与摘要/音量/时钟格宽两拍不变（几何帧由左侧系统钮 set-button-hidden 无害翻转触发，右组右锚定不受牵连）",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "pixel"
+          ],
+          "estSeconds": 4
+        },
+        {
+          "seg": "P11",
+          "ticket": 461,
+          "title": "网络状态格（工单461，ADR-0031 自绘二态）：rightCells 挂 data-id 且插位「⋯」与音量格之间（音量格紧邻右侧）+ 联网态实机呈现（本机真实快照走真判定管线——实心信号、无斜杠无红点）+ 断网态随 1Hz taskbar/status 帧翻转（网卡快照 stub DECK_NETWORK_SNAPSHOT_STUB=1 双门禁喂「网卡在场无地址」快照走真判定管线——down 斜杠+红点类名在场；删脚本透传真实采样复原拍翻回 up，双向随帧更新）+ 点击开原生快速设置（与音量格同款 quick-settings 分发：合成回执+前台快速设置）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 6
+        },
+        {
+          "seg": "P12",
+          "ticket": 460,
+          "title": "对话窗入口格（工单460，spec #457 T4；ADR-0018 关窗只隐藏）：rightCells 挂 data-id 且插位硬件摘要与首枚托盘图标之间（托盘群最左端）+ 格盒 28×28 托盘图标格同款（图标格族圆角 10px）+ title「对话窗」+ 内联 SVG 在格 + 首态熄灭（缺会话数据不误报点亮）+ 一步调窗（真实热区点击→taskbar-conversation-action-result 回执 ok + DECK-CONVERSATION 可见，内核 conversation/show→show()）+ 已开再点置前不隐藏（窗仍在 + 前台=对话窗；busy 点亮二态由 renderer 单测族钉——真机点亮需在途 turn 的后端会话，增段条件②）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 3
         }
       ],
       "areas": [

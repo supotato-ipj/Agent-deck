@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultAutostart, defaultAgentDesktop, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile, saveConfig } from '../src/main/config'
+import { describe, expect, it, vi } from 'vitest'
+import { defaultAppearance, defaultAutostart, defaultAgentDesktop, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, renameEpermRetry, resolveConfigFile, saveConfig } from '../src/main/config'
 
 const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins(), autostart: defaultAutostart(), taskbar: defaultTaskbar(), conversation: defaultConversation(), agentDesktop: defaultAgentDesktop() }
 
@@ -278,6 +278,46 @@ describe('config 模型（工单08 设置浮层透明度）', () => {
     saveConfig(file, config)
     expect(loadConfig(file, FALLBACK).config).toEqual(config)
   })
+
+  it('renameEpermRetry：EPERM 瞬断一次重试即成功（AV/索引器短暂持锁不致命，工单459 全量门禁红轮修因）', () => {
+    let calls = 0
+    const sleeps: number[] = []
+    renameEpermRetry(() => {
+      calls++
+      if (calls === 1) {
+        const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, rename')
+        err.code = 'EPERM'
+        throw err
+      }
+    }, 'a', 'b', (ms) => sleeps.push(ms))
+    expect(calls).toBe(2)
+    expect(sleeps).toEqual([25])
+  })
+
+  it('renameEpermRetry：EPERM 贯穿四拨退避（25/50/100）后原样抛出', () => {
+    const eperm = (): never => {
+      const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, rename')
+      err.code = 'EPERM'
+      throw err
+    }
+    const sleeps: number[] = []
+    expect(() => renameEpermRetry(eperm, 'a', 'b', (ms) => sleeps.push(ms))).toThrow(/EPERM/)
+    expect(sleeps).toEqual([25, 50, 100])
+  })
+
+  it('renameEpermRetry：非 EPERM 错误立即抛出不重试（不吞真故障）', () => {
+    let calls = 0
+    const eacces = (): never => {
+      calls++
+      const err: NodeJS.ErrnoException = new Error('EACCES: permission denied, rename')
+      err.code = 'EACCES'
+      throw err
+    }
+    const sleeps: number[] = []
+    expect(() => renameEpermRetry(eacces, 'a', 'b', (ms) => sleeps.push(ms))).toThrow(/EACCES/)
+    expect(calls).toBe(1)
+    expect(sleeps).toEqual([])
+  })
 })
 
 describe('config.plugins 插件目录（工单10 桌面组件安装位）', () => {
@@ -545,7 +585,7 @@ describe('config.taskbar 任务栏开关（工单49）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ panel: { x: 1, y: 2, width: 3, height: 4 } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, maximizeRetract: true })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -641,7 +681,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { hiddenButtons: ['start', 'tasks'] } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, maximizeRetract: true })
+    expect(r.config.taskbar).toEqual({ enabled: true, hiddenButtons: ['start', 'tasks'], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -649,7 +689,7 @@ describe('config.taskbar 系统按钮显隐（工单54）', () => {
     const file = tmpFile()
     fs.writeFileSync(file, JSON.stringify({ taskbar: { enabled: false } }))
     const r = loadConfig(file, FALLBACK)
-    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, maximizeRetract: true })
+    expect(r.config.taskbar).toEqual({ enabled: false, hiddenButtons: [], metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true })
     expect(r.warnings).toHaveLength(0)
   })
 
@@ -685,6 +725,56 @@ describe('config.taskbar 托盘溢出档位（工单162）', () => {
     const r = loadConfig(file, FALLBACK)
     expect(r.config.taskbar.trayOverflowLimit).toBe(5)
     expect(r.warnings).toHaveLength(0)
+  })
+})
+
+describe('config.taskbar 托盘常驻名单（工单462）', () => {
+  it('合法 {id, name} 记录生效（重启保持的持久化口径）；缺键 = 空名单（老 config 静默兼容）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { trayPinned: [{ id: '100:1', name: '蓝牙' }, { id: 'guid:abc', name: '' }] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.trayPinned).toEqual([{ id: '100:1', name: '蓝牙' }, { id: 'guid:abc', name: '' }])
+    expect(r.warnings).toHaveLength(0)
+    const bare = tmpFile()
+    fs.writeFileSync(bare, JSON.stringify({ taskbar: { enabled: true } }))
+    const rb = loadConfig(bare, FALLBACK)
+    expect(rb.config.taskbar.trayPinned).toEqual([])
+    expect(rb.warnings).toHaveLength(0)
+  })
+
+  it('缺标识/非对象条目丢弃并告警，合法条目保留；name 非字符串归一空串（标识仍可单保险匹配）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { trayPinned: [{ id: '100:1', name: '蓝牙' }, 'ghost', { name: '无标识' }, { id: 7 }, null, { id: '200:2', name: 42 }] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.trayPinned).toEqual([{ id: '100:1', name: '蓝牙' }, { id: '200:2', name: '' }])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.trayPinned'))).toBe(true)
+  })
+
+  it('重复标识去重（首见为准，告警不静默）', () => {
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { trayPinned: [{ id: '100:1', name: '先' }, { id: '100:1', name: '后' }, { id: '200:2', name: '电源' }] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.trayPinned).toEqual([{ id: '100:1', name: '先' }, { id: '200:2', name: '电源' }])
+    expect(r.warnings.some((w) => w.includes('config.taskbar.trayPinned'))).toBe(true)
+  })
+
+  it('非数组整体回退空名单并告警；空数组合法（全不常驻）', () => {
+    for (const bad of ['x', { id: '100:1' }, 3]) {
+      const file = tmpFile()
+      fs.writeFileSync(file, JSON.stringify({ taskbar: { trayPinned: bad } }))
+      const r = loadConfig(file, FALLBACK)
+      expect(r.config.taskbar.trayPinned).toEqual([])
+      expect(r.warnings.some((w) => w.includes('config.taskbar.trayPinned'))).toBe(true)
+    }
+    const file = tmpFile()
+    fs.writeFileSync(file, JSON.stringify({ taskbar: { trayPinned: [] } }))
+    const r = loadConfig(file, FALLBACK)
+    expect(r.config.taskbar.trayPinned).toEqual([])
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('defaultTaskbar 常驻名单缺省空（全不常驻）', () => {
+    expect(defaultTaskbar().trayPinned).toEqual([])
   })
 })
 

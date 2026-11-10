@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, TaskbarTrayOverflowLimit, WeatherLocation } from '../shared/contract'
+import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, WeatherLocation } from '../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../shared/contract'
 import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 import { mergeLimitsOverrides, type PackageLimitOverrides } from './plugins/limits'
@@ -128,6 +128,8 @@ function mergeConversation(raw: unknown, fallback: ConversationConfig, warnings:
  * hiddenButtons（工单54）：开始组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
  * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。
  * trayOverflowLimit（工单162）：托盘溢出档位（通知区域默认可见数，3/5/8/全部；重启保持）。
+ * trayPinned（工单462）：托盘常驻名单（{标识, 名字} 二元记录，豁免溢出拆分永远平铺栏内；
+ * 匹配先标识后名字，跨面板/系统重启保持）。
  * maximizeRetract（工单239）：最大化收栏开关（前台窗口真最大化时任务栏自动收栏；默认开，
  * 关掉即回到「最大化窗不收栏、栏常驻」的旧行为；重启保持）。 */
 export interface TaskbarConfig {
@@ -135,6 +137,7 @@ export interface TaskbarConfig {
   hiddenButtons: TaskbarButtonId[]
   metrics: TaskbarMetric[]
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  trayPinned: TaskbarTrayPinnedEntry[]
   maximizeRetract: boolean
 }
 
@@ -302,7 +305,7 @@ export function defaultAutostart(): AutostartConfig {
  * 硬件摘要五项默认全选（工单55）；
  * 最大化收栏默认开（工单239：默认开以便随时切回旧行为——用户故事30） */
 export function defaultTaskbar(): TaskbarConfig {
-  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5, maximizeRetract: true }
+  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true }
 }
 
 /** 开始组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
@@ -358,6 +361,30 @@ function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[])
       out.trayOverflowLimit = trayOverflowLimit as TaskbarTrayOverflowLimit
     } else {
       warnings.push(`config.taskbar.trayOverflowLimit 不是合法档位（3/5/8/all），已回退默认值 ${fallback.trayOverflowLimit}`)
+    }
+  }
+  const trayPinned = section.trayPinned
+  if (trayPinned !== undefined) {
+    // 托盘常驻名单（工单462，读写/校验照 trayOverflowLimit 既有模式）：逐条校验——缺标识
+    // （id 非非空字符串）的条目丢弃告警、合法条目保留；name 非字符串归一空串（标识单保险
+    // 仍可匹配）；重复标识以首见为准去重（名单是集合语义，不因脏写放大）。
+    if (!Array.isArray(trayPinned)) {
+      warnings.push('config.taskbar.trayPinned 不是数组，已回退默认（空名单）')
+    } else {
+      const known: TaskbarTrayPinnedEntry[] = []
+      let dropped = false
+      for (const item of trayPinned) {
+        if (item !== null && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string' && (item as Record<string, unknown>).id) {
+          const rec = item as Record<string, unknown>
+          known.push({ id: rec.id as string, name: typeof rec.name === 'string' ? rec.name : '' })
+        } else {
+          dropped = true
+        }
+      }
+      const deduped = known.filter((r, i) => known.findIndex((x) => x.id === r.id) === i)
+      if (dropped) warnings.push('config.taskbar.trayPinned 含非法条目（缺标识），已丢弃（合法条目保留）')
+      if (deduped.length !== known.length) warnings.push('config.taskbar.trayPinned 含重复标识，已去重（首见为准）')
+      out.trayPinned = deduped
     }
   }
   const maximizeRetract = section.maximizeRetract
@@ -613,6 +640,31 @@ export function resolveConfigFile(override: string | undefined, appPath: string)
   return raw ? path.resolve(raw) : path.join(appPath, 'config.json')
 }
 
+/** rename EPERM 有界重试核心（工单459 全量门禁红轮修因）：Windows 上 AV/索引器会短暂
+ * 持住新落盘的 .tmp（libuv 打开不带 FILE_SHARE_DELETE，共享冲突 = EPERM）——25/50/100ms
+ * 退避重试消化瞬断（retryClipboardBusy「跨进程互斥面被占退避重试」同款先例）；其余错误码
+ * 立即抛出不吞真故障。rename/sleep 可注入（单测钉 EPERM 重试/非 EPERM 快抛两面——
+ * vitest 下 builtin 模块对象不共享，vi.spyOn 拦不到跨模块的 fs 调用，注入是唯一确定缝）。 */
+export function renameEpermRetry(
+  rename: (from: string, to: string) => void,
+  from: string,
+  to: string,
+  sleep: (ms: number) => void = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms),
+): void {
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      rename(from, to)
+      return
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== 'EPERM') throw err
+      lastErr = err
+      if (attempt < 3) sleep(25 * 2 ** attempt)
+    }
+  }
+  throw lastErr
+}
+
 /** 整份回写 config.json（首运行落盘与工单08 设置滑杆的持久化通道）。
  * tmp+rename 原子写（writeStoreText 先例）：config 收口屏幕几何/端口/透明度，
  * 坏写不碰原文件——半截 JSON 会让下次启动整体回退默认。 */
@@ -620,7 +672,7 @@ export function saveConfig(file: string, config: AppConfig): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   const tmp = `${file}.tmp`
   fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n', 'utf8')
-  fs.renameSync(tmp, file)
+  renameEpermRetry(fs.renameSync.bind(fs), tmp, file)
 }
 
 /**

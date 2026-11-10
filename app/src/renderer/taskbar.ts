@@ -16,14 +16,14 @@
 // 重渲冻结合帧（requestRender 单一入口，dragend 补渲——被拖节点被重建即中止 Chromium
 // OLE 拖拽会话）；③拖拽会话活动期热区持门（host.setDragSession → 穿透轮询抑制关门，
 // 跨组/缝隙松手不丢）；拖拽失败（服务层拒返）条带内 toast 可见反馈不静默。
-import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, modeZoneId, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
+import { APPS_INSET, appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeftWithMode, appsSlotsForCombined, combinedPillsLeft, CONVERSATION_CELL_ICONS, CONVERSATION_CELL_TITLE, conversationCellState, DESKTOP_MODE_ICONS, desktopModeEntries, dispatchAppClick, dispatchAppNewInstance, dispatchConversationShow, dispatchRecClick, dispatchTaskbarButton, dispatchTaskbarDragDrop, dispatchTrayClick, dispatchWorkspaceSwitch, fetchTrayIcon, formatClock, formatMetric, GROUP_GAP, METRIC_SLOT_TEXT, modeZoneId, NETWORK_CELL_ICONS, NETWORK_CELL_TITLES, networkCellState, splitAppsOverflow, splitTrayOverflow, summaryViewModel, TASKBAR_BUTTON_ICONS, taskbarViewModel, toggleMetric, trayIconPixelated } from './taskbar-view.js'
 import type { AppsBand, DesktopModeEntry, DesktopModeId, GroupPillSpan, TaskbarAppViewEntry } from './taskbar-view.js'
 import { trayDataUrl } from './tray-pixels.js'
 import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, stripZoneId, summonHotZones, summonRiseKeyframes, SUMMON_RISE_MS, SUMMON_SHIFTED_GROUPS, tickSummon } from './taskbar-summon.js'
 import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
 import { initialSummonState, summonedGroups } from '../shared/retract.js'
 import type { SummonState } from '../shared/retract.js'
-import type { DesktopWorkspaceState, HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
+import type { ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 import type { DragInRejectReason } from '../main/desktop/drag-in-plan'
 
 const pillStart = document.getElementById('pill-start') as HTMLElement
@@ -56,6 +56,9 @@ let desktopState: DesktopWorkspaceState | null = null
 let dragInOverAgent = false
 /** 右组 1Hz 数据帧的最近值：重渲染（勾选变更）时按它立即填字，不等下一拍 */
 let latestStatus: TaskbarStatus | null = null
+/** 会话清单最近值（工单460）：conversation/changed 即推——整树重渲（托盘 churn 等）
+ * 按它立即落忙碌态，不等下一次会话事件；null = 尚未收到过（熄灭口径） */
+let latestConversationSessions: ConversationSessionView[] | null = null
 /** 硬件摘要编辑态（工单55，右键进入勾选子集，再右键/点格外退出） */
 let editing = false
 /** 托盘溢出菜单浮层（工单162）请求态：「⋯」左键发起，宿主浮层窗随请求开合；
@@ -492,6 +495,29 @@ function wireAction(el: HTMLElement, id: string): void {
   })
 }
 
+/** 网络状态格二态落地（工单461）：state/图标/名称三件同拍落 DOM——同态空转（1Hz 帧每拍
+ * 都来，只有翻转才碰 DOM）。缺帧/字段缺位按 up 乐观呈现（networkCellState 口径——boot
+ * 头一拍不误报断网红点）。data-state 是二态的 DOM 判据（电池 CDP 断言挂点）。 */
+function applyNetworkCell(el: HTMLElement, network: boolean | null | undefined): void {
+  const state = networkCellState(network)
+  if (el.dataset.state === state) return
+  el.dataset.state = state
+  el.innerHTML = NETWORK_CELL_ICONS[state]
+  el.title = NETWORK_CELL_TITLES[state]
+  el.setAttribute('aria-label', NETWORK_CELL_TITLES[state])
+}
+
+/** 对话窗入口格二态落地（工单460）：state/图标两件同拍落 DOM，同态空转（applyNetworkCell
+ * 同款纪律）。title 恒「对话窗」（入口名不随二态变，创建时落一次）；busy 靠图标点亮呈现
+ * （conversationCellState 裁决——缺会话数据熄灭，不误报「有 agent 在干活」）。data-state
+ * 是二态的 DOM 判据（电池 CDP 断言挂点）。 */
+function applyConversationCell(el: HTMLElement, sessions: ConversationSessionView[] | null | undefined): void {
+  const state = conversationCellState(sessions)
+  if (el.dataset.state === state) return
+  el.dataset.state = state
+  el.innerHTML = CONVERSATION_CELL_ICONS[state]
+}
+
 /** 右组硬件摘要格（工单55）：常态按勾选子集呈现数值段；编辑态五项全呈现、点击段即
  * 切换勾选（经 taskbar/set-metrics 持久化——重启保持的勾选通道），再右键/点格外退出编辑。 */
 function renderSummary(metrics: TaskbarState['metrics'], gauges: HardwareGauges | null): HTMLElement | null {
@@ -507,6 +533,9 @@ function renderSummary(metrics: TaskbarState['metrics'], gauges: HardwareGauges 
     const el = document.createElement('span')
     el.className = `tb-seg${seg.on ? ' on' : ' off'}`
     el.dataset.metric = seg.id
+    // 定宽槽位校宽哨兵（工单459）：data-max = 该段极宽读数形态，CSS ::before 隐藏
+    // 哨兵按它撑槽——读数逐拍变化只在槽内消化，段宽恒定
+    el.dataset.max = METRIC_SLOT_TEXT[seg.id]
     // 常态呈现数值；编辑态呈现指标名（勾选语义一目了见，数值被勾选态取代）
     el.textContent = editing ? seg.label : formatMetric(seg.id, gauges ?? { cpu: 0, memory: 0, memory_gb: '--' })
     if (editing) {
@@ -1125,15 +1154,33 @@ function render(state: TaskbarState): void {
   // 首迁）、推荐条目三行、空白右键（系统显隐+恢复段）、托盘档位、多窗选窗五行全在
   // 浮层窗 DECK-TASKBAR-*-MENU 竖排呈现——条带 48px 高从此不约束菜单形态；开层/收层
   // 走 taskbar-*-menu-open/-close 请求，行渲染在浮层页 taskbar-menu.ts（域适配器）。
-  // 右组（工单55）：硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟
+  // 右组（工单55）：硬件摘要 → 对话窗入口格（工单460）→（托盘位 #56 占位）→ 音量 → 时钟
   rightPill.textContent = ''
   if (state.enabled) {
     const summary = renderSummary(vm.metrics, latestStatus?.hardware ?? null)
     if (summary) rightPill.appendChild(summary)
-    // 托盘入栏（工单56）+ 溢出收口（工单162）：按档位拆分——名单序前 N 枚平铺在摘要与
-    // 音量格之间，超量尾部收进「⋯」（档位是用户声明的可见数，「⋯」不吃名额）；数量回落
-    // 重拆即图标回栏、「⋯」消失。名单空即整段不渲染（无 ⋯ 亦无图标）。
-    const { bar: trayBar, overflow: trayOverflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit)
+    // 对话窗入口格（工单460，spec #457 T4；GLOSSARY「对话窗入口格」）：托盘图标群最左端
+    // （硬件摘要与首枚托盘图标之间），托盘图标格同款 28×28 格盒（.tb-conversation-cell）、
+    // 内联 SVG 图标、title「对话窗」。左键经现成桥方法 conversation/show 拉起对话窗——
+    // show+置前语义在内核（非 toggle 隐藏，ADR-0018 关窗只隐藏不动），主进程零新增代码；
+    // 忙碌点亮 = 二态随 conversation/changed 就地翻转（applyConversationCell，boot 订阅），
+    // data-id 挂几何上报口径（measure rightCells 自动收集，热区/电池取坐标零特例）。
+    const conversationCell = document.createElement('div')
+    conversationCell.className = 'tb-cell tb-conversation-cell'
+    conversationCell.dataset.id = 'conversation'
+    conversationCell.title = CONVERSATION_CELL_TITLE
+    conversationCell.setAttribute('aria-label', CONVERSATION_CELL_TITLE)
+    applyConversationCell(conversationCell, latestConversationSessions)
+    conversationCell.addEventListener('click', () => {
+      void dispatchConversationShow(window.deck.bridge)
+        .then((r) => window.deck.host.notify('taskbar-conversation-action-result', { ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+    })
+    rightPill.appendChild(conversationCell)
+    // 托盘入栏（工单56）+ 溢出收口（工单162；工单462 常驻豁免）：按档位拆分——名单序前
+    // N 枚平铺在摘要与音量格之间，超量尾部收进「⋯」（档位是用户声明的可见数，「⋯」不吃
+    // 名额）；常驻名单内条目豁免切尾永远平铺、保持到达序原位，档位只数非常驻条目。数量
+    // 回落重拆即图标回栏、「⋯」消失。名单空即整段不渲染（无 ⋯ 亦无图标）。
+    const { bar: trayBar, overflow: trayOverflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit, vm.trayPinned)
     if (!trayOverflow.length) trayPopupRequested = false // 溢出清空：浮层请求随之失效（宿主侧由 changed/空拆分自收）
     for (const entry of trayBar) rightPill.appendChild(makeTrayEl(entry))
     if (trayOverflow.length) {
@@ -1157,6 +1204,17 @@ function render(state: TaskbarState): void {
       })
       rightPill.appendChild(more)
     }
+    // 网络状态格（工单461，spec #457 T3；ADR-0031 自绘二态）：插位在「⋯」与音量格之间
+    // （补回被托管压住的原生网络图标——原生图标不经 Shell_NotifyIcon，收编不可达）。
+    // 点击走音量格同款 quick-settings 动作分发（wireAction 目录右侧格 family）；二态随
+    // 1Hz 帧就地翻转（applyStatus → applyNetworkCell），data-id 挂几何上报口径
+    //（measure rightCells 自动收集，热区/电池取坐标零特例）。
+    const networkCell = document.createElement('div')
+    networkCell.className = 'tb-cell tb-network-cell'
+    networkCell.dataset.id = 'network'
+    applyNetworkCell(networkCell, latestStatus?.network)
+    wireAction(networkCell, 'network')
+    rightPill.appendChild(networkCell)
     const volume = document.createElement('div')
     volume.className = 'tb-cell'
     volume.dataset.id = 'volume'
@@ -1197,11 +1255,14 @@ function requestRender(state: TaskbarState): void {
   render(state)
 }
 
-/** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态） */
+/** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态）。
+ * 工单461 起载荷含 network 段——网络格二态随帧就地翻转（applyNetworkCell 同款纪律）。 */
 function applyStatus(status: TaskbarStatus): void {
   latestStatus = status
   const clockEl = rightPill.querySelector<HTMLElement>('[data-id="clock"]')
   if (clockEl) clockEl.textContent = formatClock(status.clock)
+  const networkEl = rightPill.querySelector<HTMLElement>('[data-id="network"]')
+  if (networkEl) applyNetworkCell(networkEl, status.network)
   const values: Record<string, string> = {}
   for (const el of rightPill.querySelectorAll<HTMLElement>('#hw-summary .tb-seg')) {
     const id = (el.dataset.metric ?? '') as TaskbarMetric
@@ -1341,6 +1402,14 @@ function boot(): void {
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
     window.deck.bridge.on('taskbar/status', (status) => applyStatus(status))
+    // 对话窗入口格忙碌点亮（工单460）：条带窗订阅清单加入 conversation/changed——任一
+    // 会话 status=busy 即点亮（二态）。就地翻转不重渲（applyNetworkCell 同款纪律），
+    // 最近值留账（latestConversationSessions）——整树重渲（托盘 churn）按最近值落格不丢态
+    window.deck.bridge.on('conversation/changed', (p) => {
+      latestConversationSessions = p.sessions
+      const cell = rightPill.querySelector<HTMLElement>('[data-id="conversation"]')
+      if (cell) applyConversationCell(cell, p.sessions)
+    })
     // 桌面工作区共享状态（工单375）：boot 对齐（get-state）+ workspace/changed 即推——
     // 模式组显隐/高亮/禁用随共享状态重渲（面板/任务栏/胶囊同一份，spec 决策 5）。
     // 未装配（旧内核/桥缺方法）按「不渲染模式组」静默——功能未启用的兼容口径。

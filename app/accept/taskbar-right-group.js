@@ -11,10 +11,26 @@
 //      面板重拉（重启保持）后摘要仍只有勾选子集
 //   P7 托盘溢出菜单（工单162）：自注册 7 枚探针钉名单量——默认档 5 可见+超量入「⋯」/
 //     （工单196：档位两挂点臂6/7 断言锚点迁浮层窗 DECK-TASKBAR-TIER-MENU，落盘/收敛口径不变）/
-//      点「⋯」浮层随鼠标弹出（独立浮层窗）/行左键右键同回放分发（探针窗收帧）/点面板
+//      点「⋯」浮层随鼠标弹出（独立浮层窗）/格左键右键同回放分发（探针窗收帧）/点面板
 //      外即收（blur）/档位两挂点（「⋯」右键+右组空白右键）选档落盘/数量回落自动回栏
-//   P8 图标档位（工单244）：托盘图标 16px（1:1 直渲）+ 托盘格盒 28×28 +
-//      溢出菜单行图标 16px + 行高 30（CDP computed style 与几何存证帧两路互证）
+//   P8 图标档位（工单244；工单458 随动改写：溢出行→网格）：托盘图标 16px（1:1 直渲）
+//      + 托盘格盒 28×28 + 溢出网格 5 列 36×36 格、16px 图标居中 + 浮层恒宽 200
+//      （CDP computed style 与几何存证帧两路互证；条目数变化两拍宽度不变）
+//   P9 托盘常驻（工单462）：档位菜单「常驻管理」节勾选即写名单即生效/豁免溢出裁剪/
+//      到达序原位/解除回账/跨面板重启保持
+//   P10 硬件摘要定宽槽位（工单459）：硬件仪表 stub 喂窄/宽两拍读数（1 位↔3 位百分位、
+//      短 KB↔满 5 位 KB 与 MB 进位），taskbar-geometry 右组矩形与摘要/音量/时钟格宽
+//      两拍不变 + tb-seg tabular-nums/右对齐/定宽 computed 三证
+//   P11 网络状态格（工单461，ADR-0031 自绘二态）：rightCells 挂 data-id 且插位「⋯」
+//      与音量格之间（音量格紧邻右侧）/联网态实机呈现（实心信号、无斜杠无红点）/
+//      断网态随 1Hz 帧翻转（网卡快照 stub 喂「网卡在场无地址」快照走真判定管线——
+//      down 斜杠+红点在场；删脚本复原拍翻回 up，双向随帧更新）/点击开原生快速设置
+//      （与音量格同款 quick-settings 分发）
+//   P12 对话窗入口格（工单460，spec #457 T4；ADR-0018 关窗只隐藏）：rightCells 挂
+//      data-id 且插位硬件摘要与首枚托盘图标之间（托盘群最左端）/格盒 28×28+图标格族
+//      圆角 10px+title「对话窗」+内联 SVG/首态熄灭/一步调窗（真实热区点击→点击回执 ok
+//      +DECK-CONVERSATION 可见）/已开再点置前不隐藏（窗仍在+前台=对话窗；busy 点亮由
+//      renderer 单测族钉，真机不重——需在途 turn 的后端会话）
 // 运行：npm run accept:taskbar-right-group（= electron . --accept-taskbar-right-group）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -44,6 +60,21 @@ const handle = createPanelHandle({
 });
 // 工单214：CDP 端口自电池接入表取（manifest 的 cdpPort 字段）——端口分配不再靠注释接力。
 const CDP_PORT = cdpPortFor('55-taskbar-right-group');
+// 工单459 硬件仪表脚本喂入（P10 定宽槽位段）：控制器写脚本读数、面板进程内 stub
+// （accept/lib/hardware-gauge-stub.js，DECK_HW_GAUGE_STUB=1 双门禁）在 hardware() 现读。
+// 三处拉面板（起跑 + P6/P9 重拉）都带同一 extraEnv；轮末 P10 段自删脚本文件。
+const HW_GAUGE_FILE = path.join(APP_ROOT, 'accept', 'evidence', '459-hw-gauge-script.json');
+const PANEL_ENV_459 = { DECK_HW_GAUGE_STUB: '1', DECK_HW_GAUGE_FILE: HW_GAUGE_FILE };
+// 工单461 网卡快照脚本喂入（P11 二态段）：控制器写脚本、面板进程内 stub
+// （accept/lib/network-snapshot-stub.js，DECK_NETWORK_SNAPSHOT_STUB=1 双门禁）在
+// os.networkInterfaces 现读——与 459 同门禁合并注入（一份 extraEnv 两 stub，其余段全程
+// 透传真实采样）；轮末 P11 段自删脚本文件。
+const NETWORK_SNAPSHOT_FILE = path.join(APP_ROOT, 'accept', 'evidence', '461-network-snapshot-script.json');
+const PANEL_ENV = {
+  ...PANEL_ENV_459,
+  DECK_NETWORK_SNAPSHOT_STUB: '1',
+  DECK_NETWORK_SNAPSHOT_FILE: NETWORK_SNAPSHOT_FILE,
+};
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const VK_ESC = 0x1b;
@@ -261,7 +292,7 @@ async function main() {
 
     // —— 拉起面板子进程（任务栏启用态）——
     // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept'] ＋ CDP 端口）
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
@@ -415,7 +446,7 @@ async function main() {
     panelPid = 0;
     await sleep(1200);
     const since6 = Date.now();
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV });
     const boot6 = await tape.wait('boot', undefined, { since: since6, timeoutMs: 15000 });
     if (!boot6) throw new Error('P6 重拉面板子进程未上报 boot');
     panelPid = boot6.pid;
@@ -471,8 +502,14 @@ async function main() {
     rep.note(`P7 探针在册 ${probesIn.length}/${PROBE_UIDS.length} 名单=${roster7.length}`);
     const armFail7 = (name, detail) => rep.fail(`P7[${name}] ${detail}`);
 
-    // 前置数据：最新几何（⋯ 矩形在此）
-    const geo7 = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, { since: t7 });
+    // 前置数据：最新几何（⋯ 矩形在此）。不设 since 门（工单459 随动改段）：旧 since:t7 门
+    // 隐式依赖右组几何抖动自产帧——基线无定宽时 hw-summary 宽度逐拍跳、每秒必有帧；探针
+    // 入「⋯」不改栏面（档内前 5 枚稳定）→ 工单459 定宽槽位落地后载荷恒定 → 等待窗零帧
+    // （三轮红轮实证：帧间隙 10.9s 跨整个 8s 窗口）→ 超时误红。臂意 = 取 ⋯ 矩形供点击 +
+    // ⋯ 在场断言——红轮回合 24/24 帧均带 trayOverflow，取「最新一帧」不断言强度（P8 geo8
+    // 「取最新一帧而不设时间门」同款先例）。基线判别：base 6df292a 同款电池同机 PASS 18/0
+    // （P7 绿）、本分支三连红——非环境非回归，系本票行为改变暴露的既有臂依赖。
+    const geo7 = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, {});
     if (!geo7) {
       armFail7('几何', 'taskbar-geometry 无 trayOverflow 矩形（⋯ 未渲染或存证缺字段）');
     } else {
@@ -486,12 +523,12 @@ async function main() {
 
       const more = geo7.trayOverflow;
       const morePt = toPhys(more.x + more.w / 2, more.y + more.h / 2);
-      // 行矩形在页面 ready 事件（rows 数组带 y/h），窗 bounds 在宿主 opened/resized 事件
-      //（常驻窗重开从 cache 弹出，名单churn重定窗落 resized）——两路配对。开层后 700ms
-      // 沉降：红轮两轮实证「show 后 ~100ms 内落点的点击整帧丢失」（新窗输入路由未就绪），
-      // 沉降拍后 bounds/rows 都取最新帧（churn 重定窗后的现行布局）。只点视口内行
-      //（row.y+h ≤ ready.h）：帽外行点击会落到浮层外（红轮实证：触发条带 strip-click
-      // 收层 + 杂散点击，连锁红）。
+      // 格矩形在页面 ready 事件（工单458：rows 数组带 x/y/w/h，坐标语义 = 格），窗
+      // bounds 在宿主 opened/resized 事件（常驻窗重开从 cache 弹出，名单churn重定窗落
+      // resized）——两路配对。开层后 700ms 沉降：红轮两轮实证「show 后 ~100ms 内落点的
+      // 点击整帧丢失」（新窗输入路由未就绪），沉降拍后 bounds/rows 都取最新帧（churn
+      // 重定窗后的现行布局）。只点视口内格（y+h ≤ ready.h）：帽外格点击会落到浮层外
+      //（红轮实证：触发条带 strip-click 收层 + 杂散点击，连锁红）。
       const openPopup = async (note) => {
         const since = Date.now();
         const convOk = await conv(morePt);
@@ -516,20 +553,23 @@ async function main() {
         let viewH = ready ? Number(ready.h) || 0 : 0;
         if (!rows) {
           // 兜底：页面 ready 随名单 churn 才重报，无 churn 窗口内可能缺席——直接从内核
-          // 现取名单按行几何推（同一态：浮层行 = 名单去前 limit 的尾段，行高 30/内衬 6
-          // 与浮层页 CSS 同源——工单240：16px 图标 + 上下各 7 内衬 = 30），key 实时、
-          // 坐标算术稳定
+          // 现取名单按格几何推（同一态：浮层格 = 名单去前 limit 的尾段；工单458：5 列
+          // 行优先、格 36×36、列/行步进 38、首格偏移 6（边 1 + 内衬 5）——与浮层页 CSS
+          // 同源），key 实时、坐标算术稳定
           const st = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
           const limit = st && st.trayOverflowLimit === 'all' ? st.tray.length : (st?.trayOverflowLimit ?? 5);
           const tail = (st?.tray || []).slice(limit);
-          rows = tail.map((e, i) => ({ key: e.key, label: e.tooltip || e.key, y: 6 + 30 * i, h: 30 }));
-          viewH = rows.length * 30 + 12;
+          rows = tail.map((e, i) => ({
+            key: e.key, label: e.tooltip || e.key,
+            x: 6 + 38 * (i % 5), y: 6 + 38 * Math.floor(i / 5), w: 36, h: 36,
+          }));
+          viewH = Math.ceil(rows.length / 5) * 38 + 10;
         }
         if (note) rep.note(`${note}: ${opened ? `rows=${rows ? rows.length : 'n/a'} bounds=${JSON.stringify(opened.bounds)}` : '未开'}`);
         return { opened, rows, viewH };
       };
-      const rowPt = (pop, idx) => ({
-        x: Math.round((pop.opened.bounds.x + 140) * scale),
+      const cellPt = (pop, idx) => ({
+        x: Math.round((pop.opened.bounds.x + pop.rows[idx].x + pop.rows[idx].w / 2) * scale),
         y: Math.round((pop.opened.bounds.y + pop.rows[idx].y + pop.rows[idx].h / 2) * scale),
       });
       const probeRowIdx = (pop) => pop.rows.findIndex((r) => probesIn.includes(r.key) && r.y + r.h <= pop.viewH + 4);
@@ -545,48 +585,48 @@ async function main() {
       }
       if (pop2.opened && popWin2 && pop2.rows && pop2.rows.length === roster2.length - 5
         && probeRowIdx(pop2) >= 0) {
-        rep.pass(`臂2 浮层随鼠标弹出（行 ${pop2.rows.length} = 名单 ${roster2.length} - 5，浮层窗在场）`);
+        rep.pass(`臂2 浮层随鼠标弹出（格 ${pop2.rows.length} = 名单 ${roster2.length} - 5，浮层窗在场）`);
       } else {
         armFail7('浮层弹出', `opened=${!!pop2.opened} 窗=${!!popWin2} rows=${pop2.rows ? pop2.rows.length : 'n/a'} 名单=${roster2.length} 探针行=${pop2.rows ? probeRowIdx(pop2) : 'n/a'}`);
       }
 
-      // 臂3：行左键 = 默认动作（同一回放分发）：溢出行点击 → taskbar/tray-click 存证
-      //（surface=overflow）+ 探针窗收帧（v0 口径 wp=uid/lp=WM_LBUTTONUP）+ 行点即收
+      // 臂3：格左键 = 默认动作（同一回放分发）：溢出格点击 → taskbar/tray-click 存证
+      //（surface=overflow）+ 探针窗收帧（v0 口径 wp=uid/lp=WM_LBUTTONUP）+ 格点即收
       if (pop2.opened && pop2.rows && probeRowIdx(pop2) >= 0) {
         const idx3 = probeRowIdx(pop2);
         const key3 = pop2.rows[idx3].key;
         const uid3 = PROBE_UIDS[probeKeys.indexOf(key3)];
         probe162.frames.length = 0;
-        const pt3 = rowPt(pop2, idx3);
+        const pt3 = cellPt(pop2, idx3);
         win32.clickPhys(pt3.x, pt3.y, 'left');
         const click3 = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === key3 && e.button === 'left' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         const result3 = await tape.wait('taskbar-tray-click-result', (e) => e.surface === 'overflow' && e.key === key3 && e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         const frame3 = await probe162.waitFrame((f) => f.msg === PROBE_CB && f.wp === uid3 && f.lp === 0x0202);
-        const closed3 = await tape.wait('taskbar-tray-overflow-closed', (e) => e.reason === 'row' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+        const closed3 = await tape.wait('taskbar-tray-overflow-closed', (e) => e.reason === 'cell' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         if (click3 && result3 && frame3 && closed3) {
-          rep.pass(`臂3 行左键默认动作（key=${key3}）：同回放分发收帧 wp=${frame3.wp}/lp=0x${frame3.lp.toString(16)}、行点即收`);
+          rep.pass(`臂3 格左键默认动作（key=${key3}）：同回放分发收帧 wp=${frame3.wp}/lp=0x${frame3.lp.toString(16)}、格点即收`);
         } else {
-          armFail7('行左键', `存证=${!!click3} 回执=${!!result3} 收帧=${JSON.stringify(frame3)} 收层=${JSON.stringify(closed3)}`);
+          armFail7('格左键', `存证=${!!click3} 回执=${!!result3} 收帧=${JSON.stringify(frame3)} 收层=${JSON.stringify(closed3)}`);
         }
       } else {
-        armFail7('行左键', '浮层未开或溢出无探针行（臂2 失败连带）');
+        armFail7('格左键', '浮层未开或溢出无探针格（臂2 失败连带）');
       }
 
-      // 臂4：行右键 = 应用自带菜单（同回放分发右键链；v0 lp=WM_RBUTTONUP）
+      // 臂4：格右键 = 应用自带菜单（同回放分发右键链；v0 lp=WM_RBUTTONUP）
       const pop4 = await openPopup('臂4开层');
       if (pop4.opened && pop4.rows && probeRowIdx(pop4) >= 0) {
         const idx4 = probeRowIdx(pop4);
         const key4 = pop4.rows[idx4].key;
         const uid4 = PROBE_UIDS[probeKeys.indexOf(key4)];
         probe162.frames.length = 0;
-        const pt4 = rowPt(pop4, idx4);
+        const pt4 = cellPt(pop4, idx4);
         win32.clickPhys(pt4.x, pt4.y, 'right');
         const click4 = await tape.wait('taskbar-tray-click', (e) => e.surface === 'overflow' && e.key === key4 && e.button === 'right' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
         const frame4 = await probe162.waitFrame((f) => f.msg === PROBE_CB && f.wp === uid4 && f.lp === 0x0205);
         if (click4 && frame4) {
-          rep.pass(`臂4 行右键自带菜单（key=${key4}）：同回放分发右键收帧 lp=0x${frame4.lp.toString(16)}`);
+          rep.pass(`臂4 格右键自带菜单（key=${key4}）：同回放分发右键收帧 lp=0x${frame4.lp.toString(16)}`);
         } else {
-          armFail7('行右键', `存证=${JSON.stringify(click4)} 收帧=${JSON.stringify(frame4)}`);
+          armFail7('格右键', `存证=${JSON.stringify(click4)} 收帧=${JSON.stringify(frame4)}`);
         }
         // 臂5：点面板外即收起——notepad 探针前台点击夺焦（面板永不激活点不出 blur，
         // 桌面/应用窗才夺焦点；浮层 blur 即「点面板外」的全局信号）。臂4 行点已收层
@@ -621,7 +661,7 @@ async function main() {
           armFail7('点外收起', 'notepad 探针不可用（夺焦点臂无法执行）');
         }
       } else {
-        armFail7('行右键', '浮层未开或溢出无探针行（臂2 失败连带）');
+        armFail7('格右键', '浮层未开或溢出无探针格（臂2 失败连带）');
       }
 
       // 档位菜单浮层锚点（工单196：档位菜单迁浮层窗 DECK-TASKBAR-TIER-MENU，横排进右组
@@ -632,15 +672,17 @@ async function main() {
         const os = tape.all(undefined,
           (e) => e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized', { since });
         // ready 行几何：本开层拍有新回报用新拍；缺席（show 重开不触发页重回报——页只在
-        // boot/changed 回报）回退最近一拍——档位面行集静态（四行恒列，✓ 前缀不修行高，
-        // 行几何跨开拍不变），坐标算术稳定
+        // boot/changed 回报）回退最近一拍——行集 = 四档行恒列 + 常驻管理节（工单462：行数
+        // 随托盘名单量增长，开层判据从「恰 4 行」改「四档行齐列」；行高同族一致，行几何按
+        // 行 id 定位，跨开拍坐标算术稳定）
         let rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows), { since });
         if (!rd.length) rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows));
         return os.length && rd.length
           ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
           : null;
       };
-      // 右键开浮层（三试：右键偶发不开——49 族 P16⑥/⑰ 同款抖动，到靶收敛后重试）
+      // 右键开浮层（三试：右键偶发不开——49 族 P16⑥/⑰ 同款抖动，到靶收敛后重试）；
+      // 开层判据 = 四档行齐列（tier 行恰 4 条——常驻管理节行随名单量增列，工单462）
       const openTierPopup7 = async (ptOf) => {
         for (let attempt = 0; attempt < 3; attempt++) {
           const pt = ptOf();
@@ -651,7 +693,7 @@ async function main() {
           for (let i = 0; i < 12; i++) {
             await sleep(200);
             const pop = tierPopup7(since);
-            if (pop && pop.rows.length === 4) return pop;
+            if (pop && pop.rows.filter((r) => String(r.id || '').startsWith('tier-')).length === 4) return pop;
           }
         }
         return null;
@@ -775,16 +817,25 @@ async function main() {
       }
     }
 
-    // —— P8：托盘与溢出菜单行图标档位（工单244 新增）：托盘图标 16px（1:1 直渲）
-    //        + 托盘格盒 28×28 + 溢出菜单行图标 16px + 行高 30 ——
+    // —— P8：托盘与溢出网格档位（工单244 新增；工单458 随动改写：溢出行→网格）：
+    //        托盘图标 16px（1:1 直渲）+ 托盘格盒 28×28 + 溢出网格 5 列 36×36 格、
+    //        16px 图标居中、悬停 title 在场 + 浮层恒宽 200（条目数变化两拍宽度不变）——
     // 断言形态照 49 电池 P13 的两路互证：CDP computed style（渲染层真实尺寸，单测断不到）
-    // ＋ taskbar-geometry 存证帧（格盒矩形）。溢出菜单行在浮层页（DECK-TRAY-OVERFLOW）
-    // 里读，行高取 ready 存证的行矩形。
-    // 探针：溢出行需要「名单 > 5」才有行——机器自身图标数不定，自注册 6 枚探针把名单量
-    // 钉到确定性（P7 同款机制，探针窗复用 P7 的实例）。
+    // ＋ ready 存证帧（格矩形，坐标语义 = 格）。溢出网格在浮层页（DECK-TRAY-OVERFLOW）
+    // 里读，格几何取 ready 存证的格矩形。
+    // 探针：溢出格需要「名单 > 5」，且 5 列断言需溢出段 ≥5 格跨满列位——机器自身图标数
+    // 不定，自注册 10 枚探针把名单量钉到确定性（P7 同款机制，探针窗复用 P7 的实例；
+    // 原 6 枚在机器图标极少时溢出段 <5 格，5 列断言不成立——工单458 随动加量）。
     rep.beginSegment('P8');
     const since8 = Date.now();
-    const uids8 = Array.from({ length: 6 }, (_, i) => 0x2440001 + i);
+    // 档位锚定 5（scope 定向轮单跑本段时不受 P7 档位臂残留影响，独立可跑）；跑前读基线
+    // 供段尾复原（恒宽两拍会把档位切 3）
+    const prevLimit8 = (() => {
+      try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')).taskbar?.trayOverflowLimit ?? 5; } catch { return 5; }
+    })();
+    await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 5 })`);
+    await sleep(600); // 重拆 + 几何重报一拍
+    const uids8 = Array.from({ length: 10 }, (_, i) => 0x2440001 + i);
     const hicon8 = Number(LoadIconW7(0, 32512));
     const probe8Keys = [];
     for (const uid of uids8) {
@@ -826,9 +877,11 @@ async function main() {
     const pxOk8 = loaded8.every((t) => t.px === (t.nat < 16) && (t.px ? t.rendering === 'pixelated' : t.rendering !== 'pixelated'));
     const geoTrayOk8 = !!(geo8 && geo8.trayIcons && geo8.trayIcons.length > 0
       && Math.abs(geo8.trayIcons[0].w - 28) <= 2 && Math.abs(geo8.trayIcons[0].h - 28) <= 2);
-    // 溢出菜单行图标（16px）+ 行高（30）：开层后从浮层页读 computed style，行几何取 ready 存证
-    let rowSize8 = null;
-    let rowH8 = null;
+    // 溢出网格（工单458 格断言）：开层后从浮层页读格 computed style（格 36×36、图标
+    // 16px 居中、title 在场），格几何取 ready 存证的格矩形
+    let cellInfo8 = null; // .ov-cell computed：{ w, h, img: { w, h }, title }
+    let cells8 = null;    // ready8.rows 格矩形（x/y/w/h）
+    let popW8 = 0;        // 档位 5 拍浮层实测宽（恒定 200 断言）
     let popupOk8 = false;
     let conv8 = null;
     const more8 = geo8 && geo8.trayOverflow;
@@ -840,25 +893,52 @@ async function main() {
       const ready8 = await waitLastEvent('taskbar-tray-overflow-ready',
         (e) => Array.isArray(e.rows) && e.rows.length > 0, 5000, { since: since8 });
       if (ready8) {
-        rowH8 = ready8.rows.map((r) => r.h);
-        rowSize8 = await cdpEval('DECK-TRAY-OVERFLOW', `(() => {
-          const imgs = [...document.querySelectorAll('.ov-row img')];
+        cells8 = ready8.rows;
+        popW8 = Number(ready8.w) || 0;
+        cellInfo8 = await cdpEval('DECK-TRAY-OVERFLOW', `(() => {
           const cs = (el, p) => (el ? getComputedStyle(el)[p] : null);
-          return imgs.map((t) => ({ w: cs(t,'width'), h: cs(t,'height'), nat: t.naturalWidth }));
+          return [...document.querySelectorAll('.ov-cell')].map((c) => {
+            const img = c.querySelector('img');
+            return { w: cs(c,'width'), h: cs(c,'height'),
+              img: img ? { w: cs(img,'width'), h: cs(img,'height'), nat: img.naturalWidth } : null,
+              title: c.title || null };
+          });
         })()`);
         popupOk8 = true;
       }
-      rep.note(`P8 浮层开层 收敛=${conv8} 行高=${JSON.stringify(rowH8)}`);
+      rep.note(`P8 浮层开层 收敛=${conv8} 宽=${popW8} 格数=${cells8 ? cells8.length : 'n/a'}`);
     }
-    const rowSizeOk8 = !!rowSize8 && rowSize8.length > 0 && rowSize8.every((t) => t.w === '16px' && t.h === '16px');
-    const rowHOk8 = !!rowH8 && rowH8.length > 0 && rowH8.every((h) => Math.abs(h - 30) <= 1);
-    if (traySizeOk8 && pxOk8 && geoTrayOk8 && popupOk8 && rowSizeOk8 && rowHOk8) {
+    // 恒宽两拍（工单458 验收标准：条目数变化宽度不变）——档位 5→3 溢出段变长，浮层在场
+    // 拍 changed 重渲重报 ready（行优先格数 = 名单-3 > 名单-5 严格递增）；宽度应纹丝不动
+    //（CSS 定值 200，与条目数无关）
+    let popW8b = 0;
+    if (popupOk8) {
+      const since8b = Date.now();
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })`);
+      const ready8b = await waitLastEvent('taskbar-tray-overflow-ready',
+        (e) => Array.isArray(e.rows) && e.rows.length > (cells8 ? cells8.length : 0), 6000, { since: since8b });
+      if (ready8b) popW8b = Number(ready8b.w) || 0;
+      rep.note(`P8 恒宽两拍 档5 宽=${popW8} 格=${cells8 ? cells8.length : 'n/a'}；档3 宽=${popW8b} 格=${ready8b ? ready8b.rows.length : 'n/a'}`);
+    }
+    const cellOk8 = !!cellInfo8 && cellInfo8.length > 0
+      && cellInfo8.every((c) => c.w === '36px' && c.h === '36px'
+        && c.img && c.img.w === '16px' && c.img.h === '16px' && !!c.title);
+    const cellRectOk8 = !!cells8 && cells8.length > 0
+      && cells8.every((r) => Math.abs(r.w - 36) <= 2 && Math.abs(r.h - 36) <= 2);
+    // 5 列判据：列位（x）去重恰 5 个（≥5 格跨满 5 列；行数增加不增列位）
+    const colsOk8 = !!cells8 && cells8.length >= 5
+      && new Set(cells8.map((r) => Math.round(r.x))).size === 5;
+    const widthOk8 = Math.abs(popW8 - 200) <= 2 && popW8b > 0 && Math.abs(popW8b - popW8) <= 2;
+    if (traySizeOk8 && pxOk8 && geoTrayOk8 && popupOk8 && cellOk8 && cellRectOk8 && colsOk8 && widthOk8) {
       rep.pass(`P8 图标档位：托盘图标 ${sizes8.length} 枚均 16px（1:1 直渲判据：${loaded8.length ? (pxOk8 ? '通过' : '不符') : '未及（像素未到齐，软核验跳过）'}）、`
         + `托盘格盒 ${geo8.trayIcons[0].w}×${geo8.trayIcons[0].h}（期望 28×28）、`
-        + `溢出菜单行图标 ${rowSize8.length} 枚均 16px、行高 ${JSON.stringify(rowH8)}（期望 30）`);
+        + `溢出网格 ${cellInfo8.length} 格 computed 均 36×36、图标 16px 居中、title 在场、`
+        + `ready 格矩形均 36×36（±2）、列位恰 5 列、浮层宽档5=${popW8}/档3=${popW8b} 恒定（期望 200±2）`);
     } else {
       rep.fail(`P8 托盘尺寸=${JSON.stringify(sizes8)} 直渲判据=${pxOk8} 格盒=${JSON.stringify(geo8 && geo8.trayIcons && geo8.trayIcons[0])} `
-        + `行图标=${JSON.stringify(rowSize8)} 行高=${JSON.stringify(rowH8)} 开层=${popupOk8}`);
+        + `溢出格=${JSON.stringify(cellInfo8)} 格矩形=${JSON.stringify(cells8)} `
+        + `列位=${cells8 ? new Set(cells8.map((r) => Math.round(r.x))).size : 'n/a'} `
+        + `宽=${popW8}/${popW8b} 开层=${popupOk8}`);
     }
     // 收层：点浮层外（blur 收层）——不给用户留残留浮层
     if (popupOk8) {
@@ -866,11 +946,587 @@ async function main() {
       win32.clickPhys(center8.x, center8.y, 'left');
       await waitLastEvent('taskbar-tray-overflow-closed', undefined, 3000, { since: since8 });
     }
+    // 档位复原（恒宽两拍把档位切了 3；基线缺位时回默认 5——与内核缺省一致）
+    try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(prevLimit8)} })`); } catch { /* 条带已不在场 */ }
     // 探针拆除（异常路径 finally 兜底）
     for (const uid of uids8) {
       const nidDel8 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
         flags: 0, callbackMessage: 0, hicon: 0, uVersion: 0 });
       ShellNotifyIconW7(NIM_DELETE, nidDel8);
+    }
+
+    // —— P9 托盘常驻（工单462）：档位菜单「常驻管理」节勾选即写名单即生效/豁免溢出裁剪
+    //        （档位只数非常驻、保持到达序原位）/解除即回档位账/跨面板重启保持——
+    // 断言形态：真实右键挂点开档位菜单点常驻行（input-injection）+ config 落盘与
+    // taskbar-geometry 栏面键序互证（system-state 面）+ taskbar-tray-pinned(-result)
+    // 存证（event-evidence 面）。探针：常驻行需「名单 > 档位」才有裁剪面——自注册 7 枚
+    // 探针钉名单量（P7/P8 同款机制，探针窗复用 P7 实例；tooltip DECK462-P<i> 特异命名，
+    // 与机器真实图标零名字碰撞——名字兜底匹配不误挂真图标）。真机勾选蓝牙/耳机/电源的
+    // 人眼验收不进电池（机器图标不定），由工单 462 真机轮 CDP 名单取证佐证。
+    rep.beginSegment('P9');
+    const since9 = Date.now();
+    // 档位与常驻名单基线（段尾复原——本段切档 3、勾 3 枚探针）
+    const prevLimit9 = (() => {
+      try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')).taskbar?.trayOverflowLimit ?? 5; } catch { return 5; }
+    })();
+    const prevPinned9 = (() => {
+      try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')).taskbar?.trayPinned ?? []; } catch { return []; }
+    })();
+    await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 5 })`);
+    await sleep(600); // 重拆 + 几何重报一拍
+    const uids9 = Array.from({ length: 7 }, (_, i) => 0x4620001 + i);
+    const probe9Keys = [];
+    for (const uid of uids9) {
+      const nid9 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
+        flags: NIF_MESSAGE | NIF_ICON | NIF_TIP, callbackMessage: PROBE_CB, hicon: Number(LoadIconW7(0, 32512)),
+        tooltip: `DECK462-P${uid - 0x4620001}`, uVersion: 0 });
+      if (ShellNotifyIconW7(NIM_ADD, nid9)) probe9Keys.push(`${probe162.hwnd}:${uid}`);
+    }
+    const probe9Names = probe9Keys.map((k, i) => `DECK462-P${i}`);
+    // 名单收编确认（探针全在册才继续——P7 rosterKeys 同款）
+    let roster9 = [];
+    for (let i = 0; i < 20; i++) {
+      roster9 = await rosterKeys();
+      if (probe9Keys.length && probe9Keys.every((k) => roster9.includes(k))) break;
+      await sleep(400);
+    }
+    rep.note(`P9 探针在册 ${probe9Keys.filter((k) => roster9.includes(k)).length}/${uids9.length} 名单=${roster9.length}`);
+    // 残账归零（评审修复）：段尾复原前崩溃且 config 隔离还原失守时，DECK462-P* 残账会按
+    // 名字兜底命中本轮重注册的同名探针，臂1 首击语义翻转成「取消」、pinned===true 回执
+    // 等不到。收编确认后逐枚 pinned:false 归零再进臂1——内核按先标识后名字滤除，旧 hwnd
+    // 的同名残账一并摘除；干净环境无命中即幂等空转（不写盘、不推事件），pinned:false 回执
+    // 不会撞臂1 的 pinned===true 过滤。
+    for (let i = 0; i < probe9Keys.length; i++) {
+      try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[i])}, name: ${JSON.stringify(probe9Names[i])}, pinned: false })`); } catch { /* 条带已不在场 */ }
+    }
+    await sleep(400); // 归零回推重拆一拍（有残账时栏面恢复档位账序，臂1 行集对账不受残账扰动）
+    // 档位菜单浮层锚点（P7 tierPopup7 同式——P7 的闭包锚在其 else 块内，本段自持一份；
+    // opened/resized 窗 bounds 与 ready 行矩形两路配对，行几何按行 id 定位）
+    const tierPopup9 = (since) => {
+      const os = tape.all(undefined,
+        (e) => e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized', { since });
+      let rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows), { since });
+      if (!rd.length) rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows));
+      return os.length && rd.length
+        ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
+        : null;
+    };
+    // 右键开浮层（三试，P7 openTierPopup7 同款抖动收敛；开层判据 = 四档行齐列）
+    const openTierPopup9 = async (ptOf) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const pt = ptOf();
+        if (!pt) return null;
+        await conv(pt); // 到靶停拍（convergeAt 内含热区翻转窗口）
+        const since = Date.now();
+        win32.clickPhys(pt.x, pt.y, 'right');
+        for (let i = 0; i < 12; i++) {
+          await sleep(200);
+          const pop = tierPopup9(since);
+          if (pop && pop.rows.filter((r) => String(r.id || '').startsWith('tier-')).length === 4) return pop;
+        }
+      }
+      return null;
+    };
+    const geo9a = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, {});
+    let arm1 = false, detail9a = '';
+    let pinRow0 = null, pinRow1 = null;
+    let pinRowCount9 = 0;
+    if (!geo9a) {
+      detail9a = '无 trayOverflow 几何（⋯ 未渲染）';
+    } else {
+      const morePt9 = toPhys(geo9a.trayOverflow.x + geo9a.trayOverflow.w / 2, geo9a.trayOverflow.y + geo9a.trayOverflow.h / 2);
+      const pop9 = await openTierPopup9(() => morePt9);
+      detail9a = `档位浮层=${pop9 ? '在场' : '缺'}`;
+      if (pop9) {
+        pinRow0 = pop9.rows.find((r) => r.id === `pin:${probe9Keys[0]}`);
+        pinRow1 = pop9.rows.find((r) => r.id === `pin:${probe9Keys[1]}`);
+        const pinRows9 = pop9.rows.filter((r) => String(r.id || '').startsWith('pin:'));
+        // 行集对账名单取「开层后现读」——探针注册后名单仍在收编窗口，前读会与菜单渲染
+        // 时的行集错一拍（首跑实证 roster 前读 29、开层时 30，行数对账误红）
+        const rosterNow9 = await rosterKeys();
+        detail9a += ` 常驻行=${pinRows9.length}/${rosterNow9.length} tier 行=${pop9.rows.filter((r) => String(r.id || '').startsWith('tier-')).length}`;
+        // 臂1a：常驻管理节列出全部名单（pin 行数 = 名单数，含栏内+溢出内——工单462 验收标准①）
+        const sectionOk = pinRows9.length === rosterNow9.length;
+        // 臂1b：点行勾选即写名单即生效（存证回执 + config 落盘；两行连击不关层——keepOpen）
+        let result1 = null;
+        const clickPinRow9 = async (row) => {
+          const pt = {
+            x: Math.round((pop9.bounds.x + pop9.w / 2) * scale),
+            y: Math.round((pop9.bounds.y + row.y + row.h / 2) * scale),
+          };
+          win32.moveMousePhys(pt.x, pt.y);
+          await sleep(250);
+          win32.clickPhys(pt.x, pt.y, 'left');
+          await sleep(300); // changed 回推重渲一拍（keepOpen 面行集刷新）
+          const pop9b = tierPopup9(pop9.since);
+          return pop9b && pop9b.rows.find((r) => r.id === row.id);
+        };
+        if (pinRow0) {
+          const still = await clickPinRow9(pinRow0);
+          result1 = await tape.wait('taskbar-tray-pinned-result', (e) => e.key === probe9Keys[0] && e.pinned === true && e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+          detail9a += ` 行点击后浮层=${still ? '在场(keepOpen)' : '关'}`;
+        }
+        let result1b = null;
+        if (pinRow1 && result1) {
+          await clickPinRow9(pinRow1);
+          result1b = await tape.wait('taskbar-tray-pinned-result', (e) => e.key === probe9Keys[1] && e.pinned === true && e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+        }
+        const disk9 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+        const disk9pinned = disk9.taskbar?.trayPinned ?? [];
+        arm1 = sectionOk && !!result1 && !!result1b
+          && disk9pinned.some((r) => r.id === probe9Keys[0] && r.name === probe9Names[0])
+          && disk9pinned.some((r) => r.id === probe9Keys[1] && r.name === probe9Names[1]);
+        detail9a += ` 回执=${!!result1}/${!!result1b} 落盘=${JSON.stringify(disk9pinned)}`;
+        pinRowCount9 = pinRows9.length;
+        // 收层：点浮层外（不给后续臂留残留浮层）
+        const center9 = { x: Math.round((dip.x + dip.width / 2) * scale), y: Math.round((dip.y + dip.height / 2) * scale) };
+        win32.clickPhys(center9.x, center9.y, 'left');
+        await sleep(400);
+      }
+    }
+    if (arm1) {
+      rep.pass(`臂1 常驻管理节列出全部名单（栏内+溢出内 ${pinRowCount9} 行）、点行勾选即写名单即生效（config 落盘 {id,name} 双保险）、勾选连击不关层`);
+    } else {
+      rep.fail(`P9[臂1 勾选即生效] ${detail9a}`);
+    }
+
+    // 臂2：豁免溢出裁剪 + 档位只数非常驻 + 保持到达序原位——钉 2 枚探针、档位切 3
+    //（合法档最小 3），栏面键序逐枚对账（期望序 = 名单序中「常驻豁免 + 前 3 枚非常驻」
+    // 的插序序列，栏内 5 枚 > 档位 3 即「只数非常驻」的直接证据）
+    let arm2 = false;
+    let detail9b = `探针=${probe9Keys.filter((k) => roster9.includes(k)).length}`;
+    try {
+      const sinceInvoke9b = Date.now();
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 3 })`);
+      await sleep(800);
+      const roster9b = await rosterKeys();
+      const pinnedSet = new Set([probe9Keys[0], probe9Keys[1]].filter((k) => roster9b.includes(k)));
+      let kept = 0;
+      const expected9 = roster9b.filter((k) => pinnedSet.has(k) || kept++ < 3);
+      const geo9b = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9b });
+      const barKeys9 = geo9b ? geo9b.trayIcons.map((t) => t.key) : [];
+      arm2 = geo9b && !!geo9b.trayOverflow
+        && JSON.stringify(barKeys9) === JSON.stringify(expected9)
+        && barKeys9.length === expected9.length;
+      detail9b += ` 期望序=${JSON.stringify(expected9)} 栏内序=${JSON.stringify(barKeys9)} ⋯=${!!(geo9b && geo9b.trayOverflow)}`;
+      const disk9b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      arm2 = arm2 && (disk9b.taskbar?.trayPinned ?? []).length === 2;
+    } catch (e9) {
+      detail9b += ` 异常=${e9.message}`;
+    }
+    if (arm2) {
+      rep.pass('臂2 常驻豁免溢出裁剪：档位 3 只数非常驻（栏内 = 2 常驻 + 3 非常驻，5 > 档位 3）、到达序原位不重排（栏面键序逐枚对账）、「⋯」收余量');
+    } else {
+      rep.fail(`P9[臂2 豁免/计数/原位] ${detail9b}`);
+    }
+
+    // 臂3：解除常驻即回档位账——摘 1 枚，栏面跟随回 4 枚（3 非常驻 + 1 常驻）
+    let arm3 = false;
+    let detail9c = '';
+    try {
+      const sinceInvoke9c = Date.now();
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[1])}, name: ${JSON.stringify(probe9Names[1])}, pinned: false })`);
+      await sleep(800);
+      const roster9c = await rosterKeys();
+      const pinned3 = new Set([probe9Keys[0]].filter((k) => roster9c.includes(k)));
+      let kept3 = 0;
+      const expected9c = roster9c.filter((k) => pinned3.has(k) || kept3++ < 3);
+      const geo9c = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9c });
+      const barKeys9c = geo9c ? geo9c.trayIcons.map((t) => t.key) : [];
+      const disk9c = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      arm3 = JSON.stringify(barKeys9c) === JSON.stringify(expected9c)
+        && (disk9c.taskbar?.trayPinned ?? []).length === 1
+        && disk9c.taskbar.trayPinned[0].id === probe9Keys[0];
+      detail9c += ` 期望=${JSON.stringify(expected9c)} 栏内=${JSON.stringify(barKeys9c)} 落盘=${JSON.stringify(disk9c.taskbar?.trayPinned ?? [])}`;
+    } catch (e9c) {
+      detail9c += ` 异常=${e9c.message}`;
+    }
+    if (arm3) {
+      rep.pass('臂3 解除常驻即回档位账：名单摘条、栏面回「3 非常驻 + 1 常驻」、落盘同步');
+    } else {
+      rep.fail(`P9[臂3 解除回账] ${detail9c}`);
+    }
+
+    // 臂4：跨面板重启保持——再钉 1 枚（账 2 条）、P6 同款强退重拉，重启后账原样、
+    // 豁免语义照走（重拉后切档 5 真变档取帧：栏内 = 2 常驻 + 5 非常驻，7 > 档位 5）
+    let arm4 = false;
+    let detail9d = '';
+    try {
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[2])}, name: ${JSON.stringify(probe9Names[2])}, pinned: true })`);
+      await sleep(400);
+      await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
+      panelPid = 0;
+      await sleep(1200);
+      const since9d = Date.now();
+      handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV });
+      const boot9 = await tape.wait('boot', undefined, { since: since9d, timeoutMs: 15000 });
+      if (!boot9) throw new Error('P9 重拉面板子进程未上报 boot');
+      panelPid = boot9.pid;
+      await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
+      // 名单重建确认：控制器探针窗仍在场，面板重启后收编广播回填（P7 收编轮询同款）
+      for (let i = 0; i < 20; i++) {
+        roster9 = await rosterKeys();
+        if (probe9Keys.length && probe9Keys.every((k) => roster9.includes(k))) break;
+        await sleep(400);
+      }
+      const st9 = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+      const pinned9 = (st9 && Array.isArray(st9.trayPinned)) ? st9.trayPinned : [];
+      const disk9d = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      const expectLedger = [probe9Keys[0], probe9Keys[2]].map((k) => ({ id: k, name: probe9Names[probe9Keys.indexOf(k)] }));
+      const ledgerOk = JSON.stringify(pinned9.map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger)
+        && JSON.stringify((disk9d.taskbar?.trayPinned ?? []).map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger);
+      // 切档 5 真变档必发帧（重拉时盘上已是 3——再发 3 是幂等空转无几何帧，首跑二轮实证）；
+      // 豁免照走 = 栏内 7 枚（2 常驻 + 5 非常驻）> 档位 5，「⋯」收余量
+      const sinceInvoke9d = Date.now();
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 5 })`);
+      await sleep(800);
+      const roster9d = await rosterKeys();
+      const pinned4 = new Set([probe9Keys[0], probe9Keys[2]].filter((k) => roster9d.includes(k)));
+      let kept4 = 0;
+      const expected9d = roster9d.filter((k) => pinned4.has(k) || kept4++ < 5);
+      const geo9d = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: sinceInvoke9d });
+      const barKeys9d = geo9d ? geo9d.trayIcons.map((t) => t.key) : [];
+      arm4 = ledgerOk && !!geo9d && !!geo9d.trayOverflow
+        && JSON.stringify(barKeys9d) === JSON.stringify(expected9d);
+      detail9d += ` 重启账=${JSON.stringify(pinned9)} 落盘=${JSON.stringify(disk9d.taskbar?.trayPinned ?? [])} 期望序=${JSON.stringify(expected9d)} 栏内=${JSON.stringify(barKeys9d)} ⋯=${!!(geo9d && geo9d.trayOverflow)}`;
+    } catch (e9d) {
+      detail9d += ` 异常=${e9d.message}`;
+    }
+    if (arm4) {
+      rep.pass('臂4 跨面板重启保持：常驻账原样恢复（state+config 双证）、重拉后切档 5 豁免照走（栏内 = 2 常驻 + 5 非常驻，7 > 档位 5）');
+    } else {
+      rep.fail(`P9[臂4 重启保持] ${detail9d}`);
+    }
+
+    // 段尾复原：档位回基线、常驻名单清空（本段 3 枚探针钉账逐一解除——探针拆除后账内
+    // 记录会成幽灵，恢复「名单不产生幽灵图标」的无残留口径）、探针拆除
+    try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(prevLimit9)} })`); } catch { /* 条带已不在场 */ }
+    for (let i = 0; i < probe9Keys.length; i++) {
+      try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[i])}, name: ${JSON.stringify(probe9Names[i])}, pinned: false })`); } catch { /* 面板已退场 */ }
+    }
+    for (const uid of uids9) {
+      const nidDel9 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
+        flags: 0, callbackMessage: 0, hicon: 0, uVersion: 0 });
+      ShellNotifyIconW7(NIM_DELETE, nidDel9);
+    }
+    // 基线名单非空的兜底（上轮异常残留）：基线恢复逐条回写（正常轮 prevPinned9 为空，零写）
+    try {
+      if (prevPinned9.length) {
+        for (const r of prevPinned9) {
+          await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(r.id)}, name: ${JSON.stringify(r.name ?? '')}, pinned: true })`);
+        }
+      }
+    } catch { /* 面板已退场 */ }
+
+    // —— P10 硬件摘要定宽槽位（工单459）：喂不同位数读数，taskbar-geometry 右组矩形宽度不变 ——
+    // 断言形态（spec #457 测试裁决：总宽恒定经 taskbar-geometry 帧在电池断言）：硬件仪表 stub
+    // （DECK_HW_GAUGE_STUB=1，main/index.ts accept 双门禁）把 gauges 换成控制器脚本文件现读——
+    // 真 1Hz 管线（bridge.push → taskbar/status → applyStatus → formatMetric → 定宽槽位 DOM）
+    // 原样走通只换数据源。窄/宽两拍读数位数差拉满（1 位百分位 + 短 KB ↔ 3 位百分位 + 满 5 位
+    // KB / MB 进位），taskbar-right-status 数值口径实机取证（含 MB 进位）；几何帧由左侧系统钮
+    // set-button-hidden 无害翻转触发（载荷变化在左组，右组右锚定不受牵连；窄拍翻 tasks、宽拍翻
+    // start——两拍翻不同的钮，同值幂等不重发几何帧，P9 实证）。右侧噪声隔离：托盘名单/像素键
+    // 两拍同名单时右组 pill 宽必须不变；名单变动的轮次以摘要/音量/时钟三格宽对账为准并留痕。
+    rep.beginSegment('P10');
+    let p10ok = false;
+    let detail10 = '';
+    const gaugeFile10 = HW_GAUGE_FILE;
+    let metricsBase10 = null; // 段尾复原（P6 把勾选子集持久化成 ['cpu','ram']——本段要五项全勾）
+    try {
+      if (!gaugeFile10) throw new Error('HW_GAUGE_FILE 缺位');
+      // 基线自愈：两系统钮须在场（几何帧触发器翻左组；电池自持隔离 config 常态全在场）
+      const baseState10 = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+      const hiddenBase10 = Array.isArray(baseState10 && baseState10.hiddenButtons) ? baseState10.hiddenButtons : [];
+      for (const id of hiddenBase10) {
+        await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(id)}, hidden: false })`);
+      }
+      if (hiddenBase10.length) await sleep(600);
+      // 五项全勾（首跑红轮实证：P6 把子集持久化成 ['cpu','ram']，摘要格只剩两段，
+      // net-down/net-up 槽位缺席——喂速率读数无处可落）。段尾复原基线子集。
+      metricsBase10 = (baseState10 && Array.isArray(baseState10.metrics)) ? baseState10.metrics : ['cpu', 'gpu', 'ram', 'net-down', 'net-up'];
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ['cpu', 'gpu', 'ram', 'net-down', 'net-up'] })`);
+      let segs10 = 0;
+      for (let i = 0; i < 10; i++) {
+        segs10 = await cdpEval(TASKBAR_TITLE, `document.querySelectorAll('#hw-summary .tb-seg').length`);
+        if (segs10 === 5) break;
+        await sleep(400);
+      }
+      if (segs10 !== 5) throw new Error(`五项段未齐（在场 ${segs10}/5）`);
+      const expect10 = (g) => ({
+        cpu: `CPU ${Math.round(g.cpu)}%`,
+        gpu: `GPU ${Math.round(g.gpu_usage)}%`,
+        ram: `RAM ${Math.round(g.memory)}%`,
+        'net-down': g.download_speed >= 1000 ? `DL ${(g.download_speed / 1000).toFixed(2)}MB/s` : `DL ${g.download_speed.toFixed(2)}KB/s`,
+        'net-up': g.upload_speed >= 1000 ? `UP ${(g.upload_speed / 1000).toFixed(2)}MB/s` : `UP ${g.upload_speed.toFixed(2)}KB/s`,
+      });
+      const feed10 = async (g) => {
+        fs.writeFileSync(gaugeFile10, JSON.stringify(g), 'utf8');
+        const want = expect10(g);
+        const since = Date.now();
+        return { want, ev: await waitLastEvent('taskbar-right-status',
+          (e) => e.values && Object.entries(want).every(([k, v]) => e.values[k] === v), 8000, { since }) };
+      };
+      const geoViaToggle10 = async (buttonId) => {
+        const t = Date.now();
+        await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(buttonId)}, hidden: true })`);
+        const frame = await waitLastEvent('taskbar-geometry',
+          (e) => e.rightPill && Array.isArray(e.rightCells) && Array.isArray(e.buttons), 8000, { since: t });
+        await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-button-hidden', { id: ${JSON.stringify(buttonId)}, hidden: false })`);
+        await sleep(400); // 复原拍（载荷回基线，下一拍翻另一钮必发帧）
+        return frame;
+      };
+      const cellOf10 = (frame, id) => (frame.rightCells || []).find((c) => c.id === id) || null;
+
+      // 窄拍：1 位百分位 + 短速率（既有 'DL 1.23KB/s' 口径实机取证）
+      const narrow10 = { cpu: 9, gpu_usage: 8, memory: 46, download_speed: 1.23, upload_speed: 0.5 };
+      const a10 = await feed10(narrow10);
+      const frameA = a10.ev ? await geoViaToggle10('tasks') : null;
+      // 宽拍：3 位百分位 + 满 5 位 KB / MB 进位（速率槽位最宽形态）
+      const wide10 = { cpu: 100, gpu_usage: 87, memory: 99, download_speed: 999.99, upload_speed: 125500 };
+      const b10 = await feed10(wide10);
+      const frameB = b10.ev ? await geoViaToggle10('start') : null;
+      detail10 += `窄拍值=${a10.ev ? JSON.stringify(a10.ev.values) : '未达'} 宽拍值=${b10.ev ? JSON.stringify(b10.ev.values) : '未达'}`;
+
+      // 槽位与等宽数字真机证（CDP computed style，P8 同款）：tabular-nums / 右对齐 / 定宽三件
+      const slotStyle10 = await cdpEval(TASKBAR_TITLE, `(() => {
+        const cs = (el, p) => (el ? getComputedStyle(el)[p] : null);
+        return ['cpu', 'net-down'].map((m) => {
+          const el = document.querySelector('#hw-summary .tb-seg[data-metric="' + m + '"]');
+          return el ? { m, tabular: cs(el, 'fontVariantNumeric'), align: cs(el, 'textAlign'), minWidth: cs(el, 'minWidth') } : null;
+        });
+      })()`);
+      const styleOk10 = Array.isArray(slotStyle10) && slotStyle10.length === 2 && slotStyle10.every((s) => s
+        && String(s.tabular).includes('tabular-nums') && s.align === 'right' && parseFloat(s.minWidth) > 0);
+
+      // 两拍矩形对账：摘要/音量/时钟格宽逐项恒等（定宽槽位的直接证据）；右组 pill 宽在托盘
+      // 名单两拍同名单时也须恒等（真机噪声隔离：名单变动轮以格宽对账为准并留痕）
+      const rects10 = (() => {
+        if (!frameA || !frameB) return { ok: false, why: '几何帧缺' };
+        const rows = [];
+        for (const id of ['hw-summary', 'volume', 'clock']) {
+          const ca = cellOf10(frameA, id);
+          const cb = cellOf10(frameB, id);
+          if (!ca || !cb) return { ok: false, why: `rightCells 缺 ${id}` };
+          rows.push(`${id} ${ca.w.toFixed(2)}→${cb.w.toFixed(2)}`);
+          if (Math.abs(ca.w - cb.w) > 0.01) return { ok: false, why: `${id} 格宽变 ${ca.w}→${cb.w}` };
+        }
+        const trayA = (frameA.trayIcons || []).map((t) => t.key);
+        const trayB = (frameB.trayIcons || []).map((t) => t.key);
+        const traySame = JSON.stringify(trayA) === JSON.stringify(trayB);
+        const pillSame = Math.abs(frameA.rightPill.w - frameB.rightPill.w) <= 0.01;
+        if (!traySame && !pillSame) return { ok: false, why: `托盘名单变动(${trayA.length}→${trayB.length})且右组宽变 ${frameA.rightPill.w}→${frameB.rightPill.w}` };
+        return { ok: true, why: `${rows.join(' ; ')}；右组 pill ${frameA.rightPill.w.toFixed(2)}→${frameB.rightPill.w.toFixed(2)}（托盘两拍同名单=${traySame}）` };
+      })();
+      p10ok = !!a10.ev && !!b10.ev && !!frameA && !!frameB && styleOk10 && rects10.ok;
+      detail10 += ` 槽位=${JSON.stringify(slotStyle10)} 矩形对账=${rects10.why}`;
+    } catch (e10) {
+      detail10 += ` 异常=${e10.message}`;
+    } finally {
+      try { fs.unlinkSync(gaugeFile10); } catch { /* 本就缺位 */ }
+      // 勾选子集复原（本段五项全勾过——回基线，不给 P6 之后的重跑轮留漂移）
+      try {
+        if (metricsBase10) await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-metrics', { metrics: ${JSON.stringify(metricsBase10)} })`);
+      } catch { /* 面板已退场 */ }
+    }
+    if (p10ok) {
+      rep.pass(`P10 硬件摘要定宽槽位：窄/宽两拍读数（CPU 9%↔100%、DL 1.23KB/s↔999.99KB/s、UP 0.50KB/s↔125.50MB/s 含 MB 进位）taskbar-right-status 口径实机取证、tb-seg tabular-nums+右对齐+定宽槽位 computed 三证、taskbar-geometry 右组矩形与摘要/音量/时钟格宽两拍不变`);
+    } else {
+      rep.fail(`P10[定宽槽位] ${detail10}`);
+    }
+
+    // —— P11 网络状态格（工单461，spec #457 T3；ADR-0031 自绘二态）——
+    // 断言形态：①在场与插位（taskbar-geometry rightCells：network 挂 data-id 在场，音量格
+    // 紧邻右侧 = 插位「⋯」与音量之间）；②联网态实机呈现（本机真实快照——非内部网卡带 IP
+    // 即联网，data-state=up、实心信号、无斜杠无红点）；③断网态随 1Hz taskbar/status 帧翻转
+    // （网卡快照 stub——DECK_NETWORK_SNAPSHOT_STUB=1 双门禁，喂「网卡在场但无地址」快照走
+    // 真判定管线 toAdapterSnapshot→isNetworkUp=false，等下一拍把格翻成 down（斜杠+红点类名
+    // 在场）；删脚本透传真实采样复原拍翻回 up——两个方向都证「状态随帧更新」，真判定管线
+    // 原样只换快照源）；④点击开快速设置（与音量格同款分发：合成回执 quick-settings +
+    // 原生快速设置前台，P4 同判据）。
+    rep.beginSegment('P11');
+    let p11ok = false;
+    let detail11 = '';
+    let fg11 = null;
+    const snapFile11 = NETWORK_SNAPSHOT_FILE;
+    const netDom11 = () => cdpEval(TASKBAR_TITLE, `(() => {
+      const el = document.querySelector('[data-id="network"]');
+      if (!el) return null;
+      return { state: el.dataset.state ?? '', title: el.title,
+        bars: !!el.querySelector('.tb-net-bars'), slash: !!el.querySelector('.tb-net-slash'), dot: !!el.querySelector('.tb-net-dot') };
+    })()`);
+    const waitNetState11 = async (want, timeoutMs = 8000) => {
+      const deadline = Date.now() + timeoutMs;
+      let last = null;
+      while (Date.now() < deadline) {
+        last = await netDom11();
+        if (last && last.state === want) return last;
+        await sleep(300);
+      }
+      return last;
+    };
+    try {
+      // ① 在场与插位（几何帧口径；rightCells = 右组 [data-id] DOM 序——托盘图标挂 data-key
+      // 不进该列，⋯ 在场时夹在摘要与网络格之间不影响相邻断言）
+      const geo11 = await waitLastEvent('taskbar-geometry',
+        (e) => e.rightPill && (e.rightCells || []).some((c) => c.id === 'network'), 8000, {});
+      if (!geo11) throw new Error('taskbar-geometry 缺 network 格（data-id 几何口径未挂）');
+      const cells11 = geo11.rightCells.map((c) => ({ id: c.id, x: c.x, w: c.w }));
+      const idxNet11 = cells11.findIndex((c) => c.id === 'network');
+      const idxVol11 = cells11.findIndex((c) => c.id === 'volume');
+      const posOk11 = idxVol11 === idxNet11 + 1; // 音量格紧跟网络格右侧（插位「⋯」与音量之间）
+      detail11 += `插位=${JSON.stringify(cells11.map((c) => c.id))} 音量紧邻右侧=${posOk11}`;
+
+      // ② 联网态实机呈现（真实快照：本机在线 → 判定为真；此时 stub 脚本不在场=透传）
+      const up11 = await waitNetState11('up');
+      const upOk11 = !!up11 && up11.state === 'up' && up11.bars && !up11.slash && !up11.dot;
+      detail11 += ` 联网态=${JSON.stringify(up11)}`;
+
+      // ③ 断网态随 1Hz 帧翻转（stub 喂「网卡在场无地址」——真判定管线 isNetworkUp=false）
+      fs.writeFileSync(snapFile11, JSON.stringify({ WLAN: [] }), 'utf8');
+      const down11 = await waitNetState11('down');
+      const downOk11 = !!down11 && down11.state === 'down' && down11.slash && down11.dot && down11.bars;
+      detail11 += ` 断网态=${JSON.stringify(down11)}`;
+      // 复原拍：删脚本透传真实采样，1Hz 帧内翻回 up（随帧更新方向二的证据）
+      try { fs.unlinkSync(snapFile11); } catch { /* 本就缺位 */ }
+      const back11 = await waitNetState11('up');
+      const backOk11 = !!back11 && back11.state === 'up' && !back11.slash && !back11.dot;
+      detail11 += ` 复原拍=${JSON.stringify(back11)}`;
+
+      // ④ 点击开快速设置（与音量格同款分发——P4 同判据：合成回执 + 原生前台）。
+      // 句柄取当前条带窗（P7 tbHwnd7 同款先例）：P9 跨面板重拉销毁重建条带窗，boot 期的
+      // tbHwnd 已是死句柄——2026-11-11 首跑红臂实证（收敛 32 拍全 false 而同点点击实过）。
+      const tbHwnd11 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
+      const netCell11 = geo11.rightCells.find((x) => x.id === 'network');
+      const netPt11 = toPhys(netCell11.x + netCell11.w / 2, netCell11.y + netCell11.h / 2);
+      const beforeP11 = foregroundInfo();
+      const conv11 = await convergeAt(netPt11, tbHwnd11);
+      rep.note(`P11 点击前收敛=${conv11}`);
+      win32.clickPhys(netPt11.x, netPt11.y, 'left');
+      const ev11 = await tape.wait('taskbar-action-result', (e) => e.action === 'quick-settings' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      fg11 = await waitForeground((i) => isQuickSettings(i) && (!beforeP11 || i.hwnd !== beforeP11.hwnd), 6000);
+      const clickOk11 = conv11 && !!ev11 && ev11.ok && !!fg11;
+      detail11 += ` 点击回执=${JSON.stringify(ev11)} 前台=${JSON.stringify(fg11)}`;
+      const closed11 = await dismissFlyout();
+      rep.note(`P11 快速设置收起=${closed11}`);
+
+      p11ok = posOk11 && upOk11 && downOk11 && backOk11 && clickOk11;
+    } catch (e11) {
+      detail11 += ` 异常=${e11.message}`;
+    } finally {
+      try { fs.unlinkSync(snapFile11); } catch { /* 本就缺位 */ }
+    }
+    if (p11ok) {
+      rep.pass(`P11 网络状态格：rightCells 挂 data-id 且插位「⋯」与音量之间（音量格紧邻右侧）、联网态实心信号（无斜杠无红点）、断网态随 1Hz 帧翻转（stub 喂无地址快照走真判定管线——down 斜杠+红点在场）+ 复原拍回 up（双向随帧更新）、点击开原生快速设置（音量格同款分发，前台 ${fg11 ? `${fg11.exe} / ${fg11.cls}` : '缺'}）`);
+    } else {
+      rep.fail(`P11[网络状态格] ${detail11}`);
+    }
+
+    // —— P12 对话窗入口格（工单460，spec #457 T4；ADR-0018 关窗只隐藏）：一步调窗真机验收 ——
+    // 增段三条件：真实热区点击→真实对话窗出现、已开再点置前不隐藏（窗语义 ADR-0018）是
+    // jsdom 单测断不到的面（条件①）；二态裁决/图标/分发本体已由 taskbar renderer 单测族钉
+    // （条件②）；一段绑定一工单（条件③）。busy 点亮不进本段——真机点亮需在途 turn 的后端
+    // 会话，重且不增信（conversation/changed 订阅全链已由单测钉）。
+    rep.beginSegment('P12');
+    let p12ok = false;
+    let detail12 = '';
+    let fg12 = null;
+    let convHwnd12 = null; // 段尾清场：WM_CLOSE 只收起（ADR-0018），对话窗不留场
+    const convTitle12 = 'DECK-CONVERSATION';
+    const WM_CLOSE12 = 0x0010;
+    const GetWindowTextW12 = user32.func('int __stdcall GetWindowTextW(uintptr_t hWnd, uint16 *buf, int nMax)');
+    const windowTitleOf12 = (hwnd) => {
+      const buf = Buffer.alloc(512);
+      const n = GetWindowTextW12(hwnd, buf, 256);
+      let s = '';
+      for (let i = 0; i < n; i++) s += String.fromCharCode(buf.readUInt16LE(i * 2));
+      return s;
+    };
+    // 对话窗甄别（conversation.js convHwndOf 同款口径）：面板进程 + 标题 DECK-CONVERSATION + 可见
+    const convWin12 = () => {
+      if (!panelPid) return null;
+      for (const h of win32.topLevelWindows()) {
+        if (Number(win32.threadIdOf(h).pid) !== Number(panelPid)) continue;
+        if (windowTitleOf12(h) !== convTitle12) continue;
+        if (!win32.IsWindowVisible(h)) continue;
+        return h;
+      }
+      return null;
+    };
+    const until12 = async (shot, timeoutMs = 8000) => {
+      const deadline = Date.now() + timeoutMs;
+      let last = null;
+      while (Date.now() < deadline) {
+        last = await shot();
+        if (last) return last;
+        await sleep(250);
+      }
+      return null;
+    };
+    try {
+      // ① 在场与插位（几何帧口径）：conversation 格在 rightCells，紧随 hw-summary 右侧
+      //    （摘要缺席时居右组首）且在 network 左侧；「托盘群最左端」由格盒 DOM 序核对
+      //    （conversation 之后第一个格类子元素 = .tb-tray-icon——托盘图标挂 data-key 不进
+      //    rightCells 列）。
+      const geo12 = await waitLastEvent('taskbar-geometry',
+        (e) => e.rightPill && (e.rightCells || []).some((c) => c.id === 'conversation'), 8000, {});
+      if (!geo12) throw new Error('taskbar-geometry 缺 conversation 格（data-id 几何口径未挂）');
+      const ids12 = geo12.rightCells.map((c) => c.id);
+      const idxConv12 = ids12.indexOf('conversation');
+      const idxSum12 = ids12.indexOf('hw-summary');
+      const idxNet12 = ids12.indexOf('network');
+      const posOk12 = idxConv12 >= 0 && idxConv12 < idxNet12 && (idxSum12 < 0 || idxSum12 === idxConv12 - 1);
+      detail12 += `插位=${JSON.stringify(ids12)}`;
+      // ② 格盒与识别（CDP computed）：28×28（托盘图标格同款）+ 图标格族圆角 10px +
+      //    title「对话窗」+ 内联 SVG 在格 + 首态熄灭（idle——busy 点亮单测钉，缺会话数据不误报）
+      const dom12 = await cdpEval(TASKBAR_TITLE, `(() => {
+        const el = document.querySelector('#right-pill [data-id="conversation"]');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const summary = document.getElementById('hw-summary');
+        const tray = document.querySelector('#right-pill .tb-tray-icon');
+        return { state: el.dataset.state ?? '', title: el.title, w: r.width, h: r.height,
+          radius: cs.borderRadius, svg: !!el.querySelector('svg'),
+          convLeft: r.left, summaryRight: summary ? summary.getBoundingClientRect().right : null,
+          firstTrayLeft: tray ? tray.getBoundingClientRect().left : null };
+      })()`);
+      const sizeOk12 = !!dom12 && Math.abs(dom12.w - 28) <= 1 && Math.abs(dom12.h - 28) <= 1;
+      const styleOk12 = !!dom12 && dom12.radius === '10px' && dom12.title === '对话窗' && dom12.svg
+        && dom12.state === 'idle';
+      const orderOk12 = !!dom12 && (dom12.summaryRight === null || dom12.convLeft >= dom12.summaryRight)
+        && (dom12.firstTrayLeft === null || dom12.convLeft <= dom12.firstTrayLeft);
+      detail12 += ` 格盒=${JSON.stringify(dom12)}`;
+      // ③ 一步调窗：真实热区点击 → conversation/show（存证 taskbar-conversation-action-result）
+      //    → DECK-CONVERSATION 可见（内核 show() = ensureWindow+restore+show）
+      const tbHwnd12 = await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
+      const cell12 = geo12.rightCells.find((x) => x.id === 'conversation');
+      const convPt12 = toPhys(cell12.x + cell12.w / 2, cell12.y + cell12.h / 2);
+      const convHit12 = await convergeAt(convPt12, tbHwnd12);
+      rep.note(`P12 点击前收敛=${convHit12}`);
+      const t12 = Date.now();
+      win32.clickPhys(convPt12.x, convPt12.y, 'left');
+      const ev12 = await tape.wait('taskbar-conversation-action-result', (e) => e.ok, { timeoutMs: 5000, since: t12 });
+      convHwnd12 = await until12(async () => convWin12(), 10000);
+      detail12 += ` 点击回执=${JSON.stringify(ev12)} 对话窗=${convHwnd12 ? '可见' : '缺'}`;
+      // ④ 已开再点：置前不隐藏（非 toggle，ADR-0018）——窗仍可见且前台=对话窗。
+      // 回执独立时间门（since=第二次点击时刻）——无门会咬到首击回执（P6/P7 since 门同款纪律）
+      const t12b = Date.now();
+      win32.clickPhys(convPt12.x, convPt12.y, 'left');
+      const ev12b = await tape.wait('taskbar-conversation-action-result', (e) => e.ok, { timeoutMs: 5000, since: t12b });
+      const stillOk12 = await until12(async () => (convWin12() ? true : null), 6000);
+      const cur12 = convWin12();
+      fg12 = cur12 ? await waitForeground((i) => i.hwnd === Number(cur12), 6000) : null;
+      detail12 += ` 再点回执=${JSON.stringify(ev12b)} 不隐藏=${!!stillOk12} 前台=${JSON.stringify(fg12)}`;
+      p12ok = posOk12 && sizeOk12 && styleOk12 && orderOk12 && convHit12 && !!ev12 && !!convHwnd12 && !!ev12b && stillOk12 && !!fg12;
+    } catch (e12) {
+      detail12 += ` 异常=${e12.message}`;
+    } finally {
+      if (convHwnd12) win32.PostMessageW(convHwnd12, WM_CLOSE12, 0, 0);
+    }
+    if (p12ok) {
+      rep.pass(`P12 对话窗入口格：rightCells 挂 data-id 且插位硬件摘要与首枚托盘图标之间（托盘群最左端）、格盒 28×28+图标格族圆角 10px+title「对话窗」+内联 SVG、首态熄灭、一步调窗（点击回执 ok + DECK-CONVERSATION 可见）、已开再点置前不隐藏（窗仍在 + 前台=对话窗）`);
+    } else {
+      rep.fail(`P12[对话窗入口格] ${detail12}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);

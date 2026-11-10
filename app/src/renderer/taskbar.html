@@ -238,6 +238,55 @@
   }
   .tb-cell:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
   .tb-cell:active { background: rgba(255, 255, 255, 0.18); color: #fff; }
+  /* 网络状态格（工单461，spec #457 T3；ADR-0031 自绘二态）：插位「⋯」与音量格之间，
+   * 托盘图标格同款 28×28 格盒、16px 图标居中、图标格族圆角 10px（非文本芯片格）。
+   * 二态 DOM 判据 = data-state（up/down）+ 图标内 tb-net-slash/tb-net-dot 类名 */
+  .tb-network-cell {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  .tb-network-cell .tb-system-icon { width: 16px; height: 16px; }
+  /* 对话窗入口格（工单460，spec #457 T4；GLOSSARY「对话窗入口格」）：插位硬件摘要与
+   * 首枚托盘图标之间（托盘群最左端），托盘图标格同款 28×28 格盒、16px 图标居中、
+   * 图标格族圆角 10px（非文本芯片格）。二态 DOM 判据 = data-state（idle/busy）+
+   * 图标内 tb-conv-bubble/tb-conv-dot 类名——busy 点亮（满色+activity 绿点标），idle 熄灭 */
+  .tb-conversation-cell {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  .tb-conversation-cell .tb-system-icon { width: 16px; height: 16px; }
+  /* 摘要段定宽槽位（工单459）：数值用等宽数字（tabular-nums，逐拍跳动只在槽内消化）+
+   * min-width 定宽 + 右对齐（设置浮层 #opacity-value 同款先例）——位数变化不改变段宽，
+   * 整行总宽恒定、右组不再左右伸缩。段宽下限按读数极宽校准（真机红轮实证：ch 手估被
+   * 字体度量+0.08em 字距击穿，8ch/10ch 欠宽）：百分位段 10ch（CPU 100%）、速率段 15ch
+   * （'DL 1000.00KB/s' 舍入界宽形态下最宽——x∈(999.995,1000) toFixed(2) 进到 1000.00
+   * 仍落 KB 段；≥1000KB/s 已换算 MB/s）。
+   * 恒宽主保证 = 隐藏校宽哨兵：::before 取 data-max（taskbar-view METRIC_SLOT_TEXT，
+   * 该段极宽读数形态）块级撑槽、零高不可见——显示宽度 = max(读数, 校宽文本) 恒定，
+   * 不依赖字体度量手估。.tb-seg 是 .tb-cell 的 flex 子项，min-width 直接生效 */
+  .tb-seg {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .tb-seg::before {
+    content: attr(data-max);
+    display: block;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    white-space: nowrap;
+  }
+  .tb-seg[data-metric="cpu"] { min-width: 10ch; }
+  .tb-seg[data-metric="gpu"] { min-width: 10ch; }
+  .tb-seg[data-metric="ram"] { min-width: 10ch; }
+  .tb-seg[data-metric="net-down"] { min-width: 15ch; }
+  .tb-seg[data-metric="net-up"] { min-width: 15ch; }
   /* 摘要编辑态（工单55，右键进入）：五项全呈现，未勾选置灰供勾回 */
   .tb-seg.off { opacity: 0.35; }
   #hw-summary.editing { outline: 1px dashed rgba(255, 255, 255, 0.35); }

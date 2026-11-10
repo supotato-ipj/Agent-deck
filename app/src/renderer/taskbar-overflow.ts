@@ -1,8 +1,9 @@
-// 托盘溢出菜单浮层页（工单162）：自绘竖排菜单面板（每行图标+名称）。行内容自足于
+// 托盘溢出菜单浮层页（工单162；工单458 网格化）：自绘纯图标网格面板——固定 5 列、
+// 格 36×36px、16px 图标居中，不渲名称文字、悬停出原生 title 名称提示。格内容自足于
 // 内核契约——自取 taskbar/get-state，用与条带同一条溢出拆分纯函数（splitTrayOverflow）
-// 切尾段，与栏面永不各判一次。行左键 = 该应用默认动作、行右键 = 该应用自带菜单：
+// 切尾段，与栏面永不各判一次。格左键 = 该应用默认动作、格右键 = 该应用自带菜单：
 // 与栏内图标共用同一道 taskbar/tray-click 回放分发（dispatchTrayClick），存证事件同型
-// （surface: 'overflow' 区分落点）。收层路径：点行（回放已发出，浮层不遮应用响应窗）、
+// （surface: 'overflow' 区分落点）。收层路径：点格（回放已发出，浮层不遮应用响应窗）、
 // 点面板空白、名单拆空（宿主 changed 推进重拆后为空）、点面板外（宿主 blur 收）。
 import { dispatchTrayClick, fetchTrayIcon, splitTrayOverflow, taskbarViewModel, trayIconPixelated, trayOverflowMenuRows } from './taskbar-view.js'
 import type { TaskbarState, TaskbarTrayButton, TaskbarTrayEntry } from '../shared/contract'
@@ -10,7 +11,7 @@ import { trayDataUrl } from './tray-pixels.js'
 
 const list = document.getElementById('overflow-list') as HTMLElement
 
-// 视口帽随宿主 query 下发（工作区高留边距）：名单超帽才滚动，帽内行全部可点
+// 视口帽随宿主 query 下发（工作区高留边距）：名单超帽才滚动，帽内格全部可点
 const maxH = Number(new URLSearchParams(location.search).get('maxH')) || 560
 if (Number.isFinite(maxH) && maxH > 100) list.style.maxHeight = `${maxH}px`
 
@@ -21,18 +22,16 @@ function requestClose(reason: string, extra: Record<string, unknown> = {}): void
   window.deck.host.notify('taskbar-tray-overflow-close', { reason, ...extra })
 }
 
-/** 菜单行：左键/右键各自回放到所属应用（与栏内图标同一回放分发），点行即收。 */
-function makeRow(entry: TaskbarTrayEntry): HTMLElement {
-  const row = document.createElement('div')
-  row.className = 'ov-row'
-  row.dataset.key = entry.key
+/** 菜单格：左键/右键各自回放到所属应用（与栏内图标同一回放分发），点格即收。
+ * 名称提示走原生 title（工单458：格不渲名称文字）。 */
+function makeCell(entry: TaskbarTrayEntry): HTMLElement {
+  const cell = document.createElement('div')
+  cell.className = 'ov-cell'
+  cell.dataset.key = entry.key
+  cell.title = entry.tooltip || entry.key
   const img = document.createElement('img')
   img.alt = entry.tooltip || entry.key
-  row.appendChild(img)
-  const label = document.createElement('span')
-  label.className = 'ov-label'
-  label.textContent = entry.tooltip || entry.key
-  row.appendChild(label)
+  cell.appendChild(img)
   const cached = pxCache.get(entry.key)
   if (cached) {
     img.src = cached.url
@@ -43,7 +42,7 @@ function makeRow(entry: TaskbarTrayEntry): HTMLElement {
       const url = trayDataUrl(pixels)
       const px = trayIconPixelated(pixels.width)
       pxCache.set(entry.key, { url, px })
-      if (row.dataset.key === entry.key) {
+      if (cell.dataset.key === entry.key) {
         img.src = url
         img.classList.toggle('ov-px', px)
       }
@@ -56,33 +55,37 @@ function makeRow(entry: TaskbarTrayEntry): HTMLElement {
     window.deck.host.notify('taskbar-tray-click', { key: entry.key, button, surface: 'overflow' })
     void dispatchTrayClick(window.deck.bridge, entry.key, button)
       .then((r) => window.deck.host.notify('taskbar-tray-click-result', { key: entry.key, button, surface: 'overflow', ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
-      .finally(() => requestClose('row', { key: entry.key, button }))
+      .finally(() => requestClose('cell', { key: entry.key, button }))
   }
-  row.addEventListener('click', () => act('left'))
-  row.addEventListener('contextmenu', (ev) => {
+  cell.addEventListener('click', () => act('left'))
+  cell.addEventListener('contextmenu', (ev) => {
     ev.preventDefault()
     act('right')
   })
-  return row
+  return cell
 }
 
-/** 状态 → 行渲染；返回当拍溢出段（空 = 收层判据）。 */
+/** 状态 → 格渲染（5 列行优先排布）；返回当拍溢出段（空 = 收层判据）。常驻名单内条目
+ * 豁免拆分（工单462）——浮层与栏面同一条裁决本体，永不各判一次。 */
 function render(state: TaskbarState): TaskbarTrayEntry[] {
   const vm = taskbarViewModel(state)
-  const { overflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit)
+  const { overflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit, vm.trayPinned)
   list.textContent = ''
-  for (const entry of overflow) list.appendChild(makeRow(entry))
+  for (const entry of overflow) list.appendChild(makeCell(entry))
   return overflow
 }
 
-/** 内容实测回报：宿主据此定窗并锚光标弹出；rows 携带行矩形（相对客户区，电池据此取
- * 行点击坐标）与 key/label（电池据此对账回放身份）。 */
+/** 内容实测回报：宿主据此定窗并锚光标弹出；rows 携带格矩形（相对客户区，坐标语义 =
+ * 格——工单458 由「行」改「格」，电池据此取格点击坐标；格序 = 名单序行优先排布）与
+ * key/label（电池据此对账回放身份；labels 数组维持既有回报口径）。 */
 function reportReady(overflow: TaskbarTrayEntry[]): void {
   const rect = list.getBoundingClientRect()
   const rows = overflow.map((e, i) => {
     const el = list.children[i] as HTMLElement | undefined
     const r = el?.getBoundingClientRect()
-    return { key: e.key, label: e.tooltip || e.key, y: r ? r.y : 0, h: r ? r.height : 0 }
+    return r
+      ? { key: e.key, label: e.tooltip || e.key, x: r.x, y: r.y, w: r.width, h: r.height }
+      : { key: e.key, label: e.tooltip || e.key, x: 0, y: 0, w: 0, h: 0 }
   })
   window.deck.host.notify('taskbar-tray-overflow-ready', {
     w: rect.width,
@@ -108,8 +111,8 @@ void (async () => {
   }
   reportReady(overflow)
   // 名单/档位变化：重拆重渲（不做隐藏拍跳渲——show 拍 visibilitychange 补渲染在真机
-  // 红轮实测不可靠：重开后 6s 无 ready，浮层行悬空；隐藏拍渲染本就廉价）；拆空即收
-  // （数量回落「⋯」消失同拍语义），行数变化重回报（宿主重定窗，浮层已在场不再 show）
+  // 红轮实测不可靠：重开后 6s 无 ready，浮层格悬空；隐藏拍渲染本就廉价）；拆空即收
+  // （数量回落「⋯」消失同拍语义），格数变化重回报（宿主重定窗，浮层已在场不再 show）
   window.deck.bridge.on('taskbar/changed', (next) => {
     const nextOverflow = render(next)
     if (!nextOverflow.length) {
@@ -120,9 +123,9 @@ void (async () => {
   })
 })()
 
-// 点面板空白（非行）即收：原生菜单同语义（面板内非可点区不算「面板外」，但仍收——
+// 点面板空白（非格）即收：原生菜单同语义（面板内非可点区不算「面板外」，但仍收——
 // 菜单不留空点悬置态）
 document.addEventListener('click', (ev) => {
-  if (ev.target instanceof HTMLElement && ev.target.closest('.ov-row')) return
+  if (ev.target instanceof HTMLElement && ev.target.closest('.ov-cell')) return
   requestClose('outside')
 })

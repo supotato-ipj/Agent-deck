@@ -31,6 +31,9 @@ interface MenuPageAdapter {
   rowsAsync?(state: TaskbarState): Promise<MenuPageRow[] | null>
   /** 行动作分发（存证在此先行；调用方随后收层） */
   onRow(row: MenuPageRow): void
+  /** 行点击后保持浮层（工单462 常驻管理节：勾选连击不逐次关层，✓ 态随 taskbar/changed
+   * 回推重渲；不声明 = 既有关层纪律逐字不变——tier 四档行与全部既有面零行为漂移） */
+  keepOpenOnRow?(row: MenuPageRow): boolean
 }
 
 /** 菜单面注册表（工单196 五面迁毕）：系统按钮显隐+恢复段（开始/推荐组空白右键）、
@@ -62,7 +65,8 @@ function requestClose(reason: string): void {
   window.deck.host.notify(adapter.closeEvent, { reason })
 }
 
-/** 菜单行：点击 = 域动作分发（存证先行）→ 收层殿后（回放已发出，浮层稍收不遮动作响应）。 */
+/** 菜单行：点击 = 域动作分发（存证先行）→ 收层殿后（回放已发出，浮层稍收不遮动作响应）；
+ * 适配器声明 keepOpenOnRow 的行例外（勾选连击面，工单462——收层与否由域语义自决）。 */
 function makeRow(row: MenuPageRow): HTMLElement {
   const el = document.createElement('div')
   el.className = 'm-row'
@@ -71,7 +75,7 @@ function makeRow(row: MenuPageRow): HTMLElement {
   el.addEventListener('click', (ev) => {
     ev.stopPropagation()
     adapter.onRow(row)
-    requestClose('row')
+    if (!adapter.keepOpenOnRow?.(row)) requestClose('row')
   })
   return el
 }

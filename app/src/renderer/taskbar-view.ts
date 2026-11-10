@@ -2,8 +2,8 @@
 // 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
-import { planAppsOverflow, planTrayOverflow } from '../shared/overflow.js'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import { planAppsOverflow, planTrayOverflow, trayPinnedMatcher } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -94,10 +94,11 @@ export async function dispatchWorkspaceSwitch(
   return bridge.invoke('workspace/switch-to', { mode })
 }
 
-/** 右组动作格（工单55）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、点击触发原生
- * 快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；显示桌面
- * 细条 = Win+D（label 空——细条无文字，钉屏幕最右端，对齐 Win11 右下角肌肉记忆）。
- * 组内序 = 硬件摘要 →（托盘位 #56 占位）→ 音量 → 时钟 → 细条。 */
+/** 右组动作格（工单55；工单461 增网络格）：音量格 = Win+A 快速设置（ADR-0007：音量格自绘、
+ * 点击触发原生快速设置）；时钟格 = Win+N 通知中心（label 空——显示文本由时钟帧填充）；
+ * 显示桌面细条 = Win+D（label 空——细条无文字，钉屏幕最右端，对齐 Win11 右下角肌肉记忆）；
+ * 网络格 = 快速设置（与音量格同款动作分发，ADR-0031 自绘二态补位原生网络图标）。
+ * 组内序 = 硬件摘要 →（托盘位 #56 占位，超量收「⋯」）→ 网络 → 音量 → 时钟 → 细条。 */
 export interface TaskbarCellSpec {
   id: string
   label: string
@@ -105,10 +106,83 @@ export interface TaskbarCellSpec {
 }
 
 export const RIGHT_CELLS: readonly TaskbarCellSpec[] = [
+  { id: 'network', label: '', action: 'quick-settings' },
   { id: 'volume', label: '♪ VOL', action: 'quick-settings' },
   { id: 'clock', label: '', action: 'notification-center' },
   { id: 'show-desktop', label: '', action: 'toggle-desktop' },
 ] as const
+
+// —— 工单461 网络状态格（spec #457 T3；ADR-0031 自绘二态，插位「⋯」与音量格之间）——
+
+/** 网络状态格二态：up = 联网（实心信号图标）、down = 断网（斜杠加红点，视觉醒目） */
+export type NetworkCellState = 'up' | 'down'
+
+/**
+ * 状态帧布尔 → 格二态（纯函数）：false 才断网（唯一显式断网态）；缺帧/字段缺位按联网
+ * 乐观呈现——首帧 <1s 到位，宁可短暂乐观不误报断网红点（boot 头一拍红点是假警报）。
+ */
+export function networkCellState(network: boolean | null | undefined): NetworkCellState {
+  return network === false ? 'down' : 'up'
+}
+
+/**
+ * 二态图标（内联 SVG，开始组同族 24 框渲染层缩 16 呈现——taskbar.html 格盒 CSS）：
+ * up = 四级实心信号（tb-net-bars 全亮 currentColor）；down = 同一信号灰阶（opacity .35）
+ * + 斜杠（tb-net-slash）+ 红点（tb-net-dot，警示红不随主题）。类名是二态的 DOM 判据
+ * （电池 CDP 按类名断言斜杠+红点在场），不随实现漂移。
+ */
+export const NETWORK_CELL_ICONS: Readonly<Record<NetworkCellState, string>> = {
+  up: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-net-bars" fill="currentColor" d="M3 17h3v5H3zM8 12h3v10H8zM13 7h3v15h-3zM18 2h3v20h-3z"/></svg>',
+  down: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-net-bars" fill="currentColor" opacity="0.35" d="M3 17h3v5H3zM8 12h3v10H8zM13 7h3v15h-3zM18 2h3v20h-3z"/><path class="tb-net-slash" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none" d="M3 21 21 3"/><circle class="tb-net-dot" cx="19.5" cy="19.5" r="3.5" fill="#e81123"/></svg>',
+}
+
+/** 二态可见名（title/aria-label——图标格族第二识别通道） */
+export const NETWORK_CELL_TITLES: Readonly<Record<NetworkCellState, string>> = {
+  up: '网络已连接',
+  down: '网络已断开',
+}
+
+// —— 工单460 对话窗入口格（spec #457 T4；GLOSSARY「对话窗入口格」）——
+
+/** 对话窗入口格二态：busy = 任一后端 agent 会话在途 turn（点亮）、idle = 无（熄灭）。
+ * 二态、无微光中间态（票面口径：亮 = 有 agent 在干活）。 */
+export type ConversationCellState = 'busy' | 'idle'
+
+/**
+ * 会话清单 → 格二态（纯函数）：任一会话 status='busy' 即点亮；空清单/缺帧按熄灭——
+ * busy 是例外态，缺数据宁可熄灭不误报「有 agent 在干活」（与 networkCellState 的
+ * 乐观缺省相反：断网是另一方向的例外态，两格各按自家例外方向取缺省）。
+ */
+export function conversationCellState(
+  sessions: ReadonlyArray<Pick<ConversationSessionView, 'status'>> | null | undefined,
+): ConversationCellState {
+  return (sessions ?? []).some((s) => s?.status === 'busy') ? 'busy' : 'idle'
+}
+
+/**
+ * 二态图标（内联 SVG，开始组同族 24 框渲染层缩 16 呈现——taskbar.html 格盒 CSS）：
+ * 同一枚气泡轮廓（tb-conv-bubble），idle 熄灭（低透明度）、busy 点亮（满色 + 在干活
+ * 点标 tb-conv-dot，activity 绿不随主题）。类名是二态的 DOM 判据（电池 CDP 按类名
+ * 断言点亮/熄灭），不随实现漂移。
+ */
+export const CONVERSATION_CELL_ICONS: Readonly<Record<ConversationCellState, string>> = {
+  idle: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-conv-bubble" fill="currentColor" fill-rule="evenodd" opacity="0.45" d="M2 4H22V18H10L6 22V18H2V4ZM4 6V16H20V6H4Z"/></svg>',
+  busy: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-conv-bubble" fill="currentColor" fill-rule="evenodd" d="M2 4H22V18H10L6 22V18H2V4ZM4 6V16H20V6H4Z"/><circle class="tb-conv-dot" cx="12" cy="11" r="2.6" fill="#4cc38a"/></svg>',
+}
+
+/** 悬停提示（票面口径「对话窗」）：入口名不随二态变——busy 靠点亮呈现，title 恒指动作 */
+export const CONVERSATION_CELL_TITLE = '对话窗'
+
+/**
+ * 对话窗入口格点击分发（工单460）：复用现成桥方法 conversation/show——show+置前语义
+ * 在内核（conversation/window.ts show()：restore+show，非 toggle；ADR-0018 关窗只隐藏
+ * 不动），主进程零新增代码，渲染层零裁决。响应原样上抛（ok:false 也返回）。
+ */
+export async function dispatchConversationShow(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+): Promise<{ ok: boolean; error?: string }> {
+  return bridge.invoke('conversation/show', {})
+}
 
 /** 点击分发目录 = 开始组按钮 + 右组动作格 */
 const CATALOG: ReadonlyArray<{ id: string; action: TaskbarSystemAction }> = [...TASKBAR_BUTTONS, ...RIGHT_CELLS]
@@ -165,7 +239,8 @@ export interface TaskbarAppViewEntry {
  * 整个不渲染（工单192 两组显隐解耦——开始组按系统按钮、推荐组按推荐位有无，各自空则整组
  * 不渲染）；metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
  * excluded（工单161）= 推荐栏移除名单（恢复菜单段的行来源）；
- * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径） */
+ * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径）；
+ * trayPinned（工单462）= 托盘常驻名单（缺省空——旧快照无字段的兼容口径） */
 export interface TaskbarViewModel {
   visible: boolean
   /** 推荐组 pill 显隐（工单192 独立拆出）：推荐位非空即独立在场，与开始组解耦 */
@@ -181,6 +256,8 @@ export interface TaskbarViewModel {
   tray: TaskbarTrayEntry[]
   /** 托盘溢出档位（工单162）：拆分名单与档位菜单 current 标记的唯一来源 */
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  /** 托盘常驻名单（工单462）：豁免拆分谓词与「常驻管理」节勾选态的唯一来源 */
+  trayPinned: TaskbarTrayPinnedEntry[]
 }
 
 /**
@@ -190,7 +267,7 @@ export interface TaskbarViewModel {
  * 且推荐组也不在场的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, recsVisible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
+  if (!state.enabled) return { visible: false, recsVisible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5, trayPinned: [] }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -220,6 +297,7 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     apps,
     tray: [...(state.tray ?? [])],
     trayOverflowLimit: state.trayOverflowLimit ?? 5,
+    trayPinned: [...(state.trayPinned ?? [])],
   }
 }
 
@@ -251,18 +329,35 @@ export function toggleMetric(metrics: readonly TaskbarMetric[], key: TaskbarMetr
   return METRIC_ORDER.filter((k) => next.includes(k))
 }
 
-/** 摘要数值格式化：口径与硬件卡一致（百分比 Math.round、速率 toFixed(2) KB/s；
- * GPU/网络字段源缺位落占位符，不显示假 0） */
+/** 摘要数值格式化：口径与硬件卡一致（百分比 Math.round、速率 toFixed(2)；速率满
+ * 1000KB/s 进位以 MB/s 计——工单459，位数封顶使定宽槽位宽度可恒定）；GPU/网络字段
+ * 源缺位落占位符，不显示假 0 */
 export function formatMetric(id: TaskbarMetric, gauges: HardwareGauges): string {
   const percent = (x: number | null | undefined) => (x == null ? '---' : `${Math.round(x)}%`)
-  const kbps = (x: number | null | undefined) => (x == null ? '--' : `${x.toFixed(2)}KB/s`)
+  const rate = (x: number | null | undefined) => {
+    if (x == null) return '--'
+    return x >= 1000 ? `${(x / 1000).toFixed(2)}MB/s` : `${x.toFixed(2)}KB/s`
+  }
   switch (id) {
     case 'cpu': return `CPU ${percent(gauges.cpu)}`
     case 'gpu': return `GPU ${percent(gauges.gpu_usage)}`
     case 'ram': return `RAM ${percent(gauges.memory)}`
-    case 'net-down': return `DL ${kbps(gauges.download_speed)}`
-    case 'net-up': return `UP ${kbps(gauges.upload_speed)}`
+    case 'net-down': return `DL ${rate(gauges.download_speed)}`
+    case 'net-up': return `UP ${rate(gauges.upload_speed)}`
   }
+}
+
+/** 定宽槽位校宽文本（工单459）：每段读数的极宽形态——渲染层落 data-max，CSS ::before
+ * 隐藏哨兵按它撑槽（显示宽度 = max(真实读数, 校宽文本) 恒定，零依赖字体度量手估）。
+ * 进位封顶后速率段位数有界（KB 段最宽 = 舍入界宽形态 '1000.00'——x∈(999.995,1000)
+ * toFixed(2) 进到 1000.00 仍落 KB 段；MB 段两位整数），本表即槽位恒宽的唯一校准源；
+ * 单测钉「读数极宽形态不超校宽文本」（含 999.996 界宽样本）。 */
+export const METRIC_SLOT_TEXT: Record<TaskbarMetric, string> = {
+  cpu: 'CPU 100%',
+  gpu: 'GPU 100%',
+  ram: 'RAM 100%',
+  'net-down': 'DL 1000.00KB/s',
+  'net-up': 'UP 1000.00KB/s',
 }
 
 /** 时钟格文本：本地 HH:MM（两位补零） */
@@ -362,15 +457,18 @@ export function taskbarTierMenuPopupRows(current: TaskbarTrayOverflowLimit): Arr
 }
 
 /**
- * 托盘溢出拆分（工单162）：裁决本体是 shared/overflow 的 planTrayOverflow（与应用组
- * planAppsOverflow 同形态、同处 shared），本层只是把它接到托盘条目上。
+ * 托盘溢出拆分（工单162；工单462 常驻豁免接）：裁决本体是 shared/overflow 的
+ * planTrayOverflow（与应用组 planAppsOverflow 同形态、同处 shared），本层只是把它接到
+ * 托盘条目上。pinned = 常驻名单（taskbarPinnedMatch 先标识后名字装配成谓词）——名单内
+ * 条目豁免切尾永远平铺栏内、保持到达序原位，档位只数非常驻条目；缺省 = 旧语义不变。
  * overflow 非空即栏内「⋯」钮的渲染判据；浮层条目与栏内同一份名单序。
  */
 export function splitTrayOverflow(
   tray: readonly TaskbarTrayEntry[],
   limit: TaskbarTrayOverflowLimit,
+  pinned: readonly TaskbarTrayPinnedEntry[] = [],
 ): { bar: TaskbarTrayEntry[]; overflow: TaskbarTrayEntry[] } {
-  return planTrayOverflow(tray, limit)
+  return planTrayOverflow(tray, limit, trayPinnedMatcher(pinned))
 }
 
 /** 托盘溢出菜单行（工单162）：每行图标+名称——名称取 tooltip，空回退身份键（无 tip
@@ -390,6 +488,48 @@ export async function dispatchTrayOverflowLimit(
 ): Promise<TaskbarState | null> {
   if (!(TRAY_OVERFLOW_TIERS as ReadonlyArray<{ limit: TaskbarTrayOverflowLimit }>).some((t) => t.limit === limit)) return null
   return bridge.invoke('taskbar/set-tray-overflow-limit', { limit })
+}
+
+/**
+ * 常驻管理节行清单（工单462）：**全部**当前托盘图标（栏内+溢出内的并集 = 完整名单，
+ * 到达序）逐枚一行——现在看得见的图标也能提前钉住、防将来被裁。勾选态按常驻名单
+ * 匹配（先标识后名字，shared/overflow trayPinnedMatcher 同一份本体）。
+ */
+export function trayPinnedMenuRows(
+  tray: readonly TaskbarTrayEntry[],
+  pinned: readonly TaskbarTrayPinnedEntry[],
+): Array<{ key: string; label: string; pinned: boolean }> {
+  const isPinned = trayPinnedMatcher(pinned)
+  return tray.map((e) => ({ key: e.key, label: e.tooltip || e.key, pinned: isPinned(e) }))
+}
+
+/**
+ * 常驻管理弹窗行（工单462）：id = `pin:<key>` 供动作寻址、label = 「[✓ ]常驻 <名>」
+ * （✓ 前缀 = 名单内勾选态，与档位行的 current 前缀同一视觉语言；空 tooltip 回退身份键，
+ * 档位菜单行文本同源纪律）。托盘空名单时节为空（不占菜单行）。
+ */
+export function taskbarPinnedMenuPopupRows(
+  tray: readonly TaskbarTrayEntry[],
+  pinned: readonly TaskbarTrayPinnedEntry[],
+): Array<{ id: string; label: string }> {
+  return trayPinnedMenuRows(tray, pinned).map((r) => ({
+    id: `pin:${r.key}`,
+    label: `${r.pinned ? '✓ ' : ''}常驻 ${r.label}`,
+  }))
+}
+
+/**
+ * 常驻勾选分发（工单462）：经桥 invoke（taskbar/set-tray-pinned），匹配与持久化在内核
+ * （先标识后名字——同 id 改名换账、标识漂移按名字替换旧账）；回执 = 最新任务栏状态，
+ * 回推 taskbar/changed 驱动重拆（钉住即豁免溢出、解除即回档位账）。
+ */
+export async function dispatchTrayPinned(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  id: string,
+  name: string,
+  pinned: boolean,
+): Promise<TaskbarState> {
+  return bridge.invoke('taskbar/set-tray-pinned', { id, name, pinned })
 }
 
 /**

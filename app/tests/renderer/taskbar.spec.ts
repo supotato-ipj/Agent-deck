@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchConversationShow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, CONVERSATION_CELL_ICONS, CONVERSATION_CELL_TITLE, conversationCellState, GROUP_GAP, METRIC_SLOT_TEXT, NETWORK_CELL_ICONS, NETWORK_CELL_TITLES, networkCellState, PILL_PAD_X, RIGHT_CELLS, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -10,11 +10,11 @@ import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 import type { TaskbarBridge, TaskbarAppViewEntry } from '../../src/renderer/taskbar-view'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopWorkspaceState, HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
+import type { ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, maximizeRetract: true, ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true, ...over }
 }
 
 const RECS = [
@@ -65,6 +65,8 @@ function fakeBridge(s: TaskbarState) {
       if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
       // 工单162 托盘溢出档位
       if (method === 'taskbar/set-tray-overflow-limit') return Promise.resolve(s as never)
+      // 工单462 托盘常驻名单
+      if (method === 'taskbar/set-tray-pinned') return Promise.resolve(s as never)
       // 工单239 最大化收栏开关
       if (method === 'taskbar/set-maximize-retract') {
         const { enabled } = payload as { enabled: boolean }
@@ -75,6 +77,8 @@ function fakeBridge(s: TaskbarState) {
         const hit = s.tray.find((t) => t.key === key)
         return Promise.resolve({ icon: hit?.iconKey ? { width: 16, height: 16, bgraBase64: 'AAAA' } : null } as never)
       }
+      // 工单460 对话窗入口格（复用现成桥方法——show+置前语义在内核，ADR-0018）
+      if (method === 'conversation/show') return Promise.resolve({ ok: true } as never)
       // 工单58 应用组溢出分发
       if (method === 'taskbar/activate-app') {
         const { exe } = payload as { exe: string }
@@ -273,6 +277,46 @@ describe('任务栏右组（工单55，fake bridge 驱动）', () => {
     expect(formatMetric('net-up', bare)).toBe('UP --')
   })
 
+  it('速率进位（工单459）：≥1000KB/s 换算 MB/s（两位小数口径不变），阈值下维持 KB/s', () => {
+    const g = (dl: number, ul: number): HardwareGauges => ({
+      cpu: 0, memory: 0, memory_gb: '', gpu_usage: 0, download_speed: dl, upload_speed: ul,
+    })
+    // 阈值下不变：既有 'DL 1.23KB/s' 口径（票面纪律①）与三位数 KB 极值
+    expect(formatMetric('net-down', g(1.234, 0))).toBe('DL 1.23KB/s')
+    expect(formatMetric('net-down', g(999.99, 0))).toBe('DL 999.99KB/s')
+    // 恰满 1000 进位；小数换算不变两位小数
+    expect(formatMetric('net-down', g(1000, 0))).toBe('DL 1.00MB/s')
+    expect(formatMetric('net-down', g(1024.6, 0))).toBe('DL 1.02MB/s')
+    // 高位进位仍封两位小数（位数有界——定宽槽位的前提）
+    expect(formatMetric('net-up', g(0, 15360))).toBe('UP 15.36MB/s')
+    expect(formatMetric('net-up', g(0, 125500))).toBe('UP 125.50MB/s')
+    // 舍入界宽（评审修复口径）：x∈(999.995,1000) toFixed(2) 进到 '1000.00' 仍落 KB 段
+    //——KB 段最宽形态即此（METRIC_SLOT_TEXT 校宽文本按它校准）
+    expect(formatMetric('net-down', g(999.996, 0))).toBe('DL 1000.00KB/s')
+    expect(formatMetric('net-up', g(0, 999.996))).toBe('UP 1000.00KB/s')
+  })
+
+  it('定宽槽位校宽文本（工单459）：罩住各段读数极宽形态——百分位 100%、三位数 KB、两位整数 MB', () => {
+    const g = (dl: number, ul: number): HardwareGauges => ({
+      cpu: 0, memory: 0, memory_gb: '', gpu_usage: 0, download_speed: dl, upload_speed: ul,
+    })
+    const full: HardwareGauges = { cpu: 100, memory: 100, memory_gb: '', gpu_usage: 100, download_speed: 0, upload_speed: 0 }
+    for (const m of ['cpu', 'gpu', 'ram'] as const) {
+      expect(formatMetric(m, full).length, `${m} 满百读数不超校宽文本`).toBeLessThanOrEqual(METRIC_SLOT_TEXT[m].length)
+    }
+    // 速率段：KB 极值（999.99KB/s）、舍入界宽（1000.00KB/s，14 字符=校宽文本本身）与
+    // MB 高位（125.50MB/s）都不得超校宽文本
+    //（tabular-nums 下等长即等宽，'.' 窄于数字——长度口径保守成立）
+    expect(formatMetric('net-down', g(999.99, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+    expect(formatMetric('net-down', g(999.996, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+    expect(formatMetric('net-down', g(125500, 0)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+    expect(formatMetric('net-up', g(0, 999.99)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
+    expect(formatMetric('net-up', g(0, 999.996)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
+    expect(formatMetric('net-up', g(0, 125500)).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-up'].length)
+    // 占位符（源缺位）远窄于校宽文本，槽位不塌
+    expect(formatMetric('net-down', { cpu: 0, memory: 0, memory_gb: '' }).length).toBeLessThanOrEqual(METRIC_SLOT_TEXT['net-down'].length)
+  })
+
   it('时钟格文本：ClockState → 本地 HH:MM（两位补零）', () => {
     const epochMs = new Date(2026, 9, 6, 8, 5).getTime()
     expect(formatClock({ iso: new Date(epochMs).toISOString(), epochMs })).toBe('08:05')
@@ -409,6 +453,12 @@ describe('托盘溢出菜单（工单162，fake bridge 驱动）', () => {
     expect(taskbarViewModel({ ...state(), trayOverflowLimit: undefined as never }).trayOverflowLimit).toBe(5)
   })
 
+  it('视图模型透出常驻名单（缺省空；旧快照无字段不炸——工单462）', () => {
+    expect(taskbarViewModel(state({ trayPinned: [{ id: 'a:1', name: '蓝牙' }] })).trayPinned).toEqual([{ id: 'a:1', name: '蓝牙' }])
+    expect(taskbarViewModel(state()).trayPinned).toEqual([])
+    expect(taskbarViewModel({ ...state(), trayPinned: undefined as never }).trayPinned).toEqual([])
+  })
+
   it('溢出拆分接视图条目：档位内全可见、超量尾部入溢出、「⋯」渲染判据 = overflow 非空', () => {
     const bar5 = splitTrayOverflow(SEVEN, 5)
     expect(bar5.bar.map((e) => e.key)).toEqual(['100:1', '101:1', '102:1', '103:1', '104:1'])
@@ -417,6 +467,19 @@ describe('托盘溢出菜单（工单162，fake bridge 驱动）', () => {
     expect(splitTrayOverflow(SEVEN, 3).bar).toHaveLength(3)
     // 全部档：永不溢出
     expect(splitTrayOverflow(SEVEN, 'all')).toEqual({ bar: SEVEN, overflow: [] })
+  })
+
+  it('溢出拆分接常驻名单（工单462）：名单内豁免切尾永远平铺、档位只数非常驻、到达序原位不重排', () => {
+    // 7 枚钉住 101:1 与 105:1、档位 5：非常驻恰 5 枚全在栏 → 全员在栏无溢出
+    const exempt = splitTrayOverflow(SEVEN, 5, [{ id: '101:1', name: '图标1' }, { id: '105:1', name: '图标5' }])
+    expect(exempt.bar).toHaveLength(7)
+    expect(exempt.overflow).toEqual([])
+    // 非常驻超量仍切尾：钉住末枚 106:1、档位 5 → 前 5 非常驻 + 常驻殿后，105:1 进溢出
+    const tailPinned = splitTrayOverflow(SEVEN, 5, [{ id: '106:1', name: '' }])
+    expect(tailPinned.bar.map((e) => e.key)).toEqual(['100:1', '101:1', '102:1', '103:1', '104:1', '106:1'])
+    expect(tailPinned.overflow.map((e) => e.key)).toEqual(['105:1'])
+    // 名单缺省 = 旧语义逐字不变（未接常驻的调用方零漂移）
+    expect(splitTrayOverflow(SEVEN, 5)).toEqual({ bar: SEVEN.slice(0, 5), overflow: SEVEN.slice(5) })
   })
 
   it('菜单行生成：每行 key+名称（tooltip 优先，空 tooltip 回退身份键）、序 = 名单序', () => {
@@ -551,6 +614,42 @@ describe('栏高与图标尺寸（工单158 基线 + 工单240 档位统一：�
     // 工单160 图标化后推荐位不再吃文字收缩档（.tb-rec 定宽图标格）：极端拥挤的让位面
     // 收敛为 pill maxWidth 收窄整体裁剪（overflow hidden），系统钮 flex:none 优先权不变
     expect(ruleOf('.tb-rec'), '推荐位图标格定宽（不吃收缩）').toContain('width: 36px')
+  })
+})
+
+describe('硬件摘要定宽槽位（工单459：tabular-nums + min-width ch + 右对齐，整行总宽恒定）', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
+  const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
+
+  /** 取选择器块的规则体（`sel {` 起到配对 `}`；块内无嵌套括号——样式完整性守卫保证） */
+  function ruleOf(sel: string): string {
+    const i = css!.indexOf(`${sel} {`)
+    if (i < 0) return ''
+    const body = css!.slice(i)
+    return body.slice(0, body.indexOf('}'))
+  }
+
+  it('摘要段等宽数字 + 右对齐（设置浮层 #opacity-value 同款先例：min-width ch + tabular-nums + 右对齐）', () => {
+    const seg = ruleOf('.tb-seg')
+    expect(seg, '数值用等宽数字——读数逐拍跳动只在槽内消化').toContain('font-variant-numeric: tabular-nums')
+    expect(seg, '槽内右对齐——位数变化不改段左缘').toContain('text-align: right')
+  })
+
+  it('段槽 min-width 按读数极宽校准（真机红轮校准）：百分位段 10ch（CPU 100%）、速率段 15ch（DL 999.99KB/s / UP 125.50MB/s）', () => {
+    for (const m of ['cpu', 'gpu', 'ram']) {
+      expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 10ch')
+    }
+    for (const m of ['net-down', 'net-up']) {
+      expect(ruleOf(`.tb-seg[data-metric="${m}"]`), `${m} 段槽定宽`).toContain('min-width: 15ch')
+    }
+  })
+
+  it('隐藏校宽哨兵（工单459 真机红轮）：::before 按 data-max 极宽文本撑槽（display:block+height:0，零依赖字体度量手估）', () => {
+    const sizer = ruleOf('.tb-seg::before')
+    expect(sizer, '校宽哨兵取 data-max 属性文本').toContain('content: attr(data-max)')
+    expect(sizer, '块级参与定宽（不与可见文字同行）').toContain('display: block')
+    expect(sizer, '零高不撑行高、不占竖向空间').toContain('height: 0')
+    expect(sizer, '不可见').toContain('visibility: hidden')
   })
 })
 
@@ -723,9 +822,28 @@ describe('图标与字形档位统一（工单240，spec #236 几何常量表右
   })
 
   it('托盘溢出菜单行图标 16px（工单240：栏内栏外观感一致）', () => {
-    const row = ruleOv240('.ov-row img')
-    expect(row).toContain('width: 16px')
-    expect(row).toContain('height: 16px')
+    const img = ruleOv240('.ov-cell img')
+    expect(img, '格内图标 16px 档不变（工单458 网格化只换承载形态）').toContain('width: 16px')
+    expect(img).toContain('height: 16px')
+  })
+
+  it('托盘溢出网格档（工单458）：固定 5 列 36×36 格、恒宽 200、名称退原生 title 不渲文字', () => {
+    const listRule = ruleOv240('#overflow-list')
+    expect(listRule, '浮层恒定宽 200px（CSS 定值——条目数 1 枚与 10+ 枚都不影响宽度）')
+      .toContain('width: 200px')
+    expect(listRule, 'box-sizing 定宽预算含边与内衬（5×36 + gap 2×4 + 内衬 5×2 + 边 1×2 = 200）')
+      .toContain('box-sizing: border-box')
+    expect(listRule, '固定 5 列、格宽 36px').toContain('grid-template-columns: repeat(5, 36px)')
+    expect(listRule, '格高 36px（grid-auto-rows 定死，行步进含 gap）').toContain('grid-auto-rows: 36px')
+    const cell = ruleOv240('.ov-cell')
+    expect(cell, '16px 图标在格内水平居中').toContain('justify-content: center')
+    expect(cell, '16px 图标在格内垂直居中').toContain('align-items: center')
+    const ovSrc = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/taskbar-overflow.ts'), 'utf8')
+    expect(ovSrc, '悬停名称提示走原生 title 属性（格不渲名称文字）').toMatch(/\.title = /)
+    expect(ovSrc, '竖排行 + 名称 span 形态随网格化退役').not.toContain("className = 'ov-label'")
+    expect(cssOv240, '名称文字规则随网格化退役').not.toContain('.ov-label')
+    expect(ovSrc, 'ready 回报 rows 携带格矩形 x/w（坐标语义行→格，电池取点击坐标依赖）').toMatch(/x: r\.x/)
+    expect(ovSrc).toMatch(/w: r\.width/)
   })
 
   it('注释同步（工单240 覆盖审计 D4）：旧的「16px 最近邻放大 / 托盘 24px 升档」说法不得残留', () => {
@@ -1007,6 +1125,32 @@ describe('弹窗菜单行推导（工单196，四枚面行推导）', () => {
     ])
   })
 
+  it('常驻管理节行（工单462）：栏内+溢出内全部图标按到达序在列（splitTrayOverflow 两侧并集）、id=pin:<key> 供动作寻址、名单内 ✓ 前缀、label=「常驻 <名>」（空 tooltip 回退身份键）', () => {
+    const tray: TaskbarTrayEntry[] = [
+      { key: 'a:1', tooltip: '蓝牙', iconKey: 'k1' },
+      { key: 'b:2', tooltip: '', iconKey: null },
+      { key: 'guid:c', tooltip: '电源', iconKey: 'k3' },
+    ]
+    expect(taskbarPinnedMenuPopupRows(tray, [{ id: 'guid:c', name: '电源' }])).toEqual([
+      { id: 'pin:a:1', label: '常驻 蓝牙' },
+      { id: 'pin:b:2', label: '常驻 b:2' },
+      { id: 'pin:guid:c', label: '✓ 常驻 电源' },
+    ])
+    expect(taskbarPinnedMenuPopupRows([], [])).toEqual([])
+    // 标识漂移恢复：账里记的是旧 id、当前名单按名字兜底命中 → ✓ 在场
+    expect(taskbarPinnedMenuPopupRows(tray, [{ id: 'zzz:9', name: '蓝牙' }])[0]).toEqual({ id: 'pin:a:1', label: '✓ 常驻 蓝牙' })
+  })
+
+  it('常驻勾选分发（工单462）：经 taskbar/set-tray-pinned 到桥（id/名字/勾选态）', async () => {
+    const b = fakeBridge(state())
+    await dispatchTrayPinned(b.bridge, 'a:1', '蓝牙', true)
+    await dispatchTrayPinned(b.bridge, 'a:1', '蓝牙', false)
+    expect(b.calls).toEqual([
+      { method: 'taskbar/set-tray-pinned', payload: { id: 'a:1', name: '蓝牙', pinned: true } },
+      { method: 'taskbar/set-tray-pinned', payload: { id: 'a:1', name: '蓝牙', pinned: false } },
+    ])
+  })
+
   it('空白右键菜单行（系统显隐 + 恢复段）：被藏按钮给「显示」行、恢复行 id=restore:<exe> 供动作寻址、label=「恢复 <显示名>」', () => {
     const vm = taskbarViewModel(state({
       hiddenButtons: ['start'],
@@ -1191,5 +1335,78 @@ describe('应用+推荐组合居中与容量（工单380）', () => {
     const l = combinedPillsLeft({ lo: 100, hi: 300 }, 0, 260, 200)
     expect(l.recsLeft).toBe(100)
     expect(l.recsMaxWidth).toBe(200)
+  })
+})
+
+describe('网络状态格（工单461，spec #457 T3：自绘二态，ADR-0031）', () => {
+  it('networkCellState：true→up / false→down / 缺帧与字段缺位→up（首帧 <1s 到位——乐观呈现，不误报断网红点）', () => {
+    expect(networkCellState(true)).toBe('up')
+    expect(networkCellState(false)).toBe('down')
+    expect(networkCellState(null)).toBe('up')
+    expect(networkCellState(undefined)).toBe('up')
+  })
+
+  it('二态图标齐备：down 含斜杠与红点标记类（断网醒目的 DOM 判据——电池按类名断言）；图标为内联 SVG', () => {
+    for (const st of ['up', 'down'] as const) {
+      expect(NETWORK_CELL_ICONS[st]).toContain('<svg')
+    }
+    expect(NETWORK_CELL_ICONS.up).toContain('tb-net-bars')
+    expect(NETWORK_CELL_ICONS.down).toContain('tb-net-bars')
+    expect(NETWORK_CELL_ICONS.down).toContain('tb-net-slash')
+    expect(NETWORK_CELL_ICONS.down).toContain('tb-net-dot')
+    expect(NETWORK_CELL_ICONS.up).not.toContain('tb-net-slash')
+    expect(NETWORK_CELL_ICONS.up).not.toContain('tb-net-dot')
+  })
+
+  it('二态 title 齐备（悬停提示 + 无障碍名——图标格族第二识别通道）', () => {
+    expect(NETWORK_CELL_TITLES.up).toBeTruthy()
+    expect(NETWORK_CELL_TITLES.down).toBeTruthy()
+    expect(NETWORK_CELL_TITLES.up).not.toBe(NETWORK_CELL_TITLES.down)
+  })
+
+  it('右组动作格目录含网络格：点击分发与音量格同款——taskbar/system-action quick-settings', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    expect(await dispatchTaskbarButton(bridge, 'network')).toEqual({ ok: true, action: 'quick-settings' })
+    expect(calls).toEqual([{ method: 'taskbar/system-action', payload: { action: 'quick-settings' } }])
+  })
+
+  it('RIGHT_CELLS 含 network 条目且 action=quick-settings（插位在音量格左侧——目录序即渲染序镜像）', () => {
+    const ids = RIGHT_CELLS.map((c) => c.id)
+    expect(ids).toContain('network')
+    expect(RIGHT_CELLS.find((c) => c.id === 'network')!.action).toBe('quick-settings')
+    expect(ids.indexOf('network')).toBeLessThan(ids.indexOf('volume'))
+  })
+})
+
+describe('对话窗入口格（工单460，spec #457 T4：托盘群最左 + busy 点亮，ADR-0018）', () => {
+  it('conversationCellState：任一会话 busy→busy / 全非 busy→idle / 空清单与缺帧→idle（busy 是例外态，缺数据不误报点亮）', () => {
+    const view = (status: string) => ({ status }) as unknown as ConversationSessionView
+    expect(conversationCellState([view('busy')])).toBe('busy')
+    expect(conversationCellState([view('ready'), view('busy')])).toBe('busy')
+    expect(conversationCellState([view('busy'), view('ready')])).toBe('busy')
+    expect(conversationCellState([view('ready'), view('starting')])).toBe('idle')
+    expect(conversationCellState([view('ready'), view('ended'), view('failed')])).toBe('idle')
+    expect(conversationCellState([])).toBe('idle')
+    expect(conversationCellState(null)).toBe('idle')
+    expect(conversationCellState(undefined)).toBe('idle')
+  })
+
+  it('二态图标齐备：busy 含点亮标记 tb-conv-dot、idle 无（点亮二态的 DOM 判据——电池按类名断言）；图标为内联 SVG', () => {
+    for (const st of ['idle', 'busy'] as const) {
+      expect(CONVERSATION_CELL_ICONS[st]).toContain('<svg')
+      expect(CONVERSATION_CELL_ICONS[st]).toContain('tb-conv-bubble')
+    }
+    expect(CONVERSATION_CELL_ICONS.busy).toContain('tb-conv-dot')
+    expect(CONVERSATION_CELL_ICONS.idle).not.toContain('tb-conv-dot')
+  })
+
+  it('悬停提示=「对话窗」（票面口径——入口名不随二态变，busy 靠点亮呈现）', () => {
+    expect(CONVERSATION_CELL_TITLE).toBe('对话窗')
+  })
+
+  it('点击分发复用现成桥方法 conversation/show（主进程零新增代码——show+置前语义在内核，非 toggle）', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    expect(await dispatchConversationShow(bridge)).toEqual({ ok: true })
+    expect(calls).toEqual([{ method: 'conversation/show', payload: {} }])
   })
 })

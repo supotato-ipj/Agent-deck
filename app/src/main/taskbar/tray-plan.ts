@@ -8,8 +8,9 @@ import type { TaskbarTrayEntry } from '../../shared/contract'
 import type { TrayWireEvent } from '../trayhost/protocol'
 
 // 托盘溢出裁决本体已移至 shared/overflow（工单162，渲染层同用一份；apps-plan 转出同款
-// 边界说明）；此处转出保持主进程侧 import 路径不变。
-export { planTrayOverflow } from '../../shared/overflow'
+// 边界说明）；常驻匹配纯函数（工单462 trayPinnedMatch/trayPinnedMatcher）同处 shared——
+// 此处转出保持主进程侧 import 路径不变。
+export { planTrayOverflow, trayPinnedMatch, trayPinnedMatcher } from '../../shared/overflow'
 
 /** FNV-1a 32 位摘要（图标键用：同尺寸图标换内容后长度不变，只比长度会撞键） */
 function digest(s: string): string {
