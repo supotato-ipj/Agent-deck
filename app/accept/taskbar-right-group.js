@@ -482,8 +482,14 @@ async function main() {
     rep.note(`P7 探针在册 ${probesIn.length}/${PROBE_UIDS.length} 名单=${roster7.length}`);
     const armFail7 = (name, detail) => rep.fail(`P7[${name}] ${detail}`);
 
-    // 前置数据：最新几何（⋯ 矩形在此）
-    const geo7 = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, { since: t7 });
+    // 前置数据：最新几何（⋯ 矩形在此）。不设 since 门（工单459 随动改段）：旧 since:t7 门
+    // 隐式依赖右组几何抖动自产帧——基线无定宽时 hw-summary 宽度逐拍跳、每秒必有帧；探针
+    // 入「⋯」不改栏面（档内前 5 枚稳定）→ 工单459 定宽槽位落地后载荷恒定 → 等待窗零帧
+    // （三轮红轮实证：帧间隙 10.9s 跨整个 8s 窗口）→ 超时误红。臂意 = 取 ⋯ 矩形供点击 +
+    // ⋯ 在场断言——红轮回合 24/24 帧均带 trayOverflow，取「最新一帧」不断言强度（P8 geo8
+    // 「取最新一帧而不设时间门」同款先例）。基线判别：base 6df292a 同款电池同机 PASS 18/0
+    // （P7 绿）、本分支三连红——非环境非回归，系本票行为改变暴露的既有臂依赖。
+    const geo7 = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, {});
     if (!geo7) {
       armFail7('几何', 'taskbar-geometry 无 trayOverflow 矩形（⋯ 未渲染或存证缺字段）');
     } else {
