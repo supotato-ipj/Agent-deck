@@ -240,6 +240,8 @@ export interface TaskbarExcludedEntry {
  * apps（工单52）= 应用组合并视图（手钉在前、运行态叠加；禁用态由渲染层视图模型收敛为空）；
  * tray（工单56）= 系统托盘入栏名单（瞬态，不落盘——托盘状态由数据面宿主现收现给）；
  * trayOverflowLimit（工单162）= 托盘溢出档位（config 任务栏段持久化，重启保持）。
+ * trayPinned（工单462）= 托盘常驻名单（{标识, 名字} 二元记录，豁免溢出拆分永远平铺栏内；
+ * config 任务栏段持久化，重启保持——跨面板/系统重启按先标识后名字匹配恢复）。
  * maximizeRetract（工单239）= 最大化收栏开关（前台窗口真最大化时任务栏自动收栏；默认开，
  * 关掉即回到「最大化窗不收栏、栏常驻」的旧行为；config 任务栏段持久化，重启保持）。 */
 export interface TaskbarState {
@@ -251,6 +253,7 @@ export interface TaskbarState {
   apps: TaskbarAppEntry[]
   tray: TaskbarTrayEntry[]
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  trayPinned: TaskbarTrayPinnedEntry[]
   maximizeRetract: boolean
 }
 
@@ -443,6 +446,18 @@ export interface TaskbarTrayEntry {
  * 持久化。档位是用户声明的可见数，「⋯」钮不吃名额——语义与容量实测的 planAppsOverflow 分界。
  */
 export type TaskbarTrayOverflowLimit = 3 | 5 | 8 | 'all'
+
+/**
+ * 托盘常驻名单条目（工单462，GLOSSARY「托盘常驻」）：{标识, 名字} 二元记录——双保险
+ * 记账扛过重启。标识 = 图标身份键（`guid:<guid>` 或 `<hwnd>:<uid>`，hwnd 类标识跨系统
+ * 重启可能漂移）；名字 = 勾选时刻的 tooltip（标识对不上时的兜底匹配依据，双方非空才比）。
+ * 名单持久于 config.json taskbar.trayPinned，匹配纯函数 shared/overflow trayPinnedMatch
+ * （先标识后名字，主进程与渲染层同用一份）。
+ */
+export interface TaskbarTrayPinnedEntry {
+  id: string
+  name: string
+}
 
 /** 托盘图标像素（工单56）：32bpp 顶向下 BGRA，base64——渲染层本地 canvas 转 dataURL
  * （与 desktop/icon 的 dataURL 面同款职责分工：编码在渲染层，主进程只搬运字节） */
@@ -1112,6 +1127,15 @@ export interface BridgeMethods {
    * 名单：上调即图标回栏、「⋯」消失）。同态幂等空转；档位外取值抛 BridgeError（契约违规）。
    */
   'taskbar/set-tray-overflow-limit': { request: { limit: TaskbarTrayOverflowLimit }; response: TaskbarState }
+  /**
+   * 托盘常驻名单（工单462）：档位菜单「常驻管理」节勾选落点（托盘图标右键透传应用自带
+   * 菜单——ADR-0013，常驻入口只在档位菜单）。pinned=true 记 {id, name} 二元记录、false 摘除，
+   * 匹配先标识后名字（shared/overflow trayPinnedMatch 同源）——跨重启标识漂移的旧账按名字
+   * 被新账替换，名单不产生幽灵记录。整份回写 config.json taskbar.trayPinned，回推
+   * taskbar/changed（渲染层重拆名单：钉住即豁免溢出、解除即回档位账）。同名单幂等空转；
+   * id 非非空字符串 / pinned 非布尔抛 BridgeError（契约违规）。
+   */
+  'taskbar/set-tray-pinned': { request: { id: string; name: string; pinned: boolean }; response: TaskbarState }
   /**
    * 最大化收栏开关（工单239）：设置浮层切换即生效（不必重启面板），整份回写
    * config.json taskbar.maximizeRetract，回推 taskbar/changed（渲染层对齐勾选态）。

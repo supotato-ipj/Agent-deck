@@ -26,6 +26,7 @@ const STATE: TaskbarState = {
   apps: [{ exe: 'C:\\Apps\\Alpha.exe', label: 'Alpha', pinned: true, running: false, title: null, iconKey: null }],
   tray: [],
   trayOverflowLimit: 5,
+  trayPinned: [],
   maximizeRetract: true,
 }
 

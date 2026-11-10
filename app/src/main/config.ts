@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, TaskbarTrayOverflowLimit, WeatherLocation } from '../shared/contract'
+import type { DesktopLayout, TaskbarButtonId, TaskbarMetric, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, WeatherLocation } from '../shared/contract'
 import { TASKBAR_METRIC_KEYS } from '../shared/contract'
 import { BASE_PORT, DEFAULT_ENGINE, EVERYTHING_DEFAULT_PORT, type SearchEngineChoice } from './search/engine'
 import { mergeLimitsOverrides, type PackageLimitOverrides } from './plugins/limits'
@@ -128,6 +128,8 @@ function mergeConversation(raw: unknown, fallback: ConversationConfig, warnings:
  * hiddenButtons（工单54）：开始组系统按钮（开始/TaskView）的右键隐藏名单，重启保持。
  * metrics（工单55）：右组硬件摘要勾选子集（五项中由用户勾选；重启保持）。
  * trayOverflowLimit（工单162）：托盘溢出档位（通知区域默认可见数，3/5/8/全部；重启保持）。
+ * trayPinned（工单462）：托盘常驻名单（{标识, 名字} 二元记录，豁免溢出拆分永远平铺栏内；
+ * 匹配先标识后名字，跨面板/系统重启保持）。
  * maximizeRetract（工单239）：最大化收栏开关（前台窗口真最大化时任务栏自动收栏；默认开，
  * 关掉即回到「最大化窗不收栏、栏常驻」的旧行为；重启保持）。 */
 export interface TaskbarConfig {
@@ -135,6 +137,7 @@ export interface TaskbarConfig {
   hiddenButtons: TaskbarButtonId[]
   metrics: TaskbarMetric[]
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  trayPinned: TaskbarTrayPinnedEntry[]
   maximizeRetract: boolean
 }
 
@@ -302,7 +305,7 @@ export function defaultAutostart(): AutostartConfig {
  * 硬件摘要五项默认全选（工单55）；
  * 最大化收栏默认开（工单239：默认开以便随时切回旧行为——用户故事30） */
 export function defaultTaskbar(): TaskbarConfig {
-  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5, maximizeRetract: true }
+  return { enabled: true, hiddenButtons: [], metrics: [...TASKBAR_METRIC_KEYS], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true }
 }
 
 /** 开始组系统按钮合法 id（与契约面 TaskbarButtonId 同源核对；新按钮漏加会在此暴露） */
@@ -358,6 +361,30 @@ function mergeTaskbar(raw: unknown, fallback: TaskbarConfig, warnings: string[])
       out.trayOverflowLimit = trayOverflowLimit as TaskbarTrayOverflowLimit
     } else {
       warnings.push(`config.taskbar.trayOverflowLimit 不是合法档位（3/5/8/all），已回退默认值 ${fallback.trayOverflowLimit}`)
+    }
+  }
+  const trayPinned = section.trayPinned
+  if (trayPinned !== undefined) {
+    // 托盘常驻名单（工单462，读写/校验照 trayOverflowLimit 既有模式）：逐条校验——缺标识
+    // （id 非非空字符串）的条目丢弃告警、合法条目保留；name 非字符串归一空串（标识单保险
+    // 仍可匹配）；重复标识以首见为准去重（名单是集合语义，不因脏写放大）。
+    if (!Array.isArray(trayPinned)) {
+      warnings.push('config.taskbar.trayPinned 不是数组，已回退默认（空名单）')
+    } else {
+      const known: TaskbarTrayPinnedEntry[] = []
+      let dropped = false
+      for (const item of trayPinned) {
+        if (item !== null && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string' && (item as Record<string, unknown>).id) {
+          const rec = item as Record<string, unknown>
+          known.push({ id: rec.id as string, name: typeof rec.name === 'string' ? rec.name : '' })
+        } else {
+          dropped = true
+        }
+      }
+      const deduped = known.filter((r, i) => known.findIndex((x) => x.id === r.id) === i)
+      if (dropped) warnings.push('config.taskbar.trayPinned 含非法条目（缺标识），已丢弃（合法条目保留）')
+      if (deduped.length !== known.length) warnings.push('config.taskbar.trayPinned 含重复标识，已去重（首见为准）')
+      out.trayPinned = deduped
     }
   }
   const maximizeRetract = section.maximizeRetract

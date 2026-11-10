@@ -1130,10 +1130,11 @@ function render(state: TaskbarState): void {
   if (state.enabled) {
     const summary = renderSummary(vm.metrics, latestStatus?.hardware ?? null)
     if (summary) rightPill.appendChild(summary)
-    // 托盘入栏（工单56）+ 溢出收口（工单162）：按档位拆分——名单序前 N 枚平铺在摘要与
-    // 音量格之间，超量尾部收进「⋯」（档位是用户声明的可见数，「⋯」不吃名额）；数量回落
-    // 重拆即图标回栏、「⋯」消失。名单空即整段不渲染（无 ⋯ 亦无图标）。
-    const { bar: trayBar, overflow: trayOverflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit)
+    // 托盘入栏（工单56）+ 溢出收口（工单162；工单462 常驻豁免）：按档位拆分——名单序前
+    // N 枚平铺在摘要与音量格之间，超量尾部收进「⋯」（档位是用户声明的可见数，「⋯」不吃
+    // 名额）；常驻名单内条目豁免切尾永远平铺、保持到达序原位，档位只数非常驻条目。数量
+    // 回落重拆即图标回栏、「⋯」消失。名单空即整段不渲染（无 ⋯ 亦无图标）。
+    const { bar: trayBar, overflow: trayOverflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit, vm.trayPinned)
     if (!trayOverflow.length) trayPopupRequested = false // 溢出清空：浮层请求随之失效（宿主侧由 changed/空拆分自收）
     for (const entry of trayBar) rightPill.appendChild(makeTrayEl(entry))
     if (trayOverflow.length) {

@@ -2,8 +2,8 @@
 // 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
-import { planAppsOverflow, planTrayOverflow } from '../shared/overflow.js'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import { planAppsOverflow, planTrayOverflow, trayPinnedMatcher } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -165,7 +165,8 @@ export interface TaskbarAppViewEntry {
  * 整个不渲染（工单192 两组显隐解耦——开始组按系统按钮、推荐组按推荐位有无，各自空则整组
  * 不渲染）；metrics（工单55）= 右组硬件摘要勾选子集（禁用态空壳）；
  * excluded（工单161）= 推荐栏移除名单（恢复菜单段的行来源）；
- * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径） */
+ * trayOverflowLimit（工单162）= 托盘溢出档位（缺省 5——旧快照无字段的兼容口径）；
+ * trayPinned（工单462）= 托盘常驻名单（缺省空——旧快照无字段的兼容口径） */
 export interface TaskbarViewModel {
   visible: boolean
   /** 推荐组 pill 显隐（工单192 独立拆出）：推荐位非空即独立在场，与开始组解耦 */
@@ -181,6 +182,8 @@ export interface TaskbarViewModel {
   tray: TaskbarTrayEntry[]
   /** 托盘溢出档位（工单162）：拆分名单与档位菜单 current 标记的唯一来源 */
   trayOverflowLimit: TaskbarTrayOverflowLimit
+  /** 托盘常驻名单（工单462）：豁免拆分谓词与「常驻管理」节勾选态的唯一来源 */
+  trayPinned: TaskbarTrayPinnedEntry[]
 }
 
 /**
@@ -190,7 +193,7 @@ export interface TaskbarViewModel {
  * 且推荐组也不在场的空壳态无栏面可右键，恢复走 config.json 手改口（与几何配置同风格）。
  */
 export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
-  if (!state.enabled) return { visible: false, recsVisible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5 }
+  if (!state.enabled) return { visible: false, recsVisible: false, buttons: [], recommendations: [], excluded: [], menu: [], metrics: [], apps: [], tray: [], trayOverflowLimit: 5, trayPinned: [] }
   const hidden = new Set(state.hiddenButtons)
   const buttons = TASKBAR_BUTTONS.filter((b) => !hidden.has(b.id))
   const recommendations = [...state.recommendations]
@@ -220,6 +223,7 @@ export function taskbarViewModel(state: TaskbarState): TaskbarViewModel {
     apps,
     tray: [...(state.tray ?? [])],
     trayOverflowLimit: state.trayOverflowLimit ?? 5,
+    trayPinned: [...(state.trayPinned ?? [])],
   }
 }
 
@@ -362,15 +366,18 @@ export function taskbarTierMenuPopupRows(current: TaskbarTrayOverflowLimit): Arr
 }
 
 /**
- * 托盘溢出拆分（工单162）：裁决本体是 shared/overflow 的 planTrayOverflow（与应用组
- * planAppsOverflow 同形态、同处 shared），本层只是把它接到托盘条目上。
+ * 托盘溢出拆分（工单162；工单462 常驻豁免接）：裁决本体是 shared/overflow 的
+ * planTrayOverflow（与应用组 planAppsOverflow 同形态、同处 shared），本层只是把它接到
+ * 托盘条目上。pinned = 常驻名单（taskbarPinnedMatch 先标识后名字装配成谓词）——名单内
+ * 条目豁免切尾永远平铺栏内、保持到达序原位，档位只数非常驻条目；缺省 = 旧语义不变。
  * overflow 非空即栏内「⋯」钮的渲染判据；浮层条目与栏内同一份名单序。
  */
 export function splitTrayOverflow(
   tray: readonly TaskbarTrayEntry[],
   limit: TaskbarTrayOverflowLimit,
+  pinned: readonly TaskbarTrayPinnedEntry[] = [],
 ): { bar: TaskbarTrayEntry[]; overflow: TaskbarTrayEntry[] } {
-  return planTrayOverflow(tray, limit)
+  return planTrayOverflow(tray, limit, trayPinnedMatcher(pinned))
 }
 
 /** 托盘溢出菜单行（工单162）：每行图标+名称——名称取 tooltip，空回退身份键（无 tip
@@ -390,6 +397,48 @@ export async function dispatchTrayOverflowLimit(
 ): Promise<TaskbarState | null> {
   if (!(TRAY_OVERFLOW_TIERS as ReadonlyArray<{ limit: TaskbarTrayOverflowLimit }>).some((t) => t.limit === limit)) return null
   return bridge.invoke('taskbar/set-tray-overflow-limit', { limit })
+}
+
+/**
+ * 常驻管理节行清单（工单462）：**全部**当前托盘图标（栏内+溢出内的并集 = 完整名单，
+ * 到达序）逐枚一行——现在看得见的图标也能提前钉住、防将来被裁。勾选态按常驻名单
+ * 匹配（先标识后名字，shared/overflow trayPinnedMatcher 同一份本体）。
+ */
+export function trayPinnedMenuRows(
+  tray: readonly TaskbarTrayEntry[],
+  pinned: readonly TaskbarTrayPinnedEntry[],
+): Array<{ key: string; label: string; pinned: boolean }> {
+  const isPinned = trayPinnedMatcher(pinned)
+  return tray.map((e) => ({ key: e.key, label: e.tooltip || e.key, pinned: isPinned(e) }))
+}
+
+/**
+ * 常驻管理弹窗行（工单462）：id = `pin:<key>` 供动作寻址、label = 「[✓ ]常驻 <名>」
+ * （✓ 前缀 = 名单内勾选态，与档位行的 current 前缀同一视觉语言；空 tooltip 回退身份键，
+ * 档位菜单行文本同源纪律）。托盘空名单时节为空（不占菜单行）。
+ */
+export function taskbarPinnedMenuPopupRows(
+  tray: readonly TaskbarTrayEntry[],
+  pinned: readonly TaskbarTrayPinnedEntry[],
+): Array<{ id: string; label: string }> {
+  return trayPinnedMenuRows(tray, pinned).map((r) => ({
+    id: `pin:${r.key}`,
+    label: `${r.pinned ? '✓ ' : ''}常驻 ${r.label}`,
+  }))
+}
+
+/**
+ * 常驻勾选分发（工单462）：经桥 invoke（taskbar/set-tray-pinned），匹配与持久化在内核
+ * （先标识后名字——同 id 改名换账、标识漂移按名字替换旧账）；回执 = 最新任务栏状态，
+ * 回推 taskbar/changed 驱动重拆（钉住即豁免溢出、解除即回档位账）。
+ */
+export async function dispatchTrayPinned(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+  id: string,
+  name: string,
+  pinned: boolean,
+): Promise<TaskbarState> {
+  return bridge.invoke('taskbar/set-tray-pinned', { id, name, pinned })
 }
 
 /**

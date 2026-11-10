@@ -65,10 +65,11 @@ function makeCell(entry: TaskbarTrayEntry): HTMLElement {
   return cell
 }
 
-/** 状态 → 格渲染（5 列行优先排布）；返回当拍溢出段（空 = 收层判据）。 */
+/** 状态 → 格渲染（5 列行优先排布）；返回当拍溢出段（空 = 收层判据）。常驻名单内条目
+ * 豁免拆分（工单462）——浮层与栏面同一条裁决本体，永不各判一次。 */
 function render(state: TaskbarState): TaskbarTrayEntry[] {
   const vm = taskbarViewModel(state)
-  const { overflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit)
+  const { overflow } = splitTrayOverflow(vm.tray, vm.trayOverflowLimit, vm.trayPinned)
   list.textContent = ''
   for (const entry of overflow) list.appendChild(makeCell(entry))
   return overflow

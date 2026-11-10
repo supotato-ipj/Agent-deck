@@ -23,14 +23,55 @@ export function planAppsOverflow<T>(entries: readonly T[], slots: number): Taskb
 }
 
 /**
- * 托盘溢出裁决（工单162）：limit = 用户档位（config 持久化的可见数，3/5/8/'all'），
- * 非几何容量——「⋯」钮是额外铬件，不吃档位名额（档位 3 就是真的 3 枚可见，这是与
- * planAppsOverflow 容量语义的分界）。名单序前 limit 枚可见、超量按序尾部收进溢出；
- * 'all' 永不溢出。数量回落（图标退出/档位上调）重拆即自动回栏。泛型：条目形态由
- * 调用方定（内核与渲染层共用同一裁决本体，两侧不许各判一次）。
+ * 托盘溢出裁决（工单162；工单462 常驻豁免扩展）：limit = 用户档位（config 持久化的可见数，
+ * 3/5/8/'all'），非几何容量——「⋯」钮是额外铬件，不吃档位名额（档位 3 就是真的 3 枚
+ * 可见，这是与 planAppsOverflow 容量语义的分界）。名单序前 limit 枚可见、超量按序尾部
+ * 收进溢出；'all' 永不溢出。数量回落（图标退出/档位上调）重拆即自动回栏。
+ *
+ * 常驻豁免（工单462）：isPinned 谓词命中（GLOSSARY「托盘常驻」名单内）的条目豁免切尾、
+ * 永远平铺栏内，保持到达序原位不重排不跳位；档位只数非常驻条目（钉图标不吃档位名额）。
+ * 谓词缺省 = 旧语义逐字不变（未接常驻名单的调用方零漂移）。泛型：条目形态由调用方定
+ * （内核与渲染层共用同一裁决本体，两侧不许各判一次）。
  */
-export function planTrayOverflow<T>(entries: readonly T[], limit: number | 'all'): TaskbarAppsOverflow<T> {
+export function planTrayOverflow<T>(
+  entries: readonly T[],
+  limit: number | 'all',
+  isPinned?: (entry: T) => boolean,
+): TaskbarAppsOverflow<T> {
   if (limit === 'all' || entries.length <= limit) return { bar: [...entries], overflow: [] }
-  const keep = Math.max(0, limit)
-  return { bar: entries.slice(0, keep), overflow: entries.slice(keep) }
+  const bar: T[] = []
+  const overflow: T[] = []
+  let kept = 0
+  for (const entry of entries) {
+    const pinned = isPinned ? isPinned(entry) : false
+    if (pinned || kept < limit) {
+      bar.push(entry)
+      if (!pinned) kept++
+    } else {
+      overflow.push(entry)
+    }
+  }
+  return { bar, overflow }
+}
+
+/**
+ * 托盘常驻匹配纯函数（工单462，GLOSSARY「托盘常驻」双保险记账）：记录 {id, name} 对条目
+ * {key, tooltip} 的匹配——先标识后名字。标识相等即命中（tooltip 改名的更新场景不脱钉）；
+ * 标识对不上且**双方名字都非空**才比名字（扛过重启后 hwnd 类标识漂移：记录里的旧
+ * `<hwnd>:<uid>` 键按勾选时刻的 tooltip 兜底命中新键）。名字空串不参与兜底（空 tooltip
+ * 条目只按标识比，防全栏误挂）。
+ */
+export function trayPinnedMatch(
+  record: { id: string; name: string },
+  entry: { key: string; tooltip: string },
+): boolean {
+  if (record.id === entry.key) return true
+  return !!record.name && !!entry.tooltip && record.name === entry.tooltip
+}
+
+/** 常驻名单谓词（planTrayOverflow isPinned 入参的装配形态）：任一记录命中即常驻。 */
+export function trayPinnedMatcher(
+  records: readonly { id: string; name: string }[],
+): (entry: { key: string; tooltip: string }) => boolean {
+  return (entry) => records.some((record) => trayPinnedMatch(record, entry))
 }

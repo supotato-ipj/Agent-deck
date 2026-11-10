@@ -239,6 +239,10 @@ export class BridgeService extends Service {
         const { limit } = payload as { limit: TaskbarTrayOverflowLimit }
         return this.ctx.taskbar.setTrayOverflowLimit(limit) as BridgeMethods[M]['response']
       }
+      case 'taskbar/set-tray-pinned': {
+        const { id, name, pinned } = payload as { id: string; name: string; pinned: boolean }
+        return this.ctx.taskbar.setTrayPinned(id, name, pinned) as BridgeMethods[M]['response']
+      }
       case 'taskbar/set-maximize-retract': {
         const { enabled } = payload as { enabled: boolean }
         return this.ctx.taskbar.setMaximizeRetract(enabled) as BridgeMethods[M]['response']

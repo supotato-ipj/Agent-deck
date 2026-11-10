@@ -17,6 +17,7 @@ const STATE: TaskbarState = {
   apps: [],
   tray: [],
   trayOverflowLimit: 5,
+  trayPinned: [],
   maximizeRetract: true,
 }
 

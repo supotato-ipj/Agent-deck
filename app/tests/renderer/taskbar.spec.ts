@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, PILL_PAD_X, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -14,7 +14,7 @@ import type { DesktopWorkspaceState, HardwareGauges, TaskbarAppEntry, TaskbarMet
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
-  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, maximizeRetract: true, ...over }
+  return { enabled: true, hiddenButtons: [], recommendations: [], excluded: [], metrics: ALL, apps: [], tray: [], trayOverflowLimit: 5, trayPinned: [], maximizeRetract: true, ...over }
 }
 
 const RECS = [
@@ -65,6 +65,8 @@ function fakeBridge(s: TaskbarState) {
       if (method === 'taskbar/tray-click') return Promise.resolve({ ok: true } as never)
       // 工单162 托盘溢出档位
       if (method === 'taskbar/set-tray-overflow-limit') return Promise.resolve(s as never)
+      // 工单462 托盘常驻名单
+      if (method === 'taskbar/set-tray-pinned') return Promise.resolve(s as never)
       // 工单239 最大化收栏开关
       if (method === 'taskbar/set-maximize-retract') {
         const { enabled } = payload as { enabled: boolean }
@@ -409,6 +411,12 @@ describe('托盘溢出菜单（工单162，fake bridge 驱动）', () => {
     expect(taskbarViewModel({ ...state(), trayOverflowLimit: undefined as never }).trayOverflowLimit).toBe(5)
   })
 
+  it('视图模型透出常驻名单（缺省空；旧快照无字段不炸——工单462）', () => {
+    expect(taskbarViewModel(state({ trayPinned: [{ id: 'a:1', name: '蓝牙' }] })).trayPinned).toEqual([{ id: 'a:1', name: '蓝牙' }])
+    expect(taskbarViewModel(state()).trayPinned).toEqual([])
+    expect(taskbarViewModel({ ...state(), trayPinned: undefined as never }).trayPinned).toEqual([])
+  })
+
   it('溢出拆分接视图条目：档位内全可见、超量尾部入溢出、「⋯」渲染判据 = overflow 非空', () => {
     const bar5 = splitTrayOverflow(SEVEN, 5)
     expect(bar5.bar.map((e) => e.key)).toEqual(['100:1', '101:1', '102:1', '103:1', '104:1'])
@@ -417,6 +425,19 @@ describe('托盘溢出菜单（工单162，fake bridge 驱动）', () => {
     expect(splitTrayOverflow(SEVEN, 3).bar).toHaveLength(3)
     // 全部档：永不溢出
     expect(splitTrayOverflow(SEVEN, 'all')).toEqual({ bar: SEVEN, overflow: [] })
+  })
+
+  it('溢出拆分接常驻名单（工单462）：名单内豁免切尾永远平铺、档位只数非常驻、到达序原位不重排', () => {
+    // 7 枚钉住 101:1 与 105:1、档位 5：非常驻恰 5 枚全在栏 → 全员在栏无溢出
+    const exempt = splitTrayOverflow(SEVEN, 5, [{ id: '101:1', name: '图标1' }, { id: '105:1', name: '图标5' }])
+    expect(exempt.bar).toHaveLength(7)
+    expect(exempt.overflow).toEqual([])
+    // 非常驻超量仍切尾：钉住末枚 106:1、档位 5 → 前 5 非常驻 + 常驻殿后，105:1 进溢出
+    const tailPinned = splitTrayOverflow(SEVEN, 5, [{ id: '106:1', name: '' }])
+    expect(tailPinned.bar.map((e) => e.key)).toEqual(['100:1', '101:1', '102:1', '103:1', '104:1', '106:1'])
+    expect(tailPinned.overflow.map((e) => e.key)).toEqual(['105:1'])
+    // 名单缺省 = 旧语义逐字不变（未接常驻的调用方零漂移）
+    expect(splitTrayOverflow(SEVEN, 5)).toEqual({ bar: SEVEN.slice(0, 5), overflow: SEVEN.slice(5) })
   })
 
   it('菜单行生成：每行 key+名称（tooltip 优先，空 tooltip 回退身份键）、序 = 名单序', () => {
@@ -1023,6 +1044,32 @@ describe('弹窗菜单行推导（工单196，四枚面行推导）', () => {
       { id: 'tier-5', label: '托盘 5 枚' },
       { id: 'tier-8', label: '托盘 8 枚' },
       { id: 'tier-all', label: '✓ 托盘 全部' },
+    ])
+  })
+
+  it('常驻管理节行（工单462）：栏内+溢出内全部图标按到达序在列（splitTrayOverflow 两侧并集）、id=pin:<key> 供动作寻址、名单内 ✓ 前缀、label=「常驻 <名>」（空 tooltip 回退身份键）', () => {
+    const tray: TaskbarTrayEntry[] = [
+      { key: 'a:1', tooltip: '蓝牙', iconKey: 'k1' },
+      { key: 'b:2', tooltip: '', iconKey: null },
+      { key: 'guid:c', tooltip: '电源', iconKey: 'k3' },
+    ]
+    expect(taskbarPinnedMenuPopupRows(tray, [{ id: 'guid:c', name: '电源' }])).toEqual([
+      { id: 'pin:a:1', label: '常驻 蓝牙' },
+      { id: 'pin:b:2', label: '常驻 b:2' },
+      { id: 'pin:guid:c', label: '✓ 常驻 电源' },
+    ])
+    expect(taskbarPinnedMenuPopupRows([], [])).toEqual([])
+    // 标识漂移恢复：账里记的是旧 id、当前名单按名字兜底命中 → ✓ 在场
+    expect(taskbarPinnedMenuPopupRows(tray, [{ id: 'zzz:9', name: '蓝牙' }])[0]).toEqual({ id: 'pin:a:1', label: '✓ 常驻 蓝牙' })
+  })
+
+  it('常驻勾选分发（工单462）：经 taskbar/set-tray-pinned 到桥（id/名字/勾选态）', async () => {
+    const b = fakeBridge(state())
+    await dispatchTrayPinned(b.bridge, 'a:1', '蓝牙', true)
+    await dispatchTrayPinned(b.bridge, 'a:1', '蓝牙', false)
+    expect(b.calls).toEqual([
+      { method: 'taskbar/set-tray-pinned', payload: { id: 'a:1', name: '蓝牙', pinned: true } },
+      { method: 'taskbar/set-tray-pinned', payload: { id: 'a:1', name: '蓝牙', pinned: false } },
     ])
   })
 

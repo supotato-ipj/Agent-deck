@@ -420,6 +420,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       hiddenButtons: config.taskbar.hiddenButtons,
       metrics: config.taskbar.metrics,
       trayOverflowLimit: config.taskbar.trayOverflowLimit,
+      // 托盘常驻名单（工单462）：随 config 下发，档位菜单「常驻管理」勾选经
+      // taskbar/set-tray-pinned 即时生效并落盘
+      trayPinned: config.taskbar.trayPinned,
       // 最大化收栏开关（工单239）：随 config 下发，默认开；设置浮层切换经
       // taskbar/set-maximize-retract 即时生效
       maximizeRetract: config.taskbar.maximizeRetract,
