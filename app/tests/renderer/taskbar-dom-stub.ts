@@ -339,6 +339,8 @@ export interface TaskbarDomStub {
   notifyCalls(name: string): unknown[]
   /** 存证事件计数（按名） */
   notifyCount(name: string): number
+  /** 桥 invoke 流水（方法 + 载荷）——点击分发断言用（工单460 起入桩） */
+  invokeCalls(): Array<{ method: string; payload: unknown }>
   /** 热区声明流水 */
   hotZones(): unknown[]
   /** 派发桥接事件（taskbar/bar-mode 等） */
@@ -367,6 +369,7 @@ export function installTaskbarDomStub(options: { state: TaskbarState }): Taskbar
   for (const el of elements.values()) el.body = body
   const notifies: Array<{ name: string; payload: unknown }> = []
   const zones: unknown[] = []
+  const invokes: Array<{ method: string; payload: unknown }> = []
   const listeners = new Map<string, Array<(payload: unknown) => void>>()
   let readyResolve: () => void = () => {}
   const ready = new Promise<void>((r) => { readyResolve = r })
@@ -395,7 +398,8 @@ export function installTaskbarDomStub(options: { state: TaskbarState }): Taskbar
         setHotZones: (z: unknown) => { zones.push(z) },
       },
       bridge: {
-        invoke: async (method: string, _payload: unknown) => {
+        invoke: async (method: string, payload: unknown) => {
+          invokes.push({ method, payload })
           if (method === 'taskbar/get-state') return options.state
           return { ok: true }
         },
@@ -425,6 +429,7 @@ export function installTaskbarDomStub(options: { state: TaskbarState }): Taskbar
     stripFor: (group: string) => elements.get('summon-strips')!.querySelector(`.tb-summon-strip[data-group="${group}"]`),
     notifyCalls: (name: string) => notifies.filter((n) => n.name === name).map((n) => n.payload),
     notifyCount: (name: string) => notifies.filter((n) => n.name === name).length,
+    invokeCalls: () => invokes.map((c) => ({ ...c })),
     hotZones: () => zones.slice(),
     emit: (event: string, payload: unknown) => {
       for (const fn of [...(listeners.get(event) ?? [])]) fn(payload)

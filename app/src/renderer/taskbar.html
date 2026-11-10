@@ -249,6 +249,18 @@
     border-radius: 10px;
   }
   .tb-network-cell .tb-system-icon { width: 16px; height: 16px; }
+  /* 对话窗入口格（工单460，spec #457 T4；GLOSSARY「对话窗入口格」）：插位硬件摘要与
+   * 首枚托盘图标之间（托盘群最左端），托盘图标格同款 28×28 格盒、16px 图标居中、
+   * 图标格族圆角 10px（非文本芯片格）。二态 DOM 判据 = data-state（idle/busy）+
+   * 图标内 tb-conv-bubble/tb-conv-dot 类名——busy 点亮（满色+activity 绿点标），idle 熄灭 */
+  .tb-conversation-cell {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  .tb-conversation-cell .tb-system-icon { width: 16px; height: 16px; }
   /* 摘要段定宽槽位（工单459）：数值用等宽数字（tabular-nums，逐拍跳动只在槽内消化）+
    * min-width 定宽 + 右对齐（设置浮层 #opacity-value 同款先例）——位数变化不改变段宽，
    * 整行总宽恒定、右组不再左右伸缩。段宽下限按读数极宽校准（真机红轮实证：ch 手估被

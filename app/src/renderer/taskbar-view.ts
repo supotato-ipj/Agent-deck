@@ -2,7 +2,7 @@
 // 开始组系统按钮显隐、推荐位透出、整组显隐边界、右键菜单行、溢出拆分；右组硬件摘要勾选子集、
 // 托盘图标名单、时钟/音量格、显示桌面细条），点击分发只经桥契约。
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
-import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
+import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 import { planAppsOverflow, planTrayOverflow, trayPinnedMatcher } from '../shared/overflow.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
@@ -140,6 +140,48 @@ export const NETWORK_CELL_ICONS: Readonly<Record<NetworkCellState, string>> = {
 export const NETWORK_CELL_TITLES: Readonly<Record<NetworkCellState, string>> = {
   up: '网络已连接',
   down: '网络已断开',
+}
+
+// —— 工单460 对话窗入口格（spec #457 T4；GLOSSARY「对话窗入口格」）——
+
+/** 对话窗入口格二态：busy = 任一后端 agent 会话在途 turn（点亮）、idle = 无（熄灭）。
+ * 二态、无微光中间态（票面口径：亮 = 有 agent 在干活）。 */
+export type ConversationCellState = 'busy' | 'idle'
+
+/**
+ * 会话清单 → 格二态（纯函数）：任一会话 status='busy' 即点亮；空清单/缺帧按熄灭——
+ * busy 是例外态，缺数据宁可熄灭不误报「有 agent 在干活」（与 networkCellState 的
+ * 乐观缺省相反：断网是另一方向的例外态，两格各按自家例外方向取缺省）。
+ */
+export function conversationCellState(
+  sessions: ReadonlyArray<Pick<ConversationSessionView, 'status'>> | null | undefined,
+): ConversationCellState {
+  return (sessions ?? []).some((s) => s?.status === 'busy') ? 'busy' : 'idle'
+}
+
+/**
+ * 二态图标（内联 SVG，开始组同族 24 框渲染层缩 16 呈现——taskbar.html 格盒 CSS）：
+ * 同一枚气泡轮廓（tb-conv-bubble），idle 熄灭（低透明度）、busy 点亮（满色 + 在干活
+ * 点标 tb-conv-dot，activity 绿不随主题）。类名是二态的 DOM 判据（电池 CDP 按类名
+ * 断言点亮/熄灭），不随实现漂移。
+ */
+export const CONVERSATION_CELL_ICONS: Readonly<Record<ConversationCellState, string>> = {
+  idle: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-conv-bubble" fill="currentColor" fill-rule="evenodd" opacity="0.45" d="M2 4H22V18H10L6 22V18H2V4ZM4 6V16H20V6H4Z"/></svg>',
+  busy: '<svg class="tb-system-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="tb-conv-bubble" fill="currentColor" fill-rule="evenodd" d="M2 4H22V18H10L6 22V18H2V4ZM4 6V16H20V6H4Z"/><circle class="tb-conv-dot" cx="12" cy="11" r="2.6" fill="#4cc38a"/></svg>',
+}
+
+/** 悬停提示（票面口径「对话窗」）：入口名不随二态变——busy 靠点亮呈现，title 恒指动作 */
+export const CONVERSATION_CELL_TITLE = '对话窗'
+
+/**
+ * 对话窗入口格点击分发（工单460）：复用现成桥方法 conversation/show——show+置前语义
+ * 在内核（conversation/window.ts show()：restore+show，非 toggle；ADR-0018 关窗只隐藏
+ * 不动），主进程零新增代码，渲染层零裁决。响应原样上抛（ok:false 也返回）。
+ */
+export async function dispatchConversationShow(
+  bridge: Pick<TaskbarBridge, 'invoke'>,
+): Promise<{ ok: boolean; error?: string }> {
+  return bridge.invoke('conversation/show', {})
 }
 
 /** 点击分发目录 = 开始组按钮 + 右组动作格 */

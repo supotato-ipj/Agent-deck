@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, GROUP_GAP, METRIC_SLOT_TEXT, NETWORK_CELL_ICONS, NETWORK_CELL_TITLES, networkCellState, PILL_PAD_X, RIGHT_CELLS, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
+import { appIconFallbackText, appsBand, appsBandFromSpans, appsBandLeft, appsBandLeftWithMode, appsPillLeft, combinedAppsBand, combinedPillsLeft, appsSlotsForCombined, desktopModeEntries, dispatchWorkspaceSwitch, appsSlotsFor, CELL_W, dispatchActivateWindow, dispatchConversationShow, dispatchTaskbarDragDrop, dispatchRecClick, dispatchRecMenuAction, dispatchRecRestore, dispatchTrayClick, dispatchTrayOverflowLimit, dispatchMaximizeRetract, dispatchTrayPinned, fetchTrayIcon, dispatchAppClick, dispatchAppMenuAction, dispatchAppNewInstance, dispatchTaskbarApp, dispatchTaskbarButton, dispatchTaskbarVisibility, CONVERSATION_CELL_ICONS, CONVERSATION_CELL_TITLE, conversationCellState, GROUP_GAP, METRIC_SLOT_TEXT, NETWORK_CELL_ICONS, NETWORK_CELL_TITLES, networkCellState, PILL_PAD_X, RIGHT_CELLS, splitAppsOverflow, splitTrayOverflow, taskbarAppMenuPopupRows, taskbarAppMenuRows, taskbarBlankMenuPopupRows, taskbarPinnedMenuPopupRows, taskbarRecMenuPopupRows, taskbarRecMenuRows, taskbarTierMenuPopupRows, taskbarViewModel, taskbarWinsMenuPopupRows, formatClock, formatMetric, summaryViewModel, TASKBAR_BUTTONS, TASKBAR_BUTTON_ICONS, TASKBAR_METRICS, TASKBAR_TRAY_ICON_PX, TRAY_OVERFLOW_TIERS, toggleMetric, trayIconPixelated, trayOverflowMenuRows, trayOverflowTierRows } from '../../src/renderer/taskbar-view'
 import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 /**
  * 任务栏 pill 渲染/点击契约测试（工单49/52/54/55——fake bridge 驱动，Node 中直跑不碰 DOM）：
@@ -10,7 +10,7 @@ import { TASKBAR_METRIC_KEYS } from '../../src/shared/contract'
 import type { TaskbarBridge, TaskbarAppViewEntry } from '../../src/renderer/taskbar-view'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { DesktopWorkspaceState, HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
+import type { ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarAppEntry, TaskbarMetric, TaskbarState, TaskbarTrayEntry } from '../../src/shared/contract'
 const ALL = [...TASKBAR_METRIC_KEYS]
 
 function state(over: Partial<TaskbarState> = {}): TaskbarState {
@@ -77,6 +77,8 @@ function fakeBridge(s: TaskbarState) {
         const hit = s.tray.find((t) => t.key === key)
         return Promise.resolve({ icon: hit?.iconKey ? { width: 16, height: 16, bgraBase64: 'AAAA' } : null } as never)
       }
+      // 工单460 对话窗入口格（复用现成桥方法——show+置前语义在内核，ADR-0018）
+      if (method === 'conversation/show') return Promise.resolve({ ok: true } as never)
       // 工单58 应用组溢出分发
       if (method === 'taskbar/activate-app') {
         const { exe } = payload as { exe: string }
@@ -1366,5 +1368,38 @@ describe('网络状态格（工单461，spec #457 T3：自绘二态，ADR-0031�
     expect(ids).toContain('network')
     expect(RIGHT_CELLS.find((c) => c.id === 'network')!.action).toBe('quick-settings')
     expect(ids.indexOf('network')).toBeLessThan(ids.indexOf('volume'))
+  })
+})
+
+describe('对话窗入口格（工单460，spec #457 T4：托盘群最左 + busy 点亮，ADR-0018）', () => {
+  it('conversationCellState：任一会话 busy→busy / 全非 busy→idle / 空清单与缺帧→idle（busy 是例外态，缺数据不误报点亮）', () => {
+    const view = (status: string) => ({ status }) as unknown as ConversationSessionView
+    expect(conversationCellState([view('busy')])).toBe('busy')
+    expect(conversationCellState([view('ready'), view('busy')])).toBe('busy')
+    expect(conversationCellState([view('busy'), view('ready')])).toBe('busy')
+    expect(conversationCellState([view('ready'), view('starting')])).toBe('idle')
+    expect(conversationCellState([view('ready'), view('ended'), view('failed')])).toBe('idle')
+    expect(conversationCellState([])).toBe('idle')
+    expect(conversationCellState(null)).toBe('idle')
+    expect(conversationCellState(undefined)).toBe('idle')
+  })
+
+  it('二态图标齐备：busy 含点亮标记 tb-conv-dot、idle 无（点亮二态的 DOM 判据——电池按类名断言）；图标为内联 SVG', () => {
+    for (const st of ['idle', 'busy'] as const) {
+      expect(CONVERSATION_CELL_ICONS[st]).toContain('<svg')
+      expect(CONVERSATION_CELL_ICONS[st]).toContain('tb-conv-bubble')
+    }
+    expect(CONVERSATION_CELL_ICONS.busy).toContain('tb-conv-dot')
+    expect(CONVERSATION_CELL_ICONS.idle).not.toContain('tb-conv-dot')
+  })
+
+  it('悬停提示=「对话窗」（票面口径——入口名不随二态变，busy 靠点亮呈现）', () => {
+    expect(CONVERSATION_CELL_TITLE).toBe('对话窗')
+  })
+
+  it('点击分发复用现成桥方法 conversation/show（主进程零新增代码——show+置前语义在内核，非 toggle）', async () => {
+    const { bridge, calls } = fakeBridge(state())
+    expect(await dispatchConversationShow(bridge)).toEqual({ ok: true })
+    expect(calls).toEqual([{ method: 'conversation/show', payload: {} }])
   })
 })
