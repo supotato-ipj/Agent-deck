@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { defaultAppearance, defaultAutostart, defaultAgentDesktop, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile, saveConfig } from '../src/main/config'
+import { describe, expect, it, vi } from 'vitest'
+import { defaultAppearance, defaultAutostart, defaultAgentDesktop, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, renameEpermRetry, resolveConfigFile, saveConfig } from '../src/main/config'
 
 const FALLBACK = { panel: { x: 0, y: 0, width: 1560, height: 1040 }, weather: defaultWeather(), desktop: defaultDesktopLayout(), search: defaultSearchConfig(), appearance: defaultAppearance(), tools: defaultTools(), plugins: defaultPlugins(), autostart: defaultAutostart(), taskbar: defaultTaskbar(), conversation: defaultConversation(), agentDesktop: defaultAgentDesktop() }
 
@@ -277,6 +277,46 @@ describe('config 模型（工单08 设置浮层透明度）', () => {
     const config = { ...FALLBACK, appearance: { cardOpacity: 0.3 } }
     saveConfig(file, config)
     expect(loadConfig(file, FALLBACK).config).toEqual(config)
+  })
+
+  it('renameEpermRetry：EPERM 瞬断一次重试即成功（AV/索引器短暂持锁不致命，工单459 全量门禁红轮修因）', () => {
+    let calls = 0
+    const sleeps: number[] = []
+    renameEpermRetry(() => {
+      calls++
+      if (calls === 1) {
+        const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, rename')
+        err.code = 'EPERM'
+        throw err
+      }
+    }, 'a', 'b', (ms) => sleeps.push(ms))
+    expect(calls).toBe(2)
+    expect(sleeps).toEqual([25])
+  })
+
+  it('renameEpermRetry：EPERM 贯穿四拨退避（25/50/100）后原样抛出', () => {
+    const eperm = (): never => {
+      const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, rename')
+      err.code = 'EPERM'
+      throw err
+    }
+    const sleeps: number[] = []
+    expect(() => renameEpermRetry(eperm, 'a', 'b', (ms) => sleeps.push(ms))).toThrow(/EPERM/)
+    expect(sleeps).toEqual([25, 50, 100])
+  })
+
+  it('renameEpermRetry：非 EPERM 错误立即抛出不重试（不吞真故障）', () => {
+    let calls = 0
+    const eacces = (): never => {
+      calls++
+      const err: NodeJS.ErrnoException = new Error('EACCES: permission denied, rename')
+      err.code = 'EACCES'
+      throw err
+    }
+    const sleeps: number[] = []
+    expect(() => renameEpermRetry(eacces, 'a', 'b', (ms) => sleeps.push(ms))).toThrow(/EACCES/)
+    expect(calls).toBe(1)
+    expect(sleeps).toEqual([])
   })
 })
 

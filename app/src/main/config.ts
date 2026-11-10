@@ -640,6 +640,31 @@ export function resolveConfigFile(override: string | undefined, appPath: string)
   return raw ? path.resolve(raw) : path.join(appPath, 'config.json')
 }
 
+/** rename EPERM 有界重试核心（工单459 全量门禁红轮修因）：Windows 上 AV/索引器会短暂
+ * 持住新落盘的 .tmp（libuv 打开不带 FILE_SHARE_DELETE，共享冲突 = EPERM）——25/50/100ms
+ * 退避重试消化瞬断（retryClipboardBusy「跨进程互斥面被占退避重试」同款先例）；其余错误码
+ * 立即抛出不吞真故障。rename/sleep 可注入（单测钉 EPERM 重试/非 EPERM 快抛两面——
+ * vitest 下 builtin 模块对象不共享，vi.spyOn 拦不到跨模块的 fs 调用，注入是唯一确定缝）。 */
+export function renameEpermRetry(
+  rename: (from: string, to: string) => void,
+  from: string,
+  to: string,
+  sleep: (ms: number) => void = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms),
+): void {
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      rename(from, to)
+      return
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== 'EPERM') throw err
+      lastErr = err
+      if (attempt < 3) sleep(25 * 2 ** attempt)
+    }
+  }
+  throw lastErr
+}
+
 /** 整份回写 config.json（首运行落盘与工单08 设置滑杆的持久化通道）。
  * tmp+rename 原子写（writeStoreText 先例）：config 收口屏幕几何/端口/透明度，
  * 坏写不碰原文件——半截 JSON 会让下次启动整体回退默认。 */
@@ -647,7 +672,7 @@ export function saveConfig(file: string, config: AppConfig): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   const tmp = `${file}.tmp`
   fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n', 'utf8')
-  fs.renameSync(tmp, file)
+  renameEpermRetry(fs.renameSync.bind(fs), tmp, file)
 }
 
 /**
