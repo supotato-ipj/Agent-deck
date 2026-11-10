@@ -794,6 +794,15 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
       .install(kernel.panelData, log, process.env.DECK_HW_GAUGE_FILE)
   }
 
+  // 网卡快照脚本喂入（工单461，accept 双门禁）：P11 网络状态格段要喂「无活动非内部网卡」
+  // 快照验二态翻转——真机断网态不可控（物理断网卡破坏宿主机连通性），本触发器把
+  // os.networkInterfaces 换成 DECK_NETWORK_SNAPSHOT_FILE 脚本文件现读（真判定纯函数与
+  // 真 1Hz 管线原样走通，只换快照源；文件缺位透传真实采样）。生产零启用。
+  if (PANEL_ACCEPT_MODE && process.env.DECK_NETWORK_SNAPSHOT_STUB === '1') {
+    require(path.join(app.getAppPath(), 'accept', 'lib', 'network-snapshot-stub.js'))
+      .install(log, process.env.DECK_NETWORK_SNAPSHOT_FILE)
+  }
+
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
   // 托盘点击、second-instance、Win+D 防抖恢复共用；恢复后的重钉是票01 实施要点。
   const showPanel = (reason: string) => {

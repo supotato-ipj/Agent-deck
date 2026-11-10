@@ -1384,6 +1384,17 @@
             "pixel"
           ],
           "estSeconds": 4
+        },
+        {
+          "seg": "P11",
+          "ticket": 461,
+          "title": "网络状态格（工单461，ADR-0031 自绘二态）：rightCells 挂 data-id 且插位「⋯」与音量格之间（音量格紧邻右侧）+ 联网态实机呈现（本机真实快照走真判定管线——实心信号、无斜杠无红点）+ 断网态随 1Hz taskbar/status 帧翻转（网卡快照 stub DECK_NETWORK_SNAPSHOT_STUB=1 双门禁喂「网卡在场无地址」快照走真判定管线——down 斜杠+红点类名在场；删脚本透传真实采样复原拍翻回 up，双向随帧更新）+ 点击开原生快速设置（与音量格同款 quick-settings 分发：合成回执+前台快速设置）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 11
         }
       ],
       "areas": [

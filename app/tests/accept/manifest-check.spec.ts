@@ -439,7 +439,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 硬件仪表 stub 喂窄/宽两拍读数、taskbar-geometry 帧右组矩形与摘要/音量/时钟格宽
     // 两拍不变——真实排版几何宽度是 jsdom 单测断不到的面，增段条件①；formatMetric 进位
     // 与槽位 CSS 产物由 taskbar renderer 单测族钉，增段条件②）。
-    expect(total).toBe(195)
+    // 195 → 196：工单461 增段——55-taskbar-right-group 电池增 P11（网络状态格自绘二态：
+    // 插位/联网态实机呈现、网卡快照 stub 喂无地址快照走真判定管线的 1Hz 帧双向翻转、
+    // 点击开原生快速设置——真机二态视觉与原生浮层前台是 jsdom 单测断不到的面，增段
+    // 条件①；判定纯函数与二态视图/分发由 network.spec 与 taskbar renderer 单测族钉，
+    // 增段条件②）。
+    expect(total).toBe(196)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

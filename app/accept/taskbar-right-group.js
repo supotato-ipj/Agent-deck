@@ -21,6 +21,11 @@
 //   P10 硬件摘要定宽槽位（工单459）：硬件仪表 stub 喂窄/宽两拍读数（1 位↔3 位百分位、
 //      短 KB↔满 5 位 KB 与 MB 进位），taskbar-geometry 右组矩形与摘要/音量/时钟格宽
 //      两拍不变 + tb-seg tabular-nums/右对齐/定宽 computed 三证
+//   P11 网络状态格（工单461，ADR-0031 自绘二态）：rightCells 挂 data-id 且插位「⋯」
+//      与音量格之间（音量格紧邻右侧）/联网态实机呈现（实心信号、无斜杠无红点）/
+//      断网态随 1Hz 帧翻转（网卡快照 stub 喂「网卡在场无地址」快照走真判定管线——
+//      down 斜杠+红点在场；删脚本复原拍翻回 up，双向随帧更新）/点击开原生快速设置
+//      （与音量格同款 quick-settings 分发）
 // 运行：npm run accept:taskbar-right-group（= electron . --accept-taskbar-right-group）。
 const { app, screen } = require('electron');
 const path = require('path');
@@ -55,6 +60,16 @@ const CDP_PORT = cdpPortFor('55-taskbar-right-group');
 // 三处拉面板（起跑 + P6/P9 重拉）都带同一 extraEnv；轮末 P10 段自删脚本文件。
 const HW_GAUGE_FILE = path.join(APP_ROOT, 'accept', 'evidence', '459-hw-gauge-script.json');
 const PANEL_ENV_459 = { DECK_HW_GAUGE_STUB: '1', DECK_HW_GAUGE_FILE: HW_GAUGE_FILE };
+// 工单461 网卡快照脚本喂入（P11 二态段）：控制器写脚本、面板进程内 stub
+// （accept/lib/network-snapshot-stub.js，DECK_NETWORK_SNAPSHOT_STUB=1 双门禁）在
+// os.networkInterfaces 现读——与 459 同门禁合并注入（一份 extraEnv 两 stub，其余段全程
+// 透传真实采样）；轮末 P11 段自删脚本文件。
+const NETWORK_SNAPSHOT_FILE = path.join(APP_ROOT, 'accept', 'evidence', '461-network-snapshot-script.json');
+const PANEL_ENV = {
+  ...PANEL_ENV_459,
+  DECK_NETWORK_SNAPSHOT_STUB: '1',
+  DECK_NETWORK_SNAPSHOT_FILE: NETWORK_SNAPSHOT_FILE,
+};
 const TASKBAR_TITLE = 'DECK-TASKBAR';
 const PANEL_TITLE = 'AGENT DECK';
 const VK_ESC = 0x1b;
@@ -272,7 +287,7 @@ async function main() {
 
     // —— 拉起面板子进程（任务栏启用态）——
     // 工单211：发射归面板句柄（mode='accept' ＝ ['.','--panel-accept'] ＋ CDP 端口）
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV_459 });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV });
     const boot = await tape.wait('boot', null, { timeoutMs: 15000 });
     if (!boot) throw new Error('面板子进程未上报 boot 事件');
     panelPid = boot.pid;
@@ -426,7 +441,7 @@ async function main() {
     panelPid = 0;
     await sleep(1200);
     const since6 = Date.now();
-    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV_459 });
+    handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV });
     const boot6 = await tape.wait('boot', undefined, { since: since6, timeoutMs: 15000 });
     if (!boot6) throw new Error('P6 重拉面板子进程未上报 boot');
     panelPid = boot6.pid;
@@ -1129,7 +1144,7 @@ async function main() {
       panelPid = 0;
       await sleep(1200);
       const since9d = Date.now();
-      handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV_459 });
+      handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore', extraEnv: PANEL_ENV });
       const boot9 = await tape.wait('boot', undefined, { since: since9d, timeoutMs: 15000 });
       if (!boot9) throw new Error('P9 重拉面板子进程未上报 boot');
       panelPid = boot9.pid;
@@ -1303,6 +1318,90 @@ async function main() {
       rep.pass(`P10 硬件摘要定宽槽位：窄/宽两拍读数（CPU 9%↔100%、DL 1.23KB/s↔999.99KB/s、UP 0.50KB/s↔125.50MB/s 含 MB 进位）taskbar-right-status 口径实机取证、tb-seg tabular-nums+右对齐+定宽槽位 computed 三证、taskbar-geometry 右组矩形与摘要/音量/时钟格宽两拍不变`);
     } else {
       rep.fail(`P10[定宽槽位] ${detail10}`);
+    }
+
+    // —— P11 网络状态格（工单461，spec #457 T3；ADR-0031 自绘二态）——
+    // 断言形态：①在场与插位（taskbar-geometry rightCells：network 挂 data-id 在场，音量格
+    // 紧邻右侧 = 插位「⋯」与音量之间）；②联网态实机呈现（本机真实快照——非内部网卡带 IP
+    // 即联网，data-state=up、实心信号、无斜杠无红点）；③断网态随 1Hz taskbar/status 帧翻转
+    // （网卡快照 stub——DECK_NETWORK_SNAPSHOT_STUB=1 双门禁，喂「网卡在场但无地址」快照走
+    // 真判定管线 toAdapterSnapshot→isNetworkUp=false，等下一拍把格翻成 down（斜杠+红点类名
+    // 在场）；删脚本透传真实采样复原拍翻回 up——两个方向都证「状态随帧更新」，真判定管线
+    // 原样只换快照源）；④点击开快速设置（与音量格同款分发：合成回执 quick-settings +
+    // 原生快速设置前台，P4 同判据）。
+    rep.beginSegment('P11');
+    let p11ok = false;
+    let detail11 = '';
+    let fg11 = null;
+    const snapFile11 = NETWORK_SNAPSHOT_FILE;
+    const netDom11 = () => cdpEval(TASKBAR_TITLE, `(() => {
+      const el = document.querySelector('[data-id="network"]');
+      if (!el) return null;
+      return { state: el.dataset.state ?? '', title: el.title,
+        bars: !!el.querySelector('.tb-net-bars'), slash: !!el.querySelector('.tb-net-slash'), dot: !!el.querySelector('.tb-net-dot') };
+    })()`);
+    const waitNetState11 = async (want, timeoutMs = 8000) => {
+      const deadline = Date.now() + timeoutMs;
+      let last = null;
+      while (Date.now() < deadline) {
+        last = await netDom11();
+        if (last && last.state === want) return last;
+        await sleep(300);
+      }
+      return last;
+    };
+    try {
+      // ① 在场与插位（几何帧口径；rightCells = 右组 [data-id] DOM 序——托盘图标挂 data-key
+      // 不进该列，⋯ 在场时夹在摘要与网络格之间不影响相邻断言）
+      const geo11 = await waitLastEvent('taskbar-geometry',
+        (e) => e.rightPill && (e.rightCells || []).some((c) => c.id === 'network'), 8000, {});
+      if (!geo11) throw new Error('taskbar-geometry 缺 network 格（data-id 几何口径未挂）');
+      const cells11 = geo11.rightCells.map((c) => ({ id: c.id, x: c.x, w: c.w }));
+      const idxNet11 = cells11.findIndex((c) => c.id === 'network');
+      const idxVol11 = cells11.findIndex((c) => c.id === 'volume');
+      const posOk11 = idxVol11 === idxNet11 + 1; // 音量格紧跟网络格右侧（插位「⋯」与音量之间）
+      detail11 += `插位=${JSON.stringify(cells11.map((c) => c.id))} 音量紧邻右侧=${posOk11}`;
+
+      // ② 联网态实机呈现（真实快照：本机在线 → 判定为真；此时 stub 脚本不在场=透传）
+      const up11 = await waitNetState11('up');
+      const upOk11 = !!up11 && up11.state === 'up' && up11.bars && !up11.slash && !up11.dot;
+      detail11 += ` 联网态=${JSON.stringify(up11)}`;
+
+      // ③ 断网态随 1Hz 帧翻转（stub 喂「网卡在场无地址」——真判定管线 isNetworkUp=false）
+      fs.writeFileSync(snapFile11, JSON.stringify({ WLAN: [] }), 'utf8');
+      const down11 = await waitNetState11('down');
+      const downOk11 = !!down11 && down11.state === 'down' && down11.slash && down11.dot && down11.bars;
+      detail11 += ` 断网态=${JSON.stringify(down11)}`;
+      // 复原拍：删脚本透传真实采样，1Hz 帧内翻回 up（随帧更新方向二的证据）
+      try { fs.unlinkSync(snapFile11); } catch { /* 本就缺位 */ }
+      const back11 = await waitNetState11('up');
+      const backOk11 = !!back11 && back11.state === 'up' && !back11.slash && !back11.dot;
+      detail11 += ` 复原拍=${JSON.stringify(back11)}`;
+
+      // ④ 点击开快速设置（与音量格同款分发——P4 同判据：合成回执 + 原生前台）
+      const netCell11 = geo11.rightCells.find((x) => x.id === 'network');
+      const netPt11 = toPhys(netCell11.x + netCell11.w / 2, netCell11.y + netCell11.h / 2);
+      const beforeP11 = foregroundInfo();
+      const conv11 = await convergeAt(netPt11, tbHwnd);
+      rep.note(`P11 点击前收敛=${conv11}`);
+      win32.clickPhys(netPt11.x, netPt11.y, 'left');
+      const ev11 = await tape.wait('taskbar-action-result', (e) => e.action === 'quick-settings' && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+      fg11 = await waitForeground((i) => isQuickSettings(i) && (!beforeP11 || i.hwnd !== beforeP11.hwnd), 6000);
+      const clickOk11 = conv11 && !!ev11 && ev11.ok && !!fg11;
+      detail11 += ` 点击回执=${JSON.stringify(ev11)} 前台=${JSON.stringify(fg11)}`;
+      const closed11 = await dismissFlyout();
+      rep.note(`P11 快速设置收起=${closed11}`);
+
+      p11ok = posOk11 && upOk11 && downOk11 && backOk11 && clickOk11;
+    } catch (e11) {
+      detail11 += ` 异常=${e11.message}`;
+    } finally {
+      try { fs.unlinkSync(snapFile11); } catch { /* 本就缺位 */ }
+    }
+    if (p11ok) {
+      rep.pass(`P11 网络状态格：rightCells 挂 data-id 且插位「⋯」与音量之间（音量格紧邻右侧）、联网态实心信号（无斜杠无红点）、断网态随 1Hz 帧翻转（stub 喂无地址快照走真判定管线——down 斜杠+红点在场）+ 复原拍回 up（双向随帧更新）、点击开原生快速设置（音量格同款分发，前台 ${fg11 ? `${fg11.exe} / ${fg11.cls}` : '缺'}）`);
+    } else {
+      rep.fail(`P11[网络状态格] ${detail11}`);
     }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
