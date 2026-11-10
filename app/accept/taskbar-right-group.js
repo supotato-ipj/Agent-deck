@@ -636,15 +636,17 @@ async function main() {
         const os = tape.all(undefined,
           (e) => e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized', { since });
         // ready 行几何：本开层拍有新回报用新拍；缺席（show 重开不触发页重回报——页只在
-        // boot/changed 回报）回退最近一拍——档位面行集静态（四行恒列，✓ 前缀不修行高，
-        // 行几何跨开拍不变），坐标算术稳定
+        // boot/changed 回报）回退最近一拍——行集 = 四档行恒列 + 常驻管理节（工单462：行数
+        // 随托盘名单量增长，开层判据从「恰 4 行」改「四档行齐列」；行高同族一致，行几何按
+        // 行 id 定位，跨开拍坐标算术稳定）
         let rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows), { since });
         if (!rd.length) rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows));
         return os.length && rd.length
           ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
           : null;
       };
-      // 右键开浮层（三试：右键偶发不开——49 族 P16⑥/⑰ 同款抖动，到靶收敛后重试）
+      // 右键开浮层（三试：右键偶发不开——49 族 P16⑥/⑰ 同款抖动，到靶收敛后重试）；
+      // 开层判据 = 四档行齐列（tier 行恰 4 条——常驻管理节行随名单量增列，工单462）
       const openTierPopup7 = async (ptOf) => {
         for (let attempt = 0; attempt < 3; attempt++) {
           const pt = ptOf();
@@ -655,7 +657,7 @@ async function main() {
           for (let i = 0; i < 12; i++) {
             await sleep(200);
             const pop = tierPopup7(since);
-            if (pop && pop.rows.length === 4) return pop;
+            if (pop && pop.rows.filter((r) => String(r.id || '').startsWith('tier-')).length === 4) return pop;
           }
         }
         return null;
@@ -916,6 +918,249 @@ async function main() {
         flags: 0, callbackMessage: 0, hicon: 0, uVersion: 0 });
       ShellNotifyIconW7(NIM_DELETE, nidDel8);
     }
+
+    // —— P9 托盘常驻（工单462）：档位菜单「常驻管理」节勾选即写名单即生效/豁免溢出裁剪
+    //        （档位只数非常驻、保持到达序原位）/解除即回档位账/跨面板重启保持——
+    // 断言形态：真实右键挂点开档位菜单点常驻行（input-injection）+ config 落盘与
+    // taskbar-geometry 栏面键序互证（system-state 面）+ taskbar-tray-pinned(-result)
+    // 存证（event-evidence 面）。探针：常驻行需「名单 > 档位」才有裁剪面——自注册 7 枚
+    // 探针钉名单量（P7/P8 同款机制，探针窗复用 P7 实例；tooltip DECK462-P<i> 特异命名，
+    // 与机器真实图标零名字碰撞——名字兜底匹配不误挂真图标）。真机勾选蓝牙/耳机/电源的
+    // 人眼验收不进电池（机器图标不定），由工单 462 真机轮 CDP 名单取证佐证。
+    rep.beginSegment('P9');
+    const since9 = Date.now();
+    // 档位与常驻名单基线（段尾复原——本段切档 2/1、勾 3 枚探针）
+    const prevLimit9 = (() => {
+      try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')).taskbar?.trayOverflowLimit ?? 5; } catch { return 5; }
+    })();
+    const prevPinned9 = (() => {
+      try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')).taskbar?.trayPinned ?? []; } catch { return []; }
+    })();
+    await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 5 })`);
+    await sleep(600); // 重拆 + 几何重报一拍
+    const uids9 = Array.from({ length: 7 }, (_, i) => 0x4620001 + i);
+    const probe9Keys = [];
+    for (const uid of uids9) {
+      const nid9 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
+        flags: NIF_MESSAGE | NIF_ICON | NIF_TIP, callbackMessage: PROBE_CB, hicon: Number(LoadIconW7(0, 32512)),
+        tooltip: `DECK462-P${uid - 0x4620001}`, uVersion: 0 });
+      if (ShellNotifyIconW7(NIM_ADD, nid9)) probe9Keys.push(`${probe162.hwnd}:${uid}`);
+    }
+    const probe9Names = probe9Keys.map((k, i) => `DECK462-P${i}`);
+    // 名单收编确认（探针全在册才继续——P7 rosterKeys 同款）
+    let roster9 = [];
+    for (let i = 0; i < 20; i++) {
+      roster9 = await rosterKeys();
+      if (probe9Keys.length && probe9Keys.every((k) => roster9.includes(k))) break;
+      await sleep(400);
+    }
+    rep.note(`P9 探针在册 ${probe9Keys.filter((k) => roster9.includes(k)).length}/${uids9.length} 名单=${roster9.length}`);
+    // 档位菜单浮层锚点（P7 tierPopup7 同式——P7 的闭包锚在其 else 块内，本段自持一份；
+    // opened/resized 窗 bounds 与 ready 行矩形两路配对，行几何按行 id 定位）
+    const tierPopup9 = (since) => {
+      const os = tape.all(undefined,
+        (e) => e.type === 'taskbar-tier-menu-opened' || e.type === 'taskbar-tier-menu-resized', { since });
+      let rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows), { since });
+      if (!rd.length) rd = tape.all('taskbar-tier-menu-ready', (e) => Array.isArray(e.rows));
+      return os.length && rd.length
+        ? { since, bounds: os[os.length - 1].bounds, rows: rd[rd.length - 1].rows, w: Number(rd[rd.length - 1].w) || 0 }
+        : null;
+    };
+    // 右键开浮层（三试，P7 openTierPopup7 同款抖动收敛；开层判据 = 四档行齐列）
+    const openTierPopup9 = async (ptOf) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const pt = ptOf();
+        if (!pt) return null;
+        await conv(pt); // 到靶停拍（convergeAt 内含热区翻转窗口）
+        const since = Date.now();
+        win32.clickPhys(pt.x, pt.y, 'right');
+        for (let i = 0; i < 12; i++) {
+          await sleep(200);
+          const pop = tierPopup9(since);
+          if (pop && pop.rows.filter((r) => String(r.id || '').startsWith('tier-')).length === 4) return pop;
+        }
+      }
+      return null;
+    };
+    const geo9a = await waitLastEvent('taskbar-geometry', (e) => e.trayOverflow, 8000, { since: since9 });
+    let arm1 = false, detail9a = '';
+    let pinRow0 = null, pinRow1 = null;
+    if (!geo9a) {
+      detail9a = '无 trayOverflow 几何（⋯ 未渲染）';
+    } else {
+      const morePt9 = toPhys(geo9a.trayOverflow.x + geo9a.trayOverflow.w / 2, geo9a.trayOverflow.y + geo9a.trayOverflow.h / 2);
+      const pop9 = await openTierPopup9(() => morePt9);
+      detail9a = `档位浮层=${pop9 ? '在场' : '缺'}`;
+      if (pop9) {
+        pinRow0 = pop9.rows.find((r) => r.id === `pin:${probe9Keys[0]}`);
+        pinRow1 = pop9.rows.find((r) => r.id === `pin:${probe9Keys[1]}`);
+        const pinRows9 = pop9.rows.filter((r) => String(r.id || '').startsWith('pin:'));
+        detail9a += ` 常驻行=${pinRows9.length}/${roster9.length} tier 行=${pop9.rows.filter((r) => String(r.id || '').startsWith('tier-')).length}`;
+        // 臂1a：常驻管理节列出全部名单（pin 行数 = 名单数，含栏内+溢出内——工单462 验收标准①）
+        const sectionOk = pinRows9.length === roster9.length;
+        // 臂1b：点行勾选即写名单即生效（存证回执 + config 落盘；两行连击不关层——keepOpen）
+        let result1 = null;
+        const clickPinRow9 = async (row) => {
+          const pt = {
+            x: Math.round((pop9.bounds.x + pop9.w / 2) * scale),
+            y: Math.round((pop9.bounds.y + row.y + row.h / 2) * scale),
+          };
+          win32.moveMousePhys(pt.x, pt.y);
+          await sleep(250);
+          win32.clickPhys(pt.x, pt.y, 'left');
+          await sleep(300); // changed 回推重渲一拍（keepOpen 面行集刷新）
+          const pop9b = tierPopup9(pop9.since);
+          return pop9b && pop9b.rows.find((r) => r.id === row.id);
+        };
+        if (pinRow0) {
+          const still = await clickPinRow9(pinRow0);
+          result1 = await tape.wait('taskbar-tray-pinned-result', (e) => e.key === probe9Keys[0] && e.pinned === true && e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+          detail9a += ` 行点击后浮层=${still ? '在场(keepOpen)' : '关'}`;
+        }
+        let result1b = null;
+        if (pinRow1 && result1) {
+          await clickPinRow9(pinRow1);
+          result1b = await tape.wait('taskbar-tray-pinned-result', (e) => e.key === probe9Keys[1] && e.pinned === true && e.ok && e.t >= Date.now() - 6000, { timeoutMs: 5000 });
+        }
+        const disk9 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+        const disk9pinned = disk9.taskbar?.trayPinned ?? [];
+        arm1 = sectionOk && !!result1 && !!result1b
+          && disk9pinned.some((r) => r.id === probe9Keys[0] && r.name === probe9Names[0])
+          && disk9pinned.some((r) => r.id === probe9Keys[1] && r.name === probe9Names[1]);
+        detail9a += ` 回执=${!!result1}/${!!result1b} 落盘=${JSON.stringify(disk9pinned)}`;
+        // 收层：点浮层外（不给后续臂留残留浮层）
+        const center9 = { x: Math.round((dip.x + dip.width / 2) * scale), y: Math.round((dip.y + dip.height / 2) * scale) };
+        win32.clickPhys(center9.x, center9.y, 'left');
+        await sleep(400);
+      }
+    }
+    if (arm1) {
+      rep.pass(`臂1 常驻管理节列出全部名单（栏内+溢出内 ${roster9.length} 行）、点行勾选即写名单即生效（config 落盘 {id,name} 双保险）、勾选连击不关层`);
+    } else {
+      rep.fail(`P9[臂1 勾选即生效] ${detail9a}`);
+    }
+
+    // 臂2：豁免溢出裁剪 + 档位只数非常驻 + 保持到达序原位——钉 2 枚探针、档位切 2，
+    // 栏面键序逐枚对账（期望序 = 名单序中「常驻豁免 + 前 2 枚非常驻」的插序序列）
+    let arm2 = false;
+    let detail9b = `探针=${probe9Keys.filter((k) => roster9.includes(k)).length}`;
+    try {
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 2 })`);
+      await sleep(800);
+      const roster9b = await rosterKeys();
+      const pinnedSet = new Set([probe9Keys[0], probe9Keys[1]].filter((k) => roster9b.includes(k)));
+      let kept = 0;
+      const expected9 = roster9b.filter((k) => pinnedSet.has(k) || kept++ < 2);
+      const geo9b = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: since9 });
+      const barKeys9 = geo9b ? geo9b.trayIcons.map((t) => t.key) : [];
+      arm2 = geo9b && !!geo9b.trayOverflow
+        && JSON.stringify(barKeys9) === JSON.stringify(expected9)
+        && barKeys9.length === expected9.length;
+      detail9b += ` 期望序=${JSON.stringify(expected9)} 栏内序=${JSON.stringify(barKeys9)} ⋯=${!!(geo9b && geo9b.trayOverflow)}`;
+      const disk9b = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      arm2 = arm2 && (disk9b.taskbar?.trayPinned ?? []).length === 2;
+    } catch (e9) {
+      detail9b += ` 异常=${e9.message}`;
+    }
+    if (arm2) {
+      rep.pass('臂2 常驻豁免溢出裁剪：档位 2 只数非常驻（栏内 = 2 常驻 + 2 非常驻）、到达序原位不重排（栏面键序逐枚对账）、「⋯」收余量');
+    } else {
+      rep.fail(`P9[臂2 豁免/计数/原位] ${detail9b}`);
+    }
+
+    // 臂3：解除常驻即回档位账——摘 1 枚，栏面跟随回 3 枚（2 非常驻 + 1 常驻）
+    let arm3 = false;
+    let detail9c = '';
+    try {
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[1])}, name: ${JSON.stringify(probe9Names[1])}, pinned: false })`);
+      await sleep(800);
+      const roster9c = await rosterKeys();
+      const pinned3 = new Set([probe9Keys[0]].filter((k) => roster9c.includes(k)));
+      let kept3 = 0;
+      const expected9c = roster9c.filter((k) => pinned3.has(k) || kept3++ < 2);
+      const geo9c = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: Date.now() - 4000 });
+      const barKeys9c = geo9c ? geo9c.trayIcons.map((t) => t.key) : [];
+      const disk9c = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      arm3 = JSON.stringify(barKeys9c) === JSON.stringify(expected9c)
+        && (disk9c.taskbar?.trayPinned ?? []).length === 1
+        && disk9c.taskbar.trayPinned[0].id === probe9Keys[0];
+      detail9c += ` 期望=${JSON.stringify(expected9c)} 栏内=${JSON.stringify(barKeys9c)} 落盘=${JSON.stringify(disk9c.taskbar?.trayPinned ?? [])}`;
+    } catch (e9c) {
+      detail9c += ` 异常=${e9c.message}`;
+    }
+    if (arm3) {
+      rep.pass('臂3 解除常驻即回档位账：名单摘条、栏面回「2 非常驻 + 1 常驻」、落盘同步');
+    } else {
+      rep.fail(`P9[臂3 解除回账] ${detail9c}`);
+    }
+
+    // 臂4：跨面板重启保持——再钉 1 枚（账 2 条）、P6 同款强退重拉，重启后账原样、
+    // 豁免语义照走（档位 1 下栏内 = 2 常驻 + 1 非常驻，「⋯」在场）
+    let arm4 = false;
+    let detail9d = '';
+    try {
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[2])}, name: ${JSON.stringify(probe9Names[2])}, pinned: true })`);
+      await sleep(400);
+      await stopPanelOrAbort(rep); // 工单211：验证强退（gone=false 即中止信号）
+      panelPid = 0;
+      await sleep(1200);
+      const since9d = Date.now();
+      handle.launch({ mode: 'accept', cdpPort: CDP_PORT, stdio: 'ignore' });
+      const boot9 = await tape.wait('boot', undefined, { since: since9d, timeoutMs: 15000 });
+      if (!boot9) throw new Error('P9 重拉面板子进程未上报 boot');
+      panelPid = boot9.pid;
+      await handle.waitWindow({ title: TASKBAR_TITLE, timeoutMs: 12000 });
+      // 名单重建确认：控制器探针窗仍在场，面板重启后收编广播回填（P7 收编轮询同款）
+      for (let i = 0; i < 20; i++) {
+        roster9 = await rosterKeys();
+        if (probe9Keys.length && probe9Keys.every((k) => roster9.includes(k))) break;
+        await sleep(400);
+      }
+      const st9 = await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/get-state', {})`);
+      const pinned9 = (st9 && Array.isArray(st9.trayPinned)) ? st9.trayPinned : [];
+      const disk9d = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      const expectLedger = [probe9Keys[0], probe9Keys[2]].map((k) => ({ id: k, name: probe9Names[probe9Keys.indexOf(k)] }));
+      const ledgerOk = JSON.stringify(pinned9.map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger)
+        && JSON.stringify((disk9d.taskbar?.trayPinned ?? []).map((r) => ({ id: r.id, name: r.name }))) === JSON.stringify(expectLedger);
+      await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: 1 })`);
+      await sleep(800);
+      const roster9d = await rosterKeys();
+      const pinned4 = new Set([probe9Keys[0], probe9Keys[2]].filter((k) => roster9d.includes(k)));
+      let kept4 = 0;
+      const expected9d = roster9d.filter((k) => pinned4.has(k) || kept4++ < 1);
+      const geo9d = await waitLastEvent('taskbar-geometry', (e) => e.trayIcons && e.trayIcons.length >= 2, 8000, { since: since9d });
+      const barKeys9d = geo9d ? geo9d.trayIcons.map((t) => t.key) : [];
+      arm4 = ledgerOk && !!geo9d && !!geo9d.trayOverflow
+        && JSON.stringify(barKeys9d) === JSON.stringify(expected9d);
+      detail9d += ` 重启账=${JSON.stringify(pinned9)} 落盘=${JSON.stringify(disk9d.taskbar?.trayPinned ?? [])} 期望序=${JSON.stringify(expected9d)} 栏内=${JSON.stringify(barKeys9d)} ⋯=${!!(geo9d && geo9d.trayOverflow)}`;
+    } catch (e9d) {
+      detail9d += ` 异常=${e9d.message}`;
+    }
+    if (arm4) {
+      rep.pass('臂4 跨面板重启保持：常驻账原样恢复（state+config 双证）、档位 1 下豁免照走（栏内 = 2 常驻 + 1 非常驻）');
+    } else {
+      rep.fail(`P9[臂4 重启保持] ${detail9d}`);
+    }
+
+    // 段尾复原：档位回基线、常驻名单清空（本段 3 枚探针钉账逐一解除——探针拆除后账内
+    // 记录会成幽灵，恢复「名单不产生幽灵图标」的无残留口径）、探针拆除
+    try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-overflow-limit', { limit: ${JSON.stringify(prevLimit9)} })`); } catch { /* 条带已不在场 */ }
+    for (let i = 0; i < probe9Keys.length; i++) {
+      try { await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(probe9Keys[i])}, name: ${JSON.stringify(probe9Names[i])}, pinned: false })`); } catch { /* 面板已退场 */ }
+    }
+    for (const uid of uids9) {
+      const nidDel9 = encodeNotifyIconData({ arch: 'x64', version: 3, hwnd: probe162.hwnd, uid,
+        flags: 0, callbackMessage: 0, hicon: 0, uVersion: 0 });
+      ShellNotifyIconW7(NIM_DELETE, nidDel9);
+    }
+    // 基线名单非空的兜底（上轮异常残留）：基线恢复逐条回写（正常轮 prevPinned9 为空，零写）
+    try {
+      if (prevPinned9.length) {
+        for (const r of prevPinned9) {
+          await cdpEval(TASKBAR_TITLE, `window.deck.bridge.invoke('taskbar/set-tray-pinned', { id: ${JSON.stringify(r.id)}, name: ${JSON.stringify(r.name ?? '')}, pinned: true })`);
+        }
+      }
+    } catch { /* 面板已退场 */ }
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
