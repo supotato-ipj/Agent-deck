@@ -38,6 +38,9 @@ let main: ServerHandle
 let other: ServerHandle
 let auditDir: string
 let auditFile: string
+/** 工单347：自环路由命中数（跟随跳数的观测口）；other origin 命中数（凭证零外泄观测口） */
+let loopHits = 0
+let otherHits = 0
 
 beforeAll(async () => {
   auditDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-net-broker-'))
@@ -59,6 +62,28 @@ beforeAll(async () => {
       res.writeHead(302, { location: `${other.origin}/secret` })
       res.end()
     },
+    // —— 工单347：同 origin 有界跟随夹具路由 ——
+    '/hop-301': (_req, res) => {
+      res.writeHead(301, { location: '/data.json' }) // 相对 location：按当前跳 URL 解析
+      res.end()
+    },
+    '/hop-302': (_req, res) => {
+      res.writeHead(302, { location: `${main.origin}/data.json` }) // 绝对 location
+      res.end()
+    },
+    '/hop-twice': (_req, res) => {
+      res.writeHead(302, { location: '/hop-301' }) // 链式：/hop-twice → /hop-301 → /data.json
+      res.end()
+    },
+    '/loop': (_req, res) => {
+      loopHits += 1
+      res.writeHead(302, { location: '/loop' }) // 同源自环：跳满上限的观测口
+      res.end()
+    },
+    '/hop-echo': (_req, res) => {
+      res.writeHead(302, { location: '/echo-headers' }) // 同源跳到终点后回显请求头
+      res.end()
+    },
     '/echo-headers': (req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ headers: req.headers }))
@@ -72,6 +97,7 @@ beforeAll(async () => {
   })
   other = await serve({
     '/secret': (_req, res) => {
+      otherHits += 1 // 工单347：跨 origin 零命中的证明口
       res.writeHead(200, { 'content-type': 'text/plain' })
       res.end('secret')
     },
@@ -180,6 +206,150 @@ describe('重定向不自动跟随（工单338）', () => {
     const raw = fs.readFileSync(auditFile, 'utf8')
     expect(raw).toContain(other.origin)
     expect(raw).not.toContain('/secret')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 同 origin 重定向有界跟随（工单347）：GET/HEAD 的同 origin（URL.origin 精确相等）3xx
+// 由 Broker 有界代为跟随——最多 maxRedirects 跳（缺省 3，可按包收紧不可放宽），每跳重过
+// 授权门、计一个速率额度、一条审计、独立 timeoutMs，凭证按同包同 origin 重新注入；
+// 成功结果只多 redirects 计数（0 基）。跨 origin 与非 GET/HEAD 的 3xx 维持
+// network_redirect_blocked；跳满上限仍在 3xx → network_redirect_limit（带最后已知 location）。
+// ---------------------------------------------------------------------------
+describe('同 origin 重定向有界跟随（工单347）', () => {
+  it('同源 301（相对 location）→ 跟随到 /data.json：ok、200、正文正确、redirects=1', async () => {
+    const { broker } = boot({ limits: { requestsPerSecond: 100 } })
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/hop-301` })
+    expect(out.ok).toBe(true)
+    if (!out.ok) return
+    expect(out).toMatchObject({ status: 200, origin: main.origin, method: 'GET', truncated: false, redirects: 1 })
+    expect(JSON.parse(String(out.text))).toEqual({ hello: 'deck', from: 'fixture' })
+  })
+
+  it('同源 302（绝对 location）→ 同样跟随：redirects=1', async () => {
+    const { broker } = boot({ limits: { requestsPerSecond: 100 } })
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/hop-302` })
+    expect(out).toMatchObject({ ok: true, status: 200, origin: main.origin, redirects: 1 })
+  })
+
+  it('同源链式两跳 → redirects=2；直连无跳 → redirects=0', async () => {
+    const { broker } = boot({ limits: { requestsPerSecond: 100 } })
+    const chained = await broker.requestForPackage('pkg-net', { url: `${main.origin}/hop-twice` })
+    expect(chained).toMatchObject({ ok: true, status: 200, origin: main.origin, redirects: 2 })
+    const direct = await broker.requestForPackage('pkg-net', { url: `${main.origin}/data.json` })
+    expect(direct).toMatchObject({ ok: true, redirects: 0 })
+  })
+
+  it('同源自环 → 跳满缺省 3 跳 → network_redirect_limit + 最后已知 location（命中 4 次后停）', async () => {
+    const { broker } = boot({ limits: { requestsPerSecond: 100 } })
+    const before = loopHits
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/loop` })
+    expect(out).toMatchObject({ ok: false, code: 'network_redirect_limit', status: 302, origin: main.origin, method: 'GET' })
+    if (out.ok) return
+    expect(String(out.location)).toBe('/loop')
+    expect(loopHits - before).toBe(4) // 首跳 + 3 次跟随，第 4 个 3xx 即停
+  })
+
+  it('覆写 maxRedirects:1（收紧）→ 一跳即 limit；覆写 99（放宽）被 min 钳回缺省 3', async () => {
+    const tight = boot({ limits: { requestsPerSecond: 100 }, packageLimits: { 'pkg-tight': { maxRedirects: 1 } } })
+    const beforeTight = loopHits
+    const outTight = await tight.broker.requestForPackage('pkg-tight', { url: `${main.origin}/loop` })
+    expect(outTight).toMatchObject({ ok: false, code: 'network_redirect_limit' })
+    expect(loopHits - beforeTight).toBe(2) // 允许跳 1 次，第 2 个 3xx 即 limit
+    const wide = boot({ limits: { requestsPerSecond: 100 }, packageLimits: { 'pkg-wide': { maxRedirects: 99 } } })
+    const beforeWide = loopHits
+    const outWide = await wide.broker.requestForPackage('pkg-wide', { url: `${main.origin}/loop` })
+    expect(outWide).toMatchObject({ ok: false, code: 'network_redirect_limit' })
+    expect(loopHits - beforeWide).toBe(4) // 放宽不可能生效：仍按缺省 3 跳
+  })
+
+  it('POST 遇同源 302 → 仍 network_redirect_blocked（仅 GET/HEAD 自动跟随，带 location）', async () => {
+    const { broker } = boot({ limits: { requestsPerSecond: 100 } })
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/hop-302`, method: 'POST', body: 'x' })
+    expect(out).toMatchObject({ ok: false, code: 'network_redirect_blocked', status: 302, origin: main.origin, method: 'POST' })
+    if (out.ok) return
+    expect(String(out.location)).toContain('/data.json')
+  })
+
+  it('带凭证同源跟随：终点请求头含注入凭证、凭证逐跳按本 origin 重新解析、other origin 零命中', async () => {
+    const seen: string[] = []
+    const broker = new NetworkBroker({
+      authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
+      credentials: {
+        resolve: (pkg, name, origin) => {
+          seen.push(`${pkg}|${name}|${origin}`)
+          return { ok: true, headerName: 'authorization', value: 'Bearer hop-secret' }
+        },
+      },
+      audit: null,
+      log: () => {},
+      limits: { requestsPerSecond: 100 },
+    })
+    const before = otherHits
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/hop-echo`, credential: 'hop-cred' })
+    expect(out).toMatchObject({ ok: true, status: 200, origin: main.origin, redirects: 1 })
+    if (!out.ok) return
+    const headers = JSON.parse(String(out.text)).headers as Record<string, string>
+    expect(headers.authorization).toBe('Bearer hop-secret')
+    // 每跳按「同包 + 本 origin」重新 resolve：首跳 + 跟随跳各一次，origin 全部是授权 origin
+    expect(seen).toEqual([`pkg-net|hop-cred|${main.origin}`, `pkg-net|hop-cred|${main.origin}`])
+    expect(otherHits - before).toBe(0) // other origin 零命中：凭证零外泄是被证明的
+  })
+
+  it('授权中途撤销 → 第二跳 network_permission_denied（跟随链断供，终点零命中）', async () => {
+    let dataHits = 0
+    const target = await serve({
+      '/go': (_req, res) => { res.writeHead(302, { location: '/data.json' }); res.end() },
+      '/data.json': (_req, res) => { dataHits += 1; res.writeHead(200, { 'content-type': 'text/plain' }); res.end('hit') },
+    })
+    try {
+      let gateCalls = 0
+      const broker = new NetworkBroker({
+        authorization: {
+          activeGrant: () => {
+            gateCalls += 1
+            return gateCalls === 1
+              ? { permissions: ['network.request'], networkOrigins: [target.origin] }
+              : { permissions: ['media.read'], networkOrigins: [target.origin] }
+          },
+        },
+        audit: null,
+        log: () => {},
+        limits: { requestsPerSecond: 100 },
+      })
+      const out = await broker.requestForPackage('pkg-net', { url: `${target.origin}/go` })
+      expect(out).toMatchObject({ ok: false, code: 'network_permission_denied', origin: target.origin })
+      expect(dataHits).toBe(0) // 第二跳根本没发（零窗口断链）
+    } finally {
+      await target.close()
+    }
+  })
+
+  it('审计：同源两跳 → 3 条账（2 跳 + 1 终点），中间跳带 redirectTo，账面不含路径', async () => {
+    const file = path.join(auditDir, 'audit-hop-chain.jsonl')
+    const audit = new NetworkAuditService({ file, now: () => Date.now(), log: () => {} })
+    const broker = new NetworkBroker({
+      authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
+      audit,
+      log: () => {},
+      limits: { requestsPerSecond: 100 },
+    })
+    const out = await broker.requestForPackage('pkg-net', { url: `${main.origin}/hop-twice` })
+    expect(out).toMatchObject({ ok: true, redirects: 2 })
+    const raw = fs.readFileSync(file, 'utf8').trim()
+    const lines = raw.split('\n').map((l) => JSON.parse(l) as Record<string, unknown>)
+    expect(lines).toHaveLength(3)
+    for (const rec of lines) {
+      expect(rec.origin).toBe(main.origin)
+      expect(rec.outcome).toBe('ok')
+    }
+    expect(lines[0]).toMatchObject({ status: 302, redirectTo: main.origin }) // /hop-twice → /hop-301
+    expect(lines[1]).toMatchObject({ status: 301, redirectTo: main.origin }) // /hop-301 → /data.json
+    expect(lines[2]).toMatchObject({ status: 200 })
+    expect(raw).not.toContain('/hop-twice')
+    expect(raw).not.toContain('/data.json')
+    const buckets = audit.aggregate()
+    expect(buckets[0].counts.request).toBe(3)
   })
 })
 
