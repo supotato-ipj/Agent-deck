@@ -36,7 +36,7 @@ import { createNodeProjectionSource, type ManagedProjectionSource } from './conv
 import { SessionCredentialRegistry } from './conversation/managed-credentials'
 import { productionPluginRoots } from './plugins/roots'
 import { DroppedPackageHost } from './plugins/package-host'
-import { PackageMemorySentinel } from './plugins/memory-sentinel'
+import { PackageMemorySentinel, privateBytesOf } from './plugins/memory-sentinel'
 import { ExecutionContextRegistry } from './plugins/identity'
 import { PluginAuthorizationLedger } from './plugins/authorization-ledger'
 import { createSafeStorageCipher } from './credentials/safe-storage'
@@ -635,11 +635,13 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 页 view.media 即时更新（面板兜底 tick 另有同拍；包内按 lastUpdatedTime 插值）。
   kernel.on('media/snapshot-changed', () => droppedPackageHost.refreshMedia())
   // 包内存哨兵（工单344，ADR-0027 内存半边的运行时闸门）：采样薄壳——判账全在纯逻辑
-  // 账本（memory-sentinel.ts），此处只喂事实源：pid 对照（宿主层）+ 进程工作集
-  // （app.getAppMetrics 按 pid，与 diag/memory 同一事实源；不做边际基线减法，包进程
-  // 工作集直标 128MB 预算线）。两级处置：首次超线 = 告警（存证 + 条带 toast，留给用户
-  // 自己动手的窗口）；连续 3 轮 = 显式停用（照抄既有停用路径：error 态 + 渲染进程销毁，
-  // 账/包文件不动、不自动重挂）。无在场投放包即停表（开销有界）。
+  // 账本（memory-sentinel.ts），此处只喂事实源：pid 对照（宿主层）+ 进程私有提交内存
+  // （app.getAppMetrics 按 pid 读 memory.privateBytes，KB→bytes；工单452 口径切换——
+  // 工作集是 OS 可随时回收的可变指标，修剪扫击一拍塌方、深压配额夹死线下，私有口径
+  // 全形态稳态；不做边际基线减法，包进程私有读数直标判据线 80MB，与容量尺
+  // resourceLimits 128MB 双尺并存不换算）。两级处置：首次超线 = 告警（存证 + 条带
+  // toast，留给用户自己动手的窗口）；连续 3 轮 = 显式停用（照抄既有停用路径：error 态
+  // + 渲染进程销毁，账/包文件不动、不自动重挂）。无在场投放包即停表（开销有界）。
   const droppedPackageNameOf = (id: string): string =>
     (kernelRef?.plugins.droppedInfo() ?? []).find((p) => p.id === id)?.name ?? id
   // 在场包 id 集（status=ok 的 dropped 清单）：采样事实源与离场清账比对共用同一口径
@@ -649,10 +651,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     {
       livePackageIds,
       pidEntries: () => droppedPackageHost.pidEntries(),
-      readWorkingSetBytes: (pid) => {
-        const m = app.getAppMetrics().find((x) => x.pid === pid)
-        return m && m.memory ? m.memory.workingSetSize * 1024 : null
-      },
+      readPrivateBytes: (pid) => privateBytesOf(app.getAppMetrics().find((x) => x.pid === pid)),
     },
     {
       // 读数缺失放行只留证（宁可漏报不误杀）：进程刚崩、时序缝隙的放行凭据

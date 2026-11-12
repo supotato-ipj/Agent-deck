@@ -6,11 +6,12 @@ import { Context } from 'cordis'
 import { PluginHostService } from '../../src/main/plugins/service'
 import type { DroppedPackageInfo } from '../../src/shared/contract'
 import { currentHostApiVersion } from '../../src/main/plugins/catalog'
-import { PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES } from '../../src/main/plugins/budget'
+import { PACKAGE_SENTINEL_PRIVATE_MEMORY_BUDGET_BYTES } from '../../src/main/plugins/budget'
 
 /**
  * 内存哨兵停用补偿（工单344，单测矩阵 4）：停用后包账与包文件不动、错误码正确、
  * 不自动重挂——哨兵永远不会误删用户的资产（spec 用户故事 12 的兜底）。
+ * 工单452 判据口径切换：facts 阈值随哨兵判据尺（私有提交内存 80MB）同源更新。
  */
 
 function tmpDir(): string {
@@ -33,7 +34,7 @@ function baseManifest(over: Record<string, unknown> = {}): Record<string, unknow
   }
 }
 
-const FACTS = { bytes: 150 * 1024 * 1024, thresholdBytes: PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES, rounds: 3 }
+const FACTS = { bytes: 100 * 1024 * 1024, thresholdBytes: PACKAGE_SENTINEL_PRIVATE_MEMORY_BUDGET_BYTES, rounds: 3 }
 
 async function boot(opts: { droppedRoots?: string[] } = {}) {
   const ctx = new Context()
