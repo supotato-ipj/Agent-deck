@@ -248,6 +248,40 @@ export class NetworkBroker {
     } catch { /* 审计失败不连累请求 */ }
   }
 
+  /** 工单347 评审修复：授权门——首请求与跟随链每跳共用同一份判定（两处永不漂移）；denyTail 区分消息尾注 */
+  private authorizationGate(packageId: string, origin: string, method: string, denyTail: string): Extract<NetworkResult, { ok: false }> | null {
+    const grant = this.opts.authorization?.activeGrant(packageId) ?? null
+    if (grant && grant.permissions.includes('network.request') && originGranted(grant.networkOrigins, origin)) return null
+    this.audit({ packageId, origin, method, outcome: 'denied', code: 'network_permission_denied' })
+    return { ok: false, code: 'network_permission_denied', message: `origin 未获授权（network.request 缺失或 ${origin} 不在授予集）——${denyTail}`, origin, method }
+  }
+
+  /** 工单347 评审修复：速率门——每请求一跳一次额度（站内跳转也是真实请求，没有免费出口） */
+  private rateGate(packageId: string, origin: string, method: string, effective: NetworkLimits): Extract<NetworkResult, { ok: false }> | null {
+    if (this.rateOk(packageId)) return null
+    this.audit({ packageId, origin, method, outcome: 'error', code: 'network_rate_limited' })
+    return { ok: false, code: 'network_rate_limited', message: `超过每包速率上限（${effective.requestsPerSecond}/s）——稍后重试`, origin, method }
+  }
+
+  /**
+   * 工单347 评审修复：凭证门（工单339 注入语义）——首请求与跟随链每跳共用；重解析前先摘
+   * 旧注入头（包不能覆盖/窥探注入面；首请求 injectedHeaderName='' 时空摘除为 no-op）。
+   * 通过返回新注入头名（未带凭证原样返回），否则结构化 credential_unavailable。
+   */
+  private credentialGate(packageId: string, origin: string, method: string, credentialName: string, headers: Record<string, string>, injectedHeaderName: string): { error: Extract<NetworkResult, { ok: false }> } | { injectedHeaderName: string } {
+    if (injectedHeaderName) delete headers[injectedHeaderName]
+    if (!credentialName) return { injectedHeaderName }
+    const resolved = this.opts.credentials?.resolve(packageId, credentialName, origin) ?? null
+    if (!resolved || resolved.ok !== true) {
+      const message = resolved ? resolved.message : '凭证面未装配'
+      // 审计只记「凭证不可用」这一结果，不记凭证名细节以外的任何内容（无 secret）
+      this.audit({ packageId, origin, method, outcome: 'error', code: 'credential_unavailable' })
+      return { error: { ok: false, code: 'credential_unavailable', message, origin, method } }
+    }
+    headers[resolved.headerName] = resolved.value
+    return { injectedHeaderName: resolved.headerName }
+  }
+
   async requestForPackage(packageId: string, spec: NetworkRequestSpec): Promise<NetworkResult> {
     const rawUrl = typeof spec?.url === 'string' ? spec.url : ''
     const method = String(spec?.method ?? 'GET').trim().toUpperCase() || 'GET'
@@ -261,11 +295,8 @@ export class NetworkBroker {
     }
     const origin = originCheck.origin
     // 授权门：network.request 在账 + 精确 origin 命中（未授权 origin 默认拒绝）
-    const grant = this.opts.authorization?.activeGrant(packageId) ?? null
-    if (!grant || !grant.permissions.includes('network.request') || !originGranted(grant.networkOrigins, origin)) {
-      this.audit({ packageId, origin, method, outcome: 'denied', code: 'network_permission_denied' })
-      return { ok: false, code: 'network_permission_denied', message: `origin 未获授权（network.request 缺失或 ${origin} 不在授予集）——请求不付`, origin, method }
-    }
+    const denied = this.authorizationGate(packageId, origin, method, '请求不付')
+    if (denied) return denied
     if (!ALLOWED_METHODS.has(method)) {
       this.audit({ packageId, origin, method, outcome: 'error', code: 'network_failed' })
       return { ok: false, code: 'network_failed', message: `方法不支持：${method}（允许 GET/POST/PUT/PATCH/DELETE/HEAD）`, origin, method }
@@ -277,10 +308,8 @@ export class NetworkBroker {
       this.audit({ packageId, origin, method, outcome: 'error', code: 'network_rate_limited' })
       return { ok: false, code: 'network_rate_limited', message: `并发上限（${effective.maxConcurrent}）已满——稍后重试`, origin, method }
     }
-    if (!this.rateOk(packageId)) {
-      this.audit({ packageId, origin, method, outcome: 'error', code: 'network_rate_limited' })
-      return { ok: false, code: 'network_rate_limited', message: `超过每包速率上限（${effective.requestsPerSecond}/s）——稍后重试`, origin, method }
-    }
+    const limited = this.rateGate(packageId, origin, method, effective)
+    if (limited) return limited
     // 头白名单（其余丢弃：包不能自设凭证/主机头）
     const headers: Record<string, string> = { accept: '*/*' }
     const requestedHeaders = (spec?.headers ?? {}) as Record<string, unknown>
@@ -293,17 +322,9 @@ export class NetworkBroker {
     const credentialName = typeof spec?.credential === 'string' ? spec.credential : ''
     /** 工单347：当前已注入的凭证头名（同 origin 跟随逐跳重新解析前先摘旧头，包不能覆盖注入面） */
     let injectedHeaderName = ''
-    if (credentialName) {
-      const resolved = this.opts.credentials?.resolve(packageId, credentialName, origin) ?? null
-      if (!resolved || resolved.ok !== true) {
-        const message = resolved ? resolved.message : '凭证面未装配'
-        // 审计只记「凭证不可用」这一结果，不记凭证名细节以外的任何内容（无 secret）
-        this.audit({ packageId, origin, method, outcome: 'error', code: 'credential_unavailable' })
-        return { ok: false, code: 'credential_unavailable', message, origin, method }
-      }
-      headers[resolved.headerName] = resolved.value
-      injectedHeaderName = resolved.headerName
-    }
+    const credentialed = this.credentialGate(packageId, origin, method, credentialName, headers, injectedHeaderName)
+    if ('error' in credentialed) return credentialed.error
+    injectedHeaderName = credentialed.injectedHeaderName
     const bodyText = typeof spec?.body === 'string' ? spec.body : undefined
     const body = bodyText !== undefined && method !== 'GET' && method !== 'HEAD' ? Buffer.from(bodyText, 'utf8') : undefined
     if (body) headers['content-length'] = String(body.length)
@@ -364,29 +385,15 @@ export class NetworkBroker {
                 ...(location ? { location: String(location).slice(0, 512) } : {}),
               }
             }
-            // 每跳重过授权门（撤销即断链，零窗口）
-            const hopGrant = this.opts.authorization?.activeGrant(packageId) ?? null
-            if (!hopGrant || !hopGrant.permissions.includes('network.request') || !originGranted(hopGrant.networkOrigins, hopOrigin)) {
-              this.audit({ packageId, origin: hopOrigin, method, outcome: 'denied', code: 'network_permission_denied' })
-              return { ok: false, code: 'network_permission_denied', message: `origin 未获授权（network.request 缺失或 ${hopOrigin} 不在授予集）——跟随链断供`, origin: hopOrigin, method }
-            }
-            // 每跳计一个速率额度（站内跳转也是真实请求，没有免费出口）
-            if (!this.rateOk(packageId)) {
-              this.audit({ packageId, origin: hopOrigin, method, outcome: 'error', code: 'network_rate_limited' })
-              return { ok: false, code: 'network_rate_limited', message: `超过每包速率上限（${effective.requestsPerSecond}/s）——稍后重试`, origin: hopOrigin, method }
-            }
-            // 凭证按「同包 + 本 origin」重新 resolve；先摘旧注入头（包不能覆盖/窥探注入头）
-            if (credentialName) {
-              if (injectedHeaderName) delete headers[injectedHeaderName]
-              const resolved = this.opts.credentials?.resolve(packageId, credentialName, hopOrigin) ?? null
-              if (!resolved || resolved.ok !== true) {
-                const message = resolved ? resolved.message : '凭证面未装配'
-                this.audit({ packageId, origin: hopOrigin, method, outcome: 'error', code: 'credential_unavailable' })
-                return { ok: false, code: 'credential_unavailable', message, origin: hopOrigin, method }
-              }
-              headers[resolved.headerName] = resolved.value
-              injectedHeaderName = resolved.headerName
-            }
+            // 每跳重过三道门（授权/速率/凭证）——与首请求同一份判定，两处永不漂移：
+            // 撤销授权即断链（零窗口）；跳也占速率额度（真实请求）；凭证重解析先摘旧头
+            const hopDenied = this.authorizationGate(packageId, hopOrigin, method, '跟随链断供')
+            if (hopDenied) return hopDenied
+            const hopLimited = this.rateGate(packageId, hopOrigin, method, effective)
+            if (hopLimited) return hopLimited
+            const hopCredentialed = this.credentialGate(packageId, hopOrigin, method, credentialName, headers, injectedHeaderName)
+            if ('error' in hopCredentialed) return hopCredentialed.error
+            injectedHeaderName = hopCredentialed.injectedHeaderName
             // 中间跳审计：outcome ok + 状态码 + redirectTo = 下一跳 origin（账面按行天然成链）
             this.audit({ packageId, origin: hopOrigin, method, outcome: 'ok', status: reply.status, redirectTo: nextUrl.origin })
             currentUrl = nextUrl
