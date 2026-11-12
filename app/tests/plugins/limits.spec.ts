@@ -19,10 +19,10 @@ const NET_DEFAULTS = PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'n
 const MEDIA_DEFAULTS = PLUGIN_CONTRACT_CATALOG.permissions.find((p) => p.id === 'media.control')!.limits
 
 describe('限额覆写合并（工单345：可收紧不可放宽）', () => {
-  it('五项限额各一条收紧生效：network 四项 + media.control 速率，全部进合并产物', () => {
+  it('六项限额各一条收紧生效：network 五项（含工单347 maxRedirects）+ media.control 速率，全部进合并产物', () => {
     const raw = {
       'pkg-a': {
-        'network.request': { requestsPerSecond: 2, maxConcurrent: 1, timeoutMs: 5000, maxResponseBytes: 1024 },
+        'network.request': { requestsPerSecond: 2, maxConcurrent: 1, timeoutMs: 5000, maxResponseBytes: 1024, maxRedirects: 1 },
         'media.control': { commandsPerSecond: 3 },
       },
     }
@@ -39,15 +39,27 @@ describe('限额覆写合并（工单345：可收紧不可放宽）', () => {
           maxConcurrent: (NET_DEFAULTS.maxConcurrent as number) + 1,
           timeoutMs: (NET_DEFAULTS.timeoutMs as number) + 1,
           maxResponseBytes: (NET_DEFAULTS.maxResponseBytes as number) + 1,
+          maxRedirects: (NET_DEFAULTS.maxRedirects as number) + 1,
         },
         'media.control': { commandsPerSecond: (MEDIA_DEFAULTS.commandsPerSecond as number) + 1 },
       },
     })
     expect(out.rejections.map((r) => r.code)).toEqual([
-      'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected',
+      'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected', 'limit_widen_rejected',
     ])
     // 全部被拒：该包产物剪枝为空（放宽不可能生效）
     expect(out.limits['pkg-a']).toBeUndefined()
+  })
+
+  it('工单347 maxRedirects：收紧生效进产物与投影；放宽（>目录缺省 3）结构化拒绝', () => {
+    const tight = mergeLimitsOverrides({ 'pkg-a': { 'network.request': { maxRedirects: 1 } } })
+    expect(tight.rejections).toEqual([])
+    expect(tight.limits).toEqual({ 'pkg-a': { 'network.request': { maxRedirects: 1 } } })
+    expect(permissionLimitColumns(tight.limits, 'pkg-a')['network.request'].maxRedirects).toEqual({ default: 3, effective: 1 })
+    const wide = mergeLimitsOverrides({ 'pkg-a': { 'network.request': { maxRedirects: (NET_DEFAULTS.maxRedirects as number) + 1 } } })
+    expect(wide.rejections).toHaveLength(1)
+    expect(wide.rejections[0]).toMatchObject({ code: 'limit_widen_rejected', path: 'pkg-a.network.request.maxRedirects' })
+    expect(wide.limits).toEqual({})
   })
 
   it('放宽拒绝只剪该条目：同权限下合法收紧条目照常保留', () => {
