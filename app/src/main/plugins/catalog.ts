@@ -136,15 +136,16 @@ const PERMISSIONS: readonly PermissionDescriptor[] = [
     id: 'network.request',
     kind: 'sensitive',
     domain: 'network',
-    summary: '向精确授权的 origin 发起 HTTP(S) 请求-响应（无凭证；重定向不自动跟随）',
+    // 工单347：summary 只改重定向句（同 origin 有界跟随；「无凭证」措辞归工单339，不动）
+    summary: '向精确授权的 origin 发起 HTTP(S) 请求-响应（无凭证；同 origin 3xx 有界跟随——仅 GET/HEAD、上限 maxRedirects=3，跨 origin 仍拦）',
     grant: 'exact-origin',
     data: ['HttpResponse（有界响应体：文本/JSON/二进制字节副本；不含中间流）'],
     actions: ['network/request'],
     events: [],
-    // 工单338：限额与权限拒绝分域——限流/超时/重定向/失败各不同码
-    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'credential_unavailable', 'unknown_context'],
+    // 工单338：限额与权限拒绝分域——限流/超时/重定向/失败各不同码；工单347 补跳满上限码
+    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_redirect_limit', 'network_failed', 'credential_unavailable', 'unknown_context'],
     userGestureRequired: false,
-    limits: { requestsPerSecond: 5, maxResponseBytes: 2 * 1024 * 1024, timeoutMs: 10_000, maxConcurrent: 2 },
+    limits: { requestsPerSecond: 5, maxResponseBytes: 2 * 1024 * 1024, timeoutMs: 10_000, maxConcurrent: 2, maxRedirects: 3 },
     // 工单338：origin 授权/宿主代理面/限额/脱敏审计全链落地
     status: 'enforced',
   },
@@ -196,13 +197,15 @@ const BASELINE_HOST_API: readonly BaselineApiDomain[] = [
     id: 'host.network',
     // 工单338：网络域落地。放行只经宿主代理面——包页自己的 fetch/XHR 仍被 session 级
     // webRequest + CSP 全拒；NetworkBroker 做逐 origin 授权、限额与脱敏审计。
-    summary: '向 manifest 声明且获批的精确 origin 发起有界 HTTP(S) 请求-响应（network.request；重定向不自动跟随、无凭证）',
+    // 工单347：summary 只改重定向句（同 origin 有界跟随；「无凭证」措辞归工单339，不动）；
+    // errors 清单与 network.request 权限条目保持同款（工单338/339 先例：两处数组同步登记）
+    summary: '向 manifest 声明且获批的精确 origin 发起有界 HTTP(S) 请求-响应（network.request；同 origin 3xx 有界跟随——仅 GET/HEAD、上限 maxRedirects=3，跨 origin 仍拦、无凭证）',
     dto: {
-      'NetworkResponse': '有界响应（status/origin/method/contentType/bytes/truncated + text 或 base64 字节副本；无中间流）',
+      'NetworkResponse': '有界响应（status/origin/method/contentType/bytes/truncated/redirects + text 或 base64 字节副本；无中间流）',
     },
     actions: ['network/request'],
     events: [],
-    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_failed', 'credential_unavailable', 'unknown_context'],
+    errors: ['network_permission_denied', 'network_rate_limited', 'network_timeout', 'network_redirect_blocked', 'network_redirect_limit', 'network_failed', 'credential_unavailable', 'unknown_context'],
     status: 'enforced',
   },
 ]
@@ -238,6 +241,8 @@ const ERRORS: readonly ContractErrorEntry[] = [
   { code: 'network_rate_limited', kind: 'runtime', message: '网络请求超过每包速率或并发上限（requestsPerSecond / maxConcurrent，生效值随包收紧，见 resourceLimits 投影）——稍后重试' },
   { code: 'network_timeout', kind: 'runtime', message: '网络请求超时（timeoutMs，生效值随包收紧）——与权限拒绝分域' },
   { code: 'network_redirect_blocked', kind: 'runtime', message: '重定向不自动跟随：返回目标 origin，如需访问须单独请求并先取得授权' },
+  // —— 工单347 同 origin 重定向有界跟随（跳满上限仍在 3xx，对称携带最后已知 location）——
+  { code: 'network_redirect_limit', kind: 'runtime', message: '同 origin 重定向跳数超上限（maxRedirects，缺省 3，可按包收紧不可放宽）仍在 3xx——已停止跟随，返回最后已知目标 location' },
   { code: 'network_failed', kind: 'runtime', message: '授权请求执行失败（DNS/连接/方法不支持/非法 URL）' },
   // —— 工单339 命名凭证错误（凭证面与网络权限相互独立）——
   // —— 工单341 资源预算（超限显式拒绝，不静默退化）——
