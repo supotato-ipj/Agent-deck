@@ -1,7 +1,7 @@
 import {
   MEMORY_SENTINEL_CONFIRM_ROUNDS,
   MEMORY_SENTINEL_INTERVAL_MS,
-  PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES,
+  PACKAGE_SENTINEL_PRIVATE_MEMORY_BUDGET_BYTES,
 } from './budget'
 
 /**
@@ -22,8 +22,9 @@ import {
  * - `PackageMemorySentinel`：采样薄壳（定时器 + 动作分发），生产装配注入真实读数。
  *
  * **唯一新缝 = 内存读数函数注入**（与「包数上限可注入」同族，ADR-0027 本就写了测试
- * 可注入）：生产 = `app.getAppMetrics()` 按 pid 读工作集（与 diag/memory 同一事实源），
- * 测试 = 罐头读数。本文件不 import Electron（硬规矩）。
+ * 可注入）：生产 = `app.getAppMetrics()` 按 pid 读**私有提交内存**（`memory.privateBytes`，
+ * KB→bytes；工单452 口径切换——工作集是 OS 可随时回收的可变指标，修剪扫击一拍塌方、
+ * 深压配额夹死线下，私有口径全形态稳态），测试 = 罐头读数。本文件不 import Electron（硬规矩）。
  */
 
 /** 一条 pid↔包对照（宿主层事实：webContents → OS pid，换代即换 pid） */
@@ -46,7 +47,7 @@ export type SentinelAction =
 /** 采样留证注记（读数缺失时的放行凭据） */
 export interface MemorySentinelSampleNote {
   packageId: string
-  /** pid 缺失（对照表没登记/已摘除）= null；有 pid 但读不到工作集也是 bytes=null */
+  /** pid 缺失（对照表没登记/已摘除）= null；有 pid 但读不到私有提交内存也是 bytes=null */
   pid: number | null
   bytes: null
 }
@@ -86,7 +87,7 @@ export class PackagePidRegistry {
 
 /**
  * 采样投影（单测矩阵 1）：在场包 id 集 + pid 对照 + 读数函数 → 每包每轮读数。
- * pid 缺失（对照表没登记）或读数函数拿不到工作集（进程刚崩、时序缝隙）→ bytes=null
+ * pid 缺失（对照表没登记）或读数函数拿不到私有提交内存（进程刚崩、时序缝隙）→ bytes=null
  * 放行留证——不处置，宁可漏报不误杀。
  */
 export function projectSample(
@@ -104,9 +105,25 @@ export function projectSample(
   })
 }
 
-/** 哨兵参数（缺省 = budget.ts 单一正典：128MB / 3 轮） */
+/**
+ * getAppMetrics 条目 → 私有提交内存读数（工单452 判据口径映射）：`memory.privateBytes`
+ * 单位 KB，换算为字节返回；条目/字段缺席（undefined）→ null 放行留证（下游采样投影
+ * 另有有限性守卫兜底，宁可漏报不误杀）。纯函数不 import Electron（硬规矩）——
+ * 生产薄壳（index.ts）按 pid 查表后传入，单测直接灌罐头条目。
+ */
+export function privateBytesOf(entry: { memory?: { privateBytes?: number } } | undefined): number | null {
+  const kb = entry?.memory?.privateBytes
+  return typeof kb === 'number' ? kb * 1024 : null
+}
+
+/** 哨兵参数（缺省 = budget.ts 单一正典：判据尺私有口径 80MB / 3 轮，工单452） */
 export interface PackageMemorySentinelParams {
-  /** 预算线（字节；哨兵与契约 resourceLimits 共用同一常量，不出现第二把尺） */
+  /**
+   * 预算线（字节；判据尺口径 = 私有提交内存，缺省取 budget.ts
+   * PACKAGE_SENTINEL_PRIVATE_MEMORY_BUDGET_BYTES。与契约 resourceLimits 的容量尺
+   * （128MB 工作集口径）**双尺并存不换算**——判据尺答「这个包失控了吗」，
+   * 容量尺答「这台机器还能装几个包」（工单452）。
+   */
   thresholdBytes?: number
   /** 连续超线停用轮数 */
   rounds?: number
@@ -126,7 +143,7 @@ export class PackageMemorySentinelLedger {
   private readonly streaks = new Map<string, number>()
 
   constructor(params: PackageMemorySentinelParams = {}) {
-    this.thresholdBytes = params.thresholdBytes ?? PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES
+    this.thresholdBytes = params.thresholdBytes ?? PACKAGE_SENTINEL_PRIVATE_MEMORY_BUDGET_BYTES
     this.rounds = params.rounds ?? MEMORY_SENTINEL_CONFIRM_ROUNDS
   }
 
@@ -164,8 +181,8 @@ export interface MemorySentinelPorts {
   livePackageIds: () => readonly string[]
   /** pid 对照快照（宿主层 PackagePidRegistry.entries） */
   pidEntries: () => readonly PackagePidEntry[]
-  /** 内存读数函数（唯一新缝）：pid → 工作集字节；读不到 = null 放行 */
-  readWorkingSetBytes: (pid: number) => number | null
+  /** 内存读数函数（唯一新缝）：pid → 私有提交内存字节（KB→bytes，工单452 口径）；读不到 = null 放行 */
+  readPrivateBytes: (pid: number) => number | null
 }
 
 /** 采样薄壳的动作出口（判账结果的事实消费端） */
@@ -197,7 +214,7 @@ export class PackageMemorySentinel {
     this.intervalMs = params.intervalMs ?? MEMORY_SENTINEL_INTERVAL_MS
   }
 
-  /** 预算线读数（诊断/验收对照用；与契约 resourceLimits 同源） */
+  /** 判据线读数（诊断/验收对照用；判据尺自有常量，与契约 resourceLimits 容量尺双尺并存不换算——工单452） */
   get thresholdBytes(): number {
     return this.ledger.thresholdBytes
   }
@@ -224,7 +241,7 @@ export class PackageMemorySentinel {
     const live = this.ports.livePackageIds()
     if (live.length === 0) return // 无包不采样（停表由 refresh 驱动，此处兜底）
     const entries = this.ports.pidEntries()
-    const readings = projectSample(live, entries, this.ports.readWorkingSetBytes)
+    const readings = projectSample(live, entries, this.ports.readPrivateBytes)
     const missing = readings
       .filter((r) => r.bytes === null)
       .map((r) => ({ packageId: r.packageId, pid: entries.find((e) => e.packageId === r.packageId)?.pid ?? null, bytes: null as null }))

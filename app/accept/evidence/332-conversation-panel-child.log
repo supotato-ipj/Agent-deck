@@ -3837,3 +3837,873 @@ DevTools listening on ws://127.0.0.1:9231/devtools/browser/86f6be24-03e3-43c0-95
 [2872:1110/004903.840:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
 [2872:1110/004903.840:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
 (electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/a075025e-a04d-48d1-aaa7-3b063af24efe
+[17604:1113/002451.480:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17604:1113/002451.480:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17604:1113/002451.480:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[17604:1113/002451.664:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17604:1113/002451.664:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[17604:1113/002451.664:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17604:1113/002451.664:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[17604:1113/002451.664:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[17604:1113/002451.664:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:520:42)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:555:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:565:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:555:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/2d956874-e9e6-4451-bdc8-c8036a27bfaa
+[30660:1113/002832.807:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[30660:1113/002832.816:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[30660:1113/002832.816:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[30660:1113/002832.947:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[30660:1113/002832.947:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[30660:1113/002832.947:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[30660:1113/002832.947:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[30660:1113/002832.948:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[30660:1113/002832.948:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/8fa72692-fc84-4c14-9d06-622cfe52c430
+[40912:1113/003345.193:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40912:1113/003345.193:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40912:1113/003345.193:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[40912:1113/003345.309:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40912:1113/003345.309:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[40912:1113/003345.309:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40912:1113/003345.309:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[40912:1113/003345.309:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[40912:1113/003345.309:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:520:42)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:555:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:565:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:555:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/254d1952-14cc-4c64-b5dd-0d162703601a
+[79132:1113/003601.061:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[79132:1113/003601.069:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[79132:1113/003601.069:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[79132:1113/003601.197:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[79132:1113/003601.197:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[79132:1113/003601.201:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[79132:1113/003601.201:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[79132:1113/003601.201:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[79132:1113/003601.201:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/c70cb1e6-5308-44dc-b9cb-f1ba273efde5
+[72988:1113/004245.702:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[72988:1113/004245.702:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[72988:1113/004245.702:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[72988:1113/004245.808:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[72988:1113/004245.808:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[72988:1113/004245.808:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[72988:1113/004245.808:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[72988:1113/004245.808:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[72988:1113/004245.808:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:520:42)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:555:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:565:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:533:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:555:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:545:38)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property media is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:499:43)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property network is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:501:50)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+[W] app Error: property credentials is not registered, declare it as `inject` to suppress this warning
+        at Proxy.invoke (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\services\bridge.js:525:46)
+        at Object.apply (D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\node_modules\@cordisjs\core\lib\index.cjs:178:40)
+        at D:\test-folder\wallpaperengine-research--452-sentinel-private-bytes\app\dist\main\panel-ipc.js:52:27
+        at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+        at Session.emit (node:events:514:28)
+
+
+DevTools listening on ws://127.0.0.1:9231/devtools/browser/24583d38-3228-428d-8f7b-1a75e414c099
+[57772:1113/004504.932:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[57772:1113/004504.932:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[57772:1113/004504.932:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[57772:1113/004505.116:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[57772:1113/004505.116:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[57772:1113/004505.116:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[57772:1113/004505.116:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[57772:1113/004505.116:ERROR:net\disk_cache\disk_cache.cc:290] Unable to create cache
+[57772:1113/004505.116:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.

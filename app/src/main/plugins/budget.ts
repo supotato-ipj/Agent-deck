@@ -31,3 +31,16 @@ export const MEMORY_SENTINEL_INTERVAL_MS = 10_000
 
 /** 连续超预算确认窗轮数：10s×3 ≈ 30 秒滞回——滤掉瞬时尖峰，不误杀正常包 */
 export const MEMORY_SENTINEL_CONFIRM_ROUNDS = 3
+
+/**
+ * 哨兵判据尺（工单452，口径切换 2026-11-13：工作集 → 私有提交内存）。读数改取同一次
+ * `getAppMetrics()` 的 `memory.privateBytes`（win32 现成字段，KB→bytes）——私有提交内存
+ * 不受 Windows 工作集修剪扫击/深压配额夹死影响（#452 定谳：全形态稳态波动<10%，工作集
+ * 口径一拍塌方 165MB→2MB、深压夹死线下漏报）。标定依据：包渲染进程私有基线实测
+ * ~37-40MB，15 块 hog（60MB 堆）私有读数 88-99MB 全形态稳态，取 80MB ≈ 基线×2 为告警线
+ * （余量 43MB 相对旧工作集口径 23MB 更宽，不收紧正常包）。
+ * **与容量尺双尺并存、不换算**：本尺回答「这个包失控了吗」（哨兵判账，只经事件载荷
+ * thresholdBytes 透出，不进契约目录）；上面 PACKAGE_MARGINAL_MEMORY_BUDGET_BYTES
+ * （128MB 工作集口径）回答「这台机器还能装几个包」（resourceLimits/C10 系列继续用之）。
+ */
+export const PACKAGE_SENTINEL_PRIVATE_MEMORY_BUDGET_BYTES = 80 * 1024 * 1024

@@ -1781,8 +1781,9 @@ PKGDIR=${pkgDirM}` });
       rep.fail(`段 C10 异常中止：${c10err instanceof Error ? c10err.message : String(c10err)}`);
     }
 
-    // —— 段 C12（工单344，ADR-0027 内存半边运行时闸门）：包内存哨兵端到端——投放包页跑
-    // 内存分配循环把单包顶过 128MB 预算线（刚过线、不灾难级，封顶 ~60MB 堆）→ 验证
+    // —— 段 C12（工单344，ADR-0027 内存半边运行时闸门；工单452 判据口径随动）：包内存哨兵端到端——投放包页跑
+    // 内存分配循环把单包顶过 80MB 判据线（工单452 口径切换：私有提交内存 privateBytes——
+    // 工作集受 OS 修剪扫击/深压配额夹死不稳；刚过线、不灾难级，封顶 ~72MB 堆）→ 验证
     // 告警（dropped-package-memory-alert）→ 连续 3 轮确认窗（10s×3≈30s 滞回）→ 显式停用
     // （dropped-package-deactivated reason=memory-budget-exceeded，含读数/阈值/轮数）→
     // 包进错误态（错误文案带 package_memory_exceeded）→ 条带 toast 用户可见反馈 →
@@ -1796,16 +1797,21 @@ PKGDIR=${pkgDirM}` });
       const hogDir12 = path.join(pluginsRoot12, 'dsh-memhog');
       try { fs.rmSync(hogDir12, { recursive: true, force: true }); } catch { /* 尽力 */ }
       const gate12 = Date.now();
-      // 投放（零权限 = 投放即生效）：卡片循环分配 4MB/拍、15 拍封顶（~60MB 堆，刚过线不灾难级）
+      // 投放（零权限 = 投放即生效）：卡片循环分配 4MB/拍、18 拍封顶（~72MB 堆，刚过线不
+      // 灾难级；工单452 私有口径配重核对——18 块私有读数期望 ~100-112MB、深压地板 ~96-100MB，
+      // 对 80MB 判据线全形态余量 ≥16MB，同时不越容量尺正典的量级）。私有口径暴露夹具假持有：
+      // 分配完 clearInterval 即闭包失引用，V8 空闲 GC 会把堆收走、读数塌回基线（同码两轮
+      // 真机实证一红一绿的竞速源，工单452 实现轮），故卡片持住 chunks 引用 = 真持有。
       fs.mkdirSync(hogDir12, { recursive: true });
       fs.writeFileSync(path.join(hogDir12, 'plugin.json'), JSON.stringify({ id: 'dsh-memhog', name: 'Mem Hog', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: [] }, null, 2), 'utf8');
       fs.writeFileSync(path.join(hogDir12, 'card.js'), `export default {
   mount(host) {
     host.el.textContent = 'hog'
     const chunks = []
+    host.el.__hogChunks = chunks // 持住引用：clearInterval 后闭包失引用会被空闲 GC 收走、私有读数塌回基线（工单452 竞速实证）
     const t = setInterval(() => {
       try { chunks.push(new Array(512 * 1024).fill(1.1)) } catch (e) { clearInterval(t) }
-      if (chunks.length >= 15) clearInterval(t)
+      if (chunks.length >= 18) clearInterval(t)
     }, 400)
   }
 }
@@ -1818,8 +1824,8 @@ PKGDIR=${pkgDirM}` });
         // ② 首次越线 = 告警（读数 + 阈值在载荷；确认窗未走满绝不处置）
         const alert12 = await tape.wait('dropped-package-memory-alert', (e) => e.id === 'dsh-memhog', { timeoutMs: 60000, since: gate12 });
         const deactEarly12 = alert12 ? await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-memhog' && e.reason === 'memory-budget-exceeded', { timeoutMs: 8000, since: gate12 }) : null;
-        if (alert12 && Number.isFinite(alert12.bytes) && alert12.thresholdBytes === 128 * 1024 * 1024 && !deactEarly12) {
-          rep.pass(`内存哨兵告警在界：首次越过预算线即告警一次（读数 ${Math.round(alert12.bytes / 1048576)}MB ≥ 阈值 128MB），8s 内无处置（滞回确认窗不误杀）`);
+        if (alert12 && Number.isFinite(alert12.bytes) && alert12.thresholdBytes === 80 * 1024 * 1024 && !deactEarly12) {
+          rep.pass(`内存哨兵告警在界：首次越过预算线即告警一次（读数 ${Math.round(alert12.bytes / 1048576)}MB ≥ 阈值 80MB），8s 内无处置（滞回确认窗不误杀）`);
         } else {
           rep.fail(`C12 告警面不符：alert=${JSON.stringify(alert12)} earlyDeact=${Boolean(deactEarly12)}`);
         }
@@ -1827,7 +1833,7 @@ PKGDIR=${pkgDirM}` });
         const deact12 = await tape.wait('dropped-package-deactivated', (e) => e.id === 'dsh-memhog' && e.reason === 'memory-budget-exceeded', { timeoutMs: 90000, since: gate12 });
         const deactOk12 = deact12 && Number.isFinite(deact12.bytes) && deact12.bytes > deact12.thresholdBytes && deact12.rounds >= 3;
         if (deactOk12) {
-          rep.pass(`确认窗走满显式停用：连续 ${deact12.rounds} 轮超线（读数 ${Math.round(deact12.bytes / 1048576)}MB ≥ 128MB），停用审计事件含读数/阈值/轮数（reason=memory-budget-exceeded）`);
+          rep.pass(`确认窗走满显式停用：连续 ${deact12.rounds} 轮超线（读数 ${Math.round(deact12.bytes / 1048576)}MB ≥ 80MB），停用审计事件含读数/阈值/轮数（reason=memory-budget-exceeded）`);
         } else {
           rep.fail(`C12 停用面不符：deact=${JSON.stringify(deact12)}`);
         }
