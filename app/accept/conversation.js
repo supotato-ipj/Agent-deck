@@ -1799,13 +1799,16 @@ PKGDIR=${pkgDirM}` });
       const gate12 = Date.now();
       // 投放（零权限 = 投放即生效）：卡片循环分配 4MB/拍、18 拍封顶（~72MB 堆，刚过线不
       // 灾难级；工单452 私有口径配重核对——18 块私有读数期望 ~100-112MB、深压地板 ~96-100MB，
-      // 对 80MB 判据线全形态余量 ≥16MB，同时不越容量尺正典的量级）
+      // 对 80MB 判据线全形态余量 ≥16MB，同时不越容量尺正典的量级）。私有口径暴露夹具假持有：
+      // 分配完 clearInterval 即闭包失引用，V8 空闲 GC 会把堆收走、读数塌回基线（同码两轮
+      // 真机实证一红一绿的竞速源，工单452 实现轮），故卡片持住 chunks 引用 = 真持有。
       fs.mkdirSync(hogDir12, { recursive: true });
       fs.writeFileSync(path.join(hogDir12, 'plugin.json'), JSON.stringify({ id: 'dsh-memhog', name: 'Mem Hog', version: '1.0.0', entry: './card.js', hostApiVersion: 1, capabilities: [] }, null, 2), 'utf8');
       fs.writeFileSync(path.join(hogDir12, 'card.js'), `export default {
   mount(host) {
     host.el.textContent = 'hog'
     const chunks = []
+    host.el.__hogChunks = chunks // 持住引用：clearInterval 后闭包失引用会被空闲 GC 收走、私有读数塌回基线（工单452 竞速实证）
     const t = setInterval(() => {
       try { chunks.push(new Array(512 * 1024).fill(1.1)) } catch (e) { clearInterval(t) }
       if (chunks.length >= 18) clearInterval(t)
