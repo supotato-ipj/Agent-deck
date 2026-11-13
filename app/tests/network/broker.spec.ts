@@ -276,9 +276,10 @@ describe('同 origin 重定向有界跟随（工单347）', () => {
     const broker = new NetworkBroker({
       authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
       credentials: {
-        resolve: (pkg, name, origin) => {
+        // 工单348：端口转异步双口——夹具只把返回包进 Promise（断言零改动）
+        resolve: async (pkg, name, origin) => {
           seen.push(`${pkg}|${name}|${origin}`)
-          return { ok: true, headerName: 'authorization', value: 'Bearer hop-secret' }
+          return { ok: true as const, headerName: 'authorization', value: 'Bearer hop-secret', refreshable: false }
         },
       },
       audit: null,
@@ -483,9 +484,10 @@ describe('命名凭证注入（工单339）', () => {
     const broker = new NetworkBroker({
       authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
       credentials: {
-        resolve: (pkg, name, origin) => {
+        // 工单348：端口转异步双口——夹具只把返回包进 Promise（断言零改动）
+        resolve: async (pkg, name, origin) => {
           seen.push(`${pkg}|${name}|${origin}`)
-          return { ok: true, headerName: 'authorization', value: 'Bearer s3cr3t-v1' }
+          return { ok: true as const, headerName: 'authorization', value: 'Bearer s3cr3t-v1', refreshable: false }
         },
       },
       audit: null,
@@ -512,7 +514,7 @@ describe('命名凭证注入（工单339）', () => {
     try {
       const broker = new NetworkBroker({
         authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [target.origin] }) },
-        credentials: { resolve: () => ({ ok: false, code: 'credential_unavailable', message: '未绑定' }) },
+        credentials: { resolve: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '未绑定' }) },
         audit: null,
         log: () => {},
         limits: { requestsPerSecond: 100 },
@@ -539,7 +541,7 @@ describe('命名凭证注入（工单339）', () => {
   it('网络权限未授时先拒权限（凭证不发出去也救不了）', async () => {
     const broker = new NetworkBroker({
       authorization: { activeGrant: () => ({ permissions: ['media.read'], networkOrigins: [main.origin] }) },
-      credentials: { resolve: () => ({ ok: true, headerName: 'authorization', value: 'Bearer x' }) },
+      credentials: { resolve: async () => ({ ok: true as const, headerName: 'authorization', value: 'Bearer x', refreshable: false }) },
       audit: null,
       log: () => {},
       limits: { requestsPerSecond: 100 },
@@ -559,7 +561,7 @@ describe('命名凭证注入（工单339）', () => {
     try {
       const broker = new NetworkBroker({
         authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [first.origin] }) },
-        credentials: { resolve: () => ({ ok: true, headerName: 'authorization', value: 'Bearer s3cr3t' }) },
+        credentials: { resolve: async () => ({ ok: true as const, headerName: 'authorization', value: 'Bearer s3cr3t', refreshable: false }) },
         audit: null,
         log: () => {},
         limits: { requestsPerSecond: 100 },

@@ -71,9 +71,41 @@ export type NetworkResult =
   }
   | { ok: false; code: NetworkErrorCode; message: string; origin: string; method: string; status?: number; location?: string }
 
-/** 命名凭证端口（工单339：只给「该包在该 origin 上可用的注入头」，不给枚举面） */
+/**
+ * 工单348：刷新调用的宿主 IO（触发包面）——发证 HTTP 调用由凭证域执行（clientSecret/
+ * 令牌不出凭证域），速率额度、超时、字节上限与审计归属由 Broker 按**触发包**的生效限额
+ * 供给；唯独不占并发槽（单飞自限 + 防自锁）。
+ */
+export interface CredentialRefreshIo {
+  /** 占触发包 1 个速率额度（false = 额度满，发证调用不发起——无 HTTP 无审计行） */
+  consumeRate(): boolean
+  /** 随触发包生效 timeoutMs */
+  timeoutMs: number
+  /** 随触发包生效 maxResponseBytes */
+  maxBytes: number
+  /** 传输（与 Broker 同一传输缝——测试夹具经此真测） */
+  send(spec: { url: URL; method: string; headers: Record<string, string>; body?: Buffer; timeoutMs: number; maxBytes: number }): Promise<NetworkRawReply>
+  /** 审计一行：origin=发证地址、method=POST 由宿主盖章；无令牌无 client_secret */
+  audit(rec: { origin: string; outcome: 'ok' | 'error'; status?: number }): void
+}
+
+/** resolve 结果：refreshable = oauth 型（401 时可单飞刷新 + 重试恰好一次）；静态/缺省 false */
+export type CredentialResolveResult =
+  | { ok: true; headerName: string; value: string; refreshable: boolean }
+  | { ok: false; code: 'credential_unavailable'; message: string }
+
+/** refresh 结果（工单348：单飞强制刷新；复验三元组与 resolve 同语义） */
+export type CredentialRefreshResult =
+  | { ok: true; headerName: string; value: string }
+  | { ok: false; code: 'credential_unavailable'; message: string }
+
+/**
+ * 命名凭证端口（工单339 单口同步 → 工单348 异步双口）：resolve 缓存优先（oauth 首次无缓存
+ * 时单飞取令牌）；refresh 单飞强制刷新。只给「该包在该 origin 上可用的注入头」，不给枚举面。
+ */
 export interface CredentialResolverPort {
-  resolve(packageId: string, credentialName: string, origin: string): { ok: true; headerName: string; value: string } | { ok: false; code: 'credential_unavailable'; message: string }
+  resolve(packageId: string, credentialName: string, origin: string, io?: CredentialRefreshIo): Promise<CredentialResolveResult>
+  refresh(packageId: string, credentialName: string, origin: string, io: CredentialRefreshIo): Promise<CredentialRefreshResult>
 }
 
 /** 授权账端口（Broker 只依赖查询面） */
@@ -263,15 +295,27 @@ export class NetworkBroker {
     return { ok: false, code: 'network_rate_limited', message: `超过每包速率上限（${effective.requestsPerSecond}/s）——稍后重试`, origin, method }
   }
 
+  /** 工单348：刷新 IO（触发包面——速率额度/超时/字节上限/审计归属；不占并发槽） */
+  private refreshIo(packageId: string, effective: NetworkLimits): CredentialRefreshIo {
+    return {
+      consumeRate: () => this.rateOk(packageId),
+      timeoutMs: effective.timeoutMs,
+      maxBytes: effective.maxResponseBytes,
+      send: (spec) => this.transport.send(spec),
+      audit: (rec) => this.audit({ packageId, origin: rec.origin, method: 'POST', outcome: rec.outcome, ...(rec.status !== undefined ? { status: rec.status } : {}) }),
+    }
+  }
+
   /**
    * 工单347 评审修复：凭证门（工单339 注入语义）——首请求与跟随链每跳共用；重解析前先摘
    * 旧注入头（包不能覆盖/窥探注入面；首请求 injectedHeaderName='' 时空摘除为 no-op）。
-   * 通过返回新注入头名（未带凭证原样返回），否则结构化 credential_unavailable。
+   * 工单348 转异步（oauth 首次取令牌在 resolve 内单飞完成）；返回注入头名 + 是否可刷新
+   * （oauth 型），否则结构化 credential_unavailable。
    */
-  private credentialGate(packageId: string, origin: string, method: string, credentialName: string, headers: Record<string, string>, injectedHeaderName: string): { error: Extract<NetworkResult, { ok: false }> } | { injectedHeaderName: string } {
+  private async credentialGate(packageId: string, origin: string, method: string, credentialName: string, headers: Record<string, string>, injectedHeaderName: string, io: CredentialRefreshIo): Promise<{ error: Extract<NetworkResult, { ok: false }> } | { injectedHeaderName: string; refreshable: boolean }> {
     if (injectedHeaderName) delete headers[injectedHeaderName]
-    if (!credentialName) return { injectedHeaderName }
-    const resolved = this.opts.credentials?.resolve(packageId, credentialName, origin) ?? null
+    if (!credentialName) return { injectedHeaderName, refreshable: false }
+    const resolved = this.opts.credentials ? await this.opts.credentials.resolve(packageId, credentialName, origin, io) : null
     if (!resolved || resolved.ok !== true) {
       const message = resolved ? resolved.message : '凭证面未装配'
       // 审计只记「凭证不可用」这一结果，不记凭证名细节以外的任何内容（无 secret）
@@ -279,7 +323,7 @@ export class NetworkBroker {
       return { error: { ok: false, code: 'credential_unavailable', message, origin, method } }
     }
     headers[resolved.headerName] = resolved.value
-    return { injectedHeaderName: resolved.headerName }
+    return { injectedHeaderName: resolved.headerName, refreshable: resolved.refreshable === true }
   }
 
   async requestForPackage(packageId: string, spec: NetworkRequestSpec): Promise<NetworkResult> {
@@ -308,29 +352,32 @@ export class NetworkBroker {
       this.audit({ packageId, origin, method, outcome: 'error', code: 'network_rate_limited' })
       return { ok: false, code: 'network_rate_limited', message: `并发上限（${effective.maxConcurrent}）已满——稍后重试`, origin, method }
     }
-    const limited = this.rateGate(packageId, origin, method, effective)
-    if (limited) return limited
-    // 头白名单（其余丢弃：包不能自设凭证/主机头）
-    const headers: Record<string, string> = { accept: '*/*' }
-    const requestedHeaders = (spec?.headers ?? {}) as Record<string, unknown>
-    for (const [k, v] of Object.entries(requestedHeaders)) {
-      if (!ALLOWED_HEADERS.has(k.toLowerCase())) continue
-      if (typeof v === 'string') headers[k.toLowerCase()] = v.slice(0, 1024)
-    }
-    // 工单339：命名凭证注入——在包自带头被白名单丢弃之后做（包不能覆盖/窥探注入头）；
-    // 只在管理面已批准绑定「本包 + 本 origin」时注入，否则结构化 credential_unavailable。
-    const credentialName = typeof spec?.credential === 'string' ? spec.credential : ''
-    /** 工单347：当前已注入的凭证头名（同 origin 跟随逐跳重新解析前先摘旧头，包不能覆盖注入面） */
-    let injectedHeaderName = ''
-    const credentialed = this.credentialGate(packageId, origin, method, credentialName, headers, injectedHeaderName)
-    if ('error' in credentialed) return credentialed.error
-    injectedHeaderName = credentialed.injectedHeaderName
-    const bodyText = typeof spec?.body === 'string' ? spec.body : undefined
-    const body = bodyText !== undefined && method !== 'GET' && method !== 'HEAD' ? Buffer.from(bodyText, 'utf8') : undefined
-    if (body) headers['content-length'] = String(body.length)
-
+    // 工单348：凭证门转异步（oauth 首次取令牌在门内单飞）——并发槽先行占位再过门，
+    // 检查与占位之间无 await（单线程同步段原子）；下方 finally 统一释放。
     this.inflight.set(packageId, live + 1)
     try {
+      const limited = this.rateGate(packageId, origin, method, effective)
+      if (limited) return limited
+      // 头白名单（其余丢弃：包不能自设凭证/主机头）
+      const headers: Record<string, string> = { accept: '*/*' }
+      const requestedHeaders = (spec?.headers ?? {}) as Record<string, unknown>
+      for (const [k, v] of Object.entries(requestedHeaders)) {
+        if (!ALLOWED_HEADERS.has(k.toLowerCase())) continue
+        if (typeof v === 'string') headers[k.toLowerCase()] = v.slice(0, 1024)
+      }
+      // 工单339：命名凭证注入——在包自带头被白名单丢弃之后做（包不能覆盖/窥探注入头）；
+      // 只在管理面已批准绑定「本包 + 本 origin」时注入，否则结构化 credential_unavailable。
+      const credentialName = typeof spec?.credential === 'string' ? spec.credential : ''
+      /** 工单347：当前已注入的凭证头名（同 origin 跟随逐跳重新解析前先摘旧头，包不能覆盖注入面） */
+      let injectedHeaderName = ''
+      const refreshIo = this.refreshIo(packageId, effective)
+      const credentialed = await this.credentialGate(packageId, origin, method, credentialName, headers, injectedHeaderName, refreshIo)
+      if ('error' in credentialed) return credentialed.error
+      injectedHeaderName = credentialed.injectedHeaderName
+      const refreshable = credentialed.refreshable
+      const bodyText = typeof spec?.body === 'string' ? spec.body : undefined
+      const body = bodyText !== undefined && method !== 'GET' && method !== 'HEAD' ? Buffer.from(bodyText, 'utf8') : undefined
+      if (body) headers['content-length'] = String(body.length)
       // 工单347：同 origin 有界跟随循环——串行跟随，整链占上面这 1 个并发槽；每跳一次
       // transport.send（独立 timeoutMs）、重过授权门、计一个速率额度、一条审计，凭证按
       // 「同包 + 本 origin」重新解析注入（同 origin 必命中同一绑定）。
@@ -391,7 +438,7 @@ export class NetworkBroker {
             if (hopDenied) return hopDenied
             const hopLimited = this.rateGate(packageId, hopOrigin, method, effective)
             if (hopLimited) return hopLimited
-            const hopCredentialed = this.credentialGate(packageId, hopOrigin, method, credentialName, headers, injectedHeaderName)
+            const hopCredentialed = await this.credentialGate(packageId, hopOrigin, method, credentialName, headers, injectedHeaderName, refreshIo)
             if ('error' in hopCredentialed) return hopCredentialed.error
             injectedHeaderName = hopCredentialed.injectedHeaderName
             // 中间跳审计：outcome ok + 状态码 + redirectTo = 下一跳 origin（账面按行天然成链）
