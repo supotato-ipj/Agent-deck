@@ -828,9 +828,11 @@ export interface NetworkAuditBucketView {
   origins: string[]
 }
 
-/** 工单339 命名凭证（可信 UI 视图：只有元数据与绑定，无密文/明文） */
+/** 工单339/348 命名凭证（可信 UI 视图：只有元数据与绑定，无密文/明文——oauth 型也不回显 clientSecret） */
 export interface CredentialView {
   name: string
+  /** 凭证两型（工单348）：static（值注入）/ oauth（client_credentials 自动刷新） */
+  type: 'static' | 'oauth'
   headerName: string
   valuePrefix: string
   createdAt: number
@@ -1258,7 +1260,21 @@ export interface BridgeMethods {
    * 「包 + 凭证 + 精确 origin」三元组的显式绑定/逐包撤销。
    */
   'credentials/list': { request: null; response: { credentials: CredentialView[] } }
-  'credentials/set': { request: { name: string; secret: string; headerName?: string; valuePrefix?: string }; response: { ok: boolean; code?: string; message?: string } }
+  'credentials/set': {
+    request: {
+      name: string
+      /** secret（static 型值）/ clientSecret（oauth 型）——单向写入永不回读 */
+      secret: string
+      headerName?: string
+      valuePrefix?: string
+      /** 工单348：缺省 static；oauth 型出下列三字段（发证地址走纯 origin 口径） */
+      type?: 'static' | 'oauth'
+      tokenEndpoint?: string
+      clientId?: string
+      scope?: string
+    }
+    response: { ok: boolean; code?: string; message?: string }
+  }
   'credentials/delete': { request: { name: string }; response: { ok: boolean; code?: string; message?: string } }
   'credentials/bind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
   'credentials/unbind': { request: { packageId: string; credentialName: string; origin: string }; response: { ok: boolean; code?: string; message?: string } }
