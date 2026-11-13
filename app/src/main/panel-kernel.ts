@@ -221,13 +221,22 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
   ctx.plugin(MediaService, options.media)
   // 命名凭证域（工单339）：凭证库先于网络域注册——NetworkBroker 的解析口要拿到同一实例。
   ctx.plugin(CredentialService, options.credentials)
-  // 网络域（工单338/339）：授权门/限额/审计在 NetworkBroker；凭证注入经凭证库解析口。
+  // 网络域（工单338/339/348）：授权门/限额/审计在 NetworkBroker；凭证注入经凭证库异步双口
+  // （resolve 缓存优先 + refresh 单飞强制刷新；发证调用的宿主 IO 由 Broker 按触发包供给）。
   ctx.plugin(NetworkService, {
     ...options.network,
     credentials: {
-      resolve: (packageId, credentialName, origin) => {
+      resolve: (packageId, credentialName, origin, io) => {
         const svc = ctx.credentials
-        return svc ? svc.resolve(packageId, credentialName, origin) : { ok: false as const, code: 'credential_unavailable' as const, message: '凭证面未装配' }
+        return svc
+          ? svc.resolve(packageId, credentialName, origin, io)
+          : Promise.resolve({ ok: false as const, code: 'credential_unavailable' as const, message: '凭证面未装配' })
+      },
+      refresh: (packageId, credentialName, origin, io) => {
+        const svc = ctx.credentials
+        return svc
+          ? svc.refresh(packageId, credentialName, origin, io)
+          : Promise.resolve({ ok: false as const, code: 'credential_unavailable' as const, message: '凭证面未装配' })
       },
     },
   })

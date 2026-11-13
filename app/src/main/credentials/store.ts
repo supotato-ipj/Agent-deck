@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { originOfDeclaration } from '../network/origin'
+import { originOfDeclaration, originOfRequestUrl } from '../network/origin'
 
 /**
  * 命名凭证（工单339，ADR-0025「凭证只发给精确匹配目标」）：加密保存 + 显式绑定 + 注入。
@@ -32,6 +32,8 @@ export interface CredentialCipherPort {
 
 export interface CredentialRecord {
   name: string
+  /** 工单348：凭证两型——static（值注入）/ oauth（client_credentials 自动刷新）；读入缺省 static（旧文件零迁移） */
+  type: 'static' | 'oauth'
   /** 注入头名（小写；缺省 authorization） */
   headerName: string
   /** 值前缀（缺省 "Bearer "——与 secret 拼成头值） */
@@ -42,6 +44,16 @@ export interface CredentialRecord {
   rotatedAt: number | null
 }
 
+/** 工单348：oauth 型配置（整组序列化成单个 JSON 字符串走 cipher 一块加密落盘） */
+export interface OauthCredentialConfig {
+  /** 发证地址（合法 http(s) URL，可带路径——真实发证服务端点几乎全带路径；不得内嵌 userinfo；正典 href 落盘） */
+  tokenEndpoint: string
+  clientId: string
+  clientSecret: string
+  /** 可选 scope（空串/缺省 = 不设） */
+  scope?: string
+}
+
 export interface CredentialBinding {
   packageId: string
   credentialName: string
@@ -50,9 +62,10 @@ export interface CredentialBinding {
   boundAt: number
 }
 
-/** 可信 UI 视图（只有元数据；不含密文、不含明文） */
+/** 可信 UI 视图（只有元数据；不含密文、不含明文——oauth 型也不回显 clientSecret） */
 export interface CredentialView {
   name: string
+  type: 'static' | 'oauth'
   headerName: string
   valuePrefix: string
   createdAt: number
@@ -84,6 +97,8 @@ const NAME_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const HEADER_RE = /^[a-z0-9-]{1,64}$/
 const SECRET_MAX = 4096
 const PREFIX_MAX = 64
+/** 发证地址长度上限（完整 URL 口径——评审裁定 2026-11-13；正常端点远短于此） */
+const ENDPOINT_MAX = 512
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
@@ -96,6 +111,8 @@ function coerceCredential(raw: unknown): CredentialRecord | null {
   if (typeof raw.createdAt !== 'number') return null
   return {
     name: raw.name,
+    // 工单348：缺省 static——旧 credentials.json 零迁移
+    type: raw.type === 'oauth' ? 'oauth' : 'static',
     headerName: typeof raw.headerName === 'string' && HEADER_RE.test(raw.headerName) ? raw.headerName : 'authorization',
     valuePrefix: typeof raw.valuePrefix === 'string' ? raw.valuePrefix.slice(0, PREFIX_MAX) : 'Bearer ',
     cipher: raw.cipher,
@@ -184,6 +201,7 @@ export class CredentialStore {
       .sort((a, b) => (a.name < b.name ? -1 : 1))
       .map((c) => ({
         name: c.name,
+        type: c.type,
         headerName: c.headerName,
         valuePrefix: c.valuePrefix,
         createdAt: c.createdAt,
@@ -199,8 +217,18 @@ export class CredentialStore {
     return this.credentials.has(name)
   }
 
-  /** 新建或轮换（同名 = 轮换：密文换新、绑定/创建时间语义分开记） */
-  set(name: string, secret: string, opts?: { headerName?: string; valuePrefix?: string }): CredentialResult {
+  /** set 入参（工单348 扩展）：type 缺省 static；oauth 型 secret 参数承载 clientSecret */
+  set(name: string, secret: string, opts?: {
+    headerName?: string
+    valuePrefix?: string
+    type?: 'static' | 'oauth'
+    /** oauth 型必填：发证地址（纯 origin，origin.ts 口径） */
+    tokenEndpoint?: string
+    /** oauth 型必填 */
+    clientId?: string
+    /** 可选 scope（空串/缺省 = 不设） */
+    scope?: string
+  }): CredentialResult {
     if (!NAME_RE.test(name)) {
       return { ok: false, code: 'credential_invalid', message: `凭证名非法（小写字母数字与 ._-，1-64 字符）：${String(name).slice(0, 64)}` }
     }
@@ -215,14 +243,38 @@ export class CredentialStore {
       return { ok: false, code: 'credential_invalid', message: `headerName 不允许：${headerName}` }
     }
     const valuePrefix = (opts?.valuePrefix ?? 'Bearer ').slice(0, PREFIX_MAX)
+    // 工单348：oauth 型先验配置形状，再整组单块加密（clientSecret 只在内存面短暂存在）。
+    // 发证地址走 origin.ts 请求 URL 口径（合法 http(s)、拒 userinfo、允许路径/query——真实
+    // 提供商端点几乎全带路径），落盘存正典 href。
+    let plaintext = secret
+    let kind: CredentialRecord['type'] = 'static'
+    if (opts?.type === 'oauth') {
+      kind = 'oauth'
+      if (typeof opts.tokenEndpoint !== 'string' || !opts.tokenEndpoint) {
+        return { ok: false, code: 'credential_invalid', message: 'oauth 型需要发证地址（tokenEndpoint）' }
+      }
+      if (opts.tokenEndpoint.length > ENDPOINT_MAX) {
+        return { ok: false, code: 'credential_invalid', message: `发证地址过长（≤${ENDPOINT_MAX} 字符）：${opts.tokenEndpoint.slice(0, 64)}…` }
+      }
+      const endpoint = originOfRequestUrl(opts.tokenEndpoint)
+      if (!endpoint.ok) {
+        return { ok: false, code: 'credential_invalid', message: `发证地址必须是合法 http(s) URL（可带路径，不得内嵌 userinfo）：${endpoint.message}` }
+      }
+      if (typeof opts.clientId !== 'string' || !opts.clientId) {
+        return { ok: false, code: 'credential_invalid', message: 'oauth 型需要非空 clientId' }
+      }
+      const scope = typeof opts.scope === 'string' && opts.scope ? opts.scope : undefined
+      plaintext = JSON.stringify({ tokenEndpoint: new URL(opts.tokenEndpoint).href, clientId: opts.clientId, clientSecret: secret, ...(scope ? { scope } : {}) } satisfies OauthCredentialConfig)
+    }
     if (!this.opts.cipher.available()) {
       return { ok: false, code: 'credential_store_unavailable', message: '系统加密能力不可用（safeStorage/DPAPI 未就绪）——拒绝保存，绝不落明文兜底' }
     }
-    const cipher = this.opts.cipher.encrypt(secret)
+    const cipher = this.opts.cipher.encrypt(plaintext)
     const prev = this.credentials.get(name)
     const now = this.opts.now()
     this.credentials.set(name, {
       name,
+      type: kind,
       headerName,
       valuePrefix,
       cipher,
@@ -230,7 +282,7 @@ export class CredentialStore {
       rotatedAt: prev ? now : null,
     })
     this.persist()
-    this.opts.log({ type: prev ? 'credential-rotated' : 'credential-created', name, headerName })
+    this.opts.log({ type: prev ? 'credential-rotated' : 'credential-created', name, headerName, credentialType: kind })
     return { ok: true }
   }
 
@@ -295,11 +347,15 @@ export class CredentialStore {
   }
 
   /**
-   * 请求时解析（网络 Broker 唯一入口）：凭证在册 + 该包在**该 origin**上有绑定 → 注入头；
-   * 否则 `credential_unavailable`（凭证不存在与未绑定同一出口——不给枚举信号；绝不静默
-   * 改用其他凭证）。
+   * 请求时解析（运行时唯一入口，工单339/348）：凭证在册 + 该包在**该 origin**上有绑定 →
+   * 按型分叉——static 回注入头值；oauth 回解密后的配置（令牌获取/缓存/单飞归凭证域服务，
+   * 本口不发网络）。否则 `credential_unavailable`（凭证不存在与未绑定同一出口——不给枚举
+   * 信号；绝不静默改用其他凭证）。
    */
-  resolve(packageId: string, credentialName: string, origin: string): { ok: true; headerName: string; value: string } | { ok: false; code: 'credential_unavailable'; message: string } {
+  resolve(packageId: string, credentialName: string, origin: string):
+    | { ok: true; kind: 'static'; headerName: string; value: string }
+    | { ok: true; kind: 'oauth'; headerName: string; valuePrefix: string; config: OauthCredentialConfig }
+    | { ok: false; code: 'credential_unavailable'; message: string } {
     const cred = this.credentials.get(credentialName)
     if (!cred) {
       return { ok: false, code: 'credential_unavailable', message: `凭证不可用：${credentialName}（不存在或已删除）` }
@@ -311,13 +367,43 @@ export class CredentialStore {
     if (!this.opts.cipher.available()) {
       return { ok: false, code: 'credential_unavailable', message: '系统加密能力不可用——凭证无法解密注入' }
     }
-    let secret: string
+    let plain: string
     try {
-      secret = this.opts.cipher.decrypt(cred.cipher)
+      plain = this.opts.cipher.decrypt(cred.cipher)
     } catch (err) {
       this.opts.log({ type: 'credential-decrypt-failed', name: credentialName, message: err instanceof Error ? err.message : String(err) })
       return { ok: false, code: 'credential_unavailable', message: `凭证不可用：${credentialName}（密文无法解密）` }
     }
-    return { ok: true, headerName: cred.headerName, value: `${cred.valuePrefix}${secret}` }
+    if (cred.type === 'oauth') {
+      const config = parseOauthConfig(plain)
+      if (!config) {
+        this.opts.log({ type: 'credential-oauth-config-corrupt', name: credentialName })
+        return { ok: false, code: 'credential_unavailable', message: `凭证不可用：${credentialName}（oauth 配置无法解析——请重新保存该凭证）` }
+      }
+      return { ok: true, kind: 'oauth', headerName: cred.headerName, valuePrefix: cred.valuePrefix, config }
+    }
+    return { ok: true, kind: 'static', headerName: cred.headerName, value: `${cred.valuePrefix}${plain}` }
+  }
+}
+
+/** oauth 配置块形状校验（落盘前已验证；读回再验一次——手工改坏不虚挂）。同 set 口径：合法 http(s) URL + 正典 href */
+function parseOauthConfig(plain: string): OauthCredentialConfig | null {
+  let raw: unknown
+  try {
+    raw = JSON.parse(plain)
+  } catch {
+    return null
+  }
+  if (!isRecord(raw)) return null
+  if (typeof raw.tokenEndpoint !== 'string' || !raw.tokenEndpoint || raw.tokenEndpoint.length > ENDPOINT_MAX) return null
+  const endpoint = originOfRequestUrl(raw.tokenEndpoint)
+  if (!endpoint.ok) return null
+  if (typeof raw.clientId !== 'string' || !raw.clientId) return null
+  if (typeof raw.clientSecret !== 'string' || !raw.clientSecret) return null
+  return {
+    tokenEndpoint: new URL(raw.tokenEndpoint).href,
+    clientId: raw.clientId,
+    clientSecret: raw.clientSecret,
+    ...(typeof raw.scope === 'string' && raw.scope ? { scope: raw.scope } : {}),
   }
 }

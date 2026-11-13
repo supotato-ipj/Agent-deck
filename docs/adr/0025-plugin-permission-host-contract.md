@@ -45,3 +45,7 @@ Status: accepted
 ## 补记（工单345 插件限额按包覆写落地，2026-11-08）
 
 「用户可收紧不可放宽」已实现：`config.json` 新增 `plugins.limits` 段（包 id → 权限 id → 限额键 → 正整数），每包每项生效值 = min(权限目录默认值, 覆写值)，放宽与非法值在配置面结构化拒绝（`limit_widen_rejected` / `limit_invalid`）；首版开放 network.request 四项与 media.control 速率，Broker 构造期读取生效值，重启生效不热更；呼叫性限额原文不变，契约投影 resourceLimits 增「默认值/生效值」两栏。
+
+## 补记（工单348 命名凭证 OAuth 自动刷新落地，2026-11-13）
+
+凭证分两型 `static | oauth`（读入缺省 static，旧 credentials.json 零迁移）：oauth 型由用户在可信 UI 亲手填发证地址（合法 http(s) URL，可带路径——真实发证服务端点几乎全带路径；不得内嵌 userinfo；发证地址属凭证声明，不入包的授权集，授权载体是凭证绑定本身；审计仍只记 origin 不记路径）+ client_id + client_secret（+可选 scope），整组序列化成单个 JSON 块走既有 cipher 一块加密落盘；换来的 access token 只存主进程内存（不落盘、不进日志/审计、不进 IPC 返回值，唯一出口是注入给已过凭证门的请求头，与静态 secret 同缝）。刷新纯被动——已注入请求被目标拒 401 才触发：按凭证名单飞刷新一次（并发共享同一次 client_credentials 体参式发证调用），摘旧头注新头重发当前请求恰好一次；刷新失败或刷新后仍 401 归结构化 `credential_unavailable`（永不透传 401，不撤销网络权限）。发证调用占触发包速率额度、随 timeoutMs/maxResponseBytes、唯独不占并发槽（单飞自限 + 防「占满并发槽却拿不到槽」自锁），每次真实发证调用记一条审计（origin=发证地址、POST、无令牌无 client_secret）；审计以可选 reason 子因区分「刷新失败/刷新后仍被拒」，不新增结果码。静态凭证与无凭证请求的 401 行为零改动（照旧透传）；`expires_in` 记下不参与判定（不做到期预刷）。

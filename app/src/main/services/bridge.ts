@@ -530,7 +530,12 @@ export class BridgeService extends Service {
         return { credentials } as BridgeMethods[M]['response']
       }
       case 'credentials/set': {
-        const { name, secret, headerName, valuePrefix } = payload as { name?: unknown; secret?: unknown; headerName?: unknown; valuePrefix?: unknown }
+        // 工单348：oauth 型入参（type/tokenEndpoint/clientId/scope）随载荷扩展——校验与
+        // 单块加密归凭证库（store.set），通道零新增。
+        const { name, secret, headerName, valuePrefix, type, tokenEndpoint, clientId, scope } = payload as {
+          name?: unknown; secret?: unknown; headerName?: unknown; valuePrefix?: unknown
+          type?: unknown; tokenEndpoint?: unknown; clientId?: unknown; scope?: unknown
+        }
         if (typeof name !== 'string' || typeof secret !== 'string') {
           throw new BridgeError('credentials/set 需要 name 与 secret（字符串）')
         }
@@ -539,6 +544,10 @@ export class BridgeService extends Service {
         return svc.set(name, secret, {
           ...(typeof headerName === 'string' ? { headerName } : {}),
           ...(typeof valuePrefix === 'string' ? { valuePrefix } : {}),
+          ...(type === 'oauth' || type === 'static' ? { type } : {}),
+          ...(typeof tokenEndpoint === 'string' ? { tokenEndpoint } : {}),
+          ...(typeof clientId === 'string' ? { clientId } : {}),
+          ...(typeof scope === 'string' ? { scope } : {}),
         }) as BridgeMethods[M]['response']
       }
       case 'credentials/delete': {

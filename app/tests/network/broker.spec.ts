@@ -3,8 +3,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { NetworkBroker, type NetworkBrokerOptions, type NetworkTransportPort } from '../../src/main/network/broker'
+import { NetworkBroker, createNodeTransport, type NetworkBrokerOptions, type NetworkTransportPort } from '../../src/main/network/broker'
 import { NetworkAuditService } from '../../src/main/network/audit'
+import { Context } from 'cordis'
+import { CredentialService } from '../../src/main/credentials/service'
+import type { CredentialCipherPort } from '../../src/main/credentials/store'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -276,10 +279,12 @@ describe('同 origin 重定向有界跟随（工单347）', () => {
     const broker = new NetworkBroker({
       authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
       credentials: {
-        resolve: (pkg, name, origin) => {
+        // 工单348：端口转异步双口——夹具只把返回包进 Promise + 补 refresh 空桩（断言零改动）
+        resolve: async (pkg, name, origin) => {
           seen.push(`${pkg}|${name}|${origin}`)
-          return { ok: true, headerName: 'authorization', value: 'Bearer hop-secret' }
+          return { ok: true as const, headerName: 'authorization', value: 'Bearer hop-secret', refreshable: false }
         },
+        refresh: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '静态夹具无刷新面' }),
       },
       audit: null,
       log: () => {},
@@ -483,10 +488,12 @@ describe('命名凭证注入（工单339）', () => {
     const broker = new NetworkBroker({
       authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [main.origin] }) },
       credentials: {
-        resolve: (pkg, name, origin) => {
+        // 工单348：端口转异步双口——夹具只把返回包进 Promise + 补 refresh 空桩（断言零改动）
+        resolve: async (pkg, name, origin) => {
           seen.push(`${pkg}|${name}|${origin}`)
-          return { ok: true, headerName: 'authorization', value: 'Bearer s3cr3t-v1' }
+          return { ok: true as const, headerName: 'authorization', value: 'Bearer s3cr3t-v1', refreshable: false }
         },
+        refresh: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '静态夹具无刷新面' }),
       },
       audit: null,
       log: () => {},
@@ -512,7 +519,10 @@ describe('命名凭证注入（工单339）', () => {
     try {
       const broker = new NetworkBroker({
         authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [target.origin] }) },
-        credentials: { resolve: () => ({ ok: false, code: 'credential_unavailable', message: '未绑定' }) },
+        credentials: {
+          resolve: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '未绑定' }),
+          refresh: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '静态夹具无刷新面' }),
+        },
         audit: null,
         log: () => {},
         limits: { requestsPerSecond: 100 },
@@ -539,7 +549,10 @@ describe('命名凭证注入（工单339）', () => {
   it('网络权限未授时先拒权限（凭证不发出去也救不了）', async () => {
     const broker = new NetworkBroker({
       authorization: { activeGrant: () => ({ permissions: ['media.read'], networkOrigins: [main.origin] }) },
-      credentials: { resolve: () => ({ ok: true, headerName: 'authorization', value: 'Bearer x' }) },
+      credentials: {
+        resolve: async () => ({ ok: true as const, headerName: 'authorization', value: 'Bearer x', refreshable: false }),
+        refresh: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '静态夹具无刷新面' }),
+      },
       audit: null,
       log: () => {},
       limits: { requestsPerSecond: 100 },
@@ -559,7 +572,10 @@ describe('命名凭证注入（工单339）', () => {
     try {
       const broker = new NetworkBroker({
         authorization: { activeGrant: () => ({ permissions: ['network.request'], networkOrigins: [first.origin] }) },
-        credentials: { resolve: () => ({ ok: true, headerName: 'authorization', value: 'Bearer s3cr3t' }) },
+        credentials: {
+          resolve: async () => ({ ok: true as const, headerName: 'authorization', value: 'Bearer s3cr3t', refreshable: false }),
+          refresh: async () => ({ ok: false as const, code: 'credential_unavailable' as const, message: '静态夹具无刷新面' }),
+        },
         audit: null,
         log: () => {},
         limits: { requestsPerSecond: 100 },
@@ -570,6 +586,327 @@ describe('命名凭证注入（工单339）', () => {
     } finally {
       await first.close()
       await second.close()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// oauth 自动刷新（工单348）：纯被动 401 触发——oauth 型已注入请求被目标拒 401 → 凭证库
+// 单飞刷新一次（按凭证名）→ 摘旧头注新头重发当前请求恰好一次；刷新失败或刷新后仍 401 =
+// credential_unavailable 终态（永不透传 401）；同一逻辑请求最多一次刷新+重试。静态/无凭证
+// 401 维持 ok:true 透传。发证调用占触发包速率额度、随 timeoutMs/maxResponseBytes、不占并发
+// 槽；每次真实发证调用一条审计（origin=发证地址、POST、无令牌）。夹具 = 本地「发证 + API」
+// 双角色 http server + 真 CredentialService（假密码器），全走 Broker 公共入口。
+// ---------------------------------------------------------------------------
+describe('oauth 自动刷新（工单348）', () => {
+  /** 可逆假密码器（与 store.spec 同款） */
+  function oauthCipher(): CredentialCipherPort {
+    return {
+      available: () => true,
+      encrypt: (plain) => `enc:${Buffer.from(plain, 'utf8').toString('base64')}`,
+      decrypt: (cipher) => Buffer.from(cipher.replace(/^enc:/, ''), 'base64').toString('utf8'),
+    }
+  }
+
+  /**
+   * oauth 夹具：发证服务（origin 根发 tok-N）+ API 服务（只认有效集内的 Bearer）。
+   * 运行期可编排：state.rejectAll（API 全拒，模拟「刷新后仍被拒」）、state.issuerFail
+   * （发证失败形态）。冷启动时发证调用占速率额度——额度类用例按「请求数 + 发证数」预算。
+   */
+  async function oauthFixture(opts: { apiDelayMs?: number; issuerDelayMs?: number } = {}) {
+    const state = {
+      rejectAll: false,
+      issuerFail: null as null | { status?: number; payload?: Record<string, unknown> },
+    }
+    const validTokens = new Set<string>()
+    let issued = 0
+    const issuerCalls: Array<{ body: Record<string, string> }> = []
+    // 发证端点带路径（评审裁定 2026-11-13：真实提供商形态——飞书/Azure/GitHub 端点全带路径）
+    const issuer = await serve({
+      '/oauth/token': (req, res) => {
+        const chunks: Buffer[] = []
+        req.on('data', (c: Buffer) => chunks.push(c))
+        req.on('end', () => {
+          const body: Record<string, string> = {}
+          for (const [k, v] of new URLSearchParams(Buffer.concat(chunks).toString('utf8'))) body[k] = v
+          issuerCalls.push({ body })
+          const respond = () => {
+            const fail = state.issuerFail
+            const payload = fail?.payload ?? { access_token: `tok-${++issued}`, expires_in: 3600 }
+            const token = typeof payload.access_token === 'string' ? payload.access_token : null
+            if (token && !fail) validTokens.add(`Bearer ${token}`)
+            res.writeHead(fail?.status ?? 200, { 'content-type': 'application/json' })
+            res.end(JSON.stringify(payload))
+          }
+          if (opts.issuerDelayMs) setTimeout(respond, opts.issuerDelayMs)
+          else respond()
+        })
+      },
+    })
+    const apiHits: Array<string | undefined> = [] // 每次真实命中记下的 authorization 头
+    const api = await serve({
+      '/data': (req, res) => {
+        const respond = () => {
+          const auth = req.headers.authorization
+          apiHits.push(auth)
+          if (!state.rejectAll && auth && validTokens.has(auth)) {
+            res.writeHead(200, { 'content-type': 'application/json' })
+            res.end(JSON.stringify({ ok: true, served: auth }))
+          } else {
+            res.writeHead(401, { 'content-type': 'application/json' })
+            res.end(JSON.stringify({ error: 'token expired' }))
+          }
+        }
+        if (opts.apiDelayMs) setTimeout(respond, opts.apiDelayMs)
+        else respond()
+      },
+      '/always-401': (req, res) => {
+        apiHits.push(req.headers.authorization)
+        res.writeHead(401, { 'content-type': 'text/plain' })
+        res.end('denied')
+      },
+    })
+    // 真 CredentialService（假密码器 + 临时文件）：oauth 配置/binding/缓存全走生产缝
+    const credDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-net-oauth-'))
+    const svc = new CredentialService(new Context(), {
+      file: path.join(credDir, 'credentials.json'),
+      cipher: oauthCipher(),
+      log: () => {},
+    })
+    svc.set('oa', 'cs-oa-888', { type: 'oauth', tokenEndpoint: `${issuer.origin}/oauth/token`, clientId: 'cid-net', scope: 'read' })
+    svc.bind('pkg-oa', 'oa', api.origin)
+    const port = {
+      resolve: (pkg: string, name: string, origin: string, io: Parameters<CredentialService['resolve']>[3]) => svc.resolve(pkg, name, origin, io),
+      refresh: (pkg: string, name: string, origin: string, io: Parameters<CredentialService['refresh']>[3]) => svc.refresh(pkg, name, origin, io),
+    }
+    const cleanup = async () => {
+      await Promise.all([issuer.close(), api.close()])
+      fs.rmSync(credDir, { recursive: true, force: true })
+    }
+    return { state, issuer, issuerCalls, validTokens, api, apiHits, svc, port, cleanup }
+  }
+
+  /** 常规 Broker（额度宽松、并发放宽） */
+  function brokerOn(fx: Awaited<ReturnType<typeof oauthFixture>>, opts: { limits?: NetworkBrokerOptions['limits']; audit?: NetworkAuditService | null; log?: (e: Record<string, unknown>) => void; transport?: NetworkTransportPort; packageLimits?: NetworkBrokerOptions['packageLimits'] } = {}) {
+    return new NetworkBroker({
+      authorization: { activeGrant: (pkg) => pkg === 'pkg-oa' ? { permissions: ['network.request'], networkOrigins: [fx.api.origin] } : null },
+      credentials: { resolve: (pkg, name, origin, io) => fx.svc.resolve(pkg, name, origin, io), refresh: (pkg, name, origin, io) => fx.svc.refresh(pkg, name, origin, io) },
+      ...(opts.audit !== undefined ? { audit: opts.audit } : { audit: null }),
+      log: opts.log ?? (() => {}),
+      limits: { requestsPerSecond: 100, maxConcurrent: 50, ...(opts.limits ?? {}) },
+      ...(opts.transport ? { transport: opts.transport } : {}),
+      ...(opts.packageLimits ? { packageLimits: opts.packageLimits } : {}),
+    })
+  }
+
+  it('⑧ 首次请求无缓存 → 先取令牌再发出：API 首击即带上 Bearer tok-1，200', async () => {
+    const fx = await oauthFixture()
+    try {
+      const out = await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+      expect(out).toMatchObject({ ok: true, status: 200, origin: fx.api.origin, redirects: 0 })
+      expect(fx.issuerCalls).toHaveLength(1)
+      expect(fx.issuerCalls[0].body).toEqual({ grant_type: 'client_credentials', client_id: 'cid-net', client_secret: 'cs-oa-888', scope: 'read' })
+      expect(fx.apiHits).toEqual(['Bearer tok-1'])
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('① 令牌过期（API 拒现役令牌）→ 自动刷新一次 → 重试原请求成功；全程恰好两次发证、三次 API 命中', async () => {
+    const fx = await oauthFixture()
+    try {
+      expect(await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true, status: 200 })
+      // 服务器侧过期：tok-1 作废（发证服务随后发的 tok-2 仍有效）
+      fx.validTokens.delete('Bearer tok-1')
+      const out = await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+      expect(out).toMatchObject({ ok: true, status: 200 })
+      if (!out.ok) return
+      expect(JSON.parse(String(out.text)).served).toBe('Bearer tok-2')
+      expect(fx.issuerCalls).toHaveLength(2) // 预热 + 刷新，恰好一次刷新
+      expect(fx.apiHits).toEqual(['Bearer tok-1', 'Bearer tok-1', 'Bearer tok-2']) // 401 → 摘旧头重发新头
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('② 发证服务失败（非 2xx / 缺 access_token）→ credential_unavailable 终态（不透传 401、不重试）+ 审计子因 refresh-failed', async () => {
+    const auditFile = path.join(auditDir, 'audit-oauth-fail.jsonl')
+    for (const [tier, fail] of [['http-400', { status: 400, payload: { error: 'invalid_client' } }] as const, ['missing-token', { payload: { token_type: 'bearer' } }] as const]) {
+      const fx = await oauthFixture()
+      try {
+        const broker = brokerOn(fx, { audit: new NetworkAuditService({ file: `${auditFile}.${tier}`, now: () => Date.now(), log: () => {} }) })
+        expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true, status: 200 })
+        fx.validTokens.delete('Bearer tok-1')
+        fx.state.issuerFail = fail
+        const out = await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+        expect(out).toMatchObject({ ok: false, code: 'credential_unavailable', origin: fx.api.origin })
+        if (out.ok) return
+        expect(out.message).toContain('刷新失败')
+        expect(out.message).not.toContain('tok-')
+        expect(fx.issuerCalls).toHaveLength(2) // 刷新确实打了一次发证
+        expect(fx.apiHits).toHaveLength(2) // 首次 401 后没有重试（刷新失败即终态）
+        const raw = fs.readFileSync(`${auditFile}.${tier}`, 'utf8')
+        expect(raw).not.toContain('tok-')
+        expect(raw).toContain('refresh-failed')
+        expect(raw).toContain(fx.issuer.origin)
+      } finally {
+        await fx.cleanup()
+      }
+    }
+  })
+
+  it('③ 并发 N 请求同撞过期 → 发证服务只收到 1 次刷新调用，全体同一新令牌 200', async () => {
+    const fx = await oauthFixture({ apiDelayMs: 60, issuerDelayMs: 60 })
+    try {
+      const broker = brokerOn(fx)
+      expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true, status: 200 })
+      fx.validTokens.delete('Bearer tok-1')
+      const results = await Promise.all(Array.from({ length: 6 }, () => broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })))
+      expect(fx.issuerCalls).toHaveLength(2) // 预热 1 + 并发批次共享 1（单飞断言）
+      for (const r of results) {
+        expect(r).toMatchObject({ ok: true, status: 200 })
+        if (!r.ok) return
+        expect(JSON.parse(String(r.text)).served).toBe('Bearer tok-2')
+      }
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('④ 刷新成功但重试仍 401 → credential_unavailable（刷新后仍被拒）：不第二次刷新、不第三次重试', async () => {
+    const fx = await oauthFixture()
+    try {
+      expect(await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true, status: 200 })
+      // API 此后全拒（新令牌也进不了有效集）：刷新拿到的 tok-2 照样被拒
+      fx.state.rejectAll = true
+      const out = await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+      expect(out).toMatchObject({ ok: false, code: 'credential_unavailable', status: 401, origin: fx.api.origin })
+      if (out.ok) return
+      expect(out.message).toContain('刷新后仍被拒')
+      expect(fx.issuerCalls).toHaveLength(2) // 刷新一次后不再刷
+      expect(fx.apiHits).toHaveLength(3) // 首次 + 一次重试，没有第三次
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('⑤ 审计与日志全文无 access_token/client_secret；发证行 origin=发证地址、POST；终态行带审计子因', async () => {
+    const logEvents: Array<Record<string, unknown>> = []
+    const auditFile = path.join(auditDir, 'audit-oauth.jsonl')
+    const audit = new NetworkAuditService({ file: auditFile, now: () => Date.now(), log: () => {} })
+    const fx = await oauthFixture()
+    try {
+      const broker = brokerOn(fx, { audit, log: (e) => logEvents.push(e) })
+      expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true })
+      fx.validTokens.delete('Bearer tok-1')
+      expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true, status: 200 })
+      const raw = fs.readFileSync(auditFile, 'utf8')
+      expect(raw).not.toContain('tok-')
+      expect(raw).not.toContain('cs-oa-888')
+      expect(raw).not.toContain('cid-net')
+      const lines = raw.trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>)
+      const refreshLine = lines.find((l) => l.origin === fx.issuer.origin)
+      expect(refreshLine).toMatchObject({ method: 'POST', outcome: 'ok', status: 200 })
+      // 刷新后仍被拒的终态子因
+      fx.state.rejectAll = true
+      const out = await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+      expect(out).toMatchObject({ ok: false, code: 'credential_unavailable' })
+      const raw2 = fs.readFileSync(auditFile, 'utf8')
+      expect(raw2).not.toContain('tok-')
+      expect(raw2).toContain('refreshed-still-denied')
+      // 凭证域日志也不含令牌/secret
+      expect(JSON.stringify(logEvents)).not.toContain('tok-')
+      expect(JSON.stringify(logEvents)).not.toContain('cs-oa-888')
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('⑥ 静态凭证 401 照旧透传 ok:true status:401（零改动）；无凭证请求同样透传', async () => {
+    const fx = await oauthFixture()
+    try {
+      const broker = brokerOn(fx)
+      fx.svc.set('st', 'st-v1')
+      fx.svc.bind('pkg-oa', 'st', fx.api.origin)
+      const out = await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/always-401`, credential: 'st' })
+      expect(out).toMatchObject({ ok: true, status: 401, origin: fx.api.origin })
+      expect(fx.issuerCalls).toHaveLength(0) // 静态面零刷新
+      const bare = await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/always-401` })
+      expect(bare).toMatchObject({ ok: true, status: 401 })
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('⑦ 解绑即断供：unbind 后请求 credential_unavailable（发证与 API 零新增命中）', async () => {
+    const fx = await oauthFixture()
+    try {
+      expect(await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true })
+      expect(fx.svc.unbind('pkg-oa', 'oa', fx.api.origin)).toEqual({ ok: true })
+      const out = await brokerOn(fx).requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+      expect(out).toMatchObject({ ok: false, code: 'credential_unavailable' })
+      expect(fx.issuerCalls).toHaveLength(1) // 只有首轮预热的发证调用
+      expect(fx.apiHits).toHaveLength(1)
+    } finally {
+      await fx.cleanup()
+    }
+  })
+
+  it('刷新占触发包速率额度、重试照常占额度：额度分级下链路逐步 starvation（刷新饿死 / 重试饿死 / 全链通）', async () => {
+    // 冷启动（请求+取令牌）占 2 额度；过期轮（请求+刷新+重试）占 3 额度——合计 5
+    for (const [limit, expected] of [
+      [5, { phase: 'full', code: 'ok' }],
+      [4, { phase: 'retry', code: 'network_rate_limited' }],
+      [3, { phase: 'refresh', code: 'credential_unavailable' }],
+    ] as const) {
+      const fx = await oauthFixture()
+      try {
+        const broker = brokerOn(fx, { limits: { requestsPerSecond: limit } })
+        expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true })
+        fx.validTokens.delete('Bearer tok-1')
+        const out = await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })
+        if (expected.code === 'ok') {
+          expect(out).toMatchObject({ ok: true, status: 200 })
+          expect(fx.apiHits).toHaveLength(3) // 401 → 重试 200
+        } else if (expected.code === 'network_rate_limited') {
+          expect(out).toMatchObject({ ok: false, code: 'network_rate_limited' }) // 刷新成了、重试没额度
+          expect(fx.issuerCalls).toHaveLength(2)
+          expect(fx.apiHits).toHaveLength(2) // 无第三次命中
+        } else {
+          expect(out).toMatchObject({ ok: false, code: 'credential_unavailable' })
+          if (!out.ok) expect(out.message).toContain('速率额度不足')
+          expect(fx.issuerCalls).toHaveLength(1) // 刷新没发起（预热那次之外零发证调用）
+        }
+      } finally {
+        await fx.cleanup()
+      }
+    }
+  })
+
+  it('刷新调用随触发包生效 timeoutMs/maxResponseBytes（传输缝观测口）', async () => {
+    const fx = await oauthFixture()
+    const sentSpecs: Array<{ url: string; method: string; timeoutMs: number; maxBytes: number; bodyFields: Record<string, string> }> = []
+    const inner = createNodeTransport()
+    try {
+      const broker = brokerOn(fx, {
+        packageLimits: { 'pkg-oa': { timeoutMs: 1234, maxResponseBytes: 4096 } },
+        transport: {
+          send: async (spec) => {
+            const rec = { url: spec.url.href, method: spec.method, timeoutMs: spec.timeoutMs, maxBytes: spec.maxBytes, bodyFields: {} as Record<string, string> }
+            if (spec.body) for (const [k, v] of new URLSearchParams(spec.body.toString('utf8'))) rec.bodyFields[k] = v
+            sentSpecs.push(rec)
+            return inner.send(spec)
+          },
+        },
+      })
+      expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true })
+      const refreshSpec = sentSpecs.find((s) => s.url === `${fx.issuer.origin}/oauth/token`)
+      expect(refreshSpec).toMatchObject({ method: 'POST', timeoutMs: 1234, maxBytes: 4096 })
+      expect(refreshSpec!.bodyFields.grant_type).toBe('client_credentials')
+      expect(refreshSpec!.bodyFields.client_secret).toBe('cs-oa-888') // 体参式（RFC 6749）——只在此传输缝短暂存在
+      expect(refreshSpec!.bodyFields.client_id).toBe('cid-net')
+    } finally {
+      await fx.cleanup()
     }
   })
 })

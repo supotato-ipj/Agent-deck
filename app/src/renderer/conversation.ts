@@ -725,7 +725,7 @@ function renderCreds(): void {
     const binds = c.bindings.length
       ? c.bindings.map((b) => `${b.packageId}@${b.origin}`).join('、')
       : '未绑定任何包'
-    summary.innerHTML = `<span class="cred-name">凭证 ${c.name}</span>〔${c.headerName}〕<span class="cred-bind">${binds}</span>`
+    summary.innerHTML = `<span class="cred-name">凭证 ${c.name}</span>〔${c.type === 'oauth' ? 'oauth 自动刷新' : c.headerName}〕<span class="cred-bind">${binds}</span>`
     row.appendChild(summary)
     for (const b of c.bindings) {
       const un = document.createElement('button')
@@ -749,26 +749,63 @@ function renderCreds(): void {
     row.appendChild(del)
     credBar.appendChild(row)
   }
-  // 新建/轮换（同名 = 轮换，不触发代码重批）
+  // 新建/轮换（同名 = 轮换，不触发代码重批）；类型选择（工单348：静态值/oauth 自动刷新）——
+  // oauth 型切换出 tokenEndpoint/clientId/scope 字段（clientSecret 复用 secret 输入，只写不读）；
+  // headerName/valuePrefix 不上表单（走缺省，与静态面现状对称）。校验与单块加密归凭证库。
   const form = document.createElement('div')
   form.className = 'cred-form'
   const name = document.createElement('input')
   name.name = 'cred-name'
   name.placeholder = '凭证名'
+  const kind = document.createElement('select')
+  kind.name = 'cred-type'
+  kind.className = 'cred-type'
+  for (const [v, label] of [['static', '静态值'], ['oauth', 'OAuth（自动刷新）']] as const) {
+    const opt = document.createElement('option')
+    opt.value = v
+    opt.textContent = label
+    kind.appendChild(opt)
+  }
   const secret = document.createElement('input')
   secret.name = 'cred-secret'
   secret.type = 'password'
   secret.placeholder = 'secret（只写不读）'
+  const tokenEndpoint = document.createElement('input')
+  tokenEndpoint.name = 'cred-token-endpoint'
+  tokenEndpoint.placeholder = '发证地址（如 https://issuer.example.com/oauth/token）'
+  const clientId = document.createElement('input')
+  clientId.name = 'cred-client-id'
+  clientId.placeholder = 'clientId'
+  const scope = document.createElement('input')
+  scope.name = 'cred-scope'
+  scope.placeholder = 'scope（可选）'
+  const oauthFields = [tokenEndpoint, clientId, scope]
+  const syncKind = (): void => {
+    const oauth = kind.value === 'oauth'
+    for (const f of oauthFields) f.style.display = oauth ? '' : 'none'
+    secret.placeholder = oauth ? 'clientSecret（只写不读）' : 'secret（只写不读）'
+  }
+  kind.addEventListener('change', syncKind)
+  syncKind()
   const save = document.createElement('button')
   save.className = 'cred-save'
   save.textContent = '保存/轮换'
   save.addEventListener('click', () => {
     if (!name.value.trim() || !secret.value) return
-    void window.deck.bridge.invoke('credentials/set', { name: name.value.trim(), secret: secret.value })
-      .then(() => { secret.value = ''; return refreshCreds() })
+    const payload = kind.value === 'oauth'
+      ? { name: name.value.trim(), secret: secret.value, type: 'oauth' as const, tokenEndpoint: tokenEndpoint.value.trim(), clientId: clientId.value.trim(), scope: scope.value.trim() }
+      : { name: name.value.trim(), secret: secret.value }
+    void window.deck.bridge.invoke('credentials/set', payload)
+      .then(() => {
+        secret.value = ''
+        tokenEndpoint.value = ''
+        clientId.value = ''
+        scope.value = ''
+        return refreshCreds()
+      })
       .catch((err) => appendCredError(err))
   })
-  form.append(name, secret, save)
+  form.append(name, kind, secret, ...oauthFields, save)
   credBar.appendChild(form)
   // 绑定（包 id + 凭证 + 精确 origin）
   const bindForm = document.createElement('div')
