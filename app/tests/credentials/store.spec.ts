@@ -141,3 +141,113 @@ describe('绑定矩阵（工单339）：包 + 凭证 + 精确 origin', () => {
     expect(clean.bindingsFor('pkg-x')).toEqual([])
   })
 })
+
+// ---------------------------------------------------------------------------
+// oauth 型凭证（工单348）：type: 'static' | 'oauth' 两型；oauth 配置整组
+// {tokenEndpoint, clientId, clientSecret, scope?} 序列化成单个 JSON 字符串走既有 cipher
+// 一块加密——明文（含 clientSecret/clientId/发证地址）永不落盘；读入缺省 static（旧
+// credentials.json 零迁移）；绑定三元组与轮换语义沿用静态面。
+// ---------------------------------------------------------------------------
+describe('oauth 型凭证（工单348）：单块加密与两型模型', () => {
+  const oauthOpts = { type: 'oauth' as const, tokenEndpoint: 'https://issuer.example.com', clientId: 'cid-1', scope: 'read write' }
+
+  it('set oauth 后文件是单块密文：clientSecret/clientId/发证地址明文都不落盘；视图带 type、无 clientSecret', () => {
+    const s = store()
+    expect(s.set('oa-cred', 'cs-999', oauthOpts)).toEqual({ ok: true })
+    const raw = fs.readFileSync(file, 'utf8')
+    expect(raw).toContain('enc:')
+    expect(raw).not.toContain('cs-999')
+    expect(raw).not.toContain('cid-1')
+    expect(raw).not.toContain('issuer.example.com')
+    const [view] = s.list()
+    expect(view).toMatchObject({ name: 'oa-cred', type: 'oauth', headerName: 'authorization', valuePrefix: 'Bearer ', rotatedAt: null })
+    expect(JSON.stringify(view)).not.toContain('cs-999')
+  })
+
+  it('oauth 同名 set = 轮换：createdAt 不变、rotatedAt 更新、绑定不受影响；static↔oauth 可换型轮换', () => {
+    let now = 1_000
+    const s = new CredentialStore({ file, cipher: fakeCipher(), now: () => now, log: () => {} })
+    s.set('oa-cred', 'cs-v1', oauthOpts)
+    s.bind('pkg-a', 'oa-cred', 'http://127.0.0.1:1111')
+    now = 2_000
+    s.set('oa-cred', 'cs-v2', { ...oauthOpts, clientId: 'cid-2' })
+    const [view] = s.list()
+    expect(view.createdAt).toBe(1_000)
+    expect(view.rotatedAt).toBe(2_000)
+    expect(view.bindings).toHaveLength(1)
+    // 换型轮换：oauth → static 同名覆盖
+    s.set('oa-cred', 'plain-v3')
+    const [after] = s.list()
+    expect(after.type).toBe('static')
+    expect(s.resolve('pkg-a', 'oa-cred', 'http://127.0.0.1:1111')).toMatchObject({ ok: true, value: 'Bearer plain-v3' })
+  })
+
+  it('oauth 校验：发证地址走纯 origin 口径；clientId/clientSecret 非空且 secret ≤ 4096；缺 tokenEndpoint 拒', () => {
+    const s = store()
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com/token?x=1', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'ftp://issuer.example.com', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: '' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: 'cid', scope: '' })).toEqual({ ok: true }) // scope 空串 = 不设
+    expect(s.set('oa2', '', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa2', 'x'.repeat(4097), { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa2', 'cs', { type: 'oauth', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    // 发证地址正典化（大小写/默认端口归一）后落盘
+    expect(s.set('oa3', 'cs', { type: 'oauth', tokenEndpoint: 'HTTPS://ISSUER3.example.com', clientId: 'cid' })).toEqual({ ok: true })
+  })
+
+  it('旧 credentials.json 零迁移：无 type 字段的记录载入即 static，解析照旧', () => {
+    const legacy = {
+      version: 1,
+      credentials: [{ name: 'old-cred', headerName: 'authorization', valuePrefix: 'Bearer ', cipher: fakeCipher().encrypt('v-legacy'), createdAt: 1, rotatedAt: null }],
+      bindings: [],
+    }
+    fs.writeFileSync(file, JSON.stringify(legacy), 'utf8')
+    const s = store()
+    const [view] = s.list()
+    expect(view).toMatchObject({ name: 'old-cred', type: 'static' })
+    s.bind('pkg', 'old-cred', 'http://127.0.0.1:1')
+    expect(s.resolve('pkg', 'old-cred', 'http://127.0.0.1:1')).toMatchObject({ ok: true, value: 'Bearer v-legacy' })
+  })
+
+  it('resolve 分型：static 回 kind static + 注入值；oauth 回 kind oauth + 解密配置（clientSecret 只在内存面）', () => {
+    const s = store()
+    s.set('st', 'st-v1')
+    s.set('oa', 'cs-888', oauthOpts)
+    s.bind('pkg-a', 'st', 'http://127.0.0.1:1111')
+    s.bind('pkg-a', 'oa', 'http://127.0.0.1:1111')
+    expect(s.resolve('pkg-a', 'st', 'http://127.0.0.1:1111')).toMatchObject({ ok: true, kind: 'static', headerName: 'authorization', value: 'Bearer st-v1' })
+    const oa = s.resolve('pkg-a', 'oa', 'http://127.0.0.1:1111')
+    expect(oa).toMatchObject({ ok: true, kind: 'oauth', headerName: 'authorization', valuePrefix: 'Bearer ' })
+    if (!oa.ok || oa.kind !== 'oauth') return
+    expect(oa.config).toEqual({ tokenEndpoint: 'https://issuer.example.com', clientId: 'cid-1', clientSecret: 'cs-888', scope: 'read write' })
+  })
+
+  it('oauth 密文损坏（解不开/非 JSON/形状缺角）→ credential_unavailable，不虚挂注入值', () => {
+    const s = store()
+    s.set('oa', 'cs-777', oauthOpts)
+    s.bind('pkg-a', 'oa', 'http://127.0.0.1:1111')
+    const body = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const cases = [
+      fakeCipher().encrypt('not-json'),
+      fakeCipher().encrypt(JSON.stringify({ tokenEndpoint: 'https://issuer.example.com' })),
+      fakeCipher().encrypt(JSON.stringify({ tokenEndpoint: 'https://issuer.example.com', clientId: 'c', scope: 'x' })),
+      fakeCipher().encrypt(JSON.stringify({ clientId: 'c', clientSecret: 's' })),
+      'enc:!!!broken-base64!!!',
+    ]
+    for (const bad of cases) {
+      body.credentials[0].cipher = bad
+      fs.writeFileSync(file, JSON.stringify(body), 'utf8')
+      const reborn = store()
+      expect(reborn.resolve('pkg-a', 'oa', 'http://127.0.0.1:1111')).toMatchObject({ ok: false, code: 'credential_unavailable' })
+    }
+  })
+
+  it('加密不可用时 oauth 同样拒存（绝不落明文兜底）；在册 oauth 解析如实不可用', () => {
+    const ok = store()
+    ok.set('oa', 'cs-1', oauthOpts)
+    const down = store(fakeCipher(false))
+    expect(down.set('oa2', 'cs-2', oauthOpts)).toMatchObject({ ok: false, code: 'credential_store_unavailable' })
+    down.bind('pkg', 'oa', 'http://127.0.0.1:1')
+    expect(down.resolve('pkg', 'oa', 'http://127.0.0.1:1')).toMatchObject({ ok: false, code: 'credential_unavailable' })
+  })
+})
