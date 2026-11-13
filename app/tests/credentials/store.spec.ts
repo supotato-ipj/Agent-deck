@@ -149,7 +149,9 @@ describe('绑定矩阵（工单339）：包 + 凭证 + 精确 origin', () => {
 // credentials.json 零迁移）；绑定三元组与轮换语义沿用静态面。
 // ---------------------------------------------------------------------------
 describe('oauth 型凭证（工单348）：单块加密与两型模型', () => {
-  const oauthOpts = { type: 'oauth' as const, tokenEndpoint: 'https://issuer.example.com', clientId: 'cid-1', scope: 'read write' }
+  // 发证地址 = 完整 URL（评审裁定 2026-11-13：真实发证服务几乎全带路径——飞书/Azure/GitHub；
+  // 校验走 origin.ts 请求 URL 口径：http(s)、拒 userinfo、允许路径/query），正典 href 落盘
+  const oauthOpts = { type: 'oauth' as const, tokenEndpoint: 'https://issuer.example.com/oauth/token', clientId: 'cid-1', scope: 'read write' }
 
   it('set oauth 后文件是单块密文：clientSecret/clientId/发证地址明文都不落盘；视图带 type、无 clientSecret', () => {
     const s = store()
@@ -182,17 +184,26 @@ describe('oauth 型凭证（工单348）：单块加密与两型模型', () => {
     expect(s.resolve('pkg-a', 'oa-cred', 'http://127.0.0.1:1111')).toMatchObject({ ok: true, value: 'Bearer plain-v3' })
   })
 
-  it('oauth 校验：发证地址走纯 origin 口径；clientId/clientSecret 非空且 secret ≤ 4096；缺 tokenEndpoint 拒', () => {
+  it('oauth 校验：发证地址走合法 http(s) URL 口径（可带路径、拒 userinfo、≤512）；clientId/clientSecret 非空且 secret ≤ 4096', () => {
     const s = store()
-    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com/token?x=1', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
-    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'ftp://issuer.example.com', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    // 非法形态：非 http(s)、内嵌 userinfo、超长、不可解析、缺角
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'ftp://issuer.example.com/oauth/token', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://user:pass@issuer.example.com/oauth/token', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: `https://issuer.example.com/${'x'.repeat(512)}`, clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'not a url', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    expect(s.set('oa', 'cs', { type: 'oauth', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
+    // 合法形态：带路径（真实提供商形态——飞书/Azure/GitHub 都是带路径端点）
     expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: '' })).toMatchObject({ ok: false, code: 'credential_invalid' })
-    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: 'cid', scope: '' })).toEqual({ ok: true }) // scope 空串 = 不设
+    expect(s.set('oa', 'cs', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com/oauth/token', clientId: 'cid', scope: '' })).toEqual({ ok: true }) // scope 空串 = 不设
     expect(s.set('oa2', '', { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
     expect(s.set('oa2', 'x'.repeat(4097), { type: 'oauth', tokenEndpoint: 'https://issuer.example.com', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
     expect(s.set('oa2', 'cs', { type: 'oauth', clientId: 'cid' })).toMatchObject({ ok: false, code: 'credential_invalid' })
-    // 发证地址正典化（大小写/默认端口归一）后落盘
-    expect(s.set('oa3', 'cs', { type: 'oauth', tokenEndpoint: 'HTTPS://ISSUER3.example.com', clientId: 'cid' })).toEqual({ ok: true })
+    // 发证地址正典化（scheme/host 小写、默认端口归一、href 串）后落盘
+    expect(s.set('oa3', 'cs', { type: 'oauth', tokenEndpoint: 'HTTPS://ISSUER3.example.com:443/login/oauth/access_token', clientId: 'cid' })).toEqual({ ok: true })
+    s.bind('pkg', 'oa3', 'http://127.0.0.1:1')
+    const canon = s.resolve('pkg', 'oa3', 'http://127.0.0.1:1')
+    if (!canon.ok || canon.kind !== 'oauth') return
+    expect(canon.config.tokenEndpoint).toBe('https://issuer3.example.com/login/oauth/access_token')
   })
 
   it('旧 credentials.json 零迁移：无 type 字段的记录载入即 static，解析照旧', () => {
@@ -213,13 +224,19 @@ describe('oauth 型凭证（工单348）：单块加密与两型模型', () => {
     const s = store()
     s.set('st', 'st-v1')
     s.set('oa', 'cs-888', oauthOpts)
+    // 正典化：scheme/host 小写、默认端口归一、href 串落盘
+    s.set('oa-canon', 'cs-canonical', { type: 'oauth', tokenEndpoint: 'HTTPS://Issuer.Canonical.example.com/oauth/token', clientId: 'cid-canon' })
     s.bind('pkg-a', 'st', 'http://127.0.0.1:1111')
     s.bind('pkg-a', 'oa', 'http://127.0.0.1:1111')
+    s.bind('pkg-a', 'oa-canon', 'http://127.0.0.1:1111')
     expect(s.resolve('pkg-a', 'st', 'http://127.0.0.1:1111')).toMatchObject({ ok: true, kind: 'static', headerName: 'authorization', value: 'Bearer st-v1' })
     const oa = s.resolve('pkg-a', 'oa', 'http://127.0.0.1:1111')
     expect(oa).toMatchObject({ ok: true, kind: 'oauth', headerName: 'authorization', valuePrefix: 'Bearer ' })
     if (!oa.ok || oa.kind !== 'oauth') return
-    expect(oa.config).toEqual({ tokenEndpoint: 'https://issuer.example.com', clientId: 'cid-1', clientSecret: 'cs-888', scope: 'read write' })
+    expect(oa.config).toEqual({ tokenEndpoint: 'https://issuer.example.com/oauth/token', clientId: 'cid-1', clientSecret: 'cs-888', scope: 'read write' })
+    const canon = s.resolve('pkg-a', 'oa-canon', 'http://127.0.0.1:1111')
+    if (!canon.ok || canon.kind !== 'oauth') return
+    expect(canon.config.tokenEndpoint).toBe('https://issuer.canonical.example.com/oauth/token')
   })
 
   it('oauth 密文损坏（解不开/非 JSON/形状缺角）→ credential_unavailable，不虚挂注入值', () => {

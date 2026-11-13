@@ -772,7 +772,7 @@ function renderCreds(): void {
   secret.placeholder = 'secret（只写不读）'
   const tokenEndpoint = document.createElement('input')
   tokenEndpoint.name = 'cred-token-endpoint'
-  tokenEndpoint.placeholder = '发证地址（纯 origin，如 https://issuer.example.com）'
+  tokenEndpoint.placeholder = '发证地址（如 https://issuer.example.com/oauth/token）'
   const clientId = document.createElement('input')
   clientId.name = 'cred-client-id'
   clientId.placeholder = 'clientId'

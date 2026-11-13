@@ -1267,7 +1267,7 @@ export interface BridgeMethods {
       secret: string
       headerName?: string
       valuePrefix?: string
-      /** 工单348：缺省 static；oauth 型出下列三字段（发证地址走纯 origin 口径） */
+      /** 工单348：缺省 static；oauth 型出下列三字段（发证地址为合法 http(s) URL，可带路径） */
       type?: 'static' | 'oauth'
       tokenEndpoint?: string
       clientId?: string

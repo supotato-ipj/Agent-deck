@@ -24,12 +24,12 @@ function fakeCipher(available = true): CredentialCipherPort {
 
 interface IssuerHandle {
   origin: string
-  /** 发证服务实际收到的调用（外部可见行为的观测口） */
-  calls: Array<{ body: Record<string, string>; contentType: string; authorization: string | undefined }>
+  /** 发证服务实际收到的调用（外部可见行为的观测口；path 证明 POST 落在带路径端点上） */
+  calls: Array<{ path: string; body: Record<string, string>; contentType: string; authorization: string | undefined }>
   close(): Promise<void>
 }
 
-/** 本地发证服务：POST /token 记下收到的表单与头，回 JSON access_token（可编排失败形态） */
+/** 本地发证服务：POST 记下路径/表单/头，回 JSON access_token（可编排失败形态） */
 function startIssuer(opts: {
   status?: number
   payload?: Record<string, unknown>
@@ -44,7 +44,7 @@ function startIssuer(opts: {
           const raw = Buffer.concat(chunks).toString('utf8')
           const body: Record<string, string> = {}
           for (const [k, v] of new URLSearchParams(raw)) body[k] = v
-          handle.calls.push({ body, contentType: String(req.headers['content-type'] ?? ''), authorization: req.headers.authorization })
+          handle.calls.push({ path: req.url ?? '/', body, contentType: String(req.headers['content-type'] ?? ''), authorization: req.headers.authorization })
           const status = opts.status ?? 200
           const payload = opts.payload ?? { access_token: `tok-${handle.calls.length}`, expires_in: 3600 }
           res.writeHead(status, { 'content-type': 'application/json' })
@@ -106,8 +106,8 @@ function makeIo(overrides: Partial<CredentialRefreshIo> = {}): CredentialRefresh
   }
 }
 
-// 发证地址是纯 origin（工单348 决策 7：origin.ts 口径，不带路径）——POST 即打到 origin 根
-const OAUTH_SET = (issuerOrigin: string) => ({ type: 'oauth' as const, tokenEndpoint: issuerOrigin, clientId: 'cid-1', scope: 'read write' })
+// 发证地址 = 完整 URL（评审裁定 2026-11-13：可带路径——真实提供商端点全带路径）；审计仍只记 origin
+const OAUTH_SET = (issuerOrigin: string) => ({ type: 'oauth' as const, tokenEndpoint: `${issuerOrigin}/oauth/token`, clientId: 'cid-1', scope: 'read write' })
 
 let dir: string
 let file: string
@@ -134,8 +134,9 @@ describe('oauth 运行时面（工单348）：取令牌、缓存、单飞、refr
       const io = makeIo()
       const out = await svc.resolve('pkg-a', 'oa', 'http://127.0.0.1:1111', io)
       expect(out).toMatchObject({ ok: true, headerName: 'authorization', value: 'Bearer tok-1', refreshable: true })
-      // 发证服务实际收到：POST + 体参式 RFC 6749 表单
+      // 发证服务实际收到：POST + 体参式 RFC 6749 表单，落在带路径端点上
       expect(issuer.calls).toHaveLength(1)
+      expect(issuer.calls[0].path).toBe('/oauth/token')
       expect(issuer.calls[0].contentType).toContain('application/x-www-form-urlencoded')
       expect(issuer.calls[0].body).toEqual({ grant_type: 'client_credentials', client_id: 'cid-1', client_secret: 'cs-888', scope: 'read write' })
       expect(issuer.calls[0].authorization).toBeUndefined()
@@ -239,7 +240,7 @@ describe('oauth 运行时面（工单348）：取令牌、缓存、单飞、refr
       await svc.refresh('pkg-a', 'oa', 'http://127.0.0.1:1111', io)
       expect(io.rateCalls).toBe(1)
       expect(io.sentSpecs[0]).toMatchObject({ timeoutMs: 1234, maxBytes: 4096, method: 'POST' })
-      expect(io.sentSpecs[0].url).toBe(`${issuer.origin}/`)
+      expect(io.sentSpecs[0].url).toBe(`${issuer.origin}/oauth/token`)
       // 额度拒：刷新无法发起（额度被询问过一次——占额动作本身发生，只是拒绝放行）
       let deniedRateCalls = 0
       const denied = makeIo({ consumeRate: () => { deniedRateCalls += 1; return false } })

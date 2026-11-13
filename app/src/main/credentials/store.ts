@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { originOfDeclaration } from '../network/origin'
+import { originOfDeclaration, originOfRequestUrl } from '../network/origin'
 
 /**
  * 命名凭证（工单339，ADR-0025「凭证只发给精确匹配目标」）：加密保存 + 显式绑定 + 注入。
@@ -46,7 +46,7 @@ export interface CredentialRecord {
 
 /** 工单348：oauth 型配置（整组序列化成单个 JSON 字符串走 cipher 一块加密落盘） */
 export interface OauthCredentialConfig {
-  /** 发证地址（纯 origin，origin.ts 口径正典化后落盘） */
+  /** 发证地址（合法 http(s) URL，可带路径——真实发证服务端点几乎全带路径；不得内嵌 userinfo；正典 href 落盘） */
   tokenEndpoint: string
   clientId: string
   clientSecret: string
@@ -97,6 +97,8 @@ const NAME_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const HEADER_RE = /^[a-z0-9-]{1,64}$/
 const SECRET_MAX = 4096
 const PREFIX_MAX = 64
+/** 发证地址长度上限（完整 URL 口径——评审裁定 2026-11-13；正常端点远短于此） */
+const ENDPOINT_MAX = 512
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
@@ -241,7 +243,9 @@ export class CredentialStore {
       return { ok: false, code: 'credential_invalid', message: `headerName 不允许：${headerName}` }
     }
     const valuePrefix = (opts?.valuePrefix ?? 'Bearer ').slice(0, PREFIX_MAX)
-    // 工单348：oauth 型先验配置形状，再整组单块加密（clientSecret 只在内存面短暂存在）
+    // 工单348：oauth 型先验配置形状，再整组单块加密（clientSecret 只在内存面短暂存在）。
+    // 发证地址走 origin.ts 请求 URL 口径（合法 http(s)、拒 userinfo、允许路径/query——真实
+    // 提供商端点几乎全带路径），落盘存正典 href。
     let plaintext = secret
     let kind: CredentialRecord['type'] = 'static'
     if (opts?.type === 'oauth') {
@@ -249,15 +253,18 @@ export class CredentialStore {
       if (typeof opts.tokenEndpoint !== 'string' || !opts.tokenEndpoint) {
         return { ok: false, code: 'credential_invalid', message: 'oauth 型需要发证地址（tokenEndpoint）' }
       }
-      const endpoint = originOfDeclaration(opts.tokenEndpoint)
+      if (opts.tokenEndpoint.length > ENDPOINT_MAX) {
+        return { ok: false, code: 'credential_invalid', message: `发证地址过长（≤${ENDPOINT_MAX} 字符）：${opts.tokenEndpoint.slice(0, 64)}…` }
+      }
+      const endpoint = originOfRequestUrl(opts.tokenEndpoint)
       if (!endpoint.ok) {
-        return { ok: false, code: 'credential_invalid', message: `发证地址必须是纯 origin（origin.ts 口径）：${endpoint.message}` }
+        return { ok: false, code: 'credential_invalid', message: `发证地址必须是合法 http(s) URL（可带路径，不得内嵌 userinfo）：${endpoint.message}` }
       }
       if (typeof opts.clientId !== 'string' || !opts.clientId) {
         return { ok: false, code: 'credential_invalid', message: 'oauth 型需要非空 clientId' }
       }
       const scope = typeof opts.scope === 'string' && opts.scope ? opts.scope : undefined
-      plaintext = JSON.stringify({ tokenEndpoint: endpoint.origin, clientId: opts.clientId, clientSecret: secret, ...(scope ? { scope } : {}) } satisfies OauthCredentialConfig)
+      plaintext = JSON.stringify({ tokenEndpoint: new URL(opts.tokenEndpoint).href, clientId: opts.clientId, clientSecret: secret, ...(scope ? { scope } : {}) } satisfies OauthCredentialConfig)
     }
     if (!this.opts.cipher.available()) {
       return { ok: false, code: 'credential_store_unavailable', message: '系统加密能力不可用（safeStorage/DPAPI 未就绪）——拒绝保存，绝不落明文兜底' }
@@ -379,7 +386,7 @@ export class CredentialStore {
   }
 }
 
-/** oauth 配置块形状校验（落盘前已验证；读回再验一次——手工改坏不虚挂） */
+/** oauth 配置块形状校验（落盘前已验证；读回再验一次——手工改坏不虚挂）。同 set 口径：合法 http(s) URL + 正典 href */
 function parseOauthConfig(plain: string): OauthCredentialConfig | null {
   let raw: unknown
   try {
@@ -388,13 +395,13 @@ function parseOauthConfig(plain: string): OauthCredentialConfig | null {
     return null
   }
   if (!isRecord(raw)) return null
-  if (typeof raw.tokenEndpoint !== 'string' || !raw.tokenEndpoint) return null
-  const endpoint = originOfDeclaration(raw.tokenEndpoint)
+  if (typeof raw.tokenEndpoint !== 'string' || !raw.tokenEndpoint || raw.tokenEndpoint.length > ENDPOINT_MAX) return null
+  const endpoint = originOfRequestUrl(raw.tokenEndpoint)
   if (!endpoint.ok) return null
   if (typeof raw.clientId !== 'string' || !raw.clientId) return null
   if (typeof raw.clientSecret !== 'string' || !raw.clientSecret) return null
   return {
-    tokenEndpoint: endpoint.origin,
+    tokenEndpoint: new URL(raw.tokenEndpoint).href,
     clientId: raw.clientId,
     clientSecret: raw.clientSecret,
     ...(typeof raw.scope === 'string' && raw.scope ? { scope: raw.scope } : {}),

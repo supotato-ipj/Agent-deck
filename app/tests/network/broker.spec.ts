@@ -621,8 +621,9 @@ describe('oauth 自动刷新（工单348）', () => {
     const validTokens = new Set<string>()
     let issued = 0
     const issuerCalls: Array<{ body: Record<string, string> }> = []
+    // 发证端点带路径（评审裁定 2026-11-13：真实提供商形态——飞书/Azure/GitHub 端点全带路径）
     const issuer = await serve({
-      '/': (req, res) => {
+      '/oauth/token': (req, res) => {
         const chunks: Buffer[] = []
         req.on('data', (c: Buffer) => chunks.push(c))
         req.on('end', () => {
@@ -672,7 +673,7 @@ describe('oauth 自动刷新（工单348）', () => {
       cipher: oauthCipher(),
       log: () => {},
     })
-    svc.set('oa', 'cs-oa-888', { type: 'oauth', tokenEndpoint: issuer.origin, clientId: 'cid-net', scope: 'read' })
+    svc.set('oa', 'cs-oa-888', { type: 'oauth', tokenEndpoint: `${issuer.origin}/oauth/token`, clientId: 'cid-net', scope: 'read' })
     svc.bind('pkg-oa', 'oa', api.origin)
     const port = {
       resolve: (pkg: string, name: string, origin: string, io: Parameters<CredentialService['resolve']>[3]) => svc.resolve(pkg, name, origin, io),
@@ -899,7 +900,7 @@ describe('oauth 自动刷新（工单348）', () => {
         },
       })
       expect(await broker.requestForPackage('pkg-oa', { url: `${fx.api.origin}/data`, credential: 'oa' })).toMatchObject({ ok: true })
-      const refreshSpec = sentSpecs.find((s) => s.url === `${fx.issuer.origin}/`)
+      const refreshSpec = sentSpecs.find((s) => s.url === `${fx.issuer.origin}/oauth/token`)
       expect(refreshSpec).toMatchObject({ method: 'POST', timeoutMs: 1234, maxBytes: 4096 })
       expect(refreshSpec!.bodyFields.grant_type).toBe('client_credentials')
       expect(refreshSpec!.bodyFields.client_secret).toBe('cs-oa-888') // 体参式（RFC 6749）——只在此传输缝短暂存在
