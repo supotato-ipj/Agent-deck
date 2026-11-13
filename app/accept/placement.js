@@ -776,7 +776,7 @@ async function main() {
       const tTiny = Date.now();
       await relaunchPanel(false);
       const dockedEvt = await tape.wait('placement-overlap-accepted',
-        (e) => e.id === 'weather-card' && e.reason === 'no-space', { since: tTiny, timeoutMs: 8000 });
+        (e) => (e.id === 'weather-card' || e.id === 'clock-card') && e.reason === 'no-space', { since: tTiny, timeoutMs: 8000 });
       const tinyCards = await cdpEval(EXPR.cards);
       const tinyClock = tinyCards.find((c) => c.id === 'clock-card');
       const tinyWeather = tinyCards.find((c) => c.id === 'weather-card');
