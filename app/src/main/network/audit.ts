@@ -36,6 +36,8 @@ export interface NetworkAccessRecord {
   status?: number
   /** 跨域重定向目标 origin（不跟随；只记目标 origin，不记完整 URL） */
   redirectTo?: string
+  /** 工单348：审计子因（同一结果码内的细分标注，如 oauth 刷新终态——不新增结果码） */
+  reason?: string
 }
 
 /** 聚合桶（可投影面；键 = 包+权限+窗口起点） */
@@ -82,6 +84,7 @@ function coerceRecord(raw: unknown): NetworkAccessRecord | null {
     ...(typeof r.code === 'string' ? { code: r.code } : {}),
     ...(typeof r.status === 'number' ? { status: r.status } : {}),
     ...(typeof r.redirectTo === 'string' ? { redirectTo: r.redirectTo } : {}),
+    ...(typeof r.reason === 'string' ? { reason: r.reason } : {}),
   }
 }
 
@@ -144,6 +147,7 @@ export class NetworkAuditService {
     code?: string
     status?: number
     redirectTo?: string
+    reason?: string
   }): NetworkAuditBucket {
     const rec: NetworkAccessRecord = {
       at: this.opts.now(),
@@ -156,6 +160,7 @@ export class NetworkAuditService {
       ...(access.code ? { code: access.code } : {}),
       ...(typeof access.status === 'number' ? { status: access.status } : {}),
       ...(access.redirectTo ? { redirectTo: access.redirectTo } : {}),
+      ...(access.reason ? { reason: access.reason } : {}),
     }
     try {
       fs.mkdirSync(path.dirname(this.opts.file), { recursive: true })

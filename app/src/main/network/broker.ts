@@ -274,6 +274,8 @@ export class NetworkBroker {
     code?: string
     status?: number
     redirectTo?: string
+    /** 工单348：审计子因（不新增结果码——credential_unavailable 内区分「刷新失败/刷新后仍被拒」） */
+    reason?: string
   }): void {
     try {
       this.opts.audit?.record(rec)
@@ -374,7 +376,7 @@ export class NetworkBroker {
       const credentialed = await this.credentialGate(packageId, origin, method, credentialName, headers, injectedHeaderName, refreshIo)
       if ('error' in credentialed) return credentialed.error
       injectedHeaderName = credentialed.injectedHeaderName
-      const refreshable = credentialed.refreshable
+      let refreshable = credentialed.refreshable
       const bodyText = typeof spec?.body === 'string' ? spec.body : undefined
       const body = bodyText !== undefined && method !== 'GET' && method !== 'HEAD' ? Buffer.from(bodyText, 'utf8') : undefined
       if (body) headers['content-length'] = String(body.length)
@@ -383,6 +385,8 @@ export class NetworkBroker {
       // 「同包 + 本 origin」重新解析注入（同 origin 必命中同一绑定）。
       let currentUrl = new URL(rawUrl)
       let redirects = 0
+      /** 工单348：同一逻辑请求全生命周期最多一次刷新 + 重试（拒绝无限循环） */
+      let refreshedOnce = false
       for (;;) {
         let reply: NetworkRawReply
         try {
@@ -459,6 +463,47 @@ export class NetworkBroker {
             status: reply.status,
             ...(location ? { location: String(location).slice(0, 512) } : {}),
           }
+        }
+
+        // 工单348：oauth 型纯被动 401 处置——已注入请求被目标拒 401 才触发：单飞刷新一次
+        //（按凭证名，共享同一次发证调用）→ 摘旧头注新头 → 重发当前请求恰好一次（方法不限，
+        // 重定向跳上的 401 同样适用）。刷新失败或刷新后仍 401 = credential_unavailable 终态，
+        // **永不透传 401**；静态/无凭证请求不经此分支（401 照旧 ok:true 透传，零改动）。
+        if (reply.status === 401 && credentialName && refreshable) {
+          if (refreshedOnce) {
+            this.audit({ packageId, origin: currentUrl.origin, method, outcome: 'error', code: 'credential_unavailable', reason: 'refreshed-still-denied', status: reply.status })
+            return {
+              ok: false,
+              code: 'credential_unavailable',
+              message: `oauth 凭证刷新后仍被拒（HTTP 401）：已按「单次刷新 + 单次重试」停止——请检查凭证有效期或重新授权`,
+              origin: currentUrl.origin,
+              method,
+              status: reply.status,
+            }
+          }
+          refreshedOnce = true
+          // 触发刷新的这次真实请求照常记账（账面按行成链：401 → 发证行 → 重试行）
+          this.audit({ packageId, origin: currentUrl.origin, method, outcome: 'ok', status: reply.status })
+          let refreshed: CredentialRefreshResult | null
+          try {
+            refreshed = this.opts.credentials
+              ? await this.opts.credentials.refresh(packageId, credentialName, currentUrl.origin, refreshIo)
+              : null
+          } catch (err) {
+            refreshed = { ok: false, code: 'credential_unavailable', message: `刷新失败：${err instanceof Error ? err.message : String(err)}` }
+          }
+          if (!refreshed || refreshed.ok !== true) {
+            const message = refreshed ? refreshed.message : '凭证面未装配——刷新不可用'
+            this.audit({ packageId, origin: currentUrl.origin, method, outcome: 'error', code: 'credential_unavailable', reason: 'refresh-failed' })
+            return { ok: false, code: 'credential_unavailable', message, origin: currentUrl.origin, method }
+          }
+          // 摘旧注入头、注入刷新后的新头（包不能覆盖/窥探注入面）；重试照常占速率额度
+          delete headers[injectedHeaderName]
+          headers[refreshed.headerName] = refreshed.value
+          injectedHeaderName = refreshed.headerName
+          const retryLimited = this.rateGate(packageId, currentUrl.origin, method, effective)
+          if (retryLimited) return retryLimited
+          continue
         }
 
         // 终点（非 3xx）：成功结果——同一结果形状只多 redirects 计数（链细节只进审计）
