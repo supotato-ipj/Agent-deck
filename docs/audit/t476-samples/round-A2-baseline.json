@@ -1,0 +1,790 @@
+{
+    "label":  "baseline-v2",
+    "windowSec":  300,
+    "settleSec":  30,
+    "cores":  16,
+    "spawnTotal":  53,
+    "spawnBuckets":  {
+                         "ours":  17,
+                         "unattributed":  31,
+                         "other":  5
+                     },
+    "oursSpawnCount":  17,
+    "oursSpawnTimes":  [
+                           40.6,
+                           52.7,
+                           80.7,
+                           86.1,
+                           119.5,
+                           136.5,
+                           159.8,
+                           165.8,
+                           171.1,
+                           177,
+                           193.9,
+                           210.5,
+                           216.1,
+                           221.6,
+                           249.4,
+                           277.2,
+                           282.7
+                       ],
+    "oursSpawnGapsSec":  [
+                             12.1,
+                             28,
+                             5.4,
+                             33.4,
+                             17,
+                             23.3,
+                             6,
+                             5.3,
+                             5.9,
+                             16.9,
+                             16.6,
+                             5.6,
+                             5.5,
+                             27.8,
+                             27.8,
+                             5.5
+                         ],
+    "sightings":  [
+                      {
+                          "t":  6.1,
+                          "wall":  "12:33:12.694",
+                          "pids":  "21848",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  11.2,
+                          "wall":  "12:33:17.832",
+                          "pids":  "22576",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  17.3,
+                          "wall":  "12:33:23.882",
+                          "pids":  "32160",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  21.7,
+                          "wall":  "12:33:28.321",
+                          "pids":  "15308",
+                          "bucket":  "other",
+                          "parent":  "C:\\Program Files\\nodejs\\node.exe"
+                      },
+                      {
+                          "t":  33.2,
+                          "wall":  "12:33:39.818",
+                          "pids":  "19628",
+                          "bucket":  "other",
+                          "parent":  "C:\\Program Files\\nodejs\\node.exe"
+                      },
+                      {
+                          "t":  37.2,
+                          "wall":  "12:33:43.804",
+                          "pids":  "28848",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  40.6,
+                          "wall":  "12:33:47.270",
+                          "pids":  "20632",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  42.5,
+                          "wall":  "12:33:49.089",
+                          "pids":  "26804",
+                          "bucket":  "other",
+                          "parent":  "C:\\Program Files\\nodejs\\node.exe"
+                      },
+                      {
+                          "t":  46.7,
+                          "wall":  "12:33:53.254",
+                          "pids":  "15784",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  52.7,
+                          "wall":  "12:33:59.310",
+                          "pids":  "32396",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  58.6,
+                          "wall":  "12:34:05.267",
+                          "pids":  "19144",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  64,
+                          "wall":  "12:34:10.602",
+                          "pids":  "15196",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  69.6,
+                          "wall":  "12:34:16.274",
+                          "pids":  "34604",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  75.1,
+                          "wall":  "12:34:21.747",
+                          "pids":  "25928",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  80.7,
+                          "wall":  "12:34:27.358",
+                          "pids":  "34560",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  86.1,
+                          "wall":  "12:34:32.767",
+                          "pids":  "23836",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  91.9,
+                          "wall":  "12:34:38.472",
+                          "pids":  "11096",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  97.3,
+                          "wall":  "12:34:43.901",
+                          "pids":  "23152",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  103.1,
+                          "wall":  "12:34:49.694",
+                          "pids":  "23748",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  114.2,
+                          "wall":  "12:35:00.783",
+                          "pids":  "4584",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  119.5,
+                          "wall":  "12:35:06.115",
+                          "pids":  "36236",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  125.2,
+                          "wall":  "12:35:11.819",
+                          "pids":  "23540",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  130.7,
+                          "wall":  "12:35:17.326",
+                          "pids":  "28940",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  136.5,
+                          "wall":  "12:35:23.106",
+                          "pids":  "14900",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  141.4,
+                          "wall":  "12:35:28.022",
+                          "pids":  "24032",
+                          "bucket":  "other",
+                          "parent":  "C:\\Program Files\\nodejs\\node.exe"
+                      },
+                      {
+                          "t":  152.9,
+                          "wall":  "12:35:39.515",
+                          "pids":  "31780",
+                          "bucket":  "other",
+                          "parent":  "C:\\Program Files\\nodejs\\node.exe"
+                      },
+                      {
+                          "t":  156.5,
+                          "wall":  "12:35:43.080",
+                          "pids":  "24484",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  159.8,
+                          "wall":  "12:35:46.404",
+                          "pids":  "19224",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  165.8,
+                          "wall":  "12:35:52.448",
+                          "pids":  "2660",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  171.1,
+                          "wall":  "12:35:57.754",
+                          "pids":  "28836",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  177,
+                          "wall":  "12:36:03.647",
+                          "pids":  "4568",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  182.9,
+                          "wall":  "12:36:09.528",
+                          "pids":  "27608",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  188.4,
+                          "wall":  "12:36:14.983",
+                          "pids":  "29336",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  193.9,
+                          "wall":  "12:36:20.529",
+                          "pids":  "4468",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  199.5,
+                          "wall":  "12:36:26.157",
+                          "pids":  "31356",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  205.1,
+                          "wall":  "12:36:31.698",
+                          "pids":  "9704",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  210.5,
+                          "wall":  "12:36:37.173",
+                          "pids":  "11216",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  216.1,
+                          "wall":  "12:36:42.731",
+                          "pids":  "26596",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  221.6,
+                          "wall":  "12:36:48.266",
+                          "pids":  "26640",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  227.3,
+                          "wall":  "12:36:53.910",
+                          "pids":  "13364",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  232.8,
+                          "wall":  "12:36:59.445",
+                          "pids":  "34468",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  238.4,
+                          "wall":  "12:37:05.049",
+                          "pids":  "30424",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  243.9,
+                          "wall":  "12:37:10.537",
+                          "pids":  "14584",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  249.4,
+                          "wall":  "12:37:16.064",
+                          "pids":  "9724",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  255.1,
+                          "wall":  "12:37:21.697",
+                          "pids":  "28376",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  260.6,
+                          "wall":  "12:37:27.240",
+                          "pids":  "36232",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  266.2,
+                          "wall":  "12:37:32.779",
+                          "pids":  "5076",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  271.8,
+                          "wall":  "12:37:38.390",
+                          "pids":  "29976",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  277.2,
+                          "wall":  "12:37:43.825",
+                          "pids":  "2908",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  282.7,
+                          "wall":  "12:37:49.361",
+                          "pids":  "26400",
+                          "bucket":  "ours",
+                          "parent":  "D:\\test-folder\\wallpaperengine-research--feat476-gpu-sample-30s\\app\\node_modules\\electron\\dist\\electron.exe"
+                      },
+                      {
+                          "t":  288.4,
+                          "wall":  "12:37:55.035",
+                          "pids":  "20496",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  293.9,
+                          "wall":  "12:38:00.485",
+                          "pids":  "23920",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  299.5,
+                          "wall":  "12:38:06.148",
+                          "pids":  "8656",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      }
+                  ],
+    "cpuGroupPercentMachineSettled":  3.457,
+    "cpuGroupPercentMachineWhole":  3.415,
+    "cpuSettledDeltaSec":  275,
+    "cpuSettledMineCpuSec":  152.094,
+    "cpuSettledMineProcs":  "8-\u003e8",
+    "foreignCpuPercentMachineSettled":  0,
+    "foreignProcsRange":  "0-\u003e0",
+    "cpuSamples":  [
+                       {
+                           "t":  0.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  21.328,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  5,
+                           "mineProcs":  8,
+                           "mineCpuSec":  23.75,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  10.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  26.047,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  15.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  28.672,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  20.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  31.609,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  25.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  35.141,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  30.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  38.609,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  40.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  45.938,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  45.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  49.594,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  50.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  53.156,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  55.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  57.062,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  60.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  60.578,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  65.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  62.953,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  70,
+                           "mineProcs":  8,
+                           "mineCpuSec":  65.297,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  80.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  69.984,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  85,
+                           "mineProcs":  8,
+                           "mineCpuSec":  72.156,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  90,
+                           "mineProcs":  8,
+                           "mineCpuSec":  74.719,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  95.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  77.125,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  100.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  79.516,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  105.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  82.297,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  110.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  84.859,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  115.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  87.125,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  120,
+                           "mineProcs":  8,
+                           "mineCpuSec":  89.469,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  125.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  91.438,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  130,
+                           "mineProcs":  8,
+                           "mineCpuSec":  93.703,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  145.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  103.047,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  150.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  106.516,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  160.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  113.766,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  165.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  117.438,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  170.2,
+                           "mineProcs":  8,
+                           "mineCpuSec":  121.141,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  175.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  124.547,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  180.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  128.141,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  185,
+                           "mineProcs":  8,
+                           "mineCpuSec":  131,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  190.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  133.25,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  195.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  135.562,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  200.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  138.359,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  210,
+                           "mineProcs":  8,
+                           "mineCpuSec":  142.484,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  215.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  144.844,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  220.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  147.297,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  225.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  149.641,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  230.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  152,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  235.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  154.297,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  240,
+                           "mineProcs":  8,
+                           "mineCpuSec":  156.422,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  245.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  158.812,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  260.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  166.078,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  265.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  168.344,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  275,
+                           "mineProcs":  8,
+                           "mineCpuSec":  173.25,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  280.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  175.688,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  285.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  178.141,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  290.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  180.188,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  295,
+                           "mineProcs":  8,
+                           "mineCpuSec":  182.438,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       }
+                   ],
+    "panelPid":  19576
+}
