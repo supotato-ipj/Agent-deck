@@ -4116,7 +4116,7 @@ static class Probe {
         // 前置②：无资源管理器窗（既有窗先 WM_CLOSE；关不掉则单窗裁决漂移 pick，判前置失败）
         for (const h of cabWins28()) await closeWin28(h);
         const linger28 = cabWins28();
-        if (!hasEntry28() || linger28.length > 0) {
+        if (!hasEntry28 || linger28.length > 0) {
           rep.fail(`P28 前置缺失：栏面 explorer 条目=${hasEntry28}（手钉保障=${explorerPin482}） 既有资源管理器窗=${linger28.length}（多窗会漂移 pick 语义） get-state apps=${st28 ? JSON.stringify(((st28.apps) || []).map((a) => a.exe)) : 'null'}`);
         } else {
           const notRunning28 = await waitRunning28(false); // 运行态落定（陈旧枚举出清）
