@@ -525,16 +525,18 @@ describe('任务栏页面样式完整性（真机事故回归）', () => {
   const html = fs.readFileSync(path.join(__dirname, '../../src/renderer/taskbar.html'), 'utf8')
   const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1]
 
-  it('内联样式表的花括号逐个闭合、块内无嵌套开括号', () => {
+  it('内联样式表的花括号逐个闭合（深度计数）', () => {
+    // 工单483 起样式表含 @keyframes（合法嵌套）——守卫改深度计数：未闭合块（真机事故
+    // 形态：选择器拼没闭合，后半段样式被浏览器整段丢弃）表现为深度只增不减或收尾非零，
+    // 多余的 } 表现为负深度，同样判红；检出力与旧「块内无嵌套」断言同向不减。
     expect(css).toBeTruthy()
     let depth = 0
     for (const ch of css!) {
       if (ch === '{') {
-        expect(depth, '样式表出现嵌套 {：前一个块没闭合').toBe(0)
-        depth = 1
+        depth += 1
       } else if (ch === '}') {
         depth -= 1
-        expect(depth, '样式表出现多余的 }').toBe(0)
+        expect(depth, '样式表出现多余的 }').toBeGreaterThanOrEqual(0)
       }
     }
     expect(depth, '样式表结尾仍有未闭合的块').toBe(0)

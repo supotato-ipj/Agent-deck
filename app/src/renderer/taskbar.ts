@@ -23,6 +23,8 @@ import { applyOverlayState, clickStrip, planSummonGeometry, reconcilePointer, st
 import type { SummonRect, SummonStripGeometry } from './taskbar-summon.js'
 import { initialSummonState, summonedGroups } from '../shared/retract.js'
 import type { SummonState } from '../shared/retract.js'
+import { beginLaunchFeedback, convergeLaunchFeedback, expireLaunchFeedback, LAUNCH_FEEDBACK_TIMEOUT_MS, launchFeedbackOf, settleLaunchFeedback } from './launch-feedback.js'
+import type { LaunchFeedbackState } from './launch-feedback.js'
 import type { ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarBarModeState, TaskbarDragGroup, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarStatus, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayPixels } from '../shared/contract'
 import type { DragInRejectReason } from '../main/desktop/drag-in-plan'
 
@@ -90,6 +92,14 @@ let dragHeld: TaskbarState | null = null
 let dragResized = false
 /** 图标 dataURL 缓存（iconKey → dataURL；仅内存——桌面 dock 同款本地缓存纪律） */
 const iconCache = new Map<string, string>()
+
+/**
+ * 启动反馈态（工单483，ADR-0032 点击 SLO）：点击工具图标的「启动中」可视态——
+ * 状态机本体是纯函数（launch-feedback.ts，离线单测穷举），这里只持会话态与落位。
+ * 收敛三路：目标窗口上栏（render 时按 running 名单收敛）、启动命令失败回执
+ * （app-launch-result 事件即收 + toast）、有界超时静默收敛（重型工具自身冷启不记账）。
+ */
+let launchFeedback: LaunchFeedbackState = new Map()
 
 /**
  * 栏三态（工单241 主进程编排下发）：visible = 栏面常驻；maximize-retract = **最大化收栏**
@@ -772,19 +782,82 @@ function positionCombinedPills(band: AppsBand): void {
   }
 }
 
+/** 启动失败条带 toast（工单483，#478 诊断收口）：点击失败可见反馈不静默——旧链路
+ * launch/activate 回执零回显，用户视角「点了没反应」。拖拽失败 toast 同款图案：
+ * #launch-toast body 直挂节点，整树重渲不触碰，5s 兜底自收；独立节点不与
+ * drag-toast/memory-toast 互踩，验收电池按 DOM 在场 + 文案断言。 */
+let launchToastTimer: ReturnType<typeof setTimeout> | null = null
+function showLaunchError(message: string): void {
+  let el = document.getElementById('launch-toast')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'launch-toast'
+    document.body.appendChild(el)
+  }
+  el.textContent = message
+  el.dataset.on = '1'
+  if (launchToastTimer !== null) clearTimeout(launchToastTimer)
+  launchToastTimer = setTimeout(() => {
+    const t = document.getElementById('launch-toast')
+    if (t) {
+      t.textContent = ''
+      delete t.dataset.on
+    }
+    launchToastTimer = null
+  }, 5000)
+}
+
+/** 启动反馈超时的兜底重渲（工单483）：taskbar/changed 推帧常态化每几秒一拍，render 内
+ * 的超时收敛常态下足够；本定时器只兜「收敛窗内恰好零推帧」的静默期——到点上一次
+ * requestRender 让 render 的 expire 收敛落位。粗粒度（不逐条目精确计时）足够：
+ * render 的 expire 按状态机逐条裁决，定时器只负责把那一帧渲出来。 */
+let launchExpiryTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleLaunchFeedbackExpiry(): void {
+  if (launchExpiryTimer !== null) clearTimeout(launchExpiryTimer)
+  launchExpiryTimer = setTimeout(() => {
+    launchExpiryTimer = null
+    if (current) requestRender(current)
+  }, LAUNCH_FEEDBACK_TIMEOUT_MS)
+}
+
 /** 应用组图标点击（工单53）：裁决在内核（app-click 三态 + 多窗口列表），此处只做
- * 分发与呈现——launch/activate/minimize 无需回显，window-list 即请求选窗浮层开层
+ * 分发与呈现——activate/minimize 无需回显，window-list 即请求选窗浮层开层
  * （工单196 迁浮层窗：行集由浮层页按 exe 即席经 taskbar/app-windows 拉取，条带内
- * 不再横排列窗口；标题仅即时呈现不落存储，ADR-0002）。 */
+ * 不再横排列窗口；标题仅即时呈现不落存储，ADR-0002）。
+ * 工单483 启动反馈（ADR-0032 点击 SLO）：未运行条目点击即进「启动中」态（同一拍呈现，
+ * 不跨 await）；回执 issued 语义（命令已发出即 ok）后保持到收敛——窗口上栏（render
+ * 收敛）/异步失败回执（app-launch-result 事件）/有界超时三路回常态；失败与分发异常
+ * 即收态 + 条带 toast（点击失败可见反馈，#478 诊断收口）。issuedMs = 点击 → 桥回执
+ * 耗时（回执在 launchIssued 命令发出后即回）——「启动命令发出时延」的存证读数，随
+ * taskbar-app-result 入常驻事件日志（AC 事件戳口径，首窗判据盲区不重蹈）。 */
 async function onAppClick(e: TaskbarAppViewEntry, inOverflow: boolean): Promise<void> {
   window.deck.host.notify('taskbar-app-action', { exe: e.exe })
-  const r = await dispatchAppClick(window.deck.bridge, e.exe)
+  const clickT0 = Date.now()
+  if (!e.running) {
+    launchFeedback = beginLaunchFeedback(launchFeedback, e.exe, clickT0)
+    scheduleLaunchFeedbackExpiry()
+    if (current) requestRender(current)
+  }
+  let r: Awaited<ReturnType<typeof dispatchAppClick>>
+  try {
+    r = await dispatchAppClick(window.deck.bridge, e.exe)
+  } catch (err) {
+    r = { ok: false, action: null, error: err instanceof Error ? err.message : String(err) }
+  }
+  const issuedMs = Date.now() - clickT0
   window.deck.host.notify('taskbar-app-result', {
     exe: e.exe,
     action: r.action,
     ok: r.ok,
+    issuedMs,
     ...(r.error ? { error: r.error } : {}),
   })
+  if (r.ok && r.action === 'launched') {
+    // 命令已发出：启动中态保持到收敛（窗口上栏 render 收敛）或超时（状态机有界）
+  } else {
+    launchFeedback = settleLaunchFeedback(launchFeedback, e.exe)
+    if (!r.ok) showLaunchError(`「${e.label}」启动失败：${r.error ?? '面板未收到回执'}`)
+  }
   if (r.ok && r.action === 'window-list' && r.windows?.length) {
     winsListRequested = true
     window.deck.host.notify('taskbar-wins-menu-open', { exe: e.exe })
@@ -960,7 +1033,10 @@ function makeGroupDropTarget(container: HTMLElement, group: TaskbarDragGroup): v
  * 里：分发后收层（Win11 溢出浮层同款——点完即收）。 */
 function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
   const el = document.createElement('div')
-  el.className = e.running ? 'tb-app running' : 'tb-app'
+  // 启动中态（工单483）：未运行且在反馈窗内的条目叠 .launching（呼吸脉冲）——
+  // 状态机投影在渲染拍上，收敛/失败/超时三路回常态
+  const launching = launchFeedbackOf(launchFeedback, e.exe, Date.now()) === 'launching'
+  el.className = `tb-app${e.running ? ' running' : ''}${launching ? ' launching' : ''}`
   el.dataset.exe = e.exe // 交互挂点（点击/右键按 exe 身份分发）
   el.title = e.tooltip // 窗口标题 tooltip：仅即时显示，渲染层不持久化
   const fallback = () => {
@@ -988,7 +1064,21 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
     if (ev.button !== 1) return
     ev.preventDefault() // 中键开新实例：Win11 任务栏同款
     window.deck.host.notify('taskbar-app-new-instance', { exe: e.exe })
+    // 启动反馈（工单483）：中键恒启动，点击即进「启动中」、失败即收态 + toast
+    launchFeedback = beginLaunchFeedback(launchFeedback, e.exe, Date.now())
+    scheduleLaunchFeedbackExpiry()
+    if (current) requestRender(current)
     void dispatchAppNewInstance(window.deck.bridge, e.exe)
+      .then((r) => {
+        if (!r.ok) {
+          launchFeedback = settleLaunchFeedback(launchFeedback, e.exe)
+          showLaunchError(`「${e.label}」启动失败：${r.error ?? '面板未收到回执'}`)
+        }
+      })
+      .catch((err: unknown) => {
+        launchFeedback = settleLaunchFeedback(launchFeedback, e.exe)
+        showLaunchError(`「${e.label}」启动失败：${err instanceof Error ? err.message : String(err)}`)
+      })
     if (inOverflow) {
       overflowOpen = false
       if (current) requestRender(current)
@@ -1012,7 +1102,10 @@ function makeAppEl(e: TaskbarAppViewEntry, inOverflow: boolean): HTMLElement {
  * 拖拽宿主 .tb-rec 本身（组内换位 / 拖应用组升手钉，工单57 内核已接线）。 */
 function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   const el = document.createElement('div')
-  el.className = 'tb-rec'
+  // 启动中态（工单483）：推荐位左键恒启动，点击即进反馈态（收敛同应用组——目标窗口
+  // 上栏以 exe 身份出现在应用组 running 名单，同一张状态机收敛）
+  const launching = launchFeedbackOf(launchFeedback, rec.exe, Date.now()) === 'launching'
+  el.className = `tb-rec${launching ? ' launching' : ''}`
   el.dataset.name = rec.name // 几何存证与拖拽挂点按桌面项 name（既有口径）
   el.dataset.exe = rec.exe // 交互挂点（点击/右键按富化 exe 身份分发）
   el.title = rec.display
@@ -1035,8 +1128,25 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   makeDraggable(el, 'recs', rec.name) // 推荐位可拖：组内换位 / 拖应用组升手钉
   el.addEventListener('click', () => {
     window.deck.host.notify('taskbar-rec-click', { name: rec.name, exe: rec.exe })
+    // 启动反馈（工单483）：点击即进「启动中」（命令即发语义，rec-click 同款 issued 回执）；
+    // 失败即收态 + toast（点击失败可见反馈）。issuedMs = 点击 → 桥回执耗时（命令发出时延
+    // 的事件戳读数，app-click 同口径，入常驻事件日志）
+    const recClickT0 = Date.now()
+    launchFeedback = beginLaunchFeedback(launchFeedback, rec.exe, recClickT0)
+    scheduleLaunchFeedbackExpiry()
+    if (current) requestRender(current)
     void dispatchRecClick(window.deck.bridge, rec.exe)
-      .then((r) => window.deck.host.notify('taskbar-rec-click-result', { name: rec.name, exe: rec.exe, ok: r.ok, ...(r.error ? { error: r.error } : {}) }))
+      .then((r) => {
+        if (!r.ok) {
+          launchFeedback = settleLaunchFeedback(launchFeedback, rec.exe)
+          showLaunchError(`「${rec.display}」启动失败：${r.error ?? '面板未收到回执'}`)
+        }
+        window.deck.host.notify('taskbar-rec-click-result', { name: rec.name, exe: rec.exe, ok: r.ok, issuedMs: Date.now() - recClickT0, ...(r.error ? { error: r.error } : {}) })
+      })
+      .catch((err: unknown) => {
+        launchFeedback = settleLaunchFeedback(launchFeedback, rec.exe)
+        showLaunchError(`「${rec.display}」启动失败：${err instanceof Error ? err.message : String(err)}`)
+      })
   })
   el.addEventListener('contextmenu', (ev) => {
     ev.preventDefault()
@@ -1115,6 +1225,10 @@ function makeModeEl(m: DesktopModeEntry): HTMLElement {
 function render(state: TaskbarState): void {
   current = state
   const vm = taskbarViewModel(state)
+  // 启动反馈收敛（工单483）：目标窗口上栏（running 名单）即回常态 + 超时静默收敛
+  // （重型工具自身冷启不记账，SLO 口径）——状态机纯函数逐条裁决，落位在 makeAppEl。
+  launchFeedback = convergeLaunchFeedback(launchFeedback, vm.apps.filter((a) => a.running).map((a) => a.exe))
+  launchFeedback = expireLaunchFeedback(launchFeedback, Date.now()).state
   pillStart.hidden = !vm.visible
   pillRecs.hidden = !vm.recsVisible // 两组显隐解耦（工单192）：推荐组按推荐位有无独立裁决
   pillStart.textContent = ''
@@ -1403,6 +1517,18 @@ function boot(): void {
       // 红轮实证回推即收会抢走刚开的菜单）——收层只走点行显式/点空白/8s 兜底三路径。
       // 工单195 断点②：经 requestRender 单一入口——拖拽会话活动期合帧挂起，dragend 补渲。
       requestRender(next)
+    })
+    // 启动命令落定回执（工单483）：launch 通道已改命令即发不等待，落定结果异步到站——
+    // 失败即收启动中态 + 条带 toast（点击失败可见反馈，#478 诊断收口）；ok:true 不动
+    // 启动中态（等窗口上栏 render 收敛/超时收敛）。转 host-notify 入常驻事件日志存证。
+    window.deck.bridge.on('taskbar/app-launch-result', (p) => {
+      if (!p.ok) {
+        launchFeedback = settleLaunchFeedback(launchFeedback, p.exe)
+        const label = current?.apps.find((a) => a.exe === p.exe)?.label ?? p.exe
+        showLaunchError(`「${label}」启动失败：${p.error ?? '未知原因'}`)
+      }
+      window.deck.host.notify('taskbar-app-launch-result', { exe: p.exe, ok: p.ok, ...(p.error ? { error: p.error } : {}) })
+      if (current) requestRender(current)
     })
     // 硬件摘要 1Hz 数据帧（工单55）：勾选变更后按最近值立即填字，不等下一拍
     window.deck.bridge.on('taskbar/status', (status) => applyStatus(status))

@@ -77,6 +77,12 @@ declare module 'cordis' {
      * 影子账缺位为 null），pid 由控制器 FFI 解析。
      */
     'taskbar/tray-replay-begin': (payload: { key: string; button: 'left' | 'right'; hwnd: string | null }) => void
+    /**
+     * 工单483 启动命令落定回执：TaskbarService.launchIssued 的 launchExe Promise 落定时
+     * 发出（命令即发不等待的异步半边）——桥接层转 'taskbar/app-launch-result'，条带渲染层
+     * 失败即收「启动中」态 + toast。载荷同桥接事件形状。
+     */
+    'taskbar/app-launch-result': (payload: { exe: string; ok: boolean; error?: string }) => void
     /** 工单332 对话窗：会话视图变化即推（创建/流式/工具/权限/取消/结束/失败） */
     'conversation/changed': (payload: { sessions: ConversationSessionView[] }) => void
     /** 工单334 安装管线：提案变化即推（提交/批准/拒绝/失败——批准 UI 与诊断数据面） */

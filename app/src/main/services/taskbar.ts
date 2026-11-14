@@ -668,8 +668,10 @@ export class TaskbarService extends Service {
       }
     }
     try {
-      const err = await this.launchApp(hit.exe)
-      return err ? { ok: false, action: 'launched', error: err } : { ok: true, action: 'launched' }
+      // 工单483：命令即发不等待（launchIssued 头注）——回执 issued 语义；通道经
+      // launchApp（工单482 路由，explorer 特判保留）
+      this.launchIssued(hit.exe)
+      return { ok: true, action: 'launched' }
     } catch (err) {
       return { ok: false, action: 'launched', error: err instanceof Error ? err.message : String(err) }
     }
@@ -711,6 +713,21 @@ export class TaskbarService extends Service {
   private windowsOf(exe: string): TaskbarWindowInfo[] {
     const key = normalizeExe(exe)
     return this.lastWindows.filter((w) => normalizeExe(w.exe) === key)
+  }
+
+  /**
+   * 启动命令即发不等待（工单483，ADR-0032 点击 SLO ③）：launchApp（工单482 通道路由
+   * + shellOpen）的 Promise 在 ShellExecute 完成时才落定——重型工具实测秒级阻塞
+   * （#478 双形数据：MiniMax 面板侧 6.8s），点击反馈绝不等它。命令发出即视为送达；
+   * 落定结果经 taskbar/app-launch-result 异步回推（失败 → 渲染层收「启动中」态 +
+   * 条带 toast 可见反馈，渲染层转 host-notify 入常驻事件日志）。工具自身冷启耗时不
+   * 记账（SLO：面板责任 = 秒级反馈 + 真的启动了）。
+   */
+  private launchIssued(exe: string): void {
+    void this.launchApp(exe).then(
+      (err) => this.ctx.emit('taskbar/app-launch-result', err ? { exe, ok: false, error: err } : { exe, ok: true }),
+      (e: unknown) => this.ctx.emit('taskbar/app-launch-result', { exe, ok: false, error: e instanceof Error ? e.message : String(e) }),
+    )
   }
 
   /** 该 exe 在**另一桌面**的合格窗口快照（工单380 跨桌面点击候选；不进栏面运行态） */
@@ -793,8 +810,10 @@ export class TaskbarService extends Service {
       }
     }
     try {
-      const err = await this.launchApp(entry.exe)
-      return err ? { ok: false, action: null, error: err } : { ok: true, action: 'launched' }
+      // 工单483：命令即发不等待（launchIssued 头注）——回执 issued 语义；通道经
+      // launchApp（工单482 路由，explorer 特判保留）
+      this.launchIssued(entry.exe)
+      return { ok: true, action: 'launched' }
     } catch (err) {
       return { ok: false, action: null, error: err instanceof Error ? err.message : String(err) }
     }
@@ -816,12 +835,13 @@ export class TaskbarService extends Service {
     return { ok: this.deps.activateWindow(hwnd) }
   }
 
-  /** 中键新实例（工单53）：恒启动 exe（应用组护栏同 appClick；通道选择工单482 同 launchApp） */
+  /** 中键新实例（工单53）：恒启动 exe（应用组护栏同 appClick；工单483 命令即发不等待，
+   * 通道经 launchApp——工单482 路由 explorer 特判保留） */
   async appNewInstance(exe: string): Promise<{ ok: boolean; error?: string }> {
     const entry = this.appEntry(exe)
     if (!entry) return { ok: false, error: '应用不在任务栏应用组' }
-    const err = await this.launchApp(entry.exe)
-    return err ? { ok: false, error: err } : { ok: true }
+    this.launchIssued(entry.exe)
+    return { ok: true }
   }
 
   /**
@@ -891,8 +911,10 @@ export class TaskbarService extends Service {
     const entry = this.recEntry(exe)
     if (!entry) return { ok: false, error: '栏外身份不启动' }
     try {
-      const err = await this.launchApp(entry.exe)
-      return err ? { ok: false, error: err } : { ok: true }
+      // 工单483：命令即发不等待（launchIssued 头注）——推荐组启动同款 issued 语义；通道经
+      // launchApp（工单482 路由，explorer 特判保留）
+      this.launchIssued(entry.exe)
+      return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }

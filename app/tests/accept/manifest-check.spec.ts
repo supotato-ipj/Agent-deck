@@ -481,7 +481,14 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // （CabinetWClass + This PC/此电脑 标题）与点击→置前的前台链是单测断不到的系统状态面
     // （路由纯函数与服务层通道选择已由 launch-route/explorer-launch spec 钉，增段条件②），
     // 增段条件①；点击入口在场由轮起笔手钉保障（缺位代写、清场摘除，不污染用户存储））。
-    expect(total).toBe(204) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 204 → 205：工单483 增段——49-taskbar 电池增 P29（启动反馈；段号避让同电池工单482
+    // 的 P28——两票并行同号，本票改号让位）：真点击推荐位探针 → ≤1s「启动中」DOM 态真机
+    // 计时 → 启动命令回执 issuedMs 事件戳 ≤1s → 探针窗出场运行条目上栏且启动中态消失
+    // （收敛）。点击到「启动中」的端到端时延、事件戳入常驻日志的真实在档、真实窗口出场
+    // 驱动的状态机收敛是单测断不到的输入注入/事件存证面（增段条件①）；状态机纯函数由
+    // launch-feedback.spec 10 例钉（增段条件②）。estSeconds=10 按 guard 托管健康轮段账
+    // took=6.1s 校准（round 11 实跑）；预算 234+10=244 ≤ 250 未上调）。
+    expect(total).toBe(205) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -687,11 +694,14 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：40 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：41 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(40)
-    expect(manifest.requiredFileRules!.length).toBe(40)
+    // 40 → 41：工单483 新增 app/src/renderer/launch-feedback.ts → taskbar（启动反馈状态机
+    // 纯函数，唯一消费者是 renderer/taskbar.ts 的条带渲染——不登记会落 app/src/renderer
+    // 默认 panel.core，改它时定向轮选不出 taskbar 段，耦合漏报）
+    expect(fileRules.length).toBe(41)
+    expect(manifest.requiredFileRules!.length).toBe(41)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

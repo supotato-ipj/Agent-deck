@@ -71,6 +71,22 @@
     border-radius: 1px;
     background: rgba(255, 255, 255, 0.85);
   }
+  /* 启动中态（工单483，ADR-0032 点击 SLO「≤1 秒图标视觉反馈」）：图标呼吸脉冲——
+   * 「命令已发出、工具尚未就绪」的过渡态；三路收敛回常态（launch-feedback 状态机）：
+   * 目标窗口上栏 / 启动命令失败回执（toast 同拍）/ 有界超时静默收敛。
+   * 选择器末位刻意放 .tb-app.launching > img——样式单测 ruleOf 按「选择器名+空格+开括号」
+   * 首现定位，末位不得以 .tb-app-letter/.tb-rec-letter 等既有选择器收尾造成误命中；
+   * 注释内亦不写花括号字符（花括号深度守卫逐字符计数）。 */
+  .tb-rec.launching > .tb-rec-letter,
+  .tb-app.launching > .tb-app-letter,
+  .tb-rec.launching > img,
+  .tb-app.launching > img {
+    animation: tb-launch-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes tb-launch-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
   /* 应用组溢出（工单58）：⋯ 钮与浮层条目同在应用组 pill 内横排——条带窗只有 48px 高，
    * 竖排浮层出不了窗口矩形（54 右键菜单同款先例）。浮层展开时 pill 横向加宽，
    * 热区按展开后的矩形重声明。 */
@@ -416,6 +432,30 @@
   }
   #memory-toast[data-on="1"] { display: block; }
 
+  /* 启动失败反馈（工单483，#478 诊断收口「点击失败零反馈」）：复用拖入失败 toast 图案
+   * （同位同形，5s 自收；渲染层 taskbar.ts showLaunchError 独家读写，body 直挂节点
+   * 整树重渲不触碰）。独立节点不与 drag-toast/memory-toast 互踩（多源并发各收各的）。 */
+  #launch-toast {
+    position: fixed;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
+    max-width: 60%;
+    padding: 5px 14px;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: #ffd9d9;
+    background: rgba(60, 10, 10, 0.88);
+    border: 1px solid rgba(255, 120, 120, 0.55);
+    border-radius: 999px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 9;
+    display: none;
+  }
+  #launch-toast[data-on="1"] { display: block; }
+
   /* 收栏态（工单241 最大化收栏）：栏面退场——各组 pill 与显示桌面细条全部隐去，
    * 唤出条由工单242 在同一条带内画（贴屏底、3px 视觉 / 9px 命中区）。
    * 承载形态 = 栏窗复用（条带窗不隐藏）：唤出条与被唤出的组都落在这条 48px 带内——
@@ -489,6 +529,7 @@
 <body>
 <div id="drag-toast" aria-live="polite"></div>
 <div id="memory-toast" aria-live="polite"></div>
+<div id="launch-toast" aria-live="polite"></div>
 <div id="summon-strips" role="group" aria-label="任务栏唤出条"></div>
 <div id="pill-apps" role="toolbar" aria-label="任务栏应用组"></div>
 <div id="pill-start" class="pill" role="toolbar" aria-label="任务栏开始组"></div>
