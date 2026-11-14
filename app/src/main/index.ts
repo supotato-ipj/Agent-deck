@@ -664,14 +664,19 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
     log: (event) => log?.append(event),
   })
-  // 内核装配发起（boot-sequence 计划 kernel-start 步，#478② 实锤收口）：装配后补化——
-  // 发起即继续，不阻塞骨架窗接线；kernel-started 相位戳随装配完成落档（超时降级时可能
-  // 晚于后续相位，单调性由各自落戳时刻保证）。等待上界在后补链 kernel-await 步兑现
-  // （KERNEL_START_BOUND_MS 竞速、超时降级放行）；真失败（拒绝）经后补链上抛走退出链，
+  // 内核装配等待（boot-sequence 计划 kernel-start 步，#478② 收口）：KERNEL_START_BOUND_MS
+  // 显式上界竞速——热态实测 0.19~0.83s（#478 两轮），上界 10s 留冷态裕量。cordis 3.x 的
+  // 服务实体只在 start 生命周期装载（属性访问不触发装载、在途时恒 undefined），骨架窗
+  // 控制器强依赖服务实体，装配等待因此保留主线；超时 = 装配死锁级故障，干净失败交拉回
+  //（有界重拉 + 逃生口自动还原）处置，不是静默降级面。真失败（拒绝）同样上抛走退出链，
   // 与旧 await kernel.start() 同语义。
-  const kernelStartPromise = kernel.start()
-  void kernelStartPromise.then(() => bootPhase('kernel-started'), () => { /* 拒绝由后补链处置 */ })
+  const kernelStarted = await boundWait(kernel.start(), KERNEL_START_BOUND_MS)
+  if (kernelStarted.kind === 'timeout') {
+    log?.append({ type: 'kernel-start-timeout', boundMs: KERNEL_START_BOUND_MS })
+    throw new Error(`内核装配超过 ${KERNEL_START_BOUND_MS}ms 上界（kernel-start-timeout）——装配死锁级故障，交拉回重拉`)
+  }
   kernelRef = kernel
+  bootPhase('kernel-started')
   // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
   kernel.on('panel/changed', (snap) => droppedPackageHost.pushSnapshot(snap))
   // 媒体快照代次变化（工单336）：桥事件收敛后的即时重推——获批 media.read 的在装包
@@ -931,12 +936,6 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // —— 后补链（boot-sequence 计划 backfill：主线骨架已可交互，这里按依赖序补完数据面
   // 与桌面管理；一切外部等待经 boundWait 显式上界竞速，超时降级放行不悬挂，票面验收③）——
   const backfill = async (): Promise<void> => {
-    // kernel-await：内核装配等待（#478②）。超时降级放行——装配继续后台收敛，服务就绪后
-    // 事件自然回推；真失败（拒绝）如实上抛走面板退出链，与旧 await kernel.start() 同语义。
-    const kernelOutcome = await boundWait(kernelStartPromise, KERNEL_START_BOUND_MS)
-    if (kernelOutcome.kind === 'timeout') {
-      log?.append({ type: 'kernel-start-timeout', boundMs: KERNEL_START_BOUND_MS })
-    }
     // panel-data：数据面首拍（工单05 教训的骨架屏重写）——whenReady 内建 15s 超时放行
     // （PANEL_DATA_BOUND_MS 同值显式竞速），首拍未到面板先以空数据面在场；首拍到达即
     // 桥接推送，桌面组件从占位态原位填充。panel-data-ready 相位戳随首拍落档。

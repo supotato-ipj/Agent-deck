@@ -72,17 +72,27 @@ export interface BootSequencePlan {
  * 面板启动序列计划（纯函数；无 config 分支——功能开关的启停由各控制器/服务自裁决，
  * 编排不因开关变形：任务栏禁用时条带控制器随 taskbar/changed 自拆，工作区关闭时
  * start() 原样退回禁用态投影）。
+ *
+ * 装配步（kernel-start）的形态说明（工单481 实证修正）：cordis 3.x 的服务实体只在
+ * start 生命周期内装载（属性访问不触发装载、start 在途时恒 undefined），而骨架窗
+ * 控制器强依赖服务实体（ctx.taskbar/bridge/desktopWorkspace 构造期即取）——装配
+ * 等待因此保留在主线，但以 KERNEL_START_BOUND_MS 显式上界竞速（热态实测 0.19~0.83s，
+ * 上界 10s）；超时 = 装配死锁级故障，干净失败交拉回（有界重拉）处置。真正拖慢开机
+ * 的三段——自启项同步 PowerShell、数据面首拍、桌面工作区对账——全部后补化。
  */
 export function planBootSequence(): BootSequencePlan {
   const mainline: BootStep[] = [
     // ① 配置装载：同步 loadConfig（本地小文件，#478 实测 11~30ms）——落 config-loaded 戳
     { label: 'config-load', phase: 'config-loaded', blocking: true, boundMs: null, timeoutEvent: null },
+
     // ② 自启项维护发起（④去同步化）：异步 PowerShell helper（内建 AUTOSTART_HELPER_BOUND_MS
-    //    上界、超时杀进程降级），完成（或降级）时落 autostart-applied 戳——主线不等它
+    //    上界、超时杀进程降级），完成（或降级）时落 autostart-applied 戳——主线不等它，
+    //    维护与装配/开窗全程重叠
     { label: 'autostart-apply', phase: 'autostart-applied', blocking: false, boundMs: AUTOSTART_HELPER_BOUND_MS, timeoutEvent: null },
-    // ③ 内核装配发起（②装配后补化）：cordis start 在后台装配服务（含数据面子进程拉起），
-    //    完成时落 kernel-started 戳；等待上界在后补链 kernel-await 步
-    { label: 'kernel-start', phase: 'kernel-started', blocking: false, boundMs: null, timeoutEvent: null },
+    // ③ 内核装配等待（显式上界）：cordis 服务装载（含数据面子进程拉起），完成时落
+    //    kernel-started 戳；超时记 kernel-start-timeout 后干净失败交拉回（骨架窗控制器
+    //    强依赖服务实体，降级无面可降——见本函数头注）
+    { label: 'kernel-start', phase: 'kernel-started', blocking: true, boundMs: KERNEL_START_BOUND_MS, timeoutEvent: 'kernel-start-timeout' },
     // ④ 骨架窗接线（①尽早创建尽早可交互）：面板窗 + 任务栏条带 + 各承载窗控制器 + 桥接
     //    IPC——纯内存步，桌面组件以空数据占位呈现（数据面首拍在后补链填充）
     { label: 'skeleton-windows', phase: 'window-wired', blocking: true, boundMs: null, timeoutEvent: null },
@@ -94,13 +104,11 @@ export function planBootSequence(): BootSequencePlan {
     { label: 'skeleton-reveal', phase: 'panel-visible', blocking: false, boundMs: null, timeoutEvent: null },
   ]
   const backfill: BootStep[] = [
-    // 内核装配等待（显式上界）：超时记 kernel-start-timeout 降级放行——装配继续后台收敛，
-    // 服务就绪后事件自然回推；kernel-started 戳由装配完成时落（可能晚于本步的降级放行）
-    { label: 'kernel-await', phase: null, blocking: false, boundMs: KERNEL_START_BOUND_MS, timeoutEvent: 'kernel-start-timeout' },
     // 数据面首拍（whenReady 内建 15s 超时放行，PANEL_DATA_BOUND_MS 显式记录）：首拍到达
-    // 后桥接层自然推送，桌面组件原位填充——落 panel-data-ready 戳
+    // 后桥接层自然推送，桌面组件原位填充——落 panel-data-ready 戳。骨架屏语义：首显
+    // 不等首拍（时间上拆开「面板活着」与「数据齐了」）。
     { label: 'panel-data', phase: 'panel-data-ready', blocking: false, boundMs: PANEL_DATA_BOUND_MS, timeoutEvent: null },
-    // 桌面工作区首轮对账（③实锤点收口）：超时记 workspace-start-timeout 降级放行 +
+    // 桌面工作区首轮对账（#478③ 实锤点收口）：超时记 workspace-start-timeout 降级放行 +
     // 迟到补拍激活（t383 时序语义由迟到 .then 保住）——workspace-start-gate 事件照常在档
     { label: 'workspace-start', phase: null, blocking: false, boundMs: WORKSPACE_START_BOUND_MS, timeoutEvent: 'workspace-start-timeout' },
     // Agent 服务族启动（平铺/聚焦/预览 + 激活对齐）：纯内存步，依赖上一步的模式态

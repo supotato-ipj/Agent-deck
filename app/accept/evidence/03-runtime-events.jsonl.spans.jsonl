@@ -205966,3 +205966,5 @@
 {"type":"span-close","pid":28624,"label":"cover-scan","t":1794631571524,"ms":2}
 {"type":"span-open","pid":28624,"label":"cover-scan","t":1794631571679}
 {"type":"span-close","pid":28624,"label":"cover-scan","t":1794631571681,"ms":2}
+{"type":"span-open","pid":14584,"label":"autostart","t":1794643605626}
+{"type":"span-close","pid":14584,"label":"autostart","t":1794643605682,"ms":56}

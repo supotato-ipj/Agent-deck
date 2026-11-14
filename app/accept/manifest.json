@@ -520,8 +520,7 @@
           ],
           "estSeconds": 45,
           "areas": [
-            "panel.core",
-            "taskbar"
+            "panel.core"
           ]
         }
       ],

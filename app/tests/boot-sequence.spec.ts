@@ -6,7 +6,10 @@
 // 修序依据（#478 诊断轮实锤）：
 //   ④ 自启项维护同步 spawnSync PowerShell（热态 1.2~2.7s、上界 20s）→ autostart-apply
 //     必须是「发起不等待」的后补步且带显式上界；
-//   ③ `await desktopWorkspace.start()` 无上界 → workspace-start 后补步必须带显式上界。
+//   ③ `await desktopWorkspace.start()` 无上界 → workspace-start 后补步必须带显式上界；
+//   ② 装配等待以 KERNEL_START_BOUND_MS 显式上界竞速（cordis 3.x 服务实体在 start 完成
+//     前恒 undefined、骨架窗控制器强依赖服务实体——装配全后补化不可行，实证见
+//     planBootSequence 头注；真正拖慢开机的首拍/工作区/自启项三段全部后补化）。
 import { describe, expect, it } from 'vitest'
 import {
   AUTOSTART_HELPER_BOUND_MS,
@@ -50,14 +53,18 @@ describe('启动序列编排：主线（骨架先行）', () => {
     expect(step.boundMs!).toBeGreaterThan(0)
   })
 
-  it('内核装配是「发起不等待」的后补步（#478②：装配不阻塞首帧与首交互）', () => {
+  it('内核装配等待带显式上界（#478②：装配不再无界阻塞——上界竞速，超时干净失败交拉回）', () => {
     const step = plan.mainline.find((s) => s.label === 'kernel-start')!
-    expect(step.blocking).toBe(false)
+    expect(step.blocking).toBe(true)
+    expect(step.boundMs).toBe(KERNEL_START_BOUND_MS)
+    expect(step.timeoutEvent).toBe('kernel-start-timeout')
   })
 
-  it('阻塞步只允许纯内存步：任何 blocking 步不得携带外部等待（boundMs 必为 null）', () => {
-    for (const step of plan.mainline.filter((s) => s.blocking)) {
-      expect(step.boundMs, `阻塞步 ${step.label} 不得阻塞在外部等待上`).toBeNull()
+  it('骨架窗接线与托盘钩子是纯内存步：阻塞但不携带外部等待（首帧不卡外部等待）', () => {
+    for (const label of ['skeleton-windows', 'tray-and-hooks']) {
+      const step = plan.mainline.find((s) => s.label === label)!
+      expect(step.blocking, `${label} 必须阻塞完成才继续`).toBe(true)
+      expect(step.boundMs, `${label} 不得阻塞在外部等待上`).toBeNull()
     }
   })
 
@@ -78,9 +85,8 @@ describe('启动序列编排：主线（骨架先行）', () => {
 describe('启动序列编排：后补链（全部有界）', () => {
   const plan = planBootSequence()
 
-  it('后补链步序钉死：内核装配等待 → 数据面首拍 → 桌面工作区启动 → Agent 服务族', () => {
+  it('后补链步序钉死：数据面首拍 → 桌面工作区启动 → Agent 服务族（装配等待已上移主线有界竞速）', () => {
     expect(plan.backfill.map((s) => s.label)).toEqual([
-      'kernel-await',
       'panel-data',
       'workspace-start',
       'agent-services',
@@ -101,7 +107,7 @@ describe('启动序列编排：后补链（全部有界）', () => {
   })
 
   it('内核装配等待与数据面首拍的上界取自模块常量（数值契约可读）', () => {
-    expect(plan.backfill.find((s) => s.label === 'kernel-await')!.boundMs).toBe(KERNEL_START_BOUND_MS)
+    expect(plan.mainline.find((s) => s.label === 'kernel-start')!.boundMs).toBe(KERNEL_START_BOUND_MS)
     expect(plan.backfill.find((s) => s.label === 'panel-data')!.boundMs).toBe(PANEL_DATA_BOUND_MS)
   })
 
