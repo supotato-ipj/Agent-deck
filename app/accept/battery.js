@@ -6397,11 +6397,13 @@ async function runSegments() {
 
       // —— 臂二：轮转收口（票面③）——种满三档到上限，下次落盘即全链轮转（删最老+两级顺移），
       // 新代次数据落新档。盘面裁决：读文件内容与档数，不读面板内部状态。
+      // 三档种子各用不同填充字节——内容全同时「最老档已删」判据失去区分力
+      //（r1 实证：顺移断言全绿但删除判据把顺移后的 2 号误判成残留）。
       const CAP473 = 5 * 1024 * 1024;
-      const seedAt473 = (f) => fs.writeFileSync(f, Buffer.alloc(CAP473, 0x78));
+      const seedAt473 = (f, byte) => fs.writeFileSync(f, Buffer.alloc(CAP473, byte));
       const f1 = path.join(isoDir, 'events.1.jsonl');
       const f2 = path.join(isoDir, 'events.2.jsonl');
-      seedAt473(isoFile); seedAt473(f1); seedAt473(f2);
+      seedAt473(isoFile, 0x78); seedAt473(f1, 0x79); seedAt473(f2, 0x7a);
       const old1 = fs.readFileSync(f1);
       const old2 = fs.readFileSync(f2);
       const oldActive = fs.readFileSync(isoFile);
