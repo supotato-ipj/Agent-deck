@@ -21,6 +21,8 @@ import { hideNativeTaskbar, menuWindowCountByPids, nativeTaskbarView, nativeTask
 import { grantTrayForeground } from './foreground'
 import { getAppBarState } from './appbar'
 import { engageTakeoverAutoHide, reassertTakeoverAutoHide, restoreTakeoverAutoHide } from './appbar-autohide'
+import { escapeHatchDecide } from './escape-hatch'
+import type { EscapeHatchEntry, EscapeHatchPhase } from './escape-hatch'
 import { probeForegroundWindow } from './yield'
 import { classifySnapSessionEnd, probeSnapWindows, snapSessionMembers } from './snap'
 import type { SnapSessionEndCause, SnapWindowFact } from './snap'
@@ -123,6 +125,12 @@ export interface TaskbarController {
   dispose(): void
   /** 当前条带窗原生句柄（工单375 桌面跟随兜底的跟随目标；不在场/销毁 = null） */
   hwnd(): number | null
+  /**
+   * 逃生口入口（工单480，ADR-0032 韧性基线）：面板瘫痪期（渲染层冻结失能档/崩溃）与
+   * 手动热键喂进来的事件，裁决开逃生口（原生栏还原给系统）还是重新接管。还原走既有
+   * 交还三件套（reason=escape-hatch）、重接管走既有 create 路径，不新造还原机制。
+   */
+  escapeHatch(entry: EscapeHatchEntry): void
 }
 
 /**
@@ -163,6 +171,11 @@ interface TaskbarSession {
 export function startTaskbarController(options: { ctx: Context; log: EventLog | null }): TaskbarController {
   const { ctx, log } = options
   let session: TaskbarSession | null = null
+  // 逃生口相位（工单480）：standby = 接管在场；escaped = 原生栏已按逃生口还原、欠一次
+  // 重新接管。裁决归纯函数 escape-hatch.ts 的 escapeHatchDecide，本层只执行动作——
+  // 相位在场时 taskbar/changed 不自动重建条带（changed 事件常来：推荐位刷新/收编回推，
+  // 不设闸逃生口会被下一拍 changed 悄悄拆掉）。
+  let escapePhase: EscapeHatchPhase = 'standby'
   // 原生任务栏显隐账（工单50）：只还原「本次由我隐藏」的那次；隐藏失败/本已隐藏
   // 则无还原义务（死路径兜底由守卫与还原守护以视图事实补足）。控制器级——原生栏
   // 显隐与哪扇条带窗现任无关。
@@ -785,6 +798,31 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     log?.append({ type: 'taskbar-window-created' })
   }
 
+  /**
+   * 逃生口动作执行（工单480）：裁决在纯函数（escape-hatch.ts），这里只做两件事——
+   * - restore-native（开逃生口）：交还环同款次序——托盘宿主先停（setTray(false)，图标
+   *   随 TaskbarCreated 广播回 explorer），随即 destroy('escape-hatch') 走既有还原路径
+   *   （appbar 置位退场写回 + 落盘账清账 + 原生栏可见性复原）；
+   * - retake（重新接管）：既有 create 路径（托盘宿主重建 + 原生栏再隐 + 接管建立记账）。
+   * 两向存证（escape-hatch-opened / escape-hatch-closed）进事件日志供账目核对；none 静默
+   * 空转（同 restoreNativeTaskbarIfHidden 的空转纪律，不为常态路径造噪声）。
+   */
+  const escapeHatch = (entry: EscapeHatchEntry): void => {
+    const d = escapeHatchDecide(escapePhase, entry, {
+      takeoverEngaged: session !== null,
+      takeoverWanted: ctx.taskbar.state().enabled,
+    })
+    escapePhase = d.next
+    if (d.action === 'restore-native') {
+      log?.append({ type: 'escape-hatch-opened', entry: entry.kind })
+      setTray(false)
+      destroy('escape-hatch')
+    } else if (d.action === 'retake') {
+      log?.append({ type: 'escape-hatch-closed', trigger: entry.kind })
+      create()
+    }
+  }
+
   // 主屏几何变化（换分辨率/DPI/换主屏）即重排条带；窗口不在场（禁用态）无事可做。
   // M1：无协商/降级分叉——恒重排到新屏底并刷新回正目标（否则 500ms 回正守卫会拿旧
   // 矩形把窗口拽回去，来回拉扯）。
@@ -803,13 +841,19 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
   // 杀宿主却是实伤。
   let enabledLatch = ctx.taskbar.state().enabled
   const offChanged = ctx.on('taskbar/changed', (state: TaskbarState) => {
-    if (state.enabled) create()
-    else if (enabledLatch) {
+    if (state.enabled) {
+      // 逃生口在场时不自动重建（工单480）：changed 事件在启用态常来（推荐位首拍刷新、
+      // 收编回推等），不设闸会把逃生口刚交还的原生栏下一拍又悄悄藏回去——重接管只走
+      // escapeHatch 的 retake 或下方的显式启停跃迁。
+      if (escapePhase === 'standby') create()
+    } else if (enabledLatch) {
       // 禁用三件套的交还环（#153）：先发宿主停（广播落地时条带可能仍在场，图标无缝
       // 回注册 explorer），随即销条带、还原原生栏。dispose（应用退出）不走这里——
       // 退出侧交还广播已被 ADR-0012 否决，强杀路径本就走不到钩子。
+      // 用户显式禁用同时清逃生口账（工单480）：偏好优先——此后再启用走正常接管恢复。
       setTray(false)
       destroy('disabled')
+      escapePhase = 'standby'
     }
     enabledLatch = state.enabled
   })
@@ -830,5 +874,6 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
       const s = session
       return s && !s.win.isDestroyed() ? hwndOf(s.win) : null
     },
+    escapeHatch,
   }
 }
