@@ -1,0 +1,53 @@
+{
+  "measuredAt": "2026-11-14T10:15:04.731Z",
+  "cycles": 3,
+  "method": "z-order synthesis (SetWindowPos Progman above panel / back to bottom)",
+  "samples": [
+    {
+      "cycle": 1,
+      "zUp": "OK",
+      "zDown": "OK",
+      "engaged": false,
+      "engageTrigger": null,
+      "engageOsEventAgeMs": null,
+      "engageWallMs": null,
+      "released": false,
+      "releaseTrigger": null,
+      "releaseOsEventAgeMs": null,
+      "releaseWallMs": null
+    },
+    {
+      "cycle": 2,
+      "zUp": "OK",
+      "zDown": "OK",
+      "engaged": false,
+      "engageTrigger": null,
+      "engageOsEventAgeMs": null,
+      "engageWallMs": null,
+      "released": false,
+      "releaseTrigger": null,
+      "releaseOsEventAgeMs": null,
+      "releaseWallMs": null
+    },
+    {
+      "cycle": 3,
+      "zUp": "OK",
+      "zDown": "OK",
+      "engaged": false,
+      "engageTrigger": null,
+      "engageOsEventAgeMs": null,
+      "engageWallMs": null,
+      "released": false,
+      "releaseTrigger": null,
+      "releaseOsEventAgeMs": null,
+      "releaseWallMs": null
+    }
+  ],
+  "engageOsAgeStat": {
+    "n": 0
+  },
+  "releaseOsAgeStat": {
+    "n": 0
+  },
+  "eventLog": "D:\\test-folder\\deck475-probe\\cover-probe-events-1794651219910.jsonl"
+}

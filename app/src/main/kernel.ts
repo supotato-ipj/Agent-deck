@@ -8,6 +8,7 @@ import type { UsageServiceOptions } from './services/usage'
 import type { SearchServiceOptions } from './services/search'
 import type { FocusServiceOptions } from './services/focus'
 import type { DataplaneSnapshot } from './dataplane-protocol'
+import { Heartbeat } from './heartbeat'
 import { BridgeService } from './services/bridge'
 import { ClockService } from './services/clock'
 import { DesktopService } from './services/desktop'
@@ -82,6 +83,9 @@ export interface KernelOptions {
 }
 
 export const DEFAULT_TICK_MS = 1000
+/** 会话扫描周期（工单477 束①，用户拍板新鲜度降级 3~5 秒）：4 秒——新会话上表
+ * 最迟 = 一个扫描周期 + 一拍快照推送，≤5 秒验收线内留整拍余量 */
+export const DEFAULT_SESSION_SCAN_MS = 4000
 /** 硬件采样间隔（工单476）：30s——ADR-0032 用户拍板的新鲜度降级（硬件摘要 30 秒），
  * 外部采样命令（nvidia-smi）一次 50~200ms CPU，随采样步降频后每天约 2880 次。 */
 export const DEFAULT_HARDWARE_MS = 30_000
@@ -233,6 +237,8 @@ export interface DataplaneKernelOptions {
   usage?: UsageServiceOptions
   desktop?: DesktopServiceOptions
   tickIntervalMs?: number
+  /** 会话扫描周期 ms（工单477 束①：3~5 秒降频，缺省 DEFAULT_SESSION_SCAN_MS）；0 = 不自动扫描 */
+  sessionIntervalMs?: number
   hardwareIntervalMs?: number
   usageIntervalMs?: number
   /** 每拍快照出口（子进程入口接 parentPort；离线测试接数组断言） */
@@ -241,7 +247,10 @@ export interface DataplaneKernelOptions {
 
 /**
  * 数据面内核装配（鼠标卡顿修复）：四个采集服务（会话/硬件/使用日志/桌面承载）
- * 加各自的采样定时器，跑在 utilityProcess 子进程里（src/main/dataplane.ts 为入口）。
+ * 跑在 utilityProcess 子进程里（src/main/dataplane.ts 为入口）。
+ * 采集定时器工单477 束④起合并为单一心跳（Heartbeat）：每拍到期派发——硬件/使用日志/
+ * 滚动清理各按原周期，会话扫描按束①降到 3~5 秒，桌面承载刷新与快照推送每拍收尾
+ * （本轮内先到的采集成果当拍就随快照走）。
  * 与 createKernel 共用同一批服务类与依赖束缝——真源注入同法，离线测试可全假源化。
  */
 export function createDataplaneKernel(options: DataplaneKernelOptions = {}): Context {
@@ -260,24 +269,30 @@ export function createDataplaneKernel(options: DataplaneKernelOptions = {}): Con
   })
   const tickMs = options.tickIntervalMs ?? DEFAULT_TICK_MS
   if (tickMs > 0) {
-    const timer = setInterval(() => {
-      ctx.sessions.refresh()
-      ctx.desktop.refresh()
-      options.onSnapshot?.(dataplaneSnapshot(ctx))
-    }, tickMs)
-    ctx.on('dispose', () => clearInterval(timer))
-  }
-  const hwMs = options.hardwareIntervalMs ?? DEFAULT_HARDWARE_MS
-  if (hwMs > 0) {
-    const timer = setInterval(() => ctx.hardware?.sample(), hwMs)
-    ctx.on('dispose', () => clearInterval(timer))
-  }
-  const usageMs = options.usageIntervalMs ?? DEFAULT_USAGE_MS
-  if (usageMs > 0) {
-    const timer = setInterval(() => ctx.usage?.collect(), usageMs)
-    ctx.on('dispose', () => clearInterval(timer))
-    const pruneTimer = setInterval(() => ctx.usage?.prune(), USAGE_PRUNE_MS)
-    ctx.on('dispose', () => clearInterval(pruneTimer))
+    const heartbeat = new Heartbeat(tickMs, () => Date.now(), (task, err) => {
+      console.warn(`deck-dataplane: 心跳任务 ${task.label ?? '匿名'} 失败：${err instanceof Error ? err.message : String(err)}`)
+    })
+    const sessionMs = options.sessionIntervalMs ?? DEFAULT_SESSION_SCAN_MS
+    if (sessionMs > 0) heartbeat.add({ everyMs: sessionMs, label: 'sessions', run: () => ctx.sessions.refresh() })
+    const hwMs = options.hardwareIntervalMs ?? DEFAULT_HARDWARE_MS
+    if (hwMs > 0) heartbeat.add({ everyMs: hwMs, label: 'hardware', run: () => ctx.hardware?.sample() })
+    const usageMs = options.usageIntervalMs ?? DEFAULT_USAGE_MS
+    if (usageMs > 0) {
+      heartbeat.add({ everyMs: usageMs, label: 'usage', run: () => ctx.usage?.collect() })
+      // 滚动清理每小时一轮（Python run_loop 先例）：常驻面板的 90 天保留期不能只靠重启收敛
+      heartbeat.add({ everyMs: USAGE_PRUNE_MS, label: 'usage-prune', run: () => ctx.usage?.prune() })
+    }
+    // 每拍收尾：桌面承载刷新 + 快照推送（排最后——本轮内先到的采集成果当拍就随快照走）
+    heartbeat.add({
+      everyMs: tickMs,
+      label: 'snapshot',
+      run: () => {
+        ctx.desktop.refresh()
+        options.onSnapshot?.(dataplaneSnapshot(ctx))
+      },
+    })
+    heartbeat.start()
+    ctx.on('dispose', () => heartbeat.stop())
   }
   return ctx
 }

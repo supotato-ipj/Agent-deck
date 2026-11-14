@@ -7,6 +7,7 @@ import { defaultTaskbar, saveConfig } from '../config'
 import type { AppConfig } from '../config'
 import { BridgeError } from './bridge'
 import { decideAppClick } from '../taskbar/interactions'
+import { decideLaunchRoute } from '../taskbar/launch-route'
 import { normalizeExe, partitionTaskbarWindowsByDesktop, planAppsSequence, promoteRunToFront, reorderRunOrder, shouldShowOnTaskbar } from '../taskbar/apps-plan'
 import type { TaskbarPinnedEntry, TaskbarWindowInput } from '../taskbar/apps-plan'
 import { applyTrayEvent, sameTrayIcons, trayIconKeyOf, trayPinnedMatch } from '../taskbar/tray-plan'
@@ -74,6 +75,9 @@ export interface TaskbarServiceOptions {
     closeWindow?: (hwnd: number) => boolean
     /** exe 启动（工单53 未运行启动/中键新实例；缺省延迟绑定 desktop/adapter 的 shellOpen，'' 即成功） */
     launchExe?: (exe: string) => Promise<string>
+    /** explorer spawn 专用通道（工单482，#478 定谳：shell.openPath 对 shell 本体恒失败；
+     * 缺省延迟绑定 desktop/adapter 的 explorerOpenThisPc——无窗新开「此电脑」，fire-and-forget） */
+    spawnExplorerWindow?: () => void
     /** 打开文件位置（工单53；缺省延迟绑定 desktop/adapter 的 explorerReveal，fire-and-forget） */
     revealExe?: (exe: string) => void
     /** 运行中应用置前（工单58；缺省延迟绑定 taskbar/windows。返回 false = 前台锁拒收） */
@@ -133,6 +137,7 @@ interface TaskbarDeps {
   minimizeWindow: (hwnd: number) => boolean
   closeWindow: (hwnd: number) => boolean
   launchExe: (exe: string) => Promise<string>
+  spawnExplorerWindow: () => void
   revealExe: (exe: string) => void
   focusExeWindow: (exe: string) => boolean
   replayTrayClick: (key: string, button: TaskbarTrayButton) => boolean
@@ -234,6 +239,8 @@ export class TaskbarService extends Service {
         ?? ((h) => (require('../taskbar/windows') as typeof import('../taskbar/windows')).nativeCloseWindow(h)),
       launchExe: options.deps?.launchExe
         ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).shellOpen(exe)),
+      spawnExplorerWindow: options.deps?.spawnExplorerWindow
+        ?? (() => (require('../desktop/adapter') as typeof import('../desktop/adapter')).explorerOpenThisPc()),
       revealExe: options.deps?.revealExe
         ?? ((exe) => (require('../desktop/adapter') as typeof import('../desktop/adapter')).explorerReveal(exe)),
       focusExeWindow: options.deps?.focusExeWindow
@@ -661,7 +668,8 @@ export class TaskbarService extends Service {
       }
     }
     try {
-      // 工单483：命令即发不等待（launchIssued 头注）——回执 issued 语义
+      // 工单483：命令即发不等待（launchIssued 头注）——回执 issued 语义；通道经
+      // launchApp（工单482 路由，explorer 特判保留）
       this.launchIssued(hit.exe)
       return { ok: true, action: 'launched' }
     } catch (err) {
@@ -685,6 +693,21 @@ export class TaskbarService extends Service {
     return this.current.apps.find((e) => normalizeExe(e.exe) === key)
   }
 
+  /**
+   * launch 通道选择（工单482，#478 定谳照单施工）：路由裁决在纯函数
+   * decideLaunchRoute（taskbar/launch-route）——explorer.exe 走 spawn 专用通道
+   * （无窗新开「此电脑」，shell.openPath 对 shell 本体恒失败），其余应用走既有
+   * shell 打开通道不变。返回 '' 即成功（launchExe 同语：非空 = 错误串）；
+   * spawn 通道 fire-and-forget，无同步错误面。
+   */
+  private async launchApp(exe: string): Promise<string> {
+    if (decideLaunchRoute(exe) === 'explorer-spawn') {
+      this.deps.spawnExplorerWindow()
+      return ''
+    }
+    return this.deps.launchExe(exe)
+  }
+
   /** 该 exe 的当拍窗口快照（裁决与关闭的寻址集；含 hwnd，标题仅内存）。
    * 工单380：只含**当前桌面**窗口——另一桌面窗口不参与点击三态/关闭/选窗的当前桌面路径。 */
   private windowsOf(exe: string): TaskbarWindowInfo[] {
@@ -693,15 +716,15 @@ export class TaskbarService extends Service {
   }
 
   /**
-   * 启动命令即发不等待（工单483，ADR-0032 点击 SLO ③）：launchExe（shellOpen =
-   * shell.openPath）的 Promise 在 ShellExecute 完成时才落定——重型工具实测秒级阻塞
+   * 启动命令即发不等待（工单483，ADR-0032 点击 SLO ③）：launchApp（工单482 通道路由
+   * + shellOpen）的 Promise 在 ShellExecute 完成时才落定——重型工具实测秒级阻塞
    * （#478 双形数据：MiniMax 面板侧 6.8s），点击反馈绝不等它。命令发出即视为送达；
    * 落定结果经 taskbar/app-launch-result 异步回推（失败 → 渲染层收「启动中」态 +
    * 条带 toast 可见反馈，渲染层转 host-notify 入常驻事件日志）。工具自身冷启耗时不
    * 记账（SLO：面板责任 = 秒级反馈 + 真的启动了）。
    */
   private launchIssued(exe: string): void {
-    void this.deps.launchExe(exe).then(
+    void this.launchApp(exe).then(
       (err) => this.ctx.emit('taskbar/app-launch-result', err ? { exe, ok: false, error: err } : { exe, ok: true }),
       (e: unknown) => this.ctx.emit('taskbar/app-launch-result', { exe, ok: false, error: e instanceof Error ? e.message : String(e) }),
     )
@@ -787,7 +810,8 @@ export class TaskbarService extends Service {
       }
     }
     try {
-      // 工单483：命令即发不等待（launchIssued 头注）——回执 issued 语义
+      // 工单483：命令即发不等待（launchIssued 头注）——回执 issued 语义；通道经
+      // launchApp（工单482 路由，explorer 特判保留）
       this.launchIssued(entry.exe)
       return { ok: true, action: 'launched' }
     } catch (err) {
@@ -811,7 +835,8 @@ export class TaskbarService extends Service {
     return { ok: this.deps.activateWindow(hwnd) }
   }
 
-  /** 中键新实例（工单53）：恒启动 exe（应用组护栏同 appClick；工单483 命令即发不等待） */
+  /** 中键新实例（工单53）：恒启动 exe（应用组护栏同 appClick；工单483 命令即发不等待，
+   * 通道经 launchApp——工单482 路由 explorer 特判保留） */
   async appNewInstance(exe: string): Promise<{ ok: boolean; error?: string }> {
     const entry = this.appEntry(exe)
     if (!entry) return { ok: false, error: '应用不在任务栏应用组' }
@@ -886,9 +911,14 @@ export class TaskbarService extends Service {
     const entry = this.recEntry(exe)
     if (!entry) return { ok: false, error: '栏外身份不启动' }
     try {
+<<<<<<< HEAD
       // 工单483：命令即发不等待（launchIssued 头注）——推荐组启动同款 issued 语义
       this.launchIssued(entry.exe)
       return { ok: true }
+=======
+      const err = await this.launchApp(entry.exe)
+      return err ? { ok: false, error: err } : { ok: true }
+>>>>>>> 2b47b2e4551ea65191af92509b38359eb0d63eab
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
