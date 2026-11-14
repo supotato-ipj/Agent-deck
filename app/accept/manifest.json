@@ -978,6 +978,20 @@
             "system-state"
           ],
           "estSeconds": 24
+        },
+        {
+          "seg": "P28",
+          "ticket": 482,
+          "title": "explorer 图标点击通道（工单482，#478 定谳修复定向段）：臂①无窗点击→新开「此电脑」（新 CabinetWClass + This PC/此电脑 标题互证 + taskbar-app-result ok/launched——修复前恒 ok:false \"Failed to open path\" 零窗口）；臂②有窗置前（占位窗夺前台→单窗未前台→点击→app-result ok/activated + 前台对账）；轮起笔手钉保障（栏布局缺 explorer 条目时面板拉起前代写、清场摘除）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "areas": [
+            "taskbar"
+          ],
+          "estSeconds": 5
         }
       ],
       "areas": [
