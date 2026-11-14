@@ -6,6 +6,7 @@ import path from 'node:path'
 import { defaultAgentDesktop, defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile } from './config'
 import { packagePermissionSlice } from './plugins/limits'
 import { createPanelKernel } from './panel-kernel'
+import { KERNEL_START_BOUND_MS, PANEL_DATA_BOUND_MS, WORKSPACE_START_BOUND_MS, boundWait } from './boot-sequence'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
@@ -116,10 +117,15 @@ const PANEL_QUIT_MODE = hasPanelQuitFlag(process.argv)
 
 /**
  * second-instance 的 showPanel 晚绑钩子（工单431）：分发点提前到拿锁时刻注册（文件尾
- * 面板分支），彼时 bootPanel 尚未装配、showPanel 闭包不存在——先占位 no-op（半开机态
- * 二次拉起维持既有 no-op 口径），bootPanel 走到旧注册点时接管。
+ * 面板分支），彼时 bootPanel 尚未装配、showPanel 闭包不存在。工单481⑤：旧 no-op 占位
+ * 退役——「开机窗口期点击被静默吞掉」从此有账可查（ADR-0032 常驻事件日志「点击吞没」
+ * 族）；骨架重排后钩子在主线 tray-and-hooks 步即接管，本记账面只剩毫秒级窗口。
  */
-const secondInstanceShowHook: { fn: () => void } = { fn: () => {} }
+const secondInstanceShowHook: { fn: () => void } = {
+  fn: () => {
+    bootEventLog()?.append({ type: 'second-instance-early', pid: process.pid })
+  },
+}
 
 /**
  * 会话预览工具数据根覆盖（工单381/382 真机验收夹具）：`DECK_SESSION_PREVIEW_ROOTS` 为
@@ -207,21 +213,22 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 自启项（工单11）：Startup 快捷方式由面板自举，且每次启动顺手清掉旧看门狗链的自启项。
   // 只有 config.autostart.appDir 声明的生产安装位置才有权新建/接管（开发 worktree 不劫持）。
   // 失败不拦启动——自启项写不进去不该挡住桌面。
-  // 工单481：applyAutostart 已异步化（helper 超时终止进程降级）——本切片先保持调用位次，
-  // 骨架屏重排切片把它改为「发起不等待」的后补步（boot-sequence 计划 autostart-apply）。
-  try {
-    await applyAutostart({
-      enabled: config.autostart.enabled,
-      appDir: config.autostart.appDir,
-      runningAppDir: app.getAppPath(),
-      desired: desiredShortcut(process.execPath, app.getAppPath()),
-      log: (event) => log?.append(event),
+  // 工单481（boot-sequence 计划 autostart-apply 步，#478④ 实锤收口）：维护「发起不等待」
+  // ——同步 spawnSync PowerShell 形态退役（热态 1.19s、上界 20s、开机窗口冷态放大数秒），
+  // 主线不再阻塞；autostart-applied 相位戳随维护完成（或降级）落档，#473 相位族保持完整。
+  void applyAutostart({
+    enabled: config.autostart.enabled,
+    appDir: config.autostart.appDir,
+    runningAppDir: app.getAppPath(),
+    desired: desiredShortcut(process.execPath, app.getAppPath()),
+    log: (event) => log?.append(event),
+  })
+    .then(() => bootPhase('autostart-applied'))
+    .catch((err) => {
+      console.warn('[deck] 自启项处理失败:', err)
+      log?.append({ type: 'autostart-failed', message: (err as Error).message })
+      bootPhase('autostart-applied')
     })
-  } catch (err) {
-    console.warn('[deck] 自启项处理失败:', err)
-    log?.append({ type: 'autostart-failed', message: (err as Error).message })
-  }
-  bootPhase('autostart-applied')
 
   const usageDir = path.join(app.getPath('userData'), 'usage')
 
@@ -657,9 +664,14 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     },
     log: (event) => log?.append(event),
   })
-  await kernel.start()
+  // 内核装配发起（boot-sequence 计划 kernel-start 步，#478② 实锤收口）：装配后补化——
+  // 发起即继续，不阻塞骨架窗接线；kernel-started 相位戳随装配完成落档（超时降级时可能
+  // 晚于后续相位，单调性由各自落戳时刻保证）。等待上界在后补链 kernel-await 步兑现
+  // （KERNEL_START_BOUND_MS 竞速、超时降级放行）；真失败（拒绝）经后补链上抛走退出链，
+  // 与旧 await kernel.start() 同语义。
+  const kernelStartPromise = kernel.start()
+  void kernelStartPromise.then(() => bootPhase('kernel-started'), () => { /* 拒绝由后补链处置 */ })
   kernelRef = kernel
-  bootPhase('kernel-started')
   // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
   kernel.on('panel/changed', (snap) => droppedPackageHost.pushSnapshot(snap))
   // 媒体快照代次变化（工单336）：桥事件收敛后的即时重推——获批 media.read 的在装包
@@ -717,10 +729,11 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     memorySentinel.refresh()
   })
   kernel.on('dispose', () => memorySentinel.dispose())
-  // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
-  // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
-  await kernel.panelData.whenReady
-  bootPhase('panel-data-ready')
+  // 首拍就位（工单05 教训的骨架屏重写，工单481）：旧形态「等数据面第一份快照再开窗」
+  // 退役——面板窗已在主线骨架步先行（boot-sequence 计划 skeleton-windows），数据面首拍
+  // 移入后补链 panel-data 步（whenReady 内建 15s 超时放行）；首拍到达后桥接层自然推送，
+  // 桌面组件从占位态原位填充（GLOSSARY「骨架屏」语义）。panel-data-ready 相位戳随首拍
+  // 落档，#473 相位族保持完整。
 
   installPluginProtocol({ appRoot: RENDERER_ROOT, sharedRoot: path.join(__dirname, '../shared'), host: kernel.plugins, log: (e) => log?.append(e) })
 
@@ -732,14 +745,6 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 任务栏插件窗口（工单49）：跟随内核 taskbar 状态建/销；禁用即窗口消失，面板本体不受影响
   const taskbarCtl = startTaskbarController({ ctx: kernel, log })
   app.on('before-quit', () => taskbarCtl.dispose())
-
-  // 桌面跟随兜底注册（工单375）：面板 + 条带窗的当前 hwnd 惰性供给——NOACTIVATE 弹窗
-  // 原生跨桌面在场（t371 实测），键盘模式 focusable 翻转退化为 desktop-bound 时由
-  // 公开 MoveWindowToDesktop 兜底迁移。窗随启停生灭，句柄每次取当前值。
-  kernel.desktopWorkspace?.registerFollowTargets(() => [
-    ...(!win.isDestroyed() ? [{ hwnd: hwndOf(win), label: 'panel' }] : []),
-    ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
-  ])
 
   // 顶部窗口胶囊（工单376）：随工作区模式建/销（agent 才在场）；整窗穿透，仅右侧
   // 恢复按钮热区接收点击（工单378）。
@@ -761,39 +766,16 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const sessionPreviewCtl = startSessionPreviewController({ ctx: kernel, log })
   app.on('before-quit', () => sessionPreviewCtl.dispose())
 
-  // Agent 平铺（工单376）：启动事件订阅。工单383 先等桌面工作区首轮对账完成——
-  // 面板在 Agent 桌面重启时，工作区构造期异步 reconciliation 可能早于本订阅发完
-  // 'workspace/changed'；先 await 再起，syncActivation 才能读到已对账的 current。
-  const wsGate = {
-    present: Boolean(kernel.desktopWorkspace),
-    before: kernel.desktopWorkspace?.state().current ?? null,
-  }
-  try {
-    await kernel.desktopWorkspace?.start()
-  } catch (err) {
-    log?.append({
-      type: 'workspace-start-failed',
-      message: err instanceof Error ? err.message : String(err),
-    })
-  }
-  log?.append({
-    type: 'workspace-start-gate',
-    ...wsGate,
-    after: kernel.desktopWorkspace?.state().current ?? null,
-    paired: kernel.desktopWorkspace?.state().paired ?? null,
-  })
-  kernel.agentTiling?.start()
-  // 工单383：工作区首轮对账完成后强制再对齐一次激活态——start() 可能已被 cordis 在
-  // 服务注册阶段调用（彼时工作区 current 尚未对账完成），仅靠 workspace/changed 会漏拍。
-  kernel.agentTiling?.syncActivation()
-  // 干净退出标记（工单383）：正常退出把持久模型写成 clean=true，下一轮按布局恢复；
-  // 崩溃/强杀走不到这里，clean=false 留在盘上，下次启动判为崩溃——不应用旧布局、不搬窗。
-  app.on('before-quit', () => kernel.agentTiling?.shutdown())
-  // Agent 聚焦与窗口预览（工单379）：同一启动纪律（工作区/平铺装配可能晚到）。
-  kernel.agentFocus?.start()
-  kernel.windowPreview?.start()
+  // Agent 服务族启动与桌面工作区首轮对账（工单481，boot-sequence 计划 backfill 的
+  // workspace-start / agent-services 步）：整体移入后补链——旧形态的
+  // `await kernel.desktopWorkspace?.start()` 是 #478③ 实锤的无界等待点（裸 await 无上界，
+  // 开机窗口 shell/COM 未就绪时时长不可控），现以 WORKSPACE_START_BOUND_MS 显式上界竞速，
+  // 超时降级放行 + 迟到补拍激活。见 bootPanel 尾部 backfill 定义。
 
-  // 跟随兜底追加胶囊窗（工单376）：键盘模式退化 desktop-bound 时随面板/条带同路迁移。
+  // 桌面跟随兜底注册（工单375）：面板/条带/胶囊/预览的当前 hwnd 惰性供给——NOACTIVATE
+  // 弹窗原生跨桌面在场（t371 实测），键盘模式 focusable 翻转退化为 desktop-bound 时由
+  // 公开 MoveWindowToDesktop 兜底迁移。窗随启停生灭，句柄每次取当前值。工单481：骨架步
+  // 内控制器已全数在场，旧的两段式注册（面板+条带 → 追加胶囊/预览）并为这一次。
   kernel.desktopWorkspace?.registerFollowTargets(() => [
     ...(!win.isDestroyed() ? [{ hwnd: hwndOf(win), label: 'panel' }] : []),
     ...(taskbarCtl.hwnd() ? [{ hwnd: taskbarCtl.hwnd()!, label: 'taskbar' }] : []),
@@ -836,7 +818,18 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
 
   // 唤回面板的唯一实现点：还原（若收起）→ 显示（不夺焦）→ 重钉。
   // 托盘点击、second-instance、Win+D 防抖恢复共用；恢复后的重钉是票01 实施要点。
+  // 工单481：骨架窗首显前的唤回延后兑现（见 showPanel 内注释）。
+  let panelRevealed = false
+  const deferredShowReasons: string[] = []
   const showPanel = (reason: string) => {
+    // 工单481⑤：骨架窗尚未首显（页面装载中）的唤回不再静默——记账延后，首显时兑现。
+    // 「半开机态点击被静默吞掉」的最后一环收口：窗未建前的更早窗口由模块级
+    // second-instance-early 记账，窗在场即接活（托盘与二次拉起都在 tray-and-hooks 步）。
+    if (!panelRevealed) {
+      deferredShowReasons.push(reason)
+      log?.append({ type: 'panel-show-deferred', reason })
+      return
+    }
     // 滞后哨兵（工单117）：show 是原生窗口显示路径（审计 B5），与重钉分开标注
     if (win.isMinimized() || !win.isVisible()) panelLabels.run('panel-show', () => win.showInactive())
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: `show-${reason}` })
@@ -881,11 +874,23 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     log?.append({ type: 'quit' })
     trayHolder.current?.destroy()
   })
+  // second-instance（工单431）：分发点已提前到拿锁时刻注册（文件尾面板分支），此处接管
+  // showPanel 晚绑钩子——quit 旗标径在分发点直接走完整退出链，不再路过这里。
+  // 工单481⑤（boot-sequence 计划 tray-and-hooks 步）：接管点从 bootPanel 尾部提前到骨架
+  // 主线——半开机态二次拉起即刻拿到「唤回骨架面板」的可见反馈，no-op 空占位退役。
+  secondInstanceShowHook.fn = () => showPanel('second-instance')
 
+  // 骨架首显（boot-sequence 计划 skeleton-reveal 步）：skeleton 页面装载完成即显示——
+  // 不等数据面首拍（桌面组件正处占位态，数据到达后原位填充）。
   win.once('ready-to-show', () => {
     win.showInactive()
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'startup' })
+    panelRevealed = true
     bootPhase('panel-visible')
+    // 半开机延后的唤回随首显一并兑现：用户点击的可见反馈 = 面板此刻在场（记账补齐）
+    for (const reason of deferredShowReasons.splice(0)) {
+      log?.append({ type: 'panel-shown', reason: `${reason}@first-reveal` })
+    }
     // Win+D 防抖恢复：首显后开始盯收起态。 ToggleDesktop 不把面板最小化（skipTaskbar 下
     // shell 不视其为任务栏窗；注意 Electron 44 的 skipTaskbar 并不设置 WS_EX_TOOLWINDOW
     // 位——「工具窗豁免」的旧说法不成立，见工单07），防抖机制兜底任意最小化来源，
@@ -922,9 +927,73 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 它先关才成立——WM_CLOSE 只落主窗时条件永不达成、进程残留（主电池 P10 实证）。
   // 条带窗的拆卸走上方 before-quit 的 taskbarCtl.dispose()。
   win.on('closed', () => app.quit())
-  // second-instance（工单431）：分发点已提前到拿锁时刻注册（文件尾面板分支），此处只
-  // 接管 showPanel 晚绑钩子——quit 旗标径在分发点直接走完整退出链，不再路过这里。
-  secondInstanceShowHook.fn = () => showPanel('second-instance')
+
+  // —— 后补链（boot-sequence 计划 backfill：主线骨架已可交互，这里按依赖序补完数据面
+  // 与桌面管理；一切外部等待经 boundWait 显式上界竞速，超时降级放行不悬挂，票面验收③）——
+  const backfill = async (): Promise<void> => {
+    // kernel-await：内核装配等待（#478②）。超时降级放行——装配继续后台收敛，服务就绪后
+    // 事件自然回推；真失败（拒绝）如实上抛走面板退出链，与旧 await kernel.start() 同语义。
+    const kernelOutcome = await boundWait(kernelStartPromise, KERNEL_START_BOUND_MS)
+    if (kernelOutcome.kind === 'timeout') {
+      log?.append({ type: 'kernel-start-timeout', boundMs: KERNEL_START_BOUND_MS })
+    }
+    // panel-data：数据面首拍（工单05 教训的骨架屏重写）——whenReady 内建 15s 超时放行
+    // （PANEL_DATA_BOUND_MS 同值显式竞速），首拍未到面板先以空数据面在场；首拍到达即
+    // 桥接推送，桌面组件从占位态原位填充。panel-data-ready 相位戳随首拍落档。
+    const dataOutcome = await boundWait(kernel.panelData.whenReady, PANEL_DATA_BOUND_MS)
+    if (dataOutcome.kind === 'timeout') {
+      log?.append({ type: 'panel-data-ready-timeout', boundMs: PANEL_DATA_BOUND_MS })
+    }
+    bootPhase('panel-data-ready')
+
+    // workspace-start：桌面工作区首轮对账（#478③ 实锤的无界等待点收口）——显式上界
+    // 竞速，超时降级：按当前模式继续起 Agent 服务族，对账迟到完成后补拍激活（t383 时序
+    // 语义由迟到补拍保住）。workspace-start-gate 存证事件照常在档。
+    const wsGate = {
+      present: Boolean(kernel.desktopWorkspace),
+      before: kernel.desktopWorkspace?.state().current ?? null,
+    }
+    try {
+      const wsStart = kernel.desktopWorkspace?.start()
+      const wsOutcome = wsStart
+        ? await boundWait(wsStart, WORKSPACE_START_BOUND_MS)
+        : ({ kind: 'settled', value: undefined } as const)
+      if (wsOutcome.kind === 'timeout') {
+        log?.append({ type: 'workspace-start-timeout', boundMs: WORKSPACE_START_BOUND_MS })
+        void kernel.desktopWorkspace?.start().then(() => {
+          log?.append({ type: 'workspace-start-late' })
+          // 迟到补拍（工单383 语义）：对账完成后强制再对齐一次激活态——仅靠
+          // workspace/changed 订阅可能漏掉对账完成前的首拍。
+          kernel.agentTiling?.syncActivation()
+        })
+      }
+    } catch (err) {
+      log?.append({
+        type: 'workspace-start-failed',
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
+    log?.append({
+      type: 'workspace-start-gate',
+      ...wsGate,
+      after: kernel.desktopWorkspace?.state().current ?? null,
+      paired: kernel.desktopWorkspace?.state().paired ?? null,
+    })
+    // agent-services：Agent 平铺/聚焦/窗口预览启动（工单376/379/383）。旧形态「先等
+    // 工作区首轮对账再起」的时序语义：正常路径不变（上界内对账完成），降级路径由迟到
+    // 补拍兜底（上方 workspace-start-late）。
+    kernel.agentTiling?.start()
+    kernel.agentTiling?.syncActivation()
+    // 干净退出标记（工单383）：正常退出把持久模型写成 clean=true，下一轮按布局恢复；
+    // 崩溃/强杀走不到这里，clean=false 留在盘上，下次启动判为崩溃——不应用旧布局、不搬窗。
+    app.on('before-quit', () => kernel.agentTiling?.shutdown())
+    kernel.agentFocus?.start()
+    kernel.windowPreview?.start()
+  }
+  void backfill().catch((err) => {
+    console.error('[deck] 面板启动失败（启动后补链）:', err)
+    app.quit()
+  })
 }
 
 if (RESTORE_MODE) {
