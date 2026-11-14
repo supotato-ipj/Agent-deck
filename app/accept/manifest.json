@@ -964,8 +964,8 @@
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 66,
-      "lastMeasuredAt": "2026-10-26",
+      "lastMeasuredSeconds": 60,
+      "lastMeasuredAt": "2026-11-14",
       "segments": [
         {
           "seg": "A1",
@@ -1093,7 +1093,7 @@
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 24,
+          "estSeconds": 12,
           "areas": [
             "taskbar",
             "render"
@@ -1108,7 +1108,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 6,
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]
