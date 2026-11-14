@@ -3,10 +3,18 @@
 // 本插件只负责内容——内置组件与面板同源，共用面板的设计系统是既有纪律。
 // 工单477 束③（时钟去秒，用户拍板）：呈现只显时分，且同值不重写 DOM——
 // 1Hz 快照推送期间时钟卡不再产生任何文本变化（无秒级重绘），分钟沿才落笔一次。
+// 注意：本卡无运行时 import——插件资产经 deck-plugin://<id>/ 寻址，相对 import 会越出
+// 插件资产根 404（真机首轮实证）；条带侧同一实现住在 renderer/clock-text.ts（formatClock），
+// 此处 6 行内联副本以它为准绳。
 import type { PluginApi, PluginHost } from '../../plugins.js'
-import { hhmmOf } from '../../clock-text.js'
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+
+/** epochMs → 「HH:MM」（与 clock-text.hhmmOf 同实现；插件边界内联副本，勿在此加逻辑） */
+function hhmmOf(epochMs: number): string {
+  const d = new Date(epochMs)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 
 let rendered = 0
 let clicks = 0
