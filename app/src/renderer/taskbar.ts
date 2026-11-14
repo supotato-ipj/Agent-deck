@@ -1256,11 +1256,15 @@ function requestRender(state: TaskbarState): void {
 }
 
 /** 右组 1Hz 数据帧（工单55）：数值就地更新（不重排 DOM——段清单不变，避免每拍重建丢编辑态）。
- * 工单461 起载荷含 network 段——网络格二态随帧就地翻转（applyNetworkCell 同款纪律）。 */
+ * 工单461 起载荷含 network 段——网络格二态随帧就地翻转（applyNetworkCell 同款纪律）。
+ * 工单477 束③：时钟格同值不落笔（1Hz 帧里 HH:MM 只在分钟沿变化——无秒级重绘）。 */
 function applyStatus(status: TaskbarStatus): void {
   latestStatus = status
   const clockEl = rightPill.querySelector<HTMLElement>('[data-id="clock"]')
-  if (clockEl) clockEl.textContent = formatClock(status.clock)
+  if (clockEl) {
+    const clockText = formatClock(status.clock)
+    if (clockEl.textContent !== clockText) clockEl.textContent = clockText
+  }
   const networkEl = rightPill.querySelector<HTMLElement>('[data-id="network"]')
   if (networkEl) applyNetworkCell(networkEl, status.network)
   const values: Record<string, string> = {}

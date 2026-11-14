@@ -342,3 +342,50 @@ describe('动作护栏（Enter 打开 / Ctrl+Enter 定位）', () => {
     })
   })
 })
+
+describe('泵惰性启停（工单477 束④：活动态才挂泵，待机零空转定时器）', () => {
+  /** 直挂服务（带 onPump 间谍；不走 withService——本组只看泵沿不比事件） */
+  async function withPumpSpy(fn: (svc: SearchService, pumpEdges: boolean[], ctx: Context) => Promise<void> | void): Promise<void> {
+    const ctx = new Context()
+    const pumpEdges: boolean[] = []
+    const svc = new SearchService(ctx, { deps: harness().deps, onPump: (on) => pumpEdges.push(on) })
+    await ctx.start()
+    try {
+      await fn(svc, pumpEdges, ctx)
+    } finally {
+      await ctx.stop()
+    }
+  }
+
+  it('激活 = 泵起（恰好一次沿）；退待机 = 泵停', async () => {
+    await withPumpSpy(async (svc, pumpEdges) => {
+      svc.activate()
+      expect(pumpEdges).toEqual([true])
+      svc.deactivate()
+      expect(pumpEdges).toEqual([true, false])
+    })
+  })
+
+  it('活动态重复激活不重发泵沿；待机态退待机也不发', async () => {
+    await withPumpSpy(async (svc, pumpEdges) => {
+      svc.activate()
+      svc.activate()
+      expect(pumpEdges).toEqual([true])
+      svc.deactivate()
+      svc.deactivate()
+      expect(pumpEdges).toEqual([true, false])
+    })
+  })
+
+  it('不注入 onPump（离线装配）激活照常工作', async () => {
+    const h = harness()
+    const ctx = new Context()
+    const svc = new SearchService(ctx, { deps: h.deps })
+    await ctx.start()
+    try {
+      expect(svc.activate()).toBe('active')
+    } finally {
+      await ctx.stop()
+    }
+  })
+})

@@ -9,6 +9,7 @@ import { scanHermes } from './hermes'
 import { scanZcode } from './zcode'
 import { scanKimiCode } from './kimicode'
 import { scanKimiWork } from './kimiwork'
+import type { SqlitePool } from './sqlite'
 import type { Scanner, SessionInfo, SessionRoots } from './types'
 
 export { scanQoder, taskStats, projectName, sessionLast, sessionState } from './qoder'
@@ -16,6 +17,7 @@ export { scanHermes } from './hermes'
 export { scanZcode, ZCODE_SUBAGENT_PREFIX } from './zcode'
 export { scanKimiCode } from './kimicode'
 export { scanKimiWork } from './kimiwork'
+export { SqlitePool, SQLITE_POOL_MAX_AGE_MS, openReadOnly } from './sqlite'
 export { ACTIVE_WINDOW, RUNNING_WINDOW, dirName } from './types'
 export type { Scanner, SessionInfo, SessionRoots } from './types'
 
@@ -43,13 +45,18 @@ export function defaultSessionRoots(home: string = os.homedir()): SessionRoots {
   }
 }
 
-export function collectSessions(roots: SessionRoots, now: number): SessionInfo[] {
+export interface CollectSessionsDeps {
+  /** 会话 SQLite 连接池（工单477 束②）：常驻扫描传入复用连接；缺省每轮开合（离线一次性用） */
+  pool?: SqlitePool
+}
+
+export function collectSessions(roots: SessionRoots, now: number, deps: CollectSessionsDeps = {}): SessionInfo[] {
   const sessions: SessionInfo[] = []
   for (const [tool, root] of Object.entries(roots)) {
     const scanner = SCANNERS[tool]
     if (scanner === undefined) continue
     try {
-      sessions.push(...scanner(root, now))
+      sessions.push(...scanner(root, now, deps.pool))
     } catch (err) {
       console.warn(`agent-sessions: ${tool} 扫描失败，跳过：${err instanceof Error ? err.message : err}`)
     }
