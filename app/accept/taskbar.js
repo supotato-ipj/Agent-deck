@@ -2235,6 +2235,13 @@ async function main() {
         // 防跨轮残留：清掉该镜像可能残存的实例，进程出场探测才唯一
         spawnSync('taskkill', ['/IM', probeImg28, '/F'], { stdio: 'ignore' });
         await sleep(300);
+        // 关残留浮层（工单483 第四轮真机实锤）：P19 恢复段的空白菜单（推荐组空白右键）
+        // 点外即收但段末不主动关——浮层窗悬在推荐位上方会把真点击吃掉（rec-click 零事件）。
+        // 在开始组与模式组右侧的条带空白处（DIP 340,24——远离一切 pill）先发一次空点，
+        // 文档级点击即转达收层（relayCloseAllPopups），再等一拍让浮层收完。
+        const neutral28 = toPhys(340, 24);
+        win32.clickPhys(neutral28.x, neutral28.y, 'left');
+        await sleep(700);
         const recPt28 = (g) => {
           const r = (g.recommendations || []).find((x) => x.name === probe28.name);
           return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
@@ -2255,9 +2262,11 @@ async function main() {
             .filter((h) => ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'].includes(win32.className(h))));
 
           // —— 臂① 真点击 → AC1 ≤1s「启动中」+ AC2 事件戳 ≤1s ——
+          // tape 过滤带 t ≥ clickT0 时间门：事件磁带自轮首起算，不设门会把 P16② 同名
+          // 探针的旧事件错配成本段的（第四轮真机实锤的假绿）
           const clickT0 = Date.now();
           win32.clickPhys(pt28.x, pt28.y, 'left');
-          const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === probe28.name, { timeoutMs: 5000 });
+          const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === probe28.name && e.t >= clickT0, { timeoutMs: 5000 });
           let latLaunching28 = null;
           for (let i = 0; i < 30 && latLaunching28 === null; i++) {
             const d28 = await launchingDom28();
@@ -2265,12 +2274,12 @@ async function main() {
             else await sleep(40);
           }
           const resultEv28 = await tape.wait('taskbar-rec-click-result',
-            (e) => e.name === probe28.name && e.ok === true && typeof e.issuedMs === 'number', { timeoutMs: 5000 });
+            (e) => e.name === probe28.name && e.ok === true && typeof e.issuedMs === 'number' && e.t >= clickT0, { timeoutMs: 5000 });
           const issued28 = resultEv28 ? resultEv28.issuedMs : null;
           const stampGap28 = clickEv28 && resultEv28 ? resultEv28.t - clickEv28.t : null;
           // 启动命令送达对账帧（launchExe 落定 ok:true——命令被 shell 收下）
           const settleEv28 = await tape.wait('taskbar-app-launch-result',
-            (e) => norm28(e.exe) === norm28(probe28.exe) && e.ok === true, { timeoutMs: 8000 });
+            (e) => norm28(e.exe) === norm28(probe28.exe) && e.ok === true && e.t >= clickT0, { timeoutMs: 8000 });
           const ac1ok28 = latLaunching28 !== null && latLaunching28 <= 1000;
           const ac2ok28 = issued28 !== null && issued28 <= 1000 && stampGap28 !== null && stampGap28 <= 1100;
           if (ac1ok28 && ac2ok28 && settleEv28) {
