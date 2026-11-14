@@ -237,7 +237,6 @@ export function createResidentEventLog(options: ResidentEventLogOptions): Reside
   let dirReady = false
 
   function rotate(plan: NonNullable<ReturnType<typeof planRotation>>): void {
-    const dir = path.dirname(file)
     const nameFor = (shiftNo: number) => (shiftNo === 0 ? file : rotatedLogName(file, shiftNo))
     for (const s of plan.removeShifts) {
       try { fs.rmSync(nameFor(s), { force: true }) } catch { /* 尽力而为 */ }
@@ -250,7 +249,6 @@ export function createResidentEventLog(options: ResidentEventLogOptions): Reside
         fs.renameSync(from, to)
       } catch { /* 尽力而为：轮转竞态最坏多转一档，下轮自愈 */ }
     }
-    void dir
   }
 
   return {
