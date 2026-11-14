@@ -4081,6 +4081,20 @@ static class Probe {
         return false;
       };
       const isThisPc28 = (t) => /This PC|此电脑/i.test(String(t || ''));
+      // 栏面运行态等待（1Hz 编排拍）：explorer 条目在场且 running 按期望落定——
+      // 陈旧 lastWindows 残留会让点击误走置前（死 hwnd）/漏走 launch（重开一扇）
+      const waitRunning28 = async (want, timeoutMs = 6000) => {
+        const deadline = Date.now() + timeoutMs;
+        for (;;) {
+          try {
+            const st = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
+            const e = st && ((st.apps) || []).find((a) => NORM482(a.exe) === EXPLORER_EXE482);
+            if (e && !!e.running === want) return e;
+          } catch { /* 渲染页未就位下一拍重试 */ }
+          if (Date.now() >= deadline) return null;
+          await sleep(300);
+        }
+      };
       const ICON_EXPR28 = `(() => {
         const want = 'c:\\\\windows\\\\explorer.exe';
         const el = [...document.querySelectorAll('#pill-apps .tb-app')].find((n) => (n.dataset.exe || '').toLowerCase() === want);
@@ -4105,6 +4119,7 @@ static class Probe {
         if (!hasEntry28() || linger28.length > 0) {
           rep.fail(`P28 前置缺失：栏面 explorer 条目=${hasEntry28}（手钉保障=${explorerPin482}） 既有资源管理器窗=${linger28.length}（多窗会漂移 pick 语义） get-state apps=${st28 ? JSON.stringify(((st28.apps) || []).map((a) => a.exe)) : 'null'}`);
         } else {
+          const notRunning28 = await waitRunning28(false); // 运行态落定（陈旧枚举出清）
           const baseline28 = cabWins28();
           // —— 臂① 无窗点击 → 新开「此电脑」——
           let resA = null;
@@ -4128,7 +4143,8 @@ static class Probe {
           // —— 臂② 有窗置前：占位窗夺前台 → 单窗未前台 → 点击 → activated + 前台对账 ——
           let resB = null;
           let fgB = false;
-          if (armAOk) {
+          const running28 = armAOk ? await waitRunning28(true) : null; // 新窗上栏（1Hz 编排拍）
+          if (armAOk && running28) {
             holder28 = new BrowserWindow({ width: 420, height: 320, title: 'DECK-P28-HOLDER', backgroundColor: '#203040' });
             await holder28.loadURL('about:blank');
             holder28.show();
@@ -4151,7 +4167,7 @@ static class Probe {
           if (armAOk && armBOk) {
             rep.pass(`P28 explorer 点击两端到端（工单482 spawn 通道）：臂① 无窗点击 → 新开「此电脑」（app-result ok/launched、新 CabinetWClass hwnd=${opened28[0]} title="${titleOf(opened28[0])}"）；臂② 有窗置前（占位窗夺前台后单窗未前台 → 点击 → app-result ok/activated、前台对账=${fgB}）`);
           } else {
-            rep.fail(`P28 臂①=${armAOk}（app-result=${resA ? JSON.stringify({ ok: resA.ok, action: resA.action, error: resA.error || null }) : 'null'} ThisPC窗=${pc28 ? `hwnd=${pc28} title="${titleOf(pc28)}"` : '缺席（8s 有界等待）'}${ptA ? '' : '；点击点缺失：栏面无 explorer 图标 DOM 矩形'}） 臂②=${armBOk}（app-result=${resB ? JSON.stringify({ ok: resB.ok, action: resB.action, error: resB.error || null }) : 'null'} 前台对账=${fgB}）`);
+            rep.fail(`P28 臂①=${armAOk}（app-result=${resA ? JSON.stringify({ ok: resA.ok, action: resA.action, error: resA.error || null }) : 'null'} ThisPC窗=${pc28 ? `hwnd=${pc28} title="${titleOf(pc28)}"` : '缺席（8s 有界等待）'}${ptA ? '' : '；点击点缺失：栏面无 explorer 图标 DOM 矩形'} 运行态落定=${!!notRunning28}） 臂②=${armBOk}（新窗上栏=${!!running28} app-result=${resB ? JSON.stringify({ ok: resB.ok, action: resB.action, error: resB.error || null }) : 'null'} 前台对账=${fgB}）`);
           }
         }
       } finally {
