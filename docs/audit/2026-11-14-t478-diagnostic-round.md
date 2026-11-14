@@ -151,22 +151,60 @@
 
 ## 三、案3：工具图标慢启动归因（双形数据）
 
-探针：`app/accept/experiments/t478-tool-launch-probe.js`（guard 槽内真拉起轮，
-`app/accept/evidence/t478-tool-launch-evidence.json`）。
+探针：`app/accept/experiments/t478-tool-launch-probe.js`（guard 槽内真拉起轮
+13:46:23–13:49:17，证据 `app/accept/evidence/t478-tool-launch-evidence.json`）。
 口径：**面板侧链路时延** = shell.openPath 返回耗时（launchExe 同通道同实现，返回即
 「启动命令已发出」）；**工具自身冷启** = openPath 返回 → 该 exe 首个合格顶层窗出现
 （shouldShowOnTaskbar 同款判据）。
 
-（数据见 evidence JSON；本节由 guard 轮回填。）
+| 工具 | 面板侧链路（openPath 返回） | 工具自身冷启（返回→首窗） | 点击→首窗全景 | 备注 |
+|---|---|---|---|---|
+| MiniMax Code | **6796ms** | **8790ms** | **15586ms** | 双形数据有效；窗 "MiniMax Code"（Chrome_WidgetWin_1）；探针轮末 WM_CLOSE + 新增 pid 收割，零残留 |
+| ZCode | 已在运行（19 pid），不重复拉起 | — | — | 用户点击走置前链路，本轮不计量 |
+| Qoder CN Launcher | 2344ms，openPath 返回 success | **计量无效**（探针判据盲区） | **>120s 未见 Launcher exe 名下的合格窗** | 见下 |
+
+**MiniMax 归因定谳**：用户感知的「点图标十几秒」分解为面板侧 spawn 链 **~6.8 秒**
+（shellOpen 同步阻塞到 ShellExecute 完成）＋ 工具自身冷启 **~8.8 秒**——两条各占约一半，
+**面板侧 6.8s 是面板账上的优化空间**（launchExe 若改 async fire-and-forget + 反馈态，
+用户等待感即消除，工具自身 8.8s 属 T7 口径「重型工具自身启动不记账」）。
+
+**Qoder 计量无效的如实说明**：Launcher shellOpen 2.34s 返回成功后，主程序
+`Qoder CN\Qoder CN.exe`（进程名 "Qoder CN"，非 Launcher exe）被拉起成 15 进程树；探针的
+首窗判据按「目标 exe（Launcher 路径）」匹配，主程序 exe 不同 → 120s 窗口内未捕获首窗
+（轮后核查 13:58 主程序可见窗 "Qoder CN" 已在场——出现时刻无法回溯，可能在 120s 内）。
+**Qoder 的有效双形计量需修正探针（按进程树而非单 exe 匹配）重取**——列入 §五 deviations；
+本轮只能实锤：launcher 通道 panelSide 2.3s + 主程序进程树拉起成功 + 「首窗时延 ≥ 探针
+可见窗判据的捕获能力上限」，不充当「几分钟」级的定量实锤。探针拉起的 15 个 Qoder 进程
+已全部收割（Stop-Process，核对零残留）。
+
+负载标注：轮时段 13:43–13:52 为 guard 槽内（无并行验收轮在跑）；zcode 常驻会话在跑
+（非验收负载，计入背景）。
 
 ## 四、案4：CPU 对照采样
 
-口径：既有采样脚本 `deck-cpu-sample.ps1`（20s 窗、任务管理器进程页面板进程组、整机
-百分比）。基线 7.38%（2026-11-14 采样，生产 master 形态）。本轮 guard 槽内三组各
-3×20s：集成形态（worktree tip，#474-#477 已落）、生产形态（master 基线代码）。
-负载标注：槽内无并行验收轮；zcode 常驻会话在跑（非验收负载）。
+口径：既有采样脚本 `deck-cpu-sample.ps1`（20s 窗、按进程名 electron 取面板进程组、
+16 核整机百分比、TotalProcessorTime 差分）。存档基线 7.38%（2026-11-14 早间采样，
+生产 master 形态，ADR-0032 引）。本轮 guard 槽内成对采样（13:44–13:52，各 3×20s、
+60s 预热后取、两形态串行）：
 
-（数据见 `app/accept/evidence/t478-round-summary.json`；本节由 guard 轮回填。）
+| 形态 | round1 | round2 | round3 | 均值 |
+|---|---|---|---|---|
+| 集成形态（worktree tip @ f2afe08，#474-#477 已落） | 2.79 | 3.46 | 3.33 | **3.19%** |
+| 生产形态（主检出 master dist，基线代码） | 3.30 | 3.70 | 3.51 | **3.50%** |
+
+证据：`app/accept/evidence/t478-round-summary.json`（逐进程逐轮全表）+ 两形态隔离事件档
+`t478-int-events.jsonl` / `t478-prod-events.jsonl`。
+
+判读（如实标注，不拿抖动当实锤）：
+
+- **同环境成对对照**：优化中形态比生产基线低约 0.3 个百分点（3.19 vs 3.50，相对 -9%）
+  ——方向与 #474-#477 优化一致但幅度小；两形态 3×20s 内波动带（±0.4pp）与该差值同量级，
+  **不足以单独定谳优化幅度**，供 T12 终验以更长窗口（健康轮口径、多次重复）裁决。
+- **与存档基线 7.38% 不可直接比**：同一生产基线代码（master）本轮采出 3.5% vs 基线轮
+  7.38%——两轮采样环境/时段差异（基线轮语境未在本轮复现，机器总负载不同）**大于形态
+  差异**；本轮两组读数均显著低于 7.38%，只能说明「7.38% 的语境未复现」，不能反过来
+  声称基线被优化代码拉低（生产形态本轮就是基线代码）。7.38% 基线维持存档原样，
+  T12 终验以本轮验证过的成对同窗方法重取正式对照。
 
 ## Deviations（独立问题清单，建议另立票，本票不修）
 
@@ -181,6 +219,11 @@
 5. **生产 dist 形态漂移**：主检出 app/dist（Nov 14 00:20 构建）与 master 分支源码一致
    （无 #473），但生产面板 13:10 轮未写 events.jsonl——常驻事件日志的「生产默认开启」
    要等 #472 并流正式部署后生效（事实记录，非缺陷）。
+6. **案3 探针首窗判据盲区（本票取证工具缺陷，如实记录）**：`t478-tool-launch-probe.js`
+   按「目标 exe 精确路径」匹配首窗，对「中介 launcher 拉起另一主程序 exe」形态（Qoder CN
+   Launcher → Qoder CN.exe）失效——Qoder 的工具自身冷启计量无效（§三）。重取时按进程树
+   匹配（launcher 启动后跟踪其 pid 树的任何合格顶层窗）。探针拉起的全部进程已收割核对
+   零残留（Qoder 15 pid、MiniMax 8 pid，见恢复核对）。
 
 ## 恢复核对（诊断期生产配置改动）
 
@@ -189,9 +232,17 @@
   - 轮内拉起的面板一律 `DECK_RESIDENT_EVENT_LOG` 隔离落点（`accept/evidence/`），零注入
     生产 events.jsonl（12:52 轮为本轮取证前已存在的既有数据，仅读取）；
   - 案2/案3 探针开出的窗口全部 WM_CLOSE 清理并核对零残留（notepad/资源管理器窗）；
-  - guard 大轮末尾把生产面板拉回原形态（`electron.exe <主检出 app> --panel`），恢复核对
-    见 `accept/evidence/t478-round-summary.json` 的 restoreProcessCount/restoreWindowSeen。
+  - guard 大轮（13:43–13:52）末尾按纪律把生产面板拉回原形态
+    （`electron.exe <主检出 app> --panel`，restoreProcessCount=10，
+    `accept/evidence/t478-round-summary.json` 在档）；
+  - **后续面板状态归并行验收轮调度**：13:53 起后续验收轮按 guard 协议拿槽清场（含我拉回
+    的生产面板——协议行为，非本票残留）。本票收尾时若槽空即再次拉回生产面板并核验，
+    槽仍忙则由最后一个收尾轮按同命令恢复（见下「收尾恢复」）；
   - 生产 dist 未替换（冷启动插桩部署留给 #472 并流后的正式部署）。
+
+**收尾恢复命令**（面板缺席时使用）：`Start-Process <主检出>/app/node_modules/electron/dist/electron.exe
+-ArgumentList '"D:\test-folder\wallpaperengine-research\app" --panel' -WorkingDirectory
+'D:\test-folder\wallpaperengine-research\app' -WindowStyle Hidden`（与自启项/dev:panel 同语义）。
 
 ## 待办交接（给并流者/实现票）
 
