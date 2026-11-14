@@ -572,19 +572,29 @@ function seedRecsProbes(rep) {
     // readShortcutLink 解析回长名（C:\Users\An W\...）——种子事件 exe 与 byTarget 键
     // 形差不归一，mapScoresToItems 整段映射不上（2026-10-13 红轮取证实验坐实）。
     const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p16-'));
-    // 启动臂探针 = cmd 副本（真控制台窗、进程常驻、镜像名唯一可轮询）——notepad 副本
-    // 弃用：Win11 System32 notepad.exe 是存根，副本启动被重定向 Store 记事本且并入既有
-    // 实例标签页，进程与窗口两级判据都抓不到出场（第 3/4 轮红轮实证）。
-    const launchTarget = path.join(tmpDir, 'deck-p16-cmd.exe');
-    fs.copyFileSync(path.join(sysRoot, 'System32', 'cmd.exe'), launchTarget);
+    // 探针形态变迁：notepad 副本弃用（Win11 存根重定向 Store 记事本，两级判据都失，
+    // 第 3/4 轮红轮实证）→ cmd 副本（进程常驻镜像名唯一；但控制台窗从不进应用组枚举，
+    // 工单483 第七轮真机实锤）→ 工单483 起改 WinForms 最小窗副本（P18_PROBE_CS 同源
+    // 编译，真任务栏合格窗）。
+    const csc = path.join(sysRoot, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+    if (!fs.existsSync(csc)) {
+      rep.note('P16 探针前置失败：csc.exe 缺失（.NET Framework4.x，工单483 起 P28 收敛判据也依赖真窗探针）');
+      return null;
+    }
+    const formsBase = path.join(tmpDir, 'deck-p16-forms.exe');
+    const csFile16 = path.join(tmpDir, 'probe16.cs');
+    fs.writeFileSync(csFile16, P18_PROBE_CS, 'utf8');
+    const built16 = spawnSync(csc, ['/nologo', '/target:winexe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+      `/out:${formsBase}`, csFile16], { encoding: 'utf8' });
+    if (built16.status !== 0 || !fs.existsSync(formsBase)) {
+      rep.note(`P16 探针编译失败：status=${built16.status} ${(built16.stderr || '').trim().slice(0, 200)}`);
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      return null;
+    }
     const tags = ['A', 'B', 'C', 'D', 'E'];
     const probes = tags.map((tag, i) => {
-      // 工单483 起五探针全是 cmd 副本（原 B-E 为非可执行占位文件）：P28 复用 P16 夹具
-      // 点「当时可见的第一枚探针」做启动反馈断言，而 P20 臂C 会把推荐位首条拖去升手钉、
-      // P16③ 又手钉 B——可见集成员随段次漂移，五枚都可启动才稳。P16 各臂从不启动 B-E
-      // （启动臂只用 A），占位→副本不改变任何既有断言的语义。
-      const target = i === 0 ? launchTarget : path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
-      if (i > 0) fs.copyFileSync(cmdSrc, target);
+      const target = path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
+      fs.copyFileSync(formsBase, target);
       const name = `DECK-P16-${t}-${tag}.lnk`;
       return { name, display: `DeckP16${tag}`, exe: target };
     });
@@ -1517,36 +1527,36 @@ async function main() {
         }
 
         // —— ② 左键启动（端到端：真点击 → rec-click 存证 → 探针进程真出场）——
-        // 出场判据 = 进程级（镜像名 tasklist 轮询）：notepad 副本两轮红轮实证抓不到
-        // （System32 存根重定向 Store 记事本并并入既有实例标签页——窗口类与镜像名两级
-        // 都失）；cmd 副本进程常驻镜像名唯一，进程在场即 shell 打开通道端到端实锤，
-        // 控制台窗（ConsoleWindowClass 新窗）作旁证。
+        // 出场判据 = 进程级（镜像名 tasklist 轮询）：探针形态变迁见 seedRecsProbes 注
+        // （notepad 副本 → cmd 副本 → 工单483 起 WinForms 最小窗副本——窗是真任务栏
+        // 合格窗，标题含镜像名可作新窗旁证）。
         const ptA = recPt16(await waitGeometrySettled(g16), pA16.name);
         const clickPt16 = ptA || toPhys(g16.recommendations[0].x + g16.recommendations[0].w / 2, g16.recommendations[0].y + g16.recommendations[0].h / 2);
-        const notepadHwndsBefore16 = new Set(win32.topLevelWindows()
-          .filter((h) => win32.className(h) === 'ConsoleWindowClass'));
+        const imgName16 = path.basename(pA16.exe);
+        const winTitlesBefore16 = new Set(win32.topLevelWindows().map((h) => win32.titleOf(h) || ''));
         win32.clickPhys(clickPt16.x, clickPt16.y, 'left');
         const clickEv16 = await tape.wait('taskbar-rec-click', (e) => e.name === pA16.name, { timeoutMs: 5000 });
         const clickOk16 = await tape.wait('taskbar-rec-click-result', (e) => e.name === pA16.name && e.ok, { timeoutMs: 5000 });
-        const imgName16 = 'deck-p16-cmd.exe';
         let procUp16 = false;
         let copyHwnd16 = null;
-        const isConsole16 = (h) => ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'].includes(win32.className(h));
         for (let i = 0; i < 16 && !procUp16; i++) {
           await sleep(400);
           const r16 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${imgName16}`, '/NH'], { encoding: 'utf8' });
           procUp16 = (r16.stdout || '').toLowerCase().includes(imgName16);
           if (!copyHwnd16) {
-            copyHwnd16 = win32.topLevelWindows().find((h) => isConsole16(h) && !notepadHwndsBefore16.has(h)) || null;
+            copyHwnd16 = win32.topLevelWindows().find((h) => {
+              const title = titleOf(h) || '';
+              return title.includes(imgName16) && !winTitlesBefore16.has(title);
+            }) || null;
           }
         }
         if (procUp16) spawnSync('taskkill', ['/IM', imgName16, '/F'], { stdio: 'ignore' });
         if (copyHwnd16) spawnSync('taskkill', ['/PID', String(win32.threadIdOf(copyHwnd16).pid), '/T', '/F'], { stdio: 'ignore' });
         if (clickEv16 && clickOk16 && procUp16) {
-          rep.pass(`P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（cmd 副本）进程真出场${copyHwnd16 ? '（控制台窗在场）' : ''}并收杀`);
+          rep.pass(`P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（WinForms 副本）进程真出场${copyHwnd16 ? '（探针窗在场）' : ''}并收杀`);
         } else {
           rep.fail(`P16 左键启动：点击存证=${!!clickEv16} 回执ok=${!!clickOk16} 目标进程=${procUp16 ? '在场' : '未出场'}`
-            + ` 控制台窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
+            + ` 探针窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
         }
 
         // —— ③ 右键三行菜单 + 手钉（B 消失、F 递补，不双占位；工单161 扩移除行；
@@ -2255,22 +2265,25 @@ async function main() {
         if (!pt28) {
           rep.fail(`P28 探针几何缺位（推荐位在场但取不到图标矩形）：${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
         } else {
-          // launching 态 DOM 查询（条带页按 data-exe 精确寻址——遍历比较 dataset.exe，
-          // 不用 CSS 属性选择器：路径反斜杠在 JS/CSS 双层转义里层数易错，第六轮真机实锤
-          // 类名在而选择器不中）
+          // launching 态 DOM 查询（条带页按 data-exe 寻址——遍历比较 dataset.exe 的归一形：
+          // 不用 CSS 属性选择器（路径反斜杠在 JS/CSS 双层转义里层数易错，第六轮真机实锤
+          // 类名在而选择器不中）；比较用内核 normalizeExe 同款归一（窗口枚举 exe 与 lnk
+          // 富化 exe 的大小写/斜杠形差，第七轮真机实锤）
           const exeLit28 = JSON.stringify(probe28.exe);
           const launchingDom28 = () => cdpEval(`(() => {
             const exe = ${exeLit28};
-            const recEl = [...document.querySelectorAll('#pill-recs .tb-rec.launching')].find((n) => (n.dataset.exe || '') === exe);
-            const appEl = [...document.querySelectorAll('.tb-app.running')].find((n) => (n.dataset.exe || '') === exe);
+            const norm = (s) => (s || '').replace(/\//g, '\\\\').toLowerCase();
+            const recEl = [...document.querySelectorAll('#pill-recs .tb-rec.launching')].find((n) => norm(n.dataset.exe) === norm(exe));
+            const appEl = [...document.querySelectorAll('.tb-app.running')].find((n) => norm(n.dataset.exe) === norm(exe));
             const all = [...document.querySelectorAll('.launching')].map((n) => n.dataset.exe || '?');
             return { recLaunching: !!recEl, appRunning: !!appEl, all };
           })()`, TASKBAR_TITLE);
-          const consoleWins28 = () => new Set(win32.topLevelWindows()
-            .filter((h) => ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'].includes(win32.className(h))));
+          // 探针窗检测（工单483 起探针为 WinForms 副本——标题含镜像名，非控制台类）：
+          // 标题新窗 = 点击前不存在、点击后标题含镜像名的顶层窗
+          const winTitles28 = () => new Set(win32.topLevelWindows().map((h) => titleOf(h) || ''));
           // 新窗基线在点击**前**取（第六轮真机实锤：取在臂① 之后时探针窗已被计入基线，
           // 「新窗出场」检测恒空）
-          const before28 = consoleWins28();
+          const before28 = winTitles28();
 
           // —— 臂① 真点击 → AC1 ≤1s「启动中」+ AC2 事件戳 ≤1s ——
           // tape 过滤带 t ≥ clickT0 时间门：事件磁带自轮首起算，不设门会把 P16② 同名
@@ -2305,10 +2318,13 @@ async function main() {
           }
 
           // —— 臂② AC3 收敛：探针窗出场 → 运行条目上栏 → 启动中态消失 ——
-          let consoleHwnd28 = null;
-          for (let i = 0; i < 25 && !consoleHwnd28; i++) {
+          let probeHwnd28 = null;
+          for (let i = 0; i < 25 && !probeHwnd28; i++) {
             await sleep(400);
-            consoleHwnd28 = [...consoleWins28()].find((h) => !before28.has(h)) || null;
+            probeHwnd28 = win32.topLevelWindows().find((h) => {
+              const title = titleOf(h) || '';
+              return title.includes(probeImg28) && !before28.has(title);
+            }) || null;
           }
           let converged28 = null;
           for (let i = 0; i < 40 && converged28 === null; i++) {
@@ -2325,11 +2341,11 @@ async function main() {
           spawnSync('taskkill', ['/IM', probeImg28, '/T', '/F'], { stdio: 'ignore' }); // 探针收杀（P16 启动臂同款）
           const ac3ok28 = converged28 !== null && procUp28;
           if (ac3ok28) {
-            rep.pass(`P28 就绪收敛：探针窗出场（hwnd=${consoleHwnd28 || 'n/a'}）→ 运行条目上栏（.tb-app.running）`
+            rep.pass(`P28 就绪收敛：探针窗出场（hwnd=${probeHwnd28 || 'n/a'}）→ 运行条目上栏（.tb-app.running）`
               + `且启动中态消失（launching 全清）——状态机收敛回常态`);
           } else {
             rep.fail(`P28 收敛断言：收敛=${converged28 !== null} 探针进程=${procUp28 ? '在场已收杀' : '未出场'}`
-              + ` 控制台窗=${consoleHwnd28 ? '在场' : '未出场'} launching位=${JSON.stringify(await launchingDom28())}`);
+              + ` 探针窗=${probeHwnd28 ? '在场' : '未出场'} launching位=${JSON.stringify(await launchingDom28())}`);
           }
         }
       }
@@ -4498,8 +4514,8 @@ static class Probe {
     // ================================================================
     // P28 启动反馈（工单483，spec #472 点击 SLO ③）：工具图标点击 ≤1s「启动中」视觉态
     // + 启动命令发出 ≤1s（事件戳口径，首窗判据盲区不重蹈——#478 归因）+ 工具就绪后
-    // 收敛回常态。探针 = 复用 P16 夹具探针 A（cmd 副本；P21 复用 P18 探针同款先例——
-    // 独立种入会与 P16 五探针争推荐位分数，2026-11-14 首轮真机实证互挤判红）。
+    // 收敛回常态。探针 = 复用 P16 夹具（五枚皆 WinForms 最小窗副本，真任务栏合格窗；
+    // P21 复用 P18 探针同款先例——独立种入会与 P16 五探针争推荐位分数，首轮真机实证）。
     // ================================================================
     // P28 启动反馈（工单483，spec #472 点击 SLO ③）：工具图标点击 ≤1s「启动中」视觉态
     // + 启动命令发出 ≤1s（事件戳口径，首窗判据盲区不重蹈——#478 归因）+ 工具就绪后

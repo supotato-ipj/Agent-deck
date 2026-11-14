@@ -27,7 +27,7 @@ describe('启动反馈状态机（工单483 点击 ≤1s 反馈）', () => {
     // 距首次点击 59s 仍在反馈窗内；第二次点击若刷新起拍则此处仍 launching——判负
     expect(launchFeedbackOf(state, EXE, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS - 1)).toBe('launching')
     const expired = expireLaunchFeedback(state, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS)
-    expect(expired.expired).toEqual([EXE])
+    expect(expired.expired).toEqual([EXE.toLowerCase()]) // 键归一（小写形，见键归一用例）
     expect(launchFeedbackOf(expired.state, EXE, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS)).toBeNull()
   })
 
@@ -62,9 +62,9 @@ describe('启动反馈状态机（工单483 点击 ≤1s 反馈）', () => {
     expect(before.expired).toEqual([])
     expect(launchFeedbackOf(before.state, EXE, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS - 1)).toBe('launching')
     const at = expireLaunchFeedback(state, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS)
-    expect(at.expired).toEqual([EXE])
+    expect(at.expired).toEqual([EXE.toLowerCase()])
     const after = expireLaunchFeedback(state, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS + 5_000)
-    expect(after.expired).toEqual([EXE])
+    expect(after.expired).toEqual([EXE.toLowerCase()])
     expect(launchFeedbackOf(after.state, EXE, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS + 5_000)).toBeNull()
   })
 
@@ -79,5 +79,19 @@ describe('启动反馈状态机（工单483 点击 ≤1s 反馈）', () => {
   it('默认超时预算有界且为正（常量本身是外部可依赖的收敛上界）', () => {
     expect(LAUNCH_FEEDBACK_TIMEOUT_MS).toBeGreaterThan(0)
     expect(LAUNCH_FEEDBACK_TIMEOUT_MS).toBeLessThanOrEqual(120_000)
+  })
+
+  it('exe 键归一：同一路径的大小写/斜杠形差收敛到同一键（运行条目 exe 与推荐条目 exe 来源不同——内核 normalizeExe 同款口径）', () => {
+    let state = beginLaunchFeedback(new Map(), 'C:\\Apps\\MiniMax.exe', T0)
+    // 运行名单给斜杠+小写形（窗口枚举与推荐富化的来源形差），收敛照常命中
+    state = convergeLaunchFeedback(state, ['c:/apps/minimax.exe'])
+    expect(launchFeedbackOf(state, 'C:\\Apps\\MiniMax.exe', T0 + 1)).toBeNull()
+    // begin/settle/expire 全通道同键归一：小写 begin、原文 settle 也能命中
+    state = beginLaunchFeedback(new Map(), 'c:/apps/qoder.exe', T0)
+    state = settleLaunchFeedback(state, 'C:\\APPS\\QODER.EXE')
+    expect(launchFeedbackOf(state, 'c:/apps/qoder.exe', T0 + 1)).toBeNull()
+    state = beginLaunchFeedback(new Map(), 'C:\\Apps\\X.exe', T0)
+    const at = expireLaunchFeedback(state, T0 + LAUNCH_FEEDBACK_TIMEOUT_MS)
+    expect(at.expired).toEqual(['c:\\apps\\x.exe'])
   })
 })
