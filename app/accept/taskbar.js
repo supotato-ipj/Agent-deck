@@ -2272,7 +2272,7 @@ async function main() {
           const exeLit28 = JSON.stringify(probe28.exe);
           const launchingDom28 = () => cdpEval(`(() => {
             const exe = ${exeLit28};
-            const norm = (s) => (s || '').replace(/\//g, '\\\\').toLowerCase();
+            const norm = (s) => (s || '').split('/').join('\\\\').toLowerCase();
             const recEl = [...document.querySelectorAll('#pill-recs .tb-rec.launching')].find((n) => norm(n.dataset.exe) === norm(exe));
             const appEl = [...document.querySelectorAll('.tb-app.running')].find((n) => norm(n.dataset.exe) === norm(exe));
             const all = [...document.querySelectorAll('.launching')].map((n) => n.dataset.exe || '?');
