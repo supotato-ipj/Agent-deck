@@ -1660,29 +1660,39 @@ async function runSegments() {
         if (!restoredVis) await sleep(200);
       }
       const carryRestored = await tape.wait('icons-restored', null, { timeoutMs: 2000 });
-      let supervisorDead = false;
-      const superDeadline = Date.now() + 4000;
-      while (Date.now() < superDeadline && !supervisorDead) {
-        supervisorDead = !isAlive(child.pid);
-        if (!supervisorDead) await sleep(200);
-      }
       // 基线感知：用户自身偏好隐藏（基线 visible=false 且 HideIcons=1）时，守卫按设计
       // 全程不动（icon-carry 评审收编：绝不顶掉用户偏好）——此时断言不动作语义：
       // icons-restored 存证在场 + prefHiddenAfter 未被顶掉（视图保持隐藏 = 正确行为）。
       // 基线可见时才断言实际恢复（图标翻回）。
       const userPrefHidden = !iconsVisibleBase && carryRestored && carryRestored.prefHiddenAfter === true;
       restoredVis && carryRestored
-        ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，守卫还原后退出=${supervisorDead}）`)
+        ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，视图事实=控制器独立读数）`)
         : userPrefHidden && carryRestored
           ? rep.pass(`杀进程还原（用户偏好隐藏基线）：守卫按设计不动用户偏好——icons-restored 存证在（reason=${carryRestored.reason}），HideIcons 偏好未被顶掉，视图保持隐藏`)
           : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
       capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-restored');
       rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
+      // 工单479 改段说明（旧契约「守卫还原后退出」已退役）：拉回上线后面板异常退出
+      // 不再是守卫的终局——守卫按退避自动重拉（pullback-scheduled/respawned 存证，
+      // 该行为与上限裁决的断言归属工单479 自己的段 P479），本段只断言工单05 的还原
+      // 半边。还原证据落袋后立刻整树清场守卫（/T 连带在逃/在飞的拉回代次）——
+      // 不清场则重拉面板与下方新发射的面板撞单实例锁，把确定性失败留给后续段。
+      spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      const guardGone5 = await (async () => {
+        const deadline = Date.now() + 4000;
+        while (Date.now() < deadline) {
+          if (!isAlive(child.pid)) return true;
+          await sleep(200);
+        }
+        return false;
+      })();
+      guardGone5
+        ? rep.note('P5 清场：守卫链已整树终结（拉回代次连带清偿），图标核验=还原后半拍')
+        : rep.note(`P5 清场异常：守卫 pid=${child.pid} 4s 内未退（后续发射将撞单实例锁——如实留痕）`);
 
       // 后续探针继续：重新拉起面板（完整守卫链——此刻图标可见，守卫将再次隐藏）。
       // 时间下限必给：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）。
-      // 面板已被上面的 taskkill /F 定点清掉（外层守卫要活着还原原生图标）——此处只发射不重退：
-      // 走句柄的 relaunch 会整树强杀（/T）把守卫一起带走 → 图标不还原 → 本段判死。
+      // 旧守卫链已在上面整树清场，此处发射的是全新守卫链，无锁冲突。
       // since 门用句柄缺省（发射时点）：原 relaunchT0 就取在发射前那一瞬，与缺省门等价。
       const launched3 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
       child = launched3.child;
@@ -6439,6 +6449,7 @@ async function runSegments() {
       rep.note('P473 隔离落点已清（临时目录）');
     })();
 
+
     // —— P481 骨架屏启动重排（工单481，ADR-0032）——
     // 隔离双面板（P473 同款纪律：--panel-accept 绕锁、DECK_EVENT_LOG 零注入、
     // DECK_RESIDENT_EVENT_LOG 隔离落点；另配单份 config 使 taskbar.enabled=true——
@@ -6572,6 +6583,132 @@ async function runSegments() {
       await stop481('段末');
       try { fs.rmSync(isoDir481, { recursive: true, force: true }); } catch { /* 尽力 */ }
       rep.note('P481 隔离落点与单配 config 已清（临时目录）');
+    })();
+
+    // —— P479B 冻结托盘告警（工单479，ADR-0032）：哨兵判出冻结失能 → 记账 + 托盘告警
+    // 恰好一次，**无自动杀拉**（自动处置是 ADR-0032 明示暂缓项）。注入手法同 P12
+    // （CDP 忙环钉死渲染层主线程 12s——静默≈5s、失能≈7s 两档依次发射）；本段断言在
+    // P12 之上加的是告警半边：freeze-alarm 存证恰一条（带 shown=true——真机托盘在场）
+    // + 注入窗零 pullback-*（面板没退，守卫没被惊动）。段位垫底（P473 之后、P479 之前）：
+    // 用的是 P9B 代次现役面板（CDP 9223 在场），告警闩为 episode 级——P12 的冻结已闭合，
+    // 本段注入是新一轮冻结，告警义务重新成立。
+    rep.beginSegment('P479B');
+    await (async () => {
+      if (!panelPid || !isAlive(panelPid)) throw new Error('P479B 前置不成立：现役面板不在场');
+      const injectT479B = Date.now();
+      let injected479B;
+      try {
+        await cdpEval('(() => { const t0 = performance.now(); while (performance.now() - t0 < 12000); return "frozen"; })()', 20000);
+        injected479B = '忙环 12s 注入完成';
+      } catch (e) { injected479B = `忙环注入异常: ${e.message}`; }
+      rep.note(`渲染层失能注入（CDP 忙环，同 P12 手法）：${injected479B}`);
+      const after479B = tape.all();
+      // 记账：注入窗内 renderer-frozen 恰一条（哨兵发射判据 #91 不变——记账半边）
+      const frozen479B = after479B.filter((e) => e.type === 'renderer-frozen' && e.t >= injectT479B);
+      frozen479B.length === 1
+        ? rep.pass(`冻结记账在案：renderer-frozen quietMs=${frozen479B[0].quietMs}（常驻事件账同源落盘）`)
+        : rep.fail(`冻结记账异常：${JSON.stringify(frozen479B.map((e) => ({ t: e.t, quietMs: e.quietMs })))}（期望恰一条）`);
+      // 托盘告警恰好一次：freeze-alarm 存证恰一条且 shown=true（真机托盘在场，气球真弹出）
+      const alarms479B = after479B.filter((e) => e.type === 'freeze-alarm' && e.t >= injectT479B);
+      alarms479B.length === 1 && alarms479B[0].shown === true
+        ? rep.pass(`托盘告警恰好一次（票面②）：freeze-alarm channel=${alarms479B[0].channel} shown=${alarms479B[0].shown}——episode 闩在案，不刷屏`)
+        : rep.fail(`托盘告警次数异常：${JSON.stringify(alarms479B.map((e) => ({ t: e.t, shown: e.shown })))}（期望恰一条 shown=true）`);
+      // 无自动杀拉（票面③边界）：忙环结束后面板进程仍在场，注入窗零 pullback-*（守卫没被惊动）
+      const afterUnfrozen479B = await tape.wait('renderer-unfrozen', undefined, { since: injectT479B, timeoutMs: 10000 });
+      const alive479B = (() => { try { process.kill(panelPid, 0); return true; } catch { return false; } })();
+      const pullbackNoise479B = after479B.filter((e) => e.type === 'pullback-scheduled' || e.type === 'pullback-exhausted').filter((e) => e.t >= injectT479B);
+      alive479B && pullbackNoise479B.length === 0
+        ? rep.pass(`无自动杀拉（ADR-0032 暂缓项本票不做）：冻结后面板进程在场（pid=${panelPid}），注入窗零 pullback-*（闭合 frozenMs=${afterUnfrozen479B ? afterUnfrozen479B.frozenMs : 'n/a'}）`)
+        : rep.fail(`冻结处置越界疑云：面板存活=${alive479B} pullback噪声=${JSON.stringify(pullbackNoise479B.map((e) => e.type))}`);
+    })();
+
+    // —— P479 拉回（工单479，ADR-0032 韧性基线）：杀面板 → 守卫自动重拉（退避有界）。
+    // 票面演示链一次跑全：杀面板子进程 → 守卫自动重拉 + 面板恢复接管任务栏（AC①）；
+    // 连续异常退出达上限 → 停止重拉、留 pullback-exhausted 存证、守卫还原后随面板退场
+    // （AC②，不无限重启）。段位垫底中的垫底（真末段）：本段连杀面板 4 次把连崩账打到
+    // 上限、守卫终局退出——放中间会搅乱任何依赖「面板活着」的段。任务栏接管演示的前置：
+    // 主电池全程 taskbar.enabled=false（依赖原生任务栏在场），本段杀前把 config 翻真——
+    // 重拉代次 boot 时读 config 即带任务栏启动；翻转只作用本段起的新代次，轮末 config
+    // 还原兜底（configBackupMain）收口。
+    rep.beginSegment('P479');
+    await (async () => {
+      if (!child || !panelPid || !isAlive(child.pid)) throw new Error('P479 前置不成立：守卫链不在场');
+      let cfg479 = {};
+      try { cfg479 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch { cfg479 = {}; }
+      cfg479.taskbar = { ...(cfg479.taskbar ?? {}), enabled: true };
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg479, null, 2) + '\n', 'utf8');
+      rep.note('P479 config 已临时置 taskbar.enabled=true（重拉代次带任务栏启动）');
+      const waitGone479 = async (pid, timeoutMs) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) { if (!isAlive(pid)) return true; await sleep(200); }
+        return false;
+      };
+      const findPanelPid479 = (excludePid) => {
+        for (const h of w32.topLevelWindows()) {
+          let title = '';
+          let pid = 0;
+          try { title = windowTitle(h); pid = w32.threadIdOf(h).pid; } catch { continue; }
+          if (title === 'AGENT DECK' && pid && pid !== excludePid) return pid;
+        }
+        return null;
+      };
+      // —— 第 1 崩：重拉 + 接管任务栏（票面 AC① 演示链全条）——
+      const killT1 = Date.now();
+      spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+      const sched1 = await tape.wait('pullback-scheduled', (e) => e.attempt === 1, { since: killT1, timeoutMs: 8000 });
+      sched1 && sched1.delayMs > 0
+        ? rep.pass(`拉回调度（第 1 崩）：pullback-scheduled attempt=1 delayMs=${sched1.delayMs} exitCode=${sched1.exitCode}（退避表查表在案）`)
+        : rep.fail(`拉回调度缺席（第 1 崩）：${JSON.stringify(sched1 || null)}`);
+      const respawned1 = await tape.wait('pullback-respawned', (e) => e.attempt === 1, { since: killT1, timeoutMs: 15000 });
+      let newPid1 = null;
+      const winDeadline1 = Date.now() + 20000;
+      while (Date.now() < winDeadline1 && !newPid1) { newPid1 = findPanelPid479(panelPid); if (!newPid1) await sleep(300); }
+      const takeEv479 = await tape.wait('taskbar-autohide-takeover', undefined, { since: killT1, timeoutMs: 25000 });
+      let nativeHidden479 = false;
+      const hiddenDeadline479 = Date.now() + 10000;
+      while (Date.now() < hiddenDeadline479 && !nativeHidden479) { nativeHidden479 = !w32.nativeTaskbarVisible(); if (!nativeHidden479) await sleep(300); }
+      respawned1 && newPid1 && takeEv479 && nativeHidden479
+        ? rep.pass(`杀面板自动重拉 + 接管任务栏（票面 AC①）：守卫 respawned attempt=1 → 新代次窗在场（pid=${newPid1}）→ taskbar-autohide-takeover 在案 + 原生任务栏已隐（视图事实）`)
+        : rep.fail(`拉回演示链断（第 1 崩）：respawned=${!!respawned1} 新窗=${newPid1} 接管存证=${!!takeEv479} 原生任务栏已隐=${nativeHidden479}`);
+      if (newPid1) panelPid = newPid1;
+      // —— 第 2/3 崩：退避升级重拉（链未断——attempt 2/3 依次在案）——
+      for (const nth of [2, 3]) {
+        const killTn = Date.now();
+        spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+        const schedN = await tape.wait('pullback-scheduled', (e) => e.attempt === nth, { since: killTn, timeoutMs: 8000 });
+        const respawnedN = await tape.wait('pullback-respawned', (e) => e.attempt === nth, { since: killTn, timeoutMs: 20000 });
+        let newPidN = null;
+        const winDeadlineN = Date.now() + 20000;
+        while (Date.now() < winDeadlineN && !newPidN) { newPidN = findPanelPid479(panelPid); if (!newPidN) await sleep(300); }
+        schedN && respawnedN && newPidN
+          ? rep.pass(`连崩重拉继续（第 ${nth} 崩）：attempt=${nth} delayMs=${schedN.delayMs}（退避升级），新代次窗在场（pid=${newPidN}）`)
+          : rep.fail(`连崩重拉断（第 ${nth} 崩）：scheduled=${!!schedN} respawned=${!!respawnedN} 新窗=${newPidN}`);
+        if (newPidN) panelPid = newPidN;
+      }
+      // —— 第 4 崩：达上限放弃（票面 AC②）——pullback-exhausted 留证 + 守卫终局退场 +
+      // 不再有新面板（不无限重启）+ 原生任务栏随 give-up 还原径回到系统手里（逃生口半边）。
+      const killT4 = Date.now();
+      spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+      const exhausted = await tape.wait('pullback-exhausted', undefined, { since: killT4, timeoutMs: 8000 });
+      exhausted && exhausted.attempt === 4
+        ? rep.pass(`达上限停止重拉（票面 AC②）：pullback-exhausted attempt=${exhausted.attempt} maxRespawns=${exhausted.maxRespawns}（记账在案，不无限重启）`)
+        : rep.fail(`上限放弃存证缺席：${JSON.stringify(exhausted || null)}`);
+      const guardGone479 = await waitGone479(child.pid, 15000);
+      const nativeBack479 = await (async () => {
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline) { if (w32.nativeTaskbarVisible()) return true; await sleep(300); }
+        return false;
+      })();
+      guardGone479
+        ? rep.pass(`守卫终局退场：give-up 后守卫随退出（pid=${child.pid} 已死），原生任务栏还原=${nativeBack479}（give-up 还原径）`)
+        : rep.fail(`守卫未随上限放弃退场：pid=${child.pid} 15s 仍存活（僵尸守卫——还原守护永不触发）`);
+      let noMore479 = true;
+      const quietDeadline479 = Date.now() + 8000;
+      while (Date.now() < quietDeadline479 && noMore479) { noMore479 = findPanelPid479(null) === null; if (noMore479) await sleep(400); }
+      noMore479
+        ? rep.pass('放弃后零重拉：8s 观察窗内无新面板窗口（重拉次数有界，终局有界）')
+        : rep.fail('上限放弃后仍有新面板窗口出现（拉回越界——不该发生的第 5 拉）');
+      rep.note('P479 段末面板与守卫均已退场（上限放弃终局）；config 翻转由轮末 configBackupMain 还原兜底');
     })();
   } catch (e) {
     rep.fail(`电池中断: ${e && e.stack || e}`);

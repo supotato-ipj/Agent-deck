@@ -178,7 +178,7 @@ describe('guard hold 命令行拼装（工单207：只打印、不占验收槽�
 })
 
 describe('真仓库清单：选择器对真实登记处可用（工单207）', () => {
-  it('改任务栏目录 → 命中 taskbar 域，任务栏族电池进计划（主电池 33 段无 taskbar 归属域，不进）', () => {
+  it('改任务栏目录 → 命中 taskbar 域，任务栏族电池进计划（主电池按段 scope：只 P479 带任务栏域，进 scoped 不整块）', () => {
     const manifest = loadManifest()
     expect(manifest).not.toBeNull()
     const p = selectPlan({ changedFiles: ['app/src/main/taskbar/window.ts'], manifest })
@@ -187,7 +187,13 @@ describe('真仓库清单：选择器对真实登记处可用（工单207）', (
     expect(got).toContain('49-taskbar')
     expect(got).toContain('55-taskbar-right-group')
     expect(got).toContain('50-taskbar-carry')
-    expect(got).not.toContain('03-battery')
+    // 工单479 起主电池不再是无 taskbar 域电池：P479（拉回）断言新代次接管任务栏，
+    // 段级 areas 带 taskbar——选择器把 03-battery 以 scoped 形态拉进计划（只跑 P479），
+    // 整块不跑（其它 35 段与 taskbar 无登记关系）。
+    expect(got).toContain('03-battery')
+    const main479 = pick(p, '03-battery')!
+    expect(main479.mode).toBe('scoped')
+    expect(main479.segments).toEqual(['P479'])
     expect(p.conservative).toBe(false)
   })
 
