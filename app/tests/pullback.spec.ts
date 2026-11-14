@@ -3,7 +3,7 @@
 // silenceVerdict（采样在外、裁决单点）、resident-event-log.ts 的 planRotation
 // （操作表由纯函数出，执行在写入器）。守卫编排是宿主薄壳，不在此测。
 import { describe, expect, it } from 'vitest'
-import { adjudicatePullback, backoffDelayMs } from '../src/main/pullback'
+import { adjudicatePullback, backoffDelayMs, isCleanPanelExit, PANEL_BOOT_FAILED_EXIT_CODE } from '../src/main/pullback'
 
 /** 生产表的独立事实源（期望值写死字面量，不从模块常量反推——防同源反复） */
 const TABLE = [1000, 2000, 5000]
@@ -67,5 +67,35 @@ describe('adjudicatePullback 重拉上限裁决', () => {
     expect(adjudicatePullback({ ...base, delaysMs: two })).toEqual({ action: 'respawn', attempt: 1, delayMs: 300 })
     expect(adjudicatePullback({ ...base, crashesSoFar: 1, delaysMs: two })).toEqual({ action: 'respawn', attempt: 2, delayMs: 900 })
     expect(adjudicatePullback({ ...base, crashesSoFar: 2, delaysMs: two, maxRespawns: 99 })).toEqual({ action: 'respawn', attempt: 3, delayMs: 900 })
+  })
+})
+
+// —— 干净退出判定与启动期失败退出码（2026-11-14 双轴评审 H1/L1 钉外部行为）——
+// 宿主薄壳 handlePanelExit（index.ts）与 bootPanel 失败径的裁决缝收口到纯函数单点：
+// 这里钉的是守卫看到的外部行为契约，不是实现细节。
+describe('isCleanPanelExit 干净退出判定（守卫裁决缝）', () => {
+  it('code=0 是唯一的干净退出（托盘退出/退出信使完整退出链）——不触发拉回', () => {
+    expect(isCleanPanelExit(0)).toBe(true)
+  })
+
+  it('null（信号终止/宿主强杀，无退出码）判异常退出——触发拉回（评审 L1）', () => {
+    expect(isCleanPanelExit(null)).toBe(false)
+  })
+
+  it('非零码判异常退出——触发拉回（崩溃/强杀/启动期失败）', () => {
+    expect(isCleanPanelExit(1)).toBe(false)
+    expect(isCleanPanelExit(3)).toBe(false)
+  })
+})
+
+describe('PANEL_BOOT_FAILED_EXIT_CODE 启动期失败专用退出码（评审 H1）', () => {
+  it('是非零专用码——bootPanel 失败径以异常退出身份过守卫拉回裁决，不落回 exit 0', () => {
+    expect(PANEL_BOOT_FAILED_EXIT_CODE).not.toBe(0)
+    expect(Number.isInteger(PANEL_BOOT_FAILED_EXIT_CODE)).toBe(true)
+    expect(isCleanPanelExit(PANEL_BOOT_FAILED_EXIT_CODE)).toBe(false)
+  })
+
+  it('与既有退出径三线分立：不与 spawn 失败的 exit(1)、干净退出的 exit(0) 撞码', () => {
+    expect(PANEL_BOOT_FAILED_EXIT_CODE).not.toBe(1)
   })
 })

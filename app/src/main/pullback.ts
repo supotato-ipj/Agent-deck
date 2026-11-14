@@ -28,6 +28,27 @@ export const PULLBACK_MAX_RESPAWNS = PULLBACK_DELAYS_MS.length
  */
 export const PULLBACK_STABLE_RESET_MS = 60_000
 
+/**
+ * 面板启动期失败专用退出码（2026-11-14 双轴评审 H1）：bootPanel 拒绝径（kernel-start
+ * 超时等装配死锁级故障）不走 app.quit()——quit 的完整退出链以 exit 0 收场，守卫把
+ * 0 判干净退出（restoreAndExit 随面板双双退场），启动链注释承诺的「干净失败交拉回」
+ * 实际落空。改以本专用码 app.exit：以异常退出身份过守卫的拉回裁决，进入有界重拉 +
+ * 逃生口自动还原。取值沿用 sysexits 的 EX_TEMPFAIL(75)——「临时性失败、重试可解」
+ * 的进程退出惯例码，与 spawn 失败的 exit(1)、用户干净退出的 exit(0) 三径分立可辨。
+ */
+export const PANEL_BOOT_FAILED_EXIT_CODE = 75
+
+/**
+ * 守卫侧干净退出判定（纯函数，宿主薄壳 handlePanelExit 的裁决缝——离线可测的单点）：
+ * 只有 code === 0 算干净退出（托盘退出/退出信使的 app.quit 完整退出链）。null（信号
+ * 终止/宿主强杀，无退出码）与一切非零码（含 PANEL_BOOT_FAILED_EXIT_CODE）都是异常
+ * 退出、走拉回裁决——对齐本文件头注「异常退出（非零/信号）」的词汇（2026-11-14
+ * 双轴评审 L1：旧 `code ?? 0` 把信号终止误判成干净退出）。
+ */
+export function isCleanPanelExit(code: number | null): boolean {
+  return code === 0
+}
+
 /** 退避查表（纯函数）：attempt 从 1 起；超出表长夹取最后一档；空表属配置错误，拒绝。 */
 export function backoffDelayMs(delaysMs: readonly number[], attempt: number): number {
   if (!Array.isArray(delaysMs) || delaysMs.length === 0) {

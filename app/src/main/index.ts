@@ -26,7 +26,7 @@ import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc, type EventLog } from './panel-ipc'
 import { createBootPhaseLogger, createResidentEventLog, resolveResidentLogFile } from './resident-event-log'
 import { nextFreezeAlarm, type FreezeAlarmState } from './freeze-alarm'
-import { adjudicatePullback, PULLBACK_DELAYS_MS, PULLBACK_MAX_RESPAWNS, PULLBACK_STABLE_RESET_MS } from './pullback'
+import { adjudicatePullback, isCleanPanelExit, PANEL_BOOT_FAILED_EXIT_CODE, PULLBACK_DELAYS_MS, PULLBACK_MAX_RESPAWNS, PULLBACK_STABLE_RESET_MS } from './pullback'
 import { attachLagSentinel, panelLabels } from './lag-sentinel'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
@@ -1011,6 +1011,11 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
           // 迟到补拍（工单383 语义）：对账完成后强制再对齐一次激活态——仅靠
           // workspace/changed 订阅可能漏掉对账完成前的首拍。
           kernel.agentTiling?.syncActivation()
+          // 二次 start() 的派生 promise 补 .catch 落存证（2026-11-14 双轴评审 L3）：
+          // 迟到对账若拒绝，拒绝不能再成为无账的 unhandled rejection——存证尽力而为，
+          // 不改降级放行的语义（面板照常在场，此处只补「为什么迟到后还没对齐」的账）。
+        }).catch((err) => {
+          log?.append({ type: 'workspace-start-late-failed', message: err instanceof Error ? err.message : String(err) })
         })
       }
     } catch (err) {
@@ -1150,25 +1155,32 @@ if (RESTORE_MODE) {
     }
     const handlePanelExit = (code: number | null): void => {
       if (quitting) return
-      const exitCode = code ?? 0
-      // 干净退出（托盘退出/退出信使 app.quit 完整退出链）：不拉回，等还原走完随面板退场
-      // （工单05 既有形态）。finally 兜底与异常径对齐：restoreCarry 一旦 reject（清账
-      // rmSync 遇 Windows 文件锁、FFI 抛错），app.exit 也必须执行——否则守卫变僵尸进程
-      // 吊住不放、还原守护（盯守卫 pid）永不触发；拒绝落存证，不无声。
-      const restoreAndExit = () => {
-        void restoreCarry('panel-exit').then(
+      // 干净退出判定收口到纯函数（2026-11-14 双轴评审 H1/L1）：code===0 才算干净退出
+      // （托盘退出/退出信使 app.quit 完整退出链）；null（信号终止/宿主强杀，无退出码）
+      // 与一切非零码都是异常退出走拉回裁决——含面板启动期失败（bootPanel 拒绝径以
+      // PANEL_BOOT_FAILED_EXIT_CODE 非零退场，见文件尾）。「干净失败交拉回」的注释
+      // 承诺自此真实成立。
+      const exitCode = isCleanPanelExit(code) ? 0 : (code ?? 1)
+      // 不拉回的还原径：等还原走完守卫随面板退场（工单05 既有形态）。reason 由调用
+      // 径给词（panel-exit = 用户干净退出；pullback-exhausted-restore = 重拉达上限的
+      // 终局，2026-11-14 评审 L5 起不再与干净退出同词）——「谁叫退的」是一等可取证事实
+      //（工单431 事件词汇同纪律）。finally 兜底与异常径对齐：restoreCarry 一旦 reject
+      //（清账 rmSync 遇 Windows 文件锁、FFI 抛错），app.exit 也必须执行——否则守卫变
+      // 僵尸进程吊住不放、还原守护（盯守卫 pid）永不触发；拒绝落存证，不无声。
+      const restoreAndExit = (reason: string) => {
+        void restoreCarry(reason).then(
           undefined,
-          (err) => { log?.append({ type: 'carry-restore-failed', reason: 'panel-exit', message: String(err) }) },
+          (err) => { log?.append({ type: 'carry-restore-failed', reason, message: String(err) }) },
         ).finally(() => {
-          log?.append({ type: 'carry-exit', code: exitCode })
+          log?.append({ type: 'carry-exit', code: exitCode, reason })
           app.exit(exitCode)
         })
       }
-      if (exitCode === 0) {
-        restoreAndExit()
+      if (isCleanPanelExit(code)) {
+        restoreAndExit('panel-exit')
         return
       }
-      // 异常退出（崩溃/强杀——taskkill /T 只清向下子树，杀不到父级守卫）：拉回裁决
+      // 异常退出（崩溃/强杀/启动期失败——taskkill /T 只清向下子树，杀不到父级守卫）：拉回裁决
       const verdict = adjudicatePullback({
         crashesSoFar: pullbackCrashes,
         maxRespawns: PULLBACK_MAX_RESPAWNS,
@@ -1178,7 +1190,7 @@ if (RESTORE_MODE) {
       })
       if (verdict.action === 'give-up') {
         log?.append({ type: 'pullback-exhausted', attempt: verdict.attempt, maxRespawns: PULLBACK_MAX_RESPAWNS, exitCode })
-        restoreAndExit()
+        restoreAndExit('pullback-exhausted-restore')
         return
       }
       pullbackCrashes = verdict.attempt
@@ -1281,8 +1293,15 @@ if (RESTORE_MODE) {
       return
     }
     bootPanel({ traySpike: TRAY_SPIKE_MODE }).catch((err) => {
+      // 启动期失败径（2026-11-14 双轴评审 H1）：以专用非零码退场，不 app.quit()——
+      // quit 的完整退出链以 exit 0 收场，守卫判 0 = 干净退出不重拉，「干净失败交拉回」
+      //（kernel-start-timeout 等装配死锁级故障的注释承诺）实际落空。非零码以异常退出
+      // 身份过守卫拉回裁决（isCleanPanelExit，pullback.ts）：有界重拉 + 逃生口自动还原。
+      // 失败事实照常落常驻事件档（kernel-start-timeout 在 bootPanel 内已落，此处补
+      // boot-failed 总账）；退出码三径分立可辨：75=启动期失败、1=spawn 失败、0=用户干净退出。
       console.error('[deck] 面板启动失败:', err)
-      app.quit()
+      bootEventLog()?.append({ type: 'boot-failed', message: err instanceof Error ? err.message : String(err) })
+      app.exit(PANEL_BOOT_FAILED_EXIT_CODE)
     })
   })
 }
