@@ -1,3 +1,4 @@
+{"type":"annotation-note","note":"2026-11-14 双轴评审 H2 注记（工单473 契约：常驻日志不含路径/文件名）：本档案为 t484 终验轮当时原始采样，**未篡改任何原始行**。当时滤网（app/src/main/resident-event-log.ts）为子串级截断，对含空格路径只抹到首个空格——行内「<path> Files...」「<path> WAppData...」等形态即当时缺陷实证。修复（本票评审轮）：滤网改整串替换（命中路径形态即整值变 <path>/<url>），P473 敏感扫描增「占位符外非空残留」判据。仅本注记行为后加。"}
 {"t":1794657174424,"type":"boot","pid":27760}
 {"t":1794657174427,"type":"boot-phase","phase":"config-loaded","elapsedMs":7}
 {"t":1794657174517,"type":"dataplane-spawn","reason":"boot"}

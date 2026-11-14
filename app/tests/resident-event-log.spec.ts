@@ -115,14 +115,52 @@ describe('常驻投影：敏感内容与高频帧的入口滤除（纯函数，�
     })
   })
 
-  it('兜底网：不认识字段名时，字符串值里的盘符路径/UNC/file URL 照抹', () => {
+  it('兜底网：不认识字段名时，含路径形态的字符串整串换占位符（2026-11-14 评审 H2 收口）', () => {
+    const out = projectResidentEvent({
+      type: 'autostart-failed',
+      message: "EPERM: rename 'C:\\Users\\an\\config.json.tmp' -> '\\\\srv\\share\\x.json'",
+    }) as { message: string }
+    expect(out.message).not.toMatch(/C:\\Users|srv\\share/)
+    expect(out.message).toBe('<path>')
+  })
+
+  it('兜底网：file:// 在场即整串归类 <url>（file:// 最具体的形态标记先行；Windows 形自含盘符也归链接）', () => {
     const out = projectResidentEvent({
       type: 'autostart-failed',
       message: "EPERM: rename 'C:\\Users\\an\\config.json.tmp' -> '\\\\srv\\share\\x.json' at file:///D:/y/z.js",
     }) as { message: string }
     expect(out.message).not.toMatch(/C:\\Users|srv\\share|file:/)
-    expect(out.message).toContain('<path>')
-    expect(out.message).toContain('<url>')
+    expect(out.message).toBe('<url>')
+  })
+
+  it('兜底网·含空格路径（2026-11-14 评审 H2 钉漏网形）：整串替换后无「占位符+尾巴」残留', () => {
+    // 旧子串滤网以非空白截断，本形只抹到首个空格、落档成「<path> Files\\...」——
+    // t484 round-3 事件档实证 48 处残留。整串替换后该形态不可能再产出。
+    const out = projectResidentEvent({
+      type: 'taskbar-app-result',
+      exe: 'C:\\Program Files\\ZCode\\ZCode.exe',
+    }) as { exe: string }
+    expect(out.exe).toBe('<path>')
+    const unc = projectResidentEvent({
+      type: 'taskbar-app-result',
+      exe: '\\\\srv\\share\\My Tools\\tool.exe',
+    }) as { exe: string }
+    expect(unc.exe).toBe('<path>')
+    const url = projectResidentEvent({
+      type: 'help-opened',
+      message: '打开 file:///D:/Some Dir/docs/readme.html 失败。',
+    }) as { message: string }
+    expect(url.message).toBe('<url>')
+  })
+
+  it('兜底网·账面不变式：任何含占位符的产出值即占位符整值（P473 敏感扫描同形判据的依据）', () => {
+    // 路径夹在文案中间也整串吞掉——「占位符后尾随非空文本」从此只可能是滤网回归，
+    // 不可能是正常产出（电池判据据此把该形态判残留）。
+    const out = projectResidentEvent({
+      type: 'panel-data-ready-timeout',
+      message: '无法读取 C:\\Users\\an w\\AppData\\Local\\Temp\\x.json：拒绝访问。',
+    }) as { message: string }
+    expect(out.message).toBe('<path>')
   })
 
   it('普通报错文案不受路径抹除误伤', () => {

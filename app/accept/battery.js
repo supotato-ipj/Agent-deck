@@ -6380,13 +6380,23 @@ async function runSegments() {
         : rep.fail('哨兵生产形态未武装（票面②）：常驻档 15s 内无 sentinel-armed');
       // 敏感内容零在档（票面⑤）：高频数据帧族不入 + 抹除名单字段必须已是 '[redacted]' +
       // 任意字符串值不得残留路径形态（盘符/UNC/file URL）。全档逐行逐值走。
+      // 2026-11-14 双轴评审 H2 改段（理由留痕，manifest 理由栏同步）：增「占位符外非空
+      // 残留」形态——滤网已改整串替换（命中路径形态即整值变 <path>/<url>），正常产出里
+      // 占位符外不可能再有任何非空文本；旧判据只认盘符/UNC/file:// 原始形态，扫不出
+      // 旧子串滤网截断残留「<path> Files\ZCode\ZCode.exe」（t484 round-3 事件档实证
+      // 48 处），本形态正是为堵那个漏网。占位符出现即整值必须是裸占位符。
       const rows473 = residentTape.all();
       const REDACT_KEYS473 = new Set(['name', 'names', 'title', 'tooltip', 'query', 'path', 'paths', 'file', 'files', 'cwd', 'dir', 'link', 'url', 'href']);
       const PATHISH_RE = /[A-Za-z]:[\\/]|\\\\|file:\/\//i;
+      const PLACEHOLDER_RE = /<(path|url)>/g;
       const leaks473 = [];
       const walk473 = (v, where) => {
         if (typeof v === 'string') {
           if (PATHISH_RE.test(v)) leaks473.push(`${where}: 路径形态字符串 ${JSON.stringify(v.slice(0, 80))}`);
+          else if (PLACEHOLDER_RE.test(v)) {
+            const residue = v.replace(PLACEHOLDER_RE, '').trim();
+            if (residue) leaks473.push(`${where}: <path>/<url> 占位符外非空残留 ${JSON.stringify(v.slice(0, 80))}`);
+          }
         } else if (Array.isArray(v)) {
           v.forEach((x, i) => walk473(x, `${where}[${i}]`));
         } else if (v && typeof v === 'object') {
@@ -6401,7 +6411,7 @@ async function runSegments() {
         walk473(r, r.type || '?');
       }
       leaks473.length === 0
-        ? rep.pass(`敏感内容零在档（票面⑤）：常驻档 ${rows473.length} 行逐值扫描，无路径形态/无未抹除敏感字段/无高频数据帧`)
+        ? rep.pass(`敏感内容零在档（票面⑤）：常驻档 ${rows473.length} 行逐值扫描，无路径形态/无未抹除敏感字段/无高频数据帧/无占位符外非空残留（2026-11-14 评审 H2 增形态）`)
         : rep.fail(`敏感内容在档（票面⑤）：${JSON.stringify(leaks473.slice(0, 6))}`);
       await stop473('臂一末');
 

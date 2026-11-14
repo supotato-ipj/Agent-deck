@@ -98,16 +98,22 @@ export const RESIDENT_LOG_PATH_PLACEHOLDER = '<path>'
 export const RESIDENT_LOG_URL_PLACEHOLDER = '<url>'
 
 // 字符串值兜底网：字段名对不上的路径形态（报错 message 里内嵌的路径最常见）。
-// 只抹「长得像路径」的子串，不动普通文案。
-const WIN_DRIVE_PATH_RE = /[A-Za-z]:[\\/][^\s'"`<>|]*/g
-const UNC_PATH_RE = /\\\\[^\s'"`<>|]*[\\/][^\s'"`<>|]*/g
-const FILE_URL_RE = /file:\/\/\/?\S*/gi
+// 命中路径形态即**整串**换占位符——不做子串级缝合（2026-11-14 双轴评审 H2 实证）：
+// 旧子串正则以「非空白/非引号」字符集截断，含空格的路径（C:\Program Files\...）
+// 只抹到第一个空格，余段与文件名原样落档成「<path> Files\ZCode\ZCode.exe」形态残留；
+// 而「占位符后还有余文」在账面上无法与「正常文案夹路径」区分（P473 敏感扫描的同形
+// 判据会把前者当漏网）——唯一自洽的收敛是整串替换：命中即整值变占位符，读侧不存在
+// 「占位符+尾巴」的中间形态。宁多抹不少记（见 REDACT_KEYS 注：少记不伤取证，错记才是事故）。
+const PATHISH_FORM_RE = /[A-Za-z]:[\\/]|\\\\/ // 盘符路径 / UNC
+const FILE_URL_FORM_RE = /file:\/\//i // file:// URL（给 <url>，保留「这是个链接」的取证线索）
 
 function scrubString(s: string): string {
-  let out = s.replace(FILE_URL_RE, RESIDENT_LOG_URL_PLACEHOLDER)
-  out = out.replace(WIN_DRIVE_PATH_RE, RESIDENT_LOG_PATH_PLACEHOLDER)
-  out = out.replace(UNC_PATH_RE, RESIDENT_LOG_PATH_PLACEHOLDER)
-  return out
+  // file:// 判定先行（沿旧滤网的优先序）：Windows 形 file:///D:/... 自含盘符，若盘符
+  // 先判会把 URL 串错标 <path>——file:// 是最具体的形态标记，在场即归类「含链接」。
+  // 整串替换后占位符即整值——占位符后不可能再尾随任何文本。
+  if (FILE_URL_FORM_RE.test(s)) return RESIDENT_LOG_URL_PLACEHOLDER
+  if (PATHISH_FORM_RE.test(s)) return RESIDENT_LOG_PATH_PLACEHOLDER
+  return s
 }
 
 function deepProject(value: unknown): unknown {
