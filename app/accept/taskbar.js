@@ -1533,7 +1533,7 @@ async function main() {
         const ptA = recPt16(await waitGeometrySettled(g16), pA16.name);
         const clickPt16 = ptA || toPhys(g16.recommendations[0].x + g16.recommendations[0].w / 2, g16.recommendations[0].y + g16.recommendations[0].h / 2);
         const imgName16 = path.basename(pA16.exe);
-        const winTitlesBefore16 = new Set(win32.topLevelWindows().map((h) => win32.titleOf(h) || ''));
+        const winTitlesBefore16 = new Set(win32.topLevelWindows().map((h) => titleOf(h) || ''));
         win32.clickPhys(clickPt16.x, clickPt16.y, 'left');
         const clickEv16 = await tape.wait('taskbar-rec-click', (e) => e.name === pA16.name, { timeoutMs: 5000 });
         const clickOk16 = await tape.wait('taskbar-rec-click-result', (e) => e.name === pA16.name && e.ok, { timeoutMs: 5000 });
