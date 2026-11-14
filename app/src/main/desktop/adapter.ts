@@ -129,6 +129,22 @@ export function shellOpen(filePath: string): Promise<string> {
   return shell.openPath(filePath)
 }
 
+/** explorer spawn 专用通道真源（工单482，#478 定谳）：spawn explorer ::{20D04FE0-3AEA-1069-
+ * A2D8-08002B30309D}（CLSID ThisPC）——CreateProcess 语义，绕开 shell.openPath 对 shell
+ * 本体 explorer.exe 的恒失败（诊断对照：openPath 恒 "Failed to open path" 零窗口、
+ * spawn explorer 开窗成功，docs/audit/2026-11-14-t478-diagnostic-round.md §二）。CLSID 形态
+ * 落「此电脑」语义（工单482 目标语义：无窗新开此电脑而非裸 explorer 主页）。
+ * 不带 windowsHide——它经 STARTUPINFO 传 SW_HIDE，会把 explorer 的文件夹窗口一起藏掉
+ * （explorerReveal 电池实测同款教训）；GUI 应用无控制台可闪。fire-and-forget：spawn
+ * 失败静默（explorer 缺席属环境异常，不打断面板）。 */
+export function explorerOpenThisPc(): void {
+  try {
+    spawn('explorer', ['::{20D04FE0-3AEA-1069-A2D8-08002B30309D}'], { stdio: 'ignore' })
+  } catch {
+    // 静默：同 explorerReveal
+  }
+}
+
 /** 资源管理器定位真源（工单24，搜索 reveal 同款机制）：explorer /select,<path>。
  * 不带 windowsHide——它经 STARTUPINFO 传 SW_HIDE，会把 explorer 的文件夹窗口一起藏掉
  * （电池实测：reveal ok=true 但 CabinetWClass 永不出现）；GUI 应用无控制台可闪。
