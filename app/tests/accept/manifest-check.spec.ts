@@ -455,7 +455,12 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
     // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
     // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
-    expect(total).toBe(198) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 198 → 199：工单482 增段——49-taskbar 电池增 P28（explorer 图标点击通道，#478 定谳
+    // 修复定向段：无窗点击→新开「此电脑」、有窗置前两端到端臂——真实 spawn 通道窗口语义
+    // （CabinetWClass + This PC/此电脑 标题）与点击→置前的前台链是单测断不到的系统状态面
+    // （路由纯函数与服务层通道选择已由 launch-route/explorer-launch spec 钉，增段条件②），
+    // 增段条件①；点击入口在场由轮起笔手钉保障（缺位代写、清场摘除，不污染用户存储））。
+    expect(total).toBe(199) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
