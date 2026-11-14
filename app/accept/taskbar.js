@@ -1552,10 +1552,13 @@ async function main() {
         }
         if (procUp16) spawnSync('taskkill', ['/IM', imgName16, '/F'], { stdio: 'ignore' });
         if (copyHwnd16) spawnSync('taskkill', ['/PID', String(win32.threadIdOf(copyHwnd16).pid), '/T', '/F'], { stdio: 'ignore' });
-        if (clickEv16 && clickOk16 && procUp16) {
+        // 出场双通道（工单483 第十轮实锤：高负载下 tasklist /FI 轮询可空手而归——镜像名
+        // 探针窗在场即进程活着的直接证据；探针转 WinForms 是本票夹具改动，证据通道随行）
+        const procUpOk16 = procUp16 || copyHwnd16 !== null;
+        if (clickEv16 && clickOk16 && procUpOk16) {
           rep.pass(`P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（WinForms 副本）进程真出场${copyHwnd16 ? '（探针窗在场）' : ''}并收杀`);
         } else {
-          rep.fail(`P16 左键启动：点击存证=${!!clickEv16} 回执ok=${!!clickOk16} 目标进程=${procUp16 ? '在场' : '未出场'}`
+          rep.fail(`P16 左键启动：点击存证=${!!clickEv16} 回执ok=${!!clickOk16} 目标进程=${procUpOk16 ? '在场' : '未出场'}`
             + ` 探针窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
         }
 
