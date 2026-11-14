@@ -549,7 +549,8 @@ async function runSegments() {
     // —— 阶段D：逃生口真机链路（工单480，ADR-0032 韧性基线）——
     // 出发态 = B2 刚再开的接管在场（条带在、原生栏隐）。落盘账核对走 dist 的
     // appbar-ledger（控制器与面板同 app 同 userData，appbarLedgerPath 同址——账目
-    // 核对以盘上事实为准，不依赖面板自证）。
+    // 核对以盘上事实为准，不依赖面板自证）。sinceD 落外层账（C2 排除窗左沿）。
+    sinceD = Date.now();
     const { appbarLedgerPath } = require(path.join(APP_ROOT, 'dist', 'main', 'taskbar', 'appbar-ledger.js'));
     const ledgerFile = appbarLedgerPath();
     const ledgerIs = async (want, timeoutMs) => {
@@ -593,15 +594,17 @@ async function runSegments() {
       const ledgerClean = await ledgerIs(false, 6000);
       let stripGone = false;
       for (let i = 0; i < 25 && !stripGone; i++) { await sleep(200); stripGone = !findWindow(panelPid, TASKBAR_TITLE); }
-      // 真机演示（票面验收标准①）：逃生口在场（条带已销）期间点原生栏开始区 → 开始菜单
-      // 前台易主 startmenuexperiencehost/searchhost——系统入口可达，不再全瘫。
+      // 真机演示（票面验收标准①）：逃生口在场（条带已销）期间系统入口可达——Win 键
+      // 唤出开始菜单（前台易主 startmenuexperiencehost/searchhost，49 电池 P4 同款
+      // 前台宿主判据）。不走坐标点原生开始区：本机用户偏好 autohide（appbar 读回=1，
+      // 原生栏还原后驻屏缘滑入态）+ Win11 居中栏位，坐标点击落不中滑出的栏——键位
+      // 入口才是可达性的真判据（可见性已由 waitNativeVisible 独立断言）。
       let startFg = null;
       if (nativeBack) {
         const before = foregroundInfoD();
-        const screenH = win32.GetSystemMetrics(1); // SM_CYSCREEN：主屏物理高（原生栏贴主屏底）
-        win32.clickPhys(8, screenH - 8, 'left');
+        win32.tapKeys([0x5B]); // VK_LWIN：唤出开始菜单
         startFg = await waitForegroundD(isStartMenuFg, 8000);
-        win32.tapKeys([0x1B]); // Esc 收起，还桌面一个干净现场
+        win32.tapKeys([0x5B]); // 再按收起（Start 对 Win 键 toggle 响应，还桌面干净现场）
         await sleep(600);
         rep.note(`D1 开始菜单演示：前台 ${JSON.stringify(before)} → ${JSON.stringify(startFg)}`);
       }

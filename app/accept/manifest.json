@@ -1087,13 +1087,13 @@
         {
           "seg": "D1",
           "ticket": 480,
-          "title": "逃生口·失能档全链（工单480，ADR-0032）：忙环注入面板冻结 ≈9s（P12 同款）→ renderer-frozen 同拍开逃生口（交还三件套 reason=escape-hatch）→ 原生任务栏自动还原且开始菜单可达（点原生开始区前台易主 startmenuexperiencehost/searchhost，真机演示）+ 条带销毁 + 还原账清账（盘上账本离场）→ 忙环结束心跳回归（renderer-unfrozen）→ 重新接管（原生栏再隐、条带回来、接管建立记账、落盘账重建）——接管/还原账目两向核对",
+          "title": "逃生口·失能档全链（工单480，ADR-0032）：忙环注入面板冻结 ≈9s（P12 同款）→ renderer-frozen 同拍开逃生口（交还三件套 reason=escape-hatch）→ 原生任务栏自动还原且开始菜单可达（Win 键唤出、前台易主 startmenuexperiencehost/searchhost——本机 autohide 偏好下坐标点击打不中滑出的栏，键位入口是可达性真判据）+ 条带销毁 + 还原账清账（盘上账本离场）→ 忙环结束心跳回归（renderer-unfrozen）→ 重新接管（原生栏再隐、条带回来、接管建立记账、落盘账重建）——接管/还原账目两向核对",
           "surfaces": [
             "system-state",
             "event-evidence",
             "input-injection"
           ],
-          "estSeconds": 32,
+          "estSeconds": 24,
           "areas": [
             "taskbar",
             "render"
@@ -1108,7 +1108,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 14,
+          "estSeconds": 6,
           "areas": [
             "taskbar"
           ]
