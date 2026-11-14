@@ -58,6 +58,16 @@
    ⇒ **热机全链 3.15 秒**，链内无分钟级段；ADR-0032 的「热机重启约 7 秒」与本链 3.15s
    的差值是进程 spawn + 模块加载 + 首帧渲染（bootT0 之前的 electron 侧 + 首显后用户可感）。
 
+   **对照轮（负载标注）**：guard 大轮内拉起的集成形态面板（13:43:55，t=1794635035458，
+   `accept/evidence/t478-int-events.jsonl`）全链 **8.97 秒**：config 30ms / autostart
+   **2715ms** / kernel 833ms / data-ready 1432ms / window-wired 1069ms / panel-visible
+   **2921ms**。同一链路两轮 3.15s vs 8.97s（3 倍差）——autostart PowerShell 段 1.19→2.7s、
+   panel-visible 段 0.42→2.9s 均随机器负载波动（13:43–13:52 槽内有 zcode 常驻会话与
+   并行轮余波）。**这正是诊断纪律③的实证：链段计时必须成对同窗、标注负载，单轮读数
+   不作定谳**；也再次排除「链内存在固定分钟级段」——热机形态下链内最慢段
+   （autostart PowerShell）也在 3 秒内，分钟级缺口只能来自开机窗口的冷态放大
+   （PowerShell/COM/磁盘 IO）或链外前段。
+
 2. **同步 PowerShell 段**（autostart-applied，index.ts config-loaded→autostart-applied）：
    每次启动必跑 `spawnSync('powershell.exe', …, { timeout: 20000 })` 读 Startup .lnk
    （autostart.ts runHelper，滞后哨兵 'autostart' 标签）。热态 1.19s；开机窗口 PowerShell
@@ -192,8 +202,9 @@
 | 集成形态（worktree tip @ f2afe08，#474-#477 已落） | 2.79 | 3.46 | 3.33 | **3.19%** |
 | 生产形态（主检出 master dist，基线代码） | 3.30 | 3.70 | 3.51 | **3.50%** |
 
-证据：`app/accept/evidence/t478-round-summary.json`（逐进程逐轮全表）+ 两形态隔离事件档
-`t478-int-events.jsonl` / `t478-prod-events.jsonl`。
+证据：`app/accept/evidence/t478-round-summary.json`（逐进程逐轮全表）+ 集成形态隔离事件档
+`t478-int-events.jsonl`（含该轮 boot-phase 6 相位——§一对照轮）。生产形态（master 代码）
+不认 `DECK_RESIDENT_EVENT_LOG` 钩子、未产事件档——deviations 5 的事实旁证。
 
 判读（如实标注，不拿抖动当实锤）：
 
