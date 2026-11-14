@@ -24,6 +24,8 @@ import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
 import { fileEventLog, wireBridgeIpc, wireHostIpc, type EventLog } from './panel-ipc'
 import { createBootPhaseLogger, createResidentEventLog, resolveResidentLogFile } from './resident-event-log'
+import { nextFreezeAlarm, type FreezeAlarmState } from './freeze-alarm'
+import { adjudicatePullback, PULLBACK_DELAYS_MS, PULLBACK_MAX_RESPAWNS, PULLBACK_STABLE_RESET_MS } from './pullback'
 import { attachLagSentinel, panelLabels } from './lag-sentinel'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
@@ -873,11 +875,32 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   })
   // 渲染层活性心跳武装（#91）：面板窗接 2s 心跳（deck:host-beat，渲染层 main.ts 起拍），
   // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
+  // 冻结托盘告警控制器（工单479，宿主薄壳）：「告警恰好一次」的裁决在 freeze-alarm.ts
+  // （纯函数，单测钉），这里只持闩、落存证、把气球挂上当届托盘（trayHolder 惰性取用——
+  // 本拍早于托盘创建，冻结发生时托盘早已在场）。冻结**不自动杀拉**（ADR-0032 暂缓项）：
+  // 本控制器没有任何进程处置动作，只记账 + 告警一次。
+  let freezeAlarmState: FreezeAlarmState = { alarmed: false }
+  const onFreezeEvent = (event: 'frozen' | 'unfrozen') => {
+    const verdict = nextFreezeAlarm(freezeAlarmState, event)
+    freezeAlarmState = verdict.state
+    if (!verdict.alarm) return
+    const tray = trayHolder.current
+    try {
+      tray?.displayBalloon({
+        title: 'AGENT DECK 面板',
+        content: '面板画面已停止响应（冻结）。事件已记录，程序未退出——若持续无响应请手动重启面板。',
+      })
+      log?.append({ type: 'freeze-alarm', channel: 'tray-balloon', shown: Boolean(tray) })
+    } catch (err) {
+      log?.append({ type: 'freeze-alarm-failed', message: String(err) })
+    }
+  }
   // 逃生口入口（工单480）：失能档/崩溃/恢复三事件同拍交任务栏控制器——面板瘫痪期
   // 原生任务栏自动还原、恢复后重新接管（判据在 taskbar/escape-hatch.ts 纯函数）。
   wireHostIpc(win, tracker, log, {
     sentinelHeartbeat: true,
     onEscapeEntry: (entry) => taskbarCtl.escapeHatch(entry),
+    onFreezeEvent,
   })
   // 启动阶段戳（工单473）：窗与宿主通道接线完成——生产形态哨兵自此武装在证
   //（sentinel-armed 随本拍落常驻档，零注入也不再是取证盲区）。
@@ -987,11 +1010,18 @@ if (RESTORE_MODE) {
     app.disableHardwareAcceleration() // 守卫不开窗口，压掉 GPU 进程
     app.releaseSingleInstanceLock()
     const log = bootEventLog()
-    const carry = new IconCarry(log)
+    // —— 拉回（工单479，ADR-0032 韧性基线）：面板子进程异常退出按退避自动重拉、
+    // 重拉次数有界（不做无限循环）。裁决在 pullback.ts（纯函数单点，单测钉）——本段
+    // 只是宿主薄壳：spawn、退避定时器、代次记账。干净退出（code 0：托盘退出/退出信使）
+    // 不拉回，维持工单05 既有形态；异常退出（非零/信号）先走还原三兜底（崩溃路径的
+    // 逃生口语义：原生任务栏与图标还原，面板恢复后重新接管），再按退避表定时重拉。
+    // 每代面板一套 IconCarry：上一代 restore 后 settled 闩已落，重拉前必须换新实例
+    // 重新 begin（隐藏原生图标——explorer 写回 HideIcons=0 后重收）。
+    let carry = new IconCarry(log)
     log?.append({ type: 'carry-boot', pid: process.pid, mode: 'carry' })
     carry.begin()
     // 还原三兜底（工单50 图标/可见性；工单261 appbar 落盘账）：
-    // - appbar 账复原**先行**（顺序即行为）：收栏置位态 explorer 翻开 Shell_TrayWnd 的
+    // - appbar 账复原**先行**（顺序即行为）：置位态 explorer 翻开 Shell_TrayWnd 的
     //   WS_VISIBLE 位（spike 附记「窗口显示位」≠「视觉在场」），后行会被「已可见」骗过
     //   可见性判据；先卸置位，可见性兜底才做真工作并落 taskbar-restored 存证。
     // - 账复原是异步退避（有限次、终局有界 <3s）——调用方等它走完再 app.exit
@@ -1001,7 +1031,11 @@ if (RESTORE_MODE) {
       carry.restore(reason)
       restoreNativeTaskbarIfHidden(log, reason)
     }
+    let quitting = false // 守卫退场中——退避定时器不得再拉新面板
+    let pullbackTimer: NodeJS.Timeout | null = null
     app.on('before-quit', (e) => {
+      quitting = true
+      if (pullbackTimer) { clearTimeout(pullbackTimer); pullbackTimer = null }
       // outer-quit 径等账走完再退场：preventDefault 挡默认退出序列，退避终局后显式 exit
       e.preventDefault()
       void restoreCarry('outer-quit').finally(() => app.exit(0))
@@ -1024,29 +1058,77 @@ if (RESTORE_MODE) {
     watcher.on('error', (err) => log?.append({ type: 'restore-watch-spawn-failed', message: err.message }))
     watcher.unref()
     log?.append({ type: 'restore-watch-spawned', pid: watcher.pid })
-    const child = spawn(process.execPath, [app.getAppPath(), '--panel'], {
-      cwd: app.getAppPath(),
-      env: process.env,
-      stdio: 'inherit',
-    })
-    child.on('error', (err) => {
-      console.error('[deck] 面板拉起失败:', err)
-      void restoreCarry('panel-spawn-failed').finally(() => app.exit(1))
-    })
-    child.on('exit', (code) => {
-      // 面板退出（含崩溃/强杀——taskkill /T 杀不到父级守卫）：等 appbar 账退避走完
-      // 再随面板退出码退场（工单261；50 电池 A3 的 panel-exit 径）。finally 兜底与其余
-      // 两径对齐：restoreCarry 一旦 reject（清账 rmSync 遇 Windows 文件锁、FFI 抛错），
-      // app.exit 也必须执行——否则守卫变僵尸进程吊住不放、还原守护（盯守卫 pid）永不
-      // 触发；拒绝落存证，不无声。
-      void restoreCarry('panel-exit').then(
-        undefined,
-        (err) => { log?.append({ type: 'carry-restore-failed', reason: 'panel-exit', message: String(err) }) },
-      ).finally(() => {
-        log?.append({ type: 'carry-exit', code: code ?? 0 })
-        app.exit(code ?? 0)
+    let pullbackCrashes = 0 // 连续异常退出计数（稳定性重置窗内有效）
+    let panelSpawnedAt = Date.now() // 当届面板发射时点（stableMs 起算锚）
+    const spawnPanel = (): void => {
+      panelSpawnedAt = Date.now()
+      const child = spawn(process.execPath, [app.getAppPath(), '--panel'], {
+        cwd: app.getAppPath(),
+        env: process.env,
+        stdio: 'inherit',
       })
-    })
+      child.on('error', (err) => {
+        // 拉起失败（二进制缺位/损坏类环境故障）：重拉无济于事，维持既有即刻退场形态
+        console.error('[deck] 面板拉起失败:', err)
+        void restoreCarry('panel-spawn-failed').finally(() => app.exit(1))
+      })
+      child.on('exit', (code) => {
+        handlePanelExit(code)
+      })
+    }
+    const handlePanelExit = (code: number | null): void => {
+      if (quitting) return
+      const exitCode = code ?? 0
+      // 干净退出（托盘退出/退出信使 app.quit 完整退出链）：不拉回，等还原走完随面板退场
+      // （工单05 既有形态）。finally 兜底与异常径对齐：restoreCarry 一旦 reject（清账
+      // rmSync 遇 Windows 文件锁、FFI 抛错），app.exit 也必须执行——否则守卫变僵尸进程
+      // 吊住不放、还原守护（盯守卫 pid）永不触发；拒绝落存证，不无声。
+      const restoreAndExit = () => {
+        void restoreCarry('panel-exit').then(
+          undefined,
+          (err) => { log?.append({ type: 'carry-restore-failed', reason: 'panel-exit', message: String(err) }) },
+        ).finally(() => {
+          log?.append({ type: 'carry-exit', code: exitCode })
+          app.exit(exitCode)
+        })
+      }
+      if (exitCode === 0) {
+        restoreAndExit()
+        return
+      }
+      // 异常退出（崩溃/强杀——taskkill /T 只清向下子树，杀不到父级守卫）：拉回裁决
+      const verdict = adjudicatePullback({
+        crashesSoFar: pullbackCrashes,
+        maxRespawns: PULLBACK_MAX_RESPAWNS,
+        stableMs: Date.now() - panelSpawnedAt,
+        stableResetMs: PULLBACK_STABLE_RESET_MS,
+        delaysMs: PULLBACK_DELAYS_MS,
+      })
+      if (verdict.action === 'give-up') {
+        log?.append({ type: 'pullback-exhausted', attempt: verdict.attempt, maxRespawns: PULLBACK_MAX_RESPAWNS, exitCode })
+        restoreAndExit()
+        return
+      }
+      pullbackCrashes = verdict.attempt
+      log?.append({ type: 'pullback-scheduled', attempt: verdict.attempt, delayMs: verdict.delayMs, exitCode })
+      // 先还原再重拉：崩溃路径的逃生口语义（ADR-0032）——原生任务栏与图标先还给系统，
+      // 重拉代次起来后重新接管；还原有界（<3s），走完再吃满退避延迟。
+      void restoreCarry('pullback-respawn').then(
+        undefined,
+        (err) => { log?.append({ type: 'carry-restore-failed', reason: 'pullback-respawn', message: String(err) }) },
+      ).finally(() => {
+        if (quitting) return
+        pullbackTimer = setTimeout(() => {
+          pullbackTimer = null
+          if (quitting) return
+          carry = new IconCarry(log) // 新代次新 carry：上一代 restore 后 settled 闩已落
+          carry.begin()
+          log?.append({ type: 'pullback-respawned', attempt: verdict.attempt })
+          spawnPanel()
+        }, verdict.delayMs)
+      })
+    }
+    spawnPanel()
   }
 } else if (!IS_CONTROLLER_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。

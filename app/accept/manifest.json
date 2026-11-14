@@ -112,7 +112,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 18,
+          "estSeconds": 22,
           "areas": [
             "desktop"
           ]
@@ -508,6 +508,36 @@
           "areas": [
             "panel.core",
             "render"
+          ]
+        },
+        {
+          "seg": "P479B",
+          "ticket": 479,
+          "title": "冻结托盘告警（工单479，ADR-0032）：忙环注入失能档（同 P12 手法）→ renderer-frozen 记账在案 + freeze-alarm 托盘告警恰一条（shown=true 真机气球）+ 无自动杀拉（注入窗零 pullback-*、面板进程在场——自动处置是 ADR-0032 明示暂缓项）",
+          "surfaces": [
+            "event-evidence",
+            "panel-alive"
+          ],
+          "estSeconds": 20,
+          "areas": [
+            "render",
+            "tray",
+            "panel.core"
+          ]
+        },
+        {
+          "seg": "P479",
+          "ticket": 479,
+          "title": "拉回（工单479，ADR-0032）：杀面板→守卫 pullback-scheduled/respawned 退避重拉、新代次接管任务栏（takeover 存证+原生栏已隐视图事实；config 翻转只作用新代次）；连崩 4 次达上限→pullback-exhausted 留证+守卫终局退场+原生任务栏还原+8s 观察窗零越界重拉（不无限重启）；P5/A3/A6 旧契约「守卫随面板退场」随本票退役（改段理由在各段内注释）",
+          "surfaces": [
+            "panel-alive",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 45,
+          "areas": [
+            "panel.core",
+            "taskbar"
           ]
         }
       ],
@@ -1011,7 +1041,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8
+          "estSeconds": 10
         },
         {
           "seg": "A4",
@@ -1044,7 +1074,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 7
+          "estSeconds": 9
         },
         {
           "seg": "A7",

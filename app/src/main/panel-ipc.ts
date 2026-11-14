@@ -77,7 +77,9 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService, events:
  * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。
  * hooks.onEscapeEntry：逃生口入口（工单480）——失能档/崩溃/恢复三事件同拍喂给任务栏
  * 控制器（面板瘫痪期原生任务栏退路）；判据在纯函数（taskbar/escape-hatch.ts）。 */
-export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void; onEscapeEntry?: (entry: EscapeHatchEntry) => void } = {}): void {
+// hooks.onFreezeEvent（工单479）：哨兵失能档发射/episode 闭合的外露钩子（'frozen'/
+// 'unfrozen'）——冻结托盘告警的接线缝（告警裁决在 freeze-alarm.ts，本层不判）。
+export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void; onEscapeEntry?: (entry: EscapeHatchEntry) => void; onFreezeEvent?: (event: 'frozen' | 'unfrozen') => void } = {}): void {
   const pin = hooks.pin ?? pinToBottom
   const onHotzones = (event: Electron.IpcMainEvent, rects: HotzoneRect[]) => {
     if (event.sender !== win.webContents) return
@@ -131,7 +133,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
   ipcMain.on('deck:host-preview-layout', onPreviewLayout)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
   ipcMain.on('deck:host-drag-session', onDragSession)
-  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false, onEscapeEntry: hooks.onEscapeEntry })
+  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false, onEscapeEntry: hooks.onEscapeEntry, onFreezeEvent: hooks.onFreezeEvent })
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
@@ -155,7 +157,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
  * deck:host-beat 同走此通道，见 preload/渲染层 main.ts）；仅面板窗接活性心跳，故失能档
  * 发射（renderer-frozen / renderer-unfrozen 闭合）只在 heartbeat=true 时接线——没接心跳的
  * 窗静默没有失能语义（工单94 口径）。armed 存证标记「武装在证」，验收断言找它。 */
-function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean; onEscapeEntry?: (entry: EscapeHatchEntry) => void } = {}): void {
+function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean; onEscapeEntry?: (entry: EscapeHatchEntry) => void; onFreezeEvent?: (event: 'frozen' | 'unfrozen') => void } = {}): void {
   const wc = win.webContents;
   wc.on('unresponsive', () => log?.append({ type: 'renderer-unresponsive' }));
   // 崩溃入口（工单480）：接在 log 闸门外——逃生口不依赖存证在档。clean-exit（退出序列
@@ -184,6 +186,9 @@ function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { he
         })
         // 失能档入口（工单480）：存证同拍喂逃生口——面板瘫痪期原生任务栏自动还原
         opts.onEscapeEntry?.({ kind: 'frozen' })
+        // 冻结托盘告警外露（工单479）：存证先落、告警钩子后调——钩子抛错不吞存证；
+        // 告警恰一次的裁决在 freeze-alarm.ts（本层只直译上行）。
+        opts.onFreezeEvent?.('frozen')
       },
       onUnfrozen: ({ frozenMs }) => {
         log.append({
@@ -193,6 +198,7 @@ function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { he
         })
         // 恢复入口（工单480）：episode 闭合 = 面板恢复，逃生口欠的重新接管该还了
         opts.onEscapeEntry?.({ kind: 'recovered' })
+        opts.onFreezeEvent?.('unfrozen')
       },
     } : {}),
     heartbeatArmed: opts.heartbeat,
