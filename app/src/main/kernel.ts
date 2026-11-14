@@ -82,7 +82,9 @@ export interface KernelOptions {
 }
 
 export const DEFAULT_TICK_MS = 1000
-export const DEFAULT_HARDWARE_MS = 1000
+/** 硬件采样间隔（工单476）：30s——ADR-0032 用户拍板的新鲜度降级（硬件摘要 30 秒），
+ * 外部采样命令（nvidia-smi）一次 50~200ms CPU，随采样步降频后每天约 2880 次。 */
+export const DEFAULT_HARDWARE_MS = 30_000
 export const DEFAULT_USAGE_MS = 2000
 export const DEFAULT_SEARCH_INTERVAL_MS = 50
 /** 任务栏应用组轮询（工单52）：1Hz——应用启动/退出 1–2 秒内反映到应用组 */
