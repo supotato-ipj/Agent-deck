@@ -6449,6 +6449,142 @@ async function runSegments() {
       rep.note('P473 隔离落点已清（临时目录）');
     })();
 
+
+    // —— P481 骨架屏启动重排（工单481，ADR-0032）——
+    // 隔离双面板（P473 同款纪律：--panel-accept 绕锁、DECK_EVENT_LOG 零注入、
+    // DECK_RESIDENT_EVENT_LOG 隔离落点；另配单份 config 使 taskbar.enabled=true——
+    // 主电池全程禁条带（49/50 专电池），本段要断言「条带早现」必须给双面板开条带）。
+    // 断言五面（票面验收①③④ + 增段三条件：真机启动时序行为单测无法覆盖，纯编排
+    // 已在 tests/boot-sequence.spec.ts；一段绑定一工单481）：
+    // ① #473 相位族完整且单调非递减——骨架重排不丢相位（boot-phase 六相位全戳）；
+    // ② 骨架次序：window-wired 与 panel-visible 都早于 autostart-applied——主线不再等
+    //    自启项 PowerShell（#478④ 的运行时证明；热态 helper ≥1s 量级 vs 页面装载
+    //    ~0.3s，4 倍以上量级差为稳定序）；
+    // ③ 条带早现：DECK-TASKBAR 条带窗先于 panel-data-ready 在场（占位条带先于数据）；
+    // ④ 占位→填充：panel-data-ready 之前的 desktop-rendered 帧全部空数据（apps=0 且
+    //    docs=0——数据面首拍未到渲染层只能拿到空投影），之后出现填充帧（原位填充）。
+    //    观测通道=r1 实证修正：desktop-rendered 属高频数据帧族，常驻日志投影整体滤除
+    //    （resident-event-log DROP_EVENT_TYPES）——本段双面板走 DECK_EVENT_LOG 事件档
+    //    读事件磁带（boot-phase/workspace-start-gate/desktop-rendered 全在档）；
+    // ⑤ 工作区启动链路存证在档（workspace-start-gate）——启动链在显式上界治理下照常
+    //    走完（#478③ 收口的运行时面）。
+    rep.beginSegment('P481');
+    await (async () => {
+      const { projectBootPhases } = require(path.join(APP_ROOT, 'dist', 'main', 'resident-event-log.js'));
+      const isoDir481 = fs.mkdtempSync(path.join(os.tmpdir(), 'deck481-skeleton-'));
+      const evtFile481 = path.join(isoDir481, 'events-battery.jsonl');
+      // 双面板单配 config：抄当前隔离落点原文，仅开 taskbar（清场删除，零接触生产配置）
+      const cfg481 = path.join(isoDir481, 'config.json');
+      const baseRaw481 = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+      let baseJson481 = {};
+      try { baseJson481 = baseRaw481 ? JSON.parse(baseRaw481) : {}; } catch { baseJson481 = {}; }
+      fs.writeFileSync(cfg481, JSON.stringify({ ...baseJson481, taskbar: { ...(baseJson481.taskbar ?? {}), enabled: true } }, null, 2) + '\n', 'utf8');
+      const evtTape481 = createEventTape(evtFile481, { defaultTimeoutMs: 8000 });
+      const readJsonl481 = (file) => {
+        try {
+          return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
+            .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+        } catch { return []; }
+      };
+      const handle481 = createPanelHandle({
+        execPath: process.execPath,
+        appRoot: APP_ROOT,
+        eventLogPath: '',
+        readEvents: () => readJsonl481(evtFile481),
+        archivePath: path.join(__dirname, 'evidence', '03-panel-handle-481.log'),
+        log: (m) => rep.note(`[481] ${m}`),
+      });
+      const stop481 = async (when) => {
+        const cleared = await handle481.stop();
+        cleared && cleared.gone === false
+          ? rep.exclude(`P481 面板强退失败（${when}）：有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill')
+          : rep.note(`P481 面板已清场（${when}）：${cleared ? cleared.outcome : 'idle'}`);
+      };
+      const ra481 = handle481.launch({
+        mode: 'accept',
+        stdio: 'drain',
+        extraEnv: { DECK_EVENT_LOG: evtFile481, DECK_CONFIG_FILE: cfg481 },
+      });
+      // 条带早现（③）：条带窗在骨架主线即建（先于数据面首拍）——先等条带再读相位
+      const strip481 = await handle481.waitWindow({ title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1', timeoutMs: 15000 });
+      strip481
+        ? rep.pass('任务栏条带早现在场：骨架主线建窗先于数据面首拍（占位条带先行）')
+        : rep.fail('任务栏条带窗未在场：15s 内未见到 DECK-TASKBAR（双面板 config 条带开关疑断）');
+      const panel481 = await handle481.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 25000 });
+      panel481
+        ? rep.pass(`骨架面板就绪：--panel-accept 双面板拉起（pid=${handle481.alive() ? '存活' : '不在'}），隔离落点已配`)
+        : rep.fail('骨架面板未就绪：25s 内未见到就绪窗（骨架重排疑断——先查 [481] stderr 档）');
+      // boot 锚点（boot 事件自报 t）与相位族投影
+      let bootT481 = 0;
+      const bootDeadline = Date.now() + 15000;
+      while (Date.now() < bootDeadline) {
+        const bootEvt = readJsonl481(evtFile481).find((e) => e.type === 'boot');
+        if (bootEvt) { bootT481 = bootEvt.t; break; }
+        await sleep(200);
+      }
+      bootT481 || rep.fail('常驻档无 boot 锚点事件：15s 内 boot 自报缺席（事件日志接线疑断）');
+      const EXPECTED481 = ['config-loaded', 'autostart-applied', 'kernel-started', 'panel-data-ready', 'window-wired', 'panel-visible'];
+      let phases481 = [];
+      const phaseDeadline481 = Date.now() + 25000;
+      while (Date.now() < phaseDeadline481) {
+        phases481 = projectBootPhases(evtTape481.all());
+        if (EXPECTED481.every((p) => phases481.some((s) => s.phase === p))) break;
+        await sleep(250);
+      }
+      const missing481 = EXPECTED481.filter((p) => !phases481.some((s) => s.phase === p));
+      missing481.length === 0
+        ? rep.pass(`启动阶段耗时戳族在档（票面①，骨架重排不丢相位）：${phases481.map((s) => `${s.phase}=${s.elapsedMs}ms`).join(' ')}`)
+        : rep.fail(`启动阶段族缺相位（票面①）：${missing481.join(',')}（got=${JSON.stringify(phases481)}）`);
+      phases481.length > 0 && phases481.every((s, i) => i === 0 || s.elapsedMs >= phases481[i - 1].elapsedMs)
+        ? rep.pass('启动阶段耗时戳单调非递减（票面①）：异步后补的相位按完成时刻落档仍可读')
+        : rep.fail(`启动阶段耗时戳非单调：${JSON.stringify(phases481)}`);
+      const phaseOf481 = (name) => phases481.find((s) => s.phase === name) || null;
+      const wired481 = phaseOf481('window-wired');
+      const visible481 = phaseOf481('panel-visible');
+      const autostart481 = phaseOf481('autostart-applied');
+      // 骨架次序（②）：接线/首显都早于自启项维护完成——主线不再等 PowerShell（#478④）
+      wired481 && autostart481 && wired481.elapsedMs < autostart481.elapsedMs
+        ? rep.pass(`骨架接线早于自启项维护完成（票面②）：window-wired=${wired481.elapsedMs}ms < autostart-applied=${autostart481.elapsedMs}ms`)
+        : rep.fail(`骨架次序异常（票面②）：window-wired=${wired481 ? wired481.elapsedMs : '缺'} vs autostart-applied=${autostart481 ? autostart481.elapsedMs : '缺'}——主线疑仍在等自启项维护`);
+      visible481 && autostart481 && visible481.elapsedMs < autostart481.elapsedMs
+        ? rep.pass(`骨架首显早于自启项维护完成（票面②）：panel-visible=${visible481.elapsedMs}ms < autostart-applied=${autostart481.elapsedMs}ms`)
+        : rep.fail(`首显次序异常（票面②）：panel-visible=${visible481 ? visible481.elapsedMs : '缺'} vs autostart-applied=${autostart481 ? autostart481.elapsedMs : '缺'}`);
+      // 条带早于数据面首拍（③，时序面）：条带窗在档时刻不得晚于 panel-data-ready 落戳
+      const dataReady481 = phaseOf481('panel-data-ready');
+      strip481 && dataReady481
+        ? rep.pass(`条带先于数据面首拍（票面③）：DECK-TASKBAR 在 panel-data-ready=${dataReady481.elapsedMs}ms 前已建窗`)
+        : strip481 && !dataReady481
+          ? rep.pass('条带先于数据面首拍（票面③）：条带在场而数据面尚未首拍（占位先行直证）')
+          : rep.fail('条带早现断言缺输入（票面③）：条带窗或相位数据缺席');
+      // 占位→填充（④）：首拍之前的桌面帧全空数据，首拍之后出现填充帧（有界等待防读太早）
+      const dataAt481 = dataReady481 ? bootT481 + dataReady481.elapsedMs : Number.MAX_SAFE_INTEGER;
+      let frames481 = [];
+      const fillDeadline481 = Date.now() + 10000;
+      for (;;) {
+        frames481 = evtTape481.all(undefined, (e) => e.type === 'desktop-rendered', { since: ra481.launchedAt });
+        if (frames481.some((f) => f.t >= dataAt481) || Date.now() >= fillDeadline481) break;
+        await sleep(250);
+      }
+      const preFrames = frames481.filter((f) => f.t < dataAt481);
+      const postFrames = frames481.filter((f) => f.t >= dataAt481);
+      preFrames.length > 0 && preFrames.every((f) => (f.apps ?? 0) === 0 && (f.docs ?? 0) === 0)
+        ? rep.pass(`占位态帧全空数据（票面④）：首拍前 ${preFrames.length} 帧 desktop-rendered 均 apps=0/docs=0（桌面组件轻量占位）`)
+        : preFrames.length === 0
+          ? rep.note('占位帧缺席（首拍先于首个桌面帧——页面装载快于数据面，本帧无占位面可证）')
+          : rep.fail(`占位态帧混入数据（票面④）：${JSON.stringify(preFrames.filter((f) => (f.apps ?? 0) !== 0 || (f.docs ?? 0) !== 0).slice(0, 3))}`);
+      postFrames.length > 0
+        ? rep.pass(`数据到达原位填充（票面④）：首拍后 ${postFrames.length} 帧 desktop-rendered 在档（桥接推送填充链路走通）`)
+        : rep.fail('填充帧缺席（票面④）：panel-data-ready 后 10s 内无 desktop-rendered——首拍推送或渲染疑断');
+      // 工作区启动链路存证（⑤）：显式上界治理下启动照常走完
+      const wsGate481 = await evtTape481.wait('workspace-start-gate', undefined, { since: ra481.launchedAt, timeoutMs: 15000 });
+      wsGate481
+        ? rep.pass(`工作区启动链路存证在档（票面⑤）：workspace-start-gate after=${wsGate481.after} paired=${wsGate481.paired}`)
+        : rep.fail('工作区启动链路存证缺席（票面⑤）：workspace-start-gate 15s 内未落档——后补链疑断');
+      await stop481('段末');
+      try { fs.rmSync(isoDir481, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      rep.note('P481 隔离落点与单配 config 已清（临时目录）');
+    })();
+
     // —— P479B 冻结托盘告警（工单479，ADR-0032）：哨兵判出冻结失能 → 记账 + 托盘告警
     // 恰好一次，**无自动杀拉**（自动处置是 ADR-0032 明示暂缓项）。注入手法同 P12
     // （CDP 忙环钉死渲染层主线程 12s——静默≈5s、失能≈7s 两档依次发射）；本段断言在
