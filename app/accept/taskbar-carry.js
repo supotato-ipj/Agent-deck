@@ -462,7 +462,9 @@ async function runSegments() {
       // 工单479 起崩溃径 reason=pullback-respawn（同 A3 注），旧词只余干净退出径——两词都认。
       (e) => e.reason === 'panel-exit' || e.reason === 'pullback-respawn', { since: sinceA6, timeoutMs: 8000 });
     if (restoredA6 && appbarOkA6 >= 0 && autohideEvA6 && panelDead6 >= 0) {
-      rep.pass(`A6 崩溃路径（普通态出发）：面板被 taskkill /F 后守卫 panel-exit 从落盘账复原（reason=${autohideEvA6.reason} attempts=${autohideEvA6.attempts}，`
+      // 2026-11-14 双轴评审 L4 措辞同步（不改断言）：reason=panel-exit || pullback-respawn
+      // 两词都认（同 A3 注），pass 文案不再预认旧词——实际 reason 由存证帧给出。
+      rep.pass(`A6 崩溃路径（普通态出发）：面板被 taskkill /F 后守卫从落盘账复原（reason=${autohideEvA6.reason} attempts=${autohideEvA6.attempts}，`
         + `读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数；账记于普通态接管建立拍）`
         + `＋原生任务栏还原（视图事实，面板已死=${panelDead6 >= 0}）`);
     } else {

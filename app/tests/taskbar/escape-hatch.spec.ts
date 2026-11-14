@@ -80,6 +80,17 @@ describe('escapeHatchDecide 手动入口（热键保险丝）', () => {
     expect(decideFromStandby({ kind: 'manual' }, facts)).toEqual({ next: 'standby', action: 'none' })
   })
 
+  it('接管不在场但偏好仍要接管时按热键 → 不动作（评审 L2 闸，与 frozen/crash 同款：条带未建无债可立）', () => {
+    const facts: EscapeHatchFacts = { takeoverEngaged: false, takeoverWanted: true }
+    expect(decideFromStandby({ kind: 'manual' }, facts)).toEqual({ next: 'standby', action: 'none' })
+  })
+
+  it('逃逸后条带已销（engaged=false）再按热键 → 仍还债（逃逸债是历史事实，还债不以条带在场为前提）', () => {
+    const facts: EscapeHatchFacts = { takeoverEngaged: false, takeoverWanted: true }
+    expect(escapeHatchDecide('escaped', { kind: 'manual' }, facts))
+      .toEqual({ next: 'standby', action: 'retake' })
+  })
+
   it('逃生口在场按热键 → 还债（再按可恢复接管——toggle 语义）', () => {
     expect(escapeHatchDecide('escaped', { kind: 'manual' }, engaged))
       .toEqual({ next: 'standby', action: 'retake' })

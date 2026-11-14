@@ -86,7 +86,11 @@ export function escapeHatchDecide(
   if (entry.kind === 'manual') {
     // 热键 toggle：standby 健康时按下 = 强制还原（保险丝）；escaped 再按 = 恢复接管。
     // 偏好已禁用接管时原生栏本就归用户：不动作（开不出也还不着）。
+    // 接管不在场且无逃逸账时同款闸（2026-11-14 双轴评审 L2，与 frozen/crash 分支同款）：
+    // 条带未建/已销 = 原生栏不在我托管下，热键开不出逃生口——无债可立，standby 判不动作。
+    // （escaped 再按不受此闸拦：逃逸债是历史事实，还债不以条带仍在场为前提。）
     if (!facts.takeoverWanted) return NONE_STANDBY
+    if (!facts.takeoverEngaged && phase === 'standby') return NONE_STANDBY
     return phase === 'escaped' ? { next: 'standby', action: 'retake' } : { next: 'escaped', action: 'restore-native' }
   }
   return NONE_STANDBY
