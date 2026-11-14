@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -2755,14 +2755,42 @@ describe('内核桥接契约（工单58 应用组应用点击分发：启动/置
     }
   }, 30_000)
 
-  it('启动失败（ShellExecute 报错串）→ ok:false + error 原样回报', async () => {
+  it('启动命令即发不等待（工单483）：慢 launchExe 不拖回执；落定失败经 app-launch-result 异步回推', async () => {
     const dir = tmpDir()
     const t = activateOpts(dir)
-    t.env.launchErr = '找不到应用程序'
+    // 慢真源模拟 shellOpen 秒级阻塞（#478 双形数据：MiniMax 面板侧 6.8s）
+    let release!: () => void
+    const gate = new Promise<void>((res) => { release = res })
+    t.opts.taskbar.deps.launchExe = (exe: string) => {
+      t.env.launched.push(exe)
+      return gate.then(() => '找不到应用程序')
+    }
     const ctx = await bootBar(dir, t)
+    const settleResults: Array<{ exe: string; ok: boolean; error?: string }> = []
+    ctx.bridge.subscribe('taskbar/app-launch-result', (p) => settleResults.push(p))
     try {
-      const r = await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' })
-      expect(r).toEqual({ ok: false, action: 'launched', error: '找不到应用程序' })
+      const sw = Date.now()
+      await expect(ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' }))
+        .resolves.toEqual({ ok: true, action: 'launched' }) // 命令已发出即回执（issued 语义）
+      expect(Date.now() - sw).toBeLessThan(1000) // AC：启动命令发出时延 ≤1s
+      expect(t.env.launched).toEqual(['C:\\Apps\\A.exe']) // 命令确已发出
+      expect(settleResults).toEqual([]) // 未落定前零回执
+      release()
+      await vi.waitFor(() => expect(settleResults).toEqual([{ exe: 'C:\\Apps\\A.exe', ok: false, error: '找不到应用程序' }]))
+    } finally {
+      await ctx.stop()
+    }
+  }, 30_000)
+
+  it('启动命令落定成功 → app-launch-result ok:true 对账帧（渲染层据它收口对账）', async () => {
+    const dir = tmpDir()
+    const t = activateOpts(dir)
+    const ctx = await bootBar(dir, t)
+    const settleResults: Array<{ exe: string; ok: boolean }> = []
+    ctx.bridge.subscribe('taskbar/app-launch-result', (p) => settleResults.push(p))
+    try {
+      await ctx.bridge.invoke('taskbar/activate-app', { exe: 'C:\\Apps\\A.exe' })
+      await vi.waitFor(() => expect(settleResults).toEqual([{ exe: 'C:\\Apps\\A.exe', ok: true }]))
     } finally {
       await ctx.stop()
     }

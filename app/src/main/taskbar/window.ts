@@ -733,7 +733,8 @@ export function startTaskbarController(options: { ctx: Context; log: EventLog | 
     // popup-state = 自绘浮层开合（工单242：浮层在场钉住所属组）
     // workspace/changed = 桌面工作区共享状态（工单375）：模式组显隐/高亮/禁用随动
     // plugins/memory-* = 包内存哨兵告警/停用反馈（工单344）：条带内 toast（5s 自收）
-    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state', 'workspace/changed', 'workspace/drag-in-changed', 'workspace/drag-in-feedback', 'plugins/memory-alert', 'plugins/memory-deactivated'])
+    // taskbar/app-launch-result = 启动命令落定回执（工单483）：启动中态收敛 + 失败 toast
+    wireBridgeIpc(w, ctx.bridge, ['taskbar/changed', 'taskbar/status', 'taskbar/bar-mode', 'taskbar/cursor-zone', 'taskbar/popup-state', 'workspace/changed', 'workspace/drag-in-changed', 'workspace/drag-in-feedback', 'plugins/memory-alert', 'plugins/memory-deactivated', 'taskbar/app-launch-result'])
     wireHostIpc(w, s.tracker, log, {
       // 键盘模式 pin（条带渲染层常态不发，防御性同闸）：让位期间不重申置顶（抑制与
       // 自家让位同在 assertTop 单漏斗，工单450 收口——原裸 setTopmost 会越过自家浮层）

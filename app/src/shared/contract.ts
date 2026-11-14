@@ -1042,6 +1042,10 @@ export interface BridgeMethods {
    * 'window-list' 并携带带标题的窗口清单（渲染层弹出 pill 内列表，再经
    * taskbar/activate-window 精确选窗）。exe 护栏 = 必须在当前应用组条目内（归一匹配），
    * 否则 ok:false（应用进出栏的帧间竞态按普通失败回报，不抛）。
+   * 工单483 启动语义（ADR-0032 点击 SLO）：action='launched' = **启动命令已发出**
+   * （issued）——响应在命令发出后即回，不等 launchExe 落定（shellOpen 对重型工具实测
+   * 秒级阻塞，#478 双形数据）；命令落定失败经 taskbar/app-launch-result 事件异步回推，
+   * 工具自身冷启耗时不记账。置前/最小化/选窗语义不变。
    */
   'taskbar/app-click': {
     request: { exe: string }
@@ -1366,6 +1370,13 @@ export interface BridgeEvents {
   'taskbar/changed': TaskbarState
   /** 工单55 任务栏右组：每拍快照回推时钟 + 硬件仪表（与 panel/changed 同源同拍） */
   'taskbar/status': TaskbarStatus
+  /**
+   * 工单483 启动命令落定回执（异步）：app-click/rec-click/app-new-instance/activate-app
+   * 的 launch 通道已改为命令即发不等待——ok:true 即命令已送达 shell（渲染层不动「启动中」
+   * 态，等窗口上栏/超时收敛）；落定失败（openPath 错误串）在此异步回推，渲染层据此收
+   * 「启动中」态并给条带 toast 可见反馈。exe 与栏面条目同一字符串身份。
+   */
+  'taskbar/app-launch-result': { exe: string; ok: boolean; error?: string }
   /**
    * 工单241 任务栏三态：主进程收栏编排裁决后下发（条带渲染层据此让栏面退场/复现）。
    * 只下发档位事实，不下发矩形——唤出条几何由渲染层自算（pill 矩形只有渲染层量得到）。
