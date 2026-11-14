@@ -1,0 +1,36 @@
+{
+  "label": "t484-idle-long",
+  "rootPid": 17352,
+  "coreCount": 16,
+  "settleMs": 30000,
+  "durationMs": 720000,
+  "wallMs": 721544,
+  "cpuMsDelta": 144437.5,
+  "percentOfMachine": 1.251,
+  "treeAtStart": [
+    2388,
+    3252,
+    4392,
+    5272,
+    9492,
+    14584,
+    17352,
+    18904,
+    27624,
+    37744
+  ],
+  "treeAtEnd": [
+    2388,
+    3252,
+    4392,
+    5272,
+    9492,
+    14584,
+    17352,
+    18904,
+    27624,
+    37744
+  ],
+  "churnedPids": [],
+  "measuredAt": "2026-11-14T12:05:45.579Z"
+}

@@ -1,0 +1,297 @@
+{
+  "startedAt": "2026-11-14T12:14:07.386Z",
+  "appDir": "D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app",
+  "integrationTip": "a1fb6e0",
+  "cpuMs": 720000,
+  "rounds": [
+    {
+      "round": 1,
+      "pid": 34992,
+      "spawnT0": 1794658452904,
+      "firstEventWallMs": 788,
+      "windowPanelMs": 1989,
+      "windowStripMs": 1995,
+      "panelVisibleWallMs": 1889,
+      "taskbarReadyWallMs": 1453,
+      "phases": [
+        {
+          "phase": "config-loaded",
+          "elapsedMs": 7,
+          "wallMs": 698
+        },
+        {
+          "phase": "kernel-started",
+          "elapsedMs": 223,
+          "wallMs": 914
+        },
+        {
+          "phase": "window-wired",
+          "elapsedMs": 434,
+          "wallMs": 1125
+        },
+        {
+          "phase": "panel-visible",
+          "elapsedMs": 1198,
+          "wallMs": 1889
+        }
+      ],
+      "allPhases": {
+        "config-loaded": 7,
+        "kernel-started": 223,
+        "window-wired": 434,
+        "panel-visible": 1198
+      },
+      "cmdToPanelVisibleWallMs": 1889,
+      "cmdToTaskbarReadyWallMs": 1453,
+      "eventsFile": "D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r2\\round-1\\events.jsonl",
+      "within60s": true
+    }
+  ],
+  "clicks": [
+    {
+      "seq": 1,
+      "target": "C:\\Windows\\explorer.exe",
+      "startedAt": "2026-11-14T12:14:19.913Z",
+      "strip": {
+        "rect": {
+          "left": 0,
+          "top": 1392,
+          "right": 2560,
+          "bottom": 1440
+        },
+        "screenW": 2560,
+        "dpr": 1,
+        "scale": 1
+      },
+      "geometrySource": "dom",
+      "visibleApps": [
+        "C:\\Program Files\\ZCode\\ZCode.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+        "C:\\Program Files\\Kimi Code\\Kimi Code.exe",
+        "C:\\Windows\\explorer.exe",
+        "E:\\Obsidian\\Obsidian.exe",
+        "D:\\Program\\QQMusic\\QQMusic2276.11.20.00\\QQMusic.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+      ],
+      "clickPoint": {
+        "px": 1267,
+        "py": 1416
+      },
+      "clickT0": 1794658460192,
+      "latLaunchingMs": 57,
+      "issuedMs": 49,
+      "action": "launched",
+      "ok": true,
+      "resultAt": 62,
+      "settleAtMs": 57,
+      "winAppearMs": 1454,
+      "window": {
+        "title": "File Explorer",
+        "cls": "CabinetWClass",
+        "pid": 17640,
+        "hwnd": 5179798
+      },
+      "verdict": {
+        "launching1s": true,
+        "issued1s": true,
+        "windowIn3s": true
+      }
+    },
+    {
+      "seq": 2,
+      "target": "C:\\Windows\\explorer.exe",
+      "startedAt": "2026-11-14T12:14:24.932Z",
+      "strip": {
+        "rect": {
+          "left": 0,
+          "top": 1392,
+          "right": 2560,
+          "bottom": 1440
+        },
+        "screenW": 2560,
+        "dpr": 1,
+        "scale": 1
+      },
+      "geometrySource": "dom",
+      "visibleApps": [
+        "C:\\Program Files\\ZCode\\ZCode.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+        "C:\\Program Files\\Kimi Code\\Kimi Code.exe",
+        "C:\\Windows\\explorer.exe",
+        "E:\\Obsidian\\Obsidian.exe",
+        "D:\\Program\\QQMusic\\QQMusic2276.11.20.00\\QQMusic.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+      ],
+      "clickPoint": {
+        "px": 1267,
+        "py": 1416
+      },
+      "clickT0": 1794658465164,
+      "latLaunchingMs": 126,
+      "issuedMs": 46,
+      "action": "launched",
+      "ok": true,
+      "resultAt": 121,
+      "settleAtMs": 117,
+      "winAppearMs": 1421,
+      "window": {
+        "title": "File Explorer",
+        "cls": "CabinetWClass",
+        "pid": 15972,
+        "hwnd": 8653446
+      },
+      "verdict": {
+        "launching1s": true,
+        "issued1s": true,
+        "windowIn3s": true
+      }
+    },
+    {
+      "seq": 3,
+      "target": "C:\\Windows\\notepad.exe",
+      "startedAt": "2026-11-14T12:14:28.351Z",
+      "strip": {
+        "rect": {
+          "left": 0,
+          "top": 1392,
+          "right": 2560,
+          "bottom": 1440
+        },
+        "screenW": 2560,
+        "dpr": 1,
+        "scale": 1
+      },
+      "geometrySource": "dom",
+      "visibleApps": [
+        "C:\\Program Files\\ZCode\\ZCode.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+        "C:\\Program Files\\Kimi Code\\Kimi Code.exe",
+        "C:\\Windows\\explorer.exe",
+        "E:\\Obsidian\\Obsidian.exe",
+        "D:\\Program\\QQMusic\\QQMusic2276.11.20.00\\QQMusic.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+      ],
+      "clickPoint": {
+        "px": 1381,
+        "py": 1416
+      },
+      "clickT0": 1794658468579,
+      "latLaunchingMs": 38,
+      "issuedMs": 4,
+      "action": "launched",
+      "ok": true,
+      "resultAt": 38,
+      "settleAtMs": 235,
+      "winAppearMs": 860,
+      "window": {
+        "title": "记事本",
+        "cls": "Notepad",
+        "pid": 37852,
+        "hwnd": 7409656
+      },
+      "verdict": {
+        "launching1s": true,
+        "issued1s": true,
+        "windowIn3s": true
+      }
+    }
+  ],
+  "windProbe": {
+    "at": "2026-11-14T12:14:31.001Z",
+    "victim": {
+      "hwnd": 7409656,
+      "img": "notepad"
+    },
+    "minimized": false,
+    "minimizedAfterMs": 2630,
+    "panelStateAfter": "visible",
+    "coverEvents": [],
+    "victimRestored": true,
+    "restoreAfterMs": 2107,
+    "shellShowDesktopWorks": false
+  },
+  "cpuLong": null,
+  "env": {
+    "pre": {
+      "tag": "pre",
+      "at": "2026-11-14T12:14:07.505Z",
+      "progmanPresent": true,
+      "workerWCount": 22,
+      "nativeTaskbarVisible": true,
+      "desktopIconsVisible": true,
+      "explorerFileWindows": [],
+      "electronWindows": [],
+      "topVisibleWindows": 22,
+      "cpuTotalPct": 18,
+      "topConsumers": "System=124%;ZCode#4=49%;WmiPrvSE#2=19%;ZCode#2=14%;dwm=14%;msedge#2=9%"
+    },
+    "post": {
+      "tag": "post",
+      "at": "2026-11-14T12:14:44.909Z",
+      "progmanPresent": true,
+      "workerWCount": 22,
+      "nativeTaskbarVisible": true,
+      "desktopIconsVisible": true,
+      "explorerFileWindows": [],
+      "electronWindows": [],
+      "topVisibleWindows": 22,
+      "cpuTotalPct": 12,
+      "topConsumers": "ZCode#4=30%;WmiPrvSE#2=15%;ZCode#2=15%;msedge#2=10%;dwm=10%;wallpaper64=5%"
+    }
+  },
+  "layoutPin": {
+    "modified": true,
+    "originalSha": "abe507848bc70210cda0734e5d7db450b06b0d49a36c6db70b6e5bcf5bf70e9e",
+    "modifiedSha": "d6f6615b3182adb2c53f6bad798df571aa63219bc6c29b72a8f1bec6d3d3c5aa",
+    "backup": "D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r2\\taskbar-layout.backup.json",
+    "layoutFile": "C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\\taskbar-layout.json",
+    "restoredSha": "abe507848bc70210cda0734e5d7db450b06b0d49a36c6db70b6e5bcf5bf70e9e",
+    "restoreVerified": true
+  },
+  "restore": {
+    "panelWindow": true,
+    "stripWindow": true,
+    "nativeTaskbarVisible": false,
+    "at": "2026-11-14T12:14:55.118Z",
+    "pid": 29368
+  },
+  "notes": [],
+  "userBaselineWindows": [],
+  "clickCleanup": [
+    {
+      "hwnd": 5179798,
+      "pid": 17640,
+      "img": "explorer",
+      "title": "File Explorer",
+      "closed": true
+    },
+    {
+      "hwnd": 8653446,
+      "pid": 15972,
+      "img": "explorer",
+      "title": "File Explorer",
+      "closed": true
+    },
+    {
+      "hwnd": 7409656,
+      "pid": 37852,
+      "img": "notepad",
+      "title": "记事本",
+      "closed": true,
+      "forced": false
+    }
+  ],
+  "finishedAt": "2026-11-14T12:14:55.118Z"
+}

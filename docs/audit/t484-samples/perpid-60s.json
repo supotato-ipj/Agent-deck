@@ -1,0 +1,101 @@
+{
+  "rootPid": 13688,
+  "wallMs": 61474,
+  "cores": 16,
+  "durationMs": 60000,
+  "rows": [
+    {
+      "pid": 31808,
+      "cpuMs": 7921.9,
+      "pctOfMachine": 0.805
+    },
+    {
+      "pid": 13688,
+      "cpuMs": 4312.5,
+      "pctOfMachine": 0.438
+    },
+    {
+      "pid": 21040,
+      "cpuMs": 609.4,
+      "pctOfMachine": 0.062
+    },
+    {
+      "pid": 10952,
+      "cpuMs": 140.6,
+      "pctOfMachine": 0.014
+    },
+    {
+      "pid": 36484,
+      "cpuMs": 31.3,
+      "pctOfMachine": 0.003
+    },
+    {
+      "pid": 37116,
+      "cpuMs": 0,
+      "pctOfMachine": 0
+    },
+    {
+      "pid": 26240,
+      "cpuMs": 0,
+      "pctOfMachine": 0
+    },
+    {
+      "pid": 30256,
+      "cpuMs": 0,
+      "pctOfMachine": 0
+    },
+    {
+      "pid": 33480,
+      "cpuMs": 0,
+      "pctOfMachine": 0
+    },
+    {
+      "pid": 37304,
+      "cpuMs": 0,
+      "pctOfMachine": 0
+    }
+  ],
+  "kinds": {
+    "10952": {
+      "kind": "gpu",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\" --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAA"
+    },
+    "13688": {
+      "kind": "main",
+      "cmdline": "D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app --panel"
+    },
+    "21040": {
+      "kind": "renderer",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=renderer --user-data-dir=\"C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\" --standard-schemes=deck-plugin,deck-pkg --secure"
+    },
+    "26240": {
+      "kind": "unknown",
+      "cmdline": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+    },
+    "30256": {
+      "kind": "renderer",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=renderer --user-data-dir=\"C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\" --standard-schemes=deck-plugin,deck-pkg --secure"
+    },
+    "31808": {
+      "kind": "utility",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=utility --utility-sub-type=node.mojom.NodeService --lang=en-US --service-sandbox-type=none --user-data-dir=\"C:\\Users\\An W\\"
+    },
+    "33480": {
+      "kind": "utility",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --user-data-dir=\"C:\\Users"
+    },
+    "36484": {
+      "kind": "renderer",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=renderer --user-data-dir=\"C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\" --standard-schemes=deck-plugin,deck-pkg --secure"
+    },
+    "37116": {
+      "kind": "unknown",
+      "cmdline": "D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\resources\\gsmtc-bridge\\bridge.exe"
+    },
+    "37304": {
+      "kind": "utility",
+      "cmdline": "\"D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app\\node_modules\\electron\\dist\\electron.exe\" --type=utility --utility-sub-type=proxy_resolver.mojom.ProxyResolverFactory --lang=en-US --service-sandbox-type=service --user-da"
+    }
+  },
+  "measuredAt": "2026-11-14T12:17:41.072Z"
+}

@@ -1,0 +1,446 @@
+{
+  "startedAt": "2026-11-14T11:51:20.513Z",
+  "appDir": "D:\\test-folder\\wallpaperengine-research--feat484-slo-final-audit\\app",
+  "integrationTip": "a1fb6e0",
+  "cpuMs": 720000,
+  "rounds": [
+    {
+      "round": 1,
+      "pid": 33996,
+      "spawnT0": 1794657088385,
+      "firstEventWallMs": 3388,
+      "windowPanelMs": 4774,
+      "windowStripMs": 4778,
+      "panelVisibleWallMs": 4643,
+      "taskbarReadyWallMs": 4419,
+      "phases": [
+        {
+          "phase": "config-loaded",
+          "elapsedMs": 12,
+          "wallMs": 3290
+        },
+        {
+          "phase": "kernel-started",
+          "elapsedMs": 530,
+          "wallMs": 3807
+        },
+        {
+          "phase": "window-wired",
+          "elapsedMs": 729,
+          "wallMs": 4006
+        },
+        {
+          "phase": "panel-visible",
+          "elapsedMs": 1366,
+          "wallMs": 4643
+        },
+        {
+          "phase": "autostart-applied",
+          "elapsedMs": 1448,
+          "wallMs": 4725
+        }
+      ],
+      "allPhases": {
+        "config-loaded": 12,
+        "kernel-started": 530,
+        "window-wired": 729,
+        "panel-visible": 1366,
+        "autostart-applied": 1448
+      },
+      "cmdToPanelVisibleWallMs": 4643,
+      "cmdToTaskbarReadyWallMs": 4419,
+      "eventsFile": "D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r1\\round-1\\events.jsonl",
+      "within60s": true
+    },
+    {
+      "round": 2,
+      "pid": 27760,
+      "spawnT0": 1794657173699,
+      "firstEventWallMs": 774,
+      "windowPanelMs": 1854,
+      "windowStripMs": 1865,
+      "panelVisibleWallMs": 1848,
+      "taskbarReadyWallMs": 1459,
+      "phases": [
+        {
+          "phase": "config-loaded",
+          "elapsedMs": 7,
+          "wallMs": 728
+        },
+        {
+          "phase": "kernel-started",
+          "elapsedMs": 212,
+          "wallMs": 933
+        },
+        {
+          "phase": "window-wired",
+          "elapsedMs": 409,
+          "wallMs": 1130
+        },
+        {
+          "phase": "panel-visible",
+          "elapsedMs": 1127,
+          "wallMs": 1848
+        }
+      ],
+      "allPhases": {
+        "config-loaded": 7,
+        "kernel-started": 212,
+        "window-wired": 409,
+        "panel-visible": 1127
+      },
+      "cmdToPanelVisibleWallMs": 1848,
+      "cmdToTaskbarReadyWallMs": 1459,
+      "eventsFile": "D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r1\\round-2\\events.jsonl",
+      "within60s": true
+    },
+    {
+      "round": 3,
+      "pid": 17352,
+      "spawnT0": 1794657182000,
+      "firstEventWallMs": 781,
+      "windowPanelMs": 1818,
+      "windowStripMs": 1824,
+      "panelVisibleWallMs": 1779,
+      "taskbarReadyWallMs": 1533,
+      "phases": [
+        {
+          "phase": "config-loaded",
+          "elapsedMs": 8,
+          "wallMs": 670
+        },
+        {
+          "phase": "kernel-started",
+          "elapsedMs": 230,
+          "wallMs": 892
+        },
+        {
+          "phase": "window-wired",
+          "elapsedMs": 422,
+          "wallMs": 1084
+        },
+        {
+          "phase": "panel-visible",
+          "elapsedMs": 1117,
+          "wallMs": 1779
+        }
+      ],
+      "allPhases": {
+        "config-loaded": 8,
+        "kernel-started": 230,
+        "window-wired": 422,
+        "panel-visible": 1117
+      },
+      "cmdToPanelVisibleWallMs": 1779,
+      "cmdToTaskbarReadyWallMs": 1533,
+      "eventsFile": "D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r1\\round-3\\events.jsonl",
+      "within60s": true
+    }
+  ],
+  "clicks": [
+    {
+      "seq": 1,
+      "target": "C:\\Windows\\explorer.exe",
+      "startedAt": "2026-11-14T11:51:38.165Z",
+      "strip": {
+        "rect": {
+          "left": 0,
+          "top": 1392,
+          "right": 2560,
+          "bottom": 1440
+        },
+        "screenW": 2560,
+        "dpr": 1,
+        "scale": 1
+      },
+      "geometrySource": "dom",
+      "visibleApps": [
+        "C:\\Program Files\\ZCode\\ZCode.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+        "C:\\Program Files\\Kimi Code\\Kimi Code.exe",
+        "C:\\Windows\\explorer.exe",
+        "E:\\Obsidian\\Obsidian.exe",
+        "D:\\Program\\QQMusic\\QQMusic2276.11.20.00\\QQMusic.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+      ],
+      "clickPoint": {
+        "px": 1267,
+        "py": 1416
+      },
+      "clickT0": 1794657098427,
+      "latLaunchingMs": 115,
+      "winAppearMs": 18177,
+      "window": {
+        "title": "This PC - File Explorer",
+        "cls": "CabinetWClass",
+        "pid": 23808,
+        "hwnd": 11144982
+      },
+      "verdict": {
+        "launching1s": true,
+        "issued1s": false,
+        "windowIn3s": false
+      }
+    },
+    {
+      "seq": 2,
+      "target": "C:\\Windows\\explorer.exe",
+      "startedAt": "2026-11-14T11:51:59.841Z",
+      "strip": {
+        "rect": {
+          "left": 0,
+          "top": 1392,
+          "right": 2560,
+          "bottom": 1440
+        },
+        "screenW": 2560,
+        "dpr": 1,
+        "scale": 1
+      },
+      "geometrySource": "dom",
+      "visibleApps": [
+        "C:\\Program Files\\ZCode\\ZCode.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+        "C:\\Program Files\\Kimi Code\\Kimi Code.exe",
+        "C:\\Windows\\explorer.exe",
+        "E:\\Obsidian\\Obsidian.exe",
+        "D:\\Program\\QQMusic\\QQMusic2276.11.20.00\\QQMusic.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+      ],
+      "clickPoint": {
+        "px": 1267,
+        "py": 1416
+      },
+      "clickT0": 1794657120073,
+      "latLaunchingMs": 72,
+      "winAppearMs": 18145,
+      "window": {
+        "title": "This PC - File Explorer",
+        "cls": "CabinetWClass",
+        "pid": 23600,
+        "hwnd": 1380804
+      },
+      "verdict": {
+        "launching1s": true,
+        "issued1s": false,
+        "windowIn3s": false
+      }
+    },
+    {
+      "seq": 3,
+      "target": "C:\\Windows\\notepad.exe",
+      "startedAt": "2026-11-14T11:52:19.950Z",
+      "strip": {
+        "rect": {
+          "left": 0,
+          "top": 1392,
+          "right": 2560,
+          "bottom": 1440
+        },
+        "screenW": 2560,
+        "dpr": 1,
+        "scale": 1
+      },
+      "geometrySource": "dom",
+      "visibleApps": [
+        "C:\\Program Files\\ZCode\\ZCode.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Programs\\kimi-desktop\\Kimi.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+        "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+        "C:\\Program Files\\Kimi Code\\Kimi Code.exe",
+        "C:\\Windows\\explorer.exe",
+        "E:\\Obsidian\\Obsidian.exe",
+        "D:\\Program\\QQMusic\\QQMusic2276.11.20.00\\QQMusic.exe",
+        "C:\\Windows\\notepad.exe",
+        "C:\\Windows\\System32\\ApplicationFrameHost.exe"
+      ],
+      "clickPoint": {
+        "px": 1381,
+        "py": 1416
+      },
+      "clickT0": 1794657140182,
+      "latLaunchingMs": 22,
+      "winAppearMs": 18081,
+      "window": {
+        "title": "*无标题 - Notepad",
+        "cls": "Notepad",
+        "pid": 27572,
+        "hwnd": 1573480
+      },
+      "verdict": {
+        "launching1s": true,
+        "issued1s": false,
+        "windowIn3s": false
+      }
+    }
+  ],
+  "windProbe": {
+    "at": "2026-11-14T11:52:39.782Z",
+    "victim": {
+      "hwnd": 1573480,
+      "img": "notepad"
+    },
+    "minimized": false,
+    "minimizedAfterMs": 2649,
+    "panelStateAfter": "visible",
+    "coverEvents": [],
+    "victimRestored": true,
+    "restoreAfterMs": 2118,
+    "shellShowDesktopWorks": false
+  },
+  "cpuLong": {
+    "sample": {
+      "label": "t484-idle-long",
+      "rootPid": 17352,
+      "coreCount": 16,
+      "settleMs": 30000,
+      "durationMs": 720000,
+      "wallMs": 721544,
+      "cpuMsDelta": 144437.5,
+      "percentOfMachine": 1.251,
+      "treeAtStart": [
+        2388,
+        3252,
+        4392,
+        5272,
+        9492,
+        14584,
+        17352,
+        18904,
+        27624,
+        37744
+      ],
+      "treeAtEnd": [
+        2388,
+        3252,
+        4392,
+        5272,
+        9492,
+        14584,
+        17352,
+        18904,
+        27624,
+        37744
+      ],
+      "churnedPids": [],
+      "measuredAt": "2026-11-14T12:05:45.579Z"
+    },
+    "stdoutTail": "[sample] label=t484-idle-long tree=10 pids 整机CPU=1.251% （Δcpu=144437.5ms / 721544ms × 16 核）churn=0 | [sample] 已写 D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r1\\cpu-long.json | "
+  },
+  "env": {
+    "pre": {
+      "tag": "pre",
+      "at": "2026-11-14T11:51:20.625Z",
+      "progmanPresent": true,
+      "workerWCount": 22,
+      "nativeTaskbarVisible": true,
+      "desktopIconsVisible": true,
+      "explorerFileWindows": [],
+      "electronWindows": [],
+      "topVisibleWindows": 22,
+      "cpuTotalPct": 7,
+      "topConsumers": "svchost#26=98%;ZCode#4=41%;dwm=20%;ZCode#2=20%;System=15%;WmiPrvSE#2=15%"
+    },
+    "cpu-pre": {
+      "tag": "cpu-pre",
+      "at": "2026-11-14T11:53:06.844Z",
+      "progmanPresent": true,
+      "workerWCount": 22,
+      "nativeTaskbarVisible": false,
+      "desktopIconsVisible": true,
+      "explorerFileWindows": [],
+      "electronWindows": [
+        {
+          "title": "",
+          "pid": 17352
+        },
+        {
+          "title": "DECK-TASKBAR",
+          "pid": 17352
+        },
+        {
+          "title": "DECK-SESSION-PREVIEW",
+          "pid": 17352
+        },
+        {
+          "title": "AGENT DECK",
+          "pid": 17352
+        }
+      ],
+      "topVisibleWindows": 25,
+      "cpuTotalPct": 14,
+      "topConsumers": "ZCode#4=45%;electron#6=35%;nvcontainer#3=35%;WmiPrvSE#2=15%;svchost#18=10%;electron#3=10%"
+    },
+    "cpu-post": {
+      "tag": "cpu-post",
+      "at": "2026-11-14T12:05:45.609Z",
+      "progmanPresent": true,
+      "workerWCount": 22,
+      "nativeTaskbarVisible": false,
+      "desktopIconsVisible": true,
+      "explorerFileWindows": [],
+      "electronWindows": [
+        {
+          "title": "DECK-TASKBAR",
+          "pid": 17352
+        },
+        {
+          "title": "DECK-SESSION-PREVIEW",
+          "pid": 17352
+        },
+        {
+          "title": "AGENT DECK",
+          "pid": 17352
+        }
+      ],
+      "topVisibleWindows": 24,
+      "cpuTotalPct": 8,
+      "topConsumers": "ZCode#4=35%;svchost#40=25%;msedge#19=20%;WmiPrvSE#2=15%;electron#6=10%;dwm=10%"
+    }
+  },
+  "layoutPin": {
+    "modified": true,
+    "originalSha": "abe507848bc70210cda0734e5d7db450b06b0d49a36c6db70b6e5bcf5bf70e9e",
+    "modifiedSha": "d6f6615b3182adb2c53f6bad798df571aa63219bc6c29b72a8f1bec6d3d3c5aa",
+    "backup": "D:\\test-folder\\spec472-notes\\rounds\\t484\\evidence-r1\\taskbar-layout.backup.json",
+    "layoutFile": "C:\\Users\\An W\\AppData\\Roaming\\agent-deck-panel\\taskbar-layout.json"
+  },
+  "restore": null,
+  "notes": [
+    "编排异常终止：TypeError [ERR_INVALID_ARG_TYPE]: The \"src\" argument must be of type string or an instance of Buffer or URL. Received undefined\n    at Object.copyFileSync (node:fs:3106:5)\n    at restoreLayout (file:///D:/test-folder/spec472-notes/rounds/t484/t484-orchestrator.mjs:458:6)\n    at main (file:///D:/test-folder/spec472-notes/rounds/t484/t484-orchestrator.mjs:566:3)"
+  ],
+  "userBaselineWindows": [],
+  "clickCleanup": [
+    {
+      "hwnd": 11144982,
+      "pid": 23808,
+      "img": "explorer",
+      "title": "This PC - File Explorer",
+      "closed": true
+    },
+    {
+      "hwnd": 1380804,
+      "pid": 23600,
+      "img": "explorer",
+      "title": "This PC - File Explorer",
+      "closed": true
+    },
+    {
+      "hwnd": 1573480,
+      "pid": 27572,
+      "img": "notepad",
+      "title": "*无标题 - Notepad",
+      "closed": true,
+      "forced": false
+    }
+  ]
+}
