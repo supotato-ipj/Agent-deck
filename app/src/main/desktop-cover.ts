@@ -90,7 +90,7 @@ export class DesktopCoverWatcher {
     } catch { /* 泵不可用：兜底拍接管 */ }
     this.pump = pump
     this.offPump = pump
-      ? pump.subscribe(({ osEventAtMs }) => this.scan('win-event', osEventAtMs))
+      ? pump.subscribe((flush) => this.scan('win-event', flush.osAgeMs))
       : null
     // 面板自身显隐/最小化（Electron 事件）：遮罩快照的 panelVisible/panelMinimized 分量
     panelWin.on('show', this.onPanelState)
@@ -107,8 +107,8 @@ export class DesktopCoverWatcher {
     return this.elevated
   }
 
-  /** 一拍侦察+裁决+动作：事件径携带 OS 事件时刻（捕获时延度量），兜底/面板径无基点 */
-  private scan(source: CoverScanSource, osEventAtMs: number | null): void {
+  /** 一拍侦察+裁决+动作：事件径携带捕获时延（泵冲刷时的 OS 事件→裁决毫秒差），兜底/面板径无基点 */
+  private scan(source: CoverScanSource, osAgeMs: number | null): void {
     if (this.disposed || this.panelWin.isDestroyed()) return
     const w = this.w32
     if (!w) return
@@ -130,21 +130,16 @@ export class DesktopCoverWatcher {
     if (action === 'engage') {
       this.elevated = true
       if (panelLabels.run('cover-engage', () => w.setTopmost(hwnd, true))) {
-        this.log?.append({ type: 'cover-engaged', trigger: source, osEventAgeMs: this.ageOf(osEventAtMs) })
+        this.log?.append({ type: 'cover-engaged', trigger: source, osEventAgeMs: osAgeMs })
       }
     } else if (action === 'release') {
       this.elevated = false
       const off = panelLabels.run('cover-release', () => w.setTopmost(hwnd, false))
       const pinned = w.pinToBottom(this.panelWin)
       if (off || pinned) {
-        this.log?.append({ type: 'cover-released', pinned, trigger: source, osEventAgeMs: this.ageOf(osEventAtMs) })
+        this.log?.append({ type: 'cover-released', pinned, trigger: source, osEventAgeMs: osAgeMs })
       }
     }
-  }
-
-  /** OS 事件时刻→本方裁决的毫秒差（捕获时延；非事件径无基点=null） */
-  private ageOf(osEventAtMs: number | null): number | null {
-    return osEventAtMs === null ? null : Math.max(0, Date.now() - osEventAtMs)
   }
 
   dispose(): void {

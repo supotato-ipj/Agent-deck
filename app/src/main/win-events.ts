@@ -31,16 +31,20 @@ const WINEVENT_SKIPOWNPROCESS = 0x0002
  * （风暴期最坏再评估频率=旧 250ms 轮询同量级，静默期零成本） */
 const FLUSH_CFG = { quietMs: 60, minIntervalMs: 250 }
 
-/** 防抖冲刷供给消费者的信息：osEventAtMs = 本批最早事件的 OS 侧时刻（GetTickCount 口径，
- * 捕获时延「OS 事件→本方裁决」的度量基点） */
+/** 防抖冲刷供给消费者的信息：osEventAtMs = 本批最早事件的 OS 侧时刻（GetTickCount 口径），
+ * osAgeMs = 冲刷时刻−事件时刻的无符号差分（捕获时延「OS 事件→本方裁决」毫秒数；
+ * 非 Windows 时钟对不上——两者同为 GetTickCount 口径，>>>0 差分天然免疫 49.7 天回绕） */
 export interface WindowEventFlush {
   osEventAtMs: number | null
+  osAgeMs: number | null
 }
 export type WindowEventConsumer = (flush: WindowEventFlush) => void
 
 interface Bound {
   setWinEventHook: (...args: unknown[]) => unknown
   unhookWinEvent: (...args: unknown[]) => unknown
+  /** GetTickCount（开机毫秒，uint32）——dwmsEventTime 同一口径的时钟，时延差分的基点 */
+  getTickCount: () => number
 }
 
 let bound: Bound | null = null
@@ -52,6 +56,7 @@ let trampoline: unknown = null
 function bind(): Bound {
   if (bound) return bound
   const user32 = koffi.load('user32.dll')
+  const kernel32 = koffi.load('kernel32.dll')
   try {
     // C 签名字符串形声明（koffi.register 的 type spec 用「名 *」指针形态引用它）；
     // 重入（teardown 后再订阅）同名单登会抛 Duplicate——已声明即放行
@@ -60,6 +65,7 @@ function bind(): Bound {
   bound = {
     setWinEventHook: user32.func('void * __stdcall SetWinEventHook(uint32 eventMin, uint32 eventMax, void *hmodWinEventProc, void *pfnWinEventProc, uint32 idProcess, uint32 idThread, uint32 dwFlags)'),
     unhookWinEvent: user32.func('bool __stdcall UnhookWinEvent(void *hWinEventHook)'),
+    getTickCount: kernel32.func('uint32 __stdcall GetTickCount()'),
   }
   return bound
 }
@@ -137,9 +143,15 @@ export class WindowEventPump {
     if (plan.fire) {
       const osAt = this.oldestOsEventAtMs
       this.oldestOsEventAtMs = null
+      // OS→本方裁决时延：冲刷时刻与事件时刻同取 GetTickCount 口径（>>>0 无符号差分，
+      // 单次 49.7 天回绕安全）；tick 不可读（极端）按 null 降级——只亏一条时延字段。
+      let osAgeMs: number | null = null
+      try {
+        if (osAt !== null) osAgeMs = ((Number(bound!.getTickCount()) - osAt) >>> 0)
+      } catch { /* 时延度量是附加证据，不做硬依赖 */ }
       for (const consumer of this.consumers) {
         try {
-          consumer({ osEventAtMs: osAt })
+          consumer({ osEventAtMs: osAt, osAgeMs })
         } catch {
           // 消费者异常不拖垮泵与其他消费者（守望/三态互不连坐）
         }
